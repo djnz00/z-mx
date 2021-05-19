@@ -809,7 +809,11 @@ public:
 // reset without freeing
 
   void clear() {
-    if (length()) length(0);
+    if (!owned()) { null(); return; }
+    if constexpr (!ZuTraits<T>::IsPrimitive)
+      if (unsigned n = this->length())
+	this->destroyItems(m_data, n);
+    length_(0);
   }
 
 // set length

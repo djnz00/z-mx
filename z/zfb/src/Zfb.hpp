@@ -215,16 +215,16 @@ namespace Save {
   // bitmap
   template <typename B>
   inline auto bitmap(B &b, const ZmBitmap &m) {
-    thread_local std::vector<uint64_t> v;
+    thread_local ZtArray<uint64_t> v;
     v.clear();
     int n = m.last();
     if (n > 0) {
       n = (n>>6) + 1;
-      v.reserve(n);
+      v.size(n);
       for (unsigned i = 0; i < static_cast<unsigned>(n); i++)
-	v.push_back(hwloc_bitmap_to_ith_ulong(m, i));
+	v.push(hwloc_bitmap_to_ith_ulong(m, i));
     }
-    return b.CreateVector(v);
+    return b.CreateVector(v.data(), v.length());
   }
 
   // date/time

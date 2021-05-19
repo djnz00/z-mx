@@ -740,7 +740,10 @@ public:
 // reset without freeing
 
   void clear() {
-    if (!null__()) length(0);
+    if (!null__()) {
+      if (!owned()) { null(); return; }
+      length_(0);
+    }
   }
 
 // set length

@@ -585,7 +585,7 @@ namespace GtkTree {
     static ZuIfT<
       !ZuConversion<T, HashTbl>::Same &&
       !ZuConversion<T, Queue>::Same,
-      KeyPrint<Key> > keyPrintType();
+      KeyPrint<Key>> keyPrintType();
     // override addr for hash tables
     template <typename Key>
     struct HashTblKeyPrint : public KeyPrint_<HashTblKeyPrint<Key>, Key> {
@@ -594,7 +594,7 @@ namespace GtkTree {
     };
     template <typename T, typename Key>
     static ZuIfT<
-      ZuConversion<T, HashTbl>::Same, HashTblKeyPrint<Key> >
+      ZuConversion<T, HashTbl>::Same, HashTblKeyPrint<Key>>
     keyPrintType();
     // override type for queues
     template <typename Key>
@@ -606,7 +606,7 @@ namespace GtkTree {
     };
     template <typename T, typename Key>
     static ZuIfT<
-      ZuConversion<T, Queue>::Same, QueueKeyPrint<Key> >
+      ZuConversion<T, Queue>::Same, QueueKeyPrint<Key>>
     keyPrintType();
 
     gint get_n_columns() { return NCols; }
