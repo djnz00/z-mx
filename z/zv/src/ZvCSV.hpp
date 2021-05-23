@@ -77,10 +77,10 @@ namespace ZvCSV_ {
   void quote(
       Row &row, const Field *field, const T *object, const Fmt &fmt) {
     switch ((int)field->type) {
-      case ZvField::Type::String:
-      case ZvField::Type::Composite:
-      case ZvField::Type::Enum:
-      case ZvField::Type::Flags: {
+      case ZvFieldType::String:
+      case ZvFieldType::Composite:
+      case ZvFieldType::Enum:
+      case ZvFieldType::Flags: {
 	ZtString s_;
 	ZmStream s{s_};
 	field->print(object, s, fmt);
@@ -140,7 +140,7 @@ public:
       m_columns.add(m_fields[i].id, &m_fields[i]);
   }
 
-  struct FieldFmt : public ZvField::Fmt {
+  struct FieldFmt : public ZvFieldFmt {
     FieldFmt() { new (time.init_csv()) ZtDateFmt::CSV{}; }
   };
   FieldFmt &fmt() {
@@ -180,7 +180,7 @@ private:
 
   void scan(
       const ColIndex &colIndex, ZuString row,
-      const ZvField::Fmt &fmt, T *object) const {
+      const ZvFieldFmt &fmt, T *object) const {
     ZtArray<ZtArray<char>> a;
     ZvCSV_::split(row, a);
     unsigned n = a.length();

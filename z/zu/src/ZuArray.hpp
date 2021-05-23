@@ -386,11 +386,11 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
   static unsigned length(const T &a) { return a.length(); }
 };
 
-template <> struct ZuPrint<ZuArray<char> > : public ZuPrintString { };
-template <> struct ZuPrint<ZuArray<const char> > : public ZuPrintString { };
-template <> struct ZuPrint<ZuArray<volatile char> > : public ZuPrintString { };
+template <> struct ZuPrint<ZuArray<char>> : public ZuPrintString { };
+template <> struct ZuPrint<ZuArray<const char>> : public ZuPrintString { };
+template <> struct ZuPrint<ZuArray<volatile char>> : public ZuPrintString { };
 template <>
-struct ZuPrint<ZuArray<const volatile char> > : public ZuPrintString { };
+struct ZuPrint<ZuArray<const volatile char>> : public ZuPrintString { };
 
 template <typename T>
 using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;

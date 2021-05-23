@@ -249,8 +249,7 @@ template <typename AppTypes> struct MxTAppTypes {
       s << "eventType=" << MxTEventType::name(eventType)
 	<< " eventState=" << MxTEventState::name(eventState)
 	<< " eventLeg=" << eventLeg
-	<< " eventFlags=";
-      MxTEventFlags::Map::instance()->print(s, eventFlags);
+	<< " eventFlags=" << MxTEventFlags::Map::print(eventFlags);
     }
   };
 #pragma pack(pop)

@@ -46,18 +46,20 @@
 typedef ZuBox<int64_t> ZuFixedVal; // fixed point value (mantissa numerator)
 typedef ZuBox<uint8_t> ZuFixedExp; // exponent, i.e. number of decimal places
 
-#define ZuFixedMin (ZuDecVal{static_cast<int64_t>(-999999999999999999LL)})
-#define ZuFixedMax (ZuDecVal{static_cast<int64_t>(999999999999999999LL)})
+#define ZuFixedMin (ZuFixedVal{static_cast<int64_t>(-999999999999999999LL)})
+#define ZuFixedMax (ZuFixedVal{static_cast<int64_t>(999999999999999999LL)})
 // ZuFixedReset is the distinct sentinel value used to reset values to null
-#define ZuFixedReset (ZuDecVal{static_cast<int64_t>(-1000000000000000000LL)})
+#define ZuFixedReset (ZuFixedVal{static_cast<int64_t>(-1000000000000000000LL)})
+// ZuFixedNull is the null sentinel value
+#define ZuFixedNull (ZuFixedVal{static_cast<int64_t>(-0x8000000000000000LL)})
 
 // combination of value and exponent, used in transit for conversions, I/O,
 // constructors, scanning:
 //   ZuFixed(<integer>, exponent)		// {1042, 2} -> 10.42
 //   ZuFixed(<floating point>, exponent)	// {10.42, 2} -> 10.42
 //   ZuFixed(<string>, exponent)		// {"10.42", 2} -> 10.42
-//   ZuFixedVal x = ZuFixed{"42.42", 2}.value	// x == 4242
-//   ZuFixed xn{x, 2}; xn *= ZuFixed{2000, 3}; x = xn.value // x == 8484
+//   int64_t x = ZuFixed{"42.42", 2}.mantissa()	// x == 4242
+//   ZuFixed xn{x, 2}; xn *= ZuFixed{2000, 3}; x = xn.mantissa() // x == 8484
 // printing:
 //   s << ZuFixed{...}			// print (default)
 //   s << ZuFixed{...}.fmt(ZuFmt...)	// print (compile-time formatted)
@@ -69,137 +71,101 @@ typedef ZuBox<uint8_t> ZuFixedExp; // exponent, i.e. number of decimal places
 template <typename Fmt> struct ZuFixed_Fmt;	// internal
 class ZuFixed_VFmt;				// internal
 
-struct ZuFixed {
-  ZuFixedVal	value;	// mantissa
-  unsigned	exponent = 0;
+class ZuFixed {
+  static constexpr int64_t null_() {
+    return ZuCmp_IntNull<int64_t, 8, 1>::null();
+  }
 
+public:
   ZuFixed() = default;
 
-  template <typename V>
-  ZuFixed(V value_, unsigned exponent_,
-      ZuIsIntegral<V> *_ = 0) :
-    value{value_}, exponent{exponent_} { }
+  template <typename M>
+  ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = 0) :
+      m_mantissa{m}, m_exponent{e} { }
 
   template <typename V>
-  ZuFixed(V value_, unsigned exponent_,
-      ZuIsFloatingPoint<V> *_ = 0) :
-    value{static_cast<double>(value_) * ZuDecimalFn::pow10_64(exponent_)},
-    exponent{exponent_} { }
+  ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = 0) :
+    m_mantissa{static_cast<double>(v) * ZuDecimalFn::pow10_64(e)},
+    m_exponent{e} { }
 
   // multiply: exponent of result is taken from the LHS
   // a 128bit integer intermediary is used to avoid overflow
   ZuFixed operator *(const ZuFixed &v) const {
-    int128_t i = static_cast<typename ZuFixedVal::T>(value);
-    i *= static_cast<typename ZuFixedVal::T>(v.value);
+    int128_t i = mantissa();
+    i *= v.mantissa();
     i /= ZuDecimalFn::pow10_64(v.exponent);
-    if (ZuUnlikely(i >= 1000000000000000000ULL))
-      return ZuFixed{ZuFixedVal{}, exponent};
-    return ZuFixed{static_cast<int64_t>(i), exponent};
+    if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
+    return ZuFixed{static_cast<int64_t>(i), exponent()};
   }
 
   // divide: exponent of result is taken from the LHS
   // a 128bit integer intermediary is used to avoid overflow
   ZuFixed operator /(const ZuFixed &v) const {
-    int128_t i = static_cast<typename ZuFixedVal::T>(value);
-    i *= ZuDecimalFn::pow10_64(v.exponent);
-    i /= static_cast<typename ZuFixedVal::T>(v.value);
-    if (ZuUnlikely(i >= 1000000000000000000ULL))
-      return ZuFixed{ZuFixedVal(), exponent};
-    return ZuFixed{static_cast<int64_t>(i), exponent};
+    int128_t i = mantissa();
+    i *= ZuDecimalFn::pow10_64(exponent());
+    i /= v.mantissa();
+    if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
+    return ZuFixed{static_cast<int64_t>(i), exponent()};
   }
 
-  // scan from string
-  template <typename S>
-  ZuFixed(const S &s_, int exponent_ = -1,
-      ZuIsString<S> *_ = 0) {
-    ZuString s(s_);
-    if (ZuUnlikely(!s || exponent_ > 18)) goto null;
-    {
-      bool negative = s[0] == '-';
-      if (ZuUnlikely(negative)) {
-	s.offset(1);
-	if (ZuUnlikely(!s)) goto null;
-      }
-      while (s[0] == '0') s.offset(1);
-      if (!s) { value = 0; return; }
-      uint64_t iv = 0, fv = 0;
-      unsigned n = s.length();
-      if (ZuUnlikely(s[0] == '.')) {
-	if (ZuUnlikely(n == 1)) { value = 0; return; }
-	if (exponent_ < 0) exponent_ = n - 1;
-	goto frac;
-      }
-      n = Zu_atou(iv, s.data(), n);
-      if (ZuUnlikely(!n)) goto null;
-      if (ZuUnlikely(n > (18 - (exponent_ < 0 ? 0 : exponent_))))
-	goto null; // overflow
-      s.offset(n);
-      if (exponent_ < 0) exponent_ = 18 - n;
-      if ((n = s.length()) > 1 && s[0] == '.') {
-  frac:
-	if (--n > exponent_) n = exponent_;
-	n = Zu_atou(fv, &s[1], n);
-	if (fv && exponent_ > n)
-	  fv *= ZuDecimalFn::pow10_64(exponent_ - n);
-      }
-      value = iv * ZuDecimalFn::pow10_64(exponent_) + fv;
-      if (ZuUnlikely(negative)) value = -value;
-    }
-    exponent = exponent_;
-    return;
-  null:
-    value = ZuFixedVal();
-    return;
-  }
+  void init(int64_t m, unsigned e) { m_mantissa = m; m_exponent = e; }
+
+  void null() { m_mantissa = ZuFixedNull; m_exponent = 0; }
+
+  int64_t mantissa() const { return m_mantissa; }
+  void mantissa(int64_t v) { m_mantissa = m; }
+
+  unsigned exponent() const { return m_exponent; }
+  void exponent(unsigned e) { m_exponent = e; }
 
   // convert to floating point
   template <typename Float = ZuBox<double>>
   Float fp() const {
-    if (ZuUnlikely(!*value)) return Float{};
-    return Float{value} / Float{ZuDecimalFn::pow10_64(exponent)};
+    if (ZuUnlikely(!operator *())) return Float{};
+    return Float{mantissa()} / Float{ZuDecimalFn::pow10_64(exponent())};
   }
 
   // adjust to another exponent
-  ZuFixedVal adjust(unsigned exponent) const {
-    if (ZuLikely(exponent == this->exponent)) return value;
-    if (!*value) return ZuFixedVal{};
-    if (exponent > this->exponent)
-      return value * ZuDecimalFn::pow10_64(exponent - this->exponent);
-    return value / ZuDecimalFn::pow10_64(this->exponent - exponent);
+  ZuFixed adjust(unsigned e) const {
+    if (ZuUnlikely(!operator *())) return {};
+    if (ZuLikely(e == exponent())) return *this;
+    if (e > exponent())
+      return ZuFixed{mantissa() * ZuDecimalFn::pow10_64(e - exponent()), e};
+    return ZuFixed{mantissa() / ZuDecimalFn::pow10_64(exponent() - e), e};
   }
 
   // comparisons
   int cmp(const ZuFixed &v) const {
-    if (ZuLikely(exponent == v.exponent || !*value || !*v.value))
-      return value.cmp(v.value);
-    int128_t i = static_cast<typename ZuFixedVal::T>(value);
-    int128_t j = static_cast<typename ZuFixedVal::T>(v.value);
-    if (exponent < v.exponent)
-      i *= ZuDecimalFn::pow10_64(v.exponent - exponent);
+    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
+      return (m_value > v.m_value) - (m_value < v.m_value);
+    int128_t i = mantissa();
+    int128_t j = v.mantissa();
+    if (exponent() < v.exponent())
+      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
     else
-      j *= ZuDecimalFn::pow10_64(exponent - v.exponent);
+      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
     return (i > j) - (i < j);
   }
   bool less(const ZuFixed &v) const {
-    if (ZuLikely(exponent == v.exponent || !*value || !*v.value))
-      return value < v.value;
-    int128_t i = static_cast<typename ZuFixedVal::T>(value);
-    int128_t j = static_cast<typename ZuFixedVal::T>(v.value);
-    if (exponent < v.exponent)
-      i *= ZuDecimalFn::pow10_64(v.exponent - exponent);
+    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
+      return m_value < v.m_value;
+    int128_t i = mantissa();
+    int128_t j = v.mantissa();
+    if (exponent() < v.exponent())
+      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
     else
-      j *= ZuDecimalFn::pow10_64(exponent - v.exponent);
+      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
     return i < j;
   }
   bool equals(const ZuFixed &v) const {
-    if (ZuLikely(exponent == v.exponent || !*value || !*v.value))
-      return value == v.value;
-    int128_t i = static_cast<typename ZuFixedVal::T>(value);
-    int128_t j = static_cast<typename ZuFixedVal::T>(v.value);
-    if (exponent < v.exponent)
-      i *= ZuDecimalFn::pow10_64(v.exponent - exponent);
+    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
+      return m_value == v.m_value;
+    int128_t i = mantissa();
+    int128_t j = v.mantissa();
+    if (exponent() < v.exponent())
+      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
     else
-      j *= ZuDecimalFn::pow10_64(exponent - v.exponent);
+      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
     return i == j;
   }
   bool operator ==(const ZuFixed &v) const { return equals(v); }
@@ -210,30 +176,91 @@ struct ZuFixed {
   bool operator <=(const ZuFixed &v) const { return !v.less(*this); }
 
   // ! is zero, unary * is !null
-  bool operator !() const { return !value; }
+  bool operator !() const { return !mantissa(); }
   ZuOpBool
 
-  bool operator *() const { return *value; }
+  bool operator *() const { return m_value != null_(); }
 
+  // scan from string
+  template <typename S>
+  ZuFixed(const S &s, ZuIsString<S> *_ = 0) {
+    scan<false>(s, 0);
+  }
+  template <typename S>
+  ZuFixed(const S &s, unsigned e, ZuIsString<S> *_ = 0) {
+    scan<true>(s, e);
+  }
+private:
+  template <bool Exponent>
+  void scan(ZuString s, unsigned e) {
+    ZuString s(s_);
+    if (ZuUnlikely(!s)) goto null;
+    if constexpr (Exponent) if (e > 18) e = 18;
+    {
+      bool negative = s[0] == '-';
+      if (ZuUnlikely(negative)) {
+	s.offset(1);
+	if (ZuUnlikely(!s)) goto null;
+      }
+      while (s[0] == '0') s.offset(1);
+      if (!s) goto zero;
+      uint64_t iv = 0, fv = 0;
+      unsigned n = s.length();
+      if (ZuUnlikely(s[0] == '.')) {
+	if (ZuUnlikely(n == 1)) goto zero;
+	if constexpr (!Exponent) e = n - 1;
+	goto frac;
+      }
+      n = Zu_atou(iv, s.data(), n);
+      if (ZuUnlikely(!n)) goto null;
+      if (ZuUnlikely(n > (18 - e))) goto null; // overflow
+      s.offset(n);
+      if constexpr (!Exponent) e = 18 - n;
+      if ((n = s.length()) > 1 && s[0] == '.') {
+  frac:
+	if (--n > e) n = e;
+	n = Zu_atou(fv, &s[1], n);
+	if (fv && e > n)
+	  fv *= ZuDecimalFn::pow10_64(e - n);
+      }
+      int64_t m = iv * ZuDecimalFn::pow10_64(e) + fv;
+      if (ZuUnlikely(negative)) m = -m;
+      init(m, e);
+    }
+    return;
+  null:
+    null();
+    return;
+  zero:
+    init(0, e);
+    return;
+  }
+
+public:
+  // printing
   template <typename S> void print(S &s) const;
 
   template <typename Fmt> ZuFixed_Fmt<Fmt> fmt(Fmt) const;
   ZuFixed_VFmt vfmt() const;
   template <typename VFmt>
   ZuFixed_VFmt vfmt(VFmt &&) const;
+
+private:
+  int64_t	m_mantissa = ZuFixedNull;
+  uint8_t	m_exponent = 0;
 };
 template <typename Fmt> struct ZuFixed_Fmt {
   const ZuFixed	&fixed;
 
   template <typename S> void print(S &s) const {
-    ZuFixedVal iv = fixed.value;
-    if (ZuUnlikely(!*iv)) return;
+    if (ZuUnlikely(!*fixed)) return;
+    auto iv = fixed.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(fixed.exponent);
+    uint64_t factor = ZuDecimalFn::pow10_64(fixed.exponent());
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).fmt(Fmt());
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(fixed.exponent);
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(fixed.exponent());
   }
 };
 template <typename Fmt>
@@ -256,14 +283,14 @@ public:
     ZuVFmtWrapper<ZuFixed_VFmt>{ZuFwd<VFmt>(fmt)}, m_fixed{fixed} { }
 
   template <typename S> void print(S &s) const {
-    ZuFixedVal iv = m_fixed.value;
-    if (ZuUnlikely(!*iv)) return;
+    if (ZuUnlikely(!*m_fixed)) return;
+    ZuFixedVal iv = m_fixed.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(m_fixed.exponent);
+    uint64_t factor = ZuDecimalFn::pow10_64(m_fixed.exponent());
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).vfmt(this->fmt);
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(m_fixed.exponent);
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(m_fixed.exponent());
   }
 
 private:

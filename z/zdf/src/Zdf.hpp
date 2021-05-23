@@ -115,9 +115,9 @@ public:
   ~AnyReader() = default;
 
   void seek(const Series *s, unsigned flags, uint64_t offset) {
-    if (flags & ZvField::Flags::Delta)
+    if (flags & ZvFieldFlags::Delta)
       init_<DeltaReader>(s, offset);
-    else if (flags & ZvField::Flags::Delta2)
+    else if (flags & ZvFieldFlags::Delta2)
       init_<Delta2Reader>(s, offset);
     else
       init_<AbsReader>(s, offset);
@@ -126,9 +126,9 @@ public:
   // series must be monotonically increasing
 
   void find(const Series *s, unsigned flags, const ZuFixed &value) {
-    if (flags & ZvField::Flags::Delta)
+    if (flags & ZvFieldFlags::Delta)
       find_<DeltaReader>(s, value);
-    else if (flags & ZvField::Flags::Delta2)
+    else if (flags & ZvFieldFlags::Delta2)
       find_<Delta2Reader>(s, value);
     else
       find_<AbsReader>(s, value);
@@ -218,9 +218,9 @@ public:
   ~AnyWriter() = default;
 
   void init(Series *s, unsigned flags) {
-    if (flags & ZvField::Flags::Delta)
+    if (flags & ZvFieldFlags::Delta)
       init_<DeltaWriter>(s);
-    else if (flags & ZvField::Flags::Delta2)
+    else if (flags & ZvFieldFlags::Delta2)
       init_<Delta2Writer>(s);
     else
       init_<AbsWriter>(s);
@@ -259,11 +259,11 @@ private:
 };
 
 template <typename Field>
-struct FieldFilter { enum { OK = (Field::Flags & ZvField::Flags::Series) }; };
+struct FieldFilter { enum { OK = (Field::Flags & ZvFieldFlags::Series) }; };
 
 template <typename T>
 ZvVFieldArray fields() {
-  using Fields = ZuTypeGrep<FieldFilter, ZvField::List<T>>;
+  using Fields = ZuTypeGrep<FieldFilter, ZvFieldList<T>>;
   return ZvVFields_<Fields>();
 }
 
@@ -312,18 +312,20 @@ public:
 	if (i || field) {
 	  unsigned exponent = field->info.exponent;
 	  switch (field->type) {
-	    case ZvField::Type::Int:
-	    case ZvField::Type::Fixed:
-	    case ZvField::Type::Enum:
+	    case ZvFieldType::Int:
+	    case ZvFieldType::Enum:
 	      v = {field->getFn.int_(ptr), exponent};
 	      break;
-	    case ZvField::Type::Float:
+	    case ZvFieldType::Fixed:
+	      v = field->getFn.fixed_(ptr);
+	      break;
+	    case ZvFieldType::Float:
 	      v = {field->getFn.float_(ptr), exponent};
 	      break;
-	    case ZvField::Type::Decimal:
+	    case ZvFieldType::Decimal:
 	      v = {field->getFn.decimal(ptr).adjust(exponent), exponent};
 	      break;
-	    case ZvField::Type::Time:
+	    case ZvFieldType::Time:
 	      v = m_df->nsecs(field->getFn.time(ptr));
 	      break;
 	  }
@@ -354,18 +356,18 @@ friend Writer;
 private:
   void writer_(AnyWriter &w, unsigned i) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvField::Flags::Delta;
+    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
     w.init(m_series[i], flags);
   }
 public:
   void seek(AnyReader &r, unsigned i, uint64_t offset = 0) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvField::Flags::Delta;
+    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
     r.seek(m_series[i], flags, offset);
   }
   void find(AnyReader &r, unsigned i, const ZuFixed &value) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvField::Flags::Delta;
+    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
     r.find(m_series[i], flags, value);
   }
 

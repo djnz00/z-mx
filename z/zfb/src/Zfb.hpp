@@ -352,7 +352,7 @@ namespace Load {
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
   template <typename S> ZtEnum lookup(const S &s) { \
-    return Map::instance()->s2v(s); \
+    return Map::s2v(s); \
   }
 #define ZfbEnum_Type(T) fbs::T
 #define ZfbEnum_Assert(T) \

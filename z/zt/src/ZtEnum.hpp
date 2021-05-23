@@ -63,7 +63,7 @@ using ZtEnum = ZuBox_1(int8_t);
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
   template <typename S> inline ZtEnum lookup(const S &s) { \
-    return Map::instance()->s2v(s); \
+    return Map::s2v(s); \
   }
 #define ZtEnumValues_(...) \
   enum _ { Invalid = -1, __VA_ARGS__, N }; \
@@ -95,15 +95,18 @@ using ZtEnum = ZuBox_1(int8_t);
       va_end(args); \
     } \
     void add(ZuString s, ZtEnum v) { m_s2v->add(s, v); m_v2s->add(v, s); } \
-  public: \
-    Map_() { m_s2v = new S2V(); m_v2s = new V2S(); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \
-    ZtEnum s2v(ZuString s) const { return m_s2v->findVal(s); } \
-    ZuString v2s(ZtEnum v) const { return m_v2s->findVal(v); } \
-    template <typename L> void all(L l) const { \
+    ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
+    ZuString v2s_(ZtEnum v) const { return m_v2s->findVal(v); } \
+    template <typename L> void all_(L l) const { \
       auto i = m_s2v->readIterator(); \
       while (auto kv = i.iterate()) { l(kv->key(), kv->val()); } \
     } \
+  public: \
+    Map_() { m_s2v = new S2V(); m_v2s = new V2S(); } \
+    static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
+    static ZuString v2s(ZtEnum v) { return instance()->v2s_(v); } \
+    template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     ZmRef<S2V>	m_s2v; \
     ZmRef<V2S>	m_v2s; \
@@ -119,11 +122,13 @@ using ZtEnum = ZuBox_1(int8_t);
   }
 
 #define ZtEnumFlags(ID, Map, ...) \
-  struct Map : public Map_<Map> { \
+  class Map : public Map_<Map> { \
+  public: \
     static constexpr const char *id() { return ID; } \
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
+  private: \
     template <typename S, typename Flags_> \
-    unsigned print(S &s, const Flags_ &v, char delim = '|') const { \
+    unsigned print_(S &s, Flags_ v, char delim = '|') const { \
       if (!v) return 0; \
       bool first = true; \
       unsigned n = 0; \
@@ -140,7 +145,7 @@ using ZtEnum = ZuBox_1(int8_t);
       return n; \
     } \
     template <typename Flags_> \
-    Flags_ scan(ZuString s, char delim = '|') const { \
+    Flags_ scan_(ZuString s, char delim) const { \
       if (!s) return 0; \
       Flags_ v = 0; \
       bool end = false; \
@@ -159,6 +164,11 @@ using ZtEnum = ZuBox_1(int8_t);
 	clen = 0; \
       } while (!end); \
       return v; \
+    } \
+  public: \
+    template <typename Flags_> \
+    static Flags_ scan(ZuString s, char delim = '|') { \
+      return instance()->template scan_<Flags_>(s, delim); \
     } \
     template <typename Flags_> \
     struct Print : public ZuPrintable { \

@@ -119,8 +119,8 @@ namespace Telemetry {
   using FBSTypeList = ZuTypeMap<ZvFBS, TypeList>;
 
   template <typename Data> struct Item__ {
-    using TelKey = decltype(ZvField::key(ZuDeclVal<const Data &>()));
-    static TelKey telKey(const Data &data) { return ZvField::key(data); }
+    using TelKey = decltype(ZvFieldKey(ZuDeclVal<const Data &>()));
+    static TelKey telKey(const Data &data) { return ZvFieldKey(data); }
     static int rag(const Data &data) { return data.rag(); }
   };
   template <> struct Item__<ZvTelemetry::App> {

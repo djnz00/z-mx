@@ -14,17 +14,19 @@ namespace Foo {
     const char *j_ = "hello";
     const char *j() const { return j_; }
     void j(const char *s) { j_ = s; }
+    double k = 42.0;
   };
 
-  ZuFields(A, (Data, i), (Fn, j));
+  ZuFields(A, (, i), (Fn, j), (Lambda, k, ([](const A &a) { return a.k; }), ([](A &a, double v) { a.k = v; })));
 
   struct B {
     int i = 42;
     const char *j_ = "hello";
     const char *j() const { return j_; }
+    double k = 42.0;
   };
 
-  ZuFields(B, (RdData, i), (RdFn, j));
+  ZuFields(B, (Rd, i), (RdFn, j), (RdLambda, k, ([](const B &b) { return b.k; })));
 }
 
 int main()
@@ -33,6 +35,7 @@ int main()
   using B = Foo::B;
   A a;
   ZuType<1, ZuFieldList<A>>::set(&a, "bye");
+  ZuType<2, ZuFieldList<A>>::set(&a, 43.0);
   ZuTypeAll<ZuFieldList<A>>::invoke([a = &a]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(a) << '\n';
   });

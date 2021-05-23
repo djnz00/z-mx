@@ -434,7 +434,7 @@ public:
 
   template <typename S> void print(S &s) const {
     using namespace ZiCxnFlags;
-    s << "flags=" << Map::instance()->print(s, m_flags);
+    s << "flags=" << Map::print(m_flags);
     if (m_flags & (1<<Multicast)) {
       s << " mreqs={";
       for (unsigned i = 0; i < m_mreqs.length(); i++) {

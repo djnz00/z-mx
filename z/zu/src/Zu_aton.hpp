@@ -186,12 +186,12 @@ namespace Zu_aton {
 
 template <class Fmt> struct Zu_nscan_ {
   template <bool Constrain, unsigned Width> struct Len_ {
-    ZuInline static constexpr unsigned len(unsigned n) {
+    static constexpr unsigned len(unsigned n) {
       return n > Width ? Width : n;
     }
   };
   template <unsigned Width> struct Len_<0, Width> {
-    ZuInline static constexpr unsigned len(unsigned n) { return n; }
+    static constexpr unsigned len(unsigned n) { return n; }
   };
   using Len = Len_<
     Fmt::Justification_ != ZuFmt::Just::None,
@@ -302,7 +302,7 @@ template <class Fmt> struct Zu_nscan_ {
     }
   }
   template <typename T>
-  ZuInline static unsigned atof(T &v_, const char *buf, unsigned n) {
+  static unsigned atof(T &v_, const char *buf, unsigned n) {
     n = Len::len(n);
     if (ZuUnlikely(!buf || !n)) return 0;
     return atof_(v_, buf, n);

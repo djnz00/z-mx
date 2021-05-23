@@ -42,20 +42,20 @@ struct ZuPrintCannot {
 struct ZuPrintFn {
   enum { OK = 1, String = 0, Delegate = 1, Buffer = 0 };
   template <typename S, typename T>
-  ZuInline static void print(S &s, const T &v) { v.print(s); }
+  static void print(S &s, const T &v) { v.print(s); }
 };
 
 ZuPrintCannot ZuPrintType(...);
 
 template <typename U, bool = ZuConversion<ZuPrintable, U>::Base>
-struct ZuDefaultPrint {
+struct ZuPrint_ {
   using T = decltype(ZuPrintType(ZuDeclVal<U *>()));
 };
 template <typename U>
-struct ZuDefaultPrint<U, true> { using T = ZuPrintFn; };
+struct ZuPrint_<U, true> { using T = ZuPrintFn; };
 
-template <typename T>
-struct ZuPrint : public ZuDefaultPrint<T>::T { };
+template <typename U>
+struct ZuPrint : public ZuPrint_<ZuDecay<U>>::T { };
 
 struct ZuPrintString {
   enum { OK = 1, String = 1, Delegate = 0, Buffer = 0 };
@@ -70,18 +70,6 @@ struct ZuPrintBuffer {
 struct ZuPrintNull : public ZuPrintable {
   template <typename S> void print(S &) const { }
 };
-
-template <typename T> struct ZuPrint<const T> : public ZuPrint<T> { };
-template <typename T> struct ZuPrint<volatile T> : public ZuPrint<T> { };
-template <typename T>
-struct ZuPrint<const volatile T> : public ZuPrint<T> { };
-template <typename T> struct ZuPrint<T &> : public ZuPrint<T> { };
-template <typename T> struct ZuPrint<const T &> : public ZuPrint<T> { };
-template <typename T> struct ZuPrint<volatile T &> : public ZuPrint<T> { };
-template <typename T>
-struct ZuPrint<const volatile T &> : public ZuPrint<T> { };
-template <typename T>
-struct ZuPrint<T &&> : public ZuPrint<T> { };
 
 template <typename S> struct ZuStdStream;
 
