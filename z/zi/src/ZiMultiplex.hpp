@@ -232,8 +232,9 @@ public:
 
   struct Traits : public ZuBaseTraits<ZiMReq> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZiMReq *);
+  
+  friend ZuPrintFn ZuPrintType(ZiMReq *);
 };
-template <> struct ZuPrint<ZiMReq> : public ZuPrintFn { };
 
 #ifndef ZiCxnOptions_NMReq
 #define ZiCxnOptions_NMReq 1
@@ -448,6 +449,8 @@ public:
 #endif
   }
 
+  friend ZuPrintFn ZuPrintType(ZiCxnOptions *);
+
 private:
   uint32_t		m_flags;
   MReqs			m_mreqs;
@@ -457,24 +460,23 @@ private:
   FamilyName		m_familyName; // Generic Netlink Family Name
 #endif
 };
-template <> struct ZuPrint<ZiCxnOptions> : public ZuPrintFn { };
 
 // listener info (socket, accept queue size, local IP/port, options)
 struct ZiListenInfo {
+  ZiPlatform::Socket	socket;
+  unsigned		nAccepts = 0;
+  ZiIP			ip;
+  uint16_t		port = 0;
+  ZiCxnOptions		options;
+
   template <typename S> void print(S &s) const {
     s << "socket=" << ZuBoxed(socket) <<
       " nAccepts=" << nAccepts <<
       " options={" << options <<
       "} localAddr=" << ip << ':' << port;
   }
-
-  ZiPlatform::Socket	socket;
-  unsigned		nAccepts = 0;
-  ZiIP			ip;
-  uint16_t		port = 0;
-  ZiCxnOptions		options;
+  friend ZuPrintFn ZuPrintType(ZiListenInfo *);
 };
-template <> struct ZuPrint<ZiListenInfo> : public ZuPrintFn { };
 
 // cxn information (direction, socket, local & remote IP/port, options)
 namespace ZiCxnType {
@@ -482,7 +484,17 @@ namespace ZiCxnType {
 }
 
 struct ZiCxnInfo { // pure aggregate, no ctor
-  ZuInline bool operator !() const { return !*type; }
+  ZtEnum		type;		// ZiCxnType
+  ZiPlatform::Socket	socket;
+  ZiCxnOptions 		options;
+  ZiIP			localIP;
+  uint16_t		localPort = 0;
+  ZiIP			remoteIP;
+  uint16_t		remotePort = 0;
+  uint32_t		familyID = 0; // non-zero for connected netlink sockets
+  uint32_t		portID = 0; // only valid when familyID is valid
+
+  bool operator !() const { return !*type; }
   ZuOpBool
 
   template <typename S> void print(S &s) const {
@@ -497,18 +509,8 @@ struct ZiCxnInfo { // pure aggregate, no ctor
       if (familyID) s << " portID=" << portID;
     }
   }
-
-  ZtEnum		type;		// ZiCxnType
-  ZiPlatform::Socket	socket;
-  ZiCxnOptions 		options;
-  ZiIP			localIP;
-  uint16_t		localPort = 0;
-  ZiIP			remoteIP;
-  uint16_t		remotePort = 0;
-  uint32_t		familyID = 0; // non-zero for connected netlink sockets
-  uint32_t		portID = 0; // only valid when familyID is valid
+  friend ZuPrintFn ZuPrintType(ZiCxnInfo *);
 };
-template <> struct ZuPrint<ZiCxnInfo> : public ZuPrintFn { };
 
 // display sequence:
 //   mxID, type, remoteIP, remotePort, localIP, localPort,

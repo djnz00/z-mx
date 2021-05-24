@@ -295,12 +295,11 @@ public:
   struct Traits : public ZuBaseTraits<ZmBitmap> { enum { IsComparable = 1 }; };
   friend Traits ZuTraitsType(ZmBitmap *);
 
+  friend ZuPrintFn ZuPrintType(ZmBitmap *);
+
 private:
   hwloc_bitmap_t	m_map;
 };
-
-// generic printing
-template <> struct ZuPrint<ZmBitmap> : public ZuPrintFn { };
 
 #ifdef _MSC_VER
 #pragma warning(pop)

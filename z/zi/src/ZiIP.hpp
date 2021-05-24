@@ -117,6 +117,8 @@ public:
   struct Traits : public ZuBaseTraits<ZiIP> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZiIP *);
 
+  friend ZuPrintFn ZuPrintType(ZiIP *);
+
 private:
   int resolve_(ZuString, ZeError *e = 0);
 #ifdef _WIN32
@@ -129,9 +131,6 @@ public:
   }
   Hostname name(ZeError *e = 0);
 };
-
-// generic printing
-template <> struct ZuPrint<ZiIP> : public ZuPrintFn { };
 
 class ZiSockAddr {
 public:

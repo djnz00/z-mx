@@ -57,8 +57,8 @@ struct ZtAPI ZtRegexError {
       s << "ZtRegex pcre_exec() Error: " << strerror(code);
     }
   }
+  friend ZuPrintFn ZuPrintType(ZtRegexError *);
 };
-template <> struct ZuPrint<ZtRegexError> : public ZuPrintFn { };
 
 class ZtRegex_;
 template <> struct ZmCleanup<ZtRegex_> {
@@ -184,7 +184,7 @@ private:
   static char pattern[] = #pattern_; \
   ZuAssert(sizeof(pattern) >= 2); \
   pattern[sizeof(pattern) - 2] = 0; \
-  return new ZtRegex(&pattern[1] __VA_OPT__(, __VA_ARGS__)); \
+  return new ZtRegex(&pattern[1] __VA_OPT__(,) __VA_ARGS__); \
 })
 
 #endif /* ZtRegex_HPP */

@@ -148,6 +148,7 @@ friend CSV;
       ZmHashMgr::all(
 	  ZmFn<ZmAnyHash *>::Member<&ZmHashMgr::CSV_<S>::print>::fn(&csv));
     }
+    friend ZuPrintFn ZuPrintType(CSV *);
   };
   static CSV csv() { return CSV(); }
 
@@ -158,8 +159,6 @@ public:
   static void add(ZmAnyHash *);
   static void del(ZmAnyHash *);
 };
-
-template <> struct ZuPrint<ZmHashMgr::CSV> : public ZuPrintFn { };
 
 inline const ZmHashParams &ZmHashParams::init(ZuString id)
 {

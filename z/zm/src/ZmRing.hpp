@@ -135,7 +135,8 @@ private:
 };
 
 struct ZmRingError {
-  ZuInline ZmRingError(int code_) : code(code_) { }
+  int code;
+  ZmRingError(int code_) : code(code_) { }
   template <typename S> void print(S &s) const {
     switch (code) {
       case ZmRing_::OK:		s << "OK"; break;
@@ -145,9 +146,8 @@ struct ZmRingError {
       default:			s << "Unknown"; break;
     }
   }
-  int code;
+  friend ZuPrintFn ZuPrintType(ZmRingError *);
 };
-template <> struct ZuPrint<ZmRingError> : public ZuPrintFn { };
 
 // uses NTP (named template parameters):
 //

@@ -15,8 +15,8 @@
 
 struct Null {
   template <typename S> void print(S &s) const { s << "null"; }
+  friend ZuPrintFn ZuPrintType(Null *);
 };
-template <> struct ZuPrint<Null> : public ZuPrintFn { };
 
 void test(ZtDate d1)
 {

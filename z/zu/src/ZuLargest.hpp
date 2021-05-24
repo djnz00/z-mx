@@ -42,6 +42,7 @@ template <typename Arg0, typename ...Args> struct ZuLargest_<Arg0, Args...> {
   using T = ZuIf<(sizeof(Arg0) > sizeof(typename ZuLargest_<Args...>::T)),
     Arg0, typename ZuLargest_<Args...>::T>;
 };
-template <typename ...Args> using ZuLargest = ZuLargest_<Args...>;
+template <typename ...Args>
+using ZuLargest = typename ZuLargest_<Args...>::T;
 
 #endif /* ZuLargest_HPP */

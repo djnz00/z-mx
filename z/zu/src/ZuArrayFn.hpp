@@ -35,6 +35,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 #include <zlib/ZuAssert.hpp>
 #include <zlib/ZuTraits.hpp>

@@ -54,8 +54,7 @@ struct ZuPrint_ {
 template <typename U>
 struct ZuPrint_<U, true> { using T = ZuPrintFn; };
 
-template <typename U>
-struct ZuPrint : public ZuPrint_<ZuDecay<U>>::T { };
+template <typename U> using ZuPrint = typename ZuPrint_<ZuDecay<U>>::T;
 
 struct ZuPrintString {
   enum { OK = 1, String = 1, Delegate = 0, Buffer = 0 };
@@ -75,13 +74,13 @@ template <typename S> struct ZuStdStream;
 
 template <typename S> struct ZuStdStream__ {
   enum { Is = 1 };
-  template <typename P> ZuInline static ZuIfT<ZuPrint<P>::String>
+  template <typename P> static ZuIfT<ZuPrint<P>::String>
       print(S &s, const P &p) {
     const typename ZuTraits<P>::Elem *ptr = ZuTraits<P>::data(p);
     if (ZuLikely(ptr))
       ZuStdStream<S>::append(s, ptr, ZuTraits<P>::length(p));
   }
-  template <typename P> ZuInline static ZuIfT<ZuPrint<P>::Delegate>
+  template <typename P> static ZuIfT<ZuPrint<P>::Delegate>
       print(S &s, const P &p) {
     ZuPrint<P>::print(s, p);
   }

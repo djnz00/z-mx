@@ -79,6 +79,7 @@ public:
     min = m_min, max = m_max, total = m_total,
     mean = m_total.dtime() / m_count, count = m_count;
   }
+  friend ZuPrintFn ZuPrintType(ZmTimeInterval *);
 
 private:
   Lock		m_lock;
@@ -87,8 +88,5 @@ private:
     ZmTime	  m_total;
     unsigned	  m_count;
 };
-
-template <typename Lock>
-struct ZuPrint<ZmTimeInterval<Lock> > : public ZuPrintFn { };
 
 #endif /* ZmTimeInterval_HPP */

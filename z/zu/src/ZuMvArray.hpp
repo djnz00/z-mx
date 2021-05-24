@@ -72,26 +72,26 @@ public:
     return *this;
   }
 
-// array/ptr operators
+  // array/ptr operators
 
-  ZuInline T &operator [](int i) { return m_data[i]; }
-  ZuInline const T &operator [](int i) const { return m_data[i]; }
+  T &operator [](int i) { return m_data[i]; }
+  const T &operator [](int i) const { return m_data[i]; }
 
-// accessors
+  // accessors
 
-  ZuInline const T *begin() const { return m_data; }
-  ZuInline const T *end() const { return &m_data[m_length]; }
+  const T *begin() const { return m_data; }
+  const T *end() const { return &m_data[m_length]; }
 
-  ZuInline unsigned length() const { return m_length; } 
+  unsigned length() const { return m_length; } 
 
-  ZuInline T *data() { return m_data; }
-  ZuInline const T *data() const { return m_data; }
+  T *data() { return m_data; }
+  const T *data() const { return m_data; }
 
-// reset to null
+  // reset to null
 
-  ZuInline void null() { delete [] m_data; m_length = 0;  m_data = nullptr;}
+  void null() { delete [] m_data; m_length = 0;  m_data = nullptr;}
 
-// set length
+  // set length
 
   void length(unsigned newLength) {
     T *oldData = m_data;
@@ -105,56 +105,56 @@ public:
     ::free(oldData);
   }
 
-// comparison
+  // comparison
 
-  ZuInline bool operator !() const { return !m_length; }
+  bool operator !() const { return !m_length; }
   ZuOpBool
 
 protected:
-  ZuInline bool same(const ZuMvArray &a) const { return this == &a; }
+  bool same(const ZuMvArray &a) const { return this == &a; }
   template <typename A> constexpr bool same(const A &) const { return false; }
 
-  ZuInline auto buf() { return ZuArray{data(), length()}; }
-  ZuInline auto cbuf() const { return ZuArray{data(), length()}; }
+  auto buf() { return ZuArray{data(), length()}; }
+  auto cbuf() const { return ZuArray{data(), length()}; }
 
   template <typename A>
-  ZuInline int cmp(const A &a) const {
+  int cmp(const A &a) const {
     if (same(a)) return 0;
     return cbuf().cmp(a);
   }
   template <typename A>
-  ZuInline bool less(const A &a) const {
+  bool less(const A &a) const {
     return !same(a) && cbuf().less(a);
   }
   template <typename A>
-  ZuInline bool greater(const A &a) const {
+  bool greater(const A &a) const {
     return !same(a) && cbuf().greater(a);
   }
   template <typename A>
-  ZuInline bool equals(const A &a) const {
+  bool equals(const A &a) const {
     return same(a) || cbuf().equals(a);
   }
 
   template <typename A>
-  ZuInline bool operator ==(const A &a) const { return equals(a); }
+  bool operator ==(const A &a) const { return equals(a); }
   template <typename A>
-  ZuInline bool operator !=(const A &a) const { return !equals(a); }
+  bool operator !=(const A &a) const { return !equals(a); }
   template <typename A>
-  ZuInline bool operator >(const A &a) const { return greater(a); }
+  bool operator >(const A &a) const { return greater(a); }
   template <typename A>
-  ZuInline bool operator >=(const A &a) const { return !less(a); }
+  bool operator >=(const A &a) const { return !less(a); }
   template <typename A>
-  ZuInline bool operator <(const A &a) const { return less(a); }
+  bool operator <(const A &a) const { return less(a); }
   template <typename A>
-  ZuInline bool operator <=(const A &a) const { return !greater(a); }
+  bool operator <=(const A &a) const { return !greater(a); }
 
-// hash
+  // hash
 
   uint32_t hash() const {
     return ZuHash<ZuMvArray>::hash(*this);
   }
 
-// traits
+  // traits
   struct Traits : public ZuBaseTraits<ZuMvArray> {
     using Elem = T;
     enum {
@@ -177,7 +177,7 @@ private:
 };
 
 // generic printing
-template <>
-struct ZuPrint<ZuMvArray<char> > : public ZuPrintString { };
+template <typename T>
+ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZuMvArray<T> *);
 
 #endif /* ZuMvArray_HPP */

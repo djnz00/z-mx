@@ -65,17 +65,19 @@ public:
     return m_printFn(buf, n);
   }
 
+  struct PrintType : public ZuPrintBuffer {
+    static unsigned length(const ZmStreamBuf &b) {
+      return b.length();
+    }
+    static unsigned print(char *buf, unsigned n, const ZmStreamBuf &b) {
+      return b.print(buf, n);
+    }
+  };
+  friend PrintType ZuPrintType(ZmStreamBuf *);
+
 private:
   ZmFn<>			m_lengthFn;
   ZmFn<char *, unsigned>	m_printFn;
-};
-template <> struct ZuPrint<ZmStreamBuf> : public ZuPrintBuffer {
-  static unsigned length(const ZmStreamBuf &b) {
-    return b.length();
-  }
-  static unsigned print(char *buf, unsigned n, const ZmStreamBuf &b) {
-    return b.print(buf, n);
-  }
 };
 
 class ZmStream {

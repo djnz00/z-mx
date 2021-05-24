@@ -304,7 +304,7 @@ namespace Load {
 #define ZfbEnumValues(Enum, ...) \
   enum _ { Invalid = -1, \
     ZuPP_Eval(ZuPP_MapArg(ZfbEnum_Value, Enum, \
-	  __VA_OPT__(__VA_ARGS__ ,) MIN, MAX)) \
+	  __VA_ARGS__ __VA_OPT__(,) MIN, MAX)) \
     N = fbs::Enum##_MAX + 1 }; \
   ZuAssert(N <= 1024); \
   enum { Bits = \
@@ -329,6 +329,12 @@ namespace Load {
       va_end(args); \
     } \
     void add(ZuString s, ZtEnum v) { m_s2v->add(s, v); } \
+  private: \
+    ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
+    template <typename L> void all_(L l) const { \
+      auto i = m_s2v->readIterator(); \
+      while (auto kv = i.iterate()) { l(kv->key(), kv->val()); } \
+    } \
   public: \
     static constexpr const char *id() { return #Enum; } \
     using FBS = fbs::Enum; \
@@ -337,11 +343,8 @@ namespace Load {
     static ZuString v2s(int v) { \
       return fbs::EnumName##Enum(static_cast<FBS>(v)); \
     } \
-    ZtEnum s2v(ZuString s) const { return m_s2v->findVal(s); } \
-    template <typename L> void all(L l) const { \
-      auto i = m_s2v->readIterator(); \
-      while (auto kv = i.iterate()) { l(kv->key(), kv->val()); } \
-    } \
+    static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
+    template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     ZmRef<S2V>	m_s2v; \
   }; \

@@ -96,6 +96,7 @@ using ZtEnum = ZuBox_1(int8_t);
     } \
     void add(ZuString s, ZtEnum v) { m_s2v->add(s, v); m_v2s->add(v, s); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \
+  private: \
     ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
     ZuString v2s_(ZtEnum v) const { return m_v2s->findVal(v); } \
     template <typename L> void all_(L l) const { \

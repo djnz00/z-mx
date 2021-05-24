@@ -1541,7 +1541,7 @@ inline void ZtArray<T, Cmp>::convert_(const S &s, ZtIconv *iconv) {
 #endif
 
 // generic printing
-template <class Cmp>
-struct ZuPrint<ZtArray<char, Cmp>> : public ZuPrintString { };
+template <typename T, class Cmp>
+ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZtArray<T, Cmp> *);
 
 #endif /* ZtArray_HPP */

@@ -40,7 +40,7 @@ public:
   virtual void print_(ZmStream &) const = 0;
   template <typename S>
   void print(S &s_) const { ZmStream s(s_); print_(s); }
+  friend ZuPrintFn ZuPrintType(ZvError *);
 };
-template <> struct ZuPrint<ZvError> : public ZuPrintFn { };
 
 #endif /* ZvError_HPP */

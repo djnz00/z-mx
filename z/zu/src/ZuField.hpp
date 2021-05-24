@@ -58,10 +58,10 @@
   static constexpr const char *id() { return #ID; }
 
 #define ZuFieldXRd_(U, Member) \
-  static const auto &get(const void *o) { \
+  using T = ZuDecay<decltype(ZuDeclVal<const U &>().Member)>; \
+  static decltype(auto) get(const void *o) { \
     return static_cast<const U *>(o)->Member; \
   }
-  // using T = ZuDecay<decltype(ZuDeclVal<const U &>().Member)>;
 #define ZuFieldX_(U, Member) \
   template <typename V> \
   static void set(void *o, V &&v) { \
@@ -79,10 +79,10 @@
     ZuFieldX_(U, Member) \
   };
 #define ZuFieldXRdFn_(U, Get) \
-  static auto get(const void *o) { \
+  using T = ZuDecay<decltype(ZuDeclVal<const U &>().Get())>; \
+  static decltype(auto) get(const void *o) { \
     return static_cast<const U *>(o)->Get(); \
   }
-  // using T = ZuDecay<decltype(ZuDeclVal<const U &>().Get())>;
 #define ZuFieldXFn_(U, Set) \
   template <typename V> \
   static void set(void *o, V &&v) { \
@@ -100,11 +100,10 @@
     ZuFieldXFn_(U, Set) \
   };
 #define ZuFieldRdLambda_(U, Get) \
-  static auto get(const void *o) { \
-    auto fn = ZuPP_Strip(Get); \
+  static decltype(auto) get(const void *o) { \
+    auto fn = Get(); \
     return fn(*static_cast<const U *>(o)); \
   }
-  // using T = ZuDecay<decltype(get(static_cast<const void *>(nullptr)))>;
 #define ZuFieldLambda_(U, Set) \
   template <typename V> \
   static void set(void *o, V &&v) { \
@@ -112,14 +111,20 @@
     fn(*static_cast<U *>(o), ZuFwd<V>(v)); \
   }
 #define ZuFieldRdLambda(U, ID, Get) \
+  inline auto ZuField_##U##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuFieldType(U, ID) { \
+    using T = \
+      ZuDecay<decltype(ZuField_##U##_##ID##_get()(ZuDeclVal<const U &>()))>; \
     ZuFieldID_(ID) \
-    ZuFieldRdLambda_(U, Get) \
+    ZuFieldRdLambda_(U, ZuField_##U##_##ID##_get) \
   };
 #define ZuFieldLambda(U, ID, Get, Set) \
+  inline auto ZuField_##U##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuFieldType(U, ID) { \
+    using T = \
+      ZuDecay<decltype(ZuField_##U##_##ID##_get()(ZuDeclVal<const U &>()))>; \
     ZuFieldID_(ID) \
-    ZuFieldRdLambda_(U, Get) \
+    ZuFieldRdLambda_(U, ZuField_##U##_##ID##_get) \
     ZuFieldLambda_(U, Set) \
   };
 

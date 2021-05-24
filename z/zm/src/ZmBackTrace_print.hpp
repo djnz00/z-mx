@@ -43,7 +43,7 @@
 ZmExtern void ZmBackTrace_print(ZmStream &s, const ZmBackTrace &bt);
 
 // generic printing
-template <> struct ZuPrint<ZmBackTrace> : public ZuPrintDelegate {
+struct ZmBackTrace_Print : public ZuPrintDelegate {
   ZuInline static void print(ZmStream &s, const ZmBackTrace &bt) {
     ZmBackTrace_print(s, bt);
   }
@@ -53,5 +53,6 @@ template <> struct ZuPrint<ZmBackTrace> : public ZuPrintDelegate {
     ZmBackTrace_print(s, bt);
   }
 };
+ZmBackTrace_Print ZuPrintType(ZmBackTrace *);
 
 #endif /* ZmBackTrace_print_HPP */

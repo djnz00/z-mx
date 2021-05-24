@@ -253,9 +253,10 @@ public:
   static void all(ZmFn<ZmHeapCache *> fn);
 
   struct CSV {
-    template <typename S> ZuInline void print(S &s) const {
+    template <typename S> void print(S &s) const {
       ZmHeapMgr::CSV_<S>(s).print();
     }
+    friend ZuPrintFn ZuPrintType(CSV *);
   };
   static CSV csv() { return CSV(); }
 
@@ -271,8 +272,6 @@ private:
   static ZmHeapCache *cache(
       const char *id, unsigned size, bool sharded, AllStatsFn);
 };
-
-template <> struct ZuPrint<ZmHeapMgr::CSV> : public ZuPrintFn { };
 
 // derive ID from ZmHeapSharded to declare a sharded heap
 struct ZmHeapSharded { };

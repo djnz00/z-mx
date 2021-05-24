@@ -49,7 +49,7 @@ struct ZvMsgID {
   template <typename S> void print(S &s) const {
     s << "linkID=" << linkID << " seqNo=" << seqNo;
   }
+  friend ZuPrintFn ZuPrintType(ZvMsgID *);
 };
-template <> struct ZuPrint<ZvMsgID> : public ZuPrintFn { };
 
 #endif /* ZvMsgID_HPP */

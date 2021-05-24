@@ -149,6 +149,8 @@ public:
   };
   friend Traits ZuTraitsType(ZuID *);
 
+  friend ZuPrintFn ZuPrintType(ZuID *);
+
 private:
   uint64_t	m_val;
 };
@@ -156,6 +158,5 @@ template <> struct ZuCmp<ZuID> : public ZuCmp0<uint64_t> {
   static const ZuID &null() { static const ZuID v; return v; }
   static bool null(uint64_t id) { return !id; }
 };
-template <> struct ZuPrint<ZuID> : public ZuPrintFn { };
 
 #endif /* ZuID_HPP */

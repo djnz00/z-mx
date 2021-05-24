@@ -1324,7 +1324,6 @@ truncate:
 
 public:
   // traits
-
   struct Traits : public ZuBaseTraits<ZtString_> {
     using Elem = Char;
     enum {
@@ -1337,6 +1336,9 @@ public:
     static unsigned length(const ZtString_ &s) { return s.length(); }
   };
   friend Traits ZuTraitsType(ZtString_ *);
+
+  // printing
+  friend ZuPrintString ZuPrintType(ZtString_ *);
 
 private:
   uint32_t		m_size_owned_null;
@@ -1456,28 +1458,26 @@ struct ZtAPI ZtHexDump {
   ZtHexDump &operator =(const ZtHexDump &) = delete;
 
   void print(ZmStream &s) const;
+  struct Print : public ZuPrintDelegate {
+    static void print(ZmStream &s, const ZtHexDump &d) {
+      d.print(s);
+    }
+    template <typename S>
+    static void print(S &s_, const ZtHexDump &d) {
+      ZmStream s(s_);
+      d.print(s);
+    }
+  };
+  friend Print ZuPrintType(ZtHexDump *);
 
 private:
   ZtString	prefix;
   uint8_t	*data;
   unsigned	length;
 };
-template <> struct ZuPrint<ZtHexDump> : public ZuPrintDelegate {
-  static void print(ZmStream &s, const ZtHexDump &d) {
-    d.print(s);
-  }
-  template <typename S>
-  static void print(S &s_, const ZtHexDump &d) {
-    ZmStream s(s_);
-    d.print(s);
-  }
-};
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
-
-// generic printing
-template <> struct ZuPrint<ZtString> : public ZuPrintString { };
 
 #endif /* ZtString_HPP */

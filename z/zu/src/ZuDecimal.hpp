@@ -435,6 +435,13 @@ public:
   ZuDecimalVFmt vfmt() const;
   template <typename VFmt>
   ZuDecimalVFmt vfmt(VFmt &&) const;
+
+  // traits
+  struct Traits : public ZuTraits<int128_t> { enum { IsPrimitive = 0 }; };
+  friend Traits ZuTraitsType(ZuDecimal *);
+
+  // printing
+  friend ZuPrintFn ZuPrintType(ZuDecimal *);
 };
 template <typename Fmt> struct ZuDecimalFmt {
   const ZuDecimal	&fixed;
@@ -452,9 +459,9 @@ template <typename Fmt> struct ZuDecimalFmt {
     s << ZuBoxed(iv).fmt(Fmt());
     if (fv) s << '.' << ZuBoxed(fv).fmt(ZuFmt::Frac<18>());
   }
+
+  friend ZuPrintFn ZuPrintType(ZuDecimalFmt *);
 };
-template <typename Fmt>
-struct ZuPrint<ZuDecimalFmt<Fmt> > : public ZuPrintFn { };
 template <class Fmt> inline ZuDecimalFmt<Fmt> ZuDecimal::fmt(Fmt) const
 {
   return ZuDecimalFmt<Fmt>{*this};
@@ -463,7 +470,6 @@ template <typename S> inline void ZuDecimal::print(S &s) const
 {
   s << ZuDecimalFmt<ZuFmt::Default>{*this};
 }
-template <> struct ZuPrint<ZuDecimal> : public ZuPrintFn { };
 class ZuDecimalVFmt : public ZuVFmtWrapper<ZuDecimalVFmt> {
 public:
   ZuDecimalVFmt(const ZuDecimal &decimal) : m_decimal{decimal} { }
@@ -485,9 +491,7 @@ public:
     if (fv) s << '.' << ZuBoxed(fv).fmt(ZuFmt::Frac<18>());
   }
 
-  // traits
-  struct Traits : public ZuTraits<int128_t> { enum { IsPrimitive = 0 }; };
-  friend Traits ZuTraitsType(ZuDecimal *);
+  friend ZuPrintFn ZuPrintType(ZuDecimalVFmt *);
 
 private:
   const ZuDecimal	&m_decimal;
@@ -499,7 +503,6 @@ template <typename VFmt>
 inline ZuDecimalVFmt ZuDecimal::vfmt(VFmt &&fmt) const {
   return ZuDecimalVFmt{*this, ZuFwd<VFmt>(fmt)};
 }
-template <> struct ZuPrint<ZuDecimalVFmt> : public ZuPrintFn { };
 
 // ZuCmp has to be specialized since null() is otherwise !t (instead of !*t)
 template <> struct ZuCmp<ZuDecimal> {

@@ -101,8 +101,17 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
     static void load(void *o, const FBS *o_) { Base::set(o, load_(o_)); } \
   };
 
+#define ZvFBFieldString_T Bool
 #define ZvFBFieldString(U, ...) \
   ZvFBFieldComposite_(U, __VA_ARGS__, str, str)
+
+#define ZvFBFieldBool_T Bool
+#define ZvFBFieldInt_T Int
+#define ZvFBFieldHex_T Hex
+#define ZvFBFieldEnum_T Enum
+#define ZvFBFieldFlags_T Flags
+#define ZvFBFieldFloat_T Float
+#define ZvFBFieldFixed_T Fixed
 
 #define ZvFBFieldBool(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 #define ZvFBFieldInt(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
@@ -112,15 +121,19 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 #define ZvFBFieldFloat(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 #define ZvFBFieldFixed(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 
+#define ZvFBFieldDecimal_T Decimal
 #define ZvFBFieldDecimal(U, ...) \
   ZvFBFieldInline_(U, __VA_ARGS__, decimal, decimal)
 
-#define ZvFBFieldTime(U, Method, ...) \
+#define ZvFBFieldTime_T Time
+#define ZvFBFieldTime(U, ...) \
   ZvFBFieldInline_(U, __VA_ARGS__, dateTime, dateTime)
 
+#define ZvFBFieldBitmap_T Composite
 #define ZvFBFieldBitmap(U, ...) \
   ZvFBFieldComposite_(U, __VA_ARGS__, bitmap, bitmap)
 
+#define ZvFBFieldIP_T Composite
 #define ZvFBFieldIP(U, ...) \
   ZvFBFieldInline_(U, __VA_ARGS__, ip, ip)
 
@@ -137,7 +150,9 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 #define ZvFBField_RdLambda(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
 
 #define ZvFBField_Decl_(U, Method, Type, ID, ...) \
-  ZvFBField_##Method(U, Type, ID, ZvField__(U, Method, Type, ID, __VA_ARGS__))
+  ZvField_Decl_(U, Method, ZvFBField##Type##_T, ID, __VA_ARGS__) \
+  ZvFBField_##Method(U, Type, ID, \
+      ZvField_Type_(U, Method, ZvFBField##Type##_T, ID, __VA_ARGS__))
 #define ZvFBField_Decl(U, Args) ZuPP_Defer(ZvFBField_Decl_)(U, ZuPP_Strip(Args))
 
 #define ZvFBField_Type_(U, Method, Type, ID, ...) ZvFBFieldType(U, ID)
@@ -147,8 +162,6 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
   fbs::U##Builder *ZvFBB_(U *); \
   fbs::U *ZvFBS_(U *); \
   namespace { \
-    ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, U, __VA_ARGS__)) \
-    ZuPP_Eval(ZuPP_MapArg(ZvField_Decl, U, __VA_ARGS__)) \
     ZuPP_Eval(ZuPP_MapArg(ZvFBField_Decl, U, __VA_ARGS__)) \
     using ZvFBFields_##U = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvFBField_Type, U, __VA_ARGS__))>; \
@@ -214,7 +227,7 @@ template <typename T>
 struct Table_ {
   using FBB = ZvFBB<T>;
   using FBS = ZvFBS<T>;
-  using FieldList = List<T>;
+  using FieldList = ZuFieldList<T>;
 
   template <typename U>
   struct AllFilter { enum { OK = !(U::Flags & Flags::ReadOnly) }; };

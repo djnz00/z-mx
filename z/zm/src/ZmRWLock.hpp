@@ -76,6 +76,7 @@ public:
       " n_readers=" << ZuBoxed(m_lock.rw.n_readers) <<
       " wc=" << ZuBoxed(m_lock.wc);
   }
+  friend ZuPrintFn ZuPrintType(ZmRWLock *);
 
 private:
   ck_rwlock_recursive_t	m_lock;
@@ -108,6 +109,7 @@ public:
       " win=" << ZuBoxed(m_lock.win) <<
       " lock=" << ZuBoxed(m_lock.wout);
   }
+  friend ZuPrintFn ZuPrintType(ZmPRWLock *);
 
 private:
   ck_pflock_t	m_lock;
@@ -137,7 +139,7 @@ class ZmPRWLock { // non-recursive
   ZmPRWLock &operator =(const ZmPRWLock &);	// prevent mis-use
 
 public:
-  ZuInline ZmPRWLock() { InitializeSRWLock(&m_lock); }
+  ZmPRWLock() { InitializeSRWLock(&m_lock); }
 
   ZuInline void lock() { AcquireSRWLockExclusive(&m_lock); }
   ZuInline void unlock() { ReleaseSRWLockExclusive(&m_lock); }
@@ -155,6 +157,7 @@ public:
       reinterpret_cast<const uintptr_t *>(&m_lock);
     s << ZuBoxed(*ptr);
   }
+  friend ZuPrintFn ZuPrintType(ZmPRWLock *);
 
 private:
   SRWLOCK			  m_lock;
@@ -175,7 +178,7 @@ class ZmRWLock : public ZmPRWLock {
   ZmRWLock &operator =(const ZmRWLock &);	// prevent mis-use
 
 public:
-  ZuInline ZmRWLock() : m_tid(0), m_count(0) { }
+  ZmRWLock() : m_tid(0), m_count(0) { }
 
   void lock() {
     if (m_tid == ZmPlatform::getTID()) {
@@ -214,6 +217,7 @@ public:
     ZmPRWLock::print(s);
     s << " tid=" << ZuBoxed(m_tid.load_()) << " count=" << m_count;
   }
+  friend ZuPrintFn ZuPrintType(ZmRWLock *);
 
 private:
   ZmAtomic<ZmPlatform::ThreadID>  	m_tid;
@@ -233,8 +237,5 @@ struct ZmLockTraits<ZmRWLock> : public ZmGenericLockTraits<ZmRWLock> {
 #endif
 
 #endif /* !_WIN32 */
-
-template <> struct ZuPrint<ZmRWLock> : public ZuPrintFn { };
-template <> struct ZuPrint<ZmPRWLock> : public ZuPrintFn { };
 
 #endif /* ZmRWLock_HPP */

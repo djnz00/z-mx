@@ -285,6 +285,9 @@ public:
   }
 
   struct Prefixed {
+    const ZvCf		&cf;
+    mutable ZtString	prefix;
+
     void print(ZmStream &s) const {
       cf.print(s, ZuMv(prefix));
     }
@@ -292,8 +295,7 @@ public:
       ZmStream s(s_);
       print(s);
     }
-    const ZvCf		&cf;
-    mutable ZtString	prefix;
+    friend ZuPrintFn ZuPrintType(Prefixed *);
   };
   template <typename Prefix>
   Prefixed prefixed(Prefix &&prefix) {
@@ -573,6 +575,8 @@ friend Iterator;
     Tree::ReadIterator<>	m_iterator;
   };
 
+  friend ZuPrintFn ZuPrintType(ZvCf *);
+
 private:
   ZmRef<ZvCf> scope(ZuString fullKey, ZuString &key, bool create);
 
@@ -588,8 +592,6 @@ private:
   Tree		m_tree;
   ZvCf		*m_parent;
 };
-template <> struct ZuPrint<ZvCf> : public ZuPrintFn { };
-template <> struct ZuPrint<ZvCf::Prefixed> : public ZuPrintFn { };
 
 #ifdef _MSC_VER
 #pragma warning(pop)

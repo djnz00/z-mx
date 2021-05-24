@@ -200,10 +200,11 @@ public:
       s << off() << ':' << len();
   }
 
+  friend ZuPrintFn ZuPrintType(ZdbRange *);
+
 private:
   uint32_t	m_val;
 };
-template <> struct ZuPrint<ZdbRange> : public ZuPrintFn { };
 
 struct Zdb_File_IndexAccessor;
 

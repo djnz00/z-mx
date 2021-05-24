@@ -656,16 +656,15 @@ public:
   };
   friend Traits ZuTraitsType(ArrayN *);
 
+  // printing
+  friend ZuPrintString ZuPrintType(ArrayN *);
+
 private:
   char	*m_data[N * sizeof(T)];
 };
 } // namespace Zu_
 template <typename T, unsigned N, typename Cmp = ZuCmp<T>>
 using ZuArrayN = Zu_::ArrayN<T, N, Cmp>;
-
-// generic printing
-template <unsigned N>
-struct ZuPrint<ZuArrayN<char, N> > : public ZuPrintString { };
 
 // STL structured binding cruft
 #include <type_traits>

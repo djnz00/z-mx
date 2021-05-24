@@ -286,6 +286,8 @@ public:
       << ZuBoxed(cpuUsage() * 100.0).fmt(ZuFmt::FP<2>()) << '%';
   }
 
+  friend ZuPrintFn ZuPrintType(ZmThreadContext *);
+
 private:
   inline static ZmThreadContext *self(ZmThreadContext *c);
 
@@ -306,16 +308,17 @@ private:
   bool		m_detached = false;
 };
 
-template <> struct ZuPrint<ZmThreadContext> : public ZuPrintFn { };
-template <> struct ZuPrint<ZmThreadContext *> : public ZuPrintDelegate {
+using ZmThreadContext_Ptr = const ZmThreadContext *;
+struct ZmThreadContext_Ptr_Print : public ZuPrintDelegate {
   template <typename S>
-  static void print(S &s, const ZmThreadContext *v) {
+  static void print(S &s, ZmThreadContext_Ptr v) {
     if (!v)
       s << "null";
     else
       s << *v;
   }
 };
+ZmThreadContext_Ptr_Print ZuPrintType(ZmThreadContext_Ptr *);
 
 #define ZmSelf() (ZmThreadContext::self())
 
@@ -408,14 +411,13 @@ public:
       ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{&csv,
 	  [](CSV_<S> *csv, ZmThreadContext *tc) { csv->print(tc); }});
     }
+    friend ZuPrintFn ZuPrintType(CSV *);
   };
-  ZuInline static CSV csv() { return CSV(); }
+  static CSV csv() { return CSV(); }
 
 private:
   ZmRef<Context>	m_context;
 };
-
-template <> struct ZuPrint<ZmThread::CSV> : public ZuPrintFn { };
 
 #ifdef _MSC_VER
 #pragma warning(pop)

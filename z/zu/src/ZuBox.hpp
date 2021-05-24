@@ -132,6 +132,16 @@ template <typename T_, class Fmt> struct ZuBox_Scan<T_, Fmt, 1, 1> {
     { return Zu_nscan<Fmt>::atof(v, buf, n); }
 };
 
+// generic printing
+template <typename B> struct ZuBoxPrint : public ZuPrintBuffer {
+  static unsigned length(const B &b) {
+    return b.length();
+  }
+  static unsigned print(char *buf, unsigned, const B &b) {
+    return b.print(buf);
+  }
+};
+
 // compile-time formatting
 template <class Boxed, class Fmt> class ZuBoxFmt {
 template <typename, class> friend class ZuBox;
@@ -143,6 +153,8 @@ template <typename, class> friend class ZuBox;
 public:
   unsigned length() const { return Print::length(m_ref); }
   unsigned print(char *buf) const { return Print::print(m_ref, buf); }
+
+  friend ZuBoxPrint<ZuBoxFmt> ZuPrintType(ZuBoxFmt *);
 
 private:
   const Boxed	&m_ref;
@@ -168,6 +180,7 @@ public:
   unsigned print(char *buf) const {
     return Print::print(this->fmt, m_value, buf);
   }
+  friend ZuBoxPrint<ZuBoxVFmt> ZuPrintType(ZuBoxVFmt *);
 
 private:
   const Boxed	&m_value;
@@ -544,6 +557,9 @@ public:
   struct Traits : public ZuTraits<T> { enum { IsPrimitive = 0 }; };
   friend Traits ZuTraitsType(ZuBox *);
 
+  // printing
+  friend ZuBoxPrint<ZuBox> ZuPrintType(ZuBox *);
+
 private:
   T	m_val;
 };
@@ -562,22 +578,6 @@ struct ZuCmp<ZuBox<T_, Cmp> > {
   static bool null(const T &t) { return !*t; }
   static const T &null() { static const T v; return v; }
 };
-
-// generic printing
-template <typename B> struct ZuBoxPrint : public ZuPrintBuffer {
-  static unsigned length(const B &b) {
-    return b.length();
-  }
-  static unsigned print(char *buf, unsigned, const B &b) {
-    return b.print(buf);
-  }
-};
-template <typename T, class Cmp>
-struct ZuPrint<ZuBox<T, Cmp> > : public ZuBoxPrint<ZuBox<T, Cmp> > { };
-template <typename T, class Fmt>
-struct ZuPrint<ZuBoxFmt<T, Fmt> > : public ZuBoxPrint<ZuBoxFmt<T, Fmt> > { };
-template <typename T>
-struct ZuPrint<ZuBoxVFmt<T>> : public ZuBoxPrint<ZuBoxVFmt<T>> { };
 
 // ZuBoxT<T> is T if T is already boxed, ZuBox<T> otherwise
 template <typename U>

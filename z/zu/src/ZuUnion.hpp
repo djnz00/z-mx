@@ -579,12 +579,12 @@ namespace Zu_ {
   ZuPP_Defer(ZuUnion_FieldFn_)()(N, ZuPP_Strip(args))
 #define ZuUnion_FieldFn_() ZuUnion_FieldFn__
 #define ZuUnion_FieldFn__(N, type, fn) \
-  ZuInline const auto &fn() const { return this->template p<N>(); } \
-  ZuInline auto &fn() { return this->template p<N>(); } \
+  const auto &fn() const { return this->template p<N>(); } \
+  auto &fn() { return this->template p<N>(); } \
   template <typename P> \
-  ZuInline auto &fn(P &&v) { this->template p<N>(ZuFwd<P>(v)); return *this; } \
-  ZuInline auto ptr_##fn() { return this->template ptr<N>(); } \
-  ZuInline auto init_##fn() { return this->template init<ZuPP_Strip(type)>(); }
+  auto &fn(P &&v) { this->template p<N>(ZuFwd<P>(v)); return *this; } \
+  auto ptr_##fn() { return this->template ptr<N>(); } \
+  auto init_##fn() { return this->template init<ZuPP_Strip(type)>(); }
 
 #define ZuDeclUnion(Type, ...) \
 using Type##_ = \
@@ -594,8 +594,8 @@ class Type : public Type##_ { \
 public: \
   using Union::Union; \
   using Union::operator =; \
-  ZuInline Type(const Union &v) : Union(v) { }; \
-  ZuInline Type(Union &&v) : Union(ZuMv(v)) { }; \
+  Type(const Union &v) : Union(v) { }; \
+  Type(Union &&v) : Union(ZuMv(v)) { }; \
   ZuPP_Eval(ZuPP_MapIndex(ZuUnion_FieldFn, 0, __VA_ARGS__)) \
   struct Traits : public ZuTraits<Type##_> { using T = Type; }; \
   friend Traits ZuTraitsType(Type *); \

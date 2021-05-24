@@ -536,13 +536,12 @@ public:
   // traits
   friend typename Base::Traits ZuTraitsType(ZuStringN *);
 
+  // printing
+  friend ZuPrintString ZuPrintType(ZuStringN *);
+
 private:
   char		m_data[N];
 };
-
-// generic printing
-template <unsigned N>
-struct ZuPrint<ZuStringN<N> > : public ZuPrintString { };
 
 template <unsigned N_>
 class ZuWStringN : public ZuStringN_<wchar_t, N_, ZuWStringN<N_>> {

@@ -263,7 +263,7 @@ struct FieldFilter { enum { OK = (Field::Flags & ZvFieldFlags::Series) }; };
 
 template <typename T>
 ZvVFieldArray fields() {
-  using Fields = ZuTypeGrep<FieldFilter, ZvFieldList<T>>;
+  using Fields = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
   return ZvVFields_<Fields>();
 }
 

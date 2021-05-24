@@ -332,6 +332,12 @@ public:
     return Print{m_p0, m_p1, delim};
   }
 
+  struct PrintType : public ZuPrintDelegate {
+    template <typename S, typename P>
+    static void print(S &s, const P &p) { s << p.print(); }
+  };
+  friend PrintType ZuPrintType(Pair *);
+
 private:
   T0		m_p0;
   T1		m_p1;
@@ -347,12 +353,6 @@ template <typename T0, typename T1>
 auto ZuMvPair(T0 v1, T1 v2) {
   return ZuPair<T0, T1>(ZuMv(v1), ZuMv(v2));
 }
-
-template <typename T0, typename T1>
-struct ZuPrint<ZuPair<T0, T1> > : public ZuPrintDelegate {
-  template <typename S>
-  static void print(S &s, const ZuPair<T0, T1> &p) { s << p.print(); }
-};
 
 namespace Zu_ {
   template <typename ...Args> Pair(Args...) -> Pair<Args...>;

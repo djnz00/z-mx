@@ -44,6 +44,7 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuFnName.hpp>
 #include <zlib/ZuStringN.hpp>
+#include <zlib/ZuPrint.hpp>
 
 #include <zlib/ZmObject.hpp>
 #include <zlib/ZmRef.hpp>
@@ -121,10 +122,12 @@ public:
   bool operator !() const { return m_errNo == OK; }
   ZuOpBool
 
-  template <typename S> ZuInline void print(S &s) const { s << message(); }
+  template <typename S> void print(S &s) const { s << message(); }
 
   struct Traits : public ZuBaseTraits<ZeError> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZeError *);
+
+  friend ZuPrintFn ZuPrintType(ZeError *);
 
 private:
   ErrNo		m_errNo;
@@ -138,8 +141,6 @@ inline ZeError Ze_LastError() { return ZeError(ZePlatform_::errNo()); }
 
 inline ZeError Ze_LastSockError() { return ZeError(ZePlatform_::sockErrNo()); }
 #define ZeLastSockError Ze_LastSockError()
-
-template <> struct ZuPrint<ZeError> : public ZuPrintFn { };
 
 template <typename Event>
 class ZeMessageFn_ : public ZmFn<const Event &, ZmStream &> {
