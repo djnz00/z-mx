@@ -610,8 +610,8 @@ template <typename V, typename FieldList>
 struct ZvFieldKey__ {
   template <typename ...Fields>
   struct Mk_ {
-    using Tuple_ = ZuTuple<typename Fields::T...>;
-    static auto tuple(const V &v) { return Tuple_{Fields::get(&v)...}; }
+    using Tuple = ZuTuple<typename Fields::T...>;
+    static auto tuple(const V &v) { return Tuple{Fields::get(&v)...}; }
   };
   using Mk = ZuTypeApply<Mk_, FieldList>;
 };

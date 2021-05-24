@@ -38,9 +38,9 @@
 #include <zlib/ZuPP.hpp>
 
 namespace Zu_ {
-  template <typename ...Args> class Tuple;
+  template <typename ...Args> class Tuple_;
 }
-template <typename ...Args> using ZuTuple = Zu_::Tuple<Args...>;
+template <typename ...Args> using ZuTuple = Zu_::Tuple_<Args...>;
 
 struct ZuTuple1_ { }; // tuple containing single value
 
@@ -97,7 +97,7 @@ struct ZuTuple1_Print<U0, true> :
 
 namespace Zu_ {
 template <typename T0_>
-class Tuple<T0_> : public ZuTuple1_ {
+class Tuple_<T0_> : public ZuTuple1_ {
 public:
   using T0 = T0_;
   using U0 = ZuDeref<T0>;
@@ -107,12 +107,12 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0>;
 
-  Tuple() = default;
-  Tuple(const Tuple &) = default;
-  Tuple &operator =(const Tuple &) = default;
-  Tuple(Tuple &&) = default;
-  Tuple &operator =(Tuple &&) = default;
-  ~Tuple() = default;
+  Tuple_() = default;
+  Tuple_(const Tuple_ &) = default;
+  Tuple_ &operator =(const Tuple_ &) = default;
+  Tuple_(Tuple_ &&) = default;
+  Tuple_ &operator =(Tuple_ &&) = default;
+  ~Tuple_() = default;
 
 private:
   template <typename T, typename> struct Bind_P0 {
@@ -143,21 +143,21 @@ private:
 
 public:
   template <typename T>
-  Tuple(T &&v, ZuIfT<
-	ZuTuple1_Cvt<ZuDecay<T>, Tuple>::OK
+  Tuple_(T &&v, ZuIfT<
+	ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK
       > *_ = 0) :
     m_p0(Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))) { }
 
   template <typename T>
-  Tuple(T &&v, ZuIfT<
-      !ZuTuple1_Cvt<ZuDecay<T>, Tuple>::OK &&
+  Tuple_(T &&v, ZuIfT<
+      !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
 	(!ZuTraits<T0>::IsReference ||
 	  ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is)
       > *_ = 0) :
     m_p0(ZuFwd<T>(v)) { }
 
   template <typename T>
-  ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple>::OK, Tuple &>
+  ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK, Tuple_ &>
   operator =(T &&v) {
     m_p0 = Bind<ZuDecay<T>>::p0(ZuFwd<T>(v));
     return *this;
@@ -165,34 +165,34 @@ public:
 
   template <typename T>
   ZuIfT<
-    !ZuTuple1_Cvt<ZuDecay<T>, Tuple>::OK &&
+    !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
     (!ZuTraits<T0>::IsReference ||
       ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is),
-    Tuple &>
+    Tuple_ &>
   operator =(T &&v) {
     m_p0 = ZuFwd<T>(v);
     return *this;
   }
 
   template <typename P0>
-  int cmp(const Tuple<P0> &p) const {
+  int cmp(const Tuple_<P0> &p) const {
     return ZuCmp<T0>::cmp(m_p0, p.template p<0>());
   }
   template <typename P0>
-  bool less(const Tuple<P0> &p) const {
+  bool less(const Tuple_<P0> &p) const {
     return ZuCmp<T0>::less(m_p0, p.template p<0>());
   }
   template <typename P0>
-  bool equals(const Tuple<P0> &p) const {
+  bool equals(const Tuple_<P0> &p) const {
     return ZuCmp<T0>::equals(m_p0, p.template p<0>());
   }
 
-  bool operator ==(const Tuple &p) const { return equals(p); }
-  bool operator !=(const Tuple &p) const { return !equals(p); }
-  bool operator >(const Tuple &p) const { return p.less(*this); }
-  bool operator >=(const Tuple &p) const { return !less(p); }
-  bool operator <(const Tuple &p) const { return less(p); }
-  bool operator <=(const Tuple &p) const { return !p.less(*this); }
+  bool operator ==(const Tuple_ &p) const { return equals(p); }
+  bool operator !=(const Tuple_ &p) const { return !equals(p); }
+  bool operator >(const Tuple_ &p) const { return p.less(*this); }
+  bool operator >=(const Tuple_ &p) const { return !less(p); }
+  bool operator <(const Tuple_ &p) const { return less(p); }
+  bool operator <=(const Tuple_ &p) const { return !p.less(*this); }
 
   bool operator !() const { return !m_p0; }
   ZuOpBool
@@ -210,7 +210,7 @@ public:
     return m_p0;
   }
   template <unsigned I, typename P>
-  ZuIfT<!I, Tuple &> p(P &&p) {
+  ZuIfT<!I, Tuple_ &> p(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
@@ -224,7 +224,7 @@ public:
     return m_p0;
   }
   template <typename T, typename P>
-  ZuIfT<ZuConversion<T, T0>::Same, Tuple &> v(P &&p) {
+  ZuIfT<ZuConversion<T, T0>::Same, Tuple_ &> v(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
@@ -249,17 +249,17 @@ public:
   }
 
   // traits
-  struct Traits : public ZuBaseTraits<Tuple> {
+  struct Traits : public ZuBaseTraits<Tuple_> {
     enum { IsPOD = ZuTraits<T0>::IsPOD };
   };
-  friend Traits ZuTraitsType(Tuple *);
+  friend Traits ZuTraitsType(Tuple_ *);
 
 private:
   T0		m_p0;
 };
 
 template <typename T0, typename T1>
-class Tuple<T0, T1> : public Pair<T0, T1> {
+class Tuple_<T0, T1> : public Pair<T0, T1> {
   using Base = Pair<T0, T1>;
 
 public:
@@ -269,22 +269,22 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0, T1>;
 
-  Tuple() = default;
-  Tuple(const Tuple &) = default;
-  Tuple &operator =(const Tuple &) = default;
-  Tuple(Tuple &&) = default;
-  Tuple &operator =(Tuple &&) = default;
-  ~Tuple() = default;
+  Tuple_() = default;
+  Tuple_(const Tuple_ &) = default;
+  Tuple_ &operator =(const Tuple_ &) = default;
+  Tuple_(Tuple_ &&) = default;
+  Tuple_ &operator =(Tuple_ &&) = default;
+  ~Tuple_() = default;
 
-  template <typename T> Tuple(T &&v) : Base{ZuFwd<T>(v)} { }
+  template <typename T> Tuple_(T &&v) : Base{ZuFwd<T>(v)} { }
 
-  template <typename T> Tuple &operator =(T &&v) noexcept {
+  template <typename T> Tuple_ &operator =(T &&v) noexcept {
     Base::assign(ZuFwd<T>(v));
     return *this;
   }
 
   template <typename P0, typename P1>
-  Tuple(P0 &&p0, P1 &&p1) : Base{ZuFwd<P0>(p0), ZuFwd<P1>(p1)} { }
+  Tuple_(P0 &&p0, P1 &&p1) : Base{ZuFwd<P0>(p0), ZuFwd<P1>(p1)} { }
 
   template <unsigned I>
   const Type<I> &p() const {
@@ -295,7 +295,7 @@ public:
     return Base::template p<I>();
   }
   template <unsigned I, typename P>
-  Tuple &p(P &&p) {
+  Tuple_ &p(P &&p) {
     Base::template p<I>(ZuFwd<P>(p));
     return *this;
   }
@@ -309,7 +309,7 @@ public:
     return p<Index<T>::I>();
   }
   template <typename T, typename P>
-  Tuple &v(P &&p) {
+  Tuple_ &v(P &&p) {
     return p<Index<T>::I>(ZuFwd<P>(p));
   }
 
@@ -329,7 +329,7 @@ public:
   }
 
   // traits
-  friend ZuTraits<Base> ZuTraitsType(Tuple *);
+  friend ZuTraits<Base> ZuTraitsType(Tuple_ *);
 };
 } // namespace Zu_
 
@@ -346,9 +346,9 @@ using ZuTuple_Type = typename ZuTuple_Type_<I, Left, Right>::T;
 
 namespace Zu_ {
 template <typename T0, typename T1, typename ...Args>
-class Tuple<T0, T1, Args...> : public Pair<T0, Tuple<T1, Args...>> {
+class Tuple_<T0, T1, Args...> : public Pair<T0, Tuple_<T1, Args...>> {
   using Left = T0;
-  using Right = Tuple<T1, Args...>;
+  using Right = Tuple_<T1, Args...>;
   using Base = Pair<Left, Right>;
 
 public:
@@ -358,22 +358,22 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0, T1, Args...>;
 
-  Tuple() = default;
-  Tuple(const Tuple &) = default;
-  Tuple &operator =(const Tuple &) = default;
-  Tuple(Tuple &&) = default;
-  Tuple &operator =(Tuple &&) = default;
-  ~Tuple() = default;
+  Tuple_() = default;
+  Tuple_(const Tuple_ &) = default;
+  Tuple_ &operator =(const Tuple_ &) = default;
+  Tuple_(Tuple_ &&) = default;
+  Tuple_ &operator =(Tuple_ &&) = default;
+  ~Tuple_() = default;
 
-  template <typename T> Tuple(T &&v) : Base{ZuFwd<T>(v)} { }
+  template <typename T> Tuple_(T &&v) : Base{ZuFwd<T>(v)} { }
 
-  template <typename T> Tuple &operator =(T &&v) noexcept {
+  template <typename T> Tuple_ &operator =(T &&v) noexcept {
     Base::assign(ZuFwd<T>(v));
     return *this;
   }
 
   template <typename P0, typename P1, typename ...Args_>
-  Tuple(P0 &&p0, P1 &&p1, Args_ &&... args) :
+  Tuple_(P0 &&p0, P1 &&p1, Args_ &&... args) :
       Base{ZuFwd<P0>(p0), Right{ZuFwd<P1>(p1), ZuFwd<Args_>(args)...}} { }
 
   template <unsigned I>
@@ -385,7 +385,7 @@ public:
     return Base::template p<0>();
   }
   template <unsigned I, typename P>
-  ZuIfT<!I, Tuple &> p(P &&p) {
+  ZuIfT<!I, Tuple_ &> p(P &&p) {
     Base::template p<0>(ZuFwd<P>(p));
     return *this;
   }
@@ -399,7 +399,7 @@ public:
     return Base::template p<1>().template p<I - 1>();
   }
   template <unsigned I, typename P>
-  ZuIfT<(I && I < N), Tuple &> p(P &&p) {
+  ZuIfT<(I && I < N), Tuple_ &> p(P &&p) {
     Base::template p<1>().template p<I - 1>(ZuFwd<P>(p));
     return *this;
   }
@@ -433,7 +433,7 @@ public:
   }
 
   // traits
-  friend ZuTraits<Base> ZuTraitsType(Tuple *);
+  friend ZuTraits<Base> ZuTraitsType(Tuple_ *);
 };
 } // namespace Zu_
 
@@ -448,7 +448,7 @@ auto inline ZuMvTuple(Args... args) {
 }
 
 namespace Zu_ {
-  template <typename ...Args> Tuple(Args...) -> Tuple<Args...>;
+  template <typename ...Args> Tuple_(Args...) -> Tuple_<Args...>;
 }
 
 // STL structured binding cruft
@@ -472,38 +472,38 @@ namespace Zu_ {
     using tuple_element_t = typename std::tuple_element<I, T>::type;
   }
   template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Tuple<Args...>> &
-  get(Tuple<Args...> &p) noexcept { return p.template p<I>(); }
+  constexpr tuple_element_t<I, Tuple_<Args...>> &
+  get(Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
   template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Tuple<Args...>> &
-  get(const Tuple<Args...> &p) noexcept { return p.template p<I>(); }
+  constexpr const tuple_element_t<I, Tuple_<Args...>> &
+  get(const Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
   template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Tuple<Args...>> &&
-  get(Tuple<Args...> &&p) noexcept {
-    return static_cast<tuple_element_t<I, Tuple<Args...>> &&>(
+  constexpr tuple_element_t<I, Tuple_<Args...>> &&
+  get(Tuple_<Args...> &&p) noexcept {
+    return static_cast<tuple_element_t<I, Tuple_<Args...>> &&>(
 	p.template p<I>());
   }
   template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Tuple<Args...>> &&
-  get(const Tuple<Args...> &&p) noexcept {
-    return static_cast<const tuple_element_t<I, Tuple<Args...>> &&>(
+  constexpr const tuple_element_t<I, Tuple_<Args...>> &&
+  get(const Tuple_<Args...> &&p) noexcept {
+    return static_cast<const tuple_element_t<I, Tuple_<Args...>> &&>(
 	p.template p<I>());
   }
 
   template <typename T, typename ...Args>
-  constexpr T &get(Tuple<Args...> &p) noexcept {
+  constexpr T &get(Tuple_<Args...> &p) noexcept {
     return p.template v<T>();
   }
   template <typename T, typename ...Args>
-  constexpr const T &get(const Tuple<Args...> &p) noexcept {
+  constexpr const T &get(const Tuple_<Args...> &p) noexcept {
     return p.template v<T>();
   }
   template <typename T, typename ...Args>
-  constexpr T &&get(Tuple<Args...> &&p) noexcept {
+  constexpr T &&get(Tuple_<Args...> &&p) noexcept {
     return static_cast<T &&>(p.template v<T>());
   }
   template <typename T, typename ...Args>
-  constexpr const T &&get(const Tuple<Args...> &&p) noexcept {
+  constexpr const T &&get(const Tuple_<Args...> &&p) noexcept {
     return static_cast<const T &&>(p.template v<T>());
   }
 } // namespace Zu_
