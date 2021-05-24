@@ -259,8 +259,8 @@ private:
 };
 
 template <typename T0, typename T1>
-class Tuple_<T0, T1> : public Pair<T0, T1> {
-  using Base = Pair<T0, T1>;
+class Tuple_<T0, T1> : public Pair_<T0, T1> {
+  using Base = Pair_<T0, T1>;
 
 public:
   template <unsigned I> using Type = typename Base::template Type<I>;
@@ -346,10 +346,10 @@ using ZuTuple_Type = typename ZuTuple_Type_<I, Left, Right>::T;
 
 namespace Zu_ {
 template <typename T0, typename T1, typename ...Args>
-class Tuple_<T0, T1, Args...> : public Pair<T0, Tuple_<T1, Args...>> {
+class Tuple_<T0, T1, Args...> : public Pair_<T0, Tuple_<T1, Args...>> {
   using Left = T0;
   using Right = Tuple_<T1, Args...>;
-  using Base = Pair<Left, Right>;
+  using Base = Pair_<Left, Right>;
 
 public:
   template <unsigned I> using Type = ZuTuple_Type<I, Left, Right>;

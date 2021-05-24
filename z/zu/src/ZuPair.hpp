@@ -56,10 +56,10 @@ template <typename T, typename P> struct ZuPair_Cvt :
 
 // fwd-declare the traits
 namespace Zu_ {
-  template <typename T0, typename T1> class Pair;
+  template <typename T0, typename T1> class Pair_;
 }
 template <typename T0, typename T1>
-using ZuPair = Zu_::Pair<T0, T1>;
+using ZuPair = Zu_::Pair_<T0, T1>;
 template <typename T0, typename T1>
 struct ZuTraits<ZuPair<T0, T1>> : public ZuBaseTraits<ZuPair<T0, T1>> {
   enum { IsPOD = ZuTraits<T0>::IsPOD && ZuTraits<T1>::IsPOD };
@@ -127,8 +127,8 @@ struct ZuPair_Print<U0, U1, true, true> :
 };
 
 namespace Zu_ {
-template <typename T0_, typename T1_> class Pair : public ZuPair_ {
-  template <typename, typename> friend class Pair;
+template <typename T0_, typename T1_> class Pair_ : public ZuPair_ {
+  template <typename, typename> friend class Pair_;
 
 public:
   using T0 = T0_;
@@ -137,12 +137,12 @@ public:
   using U1 = ZuDeref<T1_>;
   template <unsigned I> using Type = ZuPair_Type<I, T0, T1>;
 
-  Pair() = default;
-  Pair(const Pair &) = default;
-  Pair &operator =(const Pair &) = default;
-  Pair(Pair &&) = default;
-  Pair &operator =(Pair &&) = default;
-  ~Pair() = default;
+  Pair_() = default;
+  Pair_(const Pair_ &) = default;
+  Pair_ &operator =(const Pair_ &) = default;
+  Pair_(Pair_ &&) = default;
+  Pair_ &operator =(Pair_ &&) = default;
+  ~Pair_() = default;
 
 private:
   template <typename T, typename> struct Bind_P0 {
@@ -196,8 +196,8 @@ private:
 
 public:
   template <typename T>
-  Pair(T &&v, ZuIfT<
-	ZuPair_Cvt<ZuDecay<T>, Pair>::OK
+  Pair_(T &&v, ZuIfT<
+	ZuPair_Cvt<ZuDecay<T>, Pair_>::OK
       > *_ = 0) :
     m_p0(Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))),
     m_p1(Bind<ZuDecay<T>>::p1(ZuFwd<T>(v))) { }
@@ -205,20 +205,20 @@ public:
 protected:
   template <typename T>
   ZuIfT<
-    ZuPair_Cvt<ZuDecay<T>, Pair>::OK
+    ZuPair_Cvt<ZuDecay<T>, Pair_>::OK
   > assign(T &&v) {
     m_p0 = Bind<ZuDecay<T>>::p0(ZuFwd<T>(v));
     m_p1 = Bind<ZuDecay<T>>::p1(ZuFwd<T>(v));
   }
 
 public:
-  template <typename T> Pair &operator =(T &&v) noexcept {
+  template <typename T> Pair_ &operator =(T &&v) noexcept {
     assign(ZuFwd<T>(v));
     return *this;
   }
 
   template <typename P0, typename P1>
-  Pair(P0 &&p0, P1 &&p1,
+  Pair_(P0 &&p0, P1 &&p1,
       ZuIfT<
 	(!ZuTraits<T0>::IsReference ||
 	  ZuConversion<ZuDecay<U0>,
@@ -229,30 +229,30 @@ public:
     m_p0(ZuFwd<P0>(p0)), m_p1(ZuFwd<P1>(p1)) { }
 
   template <typename P0, typename P1>
-  int cmp(const Pair<P0, P1> &p) const {
+  int cmp(const Pair_<P0, P1> &p) const {
     int i;
     if (i = ZuCmp<T0>::cmp(m_p0, p.template p<0>())) return i;
     return ZuCmp<T1>::cmp(m_p1, p.template p<1>());
   }
   template <typename P0, typename P1>
-  bool less(const Pair<P0, P1> &p) const {
+  bool less(const Pair_<P0, P1> &p) const {
     return
       !ZuCmp<T0>::less(p.template p<0>(), m_p0) &&
       ZuCmp<T1>::less(m_p1, p.template p<1>());
   }
   template <typename P0, typename P1>
-  bool equals(const Pair<P0, P1> &p) const {
+  bool equals(const Pair_<P0, P1> &p) const {
     return
       ZuCmp<T0>::equals(m_p0, p.template p<0>()) &&
       ZuCmp<T1>::equals(m_p1, p.template p<1>());
   }
 
-  bool operator ==(const Pair &p) const { return equals(p); }
-  bool operator !=(const Pair &p) const { return !equals(p); }
-  bool operator >(const Pair &p) const { return p.less(*this); }
-  bool operator >=(const Pair &p) const { return !less(p); }
-  bool operator <(const Pair &p) const { return less(p); }
-  bool operator <=(const Pair &p) const { return !p.less(*this); }
+  bool operator ==(const Pair_ &p) const { return equals(p); }
+  bool operator !=(const Pair_ &p) const { return !equals(p); }
+  bool operator >(const Pair_ &p) const { return p.less(*this); }
+  bool operator >=(const Pair_ &p) const { return !less(p); }
+  bool operator <(const Pair_ &p) const { return less(p); }
+  bool operator <=(const Pair_ &p) const { return !p.less(*this); }
 
   bool operator !() const { return !m_p0 || !m_p1; }
   ZuOpBool
@@ -270,7 +270,7 @@ public:
     return m_p0;
   }
   template <unsigned I, typename P>
-  ZuIfT<I == 0, Pair &> p(P &&p) {
+  ZuIfT<I == 0, Pair_ &> p(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
@@ -284,7 +284,7 @@ public:
     return m_p1;
   }
   template <unsigned I, typename P>
-  ZuIfT<I == 1, Pair &> p(P &&p) {
+  ZuIfT<I == 1, Pair_ &> p(P &&p) {
     m_p1 = ZuFwd<P>(p);
     return *this;
   }
@@ -298,7 +298,7 @@ public:
     return m_p0;
   }
   template <typename T, typename P>
-  ZuIfT<ZuConversion<T, T0>::Same, Pair &> v(P &&p) {
+  ZuIfT<ZuConversion<T, T0>::Same, Pair_ &> v(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
@@ -318,7 +318,7 @@ public:
   template <typename T, typename P>
   ZuIfT<
       !ZuConversion<T, T0>::Same && ZuConversion<T, T1>::Same,
-      Pair &> v(P &&p) {
+      Pair_ &> v(P &&p) {
     m_p1 = ZuFwd<P>(p);
     return *this;
   }
@@ -336,7 +336,7 @@ public:
     template <typename S, typename P>
     static void print(S &s, const P &p) { s << p.print(); }
   };
-  friend PrintType ZuPrintType(Pair *);
+  friend PrintType ZuPrintType(Pair_ *);
 
 private:
   T0		m_p0;
@@ -355,7 +355,7 @@ auto ZuMvPair(T0 v1, T1 v2) {
 }
 
 namespace Zu_ {
-  template <typename ...Args> Pair(Args...) -> Pair<Args...>;
+  template <typename ...Args> Pair_(Args...) -> Pair_<Args...>;
 }
 
 // STL structured binding cruft
@@ -379,55 +379,55 @@ namespace Zu_ {
     using tuple_element_t = typename std::tuple_element<I, T>::type;
   }
   template <size_t I, typename T0, typename T1>
-  constexpr tuple_element_t<I, Pair<T0, T1>> &
-  get(Pair<T0, T1> &p) noexcept { return p.template p<I>(); }
+  constexpr tuple_element_t<I, Pair_<T0, T1>> &
+  get(Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
   template <size_t I, typename T0, typename T1>
-  constexpr const tuple_element_t<I, Pair<T0, T1>> &
-  get(const Pair<T0, T1> &p) noexcept { return p.template p<I>(); }
+  constexpr const tuple_element_t<I, Pair_<T0, T1>> &
+  get(const Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
   template <size_t I, typename T0, typename T1>
-  constexpr tuple_element_t<I, Pair<T0, T1>> &&
-  get(Pair<T0, T1> &&p) noexcept {
-    return static_cast<tuple_element_t<I, Pair<T0, T1>> &&>(
+  constexpr tuple_element_t<I, Pair_<T0, T1>> &&
+  get(Pair_<T0, T1> &&p) noexcept {
+    return static_cast<tuple_element_t<I, Pair_<T0, T1>> &&>(
 	p.template p<I>());
   }
   template <size_t I, typename T0, typename T1>
-  constexpr const tuple_element_t<I, Pair<T0, T1>> &&
-  get(const Pair<T0, T1> &&p) noexcept {
-    return static_cast<const tuple_element_t<I, Pair<T0, T1>> &&>(
+  constexpr const tuple_element_t<I, Pair_<T0, T1>> &&
+  get(const Pair_<T0, T1> &&p) noexcept {
+    return static_cast<const tuple_element_t<I, Pair_<T0, T1>> &&>(
 	p.template p<I>());
   }
 
   template <typename T, typename U>
-  constexpr T &get(Pair<T, U> &p) noexcept {
+  constexpr T &get(Pair_<T, U> &p) noexcept {
     return p.template p<0>();
   }
   template <typename T, typename U>
-  constexpr const T &get(const Pair<T, U> &p) noexcept {
+  constexpr const T &get(const Pair_<T, U> &p) noexcept {
     return p.template p<0>();
   }
   template <typename T, typename U>
-  constexpr T &&get(Pair<T, U> &&p) noexcept {
+  constexpr T &&get(Pair_<T, U> &&p) noexcept {
     return static_cast<T &&>(p.template p<0>());
   }
   template <typename T, typename U>
-  constexpr const T &&get(const Pair<T, U> &&p) noexcept {
+  constexpr const T &&get(const Pair_<T, U> &&p) noexcept {
     return static_cast<const T &&>(p.template p<0>());
   }
 
   template <typename T, typename U>
-  constexpr T &get(Pair<U, T> &p) noexcept {
+  constexpr T &get(Pair_<U, T> &p) noexcept {
     return p.template p<1>();
   }
   template <typename T, typename U>
-  constexpr const T &get(const Pair<U, T> &p) noexcept {
+  constexpr const T &get(const Pair_<U, T> &p) noexcept {
     return p.template p<1>();
   }
   template <typename T, typename U>
-  constexpr T &&get(Pair<U, T> &&p) noexcept {
+  constexpr T &&get(Pair_<U, T> &&p) noexcept {
     return static_cast<T &&>(p.template p<1>());
   }
   template <typename T, typename U>
-  constexpr const T &&get(const Pair<U, T> &&p) noexcept {
+  constexpr const T &&get(const Pair_<U, T> &&p) noexcept {
     return static_cast<const T &&>(p.template p<1>());
   }
 } // namespace Zu_
