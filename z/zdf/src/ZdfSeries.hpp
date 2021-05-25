@@ -131,13 +131,14 @@ public:
   // read single value
   bool read(ZuFixed &value) {
     if (ZuUnlikely(!*this)) return false;
-    if (ZuUnlikely(!m_decoder.read(value.value))) {
+    ZuFixedVal mantissa;
+    if (ZuUnlikely(!m_decoder.read(mantissa))) {
       m_decoder = m_series->template nextDecoder<Decoder>(m_buf);
-      if (ZuUnlikely(!m_decoder || !m_decoder.read(value.value)))
+      if (ZuUnlikely(!m_decoder || !m_decoder.read(mantissa)))
 	return false;
       m_exponent = m_buf->hdr()->exponent();
     }
-    value.exponent = m_exponent;
+    value = {mantissa, m_exponent};
     return true;
   }
 
@@ -207,19 +208,19 @@ public:
       m_encoder = m_series->template encoder<Encoder>(m_buf);
       if (ZuUnlikely(!m_buf)) return false;
       m_buf->pin();
-      m_exponent = value.exponent;
+      m_exponent = value.exponent();
       eob = false;
     } else {
-      eob = value.exponent != m_exponent;
+      eob = value.exponent() != m_exponent;
     }
-    if (eob || !m_encoder.write(value.value)) {
+    if (eob || !m_encoder.write(value.mantissa())) {
       sync();
       save();
       m_encoder = m_series->template nextEncoder<Encoder>(m_buf);
       if (ZuUnlikely(!m_buf)) return false;
       m_buf->pin();
-      m_exponent = value.exponent;
-      if (ZuUnlikely(!m_encoder.write(value.value))) return false;
+      m_exponent = value.exponent();
+      if (ZuUnlikely(!m_encoder.write(value.mantissa()))) return false;
     }
     return true;
   }
@@ -367,9 +368,9 @@ private:
     {
       auto reader = buf->reader<Decoder>();
       bool found = reader.search(
-	  [value = value_.adjust(buf->hdr()->exponent())](
+	  [mantissa = value_.adjust(buf->hdr()->exponent())](
 	    int64_t skip, unsigned count) -> unsigned {
-	      return skip < value ? count : 0;
+	      return skip < mantissa ? count : 0;
 	    });
       if (!found) goto null;
       return reader;
@@ -398,18 +399,19 @@ private:
       auto reader = buf->template reader<Decoder>();
       auto hdr = buf->hdr();
       ZuFixed value_{static_cast<int64_t>(0), hdr->exponent()};
-      if (!reader.read(value_.value)) return -1;
-      value_.value = value_.adjust(value.exponent);
-      if (value.value < value_.value) {
-	int64_t delta = value_.value - value.value;
+      ZuFixedVal mantissa;
+      if (!reader.read(mantissa)) return -1;
+      mantissa = value_.adjust(value.exponent());
+      if (value.mantissa() < mantissa) {
+	int64_t delta = mantissa - value.mantissa();
 	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))
 	  return INT_MIN;
 	return -static_cast<int>(delta);
       }
-      value_.value = hdr->last;
-      value_.value = value_.adjust(value.exponent);
-      if (value.value > value_.value) {
-	int64_t delta = value.value - value_.value;
+      value_.mantissa(hdr->last);
+      mantissa = value_.adjust(value.exponent());
+      if (value.mantissa() > mantissa) {
+	int64_t delta = value.mantissa() - mantissa;
 	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))
 	  return INT_MAX;
 	return static_cast<int>(delta);

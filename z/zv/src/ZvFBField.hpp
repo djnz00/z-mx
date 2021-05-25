@@ -96,12 +96,15 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
     using FBB = ZvFBB<U>; \
     using FBS = ZvFBS<U>; \
     enum { Inline = 1 }; \
-    static void save(FBB &fbb, const void *o) { fbb.add_##ID(Base::get(o)); } \
+    static void save(FBB &fbb, const void *o) { \
+      using P = ZuType<0, typename ZuDeduce<decltype(&FBB::add_##ID)>::Args>; \
+      fbb.add_##ID(static_cast<P>(Base::get(o))); \
+    } \
     static auto load_(const FBS *o_) { return o_->ID(); } \
     static void load(void *o, const FBS *o_) { Base::set(o, load_(o_)); } \
   };
 
-#define ZvFBFieldString_T Bool
+#define ZvFBFieldString_T String
 #define ZvFBFieldString(U, ...) \
   ZvFBFieldComposite_(U, __VA_ARGS__, str, str)
 
@@ -111,7 +114,7 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 #define ZvFBFieldEnum_T Enum
 #define ZvFBFieldFlags_T Flags
 #define ZvFBFieldFloat_T Float
-#define ZvFBFieldFixed_T Fixed
+#define ZvFBFieldFixed_T Float
 
 #define ZvFBFieldBool(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 #define ZvFBFieldInt(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
@@ -121,7 +124,7 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 #define ZvFBFieldFloat(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 #define ZvFBFieldFixed(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
 
-#define ZvFBFieldDecimal_T Decimal
+#define ZvFBFieldDecimal_T Float
 #define ZvFBFieldDecimal(U, ...) \
   ZvFBFieldInline_(U, __VA_ARGS__, decimal, decimal)
 
@@ -242,7 +245,9 @@ struct Table_ {
   struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
   using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
   template <typename U>
-  struct CtorIndex { enum { I = Flags::CtorIndex(U::Flags) }; };
+  struct CtorIndex {
+    enum { I = (U::Flags>>Flags::CtorShift) & Flags::CtorMask };
+  };
   using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
 
   template <typename U>

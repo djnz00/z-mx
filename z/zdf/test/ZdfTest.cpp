@@ -26,13 +26,16 @@ void fail(const char *s, int64_t i) { print(s, i); }
 
 struct Frame {
   uint64_t	v1;
-  ZuFixedVal	v2;
+  ZuFixedVal	v2_;
+
+  ZuFixed v2() const { return ZuFixed{v2_, 9}; }
+  void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
 ZvFields(Frame,
     // (Int, v1, Series | Index | Delta2),
-    (Int, v1, (Ctor(0), Series, Index, Delta)),
+    (, Int, v1, (Ctor(0), Series, Index, Delta)),
     // (Int, v1, Series | Index),
-    (Fixed, v2, (Ctor(1), Series, Delta), 9));
+    (Fn, Float, v2, (Ctor(1), Series, Delta, NDP(9))));
 
 void usage() {
   std::cerr << "usage: ZdfTest mem|load|save\n" << std::flush;
@@ -79,7 +82,7 @@ int main(int argc, char **argv)
     auto writer = df.writer();
     for (uint64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
-      frame.v2 = i * 42;
+      frame.v2_ = i * 42;
       writer.write(&frame);
     }
   }
@@ -90,14 +93,14 @@ int main(int argc, char **argv)
     df.seek(reader, 1, index.offset());
     ZuFixed v;
     CHECK(reader.read(v));
-    CHECK(v.value == 20 * 42);
-    CHECK(v.exponent == 9);
+    CHECK(v.mantissa() == 20 * 42);
+    CHECK(v.exponent() == 9);
     index.findFwd(ZuFixed{200, 0});
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekFwd(index.offset());
     CHECK(reader.read(v));
-    CHECK(v.value == 200 * 42);
-    CHECK(v.exponent == 9);
+    CHECK(v.mantissa() == 200 * 42);
+    CHECK(v.exponent() == 9);
     index.findRev(ZuFixed{100, 0});
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekRev(index.offset());

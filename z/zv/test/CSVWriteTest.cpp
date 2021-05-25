@@ -32,20 +32,23 @@ struct Row {
   bool		bar;
   int		bah;
   double	baz;
-  ZuFixedVal	bam;
+  ZuFixedVal	bam_;
   int		snafu;
   ZtDate	mabbit;
   int		flags;
+
+  ZuFixed bam() const { return ZuFixed{bam_, 2}; }
+  void bam(ZuFixed v) { bam_ = v.adjust(2); }
 };
 ZvFields(Row,
-    (String, foo, (Ctor(0))),
-    (Bool, bar, (Ctor(1))),
-    (Int, bah, (Ctor(2))),
-    (Float, baz, (Ctor(3)), 2),
-    (Fixed, bam, (Ctor(4)), 2),
-    (Int, snafu, (Ctor(5))),
-    (Time, mabbit, (Ctor(6))),
-    (Flags, flags, (Ctor(7)), DaFlags::Map));
+    (, String, foo, (Ctor(0))),
+    (, Bool, bar, (Ctor(1))),
+    (, Int, bah, (Ctor(2))),
+    (, Float, baz, (Ctor(3), NDP(2))),
+    (Fn, Float, bam, (Ctor(4), NDP(2))),
+    (, Int, snafu, (Ctor(5))),
+    (, Time, mabbit, (Ctor(6))),
+    (, Flags, flags, (Ctor(7)), DaFlags::Map));
 
 using CSVWrite = ZmList<ZuRef<ZuPOD<Row> > >;
 
@@ -64,7 +67,7 @@ int main()
       r->bar = i % 2;
       r->bah = i * 2;
       r->baz = i * 2.2;
-      r->bam = ZuFixed{r->baz * 2.2, 2}.value;
+      r->bam_ = ZuFixed{r->baz * 2.2, 2}.mantissa();
       switch(i) {
 	case 1: r->snafu = 1; break;
 	case 2: r->snafu = 42; break;

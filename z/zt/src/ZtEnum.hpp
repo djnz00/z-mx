@@ -176,14 +176,14 @@ using ZtEnum = ZuBox_1(int8_t);
       Print(const Flags_ &v_, char delim_ = '|') : \
 	v(v_), delim(delim_) { } \
       template <typename S> void print(S &s) const { \
-	ZmSingleton<Map>::instance()->print(s, v, delim); \
+	ZmSingleton<Map>::instance()->print_(s, v, delim); \
       } \
       const Flags_	&v; \
       char		delim; \
     }; \
     template <typename Flags_> \
-    static Print<Flags_> print(const Flags_ &v) { \
-      return Print<Flags_>(v); \
+    static Print<Flags_> print(const Flags_ &v, char delim = '|') { \
+      return Print<Flags_>{v, delim}; \
     } \
   };
 

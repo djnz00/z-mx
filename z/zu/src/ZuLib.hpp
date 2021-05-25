@@ -274,6 +274,7 @@ template <typename ...Args> struct ZuTypeList {
   };
   template <typename ...Args_>
   using Prepend = typename Prepend_<Args_...>::T;
+
   template <typename ...Args_> struct Append_ {
     using T = ZuTypeList<Args..., Args_...>;
   };
@@ -531,6 +532,33 @@ struct ZuTypeAll<T0, Args...> {
 };
 template <typename ...Args>
 struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
+
+// function signature deduction
+
+// ZuDeduce<decltype(&L::operator())>::R
+// ZuDeduce<decltype(&fn)>::R
+
+template <typename> struct ZuDeduce;
+template <typename O_, typename R_, typename ...Args_>
+struct ZuDeduce<R_ (O_::*)(Args_...) const> {
+  enum { Member = 1 };
+  using O = O_;
+  using R = R_;
+  using Args = ZuTypeList<Args_...>;
+};
+template <typename O_, typename R_, typename ...Args_>
+struct ZuDeduce<R_ (O_::*)(Args_...)> {
+  enum { Member = 1 };
+  using O = O_;
+  using R = R_;
+  using Args = ZuTypeList<Args_...>;
+};
+template <typename R_, typename ...Args_>
+struct ZuDeduce<R_ (*)(Args_...)> {
+  enum { Member = 0 };
+  using R = R_;
+  using Args = ZuTypeList<Args_...>;
+};
 
 // compile-time policy tag for intrusively shadowed (not owned) objects
 class ZuShadow { }; // tag

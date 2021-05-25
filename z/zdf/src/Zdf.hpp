@@ -310,23 +310,19 @@ public:
       for (unsigned i = 0; i < n; i++) {
 	auto field = m_df->field(i);
 	if (i || field) {
-	  unsigned exponent = field->info.exponent;
 	  switch (field->type) {
 	    case ZvFieldType::Int:
 	    case ZvFieldType::Enum:
-	      v = {field->getFn.int_(ptr), exponent};
+	      v = {field->getFn.int_(ptr), 0};
 	      break;
 	    case ZvFieldType::Fixed:
-	      v = field->getFn.fixed_(ptr);
-	      break;
-	    case ZvFieldType::Float:
-	      v = {field->getFn.float_(ptr), exponent};
-	      break;
-	    case ZvFieldType::Decimal:
-	      v = {field->getFn.decimal(ptr).adjust(exponent), exponent};
+	      v = field->getFn.fixed(ptr);
 	      break;
 	    case ZvFieldType::Time:
 	      v = m_df->nsecs(field->getFn.time(ptr));
+	      break;
+	    default:
+	      v = ZuFixed{0, 0};
 	      break;
 	  }
 	} else

@@ -82,8 +82,8 @@ public:
   }
 
   void add(const ZuFixed &v) {
-    exponent(v.exponent);
-    add_(v.value);
+    exponent(v.exponent());
+    add_(v.mantissa());
   }
 protected:
   void add_(ZuFixedVal v_) {
@@ -193,8 +193,8 @@ public:
   }
 
   ZuInline void add(const ZuFixed &v_) {
-    exponent(v_.exponent);
-    auto v = v_.value;
+    exponent(v_.exponent());
+    auto v = v_.mantissa();
     add_(v);
   }
   ZuInline void del(const ZuFixed &v_) {

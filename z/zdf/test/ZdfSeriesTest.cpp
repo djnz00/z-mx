@@ -50,29 +50,29 @@ int main()
   {
     auto r = s.seek<DeltaDecoder<>>();
     ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.value == 42 && !v.exponent);
-    CHECK(r.read(v)); CHECK(v.value == 42 && !v.exponent);
-    CHECK(r.read(v)); CHECK(v.value == 4301 && v.exponent == 2);
-    CHECK(r.read(v)); CHECK(v.value == 4302 && v.exponent == 2);
-    CHECK(r.read(v)); CHECK(v.value == 43030 && v.exponent == 3);
-    CHECK(r.read(v)); CHECK(v.value == 43040 && v.exponent == 3);
-    CHECK(r.read(v)); CHECK(v.value == 430500 && v.exponent == 4);
-    CHECK(r.read(v)); CHECK(v.value == 430600 && v.exponent == 4);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 42 && !v.exponent());
+    CHECK(r.read(v)); CHECK(v.mantissa() == 42 && !v.exponent());
+    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.exponent() == 2);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 4302 && v.exponent() == 2);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 43030 && v.exponent() == 3);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 43040 && v.exponent() == 3);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 430500 && v.exponent() == 4);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 430600 && v.exponent() == 4);
     for (unsigned i = 0; i < 300; i++) {
       CHECK(r.read(v));
-      CHECK(v.value == 430700 && v.exponent == 4);
+      CHECK(v.mantissa() == 430700 && v.exponent() == 4);
     }
     CHECK(!r.read(v));
   }
   {
     auto r = s.find<DeltaDecoder<>>(ZuFixed{425, 1});
     ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.value == 4301 && v.exponent == 2);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.exponent() == 2);
   }
   {
     auto r = s.find<DeltaDecoder<>>(ZuFixed{43020, 3});
     ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.value == 4302 && v.exponent == 2);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 4302 && v.exponent() == 2);
     r.purge();
   }
   CHECK(s.blkCount() == 3);
@@ -85,19 +85,19 @@ int main()
   {
     auto r = s.seek<DeltaDecoder<>>();
     ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.value == 4301 && v.exponent == 2);
+    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.exponent() == 2);
   }
   {
     auto r = s.seek<DeltaDecoder<>>(208);
     ZuFixed v;
     for (unsigned i = 0; i < 50; i++) {
       CHECK(r.read(v));
-      CHECK(v.value == 430700 && v.exponent == 4);
+      CHECK(v.mantissa() == 430700 && v.exponent() == 4);
     }
     CHECK(r.offset() == 258);
     for (unsigned i = 0; i < 50; i++) {
       CHECK(r.read(v));
-      CHECK(v.value == 430700 && v.exponent == 4);
+      CHECK(v.mantissa() == 430700 && v.exponent() == 4);
     }
     CHECK(!r.read(v));
   }

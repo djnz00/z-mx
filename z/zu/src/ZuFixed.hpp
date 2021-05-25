@@ -69,7 +69,7 @@ typedef ZuBox<uint8_t> ZuFixedExp; // exponent, i.e. number of decimal places
 //   s << ZuFixed(x, 2).fmt(ZuFmt::Comma<>())	// s << "42,000.42"
 
 template <typename Fmt> struct ZuFixed_Fmt;	// internal
-class ZuFixed_VFmt;				// internal
+struct ZuFixed_VFmt;				// internal
 
 class ZuFixed {
   static constexpr int64_t null_() {
@@ -127,13 +127,13 @@ public:
     return Float{mantissa()} / Float{ZuDecimalFn::pow10_64(exponent())};
   }
 
-  // adjust to another exponent
-  ZuFixed adjust(unsigned e) const {
+  // adjust mantissa to another exponent
+  ZuFixedVal adjust(unsigned e) const {
     if (ZuUnlikely(!operator *())) return {};
-    if (ZuLikely(e == exponent())) return *this;
+    if (ZuLikely(e == exponent())) return mantissa();
     if (e > exponent())
-      return ZuFixed{mantissa() * ZuDecimalFn::pow10_64(e - exponent()), e};
-    return ZuFixed{mantissa() / ZuDecimalFn::pow10_64(exponent() - e), e};
+      return mantissa() * ZuDecimalFn::pow10_64(e - exponent());
+    return mantissa() / ZuDecimalFn::pow10_64(exponent() - e);
   }
 
   // comparisons
@@ -252,17 +252,17 @@ private:
   uint8_t	m_exponent = 0;
 };
 template <typename Fmt> struct ZuFixed_Fmt {
-  const ZuFixed	&fixed;
+  const ZuFixed	&value;
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*fixed)) return;
-    auto iv = fixed.mantissa();
+    if (ZuUnlikely(!*value)) return;
+    auto iv = value.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(fixed.exponent());
+    uint64_t factor = ZuDecimalFn::pow10_64(value.exponent());
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).fmt(Fmt());
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(fixed.exponent());
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(value.exponent());
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_Fmt *);
 };
@@ -275,27 +275,25 @@ template <typename S> inline void ZuFixed::print(S &s) const
 {
   s << ZuFixed_Fmt<ZuFmt::Default>{*this};
 }
-class ZuFixed_VFmt : public ZuVFmtWrapper<ZuFixed_VFmt> {
-public:
-  ZuFixed_VFmt(const ZuFixed &fixed) : m_fixed{fixed} { }
+struct ZuFixed_VFmt : public ZuVFmtWrapper<ZuFixed_VFmt> {
+  const ZuFixed	&value;
+
+  ZuFixed_VFmt(const ZuFixed &value_) : value{value_} { }
   template <typename VFmt>
-  ZuFixed_VFmt(const ZuFixed &fixed, VFmt &&fmt) :
-    ZuVFmtWrapper<ZuFixed_VFmt>{ZuFwd<VFmt>(fmt)}, m_fixed{fixed} { }
+  ZuFixed_VFmt(const ZuFixed &value_, VFmt &&fmt) :
+    ZuVFmtWrapper<ZuFixed_VFmt>{ZuFwd<VFmt>(fmt)}, value{value_} { }
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*m_fixed)) return;
-    ZuFixedVal iv = m_fixed.mantissa();
+    if (ZuUnlikely(!*value)) return;
+    ZuFixedVal iv = value.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(m_fixed.exponent());
+    uint64_t factor = ZuDecimalFn::pow10_64(value.exponent());
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).vfmt(this->fmt);
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(m_fixed.exponent());
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(value.exponent());
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_VFmt *);
-
-private:
-  const ZuFixed	&m_fixed;
 };
 inline ZuFixed_VFmt ZuFixed::vfmt() const {
   return ZuFixed_VFmt{*this};
