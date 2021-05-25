@@ -45,7 +45,7 @@ ZvFields(Row,
     (, Bool, bar, (Ctor(1))),
     (, Int, bah, (Ctor(2))),
     (, Float, baz, (Ctor(3), NDP(2))),
-    (Fn, Float, bam, (Ctor(4), NDP(2))),
+    (Fn, Fixed, bam, (Ctor(4), NDP(2))),
     (, Int, snafu, (Ctor(5))),
     (, Time, mabbit, (Ctor(6))),
     (, Flags, flags, (Ctor(7)), DaFlags::Map));

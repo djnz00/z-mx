@@ -43,15 +43,16 @@
 #include <zlib/ZuBox.hpp>
 
 // ZuFixedVal value range is +/- 10^18
-typedef ZuBox<int64_t> ZuFixedVal; // fixed point value (mantissa numerator)
-typedef ZuBox<uint8_t> ZuFixedExp; // exponent, i.e. number of decimal places
 
-#define ZuFixedMin (ZuFixedVal{static_cast<int64_t>(-999999999999999999LL)})
-#define ZuFixedMax (ZuFixedVal{static_cast<int64_t>(999999999999999999LL)})
+#define ZuFixedMin (static_cast<int64_t>(-999999999999999999LL))
+#define ZuFixedMax (static_cast<int64_t>(999999999999999999LL))
 // ZuFixedReset is the distinct sentinel value used to reset values to null
-#define ZuFixedReset (ZuFixedVal{static_cast<int64_t>(-1000000000000000000LL)})
+#define ZuFixedReset (static_cast<int64_t>(-1000000000000000000LL))
 // ZuFixedNull is the null sentinel value
-#define ZuFixedNull (ZuFixedVal{static_cast<int64_t>(-0x8000000000000000LL)})
+#define ZuFixedNull (static_cast<int64_t>(-0x8000000000000000LL))
+
+using ZuFixedVal = ZuBoxN(int64_t, ZuFixedNull); // mantissa numerator
+using ZuFixedExp = ZuBox0(uint8_t); // exponent (precision in decimal places)
 
 // combination of value and exponent, used in transit for conversions, I/O,
 // constructors, scanning:

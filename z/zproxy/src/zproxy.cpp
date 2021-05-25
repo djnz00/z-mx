@@ -229,6 +229,8 @@ public:
 
   template <typename S> void print(S &) const;
 
+  friend ZuPrintFn ZuPrintType(Connection *);
+
 private:
   ZiMultiplex		*m_mx;
   ZmRef<Proxy>		m_proxy;
@@ -242,7 +244,6 @@ private:
   uint32_t		m_pack;
   double		m_delay;
 };
-template <> struct ZuPrint<Connection> : public ZuPrintFn { };
 
 class Proxy : public ZmPolymorph {
 public:
@@ -282,6 +283,7 @@ public:
 friend Status;
   struct Status {
     template <typename S> void print(S &s) const { p.status_(s); }
+    friend ZuPrintFn ZuPrintType(Status *);
     const Proxy &p;
   };
   Status status() const { return Status{*this}; }
@@ -294,7 +296,6 @@ private:
   ZmRef<Connection>	m_out;
   ZuString		m_tag;
 };
-template <> struct ZuPrint<Proxy::Status> : public ZuPrintFn { };
 
 template <typename S> inline void Connection::print(S &s) const
 {
@@ -370,6 +371,7 @@ public:
 friend Status;
   struct Status {
     template <typename S> void print(S &s) const { l.status_(s); }
+    friend ZuPrintFn ZuPrintType(Status *);
     const Listener &l;
   };
   Status status() const { return Status{*this}; }
@@ -383,6 +385,8 @@ friend Status;
 
   ListenerPrintIn printIn() const;
   ListenerPrintOut printOut() const;
+
+  friend ZuPrintFn ZuPrintType(Listener *);
 
 private:
   void ok(const ZiListenInfo &);
@@ -418,21 +422,19 @@ friend ListenerPrintOut;
   ZtString		m_tag;
   unsigned		m_reconnectFreq;
 };
-template <> struct ZuPrint<Listener::Status> : public ZuPrintFn { };
 
-template <> struct ZuPrint<Listener> : public ZuPrintFn { };
 struct ListenerPrintIn {
   ListenerPrintIn(const Listener &l_) : l(l_) { }
   template <typename S> void print(S &s) const { l.printIn_(s); }
+  friend ZuPrintFn ZuPrintType(ListenerPrintIn *);
   const Listener &l;
 };
-template <> struct ZuPrint<ListenerPrintIn> : public ZuPrintFn { };
 struct ListenerPrintOut {
   ListenerPrintOut(const Listener &l_) : l(l_) { }
   template <typename S> void print(S &s) const { l.printOut_(s); }
+  friend ZuPrintFn ZuPrintType(ListenerPrintOut *);
   const Listener &l;
 };
-template <> struct ZuPrint<ListenerPrintOut> : public ZuPrintFn { };
 ListenerPrintIn Listener::printIn() const {
   return ListenerPrintIn(*this);
 }

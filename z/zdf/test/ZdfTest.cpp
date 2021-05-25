@@ -32,10 +32,8 @@ struct Frame {
   void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
 ZvFields(Frame,
-    // (Int, v1, Series | Index | Delta2),
     (, Int, v1, (Ctor(0), Series, Index, Delta)),
-    // (Int, v1, Series | Index),
-    (Fn, Float, v2, (Ctor(1), Series, Delta, NDP(9))));
+    (Fn, Fixed, v2, (Series, Delta, NDP(9))));
 
 void usage() {
   std::cerr << "usage: ZdfTest mem|load|save\n" << std::flush;

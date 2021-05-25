@@ -32,8 +32,8 @@ struct Order {
       " Price: " << ZuBoxed(m_price) <<
       " Qty: " << ZuBoxed(m_quantity);
   }
+  friend ZuPrintFn ZuPrintType(Order *);
 };
-template <> struct ZuPrint<Order> : public ZuPrintFn { };
 
 using OrderDB = Zdb<Order>;
 

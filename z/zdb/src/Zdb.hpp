@@ -743,16 +743,16 @@ public:
 };
 
 using Zdb_DBState = ZtArray<ZdbRN>;
-
-template <> struct ZuPrint<Zdb_DBState> : public ZuPrintDelegate {
-  template <typename P, typename S>
-  static void print(S &s, const P &p) {
-    unsigned i = 0, n = p.length();
+struct Zdb_DBState_Print : public ZuPrintDelegate {
+  template <typename S>
+  static void print(S &s, const Zdb_DBState &a) {
+    unsigned i = 0, n = a.length();
     if (ZuUnlikely(!n)) return;
-    s << ZuBoxed(p[0]);
-    while (++i < n) s << ',' << ZuBoxed(p[i]);
+    s << ZuBoxed(a[0]);
+    while (++i < n) s << ',' << ZuBoxed(a[i]);
   }
 };
+Zdb_DBState_Print ZuPrintType(Zdb_DBState *);
 
 struct ZdbHostConfig {
   ZdbHostConfig(const ZtString &key, const ZvCf *cf) {
@@ -779,7 +779,6 @@ namespace ZdbHostState {
 class ZdbAPI ZdbHost : public ZmPolymorph {
 friend ZdbEnv;
 friend Zdb_Cxn;
-template <typename> friend struct ZuPrint;
 
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -809,6 +808,12 @@ public:
   using Telemetry = ZvTelemetry::DBHost;
 
   void telemetry(Telemetry &data) const;
+
+  template <typename S> void print(S &s) const {
+    s << "[ID:" << id() << " PRI:" << priority() << " V:" << voted() <<
+      " S:" << state() << "] " << dbState();
+  }
+  friend ZuPrintFn ZuPrintType(ZdbHost *);
 
 private:
   ZmRef<Zdb_Cxn> cxn() const { return m_cxn; }
@@ -875,23 +880,18 @@ private:
   Zdb_DBState		m_dbState;	// ''
   bool			m_voted;	// ''
 };
-template <> struct ZuPrint<ZdbHost> : public ZuPrintDelegate {
+
+using ZdbHost_Ptr = ZdbHost *;
+struct ZdbHost_Ptr_Print : public ZuPrintDelegate {
   template <typename S>
-  static void print(S &s, const ZdbHost &v) {
-    s << "[ID:" << v.id() << " PRI:" << v.priority() << " V:" << v.voted() <<
-      " S:" << v.state() << "] " << v.dbState();
-  }
-};
-template <> struct ZuPrint<ZdbHost *> : public ZuPrintDelegate {
-  using Zdb_HostPtr = ZdbHost *;
-  template <typename S>
-  static void print(S &s, const Zdb_HostPtr &v) {
+  static void print(S &s, ZdbHost_Ptr v) {
     if (!v)
-      s << "null";
+      s << "(null)";
     else
       s << *v;
   }
 };
+ZdbHost_Ptr_Print ZuPrintType(ZdbHost_Ptr *);
 
 class Zdb_Cxn : public ZiConnection {
   Zdb_Cxn(const Zdb_Cxn &);

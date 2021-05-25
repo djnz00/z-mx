@@ -56,8 +56,8 @@ namespace ZvFieldType {
     Int,		// an integral type <= 64bits
     Hex,		// an integral type printed in hex
     Enum,		// an integral enumerated type
-    Flags,		// an integral bitfield of enumerations type
-    Float,		// floating point type, interpreted as double
+    Flags,		// an integral enumerated bitfield type
+    Float,		// floating point type
     Fixed,		// ZuFixed
     Decimal,		// ZuDecimal
     Time,		// ZmTime
@@ -381,8 +381,7 @@ struct ZvField_Flags : public ZvField_RdFlags<Base, Flags_, Map> {
 
 template <
   typename Base, unsigned Flags,
-  typename T = typename Base::T,
-  bool = ZuTraits<T>::IsPrimitive>
+  bool = ZuTraits<typename Base::T>::IsPrimitive>
 struct ZvField_RdFloat : public ZvField_<Base, Flags> {
   enum { Type = ZvFieldType::Float };
   template <typename S>
@@ -397,9 +396,8 @@ struct ZvField_RdFloat : public ZvField_<Base, Flags> {
 };
 template <
   typename Base, unsigned Flags,
-  typename T = typename Base::T,
-  bool = ZuTraits<T>::IsPrimitive>
-struct ZvField_Float : public ZvField_RdFloat<Base, Flags, T, false> {
+  bool = ZuTraits<typename Base::T>::IsPrimitive>
+struct ZvField_Float : public ZvField_RdFloat<Base, Flags, false> {
   static void scan(void *o, ZuString s, const ZvFieldFmt &) {
     Base::set(o, s);
   }
@@ -408,9 +406,8 @@ struct ZvField_Float : public ZvField_RdFloat<Base, Flags, T, false> {
   }
   static auto scanFn() { return scan; }
 };
-template <typename Base, unsigned Flags, typename T>
-struct ZvField_RdFloat<Base, Flags, T, true> :
-    public ZvField_<Base, Flags> {
+template <typename Base, unsigned Flags>
+struct ZvField_RdFloat<Base, Flags, true> : public ZvField_<Base, Flags> {
   enum { Type = ZvFieldType::Float };
   template <typename S>
   static void print(const void *o, S &s, const ZvFieldFmt &fmt) {
@@ -426,10 +423,11 @@ struct ZvField_RdFloat<Base, Flags, T, true> :
   static auto setFn() { return [](void *, double) { }; }
   static auto scanFn() { return [](void *o, ZuString s, const ZvFieldFmt &) { }; }
 };
-template <typename Base, unsigned Flags, typename T>
-struct ZvField_Float<Base, Flags, T, true> :
-    public ZvField_RdFloat<Base, Flags, T, true> {
+template <typename Base, unsigned Flags>
+struct ZvField_Float<Base, Flags, true> :
+    public ZvField_RdFloat<Base, Flags, true> {
   static void scan(void *o, ZuString s, const ZvFieldFmt &) {
+    using T = typename Base::T;
     Base::set(o, ZuBoxT<T>{s});
   }
   static auto setFn() {
@@ -437,9 +435,9 @@ struct ZvField_Float<Base, Flags, T, true> :
   }
   static auto scanFn() { return scan; }
 };
+
 template <typename Base, unsigned Flags>
-struct ZvField_RdFloat<Base, Flags, ZuFixed, false> :
-    public ZvField_<Base, Flags> {
+struct ZvField_RdFixed : public ZvField_<Base, Flags> {
   enum { Type = ZvFieldType::Fixed };
   template <typename S>
   static void print(const void *o, S &s, const ZvFieldFmt &fmt) {
@@ -455,8 +453,7 @@ struct ZvField_RdFloat<Base, Flags, ZuFixed, false> :
   static auto scanFn() { return [](void *o, ZuString s, const ZvFieldFmt &) { }; }
 };
 template <typename Base, unsigned Flags>
-struct ZvField_Float<Base, Flags, ZuFixed, false> :
-    public ZvField_RdFloat<Base, Flags, ZuFixed, false> {
+struct ZvField_Fixed : public ZvField_RdFixed<Base, Flags> {
   static void scan(void *o, ZuString s, const ZvFieldFmt &) {
     Base::set(o, ZuFixed{s, Base::get(o).exponent()});
   }
@@ -465,9 +462,9 @@ struct ZvField_Float<Base, Flags, ZuFixed, false> :
   }
   static auto scanFn() { return scan; }
 };
+
 template <typename Base, unsigned Flags>
-struct ZvField_RdFloat<Base, Flags, ZuDecimal, false> :
-    public ZvField_<Base, Flags> {
+struct ZvField_RdDecimal : public ZvField_<Base, Flags> {
   enum { Type = ZvFieldType::Decimal };
   template <typename S>
   static void print(const void *o, S &s, const ZvFieldFmt &fmt) {
@@ -483,8 +480,7 @@ struct ZvField_RdFloat<Base, Flags, ZuDecimal, false> :
   static auto scanFn() { return [](void *o, ZuString s, const ZvFieldFmt &) { }; }
 };
 template <typename Base, unsigned Flags>
-struct ZvField_Float<Base, Flags, ZuDecimal, false> :
-    public ZvField_RdFloat<Base, Flags, ZuDecimal, false> {
+struct ZvField_Decimal : public ZvField_RdFloat<Base, Flags> {
   static void scan(void *o, ZuString s, const ZvFieldFmt &) {
     Base::set(o, s);
   }

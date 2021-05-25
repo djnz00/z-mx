@@ -1,6 +1,6 @@
 include "types.fbs";
 namespace ZvTelemetry.fbs;
-enum RAG:uint8 {
+enum RAG:int8 {
   Off = 0,
   Red,
   Amber,
@@ -73,7 +73,7 @@ table Mx {			// == ZiMxTelemetry
   priority:uint8;
   nThreads:uint8;
 }
-enum SocketFlags:uint8 {	// == 1<<ZiCxnFlags
+enum SocketFlags:int8 {		// == 1<<ZiCxnFlags
   UDP		= 0x01,
   Multicast	= 0x02,
   LoopBack	= 0x04,
@@ -81,7 +81,7 @@ enum SocketFlags:uint8 {	// == 1<<ZiCxnFlags
   NetLink	= 0x10,
   Nagle		= 0x20
 }
-enum SocketType:uint8 {		// == ZiCxnType
+enum SocketType:int8 {		// == ZiCxnType
   TCPIn = 0,
   TCPOut,
   UDP
@@ -104,7 +104,7 @@ table Socket {			// == ZiCxnTelemetry
   flags:uint8;			// SocketFlags
   type:SocketType;
 }
-enum QueueType:uint8 {
+enum QueueType:int8 {
   Thread = 0,
   IPC,
   Rx,
@@ -166,7 +166,7 @@ table Engine {
   txThread:uint16;
   state:EngineState;
 }
-enum DBCacheMode:uint8 {
+enum DBCacheMode:int8 {
   Normal = 0,
   FullCache
 }
@@ -224,12 +224,12 @@ table DBEnv {
   nHosts:uint8;
   nPeers:uint8;
   nDBs:uint8;
-  state:uint8;		// same as hosts[hostID].state
+  state:int8;		// same as hosts[hostID].state
   active:uint8;
   recovering:uint8;
   replicating:uint8;
 }
-enum AppRole:uint8 {
+enum AppRole:int8 {
   Dev = 0,
   Test,
   Prod
@@ -241,7 +241,7 @@ table App {
   role:AppRole;
   rag:RAG;
 }
-enum Severity:uint8 {	// == Ze
+enum Severity:int8 {	// == Ze
   Debug = 0,
   Info,
   Warning,
