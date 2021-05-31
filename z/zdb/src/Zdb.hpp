@@ -81,8 +81,6 @@ using ZdbRN = uint64_t;		// record ID
 #define ZdbFileShift	14
 #define ZdbFileMask	0x3fffU
 
-// FIXME
-
 // new file structure with variable-length flatbuffer-format records
 
 // initial 512-byte super-block of 128 offsets, each to index-block
@@ -90,7 +88,9 @@ using ZdbRN = uint64_t;		// record ID
 // super-block is immediately followed by first index-block
 // each record is {length,data,magic} - data is optionally lz4 compressed
 // (compression/decompression happens on app load/save, otherwise
-// data is uninterpreted by Zdb)
+// data is uninterpreted by Zdb) - superblock is write-through cached
+// in cached Zdb_File_ - along with LRU cache of 8 most recently accessed
+// index blocks
 
 // prevRN is removed (explicitly added by app if needed)
 
@@ -102,8 +102,10 @@ using ZdbRN = uint64_t;		// record ID
 // to save/load flatbuffer data (although can copy it directly for
 // e.g. transmission)
 
-// permit Zfb::IOBuilder to construct from IOBuf to be prepended to,
-// to allow contiguous hdr, body transmission for replication/recovery
+// FIXME - asynchronous response to ZvCmd requests in ZvCmdServer
+//
+// FIXME - ZfbEnum for Op (below), migrate protocol to Zfb, remove Range
+// (requirement now covered by Zfb's updateX()), 
 
 namespace ZdbOp {
   enum { Add = 0, Upd, Del };

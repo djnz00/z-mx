@@ -30,6 +30,41 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
+// ZvField extensions for flatbuffers, with extensible type support
+
+// ZvFB Type	C++ Type	ZvField Type
+// ---------	--------	------------
+// String	<String>	String
+// Bool		<Integral>	Bool
+// Int		<Integral>	Int
+// Hex		<Integral>	Hex
+// Enum		<Integral>	Enum
+// Flags	<Integral>	Flags
+// Float	<FloatingPoint>	Float
+// Fixed	ZuFixed		Fixed
+// Decimal	ZuDecimal	Decimal
+// Time		ZmTime		Time
+// Bitmap	ZmBitmap	Composite
+// IP		ZiIP		Composite
+
+// ZiIP support was added as follows:
+//
+// In fbs schema file:
+//   namespace Zfb;
+//   struct IP {
+//     addr:uint32;
+//   }
+//
+// In C++:
+//   namespace Zfb::Load {
+//     inline IP ip(ZiIP addr) { return {static_cast<uint32_t>(addr)}; }
+//   }
+//   namespace Zfb::Save {
+//     inline ZiIP ip(const IP *v) { return {v->addr()}; }
+//   }
+//   #define ZvFBFieldIP_T Composite
+//   #define ZvFBFieldIP(U, ...) ZvFBFieldInline(U, __VA_ARGS__, ip, ip)
+
 #include <zlib/Zfb.hpp>
 
 #include <zlib/ZvField.hpp>
@@ -47,7 +82,7 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 #define ZvFBFieldRd_(U, ID, Base) \
   struct ZvFBFieldType(U, ID) : public Base { };
 
-#define ZvFBFieldComposite_(U, ID, Base_, SaveFn, LoadFn) \
+#define ZvFBFieldNested(U, ID, Base_, SaveFn, LoadFn) \
   struct ZvFBFieldType(U, ID) : public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<U>; \
@@ -69,7 +104,7 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
     } \
   };
 
-#define ZvFBFieldInline_(U, ID, Base_, SaveFn, LoadFn) \
+#define ZvFBFieldInline(U, ID, Base_, SaveFn, LoadFn) \
   struct ZvFBFieldType(U, ID) : public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<U>; \
@@ -90,7 +125,7 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
     } \
   };
 
-#define ZvFBFieldPrimitive_(U, ID, Base_) \
+#define ZvFBFieldPrimitive(U, ID, Base_) \
   struct ZvFBFieldType(U, ID) : public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<U>; \
@@ -106,50 +141,44 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<T *>()))>;
 
 #define ZvFBFieldString_T String
 #define ZvFBFieldString(U, ...) \
-  ZvFBFieldComposite_(U, __VA_ARGS__, str, str)
-
+  ZvFBFieldNested(U, __VA_ARGS__, str, str)
 #define ZvFBFieldBool_T Bool
+#define ZvFBFieldBool(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
 #define ZvFBFieldInt_T Int
+#define ZvFBFieldInt(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
 #define ZvFBFieldHex_T Hex
+#define ZvFBFieldHex(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
 #define ZvFBFieldEnum_T Enum
+#define ZvFBFieldEnum(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
 #define ZvFBFieldFlags_T Flags
+#define ZvFBFieldFlags(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
 #define ZvFBFieldFloat_T Float
-#define ZvFBFieldFixed_T Float
-
-#define ZvFBFieldBool(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldInt(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldHex(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldEnum(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldFlags(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldFloat(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-#define ZvFBFieldFixed(U, ...) ZvFBFieldPrimitive_(U, __VA_ARGS__)
-
-#define ZvFBFieldDecimal_T Float
+#define ZvFBFieldFloat(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
+#define ZvFBFieldFixed_T Fixed
+#define ZvFBFieldFixed(U, ...) ZvFBFieldPrimitive(U, __VA_ARGS__)
+#define ZvFBFieldDecimal_T Decimal
 #define ZvFBFieldDecimal(U, ...) \
-  ZvFBFieldInline_(U, __VA_ARGS__, decimal, decimal)
-
+  ZvFBFieldInline(U, __VA_ARGS__, decimal, decimal)
 #define ZvFBFieldTime_T Time
 #define ZvFBFieldTime(U, ...) \
-  ZvFBFieldInline_(U, __VA_ARGS__, dateTime, dateTime)
-
+  ZvFBFieldInline(U, __VA_ARGS__, dateTime, dateTime)
 #define ZvFBFieldBitmap_T Composite
 #define ZvFBFieldBitmap(U, ...) \
-  ZvFBFieldComposite_(U, __VA_ARGS__, bitmap, bitmap)
-
+  ZvFBFieldNested(U, __VA_ARGS__, bitmap, bitmap)
 #define ZvFBFieldIP_T Composite
 #define ZvFBFieldIP(U, ...) \
-  ZvFBFieldInline_(U, __VA_ARGS__, ip, ip)
+  ZvFBFieldInline(U, __VA_ARGS__, ip, ip)
 
 #define ZvFBField_(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
-#define ZvFBField_X(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
+#define ZvFBField_Ext(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
 #define ZvFBField_Fn(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
-#define ZvFBField_XFn(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
+#define ZvFBField_ExtFn(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
 #define ZvFBField_Lambda(U, Type, ...) ZvFBField##Type(U, __VA_ARGS__)
 
-#define ZvFBField_RdFn(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
-#define ZvFBField_XRdFn(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
 #define ZvFBField_Rd(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
-#define ZvFBField_XRd(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
+#define ZvFBField_ExtRd(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
+#define ZvFBField_RdFn(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
+#define ZvFBField_ExtRdFn(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
 #define ZvFBField_RdLambda(U, Type, ...) ZvFBFieldRd_(U, __VA_ARGS__)
 
 #define ZvFBField_Decl_(U, Method, Type, ID, ...) \

@@ -1171,7 +1171,7 @@ public:
     fbb_.add_rejCode(code);
     fbb_.add_rejText(text_);
     m_fbb.Finish(fbb_.Finish());
-    ZvCmdHdr{m_fbb, m_id};
+    ZvCmd::saveHdr(m_fbb, m_id);
     srvLink->send_(m_fbb.buf());
     return len;
   }
@@ -1328,7 +1328,7 @@ public:
       fbb_.add_data(ackData);
       m_fbb.Finish(fbb_.Finish());
     }
-    ZvCmdHdr{m_fbb, m_id};
+    ZvCmd::saveHdr(m_fbb, m_id);
     srvLink->send_(m_fbb.buf());
     return len;
   }

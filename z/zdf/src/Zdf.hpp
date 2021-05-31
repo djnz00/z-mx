@@ -134,12 +134,12 @@ public:
       find_<AbsReader>(s, value);
   }
 
-  ZuInline bool read(ZuFixed &v) { return m_readFn(this, v); }
-  ZuInline void seekFwd(uint64_t offset) { m_seekFwdFn(this, offset); }
-  ZuInline void seekRev(uint64_t offset) { m_seekRevFn(this, offset); }
-  ZuInline void findFwd(const ZuFixed &value) { m_findFwdFn(this, value); }
-  ZuInline void findRev(const ZuFixed &value) { m_findRevFn(this, value); }
-  ZuInline uint64_t offset() { return m_offsetFn(this); }
+  bool read(ZuFixed &v) { return m_readFn(this, v); }
+  void seekFwd(uint64_t offset) { m_seekFwdFn(this, offset); }
+  void seekRev(uint64_t offset) { m_seekRevFn(this, offset); }
+  void findFwd(const ZuFixed &value) { m_findFwdFn(this, value); }
+  void findRev(const ZuFixed &value) { m_findRevFn(this, value); }
+  uint64_t offset() { return m_offsetFn(this); }
 
   void purge() { dispatch([](auto &&v) { v.purge(); }); }
 

@@ -8,10 +8,10 @@ enum RAG:int8 {
 }
 table Heap {			// == ZmHeapTelemetry
   id:string;
-  cacheSize:uint64;
+  cache_size:uint64;
   cpuset:[uint64];
-  cacheAllocs:uint64;
-  heapAllocs:uint64;
+  cache_allocs:uint64;
+  heap_allocs:uint64;
   frees:uint64;
   size:uint32;
   partition:uint16;
@@ -21,13 +21,13 @@ table Heap {			// == ZmHeapTelemetry
 table HashTbl {			// == ZmHashTelemetry
   id:string;
   addr:uint64;
-  loadFactor:double;
-  effLoadFactor:double;
-  nodeSize:uint32;
+  load_factor:double;
+  eff_load_factor:double;
+  node_size:uint32;
   count:uint32;
   resized:uint32;
   bits:uint8;
-  cBits:uint8;
+  c_bits:uint8;
   linear:uint8;
 }
 enum ThreadPriority:int8 {	// == ZmThreadPriority
@@ -39,10 +39,10 @@ enum ThreadPriority:int8 {	// == ZmThreadPriority
 table Thread {			// == ZmThreadTelemetry
   name:string;
   tid:uint64;
-  stackSize:uint64;
+  stack_size:uint64;
   cpuset:[uint64];
-  cpuUsage:double;
-  sysPriority:int32;
+  cpu_usage:double;
+  sys_priority:int32;
   index:int16;
   partition:uint16;
   priority:ThreadPriority;
@@ -59,19 +59,19 @@ enum MxState:int8 {		// == ZmSchedState
 }
 table Mx {			// == ZiMxTelemetry
   id:string;
-  stackSize:uint32;
-  queueSize:uint32;
+  stack_size:uint32;
+  queue_size:uint32;
   spin:uint32;
   timeout:uint32;
-  rxBufSize:uint32;
-  txBufSize:uint32;
-  rxThread:uint16;
-  txThread:uint16;
+  rx_buf_size:uint32;
+  tx_buf_size:uint32;
+  rx_thread:uint16;
+  tx_thread:uint16;
   partition:uint16;
   state:MxState;
   ll:uint8;
   priority:uint8;
-  nThreads:uint8;
+  n_threads:uint8;
 }
 enum SocketFlags:int8 {		// == 1<<ZiCxnFlags
   UDP		= 0x01,
@@ -87,20 +87,20 @@ enum SocketType:int8 {		// == ZiCxnType
   UDP
 }
 table Socket {			// == ZiCxnTelemetry
-  mxID:string;
+  mx_i_d:string;
   socket:uint64;
-  rxBufSize:uint32;
-  rxBufLen:uint32;
-  txBufSize:uint32;
-  txBufLen:uint32;
-  mreqAddr:Zfb.IP;
-  mreqIf:Zfb.IP;
+  rx_buf_size:uint32;
+  rx_buf_len:uint32;
+  tx_buf_size:uint32;
+  tx_buf_len:uint32;
+  mreq_addr:Zfb.IP;
+  mreq_if:Zfb.IP;
   mif:Zfb.IP;
   ttl:uint32;
-  localIP:Zfb.IP;
-  remoteIP:Zfb.IP;
-  localPort:uint16;
-  remotePort:uint16;
+  local_i_p:Zfb.IP;
+  remote_i_p:Zfb.IP;
+  local_port:uint16;
+  remote_port:uint16;
   flags:uint8;			// SocketFlags
   type:SocketType;
 }
@@ -112,12 +112,12 @@ enum QueueType:int8 {
 }
 table Queue {
   id:string;
-  seqNo:uint64;
+  seq_no:uint64;
   count:uint64;
-  inCount:uint64;
-  inBytes:uint64;
-  outCount:uint64;
-  outBytes:uint64;
+  in_count:uint64;
+  in_bytes:uint64;
+  out_count:uint64;
+  out_bytes:uint64;
   size:uint32;
   full:uint32;
   type:QueueType;
@@ -137,9 +137,9 @@ enum LinkState:int8 {
 }
 table Link {
   id:string;
-  engineID:string;
-  rxSeqNo:uint64;
-  txSeqNo:uint64;
+  engine_i_d:string;
+  rx_seq_no:uint64;
+  tx_seq_no:uint64;
   reconnects:uint32;
   state:LinkState;
 }
@@ -154,16 +154,16 @@ enum EngineState:int8 {
 table Engine {
   id:string;
   type:string;
-  mxID:string;
+  mx_i_d:string;
   down:uint16;
   disabled:uint16;
   transient:uint16;
   up:uint16;
   reconn:uint16;
   failed:uint16;
-  nLinks:uint16;
-  rxThread:uint16;
-  txThread:uint16;
+  n_links:uint16;
+  rx_thread:uint16;
+  tx_thread:uint16;
   state:EngineState;
 }
 enum DBCacheMode:int8 {
@@ -173,22 +173,22 @@ enum DBCacheMode:int8 {
 table DB {
   path:string;
   name:string;
-  fileSize:uint64;
-  minRN:uint64;
-  nextRN:uint64;
-  fileRN:uint64;
-  cacheLoads:uint64;
-  cacheMisses:uint64;
-  fileLoads:uint64;
-  fileMisses:uint64;
+  file_size:uint64;
+  min_r_n:uint64;
+  next_r_n:uint64;
+  file_r_n:uint64;
+  cache_loads:uint64;
+  cache_misses:uint64;
+  file_loads:uint64;
+  file_misses:uint64;
   id:uint32;
-  preAlloc:uint32;
-  recSize:uint32;
-  fileRecs:uint32;
-  cacheSize:uint32;
-  filesMax:uint32;
+  pre_alloc:uint32;
+  rec_size:uint32;
+  file_recs:uint32;
+  cache_size:uint32;
+  files_max:uint32;
   compress:uint8;
-  cacheMode:DBCacheMode;
+  cache_mode:DBCacheMode;
 }
 enum DBHostState:int8 {
   Instantiated = 0,	// instantiated, init() not yet called
@@ -210,20 +210,20 @@ table DBHost {
   voted:uint8;
 }
 table DBEnv {
-  appID:string;
-  nCxns:uint32;
-  heartbeatFreq:uint32;
-  heartbeatTimeout:uint32;
-  reconnectFreq:uint32;
-  electionTimeout:uint32;
+  app_i_d:string;
+  n_cxns:uint32;
+  heartbeat_freq:uint32;
+  heartbeat_timeout:uint32;
+  reconnect_freq:uint32;
+  election_timeout:uint32;
   self:uint32;		// primary key - host ID 
   master:uint32;	// ''
   prev:uint32;		// ''
   next:uint32;		// ''
-  writeThread:uint16;
-  nHosts:uint8;
-  nPeers:uint8;
-  nDBs:uint8;
+  write_thread:uint16;
+  n_hosts:uint8;
+  n_peers:uint8;
+  n_d_bs:uint8;
   state:int8;		// same as hosts[hostID].state
   active:uint8;
   recovering:uint8;
@@ -250,7 +250,7 @@ enum Severity:int8 {	// == Ze
 }
 table Alert {
   time:Zfb.DateTime;
-  seqNo:uint32;
+  seq_no:uint32;
   tid:uint32;
   severity:Severity;
   message:string;

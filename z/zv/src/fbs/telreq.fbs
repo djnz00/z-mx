@@ -12,7 +12,7 @@ enum ReqType:uint8 {
   Alert
 }
 table Request {
-  seqNo:uint64;		// sequence number
+  seq_no:uint64;	// sequence number
   filter:string;	// * for all; otherwise exact match
   interval:uint32;	// 0 for one-time snapshot, otherwise (un)subscribe
   type:ReqType;		// together with filter, primary key for subscription

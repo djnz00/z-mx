@@ -197,21 +197,21 @@ public:
   // send userDB request
   void sendUserDB(FBB &fbb, ZvSeqNo seqNo, ZvCmdUserDBAckFn fn) {
     using namespace ZvCmd;
-    ZvCmdHdr{fbb, ID::userDB()};
+    saveHdr(fbb, Type::userDB());
     m_userDBReqs.add(seqNo, ZuMv(fn));
     this->send(fbb.buf());
   }
   // send command
   void sendCmd(FBB &fbb, ZvSeqNo seqNo, ZvCmdAckFn fn) {
     using namespace ZvCmd;
-    ZvCmdHdr{fbb, ID::cmd()};
+    saveHdr(fbb, Type::cmd());;
     m_cmdReqs.add(seqNo, ZuMv(fn));
     this->send(fbb.buf());
   }
   // send telemetry request
   void sendTelReq(FBB &fbb, ZvSeqNo seqNo, ZvCmdTelAckFn fn) {
     using namespace ZvCmd;
-    ZvCmdHdr{fbb, ID::telReq()};
+    saveHdr(fbb, Type::telReq());;
     m_telReqs.add(seqNo, ZuMv(fn));
     this->send(fbb.buf());
   }
@@ -254,7 +254,7 @@ public:
 	      data.stamp,
 	      bytes(fbb, data.hmac)).Union()));
     }
-    ZvCmdHdr{fbb, ZvCmd::ID::login()};
+    ZvCmd::saveHdr(fbb, ZvCmd::Type::login());;
     this->send_(fbb.buf());
   }
 
@@ -275,25 +275,25 @@ public:
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    ZuID id;
     int i = IORx::process(data, len,
-	[&id](const uint8_t *data, unsigned len) -> int {
-	  if (ZuUnlikely(len < sizeof(ZvCmdHdr))) return INT_MAX;
-	  auto hdr = reinterpret_cast<const ZvCmdHdr *>(data);
-	  id = hdr->id;
-	  return sizeof(ZvCmdHdr) + hdr->len;
+	[](const uint8_t *data, unsigned len) -> int {
+	  return ZvCmd::loadHdr(data, len);
 	},
-	[this, &id](const uint8_t *data, unsigned len) -> int {
-	  data += sizeof(ZvCmdHdr), len -= sizeof(ZvCmdHdr);
+	[this](const uint8_t *data, unsigned len) -> int {
+	  auto hdr = ZvCmd::verifyHdr(data, len);
+	  if (!hdr) return -1;
+	  auto type = hdr->type;
+	  data += sizeof(ZvCmd::Hdr); len -= sizeof(ZvCmd::Hdr);
 	  int i;
 	  if (ZuUnlikely(m_state.load_() == State::Login)) {
 	    cancelTimeout();
-	    if (id != ZvCmd::ID::login()) return -1;
+	    if (type != ZvCmd::Type::login()) return -1;
 	    i = processLoginAck(data, len);
 	  } else
-	    i = this->app()->dispatch(id, this, data, len);
+	    i = this->app()->dispatch(type, this, data, len);
 	  if (ZuUnlikely(i <= 0)) return i;
-	  return sizeof(ZvCmdHdr) + i;
+	  ZmAssert(i == len);
+	  return sizeof(ZvCmd::Hdr) + i;
 	});
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;

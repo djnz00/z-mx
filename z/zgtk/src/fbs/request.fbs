@@ -4,7 +4,7 @@ include "loginreq.fbs";
 namespace ZDash.fbs;
 table Connect {
   link		: LinkID;
-  loginReq	: ZvUserDB.fbs.LoginReq;
+  login_req	: ZvUserDB.fbs.LoginReq;
 }
 union ReqData {
   Version	: VerReq,
@@ -16,7 +16,7 @@ union ReqData {
   Select	: LinkID
 }
 table Request {
-  seqNo		: uint64;	// request ID (restarts at 0 with each session)
+  seq_no	: uint64;	// request ID (restarts at 0 with each session)
   data		: ReqData;
 }
 root_type Request;

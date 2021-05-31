@@ -36,32 +36,41 @@
 
 #include <zlib/Zfb.hpp>
 
+#include <zlib/zcmdnet_fbs.h>
+
 namespace ZvCmd {
-  namespace ID {
-    inline ZuID login()		{ static ZuID id{"login"}; return id; }
-    inline ZuID userDB()	{ static ZuID id{"userDB"}; return id; }
-    inline ZuID cmd()		{ static ZuID id{"cmd"}; return id; }
-    inline ZuID telReq()	{ static ZuID id{"telReq"}; return id; }
-    inline ZuID telemetry()	{ static ZuID id{"telemtry"}; return id; }
-  }
+
+namespace Type {
+  inline ZuID login()		{ static ZuID id{"login"}; return id; }
+  inline ZuID userDB()	{ static ZuID id{"userDB"}; return id; }
+  inline ZuID cmd()		{ static ZuID id{"cmd"}; return id; }
+  inline ZuID telReq()	{ static ZuID id{"telReq"}; return id; }
+  inline ZuID telemetry()	{ static ZuID id{"telemtry"}; return id; }
 }
 
 #pragma pack(push, 4)
-struct ZvCmdHdr {
-  ZuLittleEndian<uint32_t>	len = 0; // excluding hdr
-  ZuID				id;
-
-  ZvCmdHdr() = default;
-  ZvCmdHdr(const ZvCmdHdr &) = default;
-  ZvCmdHdr &operator =(const ZvCmdHdr &) = default;
-  ZvCmdHdr(ZvCmdHdr &&) = default;
-  ZvCmdHdr &operator =(ZvCmdHdr &&) = default;
-
-  // push hdr onto buffer
-  ZvCmdHdr(Zfb::Builder &fbb, ZuID id_) : len{fbb.GetSize()}, id{id_} {
-    fbb.PushBytes(reinterpret_cast<uint8_t *>(this), sizeof(ZvCmdHdr));
-  }
+struct Hdr {
+  ZuID				type;
+  ZuLittleEndian<uint32_t>	len;
 };
 #pragma pack(pop)
+
+void saveHdr(Zfb::IOBuilder &fbb, ZuID type) {
+  Hdr hdr{type, fbb.GetSize()};
+  fbb.PushBytes(&hdr, sizeof(Hdr));
+}
+int loadHdr(const uint8_t *data, unsigned len) {
+  if (ZuUnlikely(len < sizeof(Hdr))) return INT_MAX;
+  auto hdr = reinterpret_cast<const Hdr *>(data);
+  return sizeof(Hdr) + hdr->len;
+}
+const Hdr *verifyHdr(const uint8_t *data, unsigned len) {
+  if (len < sizeof(Hdr)) return nullptr;
+  auto hdr = reinterpret_cast<const Hdr *>(data);
+  if (hdr->len > (len - sizeof(Hdr))) return nullptr;
+  return hdr;
+}
+
+} // namespace ZvCmd
 
 #endif /* ZvCmdNet_HPP */

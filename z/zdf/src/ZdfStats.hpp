@@ -60,22 +60,22 @@ public:
   Stats &operator =(Stats &&) = default;
   ~Stats() = default;
 
-  ZuInline double fp(ZuFixedVal v) const {
+  double fp(ZuFixedVal v) const {
     return ZuFixed{v, m_exponent}.fp();
   }
 
-  ZuInline unsigned count() const { return m_count; }
-  ZuInline double total() const { return m_total; }
-  ZuInline double mean() const {
+  unsigned count() const { return m_count; }
+  double total() const { return m_total; }
+  double mean() const {
     if (ZuUnlikely(!m_count)) return 0.0;
     return m_total / static_cast<double>(m_count);
   }
-  ZuInline double var() const {
+  double var() const {
     if (ZuUnlikely(!m_count)) return 0.0;
     return m_var / static_cast<double>(m_count);
   }
-  ZuInline double std() const { return sqrt(var()); }
-  ZuInline unsigned exponent() const { return m_exponent; }
+  double std() const { return sqrt(var()); }
+  unsigned exponent() const { return m_exponent; }
 
   void exponent(unsigned exp) {
     m_exponent = exp;
@@ -169,7 +169,7 @@ public:
   StatsTree &operator =(StatsTree &&) = default;
   ~StatsTree() = default;
 
-  ZuInline unsigned exponent() { return Stats::exponent(); }
+  unsigned exponent() { return Stats::exponent(); }
   void exponent(unsigned newExp) {
     auto exp = exponent();
     if (ZuUnlikely(newExp != exp)) {
@@ -192,61 +192,61 @@ public:
       const_cast<ZuFixedVal &>(i->first) /= f;
   }
 
-  ZuInline void add(const ZuFixed &v_) {
+  void add(const ZuFixed &v_) {
     exponent(v_.exponent());
     auto v = v_.mantissa();
     add_(v);
   }
-  ZuInline void del(const ZuFixed &v_) {
+  void del(const ZuFixed &v_) {
     auto v = v_.adjust(exponent());
     auto iter = m_tree.find(v);
     if (iter != end()) del_(iter);
   }
   template <typename T>
-  ZuInline ZuIs<T, Iter> del(T iter) {
+  ZuIs<T, Iter> del(T iter) {
     if (iter != end()) del_(iter);
   }
 
-  ZuInline auto begin() const { return m_tree.begin(); }
-  ZuInline auto end() const { return m_tree.end(); }
+  auto begin() const { return m_tree.begin(); }
+  auto end() const { return m_tree.end(); }
 
-  ZuInline double fp(CIter iter) const {
+  double fp(CIter iter) const {
     if (iter == end()) return ZuFP<double>::nan();
     return Stats::fp(iter->first);
   }
 
-  ZuInline double minimum() const { return fp(begin()); }
-  ZuInline double maximum() const {
+  double minimum() const { return fp(begin()); }
+  double maximum() const {
     if (!count()) return ZuFP<double>::nan();
     return fp(--end());
   }
 
   template <typename T>
-  ZuInline auto find(T &&v) const { return m_tree.find(ZuFwd<T>(v)); }
+  auto find(T &&v) const { return m_tree.find(ZuFwd<T>(v)); }
 
-  ZuInline auto order(unsigned n) const {
+  auto order(unsigned n) const {
     return m_tree.find_by_order(n);
   }
   // 0 <= n < 1
-  ZuInline auto rankIter(double n) const {
+  auto rankIter(double n) const {
     return m_tree.find_by_order(n * static_cast<double>(this->count()));
   }
   // 0 <= n < 1
-  ZuInline double rank(double n) const {
+  double rank(double n) const {
     auto iter = rankIter(n);
     if (iter == m_tree.end()) return ZuFP<double>::nan();
     return fp(iter);
   }
-  ZuInline auto medianIter() const {
+  auto medianIter() const {
     return m_tree.find_by_order(this->count()>>1);
   }
-  ZuInline double median() const {
+  double median() const {
     auto iter = medianIter();
     if (iter == m_tree.end()) return ZuFP<double>::nan();
     return fp(iter);
   }
 
-  ZuInline void clean() {
+  void clean() {
     Stats::clean();
     m_tree.clear();
   }

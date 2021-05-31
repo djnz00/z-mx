@@ -32,7 +32,7 @@ union ReqData {
   KeyDel:KeyID
 }
 table Request {
-  seqNo:uint64;		// request ID (restarts at 0 with each session)
+  seq_no:uint64;	// request ID (restarts at 0 with each session)
   data:ReqData;
 }
 root_type Request;

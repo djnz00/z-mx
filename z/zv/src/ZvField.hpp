@@ -537,37 +537,37 @@ struct ZvField_Time : public ZvField_RdTime<Base, Flags> {
   static auto scanFn() { return scan; }
 };
 
-#define ZvFieldXRd(U, Type, ID, Member, Flags_, ...) \
-  ZuFieldXRd(U, ID, Member) \
+#define ZvFieldExtRd(U, Type, ID, Member, Flags_, ...) \
+  ZuFieldExtRd(U, ID, Member) \
   using ZvFieldType(U, ID) = \
   ZvField_##Rd##Type<ZuFieldType(U, ID), \
     (ZvFieldMkFlags(Flags_) | ZvFieldFlags::ReadOnly) \
     __VA_OPT__(,) __VA_ARGS__>;
 #define ZvFieldRd(U, Type, Member, Flags, ...) \
-  ZvFieldXRd(U, Type, Member, Member, Flags __VA_OPT__(,) __VA_ARGS__)
-#define ZvFieldX(U, Type, ID, Member, Flags, ...) \
-  ZuFieldX(U, ID, Member) \
+  ZvFieldExtRd(U, Type, Member, Member, Flags __VA_OPT__(,) __VA_ARGS__)
+#define ZvFieldExt(U, Type, ID, Member, Flags, ...) \
+  ZuFieldExt(U, ID, Member) \
   using ZvFieldType(U, ID) = \
   ZvField_##Type<ZuFieldType(U, ID), ZvFieldMkFlags(Flags) \
     __VA_OPT__(,) __VA_ARGS__>;
 #define ZvField(U, Type, Member, Flags, ...) \
-  ZvFieldX(U, Type, Member, Member, Flags __VA_OPT__(,) __VA_ARGS__)
+  ZvFieldExt(U, Type, Member, Member, Flags __VA_OPT__(,) __VA_ARGS__)
 
-#define ZvFieldXRdFn(U, Type, ID, Get, Flags_, ...) \
-  ZuFieldXRdFn(U, ID, Get) \
+#define ZvFieldExtRdFn(U, Type, ID, Get, Flags_, ...) \
+  ZuFieldExtRdFn(U, ID, Get) \
   using ZvFieldType(U, ID) = \
   ZvField_##Rd##Type<ZuFieldType(U, ID), \
     (ZvFieldMkFlags(Flags_) | ZvFieldFlags::ReadOnly) \
     __VA_OPT__(,) __VA_ARGS__>;
 #define ZvFieldRdFn(U, Type, Fn, Flags, ...) \
-  ZvFieldXRdFn(U, Type, Fn, Fn, Flags __VA_OPT__(,) __VA_ARGS__)
-#define ZvFieldXFn(U, Type, ID, Get, Set, Flags, ...) \
-  ZuFieldXFn(U, ID, Get, Set) \
+  ZvFieldExtRdFn(U, Type, Fn, Fn, Flags __VA_OPT__(,) __VA_ARGS__)
+#define ZvFieldExtFn(U, Type, ID, Get, Set, Flags, ...) \
+  ZuFieldExtFn(U, ID, Get, Set) \
   using ZvFieldType(U, ID) = \
   ZvField_##Type<ZuFieldType(U, ID), ZvFieldMkFlags(Flags) \
     __VA_OPT__(,) __VA_ARGS__>;
 #define ZvFieldFn(U, Type, Fn, Flags, ...) \
-  ZvFieldXFn(U, Type, Fn, Fn, Fn, Flags __VA_OPT__(,) __VA_ARGS__)
+  ZvFieldExtFn(U, Type, Fn, Fn, Fn, Flags __VA_OPT__(,) __VA_ARGS__)
 
 #define ZvFieldRdLambda(U, Type, ID, Get, Flags_, ...) \
   ZuFieldRdLambda(U, ID, Get) \

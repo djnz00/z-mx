@@ -1,0 +1,26 @@
+namespace Zdb;
+struct Msg_HB {
+  host_i_d:uint16;
+  state:uint16;
+  db_count:uint16;
+}
+enum Op:int8 {
+  Add = 0,
+  Upd,
+  Del
+}
+struct Msg_Rep {
+  db:uint32;
+  rn:uint64;
+  prevRN:uint64;
+  op:Op;
+  data:[uint8];	// nested table data
+}
+union Hdr {
+  HB:Msg_HB,
+  Rep:Msg_Rep
+}
+table Msg {
+  hdr:Hdr;
+}
+root_type Msg;

@@ -9,7 +9,7 @@ AM_LDFLAGS = @Z_LDFLAGS@
 FBS = dataframe.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs
-	flatc -c --no-warnings -I fbs -I $(top_srcdir)/zfb/src/fbs $<
+	flatc -c --cpp-field-case lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
 	mv ${@:%_fbs.h=%_generated.h} $@
 	perl -pi -e 's|^#include "(\w+)_generated\.h"|#include <zlib/$${1}_fbs.h>|; s|^#include "flatbuffers/flatbuffers.h"|#include <flatbuffers/flatbuffers.h>|;' $@
 BUILT_SOURCES = ${FBS_H}

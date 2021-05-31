@@ -1,7 +1,7 @@
 include "types.fbs";
 namespace ZvTelemetry.fbs;
 table ReqAck {
-  seqNo:uint64;
+  seq_no:uint64;
   ok:bool;
 }
 root_type ReqAck;

@@ -1,6 +1,6 @@
 namespace ZvUserDB.fbs;
 table Access {
-  keyID:string;
+  key_i_d:string;
   token:[ubyte];
   stamp:int64;
   hmac:[ubyte];

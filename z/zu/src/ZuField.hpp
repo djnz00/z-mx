@@ -43,61 +43,61 @@
 //
 // Method	Parameters	Description
 // ------	----------	-----------
-// (null)	(Member)	data member - ID, member share name
-// X		(ID, Member)	data member
-// Rd		(Member)	read-only data member - ID, member share name
-// XRd		(ID, Member)	read-only data member
-// Fn		(Fn)		function - ID, get, set share name
-// XFn		(ID, Get, Set)	function 
-// RdFn		(Fn)		read-only function - ID, get share name
-// XRdFn	(ID, Get)	read-only function
+// (null)	(Member)	data member
+// Ext		(ID, Member)	data member - ID, Member different
+// Rd		(Member)	read-only data member
+// ExtRd	(ID, Member)	read-only data member - ID, Member different
+// Fn		(Fn)		function
+// ExtFn	(ID, Get, Set)	function - ID, getter, setter different
+// RdFn		(Fn)		read-only function
+// ExtRdFn	(ID, Get)	read-only function - ID, getter different
 // Lambda	(ID, Get, Set)	lambda accessor
 // RdLambda	(ID, Get)	read-only lambda accessor
 
 #define ZuFieldID_(ID) \
   static constexpr const char *id() { return #ID; }
 
-#define ZuFieldXRd_(U, Member) \
+#define ZuFieldExtRd_(U, Member) \
   using T = ZuDecay<decltype(ZuDeclVal<const U &>().Member)>; \
   static decltype(auto) get(const void *o) { \
     return static_cast<const U *>(o)->Member; \
   }
-#define ZuFieldX_(U, Member) \
+#define ZuFieldExt_(U, Member) \
   template <typename V> \
   static void set(void *o, V &&v) { \
     static_cast<U *>(o)->Member = ZuFwd<V>(v); \
   }
-#define ZuFieldXRd(U, ID, Member) \
+#define ZuFieldExtRd(U, ID, Member) \
   struct ZuFieldType(U, ID) { \
     ZuFieldID_(ID) \
-    ZuFieldXRd_(U, Member) \
+    ZuFieldExtRd_(U, Member) \
   };
-#define ZuFieldX(U, ID, Member) \
+#define ZuFieldExt(U, ID, Member) \
   struct ZuFieldType(U, ID) { \
     ZuFieldID_(ID) \
-    ZuFieldXRd_(U, Member) \
-    ZuFieldX_(U, Member) \
+    ZuFieldExtRd_(U, Member) \
+    ZuFieldExt_(U, Member) \
   };
-#define ZuFieldXRdFn_(U, Get) \
+#define ZuFieldExtRdFn_(U, Get) \
   using T = ZuDecay<decltype(ZuDeclVal<const U &>().Get())>; \
   static decltype(auto) get(const void *o) { \
     return static_cast<const U *>(o)->Get(); \
   }
-#define ZuFieldXFn_(U, Set) \
+#define ZuFieldExtFn_(U, Set) \
   template <typename V> \
   static void set(void *o, V &&v) { \
     static_cast<U *>(o)->Set(ZuFwd<V>(v)); \
   }
-#define ZuFieldXRdFn(U, ID, Get) \
+#define ZuFieldExtRdFn(U, ID, Get) \
   struct ZuFieldType(U, ID) { \
     ZuFieldID_(ID) \
-    ZuFieldXRdFn_(U, Get) \
+    ZuFieldExtRdFn_(U, Get) \
   };
-#define ZuFieldXFn(U, ID, Get, Set) \
+#define ZuFieldExtFn(U, ID, Get, Set) \
   struct ZuFieldType(U, ID) { \
     ZuFieldID_(ID) \
-    ZuFieldXRdFn_(U, Get) \
-    ZuFieldXFn_(U, Set) \
+    ZuFieldExtRdFn_(U, Get) \
+    ZuFieldExtFn_(U, Set) \
   };
 #define ZuFieldRdLambda_(U, Get) \
   static decltype(auto) get(const void *o) { \
@@ -128,11 +128,11 @@
     ZuFieldLambda_(U, Set) \
   };
 
-#define ZuField(U, Member) ZuFieldX(U, Member, Member)
-#define ZuFieldRd(U, Member) ZuFieldXRd(U, Member, Member)
+#define ZuField(U, Member) ZuFieldExt(U, Member, Member)
+#define ZuFieldRd(U, Member) ZuFieldExtRd(U, Member, Member)
 
-#define ZuFieldFn(U, Fn) ZuFieldXFn(U, Fn, Fn, Fn)
-#define ZuFieldRdFn(U, Fn) ZuFieldXRdFn(U, Fn, Fn)
+#define ZuFieldFn(U, Fn) ZuFieldExtFn(U, Fn, Fn, Fn)
+#define ZuFieldRdFn(U, Fn) ZuFieldExtRdFn(U, Fn, Fn)
 
 #define ZuField_Decl_(U, Method, ...) ZuField##Method(U, __VA_ARGS__)
 #define ZuField_Decl(U, Args) ZuPP_Defer(ZuField_Decl_)(U, ZuPP_Strip(Args))

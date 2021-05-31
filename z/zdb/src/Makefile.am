@@ -5,7 +5,19 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	-DZDB_EXPORTS @Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
-pkginclude_HEADERS = Zdb.hpp ZdbLib.hpp
+FBS = \
+	zdb.fbs
+FBS_H = ${FBS:%.fbs=%_fbs.h}
+${FBS_H}: %_fbs.h: fbs/%.fbs
+	flatc -c --cpp-field-case lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
+	mv ${@:%_fbs.h=%_generated.h} $@
+	perl -pi -e 's|^#include "(\w+)_generated\.h"|#include <zlib/$${1}_fbs.h>|; s|^#include "flatbuffers/flatbuffers.h"|#include <flatbuffers/flatbuffers.h>|;' $@
+BUILT_SOURCES = ${FBS_H}
+CLEANFILES = ${FBS_H}
+pkginclude_HEADERS = Zdb.hpp ZdbLib.hpp \
+	${FBS_H}
+#fbsdir = $(datarootdir)/${PACKAGE}/fbs
+#dist_fbs_DATA = fbs/telemetry.fbs
 lib_LTLIBRARIES = libZdb.la
 libZdb_la_SOURCES = Zdb.cpp ZdbLib.cpp
 libZdb_la_LIBADD = \

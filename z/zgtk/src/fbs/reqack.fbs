@@ -11,9 +11,9 @@ union ReqAckData {
   SelectAck	: Link
 }
 table ReqAck {
-  seqNo		:uint64;	// request ID (restarts at 0 with each session)
+  seq_no	:uint64;	// request ID (restarts at 0 with each session)
   data		:ReqAckData;
-  rejCode	:uint32 = 0;
-  rejText	:string;
+  rej_code	:uint32 = 0;
+  rej_text	:string;
 }
 root_type ReqAck;
