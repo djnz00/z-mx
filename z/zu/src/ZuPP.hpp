@@ -50,6 +50,16 @@
 #define ZuPP_Strip_Concat(x, ...) ZuPP_Strip_Concat_(x, __VA_ARGS__)
 #define ZuPP_Strip(x) ZuPP_Strip_Concat(ZuPP_Strip_Null_, ZuPP_Strip__ x)
 
+// use ZuPP_StripAppend(x) to strip x of any parentheses and append to args
+
+#define ZuPP_StripAppend__(...) ZuPP_StripAppend__ __VA_OPT__(,) __VA_ARGS__
+#define ZuPP_StripAppend_Null_ZuPP_StripAppend__
+#define ZuPP_StripAppend_Concat_(x, ...) x ## __VA_ARGS__
+#define ZuPP_StripAppend_Concat(x, ...) \
+  ZuPP_StripAppend_Concat_(x, __VA_ARGS__)
+#define ZuPP_StripAppend(x) \
+  ZuPP_StripAppend_Concat(ZuPP_StripAppend_Null_, ZuPP_StripAppend__ x)
+
 // map expansions - the ...Comma versions suppress trailing commas
 
 #define ZuPP_Map(map, first, ...) \

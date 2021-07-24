@@ -133,7 +133,7 @@ int main()
 
   {
     using T = ZuTuple<int, float, double, int>;
-    T a{1, 2, 3, 4};
+    T a{1, 2.0F, 3.0, 4};
     auto b = a;
     CHECK(b.v<int>() == 1 && b.v<float>() == 2 && b.v<double>() == 3);
   }

@@ -31,11 +31,12 @@
 #endif
 
 #include <zlib/ZuInt.hpp>
+#include <zlib/ZuTraits.hpp>
 #include <zlib/ZuString.hpp>
-#include <zlib/ZuBox.hpp>
 #include <zlib/ZuPrint.hpp>
+#include <zlib/ZuBox.hpp>
 
-template <unsigned Bits_> class ZuBitmap : public ZuPrintable {
+template <unsigned Bits_> class ZuBitmap {
 public:
   enum { Bits = ((Bits_ + 63) & ~63) };
   enum { Bytes = (Bits>>3) };
@@ -57,15 +58,32 @@ public:
   ZuBitmap &zero() { memset(data, 0, Bytes); return *this; }
   ZuBitmap &fill() { memset(data, 0xff, Bytes); return *this; }
 
-  void set(unsigned i) {
-    data[i>>Shift] |= ((uint64_t)1)<<(i & Mask);
+  bool get(unsigned i) const {
+    return data[i>>Shift] & ((uint64_t)1)<<(i & Mask);
   }
-  void clr(unsigned i) {
+  ZuBitmap &set(unsigned i) {
+    data[i>>Shift] |= ((uint64_t)1)<<(i & Mask);
+    return *this;
+  }
+  ZuBitmap &clr(unsigned i) {
     data[i>>Shift] &= ~(((uint64_t)1)<<(i & Mask));
+    return *this;
   }
 
-  bool operator &&(unsigned i) const {
-    return data[i>>Shift] & ((uint64_t)1)<<(i & Mask);
+  struct Bit {
+    ZuBitmap	&bitmap;
+    unsigned	i;
+    operator bool() const { return bitmap.get(i); }
+    ZuOpBool
+    void set() { bitmap.set(i); }
+    void clr() { bitmap.clr(i); }
+    Bit &operator =(bool v) { v ? set() : clr(); return *this; }
+  };
+  const Bit operator [](unsigned i) const {
+    return {*const_cast<ZuBitmap *>(this), i};
+  }
+  Bit operator [](unsigned i) {
+    return {*this, i};
   }
 
   template <unsigned I> struct Index { enum { OK = I < Words }; };
@@ -179,12 +197,11 @@ public:
 	return (i<<Shift) + (63 - __builtin_clzll(w));
     return -1;
   }
-
   int next(int i) const {
     if (ZuUnlikely(i == -1)) return first();
     do {
       if (++i >= Bits) return -1;
-    } while (!(*this && i));
+    } while (!get(i));
     return i;
   }
   int prev(int i) const {
@@ -218,7 +235,6 @@ public:
     }
     return offset;
   }
-
   template <typename S> void print(S &s) const {
     if (!*this) return;
     ZuBox<int> begin = first();
@@ -239,6 +255,11 @@ public:
       begin = next;
     }
   }
+
+  struct Traits : public ZuBaseTraits<ZuBitmap> { enum { IsComparable = 1 }; };
+  friend Traits ZuTraitsType(ZuBitmap *);
+
+  friend ZuPrintFn ZuPrintType(ZuBitmap *);
 
   uint64_t	data[Words];
 };

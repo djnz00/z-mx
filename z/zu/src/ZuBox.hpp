@@ -236,15 +236,15 @@ public:
   ZuBox &operator =(const ZuBox &b) { m_val = b.m_val; return *this; }
 
   template <typename R>
-  ZuBox(R r, ZuBox_IsReal<R, T> *_ = 0) :
+  ZuBox(R r, ZuBox_IsReal<R, T> *_ = nullptr) :
     m_val(r) { }
 
   template <typename B>
-  ZuBox(B b, ZuIsBoxed<B> *_ = 0) :
+  ZuBox(B b, ZuIsBoxed<B> *_ = nullptr) :
     m_val(!*b ? static_cast<T>(Cmp::null()) : static_cast<T>(b.m_val)) { }
 
   template <typename S>
-  ZuBox(S &&s_, ZuIsCharString<S> *_ = 0) :
+  ZuBox(S &&s_, ZuIsCharString<S> *_ = nullptr) :
       m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
@@ -252,7 +252,7 @@ public:
       m_val = val;
   }
   template <class Fmt, typename S>
-  ZuBox(Fmt, S &&s_, ZuIsCharString<S> *_ = 0) :
+  ZuBox(Fmt, S &&s_, ZuIsCharString<S> *_ = nullptr) :
       m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<Fmt>::T val = 0;
@@ -262,14 +262,14 @@ public:
 
   template <typename S>
   ZuBox(S s, unsigned len,
-      ZuBox_IsCharPtr<S> *_ = 0) : m_val(Cmp::null()) {
+      ZuBox_IsCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s, len)))
       m_val = val;
   }
   template <class Fmt, typename S>
   ZuBox(Fmt, S s, unsigned len,
-      ZuBox_IsCharPtr<S> *_ = 0) : m_val(Cmp::null()) {
+      ZuBox_IsCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s, len)))
       m_val = val;

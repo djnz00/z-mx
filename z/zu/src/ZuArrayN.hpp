@@ -579,7 +579,7 @@ public:
 
   // miscellaneous types handled by base class
   template <typename A>
-  ArrayN(A &&a, MatchCtorArg<A> *_ = 0) : Base(Base::Nop) {
+  ArrayN(A &&a, MatchCtorArg<A> *_ = nullptr) : Base(Base::Nop) {
     this->init(ZuFwd<A>(a));
   }
   template <typename A>
@@ -602,12 +602,12 @@ public:
   // length
   template <typename L>
   ArrayN(L l, bool initItems = !ZuTraits<T>::IsPrimitive,
-      MatchCtorLength<L> *_ = 0) : Base(l, initItems) { }
+      MatchCtorLength<L> *_ = nullptr) : Base(l, initItems) { }
 
   // arrays as ptr, length
   template <typename A>
   ArrayN(const A *a, unsigned length,
-    ZuConvertible<A, T> *_ = 0) : Base(Base::Nop) {
+    ZuConvertible<A, T> *_ = nullptr) : Base(Base::Nop) {
     this->init(a, length);
   }
   ArrayN(Move_ _, T *a, unsigned length) : Base(Base::Nop) {

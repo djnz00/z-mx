@@ -91,13 +91,13 @@ template <typename R, unsigned ...Case> struct Dispatch<R, Seq<Case...>> {
 #pragma GCC diagnostic pop
 
 template <unsigned N, typename L>
-auto dispatch(unsigned i, L l) {
+decltype(auto) dispatch(unsigned i, L l) {
   return Dispatch<decltype(l(ZuConstant<0>{})), typename MkSeq<N>::T>::fn(
       i, static_cast<L &&>(l));
 }
 
 template <unsigned N, typename L, typename D>
-auto dispatch(unsigned i, L l, D d) {
+decltype(auto) dispatch(unsigned i, L l, D d) {
   if (ZuUnlikely(i >= N)) return d();
   return Dispatch<decltype(l(ZuConstant<0>{})), typename MkSeq<N>::T>::fn(
       i, static_cast<L &&>(l));

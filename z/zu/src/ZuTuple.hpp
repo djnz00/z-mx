@@ -118,7 +118,8 @@ private:
   template <typename T, typename> struct Bind_P0 {
     using U0 = typename T::U0;
     static const U0 &p0(const T &v) { return v.m_p0; }
-    static U0 &&p0(T &&v) { return static_cast<U0 &&>(v.m_p0); }
+    static U0 &p0(T &v) { return v.m_p0; }
+    static U0 &&p0(T &&v) { return ZuMv(v.m_p0); }
   };
   template <typename T, typename P0> struct Bind_P0<T, P0 &> {
     using U0 = typename T::U0;
@@ -145,16 +146,16 @@ public:
   template <typename T>
   Tuple_(T &&v, ZuIfT<
 	ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK
-      > *_ = 0) :
-    m_p0(Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))) { }
+      > *_ = nullptr) :
+    m_p0{Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))} { }
 
   template <typename T>
   Tuple_(T &&v, ZuIfT<
       !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
 	(!ZuTraits<T0>::IsReference ||
 	  ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is)
-      > *_ = 0) :
-    m_p0(ZuFwd<T>(v)) { }
+      > *_ = nullptr) :
+    m_p0{ZuFwd<T>(v)} { }
 
   template <typename T>
   ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK, Tuple_ &>
@@ -166,8 +167,8 @@ public:
   template <typename T>
   ZuIfT<
     !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
-    (!ZuTraits<T0>::IsReference ||
-      ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is),
+      (!ZuTraits<T0>::IsReference ||
+	ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is),
     Tuple_ &>
   operator =(T &&v) {
     m_p0 = ZuFwd<T>(v);
@@ -202,12 +203,16 @@ public:
   }
 
   template <unsigned I>
-  ZuIfT<!I, const U0 &> p() const {
+  ZuIfT<!I, const U0 &> p() const & {
     return m_p0;
   }
   template <unsigned I>
-  ZuIfT<!I, U0 &> p() {
+  ZuIfT<!I, U0 &> p() & {
     return m_p0;
+  }
+  template <unsigned I>
+  ZuIfT<!I, U0 &&> p() && {
+    return ZuMv(m_p0);
   }
   template <unsigned I, typename P>
   ZuIfT<!I, Tuple_ &> p(P &&p) {
@@ -216,12 +221,16 @@ public:
   }
 
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, const U0 &> v() const {
+  ZuIfT<ZuConversion<T, T0>::Same, const U0 &> v() const & {
     return m_p0;
   }
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, U0 &> v() {
+  ZuIfT<ZuConversion<T, T0>::Same, U0 &> v() & {
     return m_p0;
+  }
+  template <typename T>
+  ZuIfT<ZuConversion<T, T0>::Same, U0 &&> v() && {
+    return ZuMv(m_p0);
   }
   template <typename T, typename P>
   ZuIfT<ZuConversion<T, T0>::Same, Tuple_ &> v(P &&p) {
@@ -238,12 +247,12 @@ public:
   }
 
   template <typename L>
-  auto dispatch(unsigned i, L l) {
+  decltype(auto) dispatch(unsigned i, L l) {
     if (i) return decltype(l(m_p0)){};
     return l(m_p0);
   }
   template <typename L>
-  auto cdispatch(unsigned i, L l) const {
+  decltype(auto) cdispatch(unsigned i, L l) const {
     if (i) return decltype(l(m_p0)){};
     return l(m_p0);
   }
@@ -314,14 +323,14 @@ public:
   }
 
   template <typename L>
-  auto dispatch(unsigned i, L l) {
+  decltype(auto) dispatch(unsigned i, L l) {
     return ZuSwitch::dispatch<N>(
 	i, [this, &l](auto i) mutable {
 	  return l(this->p<i>());
 	});
   }
   template <typename L>
-  auto cdispatch(unsigned i, L l) const {
+  decltype(auto) cdispatch(unsigned i, L l) const {
     return ZuSwitch::dispatch<N>(
 	i, [this, &l](auto i) mutable {
 	  return l(this->p<i>());
@@ -344,7 +353,6 @@ struct ZuTuple_Type_<0, Left, Right> {
 template <unsigned I, typename Left, typename Right>
 using ZuTuple_Type = typename ZuTuple_Type_<I, Left, Right>::T;
 
-// FIXME - use decltype(auto) here and in ZuPair
 namespace Zu_ {
 template <typename T0, typename T1, typename ...Args>
 class Tuple_<T0, T1, Args...> : public Pair_<T0, Tuple_<T1, Args...>> {
@@ -378,12 +386,16 @@ public:
       Base{ZuFwd<P0>(p0), Right{ZuFwd<P1>(p1), ZuFwd<Args_>(args)...}} { }
 
   template <unsigned I>
-  ZuIfT<!I, const Type<I> &> p() const {
+  ZuIfT<!I, const Type<I> &> p() const & {
     return Base::template p<0>();
   }
   template <unsigned I>
-  ZuIfT<!I, Type<I> &> p() {
+  ZuIfT<!I, Type<I> &> p() & {
     return Base::template p<0>();
+  }
+  template <unsigned I>
+  ZuIfT<!I, Type<I> &&> p() && {
+    return ZuMv(ZuMv(*this).Base::template p<0>());
   }
   template <unsigned I, typename P>
   ZuIfT<!I, Tuple_ &> p(P &&p) {
@@ -392,12 +404,16 @@ public:
   }
 
   template <unsigned I>
-  ZuIfT<(I && I < N), const Type<I> &> p() const {
+  ZuIfT<(I && I < N), const Type<I> &> p() const & {
     return Base::template p<1>().template p<I - 1>();
   }
   template <unsigned I>
-  ZuIfT<(I && I < N), Type<I> &> p() {
+  ZuIfT<(I && I < N), Type<I> &> p() & {
     return Base::template p<1>().template p<I - 1>();
+  }
+  template <unsigned I>
+  ZuIfT<(I && I < N), Type<I> &&> p() && {
+    return ZuMv(ZuMv(ZuMv(*this).Base::template p<1>()).template p<I - 1>());
   }
   template <unsigned I, typename P>
   ZuIfT<(I && I < N), Tuple_ &> p(P &&p) {
@@ -406,30 +422,34 @@ public:
   }
 
   template <typename T>
-  auto v() const {
+  decltype(auto) v() const & {
     return p<Index<T>::I>();
   }
   template <typename T>
-  auto v() {
+  decltype(auto) v() & {
     return p<Index<T>::I>();
   }
+  template <typename T>
+  decltype(auto) v() && {
+    return ZuMv(ZuMv(*this).template p<Index<T>::I>());
+  }
   template <typename T, typename P>
-  auto v(P &&p) {
+  decltype(auto) v(P &&p) {
     return p<Index<T>::I>(ZuFwd<P>(p));
   }
 
   template <typename L>
-  auto dispatch(unsigned i, L l) {
+  decltype(auto) dispatch(unsigned i, L l) {
     return ZuSwitch::dispatch<N>(
 	i, [this, &l](auto i) mutable {
-	  return l(this->p<i>());
+	  return l(this->template p<i>());
 	});
   }
   template <typename L>
-  auto cdispatch(unsigned i, L l) const {
+  decltype(auto) cdispatch(unsigned i, L l) const {
     return ZuSwitch::dispatch<N>(
 	i, [this, &l](auto i) mutable {
-	  return l(this->p<i>());
+	  return l(this->template p<i>());
 	});
   }
 
@@ -451,6 +471,22 @@ auto inline ZuMvTuple(Args... args) {
 namespace Zu_ {
   template <typename ...Args> Tuple_(Args...) -> Tuple_<Args...>;
 }
+
+// key/value extraction
+template <unsigned I = 0>
+struct ZuTupleAccessor {
+  template <typename P, unsigned J> struct Bind {
+    static decltype(auto) get(const P &v) { return v.template p<J>(); }
+    static decltype(auto) get(P &v) { return v.template p<J>(); }
+    static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
+  };
+  template <typename P>
+  static decltype(auto) key(P &&v) {
+    return Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
+  }
+  template <typename P>
+  static decltype(auto) val(P &&v) { return ZuFwd<P>(v); }
+};
 
 // STL structured binding cruft
 #include <type_traits>

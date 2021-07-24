@@ -57,7 +57,7 @@ public:
   ZuID &operator =(const ZuID &b) { m_val = b.m_val; return *this; }
 
   template <typename S>
-  ZuID(S &&s, ZuIsString<S> *_ = 0) {
+  ZuID(S &&s, ZuIsString<S> *_ = nullptr) {
     init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -73,7 +73,7 @@ public:
   using MatchUInt64 = ZuIfT<IsUInt64<V>::OK, R>;
 
   template <typename V>
-  ZuID(V v, MatchUInt64<V> *_ = 0) : m_val(v) { }
+  ZuID(V v, MatchUInt64<V> *_ = nullptr) : m_val(v) { }
   template <typename V>
   MatchUInt64<V, ZuID &> operator =(V v) {
     m_val = v;
@@ -84,7 +84,11 @@ public:
     if (ZuLikely(s.length() == 8)) {
       const uint64_t *ZuMayAlias(ptr) =
 	reinterpret_cast<const uint64_t *>(s.data());
+#ifdef __x86_64__
       m_val = *ptr; // potentially misaligned load
+#else
+      memcpy(&m_val, ptr, 8);
+#endif
       return;
     }
     m_val = 0;

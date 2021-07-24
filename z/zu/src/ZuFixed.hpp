@@ -81,12 +81,12 @@ public:
   ZuFixed() = default;
 
   template <typename M>
-  ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = 0) :
+  ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = nullptr) :
       m_mantissa{static_cast<int64_t>(m)},
       m_exponent{static_cast<uint8_t>(e)} { }
 
   template <typename V>
-  ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = 0) :
+  ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = nullptr) :
     m_mantissa{static_cast<int64_t>(
 	static_cast<double>(v) * ZuDecimalFn::pow10_64(e))},
     m_exponent{static_cast<uint8_t>(e)} { }
@@ -186,11 +186,11 @@ public:
 
   // scan from string
   template <typename S>
-  ZuFixed(const S &s, ZuIsString<S> *_ = 0) {
+  ZuFixed(const S &s, ZuIsString<S> *_ = nullptr) {
     scan<false>(s, 0);
   }
   template <typename S>
-  ZuFixed(const S &s, unsigned e, ZuIsString<S> *_ = 0) {
+  ZuFixed(const S &s, unsigned e, ZuIsString<S> *_ = nullptr) {
     scan<true>(s, e);
   }
 private:

@@ -106,7 +106,7 @@ public:
     r.m_object = 0;
   }
   template <typename R>
-  ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = 0)
+  ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr)
   noexcept : m_object(
       static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))) {
     ZuMvCp<R>::mvcp(ZuFwd<R>(r),
@@ -117,7 +117,7 @@ public:
     if (o) o->ref();
   }
   template <typename O>
-  ZuRef(O *o, MatchPtr<O> *_ = 0) :
+  ZuRef(O *o, MatchPtr<O> *_ = nullptr) :
       m_object(static_cast<T *>(o)) {
     if (o) o->ref();
   }

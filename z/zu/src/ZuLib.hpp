@@ -174,6 +174,13 @@ using ZuStrip = typename ZuStrip_<T>::T;
 // std::decay without dragging in STL cruft
 template <typename T> using ZuDecay = ZuStrip<ZuDeref<T>>;
 
+// various type mappings used as template parameters
+template <typename T> using ZuAsIs = T;
+template <typename T> using ZuConst = const T;
+template <typename T> using ZuVolatile = volatile T;
+template <typename T> using ZuLRef = T &;
+template <typename T> using ZuCRef = const T &;
+
 // shorthand constexpr std::forward without STL cruft
 template <typename T>
 constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
@@ -219,7 +226,9 @@ template <typename L> struct ZuGuard {
 // safe bool idiom
 #define ZuOpBool \
   operator const void *() const { \
-    return !*this ? (const void *)0 : (const void *)this; \
+    return !*this ? \
+      reinterpret_cast<const void *>(0) : \
+      static_cast<const void *>(this); \
   }
 
 // move/copy universal reference
@@ -532,6 +541,14 @@ struct ZuTypeAll<T0, Args...> {
 };
 template <typename ...Args>
 struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
+
+// key/value extraction (default)
+struct ZuAccessor {
+  template <typename P>
+  static decltype(auto) key(P &&v) { return ZuFwd<P>(v); }
+  template <typename P>
+  static decltype(auto) val(P &&v) { return ZuFwd<P>(v); }
+};
 
 // function signature deduction
 

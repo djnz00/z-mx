@@ -132,7 +132,7 @@ private:
 public:
   // compile-time length from string literal (null-terminated)
   template <typename A>
-  ZuArray(const A &a, MatchStrLiteral<A> *_ = 0) :
+  ZuArray(const A &a, MatchStrLiteral<A> *_ = nullptr) :
     m_data(&a[0]),
     m_length((ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
       (sizeof(a) / sizeof(a[0])) - 1U) { }
@@ -146,7 +146,7 @@ public:
 
   // compile-time length from primitive array
   template <typename A>
-  ZuArray(const A &a, MatchPrimitiveArray<A> *_ = 0) :
+  ZuArray(const A &a, MatchPrimitiveArray<A> *_ = nullptr) :
     m_data(&a[0]),
     m_length(sizeof(a) / sizeof(a[0])) { }
   template <typename A>
@@ -158,7 +158,7 @@ public:
 
   // length from deferred strlen
   template <typename A>
-  ZuArray(const A &a, MatchCString<A> *_ = 0) :
+  ZuArray(const A &a, MatchCString<A> *_ = nullptr) :
 	m_data(reinterpret_cast<T *>(a)), m_length(!a ? 0 : -1) { }
   template <typename A>
   MatchCString<A, ZuArray &> operator =(A &&a) {
@@ -169,7 +169,7 @@ public:
 
   // length from passed type
   template <typename A>
-  ZuArray(A &&a, MatchOtherArray<A> *_ = 0) :
+  ZuArray(A &&a, MatchOtherArray<A> *_ = nullptr) :
       m_data{reinterpret_cast<T *>(ZuTraits<A>::data(a))},
       m_length{!m_data ? 0 : (int)ZuTraits<A>::length(a)} { }
   template <typename A>
@@ -185,7 +185,7 @@ public:
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
   template <typename V>
-  ZuArray(V *data, unsigned length, MatchPtr<V> *_ = 0) :
+  ZuArray(V *data, unsigned length, MatchPtr<V> *_ = nullptr) :
       m_data{reinterpret_cast<T *>(data)}, m_length{length} { }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -334,7 +334,7 @@ public:
   template <typename A>
   ZuArray(const A &a, ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuConversion<typename ZuTraits<A>::Elem, ZuNull>::Exists> *_ = 0) { }
+      ZuConversion<typename ZuTraits<A>::Elem, ZuNull>::Exists> *_ = nullptr) { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&
@@ -356,7 +356,7 @@ public:
   template <typename A>
   ZuArray(const A &a, ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuConversion<typename ZuTraits<A>::Elem, void>::Exists> *_ = 0) { }
+      ZuConversion<typename ZuTraits<A>::Elem, void>::Exists> *_ = nullptr) { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&

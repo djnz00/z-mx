@@ -434,13 +434,14 @@ int main()
   }
 
   {
-    ZuPair<uint64_t, uint32_t> foo = { 1, 2 };
+    ZuPair<uint64_t, uint32_t> foo = { 1U, 2U };
     auto [a, b] = foo;
     CHECK(a == 1 && b == 2);
   }
 
   {
-    ZuTuple<uint64_t, uint32_t, uint16_t> foo = { 1, 2, 3 };
+    ZuTuple<uint64_t, uint32_t, uint16_t> foo =
+      { 1U, 2U, static_cast<uint16_t>(3U) };
     auto [a, b, c] = foo;
     CHECK(a == 1 && b == 2 && c == 3);
   }

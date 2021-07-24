@@ -38,10 +38,10 @@ class ZuNull {
 
 template <typename T> struct ZuCmp;
 template <> struct ZuCmp<ZuNull> {
-  ZuInline static constexpr int cmp(ZuNull n1, ZuNull n2) { return 0; }
-  ZuInline static constexpr bool less(ZuNull n1, ZuNull n2) { return false; }
-  ZuInline static constexpr bool equals(ZuNull n1, ZuNull n2) { return true; }
-  ZuInline static constexpr bool null(ZuNull n) { return true; }
+  ZuInline static constexpr int cmp(ZuNull, ZuNull) { return 0; }
+  ZuInline static constexpr bool less(ZuNull, ZuNull) { return false; }
+  ZuInline static constexpr bool equals(ZuNull, ZuNull) { return true; }
+  ZuInline static constexpr bool null(ZuNull) { return true; }
   ZuInline static const ZuNull &null() { static const ZuNull _; return _; }
 };
 
