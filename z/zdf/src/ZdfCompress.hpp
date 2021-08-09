@@ -219,8 +219,16 @@ private:
     } else {						// 64 bits
       if (m_pos + 9 > m_end) return false;
       ++m_pos;
+#ifdef __x86_64__
       // potentially misaligned
       value = *reinterpret_cast<const ZuLittleEndian<uint64_t> *>(m_pos);
+#else
+      {
+	ZuLittleEndian<uint64_t> value_;
+	memcpy(&value_, m_pos, 8);
+	value = value_;
+      }
+#endif
       m_pos += 8;
     }
     if (byte & 0x40) value = ~value;
@@ -326,8 +334,15 @@ public:
 	break;
       case 6:							// 64 bits
 	*m_pos++ = negative | 0x3f;
+#ifdef __x86_64__
 	// potentially misaligned
 	*reinterpret_cast<ZuLittleEndian<uint64_t> *>(m_pos) = value;
+#else
+	{
+	  ZuLittleEndian<uint64_t> value_ = value;
+	  memcpy(m_pos, &value_, 8);
+	}
+#endif
 	m_pos += 8;
 	break;
     }

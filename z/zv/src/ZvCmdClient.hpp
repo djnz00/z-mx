@@ -410,19 +410,19 @@ friend TLS;
 
     Dispatcher::init();
 
-    Dispatcher::map(ZvCmd::ID::userDB(),
+    Dispatcher::map(ZvCmd::Type::userDB(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processUserDB(data, len);
 	});
-    Dispatcher::map(ZvCmd::ID::cmd(),
+    Dispatcher::map(ZvCmd::Type::cmd(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processCmd(data, len);
 	});
-    Dispatcher::map(ZvCmd::ID::telReq(),
+    Dispatcher::map(ZvCmd::Type::telReq(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processTelReq(data, len);
 	});
-    Dispatcher::map(ZvCmd::ID::telemetry(),
+    Dispatcher::map(ZvCmd::Type::telemetry(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processTelemetry(data, len);
 	});

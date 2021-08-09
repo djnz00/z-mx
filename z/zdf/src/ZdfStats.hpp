@@ -121,7 +121,7 @@ protected:
     --m_count;
   }
 
-  ZuInline void clean() {
+  void clean() {
     m_count = 0;
     m_total = 0.0;
     m_var = 0.0;

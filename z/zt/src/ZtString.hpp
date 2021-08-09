@@ -441,7 +441,7 @@ private:
 
 public:
   template <typename S>
-  ZtString_(S &&s_, ZtIconv *iconv, ZuIsString<S> *_ = 0) {
+  ZtString_(S &&s_, ZtIconv *iconv, ZuIsString<S> *_ = nullptr) {
     ZuArrayT<S> s(ZuFwd<S>(s_));
     convert_(s, iconv);
   }

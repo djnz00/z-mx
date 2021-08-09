@@ -39,12 +39,10 @@
 #include <zlib/ZtPlatform.hpp>
 #include <zlib/ZtString.hpp>
 
+template <typename T>
 struct ZtICmp {
 public:
-  template <typename S1, typename S2>
-  static int cmp(S1 &&s1_, S2 &&s2_) {
-    ZuString s1(ZuFwd<S1>(s1_));
-    ZuString s2(ZuFwd<S2>(s2_));
+  static int cmp(ZuString s1, ZuString s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (!l1) return l2 ? -1 : 0;
     if (!l2) return 1;
@@ -52,10 +50,7 @@ public:
     if (i) return i;
     return l1 - l2;
   }
-  template <typename S1, typename S2>
-  static bool less(S1 &&s1_, S2 &&s2_) {
-    ZuString s1(ZuFwd<S1>(s1_));
-    ZuString s2(ZuFwd<S2>(s2_));
+  static bool less(ZuString s1, ZuString s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (!l1) return l2;
     if (!l2) return false;
@@ -63,19 +58,13 @@ public:
     if (i) return i < 0;
     return l1 < l2;
   }
-  template <typename S1, typename S2>
-  static int equals(S1 &&s1_, S2 &&s2_) {
-    ZuString s1(ZuFwd<S1>(s1_));
-    ZuString s2(ZuFwd<S2>(s2_));
+  static int equals(ZuString s1, ZuString s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (l1 != l2) return false;
     return !Zu::stricmp_(s1.data(), s2.data(), l1);
   }
-  template <typename S>
-  static int null(S &&s_) {
-    ZuString s(ZuFwd<S>(s_));
-    return !s;
-  }
+  static bool null(const T &s) { return ZuCmp<T>::null(s); }
+  static const T &null() { return ZuCmp<T>::null(); }
 };
 
 #endif /* ZtICmp_HPP */

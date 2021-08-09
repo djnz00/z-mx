@@ -193,6 +193,7 @@ ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {
 }
 
 struct Key_ : public ZuObject {
+  // FIXME - declare fields, primary key
   Key_(ZuString id_, Key_ *nextKey_, uint64_t userID_) :
       id(id_), nextKey(nextKey_), userID(userID_) { }
 
@@ -203,7 +204,7 @@ struct Key_ : public ZuObject {
 
   ZtString	id;
   KeyData	secret;
-  Key_		*nextKey;// next in per-user list
+  Key_		*nextKey;	// next in per-user list
   uint64_t	userID;
 
   Zfb::Offset<fbs::Key> save(Zfb::Builder &fbb) const {
@@ -215,12 +216,12 @@ struct KeyHashID {
   static constexpr const char *id() { return "ZvUserDB.Keys"; }
 };
 struct KeyIDAccessor : public ZuAccessor<Key_, ZtString> {
-  ZuInline static ZtString value(const Key_ &k) { return k.id; }
+  static ZtString value(const Key_ &k) { return k.id; }
 };
 using KeyHash =
   ZmHash<Key_,
     ZmHashObject<ZuObject,
-      ZmHashIndex<KeyIDAccessor,
+      ZmHashIndex<ZuIndex<Key_, 0>,
 	ZmHashNodeIsKey<true,
 	  ZmHashHeapID<KeyHashID,
 	    ZmHashLock<ZmNoLock> > > > > >;

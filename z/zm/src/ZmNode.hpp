@@ -19,8 +19,7 @@
 
 // intrusive container node (used by ZmHash, ZmRBTree, ...)
 
-// ZmNode - node containing single item (no key/value)
-// ZmKVNode - node containing key with (optional) value
+// ZmNode - container node
 // ZmNodePolicy - node ownership (referencing/dereferencing) policy
 
 #ifndef ZmNode_HPP
@@ -38,197 +37,84 @@
 #include <zlib/ZuObject.hpp>
 
 template <
-  class Heap, bool NodeIsItem,
-  template <typename, typename, bool> class Fn, typename Item> class ZmNode;
-// node contains item (default)
+  typename T, typename KeyAxor, typename ValAxor, typename Heap, bool Derive,
+  template <typename, typename, bool, bool> typename Fn>
+class ZmNode;
+
+// node contains type
 template <
-  class Heap, template <typename, typename, bool> class Fn_, typename Item>
-class ZmNode<Heap, 0, Fn_, Item> :
-    public Fn_<ZmNode<Heap, 0, Fn_, Item>, Heap, 0> {
-  ZmNode(const ZmNode &);
-  ZmNode &operator =(const ZmNode &);	// prevent mis-use
-
+  typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
+  template <typename, typename, bool, bool> typename Fn_>
+class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_> :
+  public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_>, Heap, 0> {
 public:
-  using Fn = Fn_<ZmNode<Heap, 0, Fn_, Item>, Heap, 0>;
+  using T = T_;
+  using KeyAxor = KeyAxor_;
+  using ValAxor = ValAxor_;
+  using Fn = Fn_<ZmNode, Heap, 0>;
+  using U = ZuDecay<T>;
 
-  ZuInline ZmNode() { }
-  template <typename ...Args>
-  ZuInline ZmNode(Args &&... args) : m_item{ZuFwd<Args>(args)...} { }
+  ZmNode() = default;
+  ZmNode(const ZmNode &) = default;
+  ZmNode &operator =(const ZmNode &) = default;
+  ZmNode(ZmNode &&) = default;
+  ZmNode &operator =(ZmNode &&) = default;
+  ~ZmNode() = default;
 
-  ZuInline const Item &item() const { return m_item; }
-  ZuInline Item &item() { return m_item; }
+  template <typename P>
+  ZmNode(P &&p) : m_data{ZuFwd<P>(p)} { }
+
+  decltype(auto) key() const & { return KeyAxor::get(m_data); }
+  decltype(auto) key() & { return KeyAxor::get(m_data); }
+  decltype(auto) key() && { return KeyAxor::get(ZuMv(m_data)); }
+
+  decltype(auto) val() const & { return ValAxor::get(m_data); }
+  decltype(auto) val() & { return ValAxor::get(m_data); }
+  decltype(auto) val() && { return ValAxor::get(ZuMv(m_data)); }
+
+  decltype(auto) data() const & { return m_data; }
+  decltype(auto) data() & { return m_data; }
+  decltype(auto) data() && { return ZuMv(m_data); }
 
 private:
-  Item			m_item;
+  U	m_data;
 };
-// node derives from item
+
+// node derives from type
 template <
-  class Heap, template <typename, typename, bool> class Fn_, typename Item>
-class ZmNode<Heap, 1, Fn_, Item> :
-    public Item, public Fn_<ZmNode<Heap, 1, Fn_, Item>, Heap, 1> {
-  ZmNode(const ZmNode &);
-  ZmNode &operator =(const ZmNode &);	// prevent mis-use
-
+  typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
+  template <typename, typename, bool, bool> typename Fn_>
+class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_> :
+  public ZuDecay<T_>,
+  public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_>, Heap, 1> {
 public:
-  using Fn = Fn_<ZmNode<Heap, 1, Fn_, Item>, Heap, 1>;
+  using T = T_;
+  using KeyAxor = KeyAxor_;
+  using ValAxor = ValAxor_;
+  using Fn = Fn_<ZmNode, Heap, 1>;
+  using U = ZuDecay<T>;
 
-  ZuInline ZmNode() { }
-  template <typename ...Args>
-  ZuInline ZmNode(Args &&... args) : Item{ZuFwd<Args>(args)...} { }
+  ZmNode() = default;
+  ZmNode(const ZmNode &) = default;
+  ZmNode &operator =(const ZmNode &) = default;
+  ZmNode(ZmNode &&) = default;
+  ZmNode &operator =(ZmNode &&) = default;
+  ~ZmNode() = default;
 
-  ZuInline const Item &item() const { return *this; }
-  ZuInline Item &item() { return *this; }
-};
+  template <typename P>
+  ZmNode(P &&p) : U{ZuFwd<P>(p)} { }
 
-template <class Heap, bool NodeIsKey, bool NodeIsVal,
-	 template <typename, typename, bool, bool> class Fn,
-	 typename Key, typename Val> class ZmKVNode;
-// node contains both key, value (default)
-template <class Heap, template <typename, typename, bool, bool> class Fn_,
-	 typename Key, typename Val>
-	   class ZmKVNode<Heap, 0, 0, Fn_, Key, Val> :
-    public Fn_<ZmKVNode<Heap, 0, 0, Fn_, Key, Val>, Heap, 0, 0> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
+  decltype(auto) key() const & { return KeyAxor::get(*this); }
+  decltype(auto) key() & { return KeyAxor::get(*this); }
+  decltype(auto) key() && { return KeyAxor::get(ZuMv(*this)); }
 
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 0, 0, Fn_, Key, Val>, Heap, 0, 0>;
+  decltype(auto) val() const & { return ValAxor::get(*this); }
+  decltype(auto) val() & { return ValAxor::get(*this); }
+  decltype(auto) val() && { return ValAxor::get(ZuMv(*this)); }
 
-  ZuInline ZmKVNode() { }
-  template <typename Key__>
-  ZuInline ZmKVNode(Key__ &&key) : m_key(ZuFwd<Key__>(key)) { }
-  template <typename Key__, typename Val_>
-  ZuInline ZmKVNode(Key__ &&key, Val_ &&val) :
-    m_key(ZuFwd<Key__>(key)), m_val(ZuFwd<Val_>(val)) { }
-
-  ZuInline const Key &key() const { return m_key; }
-  ZuInline Key &key() { return m_key; }
-  ZuInline const Val &val() const { return m_val; }
-  ZuInline Val &val() { return m_val; }
-
-private:
-  Key			m_key;
-  Val			m_val;
-};
-// node contains key, value is ZuNull (common use case)
-template <class Heap,
-  template <typename, typename, bool, bool> class Fn_,
-  typename Key> class ZmKVNode<Heap, 0, 0, Fn_, Key, ZuNull> :
-    public Fn_<ZmKVNode<Heap, 0, 0, Fn_, Key, ZuNull>, Heap, 0, 0> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
-
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 0, 0, Fn_, Key, ZuNull>, Heap, 0, 0>;
-
-  ZuInline ZmKVNode() { }
-  template <typename ...Args>
-  ZuInline ZmKVNode(Args &&... args) : m_key{ZuFwd<Args>(args)...} { }
-
-  ZuInline const Key &key() const { return m_key; }
-  ZuInline Key &key() { return m_key; }
-  ZuInline ZuNull &val() const { static ZuNull val; return val; }
-
-private:
-  Key			m_key;
-};
-// node derives from key, contains value
-template <class Heap,
-  template <typename, typename, bool, bool> class Fn_,
-  typename Key, typename Val> class ZmKVNode<Heap, 1, 0, Fn_, Key, Val> :
-    public Key,
-    public Fn_<ZmKVNode<Heap, 1, 0, Fn_, Key, Val>, Heap, 1, 0> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
-
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 1, 0, Fn_, Key, Val>, Heap, 1, 0>;
-
-  ZuInline ZmKVNode() { }
-  template <typename Key__>
-  ZuInline ZmKVNode(Key__ &&key) : Key(ZuFwd<Key__>(key)) { }
-  template <typename Key__, typename Val_>
-  ZuInline ZmKVNode(Key__ &&key, Val_ &&val) :
-    Key(ZuFwd<Key__>(key)), m_val(ZuFwd<Val_>(val)) { }
-
-  ZuInline const Key &key() const { return *this; }
-  ZuInline Key &key() { return *this; }
-  ZuInline const Val &val() const { return m_val; }
-  ZuInline Val &val() { return m_val; }
-
-private:
-  Val		m_val;
-};
-// node derives from key, value is ZuNull (common use case)
-template <class Heap,
-  template <typename, typename, bool, bool> class Fn_,
-  typename Key> class ZmKVNode<Heap, 1, 0, Fn_, Key, ZuNull> :
-    public Key,
-    public Fn_<ZmKVNode<Heap, 1, 0, Fn_, Key, ZuNull>, Heap, 1, 0> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
-
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 1, 0, Fn_, Key, ZuNull>, Heap, 1, 0>;
-
-  ZuInline ZmKVNode() { }
-  template <typename ...Args>
-  ZuInline ZmKVNode(Args &&... args) : Key{ZuFwd<Args>(args)...} { }
-
-  ZuInline const Key &key() const { return *this; }
-  ZuInline Key &key() { return *this; }
-  ZuInline ZuNull &val() const { static ZuNull val; return val; }
-};
-// node contains key, derives from value
-template <class Heap,
-  template <typename, typename, bool, bool> class Fn_,
-  typename Key, typename Val> class ZmKVNode<Heap, 0, 1, Fn_, Key, Val> :
-    public Val,
-    public Fn_<ZmKVNode<Heap, 0, 1, Fn_, Key, Val>, Heap, 0, 1> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
-
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 0, 1, Fn_, Key, Val>, Heap, 0, 1>;
-
-  ZuInline ZmKVNode() { }
-  template <typename Key__>
-  ZuInline ZmKVNode(Key__ &&key) : m_key(ZuFwd<Key__>(key)) { }
-  template <typename Key__, typename Val_>
-  ZuInline ZmKVNode(Key__ &&key, Val_ &&val) :
-    m_key(ZuFwd<Key__>(key)), Val(ZuFwd<Val_>(val)) { }
-
-  ZuInline const Key &key() const { return m_key; }
-  ZuInline Key &key() { return m_key; }
-  ZuInline const Val &val() const { return *this; }
-  ZuInline Val &val() { return *this; }
-
-private:
-  Key		m_key;
-};
-// node derives from both key and value
-template <class Heap,
-  template <typename, typename, bool, bool> class Fn_,
-  typename Key, typename Val> class ZmKVNode<Heap, 1, 1, Fn_, Key, Val> :
-    public Key, public Val,
-    public Fn_<ZmKVNode<Heap, 1, 1, Fn_, Key, Val>, Heap, 1, 1> {
-  ZmKVNode(const ZmKVNode &);
-  ZmKVNode &operator =(const ZmKVNode &);	// prevent mis-use
-
-public:
-  using Fn = Fn_<ZmKVNode<Heap, 1, 1, Fn_, Key, Val>, Heap, 1, 1>;
-
-  ZuInline ZmKVNode() { }
-  template <typename Key__>
-  ZuInline ZmKVNode(Key__ &&key) : Key(ZuFwd<Key__>(key)) { }
-  template <typename Key__, typename Val_>
-  ZuInline ZmKVNode(Key__ &&key, Val_ &&val) :
-    Key(ZuFwd<Key__>(key)), Val(ZuFwd<Val_>(val)) { }
-
-  ZuInline const Key &key() const { return *this; }
-  ZuInline Key &key() { return *this; }
-  ZuInline const Val &val() const { return *this; }
-  ZuInline Val &val() { return *this; }
+  decltype(auto) data() const & { return static_cast<const U &>(*this); }
+  decltype(auto) data() & { return static_cast<U &>(*this); }
+  decltype(auto) data() && { return static_cast<U &&>(*this); }
 };
 
 template <typename, bool> struct ZmNodePolicy_;
@@ -238,33 +124,33 @@ struct ZmNodePolicy : public ZmNodePolicy_<O, ZuIsObject_<O>::OK> { };
 template <typename O> struct ZmNodePolicy_<O, true> {
   using Object = O;
   template <typename T_> struct Ref { using T = ZmRef<T_>; };
-  template <typename T> ZuInline void nodeRef(T &&o) { ZmREF(ZuFwd<T>(o)); }
-  template <typename T> ZuInline void nodeDeref(T &&o) { ZmDEREF(ZuFwd<T>(o)); }
-  template <typename T> ZuInline void nodeDelete(T &&) { }
+  template <typename T> void nodeRef(T &&o) { ZmREF(ZuFwd<T>(o)); }
+  template <typename T> void nodeDeref(T &&o) { ZmDEREF(ZuFwd<T>(o)); }
+  template <typename T> void nodeDelete(T &&) { }
 };
 // own nodes (with app-specified base), delete if not returned to caller
 template <typename O> struct ZmNodePolicy_<O, false> {
   using Object = O;
   template <typename T_> struct Ref { using T = T_ *; };
-  template <typename T> ZuInline void nodeRef(T &&) { }
-  template <typename T> ZuInline void nodeDeref(T &&) { }
-  template <typename T> ZuInline void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
+  template <typename T> void nodeRef(T &&) { }
+  template <typename T> void nodeDeref(T &&) { }
+  template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
 };
 // own nodes, delete if not returned to caller
 template <> struct ZmNodePolicy<ZuNull> {
   using Object = ZuNull;
   template <typename T_> struct Ref { using T = T_ *; };
-  template <typename T> ZuInline void nodeRef(T &&) { }
-  template <typename T> ZuInline void nodeDeref(T &&) { }
-  template <typename T> ZuInline void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
+  template <typename T> void nodeRef(T &&) { }
+  template <typename T> void nodeDeref(T &&) { }
+  template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
 };
 // shadow nodes, never delete
 template <> struct ZmNodePolicy<ZuShadow> {
   using Object = ZuNull;
   template <typename T_> struct Ref { using T = T_ *; };
-  template <typename T> ZuInline void nodeRef(T &&) { }
-  template <typename T> ZuInline void nodeDeref(T &&) { }
-  template <typename T> ZuInline void nodeDelete(T &&) { }
+  template <typename T> void nodeRef(T &&) { }
+  template <typename T> void nodeDeref(T &&) { }
+  template <typename T> void nodeDelete(T &&) { }
 };
 
 #endif /* ZmNode_HPP */

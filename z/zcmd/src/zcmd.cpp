@@ -99,9 +99,9 @@ public:
   static TelCap keyedFn(ZtString path) {
     using Data = ZvFB::Load<Data_>;
     using FBS = ZvFBS<Data>;
-    using Key = decltype(ZvFieldKey(ZuDeclVal<const Data &>()));
+    using Key = ZuFieldKey<Data>;
     struct Accessor : public ZuAccessor<Data, ZuDecay<Key>> {
-      static Key value(const Data &data) { return ZvFieldKey(data); }
+      static Key value(const Data &data) { return Key{data}; }
     };
     using Tree_ =
       ZmRBTree<Data,

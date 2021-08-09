@@ -182,17 +182,17 @@ private:
 public:
   // from string literal
   template <typename P>
-  ZeMessageFn_(P &&p, MatchLiteral<P> *_ = 0) :
+  ZeMessageFn_(P &&p, MatchLiteral<P> *_ = nullptr) :
     Fn([p = ZuString(p)](const Event &, ZmStream &s) { s << p; }) { }
 
   // from something printable (that's not a string literal)
   template <typename P>
-  ZeMessageFn_(P &&p, MatchPrint<P> *_ = 0) :
+  ZeMessageFn_(P &&p, MatchPrint<P> *_ = nullptr) :
     Fn([p = ZuFwd<P>(p)](const Event &, ZmStream &s) { s << p; }) { }
 
   // fwd anything else to ZmFn
   template <typename P>
-  ZeMessageFn_(P &&p, MatchFn<P> *_ = 0) :
+  ZeMessageFn_(P &&p, MatchFn<P> *_ = nullptr) :
     Fn(ZuFwd<P>(p)) { }
   template <typename P1, typename P2, typename ...Args>
   ZeMessageFn_(P1 &&p1, P2 &&p2, Args &&... args) :

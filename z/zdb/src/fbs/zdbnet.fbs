@@ -1,4 +1,4 @@
-namespace Zdb;
+namespace ZdbNet;
 struct Msg_HB {
   host_i_d:uint16;
   state:uint16;
@@ -10,9 +10,9 @@ enum Op:int8 {
   Del
 }
 struct Msg_Rep {
-  db:uint32;
+  db:[uint8:8];
   rn:uint64;
-  prevRN:uint64;
+  prev_r_n:uint64;
   op:Op;
   data:[uint8];	// nested table data
 }

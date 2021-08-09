@@ -72,7 +72,6 @@
 #define ZdbDEBUG(env, e) ((void)0)
 #endif
 
-using ZdbID = uint32_t;		// database ID
 using ZdbRN = uint64_t;		// record ID
 #define ZdbNullRN (~static_cast<uint64_t>(0))
 #define ZdbMaxRN ZdbNullRN
@@ -83,16 +82,14 @@ using ZdbRN = uint64_t;		// record ID
 
 // new file structure with variable-length flatbuffer-format records
 
-// initial 512-byte super-block of 128 offsets, each to index-block
-// each index-block is 512-byte index of 128 record offsets
+// initial 1Kb super-block of 128 offsets, each to index-block
+// each index-block is 1Kb index of 128 record offsets
 // super-block is immediately followed by first index-block
 // each record is {length,data,magic} - data is optionally lz4 compressed
 // (compression/decompression happens on app load/save, otherwise
 // data is uninterpreted by Zdb) - superblock is write-through cached
 // in cached Zdb_File_ - along with LRU cache of 8 most recently accessed
 // index blocks
-
-// prevRN is removed (explicitly added by app if needed)
 
 // record data and replication messages are flatbuffers
 
@@ -102,111 +99,21 @@ using ZdbRN = uint64_t;		// record ID
 // to save/load flatbuffer data (although can copy it directly for
 // e.g. transmission)
 
-// FIXME - asynchronous response to ZvCmd requests in ZvCmdServer
-//
-// FIXME - ZfbEnum for Op (below), migrate protocol to Zfb, remove Range
-// (requirement now covered by Zfb's updateX()), 
+#include <zlib/zdbnet_fbs.h>
 
-namespace ZdbOp {
-  enum { Add = 0, Upd, Del };
-  static const char *name(int op) {
-    static const char *names[] = { "Add", "Upd", "Del" };
-    if (ZuUnlikely(op < 0 || op >= (int)(sizeof(names) / sizeof(names[0]))))
-      return "Unk";
-    return names[op];
-  }
-};
+namespace ZdbNet {
 
-// replication protocol messages
+namespace Op {
+  ZfbEnumValues(Op, Add, Upd, Del);
+}
 
-namespace Zdb_Msg {
-  enum { HB = 0, Rep, Rec };
-};
-#pragma pack(push, 1)
-struct Zdb_Msg_HB {	// heartbeat
-  uint16_t	hostID;
-  uint16_t	state;
-  uint16_t	dbCount;		// followed by RNs
-};
-struct Zdb_Msg_Rep {	// replication
-  ZdbID		db;
-  ZdbRN		rn;			// followed by record
-  ZdbRN		prevRN;
-  uint32_t	range;
-  uint16_t	clen;
-  uint8_t	op;			// ZdbOp
-};
-struct Zdb_Msg_Hdr {	// header
-  union {
-    struct Zdb_Msg_HB	  hb;
-    struct Zdb_Msg_Rep	  rep;
-  }			u;
-  uint8_t		type;
-};
-#pragma pack(pop)
+}
 
 class ZdbEnv;				// database environment
 class ZdbAny;				// individual database (generic)
 template <typename> class Zdb;		// individual database (type-specific)
-class ZdbAnyPOD;			// in-memory record (generic)
 class ZdbHost;				// host
 class Zdb_Cxn;				// connection
-
-class ZdbRange {
-public:
-  ZdbRange() : m_val{0} { }
-
-  ZdbRange(const ZdbRange &r) : m_val(r.m_val) { }
-  ZdbRange &operator =(const ZdbRange &r)
-    { if (ZuLikely(this != &r)) m_val = r.m_val; return *this; }
-
-  template <typename V> ZdbRange(const V &v) : m_val(v) { }
-  template <typename V> ZdbRange &operator =(const V &v)
-    { m_val = v; return *this; }
-
-  ZdbRange(unsigned off, unsigned len) : m_val((off<<16) | len) { }
-
-  bool operator !() const { return !m_val; }
-
-  operator uint32_t() const { return m_val; }
-
-  unsigned off() const { return m_val>>16; }
-  unsigned len() const { return m_val & 0xffff; }
-
-  void init(unsigned off, unsigned len) {
-    m_val = (off<<16) | len;
-  }
-
-  void merge(unsigned off, unsigned len) {
-    unsigned old = m_val;
-    unsigned newOff, newLen;
-    if (!old) {
-      newOff = off;
-      newLen = len;
-    } else {
-      unsigned oldOff = old>>16;
-      unsigned oldLen = old & 0xffff;
-      newOff = (off > oldOff) ? oldOff : off;
-      newLen =
-	(off + len > oldOff + oldLen) ?
-	(off + len) - newOff :
-	(oldOff + oldLen) - newOff;
-    }
-    m_val = (newOff<<16) | newLen;
-  }
-
-  template <typename S> void print(S &s) const {
-    if (!m_val)
-      s << "null";
-    else
-      s << off() << ':' << len();
-  }
-
-  friend ZuPrintFn ZuPrintType(ZdbRange *);
-
-private:
-  uint32_t	m_val;
-};
 
 struct Zdb_File_IndexAccessor;
 
@@ -214,18 +121,14 @@ class Zdb_File_ : public ZiFile {
 friend Zdb_File_IndexAccessor;
 
 public:
-  Zdb_File_(unsigned index) : m_index(index) {
-    memset((void *)m_undeleted, 0xff, ZdbFileRecs>>3);
-  }
+  Zdb_File_(unsigned index) : m_index(index) { }
 
   unsigned index() const { return m_index; }
 
   bool del(unsigned i) {
-    uint64_t m = (((uint64_t)1)<<(i & 63U));
-    unsigned o = i>>6U;
-    if (m_undeleted[o] & m) {
+    if (!m_deleted[i]) {
+      m_deleted[i].set();
       --m_undelCount;
-      m_undeleted[o] &= ~m;
     }
     return !m_undelCount;
   }
@@ -233,10 +136,12 @@ public:
   void checkpoint() { sync(); }
 
 private:
-  unsigned	m_index = 0;
-  unsigned	m_undelCount = ZdbFileRecs;
-  uint64_t	m_undeleted[ZdbFileRecs>>6];
+  unsigned		m_index = 0;
+  unsigned		m_undelCount = ZdbFileRecs;
+  ZuBitmap<ZdbFileRecs>	m_deleted;
 };
+
+ZuFields(Zdb_File_, (RdFn, index));
 
 struct Zdb_File_IndexAccessor : public ZuAccessor<Zdb_File_, unsigned> {
   static unsigned value(const Zdb_File_ &file) {

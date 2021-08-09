@@ -35,6 +35,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <zlib/ZuID.hpp>
+
 #include <zlib/ZuDecimal.hpp>
 
 #include <zlib/ZmBitmap.hpp>
@@ -75,6 +77,11 @@ public:
     buf->length = size - skip;
     Clear();
     return buf;
+  }
+
+  // should only be called immediately following Finish()
+  Offset<Vector<uint8_t>> nest() {
+    return {PushElement(GetSize())};
   }
 
 protected:

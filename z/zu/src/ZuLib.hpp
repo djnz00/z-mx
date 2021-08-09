@@ -542,12 +542,10 @@ struct ZuTypeAll<T0, Args...> {
 template <typename ...Args>
 struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
 
-// key/value extraction (default)
-struct ZuAccessor {
+// default accessor (pass-through value)
+struct ZuDefaultAxor {
   template <typename P>
-  static decltype(auto) key(P &&v) { return ZuFwd<P>(v); }
-  template <typename P>
-  static decltype(auto) val(P &&v) { return ZuFwd<P>(v); }
+  static decltype(auto) get(P &&v) { return ZuFwd<P>(v); }
 };
 
 // function signature deduction

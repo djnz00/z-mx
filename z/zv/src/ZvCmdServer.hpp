@@ -154,7 +154,7 @@ private:
 	    m_fbb.CreateVector(m_user->perms.data, Bitmap::Words),
 	    m_user->flags, 1));
     }
-    ZvCmdHdr{m_fbb, ZvCmd::ID::login()};
+    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::login());
     this->send_(m_fbb.buf());
     m_state = State::Up;
     return len;
@@ -167,14 +167,10 @@ private:
       Verifier verifier{data, len};
       if (!fbs::VerifyRequestBuffer(verifier)) return -1;
     }
-    // FIXME - move m_fbb to userDB (and Cmd, etc.), will be specific
-    // to threads those components use to satisfy requests asynchronously
-    // FIXME - pass this (i.e. link) rather than m_fbb
-    // FIXME - build hdr and send_ in callee if synchronous; schedule async send() with captured link ref if asynchronous
     this->app()->processUserDB(
-	m_user, m_interactive, fbs::GetRequest(data), m_fbb);
+	this, m_user, m_interactive, fbs::GetRequest(data));
     if (m_fbb.GetSize()) { // synchronous response
-      ZvCmdHdr{m_fbb, ZvCmd::ID::userDB()};
+      ZvCmd::saveHdr(m_fbb, ZvCmd::Type::userDB());
       this->send_(m_fbb.buf());
     }
     return len;
@@ -189,7 +185,7 @@ private:
     }
     this->app()->processCmd(impl(), m_user, m_interactive,
 	fbs::GetRequest(data), m_fbb);
-    ZvCmdHdr{m_fbb, ZvCmd::ID::cmd()};
+    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::cmd());
     this->send_(m_fbb.buf());
     return len;
   }
@@ -203,7 +199,7 @@ private:
     }
     this->app()->processTelReq(
 	impl(), m_user, m_interactive, fbs::GetRequest(data), m_fbb);
-    ZvCmdHdr{m_fbb, ZvCmd::ID::telReq()};
+    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telReq());
     this->send_(m_fbb.buf());
     return len;
   }
@@ -218,28 +214,30 @@ public:
 
     scheduleTimeout();
 
-    ZuID id;
     int i = IORx::process(data, len,
-	[&id](const uint8_t *data, unsigned len) -> int {
-	  if (ZuUnlikely(len < sizeof(ZvCmdHdr))) return INT_MAX;
-	  auto hdr = reinterpret_cast<const ZvCmdHdr *>(data);
-	  id = hdr->id;
-	  return sizeof(ZvCmdHdr) + hdr->len;
+	[](const uint8_t *data, unsigned len) -> int {
+	  return ZvCmd::loadHdr(data, len);
 	},
-	[this, &id](const uint8_t *data, unsigned len) -> int {
-	  data += sizeof(ZvCmdHdr), len -= sizeof(ZvCmdHdr);
+	[this](const uint8_t *data, unsigned len) -> int {
+	  auto hdr = ZvCmd::verifyHdr(data, len);
+	  if (!hdr) return -1;
+	  auto type = hdr->type;
+	  data += sizeof(ZvCmd::Hdr), len -= sizeof(ZvCmd::Hdr);
 	  int i;
 	  if (ZuUnlikely(m_state == State::Login)) {
-	    if (id != ZvCmd::ID::login()) return -1;
+	    if (type != ZvCmd::Type::login()) return -1;
 	    i = processLogin(data, len);
 	  } else
-	    i = this->app()->dispatch(id, impl(), data, len);
+	    i = this->app()->dispatch(type, impl(), data, len);
 	  if (ZuUnlikely(i <= 0)) return i;
-	  return sizeof(ZvCmdHdr) + i;
+	  ZmAssert(i == len);
+	  return sizeof(ZvCmd::Hdr) + i;
 	});
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
   }
+
+  auto &fbb() { return m_fbb; }
 
 private:
   void scheduleTimeout() {
@@ -290,15 +288,15 @@ friend TLS;
     Host::init();
     Dispatcher::init();
 
-    map(ZvCmd::ID::userDB(),
+    map(ZvCmd::Type::userDB(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processUserDB(data, len);
 	});
-    map(ZvCmd::ID::cmd(),
+    map(ZvCmd::Type::cmd(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processCmd(data, len);
 	});
-    map(ZvCmd::ID::telReq(),
+    map(ZvCmd::Type::telReq(),
 	[](void *link, const uint8_t *data, unsigned len) {
 	  return static_cast<Link *>(link)->processTelReq(data, len);
 	});
@@ -412,8 +410,9 @@ public:
       ZmRef<User> &user, bool &interactive) {
     return m_userDB->loginReq(login, user, interactive);
   }
-  void processUserDB(User *user, bool interactive,
-      const ZvUserDB::fbs::Request *in, Zfb::Builder &fbb) {
+  void processUserDB(Link *link, User *user, bool interactive,
+      const ZvUserDB::fbs::Request *in) {
+    auto &fbb = link->fbb();
     fbb.Finish(m_userDB->request(user, interactive, in, fbb));
     if (m_userDB->modified())
       this->run(
@@ -421,7 +420,8 @@ public:
 	  ZmTimeNow(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);
   }
   void processCmd(Link *link, User *user, bool interactive,
-      const ZvCmd::fbs::Request *in, Zfb::Builder &fbb) {
+      const ZvCmd::fbs::Request *in) {
+    auto &fbb = link->fbb();
     if (m_cmdPerm < 0 || !m_userDB->ok(user, interactive, m_cmdPerm)) {
       fbb.Finish(ZvCmd::fbs::CreateReqAck(fbb,
 	    in->seqNo(), __LINE__,
@@ -442,8 +442,9 @@ public:
 	  fbb, in->seqNo(), ctx.code, Zfb::Save::str(fbb, ctx.out)));
   }
   void processTelReq(Link *link, User *user, bool interactive,
-      const ZvTelemetry::fbs::Request *in, Zfb::Builder &fbb) {
+      const ZvTelemetry::fbs::Request *in) {
     using namespace ZvTelemetry;
+    auto &fbb = link->fbb();
     if (m_telPerm < 0 || !m_userDB->ok(user, interactive, m_telPerm)) {
       using namespace Zfb::Save;
       fbb.Finish(fbs::CreateReqAck(fbb, in->seqNo(), false));

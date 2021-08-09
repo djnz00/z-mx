@@ -36,35 +36,50 @@
 
 #include <zlib/Zfb.hpp>
 
-#include <zlib/zcmdnet_fbs.h>
+// custom header
 
 namespace ZvCmd {
 
 namespace Type {
   inline ZuID login()		{ static ZuID id{"login"}; return id; }
-  inline ZuID userDB()	{ static ZuID id{"userDB"}; return id; }
+  inline ZuID userDB()		{ static ZuID id{"userDB"}; return id; }
   inline ZuID cmd()		{ static ZuID id{"cmd"}; return id; }
-  inline ZuID telReq()	{ static ZuID id{"telReq"}; return id; }
+  inline ZuID telReq()		{ static ZuID id{"telReq"}; return id; }
   inline ZuID telemetry()	{ static ZuID id{"telemtry"}; return id; }
 }
 
-#pragma pack(push, 4)
+// flatbuffers' built-in prefixing of size and file identifier has
+// a couple of shortcomings - file identifiers are limited to 4 bytes,
+// and are stored after the root vtable, not contiguous with the size prefix
+//
+// we use a custom header with an explicitly little-endian
+// uint32 length and a fixed-width 8-byte type identifer
+#pragma pack(push, 1)
 struct Hdr {
   ZuID				type;
-  ZuLittleEndian<uint32_t>	len;
+  ZuLittleEndian<uint32_t>	len;	// length of message excluding header
+
+  const uint8_t *data() const {
+    return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
+  }
 };
 #pragma pack(pop)
 
-void saveHdr(Zfb::IOBuilder &fbb, ZuID type) {
+// call following Finish() to ensure alignment
+template <typename FBB>
+inline void saveHdr(FBB &fbb, ZuID type) {
   Hdr hdr{type, fbb.GetSize()};
-  fbb.PushBytes(&hdr, sizeof(Hdr));
+  fbb.PushBytes(reinterpret_cast<const uint8_t *>(&hdr), sizeof(Hdr));
 }
-int loadHdr(const uint8_t *data, unsigned len) {
+// returns the total length of the message including the header, or
+// INT_MAX if not enough bytes have been read yet
+inline int loadHdr(const uint8_t *data, unsigned len) {
   if (ZuUnlikely(len < sizeof(Hdr))) return INT_MAX;
   auto hdr = reinterpret_cast<const Hdr *>(data);
   return sizeof(Hdr) + hdr->len;
 }
-const Hdr *verifyHdr(const uint8_t *data, unsigned len) {
+// returns nullptr if the header is invalid/corrupted
+inline const Hdr *verifyHdr(const uint8_t *data, unsigned len) {
   if (len < sizeof(Hdr)) return nullptr;
   auto hdr = reinterpret_cast<const Hdr *>(data);
   if (hdr->len > (len - sizeof(Hdr))) return nullptr;

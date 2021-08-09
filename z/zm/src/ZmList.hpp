@@ -49,63 +49,30 @@
 //     ZmListCmp<ZtICmp> > >			// case-insensitive comparison
 
 struct ZmList_Defaults {
-  template <typename T> struct CmpT { using Cmp = ZuCmp<T>; };
-  template <typename T> struct ICmpT { using ICmp = ZuCmp<T>; };
-  template <typename T> struct IndexT { using Index = T; };
-  enum { NodeIsItem = 0 };
+  using KeyAxor = ZuDefaultAxor;
+  template <typename T> using CmpT = ZuCmp<T>;
+  enum { NodeDerive = 0 };
   using Lock = ZmLock;
   using Object = ZmObject;
   struct HeapID { static constexpr const char *id() { return "ZmList"; } };
 };
 
-// ZmListCmp - the item comparator
-template <class Cmp_, class NTP = ZmList_Defaults>
+// ZmListKey - key accessor
+template <typename KeyAxor_, typename NTP = ZmList_Defaults>
+struct ZmListKey : public NTP {
+  using KeyAxor = KeyAxor_;
+};
+
+// ZmListCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZmList_Defaults>
 struct ZmListCmp : public NTP {
-  template <typename> struct CmpT { using Cmp = Cmp_; };
-  template <typename> struct ICmpT { using ICmp = Cmp_; };
+  template <typename T> using CmpT = Cmp_<T>;
 };
 
-// ZmListCmp_ - directly override the comparator
-// (used by other templates to forward NTP parameters to ZmList)
-template <class Cmp_, class NTP = ZmList_Defaults>
-struct ZmListCmp_ : public NTP {
-  template <typename> struct CmpT { using Cmp = Cmp_; };
-};
-
-// ZmListICmp - the index comparator
-template <class ICmp_, class NTP = ZmList_Defaults>
-struct ZmListICmp : public NTP {
-  template <typename> struct ICmpT { using ICmp = ICmp_; };
-};
-
-// ZmListIndex - use a different type as the index, rather than the key as is
-// common use case - the key is a struct and the index is a data member
-// uncommon use case - the index is calculated from the key in some way
-// pass an Accessor to override the comparator and index type
-template <class Accessor, class NTP = ZmList_Defaults>
-struct ZmListIndex : public NTP {
-  template <typename T> struct CmpT {
-    using Cmp = typename ZuIndex<Accessor>::template CmpT<T>;
-  };
-  template <typename> struct ICmpT {
-    using ICmp = typename ZuIndex<Accessor>::ICmp;
-  };
-  template <typename> struct IndexT {
-    using Index = typename ZuIndex<Accessor>::I;
-  };
-};
-
-// ZmListIndex_ - directly override the index type
-// (used by other templates to forward NTP parameters to ZmList)
-template <class Index_, class NTP = ZmList_Defaults>
-struct ZmListIndex_ : public NTP {
-  template <typename> struct IndexT { using Index = Index_; };
-};
-
-// ZmListNodeIsItem - derive ZmList::Node from Item instead of containing it
-template <bool NodeIsItem_, class NTP = ZmList_Defaults>
-struct ZmListNodeIsItem : public NTP {
-  enum { NodeIsItem = NodeIsItem_ };
+// ZmListNodeDerive - derive ZmList::Node from T instead of containing it
+template <bool NodeDerive_, typename NTP = ZmList_Defaults>
+struct ZmListNodeDerive : public NTP {
+  enum { NodeDerive = NodeDerive_ };
 };
 
 // ZmListLock - the lock type used (ZmRWLock will permit concurrent reads)
@@ -126,15 +93,16 @@ struct ZmListHeapID : public NTP {
   using HeapID = HeapID_;
 };
 
-template <typename Item, class NTP = ZmList_Defaults>
+template <typename T_, class NTP = ZmList_Defaults>
 class ZmList : public ZmNodePolicy<typename NTP::Object> {
   using NodePolicy = ZmNodePolicy<typename NTP::Object>;
 
 public:
-  using Cmp = typename NTP::template CmpT<Item>::Cmp;
-  using ICmp = typename NTP::template ICmpT<Item>::ICmp;
-  using Index = typename NTP::template IndexT<Item>::Index;
-  enum { NodeIsItem = NTP::NodeIsItem };
+  using T = T_;
+  using KeyAxor = typename NTP::KeyAxor;
+  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
+  using Cmp = typename NTP::template CmpT<Key>;
+  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
   using Object = typename NodePolicy::Object;
   using HeapID = typename NTP::HeapID;
@@ -150,11 +118,11 @@ public:
   // node in a list
 
   struct NullObject { }; // deconflict with ZuNull
-  template <typename Node, typename Heap, bool NodeIsItem> class NodeFn :
+  template <typename Node, typename Heap, bool NodeDerive> class NodeFn :
       public ZuIf<
 	ZuConversion<ZuNull, Object>::Is ||
 	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeIsItem && ZuConversion<Object, Item>::Is),
+	(NodeDerive && ZuConversion<Object, Item>::Is),
 	NullObject, Object>,
       public Heap {
     NodeFn(const NodeFn &);
@@ -164,24 +132,16 @@ public:
   friend ZmList<Item, NTP>::Iterator_;
 
   protected:
-    ZuInline NodeFn() { init(); }
+    NodeFn() { init(); }
 
   private:
-    ZuInline void init() { m_next = m_prev = 0; }
+    void init() { next = prev = nullptr; }
 
-    // access to Node instances is always guarded, so no need to protect
-    // the returned object against concurrent deletion
-    ZuInline Node *next() const { return m_next; }
-    ZuInline Node *prev() const { return m_prev; }
-
-    ZuInline void next(Node *n) { m_next = n; }
-    ZuInline void prev(Node *n) { m_prev = n; }
-
-    Node	*m_next, *m_prev;
+    Node	*next, *prev;
   };
 
   template <typename Heap>
-  using Node_ = ZmNode<Heap, NodeIsItem, NodeFn, Item>;
+  using Node_ = ZmNode<Heap, NodeDerive, NodeFn, Item>;
   struct NullHeap { }; // deconflict with ZuNull
   using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
   using Node = Node_<NodeHeap>;
@@ -193,6 +153,31 @@ private:
   using NodePolicy::nodeRef;
   using NodePolicy::nodeDeref;
   using NodePolicy::nodeDelete;
+
+  static const Key &key(Node *node) {
+    if (ZuLikely(node)) return node->Node::key();
+    return Cmp::null();
+  }
+  static Key keyMv(NodeRef &&node) {
+    if (ZuLikely(node)) {
+      Key key = ZuMv(*node).Node::key();
+      nodeDelete(node);
+      return key;
+    }
+    return Cmp::null();
+  }
+  static const Val &val(Node *node) {
+    if (ZuLikely(node)) return node->Node::val();
+    return ValCmp::null();
+  }
+  static Val valMv(NodeRef &&node) {
+    if (ZuLikely(node)) {
+      Val val = ZuMv(*node).Node::val();
+      nodeDelete(node);
+      return val;
+    }
+    return ValCmp::null();
+  }
 
 protected:
   class Iterator_ {			// iterator
@@ -221,7 +206,7 @@ protected:
       return Cmp::null();
     }
 
-    ZuInline unsigned count() const { return m_list.count_(); }
+    unsigned count() const { return m_list.count_(); }
 
   protected:
     List	&m_list;
@@ -243,10 +228,22 @@ friend Iterator;
 
     Iterator(List &list) : Guard(list.m_lock), Iterator_(list) { }
 
-    template <typename Item_> void push(Item_ &&item)
-      { this->m_list.pushIterate(*this, ZuFwd<Item_>(item)); }
-    template <typename Item_> void unshift(Item_ &&item)
-      { this->m_list.unshiftIterate(*this, ZuFwd<Item_>(item)); }
+    template <typename P>
+    NodeRef push(P &&data) {
+      return this->m_list.pushIterate(*this, ZuFwd<P>(data));
+    }
+    void pushNode(Node *node) {
+      this->m_list.pushIterateNode(*this, node);
+    }
+
+    template <typename P>
+    NodeRef unshift(P &&data) {
+      return this->m_list.unshiftIterate(*this, ZuFwd<P>(data));
+    }
+    void unshiftNode(Node *node) {
+      this->m_list.unshiftIterateNode(*this, node);
+    }
+
     NodeRef del() { return this->m_list.delIterate(*this); }
   };
 
@@ -267,109 +264,236 @@ friend ReadIterator;
   };
 
   ZmList() = default;
+
   ZmList(const ZmList &) = delete;
   ZmList &operator =(const ZmList &) = delete;
-  ZmList(ZmList &&) = delete;
-  ZmList &operator =(ZmList &&) = delete;
 
-  ~ZmList() { clean_(); }
-
-  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
-  bool empty() const { ReadGuard guard(m_lock); return !m_count; }
-  ZuInline unsigned count_() const { return m_count; }
-  ZuInline bool empty_() const { return !m_count; }
-
-  void join(ZmList &list) { // join lists (the other is left empty)
-    int count;
+  ZmList(ZmList &&list) {
+    Guard guard(list.m_lock);
+    m_head = list.m_head, m_tail = list.m_tail;
+    m_count = list.m_count;
+    list.m_head = list.m_tail = nullptr;
+    list.m_count = 0;
+  }
+  ZmList &operator =(ZmList &&list) {
+    unsigned count;
     Node *head, *tail;
     {
       Guard guard(list.m_lock);
       head = list.m_head, tail = list.m_tail;
       count = list.m_count;
-      list.m_head = list.m_tail = 0;
+      list.m_head = list.m_tail = nullptr;
+      list.m_count = 0;
+    }
+    {
+      Guard guard(m_lock);
+      clean_();
+      m_head = head, m_tail = tail;
+      m_count = count;
+    }
+    return *this;
+  }
+  ZmList &operator +=(ZmList &&list) {
+    unsigned count;
+    Node *head, *tail;
+    {
+      Guard guard(list.m_lock);
+      head = list.m_head, tail = list.m_tail;
+      count = list.m_count;
+      list.m_head = list.m_tail = nullptr;
       list.m_count = 0;
     }
     if (head) {
       Guard guard(m_lock);
-      m_tail->Fn::next(head);
-      head->Fn::prev(m_tail);
-      m_tail = tail;
-      m_count += count;
+      if (m_tail) {
+	m_tail->Fn::next = head;
+	head->Fn::prev = m_tail;
+	m_tail = tail;
+	m_count += count;
+      } else {
+	m_head = head, m_tail = tail;
+	m_count = count;
+      }
     }
+    return *this;
   }
- 
-  template <typename Item_> void add(Item_ &&item) {
-    push(ZuFwd<Item_>(item));
+
+  ~ZmList() { clean_(); }
+
+  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
+  bool empty() const { ReadGuard guard(m_lock); return !m_count; }
+  unsigned count_() const { return m_count; }
+  bool empty_() const { return !m_count; }
+
+  template <typename P> void add(P &&data) {
+    push(ZuFwd<P>(data));
   }
-  template <typename Index_> NodeRef find(const Index_ &index) {
-    Guard guard(m_lock);
+
+private:
+  template <typename U, typename V = Key>
+  struct IsKey {
+    enum { OK = ZuConversion<U, V>::Exists };
+  };
+  template <typename U, typename R = void>
+  using MatchKey = ZuIfT<IsKey<U>::OK, R>;
+  template <typename U, typename V = T>
+  struct IsData {
+    enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
+  };
+  template <typename U, typename R = void>
+  using MatchData = ZuIfT<IsData<U>::OK, R>;
+
+  template <typename P>
+  auto matchKey(const P &key) {
+    return [&key](Node *node) -> bool {
+      return Cmp::equals(node->Node::key(), key);
+    };
+  }
+  template <typename P>
+  auto matchData(const P &data) {
+    return [&data](Node *node) -> bool {
+      return node->Node::data() == data;
+    };
+  }
+
+public:
+  template <typename P>
+  MatchKey<P, NodeRef> find(const P &key) {
+    return find_(matchKey(key));
+  }
+  template <typename P>
+  MatchData<P, NodeRef> find(const P &data) {
+    return find_(matchData(data));
+  }
+
+  template <typename P>
+  MatchKey<P, Node *> findPtr(const P &key) {
+    return find_(matchKey(key));
+  }
+  template <typename P>
+  MatchData<P, Node *> findPtr(const P &data) {
+    return find_(matchData(data));
+  }
+
+  template <typename P>
+  MatchKey<P, Key> findKey(const P &key) {
+    return key(find_(matchKey(key)));
+  }
+  template <typename P>
+  MatchData<P, Key> findKey(const P &data) {
+    return key(find_(matchData(data)));
+  }
+
+  template <typename P>
+  MatchKey<P, Val> findVal(const P &key) {
+    return val(find_(matchKey(key)));
+  }
+  template <typename P>
+  MatchData<P, Val> findVal(const P &data) {
+    return val(find_(matchData(data)));
+  }
+
+private:
+  template <typename Match>
+  NodeRef find_(Match match) {
     Node *node;
-
-    if (!m_count) return 0;
-
-    for (node = m_head;
-	 node && !ICmp::equals(node->Node::item(), index);
-	 node = node->Fn::next());
-
+    Guard guard(m_lock);
+    if (!m_count) return nullptr;
+    for (node = m_head; node && !match(node); node = node->Fn::next);
     return node;
   }
-  template <typename Index_>
-  ZuNotConvertible<Index_, Node *, NodeRef>
-      del(const Index_ &index) {
+
+public:
+  template <typename P>
+  MatchKey<P, NodeRef> del(const P &key) { return del_(matchKey(key)); }
+  template <typename P>
+  MatchData<P, NodeRef> del(const P &data) { return del_(matchData(data)); }
+  template <typename P>
+  NodeRef delNode(Node *node) {
+    Guard guard(m_lock);
+    if (ZuLikely(node)) del__(node);
+    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
+    return ZuMv(*ptr);
+  }
+
+  template <typename P>
+  MatchKey<P, Key> delKey(const P &key) {
+    return keyMv(del_(matchKey(key)));
+  }
+  template <typename P>
+  MatchData<P, Key> delKey(const P &data) {
+    return keyMv(del_(matchData(data)));
+  }
+  template <typename P>
+  Key delNodeKey(Node *node) {
+    Guard guard(m_lock);
+    if (ZuLikely(node)) del__(node);
+    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
+    return keyMv(ZuMv(*ptr));
+  }
+
+  template <typename P>
+  MatchKey<P, Val> delVal(const P &key) {
+    return valMv(del_(matchKey(key)));
+  }
+  template <typename P>
+  MatchData<P, Val> delVal(const P &data) {
+    return valMv(del_(matchData(data)));
+  }
+  template <typename P>
+  Val delNodeVal(Node *node) {
+    Guard guard(m_lock);
+    if (ZuLikely(node)) del__(node);
+    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
+    return valMv(ZuMv(*ptr));
+  }
+
+private:
+  template <typename Match>
+  NodeRef del_(Match match) {
     Guard guard(m_lock);
     Node *node;
 
     if (!m_count) return 0;
 
-    for (node = m_head;
-	 node && !ICmp::equals(node->Node::item(), index);
-	 node = node->Fn::next());
+    for (node = m_head; node && !match(node); node = node->Fn::next);
 
-    if (ZuLikely(node)) del_(node);
-
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
-  }
-  NodeRef del(Node *node) {
-    Guard guard(m_lock);
-
-    if (ZuLikely(node)) del_(node);
+    if (ZuLikely(node)) del__(node);
 
     NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
     return ZuMv(*ptr);
   }
 
-  template <typename NodeRef_>
-  ZuConvertible<NodeRef_, NodeRef>
-      push(const NodeRef_ &node_) {
-    const NodeRef &node = node_;
+public:
+  template <typename P>
+  NodeRef push(P &&data) {
+    NodeRef node = new Node{ZuFwd<P>(data)};
+    pushNode(node);
+    return node;
+  }
+  void pushNode(Node *node) {
     Guard guard(m_lock);
 
     nodeRef(node);
-    node->Fn::next(0);
-    node->Fn::prev(m_tail);
+    node->Fn::next = nullptr;
+    node->Fn::prev = m_tail;
     if (!m_tail)
       m_head = node;
     else
-      m_tail->Fn::next(node);
+      m_tail->Fn::next = node;
     m_tail = node;
     ++m_count;
-  }
-  template <typename Item_>
-  ZuNotConvertible<ZuDeref<Item_>, NodeRef>
-      push(Item_ &&item) {
-    push(NodeRef(new Node(ZuFwd<Item_>(item))));
   }
   NodeRef popNode() {
     Guard guard(m_lock);
     Node *node;
 
-    if (!(node = m_tail)) return 0;
+    if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->Fn::prev()))
-      m_head = 0;
+    if (!(m_tail = node->Fn::prev))
+      m_head = nullptr;
     else
-      m_tail->Fn::next(0);
+      m_tail->Fn::next = nullptr;
 
     NodeRef ret = node;
 
@@ -378,64 +502,62 @@ friend ReadIterator;
 
     return ret;
   }
-  Item pop() {
+  T pop() {
     NodeRef node = popNode();
-    if (ZuUnlikely(!node)) return Cmp::null();
-    return ZuMv(node->Node::item());
+    if (ZuUnlikely(!node)) return T{};
+    return ZuMv(*node).Node::data();
   }
   NodeRef rpopNode() {
     Guard guard(m_lock);
     Node *node;
 
-    if (!(node = m_tail)) return 0;
+    if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->Fn::prev()))
+    if (!(m_tail = node->Fn::prev))
       m_tail = node;
     else {
       node->Fn::next(m_head);
-      m_head->Fn::prev(node);
-      (m_head = node)->Fn::prev(0);
-      m_tail->Fn::next(0);
+      m_head->Fn::prev = node;
+      (m_head = node)->Fn::prev = nullptr;
+      m_tail->Fn::next = nullptr;
     }
 
     return node;
   }
-  Item rpop() {
+  T rpop() {
     NodeRef node = rpopNode();
-    if (ZuUnlikely(!node)) return Cmp::null();
-    return node->Node::item();
+    if (ZuUnlikely(!node)) return T{};
+    return node->Node::data();
   }
-  template <typename NodeRef_>
-  ZuConvertible<NodeRef_, NodeRef>
-      unshift(const NodeRef_ &node_) {
-    const NodeRef &node = node_;
+  template <typename P>
+  NodeRef unshift(P &&data) {
+    NodeRef node = new Node{ZuFwd<P>(data)};
+    unshiftNode(node);
+    return node;
+  }
+  void unshiftNode(Node *node) {
     Guard guard(m_lock);
 
     nodeRef(node);
-    node->Fn::prev(0);
-    node->Fn::next(m_head);
+    node->Fn::prev = nullptr;
+    node->Fn::next = m_head;
     if (!m_head)
       m_tail = node;
     else
-      m_head->Fn::prev(node);
+      m_head->Fn::prev = node;
     m_head = node;
     ++m_count;
-  }
-  template <typename Item_>
-  ZuNotConvertible<ZuDeref<Item_>, NodeRef>
-  unshift(Item_ &&item) {
-    unshift(NodeRef(new Node(ZuFwd<Item_>(item))));
   }
   NodeRef shiftNode() {
     Guard guard(m_lock);
     Node *node;
 
-    if (!(node = m_head)) return 0;
+    if (!(node = m_head)) return nullptr;
 
-    if (!(m_head = node->Fn::next()))
-      m_tail = 0;
+    if (!(m_head = node->Fn::next))
+      m_tail = nullptr;
     else
-      m_head->Fn::prev(0);
+      m_head->Fn::prev = nullptr;
 
     NodeRef ret = node;
 
@@ -444,12 +566,12 @@ friend ReadIterator;
 
     return ret;
   }
-  Item shift() {
+  T shift() {
     NodeRef node = shiftNode();
-    if (ZuUnlikely(!node)) return Cmp::null();
-    Item item = ZuMv(node->Node::item());
+    if (ZuUnlikely(!node)) return T{};
+    T data = ZuMv(*node).Node::data();
     nodeDelete(node);
-    return item;
+    return data;
   }
   NodeRef rshiftNode() {
     Guard guard(m_lock);
@@ -457,38 +579,36 @@ friend ReadIterator;
 
     if (!(node = m_head)) return 0;
 
-    if (!(m_head = node->Fn::next()))
+    if (!(m_head = node->Fn::next))
       m_head = node;
     else {
-      node->Fn::prev(m_tail);
-      m_tail->Fn::next(node);
-      (m_tail = node)->Fn::next(0);
-      m_head->Fn::prev(0);
+      node->Fn::prev = m_tail;
+      m_tail->Fn::next = node;
+      (m_tail = node)->Fn::next = nullptr;
+      m_head->Fn::prev = nullptr;
     }
 
     return node;
   }
-  Item rshift() {
+  T rshift() {
     NodeRef node = rshiftNode();
-    if (ZuUnlikely(!node)) return Cmp::null();
-    Item item = ZuMv(node->Node::item());
-    nodeDelete(node);
-    return item;
+    if (ZuUnlikely(!node)) return T{};
+    return node->Node::data();
   }
 
-  Item head() const {
+  T head() const {
     ReadGuard guard(m_lock);
-    if (ZuUnlikely(!m_head)) return Cmp::null();
-    return m_head->Node::item();
+    if (ZuUnlikely(!m_head)) return T{};
+    return m_head->Node::data();
   }
   NodeRef headNode() const {
     ReadGuard guard(m_lock);
     return m_head;
   }
-  Item tail() const {
+  T tail() const {
     ReadGuard guard(m_lock);
-    if (ZuUnlikely(!m_tail)) return Cmp::null();
-    return m_tail->Node::item();
+    if (ZuUnlikely(!m_tail)) return T{};
+    return m_tail->Node::data();
   }
   NodeRef tailNode() const {
     ReadGuard guard(m_lock);
@@ -513,91 +633,85 @@ protected:
     if (!node)
       node = m_head;
     else
-      node = node->Fn::next();
+      node = node->Fn::next;
 
     if (!node) return 0;
 
     return iterator.m_node = node;
   }
-  template <typename NodeRef_>
-  ZuConvertible<NodeRef_, NodeRef>
-      pushIterate(Iterator_ &iterator, const NodeRef_ &node_) {
-    const NodeRef &node = node_;
+  template <typename P>
+  NodeRef pushIterate(Iterator_ &iterator, P &&data) {
+    pushIterateNode(iterator, new Node{ZuFwd<P>(data)});
+  }
+  void pushIterateNode(Iterator_ &iterator, Node *node) {
     Node *prevNode = iterator.m_node;
 
     if (!prevNode) { push(node); return; }
 
     nodeRef(node);
-    if (Node *nextNode = prevNode->Fn::next()) {
-      node->Fn::next(nextNode);
-      nextNode->Fn::prev(node);
+    if (Node *nextNode = prevNode->Fn::next) {
+      node->Fn::next = nextNode;
+      nextNode->Fn::prev = node;
     } else {
       m_tail = node;
-      node->Fn::next(0);
+      node->Fn::next = nullptr;
     }
-    node->Fn::prev(prevNode);
-    prevNode->Fn::next(node);
+    node->Fn::prev = prevNode;
+    prevNode->Fn::next = node;
     ++m_count;
   }
-  template <typename Item_>
-  ZuNotConvertible<ZuDeref<Item_>, NodeRef>
-      pushIterate(Iterator_ &iterator, Item_ &&item) {
-    pushIterate(iterator, NodeRef(new Node(ZuFwd<Item_>(item))));
+
+  template <typename P>
+  NodeRef unshiftIterate(Iterator_ &iterator, P &&data) {
+    unshiftIterateNode(iterator, new Node{ZuFwd<P>(data)});
   }
-  template <typename NodeRef_>
-  ZuConvertible<NodeRef, NodeRef_>
-      unshiftIterate(Iterator_ &iterator, const NodeRef_ &node_) {
-    const NodeRef &node = node_;
+  void unshiftIterateNode(Iterator_ &iterator, Node *node) {
     Node *nextNode = iterator.m_node;
 
     if (!nextNode) { unshift(node); return; }
 
     nodeRef(node);
-    if (Node *prevNode = nextNode->Fn::prev()) {
-      node->Fn::prev(prevNode);
-      prevNode->Fn::next(node);
+    if (Node *prevNode = nextNode->Fn::prev) {
+      node->Fn::prev = prevNode;
+      prevNode->Fn::next = node;
     } else {
       m_head = node;
-      node->Fn::prev(0);
+      node->Fn::prev = nullptr;
     }
-    node->Fn::next(nextNode);
+    node->Fn::next = nextNode;
     nextNode->Fn::prev(node);
     ++m_count;
   }
-  template <typename Item_>
-  ZuNotConvertible<ZuDeref<Item_>, NodeRef>
-      unshiftIterate(Iterator_ &iterator, Item_ &&item) {
-    unshiftIterate(iterator, NodeRef(new Node(ZuFwd<Item_>(item))));
-  }
+
   NodeRef delIterate(Iterator_ &iterator) {
     if (!m_count) return nullptr;
 
     Node *node = iterator.m_node;
 
     if (ZuLikely(node)) {
-      iterator.m_node = node->Fn::prev();
-      del_(node);
+      iterator.m_node = node->Fn::prev;
+      del__(node);
     }
 
     NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
     return ZuMv(*ptr);
   }
 
-  void del_(Node *node) {
-    Node *prevNode(node->Fn::prev());
-    Node *nextNode(node->Fn::next());
+  void del__(Node *node) {
+    Node *prevNode = node->Fn::prev;
+    Node *nextNode = node->Fn::next;
 
     ZmAssert(prevNode || nextNode || (m_head == node && m_tail == node));
 
     if (!prevNode)
       m_head = nextNode;
     else
-      prevNode->Fn::next(nextNode);
+      prevNode->Fn::next = nextNode;
 
     if (!nextNode)
       m_tail = prevNode;
     else
-      nextNode->Fn::prev(prevNode);
+      nextNode->Fn::prev = prevNode;
 
     --m_count;
   }
@@ -608,12 +722,12 @@ protected:
     Node *node = m_head, *prevNode;
 
     while (prevNode = node) {
-      node = prevNode->Fn::next();
+      node = prevNode->Fn::next;
       nodeDeref(prevNode);
       nodeDelete(prevNode);
     }
 
-    m_head = m_tail = 0;
+    m_head = m_tail = nullptr;
     m_count = 0;
   }
 

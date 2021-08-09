@@ -119,8 +119,8 @@ namespace Telemetry {
   using FBSTypeList = ZuTypeMap<ZvFBS, TypeList>;
 
   template <typename Data> struct Item__ {
-    using TelKey = decltype(ZvFieldKey(ZuDeclVal<const Data &>()));
-    static TelKey telKey(const Data &data) { return ZvFieldKey(data); }
+    using TelKey = ZuFieldKey<Data>;
+    static TelKey telKey(const Data &data) { return TelKey{data}; }
     static int rag(const Data &data) { return data.rag(); }
   };
   template <> struct Item__<ZvTelemetry::App> {
@@ -564,15 +564,15 @@ namespace GtkTree {
       KeyPrint_(Key_ &&key_) : key{ZuFwd<Key_>(key_)} { }
       auto p0() const { return key.template p<0>(); }
       template <unsigned N = Key::N>
-      auto p1(ZuIfT<(N <= 1)> *_ = 0) const { return ""; }
+      auto p1(ZuIfT<(N <= 1)> *_ = nullptr) const { return ""; }
       template <unsigned N = Key::N>
-      auto p1(ZuIfT<(N > 1)> *_ = 0) const {
+      auto p1(ZuIfT<(N > 1)> *_ = nullptr) const {
 	return key.template p<1>();
       }
       template <unsigned N = Key::N>
-      auto p2(ZuIfT<(N <= 2)> *_ = 0) const { return ""; }
+      auto p2(ZuIfT<(N <= 2)> *_ = nullptr) const { return ""; }
       template <unsigned N = Key::N>
-      auto p2(ZuIfT<(N > 2)> *_ = 0) const {
+      auto p2(ZuIfT<(N > 2)> *_ = nullptr) const {
 	return key.template p<2>();
       }
     };
@@ -1338,13 +1338,13 @@ public:
   int processDeflt(
       CliLink_ *cliLink, ZuID, const uint8_t *data, unsigned len) {
     if (auto srvLink = cliLink->srvLink)
-      srvLink->send_(data - sizeof(ZvCmdHdr), len + sizeof(ZvCmdHdr));
+      srvLink->send_(data - sizeof(ZvCmd::Hdr), len + sizeof(ZvCmd::Hdr));
     return len;
   }
   int processDeflt(
       SrvLink *srvLink, ZuID id, const uint8_t *data, unsigned len) {
     if (auto cliLink = srvLink->cliLink)
-      cliLink->send_(data - sizeof(ZvCmdHdr), len + sizeof(ZvCmdHdr));
+      cliLink->send_(data - sizeof(ZvCmd::Hdr), len + sizeof(ZvCmd::Hdr));
     return len;
   }
 

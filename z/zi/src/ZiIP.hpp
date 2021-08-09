@@ -67,7 +67,7 @@ public:
   ZiIP &operator =(uint32_t n) { s_addr = htonl(n); return *this; }
 
   template <typename S>
-  ZiIP(S &&s, ZuIsString<S> *_ = 0) {
+  ZiIP(S &&s, ZuIsString<S> *_ = nullptr) {
     if (!s) { s_addr = 0; return; }
     ZeError e;
     if (resolve(ZuFwd<S>(s), &e) != OK) throw e;

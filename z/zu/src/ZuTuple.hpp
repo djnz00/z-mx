@@ -472,20 +472,18 @@ namespace Zu_ {
   template <typename ...Args> Tuple_(Args...) -> Tuple_<Args...>;
 }
 
-// key/value extraction
+// generic accessor
 template <unsigned I = 0>
-struct ZuTupleAccessor {
+struct ZuTupleAxor {
   template <typename P, unsigned J> struct Bind {
     static decltype(auto) get(const P &v) { return v.template p<J>(); }
     static decltype(auto) get(P &v) { return v.template p<J>(); }
     static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
   };
   template <typename P>
-  static decltype(auto) key(P &&v) {
+  static decltype(auto) get(P &&v) {
     return Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
   }
-  template <typename P>
-  static decltype(auto) val(P &&v) { return ZuFwd<P>(v); }
 };
 
 // STL structured binding cruft

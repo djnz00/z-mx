@@ -317,7 +317,7 @@ public:
   // ZmTime
 
   template <typename T>
-  ZtDate(const T &t, ZuSame<ZmTime, T> *_ = 0) {
+  ZtDate(const T &t, ZuSame<ZmTime, T> *_ = nullptr) {
     init(t.sec()), m_nsec = t.nsec();
   }
   template <typename T>
@@ -330,7 +330,7 @@ public:
   // time_t
 
   template <typename T>
-  ZtDate(const T &t, ZuSame<time_t, T> *_ = 0) {
+  ZtDate(const T &t, ZuSame<time_t, T> *_ = nullptr) {
     init(t), m_nsec = 0;
   }
   template <typename T>
@@ -343,7 +343,7 @@ public:
   // double
 
   template <typename T>
-  ZtDate(T d, ZuSame<double, T> *_ = 0) {
+  ZtDate(T d, ZuSame<double, T> *_ = nullptr) {
     time_t t = (time_t)d;
     init(t);
     m_nsec = (int)((d - (double)t) * (double)1000000000);
@@ -471,12 +471,12 @@ public:
   // parameter passed in by the caller
 
   template <typename S>
-  ZtDate(const S &s, ZuIsString<S> *_ = 0) {
+  ZtDate(const S &s, ZuIsString<S> *_ = nullptr) {
     ctorISO(s, 0);
   }
   template <typename S, typename TZ>
   ZtDate(const S &s, const TZ &tz, ZuIfT<
-      ZuTraits<S>::IsString && ZuTraits<TZ>::IsCString> *_ = 0) {
+      ZuTraits<S>::IsString && ZuTraits<TZ>::IsCString> *_ = nullptr) {
     ctorISO(s, tz);
   }
 

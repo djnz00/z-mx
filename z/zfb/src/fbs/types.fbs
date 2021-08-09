@@ -1,13 +1,13 @@
 namespace Zfb;
-struct Decimal {
+struct Decimal { // ZuDecimal
   h:uint64;
   l:uint64;
 }
-struct DateTime {
+struct DateTime { // ZtDate
   julian:int32;
   sec:int32;
   nsec:int32;
 }
-struct IP {
+struct IP { // ZiIP
   addr:uint32;
 }

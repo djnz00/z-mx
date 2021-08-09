@@ -813,7 +813,7 @@ template <typename AppTypes> struct MxTTxnTypes : public AppTypes {
     template <typename Data_>
     Txn(const Data_ &data, ZuIfT<
 	ZuConversion<Data__, Data_>::Base &&
-	sizeof(typename Data_::T) <= sizeof(Largest)> *_ = 0) {
+	sizeof(typename Data_::T) <= sizeof(Largest)> *_ = nullptr) {
       initData(data);
     }
     template <typename Data_>

@@ -79,14 +79,14 @@ public:
 public:
   ZmTime(Now_) { now(); }
   template <typename T>
-  ZmTime(Now_, T i, MatchInt<T> *_ = 0) {
+  ZmTime(Now_, T i, MatchInt<T> *_ = nullptr) {
     now(i);
   }
   ZmTime(Now_, double d) { now(d); }
   ZmTime(Now_, const ZmTime &d) { now(d); }
 
   template <typename T>
-  ZmTime(T v, MatchInt<T> *_ = 0) :
+  ZmTime(T v, MatchInt<T> *_ = nullptr) :
     timespec{v, 0} { }
   ZmTime(time_t t, long n) : timespec{t, n} { }
 

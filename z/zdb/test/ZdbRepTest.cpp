@@ -99,7 +99,7 @@ void usage()
 	"  updateOrders\t- number of orders to update\n"
 	"  sleep\t\t- seconds to sleep at end\n"
 	"Options:\n"
-	"  --stats\t- dump BDB statistics\n", stderr);
+	"  --stats\t- dump Zdb statistics\n", stderr);
   ZmPlatform::exit(1);
 }
 

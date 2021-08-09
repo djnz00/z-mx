@@ -53,13 +53,12 @@ struct ZuConversion__ : public ZuConversion___ {
 private:
   static Small	ZuConversion_test(const T2 &_); // named due to VS2010 bug
   static Big	ZuConversion_test(...);
-  static T1	&ZuConversion_mkT1();		// reference due to VS2010 bug
 
 public:
   ZuConversion__(); // keep gcc quiet
   enum {
     _ = sizeof(T1) == sizeof(T2), // ensure both types are complete
-    Exists = sizeof(ZuConversion_test(ZuConversion_mkT1())) == sizeof(Small),
+    Exists = sizeof(ZuConversion_test(ZuDeclVal<T1 &>())) == sizeof(Small),
     Same = 0
   };
 };

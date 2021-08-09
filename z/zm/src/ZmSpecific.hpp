@@ -401,7 +401,7 @@ public:
 };
 
 template <typename L>
-auto ZmTLS(L l, ZuIsLambdaFn<L> *_ = 0) {
+auto ZmTLS(L l, ZuIsLambdaFn<L> *_ = nullptr) {
   using T = ZuDecay<decltype(*ZuLambdaFn<L>::invoke())>;
   return ZmSpecific<T, true, ZuLambdaFn<L>::fn(l)>::instance();
 }

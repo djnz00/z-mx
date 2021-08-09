@@ -1,5 +1,5 @@
 namespace ZvCmd.fbs;
-struct Request {
+table Request {
   seq_no:uint32;
   cmd:[string];
 }

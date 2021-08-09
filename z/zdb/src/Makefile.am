@@ -6,10 +6,10 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 FBS = \
-	zdb.fbs
+	zdbnet.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs
-	flatc -c --cpp-field-case lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
+	flatc -c --cpp-field-case-style lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
 	mv ${@:%_fbs.h=%_generated.h} $@
 	perl -pi -e 's|^#include "(\w+)_generated\.h"|#include <zlib/$${1}_fbs.h>|; s|^#include "flatbuffers/flatbuffers.h"|#include <flatbuffers/flatbuffers.h>|;' $@
 BUILT_SOURCES = ${FBS_H}
