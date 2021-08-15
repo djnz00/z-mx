@@ -18,11 +18,11 @@ namespace Foo {
   };
 
   ZuFields(A,
-      ((i)),
+      ((i), (0)),
       ((j, Fn), (1)),
       ((k, Lambda,
 	([](const A &a) { return a.k; }),
-	([](A &a, double v) { a.k = v; }))));
+	([](A &a, double v) { a.k = v; })), (1)));
 
   struct B {
     int i = 42;
@@ -42,14 +42,16 @@ int main()
   using A = Foo::A;
   using B = Foo::B;
   A a;
-  ZuType<1, ZuFieldList<A>>::set(&a, "bye");
-  ZuType<2, ZuFieldList<A>>::set(&a, 43.0);
-  ZuTypeAll<ZuFieldList<A>>::invoke([a = &a]<typename T>() mutable {
+  ZuType<1, ZuFieldList<A>>::set(a, "bye");
+  ZuType<2, ZuFieldList<A>>::set(a, 43.0);
+  ZuTypeAll<ZuFieldList<A>>::invoke([&a]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(a) << '\n';
   });
   B b;
-  ZuTypeAll<ZuFieldList<B>>::invoke([b = &b]<typename T>() mutable {
+  ZuTypeAll<ZuFieldList<B>>::invoke([&b]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(b) << '\n';
   });
+  std::cout << ZuFieldAxor<A>::get(a).print() << '\n';
+  std::cout << ZuFieldAxor<A, 1>::get(a).print() << '\n';
   return 0;
 }

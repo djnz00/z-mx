@@ -383,7 +383,7 @@ public:
   ZmRBTree(const ZmRBTree &) = delete;
   ZmRBTree &operator =(const ZmRBTree &) = delete;
 
-  ZmRBTree(ZmRBTree &&tree) {
+  ZmRBTree(ZmRBTree &&tree) noexcept {
     Guard guard(tree.m_lock);
     m_root = tree.m_root;
     m_minimum = tree.m_minimum, m_maximum = tree.m_maximum;
@@ -391,7 +391,7 @@ public:
     tree.m_root = tree.m_minimum = tree.m_maximum = nullptr;
     tree.m_count = 0;
   }
-  ZmRBTree &operator =(ZmRBTree &&tree) {
+  ZmRBTree &operator =(ZmRBTree &&tree) noexcept {
     unsigned count;
     Node *root, *minimum, *maximum;
     {

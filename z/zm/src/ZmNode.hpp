@@ -123,7 +123,7 @@ struct ZmNodePolicy : public ZmNodePolicy_<O, ZuIsObject_<O>::OK> { };
 // ref-counted nodes
 template <typename O> struct ZmNodePolicy_<O, true> {
   using Object = O;
-  template <typename T_> struct Ref { using T = ZmRef<T_>; };
+  template <typename T> using Ref = ZmRef<T>;
   template <typename T> void nodeRef(T &&o) { ZmREF(ZuFwd<T>(o)); }
   template <typename T> void nodeDeref(T &&o) { ZmDEREF(ZuFwd<T>(o)); }
   template <typename T> void nodeDelete(T &&) { }
@@ -131,7 +131,7 @@ template <typename O> struct ZmNodePolicy_<O, true> {
 // own nodes (with app-specified base), delete if not returned to caller
 template <typename O> struct ZmNodePolicy_<O, false> {
   using Object = O;
-  template <typename T_> struct Ref { using T = T_ *; };
+  template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T &&) { }
   template <typename T> void nodeDeref(T &&) { }
   template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
@@ -139,7 +139,7 @@ template <typename O> struct ZmNodePolicy_<O, false> {
 // own nodes, delete if not returned to caller
 template <> struct ZmNodePolicy<ZuNull> {
   using Object = ZuNull;
-  template <typename T_> struct Ref { using T = T_ *; };
+  template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T &&) { }
   template <typename T> void nodeDeref(T &&) { }
   template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
@@ -147,7 +147,7 @@ template <> struct ZmNodePolicy<ZuNull> {
 // shadow nodes, never delete
 template <> struct ZmNodePolicy<ZuShadow> {
   using Object = ZuNull;
-  template <typename T_> struct Ref { using T = T_ *; };
+  template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T &&) { }
   template <typename T> void nodeDeref(T &&) { }
   template <typename T> void nodeDelete(T &&) { }

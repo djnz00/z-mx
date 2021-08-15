@@ -105,21 +105,21 @@ template <class, unsigned> friend class ZmHeapCacheT;
   using StatsFn = ZmFn<const ZmHeapStats &>;
   using AllStatsFn = ZmFn<StatsFn>;
 
-  struct IDAccessor : public ZuAccessor<ZmHeapCache *, const char *> {
-    ZuInline static const char *value(const ZmHeapCache *c) {
+  struct IDAccessor {
+    static const char *get(const ZmHeapCache *c) {
       return c->info().id;
     }
   };
   using IDSize = ZuTuple<const char *, unsigned>;
-  struct IDSizeAccessor : public ZuAccessor<ZmHeapCache *, IDSize> {
-    ZuInline static IDSize value(const ZmHeapCache *c) {
-      return IDSize(c->info().id, c->info().size);
+  struct IDSizeAccessor {
+    static IDSize value(const ZmHeapCache *c) {
+      return {c->info().id, c->info().size};
     }
   };
   using IDPartSize = ZuTuple<const char *, unsigned, unsigned>;
-  struct IDPartSizeAccessor : public ZuAccessor<ZmHeapCache *, IDPartSize> {
-    ZuInline static IDPartSize value(const ZmHeapCache *c) {
-      return IDPartSize(c->info().id, c->info().partition, c->info().size);
+  struct IDPartSizeAccessor {
+    static IDPartSize value(const ZmHeapCache *c) {
+      return {c->info().id, c->info().partition, c->info().size};
     }
   };
 
@@ -137,8 +137,8 @@ private:
 public:
   ~ZmHeapCache();
 
-  ZuInline const ZmHeapInfo &info() const { return m_info; }
-  ZuInline const ZmHeapStats &stats() const { return m_stats; }
+  const ZmHeapInfo &info() const { return m_info; }
+  const ZmHeapStats &stats() const { return m_stats; }
 
   void telemetry(ZmHeapTelemetry &data) const;
 

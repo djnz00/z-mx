@@ -51,6 +51,7 @@ friend ZmHeapCache;
 
   using IDPartSize = ZmHeapCache::IDPartSize;
 
+  // FIXME from here
   using IDPart2Config =
     ZmRBTree<ZuPair<ZmIDString, unsigned>,
       ZmRBTreeVal<ZmHeapConfig,

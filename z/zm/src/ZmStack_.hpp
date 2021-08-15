@@ -38,7 +38,6 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuArrayFn.hpp>
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuIndex.hpp>
 #include <zlib/ZuConversion.hpp>
 
 #include <zlib/ZmAssert.hpp>
@@ -79,37 +78,19 @@ private:
 //    ZmStackCmp<ZtICmp> >		// case-insensitive comparison
 
 struct ZmStack_Defaults {
-  template <typename T> struct OpsT { using Ops = ZuArrayFn<T>; };
-  template <typename T> struct CmpT { using Cmp = ZuCmp<T>; };
-  template <typename T> struct ICmpT { using ICmp = ZuCmp<T>; };
-  template <typename T> struct IndexT { using Index = T; };
+  template <typename T> using CmpT = ZuCmp<T>;
+  template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmLock;
 };
 
-template <class Cmp_, class NTP = ZmStack_Defaults>
+// ZmStackCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZmStack_Defaults>
 struct ZmStackCmp : public NTP {
-  template <typename T> struct OpsT { using Ops = ZuArrayFn<T, Cmp_>; };
-  template <typename> struct CmpT { using Cmp = Cmp_; };
+  template <typename T> using CmpT = Cmp_<T>;
+  template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
 };
 
-template <class ICmp_, class NTP = ZmStack_Defaults>
-struct ZmStackICmp : public NTP {
-  template <typename> struct ICmpT { using ICmp = ICmp_; };
-};
-
-template <typename Accessor, class NTP = ZmStack_Defaults>
-struct ZmStackIndex : public NTP {
-  template <typename T> struct CmpT {
-    using Cmp = typename ZuIndex<Accessor>::template CmpT<T>;
-  };
-  template <typename> struct ICmpT {
-    using ICmp = typename ZuIndex<Accessor>::ICmp;
-  };
-  template <typename> struct IndexT {
-    using Index = typename ZuIndex<Accessor>::I;
-  };
-};
-
+// ZmStackLock - the lock type
 template <class Lock_, class NTP = ZmStack_Defaults>
 struct ZmStackLock : public NTP {
   using Lock = Lock_;
@@ -118,19 +99,19 @@ struct ZmStackLock : public NTP {
 // only provide delPtr and findPtr methods to callers of unlocked ZmStacks
 // since they are intrinsically not thread-safe
 
-template <typename Val, class NTP> class ZmStack;
+template <typename T, class NTP> class ZmStack;
 
 template <class Stack> struct ZmStack_Unlocked;
-template <typename Val, class NTP>
-struct ZmStack_Unlocked<ZmStack<Val, NTP> > {
-  using Stack = ZmStack<Val, NTP>;
+template <typename T, class NTP>
+struct ZmStack_Unlocked<ZmStack<T, NTP> > {
+  using Stack = ZmStack<T, NTP>;
 
-  template <typename Index_>
-  Val *findPtr(const Index_ &index) {
-    return static_cast<Stack *>(this)->findPtr_(index);
+  template <typename P>
+  T *findPtr(P &&v) {
+    return static_cast<Stack *>(this)->findPtr_(ZuFwd<P>(v));
   }
-  void delPtr(Val *val) {
-    return static_cast<Stack *>(this)->delPtr_(val);
+  void delPtr(T *ptr) {
+    return static_cast<Stack *>(this)->delPtr_(ptr);
   }
 };
 
@@ -140,26 +121,24 @@ struct ZmStack_Base<Stack, ZmNoLock> : public ZmStack_Unlocked<Stack> { };
 
 // derives from Ops so that a ZmStack includes an *instance* of Ops
 
-template <typename Val, class NTP = ZmStack_Defaults> class ZmStack :
-    public ZmStack_Base<ZmStack<Val, NTP>, typename NTP::Lock>,
-    public NTP::template OpsT<Val>::Ops {
+template <typename T_, class NTP = ZmStack_Defaults> class ZmStack :
+    public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
+    public NTP::template OpsT<T_> {
   ZmStack(const ZmStack &);
   ZmStack &operator =(const ZmStack &);	// prevent mis-use
 
 friend ZmStack_Unlocked<ZmStack>;
 
 public:
-  using Ops = typename NTP::template OpsT<Val>::Ops;
-  using Cmp = typename NTP::template CmpT<Val>::Cmp;
-  using ICmp = typename NTP::template ICmpT<Val>::ICmp;
-  using Index = typename NTP::template IndexT<Val>::Index;
+  using T = T_;
+  using Ops = typename NTP::template OpsT<T>;
+  using Cmp = typename NTP::template CmpT<T>;
   using Lock = typename NTP::Lock;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  template <typename ...Args>
-  ZmStack(ZmStackParams params = ZmStackParams(), Args &&... args) :
+  ZmStack(ZmStackParams params = ZmStackParams()) :
       m_data(0), m_size(0), m_length(0), m_count(0),
       m_initial(params.initial()),
       m_increment(params.increment()),
@@ -194,7 +173,7 @@ private:
   }
 
   void extend(unsigned size) {
-    Val *data = (Val *)malloc((m_size = size) * sizeof(Val));
+    T *data = (T *)malloc((m_size = size) * sizeof(T));
     ZmAssert(data);
     if (m_data) {
       Ops::moveItems(data, m_data, m_length);
@@ -206,7 +185,6 @@ private:
 public:
   void init(ZmStackParams params = ZmStackParams()) {
     Guard guard(m_lock);
-
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
     m_defrag = 1.0 - (double)params.maxFrag() / 100.0;
@@ -214,33 +192,30 @@ public:
 
   void clean() {
     Guard guard(m_lock);
-
     clean_();
     m_length = m_count = 0;
   }
 
-  template <typename Val_>
-  void push(Val_ &&v) {
+  template <typename P>
+  void push(P &&v) {
     Guard guard(m_lock);
-
     lazy();
     if (m_length >= m_size) {
-      Val *data = (Val *)malloc((m_size += m_increment) * sizeof(Val));
+      T *data = static_cast<T *>(malloc((m_size += m_increment) * sizeof(T)));
       ZmAssert(data);
       Ops::moveItems(data, m_data, m_length);
       free(m_data);
       m_data = data;
     }
-    Ops::initItem(m_data + m_length++, ZuFwd<Val_>(v));
+    Ops::initItem(m_data + m_length++, ZuFwd<P>(v));
     m_count++;
   }
 
-  Val pop() {
+  T pop() {
     Guard guard(m_lock);
-
     if (m_length <= 0) return Cmp::null();
     --m_count;
-    Val v = ZuMv(m_data[--m_length]);
+    T v = ZuMv(m_data[--m_length]);
     {
       int i = m_length;
       while (--i >= 0 && Cmp::null(m_data[i])); ++i;
@@ -250,43 +225,57 @@ public:
     return v;
   }
 
-  Val head() {
+  T head() {
     Guard guard(m_lock);
-
     for (unsigned i = 0; i < m_length; i++)
       if (!Cmp::null(m_data[i])) return m_data[i];
     return Cmp::null();
   }
-  Val tail() {
+  T tail() {
     Guard guard(m_lock);
-
-    if (m_length <= 0) return Cmp::null();
+    if (m_length <= 0) return T{};
     return m_data[m_length - 1];
   }
 
-  template <typename Index_>
-  Val find(const Index_ &index) {
-    Guard guard(m_lock);
-
-    for (int i = m_length; --i >= 0; )
-      if (ICmp::equals(m_data[i], index)) return m_data[i];
+  template <typename P>
+  T find(const P &v) {
+    T *ptr = findPtr_(v);
+    if (ZuLikely(ptr)) return *ptr;
     return Cmp::null();
   }
 
 private:
-  template <typename Index_>
-  Val *findPtr_(const Index_ &index) {
-    for (int i = m_length; --i >= 0; )
-      if (ICmp::equals(m_data[i], index)) return &m_data[i];
-    return 0;
+  template <typename P>
+  T *findPtr_(const P &v) {
+    Guard guard(m_lock);
+    return findPtr__(v);
   }
 
-  void delPtr_(Val *val) {
+  template <typename P>
+  T *findPtr__(const P &v) {
+    for (int i = m_length; --i >= 0; )
+      if (Cmp::equals(m_data[i], v)) return &m_data[i];
+    return nullptr;
+  }
+
+public:
+  template <typename P>
+  T del(const P &v) {
+    Guard guard(m_lock);
+    T *ptr = findPtr__(v);
+    if (!ptr) return Cmp::null();
+    T data = ZuMv(*ptr);
+    delPtr_(ptr);
+    return data;
+  }
+
+private:
+  void delPtr_(T *ptr) {
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4244)
 #endif
-    int i = val - m_data;
+    int i = ptr - m_data;
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -301,7 +290,7 @@ private:
       Ops::destroyItems(m_data + i, m_length - i);
       m_length = i;
     } else {
-      *val = Cmp::null();
+      *ptr = Cmp::null();
       if ((double)m_count < (double)m_length * m_defrag) {
 	i = m_length - 1;
 	while (--i >= 0) {
@@ -319,35 +308,24 @@ private:
   }
 
 public:
-  template <typename Index_>
-  Val del(const Index_ &index) {
-    Guard guard(m_lock);
-    Val *vptr = findPtr_(index);
-
-    if (!vptr) return Cmp::null();
-    Val v = ZuMv(*vptr);
-    delPtr_(vptr);
-    return v;
-  }
-
   class Iterator;
 friend Iterator;
   class Iterator : private Guard {
     Iterator(const Iterator &);
     Iterator &operator =(const Iterator &);	// prevent mis-use
 
-    using Stack = ZmStack<Val, NTP>;
+    using Stack = ZmStack<T, NTP>;
 
   public:
     Iterator(Stack &stack) :
       Guard(stack.m_lock), m_stack(stack), m_i(stack.m_length) { }
-    Val *iteratePtr() {
+    T *iteratePtr() {
       do {
-	if (m_i <= 0) return 0;
+	if (m_i <= 0) return nullptr;
       } while (Cmp::null(m_stack.m_data[--m_i]));
-      return m_stack.m_data + m_i;
+      return &m_stack.m_data[m_i];
     }
-    const Val &iterate() {
+    const T &iterate() {
       do {
 	if (m_i <= 0) return Cmp::null();
       } while (Cmp::null(m_stack.m_data[--m_i]));
@@ -362,7 +340,7 @@ friend Iterator;
 
 private:
   Lock		m_lock;
-  Val		*m_data;
+  T		*m_data;
   unsigned	m_size;
   unsigned	m_length;
   unsigned	m_count;

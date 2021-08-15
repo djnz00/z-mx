@@ -110,9 +110,7 @@ struct ZmPQueue_Defaults {
   struct HeapID { static constexpr const char *id() { return "ZmPQueue"; } };
   struct Base { };
   enum { Bits = 3, Levels = 3 };
-  template <typename Item> struct ZmPQueueFnT {
-    using T = ZmPQueueDefaultFn<Item>;
-  };
+  template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
 };
 
 // ZmPQueueNodeIsItem - derive ZmPQueue::Node from Item instead of containing it
@@ -160,7 +158,7 @@ struct ZmPQueueLevels : public NTP {
 // ZmPQueueFn - override queuing functions for the type
 template <typename Fn_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueFn : public NTP {
-  template <typename> struct ZmPQueueFnT { using T = Fn_; };
+  template <typename> using ZmPQueueFnT = Fn_;
 };
 
 namespace ZmPQueue_ {
@@ -185,7 +183,7 @@ class ZmPQueue :
 
 public:
   using Item = Item_;
-  using Fn = typename NTP::template ZmPQueueFnT<Item>::T;
+  using Fn = typename NTP::template ZmPQueueFnT<Item>;
   using Key = typename Fn::Key;
   enum { NodeIsItem = NTP::NodeIsItem };
   using Lock = typename NTP::Lock;

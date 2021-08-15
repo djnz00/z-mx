@@ -51,30 +51,30 @@ template <typename> class ZmRef;
 
 #ifdef ZmObject_DEBUG
 struct ZmRef__ {
-  template <typename O> ZuInline static ZuIs<ZmObject_, O>
+  template <typename O> static ZuIs<ZmObject_, O>
   ZmREF_(const O *o, const void *p) { o->ref(p); }
-  template <typename O> ZuInline static ZuIs<ZmObject_, O>
+  template <typename O> static ZuIs<ZmObject_, O>
   ZmREF_(const ZmRef<O> &o, const void *p) { o->ref(p); }
-  template <typename O> ZuInline static ZuIs<ZmObject_, O>
+  template <typename O> static ZuIs<ZmObject_, O>
   ZmDEREF_(const O *o, const void *p) { if (o->deref(p)) delete o; }
-  template <typename O> ZuInline static ZuIs<ZmObject_, O>
+  template <typename O> static ZuIs<ZmObject_, O>
   ZmDEREF_(const ZmRef<O> &o, const void *p)
     { if (o->deref(p)) delete o.ptr(); }
-  template <typename O> ZuInline static ZuIs<ZmObject_, O>
+  template <typename O> static ZuIs<ZmObject_, O>
   ZmMVREF_(const O *o, const void *p, const void *n) { o->mvref(p, n); }
-  template <typename O> ZuInline static void
+  template <typename O> static void
   ZmMVREF_(const ZmRef<O> &o, const void *p, const void *n) { o->mvref(p, n); }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmREF_(const O *o, const void *) { o->ref(); }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmREF_(const ZmRef<O> &o, const void *) { o->ref(); }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmDEREF_(const O *o, const void *) { if (o->deref()) delete o; }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmDEREF_(const ZmRef<O> &o, const void *) { if (o->deref()) delete o.ptr(); }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmMVREF_(const O *, const void *, const void *) { }
-  template <typename O> ZuInline static ZuIsNot<ZmObject_, O>
+  template <typename O> static ZuIsNot<ZmObject_, O>
   ZmMVREF_(const ZmRef<O> &, const void *, const void *) { }
 };
 #define ZmREF(o) ZmRef__::ZmREF_((o), this)

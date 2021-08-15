@@ -268,14 +268,14 @@ friend ReadIterator;
   ZmList(const ZmList &) = delete;
   ZmList &operator =(const ZmList &) = delete;
 
-  ZmList(ZmList &&list) {
+  ZmList(ZmList &&list) noexcept {
     Guard guard(list.m_lock);
     m_head = list.m_head, m_tail = list.m_tail;
     m_count = list.m_count;
     list.m_head = list.m_tail = nullptr;
     list.m_count = 0;
   }
-  ZmList &operator =(ZmList &&list) {
+  ZmList &operator =(ZmList &&list) noexcept {
     unsigned count;
     Node *head, *tail;
     {
@@ -293,7 +293,7 @@ friend ReadIterator;
     }
     return *this;
   }
-  ZmList &operator +=(ZmList &&list) {
+  ZmList &operator +=(ZmList &&list) noexcept {
     unsigned count;
     Node *head, *tail;
     {
