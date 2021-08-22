@@ -444,12 +444,12 @@ private:
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmNoLock> > > > >;
 
-  struct EngineIDAccessor : public ZuAccessor<ZvEngine *, ZuID> {
-    ZuInline static ZuID value(const ZvEngine *engine) { return engine->id(); }
+  struct EngineIDAccessor {
+    static ZuID get(const ZvEngine *engine) { return engine->id(); }
   };
   using Engines =
     ZmRBTree<ZmRef<ZvEngine>,
-      ZmRBTreeIndex<EngineIDAccessor,
+      ZmRBTreeKey<EngineIDAccessor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmNoLock> > > > >;

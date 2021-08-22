@@ -231,8 +231,8 @@ friend MxMDVenue;
 	  ZmRBTreeLock<ZmRWLock,
 	    ZmRBTreeHeapID<TickSizes_HeapID> > > > >;
 
-  struct IDAccessor : public ZuAccessor<MxMDTickSizeTbl *, MxIDString> {
-    static const MxIDString &value(const MxMDTickSizeTbl *tbl) {
+  struct IDAccessor {
+    static const MxIDString &get(const MxMDTickSizeTbl *tbl) {
       return tbl->id();
     }
   };
@@ -391,18 +391,18 @@ public:
 
   struct OrderID3Accessor;
 friend OrderID3Accessor;
-  struct OrderID3Accessor : public ZuAccessor<MxMDOrder_ *, MxMDOrderID3> {
-    static MxMDOrderID3Ref value(const MxMDOrder_ *o);
+  struct OrderID3Accessor {
+    static MxMDOrderID3Ref get(const MxMDOrder_ *o);
   };
   struct OrderID2Accessor;
 friend OrderID2Accessor;
-  struct OrderID2Accessor : public ZuAccessor<MxMDOrder_ *, MxMDOrderID2> {
-    static MxMDOrderID2Ref value(const MxMDOrder_ *o);
+  struct OrderID2Accessor {
+    static MxMDOrderID2Ref get(const MxMDOrder_ *o);
   };
   struct OrderID1Accessor;
 friend OrderID1Accessor;
-  struct OrderID1Accessor : public ZuAccessor<MxMDOrder_ *, MxIDString> {
-    static const MxIDString &value(const MxMDOrder_ *o) { return o->m_id; }
+  struct OrderID1Accessor {
+    static const MxIDString &get(const MxMDOrder_ *o) { return o->m_id; }
   };
 
   MxMDOrderBook *orderBook() const { return m_orderBook; }
@@ -448,10 +448,8 @@ private:
   ZmAtomic<uintptr_t>	m_appData = 0;
 };
 
-struct MxMDOrder_RankAccessor : public ZuAccessor<MxMDOrder_, MxUInt> {
-  static MxUInt value(const MxMDOrder_ &o) {
-    return o.data().rank;
-  }
+struct MxMDOrder_RankAccessor {
+  static MxUInt get(const MxMDOrder_ &o) { return o.data().rank; }
 };
 
 struct MxMDOrder_HeapID {
@@ -663,14 +661,14 @@ struct MxMDPxLevels_HeapID : public ZmHeapSharded {
   static constexpr const char *id() { return "MxMDPxLevel"; }
 };
 
-struct MxMDPxLevel_PxAccessor : public ZuAccessor<MxMDPxLevel_, MxValue> {
-  static MxValue value(const MxMDPxLevel_ &p) { return p.price(); }
+struct MxMDPxLevel_PxAccessor {
+  static MxValue get(const MxMDPxLevel_ &p) { return p.price(); }
 };
 
 typedef ZmRBTree<MxMDPxLevel_,
-	  ZmRBTreeObject<ZmObject,
-	    ZmRBTreeNodeIsKey<true,
-	      ZmRBTreeIndex<MxMDPxLevel_PxAccessor,
+	  ZmRBTreeKey<MxMDPxLevel_PxAccessor,
+	    ZmRBTreeObject<ZmObject,
+	      ZmRBTreeNodeDerive<true,
 		ZmRBTreeHeapID<MxMDPxLevels_HeapID,
 		  ZmRBTreeLock<ZmNoLock> > > > > > MxMDPxLevels;
 
@@ -946,14 +944,14 @@ friend MxMDInstrument;
 friend MxMDOBSide;
 friend MxMDPxLevel_;
 
-  struct KeyAccessor : public ZuAccessor<MxMDOrderBook *, MxInstrKey> {
-    static const MxInstrKey &value(const MxMDOrderBook *ob) {
+  struct KeyAccessor {
+    static const MxInstrKey &get(const MxMDOrderBook *ob) {
       return ob->key();
     }
   };
 
-  struct VenueSegmentAccessor : public ZuAccessor<MxMDOrderBook *, uint128_t> {
-    static uint128_t value(const MxMDOrderBook *ob) {
+  struct VenueSegmentAccessor {
+    static uint128_t get(const MxMDOrderBook *ob) {
       return venueSegment(ob->venueID(), ob->segment());
     }
   };
@@ -1212,13 +1210,11 @@ MxMDOBSide *MxMDOrder_::obSide() const
     m_orderBook->bids() : m_orderBook->asks();
 }
 
-MxMDOrderID2Ref MxMDOrder_::OrderID2Accessor::value(
-  const MxMDOrder_ *o)
+MxMDOrderID2Ref MxMDOrder_::OrderID2Accessor::get(const MxMDOrder_ *o)
 {
   return MxMDOrderID2Ref(o->orderBook()->key(), o->m_id);
 }
-MxMDOrderID3Ref MxMDOrder_::OrderID3Accessor::value(
-  const MxMDOrder_ *o)
+MxMDOrderID3Ref MxMDOrder_::OrderID3Accessor::get(const MxMDOrder_ *o)
 {
   return MxMDOrderID3Ref(o->orderBook()->key(), o->m_data.side, o->m_id);
 }
@@ -1291,8 +1287,8 @@ class MxMDAPI MxMDInstrument : public ZmObject, public MxMDSharded {
 friend MxMDLib;
 friend MxMDShard;
 
-  struct KeyAccessor : public ZuAccessor<MxMDInstrument *, MxInstrKey> {
-    static const MxInstrKey &value(const MxMDInstrument *instrument) {
+  struct KeyAccessor {
+    static const MxInstrKey &get(const MxMDInstrument *instrument) {
       return instrument->key();
     }
   };
@@ -1301,7 +1297,7 @@ friend MxMDShard;
     static constexpr const char *id() { return "MxMDInstrument.OrderBooks"; }
   };
   typedef ZmRBTree<ZmRef<MxMDOrderBook>,
-	    ZmRBTreeIndex<MxMDOrderBook::VenueSegmentAccessor,
+	    ZmRBTreeKey<MxMDOrderBook::VenueSegmentAccessor,
 	      ZmRBTreeUnique<true,
 		ZmRBTreeObject<ZuNull,
 		  ZmRBTreeLock<ZmNoLock,
@@ -1444,8 +1440,8 @@ friend MxMDLib;
 public:
   MxMDFeed(MxMDLib *md, MxID id, unsigned level);
 
-  struct IDAccessor : public ZuAccessor<MxMDFeed *, MxID> {
-    static MxID value(const MxMDFeed *f) { return f->id(); }
+  struct IDAccessor {
+    static MxID get(const MxMDFeed *f) { return f->id(); }
   };
 
   MxMDLib *md() const { return m_md; }
@@ -1478,12 +1474,12 @@ friend MxMDOBSide;
 friend MxMDPxLevel_;
 
   typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashIndex<MxMDOrder::OrderID2Accessor,
+	    ZmHashKey<MxMDOrder::OrderID2Accessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<MxMDOrders2_HeapID> > > > > Orders2;
   typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashIndex<MxMDOrder::OrderID3Accessor,
+	    ZmHashKey<MxMDOrder::OrderID3Accessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<MxMDOrders3_HeapID> > > > > Orders3;
@@ -1562,14 +1558,14 @@ friend MxMDOrderBook;
 		ZmRBTreeObject<ZuNull,
 		  ZmRBTreeLock<ZmPRWLock,
 		    ZmRBTreeHeapID<TickSizeTbls_HeapID> > > > > > TickSizeTbls;
-  struct Segment_IDAccessor : public ZuAccessor<MxMDSegment, MxID> {
-    static MxID value(const MxMDSegment &s) { return s.id; }
+  struct Segment_IDAccessor {
+    static MxID get(const MxMDSegment &s) { return s.id; }
   };
   struct Segments_ID {
     static constexpr const char *id() { return "MxMDVenue.Segments"; }
   };
   typedef ZmHash<MxMDSegment,
-	    ZmHashIndex<Segment_IDAccessor,
+	    ZmHashKey<Segment_IDAccessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmNoLock,
 		  ZmHashID<Segments_ID> > > > > Segments;
@@ -1578,7 +1574,7 @@ friend MxMDOrderBook;
   typedef ZmReadGuard<SegmentsLock> SegmentsReadGuard;
 
   typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashIndex<MxMDOrder::OrderID1Accessor,
+	    ZmHashKey<MxMDOrder::OrderID1Accessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmPLock,
 		  ZmHashHeapID<MxMDOrders1_HeapID> > > > > Orders1;
@@ -1588,8 +1584,8 @@ public:
       MxEnum orderIDScope = MxMDOrderIDScope::Default,
       MxFlags flags = 0);
 
-  struct IDAccessor : public ZuAccessor<MxMDVenue *, MxID> {
-    static MxID value(const MxMDVenue *v) { return v->id(); }
+  struct IDAccessor {
+    static MxID get(const MxMDVenue *v) { return v->id(); }
   };
 
   MxMDLib *md() const { return m_md; }
@@ -1716,7 +1712,7 @@ friend MxMDLib;
     static constexpr const char *id() { return "MxMDShard.Instruments"; }
   };
   typedef ZmHash<MxMDInstrument *,
-	    ZmHashIndex<MxMDInstrument::KeyAccessor,
+	    ZmHashKey<MxMDInstrument::KeyAccessor,
 	      ZmHashObject<ZuObject,
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<Instruments_HeapID> > > > > Instruments;
@@ -1725,7 +1721,7 @@ friend MxMDLib;
     static constexpr const char *id() { return "MxMDShard.OrderBooks"; }
   };
   typedef ZmHash<MxMDOrderBook *,
-	    ZmHashIndex<MxMDOrderBook::KeyAccessor,
+	    ZmHashKey<MxMDOrderBook::KeyAccessor,
 	      ZmHashObject<ZuObject,
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<OrderBooks_HeapID> > > > > OrderBooks;
@@ -1996,7 +1992,7 @@ friend ZmShard;
     static constexpr const char *id() { return "MxMDLib.AllInstruments"; }
   };
   typedef ZmHash<ZmRef<MxMDInstrument>,
-	    ZmHashIndex<MxMDInstrument::KeyAccessor,
+	    ZmHashKey<MxMDInstrument::KeyAccessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmPLock,
 		  ZmHashHeapID<AllInstruments_HeapID> > > > > AllInstruments;
@@ -2005,7 +2001,7 @@ friend ZmShard;
     static constexpr const char *id() { return "MxMDLib.AllOrderBooks"; }
   };
   typedef ZmHash<ZmRef<MxMDOrderBook>,
-	    ZmHashIndex<MxMDOrderBook::KeyAccessor,
+	    ZmHashKey<MxMDOrderBook::KeyAccessor,
 	      ZmHashObject<ZuNull,
 		ZmHashLock<ZmPLock,
 		  ZmHashHeapID<AllOrderBooks_HeapID> > > > > AllOrderBooks;
@@ -2015,11 +2011,10 @@ friend ZmShard;
   struct Instruments_HeapID {
     static constexpr const char *id() { return "MxMDLib.Instruments"; }
   };
-  typedef ZmHash<MxSymKey,
-	    ZmHashVal<MxMDInstrument *,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmPLock,
-		  ZmHashHeapID<Instruments_HeapID> > > > > Instruments;
+  typedef ZmHashKV<MxSymKey, MxMDInstrument *,
+	    ZmHashObject<ZuNull,
+	      ZmHashLock<ZmPLock,
+		ZmHashHeapID<Instruments_HeapID> > > > Instruments;
 
   // feeds, venues
 

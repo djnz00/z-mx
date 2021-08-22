@@ -52,8 +52,8 @@ ZuDeclTuple(MxMDTickSize,
     (MxValue, minPrice),
     (MxValue, maxPrice),
     (MxValue, tickSize));
-struct MxMDTickSize_MinPxAccessor : public ZuAccessor<MxMDTickSize, MxValue> {
-  ZuInline static MxValue value(const MxMDTickSize &t) { return t.minPrice(); }
+struct MxMDTickSize_MinPxAccessor {
+  static MxValue get(const MxMDTickSize &t) { return t.minPrice(); }
 };
 
 #pragma pack(push, 4)

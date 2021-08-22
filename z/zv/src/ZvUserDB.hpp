@@ -85,15 +85,15 @@ public:
 	fbb.CreateVector(apiperms.data, Bitmap::Words));
   }
 };
-struct RoleNameAccessor : public ZuAccessor<Role_, ZtString> {
-  ZuInline static const ZtString &value(const Role_ &r) { return r.name; }
+struct RoleNameAccessor {
+  static const ZtString &get(const Role_ &r) { return r.name; }
 };
 using RoleTree =
   ZmRBTree<Role_,
-    ZmRBTreeObject<ZuObject,
-      ZmRBTreeIndex<RoleNameAccessor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeNodeIsKey<true,
+    ZmRBTreeKey<RoleNameAccessor,
+      ZmRBTreeUnique<true,
+	ZmRBTreeNodeDerive<true,
+	  ZmRBTreeObject<ZuObject,
 	    ZmRBTreeLock<ZmNoLock> > > > > >;
 using Role = RoleTree::Node;
 ZmRef<Role> loadRole(const fbs::Role *role_) {
@@ -150,14 +150,14 @@ struct User__ : public ZuObject {
 struct UserIDHashID {
   static constexpr const char *id() { return "ZvUserDB.UserIDs"; }
 };
-struct UserIDAccessor : public ZuAccessor<User__, uint64_t> {
-  ZuInline static uint64_t value(const User__ &u) { return u.id; }
+struct UserIDAccessor {
+  static uint64_t get(const User__ &u) { return u.id; }
 };
 using UserIDHash =
   ZmHash<User__,
-    ZmHashObject<ZuShadow,
-      ZmHashIndex<UserIDAccessor,
-	ZmHashNodeIsKey<true,
+    ZmHashKey<UserIDAccessor,
+      ZmHashNodeDerive<true,
+	ZmHashObject<ZuShadow,
 	  ZmHashHeapID<ZuNull,
 	    ZmHashID<UserIDHashID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
@@ -165,14 +165,14 @@ using User_ = UserIDHash::Node;
 struct UserNameHashID {
   static constexpr const char *id() { return "ZvUserDB.UserNames"; }
 };
-struct UserNameAccessor : public ZuAccessor<User_, ZtString> {
-  ZuInline static ZtString value(const User_ &u) { return u.name; }
+struct UserNameAccessor {
+  static ZtString get(const User_ &u) { return u.name; }
 };
 using UserNameHash =
   ZmHash<User_,
-    ZmHashObject<ZuObject,
-      ZmHashIndex<UserNameAccessor,
-	ZmHashNodeIsKey<true,
+    ZmHashKey<UserNameAccessor,
+      ZmHashNodeDerive<true,
+	ZmHashObject<ZuObject,
 	  ZmHashHeapID<UserNameHashID,
 	    ZmHashLock<ZmNoLock> > > > > >;
 using User = UserNameHash::Node;
@@ -215,14 +215,14 @@ struct Key_ : public ZuObject {
 struct KeyHashID {
   static constexpr const char *id() { return "ZvUserDB.Keys"; }
 };
-struct KeyIDAccessor : public ZuAccessor<Key_, ZtString> {
-  static ZtString value(const Key_ &k) { return k.id; }
+struct KeyIDAccessor {
+  static ZtString get(const Key_ &k) { return k.id; }
 };
 using KeyHash =
   ZmHash<Key_,
-    ZmHashObject<ZuObject,
-      ZmHashIndex<ZuIndex<Key_, 0>,
-	ZmHashNodeIsKey<true,
+    ZmHashKey<ZuIndex<Key_, 0>, // FIXME
+      ZmHashNodeDerive<true,
+	ZmHashObject<ZuObject,
 	  ZmHashHeapID<KeyHashID,
 	    ZmHashLock<ZmNoLock> > > > > >;
 using Key = KeyHash::Node;
@@ -283,10 +283,9 @@ private:
     N <= 64 ? 6 : N <= 128 ? 7 : N <= 256 ? 8 : N <= 512 ? 9 : 10
   };
   using PermNames =
-    ZmLHash<ZuString,
-      ZmLHashVal<ZuBox_1(int),
-	ZmLHashStatic<PermBits,
-	  ZmLHashLock<ZmNoLock> > > >;
+    ZmLHashKV<ZuString, ZuBox_1(int),
+      ZmLHashStatic<PermBits,
+	ZmLHashLock<ZmNoLock> > >;
 
   int findPerm_(ZuString s) { return m_permNames->findVal(s); }
 

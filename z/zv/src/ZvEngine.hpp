@@ -57,18 +57,18 @@ public:
   using Mx = ZvMultiplex;
   using AbortFn = ZmFn<ZvIOMsg *>;
 
-  struct IDAccessor : public ZuAccessor<ZvAnyTx *, ZuID> {
-    ZuInline static ZuID value(const ZvAnyTx *t) { return t->id(); }
+  struct IDAccessor {
+    static ZuID get(const ZvAnyTx *t) { return t->id(); }
   };
 
-  ZuInline ZvEngine *engine() const { return m_engine; }
-  ZuInline Mx *mx() const { return m_mx; }
-  ZuInline ZuID id() const { return m_id; }
+  ZvEngine *engine() const { return m_engine; }
+  Mx *mx() const { return m_mx; }
+  ZuID id() const { return m_id; }
 
   template <typename T = uintptr_t>
-  ZuInline T appData() const { return (T)m_appData; }
+  T appData() const { return (T)m_appData; }
   template <typename T>
-  ZuInline void appData(T v) { m_appData = (uintptr_t)v; }
+  void appData(T v) { m_appData = (uintptr_t)v; }
 
 private:
   ZuID			m_id;
@@ -102,8 +102,8 @@ protected:
   ZvAnyLink(ZuID id);
 
 public:
-  ZuInline int state() const { return m_state.load_(); }
-  ZuInline unsigned reconnects() const { return m_reconnects.load_(); }
+  int state() const { return m_state.load_(); }
+  unsigned reconnects() const { return m_reconnects.load_(); }
 
   using Telemetry = ZvTelemetry::Link;
 
@@ -219,8 +219,8 @@ friend ZvAnyLink;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
 public:
-  struct IDAccessor : public ZuAccessor<ZvEngine *, ZuID> {
-    ZuInline static ZuID value(const ZvEngine *e) { return e->id(); }
+  struct IDAccessor {
+    static ZuID get(const ZvEngine *e) { return e->id(); }
   };
 
   using Sched = ZvScheduler;
@@ -247,42 +247,42 @@ public:
   }
   void final();
 
-  ZuInline Mgr *mgr() const { return m_mgr; }
-  ZuInline ZvEngineApp *app() const { return m_app; }
-  ZuInline ZuID id() const { return m_id; }
-  ZuInline Mx *mx() const { return m_mx; }
-  ZuInline unsigned rxThread() const { return m_rxThread; }
-  ZuInline unsigned txThread() const { return m_txThread; }
+  Mgr *mgr() const { return m_mgr; }
+  ZvEngineApp *app() const { return m_app; }
+  ZuID id() const { return m_id; }
+  Mx *mx() const { return m_mx; }
+  unsigned rxThread() const { return m_rxThread; }
+  unsigned txThread() const { return m_txThread; }
 
-  ZuInline int state() const { return m_state.load_(); }
+  int state() const { return m_state.load_(); }
 
   void start();
   void stop();
 
-  template <typename ...Args> ZuInline void rxRun(Args &&... args)
+  template <typename ...Args> void rxRun(Args &&... args)
     { m_mx->run(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> ZuInline void rxRun_(Args &&... args)
+  template <typename ...Args> void rxRun_(Args &&... args)
     { m_mx->run_(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> ZuInline void rxInvoke(Args &&... args)
+  template <typename ...Args> void rxInvoke(Args &&... args)
     { m_mx->invoke(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> ZuInline void txRun(Args &&... args)
+  template <typename ...Args> void txRun(Args &&... args)
     { m_mx->run(m_txThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> ZuInline void txInvoke(Args &&... args)
+  template <typename ...Args> void txInvoke(Args &&... args)
     { m_mx->invoke(m_txThread, ZuFwd<Args>(args)...); }
 
-  ZuInline void mgrAddEngine() { mgr()->addEngine(this); }
-  ZuInline void mgrDelEngine() { mgr()->delEngine(this); }
-  ZuInline void mgrUpdEngine() { mgr()->updEngine(this); }
+  void mgrAddEngine() { mgr()->addEngine(this); }
+  void mgrDelEngine() { mgr()->delEngine(this); }
+  void mgrUpdEngine() { mgr()->updEngine(this); }
 
-  ZuInline ZmRef<ZvAnyLink> appCreateLink(ZuID id) {
+  ZmRef<ZvAnyLink> appCreateLink(ZuID id) {
     return app()->createLink(id);
   }
-  ZuInline void mgrUpdLink(ZvAnyLink *link) { mgr()->updLink(link); }
+  void mgrUpdLink(ZvAnyLink *link) { mgr()->updLink(link); }
 
   // Note: ZvIOQueues are contained in Link and TxPool
-  ZuInline void mgrAddQueue(unsigned type, ZuID id, QueueFn queueFn)
+  void mgrAddQueue(unsigned type, ZuID id, QueueFn queueFn)
     { mgr()->addQueue(type, id, ZuMv(queueFn)); }
-  ZuInline void mgrDelQueue(unsigned type, ZuID id)
+  void mgrDelQueue(unsigned type, ZuID id)
     { mgr()->delQueue(type, id); }
 
   // generic O.S. error logging
@@ -292,7 +292,7 @@ public:
     };
   }
 
-  ZuInline void mgrAlert(ZmRef<ZeEvent> e) const {
+  void mgrAlert(ZmRef<ZeEvent> e) const {
     mgr()->alert(ZuMv(e));
   }
 
@@ -306,13 +306,13 @@ public:
 private:
   using TxPools =
     ZmRBTree<ZmRef<ZvAnyTxPool>,
-      ZmRBTreeIndex<ZvAnyTxPool::IDAccessor,
+      ZmRBTreeKey<ZvAnyTxPool::IDAccessor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmNoLock> > > > >;
   using Links =
     ZmRBTree<ZmRef<ZvAnyLink>,
-      ZmRBTreeIndex<ZvAnyLink::IDAccessor,
+      ZmRBTreeKey<ZvAnyLink::IDAccessor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmNoLock> > > > >;
@@ -407,7 +407,7 @@ public:
     }
     return link;
   }
-  ZuInline unsigned nLinks() const {
+  unsigned nLinks() const {
     ReadGuard guard(m_lock);
     return m_links.count();
   }
@@ -459,28 +459,28 @@ public:
   
   void init(ZvEngine *engine) { Base::init(engine); }
 
-  ZuInline const Impl *impl() const { return static_cast<const Impl *>(this); }
-  ZuInline Impl *impl() { return static_cast<Impl *>(this); }
+  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  Impl *impl() { return static_cast<Impl *>(this); }
 
-  ZuInline void scheduleSend() { txInvoke([](Tx *tx) { tx->send(); }); }
-  ZuInline void rescheduleSend() { txRun([](Tx *tx) { tx->send(); }); }
-  ZuInline void idleSend() { }
+  void scheduleSend() { txInvoke([](Tx *tx) { tx->send(); }); }
+  void rescheduleSend() { txRun([](Tx *tx) { tx->send(); }); }
+  void idleSend() { }
 
-  ZuInline void scheduleResend() { txInvoke([](Tx *tx) { tx->resend(); }); }
-  ZuInline void rescheduleResend() { txRun([](Tx *tx) { tx->resend(); }); }
-  ZuInline void idleResend() { }
+  void scheduleResend() { txInvoke([](Tx *tx) { tx->resend(); }); }
+  void rescheduleResend() { txRun([](Tx *tx) { tx->resend(); }); }
+  void idleResend() { }
 
-  ZuInline void scheduleArchive() { rescheduleArchive(); }
-  ZuInline void rescheduleArchive() { txRun([](Tx *tx) { tx->archive(); }); }
-  ZuInline void idleArchive() { }
+  void scheduleArchive() { rescheduleArchive(); }
+  void rescheduleArchive() { txRun([](Tx *tx) { tx->archive(); }); }
+  void idleArchive() { }
 
-  template <typename L> ZuInline void txRun(L &&l)
+  template <typename L> void txRun(L &&l)
     { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
-  template <typename L> ZuInline void txRun(L &&l) const
+  template <typename L> void txRun(L &&l) const
     { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
-  template <typename L> ZuInline void txInvoke(L &&l)
+  template <typename L> void txInvoke(L &&l)
     { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
-  template <typename L> ZuInline void txInvoke(L &&l) const
+  template <typename L> void txInvoke(L &&l) const
     { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
 };
 
@@ -506,8 +506,8 @@ public:
   const ZvIOQueue *txQueue() const { return ZvIOQueueTxPool<Impl>::txQueue(); }
   ZvIOQueue *txQueue() { return ZvIOQueueTxPool<Impl>::txQueue(); }
 
-  ZuInline const Tx *tx() const { return static_cast<const Tx *>(this); }
-  ZuInline Tx *tx() { return static_cast<Tx *>(this); }
+  const Tx *tx() const { return static_cast<const Tx *>(this); }
+  Tx *tx() { return static_cast<Tx *>(this); }
 
   void send(ZmRef<ZvIOMsg> msg) {
     msg->owner(tx());
@@ -582,34 +582,34 @@ public:
 
   using AbortFn = ZvAnyTx::AbortFn;
 
-  ZuInline const Impl *impl() const { return static_cast<const Impl *>(this); }
-  ZuInline Impl *impl() { return static_cast<Impl *>(this); }
+  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  Impl *impl() { return static_cast<Impl *>(this); }
 
-  ZuInline const Rx *rx() const { return static_cast<const Rx *>(this); }
-  ZuInline Rx *rx() { return static_cast<Rx *>(this); }
-  ZuInline const Tx *tx() const { return static_cast<const Tx *>(this); }
-  ZuInline Tx *tx() { return static_cast<Tx *>(this); }
+  const Rx *rx() const { return static_cast<const Rx *>(this); }
+  Rx *rx() { return static_cast<Rx *>(this); }
+  const Tx *tx() const { return static_cast<const Tx *>(this); }
+  Tx *tx() { return static_cast<Tx *>(this); }
 
   ZvLink(ZuID id) : Base(id) { }
 
   void init(ZvEngine *engine) { Base::init(engine); }
 
-  ZuInline void scheduleDequeue() { rescheduleDequeue(); }
-  ZuInline void rescheduleDequeue() { rxRun([](Rx *rx) { rx->dequeue(); }); }
-  ZuInline void idleDequeue() { }
+  void scheduleDequeue() { rescheduleDequeue(); }
+  void rescheduleDequeue() { rxRun([](Rx *rx) { rx->dequeue(); }); }
+  void idleDequeue() { }
 
   using RRLock = ZmPLock;
   using RRGuard = ZmGuard<RRLock>;
 
-  ZuInline void scheduleReRequest() {
+  void scheduleReRequest() {
     RRGuard guard(m_rrLock);
     if (ZuLikely(!m_rrTime)) scheduleReRequest_(guard);
   }
-  ZuInline void rescheduleReRequest() {
+  void rescheduleReRequest() {
     RRGuard guard(m_rrLock);
     scheduleReRequest_(guard);
   }
-  ZuInline void scheduleReRequest_(RRGuard &guard) {
+  void scheduleReRequest_(RRGuard &guard) {
     ZmTime interval = impl()->reReqInterval();
     if (!interval) return;
     m_rrTime.now();
@@ -617,7 +617,7 @@ public:
     guard.unlock();
     rxRun([](Rx *rx) { rx->reRequest(); }, rrTime, &m_rrTimer);
   }
-  ZuInline void cancelReRequest() {
+  void cancelReRequest() {
     this->mx()->del(&m_rrTimer);
     {
       RRGuard guard(m_rrLock);
@@ -634,18 +634,18 @@ public:
   using ZvAnyLink::txSeqNo;
 
   template <typename L, typename ...Args>
-  ZuInline void rxRun(L &&l, Args &&... args)
+  void rxRun(L &&l, Args &&... args)
     { this->engine()->rxRun(ZmFn<>{rx(), ZuFwd<L>(l)}, ZuFwd<Args>(args)...); }
   template <typename L, typename ...Args>
-  ZuInline void rxRun(L &&l, Args &&... args) const
+  void rxRun(L &&l, Args &&... args) const
     { this->engine()->rxRun(ZmFn<>{rx(), ZuFwd<L>(l)}, ZuFwd<Args>(args)...); }
-  template <typename L> ZuInline void rxRun_(L &&l)
+  template <typename L> void rxRun_(L &&l)
     { this->engine()->rxRun_(ZmFn<>{rx(), ZuFwd<L>(l)}); }
-  template <typename L> ZuInline void rxRun_(L &&l) const
+  template <typename L> void rxRun_(L &&l) const
     { this->engine()->rxRun_(ZmFn<>{rx(), ZuFwd<L>(l)}); }
-  template <typename L> ZuInline void rxInvoke(L &&l)
+  template <typename L> void rxInvoke(L &&l)
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
-  template <typename L> ZuInline void rxInvoke(L &&l) const
+  template <typename L> void rxInvoke(L &&l) const
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
 
   // ensure passed lambdas are stateless and match required signature
@@ -657,7 +657,7 @@ public:
   struct RcvdLambda;
   template <typename L> struct RcvdLambda<L, true> {
     using T = void;
-    ZuInline static void invoke(Rx *rx) { (*(const L *)(void *)0)(rx); }
+    static void invoke(Rx *rx) { (*(const L *)(void *)0)(rx); }
   };
 
   template <typename L>

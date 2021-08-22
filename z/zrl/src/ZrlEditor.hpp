@@ -256,13 +256,13 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
   void print(ZmStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(Binding *);
 };
-struct Binding_KeyAccessor : public ZuAccessor<ZuPtr<Binding>, int32_t> {
-  static int32_t value(const Binding *b) { return b->vkey; }
+struct Binding_KeyAccessor {
+  static int32_t get(const Binding *b) { return b->vkey; }
 };
 
 using Bindings_ =
   ZmLHash<ZuPtr<Binding>,
-    ZmLHashIndex<Binding_KeyAccessor,
+    ZmLHashKey<Binding_KeyAccessor,
       ZmLHashLock<ZmNoLock>>>;
 
 struct Bindings : public Bindings_ {
@@ -301,15 +301,15 @@ struct ZrlAPI Map_ {
 private:
   int parseMode(ZuString s, int off);
 };
-struct Map_IDAccessor : public ZuAccessor<Map_, Map_::ID> {
-  ZuInline static const Map_::ID &value(const Map_ &m) { return m.id; }
+struct Map_IDAccessor {
+  static const Map_::ID &get(const Map_ &m) { return m.id; }
 };
 
 using Maps =
   ZmRBTree<Map_,
-    ZmRBTreeObject<ZuNull,
-      ZmRBTreeNodeIsKey<true,
-	ZmRBTreeIndex<Map_IDAccessor,
+    ZmRBTreeKey<Map_IDAccessor,
+      ZmRBTreeObject<ZuNull,
+	ZmRBTreeNodeDerive<true,
 	  ZmRBTreeLock<ZmNoLock>>>>>;
 
 using Map = Maps::Node;

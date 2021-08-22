@@ -100,12 +100,12 @@ public:
     using Data = ZvFB::Load<Data_>;
     using FBS = ZvFBS<Data>;
     using Key = ZuFieldKey<Data>;
-    struct Accessor : public ZuAccessor<Data, ZuDecay<Key>> {
-      static Key value(const Data &data) { return Key{data}; }
+    struct Accessor {
+      static Key get(const Data &data) { return Key{data}; }
     };
     using Tree_ =
       ZmRBTree<Data,
-	ZmRBTreeIndex<Accessor,
+	ZmRBTreeKey<Accessor,
 	  ZmRBTreeUnique<true,
 	    ZmRBTreeLock<ZmNoLock> > > >;
     struct Tree : public ZuObject, public Tree_ { };

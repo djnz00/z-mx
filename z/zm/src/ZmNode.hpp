@@ -61,8 +61,8 @@ public:
   ZmNode &operator =(ZmNode &&) = default;
   ~ZmNode() = default;
 
-  template <typename P>
-  ZmNode(P &&p) : m_data{ZuFwd<P>(p)} { }
+  template <typename ...Args>
+  ZmNode(Args &&... args) : m_data{ZuFwd<Args>(args)...} { }
 
   const auto &data() const & { return m_data; }
   auto &data() & { return m_data; }
@@ -101,8 +101,8 @@ public:
   ZmNode &operator =(ZmNode &&) = default;
   ~ZmNode() = default;
 
-  template <typename P>
-  ZmNode(P &&p) : U{ZuFwd<P>(p)} { }
+  template <typename ...Args>
+  ZmNode(Args &&... args) : U{ZuFwd<Args>(args)...} { }
 
   decltype(auto) data() const & { return static_cast<const U &>(*this); }
   decltype(auto) data() & { return static_cast<U &>(*this); }

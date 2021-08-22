@@ -425,13 +425,24 @@ public:
   NodeRef add(P0 &&p0, P1 &&p1) {
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  void addNode(Node *newNode) {
-    newNode->init();
-
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> addNode(NodeRef &&node_) {
+    Node *node;
+    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
+    node->init();
     Guard guard(m_lock);
+    addNode_(node);
+  }
+  void addNode(Node *node) {
+    nodeRef(node);
+    node->init();
+    Guard guard(m_lock);
+    addNode_(node);
+  }
+private:
+  void addNode_(Node *newNode) {
     Node *node;
 
-    nodeRef(newNode);
 
     if (!(node = m_root)) {
       newNode->black(1);
@@ -486,7 +497,6 @@ public:
     ++m_count;
   }
 
-private:
   template <typename U, typename V = Key>
   struct IsKey {
     enum { OK = ZuConversion<U, V>::Exists };

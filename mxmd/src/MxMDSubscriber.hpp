@@ -68,10 +68,8 @@ public:
   void updateLinks(ZuString channels); // update from CSV
 
 private:
-  struct ChannelIDAccessor : public ZuAccessor<MxMDChannel, MxID> {
-    ZuInline static MxID value(const MxMDChannel &channel) {
-      return channel.id;
-    }
+  struct ChannelIDAccessor {
+    static MxID get(const MxMDChannel &channel) { return channel.id; }
   };
   typedef ZmRBTree<MxMDChannel,
 	    ZmRBTreeIndex<ChannelIDAccessor,

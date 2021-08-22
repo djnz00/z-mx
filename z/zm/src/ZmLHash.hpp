@@ -57,9 +57,8 @@
 
 // NTP (named template parameters):
 //
-// ZmLHash<ZtString,			// keys are ZtStrings
-//   ZmLHashVal<ZtString,		// values are ZtStrings
-//     ZmLHashValCmp<ZtCmp> > > >	// case-insensitive comparison
+// ZmLHashKV<ZtString, ZtString,	// keys are ZtStrings
+//   ZmLHashCmp<ZtCmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmLHash_Defaults {
@@ -138,7 +137,7 @@ struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
 template <typename T_, typename KeyAxor, typename ValAxor>
 class ZmLHash_Node {
 template <typename, typename> friend class ZmLHash;
-template <typename, typename, typename, bool> friend class ZmLHash_;
+template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
 public:
   using T = T_;
@@ -279,7 +278,7 @@ protected:
 };
 
 // statically allocated hash table base class
-template <typename Hash, typename T, typename NTP, bool Static>
+template <typename Hash, typename T, typename NTP, unsigned Static>
 class ZmLHash_ : public ZmLHash__<NTP> {
   using Base = ZmLHash__<NTP>;
   using KeyAxor = typename NTP::KeyAxor;
@@ -368,7 +367,7 @@ class ZmLHash : public ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static> {
   ZmLHash(const ZmLHash &) = delete;
   ZmLHash &operator =(const ZmLHash &) = delete; // prevent mis-use
 
-template <typename, typename, typename, bool> friend class ZmLHash_;
+template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
   using Base = ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static>;
 

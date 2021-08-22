@@ -210,7 +210,7 @@ void App::reader()
       continue;
     }
     if (const void *msg_ = ring->shift()) {
-      auto msg = static_cast<const Msg *>(msg_);
+      // auto msg = static_cast<const Msg *>(msg_);
       // std::cerr << (ZuStringN<80>{} << "shift: " << ZuBoxPtr(msg).hex() << " len: " << ZuBoxed(sizeof(Msg) + msg->length()) << '\n') << std::flush;
       // for (unsigned i = 0, n = msg->length(); i < n; i++) assert(((const char *)(msg->ptr()))[i] == (char)(i & 0xff));
       // std::cerr << "msg read\n";
@@ -250,7 +250,7 @@ void App::writer()
     }
     if (void *ptr = ring->push(msgsize)) {
       // std::cerr << (ZuStringN<80>{} << "push: " << ZuBoxPtr(ptr).hex() << " len: " << ZuBoxed(msgsize) << '\n') << std::flush;
-      Msg *msg = new (ptr) Msg(0, msgsize - sizeof(Msg));
+      // Msg *msg = new (ptr) Msg(0, msgsize - sizeof(Msg));
       // for (unsigned i = 0, n = msg->length(); i < n; i++) ((char *)(msg->ptr()))[i] = (char)(i & 0xff);
       // std::cerr << "msg written\n";
       ring->push2();

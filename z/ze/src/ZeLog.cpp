@@ -118,7 +118,7 @@ void ZeLog::log_(ZmRef<ZeEvent> e)
   if ((int)e->severity() < m_level) return;
   {
     Guard guard(m_lock);
-    m_queue.push(ZuMv(e));
+    m_queue.pushNode(ZuMv(e));
   }
   m_work.post();
 }

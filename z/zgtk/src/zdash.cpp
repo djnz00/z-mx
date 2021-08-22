@@ -89,8 +89,8 @@ namespace Telemetry {
       return static_cast<T *>(ptr_);
     }
   };
-  struct Watch_Accessor : public ZuAccessor<Watch, void *> {
-    static auto value(const Watch &v) { return v.ptr_; }
+  struct Watch_Accessor {
+    static auto get(const Watch &v) { return v.ptr_; }
   };
   struct Watch_HeapID {
     static constexpr const char *id() { return "zdash.Telemetry.Watch"; }
@@ -98,8 +98,8 @@ namespace Telemetry {
   template <typename T>
   using WatchList =
     ZmList<T,
-      ZmListIndex<Watch_Accessor,
-	ZmListNodeIsItem<true,
+      ZmListKey<Watch_Accessor,
+	ZmListNodeDerive<true,
 	  ZmListHeapID<Watch_HeapID,
 	    ZmListLock<ZmNoLock> > > > >;
 
@@ -203,15 +203,15 @@ namespace Telemetry {
     static constexpr const char *id() { return "zdash.Telemetry.Tree"; }
   };
   template <typename T>
-  struct KeyAccessor : public ZuAccessor<T, typename T::TelKey> {
-    static auto value(const T &v) { return v.telKey(); }
+  struct KeyAccessor {
+    static auto get(const T &v) { return v.telKey(); }
   };
   template <typename T>
   using ItemTree_ =
     ZmRBTree<Item_<T>,
-      ZmRBTreeIndex<KeyAccessor<Item_<T>>,
+      ZmRBTreeKey<KeyAccessor<Item_<T>>,
 	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeNodeIsKey<true,
+	  ZmRBTreeNodeDerive<true,
 	    ZmRBTreeUnique<true,
 	      ZmRBTreeLock<ZmNoLock,
 		ZmRBTreeHeapID<ItemTree_HeapID> > > > > > >;
@@ -838,18 +838,18 @@ public:
   SrvLink		*srvLink = nullptr;
   bool			connecting = false; // prevent overlapping connects
 };
-struct CliLink_KeyAccessor : public ZuAccessor<CliLink_, CliLink_::Key> {
-  static CliLink_::Key value(const CliLink_ &link) { return link.key(); }
+struct CliLink_KeyAccessor {
+  static CliLink_::Key get(const CliLink_ &link) { return link.key(); }
 };
 struct CliLink_HeapID {
   static constexpr const char *id() { return "CliLink"; }
 };
 using CliLinks =
   ZmRBTree<CliLink_,
-    ZmRBTreeNodeIsKey<true,
-      ZmRBTreeIndex<CliLink_KeyAccessor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZmPolymorph,
+    ZmRBTreeKey<CliLink_KeyAccessor,
+      ZmRBTreeUnique<true,
+	ZmRBTreeObject<ZmPolymorph,
+	  ZmRBTreeNodeDerive<true,
 	    ZmRBTreeLock<ZmPLock,
 	      ZmRBTreeHeapID<CliLink_HeapID>>>>>>>;
 using CliLink = CliLinks::Node;

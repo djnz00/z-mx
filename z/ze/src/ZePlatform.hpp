@@ -201,7 +201,7 @@ public:
 
 using ZeEvent_Queue =
   ZmList<ZmObject,
-    ZmListNodeIsItem<true,
+    ZmListNodeDerive<true,
       ZmListObject<ZmObject,
 	ZmListLock<ZmNoLock,
 	  ZmListHeapID<ZuNull> > > > >;

@@ -101,14 +101,14 @@ using ZmHashMgr_Tables =
 using ZmAnyHash = ZmHashMgr_Tables::Node;
 
 template <typename, typename> class ZmHash; 
-template <typename, typename, typename, bool> class ZmLHash_;
+template <typename, typename, typename, unsigned> class ZmLHash_;
 
 class ZmHashMgr_;
 class ZmAPI ZmHashMgr {
 friend ZmHashMgr_;
 friend ZmHashParams;
 template <typename, typename> friend class ZmHash; 
-template <typename, typename, typename, bool> friend class ZmLHash_;
+template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
   template <class S> struct CSV_ {
     CSV_(S &stream) : m_stream(stream) {

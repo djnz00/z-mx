@@ -803,7 +803,7 @@ void ZiMultiplex::allCxns(ZmFn<ZiConnection *> fn)
 void ZiMultiplex::allCxns_(ZmFn<ZiConnection *> fn)
 {
   auto i = m_cxns->readIterator();
-  while (ZmRef<ZiConnection> cxn = i.iterateKey())
+  while (ZmRef<ZiConnection> cxn = i.iterateVal())
     txRun([fn, cxn = ZuMv(cxn)]() { fn(cxn); });
 }
 
@@ -1683,7 +1683,7 @@ void ZiMultiplex::cxnDel(Socket s)
 
 bool ZiMultiplex::listenerAdd(Listener *listener, Socket s)
 {
-  m_listeners->add(listener);
+  m_listeners->addNode(listener);
 
 #ifdef ZiMultiplex_EPoll
   {
@@ -1716,7 +1716,7 @@ void ZiMultiplex::listenerDel(Socket s)
 #ifdef ZiMultiplex_EPoll
 bool ZiMultiplex::connectAdd(Connect *request, Socket s)
 {
-  m_connects->add(request);
+  m_connects->addNode(request);
 
   {
     struct epoll_event ev;
@@ -2047,7 +2047,7 @@ void ZiMultiplex::stop_1()
   if (!m_cxns->count_()) { stop_2(); return; }
 
   CxnHash::ReadIterator i(*m_cxns);
-  while (ZmRef<ZiConnection> cxn = i.iterateKey())
+  while (ZmRef<ZiConnection> cxn = i.iterateVal())
     cxn->disconnect();
 }
 

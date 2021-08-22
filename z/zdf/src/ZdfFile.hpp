@@ -61,10 +61,8 @@ struct File_ : public ZiFile {
 
   FileID	id;
 };
-struct File_IDAccessor : public ZuAccessor<File_, FileID> {
-  ZuInline static const FileID &value(const File_ &file) {
-    return file.id;
-  }
+struct File_IDAccessor {
+  static const FileID &get(const File_ &file) { return file.id; }
 };
 
 using FileLRU =

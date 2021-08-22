@@ -538,6 +538,7 @@ private:
   T	m_val;
 };
 
+// carefully constructed to permit unambiguous interop with primitive types
 template <typename T, typename Cmp>
 inline bool operator ==(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
   return l.equals(r);

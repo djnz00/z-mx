@@ -96,8 +96,8 @@ private:
 
 class Connection : public ZiConnection {
 public:
-  struct GroupIDAccessor : public ZuAccessor<Connection *, uint16_t> {
-    ZuInline static uint16_t value(const Connection *c) { return c->groupID(); }
+  struct GroupIDAccessor {
+    static uint16_t get(const Connection *c) { return c->groupID(); }
   };
 
   Connection(Dest *dest, const ZiConnectionInfo &ci);
@@ -125,8 +125,8 @@ public:
 class App : public ZmPolymorph {
   using Cxns =
     ZmHash<ZmRef<Connection>,
-      ZmHashObject<ZuNull,
-	ZmHashIndex<Connection::GroupIDAccessor> > >;
+      ZmHashKey<Connection::GroupIDAccessor,
+	ZmHashObject<ZuNull> > >;
 
 public:
   App(const ZvCf *cf);

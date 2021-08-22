@@ -341,7 +341,7 @@ friend ReadIterator;
   bool empty_() const { return !m_count; }
 
   template <typename P> void add(P &&data) { push(ZuFwd<P>(data)); }
-  void addNode(Node *node) { pushNode(node); }
+  template <typename P> void addNode(P &&node) { pushNode(ZuFwd<P>(node)); }
 
 private:
   template <typename U, typename V = Key>
@@ -504,10 +504,20 @@ public:
     pushNode(node);
     return node;
   }
-  void pushNode(Node *node) {
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> pushNode(NodeRef &&node_) {
+    Node *node;
+    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
     Guard guard(m_lock);
-
+    pushNode_(node);
+  }
+  void pushNode(Node *node) {
     nodeRef(node);
+    Guard guard(m_lock);
+    pushNode_(node);
+  }
+private:
+  void pushNode_(Node *node) {
     node->Fn::next = nullptr;
     node->Fn::prev = m_tail;
     if (!m_tail)
@@ -517,6 +527,7 @@ public:
     m_tail = node;
     ++m_count;
   }
+public:
   NodeRef popNode() {
     Guard guard(m_lock);
     Node *node;

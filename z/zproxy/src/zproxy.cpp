@@ -249,9 +249,7 @@ class Proxy : public ZmPolymorph {
 public:
   struct SrcPortAccessor;
 friend SrcPortAccessor;
-  struct SrcPortAccessor : public ZuAccessor<Proxy *, int> {
-    static unsigned value(Proxy *p);
-  };
+  struct SrcPortAccessor { static unsigned get(Proxy *p); };
 
   Proxy(Listener *listener);
   virtual ~Proxy() { }
@@ -322,10 +320,8 @@ class Listener : public ZmObject {
 public:
   struct LocalPortAccessor;
 friend LocalPortAccessor;
-  struct LocalPortAccessor : public ZuAccessor<Listener *, int> {
-    ZuInline static int value(Listener *listener) {
-      return listener->m_localPort;
-    }
+  struct LocalPortAccessor {
+    static int get(Listener *listener) { return listener->m_localPort; }
   };
 
   Listener(App *app, uint32_t cxnFlags,
@@ -487,12 +483,12 @@ class App : public ZmPolymorph, public ZvCmdHost {
 
   using ListenerHash =
     ZmHash<ZmRef<Listener>,
-      ZmHashIndex<Listener::LocalPortAccessor,
+      ZmHashKey<Listener::LocalPortAccessor,
 	ZmHashObject<ZuNull> > >;
 
   using ProxyHash =
     ZmHash<ZmRef<Proxy>,
-      ZmHashIndex<Proxy::SrcPortAccessor,
+      ZmHashKey<Proxy::SrcPortAccessor,
 	ZmHashObject<ZuNull> > >;
 
 public:
@@ -616,7 +612,7 @@ public:
     m_proxies->add(proxy);
   }
   void del(Proxy *proxy) {
-    delete m_proxies->del(Proxy::SrcPortAccessor::value(proxy));
+    delete m_proxies->del(Proxy::SrcPortAccessor::get(proxy));
   }
 
   int proxy(ZvCmdContext *ctx) {
@@ -1356,7 +1352,7 @@ void Connection::release()
   }
 }
 
-ZuInline unsigned Proxy::SrcPortAccessor::value(Proxy *proxy)
+unsigned Proxy::SrcPortAccessor::get(Proxy *proxy)
 {
   if (!proxy->m_out) return 0;
   return proxy->m_out->info().localPort;

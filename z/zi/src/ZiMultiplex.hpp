@@ -33,7 +33,6 @@
 #include <math.h>
 
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuIndex.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuLargest.hpp>
 #include <zlib/ZuArrayN.hpp>
@@ -107,48 +106,48 @@ struct ZiCxnInfo;
 #endif
 
 struct ZiIOContext {
-  ZuInline ZiIOContext() :
+  ZiIOContext() :
       cxn{nullptr}, ptr{0}, size{0}, offset{0}, length{0} { }
 
 friend ZiConnection;
 private:
   // initialize (called from within send/recv)
   template <typename Fn>
-  ZuInline void init_(Fn &&fn_) {
+  void init_(Fn &&fn_) {
     fn = ZuFwd<Fn>(fn_); ptr = 0; size = offset = length = 0; (*this)();
   }
 public:
   // send/receive
   template <typename Fn>
-  ZuInline void init(Fn &&fn_,
+  void init(Fn &&fn_,
       void *ptr_, unsigned size_, unsigned offset_) {
     ZmAssert(size_);
     fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
   }
   // UDP send
   template <typename Fn, typename Addr>
-  ZuInline void init(Fn &&fn_,
+  void init(Fn &&fn_,
       void *ptr_, unsigned size_, unsigned offset_, Addr &&addr_) {
     ZmAssert(size_);
     fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
     addr = ZuFwd<Addr>(addr_);
   }
   // initially, ptr will be null and app must set it via init()
-  ZuInline bool initialized() { return ptr; }
+  bool initialized() { return ptr; }
 
   // complete send/receive without disconnecting
-  ZuInline void complete() {
+  void complete() {
     fn = ZmAnyFn();
     ptr = 0;
   }
-  ZuInline bool completed() const { return !fn; }
+  bool completed() const { return !fn; }
 
   // complete send/receive and disconnect
-  ZuInline void disconnect() {
+  void disconnect() {
     fn = ZmAnyFn();
     ptr = (void *)(uintptr_t)-1;
   }
-  ZuInline bool disconnected() const { return ptr == (void *)(uintptr_t)-1; }
+  bool disconnected() const { return ptr == (void *)(uintptr_t)-1; }
 
   uintptr_t operator()();
 
@@ -169,55 +168,55 @@ using ZiFailFn = ZmFn<bool>;
 // multicast subscription request (IGMP Report)
 class ZiMReq : public ip_mreq {
 public:
-  ZuInline ZiMReq() {
+  ZiMReq() {
     new (&imr_multiaddr) ZiIP();
     new (&imr_interface) ZiIP();
   }
-  ZuInline ZiMReq(const ZiIP &addr, const ZiIP &mif) {
+  ZiMReq(const ZiIP &addr, const ZiIP &mif) {
     new (&imr_multiaddr) ZiIP(addr);
     new (&imr_interface) ZiIP(mif);
   }
 
-  ZuInline ZiMReq(const ZiMReq &m) {
+  ZiMReq(const ZiMReq &m) {
     addr() = m.addr(), mif() = m.mif();
   }
-  ZuInline ZiMReq &operator =(const ZiMReq &m) {
+  ZiMReq &operator =(const ZiMReq &m) {
     if (ZuLikely(this != &m))
       addr() = m.addr(), mif() = m.mif();
     return *this;
   }
 
-  ZuInline explicit ZiMReq(const struct ip_mreq &m) {
+  explicit ZiMReq(const struct ip_mreq &m) {
     addr() = m.imr_multiaddr, mif() = m.imr_interface;
   }
-  ZuInline ZiMReq &operator =(const struct ip_mreq &m) {
+  ZiMReq &operator =(const struct ip_mreq &m) {
     if ((const struct ip_mreq *)this != &m) 
       addr() = m.imr_multiaddr, mif() = m.imr_interface;
     return *this;
   }
 
-  ZuInline int cmp(const ZiMReq &m) const {
+  int cmp(const ZiMReq &m) const {
     int r;
     if (r = addr().cmp(m.addr())) return r;
     return mif().cmp(m.mif());
   }
-  ZuInline bool less(const ZiMReq &m) const {
+  bool less(const ZiMReq &m) const {
     return addr() <= m.addr() && mif() < m.mif();
   }
-  ZuInline bool equals(const ZiMReq &m) const {
+  bool equals(const ZiMReq &m) const {
     return addr() == m.addr() && mif() == m.mif();
   }
-  ZuInline bool operator ==(const ZiMReq &m) const { return equals(m); }
-  ZuInline bool operator !=(const ZiMReq &m) const { return !equals(m); }
-  ZuInline bool operator >(const ZiMReq &m) const { return m.less(*this); }
-  ZuInline bool operator >=(const ZiMReq &m) const { return !less(m); }
-  ZuInline bool operator <(const ZiMReq &m) const { return less(m); }
-  ZuInline bool operator <=(const ZiMReq &m) const { return !m.less(*this); }
+  bool operator ==(const ZiMReq &m) const { return equals(m); }
+  bool operator !=(const ZiMReq &m) const { return !equals(m); }
+  bool operator >(const ZiMReq &m) const { return m.less(*this); }
+  bool operator >=(const ZiMReq &m) const { return !less(m); }
+  bool operator <(const ZiMReq &m) const { return less(m); }
+  bool operator <=(const ZiMReq &m) const { return !m.less(*this); }
 
-  ZuInline bool operator !() const { return !addr() && !mif(); }
+  bool operator !() const { return !addr() && !mif(); }
   ZuOpBool
 
-  ZuInline uint32_t hash() const {
+  uint32_t hash() const {
     return addr().hash() ^ mif().hash();
   }
 
@@ -225,10 +224,10 @@ public:
     s << addr() << "->" << mif();
   }
 
-  ZuInline const ZiIP &addr() const { return *(const ZiIP *)&imr_multiaddr; }
-  ZuInline ZiIP &addr() { return *(ZiIP *)&imr_multiaddr; }
-  ZuInline const ZiIP &mif() const { return *(const ZiIP *)&imr_interface; }
-  ZuInline ZiIP &mif() { return *(ZiIP *)&imr_interface; }
+  const ZiIP &addr() const { return *(const ZiIP *)&imr_multiaddr; }
+  ZiIP &addr() { return *(ZiIP *)&imr_multiaddr; }
+  const ZiIP &mif() const { return *(const ZiIP *)&imr_interface; }
+  ZiIP &mif() { return *(ZiIP *)&imr_interface; }
 
   struct Traits : public ZuBaseTraits<ZiMReq> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZiMReq *);
@@ -261,9 +260,9 @@ class ZiCxnOptions {
 #endif
 
 public:
-  ZuInline ZiCxnOptions() : m_flags(0), m_ttl(0) { } // Default is TCP
+  ZiCxnOptions() : m_flags(0), m_ttl(0) { } // Default is TCP
 
-  ZuInline ZiCxnOptions(const ZiCxnOptions &o) :
+  ZiCxnOptions(const ZiCxnOptions &o) :
       m_flags(o.m_flags),
       m_mreqs(o.m_mreqs),
       m_mif(o.m_mif),
@@ -273,7 +272,7 @@ public:
 #endif
       { }
 
-  ZuInline ZiCxnOptions(ZiCxnOptions &&o) :
+  ZiCxnOptions(ZiCxnOptions &&o) :
       m_flags(ZuMv(o.m_flags)),
       m_mreqs(ZuMv(o.m_mreqs)),
       m_mif(ZuMv(o.m_mif)),
@@ -283,7 +282,7 @@ public:
 #endif
       { }
 
-  ZuInline ZiCxnOptions &operator =(const ZiCxnOptions &o) {
+  ZiCxnOptions &operator =(const ZiCxnOptions &o) {
     if (ZuLikely(this != &o)) {
       m_flags = o.m_flags;
       m_mreqs = o.m_mreqs;
@@ -296,7 +295,7 @@ public:
     return *this;
   }
 
-  ZuInline ZiCxnOptions &operator =(ZiCxnOptions &&o) {
+  ZiCxnOptions &operator =(ZiCxnOptions &&o) {
     if (ZuLikely(this != &o)) {
       m_flags = ZuMv(o.m_flags);
       m_mreqs = ZuMv(o.m_mreqs);
@@ -309,87 +308,87 @@ public:
     return *this;
   }
 
-  ZuInline uint32_t flags() const { return m_flags; }
-  ZuInline ZiCxnOptions &flags(uint32_t flags) {
+  uint32_t flags() const { return m_flags; }
+  ZiCxnOptions &flags(uint32_t flags) {
     m_flags = flags;
     return *this;
   }
-  ZuInline bool udp() const {
+  bool udp() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<UDP);
   }
-  ZuInline ZiCxnOptions &udp(bool b) {
+  ZiCxnOptions &udp(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<UDP)) : (m_flags &= ~(1<<UDP));
     return *this;
   }
-  ZuInline bool multicast() const {
+  bool multicast() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<Multicast);
   }
-  ZuInline ZiCxnOptions &multicast(bool b) {
+  ZiCxnOptions &multicast(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<Multicast)) : (m_flags &= ~(1<<Multicast));
     return *this;
   }
-  ZuInline bool loopBack() const {
+  bool loopBack() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<LoopBack);
   }
-  ZuInline ZiCxnOptions &loopBack(bool b) {
+  ZiCxnOptions &loopBack(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<LoopBack)) : (m_flags &= ~(1<<LoopBack));
     return *this;
   }
-  ZuInline bool keepAlive() const {
+  bool keepAlive() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<KeepAlive);
   }
-  ZuInline ZiCxnOptions &keepAlive(bool b) {
+  ZiCxnOptions &keepAlive(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<KeepAlive)) : (m_flags &= ~(1<<KeepAlive));
     return *this;
   }
-  ZuInline const MReqs &mreqs() const {
+  const MReqs &mreqs() const {
     return m_mreqs;
   }
-  ZuInline void mreq(const ZiMReq &mreq) { m_mreqs.push(mreq); }
-  ZuInline const ZiIP &mif() const { return m_mif; }
-  ZuInline ZiCxnOptions &mif(ZiIP ip) {
+  void mreq(const ZiMReq &mreq) { m_mreqs.push(mreq); }
+  const ZiIP &mif() const { return m_mif; }
+  ZiCxnOptions &mif(ZiIP ip) {
     m_mif = ip;
     return *this;
   }
-  ZuInline const unsigned &ttl() const { return m_ttl; }
-  ZuInline ZiCxnOptions &ttl(unsigned i) {
+  const unsigned &ttl() const { return m_ttl; }
+  ZiCxnOptions &ttl(unsigned i) {
     m_ttl = i;
     return *this;
   }
 #ifdef ZiMultiplex_Netlink
-  ZuInline bool netlink() const {
+  bool netlink() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<NetLink);
   }
-  ZuInline ZiCxnOptions &netlink(bool b) {
+  ZiCxnOptions &netlink(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<NetLink)) : (m_flags &= ~(1<<NetLink));
     return *this;
   }
-  ZuInline const ZuStringN &familyName() const { return m_familyName; }
-  ZuInline ZiCxnOptions &familyName(ZuString s) {
+  const ZuStringN &familyName() const { return m_familyName; }
+  ZiCxnOptions &familyName(ZuString s) {
     m_familyName = s;
     return *this;
   }
 #else
-  ZuInline bool netlink() const { return false; }
-  ZuInline ZiCxnOptions &netlink(bool) { return *this; }
-  ZuInline ZuString familyName() const { return ZuString{}; }
-  ZuInline ZiCxnOptions &familyName(ZuString) { return *this; }
+  bool netlink() const { return false; }
+  ZiCxnOptions &netlink(bool) { return *this; }
+  ZuString familyName() const { return ZuString{}; }
+  ZiCxnOptions &familyName(ZuString) { return *this; }
 #endif
-  ZuInline bool nagle() const {
+  bool nagle() const {
     using namespace ZiCxnFlags;
     return m_flags & (1<<Nagle);
   }
-  ZuInline ZiCxnOptions &nagle(bool b) {
+  ZiCxnOptions &nagle(bool b) {
     using namespace ZiCxnFlags;
     b ? (m_flags |= (1<<Nagle)) : (m_flags &= ~(1<<Nagle));
     return *this;
@@ -407,10 +406,10 @@ public:
     if (i = m_mif.cmp(o.m_mif)) return i;
     return ZuBoxed(m_ttl).cmp(o.m_ttl);
   }
-  ZuInline bool less(const ZiCxnOptions &o) const {
+  bool less(const ZiCxnOptions &o) const {
     return cmp(o) < 0;
   }
-  ZuInline bool equals(const ZiCxnOptions &o) const {
+  bool equals(const ZiCxnOptions &o) const {
     using namespace ZiCxnFlags;
     if (m_flags != o.m_flags) return false;
 #ifdef ZiMultiplex_Netlink
@@ -430,8 +429,8 @@ public:
     return code ^ m_mreqs.hash() ^ m_mif.hash() ^ ZuBoxed(m_ttl).hash();
   }
 
-  ZuInline bool operator ==(const ZiCxnOptions &o) const { return equals(o); }
-  ZuInline bool operator !=(const ZiCxnOptions &o) const { return !equals(o); }
+  bool operator ==(const ZiCxnOptions &o) const { return equals(o); }
+  bool operator !=(const ZiCxnOptions &o) const { return !equals(o); }
 
   template <typename S> void print(S &s) const {
     using namespace ZiCxnFlags;
@@ -544,11 +543,11 @@ class Zi_Overlapped {
 public:
   using Executed = ZmFn<int, unsigned, ZeError>;
 
-  ZuInline Zi_Overlapped() { }
-  ZuInline ~Zi_Overlapped() { }
+  Zi_Overlapped() { }
+  ~Zi_Overlapped() { }
 
   template <typename Executed>
-  ZuInline void init(Executed &&executed) {
+  void init(Executed &&executed) {
     memset(&m_wsaOverlapped, 0, sizeof(WSAOVERLAPPED));
     m_executed = ZuFwd<Executed>(executed);
   }
@@ -579,10 +578,8 @@ public:
   // index on socket
   struct SocketAccessor;
 friend SocketAccessor;
-  struct SocketAccessor : public ZuAccessor<ZiConnection *, Socket> {
-    ZuInline static Socket value(const ZiConnection *c) {
-      return c->info().socket;
-    }
+  struct SocketAccessor {
+    static Socket get(const ZiConnection *c) { return c->info().socket; }
   };
 
 protected:
@@ -607,12 +604,12 @@ public:
   virtual void connected(ZiIOContext &rxContext) = 0;
   virtual void disconnected() = 0;
 
-  ZuInline bool up() const {
+  bool up() const {
     return m_rxUp && m_txUp; // unclean read
   }
 
-  ZuInline ZiMultiplex *mx() const { return m_mx; }
-  ZuInline const ZiCxnInfo &info() const { return m_info; }
+  ZiMultiplex *mx() const { return m_mx; }
+  const ZiCxnInfo &info() const { return m_info; }
 
   void telemetry(ZiCxnTelemetry &data) const;
 
@@ -812,23 +809,21 @@ friend ZiConnection;
   public:
     struct SocketAccessor;
   friend SocketAccessor;
-    struct SocketAccessor : public ZuAccessor<Listener_ *, Socket> {
-      ZuInline static Socket value(const Listener_ &l) {
-	return l.info().socket;
-      }
+    struct SocketAccessor {
+      static Socket get(const Listener_ &l) { return l.info().socket; }
     };
 
   protected:
-    template <typename ...Args> ZuInline Listener_(ZiMultiplex *mx,
+    template <typename ...Args> Listener_(ZiMultiplex *mx,
 	ZiConnectFn acceptFn, Args &&... args) :
       m_mx(mx), m_acceptFn(acceptFn), m_up(1),
       m_info{ZuFwd<Args>(args)...} { }
 
   private:
-    ZuInline const ZiConnectFn &acceptFn() const { return m_acceptFn; }
-    ZuInline bool up() const { return m_up; }
-    ZuInline void down() { m_up = 0; }
-    ZuInline const ZiListenInfo &info() const { return m_info; }
+    const ZiConnectFn &acceptFn() const { return m_acceptFn; }
+    bool up() const { return m_up; }
+    void down() { m_up = 0; }
+    const ZiListenInfo &info() const { return m_info; }
 
     ZiMultiplex		*m_mx;
     ZiConnectFn		m_acceptFn;
@@ -840,10 +835,10 @@ friend ZiConnection;
   };
   using ListenerHash =
     ZmHash<Listener_,
-      ZmHashNodeIsKey<true,
-	ZmHashIndex<Listener_::SocketAccessor,
-	  ZmHashLock<ZmNoLock,
-	    ZmHashObject<ZuObject,
+      ZmHashKey<Listener_::SocketAccessor,
+	ZmHashObject<ZuObject,
+	  ZmHashNodeDerive<true,
+	    ZmHashLock<ZmNoLock,
 	      ZmHashHeapID<Listener_HeapID> > > > > >;
   using Listener = ListenerHash::Node;
 
@@ -862,10 +857,10 @@ template <typename> friend class Accept_;
 	  Zi_Overlapped::Executed::Member<&Accept_::executed>::fn(this));
     }
 
-    ZuInline ZmRef<Listener> listener() const { return m_listener; }
-    ZuInline ZiCxnInfo &info() { return m_info; }
-    ZuInline Zi_Overlapped &overlapped() { return m_overlapped; }
-    ZuInline void *buf() { return (void *)&m_buf[0]; }
+    ZmRef<Listener> listener() const { return m_listener; }
+    ZiCxnInfo &info() { return m_info; }
+    Zi_Overlapped &overlapped() { return m_overlapped; }
+    void *buf() { return (void *)&m_buf[0]; }
 
     void executed(int status, unsigned n, ZeError e) {
       m_listener->m_mx->overlappedAccept(this, status, n, e);
@@ -901,15 +896,13 @@ template <typename> friend class Connect_;
   public:
     struct SocketAccessor;
   friend SocketAccessor;
-    struct SocketAccessor : public ZuAccessor<Connect_ *, Socket> {
-      ZuInline static Socket value(const Connect_ &c) {
-	return c.info().socket;
-      }
+    struct SocketAccessor {
+      static Socket get(const Connect_ &c) { return c.info().socket; }
     };
 #endif
 
   protected:
-    template <typename ...Args> ZuInline Connect_(
+    template <typename ...Args> Connect_(
 	ZiMultiplex *mx, ZiConnectFn fn, ZiFailFn failFn, Args &&... args) :
       m_mx(mx), m_fn(fn), m_failFn(failFn), m_info{ZuFwd<Args>(args)...} {
 #ifdef ZiMultiplex_IOCP
@@ -919,16 +912,16 @@ template <typename> friend class Connect_;
     }
 
   private:
-    ZuInline void fail(bool transient) { m_failFn(transient); }
+    void fail(bool transient) { m_failFn(transient); }
 
-    ZuInline const ZiConnectFn &fn() const { return m_fn; }
-    ZuInline const ZiCxnInfo &info() const { return m_info; }
-    ZuInline ZiCxnInfo &info() { return m_info; }
+    const ZiConnectFn &fn() const { return m_fn; }
+    const ZiCxnInfo &info() const { return m_info; }
+    ZiCxnInfo &info() { return m_info; }
 
 #ifdef ZiMultiplex_IOCP
-    ZuInline Zi_Overlapped &overlapped() { return m_overlapped; }
+    Zi_Overlapped &overlapped() { return m_overlapped; }
 
-    ZuInline void executed(int status, unsigned n, ZeError e) {
+    void executed(int status, unsigned n, ZeError e) {
       m_mx->overlappedConnect(this, status, n, e);
       delete this;
     }
@@ -948,10 +941,10 @@ template <typename> friend class Connect_;
 #if ZiMultiplex__ConnectHash
   using ConnectHash =
     ZmHash<Connect_,
-      ZmHashNodeIsKey<true,
-	ZmHashIndex<Connect_::SocketAccessor,
-	  ZmHashLock<ZmNoLock,
-	    ZmHashObject<ZuObject,
+      ZmHashKey<Connect_::SocketAccessor,
+	ZmHashObject<ZuObject,
+	  ZmHashNodeDerive<true,
+	    ZmHashLock<ZmNoLock,
 	      ZmHashHeapID<Connect_HeapID> > > > > >;
   using Connect = ConnectHash::Node;
 #else
@@ -964,9 +957,9 @@ template <typename> friend class Connect_;
   };
   using CxnHash =
     ZmHash<ZmRef<ZiConnection>,
-      ZmHashIndex<ZiConnection::SocketAccessor,
-	ZmHashLock<ZmNoLock,
-	  ZmHashObject<ZuNull,
+      ZmHashKey<ZiConnection::SocketAccessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmNoLock,
 	    ZmHashHeapID<CxnHash_HeapID> > > > >;
 
   using StateLock = ZmLock;
@@ -1023,61 +1016,61 @@ public:
       ZiIP remoteIP, uint16_t remotePort,
       ZiCxnOptions options = ZiCxnOptions());
 
-  ZuInline unsigned rxThread() const { return m_rxThread; }
-  ZuInline unsigned txThread() const { return m_txThread; }
+  unsigned rxThread() const { return m_rxThread; }
+  unsigned txThread() const { return m_txThread; }
 
-  template <typename ...Args> ZuInline void rxRun(Args &&... args) {
+  template <typename ...Args> void rxRun(Args &&... args) {
     run(m_rxThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> ZuInline void rxInvoke(Args &&... args) {
+  template <typename ...Args> void rxInvoke(Args &&... args) {
     invoke(m_rxThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> ZuInline void txRun(Args &&... args) {
+  template <typename ...Args> void txRun(Args &&... args) {
     run(m_txThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> ZuInline void txInvoke(Args &&... args) {
+  template <typename ...Args> void txInvoke(Args &&... args) {
     invoke(m_txThread, ZuFwd<Args>(args)...);
   }
 
 #ifdef ZiMultiplex_DEBUG
-  ZuInline bool trace() const { return m_trace; }
-  ZuInline void trace(bool b) { m_trace = b; }
-  ZuInline bool debug() const { return m_debug; }
-  ZuInline void debug(bool b) { m_debug = b; }
-  ZuInline bool frag() const { return m_frag; }
-  ZuInline void frag(bool b) { m_frag = b; }
-  ZuInline bool yield() const { return m_yield; }
-  ZuInline void yield(bool b) { m_yield = b; }
+  bool trace() const { return m_trace; }
+  void trace(bool b) { m_trace = b; }
+  bool debug() const { return m_debug; }
+  void debug(bool b) { m_debug = b; }
+  bool frag() const { return m_frag; }
+  void frag(bool b) { m_frag = b; }
+  bool yield() const { return m_yield; }
+  void yield(bool b) { m_yield = b; }
 #else
-  ZuInline void debugWarning(const char *fn) {
+  void debugWarning(const char *fn) {
     ZeLOG(Warning,
 	ZtSprintf("ZiMultiplex::%s(true) called while "
 	  "ZiMultiplex_DEBUG undefined", fn));
   }
-  ZuInline bool trace() const { return false; }
-  ZuInline void trace(bool b) { if (b) debugWarning("debug"); }
-  ZuInline bool debug() const { return false; }
-  ZuInline void debug(bool b) { if (b) debugWarning("debug"); }
-  ZuInline bool frag() const { return false; }
-  ZuInline void frag(bool b) { if (b) debugWarning("frag"); }
-  ZuInline bool yield() const { return false; }
-  ZuInline void yield(bool b) { if (b) debugWarning("yield"); }
+  bool trace() const { return false; }
+  void trace(bool b) { if (b) debugWarning("debug"); }
+  bool debug() const { return false; }
+  void debug(bool b) { if (b) debugWarning("debug"); }
+  bool frag() const { return false; }
+  void frag(bool b) { if (b) debugWarning("frag"); }
+  bool yield() const { return false; }
+  void yield(bool b) { if (b) debugWarning("yield"); }
 #endif
 
 #ifdef ZiMultiplex_EPoll
-  ZuInline unsigned epollMaxFDs() const { return m_epollMaxFDs; }
-  ZuInline unsigned epollQuantum() const { return m_epollQuantum; }
+  unsigned epollMaxFDs() const { return m_epollMaxFDs; }
+  unsigned epollQuantum() const { return m_epollQuantum; }
 #endif
-  ZuInline unsigned rxBufSize() const { return m_rxBufSize; }
-  ZuInline unsigned txBufSize() const { return m_txBufSize; }
+  unsigned rxBufSize() const { return m_rxBufSize; }
+  unsigned txBufSize() const { return m_txBufSize; }
 
   void telemetry(ZiMxTelemetry &data) const;
 
 private:
   void drain();			// prevents mis-use of ZmScheduler::drain
 
-  ZuInline void busy() { ZmScheduler::busy(); }
-  ZuInline void idle() { ZmScheduler::idle(); }
+  void busy() { ZmScheduler::busy(); }
+  void idle() { ZmScheduler::idle(); }
 
   void rx();			// handle I/O completions (IOCP) or
   				// readiness notifications (epoll, ports, etc.)

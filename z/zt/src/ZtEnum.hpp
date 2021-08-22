@@ -50,7 +50,7 @@ using ZtEnum = ZuBox_1(int8_t);
   inline ZuPair<const char *const *const, unsigned> names() { \
     static const char *names[] = { __VA_ARGS__ }; \
     return ZuPair<const char *const *const, unsigned>( \
-	names, sizeof(names) / sizeof(names[0])); \
+	names, static_cast<unsigned>(sizeof(names) / sizeof(names[0]))); \
   } \
   inline const char *name(int i) { \
     ZuPair<const char *const *const, unsigned> names_ = names(); \
@@ -75,15 +75,13 @@ using ZtEnum = ZuBox_1(int8_t);
   template <typename T> struct Map_ : public ZuObject { \
   private: \
     using V2S = \
-      ZmLHash<ZtEnum, \
-	ZmLHashVal<ZuString, \
-	  ZmLHashStatic<Bits, \
-	    ZmLHashLock<ZmNoLock> > > >; \
+      ZmLHashKV<ZtEnum, ZuString, \
+	ZmLHashStatic<Bits, \
+	  ZmLHashLock<ZmNoLock> > >; \
     using S2V = \
-      ZmLHash<ZuString, \
-	ZmLHashVal<ZtEnum, \
-	  ZmLHashStatic<Bits, \
-	    ZmLHashLock<ZmNoLock> > > >; \
+      ZmLHashKV<ZuString, ZtEnum, \
+	ZmLHashStatic<Bits, \
+	  ZmLHashLock<ZmNoLock> > >; \
   protected: \
     void init(const char *s, int v, ...) { \
       if (ZuUnlikely(!s)) return; \
@@ -101,10 +99,12 @@ using ZtEnum = ZuBox_1(int8_t);
     ZuString v2s_(ZtEnum v) const { return m_v2s->findVal(v); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v->readIterator(); \
-      while (auto kv = i.iterate()) { l(kv->key(), kv->val()); } \
+      while (auto kv = i.iterate()) { \
+	l(kv->template p<0>(), kv->template p<1>()); \
+      } \
     } \
   public: \
-    Map_() { m_s2v = new S2V(); m_v2s = new V2S(); } \
+    Map_() { m_s2v = new S2V{}; m_v2s = new V2S{}; } \
     static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
     static ZuString v2s(ZtEnum v) { return instance()->v2s_(v); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \

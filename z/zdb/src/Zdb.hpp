@@ -143,16 +143,14 @@ private:
 
 ZuFields(Zdb_File_, (RdFn, index));
 
-struct Zdb_File_IndexAccessor : public ZuAccessor<Zdb_File_, unsigned> {
-  static unsigned value(const Zdb_File_ &file) {
-    return file.index();
-  }
+struct Zdb_File_IndexAccessor {
+  static unsigned get(const Zdb_File_ &file) { return file.index(); }
 };
 
 using Zdb_FileLRU =
   ZmList<Zdb_File_,
     ZmListObject<ZuShadow,
-      ZmListNodeIsItem<true,
+      ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
 using Zdb_FileLRUNode = Zdb_FileLRU::Node;
@@ -162,9 +160,9 @@ struct Zdb_FileHeapID {
 };
 using Zdb_FileHash =
   ZmHash<Zdb_FileLRUNode,
-    ZmHashObject<ZmObject,
-      ZmHashNodeIsKey<true,
-	ZmHashIndex<Zdb_File_IndexAccessor,
+    ZmHashKey<Zdb_File_IndexAccessor,
+      ZmHashObject<ZmObject,
+	ZmHashNodeDerive<true,
 	  ZmHashHeapID<Zdb_FileHeapID,
 	    ZmHashLock<ZmNoLock> > > > > >;
 using Zdb_File = Zdb_FileHash::Node;
@@ -203,13 +201,13 @@ struct ZdbLRU_ { };
 using ZdbLRU =
   ZmList<ZdbLRU_,
     ZmListObject<ZuShadow,
-      ZmListNodeIsItem<true,
+      ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
 using ZdbLRUNode = ZdbLRU::Node;
 
-struct ZdbLRUNode_RNAccessor : public ZuAccessor<ZdbLRUNode, ZdbRN> {
-  static ZdbRN value(const ZdbLRUNode &pod);
+struct ZdbLRUNode_RNAccessor {
+  static ZdbRN get(const ZdbLRUNode &pod);
 };
 
 struct Zdb_Cache_ID {
@@ -218,9 +216,9 @@ struct Zdb_Cache_ID {
 
 using Zdb_Cache =
   ZmHash<ZdbLRUNode,
-    ZmHashObject<ZmPolymorph,
-      ZmHashNodeIsKey<true,
-	ZmHashIndex<ZdbLRUNode_RNAccessor,
+    ZmHashKey<ZdbLRUNode_RNAccessor,
+      ZmHashObject<ZmPolymorph,
+	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
 	    ZmHashID<Zdb_Cache_ID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
@@ -342,7 +340,7 @@ private:
   bool			m_pinned = false;
 };
 
-ZdbRN ZdbLRUNode_RNAccessor::value(const ZdbLRUNode &pod)
+ZdbRN ZdbLRUNode_RNAccessor::get(const ZdbLRUNode &pod)
 {
   return static_cast<const ZdbAnyPOD &>(pod).rn();
 }
@@ -470,8 +468,8 @@ friend ZdbAnyPOD;
 
   struct IDAccessor;
 friend IDAccessor;
-  struct IDAccessor : public ZuAccessor<ZdbAny *, ZdbID> {
-    static ZdbID value(const ZdbAny *db) { return db->m_id; }
+  struct IDAccessor {
+    static ZdbID get(const ZdbAny *db) { return db->m_id; }
   };
 
   using Cache = Zdb_Cache;
@@ -694,8 +692,8 @@ friend Zdb_Cxn;
 
   struct IDAccessor;
 friend IDAccessor;
-  struct IDAccessor : public ZuAccessor<ZdbHost *, int> {
-    static int value(ZdbHost *h) { return h->id(); }
+  struct IDAccessor {
+    static int get(ZdbHost *h) { return h->id(); }
   };
 
   ZdbHost(ZdbEnv *env, const ZdbHostConfig *config);
@@ -926,7 +924,7 @@ friend ZdbAnyPOD_Send__;
   };
   using HostTree =
     ZmRBTree<ZmRef<ZdbHost>,
-      ZmRBTreeIndex<ZdbHost::IDAccessor,
+      ZmRBTreeKey<ZdbHost::IDAccessor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmNoLock,

@@ -333,7 +333,7 @@ private:
   using NodePolicy::nodeDeref;
   using NodePolicy::nodeDelete;
 
-  static const Key &key(Node *node) {
+  static const Key &key(const Node *node) {
     if (ZuLikely(node)) return node->Node::key();
     return Cmp::null();
   }
@@ -345,7 +345,7 @@ private:
     }
     return Cmp::null();
   }
-  static const Val &val(Node *node) {
+  static const Val &val(const Node *node) {
     if (ZuLikely(node)) return node->Node::val();
     return ValCmp::null();
   }
@@ -568,8 +568,17 @@ public:
   NodeRef add(P0 &&p0, P1 &&p1) {
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> addNode(NodeRef &&node_) {
+    Node *node;
+    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
+    uint32_t code = HashFn::hash(node->Node::key());
+    Guard guard(lockCode(code));
+    addNode_(node, code);
+  }
   void addNode(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
+    nodeRef(node);
     Guard guard(lockCode(code));
     addNode_(node, code);
   }
@@ -593,7 +602,6 @@ private:
 
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
-    nodeRef(node);
     node->Fn::next = m_table[slot];
     m_table[slot] = ZuMv(node);
     m_count.store_(count + 1);

@@ -97,8 +97,8 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       using namespace Zfb::Load; \
       return LoadFn(o_->ID()); \
     } \
-    template <typename = ZuIfT<!Base::ReadOnly>> \
-    static void load(O &o, const FBS *o_) { \
+    template <bool _ = !Base::ReadOnly> \
+    static ZuIfT<_> load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
   };
@@ -120,8 +120,8 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       auto v = o_->ID(); \
       return LoadFn(v); \
     } \
-    template <typename = ZuIfT<!Base::ReadOnly>> \
-    static void load(O &o, const FBS *o_) { \
+    template <bool _ = !Base::ReadOnly> \
+    static ZuIfT<_> load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
   };
@@ -138,8 +138,8 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       fbb.add_##ID(static_cast<P>(Base::get(o))); \
     } \
     static decltype(auto) load_(const FBS *o_) { return o_->ID(); } \
-    template <typename = ZuIfT<!Base::ReadOnly>> \
-    static void load(O &o, const FBS *o_) { \
+    template <bool _ = !Base::ReadOnly> \
+    static ZuIfT<_> load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
   };
