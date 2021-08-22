@@ -40,6 +40,7 @@
 #include <zlib/ZmBitmap.hpp>
 #include <zlib/ZmSpecific.hpp>
 #include <zlib/ZmPLock.hpp>
+#include <zlib/ZmGuard.hpp>
 #include <zlib/ZmFn_.hpp>
 
 #if defined(ZDEBUG) && !defined(ZmHeap_DEBUG)
@@ -105,20 +106,20 @@ template <class, unsigned> friend class ZmHeapCacheT;
   using StatsFn = ZmFn<const ZmHeapStats &>;
   using AllStatsFn = ZmFn<StatsFn>;
 
-  struct IDAccessor {
+  struct IDAxor {
     static const char *get(const ZmHeapCache *c) {
       return c->info().id;
     }
   };
-  using IDSize = ZuTuple<const char *, unsigned>;
-  struct IDSizeAccessor {
-    static IDSize value(const ZmHeapCache *c) {
+  using IDSize = ZuPair<const char *, unsigned>;
+  struct IDSizeAxor {
+    static IDSize get(const ZmHeapCache *c) {
       return {c->info().id, c->info().size};
     }
   };
   using IDPartSize = ZuTuple<const char *, unsigned, unsigned>;
-  struct IDPartSizeAccessor {
-    static IDPartSize value(const ZmHeapCache *c) {
+  struct IDPartSizeAxor {
+    static IDPartSize get(const ZmHeapCache *c) {
       return {c->info().id, c->info().partition, c->info().size};
     }
   };

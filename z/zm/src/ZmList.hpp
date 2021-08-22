@@ -38,6 +38,7 @@
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmObject.hpp>
+#include <zlib/ZmAssert.hpp>
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
@@ -50,7 +51,9 @@
 
 struct ZmList_Defaults {
   using KeyAxor = ZuDefaultAxor;
+  using ValAxor = ZuDefaultAxor;
   template <typename T> using CmpT = ZuCmp<T>;
+  template <typename T> using ValCmpT = ZuCmp<T>;
   enum { NodeDerive = 0 };
   using Lock = ZmLock;
   using Object = ZmObject;
@@ -61,6 +64,15 @@ struct ZmList_Defaults {
 template <typename KeyAxor_, typename NTP = ZmList_Defaults>
 struct ZmListKey : public NTP {
   using KeyAxor = KeyAxor_;
+};
+
+// ZmListKeyVal - key and optional value accessors
+template <
+  typename KeyAxor_, typename ValAxor_,
+  typename NTP = ZmList_Defaults>
+struct ZmListKeyVal : public NTP {
+  using KeyAxor = KeyAxor_;
+  using ValAxor = ValAxor_;
 };
 
 // ZmListCmp - the comparator
@@ -100,8 +112,11 @@ class ZmList : public ZmNodePolicy<typename NTP::Object> {
 public:
   using T = T_;
   using KeyAxor = typename NTP::KeyAxor;
+  using ValAxor = typename NTP::ValAxor;
   using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
+  using ValCmp = typename NTP::template ValCmpT<Val>;
   enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
   using Object = typename NodePolicy::Object;
@@ -122,14 +137,14 @@ public:
       public ZuIf<
 	ZuConversion<ZuNull, Object>::Is ||
 	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeDerive && ZuConversion<Object, Item>::Is),
+	(NodeDerive && ZuConversion<Object, T>::Is),
 	NullObject, Object>,
       public Heap {
     NodeFn(const NodeFn &);
     NodeFn &operator =(const NodeFn &);	// prevent mis-use
 
-  friend ZmList<Item, NTP>;
-  friend ZmList<Item, NTP>::Iterator_;
+  friend ZmList<T, NTP>;
+  friend ZmList<T, NTP>::Iterator_;
 
   protected:
     NodeFn() { init(); }
@@ -141,13 +156,13 @@ public:
   };
 
   template <typename Heap>
-  using Node_ = ZmNode<Heap, NodeDerive, NodeFn, Item>;
+  using Node_ = ZmNode<T, KeyAxor, ValAxor, Heap, NodeDerive, NodeFn>;
   struct NullHeap { }; // deconflict with ZuNull
   using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
   using Node = Node_<NodeHeap>;
   using Fn = typename Node::Fn;
 
-  using NodeRef = typename NodePolicy::template Ref<Node>::T;
+  using NodeRef = typename NodePolicy::template Ref<Node>;
 
 private:
   using NodePolicy::nodeRef;
@@ -184,7 +199,7 @@ protected:
     Iterator_(const Iterator_ &) = delete;
     Iterator_ &operator =(const Iterator_ &) = delete;
 
-    using List = ZmList<Item, NTP>;
+    using List = ZmList<T, NTP>;
   friend List;
 
   protected:
@@ -200,9 +215,9 @@ protected:
 
     Node *iterateNode() { return m_list.iterate(*this); }
 
-    const Item &iterate() {
+    const T &iterate() {
       Node *node = m_list.iterate(*this);
-      if (ZuLikely(node)) return node->Node::item();
+      if (ZuLikely(node)) return node->Node::data();
       return Cmp::null();
     }
 
@@ -220,7 +235,7 @@ friend Iterator;
     Iterator(const Iterator &) = delete;
     Iterator &operator =(const Iterator &) = delete;
 
-    using List = ZmList<Item, NTP>;
+    using List = ZmList<T, NTP>;
 
   public:
     Iterator(Iterator &&) = default;
@@ -253,7 +268,7 @@ friend ReadIterator;
     ReadIterator(const ReadIterator &) = delete;
     ReadIterator &operator =(const ReadIterator &) = delete;
 
-    using List = ZmList<Item, NTP>;
+    using List = ZmList<T, NTP>;
 
   public:
     ReadIterator(ReadIterator &&) = default;
@@ -325,9 +340,8 @@ friend ReadIterator;
   unsigned count_() const { return m_count; }
   bool empty_() const { return !m_count; }
 
-  template <typename P> void add(P &&data) {
-    push(ZuFwd<P>(data));
-  }
+  template <typename P> void add(P &&data) { push(ZuFwd<P>(data)); }
+  void addNode(Node *node) { pushNode(node); }
 
 private:
   template <typename U, typename V = Key>
@@ -344,13 +358,13 @@ private:
   using MatchData = ZuIfT<IsData<U>::OK, R>;
 
   template <typename P>
-  auto matchKey(const P &key) {
+  static auto matchKey(const P &key) {
     return [&key](Node *node) -> bool {
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
-  auto matchData(const P &data) {
+  static auto matchData(const P &data) {
     return [&data](Node *node) -> bool {
       return node->Node::data() == data;
     };
@@ -364,6 +378,10 @@ public:
   template <typename P>
   MatchData<P, NodeRef> find(const P &data) {
     return find_(matchData(data));
+  }
+  template <typename P0, typename P1>
+  NodeRef find(P0 &&p0, P1 &&p1) {
+    return find(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
   template <typename P>
@@ -383,6 +401,10 @@ public:
   MatchData<P, Key> findKey(const P &data) {
     return key(find_(matchData(data)));
   }
+  template <typename P0, typename P1>
+  Key findKey(P0 &&p0, P1 &&p1) {
+    return findKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
   MatchKey<P, Val> findVal(const P &key) {
@@ -391,6 +413,10 @@ public:
   template <typename P>
   MatchData<P, Val> findVal(const P &data) {
     return val(find_(matchData(data)));
+  }
+  template <typename P0, typename P1>
+  Val findVal(P0 &&p0, P1 &&p1) {
+    return findVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
 private:
@@ -408,7 +434,10 @@ public:
   MatchKey<P, NodeRef> del(const P &key) { return del_(matchKey(key)); }
   template <typename P>
   MatchData<P, NodeRef> del(const P &data) { return del_(matchData(data)); }
-  template <typename P>
+  template <typename P0, typename P1>
+  NodeRef del(P0 &&p0, P1 &&p1) {
+    return del(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   NodeRef delNode(Node *node) {
     Guard guard(m_lock);
     if (ZuLikely(node)) del__(node);
@@ -423,6 +452,10 @@ public:
   template <typename P>
   MatchData<P, Key> delKey(const P &data) {
     return keyMv(del_(matchData(data)));
+  }
+  template <typename P0, typename P1>
+  Key delKey(P0 &&p0, P1 &&p1) {
+    return delKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
   template <typename P>
   Key delNodeKey(Node *node) {
@@ -440,6 +473,10 @@ public:
   MatchData<P, Val> delVal(const P &data) {
     return valMv(del_(matchData(data)));
   }
+  template <typename P0, typename P1>
+  Val delVal(P0 &&p0, P1 &&p1) {
+    return delVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   template <typename P>
   Val delNodeVal(Node *node) {
     Guard guard(m_lock);
@@ -453,13 +490,9 @@ private:
   NodeRef del_(Match match) {
     Guard guard(m_lock);
     Node *node;
-
-    if (!m_count) return 0;
-
+    if (!m_count) return nullptr;
     for (node = m_head; node && !match(node); node = node->Fn::next);
-
     if (ZuLikely(node)) del__(node);
-
     NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
     return ZuMv(*ptr);
   }
@@ -577,7 +610,7 @@ public:
     Guard guard(m_lock);
     Node *node;
 
-    if (!(node = m_head)) return 0;
+    if (!(node = m_head)) return nullptr;
 
     if (!(m_head = node->Fn::next))
       m_head = node;
@@ -635,7 +668,7 @@ protected:
     else
       node = node->Fn::next;
 
-    if (!node) return 0;
+    if (!node) return nullptr;
 
     return iterator.m_node = node;
   }

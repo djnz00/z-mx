@@ -56,6 +56,7 @@ struct Z : public ZmObject {
   friend Traits ZuTraitsType(Z *);
 };
 
+template <typename>
 struct ZCmp {
   static int cmp(const Z *z1, const Z *z2) { return z1->m_z - z2->m_z; }
   static bool less(const Z *z1, const Z *z2) { return z1->m_z < z2->m_z; }
@@ -65,7 +66,7 @@ struct ZCmp {
 };
 
 using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
-using ZHash = ZmHash<int, ZmHashVal<ZmRef<Z> > >;
+using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 
@@ -146,8 +147,8 @@ struct I {
 };
 
 struct J : public ZmObject {
-  struct IAccessor : public ZuAccessor<J *, const I &> {
-    ZuInline static const ::I &value(const J *j) { return j->m_i; }
+  struct IAccessor {
+    static const ::I &get(const J *j) { return j->m_i; }
   };
   J(int i) : m_i(i) { }
   J(const J &j) : m_i(j.m_i.m_i) { }
@@ -227,21 +228,21 @@ int main(int argc, char **argv)
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));
 
   {
-    using H = ZmHash<ZmRef<J>, ZmHashIndex<J::IAccessor> >;
+    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAccessor> >;
     ZmRef<H> h_ = new H();
     H &h = *h_;
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(k)));
     for (int k = 0; k < 100; k++) {
       I i(k);
-      ZmRef<J> j = h.findKey(i);
+      ZmRef<J> j = h.findVal(i);
       printf("%d ", k);
     }
     puts("");
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(42)));
     {
-      H::ReadIndexIterator i(h, I(42));
+      H::ReadKeyIterator i{h, I{42}};
       ZmRef<J> k;
-      while (k = i.iterateKey()) {
+      while (k = i.iterateVal()) {
 	printf("%d ", k->m_i.m_i);
       }
       puts("");

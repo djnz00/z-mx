@@ -27,10 +27,9 @@
 #include <zlib/ZmPLock.hpp>
 
 using DebugTree =
-  ZmRBTree<const void *,
-    ZmRBTreeVal<const ZmBackTrace *,
-      ZmRBTreeUnique<true,
-	ZmRBTreeLock<ZmPLock> > > >;
+  ZmRBTreeKV<const void *, const ZmBackTrace *,
+    ZmRBTreeUnique<true,
+      ZmRBTreeLock<ZmPLock> > >;
 
 void ZmObject_Debug::debug() const
 {
@@ -44,7 +43,8 @@ void ZmObject_Debug::debug() const
 void ZmObject_Debug::dump(void *context, DumpFn fn) const
 {
   if (!m_debug) return;
-  auto i = ((DebugTree *)(void *)m_debug)->readIterator();
+  auto i =
+    (static_cast<DebugTree *>(m_debug.operator void *()))->readIterator();
   DebugTree::NodeRef n;
   while (n = i.iterate()) (*fn)(context, n->key(), n->val());
 }
@@ -53,12 +53,14 @@ void ZmObject_ref(const ZmObject_Debug *o, const void *referrer)
 {
   ZmBackTrace *bt = new ZmBackTrace();
   bt->capture(1);
-  ((DebugTree *)(void *)o->m_debug)->add(referrer, bt);
+  (static_cast<DebugTree *>(o->m_debug.operator void *()))->add(
+      ZuFwdPair(referrer, bt));
 }
 
 void ZmObject_deref(const ZmObject_Debug *o, const void *referrer)
 {
-  DebugTree::NodeRef n = ((DebugTree *)(void *)o->m_debug)->del(referrer);
+  DebugTree::NodeRef n =
+    (static_cast<DebugTree *>(o->m_debug.operator void *()))->del(referrer);
   if (n) delete n->val();
 }
 

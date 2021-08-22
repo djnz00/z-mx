@@ -548,6 +548,15 @@ struct ZuDefaultAxor {
   static decltype(auto) get(P &&v) { return ZuFwd<P>(v); }
 };
 
+// nest two accessors
+template <typename Outer, typename Inner>
+struct ZuNestAxor {
+  template <typename P>
+  static decltype(auto) get(P &&v) {
+    return Outer::get(Inner::get(ZuFwd<P>(v)));
+  }
+};
+
 // function signature deduction
 
 // ZuDeduce<decltype(&L::operator())>::R

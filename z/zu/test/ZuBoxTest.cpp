@@ -21,7 +21,7 @@
 template <typename V>
 void fail(unsigned line, const char *s, const V &v)
 {
-  std::cerr << "FAIL: " << line << ':' << s << " - " << v << '\n';
+  std::cerr << "FAIL: " << line << ':' << s << " v=" << v << '\n';
 #ifndef _WIN32
   ::_exit(1);
 #else
@@ -32,7 +32,7 @@ void fail(unsigned line, const char *s, const V &v)
 template <typename V1, typename V2>
 void fail2(unsigned line, const char *s, const V1 &v1, const V2 &v2)
 {
-  std::cerr << "FAIL: " << line << ':' << s << " - " << v1 << ' ' << v2 << '\n';
+  std::cerr << "FAIL: " << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n';
 #ifndef _WIN32
   ::_exit(1);
 #else
@@ -139,8 +139,8 @@ void test(const char *type, T v, const char *s)
   CHECK(!*i, i);
   i = v;
   CHECK(*i, i);
-  CHECK(i > ZuBox<T>(), i);
-  CHECK(ZuBox<T>((T)-i) > ZuBox<T>(), i);
+  CHECK(i > ZuBox<T>{}, i);
+  CHECK(ZuBox<T>(static_cast<T>(-i)) > ZuBox<T>{}, i);
   CHECK2(i > (v - 1), i, v);
   ZuVFmt vfmt = VFmt<Fmt, ZuBox<T> >::_();
   char buf[64], buf2[64];

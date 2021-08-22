@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <zlib/ZuIndex.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuObject.hpp>
 
@@ -38,8 +37,8 @@ struct Orders_HeapID {
 };
 
 struct Order : public ZuObject {
-  struct IDAccessor : public ZuAccessor<Order *, unsigned> {
-    ZuInline static unsigned value(const Order *o) { return o->id; }
+  struct IDAccessor {
+    static unsigned get(const Order *o) { return o->id; }
   };
   Order(unsigned id_) : id(id_) { }
   unsigned id;
@@ -52,7 +51,7 @@ void dump(Order *o)
 
 using Orders =
   ZmHash<ZmRef<Order>,
-    ZmHashIndex<Order::IDAccessor,
+    ZmHashKey<Order::IDAccessor,
       ZmHashObject<ZuNull,
 	ZmHashLock<ZmNoLock,
 	  ZmHashHeapID<Orders_HeapID> > > > >;
@@ -64,11 +63,11 @@ int main(int argc, char **argv)
 
   printf("node size: %u\n", (unsigned)sizeof(Orders::Node));
   for (unsigned i = 0; i < 100; i++) orders->add(new Order(i));
-  ZmRef<Order> o = orders->findKey(0);
+  ZmRef<Order> o = orders->findVal(0);
   dump(o);
   Orders::Node *n = orders->del(0);
-  dump(n->key());
+  dump(n->val());
   delete n;
-  o = orders->delKey(1);
+  o = orders->delVal(1);
   dump(o);
 }

@@ -38,13 +38,13 @@
 
 template <
   typename T, typename KeyAxor, typename ValAxor, typename Heap, bool Derive,
-  template <typename, typename, bool, bool> typename Fn>
+  template <typename, typename, bool> typename Fn>
 class ZmNode;
 
 // node contains type
 template <
   typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
-  template <typename, typename, bool, bool> typename Fn_>
+  template <typename, typename, bool> typename Fn_>
 class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_> :
   public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_>, Heap, 0> {
 public:
@@ -64,17 +64,17 @@ public:
   template <typename P>
   ZmNode(P &&p) : m_data{ZuFwd<P>(p)} { }
 
-  decltype(auto) key() const & { return KeyAxor::get(m_data); }
-  decltype(auto) key() & { return KeyAxor::get(m_data); }
-  decltype(auto) key() && { return KeyAxor::get(ZuMv(m_data)); }
-
-  decltype(auto) val() const & { return ValAxor::get(m_data); }
-  decltype(auto) val() & { return ValAxor::get(m_data); }
-  decltype(auto) val() && { return ValAxor::get(ZuMv(m_data)); }
-
-  decltype(auto) data() const & { return m_data; }
-  decltype(auto) data() & { return m_data; }
+  const auto &data() const & { return m_data; }
+  auto &data() & { return m_data; }
   decltype(auto) data() && { return ZuMv(m_data); }
+
+  decltype(auto) key() const & { return KeyAxor::get(data()); }
+  decltype(auto) key() & { return KeyAxor::get(data()); }
+  decltype(auto) key() && { return KeyAxor::get(data()); }
+
+  decltype(auto) val() const & { return ValAxor::get(data()); }
+  decltype(auto) val() & { return ValAxor::get(data()); }
+  decltype(auto) val() && { return ValAxor::get(data()); }
 
 private:
   U	m_data;
@@ -83,7 +83,7 @@ private:
 // node derives from type
 template <
   typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
-  template <typename, typename, bool, bool> typename Fn_>
+  template <typename, typename, bool> typename Fn_>
 class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_> :
   public ZuDecay<T_>,
   public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_>, Heap, 1> {
@@ -104,17 +104,17 @@ public:
   template <typename P>
   ZmNode(P &&p) : U{ZuFwd<P>(p)} { }
 
-  decltype(auto) key() const & { return KeyAxor::get(*this); }
-  decltype(auto) key() & { return KeyAxor::get(*this); }
-  decltype(auto) key() && { return KeyAxor::get(ZuMv(*this)); }
-
-  decltype(auto) val() const & { return ValAxor::get(*this); }
-  decltype(auto) val() & { return ValAxor::get(*this); }
-  decltype(auto) val() && { return ValAxor::get(ZuMv(*this)); }
-
   decltype(auto) data() const & { return static_cast<const U &>(*this); }
   decltype(auto) data() & { return static_cast<U &>(*this); }
   decltype(auto) data() && { return static_cast<U &&>(*this); }
+
+  decltype(auto) key() const & { return KeyAxor::get(data()); }
+  decltype(auto) key() & { return KeyAxor::get(data()); }
+  decltype(auto) key() && { return KeyAxor::get(data()); }
+
+  decltype(auto) val() const & { return ValAxor::get(data()); }
+  decltype(auto) val() & { return ValAxor::get(data()); }
+  decltype(auto) val() && { return ValAxor::get(data()); }
 };
 
 template <typename, bool> struct ZmNodePolicy_;

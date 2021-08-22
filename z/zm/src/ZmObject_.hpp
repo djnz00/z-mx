@@ -56,8 +56,8 @@ friend ZmAPI void ZmObject_ref(const ZmObject_Debug *, const void *);
 friend ZmAPI void ZmObject_deref(const ZmObject_Debug *, const void *);
 
 public:
-  ZuInline ZmObject_Debug() : m_debug(0) { }
-  ZuInline ~ZmObject_Debug() { ::free(m_debug); }
+  ZmObject_Debug() : m_debug(0) { }
+  ~ZmObject_Debug() { ::free(m_debug); }
 
   void debug() const;
 
@@ -66,7 +66,7 @@ public:
   void dump(void *context, DumpFn fn) const;
 
 protected:
-  ZuInline bool debugging_() const { return m_debug.load_(); }
+  bool debugging_() const { return m_debug.load_(); }
 
   mutable ZmAtomic<void *>	m_debug;
 };

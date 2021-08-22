@@ -165,9 +165,8 @@ private:
 
 // NTP (named template parameters):
 //
-// ZmHash<ZuPair<ZtString, ZtString>,		// pair of ZtStrings
-//   ZmHashKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, // key, value in that order
-//     ZmHashKeyCmp<ZtICmp> > >			// case-insensitive comparison
+// ZmHashKV<ZtString, ZtString,		// key, value pair of ZtStrings
+//   ZmHashKeyCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmHash_Defaults {
@@ -326,7 +325,7 @@ public:
   using Node = Node_<NodeHeap>;
   using Fn = typename Node::Fn;
 
-  using NodeRef = typename NodePolicy::template Ref<Node>::T;
+  using NodeRef = typename NodePolicy::template Ref<Node>;
   using NodePtr = Node *;
 
 private:
@@ -338,7 +337,7 @@ private:
     if (ZuLikely(node)) return node->Node::key();
     return Cmp::null();
   }
-  static Key keyMv(NodeRef &&node) {
+  Key keyMv(NodeRef &&node) {
     if (ZuLikely(node)) {
       Key key = ZuMv(*node).Node::key();
       nodeDelete(node);
@@ -350,7 +349,7 @@ private:
     if (ZuLikely(node)) return node->Node::val();
     return ValCmp::null();
   }
-  static Val valMv(NodeRef &&node) {
+  Val valMv(NodeRef &&node) {
     if (ZuLikely(node)) {
       Val val = ZuMv(*node).Node::val();
       nodeDelete(node);
@@ -565,6 +564,10 @@ public:
     addNode(node);
     return node;
   }
+  template <typename P0, typename P1>
+  NodeRef add(P0 &&p0, P1 &&p1) {
+    return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   void addNode(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     Guard guard(lockCode(code));
@@ -611,18 +614,18 @@ private:
   using MatchData = ZuIfT<IsData<U>::OK, R>;
 
   template <typename P>
-  auto matchKey(const P &key) {
+  static auto matchKey(const P &key) {
     return [&key](Node *node) -> bool {
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
-  auto matchData(const P &data) {
+  static auto matchData(const P &data) {
     return [&data](Node *node) -> bool {
       return node->Node::data() == data;
     };
   }
-  auto matchNode(Node *node_) {
+  static auto matchNode(Node *node_) {
     return [node_](Node *node) -> bool {
       return node == node_;
     };
@@ -640,6 +643,10 @@ public:
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     ReadGuard guard(lockCode(code));
     return find_(matchData(data), code);
+  }
+  template <typename P0, typename P1>
+  NodeRef find(P0 &&p0, P1 &&p1) {
+    return find(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
   template <typename P>
@@ -667,18 +674,26 @@ public:
     ReadGuard guard(lockCode(code));
     return key(find_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  Key findKey(P0 &&p0, P1 &&p1) {
+    return findKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
-  MatchKey<P, Key> findVal(const P &key) const {
+  MatchKey<P, Val> findVal(const P &key) const {
     uint32_t code = HashFn::hash(key);
     ReadGuard guard(lockCode(code));
     return val(find_(matchKey(key), code));
   }
   template <typename P>
-  MatchData<P, Key> findVal(const P &data) const {
+  MatchData<P, Val> findVal(const P &data) const {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     ReadGuard guard(lockCode(code));
     return val(find_(matchData(data), code));
+  }
+  template <typename P0, typename P1>
+  Val findVal(P0 &&p0, P1 &&p1) {
+    return findVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
 private:
@@ -696,16 +711,24 @@ private:
 
 public:
   template <typename P>
-  MatchData<P, NodeRef> findAdd(P &&data) {
+  NodeRef findAdd(P &&data) {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(lockCode(code));
     return findAdd_(ZuFwd<P>(data), code);
   }
+  template <typename P0, typename P1>
+  NodeRef findAdd(P0 &&p0, P1 &&p1) {
+    return findAdd(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   template <typename P>
-  MatchData<P, Node *> findAddPtr(P &&data) {
+  Node *findAddPtr(P &&data) {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(lockCode(code));
     return findAdd_(ZuFwd<P>(data), code);
+  }
+  template <typename P0, typename P1>
+  Node *findAddPtr(P0 &&p0, P1 &&p1) {
+    return findAddPtr(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 private:
   template <typename P>
@@ -734,6 +757,10 @@ public:
     Guard guard(lockCode(code));
     return del_(matchData(data), code);
   }
+  template <typename P0, typename P1>
+  NodeRef del(P0 &&p0, P1 &&p1) {
+    return del(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   NodeRef delNode(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     Guard guard(lockCode(code));
@@ -752,6 +779,10 @@ public:
     Guard guard(lockCode(code));
     return keyMv(del_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  Key delKey(P0 &&p0, P1 &&p1) {
+    return delKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   Key delNodeKey(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     return keyMv(del_(matchNode(node), code));
@@ -769,14 +800,18 @@ public:
     Guard guard(lockCode(code));
     return valMv(del_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  Val delVal(P0 &&p0, P1 &&p1) {
+    return delVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   Val delNodeVal(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     return valMv(del_(matchNode(node), code));
   }
 
 private:
-  template <typename P>
-  NodeRef del_(const P &key, uint32_t code) {
+  template <typename Match>
+  NodeRef del_(Match match, uint32_t code) {
     unsigned count = m_count.load_();
     if (!count) return 0;
 
@@ -784,7 +819,7 @@ private:
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
     for (node = m_table[slot];
-	 node && !Cmp::equals(node->Node::key(), key);
+	 node && !match(node);
 	 prevNode = node, node = node->Fn::next);
 
     if (!node) return 0;
@@ -990,5 +1025,10 @@ private:
   ZmAtomic<unsigned>	m_resized = 0;
   NodePtr		*m_table;
 };
+
+template <typename P0, typename P1, typename NTP = ZmHash_Defaults>
+using ZmHashKV =
+  ZmHash<ZuPair<P0, P1>,
+    ZmHashKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, NTP> >;
 
 #endif /* ZmHash_HPP */

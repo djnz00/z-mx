@@ -257,7 +257,7 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
   friend ZuPrintFn ZuPrintType(Binding *);
 };
 struct Binding_KeyAccessor : public ZuAccessor<ZuPtr<Binding>, int32_t> {
-  ZuInline static int32_t value(const Binding *b) { return b->vkey; }
+  static int32_t value(const Binding *b) { return b->vkey; }
 };
 
 using Bindings_ =

@@ -206,7 +206,6 @@ int main()
   }
 
   {
-    // using Queue = ZmQueue<ZtString, ZmQueueID<uint64_t> >;
     using Queue = ZmList<ZtString>;
 
     Queue q;

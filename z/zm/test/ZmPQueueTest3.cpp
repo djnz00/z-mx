@@ -55,7 +55,9 @@ struct Msg_ : public Msg_Data {
 using Queue =
   ZmPQueue<Msg_,
     ZmPQueueLock<ZmNoLock,
-      ZmPQueueNodeIsItem<true> > >;
+      ZmPQueueNodeDerive<true> > >;
+
+using XXX = decltype(ZuDeclVal<const typename Queue::Node &>().key());
 
 class App : public ZmPQTx<App, Queue, ZmNoLock> {
 public:
@@ -131,7 +133,7 @@ public:
   ZmRef<Msg> retrieve_(Key key, Key) {
     printf("retrieve %u\n", (unsigned)key);
     if (!m_ackd) return 0;
-    Fn item(m_ackd->item());
+    Fn item{m_ackd->data()};
     if (key >= item.key() && (key - item.key()) < item.length())
       return m_ackd;
     return 0;
@@ -162,11 +164,11 @@ public:
   void idleArchive() { }
 
   bool checkSent(Msg *msg)
-    { bool b = m_sent == msg; m_sent = 0; return b; }
+    { bool b = m_sent == msg; m_sent = nullptr; return b; }
   bool checkSentGap(const Gap &gap)
     { bool r = m_sentGap == gap; m_sentGap = Gap(); return r; }
   bool checkResent(Msg *msg)
-    { bool b = m_resent == msg; m_resent = 0; return b; }
+    { bool b = m_resent == msg; m_resent = nullptr; return b; }
   bool checkResentGap(const Gap &gap)
     { bool r = m_resentGap == gap; m_resentGap = Gap(); return r; }
   bool checkArchived(Msg *msg) {

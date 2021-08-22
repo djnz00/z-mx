@@ -352,7 +352,8 @@ public:
   ZdbAnyPOD_Cmpr(void *ptr, unsigned size) :
     m_ptr(ptr), m_size(size) { }
 
-  void *ptr() const { return m_ptr; }
+  template <typename T = void> const T *ptr() const { return m_ptr; }
+  template <typename T = void> T *ptr() { return m_ptr; }
   unsigned size() const { return m_size; }
 
   int compress(const char *src, unsigned size);

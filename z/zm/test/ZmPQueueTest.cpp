@@ -55,7 +55,7 @@ using PQueue =
     ZmPQueueLock<ZmNoLock,
       ZmPQueueBits<1,
 	ZmPQueueLevels<4,
-	  ZmPQueueNodeIsItem<true> > > > >;
+	  ZmPQueueNodeDerive<true> > > > >;
 
 using QMsg = PQueue::Node;
 

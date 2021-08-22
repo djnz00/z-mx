@@ -49,7 +49,9 @@
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuBox.hpp>
 
+#include <zlib/ZmAssert.hpp>
 #include <zlib/ZmLock.hpp>
+#include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmObject.hpp>
 #include <zlib/ZmRef.hpp>
@@ -69,18 +71,38 @@
 // Key would be uint32_t/uint64_t, key() would return the key in the header
 // length() would return the number of bytes in the packet/fragment
 
-template <typename Item> class ZmPQueueDefaultFn {
+struct ZmPQueueDefaultKeyAxor {
+  template <typename P> struct Bind {
+    static decltype(auto) get(const P &v) { return v.key(); }
+    static decltype(auto) get(P &v) { return v.key(); }
+    static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).key()); }
+  };
+  template <typename P>
+  static auto get(P &&v) { return Bind<ZuDecay<P>>::get(ZuFwd<P>(v)); }
+};
+struct ZmPQueueDefaultLenAxor {
+  template <typename Item>
+  static unsigned get(const Item &i) { return i.length(); }
+};
+template <
+  typename Item,
+  typename KeyAxor_ = ZmPQueueDefaultKeyAxor,
+  typename LenAxor_ = ZmPQueueDefaultLenAxor>
+class ZmPQueueDefaultFn {
 public:
-  // Key is the type of the key (sequence number)
-  using Key = uint32_t;
+  // KeyAxor is the accessor for the key (sequence number)
+  using KeyAxor = KeyAxor_;
+
+  // LenAxor is the accessor for the length
+  using LenAxor = LenAxor_;
+
+  // Key is the type of the sequence number returned by KeyAxor::get()
+  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const Item &>()))>;
 
   ZmPQueueDefaultFn(Item &item) : m_item(item) { }
 
-  // key() returns the key for the first element in the item
-  Key key() const { return m_item.key(); }
-
-  // length() returns the length of the item in units
-  unsigned length() const { return m_item.length(); }
+  Key key() const { return KeyAxor::get(m_item); }
+  unsigned length() const { return LenAxor::get(m_item); }
 
   // clipHead()/clipTail() remove elements from the item's head or tail
   // clipHead()/clipTail() can just return 1 if item length is always 1,
@@ -104,19 +126,18 @@ private:
 // uses NTP (named template parameters)
 
 struct ZmPQueue_Defaults {
-  enum { NodeIsItem = 0 };
+  enum { NodeDerive = 0 };
   using Lock = ZmLock;
   using Object = ZmObject;
   struct HeapID { static constexpr const char *id() { return "ZmPQueue"; } };
-  struct Base { };
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
 };
 
-// ZmPQueueNodeIsItem - derive ZmPQueue::Node from Item instead of containing it
-template <bool NodeIsItem_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueNodeIsItem : public NTP {
-  enum { NodeIsItem = NodeIsItem_ };
+// ZmPQueueNodeDerive - derive ZmPQueue::Node from Item instead of containing it
+template <bool NodeDerive_, class NTP = ZmPQueue_Defaults>
+struct ZmPQueueNodeDerive : public NTP {
+  enum { NodeDerive = NodeDerive_ };
 };
 
 // ZmPQueueLock - the lock type used (ZmRWLock will permit concurrent reads)
@@ -135,12 +156,6 @@ struct ZmPQueueObject : public NTP {
 template <class HeapID_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueHeapID : public NTP {
   using HeapID = HeapID_;
-};
-
-// ZmPQueueBase - injection of a base class (e.g. ZmObject)
-template <class Base_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueBase : public NTP {
-  using Base = Base_;
 };
 
 // ZmPQueueBits - change skip list factor (power of 2)
@@ -184,8 +199,9 @@ class ZmPQueue :
 public:
   using Item = Item_;
   using Fn = typename NTP::template ZmPQueueFnT<Item>;
+  using KeyAxor = typename Fn::KeyAxor;
   using Key = typename Fn::Key;
-  enum { NodeIsItem = NTP::NodeIsItem };
+  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
   using Object = typename NodePolicy::Object;
   using HeapID = typename NTP::HeapID;
@@ -232,13 +248,12 @@ public:
   };
 
   template <typename Heap>
-  using Node_ = ZmNode<Heap, NodeIsItem, NodeFn_, Item>;
+  using Node_ = ZmNode<Item, KeyAxor, ZuDefaultAxor, Heap, NodeDerive, NodeFn_>;
   struct NullHeap { }; // deconflict with ZuNull
   using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
   using Node = Node_<NodeHeap>;
   using NodeFn = typename Node::Fn;
-
-  using NodeRef = typename NodePolicy::template Ref<Node>::T;
+  using NodeRef = typename NodePolicy::template Ref<Node>;
 
 private:
   using NodePolicy::nodeRef;
@@ -261,7 +276,7 @@ public:
 private:
   // add at head
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T addHead_(
+  typename ZmPQueue_::First<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
     Node *next;
     node->NodeFn::prev(0, 0);
@@ -274,7 +289,7 @@ private:
     addHead_<1>(node, addSeqNo);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T addHead_(
+  typename ZmPQueue_::Next<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
     node->NodeFn::prev(Level, 0);
     if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
@@ -292,22 +307,22 @@ private:
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T addHeadEnd_(
+  typename ZmPQueue_::Next<Level, Levels>::T addHeadEnd_(
       Node *node, unsigned addSeqNo) {
     node->NodeFn::prev(Level, 0);
     node->NodeFn::next(Level, 0);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T addHead_(
+  typename ZmPQueue_::Last<Level, Levels>::T addHead_(
       Node *, unsigned) { }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T addHeadEnd_(
+  typename ZmPQueue_::Last<Level, Levels>::T addHeadEnd_(
       Node *, unsigned) { }
 
   // insert before result from find
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T add_(
+  typename ZmPQueue_::First<Level, Levels>::T add_(
       Node *node, Node **next_, unsigned addSeqNo) {
     Node *next = next_[0];
     Node *prev = next ? next->prev(0) : m_tail[0];
@@ -324,7 +339,7 @@ private:
     add_<1>(node, next_, addSeqNo);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T add_(
+  typename ZmPQueue_::Next<Level, Levels>::T add_(
       Node *node, Node **next_, unsigned addSeqNo) {
     if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
       Node *next = next_[Level];
@@ -347,22 +362,22 @@ private:
     }
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T addEnd_(
+  typename ZmPQueue_::Next<Level, Levels>::T addEnd_(
       Node *node, Node **next_, unsigned addSeqNo) {
     node->NodeFn::prev(Level, 0);
     node->NodeFn::next(Level, 0);
     addEnd_<Level + 1>(node, next_, addSeqNo);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T add_(
+  typename ZmPQueue_::Last<Level, Levels>::T add_(
       Node *, Node **, unsigned) { }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T addEnd_(
+  typename ZmPQueue_::Last<Level, Levels>::T addEnd_(
       Node *, Node **, unsigned) { }
 
   // delete head
   template <int Level>
-  ZuInline void delHead__() {
+  void delHead__() {
     Node *next(m_head[Level]->next(Level));
     if (!(m_head[Level] = next))
       m_tail[Level] = 0;
@@ -370,22 +385,22 @@ private:
       next->prev(Level, 0);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T delHead_() {
+  typename ZmPQueue_::First<Level, Levels>::T delHead_() {
     delHead_<1>();
     delHead__<0>();
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T delHead_() {
+  typename ZmPQueue_::Next<Level, Levels>::T delHead_() {
     if (m_head[Level] != m_head[0]) return;
     delHead_<Level + 1>();
     delHead__<Level>();
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T delHead_() { }
+  typename ZmPQueue_::Last<Level, Levels>::T delHead_() { }
 
   // delete result from find
   template <int Level>
-  ZuInline Node *del__(Node *node) {
+  Node *del__(Node *node) {
     Node *next(node->NodeFn::next(Level));
     Node *prev(node->NodeFn::prev(Level));
     if (ZuUnlikely(!prev))
@@ -399,40 +414,40 @@ private:
     return next;
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T del_(Node **next) {
+  typename ZmPQueue_::First<Level, Levels>::T del_(Node **next) {
     del_<1>(next);
     next[0] = del__<Level>(next[0]);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T del_(Node **next) {
+  typename ZmPQueue_::Next<Level, Levels>::T del_(Node **next) {
     if (next[Level] != next[0]) return;
     del_<Level + 1>(next);
     next[Level] = del__<Level>(next[Level]);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T del_(Node **) { }
+  typename ZmPQueue_::Last<Level, Levels>::T del_(Node **) { }
 
   // find
-  ZuInline bool findDir_(Key key) const {
+  bool findDir_(Key key) const {
     if (key < m_headKey) return true;
     if (key >= m_tailKey) return false;
     return key - m_headKey <= m_tailKey - key;
   }
-  ZuInline bool findDir_(Key key, Node *prev, Node *next) const {
+  bool findDir_(Key key, Node *prev, Node *next) const {
     if (!prev) return true;
     if (!next) return false;
     return
-      key - Fn(prev->Node::item()).key() <=
-      Fn(next->Node::item()).key() - key;
+      key - Fn{prev->Node::data()}.key() <=
+      Fn{next->Node::data()}.key() - key;
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T findFwd_(
+  typename ZmPQueue_::First<Level, Levels>::T findFwd_(
       Key key, Node **next) const {
     next[Levels - 1] = m_head[Levels - 1];
     findFwd__<Level>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T findFwd_(
+  typename ZmPQueue_::Next<Level, Levels>::T findFwd_(
       Key key, Node **next) const {
     Node *node;
     if (!(node = next[Levels - Level]) ||
@@ -443,17 +458,17 @@ private:
     findFwd__<Level>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T findFwd_(
+  typename ZmPQueue_::Last<Level, Levels>::T findFwd_(
       Key , Node **) const { }
 
   template <int Level>
-  ZuInline typename ZmPQueue_::First<Level, Levels>::T findRev_(
+  typename ZmPQueue_::First<Level, Levels>::T findRev_(
       Key key, Node **next) const {
     next[Levels - 1] = m_tail[Levels - 1];
     findRev__<Level>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Next<Level, Levels>::T findRev_(
+  typename ZmPQueue_::Next<Level, Levels>::T findRev_(
       Key key, Node **next) const {
     Node *node;
     if (!(node = next[Levels - Level]))
@@ -463,16 +478,16 @@ private:
     findRev__<Level>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T findRev_(
+  typename ZmPQueue_::Last<Level, Levels>::T findRev_(
       Key , Node **) const { }
 
   template <int Level>
-  ZuInline typename ZmPQueue_::NotLast<Level, Levels>::T findFwd__(
+  typename ZmPQueue_::NotLast<Level, Levels>::T findFwd__(
       Key key, Node **next) const {
     Node *node = next[Levels - Level - 1];
     if (node) {
       do {
-	Fn item(node->Node::item());
+	Fn item{node->Node::data()};
 	if (item.key() == key) goto found;
 	if (item.key() > key) goto passed;
       } while (node = node->NodeFn::next(Levels - Level - 1));
@@ -492,24 +507,24 @@ private:
       findRev_<Level + 1>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T findFwd__(
+  typename ZmPQueue_::Last<Level, Levels>::T findFwd__(
       Key key, Node **next) const {
     Node *node = next[0];
     if (node) {
       do {
-	Fn item(node->Node::item());
+	Fn item{node->Node::data()};
 	if (item.key() >= key) break;
       } while (node = node->NodeFn::next(0));
       next[0] = node;
     }
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::NotLast<Level, Levels>::T findRev__(
+  typename ZmPQueue_::NotLast<Level, Levels>::T findRev__(
       Key key, Node **next) const {
     Node *node = next[Levels - Level - 1];
     if (node) {
       do {
-	Fn item(node->Node::item());
+	Fn item{node->Node::data()};
 	if (item.key() == key) goto found;
 	if (item.key() < key) goto passed;
       } while (node = node->NodeFn::prev(Levels - Level - 1));
@@ -529,12 +544,12 @@ private:
       findRev_<Level + 1>(key, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T findRev__(
+  typename ZmPQueue_::Last<Level, Levels>::T findRev__(
       Key key, Node **next) const {
     Node *node = next[0];
     if (node) {
       do {
-	Fn item(node->Node::item());
+	Fn item{node->Node::data()};
 	if (item.key() == key) { next[0] = node; return; }
 	if (item.key() < key) { next[0] = node->NodeFn::next(0); return; }
       } while (node = node->NodeFn::prev(0));
@@ -543,13 +558,13 @@ private:
   }
 
   template <int Level>
-  ZuInline typename ZmPQueue_::NotLast<Level, Levels>::T found_(
+  typename ZmPQueue_::NotLast<Level, Levels>::T found_(
       Node *node, Node **next) const {
     next[Levels - Level - 1] = node;
     found_<Level + 1>(node, next);
   }
   template <int Level>
-  ZuInline typename ZmPQueue_::Last<Level, Levels>::T found_(
+  typename ZmPQueue_::Last<Level, Levels>::T found_(
       Node *, Node **) const { }
 
   void find_(Key key, Node **next) const {
@@ -562,10 +577,10 @@ private:
 public:
   unsigned count() const { ReadGuard guard(m_lock); return m_count; }
   unsigned length() const { ReadGuard guard(m_lock); return m_length; }
-  ZuInline unsigned count_() const { return m_count; }
-  ZuInline unsigned length_() const { return m_length; }
+  unsigned count_() const { return m_count; }
+  unsigned length_() const { return m_length; }
 
-  ZuInline bool empty_() const { return (!m_count); }
+  bool empty_() const { return (!m_count); }
 
   void stats(
       uint64_t &inCount, uint64_t &inBytes, 
@@ -604,7 +619,7 @@ public:
     Node *node = m_head[0];
     Key tail = m_headKey;
     while (node) {
-      Fn item(node->Node::item());
+      Fn item{node->Node::data()};
       Key key = item.key();
       if (key > tail) return Gap(tail, key - tail);
       Key end = key + item.length();
@@ -618,7 +633,7 @@ public:
 private:
   void clipHead_(Key key) {
     while (Node *node = m_head[0]) {
-      Fn item(node->Node::item());
+      Fn item{node->Node::data()};
       Key key_ = item.key();
       if (key_ >= key) return;
       Key end_ = key_ + item.length();
@@ -674,7 +689,7 @@ public:
   void unshift(NodeRef node) {
     Guard guard(m_lock);
 
-    Fn item(node->Node::item());
+    Fn item{node->Node::data()};
     Key key = item.key();
     unsigned length = item.length();
     Key end = key + length;
@@ -707,7 +722,7 @@ private:
   NodeRef enqueue_(NodeRef node) {
     Guard guard(m_lock);
 
-    Fn item(node->Node::item());
+    Fn item{node->Node::data()};
     Key key = item.key();
     unsigned length = item.length();
     Key end = key + length;
@@ -749,7 +764,7 @@ private:
       // process any item immediately following the key
 
       if (node_) {
-	Fn item_(node_->Node::item());
+	Fn item_(node_->Node::data());
 	Key key_ = item_.key();
 	Key end_ = key_ + item_.length();
 
@@ -771,7 +786,7 @@ private:
       // process any item immediately preceding the key
 
       if (node_) {
-	Fn item_(node_->Node::item());
+	Fn item_(node_->Node::data());
 	Key key_ = item_.key();
 	Key end_ = key_ + item_.length();
 
@@ -792,7 +807,7 @@ private:
     // remove all items that are completely overlapped by the new item
 
     while (Node *node_ = next[0]) {
-      Fn item_(node_->Node::item());
+      Fn item_(node_->Node::data());
       Key key_ = item_.key();
       Key end_ = key_ + item_.length();
 
@@ -860,7 +875,7 @@ private:
   loop:
     NodeRef node = m_head[0];
     if (!node) return nullptr;
-    Fn item(node->Node::item());
+    Fn item{node->Node::data()};
     Key key = item.key();
     ZmAssert(key >= m_headKey);
     if (key != m_headKey) return nullptr;
@@ -894,7 +909,7 @@ private:
   loop:
     NodeRef node = m_head[0];
     if (!node) return nullptr;
-    Fn item(node->Node::item());
+    Fn item{node->Node::data()};
     unsigned length = item.length();
     delHead_<0>();
     nodeDeref(node);
@@ -932,7 +947,7 @@ public:
 
     if (!node) return nullptr;
 
-    Fn item(node->Node::item());
+    Fn item{node->Node::data()};
 
     if (item.key() != key) return nullptr;
 
@@ -960,7 +975,7 @@ public:
       // process any item immediately following the key
 
       if (node_) {
-	Fn item_(node_->Node::item());
+	Fn item_(node_->Node::data());
 	Key key_ = item_.key();
 
 	ZmAssert(key_ >= key);
@@ -974,7 +989,7 @@ public:
       // process any item immediately preceding the key
 
       if (node_) {
-	Fn item_(node_->Node::item());
+	Fn item_(node_->Node::data());
 	Key key_ = item_.key();
 	Key end_ = key_ + item_.length();
 
@@ -1108,7 +1123,7 @@ public:
     app->cancelReRequest();
     m_flags &= ~(Queuing | Dequeuing);
     app->rxQueue()->reset(key);
-    m_gap = Gap();
+    m_gap = {};
   }
 
   // start queueing (during snapshot recovery)
@@ -1125,7 +1140,6 @@ public:
       Guard guard(m_lock);
       m_flags &= ~Queuing;
       app->rxQueue()->head(key);
-      m_gap = app->rxQueue()->gap();
       scheduleDequeue = !(m_flags & Dequeuing) && app->rxQueue()->count();
       if (scheduleDequeue) m_flags |= Dequeuing;
     }
@@ -1178,7 +1192,7 @@ public:
     app->rescheduleReRequest();
   }
 
-  ZuInline unsigned flags() const {
+  unsigned flags() const {
     ReadGuard guard(m_lock);
     return m_flags;
   }
@@ -1434,7 +1448,7 @@ public:
   void send(ZmRef<Msg> msg) {
     App *app = static_cast<App *>(this);
     bool scheduleSend = false;
-    auto key = Fn(msg->item()).key();
+    auto key = Fn{msg->data()}.key();
     {
       Guard guard(m_lock);
       if (ZuUnlikely(key < m_ackdKey)) {
@@ -1554,9 +1568,9 @@ public:
       while (scheduleSend) {
 	unsigned length;
 	if (msg = txQueue->find(m_sendKey))
-	  length = Fn(msg->item()).length();
+	  length = Fn{msg->data()}.length();
 	else if (msg = app->retrieve_(m_sendKey, txQueue->head()))
-	  length = Fn(msg->item()).length();
+	  length = Fn{msg->data()}.length();
 	else {
 	  if (!sendGap.length()) sendGap.key() = m_sendKey;
 	  sendGap.length() += (length = 1);
@@ -1602,7 +1616,7 @@ public:
       scheduleArchive = m_archiveKey < m_ackdKey;
       while (scheduleArchive) {
 	msg = app->txQueue()->find(m_archiveKey);
-	m_archiveKey += msg ? (unsigned)Fn(msg->item()).length() : 1U;
+	m_archiveKey += msg ? (unsigned)Fn{msg->data()}.length() : 1U;
 	scheduleArchive = m_archiveKey < m_ackdKey;
 	if (msg) break;
       }
@@ -1644,13 +1658,13 @@ public:
       while (m_gap.length()) {
 	unsigned length;
 	if (msg = app->txQueue()->find(m_gap.key())) {
-	  Fn item(msg->item());
+	  Fn item{msg->data()};
 	  auto end = item.key() + item.length();
 	  length = end - m_gap.key();
 	  if (end <= m_archiveKey)
 	    while (app->txQueue()->shift(end));
 	} else if (msg = app->retrieve_(m_gap.key(), app->txQueue()->head())) {
-	  Fn item(msg->item());
+	  Fn item{msg->data()};
 	  auto end = item.key() + item.length();
 	  length = end - m_gap.key();
 	} else {
@@ -1658,7 +1672,7 @@ public:
 	  sendGap.length() += (length = 1);
 	}
 	if (m_gap.length() <= length) {
-	  m_gap = Gap();
+	  m_gap = {};
 	  scheduleResend = false;
 	} else {
 	  m_gap.key() += length;
@@ -1677,7 +1691,7 @@ public:
 	prevGap.key() += length;
 	prevGap.length() -= length;
       } else
-	prevGap = Gap();
+	prevGap = {};
     }
     if (ZuLikely(msg))
       if (ZuUnlikely(!app->resend_(msg, scheduleResend))) goto resendFailed;
@@ -1694,7 +1708,7 @@ public:
     }
   }
 
-  ZuInline unsigned flags() const {
+  unsigned flags() const {
     ReadGuard guard(m_lock);
     return m_flags;
   }

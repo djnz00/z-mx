@@ -41,7 +41,6 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuIndex.hpp>
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuArrayFn.hpp>
 
@@ -139,7 +138,7 @@ struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
 template <typename T_, typename KeyAxor, typename ValAxor>
 class ZmLHash_Node {
 template <typename, typename> friend class ZmLHash;
-template <typename, typename, typename, unsigned> friend class ZmLHash_;
+template <typename, typename, typename, bool> friend class ZmLHash_;
 
 public:
   using T = T_;
@@ -170,12 +169,12 @@ public:
   }
 
 private:
-  template <typename T_>
-  void init(unsigned head, unsigned tail, unsigned next, T_ &&data_) {
+  template <typename P>
+  void init(unsigned head, unsigned tail, unsigned next, P &&v) {
     if (!m_u)
-      new (m_data) T{ZuFwd<T_>(data_)};
+      new (m_data) T{ZuFwd<P>(v)};
     else
-      data() = ZuFwd<T_>(data_);
+      data() = ZuFwd<P>(v);
     m_u = (next<<3U) | (head<<2U) | (tail<<1U) | 1U;
   }
   void null() {
@@ -229,25 +228,25 @@ private:
   decltype(auto) val() & { return ValAxor::get(data()); }
   decltype(auto) val() && { return ValAxor::get(ZuMv(data())); }
 
-  decltype(auto) data() const & {
+  const auto &data() const & {
     ZmAssert(m_u);
-    const T *ZuMayAlias(data_) = reinterpret_cast<const T *>(m_data);
-    return *data_;
+    const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_data);
+    return *ptr;
   }
-  decltype(auto) data() & {
+  auto &data() & {
     ZmAssert(m_u);
-    T *ZuMayAlias(data_) = reinterpret_cast<T *>(m_data);
-    return *data_;
+    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_data);
+    return *ptr;
   }
   decltype(auto) data() && {
     ZmAssert(m_u);
-    T *ZuMayAlias(data_) = reinterpret_cast<T *>(m_data);
-    return ZuMv(*data_);
+    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_data);
+    return ZuMv(*ptr);
   }
 
 public:
   struct Traits : public ZuBaseTraits<ZmLHash_Node> {
-    enum { IsPOD = ZuTraits<Key>::IsPOD && ZuTraits<Val>::IsPOD };
+    enum { IsPOD = ZuTraits<T>::IsPOD };
   };
   friend Traits ZuTraitsType(ZmLHash_Node *);
 
@@ -289,7 +288,8 @@ class ZmLHash_ : public ZmLHash__<NTP> {
   using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
-  using Node = ZmLHash_Node<T, Index>;
+  using HashFn = typename NTP::template HashFnT<Key>;
+  using Node = ZmLHash_Node<T, KeyAxor, ValAxor>;
   using Ops = ZmLHash_Ops<Node>;
 
 public:
@@ -309,14 +309,15 @@ protected:
 // dynamically allocated hash table base class
 template <class Hash, typename T, typename NTP>
 class ZmLHash_<Hash, T, NTP, 0> : public ZmLHash__<NTP> {
-  using Base = ZmLHash__<T, NTP>;
+  using Base = ZmLHash__<NTP>;
   using KeyAxor = typename NTP::KeyAxor;
   using ValAxor = typename NTP::ValAxor;
   using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
   using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
-  using Node = ZmLHash_Node<T, Index>;
+  using HashFn = typename NTP::template HashFnT<Key>;
+  using Node = ZmLHash_Node<T, KeyAxor, ValAxor>;
   using Ops = ZmLHash_Ops<Node>;
 
 public:
@@ -367,7 +368,7 @@ class ZmLHash : public ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static> {
   ZmLHash(const ZmLHash &) = delete;
   ZmLHash &operator =(const ZmLHash &) = delete; // prevent mis-use
 
-template <typename, typename, typename, unsigned> friend class ZmLHash_;
+template <typename, typename, typename, bool> friend class ZmLHash_;
 
   using Base = ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static>;
 
@@ -379,6 +380,7 @@ public:
   using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
+  using HashFn = typename NTP::template HashFnT<Key>;
   using Lock = typename NTP::Lock;
   using ID = typename NTP::ID;
   using LockTraits = ZmLockTraits<Lock>;
@@ -400,7 +402,7 @@ private:
   public:
     CheckHashFn(); // keep gcc quiet
     enum _ {
-      IsUInt32 = sizeof(test(HashFn::hash(ZuDeclVal<Key>()))) == sizeof(Small);
+      IsUInt32 = sizeof(test(HashFn::hash(ZuDeclVal<Key>()))) == sizeof(Small)
     };
   };
   ZuAssert(CheckHashFn::IsUInt32);
@@ -420,11 +422,11 @@ private:
     if (ZuLikely(slot >= 0)) return &m_table[slot].data();
     return nullptr;
   }
-  static const Key &key(int slot) {
+  const Key &key(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].key();
     return Cmp::null();
   }
-  static const Val &val(int slot) {
+  const Val &val(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].val();
     return ValCmp::null();
   }
@@ -452,8 +454,8 @@ friend Iterator_;
   public:
     void reset() { m_hash.startIterate(*this); }
     const T *iterate() { return m_hash.iterate(*this); }
-    const Key &iterateKey() { return key(iterate()); }
-    const Val &iterateVal() { return val(iterate()); }
+    const Key &iterateKey() { return m_hash.iterateKey(*this); }
+    const Val &iterateVal() { return m_hash.iterateVal(*this); }
 
     unsigned count() const { return m_hash.count_(); }
 
@@ -481,18 +483,18 @@ friend KeyIterator_;
     KeyIterator_(KeyIterator_ &&) = default;
     KeyIterator_ &operator =(KeyIterator_ &&) = default;
 
-    template <typename Index_>
-    KeyIterator_(Hash &hash, const Index_ &index) :
-	Iterator_(hash), m_index(index), m_prev(-1) { }
+    template <typename P>
+    KeyIterator_(Hash &hash, P &&v) :
+	Iterator_{hash}, m_key{ZuFwd<P>(v)}, m_prev{-1} { }
 
   public:
     void reset() { m_hash.startIterate(*this); }
     const T *iterate() { return m_hash.iterate(*this); }
-    const Key &iterateKey() { return key(iterate()); }
-    const Val &iterateVal() { return val(iterate()); }
+    const Key &iterateKey() { return m_hash.iterateKey(*this); }
+    const Val &iterateVal() { return m_hash.iterateVal(*this); }
 
   protected:
-    Index	m_index;
+    Key		m_key;
     int		m_prev;
   };
 
@@ -595,6 +597,11 @@ public:
     return add_(ZuFwd<P>(data), code);
   }
 
+  template <typename P0, typename P1>
+  int add(P0 &&p0, P1 &&p1) {
+    return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
+
 private:
   int alloc(unsigned slot) {
     unsigned size = 1U<<bits();
@@ -673,13 +680,13 @@ private:
   using MatchData = ZuIfT<IsData<U>::OK, R>;
 
   template <typename P>
-  auto matchKey(const P &key) {
+  static auto matchKey(const P &key) {
     return [&key](Node *node) -> bool {
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
-  auto matchData(const P &data) {
+  static auto matchData(const P &data) {
     return [&data](Node *node) -> bool {
       return node->Node::data() == data;
     };
@@ -711,6 +718,10 @@ public:
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return data(find_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  const T *find(P0 &&p0, P1 &&p1) {
+    return find(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
   MatchKey<P, Key> findKey(const P &key) const {
@@ -724,6 +735,10 @@ public:
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return key(find_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  Key findKey(P0 &&p0, P1 &&p1) {
+    return findKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
   MatchKey<P, Val> findVal(const P &key) const {
@@ -732,10 +747,14 @@ public:
     return val(find_(matchKey(key), code));
   }
   template <typename P>
-  MatchData<Val findVal(const P &data) const {
+  MatchData<P, Val> findVal(const P &data) const {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return val(find_(matchData(data), code));
+  }
+  template <typename P0, typename P1>
+  Val findVal(P0 &&p0, P1 &&p1) {
+    return findVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
 private:
@@ -767,21 +786,13 @@ private:
 public:
   template <typename P>
   const T *findAdd(P &&data) {
-    uint32_t code = HashFn::hash(key);
+    uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(m_lock);
-    return data(findAdd__(ZuFwd<P>(data), code));
+    return this->data(findAdd__(ZuFwd<P>(data), code));
   }
-  template <typename P>
-  Key findAddKey(P &&data) {
-    uint32_t code = HashFn::hash(key);
-    Guard guard(m_lock);
-    return key(findAdd__(ZuFwd<P>(data), code));
-  }
-  template <typename P>
-  Val findAddVal(P &&data) {
-    uint32_t code = HashFn::hash(key);
-    Guard guard(m_lock);
-    return val(findAdd__(ZuFwd<P>(data), code));
+  template <typename P0, typename P1>
+  const T *findAdd(P0 &&p0, P1 &&p1) {
+    return findAdd(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
 private:
@@ -811,6 +822,10 @@ public:
     Guard guard(m_lock);
     del_(findPrev_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  void del(P0 &&p0, P1 &&p1) {
+    del(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
   MatchKey<P, Key> delKey(const P &key) {
@@ -824,6 +839,10 @@ public:
     Guard guard(m_lock);
     return delKey_(findPrev_(matchData(data), code));
   }
+  template <typename P0, typename P1>
+  Key delKey(P0 &&p0, P1 &&p1) {
+    return delKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
 
   template <typename P>
   MatchKey<P, Val> delVal(const P &key) {
@@ -836,6 +855,10 @@ public:
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(m_lock);
     return delVal_(findPrev_(matchData(data), code));
+  }
+  template <typename P0, typename P1>
+  Val delVal(P0 &&p0, P1 &&p1) {
+    return delVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
 private:
@@ -947,7 +970,8 @@ private:
   void startIterate(KeyIterator_ &iterator) {
     iterator.lock(m_lock);
     iterator.m_slot = -1;
-    int prev = findPrev_(iterator.m_index, HashFn::hash(iterator.m_index));
+    int prev =
+      findPrev_(matchKey(iterator.m_key), HashFn::hash(iterator.m_key));
     if (prev == -1) {
       iterator.m_next = iterator.m_prev = -1;
       return;
@@ -982,7 +1006,7 @@ private:
     iterator.m_slot = next;
     while (!m_table[next].tail()) {
       next = m_table[next].next();
-      if (Cmp::equals(m_table[next].key(), iterator.m_index)) {
+      if (Cmp::equals(m_table[next].key(), iterator.m_key)) {
 	iterator.m_next = next;
 	return;
       }
@@ -1024,7 +1048,7 @@ private:
     iterator.m_slot = -1;
     if (!m_table[slot]) return;
     for (;;) {
-      if (Cmp::equals(m_table[slot].key(), iterator.m_index)) {
+      if (Cmp::equals(m_table[slot].key(), iterator.m_key)) {
 	iterator.m_next = slot;
 	return;
       }
@@ -1034,5 +1058,10 @@ private:
     iterator.m_next = -1;
   }
 };
+
+template <typename P0, typename P1, typename NTP = ZmLHash_Defaults>
+using ZmLHashKV =
+  ZmLHash<ZuPair<P0, P1>,
+    ZmLHashKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, NTP> >;
 
 #endif /* ZmLHash_HPP */

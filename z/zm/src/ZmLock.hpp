@@ -40,6 +40,7 @@
 #include <zlib/ZmBackTracer.hpp>
 #endif
 
+class ZmLock;
 template <class Lock> class ZmCondition;
 
 #ifdef ZmLock_DEBUG

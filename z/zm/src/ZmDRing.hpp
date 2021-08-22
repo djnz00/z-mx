@@ -35,7 +35,6 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuArrayFn.hpp>
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuIndex.hpp>
 
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmGuard.hpp>
@@ -74,41 +73,33 @@ private:
 //   ZmDRingCmp<ZtICmp> >		// case-insensitive comparison
 
 struct ZmDRing_Defaults {
-  template <typename T> struct OpsT { using Ops = ZuArrayFn<T>; };
-  template <typename T> struct CmpT { using Cmp = ZuCmp<T>; };
-  template <typename T> struct ICmpT { using ICmp = ZuCmp<T>; };
-  template <typename T> struct IndexT { using Index = T; };
+  using KeyAxor = ZuDefaultAxor;
+  template <typename T> using CmpT = ZuCmp<T>;
+  template <typename T> using KeyCmpT = ZuCmp<T>;
+  template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmLock;
 };
 
-template <class Cmp_, class NTP = ZmDRing_Defaults>
+// ZmDRingKey - key accessor
+template <typename KeyAxor_, typename NTP = ZmDRing_Defaults>
+struct ZmDRingKey : public NTP {
+  using KeyAxor = KeyAxor_;
+};
+
+// ZmDRingCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZmDRing_Defaults>
 struct ZmDRingCmp : public NTP {
-  template <typename T> struct OpsT {
-    using Ops = ZuArrayFn<T, Cmp_>;
-  };
-  template <typename T> struct CmpT {
-    using Cmp = Cmp_;
-  };
+  template <typename T> using CmpT = Cmp_<T>;
+  template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
 };
 
-template <class ICmp_, class NTP = ZmDRing_Defaults>
-struct ZmDRingICmp : public NTP {
-  template <typename> struct ICmpT { using ICmp = ICmp_; };
+// ZmDRingKeyCmp - the optional value comparator
+template <template <typename> typename KeyCmp_, typename NTP = ZmDRing_Defaults>
+struct ZmDRingKeyCmp : public NTP {
+  template <typename T> using KeyCmpT = KeyCmp_<T>;
 };
 
-template <typename Accessor, class NTP = ZmDRing_Defaults>
-struct ZmDRingIndex : public NTP {
-  template <typename T> struct CmpT {
-    using Cmp = typename ZuIndex<Accessor>::template CmpT<T>;
-  };
-  template <typename> struct ICmpT {
-    using ICmp = typename ZuIndex<Accessor>::ICmp;
-  };
-  template <typename> struct IndexT {
-    using Index = typename ZuIndex<Accessor>::I;
-  };
-};
-
+// ZmDRingLock - the lock type
 template <class Lock_, class NTP = ZmDRing_Defaults>
 struct ZmDRingLock : public NTP {
   using Lock = Lock_;
@@ -117,19 +108,19 @@ struct ZmDRingLock : public NTP {
 // only provide delPtr and findPtr methods to callers of unlocked ZmDRings
 // since they are intrinsically not thread-safe
 
-template <typename Val, class NTP> class ZmDRing;
+template <typename T, class NTP> class ZmDRing;
 
 template <class Ring> struct ZmDRing_Unlocked;
-template <typename Val, class NTP>
-struct ZmDRing_Unlocked<ZmDRing<Val, NTP> > {
-  using Ring = ZmDRing<Val, NTP>;
+template <typename T, class NTP>
+struct ZmDRing_Unlocked<ZmDRing<T, NTP> > {
+  using Ring = ZmDRing<T, NTP>;
 
-  template <typename Index_>
-  Val *findPtr(const Index_ &index) {
-    return static_cast<Ring *>(this)->findPtr_(index);
+  template <typename P>
+  T *findPtr(P &&v) {
+    return static_cast<Ring *>(this)->findPtr_(ZuFwd<P>(v));
   }
-  void delPtr(Val *val) {
-    return static_cast<Ring *>(this)->delPtr_(val);
+  void delPtr(T *ptr) {
+    return static_cast<Ring *>(this)->delPtr_(ptr);
   }
 };
 
@@ -139,20 +130,24 @@ struct ZmDRing_Base<Ring, ZmNoLock> : public ZmDRing_Unlocked<Ring> { };
 
 // derives from Ops so that a ZmDRing includes an *instance* of Ops
 
-template <typename Val, class NTP = ZmDRing_Defaults> class ZmDRing :
-    public ZmDRing_Base<ZmDRing<Val, NTP>, typename NTP::Lock>,
-    public NTP::template OpsT<Val>::Ops {
+template <typename T_, class NTP = ZmDRing_Defaults>
+class ZmDRing :
+    public ZmDRing_Base<ZmDRing<T_, NTP>, typename NTP::Lock>,
+    public NTP::template OpsT<T_> {
   ZmDRing(const ZmDRing &);
   ZmDRing &operator =(const ZmDRing &);	// prevent mis-use
 
 friend ZmDRing_Unlocked<ZmDRing>;
 
 public:
-  using Ops = typename NTP::template OpsT<Val>::Ops;
-  using Cmp = typename NTP::template CmpT<Val>::Cmp;
-  using ICmp = typename NTP::template ICmpT<Val>::ICmp;
-  using Index = typename NTP::template IndexT<Val>::Index;
+  using T = T_;
+  using KeyAxor = typename NTP::KeyAxor;
+  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
+  using Ops = typename NTP::template OpsT<T>;
+  using Cmp = typename NTP::template CmpT<T>;
+  using KeyCmp = typename NTP::template KeyCmpT<Key>;
   using Lock = typename NTP::Lock;
+
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
@@ -166,19 +161,19 @@ public:
     free(m_data);
   }
 
-  ZuInline unsigned initial() const { return m_initial; }
-  ZuInline unsigned increment() const { return m_increment; }
-  ZuInline unsigned maxFrag() const {
+  unsigned initial() const { return m_initial; }
+  unsigned increment() const { return m_increment; }
+  unsigned maxFrag() const {
     return (unsigned)((1.0 - m_defrag) * 100.0);
   }
 
-  ZuInline unsigned size() const { ReadGuard guard(m_lock); return m_size; }
-  ZuInline unsigned length() const { ReadGuard guard(m_lock); return m_length; }
-  ZuInline unsigned count() const { ReadGuard guard(m_lock); return m_count; }
-  ZuInline unsigned size_() const { return m_size; }
-  ZuInline unsigned length_() const { return m_length; }
-  ZuInline unsigned count_() const { return m_count; }
-  ZuInline unsigned offset_() const { return m_offset; }
+  unsigned size() const { ReadGuard guard(m_lock); return m_size; }
+  unsigned length() const { ReadGuard guard(m_lock); return m_length; }
+  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
+  unsigned size_() const { return m_size; }
+  unsigned length_() const { return m_length; }
+  unsigned count_() const { return m_count; }
+  unsigned offset_() const { return m_offset; }
 
 private:
   void lazy() {
@@ -198,7 +193,7 @@ private:
   }
 
   void extend(unsigned size) {
-    Val *data = (Val *)malloc(size * sizeof(Val));
+    T *data = static_cast<T *>(malloc(size * sizeof(T)));
     ZmAssert(data);
     if (m_data) {
       unsigned o = m_offset + m_length;
@@ -240,19 +235,19 @@ private:
   }
 
 public:
-  template <typename Val_>
-  void push(Val_ &&v) {
+  template <typename P>
+  void push(P &&v) {
     Guard guard(m_lock);
 
     lazy();
     push();
-    Ops::initItem(m_data + offset(m_length++), ZuFwd<Val_>(v));
+    Ops::initItem(m_data + offset(m_length++), ZuFwd<P>(v));
     m_count++;
   }
 
   // idempotent push
-  template <typename Val_>
-  void findPush(Val_ &&v) {
+  template <typename P>
+  void findPush(P &&v) {
     Guard guard(m_lock);
 
     for (int i = m_length; --i >= 0; ) {
@@ -261,17 +256,17 @@ public:
     }
     lazy();
     push();
-    Ops::initItem(m_data + offset(m_length++), ZuFwd<Val_>(v));
+    Ops::initItem(m_data + offset(m_length++), ZuFwd<P>(v));
     m_count++;
   }
 
-  Val pop() {
+  T pop() {
     Guard guard(m_lock);
 
     if (m_count <= 0) return Cmp::null();
     --m_count;
     unsigned o = offset(--m_length);
-    Val v = ZuMv(m_data[o]);
+    T v = ZuMv(m_data[o]);
     Ops::destroyItem(m_data + o);
     {
       int i = m_length;
@@ -285,21 +280,21 @@ public:
     return v;
   }
 
-  template <typename Val_>
-  void unshift(Val_ &&v) {
+  template <typename P>
+  void unshift(P &&v) {
     Guard guard(m_lock);
 
     lazy();
     push();
     unsigned o = offset(m_size - 1);
     m_offset = o, m_length++;
-    Ops::initItem(m_data + o, ZuFwd<Val_>(v));
+    Ops::initItem(m_data + o, ZuFwd<P>(v));
     m_count++;
   }
 
   // idempotent unshift
-  template <typename Val_>
-  void findUnshift(Val_ &&v) {
+  template <typename P>
+  void findUnshift(P &&v) {
     Guard guard(m_lock);
 
     for (unsigned i = 0; i < m_length; i++) {
@@ -310,17 +305,17 @@ public:
     push();
     unsigned o = offset(m_size - 1);
     m_offset = o, m_length++;
-    Ops::initItem(m_data + o, ZuFwd<Val_>(v));
+    Ops::initItem(m_data + o, ZuFwd<P>(v));
     m_count++;
   }
 
-  Val shift() {
+  T shift() {
     Guard guard(m_lock);
 
     if (m_count <= 0) return Cmp::null();
     --m_count;
     int i = m_length, j = 0, o = m_offset;
-    Val v = ZuMv(m_data[o]);
+    T v = ZuMv(m_data[o]);
     do {
       Ops::destroyItem(m_data + o);
     } while (--i > 0 && Cmp::null(m_data[o = offset(++j)]));
@@ -328,46 +323,57 @@ public:
     return v;
   }
 
-  Val head() {
+  T head() {
     Guard guard(m_lock);
 
     if (m_length <= 0) return Cmp::null();
     return m_data[m_offset];
   }
-  Val tail() {
+  T tail() {
     Guard guard(m_lock);
 
     if (m_length <= 0) return Cmp::null();
     return m_data[offset(m_length - 1)];
   }
 
-  template <typename Index_>
-  Val find(const Index_ &index) {
+  template <typename P>
+  T find(const P &v) {
     Guard guard(m_lock);
-
     for (int i = m_length; --i >= 0; ) {
       unsigned o = offset(i);
-      if (ICmp::equals(m_data[o], index)) return m_data[o];
+      if (KeyCmp::equals(KeyAxor::get(m_data[o]), v)) return m_data[o];
     }
     return Cmp::null();
   }
 
 private:
-  template <typename Index_>
-  Val *findPtr_(const Index_ &index) {
+  template <typename P>
+  T *findPtr_(const P &v) {
     for (int i = m_length; --i >= 0; ) {
       unsigned o = offset(i);
-      if (ICmp::equals(m_data[o], index)) return &m_data[o];
+      if (Cmp::equals(m_data[o], v)) return &m_data[o];
     }
-    return 0;
+    return nullptr;
   }
 
-  void delPtr_(Val *val) {
+public:
+  template <typename P>
+  T del(const P &v) {
+    Guard guard(m_lock);
+    T *ptr = findPtr_(v);
+    if (!ptr) return Cmp::null();
+    T data = ZuMv(*ptr);
+    delPtr_(ptr);
+    return data;
+  }
+
+private:
+  void delPtr_(T *ptr) {
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4244)
 #endif
-    int i = val - m_data;
+    int i = ptr - m_data;
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -376,7 +382,7 @@ private:
 
     int o = offset(m_length - 1);
     if (i == o) {
-      Ops::destroyItem(val);
+      Ops::destroyItem(ptr);
       i = --m_length;
       while (--i >= 0) {
 	if (!Cmp::null(m_data[o = offset(i)])) break;
@@ -384,7 +390,7 @@ private:
       }
       m_length = ++i;
     } else if (i == (int)m_offset) {
-      Ops::destroyItem(val);
+      Ops::destroyItem(ptr);
       ++m_offset, --m_length, i = -1;
       while (++i < (int)m_length) {
 	if (!Cmp::null(m_data[o = offset(i)])) break;
@@ -392,7 +398,7 @@ private:
       }
       if (--i > 0) m_offset = offset(i), m_length -= i;
     } else {
-      *val = Cmp::null();
+      *ptr = Cmp::null();
       if ((double)m_count < (double)m_length * m_defrag) {
 	i = m_length - 1;
 	while (--i >= 0) {
@@ -413,17 +419,6 @@ private:
     }
   }
 
-public:
-  template <typename Index_> Val del(const Index_ &index) {
-    Guard guard(m_lock);
-    Val *vptr = findPtr_(index);
-
-    if (!vptr) return Cmp::null();
-    Val v = ZuMv(*vptr);
-    delPtr_(vptr);
-    return v;
-  }
-
   class Iterator_;
 friend Iterator_;
   class Iterator_ : private Guard {
@@ -431,7 +426,7 @@ friend Iterator_;
     Iterator_ &operator =(const Iterator_ &);	// prevent mis-use
 
   protected:
-    using Ring = ZmDRing<Val, NTP>;
+    using Ring = ZmDRing<T, NTP>;
 
     Iterator_(Ring &ring, unsigned i) :
 	Guard(ring.m_lock), m_ring(ring), m_i(i) { }
@@ -439,20 +434,21 @@ friend Iterator_;
     Ring	&m_ring;
     int		m_i;
   };
+public:
   class Iterator;
 friend Iterator;
   class Iterator : private Iterator_ {
   public:
     Iterator(typename Iterator_::Ring &ring) : Iterator_(ring, 0) { }
-    Val *iteratePtr() {
+    T *iteratePtr() {
       unsigned o;
       do {
-	if (this->m_i >= this->m_ring.m_length) return 0;
+	if (this->m_i >= this->m_ring.m_length) return nullptr;
 	o = this->m_ring.offset(this->m_i++);
       } while (Cmp::null(this->m_ring.m_data[o]));
       return this->m_ring.m_data + o;
     }
-    const Val &iterate() {
+    const T &iterate() {
       unsigned o;
       do {
 	if (this->m_i >= (int)this->m_ring.m_length) return Cmp::null();
@@ -468,15 +464,15 @@ friend RevIterator;
   public:
     RevIterator(typename Iterator_::Ring &ring) :
 	Iterator_(ring, ring.m_length) { }
-    Val *iteratePtr() {
+    T *iteratePtr() {
       unsigned o;
       do {
-	if (this->m_i <= 0) return 0;
+	if (this->m_i <= 0) return nullptr;
 	o = this->m_ring.offset(--this->m_i);
       } while (Cmp::null(this->m_ring.m_data[o]));
       return this->m_ring.m_data + o;
     }
-    const Val &iterate() {
+    const T &iterate() {
       unsigned o;
       do {
 	if (this->m_i <= 0) return Cmp::null();
@@ -489,7 +485,7 @@ friend RevIterator;
 
 private:
   Lock		m_lock;
-  Val		*m_data;
+  T		*m_data;
   unsigned	m_offset;
   unsigned	m_size;
   unsigned	m_length;

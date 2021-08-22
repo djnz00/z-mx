@@ -45,7 +45,7 @@ class ZmPolymorph : public ZmObject_Debug {
   ZmPolymorph &operator =(const ZmPolymorph &) = delete;
 
 public:
-  ZuInline ZmPolymorph()  : m_refCount(0) { }
+  ZmPolymorph()  : m_refCount(0) { }
 
   virtual ~ZmPolymorph() {
 #ifdef ZmObject_DEBUG
@@ -53,12 +53,12 @@ public:
 #endif
   }
 
-  ZuInline int refCount() const { return m_refCount.load_(); }
+  int refCount() const { return m_refCount.load_(); }
 
 #ifdef ZmObject_DEBUG
   void ref(const void *referrer = 0) const
 #else
-  ZuInline void ref() const
+  void ref() const
 #endif
   {
 #ifdef ZmObject_DEBUG
@@ -70,7 +70,7 @@ public:
 #ifdef ZmObject_DEBUG
   bool deref(const void *referrer = 0) const
 #else
-  ZuInline bool deref() const
+  bool deref() const
 #endif
   {
 #ifdef ZmObject_DEBUG
@@ -90,14 +90,14 @@ public:
 #endif
 
   // apps occasionally need to manipulate the refCount directly
-  ZuInline void ref_() const { ++m_refCount; }
-  ZuInline void ref2_() const { m_refCount += 2; }
-  ZuInline bool deref_() const { return !--m_refCount; }
+  void ref_() const { ++m_refCount; }
+  void ref2_() const { m_refCount += 2; }
+  bool deref_() const { return !--m_refCount; }
 
 private:
 #ifdef ZmObject_DEBUG
-  ZuInline bool deleted_() const { return m_refCount.load_() < 0; }
-  ZuInline void del_() const { m_refCount.store_(-1); }
+  bool deleted_() const { return m_refCount.load_() < 0; }
+  void del_() const { m_refCount.store_(-1); }
 #endif
 
   mutable ZmAtomic<int>	m_refCount;

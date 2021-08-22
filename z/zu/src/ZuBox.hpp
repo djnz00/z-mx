@@ -216,9 +216,10 @@ using ZuBox_Unbox = typename ZuBox_Unbox_<U>::T;
 
 template <typename T_, class Cmp_ = ZuCmp<ZuBox_Unbox<T_>> >
 class ZuBox {
-template <typename, class> friend class ZuBox;
-template <class, class> friend class ZuBoxFmt;
-template <class> friend class ZuBoxVFmt;
+template <typename, typename> friend class ZuBox;
+template <typename, typename> friend class ZuBoxFmt;
+template <typename> friend class ZuBoxVFmt;
+
 public:
   using T = ZuBox_Unbox<T_>;
   using Cmp = Cmp_;
@@ -314,6 +315,20 @@ public:
   }
   int cmp(const ZuBox &b) const { return cmp_<>(b.m_val); }
 
+  template <typename T>
+  static ZuIsFloatingPoint<T, bool> equals_(T t1, T t2) {
+    if (Cmp::null(t2)) return Cmp::null(t1);
+    if (Cmp::null(t1)) return false;
+    return t1 == t2;
+  }
+  template <typename T>
+  static ZuNotFloatingPoint<T, bool> equals_(T t1, T t2) {
+    return t1 == t2;
+  }
+  bool equals(const ZuBox &b) const {
+    return equals_(m_val, b.m_val);
+  }
+
   template <class Cmp__ = Cmp>
   ZuIfT<!ZuConversion<Cmp__, ZuCmp0<T> >::Same, bool>
   less_(const ZuBox &b) const {
@@ -326,48 +341,7 @@ public:
   less_(const ZuBox &b) const {
     return Cmp::less(m_val, b.m_val);
   }
-  bool less(const ZuBox &b) const { return less_<>(b.m_val); }
-
-  template <class Cmp__ = Cmp>
-  ZuIfT<!ZuConversion<Cmp__, ZuCmp0<T> >::Same, bool>
-  greater_(const ZuBox &b) const {
-    if (Cmp::null(m_val)) return false;
-    if (Cmp::null(b.m_val)) return true;
-    return Cmp::less(b.m_val, m_val);
-  }
-  template <class Cmp__ = Cmp>
-  ZuIfT<ZuConversion<Cmp__, ZuCmp0<T> >::Same, bool>
-  greater_(const ZuBox &b) const {
-    return !Cmp::less(b.m_val, m_val);
-  }
-  bool greater(const ZuBox &b) const { return greater_<>(b.m_val); }
-
-  template <typename T>
-  static ZuIsFloatingPoint<T, bool> equals_(const T &t1, const T &t2) {
-    if (Cmp::null(t2)) return Cmp::null(t1);
-    if (Cmp::null(t1)) return false;
-    return t1 == t2;
-  }
-  template <typename T>
-  static ZuNotFloatingPoint<T, bool> equals_(const T &t1, const T &t2) {
-    return t1 == t2;
-  }
-  bool equals(const ZuBox &b) const {
-    return equals_(m_val, b.m_val);
-  }
-
-  template <typename V>
-  bool operator ==(const V &v) const { return equals(v); }
-  template <typename V>
-  bool operator !=(const V &v) const { return !equals(v); }
-  template <typename V>
-  bool operator >(const V &v) const { return greater(v); }
-  template <typename V>
-  bool operator >=(const V &v) const { return !less(v); }
-  template <typename V>
-  bool operator <(const V &v) const { return less(v); }
-  template <typename V>
-  bool operator <=(const V &v) const { return !greater(v); }
+  bool less(const ZuBox &b) const { return less_<>(b); }
 
   bool operator !() const { return !m_val; }
 
@@ -563,6 +537,47 @@ public:
 private:
   T	m_val;
 };
+
+template <typename T, typename Cmp>
+inline bool operator ==(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
+  return l.equals(r);
+}
+template <typename L, typename T, typename Cmp>
+inline bool operator ==(const L &l, const ZuBox<T, Cmp> &r) {
+  return ZuBox<T, Cmp>{l}.equals(r);
+}
+template <typename T, typename Cmp>
+inline bool operator <(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
+  return l.less(r);
+}
+template <typename L, typename T, typename Cmp>
+inline bool operator <(const L &l, const ZuBox<T, Cmp> &r) {
+  return ZuBox<T, Cmp>{l}.less(r);
+}
+template <typename T, typename Cmp>
+inline bool operator >=(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
+  return !l.less(r);
+}
+template <typename L, typename T, typename Cmp>
+inline bool operator >=(const L &l, const ZuBox<T, Cmp> &r) {
+  return !ZuBox<T, Cmp>{l}.less(r);
+}
+template <typename T, typename Cmp>
+inline bool operator >(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
+  return r.less(l);
+}
+template <typename L, typename T, typename Cmp>
+inline bool operator >(const L &l, const ZuBox<T, Cmp> &r) {
+  return ZuBox<T, Cmp>{r}.less(l);
+}
+template <typename T, typename Cmp>
+inline bool operator <=(const ZuBox<T, Cmp> &l, const ZuBox<T, Cmp> &r) {
+  return !r.less(l);
+}
+template <typename L, typename T, typename Cmp>
+inline bool operator <=(const L &l, const ZuBox<T, Cmp> &r) {
+  return !ZuBox<T, Cmp>{r}.less(l);
+}
 
 #define ZuBox0(T) ZuBox<T, ZuCmp0<T> >
 #define ZuBox_1(T) ZuBox<T, ZuCmp_1<T> >

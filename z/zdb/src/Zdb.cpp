@@ -1100,8 +1100,7 @@ void ZdbAnyPOD::replicate(int type, int op, bool compress)
       m_compressed = this->compress();
       if (ZuUnlikely(!m_compressed)) goto uncompressed;
       int n = m_compressed->compress(
-	  // FIXME - C++ casting
-	  (const char *)this->ptr() + range.off(), range.len());
+	  this->ptr<const char>() + range.off(), range.len());
       if (ZuUnlikely(n < 0)) goto uncompressed;
       rep.clen = n;
       return;
@@ -1130,8 +1129,7 @@ void ZdbAnyPOD::sent(ZiIOContext &io)
   else if (range)
     io.init(ZiIOFn::Member<&ZdbAnyPOD::sent2>::fn(
 	  io.fn.mvObject<ZdbAnyPOD>()),
-	// FIXME - C++ casting
-	(void *)((const char *)this->ptr() + range.off()), range.len(), 0);
+	this->ptr<const char>() + range.off(), range.len(), 0);
   else
     sent3(io);
 }
@@ -1152,9 +1150,7 @@ void ZdbAnyPOD::sent3(ZiIOContext &io)
 
 int ZdbAnyPOD_Cmpr::compress(const char *src, unsigned srcSize)
 {
-	  // FIXME - C++ casting
-  return LZ4_compress_fast((const char *)src, (char *)ptr(),
-      srcSize, this->size(), 1);
+  return LZ4_compress_fast(src, ptr<char>(), srcSize, this->size(), 1);
 }
 
 // broadcast heartbeat

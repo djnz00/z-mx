@@ -234,13 +234,6 @@ public:
       ZuCmp<T1>::equals(m_p1, p.template p<1>());
   }
 
-  bool operator ==(const Pair_ &p) const { return equals(p); }
-  bool operator !=(const Pair_ &p) const { return !equals(p); }
-  bool operator >(const Pair_ &p) const { return p.less(*this); }
-  bool operator >=(const Pair_ &p) const { return !less(p); }
-  bool operator <(const Pair_ &p) const { return less(p); }
-  bool operator <=(const Pair_ &p) const { return !p.less(*this); }
-
   bool operator !() const { return !m_p0 || !m_p1; }
   ZuOpBool
 
@@ -347,6 +340,16 @@ private:
   T0		m_p0;
   T1		m_p1;
 };
+
+template <typename T0, typename T1>
+inline bool operator ==(const Pair_<T0, T1> &l, const Pair_<T0, T1> &r) {
+  return l.equals(r);
+}
+template <typename T0, typename T1>
+inline bool operator <(const Pair_<T0, T1> &l, const Pair_<T0, T1> &r) {
+  return l.less(r);
+}
+
 } // namespace Zu_
 
 template <typename T0, typename T1>

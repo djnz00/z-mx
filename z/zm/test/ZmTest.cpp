@@ -58,6 +58,7 @@ struct Y : public X {
 
 struct Z : public ZmObject { int m_z; };
 
+template <typename>
 struct ZCmp {
   static int cmp(const Z *z1, const Z *z2) { return z1->m_z - z2->m_z; }
   static bool less(const Z *z1, const Z *z2) { return z1->m_z < z2->m_z; }
@@ -67,9 +68,9 @@ struct ZCmp {
 };
 
 using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
-using ZHash = ZmHash<int, ZmHashVal<ZmRef<Z> > >;
+using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
-using ZList2 = ZmList<ZuStringN<20>, ZmListNodeIsItem<true> >;
+using ZList2 = ZmList<ZuStringN<20>, ZmListNodeDerive<true> >;
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 
@@ -365,9 +366,9 @@ int main(int argc, char **argv)
   }
   {
     ZList2 list;
-    list.add(ZmRef<ZList2::Node>(new ZList2::Node("foo")));
-    list.add(ZmRef<ZList2::Node>(new ZList2::Node("bar")));
-    list.add(ZmRef<ZList2::Node>(new ZList2::Node("baz")));
+    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("foo")));
+    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("bar")));
+    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("baz")));
     {
       ZList2::Iterator iter(list);
       ZList2::NodeRef z;

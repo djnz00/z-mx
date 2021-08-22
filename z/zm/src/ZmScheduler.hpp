@@ -180,18 +180,16 @@ class ZmAPI ZmScheduler {
     ZuInline bool operator !() const { return !timeout; }
     ZuOpBool
   };
-  struct Timer_TimeoutAccessor : public ZuAccessor<Timer_, ZmTime> {
-    ZuInline static const ZmTime &value(const Timer_ &t) {
-      return t.timeout;
-    }
+  struct Timer_TimeoutAxor {
+    static const ZmTime &get(const Timer_ &t) { return t.timeout; }
   };
   struct ScheduleTree_HeapID {
     static constexpr const char *id() { return "ZmScheduler.ScheduleTree"; }
   };
   using ScheduleTree =
     ZmRBTree<Timer_,
-      ZmRBTreeIndex<Timer_TimeoutAccessor,
-	ZmRBTreeNodeIsKey<true,
+      ZmRBTreeKey<Timer_TimeoutAxor,
+	ZmRBTreeNodeDerive<true,
 	  ZmRBTreeObject<ZuShadow,
 	    ZmRBTreeLock<ZmNoLock,
 	      ZmRBTreeHeapID<ScheduleTree_HeapID> > > > > >;

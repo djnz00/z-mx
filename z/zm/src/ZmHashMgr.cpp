@@ -37,12 +37,11 @@ friend ZmHashMgr;
   struct HeapID { static constexpr const char *id() { return "ZmHashMgr_"; } };
 
   using ID2Params =
-    ZmRBTree<ZmIDString,
-      ZmRBTreeVal<ZmHashParams,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeHeapID<HeapID,
-	      ZmRBTreeLock<ZmNoLock> > > > > >;
+    ZmRBTreeKV<ZmIDString, ZmHashParams,
+      ZmRBTreeUnique<true,
+	ZmRBTreeObject<ZuNull,
+	  ZmRBTreeHeapID<HeapID,
+	    ZmRBTreeLock<ZmNoLock> > > > >;
 
   ZmHashMgr_() { }
 public:
@@ -79,7 +78,7 @@ private:
 
   void add(ZmAnyHash *tbl) {
     ZmGuard<ZmPLock> guard(m_lock);
-    m_tables.add(tbl);
+    m_tables.addNode(tbl);
     // deref, otherwise m_tables.add() prevents dtor from ever being called
     tbl->deref_();
   }
@@ -88,7 +87,7 @@ private:
     ZmGuard<ZmPLock> guard(m_lock);
     // double ref prevents m_tables.del() from recursing into dtor
     tbl->ref2_();
-    if (!m_tables.del(ZmAnyHash_PtrAccessor::value(*tbl))) tbl->deref_();
+    if (!m_tables.del(ZmAnyHash_PtrAxor::get(*tbl))) tbl->deref_();
     tbl->deref_();
   }
 
@@ -106,7 +105,7 @@ private:
       {
 	ZmGuard<ZmPLock> guard(m_lock);
 	next = m_tables.readIterator<ZmRBTreeGreater>(
-	    ZmAnyHash_PtrAccessor::value(*tbl)).iterate();
+	    ZmAnyHash_PtrAxor::get(*tbl)).iterate();
       }
       tbl = ZuMv(next);
     }

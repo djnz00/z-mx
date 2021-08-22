@@ -56,7 +56,7 @@ struct Msg_ : public Msg_Data {
   unsigned bytes() const { return 1; }
 };
 
-using Queue = ZmPQueue<Msg_, ZmPQueueNodeIsItem<true> >;
+using Queue = ZmPQueue<Msg_, ZmPQueueNodeDerive<true> >;
 
 class App : public ZmPQRx<App, Queue, ZmNoLock> {
 public:
@@ -248,7 +248,6 @@ int main()
   a.reset(1);
   a.startQueuing();
   send(a, 4, 1);
-  a.respond(0, 0);
   assert(a.rxQueue()->gap().equals(ZuFwdPair(1, 3)));
   a.stopQueuing(2);
   while (a.runDequeue());

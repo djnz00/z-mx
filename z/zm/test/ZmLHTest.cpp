@@ -98,14 +98,8 @@ template <int N> struct String {
 };
 using S = String<16>;
 
-using Hash =
-  ZmHash<S,
-    ZmHashVal<int,
-      ZmHashLock<ZmNoLock> > >;
-using LHash =
-  ZmLHash<S,
-    ZmLHashVal<int,
-      ZmLHashLock<ZmNoLock> > >;
+using Hash = ZmHashKV<S, int, ZmHashLock<ZmNoLock> >;
+using LHash = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock> >;
 
 template <typename H>
 struct HashAdapter {
@@ -119,13 +113,9 @@ struct HashAdapter {
 };
 template <typename H>
 struct LHashAdapter {
-  using T = const typename H::KV *;
-  static const typename H::Key &key(T ptr) {
-    return ptr->key();
-  }
-  static const typename H::Val &val(T ptr) {
-    return ptr->val();
-  }
+  using T = const typename H::T *;
+  static decltype(auto) key(T ptr) { return H::KeyAxor::get(*ptr); }
+  static decltype(auto) val(T ptr) { return H::ValAxor::get(*ptr); }
 };
 
 void fail() { }
@@ -155,7 +145,7 @@ template <typename H> void del(H &h, int i)
 
 template <typename H> void iter(H &h, int check, int del = -1)
 {
-  typename H::IndexIterator i(h, "Hello");
+  typename H::KeyIterator i(h, "Hello");
   int j;
   int total = 0;
   while (!ZuCmp<int>::null(j = i.iterateVal())) {
@@ -277,8 +267,8 @@ template <typename H, template <typename> class A> void funcTest()
   }
 }
 
-using PerfHash = ZmHash<int, ZmHashVal<String<16>, ZmHashLock<ZmLock> > >;
-using PerfLHash = ZmLHash<int, ZmLHashVal<String<16>, ZmLHashLock<ZmLock> > >;
+using PerfHash = ZmHashKV<int, String<16>, ZmHashLock<ZmLock> >;
+using PerfLHash = ZmLHashKV<int, String<16>, ZmLHashLock<ZmLock> >;
 
 int perfTestSize = 1000;
 

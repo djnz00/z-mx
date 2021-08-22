@@ -77,10 +77,19 @@ private:
 // ZmStack<ZtString>			// stack of ZtStrings
 //    ZmStackCmp<ZtICmp> >		// case-insensitive comparison
 
+// NTP defaults
 struct ZmStack_Defaults {
+  using KeyAxor = ZuDefaultAxor;
   template <typename T> using CmpT = ZuCmp<T>;
+  template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmLock;
+};
+
+// ZmStackKey - key accessor
+template <typename KeyAxor_, typename NTP = ZmStack_Defaults>
+struct ZmStackKey : public NTP {
+  using KeyAxor = KeyAxor_;
 };
 
 // ZmStackCmp - the comparator
@@ -88,6 +97,12 @@ template <template <typename> typename Cmp_, typename NTP = ZmStack_Defaults>
 struct ZmStackCmp : public NTP {
   template <typename T> using CmpT = Cmp_<T>;
   template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
+};
+
+// ZmStackKeyCmp - the optional value comparator
+template <template <typename> typename KeyCmp_, typename NTP = ZmStack_Defaults>
+struct ZmStackKeyCmp : public NTP {
+  template <typename T> using KeyCmpT = KeyCmp_<T>;
 };
 
 // ZmStackLock - the lock type
@@ -131,8 +146,11 @@ friend ZmStack_Unlocked<ZmStack>;
 
 public:
   using T = T_;
+  using KeyAxor = typename NTP::KeyAxor;
+  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
+  using KeyCmp = typename NTP::template KeyCmpT<Key>;
   using Lock = typename NTP::Lock;
 
   using Guard = ZmGuard<Lock>;
@@ -233,7 +251,7 @@ public:
   }
   T tail() {
     Guard guard(m_lock);
-    if (m_length <= 0) return T{};
+    if (m_length <= 0) return Cmp::null();
     return m_data[m_length - 1];
   }
 
@@ -254,7 +272,7 @@ private:
   template <typename P>
   T *findPtr__(const P &v) {
     for (int i = m_length; --i >= 0; )
-      if (Cmp::equals(m_data[i], v)) return &m_data[i];
+      if (KeyCmp::equals(KeyAxor::get(m_data[i]), v)) return &m_data[i];
     return nullptr;
   }
 

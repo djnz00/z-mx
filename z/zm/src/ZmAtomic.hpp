@@ -90,24 +90,24 @@ template <typename Int32> struct ZmAtomicOps<Int32, 4> {
   using S = int32_t;
   using U = uint32_t;
 
-  ZuInline static Int32 load_(const Int32 *ptr) {
+  static Int32 load_(const Int32 *ptr) {
     return ZmAtomic_load(ptr);
   }
-  ZuInline static Int32 load(const Int32 *ptr) {
+  static Int32 load(const Int32 *ptr) {
     Int32 i = ZmAtomic_load(ptr);
     ZmAtomic_acquire();
     return i;
   }
-  ZuInline static void store_(Int32 *ptr, Int32 value) {
+  static void store_(Int32 *ptr, Int32 value) {
     ZmAtomic_store(ptr, value);
   }
-  ZuInline static void store(Int32 *ptr, Int32 value) {
+  static void store(Int32 *ptr, Int32 value) {
     ZmAtomic_release();
     ZmAtomic_store(ptr, value);
   }
 
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-  ZuInline static Int32 atomicXch(volatile Int32 *ptr, Int32 value) {
+  static Int32 atomicXch(volatile Int32 *ptr, Int32 value) {
 #ifdef ZmAtomic_GccBuiltins32
     return __sync_lock_test_and_set(ptr, value);
 #else
@@ -120,7 +120,7 @@ template <typename Int32> struct ZmAtomicOps<Int32, 4> {
 #endif
   }
 
-  ZuInline static Int32 atomicXchAdd(volatile Int32 *ptr, Int32 value) {
+  static Int32 atomicXchAdd(volatile Int32 *ptr, Int32 value) {
 #ifdef ZmAtomic_GccBuiltins32
     return __sync_fetch_and_add(ptr, value);
 #else
@@ -133,7 +133,7 @@ template <typename Int32> struct ZmAtomicOps<Int32, 4> {
 #endif
   }
 
-  ZuInline static Int32 atomicCmpXch(
+  static Int32 atomicCmpXch(
 	volatile Int32 *ptr, Int32 value, Int32 cmp) {
 #ifdef ZmAtomic_GccBuiltins32
     return __sync_val_compare_and_swap(ptr, cmp, value);
@@ -149,16 +149,16 @@ template <typename Int32> struct ZmAtomicOps<Int32, 4> {
 #endif /* GNUC && (i386 || x86_64) */
 
 #if defined(_WIN32) && defined(_MSC_VER)
-  ZuInline static Int32 atomicXch(volatile Int32 *ptr, Int32 value) {
+  static Int32 atomicXch(volatile Int32 *ptr, Int32 value) {
     return _InterlockedExchange((volatile long *)ptr, value);
   }
 
-  ZuInline static Int32 atomicCmpXch(
+  static Int32 atomicCmpXch(
       volatile Int32 *ptr, Int32 value, Int32 cmp) {
     return _InterlockedCompareExchange((volatile long *)ptr, value, cmp);
   }
 
-  ZuInline static Int32 atomicXchAdd(volatile Int32 *ptr, int32_t value) {
+  static Int32 atomicXchAdd(volatile Int32 *ptr, int32_t value) {
     return _InterlockedExchangeAdd((volatile long *)ptr, value);
   }
 #endif /* _WIN32 && _MSC_VER */
@@ -169,24 +169,24 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
   using S = int64_t;
   using U = uint64_t;
 
-  ZuInline static Int64 load_(const Int64 *ptr) {
+  static Int64 load_(const Int64 *ptr) {
     return ZmAtomic_load(ptr);
   }
-  ZuInline static Int64 load(const Int64 *ptr) {
+  static Int64 load(const Int64 *ptr) {
     Int64 i = ZmAtomic_load(ptr);
     ZmAtomic_acquire();
     return i;
   }
-  ZuInline static void store_(Int64 *ptr, Int64 value) {
+  static void store_(Int64 *ptr, Int64 value) {
     ZmAtomic_store(ptr, value);
   }
-  ZuInline static void store(Int64 *ptr, Int64 value) {
+  static void store(Int64 *ptr, Int64 value) {
     ZmAtomic_release();
     ZmAtomic_store(ptr, value);
   }
 
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-  ZuInline static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
+  static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
 #ifdef ZmAtomic_GccBuiltins64
     return __sync_lock_test_and_set(ptr, value);
 #else
@@ -203,7 +203,7 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
 #endif
   }
 
-  ZuInline static Int64 atomicXchAdd(volatile Int64 *ptr, Int64 value) {
+  static Int64 atomicXchAdd(volatile Int64 *ptr, Int64 value) {
 #ifdef ZmAtomic_GccBuiltins64
     return __sync_fetch_and_add(ptr, value);
 #else
@@ -220,7 +220,7 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
 #endif
   }
 
-  ZuInline static Int64 atomicCmpXch(
+  static Int64 atomicCmpXch(
       volatile Int64 *ptr, Int64 value, Int64 cmp) {
 #ifdef ZmAtomic_GccBuiltins64
     return __sync_val_compare_and_swap(ptr, cmp, value);
@@ -256,15 +256,15 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #ifdef _WIN64
-  ZuInline static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
+  static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
     return _InterlockedExchange64((volatile long long *)ptr, value);
   }
 
-  ZuInline static Int64 atomicXchAdd(volatile Int64 *ptr, int64_t value) {
+  static Int64 atomicXchAdd(volatile Int64 *ptr, int64_t value) {
     return _InterlockedExchangeAdd64((volatile long long *)ptr, value);
   }
 #else
-  ZuInline static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
+  static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
     Int64 old;
 
     do {
@@ -274,7 +274,7 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
     return old;
   }
 
-  ZuInline static Int64 atomicXchAdd(volatile Int64 *ptr, int64_t value) {
+  static Int64 atomicXchAdd(volatile Int64 *ptr, int64_t value) {
     Int64 old;
 
     do {
@@ -285,8 +285,7 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
   }
 #endif
 
-  ZuInline static Int64 atomicCmpXch(
-      volatile Int64 *ptr, Int64 value, Int64 cmp) {
+  static Int64 atomicCmpXch(volatile Int64 *ptr, Int64 value, Int64 cmp) {
     return _InterlockedCompareExchange64(
 	(volatile long long *)ptr, value, cmp);
   }
@@ -304,63 +303,63 @@ private:
   using U = typename Ops::U;
 
 public:
-  ZuInline ZmAtomic() : m_val(0) { };
+  ZmAtomic() : m_val(0) { };
 
   // store/relaxed when first creating new objects
-  ZuInline ZmAtomic(const ZmAtomic &a) {
+  ZmAtomic(const ZmAtomic &a) {
     Ops::store_(&m_val, Ops::load(&a.m_val));
   };
-  ZuInline ZmAtomic(T val) {
+  ZmAtomic(T val) {
     Ops::store_(&m_val, val);
   };
 
   // store/release (release before store)
-  ZuInline ZmAtomic &operator =(const ZmAtomic &a) {
+  ZmAtomic &operator =(const ZmAtomic &a) {
     Ops::store(&m_val, Ops::load(&a.m_val));
     return *this;
   }
-  ZuInline ZmAtomic &operator =(T val) {
+  ZmAtomic &operator =(T val) {
     Ops::store(&m_val, val);
     return *this;
   }
 
   // store/relaxed
-  ZuInline void store_(T val) { Ops::store_(&m_val, val); }
+  void store_(T val) { Ops::store_(&m_val, val); }
 
   // load/acquire (acquire after load)
-  ZuInline operator T() const { return Ops::load(&m_val); }
+  operator T() const { return Ops::load(&m_val); }
 
   // load/relaxed
-  ZuInline T load_() const { return Ops::load_(&m_val); }
+  T load_() const { return Ops::load_(&m_val); }
 
-  ZuInline T xch(T val) { return Ops::atomicXch(&m_val, val); }
-  ZuInline T xchAdd(T val) { return Ops::atomicXchAdd(&m_val, val); }
-  ZuInline T xchSub(T val) { return Ops::atomicXchAdd(&m_val, -val); }
-  ZuInline T cmpXch(T val, T cmp) {
+  T xch(T val) { return Ops::atomicXch(&m_val, val); }
+  T xchAdd(T val) { return Ops::atomicXchAdd(&m_val, val); }
+  T xchSub(T val) { return Ops::atomicXchAdd(&m_val, -val); }
+  T cmpXch(T val, T cmp) {
     return Ops::atomicCmpXch(&m_val, val, cmp);
   }
 
-  ZuInline T operator ++() { return Ops::atomicXchAdd(&m_val, 1) + 1; }
-  ZuInline T operator --() { return Ops::atomicXchAdd(&m_val, -1) - 1; }
+  T operator ++() { return Ops::atomicXchAdd(&m_val, 1) + 1; }
+  T operator --() { return Ops::atomicXchAdd(&m_val, -1) - 1; }
 
-  ZuInline T operator ++(int) { return Ops::atomicXchAdd(&m_val, 1); }
-  ZuInline T operator --(int) { return Ops::atomicXchAdd(&m_val, -1); }
+  T operator ++(int) { return Ops::atomicXchAdd(&m_val, 1); }
+  T operator --(int) { return Ops::atomicXchAdd(&m_val, -1); }
 
-  ZuInline T operator +=(S val) {
+  T operator +=(S val) {
     return Ops::atomicXchAdd(&m_val, val) + val;
   }
-  ZuInline T operator -=(S val) {
+  T operator -=(S val) {
     return Ops::atomicXchAdd(&m_val, -val) - val;
   }
 
-  ZuInline T xchOr(T val) {
+  T xchOr(T val) {
     T old;
     do {
       if (((old = m_val) & val) == val) return old;
     } while (Ops::atomicCmpXch(&m_val, old | val, old) != old);
     return old;
   }
-  ZuInline T xchAnd(T val) {
+  T xchAnd(T val) {
     T old;
     do {
       if (!((old = m_val) & ~val)) return old;
@@ -368,17 +367,17 @@ public:
     return old;
   }
 
-  ZuInline T operator |=(T val) { return xchOr(val) | val; }
-  ZuInline T operator &=(T val) { return xchAnd(val) & val; }
+  T operator |=(T val) { return xchOr(val) | val; }
+  T operator &=(T val) { return xchAnd(val) & val; }
 
-  ZuInline T minimum(T val) {
+  T minimum(T val) {
     T old;
     do {
       if ((old = m_val) <= val) return old;
     } while (Ops::atomicCmpXch(&m_val, val, old) != old);
     return val;
   }
-  ZuInline T maximum(T val) {
+  T maximum(T val) {
     T old;
     do {
       if ((old = m_val) >= val) return old;
@@ -399,63 +398,71 @@ private:
   using U = typename Ops::U;
 
 public:
-  ZuInline ZmAtomic() : m_val(0) { }
+  ZmAtomic() : m_val(0) { }
  
   // store/relaxed when first creating new objects
-  ZuInline ZmAtomic(const ZmAtomic &a) {
+  ZmAtomic(const ZmAtomic &a) {
     Ops::store_(&m_val, Ops::load(&a.m_val));
   }
-  ZuInline ZmAtomic(T *val) {
-    Ops::store_(&m_val, (uintptr_t)val);
+  ZmAtomic(T *val) {
+    Ops::store_(&m_val, reinterpret_cast<uintptr_t>(val));
   }
 
   // store/release (release before store)
-  ZuInline ZmAtomic &operator =(const ZmAtomic &a) {
+  ZmAtomic &operator =(const ZmAtomic &a) {
     Ops::store(&m_val, Ops::load(&a.m_val));
     return *this;
   }
-  ZuInline ZmAtomic &operator =(T *val) {
-    Ops::store(&m_val, (uintptr_t)val);
+  ZmAtomic &operator =(T *val) {
+    Ops::store(&m_val, reinterpret_cast<uintptr_t>(val));
     return *this;
   }
 
   // store/relaxed
-  ZuInline void store_(T *val) { Ops::store_(&m_val, (U)val); }
+  void store_(T *val) { Ops::store_(&m_val, reinterpret_cast<U>(val)); }
 
   // load/acquire (acquire after load)
-  ZuInline operator T *() const { return (T *)Ops::load(&m_val); }
-  ZuInline T *operator ->() const { return (T *)Ops::load(&m_val); }
+  operator T *() const { return reinterpret_cast<T *>(Ops::load(&m_val)); }
+  T *operator ->() const { return reinterpret_cast<T *>(Ops::load(&m_val)); }
 
   // load/relaxed
-  ZuInline T *load_() const { return (T *)Ops::load_(&m_val); }
+  T *load_() const { return reinterpret_cast<T *>(Ops::load_(&m_val)); }
 
-  ZuInline T *xch(T *val) { return (T *)Ops::atomicXch(&m_val, (U)val); }
-  ZuInline T *xchAdd(S val) { return (T *)Ops::atomicXchAdd(&m_val, val); }
-  ZuInline T *cmpXch(T *val, T *cmp) {
-    return (T *)Ops::atomicCmpXch(&m_val, (U)val, (U)cmp);
+  T *xch(T *val) {
+    return reinterpret_cast<T *>(Ops::atomicXch(&m_val,
+	  reinterpret_cast<U>(val)));
   }
-
-  ZuInline T *operator ++() {
-    return (T *)Ops::atomicXchAdd(&m_val, sizeof(T)) + sizeof(T);
+  T *xchAdd(S val) {
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val, val));
   }
-  ZuInline T *operator --() {
-    return (T *)Ops::atomicXchAdd(&m_val, -sizeof(T)) - sizeof(T);
-  }
-
-  ZuInline T *operator ++(int) {
-    return (T *)Ops::atomicXchAdd(&m_val, sizeof(T));
-  }
-  ZuInline T *operator --(int) {
-    return (T *)Ops::atomicXchAdd(&m_val, -sizeof(T));
+  T *cmpXch(T *val, T *cmp) {
+    return reinterpret_cast<T *>(Ops::atomicCmpXch(&m_val,
+	  reinterpret_cast<U>(val), reinterpret_cast<U>(cmp)));
   }
 
-  ZuInline T *operator +=(S val) {
+  T *operator ++() {
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val,
+	  sizeof(T))) + sizeof(T);
+  }
+  T *operator --() {
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val,
+	  -sizeof(T))) - sizeof(T);
+  }
+
+  T *operator ++(int) {
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val, sizeof(T)));
+  }
+  T *operator --(int) {
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val, -sizeof(T)));
+  }
+
+  T *operator +=(S val) {
     val *= sizeof(T);
-    return (T *)Ops::atomicXchAdd(&m_val, val) + val;
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val, val)) + val;
   }
-  ZuInline T *operator -=(S val) {
+  T *operator -=(S val) {
     val *= sizeof(T);
-    return (T *)Ops::atomicXchAdd(&m_val, -val) - val;
+    return reinterpret_cast<T *>(Ops::atomicXchAdd(&m_val, -val)) - val;
   }
 
 private:
@@ -467,12 +474,12 @@ template <typename T_> struct ZuTraits<ZmAtomic<T_> > : public ZuTraits<T_> {
 };
 
 template <typename T>
-ZuInline ZmAtomic<T> &ZmAtomize(T &v) {
+ZmAtomic<T> &ZmAtomize(T &v) {
   ZmAtomic<T> *ZuMayAlias(ptr) = reinterpret_cast<ZmAtomic<T> *>(&v);
   return *ptr;
 }
 template <typename T>
-ZuInline const ZmAtomic<T> &ZmAtomize(const T &v) {
+const ZmAtomic<T> &ZmAtomize(const T &v) {
   const ZmAtomic<T> *ZuMayAlias(ptr) =
     reinterpret_cast<const ZmAtomic<T> *>(&v);
   return *ptr;

@@ -327,7 +327,7 @@ void ZmScheduler::timer()
 	      ok = timerAdd(fn);
 	    if (ZuUnlikely(!ok)) {
 	      scheduleGuard.unlock();
-	      m_schedule.add(timer);
+	      m_schedule.addNode(timer);
 	      ZmPlatform::sleep(m_params.quantum());
 	      return;
 	    }
@@ -391,7 +391,7 @@ void ZmScheduler::run(
     timer->timeout = timeout;
     timer->tid = tid;
     timer->fn = ZuMv(fn);
-    m_schedule.add(timer);
+    m_schedule.addNode(timer);
 
     if (kick) startTimer();
   }

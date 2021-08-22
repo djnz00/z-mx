@@ -85,7 +85,6 @@
 #include <zlib/ZmFn_.hpp>
 #include <zlib/ZmCleanup.hpp>
 #include <zlib/ZmGlobal.hpp>
-#include <zlib/ZmStack_.hpp>
 
 class ZmSpecific_;
 struct ZmSpecific_Object;

@@ -40,7 +40,6 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuIndex.hpp>
 #include <zlib/ZuStringN.hpp>
 
 #include <zlib/ZmLock.hpp>
@@ -113,8 +112,8 @@ struct ZmTLock_Held {
   int		m_lockCount;
 };
 
-struct ZmTLock_Held_ThreadAccessor : public ZuAccessor<ZmTLock_Held, void *> {
-  ZuInline static void *value(ZmTLock_Held h) { return h.m_thread; }
+struct ZmTLock_Held_ThreadAxor {
+  ZuInline static void *get(ZmTLock_Held h) { return h.m_thread; }
 };
 
 struct ZmTLock_Test;
@@ -137,7 +136,7 @@ friend ZmTLock_Test;
   using Held = ZmTLock_Held;
   using HeldStack =
     ZmStack<Held,
-      ZmStackIndex<ZmTLock_Held_ThreadAccessor,
+      ZmStackKey<ZmTLock_Held_ThreadAxor,
 	ZmStackLock<ZmNoLock> > >;
   using HeldStackIterator = typename HeldStack::Iterator;
 
@@ -182,11 +181,9 @@ friend Lock;
   struct HeapID { static constexpr const char *id() { return "ZmTLock"; } };
 
   using LockHash =
-    ZmHash<ID,
-      ZmHashVal<LockRef,
-	// ZmHashValCmp<Lock,
-	  ZmHashHeapID<HeapID,
-	    ZmHashLock<ZmNoLock> > > >;
+    ZmHashKV<ID, LockRef,
+      ZmHashHeapID<HeapID,
+	ZmHashLock<ZmNoLock> > >;
 
   using LockList =
     ZmList<LockRef,
@@ -285,10 +282,7 @@ friend Thread;
 
   using ThreadRef = ZmRef<Thread>;
 
-  using ThreadHash =
-    ZmHash<TID,
-      ZmHashVal<ThreadRef,
-	ZmHashLock<ZmNoLock> > >;
+  using ThreadHash = ZmHashKV<TID, ThreadRef, ZmHashLock<ZmNoLock> >;
 
 public:
   ZmTLock(ZmTLockParams params = ZmTLockParams()) {

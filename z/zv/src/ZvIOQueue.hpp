@@ -101,7 +101,7 @@ struct ZvIOMsg_HeapID {
 };
 using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
-    ZmPQueueNodeIsItem<true,
+    ZmPQueueNodeDerive<true,
       ZmPQueueObject<ZmPolymorph,
 	ZmPQueueFn<ZvIOQFn,
 	  ZmPQueueLock<ZmNoLock,

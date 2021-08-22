@@ -31,6 +31,7 @@
 #include <zlib/ZmObject.hpp>
 #include <zlib/ZmRBTree.hpp>
 #include <zlib/ZmNoLock.hpp>
+#include <zlib/ZmAssert.hpp>
 
 struct Z : public ZmObject {
   Z(int z) : m_z(z) { }
@@ -43,19 +44,21 @@ struct Z : public ZmObject {
   int m_z;
 };
 
+template <typename>
 struct ZCmp {
   static int cmp(Z *z1, Z *z2) {
     return z1->m_z - z2->m_z;
   }
   static ZmRef<Z> null() { 
-    static ZmRef<Z> tmp = new Z(0); return tmp; 
+    static ZmRef<Z> tmp = new Z(0);
+    return tmp; 
   }
 };
 
 using Tree = ZmRBTree<ZmRef<Z>, ZmRBTreeCmp<ZCmp> >;
 
 static void delptr(Tree *tree, Z *z) {
-  tree->del(z, z);
+  tree->del(z);
 #if 0
   auto iter = tree->iterator<ZmRBTreeEqual>(z);
   Tree::NodeRef node;

@@ -82,8 +82,8 @@ class ZmAPI ZmAnyHash_ : public ZmPolymorph {
 public:
   virtual void telemetry(ZmHashTelemetry &) const { }
 };
-struct ZmAnyHash_PtrAccessor : public ZuAccessor<ZmAnyHash_, uintptr_t> {
-  ZuInline static uintptr_t value(const ZmAnyHash_ &h) {
+struct ZmAnyHash_PtrAxor {
+  static uintptr_t get(const ZmAnyHash_ &h) {
     return (uintptr_t)(void *)&h;
   }
 };
@@ -92,21 +92,23 @@ struct ZmHashMgr_HeapID {
 };
 using ZmHashMgr_Tables =
   ZmRBTree<ZmAnyHash_,
-    ZmRBTreeNodeIsKey<true,
-      ZmRBTreeObject<ZmPolymorph,
-	ZmRBTreeHeapID<ZuNull,
-	  ZmRBTreeIndex<ZmAnyHash_PtrAccessor,
-	    ZmRBTreeUnique<true,
-	      ZmRBTreeHeapID<ZmHashMgr_HeapID,
-		ZmRBTreeLock<ZmNoLock> > > > > > > >;
+    ZmRBTreeNodeDerive<true,
+      ZmRBTreeKey<ZmAnyHash_PtrAxor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZmPolymorph,
+	    ZmRBTreeHeapID<ZuNull,
+	      ZmRBTreeLock<ZmNoLock> > > > > > >;
 using ZmAnyHash = ZmHashMgr_Tables::Node;
+
+template <typename, typename> class ZmHash; 
+template <typename, typename, typename, bool> class ZmLHash_;
 
 class ZmHashMgr_;
 class ZmAPI ZmHashMgr {
 friend ZmHashMgr_;
 friend ZmHashParams;
-template <typename, class> friend class ZmHash; 
-template <class, typename, class, unsigned> friend class ZmLHash_;
+template <typename, typename> friend class ZmHash; 
+template <typename, typename, typename, bool> friend class ZmLHash_;
 
   template <class S> struct CSV_ {
     CSV_(S &stream) : m_stream(stream) {

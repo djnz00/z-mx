@@ -49,28 +49,27 @@ friend ZmHeapCache;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
+  using IDPart = ZuPair<ZmIDString, unsigned>;
   using IDPartSize = ZmHeapCache::IDPartSize;
 
-  // FIXME from here
   using IDPart2Config =
-    ZmRBTree<ZuPair<ZmIDString, unsigned>,
-      ZmRBTreeVal<ZmHeapConfig,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeHeapID<ZuNull,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+    ZmRBTreeKV<IDPart, ZmHeapConfig,
+      ZmRBTreeUnique<true,
+	ZmRBTreeHeapID<ZuNull,
+	  ZmRBTreeLock<ZmNoLock> > > >;
   using ID2Cache =
     ZmRBTree<ZmHeapCache *,
-      ZmRBTreeIndex<ZmHeapCache::IDAccessor,
+      ZmRBTreeKey<ZmHeapCache::IDAxor,
 	ZmRBTreeHeapID<ZuNull,
 	  ZmRBTreeLock<ZmNoLock> > > >;
   using IDSize2Cache =
     ZmRBTree<ZmHeapCache *,
-      ZmRBTreeIndex<ZmHeapCache::IDSizeAccessor,
+      ZmRBTreeKey<ZmHeapCache::IDSizeAxor,
 	ZmRBTreeHeapID<ZuNull,
 	  ZmRBTreeLock<ZmNoLock> > > >;
   using IDPartSize2Cache =
     ZmRBTree<ZmHeapCache *,
-      ZmRBTreeIndex<ZmHeapCache::IDPartSizeAccessor,
+      ZmRBTreeKey<ZmHeapCache::IDPartSizeAxor,
 	ZmRBTreeHeapID<ZuNull,
 	  ZmRBTreeLock<ZmNoLock> > > >;
 
@@ -92,7 +91,7 @@ public:
     m_caches3.clean();
     auto i = m_caches.iterator();
     while (auto node = i.iterate()) {
-      auto c = i.del(node)->key();
+      auto c = i.del(node)->val();
       ZmDEREF(c);
     }
   }
@@ -108,7 +107,7 @@ private:
     m_configs.add(ZuFwdPair(id, partition), config);
     {
       auto i = m_caches.readIterator<ZmRBTreeEqual>(id);
-      while (ZmHeapCache *c = i.iterateKey())
+      while (ZmHeapCache *c = i.iterateVal())
 	if (c->info().partition == partition) c->init(config);
     }
   }
@@ -117,29 +116,29 @@ private:
     ZmRef<ZmHeapCache> c;
     {
       ReadGuard guard(m_lock);
-      c = m_caches3.minimumKey();
+      c = m_caches3.minimumVal();
     }
     while (c) {
       fn(c);
       {
 	ReadGuard guard(m_lock);
 	c = m_caches3.readIterator<ZmRBTreeGreater>(
-	    ZmHeapCache::IDPartSizeAccessor::value(c)).iterateKey();
+	    ZmHeapCache::IDPartSizeAxor::get(c)).iterateVal();
       }
     }
   }
 
   void all(const char *id, ZmFn<ZmHeapCache *> fn) {
-    IDPartSize key{id, 0, 0};
+    IDPartSize key{id, 0U, 0U};
     ZmRef<ZmHeapCache> c;
     for (;;) {
       {
 	ReadGuard guard(m_lock);
-	c = m_caches3.readIterator<ZmRBTreeGreater>(key).iterateKey();
+	c = m_caches3.readIterator<ZmRBTreeGreater>(key).iterateVal();
       }
       if (!c) return;
       if (strcmp(id, c->info().id)) return;
-      key = ZmHeapCache::IDPartSizeAccessor::value(c);
+      key = ZmHeapCache::IDPartSizeAxor::get(c);
       fn(c);
     }
   }
@@ -147,7 +146,7 @@ private:
 #ifdef ZmHeap_DEBUG
   void trace(const char *id, TraceFn allocFn, TraceFn freeFn) {
     auto i = m_caches.readIterator<ZmRBTreeEqual>(id);
-    while (ZmHeapCache *c = i.iterateKey()) {
+    while (ZmHeapCache *c = i.iterateVal()) {
       c->m_traceAllocFn = allocFn;
       c->m_traceFreeFn = freeFn;
     }
@@ -159,9 +158,9 @@ private:
     unsigned partition = ZmThreadContext::self()->partition();
     ZmHeapCache *c = 0;
     Guard guard(m_lock);
-    if (c = m_caches3.findKey(ZuFwdTuple(id, partition, size)))
+    if (c = m_caches3.findVal(ZuFwdTuple(id, partition, size)))
       return c;
-    ZmHeapCache *n = m_caches2.delKey(ZuFwdTuple(id, size));
+    ZmHeapCache *n = m_caches2.delVal(ZuFwdTuple(id, size));
     if (IDPart2Config::NodeRef node = 
 	  m_configs.find(ZuFwdPair(id, partition)))
       c = new ZmHeapCache(id, size, partition, sharded,
@@ -178,7 +177,7 @@ private:
 
   ZmHeapCache *head(const char *id, unsigned size) {
     ZmReadGuard<ZmPLock> guard(m_lock);
-    return m_caches2.findKey(ZuFwdTuple(id, size));
+    return m_caches2.findVal(ZuFwdTuple(id, size));
   }
 
   ZmPLock		m_lock;
