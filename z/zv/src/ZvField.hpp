@@ -52,7 +52,7 @@
 //
 // Syntax
 // ------
-// (((Accessor)[, (Keys...)]), (Type[, (Args...)])[, (Flags...)])
+// (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Flags...)])
 //
 // (((id, Rd), (0)), (String), (Ctor(0)))
 //
@@ -316,7 +316,7 @@ struct ZvFieldType_Int : public ZvField_<Base, Flags> {
 };
 template <typename Base, unsigned Flags>
 struct ZvFieldType_Int<Base, Flags, false, true> :
-    public ZvField_RdInt<Base, Flags, true, true> {
+    public ZvFieldType_Int<Base, Flags, true, true> {
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZvFieldFmt &) {
@@ -355,7 +355,7 @@ struct ZvFieldType_Int<Base, Flags, false, false> :
   template <typename P>
   static void scan(P &o, ZuString s, const ZvFieldFmt &) {
     using O = typename Base::O;
-    Base::set(o, ZuBoxT<T>{s});
+    Base::set(o, ZuBoxT<O>{s});
   }
   static auto setFn() {
     return [](void *o, int64_t v) { Base::set(*static_cast<O *>(o), v); };
@@ -384,13 +384,13 @@ struct ZvFieldType_Hex : public ZvField_<Base, Flags> {
   static auto scanFn() { return [](void *, ZuString, const ZvFieldFmt &) { }; }
 };
 template <typename Base, unsigned Flags>
-struct ZvFieldType_Hex<Base, Flags, false :
+struct ZvFieldType_Hex<Base, Flags, false> :
     public ZvFieldType_Hex<Base, Flags, true> {
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZvFieldFmt &) {
     using O = typename Base::O;
-    Base::set(o, ZuBoxT<T>{ZuFmt::Hex<>{}, s});
+    Base::set(o, ZuBoxT<O>{ZuFmt::Hex<>{}, s});
   }
   static auto setFn() {
     return [](void *o, int64_t v) { Base::set(*static_cast<O *>(o), v); };
@@ -471,7 +471,7 @@ struct ZvFieldType_Flags<Base, Flags, Map, false> :
   template <typename P>
   static void scan(P &o, ZuString s, const ZvFieldFmt &fmt) {
     using O = typename Base::O;
-    Base::set(o, Map::template scan<T>(s, fmt.flagsDelim));
+    Base::set(o, Map::template scan<O>(s, fmt.flagsDelim));
   }
   static auto setFn() {
     return [](void *o, int64_t v) { Base::set(*static_cast<O *>(o), v); };
@@ -546,7 +546,7 @@ struct ZvFieldType_Float<Base, Flags, false, true> :
   template <typename P>
   static void scan(P &o, ZuString s, const ZvFieldFmt &) {
     using O = typename Base::O;
-    Base::set(o, ZuBoxT<T>{s});
+    Base::set(o, ZuBoxT<O>{s});
   }
   static auto setFn() {
     return [](void *o, double v) { Base::set(*static_cast<O *>(o), v); };
@@ -692,36 +692,37 @@ struct ZvFieldType_Time<Base, Flags, false> :
 };
 
 #define ZvField_BaseID__(ID, ...) ID
-#define ZvField_BaseID_(Accessor, ...) \
-  ZuPP_Defer(ZvField_BaseID__)(ZuPP_Strip(Accessor))
-#define ZvField_BaseID(Base) \
-  ZuPP_Defer(ZvField_BaseID_)(ZuPP_Strip(Base))
+#define ZvField_BaseID_(Axor, ...) ZuPP_Defer(ZvField_BaseID__)Axor
+#define ZvField_BaseID(Base) ZuPP_Defer(ZvField_BaseID_)Base
 
-#define ZvField_TypeName_(Name, ...) ZvFieldType_##Name
-#define ZvField_TypeName(Type) ZuPP_Defer(ZvField_TypeName_)(ZuPP_Strip(Type))
+#define ZvField_TypeName_(Name, ...) Name
+#define ZvField_TypeName(Type) ZuPP_Defer(ZvField_TypeName_)Type
 #define ZvField_TypeArgs_(Name, ...) __VA_OPT__(,) __VA_ARGS__
-#define ZvField_TypeArgs(Type) ZuPP_Defer(ZvField_TypeArgs_)(ZuPP_Strip(Type))
+#define ZvField_TypeArgs(Type) ZuPP_Defer(ZvField_TypeArgs_)Type
 
-#define ZvField_Decl_3(O, ID, Base, Type) \
-  ZuPP_Defer(ZuField_Decl)(O, ZuPP_Strip(Base)) \
+#define ZvField_Decl_4(O, ID, Base, TypeName, Type) \
+  ZuField_Decl(O, Base) \
   using ZvFieldType(O, ID) = \
-  ZvField_TypeName(Type)<ZuFieldType(O, ID), \
+  ZvFieldType_##TypeName<ZuFieldType(O, ID), \
       0 ZvField_TypeArgs(Type)>;
-#define ZvField_Decl_4(O, ID, Base, Type, Flags) \
-  ZuPP_Defer(ZuField_Decl)(O, ZuPP_Strip(Base)) \
+#define ZvField_Decl_5(O, ID, Base, TypeName, Type, Flags) \
+  ZuField_Decl(O, Base) \
   using ZvFieldType(O, ID) = \
-  ZvField_TypeName(Type)<ZuFieldType(O, ID), \
+  ZvFieldType_##TypeName<ZuFieldType(O, ID), \
       ZvField_Flags(Flags) ZvField_TypeArgs(Type)>;
-#define ZvField_Decl_N(O, _0, _1, _2, _3, Fn, ...) Fn
+#define ZvField_Decl_N(O, _0, _1, _2, _3, _4, Fn, ...) Fn
 #define ZvField_Decl__(O, ...) \
   ZvField_Decl_N(O, __VA_ARGS__, \
-      ZvField_Decl_4(O, __VA_ARGS__), \
-      ZvField_Decl_3(O, __VA_ARGS__))
-#define ZvField_Decl_(O, Base, ...) \
-  ZvField_Decl__(O, ZvField_BaseID(Base), Base, __VA_ARGS__)
+      ZvField_Decl_5(O, __VA_ARGS__), \
+      ZvField_Decl_4(O, __VA_ARGS__))
+#define ZvField_Decl_(O, Base, Type, ...) \
+  ZuPP_Defer(ZvField_Decl__)(O, \
+      ZuPP_Nest(ZvField_BaseID(Base)), Base, \
+      ZuPP_Nest(ZvField_TypeName(Type)), Type __VA_OPT__(,) __VA_ARGS__)
 #define ZvField_Decl(O, Args) ZuPP_Defer(ZvField_Decl_)(O, ZuPP_Strip(Args))
 
-#define ZvField_Type_(O, Base, ...) ZvFieldType(O, ZvField_BaseID(Base))
+#define ZvField_Type_(O, Base, ...) \
+  ZuPP_Defer(ZvFieldType)(O, ZuPP_Nest(ZvField_BaseID(Base)))
 #define ZvField_Type(O, Args) ZuPP_Defer(ZvField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZvFields(O, ...)  \
@@ -737,8 +738,8 @@ template <typename Impl> struct ZvFieldPrint : public ZuPrintable {
   const Impl *impl() const { return static_cast<const Impl *>(this); }
   Impl *impl() { return static_cast<Impl *>(this); }
 
-  template <typename T>
-  struct Print_Filter { enum { OK = !(T::Flags & ZvFieldFlags::ReadOnly) }; };
+  template <typename U>
+  struct Print_Filter { enum { OK = !U::ReadOnly }; };
   template <typename S> void print(S &s) const {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<Impl>>;
     thread_local ZvFieldFmt fmt;

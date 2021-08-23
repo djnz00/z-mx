@@ -65,7 +65,7 @@
 
 #define ZuField_Keys__(Key) (static_cast<uint64_t>(1)<<Key) |
 #define ZuField_Keys_(...) (ZuPP_Map(ZuField_Keys__, __VA_ARGS__) 0)
-#define ZuField_Keys(Args) ZuPP_Defer(ZuField_Keys_)(ZuPP_Strip(Args))
+#define ZuField_Keys(Args) ZuPP_Defer(ZuField_Keys_)Args
 
 #define ZuField_ID(O_, ID) \
   using O = O_; \

@@ -35,6 +35,7 @@
 // ZvFB Type	ZvField Type	C++ Type
 // ---------	------------	--------
 // String	String		<String>
+// Bytes	String		<String>
 // Bool		Bool		<Integral>
 // Int		Int		<Integral>
 // Hex		Hex		<Integral>
@@ -83,8 +84,8 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
   struct ZvFBFieldType(O_, ID) : public Base_ { \
     using O = O_; \
     using Base = Base_; \
-    using FBB = ZvFBB<U>; \
-    using FBS = ZvFBS<U>; \
+    using FBB = ZvFBB<O>; \
+    using FBS = ZvFBS<O>; \
     enum { Inline = 0 }; \
     static Zfb::Offset<void> save(Zfb::Builder &fbb, const O &o) { \
       using namespace Zfb::Save; \
@@ -107,8 +108,8 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
   struct ZvFBFieldType(O_, ID) : public Base_ { \
     using O = O_; \
     using Base = Base_; \
-    using FBB = ZvFBB<U>; \
-    using FBS = ZvFBS<U>; \
+    using FBB = ZvFBB<O>; \
+    using FBS = ZvFBS<O>; \
     enum { Inline = 1 }; \
     static void save(FBB &fbb, const O &o) { \
       using namespace Zfb::Save; \
@@ -147,6 +148,9 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFieldString_T String
 #define ZvFBFieldString(O, ID, Base) \
   ZvFBFieldNested(O, ID, Base, str, str)
+#define ZvFBFieldBytes_T String
+#define ZvFBFieldBytes(O, ID, Base) \
+  ZvFBFieldNested(O, ID, Base, bytes, bytes)
 #define ZvFBFieldBool_T Bool
 #define ZvFBFieldBool ZvFBFieldPrimitive
 #define ZvFBFieldInt_T Int
@@ -174,18 +178,19 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFieldIP(O, ID, Base) \
   ZvFBFieldInline(O, ID, Base, ip, ip)
 
-#define ZvFBField_Decl__(O, Base, TypeName, Type, ...) \
-  ZvField_Decl_(O, Base, \
-      (ZvFBField##TypeName##_T ZvField_TypeArgs(Type)) \
+#define ZvFBField_Decl__(O, ID, Base, TypeName, Type, ...) \
+  ZuPP_Defer(ZvField_Decl_)(O, Base, \
+      (ZvFBField##TypeName##_T ZuPP_Nest(ZvField_TypeArgs(Type))) \
       __VA_OPT__(,) __VA_ARGS__) \
-  ZvFBField##TypeName(O, ZvField_BaseID(Base), \
-      ZvFieldType(O, ZvField_BaseID(Base)))
+  ZuPP_Defer(ZvFBField##TypeName)(O, ID, ZuPP_Nest(ZvFieldType(O, ID)))
 #define ZvFBField_Decl_(O, Base, Type, ...) \
-  ZvFBField_Decl__(O, Base, ZvField_TypeName(Type), Type \
-      __VA_OPT__(,) __VA_ARGS__)
+  ZuPP_Defer(ZvFBField_Decl__)(O, \
+      ZuPP_Nest(ZvField_BaseID(Base)), Base, \
+      ZuPP_Nest(ZvField_TypeName(Type)), Type __VA_OPT__(,) __VA_ARGS__)
 #define ZvFBField_Decl(O, Args) ZuPP_Defer(ZvFBField_Decl_)(O, ZuPP_Strip(Args))
 
-#define ZvFBField_Type_(O, Base, ...) ZvFBFieldType(O, ZvField_BaseID(Base))
+#define ZvFBField_Type_(O, Base, ...) \
+  ZuPP_Defer(ZvFBFieldType)(O, ZuPP_Nest(ZvField_BaseID(Base)))
 #define ZvFBField_Type(O, Args) ZuPP_Defer(ZvFBField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZvFBFields(O, ...)  \
@@ -261,12 +266,11 @@ struct Table_ {
   using FieldList = ZuFieldList<O>;
 
   template <typename U>
-  struct AllFilter { enum { OK = !(U::Flags & Flags::ReadOnly) }; };
+  struct AllFilter { enum { OK = !U::ReadOnly }; };
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U>
-  struct UpdatedFilter { enum {
-    OK = U::Flags & (Flags::Primary | Flags::Update) }; };
+  struct UpdatedFilter { enum { OK = U::Flags & Flags::Update }; };
   using UpdatedFields = ZuTypeGrep<UpdatedFilter, AllFields>;
 
   template <typename U>
@@ -290,6 +294,38 @@ struct Table_ {
     using namespace Save;
     return SaveFieldList<O, UpdatedFields>::save(fbb, o);
   }
+
+  template <typename ...Fields>
+  struct Ctor {
+    static O ctor(const FBS *o_) {
+      return O{Fields::load_(o_)...};
+    }
+  };
+  static O ctor(const FBS *o_) {
+    O o = ZuTypeApply<Ctor, CtorFields>::ctor(o_);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, o_]<typename Field>() { Field::load(o, o_); });
+    return o;
+  }
+
+  template <typename ...Fields>
+  struct Load_Ctor_ : public O {
+    Load_Ctor_() = default;
+    Load_Ctor_(const FBS *o_) : O{Fields::load_(o_)...} { }
+    template <typename ...Args>
+    Load_Ctor_(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+  };
+  using Load_Ctor = ZuTypeApply<Load_Ctor_, CtorFields>;
+  struct Load : public Load_Ctor {
+    Load() = default;
+    Load(const FBS *o_) : Load_Ctor{o_} {
+      ZuTypeAll<InitFields>::invoke(
+	  [this, o_]<typename Field>() { Field::load(*this, o_); });
+    }
+    template <typename ...Args>
+    Load(Args &&... args) : Load_Ctor{ZuFwd<Args>(args)...} { }
+  };
+
   static void load(O &o, const FBS *o_) {
     ZuTypeAll<AllFields>::invoke(
 	[&o, o_]<typename Field>() { Field::load(o, o_); });
@@ -300,20 +336,6 @@ struct Table_ {
   }
 
   template <typename ...Fields>
-  struct Load_Ctor_ : public T {
-    Load_Ctor_() = default;
-    Load_Ctor_(const FBS *o_) : T{Fields::load_(o_)...} { }
-  };
-  using Load_Ctor = ZuTypeApply<Load_Ctor_, CtorFields>;
-  struct Load : public Load_Ctor {
-    Load() = default;
-    Load(const FBS *o_) : Load_Ctor{o_} {
-      ZuTypeAll<InitFields>::invoke(
-	  [this, o_]<typename Field>() { Field::load(*this, o_); });
-    }
-  };
-
-  template <typename ...Fields>
   struct Key {
     using Tuple = ZuTuple<typename Fields::T...>;
     static decltype(auto) tuple(const FBS *o_) {
@@ -322,11 +344,17 @@ struct Table_ {
   };
   template <typename ...Fields>
   struct Key<ZuTypeList<Fields...>> : public Key<Fields...> { };
+
+  template <unsigned KeyID>
+  struct KeyFilter {
+    template <typename U>
+    struct T {
+      enum { OK = U::keys() & (1<<KeyID) };
+    };
+  };
   template <unsigned KeyID = 0>
   static decltype(auto) key(const FBS *o_) {
-    template <typename U>
-    struct KeyFilter { enum { OK = U::keys() & (1<<KeyID) }; };
-    using Fields = ZuTypeGrep<KeyFilter, FieldList>;
+    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
     return Key<Fields>::tuple(o_);
   }
 };
@@ -343,6 +371,13 @@ inline auto saveUpdate(Zfb::Builder &fbb, const T &o) {
 }
 
 template <typename T>
+inline T ctor(const ZvFBS<T> *o_) {
+  return Table<T>::ctor(o_);
+}
+
+template <typename T> using Load = typename Table<T>::Load;
+
+template <typename T>
 inline void load(T &o, const ZvFBS<T> *o_) {
   Table<T>::load(o, o_);
 }
@@ -350,8 +385,6 @@ template <typename T>
 inline void loadUpdate(T &o, const ZvFBS<T> *o_) {
   Table<T>::loadUpdate(o, o_);
 }
-
-template <typename T> using Load = typename Table<T>::Load;
 
 template <typename T>
 inline auto key(const ZvFBS<T> *o_) {

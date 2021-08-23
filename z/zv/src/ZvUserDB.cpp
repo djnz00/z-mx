@@ -152,11 +152,10 @@ bool Mgr::load_(const uint8_t *buf, unsigned len)
   all(userDB->keys(), [this](unsigned, auto key_) {
     auto user = m_users->findPtr(key_->userID());
     if (!user) return;
-    if (auto key = loadKey(key_, user->keyList)) {
-      user->keyList = key;
-      m_keys->del(key->id);
-      m_keys->add(ZuMv(key));
-    }
+    ZmRef<Key> key = new Key{key_, user->keyList};
+    user->keyList = key;
+    m_keys->del(key->id);
+    m_keys->add(ZuMv(key));
   });
   return true;
 }
@@ -866,11 +865,11 @@ Offset<Vector<Offset<Zfb::String>>> Mgr::keyGet_(
 {
   if (!user) return strVec(fbb);
   unsigned n = 0;
-  for (auto key = user->keyList; key; key = key->nextKey) ++n;
+  for (auto key = user->keyList; key; key = key->next) ++n;
   return strVecIter(fbb, n,
       [key = user->keyList](unsigned) mutable {
 	auto id = key->id;
-	key = key->nextKey;
+	key = key->next;
 	return id;
       });
 }
@@ -907,7 +906,7 @@ Offset<fbs::KeyUpdAck> Mgr::keyAdd_(
     Ztls::Base64::encode(
 	keyID.data(), keyID.length(), keyID_.data(), keyID_.length());
   } while (m_keys->findPtr(keyID));
-  ZmRef<Key> key = new Key(ZuMv(keyID), user->keyList, user->id);
+  ZmRef<Key> key = new Key{ZuMv(keyID), user->id, user->keyList};
   key->secret.length(key->secret.size());
   m_rng->random(key->secret.data(), key->secret.length());
   user->keyList = key;
@@ -984,14 +983,14 @@ Offset<fbs::UserAck> Mgr::keyDel_(
   if (user) {
     auto prev = user->keyList;
     if (prev == key)
-      user->keyList = key->nextKey;
+      user->keyList = key->next;
     else
       while (prev) {
-	if (prev->nextKey == key) {
-	  prev->nextKey = key->nextKey;
+	if (prev->next == key) {
+	  prev->next = key->next;
 	  break;
 	}
-	prev = prev->nextKey;
+	prev = prev->next;
       }
   }
   return fbs::CreateUserAck(fbb, 1);

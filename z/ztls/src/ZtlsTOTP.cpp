@@ -38,14 +38,14 @@ ZtlsExtern unsigned calc(const void *data, unsigned len, int offset)
     memcpy(ptr, sha1 + (sha1[19] & 0xf), 4);
   }
   uint32_t code = code_;
-  code &= ~(((uint32_t)1)<<31);
-  return code % (uint32_t)1000000;
+  code &= ~(static_cast<uint32_t>(1)<<31);
+  return code % static_cast<uint32_t>(1000000);
 }
 
 ZtlsExtern bool verify(
     const void *data, unsigned len, unsigned code, unsigned range)
 {
-  for (int i = -(int)range; i <= (int)range; i++)
+  for (int i = -static_cast<int>(range); i <= static_cast<int>(range); i++)
     if (code == calc(data, len, i)) return true;
   return false;
 }

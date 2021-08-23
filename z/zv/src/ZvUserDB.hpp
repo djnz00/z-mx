@@ -51,6 +51,8 @@
 #include <zlib/ZtlsHMAC.hpp>
 #include <zlib/ZtlsRandom.hpp>
 
+#include <zlib/ZvFBField.hpp>
+
 #include <zlib/userdb_fbs.h>
 #include <zlib/loginreq_fbs.h>
 #include <zlib/userdbreq_fbs.h>
@@ -192,26 +194,37 @@ ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {
   return user;
 }
 
-struct Key_ : public ZuObject {
-  // FIXME - declare fields, primary key
-  Key_(ZuString id_, Key_ *nextKey_, uint64_t userID_) :
-      id(id_), nextKey(nextKey_), userID(userID_) { }
+struct Key {
+  ZtString	id;
+  KeyData	secret;
+  uint64_t	userID;
+};
+ZvFBFields(Key,
+    (((id, Rd), (0)), (String)),
+    (((secret)), (Bytes), (Update)),
+    (((userID, Rd)), (Int)));
+#if 0
+using Key__ = ZvFB::Load<Key___>;
+struct Key_ : public ZuObject, public Key__ {
+  Key_() = delete;
+  Key_(const fbs::Key *key_, Key_ *next_) :
+      Key__{key_}, next{next_} { }
+  Key_(ZuString id_, uint64_t userID_, Key_ *next_) :
+      Key__{id_, KeyData{}, userID_}, next{next_} { }
 
   using IDData = ZuArrayN<uint8_t, 16>;
   static constexpr const mbedtls_md_type_t keyType() {
     return MBEDTLS_MD_SHA256;
   }
 
-  ZtString	id;
-  KeyData	secret;
-  Key_		*nextKey;	// next in per-user list
-  uint64_t	userID;
+  Key_		*next;	// next in per-user list
 
   Zfb::Offset<fbs::Key> save(Zfb::Builder &fbb) const {
     using namespace Zfb::Save;
     return fbs::CreateKey(fbb, str(fbb, id), bytes(fbb, secret), userID);
   }
 };
+#endif
 struct KeyHashID {
   static constexpr const char *id() { return "ZvUserDB.Keys"; }
 };
@@ -220,18 +233,12 @@ struct KeyIDAccessor {
 };
 using KeyHash =
   ZmHash<Key_,
-    ZmHashKey<ZuIndex<Key_, 0>, // FIXME
+    ZmHashKey<ZuFieldAxor<Key_, 0>,
       ZmHashNodeDerive<true,
 	ZmHashObject<ZuObject,
 	  ZmHashHeapID<KeyHashID,
 	    ZmHashLock<ZmNoLock> > > > > >;
 using Key = KeyHash::Node;
-ZmRef<Key> loadKey(const fbs::Key *key_, Key_ *next) {
-  using namespace Zfb::Load;
-  ZmRef<Key> key = new Key(str(key_->id()), next, key_->userID());
-  key->secret = bytes(key_->secret());
-  return key;
-}
 
 class ZvAPI Mgr {
 public:

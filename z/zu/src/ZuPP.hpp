@@ -38,6 +38,21 @@
 #define ZuPP_Eval2(...) ZuPP_Eval1(ZuPP_Eval1(__VA_ARGS__))
 #define ZuPP_Eval1(...) __VA_ARGS__
 
+// nested eval
+#define ZuPP_Nest(...) ZuPP_Nest128(__VA_ARGS__)
+// #define ZuPP_Nest(...) ZuPP_Nest1024(__VA_ARGS__)
+// #define ZuPP_Nest1024(...) ZuPP_Nest512(ZuPP_Nest512(__VA_ARGS__))
+// #define ZuPP_Nest512(...) ZuPP_Nest256(ZuPP_Nest256(__VA_ARGS__))
+// #define ZuPP_Nest256(...) ZuPP_Nest128(ZuPP_Nest128(__VA_ARGS__))
+#define ZuPP_Nest128(...) ZuPP_Nest64(ZuPP_Nest64(__VA_ARGS__))
+#define ZuPP_Nest64(...) ZuPP_Nest32(ZuPP_Nest32(__VA_ARGS__))
+#define ZuPP_Nest32(...) ZuPP_Nest16(ZuPP_Nest16(__VA_ARGS__))
+#define ZuPP_Nest16(...) ZuPP_Nest8(ZuPP_Nest8(__VA_ARGS__))
+#define ZuPP_Nest8(...) ZuPP_Nest4(ZuPP_Nest4(__VA_ARGS__))
+#define ZuPP_Nest4(...) ZuPP_Nest2(ZuPP_Nest2(__VA_ARGS__))
+#define ZuPP_Nest2(...) ZuPP_Nest1(ZuPP_Nest1(__VA_ARGS__))
+#define ZuPP_Nest1(...) __VA_ARGS__
+
 #define ZuPP_Empty()
 
 #define ZuPP_Defer(x) x ZuPP_Empty ZuPP_Empty()()

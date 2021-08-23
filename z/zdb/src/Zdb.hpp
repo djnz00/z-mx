@@ -141,7 +141,7 @@ private:
   ZuBitmap<ZdbFileRecs>	m_deleted;
 };
 
-ZuFields(Zdb_File_, (RdFn, index));
+ZuFields(Zdb_File_, ((index, RdFn)));
 
 struct Zdb_File_IndexAccessor {
   static unsigned get(const Zdb_File_ &file) { return file.index(); }
