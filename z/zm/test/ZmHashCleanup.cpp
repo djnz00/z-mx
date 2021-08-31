@@ -25,11 +25,14 @@ struct Object : public ZmObject {
   Object(int val) : m_val(val) { }
   int hash() const { return m_val; }
   int cmp(const Object &i) const { return ZuCmp<int>::cmp(m_val, i.m_val); }
-  bool operator ==(const Object &i) const { return m_val == i.m_val; }
   bool operator !() const { return !m_val; }
 
   int m_val;
 };
+
+inline bool operator ==(const Object &l, const Object &r) {
+  return l.m_val == r.m_val;
+}
 
 using ObjectHash = ZmHash<ZmRef<Object> >;
 

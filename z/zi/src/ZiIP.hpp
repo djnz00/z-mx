@@ -80,21 +80,19 @@ public:
     return *this;
   }
 
+  bool operator !() const { return !s_addr; }
+  ZuOpBool
+
+  bool equals(const ZiIP &a) const { return s_addr == a.s_addr; }
   int cmp(const ZiIP &a) const {
     return ZuCmp<uint32_t>::cmp(s_addr, a.s_addr);
   }
-  bool less(const ZiIP &a) const { return s_addr < a.s_addr; }
-  bool equals(const ZiIP &a) const { return s_addr == a.s_addr; }
-
-  bool operator ==(const ZiIP &a) const { return s_addr == a.s_addr; }
-  bool operator !=(const ZiIP &a) const { return s_addr != a.s_addr; }
-  bool operator >(const ZiIP &a) const { return a.less(*this); }
-  bool operator >=(const ZiIP &a) const { return !less(a); }
-  bool operator <(const ZiIP &a) const { return less(a); }
-  bool operator <=(const ZiIP &a) const { return !a.less(*this); }
-
-  bool operator !() const { return !s_addr; }
-  ZuOpBool
+  friend inline bool operator ==(const ZiIP &l, const ZiIP &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const ZiIP &l, const ZiIP &r) {
+    return l.cmp(r);
+  }
 
   operator uint32_t() const { return ntohl(s_addr); }
 

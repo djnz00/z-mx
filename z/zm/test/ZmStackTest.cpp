@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 
+#include <zlib/ZuCmp.hpp>
+
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmStack.hpp>
 #include <zlib/ZmDRing.hpp>
@@ -19,8 +21,14 @@ struct C {
   }
   ~C() { --m_count; }
   int value() const { return m_i; }
-  int cmp(const C &c) const { return m_i - c.m_i; }
-  bool operator ==(const C &c) const { return m_i == c.m_i; }
+  bool equals(const C &c) const { return m_i == c.m_i; }
+  int cmp(const C &c) const { return ZuCmp<int>::cmp(m_i, c.m_i); }
+  friend inline bool operator ==(const C &l, const C &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const C &l, const C &r) {
+    return l.cmp(r);
+  }
   bool operator !() const { return !m_i; }
 
   int				m_i;

@@ -107,18 +107,22 @@ public:
     return {*this, i};
   }
 
-  bool operator ==(const ZmBitmap &b) const {
+  bool equals(const ZmBitmap &b) const {
     if (this == &b || m_map == b.m_map) return true;
     if (!m_map || !b.m_map) return false;
     return hwloc_bitmap_isequal(m_map, b.m_map);
   }
-  bool operator !=(const ZmBitmap &b) { return !operator ==(b); }
-  
   int cmp(const ZmBitmap &b) const {
     if (this == &b || m_map == b.m_map) return 0;
     if (!m_map) return -1;
     if (!b.m_map) return 1;
     return hwloc_bitmap_compare(m_map, b.m_map);
+  }
+  friend inline bool operator ==(const ZmBitmap &l, const ZmBitmap &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const ZmBitmap &l, const ZmBitmap &r) {
+    return l.cmp(r);
   }
 
   using Range = ZuPair<unsigned, unsigned>;

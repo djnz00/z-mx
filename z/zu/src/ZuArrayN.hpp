@@ -480,22 +480,20 @@ protected:
 
 public:
   template <typename A>
+  bool equals(const A &a) const {
+    return same(a) || cbuf().equals(a);
+  }
+  template <typename A>
   int cmp(const A &a) const {
     if (same(a)) return 0;
     return cbuf().cmp(a);
   }
-  template <typename A>
-  bool less(const A &a) const {
-    return !same(a) && cbuf().less(a);
-  }
-  template <typename A>
-  bool greater(const A &a) const {
-    return !same(a) && cbuf().greater(a);
-  }
-  template <typename A>
-  bool equals(const A &a) const {
-    return same(a) || cbuf().equals(a);
-  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuArrayN_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuArrayN_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
 // hash
 
@@ -624,21 +622,7 @@ public:
     this->append_mv_(a, length);
   }
 
-  template <typename A>
-  bool operator ==(const A &a) const { return this->equals(a); }
-  template <typename A>
-  bool operator !=(const A &a) const { return !this->equals(a); }
-  template <typename A>
-  bool operator >(const A &a) const { return this->greater(a); }
-  template <typename A>
-  bool operator >=(const A &a) const { return !this->less(a); }
-  template <typename A>
-  bool operator <(const A &a) const { return this->less(a); }
-  template <typename A>
-  bool operator <=(const A &a) const { return !this->greater(a); }
-
   // traits
-
   struct Traits : public ZuBaseTraits<ArrayN> {
     using Elem = T;
     enum {
@@ -662,7 +646,9 @@ public:
 private:
   char	*m_data[N * sizeof(T)];
 };
+
 } // namespace Zu_
+
 template <typename T, unsigned N, typename Cmp = ZuCmp<T>>
 using ZuArrayN = Zu_::ArrayN<T, N, Cmp>;
 

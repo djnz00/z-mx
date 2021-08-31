@@ -37,7 +37,7 @@
 
 class ZmAPI ZmBackTrace {
 public:
-  ZuInline ZmBackTrace() {
+  ZmBackTrace() {
     memset(m_frames, 0, sizeof(void *) * ZmBackTrace_DEPTH);
   }
   ZmBackTrace(unsigned skip) {
@@ -45,23 +45,20 @@ public:
     capture(skip + 1);
   }
 
-  ZuInline ZmBackTrace(const ZmBackTrace &t) {
+  ZmBackTrace(const ZmBackTrace &t) {
     memcpy(m_frames, t.m_frames, sizeof(void *) * ZmBackTrace_DEPTH);
   }
-  ZuInline ZmBackTrace &operator =(const ZmBackTrace &t) {
+  ZmBackTrace &operator =(const ZmBackTrace &t) {
     if (this != &t)
       memcpy(m_frames, t.m_frames, sizeof(void *) * ZmBackTrace_DEPTH);
     return *this;
   }
 
-  ZuInline bool equals(const ZmBackTrace &t) const {
+  bool equals(const ZmBackTrace &t) const {
     return !memcmp(m_frames, t.m_frames, sizeof(void *) * ZmBackTrace_DEPTH);
   }
 
-  ZuInline bool operator ==(const ZmBackTrace &t) const { return equals(t); }
-  ZuInline bool operator !=(const ZmBackTrace &t) const { return !equals(t); }
-
-  ZuInline bool operator !() const { return !m_frames[0]; }
+  bool operator !() const { return !m_frames[0]; }
 
   void capture() { capture(1); }
   void capture(unsigned skip);
@@ -69,10 +66,14 @@ public:
   void capture(EXCEPTION_POINTERS *exInfo, unsigned skip);
 #endif
 
-  ZuInline void *const *frames() const { return m_frames; }
+  void *const *frames() const { return m_frames; }
 
 private:
   void		*m_frames[ZmBackTrace_DEPTH];
 };
+
+inline bool operator ==(const ZmBackTrace &l, const ZmBackTrace &r) {
+  return l.equals(r);
+}
 
 #endif /* ZmBackTrace__HPP */

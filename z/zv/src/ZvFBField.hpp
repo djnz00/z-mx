@@ -79,9 +79,11 @@ template <typename O>
 using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 
 #define ZvFBFieldType(O, ID) ZvFBField_##O##_##ID
+#define ZvFBFieldType_(O, ID) ZvFBField_##O##_##ID##_
 
 #define ZvFBFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
-  struct ZvFBFieldType(O_, ID) : public Base_ { \
+  template <bool = Base_::ReadOnly> \
+  struct ZvFBFieldType_(O_, ID) : public Base_ { \
     using O = O_; \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
@@ -98,14 +100,23 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       using namespace Zfb::Load; \
       return LoadFn(o_->ID()); \
     } \
-    template <bool _ = !Base::ReadOnly> \
-    static ZuIfT<_> load(O &o, const FBS *o_) { \
+    static void load(O &, const FBS *) { } \
+  }; \
+  template <> \
+  struct ZvFBFieldType_(O_, ID)<false> : \
+      public ZvFBFieldType_(O_, ID)<true> { \
+    using O = O_; \
+    using Base = Base_; \
+    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
-  };
+  }; \
+  using ZvFBFieldType(O_, ID) = ZvFBFieldType_(O_, ID)<>;
 
 #define ZvFBFieldInline(O_, ID, Base_, SaveFn, LoadFn) \
-  struct ZvFBFieldType(O_, ID) : public Base_ { \
+  template <bool = Base_::ReadOnly> \
+  struct ZvFBFieldType_(O_, ID) : public Base_ { \
     using O = O_; \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
@@ -121,14 +132,23 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       auto v = o_->ID(); \
       return LoadFn(v); \
     } \
-    template <bool _ = !Base::ReadOnly> \
-    static ZuIfT<_> load(O &o, const FBS *o_) { \
+    static void load(O &, const FBS *) { } \
+  }; \
+  template <> \
+  struct ZvFBFieldType_(O_, ID)<false> : \
+      public ZvFBFieldType_(O_, ID)<true> { \
+    using O = O_; \
+    using Base = Base_; \
+    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
-  };
+  }; \
+  using ZvFBFieldType(O_, ID) = ZvFBFieldType_(O_, ID)<>;
 
 #define ZvFBFieldPrimitive(O_, ID, Base_) \
-  struct ZvFBFieldType(O_, ID) : public Base_ { \
+  template <bool = Base_::ReadOnly> \
+  struct ZvFBFieldType_(O_, ID) : public Base_ { \
     using O = O_; \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
@@ -139,11 +159,19 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       fbb.add_##ID(static_cast<P>(Base::get(o))); \
     } \
     static decltype(auto) load_(const FBS *o_) { return o_->ID(); } \
-    template <bool _ = !Base::ReadOnly> \
-    static ZuIfT<_> load(O &o, const FBS *o_) { \
+    static void load(O &, const FBS *) { } \
+  }; \
+  template <> \
+  struct ZvFBFieldType_(O_, ID)<false> : \
+      public ZvFBFieldType_(O_, ID)<true> { \
+    using O = O_; \
+    using Base = Base_; \
+    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
-  };
+  }; \
+  using ZvFBFieldType(O_, ID) = ZvFBFieldType_(O_, ID)<>;
 
 #define ZvFBFieldString_T String
 #define ZvFBFieldString(O, ID, Base) \

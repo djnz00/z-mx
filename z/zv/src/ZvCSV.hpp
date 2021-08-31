@@ -126,12 +126,11 @@ private:
     static constexpr const char *id() { return "ZvCSV.ColTree"; }
   };
   using ColTree =
-    ZmRBTree<ZuString,
-      ZmRBTreeVal<const Field *,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmNoLock,
-	      ZmRBTreeHeapID<ColTree_HeapID> > > > > >;
+    ZmRBTreeKV<ZuString, const Field *,
+      ZmRBTreeUnique<true,
+	ZmRBTreeObject<ZuNull,
+	  ZmRBTreeLock<ZmNoLock,
+	    ZmRBTreeHeapID<ColTree_HeapID> > > > >;
 
 public:
   ZvCSV() {

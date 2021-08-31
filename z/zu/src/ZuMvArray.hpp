@@ -118,38 +118,22 @@ protected:
   auto cbuf() const { return ZuArray{data(), length()}; }
 
   template <typename A>
+  bool equals(const A &a) const {
+    return same(a) || cbuf().equals(a);
+  }
+  template <typename A>
   int cmp(const A &a) const {
     if (same(a)) return 0;
     return cbuf().cmp(a);
   }
-  template <typename A>
-  bool less(const A &a) const {
-    return !same(a) && cbuf().less(a);
-  }
-  template <typename A>
-  bool greater(const A &a) const {
-    return !same(a) && cbuf().greater(a);
-  }
-  template <typename A>
-  bool equals(const A &a) const {
-    return same(a) || cbuf().equals(a);
-  }
-
-  template <typename A>
-  bool operator ==(const A &a) const { return equals(a); }
-  template <typename A>
-  bool operator !=(const A &a) const { return !equals(a); }
-  template <typename A>
-  bool operator >(const A &a) const { return greater(a); }
-  template <typename A>
-  bool operator >=(const A &a) const { return !less(a); }
-  template <typename A>
-  bool operator <(const A &a) const { return less(a); }
-  template <typename A>
-  bool operator <=(const A &a) const { return !greater(a); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuMvArray, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuMvArray, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // hash
-
   uint32_t hash() const {
     return ZuHash<ZuMvArray>::hash(*this);
   }

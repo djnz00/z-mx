@@ -42,19 +42,13 @@ struct S {
   S &operator =(const char *s) { strcpy(m_data, s); return *this; }
   operator char *() { return m_data; }
   operator const char *() const { return m_data; }
+  friend inline bool operator ==(const S &l, const S &r) {
+    return !strcmp(l.m_data, r.m_data);
+  }
+  friend inline int operator <=>(const S &l, const S &r) {
+    return strcmp(l.m_data, r.m_data);
+  }
   bool operator !() const { return !m_data[0]; }
-  bool operator ==(const S &s) const
-    { return !strcmp(m_data, s.m_data); }
-  bool operator ==(const char *s) const { return !strcmp(m_data, s); }
-  bool operator !=(const S &s) const
-    { return strcmp(m_data, s.m_data); }
-  bool operator !=(const char *s) const { return strcmp(m_data, s); }
-  bool operator >(const S &s) const
-    { return strcmp(m_data, s.m_data) > 0; }
-  bool operator >(const char *s) const { return strcmp(m_data, s) > 0; }
-  bool operator <(const S &s) const
-    { return strcmp(m_data, s.m_data) < 0; }
-  bool operator <(const char *s) const { return strcmp(m_data, s) < 0; }
   char m_data[32];
 };
 
@@ -203,9 +197,10 @@ struct M {
   ~M() = default;
   int cmp(const M &) const { return 0; }
   bool equals(const M &) const { return true; }
-  bool operator ==(const M &) const { return true; }
   bool operator !() const { return true; }
 };
+
+inline bool operator ==(const M &, const M &) { return true; }
 
 int main()
 {
@@ -461,9 +456,10 @@ int main()
       A(A &&) = default;
       A &operator =(A &&) = default;
       ~A() = default;
+      bool operator ==(const A &r) { return i == r.i; }
+      int cmp(const A &r) const { return ZuCmp<int>::cmp(i, r.i); }
+      int operator <=>(const A &r) const { return cmp(r); }
       bool operator !() const { return !i; }
-      bool operator <(const A &a) const { return i < a.i; }
-      int cmp(const A &a) const { return i - a.i; }
       int i;
     };
     struct B : public A {

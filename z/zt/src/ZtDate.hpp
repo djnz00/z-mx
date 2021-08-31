@@ -1033,34 +1033,20 @@ public:
     return ZtDate::operator +=(-sec_);
   }
 
-  bool operator ==(const ZtDate &date) const {
+  bool equals(const ZtDate &date) const {
     return m_julian == date.m_julian &&
       m_sec == date.m_sec && m_nsec == date.m_nsec;
   }
-  bool operator !=(const ZtDate &date) const {
-    return m_julian != date.m_julian ||
-      m_sec != date.m_sec || m_nsec != date.m_nsec;
+  int cmp(const ZtDate &date) const {
+    if (int i = ZuCmp<int32_t>::cmp(m_julian, date.m_julian)) return i;
+    if (int i = ZuCmp<int32_t>::cmp(m_sec, date.m_sec)) return i;
+    return ZuCmp<int32_t>::cmp(m_nsec, date.m_nsec);
   }
-
-  int operator >(const ZtDate &date) const {
-    return m_julian > date.m_julian ||
-      (m_julian == date.m_julian && (m_sec > date.m_sec ||
-      (m_sec == date.m_sec && m_nsec > date.m_nsec)));
+  friend inline bool operator ==(const ZtDate &l, const ZtDate &r) {
+    return l.equals(r);
   }
-  int operator >=(const ZtDate &date) const {
-    return m_julian > date.m_julian ||
-      (m_julian == date.m_julian && (m_sec > date.m_sec ||
-      (m_sec == date.m_sec && m_nsec >= date.m_nsec)));
-  }
-  int operator <(const ZtDate &date) const {
-    return m_julian < date.m_julian ||
-      (m_julian == date.m_julian && (m_sec < date.m_sec ||
-      (m_sec == date.m_sec && m_nsec < date.m_nsec)));
-  }
-  int operator <=(const ZtDate &date) const {
-    return m_julian < date.m_julian ||
-      (m_julian == date.m_julian && (m_sec < date.m_sec ||
-      (m_sec == date.m_sec && m_nsec <= date.m_nsec)));
+  friend inline int operator <=>(const ZtDate &l, const ZtDate &r) {
+    return l.cmp(r);
   }
 
   bool operator !() const {
@@ -1078,13 +1064,6 @@ public:
   }
 
   uint32_t hash() const { return m_julian ^ m_sec ^ m_nsec; }
-
-  int cmp(const ZtDate &date) const {
-    return
-      m_julian > date.m_julian ? 1 : m_julian < date.m_julian ? -1 :
-      m_sec    > date.m_sec    ? 1 : m_sec    < date.m_sec    ? -1 :
-      m_nsec   > date.m_nsec   ? 1 : m_nsec   < date.m_nsec   ? -1 : 0;
-  }
 
 private:
   void ctor(int year, int month, int day) {

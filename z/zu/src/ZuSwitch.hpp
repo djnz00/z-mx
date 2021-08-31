@@ -46,7 +46,7 @@
 // passed a constexpr index parameter; in this way the initializer_list
 // composes the switch statement, each item in it becomes a case, and the
 // lambda can invoke code that is specialized by the constexpr index, where
-// each specialization is the code body of the case
+// each specialization is the code body of the corresponding case
 
 #include <initializer_list>
 
@@ -92,15 +92,17 @@ template <typename R, unsigned ...Case> struct Dispatch<R, Seq<Case...>> {
 
 template <unsigned N, typename L>
 decltype(auto) dispatch(unsigned i, L l) {
-  return Dispatch<decltype(l(ZuConstant<0>{})), typename MkSeq<N>::T>::fn(
-      i, static_cast<L &&>(l));
+  return Dispatch<
+    ZuDecay<decltype(l(ZuConstant<0>{}))>,
+    typename MkSeq<N>::T>::fn(i, static_cast<L &&>(l));
 }
 
 template <unsigned N, typename L, typename D>
 decltype(auto) dispatch(unsigned i, L l, D d) {
   if (ZuUnlikely(i >= N)) return d();
-  return Dispatch<decltype(l(ZuConstant<0>{})), typename MkSeq<N>::T>::fn(
-      i, static_cast<L &&>(l));
+  return Dispatch<
+    ZuDecay<decltype(l(ZuConstant<0>{}))>,
+    typename MkSeq<N>::T>::fn(i, static_cast<L &&>(l));
 }
 
 } // ZuSwitch

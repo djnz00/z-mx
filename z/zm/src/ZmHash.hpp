@@ -623,18 +623,18 @@ private:
 
   template <typename P>
   static auto matchKey(const P &key) {
-    return [&key](Node *node) -> bool {
+    return [&key](const Node *node) -> bool {
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
   static auto matchData(const P &data) {
-    return [&data](Node *node) -> bool {
+    return [&data](const Node *node) -> bool {
       return node->Node::data() == data;
     };
   }
   static auto matchNode(Node *node_) {
-    return [node_](Node *node) -> bool {
+    return [node_](const Node *node) -> bool {
       return node == node_;
     };
   }

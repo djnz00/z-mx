@@ -66,21 +66,15 @@ template <int N> struct String {
     return ZuCmp<String>::cmp(*this, s);
   }
   template <typename S>
-  bool less(const S &s) const {
-    return ZuCmp<String>::less(*this, s);
-  }
-  template <typename S>
   bool equals(const S &s) const {
     return ZuCmp<String>::equals(*this, s);
   }
-  template <typename S>
-  bool operator ==(const S &s) const { return equals(s); }
-  template <typename S>
-  bool operator !=(const S &s) const { return !equals(s); }
-  bool operator >(const String &s) const { return s.less(*this); }
-  bool operator >=(const String &s) const { return !less(s); }
-  bool operator <(const String &s) const { return less(s); }
-  bool operator <=(const String &s) const { return !s.less(*this); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<String, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<String, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   uint32_t hash() const { return ZuHash<String>::hash(*this); }
 
@@ -96,6 +90,7 @@ template <int N> struct String {
 
   char	m_data[N];
 };
+
 using S = String<16>;
 
 using Hash = ZmHashKV<S, int, ZmHashLock<ZmNoLock> >;

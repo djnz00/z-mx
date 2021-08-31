@@ -258,30 +258,6 @@ protected:
   template <typename V> bool same(const V &v) const { return false; }
 
 public:
-  template <typename V> int cmp(const V &v_) const {
-    if (same(v_)) return 0;
-    ZuArray v{v_};
-    int l = length();
-    int n = v.length();
-    if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i;
-    return l - n;
-  }
-  template <typename V> bool less(const V &v_) const {
-    if (same(v_)) return false;
-    ZuArray v{v_};
-    unsigned l = length();
-    unsigned n = v.length();
-    if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i < 0;
-    return l < n;
-  }
-  template <typename V> bool greater(const V &v_) const {
-    if (same(v_)) return false;
-    ZuArray v{v_};
-    unsigned l = length();
-    unsigned n = v.length();
-    if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i > 0;
-    return l > n;
-  }
   template <typename V> bool equals(const V &v_) const {
     if (same(v_)) return true;
     ZuArray v{v_};
@@ -290,19 +266,20 @@ public:
     if (l != n) return false;
     return Ops::equals(data(), v.data(), l);
   }
-
-  template <typename V>
-  bool operator ==(const V &v) const { return equals(v); }
-  template <typename V>
-  bool operator !=(const V &v) const { return !equals(v); }
-  template <typename V>
-  bool operator >(const V &v) const { return greater(v); }
-  template <typename V>
-  bool operator >=(const V &v) const { return !less(v); }
-  template <typename V>
-  bool operator <(const V &v) const { return less(v); }
-  template <typename V>
-  bool operator <=(const V &v) const { return !greater(v); }
+  template <typename V> int cmp(const V &v_) const {
+    if (same(v_)) return 0;
+    ZuArray v{v_};
+    int l = length();
+    int n = v.length();
+    if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i;
+    return ZuCmp<int>::cmp(l, n);
+  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuArray, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuArray, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   uint32_t hash() const { return ZuHash<ZuArray>::hash(*this); }
 
@@ -334,7 +311,8 @@ public:
   template <typename A>
   ZuArray(const A &a, ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuConversion<typename ZuTraits<A>::Elem, ZuNull>::Exists> *_ = nullptr) { }
+      ZuConversion<typename ZuTraits<A>::Elem, ZuNull>::Exists> *_ = nullptr)
+    { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&

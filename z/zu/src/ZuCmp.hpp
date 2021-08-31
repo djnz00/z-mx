@@ -92,7 +92,7 @@
 #pragma warning(disable:4800)
 #endif
 
-template <typename T> struct ZuCmp;
+template <typename T, bool = ZuTraits<T>::IsString> struct ZuCmp_;
 
 // deliberately undefined template
 
@@ -241,7 +241,7 @@ struct ZuCmp_NonPrimitive : public ZuCmp_NullFn<T> {
 template <typename P1, bool IsPrimitive> struct ZuCmp_NonPrimitive___ :
     public ZuCmp_NonPrimitive<P1, false> { };
 template <typename P1>
-struct ZuCmp_NonPrimitive___<P1, true> : public ZuCmp<P1> { };
+struct ZuCmp_NonPrimitive___<P1, true> : public ZuCmp_<P1> { };
 template <typename T, typename P1> struct ZuCmp_NonPrimitive__ :
   public ZuCmp_NonPrimitive___<P1, ZuTraits<P1>::IsPrimitive> { };
 template <typename T> struct ZuCmp_NonPrimitive__<T, T> {
@@ -556,8 +556,6 @@ struct ZuCmp_String<T, 0, 1, 1> {
 
 // generic comparison function
 
-template <typename T, bool IsString> struct ZuCmp_;
-
 template <typename T> struct ZuCmp_<T, false> :
   public ZuCmp_NonString<T,
     ZuTraits<T>::IsPrimitive, ZuTraits<T>::IsPointer> { };
@@ -566,15 +564,9 @@ template <typename T> struct ZuCmp_<T, true> :
   public ZuCmp_String<T,
     ZuTraits<T>::IsCString, ZuTraits<T>::IsString, ZuTraits<T>::IsWString> { };
 
-// generic template
-
-template <typename T> struct ZuCmp :
-  public ZuCmp_<ZuDecay<T>,
-    ZuTraits<T>::IsCString || ZuTraits<T>::IsString> { };
-
 // comparison of bool
 
-template <> struct ZuCmp<bool> {
+template <> struct ZuCmp_<bool> {
   static int cmp(bool b1, bool b2) { return (int)b1 - (int)b2; }
   static bool less(bool b1, bool b2) { return b1 < b2; }
   static bool equals(bool b1, bool b2) { return b1 == b2; }
@@ -584,7 +576,7 @@ template <> struct ZuCmp<bool> {
 
 // comparison of char (null value should be '\0')
 
-template <> struct ZuCmp<char> {
+template <> struct ZuCmp_<char> {
   static int cmp(char c1, char c2) { return (int)c1 - (int)c2; }
   static bool less(char c1, char c2) { return c1 < c2; }
   static bool equals(char c1, char c2) { return c1 == c2; }
@@ -594,27 +586,34 @@ template <> struct ZuCmp<char> {
 
 // comparison of void
 
-template <> struct ZuCmp<void> { static void null() { } };
+template <> struct ZuCmp_<void> { static void null() { } };
+
+// generic template
+
+template <typename T> struct ZuCmp : public ZuCmp_<ZuDecay<T>> { };
 
 // same as ZuCmp<T> but with 0 as the null value
 
 template <typename T> struct ZuCmp0 : public ZuCmp<T> {
-  static bool null(T t) { return !t; }
-  static const T &null() { static const T v = 0; return v; }
+  using U = ZuDecay<T>;
+  static bool null(U v) { return !v; }
+  static const U &null() { static const U v = 0; return v; }
 };
 
 // same as ZuCmp<T> but with -1 (or any negative value) as the null value
 
 template <typename T> struct ZuCmp_1 : public ZuCmp<T> {
-  static bool null(T v) { return v < 0; }
-  static const T &null() { static const T v = -1; return v; }
+  using U = ZuDecay<T>;
+  static bool null(U v) { return v < 0; }
+  static const U &null() { static const U v = -1; return v; }
 };
 
 // same as ZuCmp<T> but with N as the null value
 
-template <typename T, T N> struct ZuCmpN : public ZuCmp<T> {
-  static bool null(T v) { return v == N; }
-  static const T &null() { static const T v = N; return v; }
+template <typename T, ZuDecay<T> N> struct ZuCmpN : public ZuCmp<T> {
+  using U = ZuDecay<T>;
+  static bool null(U v) { return v == N; }
+  static const U &null() { static const U v = N; return v; }
 };
 
 #ifdef _MSC_VER

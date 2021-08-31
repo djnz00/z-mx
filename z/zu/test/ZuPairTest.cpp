@@ -48,13 +48,14 @@ struct A {
   int cmp(const A &a) const { return ZuCmp<int>::cmp(i, a.i); }
   int hash() const { return ZuHash<int>::hash(i); }
   bool operator !() const { return !i; }
-  bool operator ==(const A &a) const { return i == a.i; }
 
   struct Traits : public ZuBaseTraits<A> { enum { IsPrimitive = 0 }; };
   friend Traits ZuTraitsType(A *);
 
   int i;
 };
+
+inline bool operator ==(const A &l, const A &r) { return l.i == r.i; }
 
 ZuPair<A, A> mkapair() { return ZuFwdPair(A(42), A(42)); }
 ZuPair<A, A> passapair(ZuPair<A, A> a) { return a; }

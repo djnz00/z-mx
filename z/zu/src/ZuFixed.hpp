@@ -138,28 +138,6 @@ public:
   }
 
   // comparisons
-  int cmp(const ZuFixed &v) const {
-    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
-      return (m_mantissa > v.m_mantissa) - (m_mantissa < v.m_mantissa);
-    int128_t i = mantissa();
-    int128_t j = v.mantissa();
-    if (exponent() < v.exponent())
-      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
-    else
-      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
-    return (i > j) - (i < j);
-  }
-  bool less(const ZuFixed &v) const {
-    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
-      return m_mantissa < v.m_mantissa;
-    int128_t i = mantissa();
-    int128_t j = v.mantissa();
-    if (exponent() < v.exponent())
-      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
-    else
-      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
-    return i < j;
-  }
   bool equals(const ZuFixed &v) const {
     if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
       return m_mantissa == v.m_mantissa;
@@ -171,12 +149,23 @@ public:
       j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
     return i == j;
   }
-  bool operator ==(const ZuFixed &v) const { return equals(v); }
-  bool operator !=(const ZuFixed &v) const { return !equals(v); }
-  bool operator >(const ZuFixed &v) const { return v.less(*this); }
-  bool operator >=(const ZuFixed &v) const { return !less(v); }
-  bool operator <(const ZuFixed &v) const { return less(v); }
-  bool operator <=(const ZuFixed &v) const { return !v.less(*this); }
+  int cmp(const ZuFixed &v) const {
+    if (ZuLikely(exponent() == v.exponent() || !**this || !*v))
+      return (m_mantissa > v.m_mantissa) - (m_mantissa < v.m_mantissa);
+    int128_t i = mantissa();
+    int128_t j = v.mantissa();
+    if (exponent() < v.exponent())
+      i *= ZuDecimalFn::pow10_64(v.exponent() - exponent());
+    else
+      j *= ZuDecimalFn::pow10_64(exponent() - v.exponent());
+    return (i > j) - (i < j);
+  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuFixed, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuFixed, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // ! is zero, unary * is !null
   bool operator !() const { return !mantissa(); }
@@ -252,6 +241,7 @@ private:
   int64_t	m_mantissa = ZuFixedNull;
   uint8_t	m_exponent = 0;
 };
+
 template <typename Fmt> struct ZuFixed_Fmt {
   const ZuFixed	&value;
 

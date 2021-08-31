@@ -293,7 +293,8 @@ ZmRef<ZvCf> ZvCf::scope(ZuString fullKey, ZuString &key, bool create)
 
 static bool flagValue(const ZtString &s)
 {
-  return s == "1" || ZtICmp::equals(s, "y") || ZtICmp::equals(s, "yes");
+  using Cmp = ZtICmp<ZtString>;
+  return s == "1" || Cmp::equals(s, "y") || Cmp::equals(s, "yes");
 }
 
 void ZvCf::fromArg(ZuString fullKey, int type, ZuString argVal)

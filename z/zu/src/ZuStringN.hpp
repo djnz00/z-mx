@@ -376,38 +376,21 @@ protected:
 
 public:
   template <typename S>
-  int cmp(const S &s) const {
-    if (same(s)) return 0;
-    return ZuCmp<StringN>::cmp(*static_cast<const StringN *>(this), s);
-  }
-  template <typename S>
-  bool less(const S &s) const {
-    return !same(s) &&
-      ZuCmp<StringN>::less(*static_cast<const StringN *>(this), s);
-  }
-  template <typename S>
-  bool greater(const S &s) const {
-    return !same(s) &&
-      ZuCmp<StringN>::less(s, *static_cast<const StringN *>(this));
-  }
-  template <typename S>
   bool equals(const S &s) const {
     return same(s) ||
       ZuCmp<StringN>::equals(*static_cast<const StringN *>(this), s);
   }
-
   template <typename S>
-  bool operator ==(const S &s) const { return equals(s); }
-  template <typename S>
-  bool operator !=(const S &s) const { return !equals(s); }
-  template <typename S>
-  bool operator >(const S &s) const { return greater(s); }
-  template <typename S>
-  bool operator >=(const S &s) const { return !less(s); }
-  template <typename S>
-  bool operator <(const S &s) const { return less(s); }
-  template <typename S>
-  bool operator <=(const S &s) const { return !greater(s); }
+  int cmp(const S &s) const {
+    if (same(s)) return 0;
+    return ZuCmp<StringN>::cmp(*static_cast<const StringN *>(this), s);
+  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<StringN, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<StringN, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   uint32_t hash() const {
     return ZuHash<StringN>::hash(*static_cast<const StringN *>(this));
@@ -475,9 +458,7 @@ public:
   }
 
   // update()
-  template <typename S>
-  ZuStringN &update(S &&s_) {
-    ZuString s(s_);
+  ZuStringN &update(ZuString s) {
     if (s.length()) this->init(s.data(), s.length());
     return *this;
   }
@@ -494,12 +475,12 @@ public:
     return *this;
   }
   ZuStringN &operator +=(const char *s_) {
-    ZuString s(s_);
+    ZuString s{s_};
     this->append(s.data(), s.length());
     return *this;
   }
   ZuStringN &operator <<(const char *s_) {
-    ZuString s(s_);
+    ZuString s{s_};
     this->append(s.data(), s.length());
     return *this;
   }
@@ -587,7 +568,7 @@ public:
 
   // update()
   template <typename S> ZuWStringN &update(S &&s_) {
-    ZuWString s(s_);
+    ZuWString s{s_};
     if (s.length()) this->init(s.data(), s.length());
     return *this;
   }
@@ -604,12 +585,12 @@ public:
     return *this;
   }
   ZuWStringN &operator +=(const wchar_t *s_) { // unoptimized
-    ZuWString s(s_);
+    ZuWString s{s_};
     this->append(s.data(), s.length());
     return *this;
   }
   ZuWStringN &operator <<(const wchar_t *s_) { // unoptimized
-    ZuWString s(s_);
+    ZuWString s{s_};
     this->append(s.data(), s.length());
     return *this;
   }

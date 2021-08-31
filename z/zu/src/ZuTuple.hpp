@@ -153,7 +153,7 @@ public:
   Tuple_(T &&v, ZuIfT<
       !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
 	(!ZuTraits<T0>::IsReference ||
-	  ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is)
+	  ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is)
       > *_ = nullptr) :
     m_p0{ZuFwd<T>(v)} { }
 
@@ -168,7 +168,7 @@ public:
   ZuIfT<
     !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
       (!ZuTraits<T0>::IsReference ||
-	ZuConversion<ZuDecay<U0>, ZuDecay<T>>::Is),
+	ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is),
     Tuple_ &>
   operator =(T &&v) {
     m_p0 = ZuFwd<T>(v);
@@ -176,17 +176,29 @@ public:
   }
 
   template <typename P0>
-  int cmp(const Tuple_<P0> &p) const {
-    return ZuCmp<T0>::cmp(m_p0, p.template p<0>());
-  }
-  template <typename P0>
-  bool less(const Tuple_<P0> &p) const {
-    return ZuCmp<T0>::less(m_p0, p.template p<0>());
-  }
-  template <typename P0>
   bool equals(const Tuple_<P0> &p) const {
     return ZuCmp<T0>::equals(m_p0, p.template p<0>());
   }
+  template <typename T>
+  ZuIfT<ZuConversion<ZuStrip<U0>, T>::Exists, bool>
+  equals(const T &v) const {
+    return ZuCmp<T0>::equals(m_p0, v);
+  }
+  template <typename P0>
+  int cmp(const Tuple_<P0> &p) const {
+    return ZuCmp<T0>::cmp(m_p0, p.template p<0>());
+  }
+  template <typename T>
+  ZuIfT<ZuConversion<ZuStrip<U0>, T>::Exists, bool>
+  cmp(const T &v) const {
+    return ZuCmp<T0>::equals(m_p0, v);
+  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_p0; }
   ZuOpBool
@@ -240,13 +252,15 @@ public:
   }
 
   template <typename L>
-  decltype(auto) dispatch(unsigned i, L l) {
-    if (i) return decltype(l(m_p0)){};
+  auto dispatch(unsigned i, L l) ->
+      ZuDecay<decltype(l(ZuDeclVal<T0 &>()))> {
+    if (i) return {};
     return l(m_p0);
   }
   template <typename L>
-  decltype(auto) cdispatch(unsigned i, L l) const {
-    if (i) return decltype(l(m_p0)){};
+  auto cdispatch(unsigned i, L l) ->
+      ZuDecay<decltype(l(ZuDeclVal<const T0 &>()))> const {
+    if (i) return {};
     return l(m_p0);
   }
 
@@ -259,15 +273,6 @@ public:
 private:
   T0		m_p0;
 };
-
-template <typename T0>
-inline bool operator ==(const Tuple_<T0> &l, const Tuple_<T0> &r) {
-  return l.equals(r);
-}
-template <typename T0>
-inline bool operator <(const Tuple_<T0> &l, const Tuple_<T0> &r) {
-  return l.less(r);
-}
 
 template <typename T0, typename T1>
 class Tuple_<T0, T1> : public Pair_<T0, T1> {

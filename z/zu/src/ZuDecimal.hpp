@@ -394,29 +394,16 @@ public:
   }
 
   // comparisons
+  bool equals(const ZuDecimal &v) const { return value == v.value; }
   int cmp(const ZuDecimal &v) const {
     return (value > v.value) - (value < v.value);
   }
-  bool less(const ZuDecimal &v) const { return value < v.value; }
-  bool equals(const ZuDecimal &v) const { return value == v.value; }
-  bool operator ==(const ZuDecimal &v) const {
-    return value == v.value;
-  }
-  bool operator !=(const ZuDecimal &v) const {
-    return value != v.value;
-  }
-  bool operator >(const ZuDecimal &v) const {
-    return value > v.value;
-  }
-  bool operator >=(const ZuDecimal &v) const {
-    return value >= v.value;
-  }
-  bool operator <(const ZuDecimal &v) const {
-    return value < v.value;
-  }
-  bool operator <=(const ZuDecimal &v) const {
-    return value <= v.value;
-  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuDecimal, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuDecimal, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // ! is zero, unary * is !null
   bool operator !() const { return !value; }
@@ -496,6 +483,7 @@ public:
 private:
   const ZuDecimal	&m_decimal;
 };
+
 inline ZuDecimalVFmt ZuDecimal::vfmt() const {
   return ZuDecimalVFmt{*this};
 }

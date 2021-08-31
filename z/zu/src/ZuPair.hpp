@@ -216,23 +216,23 @@ public:
     m_p0{ZuFwd<P0>(p0)}, m_p1{ZuFwd<P1>(p1)} { }
 
   template <typename P0, typename P1>
-  int cmp(const Pair_<P0, P1> &p) const {
-    int i;
-    if (i = ZuCmp<T0>::cmp(m_p0, p.template p<0>())) return i;
-    return ZuCmp<T1>::cmp(m_p1, p.template p<1>());
-  }
-  template <typename P0, typename P1>
-  bool less(const Pair_<P0, P1> &p) const {
-    return
-      !ZuCmp<T0>::less(p.template p<0>(), m_p0) &&
-      ZuCmp<T1>::less(m_p1, p.template p<1>());
-  }
-  template <typename P0, typename P1>
   bool equals(const Pair_<P0, P1> &p) const {
     return
       ZuCmp<T0>::equals(m_p0, p.template p<0>()) &&
       ZuCmp<T1>::equals(m_p1, p.template p<1>());
   }
+  template <typename P0, typename P1>
+  int cmp(const Pair_<P0, P1> &p) const {
+    int i;
+    if (i = ZuCmp<T0>::cmp(m_p0, p.template p<0>())) return i;
+    return ZuCmp<T1>::cmp(m_p1, p.template p<1>());
+  }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Pair_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Pair_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_p0 || !m_p1; }
   ZuOpBool
@@ -340,15 +340,6 @@ private:
   T0		m_p0;
   T1		m_p1;
 };
-
-template <typename T0, typename T1>
-inline bool operator ==(const Pair_<T0, T1> &l, const Pair_<T0, T1> &r) {
-  return l.equals(r);
-}
-template <typename T0, typename T1>
-inline bool operator <(const Pair_<T0, T1> &l, const Pair_<T0, T1> &r) {
-  return l.less(r);
-}
 
 } // namespace Zu_
 

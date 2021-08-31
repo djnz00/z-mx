@@ -50,29 +50,29 @@
 #include <zlib/ZvMsgID.hpp>
 
 struct ZvIOQItem {
-  ZuInline ZvIOQItem(ZmRef<ZiAnyIOBuf> buf) :
+  ZvIOQItem(ZmRef<ZiAnyIOBuf> buf) :
       m_buf(ZuMv(buf)) { }
-  ZuInline ZvIOQItem(ZmRef<ZiAnyIOBuf> buf, ZvMsgID id) :
+  ZvIOQItem(ZmRef<ZiAnyIOBuf> buf, ZvMsgID id) :
       m_buf(ZuMv(buf)), m_id(id) { }
 
   template <typename T = ZiAnyIOBuf>
-  ZuInline const T *buf() const { return m_buf.ptr<T>(); }
+  const T *buf() const { return m_buf.ptr<T>(); }
   template <typename T = ZiAnyIOBuf>
-  ZuInline T *buf() { return m_buf.ptr<T>(); }
+  T *buf() { return m_buf.ptr<T>(); }
 
-  template <typename T = void *> ZuInline T owner() const { return (T)m_owner; }
-  template <typename T> ZuInline void owner(T v) { m_owner = (void *)v; }
+  template <typename T = void *> T owner() const { return (T)m_owner; }
+  template <typename T> void owner(T v) { m_owner = (void *)v; }
 
-  ZuInline const ZvMsgID id() const { return m_id; }
+  const ZvMsgID id() const { return m_id; }
 
-  ZuInline void load(const ZvMsgID &id) { m_id = id; }
-  ZuInline void unload() { m_id = ZvMsgID{}; }
+  void load(const ZvMsgID &id) { m_id = id; }
+  void unload() { m_id = ZvMsgID{}; }
 
-  ZuInline unsigned skip() const { return m_skip <= 0 ? 1 : m_skip; }
-  ZuInline void skip(unsigned n) { m_skip = n; }
+  unsigned skip() const { return m_skip <= 0 ? 1 : m_skip; }
+  void skip(unsigned n) { m_skip = n; }
 
-  ZuInline bool noQueue() const { return m_skip < 0; }
-  ZuInline void noQueue(int b) { m_skip = -b; }
+  bool noQueue() const { return m_skip < 0; }
+  void noQueue(int b) { m_skip = -b; }
 
 private:
   ZmRef<ZiAnyIOBuf>	m_buf;
@@ -84,13 +84,16 @@ private:
 class ZvIOQFn {
 public:
   using Key = ZvSeqNo;
-  ZuInline ZvIOQFn(ZvIOQItem &item) : m_item(item) { }
-  ZuInline ZvSeqNo key() const { return m_item.id().seqNo; }
-  ZuInline unsigned length() const { return m_item.skip(); }
-  ZuInline unsigned clipHead(unsigned n) { return length(); }
-  ZuInline unsigned clipTail(unsigned n) { return length(); }
-  ZuInline void write(const ZvIOQFn &) { }
-  ZuInline unsigned bytes() const { return m_item.buf()->length; }
+  struct KeyAxor {
+    static Key get(const ZvIOQItem &item) { return item.id().seqNo; }
+  };
+  ZvIOQFn(ZvIOQItem &item) : m_item(item) { }
+  Key key() const { return KeyAxor::get(m_item); }
+  unsigned length() const { return m_item.skip(); }
+  unsigned clipHead(unsigned n) { return length(); }
+  unsigned clipTail(unsigned n) { return length(); }
+  void write(const ZvIOQFn &) { }
+  unsigned bytes() const { return m_item.buf()->length; }
 
 private:
   ZvIOQItem	&m_item;
@@ -139,15 +142,15 @@ public:
   using Lock = Lock_;
   using Guard = ZmGuard<Lock>;
 
-  ZuInline ZvIOQueueRx() : m_queue(new ZvIOQueue(ZvSeqNo{})) { }
+  ZvIOQueueRx() : m_queue(new ZvIOQueue(ZvSeqNo{})) { }
   
-  ZuInline const Impl *impl() const { return static_cast<const Impl *>(this); }
-  ZuInline Impl *impl() { return static_cast<Impl *>(this); }
+  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  Impl *impl() { return static_cast<Impl *>(this); }
 
-  ZuInline const ZvIOQueue *rxQueue() const { return m_queue; }
-  ZuInline ZvIOQueue *rxQueue() { return m_queue; }
+  const ZvIOQueue *rxQueue() const { return m_queue; }
+  ZvIOQueue *rxQueue() { return m_queue; }
 
-  ZuInline void rxInit(ZvSeqNo seqNo) {
+  void rxInit(ZvSeqNo seqNo) {
     if (seqNo > m_queue->head()) m_queue->head(seqNo);
   }
 
@@ -346,11 +349,10 @@ class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
   using Guard = ZmGuard<Lock>;
 
   using Queues =
-    ZmRBTree<ZmTime,
-      ZmRBTreeVal<ZmRef<Tx>,
-	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeLock<ZmNoLock,
-	    ZmRBTreeHeapID<Queues_HeapID> > > > >;
+    ZmRBTreeKV<ZmTime, ZmRef<Tx>,
+      ZmRBTreeObject<ZuNull,
+	ZmRBTreeLock<ZmNoLock,
+	  ZmRBTreeHeapID<Queues_HeapID> > > >;
 
 public:
   void loaded_(ZvIOMsg *) { }   // may be overridden by Impl

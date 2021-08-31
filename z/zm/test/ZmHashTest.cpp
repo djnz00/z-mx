@@ -140,11 +140,12 @@ struct I {
     { if (this != &i) m_i = i.m_i; return *this; }
   int hash() const { return m_i; }
   int cmp(const I &i) const { return ZuCmp<int>::cmp(m_i, i.m_i); }
-  bool operator ==(const I &i) const { return m_i == i.m_i; }
   bool operator !() const { return !m_i; }
 
   int	m_i;
 };
+
+inline bool operator ==(const I &l, const I &r) { return l.m_i == r.m_i; }
 
 struct J : public ZmObject {
   struct IAccessor {

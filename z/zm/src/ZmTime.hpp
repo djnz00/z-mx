@@ -254,23 +254,18 @@ public:
     return operator =(dtime() / d);
   }
 
-  int operator ==(const ZmTime &t) const {
+  bool equals(const ZmTime &t) const {
     return tv_sec == t.tv_sec && tv_nsec == t.tv_nsec;
   }
-  int operator !=(const ZmTime &t) const {
-    return tv_sec != t.tv_sec || tv_nsec != t.tv_nsec;
+  int cmp(const ZmTime &t) const {
+    if (int i = ZuCmp<time_t>::cmp(tv_sec, t.tv_sec)) return i;
+    return ZuCmp<long>::cmp(tv_nsec, t.tv_nsec);
   }
-  int operator >(const ZmTime &t) const {
-    return tv_sec > t.tv_sec || (tv_sec == t.tv_sec && tv_nsec > t.tv_nsec);
+  friend inline bool operator ==(const ZmTime &l, const ZmTime &r) {
+    return l.equals(r);
   }
-  int operator >=(const ZmTime &t) const {
-    return tv_sec > t.tv_sec || (tv_sec == t.tv_sec && tv_nsec >= t.tv_nsec);
-  }
-  int operator <(const ZmTime &t) const {
-    return tv_sec < t.tv_sec || (tv_sec == t.tv_sec && tv_nsec < t.tv_nsec);
-  }
-  int operator <=(const ZmTime &t) const {
-    return tv_sec < t.tv_sec || (tv_sec == t.tv_sec && tv_nsec <= t.tv_nsec);
+  friend inline int operator <=>(const ZmTime &l, const ZmTime &r) {
+    return l.cmp(r);
   }
 
   int operator !() const {
@@ -285,11 +280,6 @@ public:
 
   uint32_t hash() const {
     return ZuHash<time_t>::hash(tv_sec) ^ ZuHash<long>::hash(tv_nsec);
-  }
-
-  int cmp(const ZmTime &t) const {
-    if (int i = ZuCmp<time_t>::cmp(tv_sec, t.tv_sec)) return i;
-    return ZuCmp<long>::cmp(tv_nsec, t.tv_nsec);
   }
 
   struct Traits : public ZuBaseTraits<ZmTime> { enum { IsPOD = 1 }; };

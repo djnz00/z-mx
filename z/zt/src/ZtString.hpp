@@ -844,44 +844,29 @@ public:
   bool operator !() const { return !length(); }
 
   template <typename S>
-  int cmp(const S &s) const {
-    return ZuCmp<ZtString_>::cmp(*this, s);
-  }
-  template <typename S>
-  bool less(const S &s) const {
-    return ZuCmp<ZtString_>::less(*this, s);
-  }
-  template <typename S>
-  bool greater(const S &s) const {
-    return ZuCmp<ZtString_>::less(s, *this);
-  }
-  template <typename S>
   bool equals(const S &s) const {
     return ZuCmp<ZtString_>::equals(*this, s);
   }
-
   template <typename S>
-  bool operator ==(const S &s) const { return equals(s); }
-  template <typename S>
-  bool operator !=(const S &s) const { return !equals(s); }
-  template <typename S>
-  bool operator >(const S &s) const { return greater(s); }
-  template <typename S>
-  bool operator >=(const S &s) const { return !less(s); }
-  template <typename S>
-  bool operator <(const S &s) const { return less(s); }
-  template <typename S>
-  bool operator <=(const S &s) const { return !greater(s); }
-
-  int cmp(const Char *s, unsigned n) const {
-    if (null__()) return s ? -1 : 0;
-    if (!s) return 1;
-    return Zu::strcmp_(data_(), s, n);
+  int cmp(const S &s) const {
+    return ZuCmp<ZtString_>::cmp(*this, s);
   }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZtString_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZtString_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
+
   bool equals(const Char *s, unsigned n) const {
     if (null__()) return !s;
     if (!s) return false;
     return !Zu::strcmp_(data_(), s, n);
+  }
+  int cmp(const Char *s, unsigned n) const {
+    if (null__()) return s ? -1 : 0;
+    if (!s) return 1;
+    return Zu::strcmp_(data_(), s, n);
   }
   int icmp(const Char *s, unsigned n) const {
     if (null__()) return s ? -1 : 0;

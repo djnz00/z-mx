@@ -194,6 +194,7 @@ ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {
   return user;
 }
 
+namespace _ {
 struct Key {
   ZtString	id;
   KeyData	secret;
@@ -203,8 +204,8 @@ ZvFBFields(Key,
     (((id, Rd), (0)), (String)),
     (((secret)), (Bytes), (Update)),
     (((userID, Rd)), (Int)));
-#if 0
-using Key__ = ZvFB::Load<Key___>;
+}
+using Key__ = ZvFB::Load<_::Key>;
 struct Key_ : public ZuObject, public Key__ {
   Key_() = delete;
   Key_(const fbs::Key *key_, Key_ *next_) :
@@ -224,13 +225,14 @@ struct Key_ : public ZuObject, public Key__ {
     return fbs::CreateKey(fbb, str(fbb, id), bytes(fbb, secret), userID);
   }
 };
-#endif
 struct KeyHashID {
   static constexpr const char *id() { return "ZvUserDB.Keys"; }
 };
+#if 0
 struct KeyIDAccessor {
   static ZtString get(const Key_ &k) { return k.id; }
 };
+#endif
 using KeyHash =
   ZmHash<Key_,
     ZmHashKey<ZuFieldAxor<Key_, 0>,
@@ -323,7 +325,7 @@ public:
     if ((user->flags & User::ChPass) && interactive &&
 	perm != m_permIndex[Perm::Offset + fbs::ReqData_ChPass])
       return false;
-    return interactive ? (user->perms && perm) : (user->apiperms && perm);
+    return interactive ? user->perms[perm] : user->apiperms[perm];
   }
 
 private:
@@ -422,7 +424,7 @@ private:
   template <typename ...Args>
   void roleAdd_(ZuString name, Role::Flags flags, Args &&... args) {
     ZmRef<Role> role = new Role(name, flags, ZuFwd<Args>(args)...);
-    m_roles.add(role);
+    m_roles.addNode(role);
   }
 public:
   template <typename ...Args>

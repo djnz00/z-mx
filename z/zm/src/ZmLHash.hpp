@@ -187,27 +187,22 @@ public:
   bool operator !() const { return !m_u; }
   ZuOpBool
 
-  int cmp(const ZmLHash_Node &n) const {
-    if (!n.m_u) return !m_u ? 0 : 1;
-    if (!m_u) return -1;
-    return data().cmp(n.data());
-  }
-  bool less(const ZmLHash_Node &n) const {
-    if (!n.m_u) return false;
-    if (!m_u) return true;
-    return data().less(n.data());
-  }
   bool equals(const ZmLHash_Node &n) const {
     if (!n.m_u) return !m_u;
     if (!m_u) return false;
     return data().equals(n.data());
   }
-  bool operator ==(const ZmLHash_Node &n) const { return equals(n); }
-  bool operator !=(const ZmLHash_Node &n) const { return !equals(n); }
-  bool operator >(const ZmLHash_Node &n) const { return cmp(n) > 0; }
-  bool operator >=(const ZmLHash_Node &n) const { return cmp(n) >= 0; }
-  bool operator <(const ZmLHash_Node &n) const { return cmp(n) < 0; }
-  bool operator <=(const ZmLHash_Node &n) const { return cmp(n) <= 0; }
+  int cmp(const ZmLHash_Node &n) const {
+    if (!n.m_u) return !m_u ? 0 : 1;
+    if (!m_u) return -1;
+    return data().cmp(n.data());
+  }
+  friend inline bool operator ==(const ZmLHash_Node &l, const ZmLHash_Node &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const ZmLHash_Node &l, const ZmLHash_Node &r) {
+    return l.cmp(r);
+  }
 
 private:
   bool head() const { return m_u & 4U; }
@@ -680,13 +675,13 @@ private:
 
   template <typename P>
   static auto matchKey(const P &key) {
-    return [&key](Node *node) -> bool {
+    return [&key](const Node *node) -> bool {
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
   static auto matchData(const P &data) {
-    return [&data](Node *node) -> bool {
+    return [&data](const Node *node) -> bool {
       return node->Node::data() == data;
     };
   }

@@ -65,7 +65,7 @@
 #pragma warning(disable:4800 4348)
 #endif
 
-template <typename T, class Cmp> class ZtArray;
+template <typename T, typename Cmp> class ZtArray;
 
 template <typename T> struct ZtArray_ { };
 
@@ -73,7 +73,7 @@ template <typename T_> struct ZtArray_Char2 { using T = ZuNull; };
 template <> struct ZtArray_Char2<char> { using T = wchar_t; };
 template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
-template <typename T_, class Cmp_ = ZuCmp<T_>>
+template <typename T_, typename Cmp_ = ZuCmp<T_>>
 class ZtArray : public ZtArray_<T_>, public ZuArrayFn<T_, Cmp_> {
   template <typename, class> friend class ZtArray;
 
@@ -443,7 +443,7 @@ public:
     { assign(a); return *this; }
   ZtArray &operator =(ZtArray &&a) noexcept {
     free_();
-    new (this) ZtArray(ZuMv(a));
+    new (this) ZtArray{ZuMv(a)};
     return *this;
   }
 
@@ -885,90 +885,6 @@ public:
   bool operator !() const { return !length(); }
 
   template <typename A>
-  MatchZtArray<A, int> cmp(const A &a) const {
-    if (this == &a) return 0;
-    return cmp(a.m_data, a.length());
-  }
-  template <typename A>
-  MatchArray<A, int> cmp(A &&a_) const {
-    ZuArrayT<A> a(ZuFwd<A>(a_));
-    return cmp(a.data(), a.length());
-  }
-  template <typename S>
-  MatchAnyString<S, int> cmp(S &&s_) const {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
-    return cmp(s.data(), s.length());
-  }
-  template <typename S>
-  MatchChar2String<S, int> cmp(const S &s) const {
-    return cmp(ZtArray{s});
-  }
-
-  int cmp(const T *a, unsigned n) const {
-    if (!a) return !!m_data;
-    if (!m_data) return -1;
-    unsigned l = length();
-    if (int i = Ops::cmp(m_data, a, l < n ? l : n)) return i;
-    return l - n;
-  }
-
-  template <typename A>
-  MatchZtArray<A, bool> less(const A &a) const {
-    if (this == &a) return true;
-    return less(a.m_data, a.length());
-  }
-  template <typename A>
-  MatchArray<A, bool> less(A &&a_) const {
-    ZuArrayT<A> a(ZuFwd<A>(a_));
-    return less(a.data(), a.length());
-  }
-  template <typename S>
-  MatchAnyString<S, bool> less(S &&s_) const {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
-    return less(s.data(), s.length());
-  }
-  template <typename S>
-  MatchChar2String<S, bool> less(const S &s) const {
-    return less(ZtArray{s});
-  }
-
-  bool less(const T *a, unsigned n) const {
-    if (!a) return false;
-    if (!m_data) return true;
-    unsigned l = length();
-    if (int i = Ops::cmp(m_data, a, l < n ? l : n)) return i < 0;
-    return l < n;
-  }
-
-  template <typename A>
-  MatchZtArray<A, bool> greater(const A &a) const {
-    if (this == &a) return true;
-    return greater(a.m_data, a.length());
-  }
-  template <typename A>
-  MatchArray<A, bool> greater(A &&a_) const {
-    ZuArrayT<A> a(ZuFwd<A>(a_));
-    return greater(a.data(), a.length());
-  }
-  template <typename S>
-  MatchAnyString<S, bool> greater(S &&s_) const {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
-    return greater(s.data(), s.length());
-  }
-  template <typename S>
-  MatchChar2String<S, bool> greater(const S &s) const {
-    return greater(ZtArray{s});
-  }
-
-  bool greater(const T *a, unsigned n) const {
-    if (!m_data) return false;
-    if (!a) return true;
-    unsigned l = length();
-    if (int i = Ops::cmp(m_data, a, l < n ? l : n)) return i > 0;
-    return l > n;
-  }
-
-  template <typename A>
   MatchZtArray<A, bool> equals(const A &a) const {
     if (this == &a) return true;
     return equals(a.m_data, a.length());
@@ -996,80 +912,102 @@ public:
   }
 
   template <typename A>
-  bool operator ==(const A &a) const { return equals(a); }
+  MatchZtArray<A, int> cmp(const A &a) const {
+    if (this == &a) return 0;
+    return cmp(a.m_data, a.length());
+  }
   template <typename A>
-  bool operator !=(const A &a) const { return !equals(a); }
-  template <typename A>
-  bool operator >(const A &a) const { return greater(a); }
-  template <typename A>
-  bool operator >=(const A &a) const { return !less(a); }
-  template <typename A>
-  bool operator <(const A &a) const { return less(a); }
-  template <typename A>
-  bool operator <=(const A &a) const { return !greater(a); }
+  MatchArray<A, int> cmp(A &&a_) const {
+    ZuArrayT<A> a(ZuFwd<A>(a_));
+    return cmp(a.data(), a.length());
+  }
+  template <typename S>
+  MatchAnyString<S, int> cmp(S &&s_) const {
+    ZuArrayT<S> s(ZuFwd<S>(s_));
+    return cmp(s.data(), s.length());
+  }
+  template <typename S>
+  MatchChar2String<S, int> cmp(const S &s) const {
+    return cmp(ZtArray{s});
+  }
+
+  int cmp(const T *a, unsigned n) const {
+    if (!a) return !!m_data;
+    if (!m_data) return -1;
+    unsigned l = length();
+    if (int i = Ops::cmp(m_data, a, l < n ? l : n)) return i;
+    return l - n;
+  }
+
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZtArray, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZtArray, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
 // +, += operators
 
   template <typename A>
-  ZtArray<T, Cmp> operator +(const A &a) const { return add(a); }
+  ZtArray operator +(const A &a) const { return add(a); }
 
 private:
   template <typename A>
-  MatchZtArray<A, ZtArray<T, Cmp>> add(A &&a) const {
+  MatchZtArray<A, ZtArray> add(A &&a) const {
     return Fwd_ZtArray<A>::add_(this, ZuFwd<A>(a));
   }
   template <typename A>
-  MatchArray<A, ZtArray<T, Cmp>> add(A &&a) const {
+  MatchArray<A, ZtArray> add(A &&a) const {
     return Fwd_Array<A>::add_(this, ZuFwd<A>(a));
   }
 
   template <typename S>
-  MatchAnyString<S, ZtArray<T, Cmp>> add(S &&s_) const
+  MatchAnyString<S, ZtArray> add(S &&s_) const
     { ZuArrayT<S> s(ZuFwd<S>(s_)); return add(s.data(), s.length()); }
   template <typename S>
-  MatchChar2String<S, ZtArray<T, Cmp>> add(S &&s) const
+  MatchChar2String<S, ZtArray> add(S &&s) const
     { return add(ZtArray{ZuFwd<S>(s)}); }
   template <typename C>
-  MatchChar2<C, ZtArray<T, Cmp>> add(C c) const
-    { return add(ZtArray(c)); }
+  MatchChar2<C, ZtArray> add(C c) const
+    { return add(ZtArray{c}); }
 
   template <typename P>
-  MatchPDelegate<P, ZtArray<T, Cmp>> add(P &&p) const
-    { return add(ZtArray(ZuFwd<P>(p))); }
+  MatchPDelegate<P, ZtArray> add(P &&p) const
+    { return add(ZtArray{ZuFwd<P>(p)}); }
   template <typename P>
-  MatchPBuffer<P, ZtArray<T, Cmp>> add(P &&p) const
-    { return add(ZtArray(ZuFwd<P>(p))); }
+  MatchPBuffer<P, ZtArray> add(P &&p) const
+    { return add(ZtArray{ZuFwd<P>(p)}); }
 
   template <typename R>
-  MatchElem<R, ZtArray<T, Cmp>> add(R &&r) const {
+  MatchElem<R, ZtArray> add(R &&r) const {
     unsigned n = length();
     unsigned z = grow_(n, n + 1);
     T *newData = (T *)::malloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     this->initItem(newData + n, ZuFwd<R>(r));
-    return ZtArray<T, Cmp>(newData, n + 1, z);
+    return ZtArray{newData, n + 1, z};
   }
 
-  ZtArray<T, Cmp> add(const T *data, unsigned length) const {
+  ZtArray add(const T *data, unsigned length) const {
     unsigned n = this->length();
     unsigned z = n + length;
-    if (ZuUnlikely(!z)) return ZtArray<T, Cmp>();
+    if (ZuUnlikely(!z)) return ZtArray{};
     T *newData = (T *)::malloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->copyItems(newData + n, data, length);
-    return ZtArray<T, Cmp>(newData, z, z);
+    return ZtArray{newData, z, z};
   }
-  ZtArray<T, Cmp> add_mv(T *data, unsigned length) const {
+  ZtArray add_mv(T *data, unsigned length) const {
     unsigned n = this->length();
     unsigned z = n + length;
-    if (ZuUnlikely(!z)) return ZtArray<T, Cmp>();
+    if (ZuUnlikely(!z)) return ZtArray{};
     T *newData = (T *)::malloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->moveItems(newData + n, data, length);
-    return ZtArray<T, Cmp>(newData, z, z);
+    return ZtArray{newData, z, z};
   }
 
 public:
@@ -1098,7 +1036,7 @@ private:
     { append_(ZtArray{ZuFwd<S>(s)}); }
   template <typename C>
   MatchChar2<C> append_(C c)
-    { append_(ZtArray(c)); }
+    { append_(ZtArray{c}); }
 
   template <typename P>
   MatchPDelegate<P> append_(const P &p) {
@@ -1172,12 +1110,12 @@ private:
   template <typename S>
   MatchChar2String<S> splice_(
       ZtArray *removed, int offset, int length, const S &s) {
-    splice_(removed, offset, length, ZtArray(s));
+    splice_(removed, offset, length, ZtArray{s});
   }
   template <typename C>
   MatchChar2<C> splice_(
       ZtArray *removed, int offset, int length, C c) {
-    splice_(removed, offset, length, ZtArray(c));
+    splice_(removed, offset, length, ZtArray{c});
   }
 
   template <typename R>
@@ -1529,7 +1467,7 @@ private:
   T			*m_data;	// data buffer
 };
 
-template <typename T, class Cmp>
+template <typename T, typename Cmp>
 template <typename S>
 inline void ZtArray<T, Cmp>::convert_(const S &s, ZtIconv *iconv) {
   null_();
@@ -1541,7 +1479,7 @@ inline void ZtArray<T, Cmp>::convert_(const S &s, ZtIconv *iconv) {
 #endif
 
 // generic printing
-template <typename T, class Cmp>
+template <typename T, typename Cmp>
 ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZtArray<T, Cmp> *);
 
 #endif /* ZtArray_HPP */

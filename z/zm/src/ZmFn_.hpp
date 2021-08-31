@@ -158,17 +158,19 @@ public:
   // access invoker
   uintptr_t invoker() const { return m_invoker; }
 
-  bool operator ==(const ZmAnyFn &fn) const {
+  bool equals(const ZmAnyFn &fn) const {
     return m_invoker == fn.m_invoker && m_object == fn.m_object;
   }
-  bool operator !=(const ZmAnyFn &fn) const {
-    return !operator ==(fn);
-  }
-
   int cmp(const ZmAnyFn &fn) const {
     if (m_invoker < fn.m_invoker) return -1;
     if (m_invoker > fn.m_invoker) return 1;
     return ZuCmp<uintptr_t>::cmp(m_object, fn.m_object);
+  }
+  friend inline bool operator ==(const ZmAnyFn &l, const ZmAnyFn &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const ZmAnyFn &l, const ZmAnyFn &r) {
+    return l.cmp(r);
   }
 
   bool operator !() const { return !m_invoker; }

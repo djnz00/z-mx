@@ -34,7 +34,7 @@ namespace Foo {
   ZuFields(B,
       ((i, Rd)),
       ((j, RdFn)),
-      ((k, RdLambda, ([](const B &b) { return b.k; }))));
+      ((k, LambdaRd, ([](const B &b) { return b.k; }))));
 }
 
 int main()

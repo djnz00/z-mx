@@ -107,8 +107,8 @@ ZmRef<User> Mgr::userAdd_(
       user->roles.push(node);
       user->perms = node->perms;
     }
-  m_users->add(user);
-  m_userNames->add(user);
+  m_users->addNode(user);
+  m_userNames->addNode(user);
   return user;
 }
 
@@ -138,15 +138,15 @@ bool Mgr::load_(const uint8_t *buf, unsigned len)
   all(userDB->roles(), [this](unsigned, auto role_) {
     if (auto role = loadRole(role_)) {
       m_roles.del(role->name);
-      m_roles.add(ZuMv(role));
+      m_roles.addNode(ZuMv(role));
     }
   });
   all(userDB->users(), [this](unsigned, auto user_) {
     if (auto user = loadUser(m_roles, user_)) {
       m_users->del(user->id);
-      m_users->add(user);
+      m_users->addNode(user);
       m_userNames->del(user->name);
-      m_userNames->add(ZuMv(user));
+      m_userNames->addNode(ZuMv(user));
     }
   });
   all(userDB->keys(), [this](unsigned, auto key_) {
@@ -154,8 +154,9 @@ bool Mgr::load_(const uint8_t *buf, unsigned len)
     if (!user) return;
     ZmRef<Key> key = new Key{key_, user->keyList};
     user->keyList = key;
+    // m_keys->del(ZuFwdTuple(key->id));
     m_keys->del(key->id);
-    m_keys->add(ZuMv(key));
+    m_keys->addNode(ZuMv(key));
   });
   return true;
 }
@@ -429,7 +430,7 @@ ZmRef<User> Mgr::login(int &failures,
     failures = user->failures;
     return nullptr;
   }
-  if (!(user->perms && Perm::Login)) {
+  if (!(user->perms[Perm::Login])) {
     if (++user->failures < 3) {
       ZeLOG(Warning, ZtString() << "authentication failure: "
 	  "user without login permission \"" << user->name <<
@@ -474,7 +475,7 @@ ZmRef<User> Mgr::access(int &failures,
     ZuArray<const uint8_t> hmac)
 {
   ReadGuard guard(m_lock);
-  Key *key = m_keys->findPtr(keyID);
+  Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
   if (!key) {
     failures = -1;
     return nullptr;
@@ -492,7 +493,7 @@ ZmRef<User> Mgr::access(int &failures,
     failures = user->failures;
     return nullptr;
   }
-  if (!(user->perms && Perm::Access)) {
+  if (!(user->perms[Perm::Access])) {
     if (++user->failures < 3) {
       ZeLOG(Warning, ZtString() << "authentication failure: "
 	  "user without API access permission \"" << user->name <<
@@ -716,7 +717,7 @@ Offset<fbs::RoleUpdAck> Mgr::roleAdd(
   }
   m_modified = true;
   auto role = loadRole(role_);
-  m_roles.add(role);
+  m_roles.addNode(role);
   return fbs::CreateRoleUpdAck(fbb, role->save(fbb), 1);
 }
 
@@ -767,7 +768,7 @@ Offset<fbs::RoleUpdAck> Mgr::roleDel(
     while (auto user = i.iterate())
       user->roles.grep([role](Role *role_) { return role == role_; });
   }
-  m_roles.del(role);
+  m_roles.delNode(role);
   return fbs::CreateRoleUpdAck(fbb, role->save(fbb), 1);
 }
 
@@ -905,12 +906,12 @@ Offset<fbs::KeyUpdAck> Mgr::keyAdd_(
     keyID.length(Ztls::Base64::enclen(keyID_.length()));
     Ztls::Base64::encode(
 	keyID.data(), keyID.length(), keyID_.data(), keyID_.length());
-  } while (m_keys->findPtr(keyID));
+  } while (m_keys->findPtr(ZuFwdTuple(keyID)));
   ZmRef<Key> key = new Key{ZuMv(keyID), user->id, user->keyList};
   key->secret.length(key->secret.size());
   m_rng->random(key->secret.data(), key->secret.length());
   user->keyList = key;
-  m_keys->add(key);
+  m_keys->addNode(key);
   return fbs::CreateKeyUpdAck(fbb, key->save(fbb), 1);
 }
 
@@ -948,7 +949,7 @@ Offset<fbs::UserAck> Mgr::ownKeyDel(
 {
   Guard guard(m_lock);
   auto keyID = Load::str(id_->id());
-  Key *key = m_keys->findPtr(keyID);
+  Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
   if (!key || user->id != key->userID) {
     fbs::UserAckBuilder fbb_(fbb);
     fbb_.add_ok(0);
@@ -961,7 +962,7 @@ Offset<fbs::UserAck> Mgr::keyDel(
 {
   Guard guard(m_lock);
   auto keyID = Load::str(id_->id());
-  Key *key = m_keys->findPtr(keyID);
+  Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
   if (!key) {
     fbs::UserAckBuilder fbb_(fbb);
     fbb_.add_ok(0);
@@ -974,7 +975,7 @@ Offset<fbs::UserAck> Mgr::keyDel_(
     Zfb::Builder &fbb, User *user, ZuString keyID)
 {
   m_modified = true;
-  ZmRef<Key> key = m_keys->del(keyID);
+  ZmRef<Key> key = m_keys->del(ZuFwdTuple(keyID));
   if (!key) {
     fbs::UserAckBuilder fbb_(fbb);
     fbb_.add_ok(0);
@@ -983,11 +984,11 @@ Offset<fbs::UserAck> Mgr::keyDel_(
   if (user) {
     auto prev = user->keyList;
     if (prev == key)
-      user->keyList = key->next;
+      user->keyList = key->Key_::next;
     else
       while (prev) {
 	if (prev->next == key) {
-	  prev->next = key->next;
+	  prev->next = key->Key_::next;
 	  break;
 	}
 	prev = prev->next;

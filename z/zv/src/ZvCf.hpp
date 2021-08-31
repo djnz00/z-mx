@@ -190,10 +190,9 @@ public:
   };
 
   using Defines_ =
-    ZmRBTree<ZtString,
-      ZmRBTreeVal<ZtString,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeLock<ZmNoLock> > > >;
+    ZmRBTreeKV<ZtString, ZtString,
+      ZmRBTreeUnique<true,
+	ZmRBTreeLock<ZmNoLock> > >;
   struct Defines : public ZuObject, public Defines_ { };
 
   void fromString(
@@ -532,10 +531,9 @@ private:
   struct HeapID { static constexpr const char *id() { return "ZvCf"; } };
 
   using Tree =
-    ZmRBTree<ZtString,
-      ZmRBTreeVal<NodeRef,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeHeapID<HeapID> > > >;
+    ZmRBTreeKV<ZtString, NodeRef,
+      ZmRBTreeUnique<true,
+	ZmRBTreeHeapID<HeapID> > >;
 
 public:
   unsigned count() const { return m_tree.count(); }

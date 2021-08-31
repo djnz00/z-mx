@@ -339,7 +339,9 @@ namespace Load {
     ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v->readIterator(); \
-      while (auto kv = i.iterate()) { l(kv->key(), kv->val()); } \
+      while (auto kv = i.iterate()) { \
+	l(S2V::KeyAxor::get(*kv), S2V::ValAxor::get(*kv)); \
+      } \
     } \
   public: \
     static constexpr const char *id() { return #Enum; } \

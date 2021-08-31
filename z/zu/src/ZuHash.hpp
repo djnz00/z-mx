@@ -48,7 +48,7 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuInt.hpp>
 
-template <typename T> struct ZuHash;
+template <typename T, bool = ZuTraits<T>::IsString> struct ZuHash_;
 
 // deliberately undefined template
 
@@ -57,7 +57,7 @@ template <typename T> struct ZuHash_Cannot;
 // golden prime function, specialized for 32bit and 64bit types
 
 struct ZuHash_GoldenPrime32 {
-  ZuInline static uint32_t hash(uint32_t i) { return i * m_goldenPrime; }
+  static uint32_t hash(uint32_t i) { return i * m_goldenPrime; }
 
 private:
   static const uint32_t m_goldenPrime = 0x9e370001UL;
@@ -96,9 +96,9 @@ struct ZuHash_GoldenPrime128 {
 struct ZuHash_FNV_ {
   using Value = uint64_t;
 
-  ZuInline static Value initial_() { return 0xcbf29ce484222325ULL; }
+  static Value initial_() { return 0xcbf29ce484222325ULL; }
 
-  ZuInline static Value hash_(Value v, Value i) {
+  static Value hash_(Value v, Value i) {
     v ^= i;
     v *= 0x100000001b3ULL;
     return v;
@@ -108,9 +108,9 @@ struct ZuHash_FNV_ {
 struct ZuHash_FNV_ {
   using Value = uint32_t;
 
-  ZuInline static Value initial_() { return 0x811c9dc5UL; }
+  static Value initial_() { return 0x811c9dc5UL; }
 
-  ZuInline static Value hash_(Value v, Value i) {
+  static Value hash_(Value v, Value i) {
     v ^= i;
     v *= 0x1000193UL;
     return v;
@@ -121,7 +121,7 @@ struct ZuHash_FNV_ {
 struct ZuHash_FNV : public ZuHash_FNV_ {
   using Value = ZuHash_FNV_::Value;
 
-  ZuInline static uint32_t hash(const unsigned char *p, int n) {
+  static uint32_t hash(const unsigned char *p, int n) {
     Value v = initial_();
     while (--n >= 0) v = hash_(v, *p++);
     return (uint32_t)v;
@@ -131,7 +131,7 @@ struct ZuHash_FNV : public ZuHash_FNV_ {
 // hashing of floats, doubles and long doubles
 
 template <typename T> struct ZuHash_Floating {
-  ZuInline static uint32_t hash(T t) {
+  static uint32_t hash(T t) {
     return ZuHash_FNV::hash((const unsigned char *)&t, sizeof(T));
   }
 };
@@ -139,19 +139,19 @@ template <typename T> struct ZuHash_Floating {
 // hashing of integral types
 
 template <typename T, int Size> struct ZuHash_Integral {
-  ZuInline static uint32_t hash(const T &t) {
+  static uint32_t hash(const T &t) {
     return ZuHash_GoldenPrime32::hash((uint32_t)t);
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 8> {
-  ZuInline static uint32_t hash(const T &t) {
+  static uint32_t hash(const T &t) {
     return (uint32_t)ZuHash_GoldenPrime64::hash(t);
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 16> {
-  ZuInline static uint32_t hash(const T &t) {
+  static uint32_t hash(const T &t) {
     return (uint32_t)ZuHash_GoldenPrime128::hash(t);
   }
 };
@@ -189,21 +189,21 @@ struct ZuHash_NonPrimitive : public ZuHash_Cannot<T> { };
 template <typename P, bool IsPrimitive> struct ZuHash_NonPrimitive___ :
     public ZuHash_NonPrimitive<P, false> { };
 template <typename P>
-struct ZuHash_NonPrimitive___<P, true> : public ZuHash<P> { };
+struct ZuHash_NonPrimitive___<P, true> : public ZuHash_<P> { };
 
 template <typename T, typename P> struct ZuHash_NonPrimitive__ :
     public ZuHash_NonPrimitive___<P, ZuTraits<P>::IsPrimitive> { };
 template <typename T> struct ZuHash_NonPrimitive__<T, T> {
-  ZuInline static uint32_t hash(const T &v) { return v.hash(); }
+  static uint32_t hash(const T &v) { return v.hash(); }
 };
 template <typename T, typename P, bool Fwd>
 struct ZuHash_NonPrimitive_ : public ZuHash_NonPrimitive__<T, P> { };
 template <typename T, typename P> struct ZuHash_NonPrimitive_<T, P, false> {
-  ZuInline static uint32_t hash(const T &v) { return v.hash(); }
+  static uint32_t hash(const T &v) { return v.hash(); }
 };
 template <typename T, bool Fwd> struct ZuHash_NonPrimitive<T, Fwd, true> {
   template <typename P>
-  ZuInline static uint32_t hash(const P &p) {
+  static uint32_t hash(const P &p) {
     return ZuHash_NonPrimitive_<T, P, Fwd>::hash(p);
   }
 };
@@ -218,7 +218,7 @@ struct ZuHash_Pointer : public ZuHash_Cannot<T> { };
 #pragma warning(disable:4311)
 #endif
 template <typename T> struct ZuHash_Pointer<T, 4> {
-  ZuInline static uint32_t hash(T t) {
+  static uint32_t hash(T t) {
     return ZuHash_GoldenPrime32::hash((uint32_t)t);
   }
 };
@@ -227,7 +227,7 @@ template <typename T> struct ZuHash_Pointer<T, 4> {
 #endif
 
 template <typename T> struct ZuHash_Pointer<T, 8> {
-  ZuInline static uint32_t hash(T t) {
+  static uint32_t hash(T t) {
     return (uint32_t)ZuHash_GoldenPrime64::hash((uint64_t)t);
   }
 };
@@ -389,15 +389,13 @@ struct ZuStringHash<wchar_t> : public ZuWStringHash<sizeof(wchar_t)> { };
 
 // generic hashing function
 
-template <typename T, bool IsString> struct ZuHash_;
-
 template <typename T>
 struct ZuHash_<T, false> : public ZuHash_NonString<
   T, ZuTraits<T>::IsPrimitive, ZuTraits<T>::IsPointer> { };
 
 template <typename T> struct ZuHash_<T, true> {
   template <typename S>
-  ZuInline static uint32_t hash(const S &s) {
+  static uint32_t hash(const S &s) {
     using Traits = ZuTraits<S>;
     using Char = ZuDecay<typename Traits::Elem>;
     return ZuStringHash<Char>::hash(Traits::data(s), Traits::length(s));
@@ -406,7 +404,6 @@ template <typename T> struct ZuHash_<T, true> {
 
 // generic template
 
-template <typename T> struct ZuHash :
-  public ZuHash_<ZuDecay<T>, ZuTraits<T>::IsString> { };
+template <typename T> struct ZuHash : public ZuHash_<ZuDecay<T>> { };
 
 #endif /* ZuHash_HPP */

@@ -122,18 +122,16 @@ public:
 
   operator uint64_t() const { return m_val; }
 
+  bool equals(ZuID v) const { return m_val == v.m_val; }
   int cmp(ZuID v) const {
     return (m_val > v.m_val) - (m_val < v.m_val);
   }
-  bool less(ZuID v) const { return m_val < v.m_val; }
-  bool equals(ZuID v) const { return m_val == v.m_val; }
-
-  bool operator ==(ZuID v) const { return m_val == v.m_val; }
-  bool operator !=(ZuID v) const { return m_val != v.m_val; }
-  bool operator >(ZuID v) const { return m_val > v.m_val; }
-  bool operator >=(ZuID v) const { return m_val >= v.m_val; }
-  bool operator <(ZuID v) const { return m_val < v.m_val; }
-  bool operator <=(ZuID v) const { return m_val <= v.m_val; }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuID, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<ZuID, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_val; }
 
@@ -158,6 +156,7 @@ public:
 private:
   uint64_t	m_val;
 };
+
 template <> struct ZuCmp<ZuID> : public ZuCmp0<uint64_t> {
   static const ZuID &null() { static const ZuID v; return v; }
   static bool null(uint64_t id) { return !id; }

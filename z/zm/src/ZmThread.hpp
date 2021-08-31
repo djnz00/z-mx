@@ -351,31 +351,27 @@ public:
 
   ZmRef<Context> context() { return m_context; }
 
-  ZuInline ID tid() const {
+  ID tid() const {
     if (!m_context) return 0;
     return m_context->tid();
   }
 
-  ZuInline int cmp(const ZmThread &t) const {
-    return ZuCmp<ID>::cmp(tid(), t.tid());
-  }
-  ZuInline bool less(const ZmThread &t) const {
-    return tid() < t.tid();
-  }
-  ZuInline bool equals(const ZmThread &t) const {
+  bool equals(const ZmThread &t) const {
     return tid() == t.tid();
   }
+  int cmp(const ZmThread &t) const {
+    return ZuCmp<ID>::cmp(tid(), t.tid());
+  }
+  friend inline bool operator ==(const ZmThread &l, const ZmThread &r) {
+    return l.equals(r);
+  }
+  friend inline int operator <=>(const ZmThread &l, const ZmThread &r) {
+    return l.cmp(r);
+  }
 
-  ZuInline bool operator ==(const ZmThread &t) const { return equals(t); }
-  ZuInline bool operator !=(const ZmThread &t) const { return !equals(t); }
-  ZuInline bool operator >(const ZmThread &t) const { return t.less(*this); }
-  ZuInline bool operator >=(const ZmThread &t) const { return !less(t); }
-  ZuInline bool operator <(const ZmThread &t) const { return less(t); }
-  ZuInline bool operator <=(const ZmThread &t) const { return !t.less(*this); }
+  uint32_t hash() { return ZuHash<ID>::hash(tid()); }
 
-  ZuInline uint32_t hash() { return ZuHash<ID>::hash(tid()); }
-
-  ZuInline bool operator !() const { return !m_context; }
+  bool operator !() const { return !m_context; }
   ZuOpBool
 
   template <class S> struct CSV_ {
