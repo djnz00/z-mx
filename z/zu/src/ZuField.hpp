@@ -200,11 +200,9 @@ ZuTypeList<> ZuFields_(...); // default
 void *ZuFielded_(...); // default
 
 #define ZuFields(U, ...) \
-  namespace { \
-    ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, U, __VA_ARGS__)) \
-    using ZuFields_##U = \
-      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, U, __VA_ARGS__))>; \
-  } \
+  ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, U, __VA_ARGS__)) \
+  using ZuFields_##U = \
+    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, U, __VA_ARGS__))>; \
   U *ZuFielded_(U *); \
   ZuFields_##U ZuFieldList_(U *)
 

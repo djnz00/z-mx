@@ -181,7 +181,6 @@ struct Heap : public Heap_, public ZvFieldPrint<Heap> {
   }
   void rag(int) { } // unused
 };
-
 ZvFBFields(Heap,
     (((id), (0)), (String), (Ctor(0))),
     (((size), (0)), (Int), (Ctor(6))),
@@ -241,7 +240,7 @@ ZvFBFields(Thread,
     (((tid), (0)), (Int), (Ctor(1))),
     (((cpuUsage)), (Float), (Ctor(4), Update, Series, NDP(2))),
     (((cpuset)), (Bitmap), (Ctor(3))),
-    (((priority)), (Enum)),
+    (((priority)), (Enum, ThreadPriority::Map)),
     (((sysPriority)), (Int), (Ctor(5))),
     (((stackSize)), (Int), (Ctor(2))),
     (((partition)), (Int), (Ctor(7))),
@@ -290,7 +289,6 @@ struct Socket : public Socket_, public ZvFieldPrint<Socket> {
   }
   void rag(int) { } // unused
 };
-
 ZvFBFields(Socket,
     (((mxID)), (String), (Ctor(0))),
     (((type)), (Enum, SocketType::Map), (Ctor(15))),

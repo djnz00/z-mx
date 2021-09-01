@@ -304,6 +304,7 @@ public:
   void telemetry(Telemetry &data) const;
 
 private:
+  // FIXME - derive ZvAnyTxPool and ZvAnyLink
   using TxPools =
     ZmRBTree<ZmRef<ZvAnyTxPool>,
       ZmRBTreeKey<ZvAnyTxPool::IDAccessor,
@@ -320,13 +321,13 @@ private:
 public:
   ZmRef<ZvAnyTxPool> txPool(ZuID id) {
     ReadGuard guard(m_lock);
-    return m_txPools.findKey(id);
+    return m_txPools.findVal(id);
   }
   template <typename TxPool>
   ZmRef<ZvAnyTxPool> updateTxPool(ZuID id, const ZvCf *cf) {
     Guard guard(m_lock);
     ZmRef<TxPool> pool;
-    if (pool = m_txPools.findKey(id)) {
+    if (pool = m_txPools.findVal(id)) {
       guard.unlock();
       pool->update(cf);
       return pool;

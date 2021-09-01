@@ -67,7 +67,6 @@ struct ZmLHash_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
-  template <typename T> using ValCmpT = ZuCmp<T>;
   using Lock = ZmLock;
   struct ID { static constexpr const char *id() { return "ZmLHash"; } };
   enum { Static = 0 };

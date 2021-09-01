@@ -726,11 +726,9 @@ struct ZvFieldType_Time<Base, Flags, false> :
 #define ZvField_Type(O, Args) ZuPP_Defer(ZvField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZvFields(O, ...)  \
-  namespace { \
-    ZuPP_Eval(ZuPP_MapArg(ZvField_Decl, O, __VA_ARGS__)) \
-    using ZvFields_##O = \
-      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvField_Type, O, __VA_ARGS__))>; \
-  } \
+  ZuPP_Eval(ZuPP_MapArg(ZvField_Decl, O, __VA_ARGS__)) \
+  using ZvFields_##O = \
+    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvField_Type, O, __VA_ARGS__))>; \
   O *ZuFielded_(O *); \
   ZvFields_##O ZuFieldList_(O *)
 

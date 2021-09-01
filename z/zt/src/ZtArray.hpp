@@ -443,7 +443,7 @@ public:
     { assign(a); return *this; }
   ZtArray &operator =(ZtArray &&a) noexcept {
     free_();
-    new (this) ZtArray{ZuMv(a)};
+    new (this) ZtArray(ZuMv(a));
     return *this;
   }
 
@@ -901,7 +901,7 @@ public:
   }
   template <typename S>
   MatchChar2String<S, bool> equals(const S &s) const {
-    return equals(ZtArray{s});
+    return equals(ZtArray(s));
   }
 
   bool equals(const T *a, unsigned n) const {
@@ -928,7 +928,7 @@ public:
   }
   template <typename S>
   MatchChar2String<S, int> cmp(const S &s) const {
-    return cmp(ZtArray{s});
+    return cmp(ZtArray(s));
   }
 
   int cmp(const T *a, unsigned n) const {
@@ -966,17 +966,17 @@ private:
     { ZuArrayT<S> s(ZuFwd<S>(s_)); return add(s.data(), s.length()); }
   template <typename S>
   MatchChar2String<S, ZtArray> add(S &&s) const
-    { return add(ZtArray{ZuFwd<S>(s)}); }
+    { return add(ZtArray(ZuFwd<S>(s))); }
   template <typename C>
   MatchChar2<C, ZtArray> add(C c) const
-    { return add(ZtArray{c}); }
+    { return add(ZtArray(c)); }
 
   template <typename P>
   MatchPDelegate<P, ZtArray> add(P &&p) const
-    { return add(ZtArray{ZuFwd<P>(p)}); }
+    { return add(ZtArray(ZuFwd<P>(p))); }
   template <typename P>
   MatchPBuffer<P, ZtArray> add(P &&p) const
-    { return add(ZtArray{ZuFwd<P>(p)}); }
+    { return add(ZtArray(ZuFwd<P>(p))); }
 
   template <typename R>
   MatchElem<R, ZtArray> add(R &&r) const {
@@ -986,7 +986,7 @@ private:
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     this->initItem(newData + n, ZuFwd<R>(r));
-    return ZtArray{newData, n + 1, z};
+    return ZtArray(newData, n + 1, z);
   }
 
   ZtArray add(const T *data, unsigned length) const {
@@ -997,7 +997,7 @@ private:
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->copyItems(newData + n, data, length);
-    return ZtArray{newData, z, z};
+    return ZtArray(newData, z, z);
   }
   ZtArray add_mv(T *data, unsigned length) const {
     unsigned n = this->length();
@@ -1007,7 +1007,7 @@ private:
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->moveItems(newData + n, data, length);
-    return ZtArray{newData, z, z};
+    return ZtArray(newData, z, z);
   }
 
 public:
@@ -1033,10 +1033,10 @@ private:
 
   template <typename S>
   MatchChar2String<S> append_(S &&s)
-    { append_(ZtArray{ZuFwd<S>(s)}); }
+    { append_(ZtArray(ZuFwd<S>(s))); }
   template <typename C>
   MatchChar2<C> append_(C c)
-    { append_(ZtArray{c}); }
+    { append_(ZtArray(c)); }
 
   template <typename P>
   MatchPDelegate<P> append_(const P &p) {
@@ -1110,12 +1110,12 @@ private:
   template <typename S>
   MatchChar2String<S> splice_(
       ZtArray *removed, int offset, int length, const S &s) {
-    splice_(removed, offset, length, ZtArray{s});
+    splice_(removed, offset, length, ZtArray(s));
   }
   template <typename C>
   MatchChar2<C> splice_(
       ZtArray *removed, int offset, int length, C c) {
-    splice_(removed, offset, length, ZtArray{c});
+    splice_(removed, offset, length, ZtArray(c));
   }
 
   template <typename R>

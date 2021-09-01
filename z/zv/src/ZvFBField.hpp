@@ -81,10 +81,22 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFieldType(O, ID) ZvFBField_##O##_##ID
 #define ZvFBFieldType_(O, ID) ZvFBField_##O##_##ID##_
 
-#define ZvFBFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
-  template <bool = Base_::ReadOnly> \
+#define ZvFBFieldGeneric(O_, ID, Base_) \
+  template <typename O = O_, bool = Base_::ReadOnly, typename = void> \
   struct ZvFBFieldType_(O_, ID) : public Base_ { \
-    using O = O_; \
+    using FBB = ZvFBB<O>; \
+    using FBS = ZvFBS<O>; \
+    enum { Inline = 1 }; \
+    static void save(FBB &, const O &) { } \
+    static void load_(const FBS *) { } \
+    static void load(O &, const FBS *) { } \
+  };
+
+#define ZvFBFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
+  ZvFBFieldGeneric(O_, ID, Base_) \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, true, decltype(&ZvFBS<O>::ID, void())> : \
+      public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
     using FBS = ZvFBS<O>; \
@@ -93,21 +105,23 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
       using namespace Zfb::Save; \
       return SaveFn(fbb, Base::get(o)).Union(); \
     } \
-    static void save(FBB &fbb, Zfb::Offset<void> offset) { \
+    template <typename FBB_> \
+    static void save(FBB_ &fbb, Zfb::Offset<void> offset) { \
       fbb.add_##ID(offset.o); \
     } \
-    static decltype(auto) load_(const FBS *o_) { \
+    template <typename FBS_> \
+    static decltype(auto) load_(const FBS_ *o_) { \
       using namespace Zfb::Load; \
       return LoadFn(o_->ID()); \
     } \
     static void load(O &, const FBS *) { } \
   }; \
-  template <> \
-  struct ZvFBFieldType_(O_, ID)<false> : \
-      public ZvFBFieldType_(O_, ID)<true> { \
-    using O = O_; \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, false, decltype(&ZvFBS<O>::ID, void())> : \
+      public ZvFBFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
-    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    using FBS = ZvFBS<O>; \
+    using ZvFBFieldType_(O_, ID)<O, true>::load_; \
     static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
@@ -115,31 +129,34 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
   using ZvFBFieldType(O_, ID) = ZvFBFieldType_(O_, ID)<>;
 
 #define ZvFBFieldInline(O_, ID, Base_, SaveFn, LoadFn) \
-  template <bool = Base_::ReadOnly> \
-  struct ZvFBFieldType_(O_, ID) : public Base_ { \
-    using O = O_; \
+  ZvFBFieldGeneric(O_, ID, Base_) \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, true, decltype(&ZvFBS<O>::ID, void())> : \
+      public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
     using FBS = ZvFBS<O>; \
     enum { Inline = 1 }; \
-    static void save(FBB &fbb, const O &o) { \
+    template <typename FBB_> \
+    static void save(FBB_ &fbb, const O &o) { \
       using namespace Zfb::Save; \
       auto v = SaveFn(Base::get(o)); \
       fbb.add_##ID(&v); \
     } \
-    static decltype(auto) load_(const FBS *o_) { \
+    template <typename FBS_> \
+    static decltype(auto) load_(const FBS_ *o_) { \
       using namespace Zfb::Load; \
       auto v = o_->ID(); \
       return LoadFn(v); \
     } \
     static void load(O &, const FBS *) { } \
   }; \
-  template <> \
-  struct ZvFBFieldType_(O_, ID)<false> : \
-      public ZvFBFieldType_(O_, ID)<true> { \
-    using O = O_; \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, false, decltype(&ZvFBS<O>::ID, void())> : \
+      public ZvFBFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
-    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    using FBS = ZvFBS<O>; \
+    using ZvFBFieldType_(O_, ID)<O, true>::load_; \
     static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
@@ -147,26 +164,29 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
   using ZvFBFieldType(O_, ID) = ZvFBFieldType_(O_, ID)<>;
 
 #define ZvFBFieldPrimitive(O_, ID, Base_) \
-  template <bool = Base_::ReadOnly> \
-  struct ZvFBFieldType_(O_, ID) : public Base_ { \
-    using O = O_; \
+  ZvFBFieldGeneric(O_, ID, Base_) \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, true, decltype(&ZvFBS<O>::ID, void())> : \
+      public Base_ { \
     using Base = Base_; \
     using FBB = ZvFBB<O>; \
     using FBS = ZvFBS<O>; \
     enum { Inline = 1 }; \
-    static void save(FBB &fbb, const O &o) { \
-      using P = ZuType<0, typename ZuDeduce<decltype(&FBB::add_##ID)>::Args>; \
+    template <typename FBB_> \
+    static void save(FBB_ &fbb, const O &o) { \
+      using P = ZuType<0, typename ZuDeduce<decltype(&FBB_::add_##ID)>::Args>; \
       fbb.add_##ID(static_cast<P>(Base::get(o))); \
     } \
-    static decltype(auto) load_(const FBS *o_) { return o_->ID(); } \
+    template <typename FBS_> \
+    static decltype(auto) load_(const FBS_ *o_) { return o_->ID(); } \
     static void load(O &, const FBS *) { } \
   }; \
-  template <> \
-  struct ZvFBFieldType_(O_, ID)<false> : \
-      public ZvFBFieldType_(O_, ID)<true> { \
-    using O = O_; \
+  template <typename O> \
+  struct ZvFBFieldType_(O_, ID)<O, false, decltype(&ZvFBS<O>::ID, void())> : \
+      public ZvFBFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
-    using ZvFBFieldType_(O_, ID)<true>::load_; \
+    using FBS = ZvFBS<O>; \
+    using ZvFBFieldType_(O_, ID)<O, true>::load_; \
     static void load(O &o, const FBS *o_) { \
       Base::set(o, load_(o_)); \
     } \
@@ -224,11 +244,9 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFields(O, ...)  \
   fbs::O##Builder *ZvFBB_(O *); \
   fbs::O *ZvFBS_(O *); \
-  namespace { \
-    ZuPP_Eval(ZuPP_MapArg(ZvFBField_Decl, O, __VA_ARGS__)) \
-    using ZvFBFields_##O = \
-      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvFBField_Type, O, __VA_ARGS__))>; \
-  } \
+  ZuPP_Eval(ZuPP_MapArg(ZvFBField_Decl, O, __VA_ARGS__)) \
+  using ZvFBFields_##O = \
+    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvFBField_Type, O, __VA_ARGS__))>; \
   O *ZuFielded_(O *); \
   ZvFBFields_##O ZuFieldList_(O *)
 
