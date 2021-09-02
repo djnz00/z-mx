@@ -47,7 +47,7 @@ int ZvCmdDispatcher::dispatch(
     ZuID id, void *link, const uint8_t *data, unsigned len)
 {
   if (auto node = m_fnMap->find(id))
-    return (node->val())(link, data, len);
+    return (node->template p<1>())(link, data, len);
   if (m_defltFn) return m_defltFn(link, id, data, len);
   return -1;
 }

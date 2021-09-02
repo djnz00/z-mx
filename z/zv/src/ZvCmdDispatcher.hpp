@@ -58,7 +58,7 @@ private:
 
   using FnMap =
     ZmLHashKV<ZuID, Fn,
-      ZmLHashLock<ZmNoLock> >;
+      ZmLHashLock<ZmNoLock>>;
 
   Lock			m_lock;
     ZmRef<FnMap>	  m_fnMap;

@@ -109,10 +109,9 @@ private:
     ZtString	usage;
   };
   using Cmds =
-    ZmRBTree<ZtString,
-      ZmRBTreeVal<CmdData,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeLock<ZmNoLock> > > >;
+    ZmRBTreeKV<ZtString, CmdData,
+      ZmRBTreeUnique<true,
+	ZmRBTreeLock<ZmNoLock> > >;
 
   Lock			m_lock;
     ZmRef<ZvCf>		  m_syntax;

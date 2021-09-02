@@ -59,9 +59,6 @@
 #include <zlib/telemetry_fbs.h>
 #include <zlib/telreq_fbs.h>
 
-class ZvEngine;
-class ZvAnyLink;
-
 namespace ZvTelemetry {
 
 namespace RAG {

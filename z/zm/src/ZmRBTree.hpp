@@ -429,13 +429,13 @@ public:
   ZuIfT<_> addNode(NodeRef &&node_) {
     Node *node;
     *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
-    node->init();
+    node->Fn::init();
     Guard guard(m_lock);
     addNode_(node);
   }
   void addNode(Node *node) {
     nodeRef(node);
-    node->init();
+    node->Fn::init();
     Guard guard(m_lock);
     addNode_(node);
   }
@@ -503,9 +503,13 @@ private:
   };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>::OK, R>;
-  template <typename U, typename V = T>
+  template <typename U, typename V = T, bool = NodeDerive>
   struct IsData {
     enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
+  };
+  template <typename U, typename V>
+  struct IsData<U, V, true> {
+    enum { OK = 0 };
   };
   template <typename U, typename R = void>
   using MatchData = ZuIfT<IsData<U>::OK, R>;
