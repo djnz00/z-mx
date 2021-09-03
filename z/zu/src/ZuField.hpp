@@ -195,16 +195,17 @@
   ZuPP_Defer(ZuField_Type__)(O, ZuPP_Strip(Axor))
 #define ZuField_Type(O, Args) ZuPP_Defer(ZuField_Type_)(O, ZuPP_Strip(Args))
 
-ZuTypeList<> ZuFields_(...); // default
-
+ZuTypeList<> ZuFieldList_(...); // default
 void *ZuFielded_(...); // default
 
-#define ZuFields(U, ...) \
-  ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, U, __VA_ARGS__)) \
-  using ZuFields_##U = \
-    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, U, __VA_ARGS__))>; \
-  U *ZuFielded_(U *); \
-  ZuFields_##U ZuFieldList_(U *)
+#define ZuFields(O, ...) \
+  namespace ZuFields_ { \
+    ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, O, __VA_ARGS__)) \
+    using O = \
+      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, O, __VA_ARGS__))>; \
+  } \
+  O *ZuFielded_(O *); \
+  ZuFields_::O ZuFieldList_(O *)
 
 template <typename U>
 using ZuFieldList = decltype(ZuFieldList_(ZuDeclVal<U *>()));

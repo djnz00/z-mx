@@ -244,11 +244,13 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFields(O, ...)  \
   fbs::O##Builder *ZvFBB_(O *); \
   fbs::O *ZvFBS_(O *); \
-  ZuPP_Eval(ZuPP_MapArg(ZvFBField_Decl, O, __VA_ARGS__)) \
-  using ZvFBFields_##O = \
-    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvFBField_Type, O, __VA_ARGS__))>; \
+  namespace ZuFields_ { \
+    ZuPP_Eval(ZuPP_MapArg(ZvFBField_Decl, O, __VA_ARGS__)) \
+    using O = \
+      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvFBField_Type, O, __VA_ARGS__))>; \
+  } \
   O *ZuFielded_(O *); \
-  ZvFBFields_##O ZuFieldList_(O *)
+  ZuFields_::O ZuFieldList_(O *)
 
 namespace ZvFB {
 

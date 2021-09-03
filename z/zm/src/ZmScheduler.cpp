@@ -373,7 +373,7 @@ void ZmScheduler::run(
 	  if (ZuUnlikely(timer->timeout >= timeout)) return;
 	  break;
       }
-      m_schedule.del(timer);
+      m_schedule.delNode(timer);
       timer->timeout = ZmTime{};
     }
 
@@ -403,7 +403,7 @@ void ZmScheduler::del(Timer *timer)
 {
   ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
   if (!timer->timeout) return;
-  m_schedule.del(timer);
+  m_schedule.delNode(timer);
   timer->timeout = ZmTime{};
   if (timer->transient) delete timer;
 }

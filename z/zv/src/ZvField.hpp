@@ -795,11 +795,13 @@ struct ZvFieldType_Time<Base, Flags, false> :
 #define ZvField_Type(O, Args) ZuPP_Defer(ZvField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZvFields(O, ...)  \
-  ZuPP_Eval(ZuPP_MapArg(ZvField_Decl, O, __VA_ARGS__)) \
-  using ZvFields_##O = \
-    ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvField_Type, O, __VA_ARGS__))>; \
+  namespace ZuFields_ { \
+    ZuPP_Eval(ZuPP_MapArg(ZvField_Decl, O, __VA_ARGS__)) \
+    using O = \
+      ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZvField_Type, O, __VA_ARGS__))>; \
+  } \
   O *ZuFielded_(O *); \
-  ZvFields_##O ZuFieldList_(O *)
+  ZuFields_::O ZuFieldList_(O *)
 
 template <typename Impl> struct ZvFieldPrint : public ZuPrintable {
   const Impl *impl() const { return static_cast<const Impl *>(this); }
