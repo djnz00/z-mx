@@ -28,7 +28,7 @@ void ZvEngine::start_()
   // appException(ZeEVENT(Info, "START"));
 
   auto i = m_links.readIterator();
-  while (ZmRef<ZvAnyLink> link = i.iterate())
+  while (ZmRef<ZvAnyLink> link = i.iterateVal())
     rxRun(ZmFn<>{link, [](ZvAnyLink *link) { link->up_(false); }});
 }
 
@@ -37,7 +37,7 @@ void ZvEngine::stop_()
   // appException(ZeEVENT(Info, "STOP"));
 
   auto i = m_links.readIterator();
-  while (ZmRef<ZvAnyLink> link = i.iterate())
+  while (ZmRef<ZvAnyLink> link = i.iterateVal())
     rxRun(ZmFn<>{link, [](ZvAnyLink *link) { link->down_(false); }});
 
   mgrDelEngine();
@@ -101,7 +101,7 @@ void ZvEngine::stop()
   if (next != prev) mgrUpdEngine();
 }
 
-void ZvEngine::linkState(ZvAnyLink_ *link_, int prev, int next)
+void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
 {
   auto link = static_cast<ZvAnyLink *>(link_);
 
@@ -294,14 +294,14 @@ void ZvAnyTx::init(ZvEngine *engine)
   m_mx = engine->mx();
 }
 
-ZvAnyLink_::ZvAnyLink_(ZuID id) :
+ZvAnyLink::ZvAnyLink(ZuID id) :
   ZvAnyTx(id),
   m_state(ZvLinkState::Down),
   m_reconnects(0)
 {
 }
 
-void ZvAnyLink_::up_(bool enable)
+void ZvAnyLink::up_(bool enable)
 {
   int prev, next;
   bool connect = false;
@@ -355,7 +355,7 @@ void ZvAnyLink_::up_(bool enable)
 	[](ZvAnyLink *link) { link->connect(); });
 }
 
-void ZvAnyLink_::down_(bool disable)
+void ZvAnyLink::down_(bool disable)
 {
   int prev, next;
   bool disconnect = false;
@@ -399,7 +399,7 @@ void ZvAnyLink_::down_(bool disable)
 	[](ZvAnyLink *link) { link->disconnect(); });
 }
 
-void ZvAnyLink_::connected()
+void ZvAnyLink::connected()
 {
   int prev, next;
   bool disconnect = false;
@@ -437,7 +437,7 @@ void ZvAnyLink_::connected()
 	ZmFn<>{this, [](ZvAnyLink *link) { link->disconnect(); }});
 }
 
-void ZvAnyLink_::disconnected()
+void ZvAnyLink::disconnected()
 {
   int prev, next;
   bool connect = false;
@@ -483,7 +483,7 @@ void ZvAnyLink_::disconnected()
 	ZmFn<>{this, [](ZvAnyLink *link) { link->connect(); }});
 }
 
-void ZvAnyLink_::reconnecting()
+void ZvAnyLink::reconnecting()
 {
   int prev, next;
 
@@ -508,7 +508,7 @@ void ZvAnyLink_::reconnecting()
   if (next != prev) engine()->linkState(this, prev, next);
 }
 
-void ZvAnyLink_::reconnect(bool immediate)
+void ZvAnyLink::reconnect(bool immediate)
 {
   int prev, next;
   bool reconnect = false, disconnect = false;
@@ -558,7 +558,7 @@ void ZvAnyLink_::reconnect(bool immediate)
 	ZmFn<>{this, [](ZvAnyLink *link) { link->disconnect(); }});
 }
 
-void ZvAnyLink_::reconnect_()
+void ZvAnyLink::reconnect_()
 {
   int prev, next;
   bool connect = false;
@@ -585,7 +585,7 @@ void ZvAnyLink_::reconnect_()
 	ZmFn<>{this, [](ZvAnyLink *link) { link->connect(); }});
 }
 
-void ZvAnyLink_::deleted_()
+void ZvAnyLink::deleted_()
 {
   int prev;
   {
@@ -597,7 +597,7 @@ void ZvAnyLink_::deleted_()
     engine()->linkState(this, prev, ZvLinkState::Deleted);
 }
 
-void ZvAnyLink_::telemetry(Telemetry &data) const
+void ZvAnyLink::telemetry(Telemetry &data) const
 {
   data.id = id();
   data.rxSeqNo = rxSeqNo();

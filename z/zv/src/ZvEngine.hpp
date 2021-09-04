@@ -58,7 +58,7 @@ public:
   using AbortFn = ZmFn<ZvIOMsg *>;
 
   struct IDAccessor {
-    static ZuID get(const ZvAnyTx &tx) { return tx.id(); }
+    static ZuID get(const ZvAnyTx *tx) { return tx->id(); }
   };
 
   ZvEngine *engine() const { return m_engine; }
@@ -77,31 +77,20 @@ private:
   uintptr_t		m_appData = 0;
 };
 
-class ZvAPI ZvAnyTxPool_ : public ZvAnyTx {
-  ZvAnyTxPool_(const ZvAnyTxPool_ &) = delete;
-  ZvAnyTxPool_ &operator =(const ZvAnyTxPool_ &) = delete;
+class ZvAPI ZvAnyTxPool : public ZvAnyTx {
+  ZvAnyTxPool(const ZvAnyTxPool &) = delete;
+  ZvAnyTxPool &operator =(const ZvAnyTxPool &) = delete;
 
 protected:
-  ZvAnyTxPool_(ZuID id) : ZvAnyTx(id) { }
+  ZvAnyTxPool(ZuID id) : ZvAnyTx(id) { }
 
 public:
-  virtual ZvIOQueue *txQueue() { return nullptr; }
-};
-using ZvAnyTxPools =
-  ZmRBTree<ZvAnyTxPool_,
-    ZmRBTreeKey<ZvAnyTxPool_::IDAccessor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZmPolymorph,
-	  ZmRBTreeNodeDerive<true,
-	    ZmRBTreeLock<ZmNoLock> > > > > >;
-struct ZvAnyTxPool : public ZvAnyTxPools::Node {
-  ZvAnyTxPool(ZuID id) : ZvAnyTxPools::Node{id} { }
-  using ZvAnyTxPool_::init;
+  virtual ZvIOQueue *txQueue() = 0;
 };
 
-class ZvAPI ZvAnyLink_ : public ZvAnyTx {
-  ZvAnyLink_(const ZvAnyLink_ &) = delete;
-  ZvAnyLink_ &operator =(const ZvAnyLink_ &) = delete;
+class ZvAPI ZvAnyLink : public ZvAnyTx {
+  ZvAnyLink(const ZvAnyLink &) = delete;
+  ZvAnyLink &operator =(const ZvAnyLink &) = delete;
 
 friend ZvEngine;
 
@@ -110,7 +99,7 @@ friend ZvEngine;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
 protected:
-  ZvAnyLink_(ZuID id);
+  ZvAnyLink(ZuID id);
 
 public:
   int state() const { return m_state.load_(); }
@@ -123,8 +112,8 @@ public:
   void up() { up_(true); }
   void down() { down_(true); }
 
-  virtual void update(const ZvCf *) { }
-  virtual void reset(ZvSeqNo rxSeqNo, ZvSeqNo txSeqNo) { }
+  virtual void update(const ZvCf *cf) = 0;
+  virtual void reset(ZvSeqNo rxSeqNo, ZvSeqNo txSeqNo) = 0;
 
   ZvSeqNo rxSeqNo() const {
     if (const ZvIOQueue *queue = rxQueue()) return queue->head();
@@ -135,14 +124,14 @@ public:
     return 0;
   }
 
-  virtual ZvIOQueue *rxQueue() { return nullptr; }
-  virtual const ZvIOQueue *rxQueue() const { return nullptr; }
-  virtual ZvIOQueue *txQueue() { return nullptr; }
-  virtual const ZvIOQueue *txQueue() const { return nullptr; }
+  virtual ZvIOQueue *rxQueue() = 0;
+  virtual const ZvIOQueue *rxQueue() const = 0;
+  virtual ZvIOQueue *txQueue() = 0;
+  virtual const ZvIOQueue *txQueue() const = 0;
 
 protected:
-  virtual void connect() { }
-  virtual void disconnect() { }
+  virtual void connect() = 0;
+  virtual void disconnect() = 0;
 
   void connected();
   void disconnected();
@@ -167,21 +156,10 @@ private:
     ZmAtomic<unsigned>	  m_reconnects;
     bool		  m_enabled = true;
 };
-using ZvAnyLinks =
-  ZmRBTree<ZvAnyLink_,
-    ZmRBTreeKey<ZvAnyLink_::IDAccessor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZmPolymorph,
-	  ZmRBTreeNodeDerive<true,
-	    ZmRBTreeLock<ZmNoLock> > > > > >;
-struct ZvAnyLink : public ZvAnyLinks::Node {
-  ZvAnyLink(ZuID id) : ZvAnyLinks::Node{id} { }
-  using ZvAnyLink_::init;
-};
 
 // Callbacks to the application from the engine implementation
 struct ZvAPI ZvEngineApp {
-  virtual ZmRef<ZvAnyLink> createLink(ZuID) { return nullptr; }
+  virtual ZmRef<ZvAnyLink> createLink(ZuID) = 0;
 };
 
 // Note: When event/flow steering, referenced objects must remain
@@ -230,7 +208,7 @@ class ZvAPI ZvEngine : public ZmPolymorph {
   ZvEngine(const ZvEngine &);	//prevent mis-use
   ZvEngine &operator =(const ZvEngine &);
 
-friend ZvAnyLink_;
+friend ZvAnyLink;
 
   using Lock = ZmRWLock;
   using Guard = ZmGuard<Lock>;
@@ -241,11 +219,9 @@ friend ZvAnyLink_;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
 public:
-#if 0
   struct IDAccessor {
-    static ZuID get(const ZvEngine &e) { return e->id(); }
+    static ZuID get(const ZvEngine *e) { return e->id(); }
   };
-#endif
 
   using Sched = ZvScheduler;
   using Mx = ZvMultiplex;
@@ -327,9 +303,24 @@ public:
   //   mxID, rxThread, txThread
   void telemetry(Telemetry &data) const;
 
+private:
+  using TxPools =
+    ZmRBTree<ZmRef<ZvAnyTxPool>,
+      ZmRBTreeKey<ZvAnyTxPool::IDAccessor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZuNull,
+	    ZmRBTreeLock<ZmNoLock> > > > >;
+  using Links =
+    ZmRBTree<ZmRef<ZvAnyLink>,
+      ZmRBTreeKey<ZvAnyLink::IDAccessor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZuNull,
+	    ZmRBTreeLock<ZmNoLock> > > > >;
+
+public:
   ZmRef<ZvAnyTxPool> txPool(ZuID id) {
     ReadGuard guard(m_lock);
-    return m_txPools.find(id);
+    return m_txPools.findVal(id);
   }
   template <typename TxPool>
   ZmRef<ZvAnyTxPool> updateTxPool(ZuID id, const ZvCf *cf) {
@@ -341,7 +332,7 @@ public:
       return pool;
     }
     pool = new TxPool(*this, id);
-    m_txPools.addNode(pool);
+    m_txPools.add(pool);
     guard.unlock();
     pool->update(cf);
     mgrAddQueue(ZvQueueType::Tx, id, [pool](ZvTelemetry::Queue &data) {
@@ -358,7 +349,7 @@ public:
   ZmRef<ZvAnyTxPool> delTxPool(ZuID id) {
     Guard guard(m_lock);
     ZmRef<ZvAnyTxPool> txPool;
-    if (txPool = m_txPools.del(id)) {
+    if (txPool = m_txPools.delVal(id)) {
       guard.unlock();
       mgrDelQueue(id, 1);
     }
@@ -367,12 +358,12 @@ public:
 
   ZmRef<ZvAnyLink> link(ZuID id) {
     ReadGuard guard(m_lock);
-    return m_links.find(id);
+    return m_links.findVal(id);
   }
   ZmRef<ZvAnyLink> updateLink(ZuID id, const ZvCf *cf) {
     Guard guard(m_lock);
     ZmRef<ZvAnyLink> link;
-    if (link = m_links.find(id)) {
+    if (link = m_links.findVal(id)) {
       guard.unlock();
       link->update(cf);
       mgrUpdLink(link);
@@ -380,7 +371,7 @@ public:
     }
     link = appCreateLink(id);
     link->init(this);
-    m_links.addNode(link);
+    m_links.add(link);
     guard.unlock();
     linkState(link, -1, link->state());
     link->update(cf);
@@ -408,7 +399,7 @@ public:
   ZmRef<ZvAnyLink> delLink(ZuID id) {
     Guard guard(m_lock);
     ZmRef<ZvAnyLink> link;
-    if (link = m_links.del(id)) {
+    if (link = m_links.delVal(id)) {
       guard.unlock();
       mgrDelQueue(id, 0);
       mgrDelQueue(id, 1);
@@ -422,13 +413,13 @@ public:
   }
   template <typename Link, typename L> uintptr_t allLinks(L l) {
     auto i = m_links.readIterator();
-    while (auto link = i.iterate())
+    while (ZvAnyLink *link = i.iterateVal())
       if (uintptr_t v = l(static_cast<Link *>(link))) return v;
     return 0;
   }
 
 private:
-  void linkState(ZvAnyLink_ *, int prev, int next);
+  void linkState(ZvAnyLink *, int prev, int next);
 
   void start_();
   void stop_();
@@ -442,8 +433,8 @@ private:
   unsigned			m_txThread = 0;
 
   Lock				m_lock;
-    ZvAnyTxPools		  m_txPools;	// from csv
-    ZvAnyLinks			  m_links;	// from csv
+    TxPools			  m_txPools;	// from csv
+    Links			  m_links;	// from csv
 
   StateLock			m_stateLock;
     ZmAtomic<int>		  m_state;

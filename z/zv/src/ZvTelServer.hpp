@@ -179,7 +179,7 @@ public:
 private:
   using MxTbl =
     ZmRBTree<ZmRef<ZvMultiplex>,
-      ZmRBTreeIndex<ZvMultiplex::IDAccessor,
+      ZmRBTreeKey<ZvMultiplex::IDAccessor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeObject<ZuNull,
 	    ZmRBTreeLock<ZmRWLock> > > > >;
@@ -250,13 +250,13 @@ public:
 	m_thread, this, [](Server *server) { server->stop_(); });
   }
 
-  ZuInline ZvMultiplex *mxLookup(const ZuID &id) const {
-    return m_mxTbl.findKey(id);
+  ZvMultiplex *mxLookup(const ZuID &id) const {
+    return m_mxTbl.findVal(id);
   }
   template <typename L>
-  ZuInline void allMx(L l) const {
+  void allMx(L l) const {
     auto i = m_mxTbl.readIterator();
-    while (MxTbl::Node *node = i.iterate()) l(node->key());
+    while (auto node = i.iterate()) l(node->val());
   }
 
   struct Request {
@@ -438,11 +438,10 @@ private:
   }
 
   using Queues =
-    ZmRBTree<ZuPair<ZuID, bool>,
-      ZmRBTreeVal<QueueFn,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+    ZmRBTreeKV<ZuPair<unsigned, ZuID>, QueueFn,
+      ZmRBTreeUnique<true,
+	ZmRBTreeObject<ZuNull,
+	  ZmRBTreeLock<ZmNoLock> > > >;
 
   struct EngineIDAccessor {
     static ZuID get(const ZvEngine *engine) { return engine->id(); }
@@ -461,7 +460,7 @@ private:
   using WatchList_ =
     ZmList<Watch_,
       ZmListObject<ZuNull,
-	ZmListNodeIsItem<true,
+	ZmListNodeDerive<true,
 	  ZmListLock<ZmNoLock> > > >;
   using Watch = typename WatchList_::Node;
   struct WatchList {
@@ -470,12 +469,12 @@ private:
     ZmScheduler::Timer	timer;
     Server		*server = nullptr;
 
-    template <typename T>
-    ZuInline void push(T &&v) { return list.push(ZuFwd<T>(v)); }
-    ZuInline void clean() { return list.clean(); }
-    ZuInline auto count() { return list.count(); }
-    ZuInline auto iterator() { return list.iterator(); }
-    ZuInline auto readIterator() { return list.readIterator(); }
+    template <typename P>
+    void push(P &&v) { list.pushNode(ZuFwd<P>(v)); }
+    void clean() { list.clean(); }
+    auto count() { return list.count(); }
+    auto iterator() { return list.iterator(); }
+    auto readIterator() { return list.readIterator(); }
   };
 
   template <typename L>
@@ -934,7 +933,7 @@ private:
 	  [](Server *server) { server->engineScan(); });
     {
       auto i = m_engines.readIterator();
-      while (auto node = i.iterate()) engineQuery_(watch, node->key());
+      while (auto node = i.iterate()) engineQuery_(watch, node->val());
     }
     if (!req->interval) delete watch;
   }
@@ -959,7 +958,7 @@ private:
   void engineScan() {
     if (!m_watchLists[ReqType::Engine].list.count()) return;
     auto i = m_engines.readIterator();
-    while (auto node = i.iterate()) engineScan(node->key());
+    while (auto node = i.iterate()) engineScan(node->val());
   }
   void engineScan(ZvEngine *engine) {
     Engine data;

@@ -168,7 +168,7 @@ private:
       if (!fbs::VerifyRequestBuffer(verifier)) return -1;
     }
     this->app()->processUserDB(
-	this, m_user, m_interactive, fbs::GetRequest(data));
+	impl(), m_user, m_interactive, fbs::GetRequest(data));
     if (m_fbb.GetSize()) { // synchronous response
       ZvCmd::saveHdr(m_fbb, ZvCmd::Type::userDB());
       this->send_(m_fbb.buf());
@@ -184,7 +184,7 @@ private:
       if (!fbs::VerifyRequestBuffer(verifier)) return -1;
     }
     this->app()->processCmd(impl(), m_user, m_interactive,
-	fbs::GetRequest(data), m_fbb);
+	fbs::GetRequest(data));
     ZvCmd::saveHdr(m_fbb, ZvCmd::Type::cmd());
     this->send_(m_fbb.buf());
     return len;
@@ -198,7 +198,7 @@ private:
       if (!fbs::VerifyRequestBuffer(verifier)) return -1;
     }
     this->app()->processTelReq(
-	impl(), m_user, m_interactive, fbs::GetRequest(data), m_fbb);
+	impl(), m_user, m_interactive, fbs::GetRequest(data));
     ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telReq());
     this->send_(m_fbb.buf());
     return len;
