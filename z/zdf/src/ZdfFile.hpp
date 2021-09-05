@@ -68,7 +68,7 @@ struct File_IDAccessor {
 using FileLRU =
   ZmList<File_,
     ZmListObject<ZuShadow,
-      ZmListNodeIsItem<true,
+      ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
 using FileLRUNode = FileLRU::Node;
@@ -78,9 +78,9 @@ struct File_HeapID {
 };
 using FileHash =
   ZmHash<FileLRUNode,
-    ZmHashObject<ZmObject,
-      ZmHashNodeIsKey<true,
-	ZmHashIndex<File_IDAccessor,
+    ZmHashKey<File_IDAccessor,
+      ZmHashObject<ZmObject,
+	ZmHashNodeDerive<true,
 	  ZmHashHeapID<File_HeapID,
 	    ZmHashLock<ZmNoLock> > > > > >;
 using File = typename FileHash::Node;

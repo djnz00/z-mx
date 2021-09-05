@@ -24,6 +24,7 @@ void fail(const char *s, int64_t i) { print(s, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
+// FIXME
 struct Frame {
   uint64_t	v1;
   ZuFixedVal	v2_;

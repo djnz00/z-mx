@@ -116,7 +116,7 @@ ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
   ++m_fileLoads;
   ZmRef<File> file;
   if (file = m_files->find(fileID)) {
-    m_lru.push(m_lru.del(file.ptr()));
+    m_lru.pushNode(m_lru.delNode(file.ptr()));
     return file;
   }
   ++m_fileMisses;
@@ -126,8 +126,8 @@ ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
     auto node = m_lru.shiftNode();
     m_files->del(static_cast<File *>(node)->id);
   }
-  m_files->add(file);
-  m_lru.push(file.ptr());
+  m_files->addNode(file);
+  m_lru.pushNode(file);
   return file;
 }
 

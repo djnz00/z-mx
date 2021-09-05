@@ -38,7 +38,7 @@
 // rules for using ZmRef
 
 // * always point to objects allocated using new (use ZmHeap to optimize)
-// * always point to objects which derive from ZmObject_<bool Atomic>
+// * always point to objects which derive from ZmObject
 // * be careful to maintain a positive reference count when mixing
 //   with real pointers - objects will delete themselves from
 //   under you if they think they are referenced by nothing!
@@ -98,6 +98,9 @@ public:
   using T = T_;
 
 private:
+  enum Acquire_ { Acquire };
+  ZmRef(T *o, Acquire_ _) : m_object(o) { }
+
   // matches ZmRef<U> where U is not T, but is in the same type hierarchy as T
   template <typename U> struct IsOtherRef__ {
     enum { OK =
@@ -227,6 +230,16 @@ public:
     return static_cast<O *>(m_object);
   }
   T *ptr_() const { return m_object; }
+
+  static ZmRef acquire(T *o) {
+    return ZmRef{o, Acquire};
+  }
+  template <typename O = T>
+  MatchRef<ZmRef<O>, O *> release() {
+    T *o = m_object;
+    m_object = nullptr;
+    return static_cast<O *>(o);
+  }
 
   bool operator !() const { return !m_object; }
 

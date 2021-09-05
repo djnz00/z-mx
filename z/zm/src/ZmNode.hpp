@@ -124,33 +124,40 @@ struct ZmNodePolicy : public ZmNodePolicy_<O, ZuIsObject_<O>::OK> { };
 template <typename O> struct ZmNodePolicy_<O, true> {
   using Object = O;
   template <typename T> using Ref = ZmRef<T>;
-  template <typename T> void nodeRef(T &&o) { ZmREF(ZuFwd<T>(o)); }
-  template <typename T> void nodeDeref(T &&o) { ZmDEREF(ZuFwd<T>(o)); }
-  template <typename T> void nodeDelete(T &&) { }
+  template <typename T> void nodeRef(T *o) { ZmREF(o); }
+  template <typename T> void nodeRef(const Ref<T> &o) { ZmREF(o); }
+  template <typename T> void nodeDeref(T *o) { ZmDEREF(o); }
+  template <typename T> void nodeDeref(const Ref<T> &o) { ZmDEREF(o); }
+  template <typename T> Ref<T> nodeAcquire(T *o) { return Ref<T>::acquire(o); }
+  template <typename T> void nodeDelete(T *) { }
+  template <typename T> void nodeDelete(const Ref<T> &) { }
 };
 // own nodes (with app-specified base), delete if not returned to caller
 template <typename O> struct ZmNodePolicy_<O, false> {
   using Object = O;
   template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T &&) { }
-  template <typename T> void nodeDeref(T &&) { }
-  template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
+  template <typename T> void nodeRef(T *) { }
+  template <typename T> void nodeDeref(T *) { }
+  template <typename T> T *nodeAcquire(T *o) { return o; }
+  template <typename T> void nodeDelete(T *o) { delete o; }
 };
 // own nodes, delete if not returned to caller
 template <> struct ZmNodePolicy<ZuNull> {
   using Object = ZuNull;
   template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T &&) { }
-  template <typename T> void nodeDeref(T &&) { }
-  template <typename T> void nodeDelete(T &&o) { delete ZuFwd<T>(o); }
+  template <typename T> void nodeRef(T *) { }
+  template <typename T> void nodeDeref(T *) { }
+  template <typename T> T *nodeAcquire(T *o) { return o; }
+  template <typename T> void nodeDelete(T *o) { delete o; }
 };
 // shadow nodes, never delete
 template <> struct ZmNodePolicy<ZuShadow> {
   using Object = ZuNull;
   template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T &&) { }
-  template <typename T> void nodeDeref(T &&) { }
-  template <typename T> void nodeDelete(T &&) { }
+  template <typename T> void nodeRef(T *) { }
+  template <typename T> void nodeDeref(T *) { }
+  template <typename T> T *nodeAcquire(T *o) { return o; }
+  template <typename T> void nodeDelete(T *) { }
 };
 
 #endif /* ZmNode_HPP */

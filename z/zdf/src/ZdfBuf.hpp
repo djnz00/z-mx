@@ -100,7 +100,7 @@ struct BufLRU_HeapID {
 using BufLRU =
   ZmList<BufLRUNode_,
     ZmListObject<ZuShadow,
-      ZmListNodeIsItem<true,
+      ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
 using BufLRUNode = BufLRU::Node;
@@ -217,7 +217,7 @@ public:
 	Buf *lru = static_cast<Buf *>(lru_);
 	lru->pinned([this, lru_ = ZuMv(lru_), lru](unsigned pinned) {
 	  if (pinned) {
-	    m_lru.push(ZuMv(lru_));
+	    m_lru.pushNode(ZuMv(lru_));
 	    m_maxBufs = m_lru.count() + 1;
 	  } else
 	    (m_unloadFn[lru->seriesID])(lru);
@@ -225,9 +225,9 @@ public:
       }
     }
   }
-  virtual void push(BufLRUNode *node) { m_lru.push(node); }
-  virtual void use(BufLRUNode *node) { m_lru.push(m_lru.del(node)); }
-  virtual void del(BufLRUNode *node) { m_lru.del(node); }
+  virtual void push(BufLRUNode *node) { m_lru.pushNode(node); }
+  virtual void use(BufLRUNode *node) { m_lru.pushNode(m_lru.delNode(node)); }
+  virtual void del(BufLRUNode *node) { m_lru.delNode(node); }
 
   virtual void purge(unsigned seriesID, unsigned blkIndex); // caller unloads
 

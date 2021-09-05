@@ -349,6 +349,7 @@ private:
   using NodePolicy::nodeRef;
   using NodePolicy::nodeDeref;
   using NodePolicy::nodeDelete;
+  using NodePolicy::nodeAcquire;
 
   static const Key &key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -426,9 +427,10 @@ public:
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
   template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> addNode(const NodeRef &node_) { addNode(node_.ptr()); }
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
   ZuIfT<_> addNode(NodeRef &&node_) {
-    Node *node;
-    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
+    Node *node = node_.release();
     node->Fn::init();
     Guard guard(m_lock);
     addNode_(node);
@@ -725,8 +727,7 @@ public:
     Node *node = find_<Direction>(MatchKeyFn<P>{key});
     if (!node) return nullptr;
     delNode_(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, NodeRef> del(const P &data) {
@@ -734,8 +735,7 @@ public:
     Node *node = find_<Direction>(MatchDataFn<P>{data});
     if (!node) return nullptr;
     delNode_(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
   template <int Direction = ZmRBTreeEqual, typename P0, typename P1>
   NodeRef del(P0 &&p0, P1 &&p1) {
@@ -796,8 +796,7 @@ public:
     if (ZuUnlikely(!node)) return nullptr;
     Guard guard(m_lock);
     delNode_(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
 private:
@@ -1222,8 +1221,7 @@ public:
   NodeRef delIterate(Node *node) {
     if (ZuUnlikely(!node)) return nullptr;
     delNode_(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
   mutable Lock	m_lock;

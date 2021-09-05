@@ -50,6 +50,9 @@ public:
   using T = T_;
 
 private:
+  enum Acquire_ { Acquire };
+  ZuRef(T *o, Acquire_ _) : m_object(o) { }
+
   // matches ZuRef<U> where U is not T, but is in the same type hierarchy as T
   template <typename U> struct IsOtherRef__ {
     enum { OK =
@@ -163,6 +166,16 @@ public:
     return static_cast<O *>(m_object);
   }
   T *ptr_() const { return m_object; }
+
+  static ZuRef acquire(T *o) {
+    return ZuRef{o, Acquire};
+  }
+  template <typename O = T>
+  MatchRef<ZuRef<O>, O *> release() {
+    T *o = m_object;
+    m_object = nullptr;
+    return static_cast<O *>(o);
+  }
 
   bool operator !() const { return !m_object; }
 

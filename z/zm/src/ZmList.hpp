@@ -168,6 +168,7 @@ private:
   using NodePolicy::nodeRef;
   using NodePolicy::nodeDeref;
   using NodePolicy::nodeDelete;
+  using NodePolicy::nodeAcquire;
 
   static const Key &key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -445,8 +446,7 @@ public:
   NodeRef delNode(Node *node) {
     Guard guard(m_lock);
     if (ZuLikely(node)) del__(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
   template <typename P>
@@ -465,8 +465,7 @@ public:
   Key delNodeKey(Node *node) {
     Guard guard(m_lock);
     if (ZuLikely(node)) del__(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return keyMv(ZuMv(*ptr));
+    return nodeAcquire(node);
   }
 
   template <typename P>
@@ -485,20 +484,18 @@ public:
   Val delNodeVal(Node *node) {
     Guard guard(m_lock);
     if (ZuLikely(node)) del__(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return valMv(ZuMv(*ptr));
+    return nodeAcquire(node);
   }
 
 private:
   template <typename Match>
   NodeRef del_(Match match) {
     Guard guard(m_lock);
-    Node *node;
     if (!m_count) return nullptr;
+    Node *node;
     for (node = m_head; node && !match(node); node = node->Fn::next);
     if (ZuLikely(node)) del__(node);
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
 public:
@@ -509,9 +506,10 @@ public:
     return node;
   }
   template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> pushNode(const NodeRef &node_) { pushNode(node_.ptr()); }
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
   ZuIfT<_> pushNode(NodeRef &&node_) {
-    Node *node;
-    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
+    Node *node = node_.release();
     Guard guard(m_lock);
     pushNode_(node);
   }
@@ -741,8 +739,7 @@ protected:
       del__(node);
     }
 
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
   void del__(Node *node) {

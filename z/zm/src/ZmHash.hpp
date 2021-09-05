@@ -331,6 +331,7 @@ public:
 private:
   using NodePolicy::nodeRef;
   using NodePolicy::nodeDeref;
+  using NodePolicy::nodeAcquire;
   using NodePolicy::nodeDelete;
 
   static const Key &key(const Node *node) {
@@ -569,9 +570,10 @@ public:
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
   template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  ZuIfT<_> addNode(const NodeRef &node_) { addNode(node_.ptr()); }
+  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
   ZuIfT<_> addNode(NodeRef &&node_) {
-    Node *node;
-    *reinterpret_cast<NodeRef *>(&node) = ZuMv(node_);
+    Node *node = node_.release();
     uint32_t code = HashFn::hash(node->Node::key());
     Guard guard(lockCode(code));
     addNode_(node, code);
@@ -843,8 +845,7 @@ private:
 
     m_count.store_(count - 1);
 
-    NodeRef *ZuMayAlias(ptr) = reinterpret_cast<NodeRef *>(&node);
-    return ZuMv(*ptr);
+    return nodeAcquire(node);
   }
 
 public:

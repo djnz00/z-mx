@@ -56,13 +56,13 @@ class ZmAnyFn {
   constexpr static const uintptr_t Owned = (static_cast<uintptr_t>(1)<<63);
 
 protected:
-  static bool owned(uintptr_t o) { return o & Owned; }
-  static void ref(uintptr_t &o) { o |= Owned; }
-  static void deref(uintptr_t &o) { o &= ~Owned; }
+  constexpr static bool owned(uintptr_t o) { return o & Owned; }
+  static uintptr_t own(uintptr_t o) { return o | Owned; }
+  static uintptr_t disown(uintptr_t o) { return o & ~Owned; }
 
   template <typename O = ZmPolymorph>
   static O *ptr(uintptr_t o) {
-    return (O *)(o & ~Owned);
+    return reinterpret_cast<O *>(o & ~Owned);
   }
 
 public:
@@ -79,7 +79,7 @@ public:
 
   ZmAnyFn(ZmAnyFn &&fn) noexcept :
       m_invoker(fn.m_invoker), m_object(fn.m_object) {
-    // deref(fn.m_object);
+    // fn.m_object = disown(fn.m_object);
     fn.m_invoker = fn.m_object = 0;
 #ifdef ZmObject_DEBUG
     if (ZuUnlikely(owned(m_object))) ZmMVREF(ptr(m_object), &fn, this);
@@ -97,18 +97,14 @@ public:
   }
 
   ZmAnyFn &operator =(ZmAnyFn &&fn) noexcept {
-    if (ZuLikely(this != &fn)) {
+    if (ZuUnlikely(owned(m_object))) ZmDEREF(ptr(m_object));
+    m_invoker = fn.m_invoker;
+    m_object = fn.m_object;
+    // fn.m_object = disown(fn.m_object);
+    fn.m_invoker = fn.m_object = 0;
 #ifdef ZmObject_DEBUG
-      if (ZuUnlikely(owned(m_object))) ZmDEREF(ptr(m_object));
+    if (ZuUnlikely(owned(m_object))) ZmMVREF(ptr(m_object), &fn, this);
 #endif
-      m_invoker = fn.m_invoker;
-      m_object = fn.m_object;
-      // deref(fn.m_object);
-      fn.m_invoker = fn.m_object = 0;
-#ifdef ZmObject_DEBUG
-      if (ZuUnlikely(owned(m_object))) ZmMVREF(ptr(m_object), &fn, this);
-#endif
-    }
     return *this;
   }
 
@@ -123,7 +119,7 @@ protected:
       ZuIsBase<ZmPolymorph, O, Pass> *_ = nullptr) :
 	m_invoker{reinterpret_cast<uintptr_t>(invoker)} {
     new (&m_object) ZmRef<O>(ZuMv(o));
-    ref(m_object);
+    m_object = own(m_object);
   }
 
 public:
@@ -140,10 +136,9 @@ public:
     return ptr<O>(m_object);
   }
   template <typename O> ZmRef<O> mvObject() {
-    if (ZuUnlikely(!owned(m_object))) return ZmRef<O>((O *)(void *)m_object);
-    deref(m_object);
-    ZmRef<O> *ZuMayAlias(ptr) = reinterpret_cast<ZmRef<O> *>(&m_object);
-    return ZuMv(*ptr);
+    if (ZuUnlikely(!owned(m_object))) return ZmRef<O>{object<O>()};
+    m_object = disown(m_object);
+    return ZmRef<O>::acquire(object<O>());
   }
   template <typename O> void object(O *o) {
     if (ZuUnlikely(owned(m_object))) ZmDEREF(ptr(m_object));
@@ -152,7 +147,7 @@ public:
   template <typename O> void object(ZmRef<O> o) {
     if (ZuLikely(owned(m_object))) ZmDEREF(ptr(m_object));
     new (&m_object) ZmRef<O>(ZuMv(o));
-    ref(m_object);
+    m_object = own(m_object);
   }
 
   // access invoker
@@ -408,10 +403,9 @@ private:
 	  (*Fn)(ptr<O>(o), ZuFwd<Args>(args)...));
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
-      deref(o);
+      o = disown(o);
       return ZmFn_Cast(
-	  (*Fn)(ZuMv(*reinterpret_cast<ZmRef<O> *>(&o)),
-	  ZuFwd<Args>(args)...));
+	  (*Fn)(ZmRef<O>::acquire(ptr<O>(o)), ZuFwd<Args>(args)...));
     }
   };
   template <typename O, typename R, R (*Fn)(ZmRef<O>, Args...)>
@@ -421,8 +415,8 @@ private:
       return 0;
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
-      deref(o);
-      (*Fn)(ZuMv(*reinterpret_cast<ZmRef<O> *>(&o)), ZuFwd<Args>(args)...);
+      o = disown(o);
+      (*Fn)(ZmRef<O>::acquire(ptr<O>(o)), ZuFwd<Args>(args)...);
       return 0;
     }
   };
@@ -650,10 +644,10 @@ private:
 	  (*static_cast<const L *>(nullptr))(ptr<O>(o), ZuFwd<Args>(args)...));
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
-      deref(o);
+      o = disown(o);
       return ZmFn_Cast(
 	  (*static_cast<const L *>(nullptr))(
-	    ZuMv(*reinterpret_cast<ZmRef<O> *>(&o)),
+	    ZmRef<O>::acquire(ptr<O>(o)),
 	    ZuFwd<Args>(args)...));
     }
     static ZmFn fn(O *o, L) {
@@ -673,9 +667,9 @@ private:
       return 0;
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
-      deref(o);
+      o = disown(o);
       (*reinterpret_cast<const L *>(0))(
-	  ZuMv(*reinterpret_cast<ZmRef<O> *>(&o)),
+	  ZmRef<O>::acquire(ptr<O>(o)),
 	  ZuFwd<Args>(args)...);
       return 0;
     }
