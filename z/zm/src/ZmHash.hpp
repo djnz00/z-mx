@@ -260,8 +260,10 @@ public:
   using T = T_;
   using KeyAxor = typename NTP::KeyAxor;
   using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  using Key = ZuDecay<KeyRet>;
+  using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
@@ -334,7 +336,7 @@ private:
   using NodePolicy::nodeAcquire;
   using NodePolicy::nodeDelete;
 
-  static const Key &key(const Node *node) {
+  static KeyRet key(const Node *node) {
     if (ZuLikely(node)) return node->Node::key();
     return Cmp::null();
   }
@@ -346,7 +348,7 @@ private:
     }
     return Cmp::null();
   }
-  static const Val &val(const Node *node) {
+  static ValRet val(const Node *node) {
     if (ZuLikely(node)) return node->Node::val();
     return ValCmp::null();
   }
@@ -361,10 +363,10 @@ private:
 
 protected:
   template <typename I> struct Iterator__ {
-    const Key &iterateKey() {
+    decltype(auto) iterateKey() {
       return key(static_cast<I *>(this)->iterate());
     }
-    const Val &iterateVal() {
+    decltype(auto) iterateVal() {
       return val(static_cast<I *>(this)->iterate());
     }
   };
@@ -689,7 +691,7 @@ public:
     return key(find_(matchData(data), code));
   }
   template <typename P0, typename P1>
-  Key findKey(P0 &&p0, P1 &&p1) {
+  decltype(auto) findKey(P0 &&p0, P1 &&p1) {
     return findKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 
@@ -794,10 +796,10 @@ public:
     return keyMv(del_(matchData(data), code));
   }
   template <typename P0, typename P1>
-  Key delKey(P0 &&p0, P1 &&p1) {
+  decltype(auto) delKey(P0 &&p0, P1 &&p1) {
     return delKey(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  Key delNodeKey(Node *node) {
+  decltype(auto) delNodeKey(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     return keyMv(del_(matchNode(node), code));
   }
@@ -815,10 +817,10 @@ public:
     return valMv(del_(matchData(data), code));
   }
   template <typename P0, typename P1>
-  Val delVal(P0 &&p0, P1 &&p1) {
+  decltype(auto) delVal(P0 &&p0, P1 &&p1) {
     return delVal(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  Val delNodeVal(Node *node) {
+  decltype(auto) delNodeVal(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     return valMv(del_(matchNode(node), code));
   }
@@ -852,13 +854,13 @@ public:
   auto iterator() { return Iterator{*this}; }
   template <typename P>
   auto iterator(P &&key) {
-    return KeyIterator(*this, ZuFwd<P>(key));
+    return KeyIterator{*this, ZuFwd<P>(key)};
   }
 
   auto readIterator() const { return ReadIterator{*this}; }
   template <typename P>
   auto readIterator(P &&key) const {
-    return ReadKeyIterator(*this, ZuFwd<P>(key));
+    return ReadKeyIterator{*this, ZuFwd<P>(key)};
   }
 
 private:

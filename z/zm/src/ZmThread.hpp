@@ -149,16 +149,16 @@ protected:
   ZmThreadContext_() { }
 
 public:
-  ZuInline bool main() const { return m_main; }
+  bool main() const { return m_main; }
 
 #ifndef _WIN32
-  ZuInline pthread_t pthread() const { return m_pthread; }
+  pthread_t pthread() const { return m_pthread; }
 #ifdef linux
-  ZuInline pid_t tid() const { return m_tid; }
+  pid_t tid() const { return m_tid; }
 #else
-  ZuInline pthread_t tid() const { return m_pthread; }
+  pthread_t tid() const { return m_pthread; }
 #endif
-  ZuInline clockid_t cid() const { return m_cid; }
+  clockid_t cid() const { return m_cid; }
   double cpuUsage() const {
     ZmTime cpuLast = m_cpuLast;
     ZmTime rtLast = m_rtLast;
@@ -179,8 +179,8 @@ public:
     return p.sched_priority;
   }
 #else /* !_WIN32 */
-  ZuInline unsigned tid() const { return m_tid; }
-  ZuInline HANDLE handle() const { return m_handle; }
+  unsigned tid() const { return m_tid; }
+  HANDLE handle() const { return m_handle; }
   double cpuUsage() const {
     ULONG64 cpuLast = m_cpuLast;
     ULONG64 rtLast = m_rtLast;
@@ -252,7 +252,7 @@ public:
 
   inline static ZmThreadContext *self();
 
-  ZuInline ZmThreadID tid() const {
+  ZmThreadID tid() const {
 #ifndef _WIN32
 #ifdef linux
     return m_tid;

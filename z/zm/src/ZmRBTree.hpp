@@ -137,11 +137,6 @@ friend Tree_;
 public:
   using Tree = Tree_;
   enum { Direction = Direction_ };
-  using T = typename Tree::T;
-  using Key = typename Tree::Key;
-  using Val = typename Tree::Val;
-  using Cmp = typename Tree::Cmp;
-  using ValCmp = typename Tree::ValCmp;
   using Node = typename Tree::Node;
   using NodeRef = typename Tree::NodeRef;
 
@@ -166,16 +161,8 @@ public:
 
   Node *iterate() { return m_tree.iterate(*this); }
 
-  const Key &iterateKey() {
-    Node *node = m_tree.iterate(*this);
-    if (ZuLikely(node)) return node->Node::key();
-    return Cmp::null();
-  }
-  const Val &iterateVal() {
-    Node *node = m_tree.iterate(*this);
-    if (ZuLikely(node)) return node->Node::val();
-    return ValCmp::null();
-  }
+  decltype(auto) iterateKey() { return Tree::key(m_tree.iterate(*this)); }
+  decltype(auto) iterateVal() { return Tree::val(m_tree.iterate(*this)); }
 
   unsigned count() const { return m_tree.count_(); }
 
@@ -247,8 +234,10 @@ public:
   using T = T_;
   using KeyAxor = typename NTP::KeyAxor;
   using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  using Key = ZuDecay<KeyRet>;
+  using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   enum { NodeDerive = NTP::NodeDerive };
@@ -351,7 +340,7 @@ private:
   using NodePolicy::nodeDelete;
   using NodePolicy::nodeAcquire;
 
-  static const Key &key(Node *node) {
+  static KeyRet key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
     return Cmp::null();
   }
@@ -363,7 +352,7 @@ private:
     }
     return Cmp::null();
   }
-  static const Val &val(Node *node) {
+  static ValRet val(Node *node) {
     if (ZuLikely(node)) return node->Node::val();
     return ValCmp::null();
   }

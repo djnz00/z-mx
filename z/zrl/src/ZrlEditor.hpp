@@ -259,11 +259,14 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
 struct Binding_KeyAccessor {
   static int32_t get(const Binding *b) { return b->vkey; }
 };
+struct Binding_ValAccessor {
+  static const Binding *get(const Binding *b) { return b; }
+};
 
 using Bindings_ =
   ZmLHash<ZuPtr<Binding>,
-    ZmLHashKey<Binding_KeyAccessor,
-      ZmLHashLock<ZmNoLock>>>;
+    ZmLHashKeyVal<Binding_KeyAccessor, Binding_ValAccessor,
+	ZmLHashLock<ZmNoLock>>>;
 
 struct Bindings : public Bindings_ {
   Bindings() : Bindings_{ZmHashParams{}.bits(8).loadFactor(1.0)} { }

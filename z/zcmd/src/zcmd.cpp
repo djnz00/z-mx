@@ -99,13 +99,9 @@ public:
   static TelCap keyedFn(ZtString path) {
     using Data = ZvFB::Load<Data_>;
     using FBS = ZvFBS<Data>;
-    using Key = ZuFieldKey<Data>;
-    struct Accessor {
-      static Key get(const Data &data) { return Key{data}; }
-    };
     using Tree_ =
       ZmRBTree<Data,
-	ZmRBTreeKey<Accessor,
+	ZmRBTreeKey<ZuFieldAxor<Data>,
 	  ZmRBTreeUnique<true,
 	    ZmRBTreeLock<ZmNoLock> > > >;
     struct Tree : public ZuObject, public Tree_ { };
@@ -121,10 +117,10 @@ public:
       auto fbs = static_cast<const FBS *>(fbs_);
       auto node = tree->find(ZvFB::key<Data>(fbs));
       if (!node)
-	tree->add(node = new typename Tree::Node{fbs});
+	tree->addNode(node = new typename Tree::Node{fbs});
       else
-	ZvFB::loadUpdate(node->key(), fbs);
-      l(&(node->key()));
+	ZvFB::loadUpdate(node->data(), fbs);
+      l(&(node->data()));
     }};
   }
 

@@ -24,7 +24,6 @@ void fail(const char *s, int64_t i) { print(s, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
-// FIXME
 struct Frame {
   uint64_t	v1;
   ZuFixedVal	v2_;
@@ -33,8 +32,8 @@ struct Frame {
   void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
 ZvFields(Frame,
-    (, Int, v1, (Ctor(0), Series, Index, Delta)),
-    (Fn, Fixed, v2, (Series, Delta, NDP(9))));
+    (((v1)), (Int), (Ctor(0), Series, Index, Delta)),
+    (((v2, Fn)), (Fixed), (Series, Delta, NDP(9))));
 
 void usage() {
   std::cerr << "usage: ZdfTest mem|load|save\n" << std::flush;

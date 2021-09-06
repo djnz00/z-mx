@@ -605,7 +605,7 @@ int Map_::parseMode(ZuString s, int off)
   for (auto baseMode : baseModes)
     if (baseMode < modes.length()) {
       auto i = modes[baseMode].bindings->readIterator();
-      while (auto binding = i.iterateKey().ptr())
+      while (auto binding = i.iterateVal())
 	bind(mode, binding->vkey, binding->cmds);
     }
   int32_t vkey;
@@ -676,12 +676,12 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
   ++Map_printIndentLevel;
   if (mode.bindings) {
     unsigned n = 0;
-    for (auto i = mode.bindings->readIterator(); i.iterateKey().ptr(); ) ++n;
+    for (auto i = mode.bindings->readIterator(); i.iterateVal(); ) ++n;
     const Binding **bindings = ZuAlloca(bindings, n);
     if (bindings) {
       unsigned j = 0;
       for (auto i = mode.bindings->readIterator();
-	  auto binding = i.iterateKey().ptr(); )
+	  auto binding = i.iterateVal(); )
 	bindings[j++] = binding;
       n = j;
       ZuSort(bindings, n,
@@ -790,7 +790,7 @@ bool Editor::loadMap(ZuString file, bool select)
   }
   if (select) m_map = map.ptr();
   m_maps.del(map->id);
-  m_maps.add(map.release());
+  m_maps.addNode(map.release());
   return true;
 }
 
@@ -875,17 +875,17 @@ bool Editor::process_(int32_t vkey)
 {
   const auto &mode = m_map->modes[m_context.mode];
   if (mode.bindings) {
-    if (auto kv = mode.bindings->find(vkey))
-      return process__(kv->key()->cmds, vkey);
+    if (auto ptr = mode.bindings->findVal(vkey))
+      return process__(ptr->cmds, vkey);
     {
       int32_t lkey = m_tty.literal(vkey);
       if (lkey != vkey) {
-	if (auto kv = mode.bindings->find(lkey))
-	  return process__(kv->key()->cmds, lkey);
+	if (auto ptr = mode.bindings->findVal(lkey))
+	  return process__(ptr->cmds, lkey);
       }
     }
-    if (auto kv = mode.bindings->find(VKey::wildcard(vkey)))
-      return process__(kv->key()->cmds, vkey);
+    if (auto ptr = mode.bindings->findVal(VKey::wildcard(vkey)))
+      return process__(ptr->cmds, vkey);
   }
   return false;
 }

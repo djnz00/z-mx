@@ -173,7 +173,7 @@ void funcTest_(int bits, double loadFactor)
   ZmRef<H> h_ = new H(ZmHashParams().bits(bits).loadFactor(loadFactor));
   H &h = *h_;
   h.add("Goodbye", -42);
-  CHECK(A<H>::val(typename A<H>::T(h.find("Goodbye"))) == -42);
+  CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -42);
   add(h), iter(h, 42+43+44);
   puts("DEL 42 43 44");
   del(h, 42), iter(h, 43+44), del(h, 43), iter(h, 44), del(h, 44), iter(h, 0);
@@ -209,10 +209,10 @@ void funcTest_(int bits, double loadFactor)
   del(h, 43), iter(h, 42+46), del(h, 46), del(h, 42);
   CHECK(h.count_() == 1);
   h.findAdd("Goodbye", -46);
-  CHECK(A<H>::val(typename A<H>::T(h.find("Goodbye"))) == -42);
+  CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -42);
   h.del("Goodbye");
   h.findAdd("Goodbye", -46);
-  CHECK(A<H>::val(typename A<H>::T(h.find("Goodbye"))) == -46);
+  CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -46);
   CHECK(h.count_() == 1);
 
   puts("ITERDEL 44 43 42");

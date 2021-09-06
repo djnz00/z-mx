@@ -369,8 +369,10 @@ public:
   using T = T_;
   using KeyAxor = typename NTP::KeyAxor;
   using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  using Key = ZuDecay<KeyRet>;
+  using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
@@ -411,15 +413,15 @@ public:
   using Base::resized;
 
 private:
-  const T *data(int slot) const {
+  const T *ptr(int slot) const {
     if (ZuLikely(slot >= 0)) return &m_table[slot].data();
     return nullptr;
   }
-  const Key &key(int slot) const {
+  KeyRet key(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].key();
     return Cmp::null();
   }
-  const Val &val(int slot) const {
+  ValRet val(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].val();
     return ValCmp::null();
   }
@@ -447,8 +449,8 @@ friend Iterator_;
   public:
     void reset() { m_hash.startIterate(*this); }
     const T *iterate() { return m_hash.iterate(*this); }
-    const Key &iterateKey() { return m_hash.iterateKey(*this); }
-    const Val &iterateVal() { return m_hash.iterateVal(*this); }
+    decltype(auto) iterateKey() { return m_hash.iterateKey(*this); }
+    decltype(auto) iterateVal() { return m_hash.iterateVal(*this); }
 
     unsigned count() const { return m_hash.count_(); }
 
@@ -483,8 +485,8 @@ friend KeyIterator_;
   public:
     void reset() { m_hash.startIterate(*this); }
     const T *iterate() { return m_hash.iterate(*this); }
-    const Key &iterateKey() { return m_hash.iterateKey(*this); }
-    const Val &iterateVal() { return m_hash.iterateVal(*this); }
+    decltype(auto) iterateKey() { return m_hash.iterateKey(*this); }
+    decltype(auto) iterateVal() { return m_hash.iterateVal(*this); }
 
   protected:
     Key		m_key;
@@ -703,13 +705,13 @@ public:
   MatchKey<P, const T *> find(const P &key) const {
     uint32_t code = HashFn::hash(key);
     ReadGuard guard(const_cast<Lock &>(m_lock));
-    return data(find_(matchKey(key), code));
+    return ptr(find_(matchKey(key), code));
   }
   template <typename P>
   MatchData<P, const T *> find(const P &data) const {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
-    return data(find_(matchData(data), code));
+    return ptr(find_(matchData(data), code));
   }
   template <typename P0, typename P1>
   const T *find(P0 &&p0, P1 &&p1) {
@@ -781,7 +783,7 @@ public:
   const T *findAdd(P &&data) {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(m_lock);
-    return this->data(findAdd__(ZuFwd<P>(data), code));
+    return this->ptr(findAdd__(ZuFwd<P>(data), code));
   }
   template <typename P0, typename P1>
   const T *findAdd(P0 &&p0, P1 &&p1) {
@@ -935,16 +937,16 @@ public:
     data.linear = true;
   }
 
-  auto iterator() { return Iterator(*this); }
+  auto iterator() { return Iterator{*this}; }
   template <typename Index_>
   auto iterator(Index_ &&index) {
-    return KeyIterator(*this, ZuFwd<Index_>(index));
+    return KeyIterator{*this, ZuFwd<Index_>(index)};
   }
 
-  auto readIterator() const { return ReadIterator(*this); }
+  auto readIterator() const { return ReadIterator{*this}; }
   template <typename Index_>
   auto readIterator(Index_ &&index) const {
-    return ReadKeyIterator(*this, ZuFwd<Index_>(index));
+    return ReadKeyIterator{*this, ZuFwd<Index_>(index)};
   }
 
 private:
@@ -1009,15 +1011,15 @@ private:
   template <typename I>
   const T *iterate(I &iterator) {
     iterate_(iterator);
-    return data(iterator.m_slot);
+    return ptr(iterator.m_slot);
   }
   template <typename I>
-  const Key &iterateKey(I &iterator) {
+  decltype(auto) iterateKey(I &iterator) {
     iterate_(iterator);
     return key(iterator.m_slot);
   }
   template <typename I>
-  const Val &iterateVal(I &iterator) {
+  decltype(auto) iterateVal(I &iterator) {
     iterate_(iterator);
     return val(iterator.m_slot);
   }

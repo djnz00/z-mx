@@ -252,8 +252,10 @@ struct ZvFieldType_Composite : public ZvField_<Base, Flags> {
     };
   }
   static auto getFn() {
-    return [](const auto &o) -> ZmStreamFn {
-      return {o, [](const auto &o, ZmStream &s) { s << Base::get(o); }};
+    return [](const void *o) -> ZmStreamFn {
+      return {
+	static_cast<const O *>(o),
+	[](const O *o, ZmStream &s) { s << Base::get(*o); }};
     };
   }
   static auto setFn() { return [](void *, ZuString) { }; }
