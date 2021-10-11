@@ -1439,7 +1439,7 @@ public:
   }
 private:
   static unsigned grow_(unsigned o, unsigned n) {
-    return ZtPlatform::grow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
+    return ZuGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
   }
 
 public:

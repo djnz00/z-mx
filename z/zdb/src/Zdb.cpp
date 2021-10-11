@@ -50,6 +50,8 @@
 #include <zlib/Zdb.hpp>
 
 #include <zlib/ZiDir.hpp>
+#include <zlib/ZiRx.hpp>
+#include <zlib/ZiTx.hpp>
 
 #include <assert.h>
 #include <errno.h>
@@ -858,7 +860,7 @@ void ZdbEnv::stopReplication()
   m_master = 0;
   m_prev = 0;
   m_next = 0;
-  m_recovering = 0;
+  m_recovering = false;
   m_nextCxn = 0;
   {
     auto i = m_hosts.readIterator();
@@ -870,36 +872,49 @@ void ZdbEnv::stopReplication()
 
 void Zdb_Cxn::msgRead(ZiIOContext &io)
 {
-  io.init(ZiIOFn::Member<&Zdb_Cxn::msgRcvd>::fn(this),
-      &m_recvHdr, sizeof(Zdb_Msg_Hdr), 0);
+  ZiRx::recv<ZdbBuf>(io,
+      ZdbNet::loadHdr,
+      [this](const ZmRef<ZdbBuf> &buf) -> int {
+	using namespace Zfb;
+	using namespace ZdbNet;
+	{
+	  Verifier verifier(buf->data(), buf->length);
+	  if (!fbs::VerifyMsgBuffer(verifier)) return -1;
+	}
+	auto hdr = reinterpret_cast<const Hdr *>(buf->data());
+	auto msg = fbs::GetMsg(hdr->data());
+	bool ok = false;
+	switch (msg->hdr_type()) {
+	  case fbs::Hdr_HB:
+	    ok = hbRcvd(static_cast<const fbs::Msg_HB *>(msg->hdr()));
+	    break;
+	  case fbs::Hdr_Rep:
+	    ok = repRcvd(static_cast<const fbs::Msg_Rep *>(msg->hdr()));
+	    break;
+	  case fbs::Hdr_Rec:
+	    ok = recRcvd(static_cast<const fbs::Msg_Rep *>(msg->hdr()));
+	    break;
+	  default:
+	    ZeLOG(Error, ZtString{} <<
+		"Zdb received garbled message from host " <<
+		ZuBoxed(m_host ? (int)m_host->id() : -1));
+	    break;
+	}
+	if (!ok) return -1;
+	m_mx->add(ZmFn<>::Member<&Zdb_Cxn::hbTimeout>::fn(this),
+	    ZmTimeNow((int)m_env->config().heartbeatTimeout), &m_hbTimer);
+	return buf->length();
+      });
 }
 
-void Zdb_Cxn::msgRcvd(ZiIOContext &io)
+void Zdb_Cxn::hbRcvd(const ZdbNet::fbs::Msg_HB *hb)
 {
-  if ((io.offset += io.length) < io.size) return;
-
-  switch (m_recvHdr.type) {
-    case Zdb_Msg::HB:	hbRcvd(io); break;
-    case Zdb_Msg::Rep:	repRcvd(io); break;
-    case Zdb_Msg::Rec:	repRcvd(io); break;
-    default:
-      ZeLOG(Error, ZtString{} <<
-	  "Zdb received garbled message from host " <<
-	  ZuBoxed(m_host ? (int)m_host->id() : -1));
-      io.disconnect();
-      return;
-  }
-
-  m_mx->add(ZmFn<>::Member<&Zdb_Cxn::hbTimeout>::fn(this),
-      ZmTimeNow((int)m_env->config().heartbeatTimeout), &m_hbTimer);
-}
-
-void Zdb_Cxn::hbRcvd(ZiIOContext &io)
-{
-  const Zdb_Msg_HB &hb = m_recvHdr.u.hb;
+  // FIXME - dbState()
+  //
   unsigned dbCount = m_env->dbCount();
+  auto dbState = hb->dbState();
 
-  if (dbCount != hb.dbCount) {
+  if (dbCount != dbState->size()) {
     ZeLOG(Fatal, ZtString{} <<
 	"Zdb inconsistent remote configuration detected (local dbCount " <<
 	dbCount << " != host " << hb.hostID << " dbCount " << hb.dbCount <<
@@ -1054,7 +1069,7 @@ void ZdbEnv::recSend()
 	}
 	return;
       }
-  m_recovering = 0;
+  m_recovering = false;
 }
 
 // send replication message to next-in-line
@@ -1063,101 +1078,104 @@ void ZdbEnv::repSend(ZmRef<ZdbAnyPOD> pod, int type, int op, bool compress)
   if (ZmRef<Zdb_Cxn> cxn = m_nextCxn)
     cxn->repSend(ZuMv(pod), type, op, compress);
 }
-void ZdbEnv::repSend(ZmRef<ZdbAnyPOD> pod)
+void ZdbEnv::repSend(ZmRef<ZdbBuf> buf)
 {
   if (ZmRef<Zdb_Cxn> cxn = m_nextCxn)
-    cxn->send(ZiIOFn::Member<&ZdbAnyPOD::send>::fn(ZuMv(pod)));
+    cxn->send(ZiIOFn::Member<&ZdbBuf::send>::fn(ZuMv(buf)));
 }
 
 // send replication message (directed)
 void Zdb_Cxn::repSend(
-    ZmRef<ZdbAnyPOD> pod, int type, int op, bool compress)
+    ZmRef<ZdbAnyObject> object, int type, int op, bool compress)
 {
-  pod->replicate(type, op, compress);
-  this->send(ZiIOFn::Member<&ZdbAnyPOD::send>::fn(ZuMv(pod)));
+  ZmRef<ZdbBuf> buf = object->replicate(type, op, compress);
+  this->send(ZiIOFn::Member<&ZdbBuf::send>::fn(ZuMv(buf)));
 }
-void Zdb_Cxn::repSend(ZmRef<ZdbAnyPOD> pod)
+void Zdb_Cxn::repSend(ZmRef<ZdbBuf> buf)
 {
-  this->send(ZiIOFn::Member<&ZdbAnyPOD::send>::fn(ZuMv(pod)));
+  this->send(ZiIOFn::Member<&ZdbBuf::send>::fn(ZuMv(buf)));
+}
+
+int fbb_compress(Zfb::IOBuilder &fbb)
+{
+  ZmRef<ZdbBuf> buf = fbb.buf();
+  unsigned ulen = buf->length();
+  if (ZuUnlikely(ulen <= 8)) return 0;
+  unsigned clen = LZ4_COMPRESSBOUND(ulen);
+  auto cbuf = static_cast<uint8_t *>(ZmAlloc(clen));
+  if (ZuUnlikely(!cbuf)) return -1;
+  clen = LZ4_compress_fast(buf->data(), cbuf, buf->length, clen, 1);
+  fbb.buf(fbb.buf()); // detach, clear, reattach buffer
+  fbb.PushBytes(cbuf, clen);
+  ZmFree(cbuf);
+  return ulen;
+}
+
+// FIXME
+ZmRef<ZdbBuf> buf_decompress(ZdbNet::fbs::Msg_Rep *rep)
+{
+  using namespace ZdbNet;
+  auto ulen = rep->ulen();
+  if (!ulen) return buf;
+  using namespace Zfb::Load;
+  auto cdata = bytes(rep->data());
+  auto ubuf = static_cast<uint8_t *>(ZmAlloc(ulen));
+  if (ZuUnlikely(!ubuf)) return nullptr;
+  int n = LZ4_decompress_safe(cdata.data(), ubuf, cdata.length(), ulen);
+  if (ZuUnlikely(n < 0)) return nullptr;
+  buf->clear();
+  auto udata = buf->ensure(ulen);
+  if (!buf->size) return nullptr;
+  memcpy(udata, ubuf, ulen);
+  ZmFree(ubuf);
+  return buf;
 }
 
 // prepare replication data for sending & writing to disk
-void ZdbAnyPOD::replicate(int type, int op, bool compress)
+ZmRef<ZdbBuf> ZdbAnyObject::replicate(int type, int op, bool compress)
 {
   ZdbDEBUG(m_db->env(), ZtString{} << "ZdbAnyPOD::replicate(" <<
-      type << ", " << this->range() << ", " << ZdbOp::name(op) << ", " <<
-      (int)compress << ')');
-  m_hdr.type = type;
-  Zdb_Msg_Rep &rep = m_hdr.u.rep;
-  rep.db = m_db->id();
-  rep.rn = rn();
-  rep.prevRN = prevRN();
-  // rep.range is already set
-  rep.op = op;
-  if (compress) {
-    ZdbRange range = this->range();
-    if (range) {
-      m_compressed = this->compress();
-      if (ZuUnlikely(!m_compressed)) goto uncompressed;
-      int n = m_compressed->compress(
-	  this->ptr<const char>() + range.off(), range.len());
-      if (ZuUnlikely(n < 0)) goto uncompressed;
-      rep.clen = n;
-      return;
-    }
+      type << ", " << ZdbOp::name(op) << ", " << (int)compress << ')');
+  Zfb::IOBuilder<ZdbBuf> fbb;
+  db->saveUpdate(fbb, ptr_());
+  unsigned ulen = 0;
+  if (compress) ulen = fbb_compress(fbb);
+  auto data = fbb.nest();
+  using namespace ZdbNet;
+  {
+    auto id = Zfb::Save::id(m_db->id());
+    auto hdr = fbs::CreateMsg(fbb,
+	fbs::Hdr_Rep,
+	fbs::CreateMsg_Rep(fbb, &id, rn, prevRN, op, ulen, data));
+    fbb.Finish(hdr);
   }
-
-uncompressed:
-  m_compressed = nullptr;
-  rep.clen = 0;
+  ZdbNet::saveHdr(fbb);
+  return fbb.buf();
 }
 
 // send replication message
-void ZdbAnyPOD::send(ZiIOContext &io)
+void ZdbBuf::send(ZiIOContext &io)
 {
-  io.init(ZiIOFn::Member<&ZdbAnyPOD::sent>::fn(
-	io.fn.mvObject<ZdbAnyPOD>()), &m_hdr, sizeof(Zdb_Msg_Hdr), 0);
+  io.init(ZiIOFn::Member<&ZdbBuf::sent>::fn(
+	io.fn.mvObject<ZdbBuf>()), data(), length(), 0);
 }
-void ZdbAnyPOD::sent(ZiIOContext &io)
+void ZdbBuf::sent(ZiIOContext &io)
 {
   if ((io.offset += io.length) < io.size) return;
-  Zdb_Msg_Rep &rep = m_hdr.u.rep;
-  ZdbRange range{rep.range};
-  if (m_compressed)
-    io.init(ZiIOFn::Member<&ZdbAnyPOD::sent2>::fn(
-	  io.fn.mvObject<ZdbAnyPOD>()), m_compressed->ptr(), rep.clen, 0);
-  else if (range)
-    io.init(ZiIOFn::Member<&ZdbAnyPOD::sent2>::fn(
-	  io.fn.mvObject<ZdbAnyPOD>()),
-	this->ptr<const char>() + range.off(), range.len(), 0);
-  else
-    sent3(io);
-}
-void ZdbAnyPOD::sent2(ZiIOContext &io)
-{
-  if ((io.offset += io.length) < io.size) return;
-  sent3(io);
-}
-void ZdbAnyPOD::sent3(ZiIOContext &io)
-{
-  if (ZuUnlikely(m_hdr.type == Zdb_Msg::Rec)) {
+  // send next recovery msg if this one was a recovery
+  if (ZuUnlikely(recSend)) {
     ZiMultiplex *mx = io.cxn->mx();
-    ZdbEnv *env = m_db->env();
+    ZdbEnv *env = object->db->env();
     mx->run(mx->txThread(), ZmFn<>::Member<&ZdbEnv::recSend>::fn(env));
   }
   io.complete();
-}
-
-int ZdbAnyPOD_Cmpr::compress(const char *src, unsigned srcSize)
-{
-  return LZ4_compress_fast(src, ptr<char>(), srcSize, this->size(), 1);
 }
 
 // broadcast heartbeat
 void ZdbEnv::hbSend()
 {
   Guard guard(m_lock);
-  hbSend_(0);
+  hbSend_(nullptr);
   m_mx->add(ZmFn<>::Member<&ZdbEnv::hbSend>::fn(this),
     m_hbSendTime += (time_t)m_config.heartbeatFreq,
     ZmScheduler::Defer, &m_hbSendTimer);
@@ -1198,16 +1216,22 @@ void Zdb_Cxn::hbSend_(ZiIOContext &io)
     io.complete();
     return;
   }
-  m_hbSendHdr.type = Zdb_Msg::HB;
-  Zdb_Msg_HB &hb = m_hbSendHdr.u.hb;
-  hb.hostID = self->id();
-  hb.state = m_env->state();
-  hb.dbCount = self->dbState().length();
+  Zfb::IOBuilder<ZdbBuf> fbb;
+  using namespace ZdbNet;
+  {
+    const auto &dbState = m_env->dbState();
+    auto hdr = fbs::CreateMsg(fbb,
+	fbs::Hdr_HB, 
+	fbs::CreateMsg_HB(fbb, self->id(), m_env->state(),
+	  fbb.CreateVector(dbState.data(), dbState.length())));
+    fbb.Finish(hdr);
+  }
+  ZdbNet::saveHdr(fbb);
   io.init(ZiIOFn::Member<&Zdb_Cxn::hbSent>::fn(this),
       &m_hbSendHdr, sizeof(Zdb_Msg_Hdr), 0);
   ZdbDEBUG(m_env, ZtString{} << "hbSend()"
-      "  self[ID:" << hb.hostID << " S:" << hb.state <<
-      " N:" << hb.dbCount << "] " << self->dbState());
+      "  self[ID:" << self->id() << " S:" << m_env->state() <<
+      " N:" << self->dbState().length() << "] " << self->dbState());
 }
 void Zdb_Cxn::hbSent(ZiIOContext &io)
 {
@@ -1254,84 +1278,34 @@ void ZdbEnv::dbStateRefresh_()
 }
 
 // process received replication header
-void Zdb_Cxn::repRcvd(ZiIOContext &io)
+bool Zdb_Cxn::repRcvd(const fbs::Msg_Rep *rep)
 {
   if (!m_host) {
     ZeLOG(Fatal, "Zdb received replication message before heartbeat");
-    io.disconnect();
-    return;
+    return false;
   }
 
-  const Zdb_Msg_Rep &rep = m_recvHdr.u.rep;
-  ZdbAny *db = m_env->db(rep.db);
+  auto dbID = Zfb::Load::id(rep->db())
+  ZdbAny *db = m_env->db(dbID);
 
   if (!db) {
     ZeLOG(Fatal, ZtString{} <<
-	"Zdb unknown remote DBID " << rep.db << " received");
-    io.disconnect();
-    return;
+	"Zdb unknown remote DBID " << dbID << " received");
+    return false;
   }
 
-  repDataRead(io);
-}
-
-// read replication data
-void Zdb_Cxn::repDataRead(ZiIOContext &io)
-{
-  const Zdb_Msg_Rep &rep = m_recvHdr.u.rep;
-  ZdbAny *db = m_env->db(rep.db);
-  if (ZuUnlikely(!db)) {
-    ZeLOG(Fatal, "Zdb_Cxn::repDataRead internal error");
-    return;
-  }
-  ZdbRange range{rep.range};
-  if (!range) {
-    m_env->repDataRcvd(m_host, this, rep, nullptr);
-    msgRead(io);
-  } else {
-    m_recvData2.length(rep.clen ? (unsigned)rep.clen : (unsigned)range.len());
-    io.init(ZiIOFn::Member<&Zdb_Cxn::repDataRcvd>::fn(this),
-	m_recvData2.data(), m_recvData2.length(), 0);
-  }
-}
-
-// pre-process received replication data, decompress as needed
-void Zdb_Cxn::repDataRcvd(ZiIOContext &io)
-{
-  if (!m_host || m_host->cxn().ptr() != this) { io.disconnect(); return; }
-
-  if ((io.offset += io.length) < io.size) return;
-
-  Zdb_Msg_Rep &rep = m_recvHdr.u.rep;
-
-  if (rep.clen) {
-    ZdbAny *db = m_env->db(rep.db);
-    m_recvData.length(db->recSize());
-    int n = LZ4_decompress_safe(
-	m_recvData2.data(), m_recvData.data(), rep.clen, db->recSize());
-    if (ZuUnlikely(n < 0)) {
-      ZeLOG(Fatal, ZtHexDump(ZtString{} << 
-	    "decompress failed with rcode " << n << " (RN: " << rep.rn <<
-	    ") RecSize: " << db->recSize() << " CLen " << rep.clen <<
-	    "Data:\n", m_recvData.data(), db->recSize()));
-      msgRead(io);
-      return;
-    }
-    m_env->repDataRcvd(m_host, this, rep, (void *)m_recvData.data());
-  } else {
-    m_env->repDataRcvd(m_host, this, rep, (void *)m_recvData2.data());
-  }
-  msgRead(io);
+  m_env->repDataRcvd(m_host, this, rep);
 }
 
 // process received replication data
-void ZdbEnv::repDataRcvd(
-    ZdbHost *host, Zdb_Cxn *cxn, const Zdb_Msg_Rep &rep, void *ptr)
+void ZdbEnv::repDataRcvd(ZdbHost *host, Zdb_Cxn *cxn, const fbs::Msg_Rep *rep)
 {
-  ZdbRange range{rep.range};
-  ZdbDEBUG(this, ZtHexDump(ZtString{} << "DBID:" << rep.db <<
-	" RN:" << rep.rn << " R:" << range << " FROM:" << host,
-	ptr, range.len()));
+  if (rep->ulen())
+  auto dbID = Zfb::Load::id(rep->db());
+  auto data = Zfb::Load::bytes(rep->data());
+  ZdbDEBUG(this, ZtHexDump(ZtString{} << "DBID:" << dbID <<
+	" RN:" << rep->rn() << " FROM:" << host,
+	data.data(), data.length()));
   ZdbAny *db = this->db(rep.db);
   if (ZuUnlikely(!db)) {
     ZeLOG(Error, ZtString{} <<
@@ -1410,9 +1384,9 @@ void ZdbAny::replicate(ZdbAnyPOD *pod, void *ptr, int op)
 }
 
 ZdbAny::ZdbAny(ZdbEnv *env, ZuString name, uint32_t version, int cacheMode,
-    ZdbHandler handler, unsigned recSize, unsigned dataSize) :
+    ZdbHandler handler) :
   m_env(env), m_version(version), m_cacheMode(cacheMode),
-  m_handler(ZuMv(handler)), m_recSize(recSize), m_dataSize(dataSize)
+  m_handler(ZuMv(handler))
 {
   if (!m_recSize || !m_dataSize) {
     ZeLOG(Fatal, ZtString{} <<
@@ -2015,37 +1989,30 @@ void ZdbAny::telemetry(Telemetry &data) const
   }
 }
 
-void ZdbEnv::write(ZmRef<ZdbAnyPOD> pod, int type, int op, bool compress)
+void ZdbEnv::write(ZmRef<ZdbAnyObject> object, int type, int op, bool compress)
 {
-  pod->replicate(type, op, compress);
+  ZmRef<ZdbBuf> buf = object->replicate(type, op, compress);
   {
     const ZdbConfig &config = pod->db()->config();
-    if (config.repMode) repSend(pod);
+    if (config.repMode) repSend(buf);
   }
   m_mx->run(m_config.writeTID,
-      ZmFn<>::mvFn(ZuMv(pod), [](ZmRef<ZdbAnyPOD> pod) {
-	ZdbAny *db = pod->db();
-	db->write(ZuMv(pod));
+      ZmFn<>::mvFn(ZuMv(buf), [](ZmRef<ZdbBuf> buf) {
+	ZdbAny *db = buf->db();
+	db->write(ZuMv(buf));
       }));
 }
 
-void ZdbAny::write(ZmRef<ZdbAnyPOD> pod)
+void ZdbAny::write(ZmRef<ZdbBuf> buf)
 {
-  if (!m_config->repMode) m_env->repSend(pod);
-  int op = pod->write();
-  {
-    Guard guard(m_lock);
-    pod->unpin();
-  }
-  m_handler.writeFn(pod, op);
+  if (!m_config->repMode) m_env->repSend(buf);
+  buf->write();
+  m_handler.writeFn(buf->object->ptr_(), buf->op);
 }
 
-int ZdbAnyPOD::write()
+void ZdbBuf::write()
 {
-  Zdb_Msg_Rep &rep = m_hdr.u.rep;
-  int op = rep.op;
-  m_db->write_(rn(), prevRN(), ptr(), op);
-  return op;
+  m_db->write_(rn, prevRN, op, data(), length());
 }
 
 Zdb_FileRec ZdbAny::rn2file(ZdbRN rn, bool write)
@@ -2129,7 +2096,8 @@ ZmRef<ZdbAnyPOD> ZdbAny::read_(const Zdb_FileRec &rec)
   return pod;
 }
 
-void ZdbAny::write_(ZdbRN rn, ZdbRN prevRN, const void *ptr, int op)
+// FIXME - core write to disk routine
+void ZdbAny::write_(ZdbRN rn, ZdbRN prevRN, int op, void *data, unsigned length)
 {
   int r;
   ZeError e;

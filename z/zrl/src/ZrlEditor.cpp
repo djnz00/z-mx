@@ -677,7 +677,8 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
   if (mode.bindings) {
     unsigned n = 0;
     for (auto i = mode.bindings->readIterator(); i.iterateVal(); ) ++n;
-    const Binding **bindings = ZuAlloca(bindings, n);
+    auto bindings =
+      static_cast<const Binding **>(ZmAlloc(n * sizeof(Binding *)));
     if (bindings) {
       unsigned j = 0;
       for (auto i = mode.bindings->readIterator();
@@ -694,6 +695,7 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
       for (j = 0; j < n; j++) {
 	Map_printIndent(s); s << *(bindings[j]) << "\r\n";
       }
+      ZmFree(bindings);
     }
   }
   --Map_printIndentLevel;

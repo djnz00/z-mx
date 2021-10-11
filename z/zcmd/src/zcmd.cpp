@@ -274,7 +274,7 @@ friend Link;
 
   // ZvCmdHost virtual functions
   ZvCmdDispatcher *dispatcher() { return this; }
-  void send(void *link, ZmRef<ZiIOBuf<>> buf) {
+  void send(void *link, ZmRef<ZiAnyIOBuf> buf) {
     return static_cast<Link *>(link)->send(ZuMv(buf));
   }
   void target(ZuString s) {

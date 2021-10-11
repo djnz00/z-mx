@@ -709,11 +709,11 @@ template <typename AppTypes> struct MxTTxnTypes : public AppTypes {
     void *ptr() { return &data[0]; }
 
     template <typename T> const T &as() const {
-      const T *ZuMayAlias(ptr) = (const T *)&data[0];
+      const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(ptr());
       return *ptr;
     }
     template <typename T> T &as() {
-      T *ZuMayAlias(ptr) = (T *)&data[0];
+      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(ptr());
       return *ptr;
     }
 

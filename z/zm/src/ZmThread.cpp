@@ -123,15 +123,20 @@ void ZmThreadContext::init()
   ZmThreadContext_::init();
   {
 #ifndef _WIN32
-    size_t n;
+    void *addr;
+    size_t size;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_getstacksize(&attr, &n);
-    m_stackSize = n;
+    pthread_getattr_np(m_pthread, &attr);
+    pthread_attr_getstack(&attr, &addr, &size);
+    m_stackAddr = addr;
+    m_stackSize = size;
 #else /* !_WIN32 */
-    ULONG_PTR low, high;
-    GetCurrentThreadStackLimits(&low, &high);
-    m_stackSize = high - low;
+    auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
+    m_stackAddr = tib->StackLimit;
+    m_stackSize =
+      reinterpret_cast<const uint8_t *>(tib->StackBase) -
+      reinterpret_cast<const uint8_t *>(tib->StackLimit);
 #endif /* !_WIN32 */
   }
   if (!m_name) {
@@ -148,6 +153,8 @@ void ZmThreadContext::telemetry(ZmThreadTelemetry &data) const {
   data.stackSize = m_stackSize;
   data.cpuset = m_cpuset;
   data.cpuUsage = cpuUsage();
+  data.allocaStack = allocaStack();
+  data.allocaHeap = allocaHeap();
   data.sysPriority = sysPriority();
   data.index = m_index;
   data.priority = m_priority;

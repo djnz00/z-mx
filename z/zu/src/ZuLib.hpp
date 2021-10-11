@@ -627,23 +627,13 @@ template <typename U, typename R> struct ZuNotVolatile_<volatile U, R> { };
 template <typename U, typename R = void>
 using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 
-// T *var = ZuAlloca(var, n);
 #ifdef _MSC_VER
-#define ZuAlloca(var, n) \
-  nullptr; __try { \
-    var = reinterpret_cast<decltype(var)>( \
-	_alloca(n * sizeof(decltype(*var)))); \
-  } __except(GetExceptionCode() == STATUS_STACK_OVERFLOW) { \
-    _resetstkoflw(); \
-    var = nullptr; \
-  } (void)0
+#define ZuAlloca(n) _alloca(n)
 #else
 #ifndef _WIN32
 #include <alloca.h>
 #endif
-
-#define ZuAlloca(var, n) \
-  reinterpret_cast<decltype(var)>(alloca(n * sizeof(decltype(*var))))
+#define ZuAlloca(n) alloca(n)
 #endif
 
 #endif /* ZuLib_HPP */

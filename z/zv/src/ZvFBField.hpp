@@ -47,21 +47,29 @@
 // Time		Time		ZmTime
 // Bitmap	Composite	ZmBitmap
 // IP		Composite	ZiIP
+// ID		Composite	ZuID
 
 // Type extension - ZiIP support is added as follows:
+//   (network/host byte-order swapping is deliberately circumvented)
 //
 // fbs:
 //   namespace Zfb;
 //   struct IP {
-//     addr:uint32;
+//     addr:[uint8:4];
 //   }
 //
 // C++:
 //   namespace Zfb::Load {
-//     inline IP ip(ZiIP addr) { return {static_cast<uint32_t>(addr)}; }
+//     inline IP ip(ZiIP addr) {
+//       return {span<const uint8_t, 4>{
+//         reinterpret_cast<const uint8_t *>(&addr.s_addr), 4}};
+//     }
 //   }
 //   namespace Zfb::Save {
-//     inline ZiIP ip(const IP *v) { return {v->addr()}; }
+//     inline ZiIP ip(const IP *v) {
+//       return ZiIP{in_addr{
+//         .s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data())}};
+//     }
 //   }
 //   #define ZvFBFieldIP_T Composite
 //   #define ZvFBFieldIP(O, ...) ZvFBFieldInline(O, __VA_ARGS__, ip, ip)
@@ -214,17 +222,20 @@ using ZvFBS = ZuDecay<decltype(*ZvFBS_(ZuDeclVal<O *>()))>;
 #define ZvFBFieldFixed_T Fixed
 #define ZvFBFieldFixed ZvFBFieldPrimitive
 #define ZvFBFieldDecimal_T Decimal
-#define ZvFBFieldDecimal(O, ID, Base) \
-  ZvFBFieldInline(O, ID, Base, decimal, decimal)
+#define ZvFBFieldDecimal(O, ...) \
+  ZvFBFieldInline(O, __VA_ARGS__, decimal, decimal)
 #define ZvFBFieldTime_T Time
-#define ZvFBFieldTime(O, ID, Base) \
-  ZvFBFieldInline(O, ID, Base, dateTime, dateTime)
+#define ZvFBFieldTime(O, ...) \
+  ZvFBFieldInline(O, __VA_ARGS__, dateTime, dateTime)
 #define ZvFBFieldBitmap_T Composite
-#define ZvFBFieldBitmap(O, ID, Base) \
-  ZvFBFieldNested(O, ID, Base, bitmap, bitmap)
+#define ZvFBFieldBitmap(O, ...) \
+  ZvFBFieldNested(O, __VA_ARGS__, bitmap, bitmap)
 #define ZvFBFieldIP_T Composite
-#define ZvFBFieldIP(O, ID, Base) \
-  ZvFBFieldInline(O, ID, Base, ip, ip)
+#define ZvFBFieldIP(O, ...) \
+  ZvFBFieldInline(O, __VA_ARGS__, ip, ip)
+#define ZvFBFieldID_T Composite
+#define ZvFBFieldID(O, ...) \
+  ZvFBFieldInline(O, __VA_ARGS__, id, id)
 
 #define ZvFBField_Decl__(O, ID, Base, TypeName, Type, ...) \
   ZuPP_Defer(ZvField_Decl_)(O, Base, \
@@ -348,6 +359,9 @@ struct Table_ {
     static O ctor(const FBS *o_) {
       return O{Fields::load_(o_)...};
     }
+    static void ctor(void *ptr, const FBS *o_) {
+      new (ptr) O{Fields::load_(o_)...};
+    }
   };
   static O ctor(const FBS *o_) {
     O o = ZuTypeApply<Ctor, CtorFields>::ctor(o_);
@@ -355,23 +369,29 @@ struct Table_ {
 	[&o, o_]<typename Field>() { Field::load(o, o_); });
     return o;
   }
+  static void ctor(void *ptr, const FBS *o_) {
+    ZuTypeApply<Ctor, CtorFields>::ctor(ptr, o_);
+    O &o = *reinterpret_cast<O *>(ptr);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, o_]<typename Field>() { Field::load(o, o_); });
+  }
 
   template <typename ...Fields>
-  struct Load_Ctor_ : public O {
-    Load_Ctor_() = default;
-    Load_Ctor_(const FBS *o_) : O{Fields::load_(o_)...} { }
+  struct Load__ : public O {
+    Load__() = default;
+    Load__(const FBS *o_) : O{Fields::load_(o_)...} { }
     template <typename ...Args>
-    Load_Ctor_(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
   };
-  using Load_Ctor = ZuTypeApply<Load_Ctor_, CtorFields>;
-  struct Load : public Load_Ctor {
+  using Load_ = ZuTypeApply<Load__, CtorFields>;
+  struct Load : public Load_ {
     Load() = default;
-    Load(const FBS *o_) : Load_Ctor{o_} {
+    Load(const FBS *o_) : Load_{o_} {
       ZuTypeAll<InitFields>::invoke(
 	  [this, o_]<typename Field>() { Field::load(*this, o_); });
     }
     template <typename ...Args>
-    Load(Args &&... args) : Load_Ctor{ZuFwd<Args>(args)...} { }
+    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
   };
 
   static void load(O &o, const FBS *o_) {
@@ -406,37 +426,52 @@ struct Table_ {
     return Key<Fields>::tuple(o_);
   }
 };
-template <typename T>
-using Table = Table_<ZuFielded<T>>;
+template <typename O>
+using Table = Table_<ZuFielded<O>>;
 
-template <typename T>
-inline auto save(Zfb::Builder &fbb, const T &o) {
-  return Table<T>::save(fbb, o);
+template <typename O>
+inline auto save(Zfb::Builder &fbb, const O &o) {
+  return Table<O>::save(fbb, o);
 }
-template <typename T>
-inline auto saveUpdate(Zfb::Builder &fbb, const T &o) {
-  return Table<T>::saveUpdate(fbb, o);
-}
-
-template <typename T>
-inline T ctor(const ZvFBS<T> *o_) {
-  return Table<T>::ctor(o_);
+template <typename O>
+inline auto saveUpdate(Zfb::Builder &fbb, const O &o) {
+  return Table<O>::saveUpdate(fbb, o);
 }
 
-template <typename T> using Load = typename Table<T>::Load;
-
-template <typename T>
-inline void load(T &o, const ZvFBS<T> *o_) {
-  Table<T>::load(o, o_);
-}
-template <typename T>
-inline void loadUpdate(T &o, const ZvFBS<T> *o_) {
-  Table<T>::loadUpdate(o, o_);
+template <typename O>
+inline ZvFBS<O> *root(const uint8_t *data) {
+  return Zfb::GetRoot<ZvFBS<O>>(data);
 }
 
+template <typename O>
+inline ZvFBS<O> *verify(const uint8_t *data, unsigned len) {
+  if (!Zfb::Verifier{data, len}.VerifyBuffer<ZvFBS<O>>()) return nullptr;
+  return root<O>(data);
+}
+
+template <typename O>
+inline O ctor(const ZvFBS<O> *o_) {
+  return Table<O>::ctor(o_);
+}
+template <typename O>
+inline void ctor(void *ptr, const ZvFBS<O> *o_) {
+  Table<O>::ctor(ptr, o_);
+}
+
+template <typename O> using Load = typename Table<O>::Load;
+
+template <typename O>
+inline void load(O &o, const ZvFBS<O> *o_) {
+  Table<O>::load(o, o_);
+}
 template <typename T>
-inline auto key(const ZvFBS<T> *o_) {
-  return Table<T>::key(o_);
+inline void loadUpdate(O &o, const ZvFBS<O> *o_) {
+  Table<O>::loadUpdate(o, o_);
+}
+
+template <typename T>
+inline auto key(const ZvFBS<O> *o_) {
+  return Table<O>::key(o_);
 }
 
 } // namespace ZvFB

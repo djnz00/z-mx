@@ -130,7 +130,7 @@ template <typename Lock> double main_(
     const char *name, unsigned nthreads, unsigned count, double baseline)
 {
   Lock lock;
-  C<Lock> *c = ZuAlloca(c, nthreads);
+  auto c = static_cast<C<Lock> *>(ZuAlloca(nthreads * sizeof(C<Lock>)));
   ZmTime begin(ZmTime::Now);
   for (unsigned i = 0; i < nthreads; i++) {
     c[i].type = TypeCode<Lock>::N;

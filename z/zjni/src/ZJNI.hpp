@@ -199,10 +199,12 @@ namespace ZJNI {
     if (ZuUnlikely(!s)) { jchar c = 0; return env->NewString(&c, 0); }
     unsigned n = ZuUTF<jchar, char>::len(s);
     if (ZuUnlikely(!n)) { jchar c = 0; return env->NewString(&c, 0); }
-    jchar *buf = ZuAlloca(buf, n);
-    if (!buf) return 0;
+    auto buf = static_cast<jchar *>(ZmAlloc(n));
+    if (!buf) return {};
     n = ZuUTF<jchar, char>::cvt(ZuArray<jchar>(buf, n), s);
-    return env->NewString(buf, n);
+    auto r = env->NewString(buf, n);
+    ZmFree(buf);
+    return r;
   }
 
   // Java String -> C++ any string

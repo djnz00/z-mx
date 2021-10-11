@@ -55,7 +55,7 @@ ZmExtern void ZmGlobal_atexit()
   for (unsigned i = 0; i < ZmCleanupLevel::N; i++)
     for (ZmGlobal *g = ZmGlobal_list[i]; g; g = g->m_next) ++n;
   if (ZuUnlikely(!n)) { unlock(); return; }
-  ZmGlobal **globals = ZuAlloca(globals, n);
+  auto globals = static_cast<ZmGlobal **>(ZuAlloca(n * sizeof(ZmGlobal *)));
   if (ZuUnlikely(!globals)) { unlock(); return; }
   unsigned o = 0;
   for (unsigned i = 0; i < ZmCleanupLevel::N; i++) {

@@ -1263,8 +1263,7 @@ public:
 private:
   static unsigned grow_(unsigned o, unsigned n) {
     if (n <= (unsigned)BuiltinSize) return BuiltinSize;
-    return
-      ZtPlatform::grow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
+    return ZuGrow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
   }
 
   unsigned vsnprintf_grow(unsigned z) {

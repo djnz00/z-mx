@@ -66,8 +66,7 @@ struct Hdr {
 #pragma pack(pop)
 
 // call following Finish() to ensure alignment
-template <typename FBB>
-inline void saveHdr(FBB &fbb, ZuID type) {
+inline void saveHdr(Zfb::Builder &fbb, ZuID type) {
   Hdr hdr{type, fbb.GetSize()};
   fbb.PushBytes(reinterpret_cast<const uint8_t *>(&hdr), sizeof(Hdr));
 }

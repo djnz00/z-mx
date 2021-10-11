@@ -1,24 +1,27 @@
-namespace ZdbNet;
-struct Msg_HB {
+include "types.fbs";
+namespace ZdbNet.fbs;
+table Msg_HB {
   host_i_d:uint16;
   state:uint16;
-  db_count:uint16;
+  db_state:[uint64];
 }
 enum Op:int8 {
   Add = 0,
   Upd,
   Del
 }
-struct Msg_Rep {
-  db:[uint8:8];
+table Msg_Rep {
+  db:Zfb.ID;
   rn:uint64;
   prev_r_n:uint64;
   op:Op;
+  ulen:uint32;	// uncompressed length, if non-zero implies compression
   data:[uint8];	// nested table data
 }
 union Hdr {
   HB:Msg_HB,
-  Rep:Msg_Rep
+  Rep:Msg_Rep,
+  Rec:Msg_Rep
 }
 table Msg {
   hdr:Hdr;

@@ -17,47 +17,31 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// platform-specific
+// memory growth algorithm for buffers
 
-#ifndef ZtPlatform_HPP
-#define ZtPlatform_HPP
+#ifndef ZuGrow_HPP
+#define ZuGrow_HPP
 
-#ifdef _MSC_VER
-#pragma once
+#ifndef ZuLib_HPP
+#include <zlib/ZuLib.hpp>
 #endif
 
-#ifndef ZtLib_HPP
-#include <zlib/ZtLib.hpp>
-#endif
+inline constexpr unsigned ZuGrow(unsigned o, unsigned n) {
+  if (ZuUnlikely(o > n)) return o;
 
-#include <locale.h>
-#include <string.h>
-#include <wchar.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
+  constexpr const unsigned v = (sizeof(void *)<<1); // malloc overhead estimate
 
-#ifndef _WIN32
-#include <sys/types.h>
-#endif
+  o += v, n += v;
 
-#include <zlib/ZuInt.hpp>
+  if (n < 128) return 128 - v;	// minimum 128 bytes
 
-class ZtAPI ZtPlatform {
-  ZtPlatform();
-  ZtPlatform(const ZtPlatform &);
-  ZtPlatform &operator =(const ZtPlatform &);	// prevent mis-use
+  constexpr const unsigned m = (1U<<16) - 1;	// 64K mask
 
-public:
-// environment and timezone manipulation
-#ifndef _WIN32
-  static int putenv(const char *s) { return ::putenv((char *)s); }
-  static void tzset(void) { ::tzset(); }
-#else
-  static int putenv(const char *s) { return ::_putenv((char *)s); }
-  static void tzset(void) { ::_tzset(); }
-#endif
-};
+  if (o < 64) o = 64;
 
-#endif /* ZtPlatform_HPP */
+  if (o <= m && n < (o<<1)) return (o<<1) - v;// double old size up to 64k
+
+  return ((n + m) & ~m) - v;	// round up to nearest 64k - overhead
+}
+
+#endif /* ZuGrow_HPP */

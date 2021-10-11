@@ -2154,7 +2154,9 @@ void ZiMultiplex::rx()
 
   int r;
   ZeError e;
-  struct epoll_event *ev = ZuAlloca(ev, m_epollQuantum);
+  auto ev = static_cast<epoll_event *>(
+      ZuAlloca(m_epollQuantum * sizeof(epoll_event)));
+  if (ZuUnlikely(!ev)) return;
 
   for (;;) {
     ZiDEBUG(this, ZtSprintf(
@@ -2185,7 +2187,7 @@ void ZiMultiplex::rx()
       e = errno;
       if (e.errNo() == EINTR || e.errNo() == EAGAIN) continue;
       Error("epoll_wait", Zi::IOError, e);
-      return;
+      break;
     }
 
     if (ZuLikely(r)) {
@@ -2248,7 +2250,7 @@ void ZiMultiplex::rx()
       }
     }
     
-    if (wake) return;
+    if (wake) break;
   }
 #endif
 }

@@ -75,6 +75,8 @@ struct ZmThreadTelemetry {
   uint64_t	stackSize = 0;
   ZmBitmap	cpuset;
   double	cpuUsage = 0.0;	// graphable (*)
+  uint64_t	allocaStack = 0;
+  uint64_t	allocaHeap = 0;
   int32_t	sysPriority = 0;
   int16_t	index = 0;	// index within thread pool (ZmScheduler, ...)
   uint16_t	partition = 0;
@@ -264,20 +266,28 @@ public:
 #endif /* !_WIN32 */
   }
 
-  ZuInline const ZmFn<> &fn() const { return m_fn; }
+  const ZmFn<> &fn() const { return m_fn; }
 
-  ZuInline int index() const { return m_index; }
-  ZuInline const ZmThreadName &name() const { return m_name; }
+  int index() const { return m_index; }
+  const ZmThreadName &name() const { return m_name; }
 
-  ZuInline unsigned stackSize() const { return m_stackSize; }
-  ZuInline int priority() const { return m_priority; }
+  void *stackAddr() const { return m_stackAddr; }
+  unsigned stackSize() const { return m_stackSize; }
+  int priority() const { return m_priority; }
 
-  ZuInline unsigned partition() const { return m_partition; }
-  ZuInline const ZmBitmap &cpuset() const { return m_cpuset; }
+  unsigned partition() const { return m_partition; }
+  const ZmBitmap &cpuset() const { return m_cpuset; }
 
-  ZuInline void *result() const { return m_result; }
+  void *result() const { return m_result; }
 
-  ZuInline bool detached() const { return m_detached; }
+  bool detached() const { return m_detached; }
+
+  unsigned allocaStack() const { return m_allocaStack; }
+  unsigned allocaHeap() const { return m_allocaHeap; }
+
+  // used by ZmAlloc()
+  void allocaStack_() { ++m_allocaStack; }
+  void allocaHeap_() { ++m_allocaHeap; }
 
   void telemetry(ZmThreadTelemetry &data) const;
 
@@ -298,6 +308,7 @@ private:
 
   int		m_index = -1;	// index within thread pool/group
   ZmThreadName	m_name;
+  void		*m_stackAddr = nullptr;
   unsigned	m_stackSize = 0;
   int		m_priority = -1;
   unsigned	m_partition = 0;
@@ -306,6 +317,9 @@ private:
   void		*m_result = nullptr;
 
   bool		m_detached = false;
+
+  unsigned	m_allocaStack = 0;
+  unsigned	m_allocaHeap = 0;
 };
 
 using ZmThreadContext_Ptr = const ZmThreadContext *;
@@ -333,14 +347,14 @@ public:
     run(id, ZuFwd<Fn>(fn), params); // sets m_context
   }
 
-  ZuInline ZmThread(const ZmThread &t) : m_context(t.m_context) { }
-  ZuInline ZmThread &operator =(const ZmThread &t) {
+  ZmThread(const ZmThread &t) : m_context(t.m_context) { }
+  ZmThread &operator =(const ZmThread &t) {
     m_context = t.m_context;
     return *this;
   }
 
-  ZuInline ZmThread(Context *context) : m_context(context) { }
-  ZuInline ZmThread &operator =(Context *context) {
+  ZmThread(Context *context) : m_context(context) { }
+  ZmThread &operator =(Context *context) {
     m_context = context;
     return *this;
   }
@@ -378,7 +392,7 @@ public:
     CSV_(S &stream) : m_stream(stream) { 
       m_stream <<
 	"name,tid,cpuUsage,cpuSet,sysPriority,priority,"
-	"stackSize,partition,main,detached\n";
+	"stackSize,partition,main,detached,allocaStack,allocaHeap\n";
     }
     void print(const ZmThreadContext *tc) {
       ZmThreadTelemetry data;
@@ -394,7 +408,9 @@ public:
 	<< ',' << data.stackSize
 	<< ',' << ZuBoxed(data.partition)
 	<< ',' << ZuBoxed(data.main)
-	<< ',' << ZuBoxed(data.detached) << '\n';
+	<< ',' << ZuBoxed(data.detached)
+	<< ',' << ZuBoxed(data.allocaStack)
+	<< ',' << ZuBoxed(data.allocaHeap) << '\n';
     }
     S &stream() { return m_stream; }
 
@@ -426,6 +442,34 @@ inline ZmThreadContext *ZmThreadContext::self() {
 }
 inline ZmThreadContext *ZmThreadContext::self(ZmThreadContext *c) {
   return ZmSpecific<ZmThreadContext>::instance(c);
+}
+
+inline unsigned ZmStackAvail() {
+  uint8_t *sp;
+#if defined(__GNUC__) && defined(__x86_64__)
+  __asm__("movq %%rsp, %0" : "=q" (sp));
+#else
+  sp = reinterpret_cast<uint8_t *>(&sp);
+#endif
+  auto addr = static_cast<uint8_t *>(ZmSelf()->stackAddr());
+  auto avail = sp - addr;
+  if (avail >= static_cast<ptrdiff_t>(UINT_MAX)) return UINT_MAX;
+  return avail;
+}
+
+#define ZmAlloc(n) (((ZmStackAvail()>>1) < (n)) ? ::malloc(n) : ZuAlloca(n))
+
+inline void ZmFree(void *ptr_) {
+  uint8_t *ptr = static_cast<uint8_t *>(ptr_);
+  auto self = ZmSelf();
+  auto addr = reinterpret_cast<uint8_t *>(self->stackAddr());
+  auto size = self->stackSize();
+  if (ZuLikely(ptr >= addr && ptr < (addr + size)))
+    self->allocaStack_();
+  else {
+    self->allocaHeap_();
+    ::free(ptr);
+  }
 }
 
 #endif /* ZmThread_HPP */

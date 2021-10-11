@@ -17,47 +17,30 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// platform-specific
+/* test program */
 
-#ifndef ZtPlatform_HPP
-#define ZtPlatform_HPP
+#include <iostream>
 
-#ifdef _MSC_VER
-#pragma once
-#endif
+#include <zlib/ZuBox.hpp>
 
-#ifndef ZtLib_HPP
-#include <zlib/ZtLib.hpp>
-#endif
+#include <zlib/ZmThread.hpp>
 
-#include <locale.h>
-#include <string.h>
-#include <wchar.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
+void test()
+{
+  unsigned n = ZmStackAvail();
+  uint8_t *ptr = static_cast<uint8_t *>(ZmAlloc(n/3));
+  uint8_t *ptr2 = static_cast<uint8_t *>(ZmAlloc(n));
+  std::cout << "ZmAlloc(" << ZuBoxed(n/3).hex() << "): " << ZuBoxPtr(ptr).hex() << '\n';
+  std::cout << "ZmAlloc(" << ZuBoxed(n).hex() << "): " << ZuBoxPtr(ptr2).hex() << '\n';
+  ZmFree(ptr);
+  ZmFree(ptr2);
+}
 
-#ifndef _WIN32
-#include <sys/types.h>
-#endif
-
-#include <zlib/ZuInt.hpp>
-
-class ZtAPI ZtPlatform {
-  ZtPlatform();
-  ZtPlatform(const ZtPlatform &);
-  ZtPlatform &operator =(const ZtPlatform &);	// prevent mis-use
-
-public:
-// environment and timezone manipulation
-#ifndef _WIN32
-  static int putenv(const char *s) { return ::putenv((char *)s); }
-  static void tzset(void) { ::tzset(); }
-#else
-  static int putenv(const char *s) { return ::_putenv((char *)s); }
-  static void tzset(void) { ::_tzset(); }
-#endif
-};
-
-#endif /* ZtPlatform_HPP */
+int main(int argc, char **argv)
+{
+  auto self = ZmSelf();
+  std::cout << *self << "stack: " << ZuBoxPtr(self->stackAddr()).hex() << " +" << ZuBoxed(self->stackSize()).hex() << '\n';
+  std::cout << "stack available: " << ZuBoxed(ZmStackAvail()).hex() << '\n';
+  test();
+  std::cout << '\n' << ZmThread::csv();
+}

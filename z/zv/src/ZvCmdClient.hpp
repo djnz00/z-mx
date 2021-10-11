@@ -99,7 +99,7 @@ friend Base;
 template <typename, typename> friend class ZvCmdClient;
 
   using IOBuf = Ztls::IOBuf;
-  using FBB = Zfb::IOBuilder<IOBuf::Size>;
+  using FBB = Zfb::IOBuilder<IOBuf>;
 
 private:
   using IORx = ZiIORx<IOBuf>;

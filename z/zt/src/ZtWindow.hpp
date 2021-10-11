@@ -66,7 +66,7 @@ public:
     unsigned o = m_data.length();
     if (j >= o) {
       unsigned n = j + 1;
-      n = ZtPlatform::grow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
+      n = ZuGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
       if (n > m_max) n = m_max;
       m_data.length(n);
     }

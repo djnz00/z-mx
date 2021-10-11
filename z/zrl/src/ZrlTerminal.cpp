@@ -1777,7 +1777,8 @@ void Terminal::splice(
 	trailRows = (bol(oldWidth) - bolPos) / m_width + 1;
     }
   }
-  if (trailRows) glyphMarks = ZuAlloca(glyphMarks, trailRows);
+  if (trailRows) glyphMarks =
+    static_cast<GlyphMark *>(ZmAlloc(trailRows * sizeof(GlyphMark)));
   if (glyphMarks) {
     unsigned endPos = m_pos + span.inLen();
     unsigned shiftOff;
@@ -1802,6 +1803,7 @@ void Terminal::splice(
       bolPos += m_width;
     }
     trailRows = row;
+    ZmFree(glyphMarks);
   } else {
     trailRows = 0;
     shiftLeft = shiftRight = false;

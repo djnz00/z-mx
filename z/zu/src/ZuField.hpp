@@ -58,7 +58,6 @@
 #pragma once
 #endif
 
-#include <zlib/ZuLambdaFn.hpp>
 #include <zlib/ZuTuple.hpp>
 
 #define ZuFieldType(O, ID) ZuField_##O##_##ID

@@ -6,14 +6,15 @@ AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 pkginclude_HEADERS = \
 	ZiDir.hpp ZiFile.hpp ZiGlob.hpp ZiIP.hpp ZiLib.hpp ZiModule.hpp \
-	ZiMultiplex.hpp ZiPlatform.hpp ZiSocket.hpp ZiRing.hpp ZiIOBuf.hpp
+	ZiMultiplex.hpp ZiPlatform.hpp ZiSocket.hpp ZiRing.hpp ZiIOBuf.hpp \
+	ZiRx.hpp ZiTx.hpp
 if NETLINK
 pkginclude_HEADERS += ZiNetlinkMsg.hpp ZiNetlink.hpp zi_netlink.h
 endif
 lib_LTLIBRARIES = libZi.la
 libZi_la_SOURCES = \
-	ZiDir.cpp ZiFile.cpp ZiGlob.cpp ZiIP.cpp ZiLib.cpp ZiModule.cpp \
-	ZiMultiplex.cpp ZiPlatform.cpp ZiRing.cpp
+	ZiDir.cpp ZiFile.cpp ZiGlob.cpp ZiIOContext.hpp ZiIP.cpp ZiLib.cpp \
+	ZiModule.cpp ZiMultiplex.cpp ZiPlatform.cpp ZiRing.cpp
 if NETLINK
 libZi_la_SOURCES += ZiNetlink.cpp ZiNetlinkMsg.cpp
 endif

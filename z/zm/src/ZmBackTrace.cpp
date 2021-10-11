@@ -680,7 +680,8 @@ void ZmBackTrace_Mgr::capture(unsigned skip, void **frames)
     n = (*m_rtlCaptureStackBackTrace)(skip, ZmBackTrace_DEPTH, frames, 0);
 #else /* _WIN32 */
 #ifdef __GNUC__
-  void **frames_ = ZuAlloca(frames_, (ZmBackTrace_DEPTH + skip));
+  auto frames_ = static_cast<void **>(
+      ZuAlloca((ZmBackTrace_DEPTH + skip) * sizeof(void *)));
   n = ::backtrace(frames_, ZmBackTrace_DEPTH + skip);
   n = n < (int)skip ? 0 : n - skip;
   memcpy(frames, frames_ + skip, sizeof(void *) * n);

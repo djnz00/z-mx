@@ -23,8 +23,8 @@
 //   (the iterating thread gains access to other threads' instances)
 // * instance consolidation
 
-// ZmSpecific should be used in preference to thread_local where any of the
-// following problems could arise:
+// ZmSpecific can be used in preference to thread_local where any of the
+// following problems need resolving:
 // * interdependence of thread-local instances where one type requires
 //   another to be reliably created before it and/or destroyed after it
 //   (destruction timing is not explictly controllable using thread_local)
@@ -204,10 +204,8 @@ public:
 
     if (ZuUnlikely(!m_count)) { ZmSpecific_unlock(); return; }
 
-    Object **objects = ZuAlloca(objects, m_count);
-
+    auto objects = static_cast<Object **>(ZuAlloca(m_count * sizeof(Object *)));
     if (ZuUnlikely(!objects)) { ZmSpecific_unlock(); return; }
-
     memset(objects, 0, sizeof(Object *) * m_count);
     all_3(objects, fn);
   }

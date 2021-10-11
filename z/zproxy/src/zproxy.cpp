@@ -656,7 +656,7 @@ public:
     } catch (...) {
       throw ZvCmdUsage();
     }
-    if (m_listeners->findKey(localPort)) {
+    if (m_listeners->findVal(localPort)) {
       out << "already listening on port " << ZuBoxed(localPort) << '\n';
       return 1;
     }
@@ -691,7 +691,7 @@ public:
     }
     if (isTag) {
       auto i = m_listeners->iterator();
-      while (ZmRef<Listener> listener = i.iterateKey()) {
+      while (ZmRef<Listener> listener = i.iterateVal()) {
         if (listener->tag() != tag) continue;
         listener->stop();
         delete m_listeners->del(listener->localPort());
@@ -699,7 +699,7 @@ public:
         status(ctx);
       }
     } else {
-      ZmRef<Listener> listener = m_listeners->findKey(localPort);
+      ZmRef<Listener> listener = m_listeners->findVal(localPort);
       if (!listener) {
 	out << "no listener on port " << ZuBoxed(localPort) << '\n';
 	return 1;
@@ -732,7 +732,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -745,7 +745,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -783,7 +783,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -796,7 +796,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -832,7 +832,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -841,7 +841,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -876,7 +876,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -897,7 +897,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -940,7 +940,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -957,7 +957,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -1001,7 +1001,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -1014,7 +1014,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -1054,7 +1054,7 @@ public:
     }
     if (allProxies || isTag) {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	ZmRef<Connection> connection;
         if (isTag && proxy->tag() != tag)
           continue;
@@ -1067,7 +1067,7 @@ public:
       }
       return status(ctx);
     } else {
-      ZmRef<Proxy> proxy = m_proxies->findKey(srcPort);
+      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
 	return 1;
@@ -1111,7 +1111,7 @@ public:
     }
     {
       auto i = m_listeners->iterator();
-      while (ZmRef<Listener> listener = i.iterateKey()) {
+      while (ZmRef<Listener> listener = i.iterateVal()) {
         if (isTag && listener->tag() != tag)
           continue;
 	if (out.length()) out << '\n';
@@ -1120,7 +1120,7 @@ public:
     }
     {
       auto i = m_proxies->readIterator();
-      while (ZmRef<Proxy> proxy = i.iterateKey()) {
+      while (ZmRef<Proxy> proxy = i.iterateVal()) {
 	if (out.length()) out << '\n';
 	out << proxy->status();
       }
@@ -1518,7 +1518,7 @@ void Listener::status_(ZmStream &s) const
 {
   s << *this;
   auto i = m_proxies->readIterator();
-  while (ZmRef<Proxy> proxy = i.iterateKey())
+  while (ZmRef<Proxy> proxy = i.iterateVal())
     s << "\n" << proxy->status();
 }
 

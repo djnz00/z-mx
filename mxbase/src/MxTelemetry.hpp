@@ -59,10 +59,10 @@ namespace MxTelemetry {
 
   struct Hdr : public HdrData {
     Hdr() = delete;
-    ZuInline Hdr(uint32_t type, uint32_t len) : HdrData{len, type} { }
+    Hdr(uint32_t type, uint32_t len) : HdrData{len, type} { }
 
-    ZuInline void *body() { return (void *)&this[1]; }
-    ZuInline const void *body() const { return (const void *)&this[1]; }
+    void *body() { return (void *)&this[1]; }
+    const void *body() const { return (const void *)&this[1]; }
   };
 
   using Heap = ZmHeapTelemetry;
@@ -123,27 +123,27 @@ namespace MxTelemetry {
   struct Buf {
     char	data[sizeof(Hdr) + sizeof(Largest)];
 
-    ZuInline void *ptr() { return (void *)this; }
-    ZuInline const void *ptr() const { return (const void *)this; }
+    void *ptr() { return (void *)this; }
+    const void *ptr() const { return (const void *)this; }
 
-    ZuInline Hdr &hdr() {
+    Hdr &hdr() {
       Hdr *ZuMayAlias(ptr) = reinterpret_cast<Hdr *>(this);
       return *ptr;
     }
-    ZuInline const Hdr &hdr() const {
+    const Hdr &hdr() const {
       const Hdr *ZuMayAlias(ptr) = reinterpret_cast<const Hdr *>(this);
       return *ptr;
     }
 
-    ZuInline void *body() { return hdr().body(); }
-    ZuInline const void *body() const { return hdr().body(); }
+    const void *body() const { return hdr().body(); }
+    void *body() { return hdr().body(); }
 
-    template <typename T> ZuInline T &as() {
-      T *ZuMayAlias(ptr) = (T *)body();
+    template <typename T> const T &as() const {
+      const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(body());
       return *ptr;
     }
-    template <typename T> ZuInline const T &as() const {
-      const T *ZuMayAlias(ptr) = (const T *)body();
+    template <typename T> T &as() {
+      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(body());
       return *ptr;
     }
 
@@ -151,7 +151,7 @@ namespace MxTelemetry {
       return sizeof(Hdr) + hdr().len > length;
     }
 
-    ZuInline unsigned length() const {
+    unsigned length() const {
       return sizeof(Hdr) + hdr().len;
     }
   };
@@ -167,9 +167,9 @@ namespace MxTelemetry {
 
   template <typename Heap>
   struct Msg_ : public Heap, public ZmPolymorph, public Buf {
-    ZuInline void calcLength() { length = this->Buf::length(); }
+    void calcLength() { length = this->Buf::length(); }
 
-    ZuInline constexpr unsigned size() const { return sizeof(Buf); }
+    constexpr unsigned size() const { return sizeof(Buf); }
 
     ZiSockAddr	addr;
     unsigned	length = 0;
@@ -225,7 +225,7 @@ namespace MxTelemetry {
   struct IOLambda;
   template <typename Cxn, typename L> struct IOLambda<Cxn, L, true> {
     using T = void;
-    ZuInline static void invoke(ZiIOContext &io) {
+    static void invoke(ZiIOContext &io) {
       (*reinterpret_cast<const L *>(0))(
 	  static_cast<Cxn *>(io.cxn), io.fn.mvObject<Msg>(), io);
     }
@@ -276,7 +276,7 @@ namespace MxTelemetry {
       Cxn(Client *client, const ZiConnectionInfo &info) :
 	ZiConnection(client->mx(), info), m_client(client) { }
 
-      ZuInline Client *client() const { return m_client; }
+      Client *client() const { return m_client; }
 
     private:
       void connected(ZiIOContext &io) { m_client->connected(this, io); }
@@ -336,7 +336,7 @@ namespace MxTelemetry {
       Cxn(Server *server, const ZiConnectionInfo &info) :
 	ZiConnection(server->mx(), info), m_server(server) { }
 
-      ZuInline Server *server() const { return m_server; }
+      Server *server() const { return m_server; }
 
       void transmit(ZmRef<Msg> msg) { // named to avoid colliding with send()
 	UDP::send(this, ZuMv(msg), m_server->m_addr);

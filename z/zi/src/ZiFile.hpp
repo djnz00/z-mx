@@ -198,11 +198,14 @@ private:
   }
   template <typename P> MatchPBuffer<P> append_(const P &p) {
     unsigned len = ZuPrint<P>::length(p);
-    char *buf = ZuAlloca(buf, len);
+    auto buf = static_cast<char *>(ZmAlloc(len));
     if (ZuUnlikely(!buf)) throw ZeError(ZiENOMEM);
     ZeError e;
-    if (ZuUnlikely(write(buf, ZuPrint<P>::print(buf, len, p), e) != Zi::OK))
+    if (ZuUnlikely(write(buf, ZuPrint<P>::print(buf, len, p), e) != Zi::OK)) {
+      ZmFree(buf);
       throw e;
+    } else
+      ZmFree(buf);
   }
 
   Lock		m_lock;

@@ -38,6 +38,7 @@
 #include <zlib/ZuID.hpp>
 
 #include <zlib/ZuDecimal.hpp>
+#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmBitmap.hpp>
 
@@ -59,15 +60,22 @@ using Builder = FlatBufferBuilder;
 
 // IOBuilder customizes FlatBufferBuilder with an allocator that
 // builds directly into a detachable IOBuf for transmission/persistence
-template <unsigned Size_ = ZiIOBuf<>::Size>
+template <typename IOBuf_ = ZiIOBuf<>>
 class IOBuilder : public Allocator, public Builder {
 public:
-  enum { Size = Size_ }; // Size conflicts with Builder::Size()
+  enum { Size = IOBuf_::Size }; // Size conflicts with Builder::Size()
   enum { Align = 8 };
-  using IOBuf = ZiIOBuf<Size>;
+  using IOBuf = IOBuf_;
 
   IOBuilder() : Builder{Size & ~(Align - 1), this, false, Align} { }
 
+  // attach buffer to builder
+  void buf(ZmRef<IOBuf> buf) {
+    buf->clear();
+    m_buf = ZuMv(buf);
+  }
+
+  // detach buffer from builder
   ZmRef<IOBuf> buf() {
     if (ZuUnlikely(!m_buf)) return nullptr;
     auto buf = ZuMv(m_buf);
@@ -85,9 +93,12 @@ public:
   }
 
 protected:
+  // override ZiIOBuf's default grow() with a pass-through because flatbuffers
+  // has it's own buffer growth algorithm in vector_downward::reallocate()
+
   uint8_t *allocate(size_t size) {
     if (ZuLikely(!m_buf)) m_buf = new IOBuf{};
-    return m_buf->alloc(size);
+    return m_buf->alloc(size, [](unsigned o, unsigned n) { return n; });
   }
 
   void deallocate(uint8_t *ptr, size_t size) {
@@ -97,13 +108,15 @@ protected:
   uint8_t *reallocate_downward(
       uint8_t *old_p, size_t old_size, size_t new_size,
       size_t in_use_back, size_t in_use_front) {
-    return m_buf->realloc(old_size, new_size, in_use_front, in_use_back);
+    return m_buf->realloc(
+	old_size, new_size, in_use_front, in_use_back,
+	[](unsigned o, unsigned n) { return n; });
   }
 
 private:
   ZmRef<IOBuf>	m_buf;
 };
-template <unsigned Size = ZiIOBuf<>::Size>
+template <unsigned Size = ZuGrow(0, 1)>
 using IOBuf = ZiIOBuf<Size>;
 
 namespace Save {
@@ -129,55 +142,67 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    T *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<T *>(ZmAlloc(n * sizeof(T)));
     if (ZuUnlikely(!buf)) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    return b.CreateVector(buf, n);
+    auto r = b.CreateVector(buf, n);
+    ZmFree(buf);
+    return r;
   }
 
   // inline creation of a vector of lambda-transformed non-primitive values
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    Offset<T> *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
     if (ZuUnlikely(!buf)) return {};
     lpush_(buf, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
-    return b.CreateVector(buf, n);
+    auto r = b.CreateVector(buf, n);
+    ZmFree(buf);
+    return r;
   }
   // inline creation of a vector of non-primitive values
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    Offset<T> *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
     if (ZuUnlikely(!buf)) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    return b.CreateVector(buf, n);
+    auto r = b.CreateVector(buf, n);
+    ZmFree(buf);
+    return r;
   }
   // iterated creation of a vector of non-primitive values
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
-    Offset<T> *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
     if (ZuUnlikely(!buf)) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    return b.CreateVector(buf, n);
+    auto r = b.CreateVector(buf, n);
+    ZmFree(buf);
+    return r;
   }
 
   // inline creation of a vector of keyed items
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    Offset<T> *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
     if (ZuUnlikely(!buf)) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    return b.CreateVectorOfSortedTables(buf, n);
+    auto r = b.CreateVectorOfSortedTables(buf, n);
+    ZmFree(buf);
+    return r;
   }
   // iterated creation of a vector of lambda-transformed keyed items
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> keyVecIter(B &b, unsigned n, L l) {
-    Offset<T> *buf = ZuAlloca(buf, n);
+    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
     if (ZuUnlikely(!buf)) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    return b.CreateVectorOfSortedTables(buf, n);
+    auto r = b.CreateVectorOfSortedTables(buf, n);
+    ZmFree(buf);
+    return r;
   }
 
   // inline creation of a string (shorthand alias for CreateString)
@@ -241,7 +266,14 @@ namespace Save {
 
   // IP address
   inline IP ip(ZiIP addr) {
-    return {static_cast<uint32_t>(addr)};
+    return {span<const uint8_t, 4>{
+      reinterpret_cast<const uint8_t *>(&addr.s_addr), 4}};
+  }
+
+  // ZuID
+  inline ID id(ZuID id) {
+    return {span<const uint8_t, 8>{
+      reinterpret_cast<const uint8_t *>(id.data()), 8}};
   }
 
   // save file
@@ -296,7 +328,14 @@ namespace Load {
 
   // IP address
   inline ZiIP ip(const IP *v) {
-    return {v->addr()};
+    return ZiIP{in_addr{
+      .s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data())}};
+  }
+
+  // ZuID
+  inline ZuID id(const ID *v) {
+    if (!v) return {};
+    return {*reinterpret_cast<const uint64_t *>(v->data()->data())};
   }
 
   // load file

@@ -35,6 +35,8 @@
 #include <zlib/ZmPolymorph.hpp>
 #include <zlib/ZmHeap.hpp>
 
+#include <zlib/ZiIOBuf.hpp>
+
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
 #define ZiIOBuf_DefaultSize 1460
 
@@ -88,16 +90,29 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
     }
   }
 
+  void clear() {
+    length = 0;
+    skip = 0;
+  }
+
   const uint8_t *data() const { return const_cast<ZiIOBuf_ *>(this)->data(); }
   uint8_t *data() {
     uint8_t *ptr = ZuUnlikely(jumbo) ? jumbo : data_;
     return ptr + skip;
   }
 
+  template <typename T>
+  const T &as() const { return *reinterpret_cast<const T *>(data()); }
+  template <typename T>
+  T &as() { return *reinterpret_cast<T *>(data()); }
+
   // reallocate (while building buffer), preserving head and tail bytes
+  template <typename Grow>
   uint8_t *realloc(
       unsigned oldSize, unsigned newSize,
-      unsigned head, unsigned tail) {
+      unsigned head, unsigned tail,
+      Grow grow = [](unsigned o, unsigned n) { return ZuGrow(o, n); })
+  {
     if (ZuLikely(newSize <= Size)) {
       if (tail) memmove(data_ + newSize - tail, data_ + oldSize - tail, tail);
       size = newSize;
@@ -108,6 +123,7 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
       size = newSize;
       return jumbo;
     }
+    newSize = grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
     jumbo = static_cast<uint8_t *>(::malloc(newSize));
     if (ZuLikely(jumbo)) {
@@ -121,13 +137,17 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
   }
 
   // ensure at least newSize bytes in buffer, preserving any existing data
-  uint8_t *ensure(unsigned newSize) {
+  template <typename Grow>
+  uint8_t *ensure(unsigned newSize,
+      Grow grow = [](unsigned o, unsigned n) { return ZuGrow(o, n); })
+  {
     if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
     if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
+    newSize = grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
     jumbo = static_cast<uint8_t *>(::malloc(newSize));
     if (ZuLikely(jumbo)) {
-      memcpy(jumbo, old, length);
+      if (length) memcpy(jumbo, old, length);
       size = newSize;
     } else
       length = size = 0;
@@ -227,50 +247,5 @@ using ZiIOBuf_Heap = ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull>)>;
  
 template <unsigned Size = ZiIOBuf_DefaultSize>
 using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>>;
-
-// generic ZiIOBuf receiver
-template <typename Buf_> class ZiIORx {
-public:
-  using Buf = Buf_;
-
-  void connected() { m_buf = new Buf(this); }
-  void disconnected() { }
-
-  // hdr(const uint8_t *ptr, unsigned len) should adjust ptr, len and return:
-  //   +ve - length of hdr+body, or INT_MAX if insufficient data
-  // body(const uint8_t *ptr, unsigned len) should return:
-  //   0   - skip remaining data (used to defend against DOS)
-  //   -ve - disconnect immediately
-  //   +ve - length of hdr+body (can be <= that originally returned by hdr())
-  template <typename Hdr, typename Body>
-  int process(const uint8_t *data, unsigned rxLen, Hdr hdr, Body body) {
-    unsigned oldLen = m_buf->length;
-    unsigned len = oldLen + rxLen;
-    auto rxData = m_buf->ensure(len);
-    memcpy(rxData + oldLen, data, rxLen);
-    m_buf->length = len;
-
-    auto rxPtr = rxData;
-    while (len >= 4) {
-      int frameLen = hdr(rxPtr, len);
-
-      if (frameLen < 0 || len < (unsigned)frameLen) break;
-
-      frameLen = body(rxPtr, frameLen);
-
-      if (ZuUnlikely(frameLen < 0)) return -1; // error
-      if (!frameLen) return rxLen; // EOF - discard remainder
-
-      rxPtr += frameLen;
-      len -= frameLen;
-    }
-    if (len && rxPtr != rxData) memmove(rxData, rxPtr, len);
-    m_buf->length = len;
-    return rxLen;
-  }
-
-private:
-  ZmRef<Buf>		m_buf;
-};
 
 #endif /* ZiIOBuf_HPP */

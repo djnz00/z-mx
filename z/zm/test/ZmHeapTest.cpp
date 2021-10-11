@@ -94,7 +94,8 @@ int main(int argc, char **argv)
   if (argc == 5) verbose = atoi(argv[4]);
   if (!count || !nthr) usage();
   ZmHeapMgr::init("S", 0, ZmHeapConfig{0, (unsigned)size});
-  ZmThread *threads = ZuAlloca(threads, nthr);
+  ZmThread *threads =
+    static_cast<ZmThread *>(ZuAlloca(nthr * sizeof(ZmThread)));
   if (!threads) {
     fputs("alloca() failed\n", stderr);
     ZmPlatform::exit(1);

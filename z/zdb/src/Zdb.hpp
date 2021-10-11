@@ -36,7 +36,8 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuPrint.hpp>
-#include <zlib/ZuPOD.hpp>
+// #include <zlib/ZuPOD.hpp>
+#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmRef.hpp>
@@ -55,10 +56,12 @@
 
 #include <zlib/ZiFile.hpp>
 #include <zlib/ZiMultiplex.hpp>
+#include <zlib/ZiIOBuf.hpp>
 
 #include <zlib/Zfb.hpp>
 
 #include <zlib/ZvCf.hpp>
+#include <zlib/ZvFBField.hpp>
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvTelServer.hpp>
 
@@ -95,10 +98,6 @@ using ZdbRN = uint64_t;		// record ID
 
 // database ID is string (rarely used to index, so ok)
 
-// *POD (ZuPOD, ZdbPOD, etc.) all disappear - app uses lambdas
-// to save/load flatbuffer data (although can copy it directly for
-// e.g. transmission)
-
 #include <zlib/zdbnet_fbs.h>
 
 namespace ZdbNet {
@@ -107,7 +106,73 @@ namespace Op {
   ZfbEnumValues(Op, Add, Upd, Del);
 }
 
+// we use a custom header with an explicitly little-endian uint32 length
+#pragma pack(push, 1)
+struct Hdr {
+  ZuLittleEndian<uint32_t>	len;	// length of body
+
+  const uint8_t *data() const {
+    return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
+  }
+};
+#pragma pack(pop)
+
+// call following Finish() to ensure alignment
+inline void saveHdr(Zfb::Builder &fbb) {
+  Hdr hdr{fbb.GetSize()};
+  fbb.PushBytes(reinterpret_cast<const uint8_t *>(&hdr), sizeof(Hdr));
 }
+// returns the total length of the message including the header,
+// INT_MAX if not enough bytes have been read yet, -1 if corrupt
+inline int loadHdr(const uint8_t *data, unsigned len) {
+  if (ZuUnlikely(len < sizeof(Hdr))) return INT_MAX;
+  auto hdr = reinterpret_cast<const Hdr *>(data);
+  uint32_t bodyLen = hdr->len;
+  if (bodyLen > (1U<<20)) return -1; // 1Mbyte
+  return sizeof(Hdr) + bodyLen;
+}
+
+} // namespace ZdbNet
+
+on-disk record format:
+
+exact length (of data)
+<flatbuffer data>
+<4-byte alignment padding>
+ZdbTrailer (rn, prevRN, magic)
+
+deletions are null data
+
+rn, prevRN are in ZdbObject (derives from ZmPolymorph, underlies all in-memory records)
+
+ZdbAnyPOD becomes ZdbAnyObject -> base for ZdbObject<T>, which in turn contains T
+
+per-DB persistent:
+O -> type of object (used to calculate size and invoke destructor)
+
+DB Handler (all defaulted to ZvFBField):
+CtorFn -> loads o from fbs
+LoadUpdateFn -> updates o from fbs
+SaveFn -> saves o to fbs
+SaveUpdateFn -> saves update for o to fbs
+
+push()
+CtorFn -> (void *) placement new O (passed to ZdbObject ctor, invoked by that to initialize contained T)
+(replaces AllocFn, is templated per-push() caller to permit efficient captures/ctor arguments, defaults to default ctor)
+
+next() -> allocates next RN
+push(RN, args...) -> idempotent push, passes args... to object ctor
+put(o) -> cache o, save o to IOBuf, write IOBuf
+
+(no need to pin, since IOBuf is used for I/O)
+
+update()
+  - DB file write is entire record via save(), replication is saveUpdate()
+  - update is mutation in-place, update of RN (and re-caching/indexing),
+    streaming out of serialized updates - if app requests prevRN, then
+    that will be a cache-miss load
+
+del() is similar to update, but file write and replication of empty data
 
 class ZdbEnv;				// database environment
 class ZdbAny;				// individual database (generic)
@@ -141,7 +206,7 @@ private:
   ZuBitmap<ZdbFileRecs>	m_deleted;
 };
 
-ZuFields(Zdb_File_, ((index, RdFn)));
+// ZuFields(Zdb_File_, ((index, RdFn)));
 
 struct Zdb_File_IndexAccessor {
   static unsigned get(const Zdb_File_ &file) { return file.index(); }
@@ -197,6 +262,40 @@ struct ZdbTrailer {
 };
 #pragma pack(pop)
 
+struct ZdbBuf_HeapID {
+  static constexpr const char *id() { return "ZdbBuf"; }
+};
+template <typename Heap>
+struct ZdbBuf__ : public ZiIOBuf_<ZuGrow(0, 1), Heap> {
+  ZmRef<ZdbAnyObject>	object;
+  ZdbRN			rn = ZdbNullRN;
+  ZdbRN			prevRN = ZdbNullRN;
+  int			op = ZdbNet::Op::Invalid;
+  unsigned		ulen = 0;
+  bool			recSend = false;
+};
+using ZdbBuf_Heap = ZmHeap<ZdbBuf_HeapID, sizeof(ZdbBuf_<ZuNull>)>;
+class ZdbAPI ZdbBuf : public ZdbBuf_<ZdbBuf_Heap> {
+  using Base = ZdbBuf_<ZdbBuf_Heap>;
+
+friend Zdb_Cxn;
+friend ZdbAnyObject;
+
+  template <typename ...Args>
+  ZdbBuf(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+
+  void send(ZiIOContext &);
+  void sent(ZiIOContext &);
+
+  int write();
+};
+
+namespace ZdbNet {
+
+// FIXME - make use of ZiIORx/Tx from ZiIOBuf.hpp
+
+}
+
 struct ZdbLRU_ { };
 using ZdbLRU =
   ZmList<ZdbLRU_,
@@ -224,207 +323,70 @@ using Zdb_Cache =
 	      ZmHashLock<ZmNoLock> > > > > > >;
 using Zdb_CacheNode = Zdb_Cache::Node;
 
-class ZdbAnyPOD_Cmpr;
-class ZdbAnyPOD_Send__;
+struct ZdbAPI ZdbAnyObject : public Zdb_CacheNode, public ZuPrintable {
+  ZdbAny	*db;
+  ZdbRN		rn;
+  ZdbRN		prevRN = ZdbNullRN;
 
-class ZdbAPI ZdbAnyPOD : public Zdb_CacheNode, public ZuPrintable {
-friend ZdbAny;
-friend Zdb_Cxn;
-friend ZdbAnyPOD_Send__;
-friend ZdbEnv;
+  ZdbAnyObject(ZdbAny *db_, ZdbRN rn_) : db{db_}, rn{rn_} { }
 
-protected:
-  ZdbAnyPOD(ZdbAny *db) : m_db(db) { }
+  ZmRef<ZdbBuf> replicate(int type, int op, bool compress);
 
-public:
-  template <typename T = void> const T *ptr() const {
-    return static_cast<const ZuAnyPOD_<ZdbAnyPOD> *>(this)->ptr<T>();
-  }
-  template <typename T = void> T *ptr() {
-    return static_cast<ZuAnyPOD_<ZdbAnyPOD> *>(this)->ptr<T>();
-  }
-  unsigned size() const {
-    return static_cast<const ZuAnyPOD_<ZdbAnyPOD> *>(this)->size();
-  }
+  virtual void *ptr_() = 0;
+  const void *ptr_() const { return const_cast<ZdbAnyObject *>(this)->ptr_(); }
 
-private:
-  const ZdbTrailer *trailer() const {
-    return const_cast<ZdbAnyPOD *>(this)->trailer();
-  }
-  ZdbTrailer *trailer() {
-    auto pod = static_cast<ZuAnyPOD_<ZdbAnyPOD> *>(this);
-    return (ZdbTrailer *)
-      ((char *)pod->ptr() + pod->size() - sizeof(ZdbTrailer));
-  }
-
-public:
-  ZdbAny *db() const { return m_db; }
-
-  ZdbRN rn() const { return trailer()->rn; }
-  ZdbRN prevRN() const { return trailer()->prevRN; }
-  uint32_t magic() const { return trailer()->magic; }
-
-  bool committed() const {
-    return trailer()->magic == ZdbCommitted;
-  }
-
-  void range(ZdbRange range) {
-    Zdb_Msg_Rep &rep = m_hdr.u.rep;
-    rep.range = range;
-  }
-  ZdbRange range() const {
-    const Zdb_Msg_Rep &rep = m_hdr.u.rep;
-    return ZdbRange{rep.range};
-  }
-
-  void pin() { m_pinned = true; }
-  void unpin() { m_pinned = false; }
-  bool pinned() const { return m_pinned; }
-
-private:
-  void placeholder() {
-    ZdbTrailer *trailer = this->trailer();
-    trailer->rn = trailer->prevRN = ZdbNullRN;
-    trailer->magic = ZdbAllocated;
-    this->range(ZdbRange{});
-  }
-
-  void init(ZdbRN rn, ZdbRange range,
-      uint32_t magic = ZdbAllocated) {
-    ZdbTrailer *trailer = this->trailer();
-    trailer->rn = trailer->prevRN = rn;
-    trailer->magic = magic;
-    this->range(range);
-  }
-
-  void update(ZdbRN rn, ZdbRN prevRN, ZdbRange range,
-      uint32_t magic = ZdbAllocated) {
-    ZdbTrailer *trailer = this->trailer();
-    trailer->rn = rn;
-    trailer->prevRN = prevRN;
-    trailer->magic = magic;
-    this->range(range);
-  }
-
-  void commit() {
-    trailer()->magic = ZdbCommitted;
-  }
-  void del() {
-    trailer()->magic = ZdbDeleted;
-    this->range(ZdbRange{});
-  }
-
-public:
   template <typename S> void print(S &s) const {
-    s << "rn=" << rn()
-      << " prevRN=" << prevRN()
-      << " magic=" << ZuBoxed(magic()).hex();
+    s << "rn=" << rn << " prevRN=" << prevRN;
   }
 
-private:
-  void replicate(int type, int op, bool compress);
-
-  void send(ZiIOContext &io);
-  int write();
-
-  virtual ZmRef<ZdbAnyPOD_Cmpr> compress() = 0;
-
-  void sent(ZiIOContext &io);
-  void sent2(ZiIOContext &io);
-  void sent3(ZiIOContext &io);
-
-private:
-  ZdbAny		*m_db;
-  ZmRef<ZdbAnyPOD_Cmpr>	m_compressed;
-  Zdb_Msg_Hdr		m_hdr;
-  bool			m_pinned = false;
+  ZdbAnyObject() = delete;
+  ZdbAnyObject(const ZdbAnyObject &) = delete;
+  ZdbAnyObject &operator =(const ZdbAnyObject &) = delete;
+  ZdbAnyObject(ZdbAnyObject &&) = delete;
+  ZdbAnyObject &operator =(ZdbAnyObject &&) = delete;
 };
 
-ZdbRN ZdbLRUNode_RNAccessor::get(const ZdbLRUNode &pod)
+ZdbRN ZdbLRUNode_RNAccessor::get(const ZdbLRUNode &node)
 {
-  return static_cast<const ZdbAnyPOD &>(pod).rn();
+  return static_cast<const ZdbAnyObject &>(node).rn;
 }
 
-class ZdbAnyPOD_Cmpr : public ZuObject {
-public:
-  ZdbAnyPOD_Cmpr(void *ptr, unsigned size) :
-    m_ptr(ptr), m_size(size) { }
+template <typename T> struct ZdbObject : public ZdbAnyObject {
+  ZdbObject() = delete;
+  ZdbObject(const ZdbObject &) = delete;
+  ZdbObject &operator =(const ZdbObject &) = delete;
+  ZdbObject(ZdbObject &&) = delete;
+  ZdbObject &operator =(ZdbObject &&) = delete;
 
-  template <typename T = void> const T *ptr() const { return m_ptr; }
-  template <typename T = void> T *ptr() { return m_ptr; }
-  unsigned size() const { return m_size; }
-
-  int compress(const char *src, unsigned size);
-
-private:
-  void		*m_ptr;
-  unsigned	m_size;
-};
-
-// Note: ptr and range can be null if op is ZdbOp::Delete
-
-// AllocFn - called to allocate/initialize new record from memory
-using ZdbAllocFn = ZmFn<ZdbAny *, ZmRef<ZdbAnyPOD> &>;
-// AddFn(pod, op, recovered) - record is recovered, or new/update replicated
-using ZdbAddFn = ZmFn<ZdbAnyPOD *, int, bool>;
-// WriteFn(pod, op) - write drop copy
-using ZdbWriteFn = ZmFn<ZdbAnyPOD *, int>;
-
-struct ZdbPOD_HeapID {
-  static constexpr const char *id() { return "ZdbPOD"; }
-};
-// heap ID can be specialized by app
-template <typename T> struct ZdbPOD_Cmpr_HeapID {
-  static constexpr const char *id() { return "ZdbPOD_Cmpr"; }
-};
-
-template <typename T_>
-struct ZdbData : public T_, public ZdbTrailer {
-  using T = T_;
-};
-
-template <typename T_, class Heap>
-class ZdbPOD_ : public Heap, public ZuPOD_<ZdbData<T_>, ZdbAnyPOD> {
-friend Zdb<T_>;
-friend ZdbAnyPOD_Send__;
-
-  using Base = ZuPOD_<ZdbData<T_>, ZdbAnyPOD>;
-
-public:
-  using T = T_;
-  using Data = ZdbData<T>;
-
-  ZdbPOD_(ZdbAny *db) : Base(db) { }
-
-  static const ZdbPOD_ *pod(const T *data) {
-    const Data *ZuMayAlias(ptr) = reinterpret_cast<const Data *>(data);
-    return static_cast<const ZdbPOD_ *>(Base::pod(ptr));
+  template <typename L>
+  ZdbObject(Db *db_, ZdbRN rn_, L l) : ZdbAnyObject{db_, rn_} {
+    l(static_cast<void *>(&m_data[0]));
   }
-  static ZdbPOD_ *pod(T *data) {
-    Data *ZuMayAlias(ptr) = reinterpret_cast<Data *>(data);
-    return static_cast<ZdbPOD_ *>(Base::pod(ptr));
-  }
+
+  void *ptr_() { return &m_data[0]; }
+
+  T *ptr() { return reinterpret_cast<T *>(&m_data[0]); }
+  const T *ptr() const { return reinterpret_cast<const T *>(&m_data[0]); }
+
+  ~ZdbObject() { ptr()->~T(); }
+
+  T &data() { return *ptr(); }
+  const T &data() const { return *ptr(); }
 
   template <typename S> void print(S &s) const {
-    ZdbAnyPOD::print(s);
+    ZdbAnyObject::print(s);
     s << ' ' << this->data();
   }
 
 private:
-  template <class Heap_> class Cmpr_ : public Heap_, public ZdbAnyPOD_Cmpr {
-  public:
-    Cmpr_() : ZdbAnyPOD_Cmpr(m_data, LZ4_COMPRESSBOUND(sizeof(Data))) { }
-
-  private:
-    char	m_data[LZ4_COMPRESSBOUND(sizeof(Data))];
-  };
-  using Cmpr_Heap = ZmHeap<ZdbPOD_Cmpr_HeapID<T_>, sizeof(Cmpr_<ZuNull>)>;
-  using Cmpr = Cmpr_<Cmpr_Heap>;
-
-  ZmRef<ZdbAnyPOD_Cmpr> compress() { return new Cmpr{}; }
+  char		m_data[sizeof(T)];
 };
-template <typename T, class HeapID = ZdbPOD_HeapID>
-using ZdbPOD = ZdbPOD_<T, ZmHeap<HeapID, sizeof(ZdbPOD_<T, ZuNull>)> >;
+
+// AddFn(ptr, op, recovered) - object recovered or replicated from peer
+// Note: ptr can be null if op is ZdbOp::Delete // FIXME - rename AddFn?
+using ZdbAddFn = ZmFn<void *, int, bool>;
+// WriteFn(ptr, op) - object written (created/updated)
+using ZdbWriteFn = ZmFn<void *, int>;
 
 struct ZdbConfig {
   ZdbConfig() { }
@@ -457,9 +419,8 @@ namespace ZdbCacheMode {
 }
 
 struct ZdbHandler {
-  ZdbAllocFn	allocFn;
-  ZdbAddFn	addFn;
-  ZdbWriteFn	writeFn;
+  ZdbAddFn		addFn;
+  ZdbWriteFn		writeFn;
 };
 
 class ZdbAPI ZdbAny : public ZmPolymorph {
@@ -486,7 +447,7 @@ protected:
   using FSReadGuard = ZmReadGuard<FSLock>;
 
   ZdbAny(ZdbEnv *env, ZuString name, uint32_t version, int cacheMode,
-      ZdbHandler handler, unsigned recSize, unsigned dataSize);
+      ZdbHandler handler);
 
 public:
   ~ZdbAny();
@@ -511,6 +472,11 @@ public:
   unsigned dataSize() { return m_dataSize; }
   unsigned cacheSize() { return m_cacheSize; } // unclean read
   unsigned filesMax() { return m_filesMax; }
+
+  virtual void ctor(void *, const uint8_t *, unsigned) = 0;
+  virtual void loadUpdate(void *, const uint8_t *, unsigned) = 0;
+  virtual void save(Zfb::Builder &, const void *) = 0;
+  virtual void saveUpdate(Zfb::Builder &, const void *) = 0;
 
   // first RN that is committed (will be ZdbMaxRN if DB is empty)
   ZdbRN minRN() { return m_minRN; }
@@ -558,7 +524,6 @@ public:
 
 private:
   // application call handlers
-  void alloc(ZmRef<ZdbAnyPOD> &pod) { m_handler.allocFn(this, pod); }
   void recover(ZmRef<ZdbAnyPOD> pod, int op);
   void replicate(ZdbAnyPOD *pod, void *ptr, int op);
 
@@ -641,11 +606,23 @@ class Zdb : public ZdbAny {
 public:
   using T = T_;
 
-  template <typename Handler>
   Zdb(ZdbEnv *env, ZuString name, uint32_t version, int cacheMode,
-      Handler &&handler) :
-    ZdbAny(env, name, version, cacheMode, ZuFwd<Handler>(handler),
-	sizeof(typename ZdbPOD<T, ZuNull>::Data), sizeof(T)) { }
+      ZdbHandler handler) :
+    ZdbAny{env, name, version, cacheMode, ZuMv(handler)} { }
+
+  void ctor(void *ptr, const uint8_t *data, unsigned len) {
+    ZvFB::ctor<T>(ptr, ZvFB::verify<T>(data, len));
+  }
+  void loadUpdate(void *ptr, const uint8_t *data, unsigned len) {
+    ZvFB::loadUpdate<T>(
+	*reinterpret_cast<T *>(ptr), ZvFB::verify<T>(data, len));
+  }
+  void save(Zfb::Builder &fbb, const void *ptr) {
+    ZvFB::save<T>(fbb, *reinterpret_cast<const T *>(ptr));
+  }
+  void saveUpdate(Zfb::Builder &fbb, const void *ptr) {
+    ZvFB::saveUpdate<T>(fbb, *reinterpret_cast<const T *>(ptr));
+  }
 };
 
 using Zdb_DBState = ZtArray<ZdbRN>;
@@ -807,7 +784,6 @@ class Zdb_Cxn : public ZiConnection {
 // friend ZiMultiplex;
 friend ZdbEnv;
 friend ZdbHost;
-friend ZdbAnyPOD_Send__;
 
   Zdb_Cxn(ZdbEnv *env, ZdbHost *host, const ZiCxnInfo &ci);
 
@@ -820,9 +796,9 @@ friend ZdbAnyPOD_Send__;
   void disconnected();
 
   void msgRead(ZiIOContext &);
-  void msgRcvd(ZiIOContext &);
+  bool msgRcvd(ZiIOContext &);
 
-  void hbRcvd(ZiIOContext &);
+  bool hbRcvd(ZiIOContext &);
   void hbDataRead(ZiIOContext &);
   void hbDataRcvd(ZiIOContext &);
   void hbTimeout();
@@ -831,7 +807,7 @@ friend ZdbAnyPOD_Send__;
   void hbSent(ZiIOContext &);
   void hbSent2(ZiIOContext &);
 
-  void repRcvd(ZiIOContext &);
+  bool repRcvd(ZiIOContext &);
   void repDataRead(ZiIOContext &);
   void repDataRcvd(ZiIOContext &);
 
@@ -845,6 +821,8 @@ friend ZdbAnyPOD_Send__;
   ZiMultiplex		*m_mx;
   ZdbHost		*m_host;	// 0 if not yet associated
 
+  ZmRef<ZdbBuf>		m_rxBuf;
+#if 0
   Zdb_Msg_Hdr		m_recvHdr;
   ZtArray<char>		m_recvData;
   ZtArray<char>		m_recvData2;
@@ -852,6 +830,7 @@ friend ZdbAnyPOD_Send__;
   Zdb_Msg_Hdr		m_hbSendHdr;
 
   Zdb_Msg_Hdr		m_ackSendHdr;
+#endif
 
   ZmScheduler::Timer	m_hbTimer;
 };
@@ -917,7 +896,6 @@ friend ZdbAny;
 friend ZdbHost;
 friend Zdb_Cxn;
 friend ZdbAnyPOD;
-friend ZdbAnyPOD_Send__;
 
   struct HostTree_HeapID {
     static constexpr const char *id() { return "ZdbEnv.HostTree"; }

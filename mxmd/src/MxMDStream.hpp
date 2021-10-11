@@ -138,26 +138,26 @@ namespace MxMDStream {
   };
   struct Hdr : public HdrData {
     template <typename ...Args>
-    ZuInline Hdr(Args &&... args) : HdrData{ZuFwd<Args>(args)...} { }
+    Hdr(Args &&... args) : HdrData{ZuFwd<Args>(args)...} { }
 
-    ZuInline void *body() { return (void *)&this[1]; }
-    ZuInline const void *body() const { return (const void *)&this[1]; }
+    void *body() { return (void *)&this[1]; }
+    const void *body() const { return (const void *)&this[1]; }
 
-    template <typename T> ZuInline T &as() {
-      T *ZuMayAlias(ptr) = (T *)body();
+    template <typename T> const T &as() const {
+      const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(body());
       return *ptr;
     }
-    template <typename T> ZuInline const T &as() const {
-      const T *ZuMayAlias(ptr) = (const T *)body();
+    template <typename T> T &as() {
+      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(body());
       return *ptr;
     }
 
-    template <typename T> ZuInline void pad() {
+    template <typename T> void pad() {
       if (ZuUnlikely(len < sizeof(T)))
 	memset(((char *)body()) + len, 0, sizeof(T) - len);
     }
 
-    ZuInline bool scan(unsigned length) const {
+    bool scan(unsigned length) const {
       return sizeof(Hdr) + len > length;
     }
   };
@@ -446,15 +446,15 @@ namespace MxMDStream {
   };
   template <typename Heap>
   struct Msg_ : public Heap, public ZuPOD_<Buf, MsgData> {
-    ZuInline Msg_() { }
+    Msg_() { }
 
-    ZuInline Hdr &hdr() { return this->template as<Hdr>(); }
-    ZuInline const Hdr &hdr() const { return this->template as<Hdr>(); }
+    Hdr &hdr() { return this->template as<Hdr>(); }
+    const Hdr &hdr() const { return this->template as<Hdr>(); }
 
-    ZuInline void *body() { return hdr().body(); }
-    ZuInline const void *body() const { return hdr().body(); }
+    void *body() { return hdr().body(); }
+    const void *body() const { return hdr().body(); }
 
-    ZuInline unsigned length() const { return sizeof(Hdr) + hdr().len; }
+    unsigned length() const { return sizeof(Hdr) + hdr().len; }
   };
 
   typedef Msg_<ZmHeap<Msg_HeapID, sizeof(Msg_<ZuNull>)> > Msg;
@@ -558,7 +558,7 @@ namespace MxMDStream {
   struct IOLambda;
   template <typename Cxn, typename L> struct IOLambda<Cxn, L, true> {
     typedef void T;
-    ZuInline static void invoke(ZiIOContext &io) {
+    static void invoke(ZiIOContext &io) {
       (*reinterpret_cast<const L *>(0))(
 	  static_cast<Cxn *>(io.cxn), io.fn.mvObject<MxQMsg>(), io);
     }
@@ -624,6 +624,7 @@ namespace MxMDStream {
       }});
     }
 
+    // FIXME - use ZiRx
     template <typename Cxn, typename L>
     typename IOLambda<Cxn, L>::T recv(
 	ZmRef<MxQMsg> msg, ZiIOContext &io, L l) {
@@ -643,7 +644,7 @@ namespace MxMDStream {
 	msg->length = msgLen;
 	IOLambda<Cxn, L>::invoke(io);
 	if (io.offset = len - msgLen) {
-	  memmove(io.ptr, (const char *)io.ptr + msgLen, io.offset);
+	  memmove(io.ptr, io.ptr + msgLen, io.offset);
 	  return io.offset;
 	}
 	return 0;

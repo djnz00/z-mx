@@ -43,7 +43,6 @@
 #include <zlib/ZmRBTree.hpp>
 
 #include <zlib/ZiIP.hpp>
-#include <zlib/ZiIOBuf.hpp>
 #include <zlib/ZiMultiplex.hpp>
 
 #include <zlib/ZvSeqNo.hpp>
@@ -90,8 +89,8 @@ public:
   ZvIOQFn(ZvIOQItem &item) : m_item(item) { }
   Key key() const { return KeyAxor::get(m_item); }
   unsigned length() const { return m_item.skip(); }
-  unsigned clipHead(unsigned n) { return length(); }
-  unsigned clipTail(unsigned n) { return length(); }
+  unsigned clipHead(unsigned) { return length(); }
+  unsigned clipTail(unsigned) { return length(); }
   void write(const ZvIOQFn &) { }
   unsigned bytes() const { return m_item.buf()->length; }
 
@@ -142,7 +141,7 @@ public:
   using Lock = Lock_;
   using Guard = ZmGuard<Lock>;
 
-  ZvIOQueueRx() : m_queue(new ZvIOQueue(ZvSeqNo{})) { }
+  ZvIOQueueRx() : m_queue{new ZvIOQueue{ZvSeqNo{}}} { }
   
   const Impl *impl() const { return static_cast<const Impl *>(this); }
   Impl *impl() { return static_cast<Impl *>(this); }
@@ -237,7 +236,7 @@ protected:
   Lock &lock() { return m_lock; }
 
 public:
-  ZvIOQueueTx() : m_queue(new ZvIOQueue(ZvSeqNo{})) { }
+  ZvIOQueueTx() : m_queue{new ZvIOQueue{ZvSeqNo{}}} { }
 
   const Impl *impl() const { return static_cast<const Impl *>(this); }
   Impl *impl() { return static_cast<Impl *>(this); }

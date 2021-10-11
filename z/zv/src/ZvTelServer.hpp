@@ -28,6 +28,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
+#include <zlib/ZuGrow.hpp>
 #include <zlib/ZuLambdaFn.hpp>
 
 #include <zlib/ZvTelemetry.hpp>
@@ -44,7 +45,7 @@ using QueueFn = ZvEngineMgr::QueueFn;
 using DBEnvFn =
   ZmFn<ZmFn<const DBEnv &>, ZmFn<const DBHost &>, ZmFn<const DB &>>;
 
-using IOBuf = ZiIOBuf<>;
+using IOBuf = ZiIOBuf<ZuGrow(0, 1)>;
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -1171,7 +1172,7 @@ private:
   unsigned		m_alertMaxReplay;// max. replay in days
 
   // telemetry thread exclusive
-  Zfb::IOBuilder<>	m_fbb;
+  Zfb::IOBuilder<IOBuf>	m_fbb;
   MxTbl			m_mxTbl;
   Queues		m_queues;
   Engines		m_engines;

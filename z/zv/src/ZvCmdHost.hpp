@@ -70,7 +70,7 @@ struct ZvCmdUsage { };
 class ZvAPI ZvCmdHost {
 public:
   using IOBuf = ZiIOBuf<>; // must coincide with Ztls::IOBuf
-  using FBB = Zfb::IOBuilder<IOBuf::Size>;
+  using FBB = Zfb::IOBuilder<IOBuf>;
 
   void init();
   void final();

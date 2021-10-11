@@ -53,6 +53,7 @@
 
 #include <zlib/ZiPlatform.hpp>
 #include <zlib/ZiIP.hpp>
+#include <zlib/ZiIOContext.hpp>
 
 #if defined(ZDEBUG) && !defined(ZiMultiplex_DEBUG)
 #define ZiMultiplex_DEBUG	// enable testing / debugging
@@ -104,63 +105,6 @@ struct ZiCxnInfo;
 #pragma warning(push)
 #pragma warning(disable:4251 4244 4800)
 #endif
-
-struct ZiIOContext {
-  ZiIOContext() :
-      cxn{nullptr}, ptr{0}, size{0}, offset{0}, length{0} { }
-
-friend ZiConnection;
-private:
-  // initialize (called from within send/recv)
-  template <typename Fn>
-  void init_(Fn &&fn_) {
-    fn = ZuFwd<Fn>(fn_); ptr = 0; size = offset = length = 0; (*this)();
-  }
-public:
-  // send/receive
-  template <typename Fn>
-  void init(Fn &&fn_,
-      void *ptr_, unsigned size_, unsigned offset_) {
-    ZmAssert(size_);
-    fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
-  }
-  // UDP send
-  template <typename Fn, typename Addr>
-  void init(Fn &&fn_,
-      void *ptr_, unsigned size_, unsigned offset_, Addr &&addr_) {
-    ZmAssert(size_);
-    fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
-    addr = ZuFwd<Addr>(addr_);
-  }
-  // initially, ptr will be null and app must set it via init()
-  bool initialized() { return ptr; }
-
-  // complete send/receive without disconnecting
-  void complete() {
-    fn = ZmAnyFn();
-    ptr = 0;
-  }
-  bool completed() const { return !fn; }
-
-  // complete send/receive and disconnect
-  void disconnect() {
-    fn = ZmAnyFn();
-    ptr = (void *)(uintptr_t)-1;
-  }
-  bool disconnected() const { return ptr == (void *)(uintptr_t)-1; }
-
-  uintptr_t operator()();
-
-  ZiConnection	*cxn = nullptr;	// connection - set by ZiMultiplex
-  ZmAnyFn	fn;		// callback - set by app (null to complete I/O)
-  void		*ptr = nullptr;	// buffer - set by app (null to disconnect)
-  unsigned	size = 0;	// size of buffer - set by app
-  unsigned	offset = 0;	// offset within buffer - set by app
-  unsigned	length = 0;	// length - set by ZiMultiplex
-  ZiSockAddr	addr;		// set by app (send) / ZiMultiplex (recv)
-};
-using ZiIOFn = ZmFn<ZiIOContext &>;
-ZuInline uintptr_t ZiIOContext::operator ()() { return fn.as<ZiIOFn>()(*this); }
 
 // transient
 using ZiFailFn = ZmFn<bool>;

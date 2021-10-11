@@ -99,17 +99,18 @@ public:
   uint32_t hash() const { return s_addr; }
 
   template <typename S> void print(S &s) const {
-    uint32_t addr = (uint32_t)ntohl(s_addr);
+    const uint8_t *ZuMayAlias(addr) =
+      reinterpret_cast<const uint8_t *>(&s_addr);
     s <<
-      ZuBoxed((((uint32_t)addr)>>24) & 0xff) << '.' <<
-      ZuBoxed((((uint32_t)addr)>>16) & 0xff) << '.' <<
-      ZuBoxed((((uint32_t)addr)>>8 ) & 0xff) << '.' <<
-      ZuBoxed((((uint32_t)addr)    ) & 0xff);
+      ZuBoxed(addr[0]) << '.' <<
+      ZuBoxed(addr[1]) << '.' <<
+      ZuBoxed(addr[2]) << '.' <<
+      ZuBoxed(addr[3]);
   }
 
   bool multicast() const {
-    unsigned i = (((uint32_t)ntohl(s_addr))>>24) & 0xff;
-     return i >= 224 && i < 240;
+    unsigned i = ((static_cast<uint32_t>(ntohl(s_addr)))>>24) & 0xff;
+    return i >= 224 && i < 240;
   }
 
   struct Traits : public ZuBaseTraits<ZiIP> { enum { IsPOD = 1 }; };

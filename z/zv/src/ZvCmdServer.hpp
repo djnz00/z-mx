@@ -249,11 +249,11 @@ private:
   void cancelTimeout() { this->app()->mx()->del(&m_timer); }
 
 private:
-  ZmScheduler::Timer	m_timer;
-  int			m_state = State::Down;
-  Zfb::IOBuilder<>	m_fbb;
-  ZmRef<User>		m_user;
-  bool			m_interactive = false;
+  ZmScheduler::Timer		m_timer;
+  int				m_state = State::Down;
+  Zfb::IOBuilder<Ztls::IOBuf>	m_fbb;
+  ZmRef<User>			m_user;
+  bool				m_interactive = false;
 };
 
 template <typename App_, typename Link_>
@@ -461,7 +461,7 @@ public:
 
   // ZvCmdHost virtual functions
   Dispatcher *dispatcher() { return this; }
-  void send(void *link, ZmRef<ZiIOBuf<>> buf) {
+  void send(void *link, ZmRef<ZiAnyIOBuf> buf) {
     return static_cast<Link *>(link)->send(ZuMv(buf));
   }
   Ztls::Random *rng() { return this; }
