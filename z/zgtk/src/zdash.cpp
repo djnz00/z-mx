@@ -148,7 +148,7 @@ namespace Telemetry {
   template <typename Data_> class Item_ : public Item__<Data_> {
   public:
     using Data = Data_;
-    using Load = Zfb::Load<Data>;
+    using Load = ZfbField::Load<Data>;
     using TelKey = typename Item__<Data_>::TelKey;
 
     Item_(void *link__) : link_{link__} { }
@@ -221,7 +221,7 @@ namespace Telemetry {
     using Node = typename ItemTree_<T>::Node;
     template <typename FBType>
     Node *lookup(const FBType *fbo) const {
-      return this->find(Zfb::key<T>(fbo));
+      return this->find(ZfbField::key<T>(fbo));
     }
   };
   template <typename T> class ItemSingleton {
@@ -1399,7 +1399,7 @@ private:
     using Item = TelItem<T>;
     Item *item;
     if (item = container.lookup(fbo)) {
-      Zfb::loadUpdate(item->data, fbo);
+      ZfbField::loadUpdate(item->data, fbo);
       m_gtkModel->updated(GtkTree::row(item));
     } else {
       item = new Item{cliLink, fbo};
@@ -1529,13 +1529,12 @@ private:
 	});
   }
   template <typename FBType>
-  ZuIs<ZvTelemetry::fbs::Alert, FBType, bool>
+  ZuIs<ZvTelemetry::fbs::Alert, FBType>
   processTel3(CliLink_ *cliLink, const FBType *fbo) {
     ZuConstant<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
-    processAlert(new (container.data.push()) Zfb::Load<T>{fbo});
-    return true;
+    processAlert(new (container.data.push()) ZfbField::Load<T>{fbo});
   }
 
   void processAlert(const ZvTelemetry::Alert *) {
