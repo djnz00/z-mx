@@ -110,7 +110,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     // due to queuing, cannot recycle rx msg buffer for the next message
     ZmRef<Buf> next;
     unsigned nextLen = len - frameLen;
-    void *nextPtr = nullptr;
+    uint8_t *nextPtr = nullptr;
 
     // copy any trailing data that is (part of) the next message
     if (nextLen) {
@@ -206,7 +206,7 @@ inline int recvMemAsync(
     // due to queuing, cannot recycle rx msg buffer for the next message
     ZmRef<Buf> next;
     unsigned nextLen = len - frameLen;
-    void *nextPtr = nullptr;
+    uint8_t *nextPtr = nullptr;
 
     // copy any trailing data that is (part of) the next message
     if (nextLen) {

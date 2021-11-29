@@ -97,7 +97,7 @@ public:
 
   template <typename Data_>
   static TelCap keyedFn(ZtString path) {
-    using Data = Zfb::Load<Data_>;
+    using Data = ZfbField::Load<Data_>;
     using FBType = ZfbType<Data>;
     using Tree_ =
       ZmRBTree<Data,
@@ -115,18 +115,18 @@ public:
 	return;
       }
       auto fbo = static_cast<const FBType *>(fbo_);
-      auto node = tree->find(Zfb::key<Data>(fbo));
+      auto node = tree->find(ZfbField::key<Data>(fbo));
       if (!node)
 	tree->addNode(node = new typename Tree::Node{fbo});
       else
-	Zfb::loadUpdate(node->data(), fbo);
+	ZfbField::loadUpdate(node->data(), fbo);
       l(&(node->data()));
     }};
   }
 
   template <typename Data_>
   static TelCap singletonFn(ZtString path) {
-    using Data = Zfb::Load<Data_>;
+    using Data = ZfbField::Load<Data_>;
     using FBType = ZfbType<Data>;
     return TelCap{[
 	l = ZvCSV<Data>{}.writeFile(path)](const void *fbo_) mutable {
@@ -139,14 +139,14 @@ public:
       if (!data)
 	data = new Data{fbo};
       else
-	Zfb::loadUpdate(*data, fbo);
+	ZfbField::loadUpdate(*data, fbo);
       l(data);
     }};
   }
 
   template <typename Data_>
   static TelCap alertFn(ZtString path) {
-    using Data = Zfb::Load<Data_>;
+    using Data = ZfbField::Load<Data_>;
     using FBType = ZfbType<Data>;
     return TelCap{[
 	l = ZvCSV<Data>{}.writeFile(path)](const void *fbo_) mutable {

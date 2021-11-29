@@ -233,18 +233,18 @@ struct Thread : public Thread_, public ZtFieldPrint<Thread> {
 };
 ZfbFields(Thread,
     (((name)), (String), (Ctor(0))),
-    (((index)), (Int), (Ctor(6))),
+    (((index)), (Int), (Ctor(8))),
     (((tid), (0)), (Int), (Ctor(1))),
     (((cpuUsage)), (Float), (Ctor(4), Update, Series, NDP(2))),
-    (((allocaStack)), (Int), (Update, Series)),
-    (((allocaHeap)), (Int), (Update, Series)),
+    (((allocaStack)), (Int), (Ctor(5), Update, Series)),
+    (((allocaHeap)), (Int), (Ctor(6), Update, Series)),
     (((cpuset)), (Bitmap), (Ctor(3))),
-    (((priority)), (Enum, ThreadPriority::Map), (Ctor(8))),
-    (((sysPriority)), (Int), (Ctor(5))),
+    (((priority)), (Enum, ThreadPriority::Map), (Ctor(10))),
+    (((sysPriority)), (Int), (Ctor(7))),
     (((stackSize)), (Int), (Ctor(2))),
-    (((partition)), (Int), (Ctor(7))),
-    (((main)), (Bool), (Ctor(9))),
-    (((detached)), (Bool), (Ctor(10))),
+    (((partition)), (Int), (Ctor(9))),
+    (((main)), (Bool), (Ctor(11))),
+    (((detached)), (Bool), (Ctor(12))),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Mx_ = ZiMxTelemetry;

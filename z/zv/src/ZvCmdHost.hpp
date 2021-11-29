@@ -69,9 +69,6 @@ struct ZvCmdUsage { };
 
 class ZvAPI ZvCmdHost {
 public:
-  using IOBuf = ZiIOBuf<>; // must coincide with Ztls::IOBuf
-  using FBB = Zfb::IOBuilder<IOBuf>;
-
   void init();
   void final();
 
@@ -89,7 +86,7 @@ public:
   virtual int executed(ZvCmdContext *ctx) { return 0; }
 
   virtual ZvCmdDispatcher *dispatcher() { return nullptr; }
-  virtual void send(void *link, ZmRef<IOBuf>) { }
+  virtual void send(void *link, ZmRef<ZiAnyIOBuf>) { }
 
   virtual void target(ZuString) { }
   virtual ZtString getpass(ZuString prompt, unsigned passLen) { return {}; }

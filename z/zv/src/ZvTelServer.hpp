@@ -31,6 +31,8 @@
 #include <zlib/ZuGrow.hpp>
 #include <zlib/ZuLambdaFn.hpp>
 
+#include <zlib/Ztls.hpp>
+
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvEngine.hpp>
 #include <zlib/ZvCmdNet.hpp>

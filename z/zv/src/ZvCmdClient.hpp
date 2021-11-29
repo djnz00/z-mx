@@ -43,6 +43,7 @@
 
 #include <zlib/ZiMultiplex.hpp>
 #include <zlib/ZiFile.hpp>
+#include <zlib/ZiRx.hpp>
 
 #include <zlib/Zfb.hpp>
 #include <zlib/Ztls.hpp>

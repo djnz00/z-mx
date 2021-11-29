@@ -33,11 +33,13 @@ bool tigetflag_(const char *cap) {
   if (i < 0) i = 0;
   return i;
 }
+#if 0
 unsigned tigetnum_(const char *cap) {
   int i = ::tigetnum(cap);
   if (i < 0) i = 0;
   return i;
 }
+#endif
 template <typename ...Args>
 char *tiparm_(const char *cap, Args &&... args) {
   return ::tiparm(cap, static_cast<int>(ZuFwd<Args>(args))...);

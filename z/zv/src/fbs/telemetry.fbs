@@ -42,6 +42,8 @@ table Thread {			// == ZmThreadTelemetry
   stack_size:uint64;
   cpuset:[uint64];
   cpu_usage:double;
+  alloca_stack:uint64;
+  alloca_heap:uint64;
   sys_priority:int32;
   index:int16;
   partition:uint16;
