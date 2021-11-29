@@ -43,6 +43,7 @@
 #include <zlib/ZiMultiplex.hpp>
 #include <zlib/ZiFile.hpp>
 #include <zlib/ZiIOBuf.hpp>
+#include <zlib/ZiRx.hpp>
 
 #include <zlib/Zfb.hpp>
 #include <zlib/Ztls.hpp>
@@ -66,9 +67,7 @@
 template <typename App, typename Link> class ZvCmdServer;
 
 template <typename App_, typename Impl_>
-class ZvCmdSrvLink :
-    public Ztls::SrvLink<App_, Impl_>,
-    public ZiIORx<Ztls::IOBuf> {
+class ZvCmdSrvLink : public Ztls::SrvLink<App_, Impl_> {
 public:
   using App = App_;
   using Impl = Impl_;
@@ -76,8 +75,9 @@ public:
 friend Base;
 template <typename, typename> friend class ZvCmdServer;
 
-private:
-  using IORx = ZiIORx<Ztls::IOBuf>;
+  using IOBuf = Ztls::IOBuf;
+  using FBB = Zfb::IOBuilder<IOBuf>;
+
   using User = ZvUserDB::User;
   using Bitmap = ZvUserDB::Bitmap;
 
@@ -108,8 +108,6 @@ public:
     }
 
     m_state = State::Login;
-
-    IORx::connected();
   }
 
   void disconnected() {
@@ -117,7 +115,7 @@ public:
 
     cancelTimeout();
 
-    IORx::disconnected();
+    m_rxBuf = nullptr;
 
     this->app()->disconnected(impl());
   }
@@ -214,7 +212,7 @@ public:
 
     scheduleTimeout();
 
-    int i = IORx::process(data, len,
+    int i = ZiRx::recvMem(data, len, m_rxBuf,
 	[](const uint8_t *data, unsigned len) -> int {
 	  return ZvCmd::loadHdr(data, len);
 	},
@@ -249,11 +247,12 @@ private:
   void cancelTimeout() { this->app()->mx()->del(&m_timer); }
 
 private:
-  ZmScheduler::Timer		m_timer;
-  int				m_state = State::Down;
-  Zfb::IOBuilder<Ztls::IOBuf>	m_fbb;
-  ZmRef<User>			m_user;
-  bool				m_interactive = false;
+  ZmScheduler::Timer	m_timer;
+  int			m_state = State::Down;
+  ZmRef<IOBuf>		m_rxBuf;
+  FBB			m_fbb;
+  ZmRef<User>		m_user;
+  bool			m_interactive = false;
 };
 
 template <typename App_, typename Link_>

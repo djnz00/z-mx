@@ -304,6 +304,7 @@ struct ZtDatePrintStrftime {
   ZtDateFmt::Strftime			fmt;
 
   template <typename S> void print(S &) const;
+  void print(ZmStream &) const;
   friend ZuPrintFn ZuPrintType(ZtDatePrintStrftime *);
 };
 struct ZtDatePrint {
@@ -1232,6 +1233,9 @@ inline void ZtDatePrintISO::print(S &s) const {
 template <typename S>
 inline void ZtDatePrintStrftime::print(S &s_) const {
   ZmStream s{s_};
+  ZtDate_strftime::print_(s, value, fmt.format, fmt.offset);
+}
+inline void ZtDatePrintStrftime::print(ZmStream &s) const {
   ZtDate_strftime::print_(s, value, fmt.format, fmt.offset);
 }
 template <typename S>

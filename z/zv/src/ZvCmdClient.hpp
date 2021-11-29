@@ -88,9 +88,7 @@ using ZvCmd_Credentials = ZuUnion<ZvCmd_Login, ZvCmd_Access>;
 template <typename App, typename Link> class ZvCmdClient;
 
 template <typename App_, typename Impl_>
-class ZvCmdCliLink :
-    public Ztls::CliLink<App_, Impl_>,
-    public ZiIORx<Ztls::IOBuf> {
+class ZvCmdCliLink : public Ztls::CliLink<App_, Impl_> {
 public:
   using App = App_;
   using Impl = Impl_;
@@ -100,9 +98,6 @@ template <typename, typename> friend class ZvCmdClient;
 
   using IOBuf = Ztls::IOBuf;
   using FBB = Zfb::IOBuilder<IOBuf>;
-
-private:
-  using IORx = ZiIORx<IOBuf>;
 
 public:
   const Impl *impl() const { return static_cast<const Impl *>(this); }
@@ -224,9 +219,6 @@ public:
     scheduleTimeout();
     m_state = State::Login;
 
-    // initialize Rx processing
-    IORx::connected();
-
     // send login
     FBB fbb;
     if (m_credentials.type() == Credentials::Index<ZvCmd_Login>::I) {
@@ -264,7 +256,7 @@ public:
 
     cancelTimeout();
 
-    IORx::disconnected();
+    m_rxBuf = nullptr;
   }
 
 public:
@@ -272,7 +264,7 @@ public:
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    int i = IORx::process(data, len,
+    int i = ZiRx::recvMem(data, len, m_rxBuf,
 	[](const uint8_t *data, unsigned len) -> int {
 	  return ZvCmd::loadHdr(data, len);
 	},
@@ -376,6 +368,7 @@ private:
 private:
   ZmScheduler::Timer	m_timer;
   ZmAtomic<int>		m_state = State::Down;
+  ZmRef<IOBuf>		m_rxBuf;
   Credentials		m_credentials;
   UserDBReqs		m_userDBReqs;
   CmdReqs		m_cmdReqs;

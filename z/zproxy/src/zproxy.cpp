@@ -273,7 +273,7 @@ friend SrcPortAccessor;
 private:
   void status_(ZmStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZmStream s(s_);
+    ZmStream s{s_};
     status_(s);
   }
 public:
@@ -359,7 +359,7 @@ friend LocalPortAccessor;
 private:
   void status_(ZmStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZmStream s(s_);
+    ZmStream s{s_};
     status_(s);
   }
 public:

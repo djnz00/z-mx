@@ -149,7 +149,7 @@ public:
   }
   template <typename P>
   MatchPBuffer<P, ZmStream &> operator <<(const P &p) {
-    m_bufFn(ZmStreamBuf(p));
+    m_bufFn(ZmStreamBuf{p});
     return *this;
   }
 

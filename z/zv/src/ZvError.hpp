@@ -39,7 +39,8 @@ public:
   virtual ~ZvError() { }
   virtual void print_(ZmStream &) const = 0;
   template <typename S>
-  void print(S &s_) const { ZmStream s(s_); print_(s); }
+  void print(S &s_) const { ZmStream s{s_}; print_(s); }
+  void print(ZmStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(ZvError *);
 };
 

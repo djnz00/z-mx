@@ -68,7 +68,8 @@ struct Hdr {
 // call following Finish() to ensure alignment
 inline void saveHdr(Zfb::Builder &fbb, ZuID type) {
   unsigned len = fbb.GetSize();
-  new (fbb.make_space(sizeof(Hdr))) Hdr{type, len};
+  Hdr hdr{type, len};
+  fbb.PushBytes(reinterpret_cast<uint8_t *>(&hdr), sizeof(Hdr));
 }
 // returns the total length of the message including the header, or
 // INT_MAX if not enough bytes have been read yet

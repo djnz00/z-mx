@@ -116,8 +116,6 @@ protected:
 private:
   ZmRef<IOBuf>	m_buf;
 };
-template <unsigned Size = ZuGrow(0, 1)>
-using IOBuf = ZiIOBuf<Size>;
 
 namespace Save {
   // compile-time-recursive vector push

@@ -136,10 +136,12 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
   }
 
   // ensure at least newSize bytes in buffer, preserving any existing data
+  uint8_t *ensure(unsigned newSize) {
+    return
+      ensure(newSize, [](unsigned o, unsigned n) { return ZuGrow(o, n); });
+  }
   template <typename Grow>
-  uint8_t *ensure(unsigned newSize,
-      Grow grow = [](unsigned o, unsigned n) { return ZuGrow(o, n); })
-  {
+  uint8_t *ensure(unsigned newSize, Grow grow) {
     if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
     if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
     newSize = grow(size, newSize);

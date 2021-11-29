@@ -12,7 +12,7 @@ int main()
 
   rng.init();
 
-  ZmRef<IOBuf<>> iobuf;
+  ZmRef<ZiIOBuf<>> iobuf;
 
   {
     Mgr mgr(&rng, 12, 6, 30, 1<<20 /* 1Mb */ );

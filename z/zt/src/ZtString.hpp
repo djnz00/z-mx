@@ -1444,12 +1444,12 @@ struct ZtAPI ZtHexDump {
 
   void print(ZmStream &s) const;
   struct Print : public ZuPrintDelegate {
-    static void print(ZmStream &s, const ZtHexDump &d) {
-      d.print(s);
-    }
     template <typename S>
     static void print(S &s_, const ZtHexDump &d) {
-      ZmStream s(s_);
+      ZmStream s{s_};
+      d.print(s);
+    }
+    static void print(ZmStream &s, const ZtHexDump &d) {
       d.print(s);
     }
   };

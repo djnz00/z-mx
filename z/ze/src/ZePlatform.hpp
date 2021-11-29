@@ -232,11 +232,11 @@ public:
   MessageFn messageFn() const { return m_messageFn; }
 
   struct Message {
-    void print(ZmStream &s) const { e.messageFn()(e, s); }
     template <typename S> void print(S &s_) const {
-      ZmStream s(s_);
+      ZmStream s{s_};
       e.messageFn()(e, s);
     }
+    void print(ZmStream &s) const { e.messageFn()(e, s); }
     const ZeEvent_	&e;
     friend ZuPrintFn ZuPrintType(Message *);
   };

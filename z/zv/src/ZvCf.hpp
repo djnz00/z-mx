@@ -277,22 +277,22 @@ public:
 
   void print(ZmStream &s, ZtString prefix) const;
 
-  void print(ZmStream &s) const { print(s, ""); }
   template <typename S> void print(S &s_) const {
-    ZmStream s(s_);
+    ZmStream s{s_};
     print(s, "");
   }
+  void print(ZmStream &s) const { print(s, ""); }
 
   struct Prefixed {
     const ZvCf		&cf;
     mutable ZtString	prefix;
 
+    template <typename S> void print(S &s_) const {
+      ZmStream s{s_};
+      print(s);
+    }
     void print(ZmStream &s) const {
       cf.print(s, ZuMv(prefix));
-    }
-    template <typename S> void print(S &s_) const {
-      ZmStream s(s_);
-      print(s);
     }
     friend ZuPrintFn ZuPrintType(Prefixed *);
   };
