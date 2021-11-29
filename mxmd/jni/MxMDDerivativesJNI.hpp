@@ -41,14 +41,14 @@ namespace MxMDDerivativesJNI {
   // (MxFutKey) -> MxMDInstrument
   jobject future(JNIEnv *, jobject, jobject);
 
-  // (MxMDAllInstrumentsFn) -> long
-  jlong allFutures(JNIEnv *, jobject, jobject);
+  // (MxMDAllInstrumentsFn) -> boolean
+  jboolean allFutures(JNIEnv *, jobject, jobject);
 
   // (MxOptKey) -> MxMDInstrument
   jobject option(JNIEnv *, jobject, jobject);
 
-  // (MxMDAllInstrumentsFn) -> long
-  jlong allOptions(JNIEnv *, jobject, jobject);
+  // (MxMDAllInstrumentsFn) -> boolean
+  jboolean allOptions(JNIEnv *, jobject, jobject);
 
   jobject ctor(JNIEnv *, ZmRef<MxMDDerivatives>);
   int bind(JNIEnv *);

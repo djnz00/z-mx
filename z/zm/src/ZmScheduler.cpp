@@ -328,7 +328,7 @@ void ZmScheduler::timer()
 	    if (ZuUnlikely(!ok)) {
 	      scheduleGuard.unlock();
 	      m_schedule.addNode(timer);
-	      ZmPlatform::sleep(m_params.quantum());
+	      Zm::sleep(m_params.quantum());
 	      return;
 	    }
 	    if (timer->transient) delete timer;
@@ -490,7 +490,7 @@ void ZmScheduler::work()
   unsigned index = ZmThreadContext::self()->index();
   Thread *thread = &m_threads[index - 1];
 
-  thread->tid = ZmPlatform::getTID();
+  thread->tid = Zm::getTID();
 
   m_threadInitFn();
 

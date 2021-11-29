@@ -50,8 +50,8 @@ namespace MxMDTickSizeTblJNI {
   // (long) -> long
   jlong tickSize(JNIEnv *, jobject, jlong);
 
-  // (MxMDAllTickSizesFn) -> long
-  jlong allTickSizes(JNIEnv *, jobject, jobject);
+  // (MxMDAllTickSizesFn) -> boolean
+  jboolean allTickSizes(JNIEnv *, jobject, jobject);
 
   jobject ctor(JNIEnv *, ZmRef<MxMDTickSizeTbl>);
   int bind(JNIEnv *);

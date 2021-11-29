@@ -270,7 +270,7 @@ void ZmHeapCache::init_()
     config.alignment = sizeof(uintptr_t);
   else {
     // round up to nearest power of 2, ceiling of 512
-    config.alignment = 1U<<(64U - __builtin_clzll(config.alignment - 1));
+    config.alignment = 1U<<(64U - __builtin_clz(config.alignment - 1));
     if (ZuUnlikely(config.alignment > 512)) config.alignment = 512;
   }
   m_info.size = (m_info.size + config.alignment - 1) & ~(config.alignment - 1);

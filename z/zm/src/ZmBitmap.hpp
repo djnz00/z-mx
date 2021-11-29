@@ -43,10 +43,12 @@
 
 class ZmBitmap {
 public:
-  ZmBitmap() : m_map(0) { }
+  ZmBitmap() : m_map{static_cast<hwloc_bitmap_t>(nullptr)} { }
   ZmBitmap(const ZmBitmap &b) :
-    m_map(b.m_map ? hwloc_bitmap_dup(b.m_map) : (hwloc_bitmap_t)nullptr) { }
-  ZmBitmap(ZmBitmap &&b) : m_map(b.m_map) { b.m_map = 0; }
+    m_map{b.m_map ?
+      hwloc_bitmap_dup(b.m_map) :
+      static_cast<hwloc_bitmap_t>(nullptr)} { }
+  ZmBitmap(ZmBitmap &&b) : m_map{b.m_map} { b.m_map = 0; }
   ZmBitmap &operator =(const ZmBitmap &b) {
     if (this == &b) return *this;
     if (!b.m_map) {
@@ -239,13 +241,14 @@ public:
     return const_cast<ZmBitmap *>(this)->operator hwloc_bitmap_t();
   }
 
-  ZmBitmap(uint64_t v) :
-      m_map(hwloc_bitmap_alloc()) { hwloc_bitmap_from_ulong(m_map, v); }
+  ZmBitmap(uint64_t v) : m_map{hwloc_bitmap_alloc()} {
+    hwloc_bitmap_from_ulong(m_map, v);
+  }
   uint64_t uint64() const {
     if (ZuLikely(!m_map)) return 0;
     return hwloc_bitmap_to_ulong(m_map);
   }
-  ZmBitmap(uint128_t v) : m_map(hwloc_bitmap_alloc()) {
+  ZmBitmap(uint128_t v) : m_map{hwloc_bitmap_alloc()} {
     hwloc_bitmap_from_ith_ulong(m_map, 0, (uint64_t)v);
     hwloc_bitmap_from_ith_ulong(m_map, 1, (uint64_t)(v >> 64U));
   }
@@ -256,7 +259,7 @@ public:
   }
   template <typename S>
   ZmBitmap(const S &s, ZuIsCharString<S> *_ = nullptr) :
-      m_map(hwloc_bitmap_alloc()) { scan(s); }
+      m_map{hwloc_bitmap_alloc()} { scan(s); }
   template <typename S>
   ZuIsCharString<S, ZmBitmap &> operator =(const S &s) {
     if (m_map) hwloc_bitmap_zero(m_map);

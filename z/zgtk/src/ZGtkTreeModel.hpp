@@ -507,7 +507,7 @@ struct Impl : public TreeArray<Impl, Iter, Data> {
   gint row(const Iter &iter);
 
   // get print format given column
-  const ZvFieldFmt &fmt(unsigned col);
+  const ZtFieldFmt &fmt(unsigned col);
 };
 #endif
 // Note: following load() and association with a view, Impl must call

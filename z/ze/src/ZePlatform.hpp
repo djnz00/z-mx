@@ -57,7 +57,7 @@
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtEnum.hpp>
 
-// ZePlatform::ErrNo is a regular native OS error code
+// Ze::ErrNo is a regular native OS error code
 //
 // In addition to the native OS error code, need to handle the EAI_ error
 // codes returned by getaddrinfo() (Windows - GetAddrInfo())
@@ -76,32 +76,33 @@ namespace Ze {
   ZtEnumValues("Ze", Debug, Info, Warning, Error, Fatal);
 }
 
-struct ZeAPI ZePlatform_ {
+namespace Ze {
+
 #ifndef _WIN32
-  using ErrNo = int;
-  static constexpr ErrNo OK = 0;
+using ErrNo = int;
+inline constexpr ErrNo OK() { return 0; }
 
-  static ErrNo errNo() { return errno; }
-  static ErrNo sockErrNo() { return errno; }
-  static const char *strerror(ErrNo e) {
-    return e >= 0 ? ::strerror(e) : gai_strerror(e);
-  }
+inline ErrNo errNo() { return errno; }
+inline ErrNo sockErrNo() { return errno; }
+inline const char *strerror(ErrNo e) {
+  return e >= 0 ? ::strerror(e) : gai_strerror(e);
+}
 #else
-  using ErrNo = DWORD;				// <= sizeof(int)
-  static constexpr ErrNo OK = ERROR_SUCCESS;	// == 0
+using ErrNo = DWORD;				// <= sizeof(int)
+inline constexpr ErrNo OK() { return ERROR_SUCCESS; }// == 0
 
-  static ErrNo errNo() { return GetLastError(); }
-  static ErrNo sockErrNo() { return WSAGetLastError(); }
-  static const char *strerror(ErrNo e);
+inline ErrNo errNo() { return GetLastError(); }
+inline ErrNo sockErrNo() { return WSAGetLastError(); }
+ZeExtern const char *strerror(ErrNo e);
 #endif
-};
+
+}
 
 class ZeError {
 public:
-  using ErrNo = ZePlatform_::ErrNo;
-  static const ErrNo OK = ZePlatform_::OK;
+  using ErrNo = Ze::ErrNo;
 
-  ZeError() : m_errNo(OK) { }
+  ZeError() : m_errNo(Ze::OK()) { }
 
   ZeError(const ZeError &) = default;
   ZeError &operator =(const ZeError &) = default;
@@ -115,11 +116,9 @@ public:
   }
 
   ErrNo errNo() const { return m_errNo; }
-  const char *message() const {
-    return ZePlatform_::strerror(m_errNo);
-  }
+  const char *message() const { return Ze::strerror(m_errNo); }
 
-  bool operator !() const { return m_errNo == OK; }
+  bool operator !() const { return m_errNo == Ze::OK(); }
   ZuOpBool
 
   template <typename S> void print(S &s) const { s << message(); }
@@ -136,10 +135,10 @@ private:
 inline ZeError Ze_OK() { return ZeError(); }
 #define ZeOK Ze_OK()
 
-inline ZeError Ze_LastError() { return ZeError(ZePlatform_::errNo()); }
+inline ZeError Ze_LastError() { return ZeError(Ze::errNo()); }
 #define ZeLastError Ze_LastError()
 
-inline ZeError Ze_LastSockError() { return ZeError(ZePlatform_::sockErrNo()); }
+inline ZeError Ze_LastSockError() { return ZeError(Ze::sockErrNo()); }
 #define ZeLastSockError Ze_LastSockError()
 
 template <typename Event>
@@ -210,7 +209,7 @@ class ZeEvent_ : public Heap, public ZeEvent_Queue::Node {
   ZeEvent_(const ZeEvent_ &) = delete;
   ZeEvent_ &operator =(const ZeEvent_ &) = delete;
 
-  using ThreadID = ZmPlatform::ThreadID;
+  using ThreadID = Zm::ThreadID;
 
 public:
   using MessageFn = ZeMessageFn_<ZeEvent_>;
@@ -219,13 +218,13 @@ public:
   template <typename Msg>
   ZeEvent_(int severity, const char *filename, int lineNumber,
       const char *function, Msg &&msg) :
-    m_time{ZmTime::Now}, m_tid{ZmPlatform::getTID()},
+    m_time{ZmTime::Now}, m_tid{Zm::getTID()},
     m_severity{severity}, m_filename{filename},
     m_lineNumber{lineNumber}, m_function{function},
     m_messageFn{ZuFwd<Msg>(msg)} { }
 
   ZmTime time() const { return m_time; }
-  ZmPlatform::ThreadID tid() const { return m_tid; }
+  Zm::ThreadID tid() const { return m_tid; }
   int severity() const { return m_severity; }
   const char *filename() const { return m_filename; }
   int lineNumber() const { return m_lineNumber; }
@@ -262,15 +261,16 @@ using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID, sizeof(ZeEvent_<ZuNull>)>;
 using ZeEvent = ZeEvent_<ZeEvent_Heap>;
 using ZeMessageFn = ZeEvent::MessageFn;
 
-class ZeAPI ZePlatform : public ZePlatform_ {
-public:
-  static void sysloginit(const char *program, const char *facility = 0);
-  static void syslog(ZeEvent *e);
+namespace Ze {
 
-  static ZuString severity(unsigned i);
-  static ZuString filename(ZuString s);
-  static ZuString function(ZuString s);
-};
+ZeExtern void sysloginit(const char *program, const char *facility = nullptr);
+ZeExtern void syslog(ZeEvent *e);
+
+ZeExtern ZuString severity(unsigned i);
+ZeExtern ZuString filename(ZuString s);
+ZeExtern ZuString function(ZuString s);
+
+}
 
 #define ZeEVENT_(sev, msg) \
   (new ZeEvent(sev, __FILE__, __LINE__, ZuFnName, msg))

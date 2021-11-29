@@ -171,7 +171,7 @@ int main(int argc, char **argv)
 
   ZmThread r[80];
   int j, k;
-  int n = ZmPlatform::getncpu();
+  int n = Zm::getncpu();
 
   for (k = 0; k < 10; k++) {
     ZmRef<ZHash> hash2 = new ZHash(

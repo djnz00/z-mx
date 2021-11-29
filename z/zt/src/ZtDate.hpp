@@ -160,20 +160,63 @@ public:
   }
 };
 
+// compile-time date/time input formatting
+namespace ZtDateScan {
+  struct CSV {
+    const char	*tzName = nullptr;	// optional timezone
+    int		tzOffset = 0;
+  };
+  struct FIX { };
+  struct ISO {
+    const char	*tzName = nullptr;	// optional timezone
+    int		tzOffset = 0;
+  };
+
+  ZuDeclUnion(Any,
+      (CSV, csv),
+      (FIX, fix),
+      (ISO, iso));
+}
+
+// compile-time date/time output formatting
 namespace ZtDateFmt {
+  class CSV {
+  friend ::ZtDate;
+  public:
+    CSV(int offset = 0) : m_offset{offset} {
+      memcpy(m_yyyymmdd, "0001/01/01", 10);
+      memcpy(m_hhmmss, "00:00:00", 8);
+    }
+
+    void offset(int o) { m_offset = o; }
+    int offset() const { return m_offset; }
+
+    void pad(char c) { m_pad = c; }
+    char pad() const { return m_pad; }
+
+  private:
+    int			m_offset;
+    char		m_pad = 0;
+
+    mutable int		m_julian = 0;
+    mutable int		m_sec = 0;
+    mutable char	m_yyyymmdd[10];
+    mutable char	m_hhmmss[8];
+  };
+
   template <unsigned Width, char Trim> struct FIX_ {
-    template <typename S> static void fracPrint(S &s, unsigned nsec) {
+    template <typename S> static void frac_print(S &s, unsigned nsec) {
       s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, Trim>());
     }
   };
   template <unsigned Width> struct FIX_<Width, '\0'> {
-    template <typename S> static void fracPrint(S &s, unsigned nsec) {
+    template <typename S> static void frac_print(S &s, unsigned nsec) {
       if (ZuLikely(nsec))
 	s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, '\0'>());
     }
   };
   template <char Trim> struct FIX_<0, Trim> {
-    template <typename S> static void fracPrint(S &, unsigned) { }
+    template <typename S> static void frac_print(S &, unsigned) { }
   };
   template <int Prec_, class Null_ = ZuPrintNull>
   class FIX :
@@ -185,63 +228,22 @@ namespace ZtDateFmt {
 
     ZuAssert(Prec >= -9 && Prec <= 9);
 
-    FIX() : m_ptr(nullptr), m_julian(0), m_sec(0) {
+    FIX() {
       memcpy(m_yyyymmdd, "00010101", 8);
       memcpy(m_hhmmss, "00:00:00", 8);
     }
 
-    void ptr(const ZtDate *p) const { m_ptr = p; }
-    const ZtDate *ptr() const { return m_ptr; }
-
-    template <typename S> void print(S &) const;
-    friend ZuPrintFn ZuPrintType(FIX *);
-
   private:
-    mutable const ZtDate	*m_ptr;
-
-    mutable int			m_julian;
-    mutable int			m_sec;
-    mutable char		m_yyyymmdd[8];
-    mutable char		m_hhmmss[8];
-  };
-
-  class CSV {
-  friend ::ZtDate;
-  public:
-    CSV() :
-	m_offset(0), m_pad(0), m_ptr(nullptr), m_julian(0), m_sec(0) {
-      memcpy(m_yyyymmdd, "0001/01/01", 10);
-      memcpy(m_hhmmss, "00:00:00", 8);
-    }
-
-    void offset(int o) { m_offset = o; }
-    int offset() const { return m_offset; }
-
-    void pad(char c) { m_pad = c; }
-    char pad() const { return m_pad; }
-
-    void ptr(const ZtDate *p) const { m_ptr = p; }
-    const ZtDate *ptr() const { return m_ptr; }
-
-    template <typename S> void print(S &) const;
-    friend ZuPrintFn ZuPrintType(CSV *);
-
-  private:
-    int				m_offset;
-    char			m_pad;
-
-    mutable const ZtDate	*m_ptr;
-    mutable int			m_julian;
-    mutable int			m_sec;
-    mutable char		m_yyyymmdd[10];
-    mutable char		m_hhmmss[8];
+    mutable int		m_julian = 0;
+    mutable int		m_sec = 0;
+    mutable char	m_yyyymmdd[8];
+    mutable char	m_hhmmss[8];
   };
 
   class ISO {
   friend ::ZtDate;
   public:
-    ISO(int offset = 0) :
-	m_offset(offset), m_ptr(nullptr), m_julian(0), m_sec(0) {
+    ISO(int offset = 0) : m_offset{offset} {
       memcpy(m_yyyymmdd, "0001-01-01", 10);
       memcpy(m_hhmmss, "00:00:00", 8);
     }
@@ -249,47 +251,75 @@ namespace ZtDateFmt {
     void offset(int o) { m_offset = o; }
     int offset() const { return m_offset; }
 
-    void ptr(const ZtDate *p) const { m_ptr = p; }
-    const ZtDate *ptr() const { return m_ptr; }
-
-    template <typename S> void print(S &) const;
-    friend ZuPrintFn ZuPrintType(ISO *);
-
   private:
-    int				m_offset;
+    int			m_offset = 0;
 
-    mutable const ZtDate	*m_ptr;
-    mutable int			m_julian;
-    mutable int			m_sec;
-    mutable char		m_yyyymmdd[10];
-    mutable char		m_hhmmss[8];
+    mutable int		m_julian = 0;
+    mutable int		m_sec = 0;
+    mutable char	m_yyyymmdd[10];
+    mutable char	m_hhmmss[8];
   };
 
   struct Strftime {
-    const ZtDate		&date;
-    const char			*format;
-    int				offset;
-
-    template <typename S> void print(S &) const;
-    friend ZuPrintFn ZuPrintType(Strftime *);
+    const char		*format;
+    int			offset;
   };
+
+  // run-time variable date/time formatting
+  struct FIXDeflt_Null : public ZuPrintable {
+    template <typename S> void print(S &) const { }
+  };
+  using FIXDeflt = FIX<-9, FIXDeflt_Null>;
+  ZuDeclUnion(Any,
+      (CSV, csv),
+      (FIXDeflt, fix),
+      (ISO, iso),
+      (Strftime, strftime));
+}
+
+struct ZtDatePrintCSV {
+  const ZtDate				&value;
+  const ZtDateFmt::CSV			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZtDatePrintCSV *);
+};
+template <int Prec = -9, class Null = ZtDateFmt::FIXDeflt_Null>
+struct ZtDatePrintFIX {
+  const ZtDate				&value;
+  const ZtDateFmt::FIX<Prec, Null>	&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZtDatePrintFIX *);
+};
+struct ZtDatePrintISO {
+  const ZtDate				&value;
+  const ZtDateFmt::ISO			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZtDatePrintISO *);
+};
+struct ZtDatePrintStrftime {
+  const ZtDate				&value;
+  ZtDateFmt::Strftime			fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZtDatePrintStrftime *);
+};
+struct ZtDatePrint {
+  const ZtDate				&value;
+  const ZtDateFmt::Any			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZtDatePrint *);
 };
 
 class ZtAPI ZtDate {
   using Native = ZtDate_time_t<sizeof(time_t)>;
 
 public:
-  template <int Prec, class Null>
-  using FIXFmt = ZtDateFmt::FIX<Prec, Null>;
-  using CSVFmt = ZtDateFmt::CSV;
-  using ISOFmt = ZtDateFmt::ISO;
-  using Strftime = ZtDateFmt::Strftime;
-
   enum Now_ { Now };		// disambiguator
   enum Julian_ { Julian };	// ''
-
-  enum FIX_ { FIX };		// ''
-  enum CSV_ { CSV };		// ''
 
   ZtDate() : m_julian(ZtDate_NullJulian), m_sec(0), m_nsec(0) { }
 
@@ -440,28 +470,16 @@ public:
     }
   }
 
-  // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
-
-  template <typename S>
-  ZtDate(FIX_ _, const S &s, ZuIsString<S> *__ = 0) {
-    ctorFIX(s);
-  }
-
   // CSV format: YYYY/MM/DD HH:MM:SS with an optional timezone parameter
-
   template <typename S>
-  ZtDate(CSV_ _, const S &s, ZuIsString<S> *__ = 0) {
-    ctorCSV(s, 0, 0);
+  ZtDate(const ZtDateScan::CSV &fmt, const S &s, ZuIsString<S> *__ = nullptr) {
+    ctor(fmt, s);
   }
-  template <typename S, typename TZ>
-  ZtDate(CSV_ _, const S &s, const TZ &tz, ZuIfT<
-      ZuTraits<S>::IsString && ZuTraits<TZ>::IsCString> *__ = 0) {
-    ctorCSV(s, tz, 0);
-  }
-  template <typename S, typename TZ>
-  ZtDate(CSV_ _, const S &s, const TZ &tzOffset, ZuIfT<
-      ZuTraits<S>::IsString && ZuConversion<int, TZ>::Same> *__ = 0) {
-    ctorCSV(s, 0, tzOffset);
+
+  // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
+  template <typename S>
+  ZtDate(const ZtDateScan::FIX &fmt, const S &s, ZuIsString<S> *__ = nullptr) {
+    ctor(fmt, s);
   }
 
   // the ISO8601 ctor accepts the two standard ISO8601 date/time formats
@@ -469,15 +487,19 @@ public:
   // timezone: "Z" (GMT), "+hhmm", "+hh:mm", "-hhmm", or "-hh:mm";
   // if a timezone is present in the string it overrides any tz
   // parameter passed in by the caller
-
+  template <typename S>
+  ZtDate(const ZtDateScan::ISO &fmt, const S &s, ZuIsString<S> *_ = nullptr) {
+    ctor(fmt, s);
+  }
+  // default to ISO
   template <typename S>
   ZtDate(const S &s, ZuIsString<S> *_ = nullptr) {
-    ctorISO(s, 0);
+    ctor(ZtDateScan::ISO{}, s);
   }
-  template <typename S, typename TZ>
-  ZtDate(const S &s, const TZ &tz, ZuIfT<
-      ZuTraits<S>::IsString && ZuTraits<TZ>::IsCString> *_ = nullptr) {
-    ctorISO(s, tz);
+
+  template <typename S>
+  ZtDate(const ZtDateScan::Any &fmt, const S &s, ZuIsString<S> *_ = nullptr) {
+    ctor(fmt, s);
   }
 
   // common integral forms
@@ -674,51 +696,11 @@ public:
   static ZuString monthShortName(int i); // 1-12
   static ZuString monthLongName(int i); // 1-12
 
-  template <int Prec, class Null>
-  const FIXFmt<Prec, Null> &fix(const FIXFmt<Prec, Null> &fmt) const {
-    fmt.ptr(this);
-    return fmt;
-  }
-  template <typename S_, typename FIXFmt>
-  void fixPrint(S_ &s, const FIXFmt &fmt) const {
-    if (!*this) { s << typename FIXFmt::Null{}; return; }
-    if (ZuUnlikely(m_julian != fmt.m_julian)) {
-      fmt.m_julian = m_julian;
-      int y, m, d;
-      ymd(y, m, d);
-      if (ZuUnlikely(y < 1)) y = 1;
-      else if (ZuUnlikely(y > 9999)) y = 9999;
-      fmt.m_yyyymmdd[0] = y / 1000 + '0';
-      fmt.m_yyyymmdd[1] = (y / 100) % 10 + '0';
-      fmt.m_yyyymmdd[2] = (y / 10) % 10 + '0';
-      fmt.m_yyyymmdd[3] = y % 10 + '0';
-      fmt.m_yyyymmdd[4] = m / 10 + '0';
-      fmt.m_yyyymmdd[5] = m % 10 + '0';
-      fmt.m_yyyymmdd[6] = d / 10 + '0';
-      fmt.m_yyyymmdd[7] = d % 10 + '0';
-    }
-    s << ZuString(fmt.m_yyyymmdd, 8) << '-';
-    if (ZuUnlikely(m_sec != fmt.m_sec)) {
-      fmt.m_sec = m_sec;
-      int H, M, S;
-      hms(H, M, S);
-      fmt.m_hhmmss[0] = H / 10 + '0';
-      fmt.m_hhmmss[1] = H % 10 + '0';
-      fmt.m_hhmmss[3] = M / 10 + '0';
-      fmt.m_hhmmss[4] = M % 10 + '0';
-      fmt.m_hhmmss[6] = S / 10 + '0';
-      fmt.m_hhmmss[7] = S % 10 + '0';
-    }
-    s << ZuString(fmt.m_hhmmss, 8);
-    fmt.fracPrint(s, m_nsec);
-  }
-
-  const CSVFmt &csv(const CSVFmt &fmt) const {
-    fmt.ptr(this);
-    return fmt;
+  auto print(const ZtDateFmt::CSV &fmt) const {
+    return ZtDatePrintCSV{*this, fmt};
   }
   template <typename S_>
-  void csvPrint(S_ &s, const CSVFmt &fmt) const {
+  void csv_print(S_ &s, const ZtDateFmt::CSV &fmt) const {
     if (!*this) return;
     ZtDate date = *this + fmt.m_offset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
@@ -761,13 +743,50 @@ public:
     }
   }
 
+  template <int Prec, class Null>
+  auto print(const ZtDateFmt::FIX<Prec, Null> &fmt) const {
+    return ZtDatePrintFIX<Prec, Null>{*this, fmt};
+  }
+  template <typename S_, int Prec, class Null>
+  void fix_print(S_ &s, const ZtDateFmt::FIX<Prec, Null> &fmt) const {
+    if (!*this) { s << Null{}; return; }
+    if (ZuUnlikely(m_julian != fmt.m_julian)) {
+      fmt.m_julian = m_julian;
+      int y, m, d;
+      ymd(y, m, d);
+      if (ZuUnlikely(y < 1)) y = 1;
+      else if (ZuUnlikely(y > 9999)) y = 9999;
+      fmt.m_yyyymmdd[0] = y / 1000 + '0';
+      fmt.m_yyyymmdd[1] = (y / 100) % 10 + '0';
+      fmt.m_yyyymmdd[2] = (y / 10) % 10 + '0';
+      fmt.m_yyyymmdd[3] = y % 10 + '0';
+      fmt.m_yyyymmdd[4] = m / 10 + '0';
+      fmt.m_yyyymmdd[5] = m % 10 + '0';
+      fmt.m_yyyymmdd[6] = d / 10 + '0';
+      fmt.m_yyyymmdd[7] = d % 10 + '0';
+    }
+    s << ZuString(fmt.m_yyyymmdd, 8) << '-';
+    if (ZuUnlikely(m_sec != fmt.m_sec)) {
+      fmt.m_sec = m_sec;
+      int H, M, S;
+      hms(H, M, S);
+      fmt.m_hhmmss[0] = H / 10 + '0';
+      fmt.m_hhmmss[1] = H % 10 + '0';
+      fmt.m_hhmmss[3] = M / 10 + '0';
+      fmt.m_hhmmss[4] = M % 10 + '0';
+      fmt.m_hhmmss[6] = S / 10 + '0';
+      fmt.m_hhmmss[7] = S % 10 + '0';
+    }
+    s << ZuString(fmt.m_hhmmss, 8);
+    fmt.frac_print(s, m_nsec);
+  }
+
   // iso() always generates a full date/time format parsable by the ctor
-  const ISOFmt &iso(const ISOFmt &fmt) const {
-    fmt.ptr(this);
-    return fmt;
+  auto print(const ZtDateFmt::ISO &fmt) const {
+    return ZtDatePrintISO{*this, fmt};
   }
   template <typename S_>
-  void isoPrint(S_ &s, const ISOFmt &fmt) const {
+  void iso_print(S_ &s, const ZtDateFmt::ISO &fmt) const {
     if (!*this) return;
     ZtDate date = *this + fmt.m_offset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
@@ -871,8 +890,13 @@ public:
   //   %z (GNU) RFC 822 timezone offset
   //   %Z (C90) timezone
   //   %% (C90) percent sign
-  Strftime strftime(const char *format, int offset = 0) const {
-    return Strftime{*this, format, offset};
+  auto strftime(const char *format, int offset = 0) const {
+    return ZtDatePrintStrftime{*this, ZtDateFmt::Strftime{format, offset}};
+  }
+
+  // run-time variable date/time formatting
+  auto print(const ZtDateFmt::Any &fmt) const {
+    return ZtDatePrint{*this, fmt};
   }
 
   int offset(const char *tz = 0) const; // WARNING
@@ -921,7 +945,7 @@ public:
       }
     }
 
-    return ZtDate(Julian, julian, sec, nsec);
+    return ZtDate{Julian, julian, sec, nsec};
   }
   template <typename T> ZuIfT<
     ZuConversion<time_t, T>::Same ||
@@ -946,7 +970,7 @@ public:
       if (sec >= 86400) sec -= 86400, ++julian;
     }
 
-    return ZtDate(Julian, julian, sec, m_nsec);
+    return ZtDate{Julian, julian, sec, m_nsec};
   }
 
   template <typename T>
@@ -1109,9 +1133,10 @@ private:
   }
 
 public:
-  void ctorISO(ZuString s, const char *tz);
-  void ctorFIX(ZuString s);
-  void ctorCSV(ZuString s, const char *tz, int tzOffset);
+  void ctor(const ZtDateScan::CSV &, ZuString);
+  void ctor(const ZtDateScan::FIX &, ZuString);
+  void ctor(const ZtDateScan::ISO &, ZuString);
+  void ctor(const ZtDateScan::Any &, ZuString);
 
   void normalize(unsigned &year, unsigned &month);
   void normalize(int &year, int &month);
@@ -1188,24 +1213,46 @@ struct ZtAPI ZtDate_strftime {
     return boxed.vfmt(fmt);
   }
 
-  static void print_(ZmStream &, const ZtDateFmt::Strftime &);
+  static void print_(ZmStream &, ZtDate, const char *format, int offset);
 };
 
+template <typename S>
+inline void ZtDatePrintCSV::print(S &s) const {
+  value.csv_print(s, fmt);
+}
 template <int Prec, class Null>
 template <typename S>
-inline void ZtDateFmt::FIX<Prec, Null>::print(S &s) const
-{
-  ptr()->fixPrint(s, *this);
+inline void ZtDatePrintFIX<Prec, Null>::print(S &s) const {
+  value.fix_print(s, fmt);
 }
 template <typename S>
-inline void ZtDateFmt::CSV::print(S &s) const { ptr()->csvPrint(s, *this); }
+inline void ZtDatePrintISO::print(S &s) const {
+  value.iso_print(s, fmt);
+}
 template <typename S>
-inline void ZtDateFmt::ISO::print(S &s) const { ptr()->isoPrint(s, *this); }
-template <typename S>
-inline void ZtDateFmt::Strftime::print(S &s_) const
-{
+inline void ZtDatePrintStrftime::print(S &s_) const {
   ZmStream s{s_};
-  ZtDate_strftime::print_(s, *this);
+  ZtDate_strftime::print_(s, value, fmt.format, fmt.offset);
+}
+template <typename S>
+inline void ZtDatePrint::print(S &s) const {
+  using namespace ZtDateFmt;
+  switch (fmt.type()) {
+    default:
+    case Any::Index<CSV>::I:
+      s << value.print(fmt.csv());
+      break;
+    case Any::Index<FIXDeflt>::I:
+      s << value.print(fmt.fix());
+      break;
+    case Any::Index<ISO>::I:
+      s << value.print(fmt.iso());
+      break;
+    case Any::Index<Strftime>::I: {
+      const auto &strftime = fmt.strftime();
+      s << value.strftime(strftime.format, strftime.offset);
+    } break;
+  }
 }
 
 #endif /* ZtDate_HPP */

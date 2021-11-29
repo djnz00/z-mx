@@ -84,7 +84,7 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
     bool daemon = false;
 
     // get path to current program
-	ZtWString path((const wchar_t *)0, ZiPlatform::PathMax);
+	ZtWString path((const wchar_t *)0, Zi::PathMax);
     GetModuleFileName(0, path.data(), path.size());
     path.calcLength();
     path.truncate();
@@ -240,7 +240,7 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
       file.seek(0);
     }
 
-    buf = ZuBox<int>(ZmPlatform::getPID());
+    buf = ZuBox<int>(Zm::getPID());
 
     if (file.write(buf.data(), buf.length(), &e) != Zi::OK) {
       ZeLOG(Error, ZtSprintf("write(%s): %s", pidFile, e.message()));

@@ -103,7 +103,7 @@ BOOL WINAPI ZmTrap_handler(DWORD event)
 
 void ZmTrap_sleep()
 {
-  ZmPlatform::sleep(1);
+  Zm::sleep(1);
 }
 
 #ifdef ZDEBUG

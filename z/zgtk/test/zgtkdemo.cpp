@@ -154,7 +154,7 @@ struct TreeModel : public ZGtk::TreeSortable<TreeModel, 1> {
 
 void start()
 {
-  // std::cerr << "start() " << ZmPlatform::getTID() << '\n' << std::flush;
+  // std::cerr << "start() " << Zm::getTID() << '\n' << std::flush;
 
   gtk_init(nullptr, nullptr);
 
@@ -286,7 +286,7 @@ void start()
 
   g_signal_connect(G_OBJECT(window), "destroy",
       ZGtk::callback([](GObject *o, gpointer p) {
-      // std::cerr << "destroy " << ZmPlatform::getTID() << '\n' << std::flush;
+      // std::cerr << "destroy " << Zm::getTID() << '\n' << std::flush;
 	reinterpret_cast<ZmSemaphore *>(p)->post();
       }), reinterpret_cast<gpointer>(&done));
 

@@ -1118,9 +1118,9 @@ MxMDVenueShard::MxMDVenueShard(MxMDVenue *venue, MxMDShard *shard) :
     m_venue(venue), m_shard(shard), m_orderIDScope(venue->orderIDScope())
 {
   m_orders2 = new Orders2(ZmHashParams().bits(4).loadFactor(1.0).cBits(4).
-    init(ZmIDString() << "MxMDVenueShard." << venue->id() << ".Orders2"));
+    init(ZmIDString{} << "MxMDVenueShard." << venue->id() << ".Orders2"));
   m_orders3 = new Orders3(ZmHashParams().bits(4).loadFactor(1.0).cBits(4).
-    init(ZmIDString() << "MxMDVenueShard." << venue->id() << ".Orders3"));
+    init(ZmIDString{} << "MxMDVenueShard." << venue->id() << ".Orders3"));
 }
 
 MxMDVenue::MxMDVenue(MxMDLib *md, MxMDFeed *feed, MxID id,
@@ -1130,21 +1130,21 @@ MxMDVenue::MxMDVenue(MxMDLib *md, MxMDFeed *feed, MxID id,
   m_shards(md->nShards())
 {
   m_segments = new Segments(ZmHashParams().bits(2).
-      init(ZmIDString() << "MxMDVenue." << id << ".Segments"));
+      init(ZmIDString{} << "MxMDVenue." << id << ".Segments"));
   m_orders1 = new Orders1(ZmHashParams().bits(4).loadFactor(1.0).cBits(4).
-      init(ZmIDString() << "MxMDVenue." << id << ".Orders"));
+      init(ZmIDString{} << "MxMDVenue." << id << ".Orders"));
   unsigned n = md->nShards();
   m_shards.length(n);
   for (unsigned i = 0; i < n; i++)
     m_shards[i] = new MxMDVenueShard(this, md->shard_(i));
 }
 
-uintptr_t MxMDVenue::allTickSizeTbls(ZmFn<MxMDTickSizeTbl *> fn) const
+bool MxMDVenue::allTickSizeTbls(ZmFn<MxMDTickSizeTbl *> fn) const
 {
   auto i = m_tickSizeTbls.readIterator();
   while (ZmRef<MxMDTickSizeTbl> tbl = i.iterateKey())
-    if (uintptr_t v = fn(tbl)) return v;
-  return 0;
+    if (!fn(tbl)) return false;
+  return true;
 }
 
 ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl_(ZuString id, MxNDP pxNDP)
@@ -1159,13 +1159,12 @@ ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl(ZuString id, MxNDP pxNDP)
   return md()->addTickSizeTbl(this, id, pxNDP);
 }
 
-uintptr_t MxMDVenue::allSegments(ZmFn<const MxMDSegment &> fn) const
+bool MxMDVenue::allSegments(ZmFn<const MxMDSegment &> fn) const
 {
   auto i = m_segments->readIterator();
-  uintptr_t v;
   while (const MxMDSegment &segment = i.iterateKey())
-    if (v = fn(segment)) return v;
-  return 0;
+    if (!fn(segment)) return false;
+  return true;
 }
 
 void MxMDVenue::tradingSession(MxMDSegment segment)
@@ -1214,64 +1213,68 @@ ZmRef<MxMDInstrument> MxMDShard::addInstrument(
   return md()->addInstrument(this, ZuMv(instr), key, refData, transactTime);
 }
 
-uintptr_t MxMDShard::allInstruments(ZmFn<MxMDInstrument *> fn) const
+bool MxMDShard::allInstruments(ZmFn<MxMDInstrument *> fn) const
 {
   auto i = m_instruments->readIterator();
   while (MxMDInstrument *instrument = i.iterateKey())
-    if (uintptr_t v = fn(instrument)) return v;
-  return 0;
+    if (!fn(instrument)) return false;
+  return true;
 }
 
-uintptr_t MxMDShard::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
+bool MxMDShard::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
 {
   auto i = m_orderBooks->readIterator();
   while (MxMDOrderBook *ob = i.iterateKey())
-    if (uintptr_t v = fn(ob)) return v;
-  return 0;
+    if (!fn(ob)) return false;
+  return true;
 }
 
-uintptr_t MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
+bool MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
 {
   thread_local ZmSemaphore sem;
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
-    uintptr_t v;
+    bool v;
     m_shards[i]->invoke(
 	[shard = m_shards[i], sem = &sem, &v, fn]() mutable {
-	  v = shard->allInstruments(ZuMv(fn)); sem->post(); });
+	  v = shard->allInstruments(ZuMv(fn));
+	  sem->post();
+	});
     sem.wait();
-    if (v) return v;
+    if (!v) return false;
   }
-  return 0;
+  return true;
 }
 
-uintptr_t MxMDLib::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
+bool MxMDLib::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
 {
   thread_local ZmSemaphore sem;
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
-    uintptr_t v;
+    bool v;
     m_shards[i]->invoke(
 	[shard = m_shards[i], sem = &sem, &v, fn]() mutable {
-	  v = shard->allOrderBooks(ZuMv(fn)); sem->post(); });
+	  v = shard->allOrderBooks(ZuMv(fn));
+	  sem->post();
+	});
     sem.wait();
-    if (v) return v;
+    if (!v) return false;
   }
-  return 0;
+  return true;
 }
 
-uintptr_t MxMDLib::allFeeds(ZmFn<MxMDFeed *> fn) const
+bool MxMDLib::allFeeds(ZmFn<MxMDFeed *> fn) const
 {
   auto i = m_feeds.readIterator();
   while (const ZmRef<MxMDFeed> &feed = i.iterateKey())
-    if (uintptr_t v = fn(feed)) return v;
-  return 0;
+    if (!fn(feed)) return false;
+  return true;
 }
 
-uintptr_t MxMDLib::allVenues(ZmFn<MxMDVenue *> fn) const
+bool MxMDLib::allVenues(ZmFn<MxMDVenue *> fn) const
 {
   auto i = m_venues.readIterator();
   while (const ZmRef<MxMDVenue> venue = i.iterateKey())
-    if (uintptr_t v = fn(venue)) return v;
-  return 0;
+    if (!fn(venue)) return false;
+  return true;
 }
 
 static void exception(const MxMDLib *, ZmRef<ZeEvent> e)
@@ -1511,9 +1514,9 @@ void MxMDInstrument::update_(
   if ((*refData.pxNDP && refData.pxNDP != m_refData.pxNDP) ||
       (*refData.qtyNDP && refData.qtyNDP != m_refData.qtyNDP)) {
     allOrderBooks([pxNDP = refData.pxNDP, qtyNDP = refData.qtyNDP, &orderNDPFn](
-	  MxMDOrderBook *ob) -> uintptr_t {
+	  MxMDOrderBook *ob) -> bool {
       ob->updateNDP(pxNDP, qtyNDP, orderNDPFn);
-      return 0;
+      return true;
     });
 #define adjustNDP(v, n) if (*m_refData.v && !*refData.v) m_refData.v = \
     MxValNDP{m_refData.v, m_refData.n ## NDP}.adjust(refData.n ## NDP)
@@ -1620,20 +1623,20 @@ void MxMDDerivatives::del(MxMDInstrument *instrument)
     m_futures.delVal(MxFutKey(refData.mat));
 }
 
-uintptr_t MxMDDerivatives::allFutures(ZmFn<MxMDInstrument *> fn) const
+bool MxMDDerivatives::allFutures(ZmFn<MxMDInstrument *> fn) const
 {
   auto i = m_futures.readIterator();
   while (MxMDInstrument *future = i.iterateVal())
-    if (uintptr_t v = fn(future)) return v;
-  return 0;
+    if (!fn(future)) return false;
+  return true;
 }
 
-uintptr_t MxMDDerivatives::allOptions(ZmFn<MxMDInstrument *> fn) const
+bool MxMDDerivatives::allOptions(ZmFn<MxMDInstrument *> fn) const
 {
   auto i = m_options.readIterator();
   while (MxMDInstrument *option = i.iterateVal())
-    if (uintptr_t v = fn(option)) return v;
-  return 0;
+    if (!fn(option)) return false;
+  return true;
 }
 
 ZmRef<MxMDOrderBook> MxMDLib::addOrderBook(
@@ -1646,7 +1649,7 @@ ZmRef<MxMDOrderBook> MxMDLib::addOrderBook(
       ([id = key.id](const ZeEvent &, ZmStream &s) {
 	s << "addOrderBook - null venueID for \"" << id << '"';
       })));
-    return 0;
+    return nullptr;
   }
   ZmRef<MxMDOrderBook> newOB, inOB, ob;
   unsigned inRank = 0;

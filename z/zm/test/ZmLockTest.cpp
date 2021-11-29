@@ -114,7 +114,7 @@ void *run(void *c)
 void usage()
 {
   fputs("usage: ZmLockTest nthreads [count]\n", stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 template <typename Lock> struct TypeCode { };
@@ -159,5 +159,5 @@ int main(int argc, char **argv)
   main_<FAS>("FAS", nthreads, count, baseline);
   main_<Ticket>("Ticket", nthreads, count, baseline);
 #endif
-  ZmPlatform::exit(0);
+  Zm::exit(0);
 }

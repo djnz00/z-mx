@@ -120,31 +120,31 @@ jobject MxMDVenueJNI::tickSizeTbl(JNIEnv *env, jobject obj, jstring id)
   return 0;
 }
 
-jlong MxMDVenueJNI::allTickSizeTbls(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDVenueJNI::allTickSizeTbls(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllTickSizeTblsFn) -> long
   MxMDVenue *venue = ptr_(env, obj);
-  if (ZuUnlikely(!venue || !fn)) return 0;
+  if (ZuUnlikely(!venue || !fn)) return false;
   return venue->allTickSizeTbls(
-      [fn = ZJNI::globalRef(env, fn)](MxMDTickSizeTbl *tbl) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDTickSizeTbl *tbl) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allTickSizeTblsFn[0].mid,
+      return env->CallBooleanMethod(fn, allTickSizeTblsFn[0].mid,
 	  MxMDTickSizeTblJNI::ctor(env, tbl));
-    return 0;
+    return false;
   });
 }
 
-jlong MxMDVenueJNI::allSegments(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDVenueJNI::allSegments(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllSegmentsFn) -> void
   MxMDVenue *venue = ptr_(env, obj);
-  if (ZuUnlikely(!venue || !fn)) return 0;
+  if (ZuUnlikely(!venue || !fn)) return false;
   return venue->allSegments(
-      [fn = ZJNI::globalRef(env, fn)](const MxMDSegment &seg) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](const MxMDSegment &seg) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allSegmentsFn[0].mid,
+      return env->CallBooleanMethod(fn, allSegmentsFn[0].mid,
 	  MxMDSegmentJNI::ctor(env, seg));
-    return 0;
+    return false;
   });
 }
 
@@ -195,10 +195,10 @@ int MxMDVenueJNI::bind(JNIEnv *env)
       "(Ljava/lang/String;)Lcom/shardmx/mxmd/MxMDTickSizeTbl;",
       (void *)&MxMDVenueJNI::tickSizeTbl },
     { "allTickSizeTbls",
-      "(Lcom/shardmx/mxmd/MxMDAllTickSizeTblsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllTickSizeTblsFn;)Z",
       (void *)&MxMDVenueJNI::allTickSizeTbls },
     { "allSegments",
-      "(Lcom/shardmx/mxmd/MxMDAllSegmentsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllSegmentsFn;)Z",
       (void *)&MxMDVenueJNI::allSegments },
     { "tradingSession",
       "(Ljava/lang/String;)Lcom/shardmx/mxmd/MxMDSegment;",

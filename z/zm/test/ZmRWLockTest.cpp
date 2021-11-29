@@ -225,9 +225,9 @@ int main(int argc, char **argv)
     synchronous(0, ReadLock(0));
     synchronous(1, ReadLock(0));
     asynchronous(0, Lock(0));
-    ZmPlatform::sleep(1);
+    Zm::sleep(1);
     asynchronous(3, Lock(0));
-    ZmPlatform::sleep(1);
+    Zm::sleep(1);
     asynchronous(2, ReadLock(0));
     synchronous(1, ReadUnlock(0));
     result(0);

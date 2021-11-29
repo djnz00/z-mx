@@ -86,16 +86,17 @@ void ZdbEnv::init(ZdbEnvConfig config, ZiMultiplex *mx,
       "Zdb writeThread misconfigured: " << config.writeThread;
 
   m_config = ZuMv(config);
-  m_dbs.length(m_config.dbCfs.length());
   m_mx = mx;
   m_cxns = new CxnHash(m_config.cxnHash);
   m_activeFn = activeFn;
   m_inactiveFn = inactiveFn;
 
-  unsigned n = m_config.hostCfs.length();
-  for (unsigned i = 0; i < n; i++)
-    m_hosts.add(ZmRef<ZdbHost>(new ZdbHost(this, &m_config.hostCfs[i])));
-  m_self = m_hosts.findKey(m_config.hostID).ptr();
+  {
+    auto i = m_config.hostCfs.readIterator();
+    while (auto node = i.iterate())
+      m_hosts.add(new ZdbHosts::Node{this, node});
+  }
+  m_self = m_hosts.findPtr(m_config.hostID);
   if (!m_self)
     throw ZtString{} <<
       "Zdb own host ID " << m_config.hostID << " not in hosts table";
@@ -113,17 +114,20 @@ void ZdbEnv::final()
     return;
   }
   state(ZdbHostState::Instantiated);
-  {
-    unsigned i, n = m_dbs.length();
-    for (i = 0; i < n; i++) if (ZdbAny *db = m_dbs[i]) db->final();
-  }
-  m_activeFn = ZmFn<>();
-  m_inactiveFn = ZmFn<>();
+  allDBs_([](Zdb *db) { db->final(); return true; });
+  m_activeFn = ZmFn<>{};
+  m_inactiveFn = ZmFn<>{};
   guard.unlock();
   m_stateCond.broadcast();
 }
 
-void ZdbEnv::add(ZdbAny *db, ZuString name)
+void ZdbEnv::db(ZuID id)
+{
+  ReadGuard guard(m_lock);
+  return m_dbs.findPtr(id);
+}
+
+void ZdbEnv::db_(ZuID id, ZdbHandler handler)
 {
   Guard guard(m_lock);
   if (state() != ZdbHostState::Initialized) {
@@ -131,15 +135,12 @@ void ZdbEnv::add(ZdbAny *db, ZuString name)
 	"ZdbEnv::add called out of order for DB " << name);
     return;
   }
-  unsigned i, n = m_config.dbCfs.length();
-  for (i = 0; i < n; i++)
-    if (name == m_config.dbCfs[i].name) {
-      db->init(&m_config.dbCfs[i], i);
-      m_dbs[i] = db;
-      return;
-    }
-  ZeLOG(Fatal, ZtString{} <<
-      "ZdbEnv::add called with invalid DB " << name);
+  if (auto db = m_dbs.findPtr(id)) return db;
+  auto cf = m_config.dbCfs.find(id);
+  if (!cf) m_config.dbCfs.addNode(cf = new ZdbCfs::Node{id});
+  auto db = new Zdbs::Node{this, cf, ZuMv(handler)};
+  m_dbs.addNode(db);
+  return db;
 }
 
 bool ZdbEnv::open()
@@ -149,16 +150,12 @@ bool ZdbEnv::open()
     ZeLOG(Fatal, "ZdbEnv::open called out of order");
     return false;
   }
-  {
-    unsigned i, n = m_dbs.length();
-    for (i = 0; i < n; i++)
-      if (ZdbAny *db = m_dbs[i])
-	if (!db->open()) {
-	  for (unsigned j = 0; j < i; j++)
-	    if (ZdbAny *db_ = m_dbs[j])
-	      db_->close();
-	  return false;
-	}
+  if (!allDBs([&openFailed](Zdb *db) {
+    if (!db->open()) return false;
+    return true;
+  })) {
+    allDBs([](Zdb *db) { db->close(); return true; });
+    return false;
   }
   dbStateRefresh_();
   state(ZdbHostState::Stopped);
@@ -529,15 +526,11 @@ void ZdbEnv::reactivate(ZdbHost *host)
 }
 
 ZdbHost::ZdbHost(ZdbEnv *env, const ZdbHostConfig *config) :
-  m_env(env),
-  m_config(config),
-  m_mx(env->mx()),
-  m_state(ZdbHostState::Instantiated),
-  m_voted(false)
+  m_env{env},
+  m_config{config},
+  m_mx{env->mx()},
+  m_dbState{env->dbCount()}
 {
-  unsigned n = env->dbCount();
-  m_dbState.length(env->dbCount());
-  for (unsigned i = 0; i < n; i++) m_dbState[i] = 0;
 }
 
 void ZdbHost::connect()
@@ -776,7 +769,7 @@ ZdbHost *ZdbEnv::setMaster()
 {
   ZdbHost *oldMaster = m_master;
   dbStateRefresh_();
-  m_master = 0;
+  m_master = nullptr;
   m_nPeers = 0;
   {
     auto i = m_hosts.readIterator();
@@ -788,16 +781,25 @@ ZdbHost *ZdbEnv::setMaster()
 	" next:" << m_next << '\n' <<
 	" recovering:" << m_recovering << " replicating:" << !!m_nextCxn);
     while (host = i.iterateKey()) {
-      if (host->voted()) {
-	if (host != m_self) ++m_nPeers;
-	if (!m_master || host->cmp(m_master) > 0) m_master = host;
-      }
       ZdbDEBUG(this, ZtString{} <<
 	  " host:" << *host << '\n' <<
 	  " master:" << m_master);
+      if (host->voted()) {
+	if (host != m_self) ++m_nPeers;
+	if (!m_master) { m_master = host; continue; }
+	int diff = host->cmp(m_master);
+	if (ZuCmp<int>::null(diff)) {
+	  m_master = nullptr;
+	  break;
+	} else if (cmp > 0)
+	  m_master = host;
+      }
     }
   }
-  ZeLOG(Info, ZtString{} << "Zdb host " << m_master->id() << " is master");
+  if (m_master)
+    ZeLOG(Info, ZtString{} << "Zdb host " << m_master->id() << " is master");
+  else
+    ZeLOG(Error, "Zdb master election failed - hosts inconsistent");
   return oldMaster;
 }
 
@@ -822,7 +824,7 @@ void ZdbEnv::setNext()
 	" recovering:" << m_recovering << " replicating:" << !!m_nextCxn);
     while (ZdbHost *host = i.iterateKey()) {
       if (host != m_self && host != m_prev && host->voted() &&
-	  host->cmp(m_self) < 0 && (!m_next || host->cmp(m_next) > 0))
+	  m_self->cmp(host) >= 0 && (!m_next || host->cmp(m_next) > 0))
 	m_next = host;
       ZdbDEBUG(this, ZtString{} <<
 	  " host:" << host << '\n' <<
@@ -846,7 +848,7 @@ void ZdbEnv::startReplication()
       " prev:" << m_prev << '\n' <<
       " next:" << m_next << '\n' <<
       " recovering:" << m_recovering << " replicating:" << !!m_nextCxn);
-  if (m_next->dbState().cmp(m_self->dbState()) < 0 && !m_recovering) {
+  if (m_self->dbState().cmp(m_next->dbState()) >= 0 && !m_recovering) {
     // ZeLOG(Info, "startReplication() initiating recovery");
     m_recovering = true;
     m_recover = m_next->dbState();
@@ -857,9 +859,9 @@ void ZdbEnv::startReplication()
 
 void ZdbEnv::stopReplication()
 {
-  m_master = 0;
-  m_prev = 0;
-  m_next = 0;
+  m_master = nullptr;
+  m_prev = nullptr;
+  m_next = nullptr;
   m_recovering = false;
   m_nextCxn = 0;
   {
@@ -909,8 +911,6 @@ void Zdb_Cxn::msgRead(ZiIOContext &io)
 
 void Zdb_Cxn::hbRcvd(const ZdbNet::fbs::Msg_HB *hb)
 {
-  // FIXME - dbState()
-  //
   unsigned dbCount = m_env->dbCount();
   auto dbState = hb->dbState();
 
@@ -923,39 +923,18 @@ void Zdb_Cxn::hbRcvd(const ZdbNet::fbs::Msg_HB *hb)
     return;
   }
 
-  if (!m_host) m_env->associate(this, hb.hostID);
+  if (!m_host) m_env->associate(this, hb->hostID());
 
   if (!m_host) {
     io.disconnect();
     return;
   }
 
-  hbDataRead(io);
-}
-
-// read heartbeat data
-void Zdb_Cxn::hbDataRead(ZiIOContext &io)
-{
-  const Zdb_Msg_HB &hb = m_recvHdr.u.hb;
-
-  m_recvData.length(hb.dbCount * sizeof(ZdbRN));
-
-  io.init(ZiIOFn::Member<&Zdb_Cxn::hbDataRcvd>::fn(this),
-      m_recvData.data(), m_recvData.length(), 0);
-}
-
-// process received heartbeat (connection level)
-void Zdb_Cxn::hbDataRcvd(ZiIOContext &io)
-{
-  if ((io.offset += io.length) < io.size) return;
-
-  m_env->hbDataRcvd(m_host, m_recvHdr.u.hb, (ZdbRN *)m_recvData.data());
-
-  msgRead(io);
+  m_env->hbDataRcvd(m_host, hb);
 }
 
 // process received heartbeat
-void ZdbEnv::hbDataRcvd(ZdbHost *host, const Zdb_Msg_HB &hb, ZdbRN *dbState)
+void ZdbEnv::hbDataRcvd(ZdbHost *host, const ZdbNet::fbs::Msg_HB *hb)
 {
   Guard guard(m_lock);
 
@@ -968,9 +947,11 @@ void ZdbEnv::hbDataRcvd(ZdbHost *host, const Zdb_Msg_HB &hb, ZdbRN *dbState)
 	" recovering:" << m_recovering <<
 	" replicating:" << !!m_nextCxn);
 
-  host->state(hb.state);
-  memcpy((void *)(host->dbState().data()), dbState,
-      m_dbs.length() * sizeof(ZdbRN));
+  host->state(hb->state());
+  auto &dbState = host->dbState();
+  Zfb::Load::all(hb->dbState(), [&dbState](unsigned i, ZdbRN rn) {
+    dbState[i] = rn;
+  });
 
   using namespace ZdbHostState;
 
@@ -1023,8 +1004,8 @@ void ZdbEnv::vote(ZdbHost *host)
 {
   host->voted(true);
   dbStateRefresh_();
-  if (host != m_next && host != m_prev && host->cmp(m_self) < 0 &&
-      (!m_next || host->cmp(m_next) > 0))
+  if (host != m_next && host != m_prev &&
+      m_self->cmp(host) >= 0 && (!m_next || host->cmp(m_next) > 0))
     setNext(host);
 }
 
@@ -1101,11 +1082,19 @@ int fbb_compress(Zfb::IOBuilder &fbb)
   ZmRef<ZdbBuf> buf = fbb.buf();
   unsigned ulen = buf->length();
   if (ZuUnlikely(ulen <= 8)) return 0;
+#if 0
+  unsigned csize = LZ4_COMPRESSBOUND(ulen);
+  auto cbuf = fbb.make_space(csize);
+  if (ZuUnlikely(!cbuf)) return -1;
+  unsigned clen = LZ4_compress_fast(buf->data(), cbuf, buf->length, csize, 1);
+  fbb.pop(csize - clen);
+  return ulen;
+#endif
   unsigned clen = LZ4_COMPRESSBOUND(ulen);
   auto cbuf = static_cast<uint8_t *>(ZmAlloc(clen));
   if (ZuUnlikely(!cbuf)) return -1;
   clen = LZ4_compress_fast(buf->data(), cbuf, buf->length, clen, 1);
-  fbb.buf(fbb.buf()); // detach, clear, reattach buffer
+  fbb.buf(ZuMv(buf));
   fbb.PushBytes(cbuf, clen);
   ZmFree(cbuf);
   return ulen;
@@ -1270,12 +1259,14 @@ void ZdbEnv::dbStateRefresh_()
     return;
   }
   Zdb_DBState &dbState = m_self->dbState();
-  unsigned i, n = m_dbs.length();
-  for (i = 0; i < n; i++) {
-    ZdbAny *db = m_dbs[i];
-    dbState[i] = db ? db->nextRN() : (ZdbRN)0;
-  }
-}
+  allDBs_([&dbState](const Zdb *db) {
+    if (const Zdb_DBState::Node *node = dbState.find(db->id()))
+      const_cast<Zdb_DBState::Node *>(node)->val() = db->nextRN();
+    else
+      dbState.add(db->id(), db->nextRN());
+    return true;
+  });
+}}
 
 // process received replication header
 bool Zdb_Cxn::repRcvd(const fbs::Msg_Rep *rep)
@@ -1294,193 +1285,177 @@ bool Zdb_Cxn::repRcvd(const fbs::Msg_Rep *rep)
     return false;
   }
 
-  m_env->repDataRcvd(m_host, this, rep);
+  m_env->repDataRcvd(m_host, rep);
 }
 
 // process received replication data
-void ZdbEnv::repDataRcvd(ZdbHost *host, Zdb_Cxn *cxn, const fbs::Msg_Rep *rep)
+void ZdbEnv::repDataRcvd(ZdbHost *host, const fbs::Msg_Rep *rep)
 {
   if (rep->ulen())
-  auto dbID = Zfb::Load::id(rep->db());
+  auto id = Zfb::Load::id(rep->db());
   auto data = Zfb::Load::bytes(rep->data());
-  ZdbDEBUG(this, ZtHexDump(ZtString{} << "DBID:" << dbID <<
+  ZdbDEBUG(this, ZtHexDump(ZtString{} << "ID:" << id <<
 	" RN:" << rep->rn() << " FROM:" << host,
 	data.data(), data.length()));
-  ZdbAny *db = this->db(rep.db);
-  if (ZuUnlikely(!db)) {
-    ZeLOG(Error, ZtString{} <<
-	  "Zdb bad incoming replication data from host " << host->id() <<
-	  " - unknown DBID " << rep.db);
-    return;
-  }
+  Zdb *db = this->db_(id, ZdbHandler{});
   {
     Guard guard(m_lock);
     Zdb_DBState &dbState = host->dbState();
-    if (ZuUnlikely(rep.db >= (ZdbID)dbState.length())) {
-      ZeLOG(Fatal, ZtString{} <<
-	  "ZdbEnv::repDataRcvd encountered inconsistent DBID "
-	  "(ID " << rep.db << " >= " << dbState.length() << ')');
-      return;
-    }
-    if ((active() || host == m_next) && rep.rn < dbState[rep.db]) return;
-    if (rep.rn >= dbState[rep.db]) dbState[rep.db] = rep.rn + 1;
+    ZdbRN newRN = rep->rn(), oldRN;
+    const Zdb_DBState::Node *node;
+    if (node = dbState.find(id))
+      oldRN = node->val();
+    else
+      node = dbState.add(id, oldRN = 0);
+    if ((active() || host == m_next) && newRN < oldRN) return;
+    if (newRN >= oldRN)
+      const_cast<Zdb_DBState::Node *>(node)->val() = newRN + 1;
     if (!m_prev) {
       m_prev = host;
-      ZeLOG(Info, ZtString{} <<
-	  "Zdb host " << m_prev->id() << " is previous in line");
+      ZeLOG(Info, ZtString{} << "Zdb host " << m_prev->id() << " is previous in line");
     }
   }
-  ZmRef<ZdbAnyPOD> pod =
-    db->replicated(rep.rn, rep.prevRN, ptr, range, rep.op);
-  if (pod)
-    repSend(ZuMv(pod), Zdb_Msg::Rep, rep.op, db->config().compress);
+  ZmRef<ZdbBuf> buf =
+    db->replicated(newRN, rep->prevRN(), rep->op(), data.data(), data.length());
+  if (buf)
+    repSend(ZuMv(buf), Zdb_Msg::Rep, rep.op, db->config().compress);
 }
 
 // process replicated record
-ZmRef<ZdbAnyPOD> ZdbAny::replicated(
-    ZdbRN rn, ZdbRN prevRN, void *ptr, ZdbRange range, int op)
+ZmRef<ZdbBuf> Zdb::replicated(
+    ZdbRN rn, ZdbRN prevRN, int op, const uint8_t *data, unsigned len)
 {
-  ZmRef<ZdbAnyPOD> pod = replicated_(rn, prevRN, range, op);
-  if (!pod) return nullptr;
-  replicate(pod, ptr, op);
-  m_env->write(pod, Zdb_Msg::Rep, op, m_config->compress);
-  return pod;
+  ZmRef<ZdbAnyObject> object = replicated_(rn, prevRN, op, data, len);
+  if (!object) return nullptr;
+  replicate(object, op, data, len);
+  m_env->write(object, Zdb_Msg::Rep, op, m_config->compress);
+  return object;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::replicated_(
-    ZdbRN rn, ZdbRN prevRN, ZdbRange range, int op)
+ZmRef<ZdbAnyObject> Zdb::replicated_(
+    ZdbRN rn, ZdbRN prevRN, int op, const uint8_t *data, unsigned len)
 {
-  ZmRef<ZdbAnyPOD> pod;
-  alloc(pod);
-  if (ZuUnlikely(!pod)) return nullptr;
+  ZmRef<ZdbAnyObject> object;
   Guard guard(m_lock);
   if (m_nextRN <= rn) m_nextRN = rn + 1;
-  if (op != ZdbOp::Del) {
-    if (prevRN != rn && (range.off() || range.len() < m_dataSize)) {
-      ZmRef<ZdbAnyPOD> prev = m_cache->find(prevRN);
-      if (ZuUnlikely(!prev) && prevRN < m_nextRN) {
-	Zdb_FileRec rec = rn2file(prevRN, false);
-	if (rec) prev = read_(rec);
-      }
-      if (prev && prev->magic())
-	memcpy(pod->ptr(), prev->ptr(), m_dataSize);
-    }
-    pod->update(rn, prevRN, range, ZdbCommitted);
-  } else
-    pod->update(rn, prevRN, ZdbRange{}, ZdbDeleted);
-  pod->pin();
-  cache(pod);
-  return pod;
+  switch (op) {
+    case ZdbOp::Add:
+      object = m_handler.ctorFn(this, rn, data, len);
+      if (!object) return nullptr;
+      break;
+    case ZdbOp::Update:
+      object = get__(prevRN);
+      if (!object || object->deleted) return nullptr;
+      cacheDel_(prevRN);
+      object = m_handler.loadFn(object, data, len);
+      if (!object) return nullptr;
+      break;
+    case ZdbOp::Del:
+      object = get__(prevRN);
+      if (!object) return nullptr;
+      cacheDel_(prevRN);
+      object->deleted = true;
+      break;
+  }
+  cache(object);
+  return object;
 }
 
-void ZdbAny::replicate(ZdbAnyPOD *pod, void *ptr, int op)
+void Zdb::replicate(
+    ZdbAnyObject *object, int op, const uint8_t *data, unsigned len)
 {
-  ZdbRange range = pod->range();
-#ifdef ZdbRep_DEBUG
-  ZmAssert((!range || (range.off() + range.len()) <= pod->size()));
-#endif
   if (range) memcpy((char *)pod->ptr() + range.off(), ptr, range.len());
   m_handler.addFn(pod, op, false);
 }
 
-ZdbAny::ZdbAny(ZdbEnv *env, ZuString name, uint32_t version, int cacheMode,
-    ZdbHandler handler) :
-  m_env(env), m_version(version), m_cacheMode(cacheMode),
-  m_handler(ZuMv(handler))
+Zdb::Zdb(ZdbEnv *env, ZdbCf *cf, ZdbHandler handler)
+  m_env{env}, m_cf{cf}, m_handler{ZuMv(handler)},
+  m_path{ZiFile::append(env->config().path, cf->id)},
+  m_cache{new Zdb_Cache{}}, m_cacheSize{m_cache->size()},
+  m_files{new FileHash{}}, m_filesMax{m_files->size()}
 {
-  if (!m_recSize || !m_dataSize) {
-    ZeLOG(Fatal, ZtString{} <<
-	"Zdb misconfiguration for DB " << name << " - record/data size is 0");
-    return;
-  }
-  m_env->add(this, name);
-  if (!m_config) {
-    ZeLOG(Fatal, ZtString{} <<
-	"Zdb misconfiguration for DB " << name << " - ZdbEnv::add() failed");
-    return;
-  }
-  m_fileSize = ((uint64_t)m_recSize)<<ZdbFileShift;
 }
 
-ZdbAny::~ZdbAny()
+Zdb::~Zdb()
 {
   close();
   m_lru.clean();
   m_filesLRU.clean();
 }
 
-void ZdbAny::init(ZdbConfig *config, ZdbID id)
+void Zdb::init(ZdbConfig *config)
 {
   m_config = config;
-  m_id = id;
-  m_cache = new Zdb_Cache{}; // (m_config->cache);
-  m_cacheSize = m_cache->size();
-  m_files = new FileHash{}; // (m_config->fileHash);
-  m_filesMax = m_files->size();
 }
 
-void ZdbAny::final()
+void Zdb::final()
 {
   m_handler = ZdbHandler{};
 }
 
-#pragma pack(push, 4)
 namespace {
-  struct Schema {
-    uint32_t	magic;
-    uint32_t	version;
-    uint32_t	fileSize;
-    uint32_t	recSize;
-    uint32_t	dataSize;
-  };
-}
+#pragma pack(push, 4)
+struct Schema {
+  uint32_t	version;
+  uint32_t	fileSize;
+  uint32_t	recSize;
+  uint32_t	dataSize;
+};
 #pragma pack(pop)
 
-bool ZdbAny::recover()
+ZfbFields(Schema,
+    (((version)), (Int), (Ctor(0))),
+    (((fileSize)), (Int), (Ctor(1))),
+    (((recSize)), (Int), (Ctor(2))),
+    (((dataSize)), (Int), (Ctor(3))));
+
+// flatbuffers overhead is estimated at 16 + nFields * 2 bytes
+template <typename Heap>
+using SchemaBuf_ = ZiIOBuf_<ZuGrow(0, sizeof(Schema) + 24), Heap>;
+struct SchemaBuf_HeapID {
+  static constexpr const char *id() { return "Zdb.SchemaBuf"; }
+};
+using SchemaHeap = ZmHeap<SchemaBuf_HeapID, sizeof(SchemaBuf_<ZuNull>)>;
+using SchemaBuf = SchemaBuf_<SchemaHeap>;
+}
+
+bool Zdb::recover()
 {
   ZeError e;
   ZiDir::Path subName;
   ZtBitWindow<1> subDirs;
   {
     ZiDir dir;
+    ZiFile::Path sName = ZiFile::append(m_config->path, "schema");
     if (dir.open(m_config->path) != Zi::OK) {
       if (ZiFile::mkdir(m_config->path, &e) != Zi::OK) {
 	ZeLOG(Fatal, ZtString{} << m_config->path << ": " << e);
 	return false;
       }
       {
-	Schema f{
-	  ZdbSchema, m_version, m_fileSize, m_recSize, m_dataSize};
-	ZiFile::Path sName = ZiFile::append(m_config->path, "schema");
-	ZiFile sFile;
-	if (sFile.open(sName, ZiFile::Create | ZiFile::GC,
-	      0666, sizeof(Schema), &e) != Zi::OK) {
-	  ZeLOG(Fatal, ZtString{} << sName << ": " << e);
-	  return false;
-	}
-	int r;
-	if (ZuUnlikely((r = sFile.write(&f, sizeof(Schema), &e)) != Zi::OK)) {
+	Schema f{m_version, m_fileSize, m_recSize, m_dataSize};
+	Zfb::IOBuilder<SchemaBuf> fbb;
+	fbb.Finish(ZfbField::save(fbb, f));
+	if (Zfb::Save::save(sName, fbb, 0666, &e) != Zi::OK) {
 	  ZeLOG(Fatal, ZtString{} <<
-	      "Zdb write() failed on \"" << sName << "\": " << e);
+	      "Zdb save() failed on \"" << sName << "\": " << e);
 	  return false;
 	}
       }
       return true;
     }
     {
-      Schema p{ZdbSchema, m_version, m_fileSize, m_recSize, m_dataSize};
+      Schema p{m_version, m_fileSize, m_recSize, m_dataSize};
       Schema f;
-      ZiFile::Path sName = ZiFile::append(m_config->path, "schema");
-      ZiFile sFile;
-      if (sFile.open(sName, ZiFile::GC, 0666, sizeof(Schema), &e) != Zi::OK) {
-	ZeLOG(Fatal, ZtString{} << sName << ": " << e);
+      if (Zfb::Load::load(sName, [&f](const uint8_t *data, unsigned len) {
+	if (auto fbo = ZfbField::verify<Schema>(data, len)) {
+	  ZfbField::load<Schema>(f, fbo);
+	  return true;
+	}
 	return false;
-      }
-      int r;
-      if (ZuUnlikely((r = sFile.read(
-		&f, sizeof(Schema), &e)) < (int)sizeof(Schema))) {
+      }, SchemaBuf::Size, &e) != Zi::OK) {
 	ZeLOG(Fatal, ZtString{} <<
-	    "Zdb read() failed on \"" << sName << "\": " << e);
+	    "Zdb load() failed on \"" << sName << "\": " << e);
 	return false;
       }
       if (memcmp(&p, &f, sizeof(Schema))) {
@@ -1522,7 +1497,7 @@ bool ZdbAny::recover()
     }
     dir.close();
   }
-  subDirs.all([&](unsigned i, bool) -> uintptr_t {
+  subDirs.all([&](unsigned i, bool) {
 #ifdef _WIN32
     ZtString subName_;
 #else
@@ -1536,7 +1511,7 @@ bool ZdbAny::recover()
       ZiDir subDir;
       if (subDir.open(subName, &e) != Zi::OK) {
 	ZeLOG(Error, ZtString{} << subName << ": " << e);
-	return 0;
+	return true;
       }
       while (subDir.read(fileName) == Zi::OK) {
 #ifdef _WIN32
@@ -1558,7 +1533,7 @@ bool ZdbAny::recover()
       }
       subDir.close();
     }
-    files.all([&](unsigned j, bool) -> uintptr_t {
+    files.all([&](unsigned j, bool) {
 #ifdef _WIN32
       ZtString fileName_;
 #else
@@ -1572,17 +1547,17 @@ bool ZdbAny::recover()
       if (file->open(
 	    fileName, ZiFile::GC, 0666, m_fileSize, &e) != Zi::OK) {
 	ZeLOG(Error, ZtString{} << fileName << ": " << e);
-	return 0;
+	return true;
       }
       recover(file);
-      return 0;
+      return true;
     });
-    return 0;
+    return true;
   });
   return true;
 }
 
-void ZdbAny::recover(Zdb_File *file)
+void Zdb::recover(Zdb_File *file)
 {
   ZdbRN rn = ((ZdbRN)(file->index()))<<ZdbFileShift;
   for (unsigned j = 0; j < ZdbFileRecs; j++, rn++) {
@@ -1617,7 +1592,7 @@ void ZdbAny::recover(Zdb_File *file)
   }
 }
 
-void ZdbAny::recover(ZmRef<ZdbAnyPOD> pod, int op)
+void Zdb::recover(ZmRef<ZdbAnyPOD> pod, int op)
 {
   ZdbRN prevRN = pod->prevRN();
   if (pod->rn() != prevRN) m_cache->del(prevRN);
@@ -1625,12 +1600,25 @@ void ZdbAny::recover(ZmRef<ZdbAnyPOD> pod, int op)
   cache(ZuMv(pod));
 }
 
-void ZdbAny::scan(Zdb_File *file)
+void Zdb::scan(Zdb_File *file)
 {
-  unsigned magicOffset =
-    m_recSize - sizeof(ZdbTrailer) + offsetof(ZdbTrailer, magic);
+  // FIXME - read superblock
+  // FIXME - use 0 offset as indicator of deleted (in superblock)
+  // - 0 offset as indicator of deleted (in index)
+  // - write index, then length+data+magic
+  // ZdbAllocated is no longer used
+  // if length is zero, record is allocated and not committed
+  // if length is non-zero and magic is not ZdbCommitted, record is
+  // partially committed, i.e. not
+  // in either of above cases, index can be reverted to zero (and
+  // recovery/scanning skips this record)
+  // deletes - index and length remains in place, ZdbDeleted is used
+  // - GC of entire file occurs as previously
+
+  if (file->size() < ) // check if empty file, no superblock
   for (unsigned j = 0; j < ZdbFileRecs; j++) {
-    ZiFile::Offset off = (ZiFile::Offset)j * m_recSize + magicOffset;
+    ZiFile::Offset off =
+      static_cast<ZiFile::Offset>(j) * m_recSize + magicOffset;
     uint32_t magic;
     int r;
     ZeError e;
@@ -1651,7 +1639,7 @@ void ZdbAny::scan(Zdb_File *file)
   }
 }
 
-bool ZdbAny::open()
+bool Zdb::open()
 {
   if (!recover()) return false;
 
@@ -1662,20 +1650,20 @@ bool ZdbAny::open()
   return true;
 }
 
-void ZdbAny::close()
+void Zdb::close()
 {
   FSGuard guard(m_fsLock);
   m_files->clean();
 }
 
-void ZdbAny::checkpoint()
+void Zdb::checkpoint()
 {
   m_env->mx()->run(
       m_env->config().writeTID,
       ZmFn<>{this, [](ZdbAny *db) { db->checkpoint_(); }});
 }
 
-void ZdbAny::checkpoint_()
+void Zdb::checkpoint_()
 {
   FSGuard guard(m_fsLock);
   auto i = m_files->readIterator();
@@ -1683,7 +1671,7 @@ void ZdbAny::checkpoint_()
     file->checkpoint();
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::placeholder()
+ZmRef<ZdbAnyPOD> Zdb::placeholder()
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -1692,7 +1680,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::placeholder()
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::push()
+ZmRef<ZdbAnyPOD> Zdb::push()
 {
   if (ZuUnlikely(!m_env->active())) {
     ZeLOG(Error, ZtString{} <<
@@ -1702,7 +1690,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::push()
   return push_();
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::push_()
+ZmRef<ZdbAnyPOD> Zdb::push_()
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -1713,7 +1701,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::push_()
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::push(ZdbRN rn)
+ZmRef<ZdbAnyPOD> Zdb::push(ZdbRN rn)
 {
   if (ZuUnlikely(!m_env->active())) {
     ZeLOG(Error, ZtString{} <<
@@ -1724,7 +1712,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::push(ZdbRN rn)
   return push_(rn);
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::push_(ZdbRN rn)
+ZmRef<ZdbAnyPOD> Zdb::push_(ZdbRN rn)
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -1742,13 +1730,13 @@ ZmRef<ZdbAnyPOD> ZdbAny::push_(ZdbRN rn)
   return pod;
 }
 
-ZdbRN ZdbAny::pushRN()
+ZdbRN Zdb::pushRN()
 {
   Guard guard(m_lock);
   return m_nextRN++;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::get(ZdbRN rn)
+ZmRef<ZdbAnyPOD> Zdb::get(ZdbRN rn)
 {
   ZmRef<ZdbAnyPOD> pod;
   Guard guard(m_lock);
@@ -1770,67 +1758,59 @@ ZmRef<ZdbAnyPOD> ZdbAny::get(ZdbRN rn)
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::get_(ZdbRN rn)
+ZmRef<ZdbAnyObject> Zdb::get_(ZdbRN rn)
 {
   Guard guard(m_lock);
   if (ZuUnlikely(rn >= m_nextRN)) return nullptr;
-  ZmRef<ZdbAnyPOD> pod = get__(rn);
-  if (ZuUnlikely(!pod || !pod->committed())) return nullptr;
-  return pod;
+  return get__(rn);
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::get__(ZdbRN rn)
+ZmRef<ZdbAnyObject> Zdb::get__(ZdbRN rn)
 {
-  ZmRef<ZdbAnyPOD> pod;
+  ZmRef<ZdbAnyObject> object;
   ++m_cacheLoads;
-  if (ZuLikely(pod = m_cache->find(rn))) return pod;
+  if (ZuLikely(object = m_cache->find(rn))) return object;
   ++m_cacheMisses;
   {
-    Zdb_FileRec rec = rn2file(rn, false);
-    if (rec) pod = read_(rec);
+    Zdb_FileRec rec = rn2file(rn, false); // FIXME
+    if (rec) object = read_(rec); // FIXME
   }
-  return pod;
+  return object;
 }
 
-void ZdbAny::cache(ZdbAnyPOD *pod)
+void Zdb::cache(ZdbAnyPOD *pod)
 {
   if (m_cacheMode != ZdbCacheMode::FullCache &&
       m_cache->count_() >= m_cacheSize) {
     auto lru_ = m_lru.shiftNode();
     if (ZuLikely(lru_)) {
       ZdbAnyPOD *lru = static_cast<ZdbAnyPOD *>(lru_);
-      if (lru->pinned()) {
-	m_lru.push(ZuMv(lru_));
-	cache_(pod);
-	m_cacheSize = m_cache->size();
-	return;
-      }
       m_cache->del(lru->rn());
     }
   }
   cache_(pod);
 }
 
-void ZdbAny::cache_(ZdbAnyPOD *pod)
+void Zdb::cache_(ZdbAnyPOD *pod)
 {
   m_cache->add(pod);
   if (m_cacheMode != ZdbCacheMode::FullCache) m_lru.push(pod);
 }
 
-void ZdbAny::cacheDel_(ZdbRN rn)
+void Zdb::cacheDel_(ZdbRN rn)
 {
   if (ZmRef<Zdb_CacheNode> pod = m_cache->del(rn))
     if (m_cacheMode != ZdbCacheMode::FullCache) m_lru.del(pod.ptr());
 }
 
-void ZdbAny::abort(ZdbAnyPOD *pod) // aborts a push()
+void Zdb::abort(ZdbAnyPOD *pod) // aborts a push()
 {
   ZmAssert(!pod->committed());
   pod->del();
   m_env->write(pod, Zdb_Msg::Rep, ZdbOp::Del, false);
 }
 
-void ZdbAny::put(ZdbAnyPOD *pod) // commits a push
+void Zdb::put(ZdbAnyPOD *pod) // commits a push
 {
   ZmAssert(!pod->committed());
   pod->commit();
@@ -1842,7 +1822,7 @@ void ZdbAny::put(ZdbAnyPOD *pod) // commits a push
   m_env->write(pod, Zdb_Msg::Rep, ZdbOp::Add, m_config->compress);
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::update(ZdbAnyPOD *prev)
+ZmRef<ZdbAnyPOD> Zdb::update(ZdbAnyPOD *prev)
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -1859,7 +1839,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::update(ZdbAnyPOD *prev)
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::update(ZdbAnyPOD *prev, ZdbRN rn)
+ZmRef<ZdbAnyPOD> Zdb::update(ZdbAnyPOD *prev, ZdbRN rn)
 {
   if (ZuUnlikely(rn == ZdbNullRN)) return update(prev);
   ZmRef<ZdbAnyPOD> pod;
@@ -1881,7 +1861,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::update(ZdbAnyPOD *prev, ZdbRN rn)
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::update_(ZdbRN prevRN)
+ZmRef<ZdbAnyPOD> Zdb::update_(ZdbRN prevRN)
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -1896,7 +1876,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::update_(ZdbRN prevRN)
   return pod;
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::update_(ZdbRN prevRN, ZdbRN rn)
+ZmRef<ZdbAnyPOD> Zdb::update_(ZdbRN prevRN, ZdbRN rn)
 {
   if (ZuUnlikely(rn == ZdbNullRN)) return update_(prevRN);
   ZmRef<ZdbAnyPOD> pod;
@@ -1912,8 +1892,8 @@ ZmRef<ZdbAnyPOD> ZdbAny::update_(ZdbRN prevRN, ZdbRN rn)
   return pod;
 }
 
-// commits an update - if replace, previous versions are deleted
-void ZdbAny::putUpdate(ZdbAnyPOD *pod, bool replace)
+// commits an update
+void Zdb::putUpdate(ZdbAnyPOD *pod)
 {
   ZmAssert(!pod->committed());
   pod->commit();
@@ -1923,11 +1903,10 @@ void ZdbAny::putUpdate(ZdbAnyPOD *pod, bool replace)
     pod->pin();
     cache(pod);
   }
-  m_env->write(pod, Zdb_Msg::Rep,
-      replace ? ZdbOp::Upd : ZdbOp::Add, m_config->compress);
+  m_env->write(pod, Zdb_Msg::Rep, ZdbOp::Upd, m_config->compress);
 }
 
-void ZdbAny::del(ZdbAnyPOD *pod)
+void Zdb::del(ZdbAnyPOD *pod)
 {
   ZmAssert(pod->committed());
   ZdbRN rn;
@@ -1940,7 +1919,7 @@ void ZdbAny::del(ZdbAnyPOD *pod)
   m_env->write(pod, Zdb_Msg::Rep, ZdbOp::Del, false);
 }
 
-void ZdbAny::purge(ZdbRN minRN)
+void Zdb::purge(ZdbRN minRN)
 {
   ZdbRN rn;
   {
@@ -1961,7 +1940,7 @@ void ZdbAny::purge(ZdbRN minRN)
   }
 }
 
-void ZdbAny::telemetry(Telemetry &data) const
+void Zdb::telemetry(Telemetry &data) const
 {
   data.path = m_config->path;
   data.name = m_config->name;
@@ -2003,7 +1982,7 @@ void ZdbEnv::write(ZmRef<ZdbAnyObject> object, int type, int op, bool compress)
       }));
 }
 
-void ZdbAny::write(ZmRef<ZdbBuf> buf)
+void Zdb::write(ZmRef<ZdbBuf> buf)
 {
   if (!m_config->repMode) m_env->repSend(buf);
   buf->write();
@@ -2015,7 +1994,7 @@ void ZdbBuf::write()
   m_db->write_(rn, prevRN, op, data(), length());
 }
 
-Zdb_FileRec ZdbAny::rn2file(ZdbRN rn, bool write)
+Zdb_FileRec Zdb::rn2file(ZdbRN rn, bool write)
 {
   unsigned index = rn>>ZdbFileShift;
   unsigned offRN = rn & ZdbFileMask;
@@ -2024,7 +2003,7 @@ Zdb_FileRec ZdbAny::rn2file(ZdbRN rn, bool write)
   return Zdb_FileRec(ZuMv(file), offRN);
 }
 
-ZmRef<Zdb_File> ZdbAny::getFile(unsigned index, bool create)
+ZmRef<Zdb_File> Zdb::getFile(unsigned index, bool create)
 {
   FSGuard guard(m_fsLock);
   ++m_fileLoads;
@@ -2045,12 +2024,12 @@ ZmRef<Zdb_File> ZdbAny::getFile(unsigned index, bool create)
   return file;
 }
 
-ZmRef<Zdb_File> ZdbAny::openFile(unsigned index, bool create)
+ZmRef<Zdb_File> Zdb::openFile(uint64_t id, bool create)
 {
-  ZiFile::Path name = dirName(index);
+  ZiFile::Path name = dirName(id);
   if (create) ZiFile::mkdir(name); // pre-emptive idempotent
-  name = fileName(name, index);
-  ZmRef<Zdb_File> file = new Zdb_File(index);
+  name = fileName(name, id);
+  ZmRef<Zdb_File> file = new Zdb_File{id};
   if (file->open(name, ZiFile::GC, 0666, m_fileSize, 0) == Zi::OK) {
     scan(file);
     return file;
@@ -2066,7 +2045,7 @@ ZmRef<Zdb_File> ZdbAny::openFile(unsigned index, bool create)
   return file;
 }
 
-void ZdbAny::delFile(Zdb_File *file)
+void Zdb::delFile(Zdb_File *file)
 {
   bool lastFile;
   unsigned index = file->index();
@@ -2081,7 +2060,7 @@ void ZdbAny::delFile(Zdb_File *file)
   ZiFile::remove(fileName(index));
 }
 
-ZmRef<ZdbAnyPOD> ZdbAny::read_(const Zdb_FileRec &rec)
+ZmRef<ZdbAnyPOD> Zdb::read_(const Zdb_FileRec &rec)
 {
   ZmRef<ZdbAnyPOD> pod;
   alloc(pod);
@@ -2097,7 +2076,7 @@ ZmRef<ZdbAnyPOD> ZdbAny::read_(const Zdb_FileRec &rec)
 }
 
 // FIXME - core write to disk routine
-void ZdbAny::write_(ZdbRN rn, ZdbRN prevRN, int op, void *data, unsigned length)
+void Zdb::write_(ZdbRN rn, ZdbRN prevRN, int op, void *data, unsigned length)
 {
   int r;
   ZeError e;
@@ -2175,7 +2154,7 @@ void ZdbAny::write_(ZdbRN rn, ZdbRN prevRN, int op, void *data, unsigned length)
   }
 }
 
-void ZdbAny::fileRdError_(
+void Zdb::fileRdError_(
     Zdb_File *file, ZiFile::Offset off, int r, ZeError e)
 {
   if (r < 0) {
@@ -2189,7 +2168,7 @@ void ZdbAny::fileRdError_(
   }
 }
 
-void ZdbAny::fileWrError_(Zdb_File *file, ZiFile::Offset off, ZeError e)
+void Zdb::fileWrError_(Zdb_File *file, ZiFile::Offset off, ZeError e)
 {
   ZeLOG(Error, ZtString{} <<
       "Zdb pwrite() failed on \"" << fileName(file->index()) <<

@@ -31,6 +31,7 @@
 #include <zlib/ZrlHistory.hpp>
 
 namespace {
+
 class Context {
   using Lock = ZmLock;
   using Guard = ZmGuard<Lock>;
@@ -180,6 +181,7 @@ public:
 inline Context *instance() {
   return ZmSingleton<Context>::instance();
 }
+
 }
 
 ZrlExtern char *Zrl_readline(const char *prompt)

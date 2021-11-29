@@ -50,10 +50,10 @@ class ZiAPI ZiFile {
   ZiFile &operator =(const ZiFile &) = delete;	// prevent mis-use
 
 public:
-  using Handle = ZiPlatform::Handle;
-  using Path = ZiPlatform::Path;
-  using Offset = ZiPlatform::Offset;
-  using MMapPtr = ZiPlatform::MMapPtr;
+  using Handle = Zi::Handle;
+  using Path = Zi::Path;
+  using Offset = Zi::Offset;
+  using MMapPtr = Zi::MMapPtr;
 
   using Lock = ZmLock;
   using Guard = ZmGuard<Lock>;
@@ -80,10 +80,10 @@ public:
   // Note: Direct requires caller align all reads/writes to blkSize()
 
   ZiFile() :
-      m_handle(ZiPlatform::nullHandle()), m_flags(0),
+      m_handle(Zi::nullHandle()), m_flags(0),
       m_offset(0), m_blkSize(0), m_addr(0), m_mmapLength(0)
 #ifdef _WIN32
-      , m_mmapHandle(ZiPlatform::nullHandle())
+      , m_mmapHandle(Zi::nullHandle())
 #endif
   { }
 
@@ -104,16 +104,16 @@ public:
     if (m_flags & GC) {
       close();
     } else {
-      m_handle = ZiPlatform::nullHandle();
+      m_handle = Zi::nullHandle();
 #ifdef _WIN32
-      m_mmapHandle = ZiPlatform::nullHandle();
+      m_mmapHandle = Zi::nullHandle();
 #endif
     }
   }
 
   ZuInline bool operator !() const {
     ReadGuard guard(m_lock);
-    return ZiPlatform::nullHandle(m_handle);
+    return Zi::nullHandle(m_handle);
   }
   ZuOpBool
 

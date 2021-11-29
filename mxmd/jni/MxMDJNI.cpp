@@ -70,7 +70,7 @@ extern "C" {
 void mxmd_jvm_debug()
 {
   static volatile int cont = 0;
-  while (!cont) ZmPlatform::sleep(1);
+  while (!cont) Zm::sleep(1);
 }
 
 MxMDExtern jint JNI_OnLoad(JavaVM *jvm, void *)
@@ -82,7 +82,7 @@ MxMDExtern jint JNI_OnLoad(JavaVM *jvm, void *)
     if (s && atoi(s)) {
       std::cerr << (ZuStringN<100>()
 	  << "MXMD_JVM_DEBUG - attach debugger to PID "
-	  << ZuBoxed(ZmPlatform::getPID()) << '\n') << std::flush;
+	  << ZuBoxed(Zm::getPID()) << '\n') << std::flush;
       mxmd_jvm_debug();
     }
   }

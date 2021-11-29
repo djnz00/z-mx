@@ -42,7 +42,7 @@ void usage() {
     "    RECFILE\t- recording file\n"
     "    SYMBOLS\t- optional file containing symbols to subscribe to\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 void exception(const MxMDLib *, ZmRef<ZeEvent> e) { std::cerr << *e << '\n'; }

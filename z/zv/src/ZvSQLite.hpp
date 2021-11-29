@@ -55,7 +55,7 @@ class ZvAPI Table {
 public:
   ~Table() = delete;
 
-  Table(ZvFieldArray fields, ZuString name);
+  Table(ZtFieldArray fields, ZuString name);
 
   const ZtString &name() const { return m_name; }
 
@@ -68,15 +68,15 @@ public:
 
 // FIXME - use WAL (write ahead logging)
 //
-// FIXME - update ZvField usages to new interface (update all
-// macro declare definitions in ZvField.hpp first, then update ZvCSV, Zdf etc.)
+// FIXME - update ZtField usages to new interface (update all
+// macro declare definitions in ZtField.hpp first, then update ZvCSV, Zdf etc.)
 
 // FIXME - use custom functions to print/scan enums, flags, decimals
 // (convert fixed -> decimal to store)
 
-// FIXME - use ZvField run-time metadata to create tables + indices, bind, etc.
+// FIXME - use ZtField run-time metadata to create tables + indices, bind, etc.
 //
-// FIXME - update uses of ZvFieldArray to provide Primary, Secondary, etc.
+// FIXME - update uses of ZtFieldArray to provide Primary, Secondary, etc.
 // run-time metadata (in addition to Key, key() at compile time)
 
 #endif /* ZvSQLite_HPP */

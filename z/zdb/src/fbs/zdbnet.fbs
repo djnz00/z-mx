@@ -1,9 +1,14 @@
 include "types.fbs";
 namespace ZdbNet.fbs;
+struct DBState {
+  db:Zfb.ID;
+  rn:uint64;
+}
 table Msg_HB {
   host_i_d:uint16;
   state:uint16;
-  db_state:[uint64];
+  env_era:uint64;
+  env_state:[DBState];
 }
 enum Op:int8 {
   Add = 0,

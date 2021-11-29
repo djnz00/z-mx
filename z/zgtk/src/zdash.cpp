@@ -73,7 +73,7 @@ static void usage()
     "usage: zdash\n";
   std::cerr << usage << std::flush;
   ZeLog::stop();
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 namespace ZDash {
@@ -116,7 +116,7 @@ namespace Telemetry {
   using Graph = GraphList::Node;
 
   using TypeList = ZvTelemetry::TypeList;
-  using FBSTypeList = ZuTypeMap<ZvFBS, TypeList>;
+  using FBTypeList = ZuTypeMap<ZfbType, TypeList>;
 
   template <typename Data> struct Item__ {
     using TelKey = ZuFieldKey<Data>;
@@ -148,12 +148,12 @@ namespace Telemetry {
   template <typename Data_> class Item_ : public Item__<Data_> {
   public:
     using Data = Data_;
-    using Load = ZvFB::Load<Data>;
+    using Load = Zfb::Load<Data>;
     using TelKey = typename Item__<Data_>::TelKey;
 
     Item_(void *link__) : link_{link__} { }
-    template <typename FBS>
-    Item_(void *link__, FBS *fbs) : link_{link__}, data{fbs} { }
+    template <typename FBType>
+    Item_(void *link__, FBType *fbo) : link_{link__}, data{fbo} { }
 
   private:
     Item_(const Item_ &) = delete;
@@ -219,9 +219,9 @@ namespace Telemetry {
   class ItemTree : public ItemTree_<T> {
   public:
     using Node = typename ItemTree_<T>::Node;
-    template <typename FBS>
-    Node *lookup(const FBS *fbs) const {
-      return this->find(ZvFB::key<T>(fbs));
+    template <typename FBType>
+    Node *lookup(const FBType *fbo) const {
+      return this->find(Zfb::key<T>(fbo));
     }
   };
   template <typename T> class ItemSingleton {
@@ -233,8 +233,8 @@ namespace Telemetry {
     using Node = Item_<T>;
     ItemSingleton() = default;
     ~ItemSingleton() { if (m_node) delete m_node; }
-    template <typename FBS>
-    Node *lookup(const FBS *) const { return m_node; }
+    template <typename FBType>
+    Node *lookup(const FBType *) const { return m_node; }
     void add(Node *node) { if (m_node) delete m_node; m_node = node; }
   private:
     Node	*m_node = nullptr;
@@ -1385,24 +1385,24 @@ private:
     if (ZuUnlikely(i > TelData::MAX)) return;
     ZuSwitch::dispatch<TelData::N - TelData::First>(i - TelData::First,
 	[this, cliLink, msg](auto i) {
-      using FBS = TelData::Type<i + TelData::First>;
-      auto fbs = static_cast<const FBS *>(msg->data());
-      processTel3(cliLink, fbs);
+      using FBType = TelData::Type<i + TelData::First>;
+      auto fbo = static_cast<const FBType *>(msg->data());
+      processTel3(cliLink, fbo);
     });
   }
-  template <typename FBS>
-  ZuIsNot<ZvTelemetry::fbs::Alert, FBS>
-  processTel3(CliLink_ *cliLink, const FBS *fbs) {
-    ZuConstant<ZuTypeIndex<FBS, Telemetry::FBSTypeList>::I> i;
+  template <typename FBType>
+  ZuIsNot<ZvTelemetry::fbs::Alert, FBType>
+  processTel3(CliLink_ *cliLink, const FBType *fbo) {
+    ZuConstant<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
     using Item = TelItem<T>;
     Item *item;
-    if (item = container.lookup(fbs)) {
-      ZvFB::loadUpdate(item->data, fbs);
+    if (item = container.lookup(fbo)) {
+      Zfb::loadUpdate(item->data, fbo);
       m_gtkModel->updated(GtkTree::row(item));
     } else {
-      item = new Item{cliLink, fbs};
+      item = new Item{cliLink, fbo};
       container.add(item);
       addGtkRow(cliLink, item);
     }
@@ -1528,13 +1528,13 @@ private:
 	  return _->dbs();
 	});
   }
-  template <typename FBS>
-  ZuIs<ZvTelemetry::fbs::Alert, FBS, bool>
-  processTel3(CliLink_ *cliLink, const FBS *fbs) {
-    ZuConstant<ZuTypeIndex<FBS, Telemetry::FBSTypeList>::I> i;
+  template <typename FBType>
+  ZuIs<ZvTelemetry::fbs::Alert, FBType, bool>
+  processTel3(CliLink_ *cliLink, const FBType *fbo) {
+    ZuConstant<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
-    processAlert(new (container.data.push()) ZvFB::Load<T>{fbs});
+    processAlert(new (container.data.push()) Zfb::Load<T>{fbo});
     return true;
   }
 

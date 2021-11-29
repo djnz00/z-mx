@@ -224,11 +224,11 @@ struct ZmTLock_Test {
   }
   static void waitForPendingUpgraders(int id, int n) {
     ZmTLock<int, int>::LockRef l = lock(id);
-    if (l) while (l->m_upgradeCount < n) ZmPlatform::sleep(ZmTime(0.001));
+    if (l) while (l->m_upgradeCount < n) Zm::sleep(ZmTime(0.001));
   }
   static void waitForPendingWriters(int id, int n) {
     ZmTLock<int, int>::LockRef l = lock(id);
-    if (l) while (l->m_writeCount < n) ZmPlatform::sleep(ZmTime(0.001));
+    if (l) while (l->m_writeCount < n) Zm::sleep(ZmTime(0.001));
   }
 };
 

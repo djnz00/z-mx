@@ -355,7 +355,7 @@ namespace Zu_ntoa {
     }
   };
   template <> struct Log16<4> {
-    ZuInline static unsigned log(unsigned v) {
+    ZuInline static unsigned log(uint32_t v) {
       unsigned l;
       if (ZuUnlikely(!v))
 	l = 1U;

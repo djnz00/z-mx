@@ -56,8 +56,8 @@ namespace MxMDPxLevelJNI {
   // () -> MxMDPxLvlData
   jobject data(JNIEnv *, jobject);
 
-  // (MxMDAllOrdersFn) -> long
-  jlong allOrders(JNIEnv *, jobject, jobject);
+  // (MxMDAllOrdersFn) -> boolean
+  jboolean allOrders(JNIEnv *, jobject, jobject);
 
   jobject ctor(JNIEnv *, ZmRef<MxMDPxLevel>);
   int bind(JNIEnv *);

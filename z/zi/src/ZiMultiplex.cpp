@@ -122,9 +122,9 @@ ZiMultiplex_WSExt *ZiMultiplex_WSExt::instance()
 
 ZiMultiplex_WSExt::ZiMultiplex_WSExt()
 {
-  using Socket = ZiPlatform::Socket;
+  using Socket = Zi::Socket;
   Socket s = (Socket)::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (ZiPlatform::nullSocket(s)) goto error;
+  if (Zi::nullSocket(s)) goto error;
   {
     static GUID connectExGUID = WSAID_CONNECTEX;
     static GUID acceptExGUID = WSAID_ACCEPTEX;
@@ -162,7 +162,7 @@ ZiMultiplex_WSExt::ZiMultiplex_WSExt()
   return;
 
 error:
-  if (!ZiPlatform::nullSocket(s)) ::closesocket(s);
+  if (!Zi::nullSocket(s)) ::closesocket(s);
   m_connectEx = 0;
   m_acceptEx = 0;
   m_getAcceptExSockaddrs = 0;
@@ -245,9 +245,9 @@ ZiConnection::~ZiConnection()
 {
   // precautionary code to ensure no leaking of sockets
 
-  if (!ZiPlatform::nullSocket(m_info.socket)) {
+  if (!Zi::nullSocket(m_info.socket)) {
     ZeLOG(Warning, "~ZiConnection() called with socket still open");
-    ZiPlatform::closeSocket(m_info.socket);
+    Zi::closeSocket(m_info.socket);
   }
 }
 
@@ -391,7 +391,7 @@ void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
 #else /* !_WIN32 */
 
   s = (Socket)::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-  if (ZiPlatform::nullSocket(s)) {
+  if (Zi::nullSocket(s)) {
     Error("socket", Zi::IOError, ZeLastSockError);
     failFn(false);
     return;
@@ -496,7 +496,7 @@ void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
       ZiCxnType::UDP, s, options, localIP, localPort, remoteIP, remotePort });
 
   if (!cxn) {
-    ZiPlatform::closeSocket(s);
+    Zi::closeSocket(s);
     return;
   }
 
@@ -553,16 +553,16 @@ void ZiMultiplex::connect_(ZiConnectFn fn, ZiFailFn failFn,
   else
 #endif
   s = (Socket)::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (ZiPlatform::nullSocket(s)) {
+  if (Zi::nullSocket(s)) {
     ZeError e = ZeLastSockError;
-    ZiPlatform::closeSocket(s);
+    Zi::closeSocket(s);
     Error("socket", Zi::IOError, e);
     failFn(false);
     return;
   }
 
   if (!initSocket(s, options)) {
-    ZiPlatform::closeSocket(s);
+    Zi::closeSocket(s);
     failFn(false);
     return;
   }
@@ -741,7 +741,7 @@ void ZiMultiplex::executedConnect(ZiConnectFn fn, const ZiCxnInfo &ci)
   ZmRef<ZiConnection> cxn = (ZiConnection *)fn(ci);
 
   if (!cxn) {
-    ZiPlatform::closeSocket(ci.socket);
+    Zi::closeSocket(ci.socket);
     return;
   }
 
@@ -889,7 +889,7 @@ void ZiMultiplex::listen_(
 #else /* !_WIN32 */
 
   lsocket = (Socket)::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (ZiPlatform::nullSocket(lsocket)) {
+  if (Zi::nullSocket(lsocket)) {
     Error("socket", Zi::IOError, ZeLastSockError);
     failFn(false);
     return;
@@ -934,7 +934,7 @@ void ZiMultiplex::listen_(
 #endif
 
   if (!listenerAdd(listener, lsocket)) {
-    ZiPlatform::closeSocket(lsocket);
+    Zi::closeSocket(lsocket);
     failFn(false);
     return;
   }
@@ -1005,7 +1005,7 @@ found:
 
   // under IOCP, this should cause all pending accepts to complete
   // with an error
-  ZiPlatform::closeSocket(lsocket);
+  Zi::closeSocket(lsocket);
 
   m_nAccepts -= nAccepts;
 }
@@ -1014,7 +1014,7 @@ void ZiMultiplex::accept(Listener *listener)
 {
 #ifdef ZiMultiplex_IOCP
   Socket s = (Socket)::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (ZiPlatform::nullSocket(s)) {
+  if (Zi::nullSocket(s)) {
     Error("socket", Zi::IOError, ZeLastSockError);
     return;
   }
@@ -1236,7 +1236,7 @@ void ZiConnection::recv()
 	    (WSAOVERLAPPED *)&overlapped, 0) != SOCKET_ERROR ||
 	  (e = WSAGetLastError()).errNo() == WSA_IO_PENDING)) {
 #ifdef ZiMultiplex_DEBUG
-      if (m_mx->yield()) ZmPlatform::yield();
+      if (m_mx->yield()) Zm::yield();
 #endif
       return;
     }
@@ -1245,7 +1245,7 @@ void ZiConnection::recv()
 	    (WSAOVERLAPPED *)&overlapped, 0) != SOCKET_ERROR ||
 	  (e = WSAGetLastError()).errNo() == WSA_IO_PENDING)) {
 #ifdef ZiMultiplex_DEBUG
-      if (m_mx->yield()) ZmPlatform::yield();
+      if (m_mx->yield()) Zm::yield();
 #endif
       return;
     }
@@ -1295,7 +1295,7 @@ retry:
   if (ZuUnlikely(n < 0)) {
     if (e.errNo() == EAGAIN) {
 #ifdef ZiMultiplex_DEBUG
-      if (m_mx->yield()) ZmPlatform::yield();
+      if (m_mx->yield()) Zm::yield();
 #endif
       return true;
     }
@@ -1487,7 +1487,7 @@ retry:
   if (ZuUnlikely(n < 0)) {
     if (e.errNo() == EAGAIN) {
 #ifdef ZiMultiplex_DEBUG
-      if (m_mx->yield()) ZmPlatform::yield();
+      if (m_mx->yield()) Zm::yield();
 #endif
       return;
     }
@@ -1662,7 +1662,7 @@ bool ZiMultiplex::cxnAdd(ZiConnection *cxn, Socket s)
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       delete m_cxns->del(s);
-      ZiPlatform::closeSocket(s);
+      Zi::closeSocket(s);
       Error("epoll_ctl(EPOLL_CTL_ADD)", Zi::IOError, e);
       return false;
     }
@@ -1829,8 +1829,8 @@ void ZiConnection::errorDisconnect(int status, ZeError e)
       "DisconnectEx",
 #endif
       status, e);
-  ZiPlatform::closeSocket(m_info.socket);
-  m_info.socket = ZiPlatform::nullSocket();
+  Zi::closeSocket(m_info.socket);
+  m_info.socket = Zi::nullSocket();
   disconnected();
 }
 
@@ -1838,8 +1838,8 @@ void ZiConnection::executedDisconnect()
 {
   ZmRef<ZiConnection> self(this); // maintain +ve ref count in scope
   m_mx->disconnected(this);
-  ZiPlatform::closeSocket(m_info.socket);
-  m_info.socket = ZiPlatform::nullSocket();
+  Zi::closeSocket(m_info.socket);
+  m_info.socket = Zi::nullSocket();
   disconnected();
 }
 
@@ -2068,7 +2068,7 @@ void ZiMultiplex::stop_2()
     while (ZmRef<Listener> listener = i.iterate()) {
       i.del();
       listener->down();
-      ZiPlatform::closeSocket(listener->info().socket);
+      Zi::closeSocket(listener->info().socket);
     }
   }
 
@@ -2104,7 +2104,7 @@ void ZiMultiplex::stop_3()
 
 #ifdef ZiMultiplex_IOCP
   CloseHandle(m_completionPort);
-  m_completionPort = ZiPlatform::nullHandle();
+  m_completionPort = Zi::nullHandle();
 
   WSACleanup();	// this is reference counted
 #endif

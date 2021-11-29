@@ -117,11 +117,9 @@ public:
   decltype(auto) val() && { return ValAxor::get(data()); }
 };
 
-template <typename, bool> struct ZmNodePolicy_;
-template <typename O>
-struct ZmNodePolicy : public ZmNodePolicy_<O, ZuIsObject_<O>::OK> { };
+template <typename O, bool = ZuIsObject_<O>::OK> struct ZmNodePolicy;
 // ref-counted nodes
-template <typename O> struct ZmNodePolicy_<O, true> {
+template <typename O> struct ZmNodePolicy<O, true> {
   using Object = O;
   template <typename T> using Ref = ZmRef<T>;
   template <typename T> void nodeRef(T *o) { ZmREF(o); }
@@ -133,7 +131,7 @@ template <typename O> struct ZmNodePolicy_<O, true> {
   template <typename T> void nodeDelete(const Ref<T> &) { }
 };
 // own nodes (with app-specified base), delete if not returned to caller
-template <typename O> struct ZmNodePolicy_<O, false> {
+template <typename O> struct ZmNodePolicy<O, false> {
   using Object = O;
   template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T *) { }
@@ -142,7 +140,7 @@ template <typename O> struct ZmNodePolicy_<O, false> {
   template <typename T> void nodeDelete(T *o) { delete o; }
 };
 // own nodes, delete if not returned to caller
-template <> struct ZmNodePolicy<ZuNull> {
+template <> struct ZmNodePolicy<ZuNull, false> {
   using Object = ZuNull;
   template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T *) { }
@@ -151,7 +149,7 @@ template <> struct ZmNodePolicy<ZuNull> {
   template <typename T> void nodeDelete(T *o) { delete o; }
 };
 // shadow nodes, never delete
-template <> struct ZmNodePolicy<ZuShadow> {
+template <> struct ZmNodePolicy<ZuShadow, false> {
   using Object = ZuNull;
   template <typename T> using Ref = T *;
   template <typename T> void nodeRef(T *) { }

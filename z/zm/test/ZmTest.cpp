@@ -366,9 +366,9 @@ int main(int argc, char **argv)
   }
   {
     ZList2 list;
-    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("foo")));
-    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("bar")));
-    list.addNode(ZmRef<ZList2::Node>(new ZList2::Node("baz")));
+    list.addNode(new ZList2::Node("foo"));
+    list.addNode(new ZList2::Node("bar"));
+    list.addNode(new ZList2::Node("baz"));
     {
       ZList2::Iterator iter(list);
       ZList2::NodeRef z;
@@ -466,7 +466,7 @@ int main(int argc, char **argv)
 	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
   }
 
-  int n = ZmPlatform::getncpu();
+  int n = Zm::getncpu();
   int t = n * 1000000;
 
   {
@@ -552,7 +552,7 @@ int main(int argc, char **argv)
     W w;
     for (j = 0; j < n; j++)
       r[j] = ZmThread(0, ZmFn<>::Member<&W::wait>::fn(&w));
-    ZmPlatform::sleep(1);
+    Zm::sleep(1);
     ZmSpecific<ZmThreadContext>::all(
 	ZmFn<ZmThreadContext *>::Member<&W::fn1>::fn(&w));
     for (j = 0; j < n; j++) w.post();

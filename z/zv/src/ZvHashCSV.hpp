@@ -35,20 +35,20 @@
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmHash.hpp>
 
-#include <zlib/ZvField.hpp>
+#include <zlib/ZtField.hpp>
 #include <zlib/ZvCSV.hpp>
 
 struct ZvHashCSV {
-  struct Data : public ZvFieldTuple<Data> {
-    static const ZvFieldArray fields() noexcept;
+  struct Data : public ZtFieldTuple<Data> {
+    static const ZtFieldArray fields() noexcept;
 
     ZmIDString		id;
     ZuBox<unsigned>	bits;
     ZuBox<double>	loadFactor;
     ZuBox<unsigned>	cBits;
   };
-  const ZvFieldArray Data::fields() noexcept {
-    ZvFields(Data,
+  const ZtFieldArray Data::fields() noexcept {
+    ZtFields(Data,
 	(String, id, 0),
 	(Int, bits, 0),
 	(Int, loadFactor, 0),

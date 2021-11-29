@@ -73,7 +73,7 @@ struct ZmTLock_Depth : public ZmObject {
   void inc() {
     if (m_depth > 20) {
       fputs("INFINITE RECURSION\n", stderr);
-      _ZmPlatform::exit(1);
+      _Zm::exit(1);
     }
     m_depth++;
   }

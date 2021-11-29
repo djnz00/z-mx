@@ -68,57 +68,55 @@
 
 #include <zlib/ZtString.hpp>
 
-struct ZiAPI ZiPlatform {
+namespace Zi {
+
 #ifndef _WIN32
-  using Handle = int;
-  ZuInline static constexpr const Handle nullHandle() { return -1; }
-  ZuInline static constexpr bool nullHandle(Handle i) { return i < 0; }
-  using Socket = int;
-  ZuInline static constexpr const Socket nullSocket() { return -1; }
-  ZuInline static constexpr bool nullSocket(Socket i) { return i < 0; }
-  static void closeSocket(Socket s) { ::close(s); }
-  using MMapPtr = void *;
-  using Path = ZtString;
-  using Offset = off_t;
-  using Hostname = ZtString;
-  using Username = ZtString;
-  enum {
-    PathMax = PATH_MAX,
-    NameMax = NAME_MAX,
-    NVecMax = IOV_MAX
-  };
+using Handle = int;
+ZuInline constexpr const Handle nullHandle() { return -1; }
+ZuInline constexpr bool nullHandle(Handle i) { return i < 0; }
+using Socket = int;
+ZuInline constexpr const Socket nullSocket() { return -1; }
+ZuInline constexpr bool nullSocket(Socket i) { return i < 0; }
+inline void closeSocket(Socket s) { ::close(s); }
+using MMapPtr = void *;
+using Path = ZtString;
+using Offset = off_t;
+using Hostname = ZtString;
+using Username = ZtString;
+enum {
+  PathMax = PATH_MAX,
+  NameMax = NAME_MAX,
+  NVecMax = IOV_MAX
+};
 #else
-  using Handle = HANDLE;
-  ZuInline static const Handle nullHandle()
-    { return INVALID_HANDLE_VALUE; }
-  ZuInline static bool nullHandle(Handle i)
-    { return !i || i == INVALID_HANDLE_VALUE; }
-  using Socket = SOCKET;
-  ZuInline static constexpr const Socket nullSocket()
-    { return INVALID_SOCKET; }
-  ZuInline static constexpr bool nullSocket(Socket i)
-    { return i == INVALID_SOCKET; }
-  static void closeSocket(Socket s) { ::closesocket(s); }
-  using MMapPtr = LPVOID;
-  using Path = ZtWString;
-  using Offset = int64_t;		// 2x DWORD
-  using Hostname = ZtWString;
-  using Username = ZtWString;
-  enum {
-    PathMax = 32767,	// NTFS limit (MAX_PATH is 260 for FAT)
-    NameMax = 255,	// NTFS & FAT limit
-    NVecMax = 2048	// Undocumented system-wide limit
-  };
+using Handle = HANDLE;
+ZuInline const Handle nullHandle() { return INVALID_HANDLE_VALUE; }
+ZuInline bool nullHandle(Handle i) { return !i || i == INVALID_HANDLE_VALUE; }
+using Socket = SOCKET;
+ZuInline constexpr const Socket nullSocket() { return INVALID_SOCKET; }
+ZuInline constexpr bool nullSocket(Socket i) { return i == INVALID_SOCKET; }
+inline void closeSocket(Socket s) { ::closesocket(s); }
+using MMapPtr = LPVOID;
+using Path = ZtWString;
+using Offset = int64_t;		// 2x DWORD
+using Hostname = ZtWString;
+using Username = ZtWString;
+enum {
+  PathMax = 32767,	// NTFS limit (MAX_PATH is 260 for FAT)
+  NameMax = 255,	// NTFS & FAT limit
+  NVecMax = 2048	// Undocumented system-wide limit
+};
 #endif
 
-  enum {
-    HostnameMax = NI_MAXHOST,
-    ServicenameMax = NI_MAXSERV
-  };
-
-  static Username username(ZeError *e = 0); /* effective username */
-  static Hostname hostname(ZeError *e = 0);
+enum {
+  HostnameMax = NI_MAXHOST,
+  ServicenameMax = NI_MAXSERV
 };
+
+ZiExtern Username username(ZeError *e = 0); /* effective username */
+ZiExtern Hostname hostname(ZeError *e = 0);
+
+} // namespace Zi
 
 #ifndef _WIN32
 using ZiVec = struct iovec;

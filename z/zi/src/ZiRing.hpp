@@ -73,7 +73,7 @@
 #define ZiRing_bp(x) (bp_##x.reached(#x))
 #else
 #ifdef ZiRing_STRESSTEST
-#define ZiRing_bp(x) ZmPlatform::yield()
+#define ZiRing_bp(x) Zm::yield()
 #else
 #define ZiRing_bp(x) (void)0
 #endif
@@ -82,7 +82,7 @@
 // ring buffer parameters
 class ZiRingParams {
 public:
-  using Path = ZiPlatform::Path;
+  using Path = Zi::Path;
 
   ZiRingParams() :
     m_size(0),
@@ -180,7 +180,7 @@ class ZiRingAPI ZiRing {
   static bool alive(uint32_t pid, ZmTime start);
   static bool kill(uint32_t pid, bool coredump);
 
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 
 public:
   ZiRing(ZiRingSizeFn, const ZiRingParams &params);

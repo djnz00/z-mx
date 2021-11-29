@@ -42,7 +42,7 @@ void usage() {
     "    CONFIG - configuration file\n"
     "    SYMBOLS - optional file containing symbols to subscribe to\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 void l1(MxMDOrderBook *ob, const MxMDL1Data &)

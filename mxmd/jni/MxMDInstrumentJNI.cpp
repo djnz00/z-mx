@@ -194,17 +194,17 @@ jobject MxMDInstrumentJNI::orderBook(
 	ZJNI::j2s_ZuID(env, segment)));
 }
 
-jlong MxMDInstrumentJNI::allOrderBooks(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDInstrumentJNI::allOrderBooks(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllOrderBooksFn) -> long
   MxMDInstrument *instr = ptr_(env, obj);
-  if (ZuUnlikely(!instr || !fn)) return 0;
+  if (ZuUnlikely(!instr || !fn)) return false;
   return instr->allOrderBooks(
-      [fn = ZJNI::globalRef(env, fn)](MxMDOrderBook *ob) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDOrderBook *ob) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allOrderBooksFn[0].mid,
+      return env->CallBooleanMethod(fn, allOrderBooksFn[0].mid,
 	  MxMDOrderBookJNI::ctor(env, ob));
-    return 0;
+    return false;
   });
 }
 
@@ -268,7 +268,7 @@ int MxMDInstrumentJNI::bind(JNIEnv *env)
       (void *)static_cast<jobject (*)(JNIEnv *, jobject, jstring, jstring)>(
 	  MxMDInstrumentJNI::orderBook) },
     { "allOrderBooks",
-      "(Lcom/shardmx/mxmd/MxMDAllOrderBooksFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllOrderBooksFn;)Z",
       (void *)&MxMDInstrumentJNI::allOrderBooks },
   };
 #pragma GCC diagnostic pop

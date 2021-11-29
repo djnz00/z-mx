@@ -35,14 +35,14 @@
 
 class
 #ifndef _WIN32
-  __attribute__((aligned(ZmPlatform::CacheLineSize)))
+  __attribute__((aligned(Zm::CacheLineSize)))
 #endif
   ZmSemaphore {
   ZmSemaphore(const ZmSemaphore &) = delete;
   ZmSemaphore &operator =(const ZmSemaphore &) = delete;
 
 #ifndef _WIN32
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 #endif
 
 public:

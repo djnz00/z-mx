@@ -47,7 +47,7 @@ class ZiAPI ZiDir {
   ZiDir &operator =(const ZiDir &);	// prevent mis-use
 
 public:
-  using Path = ZiPlatform::Path;
+  using Path = Zi::Path;
 
   using Guard = ZmGuard<ZmLock>;
 

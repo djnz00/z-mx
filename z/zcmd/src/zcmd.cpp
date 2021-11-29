@@ -78,7 +78,7 @@ static void usage()
     "\tZCMD_PLUGIN\tzcmd plugin module\n";
   std::cerr << usage << std::flush;
   ZeLog::stop();
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 class TelCap {
@@ -97,8 +97,8 @@ public:
 
   template <typename Data_>
   static TelCap keyedFn(ZtString path) {
-    using Data = ZvFB::Load<Data_>;
-    using FBS = ZvFBS<Data>;
+    using Data = Zfb::Load<Data_>;
+    using FBType = ZfbType<Data>;
     using Tree_ =
       ZmRBTree<Data,
 	ZmRBTreeKey<ZuFieldAxor<Data>,
@@ -108,54 +108,54 @@ public:
     ZmRef<Tree> tree = new Tree{};
     return TelCap{[
 	tree = ZuMv(tree),
-	l = ZvCSV<Data>{}.writeFile(path)](const void *fbs_) mutable {
-      if (!fbs_) {
+	l = ZvCSV<Data>{}.writeFile(path)](const void *fbo_) mutable {
+      if (!fbo_) {
 	l(nullptr);
 	tree->clean();
 	return;
       }
-      auto fbs = static_cast<const FBS *>(fbs_);
-      auto node = tree->find(ZvFB::key<Data>(fbs));
+      auto fbo = static_cast<const FBType *>(fbo_);
+      auto node = tree->find(Zfb::key<Data>(fbo));
       if (!node)
-	tree->addNode(node = new typename Tree::Node{fbs});
+	tree->addNode(node = new typename Tree::Node{fbo});
       else
-	ZvFB::loadUpdate(node->data(), fbs);
+	Zfb::loadUpdate(node->data(), fbo);
       l(&(node->data()));
     }};
   }
 
   template <typename Data_>
   static TelCap singletonFn(ZtString path) {
-    using Data = ZvFB::Load<Data_>;
-    using FBS = ZvFBS<Data>;
+    using Data = Zfb::Load<Data_>;
+    using FBType = ZfbType<Data>;
     return TelCap{[
-	l = ZvCSV<Data>{}.writeFile(path)](const void *fbs_) mutable {
-      if (!fbs_) {
+	l = ZvCSV<Data>{}.writeFile(path)](const void *fbo_) mutable {
+      if (!fbo_) {
 	l(nullptr);
 	return;
       }
-      auto fbs = static_cast<const FBS *>(fbs_);
+      auto fbo = static_cast<const FBType *>(fbo_);
       static Data *data = nullptr;
       if (!data)
-	data = new Data{fbs};
+	data = new Data{fbo};
       else
-	ZvFB::loadUpdate(*data, fbs);
+	Zfb::loadUpdate(*data, fbo);
       l(data);
     }};
   }
 
   template <typename Data_>
   static TelCap alertFn(ZtString path) {
-    using Data = ZvFB::Load<Data_>;
-    using FBS = ZvFBS<Data>;
+    using Data = Zfb::Load<Data_>;
+    using FBType = ZfbType<Data>;
     return TelCap{[
-	l = ZvCSV<Data>{}.writeFile(path)](const void *fbs_) mutable {
-      if (!fbs_) {
+	l = ZvCSV<Data>{}.writeFile(path)](const void *fbo_) mutable {
+      if (!fbo_) {
 	l(nullptr);
 	return;
       }
-      auto fbs = static_cast<const FBS *>(fbs_);
-      Data data{fbs};
+      auto fbo = static_cast<const FBType *>(fbo_);
+      Data data{fbo};
       l(&data);
     }};
   }
@@ -353,7 +353,7 @@ private:
       m_cli.final();
       std::cerr << "server disconnected\n" << std::flush;
     }
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
   void connectFailed() {
     if (m_interactive) {
@@ -362,7 +362,7 @@ private:
       m_cli.final();
       std::cerr << "connect failed\n" << std::flush;
     }
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   void exec(ZtString cmd) {

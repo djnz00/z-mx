@@ -142,7 +142,7 @@ void usage()
     "\t\t  IF is an IP address that defaults to 0.0.0.0\n"
     "\t\t  -G can be specified multiple times\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, const char *argv[])
@@ -275,7 +275,7 @@ int main(int argc, const char *argv[])
   ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
   ZmTrap::trap();
 
-  if (mx.start() != Zi::OK) ZmPlatform::exit(1);
+  if (mx.start() != Zi::OK) Zm::exit(1);
 
   mx.udp();
 

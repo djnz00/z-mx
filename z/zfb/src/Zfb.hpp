@@ -98,7 +98,7 @@ protected:
 
   uint8_t *allocate(size_t size) {
     if (ZuLikely(!m_buf)) m_buf = new IOBuf{};
-    return m_buf->alloc(size, [](unsigned o, unsigned n) { return n; });
+    return m_buf->alloc(size);
   }
 
   void deallocate(uint8_t *ptr, size_t size) {
@@ -181,6 +181,14 @@ namespace Save {
     auto r = b.CreateVector(buf, n);
     ZmFree(buf);
     return r;
+  }
+
+  // iterated creation of a vector of structs
+  template <typename T, typename B, typename L>
+  inline Offset<Vector<const T *>> structVecIter(B &b, unsigned n, L l) {
+    b.CreateVectorOfStructs(n, [l = ZuMv(l)](size_t i, T *ptr, void *){
+      l(ptr, i);
+    }, static_cast<void *>(nullptr));
   }
 
   // inline creation of a vector of keyed items
@@ -278,14 +286,15 @@ namespace Save {
 
   // save file
   ZfbExtern int save(
-      const ZiPlatform::Path &path, Builder &fbb, unsigned mode, ZeError *e);
-}
+      const Zi::Path &path, Builder &fbb, unsigned mode, ZeError *e);
+} // Save
 
 namespace Load {
   // shorthand iteration over fastbuffer [T] vectors
   template <typename T, typename L>
   inline void all(T *v, L l) {
-    for (unsigned i = 0, n = v->size(); i < n; i++) l(i, v->Get(i));
+    if (ZuLikely(v))
+      for (unsigned i = 0, n = v->size(); i < n; i++) l(i, v->Get(i));
   }
 
   // inline zero-copy conversion of a FB string to a ZuString
@@ -341,8 +350,8 @@ namespace Load {
   // load file
   using LoadFn = ZmFn<const uint8_t *, unsigned>;
   ZfbExtern int load(
-      const ZiPlatform::Path &path, LoadFn, unsigned maxSize, ZeError *e);
-}
+      const Zi::Path &path, LoadFn, unsigned maxSize, ZeError *e);
+} // Load
 
 } // Zfb
 
@@ -384,11 +393,11 @@ namespace Load {
     } \
   public: \
     static constexpr const char *id() { return #Enum; } \
-    using FBS = fbs::Enum; \
+    using Buffer = fbs::Enum; \
     Map_() { m_s2v = new S2V(); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \
     static ZuString v2s(int v) { \
-      return fbs::EnumName##Enum(static_cast<FBS>(v)); \
+      return fbs::EnumName##Enum(static_cast<Buffer>(v)); \
     } \
     static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \

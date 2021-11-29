@@ -38,7 +38,7 @@
 
 #include <zlib/Zfb.hpp>
 
-#include <zlib/ZvField.hpp>
+#include <zlib/ZtField.hpp>
 
 #include <zlib/ZdfCompress.hpp>
 #include <zlib/ZdfSeries.hpp>
@@ -115,9 +115,9 @@ public:
   ~AnyReader() = default;
 
   void seek(const Series *s, unsigned flags, uint64_t offset) {
-    if (flags & ZvFieldFlags::Delta)
+    if (flags & ZtFieldFlags::Delta)
       init_<DeltaReader>(s, offset);
-    else if (flags & ZvFieldFlags::Delta2)
+    else if (flags & ZtFieldFlags::Delta2)
       init_<Delta2Reader>(s, offset);
     else
       init_<AbsReader>(s, offset);
@@ -126,9 +126,9 @@ public:
   // series must be monotonically increasing
 
   void find(const Series *s, unsigned flags, const ZuFixed &value) {
-    if (flags & ZvFieldFlags::Delta)
+    if (flags & ZtFieldFlags::Delta)
       find_<DeltaReader>(s, value);
-    else if (flags & ZvFieldFlags::Delta2)
+    else if (flags & ZtFieldFlags::Delta2)
       find_<Delta2Reader>(s, value);
     else
       find_<AbsReader>(s, value);
@@ -218,9 +218,9 @@ public:
   ~AnyWriter() = default;
 
   void init(Series *s, unsigned flags) {
-    if (flags & ZvFieldFlags::Delta)
+    if (flags & ZtFieldFlags::Delta)
       init_<DeltaWriter>(s);
-    else if (flags & ZvFieldFlags::Delta2)
+    else if (flags & ZtFieldFlags::Delta2)
       init_<Delta2Writer>(s);
     else
       init_<AbsWriter>(s);
@@ -259,12 +259,12 @@ private:
 };
 
 template <typename Field>
-struct FieldFilter { enum { OK = (Field::Flags & ZvFieldFlags::Series) }; };
+struct FieldFilter { enum { OK = (Field::Flags & ZtFieldFlags::Series) }; };
 
 template <typename T>
-ZvVFieldArray fields() {
+ZtVFieldArray fields() {
   using Fields = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
-  return ZvVFields_<Fields>();
+  return ZtVFields_<Fields>();
 }
 
 class ZdfAPI DataFrame {
@@ -276,7 +276,7 @@ class ZdfAPI DataFrame {
 public:
   ~DataFrame() = default;
 
-  DataFrame(ZvVFieldArray fields, ZuString name, bool timeIndex = false);
+  DataFrame(ZtVFieldArray fields, ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
   const ZmTime &epoch() const { return m_epoch; }
@@ -311,14 +311,14 @@ public:
 	auto field = m_df->field(i);
 	if (i || field) {
 	  switch (field->type) {
-	    case ZvFieldType::Int:
-	    case ZvFieldType::Enum:
+	    case ZtFieldType::Int:
+	    case ZtFieldType::Enum:
 	      v = {field->getFn.int_(ptr), 0};
 	      break;
-	    case ZvFieldType::Fixed:
+	    case ZtFieldType::Fixed:
 	      v = field->getFn.fixed(ptr);
 	      break;
-	    case ZvFieldType::Time:
+	    case ZtFieldType::Time:
 	      v = m_df->nsecs(field->getFn.time(ptr));
 	      break;
 	    default:
@@ -352,25 +352,25 @@ friend Writer;
 private:
   void writer_(AnyWriter &w, unsigned i) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
+    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
     w.init(m_series[i], flags);
   }
 public:
   void seek(AnyReader &r, unsigned i, uint64_t offset = 0) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
+    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
     r.seek(m_series[i], flags, offset);
   }
   void find(AnyReader &r, unsigned i, const ZuFixed &value) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZvFieldFlags::Delta;
+    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
     r.find(m_series[i], flags, value);
   }
 
   unsigned nSeries() const { return m_series.length(); }
   const Series *series(unsigned i) const { return m_series[i]; }
   Series *series(unsigned i) { return m_series[i]; }
-  const ZvVField *field(unsigned i) const { return m_fields[i]; }
+  const ZtVField *field(unsigned i) const { return m_fields[i]; }
 
 private:
   constexpr static const uint64_t pow10_9() { return 1000000000UL; }
@@ -397,7 +397,7 @@ private:
 private:
   ZtString			m_name;
   ZtArray<ZuPtr<Series>>	m_series;
-  ZtArray<const ZvVField *>	m_fields;
+  ZtArray<const ZtVField *>	m_fields;
   Mgr				*m_mgr = nullptr;
   ZmTime			m_epoch;
 };

@@ -218,28 +218,27 @@ public:
 
   template <typename Snapshot>
   bool snapshot(Snapshot &snapshot, MxID id, MxSeqNo seqNo) {
-    bool ok = !(allVenues([&snapshot](MxMDVenue *venue) -> uintptr_t {
-      return !MxMDStream::addVenue(
-	  snapshot, venue->id(), venue->flags(), venue->orderIDScope()) ||
-	venue->allTickSizeTbls(
-	      [&snapshot, venue](MxMDTickSizeTbl *tbl) -> uintptr_t {
-	  return !MxMDStream::addTickSizeTbl(
-	      snapshot, venue->id(), tbl->id(), tbl->pxNDP()) ||
+    bool ok = allVenues([&snapshot](MxMDVenue *venue) {
+      return MxMDStream::addVenue(
+	  snapshot, venue->id(), venue->flags(), venue->orderIDScope()) &&
+	venue->allTickSizeTbls([&snapshot, venue](MxMDTickSizeTbl *tbl) {
+	  return MxMDStream::addTickSizeTbl(
+	      snapshot, venue->id(), tbl->id(), tbl->pxNDP()) &&
 	    tbl->allTickSizes(
-		[&snapshot, venue, tbl](const MxMDTickSize &ts) -> uintptr_t {
-	    return !MxMDStream::addTickSize(snapshot,
+		[&snapshot, venue, tbl](const MxMDTickSize &ts) {
+	    return MxMDStream::addTickSize(snapshot,
 		venue->id(), ts.minPrice(), ts.maxPrice(), ts.tickSize(),
 		tbl->id(), tbl->pxNDP());
 	  });
 	});
-    }) || allInstruments([&snapshot](MxMDInstrument *instrument) -> uintptr_t {
-      return !MxMDStream::addInstrument(snapshot, instrument->shard()->id(),
+    }) && allInstruments([&snapshot](MxMDInstrument *instrument) {
+      return MxMDStream::addInstrument(snapshot, instrument->shard()->id(),
 	  MxDateTime(), instrument->key(), instrument->refData());
-    }) || allOrderBooks([&snapshot](MxMDOrderBook *ob) -> uintptr_t {
+    }) && allOrderBooks([&snapshot](MxMDOrderBook *ob) {
       if (!MxMDStream::resetOB(snapshot, ob->shard()->id(),
-	  MxDateTime(), ob->key())) return true;
+	  MxDateTime(), ob->key())) return false;
       if (ob->legs() == 1) {
-	return !MxMDStream::addOrderBook(snapshot, ob->shard()->id(),
+	return MxMDStream::addOrderBook(snapshot, ob->shard()->id(),
 	    MxDateTime(), ob->key(), ob->instrument()->key(),
 	    ob->lotSizes(), ob->tickSizeTbl()->id(), ob->qtyNDP());
       } else {
@@ -251,47 +250,47 @@ public:
 	  sides[i] = ob->side(i);
 	  ratios[i] = ob->ratio(i);
 	}
-	return !MxMDStream::addCombination(snapshot, ob->shard()->id(),
+	return MxMDStream::addCombination(snapshot, ob->shard()->id(),
 	    MxDateTime(), ob->key(), ob->legs(), instrumentKeys,
 	    ratios, ob->lotSizes(), ob->tickSizeTbl()->id(),
 	    ob->pxNDP(), ob->qtyNDP(), sides);
       }
-    }) || allVenues([&snapshot](MxMDVenue *venue) -> uintptr_t {
-      return (venue->loaded() &&
-	  !MxMDStream::refDataLoaded(snapshot, venue->id())) ||
+    }) && allVenues([&snapshot](MxMDVenue *venue) {
+      return (venue->loaded() ||
+	  MxMDStream::refDataLoaded(snapshot, venue->id())) &&
 	venue->allSegments([&snapshot, venue](
-	      const MxMDSegment &segment) -> uintptr_t {
-	  return !MxMDStream::tradingSession(snapshot, segment.stamp,
+	      const MxMDSegment &segment) {
+	  return MxMDStream::tradingSession(snapshot, segment.stamp,
 	      venue->id(), segment.id, segment.session);
 	});
-    }) || allOrderBooks([&snapshot](MxMDOrderBook *ob) -> uintptr_t {
-      return !MxMDStream::l1(snapshot, ob->shard()->id(),
-	  ob->key(), ob->l1Data()) ||
-	!snapshotL2Side(snapshot, ob->bids()) ||
-	!snapshotL2Side(snapshot, ob->asks());
-    }) || !MxMDStream::endOfSnapshot(snapshot, id, seqNo, (uint8_t)true));
-    MxMDStream::endOfSnapshot(m_broadcast, id, seqNo, ok);
+    }) && allOrderBooks([&snapshot](MxMDOrderBook *ob) {
+      return
+	MxMDStream::l1(snapshot, ob->shard()->id(), ob->key(), ob->l1Data()) &&
+	snapshotL2Side(snapshot, ob->bids()) &&
+	snapshotL2Side(snapshot, ob->asks());
+    }) && MxMDStream::endOfSnapshot(snapshot, id, seqNo, true);
+    if (!ok)
+      MxMDStream::endOfSnapshot(m_broadcast, id, seqNo, false);
     return ok;
   }
 
 private:
   template <class Snapshot>
   static bool snapshotL2Side(Snapshot &snapshot, MxMDOBSide *side) {
-    return !(!(!side->mktLevel() ||
-	  snapshotL2PxLvl(snapshot, side->mktLevel())) ||
-      side->allPxLevels([&snapshot](MxMDPxLevel *pxLevel) -> uintptr_t {
-	return !snapshotL2PxLvl(snapshot, pxLevel);
-      }));
+    return (!side->mktLevel() ||
+	  snapshotL2PxLvl(snapshot, side->mktLevel())) &&
+      side->allPxLevels([&snapshot](MxMDPxLevel *pxLevel) {
+	return snapshotL2PxLvl(snapshot, pxLevel);
+      });
   }
   template <class Snapshot>
   static bool snapshotL2PxLvl(Snapshot &snapshot, MxMDPxLevel *pxLevel) {
     unsigned orderCount = 0;
-    if (pxLevel->allOrders(
-	  [&snapshot, &orderCount](MxMDOrder *order) -> uintptr_t {
+    if (!pxLevel->allOrders([&snapshot, &orderCount](MxMDOrder *order) {
       ++orderCount;
       const MxMDOrderData &data = order->data();
       MxMDOrderBook *ob = order->orderBook();
-      return !MxMDStream::addOrder(snapshot, ob->shard()->id(),
+      return MxMDStream::addOrder(snapshot, ob->shard()->id(),
 	  data.transactTime, ob->key(),
 	  data.price, data.qty, data.rank, data.flags,
 	  order->id(), ob->pxNDP(), ob->qtyNDP(), data.side);

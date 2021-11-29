@@ -108,7 +108,7 @@ jobject MxMDLibJNI::init(JNIEnv *env, jclass c, jstring cf)
   auto init_called = reinterpret_cast<ZmAtomic<unsigned> *>(&init_called_);
   if (init_called->cmpXch(1, 0)) {
     ZeLOG(Error, "MxMDLibJNI::init() called twice");
-    while (*init_called < 2) ZmPlatform::yield();
+    while (*init_called < 2) Zm::yield();
     return obj_;
   }
   ZuGuard guard([init_called]() { *init_called = 2; });
@@ -174,13 +174,13 @@ void MxMDLibJNI::stop(JNIEnv *env, jobject)
     thread_local ZmSemaphore sem;
     unsigned i = 0, n = md->instrCount();
     md->allInstruments(
-	[env, &i, n, sem = &sem](MxMDInstrument *instr) -> uintptr_t {
+	[env, &i, n, sem = &sem](MxMDInstrument *instr) {
       unsubscribe_(env, instr);
       if (ZuLikely(++i <= n)) {
 	sem->post();
-	return 0;
+	return false;
       }
-      return 1;
+      return true;
     });
     for (i = 0; i < n; i++) sem.wait();
     unsubscribe_(env, md);
@@ -289,17 +289,17 @@ void MxMDLibJNI::instrument(JNIEnv *env, jobject obj, jobject key, jobject fn)
   });
 }
 
-jlong MxMDLibJNI::allInstruments(JNIEnv *env, jobject, jobject fn)
+jboolean MxMDLibJNI::allInstruments(JNIEnv *env, jobject, jobject fn)
 {
   // (MxMDAllInstrumentsFn) -> long
   MxMDLib *md = md_;
-  if (ZuUnlikely(!md || !fn)) return 0;
+  if (ZuUnlikely(!md || !fn)) return false;
   return md->allInstruments(
-      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allInstrumentsFn[0].mid,
+      return env->CallBooleanMethod(fn, allInstrumentsFn[0].mid,
 	  MxMDInstrumentJNI::ctor(env, instr));
-    return 0;
+    return false;
   });
 }
 
@@ -326,17 +326,17 @@ void MxMDLibJNI::orderBook(JNIEnv *env, jobject, jobject key, jobject fn)
   });
 }
 
-jlong MxMDLibJNI::allOrderBooks(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDLibJNI::allOrderBooks(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllOrderBooksFn) -> long
   MxMDLib *md = md_;
-  if (ZuUnlikely(!md || !fn)) return 0;
+  if (ZuUnlikely(!md || !fn)) return false;
   return md->allOrderBooks(
-      [fn = ZJNI::globalRef(env, fn)](MxMDOrderBook *ob) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDOrderBook *ob) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allOrderBooksFn[0].mid,
+      return env->CallBooleanMethod(fn, allOrderBooksFn[0].mid,
 	  MxMDOrderBookJNI::ctor(env, ob));
-    return 0;
+    return false;
   });
 }
 
@@ -350,17 +350,17 @@ jobject MxMDLibJNI::feed(JNIEnv *env, jobject obj, jstring id)
   return 0;
 }
 
-jlong MxMDLibJNI::allFeeds(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDLibJNI::allFeeds(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllFeedsFn) -> long
   MxMDLib *md = md_;
-  if (ZuUnlikely(!md || !fn)) return 0;
+  if (ZuUnlikely(!md || !fn)) return false;
   return md->allFeeds(
-      [fn = ZJNI::globalRef(env, fn)](MxMDFeed *feed) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDFeed *feed) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allFeedsFn[0].mid,
+      return env->CallBooleanMethod(fn, allFeedsFn[0].mid,
 	  MxMDFeedJNI::ctor(env, feed));
-    return 0;
+    return false;
   });
 }
 
@@ -374,17 +374,17 @@ jobject MxMDLibJNI::venue(JNIEnv *env, jobject obj, jstring id)
   return 0;
 }
 
-jlong MxMDLibJNI::allVenues(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDLibJNI::allVenues(JNIEnv *env, jobject obj, jobject fn)
 {
-  // (MxMDAllVenuesFn) -> long
+  // (MxMDAllVenuesFn) -> boolean
   MxMDLib *md = md_;
-  if (ZuUnlikely(!md || !fn)) return 0;
+  if (ZuUnlikely(!md || !fn)) return false;
   return md->allVenues(
-      [fn = ZJNI::globalRef(env, fn)](MxMDVenue *venue) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDVenue *venue) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allVenuesFn[0].mid,
+      return env->CallBooleanMethod(fn, allVenuesFn[0].mid,
 	  MxMDVenueJNI::ctor(env, venue));
-    return 0;
+    return false;
   });
 }
 
@@ -446,7 +446,7 @@ int MxMDLibJNI::bind(JNIEnv *env)
       (void *)static_cast<void (*)(JNIEnv *, jobject, jobject, jobject)>(
 	  MxMDLibJNI::instrument) },
     { "allInstruments",
-      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)Z",
       (void *)&MxMDLibJNI::allInstruments },
     { "orderBook",
       "(Lcom/shardmx/mxbase/MxInstrKey;)Lcom/shardmx/mxmd/MxMDOBHandle;",
@@ -457,19 +457,19 @@ int MxMDLibJNI::bind(JNIEnv *env)
       (void *)static_cast<void (*)(JNIEnv *, jobject, jobject, jobject)>(
 	  MxMDLibJNI::orderBook) },
     { "allOrderBooks",
-      "(Lcom/shardmx/mxmd/MxMDAllOrderBooksFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllOrderBooksFn;)Z",
       (void *)&MxMDLibJNI::allOrderBooks },
     { "feed",
       "(Ljava/lang/String;)Lcom/shardmx/mxmd/MxMDFeed;",
       (void *)&MxMDLibJNI::feed },
     { "allFeeds",
-      "(Lcom/shardmx/mxmd/MxMDAllFeedsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllFeedsFn;)Z",
       (void *)&MxMDLibJNI::allFeeds },
     { "venue",
       "(Ljava/lang/String;)Lcom/shardmx/mxmd/MxMDVenue;",
       (void *)&MxMDLibJNI::venue },
     { "allVenues",
-      "(Lcom/shardmx/mxmd/MxMDAllVenuesFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllVenuesFn;)Z",
       (void *)&MxMDLibJNI::allVenues },
   };
 #pragma GCC diagnostic pop

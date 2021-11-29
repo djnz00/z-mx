@@ -168,7 +168,7 @@ void MxMDPubLink::connect()
   reset(0, 0);
 
   m_tcpTbl = new TCPTbl(ZmHashParams().bits(4).loadFactor(1.0).cBits(3).
-      init(ZmIDString() << "MxMDPublisher." << id() << ".TCPTbl"));
+      init(ZmIDString{} << "MxMDPublisher." << id() << ".TCPTbl"));
 
   tcpListen();
   udpConnect();
@@ -669,9 +669,9 @@ void MxMDPublisher::recv()
   for (;;) {
     if (ZuUnlikely(!(hdr = m_ring->shift()))) {
       if (ZuLikely(m_ring->readStatus() == Zi::EndOfFile)) {
-	allLinks<MxMDPubLink>([](MxMDPubLink *link) -> uintptr_t {
+	allLinks<MxMDPubLink>([](MxMDPubLink *link) {
 	  link->down();
-	  return 0;
+	  return true;
 	});
 	return;
       }
@@ -679,9 +679,9 @@ void MxMDPublisher::recv()
     }
     if (hdr->len > sizeof(Buf)) {
       m_ring->shift2();
-      allLinks<MxMDPubLink>([](MxMDPubLink *link) -> uintptr_t {
+      allLinks<MxMDPubLink>([](MxMDPubLink *link) {
 	link->down();
-	return 0;
+	return true;
       });
       core()->raise(ZeEVENT(Fatal,
 	    ([name = ZtString(m_ring->params().name())](
@@ -707,10 +707,9 @@ void MxMDPublisher::recv()
 	m_ring->shift2();
 	break;
       default:
-	allLinks<MxMDPubLink>([hdr](MxMDPubLink *link) -> uintptr_t {
-	  if (link->state() == MxLinkState::Up)
-	    link->sendMsg(hdr);
-	  return 0;
+	allLinks<MxMDPubLink>([hdr](MxMDPubLink *link) {
+	  if (link->state() == MxLinkState::Up) link->sendMsg(hdr);
+	  return true;
 	});
 	m_ring->shift2();
 	break;
@@ -771,10 +770,9 @@ void MxMDPublisher::ack()
 {
   if (state() != MxEngineState::Running) return;
   allLinks<MxMDPubLink>(
-      [maxQueueSize = maxQueueSize()](MxMDPubLink *link) -> uintptr_t {
-	if (link->state() == MxLinkState::Up)
-	  link->ack();
-	return 0;
+      [maxQueueSize = maxQueueSize()](MxMDPubLink *link) {
+	if (link->state() == MxLinkState::Up) link->ack();
+	return true;
       });
   mx()->run(txThread(), ZmFn<>{this, [](MxMDPublisher *pub) {
 	pub->ack();
@@ -798,8 +796,11 @@ void MxMDPublisher::statusCmd(void *, const ZvCf *args, ZtString &out)
   if (argc != 1) throw ZvCmdUsage();
   out.size(512 * nLinks());
   out << "State: " << MxEngineState::name(state()) << '\n';
-  allLinks<MxMDPubLink>([&out](MxMDPubLink *link) -> uintptr_t {
-	out << '\n'; link->status(out); return 0; });
+  allLinks<MxMDPubLink>([&out](MxMDPubLink *link) {
+    out << '\n';
+    link->status(out);
+    return true;
+  });
 }
 
 void MxMDPubLink::status(ZtString &out)

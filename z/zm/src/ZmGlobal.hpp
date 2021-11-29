@@ -97,7 +97,7 @@ protected:
     uintptr_t ptr;
     while (ZuUnlikely(!((ptr = addr->load_()) & ~1))) {
       if ((ptr == 1) || addr->cmpXch(1, 0)) {
-	ZmPlatform::yield();
+	Zm::yield();
 	continue;
       }
       *addr = ptr = (uintptr_t)ZmGlobal::add(

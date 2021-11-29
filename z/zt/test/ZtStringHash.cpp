@@ -16,7 +16,7 @@
 int main()
 {
   FILE *f = fopen("words", "r");
-  if (!f) { perror("words"); ZmPlatform::exit(1); }
+  if (!f) { perror("words"); Zm::exit(1); }
   char buf[512];
   int count[1024];
   memset(count, 0, sizeof(count));

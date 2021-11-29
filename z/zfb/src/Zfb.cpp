@@ -24,33 +24,27 @@
 #include <zlib/ZiFile.hpp>
 
 ZfbExtern int Zfb::Save::save(
-    const ZiPlatform::Path &path, Builder &fbb, unsigned mode, ZeError *e)
+    const Zi::Path &path, Builder &fbb, unsigned mode, ZeError *e)
 {
   ZiFile f;
   int i;
 
   if ((i = f.open(path,
-	  ZiFile::Create | ZiFile::WriteOnly, mode, e)) != Zi::OK)
+	  ZiFile::Create | ZiFile::WriteOnly | ZiFile::GC, mode, e)) != Zi::OK)
     return i;
 
-  const uint8_t *buf = fbb.GetBufferPointer();
+  const uint8_t *data = fbb.GetBufferPointer();
   int len = fbb.GetSize();
 
-  if (!buf || len <= 0) {
-    f.close();
+  if (!data || len <= 0) {
     if (e) *e = ZiENOMEM;
     return Zi::IOError;
   }
-  if ((i = f.write(buf, len, e)) != Zi::OK) {
-    f.close();
-    return i;
-  }
-  f.close();
-  return Zi::OK;
+  return f.write(data, len, e);
 }
 
 ZfbExtern int Zfb::Load::load(
-    const ZiPlatform::Path &path,
+    const Zi::Path &path,
     Zfb::Load::LoadFn fn, unsigned maxSize, ZeError *e)
 {
   ZiFile f;
@@ -63,23 +57,23 @@ ZfbExtern int Zfb::Load::load(
     if (e) *e = ZiENOMEM;
     return Zi::IOError;
   }
-  uint8_t *buf = (uint8_t *)::malloc(len);
-  if (!buf) {
+  uint8_t *data = (uint8_t *)::malloc(len);
+  if (!data) {
     f.close();
     if (e) *e = ZiENOMEM;
     return Zi::IOError;
   }
-  if ((i = f.read(buf, len, e)) < len) {
-    ::free(buf);
+  if ((i = f.read(data, len, e)) < len) {
+    ::free(data);
     f.close();
     return Zi::IOError;
   }
   f.close();
-  if (!fn(buf, len)) {
-    ::free(buf);
+  if (!fn(data, len)) {
+    ::free(data);
     if (e) *e = ZiEINVAL;
     return Zi::IOError;
   }
-  ::free(buf);
+  ::free(data);
   return Zi::OK;
 }

@@ -58,6 +58,7 @@
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuEquivChar.hpp>
+#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmStream.hpp>

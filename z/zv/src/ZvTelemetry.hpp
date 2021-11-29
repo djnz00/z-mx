@@ -54,7 +54,7 @@
 #include <zlib/Zfb.hpp>
 
 #include <zlib/ZvMultiplex.hpp>
-#include <zlib/ZvFBField.hpp>
+#include <zlib/ZfbField.hpp>
 
 #include <zlib/telemetry_fbs.h>
 #include <zlib/telreq_fbs.h>
@@ -162,7 +162,7 @@ namespace Severity {
 template <typename> struct load;
 
 using Heap_ = ZmHeapTelemetry;
-struct Heap : public Heap_, public ZvFieldPrint<Heap> {
+struct Heap : public Heap_, public ZtFieldPrint<Heap> {
   Heap() = default;
   template <typename ...Args>
   Heap(Args &&... args) : Heap_{ZuFwd<Args>(args)...} { }
@@ -178,7 +178,7 @@ struct Heap : public Heap_, public ZvFieldPrint<Heap> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(Heap,
+ZfbFields(Heap,
     (((id), (0)), (String), (Ctor(0))),
     (((size), (0)), (Int), (Ctor(6))),
     (((alignment)), (Int), (Ctor(9))),
@@ -193,7 +193,7 @@ ZvFBFields(Heap,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using HashTbl_ = ZmHashTelemetry;
-struct HashTbl : public HashTbl_, public ZvFieldPrint<HashTbl> {
+struct HashTbl : public HashTbl_, public ZtFieldPrint<HashTbl> {
   HashTbl() = default;
   template <typename ...Args>
   HashTbl(Args &&... args) : HashTbl_{ZuFwd<Args>(args)...} { }
@@ -205,7 +205,7 @@ struct HashTbl : public HashTbl_, public ZvFieldPrint<HashTbl> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(HashTbl,
+ZfbFields(HashTbl,
     (((id), (0)), (String), (Ctor(0))),
     (((addr), (0)), (Hex), (Ctor(1))),
     (((linear)), (Bool), (Ctor(9))),
@@ -219,7 +219,7 @@ ZvFBFields(HashTbl,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Thread_ = ZmThreadTelemetry;
-struct Thread : public Thread_, public ZvFieldPrint<Thread> {
+struct Thread : public Thread_, public ZtFieldPrint<Thread> {
   Thread() = default;
   template <typename ...Args>
   Thread(Args &&... args) : Thread_{ZuFwd<Args>(args)...} { }
@@ -231,7 +231,7 @@ struct Thread : public Thread_, public ZvFieldPrint<Thread> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(Thread,
+ZfbFields(Thread,
     (((name)), (String), (Ctor(0))),
     (((index)), (Int), (Ctor(6))),
     (((tid), (0)), (Int), (Ctor(1))),
@@ -248,7 +248,7 @@ ZvFBFields(Thread,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Mx_ = ZiMxTelemetry;
-struct Mx : public Mx_, public ZvFieldPrint<Mx> {
+struct Mx : public Mx_, public ZtFieldPrint<Mx> {
   Mx() = default;
   template <typename ...Args>
   Mx(Args &&... args) : Mx_{ZuFwd<Args>(args)...} { }
@@ -256,7 +256,7 @@ struct Mx : public Mx_, public ZvFieldPrint<Mx> {
   int rag() const { return MxState::rag(state); }
   void rag(int) { } // unused
 };
-ZvFBFields(Mx,
+ZfbFields(Mx,
     (((id), (0)), (String), (Ctor(0))),
     (((state)), (Enum, MxState::Map), (Ctor(10), Update, Series)),
     (((nThreads)), (Int), (Ctor(13))),
@@ -274,7 +274,7 @@ ZvFBFields(Mx,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Socket_ = ZiCxnTelemetry;
-struct Socket : public Socket_, public ZvFieldPrint<Socket> {
+struct Socket : public Socket_, public ZtFieldPrint<Socket> {
   Socket() = default;
   template <typename ...Args>
   Socket(Args &&... args) : Socket_{ZuFwd<Args>(args)...} { }
@@ -288,7 +288,7 @@ struct Socket : public Socket_, public ZvFieldPrint<Socket> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(Socket,
+ZfbFields(Socket,
     (((mxID)), (String), (Ctor(0))),
     (((type)), (Enum, SocketType::Map), (Ctor(15))),
     (((remoteIP)), (IP), (Ctor(11))),
@@ -322,7 +322,7 @@ struct Queue_ {
   uint32_t	full = 0;	// dynamic - how many times queue overflowed
   int8_t	type = -1;	// primary key - QueueType
 };
-struct Queue : public Queue_, public ZvFieldPrint<Queue> {
+struct Queue : public Queue_, public ZtFieldPrint<Queue> {
   Queue() = default;
   template <typename ...Args>
   Queue(Args &&... args) : Queue_{ZuFwd<Args>(args)...} { }
@@ -336,7 +336,7 @@ struct Queue : public Queue_, public ZvFieldPrint<Queue> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(Queue,
+ZfbFields(Queue,
     (((id), (0)), (String), (Ctor(0))),
     (((type), (0)), (Enum, QueueType::Map), (Ctor(9))),
     (((size)), (Int), (Ctor(7))),
@@ -359,7 +359,7 @@ struct Link_ {
   uint32_t	reconnects = 0;
   int8_t	state = 0;
 };
-struct Link : public Link_, public ZvFieldPrint<Link> {
+struct Link : public Link_, public ZtFieldPrint<Link> {
   Link() = default;
   template <typename ...Args>
   Link(Args &&... args) : Link_{ZuFwd<Args>(args)...} { }
@@ -367,7 +367,7 @@ struct Link : public Link_, public ZvFieldPrint<Link> {
   int rag() const { return LinkState::rag(state); }
   void rag(int) { } // unused
 };
-ZvFBFields(Link,
+ZfbFields(Link,
     (((id), (0)), (String), (Ctor(0))),
     (((engineID)), (String), (Ctor(1))),
     (((state)), (Enum, LinkState::Map), (Ctor(5), Update, Series)),
@@ -391,7 +391,7 @@ struct Engine_ {
   uint16_t	txThread = 0;
   int8_t	state = -1;
 };
-struct Engine : public Engine_, public ZvFieldPrint<Engine> {
+struct Engine : public Engine_, public ZtFieldPrint<Engine> {
   Engine() = default;
   template <typename ...Args>
   Engine(Args &&... args) : Engine_{ZuFwd<Args>(args)...} { }
@@ -399,7 +399,7 @@ struct Engine : public Engine_, public ZvFieldPrint<Engine> {
   int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused
 };
-ZvFBFields(Engine,
+ZfbFields(Engine,
     (((id), (0)), (String), (Ctor(0))),
     (((type)), (String), (Ctor(1))),
     (((state)), (Enum, EngineState::Map), (Ctor(12), Update, Series)),
@@ -443,7 +443,7 @@ struct DB_ {
   uint8_t	compress = 0;
   int8_t	cacheMode = -1;	// ZdbCacheMode
 };
-struct DB : public DB_, public ZvFieldPrint<DB> {
+struct DB : public DB_, public ZtFieldPrint<DB> {
   DB() = default;
   template <typename ...Args>
   DB(Args &&... args) : DB_{ZuFwd<Args>(args)...} { }
@@ -457,7 +457,7 @@ struct DB : public DB_, public ZvFieldPrint<DB> {
   }
   void rag(int) { } // unused
 };
-ZvFBFields(DB,
+ZfbFields(DB,
     (((name), (0)), (String), (Ctor(1))),
     (((id)), (Int), (Ctor(10))),
     (((recSize)), (Int), (Ctor(12))),
@@ -488,7 +488,7 @@ struct DBHost_ {
   int8_t	state = 0;// RAG: Instantiated - Red; Active - Green; * - Amber
   uint8_t	voted = 0;
 };
-struct DBHost : public DBHost_, public ZvFieldPrint<DBHost> {
+struct DBHost : public DBHost_, public ZtFieldPrint<DBHost> {
   DBHost() = default;
   template <typename ...Args>
   DBHost(Args &&... args) : DBHost_{ZuFwd<Args>(args)...} { }
@@ -496,7 +496,7 @@ struct DBHost : public DBHost_, public ZvFieldPrint<DBHost> {
   int rag() const { return DBHostState::rag(state); }
   void rag(int) { } // unused
 };
-ZvFBFields(DBHost,
+ZfbFields(DBHost,
     (((ip)), (IP), (Ctor(0))),
     (((id), (0)), (Int), (Ctor(1))),
     (((priority)), (Int), (Ctor(2))),
@@ -529,7 +529,7 @@ struct DBEnv_ {
   uint8_t	recovering = 0;
   uint8_t	replicating = 0;
 };
-struct DBEnv : public DBEnv_, public ZvFieldPrint<DBEnv> {
+struct DBEnv : public DBEnv_, public ZtFieldPrint<DBEnv> {
   DBEnv() = default;
   template <typename ...Args>
   DBEnv(Args &&... args) : DBEnv_{ZuFwd<Args>(args)...} { }
@@ -537,7 +537,7 @@ struct DBEnv : public DBEnv_, public ZvFieldPrint<DBEnv> {
   int rag() const { return DBHostState::rag(state); }
   void rag(int) { } // unused
 };
-ZvFBFields(DBEnv,
+ZfbFields(DBEnv,
     (((self), (0)), (Int), (Ctor(5))),
     (((master)), (Int), (Ctor(6), Update)),
     (((prev)), (Int), (Ctor(7), Update)),
@@ -566,12 +566,12 @@ struct App_ {
   int8_t	role = -1;
   int8_t	rag = -1;
 };
-struct App : public App_, public ZvFieldPrint<App> {
+struct App : public App_, public ZtFieldPrint<App> {
   App() = default;
   template <typename ...Args>
   App(Args &&... args) : App_{ZuFwd<Args>(args)...} { }
 };
-ZvFBFields(App,
+ZfbFields(App,
     (((id), (0)), (String), (Ctor(0))),
     (((version)), (String), (Ctor(1))),
     (((uptime)), (Time), (Ctor(2), Update)),
@@ -587,12 +587,12 @@ struct Alert_ {
   int8_t	severity = -1;
   ZtString	message;
 };
-struct Alert : public Alert_, public ZvFieldPrint<Alert> {
+struct Alert : public Alert_, public ZtFieldPrint<Alert> {
   Alert() = default;
   template <typename ...Args>
   Alert(Args &&... args) : Alert_{ZuFwd<Args>(args)...} { }
 };
-ZvFBFields(Alert,
+ZfbFields(Alert,
     (((time)), (Time), (Ctor(0))),
     (((seqNo)), (Int), (Ctor(1))),
     (((tid)), (Int), (Ctor(2))),

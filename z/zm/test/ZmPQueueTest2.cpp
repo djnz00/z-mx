@@ -56,7 +56,10 @@ struct Msg_ : public Msg_Data {
   unsigned bytes() const { return 1; }
 };
 
-using Queue = ZmPQueue<Msg_, ZmPQueueNodeDerive<true> >;
+using Queue =
+  ZmPQueue<Msg_,
+    ZmPQueueObject<ZmObject,
+      ZmPQueueNodeDerive<true> > >;
 
 class App : public ZmPQRx<App, Queue, ZmNoLock> {
 public:

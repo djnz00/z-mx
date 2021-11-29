@@ -38,7 +38,7 @@ struct C {
   ZmRWLock	m_rwLock;
 };
 
-#define self() (ZmPlatform::getTID())
+#define self() (Zm::getTID())
 
 struct T : public ZmObject {
   T() : m_state(0), m_tid(self()) { }
@@ -150,5 +150,5 @@ int main(int argc, char **argv)
     }
   }
   dump(&c);
-  ZmPlatform::sleep(1);
+  Zm::sleep(1);
 }

@@ -76,7 +76,7 @@ public:
 
 void segv(int s)
 {
-  printf("%d/%d: SEGV\n", (int)ZmPlatform::getPID(), (int)ZmPlatform::getTID());
+  printf("%d/%d: SEGV\n", (int)Zm::getPID(), (int)Zm::getTID());
   fflush(stdout);
   while (-1);
 }
@@ -94,7 +94,7 @@ void usage()
     "  -c ID=CPUSET\tset thread ID affinity to CPUSET (e.g. 1=2,4)\n"
     "  -i BITMAP\tset isolation (e.g. 1,3-4)\n"
     , stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 void fail(const char *s) 
@@ -197,10 +197,10 @@ int main(int argc, char **argv)
     // timers[j - 1] = 0;
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
-    ZmPlatform::sleep(ZmTime(.1));
+    Zm::sleep(ZmTime(.1));
   }
 
-  ZmPlatform::sleep(ZmTime(.6));
+  Zm::sleep(ZmTime(.6));
 
   puts("threads:");
   std::cout << ZmThread::csv() << '\n';
@@ -237,10 +237,10 @@ int main(int argc, char **argv)
     // timers[j - 1] = 0;
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
-    ZmPlatform::sleep(ZmTime(.1));
+    Zm::sleep(ZmTime(.1));
   }
 
-  ZmPlatform::sleep(ZmTime(.6));
+  Zm::sleep(ZmTime(.6));
 
   puts("threads:");
   std::cout << ZmThread::csv() << '\n';
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
   r->retry();
   r->start(ZmFn<>::Member<&Timer::retry>::fn(r.ptr()));
 
-  ZmPlatform::sleep(ZmTime(8));
+  Zm::sleep(ZmTime(8));
 
   r->stop();
 

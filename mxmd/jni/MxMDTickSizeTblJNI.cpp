@@ -91,17 +91,17 @@ jlong MxMDTickSizeTblJNI::tickSize(JNIEnv *env, jobject obj, jlong price)
   return tbl->tickSize(price);
 }
 
-jlong MxMDTickSizeTblJNI::allTickSizes(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDTickSizeTblJNI::allTickSizes(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllTickSizesFn) -> long
   MxMDTickSizeTbl *tbl = ptr_(env, obj);
-  if (ZuUnlikely(!tbl || !fn)) return 0;
+  if (ZuUnlikely(!tbl || !fn)) return false;
   return tbl->allTickSizes(
-      [fn = ZJNI::globalRef(env, fn)](const MxMDTickSize &ts) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](const MxMDTickSize &ts) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allTickSizesFn[0].mid,
+      return env->CallBooleanMethod(fn, allTickSizesFn[0].mid,
 	  MxMDTickSizeJNI::ctor(env, ts));
-    return 0;
+    return false;
   });
 }
 
@@ -133,7 +133,7 @@ int MxMDTickSizeTblJNI::bind(JNIEnv *env)
       "(J)J",
       (void *)&MxMDTickSizeTblJNI::tickSize },
     { "allTickSizes",
-      "(Lcom/shardmx/mxmd/MxMDAllTickSizesFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllTickSizesFn;)Z",
       (void *)&MxMDTickSizeTblJNI::allTickSizes },
   };
 #pragma GCC diagnostic pop

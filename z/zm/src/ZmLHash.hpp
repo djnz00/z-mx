@@ -44,12 +44,10 @@
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuArrayFn.hpp>
 
-#include <zlib/ZmAtomic.hpp>
-#include <zlib/ZmLock.hpp>
 #include <zlib/ZmNoLock.hpp>
+#include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmLockTraits.hpp>
 #include <zlib/ZmGuard.hpp>
-#include <zlib/ZmObject.hpp>
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmAssert.hpp>
 
@@ -67,9 +65,10 @@ struct ZmLHash_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
-  using Lock = ZmLock;
+  using Lock = ZmNoLock;
   struct ID { static constexpr const char *id() { return "ZmLHash"; } };
   enum { Static = 0 };
+  enum { Local = 0 };
 };
 
 // ZmLHashKey - key accessor
@@ -121,15 +120,23 @@ struct ZmLHashStatic : public NTP {
   enum { Static = Static_ };
 };
 
+
+// ZmLHashLocal<> - local hash table - do not register with hash mgr, no telemetry, can be on stack, does not derive from ZmAnyHash
+template <typename NTP = ZmLHash_Defaults>
+struct ZmLHashLocal : public NTP {
+  enum { Local = 1 };
+};
+
 template <typename T>
 struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
   static T *alloc(unsigned size) {
-    T *ptr = (T *)::malloc(size * sizeof(T));
+    auto ptr = static_cast<T *>(
+      Zm::alignedAlloc(size * sizeof(T), Zm::CacheLineSize));
     if (!ptr) throw std::bad_alloc();
     return ptr;
   }
   static void free(T *ptr) {
-    ::free(ptr);
+    Zm::alignedFree(ptr);
   }
 };
 
@@ -249,7 +256,7 @@ private:
 };
 
 // common base class for both static and dynamic tables
-template <typename NTP> class ZmLHash__ : public ZmAnyHash {
+template <typename NTP, bool Local = NTP::Local> class ZmLHash__ {
   using Lock = typename NTP::Lock;
 
 public:
@@ -266,10 +273,24 @@ protected:
     m_loadFactor = (unsigned)(loadFactor * 16.0);
   }
 
+  void init() { }
+  void final() { }
+
   unsigned		m_loadFactor = 0;
   ZmAtomic<unsigned>	m_count = 0;
   Lock			m_lock;
 };
+
+// base class for non-local tables
+template <typename NTP>
+class ZmLHash__<NTP, false> : public ZmAnyHash, public ZmLHash__<NTP, true> {
+protected:
+  ZmLHash__(const ZmHashParams &params) : ZmLHash__<NTP, true>{params} { }
+
+  void init() { ZmHashMgr::add(this); }
+  void final() { ZmHashMgr::del(this); }
+};
+
 
 // statically allocated hash table base class
 template <typename Hash, typename T, typename NTP, unsigned Static>
@@ -312,23 +333,24 @@ class ZmLHash_<Hash, T, NTP, 0> : public ZmLHash__<NTP> {
   using HashFn = typename NTP::template HashFnT<Key>;
   using Node = ZmLHash_Node<T, KeyAxor, ValAxor>;
   using Ops = ZmLHash_Ops<Node>;
+  enum { Local = NTP::Local };
 
 public:
   unsigned bits() const { return m_bits; }
 
 protected:
-  ZmLHash_(const ZmHashParams &params) : Base(params),
+  ZmLHash_(const ZmHashParams &params) : Base{params},
     m_bits(params.bits()) { }
 
   void init() {
     unsigned size = 1U<<m_bits;
     m_table = Ops::alloc(size);
     Ops::initItems(m_table, size);
-    ZmHashMgr::add(this);
+    Base::init();
   }
 
   void final() {
-    ZmHashMgr::del(this);
+    Base::final();
     Ops::destroyItems(m_table, 1U<<m_bits);
     Ops::free(m_table);
   }
@@ -358,9 +380,6 @@ protected:
 
 template <typename T_, typename NTP = ZmLHash_Defaults>
 class ZmLHash : public ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static> {
-  ZmLHash(const ZmLHash &) = delete;
-  ZmLHash &operator =(const ZmLHash &) = delete; // prevent mis-use
-
 template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
   using Base = ZmLHash_<ZmLHash<T_, NTP>, T_, NTP, NTP::Static>;
@@ -575,9 +594,13 @@ public:
   };
 
   template <typename ...Args>
-  ZmLHash(ZmHashParams params = ZmHashParams(ID::id())) : Base(params) {
+  ZmLHash(ZmHashParams params = ZmHashParams{ID::id()}) : Base{params} {
     Base::init();
   }
+  ZmLHash(const ZmLHash &) = delete;
+  ZmLHash &operator =(const ZmLHash &) = delete;
+  ZmLHash(ZmLHash &&) = delete;
+  ZmLHash &operator =(ZmLHash &&) = delete;
 
   ~ZmLHash() { Base::final(); }
 
@@ -586,14 +609,14 @@ public:
   }
 
   template <typename P>
-  int add(P &&data) {
+  const T *add(P &&data) {
     uint32_t code = HashFn::hash(KeyAxor::get(data));
     Guard guard(m_lock);
-    return add_(ZuFwd<P>(data), code);
+    return ptr(add_(ZuFwd<P>(data), code));
   }
 
   template <typename P0, typename P1>
-  int add(P0 &&p0, P1 &&p1) {
+  const T *add(P0 &&p0, P1 &&p1) {
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
 

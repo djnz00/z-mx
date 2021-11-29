@@ -13,14 +13,14 @@
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
-const ZtDateFmt::ISO &isoFmt(const ZtDate &d, int offset = 0) {
+auto isoPrint(const ZtDate &d, int offset = 0) {
   thread_local ZtDateFmt::ISO fmt;
   fmt.offset(offset);
-  return d.iso(fmt);
+  return d.print(fmt);
 }
 
 ZuStringN<40> isoStr(const ZtDate &d, int offset = 0) {
-  return ZuStringN<40>() << isoFmt(d, offset);
+  return ZuStringN<40>() << isoPrint(d, offset);
 }
 
 struct LocalDT {
@@ -104,7 +104,7 @@ int main()
   static const char *t[3] = { "Japan", "GB", "EST5EDT" };
 #endif
 
-  ZtPlatform::tzset();
+  Zt::tzset();
 
   //ZtDate d(1998, 12, 31);
   //ZtDate d(51179 + 2400000,0);
@@ -164,7 +164,7 @@ int main()
 
   {
     ZtDate d1(ZtDate::Now);
-    ZmPlatform::sleep(.1);
+    Zm::sleep(.1);
     ZtDate d2(ZtDate::Now);
     ZmTime t = d2 - d1;
 

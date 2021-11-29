@@ -64,7 +64,7 @@ int ZiNetlink::connect(Socket sock,
       if (na->type() == CTRL_ATTR_FAMILY_ID) {
 	familyID = *((uint32_t *)na->data());
 	portID = ((ZiNetlinkHdr *)(&hdr2))->pid();
-	return ZePlatform::OK;
+	return Ze::OK;
       }
     } while ((void *)(na = na->next()) < (data.data() + len));
   }

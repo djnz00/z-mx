@@ -256,12 +256,12 @@ public:
     if (!node) return MxValue();
     return node->key().tickSize();
   }
-  template <typename L> // (const MxMDTickSize &) -> uintptr_t
-  uintptr_t allTickSizes(L l) const {
+  template <typename L> // (const MxMDTickSize &) -> bool
+  bool allTickSizes(L l) const {
     auto i = m_tickSizes.readIterator();
     while (const TickSizes::Node *node = i.iterate())
-      if (uintptr_t v = l(node->key())) return v;
-    return 0;
+      if (!l(node->key())) return false;
+    return true;
   }
 
 private:
@@ -413,9 +413,9 @@ friend OrderID1Accessor;
   const MxMDOrderData &data() const { return m_data; }
 
   template <typename T = uintptr_t>
-  T appData() const { return (T)m_appData.load_(); }
+  T appData() const { return static_cast<T>(m_appData.load_()); }
   template <typename T>
-  void appData(T v) { m_appData.store_((uintptr_t)v); }
+  void appData(T v) { m_appData.store_(static_cast<uintptr_t>(v)); }
 
 private:
   MxMDOrderData &data_() { return m_data; }
@@ -610,12 +610,12 @@ public:
   MxValue price() const { return m_price; }
   const MxMDPxLvlData &data() const { return m_data; }
 
-  template <typename L> // (MxMDOrder *) -> uintptr_t
-  uintptr_t allOrders(L l) const {
+  template <typename L> // (MxMDOrder *) -> bool
+  bool allOrders(L l) const {
     auto i = m_orders.readIterator();
     while (MxMDOrder *order = i.iterate())
-      if (uintptr_t v = l(order)) return v;
-    return 0;
+      if (!l(order)) return false;
+    return true;
   }
 
 private:
@@ -637,7 +637,7 @@ private:
   void delOrder(MxUInt rank);
 
   template <typename Fill>
-  uintptr_t match(MxDateTime transactTime,
+  bool match(MxDateTime transactTime,
       MxValue &qty, MxValue &cumQty, Fill fill);
 
   void updateLast(MxDateTime stamp,
@@ -785,37 +785,37 @@ public:
   MxMDPxLevel *mktLevel() { return m_mktLevel; }
 
   // iterate over all price levels, best -> worst
-  template <typename L> // (MxMDPxLevel *) -> uintptr_t
-  uintptr_t allPxLevels(L l) const {
+  template <typename L> // (MxMDPxLevel *) -> bool
+  bool allPxLevels(L l) const {
     if (m_side == MxSide::Buy) {
       auto i = m_pxLevels.readIterator<ZmRBTreeLessEqual>();
       while (MxMDPxLevel *pxLevel = i.iterate())
-	if (uintptr_t v = l(pxLevel)) return v;
+	if (!l(pxLevel)) return false;
     } else {
       auto i = m_pxLevels.readIterator<ZmRBTreeGreaterEqual>();
       while (MxMDPxLevel *pxLevel = i.iterate())
-	if (uintptr_t v = l(pxLevel)) return v;
+	if (!l(pxLevel)) return false;
     }
-    return 0;
+    return true;
   }
 
   // iterate over price levels in range, best -> worst
-  template <typename L> // (MxMDPxLevel *) -> uintptr_t
-  uintptr_t pxLevels(MxValue minPrice, MxValue maxPrice, L l) {
+  template <typename L> // (MxMDPxLevel *)-> bool
+  bool pxLevels(MxValue minPrice, MxValue maxPrice, L l) {
     if (m_side == MxSide::Buy) {
       auto i = m_pxLevels.readIterator<ZmRBTreeLessEqual>(maxPrice);
       while (MxMDPxLevel *pxLevel = i.iterate()) {
 	if (pxLevel->price() <= minPrice) break;
-	if (uintptr_t v = l(pxLevel)) return v;
+	if (!l(pxLevel)) return false;
       }
     } else {
       auto i = m_pxLevels.readIterator<ZmRBTreeGreaterEqual>(minPrice);
       while (MxMDPxLevel *pxLevel = i.iterate()) {
 	if (pxLevel->price() >= maxPrice) break;
-	if (uintptr_t v = l(pxLevel)) return v;
+	if (!l(pxLevel)) return false;
       }
     }
-    return 0;
+    return true;
   }
 
   MxNDP pxNDP() const;
@@ -870,18 +870,18 @@ public:
 
 private:
   template <int Direction, typename Fill, typename Limit>
-  uintptr_t match(
+  bool match(
       MxDateTime transactTime, MxValue px, MxValue &qty, MxValue &cumQty,
       Fill &&fill, Limit &&limit) {
     auto i = m_pxLevels.iterator<Direction>();
     while (MxMDPxLevel *pxLevel = i.iterate()) {
       if (!limit(px, pxLevel->price())) break;
-      uintptr_t v = pxLevel->match(transactTime, qty, cumQty, fill);
+      bool v = pxLevel->match(transactTime, qty, cumQty, fill);
       if (!pxLevel->data().qty) i.del();
-      if (v) return v;
+      if (!v) return false;
       if (!qty) break;
     }
-    return 0;
+    return true;
   }
 
 private:
@@ -1051,9 +1051,9 @@ public:
   void libData(T v) { m_libData.store_((uintptr_t)v); }
 
   template <typename T = uintptr_t>
-  T appData() const { return (T)m_appData.load_(); }
+  T appData() const { return static_cast<T>(m_appData.load_()); }
   template <typename T>
-  void appData(T v) { m_appData.store_((uintptr_t)v); }
+  void appData(T v) { m_appData.store_(static_cast<uintptr_t>(v)); }
 
   template <typename T = MxMDFeedOB>
   ZuIs<MxMDFeedOB, T, ZmRef<T> &> feedOB() {
@@ -1064,59 +1064,59 @@ public:
 private:
   template <int Direction, typename Fill, typename Leave,
 	   typename Limit, typename Side>
-  uintptr_t match_(MxDateTime transactTime, MxValue px, MxValue qty,
+  bool match_(MxDateTime transactTime, MxValue px, MxValue qty,
       Fill &&fill, Leave &&leave, Limit &&limit, Side &&side) {
     MxValue cumQty = 0;
     auto l = [transactTime, px, &qty, &cumQty, &fill, &limit, &side](
-	     auto &l, MxMDOrderBook *ob) mutable -> uintptr_t {
+	     auto &l, MxMDOrderBook *ob) mutable {
       if (ZuLikely(!ob->m_in))
 	return side(ob)->template match<Direction>(
 	    transactTime, px, qty, cumQty, fill, limit);
       for (MxMDOrderBook *inOB = ob->m_in; inOB; inOB = inOB->m_next) {
-	if (uintptr_t v = l(l, inOB)) return v;
+	if (!l(l, inOB)) return false;
 	if (!qty) break;
       }
-      return 0;
+      return true;
     };
-    uintptr_t v = l(l, this); // recursive lambda
+    bool v = l(l, this); // recursive lambda
     leave(qty, cumQty);
     return v;
   }
 
 public:
-  // fill(leavesQty, cumQty, px, qty, MxMDOrder *contra) -> uintptr_t
+  // fill(leavesQty, cumQty, px, qty, MxMDOrder *contra) -> bool
   //   /* fill(...) is called repeatedly for each contra order */
   //   /* Note: leavesQty/cumQty are pre-fill, not post-fill */
   // leave(leavesQty, cumQty) /* called on completion */
 
   // match order (CLOB)
   template <typename Fill, typename Leave>
-  uintptr_t match(
+  bool match(
       MxDateTime transactTime, MxEnum side, MxValue px, MxValue qty,
       Fill &&fill, Leave &&leave) {
     if (ZuUnlikely(!*px)) {
       if (side == MxSide::Buy) {
 	return match_<ZmRBTreeGreaterEqual>(
 	    transactTime, px, qty, fill, leave,
-	    [](MxValue, MxValue) -> bool { return true; },
-	    [](MxMDOrderBook *ob) -> MxMDOBSide * { return ob->m_asks; });
+	    [](MxValue, MxValue) { return true; },
+	    [](MxMDOrderBook *ob) { return ob->m_asks; });
       } else {
 	return match_<ZmRBTreeLessEqual>(
 	    transactTime, px, qty, fill, leave,
-	    [](MxValue, MxValue) -> bool { return true; },
-	    [](MxMDOrderBook *ob) -> MxMDOBSide * { return ob->m_bids; });
+	    [](MxValue, MxValue) { return true; },
+	    [](MxMDOrderBook *ob) { return ob->m_bids; });
       }
     } else {
       if (side == MxSide::Buy) {
 	return match_<ZmRBTreeGreaterEqual>(
 	    transactTime, px, qty, fill, leave,
-	    [](MxValue px, MxValue cPx) -> bool { return px >= cPx; },
-	    [](MxMDOrderBook *ob) -> MxMDOBSide * { return ob->m_asks; });
+	    [](MxValue px, MxValue cPx) { return px >= cPx; },
+	    [](MxMDOrderBook *ob) { return ob->m_asks; });
       } else {
 	return match_<ZmRBTreeLessEqual>(
 	    transactTime, px, qty, fill, leave,
-	    [](MxValue px, MxValue cPx) -> bool { return px <= cPx; },
-	    [](MxMDOrderBook *ob) -> MxMDOBSide * { return ob->m_bids; });
+	    [](MxValue px, MxValue cPx) { return px <= cPx; },
+	    [](MxMDOrderBook *ob) { return ob->m_bids; });
       }
     }
   }
@@ -1266,11 +1266,11 @@ friend MxMDInstrument;
 public:
   MxMDInstrument *future(const MxFutKey &key) const
     { return m_futures.findVal(key); }
-  uintptr_t allFutures(ZmFn<MxMDInstrument *>) const;
+  bool allFutures(ZmFn<MxMDInstrument *>) const;
 
   MxMDInstrument *option(const MxOptKey &key) const
     { return m_options.findVal(key); }
-  uintptr_t allOptions(ZmFn<MxMDInstrument *>) const;
+  bool allOptions(ZmFn<MxMDInstrument *>) const;
 
 private:
   void add(MxMDInstrument *);
@@ -1341,12 +1341,12 @@ public:
       return ob;
     return (MxMDOrderBook *)nullptr;
   }
-  template <typename L> // (MxMDOrderBook *) -> uintptr_t
-  uintptr_t allOrderBooks(L l) const {
+  template <typename L> // (MxMDOrderBook *) -> bool
+  bool allOrderBooks(L l) const {
     auto i = m_orderBooks.readIterator();
     while (const ZmRef<MxMDOrderBook> &ob = i.iterateKey())
-      if (uintptr_t v = l(ob)) return v;
-    return 0;
+      if (!l(ob)) return false;
+    return true;
   }
 
   ZmRef<MxMDOrderBook> addOrderBook(const MxInstrKey &key,
@@ -1392,9 +1392,9 @@ public:
   void libData(T v) { m_libData.store_((uintptr_t)v); }
 
   template <typename T = uintptr_t>
-  T appData() const { return (T)m_appData.load_(); }
+  T appData() const { return static_cast<T>(m_appData.load_()); }
   template <typename T>
-  void appData(T v) { m_appData.store_((uintptr_t)v); }
+  void appData(T v) { m_appData.store_(static_cast<uintptr_t>(v)); }
 
 private:
   void addOrderBook_(MxMDOrderBook *);
@@ -1605,9 +1605,9 @@ public:
   ZmRef<MxMDTickSizeTbl> tickSizeTbl(ZuString id) const {
     return m_tickSizeTbls.findKey(id);
   }
-  uintptr_t allTickSizeTbls(ZmFn<MxMDTickSizeTbl *>) const;
+  bool allTickSizeTbls(ZmFn<MxMDTickSizeTbl *>) const;
 
-  uintptr_t allSegments(ZmFn<const MxMDSegment &>) const;
+  bool allSegments(ZmFn<const MxMDSegment &>) const;
 
   MxMDSegment tradingSession(MxID segmentID = MxID()) const {
     SegmentsReadGuard guard(m_segmentsLock);
@@ -1739,7 +1739,7 @@ public:
   ZmRef<MxMDInstrument> instrument(const MxInstrKey &key) const {
     return m_instruments->findKey(key);
   }
-  uintptr_t allInstruments(ZmFn<MxMDInstrument *>) const;
+  bool allInstruments(ZmFn<MxMDInstrument *>) const;
   ZmRef<MxMDInstrument> addInstrument(ZmRef<MxMDInstrument> instr,
       const MxInstrKey &key, const MxMDInstrRefData &refData,
       MxDateTime transactTime);
@@ -1747,7 +1747,7 @@ public:
   ZmRef<MxMDOrderBook> orderBook(const MxInstrKey &key) const {
     return m_orderBooks->findKey(key);
   }
-  uintptr_t allOrderBooks(ZmFn<MxMDOrderBook *>) const;
+  bool allOrderBooks(ZmFn<MxMDOrderBook *>) const;
 
 private:
   void addInstrument(MxMDInstrument *instrument) {
@@ -2133,7 +2133,7 @@ public:
 	instrInvoke(MxInstrKey{key.id, key.venue, key.segment}, ZuMv(l));
     }
   }
-  uintptr_t allInstruments(ZmFn<MxMDInstrument *>) const;
+  bool allInstruments(ZmFn<MxMDInstrument *>) const;
   unsigned instrCount() const { return m_allInstruments->count_(); }
 
   MxMDOBHandle orderBook(const MxInstrKey &key) const {
@@ -2175,17 +2175,17 @@ public:
 	  l(instr->orderBook(key.venue, key.segment));
       });
   }
-  uintptr_t allOrderBooks(ZmFn<MxMDOrderBook *>) const;
+  bool allOrderBooks(ZmFn<MxMDOrderBook *>) const;
 
   ZmRef<MxMDFeed> feed(MxID id) const {
     return m_feeds.findKey(id);
   }
-  uintptr_t allFeeds(ZmFn<MxMDFeed *>) const;
+  bool allFeeds(ZmFn<MxMDFeed *>) const;
 
   ZmRef<MxMDVenue> venue(MxID id) const {
     return m_venues.findKey(id);
   }
-  uintptr_t allVenues(ZmFn<MxMDVenue *>) const;
+  bool allVenues(ZmFn<MxMDVenue *>) const;
 
   template <typename T = uintptr_t>
   T libData() const { return (T)m_libData.load_(); }
@@ -2193,9 +2193,9 @@ public:
   void libData(T v) { m_libData.store_((uintptr_t)v); }
 
   template <typename T = uintptr_t>
-  T appData() const { return (T)m_appData.load_(); }
+  T appData() const { return static_cast<T>(m_appData.load_()); }
   template <typename T>
-  void appData(T v) { m_appData.store_((uintptr_t)v); }
+  void appData(T v) { m_appData.store_(static_cast<uintptr_t>(v)); }
 
 private:
   ZmScheduler		*m_scheduler = 0;
@@ -2235,7 +2235,7 @@ inline MxMDLib *MxMDVenueShard::md() const {
 }
 
 template <typename Fill>
-inline uintptr_t MxMDPxLevel_::match(MxDateTime transactTime,
+inline bool MxMDPxLevel_::match(MxDateTime transactTime,
     MxValue &qty, MxValue &cumQty, Fill fill)
 {
   auto ob = m_obSide->orderBook();
@@ -2243,14 +2243,14 @@ inline uintptr_t MxMDPxLevel_::match(MxDateTime transactTime,
   auto md = ob->md();
   MxValue oldQty = m_data.qty;
   MxValue oldNOrders = m_data.nOrders;
-  uintptr_t v = 0;
+  bool v = true;
 
   auto i = this->m_orders.iterator();
   while (MxMDOrder *contra = i.iterate()) {
     MxValue cQty = contra->data().qty;
     MxValue nv;
     if (cQty <= qty) {
-      if (v = fill(qty, cumQty, m_price, cQty, contra)) break;
+      if (!(v = !fill(qty, cumQty, m_price, cQty, contra))) break;
       cumQty += cQty;
       nv = (MxValNDP{m_price, m_pxNDP} * MxValNDP{cQty, m_qtyNDP}).value;
       deletedOrder_(contra, transactTime);
@@ -2262,7 +2262,7 @@ inline uintptr_t MxMDPxLevel_::match(MxDateTime transactTime,
       i.del();
       if (!qty) break;
     } else {
-      if (v = fill(qty, cumQty, m_price, qty, contra)) break;
+      if (!(v = !fill(qty, cumQty, m_price, qty, contra))) break;
       cumQty += qty;
       nv = (MxValNDP{m_price, m_pxNDP} * MxValNDP{qty, m_qtyNDP}).value;
       contra->updateQty_(cQty -= qty);

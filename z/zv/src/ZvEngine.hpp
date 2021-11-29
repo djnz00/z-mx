@@ -66,9 +66,9 @@ public:
   ZuID id() const { return m_id; }
 
   template <typename T = uintptr_t>
-  T appData() const { return (T)m_appData; }
+  T appData() const { return static_cast<T>(m_appData); }
   template <typename T>
-  void appData(T v) { m_appData = (uintptr_t)v; }
+  void appData(T v) { m_appData = static_cast<uintptr_t>(v); }
 
 private:
   ZuID			m_id;
@@ -411,11 +411,11 @@ public:
     ReadGuard guard(m_lock);
     return m_links.count();
   }
-  template <typename Link, typename L> uintptr_t allLinks(L l) {
+  template <typename Link, typename L> bool allLinks(L l) {
     auto i = m_links.readIterator();
     while (ZvAnyLink *link = i.iterateVal())
-      if (uintptr_t v = l(static_cast<Link *>(link))) return v;
-    return 0;
+      if (!l(static_cast<Link *>(link))) return false;
+    return true;
   }
 
 private:

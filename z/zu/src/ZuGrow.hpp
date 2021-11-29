@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// memory growth algorithm for buffers
+// optimized memory growth algorithm for buffers
 
 #ifndef ZuGrow_HPP
 #define ZuGrow_HPP
@@ -25,6 +25,10 @@
 #ifndef ZuLib_HPP
 #include <zlib/ZuLib.hpp>
 #endif
+
+// ZuGrow(oldSize, newSize) -> returns allocSize >= newSize bytes,
+// accounting for malloc header/trailer overheads, exponentially
+// doubling each allocation up to 64k, then adding 64k chunks linearly
 
 inline constexpr unsigned ZuGrow(unsigned o, unsigned n) {
   if (ZuUnlikely(o > n)) return o;
@@ -37,7 +41,7 @@ inline constexpr unsigned ZuGrow(unsigned o, unsigned n) {
 
   constexpr const unsigned m = (1U<<16) - 1;	// 64K mask
 
-  if (o < 64) o = 64;
+  if (o < 128) o = 128;
 
   if (o <= m && n < (o<<1)) return (o<<1) - v;// double old size up to 64k
 

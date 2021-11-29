@@ -109,17 +109,17 @@ jobject MxMDPxLevelJNI::data(JNIEnv *env, jobject obj)
   return MxMDPxLvlDataJNI::ctor(env, pxLevel->data());
 }
 
-jlong MxMDPxLevelJNI::allOrders(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDPxLevelJNI::allOrders(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllOrdersFn) -> long
   MxMDPxLevel *pxLevel = ptr_(env, obj);
-  if (ZuUnlikely(!pxLevel || !fn)) return 0;
+  if (ZuUnlikely(!pxLevel || !fn)) return false;
   return pxLevel->allOrders(
-      [fn = ZJNI::globalRef(env, fn)](MxMDOrder *order) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDOrder *order) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allOrdersFn[0].mid,
+      return env->CallBooleanMethod(fn, allOrdersFn[0].mid,
 	  MxMDOrderJNI::ctor(env, order));
-    return 0;
+    return false;
   });
 }
 
@@ -157,7 +157,7 @@ int MxMDPxLevelJNI::bind(JNIEnv *env)
       "()Lcom/shardmx/mxmd/MxMDPxLvlData;",
       (void *)&MxMDPxLevelJNI::data },
     { "allOrders",
-      "(Lcom/shardmx/mxmd/MxMDAllOrdersFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllOrdersFn;)Z",
       (void *)&MxMDPxLevelJNI::allOrders },
   };
 #pragma GCC diagnostic pop

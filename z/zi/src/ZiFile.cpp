@@ -142,7 +142,7 @@ void ZiFile_WindowsDrives::refresh()
   unsigned i = 0;
   ZtWString drive;
   drive += L" :\\";
-  ZtWString pathBuf(ZiPlatform::PathMax + 1);
+  ZtWString pathBuf(Zi::PathMax + 1);
   ZtWString path;
   int dl;
   do {
@@ -150,7 +150,7 @@ void ZiFile_WindowsDrives::refresh()
     if (islower(dl)) dl += 'A' - 'a';
     drive[0] = dl;
     drive[2] = 0;
-    if (QueryDosDevice(drive, pathBuf, ZiPlatform::PathMax + 1) > 0) {
+    if (QueryDosDevice(drive, pathBuf, Zi::PathMax + 1) > 0) {
       pathBuf.calcLength();
       if (!pathBuf.cmp(L"\\\\?\\", 4))
 	path.init(&pathBuf[4], pathBuf.length() - 4);
@@ -226,11 +226,11 @@ retry:
 	return 0;
       }
     } else {
-      ZtWString dir_(ZiPlatform::PathMax + 1);
-      dir_.length(GetCurrentDirectory(ZiPlatform::PathMax + 1, dir_));
+      ZtWString dir_(Zi::PathMax + 1);
+      dir_.length(GetCurrentDirectory(Zi::PathMax + 1, dir_));
       if (dir_.length()) {
-	ZtWString dir(ZiPlatform::PathMax + 1);
-	dir.length(GetFullPathName(dir_, ZiPlatform::PathMax + 1, dir, 0));
+	ZtWString dir(Zi::PathMax + 1);
+	dir.length(GetFullPathName(dir_, Zi::PathMax + 1, dir, 0));
 	if (dir.length()) dl = dir[0];
       }
       if (!dl) return 0;
@@ -280,7 +280,7 @@ int ZiFile::open(
 int ZiFile::open_(
     const Path &name, unsigned flags, unsigned mode, Offset length, ZeError *e)
 {
-  if (m_handle != ZiPlatform::nullHandle()) {
+  if (m_handle != Zi::nullHandle()) {
 #ifndef _WIN32
     if (e) *e = EINVAL;
 #else
@@ -467,7 +467,7 @@ int ZiFile::shadow(const ZiFile &file, ZeError *e)
 {
   Guard guard(m_lock);
 
-  if (m_handle != ZiPlatform::nullHandle()) {
+  if (m_handle != Zi::nullHandle()) {
     *e = ZiEINVAL;
     return Zi::IOError;
   }
@@ -491,7 +491,7 @@ void ZiFile::close()
 {
   Guard guard(m_lock);
 
-  if (m_handle == ZiPlatform::nullHandle()) return;
+  if (m_handle == Zi::nullHandle()) return;
 
   if (m_flags & Shadow) goto closed;
 
@@ -505,7 +505,7 @@ void ZiFile::close()
     m_shmName = ZtString();
 #else
     if (m_mmapHandle != m_handle) CloseHandle(m_mmapHandle);
-    m_mmapHandle = ZiPlatform::nullHandle();
+    m_mmapHandle = Zi::nullHandle();
     UnmapViewOfFile(m_addr);
     if (m_flags & ShmDbl)
       UnmapViewOfFile((char *)m_addr + m_mmapLength);
@@ -519,7 +519,7 @@ void ZiFile::close()
 #endif
 
 closed:
-  m_handle = ZiPlatform::nullHandle();
+  m_handle = Zi::nullHandle();
   m_flags = 0;
   m_offset = 0;
   m_addr = 0;
@@ -527,7 +527,7 @@ closed:
 #ifndef _WIN32
   m_shmName.null();
 #else
-  m_mmapHandle = ZiPlatform::nullHandle();
+  m_mmapHandle = Zi::nullHandle();
 #endif
 }
 
@@ -577,7 +577,8 @@ ZiFile::Offset ZiFile::size()
 
 #ifndef _WIN32
   off_t o;
-  if ((o = lseek(m_handle, 0, SEEK_END)) == (off_t)-1) return 0;
+  if ((o = lseek(m_handle, 0, SEEK_END)) == static_cast<off_t>(-1))
+    return 0;
   return o;
 #else
   DWORD l, h;
@@ -642,7 +643,7 @@ int ZiFile::preadv(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e)
 
   for (i = 0; i < nVecs; i++) len += ZiVec_len(vecs[i]);
 
-  ZePlatform::ErrNo errNo;
+  Ze::ErrNo errNo;
   int r;
 
 retry:
@@ -709,7 +710,7 @@ int ZiFile::pread(Offset offset, void *ptr, unsigned len, ZeError *e)
 {
   if (!len) return 0;
 
-  ZePlatform::ErrNo errNo;
+  Ze::ErrNo errNo;
   unsigned total = 0;
 #ifndef _WIN32
   int r;
@@ -789,7 +790,7 @@ int ZiFile::pwritev(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e
 
   for (i = 0; i < nVecs; i++) len += ZiVec_len(vecs[i]);
 
-  ZePlatform::ErrNo errNo;
+  Ze::ErrNo errNo;
   int r;
 
 retry:
@@ -853,7 +854,7 @@ int ZiFile::pwrite(Offset offset, const void *ptr, unsigned len, ZeError *e)
 {
   if (!len) return Zi::OK;
 
-  ZePlatform::ErrNo errNo;
+  Ze::ErrNo errNo;
 #ifndef _WIN32
   int r;
 #else
@@ -1115,22 +1116,22 @@ void ZiFile::age(const Path &name_, unsigned max)
 
 ZiFile::Path ZiFile::cwd()
 {
-  Path ret(ZiPlatform::PathMax + 1);
+  Path ret(Zi::PathMax + 1);
 
 #ifndef _WIN32
-  if (!getcwd(ret.data(), ZiPlatform::PathMax + 1))
+  if (!getcwd(ret.data(), Zi::PathMax + 1))
     ret.null();
   else {
     ret.calcLength();
     ret.truncate();
   }
 #else
-  ZtWString dir(ZiPlatform::PathMax + 1);
-  dir.length(GetCurrentDirectory(ZiPlatform::PathMax + 1, dir));
+  ZtWString dir(Zi::PathMax + 1);
+  dir.length(GetCurrentDirectory(Zi::PathMax + 1, dir));
   if (!dir.length())
     ret.null();
   else {
-    ret.length(GetFullPathName(dir, ZiPlatform::PathMax + 1, ret.data(), 0));
+    ret.length(GetFullPathName(dir, Zi::PathMax + 1, ret.data(), 0));
     ret.truncate();
   }
 #endif

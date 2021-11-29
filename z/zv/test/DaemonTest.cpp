@@ -14,11 +14,11 @@
 namespace {
   void usage() {
     puts("usage: DaemonTest [username [password]] [-d|--daemonize]");
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   void notify(const char *text) {
-    ZeLOG(Info, ZtSprintf("PID %d: %s", (int)ZmPlatform::getPID(), text));
+    ZeLOG(Info, ZtSprintf("PID %d: %s", (int)Zm::getPID(), text));
   }
 
   ZmSemaphore done;
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     ZeLog::start();
     ZeLOG(Error, e.message());
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   int r = ZvDaemon::init(
@@ -79,12 +79,12 @@ int main(int argc, char **argv)
     case ZvDaemon::Running:
       notify("already running");
       ZeLog::stop();
-      ZmPlatform::exit(1);
+      Zm::exit(1);
       break;
     case ZvDaemon::Error:
       notify("error");
       ZeLog::stop();
-      ZmPlatform::exit(1);
+      Zm::exit(1);
       break;
   }
 

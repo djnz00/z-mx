@@ -42,6 +42,7 @@
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmRBTree.hpp>
 
+#include <zlib/ZiIOBuf.hpp>
 #include <zlib/ZiIP.hpp>
 #include <zlib/ZiMultiplex.hpp>
 

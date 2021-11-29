@@ -127,8 +127,8 @@ private:
 
 struct ZmPQueue_Defaults {
   enum { NodeDerive = 0 };
-  using Lock = ZmLock;
-  using Object = ZmObject;
+  using Lock = ZmNoLock;
+  using Object = ZuNull;
   struct HeapID { static constexpr const char *id() { return "ZmPQueue"; } };
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;

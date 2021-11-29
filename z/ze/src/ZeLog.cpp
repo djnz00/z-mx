@@ -158,7 +158,7 @@ struct ZeLog_Buf : public ZmObject {
   ZeLog_Buf() { dateFmt.pad(' '); }
 
   ZuStringN<ZeLog_BUFSIZ>	s;
-  ZtDate::CSVFmt		dateFmt;
+  ZtDateFmt::CSV		dateFmt;
 };
 static ZeLog_Buf *logBuf()
 {
@@ -209,15 +209,15 @@ void ZeFileSink::log(ZeEvent *e)
   ZtDate d{e->time()};
 
   buf->s <<
-    d.csv(buf->dateFmt) << ' ' <<
+    d.print(buf->dateFmt) << ' ' <<
     ZuBoxed(e->tid()) << ' ' <<
-    ZePlatform::severity(e->severity()) << ' ';
+    Ze::severity(e->severity()) << ' ';
   if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
     buf->s <<
-      '\"' << ZePlatform::filename(e->filename()) << "\":" <<
+      '\"' << Ze::filename(e->filename()) << "\":" <<
       ZuBoxed(e->lineNumber()) << ' ';
   buf->s <<
-    ZePlatform::function(e->function()) << "() " <<
+    Ze::function(e->function()) << "() " <<
     e->message() << '\n';
 
   unsigned len = buf->s.length();
@@ -265,7 +265,7 @@ void ZeFileSink::age_()
 
 void ZeDebugSink::init()
 {
-  m_filename << ZeLog::program() << ".log." << ZuBoxed(ZmPlatform::getPID());
+  m_filename << ZeLog::program() << ".log." << ZuBoxed(Zm::getPID());
 
   if (m_filename != "&2") m_file = fopen(m_filename, "w");
 
@@ -289,13 +289,13 @@ void ZeDebugSink::log(ZeEvent *e)
   buf->s <<
     '+' << ZuBoxed(d.dtime()).fmt(ZuFmt::FP<9>()) << ' ' <<
     ZuBoxed(e->tid()) << ' ' <<
-    ZePlatform::severity(e->severity()) << ' ';
+    Ze::severity(e->severity()) << ' ';
   if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
     buf->s <<
-      '\"' << ZePlatform::filename(e->filename()) << "\":" <<
+      '\"' << Ze::filename(e->filename()) << "\":" <<
       ZuBoxed(e->lineNumber()) << ' ';
   buf->s <<
-    ZePlatform::function(e->function()) << "() " <<
+    Ze::function(e->function()) << "() " <<
     e->message() << '\n';
 
   unsigned len = buf->s.length();
@@ -312,5 +312,5 @@ void ZeDebugSink::log(ZeEvent *e)
 
 void ZeSysSink::log(ZeEvent *e)
 {
-  ZePlatform::syslog(e);
+  Ze::syslog(e);
 }

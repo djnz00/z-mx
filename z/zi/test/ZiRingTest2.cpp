@@ -29,7 +29,7 @@ void usage()
     "  -S\t\t- slow reader (sleep INTERVAL seconds in between reads)\n"
     "  -c CPUSET\t- bind memory to CPUSET\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 using Ring = ZiRing;
@@ -159,7 +159,7 @@ int App::main(int argc, char **argv)
 
       if (ring->open(flags, &e) != Zi::OK) {
 	std::cerr << e << '\n' << std::flush;
-	ZmPlatform::exit(1);
+	Zm::exit(1);
       }
     }
 
@@ -197,7 +197,7 @@ int App::main(int argc, char **argv)
 
 void App::reader()
 {
-  std::cerr << (ZuStringN<80>{} << "reader " << ZmPlatform::getTID() << " started\n") << std::flush;
+  std::cerr << (ZuStringN<80>{} << "reader " << Zm::getTID() << " started\n") << std::flush;
   if (!gc) {
     ring->attach();
     std::cerr << "reader attached\n";
@@ -226,11 +226,11 @@ void App::reader()
       else
 	s << "readStatus() returned " << ZuBoxed(i) << '\n';
       std::cerr << s << std::flush;
-      ZmPlatform::sleep(.1);
+      Zm::sleep(.1);
       --j;
       continue;
     }
-    if (slow && !!interval) ZmPlatform::sleep(interval);
+    if (slow && !!interval) Zm::sleep(interval);
   }
   std::cerr << (ZuStringN<80>{} << "reader count " << count << " completed\n") << std::flush;
   end.now();
@@ -239,7 +239,7 @@ void App::reader()
 
 void App::writer()
 {
-  std::cerr << (ZuStringN<80>{} << "writer " << ZmPlatform::getTID() << " started\n") << std::flush;
+  std::cerr << (ZuStringN<80>{} << "writer " << Zm::getTID() << " started\n") << std::flush;
   start.now();
   for (int j = 0; j < count; j++) {
     if (gc) {
@@ -267,11 +267,11 @@ void App::writer()
       else
 	s << "Ring Full\n";
       std::cerr << s << std::flush;
-      ZmPlatform::sleep(.1);
+      Zm::sleep(.1);
       --j;
       continue;
     }
-    if (!slow && !!interval) ZmPlatform::sleep(interval);
+    if (!slow && !!interval) Zm::sleep(interval);
   }
   std::cerr << (ZuStringN<80>{} << "writer count " << count << " completed\n") << std::flush;
   if (!(flags & Ring::Read)) end.now();

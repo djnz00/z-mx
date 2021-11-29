@@ -214,22 +214,22 @@ ZtDate_TzGuard::ZtDate_TzGuard(const char *tz) :
     strcpy(m_tz, "TZ=");
     strcpy(m_tz + 3, tz);
 
-    ZtPlatform::putenv(m_tz);
+    Zt::putenv(m_tz);
   }
 
-  ZtPlatform::tzset();
+  Zt::tzset();
 }
 
 ZtDate_TzGuard::~ZtDate_TzGuard()
 {
   if (m_tz) {
     if (m_oldTz)
-      ZtPlatform::putenv(m_oldTz);
+      Zt::putenv(m_oldTz);
     else
-      ZtPlatform::putenv("TZ=");
+      Zt::putenv("TZ=");
     free(m_tz);
 
-    ZtPlatform::tzset();
+    Zt::tzset();
   }
 }
 
@@ -398,7 +398,7 @@ void ZtDate::normalize(int &day, int &hour, int &minute, int &sec, int &nsec)
   }
 }
 
-void ZtDate::ctorISO(ZuString s, const char *tz)
+void ZtDate::ctor(const ZtDateScan::CSV &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -415,21 +415,24 @@ void ZtDate::ctorISO(ZuString s, const char *tz)
     c = *ptr++ - '0'; year += c * 100;
     c = *ptr++ - '0'; year += c * 10;
     c = *ptr++ - '0'; year += c;
-    if (ZuUnlikely(*ptr++ != '-')) goto invalid;
+    if (ZuUnlikely(*ptr++ != '/')) goto invalid;
     c = *ptr++ - '0'; month = c * 10;
     c = *ptr++ - '0'; month += c;
-    if (ZuUnlikely(*ptr++ != '-')) goto invalid;
+    if (ZuUnlikely(*ptr++ != '/')) goto invalid;
     c = *ptr++ - '0'; day = c * 10;
     c = *ptr++ - '0'; day += c;
 
-    if (ptr >= end || *ptr++ != 'T') {
+    if (ptr >= end || *ptr++ != ' ') {
       int year_ = year, month_ = month;
       if (ZuUnlikely(bc)) year_ = -year_;
       normalize(year_, month_);
       m_julian = julian(year_, month_, day);
       m_sec = 0;
       m_nsec = 0;
-      if (ZuUnlikely(tz)) offset_(year_, month_, day, 0, 0, 0, tz);
+      if (ZuUnlikely(fmt.tzOffset))
+	*this += fmt.tzOffset;
+      else if (ZuUnlikely(fmt.tzName))
+	offset_(year, month, day, 0, 0, 0, fmt.tzName);
       return;
     }
 
@@ -445,63 +448,28 @@ void ZtDate::ctorISO(ZuString s, const char *tz)
 
     nsec = 0;
     if (ZuLikely(ptr < end)) {
-      if (ZuUnlikely(end - ptr < 2)) goto tz;
-      if (ZuUnlikely((c = *ptr++) != '.')) { --ptr; goto tz; }
+      if (ZuUnlikely(end - ptr < 2)) goto end;
+      if (ZuUnlikely((c = *ptr++) != '.')) goto end;
       unsigned pow = 100000000;
       c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) goto invalid;
       nsec = c * pow;
       while (ptr < end) {
-	c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) { --ptr; break; }
+	c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) break;
 	nsec += c * (pow /= 10);
       }
     }
 
-  tz:
+  end:
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
     m_julian = julian(year, month, day);
     m_sec = second(hour, minute, sec);
     m_nsec = nsec;
 
-    if (ptr >= end) {
-      if (ZuUnlikely(tz)) offset_(year, month, day, hour, minute, sec, tz);
-      return;
-    }
-
-    if ((c = *ptr++) == 'Z') return;
-
-    int offset;
-
-    if (c == '+') {
-      offset = 1;
-    } else if (ZuLikely(c == '-')) {
-      offset = -1;
-    } else
-      goto invalid;
-
-    if (ZuUnlikely(end - ptr < 2)) goto invalid;
-
-    unsigned offsetHours, offsetMinutes = 0;
-
-    c = *ptr++ - '0'; offsetHours = c * 10;
-    c = *ptr++ - '0'; offsetHours += c;
-    if (ZuLikely(ptr >= end)) goto offset;
-    c = *ptr++;
-    if (c == ':') {
-      if (ZuUnlikely(end - ptr < 2)) goto invalid;
-      c = *ptr++;
-    } else
-      if (ZuUnlikely(end - ptr < 1)) goto invalid;
-    c = (char)c - '0'; offsetMinutes = c * 10;
-    c = *ptr++ - '0'; offsetMinutes += c;
-
-  offset:
-    if (offset >= 0)
-      offset = -(int)(offsetHours * 60 + offsetMinutes) * 60;
-    else
-      offset = (offsetHours * 60 + offsetMinutes) * 60;
-
-    *this += offset;
+    if (fmt.tzOffset)
+      *this += fmt.tzOffset;
+    else if (fmt.tzName)
+      offset_(year, month, day, hour, minute, sec, fmt.tzName);
     return;
   }
 
@@ -509,7 +477,7 @@ invalid:
   m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
 }
 
-void ZtDate::ctorFIX(ZuString s)
+void ZtDate::ctor(const ZtDateScan::FIX &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -568,7 +536,7 @@ invalid:
   m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
 }
 
-void ZtDate::ctorCSV(ZuString s, const char *tz, int tzOffset)
+void ZtDate::ctor(const ZtDateScan::ISO &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -585,21 +553,24 @@ void ZtDate::ctorCSV(ZuString s, const char *tz, int tzOffset)
     c = *ptr++ - '0'; year += c * 100;
     c = *ptr++ - '0'; year += c * 10;
     c = *ptr++ - '0'; year += c;
-    if (ZuUnlikely(*ptr++ != '/')) goto invalid;
+    if (ZuUnlikely(*ptr++ != '-')) goto invalid;
     c = *ptr++ - '0'; month = c * 10;
     c = *ptr++ - '0'; month += c;
-    if (ZuUnlikely(*ptr++ != '/')) goto invalid;
+    if (ZuUnlikely(*ptr++ != '-')) goto invalid;
     c = *ptr++ - '0'; day = c * 10;
     c = *ptr++ - '0'; day += c;
 
-    if (ptr >= end || *ptr++ != ' ') {
+    if (ptr >= end || *ptr++ != 'T') {
       int year_ = year, month_ = month;
       if (ZuUnlikely(bc)) year_ = -year_;
       normalize(year_, month_);
       m_julian = julian(year_, month_, day);
       m_sec = 0;
       m_nsec = 0;
-      if (ZuUnlikely(tz)) offset_(year_, month_, day, 0, 0, 0, tz);
+      if (ZuUnlikely(fmt.tzOffset))
+	*this += fmt.tzOffset;
+      else if (ZuUnlikely(fmt.tzName))
+	offset_(year_, month_, day, 0, 0, 0, fmt.tzName);
       return;
     }
 
@@ -615,28 +586,66 @@ void ZtDate::ctorCSV(ZuString s, const char *tz, int tzOffset)
 
     nsec = 0;
     if (ZuLikely(ptr < end)) {
-      if (ZuUnlikely(end - ptr < 2)) goto end;
-      if (ZuUnlikely((c = *ptr++) != '.')) goto end;
+      if (ZuUnlikely(end - ptr < 2)) goto tz;
+      if (ZuUnlikely((c = *ptr++) != '.')) { --ptr; goto tz; }
       unsigned pow = 100000000;
       c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) goto invalid;
       nsec = c * pow;
       while (ptr < end) {
-	c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) break;
+	c = *ptr++ - '0'; if (ZuUnlikely(c >= 10)) { --ptr; break; }
 	nsec += c * (pow /= 10);
       }
     }
 
-  end:
+  tz:
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
     m_julian = julian(year, month, day);
     m_sec = second(hour, minute, sec);
     m_nsec = nsec;
 
-    if (tz)
-      offset_(year, month, day, hour, minute, sec, tz);
-    else if (tzOffset)
-      *this += tzOffset;
+    if (ptr >= end) {
+      if (ZuUnlikely(fmt.tzOffset))
+	*this += fmt.tzOffset;
+      else if (ZuUnlikely(fmt.tzName))
+	offset_(year, month, day, day, hour, minute, fmt.tzName);
+      return;
+    }
+
+    if ((c = *ptr++) == 'Z') return;
+
+    int offset;
+
+    if (c == '+') {
+      offset = 1;
+    } else if (ZuLikely(c == '-')) {
+      offset = -1;
+    } else
+      goto invalid;
+
+    if (ZuUnlikely(end - ptr < 2)) goto invalid;
+
+    unsigned offsetHours, offsetMinutes = 0;
+
+    c = *ptr++ - '0'; offsetHours = c * 10;
+    c = *ptr++ - '0'; offsetHours += c;
+    if (ZuLikely(ptr >= end)) goto offset;
+    c = *ptr++;
+    if (c == ':') {
+      if (ZuUnlikely(end - ptr < 2)) goto invalid;
+      c = *ptr++;
+    } else
+      if (ZuUnlikely(end - ptr < 1)) goto invalid;
+    c = (char)c - '0'; offsetMinutes = c * 10;
+    c = *ptr++ - '0'; offsetMinutes += c;
+
+  offset:
+    if (offset >= 0)
+      offset = -(int)(offsetHours * 60 + offsetMinutes) * 60;
+    else
+      offset = (offsetHours * 60 + offsetMinutes) * 60;
+
+    *this += offset;
     return;
   }
 
@@ -644,13 +653,17 @@ invalid:
   m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
 }
 
-void ZtDate_strftime::print_(ZmStream &s, const ZtDateFmt::Strftime &v)
+void ZtDate::ctor(const ZtDateScan::Any &fmt, ZuString s)
 {
-  const char *format = v.format;
+  fmt.cdispatch([this, s](auto &&i) { ctor(ZuAutoFwd(i), s); });
+}
 
+void ZtDate_strftime::print_(
+    ZmStream &s, ZtDate date, const char *format, int offset)
+{
   if (!format || !*format) return;
 
-  ZtDate date = v.date + v.offset;
+  date += offset;
 
   ZuBox<int> year, month, day, hour, minute, second;
   ZuBox<int> days, week, wkDay, hour12;
@@ -893,7 +906,7 @@ fmtchar:
       case 'z': // (GNU) RFC 822 timezone offset
       case 'Z': // (C90) timezone
 	{
-	  ZuBox<int> offset_ = v.offset;
+	  ZuBox<int> offset_ = offset;
 	  if (offset_ < 0) { s << '-'; offset_ = -offset_; }
 	  offset_ = (offset_ / 3600) * 100 + (offset_ % 3600) / 60;
 	  s << offset_;

@@ -75,25 +75,25 @@ namespace MxMDLibJNI {
   jobject instrument(JNIEnv *, jobject, jobject);
   // (MxInstrKey, MxMDInstrumentFn) -> void
   void instrument(JNIEnv *, jobject, jobject, jobject);
-  // (MxMDAllInstrumentsFn) -> long
-  jlong allInstruments(JNIEnv *, jobject, jobject);
+  // (MxMDAllInstrumentsFn) -> boolean
+  jboolean allInstruments(JNIEnv *, jobject, jobject);
 
   // (MxInstrKey) -> MxMDOBHandle
   jobject orderBook(JNIEnv *, jobject, jobject);
   // (MxInstrKey, MxMDOrderBookFn) -> void
   void orderBook(JNIEnv *, jobject, jobject, jobject);
-  // (MxMDAllOrderBooksFn) -> long
-  jlong allOrderBooks(JNIEnv *, jobject, jobject);
+  // (MxMDAllOrderBooksFn) -> boolean
+  jboolean allOrderBooks(JNIEnv *, jobject, jobject);
 
   // (String) -> MxMDFeed
   jobject feed(JNIEnv *, jobject, jstring);
-  // (MxMDAllFeedsFn) -> long
-  jlong allFeeds(JNIEnv *, jobject, jobject);
+  // (MxMDAllFeedsFn) -> boolean
+  jboolean allFeeds(JNIEnv *, jobject, jobject);
 
   // (String) -> MxMDVenue
   jobject venue(JNIEnv *, jobject, jstring);
-  // (MxMDAllVenuesFn) -> long
-  jlong allVenues(JNIEnv *, jobject, jobject);
+  // (MxMDAllVenuesFn) -> boolean
+  jboolean allVenues(JNIEnv *, jobject, jobject);
 
   jobject instance_();
   int bind(JNIEnv *);

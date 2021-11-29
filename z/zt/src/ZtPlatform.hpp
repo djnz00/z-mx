@@ -44,20 +44,17 @@
 
 #include <zlib/ZuInt.hpp>
 
-class ZtAPI ZtPlatform {
-  ZtPlatform();
-  ZtPlatform(const ZtPlatform &);
-  ZtPlatform &operator =(const ZtPlatform &);	// prevent mis-use
+namespace Zt {
 
-public:
 // environment and timezone manipulation
 #ifndef _WIN32
-  static int putenv(const char *s) { return ::putenv((char *)s); }
-  static void tzset(void) { ::tzset(); }
+inline int putenv(const char *s) { return ::putenv((char *)s); }
+inline void tzset(void) { ::tzset(); }
 #else
-  static int putenv(const char *s) { return ::_putenv((char *)s); }
-  static void tzset(void) { ::_tzset(); }
+inline int putenv(const char *s) { return ::_putenv((char *)s); }
+inline void tzset(void) { ::_tzset(); }
 #endif
-};
+
+} // namespace Zt
 
 #endif /* ZtPlatform_HPP */

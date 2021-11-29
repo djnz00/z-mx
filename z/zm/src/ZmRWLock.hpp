@@ -51,11 +51,11 @@ public:
   ZuInline ZmRWLock() { memset(&m_lock, 0, sizeof(ck_rwlock_recursive_t)); }
 
   ZuInline void lock() {
-    ck_rwlock_recursive_write_lock(&m_lock, ZmPlatform::getTID());
+    ck_rwlock_recursive_write_lock(&m_lock, Zm::getTID());
   }
   ZuInline int trylock() {
     return ck_rwlock_recursive_write_trylock(
-	&m_lock, ZmPlatform::getTID()) ? 0 : -1;
+	&m_lock, Zm::getTID()) ? 0 : -1;
   }
   ZuInline void unlock() {
     ck_rwlock_recursive_write_unlock(&m_lock);
@@ -181,21 +181,21 @@ public:
   ZmRWLock() : m_tid(0), m_count(0) { }
 
   void lock() {
-    if (m_tid == ZmPlatform::getTID()) {
+    if (m_tid == Zm::getTID()) {
       ++m_count;
     } else {
       ZmPRWLock::lock();
-      m_tid = ZmPlatform::getTID();
+      m_tid = Zm::getTID();
       ZmAssert(!m_count);
       ++m_count;
     }
   }
   int trylock() {
-    if (m_tid == ZmPlatform::getTID()) {
+    if (m_tid == Zm::getTID()) {
       ++m_count;
       return 0;
     } else if (ZmPRWLock::trylock() == 0) {
-      m_tid = ZmPlatform::getTID();
+      m_tid = Zm::getTID();
       ZmAssert(!m_count);
       ++m_count;
       return 0;
@@ -220,7 +220,7 @@ public:
   friend ZuPrintFn ZuPrintType(ZmRWLock *);
 
 private:
-  ZmAtomic<ZmPlatform::ThreadID>  	m_tid;
+  ZmAtomic<Zm::ThreadID>  	m_tid;
   int			      		m_count;
 };
 

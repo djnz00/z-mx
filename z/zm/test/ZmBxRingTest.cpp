@@ -23,7 +23,7 @@ void usage()
 "  -L\t\t- low-latency (readers spin indefinitely and do not yield)\n"
 "  -s SPIN\t- set spin count to SPIN (default: 1000)\n"
 "  -S\t\t- slow reader (sleep INTERVAL seconds in between reads)\n";
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 struct Msg {
@@ -116,7 +116,7 @@ int App::main(int argc, char **argv)
     {
       if (ring->open(Ring::Read | Ring::Write) != Ring::OK) {
 	std::cerr << "open failed\n";
-	ZmPlatform::exit(1);
+	Zm::exit(1);
       }
     }
 
@@ -200,11 +200,11 @@ void App::reader()
 	s << "readStatus() returned " << ZuBoxed(i) << '\n';
 	std::cerr << s;
       }
-      ZmPlatform::sleep(.1);
+      Zm::sleep(.1);
       --j;
       continue;
     }
-    if (slow && !!interval) ZmPlatform::sleep(interval);
+    if (slow && !!interval) Zm::sleep(interval);
   }
   end.now();
   ring->detach();
@@ -243,11 +243,11 @@ void App::writer(unsigned i)
 	std::cerr << "push failed\n";
 	++failed;
       }
-      ZmPlatform::sleep(.1);
+      Zm::sleep(.1);
       --j;
       continue;
     }
-    if (!!interval) ZmPlatform::sleep(interval);
+    if (!!interval) Zm::sleep(interval);
   }
   {
     ZuStringN<64> s;

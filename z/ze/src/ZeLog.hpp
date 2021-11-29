@@ -210,11 +210,11 @@ private:
 
   void init_(ZuString program) {
     m_program = program;
-    ZePlatform::sysloginit(m_program, 0);
+    Ze::sysloginit(m_program, 0);
   }
   void init_(ZuString program, ZuString facility) {
     m_program = program;
-    ZePlatform::sysloginit(m_program, facility);
+    Ze::sysloginit(m_program, facility);
   }
 
   ZuString program_();

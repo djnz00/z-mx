@@ -380,14 +380,14 @@ void publish()
 	  ob->match(l1Data.stamp, MxSide::Buy,
 	      MxValNDP{101.0, 2}.value, MxValNDP{50.0, 2}.value,
 	      [](MxValue leavesQty, MxValue cumQty,
-		MxValue px, MxValue qty, MxMDOrder *contra) -> uintptr_t {
+		MxValue px, MxValue qty, MxMDOrder *contra) {
 		std::cout << "matched"
 		  << " leavesQty=" << MxValNDP{leavesQty, 2}
 		  << " cumQty=" << MxValNDP{cumQty, 2}
 		  << " px=" << MxValNDP{px, 2}
 		  << " qty=" << MxValNDP{qty, 2}
 		  << '\n' << std::flush;
-		return 0;
+		return false;
 	      },
 	      [ob, &l1Data](
 		  MxValue leavesQty, MxValue cumQty) {

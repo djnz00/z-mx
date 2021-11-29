@@ -57,7 +57,7 @@ friend ZmLock;
 #ifdef _MSC_VER
 #if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
 template class ZmAPI ZmAtomic<uint32_t>;
-template class ZmAPI ZmAtomic<ZmPlatform::ThreadID>;
+template class ZmAPI ZmAtomic<Zm::ThreadID>;
 #endif
 #endif
 
@@ -82,7 +82,7 @@ public:
 #if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
     ZmPLock_lock(m_lock);
 #else
-    ZmPlatform::ThreadID tid = ZmPlatform::getTID();
+    Zm::ThreadID tid = Zm::getTID();
     if (m_tid == tid) { m_count++; return; }
 #ifdef ZmLock_DEBUG
     if (m_prevTID && m_prevTID != tid)
@@ -98,7 +98,7 @@ public:
 #if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
     return ZmPLock_trylock(m_lock);
 #else
-    ZmPlatform::ThreadID tid = ZmPlatform::getTID();
+    Zm::ThreadID tid = Zm::getTID();
     if (m_tid == tid) { m_count++; return 0; }
     if (ZmPLock_trylock(m_lock)) return -1;
     m_tid = tid;				// remember we locked it
@@ -111,7 +111,7 @@ public:
     ZmPLock_unlock(m_lock);
 #else
     if (!m_count) return;
-    ZmPlatform::ThreadID tid = ZmPlatform::getTID();
+    Zm::ThreadID tid = Zm::getTID();
     if (m_tid != tid) return;
     if (!--m_count) {
       m_tid = 0;
@@ -150,7 +150,7 @@ friend Wait;
   private:
     ZmLock			&m_lock;
     uint32_t			m_count;
-    ZmPlatform::ThreadID	m_tid;
+    Zm::ThreadID	m_tid;
   };
 
   Wait wait() { return Wait(*this); }
@@ -159,9 +159,9 @@ friend Wait;
   ZmPLock_				m_lock;
 #if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
   ZmAtomic<uint32_t>			m_count;
-  ZmAtomic<ZmPlatform::ThreadID>	m_tid;
+  ZmAtomic<Zm::ThreadID>	m_tid;
 #ifdef ZmLock_DEBUG
-  ZmPlatform::ThreadID			m_prevTID;
+  Zm::ThreadID			m_prevTID;
 #endif
 #endif
 };

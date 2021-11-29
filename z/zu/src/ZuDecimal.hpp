@@ -127,15 +127,15 @@ struct ZuDecimal {
   static void mul128by128(
       uint128_t u, uint128_t v,
       uint128_t &h, uint128_t &l) {
-    uint128_t u1 = ((uint64_t)u);
-    uint128_t v1 = ((uint64_t)v);
+    uint128_t u1 = static_cast<uint64_t>(u);
+    uint128_t v1 = static_cast<uint64_t>(v);
     uint128_t t = (u1 * v1);
-    uint128_t w3 = ((uint64_t)t);
+    uint128_t w3 = static_cast<uint64_t>(t);
     uint128_t k = (t>>64);
 
     u >>= 64;
     t = (u * v1) + k;
-    k = ((uint64_t)t);
+    k = static_cast<uint64_t>(t);
     uint128_t w1 = (t>>64);
 
     v >>= 64;
@@ -151,16 +151,16 @@ struct ZuDecimal {
   static void mul128scale(
       uint128_t u,
       uint128_t &h, uint128_t &l) {
-    uint128_t u1 = ((uint64_t)u);
+    uint128_t u1 = static_cast<uint64_t>(u);
     const uint128_t v1 = scale();
     uint128_t t = (u1 * v1);
-    uint128_t w3 = ((uint64_t)t);
+    uint128_t w3 = static_cast<uint64_t>(t);
     uint128_t k = (t>>64);
 
     u >>= 64;
 
     t = u * v1 + k;
-    k = ((uint64_t)t);
+    k = static_cast<uint64_t>(t);
 
     h = (t>>64) + (k>>64);
     l = (k<<64) + w3;
@@ -177,11 +177,11 @@ struct ZuDecimal {
     if (!v)
       s = 0;
     else if (v < b)
-      s = __builtin_clzll((uint64_t)v) + 64;
+      s = __builtin_clzll(static_cast<uint64_t>(v)) + 64;
     else
-      s = __builtin_clzll((uint64_t)(v>>64));
+      s = __builtin_clzll(static_cast<uint64_t>(v>>64));
     v <<= s;
-    vn0 = (uint64_t)v;
+    vn0 = static_cast<uint64_t>(v);
     vn1 = v>>64;
 
     if (s > 0) {
@@ -193,7 +193,7 @@ struct ZuDecimal {
     }
 
     un1 = un10>>64;
-    un0 = (uint64_t)un10;
+    un0 = static_cast<uint64_t>(un10);
 
     q1 = un128 / vn1;
     rhat = un128 % vn1;
@@ -243,14 +243,14 @@ struct ZuDecimal {
 
     uint128_t un1, un0, vn1, vn0, q1, q0, un128, un21, un10, rhat, left, right;
 
-    vn0 = (uint64_t)v;
+    vn0 = static_cast<uint64_t>(v);
     vn1 = v>>64;
 
     un128 = (u1<<68) | (u0>>60);
     un10 = u0<<68;
 
     un1 = un10>>64;
-    un0 = (uint64_t)un10;
+    un0 = static_cast<uint64_t>(un10);
 
     q1 = un128 / vn1;
     rhat = un128 % vn1;

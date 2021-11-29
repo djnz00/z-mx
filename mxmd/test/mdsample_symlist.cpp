@@ -41,7 +41,7 @@ void usage() {
     "    CONFIG - configuration file\n"
     "    RICS - file containing RICs to subscribe to\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 void l1(MxMDOrderBook *ob, const MxMDL1Data &)

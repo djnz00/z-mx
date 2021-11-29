@@ -100,7 +100,7 @@ void usage()
 	"  sleep\t\t- seconds to sleep at end\n"
 	"Options:\n"
 	"  --stats\t- dump Zdb statistics\n", stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 struct Abort { };
@@ -196,21 +196,21 @@ int main(int argc, char **argv)
     fprintf(stderr, "BDB Error in %s - %s\n",
 	    e.fn().data(), e.message().data());
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZvError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZeError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (...) {
     fputs("Unknown Exception\n", stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   ZeLog::stop();

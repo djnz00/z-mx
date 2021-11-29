@@ -462,7 +462,7 @@ int ZiRing::gc()
       }
     }
     if (attSeqNo == this->attSeqNo()) break;
-    ZmPlatform::yield();
+    Zm::yield();
     if (++i == m_params.spin()) return 0;
   }
 
@@ -511,7 +511,7 @@ int ZiRing::kill()
   for (unsigned id = 0; id < 64; id++)
     if (targets & (1ULL<<id))
       kill(rdrPID()[id], m_params.coredump());
-  ZmPlatform::sleep(ZmTime((time_t)m_params.killWait()));
+  Zm::sleep(ZmTime((time_t)m_params.killWait()));
   return gc();
 }
 

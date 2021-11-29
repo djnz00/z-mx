@@ -68,17 +68,17 @@ jobject MxMDDerivativesJNI::future(JNIEnv *env, jobject obj, jobject key)
   return MxMDInstrumentJNI::ctor(env, der->future(MxFutKeyJNI::j2c(env, key)));
 }
 
-jlong MxMDDerivativesJNI::allFutures(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDDerivativesJNI::allFutures(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllInstrumentsFn) -> long
   MxMDDerivatives *der = ptr_(env, obj);
-  if (ZuUnlikely(!der || !fn)) return 0;
+  if (ZuUnlikely(!der || !fn)) return false;
   return der->allFutures(
-      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allInstrumentsFn[0].mid,
+      return env->CallBooleanMethod(fn, allInstrumentsFn[0].mid,
 	  MxMDInstrumentJNI::ctor(env, instr));
-    return 0;
+    return false;
   });
 }
 
@@ -90,17 +90,17 @@ jobject MxMDDerivativesJNI::option(JNIEnv *env, jobject obj, jobject key)
   return MxMDInstrumentJNI::ctor(env, der->option(MxOptKeyJNI::j2c(env, key)));
 }
 
-jlong MxMDDerivativesJNI::allOptions(JNIEnv *env, jobject obj, jobject fn)
+jboolean MxMDDerivativesJNI::allOptions(JNIEnv *env, jobject obj, jobject fn)
 {
   // (MxMDAllInstrumentsFn) -> long
   MxMDDerivatives *der = ptr_(env, obj);
-  if (ZuUnlikely(!der || !fn)) return 0;
+  if (ZuUnlikely(!der || !fn)) return false;
   return der->allOptions(
-      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> uintptr_t {
+      [fn = ZJNI::globalRef(env, fn)](MxMDInstrument *instr) -> bool {
     if (JNIEnv *env = ZJNI::env())
-      return env->CallLongMethod(fn, allInstrumentsFn[0].mid,
+      return env->CallBooleanMethod(fn, allInstrumentsFn[0].mid,
 	  MxMDInstrumentJNI::ctor(env, instr));
-    return 0;
+    return false;
   });
 }
 
@@ -123,13 +123,13 @@ int MxMDDerivativesJNI::bind(JNIEnv *env)
       "(Lcom/shardmx/mxbase/MxFutKey;)Lcom/shardmx/mxmd/MxMDInstrument;",
       (void *)&MxMDDerivativesJNI::future },
     { "allFutures",
-      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)Z",
       (void *)&MxMDDerivativesJNI::allFutures },
     { "option",
       "(Lcom/shardmx/mxbase/MxOptKey;)Lcom/shardmx/mxmd/MxMDInstrument;",
       (void *)&MxMDDerivativesJNI::option },
     { "allOptions",
-      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)J",
+      "(Lcom/shardmx/mxmd/MxMDAllInstrumentsFn;)Z",
       (void *)&MxMDDerivativesJNI::allOptions },
   };
 #pragma GCC diagnostic pop

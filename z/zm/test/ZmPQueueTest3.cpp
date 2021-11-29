@@ -55,7 +55,8 @@ struct Msg_ : public Msg_Data {
 using Queue =
   ZmPQueue<Msg_,
     ZmPQueueLock<ZmNoLock,
-      ZmPQueueNodeDerive<true> > >;
+      ZmPQueueObject<ZuObject,
+	ZmPQueueNodeDerive<true> > > >;
 
 using XXX = decltype(ZuDeclVal<const typename Queue::Node &>().key());
 

@@ -61,7 +61,7 @@ class ZmBxRing : public ZmRing_ {
   ZmBxRing &operator =(const ZmBxRing &) = delete;
 
 public:
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 
   enum { // open() flags
     Read	= 0x00000001,

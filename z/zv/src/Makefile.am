@@ -28,7 +28,7 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZvLib.hpp \
-	ZvCf.hpp ZvField.hpp ZvCSV.hpp ZvError.hpp ZvEnum.hpp ZvHashCSV.hpp \
+	ZvCf.hpp ZvCSV.hpp ZvError.hpp ZvEnum.hpp ZvHashCSV.hpp \
 	ZvHeapCSV.hpp ZvDaemon.hpp \
 	ZvRingCf.hpp ZvThreadCf.hpp ZvUserDB.hpp \
 	ZvCmdNet.hpp ZvCmdHost.hpp ZvCmdDispatcher.hpp \

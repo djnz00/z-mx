@@ -120,7 +120,7 @@ struct ZmAPI ZmSpecific_Object {
   ZmSpecific_Object	*prev = nullptr;
   ZmSpecific_Object	*next = nullptr;
 #ifdef _WIN32
-  ZmPlatform::ThreadID	tid = 0;
+  Zm::ThreadID	tid = 0;
   ZmSpecific_Object	*modPrev = nullptr;
   ZmSpecific_Object	*modNext = nullptr;
 #endif
@@ -171,7 +171,7 @@ public:
 
 #ifdef _WIN32
   template <typename T>
-  void set(ZmPlatform::ThreadID tid, T *ptr) {
+  void set(Zm::ThreadID tid, T *ptr) {
   retry:
     for (Object *o = m_head; o; o = o->next)
       if (o->tid == tid)
@@ -185,7 +185,7 @@ public:
 	  ZmREF(ptr);
 	}
   }
-  ZmObject *get(ZmPlatform::ThreadID tid) {
+  ZmObject *get(Zm::ThreadID tid) {
     for (Object *o = m_head; o; o = o->next)
       if (o->tid == tid && o->ptr)
 	return o->ptr;
@@ -223,11 +223,11 @@ public:
 #ifdef _WIN32
     qsort(objects, n, sizeof(Object *),
 	[](const void *o1, const void *o2) -> int {
-	  return ZuCmp<ZmPlatform::ThreadID>::cmp(
+	  return ZuCmp<Zm::ThreadID>::cmp(
 	      (*(Object **)o1)->tid, (*(Object **)o2)->tid);
 	});
     {
-      ZmPlatform::ThreadID lastTID = 0;
+      Zm::ThreadID lastTID = 0;
       for (j = 0; j < n; j++)
 	if (Object *o = objects[j])
 	  if (o->tid == lastTID)
@@ -325,7 +325,7 @@ private:
       return ptr;
     }
 #ifdef _WIN32
-    o->tid = ZmPlatform::getTID_();
+    o->tid = Zm::getTID_();
 #endif
     ZmSpecific_unlock();
     ptr = CtorFn();
@@ -352,7 +352,7 @@ private:
     Object *o = local_();
     ZmSpecific_lock();
 #ifdef _WIN32
-    if (!o->ptr) o->tid = ZmPlatform::getTID_();
+    if (!o->ptr) o->tid = Zm::getTID_();
 #endif
   retry:
     if (!o->ptr) {

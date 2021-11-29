@@ -39,7 +39,6 @@
 #include <errno.h>
 #include <time.h>
 #include <string.h>
-#include <alloca.h>
 #else
 #include <winsock2.h>
 #include <ole2.h>
@@ -75,99 +74,109 @@ class ZmTime;
 #define ZmCacheAlign __attribute__((aligned(ZmCacheLineSize)))
 #endif
 
-class ZmAPI ZmPlatform {
-  ZmPlatform();
-  ZmPlatform(const ZmPlatform &);
-  ZmPlatform &operator =(const ZmPlatform &);	// prevent mis-use
+namespace Zm {
 
-public:
-  enum { CacheLineSize = ZmCacheLineSize };
+enum { CacheLineSize = ZmCacheLineSize };
 
 #ifndef _WIN32
-  using ProcessID = pid_t;
+using ProcessID = pid_t;
 #ifdef linux
-  using ThreadID = pid_t;
+using ThreadID = pid_t;
 #else
-  using ThreadID = pthread_t;
+using ThreadID = pthread_t;
 #endif
 #else /* !_WIN32 */
-  using ProcessID = DWORD;
-  using ThreadID = DWORD;
+using ProcessID = DWORD;
+using ThreadID = DWORD;
 #endif /* !_WIN32 */
 
 // process ID
 #ifndef _WIN32
-  static ProcessID getPID() { return getpid(); }
+inline ProcessID getPID() { return getpid(); }
 #else
-  static ProcessID getPID() { return GetCurrentProcessId(); }
+inline ProcessID getPID() { return GetCurrentProcessId(); }
 #endif
 
 // thread ID
-
-  static ThreadID getTID_();
-  ZuInline static ThreadID getTID() {
-    thread_local ThreadID tid = getTID_();
-    return tid;
-  }
+ZmExtern ThreadID getTID_();
+inline ThreadID getTID() {
+  thread_local ThreadID tid = getTID_();
+  return tid;
+}
 
 // #cpus (number of cores)
 #ifdef _WIN32
 private:
-  typedef BOOL (WINAPI *PIsWow64Process)(HANDLE, PBOOL);
-  typedef void (WINAPI *PGetNativeSystemInfo)(LPSYSTEM_INFO);
+typedef BOOL (WINAPI *PIsWow64Process)(HANDLE, PBOOL);
+typedef void (WINAPI *PGetNativeSystemInfo)(LPSYSTEM_INFO);
 public:
-  static unsigned getncpu() {
-    SYSTEM_INFO si;
-    {
-      HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
-      if (!kernel32)
+inline unsigned getncpu() {
+  SYSTEM_INFO si;
+  {
+    HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
+    if (!kernel32)
+      GetSystemInfo(&si);
+    else {
+      auto isWow64Process = reinterpret_cast<PIsWow64Process>(
+	  GetProcAddress(kernel32, "IsWow64Process"));
+      BOOL isWow64;
+      if (!isWow64Process ||
+	  !isWow64Process(GetCurrentProcess(), &isWow64) ||
+	  !isWow64)
 	GetSystemInfo(&si);
       else {
-	PIsWow64Process isWow64Process =
-	  (PIsWow64Process)GetProcAddress(kernel32, "IsWow64Process");
-	BOOL isWow64;
-	if (!isWow64Process ||
-	    !isWow64Process(GetCurrentProcess(), &isWow64) ||
-	    !isWow64)
-	  GetSystemInfo(&si);
-	else {
-	    PGetNativeSystemInfo getNativeSystemInfo =
-	      (PGetNativeSystemInfo)GetProcAddress(kernel32,
-						   "GetNativeSystemInfo");
-	    if (!getNativeSystemInfo)
-	      GetSystemInfo(&si);
-	    else
-	      getNativeSystemInfo(&si);
-	}
+	  auto getNativeSystemInfo = reinterpret_cast<PGetNativeSystemInfo>(
+	      GetProcAddress(kernel32, "GetNativeSystemInfo"));
+	  if (!getNativeSystemInfo)
+	    GetSystemInfo(&si);
+	  else
+	    getNativeSystemInfo(&si);
       }
     }
-    int n = si.dwNumberOfProcessors;
-    return n < 1 ? 1 : n;
   }
+  int n = si.dwNumberOfProcessors;
+  return n < 1 ? 1 : n;
+}
 #endif
 #ifdef linux
-  static unsigned getncpu() {
-    int n = sysconf(_SC_NPROCESSORS_ONLN);
-    return n < 1 ? 1 : n;
-  }
+inline unsigned getncpu() {
+  int n = sysconf(_SC_NPROCESSORS_ONLN);
+  return n < 1 ? 1 : n;
+}
 #endif
 
 // sleep & yield
 #ifndef _WIN32
-  static void sleep(ZmTime timeout);
-  ZuInline static void yield() { pthread_yield(); }
+ZmExtern void sleep(ZmTime timeout);
+ZuInline void yield() { pthread_yield(); }
 #else
-  static void sleep(ZmTime timeout);
-  ZuInline static void yield() { ::Sleep(0); }
+ZmExtern void sleep(ZmTime timeout);
+ZuInline void yield() { ::Sleep(0); }
 #endif
 
 // (hard) exit process
 #ifndef _WIN32
-  ZuInline static void exit(int code) { ::_exit(code); }
+inline void exit(int code) { ::_exit(code); }
 #else
-  ZuInline static void exit(int code) { ::ExitProcess(code); }
+inline void exit(int code) { ::ExitProcess(code); }
 #endif
-};
+
+// aligned allocation/free
+#ifndef _WIN32
+inline void *alignedAlloc(unsigned size, unsigned alignment) {
+  void *ptr;
+  if (posix_memalign(&ptr, alignment, size)) ptr = nullptr;
+  return ptr;
+}
+inline void alignedFree(void *ptr) { ::free(ptr); }
+#else
+inline void *alignedAlloc(unsigned size, unsigned alignment) {
+  return _aligned_malloc(size, alignment);
+}
+inline void alignedFree(void *ptr) { _aligned_free(ptr); }
+#endif
+
+} // namespace Zm
 
 #ifdef _MSC_VER
 #pragma warning(pop)

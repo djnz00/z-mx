@@ -100,7 +100,7 @@ void *run(void *c_)
 void usage()
 {
   fputs("usage: ZmLockTest nthreads nrecords maxdelay\n", stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)
@@ -118,5 +118,5 @@ int main(int argc, char **argv)
   }
   for (int i = 0; i < nthreads; i++)
     pthread_join(c[i].tid, 0);
-  ZmPlatform::exit(0);
+  Zm::exit(0);
 }

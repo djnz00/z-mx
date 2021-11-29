@@ -98,7 +98,7 @@ using LHash = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock> >;
 
 template <typename H>
 struct HashAdapter {
-  using T = ZmRef<typename H::Node>;
+  using T = typename H::NodeRef;
   static const typename H::Key &key(const typename H::Node *n) {
     return n->key();
   }

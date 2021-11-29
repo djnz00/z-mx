@@ -42,7 +42,7 @@
 
 class ZiAPI ZiIP : public in_addr {
 public:
-  using Hostname = ZiPlatform::Hostname;
+  using Hostname = Zi::Hostname;
 
   enum Result {
     OK		= Zi::OK,

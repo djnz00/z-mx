@@ -78,8 +78,8 @@ namespace MxMDInstrumentJNI {
   // (String, String) -> MxMDOrderBook
   jobject orderBook(JNIEnv *, jobject, jstring, jstring);
 
-  // (MxMDAllOrderBooksFn) -> long
-  jlong allOrderBooks(JNIEnv *, jobject, jobject);
+  // (MxMDAllOrderBooksFn) -> boolean
+  jboolean allOrderBooks(JNIEnv *, jobject, jobject);
 
   jobject ctor(JNIEnv *, ZmRef<MxMDInstrument>);
   int bind(JNIEnv *);

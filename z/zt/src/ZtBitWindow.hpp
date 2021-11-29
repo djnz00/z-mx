@@ -17,7 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// dynamic bitmap optimized for an incrementing sliding window of values
+// in-memory dynamically allocated sliding windows of bitfields
+//
+// supported bitfield widths:
+// 1, 2, 3, 4, 5, 8, 10, 12, 16, 32, 64
 
 #ifndef ZtBitWindow_HPP
 #define ZtBitWindow_HPP
@@ -64,7 +67,7 @@ public:
 
 private:
   enum { Shift = ZtBitWindow_<Bits>::Shift };
-  static constexpr uint64_t Mask = (((uint64_t)1)<<Bits) - 1;
+  static constexpr const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
   enum { IndexShift = (6 - Shift) };
   enum { IndexMask = (1<<IndexShift) - 1 };
 
@@ -140,7 +143,7 @@ private:
 	  return 0;
 	}
       }
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
@@ -159,7 +162,7 @@ private:
 	(((i + 1) - (m_size<<IndexShift)) + IndexMask)>>IndexShift;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
@@ -172,7 +175,7 @@ private:
     }
     return index(i>>IndexShift);
   }
-  ZuInline uint64_t index(uint64_t i) const {
+  uint64_t index(uint64_t i) const {
     i += m_offset;
     if (i >= m_size) i -= m_size;
     return i;
@@ -188,7 +191,7 @@ public:
 #endif
   void set(uint64_t i) {
     uint64_t j = ensure(i);
-    m_data[j] |= (((uint64_t)Mask)<<((i & IndexMask)<<Shift));
+    m_data[j] |= (Mask<<((i & IndexMask)<<Shift));
   }
 #if 0
   void set(uint64_t i, uint64_t v) {
@@ -213,7 +216,7 @@ public:
     i -= m_head;
     if (i >= (m_size<<IndexShift)) return;
     if (m_data[index(i>>IndexShift)] &=
-	~(((uint64_t)Mask)<<((i & IndexMask)<<Shift))) return;
+	~(Mask<<((i & IndexMask)<<Shift))) return;
     if (i <= IndexMask) {
       uint64_t j;
       uint64_t k = (m_tail>>IndexShift) - (m_head>>IndexShift);
@@ -255,25 +258,24 @@ public:
     return (m_data[index(i>>IndexShift)]>>((i & IndexMask)<<Shift)) & Mask;
   }
 
-  ZuInline unsigned head() const { return m_head; }
-  ZuInline unsigned tail() const { return m_tail; }
-  ZuInline unsigned size() const { return m_size<<IndexShift; }
+  unsigned head() const { return m_head; }
+  unsigned tail() const { return m_tail; }
+  unsigned size() const { return m_size<<IndexShift; }
 
-  // l(unsigned index, unsigned value) -> uintptr_t
+  // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  uintptr_t all(L l) {
+  bool all(L l) {
     for (unsigned i = 0, n = m_size; i < n; i++) {
       uint64_t w = m_data[index(i)];
       if (!w) continue;
       uint64_t m = Mask;
       for (unsigned j = 0; j < (1U<<IndexShift); j++) {
 	if (uint64_t v = (w & m))
-	  if (uintptr_t r = l(m_head + (i<<IndexShift) + j, v>>(j<<Shift)))
-	    return r;
+	  if (!l(m_head + (i<<IndexShift) + j, v>>(j<<Shift))) return false;
 	m <<= (1U<<Shift);
       }
     }
-    return 0;
+    return true;
   }
 
 private:
@@ -293,7 +295,7 @@ public:
   enum { Bits = Bits_ };
 
 private:
-  enum { Mask = (1<<Bits) - 1 };
+  static constexpr const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
   enum { IndexMul = ZtBitWindow_<Bits>::Mul };
 
 public:
@@ -368,7 +370,7 @@ private:
 	  return 0;
 	}
       }
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
@@ -387,7 +389,7 @@ private:
       uint64_t required = (((i + 1) - size) + (IndexMul - 1)) / IndexMul;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
@@ -400,7 +402,7 @@ private:
     }
     return index(i / IndexMul);
   }
-  ZuInline uint64_t index(uint64_t i) const {
+  uint64_t index(uint64_t i) const {
     i += m_offset;
     if (i >= m_size) i -= m_size;
     return i;
@@ -416,7 +418,7 @@ public:
 #endif
   void set(uint64_t i) {
     uint64_t j = ensure(i);
-    m_data[j] |= (((uint64_t)Mask)<<((i % IndexMul) * Bits));
+    m_data[j] |= (Mask<<((i % IndexMul) * Bits));
   }
 #if 0
   void set(uint64_t i, uint64_t v) {
@@ -441,7 +443,7 @@ public:
     i -= m_head;
     if (i >= m_size * IndexMul) return;
     if (m_data[index(i / IndexMul)] &=
-	~(((uint64_t)Mask)<<((i % IndexMul) * Bits))) return;
+	~(Mask<<((i % IndexMul) * Bits))) return;
     if (i < IndexMul) {
       uint64_t j;
       uint64_t k = (m_tail / IndexMul) - (m_head / IndexMul);
@@ -484,24 +486,24 @@ public:
     return (m_data[index(i / IndexMul)]>>((i % IndexMul) * Bits)) & Mask;
   }
 
-  ZuInline unsigned head() const { return m_head; }
-  ZuInline unsigned tail() const { return m_tail; }
-  ZuInline unsigned size() const { return m_size * IndexMul; }
+  unsigned head() const { return m_head; }
+  unsigned tail() const { return m_tail; }
+  unsigned size() const { return m_size * IndexMul; }
 
-  // l(unsigned index, unsigned value) -> uintptr_t
+  // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  uintptr_t all(L l) {
+  bool all(L l) {
     for (unsigned i = 0, k = 0, n = m_size; i < n; i++) {
       uint64_t w = m_data[index(i)];
+      if (!w) continue;
       uint64_t m = Mask;
       for (unsigned j = 0, z = 0; j < IndexMul; j++, k++, z += Bits) {
 	if (uint64_t v = (w & m))
-	  if (uintptr_t r = l(m_head + k, v>>z))
-	    return r;
+	  if (!l(m_head + k, v>>z)) return false;
 	m <<= Bits;
       }
     }
-    return 0;
+    return true;
   }
 
 private:
@@ -591,7 +593,7 @@ private:
 	  return 0;
 	}
       }
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
@@ -609,7 +611,7 @@ private:
       uint64_t required = (i + 1) - m_size;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      uint64_t *data = (uint64_t *)::malloc((m_size + required)<<3);
+      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
@@ -622,7 +624,7 @@ private:
     }
     return index(i);
   }
-  ZuInline uint64_t index(uint64_t i) const {
+  uint64_t index(uint64_t i) const {
     i += m_offset;
     if (i >= m_size) i -= m_size;
     return i;
@@ -638,7 +640,7 @@ public:
 #endif
   void set(uint64_t i) {
     uint64_t j = ensure(i);
-    m_data[j] = ~((uint64_t)0);
+    m_data[j] = ~static_cast<uint64_t>(0);
   }
 #if 0
   void set(uint64_t i, uint64_t v) {
@@ -705,19 +707,19 @@ public:
     return m_data[index(i)];
   }
 
-  ZuInline unsigned head() const { return m_head; }
-  ZuInline unsigned tail() const { return m_tail; }
-  ZuInline unsigned size() const { return m_size; }
+  unsigned head() const { return m_head; }
+  unsigned tail() const { return m_tail; }
+  unsigned size() const { return m_size; }
 
-  // l(unsigned index, unsigned value) -> uintptr_t
+  // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  uintptr_t all(L l) {
+  bool all(L l) {
     for (unsigned i = 0, n = m_size; i < n; i++) {
       uint64_t v = m_data[index(i)];
       if (!v) continue;
-      if (uintptr_t r = l(m_head + i, v)) return r;
+      if (!l(m_head + i, v)) return false;
     }
-    return 0;
+    return true;
   }
 
 private:

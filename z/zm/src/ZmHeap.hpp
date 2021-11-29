@@ -54,7 +54,7 @@ template <class ID, unsigned Size> class ZmHeap;
 template <class ID, unsigned Size> class ZmHeapCacheT;
 
 struct ZmHeapConfig {
-  unsigned	alignment;
+  uint32_t	alignment;
   uint64_t	cacheSize;
   ZmBitmap	cpuset;
 };
@@ -98,7 +98,7 @@ friend ZmHeapMgr_;
 template <class, unsigned> friend class ZmHeap;
 template <class, unsigned> friend class ZmHeapCacheT;
 
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -328,7 +328,7 @@ private:
 template <unsigned Size_,
 	  bool Small = (Size_ <= sizeof(uintptr_t)),
 	  unsigned RShift = 0,
-	  bool Big = (Size_ > (ZmPlatform::CacheLineSize>>RShift))>
+	  bool Big = (Size_ > (Zm::CacheLineSize>>RShift))>
   struct ZmHeap_Size;
 template <unsigned Size_, unsigned RShift, bool Big> // smallest
 struct ZmHeap_Size<Size_, true, RShift, Big> {
@@ -340,12 +340,12 @@ struct ZmHeap_Size<Size_, false, RShift, false> {
 };
 template <unsigned Size_, unsigned RShift> // larger
 struct ZmHeap_Size<Size_, false, RShift, true> {
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
   enum { Size = (CacheLineSize>>(RShift - 1)) };
 };
 template <unsigned Size_>
 struct ZmHeap_Size<Size_, false, 0, true> { // larger than cache line size
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
   enum { Size = ((Size_ + CacheLineSize - 1) & ~(CacheLineSize - 1)) };
 };
 

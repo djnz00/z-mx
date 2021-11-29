@@ -42,7 +42,7 @@ struct Row {
   ZtDate	m_time;
   int		m_flags;
 };
-ZvFields(Row,
+ZtFields(Row,
     (((string, Alias, m_string)), (String), (Ctor(0))),
     (((int, Alias, m_int)), (Int), (Ctor(1))),
     (((bool, Alias, m_bool)), (Bool), (Ctor(2))),
@@ -122,13 +122,13 @@ int main()
     }
   } catch (const ZvError &e) {
     std::cerr << "ZvError: " << e << '\n';
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZeError &e) {
     std::cerr << "ZeError: " << e << '\n';
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (...) {
     std::cerr << "unknown exception\n";
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
   return 0;
 }

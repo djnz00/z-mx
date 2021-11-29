@@ -124,9 +124,9 @@ void MxMDTelemetry::run(MxTelemetry::Server::Cxn *cxn)
       auto i = m_engines.readIterator();
       while (ZmRef<MxEngine> engine = i.iterateVal()) {
 	cxn->transmit(MxTelemetry::engine(engine.ptr()));
-	engine->allLinks<MxAnyLink>([cxn](MxAnyLink *link) -> uintptr_t {
+	engine->allLinks<MxAnyLink>([cxn](MxAnyLink *link) {
 	  cxn->transmit(MxTelemetry::link(link));
-	  return 0;
+	  return true;
 	});
       }
     }
@@ -149,9 +149,13 @@ void MxMDTelemetry::run(MxTelemetry::Server::Cxn *cxn)
     if (m_dbEnv) {
       cxn->transmit(dbEnv(m_dbEnv.ptr()));
       m_dbEnv->allHosts([cxn](const ZdbHost *host) {
-	  cxn->transmit(dbHost(host)); });
+	cxn->transmit(dbHost(host));
+	return true;
+      });
       m_dbEnv->allDBs([cxn](const ZdbAny *db_) {
-	  cxn->transmit(db(db_)); });
+	cxn->transmit(db(db_));
+	return true;
+      });
     }
   }
 }

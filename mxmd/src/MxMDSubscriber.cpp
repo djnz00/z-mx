@@ -630,8 +630,11 @@ void MxMDSubscriber::statusCmd(void *, const ZvCf *args, ZtString &out)
   if (argc != 1) throw ZvCmdUsage();
   out.size(512 * nLinks());
   out << "State: " << MxEngineState::name(state()) << '\n';
-  allLinks<MxMDSubLink>([&out](MxMDSubLink *link) -> uintptr_t {
-	out << '\n'; link->status(out); return 0; });
+  allLinks<MxMDSubLink>([&out](MxMDSubLink *link) {
+    out << '\n';
+    link->status(out);
+    return true;
+  });
 }
 
 void MxMDSubLink::status(ZtString &out)

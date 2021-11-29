@@ -35,13 +35,12 @@
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuConversion.hpp>
 
+#include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmGuard.hpp>
-#include <zlib/ZmObject.hpp>
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmLock.hpp>
-#include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmLockTraits.hpp>
 #include <zlib/ZmNode.hpp>
 
@@ -61,7 +60,7 @@ struct ZmHash_Bits {
 template <class Lock> class ZmHash_LockMgr {
   using LockTraits = ZmLockTraits<Lock>;
 
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 
   ZuAssert(sizeof(Lock) <= CacheLineSize);
 
@@ -176,8 +175,8 @@ struct ZmHash_Defaults {
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
   enum { NodeDerive = 0 };
-  using Lock = ZmLock;
-  using Object = ZmObject;
+  using Lock = ZmNoLock;
+  using Object = ZuNull;
   struct HeapID { static constexpr const char *id() { return "ZmHash"; } };
   using ID = HeapID;
 };
@@ -532,14 +531,15 @@ private:
     double loadFactor = params.loadFactor();
     if (loadFactor < 1.0) loadFactor = 1.0;
     m_loadFactor = (unsigned)(loadFactor * (1<<4));
-    m_table = new NodePtr[1U<<m_bits];
+    m_table = static_cast<NodePtr *>(
+	Zm::alignedAlloc(sizeof(NodePtr)<<m_bits, Zm::CacheLineSize));
     memset(m_table, 0, sizeof(NodePtr)<<m_bits);
     ZmHashMgr::add(this);
   }
 
 public:
-  ZmHash(ZmHashParams params = ZmHashParams(ID::id())) :
-      ZmHash_LockMgr<Lock>(params) {
+  ZmHash(ZmHashParams params = ZmHashParams{ID::id()}) :
+      ZmHash_LockMgr<Lock>{params} {
     init(params);
   }
   ZmHash(const ZmHash &) = delete;
@@ -550,7 +550,7 @@ public:
   ~ZmHash() {
     ZmHashMgr::del(this);
     clean();
-    delete [] m_table;
+    Zm::alignedFree(m_table);
   }
 
   unsigned loadFactor_() const { return m_loadFactor; }
@@ -1017,7 +1017,8 @@ private:
 
     m_bits = ++bits;
 
-    NodePtr *table = new NodePtr[1<<bits];
+    NodePtr *table = static_cast<NodePtr *>(
+	Zm::alignedAlloc(sizeof(NodePtr)<<bits, Zm::CacheLineSize));
     memset(table, 0, sizeof(NodePtr)<<bits);
     Node *node, *nextNode;
 
@@ -1029,7 +1030,7 @@ private:
 	node->Fn::next = table[j];
 	table[j] = node;
       }
-    delete [] m_table;
+    Zm::alignedFree(m_table);
     m_table = table;
 
     unlockAll();

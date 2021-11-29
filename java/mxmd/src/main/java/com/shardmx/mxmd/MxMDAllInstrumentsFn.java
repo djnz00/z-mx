@@ -1,5 +1,5 @@
 package com.shardmx.mxmd;
 
 public interface MxMDAllInstrumentsFn {
-  long fn(MxMDInstrument instr);	// non-zero aborts iteration
+  boolean fn(MxMDInstrument instr);	// non-zero aborts iteration
 }

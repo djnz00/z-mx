@@ -296,12 +296,13 @@ private:
     typedef uintptr_t (*Fn)(App *, Order *, In &);
   };
   template <typename In, typename Fn>
-  ZuInline static uintptr_t nextFn(Fn &&fn) {
-    return (uintptr_t)static_cast<typename Next<In>::Fn>(ZuFwd<Fn>(fn));
+  static uintptr_t nextFn(Fn &&fn) {
+    return reinterpret_cast<uintptr_t>(
+	static_cast<typename Next<In>::Fn>(ZuFwd<Fn>(fn)));
   }
 public:
   template <typename In>
-  ZuInline static uintptr_t nextInvoke(
+  static uintptr_t nextInvoke(
       uintptr_t fn, App *app, Order *order, In &in) {
     return reinterpret_cast<typename Next<In>::Fn>(fn)(app, order, in);
   }

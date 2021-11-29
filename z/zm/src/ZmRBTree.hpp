@@ -35,8 +35,7 @@
 #include <zlib/ZuConversion.hpp>
 
 #include <zlib/ZmGuard.hpp>
-#include <zlib/ZmLock.hpp>
-#include <zlib/ZmObject.hpp>
+#include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
@@ -52,8 +51,8 @@ struct ZmRBTree_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   enum { NodeDerive = 0 };
-  using Lock = ZmLock;
-  using Object = ZmObject;
+  using Lock = ZmNoLock;
+  using Object = ZuNull;
   struct HeapID { static constexpr const char *id() { return "ZmRBTree"; } };
   enum { Unique = 0 };
 };

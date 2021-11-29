@@ -51,7 +51,7 @@
 #include <zlib/ZtlsHMAC.hpp>
 #include <zlib/ZtlsRandom.hpp>
 
-#include <zlib/ZvFBField.hpp>
+#include <zlib/ZfbField.hpp>
 
 #include <zlib/userdb_fbs.h>
 #include <zlib/loginreq_fbs.h>
@@ -200,12 +200,12 @@ struct Key {
   KeyData	secret;
   uint64_t	userID;
 };
-ZvFBFields(Key,
+ZfbFields(Key,
     (((id, Rd), (0)), (String)),
     (((secret)), (Bytes), (Update)),
     (((userID, Rd)), (Int)));
 }
-using Key__ = ZvFB::Load<_::Key>;
+using Key__ = ZfbField::Load<_::Key>;
 struct Key_ : public ZuObject, public Key__ {
   Key_() = delete;
   Key_(const fbs::Key *key_, Key_ *next_) :

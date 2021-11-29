@@ -26,7 +26,7 @@
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmThread.hpp>
 
-ZmPlatform::ThreadID ZmPlatform::getTID_()
+Zm::ThreadID Zm::getTID_()
 {
 #ifndef _WIN32
 #ifdef linux

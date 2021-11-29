@@ -31,7 +31,7 @@
 
 #include <zlib/ZePlatform.hpp>
 
-ZuString ZePlatform::severity(unsigned i)
+ZuString Ze::severity(unsigned i)
 {
   static const char * const name[] = {
     "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
@@ -41,7 +41,7 @@ ZuString ZePlatform::severity(unsigned i)
   return i > 4 ? ZuString("UNKNOWN", 7) : ZuString(name[i], namelen[i]);
 }
 
-ZuString ZePlatform::filename(ZuString s)
+ZuString Ze::filename(ZuString s)
 {
   ZtRegex::Captures c;
 #ifndef _WIN32
@@ -53,7 +53,7 @@ ZuString ZePlatform::filename(ZuString s)
   return c[2];
 }
 
-ZuString ZePlatform::function(ZuString s)
+ZuString Ze::function(ZuString s)
 {
   ZtRegex::Captures c;
   if (ZtREGEX("([a-zA-Z_][a-zA-Z_0-9:]*)\(").m(s, c) < 2) return s;
@@ -104,7 +104,7 @@ static int sysloglevel(int i) {
   return (i < 0 || i > 4) ? LOG_ERR : levels[i];
 }
 
-void ZePlatform::sysloginit(const char *program, const char *facility)
+void Ze::sysloginit(const char *program, const char *facility)
 {
   static const char * const names[] = {
     "daemon",
@@ -142,17 +142,17 @@ static ZePlatform_SyslogBuf *syslogBuf()
   return buf;
 }
 
-void ZePlatform::syslog(ZeEvent *e)
+void Ze::syslog(ZeEvent *e)
 {
   ZePlatform_SyslogBuf *buf = syslogBuf();
 
   // buf->s << ZuBoxed(e->tid()) << " - ";
   if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
     buf->s <<
-      '\"' << ZePlatform::filename(e->filename()) << "\":" <<
+      '\"' << Ze::filename(e->filename()) << "\":" <<
       ZuBoxed(e->lineNumber()) << ' ';
   buf->s <<
-    ZePlatform::function(e->function()) << ' ' <<
+    Ze::function(e->function()) << ' ' <<
     e->message();
 
   ::syslog(syslogger()->facility() | sysloglevel(e->severity()),
@@ -209,7 +209,7 @@ static ZePlatform_EventLogger *eventLogger()
   return ZmSingleton<ZePlatform_EventLogger>::instance();
 }
 
-void ZePlatform::sysloginit(const char *program, const char *facility)
+void Ze::sysloginit(const char *program, const char *facility)
 {
   eventLogger()->program = program;
 }
@@ -230,7 +230,7 @@ static ZePlatform_SyslogBuf *syslogBuf()
   return buf;
 }
 
-void ZePlatform::syslog(ZeEvent *e)
+void Ze::syslog(ZeEvent *e)
 {
   ZePlatform_EventLogger *logger = eventLogger();
   ZePlatform_SyslogBuf *buf = syslogBuf();
@@ -240,10 +240,10 @@ void ZePlatform::syslog(ZeEvent *e)
     ZuBoxed(e->tid()) << " - ";
   if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
     buf->s <<
-      '\"' << ZePlatform::filename(e->filename()) << "\":" <<
+      '\"' << Ze::filename(e->filename()) << "\":" <<
       ZuBoxed(e->lineNumber()) << ' ';
   buf->s <<
-    ZePlatform::function(e->function()) << ' ' <<
+    Ze::function(e->function()) << ' ' <<
     e->message();
 
   buf->w.length(ZuUTF<wchar_t, char>::cvt(
@@ -256,7 +256,7 @@ void ZePlatform::syslog(ZeEvent *e)
 }
 
 static constexpr struct {
-  ZePlatform::ErrNo	code;
+  Ze::ErrNo	code;
   const char		*msg;
 } ZePlatform_WSAErrors_[] = {
 { WSAEINTR,		  "Interrupted system call" },
@@ -359,7 +359,7 @@ static ZePlatform_FMBuf *fmBuf()
   buf->s.null();
   return buf;
 }
-const char *ZePlatform_::strerror(ErrNo e)
+const char *Ze::strerror(ErrNo e)
 {
   const char *msg;
 

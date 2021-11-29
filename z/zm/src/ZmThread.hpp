@@ -52,7 +52,7 @@
 #pragma warning(disable:4251)
 #endif
 
-using ZmThreadID = ZmPlatform::ThreadID;
+using ZmThreadID = Zm::ThreadID;
 
 namespace ZmThreadPriority {
   enum _ {		// thread priorities
@@ -453,6 +453,7 @@ inline unsigned ZmStackAvail() {
 #endif
   auto addr = static_cast<uint8_t *>(ZmSelf()->stackAddr());
   auto avail = sp - addr;
+  if (ZuUnlikely(avail < 0)) return 0;
   if (avail >= static_cast<ptrdiff_t>(UINT_MAX)) return UINT_MAX;
   return avail;
 }

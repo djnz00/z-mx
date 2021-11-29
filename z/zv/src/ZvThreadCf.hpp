@@ -64,7 +64,7 @@ struct ZvThreadParams : public ZmThreadParams {
 
     if (!cf) return;
 
-    static unsigned ncpu = ZmPlatform::getncpu();
+    static unsigned ncpu = Zm::getncpu();
     stackSize(cf->getInt("stackSize", 16384, 2<<20, false, stackSize()));
     priority(cf->getEnum<ZvThreadPriorities::Map>(
 	  "priority", false, ZmThreadPriority::Normal));

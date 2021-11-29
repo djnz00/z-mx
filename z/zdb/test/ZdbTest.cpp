@@ -183,7 +183,7 @@ void usage()
     "  --cxnHash:cBits=N\t\t- concurrency bits for cxn hash table\n";
 
   std::cerr << help << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)
@@ -335,19 +335,19 @@ int main(int argc, char **argv)
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZeError &e) {
     std::cerr << e << '\n' << std::flush;
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZtString &s) {
     std::cerr << s << '\n' << std::flush;
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (...) {
     std::cerr << "Unknown Exception\n" << std::flush;
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   if (appMx) delete appMx;

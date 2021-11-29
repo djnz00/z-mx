@@ -36,7 +36,7 @@
 // attaching debuggers can breakpoint on this function
 void ZmAssert_sleep()
 {
-  ZmPlatform::sleep(1);
+  Zm::sleep(1);
 }
 
 void ZmAssert_failed()

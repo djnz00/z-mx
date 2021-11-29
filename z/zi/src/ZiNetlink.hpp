@@ -68,7 +68,7 @@ class ZiNetlink {
   friend ZiMultiplex;
   friend ZiConnection;
 
-  using Socket = ZiPlatform::Socket;
+  using Socket = Zi::Socket;
 
   // takes the familyName and gets the familyID and a portID from
   // the kernel. The familyID and portID are needed for

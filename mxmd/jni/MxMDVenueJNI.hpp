@@ -57,11 +57,11 @@ namespace MxMDVenueJNI {
 
   // (String) -> MxMDTickSizeTbl
   jobject tickSizeTbl(JNIEnv *, jobject, jstring);
-  // (MxMDAllTickSizeTblsFn) -> long
-  jlong allTickSizeTbls(JNIEnv *, jobject, jobject);
+  // (MxMDAllTickSizeTblsFn) -> boolean
+  jboolean allTickSizeTbls(JNIEnv *, jobject, jobject);
 
-  // (MxMDAllSegmentsFn) -> void
-  jlong allSegments(JNIEnv *, jobject, jobject);
+  // (MxMDAllSegmentsFn) -> boolean
+  jboolean allSegments(JNIEnv *, jobject, jobject);
 
   // (String) -> MxMDSegment
   jobject tradingSession(JNIEnv *, jobject, jstring);

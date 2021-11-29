@@ -95,7 +95,7 @@ public:
   void ack();
 
   // snapshot
-  ZuInline unsigned snapThread() const { return m_snapThread; }
+  unsigned snapThread() const { return m_snapThread; }
 
   // commands
   void statusCmd(void *, const ZvCf *args, ZtString &out);

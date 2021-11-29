@@ -90,7 +90,7 @@ retry:
 void usage()
 {
   puts("usage: vsntest increment max");
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)

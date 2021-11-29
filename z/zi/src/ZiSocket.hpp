@@ -34,9 +34,9 @@
 
 class ZiAPI ZiSocket {
 public:
-  using Socket = ZiPlatform::Socket;
-  using SocketCmp = ZiPlatform::SocketCmp;
-  using Hostname = ZiPlatform::Hostname;
+  using Socket = Zi::Socket;
+  using SocketCmp = Zi::SocketCmp;
+  using Hostname = Zi::Hostname;
 
   enum Result {
     OK		= Zi::OK,

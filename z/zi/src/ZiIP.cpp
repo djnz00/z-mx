@@ -192,7 +192,7 @@ using ZiIP_AddrInfo = struct addrinfo;
 int ZiIP::resolve_(ZuString host_, ZeError *e)
 #ifdef _WIN32
 {
-  ZuWStringN<ZiPlatform::NameMax + 1> host;
+  ZuWStringN<Zi::NameMax + 1> host;
   host.length(ZuUTF<wchar_t, char>::cvt(
 	ZuArray<wchar_t>(host.data(), host.size() - 1), host_));
   return resolve_(ZuWString{host}, e);
@@ -208,9 +208,9 @@ int ZiIP::resolve_(ZuWString host_, ZeError *e)
  
   // ensure host is null terminated
 #ifndef _WIN32
-  ZuStringN<ZiPlatform::HostnameMax> host(host_);
+  ZuStringN<Zi::HostnameMax> host(host_);
 #else
-  ZuWStringN<ZiPlatform::HostnameMax> host(host_);
+  ZuWStringN<Zi::HostnameMax> host(host_);
 #endif
 
   memset(&hints, 0, sizeof(ZiIP_AddrInfo));
@@ -245,11 +245,11 @@ ZiIP::Hostname ZiIP::name(ZeError *e)
   memset(&sai, 0, sizeof(struct sockaddr_in));
   sai.sin_family = AF_INET;
   sai.sin_addr.s_addr = s_addr;
-  ret.size(ZiPlatform::HostnameMax);
+  ret.size(Zi::HostnameMax);
   int errno_;
   while (errno_ = ZiIP_GetNameInfo(
 	reinterpret_cast<sockaddr *>(&sai), sizeof(struct sockaddr_in),
-	ret, ZiPlatform::HostnameMax, 0, 0, 0)) {
+	ret, Zi::HostnameMax, 0, 0, 0)) {
     if (errno_ == EAI_AGAIN) continue;
     if (e) *e =
 #ifdef EAI_SYSTEM

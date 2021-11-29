@@ -165,7 +165,7 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
   auto init_called = reinterpret_cast<ZmAtomic<unsigned> *>(&init_called_);
   if (init_called->cmpXch(1, 0)) {
     ZeLOG(Error, "MxMDLib::init() called twice");
-    while (*init_called < 2) ZmPlatform::yield();
+    while (*init_called < 2) Zm::yield();
     return ZmSingleton<MxMDCore, false>::instance();
   }
   ZuGuard guard([init_called]() { *init_called = 2; });
@@ -665,7 +665,7 @@ void MxMDCore::l2_side(MxMDOBSide *side, ZtString &out)
   out << "  vwap: " << MxValNDP{side->vwap(), pxNDP};
   MxID venueID = ob->venueID();
   side->allPxLevels([this, venueID, pxNDP, qtyNDP = ob->qtyNDP(), &out](
-	MxMDPxLevel *pxLevel) -> uintptr_t {
+	MxMDPxLevel *pxLevel) -> bool {
     const MxMDPxLvlData &pxLvlData = pxLevel->data();
     MxMDFlagsStr flags;
     MxMDL2Flags::print(flags, venueID, pxLvlData.flags);
@@ -674,7 +674,7 @@ void MxMDCore::l2_side(MxMDOBSide *side, ZtString &out)
       " nOrders: " << pxLvlData.nOrders;
     if (flags) out << " flags: " << flags;
     out << " transactTime: " << timeFmt(pxLvlData.transactTime);
-    return 0;
+    return false;
   });
 }
 
@@ -718,12 +718,12 @@ void MxMDCore::instrument_(void *, const ZvCf *args, ZtString &out)
 	  MxValNDP{lotSizes.blockLotSize, refData.qtyNDP} <<
 	"\ntick sizes:";
       ob->tickSizeTbl()->allTickSizes(
-	  [pxNDP = refData.pxNDP, &out](const MxMDTickSize &ts) -> uintptr_t {
+	  [pxNDP = refData.pxNDP, &out](const MxMDTickSize &ts) -> bool {
 	out << "\n  " <<
 	  MxValNDP{ts.minPrice(), pxNDP} << '-' <<
 	  MxValNDP{ts.maxPrice(), pxNDP} << ' ' <<
 	  MxValNDP{ts.tickSize(), pxNDP};
-	return 0;
+	return false;
       });
     }
     out << '\n';
@@ -734,17 +734,16 @@ void MxMDCore::instrument_(void *, const ZvCf *args, ZtString &out)
 static void writeTickSizes(
     const MxMDLib *md, MxMDTickSizeCSV &csv, ZvCSVWriteFn fn, MxID venueID)
 {
-  ZmFn<MxMDVenue *> venueFn{
-      [&csv, &fn](MxMDVenue *venue) -> uintptr_t {
+  ZmFn<MxMDVenue *> venueFn{[&csv, &fn](MxMDVenue *venue) {
     return venue->allTickSizeTbls(
-	[&csv, &fn, venue](MxMDTickSizeTbl *tbl) -> uintptr_t {
+	[&csv, &fn, venue](MxMDTickSizeTbl *tbl) {
       return tbl->allTickSizes(
-	  [&csv, &fn, venue, tbl](const MxMDTickSize &ts) -> uintptr_t {
+	  [&csv, &fn, venue, tbl](const MxMDTickSize &ts) {
 	new (csv.ptr()) MxMDTickSizeCSV::Data{MxEnum(),
 	  venue->id(), tbl->id(), tbl->pxNDP(),
 	  ts.minPrice(), ts.maxPrice(), ts.tickSize() };
 	fn(csv.pod());
-	return 0;
+	return false;
       });
     });
   }};
@@ -752,7 +751,7 @@ static void writeTickSizes(
     md->allVenues(venueFn);
   else
     if (ZmRef<MxMDVenue> venue = md->venue(venueID)) venueFn(venue);
-  fn((ZuAnyPOD *)0);
+  fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
 void MxMDCore::dumpTickSizes(ZuString path, MxID venueID)
@@ -776,7 +775,7 @@ static void writeInstruments(
     MxID venueID, MxID segment)
 {
   md->allInstruments(
-      [&csv, &fn, venueID, segment](MxMDInstrument *instr) -> uintptr_t {
+      [&csv, &fn, venueID, segment](MxMDInstrument *instr) {
     if ((!*venueID || venueID == instr->primaryVenue()) &&
 	(!*segment || segment == instr->primarySegment())) {
       new (csv.ptr()) MxMDInstrumentCSV::Data{
@@ -785,9 +784,9 @@ static void writeInstruments(
 	instr->id(), instr->refData() };
       fn(csv.pod());
     }
-    return 0;
+    return false;
   });
-  fn((ZuAnyPOD *)0);
+  fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
 void MxMDCore::dumpInstruments(ZuString path, MxID venueID, MxID segment)
@@ -811,8 +810,7 @@ static void writeOrderBooks(
     const MxMDLib *md, MxMDOrderBookCSV &csv, ZvCSVWriteFn fn,
     MxID venueID, MxID segment)
 {
-  md->allOrderBooks(
-      [&csv, &fn, venueID, segment](MxMDOrderBook *ob) -> uintptr_t {
+  md->allOrderBooks([&csv, &fn, venueID, segment](MxMDOrderBook *ob) -> bool {
     if ((!*venueID || venueID == ob->venueID()) &&
 	(!*segment || segment == ob->segment())) {
       MxMDOrderBookCSV::Data *data =
@@ -832,9 +830,9 @@ static void writeOrderBooks(
       }
       fn(csv.pod());
     }
-    return 0;
+    return false;
   });
-  fn((ZuAnyPOD *)0);
+  fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
 void MxMDCore::dumpOrderBooks(ZuString path, MxID venueID, MxID segment)

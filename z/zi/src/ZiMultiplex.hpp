@@ -403,7 +403,7 @@ private:
 
 // listener info (socket, accept queue size, local IP/port, options)
 struct ZiListenInfo {
-  ZiPlatform::Socket	socket;
+  Zi::Socket	socket;
   unsigned		nAccepts = 0;
   ZiIP			ip;
   uint16_t		port = 0;
@@ -425,7 +425,7 @@ namespace ZiCxnType {
 
 struct ZiCxnInfo { // pure aggregate, no ctor
   ZtEnum		type;		// ZiCxnType
-  ZiPlatform::Socket	socket;
+  Zi::Socket	socket;
   ZiCxnOptions 		options;
   ZiIP			localIP;
   uint16_t		localPort = 0;
@@ -514,7 +514,7 @@ class ZiAPI ZiConnection : public ZmPolymorph {
 friend ZiMultiplex;
 
 public:
-  using Socket = ZiPlatform::Socket;
+  using Socket = Zi::Socket;
 
   // index on socket
   struct SocketAccessor;
@@ -745,7 +745,7 @@ friend ZiConnection;
   template <typename> friend class Accept_;
 #endif
 
-    using Socket = ZiPlatform::Socket;
+    using Socket = Zi::Socket;
 
   public:
     struct SocketAccessor;
@@ -792,7 +792,7 @@ template <typename> friend class Accept_;
 
     Accept_(Listener *listener) : m_listener(listener), m_info{
 	  ZiCxnType::TCPIn,
-	  ZiPlatform::nullSocket(),
+	  Zi::nullSocket(),
 	  listener->m_info.options} {
       m_overlapped.init(
 	  Zi_Overlapped::Executed::Member<&Accept_::executed>::fn(this));
@@ -831,7 +831,7 @@ template <typename> friend class Connect_;
   {
   friend ZiMultiplex;
 
-    using Socket = ZiPlatform::Socket;
+    using Socket = Zi::Socket;
 
 #ifdef ZiMultiplex__ConnectHash
   public:
@@ -908,7 +908,7 @@ template <typename> friend class Connect_;
   using ShutdownCond = ZmCondition<StateLock>;
 
 public:
-  using Socket = ZiPlatform::Socket;
+  using Socket = Zi::Socket;
 
   ZiMultiplex(ZiMxParams mxParams = ZiMxParams());
   ~ZiMultiplex();

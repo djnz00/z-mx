@@ -42,7 +42,7 @@ struct ZiIOContext {
       cxn{nullptr}, ptr{nullptr}, size{0}, offset{0}, length{0} { }
 
 private:
-  static constexpr uint8_t *invalid_ptr() {
+  ZuInline static uint8_t *invalid_ptr() {
     return reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(-1));
   }
 
@@ -59,14 +59,18 @@ public:
   void init(Fn &&fn_,
       void *ptr_, unsigned size_, unsigned offset_) {
     ZmAssert(size_);
-    fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
+    fn = ZuFwd<Fn>(fn_);
+    ptr = static_cast<uint8_t *>(ptr_);
+    size = size_; offset = offset_; length = 0;
   }
   // UDP send
   template <typename Fn, typename Addr>
   void init(Fn &&fn_,
       void *ptr_, unsigned size_, unsigned offset_, Addr &&addr_) {
     ZmAssert(size_);
-    fn = ZuFwd<Fn>(fn_); ptr = ptr_; size = size_; offset = offset_; length = 0;
+    fn = ZuFwd<Fn>(fn_);
+    ptr = static_cast<uint8_t *>(ptr_);
+    size = size_; offset = offset_; length = 0;
     addr = ZuFwd<Addr>(addr_);
   }
   // initially, ptr will be null and app must set it via init()

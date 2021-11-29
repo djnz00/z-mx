@@ -46,13 +46,13 @@ void usage()
 	"  pushOrders\t\t- number of orders to insert\n"
 	"  updateOrders\t\t- number of orders to update\n"
 	"  pushbackOrders\t- number of orders to push back\n", stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 void sigint()
 {
   fputs("SIGINT\n", stderr);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)
@@ -191,21 +191,21 @@ int main(int argc, char **argv)
     fprintf(stderr, "BDB Error in %s - %s\n",
 	    e.fn().data(), e.message().data());
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZvError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZeError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (...) {
     fputs("Unknown Exception\n", stderr);
     ZeLog::stop();
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   ZeLog::stop();

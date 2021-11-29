@@ -52,7 +52,7 @@ public:
   using Handle = void *;
 #endif
 
-  using Path = ZiPlatform::Path;
+  using Path = Zi::Path;
 
   using Lock = ZmLock;
   using Guard = ZmGuard<Lock>;

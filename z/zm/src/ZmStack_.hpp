@@ -83,7 +83,7 @@ struct ZmStack_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
-  using Lock = ZmLock;
+  using Lock = ZmNoLock;
 };
 
 // ZmStackKey - key accessor

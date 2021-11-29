@@ -265,40 +265,4 @@ template <typename O, unsigned KeyID = 0>
 using ZuFieldAxor =
   ZuFieldTuple<ZuTypeGrep<ZuFieldKey<KeyID>::template Filter, ZuFieldList<O>>>;
 
-#if 0
-: public ZuFieldTuple__<O, Map, Fields...> {
-  using Base = ZuFieldTuple__<O, Map, Fields...>;
-public:
-  ZuFieldTuple_(const ZuFieldTuple_ &) = default;
-  ZuFieldTuple_ &operator =(const ZuFieldTuple_ &) = default;
-  ZuFieldTuple_(ZuFieldTuple_ &&) = default;
-  ZuFieldTuple_ &operator =(ZuFieldTuple_ &&) = default;
-  ZuFieldTuple_(const Base &v) : Base{v} { }
-  ZuFieldTuple_ &operator =(const Base &v) {
-    Base::operator =(v);
-    return *this;
-  }
-  ZuFieldTuple_(Base &&v) : Base{ZuMv(v)} { }
-  ZuFieldTuple_ &operator =(Base &&v) {
-    Base::operator =(ZuMv(v));
-    return *this;
-  }
-  ZuFieldTuple_(const O &o) : Base{Fields::get(o)...} { }
-  ZuFieldTuple_ &operator =(const O &o) {
-    ~Base();
-    new (static_cast<Base *>(this)) Base{Fields::get(o)...};
-    return *this;
-  }
-  ZuFieldTuple_(O &&o) : Base{Fields::get(ZuMv(o))...} { }
-  ZuFieldTuple_ &operator =(O &&o) {
-    ~Base();
-    new (static_cast<Base *>(this)) Base{Fields::get(ZuMv(o))...};
-    return *this;
-  }
-};
-template <typename O, template <typename> typename Map, typename ...Fields>
-struct ZuFieldTuple_<O, Map, ZuTypeList<Fields...>> :
-  public ZuFieldTuple_<O, Map, Fields...> { };
-#endif
-
 #endif /* ZuField_HPP */

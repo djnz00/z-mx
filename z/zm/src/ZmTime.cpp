@@ -236,7 +236,7 @@ uint64_t ZmTime::cpuFreq() {
 // sleep()
 
 #ifndef _WIN32
-void ZmPlatform::sleep(ZmTime timeout) {
+void Zm::sleep(ZmTime timeout) {
   ZmTime remaining;
 
   while (nanosleep(&timeout, &remaining)) {
@@ -245,7 +245,7 @@ void ZmPlatform::sleep(ZmTime timeout) {
   }
 }
 #else
-void ZmPlatform::sleep(ZmTime timeout) {
+void Zm::sleep(ZmTime timeout) {
   Sleep(timeout.millisecs());
 }
 #endif

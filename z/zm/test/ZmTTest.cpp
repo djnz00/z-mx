@@ -34,7 +34,7 @@
 
 ZmAtomic<int> threads;
 
-#define self() (ZmPlatform::getTID())
+#define self() (Zm::getTID())
 
 using TLock = ZmTLock<int, int>;
 
@@ -125,7 +125,7 @@ int main()
   }
 
   for (;;) {
-    ZmPlatform::sleep(1);
+    Zm::sleep(1);
     printf("threads: %d\n", (int)threads);
     if (!threads) break;
   }

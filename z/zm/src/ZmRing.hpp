@@ -163,7 +163,7 @@ class ZmRing : public ZmRing_ {
   ZmRing &operator =(const ZmRing &);	// prevent mis-use
 
 public:
-  enum { CacheLineSize = ZmPlatform::CacheLineSize };
+  enum { CacheLineSize = Zm::CacheLineSize };
 
   enum { // open() flags
     Read	= 0x00000001,

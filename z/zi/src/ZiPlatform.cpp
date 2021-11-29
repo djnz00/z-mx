@@ -23,13 +23,13 @@
 
 #include <pwd.h>
 
-ZiPlatform::Username ZiPlatform::username(ZeError *e)
+Zi::Username Zi::username(ZeError *e)
 {
   struct passwd pwd;
   struct passwd *result = 0;
   char *pwdBuf = 0;
   ssize_t bufSize = 0;
-  ZiPlatform::Username name;
+  Zi::Username name;
 
   bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
   if (bufSize < 0) bufSize = (1<<14);
@@ -46,9 +46,9 @@ ZiPlatform::Username ZiPlatform::username(ZeError *e)
   return name;
 }
 
-ZiPlatform::Hostname ZiPlatform::hostname(ZeError *e)
+Zi::Hostname Zi::hostname(ZeError *e)
 {
-  ZiPlatform::Hostname name;
+  Zi::Hostname name;
   name.size(HOST_NAME_MAX + 1);
   int s = gethostname(name.data(), HOST_NAME_MAX);
   if (s < 0) { name.null(); return name; }
@@ -59,11 +59,11 @@ ZiPlatform::Hostname ZiPlatform::hostname(ZeError *e)
 
 #else
 
-ZiPlatform::Username ZiPlatform::username(ZeError *e)
+Zi::Username Zi::username(ZeError *e)
 {
-  ZiPlatform::Username name;
-  name.size(ZiPlatform::NameMax + 1);
-  DWORD len = ZiPlatform::NameMax;
+  Zi::Username name;
+  name.size(Zi::NameMax + 1);
+  DWORD len = Zi::NameMax;
   if (!GetUserName(name.data(), &len))
     name.null();
   else {
@@ -73,16 +73,16 @@ ZiPlatform::Username ZiPlatform::username(ZeError *e)
   return name;
 }
 
-ZiPlatform::Hostname ZiPlatform::hostname(ZeError *e)
+Zi::Hostname Zi::hostname(ZeError *e)
 {
-  ZiPlatform::Hostname name;
+  Zi::Hostname name;
 #ifdef _WIN32
-  ZuStringN<ZiPlatform::NameMax + 1> buf;
+  ZuStringN<Zi::NameMax + 1> buf;
 #else
-  ZiPlatform::Hostname &buf = name;
+  Zi::Hostname &buf = name;
 #endif
-  name.size(ZiPlatform::NameMax + 1);
-  if (gethostname(buf.data(), ZiPlatform::NameMax))
+  name.size(Zi::NameMax + 1);
+  if (gethostname(buf.data(), Zi::NameMax))
     buf.null();
   else {
     buf.calcLength();

@@ -112,16 +112,16 @@ ZmRef<User> Mgr::userAdd_(
   return user;
 }
 
-bool Mgr::load_(const uint8_t *buf, unsigned len)
+bool Mgr::load_(const uint8_t *data, unsigned len)
 {
   {
-    Zfb::Verifier verifier(buf, len);
+    Zfb::Verifier verifier(data, len);
     if (!fbs::VerifyUserDBBuffer(verifier)) return false;
   }
   Guard guard(m_lock);
   m_modified = false;
   using namespace Zfb::Load;
-  auto userDB = fbs::GetUserDB(buf);
+  auto userDB = fbs::GetUserDB(data);
   all(userDB->perms(), [this](unsigned, auto perm_) {
     unsigned id = perm_->id();
     if (ZuUnlikely(id >= Bitmap::Bits)) return;
@@ -196,8 +196,8 @@ int Mgr::load(const ZiFile::Path &path, ZeError *e)
 {
   using namespace Zfb::Load;
   return Zfb::Load::load(path,
-      LoadFn{this, [](Mgr *this_, const uint8_t *buf, unsigned len) {
-	return this_->load_(buf, len);
+      LoadFn{this, [](Mgr *this_, const uint8_t *data, unsigned len) {
+	return this_->load_(data, len);
       }}, m_maxSize, e);
 }
 

@@ -17,7 +17,7 @@ void error(const char *op, int errNo)
 {
   errno = rump_errno(errNo);
   perror(op);
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 static lwp *lwp1 = 0, *lwp2 = 0;	// rump LWPs

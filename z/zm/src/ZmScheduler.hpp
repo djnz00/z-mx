@@ -313,14 +313,14 @@ public:
   ZuInline void invoke(unsigned tid, Fn &&fn) {
     ZmAssert(tid && tid <= m_params.nThreads());
     Thread *thread = &m_threads[tid - 1];
-    if (ZuLikely(ZmPlatform::getTID() == thread->tid)) { fn(); return; }
+    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(); return; }
     runWake_(thread, ZmFn<>{ZuFwd<Fn>(fn)});
   }
   template <typename O, typename Fn>
   ZuInline void invoke(unsigned tid, ZmRef<O> o, Fn &&fn) {
     ZmAssert(tid && tid <= m_params.nThreads());
     Thread *thread = &m_threads[tid - 1];
-    if (ZuLikely(ZmPlatform::getTID() == thread->tid)) {
+    if (ZuLikely(Zm::getTID() == thread->tid)) {
       fn(ZuMv(o));
       return;
     }
@@ -330,7 +330,7 @@ public:
   ZuInline void invoke(unsigned tid, O *o, Fn &&fn) {
     ZmAssert(tid && tid <= m_params.nThreads());
     Thread *thread = &m_threads[tid - 1];
-    if (ZuLikely(ZmPlatform::getTID() == thread->tid)) {
+    if (ZuLikely(Zm::getTID() == thread->tid)) {
       fn(o);
       return;
     }

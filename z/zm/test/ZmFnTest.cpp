@@ -136,7 +136,7 @@ struct MoveOnly {
 
 void foo(X &x) { printf("%d\n", x.m_i); }
 
-void fail() { ZmPlatform::exit(1); }
+void fail() { Zm::exit(1); }
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : (fail(), puts("NOK " #x)))
 

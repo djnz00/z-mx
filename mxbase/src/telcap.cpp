@@ -261,7 +261,7 @@ static void usage()
     "\tPORT\t- UDP port (defaults to 19300)\n"
     "Options:\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
     ZeError e;
     if (ZiFile::mkdir(dir, &e) != Zi::OK) {
       std::cerr << dir << ": " << e << '\n' << std::flush;
-      ZmPlatform::exit(1);
+      Zm::exit(1);
     }
   }
 
@@ -328,7 +328,7 @@ int main(int argc, char **argv)
     app.open();
   } catch (const ZtString &e) {
     std::cerr << e << '\n' << std::flush;
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
 
   mx->start();

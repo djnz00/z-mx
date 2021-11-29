@@ -31,7 +31,7 @@ struct Frame {
   ZuFixed v2() const { return ZuFixed{v2_, 9}; }
   void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
-ZvFields(Frame,
+ZtFields(Frame,
     (((v1)), (Int), (Ctor(0), Series, Index, Delta)),
     (((v2, Fn)), (Fixed), (Series, Delta, NDP(9))));
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	"writeThread 1\n", false);
     fileMgr.init(&sched, cf);
   }
-  DataFrame df{ZvVFields<Frame>(), "frame"};
+  DataFrame df{ZtVFields<Frame>(), "frame"};
   if (mode == Mem)
     df.init(&memMgr);
   else

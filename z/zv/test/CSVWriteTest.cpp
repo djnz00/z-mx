@@ -40,7 +40,7 @@ struct Row {
   ZuFixed bam() const { return ZuFixed{bam_, 2}; }
   void bam(ZuFixed v) { bam_ = v.adjust(2); }
 };
-ZvFields(Row,
+ZtFields(Row,
     (((foo)), (String), (Ctor(0))), 
     (((bar)), (Bool), (Ctor(1))), 
     (((bah)), (Int), (Ctor(2))), 
@@ -112,13 +112,13 @@ int main()
     }
   } catch (const ZvError &e) {
     std::cerr << "ZvError: " << e << '\n';
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (const ZeError &e) {
     std::cerr << "ZeError: " << e << '\n';
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   } catch (...) {
     std::cerr << "unknown exception\n";
-    ZmPlatform::exit(1);
+    Zm::exit(1);
   }
   return 0;
 }

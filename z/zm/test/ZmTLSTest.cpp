@@ -2,8 +2,8 @@
 
 #include <zlib/ZmPlatform.hpp>
 
-ZmPlatform::ThreadID getTID() {
-  return ZmPlatform::getTID();
+Zm::ThreadID getTID() {
+  return Zm::getTID();
 }
 
 int main()

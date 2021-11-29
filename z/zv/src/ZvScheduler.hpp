@@ -56,7 +56,7 @@ struct ZvSchedParams : public ZmSchedParams {
   void init(const ZvCf *cf) {
     if (!cf) return;
 
-    static unsigned ncpu = ZmPlatform::getncpu();
+    static unsigned ncpu = Zm::getncpu();
 
     if (ZuString s = cf->get("id")) id(s);
     nThreads(cf->getInt("nThreads", 1, 1024, false, nThreads()));

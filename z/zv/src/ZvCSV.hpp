@@ -53,7 +53,7 @@
 #include <zlib/ZePlatform.hpp>
 
 #include <zlib/ZvError.hpp>
-#include <zlib/ZvField.hpp>
+#include <zlib/ZtField.hpp>
 #include <zlib/ZvCSV.hpp>
 
 #define ZvCSV_MaxLineSize	(8<<10)	// 8K
@@ -77,10 +77,10 @@ namespace ZvCSV_ {
   void quote(
       Row &row, const Field *field, const T *object, const Fmt &fmt) {
     switch ((int)field->type) {
-      case ZvFieldType::String:
-      case ZvFieldType::Composite:
-      case ZvFieldType::Enum:
-      case ZvFieldType::Flags: {
+      case ZtFieldType::String:
+      case ZtFieldType::Composite:
+      case ZtFieldType::Enum:
+      case ZtFieldType::Flags: {
 	ZtString s_;
 	ZmStream s{s_};
 	field->print(object, s, fmt);
@@ -114,8 +114,8 @@ template <typename T> class ZvCSV {
   ZvCSV &operator =(const ZvCSV &) = delete;
 
 public:
-  using Fields = ZvVFieldArray;
-  using Field = ZvVField;
+  using Fields = ZtVFieldArray;
+  using Field = ZtVField;
 
   using ColNames = ZtArray<ZuString>;
   using ColIndex = ZtArray<int>;
@@ -134,13 +134,16 @@ private:
 
 public:
   ZvCSV() {
-    m_fields = ZvVFields<T>();
+    m_fields = ZtVFields<T>();
     for (unsigned i = 0, n = m_fields.length(); i < n; i++)
       m_columns.add(m_fields[i].id, &m_fields[i]);
   }
 
-  struct FieldFmt : public ZvFieldFmt {
-    FieldFmt() { new (time.init_csv()) ZtDateFmt::CSV{}; }
+  struct FieldFmt : public ZtFieldFmt {
+    FieldFmt() {
+      new (dateScan.init_csv()) ZtDateScan::CSV{};
+      new (datePrint.init_csv()) ZtDateFmt::CSV{};
+    }
   };
   FieldFmt &fmt() {
     thread_local FieldFmt fmt;
@@ -179,7 +182,7 @@ private:
 
   void scan(
       const ColIndex &colIndex, ZuString row,
-      const ZvFieldFmt &fmt, T *object) const {
+      const ZtFieldFmt &fmt, T *object) const {
     ZtArray<ZtArray<char>> a;
     ZvCSV_::split(row, a);
     unsigned n = a.length();

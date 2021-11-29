@@ -39,7 +39,7 @@ private:
 
 void fail()
 {
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 #define ensure(x) ((x) ? (void)0 : check_(x, __LINE__, #x))
 #define check(x) check_(x, __LINE__, #x)
@@ -331,7 +331,7 @@ void usage()
     "usage: ZiRingTest [SIZE]\n"
     "\tSIZE - optional requested size of ring buffer\n"
     << std::flush;
-  ZmPlatform::exit(1);
+  Zm::exit(1);
 }
 
 int main(int argc, char **argv)
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
   check(synchronous(2, Open(Ring::Write)) == Zi::OK);
 
   int size1 =
-    app()->thread(2)->ring().size() - ZmPlatform::CacheLineSize - 9;
+    app()->thread(2)->ring().size() - Zm::CacheLineSize - 9;
   int size2 = (app()->thread(2)->ring().size() / 2) - 7;
 
   printf("requested size: %u actual size: %u size1: %u size2: %u\n",
