@@ -212,7 +212,7 @@ namespace ZtDateFmt {
   template <unsigned Width> struct FIX_<Width, '\0'> {
     template <typename S> static void frac_print(S &s, unsigned nsec) {
       if (ZuLikely(nsec))
-	s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, '\0'>());
+	s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, '\0'>>();
     }
   };
   template <char Trim> struct FIX_<0, Trim> {

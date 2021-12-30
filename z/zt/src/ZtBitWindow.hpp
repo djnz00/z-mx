@@ -40,6 +40,8 @@
 
 #include <zlib/ZuInt.hpp>
 
+#include <zlib/ZmVHeap.hpp>
+
 template <unsigned> struct ZtBitWindow_ { enum { OK = 0 }; };
 template <> struct ZtBitWindow_<1>  { enum { OK = 1, Pow2 = 1, Shift =  0 }; };
 template <> struct ZtBitWindow_<2>  { enum { OK = 1, Pow2 = 1, Shift =  1 }; };

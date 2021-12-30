@@ -49,14 +49,14 @@ void ZtHexDump::print(ZmStream &s) const
     hex.null();
     ascii.null();
     using namespace ZuFmt;
-    hex << ZuBoxed(offset).fmt(Hex<0, Alt<Right<8> > >()) << "  ";
+    hex << ZuBoxed(offset).fmt<Hex<0, Alt<Right<8>>>>() << "  ";
     for (col = 0; col < 16; col++) {
       if (offset + col >= length) {
 	hex << ZuString(pad.data(), 3 * (16 - col));
 	break;
       }
       ZuBox<uint8_t> byte = data[offset + col];
-      hex << byte.fmt(Hex<0, Right<2> >()) << ' ';
+      hex << byte.fmt<Hex<0, Right<2>>>() << ' ';
       ascii << ((byte >= 0x20 && byte < 0x7f) ? (char)byte : '.');
     }
     hex << ' ';

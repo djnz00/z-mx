@@ -49,7 +49,7 @@ class ZmVHeap {
 public:
   static void *valloc(size_t n) {
     n += sizeof(uint64_t);
-    unsigned i = 63 - __builtin_clzll(n);
+    unsigned i = 64 - __builtin_clzll(n);
     if (ZuUnlikely(i >= 16)) {
       uint64_t *ptr = static_cast<uint64_t *>(::malloc(n));
       if (ZuUnlikely(!ptr)) return nullptr;
@@ -58,15 +58,15 @@ public:
     }
     return ZuSwitch::dispatch<16>(i, [](auto i) {
       uint64_t *ptr = static_cast<uint64_t *>(Cache<i>::alloc());
-      if (ZuUnlikely(!ptr)) return nullptr;
+      if (ZuUnlikely(!ptr)) return static_cast<void *>(nullptr);
       *ptr = i;
-      return &ptr[1];
+      return static_cast<void *>(&ptr[1]);
     });
   }
   static void vfree(void *p) {
     if (ZuUnlikely(!p)) return;
     uint64_t *ptr = static_cast<uint64_t *>(p);
-    i = *--ptr;
+    auto i = *--ptr;
     if (ZuUnlikely(i >= 16)) {
       ::free(ptr);
       return;
@@ -84,8 +84,8 @@ template <typename ID>
 ZmVHeap_Init<ID>::ZmVHeap_Init() {
   for (unsigned i = 0; i < 16; i++)
     ZuSwitch::dispatch<16>(i, [](auto i) {
-      if (auto ptr = ZmVHeap<ID>::Cache<i>::alloc())
-	ZmVHeap<ID>::Cache<i>::free(ptr);
+      if (auto ptr = ZmVHeap<ID>::template Cache<i>::alloc())
+	ZmVHeap<ID>::template Cache<i>::free(ptr);
     });
 }
 

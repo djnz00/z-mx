@@ -133,11 +133,11 @@ void ZmThreadContext::init()
 void ZmThreadContext::telemetry(ZmThreadTelemetry &data) const {
   data.name = m_name;
   data.tid = tid();
-  data.stackSize = m_stackSize;
+  data.stackSize = stackSize();
   data.cpuset = m_cpuset;
   data.cpuUsage = cpuUsage();
-  data.allocaStack = allocaStack();
-  data.allocaHeap = allocaHeap();
+  data.allocStack = allocStack();
+  data.allocHeap = allocHeap();
   data.sysPriority = sysPriority();
   data.index = m_index;
   data.priority = m_priority;

@@ -75,8 +75,8 @@ struct ZmThreadTelemetry {
   uint64_t	stackSize = 0;
   ZmBitmap	cpuset;
   double	cpuUsage = 0.0;	// graphable (*)
-  uint64_t	allocaStack = 0;
-  uint64_t	allocaHeap = 0;
+  uint64_t	allocStack = 0;
+  uint64_t	allocHeap = 0;
   int32_t	sysPriority = 0;
   int16_t	index = 0;	// index within thread pool (ZmScheduler, ...)
   uint16_t	partition = 0;
@@ -239,7 +239,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   ZmThreadContext(int index, Fn &&fn, const ZmThreadParams &params) :
       m_fn(ZuFwd<Fn>(fn)),
       m_index(index), m_name(params.name()),
-      m_stackSize(params.stackSize()), m_priority(params.priority()),
+      m_priority(params.priority()),
       m_partition(params.partition()), m_cpuset(params.cpuset()),
       m_result(nullptr),
       m_detached(params.detached()) { }
@@ -271,8 +271,14 @@ public:
   int index() const { return m_index; }
   const ZmThreadName &name() const { return m_name; }
 
-  void *stackAddr() const { return m_self->stackAddr(); }
-  unsigned stackSize() const { return m_self->stackSize(); }
+  void *stackAddr() const {
+    if (ZuLikely(m_self)) return m_self->stackAddr();
+    return nullptr;
+  }
+  unsigned stackSize() const {
+    if (ZuLikely(m_self)) return m_self->stackSize();
+    return 0;
+  }
   int priority() const { return m_priority; }
 
   unsigned partition() const { return m_partition; }
@@ -282,8 +288,14 @@ public:
 
   bool detached() const { return m_detached; }
 
-  unsigned allocStack() const { return m_self->allocStack(); }
-  unsigned allocHeap() const { return m_self->allocHeap(); }
+  unsigned allocStack() const {
+    if (ZuLikely(m_self)) return m_self->allocStack();
+    return 0;
+  }
+  unsigned allocHeap() const {
+    if (ZuLikely(m_self)) return m_self->allocHeap();
+    return 0;
+  }
 
   void telemetry(ZmThreadTelemetry &data) const;
 
@@ -384,7 +396,7 @@ public:
     CSV_(S &stream) : m_stream(stream) { 
       m_stream <<
 	"name,tid,cpuUsage,cpuSet,sysPriority,priority,"
-	"stackSize,partition,main,detached,allocaStack,allocaHeap\n";
+	"stackSize,partition,main,detached,allocStack,allocHeap\n";
     }
     void print(const ZmThreadContext *tc) {
       ZmThreadTelemetry data;
@@ -401,8 +413,8 @@ public:
 	<< ',' << ZuBoxed(data.partition)
 	<< ',' << ZuBoxed(data.main)
 	<< ',' << ZuBoxed(data.detached)
-	<< ',' << ZuBoxed(data.allocaStack)
-	<< ',' << ZuBoxed(data.allocaHeap) << '\n';
+	<< ',' << ZuBoxed(data.allocStack)
+	<< ',' << ZuBoxed(data.allocHeap) << '\n';
     }
     S &stream() { return m_stream; }
 
