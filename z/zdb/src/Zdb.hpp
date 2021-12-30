@@ -119,7 +119,7 @@ namespace Zdb_Net {
 // custom header with an explicitly little-endian uint32 length
 #pragma pack(push, 1)
 struct Hdr {
-  ZuLittleEndian<uint32_t>	len;	// length of body
+  ZuLittleEndian<uint32_t>	length;	// length of body
 
   const uint8_t *data() const {
     return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
@@ -135,12 +135,11 @@ inline void saveHdr(Zfb::Builder &fbb) {
 }
 // returns the total length of the message including the header,
 // INT_MAX if not enough bytes have been read yet, -1 if corrupt
-inline int loadHdr(const uint8_t *data, unsigned len) {
-  if (ZuUnlikely(len < sizeof(Hdr))) return INT_MAX;
+inline int loadHdr(const uint8_t *data, unsigned length) {
+  if (ZuUnlikely(length < sizeof(Hdr))) return INT_MAX;
   auto hdr = reinterpret_cast<const Hdr *>(data);
-  uint32_t bodyLen = hdr->len;
-  if (bodyLen > (1U<<20)) return -1; // 1Mbyte
-  return sizeof(Hdr) + bodyLen;
+  uint32_t bodyLength = hdr->length;
+  return sizeof(Hdr) + bodyLength;
 }
 
 } // namespace ZdbNet
@@ -421,44 +420,82 @@ struct ZdbRxBuf_HeapID {
 };
 using ZdbRxBuf = ZiIOBuf_<ZuGrow(0, 1), ZdbRxBuf_HeapID>;
 
-struct ZdbTxBuf_HeapID {
-  static constexpr const char *id() { return "ZdbTxBuf"; }
+struct ZdbBuf_HeapID {
+  static constexpr const char *id() { return "ZdbBuf"; }
 };
 
-// FIXME - rename TxBuf to ObjectBuf
-// FIXME - extend TxBuf concept to facilitate application use of 
-// flatbuffers - using root() to return fbs type etc.
-// FIXME - consider renaming Msg_Rep in zdbnet.fbs to Object, Msg_HB -> HB
-// FIXME - add const fbs::Object *fbo() const accessor to TxBuf
-// FIXME - add template <typename FBType> const FBType *data() const - calls GetRoot on nested data payload
+// FIXME - rename txBufCache to bufCache
 
-class ZdbAPI ZdbTxBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbTxBuf_HeapID> {
-  ZmRef<ZdbAnyObject>	object;
-  ZdbRN			rn;
-  bool			recSend = false; // continue recovery
+class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
+  using Base = ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID>;
 
-  ZdbTxBuf_(ZdbAnyObject *object_);
+  ZdbBuf_() = default;
+  ZdbBuf_(Zdb *db) : Base(db) { }
+
+  Zdb *db() const {
+    return static_cast<Zdb *>(owner);
+  }
+  bool recovery() const {
+    using namespace ZdbNet;
+    auto hdr = reinterpret_cast<const Hdr *>(data());
+    auto msg = fbs::GetMsg(hdr->data());
+    return msg->body_type() == fbs::Hdr_Rec;
+  }
+  const ZdbNet::fbs::Object *fbo() const {
+    using namespace ZdbNet;
+    auto hdr = reinterpret_cast<const Hdr *>(data());
+    auto msg = fbs::GetMsg(hdr->data());
+    switch (static_cast<int>(msg->body_type())) {
+      default:					// should never occur
+	return nullptr;
+      case fbs::Body_Rep:
+      case fbs::Body_Rec:
+	return static_cast<const fbs::Object *>(msg->body());
+    }
+  }
+
+  template <typename T>
+  const T *data() const {
+    auto object = this->object();
+    if (ZuUnlikely(!object)) return nullptr;
+    auto data = Zfb::Load::bytes(object->data());
+    if (ZuUnlikely(!data)) return nullptr;
+    if (ZuUnlikely(
+	  !Zfb::Verifier{data.data(), data.length()}.VerifyBuffer<T>()))
+      return nullptr;
+    return Zfb::GetRoot<T>(data.data());
+  }
+  template <typename T>
+  const T *data_() const {
+    auto object = this->object();
+    if (ZuUnlikely(!object)) return nullptr;
+    auto data = object->data();
+    if (ZuUnlikely(!data)) return nullptr;
+    return Zfb::GetRoot<T>(data->data());
+  }
 
 friend Zdb_Cxn;
 friend ZdbAnyObject;
 
   void send(ZiIOContext &);
   void sent(ZiIOContext &);
-
-  int write();
 };
-struct ZdbTxBuf_RNAxor {
-  static auto get(const ZdbTxBuf_ &buf) { return buf.rn; }
+struct ZdbBuf_RNAxor {
+  static auto get(const ZdbBuf_ &buf) {
+    auto fbo = buf.fbo();
+    if (ZuUnlikely(!fbo)) return ZdbNullRN;
+    return fbo->rn();
+  }
 };
-using ZdbTxBufCache =
-  ZmHash<ZdbTxBuf_,
-    ZmHashKey<ZdbTxBuf_RNAxor,
+using ZdbBufCache =
+  ZmHash<ZdbBuf_,
+    ZmHashKey<ZdbBuf_RNAxor,
       ZmHashObject<ZmObject,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
-	    ZmHashID<ZdbTxBuf_HeapID,
+	    ZmHashID<ZdbBuf_HeapID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
-using ZdbTxBuf = ZdbTxBufCache::Node;
+using ZdbBuf = ZdbBufCache::Node;
 
 namespace ZdbNet {
 
@@ -503,7 +540,7 @@ struct ZdbAPI ZdbAnyObject : public Zdb_CacheNode, public ZuPrintable {
   ZdbAnyObject(Zdb *db_, ZdbRN rn_) : db{db_}, rn{rn_} { }
   virtual ~ZdbAnyObject() { }
 
-  ZmRef<ZdbTxBuf> replicate(int type, bool compress);
+  ZmRef<ZdbBuf> replicate(int type, bool compress);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<ZdbAnyObject *>(this)->ptr_(); }
@@ -521,11 +558,6 @@ struct ZdbAPI ZdbAnyObject : public Zdb_CacheNode, public ZuPrintable {
   ZdbAnyObject(ZdbAnyObject &&) = delete;
   ZdbAnyObject &operator =(ZdbAnyObject &&) = delete;
 };
-
-inline ZdbTxBuf_::ZdbTxBuf_(ZdbAnyObject *object_) :
-    object{object_}, rn{object_->rn}
-{
-}
 
 inline ZdbRN ZdbLRUNode_RNAxor::get(const ZdbLRUNode &node)
 {
@@ -1358,7 +1390,7 @@ private:
   void startReplication();
   void stopReplication();
 
-  void repDataRcvd(ZdbHost *host, const fbs::Msg_Rep *rep);
+  void repDataRcvd(ZdbHost *host, const ZdbNet::fbs::Object *rep);
 
   void repSend(ZmRef<ZdbAnyObject> pod, int type, int op, bool compress);
   void repSend(ZmRef<ZdbAnyObject> pod);

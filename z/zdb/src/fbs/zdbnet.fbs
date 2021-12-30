@@ -4,24 +4,24 @@ struct DBState {
   db:Zfb.ID;
   rn:int64;
 }
-table Msg_HB {
+table Heartbeat {
   host_i_d:uint16;
   state:uint16;
   db_state:[DBState];
 }
-table Msg_Rep {
+table Object {
   db:Zfb.ID;
   rn:uint64;
   prev_r_n:uint64;
   deleted:bool;
   data:[uint8];		// nested table data
 }
-union Hdr {
-  HB:Msg_HB,
-  Rep:Msg_Rep,
-  Rec:Msg_Rep
+union Body {
+  HB:Heartbeat,
+  Rep:Object,
+  Rec:Object
 }
 table Msg {
-  hdr:Hdr;
+  body:Body;
 }
 root_type Msg;

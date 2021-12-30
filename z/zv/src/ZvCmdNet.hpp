@@ -57,7 +57,7 @@ namespace Type {
 #pragma pack(push, 1)
 struct Hdr {
   ZuID				type;
-  ZuLittleEndian<uint32_t>	len;	// length of message excluding header
+  ZuLittleEndian<uint32_t>	length;	// length of message excluding header
 
   const uint8_t *data() const {
     return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
@@ -73,16 +73,16 @@ inline void saveHdr(Zfb::Builder &fbb, ZuID type) {
 }
 // returns the total length of the message including the header, or
 // INT_MAX if not enough bytes have been read yet
-inline int loadHdr(const uint8_t *data, unsigned len) {
+inline int loadHdr(const uint8_t *data, unsigned length) {
   if (ZuUnlikely(len < sizeof(Hdr))) return INT_MAX;
   auto hdr = reinterpret_cast<const Hdr *>(data);
-  return sizeof(Hdr) + hdr->len;
+  return sizeof(Hdr) + hdr->length;
 }
 // returns nullptr if the header is invalid/corrupted
-inline const Hdr *verifyHdr(const uint8_t *data, unsigned len) {
+inline const Hdr *verifyHdr(const uint8_t *data, unsigned length) {
   if (len < sizeof(Hdr)) return nullptr;
   auto hdr = reinterpret_cast<const Hdr *>(data);
-  if (hdr->len > (len - sizeof(Hdr))) return nullptr;
+  if (hdr->length > (length - sizeof(Hdr))) return nullptr;
   return hdr;
 }
 
