@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// simple bitmap type
+// simple fixed-size bitmap
 
 #ifndef ZuBitmap_HPP
 #define ZuBitmap_HPP
@@ -41,7 +41,7 @@ public:
   enum { Bits = ((Bits_ + 63) & ~63) };
   enum { Bytes = (Bits>>3) };
   enum { Shift = 6 };
-  enum { Mask = ((1<<Shift) - 1) };
+  enum { Mask = ((1U<<Shift) - 1) };
   enum { Words = (Bits>>Shift) };
 
   ZuBitmap() { zero(); }
@@ -134,20 +134,12 @@ public:
     return *this;
   }
 
-  void set(int begin, int end) {
-    if (begin < 0)
-      begin = 0;
-    else if (begin >= Bits)
-      begin = Bits - 1;
-    if (end < 0)
-      end = Bits - 1;
-    else if (end >= Bits)
-      end = Bits - 1;
-    while (begin <= end) {
-      uint64_t mask = (~((uint64_t)0));
+  void set(unsigned begin, unsigned end) {
+    if (begin >= end) return;
+    {
       unsigned i = (begin>>Shift);
-      if (i == (((unsigned)end)>>Shift))
-	mask >>= (63 - (end - begin));
+      uint64_t mask = ~static_cast<uint64_t>(0);
+      if (i == (end>>Shift)) mask >>= (64 - (end - begin));
       if (uint64_t begin_ = (begin & Mask)) {
 	mask <<= begin_;
 	begin -= begin_;
@@ -155,27 +147,43 @@ public:
       data[i] |= mask;
       begin += 64;
     }
-  }
-  void clr(int begin, int end) {
-    if (begin < 0)
-      begin = 0;
-    else if (begin >= Bits)
-      begin = Bits - 1;
-    if (end < 0)
-      end = Bits - 1;
-    else if (end >= Bits)
-      end = Bits - 1;
-    while (begin <= end) {
-      uint64_t mask = (~((uint64_t)0));
+    {
       unsigned i = (begin>>Shift);
-      if (i == (end>>Shift))
-	mask >>= (63 - (end - begin));
+      unsigned j = (end>>Shift);
+      if (i < j) {
+	memset(&data[i], 0xff, (j - i)<<(Shift - 3));
+	begin = end & ~Mask;
+      }
+    }
+    if (begin < end) {
+      uint64_t mask = (~static_cast<uint64_t>(0))>>(63 - (end - begin));
+      data[begin>>Shift] |= mask;
+    }
+  }
+  void clr(unsigned begin, unsigned end) {
+    if (begin >= end) return;
+    {
+      unsigned i = (begin>>Shift);
+      uint64_t mask = ~static_cast<uint64_t>(0);
+      if (i == (end>>Shift)) mask >>= (64 - (end - begin));
       if (uint64_t begin_ = (begin & Mask)) {
 	mask <<= begin_;
 	begin -= begin_;
       }
       data[i] &= ~mask;
       begin += 64;
+    }
+    {
+      unsigned i = (begin>>Shift);
+      unsigned j = (end>>Shift);
+      if (i < j) {
+	memset(&data[i], 0, (j - i)<<(Shift - 3));
+	begin = end & ~Mask;
+      }
+    }
+    if (begin < end) {
+      uint64_t mask = (~static_cast<uint64_t>(0))>>(63 - (end - begin));
+      data[begin>>Shift] &= ~mask;
     }
   }
 
@@ -223,14 +231,15 @@ public:
       if ((j = begin.scan(data + offset, length - offset)) <= 0) break;
       offset += j;
       if (offset < length && data[offset] == '-') {
-	if ((j = end.scan(data + offset + 1, length - offset - 1)) > 0)
+	if ((j = end.scan(data + offset + 1, length - offset - 1)) > 0) {
+	  ++end;
 	  offset += j + 1;
-	else {
-	  end = -1;
+	} else {
+	  end = Bits;
 	  ++offset;
 	}
       } else
-	end = begin;
+	end = begin + 1;
       set(begin, end);
     }
     return offset;

@@ -27,22 +27,20 @@ Zi::Username Zi::username(ZeError *e)
 {
   struct passwd pwd;
   struct passwd *result = 0;
-  char *pwdBuf = 0;
   ssize_t bufSize = 0;
   Zi::Username name;
 
   bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
   if (bufSize < 0) bufSize = (1<<14);
-  pwdBuf = (char *)::malloc(bufSize);
+  auto pwdBuf = ZuAlloc(char, bufSize);
   if (!pwdBuf) return name;
 
-  int s = getpwuid_r(geteuid(), &pwd, pwdBuf, bufSize, &result);
+  int s = getpwuid_r(geteuid(), &pwd, pwdBuf.ptr, bufSize, &result);
   if (!result && s != 0) {
     if (e) *e = ZeError(s);
   } else if (result) {
     name = pwd.pw_name;
   }
-  ::free(pwdBuf);
   return name;
 }
 

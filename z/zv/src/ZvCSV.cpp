@@ -72,7 +72,7 @@ void split(ZuString row, ZtArray<ZtArray<char>> &values)
       next = -1;
 
     if (simple) {
-      new (values.push()) ZtArray<char>(row.data() + start, end - start);
+      new (values.push()) ZtArray<char>{row.data() + start, end - start};
     } else {
       ZtArray<char> value;
       value.size(end - start);

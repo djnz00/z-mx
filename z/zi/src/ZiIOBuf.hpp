@@ -39,7 +39,7 @@
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
 #define ZiIOBuf_DefaultSize 1460
 
-#pragma pack(push, 2)
+#pragma pack(push, 1)
 struct ZiAnyIOBuf : public ZmPolymorph {
   uint32_t	size = 0;
   uint32_t	length = 0;
@@ -51,8 +51,11 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   ZiAnyIOBuf(ZiAnyIOBuf &&) = default;
   ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = default;
 };
-template <unsigned Size_, typename Heap>
-struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
+struct ZiIOBuf_HeapID {
+  static constexpr const char *id() { return "ZiIOBuf"; }
+};
+template <unsigned Size_, typename ID = ZiIOBuf_HeapID>
+struct ZiIOBuf__ : private ZmVHeap<ID>, public ZiAnyIOBuf {
   void		*owner = nullptr;
   uint8_t	*jumbo = nullptr;
   uint32_t	skip = 0;
@@ -60,18 +63,23 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
 
   enum { Size = Size_ };
 
-  ZiIOBuf_() { }
-  ZiIOBuf_(void *owner_) : owner{owner_} { }
-  ZiIOBuf_(void *owner_, uint32_t length) :
+  ZiIOBuf__() { }
+  ZiIOBuf__(void *owner_) : owner{owner_} { }
+  ZiIOBuf__(void *owner_, uint32_t length) :
       ZiAnyIOBuf{length}, owner{owner_} { }
-  ~ZiIOBuf_() { if (ZuUnlikely(jumbo)) ::free(jumbo); }
+  ~ZiIOBuf__() { if (ZuUnlikely(jumbo)) vfree(jumbo); }
+
+  ZiIOBuf__(const ZiIOBuf__ &) = delete;
+  ZiIOBuf__ &operator =(const ZiIOBuf__ &) = delete;
+  ZiIOBuf__(ZiIOBuf__ &&) = delete;
+  ZiIOBuf__ &operator =(ZiIOBuf__ &&) = delete;
 
   uint8_t *alloc(unsigned size_) {
     if (ZuLikely(size_ <= Size)) {
       size = size_;
       return data_;
     }
-    if (jumbo = static_cast<uint8_t *>(::malloc(size_))) {
+    if (jumbo = static_cast<uint8_t *>(valloc(size_))) {
       size = size_;
       return jumbo;
     }
@@ -85,7 +93,7 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
 	jumbo = nullptr;
 	length = size = 0;
       }
-      ::free(ptr);
+      vfree(ptr);
     }
   }
 
@@ -94,7 +102,7 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
     skip = 0;
   }
 
-  const uint8_t *data() const { return const_cast<ZiIOBuf_ *>(this)->data(); }
+  const uint8_t *data() const { return const_cast<ZiIOBuf__ *>(this)->data(); }
   uint8_t *data() {
     uint8_t *ptr = ZuUnlikely(jumbo) ? jumbo : data_;
     return ptr + skip;
@@ -124,14 +132,14 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
     }
     newSize = grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
-    jumbo = static_cast<uint8_t *>(::malloc(newSize));
+    jumbo = static_cast<uint8_t *>(valloc(newSize));
     if (ZuLikely(jumbo)) {
       if (head) memcpy(jumbo, old, head);
       if (tail) memcpy(jumbo + newSize - tail, old + oldSize - tail, tail);
       size = newSize;
     } else
       length = size = 0;
-    if (ZuUnlikely(old != data_)) ::free(old);
+    if (ZuUnlikely(old != data_)) vfree(old);
     return jumbo;
   }
 
@@ -146,13 +154,13 @@ struct ZiIOBuf_ : public Heap, public ZiAnyIOBuf {
     if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
     newSize = grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
-    jumbo = static_cast<uint8_t *>(::malloc(newSize));
+    jumbo = static_cast<uint8_t *>(valloc(newSize));
     if (ZuLikely(jumbo)) {
       if (length) memcpy(jumbo, old, length);
       size = newSize;
     } else
       length = size = 0;
-    if (ZuUnlikely(old != data_)) ::free(old);
+    if (ZuUnlikely(old != data_)) vfree(old);
     return jumbo;
   }
 
@@ -201,47 +209,55 @@ private:
 
 public:
   template <typename C>
-  MatchChar<C, ZiIOBuf_ &> operator <<(C c) {
+  MatchChar<C, ZiIOBuf__ &> operator <<(C c) {
     this->append(&c, 1);
     return *this;
   }
   template <typename S>
-  MatchString<S, ZiIOBuf_ &> operator <<(S &&s_) {
+  MatchString<S, ZiIOBuf__ &> operator <<(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     append(s.data(), s.length());
     return *this;
   }
-  ZiIOBuf_ &operator <<(const char *s_) {
+  ZiIOBuf__ &operator <<(const char *s_) {
     ZuString s(s_);
     append(s.data(), s.length());
     return *this;
   }
   template <typename R>
-  MatchReal<R, ZiIOBuf_ &> operator <<(const R &r) {
+  MatchReal<R, ZiIOBuf__ &> operator <<(const R &r) {
     append(ZuBoxed(r));
     return *this;
   }
   template <typename P>
-  MatchPrint<P, ZiIOBuf_ &> operator <<(const P &p) {
+  MatchPrint<P, ZiIOBuf__ &> operator <<(const P &p) {
     append(p);
     return *this;
   }
 
-  struct Traits : public ZuBaseTraits<ZiIOBuf_> {
+  struct Traits : public ZuBaseTraits<ZiIOBuf__> {
     using Elem = char;
     enum { IsCString = 0, IsString = 1, IsWString = 0 };
-    static const char *data(const ZiIOBuf_ &buf) {
+    static const char *data(const ZiIOBuf__ &buf) {
       return reinterpret_cast<const char *>(buf.data());
     }
-    static unsigned length(const ZiIOBuf_ &buf) {
+    static unsigned length(const ZiIOBuf__ &buf) {
       return buf.length;
     }
   };
-  friend Traits ZuTraitsType(ZiIOBuf_ *);
+  friend Traits ZuTraitsType(ZiIOBuf__ *);
 };
 #pragma pack(pop)
-struct ZiIOBuf_HeapID {
-  static constexpr const char *id() { return "ZiIOBuf"; }
+template <unsigned Size, typename Heap>
+struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size, Heap::ID> {
+  ZiIOBuf_() = default;
+  template <typename ...Args>
+  ZiIOBuf_(Args &&... args) : ZiIOBuf_{ZuFwd<Args>(args)...} { }
+  ~ZiIOBuf_() = default;
+  ZiIOBuf_(const ZiIOBuf_ &) = delete;
+  ZiIOBuf_ &operator =(const ZiIOBuf_ &) = delete;
+  ZiIOBuf_(ZiIOBuf_ &&) = delete;
+  ZiIOBuf_ &operator =(ZiIOBuf_ &&) = delete;
 };
 template <unsigned Size>
 using ZiIOBuf_Heap = ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull>)>;

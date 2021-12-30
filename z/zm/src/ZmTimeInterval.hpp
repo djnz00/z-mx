@@ -65,10 +65,10 @@ public:
 
     stats(min, max, total, mean, count);
 
-    s << "min=" << ZuBoxed(min.dtime()).fmt(ZuFmt::FP<9, '0'>())
-      << " max=" << ZuBoxed(max.dtime()).fmt(ZuFmt::FP<9, '0'>())
-      << " total=" << ZuBoxed(total.dtime()).fmt(ZuFmt::FP<9, '0'>())
-      << " mean=" << mean.fmt(ZuFmt::FP<9, '0'>())
+    s << "min=" << ZuBoxed(min.dtime()).fmt<ZuFmt::FP<9, '0'>>()
+      << " max=" << ZuBoxed(max.dtime()).fmt<ZuFmt::FP<9, '0'>>()
+      << " total=" << ZuBoxed(total.dtime()).fmt<ZuFmt::FP<9, '0'>>()
+      << " mean=" << mean.fmt<ZuFmt::FP<9, '0'>>()
       << " count=" << count;
   }
 

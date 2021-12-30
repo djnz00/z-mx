@@ -52,8 +52,8 @@ namespace Type {
 // a couple of shortcomings - file identifiers are limited to 4 bytes,
 // and are stored after the root vtable, not contiguous with the size prefix
 //
-// we use a custom header with an explicitly little-endian
-// uint32 length and a fixed-width 8-byte type identifer
+// custom header with a fixed-width 8-byte type identifer
+// and an explicitly little-endian uint32 length
 #pragma pack(push, 1)
 struct Hdr {
   ZuID				type;

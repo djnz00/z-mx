@@ -16,7 +16,7 @@ pkginclude_HEADERS = \
 	ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp ZmSingleton.hpp \
 	ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp ZmStack_.hpp ZmStream.hpp \
 	ZmTLock.hpp ZmThread.hpp ZmTime.hpp ZmTimeInterval.hpp ZmTimeout.hpp \
-	ZmTopology.hpp ZmTrap.hpp ZmULock.hpp ZmAllocator.hpp
+	ZmTopology.hpp ZmTrap.hpp ZmAllocator.hpp ZmVHeap.hpp
 lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \

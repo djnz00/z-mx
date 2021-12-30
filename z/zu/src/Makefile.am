@@ -16,3 +16,4 @@ pkginclude_HEADERS = \
 	ZuEquivChar.hpp ZuField.hpp ZuGrow.hpp
 lib_LTLIBRARIES = libZu.la
 libZu_la_SOURCES = ZuLib.cpp ZuVersion.cpp ZuUTF.cpp
+libZu_la_LIBADD = @Z_MT_LIBS@

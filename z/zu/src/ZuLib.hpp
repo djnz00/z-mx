@@ -109,6 +109,10 @@
 #error "Broken platform - UINT_MAX is < 0xffffffff - an int is < 32 bits!"
 #endif
 
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+
 #ifdef __GNUC__
 
 #define ZuLikely(x) __builtin_expect(!!(x), 1)
@@ -627,6 +631,71 @@ template <typename U, typename R> struct ZuNotVolatile_<volatile U, R> { };
 template <typename U, typename R = void>
 using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 
+template <typename> struct ZuAlloc_;
+
+struct ZuAPI ZuThreadContext {
+  template <typename> friend struct ZuAlloc_;
+
+public:
+  ZuThreadContext();
+
+  void *stackAddr() const { return m_stackAddr; }
+  unsigned stackSize() const { return m_stackSize; }
+
+  uint64_t allocStack() const { return m_allocStack; }
+  uint64_t allocHeap() const { return m_allocHeap; }
+
+private:
+  void		*m_stackAddr;
+  unsigned	m_stackSize;
+  uint64_t	m_allocStack = 0;
+  uint64_t	m_allocHeap = 0;
+};
+
+ZuExtern ZuThreadContext *ZuSelf();
+
+inline unsigned ZuStackAvail() {
+  uint8_t *sp;
+#if defined(__GNUC__) && defined(__x86_64__)
+  __asm__("movq %%rsp, %0" : "=q" (sp));
+#else
+  sp = reinterpret_cast<uint8_t *>(&sp);
+#endif
+  auto addr = static_cast<uint8_t *>(ZuSelf()->stackAddr());
+  auto avail = sp - addr;
+  if (ZuUnlikely(avail < 0)) return 0;
+  if (avail >= static_cast<ptrdiff_t>(UINT_MAX)) return UINT_MAX;
+  return avail;
+}
+
+// safe alloca() smart pointer that stack allocates if under 50% of
+// remaining stack space, falling back to RAII heap allocate/free
+//
+// usage:
+//
+// auto x = ZuAlloc(uint8_t, 1024);
+// uint8_t *ptr = x.ptr;
+// uint8_t byte = *x;
+
+template <typename T>
+struct ZuAlloc_ {
+  T *ptr;
+  operator T *() const { return ptr; }
+  T *operator ->() const { return ptr; }
+  ~ZuAlloc_() {
+    uint8_t *ptr_ = reinterpret_cast<uint8_t *>(ptr);
+    auto self = ZuSelf();
+    auto addr = reinterpret_cast<uint8_t *>(self->stackAddr());
+    auto size = self->stackSize();
+    if (ZuLikely(ptr_ >= addr && ptr_ < (addr + size)))
+      ++self->m_allocStack;
+    else {
+      ++self->m_allocHeap;
+      ::free(ptr_);
+    }
+  }
+};
+
 #ifdef _MSC_VER
 #define ZuAlloca(n) _alloca(n)
 #else
@@ -635,5 +704,9 @@ using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 #endif
 #define ZuAlloca(n) alloca(n)
 #endif
+
+#define ZuAlloc(T, n) \
+  ZuAlloc_<T>{static_cast<T *>( \
+      (((ZuStackAvail()>>1) < (n)) ? ::malloc(n) : ZuAlloca(n)))}
 
 #endif /* ZuLib_HPP */

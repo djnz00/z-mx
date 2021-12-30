@@ -184,11 +184,11 @@ table DB {
   file_loads:uint64;
   file_misses:uint64;
   id:uint32;
-  pre_alloc:uint32;
   rec_size:uint32;
   file_recs:uint32;
   cache_size:uint32;
   files_max:uint32;
+  warm_up:uint8;
   compress:uint8;
   cache_mode:DBCacheMode;
 }

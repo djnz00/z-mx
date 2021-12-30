@@ -17,9 +17,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// in-memory dynamically allocated sliding windows of bitfields
+// in-memory, dynamically allocated, sliding window bitfields
 //
-// supported bitfield widths:
+// supported bit widths:
 // 1, 2, 3, 4, 5, 8, 10, 12, 16, 32, 64
 
 #ifndef ZtBitWindow_HPP
@@ -58,7 +58,12 @@ template <unsigned Bits = 1,
 	 bool = ZtBitWindow_<Bits>::Pow2>
 class ZtBitWindow;
 
-template <unsigned Bits_> class ZtBitWindow<Bits_, true, true> {
+struct ZtBitWindow_ID {
+  static constexpr const char *id() { return "ZtBitWindow"; }
+};
+
+template <unsigned Bits_>
+class ZtBitWindow<Bits_, true, true> : private ZmVHeap<ZtBitWindow_ID> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 
@@ -73,7 +78,7 @@ private:
 
 public:
   ZtBitWindow() { }
-  ~ZtBitWindow() { if (m_data) ::free(m_data); }
+  ~ZtBitWindow() { if (m_data) vfree(m_data); }
 
   ZtBitWindow(ZtBitWindow &&q) :
       m_data(q.m_data), m_size(q.m_size),
@@ -82,7 +87,7 @@ public:
   }
   ZtBitWindow &operator =(ZtBitWindow &&q) {
     if (ZuLikely(this != &q)) {
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = q.m_data;
       m_size = q.m_size;
       m_head = q.m_head;
@@ -92,7 +97,7 @@ public:
   }
 
   void null() {
-    if (m_data) ::free(m_data);
+    if (m_data) vfree(m_data);
     m_data = nullptr;
     m_size = 0;
     m_head = 0;
@@ -143,12 +148,12 @@ private:
 	  return 0;
 	}
       }
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + required + tailOffset, m_data, m_offset<<3);
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = data;
       m_size += required;
       m_head -= (required<<IndexShift);
@@ -162,12 +167,12 @@ private:
 	(((i + 1) - (m_size<<IndexShift)) + IndexMask)>>IndexShift;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
       memset(data + m_size, 0, required<<3);
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = data;
       m_size += required;
       m_offset = 0;
@@ -287,7 +292,8 @@ private:
   // bool	m_debug = false;
 };
 
-template <unsigned Bits_> class ZtBitWindow<Bits_, true, false> {
+template <unsigned Bits_>
+class ZtBitWindow<Bits_, true, false> : private ZmVHeap<ZtBitWindow_ID> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 
@@ -300,7 +306,7 @@ private:
 
 public:
   ZtBitWindow() { }
-  ~ZtBitWindow() { if (m_data) ::free(m_data); }
+  ~ZtBitWindow() { if (m_data) vfree(m_data); }
 
   ZtBitWindow(ZtBitWindow &&q) :
       m_data(q.m_data), m_size(q.m_size),
@@ -309,7 +315,7 @@ public:
   }
   ZtBitWindow &operator =(ZtBitWindow &&q) {
     if (ZuLikely(this != &q)) {
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = q.m_data;
       m_size = q.m_size;
       m_head = q.m_head;
@@ -319,7 +325,7 @@ public:
   }
 
   void null() {
-    if (m_data) ::free(m_data);
+    if (m_data) vfree(m_data);
     m_data = nullptr;
     m_size = 0;
     m_head = 0;
@@ -370,12 +376,12 @@ private:
 	  return 0;
 	}
       }
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + required + tailOffset, m_data, m_offset<<3);
-      ::free(m_data);
+      vfree(m_data);
       m_data = data;
       m_size += required;
       m_head -= required * IndexMul;
@@ -389,12 +395,12 @@ private:
       uint64_t required = (((i + 1) - size) + (IndexMul - 1)) / IndexMul;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
       memset(data + m_size, 0, required<<3);
-      ::free(m_data);
+      vfree(m_data);
       m_data = data;
       m_size += required;
       m_offset = 0;
@@ -515,7 +521,8 @@ private:
   // bool	m_debug = false;
 };
 
-template <> class ZtBitWindow<64U, true, true> {
+template <>
+class ZtBitWindow<64U, true, true> : private ZmVHeap<ZtBitWindow_ID> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 
@@ -524,7 +531,7 @@ public:
 
 public:
   ZtBitWindow() { }
-  ~ZtBitWindow() { if (m_data) ::free(m_data); }
+  ~ZtBitWindow() { if (m_data) vfree(m_data); }
 
   ZtBitWindow(ZtBitWindow &&q) :
       m_data(q.m_data), m_size(q.m_size),
@@ -533,7 +540,7 @@ public:
   }
   ZtBitWindow &operator =(ZtBitWindow &&q) {
     if (ZuLikely(this != &q)) {
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = q.m_data;
       m_size = q.m_size;
       m_head = q.m_head;
@@ -543,7 +550,7 @@ public:
   }
 
   void null() {
-    if (m_data) ::free(m_data);
+    if (m_data) vfree(m_data);
     m_data = nullptr;
     m_size = 0;
     m_head = 0;
@@ -593,12 +600,12 @@ private:
 	  return 0;
 	}
       }
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       memset(data, 0, required<<3);
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data + required, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + required + tailOffset, m_data, m_offset<<3);
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = data;
       m_size += required;
       m_head -= required;
@@ -611,12 +618,12 @@ private:
       uint64_t required = (i + 1) - m_size;
       if (required < (m_size>>3))
 	required = m_size>>3; // grow by at least 12.5%
-      auto data = static_cast<uint64_t *>(::malloc((m_size + required)<<3));
+      auto data = static_cast<uint64_t *>(valloc((m_size + required)<<3));
       uint64_t tailOffset = m_size - m_offset;
       if (tailOffset) memcpy(data, m_data + m_offset, tailOffset<<3);
       if (m_offset) memcpy(data + tailOffset, m_data, m_offset<<3);
       memset(data + m_size, 0, required<<3);
-      if (m_data) ::free(m_data);
+      if (m_data) vfree(m_data);
       m_data = data;
       m_size += required;
       m_offset = 0;

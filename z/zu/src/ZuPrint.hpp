@@ -87,13 +87,9 @@ template <typename S> struct ZuStdStream__ {
   template <typename P> static ZuIfT<ZuPrint<P>::Buffer>
       print(S &s, const P &p) {
     unsigned len = ZuPrint<P>::length(p);
-    bool heap = len >= (10<<10); // 10k
-    char *buf = ZuUnlikely(heap) ?
-      static_cast<char *>(::malloc(len)) :
-      static_cast<char *>(ZuAlloca(len));
+    auto buf = ZuAlloc(char, len);
     if (ZuLikely(buf))
       ZuStdStream<S>::append(s, buf, ZuPrint<P>::print(buf, len, p));
-    if (heap) ::free(buf);
   }
 };
 

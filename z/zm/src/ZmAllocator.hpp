@@ -34,11 +34,13 @@
 #include <memory>
 
 #include <zlib/ZmHeap.hpp>
+#include <zlib/ZmVHeap.hpp>
 
-struct ZmAllocatorID {
+struct ZmAllocator_ID {
   static constexpr const char *id() { return "ZmAllocator"; }
 };
-template <typename T, typename ID = ZmAllocatorID> struct ZmAllocator {
+template <typename T, typename ID = ZmAllocator_ID>
+struct ZmAllocator : private ZmVHeap<ID> {
   using size_type = std::size_t;
   using difference_type = ptrdiff_t;
   using pointer = T *;
@@ -76,7 +78,7 @@ template <typename T, typename ID>
 inline T *ZmAllocator<T, ID>::allocate(std::size_t n) {
   using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
-  if (auto ptr = static_cast<T *>(::malloc(n * sizeof(T)))) return ptr;
+  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T)))) return ptr;
   throw std::bad_alloc{};
 }
 template <typename T, typename ID>
@@ -85,7 +87,7 @@ inline void ZmAllocator<T, ID>::deallocate(T *p, std::size_t n) noexcept {
   if (ZuLikely(n == 1))
     Cache::free(p);
   else
-    ::free(p);
+    vfree(p);
 }
 template <typename T, typename U, class ID>
 inline constexpr bool operator ==(

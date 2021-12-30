@@ -443,8 +443,8 @@ template <typename Fmt> struct ZuDecimalFmt {
       iv = fixed.value;
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
-    s << ZuBoxed(iv).fmt(Fmt());
-    if (fv) s << '.' << ZuBoxed(fv).fmt(ZuFmt::Frac<18>());
+    s << ZuBoxed(iv).fmt<Fmt>();
+    if (fv) s << '.' << ZuBoxed(fv).fmt<ZuFmt::Frac<18>>();
   }
 
   friend ZuPrintFn ZuPrintType(ZuDecimalFmt *);
@@ -475,7 +475,7 @@ public:
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
     s << ZuBoxed(iv).vfmt(fmt);
-    if (fv) s << '.' << ZuBoxed(fv).fmt(ZuFmt::Frac<18>());
+    if (fv) s << '.' << ZuBoxed(fv).fmt<ZuFmt::Frac<18>>();
   }
 
   friend ZuPrintFn ZuPrintType(ZuDecimalVFmt *);

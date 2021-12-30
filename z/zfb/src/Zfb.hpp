@@ -92,6 +92,9 @@ public:
     return {PushElement(GetSize())};
   }
 
+  // read buffer without detaching
+  const IOBuf *cbuf() const { return m_buf.ptr(); }
+
 protected:
   // override ZiIOBuf's default grow() with a pass-through because flatbuffers
   // has it's own buffer growth algorithm in vector_downward::reallocate()
@@ -140,11 +143,10 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = static_cast<T *>(ZmAlloc(n * sizeof(T)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(T, n);
+    if (!buf) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf, n);
-    ZmFree(buf);
     return r;
   }
 
@@ -152,32 +154,29 @@ namespace Save {
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(Offset<T>, n);
+    if (!buf) return {};
     lpush_(buf, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf, n);
-    ZmFree(buf);
     return r;
   }
   // inline creation of a vector of non-primitive values
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(Offset<T>, n);
+    if (!buf) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf, n);
-    ZmFree(buf);
     return r;
   }
   // iterated creation of a vector of non-primitive values
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
-    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(Offset<T>, n);
+    if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
     auto r = b.CreateVector(buf, n);
-    ZmFree(buf);
     return r;
   }
 
@@ -193,21 +192,19 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(Offset<T>, n);
+    if (!buf) return {};
     push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVectorOfSortedTables(buf, n);
-    ZmFree(buf);
     return r;
   }
   // iterated creation of a vector of lambda-transformed keyed items
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> keyVecIter(B &b, unsigned n, L l) {
-    auto buf = static_cast<Offset<T> *>(ZmAlloc(n * sizeof(Offset<T>)));
-    if (ZuUnlikely(!buf)) return {};
+    auto buf = ZuAlloc(Offset<T>, n);
+    if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
     auto r = b.CreateVectorOfSortedTables(buf, n);
-    ZmFree(buf);
     return r;
   }
 
@@ -297,14 +294,14 @@ namespace Load {
 
   // inline zero-copy conversion of a FB string to a ZuString
   inline ZuString str(const flatbuffers::String *s) {
-    if (!s) return ZuString{};
-    return ZuString{reinterpret_cast<const char *>(s->Data()), s->size()};
+    if (!s) return {};
+    return {reinterpret_cast<const char *>(s->Data()), s->size()};
   }
 
   // inline zero-copy conversion of a [uint8] to a ZuArray<const uint8_t>
   inline ZuArray<const uint8_t> bytes(const Vector<uint8_t> *v) {
-    if (!v) return ZuArray<const uint8_t>{};
-    return ZuArray<const uint8_t>{v->data(), v->size()};
+    if (!v) return {};
+    return {v->data(), v->size()};
   }
 
   // decimal

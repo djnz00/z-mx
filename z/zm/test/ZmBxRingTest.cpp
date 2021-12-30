@@ -123,7 +123,7 @@ int App::main(int argc, char **argv)
     {
       ZuStringN<80> s;
       s << "address: 0x" <<
-	  ZuBoxed((uintptr_t)ring->data()).fmt(ZuFmt::Hex<>()) <<
+	  ZuBoxed((uintptr_t)ring->data()).fmt<ZuFmt::Hex<>>() <<
 	"  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
 	"  size: " << ZuBoxed(ring->size()) <<
 	"  msgSize: " << ZuBoxed(sizeof(Msg)) << '\n';
@@ -150,7 +150,7 @@ int App::main(int argc, char **argv)
       ZuStringN<80> s;
       s << "total time: " <<
 	ZuBoxed(start.sec()) << '.' <<
-	  ZuBoxed(start.nsec()).fmt(ZuFmt::Frac<9>()) <<
+	  ZuBoxed(start.nsec()).fmt<ZuFmt::Frac<9>>() <<
 	"  avg time: " <<
 	ZuBoxed((double)((start.dtime() / (double)(count * writers)) *
 	      (double)1000000)) <<

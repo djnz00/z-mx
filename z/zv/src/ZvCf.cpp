@@ -625,7 +625,7 @@ void ZvCf::toArgs(int &argc, char **&argv) const
 
   toArgs(args, "");
   argc = args.length();
-  argv = (char **)::malloc(argc * sizeof(char *));
+  argv = static_cast<char **>(::malloc(argc * sizeof(char *)));
   ZmAssert(argv);
   if (!argv) throw std::bad_alloc();
   for (int i = 0; i < argc; i++) argv[i] = args[i].data(true);

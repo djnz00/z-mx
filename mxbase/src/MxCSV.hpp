@@ -98,7 +98,7 @@ public:
   }
   void place_(ZtArray<char> &b, const MxDateTime *t) {
     MxDateTime l = *t + m_tzOffset;
-    b << MxUInt(l.hhmmss()).fmt(ZuFmt::Right<6>{});
+    b << MxUInt(l.hhmmss()).fmt<ZuFmt::Right<6>>();
   }
 
 private:

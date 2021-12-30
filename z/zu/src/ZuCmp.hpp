@@ -102,26 +102,26 @@ template <typename T> struct ZuCmp_Cannot;
 
 template <typename T, int Size, bool Signed> struct ZuCmp_IntNull;
 template <typename T> struct ZuCmp_IntNull<T, 1, false>
-  { static constexpr T null() { return (T)0xff; } };
+  { static constexpr T null() { return static_cast<T>(0xff); } };
 template <typename T> struct ZuCmp_IntNull<T, 1, true>
-  { static constexpr T null() { return (T)-0x80; } };
+  { static constexpr T null() { return static_cast<T>(-0x80); } };
 template <typename T> struct ZuCmp_IntNull<T, 2, false>
-  { static constexpr T null() { return (T)0xffff; } };
+  { static constexpr T null() { return static_cast<T>(0xffff); } };
 template <typename T> struct ZuCmp_IntNull<T, 2, true>
-  { static constexpr T null() { return (T)-0x8000; } };
+  { static constexpr T null() { return static_cast<T>(-0x8000); } };
 template <typename T> struct ZuCmp_IntNull<T, 4, false>
-  { static constexpr T null() { return ~(T)0; } };
+  { static constexpr T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 4, true>
-  { static constexpr T null() { return (T)-0x80000000; } };
+  { static constexpr T null() { return static_cast<T>(-0x80000000); } };
 template <typename T> struct ZuCmp_IntNull<T, 8, false>
-  { static constexpr T null() { return ~(T)0; } };
+  { static constexpr T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 8, true> {
-  static constexpr T null() { return (T)-0x8000000000000000LL; }
+  static constexpr T null() { return static_cast<T>(-0x8000000000000000LL); }
 };
 template <typename T> struct ZuCmp_IntNull<T, 16, false>
-  { static constexpr T null() { return ~(T)0; } };
+  { static constexpr T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 16, true> {
-  static constexpr T null() { return ((T)1)<<127U; }
+  static constexpr T null() { return (static_cast<T>(1))<<127; }
 };
 
 // comparison of larger-sized (>= sizeof(int)) integral types

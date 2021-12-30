@@ -57,6 +57,7 @@
 #include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmAssert.hpp>
+#include <zlib/ZmVHeap.hpp>
 
 #include <zlib/ZtPlatform.hpp>
 #include <zlib/ZtIconv.hpp>
@@ -74,8 +75,12 @@ template <typename T_> struct ZtArray_Char2 { using T = ZuNull; };
 template <> struct ZtArray_Char2<char> { using T = wchar_t; };
 template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
+struct ZtArray_ID {
+  static constexpr const char *id() { return "ZtArray"; }
+};
+
 template <typename T_, typename Cmp_ = ZuCmp<T_>>
-class ZtArray : public ZtArray_<T_>, public ZuArrayFn<T_, Cmp_> {
+class ZtArray : private ZmVHeap<ZtArray_ID>, public ZtArray_<T_>, public ZuArrayFn<T_, Cmp_> {
   template <typename, class> friend class ZtArray;
 
 public:
@@ -414,7 +419,7 @@ private:
 
   template <typename R> MatchCtorElem<R> ctor(R &&r) {
     unsigned z = grow_(0, 1);
-    m_data = (T *)::malloc(z * sizeof(T));
+    m_data = (T *)valloc(z * sizeof(T));
     if (!m_data) throw std::bad_alloc{};
     size_owned(z, 1);
     length_mallocd(1, 1);
@@ -663,7 +668,7 @@ private:
       const T *data, unsigned length, unsigned size, bool mallocd) {
     ZmAssert(size >= length);
     if (!size) {
-      if (data && mallocd) ::free((void *)data);
+      if (data && mallocd) vfree((void *)data);
       null_();
       return;
     }
@@ -681,7 +686,7 @@ private:
 
   void alloc_(unsigned size, unsigned length) {
     if (!size) { null_(); return; }
-    m_data = reinterpret_cast<T *>(::malloc(size * sizeof(T)));
+    m_data = reinterpret_cast<T *>(valloc(size * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     size_owned(size, 1);
     length_mallocd(length, 1);
@@ -689,7 +694,7 @@ private:
 
   template <typename S> void copy__(const S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = reinterpret_cast<T *>(::malloc(length * sizeof(T)));
+    m_data = reinterpret_cast<T *>(valloc(length * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     if (length) this->copyItems(m_data, data, length);
     size_owned(length, 1);
@@ -698,7 +703,7 @@ private:
 
   template <typename S> void move__(S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = (T *)::malloc(length * sizeof(T));
+    m_data = (T *)valloc(length * sizeof(T));
     if (!m_data) throw std::bad_alloc{};
     if (length) this->moveItems(m_data, data, length);
     size_owned(length, 1);
@@ -710,7 +715,7 @@ private:
   void free_() {
     if (m_data && owned()) {
       this->destroyItems(m_data, length());
-      if (mallocd()) ::free(m_data);
+      if (mallocd()) vfree(m_data);
     }
   }
   T *free_1(uint32_t &length_mallocd) {
@@ -721,7 +726,7 @@ private:
   void free_2(T *data, uint32_t length_mallocd) {
     if (data) {
       this->destroyItems(data, length_mallocd & ~(1U<<31U));
-      if (length_mallocd>>31U) ::free(data);
+      if (length_mallocd>>31U) vfree(data);
     }
   }
 
@@ -732,7 +737,7 @@ public:
     size(length());
     unsigned n = length();
     if (!m_data || size() <= n) return;
-    T *newData = (T *)::malloc(n * sizeof(T));
+    T *newData = (T *)valloc(n * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     this->moveItems(newData, m_data, n);
     free_();
@@ -853,7 +858,7 @@ public:
   T *size(unsigned z) {
     if (!z) { null(); return 0; }
     if (owned() && z == size()) return m_data;
-    T *newData = (T *)::malloc(z * sizeof(T));
+    T *newData = (T *)valloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     unsigned n = z;
     if (n > length()) n = length();
@@ -983,7 +988,7 @@ private:
   MatchElem<R, ZtArray> add(R &&r) const {
     unsigned n = length();
     unsigned z = grow_(n, n + 1);
-    T *newData = (T *)::malloc(z * sizeof(T));
+    T *newData = (T *)valloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     this->initItem(newData + n, ZuFwd<R>(r));
@@ -994,7 +999,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = (T *)::malloc(z * sizeof(T));
+    T *newData = (T *)valloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->copyItems(newData + n, data, length);
@@ -1004,7 +1009,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = (T *)::malloc(z * sizeof(T));
+    T *newData = (T *)valloc(z * sizeof(T));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->moveItems(newData + n, data, length);
@@ -1156,7 +1161,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = (T *)::malloc(z * sizeof(T));
+      T *newData = (T *)valloc(z * sizeof(T));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, n);
       free_();
@@ -1212,7 +1217,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = (T *)::malloc(z * sizeof(T));
+      T *newData = (T *)valloc(z * sizeof(T));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData + 1, m_data, n);
       free_();
@@ -1257,7 +1262,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)::malloc(z * sizeof(T));
+      T *newData = (T *)valloc(z * sizeof(T));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       if (offset + length < (int)n)
@@ -1315,7 +1320,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)::malloc(z * sizeof(T));
+      T *newData = (T *)valloc(z * sizeof(T));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->copyItems(newData + offset, replace, rlength);
@@ -1375,7 +1380,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)::malloc(z * sizeof(T));
+      T *newData = (T *)valloc(z * sizeof(T));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->moveItems(newData + offset, replace, rlength);

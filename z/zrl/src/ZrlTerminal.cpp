@@ -59,7 +59,7 @@ ZrlExtern void print_(int32_t vkey, ZmStream &s)
     if (vkey < 0x20) {
       out << '^' << static_cast<char>('@' + vkey);
     } else if (vkey >= 0x7f && vkey < 0x100) {
-      out << "'\\x" << ZuBoxed(vkey).hex(ZuFmt::Right<2, '0'>{}) << '\'';
+      out << "'\\x" << ZuBoxed(vkey).hex<ZuFmt::Right<2, '0'>>() << '\'';
     } else {
       ZuArrayN<uint8_t, 4> utf;
       utf.length(ZuUTF8::out(utf.data(), 4, vkey));
@@ -91,7 +91,7 @@ void VKeyMatch_print_byte(ZmStream &s, uint8_t byte)
   if (byte < 0x20)
     s << '^' << static_cast<char>('@' + byte);
   else if (byte >= 0x7f)
-    s << "\\x" << ZuBoxed(byte).hex(ZuFmt::Right<2, '0'>{});
+    s << "\\x" << ZuBoxed(byte).hex<ZuFmt::Right<2, '0'>>();
   else
     s << static_cast<char>(byte);
 }
@@ -1777,8 +1777,7 @@ void Terminal::splice(
 	trailRows = (bol(oldWidth) - bolPos) / m_width + 1;
     }
   }
-  if (trailRows) glyphMarks =
-    static_cast<GlyphMark *>(ZmAlloc(trailRows * sizeof(GlyphMark)));
+  if (trailRows) glyphMarks = ZmAlloc(GlyphMark, trailRows);
   if (glyphMarks) {
     unsigned endPos = m_pos + span.inLen();
     unsigned shiftOff;
@@ -1797,13 +1796,11 @@ void Terminal::splice(
       } else {
 	// shift right - glyphMarks saves the old position of each trailing BOL
 	unsigned pos = bolPos < endPos ? endPos : bolPos;
-	glyphMarks[row++] =
-	  GlyphMark{m_line.position(pos).mapping() + shiftOff, pos};
+	glyphMarks[row++] = {m_line.position(pos).mapping() + shiftOff, pos};
       }
       bolPos += m_width;
     }
     trailRows = row;
-    ZmFree(glyphMarks);
   } else {
     trailRows = 0;
     shiftLeft = shiftRight = false;

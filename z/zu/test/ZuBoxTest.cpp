@@ -99,7 +99,7 @@ void test_std_string1(const char *type, T v, const char *s_)
 {
   ZuBox<T> b = v;
   ZuVFmt vfmt = VFmt<Fmt, ZuBox<T> >::_();
-  { S s; s += b.fmt(Fmt()); test_std_string2<Fmt, S>(type, s, s_); }
+  { S s; s += b.template fmt<Fmt>(); test_std_string2<Fmt, S>(type, s, s_); }
   { S s; s += b.vfmt(vfmt); test_std_string2<Fmt, S>(type, s, s_); }
 }
 
@@ -118,7 +118,7 @@ void test_std_stream1(const char *type, T v, const char *s_)
 {
   ZuBox<T> b = v;
   ZuVFmt vfmt = VFmt<Fmt, ZuBox<T> >::_();
-  { S s; s << b.fmt(Fmt()); test_std_stream2<Fmt, S>(type, s, s_); }
+  { S s; s << b.template fmt<Fmt>(); test_std_stream2<Fmt, S>(type, s, s_); }
   { S s; s << b.vfmt(vfmt); test_std_stream2<Fmt, S>(type, s, s_); }
 }
 
@@ -145,11 +145,11 @@ void test(const char *type, T v, const char *s)
   ZuVFmt vfmt = VFmt<Fmt, ZuBox<T> >::_();
   char buf[64], buf2[64];
   printf("%d %d %d\n", (int)strlen(s),
-      (int)i.fmt(Fmt()).length(),
+      (int)i.template fmt<Fmt>().length(),
       (int)i.vfmt(vfmt).length());
-  CHECK2(i.fmt(Fmt()).length() >= strlen(s), i, s);
+  CHECK2(i.template fmt<Fmt>().length() >= strlen(s), i, s);
   CHECK2(i.vfmt(vfmt).length() >= strlen(s), i, s);
-  buf[i.fmt(Fmt()).print(buf)] = 0;
+  buf[i.template fmt<Fmt>().print(buf)] = 0;
   buf2[i.vfmt(vfmt).print(buf2)] = 0;
   printf("%s %s %s\n", s, buf, buf2);
   CHECK2(!strcmp(s, buf), s, buf);
@@ -171,8 +171,8 @@ void testf(const char *type, T v, const char *s, T d = (T)0)
   CHECK(ZuBox<T>(-f) > ZuBox<T>(), f);
   CHECK2(f > (v - 1), f, v);
   char buf[64], buf2[64];
-  buf[f.fmt(Fmt()).print(buf)] = 0;
-  buf2[f.fmt(ZuFmt::Comma<',', Fmt>()).print(buf2)] = 0;
+  buf[f.template fmt<Fmt>().print(buf)] = 0;
+  buf2[f.template fmt<ZuFmt::Comma<',', Fmt>>().print(buf2)] = 0;
   printf("%s %s %s\n", s, buf, buf2);
   CHECK2(!strcmp(s, buf2), s, buf2);
   ZuBox<T> g, h;
@@ -469,14 +469,14 @@ int main()
 
   {
     int x = 42;
-    std::cout << "Hex (4, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Right<4> >()) << '\n';
-    std::cout << "Hex (3, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Right<3> >()) << '\n';
-    std::cout << "Hex (2, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Right<2> >()) << '\n';
-    std::cout << "Hex (1, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Right<1> >()) << '\n';
-    std::cout << "Hex (-1, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Left<1> >()) << '\n';
-    std::cout << "Hex (-2, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Left<2> >()) << '\n';
-    std::cout << "Hex (-3, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Left<3> >()) << '\n';
-    std::cout << "Hex (-4, uppercase, int) 42: " << ZuBoxed(x).fmt(ZuFmt::Hex<1, ZuFmt::Left<4> >()) << '\n';
+    std::cout << "Hex (4, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<4> >>() << '\n';
+    std::cout << "Hex (3, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<3> >>() << '\n';
+    std::cout << "Hex (2, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<2> >>() << '\n';
+    std::cout << "Hex (1, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<1> >>() << '\n';
+    std::cout << "Hex (-1, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<1> >>() << '\n';
+    std::cout << "Hex (-2, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<2> >>() << '\n';
+    std::cout << "Hex (-3, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<3> >>() << '\n';
+    std::cout << "Hex (-4, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<4> >>() << '\n';
   }
 
   {
@@ -503,7 +503,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "itoa: " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
 
     {
@@ -527,7 +527,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<int>::fmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
 
     {
@@ -552,7 +552,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<int>::vfmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
 
     {
@@ -577,7 +577,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "sprintf(\"%f\"): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
 
     {
@@ -603,7 +603,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<double>::fmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
 
     {
@@ -628,7 +628,7 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<double>::vfmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt(ZuFmt::Frac<9>()) << '\n';
+	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
     }
   }
 }

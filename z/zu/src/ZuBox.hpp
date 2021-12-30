@@ -54,7 +54,7 @@
 #pragma warning(disable:4312 4800)
 #endif
 
-template <typename T, class Cmp> class ZuBox;
+template <typename T, typename Cmp> class ZuBox;
 template <typename> struct ZuIsBoxed_ { enum { OK = 0 }; };
 template <typename T, typename Cmp>
 struct ZuIsBoxed_<ZuBox<T, Cmp>> { enum { OK = 1 }; };
@@ -65,23 +65,23 @@ template <typename U, typename R = void>
 using ZuNotBoxed = ZuIfT<!ZuIsBoxed_<U>::OK, R>;
 
 // compile-time formatting
-template <typename T, class Fmt,
+template <typename T, typename Fmt,
   bool Signed = ZuTraits<T>::IsSigned,
   bool FloatingPoint = Signed && ZuTraits<T>::IsFloatingPoint>
 struct ZuBox_Print;
-template <typename T, class Fmt> struct ZuBox_Print<T, Fmt, 0, 0> {
+template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 0, 0> {
   static unsigned length(T v)
     { return Zu_nprint<Fmt>::ulen(v); }
   static unsigned print(T v, char *buf)
     { return Zu_nprint<Fmt>::utoa(v, buf); }
 };
-template <typename T, class Fmt> struct ZuBox_Print<T, Fmt, 1, 0> {
+template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 1, 0> {
   static unsigned length(T v)
     { return Zu_nprint<Fmt>::ilen(v); }
   static unsigned print(T v, char *buf)
     { return Zu_nprint<Fmt>::itoa(v, buf); }
 };
-template <typename T, class Fmt> struct ZuBox_Print<T, Fmt, 1, 1> {
+template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 1, 1> {
   static unsigned length(T v)
     { return Zu_nprint<Fmt>::flen(v); }
   static unsigned print(T v, char *buf)
@@ -112,21 +112,21 @@ template <typename T> struct ZuBox_VPrint<T, 1, 1> {
     { return Zu_vprint::ftoa(fmt, v, buf); }
 };
 
-template <typename T, class Fmt,
+template <typename T, typename Fmt,
   bool Signed = ZuTraits<T>::IsSigned,
   bool FloatingPoint = Signed && ZuTraits<T>::IsFloatingPoint>
 struct ZuBox_Scan;
-template <typename T_, class Fmt> struct ZuBox_Scan<T_, Fmt, 0, 0> {
+template <typename T_, typename Fmt> struct ZuBox_Scan<T_, Fmt, 0, 0> {
   using T = uint64_t;
   static unsigned scan(T &v, const char *buf, unsigned n)
     { return Zu_nscan<Fmt>::atou(v, buf, n); }
 };
-template <typename T_, class Fmt> struct ZuBox_Scan<T_, Fmt, 1, 0> {
+template <typename T_, typename Fmt> struct ZuBox_Scan<T_, Fmt, 1, 0> {
   using T = int64_t;
   static unsigned scan(T &v, const char *buf, unsigned n)
     { return Zu_nscan<Fmt>::atoi(v, buf, n); }
 };
-template <typename T_, class Fmt> struct ZuBox_Scan<T_, Fmt, 1, 1> {
+template <typename T_, typename Fmt> struct ZuBox_Scan<T_, Fmt, 1, 1> {
   using T = T_;
   static unsigned scan(T &v, const char *buf, unsigned n)
     { return Zu_nscan<Fmt>::atof(v, buf, n); }
@@ -143,8 +143,8 @@ template <typename B> struct ZuBoxPrint : public ZuPrintBuffer {
 };
 
 // compile-time formatting
-template <class Boxed, class Fmt> class ZuBoxFmt {
-template <typename, class> friend class ZuBox;
+template <typename Boxed, typename Fmt> class ZuBoxFmt {
+template <typename, typename> friend class ZuBox;
 
   using Print = ZuBox_Print<typename Boxed::T, Fmt>;
 
@@ -161,9 +161,9 @@ private:
 };
 
 // run-time formatting
-template <class Boxed>
+template <typename Boxed>
 class ZuBoxVFmt : public ZuVFmtWrapper<ZuBoxVFmt<Boxed>> {
-template <typename, class> friend class ZuBox;
+template <typename, typename> friend class ZuBox;
 
   using Print = ZuBox_VPrint<typename Boxed::T>;
 
@@ -209,12 +209,12 @@ using ZuBox_IsCharPtr =
 
 template <typename U>
 struct ZuBox_Unbox_ { using T = U; };
-template <typename U, class Cmp>
+template <typename U, typename Cmp>
 struct ZuBox_Unbox_<ZuBox<U, Cmp> > { using T = U; };
 template <typename U>
 using ZuBox_Unbox = typename ZuBox_Unbox_<U>::T;
 
-template <typename T_, class Cmp_ = ZuCmp<ZuBox_Unbox<T_>> >
+template <typename T_, typename Cmp_ = ZuCmp<ZuBox_Unbox<T_>> >
 class ZuBox {
 template <typename, typename> friend class ZuBox;
 template <typename, typename> friend class ZuBoxFmt;
@@ -225,8 +225,8 @@ public:
   using Cmp = Cmp_;
 
 private:
-  template <class Fmt = ZuFmt::Default> using Scan = ZuBox_Scan<T, Fmt>;
-  template <class Fmt = ZuFmt::Default> using Print = ZuBox_Print<T, Fmt>;
+  template <typename Fmt = ZuFmt::Default> using Scan = ZuBox_Scan<T, Fmt>;
+  template <typename Fmt = ZuFmt::Default> using Print = ZuBox_Print<T, Fmt>;
 
   ZuAssert(ZuTraits<T>::IsPrimitive && ZuTraits<T>::IsReal);
 
@@ -252,7 +252,7 @@ public:
     if (ZuLikely(s && Scan<>::scan(val, s.data(), s.length())))
       m_val = val;
   }
-  template <class Fmt, typename S>
+  template <typename Fmt, typename S>
   ZuBox(Fmt, S &&s_, ZuIsCharString<S> *_ = nullptr) :
       m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
@@ -268,7 +268,7 @@ public:
     if (ZuLikely(s && Scan<>::scan(val, s, len)))
       m_val = val;
   }
-  template <class Fmt, typename S>
+  template <typename Fmt, typename S>
   ZuBox(Fmt, S s, unsigned len,
       ZuBox_IsCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
     typename Scan<Fmt>::T val = 0;
@@ -315,14 +315,14 @@ public:
     return equals_(m_val, b.m_val);
   }
 
-  template <class Cmp__ = Cmp>
+  template <typename Cmp__ = Cmp>
   ZuIfT<!ZuConversion<Cmp__, ZuCmp0<T> >::Same, int>
   cmp_(const ZuBox &b) const {
     if (Cmp::null(b.m_val)) return Cmp::null(m_val) ? 0 : 1;
     if (Cmp::null(m_val)) return -1;
     return Cmp::cmp(m_val, b.m_val);
   }
-  template <class Cmp__ = Cmp>
+  template <typename Cmp__ = Cmp>
   ZuIfT<ZuConversion<Cmp__, ZuCmp0<T> >::Same, int>
   cmp_(const ZuBox &b) const {
     return Cmp::cmp(m_val, b.m_val);
@@ -345,16 +345,13 @@ public:
   operator T &() & { return m_val; }
 
   // compile-time formatting
-  template <class Fmt>
-  ZuBoxFmt<ZuBox, Fmt> fmt(Fmt) const { 
-    return ZuBoxFmt<ZuBox, Fmt>(*this);
+  template <typename Fmt = ZuFmt::Default>
+  ZuBoxFmt<ZuBox, Fmt> fmt() const { 
+    return ZuBoxFmt<ZuBox, Fmt>{*this};
   }
-  ZuBoxFmt<ZuBox, ZuFmt::Hex<> > hex() const {
-    return ZuBoxFmt<ZuBox, ZuFmt::Hex<> >(*this);
-  }
-  template <class Fmt>
-  ZuBoxFmt<ZuBox, ZuFmt::Hex<0, Fmt> > hex(Fmt) const {
-    return ZuBoxFmt<ZuBox, ZuFmt::Hex<0, Fmt> >(*this);
+  template <bool Upper = false, typename Fmt = ZuFmt::Default>
+  ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt> > hex() const {
+    return ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt> >{*this};
   }
   // run-time formatting
   ZuBoxVFmt<ZuBox> vfmt() const {
@@ -365,22 +362,10 @@ public:
     return ZuBoxVFmt<ZuBox>{*this, ZuFwd<VFmt>(fmt)};
   }
 
-  template <typename S>
+  template <typename Fmt = ZuFmt::Default, typename S>
   ZuIsCharString<S, unsigned> scan(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
-    unsigned n = Scan<>::scan(val, s.data(), s.length());
-    if (ZuUnlikely(!n)) {
-      m_val = Cmp::null();
-      return 0U;
-    }
-    m_val = val;
-    return n;
-  }
-  template <class Fmt, typename S>
-  ZuIsCharString<S, unsigned> scan(Fmt, S &&s_) {
-    ZuString s(ZuFwd<S>(s_));
-    typename Scan<Fmt>::T val = 0;
     unsigned n = Scan<Fmt>::scan(val, s.data(), s.length());
     if (ZuUnlikely(!n)) {
       m_val = Cmp::null();
@@ -389,19 +374,8 @@ public:
     m_val = val;
     return n;
   }
-  template <typename S>
+  template <typename Fmt = ZuFmt::Default, typename S>
   ZuBox_IsCharPtr<S, unsigned> scan(S s, unsigned len) {
-    typename Scan<>::T val = 0;
-    unsigned n = Scan<>::scan(val, s, len);
-    if (ZuUnlikely(!n)) {
-      m_val = Cmp::null();
-      return 0U;
-    }
-    m_val = val;
-    return n;
-  }
-  template <class Fmt, typename S>
-  ZuBox_IsCharPtr<S, unsigned> scan(Fmt, S s, unsigned len) {
     typename Scan<Fmt>::T val = 0;
     unsigned n = Scan<Fmt>::scan(val, s, len);
     if (ZuUnlikely(!n)) {
@@ -535,7 +509,7 @@ private:
 #define ZuBoxN(T, N) ZuBox<T, ZuCmpN<T, N> >
 
 // ZuCmp has to be specialized since null() is otherwise !t (instead of !*t)
-template <typename T_, class Cmp>
+template <typename T_, typename Cmp>
 struct ZuCmp<ZuBox<T_, Cmp> > {
   using T = ZuBox<T_, Cmp>;
   static int cmp(const T &t1, const T &t2) { return t1.cmp(t2); }
@@ -548,7 +522,7 @@ struct ZuCmp<ZuBox<T_, Cmp> > {
 // ZuBoxT<T> is T if T is already boxed, ZuBox<T> otherwise
 template <typename U>
 struct ZuBoxT_ { using T = ZuBox<U>; };
-template <typename U, class Cmp>
+template <typename U, typename Cmp>
 struct ZuBoxT_<ZuBox<U, Cmp>> { using T = ZuBox<U, Cmp>; };
 template <typename U>
 using ZuBoxT = typename ZuBoxT_<U>::T;

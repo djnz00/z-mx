@@ -3,11 +3,11 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src \
 	@Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@
-LDADD = $(top_builddir)/zu/src/libZu.la
+LDADD = $(top_builddir)/zu/src/libZu.la @Z_MT_LIBS@
 noinst_PROGRAMS = \
 	ZuConversionTest ZuHashTest ZuCmpTest ZuBoxTest \
 	ZuArrayTest ZuPairTest ZuIDTest ZuUTFTest ZuBitmapTest \
-	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest
+	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest ZuAllocaTest
 ZuConversionTest_SOURCES = ZuConversionTest.cpp
 ZuHashTest_SOURCES = ZuHashTest.cpp Analyze.hpp
 ZuCmpTest_SOURCES = ZuCmpTest.cpp
@@ -22,3 +22,4 @@ ZuBitmapTest_SOURCES = ZuBitmapTest.cpp
 ZuDecimalTest_SOURCES = ZuDecimalTest.cpp
 ZuFieldTest_SOURCES = ZuFieldTest.cpp
 ZuTLTest_SOURCES = ZuTLTest.cpp
+ZuAllocaTest_SOURCES = ZuAllocaTest.cpp

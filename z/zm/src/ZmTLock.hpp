@@ -600,11 +600,11 @@ public:
       lock = lockNode->val();
     }
 
-    s << "C" << ZuBoxed(lock->m_useCount).fmt(ZuFmt::Right<3>()) <<
-      ":R" << ZuBoxed(lock->m_readCount).fmt(ZuFmt::Right<3>()) <<
-      ":U" << ZuBoxed(lock->m_upgradeCount).fmt(ZuFmt::Right<3>()) <<
-      ":W" << ZuBoxed(lock->m_writeCount).fmt(ZuFmt::Right<3>()) <<
-      ":L" << ZuBoxed(lock->m_lockCount).fmt(ZuFmt::Right<3>());
+    s << "C" << ZuBoxed(lock->m_useCount).template fmt<ZuFmt::Right<3>>() <<
+      ":R" << ZuBoxed(lock->m_readCount).template fmt<ZuFmt::Right<3>>() <<
+      ":U" << ZuBoxed(lock->m_upgradeCount).template fmt<ZuFmt::Right<3>>() <<
+      ":W" << ZuBoxed(lock->m_writeCount).template fmt<ZuFmt::Right<3>>() <<
+      ":L" << ZuBoxed(lock->m_lockCount).template fmt<ZuFmt::Right<3>>();
     return s;
   }
 

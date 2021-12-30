@@ -43,12 +43,18 @@ public:
   ZuMvArray() = default;
 
   ZuMvArray(unsigned n) :
-      m_length{n}, m_data{!n ? (T *)nullptr : (T *)::malloc(n * sizeof(T))} {
+      m_length{n},
+      m_data{!n ?
+	static_cast<T *>(nullptr) :
+	static_cast<T *>(::malloc(n * sizeof(T)))} {
     if (ZuUnlikely(n && !m_data)) throw std::bad_alloc();
     this->initItems(m_data, n);
   }
   ZuMvArray(T *data, unsigned n) :
-      m_length{n}, m_data{!n ? (T *)nullptr : (T *)::malloc(n * sizeof(T))} {
+      m_length{n},
+      m_data{!n ?
+	static_cast<T *>(nullptr) :
+	static_cast<T *>(::malloc(n * sizeof(T)))} {
     if (ZuUnlikely(n && !m_data)) throw std::bad_alloc();
     this->moveItems(m_data, data, n);
   }
@@ -97,7 +103,7 @@ public:
     T *oldData = m_data;
     unsigned oldLength = m_length;
     m_length = newLength;
-    m_data = (T *)::malloc(newLength * sizeof(T));
+    m_data = static_cast<T *>(::malloc(newLength * sizeof(T)));
     unsigned mvLength = oldLength < newLength ? oldLength : newLength;
     unsigned initLength = newLength - mvLength;
     if (mvLength) this->moveItems(m_data, oldData, mvLength);

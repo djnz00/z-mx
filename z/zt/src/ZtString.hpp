@@ -60,8 +60,8 @@
 #include <zlib/ZuEquivChar.hpp>
 #include <zlib/ZuGrow.hpp>
 
-#include <zlib/ZmAssert.hpp>
 #include <zlib/ZmStream.hpp>
+#include <zlib/ZmVHeap.hpp>
 
 #include <zlib/ZtPlatform.hpp>
 #include <zlib/ZtArray.hpp>
@@ -90,9 +90,13 @@ template <typename T_> struct ZtString_Char2;
 template <> struct ZtString_Char2<char> { using T = wchar_t; };
 template <> struct ZtString_Char2<wchar_t> { using T = char; };
 
+struct ZtString_ID {
+  static constexpr const char *id() { return "ZtString"; }
+};
+
 template <typename> struct ZtString__ { };
 template <typename Char_>
-class ZtString_ : public ZtString__<Char_> {
+class ZtString_ : private ZmVHeap<ZtString_ID>, public ZtString__<Char_> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
@@ -558,7 +562,7 @@ private:
   void own_(
       const Char *data, unsigned length, unsigned size, bool mallocd) {
     if (!size) {
-      if (data && mallocd) ::free((void *)data);
+      if (data && mallocd) vfree((void *)data);
       null_();
       return;
     }
@@ -580,7 +584,7 @@ private:
       length_mallocd_builtin(length, 0, 1);
       return (Char *)m_data;
     }
-    Char *newData = (Char *)::malloc(size * sizeof(Char));
+    Char *newData = (Char *)valloc(size * sizeof(Char));
     if (!newData) throw std::bad_alloc{};
     m_data[0] = (uintptr_t)newData;
     size_owned_null(size, 1, 0);
@@ -597,7 +601,7 @@ private:
       length_mallocd_builtin(length, 0, 1);
       return;
     }
-    Char *newData = (Char *)::malloc((length + 1) * sizeof(Char));
+    Char *newData = (Char *)valloc((length + 1) * sizeof(Char));
     if (!newData) throw std::bad_alloc{};
     memcpy(newData, copyData, length * sizeof(Char));
     newData[length] = 0;
@@ -609,14 +613,14 @@ private:
   template <typename S> void convert_(const S &s, ZtIconv *iconv);
 
   void free_() {
-    if (mallocd()) if (Char *data = (Char *)m_data[0]) ::free(data);
+    if (mallocd()) if (Char *data = (Char *)m_data[0]) vfree(data);
   }
   Char *free_1() {
     if (!mallocd()) return 0;
     return data_();
   }
   void free_2(Char *data) {
-    if (data) ::free(data);
+    if (data) vfree(data);
   }
 
 public:
@@ -720,7 +724,7 @@ public:
     if (!move) return data_();
     if (null__()) return 0;
     if (builtin()) {
-      Char *newData = (Char *)::malloc(BuiltinSize * sizeof(Char));
+      Char *newData = (Char *)valloc(BuiltinSize * sizeof(Char));
       if (!newData) throw std::bad_alloc{};
       memcpy(newData, m_data, (length() + 1) * sizeof(Char));
       return newData;
@@ -777,14 +781,14 @@ public:
     if (z <= (unsigned)BuiltinSize)
       newData = (Char *)m_data;
     else {
-      newData = (Char *)::malloc(z * sizeof(Char));
+      newData = (Char *)valloc(z * sizeof(Char));
       if (!newData) throw std::bad_alloc{};
     }
     unsigned n = z - 1U;
     if (n > length()) n = length();
     if (oldData != newData) {
       memcpy(newData, oldData, (n + 1) * sizeof(Char));
-      if (mallocd()) ::free(oldData);
+      if (mallocd()) vfree(oldData);
     }
     if (z <= (unsigned)BuiltinSize) {
       size_owned_null(z, 1, 0);
@@ -917,7 +921,7 @@ private:
     unsigned n = this->length();
     unsigned o = n + length;
     if (ZuUnlikely(!o)) return ZtString_<Char>();
-    Char *newData = (Char *)::malloc((o + 1) * sizeof(Char));
+    Char *newData = (Char *)valloc((o + 1) * sizeof(Char));
     if (!newData) throw std::bad_alloc{};
     if (n) memcpy(newData, data_(), n * sizeof(Char));
     if (length) memcpy(newData + n, data, length * sizeof(Char));
@@ -1144,7 +1148,7 @@ private:
       if (z <= (unsigned)BuiltinSize)
 	newData = (Char *)m_data;
       else {
-	newData = (Char *)::malloc(z * sizeof(Char));
+	newData = (Char *)valloc(z * sizeof(Char));
       if (!newData) throw std::bad_alloc{};
       }
       if (oldData != newData && offset)
@@ -1156,7 +1160,7 @@ private:
 	memmove(newData + offset + rlength,
 		oldData + offset + length,
 		(n - (offset + length)) * sizeof(Char));
-      if (oldData != newData && mallocd()) ::free(oldData);
+      if (oldData != newData && mallocd()) vfree(oldData);
       newData[l] = 0;
       if (z <= (unsigned)BuiltinSize) {
 	size_owned_null(z, 1, 0);
@@ -1417,14 +1421,17 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // the logger, which runs in a different thread and stack, and both the
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
-struct ZtAPI ZtHexDump {
+struct ZtHexDump_ID {
+  static constexpr const char *id() { return "ZtHexDump"; }
+};
+struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
   ZtHexDump(ZuString prefix_, const void *data_, unsigned length_) :
       prefix(prefix_), data(0), length(length_) {
-    if (ZuLikely(data = (uint8_t *)::malloc(length)))
+    if (ZuLikely(data = static_cast<uint8_t *>(valloc(length))))
       memcpy(data, data_, length);
   }
   ~ZtHexDump() {
-    if (ZuLikely(data)) ::free(data);
+    if (ZuLikely(data)) vfree(data);
   }
   ZtHexDump(ZtHexDump &&d) :
     prefix(ZuMv(d.prefix)), data(d.data), length(d.length) {

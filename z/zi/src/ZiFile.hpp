@@ -97,7 +97,7 @@ public:
   void setFlags(int f) { Guard guard(m_lock); m_flags |= f; }
   void clrFlags(int f) { Guard guard(m_lock); m_flags &= ~f; }
 
-  int init(Handle handle, unsigned flags, ZeError *e = 0);
+  int init(Handle handle, unsigned flags, ZeError *e = nullptr);
   void final() {
     Guard guard(m_lock);
 
@@ -133,20 +133,24 @@ public:
   Offset offset() { ReadGuard guard(m_lock); return m_offset; }
   void seek(Offset offset) { Guard guard(m_lock); m_offset = offset; }
 
-  int sync(ZeError *e = 0);
-  int msync(void *addr = 0, Offset length = 0, ZeError *e = 0);
+  int sync(ZeError *e = nullptr);
+  int msync(void *addr = 0, Offset length = 0, ZeError *e = nullptr);
 
-  int read(void *ptr, unsigned len, ZeError *e = 0);
-  int readv(const ZiVec *vecs, unsigned nVecs, ZeError *e = 0);
+  int read(void *ptr, unsigned len, ZeError *e = nullptr);
+  int readv(const ZiVec *vecs, unsigned nVecs, ZeError *e = nullptr);
 
-  int write(const void *ptr, unsigned len, ZeError *e = 0);
-  int writev(const ZiVec *vecs, unsigned nVecs, ZeError *e = 0);
+  int write(const void *ptr, unsigned len, ZeError *e = nullptr);
+  int writev(const ZiVec *vecs, unsigned nVecs, ZeError *e = nullptr);
 
-  int pread(Offset offset, void *ptr, unsigned len, ZeError *e = 0);
-  int preadv(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e = 0);
+  int pread(Offset offset,
+      void *ptr, unsigned len, ZeError *e = nullptr);
+  int preadv(Offset offset,
+      const ZiVec *vecs, unsigned nVecs, ZeError *e = nullptr);
 
-  int pwrite(Offset offset, const void *ptr, unsigned len, ZeError *e = 0);
-  int pwritev(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e = 0);
+  int pwrite(Offset offset,
+      const void *ptr, unsigned len, ZeError *e = nullptr);
+  int pwritev(Offset offset,
+      const ZiVec *vecs, unsigned nVecs, ZeError *e = nullptr);
 
   // Note: unbuffered!
   template <typename V> ZiFile &operator <<(V &&v) {
@@ -154,14 +158,16 @@ public:
     return *this;
   }
 
-  static ZmTime mtime(const Path &name, ZeError *e = 0);
-  static bool isdir(const Path &name, ZeError *e = 0);
+  static ZmTime mtime(const Path &name, ZeError *e = nullptr);
+  static bool isdir(const Path &name, ZeError *e = nullptr);
 
-  static int remove(const Path &name, ZeError *e = 0);
-  static int rename(const Path &oldName, const Path &newName, ZeError *e = 0);
-  static int copy(const Path &oldName, const Path &newName, ZeError *e = 0);
-  static int mkdir(const Path &name, ZeError *e = 0);
-  static int rmdir(const Path &name, ZeError *e = 0);
+  static int remove(const Path &name, ZeError *e = nullptr);
+  static int rename(
+      const Path &oldName, const Path &newName, ZeError *e = nullptr);
+  static int copy(
+      const Path &oldName, const Path &newName, ZeError *e = nullptr);
+  static int mkdir(const Path &name, ZeError *e = nullptr);
+  static int rmdir(const Path &name, ZeError *e = nullptr);
 
   static Path cwd();
 
@@ -198,14 +204,11 @@ private:
   }
   template <typename P> MatchPBuffer<P> append_(const P &p) {
     unsigned len = ZuPrint<P>::length(p);
-    auto buf = static_cast<char *>(ZmAlloc(len));
-    if (ZuUnlikely(!buf)) throw ZeError(ZiENOMEM);
+    auto buf = ZuAlloc(char, len);
+    if (!buf) throw ZeError{ZiENOMEM};
     ZeError e;
-    if (ZuUnlikely(write(buf, ZuPrint<P>::print(buf, len, p), e) != Zi::OK)) {
-      ZmFree(buf);
+    if (ZuUnlikely(write(buf, ZuPrint<P>::print(buf, len, p), e) != Zi::OK))
       throw e;
-    } else
-      ZmFree(buf);
   }
 
   Lock		m_lock;

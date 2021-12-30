@@ -13,9 +13,9 @@
 int main()
 {
   ZuBitmap<256> a;
-  a.set(2, 5);
-  a.set(10, 14);
-  a.set(100, 255);
+  a.set(2, 6);
+  a.set(10, 15);
+  a.set(100, 256);
   ZuStringN<100> s;
   s << a;
   std::cout << s << '\n' << std::flush;

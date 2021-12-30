@@ -121,24 +121,7 @@ void ZmThreadContext_::init()
 void ZmThreadContext::init()
 {
   ZmThreadContext_::init();
-  {
-#ifndef _WIN32
-    void *addr;
-    size_t size;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_getattr_np(m_pthread, &attr);
-    pthread_attr_getstack(&attr, &addr, &size);
-    m_stackAddr = addr;
-    m_stackSize = size;
-#else /* !_WIN32 */
-    auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
-    m_stackAddr = tib->StackLimit;
-    m_stackSize =
-      reinterpret_cast<const uint8_t *>(tib->StackBase) -
-      reinterpret_cast<const uint8_t *>(tib->StackLimit);
-#endif /* !_WIN32 */
-  }
+  m_self = ZuSelf();
   if (!m_name) {
     if (main())
       m_name = "main";

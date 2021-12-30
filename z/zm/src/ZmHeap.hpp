@@ -34,6 +34,7 @@
 
 #include <zlib/ZuTuple.hpp>
 #include <zlib/ZuPrint.hpp>
+#include <zlib/ZuSwitch.hpp>
 
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmObject.hpp>
@@ -50,8 +51,8 @@
 class ZmHeapMgr;
 class ZmHeapMgr_;
 class ZmHeapCache;
-template <class ID, unsigned Size> class ZmHeap;
-template <class ID, unsigned Size> class ZmHeapCacheT;
+template <typename ID, unsigned Size> class ZmHeap;
+template <typename ID, unsigned Size> class ZmHeapCacheT;
 
 struct ZmHeapConfig {
   uint32_t	alignment;
@@ -163,7 +164,7 @@ private:
     uintptr_t p;
   loop:
     p = m_head.load_();
-    if (ZuUnlikely(!p)) return 0;
+    if (ZuUnlikely(!p)) return nullptr;
     if (ZuLikely(m_info.sharded)) { // sharded - no contention
       m_head.store_(*(uintptr_t *)p);
       return (void *)p;
@@ -277,13 +278,13 @@ private:
 // derive ID from ZmHeapSharded to declare a sharded heap
 struct ZmHeapSharded { };
 
-template <class ID, unsigned Size>
+template <typename ID, unsigned Size>
 struct ZmCleanup<ZmHeapCacheT<ID, Size> > {
   enum { Level = ZmCleanupLevel::Heap };
 };
 
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
-template <class ID, unsigned Size>
+template <typename ID, unsigned Size>
 class ZmHeapCacheT : public ZmObject {
 friend ZmSpecificCtor<ZmHeapCacheT<ID, Size> >;
   using TLS = ZmSpecific<ZmHeapCacheT>;
@@ -306,12 +307,12 @@ public:
     m_cache->histStats(m_stats);
   }
 
-  ZuInline static ZmHeapCacheT *instance() { return TLS::instance(); }
-  ZuInline static void *alloc() {
+  static ZmHeapCacheT *instance() { return TLS::instance(); }
+  static void *alloc() {
     ZmHeapCacheT *self = instance();
     return self->m_cache->alloc(self->m_stats);
   }
-  ZuInline static void free(void *p) {
+  static void free(void *p) {
     ZmHeapCacheT *self = instance();
     self->m_cache->free(self->m_stats, p);
   }
@@ -320,6 +321,8 @@ private:
   ZmHeapCache	*m_cache;
   ZmHeapStats	m_stats;
 };
+
+// FIXME - move to constexpr function like ZuGrow()
 
 // ZmHeap_Size returns a size that is minimum sizeof(uintptr_t),
 // or the smallest power of 2 greater than the passed size yet smaller
@@ -354,15 +357,22 @@ template <typename, unsigned> friend class ZmHeap;
   ZmHeap_Init();
 };
 
-template <typename ID, unsigned Size_> class ZmHeap {
+template <typename ID_, unsigned Size_>
+class ZmHeap {
   enum { Size = ZmHeap_Size<Size_>::Size };
 
+public:
+  using ID = ID_;
+private:
   using Cache = ZmHeapCacheT<ID, Size>;
 
 public:
-  ZuInline void *operator new(size_t) { return Cache::alloc(); }
-  ZuInline void *operator new(size_t, void *p) noexcept { return p; }
-  ZuInline void operator delete(void *p) noexcept { Cache::free(p); }
+  void *operator new(size_t) { return Cache::alloc(); }
+  void *operator new(size_t, void *p) noexcept { return p; }
+  void operator delete(void *p) noexcept {
+    if (ZuUnlikely(!p)) return;
+    Cache::free(p);
+  }
 
 private:
   static ZmHeap_Init<ZmHeap>	m_init;
@@ -371,7 +381,7 @@ private:
 template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
-template <class ID, unsigned Size_>
+template <typename ID, unsigned Size_>
 ZmHeap_Init<ZmHeap<ID, Size_> > ZmHeap<ID, Size_>::m_init;
 
 template <unsigned Size> class ZmHeap<ZuNull, Size> { };
