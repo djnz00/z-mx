@@ -201,7 +201,7 @@ namespace ZJNI {
     if (ZuUnlikely(!n)) { jchar c = 0; return env->NewString(&c, 0); }
     auto buf = ZuAlloc(jchar, n);
     if (!buf) return nullptr;
-    n = ZuUTF<jchar, char>::cvt(ZuArray<jchar>(buf, n), s);
+    n = ZuUTF<jchar, char>::cvt(ZuArray<jchar>(buf.ptr, n), s);
     auto r = env->NewString(buf, n);
     return r;
   }

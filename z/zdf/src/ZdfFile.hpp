@@ -155,7 +155,7 @@ private:
     return ZiFile::append(series.path,
 	ZiFile::Path{} << series.name << '_' <<
 	(ZuStringN<12>{} <<
-	  ZuBox<unsigned>{fileID.index()}.hex(ZuFmt::Right<8>())) <<
+	  ZuBox<unsigned>{fileID.index()}.hex<false, ZuFmt::Right<8>>()) <<
 	".sdb");
   }
   FilePos pos(unsigned seriesID, unsigned blkIndex) {

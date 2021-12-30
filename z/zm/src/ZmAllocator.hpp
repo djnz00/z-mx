@@ -73,12 +73,16 @@ struct ZmAllocator : private ZmVHeap<ID> {
 
   T *allocate(std::size_t);
   void deallocate(T *, std::size_t) noexcept;
+
+private:
+  using ZmVHeap<ID>::valloc;
+  using ZmVHeap<ID>::vfree;
 };
 template <typename T, typename ID>
 inline T *ZmAllocator<T, ID>::allocate(std::size_t n) {
   using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
-  if (auto ptr = static_cast<T *>(ZmVHeap<ID>::valloc(n * sizeof(T))))
+  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T))))
     return ptr;
   throw std::bad_alloc{};
 }
@@ -88,7 +92,7 @@ inline void ZmAllocator<T, ID>::deallocate(T *p, std::size_t n) noexcept {
   if (ZuLikely(n == 1))
     Cache::free(p);
   else
-    ZmVHeap<ID>::vfree(p);
+    vfree(p);
 }
 template <typename T, typename U, class ID>
 inline constexpr bool operator ==(

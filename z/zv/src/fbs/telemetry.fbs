@@ -175,7 +175,6 @@ enum DBCacheMode:int8 {
 table DB {
   path:string;
   name:string;
-  file_size:uint64;
   min_r_n:uint64;
   next_r_n:uint64;
   file_r_n:uint64;
@@ -183,14 +182,15 @@ table DB {
   cache_misses:uint64;
   file_loads:uint64;
   file_misses:uint64;
+  index_blk_loads:uint64;
+  index_blk_misses:uint64;
   id:uint32;
-  rec_size:uint32;
-  file_recs:uint32;
   cache_size:uint32;
-  files_max:uint32;
+  file_cache_size:uint32;
+  index_blk_cache_size:uint32;
+  cache_mode:DBCacheMode;
   warm_up:uint8;
   compress:uint8;
-  cache_mode:DBCacheMode;
 }
 enum DBHostState:int8 {
   Instantiated = 0,	// instantiated, init() not yet called

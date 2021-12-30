@@ -1016,8 +1016,8 @@ private:
       auto permList = static_cast<const fbs::PermList *>(ack->data());
       using namespace Zfb::Load;
       all(permList->list(), [&out](unsigned, auto perm_) {
-	out << ZuBoxed(perm_->id()).fmt(ZuFmt::Right<3, ' '>()) << ' '
-	  << str(perm_->name()) << '\n';
+	out << ZuBoxed(perm_->id()).template fmt<ZuFmt::Right<3, ' '>>() <<
+	  ' ' << str(perm_->name()) << '\n';
       });
       return executed(0, &ctx);
     });

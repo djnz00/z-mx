@@ -677,14 +677,14 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
   if (mode.bindings) {
     unsigned n = 0;
     for (auto i = mode.bindings->readIterator(); i.iterateVal(); ) ++n;
-    auto bindings = ZmAlloc(const Binding *, n);
+    auto bindings = ZuAlloc(const Binding *, n);
     if (bindings) {
       unsigned j = 0;
       for (auto i = mode.bindings->readIterator();
 	  auto binding = i.iterateVal(); )
 	bindings[j++] = binding;
       n = j;
-      ZuSort(bindings, n,
+      ZuSort(bindings.ptr, n,
 	  [](const Binding *b1, const Binding *b2) -> int {
 	    auto order = [](int32_t vkey) -> int32_t {
 	      return vkey < 0 ? ((-vkey) - INT_MAX) : vkey;
