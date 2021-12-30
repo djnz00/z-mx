@@ -164,8 +164,8 @@ public:
       if (m_ch >= 0x20 && m_ch < 0x7f)
 	s << m_ch;
       else
-	s << '\\' << ZuBoxed((unsigned)m_ch & 0xff).fmt(
-	    ZuFmt::Hex<0, ZuFmt::Alt<ZuFmt::Right<2> > >());
+	s << '\\' << ZuBoxed((unsigned)m_ch & 0xff).
+	  fmt<ZuFmt::Hex<0, ZuFmt::Alt<ZuFmt::Right<2>>>>();
       s << '\'';
     }
 
@@ -260,8 +260,8 @@ public:
       if (m_ch >= 0x20 && m_ch < 0x7f)
 	s << m_ch;
       else
-	s << '\\' << ZuBoxed((unsigned)m_ch & 0xff).fmt(
-	    ZuFmt::Hex<0, ZuFmt::Alt<ZuFmt::Right<2> > >());
+	s << '\\' << ZuBoxed((unsigned)m_ch & 0xff).
+	  fmt<ZuFmt::Hex<0, ZuFmt::Alt<ZuFmt::Right<2> > >>();
       s << '\'';
     }
   private:

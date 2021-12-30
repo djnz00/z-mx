@@ -184,7 +184,7 @@ int App::main(int argc, char **argv)
     std::cerr <<
       "total time: " <<
       ZuBoxed(start.sec()) << '.' <<
-	ZuBoxed(start.nsec()).fmt(ZuFmt::Frac<9>()) <<
+	ZuBoxed(start.nsec()).fmt<ZuFmt::Frac<9>>() <<
       "  avg time: " <<
       ZuBoxed((double)((start.dtime() / (double)count) * (double)1000000)) <<
       " usec\n";

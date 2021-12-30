@@ -35,6 +35,7 @@
 
 #include <zlib/ZmPolymorph.hpp>
 #include <zlib/ZmHeap.hpp>
+#include <zlib/ZmVHeap.hpp>
 
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
 #define ZiIOBuf_DefaultSize 1460
@@ -61,6 +62,11 @@ struct ZiIOBuf__ : private ZmVHeap<ID>, public ZiAnyIOBuf {
   uint32_t	skip = 0;
   uint8_t	data_[Size_];
 
+private:
+  using ZmVHeap<ID>::valloc;
+  using ZmVHeap<ID>::vfree;
+
+public:
   enum { Size = Size_ };
 
   ZiIOBuf__() { }
@@ -248,11 +254,13 @@ public:
   friend Traits ZuTraitsType(ZiIOBuf__ *);
 };
 #pragma pack(pop)
-template <unsigned Size, typename Heap>
-struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size, Heap::ID> {
+template <unsigned Size, typename Heap, typename HeapID>
+struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size, HeapID> {
+  using Base = ZiIOBuf__<Size, HeapID>;
+  using Base::Size;
   ZiIOBuf_() = default;
   template <typename ...Args>
-  ZiIOBuf_(Args &&... args) : ZiIOBuf_{ZuFwd<Args>(args)...} { }
+  ZiIOBuf_(Args &&... args) : Base(ZuFwd<Args>(args)...) { }
   ~ZiIOBuf_() = default;
   ZiIOBuf_(const ZiIOBuf_ &) = delete;
   ZiIOBuf_ &operator =(const ZiIOBuf_ &) = delete;
@@ -260,9 +268,10 @@ struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size, Heap::ID> {
   ZiIOBuf_ &operator =(ZiIOBuf_ &&) = delete;
 };
 template <unsigned Size>
-using ZiIOBuf_Heap = ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull>)>;
+using ZiIOBuf_Heap =
+  ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID>)>;
  
 template <unsigned Size = ZiIOBuf_DefaultSize>
-using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>>;
+using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID>;
 
 #endif /* ZiIOBuf_HPP */

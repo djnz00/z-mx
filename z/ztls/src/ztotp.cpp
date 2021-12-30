@@ -24,5 +24,5 @@ int main(int argc, char **argv)
   secret.length(
       Ztls::Base32::decode(secret.data(), secret.length(), argv[1], n));
   auto code = Ztls::TOTP::calc(secret.data(), secret.length());
-  std::cout << ZuBoxed(code).fmt(ZuFmt::Right<6>()) << '\n';
+  std::cout << ZuBoxed(code).fmt<ZuFmt::Right<6>>() << '\n';
 }

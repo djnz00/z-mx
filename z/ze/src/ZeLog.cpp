@@ -287,7 +287,7 @@ void ZeDebugSink::log(ZeEvent *e)
   ZmTime d = e->time() - m_started;
 
   buf->s <<
-    '+' << ZuBoxed(d.dtime()).fmt(ZuFmt::FP<9>()) << ' ' <<
+    '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
     ZuBoxed(e->tid()) << ' ' <<
     Ze::severity(e->severity()) << ' ';
   if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)

@@ -145,8 +145,8 @@ namespace Save {
     auto n = ZuConstant<sizeof...(Args)>{};
     auto buf = ZuAlloc(T, n);
     if (!buf) return {};
-    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf, n);
+    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
 
@@ -156,8 +156,8 @@ namespace Save {
     auto n = ZuConstant<sizeof...(Args)>{};
     auto buf = ZuAlloc(Offset<T>, n);
     if (!buf) return {};
-    lpush_(buf, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf, n);
+    lpush_(buf.ptr, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
   // inline creation of a vector of non-primitive values
@@ -166,8 +166,8 @@ namespace Save {
     auto n = ZuConstant<sizeof...(Args)>{};
     auto buf = ZuAlloc(Offset<T>, n);
     if (!buf) return {};
-    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf, n);
+    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
   // iterated creation of a vector of non-primitive values
@@ -176,7 +176,7 @@ namespace Save {
     auto buf = ZuAlloc(Offset<T>, n);
     if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    auto r = b.CreateVector(buf, n);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
 
@@ -194,8 +194,8 @@ namespace Save {
     auto n = ZuConstant<sizeof...(Args)>{};
     auto buf = ZuAlloc(Offset<T>, n);
     if (!buf) return {};
-    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVectorOfSortedTables(buf, n);
+    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
   // iterated creation of a vector of lambda-transformed keyed items
@@ -204,7 +204,7 @@ namespace Save {
     auto buf = ZuAlloc(Offset<T>, n);
     if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    auto r = b.CreateVectorOfSortedTables(buf, n);
+    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
 
