@@ -130,8 +130,7 @@ struct Hdr {
 // call following Finish() to ensure alignment
 inline void saveHdr(Zfb::Builder &fbb) {
   unsigned len = fbb.GetSize();
-  Hdr hdr{len};
-  fbb.PushBytes(reinterpret_cast<uint8_t *>(&hdr), sizeof(Hdr));
+  new (Zfb::Save::extend(fbb, sizeof(Hdr))) Hdr{len};
 }
 // returns the total length of the message including the header,
 // INT_MAX if not enough bytes have been read yet, -1 if corrupt
@@ -144,6 +143,7 @@ inline int loadHdr(const uint8_t *data, unsigned length) {
 
 } // namespace ZdbNet
 
+#if 0
 on-disk record format:
 
 exact length (of data)
@@ -179,6 +179,7 @@ update()
     that will be a cache-miss load
 
 del() is similar to update, but file write and replication of empty data
+#endif
 
 class ZdbEnv;				// database environment
 class Zdb;				// individual database
@@ -300,19 +301,32 @@ friend File_IDAxor;
   };
 
 public:
-  File_(Zdb *db, uint64_t id, bool compressed) : m_db{db}, m_id{id} { }
+  File_(Zdb *db, uint64_t id) : m_db{db}, m_id{id} { }
 
   uint64_t id() const { return m_id; }
+
+  void alloc(unsigned i) {
+    if (!m_bitmap[i]) alloc_(i);
+  }
+  void alloc_(unsigned i) {
+    m_bitmap[i].set();
+    ++m_allocated;
+  }
 
   bool del(unsigned i) {
     if (m_bitmap[i]) del_(i);
     return m_deleted >= m_allocated;
   }
 
+  // FIXME - which lock controls access to bitmap[], super[], indexBlks[], etc.?
+  // FIXME - reconcile Zdb::m_lock with fsLock
+
   void del_(unsigned i) {
     m_bitmap[i].clr();
     ++m_deleted;
   }
+
+  bool exists(unsigned i) const { return m_bitmap[i]; }
 
   unsigned allocated() const { return m_allocated; }
   unsigned deleted() const { return m_deleted; }
@@ -366,22 +380,7 @@ using FileCache =
 	    ZmHashLock<ZmNoLock> > > > > >;
 using File = FileCache::Node;
 
-  // FIXME - superblock
-  // FIXME - global index-block write-through cache
-  //
-  // FIXME - fix getFile(), rn2file() - may want to specialize
-  // rn2file(rn, write==true) writes from reads
-  //
-  // initial 1Kb super-block of 128 offsets, each to index-block
-  // each index-block is 1Kb index of 128 record offsets
-  // (128*128 == 16384)
-  //
-
-// ZuFields(File_, ((index, RdFn)));
-
-
 // pinned file/indexBlk + RN offset within index block
-
 class FileRec {
 public:
   FileRec() { }
@@ -418,13 +417,11 @@ struct ZdbTrailer {
 struct ZdbRxBuf_HeapID {
   static constexpr const char *id() { return "ZdbRxBuf"; }
 };
-using ZdbRxBuf = ZiIOBuf_<ZuGrow(0, 1), ZdbRxBuf_HeapID>;
+using ZdbRxBuf = ZiIOBuf__<ZuGrow(0, 1), ZdbRxBuf_HeapID>;
 
 struct ZdbBuf_HeapID {
   static constexpr const char *id() { return "ZdbBuf"; }
 };
-
-// FIXME - rename txBufCache to bufCache
 
 class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
   using Base = ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID>;
@@ -446,7 +443,7 @@ class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
     auto hdr = reinterpret_cast<const Hdr *>(data());
     auto msg = fbs::GetMsg(hdr->data());
     switch (static_cast<int>(msg->body_type())) {
-      default:					// should never occur
+      default:			// should never occur
 	return nullptr;
       case fbs::Body_Rep:
       case fbs::Body_Rec:
@@ -487,7 +484,7 @@ struct ZdbBuf_RNAxor {
     return fbo->rn();
   }
 };
-using ZdbBufCache =
+using Zdb_BufCache =
   ZmHash<ZdbBuf_,
     ZmHashKey<ZdbBuf_RNAxor,
       ZmHashObject<ZmObject,
@@ -495,7 +492,7 @@ using ZdbBufCache =
 	  ZmHashHeapID<ZuNull,
 	    ZmHashID<ZdbBuf_HeapID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
-using ZdbBuf = ZdbBufCache::Node;
+using ZdbBuf = Zdb_BufCache::Node;
 
 namespace ZdbNet {
 
@@ -535,12 +532,12 @@ struct ZdbAPI ZdbAnyObject : public Zdb_CacheNode, public ZuPrintable {
   ZdbRN		prevRN = ZdbNullRN;
   ZdbRN		origRN = ZdbNullRN;	// RN backup before put() / putUpdate()
   unsigned	pinned = 0;
-  bool		deleted = false;	// true if tombstone
+  bool		deleted = false;
 
   ZdbAnyObject(Zdb *db_, ZdbRN rn_) : db{db_}, rn{rn_} { }
   virtual ~ZdbAnyObject() { }
 
-  ZmRef<ZdbBuf> replicate(int type, bool compress);
+  ZmRef<ZdbBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<ZdbAnyObject *>(this)->ptr_(); }
@@ -613,7 +610,7 @@ typedef ZdbAnyObject *(*ZdbUpdateFn)(ZdbAnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb
 typedef void (*ZdbSaveFn)(Zfb::Builder &, const void *);
 // CycleFn(object) - object lifecycle callbacks (added, updated, deleted)
-typedef void (*ZdbCycleFn)(ZdbAnyObject *);
+typedef void (*ZdbCycleFn)(ZdbAnyObject *, const ZdbBuf *buf);
 
 struct ZdbHandler {
   ZdbCtorFn		ctorFn =
@@ -666,7 +663,6 @@ struct ZdbCf {
   ZuID			id;
   int			cacheMode = ZdbCacheMode::Normal;
   bool			warmUp = false;	// pre-write initial DB file
-  bool			compress = false;
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
   ZdbCf() = default;
@@ -675,7 +671,6 @@ struct ZdbCf {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", false, ZdbCacheMode::Normal);
     warmUp = cf->getInt("warmUp", 0, 1, false, 0);
-    compress = cf->getInt("compress", 0, 1, false, 0);
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
 
@@ -694,8 +689,8 @@ class ZdbAPI Zdb : public ZmPolymorph {
 friend ZdbEnv;
 friend ZdbAnyObject;
 
-  using Cache = Zdb_::Cache;
-  using TxBufCache = Zdb_::TxBufCache;
+  using Cache = Zdb_Cache;
+  using BufCache = Zdb_BufCache;
   using FileLRU = Zdb_::FileLRU;
   using FileCache = Zdb_::FileCache;
   using IndexBlkCache = Zdb_::IndexBlkCache;
@@ -762,8 +757,8 @@ public:
 
   // update record
   void update(ZdbAnyObject *object);
-  // update record (idempotent)
-  void update(ZdbAnyObject *object, ZdbRN rn);
+  // update record (idempotent) - returns true if update should proceed
+  bool update(ZdbAnyObject *object, ZdbRN rn);
   // update record (with prevRN, without object)
   ZmRef<ZdbAnyObject> update_(ZdbRN prevRN);
   // update record (idempotent) (with prevRN, without prev POD)
@@ -779,9 +774,6 @@ public:
   void telemetry(Telemetry &data) const;
 
 private:
-  // application call handlers
-  void recover(ZmRef<ZdbAnyObject> object);
-
   // push initial record
   ZmRef<ZdbAnyObject> push_();
   // idempotent push
@@ -789,6 +781,8 @@ private:
 
   // low-level get, does not filter deleted records
   ZmRef<ZdbAnyObject> get__(ZdbRN rn);
+  // low-level existence check
+  bool exists__(ZdbRN rn);
 
   // replication data rcvd (copy/commit, called while env is unlocked)
   ZmRef<ZdbAnyObject> replicated(
@@ -816,18 +810,21 @@ private:
   ZmRef<Zdb_File> openFile(unsigned i, bool create);
   void delFile(Zdb_File *file);
   void recover(Zdb_File *file);
+  bool recover(const Zdb_FileRec &rec);
   void scan(Zdb_File *file);
 
   ZmRef<ZdbAnyObject> read_(const Zdb_FileRec &);
 
-  void write_(int op, ZdbRN rn, ZdbRN prevRN, const void *data, unsigned length);
+  void write2(ZmRef<ZdbBuf> buf);
+  void write_(const ZdbBuf *buf);
 
   void fileRdError_(Zdb_File *, uint64_t, int, ZeError e);
   void fileWrError_(Zdb_File *, uint64_t, ZeError e);
 
   void cache(ZdbAnyObject *object);
   void cache_(ZdbAnyObject *object);
-  void cacheDel_(ZdbRN rn);
+  ZmRef<ZdbAnyObject> cacheDel_(ZdbRN rn);
+  void cacheDel_(ZdbAnyObject *object);
 
   ZdbEnv		*m_env;
   const ZdbCf		*m_cf = nullptr;
@@ -842,7 +839,7 @@ private:
     unsigned		  m_cacheSize = 0;
     uint64_t		  m_cacheLoads = 0;
     uint64_t		  m_cacheMisses = 0;
-    ZmRef<TxBufCache>	  m_txBufCache;
+    ZmRef<BufCache>	  m_bufCache;
   FSLock		m_fsLock;	// guards files
     FileLRU		  m_fileLRU;
     ZmRef<FileCache>	  m_files;
@@ -984,7 +981,7 @@ namespace ZdbHostState {
   using namespace ZvTelemetry::DBHostState;
 }
 
-class ZdbAPI ZdbHost : public ZmPolymorph {
+class ZdbAPI ZdbHost_ {
 friend ZdbEnv;
 friend Zdb_Cxn;
 
@@ -992,14 +989,14 @@ friend Zdb_Cxn;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZdbHost(ZdbEnv *env, const ZdbHostCf *config);
+  ZdbHost_(ZdbEnv *env, const ZdbHostCf *config);
 
 public:
-  struct IDAxor { static int get(const ZdbHost &h) { return h->id(); } };
+  struct IDAxor { static ZuID get(const ZdbHost_ &h) { return h.id(); } };
 
   const ZdbHostCf &config() const { return *m_cf; }
 
-  unsigned id() const { return m_cf->id; }
+  ZuID id() const { return m_cf->id; }
   unsigned priority() const { return m_cf->priority; }
   ZiIP ip() const { return m_cf->ip; }
   uint16_t port() const { return m_cf->port; }
@@ -1017,7 +1014,7 @@ public:
     s << "[ID:" << id() << " PRI:" << priority() << " V:" << voted() <<
       " S:" << state() << "] " << dbState();
   }
-  friend ZuPrintFn ZuPrintType(ZdbHost *);
+  friend ZuPrintFn ZuPrintType(ZdbHost_ *);
 
 private:
   ZmRef<Zdb_Cxn> cxn() const { return m_cxn; }
@@ -1037,7 +1034,7 @@ private:
     return false;
   }
 
-  int cmp(const ZdbHost *host) const {
+  int cmp(const ZdbHost_ *host) const {
     int i;
     if (i = m_dbState.cmp(host->m_dbState)) return i;
     if (i = ZuCmp<bool>::cmp(active(), host->active())) return i;
@@ -1091,11 +1088,14 @@ struct ZdbHosts_HeapID {
   static constexpr const char *id() { return "ZdbEnv.Hosts"; }
 };
 using ZdbHosts =
-  ZmRBTree<ZdbHost,
-    ZmRBTreeKey<ZdbHost::IDAxor,
+  ZmRBTree<ZdbHost_,
+    ZmRBTreeKey<ZdbHost_::IDAxor,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<ZdbHosts_HeapID> > > >;
+	ZmRBTreeNodeDerive<true,
+	  ZmRBTreeHeapID<ZdbHosts_HeapID> > > > >;
+using ZdbHost = ZdbHosts::Node;
 
+#if 0
 using ZdbHost_Ptr = ZdbHost *;
 struct ZdbHost_Ptr_Print : public ZuPrintDelegate {
   template <typename S>
@@ -1107,6 +1107,7 @@ struct ZdbHost_Ptr_Print : public ZuPrintDelegate {
   }
 };
 ZdbHost_Ptr_Print ZuPrintType(ZdbHost_Ptr *);
+#endif
 
 class Zdb_Cxn : public ZiConnection {
   Zdb_Cxn(const Zdb_Cxn &);
@@ -1138,8 +1139,7 @@ friend ZdbHost;
   void repDataRead(ZiIOContext &);
   void repDataRcvd(ZiIOContext &);
 
-  void repSend(ZmRef<ZdbAnyObject> object, int type, int op, bool compress);
-  void repSend(ZmRef<ZdbAnyObject> object);
+  void repSend(ZmRef<ZdbBuf> buf);
 
   void ackRcvd();
   void ackSend(int type, ZdbAnyObject *o);
@@ -1294,11 +1294,11 @@ public:
   }
 
   ZdbHost *self() const { return m_self; }
-  ZdbHost *host(unsigned id) const { return m_hosts.findKey(id); }
+  ZdbHost *host(ZuID id) const { return m_hosts.find(id); }
   template <typename L> bool allHosts(L l) const {
     auto i = m_hosts.readIterator();
     while (auto node = i.iterate())
-      if (!l(node->key())) return false;
+      if (!l(node)) return false;
     return true;
   }
 
@@ -1392,13 +1392,12 @@ private:
 
   void repDataRcvd(ZdbHost *host, const ZdbNet::fbs::Object *rep);
 
-  void repSend(ZmRef<ZdbAnyObject> pod, int type, int op, bool compress);
-  void repSend(ZmRef<ZdbAnyObject> pod);
+  void repSend(ZmRef<ZdbBuf> buf);
   void recSend();
 
   void ackRcvd(ZdbHost *host, bool positive, ZuID db, ZdbRN rn);
 
-  void write(ZmRef<ZdbAnyObject> pod, int type, int op, bool compress);
+  void write(ZmRef<ZdbBuf> buf);
 
   ZdbEnvCf		m_cf;
   ZiMultiplex		*m_mx;

@@ -87,11 +87,6 @@ public:
     return buf;
   }
 
-  // should only be called immediately following Finish()
-  Offset<Vector<uint8_t>> nest() {
-    return {PushElement(GetSize())};
-  }
-
   // read buffer without detaching
   const IOBuf *cbuf() const { return m_buf.ptr(); }
 
@@ -282,6 +277,25 @@ namespace Save {
   // save file
   ZfbExtern int save(
       const Zi::Path &path, Builder &fbb, unsigned mode, ZeError *e);
+
+  // push uninitialized space
+  inline uint8_t *extend(Builder &fbb, unsigned length) {
+    uint8_t *data;
+    fbb.CreateUninitializedVector(length, &data);
+    return data;
+  }
+  inline uint8_t *extend(Builder &fbb, unsigned length,
+      Offset<Vector<uint8_t>> &offset) {
+    uint8_t *data;
+    offset = fbb.CreateUninitializedVector(length, &data);
+    return data;
+  }
+
+  // nest following Finish()
+  inline Offset<Vector<uint8_t>> nest(Builder &fbb) {
+    return {fbb.PushElement(GetSize())};
+  }
+
 } // Save
 
 namespace Load {
