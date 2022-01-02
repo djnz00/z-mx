@@ -39,6 +39,7 @@ inline void send(Cxn *cxn, ZmRef<Buf> buf) {
   cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
     io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
       if (ZuUnlikely((io.offset += io.length) < io.size)) return;
+      io.complete();
     }}, buf->data(), buf->length, 0);
   }});
 }
@@ -48,6 +49,7 @@ inline void send(Cxn *cxn, ZmRef<Buf> buf, Sent) {
   cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
     io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
       if (ZuUnlikely((io.offset += io.length) < io.size)) return;
+      io.complete();
       ZuLambdaFn<Sent>::invoke(io.fn.mvObject<Buf>());
     }}, buf->data(), buf->length, 0);
   }});

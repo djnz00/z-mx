@@ -1032,13 +1032,7 @@ void ZdbEnv::recSend()
   for (i = 0; i < n; i++)
     if (Zdb *db = m_dbs[i])
       if (m_recover[i] < m_recoverEnd[i]) {
-	ZmRef<ZdbAnyObject> object;
-	ZdbRN rn = m_recover[i]++;
-	ZmRef<ZdbBuf> buf; // FIXME - optimize this to re-use buffer on a cache miss
-	if (object = db->get_(rn)) { // FIXME - should not call get_() here
-	  buf = object->replicate(Zdb_Msg::Rec);
-	  cxn->repSend(ZuMv(buf));
-	}
+	cxn->repSend(db->recovery(m_recover[i]++));
 	return;
       }
   m_recovering = false;
@@ -1047,69 +1041,20 @@ void ZdbEnv::recSend()
 // send replication message to next-in-line
 void ZdbEnv::repSend(ZmRef<ZdbBuf> buf)
 {
-  if (ZmRef<Zdb_Cxn> cxn = m_nextCxn)
-    cxn->send(ZiIOFn::Member<&ZdbBuf::send>::fn(ZuMv(buf)));
+  if (ZmRef<Zdb_Cxn> cxn = m_nextCxn) cxn->repSend(ZuMv(buf));
 }
 
 // send replication message (directed)
 void Zdb_Cxn::repSend(ZmRef<ZdbBuf> buf)
 {
-  this->send(ZiIOFn::Member<&ZdbBuf::send>::fn(ZuMv(buf)));
-}
-
-// prepare replication data for sending & writing to disk
-ZmRef<ZdbBuf> ZdbAnyObject::replicate(int type)
-{
-  ZdbDEBUG(m_db->env(), ZtString{} << "ZdbAnyObject::replicate(" <<
-      type << ')');
-  Zfb::IOBuilder<ZdbBuf> fbb;
-  Zfb::Offset<Zfb::Vector<uint8_t>> data = 0;
-  if (!deleted)
-    if (auto ptr = this->ptr_()) {
-      db->save(fbb, this);
-      data = Zfb::Save::nest(fbb);
+  ZiTx::send(this, ZuMv(buf), [](ZmRef<ZdbBuf> buf) {
+    if (buf->recovery()) {
+      auto db = reinterpret_cast<Zdb *>(buf->owner);
+      auto env = db->env();
+      auto mx = env->mx();
+      mx->run(mx->txThread(), ZmFn<>::Member<&ZdbEnv::recSend>::fn(env));
     }
-  using namespace ZdbNet;
-  {
-    auto id = Zfb::Save::id(db->id());
-    auto msg = fbs::CreateMsg(fbb, type,
-	fbs::CreateObject(fbb, &id, rn, prevRN, deleted, data));
-    fbb.Finish(msg);
-  }
-  ZdbNet::saveHdr(fbb);
-  ZmRef<ZdbBuf> buf = fbb.buf();
-  buf->owner = db;
-  return buf;
-}
-
-// forward replication data
-ZmRef<ZdbBuf> Zdb::replicateFwd(const ZmRef<ZdbRxBuf> &rxBuf)
-{
-  ZdbDEBUG(m_db->env(), ZtString{} << "ZdbAnyObject::replicateFwd(" <<
-      type << ')');
-  ZmRef<ZdbBuf> buf = new ZdbBuf{this};
-  auto data = buf->ensure(rxBuf->length);
-  if (!data) return nullptr;
-  memcpy(data, rxBuf->data(), rxBuf->length);
-  buf->owner = this;
-  return buf;
-}
-
-// send replication message
-void ZdbBuf::send(ZiIOContext &io)
-{
-  io.init(ZiIOFn::Member<&ZdbBuf::sent>::fn(
-	io.fn.mvObject<ZdbBuf>()), data(), length(), 0);
-}
-void ZdbBuf::sent(ZiIOContext &io)
-{
-  if ((io.offset += io.length) < io.size) return;
-  // if continuing recovery, send next recovery msg
-  if (ZuUnlikely(recovery())) {
-    ZiMultiplex *mx = io.cxn->mx();
-    mx->run(mx->txThread(), ZmFn<>::Member<&ZdbEnv::recSend>::fn(db->env()));
-  }
-  io.complete();
+  });
 }
 
 // broadcast heartbeat
@@ -1147,14 +1092,9 @@ void ZdbEnv::hbSend_(Zdb_Cxn *cxn_)
 // send heartbeat on a specific connection
 void Zdb_Cxn::hbSend()
 {
-  this->ZiConnection::send(ZiIOFn::Member<&Zdb_Cxn::hbSend_>::fn(this));
-}
-void Zdb_Cxn::hbSend_(ZiIOContext &io)
-{
   ZdbHost *self = m_env->self();
   if (ZuUnlikely(!self)) {
     ZeLOG(Fatal, "Zdb_Cxn::hbSend called out of order");
-    io.complete();
     return;
   }
   Zfb::IOBuilder<ZdbBuf> fbb;
@@ -1168,28 +1108,10 @@ void Zdb_Cxn::hbSend_(ZiIOContext &io)
     fbb.Finish(msg);
   }
   ZdbNet::saveHdr(fbb);
-  io.init(ZiIOFn::Member<&Zdb_Cxn::hbSent>::fn(this),
-      &m_hbSendHdr, sizeof(Zdb_Msg_Hdr), 0);
+  ZiTx::send(this, fbb.buf());
   ZdbDEBUG(m_env, ZtString{} << "hbSend()"
       "  self[ID:" << self->id() << " S:" << m_env->state() <<
       " N:" << self->dbState().length() << "] " << self->dbState());
-}
-void Zdb_Cxn::hbSent(ZiIOContext &io)
-{
-  if ((io.offset += io.length) < io.size) return;
-  ZdbHost *self = m_env->self();
-  if (ZuUnlikely(!self)) {
-    ZeLOG(Fatal, "Zdb_Cxn::hbSend called out of order");
-    io.complete();
-    return;
-  }
-  io.init(ZiIOFn::Member<&Zdb_Cxn::hbSent2>::fn(this),
-      self->dbState().data(), self->dbState().length() * sizeof(ZdbRN), 0);
-}
-void Zdb_Cxn::hbSent2(ZiIOContext &io)
-{
-  if ((io.offset += io.length) < io.size) return;
-  io.complete();
 }
 
 // refresh db state vector (locked)
@@ -1237,13 +1159,13 @@ bool Zdb_Cxn::repRcvd(const ZmRef<ZdbRxBuf> &rxBuf, const fbs::Object *fbo)
     return false;
   }
 
-  m_env->repDataRcvd(db, m_host, fbo);
+  m_env->replicated(db, m_host, fbo);
   db->replicated(rxBuf, fbo);
   return true;
 }
 
-// process received replication data
-void ZdbEnv::repDataRcvd(Zdb *db, ZdbHost *host, const fbs::Object *fbo)
+// process replication
+void ZdbEnv::replicated(Zdb *db, ZdbHost *host, const fbs::Object *fbo)
 {
   auto id = db->id();
   auto data = Zfb::Load::bytes(fbo->data());
@@ -1270,50 +1192,7 @@ void ZdbEnv::repDataRcvd(Zdb *db, ZdbHost *host, const fbs::Object *fbo)
   }
 }
 
-// load object from buf
-ZmRef<ZdbAnyObject> Zdb::load(const fbs::Object *fbo)
-{
-  using namespace ZdbNet;
-  auto rn = fbo->rn();
-  auto prevRN = fbo->prevRN();
-  auto data = Zfb::Load::bytes(fbo->data());
-  ZmRef<ZdbAnyObject> object;
-  if (prevRN == ZdbNullRN) {	// added
-    object = m_handler.loadFn(this, rn, data.data(), data.length());
-  } else if (data) {		// updated
-    {
-      Guard guard(m_lock);
-      if (object = cacheDel_(prevRN)) {
-	object->prevRN = prevRN;
-	object->rn = rn;
-      }
-    }
-    if (object)
-      object = m_handler.updateFn(object, data.data(), data.length());
-    else {
-      object = m_handler.loadFn(this, rn, data.data(), data.length());
-      if (object) object->prevRN = prevRN;
-    }
-  } else {			// deleted
-    Guard guard(m_lock);
-    if (object = cacheDel_(prevRN)) {
-      object->prevRN = prevRN;
-      object->rn = rn;
-    } else {
-      object = new ZdbAnyObject(this, rn);
-      object->prevRN = prevRN;
-    }
-  }
-  object->deleted = fbo->deleted();
-  return object;
-}
-
-void Zdb::save(Zfb::Builder &fbb, ZdbAnyObject *object)
-{
-  m_handler.saveFn(fbb, object->ptr_());
-}
-
-// process replicated record
+// process replication
 void Zdb::replicated(const ZmRef<ZdbRxBuf> &rxBuf, const fbs::Object *fbo)
 {
   ZmRef<ZdbAnyObject> object;
@@ -1327,13 +1206,7 @@ void Zdb::replicated(const ZmRef<ZdbRxBuf> &rxBuf, const fbs::Object *fbo)
     m_bufCache->add(buf);
     cache(ZuMv(object));
   }
-  if (object->deleted) {
-    if (m_handler.deletedFn) m_handler.deletedFn(object, buf);
-  } else if (object->prevRN == ZdbNullRN) {
-    if (m_handler.addedFn) m_handler.addedFn(object, buf);
-  } else {
-    if (m_handler.updatedFn) m_handler.updatedFn(object, buf);
-  }
+  if (m_handler.recoverFn) m_handler.recoverFn(object, buf);
   m_env->write(ZuMv(buf));
 }
 
@@ -1364,6 +1237,75 @@ void Zdb::init(ZdbConfig *cf)
 void Zdb::final()
 {
   m_handler = ZdbHandler{};
+}
+
+// telemetry
+void Zdb::telemetry(Telemetry &data) const
+{
+  data.path = m_cf->path;
+  data.name = m_cf->name;
+  data.id = m_id;
+  data.cacheMode = m_cacheMode;
+  data.warmUp = m_cf->warmUp;
+  {
+    ReadGuard guard(m_lock);
+    data.minRN = m_minRN;
+    data.nextRN = m_nextRN;
+    data.fileRN = m_fileRN;
+    data.cacheSize = m_cacheSize;
+    data.cacheLoads = m_cacheLoads;
+    data.cacheMisses = m_cacheMisses;
+    data.fileCacheSize = m_fileCacheSize;
+    data.indexBlkCacheSize = m_indexBlkCacheSize;
+    data.fileLoads = m_fileLoads;
+    data.fileMisses = m_fileMisses;
+    data.indexBlkLoads = m_indexBlkLoads;
+    data.indexBlkMisses = m_indexBlkMisses;
+  }
+}
+
+// load object from buffer
+ZmRef<ZdbAnyObject> Zdb::load(const fbs::Object *fbo)
+{
+  using namespace ZdbNet;
+  auto rn = fbo->rn();
+  auto prevRN = fbo->prevRN();
+  auto data = Zfb::Load::bytes(fbo->data());
+  ZmRef<ZdbAnyObject> object;
+  if (prevRN == ZdbNullRN) {	// added
+    object = m_handler.loadFn(this, rn, data.data(), data.length());
+  } else if (data) {		// updated
+    {
+      Guard guard(m_lock);
+      if (object = cacheDel_(prevRN)) {
+	object->prevRN = prevRN;
+	object->rn = rn;
+      }
+    }
+    if (object)
+      object = m_handler.updateFn(object, data.data(), data.length());
+    else {
+      object = m_handler.loadFn(this, rn, data.data(), data.length());
+      if (object) object->prevRN = prevRN;
+    }
+  } else {			// deleted (possible tombstone)
+    Guard guard(m_lock);
+    if (object = cacheDel_(prevRN)) {
+      object->prevRN = prevRN;
+      object->rn = rn;
+    } else {
+      object = new ZdbAnyObject(this, rn);
+      object->prevRN = prevRN;
+    }
+  }
+  object->deleted = fbo->deleted();
+  return object;
+}
+
+// save object to buffer
+void Zdb::save(Zfb::Builder &fbb, ZdbAnyObject *object)
+{
+  m_handler.saveFn(fbb, object->ptr_());
 }
 
 bool Zdb::recover()
@@ -1474,14 +1416,11 @@ void Zdb::recover(Zdb_File *file)
     if (!indexBlk || indexBlk->id() != indexBlkID)
       indexBlk = getIndexBlk(file, indexBlkID, false, false);
     if (!indexBlk) return; // I/O error on file, logged within getIndexBlk
-    if (!this->recover(FileRec{file, indexBlk, rn & indexMask()})) continue;
-    if (rn <= m_minRN) m_minRN = rn;
-    if (m_nextRN <= rn) m_nextRN = rn + 1;
-    if (m_fileRN <= rn) m_fileRN = rn + 1;
+    this->recover(FileRec{file, indexBlk, rn & indexMask()});
   }
 }
 
-bool Zdb::recover(const Zdb_FileRec &rec)
+void Zdb::recover(const Zdb_FileRec &rec)
 {
   ZmRef<ZdbBuf> buf = read_(rec);
   if (!buf) return false;
@@ -1489,18 +1428,13 @@ bool Zdb::recover(const Zdb_FileRec &rec)
   {
     Guard guard(m_lock);
     object = load(buf->fbo());
-    if (!object) return false;
+    if (!object) return;
+    if (rn <= m_minRN) m_minRN = rn;
     if (m_nextRN <= rn) m_nextRN = rn + 1;
+    if (m_fileRN <= rn) m_fileRN = rn + 1;
     cache(ZuMv(object));
   }
-  if (object->deleted) {
-    if (m_handler.deletedFn) m_handler.deletedFn(object, buf);
-  } else if (object->prevRN == ZdbNullRN) {
-    if (m_handler.addedFn) m_handler.addedFn(object, buf);
-  } else {
-    if (m_handler.updatedFn) m_handler.updatedFn(object, buf);
-  }
-  return true;
+  if (m_handler.recoverFn) m_handler.recoverFn(object, buf);
 }
 
 namespace Zdb_ {
@@ -1754,7 +1688,7 @@ bool Zdb::open()
 
 void Zdb::close()
 {
-  FSGuard guard(m_fsLock);
+  Guard guard(m_lock);
   m_files->clean();
   m_indexBlks->clean();
 }
@@ -1768,7 +1702,7 @@ void Zdb::checkpoint()
 
 void Zdb::checkpoint_()
 {
-  FSGuard guard(m_fsLock);
+  Guard guard(m_lock);
   auto i = m_files->readIterator();
   while (Zdb_File *file = i.iterate())
     file->checkpoint();
@@ -1817,7 +1751,7 @@ ZmRef<ZdbAnyObject> Zdb::push_(ZdbRN rn)
     Guard guard(m_lock);
     if (ZuLikely(m_nextRN <= rn))
       m_nextRN = rn + 1;
-    else if (ZuLikely(exists__(rn)))
+    else if (ZuLikely(exists(rn)))
       return nullptr;
   }
   return m_handler.ctorFn(this, rn);
@@ -1874,7 +1808,7 @@ ZmRef<ZdbAnyObject> Zdb::get__(ZdbRN rn)
   return object;
 }
 
-bool Zdb::exists__(ZdbRN rn)
+bool Zdb::exists(ZdbRN rn)
 {
   if (ZuLikely(m_cache->find(rn))) return true;
   if (ZuLikely(m_bufCache->find(rn))) return true;
@@ -1950,16 +1884,13 @@ void Zdb::update(ZdbAnyObject *object)
   object->rn = m_nextRN++;
 }
 
-// FIXME - re-check locking generally, including locks held during
-// handler callbacks
-
 bool Zdb::update(ZdbAnyObject *object, ZdbRN rn)
 {
   if (ZuUnlikely(rn == ZdbNullRN)) return update(object);
   Guard guard(m_lock);
   if (ZuLikely(m_nextRN <= rn))
     m_nextRN = rn + 1;
-  else if (ZuLikely(exists__(rn)))
+  else if (ZuLikely(exists(rn)))
     return false;
   cacheDel_(object);
   object->origRN = object->rn;
@@ -1983,7 +1914,7 @@ ZmRef<ZdbAnyObject> Zdb::update_(ZdbRN prevRN, ZdbRN rn)
   Guard guard(m_lock);
   if (ZuLikely(m_nextRN <= rn))
     m_nextRN = rn + 1;
-  else if (ZuLikely(exists__(rn)))
+  else if (ZuLikely(exists(rn)))
     return nullptr;
   ZmRef<ZdbAnyObject> object = get__(prevRN);
   if (ZuUnlikely(!object || object->deleted)) return nullptr;
@@ -2005,6 +1936,85 @@ void Zdb::putUpdate(ZdbAnyObject *object)
     cache(object);
   }
   m_env->write(ZuMv(buf));
+}
+
+// prepare replication data for sending & writing to disk
+ZmRef<ZdbBuf> ZdbAnyObject::replicate(int type)
+{
+  ZdbDEBUG(m_db->env(), ZtString{} << "ZdbAnyObject::replicate(" <<
+      type << ')');
+  Zfb::IOBuilder<ZdbBuf> fbb;
+  Zfb::Offset<Zfb::Vector<uint8_t>> data;
+  if (auto ptr = this->ptr_()) {
+    db->save(fbb, this);
+    data = Zfb::Save::nest(fbb);
+  }
+  using namespace ZdbNet;
+  {
+    auto id = Zfb::Save::id(db->id());
+    auto msg = fbs::CreateMsg(fbb, type,
+	fbs::CreateObject(fbb, &id, rn, prevRN, deleted, data));
+    fbb.Finish(msg);
+  }
+  ZdbNet::saveHdr(fbb);
+  ZmRef<ZdbBuf> buf = fbb.buf();
+  buf->owner = db;
+  return buf;
+}
+
+// forward replication data
+ZmRef<ZdbBuf> Zdb::replicateFwd(const ZmRef<ZdbRxBuf> &rxBuf)
+{
+  ZdbDEBUG(m_db->env(), ZtString{} << "ZdbAnyObject::replicateFwd(" <<
+      type << ')');
+  ZmRef<ZdbBuf> buf = new ZdbBuf{this};
+  auto data = buf->ensure(rxBuf->length);
+  if (!data) return nullptr;
+  memcpy(data, rxBuf->data(), rxBuf->length);
+  return buf;
+}
+
+// prepare recovery data for sending
+ZmRef<ZdbBuf> Zdb::recovery(ZdbRN rn)
+{
+  Guard guard(m_lock);
+  // recover from outbound replication buffer cache
+  if (ZmRef<ZdbBuf> txBuf = m_bufCache->find(rn)) {
+    const fbs::Object *fbo = txBuf->fbo();
+    auto repData = Zfb::Load::bytes(fbo->data());
+    Zfb::IOBuilder<ZdbBuf> fbb;
+    Offset<Vector<uint8_t>> data;
+    auto ptr = Zfb::Save::extend(fbb, repData.length(), data);
+    if (data && ptr) {
+      memcpy(ptr, repData.data(), repData.length());
+      auto id = Zfb::Save::id(db->id());
+      auto msg = fbs::CreateMsg(fbb, Zdb_Msg::Rec,
+	  fbs::CreateObject(fbb,
+	    &id, fbo->rn(), fbo->prevRN(), fbo->deleted(), data));
+      fbb.Finish(msg);
+      ZdbNet::saveHdr(fbb);
+      ZmRef<ZdbBuf> buf = fbb.buf();
+      buf->owner = this;
+      return buf;
+    }
+  }
+  // recover from object cache
+  if (ZmRef<ZdbAnyObject> object = m_cache->find(rn))
+    return object->replicate(Zdb_Msg::Rec);
+  // recover from file
+  if (Zdb_FileRec rec = rn2file(rn, false))
+    return read_(rec);
+  // no such RN - send tombstone
+  Zfb::IOBuilder<ZdbBuf> fbb;
+  using namespace ZdbNet;
+  auto id = Zfb::Save::id(db->id());
+  auto msg = fbs::CreateMsg(fbb, Zdb_Msg::Rec,
+      fbs::CreateObject(fbb, &id, rn, ZdbNullRN, true, {}));
+  fbb.Finish(msg);
+  ZdbNet::saveHdr(fbb);
+  ZmRef<ZdbBuf> buf = fbb.buf();
+  buf->owner = this;
+  return buf;
 }
 
 // FIXME from here
@@ -2031,34 +2041,6 @@ void Zdb::purge(ZdbRN minRN)
     ++rn;
   }
 }
-
-void Zdb::telemetry(Telemetry &data) const
-{
-  data.path = m_cf->path;
-  data.name = m_cf->name;
-  data.id = m_id;
-  data.cacheMode = m_cacheMode;
-  data.warmUp = m_cf->warmUp;
-  {
-    ReadGuard guard(m_lock);
-    data.minRN = m_minRN;
-    data.nextRN = m_nextRN;
-    data.fileRN = m_fileRN;
-    data.cacheSize = m_cacheSize;
-    data.cacheLoads = m_cacheLoads;
-    data.cacheMisses = m_cacheMisses;
-  }
-  {
-    FSReadGuard guard(m_fsLock);
-    data.fileCacheSize = m_fileCacheSize;
-    data.indexBlkCacheSize = m_indexBlkCacheSize;
-    data.fileLoads = m_fileLoads;
-    data.fileMisses = m_fileMisses;
-    data.indexBlkLoads = m_indexBlkLoads;
-    data.indexBlkMisses = m_indexBlkMisses;
-  }
-}
-
 void ZdbEnv::write(ZmRef<ZdbBuf> buf)
 {
   if (!buf->object->db->config().repMode)
@@ -2097,7 +2079,6 @@ Zdb_FileRec Zdb::rn2file(ZdbRN rn, bool write)
 
 ZmRef<Zdb_File> Zdb::getFile(uint64_t id, bool create, bool cache)
 {
-  FSGuard guard(m_fsLock);
   ++m_fileLoads;
   ZmRef<Zdb_File> file;
   if (file = m_files->find(id)) {
@@ -2147,11 +2128,8 @@ void Zdb::delFile(Zdb_File *file)
 {
   bool lastFile;
   uint64_t id = file->id();
-  {
-    FSGuard guard(m_fsLock);
-    if (m_files->del(id)) m_fileLRU.del(file);
-    lastFile = id == m_lastFile;
-  }
+  if (m_files->del(id)) m_fileLRU.del(file);
+  lastFile = id == m_lastFile;
   if (ZuUnlikely(lastFile)) getFile(id + 1, true, true);
   file->close();
   ZiFile::remove(fileName(id));
@@ -2160,7 +2138,6 @@ void Zdb::delFile(Zdb_File *file)
 ZmRef<IndexBlk> Zdb::getIndexBlk(
     Zdb_File *file, uint64_t id, bool create, bool cache)
 {
-  FSGuard guard(m_fsLock);
   ++m_indexBlkLoads;
   ZmRef<IndexBlk> indexBlk;
   if (indexBlk = m_indexBlks->find(id)) {
@@ -2265,6 +2242,7 @@ bool File_::writeIndexBlk_(IndexBlk *indexBlk)
   return true;
 }
 
+// read individual record to disk
 ZmRef<ZdbBuf> Zdb::read_(const Zdb_FileRec &rec)
 {
   const auto &index = rec.index();
@@ -2307,51 +2285,54 @@ ZmRef<ZdbBuf> Zdb::read_(const Zdb_FileRec &rec)
   return buf;
 }
 
+// write individual record to disk
 void Zdb::write_(const ZdbBuf *buf)
 {
   auto fbo = buf->fbo();
   if (!fbo) return;
   ZdbRN rn = fbo->rn(), prevRN = fbo->prevRN();
   auto data = Zfb::Load::bytes(fbo->data());
+  bool deleted = fbo->deleted();
   {
     Zdb_FileRec rec = rn2file(rn, true);
     if (!rec) return;
     auto &index = rec.index();
-    index.offset = rec.file()->append(data.length() + sizeof(FileRecTrlr));
-    rec.file()->alloc(rn & fileRecMask());
-    index.length = data.length();
-    FileRecTrlr trlr{
-      .rn = rn,
-      .prevRN = prevRN,
-      .magic = !data ? ZdbDeleted : ZdbCommitted
-    };
-    int r;
-    ZeError e;
-    if (data) {
-      // write record
-      if (ZuUnlikely((r = rec.file()->pwrite(index.offset,
-		data.data(), data.length(), &e)) != Zi::OK)) {
-	fileWrError_(rec.file(), index.offset, e);
-	index.offset = 0;
-	index.length = 0;
-	return;
-      }
-    }
-    if (data || !rec.file()->del(rn & fileRecMask())) {
-      // write trailer
-      if (ZuUnlikely((r = rec.file()->pwrite(index.offset + index.length,
-		&trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-	fileWrError_(rec.file(), index.offset + index.length, e);
-	index.offset = 0;
-	index.length = 0;
-	return;
-      }
+    File *file = rec.file();
+    file->alloc(rn & fileRecMask());
+    if (deleted && file->del(rn & fileRecMask())) {
+      delFile(file);
     } else {
-      delFile(rec.file());
+      index.offset = file->append(data.length() + sizeof(FileRecTrlr));
+      index.length = data.length();
+      FileRecTrlr trlr{
+	.rn = rn,
+	.prevRN = prevRN,
+	.magic = deleted ? ZdbDeleted : ZdbCommitted
+      };
+      int r;
+      ZeError e;
+      if (data) {
+	// write record
+	if (ZuUnlikely((r = file->pwrite(index.offset,
+		  data.data(), data.length(), &e)) != Zi::OK)) {
+	  fileWrError_(file, index.offset, e);
+	  index.offset = 0;
+	  index.length = 0;
+	  return;
+	}
+      }
+      // write trailer
+      if (ZuUnlikely((r = file->pwrite(index.offset + index.length,
+		&trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
+	fileWrError_(file, index.offset + index.length, e);
+	index.offset = 0;
+	index.length = 0;
+	return;
+      }
     }
   }
-  if (data) return;
-  // delete - delete chain of previous records
+  if (!deleted) return;
+  // garbage-collect previous records in chain
   while (prevRN != ZdbNullRN) {
     rn = prevRN;
     prevRN = ZdbNullRN;
@@ -2362,13 +2343,14 @@ void Zdb::write_(const ZdbBuf *buf)
     const auto &index = rec.index();
     if (!index.offset) return;
     auto offset = index.offset + index.length;
+    File *file = rec.file();
     FileRecTrlr trlr;
     int r;
     ZeError e;
     if (prevRN == ZdbNullRN) {
-      if (ZuUnlikely((r = rec.file()->pread(offset
+      if (ZuUnlikely((r = file->pread(offset
 		&trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-	fileRdError_(rec.file(), offset, e);
+	fileRdError_(file, offset, e);
 	return;
       }
       prevRN = trlr.prevRN;
@@ -2376,18 +2358,19 @@ void Zdb::write_(const ZdbBuf *buf)
       trlr.rn = rn;
       trlr.prevRN = prevRN;
     }
-    if (rec.file()->del(rn & fileRecMask())) {
-      delFile(rec.file());
+    if (file->del(rn & fileRecMask())) {
+      delFile(file);
     } else {
       trlr.magic = ZdbDeleted;
-      if (ZuUnlikely((r = rec.file()->pwrite(offset,
+      if (ZuUnlikely((r = file->pwrite(offset,
 		&trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-	fileWrError_(rec.file(), offset, e);
+	fileWrError_(file, offset, e);
       }
     }
   }
 }
 
+// disk read error
 void Zdb::fileRdError_(
     Zdb_File *file, ZiFile::Offset off, int r, ZeError e)
 {
@@ -2402,6 +2385,7 @@ void Zdb::fileRdError_(
   }
 }
 
+// disk write error
 void Zdb::fileWrError_(Zdb_File *file, ZiFile::Offset off, ZeError e)
 {
   ZeLOG(Error, ZtString{} <<

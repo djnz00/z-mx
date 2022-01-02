@@ -416,7 +416,7 @@ ZfbFields(Engine,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence: 
-//   name, id, compress,
+//   name, id,
 //   path, warmUp,
 //   minRN, nextRN, fileRN,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
@@ -443,7 +443,6 @@ struct DB_ {
   uint32_t	indexBlkCacheSize = 0;
   int8_t	cacheMode = -1;		// ZdbCacheMode
   uint8_t	warmUp = 0;
-  uint8_t	compress = 0;
 };
 struct DB : public DB_, public ZtFieldPrint<DB> {
   DB() = default;
@@ -462,7 +461,6 @@ struct DB : public DB_, public ZtFieldPrint<DB> {
 ZfbFields(DB,
     (((name), (0)), (String), (Ctor(1))),
     (((id)), (Int), (Ctor(11))),
-    (((compress)), (Int), (Ctor(17))),
     (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(15))),
     (((cacheSize)), (Int), (Ctor(12))),
     (((path)), (String), (Ctor(0))),

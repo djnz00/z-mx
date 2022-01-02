@@ -121,13 +121,17 @@ namespace Zdb_Net {
 struct Hdr {
   ZuLittleEndian<uint32_t>	length;	// length of body
 
-  const uint8_t *data() const {
+  const uint8_t *body() const {
     return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
   }
 };
 #pragma pack(pop)
 
 // call following Finish() to ensure alignment
+// FIXME - template this to combine the following:
+  // ZdbNet::saveHdr(fbb);
+  // ZmRef<ZdbBuf> buf = fbb.buf();
+  // buf->owner = this;
 inline void saveHdr(Zfb::Builder &fbb) {
   unsigned len = fbb.GetSize();
   new (Zfb::Save::extend(fbb, sizeof(Hdr))) Hdr{len};
@@ -257,7 +261,6 @@ namespace FileFlags {
   };
 };
 
-#define ZdbAllocated 0xa110c8ed // "allocated"
 #define ZdbCommitted 0xc001da7a // "cool data"
 #define ZdbDeleted   0xdeadda7a	// "dead data"
 
@@ -300,6 +303,9 @@ friend File_IDAxor;
     uint64_t	offset[fileIndices()];	// offsets to index blocks
   };
 
+  using Lock = ZmPLock;
+  using Guard = ZmGuard<Lock>;
+
 public:
   File_(Zdb *db, uint64_t id) : m_db{db}, m_id{id} { }
 
@@ -315,12 +321,8 @@ public:
 
   bool del(unsigned i) {
     if (m_bitmap[i]) del_(i);
-    return m_deleted >= m_allocated;
+    return m_deleted >= fileRecs();
   }
-
-  // FIXME - which lock controls access to bitmap[], super[], indexBlks[], etc.?
-  // FIXME - reconcile Zdb::m_lock with fsLock
-
   void del_(unsigned i) {
     m_bitmap[i].clr();
     ++m_deleted;
@@ -349,12 +351,13 @@ private:
 
   Zdb			*m_db = nullptr;
   uint64_t		m_id = 0;	// (RN>>fileShift())
-  uint32_t		m_flags = 0;
-  unsigned		m_allocated = 0;
-  unsigned		m_deleted = 0;
-  Bitmap		m_bitmap;
-  SuperBlk		m_superBlk;
-  uint64_t		m_offset = 0;	// append offset
+  Lock			m_lock;
+    uint32_t		  m_flags = 0;
+    unsigned		  m_allocated = 0;
+    unsigned		  m_deleted = 0;
+    Bitmap		  m_bitmap;
+    SuperBlk		  m_superBlk;
+    uint64_t		  m_offset = 0;	// append offset
 };
 struct File_IDAxor {
   static auto get(const File_ &file) { return file.id(); }
@@ -432,16 +435,20 @@ class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
   Zdb *db() const {
     return static_cast<Zdb *>(owner);
   }
+  const Zdb_Net::Hdr *hdr() const {
+    return reinterpret_cast<const Zdb_Net::Hdr *>(data());
+  }
+  const ZdbNet::fbs::Msg *msg() const {
+    using namespace ZdbNet;
+    return fbs::GetMsg(hdr()->body());
+  }
   bool recovery() const {
     using namespace ZdbNet;
-    auto hdr = reinterpret_cast<const Hdr *>(data());
-    auto msg = fbs::GetMsg(hdr->data());
-    return msg->body_type() == fbs::Hdr_Rec;
+    return msg()->body_type() == fbs::Hdr_Rec;
   }
   const ZdbNet::fbs::Object *fbo() const {
     using namespace ZdbNet;
-    auto hdr = reinterpret_cast<const Hdr *>(data());
-    auto msg = fbs::GetMsg(hdr->data());
+    auto msg = this->msg();
     switch (static_cast<int>(msg->body_type())) {
       default:			// should never occur
 	return nullptr;
@@ -453,9 +460,9 @@ class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
 
   template <typename T>
   const T *data() const {
-    auto object = this->object();
-    if (ZuUnlikely(!object)) return nullptr;
-    auto data = Zfb::Load::bytes(object->data());
+    auto fbo = this->fbo();
+    if (ZuUnlikely(!fbo)) return nullptr;
+    auto data = Zfb::Load::bytes(fbo->data());
     if (ZuUnlikely(!data)) return nullptr;
     if (ZuUnlikely(
 	  !Zfb::Verifier{data.data(), data.length()}.VerifyBuffer<T>()))
@@ -464,11 +471,11 @@ class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
   }
   template <typename T>
   const T *data_() const {
-    auto object = this->object();
-    if (ZuUnlikely(!object)) return nullptr;
-    auto data = object->data();
+    auto fbo = this->fbo();
+    if (ZuUnlikely(!fbo)) return nullptr;
+    auto data = Zfb::Load::bytes(fbo->data());
     if (ZuUnlikely(!data)) return nullptr;
-    return Zfb::GetRoot<T>(data->data());
+    return Zfb::GetRoot<T>(data.data());
   }
 
 friend Zdb_Cxn;
@@ -493,12 +500,6 @@ using Zdb_BufCache =
 	    ZmHashID<ZdbBuf_HeapID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
 using ZdbBuf = Zdb_BufCache::Node;
-
-namespace ZdbNet {
-
-// FIXME - make use of ZiRx/Tx
-
-}
 
 using ZdbLRU =
   ZmList<ZmObject,
@@ -609,8 +610,8 @@ typedef ZdbAnyObject *(*ZdbLoadFn)(Zdb *, ZdbRN, const uint8_t *, unsigned);
 typedef ZdbAnyObject *(*ZdbUpdateFn)(ZdbAnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb
 typedef void (*ZdbSaveFn)(Zfb::Builder &, const void *);
-// CycleFn(object) - object lifecycle callbacks (added, updated, deleted)
-typedef void (*ZdbCycleFn)(ZdbAnyObject *, const ZdbBuf *buf);
+// RecoverFn(object, buf) - object recovered (added, updated, deleted)
+typedef void (*ZdbRecoverFn)(ZdbAnyObject *, const ZdbBuf *buf);
 
 struct ZdbHandler {
   ZdbCtorFn		ctorFn =
@@ -621,9 +622,7 @@ struct ZdbHandler {
 	ZdbAnyObject * { return new ZdbAnyObject{db, rn}; };
   ZdbUpdateFn		updateFn = nullptr;
   ZdbSaveFn		saveFn = nullptr;
-  ZdbCycleFn		addedFn = nullptr;
-  ZdbCycleFn		updatedFn = nullptr;
-  ZdbCycleFn		deletedFn = nullptr;
+  ZdbRecoverFn		recoverFn = nullptr;
 
   template <typename T>
   static ZdbHandler bind() {
@@ -698,10 +697,6 @@ friend ZdbAnyObject;
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
-
-  using FSLock = ZmLock;
-  using FSGuard = ZmGuard<FSLock>;
-  using FSReadGuard = ZmReadGuard<FSLock>;
 
   Zdb(ZdbEnv *env, ZdbCf *cf, ZdbHandler handler);
 
@@ -782,15 +777,20 @@ private:
   // low-level get, does not filter deleted records
   ZmRef<ZdbAnyObject> get__(ZdbRN rn);
   // low-level existence check
-  bool exists__(ZdbRN rn);
+  bool exists(ZdbRN rn);
+
+  // load object from buffer
+  ZmRef<ZdbAnyObject> load(const fbs::Object *fbo);
+  // save object to buffer
+  void save(Zfb::Builder &fbb, ZdbAnyObject *object);
 
   // replication data rcvd (copy/commit, called while env is unlocked)
-  ZmRef<ZdbAnyObject> replicated(
-      ZdbRN rn, ZdbRN prevRN, int op, const uint8_t *data, unsigned len);
+  void replicated(const ZmRef<ZdbRxBuf> &rxBuf, const fbs::Object *fbo);
 
-  // apply received replication data
-  ZmRef<ZdbAnyObject> replicated_(
-      ZdbRN rn, ZdbRN prevRN, int op, const uint8_t *data, unsigned len);
+  // forward replication data
+  ZmRef<ZdbBuf> replicateFwd(const ZmRef<ZdbRxBuf> &rxBuf);
+  // prepare recovery data for sending
+  ZmRef<ZdbBuf> recovery(ZdbRN rn);
 
   ZiFile::Path dirName(uint64_t id) const {
     return ZiFile::append(m_cf->path, ZuStringN<8>() <<
@@ -840,17 +840,16 @@ private:
     uint64_t		  m_cacheLoads = 0;
     uint64_t		  m_cacheMisses = 0;
     ZmRef<BufCache>	  m_bufCache;
-  FSLock		m_fsLock;	// guards files
     FileLRU		  m_fileLRU;
     ZmRef<FileCache>	  m_files;
-    IndexBlkLRU	 	  m_indexBlkLRU;
-    ZmRef<IndexBlkCache>  m_indexBlks;
     unsigned		  m_fileCacheSize = 0;
-    unsigned		  m_indexBlkCacheSize = 0;
     uint64_t		  m_lastFile = 0;
     uint64_t		  m_lastIndexBlk = 0;
     uint64_t		  m_fileLoads = 0;
     uint64_t		  m_fileMisses = 0;
+    IndexBlkLRU	 	  m_indexBlkLRU;
+    ZmRef<IndexBlkCache>  m_indexBlks;
+    unsigned		  m_indexBlkCacheSize = 0;
     uint64_t		  m_indexBlkLoads = 0;
     uint64_t		  m_indexBlkMisses = 0;
 };
@@ -1131,13 +1130,8 @@ friend ZdbHost;
   bool hbRcvd(ZiIOContext &);
   void hbTimeout();
   void hbSend();
-  void hbSend_(ZiIOContext &);
-  void hbSent(ZiIOContext &);
-  void hbSent2(ZiIOContext &);
 
   bool repRcvd(ZiIOContext &);
-  void repDataRead(ZiIOContext &);
-  void repDataRcvd(ZiIOContext &);
 
   void repSend(ZmRef<ZdbBuf> buf);
 
@@ -1390,7 +1384,7 @@ private:
   void startReplication();
   void stopReplication();
 
-  void repDataRcvd(ZdbHost *host, const ZdbNet::fbs::Object *rep);
+  void replicated(ZdbHost *host, const ZdbNet::fbs::Object *rep);
 
   void repSend(ZmRef<ZdbBuf> buf);
   void recSend();
