@@ -418,7 +418,7 @@ ZfbFields(Engine,
 // display sequence: 
 //   name, id,
 //   path, warmUp,
-//   minRN, nextRN, fileRN,
+//   minRN, nextRN,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   fileCacheSize, fileLoads, fileMisses
 //   indexBlkCacheSize, indexBlkLoads, indexBlkMisses
@@ -430,7 +430,6 @@ struct DB_ {
   Name		name;			// primary key
   uint64_t	minRN = 0;		// dynamic
   uint64_t	nextRN = 0;		// dynamic
-  uint64_t	fileRN = 0;		// dynamic
   uint64_t	cacheLoads = 0;		// dynamic (*)
   uint64_t	cacheMisses = 0;	// dynamic (*)
   uint64_t	fileLoads = 0;		// dynamic
@@ -460,22 +459,21 @@ struct DB : public DB_, public ZtFieldPrint<DB> {
 };
 ZfbFields(DB,
     (((name), (0)), (String), (Ctor(1))),
-    (((id)), (Int), (Ctor(11))),
-    (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(15))),
-    (((cacheSize)), (Int), (Ctor(12))),
+    (((id)), (Int), (Ctor(10))),
+    (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(14))),
+    (((cacheSize)), (Int), (Ctor(11))),
     (((path)), (String), (Ctor(0))),
-    (((fileCacheSize)), (Int), (Ctor(13))),
-    (((indexBlkCacheSize)), (Int), (Ctor(14))),
-    (((warmUp)), (Int), (Ctor(16))),
+    (((fileCacheSize)), (Int), (Ctor(12))),
+    (((indexBlkCacheSize)), (Int), (Ctor(13))),
+    (((warmUp)), (Int), (Ctor(15))),
     (((minRN)), (Int), (Ctor(2), Update)),
     (((nextRN)), (Int), (Ctor(3), Update, Series, Delta)),
-    (((fileRN)), (Int), (Ctor(4), Update, Series, Delta)),
-    (((cacheLoads)), (Int), (Ctor(5), Update, Series, Delta)),
-    (((cacheMisses)), (Int), (Ctor(6), Update, Series, Delta)),
-    (((fileLoads)), (Int), (Ctor(7), Update, Series, Delta)),
-    (((fileMisses)), (Int), (Ctor(8), Update, Series, Delta)),
-    (((indexBlkLoads)), (Int), (Ctor(9), Update, Series, Delta)),
-    (((indexBlkMisses)), (Int), (Ctor(10), Update, Series, Delta)),
+    (((cacheLoads)), (Int), (Ctor(4), Update, Series, Delta)),
+    (((cacheMisses)), (Int), (Ctor(5), Update, Series, Delta)),
+    (((fileLoads)), (Int), (Ctor(6), Update, Series, Delta)),
+    (((fileMisses)), (Int), (Ctor(7), Update, Series, Delta)),
+    (((indexBlkLoads)), (Int), (Ctor(8), Update, Series, Delta)),
+    (((indexBlkMisses)), (Int), (Ctor(9), Update, Series, Delta)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:

@@ -29,7 +29,7 @@
 // if used for sequences of packets with bytecount sequence numbering,
 // the elements are chars, the items are packet buffers, and the key
 // is the bytecount; other possibilities are elements being individual
-// messages within a containing packet as in FIX, OUCH, ITCH and similar
+// messages within a containing packet, as in FIX, OUCH, ITCH and similar
 // protocols
 
 #ifndef ZmPQueue_HPP

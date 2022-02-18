@@ -203,7 +203,7 @@ private:
   }
 
 public:
-  int process(const uint8_t *data, unsigned len) {
+  int process(const uint8_t *data, unsigned length) {
     if (ZuUnlikely(m_state == State::Down))
       return -1; // disconnect
 
@@ -212,24 +212,19 @@ public:
 
     scheduleTimeout();
 
-    int i = ZiRx::recvMem(data, len, m_rxBuf,
-	[](const uint8_t *data, unsigned len) -> int {
-	  return ZvCmd::loadHdr(data, len);
-	},
-	[this](const uint8_t *data, unsigned len) -> int {
-	  auto hdr = ZvCmd::verifyHdr(data, len);
-	  if (!hdr) return -1;
-	  auto type = hdr->type;
-	  data += sizeof(ZvCmd::Hdr), len -= sizeof(ZvCmd::Hdr);
-	  int i;
-	  if (ZuUnlikely(m_state == State::Login)) {
-	    if (type != ZvCmd::Type::login()) return -1;
-	    i = processLogin(data, len);
-	  } else
-	    i = this->app()->dispatch(type, impl(), data, len);
-	  if (ZuUnlikely(i <= 0)) return i;
-	  ZmAssert(i == len);
-	  return sizeof(ZvCmd::Hdr) + i;
+    int i = ZiRx::recvMem(data, length, m_rxBuf,
+	ZvCmd::loadHdr,
+	[this](const uint8_t *data, unsigned length) -> int {
+	  return ZvCmd::verifyHdr(data, length,
+	      [this](const ZvCmd::Hdr *hdr,
+		const uint8_t *data, unsigned length) {
+	    auto type = hdr->type;
+	    if (ZuUnlikely(m_state.load_() == State::Login)) {
+	      if (type != ZvCmd::Type::login()) return -1;
+	      return processLogin(data, length);
+	    }
+	    return this->app()->dispatch(type, impl(), data, length);
+	  });
 	});
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
