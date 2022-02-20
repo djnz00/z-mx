@@ -86,7 +86,7 @@
 
 using ZdbRN = uint64_t;		// record ID
 #define ZdbMaxRN (~static_cast<uint64_t>(0))
-#define ZdbNullRN ZdbMaxRN
+#define ZdbNullRN (ZuCmp<ZdbRN>::null())
 
 namespace Zdb_ {
   inline constexpr unsigned fileShift()		{ return 14; }
@@ -128,8 +128,6 @@ struct Hdr {
 };
 #pragma pack(pop)
 
-// FIXME - Zdb_ namespace vs Zdb_XXX vs ZdbXXX
-
 // call following Finish() to push header and detach buffer
 template <typename Builder, typename Owner>
 inline auto saveHdr(Builder &fbb, Owner *owner) {
@@ -162,7 +160,6 @@ inline int verifyHdr(const ZmRef<Buf> &buf, Fn fn) {
   return sizeof(Hdr) + i;
 }
 
-// FIXME - align below with new fbs schema
 inline const fbs::Msg *msg(const Hdr *hdr) {
   if (ZuUnlikely(!hdr)) return nullptr;
   auto data = hdr->data();
@@ -206,35 +203,19 @@ inline const fbs::Record *record(const fbs::Msg *msg) {
 inline const fbs::Record *record_(const fbs::Msg *msg) {
   return static_cast<const fbs::Record *>(msg->body());
 }
-inline const fbs::Object *object(const fbs::Record *record) {
-  if (ZuUnlikely(!record)) return nullptr;
-  switch (static_cast<int>(record->data_type())) {
-    case fbs::RecData_Committed:
-    case fbs::RecData_Appended:
-    case fbs::RecData_Deleted:
-    case fbs::RecData_Purged:
-      break;
-    default:
-      return nullptr;
-  }
-  return static_cast<const fbs::Object *>(record->data());
-}
-inline const fbs::Object *object_(const fbs::Record *record) {
-  return static_cast<const fbs::Object *>(record->data());
-}
-inline const fbs::Gap *gap(const fbs::Record *record) {
-  if (ZuUnlikely(!record)) return nullptr;
-  if (static_cast<int>(record->data_type()) != fbs::RecData_Gap)
+inline const fbs::Gap *gap(const fbs::Msg *msg) {
+  if (ZuUnlikely(!msg)) return nullptr;
+  if (static_cast<int>(msg->body_type()) != fbs::Body_Gap)
     return nullptr;
-  return static_cast<const fbs::Gap *>(record->data());
+  return static_cast<const fbs::Gap *>(msg->body());
 }
-inline const fbs::Gap *gap_(const fbs::Record *record) {
-  return static_cast<const fbs::Gap *>(record->data());
+inline const fbs::Gap *gap_(const fbs::Msg *msg) {
+  return static_cast<const fbs::Gap *>(msg->body());
 }
 template <typename T>
-inline const T *data(const fbs::Object *object) {
-  if (ZuUnlikely(!object)) return nullptr;
-  auto data = Zfb::Load::bytes(object->data());
+inline const T *data(const fbs::Record *record) {
+  if (ZuUnlikely(!record)) return nullptr;
+  auto data = Zfb::Load::bytes(record->data());
   if (ZuUnlikely(!data)) return nullptr;
   if (ZuUnlikely(
 	!Zfb::Verifier{data.data(), data.length()}.VerifyBuffer<T>()))
@@ -242,8 +223,8 @@ inline const T *data(const fbs::Object *object) {
   return Zfb::GetRoot<T>(data.data());
 }
 template <typename T>
-inline const T *data_(const fbs::Object *object) {
-  auto data = Zfb::Load::bytes(object->data());
+inline const T *data_(const fbs::Record *record) {
+  auto data = Zfb::Load::bytes(record->data());
   if (ZuUnlikely(!data)) return nullptr;
   return Zfb::GetRoot<T>(data.data());
 }
@@ -372,7 +353,8 @@ namespace FileFlags {
   };
 };
 
-#define ZdbCommitted 0xc001da7a	// "cool data" - committed
+#define ZdbCommitted 0xc001da7a	// "cool data"
+#define ZdbDeleted   0xdeadda7a	// "dead data"
 
 #pragma pack(push, 1)
 using U32LE = ZuLittleEndian<uint32_t>;
@@ -521,76 +503,80 @@ private:
   unsigned		m_indexOff = 0;
 };
 
-struct ZdbBuf_HeapID {
-  static constexpr const char *id() { return "ZdbBuf"; }
+struct Buf_HeapID {
+  static constexpr const char *id() { return "Buf"; }
 };
-class ZdbAPI ZdbBuf_ : public ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID> {
-  using Base = ZiIOBuf__<ZuGrow(0, 1), ZdbBuf_HeapID>;
+class ZdbAPI Buf_ : public ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID> {
+  using Base = ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID>;
 
-  ZdbBuf_() = default;
-  ZdbBuf_(Zdb *db) : Base(db) { }
+  Buf_() = default;
+  Buf_(Zdb *db) : Base(db) { }
 
   Zdb *db() const {
     return static_cast<Zdb *>(owner);
   }
-  const Zdb_Net::Hdr *hdr() const {
-    return reinterpret_cast<const Zdb_Net::Hdr *>(data());
+  const Hdr *hdr() const {
+    return reinterpret_cast<const ZdbNet::Hdr *>(data());
   }
 
-friend Zdb_Cxn;
+friend Cxn;
 friend ZdbAnyObject;
 
   void send(ZiIOContext &);
   void sent(ZiIOContext &);
 };
-struct ZdbBuf_RNAxor {
-  static auto get(const ZdbBuf_ &buf) {
+struct Buf_RNAxor {
+  static auto get(const Buf_ &buf) {
     using namespace ZdbNet;
-    return object_(record_(msg_(buf.hdr())))->rn();
+    return record_(msg_(buf.hdr()))->rn();
   }
 };
-using Zdb_BufCache =
-  ZmHash<ZdbBuf_,
-    ZmHashKey<ZdbBuf_RNAxor,
+using BufCache =
+  ZmHash<Buf_,
+    ZmHashKey<Buf_RNAxor,
       ZmHashObject<ZmObject,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
-	    ZmHashID<ZdbBuf_HeapID,
+	    ZmHashID<Buf_HeapID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
-using ZdbBuf = Zdb_BufCache::Node;
+using Buf = BufCache::Node;
 
-using ZdbLRU =
+using LRU =
   ZmList<ZmObject,
     ZmListObject<ZuShadow,
       ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
-using ZdbLRUNode = ZdbLRU::Node;
+using LRUNode = LRU::Node;
 
-struct ZdbLRUNode_RNAxor {
-  inline static ZdbRN get(const ZdbLRUNode &object);
+struct LRUNode_RNAxor {
+  inline static ZdbRN get(const LRUNode &object);
 };
 
-struct Zdb_Cache_ID {
+struct Cache_ID {
   static constexpr const char *id() { return "Zdb.Cache"; }
 };
 
-using Zdb_Cache =
-  ZmHash<ZdbLRUNode,
-    ZmHashKey<ZdbLRUNode_RNAxor,
+using Cache =
+  ZmHash<LRUNode,
+    ZmHashKey<LRUNode_RNAxor,
       ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Zdb_Cache_ID,
+	    ZmHashID<Cache_ID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
-using Zdb_CacheNode = Zdb_Cache::Node;
+using CacheNode = Cache::Node;
 
-class ZdbAPI ZdbAnyObject : public Zdb_CacheNode, public ZuPrintable {
+} // Zdb_
+
+class ZdbAPI ZdbAnyObject : public Zdb_::CacheNode, public ZuPrintable {
   ZdbAnyObject() = delete;
   ZdbAnyObject(const ZdbAnyObject &) = delete;
   ZdbAnyObject &operator =(const ZdbAnyObject &) = delete;
   ZdbAnyObject(ZdbAnyObject &&) = delete;
   ZdbAnyObject &operator =(ZdbAnyObject &&) = delete;
+
+  friend Zdb;
 
 public:
   ZdbAnyObject(Zdb *db, ZdbRN rn) : m_db{db}, m_rn{rn} { }
@@ -603,20 +589,24 @@ public:
   bool appended() const { return m_appended; }
   bool deleted() const { return m_deleted; }
 
-  ZmRef<ZdbBuf> replicate(int type);
+  ZmRef<Buf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<ZdbAnyObject *>(this)->ptr_(); }
 
-  void append() { appended = true; }
-  void del() { deleted = true; }
+  void append() { m_appended = true; }
+  void del() { m_deleted = true; }
 
   template <typename S> void print(S &s) const {
     s << "rn=" << rn << " prevRN=" << prevRN << " origRN=" << origRN <<
+      "appended=" << static_cast<unsigned>(appended) <<
       "deleted=" << static_cast<unsigned>(deleted);
   }
 
 private:
+  void prevRN(ZdbRN rn) { m_prevRN = rn; }
+  void rn(ZdbRN rn_) { m_rn = rn_; }
+
   Zdb		*m_db;
   ZdbRN		m_rn;
   ZdbRN		m_prevRN = ZdbNullRN;
@@ -625,9 +615,11 @@ private:
   bool		m_deleted = false;
 };
 
-inline ZdbRN ZdbLRUNode_RNAxor::get(const ZdbLRUNode &node)
+namespace Zdb_ {
+inline ZdbRN LRUNode_RNAxor::get(const LRUNode &node)
 {
-  return static_cast<const ZdbAnyObject &>(node).rn;
+  return static_cast<const ZdbAnyObject &>(node).rn();
+}
 }
 
 struct ZdbObject_HeapID { 
@@ -680,7 +672,7 @@ typedef ZdbAnyObject *(*ZdbUpdateFn)(ZdbAnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb
 typedef void (*ZdbSaveFn)(Zfb::Builder &, const void *);
 // RecoverFn(object, buf) - object recovered (added, updated, deleted)
-typedef void (*ZdbRecoverFn)(ZdbAnyObject *, const ZdbBuf *buf);
+typedef void (*ZdbRecoverFn)(ZdbAnyObject *, const Buf *buf);
 
 struct ZdbHandler {
   ZdbCtorFn		ctorFn =
@@ -744,29 +736,41 @@ struct ZdbCf {
 
   struct IDAxor { static ZuID get(const ZdbCf &cf) { return cf.id; } };
 };
-struct ZdbCfs_HeapID {
+
+namespace Zdb_ {
+
+struct Cfs_HeapID {
   static constexpr const char *id() { return "ZdbEnv.DBCfs"; }
 };
-using ZdbCfs =
+using Cfs =
   ZmRBTree<ZdbCf,
     ZmRBTreeKey<ZdbCf::IDAxor,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZdbCfs_HeapID> > > >;
 
-struct ZdbDeletes_HeapID {
+struct Deletes_HeapID {
   static constexpr const char *id() { return "Zdb.Deletes"; }
 };
-using ZdbDeletes =
-  ZmRBTree<ZdbRN,
+struct DeleteOp {
+  ZdbRN	rn;
+  int	op;	// Op
+};
+using Deletes =
+  ZmRBTreeKV<ZdbRN, DeleteOp,
     ZmRBTreeUnique<true,
-      ZmRBTreeHeapID<ZdbDeletes_HeapID> > >;
+      ZmRBTreeHeapID<Deletes_HeapID> > >;
+
+} // Zdb_
 
 class ZdbAPI Zdb : public ZmPolymorph {
 friend ZdbEnv;
 friend ZdbAnyObject;
 
-  using Cache = Zdb_Cache;
-  using BufCache = Zdb_BufCache;
+  using Cache = Zdb_::Cache;
+  using BufCache = Zdb_::BufCache;
+  using Deletes = Zdb_::Deletes;
+  using File = Zdb_::File;
+  using FileRec = Zdb_::FileRec;
   using FileLRU = Zdb_::FileLRU;
   using FileCache = Zdb_::FileCache;
   using IndexBlkCache = Zdb_::IndexBlkCache;
@@ -857,18 +861,18 @@ private:
   bool exists(ZdbRN rn);
 
   // load object from buffer
-  ZmRef<ZdbAnyObject> load(const fbs::Object *fbObject);
+  ZmRef<ZdbAnyObject> load(const fbs::Record *fbRecord);
   // save object to buffer
   void save(Zfb::Builder &fbb, ZdbAnyObject *object);
 
   // replication data rcvd (copy/commit, called while env is unlocked)
-  void replicated(const ZmRef<ZdbBuf> &buf, const fbs::Object *fbObject);
+  void replicated(const ZmRef<Buf> &buf, const fbs::Record *fbRecord);
 
   // forward replication data
-  ZmRef<ZdbBuf> replicateFwd(const ZmRef<ZdbBuf> &buf);
+  ZmRef<Buf> replicateFwd(const ZmRef<Buf> &buf);
   // prepare recovery data for sending
-  ZmRef<ZdbBuf> recovery(ZdbRN rn);
-  ZmRef<ZdbBuf> gap(ZdbRN rn, uint64_t count);
+  ZmRef<Buf> recovery(ZdbRN rn);
+  ZmRef<Buf> gap(ZdbRN rn, uint64_t count);
 
   ZiFile::Path dirName(uint64_t id) const {
     return ZiFile::append(m_cf->path, ZuStringN<8>() <<
@@ -882,27 +886,27 @@ private:
     return fileName(dirName(id), id);
   }
 
-  Zdb_FileRec rn2file(ZdbRN rn, bool write);
+  FileRec rn2file(ZdbRN rn, bool write);
 
-  ZmRef<Zdb_File> getFile(unsigned i, bool create);
-  ZmRef<Zdb_File> openFile(unsigned i, bool create);
-  void delFile(Zdb_File *file);
-  void recover(Zdb_File *file);
-  bool recover(const Zdb_FileRec &rec);
-  void scan(Zdb_File *file);
+  ZmRef<File> getFile(unsigned i, bool create);
+  ZmRef<File> openFile(unsigned i, bool create);
+  void delFile(File *file);
+  void recover(File *file);
+  bool recover(const FileRec &rec);
+  void scan(File *file);
 
-  ZmRef<ZdbAnyObject> read_(const Zdb_FileRec &);
+  ZmRef<ZdbAnyObject> read_(const FileRec &);
 
-  void write2(ZmRef<ZdbBuf> buf);
-  void write_(const ZdbBuf *buf);
+  void write2(ZmRef<Buf> buf);
+  void write_(const Buf *buf);
   bool ack(ZdbRN rn);
   void vacuum();
   void standalone();
   void del_(ZdbRN rn);
   ZdbRN del__(ZdbRN rn);
 
-  void fileRdError_(Zdb_File *, uint64_t, int, ZeError e);
-  void fileWrError_(Zdb_File *, uint64_t, ZeError e);
+  void fileRdError_(File *, uint64_t, int, ZeError e);
+  void fileWrError_(File *, uint64_t, ZeError e);
 
   void cache(ZdbAnyObject *object);
   void cache_(ZdbAnyObject *object);
@@ -916,13 +920,13 @@ private:
   Lock			m_lock;
     ZdbRN		  m_minRN = ZdbMaxRN;
     ZdbRN		  m_nextRN = 0;
-    ZdbLRU		  m_lru;
+    LRU		  	  m_lru;
     ZmRef<Cache>	  m_cache;
     unsigned		  m_cacheSize = 0;
     uint64_t		  m_cacheLoads = 0;
     uint64_t		  m_cacheMisses = 0;
     ZmRef<BufCache>	  m_bufCache;
-    ZdbDeletes		  m_deletes;
+    Deletes		  m_deletes;
     ZdbRN		  m_vacuumRN = ZdbNullRN;
     FileLRU		  m_fileLRU;
     ZmRef<FileCache>	  m_files;
@@ -947,12 +951,14 @@ using Zdbs =
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Zdbs_HeapID> > > > >;
 
-using Zdb_DBState_ = ZmLHashKV<ZuID, ZdbRN, ZmLHashLocal<>>;
-struct Zdb_DBState : public Zdb_DBState_ {
-  Zdb_DBState(unsigned size) : Zdb_DBState_{ZmHashParams{size}} { }
+namespace Zdb_ {
 
-  Zdb_DBState(Zfb::Vector<const ZdbNet::fbs::DBState *> *envState) :
-      Zdb_DBState_{ZmHashParams{envState->size()}} {
+using DBState_ = ZmLHashKV<ZuID, ZdbRN, ZmLHashLocal<>>;
+struct DBState : public DBState_ {
+  DBState(unsigned size) : DBState_{ZmHashParams{size}} { }
+
+  DBState(Zfb::Vector<const ZdbNet::fbs::DBState *> *envState) :
+      DBState_{ZmHashParams{envState->size()}} {
     using namespace ZdbNet;
     using namespace Zfb::Load;
     all(envState, [this](unsigned, fbs::DBState *dbState) {
@@ -984,14 +990,14 @@ struct Zdb_DBState : public Zdb_DBState_ {
     }
     return false;
   }
-  Zdb_DBState &operator |=(const Zdb_DBState &r) {
+  DBState &operator |=(const DBState &r) {
     if (ZuLikely(this != &r)) {
       auto i = r.readIterator();
       while (auto rnode = i.iterate()) update(rnode->key(), rnode->val());
     }
     return *this;
   }
-  Zdb_DBState &operator =(const Zdb_DBState &r) {
+  DBState &operator =(const DBState &r) {
     if (ZuLikely(this != &r)) {
       clean();
       this->operator |=(r);
@@ -999,7 +1005,7 @@ struct Zdb_DBState : public Zdb_DBState_ {
     return *this;
   }
 
-  int cmp(const Zdb_DBState &r) {
+  int cmp(const DBState &r) {
     bool inconsistent;
     {
       unsigned n = count();
@@ -1044,9 +1050,9 @@ struct Zdb_DBState : public Zdb_DBState_ {
     return ret;
   }
 };
-struct Zdb_DBState_Print : public ZuPrintDelegate {
+struct DBState_Print : public ZuPrintDelegate {
   template <typename S>
-  static void print(S &s, const Zdb_DBState &a) {
+  static void print(S &s, const DBState &a) {
     unsigned n = a.count();
     if (ZuUnlikely(!n)) return;
     unsigned j = 0;
@@ -1057,7 +1063,9 @@ struct Zdb_DBState_Print : public ZuPrintDelegate {
     }
   }
 };
-Zdb_DBState_Print ZuPrintType(Zdb_DBState *);
+DBState_Print ZuPrintType(DBState *);
+
+} // Zdb_
 
 struct ZdbHostCf {
   unsigned	id = 0;
@@ -1095,7 +1103,9 @@ namespace ZdbHostState {
 
 class ZdbAPI ZdbHost_ {
 friend ZdbEnv;
-friend Zdb_Cxn;
+
+  using Cxn = Zdb_::Cxn;
+friend Cxn;
 
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -1129,12 +1139,12 @@ public:
   friend ZuPrintFn ZuPrintType(ZdbHost_ *);
 
 private:
-  ZmRef<Zdb_Cxn> cxn() const { return m_cxn; }
+  ZmRef<Cxn> cxn() const { return m_cxn; }
 
   void state(int s) { m_state = s; }
 
-  const Zdb_DBState &dbState() const { return m_dbState; }
-  Zdb_DBState &dbState() { return m_dbState; }
+  const DBState &dbState() const { return m_dbState; }
+  DBState &dbState() { return m_dbState; }
 
   bool active() const {
     using namespace ZdbHostState;
@@ -1176,7 +1186,7 @@ private:
   void reconnect2();
   void cancelConnect();
   ZiConnection *connected(const ZiCxnInfo &ci);
-  void associate(Zdb_Cxn *cxn);
+  void associate(Cxn *cxn);
   void disconnected();
 
   void reactivate();
@@ -1186,14 +1196,14 @@ private:
   ZiMultiplex		*m_mx;
 
   Lock			m_lock;
-    ZmRef<Zdb_Cxn>	  m_cxn;
+    ZmRef<Cxn>		  m_cxn;
 
   ZmScheduler::Timer	m_connectTimer;
 
   // guarded by ZdbEnv
 
   int			m_state = ZdbHostState::Instantiated;
-  Zdb_DBState		m_dbState;
+  DBState		m_dbState;
   bool			m_voted = false;
 };
 struct ZdbHosts_HeapID {
@@ -1221,14 +1231,16 @@ struct ZdbHost_Ptr_Print : public ZuPrintDelegate {
 ZdbHost_Ptr_Print ZuPrintType(ZdbHost_Ptr *);
 #endif
 
-class Zdb_Cxn : public ZiConnection {
-  Zdb_Cxn(const Zdb_Cxn &);
-  Zdb_Cxn &operator =(const Zdb_Cxn &);	// prevent mis-use
+namespace Zdb_ {
+
+class Cxn : public ZiConnection {
+  Cxn(const Cxn &);
+  Cxn &operator =(const Cxn &);	// prevent mis-use
 
 friend ZdbEnv;
 friend ZdbHost;
 
-  Zdb_Cxn(ZdbEnv *env, ZdbHost *host, const ZiCxnInfo &ci);
+  Cxn(ZdbEnv *env, ZdbHost *host, const ZiCxnInfo &ci);
 
   ZdbEnv *env() const { return m_env; }
   void host(ZdbHost *host) { m_host = host; }
@@ -1244,9 +1256,25 @@ friend ZdbHost;
   void hbTimeout();
   void hbSend();
 
-  bool repRcvd(ZiIOContext &);
+  template <typename Body>
+  Zdb *repRcvd_(const Body *body) {
+    if (!m_host) {
+      ZeLOG(Fatal, "Zdb received replication message before heartbeat");
+      return nullptr;
+    }
+    auto dbID = Zfb::Load::id(body->db())
+    Zdb *db = m_env->db_(dbID, ZdbHandler{});
+    if (!db) {
+      ZeLOG(Fatal, ZtString{} <<
+	  "Zdb unknown remote DBID " << dbID << " received");
+      return nullptr;
+    }
+    return db;
+  }
+  bool repRcvd(Zdb *db, const ZmRef<ZdbBuf> &buf, const fbs::Record *record);
+  bool repRcvd(Zdb *db, const ZmRef<ZdbBuf> &buf, const fbs::Gap *gap);
 
-  void repSend(ZmRef<ZdbBuf> buf);
+  void repSend(ZmRef<Buf> buf);
 
   void ackRcvd();
   void ackSend(int type, ZdbAnyObject *o);
@@ -1254,19 +1282,12 @@ friend ZdbHost;
   ZdbEnv		*m_env;
   ZdbHost		*m_host;	// 0 if not yet associated
 
-  ZmRef<ZdbBuf>		m_rxBuf;
-#if 0
-  Zdb_Msg_Hdr		m_recvHdr;
-  ZtArray<char>		m_recvData;
-  ZtArray<char>		m_recvData2;
-
-  Zdb_Msg_Hdr		m_hbSendHdr;
-
-  Zdb_Msg_Hdr		m_ackSendHdr;
-#endif
+  ZmRef<Buf>		m_rxBuf;
 
   ZmScheduler::Timer	m_hbTimer;
 };
+
+} // Zdb_
 
 // ZdbEnv configuration
 struct ZdbEnvCf {
@@ -1327,14 +1348,16 @@ class ZdbAPI ZdbEnv : public ZmPolymorph {
 
 friend Zdb;
 friend ZdbHost;
-friend Zdb_Cxn;
 friend ZdbAnyObject;
+
+  using Cxn = Zdb_::Cxn;
+friend Zdb_::Cxn;
 
   struct CxnHash_HeapID {
     static constexpr const char *id() { return "ZdbEnv.CxnHash"; }
   };
   using CxnHash =
-    ZmHash<ZmRef<Zdb_Cxn>,
+    ZmHash<ZmRef<Cxn>,
       ZmHashLock<ZmPLock,
 	ZmHashObject<ZuNull,
 	  ZmHashHeapID<CxnHash_HeapID> > > >;
@@ -1475,17 +1498,17 @@ private:
   void reactivate(ZdbHost *host);	// re-assert master
 
   ZiConnection *accepted(const ZiCxnInfo &ci);
-  void connected(Zdb_Cxn *cxn);
-  void associate(Zdb_Cxn *cxn, int hostID);
-  void associate(Zdb_Cxn *cxn, ZdbHost *host);
-  void disconnected(Zdb_Cxn *cxn);
+  void connected(Cxn *cxn);
+  void associate(Cxn *cxn, int hostID);
+  void associate(Cxn *cxn, ZdbHost *host);
+  void disconnected(Cxn *cxn);
 
   void hbRcvd(ZdbHost *host, const ZdbNet::fbs::Msg_HB *hb);
   void vote(ZdbHost *host);
 
   void hbStart();
   void hbSend();		// send heartbeat and reschedule self
-  void hbSend_(Zdb_Cxn *cxn);	// send heartbeat (once)
+  void hbSend_(Cxn *cxn);	// send heartbeat (once)
 
   void dbStateRefresh();	// refresh m_self->dbState()
 
@@ -1496,14 +1519,14 @@ private:
   void startReplication();
   void stopReplication();
 
-  void replicated(ZdbHost *host, const ZdbNet::fbs::Object *rep);
+  void replicated(ZdbHost *host, const ZdbNet::fbs::Record *record);
 
-  void repSend(ZmRef<ZdbBuf> buf);
+  void repSend(ZmRef<Buf> buf);
   void recSend();
 
   void ackRcvd(ZdbHost *host, bool positive, ZuID db, ZdbRN rn);
 
-  void write(ZmRef<ZdbBuf> buf);
+  void write(ZmRef<Buf> buf);
 
   // write thread
   void standalone();
@@ -1523,10 +1546,10 @@ private:
     ZdbHost		  *m_master;	// == m_self if Active
     ZdbHost		  *m_prev;	// previous-ranked host
     ZdbHost		  *m_next;	// next-ranked host
-    ZmRef<Zdb_Cxn>	  m_nextCxn;	// replica peer's cxn
+    ZmRef<Cxn>		  m_nextCxn;	// replica peer's cxn
     bool		  m_recovering;	// recovering next-ranked host
-    Zdb_DBState		  m_recover;	// recovery state
-    Zdb_DBState		  m_recoverEnd;	// recovery end
+    DBState		  m_recover;	// recovery state
+    DBState		  m_recoverEnd;	// recovery end
     int			  m_nPeers;	// # up to date peers
 					// # votes received (Electing)
 					// # pending disconnects (Stopping)

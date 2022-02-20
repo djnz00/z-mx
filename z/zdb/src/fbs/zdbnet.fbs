@@ -11,7 +11,7 @@ table Heartbeat {
 }
 // Records on disk are one of four journal operations
 enum Op:int8 {
-  Commit = 0,	// add this record, delete prevRN (and predecessors)
+  Put = 0,	// add this record, delete prevRN (and predecessors)
   Append,	// add this record, preserve prevRN
   Delete,	// add this tombstone, delete prevRN (no data)
   Purge		// add this purge instruction, delete all < prevRN (no data)
@@ -24,6 +24,7 @@ table Record {
   op:Op;
 }
 table Gap {		// record gap
+  db:Zfb.ID;
   rn:uint64;
   count:uint64;		// repeat count
 }
