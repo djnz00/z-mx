@@ -579,7 +579,7 @@ class ZdbAPI ZdbAnyObject : public Zdb_::CacheNode, public ZuPrintable {
   friend Zdb;
 
 public:
-  ZdbAnyObject(Zdb *db, ZdbRN rn) : m_db{db}, m_rn{rn} { }
+  ZdbAnyObject(Zdb *db) : m_db{db} { }
   virtual ~ZdbAnyObject() { }
 
   Zdb *db() const { return m_db; }
@@ -596,6 +596,7 @@ public:
 
   void append() { m_appended = true; }
   void del() { m_deleted = true; }
+  void undel() { m_deleted = false; }
 
   template <typename S> void print(S &s) const {
     s << "rn=" << rn << " prevRN=" << prevRN << " origRN=" << origRN <<
@@ -604,13 +605,15 @@ public:
   }
 
 private:
-  void prevRN(ZdbRN rn) { m_prevRN = rn; }
-  void rn(ZdbRN rn_) { m_rn = rn_; }
+  void loadRN(ZdbRN rn, ZdbRN prevRN) { m_rn = rn; m_prevRN = prevRN; }
+  void pushRN(ZdbRN rn) { m_origRN = m_rn; m_rn = rn; }
+  void putRN() { m_prevRN = m_origRN; m_origRN = ZdbNullRN; }
+  void abortRN() { m_rn = m_origRN; m_origRN = ZdbNullRN; }
 
   Zdb		*m_db;
-  ZdbRN		m_rn;
+  ZdbRN		m_rn = ZdbNullRN;
   ZdbRN		m_prevRN = ZdbNullRN;
-  ZdbRN		m_origRN = ZdbNullRN;	// RN backup before put() / putUpdate()
+  ZdbRN		m_origRN = ZdbNullRN;	// RN backup before put()
   bool		m_appended = false;
   bool		m_deleted = false;
 };
@@ -635,7 +638,7 @@ class ZdbObject_ : public Heap, public ZdbAnyObject {
 
 public:
   template <typename L>
-  ZdbObject_(Zdb *db_, ZdbRN rn_, L l) : ZdbAnyObject{db_, rn_} {
+  ZdbObject_(Zdb *db_, L l) : ZdbAnyObject{db_} {
     l(static_cast<void *>(&m_data[0]));
   }
 
@@ -663,10 +666,10 @@ using ZdbObject_Heap = ZmHeap<ZdbObject_HeapID, sizeof(ZdbObject_<T, ZuNull>)>;
 template <typename T>
 using ZdbObject = ZdbObject_<T, ZdbObject_Heap<T>>;
 
-// CtorFn(db, rn) - construct new object from flatbuffer
-typedef ZdbAnyObject *(*ZdbCtorFn)(Zdb *, ZdbRN);
-// LoadFn(db, rn, data, length) - construct new object from flatbuffer
-typedef ZdbAnyObject *(*ZdbLoadFn)(Zdb *, ZdbRN, const uint8_t *, unsigned);
+// CtorFn(db) - construct new object from flatbuffer
+typedef ZdbAnyObject *(*ZdbCtorFn)(Zdb *);
+// LoadFn(db, data, length) - construct new object from flatbuffer
+typedef ZdbAnyObject *(*ZdbLoadFn)(Zdb *, const uint8_t *, unsigned);
 // UpdateFn(object, data, length) - load flatbuffer into object
 typedef ZdbAnyObject *(*ZdbUpdateFn)(ZdbAnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb
@@ -676,11 +679,10 @@ typedef void (*ZdbRecoverFn)(ZdbAnyObject *, const Buf *buf);
 
 struct ZdbHandler {
   ZdbCtorFn		ctorFn =
-    [](Zdb *db, ZdbRN rn) ->
-	ZdbAnyObject * { return new ZdbAnyObject{db, rn}; };
+    [](Zdb *db) -> ZdbAnyObject * { return new ZdbAnyObject{db}; };
   ZdbLoadFn		loadFn =
-    [](Zdb *db, ZdbRN rn, const uint8_t *, unsigned) ->
-	ZdbAnyObject * { return new ZdbAnyObject{db, rn}; };
+    [](Zdb *db, const uint8_t *, unsigned) ->
+	ZdbAnyObject * { return new ZdbAnyObject{db}; };
   ZdbUpdateFn		updateFn = nullptr;
   ZdbSaveFn		saveFn = nullptr;
   ZdbRecoverFn		recoverFn = nullptr;
@@ -688,14 +690,14 @@ struct ZdbHandler {
   template <typename T>
   static ZdbHandler bind() {
     return ZdbHandler{
-      .ctorFn = [](Zdb *db, ZdbRN rn) -> ZdbAnyObject * {
-	return new ZdbObject<T>{db, rn, [](void *ptr) { new (ptr) T{}; }};
+      .ctorFn = [](Zdb *db) -> ZdbAnyObject * {
+	return new ZdbObject<T>{db, [](void *ptr) { new (ptr) T{}; }};
       },
-      .loadFn = [](Zdb *db, ZdbRN rn, const uint8_t *data, unsigned len) ->
+      .loadFn = [](Zdb *db, const uint8_t *data, unsigned len) ->
 	  ZdbAnyObject * {
 	auto fbObject = Zfb::verify<T>(data, len);
 	if (ZuUnlikely(!fbObject)) return nullptr;
-	return new ZdbObject<T>{db, rn, [fbObject](void *ptr) {
+	return new ZdbObject<T>{db, [fbObject](void *ptr) {
 	  Zfb::ctor<T>(ptr, fbObject);
 	}};
       },
@@ -824,8 +826,6 @@ public:
   ZmRef<ZdbAnyObject> push(ZdbRN rn);
   // allocate RN only for new record, for later use with push(rn)
   ZdbRN pushRN();
-  // commit push - causes replication / write
-  void put(ZdbAnyObject *);
 
   // get record
   ZmRef<ZdbAnyObject> get(ZdbRN rn);	// use for read-only queries
@@ -839,9 +839,9 @@ public:
   ZmRef<ZdbAnyObject> update_(ZdbRN prevRN);
   // update record (idempotent) (with prevRN, without prev POD)
   ZmRef<ZdbAnyObject> update_(ZdbRN prevRN, ZdbRN rn);
-  // commit update
-  void putUpdate(ZdbAnyObject *);
 
+  // commit push() /update() - causes replication / write
+  void put(ZdbAnyObject *);
   // abort push() / update()
   void abort(ZdbAnyObject *);
 
@@ -861,12 +861,13 @@ private:
   bool exists(ZdbRN rn);
 
   // load object from buffer
-  ZmRef<ZdbAnyObject> load(const fbs::Record *fbRecord);
+  ZmRef<ZdbAnyObject> load(const fbs::Record *record);
   // save object to buffer
   void save(Zfb::Builder &fbb, ZdbAnyObject *object);
 
   // replication data rcvd (copy/commit, called while env is unlocked)
-  void replicated(const ZmRef<Buf> &buf, const fbs::Record *fbRecord);
+  void replicated(const fbs::Record *record, const ZmRef<Buf> &buf);
+  void replicated(const fbs::Gap *gap, const ZmRef<Buf> &buf);
 
   // forward replication data
   ZmRef<Buf> replicateFwd(const ZmRef<Buf> &buf);
@@ -893,6 +894,7 @@ private:
   void delFile(File *file);
   void recover(File *file);
   bool recover(const FileRec &rec);
+  void recover_(const ZdbNet::fbs::Record *record, ZmRef<ZdbBuf> buf);
   void scan(File *file);
 
   ZmRef<ZdbAnyObject> read_(const FileRec &);
@@ -925,7 +927,7 @@ private:
     unsigned		  m_cacheSize = 0;
     uint64_t		  m_cacheLoads = 0;
     uint64_t		  m_cacheMisses = 0;
-    ZmRef<BufCache>	  m_bufCache;
+    ZmRef<BufCache>	  m_writeCache;
     Deletes		  m_deletes;
     ZdbRN		  m_vacuumRN = ZdbNullRN;
     FileLRU		  m_fileLRU;
@@ -1271,8 +1273,10 @@ friend ZdbHost;
     }
     return db;
   }
-  bool repRcvd(Zdb *db, const ZmRef<ZdbBuf> &buf, const fbs::Record *record);
-  bool repRcvd(Zdb *db, const ZmRef<ZdbBuf> &buf, const fbs::Gap *gap);
+  bool repRcvd(
+      Zdb *db, const ZdbNet::fbs::Record *record, const ZmRef<ZdbBuf> &buf);
+  bool repRcvd(
+      Zdb *db, const ZdbNet::fbs::Gap *gap, const ZmRef<ZdbBuf> &buf);
 
   void repSend(ZmRef<Buf> buf);
 
