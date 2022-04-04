@@ -409,7 +409,7 @@ public:
   }
   unsigned nLinks() const {
     ReadGuard guard(m_lock);
-    return m_links.count();
+    return m_links.count_();
   }
   template <typename Link, typename L> bool allLinks(L l) {
     auto i = m_links.readIterator();

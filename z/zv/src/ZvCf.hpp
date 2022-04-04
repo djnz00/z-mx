@@ -536,7 +536,7 @@ private:
 	ZmRBTreeHeapID<HeapID> > >;
 
 public:
-  unsigned count() const { return m_tree.count(); }
+  unsigned count() const { return m_tree.count_(); }
   ZmRef<ZvCf> parent() const { return m_parent; }
 
   class Iterator;

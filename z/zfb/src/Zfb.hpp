@@ -293,7 +293,7 @@ namespace Save {
 
   // nest following Finish()
   inline Offset<Vector<uint8_t>> nest(Builder &fbb) {
-    return {fbb.PushElement(GetSize())};
+    return {fbb.PushElement(fbb.GetSize())};
   }
 
 } // Save

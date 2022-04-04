@@ -575,8 +575,6 @@ private:
   }
 
 public:
-  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
-  unsigned length() const { ReadGuard guard(m_lock); return m_length; }
   unsigned count_() const { return m_count; }
   unsigned length_() const { return m_length; }
 
@@ -1140,7 +1138,7 @@ public:
       Guard guard(m_lock);
       m_flags &= ~Queuing;
       app->rxQueue()->head(key);
-      scheduleDequeue = !(m_flags & Dequeuing) && app->rxQueue()->count();
+      scheduleDequeue = !(m_flags & Dequeuing) && app->rxQueue()->count_();
       if (scheduleDequeue) m_flags |= Dequeuing;
     }
     if (scheduleDequeue) app->scheduleDequeue();
@@ -1155,7 +1153,7 @@ public:
       return;
     }
     msg = app->rxQueue()->rotate(ZuMv(msg));
-    bool scheduleDequeue = msg && app->rxQueue()->count();
+    bool scheduleDequeue = msg && app->rxQueue()->count_();
     if (scheduleDequeue) m_flags |= Dequeuing;
     guard.unlock();
     if (ZuUnlikely(!msg)) { stalled(); return; }
@@ -1168,7 +1166,7 @@ public:
     App *app = static_cast<App *>(this);
     Guard guard(m_lock);
     ZmRef<Msg> msg = app->rxQueue()->dequeue();
-    bool scheduleDequeue = msg && app->rxQueue()->count();
+    bool scheduleDequeue = msg && app->rxQueue()->count_();
     if (!scheduleDequeue) m_flags &= ~Dequeuing;
     guard.unlock();
     if (ZuUnlikely(!msg)) { stalled(); return; }
@@ -1210,7 +1208,7 @@ private:
     Gap old, gap;
     {
       Guard guard(m_lock);
-      if (!app->rxQueue()->count()) return;
+      if (!app->rxQueue()->count_()) return;
       gap = app->rxQueue()->gap();
       if (gap == m_gap) return;
       old = m_gap;

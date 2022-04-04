@@ -445,7 +445,7 @@ public:
     return size() - (tail - head);
   }
 
-  unsigned count() const {
+  unsigned count_() const {
     int i = readStatus();
     if (i < 0) return 0;
     return i / Size;

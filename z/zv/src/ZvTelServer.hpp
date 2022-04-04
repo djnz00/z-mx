@@ -475,7 +475,7 @@ private:
     template <typename P>
     void push(P &&v) { list.pushNode(ZuFwd<P>(v)); }
     void clean() { list.clean(); }
-    auto count() { return list.count(); }
+    auto count() { return list.count_(); }
     auto iterator() { return list.iterator(); }
     auto readIterator() { return list.readIterator(); }
   };
@@ -602,7 +602,7 @@ private:
   }
 
   void heapScan() {
-    if (!m_watchLists[ReqType::Heap].list.count()) return;
+    if (!m_watchLists[ReqType::Heap].list.count_()) return;
     ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
       this, [](Server *server, ZmHeapCache *heap) {
 	server->heapScan(heap);
@@ -650,7 +650,7 @@ private:
   }
 
   void hashScan() {
-    if (!m_watchLists[ReqType::HashTbl].list.count()) return;
+    if (!m_watchLists[ReqType::HashTbl].list.count_()) return;
     ZmHashMgr::all(ZmFn<ZmAnyHash *>{
       this, [](Server *server, ZmAnyHash *tbl) {
 	server->hashScan(tbl);
@@ -698,7 +698,7 @@ private:
   }
 
   void threadScan() {
-    if (!m_watchLists[ReqType::Thread].list.count()) return;
+    if (!m_watchLists[ReqType::Thread].list.count_()) return;
     ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{
       this, [](Server *server, ZmThreadContext *tc) {
 	server->threadScan(tc);
@@ -755,7 +755,7 @@ private:
 	  m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 		fbs::TelData_Queue,
 		fbs::CreateQueue(m_fbb,
-		  str(m_fbb, queueID), 0, ring.count(),
+		  str(m_fbb, queueID), 0, ring.count_(),
 		  inCount, inBytes, outCount, outBytes,
 		  ring.params().size(), ring.full(),
 		  fbs::QueueType_Thread).Union()));
@@ -772,7 +772,7 @@ private:
 	  m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 		fbs::TelData_Queue,
 		fbs::CreateQueue(m_fbb,
-		  str(m_fbb, queueID), 0, overRing.count(),
+		  str(m_fbb, queueID), 0, overRing.count_(),
 		  inCount, inCount * sizeof(ZmFn<>),
 		  outCount, outCount * sizeof(ZmFn<>),
 		  overRing.size_(), false,
@@ -793,7 +793,7 @@ private:
   }
 
   void mxScan() {
-    if (!m_watchLists[ReqType::Mx].list.count()) return;
+    if (!m_watchLists[ReqType::Mx].list.count_()) return;
     allMx(ZmFn<ZvMultiplex *>{this, [](Server *server, ZvMultiplex *mx) {
       server->mxScan(mx);
     }});
@@ -820,7 +820,7 @@ private:
 	    auto id_ = Zfb::Save::str(m_fbb, queueID);
 	    fbs::QueueBuilder b(m_fbb);
 	    b.add_id(id_);
-	    b.add_count(ring.count());
+	    b.add_count(ring.count_());
 	    b.add_inCount(inCount);
 	    b.add_inBytes(inBytes);
 	    b.add_outCount(outCount);
@@ -841,7 +841,7 @@ private:
 	    auto id_ = Zfb::Save::str(m_fbb, queueID);
 	    fbs::QueueBuilder b(m_fbb);
 	    b.add_id(id_);
-	    b.add_count(overRing.count());
+	    b.add_count(overRing.count_());
 	    b.add_inCount(inCount);
 	    b.add_inBytes(inCount * sizeof(ZmFn<>));
 	    b.add_outCount(outCount);
@@ -905,7 +905,7 @@ private:
     watch->link->send(m_fbb.buf());
   }
   void queueScan() {
-    if (!m_watchLists[ReqType::Queue].list.count()) return;
+    if (!m_watchLists[ReqType::Queue].list.count_()) return;
     auto i = m_queues.readIterator();
     while (auto node = i.iterate()) queueScan(node->val());
   }
@@ -959,7 +959,7 @@ private:
     });
   }
   void engineScan() {
-    if (!m_watchLists[ReqType::Engine].list.count()) return;
+    if (!m_watchLists[ReqType::Engine].list.count_()) return;
     auto i = m_engines.readIterator();
     while (auto node = i.iterate()) engineScan(node->val());
   }
@@ -1027,7 +1027,7 @@ private:
     });
   }
   void dbEnvScan() {
-    if (!m_watchLists[ReqType::DBEnv].list.count()) return;
+    if (!m_watchLists[ReqType::DBEnv].list.count_()) return;
     if (!m_dbEnvFn) return;
     auto i = m_watchLists[ReqType::DBEnv].list.readIterator();
     while (auto watch = i.iterateNode()) {
@@ -1077,7 +1077,7 @@ private:
   void appScan() {
     if (!m_appUpdated) return;
     m_appUpdated = false;
-    if (!m_watchLists[ReqType::App].list.count()) return;
+    if (!m_watchLists[ReqType::App].list.count_()) return;
     ZvTelemetry::App data;
     app()->telemetry(data);
     auto i = m_watchLists[ReqType::App].list.readIterator();

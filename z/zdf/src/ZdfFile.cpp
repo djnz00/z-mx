@@ -122,7 +122,7 @@ ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
   ++m_fileMisses;
   file = openFile(fileID, create);
   if (ZuUnlikely(!file)) return nullptr;
-  while (m_lru.count() >= m_maxOpenFiles) {
+  while (m_lru.count_() >= m_maxOpenFiles) {
     auto node = m_lru.shiftNode();
     m_files->del(static_cast<File *>(node)->id);
   }

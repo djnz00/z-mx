@@ -495,7 +495,7 @@ int main()
   for (i = 6, j = 1; i < 100; i += j, j += 4) tree.del(ZmRef<Z>(new Z(i)));
   for (i = 10, j = 1; i < 100; i += j, j += 5) tree.del(ZmRef<Z>(new Z(i)));
 
-  printf("zero object count: %d\n", tree.count());
+  printf("zero object count: %d\n", tree.count_());
 
   for (i = 0, j = 1; i < 100; i += j, j++) tree.add(ZmRef<Z>(new Z(i)));
   for (i = 2, j = 1; i < 100; i += j, j += 2) tree.add(ZmRef<Z>(new Z(i)));
@@ -509,7 +509,7 @@ int main()
   for (i = 2, j = 1; i < 100; i += j, j += 2) tree.del(ZmRef<Z>(new Z(i)));
   for (i = 0, j = 1; i < 100; i += j, j++) tree.del(ZmRef<Z>(new Z(i)));
 
-  printf("zero object count: %d\n", tree.count());
+  printf("zero object count: %d\n", tree.count_());
 
   for (i = 0; i < 20; i++) tree.add(ZmRef<Z>(new Z(i)));
 
@@ -525,7 +525,7 @@ int main()
   }
   putchar('\n');
 
-  printf("zero object count: %d\n", tree.count());
+  printf("zero object count: %d\n", tree.count_());
 
   for (i = 0; i < 20; i++) tree.add(ZmRef<Z>(new Z(i)));
 
@@ -636,6 +636,6 @@ int main()
     };
     for (unsigned i = 0; i < 15; i++) tree2.add(add[i]);
     for (unsigned i = 0; i < 12; i++) ZmAssert(tree2.del(del[i]));
-    printf("tree2 count: %u\n", (unsigned)tree2.count());
+    printf("tree2 count: %u\n", (unsigned)tree2.count_());
   }
 }

@@ -148,7 +148,7 @@ inline unsigned getncpu() {
 // sleep & yield
 #ifndef _WIN32
 ZmExtern void sleep(ZmTime timeout);
-ZuInline void yield() { pthread_yield(); }
+ZuInline void yield() { sched_yield(); }
 #else
 ZmExtern void sleep(ZmTime timeout);
 ZuInline void yield() { ::Sleep(0); }

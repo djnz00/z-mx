@@ -121,7 +121,11 @@ struct ZmLHashStatic : public NTP {
 };
 
 
-// ZmLHashLocal<> - local hash table - do not register with hash mgr, no telemetry, can be on stack, does not derive from ZmAnyHash
+// ZmLHashLocal<> - local hash table
+// - not registered with hash mgr
+// - no telemetry
+// - can be on stack
+// - does not derive from ZmAnyHash
 template <typename NTP = ZmLHash_Defaults>
 struct ZmLHashLocal : public NTP {
   enum { Local = 1 };

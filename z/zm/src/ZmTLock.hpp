@@ -655,15 +655,15 @@ public:
 #undef ZmTLock_ID2LOCK
 #undef ZmTLock_TID2THREAD
 
-  unsigned count() { ReadGuard_ guard(m_lock); return m_locks->count_(); }
+  // unsigned count() { ReadGuard_ guard(m_lock); return m_locks->count_(); }
   unsigned count_() { return m_locks->count_(); }
 
 private:
   template <typename ID_>
   LockRef allocLock(ID_ &&id) {
-    if (ZuUnlikely(!m_freeLocks.count()))
-      return new Lock(ZuFwd<ID_>(id), m_lock);
     LockRef lock = m_freeLocks.pop();
+    if (ZuUnlikely(!lock))
+      return new Lock(ZuFwd<ID_>(id), m_lock);
     lock->m_id = ZuFwd<ID_>(id);
     return lock;
   }

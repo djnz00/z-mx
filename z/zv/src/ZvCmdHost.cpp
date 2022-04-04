@@ -104,7 +104,7 @@ int ZvCmdHost::help(ZvCmdContext *ctx)
     out << cmd->val().usage << '\n';
     return 0;
   }
-  out.size(m_cmds.count() * 80 + 40);
+  out.size(m_cmds.count_() * 80 + 40);
   out << "commands:\n\n";
   {
     auto i = m_cmds.readIterator();

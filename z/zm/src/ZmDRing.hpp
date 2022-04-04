@@ -169,7 +169,7 @@ public:
 
   unsigned size() const { ReadGuard guard(m_lock); return m_size; }
   unsigned length() const { ReadGuard guard(m_lock); return m_length; }
-  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
+  // unsigned count() const { ReadGuard guard(m_lock); return m_count; }
   unsigned size_() const { return m_size; }
   unsigned length_() const { return m_length; }
   unsigned count_() const { return m_count; }

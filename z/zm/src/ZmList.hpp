@@ -335,7 +335,7 @@ friend ReadIterator;
 
   ~ZmList() { clean_(); }
 
-  unsigned count() const { ReadGuard guard(m_lock); return m_count; }
+  // unsigned count() const { ReadGuard guard(m_lock); return m_count; }
   bool empty() const { ReadGuard guard(m_lock); return !m_count; }
   unsigned count_() const { return m_count; }
   bool empty_() const { return !m_count; }

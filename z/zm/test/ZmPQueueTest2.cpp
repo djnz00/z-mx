@@ -73,10 +73,10 @@ public:
 
   // send a new message into the receiver
   void send(uint32_t key, unsigned length) {
-    unsigned precount = m_queue.count();
+    unsigned precount = m_queue.count_();
     this->received(new Msg(ZuFwdPair(key, length)));
     printf("send %u, %u (pre-count = %u, post-count = %u)\n",
-	(unsigned)key, length, precount, (unsigned)m_queue.count());
+	(unsigned)key, length, precount, (unsigned)m_queue.count_());
   }
 
   // respond to next queued resend request

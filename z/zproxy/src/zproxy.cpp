@@ -135,7 +135,7 @@ public:
 
   uint32_t size() const { return m_size; }
 
-  unsigned count() const { return IOList::count(); }
+  unsigned count() const { return IOList::count_(); }
 
   ZmRef<IOBuf> head() const { return IOList::head(); }
   ZmRef<IOBuf> tail() const { return IOList::tail(); }

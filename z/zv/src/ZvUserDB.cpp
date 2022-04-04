@@ -63,8 +63,8 @@ bool Mgr::bootstrap(
       m_permIndex[id] = id;
     }
   }
-  if (!m_roles.count())
-    roleAdd_(role, Role::Immutable, Bitmap().fill(), Bitmap().fill());
+  if (!m_roles.count_())
+    roleAdd_(role, Role::Immutable, Bitmap{}.fill(), Bitmap{}.fill());
   if (!m_users->count_()) {
     ZmRef<User> user = userAdd_(
 	0, name, role, User::Immutable | User::Enabled | User::ChPass,

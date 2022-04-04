@@ -254,9 +254,9 @@ public:
   friend Traits ZuTraitsType(ZiIOBuf__ *);
 };
 #pragma pack(pop)
-template <unsigned Size, typename Heap, typename HeapID>
-struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size, HeapID> {
-  using Base = ZiIOBuf__<Size, HeapID>;
+template <unsigned Size_, typename Heap, typename HeapID>
+struct ZiIOBuf_ : public Heap, public ZiIOBuf__<Size_, HeapID> {
+  using Base = ZiIOBuf__<Size_, HeapID>;
   using Base::Size;
   ZiIOBuf_() = default;
   template <typename ...Args>

@@ -211,14 +211,14 @@ public:
   void free(unsigned seriesID);
 
   virtual void shift() {
-    if (m_lru.count() >= m_maxBufs) {
+    if (m_lru.count_() >= m_maxBufs) {
       auto lru_ = m_lru.shiftNode();
       if (ZuLikely(lru_)) {
 	Buf *lru = static_cast<Buf *>(lru_);
 	lru->pinned([this, lru_ = ZuMv(lru_), lru](unsigned pinned) {
 	  if (pinned) {
 	    m_lru.pushNode(ZuMv(lru_));
-	    m_maxBufs = m_lru.count() + 1;
+	    m_maxBufs = m_lru.count_() + 1;
 	  } else
 	    (m_unloadFn[lru->seriesID])(lru);
 	});

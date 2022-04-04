@@ -10,18 +10,12 @@ table Heartbeat {
   db_state:[DBState];
 }
 // Records on disk are one of four journal operations
-enum Op:int8 {
-  Put = 0,	// add this record, delete prevRN (and predecessors)
-  Append,	// add this record, preserve prevRN
-  Delete,	// add this tombstone, delete prevRN (no data)
-  Purge		// add this purge instruction, delete all < prevRN (no data)
-}
 table Record {
   db:Zfb.ID;
   rn:uint64;
   prev_r_n:uint64;
+  seq_len_op:uint32;	// sequence length + op
   data:[uint8];		// nested table data - null if Delete or Purge
-  op:Op;
 }
 table Gap {		// record gap
   db:Zfb.ID;

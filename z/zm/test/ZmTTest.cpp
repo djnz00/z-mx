@@ -129,5 +129,5 @@ int main()
     printf("threads: %d\n", (int)threads);
     if (!threads) break;
   }
-  ZmAssert(!tlock()->count());
+  ZmAssert(!tlock()->count_());
 }

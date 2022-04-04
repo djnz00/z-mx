@@ -276,7 +276,7 @@ void ZvEngine::telemetry(Telemetry &data) const
   }
   {
     ReadGuard guard(m_lock);
-    data.nLinks = m_links.count();
+    data.nLinks = m_links.count_();
   }
   data.rxThread = m_rxThread;
   data.txThread = m_txThread;

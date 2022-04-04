@@ -350,10 +350,10 @@ public:
   unsigned size() const {
     return m_threads[0].ring.size() * m_params.nThreads();
   }
-  unsigned count() const {
+  unsigned count_() const {
     unsigned count = 0;
     for (unsigned i = 0, n = m_params.nThreads(); i < n; i++)
-      count += m_threads[i].ring.count();
+      count += m_threads[i].ring.count_();
     return count;
   }
   const Ring &ring(unsigned tid) const {

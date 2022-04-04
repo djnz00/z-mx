@@ -208,7 +208,7 @@ public:
       return -1; // disconnect
 
     if (ZuUnlikely(m_state == State::LoginFailed))
-      return len; // timeout then disc.
+      return length; // timeout then disc.
 
     scheduleTimeout();
 
@@ -219,7 +219,7 @@ public:
 	      [this](const ZvCmd::Hdr *hdr,
 		const uint8_t *data, unsigned length) {
 	    auto type = hdr->type;
-	    if (ZuUnlikely(m_state.load_() == State::Login)) {
+	    if (ZuUnlikely(m_state == State::Login)) {
 	      if (type != ZvCmd::Type::login()) return -1;
 	      return processLogin(data, length);
 	    }
