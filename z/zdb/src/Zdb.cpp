@@ -1312,8 +1312,12 @@ ZmRef<ZdbAnyObject> Zdb::load(const Zdb_::fbs::Record *record)
 {
   using namespace Zdb_;
   auto prevRN = record->prevRN();
-  int op = record->op();
-  if (op == Op::Delete || op == Op::Purge) return nullptr;
+  auto seqLenOp = record->seqLenOp();
+  switch (SeqLenOp::op(seqLenOp)) {
+    case Op::Delete:
+    case Op::Purge:
+      return nullptr;
+  }
   ZmRef<ZdbAnyObject> object;
   Guard guard(m_lock);
   if (prevRN != ZdbNullRN) object = cacheDel_(prevRN);
@@ -1323,7 +1327,7 @@ ZmRef<ZdbAnyObject> Zdb::load(const Zdb_::fbs::Record *record)
   } else {
     object = m_handler.updateFn(object, data.data(), data.length());
   }
-  object->load(record->rn(), prevRN, record->seqLenOp());
+  object->load(record->rn(), prevRN, seqLenOp);
   return object;
 }
 
@@ -1343,9 +1347,9 @@ bool Zdb::recover()
   // main directory
   {
     ZiDir dir;
-    if (dir.open(m_cf->path) != Zi::OK) {
-      if (ZiFile::mkdir(m_cf->path, &e) != Zi::OK) {
-	ZeLOG(Fatal, ZtString{} << m_cf->path << ": " << e);
+    if (dir.open(m_path) != Zi::OK) {
+      if (ZiFile::mkdir(m_path, &e) != Zi::OK) {
+	ZeLOG(Fatal, ZtString{} << m_path << ": " << e);
 	return false;
       }
       return true;
@@ -1377,8 +1381,8 @@ bool Zdb::recover()
 #else
     auto &subName_ = subName;
 #endif
-    subName_ = ZuBox<unsigned>(i).hex<ZuFmt::Right<5>>();
-    subName = ZiFile::append(m_cf->path, subName_);
+    subName_ = ZuBox<unsigned>{i}.hex<false, ZuFmt::Right<5>>();
+    subName = ZiFile::append(m_path, subName_);
     ZiDir::Path fileName;
     ZtBitWindow<1> files;
     {
@@ -1402,7 +1406,7 @@ bool Zdb::recover()
 	  continue;
 	}
 	ZuBox<unsigned> fileIndex;
-	fileIndex.scan(ZuFmt::Hex<>(), fileName_);
+	fileIndex.scan<ZuFmt::Hex<>>(fileName_);
 	files.set(fileIndex);
       }
       subDir.close();
@@ -1415,7 +1419,7 @@ bool Zdb::recover()
       auto &fileName_ = fileName;
 #endif
       uint64_t id = (static_cast<uint64_t>(i)<<20) | j;
-      ZmRef<File> file = openFile(id, false);
+      ZmRef<File> file = openFile_(fileName_, id, false);
       if (!file) return false;
       recover(file);
       return true;
@@ -1427,6 +1431,7 @@ bool Zdb::recover()
 
 void Zdb::recover(File *file)
 {
+  using namespace Zdb_;
   if (!file->allocated()) return;
   if (file->deleted() >= fileRecs()) { delFile(file); return; }
   ZdbRN rn = (file->id())<<fileShift();
@@ -1438,7 +1443,7 @@ void Zdb::recover(File *file)
   rn += first;
   for (int j = first; j <= last; j++, rn++) {
     auto indexBlkID = rn>>indexShift();
-    if (!indexBlk || indexBlk->id() != indexBlkID)
+    if (!indexBlk || indexBlk->id != indexBlkID)
       indexBlk = getIndexBlk(file, indexBlkID, false, false);
     if (!indexBlk) return; // I/O error on file, logged within getIndexBlk
     this->recover(FileRec{file, indexBlk, rn & indexMask()});
@@ -2186,6 +2191,11 @@ ZmRef<File> Zdb::openFile(uint64_t id, bool create)
   ZiFile::Path name = dirName(id);
   if (create) ZiFile::mkdir(name); // pre-emptive idempotent
   name = fileName(name, id);
+  return openFile_(name, id, create);
+}
+
+ZmRef<File> Zdb::openFile_(const ZiFile::Path &name, uint64_t id, bool create)
+{
   ZmRef<File> file = new File{this, id};
   if (file->open(name, ZiFile::GC, 0666, m_fileSize, 0) == Zi::OK) {
     if (!file->scan()) return nullptr;

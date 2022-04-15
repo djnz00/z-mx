@@ -458,11 +458,17 @@ public:
     return offset;
   }
 
+  ZmRef<IndexBlk> readIndexBlk(uint64_t id);
+  ZmRef<IndexBlk> writeIndexBlk(uint64_t id);
+
 private:
   void init();
   bool scan();
   bool sync();
   bool sync_();
+
+  bool readIndexBlk_(IndexBlk *);
+  bool writeIndexBlk_(IndexBlk *);
 
   Zdb			*m_db = nullptr;
   uint64_t		m_id = 0;	// (RN>>fileShift())
@@ -818,6 +824,7 @@ class ZdbAPI Zdb : public ZmPolymorph {
   using FileRec = Zdb_::FileRec;
   using FileLRU = Zdb_::FileLRU;
   using FileCache = Zdb_::FileCache;
+  using IndexBlk = Zdb_::IndexBlk;
   using IndexBlkLRU = Zdb_::IndexBlkLRU;
   using IndexBlkCache = Zdb_::IndexBlkCache;
 
@@ -918,7 +925,7 @@ private:
   ZiFile::Path dirName(uint64_t id) const;
   ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
     return ZiFile::append(dir, ZuStringN<12>() <<
-	ZuBox<unsigned>(id & 0xfffffU).hex<false, ZuFmt::Right<5>>() << ".zdb");
+	ZuBox<unsigned>{id & 0xfffffU}.hex<false, ZuFmt::Right<5>>() << ".zdb");
   }
   ZiFile::Path fileName(uint64_t id) const {
     return fileName(dirName(id), id);
@@ -928,11 +935,14 @@ private:
 
   ZmRef<File> getFile(unsigned i, bool create);
   ZmRef<File> openFile(unsigned i, bool create);
+  ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id, bool create);
   void delFile(File *file);
   void recover(File *file);
-  bool recover(const FileRec &rec);
+  void recover(const FileRec &rec);
   void recover_(const Zdb_::fbs::Record *record, ZmRef<Buf> buf);
   void scan(File *file);
+
+  ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id, bool create, bool cache);
 
   ZmRef<ZdbAnyObject> read_(const FileRec &);
 
@@ -1606,7 +1616,7 @@ private:
 inline ZiFile::Path Zdb::dirName(uint64_t id) const
 {
   return ZiFile::append(m_env->config().path, ZuStringN<8>() <<
-      ZuBox<unsigned>(id>>20).hex<false, ZuFmt::Right<5>>());
+      ZuBox<unsigned>{id>>20}.hex<false, ZuFmt::Right<5>>());
 }
 
 namespace Zdb_ {

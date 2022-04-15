@@ -83,10 +83,10 @@ auto MxMDMissedOBUpdates(MxID venue, unsigned n, MxIDString id) {
 template <class T> struct MxMDFlags {
   struct Default {
     static void print(MxMDFlagsStr &out, MxFlags flags) {
-      out << flags.hex<ZuFmt::Right<8>>();
+      out << flags.hex<false, ZuFmt::Right<8>>();
     }
     static void scan(const MxMDFlagsStr &in, MxFlags &flags) {
-      flags.scan<ZuFmt::Hex<0, ZuFmt::Right<8>>(in);
+      flags.scan<ZuFmt::Hex<false, ZuFmt::Right<8>>>(in);
     }
   };
   typedef Default XTKS;
