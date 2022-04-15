@@ -184,7 +184,6 @@ table DB {
   file_misses:uint64;
   index_blk_loads:uint64;
   index_blk_misses:uint64;
-  id:uint32;
   cache_size:uint32;
   file_cache_size:uint32;
   index_blk_cache_size:uint32;

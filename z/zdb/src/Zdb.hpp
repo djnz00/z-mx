@@ -116,9 +116,9 @@ namespace Zdb_ {
 
 // database ID is string (rarely used to index, so ok)
 
-#include <zlib/zdbnet_fbs.h>
+#include <zlib/zdb__fbs.h>
 
-namespace ZdbNet {
+namespace Zdb_ {
 
 // custom header with an explicitly little-endian uint32 length
 #pragma pack(push, 1)
@@ -232,7 +232,7 @@ inline const T *data_(const fbs::Record *record) {
   return Zfb::GetRoot<T>(data.data());
 }
 
-} // namespace ZdbNet
+} // namespace Zdb_
 
 #if 0
 on-disk record format:
@@ -277,8 +277,6 @@ class Zdb;				// individual database
 struct ZdbAnyObject;			// object wrapper
 
 namespace Zdb_ {
-
-using namespace ZdbNet;
 
 using Magic = uint32_t;
 
@@ -542,7 +540,7 @@ public:
     return static_cast<Zdb *>(owner);
   }
   const Hdr *hdr() const {
-    return reinterpret_cast<const ZdbNet::Hdr *>(data());
+    return reinterpret_cast<const Zdb_::Hdr *>(data());
   }
 
 friend Cxn;
@@ -553,7 +551,7 @@ friend ZdbAnyObject;
 };
 struct Buf_RNAxor {
   static auto get(const Buf_ &buf) {
-    using namespace ZdbNet;
+    using namespace Zdb_;
     return record_(msg_(buf.hdr()))->rn();
   }
 };
@@ -806,13 +804,11 @@ using Deletes =
 } // Zdb_
 
 class ZdbAPI Zdb : public ZmPolymorph {
-friend ZdbEnv;
-friend ZdbAnyObject;
-
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
+  using Cxn = Zdb_::Cxn;
   using Cache = Zdb_::Cache;
   using BufCache = Zdb_::BufCache;
   using Buf = Zdb_::Buf;
@@ -825,13 +821,17 @@ friend ZdbAnyObject;
   using IndexBlkLRU = Zdb_::IndexBlkLRU;
   using IndexBlkCache = Zdb_::IndexBlkCache;
 
-  Zdb(ZdbEnv *env, ZdbCf *cf, ZdbHandler handler);
+friend Cxn;
+friend ZdbAnyObject;
+friend ZdbEnv;
+
+  Zdb(ZdbEnv *env, ZdbCf *cf);
 
 public:
   ~Zdb();
 
 private:
-  void init();
+  void init(ZdbHandler);
   void final();
 
   bool open();
@@ -901,13 +901,13 @@ private:
   bool exists(ZdbRN rn);
 
   // load object from buffer
-  ZmRef<ZdbAnyObject> load(const ZdbNet::fbs::Record *record);
+  ZmRef<ZdbAnyObject> load(const Zdb_::fbs::Record *record);
   // save object to buffer
   void save(Zfb::Builder &fbb, ZdbAnyObject *object);
 
   // replication data rcvd (copy/commit, called while env is unlocked)
-  void replicated(const ZdbNet::fbs::Record *record, const ZmRef<Buf> &buf);
-  void replicated(const ZdbNet::fbs::Gap *gap, const ZmRef<Buf> &buf);
+  void replicated(const Zdb_::fbs::Record *record, const ZmRef<Buf> &buf);
+  void replicated(const Zdb_::fbs::Gap *gap, const ZmRef<Buf> &buf);
 
   // forward replication data
   ZmRef<Buf> replicateFwd(const ZmRef<Buf> &buf);
@@ -931,7 +931,7 @@ private:
   void delFile(File *file);
   void recover(File *file);
   bool recover(const FileRec &rec);
-  void recover_(const ZdbNet::fbs::Record *record, ZmRef<Buf> buf);
+  void recover_(const Zdb_::fbs::Record *record, ZmRef<Buf> buf);
   void scan(File *file);
 
   ZmRef<ZdbAnyObject> read_(const FileRec &);
@@ -956,6 +956,7 @@ private:
   const ZdbCf		*m_cf = nullptr;
   ZuID			m_id = 0;
   ZdbHandler		m_handler;
+  ZtString		m_path;
   Lock			m_lock;
     ZdbRN		  m_minRN = ZdbMaxRN;
     ZdbRN		  m_nextRN = 0;
@@ -996,20 +997,20 @@ using DBState_ = ZmLHashKV<ZuID, ZdbRN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   DBState(unsigned size) : DBState_{ZmHashParams{size}} { }
 
-  DBState(Zfb::Vector<const ZdbNet::fbs::DBState *> *envState) :
+  DBState(Zfb::Vector<const Zdb_::fbs::DBState *> *envState) :
       DBState_{ZmHashParams{envState->size()}} {
-    using namespace ZdbNet;
+    using namespace Zdb_;
     using namespace Zfb::Load;
     all(envState, [this](unsigned, fbs::DBState *dbState) {
       add(id(&(dbState->db())), dbState->rn());
     });
   }
-  Zfb::Offset<Zfb::Vector<const ZdbNet::fbs::DBState *>>
+  Zfb::Offset<Zfb::Vector<const Zdb_::fbs::DBState *>>
   save(Zfb::Builder &fbb) const {
-    using namespace ZdbNet;
+    using namespace Zdb_;
     using namespace Zfb::Save;
     auto i = readIterator();
-    return structVecIter<ZdbNet::fbs::DBState>(
+    return structVecIter<Zdb_::fbs::DBState>(
 	fbb, i.count(), [&i](void *ptr, unsigned) {
       if (auto state = i.iterate())
 	new (ptr)
@@ -1300,16 +1301,16 @@ friend ZdbHost_;
   void msgRead(ZiIOContext &);
   bool msgRcvd(ZiIOContext &);
 
-  bool hbRcvd(const ZdbNet::fbs::Heartbeat *);
+  bool hbRcvd(const Zdb_::fbs::Heartbeat *);
   void hbTimeout();
   void hbSend();
 
   template <typename Body>
   Zdb *repRcvd_(const Body *body) const;
   bool repRcvd(
-      Zdb *db, const ZdbNet::fbs::Record *record, const ZmRef<Buf> &buf);
+      Zdb *db, const Zdb_::fbs::Record *record, const ZmRef<Buf> &buf);
   bool repRcvd(
-      Zdb *db, const ZdbNet::fbs::Gap *gap, const ZmRef<Buf> &buf);
+      Zdb *db, const Zdb_::fbs::Gap *gap, const ZmRef<Buf> &buf);
 
   void repSend(ZmRef<Buf> buf);
 
@@ -1537,7 +1538,7 @@ private:
   void associate(Cxn *cxn, ZdbHost *host);
   void disconnected(Cxn *cxn);
 
-  void hbRcvd(ZdbHost *host, const ZdbNet::fbs::Heartbeat *hb);
+  void hbRcvd(ZdbHost *host, const Zdb_::fbs::Heartbeat *hb);
   void vote(ZdbHost *host);
 
   void hbStart();
@@ -1553,7 +1554,9 @@ private:
   void startReplication();
   void stopReplication();
 
-  void replicated(ZdbHost *host, const ZdbNet::fbs::Record *record);
+  void replicated(Zdb *db, ZdbHost *host, const Zdb_::fbs::Record *record);
+  void replicated(Zdb *db, ZdbHost *host, const Zdb_::fbs::Gap *gap);
+  void replicated_(ZdbHost *host, ZuID id, ZdbRN rn);
 
   void repSend(ZmRef<Buf> buf);
   void recSend();

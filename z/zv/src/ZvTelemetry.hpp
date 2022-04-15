@@ -436,7 +436,6 @@ struct DB_ {
   uint64_t	fileMisses = 0;		// dynamic
   uint64_t	indexBlkLoads = 0;	// dynamic
   uint64_t	indexBlkMisses = 0;	// dynamic
-  uint32_t	id = 0;
   uint32_t	cacheSize = 0;
   uint32_t	fileCacheSize = 0;
   uint32_t	indexBlkCacheSize = 0;
@@ -459,13 +458,12 @@ struct DB : public DB_, public ZtFieldPrint<DB> {
 };
 ZfbFields(DB,
     (((name), (0)), (String), (Ctor(1))),
-    (((id)), (Int), (Ctor(10))),
-    (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(14))),
-    (((cacheSize)), (Int), (Ctor(11))),
+    (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(13))),
+    (((cacheSize)), (Int), (Ctor(10))),
     (((path)), (String), (Ctor(0))),
-    (((fileCacheSize)), (Int), (Ctor(12))),
-    (((indexBlkCacheSize)), (Int), (Ctor(13))),
-    (((warmUp)), (Int), (Ctor(15))),
+    (((fileCacheSize)), (Int), (Ctor(11))),
+    (((indexBlkCacheSize)), (Int), (Ctor(12))),
+    (((warmUp)), (Int), (Ctor(14))),
     (((minRN)), (Int), (Ctor(2), Update)),
     (((nextRN)), (Int), (Ctor(3), Update, Series, Delta)),
     (((cacheLoads)), (Int), (Ctor(4), Update, Series, Delta)),

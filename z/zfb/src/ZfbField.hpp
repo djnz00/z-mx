@@ -301,12 +301,13 @@ struct SaveField<O, OffsetFieldList, Field, true> {
     Field::save(fbb, offsets[OffsetIndex::I]);
   }
 };
-template <typename O, typename FieldList>
+template <typename O, typename FieldList,
+  typename OffsetFieldList = ZuTypeGrep<HasOffset, FieldList>,
+  bool = !!OffsetFieldList::N>
 struct SaveFieldList {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
-    using OffsetFieldList = ZuTypeGrep<HasOffset, FieldList>;
     Offset<void> offsets[OffsetFieldList::N];
     ZuTypeAll<OffsetFieldList>::invoke(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
@@ -318,6 +319,17 @@ struct SaveFieldList {
 	[&fbb, &o, offsets = &offsets[0]]<typename Field>() {
 	  SaveField<O, OffsetFieldList, Field>::save(fbb, o, offsets);
 	});
+    return fbb.Finish();
+  }
+};
+template <typename O, typename FieldList, typename OffsetFieldList>
+struct SaveFieldList<O, FieldList, OffsetFieldList, false> {
+  using Builder = ZfbBuilder<O>;
+  using FBType = ZfbType<O>;
+  static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
+    Builder fbb{fbb_};
+    ZuTypeAll<FieldList>::invoke(
+	[&fbb, &o]<typename Field>() { Field::save(fbb, o); });
     return fbb.Finish();
   }
 };

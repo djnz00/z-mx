@@ -1,5 +1,5 @@
 include "types.fbs";
-namespace ZdbNet.fbs;
+namespace Zdb_.fbs;
 struct DBState {
   db:Zfb.ID;
   rn:uint64;
