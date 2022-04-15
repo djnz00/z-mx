@@ -707,6 +707,7 @@ struct ZuAlloc_ {
 
 #define ZuAlloc(T, n) \
   ZuAlloc_<T>{static_cast<T *>( \
-      (((ZuStackAvail()>>1) < (n)) ? ::malloc(n) : ZuAlloca(n)))}
+      (((ZuStackAvail()>>1) < (n * sizeof(T))) ? \
+	::malloc(n * sizeof(T)) : ZuAlloca(n * sizeof(T))))}
 
 #endif /* ZuLib_HPP */

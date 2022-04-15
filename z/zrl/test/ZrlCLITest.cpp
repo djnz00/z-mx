@@ -33,6 +33,7 @@ int main()
   }
   std::cout << cli.dumpVKeys();
   std::cout << cli.dumpMaps();
+  cli.start();
   cli.join();
   cli.stop();
   cli.close();

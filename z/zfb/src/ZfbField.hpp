@@ -303,7 +303,7 @@ struct SaveField<O, OffsetFieldList, Field, true> {
 };
 template <typename O, typename FieldList,
   typename OffsetFieldList = ZuTypeGrep<HasOffset, FieldList>,
-  bool = !!OffsetFieldList::N>
+  int = OffsetFieldList::N>
 struct SaveFieldList {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
@@ -323,7 +323,7 @@ struct SaveFieldList {
   }
 };
 template <typename O, typename FieldList, typename OffsetFieldList>
-struct SaveFieldList<O, FieldList, OffsetFieldList, false> {
+struct SaveFieldList<O, FieldList, OffsetFieldList, 0> {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
