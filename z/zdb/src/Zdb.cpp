@@ -175,7 +175,7 @@ void ZdbEnv::close()
     ZeLOG(Fatal, "ZdbEnv::close called out of order");
     return;
   }
-  allDBs_([](Zdb *db) { db->close(); });
+  allDBs_([](Zdb *db) { db->close(); return true; });
   state(ZdbHostState::Initialized);
   guard.unlock();
   m_stateCond.broadcast();
@@ -194,7 +194,7 @@ void ZdbEnv::checkpoint()
       return;
   }
 
-  allDBs_([](Zdb *db) { db->checkpoint(); });
+  allDBs_([](Zdb *db) { db->checkpoint(); return true; });
 }
 
 void ZdbEnv::start()
@@ -834,10 +834,7 @@ void ZdbEnv::replicating()
 void ZdbEnv::standalone()
 {
   m_standalone = true;
-  allDBs([](Zdb *db) {
-    db->standalone();
-    return true;
-  });
+  allDBs([](Zdb *db) { db->standalone(); return true; });
 }
 
 void ZdbEnv::setNext()
@@ -1776,21 +1773,23 @@ void Zdb::checkpoint()
       ZmFn<>{this, [](Zdb *db) { db->checkpoint_(); }});
 }
 
-void Zdb::checkpoint_()
+bool Zdb::checkpoint_()
 {
   Guard guard(m_lock);
+  bool ok = true;
   {
     auto i = m_indexBlkLRU.readIterator();
     while (IndexBlk *blk = static_cast<IndexBlk *>(i.iterateNode()))
       if (ZmRef<File> file =
 	  getFile(blk->id>>(fileShift() - indexShift()), false, false))
-	file->writeIndexBlk_(blk);
+	ok &= file->writeIndexBlk_(blk);
   }
   {
     auto i = m_fileLRU.readIterator();
     while (File *file = static_cast<File *>(i.iterateNode()))
-      file->sync_();
+      ok &= file->sync_();
   }
+  return ok;
 }
 
 ZmRef<ZdbAnyObject> Zdb::placeholder()
@@ -2200,14 +2199,15 @@ ZmRef<File> Zdb::openFile(uint64_t id, bool create)
 ZmRef<File> Zdb::openFile_(const ZiFile::Path &name, uint64_t id, bool create)
 {
   ZmRef<File> file = new File{this, id};
-  if (file->open(name, ZiFile::GC, 0666, m_fileSize, 0) == Zi::OK) {
+  if (file->open(name, ZiFile::GC, 0666) == Zi::OK) {
     if (!file->scan()) return nullptr;
     return file;
   }
   if (!create) return nullptr;
   ZeError e;
-  if (file->open(name, ZiFile::Create | ZiFile::GC,
-	0666, m_fileSize, &e) != Zi::OK) {
+  auto fileSize = sizeof(FileHdr) + sizeof(FileBitmap) + sizeof(FileSuperBlk);
+  if (file->open(
+	name, ZiFile::Create | ZiFile::GC, 0666, fileSize, &e) != Zi::OK) {
     ZeLOG(Fatal, ZtString{} <<
 	"Zdb could not open or create \"" << name << "\": " << e);
     return nullptr; 
@@ -2220,7 +2220,7 @@ void Zdb::delFile(File *file)
 {
   bool lastFile;
   uint64_t id = file->id();
-  if (m_files->delNode(file)) m_fileLRU.del(file);
+  if (m_files->delNode(file)) m_fileLRU.delNode(file);
   lastFile = id == m_lastFile;
   if (ZuUnlikely(lastFile)) getFile(id + 1, true, true);
   file->close();
@@ -2245,7 +2245,7 @@ ZmRef<IndexBlk> Zdb::getIndexBlk(
       if (IndexBlk *lru = static_cast<IndexBlk *>(m_indexBlkLRU.shiftNode())) {
 	if (ZmRef<File> file =
 	    getFile(lru->id>>(fileShift() - indexShift()), false, false))
-	  file->writeIndexBlk(lru);
+	  file->writeIndexBlk_(lru);
 	m_indexBlks->delNode(lru);
       }
     m_indexBlks->add(indexBlk);
@@ -2260,7 +2260,7 @@ namespace Zdb_ {
 ZmRef<IndexBlk> File_::readIndexBlk(uint64_t id)
 {
   ZmRef<IndexBlk> indexBlk;
-  auto offset = m_superBlk[id & indexMask()];
+  auto offset = m_superBlk.data[id & indexMask()];
   if (offset) {
     indexBlk = new IndexBlk{id, offset};
     if (!readIndexBlk_(indexBlk)) return nullptr;
@@ -2273,18 +2273,18 @@ ZmRef<IndexBlk> File_::writeIndexBlk(uint64_t id)
 {
   ZmRef<IndexBlk> indexBlk;
   if (indexBlk = readIndexBlk(id)) return indexBlk;
-  offset = m_offset;
-  m_superBlk[id & indexMask()] = offset;
+  auto offset = m_offset;
+  m_superBlk.data[id & indexMask()] = offset;
   indexBlk = new IndexBlk{id, offset};
-  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk__));
+  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
   // shortcut endian conversion when initializing a blank index block
   memset(&indexBlk->blk, 0, sizeof(FileIndexBlk));
   {
     int r;
     ZeError e;
-    if (ZuUnlikely((r = pwrite(indexBlk->offset,
+    if (ZuUnlikely((r = pwrite(offset,
 	      &indexBlk->blk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-      m_db->fileWrError_(this, indexBlk->offset, e);
+      m_db->fileWrError_(static_cast<File *>(this), offset, e);
       return nullptr;
     }
   }
@@ -2292,6 +2292,7 @@ ZmRef<IndexBlk> File_::writeIndexBlk(uint64_t id)
   return indexBlk;
 }
 
+// FIXME - indexBlk / m_indexBlk confusion
 bool File_::readIndexBlk_(IndexBlk *indexBlk)
 {
   int r;
@@ -2314,6 +2315,7 @@ bool File_::readIndexBlk_(IndexBlk *indexBlk)
   return true;
 }
 
+// FIXME - indexBlk / m_indexBlk confusion
 bool File_::writeIndexBlk_(IndexBlk *indexBlk)
 {
   int r;
@@ -2330,7 +2332,7 @@ bool File_::writeIndexBlk_(IndexBlk *indexBlk)
 #endif
   if (ZuUnlikely((r = pwrite(indexBlk->offset,
 	    &indexData[0], sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-    m_db->fileWrError_(this, indexBlk->offset, e);
+    m_db->fileWrError_(static_cast<File *>(this), indexBlk->offset, e);
     return false;
   }
   return true;

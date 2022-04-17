@@ -450,8 +450,6 @@ public:
   unsigned first() const { return m_bitmap.first(); }
   unsigned last() const { return m_bitmap.last(); }
 
-  void checkpoint() { sync(); }
-
   uint64_t append(unsigned length) {
     uint64_t offset = m_offset;
     m_offset += length;
@@ -862,7 +860,7 @@ private:
 
   bool recover();
   void checkpoint();
-  void checkpoint_();
+  bool checkpoint_();
 
 public:
   struct IDAxor {
