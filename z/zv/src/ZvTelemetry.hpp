@@ -127,7 +127,7 @@ namespace EngineState {
 }
 
 namespace DBCacheMode {
-  ZfbEnumValues(DBCacheMode, Normal, FullCache)
+  ZfbEnumValues(DBCacheMode, Normal, All)
 }
 
 namespace DBHostState {

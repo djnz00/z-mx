@@ -273,7 +273,7 @@ ZeExtern ZuString function(ZuString s);
 }
 
 #define ZeEVENT_(sev, msg) \
-  (new ZeEvent(sev, __FILE__, __LINE__, ZuFnName, msg))
+  (new ZeEvent{sev, __FILE__, __LINE__, ZuFnName, msg})
 #define ZeEVENT(sev, msg) ZeEVENT_(Ze:: sev, msg)
 
 #endif /* ZePlatform_HPP */

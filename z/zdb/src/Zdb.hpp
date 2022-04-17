@@ -302,7 +302,7 @@ namespace SeqLenOp {
 
 class Cxn;				// connection
 
-using Offset = ZiFile::Offset;
+// using Offset = ZiFile::Offset;
 
 // file index block cache
 
@@ -415,7 +415,7 @@ friend File_IDAxor;
 
   using Bitmap = ZuBitmap<fileRecs()>;
   struct SuperBlk {
-    uint64_t	offset[fileIndices()];	// offsets to index blocks
+    uint64_t	data[fileIndices()];	// offsets to index blocks
   };
 
   using Lock = ZmPLock;
@@ -461,14 +461,15 @@ public:
   ZmRef<IndexBlk> readIndexBlk(uint64_t id);
   ZmRef<IndexBlk> writeIndexBlk(uint64_t id);
 
-private:
-  void init();
+  bool readIndexBlk_(IndexBlk *);
+  bool writeIndexBlk_(IndexBlk *);
+
   bool scan();
   bool sync();
   bool sync_();
 
-  bool readIndexBlk_(IndexBlk *);
-  bool writeIndexBlk_(IndexBlk *);
+private:
+  void reset();
 
   Zdb			*m_db = nullptr;
   uint64_t		m_id = 0;	// (RN>>fileShift())
@@ -569,7 +570,19 @@ using BufCache =
 	  ZmHashHeapID<ZuNull,
 	    ZmHashID<Buf_HeapID,
 	      ZmHashLock<ZmNoLock> > > > > > >;
-using Buf = BufCache::Node;
+struct Buf : public BufCache::Node {
+  Buf() = default;
+  Buf(const Buf &) = default;
+  Buf &operator =(const Buf &) = default;
+  Buf(Buf &&) = default;
+  Buf &operator =(Buf &&) = default;
+  ~Buf() = default;
+
+  template <typename ...Args>
+  Buf(Args &&... args) : BufCache::Node{ZuFwd<Args>(args)...} { }
+
+  using Buf_::data;
+};
 
 using LRU =
   ZmList<ZmObject,
@@ -686,6 +699,7 @@ public:
   }
 
   void *ptr_() { return &m_data[0]; }
+  const void *ptr_() const { return &m_data[0]; }
 
   T *ptr() { return reinterpret_cast<T *>(&m_data[0]); }
   const T *ptr() const { return reinterpret_cast<const T *>(&m_data[0]); }
@@ -820,6 +834,7 @@ class ZdbAPI Zdb : public ZmPolymorph {
   using Buf = Zdb_::Buf;
   using LRU = Zdb_::LRU;
   using Deletes = Zdb_::Deletes;
+  using File_ = Zdb_::File_;
   using File = Zdb_::File;
   using FileRec = Zdb_::FileRec;
   using FileLRU = Zdb_::FileLRU;
@@ -829,6 +844,7 @@ class ZdbAPI Zdb : public ZmPolymorph {
   using IndexBlkCache = Zdb_::IndexBlkCache;
 
 friend Cxn;
+friend File_;
 friend ZdbAnyObject;
 friend ZdbEnv;
 
@@ -879,7 +895,7 @@ public:
   ZmRef<ZdbAnyObject> get_(ZdbRN rn);	// use for RMW - does not update cache
 
   // update record
-  void update(ZdbAnyObject *object);
+  bool update(ZdbAnyObject *object);
   // update record (idempotent) - returns true if update should proceed
   bool update(ZdbAnyObject *object, ZdbRN rn);
   // update record (with prevRN, without object)
@@ -891,6 +907,9 @@ public:
   void put(ZdbAnyObject *);
   // abort push() / update()
   void abort(ZdbAnyObject *);
+
+  // purge all records < minRN
+  void purge(ZdbRN minRN);
 
   using Telemetry = ZvTelemetry::DB;
 
@@ -933,18 +952,16 @@ private:
 
   FileRec rn2file(ZdbRN rn, bool write);
 
-  ZmRef<File> getFile(unsigned i, bool create);
-  ZmRef<File> openFile(unsigned i, bool create);
+  ZmRef<File> getFile(uint64_t id, bool create, bool cache);
+  ZmRef<File> openFile(uint64_t id, bool create);
   ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id, bool create);
   void delFile(File *file);
   void recover(File *file);
   void recover(const FileRec &rec);
   void recover_(const Zdb_::fbs::Record *record, ZmRef<Buf> buf);
   void scan(File *file);
-
   ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id, bool create, bool cache);
-
-  ZmRef<ZdbAnyObject> read_(const FileRec &);
+  ZmRef<Buf> read_(const FileRec &);
 
   void write2(ZmRef<Buf> buf);
   void write_(const Buf *buf);

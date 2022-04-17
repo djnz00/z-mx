@@ -72,7 +72,7 @@ public:
 
   void init(ZdbEnv *dbEnv, const ZvCf *cf) {
     m_orderDB = new OrderDB(
-	dbEnv, "orderDB", Types::DBVersion, ZdbCacheMode::FullCache,
+	dbEnv, "orderDB", Types::DBVersion, ZdbCacheMode::All,
 	ZdbHandler{
 	  [](ZdbAny *db, ZmRef<ZdbAnyPOD> &pod) { pod = new OrderPOD(db); },
 	  ZdbAddFn{app(), [](App *app, ZdbAnyPOD *pod, int op, bool) {

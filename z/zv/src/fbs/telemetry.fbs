@@ -170,7 +170,7 @@ table Engine {
 }
 enum DBCacheMode:int8 {
   Normal = 0,
-  FullCache
+  All
 }
 table DB {
   path:string;
