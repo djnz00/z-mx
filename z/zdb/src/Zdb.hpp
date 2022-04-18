@@ -275,9 +275,9 @@ update()
 del() is similar to update, but file write and replication of empty data
 #endif
 
-class ZdbEnv;				// database environment
+class ZdbAnyObject;			// database object (generic)
 class Zdb;				// individual database
-class ZdbAnyObject;			// object wrapper
+class ZdbEnv;				// database environment
 
 namespace Zdb_ {
 
@@ -310,14 +310,14 @@ class Cxn;				// connection
 // file index block cache
 
 using IndexBlkLRU =
-  ZmList<ZmObject,
+  ZmList<ZmPolymorph,
     ZmListObject<ZuShadow,
       ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull,
 	  ZmListLock<ZmNoLock> > > > >;
 
 struct IndexBlk_IDAxor {
-  static uint64_t get(const ZmObject &index);
+  static uint64_t get(const ZmPolymorph &index);
 };
 struct IndexBlkHeapID {
   static constexpr const char *id() { return "Zdb.IndexBlk"; }
@@ -325,7 +325,7 @@ struct IndexBlkHeapID {
 using IndexBlkCache =
   ZmHash<IndexBlkLRU::Node,
     ZmHashKey<IndexBlk_IDAxor,
-      ZmHashObject<ZmObject,
+      ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<IndexBlkHeapID,
 	    ZmHashLock<ZmNoLock> > > > > >;
@@ -354,7 +354,7 @@ struct IndexBlk : public IndexBlkCache::Node {
   IndexBlk(IndexBlk &&) = delete;
   IndexBlk &operator =(IndexBlk &&) = delete;
 };
-inline uint64_t IndexBlk_IDAxor::get(const ZmObject &index)
+inline uint64_t IndexBlk_IDAxor::get(const ZmPolymorph &index)
 {
   return static_cast<const IndexBlk &>(index).id;
 }
@@ -536,19 +536,32 @@ private:
   unsigned		m_indexOff = 0;
 };
 
+// buffer cache
 struct Buf_HeapID {
   static constexpr const char *id() { return "Buf"; }
 };
-class ZdbAPI Buf_ : public ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID> {
-  using Base = ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID>;
+using Buf_ = ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID>;
+struct Buf_RNAxor {
+  static ZdbRN get(const Buf_ &buf);
+};
+using BufCache =
+  ZmHash<Buf_,
+    ZmHashKey<Buf_RNAxor,
+      ZmHashObject<ZmPolymorph,
+	ZmHashNodeDerive<true,
+	  ZmHashHeapID<ZuNull,
+	    ZmHashID<Buf_HeapID,
+	      ZmHashLock<ZmNoLock> > > > > > >;
 
+class ZdbAPI Buf : public BufCache::Node {
 public:
-  Buf_() = default;
-  Buf_(Zdb *db) : Base(db) { }
+  Buf() = default;
+  Buf(Zdb *db) : BufCache::Node{db} { }
 
   Zdb *db() const {
     return static_cast<Zdb *>(owner);
   }
+  using Buf_::data;
   const Hdr *hdr() const {
     return reinterpret_cast<const Zdb_::Hdr *>(data());
   }
@@ -559,34 +572,12 @@ friend ZdbAnyObject;
   void send(ZiIOContext &);
   void sent(ZiIOContext &);
 };
-struct Buf_RNAxor {
-  static auto get(const Buf_ &buf) {
-    using namespace Zdb_;
-    return record_(msg_(buf.hdr()))->rn();
-  }
-};
-using BufCache =
-  ZmHash<Buf_,
-    ZmHashKey<Buf_RNAxor,
-      ZmHashObject<ZmPolymorph,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Buf_HeapID,
-	      ZmHashLock<ZmNoLock> > > > > > >;
-struct Buf : public BufCache::Node {
-  template <typename ...Args>
-  Buf(Args &&... args) : BufCache::Node{ZuFwd<Args>(args)...} { }
+inline ZdbRN Buf_RNAxor::get(const Buf_ &buf)
+{
+  return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
+}
 
-  using Buf_::data;
-
-  Buf() = default;
-  Buf(const Buf &) = default;
-  Buf &operator =(const Buf &) = default;
-  Buf(Buf &&) = default;
-  Buf &operator =(Buf &&) = default;
-  ~Buf() = default;
-};
-
+// object cache
 using LRU =
   ZmList<ZmPolymorph,
     ZmListObject<ZuShadow,
