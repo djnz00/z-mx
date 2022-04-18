@@ -34,19 +34,21 @@
 
 namespace ZiRx {
 
-// int Hdr(const uint8_t *data, unsigned len)
+// I/O receiver
+
+// int Hdr(const ZiIOContext &io, const Buf *buf)
 //   +ve - length of hdr+body
 //   INT_MAX - insufficient data
 //   -ve - disconnect
 //
-// int Body(const uint8_t *data, unsigned len)	// sync
+// int Body(const ZiIOContext &io, const Buf *buf, unsigned len) // sync
 //   0   - skip remaining data (used to defend against DOS)
 //   +ve - length of hdr+body (may be less than or equal that returned by Hdr())
 //   -ve - disconnect immediately
 //
-// int Body(ZmRef<Buf> buf)			// async
+// int Body(const ZiIOContext &io, ZmRef<Buf> buf) // async
 //   0   - skip remaining data (used to defend against DOS)
-//   +ve - length of hdr+body (must be identical to that returned by Hdr())
+//   +ve - buffer consumed
 //   -ve - disconnect immediately
 
 // synchronous receive from ZiIOContext
@@ -60,7 +62,7 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuLambdaFn<Hdr>::invoke(io.ptr, len);
+    int frameLen = ZuLambdaFn<Hdr>::invoke(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -70,7 +72,7 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
     }
 
     // process body
-    frameLen = ZuLambdaFn<Body>::invoke(io.ptr, frameLen);
+    frameLen = ZuLambdaFn<Body>::invoke(io, buf, frameLen);
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 
@@ -98,7 +100,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuLambdaFn<Hdr>::invoke(io.ptr, len);
+    int frameLen = ZuLambdaFn<Hdr>::invoke(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -122,7 +124,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     }
 
     // process body
-    frameLen = ZuLambdaFn<Body>::invoke(io.fn.mvObject<Buf>());
+    frameLen = ZuLambdaFn<Body>::invoke(io, io.fn.mvObject<Buf>());
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 
@@ -133,14 +135,31 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     }
 
     // set up I/O context for next message
-    io.fn.object(ZuMv(next));
     io.ptr = nextPtr;
     io.size = next->size;
     io.offset = 0;
     io.length = nextLen;
+    io.fn.object(ZuMv(next));
     return nextLen;
   }}, ptr, size, 0);
 }
+
+// in-memory receiver
+
+// int Hdr(const Buf *buf)
+//   +ve - length of hdr+body
+//   INT_MAX - insufficient data
+//   -ve - disconnect
+//
+// int Body(const Buf *buf, unsigned len) // sync
+//   0   - skip remaining data (used to defend against DOS)
+//   +ve - length of hdr+body (may be less than or equal that returned by Hdr())
+//   -ve - disconnect immediately
+//
+// int Body(ZmRef<Buf> buf) // async
+//   0   - skip remaining data (used to defend against DOS)
+//   +ve - buffer consumed
+//   -ve - disconnect immediately
 
 // synchronous recv from memory (e.g. TLS)
 // returns bytes consumed, -1 on error
@@ -157,7 +176,7 @@ inline int recvMem(
 
   while (len) {
     // scan header
-    int frameLen = hdr(rxData, len);
+    int frameLen = hdr(buf.ptr());
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) {
       buf->ensure(frameLen);
@@ -165,7 +184,7 @@ inline int recvMem(
     }
 
     // process body
-    frameLen = body(rxData, frameLen);
+    frameLen = body(buf.ptr(), frameLen);
     if (ZuUnlikely(frameLen < 0)) return -1; // error
     if (!frameLen) return rxLen; // EOF - discard remainder
 
@@ -199,7 +218,7 @@ inline int recvMemAsync(
 
   while (len) {
     // scan header
-    int frameLen = hdr(buf->data(), len);
+    int frameLen = hdr(buf.ptr());
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
 

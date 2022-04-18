@@ -178,7 +178,8 @@ namespace Save {
   // iterated creation of a vector of structs
   template <typename T, typename B, typename L>
   inline Offset<Vector<const T *>> structVecIter(B &b, unsigned n, L l) {
-    b.CreateVectorOfStructs(n, [l = ZuMv(l)](size_t i, T *ptr, void *){
+    return b.template CreateVectorOfStructs<T>(n,
+	[l = ZuMv(l)](size_t i, T *ptr, void *){
       l(ptr, i);
     }, static_cast<void *>(nullptr));
   }

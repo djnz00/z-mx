@@ -72,19 +72,20 @@ inline void saveHdr(Zfb::Builder &fbb, ZuID type) {
 }
 // returns the total length of the message including the header, or
 // INT_MAX if not enough bytes have been read yet
-inline int loadHdr(const uint8_t *data, unsigned length) {
-  if (ZuUnlikely(length < sizeof(Hdr))) return INT_MAX;
-  auto hdr = reinterpret_cast<const Hdr *>(data);
+template <typename Buf>
+inline int loadHdr(const Buf *buf) {
+  if (ZuUnlikely(buf->length < sizeof(Hdr))) return INT_MAX;
+  auto hdr = reinterpret_cast<const Hdr *>(buf->data());
   return sizeof(Hdr) + static_cast<uint32_t>(hdr->length);
 }
 // returns -1 if the header is invalid/corrupted, or lambda return
-template <typename Fn>
-inline int verifyHdr(const uint8_t *data, unsigned length_, Fn fn) {
-  if (ZuUnlikely(length_ < sizeof(Hdr))) return -1;
-  auto hdr = reinterpret_cast<const Hdr *>(data);
+template <typename Buf, typename Fn>
+inline int verifyHdr(const Buf *buf, Fn fn) {
+  if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
+  auto hdr = reinterpret_cast<const Hdr *>(buf->data());
   unsigned length = hdr->length;
-  if (length > (length_ - sizeof(Hdr))) return -1;
-  int i = fn(hdr, hdr->data(), length);
+  if (length > (buf->length - sizeof(Hdr))) return -1;
+  int i = fn(hdr, buf);
   if (i < 0) return i;
   return sizeof(Hdr) + i;
 }

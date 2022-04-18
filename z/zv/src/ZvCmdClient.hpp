@@ -266,18 +266,18 @@ public:
       return -1; // disconnect
 
     int i = ZiRx::recvMem(data, length, m_rxBuf,
-	ZvCmd::loadHdr,
-	[this](const uint8_t *data, unsigned length) -> int {
-	  return ZvCmd::verifyHdr(data, length,
-	      [this](const ZvCmd::Hdr *hdr,
-		const uint8_t *data, unsigned length) {
+	ZvCmd::loadHdr<IOBuf>,
+	[this](const IOBuf *buf, unsigned) -> int {
+	  return ZvCmd::verifyHdr(buf,
+	      [this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
 	    auto type = hdr->type;
 	    if (ZuUnlikely(m_state.load_() == State::Login)) {
 	      cancelTimeout();
 	      if (type != ZvCmd::Type::login()) return -1;
-	      return processLoginAck(data, length);
+	      return processLoginAck(buf->data(), buf->length);
 	    }
-	    return this->app()->dispatch(type, impl(), data, length);
+	    return this->app()->dispatch(
+		type, impl(), buf->data(), buf->length);
 	  });
 	});
     if (ZuUnlikely(i < 0)) m_state = State::Down;
