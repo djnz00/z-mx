@@ -70,7 +70,7 @@
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
 
-#define ZdbMaxDelBatch	1000		// maximum #deletions in a single batch
+#define ZdbVacuumBatchSize	1000	// vacuum batch size
 
 // get(prevRN) returns newly instantiated object that may be superceded
 // get(rn) where rn was deleted returns tombstone
@@ -93,6 +93,23 @@ using ZdbRN = uint64_t;		// record ID
 
 #define ZdbDeleted (~static_cast<uint64_t>(0))	// offset sentinel
 
+// new file structure with variable-length flatbuffer-format records
+
+// each DB file contains up to 16K records, organized as a 1Kb superblock
+// that indexes up to 128 index blocks, each 1.5Kb index block indexing
+// to 128 individual records with {offset, length} tuples
+// super-block is immediately followed by first index-block
+
+// LRU write-through cache of files is maintained
+// each cached file containes a write-through cache of the superblock
+// a global LRU write-through cache of index blocks is maintained
+
+// file hdr, bitmap, superblock are written on file eviction
+// index blocks are written on index block eviction
+// on close, all files and index blocks are both written and evicted
+
+// each record on disk is {data, trailer}
+
 namespace Zdb_ {
   inline constexpr unsigned fileShift()		{ return 14; }
   inline constexpr unsigned fileMask()		{ return 0x7fU; }
@@ -103,20 +120,6 @@ namespace Zdb_ {
   inline constexpr unsigned indexMask()		{ return 0x7fU; }
   inline constexpr unsigned indexRecs()		{ return 128; }
 }
-
-// new file structure with variable-length flatbuffer-format records
-
-// initial 1Kb super-block of 128 offsets, each to index-block
-// each index-block is 2Kb index of 128 {record offset, length} tuples
-// super-block is immediately followed by first index-block
-// each record is {data,trailer}
-// LRU write-through cache of files is maintained
-// each cached file containes a write-through cache of the superblock
-// a global LRU write-through cache of index blocks is maintained
-
-// record data and replication messages are flatbuffers
-
-// database ID is string (rarely used to index, so ok)
 
 #include <zlib/zdb__fbs.h>
 
@@ -237,44 +240,6 @@ inline const T *data_(const fbs::Record *record) {
 
 } // namespace Zdb_
 
-#if 0
-on-disk record format:
-
-exact length (of data)
-<flatbuffer data>
-<4-byte alignment padding>
-ZdbTrailer (rn, prevRN, magic)
-
-deletions are null data
-
-rn, prevRN are in ZdbObject (derives from ZmPolymorph, underlies all in-memory records)
-
-per-DB persistent:
-O -> type of object (used to calculate size and invoke destructor)
-
-DB Handler (all defaulted to ZfbField):
-UpdateFn -> loads o from fbs
-SaveFn -> saves o to fbs
-
-push()
-UpdateFn -> (void *) placement new O (passed to ZdbObject ctor, invoked by that to initialize contained T)
-(replaces AllocFn, is templated per-push() caller to permit efficient captures/ctor arguments, defaults to default ctor)
-
-next() -> allocates next RN
-push(RN, args...) -> idempotent push, passes args... to object ctor
-put(o) -> cache o, save o to IOBuf, write IOBuf
-
-(no need to pin, since IOBuf is used for I/O)
-
-update()
-  - DB file write is entire record via save()
-  - update is mutation in-place, update of RN (and re-caching/indexing),
-    streaming out of serialized updates - if app requests prevRN, then
-    that will be a cache-miss load
-
-del() is similar to update, but file write and replication of empty data
-#endif
-
 class ZdbAnyObject;			// database object (generic)
 class Zdb;				// individual database
 class ZdbEnv;				// database environment
@@ -295,11 +260,13 @@ namespace Op {
 using SeqLen = uint32_t;
 
 namespace SeqLenOp {
-  inline SeqLen mk(SeqLen length, SeqLen op) {
-    return (length<<2) | (op & 3);
+  inline SeqLen mk(SeqLen length, int op) {
+    return (length<<2) | op;
   }
   inline SeqLen seqLen(SeqLen seqLenOp) { return seqLenOp>>2; }
-  inline SeqLen op(SeqLen seqLenOp) { return seqLenOp & 3; }
+  inline int op(SeqLen seqLenOp) {
+    return !seqLenOp ? -1 : static_cast<int>(seqLenOp & 3);
+  }
   inline constexpr SeqLen maxSeqLen() { return 0x3fffffffU; }
 }
 
@@ -362,15 +329,14 @@ inline uint64_t IndexBlk_IDAxor::get(const ZmPolymorph &index)
 // file cache
 
 // data file format:
-// 0 +16 header (FileHdr) (magic:u32, version:u32, flags:u32, count:u32)
-// 16 +1024 superblock (FileSuperBlk) (128 x u64)
-// followed by sequences of 1K-sized index block (FileIndexBlk)
+// 0 +20 header (magic:u32, version:u32, flags:u32, allocated:u32, deleted:u32)
+// 20 +1024 superblock (FileSuperBlk) (128 x u64)
+// followed by sequences of 1.5K-sized index blocks (FileIndexBlk)
 //   and records, appended as they are created
 namespace FileFlags {
   enum {
     IOError	= 0x00000001,	// I/O error during open
-    Clean	= 0x00000002,	// closed cleanly
-    Append	= 0x00000004
+    Clean	= 0x00000002	// closed cleanly
   };
 };
 
@@ -483,8 +449,8 @@ public:
   ZmRef<IndexBlk> readIndexBlk(uint64_t id);
   ZmRef<IndexBlk> writeIndexBlk(uint64_t id);
 
-  bool readIndexBlk_(IndexBlk *);
-  bool writeIndexBlk_(IndexBlk *);
+  bool readIndexBlk(IndexBlk *);
+  bool writeIndexBlk(IndexBlk *);
 
   bool scan();
   bool sync();
@@ -508,18 +474,18 @@ inline uint64_t File_IDAxor::get(const ZmPolymorph &file)
   return static_cast<const File &>(file).id();
 }
 
-// pinned file/indexBlk + RN offset within index block
+// file, indexBlk, RN offset within index block
 class FileRec {
 public:
   FileRec() { }
-  FileRec(ZmRef<File> file, ZmRef<IndexBlk> indexBlk, unsigned indexOff) :
-    m_file{ZuMv(file)}, m_indexBlk{ZuMv(indexBlk)}, m_indexOff{indexOff} { }
+  FileRec(File *file, IndexBlk *indexBlk, unsigned indexOff) :
+    m_file{file}, m_indexBlk{indexBlk}, m_indexOff{indexOff} { }
 
   bool operator !() const { return !m_file; }
   ZuOpBool
 
-  File *file() const { return m_file.ptr(); }
-  IndexBlk *indexBlk() const { return m_indexBlk.ptr(); }
+  File *file() const { return m_file; }
+  IndexBlk *indexBlk() const { return m_indexBlk; }
   unsigned indexOff() const { return m_indexOff; }
 
   ZdbRN rn() const {
@@ -531,9 +497,9 @@ public:
   IndexBlk::Index &index() { return m_indexBlk->blk.data[m_indexOff]; }
 
 private:
-  ZmRef<File>		m_file = nullptr;
-  ZmRef<IndexBlk>	m_indexBlk = nullptr;
-  unsigned		m_indexOff = 0;
+  File		*m_file = nullptr;
+  IndexBlk	*m_indexBlk = nullptr;
+  unsigned	m_indexOff = 0;
 };
 
 // buffer cache
@@ -626,21 +592,20 @@ public:
   ZdbRN rn() const { return m_rn; }
   ZdbRN prevRN() const { return m_prevRN; }
   ZdbRN origRN() const { return m_origRN; }
-  SeqLen seqLen() const { return m_seqLen; }
-  bool deleted() const { return m_deleted; }
+  SeqLen seqLen() const { return Zdb_::SeqLenOp::seqLen(m_seqLenOp); }
+  int op() const { return Zdb_::SeqLenOp::op(m_seqLenOp); }
+  bool deleted() const { return op() == Zdb_::Op::Delete; }
 
   ZmRef<Buf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<ZdbAnyObject *>(this)->ptr_(); }
 
-  void del() { m_deleted = true; }
-  void undel() { m_deleted = false; }
-
   template <typename S> void print(S &s) const {
+    using namespace Zdb_;
     s << "rn=" << m_rn << " prevRN=" << m_prevRN << " origRN=" << m_origRN <<
-      " seqLen=" << m_seqLen <<
-      "deleted=" << static_cast<unsigned>(m_deleted);
+      " seqLen=" << SeqLenOp::seqLen(m_seqLenOp) <<
+      " op=" << Op::name(SeqLenOp::op(m_seqLenOp));
   }
 
 private:
@@ -649,20 +614,28 @@ private:
     using namespace Zdb_;
     m_rn = rn;
     m_prevRN = prevRN;
-    m_seqLen = SeqLenOp::seqLen(seqLenOp);
+    m_seqLenOp = seqLenOp;
   }
 
-  void pushRN(ZdbRN rn) { m_origRN = m_rn; m_rn = rn; }
-  void putRN() { m_prevRN = m_origRN; m_origRN = ZdbNullRN; ++m_seqLen; }
-  void appendRN() { m_prevRN = m_origRN; m_origRN = ZdbNullRN; ++m_seqLen; }
-  void abortRN() { m_rn = m_origRN; m_origRN = ZdbNullRN; }
+  void push(ZdbRN rn) { m_origRN = m_rn; m_rn = rn; }
+  void commit(int op) {
+    using namespace Zdb_;
+    m_prevRN = m_origRN;
+    m_origRN = ZdbNullRN;
+    m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
+  }
+  void abort() { m_rn = m_origRN; m_origRN = ZdbNullRN; }
+
+  void put() {
+    using namespace Zdb_;
+    m_seqLenOp = SeqLenOp::mk(1, Op::Put);
+  }
 
   Zdb		*m_db;
   ZdbRN		m_rn = ZdbNullRN;
   ZdbRN		m_prevRN = ZdbNullRN;
   ZdbRN		m_origRN = ZdbNullRN;	// RN backup before put()
-  SeqLen	m_seqLen = 0;
-  bool		m_deleted = false;
+  SeqLen	m_seqLenOp = 0;
 };
 
 namespace Zdb_ {
@@ -769,11 +742,9 @@ namespace ZdbCacheMode {
   using namespace ZvTelemetry::DBCacheMode;
 }
 
-// FIXME - append should be compile-time fixed per-db, not configured
 struct ZdbCf {
   ZuID			id;
   int			cacheMode = ZdbCacheMode::Normal;
-  bool			append = false;	// append records to chain
   bool			warmUp = false;	// pre-write initial DB file
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
@@ -782,7 +753,6 @@ struct ZdbCf {
   ZdbCf(ZuString id_, const ZvCf *cf) : id{id_} {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", false, ZdbCacheMode::Normal);
-    append = cf->getInt("append", 0, 1, false, 0);
     warmUp = cf->getInt("warmUp", 0, 1, false, 0);
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
@@ -805,8 +775,8 @@ struct Deletes_HeapID {
   static constexpr const char *id() { return "Zdb.Deletes"; }
 };
 struct DeleteOp {
-  ZdbRN		rn;
-  SeqLen	seqLenOp;
+  ZdbRN		rn = ZdbNullRN;
+  SeqLen	seqLenOp = 0;
 };
 using Deletes =
   ZmRBTreeKV<ZdbRN, DeleteOp,
@@ -826,6 +796,7 @@ class ZdbAPI Zdb : public ZmPolymorph {
   using BufCache = Zdb_::BufCache;
   using Buf = Zdb_::Buf;
   using LRU = Zdb_::LRU;
+  using DeleteOp =Zdb_::DeleteOp; 
   using Deletes = Zdb_::Deletes;
   using File = Zdb_::File;
   using FileRec = Zdb_::FileRec;
@@ -859,13 +830,11 @@ private:
 
 public:
   struct IDAxor {
-    static ZuID get(const Zdb &db) { return db.m_id; }
+    static ZuID get(const Zdb &db) { return db.config().id; }
   };
 
-  const ZdbCf &config() const { return *m_cf; }
-
   ZdbEnv *env() const { return m_env; }
-  ZuID id() const { return m_id; }
+  const ZdbCf &config() const { return *m_cf; }
   unsigned cacheSize() const { return m_cacheSize; } // unclean read
   unsigned fileCacheSize() const { return m_fileCacheSize; }
   unsigned indexBlkCacheSize() const { return m_indexBlkCacheSize; }
@@ -884,20 +853,24 @@ public:
   ZmRef<ZdbAnyObject> push(ZdbRN rn);
 
   // get record
-  ZmRef<ZdbAnyObject> get(ZdbRN rn);	// use for read-only queries
-  ZmRef<ZdbAnyObject> get_(ZdbRN rn);	// use for RMW - does not update cache
+  ZmRef<ZdbAnyObject> get(ZdbRN rn);		// read-only query
+  ZmRef<ZdbAnyObject> getUpdate(ZdbRN rn);	// potential subsequent update
 
-  // update record
+  // update record - returns true if update can proceed
   bool update(ZdbAnyObject *object);
-  // update record (idempotent) - returns true if update should proceed
+  // update record (idempotent) - returns true if update can proceed
   bool update(ZdbAnyObject *object, ZdbRN rn);
   // update record (with prevRN, without object)
-  ZmRef<ZdbAnyObject> update_(ZdbRN prevRN);
-  // update record (idempotent) (with prevRN, without prev POD)
-  ZmRef<ZdbAnyObject> update_(ZdbRN prevRN, ZdbRN rn);
+  ZmRef<ZdbAnyObject> update(ZdbRN prevRN);
+  // update record (idempotent) (with prevRN, without object)
+  ZmRef<ZdbAnyObject> update(ZdbRN prevRN, ZdbRN rn);
 
   // commit push() /update() - causes replication / write
   void put(ZdbAnyObject *);
+  // commit appended update() - causes replication / write
+  void append(ZdbAnyObject *);
+  // commits delete following push() / update()
+  void del(ZdbAnyObject *);
   // abort push() / update()
   void abort(ZdbAnyObject *);
 
@@ -916,8 +889,6 @@ private:
 
   // low-level get, does not filter deleted records
   ZmRef<ZdbAnyObject> get__(ZdbRN rn);
-  // low-level existence check
-  bool exists(ZdbRN rn);
 
   // load object from buffer
   ZmRef<ZdbAnyObject> load(const Zdb_::fbs::Record *record);
@@ -934,6 +905,9 @@ private:
   ZmRef<Buf> recovery(ZdbRN rn);
   ZmRef<Buf> gap(ZdbRN rn, uint64_t count);
 
+  // transition to standalone, trigger vacuuming
+  void standalone();
+
   ZiFile::Path dirName(uint64_t id) const;
   ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
     return ZiFile::append(dir, ZuStringN<12>() <<
@@ -945,7 +919,7 @@ private:
 
   FileRec rn2file(ZdbRN rn, bool write);
 
-  ZmRef<File> getFile(uint64_t id, bool create, bool cache);
+  File *getFile(uint64_t id, bool create);
   ZmRef<File> openFile(uint64_t id, bool create);
   ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id, bool create);
   void delFile(File *file);
@@ -953,15 +927,16 @@ private:
   void recover(const FileRec &rec);
   void recover_(const Zdb_::fbs::Record *record, ZmRef<Buf> buf);
   void scan(File *file);
-  ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id, bool create, bool cache);
+  IndexBlk *getIndexBlk(File *, uint64_t id, bool create);
   ZmRef<Buf> read_(const FileRec &);
 
   void write2(ZmRef<Buf> buf);
-  void write_(const Buf *buf);
+  bool write_(const Buf *buf);
   bool ack(ZdbRN rn);
+  bool ack_(ZdbRN rn);
   void vacuum();
-  void standalone();
-  void del_(ZdbRN rn, SeqLen seqLenOp);
+  void vacuum_();
+  ZuPair<int, ZdbRN> del_(const DeleteOp &, unsigned maxBatchSize);
   ZdbRN del_prevRN(ZdbRN rn);
   void del__(ZdbRN rn);
 
@@ -975,7 +950,6 @@ private:
 
   ZdbEnv		*m_env;
   const ZdbCf		*m_cf = nullptr;
-  ZuID			m_id = 0;
   ZdbHandler		m_handler;
   ZtString		m_path;
   Lock			m_lock;
@@ -1229,6 +1203,7 @@ private:
   }
 
   int cmp(const ZdbHost *host) const {
+    if (ZuUnlikely(host == this)) return 0;
     int i;
     if (i = m_dbState.cmp(host->m_dbState)) return i;
     if (i = ZuCmp<bool>::cmp(active(), host->active())) return i;
@@ -1547,7 +1522,8 @@ private:
 
   void hbStart();
   void hbSend();		// send heartbeat and reschedule self
-  void hbSend_(Cxn *cxn);	// send heartbeat (once)
+  void hbSend_();		// send heartbeat (once, broadcast)
+  void hbSend_(Cxn *cxn);	// send heartbeat (once, directed)
 
   void dbStateRefresh();	// refresh m_self->dbState()
 
@@ -1621,11 +1597,11 @@ inline Zdb *Cxn::repRcvd_(const Body *body) const {
     ZeLOG(Fatal, "Zdb received replication message before heartbeat");
     return nullptr;
   }
-  auto dbID = Zfb::Load::id(body->db());
-  Zdb *db = m_env->db_(dbID, ZdbHandler{});
+  auto id = Zfb::Load::id(body->db());
+  Zdb *db = m_env->db_(id, ZdbHandler{});
   if (!db) {
     ZeLOG(Fatal, ZtString{} <<
-	"Zdb unknown remote DBID " << dbID << " received");
+	"Zdb internal replication error - could not add DB " << id);
     return nullptr;
   }
   return db;
