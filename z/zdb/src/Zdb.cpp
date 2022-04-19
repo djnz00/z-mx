@@ -243,6 +243,7 @@ retry:
   listen();
 
   {
+    // FIXME - iterate over hash, filtering on priority
     auto i = m_hosts.readIterator<ZmRBTreeLess>(m_cf.hostID);
     while (ZdbHost *host = i.iterate()) host->connect();
   }
@@ -288,6 +289,7 @@ retry:
 
   // cancel reconnects
   {
+    // FIXME - iterate over hash, filtering on priority
     auto i = m_hosts.readIterator<ZmRBTreeLess>(m_cf.hostID);
     while (ZdbHost *host = i.iterate()) host->cancelConnect();
   }
@@ -621,7 +623,7 @@ void ZdbEnv::connected(Cxn *cxn)
   hbSend_(cxn);
 }
 
-void ZdbEnv::associate(Cxn *cxn, int hostID)
+void ZdbEnv::associate(Cxn *cxn, ZuID hostID)
 {
   Guard guard(m_lock);
 
@@ -662,7 +664,7 @@ void ZdbHost::associate(Cxn *cxn)
   Guard guard(m_lock);
 
   if (ZuUnlikely(m_cxn && m_cxn.ptr() != cxn)) {
-    m_cxn->host(0);
+    m_cxn->host(nullptr);
     m_cxn->mx()->add(ZmFn<>::Member<&ZiConnection::disconnect>::fn(m_cxn));
   }
   m_cxn = cxn;
@@ -936,8 +938,8 @@ int Cxn::msgRead2(const Buf *buf)
       } break;
       default:
 	ZeLOG(Error, ZtString{} <<
-	    "Zdb received garbled message from host " <<
-	    ZuBoxed(m_host ? (int)m_host->id() : -1));
+	    "Zdb received unknown message from host " <<
+	    ZuBoxed(m_host ? (int)m_host->id() : -1)); // FIXME
 	break;
     }
     if (!ok) return -1;
@@ -2466,10 +2468,10 @@ void Zdb::vacuum_()
     ZuPair<int, ZdbRN> outcome;
     while (auto node = i.iterate()) {
       if (node->key() >= m_vacuumRN) break;
-      outcome = del_(node->val(), ZdbVacuumBatchSize - j);
+      outcome = del_(node->val(), m_cf->vacuumBatch - j);
       if (outcome.p<0>() < 0) goto again1;
       i.del(node);
-      if ((j += outcome.p<0>()) >= ZdbVacuumBatchSize) goto again2;
+      if ((j += outcome.p<0>()) >= m_cf->vacuumBatch) goto again2;
     }
     m_vacuumRN = ZdbNullRN;
     return;
@@ -2489,6 +2491,7 @@ again2:
 // +ve, ZdbNullRN - all done (work was within batch size), continue
 // -ve, ZdbNullRN - work exceeded batch size, some work done, re-attempt
 // -ve, rn - work exceeded batch size, need to split sequence at rn
+//   (remaining sequence length is encoded in the negative return code)
 ZuPair<int, ZdbRN> Zdb::del_(
     const DeleteOp &deleteOp, unsigned maxBatchSize)
 {
@@ -2532,7 +2535,7 @@ ZuPair<int, ZdbRN> Zdb::del_(
     rn = del_prevRN(rn);
   } while (i < batchSize && rn != ZdbNullRN);
 
-  // sequence is longer than the batch size, need to further batch it up
+  // sequence is longer than the batch size, need to split it
   if (rn != ZdbNullRN)
     return {-static_cast<int>(seqLen - batchSize), rn};
 

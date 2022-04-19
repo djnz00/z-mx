@@ -70,8 +70,6 @@
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
 
-#define ZdbVacuumBatchSize	1000	// vacuum batch size
-
 // get(prevRN) returns newly instantiated object that may be superceded
 // get(rn) where rn was deleted returns tombstone
 // once deleted, predecessors are no longer guaranteed to be available
@@ -154,14 +152,14 @@ inline auto saveHdr(Builder &fbb) {
 template <typename Buf>
 inline int loadHdr(const Buf *buf) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return INT_MAX;
-  auto hdr = reinterpret_cast<const Hdr *>(buf->data());
+  auto hdr = buf->hdr();
   return sizeof(Hdr) + static_cast<uint32_t>(hdr->length);
 }
 // returns -1 if the header is invalid/corrupted, or lambda return
 template <typename Buf, typename Fn>
 inline int verifyHdr(const Buf *buf, Fn fn) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
-  auto hdr = reinterpret_cast<const Hdr *>(buf->data());
+  auto hdr = buf->hdr();
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
   int i = fn(hdr, buf);
@@ -529,7 +527,7 @@ public:
   }
   using Buf_::data;
   const Hdr *hdr() const {
-    return reinterpret_cast<const Zdb_::Hdr *>(data());
+    return reinterpret_cast<const Hdr *>(data());
   }
 
 friend Cxn;
@@ -542,6 +540,53 @@ inline ZdbRN Buf_RNAxor::get(const Buf_ &buf)
 {
   return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
 }
+
+} // Zdb_
+
+class ZdbBuf {
+  const ZmRef<Zdb_::Buf>	&buf;
+
+public:
+  template <typename S> void print(S &s) const {
+    using namespace Zdb_;
+    auto msg = Zdb_::msg(buf->hdr());
+    if (!msg) {
+      s << "corrupt{}";
+      return;
+    }
+    if (auto hb = Zdb_::hb(msg)) {
+      auto id = Zfb::Load::id(&(hb->host()));
+      s << "heartbeat{host=" << id <<
+	" state=" << ZdbHostState::name(hb->state()) <<
+	" dbState=" << Zdb_::DBState{hb->dbState()} << "}";
+      return;
+    }
+    if (auto record = Zdb_::record(msg)) {
+      auto id = Zfb::Load::id(&(record->db()));
+      auto seqLenOp = record->seqLenOp()
+      auto data = Zfb::Load::bytes(record->data());
+      s << "record{db=" << id <<
+	" RN=" << record->rn() <<
+	" prevRN=" << record->prevRN() <<
+	" seqLen=" << SeqLenOp::seqLen(seqLenOp) <<
+	" op=" << Op::name(SeqLenOp::op(seqLenOp)) <<
+	ZtHexDump("}\n", data.data(), data.length());
+      return;
+    }
+    if (auto gap = Zdb_::gap(msg)) {
+      auto id = Zfb::Load::id(&(gap->db()));
+      s << "gap{db=" << id <<
+	" RN=" << gap->rn() <<
+	" count=" << gap->count() << "}";
+      return;
+    }
+    s << "unknown{}";
+  }
+
+  friend ZuPrintFn ZuPrintType(ZdbBuf *);
+};
+
+namespace Zdb_ {
 
 // object cache
 using LRU =
@@ -745,6 +790,7 @@ namespace ZdbCacheMode {
 struct ZdbCf {
   ZuID			id;
   int			cacheMode = ZdbCacheMode::Normal;
+  unsigned		vacuumBatch = 1000;
   bool			warmUp = false;	// pre-write initial DB file
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
@@ -753,6 +799,7 @@ struct ZdbCf {
   ZdbCf(ZuString id_, const ZvCf *cf) : id{id_} {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", false, ZdbCacheMode::Normal);
+    vacuumBatch = cf->getInt("vacuumBatch", 1, 100000, false, 1000);
     warmUp = cf->getInt("warmUp", 0, 1, false, 0);
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
@@ -1143,6 +1190,8 @@ namespace ZdbHostState {
   using namespace ZvTelemetry::DBHostState;
 }
 
+// FIXME - legacy int hostIDs need updating to ZuID
+
 class ZdbAPI ZdbHost {
 friend ZdbEnv;
 
@@ -1250,6 +1299,7 @@ struct ZdbHostPtr_Print : public ZuPrintDelegate {
 };
 ZdbHostPtr_Print ZuPrintType(ZdbHostPtr *);
 
+// FIXME - move to hash table
 struct ZdbHosts_HeapID {
   static constexpr const char *id() { return "ZdbEnv.Hosts"; }
 };
@@ -1259,6 +1309,8 @@ using ZdbHosts =
       ZmRBTreeUnique<true,
 	ZmRBTreeNodeDerive<true,
 	  ZmRBTreeHeapID<ZdbHosts_HeapID> > > > >;
+
+// FIXME - invert ZdbHost class hierarchy
 
 namespace Zdb_ {
 
@@ -1513,7 +1565,7 @@ private:
 
   ZiConnection *accepted(const ZiCxnInfo &ci);
   void connected(Cxn *cxn);
-  void associate(Cxn *cxn, int hostID);
+  void associate(Cxn *cxn, ZuID hostID);
   void associate(Cxn *cxn, ZdbHost *host);
   void disconnected(Cxn *cxn);
 

@@ -21,16 +21,16 @@
 enum Side { Buy, Sell };
 
 struct Order {
-  Side		m_side;
-  char		m_symbol[32];
-  int		m_price;
-  int		m_quantity;
-  // char	m_pad[1500];
+  Side		side;
+  char		symbol[32];
+  int		price;
+  int		quantity;
+  // char	pad[1500];
   template <typename S> void print(S &s) const {
-    s << "Side: " << (m_side == Buy ? "Buy" : "Sell") <<
-      " Symbol: " << m_symbol <<
-      " Price: " << ZuBoxed(m_price) <<
-      " Qty: " << ZuBoxed(m_quantity);
+    s << "Side: " << (side == Buy ? "Buy" : "Sell") <<
+      " Symbol: " << symbol <<
+      " Price: " << price <<
+      " Qty: " << quantity;
   }
   friend ZuPrintFn ZuPrintType(Order *);
 };

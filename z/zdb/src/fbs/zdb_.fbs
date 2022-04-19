@@ -5,8 +5,8 @@ struct DBState {
   rn:uint64;
 }
 table Heartbeat {
-  host_i_d:uint16;
-  state:uint16;
+  host_i_d:Zfb.ID;
+  state:uint32;
   db_state:[DBState];
 }
 // Records on disk are one of four journal operations
