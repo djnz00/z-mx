@@ -1137,7 +1137,8 @@ void ZiConnection::connected()
 void ZiConnection::recv(ZiIOFn fn)
 {
   m_mx->rxInvoke([cxn = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
-      cxn->recv_(ZuMv(fn)); });
+      cxn->recv_(ZuMv(fn));
+  });
 }
 
 void ZiConnection::recv_(ZiIOFn fn)
@@ -1401,7 +1402,8 @@ void ZiConnection::executedRecv(unsigned n)
 void ZiConnection::send(ZiIOFn fn)
 {
   m_mx->txInvoke([cxn = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
-      cxn->send_(ZuMv(fn)); });
+      cxn->send_(ZuMv(fn));
+  });
 }
 
 void ZiConnection::send_(ZiIOFn fn)

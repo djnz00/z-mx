@@ -234,17 +234,17 @@ public:
 
   retry:
     uint64_t rdrMask = this->rdrMask().load_();
-    if (!rdrMask) return 0; // no readers
+    if (!rdrMask) return nullptr; // no readers
 
     uint32_t head = this->head().load_();
-    if (ZuUnlikely(head & EndOfFile_)) return 0; // EOF
+    if (ZuUnlikely(head & EndOfFile_)) return nullptr; // EOF
     head &= ~Mask;
     uint32_t tail = this->tail() & ~Mask; // acquire
     if (ZuUnlikely((head ^ tail) == Wrapped)) {
       ++m_full;
-      if constexpr (!Wait) return 0;
+      if constexpr (!Wait) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (this->ZmRing_wait(Tail, this->tail(), tail) != OK) return 0;
+	if (this->ZmRing_wait(Tail, this->tail(), tail) != OK) return nullptr;
       goto retry;
     }
 
@@ -414,9 +414,9 @@ public:
   retry:
     head = this->head(); // acquire
     if (tail == (head & ~Mask)) {
-      if (ZuUnlikely(head & EndOfFile_)) return 0;
+      if (ZuUnlikely(head & EndOfFile_)) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (this->ZmRing_wait(Head, this->head(), head) != OK) return 0;
+	if (this->ZmRing_wait(Head, this->head(), head) != OK) return nullptr;
       goto retry;
     }
 

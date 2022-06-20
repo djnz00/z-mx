@@ -19,8 +19,8 @@
 
 // ZmStack configuration
 
-#ifndef ZvStackCf_HPP
-#define ZvStackCf_HPP
+#ifndef ZvStackParams_HPP
+#define ZvStackParams_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -59,4 +59,4 @@ struct ZvStackParams : public ZmStackParams {
   }
 };
 
-#endif /* ZvStackCf_HPP */
+#endif /* ZvStackParams_HPP */

@@ -41,7 +41,7 @@
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvCSV.hpp>
 #include <zlib/ZvRingCf.hpp>
-#include <zlib/ZvMultiplex.hpp>
+#include <zlib/ZvMxParams.hpp>
 #include <zlib/ZvUserDB.hpp>
 #include <zlib/ZvCmdClient.hpp>
 #include <zlib/ZvCmdServer.hpp>

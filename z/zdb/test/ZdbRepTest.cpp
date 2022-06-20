@@ -16,7 +16,7 @@
 #include <zlib/ZiMultiplex.hpp>
 
 #include <zlib/ZvCf.hpp>
-#include <zlib/ZvMultiplexCf.hpp>
+#include <zlib/ZvMxParams.hpp>
 
 #include <zlib/Zdb.hpp>
 #include <zlib/ZdbRep.hpp>

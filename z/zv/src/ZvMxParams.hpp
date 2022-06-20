@@ -19,8 +19,8 @@
 
 // Mx Multiplex
 
-#ifndef ZvMultiplex_HPP
-#define ZvMultiplex_HPP
+#ifndef ZvMxParams_HPP
+#define ZvMxParams_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -147,4 +147,4 @@ public:
 	    ZiMxParams().scheduler([&](auto &s) { s.id(id); }))) { }
 };
 
-#endif /* ZvMultiplex_HPP */
+#endif /* ZvMxParams_HPP */

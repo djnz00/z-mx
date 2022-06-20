@@ -53,7 +53,7 @@
 
 #include <zlib/Zfb.hpp>
 
-#include <zlib/ZvMultiplex.hpp>
+#include <zlib/ZvMxParams.hpp>
 #include <zlib/ZfbField.hpp>
 
 #include <zlib/telemetry_fbs.h>

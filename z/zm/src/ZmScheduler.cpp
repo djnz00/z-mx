@@ -28,15 +28,7 @@
 #pragma warning(disable:4800)
 #endif
 
-using namespace ZmSchedState;
-
-ZmScheduler::ZmScheduler(ZmSchedParams params) :
-  m_params(ZuMv(params)),
-  m_stateCond(m_stateLock),
-  m_state(Stopped),
-  m_drained(0),
-  m_nWorkers(0),
-  m_runThreads(0)
+ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
 {
   unsigned n = m_params.nThreads();
   for (unsigned tid = 0; tid <= n; tid++) {
@@ -86,183 +78,78 @@ ZmScheduler::~ZmScheduler()
 
 void ZmScheduler::runThreads()
 {
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
+}
 
-    if (m_state != Running && m_state != Starting) return;
-  }
+void ZmScheduler::start()
+{
+  StateGuard stateGuard(m_stateLock);
 
+  if (m_thread) return;
+
+  m_thread = ZmThread(0,
+      ZmFn<>::Member<&ZmScheduler::start_>::fn(this),
+      m_params.thread(0));
+}
+
+void ZmScheduler::start_()
+{
   {
     unsigned n = m_params.nThreads();
     SpawnGuard spawnGuard(m_spawnLock);
     while (m_runThreads < n) {
-      ZmBitmap cpuset;
       unsigned tid = ++m_runThreads;
       m_threads[tid - 1].thread = ZmThread(tid,
 	  ZmFn<>::Member<&ZmScheduler::work>::fn(this),
 	  m_params.thread(tid));
     }
   }
-}
 
-void ZmScheduler::startTimer()
-{
-  if (ZuUnlikely(!m_thread))
-    m_thread = ZmThread(0,
-	ZmFn<>::Member<&ZmScheduler::timer>::fn(this),
-	m_params.thread(0));
-}
-
-void ZmScheduler::start()
-{
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-    switch (m_state) {
-      case Draining:
-	do { m_stateCond.wait(); } while (m_state != Drained);
-      case Drained:
-	m_state = Running;
-	m_stateCond.broadcast();
-	return;
-      case Starting:
-	do { m_stateCond.wait(); } while (m_state != Running);
-      case Running:
-	return;
-      case Stopping:
-	do { m_stateCond.wait(); } while (m_state != Stopped);
-      default:
-	break;
-    }
-
-    m_state = Starting;
-    m_stateCond.broadcast();
-  }
-
-  {
-    ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
-
-    if (m_params.startTimer()) startTimer();
-  }
-
-  runThreads();
-
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-    m_state = Running;
-    m_stateCond.broadcast();
-  }
-}
-
-void ZmScheduler::drain()
-{
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-    switch (m_state) {
-      case Draining:
-	do { m_stateCond.wait(); } while (m_state != Drained);
-      case Drained:
-	return;
-      case Stopping:
-	do { m_stateCond.wait(); } while (m_state != Stopped);
-      case Stopped:
-	return;
-      case Starting:
-	do { m_stateCond.wait(); } while (m_state != Running);
-      default:
-	break;
-    }
-
-    m_drained = 0;
-    m_state = Draining;
-    m_stateCond.broadcast();
-  }
-
-  for (unsigned i = 0, n = m_params.nThreads(); i < n; i++)
-    runWake_(&m_threads[i], ZmFn<>::Member<&ZmScheduler::drained>::fn(this));
-
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-    while (m_state != Drained) m_stateCond.wait();
-  }
-}
-
-void ZmScheduler::drained()
-{
-  ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-  if (m_state != Draining) return;
-
-  if (++m_drained < m_params.nThreads()) return;
-
-  m_drained = 0;
-  m_state = Drained;
-  m_stateCond.broadcast();
+  timer();
 }
 
 void ZmScheduler::stop()
 {
   {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
+    StateGuard stateGuard(m_stateLock);
 
-    switch (m_state) {
-      case Stopping:
-	do { m_stateCond.wait(); } while (m_state != Stopped);
-      case Stopped:
-	return;
-      case Draining:
-	do { m_stateCond.wait(); } while (m_state != Drained);
-      case Drained:
-	break;
-      case Starting:
-	do { m_stateCond.wait(); } while (m_state != Running);
-      default:
-	break;
-    }
-    m_state = Stopping;
-    m_stateCond.broadcast();
+    if (m_stopping) return;
+    m_stopping = ZmSelf()->tid();
   }
+
+  m_pending.post();
+  m_thread.join();
 
   {
-    unsigned n = m_params.nThreads();
-    SpawnGuard spawnGuard(m_spawnLock);
-    for (unsigned i = 0; i < n; i++)
-      m_threads[i].ring.eof(true);
-    for (unsigned i = 0; i < n; i++) {
-      ZmThread &thread = m_threads[i].thread;
-      if (thread) {
-	wake(&m_threads[i]);
-	thread.join();
-	thread = ZmThread();
-      }
-    }
-    for (unsigned i = 0; i < n; i++)
-      m_threads[i].ring.eof(false);
-  }
+    StateGuard stateGuard(m_stateLock);
 
-  if (m_thread) m_pending.post();
-
-  m_stopped.reset();
-
-  if (m_thread) {
-    m_thread.join();
     m_thread = {};
+    m_stopping = 0;
   }
+}
 
-  {
-    ZmGuard<ZmLock> stateGuard(m_stateLock);
-
-    m_state = Stopped;
-    m_stateCond.broadcast();
+void ZmScheduler::stop_()
+{
+  unsigned n = m_params.nThreads();
+  SpawnGuard spawnGuard(m_spawnLock);
+  for (unsigned i = 0; i < n; i++)
+    m_threads[i].ring.eof(true);
+  for (unsigned i = 0; i < n; i++) {
+    ZmThread &thread = m_threads[i].thread;
+    if (thread) {
+      wake(&m_threads[i]);
+      if (thread.tid() != m_stopping) thread.join();
+      thread = {};
+    }
   }
+  for (unsigned i = 0; i < n; i++)
+    m_threads[i].ring.eof(false);
 }
 
 void ZmScheduler::reset()
 {
-  if (this->state() != Stopped) return;
+  StateReadGuard stateReadGuard(m_stateLock);
+
+  if (running_()) return;
 
   {
     unsigned n = m_params.nThreads();
@@ -282,16 +169,20 @@ void ZmScheduler::timer()
 {
   for (;;) {
     {
-      ZmGuard<ZmLock> stateGuard(m_stateLock);
+      StateGuard stateGuard(m_stateLock);
 
-      if (m_state == Stopping || m_state == Stopped) return;
+      if (m_stopping) {
+	stop_();
+	return;
+      }
     }
 
     {
       ZmTime minimum;
 
       {
-	ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
+	SchedGuard schedGuard(m_schedLock);
+
 	if (Timer *first = m_schedule.minimum()) minimum = first->timeout;
       }
 
@@ -301,17 +192,16 @@ void ZmScheduler::timer()
 	m_pending.wait();
 
       {
-	ZmGuard<ZmLock> stateGuard(m_stateLock);
+	StateGuard stateGuard(m_stateLock);
 
-	while (m_state == Draining || m_state == Drained)
-	  m_stateCond.wait();
-	if (m_state == Stopping || m_state == Stopped) return;
-      }
+	if (m_stopping) {
+	  stop_();
+	  return;
+	}
 
-      {
 	ZmTime now(ZmTime::Now);
 	now += m_params.quantum();
-	ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
+	SchedGuard schedGuard(m_schedLock);
 
 	{
 	  auto i = m_schedule.iterator<ZmRBTreeLessEqual>(now);
@@ -326,8 +216,8 @@ void ZmScheduler::timer()
 	    else
 	      ok = timerAdd(fn);
 	    if (ZuUnlikely(!ok)) {
-	      scheduleGuard.unlock();
 	      m_schedule.addNode(timer);
+	      schedGuard.unlock();
 	      Zm::sleep(m_params.quantum());
 	      return;
 	    }
@@ -338,6 +228,7 @@ void ZmScheduler::timer()
     }
   }
 }
+
 bool ZmScheduler::timerAdd(ZmFn<> &fn)
 {
   if (ZuUnlikely(!m_nWorkers)) return false;
@@ -362,7 +253,7 @@ void ZmScheduler::run(
   if (!timer) timer = new Timer{true};
 
   {
-    ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
+    SchedGuard schedGuard(m_schedLock);
 
     if (ZuLikely(timer->timeout)) {
       switch (mode) {
@@ -392,8 +283,6 @@ void ZmScheduler::run(
     timer->tid = tid;
     timer->fn = ZuMv(fn);
     m_schedule.addNode(timer);
-
-    if (kick) startTimer();
   }
 
   if (kick) m_pending.post();
@@ -401,7 +290,7 @@ void ZmScheduler::run(
 
 void ZmScheduler::del(Timer *timer)
 {
-  ZmGuard<ZmPLock> scheduleGuard(m_scheduleLock);
+  SchedGuard schedGuard(m_schedLock);
   if (!timer->timeout) return;
   m_schedule.delNode(timer);
   timer->timeout = ZmTime{};
@@ -442,7 +331,6 @@ overflow:
   return true;
 push:
   {
-    // Thread::Guard guard(thread->lock); // ensure serialized ring push()
     void *ptr;
     if (ZuLikely(ptr = thread->ring.tryPush())) {
       new (ptr) ZmFn<>(ZuMv(fn));
@@ -474,7 +362,6 @@ push:
 bool ZmScheduler::tryRun__(Thread *thread, ZmFn<> &fn)
 {
   {
-    // Thread::Guard guard(thread->lock); // ensure serialized ring push()
     void *ptr;
     if (ZuLikely(ptr = thread->ring.tryPush())) {
       new (ptr) ZmFn<>(ZuMv(fn));

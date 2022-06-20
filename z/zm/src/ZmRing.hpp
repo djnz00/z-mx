@@ -310,15 +310,15 @@ public:
 
   retry:
     uint32_t head_ = this->head().load_();
-    if (ZuUnlikely(head_ & EndOfFile_)) return 0;
+    if (ZuUnlikely(head_ & EndOfFile_)) return nullptr;
     uint32_t head = head_ & ~Mask;
     uint32_t tail = this->tail(); // acquire
     uint32_t tail_ = tail & ~Mask;
     if (ZuUnlikely((head ^ tail_) == Wrapped)) {
       ++m_full;
-      if constexpr (!Wait) return 0;
+      if constexpr (!Wait) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (this->ZmRing_wait(Tail, this->tail(), tail) != OK) return 0;
+	if (this->ZmRing_wait(Tail, this->tail(), tail) != OK) return nullptr;
       goto retry;
     }
 
@@ -399,11 +399,11 @@ public:
     uint32_t header = *ptr; // acquire
     if (!(header & ~Waiting)) {
       if (ZuUnlikely(!m_params.ll()))
-	if (this->ZmRing_wait(Head, *ptr, header) != OK) return 0;
+	if (this->ZmRing_wait(Head, *ptr, header) != OK) return nullptr;
       goto retry;
     }
 
-    if (ZuUnlikely(header & EndOfFile_)) return 0;
+    if (ZuUnlikely(header & EndOfFile_)) return nullptr;
     ptr->store_(0);
     return (T *)&ptr[2];
   }

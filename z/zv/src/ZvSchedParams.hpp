@@ -17,10 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// Mx Scheduler
+// Scheduler configuration
 
-#ifndef ZvScheduler_HPP
-#define ZvScheduler_HPP
+#ifndef ZvSchedParams_HPP
+#define ZvSchedParams_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -104,11 +104,11 @@ class ZvScheduler : public ZuObject, public ZmScheduler {
 public:
   template <typename ID>
   ZvScheduler(const ID &id) :
-    ZmScheduler(ZmSchedParams().nThreads(1).id(id)) { }
+    ZmScheduler(ZmSchedParams{}.nThreads(1).id(id)) { }
   template <typename ID>
   ZvScheduler(const ID &id, const ZvCf *cf) :
     ZmScheduler(ZvSchedParams(cf,
-	  ZmSchedParams().nThreads(1).id(id))) { }
+	  ZmSchedParams{}.nThreads(1).id(id))) { }
 };
 
-#endif /* ZvScheduler_HPP */
+#endif /* ZvSchedParams_HPP */

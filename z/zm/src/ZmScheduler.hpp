@@ -148,16 +148,6 @@ private:
   bool		m_ll = false;
 };
 
-namespace ZmSchedState {
-  enum _ { Stopped = 0, Starting, Running, Draining, Drained, Stopping, N };
-  inline const char *name(int i) {
-    static const char *names[] =
-      { "Stopped", "Starting", "Running", "Draining", "Drained", "Stopping" };
-    if (i < 0 || i >= N) return "Unknown";
-    return names[i];
-  }
-}
-
 class ZmAPI ZmScheduler {
   ZmScheduler(const ZmScheduler &) = delete;
   ZmScheduler &operator =(const ZmScheduler &) = delete;
@@ -244,13 +234,12 @@ protected:
 
 public:
   void start();
-  void drain();
   void stop();
   void reset(); // reset while stopped
 
-  int state() const {
-    ZmReadGuard<ZmLock> stateGuard(m_stateLock);
-    return m_state;
+  bool running() const {
+    StateReadGuard stateGuard(m_stateLock);
+    return running_();
   }
 
   void wakeFn(unsigned tid, ZmFn<> fn);
@@ -320,20 +309,14 @@ public:
   ZuInline void invoke(unsigned tid, ZmRef<O> o, Fn &&fn) {
     ZmAssert(tid && tid <= m_params.nThreads());
     Thread *thread = &m_threads[tid - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) {
-      fn(ZuMv(o));
-      return;
-    }
+    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(ZuMv(o)); return; }
     runWake_(thread, ZmFn<>::mvFn(ZuMv(o), ZuFwd<Fn>(fn)));
   }
   template <typename O, typename Fn>
   ZuInline void invoke(unsigned tid, O *o, Fn &&fn) {
     ZmAssert(tid && tid <= m_params.nThreads());
     Thread *thread = &m_threads[tid - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) {
-      fn(o);
-      return;
-    }
+    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(o); return; }
     runWake_(thread, ZmFn<>{o, ZuFwd<Fn>(fn)});
   }
 
@@ -378,6 +361,13 @@ protected:
   void idle();
 
 private:
+  using StateLock = ZmLock;
+  using StateGuard = ZmGuard<StateLock>;
+  using StateReadGuard = ZmReadGuard<StateLock>;
+
+  using SchedLock = ZmPLock;
+  using SchedGuard = ZmGuard<SchedLock>;
+
   using SpawnLock = ZmPLock;
   using SpawnGuard = ZmGuard<SpawnLock>;
 
@@ -392,7 +382,13 @@ private:
 
   ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
 
-  void startTimer();
+  bool running_() const {
+    return !!m_thread && !m_stopping;
+  }
+
+  void start_();
+  void stop_();
+
   void timer();
   bool timerAdd(ZmFn<> &fn);
 
@@ -403,18 +399,15 @@ private:
 
   void work();
 
-  void drained();
-
   ZmSchedParams			m_params;
 
-  ZmLock			m_stateLock;
-    ZmCondition<ZmLock>		  m_stateCond;
-    int				  m_state = -1;
-    unsigned			  m_drained = 0;
-
-  ZmPLock			m_scheduleLock;
-    ZmSemaphore			  m_pending;
+  StateLock			m_stateLock;
     ZmThread			  m_thread;
+    ZmThreadID			  m_stopping = 0;
+
+  ZmSemaphore			m_pending;
+
+  SchedLock			m_schedLock;
     ScheduleTree		  m_schedule;
 
   ZmAtomic<unsigned>		m_next;

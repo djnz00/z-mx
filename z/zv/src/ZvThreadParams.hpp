@@ -19,8 +19,8 @@
 
 // thread configuration
 
-#ifndef ZvThreadCf_HPP
-#define ZvThreadCf_HPP
+#ifndef ZvThreadParams_HPP
+#define ZvThreadParams_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -60,7 +60,7 @@ struct ZvThreadParams : public ZmThreadParams {
       ZmThreadParams(deflt) { init(cf); }
 
   void init(const ZvCf *cf) {
-    ZmThreadParams::operator =(ZmThreadParams());
+    ZmThreadParams::operator =(ZmThreadParams{});
 
     if (!cf) return;
 
@@ -73,4 +73,4 @@ struct ZvThreadParams : public ZmThreadParams {
   }
 };
 
-#endif /* ZvThreadCf_HPP */
+#endif /* ZvThreadParams_HPP */

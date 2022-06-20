@@ -61,14 +61,24 @@
 #include <zlib/ZiIOBuf.hpp>
 
 #include <zlib/Zfb.hpp>
+#include <zlib/ZfbField.hpp>
 
 #include <zlib/ZvCf.hpp>
-#include <zlib/ZfbField.hpp>
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvTelServer.hpp>
 
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
+
+// FIXME
+// - retain blocking start()/stop()
+// - leave start/stop/etc as is, BUT
+// - use DB thread to run all env-related code
+//   - invoked from start()/stop()
+// - DB caches are only contended item
+// - get/put etc. must be invoked from app thread by app
+// - use run() for continuations (on cache miss only)
+// - all env, file I/O, etc. data structures are thread-specific
 
 // get(prevRN) returns newly instantiated object that may be superceded
 // get(rn) where rn was deleted returns tombstone
@@ -887,9 +897,9 @@ public:
   unsigned indexBlkCacheSize() const { return m_indexBlkCacheSize; }
 
   // first RN that is committed (will be ZdbMaxRN if DB is empty)
-  ZdbRN minRN() const { ReadGuard guard(m_lock); return m_minRN; }
+  ZdbRN minRN() const { ReadGuard guard(m_pushLock); return m_minRN; }
   // next RN that will be allocated
-  ZdbRN nextRN() const { ReadGuard guard(m_lock); return m_nextRN; }
+  ZdbRN nextRN() const { ReadGuard guard(m_pushLock); return m_nextRN; }
 
   // create new placeholder record (null RN, in-memory only, never in DB)
   ZmRef<ZdbAnyObject> placeholder();
@@ -999,29 +1009,45 @@ private:
   const ZdbCf		*m_cf = nullptr;
   ZdbHandler		m_handler;
   ZtString		m_path;
-  Lock			m_lock;
+
+  // RN allocator
+  Lock			m_pushLock;
     ZdbRN		  m_minRN = ZdbMaxRN;
     ZdbRN		  m_nextRN = 0;
+
+  // object cache
+  Lock			m_cacheLock;
     LRU		  	  m_lru;
     ZmRef<Cache>	  m_cache;
     unsigned		  m_cacheSize = 0;
     uint64_t		  m_cacheLoads = 0;
     uint64_t		  m_cacheMisses = 0;
+
+  // write cache
+  Lock			m_writeLock;
     ZmRef<BufCache>	  m_writeCache;
-    Deletes		  m_deletes;
-    ZdbRN		  m_vacuumRN = ZdbNullRN;
-    FileLRU		  m_fileLRU;
-    ZmRef<FileCache>	  m_files;
-    unsigned		  m_fileCacheSize = 0;
-    uint64_t		  m_lastFile = 0;
-    uint64_t		  m_lastIndexBlk = 0;
-    uint64_t		  m_fileLoads = 0;
-    uint64_t		  m_fileMisses = 0;
+    Deletes		  m_deletes; // FIXME - locking?
+
+  // FIXME - vacuumRN specific to vacuum thread
+    ZdbRN		  m_vacuumRN = ZdbNullRN; // FIXME - locking?
+
+    uint64_t		  m_lastFile = 0; // FIXME - locking?
+
+  // index block cache
+  Lock			m_indexLock;
     IndexBlkLRU	 	  m_indexBlkLRU;
     ZmRef<IndexBlkCache>  m_indexBlks;
     unsigned		  m_indexBlkCacheSize = 0;
     uint64_t		  m_indexBlkLoads = 0;
     uint64_t		  m_indexBlkMisses = 0;
+
+  // file cache
+  Lock			m_fileLock;
+    FileLRU		  m_fileLRU;
+    ZmRef<FileCache>	  m_files;
+    unsigned		  m_fileCacheSize = 0;
+    uint64_t		  m_fileLoads = 0;
+    uint64_t		  m_fileMisses = 0;
 };
 struct Zdbs_HeapID {
   static constexpr const char *id() { return "ZdbEnv.DBs"; }
@@ -1358,9 +1384,23 @@ friend ZdbHost;
 
 } // Zdb_
 
+// RunFn(ZmFn<> fn) - run fn on application thread
+typedef uintptr_t *(*ZdbRunFn)(ZmFn<> fn);
+// ActiveFn() - activate / inactivate
+typedef void *(*ZdbActiveFn)(ZdbEnv *);
+
+struct ZdbEnvHandler {
+  ZdbRunFn		runFn =
+    [](ZmFn<> fn) -> uintptr_t { return fn(); };
+  ZdbActiveFn		active = [](ZdbEnv *) { };
+  ZdbActiveFn		inactive = [](ZdbEnv *) { };
+};
+
 // ZdbEnv configuration
 struct ZdbEnvCf {
   ZtString			path;
+  ZmThreadName			dbThread;
+  mutable unsigned		dbTID = 0;
   ZmThreadName			writeThread;
   mutable unsigned		writeTID = 0;
   ZdbCfs			dbCfs;
@@ -1441,8 +1481,7 @@ public:
   ZdbEnv();
   ~ZdbEnv();
 
-  void init(ZdbEnvCf config, ZiMultiplex *mx,
-      ZmFn<> activeFn, ZmFn<> inactiveFn);
+  void init(ZdbEnvCf config, ZiMultiplex *mx, ZdbEnvHandler handler);
   void final();
 
   bool open();
@@ -1605,8 +1644,7 @@ private:
   ZdbEnvCf		m_cf;
   ZiMultiplex		*m_mx;
 
-  ZmFn<>		m_activeFn;
-  ZmFn<>		m_inactiveFn;
+  ZdbEnvHandler		m_handler;
 
   Lock			m_lock;
     StateCond		  m_stateCond;

@@ -38,7 +38,7 @@
 #include <zlib/ZiFile.hpp>
 
 #include <zlib/ZvCf.hpp>
-#include <zlib/ZvMultiplexCf.hpp>
+#include <zlib/ZvMxParams.hpp>
 #include <zlib/ZvHeapCSV.hpp>
 
 #include <mxbase/MxCSV.hpp>

@@ -35,8 +35,8 @@
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvIOQueue.hpp>
-#include <zlib/ZvScheduler.hpp>
-#include <zlib/ZvMultiplex.hpp>
+#include <zlib/ZvSchedParams.hpp>
+#include <zlib/ZvMxParams.hpp>
 #include <zlib/ZvTelemetry.hpp>
 
 class ZvEngine;
@@ -176,7 +176,7 @@ struct ZvAPI ZvEngineApp {
 // care not to destroy them while they could remain referenced by outstanding
 // work; a relatively simple way of ensuring this is to perform teardown
 // as follows:
-// 1] De-index the link/engine and disable it so it will not be used
+// 1] De-index the link/engine and disable it so it will not be further used
 // 2] Initialize a temporary semaphore
 // 3] Enqueue a function that posts the semaphore onto each of the threads
 //    that could potentially do work involving the link/engine being deleted;
