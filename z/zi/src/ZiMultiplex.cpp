@@ -258,7 +258,7 @@ void ZiMultiplex::udp(ZiConnectFn fn, ZiFailFn failFn,
 {
   StateGuard guard(m_stateLock);
 
-  if (ZuUnlikely(state() != ZmSchedState::Running)) {
+  if (ZuUnlikely(!running())) {
     guard.unlock();
     Error("udp", Zi::NotReady, ZeOK);
     failFn(false);
@@ -518,7 +518,7 @@ void ZiMultiplex::connect(
 {
   StateGuard guard(m_stateLock);
 
-  if (ZuUnlikely(state() != ZmSchedState::Running)) {
+  if (ZuUnlikely(!running())) {
     guard.unlock();
     Error("connect", Zi::NotReady, ZeOK);
     failFn(false);
@@ -813,7 +813,7 @@ void ZiMultiplex::listen(
 {
   StateGuard guard(m_stateLock);
 
-  if (ZuUnlikely(state() != ZmSchedState::Running)) {
+  if (ZuUnlikely(!running())) {
     guard.unlock();
     Error("listen", Zi::NotReady, ZeOK);
     failFn(false);
@@ -972,7 +972,7 @@ void ZiMultiplex::stopListening(ZiIP localIP, uint16_t localPort)
 {
   StateGuard guard(m_stateLock);
 
-  if (ZuUnlikely(state() != ZmSchedState::Running)) return;
+  if (ZuUnlikely(!running())) return;
 
   rxInvoke(
       [this, localIP, localPort]() {
@@ -1926,17 +1926,7 @@ int ZiMultiplex::start()
 
   // deal with multiple, potentially overlapping invocations
 
-  switch (state()) {
-    case ZmSchedState::Stopping:
-      ZmScheduler::stop();
-    case ZmSchedState::Stopped:
-      break;
-    case ZmSchedState::Running:
-      return Zi::OK;
-    default:
-      ZmScheduler::start();
-      return Zi::OK;
-  }
+  if (!ZmScheduler::start()) return Zi::OK;
 
 #ifdef ZiMultiplex_IOCP
   {
@@ -2013,20 +2003,7 @@ void ZiMultiplex::stop(bool drain)
 {
   StateGuard guard(m_stateLock);
 
-  // deal with multiple, potentially overlapping invocations
-  switch (state()) {
-    case ZmSchedState::Draining:
-    case ZmSchedState::Drained:
-    case ZmSchedState::Stopping:
-      wake();
-      ZmScheduler::stop();
-    case ZmSchedState::Stopped:
-      return;
-    default:
-      break;
-  }
-
-  if (m_stopping) return;
+  if (!running() || m_stopping) return;
 
   thread_local ZmSemaphore stopping;
 
@@ -2094,10 +2071,9 @@ void ZiMultiplex::stop_2()
 void ZiMultiplex::stop_3()
 {
   // stop scheduler
-  if (m_drain) ZmScheduler::drain();
   ZmScheduler::stop();
 
-  m_stopping = 0;
+  m_stopping = nullptr;
   m_drain = false;
 
   // close down underlying I/O platform
@@ -2306,7 +2282,7 @@ void ZiMultiplex::telemetry(ZiMxTelemetry &data) const
   data.rxThread = rxThread();
   data.txThread = txThread();
   data.partition = params().partition();
-  data.state = state();
+  data.running = running();
   data.ll = params().ll();
   data.priority = params().priority();
   data.nThreads = params().nThreads();

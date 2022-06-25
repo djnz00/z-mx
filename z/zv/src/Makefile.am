@@ -30,10 +30,10 @@ CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZvLib.hpp \
 	ZvCf.hpp ZvCSV.hpp ZvError.hpp ZvEnum.hpp ZvHashCSV.hpp \
 	ZvHeapCSV.hpp ZvDaemon.hpp \
-	ZvRingCf.hpp ZvThreadCf.hpp ZvUserDB.hpp \
+	ZvRingParams.hpp ZvThreadParams.hpp ZvUserDB.hpp \
 	ZvCmdNet.hpp ZvCmdHost.hpp ZvCmdDispatcher.hpp \
 	ZvCmdClient.hpp ZvCmdServer.hpp \
-	ZvScheduler.hpp ZvMultiplex.hpp \
+	ZvSchedParams.hpp ZvMxParams.hpp \
 	ZvSeqNo.hpp ZvMsgID.hpp ZvIOQueue.hpp ZvEngine.hpp \
 	ZvTelemetry.hpp ZvTelServer.hpp ZvSQLite.hpp \
 	${FBS_H}

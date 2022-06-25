@@ -19,8 +19,8 @@
 
 // ring buffer configuration
 
-#ifndef ZvRingCf_HPP
-#define ZvRingCf_HPP
+#ifndef ZvRingParams_HPP
+#define ZvRingParams_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -59,4 +59,4 @@ struct ZvRingParams : public ZiRingParams {
   }
 };
 
-#endif /* ZvRingCf_HPP */
+#endif /* ZvRingParams_HPP */

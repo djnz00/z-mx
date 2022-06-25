@@ -154,7 +154,7 @@ class ZmAPI ZmScheduler {
 
   struct Timer_ {
     ZmFn<>	fn;
-    unsigned	tid = 0;
+    unsigned	index = 0;
     ZmTime	timeout;
     bool	transient = false;
 
@@ -233,9 +233,9 @@ protected:
   ZuInline ZmSchedParams &params_() { return m_params; }
 
 public:
-  void start();
-  void stop();
-  void reset(); // reset while stopped
+  bool start();	// true if ok, false if already running
+  bool stop();	// synchronously blocks - true if ok, false if stopping/stopped
+  bool reset(); // reset while stopped - true if ok, false if running
 
   bool running() const {
     StateReadGuard stateGuard(m_stateLock);
@@ -279,43 +279,44 @@ public:
   ZuInline void add(ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr)
     { run(0, ZuMv(fn), timeout, mode, ptr); }
 
-  ZuInline void run(unsigned tid, ZmFn<> fn, ZmTime timeout)
-    { run(tid, ZuMv(fn), timeout, Update, nullptr); }
-  ZuInline void run(unsigned tid, ZmFn<> fn, ZmTime timeout, Timer *ptr)
-    { run(tid, ZuMv(fn), timeout, Update, ptr); }
-  void run(unsigned tid, ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr);
+  // FIXME - rename tid to index
+  ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout)
+    { run(index, ZuMv(fn), timeout, Update, nullptr); }
+  ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout, Timer *ptr)
+    { run(index, ZuMv(fn), timeout, Update, ptr); }
+  void run(unsigned index, ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr);
 
-  void del(Timer *);				// cancel job
+  bool del(Timer *);			// cancel job - returns true if found
 
   template <typename Fn>
-  ZuInline void run(unsigned tid, Fn &&fn) {
-    ZmAssert(tid && tid <= m_params.nThreads());
-    runWake_(&m_threads[tid - 1], ZmFn<>{ZuFwd<Fn>(fn)});
+  ZuInline void run(unsigned index, Fn &&fn) {
+    ZmAssert(index && index <= m_params.nThreads());
+    runWake_(&m_threads[index - 1], ZmFn<>{ZuFwd<Fn>(fn)});
   }
   template <typename Fn>
-  ZuInline void run_(unsigned tid, Fn &&fn) {
-    ZmAssert(tid && tid <= m_params.nThreads());
-    run__(&m_threads[tid - 1], ZmFn<>{ZuFwd<Fn>(fn)});
+  ZuInline void run_(unsigned index, Fn &&fn) {
+    ZmAssert(index && index <= m_params.nThreads());
+    run__(&m_threads[index - 1], ZmFn<>{ZuFwd<Fn>(fn)});
   }
 
   template <typename Fn>
-  ZuInline void invoke(unsigned tid, Fn &&fn) {
-    ZmAssert(tid && tid <= m_params.nThreads());
-    Thread *thread = &m_threads[tid - 1];
+  ZuInline void invoke(unsigned index, Fn &&fn) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Thread *thread = &m_threads[index - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) { fn(); return; }
     runWake_(thread, ZmFn<>{ZuFwd<Fn>(fn)});
   }
   template <typename O, typename Fn>
-  ZuInline void invoke(unsigned tid, ZmRef<O> o, Fn &&fn) {
-    ZmAssert(tid && tid <= m_params.nThreads());
-    Thread *thread = &m_threads[tid - 1];
+  ZuInline void invoke(unsigned index, ZmRef<O> o, Fn &&fn) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Thread *thread = &m_threads[index - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) { fn(ZuMv(o)); return; }
     runWake_(thread, ZmFn<>::mvFn(ZuMv(o), ZuFwd<Fn>(fn)));
   }
   template <typename O, typename Fn>
-  ZuInline void invoke(unsigned tid, O *o, Fn &&fn) {
-    ZmAssert(tid && tid <= m_params.nThreads());
-    Thread *thread = &m_threads[tid - 1];
+  ZuInline void invoke(unsigned index, O *o, Fn &&fn) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Thread *thread = &m_threads[index - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) { fn(o); return; }
     runWake_(thread, ZmFn<>{o, ZuFwd<Fn>(fn)});
   }
@@ -339,18 +340,18 @@ public:
       count += m_threads[i].ring.count_();
     return count;
   }
-  const Ring &ring(unsigned tid) const {
-    return m_threads[tid - 1].ring;
+  const Ring &ring(unsigned index) const {
+    return m_threads[index - 1].ring;
   }
-  const OverRing &overRing(unsigned tid) const {
-    return m_threads[tid - 1].overRing;
+  const OverRing &overRing(unsigned index) const {
+    return m_threads[index - 1].overRing;
   }
 
-  unsigned tid(ZuString s) {
-    if (unsigned tid = ZuBox0(unsigned)(s))
-      return tid;
-    for (unsigned tid = 0, n = m_params.nThreads(); tid <= n; tid++)
-      if (s == m_params.thread(tid).name()) return tid;
+  unsigned index(ZuString s) {
+    if (unsigned index = ZuBox0(unsigned)(s))
+      return index;
+    for (unsigned index = 0, n = m_params.nThreads(); index <= n; index++)
+      if (s == m_params.thread(index).name()) return index;
     return 0;
   }
 
@@ -417,8 +418,6 @@ private:
 
   SpawnLock			m_spawnLock;
     unsigned			  m_runThreads = 0;
-
-  ZmSemaphore			m_stopped;
 
   ZmFn<>			m_threadInitFn;
   ZmFn<>			m_threadFinalFn;

@@ -713,7 +713,7 @@ struct ZiMxTelemetry { // not graphable
   uint16_t	rxThread = 0;
   uint16_t	txThread = 0;
   uint16_t	partition = 0;
-  int8_t	state = -1; // RAG: Running - Green; Stopped - Red; * - Amber
+  uint8_t	running = 0; // RAG: true - Green; false - Red
   uint8_t	ll = 0;
   uint8_t	priority = 0;
   uint8_t	nThreads = 0;

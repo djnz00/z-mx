@@ -553,7 +553,13 @@ inline ZdbRN Buf_RNAxor::get(const Buf_ &buf)
 
 } // Zdb_
 
+namespace ZdbHostState {
+  using namespace ZvTelemetry::DBHostState;
+}
+
 class ZdbBuf {
+  ZdbBuf(const ZmRef<Zdb_::Buf> &buf_) : buf{buf_} { }
+
   const ZmRef<Zdb_::Buf>	&buf;
 
 public:
@@ -1211,10 +1217,6 @@ using ZdbHostCfs =
     ZmRBTreeKey<ZdbHostCf::IDAxor,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZdbHostCfs_HeapID> > > >;
-
-namespace ZdbHostState {
-  using namespace ZvTelemetry::DBHostState;
-}
 
 // FIXME - legacy int hostIDs need updating to ZuID
 

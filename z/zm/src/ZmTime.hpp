@@ -35,6 +35,8 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuConversion.hpp>
+#include <zlib/ZuPrint.hpp>
+#include <zlib/ZuBox.hpp>
 
 #include <zlib/ZmPlatform.hpp>
 
@@ -284,6 +286,39 @@ public:
 
   struct Traits : public ZuBaseTraits<ZmTime> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZmTime *);
+
+  template <typename S> void print(S &s) const {
+    int year, month, day, hour, minute, sec;
+    {
+      int julian;
+      int i, j, l, n;
+
+      julian = static_cast<int>((tv_sec / 86400) + 2440588);
+      sec = static_cast<int>(tv_sec % 86400);
+
+      l = julian + 68569;
+      n = (l<<2) / 146097;
+      l = l - ((146097 * n + 3)>>2);
+      i = (4000 * (l + 1)) / 1461001;
+      l = l - ((1461 * i)>>2) + 31;
+      j = (80 * l) / 2447;
+      day = l - (2447 * j) / 80;
+      l = j / 11;
+      month = j + 2 - 12 * l;
+      year = (100 * (n - 49) + i + l);
+      hour = sec / 3600, sec %= 3600,
+      minute = sec / 60, sec %= 60;
+    }
+    s <<
+      ZuBoxed(year).fmt<ZuFmt::Right<4>>() << '/' <<
+      ZuBoxed(month).fmt<ZuFmt::Right<2>>() << '/' <<
+      ZuBoxed(day).fmt<ZuFmt::Right<2>>() << ' ' <<
+      ZuBoxed(hour).fmt<ZuFmt::Right<2>>() << ':' <<
+      ZuBoxed(minute).fmt<ZuFmt::Right<2>>() << ':' <<
+      ZuBoxed(sec).fmt<ZuFmt::Right<2>>() << '.' <<
+      ZuBoxed(tv_nsec).fmt<ZuFmt::Frac<9>>();
+  }
+  friend ZuPrintFn ZuPrintType(ZmTime *);
 };
 
 inline ZmTime ZmTimeNow() { return ZmTime{ZmTime::Now}; }

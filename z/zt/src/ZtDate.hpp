@@ -1156,8 +1156,8 @@ public:
 	       int hour, int minute, int second, const char *tz);
 
   void init(time_t t) {
-    m_julian = (int32_t)((t / 86400) + 2440588);
-    m_sec = (int32_t)(t % 86400);
+    m_julian = static_cast<int32_t>((t / 86400) + 2440588);
+    m_sec = static_cast<int32_t>(t % 86400);
     m_nsec = 0;
   }
 

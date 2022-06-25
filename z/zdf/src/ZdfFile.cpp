@@ -34,9 +34,9 @@ void FileMgr::init(ZmScheduler *sched, const ZvCf *cf)
   m_sched = sched;
   m_dir = config.dir;
   m_coldDir = config.coldDir;
-  m_writeTID = sched->tid(config.writeThread);
-  if (!m_writeTID ||
-      m_writeTID > sched->params().nThreads())
+  m_writeThread = sched->index(config.writeThread);
+  if (!m_writeThread ||
+      m_writeThread > sched->params().nThreads())
     throw ZtString() <<
       "Zdf::FileMgr writeThread misconfigured: " <<
       config.writeThread;
@@ -207,7 +207,7 @@ bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
 void FileMgr::save(ZmRef<Buf> buf)
 {
   buf->save([this, buf = ZuMv(buf)]() {
-    m_sched->run(m_writeTID, ZmFn<>{ZuMv(buf), [](Buf *buf) {
+    m_sched->run(m_writeThread, ZmFn<>{ZuMv(buf), [](Buf *buf) {
       buf->save_([buf]() {
 	static_cast<FileMgr *>(buf->mgr)->save_(
 	    buf->seriesID, buf->blkIndex, buf->data());

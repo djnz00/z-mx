@@ -36,7 +36,7 @@
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvError.hpp>
-#include <zlib/ZvScheduler.hpp>
+#include <zlib/ZvSchedParams.hpp>
 
 class ZvAPI ZvInvalidMulticastIP : public ZvError {
 public:

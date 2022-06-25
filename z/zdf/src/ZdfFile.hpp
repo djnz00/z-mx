@@ -173,9 +173,9 @@ private:
   ZmScheduler		*m_sched = nullptr;
   ZiFile::Path		m_dir;
   ZiFile::Path		m_coldDir;
-  unsigned		m_writeTID = 0;	// write thread ID
-  unsigned		m_maxFileSize;	// maximum file size
-  unsigned		m_maxOpenFiles;	// maximum #files open
+  unsigned		m_writeThread = 0;	// write thread index
+  unsigned		m_maxFileSize;		// maximum file size
+  unsigned		m_maxOpenFiles;		// maximum #files open
   unsigned		m_fileLoads = 0;
   unsigned		m_fileMisses = 0;
 };

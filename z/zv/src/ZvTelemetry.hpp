@@ -69,19 +69,6 @@ namespace ThreadPriority {
   ZfbEnumValues(ThreadPriority, RealTime, High, Normal, Low);
 }
 
-namespace MxState {
-  ZfbEnumValues(MxState,
-      Stopped, Starting, Running, Draining, Drained, Stopping);
-
-  int rag(int i) {
-    using namespace RAG;
-    if (i < 0 || i >= N) return Off;
-    static const int values[N] =
-      { Red, Amber, Green, Amber, Amber, Amber };
-    return values[i];
-  }
-}
-
 namespace SocketType {
   ZfbEnumValues(SocketType, TCPIn, TCPOut, UDP);
 }
@@ -253,12 +240,12 @@ struct Mx : public Mx_, public ZtFieldPrint<Mx> {
   template <typename ...Args>
   Mx(Args &&... args) : Mx_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return MxState::rag(state); }
+  int rag() const { return running ? RAG::Green : RAG::Red; }
   void rag(int) { } // unused
 };
 ZfbFields(Mx,
     (((id), (0)), (String), (Ctor(0))),
-    (((state)), (Enum, MxState::Map), (Ctor(10), Update, Series)),
+    (((running)), (Bool), (Ctor(10), Update, Series)),
     (((nThreads)), (Int), (Ctor(13))),
     (((rxThread)), (Int), (Ctor(7))),
     (((txThread)), (Int), (Ctor(8))),
