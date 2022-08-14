@@ -180,7 +180,7 @@ int main(int argc, char **argv)
 
 	app->timedWait(ZmTimeNow(s));
 
-	mx.stop(true);
+	mx.stop();
 
 	env.close();
       } catch (...) {

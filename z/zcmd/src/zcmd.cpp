@@ -1604,7 +1604,7 @@ int main(int argc, char **argv)
   client->exiting();
   client->disconnect();
 
-  mx->stop(true);
+  mx->stop();
 
   ZeLog::stop();
 

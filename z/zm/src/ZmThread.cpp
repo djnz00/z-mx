@@ -230,8 +230,8 @@ ZmAPI unsigned __stdcall ZmThread_start(void *c_)
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, 0);
   c->bind();
   ZmFn<> fn = c->m_fn;
-  c->m_fn = ZmFn<>();
-  return c->m_result = (void *)(fn)();
+  c->m_fn = ZmFn<>{};
+  return c->m_result = reinterpret_cast<void *>(fn());
 #else
   c->bind();
   if (c->m_detached) {
@@ -239,8 +239,8 @@ ZmAPI unsigned __stdcall ZmThread_start(void *c_)
     c->m_handle = 0;
   }
   ZmFn<> fn = c->m_fn;
-  c->m_fn = ZmFn<>();
-  c->m_result = (void *)(fn)();
+  c->m_fn = ZmFn<>{};
+  c->m_result = reinterpret_cast<void *>(fn());
   _endthreadex(0);
   return 0;
 #endif
@@ -264,7 +264,7 @@ int ZmThread::run(int id, ZmFn<> fn, ZmThreadParams params)
 	  &ZmThread_start, (void *)m_context.ptr()) < 0) {
       pthread_attr_destroy(&attr);
       ZmDEREF(m_context);
-      m_context = 0;
+      m_context = nullptr;
       return -1;
     }
     pthread_attr_destroy(&attr);
@@ -276,7 +276,7 @@ int ZmThread::run(int id, ZmFn<> fn, ZmThreadParams params)
       (void *)m_context.ptr(), CREATE_SUSPENDED, &m_context->m_tid);
   if (!h) {
     ZmDEREF(m_context);
-    m_context = 0;
+    m_context = nullptr;
     return -1;
   }
   m_context->m_handle = h;
@@ -291,13 +291,13 @@ int ZmThread::join(void **status)
   if (!m_context || m_context->m_detached) return -1;
 #ifndef _WIN32
   int r = pthread_join(m_context->m_pthread, status);
-  m_context = 0;
+  m_context = nullptr;
   return r;
 #else
   WaitForSingleObject(m_context->m_handle, INFINITE);
   CloseHandle(m_context->m_handle);
   if (status) *status = m_context->m_result;
-  m_context = 0;
+  m_context = nullptr;
   return 0;
 #endif
 }

@@ -101,6 +101,7 @@ class Tuple_<T0_> : public ZuTuple1_ {
 public:
   using T0 = T0_;
   using U0 = ZuDeref<T0>;
+  using Types = ZuTypeList<T0>;
   template <unsigned I> using Type = ZuTuple_Type0<I, T0>;
   enum { N = 1 };
 
@@ -280,6 +281,7 @@ class Tuple_<T0, T1> : public Pair_<T0, T1> {
 
 public:
   template <unsigned I> using Type = typename Base::template Type<I>;
+  using Types = ZuTypeList<T0, T1>;
   enum { N = 2 };
 
   template <typename T>
@@ -369,6 +371,7 @@ class Tuple_<T0, T1, Args...> : public Pair_<T0, Tuple_<T1, Args...>> {
 
 public:
   template <unsigned I> using Type = ZuTuple_Type<I, Left, Right>;
+  using Types = ZuTypeList<T0, T1, Args...>;
   enum { N = Right::N + 1 };
 
   template <typename T>

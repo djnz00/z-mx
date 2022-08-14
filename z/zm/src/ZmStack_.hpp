@@ -156,8 +156,7 @@ public:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZmStack(ZmStackParams params = ZmStackParams()) :
-      m_data(0), m_size(0), m_length(0), m_count(0),
+  ZmStack(ZmStackParams params = {}) :
       m_initial(params.initial()),
       m_increment(params.increment()),
       m_defrag(1.0 - (double)params.maxFrag() / 100.0) { }
@@ -165,6 +164,24 @@ public:
   ~ZmStack() {
     clean_();
     free(m_data);
+  }
+
+  ZmStack(ZmStack &&stack) :
+      m_initial{stack.m_initial}, m_increment{stack.m_increment},
+      m_defrag{stack.m_defrag} {
+    Guard guard(stack.m_lock);
+    m_data = stack.m_data;
+    m_size = stack.m_size;
+    m_length = stack.m_length;
+    m_count = stack.m_count;
+    stack.m_data = nullptr;
+    stack.m_size = 0;
+    stack.m_length = 0;
+    stack.m_count = 0;
+  }
+  ZmStack &operator =(ZmStack &&stack) {
+    ~ZmStack();
+    new (this) ZmStack{ZuMv(stack)};
   }
 
   unsigned initial() const { return m_initial; }
@@ -358,10 +375,10 @@ friend Iterator;
 
 private:
   Lock		m_lock;
-  T		*m_data;
-  unsigned	m_size;
-  unsigned	m_length;
-  unsigned	m_count;
+  T		*m_data = nullptr;
+  unsigned	m_size = 0;
+  unsigned	m_length = 0;
+  unsigned	m_count = 0;
   unsigned	m_initial;
   unsigned	m_increment;
   double	m_defrag;

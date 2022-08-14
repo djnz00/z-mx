@@ -334,12 +334,12 @@ int main(int argc, char **argv)
   ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
   ZmTrap::trap();
 
-  if (mx.start() != Zi::OK) Zm::exit(1);
+  if (!mx.start()) Zm::exit(1);
 
   for (int i = 0; i < nConcurrent; i++) mx.connect();
 
   Global::wait();
-  mx.stop(true);
+  mx.stop();
   dumpTimers();
   Global::dumpStats();
 

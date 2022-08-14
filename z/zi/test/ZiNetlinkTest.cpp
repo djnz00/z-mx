@@ -310,7 +310,10 @@ int main(int argc, char **argv)
   ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
   ZmTrap::trap();
 
-  if (mx.start(&e) != Zi::OK) { ZeLOG(Fatal, e); Zm::exit(1); }
+  if (!mx.start()) {
+    ZeLOG(Fatal, "multiplexer failed to start");
+    Zm::exit(1);
+  }
   try {
     for (int i = 0; i < nConcurrent; i++) mx.connect();
   } catch (const ZeError &e) {
@@ -321,7 +324,7 @@ int main(int argc, char **argv)
   }
 
   Global::wait();
-  mx.stop(true);
+  mx.stop();
   Global::dumpStats();
 
   ZeLog::stop();

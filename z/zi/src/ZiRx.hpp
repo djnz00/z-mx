@@ -62,7 +62,7 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuLambdaFn<Hdr>::invoke(io, buf);
+    int frameLen = ZuLambdaTraits<Hdr>::invoke(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -72,7 +72,7 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
     }
 
     // process body
-    frameLen = ZuLambdaFn<Body>::invoke(io, buf, frameLen);
+    frameLen = ZuLambdaTraits<Body>::invoke(io, buf, frameLen);
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 
@@ -100,7 +100,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuLambdaFn<Hdr>::invoke(io, buf);
+    int frameLen = ZuLambdaTraits<Hdr>::invoke(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -124,7 +124,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     }
 
     // process body
-    frameLen = ZuLambdaFn<Body>::invoke(io, io.fn.mvObject<Buf>());
+    frameLen = ZuLambdaTraits<Body>::invoke(io, io.fn.mvObject<Buf>());
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 

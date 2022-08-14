@@ -22,6 +22,7 @@
 #include <zlib/ZuBox.hpp>
 
 #include <zlib/ZmScheduler.hpp>
+#include <zlib/ZmBlock.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -66,7 +67,6 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
 
 ZmScheduler::~ZmScheduler()
 {
-  stop();
   for (unsigned i = 0, n = m_params.nThreads(); i < n; i++) {
     Ring &ring = m_threads[i].ring;
     // ring.detach();
@@ -76,24 +76,37 @@ ZmScheduler::~ZmScheduler()
   delete [] m_threads;
 }
 
-void ZmScheduler::runThreads()
+void ZmScheduler::start(ZmFn<bool> startFn)
 {
-}
+  {
+    StateGuard stateGuard(m_stateLock);
 
-bool ZmScheduler::start()
-{
-  StateGuard stateGuard(m_stateLock);
+    if (m_thread && !m_starting) {
+      startFn(true);
+      return;
+    }
 
-  if (m_thread) return false;
+    if (startFn) m_startFn.push(ZuMv(startFn));
+
+    if (m_starting) return;
+
+    m_starting = true;
+  }
 
   m_thread = ZmThread(0,
-      ZmFn<>::Member<&ZmScheduler::start_>::fn(this),
+      ZmFn<>{this, [](ZmScheduler *self) {
+	self->started(self->start_());
+	self->timer();
+      }},
       m_params.thread(0));
 
-  return true;
+  if (!m_thread) { started(false); return; }
 }
-
-void ZmScheduler::start_()
+bool ZmScheduler::start()
+{
+  return ZmBlock<bool>{}([this](auto wake) { start(ZuMv(wake)); });
+}
+bool ZmScheduler::start_()
 {
   {
     unsigned n = m_params.nThreads();
@@ -102,62 +115,103 @@ void ZmScheduler::start_()
       m_threads[i].ring.eof(false);
     while (m_runThreads < n) {
       unsigned index = ++m_runThreads;
-      m_threads[index - 1].thread = ZmThread(index,
+      if (!(m_threads[index - 1].thread = ZmThread(index,
 	  ZmFn<>::Member<&ZmScheduler::work>::fn(this),
-	  m_params.thread(index));
+	  m_params.thread(index)))) {
+	ZmScheduler::stop_();
+	m_thread = {};
+	return false;
+      }
     }
-  }
-
-  timer();
-}
-
-bool ZmScheduler::stop()
-{
-  {
-    StateGuard stateGuard(m_stateLock);
-
-    if (!m_thread || m_stopping) return false;
-
-    auto self = ZmSelf()->tid();
-    {
-      unsigned n = m_params.nThreads();
-      SpawnGuard spawnGuard(m_spawnLock);
-      for (unsigned i = 0; i < n; i++)
-	if (m_threads[i].tid == self) return false;
-    }
-
-    m_stopping = self;
-  }
-
-  m_pending.post();
-  m_thread.join();
-
-  {
-    StateGuard stateGuard(m_stateLock);
-
-    m_thread = {};
-    m_stopping = 0;
   }
 
   return true;
 }
+void ZmScheduler::started(bool ok)
+{
+  StateGuard stateGuard(m_stateLock);
+  started_(stateGuard, ok);
+}
+void ZmScheduler::started_(StateGuard &guard, bool ok)
+{
+  auto startFn = ZuMv(m_startFn);
+  m_startFn.clean();
+  m_starting = false;
+  guard.unlock();
+  while (auto fn = startFn.shift()) fn(ok);
+}
 
+void ZmScheduler::stop(ZmFn<bool> stopFn)
+{
+  {
+    StateGuard stateGuard(m_stateLock);
+
+    if (!m_thread) {
+      stopFn(true); // idempotent
+      return;
+    }
+
+    if (stopFn) m_stopFn.push(ZuMv(stopFn));
+
+    if (m_stopping) return;
+
+    m_stopping = true;
+  }
+
+  m_pending.post();
+  return;
+}
+bool ZmScheduler::stop()
+{
+  // protect against blocking on self-destruction
+  auto self = ZmSelf()->tid();
+  {
+    unsigned n = m_params.nThreads();
+    SpawnReadGuard spawnGuard(m_spawnLock);
+    for (unsigned i = 0; i < n; i++)
+      if (m_threads[i].tid == self) {
+	spawnGuard.unlock();
+	stop({});	// async
+	return true;	// return success
+      }
+  }
+  return ZmBlock<bool>{}([this](auto wake) { stop(ZuMv(wake)); });
+}
 void ZmScheduler::stop_()
 {
-  unsigned n = m_params.nThreads();
-  SpawnGuard spawnGuard(m_spawnLock);
-  for (unsigned i = 0; i < n; i++)
-    m_threads[i].ring.eof(true);
-  for (unsigned i = 0; i < n; i++) {
-    ZmThread &thread = m_threads[i].thread;
-    if (thread) {
-      wake(&m_threads[i]);
-      if (thread.tid() != m_stopping) {
+  {
+    unsigned n = m_params.nThreads();
+    SpawnGuard spawnGuard(m_spawnLock);
+    for (unsigned i = 0; i < n; i++)
+      m_threads[i].ring.eof(true);
+    for (unsigned i = 0; i < n; i++) {
+      auto &thread = m_threads[i].thread;
+      if (thread) {
+	wake(&m_threads[i]);
 	thread.join();
 	thread = {};
       }
     }
   }
+
+  {
+    StateGuard stateGuard(m_stateLock);
+    m_thread = {};
+    stopped_(stateGuard, true);
+  }
+}
+void ZmScheduler::stopped(bool ok)
+{
+  StateGuard stateGuard(m_stateLock);
+  stopped_(stateGuard, ok);
+}
+void ZmScheduler::stopped_(StateGuard &guard, bool ok)
+{
+  auto stopFn = ZuMv(m_stopFn);
+  m_stopFn.clean();
+  m_stopping = false;
+  guard.unlock();
+  while (auto fn = stopFn.shift()) fn(ok);
 }
 
 bool ZmScheduler::reset()

@@ -163,7 +163,7 @@ int main(int argc, char **argv)
   server->wait();
 
   server->stop();
-  mx->stop(true);
+  mx->stop();
 
   delete mx;
 

@@ -121,6 +121,8 @@ namespace DBHostState {
   ZfbEnumValues(DBHostState,
       Instantiated,
       Initialized,
+      Opening,
+      Closing,
       Stopped,
       Electing,
       Activating,

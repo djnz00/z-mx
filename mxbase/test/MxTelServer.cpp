@@ -66,7 +66,7 @@ int main()
 
   app.stop();
 
-  mx->stop(true);
+  mx->stop();
 
   app.final();
 }

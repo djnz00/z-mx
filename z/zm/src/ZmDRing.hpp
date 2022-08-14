@@ -151,14 +151,33 @@ public:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZmDRing(ZmDRingParams params = ZmDRingParams()) :
-      m_data(0), m_offset(0), m_size(0), m_length(0), m_count(0),
-      m_initial(params.initial()), m_increment(params.increment()),
-      m_defrag(1.0 - (double)params.maxFrag() / 100.0) { }
+  ZmDRing(ZmDRingParams params = {}) :
+      m_initial{params.initial()}, m_increment{params.increment()},
+      m_defrag{1.0 - (double)params.maxFrag() / 100.0} { }
 
   ~ZmDRing() {
     clean_();
     free(m_data);
+  }
+
+  ZmDRing(ZmDRing &&ring) :
+      m_initial{ring.m_initial}, m_increment{ring.m_increment},
+      m_defrag{ring.m_defrag} {
+    Guard guard(ring.m_lock);
+    m_data = ring.m_data;
+    m_offset = ring.m_offset;
+    m_size = ring.m_size;
+    m_length = ring.m_length;
+    m_count = ring.m_count;
+    ring.m_data = nullptr;
+    ring.m_offset = 0;
+    ring.m_size = 0;
+    ring.m_length = 0;
+    ring.m_count = 0;
+  }
+  ZmDRing &operator =(ZmDRing &&ring) {
+    ~ZmDRing();
+    new (this) ZmDRing{ZuMv(ring)};
   }
 
   unsigned initial() const { return m_initial; }
@@ -485,11 +504,11 @@ friend RevIterator;
 
 private:
   Lock		m_lock;
-  T		*m_data;
-  unsigned	m_offset;
-  unsigned	m_size;
-  unsigned	m_length;
-  unsigned	m_count;
+  T		*m_data = nullptr;
+  unsigned	m_offset = 0;
+  unsigned	m_size = 0;
+  unsigned	m_length = 0;
+  unsigned	m_count = 0;
   unsigned	m_initial;
   unsigned	m_increment;
   double	m_defrag;

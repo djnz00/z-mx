@@ -211,7 +211,7 @@ int main()
   engine->waitDisconnected();
   engine->stop();
 
-  mx->stop(true);
+  mx->stop();
 
   engine = 0;
   app->final();

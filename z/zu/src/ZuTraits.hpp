@@ -500,16 +500,4 @@ struct ZuTraits<std::initializer_list<Elem_> > :
   static unsigned length(const T &a) { return a.size(); }
 };
 
-template <typename L> struct ZuLambdaTraits :
-  public ZuLambdaTraits<decltype(&L::operator())> { };
-template <typename R, typename T, typename ...Args>
-struct ZuLambdaTraits<R (T::*)(Args...) const> { enum { IsMutable = 0 }; };
-template <typename R, typename T, typename ...Args>
-struct ZuLambdaTraits<R (T::*)(Args...)> { enum { IsMutable = 1 }; };
-
-template <typename L, typename T = void>
-using ZuIsMutable = ZuIfT<ZuLambdaTraits<L>::IsMutable, T>;
-template <typename L, typename T = void>
-using ZuNotMutable = ZuIfT<!ZuLambdaTraits<L>::IsMutable, T>;
-
 #endif /* ZuTraits_HPP */

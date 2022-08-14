@@ -746,7 +746,7 @@ public:
 
   void clear() {
     if (!null__()) {
-      if (!owned()) { null(); return; }
+      if (!owned()) { null_(); return; }
       length_(0);
     }
   }

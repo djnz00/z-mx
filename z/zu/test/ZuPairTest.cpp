@@ -112,7 +112,7 @@ int main()
     copied = moved = 0;
     B p(passatuple(mkatuple()));
     A a = ZuMv(p.foo()), b = ZuMv(p.p<1>()), c = ZuMv(p.p<2>());
-    CHECK(!copied && moved == 11);
+    CHECK(!copied && moved == 12);
     CHECK(a.i == 42 && b.i == 42 && c.i == 42);
     B q = B().foo(42), r{p};
     p = q;

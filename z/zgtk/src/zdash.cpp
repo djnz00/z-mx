@@ -1684,7 +1684,7 @@ int main(int argc, char **argv)
 
   app->final();
 
-  mx->stop(true);
+  mx->stop();
 
   ZeLog::stop();
 

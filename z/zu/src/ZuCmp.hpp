@@ -463,7 +463,8 @@ struct ZuCmp_String<T, 1, IsString, 0> {
   }
   static bool null(const char *s) { return !s || !*s; }
   static const T &null() {
-    static const T t = (const T)(const char *)0; return t;
+    static const T r = static_cast<const T>(reinterpret_cast<const char *>(0));
+    return r;
   }
 };
 template <typename T>
@@ -523,8 +524,9 @@ struct ZuCmp_String<T, 1, IsString, 1> {
   }
   static bool null(const wchar_t *w) { return !w || !*w; }
   static const T &null() {
-    static const T t = (const T)(const wchar_t *)0;
-    return t;
+    static const T r =
+      static_cast<const T>(reinterpret_cast<const wchar_t *>(0));
+    return r;
   }
 };
 template <typename T>

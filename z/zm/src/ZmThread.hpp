@@ -243,7 +243,6 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_index(index), m_name(params.name()),
       m_priority(params.priority()),
       m_partition(params.partition()), m_cpuset(params.cpuset()),
-      m_result(nullptr),
       m_detached(params.detached()) { }
 
 public:

@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 	  .thread(3, [](auto &t) { t.isolated(1); }); })
 	.rxThread(1).txThread(2));
 
-  if (mx.start() != Zi::OK) {
+  if (!mx.start()) {
     std::cerr << "ZiMultiplex start failed\n" << std::flush;
     return 1;
   }
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 
   app.wait();
 
-  mx.stop(true);
+  mx.stop();
 
   ZeLog::stop();
 

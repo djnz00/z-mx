@@ -1189,7 +1189,7 @@ DBState_Print ZuPrintType(DBState *);
 } // Zdb_
 
 struct ZdbHostCf {
-  unsigned	id = 0;
+  unsigned	id = 0; // FIXME - ZuID
   unsigned	priority = 0;
   ZiIP		ip;
   uint16_t	port = 0;
@@ -1197,7 +1197,7 @@ struct ZdbHostCf {
   ZtString	down;
 
   ZdbHostCf(const ZtString &key, const ZvCf *cf) {
-    id = ZvCf::toInt(cf, "ID", key, 0, 1<<30);
+    id = ZvCf::toInt(cf, "ID", key, 0, 1<<30); // FIXME - ZuID
     priority = cf->getInt("priority", 0, 1<<30, true);
     ip = cf->get("IP", true);
     port = cf->getInt("port", 1, (1<<16) - 1, true);
@@ -1212,6 +1212,7 @@ struct ZdbHostCf {
 struct ZdbHostCfs_HeapID {
   static constexpr const char *id() { return "ZdbEnv.HostCfs"; }
 };
+// FIXME - move to hash table
 using ZdbHostCfs =
   ZmRBTree<ZdbHostCf,
     ZmRBTreeKey<ZdbHostCf::IDAxor,

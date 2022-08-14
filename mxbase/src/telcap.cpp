@@ -339,7 +339,7 @@ int main(int argc, char **argv)
 
   app.stop();
 
-  mx->stop(true);
+  mx->stop();
 
   app.final();
 }

@@ -29,7 +29,7 @@
 #endif
 
 #include <zlib/ZuGrow.hpp>
-#include <zlib/ZuLambdaFn.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/Ztls.hpp>
 
@@ -500,10 +500,11 @@ private:
   void reschedule(WatchList &list) {
     m_mx->run(m_thread,
 	ZmFn<>{&list, [](WatchList *list) {
-	  ZuLambdaFn<L>::invoke(list->server);
+	  ZuLambdaTraits<L>::invoke(list->server);
 	  list->server->template reschedule<L>(*list);
 	}},
-	ZmTimeNow() + ZmTime{ZmTime::Nano, ((int64_t)list.interval) * 1000000},
+	ZmTimeNow() + ZmTime{ZmTime::Nano,
+	  static_cast<int64_t>(list.interval) * 1000000},
 	ZmScheduler::Advance, &list.timer);
   }
 

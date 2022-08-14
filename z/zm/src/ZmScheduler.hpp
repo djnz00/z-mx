@@ -222,10 +222,11 @@ private:
     unsigned	  m_outCount = 0;
   };
   enum { OverRing_Increment = 128 };
+  using CtrlFnRing = ZmDRing<ZmFn<bool>, ZmDRingLock<ZmNoLock>>;
 
 public:
   // might throw ZmRingError
-  ZmScheduler(ZmSchedParams params = ZmSchedParams());
+  ZmScheduler(ZmSchedParams params = {});
   virtual ~ZmScheduler();
 
   ZuInline const ZmSchedParams &params() const { return m_params; }
@@ -233,8 +234,12 @@ protected:
   ZuInline ZmSchedParams &params_() { return m_params; }
 
 public:
-  bool start();	// true if ok, false if already running
-  bool stop();	// synchronously blocks - true if ok, false if stopping/stopped
+  void start(ZmFn<bool>);	// async
+  void stop(ZmFn<bool>);
+
+  bool start();			// sync
+  bool stop();
+
   bool reset(); // reset while stopped - true if ok, false if running
 
   bool running() const {
@@ -279,7 +284,6 @@ public:
   ZuInline void add(ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr)
     { run(0, ZuMv(fn), timeout, mode, ptr); }
 
-  // FIXME - rename tid to index
   ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout)
     { run(index, ZuMv(fn), timeout, Update, nullptr); }
   ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout, Timer *ptr)
@@ -356,7 +360,8 @@ public:
   }
 
 protected:
-  void runThreads();
+  virtual bool start_();	 // returns false if failed
+  virtual void stop_();
 
   void busy();
   void idle();
@@ -371,6 +376,16 @@ private:
 
   using SpawnLock = ZmPLock;
   using SpawnGuard = ZmGuard<SpawnLock>;
+  using SpawnReadGuard = ZmReadGuard<SpawnLock>;
+
+  void started(bool ok);
+  void stopped(bool ok);
+  void started_(StateGuard &, bool ok);
+  void stopped_(StateGuard &, bool ok);
+
+  bool running_() const {
+    return !!m_thread && !m_stopping;
+  }
 
   struct Thread {
     Ring		ring;
@@ -382,13 +397,6 @@ private:
   };
 
   ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
-
-  bool running_() const {
-    return !!m_thread && !m_stopping;
-  }
-
-  void start_();
-  void stop_();
 
   void timer();
   bool timerAdd(ZmFn<> &fn);
@@ -403,8 +411,9 @@ private:
   ZmSchedParams			m_params;
 
   StateLock			m_stateLock;
+    CtrlFnRing			  m_startFn, m_stopFn;
     ZmThread			  m_thread;
-    ZmThreadID			  m_stopping = 0;
+    bool			  m_starting = false, m_stopping = false;
 
   ZmSemaphore			m_pending;
 

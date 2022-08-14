@@ -306,8 +306,7 @@ int App::start()
       ZeLOG(Fatal, ZtString{} << '"' << m_path << "\": " << e);
       goto error;
     }
-    if (m_mx->start() != Zi::OK ||
-	m_mx2->start() != Zi::OK) {
+    if (!m_mx->start() || !m_mx2->start()) {
       ZeLOG(Fatal, "multiplexer start failed");
       goto error;
     }
@@ -326,16 +325,16 @@ int App::start()
   return Zi::OK;
 
 error:
-  m_mx->stop(true);
-  m_mx2->stop(true);
+  m_mx->stop();
+  m_mx2->stop();
   m_file.close();
   return Zi::IOError;
 }
 
 void App::stop()
 {
-  m_mx->stop(true);
-  m_mx2->stop(true);
+  m_mx->stop();
+  m_mx2->stop();
   m_file.close();
 }
 

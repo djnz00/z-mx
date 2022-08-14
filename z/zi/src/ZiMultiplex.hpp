@@ -913,9 +913,9 @@ public:
   ZiMultiplex(ZiMxParams mxParams = ZiMxParams());
   ~ZiMultiplex();
 
-  int start();
-  void stop(bool drain);
-private:
+  bool start_();	
+  void stop_();	
+
   void stop_1();	// Rx thread - disconnect all connections
   void stop_2();	// Rx thread - stop connecting / listening / accepting
   void stop_3();	// App thread - clean up
@@ -1052,9 +1052,7 @@ private:
   void writeWake();
 #endif
 
-  StateLock		m_stateLock;	// guards ZmScheduler state
-    ZmSemaphore		  *m_stopping = nullptr;
-    bool		  m_drain = false;
+  ZmSemaphore		*m_stopping = nullptr;
 
   unsigned		m_rxThread = 0;
     // Rx exclusive

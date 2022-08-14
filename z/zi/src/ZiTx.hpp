@@ -50,7 +50,7 @@ inline void send(Cxn *cxn, ZmRef<Buf> buf, Sent) {
     io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
       if (ZuUnlikely((io.offset += io.length) < io.size)) return;
       io.complete();
-      ZuLambdaFn<Sent>::invoke(io.fn.mvObject<Buf>());
+      ZuLambdaTraits<Sent>::invoke(io.fn.mvObject<Buf>());
     }}, buf->data(), buf->length, 0);
   }});
 }

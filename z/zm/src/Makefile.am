@@ -6,17 +6,18 @@ AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 pkginclude_HEADERS = \
 	ZmAssert.hpp ZmAtomic.hpp \
 	ZmBackTrace.hpp ZmBackTrace_.hpp ZmBackTrace_print.hpp \
-	ZmBackTracer.hpp ZmBackoff.hpp ZmBitmap.hpp ZmBxRing.hpp ZmCleanup.hpp \
-	ZmCondition.hpp ZmDRing.hpp ZmFn.hpp ZmFn_.hpp ZmFn_Lambda.hpp \
-	ZmGlobal.hpp ZmGuard.hpp ZmHash.hpp ZmHashMgr.hpp ZmHeap.hpp \
-	ZmNode.hpp ZmLHash.hpp ZmLib.hpp ZmList.hpp ZmLock.hpp \
-	ZmLockTraits.hpp ZmNoLock.hpp ZmObject_.hpp ZmObject.hpp \
-	ZmPolymorph.hpp ZmPLock.hpp ZmPQueue.hpp ZmPlatform.hpp \
-	ZmRBTree.hpp ZmRWLock.hpp ZmRandom.hpp ZmRef.hpp ZmRing.hpp \
-	ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp ZmSingleton.hpp \
-	ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp ZmStack_.hpp ZmStream.hpp \
-	ZmTLock.hpp ZmThread.hpp ZmTime.hpp ZmTimeInterval.hpp ZmTimeout.hpp \
-	ZmTopology.hpp ZmTrap.hpp ZmAllocator.hpp ZmVHeap.hpp
+	ZmBackTracer.hpp ZmBackoff.hpp ZmBitmap.hpp ZmBlock.hpp \
+	ZmBxRing.hpp ZmCleanup.hpp ZmCondition.hpp ZmDRing.hpp \
+	ZmFn.hpp ZmFn_.hpp ZmFn_Lambda.hpp ZmGlobal.hpp ZmGuard.hpp \
+	ZmHash.hpp ZmHashMgr.hpp ZmHeap.hpp ZmNode.hpp ZmLHash.hpp \
+	ZmLib.hpp ZmList.hpp ZmLock.hpp ZmLockTraits.hpp ZmNoLock.hpp \
+	ZmObject_.hpp ZmObject.hpp ZmPolymorph.hpp ZmPLock.hpp \
+	ZmPQueue.hpp ZmPlatform.hpp ZmRBTree.hpp ZmRWLock.hpp ZmRandom.hpp \
+	ZmRef.hpp ZmRing.hpp ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp \
+	ZmSingleton.hpp ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp \
+	ZmStack_.hpp ZmStream.hpp ZmTLock.hpp ZmThread.hpp ZmTime.hpp \
+	ZmTimeInterval.hpp ZmTimeout.hpp ZmTopology.hpp ZmTrap.hpp \
+	ZmAllocator.hpp ZmVHeap.hpp
 lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \

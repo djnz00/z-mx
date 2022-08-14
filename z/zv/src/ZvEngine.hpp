@@ -30,6 +30,8 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
+#include <zlib/ZuLambdaTraits.hpp>
+
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmPolymorph.hpp>
 
@@ -55,7 +57,6 @@ protected:
 
 public:
   using Mx = ZvMultiplex;
-  using AbortFn = ZmFn<ZvIOMsg *>;
 
   struct IDAccessor {
     static ZuID get(const ZvAnyTx *tx) { return tx->id(); }
@@ -453,7 +454,6 @@ class ZvTx : public Base {
 public:
   using Mx = ZvMultiplex;
   using Gap = ZvIOQueue::Gap;
-  using AbortFn = ZvAnyTx::AbortFn;
 
   ZvTx(ZuID id) : Base(id) { }
   
@@ -580,8 +580,6 @@ public:
   using Tx_ = ZmPQTx<Impl, ZvIOQueue, ZmNoLock>;
   using Tx = ZvIOQueueTx<Impl>;
 
-  using AbortFn = ZvAnyTx::AbortFn;
-
   const Impl *impl() const { return static_cast<const Impl *>(this); }
   Impl *impl() { return static_cast<Impl *>(this); }
 
@@ -649,19 +647,15 @@ public:
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
 
   // ensure passed lambdas are stateless and match required signature
-  template <typename L> struct RcvdLambda_ {
-    typedef void (*Fn)(Rx *);
-    enum { OK = ZuConversion<L, Fn>::Exists };
-  };
-  template <typename L, bool = RcvdLambda_<L>::OK>
+  template <
+    typename L,
+    bool = ZuLambdaTraits<L>::template Match<void, Rx *>::OK>
   struct RcvdLambda;
-  template <typename L> struct RcvdLambda<L, true> {
-    using T = void;
-    static void invoke(Rx *rx) { (*(const L *)(void *)0)(rx); }
-  };
+  template <typename L>
+  struct RcvdLambda<L, true> : public ZuLambdaTraits<L> { };
 
   template <typename L>
-  typename RcvdLambda<L>::T received(ZmRef<ZvIOMsg> msg, L) {
+  typename RcvdLambda<L>::R received(ZmRef<ZvIOMsg> msg, L) {
     msg->owner(rx());
     this->engine()->rxInvoke(ZuMv(msg), [](ZmRef<ZvIOMsg> msg) {
       Rx *rx = msg->owner<Rx *>();
@@ -692,8 +686,9 @@ public:
       l(tx->abort(seqNo));
     });
   }
-  void archived(ZvSeqNo seqNo)
-    { this->txInvoke([seqNo](Tx *tx) { tx->archived(seqNo); }); }
+  void archived(ZvSeqNo seqNo) {
+    this->txInvoke([seqNo](Tx *tx) { tx->archived(seqNo); });
+  }
 
 private:
   // prevent direct call from Impl - must be called via rx/tx Run/Invoke

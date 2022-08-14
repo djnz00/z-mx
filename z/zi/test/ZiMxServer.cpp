@@ -316,12 +316,12 @@ int main(int argc, char **argv)
   ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
   ZmTrap::trap();
 
-  if (mx.start() != Zi::OK) Zm::exit(1);
+  if (!mx.start()) Zm::exit(1);
 
   mx.listen();
 
   Global::wait();
-  mx.stop(true);
+  mx.stop();
   dumpTimers();
   Global::dumpStats();
 

@@ -6,7 +6,7 @@ pkginclude_HEADERS = \
 	ZuArrayFn.hpp ZuArray.hpp ZuArrayN.hpp ZuAssert.hpp ZuBox.hpp \
 	ZuBitmap.hpp ZuByteSwap.hpp ZuCmp.hpp ZuConversion.hpp \
 	ZuFnName.hpp ZuFmt.hpp ZuFP.hpp ZuHash.hpp ZuID.hpp \
-	ZuInt.hpp ZuLambdaFn.hpp ZuLargest.hpp \
+	ZuInt.hpp ZuLambdaTraits.hpp ZuLargest.hpp \
 	ZuLib.hpp ZuMixin.hpp ZuMvArray.hpp ZuNull.hpp \
 	ZuObject_.hpp ZuObject.hpp ZuPolymorph.hpp ZuPOD.hpp ZuPP.hpp \
 	ZuPair.hpp ZuPrint.hpp ZuRef.hpp ZuStdString.hpp ZuString.hpp \

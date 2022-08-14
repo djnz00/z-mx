@@ -286,7 +286,7 @@ public:
 	  auto rows = gtk_tree_selection_get_selected_rows(selection, &model);
 	  if (!rows) return false;
 	  g_return_val_if_fail(!!model, false);
-	  auto fn = ZuLambdaFn<Click>::invoke(
+	  auto fn = ZuLambdaTraits<Click>::invoke(
 	      impl(model), widget, g_list_length(rows));
 	  for (GList *i = g_list_first(rows); i; i = g_list_next(i)) {
 	    auto path = reinterpret_cast<GtkTreePath *>(i->data);
@@ -402,7 +402,7 @@ private:
     if (length != sizeof(GList *)) return true;
     auto model = GTK_TREE_MODEL(this);
     auto rows = *reinterpret_cast<GList *const *>(ptr);
-    auto fn = ZuLambdaFn<Drop>::invoke(
+    auto fn = ZuLambdaTraits<Drop>::invoke(
 	impl(model), widget, g_list_length(rows));
     for (GList *i = g_list_first(rows); i; i = g_list_next(i)) {
       auto path = reinterpret_cast<GtkTreePath *>(i->data);

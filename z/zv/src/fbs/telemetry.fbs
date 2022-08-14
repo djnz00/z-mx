@@ -185,14 +185,16 @@ table DB {
 }
 enum DBHostState:int8 {
   Instantiated = 0,	// instantiated, init() not yet called
-  Initialized,		// init() called
-  Stopped,		// open() called
+  Initialized,		// init() or close() completed
+  Opening,		// open() in process
+  Closing,		// close() in process
+  Stopped,		// open() or stop() completed
   Electing,		// start() called, determining active/inactive
   Activating,		// activating application
   Active,		// active (master)
   Deactivating,		// deactivating application
   Inactive,		// inactive (client)
-  Stopping		// stop() called - stopping
+  Stopping		// stop() in process
 }
 table DBHost {
   ip:Zfb.IP;

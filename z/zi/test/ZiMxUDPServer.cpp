@@ -288,12 +288,12 @@ int main(int argc, const char *argv[])
   ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
   ZmTrap::trap();
 
-  if (mx.start() != Zi::OK) Zm::exit(1);
+  if (!mx.start()) Zm::exit(1);
 
   mx.udp();
 
   Global::wait();
-  mx.stop(true);
+  mx.stop();
   
   ZeLog::stop();
   return 0;

@@ -53,7 +53,6 @@
 #include <utility>
 
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuLambdaFn.hpp>
 #include <zlib/ZuArrayFn.hpp>
 
 template <typename T, typename Cmp, unsigned N>

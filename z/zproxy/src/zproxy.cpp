@@ -583,13 +583,11 @@ public:
   bool verbose() const { return m_verbose; }
 
   int start() {
-    int r;
-    if ((r = m_mx->start()) != Zi::OK) return r;
-    return Zi::OK;
+    return m_mx->start() ? Zi::OK : Zi::IOError;
   }
 
   void stop() {
-    m_mx->stop(true);
+    m_mx->stop();
   }
 
   void wait() { m_done.wait(); }

@@ -297,7 +297,7 @@ int main(int argc, char **argv)
     }
 
     appMx->start();
-    if (dbMx->start() != Zi::OK) throw ZtString("multiplexer start failed");
+    if (!dbMx->start()) throw ZtString("multiplexer start failed");
 
     ZmRef<ZdbEnv> env = new ZdbEnv();
 
@@ -328,7 +328,7 @@ int main(int argc, char **argv)
     env->close();
 
     appMx->stop();
-    dbMx->stop(true);
+    dbMx->stop();
 
     env->final();
 

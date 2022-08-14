@@ -256,17 +256,13 @@ void ZiMultiplex::udp(ZiConnectFn fn, ZiFailFn failFn,
     ZiIP remoteIP, uint16_t remotePort,
     ZiCxnOptions options)
 {
-  StateGuard guard(m_stateLock);
-
   if (ZuUnlikely(!running())) {
-    guard.unlock();
     Error("udp", Zi::NotReady, ZeOK);
     failFn(false);
     return;
   }
 
   if (ZuUnlikely(!options.udp())) {
-    guard.unlock();
     Error("udp", Zi::IOError, ZeError(ZiEINVAL));
     failFn(false);
     return;
@@ -516,17 +512,13 @@ void ZiMultiplex::connect(
     ZiConnectFn fn, ZiFailFn failFn, ZiIP localIP, uint16_t localPort,
     ZiIP remoteIP, uint16_t remotePort, ZiCxnOptions options)
 {
-  StateGuard guard(m_stateLock);
-
   if (ZuUnlikely(!running())) {
-    guard.unlock();
     Error("connect", Zi::NotReady, ZeOK);
     failFn(false);
     return;
   }
 
   if (ZuUnlikely(options.udp())) {
-    guard.unlock();
     Error("connect", Zi::IOError, ZeError(ZiEINVAL));
     failFn(false);
     return;
@@ -811,10 +803,7 @@ void ZiMultiplex::listen(
     ZiListenFn listenFn, ZiFailFn failFn, ZiConnectFn acceptFn,
     ZiIP localIP, uint16_t localPort, unsigned nAccepts, ZiCxnOptions options)
 {
-  StateGuard guard(m_stateLock);
-
   if (ZuUnlikely(!running())) {
-    guard.unlock();
     Error("listen", Zi::NotReady, ZeOK);
     failFn(false);
     return;
@@ -822,7 +811,6 @@ void ZiMultiplex::listen(
 
 #ifdef ZiMultiplex_Netlink
   if (options.netlink()) {
-    guard.unlock();
     Error("listen", Zi::IOError, ZeError(ZiEINVAL));
     failFn(false);
     return;
@@ -970,8 +958,6 @@ void ZiMultiplex::listen_(
 
 void ZiMultiplex::stopListening(ZiIP localIP, uint16_t localPort)
 {
-  StateGuard guard(m_stateLock);
-
   if (ZuUnlikely(!running())) return;
 
   rxInvoke(
@@ -1920,13 +1906,9 @@ ZiMultiplex::~ZiMultiplex()
 {
 }
 
-int ZiMultiplex::start()
+bool ZiMultiplex::start_()
 {
-  StateGuard guard(m_stateLock);
-
-  // deal with multiple, potentially overlapping invocations
-
-  if (!ZmScheduler::start()) return Zi::OK;
+  if (!ZmScheduler::start_()) return false;
 
 #ifdef ZiMultiplex_IOCP
   {
@@ -1934,7 +1916,7 @@ int ZiMultiplex::start()
     DWORD errNo = WSAStartup(MAKEWORD(2, 2), &wd);
     if (errNo) {
       Error("WSAStartup", Zi::IOError, ZeError(errNo));
-      return Zi::IOError;
+      return false;
     }
   }
 
@@ -1944,7 +1926,7 @@ int ZiMultiplex::start()
     ZeError e(GetLastError());
     WSACleanup();
     Error("CreateIoCompletionPort", Zi::IOError, e);
-    return Zi::IOError;
+    return false;
   }
 #endif
 
@@ -1958,13 +1940,13 @@ int ZiMultiplex::start()
   }
   if ((m_epollFD = epoll_create(m_epollMaxFDs)) < 0) {
     Error("epoll_create", Zi::IOError, ZeLastError);
-    return Zi::IOError;
+    return false;
   }
   if (pipe(&m_wakeFD) < 0) {
     ZeError e{errno};
     ::close(m_epollFD); m_epollFD = -1;
     Error("pipe", Zi::IOError, e);
-    return Zi::IOError;
+    return false;
   }
   if (fcntl(m_wakeFD, F_SETFL, O_NONBLOCK) < 0) {
     ZeError e{errno};
@@ -1972,7 +1954,7 @@ int ZiMultiplex::start()
     ::close(m_wakeFD); m_wakeFD = -1;
     ::close(m_wakeFD2); m_wakeFD2 = -1;
     Error("fcntl(F_SETFL, O_NONBLOCK)", Zi::IOError, e);
-    return Zi::IOError;
+    return false;
   }
   {
     struct epoll_event ev;
@@ -1985,7 +1967,7 @@ int ZiMultiplex::start()
       ::close(m_wakeFD); m_wakeFD = -1;
       ::close(m_wakeFD2); m_wakeFD2 = -1;
       Error("epoll_ctl(EPOLL_CTL_ADD)", Zi::IOError, e);
-      return Zi::IOError;
+      return false;
     }
   }
 #endif
@@ -1995,20 +1977,14 @@ int ZiMultiplex::start()
 	mx->wake();
       }});
   run_(rxThread(), ZmFn<>::Member<&ZiMultiplex::rx>::fn(this));
-  ZmScheduler::start();
-  return Zi::OK;
+  return true;
 }
 
-void ZiMultiplex::stop(bool drain)
+void ZiMultiplex::stop_()
 {
-  StateGuard guard(m_stateLock);
-
-  if (!running() || m_stopping) return;
-
   thread_local ZmSemaphore stopping;
 
   m_stopping = &stopping;
-  m_drain = drain;
 
   rxInvoke(this, [](ZiMultiplex *mx) { mx->stop_1(); });
 
@@ -2018,7 +1994,9 @@ void ZiMultiplex::stop(bool drain)
 
   stop_3();
 
-  m_stopping = 0;
+  m_stopping = nullptr;
+
+  ZmScheduler::stop_();
 }
 
 void ZiMultiplex::stop_1()
@@ -2070,12 +2048,6 @@ void ZiMultiplex::stop_2()
 
 void ZiMultiplex::stop_3()
 {
-  // stop scheduler
-  ZmScheduler::stop();
-
-  m_stopping = nullptr;
-  m_drain = false;
-
   // close down underlying I/O platform
 
   wakeFn(rxThread(), ZmFn<>());

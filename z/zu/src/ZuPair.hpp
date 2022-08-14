@@ -139,6 +139,7 @@ public:
   using U0 = ZuDeref<T0_>;
   using U1 = ZuDeref<T1_>;
   template <unsigned I> using Type = ZuPair_Type<I, T0, T1>;
+  using Types = ZuTypeList<T0, T1>;
 
   template <typename T, typename> struct Bind_P0 {
     static decltype(auto) p0(const T &v) { return v.m_p0; }

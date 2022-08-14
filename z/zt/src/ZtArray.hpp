@@ -815,7 +815,7 @@ public:
 // reset without freeing
 
   void clear() {
-    if (!owned()) { null(); return; }
+    if (!owned()) { null_(); return; }
     if constexpr (!ZuTraits<T>::IsPrimitive)
       if (unsigned n = this->length())
 	this->destroyItems(m_data, n);

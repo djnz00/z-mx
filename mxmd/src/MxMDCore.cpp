@@ -243,7 +243,7 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
 	  while (MxTbl::Node *node = i.iterate()) {
 	    Mx *mx = node->key();
 	    if (schedInitFn) schedInitFn(mx);
-	    if (mx->start() != Zi::OK) {
+	    if (!mx->start()) {
 	      failed = true;
 	      ZeLOG(Fatal, ZtString() << node->key()->params().id() <<
 		  " - multiplexer start failed");
