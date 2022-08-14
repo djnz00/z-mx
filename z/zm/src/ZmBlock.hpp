@@ -18,6 +18,8 @@
  */
 
 // generic blocking call to async function with continuation
+//
+// consolidates thread-local semaphore usage into a single instance
 
 #ifndef ZmBlock_HPP
 #define ZmBlock_HPP
