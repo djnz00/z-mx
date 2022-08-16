@@ -33,6 +33,7 @@
 #include <stdarg.h>
 
 #include <zlib/ZuNull.hpp>
+#include <zlib/ZuPair.hpp>
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuMvArray.hpp>
@@ -148,6 +149,14 @@ private:
   bool		m_ll = false;
 };
 
+namespace ZmSchedState {
+  enum _ {
+    Stopped = 0, Starting, Running, Stopping,
+    StartPending,	// started while stopping
+    StopPending		// stopped while starting
+  };
+}
+
 class ZmAPI ZmScheduler {
   ZmScheduler(const ZmScheduler &) = delete;
   ZmScheduler &operator =(const ZmScheduler &) = delete;
@@ -245,6 +254,10 @@ public:
   bool running() const {
     StateReadGuard stateGuard(m_stateLock);
     return running_();
+  }
+  int state() const {
+    StateReadGuard stateGuard(m_stateLock);
+    return m_state;
   }
 
   void wakeFn(unsigned tid, ZmFn<> fn);
@@ -384,7 +397,8 @@ private:
   void stopped_(StateGuard &, bool ok);
 
   bool running_() const {
-    return !!m_thread && !m_stopping;
+    using namespace ZmSchedState;
+    return m_state == Running;
   }
 
   struct Thread {
@@ -410,10 +424,11 @@ private:
 
   ZmSchedParams			m_params;
 
+  ZmThread			m_thread;
+
   StateLock			m_stateLock;
     CtrlFnRing			  m_startFn, m_stopFn;
-    ZmThread			  m_thread;
-    bool			  m_starting = false, m_stopping = false;
+    int				  m_state;
 
   ZmSemaphore			m_pending;
 

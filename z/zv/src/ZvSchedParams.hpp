@@ -33,16 +33,7 @@
 #include <zlib/ZmScheduler.hpp>
 
 #include <zlib/ZvCf.hpp>
-
-namespace ZvSchedulerPriorities {
-  ZtEnumValues_(
-      RealTime = ZmThreadPriority::RealTime,
-      High = ZmThreadPriority::High,
-      Normal = ZmThreadPriority::Normal,
-      Low = ZmThreadPriority::Low);
-  ZtEnumMap("ZvSchedulerPriorities", Map,
-      "RealTime", RealTime, "High", High, "Normal", Normal, "Low", Low);
-}
+#include <zlib/ZvTelemetry.hpp>
 
 struct ZvSchedParams : public ZmSchedParams {
   ZvSchedParams() { }
@@ -61,7 +52,7 @@ struct ZvSchedParams : public ZmSchedParams {
     if (ZuString s = cf->get("id")) id(s);
     nThreads(cf->getInt("nThreads", 1, 1024, false, nThreads()));
     stackSize(cf->getInt("stackSize", 16384, 2<<20, false, stackSize()));
-    priority(cf->getEnum<ZvSchedulerPriorities::Map>(
+    priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
 	  "priority", false, ZmThreadPriority::Normal));
     partition(cf->getInt("partition", 0, ncpu - 1, false, 0));
     if (ZuString s = cf->get("quantum")) quantum((double)ZuBox<double>(s));

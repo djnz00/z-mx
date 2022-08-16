@@ -1008,8 +1008,6 @@ public:
   void telemetry(ZiMxTelemetry &data) const;
 
 private:
-  void drain();			// prevents mis-use of ZmScheduler::drain
-
   void busy() { ZmScheduler::busy(); }
   void idle() { ZmScheduler::idle(); }
 

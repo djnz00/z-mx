@@ -35,16 +35,7 @@
 #include <zlib/ZtEnum.hpp>
 
 #include <zlib/ZvCf.hpp>
-
-namespace ZvThreadPriorities {
-  ZtEnumValues_(
-      RealTime = ZmThreadPriority::RealTime,
-      High = ZmThreadPriority::High,
-      Normal = ZmThreadPriority::Normal,
-      Low = ZmThreadPriority::Low);
-  ZtEnumMap("ZvThreadPriorities", Map,
-      "RealTime", RealTime, "High", High, "Normal", Normal, "Low", Low);
-}
+#include <zlib/ZvTelemetry.hpp>
 
 struct ZvThreadParams : public ZmThreadParams {
   ZvThreadParams() { }
@@ -66,7 +57,7 @@ struct ZvThreadParams : public ZmThreadParams {
 
     static unsigned ncpu = Zm::getncpu();
     stackSize(cf->getInt("stackSize", 16384, 2<<20, false, stackSize()));
-    priority(cf->getEnum<ZvThreadPriorities::Map>(
+    priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
 	  "priority", false, ZmThreadPriority::Normal));
     partition(cf->getInt("partition", 0, ncpu - 1, false, 0));
     cpuset(cf->get("cpuset"));

@@ -70,8 +70,6 @@
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
 
-// FIXME
-// - retain blocking start()/stop()
 // - leave start/stop/etc as is, BUT
 // - use DB thread to run all env-related code
 //   - invoked from start()/stop()

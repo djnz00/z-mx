@@ -28,32 +28,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <stdlib.h>
-#include <time.h>
-
-#include <zlib/ZuPrint.hpp>
-#include <zlib/ZuBox.hpp>
-#include <zlib/ZuID.hpp>
-#include <zlib/ZuString.hpp>
-#include <zlib/ZuStringN.hpp>
-#include <zlib/ZuAssert.hpp>
-
-#include <zlib/ZmHeap.hpp>
-#include <zlib/ZmHashMgr.hpp>
-#include <zlib/ZmThread.hpp>
-#include <zlib/ZmScheduler.hpp>
-#include <zlib/ZmRWLock.hpp>
-#include <zlib/ZmRBTree.hpp>
-
-#include <zlib/ZtEnum.hpp>
-
-#include <zlib/ZePlatform.hpp>
-
-#include <zlib/ZiFile.hpp>
-
 #include <zlib/Zfb.hpp>
-
-#include <zlib/ZvMxParams.hpp>
 #include <zlib/ZfbField.hpp>
 
 #include <zlib/telemetry_fbs.h>
@@ -67,6 +42,11 @@ namespace RAG {
 
 namespace ThreadPriority {
   ZfbEnumValues(ThreadPriority, RealTime, High, Normal, Low);
+}
+
+namespace MxState {
+  ZfbEnumValues(MxState,
+      Stopped, Starting, Running, Stopping, StartPending, StopPending);
 }
 
 namespace SocketType {
@@ -134,8 +114,9 @@ namespace DBHostState {
   int rag(int i) {
     using namespace RAG;
     if (i < 0 || i >= N) return Off;
-    static const int values[N] =
-      { Off, Amber, Red, Amber, Amber, Green, Amber, Amber, Amber };
+    static const int values[N] = {
+      Off, Amber, Amber, Amber, Red, Amber, Amber, Green, Amber, Amber, Amber
+    };
     return values[i];
   }
 }
@@ -147,8 +128,6 @@ namespace AppRole {
 namespace Severity {
   ZfbEnumValues(Severity, Debug, Info, Warning, Error, Fatal)
 }
-
-template <typename> struct load;
 
 using Heap_ = ZmHeapTelemetry;
 struct Heap : public Heap_, public ZtFieldPrint<Heap> {
@@ -247,7 +226,7 @@ struct Mx : public Mx_, public ZtFieldPrint<Mx> {
 };
 ZfbFields(Mx,
     (((id), (0)), (String), (Ctor(0))),
-    (((running)), (Bool), (Ctor(10), Update, Series)),
+    (((state)), (Enum, MxState::Map), (Ctor(10), Update, Series)),
     (((nThreads)), (Int), (Ctor(13))),
     (((rxThread)), (Int), (Ctor(7))),
     (((txThread)), (Int), (Ctor(8))),

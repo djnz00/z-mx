@@ -79,18 +79,19 @@ ZmScheduler::~ZmScheduler()
 void ZmScheduler::start(ZmFn<bool> startFn)
 {
   {
+    using namespace ZmSchedState;
     StateGuard stateGuard(m_stateLock);
 
-    if (m_thread && !m_starting) {
-      startFn(true);
-      return;
-    }
+    if (m_state == Running) { startFn(true); return; } // idempotent
 
     if (startFn) m_startFn.push(ZuMv(startFn));
 
-    if (m_starting) return;
-
-    m_starting = true;
+    switch (m_state) {
+      case Stopped:	m_state = Starting; break;
+      case Stopping:	m_state = StartPending; return;
+      case StopPending:	m_state = Starting; return;
+      default: return; // Starting || Running || StartPending
+    }
   }
 
   m_thread = ZmThread(0,
@@ -134,28 +135,53 @@ void ZmScheduler::started(bool ok)
 }
 void ZmScheduler::started_(StateGuard &guard, bool ok)
 {
+  using namespace ZmSchedState;
+  bool stop = false, stopped = false;
   auto startFn = ZuMv(m_startFn);
   m_startFn.clean();
-  m_starting = false;
+  if (!ok) {
+    switch (m_state) {
+      case Starting:
+	m_state = Stopped;
+	break;
+      case StopPending:
+	stopped = true;		// call stopped()
+	m_state = Stopping;	// stopped() will transition to Stopped
+	break;
+    }
+  } else {
+    switch (m_state) {
+      case Starting:
+	m_state = Running;
+	break;
+      case StopPending:
+	stop = true;		// call stop()
+	m_state = Running;	// stop() will transition to Stopping
+	break;
+    }
+  }
   guard.unlock();
   while (auto fn = startFn.shift()) fn(ok);
+  if (stop) this->stop({});
+  else if (stopped) this->stopped(true);
 }
 
 void ZmScheduler::stop(ZmFn<bool> stopFn)
 {
   {
+    using namespace ZmSchedState;
     StateGuard stateGuard(m_stateLock);
 
-    if (!m_thread) {
-      stopFn(true); // idempotent
-      return;
-    }
+    if (m_state == Stopped) { stopFn(true); return; } // idempotent
 
     if (stopFn) m_stopFn.push(ZuMv(stopFn));
 
-    if (m_stopping) return;
-
-    m_stopping = true;
+    switch (m_state) {
+      case Running:	m_state = Stopping; break;
+      case Starting:	m_state = StopPending; return;
+      case StartPending:m_state = Stopping; return;
+      default: return; // Stopping || Stopped || StopPending
+    }
   }
 
   m_pending.post();
@@ -207,11 +233,35 @@ void ZmScheduler::stopped(bool ok)
 }
 void ZmScheduler::stopped_(StateGuard &guard, bool ok)
 {
+  using namespace ZmSchedState;
+  bool start = false, started = false;
   auto stopFn = ZuMv(m_stopFn);
   m_stopFn.clean();
-  m_stopping = false;
+  if (!ok) {
+    switch (m_state) {
+      case Stopping:
+	m_state = Running;
+	break;
+      case StartPending:
+	started = true;		// call started()
+	m_state = Starting;	// started() will transition to Running
+	break;
+    }
+  } else {
+    switch (m_state) {
+      case Stopping:
+	m_state = Stopped;
+	break;
+      case StartPending:
+	start = true;		// call start()
+	m_state = Stopped;	// start() will transition to Starting
+	break;
+    }
+  }
   guard.unlock();
   while (auto fn = stopFn.shift()) fn(ok);
+  if (start) this->start({});
+  else if (started) this->started(true);
 }
 
 bool ZmScheduler::reset()
@@ -240,9 +290,10 @@ void ZmScheduler::timer()
 {
   for (;;) {
     {
+      using namespace ZmSchedState;
       StateGuard stateGuard(m_stateLock);
 
-      if (m_stopping) {
+      if (m_state == Stopping || m_state == StartPending) {
 	stop_();
 	return;
       }
@@ -263,9 +314,10 @@ void ZmScheduler::timer()
 	m_pending.wait();
 
       {
+	using namespace ZmSchedState;
 	StateGuard stateGuard(m_stateLock);
 
-	if (m_stopping) {
+	if (m_state == Stopping || m_state == StartPending) {
 	  stop_();
 	  return;
 	}

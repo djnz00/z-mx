@@ -51,6 +51,14 @@ table Thread {			// == ZmThreadTelemetry
   main:uint8;
   detached:uint8;
 }
+enum MxState:int8 {		// == ZmSchedState
+  Stopped = 0,
+  Starting,
+  Running,
+  Stopping,
+  StartPending,
+  StopPending
+}
 table Mx {			// == ZiMxTelemetry
   id:string;
   stack_size:uint32;
@@ -62,7 +70,7 @@ table Mx {			// == ZiMxTelemetry
   rx_thread:uint16;
   tx_thread:uint16;
   partition:uint16;
-  running:uint8;
+  state:MxState;
   ll:uint8;
   priority:uint8;
   n_threads:uint8;
