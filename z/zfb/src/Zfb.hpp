@@ -423,6 +423,11 @@ namespace Load {
   template <typename S> ZtEnum lookup(const S &s) { \
     return Map::s2v(s); \
   }
+#define ZfbEnumMatch_Assert(Namespace, Value) \
+  ZuAssert(Value == Namespace::Value);
+#define ZfbEnumMatch(Enum, Namespace, ...) \
+  ZfbEnumValues(Enum, __VA_ARGS__) \
+  ZuPP_Eval(ZuPP_MapArg(ZfbEnumMatch_Assert, Namespace, __VA_ARGS__))
 #define ZfbEnum_Type(T) fbs::T
 #define ZfbEnum_Assert(T) \
   ZuAssert(static_cast<int>(T) == static_cast<int>(TypeIndex<fbs::T>::I));

@@ -46,12 +46,13 @@
 #include <zlib/ZmCondition.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmRing.hpp>
-#include <zlib/ZmDRing.hpp>
+#include <zlib/ZmVRing.hpp>
 #include <zlib/ZmRBTree.hpp>
 #include <zlib/ZmThread.hpp>
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmSpinLock.hpp>
+#include <zlib/ZmEngine.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -149,17 +150,11 @@ private:
   bool		m_ll = false;
 };
 
-namespace ZmSchedState {
-  enum _ {
-    Stopped = 0, Starting, Running, Stopping,
-    StartPending,	// started while stopping
-    StopPending		// stopped while starting
-  };
-}
-
-class ZmAPI ZmScheduler {
+class ZmAPI ZmScheduler : public ZmEngine<ZmScheduler> {
   ZmScheduler(const ZmScheduler &) = delete;
   ZmScheduler &operator =(const ZmScheduler &) = delete;
+
+friend class ZmEngine<ZmScheduler>;
 
   struct Timer_ {
     ZmFn<>	fn;
@@ -198,7 +193,7 @@ public:
 
 private:
   using Ring = ZmRing<ZmFn<>>;
-  using OverRing_ =  ZmDRing<ZmFn<>, ZmDRingLock<ZmNoLock>>;
+  using OverRing_ =  ZmVRing<ZmFn<>, ZmVRingLock<ZmNoLock>>;
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
     using Guard = ZmGuard<Lock>;
@@ -231,7 +226,6 @@ private:
     unsigned	  m_outCount = 0;
   };
   enum { OverRing_Increment = 128 };
-  using CtrlFnRing = ZmDRing<ZmFn<bool>, ZmDRingLock<ZmNoLock>>;
 
 public:
   // might throw ZmRingError
@@ -243,22 +237,9 @@ protected:
   ZuInline ZmSchedParams &params_() { return m_params; }
 
 public:
-  void start(ZmFn<bool>);	// async
-  void stop(ZmFn<bool>);
-
-  bool start();			// sync
   bool stop();
 
   bool reset(); // reset while stopped - true if ok, false if running
-
-  bool running() const {
-    StateReadGuard stateGuard(m_stateLock);
-    return running_();
-  }
-  int state() const {
-    StateReadGuard stateGuard(m_stateLock);
-    return m_state;
-  }
 
   void wakeFn(unsigned tid, ZmFn<> fn);
 
@@ -372,34 +353,27 @@ public:
     return 0;
   }
 
+private:
+  // control thread
+  const ZmThreadParams &thread();
+  void wake();
+  void run();
+
 protected:
+  // control thread
   virtual bool start_();	 // returns false if failed
-  virtual void stop_();
+  virtual bool stop_();
 
   void busy();
   void idle();
 
 private:
-  using StateLock = ZmLock;
-  using StateGuard = ZmGuard<StateLock>;
-  using StateReadGuard = ZmReadGuard<StateLock>;
-
   using SchedLock = ZmPLock;
   using SchedGuard = ZmGuard<SchedLock>;
 
   using SpawnLock = ZmPLock;
   using SpawnGuard = ZmGuard<SpawnLock>;
   using SpawnReadGuard = ZmReadGuard<SpawnLock>;
-
-  void started(bool ok);
-  void stopped(bool ok);
-  void started_(StateGuard &, bool ok);
-  void stopped_(StateGuard &, bool ok);
-
-  bool running_() const {
-    using namespace ZmSchedState;
-    return m_state == Running;
-  }
 
   struct Thread {
     Ring		ring;
@@ -412,7 +386,6 @@ private:
 
   ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
 
-  void timer();
   bool timerAdd(ZmFn<> &fn);
 
   void runWake_(Thread *thread, ZmFn<> fn);
@@ -423,12 +396,6 @@ private:
   void work();
 
   ZmSchedParams			m_params;
-
-  ZmThread			m_thread;
-
-  StateLock			m_stateLock;
-    CtrlFnRing			  m_startFn, m_stopFn;
-    int				  m_state;
 
   ZmSemaphore			m_pending;
 

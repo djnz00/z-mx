@@ -48,7 +48,7 @@
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmPLock.hpp>
-#include <zlib/ZmDRing.hpp>
+#include <zlib/ZmVRing.hpp>
 
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtEnum.hpp>

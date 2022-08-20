@@ -90,13 +90,9 @@ template <typename T_> struct ZtString_Char2;
 template <> struct ZtString_Char2<char> { using T = wchar_t; };
 template <> struct ZtString_Char2<wchar_t> { using T = char; };
 
-struct ZtString_ID {
-  static constexpr const char *id() { return "ZtString"; }
-};
-
 template <typename> struct ZtString__ { };
-template <typename Char_>
-class ZtString_ : private ZmVHeap<ZtString_ID>, public ZtString__<Char_> {
+template <typename Char_, typename VHeap>
+class ZtString_ : private VHeap, public ZtString__<Char_> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
@@ -547,6 +543,9 @@ public:
 // internal initializers / finalizer
 
 private:
+  using VHeap::valloc;
+  using VHeap::vfree;
+
   void length_(unsigned n) {
     null__(0);
     length__(n);
@@ -1348,8 +1347,14 @@ ZtExplicit template class ZtAPI ZtString_<char>;
 ZtExplicit template class ZtAPI ZtString_<wchar_t>;
 #endif
 
-using ZtString = ZtString_<char>;
-using ZtWString = ZtString_<wchar_t>;
+struct ZtString_ID {
+  static constexpr const char *id() { return "ZtString"; }
+};
+
+using ZtString = ZtString_<char, ZmVHeap<ZtString_ID>>;
+template <typename VHeap> using ZtVString = ZtString_<char, VHeap>;
+using ZtWString = ZtString_<wchar_t, ZmVHeap<ZtString_ID>>;
+template <typename VHeap> using ZtVWString = ZtString_<wchar_t, VHeap>;
 
 // RVO shortcuts
 

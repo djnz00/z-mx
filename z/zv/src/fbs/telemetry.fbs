@@ -51,7 +51,7 @@ table Thread {			// == ZmThreadTelemetry
   main:uint8;
   detached:uint8;
 }
-enum MxState:int8 {		// == ZmSchedState
+enum EngineState:int8 {		// == ZmEngineState
   Stopped = 0,
   Starting,
   Running,
@@ -70,7 +70,7 @@ table Mx {			// == ZiMxTelemetry
   rx_thread:uint16;
   tx_thread:uint16;
   partition:uint16;
-  state:MxState;
+  state:EngineState;
   ll:uint8;
   priority:uint8;
   n_threads:uint8;
@@ -144,14 +144,6 @@ table Link {
   tx_seq_no:uint64;
   reconnects:uint32;
   state:LinkState;
-}
-enum EngineState:int8 {
-  Stopped = 0,
-  Starting,
-  Running,
-  Stopping,
-  StartPending,	// started while stopping
-  StopPending	// stopped while starting
 }
 table Engine {
   id:string;

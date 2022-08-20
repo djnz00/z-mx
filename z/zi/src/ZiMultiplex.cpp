@@ -2254,7 +2254,7 @@ void ZiMultiplex::telemetry(ZiMxTelemetry &data) const
   data.rxThread = rxThread();
   data.txThread = txThread();
   data.partition = params().partition();
-  data.running = running();
+  data.state = state();
   data.ll = params().ll();
   data.priority = params().priority();
   data.nThreads = params().nThreads();

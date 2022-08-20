@@ -73,7 +73,7 @@ struct ZmTLock_Depth : public ZmObject {
   void inc() {
     if (m_depth > 20) {
       fputs("INFINITE RECURSION\n", stderr);
-      _Zm::exit(1);
+      Zm::exit(1);
     }
     m_depth++;
   }
@@ -133,11 +133,14 @@ friend ZmTLock_Test;
   using Guard_ = ZmGuard<Lock_>;
   using ReadGuard_ = ZmReadGuard<Lock_>;
 
+  struct HeapID { static constexpr const char *id() { return "ZmTLock"; } };
+
   using Held = ZmTLock_Held;
   using HeldStack =
     ZmStack<Held,
       ZmStackKey<ZmTLock_Held_ThreadAxor,
-	ZmStackLock<ZmNoLock> > >;
+	ZmStackLock<ZmNoLock,
+	  ZmStackHeapID<HeapID> > > >;
   using HeldStackIterator = typename HeldStack::Iterator;
 
   struct Lock;
@@ -177,8 +180,6 @@ friend Lock;
   };
 
   using LockRef = ZmRef<Lock>;
-
-  struct HeapID { static constexpr const char *id() { return "ZmTLock"; } };
 
   using LockHash =
     ZmHashKV<ID, LockRef,

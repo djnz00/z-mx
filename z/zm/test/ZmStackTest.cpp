@@ -9,7 +9,7 @@
 
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmStack.hpp>
-#include <zlib/ZmDRing.hpp>
+#include <zlib/ZmVRing.hpp>
 
 struct C {
   C() : m_i(0) { m_count++; }
@@ -158,11 +158,11 @@ int main(int argc, char **argv)
   test(C::m_count <= 1);
 
   for (int i = 0; i < 100; i += 10) {
-    ZmDRing<C> r1, r2, r3;
+    ZmVRing<C> r1, r2, r3;
 
-    r1.init(ZmDRingParams().initial(1).increment(1).maxFrag(i));
-    r2.init(ZmDRingParams().initial(2).increment(3).maxFrag(i));
-    r3.init(ZmDRingParams().initial(9).increment(9).maxFrag(i));
+    r1.init(ZmVRingParams().initial(1).increment(1).maxFrag(i));
+    r2.init(ZmVRingParams().initial(2).increment(3).maxFrag(i));
+    r3.init(ZmVRingParams().initial(9).increment(9).maxFrag(i));
 
     doit2(r1);
     doit2(r2);

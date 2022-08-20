@@ -20,8 +20,8 @@
 // simple fast dynamic ring buffer (supports FIFO and LIFO) for types with
 // a sentinel null value (defaults to ZuCmp<T>::null())
 
-#ifndef ZmDRing_HPP
-#define ZmDRing_HPP
+#ifndef ZmVRing_HPP
+#define ZmVRing_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -40,22 +40,23 @@
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmNoLock.hpp>
+#include <zlib/ZmVHeap.hpp>
 
 // defaults
-#define ZmDRingInitial		8
-#define ZmDRingIncrement	8
-#define ZmDRingMaxFrag		50.0
+#define ZmVRingInitial		8
+#define ZmVRingIncrement	8
+#define ZmVRingMaxFrag		50.0
 
-class ZmDRingParams {
+class ZmVRingParams {
 public:
-  ZmDRingParams() :
-    m_initial(ZmDRingInitial),
-    m_increment(ZmDRingIncrement),
-    m_maxFrag(ZmDRingMaxFrag) { }
+  ZmVRingParams() :
+    m_initial(ZmVRingInitial),
+    m_increment(ZmVRingIncrement),
+    m_maxFrag(ZmVRingMaxFrag) { }
 
-  ZmDRingParams &initial(unsigned v) { m_initial = v; return *this; }
-  ZmDRingParams &increment(unsigned v) { m_increment = v; return *this; }
-  ZmDRingParams &maxFrag(double v) { m_maxFrag = v; return *this; }
+  ZmVRingParams &initial(unsigned v) { m_initial = v; return *this; }
+  ZmVRingParams &increment(unsigned v) { m_increment = v; return *this; }
+  ZmVRingParams &maxFrag(double v) { m_maxFrag = v; return *this; }
 
   unsigned initial() const { return m_initial; }
   unsigned increment() const { return m_increment; }
@@ -69,51 +70,58 @@ private:
 
 // uses NTP (named template parameters):
 //
-// ZmDRing<ZtString,			// ring of ZtStrings
-//   ZmDRingCmp<ZtICmp> >		// case-insensitive comparison
+// ZmVRing<ZtString,			// ring of ZtStrings
+//   ZmVRingCmp<ZtICmp> >		// case-insensitive comparison
 
-struct ZmDRing_Defaults {
+struct ZmVRing_Defaults {
   using KeyAxor = ZuDefaultAxor;
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
+  struct HeapID { static constexpr const char *id() { return "ZmVRing"; } };
 };
 
-// ZmDRingKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmDRing_Defaults>
-struct ZmDRingKey : public NTP {
+// ZmVRingKey - key accessor
+template <typename KeyAxor_, typename NTP = ZmVRing_Defaults>
+struct ZmVRingKey : public NTP {
   using KeyAxor = KeyAxor_;
 };
 
-// ZmDRingCmp - the comparator
-template <template <typename> typename Cmp_, typename NTP = ZmDRing_Defaults>
-struct ZmDRingCmp : public NTP {
+// ZmVRingCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZmVRing_Defaults>
+struct ZmVRingCmp : public NTP {
   template <typename T> using CmpT = Cmp_<T>;
   template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
 };
 
-// ZmDRingKeyCmp - the optional value comparator
-template <template <typename> typename KeyCmp_, typename NTP = ZmDRing_Defaults>
-struct ZmDRingKeyCmp : public NTP {
+// ZmVRingKeyCmp - the optional value comparator
+template <template <typename> typename KeyCmp_, typename NTP = ZmVRing_Defaults>
+struct ZmVRingKeyCmp : public NTP {
   template <typename T> using KeyCmpT = KeyCmp_<T>;
 };
 
-// ZmDRingLock - the lock type
-template <class Lock_, class NTP = ZmDRing_Defaults>
-struct ZmDRingLock : public NTP {
+// ZmVRingLock - the lock type
+template <class Lock_, class NTP = ZmVRing_Defaults>
+struct ZmVRingLock : public NTP {
   using Lock = Lock_;
 };
 
-// only provide delPtr and findPtr methods to callers of unlocked ZmDRings
+// ZmVRingHeapID - the heap ID
+template <class HeapID_, typename NTP = ZmVRing_Defaults>
+struct ZmVRingHeapID : public NTP {
+  using HeapID = HeapID_;
+};
+
+// only provide delPtr and findPtr methods to callers of unlocked ZmVRings
 // since they are intrinsically not thread-safe
 
-template <typename T, class NTP> class ZmDRing;
+template <typename T, class NTP> class ZmVRing;
 
-template <class Ring> struct ZmDRing_Unlocked;
+template <class Ring> struct ZmVRing_Unlocked;
 template <typename T, class NTP>
-struct ZmDRing_Unlocked<ZmDRing<T, NTP> > {
-  using Ring = ZmDRing<T, NTP>;
+struct ZmVRing_Unlocked<ZmVRing<T, NTP> > {
+  using Ring = ZmVRing<T, NTP>;
 
   template <typename P>
   T *findPtr(P &&v) {
@@ -124,20 +132,21 @@ struct ZmDRing_Unlocked<ZmDRing<T, NTP> > {
   }
 };
 
-template <class Ring, class Lock> struct ZmDRing_Base { };
+template <class Ring, class Lock> struct ZmVRing_Base { };
 template <class Ring>
-struct ZmDRing_Base<Ring, ZmNoLock> : public ZmDRing_Unlocked<Ring> { };
+struct ZmVRing_Base<Ring, ZmNoLock> : public ZmVRing_Unlocked<Ring> { };
 
-// derives from Ops so that a ZmDRing includes an *instance* of Ops
+// derives from Ops so that a ZmVRing includes an *instance* of Ops
 
-template <typename T_, class NTP = ZmDRing_Defaults>
-class ZmDRing :
-    public ZmDRing_Base<ZmDRing<T_, NTP>, typename NTP::Lock>,
+template <typename T_, class NTP = ZmVRing_Defaults>
+class ZmVRing :
+    private ZmVHeap<typename NTP::HeapID>,
+    public ZmVRing_Base<ZmVRing<T_, NTP>, typename NTP::Lock>,
     public NTP::template OpsT<T_> {
-  ZmDRing(const ZmDRing &);
-  ZmDRing &operator =(const ZmDRing &);	// prevent mis-use
+  ZmVRing(const ZmVRing &);
+  ZmVRing &operator =(const ZmVRing &);	// prevent mis-use
 
-friend ZmDRing_Unlocked<ZmDRing>;
+friend ZmVRing_Unlocked<ZmVRing>;
 
 public:
   using T = T_;
@@ -147,20 +156,21 @@ public:
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<Key>;
   using Lock = typename NTP::Lock;
+  using HeapID = typename NTP::HeapID;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZmDRing(ZmDRingParams params = {}) :
+  ZmVRing(ZmVRingParams params = {}) :
       m_initial{params.initial()}, m_increment{params.increment()},
       m_defrag{1.0 - (double)params.maxFrag() / 100.0} { }
 
-  ~ZmDRing() {
+  ~ZmVRing() {
     clean_();
-    free(m_data);
+    vfree(m_data);
   }
 
-  ZmDRing(ZmDRing &&ring) :
+  ZmVRing(ZmVRing &&ring) :
       m_initial{ring.m_initial}, m_increment{ring.m_increment},
       m_defrag{ring.m_defrag} {
     Guard guard(ring.m_lock);
@@ -175,9 +185,9 @@ public:
     ring.m_length = 0;
     ring.m_count = 0;
   }
-  ZmDRing &operator =(ZmDRing &&ring) {
-    ~ZmDRing();
-    new (this) ZmDRing{ZuMv(ring)};
+  ZmVRing &operator =(ZmVRing &&ring) {
+    ~ZmVRing();
+    new (this) ZmVRing{ZuMv(ring)};
   }
 
   unsigned initial() const { return m_initial; }
@@ -195,6 +205,9 @@ public:
   unsigned offset_() const { return m_offset; }
 
 private:
+  using ZmVHeap<HeapID>::valloc;
+  using ZmVHeap<HeapID>::vfree;
+
   void lazy() {
     if (ZuUnlikely(!m_data)) extend(m_initial);
   }
@@ -212,7 +225,7 @@ private:
   }
 
   void extend(unsigned size) {
-    T *data = static_cast<T *>(malloc(size * sizeof(T)));
+    T *data = static_cast<T *>(valloc(size * sizeof(T)));
     ZmAssert(data);
     if (m_data) {
       unsigned o = m_offset + m_length;
@@ -223,13 +236,13 @@ private:
       } else {
 	Ops::moveItems(data, m_data + m_offset, m_length);
       }
-      free(m_data);
+      vfree(m_data);
     }
     m_data = data, m_size = size, m_offset = 0;
   }
 
 public:
-  void init(ZmDRingParams params = ZmDRingParams()) {
+  void init(ZmVRingParams params = ZmVRingParams()) {
     Guard guard(m_lock);
 
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
@@ -445,7 +458,7 @@ friend Iterator_;
     Iterator_ &operator =(const Iterator_ &);	// prevent mis-use
 
   protected:
-    using Ring = ZmDRing<T, NTP>;
+    using Ring = ZmVRing<T, NTP>;
 
     Iterator_(Ring &ring, unsigned i) :
 	Guard(ring.m_lock), m_ring(ring), m_i(i) { }
@@ -514,4 +527,4 @@ private:
   double	m_defrag;
 };
 
-#endif /* ZmDRing_HPP */
+#endif /* ZmVRing_HPP */

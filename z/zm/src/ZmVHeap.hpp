@@ -63,9 +63,9 @@ public:
       return static_cast<void *>(&ptr[1]);
     });
   }
-  static void vfree(void *p) {
+  static void vfree(const void *p) {
     if (ZuUnlikely(!p)) return;
-    uint64_t *ptr = static_cast<uint64_t *>(p);
+    uint64_t *ptr = static_cast<uint64_t *>(const_cast<void *>(p));
     auto i = *--ptr;
     if (ZuUnlikely(i >= 16)) {
       ::free(ptr);

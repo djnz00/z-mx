@@ -67,7 +67,29 @@
 #pragma warning(disable:4800 4348)
 #endif
 
-template <typename T, typename Cmp> class ZtArray;
+// uses NTP (named template parameters):
+//
+// ZtArray<ZtString,			// array of ZtStrings
+//   ZtArrayCmp<ZtICmp> >		// case-insensitive comparison
+
+struct ZtArray_Defaults {
+  template <typename T> using CmpT = ZuCmp<T>;
+  struct HeapID { static constexpr const char *id() { return "ZtArray"; } };
+};
+
+// ZtArrayCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZtArray_Defaults>
+struct ZtArrayCmp : public NTP {
+  template <typename T> using CmpT = Cmp_<T>;
+};
+
+// ZtArrayHeapID - the heap ID
+template <class HeapID_, typename NTP = ZtArray_Defaults>
+struct ZtArrayHeapID : public NTP {
+  using HeapID = HeapID_;
+};
+
+template <typename T, typename NTP> class ZtArray;
 
 template <typename T> struct ZtArray_ { };
 
@@ -75,17 +97,18 @@ template <typename T_> struct ZtArray_Char2 { using T = ZuNull; };
 template <> struct ZtArray_Char2<char> { using T = wchar_t; };
 template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
-struct ZtArray_ID {
-  static constexpr const char *id() { return "ZtArray"; }
-};
-
-template <typename T_, typename Cmp_ = ZuCmp<T_>>
-class ZtArray : private ZmVHeap<ZtArray_ID>, public ZtArray_<T_>, public ZuArrayFn<T_, Cmp_> {
-  template <typename, class> friend class ZtArray;
+template <typename T_, typename NTP = ZtArray_Defaults>
+class ZtArray :
+    private ZmVHeap<typename NTP::HeapID>,
+    public ZtArray_<T_>,
+    public ZuArrayFn<T_, typename NTP::template CmpT<T_>> {
+  template <typename, typename> friend class ZtArray;
 
 public:
   using T = T_;
-  using Cmp = Cmp_;
+  using Cmp = typename NTP::template CmpT<T>;
+  using HeapID = typename NTP::HeapID;
+
   using Ops = ZuArrayFn<T, Cmp>;
 
   enum Copy_ { Copy };
@@ -276,6 +299,9 @@ public:
   }
 
 private:
+  using ZmVHeap<HeapID>::valloc;
+  using ZmVHeap<HeapID>::vfree;
+
   template <typename A_> struct Fwd_ZtArray {
     using A = ZuDecay<A_>;
 
@@ -419,7 +445,7 @@ private:
 
   template <typename R> MatchCtorElem<R> ctor(R &&r) {
     unsigned z = grow_(0, 1);
-    m_data = (T *)valloc(z * sizeof(T));
+    m_data = static_cast<T *>(valloc(z * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     size_owned(z, 1);
     length_mallocd(1, 1);
@@ -668,7 +694,7 @@ private:
       const T *data, unsigned length, unsigned size, bool mallocd) {
     ZmAssert(size >= length);
     if (!size) {
-      if (data && mallocd) vfree((void *)data);
+      if (data && mallocd) vfree(data);
       null_();
       return;
     }
@@ -686,7 +712,7 @@ private:
 
   void alloc_(unsigned size, unsigned length) {
     if (!size) { null_(); return; }
-    m_data = reinterpret_cast<T *>(valloc(size * sizeof(T)));
+    m_data = static_cast<T *>(valloc(size * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     size_owned(size, 1);
     length_mallocd(length, 1);
@@ -694,7 +720,7 @@ private:
 
   template <typename S> void copy__(const S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = reinterpret_cast<T *>(valloc(length * sizeof(T)));
+    m_data = static_cast<T *>(valloc(length * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     if (length) this->copyItems(m_data, data, length);
     size_owned(length, 1);
@@ -703,7 +729,7 @@ private:
 
   template <typename S> void move__(S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = (T *)valloc(length * sizeof(T));
+    m_data = static_cast<T *>(valloc(length * sizeof(T)));
     if (!m_data) throw std::bad_alloc{};
     if (length) this->moveItems(m_data, data, length);
     size_owned(length, 1);
@@ -737,7 +763,7 @@ public:
     size(length());
     unsigned n = length();
     if (!m_data || size() <= n) return;
-    T *newData = (T *)valloc(n * sizeof(T));
+    T *newData = static_cast<T *>(valloc(n * sizeof(T)));
     if (!newData) throw std::bad_alloc{};
     this->moveItems(newData, m_data, n);
     free_();
@@ -858,7 +884,7 @@ public:
   T *size(unsigned z) {
     if (!z) { null(); return 0; }
     if (owned() && z == size()) return m_data;
-    T *newData = (T *)valloc(z * sizeof(T));
+    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
     if (!newData) throw std::bad_alloc{};
     unsigned n = z;
     if (n > length()) n = length();
@@ -988,7 +1014,7 @@ private:
   MatchElem<R, ZtArray> add(R &&r) const {
     unsigned n = length();
     unsigned z = grow_(n, n + 1);
-    T *newData = (T *)valloc(z * sizeof(T));
+    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     this->initItem(newData + n, ZuFwd<R>(r));
@@ -999,7 +1025,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = (T *)valloc(z * sizeof(T));
+    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->copyItems(newData + n, data, length);
@@ -1009,7 +1035,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = (T *)valloc(z * sizeof(T));
+    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->moveItems(newData + n, data, length);
@@ -1161,7 +1187,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = (T *)valloc(z * sizeof(T));
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, n);
       free_();
@@ -1179,7 +1205,7 @@ public:
   }
   T pop() {
     unsigned n = length();
-    if (!n) return ZuCmp<T>::null();
+    if (!n) return Cmp::null();
     T v;
     if (ZuUnlikely(!owned())) {
       v = m_data[--n];
@@ -1192,7 +1218,7 @@ public:
   }
   T shift() {
     unsigned n = length();
-    if (!n) return ZuCmp<T>::null();
+    if (!n) return Cmp::null();
     T v;
     if (ZuUnlikely(!owned())) {
       v = m_data[0];
@@ -1217,7 +1243,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = (T *)valloc(z * sizeof(T));
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData + 1, m_data, n);
       free_();
@@ -1262,7 +1288,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)valloc(z * sizeof(T));
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       if (offset + length < (int)n)
@@ -1320,7 +1346,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)valloc(z * sizeof(T));
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->copyItems(newData + offset, replace, rlength);
@@ -1380,7 +1406,7 @@ private:
     if (l > 0 && (!owned() || l > (int)z)) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = (T *)valloc(z * sizeof(T));
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->moveItems(newData + offset, replace, rlength);
@@ -1473,9 +1499,9 @@ private:
   T			*m_data;	// data buffer
 };
 
-template <typename T, typename Cmp>
+template <typename T, typename NTP>
 template <typename S>
-inline void ZtArray<T, Cmp>::convert_(const S &s, ZtIconv *iconv) {
+inline void ZtArray<T, NTP>::convert_(const S &s, ZtIconv *iconv) {
   null_();
   iconv->convert(*this, s);
 }
@@ -1485,7 +1511,7 @@ inline void ZtArray<T, Cmp>::convert_(const S &s, ZtIconv *iconv) {
 #endif
 
 // generic printing
-template <typename T, typename Cmp>
-ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZtArray<T, Cmp> *);
+template <typename T, typename NTP>
+ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZtArray<T, NTP> *);
 
 #endif /* ZtArray_HPP */

@@ -156,9 +156,9 @@ friend Wait;
   Wait wait() { return Wait(*this); }
 #endif
 
-  ZmPLock_				m_lock;
+  ZmPLock_			m_lock;
 #if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
-  ZmAtomic<uint32_t>			m_count;
+  ZmAtomic<uint32_t>		m_count;
   ZmAtomic<Zm::ThreadID>	m_tid;
 #ifdef ZmLock_DEBUG
   Zm::ThreadID			m_prevTID;

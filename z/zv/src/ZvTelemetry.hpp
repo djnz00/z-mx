@@ -41,16 +41,26 @@ namespace RAG {
 }
 
 namespace ThreadPriority {
-  ZfbEnumValues(ThreadPriority, RealTime, High, Normal, Low);
+  ZfbEnumMatch(ThreadPriority, ZmThreadPriority,
+      RealTime, High, Normal, Low);
 }
 
-namespace MxState {
-  ZfbEnumValues(MxState,
+namespace EngineState {
+  ZfbEnumMatch(EngineState, ZmEngineState,
       Stopped, Starting, Running, Stopping, StartPending, StopPending);
+
+  int rag(int i) {
+    using namespace RAG;
+    if (i < 0 || i >= N) return Off;
+    static const int values[N] =
+      { Red, Amber, Green, Red, Amber, Red };
+    return values[i];
+  }
 }
 
 namespace SocketType {
-  ZfbEnumValues(SocketType, TCPIn, TCPOut, UDP);
+  ZfbEnumMatch(SocketType, ZiCxnType,
+      TCPIn, TCPOut, UDP);
 }
 
 namespace QueueType {
@@ -76,19 +86,6 @@ namespace LinkState {
     if (i < 0 || i >= N) return Off;
     static const int values[N] =
       { Red, Off, Off, Amber, Green, Amber, Amber, Red, Amber, Amber, Amber };
-    return values[i];
-  }
-}
-
-namespace EngineState {
-  ZfbEnumValues(EngineState,
-      Stopped, Starting, Running, Stopping, StartPending, StopPending);
-
-  int rag(int i) {
-    using namespace RAG;
-    if (i < 0 || i >= N) return Off;
-    static const int values[N] =
-      { Red, Amber, Green, Amber, Amber, Amber };
     return values[i];
   }
 }
@@ -221,12 +218,12 @@ struct Mx : public Mx_, public ZtFieldPrint<Mx> {
   template <typename ...Args>
   Mx(Args &&... args) : Mx_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return running ? RAG::Green : RAG::Red; }
+  int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused
 };
 ZfbFields(Mx,
     (((id), (0)), (String), (Ctor(0))),
-    (((state)), (Enum, MxState::Map), (Ctor(10), Update, Series)),
+    (((state)), (Enum, EngineState::Map), (Ctor(10), Update, Series)),
     (((nThreads)), (Int), (Ctor(13))),
     (((rxThread)), (Int), (Ctor(7))),
     (((txThread)), (Int), (Ctor(8))),
