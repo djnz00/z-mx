@@ -23,8 +23,8 @@
 
 #include <zlib/ZuStringN.hpp>
 
-template class ZtString_<char>;
-template class ZtString_<wchar_t>;
+template class ZtString_<char, ZtString_ID>;
+template class ZtString_<wchar_t, ZtString_ID>;
 
 #ifdef _MSC_VER
 #pragma warning(push)

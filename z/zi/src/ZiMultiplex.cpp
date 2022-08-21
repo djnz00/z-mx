@@ -1906,9 +1906,9 @@ ZiMultiplex::~ZiMultiplex()
 {
 }
 
-bool ZiMultiplex::start_()
+bool ZiMultiplex::start__()
 {
-  if (!ZmScheduler::start_()) return false;
+  if (!ZmScheduler::start__()) return false;
 
 #ifdef ZiMultiplex_IOCP
   {
@@ -1980,7 +1980,7 @@ bool ZiMultiplex::start_()
   return true;
 }
 
-void ZiMultiplex::stop_()
+bool ZiMultiplex::stop__()
 {
   thread_local ZmSemaphore stopping;
 
@@ -1996,7 +1996,7 @@ void ZiMultiplex::stop_()
 
   m_stopping = nullptr;
 
-  ZmScheduler::stop_();
+  return ZmScheduler::stop__();
 }
 
 void ZiMultiplex::stop_1()

@@ -32,8 +32,10 @@
 
 #include <zlib/ZuLambdaTraits.hpp>
 
+#include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmPolymorph.hpp>
+#include <zlib/ZmEngine.hpp>
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvIOQueue.hpp>
@@ -95,7 +97,7 @@ class ZvAPI ZvAnyLink : public ZvAnyTx {
 
 friend ZvEngine;
 
-  using StateLock = ZmLock;
+  using StateLock = ZmPRWLock;
   using StateGuard = ZmGuard<StateLock>;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
@@ -103,7 +105,7 @@ protected:
   ZvAnyLink(ZuID id);
 
 public:
-  int state() const { return m_state.load_(); }
+  int state() const { return m_state; }
   unsigned reconnects() const { return m_reconnects.load_(); }
 
   using Telemetry = ZvTelemetry::Link;
@@ -192,7 +194,7 @@ struct ZvEngineMgr {
   // Engine Management
   virtual void addEngine(ZvEngine *) { }
   virtual void delEngine(ZvEngine *) { }
-  virtual void updEngine(ZvEngine *) { }
+  virtual void updEngine(ZvEngine *, int state) { }
 
   // Link Management
   virtual void updLink(ZvAnyLink *) { }
@@ -205,17 +207,18 @@ struct ZvEngineMgr {
   virtual void alert(ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
 };
 
-class ZvAPI ZvEngine : public ZmPolymorph {
+class ZvAPI ZvEngine : public ZmPolymorph, public ZmEngine<ZvEngine> {
   ZvEngine(const ZvEngine &);	//prevent mis-use
   ZvEngine &operator =(const ZvEngine &);
 
+friend ZmEngine<ZvEngine>;
 friend ZvAnyLink;
 
-  using Lock = ZmRWLock;
+  using Lock = ZmPRWLock;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  using StateLock = ZmLock;
+  using StateLock = ZmPRWLock;
   using StateGuard = ZmGuard<StateLock>;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
@@ -230,7 +233,7 @@ public:
   using App = ZvEngineApp;
   using QueueFn = ZvEngineMgr::QueueFn;
 
-  ZvEngine() : m_state(ZvEngineState::Stopped) { }
+  ZvEngine() { }
 
   void init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf) {
     m_mgr = mgr,
@@ -255,11 +258,6 @@ public:
   unsigned rxThread() const { return m_rxThread; }
   unsigned txThread() const { return m_txThread; }
 
-  int state() const { return m_state.load_(); }
-
-  void start();
-  void stop();
-
   template <typename ...Args> void rxRun(Args &&... args)
     { m_mx->run(m_rxThread, ZuFwd<Args>(args)...); }
   template <typename ...Args> void rxRun_(Args &&... args)
@@ -273,7 +271,6 @@ public:
 
   void mgrAddEngine() { mgr()->addEngine(this); }
   void mgrDelEngine() { mgr()->delEngine(this); }
-  void mgrUpdEngine() { mgr()->updEngine(this); }
 
   ZmRef<ZvAnyLink> appCreateLink(ZuID id) {
     return app()->createLink(id);
@@ -424,6 +421,7 @@ private:
 
   void start_();
   void stop_();
+  void stateChanged(int state) { mgr()->updEngine(this, state); }
 
 private:
   ZuID				m_id;
@@ -438,7 +436,6 @@ private:
     Links			  m_links;	// from csv
 
   StateLock			m_stateLock;
-    ZmAtomic<int>		  m_state;
     unsigned			  m_down = 0;		// #links down
     unsigned			  m_disabled = 0;	// #links disabled
     unsigned			  m_transient = 0;	// #links transient

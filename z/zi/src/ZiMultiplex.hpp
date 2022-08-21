@@ -913,8 +913,8 @@ public:
   ZiMultiplex(ZiMxParams mxParams = ZiMxParams());
   ~ZiMultiplex();
 
-  bool start_();	
-  void stop_();	
+  bool start__();	
+  bool stop__();	
 
   void stop_1();	// Rx thread - disconnect all connections
   void stop_2();	// Rx thread - stop connecting / listening / accepting

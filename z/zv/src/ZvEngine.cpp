@@ -31,7 +31,6 @@ void ZvEngine::start_()
   while (ZmRef<ZvAnyLink> link = i.iterateVal())
     rxRun(ZmFn<>{link, [](ZvAnyLink *link) { link->up_(false); }});
 }
-
 void ZvEngine::stop_()
 {
   // appException(ZeEVENT(Info, "STOP"));
@@ -41,64 +40,6 @@ void ZvEngine::stop_()
     rxRun(ZmFn<>{link, [](ZvAnyLink *link) { link->down_(false); }});
 
   mgrDelEngine();
-}
-
-void ZvEngine::start()
-{
-  int prev, next;
-
-  {
-    StateGuard stateGuard(m_stateLock);
-
-    bool start = false;
-
-    prev = m_state.load_();
-    switch (prev) {
-      case ZvEngineState::Stopped:
-	m_state.store_(ZvEngineState::Starting);
-	start = true;
-	break;
-      case ZvEngineState::Stopping:
-	m_state.store_(ZvEngineState::StartPending);
-	break;
-      default:
-	break;
-    }
-    next = m_state.load_();
-
-    if (start) start_();
-  }
-
-  if (next != prev) mgrUpdEngine();
-}
-
-void ZvEngine::stop()
-{
-  int prev, next;
-
-  {
-    StateGuard stateGuard(m_stateLock);
-
-    bool stop = false;
-
-    prev = m_state.load_();
-    switch (prev) {
-      case ZvEngineState::Running:
-	m_state.store_(ZvEngineState::Stopping);
-	stop = true;
-	break;
-      case ZvEngineState::Starting:
-	m_state.store_(ZvEngineState::StopPending);
-	break;
-      default:
-	break;
-    }
-    next = m_state.load_();
-
-    if (stop) stop_();
-  }
-
-  if (next != prev) mgrUpdEngine();
 }
 
 void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
@@ -128,8 +69,6 @@ void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
       ZvLinkState::name(prev) << "->" << ZvLinkState::name(next); })));
 #endif
   mgrUpdLink(link);
-
-  int enginePrev, engineNext;
 
   {
     StateGuard stateGuard(m_stateLock);
@@ -188,70 +127,32 @@ void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
 	break;
     }
 
-    bool start = false, stop = false;
-
-    enginePrev = m_state.load_();
-    switch (enginePrev) {
-      case ZvEngineState::Starting:
+    switch (this->state()) {
+      case ZmEngineState::Starting:
+      case ZmEngineState::StopPending:
 	switch (prev) {
 	  case ZvLinkState::Down:
 	  case ZvLinkState::Connecting:
 	  case ZvLinkState::Disconnecting:
 	  case ZvLinkState::ConnectPending:
 	  case ZvLinkState::DisconnectPending:
-	    if (!(m_down + m_transient))
-	      m_state.store_(ZvEngineState::Running);
+	    if (!(m_down + m_transient)) started(true);
 	    break;
 	}
-	break;
-      case ZvEngineState::StopPending:
-	switch (prev) {
-	  case ZvLinkState::Down:
-	  case ZvLinkState::Connecting:
-	  case ZvLinkState::Disconnecting:
-	  case ZvLinkState::ConnectPending:
-	  case ZvLinkState::DisconnectPending:
-	    if (!(m_down + m_transient)) {
-	      m_state.store_(ZvEngineState::Stopping);
-	      stop = true;
-	    }
-	    break;
-	}
-	break;
-      case ZvEngineState::Stopping:
+      case ZmEngineState::Stopping:
+      case ZmEngineState::StartPending:
 	switch (prev) {
 	  case ZvLinkState::Connecting:
 	  case ZvLinkState::Disconnecting:
 	  case ZvLinkState::ConnectPending:
 	  case ZvLinkState::DisconnectPending:
 	  case ZvLinkState::Up:
-	    if (!(m_up + m_transient))
-	      m_state.store_(ZvEngineState::Stopped);
-	    break;
-	}
-	break;
-      case ZvEngineState::StartPending:
-	switch (prev) {
-	  case ZvLinkState::Connecting:
-	  case ZvLinkState::Disconnecting:
-	  case ZvLinkState::ConnectPending:
-	  case ZvLinkState::DisconnectPending:
-	  case ZvLinkState::Up:
-	    if (!(m_up + m_transient)) {
-	      m_state.store_(ZvEngineState::Starting);
-	      start = true;
-	    }
+	    if (!(m_up + m_transient)) stopped(true);
 	    break;
 	}
 	break;
     }
-    engineNext = m_state.load_();
-
-    if (start) start_();
-    if (stop) stop_();
   }
-
-  if (engineNext != enginePrev) mgrUpdEngine();
 }
 
 void ZvEngine::final()
@@ -272,7 +173,7 @@ void ZvEngine::telemetry(Telemetry &data) const
     data.up = m_up;
     data.reconn = m_reconn;
     data.failed = m_failed;
-    data.state = m_state.load_();
+    data.state = this->state();
   }
   {
     ReadGuard guard(m_lock);
@@ -303,19 +204,12 @@ ZvAnyLink::ZvAnyLink(ZuID id) :
 
 void ZvAnyLink::up_(bool enable)
 {
-  int prev, next;
-  bool connect = false;
-  bool running = false;
-
-  switch ((int)engine()->state()) {
-    case ZvEngineState::Starting:
-    case ZvEngineState::Running:
-      running = true;
-      break;
-  }
-
   // cancel reconnect
   mx()->del(&m_reconnTimer);
+
+  int prev, next;
+  bool running = engine()->running();
+  bool connect = false;
 
   {
     StateGuard stateGuard(m_stateLock);
@@ -323,7 +217,7 @@ void ZvAnyLink::up_(bool enable)
     if (enable) m_enabled = true;
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Disabled:
       case ZvLinkState::Down:
@@ -369,7 +263,7 @@ void ZvAnyLink::down_(bool disable)
     if (disable) m_enabled = false;
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Down:
 	if (!m_enabled) m_state.store_(ZvLinkState::Disabled);
@@ -411,7 +305,7 @@ void ZvAnyLink::connected()
     StateGuard stateGuard(m_stateLock);
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Connecting:
       case ZvLinkState::ReconnectPending:
@@ -449,7 +343,7 @@ void ZvAnyLink::disconnected()
     StateGuard stateGuard(m_stateLock);
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Connecting:
       case ZvLinkState::DisconnectPending:
@@ -494,7 +388,7 @@ void ZvAnyLink::reconnecting()
     StateGuard stateGuard(m_stateLock);
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Up:
 	m_state.store_(ZvLinkState::Connecting);
@@ -521,7 +415,7 @@ void ZvAnyLink::reconnect(bool immediate)
     StateGuard stateGuard(m_stateLock);
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::Connecting:
       case ZvLinkState::Reconnecting:
@@ -567,7 +461,7 @@ void ZvAnyLink::reconnect_()
     StateGuard stateGuard(m_stateLock);
 
     // state machine
-    prev = m_state.load_();
+    prev = m_state;
     switch (prev) {
       case ZvLinkState::ReconnectPending:
 	m_state.store_(ZvLinkState::Reconnecting);
@@ -590,7 +484,7 @@ void ZvAnyLink::deleted_()
   int prev;
   {
     StateGuard stateGuard(m_stateLock);
-    prev = m_state.load_();
+    prev = m_state;
     m_state.store_(ZvLinkState::Deleted);
   }
   if (prev != ZvLinkState::Deleted)

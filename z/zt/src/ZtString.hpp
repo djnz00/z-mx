@@ -91,13 +91,14 @@ template <> struct ZtString_Char2<char> { using T = wchar_t; };
 template <> struct ZtString_Char2<wchar_t> { using T = char; };
 
 template <typename> struct ZtString__ { };
-template <typename Char_, typename VHeap>
-class ZtString_ : private VHeap, public ZtString__<Char_> {
+template <typename Char_, typename HeapID_>
+class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<Char_> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuConversion<Char, wchar_t>::Same };
   enum { BuiltinSize = (int)ZtString_BuiltinSize / sizeof(Char) };
+  using HeapID = HeapID_;
 
 private:
   // from same type ZtString
@@ -543,8 +544,8 @@ public:
 // internal initializers / finalizer
 
 private:
-  using VHeap::valloc;
-  using VHeap::vfree;
+  using ZmVHeap<HeapID>::valloc;
+  using ZmVHeap<HeapID>::vfree;
 
   void length_(unsigned n) {
     null__(0);
@@ -880,52 +881,52 @@ public:
 
 // +, += operators
   template <typename S>
-  ZtString_<Char> operator +(const S &s) const { return add(s); }
+  ZtString_ operator +(const S &s) const { return add(s); }
 
 private:
   template <typename S>
-  MatchZtString<S, ZtString_<Char>>
+  MatchZtString<S, ZtString_>
   add(const S &s) const { return add(s.data_(), s.length()); }
   template <typename S>
-  MatchAnyCString<S, ZtString_<Char>> add(S &&s_) const {
+  MatchAnyCString<S, ZtString_> add(S &&s_) const {
     ZuArray<const Char> s(ZuFwd<S>(s_));
     return add(s.data(), s.length());
   }
   template <typename S>
-  MatchOtherString<S, ZtString_<Char>> add(S &&s_) const {
+  MatchOtherString<S, ZtString_> add(S &&s_) const {
     ZuArray<const Char> s(ZuFwd<S>(s_));
     return add(s.data(), s.length());
   }
   template <typename C>
-  MatchChar<C, ZtString_<Char>> add(C c) const {
+  MatchChar<C, ZtString_> add(C c) const {
     return add(&c, 1);
   }
 
   template <typename S>
-  MatchChar2String<S, ZtString_<Char>>
+  MatchChar2String<S, ZtString_>
   add(const S &s) const { return add(ZtString_(s)); }
   template <typename C>
-  MatchChar2<C, ZtString_<Char>>
+  MatchChar2<C, ZtString_>
   add(C c) const { return add(ZtString_(c)); }
 
   template <typename P>
-  MatchPDelegate<P, ZtString_<Char>>
+  MatchPDelegate<P, ZtString_>
   add(const P &p) const { return add(ZtString_(p)); }
   template <typename P>
-  MatchPBuffer<P, ZtString_<Char>>
+  MatchPBuffer<P, ZtString_>
   add(const P &p) const { return add(ZtString_(p)); }
 
-  ZtString_<Char> add(
+  ZtString_ add(
       const Char *data, unsigned length) const {
     unsigned n = this->length();
     unsigned o = n + length;
-    if (ZuUnlikely(!o)) return ZtString_<Char>();
+    if (ZuUnlikely(!o)) return ZtString_{};
     Char *newData = (Char *)valloc((o + 1) * sizeof(Char));
     if (!newData) throw std::bad_alloc{};
     if (n) memcpy(newData, data_(), n * sizeof(Char));
     if (length) memcpy(newData + n, data, length * sizeof(Char));
     newData[o] = 0;
-    return ZtString_<Char>(newData, o, o + 1);
+    return ZtString_(newData, o, o + 1);
   }
 
 public:
@@ -1334,27 +1335,27 @@ private:
   uintptr_t		m_data[ZtString_BuiltinSize / sizeof(uintptr_t)];
 };
 
-template <typename Char>
+template <typename Char, typename HeapID>
 template <typename S>
-inline void ZtString_<Char>::convert_(const S &s, ZtIconv *iconv)
+inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
 {
   null_();
   iconv->convert(*this, s);
 }
 
-#ifdef _MSC_VER
-ZtExplicit template class ZtAPI ZtString_<char>;
-ZtExplicit template class ZtAPI ZtString_<wchar_t>;
-#endif
-
 struct ZtString_ID {
   static constexpr const char *id() { return "ZtString"; }
 };
 
-using ZtString = ZtString_<char, ZmVHeap<ZtString_ID>>;
-template <typename VHeap> using ZtVString = ZtString_<char, VHeap>;
-using ZtWString = ZtString_<wchar_t, ZmVHeap<ZtString_ID>>;
-template <typename VHeap> using ZtVWString = ZtString_<wchar_t, VHeap>;
+#ifdef _MSC_VER
+ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID>;
+ZtExplicit template class ZtAPI ZtString_<wchar_t, ZtString_ID>;
+#endif
+
+using ZtString = ZtString_<char, ZtString_ID>;
+template <typename HeapID> using ZtVString = ZtString_<char, HeapID>;
+using ZtWString = ZtString_<wchar_t, ZtString_ID>;
+template <typename HeapID> using ZtVWString = ZtString_<wchar_t, HeapID>;
 
 // RVO shortcuts
 

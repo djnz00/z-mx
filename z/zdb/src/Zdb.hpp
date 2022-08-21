@@ -49,6 +49,7 @@
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmPLock.hpp>
 #include <zlib/ZmVRing.hpp>
+#include <zlib/ZmEngine.hpp>
 
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtEnum.hpp>
@@ -69,6 +70,20 @@
 
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
+
+//  host state		engine state
+//  ==========		============
+//  Instantiated	Stopped
+//  Initialized		Stopped
+//  Opening		Starting | StopPending
+//  Closing		Stopping | StartPending
+//  Stopped		Stopped
+//  Electing		Starting | StopPending
+//  Activating		Running
+//  Active		Running
+//  Deactivating	Running
+//  Inactive		Running
+//  Stopping		Stopping | StartPending
 
 // - leave start/stop/etc as is, BUT
 // - use DB thread to run all env-related code
@@ -1446,10 +1461,11 @@ struct ZdbEnvCf {
   }
 };
 
-class ZdbAPI ZdbEnv : public ZmPolymorph {
+class ZdbAPI ZdbEnv : public ZmPolymorph, public ZmEngine<ZdbEnv> {
   ZdbEnv(const ZdbEnv &);
   ZdbEnv &operator =(const ZdbEnv &);		// prevent mis-use
 
+friend ZmEngine<ZdbEnv>;
 friend Zdb;
 friend ZdbHost;
 friend ZdbAnyObject;
@@ -1479,18 +1495,22 @@ friend Zdb_::Cxn;
 #endif
 
 public:
-  ZdbEnv();
-  ~ZdbEnv();
+  ZdbEnv() { }
+  ~ZdbEnv() { }
 
   void init(ZdbEnvCf config, ZiMultiplex *mx, ZdbEnvHandler handler);
   void final();
 
+private:
+  void start_();
+  void stop_();
+  bool spawn(ZmFn<>);
+  void wake();
+
   bool open();
   void close();
 
-  void start();
-  void stop();
-
+public:
   void checkpoint();
 
   const ZdbEnvCf &config() const { return m_cf; }
@@ -1643,22 +1663,23 @@ private:
   bool isStandalone() { return m_standalone; }
 
   ZdbEnvCf		m_cf;
-  ZiMultiplex		*m_mx;
+  ZiMultiplex		*m_mx = nullptr;
 
   ZdbEnvHandler		m_handler;
 
+  ZmSemaphore		*m_stopping = nullptr;
+
   Lock			m_lock;
-    StateCond		  m_stateCond;
-    bool		  m_appActive;
-    ZdbHost		  *m_self;
-    ZdbHost		  *m_master;	// == m_self if Active
-    ZdbHost		  *m_prev;	// previous-ranked host
-    ZdbHost		  *m_next;	// next-ranked host
-    ZmRef<Cxn>		  m_nextCxn;	// replica peer's cxn
-    bool		  m_recovering;	// recovering next-ranked host
-    DBState		  m_recover;	// recovery state
-    DBState		  m_recoverEnd;	// recovery end
-    int			  m_nPeers;	// # up to date peers
+    bool		  m_appActive =false;
+    ZdbHost		  *m_self = nullptr;
+    ZdbHost		  *m_master = nullptr;	// == m_self if Active
+    ZdbHost		  *m_prev = nullptr;	// previous-ranked host
+    ZdbHost		  *m_next = nullptr;	// next-ranked host
+    ZmRef<Cxn>		  m_nextCxn;		// replica peer's cxn
+    bool		  m_recovering = false;	// recovering next-ranked host
+    DBState		  m_recover{4};		// recovery state
+    DBState		  m_recoverEnd{4};	// recovery end
+    int			  m_nPeers = 0;	// # up to date peers
 					// # votes received (Electing)
 					// # pending disconnects (Stopping)
     ZmTime		  m_hbSendTime;

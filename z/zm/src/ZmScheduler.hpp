@@ -154,7 +154,7 @@ class ZmAPI ZmScheduler : public ZmEngine<ZmScheduler> {
   ZmScheduler(const ZmScheduler &) = delete;
   ZmScheduler &operator =(const ZmScheduler &) = delete;
 
-friend class ZmEngine<ZmScheduler>;
+friend ZmEngine<ZmScheduler>;
 
   struct Timer_ {
     ZmFn<>	fn;
@@ -353,16 +353,16 @@ public:
     return 0;
   }
 
-private:
   // control thread
-  const ZmThreadParams &thread();
+private:
+  void start_();
+  void stop_();
+  bool spawn(ZmFn<>);
   void wake();
-  void run();
 
 protected:
-  // control thread
-  virtual bool start_();	 // returns false if failed
-  virtual bool stop_();
+  virtual bool start__();	 // returns false if failed
+  virtual bool stop__();	 // ''
 
   void busy();
   void idle();
@@ -386,6 +386,7 @@ private:
 
   ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
 
+  void timer();
   bool timerAdd(ZmFn<> &fn);
 
   void runWake_(Thread *thread, ZmFn<> fn);
@@ -396,6 +397,8 @@ private:
   void work();
 
   ZmSchedParams			m_params;
+
+  ZmThread		 	m_thread;
 
   ZmSemaphore			m_pending;
 

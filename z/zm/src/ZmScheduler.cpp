@@ -75,7 +75,18 @@ ZmScheduler::~ZmScheduler()
   delete [] m_threads;
 }
 
-bool ZmScheduler::start_()
+bool ZmScheduler::spawn(ZmFn<> fn)
+{
+  m_thread = ZmThread{0, ZuMv(fn), m_params.thread(0)};
+  return !!m_thread;
+}
+void ZmScheduler::start_()
+{
+  bool ok = start__();
+  started(ok);
+  if (ok) timer();
+}
+bool ZmScheduler::start__()
 {
   {
     unsigned n = m_params.nThreads();
@@ -86,13 +97,10 @@ bool ZmScheduler::start_()
       unsigned index = ++m_runThreads;
       if (!(m_threads[index - 1].thread = ZmThread(index,
 	  ZmFn<>::Member<&ZmScheduler::work>::fn(this),
-	  m_params.thread(index)))) {
-	ZmScheduler::stop_();
+	  m_params.thread(index))))
 	return false;
-      }
     }
   }
-
   return true;
 }
 bool ZmScheduler::stop()
@@ -106,20 +114,23 @@ bool ZmScheduler::stop()
       if (m_threads[i].tid == self) {
 	spawnGuard.unlock();
 	ZmEngine::stop({});	// async
-	return true;	// return success
+	return true;		// return success
       }
   }
   return ZmEngine::stop();
-}
-const ZmThreadParams &ZmScheduler::thread()
-{
-  return m_params.thread(0);
 }
 void ZmScheduler::wake()
 {
   m_pending.post();
 }
-bool ZmScheduler::stop_()
+void ZmScheduler::stop_()
+{
+  bool ok = stop__();
+  // clear m_thread before calling stopped(true), which might cause a restart
+  if (ok) m_thread = {};
+  stopped(ok);
+}
+bool ZmScheduler::stop__()
 {
   {
     unsigned n = m_params.nThreads();
@@ -157,7 +168,7 @@ void ZmScheduler::wakeFn(unsigned index, ZmFn<> fn)
   m_threads[index - 1].wakeFn = ZuMv(fn);
 }
 
-void ZmScheduler::run()
+void ZmScheduler::timer()
 {
   for (;;) {
     if (stopped()) return;

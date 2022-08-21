@@ -60,19 +60,6 @@
 
 using namespace Zdb_;
 
-ZdbEnv::ZdbEnv() :
-  m_mx{0}, m_stateCond{m_lock},
-  m_appActive{false}, m_self{0}, m_master{0}, m_prev{0}, m_next{0},
-  m_nextCxn{0}, m_recovering{false},
-  m_recover{4}, m_recoverEnd{4},
-  m_nPeers{0}
-{
-}
-
-ZdbEnv::~ZdbEnv()
-{
-}
-
 void ZdbEnv::init(ZdbEnvCf config, ZiMultiplex *mx, ZdbEnvHandler handler)
 {
   Guard guard(m_lock);
@@ -161,93 +148,60 @@ Zdb *ZdbEnv::db_(ZuID id, ZdbHandler handler)
   return db;
 }
 
-bool ZdbEnv::open()
+bool ZdbEnv::spawn(ZmFn<> fn)
 {
-  Guard guard(m_lock);
-  if (state() != ZdbHostState::Initialized) {
-    ZeLOG(Fatal, "ZdbEnv::open called out of order");
-    return false;
-  }
-  if (!allDBs([](Zdb *db) {
-    if (!db->open()) return false;
-    return true;
-  })) {
-    allDBs([](Zdb *db) { db->close(); return true; });
-    return false;
-  }
-  dbStateRefresh();
-  state(ZdbHostState::Stopped);
-  guard.unlock();
-  m_stateCond.broadcast();
+  if (!m_mx || !m_mx->running()) return false;
+  m_mx->run(m_cf.dbTID, ZuMv(fn));
   return true;
 }
 
-void ZdbEnv::close()
+void ZdbEnv::wake()
 {
-  Guard guard(m_lock);
-  if (state() != ZdbHostState::Stopped) {
-    ZeLOG(Fatal, "ZdbEnv::close called out of order");
-    return;
-  }
-  allDBs_([](Zdb *db) { db->close(); return true; });
-  state(ZdbHostState::Initialized);
-  guard.unlock();
-  m_stateCond.broadcast();
+  if (!m_mx || !m_mx->running()) return false;
+  m_mx->run(m_cf.dbTID, ZmFn<>{this, [](ZdbEnv *self) {
+    self->stopped();
+  }});
 }
 
 void ZdbEnv::checkpoint()
 {
-  using namespace ZdbHostState;
-
-  Guard guard(m_lock);
-
-  switch (state()) {
-    case Instantiated:
-    case Initialized:
-      ZeLOG(Fatal, "ZdbEnv::checkpoint called out of order");
-      return;
+  if (!m_mx || !mx->running()) {
+    ZeLOG(Fatal, "ZdbEnv::checkpoint called out of order");
+    return;
   }
-
-  allDBs_([](Zdb *db) { db->checkpoint(); return true; });
+  m_mx->run(m_cf.dbTID, ZmFn<>{this, [](ZdbEnv *self) {
+    self->allDBs_([](Zdb *db) { db->checkpoint(); return true; });
+  }});
 }
 
-void ZdbEnv::start()
+void ZdbEnv::start_()
 {
-  {
-    using namespace ZdbHostState;
-
-    Guard guard(m_lock);
-
-retry:
-    switch (state()) {
-      case Instantiated:
-      case Initialized:
-	ZeLOG(Fatal, "ZdbEnv::start called out of order");
-	return;
-      case Stopped:
-	break;
-      case Stopping:
-	do { m_stateCond.wait(); } while (state() == Stopping);
-	goto retry;
-      default:
-	return;
-    }
-
-    stopReplication();
-    state(Electing);
-    if (m_nPeers = m_hosts.count_() - 1) {
-      dbStateRefresh();
-      m_mx->add(ZmFn<>::Member<&ZdbEnv::hbSend>::fn(this),
-	  m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
-      m_mx->add(ZmFn<>::Member<&ZdbEnv::holdElection>::fn(this),
-	  ZmTimeNow((int)m_cf.electionTimeout), &m_electTimer);
-    }
-    guard.unlock();
-    m_stateCond.broadcast();
+  if (state() != ZdbHostState::Initialized) {
+    ZeLOG(Fatal, "ZdbEnv::start_() called out of order");
+    started(false);
+    return;
   }
 
   ZeLOG(Info, "Zdb starting");
 
+  if (!allDBs([](Zdb *db) { return db->open(); })) {
+    allDBs([](Zdb *db) { db->close(); return true; });
+    started(false);
+    return;
+  }
+
+  dbStateRefresh();
+  state(Stopped);
+  stopReplication();
+  state(Electing);
+
+  if (m_nPeers = m_hosts.count_() - 1) {
+    dbStateRefresh();
+    m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::hbSend>::fn(this),
+	m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
+    m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::holdElection>::fn(this),
+	ZmTimeNow((int)m_cf.electionTimeout), &m_electTimer);
+  }
   if (m_hosts.count_() == 1) {
     holdElection();
     return;
@@ -262,43 +216,28 @@ retry:
   }
 }
 
-void ZdbEnv::stop()
+void ZdbEnv::stop_()
 {
+  using namespace ZdbHostState;
+
+  switch (state()) {
+    case Active:
+    case Inactive:
+      break;
+    case Activating:
+    case Deactivating:
+      return;
+    default:
+      ZeLOG(Fatal, "ZdbEnv::stop_ called out of order");
+      return;
+  }
+
   ZeLOG(Info, "Zdb stopping");
 
-  {
-    using namespace ZdbHostState;
-
-    Guard guard(m_lock);
-
-retry:
-    switch (state()) {
-      case Instantiated:
-      case Initialized:
-	ZeLOG(Fatal, "ZdbEnv::stop called out of order");
-	return;
-      case Stopped:
-	return;
-      case Activating:
-	do { m_stateCond.wait(); } while (state() == Activating);
-	goto retry;
-      case Deactivating:
-	do { m_stateCond.wait(); } while (state() == Deactivating);
-	goto retry;
-      case Stopping:
-	do { m_stateCond.wait(); } while (state() == Stopping);
-	goto retry;
-      default:
-	break;
-    }
-
-    state(Stopping);
-    stopReplication();
-    guard.unlock();
-    m_mx->del(&m_hbSendTimer);
-    m_mx->del(&m_electTimer);
-    m_stateCond.broadcast();
-  }
+  state(Stopping);
+  stopReplication();
+  m_mx->del(&m_hbSendTimer);
+  m_mx->del(&m_electTimer);
 
   // cancel reconnects
   {
@@ -316,14 +255,9 @@ retry:
     m_nPeers = 0; // paranoia
   }
 
-  // final clean up
-  {
-    Guard guard(m_lock);
+  allDBs_([](Zdb *db) { db->close(); return true; });
 
-    state(ZdbHostState::Stopped);
-    guard.unlock();
-    m_stateCond.broadcast();
-  }
+  stopped(true);
 }
 
 bool ZdbEnv::disconnectAll()
@@ -367,7 +301,7 @@ void ZdbEnv::listenFailed(bool transient)
       m_self->ip() << ':' << m_self->port() << ')';
   if (transient && running()) {
     warning << " - retrying...";
-    m_mx->add(ZmFn<>::Member<&ZdbEnv::listen>::fn(this),
+    m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::listen>::fn(this),
       ZmTimeNow((int)m_cf.reconnectFreq));
   }
   ZeLOG(Warning, ZuMv(warning));
@@ -386,25 +320,21 @@ void ZdbEnv::holdElection()
 
   m_mx->del(&m_electTimer);
 
-  {
-    Guard guard(m_lock);
-    if (state() != ZdbHostState::Electing) return;
-    appActive = m_appActive;
-    oldMaster = setMaster();
-    if (won = m_master == m_self) {
-      state(ZdbHostState::Activating);
-      m_appActive = true;
-      m_prev = 0;
-      if (!m_nPeers)
-	ZeLOG(Warning, "Zdb activating standalone");
-      else
-	hbSend_(); // announce new master
-    } else {
-      state(ZdbHostState::Deactivating);
-      m_appActive = false;
-    }
-    guard.unlock();
-    m_stateCond.broadcast();
+  if (state() != ZdbHostState::Electing) return;
+
+  appActive = m_appActive;
+  oldMaster = setMaster();
+  if (won = m_master == m_self) {
+    state(ZdbHostState::Activating);
+    m_appActive = true;
+    m_prev = 0;
+    if (!m_nPeers)
+      ZeLOG(Warning, "Zdb activating standalone");
+    else
+      hbSend_(); // announce new master
+  } else {
+    state(ZdbHostState::Deactivating);
+    m_appActive = false;
   }
 
   if (won) {
@@ -428,13 +358,13 @@ void ZdbEnv::holdElection()
     }
   }
 
-  {
-    Guard guard(m_lock);
+  if (state() == ZdbHostState::Activating) {
     state(won ? ZdbHostState::Active : ZdbHostState::Inactive);
     setNext();
-    guard.unlock();
-    m_stateCond.broadcast();
   }
+
+  if (Engine::state() == ZmEngineState::Stopping)
+    m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::stop_1>::fn(this),
 }
 
 void ZdbEnv::deactivate()
@@ -685,7 +615,7 @@ void ZdbHost::associate(Cxn *cxn)
 
 void ZdbHost::reconnect()
 {
-  m_mx->add(ZmFn<>::Member<&ZdbHost::reconnect2>::fn(this),
+  m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbHost::reconnect2>::fn(this),
       ZmTimeNow((int)m_env->config().reconnectFreq),
       ZmScheduler::Defer, &m_connectTimer);
 }
@@ -856,7 +786,7 @@ void ZdbEnv::standalone()
 
 void ZdbEnv::setNext()
 {
-  m_next = 0;
+  m_next = nullptr;
   {
     auto i = m_hosts.readIterator();
     ZdbDEBUG(this, ZtString{} << "setNext()\n" <<
@@ -906,7 +836,7 @@ void ZdbEnv::stopReplication()
   m_prev = nullptr;
   m_next = nullptr;
   m_recovering = false;
-  m_nextCxn = 0;
+  m_nextCxn = nullptr;
   {
     auto i = m_hosts.readIterator();
     while (ZdbHost *host = i.iterate()) host->voted(false);
@@ -1008,7 +938,7 @@ void ZdbEnv::hbRcvd(ZdbHost *host, const fbs::Heartbeat *hb)
 	  host->voted(true);
 	  if (--m_nPeers <= 0) {
 	    guard.unlock();
-	    m_mx->add(ZmFn<>::Member<&ZdbEnv::holdElection>::fn(this));
+	    m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::holdElection>::fn(this));
 	  }
 	}
 	return;
@@ -1030,9 +960,9 @@ void ZdbEnv::hbRcvd(ZdbHost *host, const fbs::Heartbeat *hb)
 	  case Active:
 	    vote(host);
 	    if (host->cmp(m_self) > 0)
-	      m_mx->add(ZmFn<>::Member<&ZdbEnv::deactivate>::fn(this));
+	      m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::deactivate>::fn(this));
 	    else
-	      m_mx->add(ZmFn<>::Member<&ZdbHost::reactivate>::fn(host));
+	      m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbHost::reactivate>::fn(host));
 	    return;
 	}
     }
@@ -1132,7 +1062,7 @@ void ZdbEnv::hbSend()
 {
   Guard guard(m_lock);
   hbSend_();
-  m_mx->add(ZmFn<>::Member<&ZdbEnv::hbSend>::fn(this),
+  m_mx->add(m_cf.dbTID, ZmFn<>::Member<&ZdbEnv::hbSend>::fn(this),
     m_hbSendTime += (time_t)m_cf.heartbeatFreq,
     ZmScheduler::Defer, &m_hbSendTimer);
 }
