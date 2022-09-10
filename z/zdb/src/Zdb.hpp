@@ -48,7 +48,6 @@
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmPLock.hpp>
-#include <zlib/ZmVRing.hpp>
 #include <zlib/ZmEngine.hpp>
 
 #include <zlib/ZtString.hpp>
@@ -78,11 +77,11 @@
 //  Opening		Starting | StopPending
 //  Closing		Stopping | StartPending
 //  Stopped		Stopped
-//  Electing		Starting | StopPending
-//  Activating		Running
-//  Active		Running
-//  Deactivating	Running
-//  Inactive		Running
+//  Electing		!Stopped
+//  Activating		!Stopped
+//  Active		!Stopped
+//  Deactivating	!Stopped
+//  Inactive		!Stopped
 //  Stopping		Stopping | StartPending
 
 // - leave start/stop/etc as is, BUT
@@ -108,12 +107,6 @@
 #define ZdbDEBUG(env, e) ((void)0)
 #endif
 
-using ZdbRN = uint64_t;		// record ID
-#define ZdbMaxRN (~static_cast<uint64_t>(0))
-#define ZdbNullRN (ZuCmp<ZdbRN>::null())
-
-#define ZdbDeleted (~static_cast<uint64_t>(0))	// offset sentinel
-
 // new file structure with variable-length flatbuffer-format records
 
 // each DB file contains up to 16K records, organized as a 1Kb superblock
@@ -131,20 +124,25 @@ using ZdbRN = uint64_t;		// record ID
 
 // each record on disk is {data, trailer}
 
-namespace Zdb_ {
-  inline constexpr unsigned fileShift()		{ return 14; }
-  inline constexpr unsigned fileMask()		{ return 0x7fU; }
-  inline constexpr unsigned fileIndices()	{ return 128; }
-  inline constexpr unsigned fileRecs()		{ return 16384; }
-  inline constexpr unsigned fileRecMask()	{ return 0x3fff; }
-  inline constexpr unsigned indexShift()	{ return 7; }
-  inline constexpr unsigned indexMask()		{ return 0x7fU; }
-  inline constexpr unsigned indexRecs()		{ return 128; }
-}
-
 #include <zlib/zdb__fbs.h>
 
 namespace Zdb_ {
+
+using RN = uint64_t;		// record ID
+inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
+inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
+
+using Offset = uint64_t;
+inline constexpr uint64_t deleted() { return ~static_cast<uint64_t>(0); }
+
+inline constexpr unsigned fileShift()	{ return 14; }
+inline constexpr unsigned fileMask()	{ return 0x7fU; }
+inline constexpr unsigned fileIndices()	{ return 128; }
+inline constexpr unsigned fileRecs()	{ return 16384; }
+inline constexpr unsigned fileRecMask()	{ return 0x3fff; }
+inline constexpr unsigned indexShift()	{ return 7; }
+inline constexpr unsigned indexMask()	{ return 0x7fU; }
+inline constexpr unsigned indexRecs()	{ return 128; }
 
 // custom header with an explicitly little-endian uint32 length
 #pragma pack(push, 1)
@@ -257,15 +255,6 @@ inline const T *data_(const fbs::Record *record) {
   auto data = Zfb::Load::bytes(record->data());
   if (ZuUnlikely(!data)) return nullptr;
   return Zfb::GetRoot<T>(data.data());
-}
-
-} // namespace Zdb_
-
-class ZdbAnyObject;			// database object (generic)
-class Zdb;				// individual database
-class ZdbEnv;				// database environment
-
-namespace Zdb_ {
 
 using Magic = uint32_t;
 
@@ -301,8 +290,7 @@ using IndexBlkLRU =
   ZmList<ZmPolymorph,
     ZmListObject<ZuShadow,
       ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull,
-	  ZmListLock<ZmNoLock> > > > >;
+	ZmListHeapID<ZuNull> > > >;
 
 struct IndexBlk_IDAxor {
   static uint64_t get(const ZmPolymorph &index);
@@ -315,8 +303,7 @@ using IndexBlkCache =
     ZmHashKey<IndexBlk_IDAxor,
       ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
-	  ZmHashHeapID<IndexBlkHeapID,
-	    ZmHashLock<ZmNoLock> > > > > >;
+	  ZmHashHeapID<IndexBlkHeapID> > > > >;
 
 struct IndexBlk : public IndexBlkCache::Node {
 #pragma pack(push, 1)
@@ -404,8 +391,7 @@ using FileLRU =
   ZmList<ZmPolymorph,
     ZmListObject<ZuShadow,
       ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull,
-	  ZmListLock<ZmNoLock> > > > >;
+	ZmListHeapID<ZuNull> > > >;
 
 struct File_IDAxor {
   static uint64_t get(const ZmPolymorph &file);
@@ -418,8 +404,7 @@ using FileCache =
     ZmHashKey<File_IDAxor,
       ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
-	  ZmHashHeapID<FileHeapID,
-	    ZmHashLock<ZmNoLock> > > > > >;
+	  ZmHashHeapID<FileHeapID> > > > >;
 
 class ZdbAPI File : public FileCache::Node, public ZiFile {
   using Bitmap = ZuBitmap<fileRecs()>;
@@ -482,13 +467,13 @@ private:
 
   Zdb			*m_db = nullptr;
   uint64_t		m_id = 0;	// (RN>>fileShift())
-  Lock			m_lock;
-    uint32_t		  m_flags = 0;
-    unsigned		  m_allocated = 0;
-    unsigned		  m_deleted = 0;
-    Bitmap		  m_bitmap;
-    SuperBlk		  m_superBlk;
-    uint64_t		  m_offset = 0;	// append offset
+
+  uint64_t		m_offset = 0;	// append offset
+  uint32_t		m_flags = 0;
+  unsigned		m_allocated = 0;
+  unsigned		m_deleted = 0;
+  Bitmap		m_bitmap;
+  SuperBlk		m_superBlk;
 };
 inline uint64_t File_IDAxor::get(const ZmPolymorph &file)
 {
@@ -525,9 +510,9 @@ private:
 
 // buffer cache
 struct Buf_HeapID {
-  static constexpr const char *id() { return "Buf"; }
+  static constexpr const char *id() { return "Zdb::Buf"; }
 };
-using Buf_ = ZiIOBuf__<ZuGrow(0, 1), Buf_HeapID>;
+using Buf_ = ZiIOVBuf<ZuGrow(0, 1), Buf_HeapID>;
 struct Buf_RNAxor {
   static ZdbRN get(const Buf_ &buf);
 };
@@ -537,8 +522,7 @@ using BufCache =
       ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Buf_HeapID,
-	      ZmHashLock<ZmNoLock> > > > > > >;
+	    ZmHashID<Buf_HeapID> > > > > >;
 
 class ZdbAPI Buf : public BufCache::Node {
 public:
@@ -558,6 +542,14 @@ friend ZdbAnyObject;
 
   void send(ZiIOContext &);
   void sent(ZiIOContext &);
+
+  ZmRef<Buf> replicate() {
+    ZmRef<Buf> buf = new Buf{db()};
+    auto data = buf->ensure(length);
+    if (!data) return nullptr;
+    memcpy(data, this->data(), length);
+    return buf;
+  }
 };
 inline ZdbRN Buf_RNAxor::get(const Buf_ &buf)
 {
@@ -622,8 +614,7 @@ using LRU =
   ZmList<ZmPolymorph,
     ZmListObject<ZuShadow,
       ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull,
-	  ZmListLock<ZmNoLock> > > > >;
+	ZmListHeapID<ZuNull> > > >;
 using LRUNode = LRU::Node;
 
 struct LRUNode_RNAxor {
@@ -640,8 +631,7 @@ using Cache =
       ZmHashObject<ZmPolymorph,
 	ZmHashNodeDerive<true,
 	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Cache_ID,
-	      ZmHashLock<ZmNoLock> > > > > > >;
+	    ZmHashID<Cache_ID> > > > > >;
 using CacheNode = Cache::Node;
 
 } // Zdb_
@@ -713,10 +703,12 @@ private:
 };
 
 namespace Zdb_ {
+
 inline ZdbRN LRUNode_RNAxor::get(const LRUNode &node)
 {
   return static_cast<const ZdbAnyObject &>(node).rn();
 }
+
 }
 
 struct ZdbObject_HeapID { 
@@ -818,6 +810,10 @@ namespace ZdbCacheMode {
 
 struct ZdbCf {
   ZuID			id;
+  ZmThreadName		thread;		// in-memory thread
+  mutable unsigned	tid = 0;
+  ZmThreadName		fileThread;	// file I/O thread
+  mutable unsigned	fileTID = 0;
   int			cacheMode = ZdbCacheMode::Normal;
   unsigned		vacuumBatch = 1000;
   bool			warmUp = false;	// pre-write initial DB file
@@ -826,6 +822,8 @@ struct ZdbCf {
   ZdbCf() = default;
   ZdbCf(ZuString id_) : id{id_} { }
   ZdbCf(ZuString id_, const ZvCf *cf) : id{id_} {
+    thread = cf->get("thread");
+    fileThread = cf->get("fileThread");
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", false, ZdbCacheMode::Normal);
     vacuumBatch = cf->getInt("vacuumBatch", 1, 100000, false, 1000);
@@ -1009,7 +1007,6 @@ private:
   void write2(ZmRef<Buf> buf);
   bool write_(const Buf *buf);
   bool ack(ZdbRN rn);
-  bool ack_(ZdbRN rn);
   void vacuum();
   void vacuum_();
   ZuPair<int, ZdbRN> del_(const DeleteOp &, unsigned maxBatchSize);
@@ -1025,17 +1022,26 @@ private:
   void cacheDel_(ZdbAnyObject *object);
 
   ZdbEnv		*m_env;
-  const ZdbCf		*m_cf = nullptr;
+  const ZdbCf		*m_cf;
   ZdbHandler		m_handler;
   ZtString		m_path;
 
+  // FIXME - env has a single env thread (the dbTID)
+  // FIXME - write thread performs all cache indexBlk/file cache eviction,
+  // allowing FileRecs to be relied on even when the DB is unlocked,
+  // and all disk I/O is performed blocking and unlocked, any eviction is
+  // enqueued on run queue
+  // FIXME - each DB can have it's own thread
+  // FIXME - allDBs can run in parallel - use an async continuation
+  // FIXME - remove m_standalone, standalone() can run in dbThread
+  // FIXME - figure out DB thread vs write thread model
+
+  Lock			m_lock;
   // RN allocator
-  Lock			m_pushLock;
     ZdbRN		  m_minRN = ZdbMaxRN;
     ZdbRN		  m_nextRN = 0;
 
   // object cache
-  Lock			m_cacheLock;
     LRU		  	  m_lru;
     ZmRef<Cache>	  m_cache;
     unsigned		  m_cacheSize = 0;
@@ -1043,17 +1049,12 @@ private:
     uint64_t		  m_cacheMisses = 0;
 
   // write cache
-  Lock			m_writeLock;
     ZmRef<BufCache>	  m_writeCache;
-    Deletes		  m_deletes; // FIXME - locking?
-
-  // FIXME - vacuumRN specific to vacuum thread
-    ZdbRN		  m_vacuumRN = ZdbNullRN; // FIXME - locking?
-
-    uint64_t		  m_lastFile = 0; // FIXME - locking?
+    Deletes		  m_deletes;
+    ZdbRN		  m_vacuumRN = ZdbNullRN;
+    uint64_t		  m_lastFile = 0;
 
   // index block cache
-  Lock			m_indexLock;
     IndexBlkLRU	 	  m_indexBlkLRU;
     ZmRef<IndexBlkCache>  m_indexBlks;
     unsigned		  m_indexBlkCacheSize = 0;
@@ -1061,24 +1062,24 @@ private:
     uint64_t		  m_indexBlkMisses = 0;
 
   // file cache
-  Lock			m_fileLock;
     FileLRU		  m_fileLRU;
     ZmRef<FileCache>	  m_files;
     unsigned		  m_fileCacheSize = 0;
     uint64_t		  m_fileLoads = 0;
     uint64_t		  m_fileMisses = 0;
 };
-struct Zdbs_HeapID {
+
+namespace Zdb_ {
+
+struct DBs_HeapID {
   static constexpr const char *id() { return "ZdbEnv.DBs"; }
 };
-using Zdbs =
+using DBs =
   ZmRBTree<Zdb,
     ZmRBTreeKey<Zdb::IDAxor,
       ZmRBTreeNodeDerive<true,
 	ZmRBTreeUnique<true,
-	  ZmRBTreeHeapID<Zdbs_HeapID> > > > >;
-
-namespace Zdb_ {
+	  ZmRBTreeHeapID<DBs_HeapID> > > > >;
 
 using DBState_ = ZmLHashKV<ZuID, ZdbRN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
@@ -1090,6 +1091,13 @@ struct DBState : public DBState_ {
     using namespace Zfb::Load;
     all(envState, [this](unsigned, const fbs::DBState *dbState) {
       add(id(&(dbState->db())), dbState->rn());
+    });
+  }
+  void load(Zfb::Vector<const Zdb_::fbs::DBState *> *envState) {
+    using namespace Zdb_;
+    using namespace Zfb::Load;
+    all(envState, [this](unsigned, const fbs::DBState *dbState) {
+      update(id(&(dbState->db())), dbState->rn());
     });
   }
   Zfb::Offset<Zfb::Vector<const Zdb_::fbs::DBState *>>
@@ -1199,10 +1207,8 @@ struct DBState_Print : public ZuPrintDelegate {
 };
 DBState_Print ZuPrintType(DBState *);
 
-} // Zdb_
-
 struct ZdbHostCf {
-  unsigned	id = 0; // FIXME - ZuID
+  ZuID		id;
   unsigned	priority = 0;
   ZiIP		ip;
   uint16_t	port = 0;
@@ -1210,9 +1216,9 @@ struct ZdbHostCf {
   ZtString	down;
 
   ZdbHostCf(const ZtString &key, const ZvCf *cf) {
-    id = ZvCf::toInt(cf, "ID", key, 0, 1<<30); // FIXME - ZuID
+    id = cf->get("id", true);
     priority = cf->getInt("priority", 0, 1<<30, true);
-    ip = cf->get("IP", true);
+    ip = cf->get("ip", true);
     port = cf->getInt("port", 1, (1<<16) - 1, true);
     up = cf->get("up");
     down = cf->get("down");
@@ -1222,24 +1228,37 @@ struct ZdbHostCf {
     static ZuID get(const ZdbHostCf &cfg) { return cfg.id; }
   };
 };
-struct ZdbHostCfs_HeapID {
+
+struct HostCfs_HeapID {
   static constexpr const char *id() { return "ZdbEnv.HostCfs"; }
 };
-// FIXME - move to hash table
-using ZdbHostCfs =
-  ZmRBTree<ZdbHostCf,
-    ZmRBTreeKey<ZdbHostCf::IDAxor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<ZdbHostCfs_HeapID> > > >;
+using HostCfs =
+  ZmHash<ZdbHostCf,
+    ZmHashKey<ZdbHostCf::IDAxor,
+      ZmHashHeapID<ZdbHostCfs_HeapID> > >;
 
-// FIXME - legacy int hostIDs need updating to ZuID
+// FIXME
+// - file reads and writes are serialized via filethread
+// - allows eviction and write enqueue to be performed together (any read will follow write)
+// - eliminates problem with unstable writes
+// - removes need for write buf cache
+// - careful - any index block read must NOT be performed immediately but scheduled via fileThread to ensure pending writes complete
+
+// FIXME - all external interfaces become async, including start/stop/init etc.
+// FIXME - all classes/structs in Zdb_ namespace, with external aliases
+// used, e.g. using ZdbHost = Zdb_::Host
+
+struct Hosts_HeapID {
+  static constexpr const char *id() { return "ZdbEnv.Hosts"; }
+};
+using Hosts =
+  ZmHash<Host,
+    ZmHashKey<Host::IDAxor,
+      ZmHashNodeDerive<true,
+	ZmHashHeapID<ZdbHosts_HeapID> > > >;
 
 class ZdbAPI ZdbHost {
 friend ZdbEnv;
-
-  using Lock = ZmPLock;
-  using Guard = ZmGuard<Lock>;
-  using ReadGuard = ZmReadGuard<Lock>;
 
   using Cxn = Zdb_::Cxn;
   using DBState = Zdb_::DBState;
@@ -1318,13 +1337,11 @@ private:
   const ZdbHostCf	*m_cf;
   ZiMultiplex		*m_mx;
 
-  Lock			m_lock;
-    ZmRef<Cxn>		  m_cxn;
-
   ZmScheduler::Timer	m_connectTimer;
 
   // guarded by ZdbEnv
 
+  ZmRef<Cxn>		m_cxn;
   int			m_state = ZdbHostState::Instantiated;
   DBState		m_dbState;
   bool			m_voted = false;
@@ -1340,17 +1357,6 @@ struct ZdbHostPtr_Print : public ZuPrintDelegate {
   }
 };
 ZdbHostPtr_Print ZuPrintType(ZdbHostPtr *);
-
-// FIXME - move to hash table
-struct ZdbHosts_HeapID {
-  static constexpr const char *id() { return "ZdbEnv.Hosts"; }
-};
-using ZdbHosts =
-  ZmRBTree<ZdbHost,
-    ZmRBTreeKey<ZdbHost::IDAxor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeNodeDerive<true,
-	  ZmRBTreeHeapID<ZdbHosts_HeapID> > > > >;
 
 // FIXME - invert ZdbHost class hierarchy
 
@@ -1398,16 +1404,12 @@ friend ZdbHost;
   ZmScheduler::Timer	m_hbTimer;
 };
 
-} // Zdb_
-
 // RunFn(ZmFn<> fn) - run fn on application thread
 typedef uintptr_t *(*ZdbRunFn)(ZmFn<> fn);
 // ActiveFn() - activate / inactivate
 typedef void *(*ZdbActiveFn)(ZdbEnv *);
 
 struct ZdbEnvHandler {
-  ZdbRunFn		runFn =
-    [](ZmFn<> fn) -> uintptr_t { return fn(); };
   ZdbActiveFn		active = [](ZdbEnv *) { };
   ZdbActiveFn		inactive = [](ZdbEnv *) { };
 };
@@ -1415,10 +1417,10 @@ struct ZdbEnvHandler {
 // ZdbEnv configuration
 struct ZdbEnvCf {
   ZtString			path;
-  ZmThreadName			dbThread;
-  mutable unsigned		dbTID = 0;
-  ZmThreadName			writeThread;
-  mutable unsigned		writeTID = 0;
+  ZmThreadName			thread;
+  mutable unsigned		tid = 0;
+  ZmThreadName			fileThread;
+  mutable unsigned		fileTID = 0;
   ZdbCfs			dbCfs;
   ZdbHostCfs			hostCfs;
   unsigned			hostID = 0;
@@ -1435,7 +1437,8 @@ struct ZdbEnvCf {
   ZdbEnvCf() = default;
   ZdbEnvCf(const ZvCf *cf) {
     path = cf->get("path", true);
-    writeThread = cf->get("writeThread", true);
+    thread = cf->get("thread", true);
+    fileThread = cf->get("fileThread");
     {
       ZvCf::Iterator i(cf->subset("dbs", true));
       ZuString key;
@@ -1575,7 +1578,7 @@ private:
   }
 public:
   template <typename L> bool allDBs(L l) const {
-    ReadGuard guard(m_lock);
+    // FIXME - invoke lambda within each DB's thread context
     return allDBs_(ZuMv(l));
   }
 
@@ -1628,6 +1631,7 @@ private:
   void associate(Cxn *cxn, ZuID hostID);
   void associate(Cxn *cxn, ZdbHost *host);
   void disconnected(Cxn *cxn);
+  void disconnected(ZdbHost *host);
 
   void hbRcvd(ZdbHost *host, const Zdb_::fbs::Heartbeat *hb);
   void vote(ZdbHost *host);
@@ -1669,7 +1673,7 @@ private:
 
   ZmSemaphore		*m_stopping = nullptr;
 
-  Lock			m_lock;
+  // specific
     bool		  m_appActive =false;
     ZdbHost		  *m_self = nullptr;
     ZdbHost		  *m_master = nullptr;	// == m_self if Active

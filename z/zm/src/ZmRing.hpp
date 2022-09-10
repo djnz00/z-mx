@@ -43,39 +43,30 @@
 // ring buffer parameters
 class ZmRingParams {
 public:
-  ZmRingParams(unsigned size) :
-    m_size(size), m_ll(false), m_spin(1000), m_timeout(1) { }
+  ZmRingParams(unsigned size) : m_size{size} { }
 
-  ZmRingParams(const ZmRingParams &p) :
-    m_size(p.m_size), m_ll(p.m_ll), m_spin(p.m_spin), m_timeout(p.m_timeout) { }
-  ZmRingParams &operator =(const ZmRingParams &p) {
-    if (this != &p) {
-      m_size = p.m_size;
-      m_ll = p.m_ll;
-      m_spin = p.m_spin;
-      m_timeout = p.m_timeout;
-      m_cpuset = p.m_cpuset;
-    }
-    return *this;
-  }
+  ZmRingParams(const ZmRingParams &) = default; 
+  ZmRingParams &operator =(const ZmRingParams &) = default;
+  ZmRingParams(ZmRingParams &&) = default; 
+  ZmRingParams &operator =(ZmRingParams &&) = default;
 
-  ZmRingParams &size(unsigned n) { m_size = n; return *this; }
-  ZmRingParams &ll(bool b) { m_ll = b; return *this; }
-  ZmRingParams &spin(unsigned n) { m_spin = n; return *this; }
-  ZmRingParams &timeout(unsigned n) { m_timeout = n; return *this; }
-  ZmRingParams &cpuset(const ZmBitmap &b) { m_cpuset = b; return *this; }
+  ZmRingParams &&size(unsigned n) { m_size = n; return ZuMv(*this); }
+  ZmRingParams &&ll(bool b) { m_ll = b; return ZuMv(*this); }
+  ZmRingParams &&spin(unsigned n) { m_spin = n; return ZuMv(*this); }
+  ZmRingParams &&timeout(unsigned n) { m_timeout = n; return ZuMv(*this); }
+  ZmRingParams &&cpuset(ZmBitmap b) { m_cpuset = ZuMv(b); return ZuMv(*this); }
 
-  ZuInline unsigned size() const { return m_size; }
-  ZuInline bool ll() const { return m_ll; }
-  ZuInline unsigned spin() const { return m_spin; }
-  ZuInline unsigned timeout() const { return m_timeout; }
-  ZuInline const ZmBitmap &cpuset() const { return m_cpuset; }
+  unsigned size() const { return m_size; }
+  bool ll() const { return m_ll; }
+  unsigned spin() const { return m_spin; }
+  unsigned timeout() const { return m_timeout; }
+  const ZmBitmap &cpuset() const { return m_cpuset; }
 
 private:
   unsigned	m_size;
-  bool		m_ll;
-  unsigned	m_spin;
-  unsigned	m_timeout;
+  bool		m_ll = false;
+  unsigned	m_spin = 1000;
+  unsigned	m_timeout = 1;
   ZmBitmap	m_cpuset;
 };
 
@@ -94,11 +85,7 @@ protected:
 
   enum { Head = 0, Tail };
 
-  ZmRing_(const ZmRingParams &params) : m_params(params)
-#ifdef _WIN32
-    , m_sem{0, 0}
-#endif
-      { }
+  ZmRing_(ZmRingParams params) : m_params{ZuMv(params)} { }
 
   int open();
   int close();
@@ -124,13 +111,13 @@ protected:
 public:
   void init(const ZmRingParams &params) { m_params = params; }
 
-  ZuInline const ZmRingParams &params() const { return m_params; }
+  const ZmRingParams &params() const { return m_params; }
 
 protected:
   ZmRingParams		m_params;
 private:
 #ifdef _WIN32
-  HANDLE		m_sem[2];
+  HANDLE		m_sem[2] = { 0, 0 };
 #endif
 };
 

@@ -186,7 +186,8 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     enum { Inline = 1 }; \
     template <typename Builder_> \
     static void save(Builder_ &fbb, const O &o) { \
-      using P = ZuType<0, typename ZuDeduce<decltype(&Builder_::add_##ID)>::Args>; \
+      using P = \
+        ZuType<0, typename ZuDeduce<decltype(&Builder_::add_##ID)>::Args>; \
       fbb.add_##ID(static_cast<P>(Base::get(o))); \
     } \
     template <typename FBType_> \

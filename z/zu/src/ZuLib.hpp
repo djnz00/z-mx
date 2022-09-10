@@ -311,8 +311,7 @@ struct ZuType__<0, T0, Args...> {
 template <unsigned I, typename ...Args>
 struct ZuType_ : public ZuType__<I, Args...> { };
 template <unsigned I, typename ...Args>
-struct ZuType_<I, ZuTypeList<Args...>> :
-  public ZuType_<I, Args...> { };
+struct ZuType_<I, ZuTypeList<Args...>> : public ZuType_<I, Args...> { };
 template <unsigned I, typename ...Args>
 using ZuType = typename ZuType_<I, Args...>::T;
 

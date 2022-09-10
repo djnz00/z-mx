@@ -607,19 +607,17 @@ private:
 };
 
 // named parameter list for configuring ZiMultiplex
-class ZiMxParams {
-  ZiMxParams(const ZiMxParams &) = delete;
-  ZiMxParams &operator =(const ZiMxParams &) = delete;
-
-public:
+struct ZiMxParams {
   enum { RxThread = 1, TxThread = 2 }; // defaults
 
   ZiMxParams() :
-    m_scheduler(ZmSchedParams()
+    m_scheduler{ZmSchedParams{}
 	.nThreads(3)
 	.thread(ZiMxParams::RxThread, [](auto &t) { t.isolated(true); })
-	.thread(ZiMxParams::TxThread, [](auto &t) { t.isolated(true); })) { }
+	.thread(ZiMxParams::TxThread, [](auto &t) { t.isolated(true); })} { }
 
+  ZiMxParams(const ZiMxParams &) = default;
+  ZiMxParams &operator =(const ZiMxParams &) = default;
   ZiMxParams(ZiMxParams &&) = default;
   ZiMxParams &operator =(ZiMxParams &&) = default;
 

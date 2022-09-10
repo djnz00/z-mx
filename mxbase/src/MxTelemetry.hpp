@@ -77,8 +77,8 @@ namespace MxTelemetry {
 
   namespace QueueType {
     MxEnumerate(
-	Thread,		// ZmRing (in ZmScheduler)
-	IPC,		// ZiRing (e.g. MxMD broadcast)
+	Thread,		// inter-thread ring buffers, etc.
+	IPC,		// inter-process ring buffers, etc.
 	Rx,		// MxQueue (Rx)
 	Tx		// MxQueue (Tx)
 	);

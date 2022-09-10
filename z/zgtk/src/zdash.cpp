@@ -36,7 +36,7 @@
 
 #include <zlib/ZiMultiplex.hpp>
 #include <zlib/ZiModule.hpp>
-#include <zlib/ZiRing.hpp>
+#include <zlib/ZiVRing.hpp>
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvCSV.hpp>
@@ -884,7 +884,7 @@ public:
   using Server = ZvCmdServer<App_Srv, SrvLink>;
   using User = Server::User;
 
-  class TelRing : public ZiRing {
+  class TelRing : public ZiVRing {
     TelRing() = delete;
     TelRing(const TelRing &) = delete;
     TelRing &operator =(const TelRing &) = delete;
@@ -892,13 +892,13 @@ public:
     TelRing &operator =(TelRing &&) = delete;
   public:
     ~TelRing() = default;
-    TelRing(const ZiRingParams &params) :
-	ZiRing{[](const void *ptr) -> unsigned {
+    TelRing(ZiVRingParams params) :
+	ZiVRing{[](const void *ptr) -> unsigned {
 	  return *static_cast<const uint16_t *>(ptr) + sizeof(uintptr_t) + 2;
-	}, params} { }
+	}, ZuMv(params)} { }
     bool push(CliLink_ *cliLink, ZuArray<const uint8_t> msg) {
       unsigned n = msg.length();
-      if (void *ptr = ZiRing::push(n + sizeof(uintptr_t) + 2)) {
+      if (void *ptr = ZiVRing::push(n + sizeof(uintptr_t) + 2)) {
 	*static_cast<uintptr_t *>(ptr) = reinterpret_cast<uintptr_t>(cliLink);
 	ptr = static_cast<uint8_t *>(ptr) + sizeof(uintptr_t);
 	*static_cast<uint16_t *>(ptr) = n;
@@ -910,15 +910,15 @@ public:
       auto i = writeStatus();
       if (i < 0)
 	ZeLOG(Error, ZtString{} <<
-	    "ZiRing::push() failed - " << Zi::resultName(i));
+	    "ZiVRing::push() failed - " << Zi::resultName(i));
       else
 	ZeLOG(Error, ZtString{} <<
-	    "ZiRing::push() failed - writeStatus=" << i);
+	    "ZiVRing::push() failed - writeStatus=" << i);
       return false;
     }
     template <typename L>
     bool shift(L l) {
-      if (const void *ptr = ZiRing::shift()) {
+      if (const void *ptr = ZiVRing::shift()) {
 	CliLink_ *cliLink =
 	  reinterpret_cast<CliLink_ *>(*static_cast<const uintptr_t *>(ptr));
 	ptr = static_cast<const uint8_t *>(ptr) + sizeof(uintptr_t);
@@ -947,7 +947,7 @@ public:
     {
       ZeError e;
       if (m_telRing->open(
-	    ZiRing::Read | ZiRing::Write | ZiRing::Create, &e) != Zi::OK)
+	    ZiVRing::Read | ZiVRing::Write | ZiVRing::Create, &e) != Zi::OK)
 	throw ZtString{} << m_telRingParams.name() << ": " << e;
       int r;
       if ((r = m_telRing->reset()) != Zi::OK)

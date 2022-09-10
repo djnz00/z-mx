@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// MxMD in-memory broadcast (ZiRing wrapper)
+// MxMD in-memory broadcast (ZiVBxRing wrapper)
 
 #ifndef MxMDBroadcast_HPP
 #define MxMDBroadcast_HPP
@@ -33,7 +33,7 @@
 #include <zlib/ZmPLock.hpp>
 #include <zlib/ZmRef.hpp>
 
-#include <zlib/ZiRing.hpp>
+#include <zlib/ZiVBxRing.hpp>
 
 #include <zlib/ZvRingCf.hpp>
 
@@ -46,12 +46,12 @@ class MxMDAPI MxMDBroadcast {
 public:
   typedef MxMDStream::Hdr Hdr;
 
-  struct Ring : public ZmObject, public ZiRing {
-    Ring(const ZiRingParams &params) :
-	ZiRing{[](const void *ptr) -> unsigned {
+  struct Ring : public ZmObject, public ZiVBxRing {
+    Ring(ZiVBxRingParams params) :
+	ZiVBxRing{[](const void *ptr) -> unsigned {
 	  using Hdr = MxMDStream::Hdr;
 	  return sizeof(Hdr) + static_cast<const Hdr *>(ptr)->len;
-	}, params} { }
+	}, ZuMv(params)} { }
   };
 
   MxMDBroadcast();
@@ -59,12 +59,12 @@ public:
 
   void init(MxMDCore *core);
 
-  const ZiRingParams &params() const { return m_params; }
+  const ZiVBxRingParams &params() const { return m_params; }
 
   bool open(); // returns true if successful, false otherwise
   void close();
 
-  ZmRef<Ring> shadow(ZeError *e = 0);
+  ZmRef<Ring> shadow(ZeError *e = nullptr);
   void close(ZmRef<Ring> ring);
 
   bool active() { return m_openCount; }

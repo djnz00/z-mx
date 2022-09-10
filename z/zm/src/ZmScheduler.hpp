@@ -46,7 +46,7 @@
 #include <zlib/ZmCondition.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmRing.hpp>
-#include <zlib/ZmVRing.hpp>
+#include <zlib/ZmXRing.hpp>
 #include <zlib/ZmRBTree.hpp>
 #include <zlib/ZmThread.hpp>
 #include <zlib/ZmTime.hpp>
@@ -70,12 +70,10 @@ private:
   bool		m_isolated = false;
 };
 
-class ZmAPI ZmSchedParams {
-  ZmSchedParams(const ZmSchedParams &) = delete;
-  ZmSchedParams &operator =(const ZmSchedParams &) = delete;
-
-public:
+struct ZmAPI ZmSchedParams {
   ZmSchedParams() = default;
+  ZmSchedParams(const ZmSchedParams &) = default;
+  ZmSchedParams &operator =(const ZmSchedParams &) = default;
   ZmSchedParams(ZmSchedParams &&) = default;
   ZmSchedParams &operator =(ZmSchedParams &&) = default;
 
@@ -85,8 +83,10 @@ public:
   using ID = ZuID;
 
   ZmSchedParams &&id(ZuID id) { m_id = id; return ZuMv(*this); }
-  ZmSchedParams &&nThreads(unsigned v)
-    { m_threads.length((m_nThreads = v) + 1); return ZuMv(*this); }
+  ZmSchedParams &&nThreads(unsigned v) {
+    m_threads.length((m_nThreads = v) + 1);
+    return ZuMv(*this);
+  }
   ZmSchedParams &&stackSize(unsigned v) { m_stackSize = v; return ZuMv(*this); }
   ZmSchedParams &&priority(unsigned v) { m_priority = v; return ZuMv(*this); }
   ZmSchedParams &&partition(unsigned v) { m_partition = v; return ZuMv(*this); }
@@ -123,9 +123,9 @@ public:
   const Thread &thread(unsigned tid) const { return m_threads[tid]; }
 
 public:
-  template <typename S> unsigned tid(const S &s) {
+  unsigned tid(ZuString s) {
     unsigned tid;
-    if (tid = ZuBox0(unsigned)(s)) return tid;
+    if (tid = ZuBox0(unsigned){s}) return tid;
     for (tid = 0; tid <= m_nThreads; tid++)
       if (s == m_threads[tid].name()) return tid;
     return 0;
@@ -193,7 +193,7 @@ public:
 
 private:
   using Ring = ZmRing<ZmFn<>>;
-  using OverRing_ =  ZmVRing<ZmFn<>, ZmVRingLock<ZmNoLock>>;
+  using OverRing_ =  ZmXRing<ZmFn<>, ZmXRingLock<ZmNoLock>>;
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
     using Guard = ZmGuard<Lock>;
@@ -232,9 +232,9 @@ public:
   ZmScheduler(ZmSchedParams params = {});
   virtual ~ZmScheduler();
 
-  ZuInline const ZmSchedParams &params() const { return m_params; }
+  const ZmSchedParams &params() const { return m_params; }
 protected:
-  ZuInline ZmSchedParams &params_() { return m_params; }
+  ZmSchedParams &params_() { return m_params; }
 
 public:
   bool stop();
@@ -345,11 +345,11 @@ public:
     return m_threads[index - 1].overRing;
   }
 
-  unsigned index(ZuString s) {
-    if (unsigned index = ZuBox0(unsigned)(s))
-      return index;
-    for (unsigned index = 0, n = m_params.nThreads(); index <= n; index++)
-      if (s == m_params.thread(index).name()) return index;
+  unsigned tid(ZuString s) {
+    unsigned tid;
+    if (tid = ZuBox0(unsigned){s}) return tid;
+    for (tid = 0, n = m_params.nThreads(); tid <= n; tid++)
+      if (s == m_params.thread(tid).name()) return tid;
     return 0;
   }
 

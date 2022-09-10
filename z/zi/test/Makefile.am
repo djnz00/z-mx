@@ -9,7 +9,9 @@ LDADD = $(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
 noinst_PROGRAMS = \
-	ZiFileTest ZiFileAgeTest ZiGlobTest ZiRingTest ZiRingTest2 \
+	ZiFileTest ZiFileAgeTest ZiGlobTest \
+	ZiVRingTest ZiVRingTest2 \
+	ZiVBxRingTest ZiVBxRingTest2 \
 	ZiMxClient ZiMxServer ZiMxUDPClient ZiMxUDPServer
 noinst_HEADERS = Global.hpp HttpHeader.hpp
 if NETLINK

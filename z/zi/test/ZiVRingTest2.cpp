@@ -5,13 +5,13 @@
 
 #include <zlib/ZeLog.hpp>
 
-// #define ZiRing_STRESSTEST
-#include <zlib/ZiRing.hpp>
+// #define ZiVRing_STRESSTEST
+#include <zlib/ZiVRing.hpp>
 
 void usage()
 {
   std::cerr <<
-    "usage: ZiRingTest2 [OPTION]... NAME\n"
+    "usage: ZiVRingTest2 [OPTION]... NAME\n"
     "  test read/write ring buffer in shared memory\n"
     "\tNAME\t- name of shared memory segment\n\n"
     "Options:\n"
@@ -19,7 +19,6 @@ void usage()
     "  -w\t\t- write to buffer (default)\n"
     "  -x\t\t- read and write in same process\n"
     "  -l N\t\t- loop N times\n"
-    "  -g\t\t- test GC / attach / detach contention\n"
     "  -b BUFSIZE\t- set buffer size to BUFSIZE (default: 8192)\n"
     "  -m MSGSIZE\t- set message size to MSGSIZE (default: 1024)\n"
     "  -n COUNT\t- set number of messages to COUNT (default: 1)\n"
@@ -32,7 +31,7 @@ void usage()
   Zm::exit(1);
 }
 
-using Ring = ZiRing;
+using Ring = ZiVRing;
 
 class Msg {
 public:
@@ -150,7 +149,7 @@ int App::main(int argc, char **argv)
 
   if (!name) usage();
 
-  ring = new Ring(sizeFn, ZiRingParams(name).
+  ring = new Ring(sizeFn, ZiVRingParams(name).
       size(bufsize).ll(ll).spin(spin).coredump(true).cpuset(cpuset));
 
   for (unsigned i = 0; i < loop; i++) {

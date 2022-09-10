@@ -17,14 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// shared memory ring buffer IPC with broadcast fan-out to multiple readers
-// (up to 64)
-
-// Note: this is broadcast, not conventional SPMC - every consumer processes
-// every message i.e. every message is processed as many times as there are
-// consumers; with normal SPMC, each message is processed once by a single
-// consumer selected from the pool of consumers, typically according to
-// consumer availability/readiness/priority
+// shared memory SPSC ring buffer IPC
 
 // supports fixed- and variable length messages
 // messages are C/C++ POD types
@@ -41,8 +34,8 @@
 // normal	- use  100x average message size
 // low-latency	- use 1000x average message size
 
-#ifndef ZiRing_HPP
-#define ZiRing_HPP
+#ifndef ZiVRing_HPP
+#define ZiVRing_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -61,90 +54,83 @@
 
 #include <zlib/ZiPlatform.hpp>
 #include <zlib/ZiFile.hpp>
+#include <zlib/ZiIPC.hpp>
 
-#ifdef ZiRing_FUNCTEST
-#define ZiRing ZiRingTest
-#define ZiRingAPI
+#ifdef ZiVRing_FUNCTEST
+#define ZiVRing ZiVRingTest
+#define ZiVRingAPI
 #else
-#define ZiRingAPI ZiAPI
+#define ZiVRingAPI ZiAPI
 #endif
 
-#ifdef ZiRing_FUNCTEST
-#define ZiRing_bp(x) (bp_##x.reached(#x))
+#ifdef ZiVRing_FUNCTEST
+#define ZiVRing_bp(x) (bp_##x.reached(#x))
 #else
-#ifdef ZiRing_STRESSTEST
-#define ZiRing_bp(x) Zm::yield()
+#ifdef ZiVRing_STRESSTEST
+#define ZiVRing_bp(x) Zm::yield()
 #else
-#define ZiRing_bp(x) (void)0
+#define ZiVRing_bp(x) (void)0
 #endif
 #endif
 
 // ring buffer parameters
-class ZiRingParams {
+class ZiVRingParams {
 public:
   using Path = Zi::Path;
 
-  ZiRingParams() :
-    m_size(0),
-    m_ll(false), m_spin(1000),
-    m_timeout(1), m_killWait(1), m_coredump(false) { }
+  ZiVRingParams() = default;
+  ZiVRingParams(const ZiVRingParams &) = default;
+  ZiVRingParams &operator =(const ZiVRingParams &) = default;
+  ZiVRingParams(ZiVRingParams &&) = default;
+  ZiVRingParams &operator =(ZiVRingParams &&) = default;
 
-  template <typename Name>
-  ZiRingParams(const Name &name) :
-    m_name(name), m_size(0),
-    m_ll(false), m_spin(1000),
-    m_timeout(1), m_killWait(1), m_coredump(false) { }
-  template <typename Name>
-  ZiRingParams(const Name &name, const ZiRingParams &p) :
-    m_name(name), m_size(p.m_size),
-    m_ll(p.m_ll), m_spin(p.m_spin),
-    m_timeout(p.m_timeout),
-    m_cpuset(p.m_cpuset),
-    m_killWait(p.m_killWait),
-    m_coredump(p.m_coredump) { }
+  ZiVRingParams(ZuString name) : m_name{name} { }
+  ZiVRingParams(ZuString name, ZiVRingParams p) :
+    m_name{name},
+    m_size{p.m_size},
+    m_ll{p.m_ll}, m_spin{p.m_spin},
+    m_timeout{p.m_timeout},
+    m_cpuset{ZuMv(p.m_cpuset)},
+    m_killWait{p.m_killWait},
+    m_coredump{p.m_coredump} { }
 
-  ZiRingParams(const ZiRingParams &) = default;
-  ZiRingParams &operator =(const ZiRingParams &) = default;
-  ZiRingParams(ZiRingParams &&) = default;
-  ZiRingParams &operator =(ZiRingParams &&) = default;
+  ZiVRingParams &&name(ZuString s) { m_name = s; return ZuMv(*this); }
+  ZiVRingParams &&size(unsigned n) { m_size = n; return ZuMv(*this); }
+  ZiVRingParams &&ll(bool b) { m_ll = b; return ZuMv(*this); }
+  ZiVRingParams &&spin(unsigned n) { m_spin = n; return ZuMv(*this); }
+  ZiVRingParams &&timeout(unsigned n) { m_timeout = n; return ZuMv(*this); }
+  ZiVRingParams &&cpuset(ZmBitmap b) {
+    m_cpuset = ZuMv(b);
+    return ZuMv(*this);
+  }
+  ZiVRingParams &&killWait(unsigned n) { m_killWait = n; return ZuMv(*this); }
+  ZiVRingParams &&coredump(bool b) { m_coredump = b; return ZuMv(*this); }
 
-  template <typename Name>
-  ZiRingParams &name(const Name &s) { m_name = s; return *this; }
-  ZiRingParams &size(unsigned n) { m_size = n; return *this; }
-  ZiRingParams &ll(bool b) { m_ll = b; return *this; }
-  ZiRingParams &spin(unsigned n) { m_spin = n; return *this; }
-  ZiRingParams &timeout(unsigned n) { m_timeout = n; return *this; }
-  ZiRingParams &cpuset(const ZmBitmap &b) { m_cpuset = b; return *this; }
-  ZiRingParams &killWait(unsigned n) { m_killWait = n; return *this; }
-  ZiRingParams &coredump(bool b) { m_coredump = b; return *this; }
-
-  ZuInline const ZtString &name() const { return m_name; }
-  ZuInline unsigned size() const { return m_size; }
-  ZuInline bool ll() const { return m_ll; }
-  ZuInline unsigned spin() const { return m_spin; }
-  ZuInline unsigned timeout() const { return m_timeout; }
-  ZuInline const ZmBitmap &cpuset() const { return m_cpuset; }
-  ZuInline unsigned killWait() const { return m_killWait; }
-  ZuInline bool coredump() const { return m_coredump; }
+  const ZtString &name() const { return m_name; }
+  unsigned size() const { return m_size; }
+  bool ll() const { return m_ll; }
+  unsigned spin() const { return m_spin; }
+  unsigned timeout() const { return m_timeout; }
+  const ZmBitmap &cpuset() const { return m_cpuset; }
+  unsigned killWait() const { return m_killWait; }
+  bool coredump() const { return m_coredump; }
 
 private:
   ZtString	m_name;
-  unsigned	m_size;
-  bool		m_ll;
-  unsigned	m_spin;
-  unsigned	m_timeout;
+  unsigned	m_size = 0;
+  bool		m_ll = false;
+  unsigned	m_spin = 1000;
+  unsigned	m_timeout = 1;
   ZmBitmap	m_cpuset;
-  unsigned	m_killWait;
-  bool		m_coredump;
+  unsigned	m_killWait = 1;
+  bool		m_coredump = false;
 };
 
-typedef unsigned (*ZiRingSizeFn)(const void *);
-
-class ZiRingAPI ZiRing {
-  ZiRing(const ZiRing &) = delete;
-  ZiRing &operator =(const ZiRing &) = delete;
-  ZiRing(ZiRing &&) = delete;
-  ZiRing &operator =(ZiRing &&) = delete;
+class ZiVRingAPI ZiVRing : public ZiIPC {
+  ZiVRing(const ZiVRing &) = delete;
+  ZiVRing &operator =(const ZiVRing &) = delete;
+  ZiVRing(ZiVRing &&) = delete;
+  ZiVRing &operator =(ZiVRing &&) = delete;
 
   enum { // head+tail flags
     EndOfFile	= 0x20000000,
@@ -155,38 +141,13 @@ class ZiRingAPI ZiRing {
 
   enum { Head = 0, Tail };
 
-  int open_(ZeError *e = 0);
-  int close_(ZeError *e = 0);
-
-#ifdef linux
-#define ZiRing_wait(index, addr, val) wait(addr, val)
-#define ZiRing_wake(index, addr, n) wake(addr, n)
-  // block until woken or timeout while addr == val
-  int wait(ZmAtomic<uint32_t> &addr, uint32_t val);
-  // wake up waiters on addr (up to n waiters are woken)
-  int wake(ZmAtomic<uint32_t> &addr, int n);
-#endif
-
-#ifdef _WIN32
-#define ZiRing_wait(index, addr, val) wait(index, addr, val)
-#define ZiRing_wake(index, addr, n) wake(index, addr, n)
-  // block until woken or timeout while addr == val
-  int wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val);
-  // wake up waiters on addr (up to n waiters are woken)
-  int wake(unsigned index, ZmAtomic<uint32_t> &addr, int n);
-#endif
-
-  static void getpinfo(uint32_t &pid, ZmTime &start);
-  static bool alive(uint32_t pid, ZmTime start);
-  static bool kill(uint32_t pid, bool coredump);
-
   enum { CacheLineSize = Zm::CacheLineSize };
 
 public:
-  ZiRing(ZiRingSizeFn, const ZiRingParams &params);
-  ~ZiRing();
+  ZiVRing(ZiVRingParams params);
+  ~ZiVRing();
 
-  ZuInline const ZiRingParams &params() const { return m_params; }
+  const ZiVRingParams &params() const { return m_params; }
 
   enum { // open() flags
     Create	= 0x00000001,
@@ -195,7 +156,7 @@ public:
     Shadow	= 0x00000008
   };
 
-#ifndef ZiRing_FUNCTEST
+#ifndef ZiVRing_FUNCTEST
 private:
 #endif
   struct Ctrl {
@@ -213,14 +174,9 @@ private:
 
     ZmAtomic<uint32_t>		openSize; // opened size && latency
     ZmAtomic<uint32_t>		rdrCount; // reader count
-    ZmAtomic<uint64_t>		rdrMask;  // active readers
-    ZmAtomic<uint64_t>		attMask;  // readers pending attach
-    ZmAtomic<uint64_t>		attSeqNo; // attach/detach seqNo
 
     ZmAtomic<uint32_t>		writerPID;
     ZmTime			writerTime;
-    uint32_t			rdrPID[64];
-    ZmTime			rdrTime[64];
   };
 
   ZuInline const Ctrl *ctrl() const {
@@ -259,8 +215,6 @@ private:
 
   ZuInline ZmAtomic<uint32_t> &writerPID() { return ctrl()->writerPID; }
   ZuInline ZmTime &writerTime() { return ctrl()->writerTime; }
-  ZuInline uint32_t *rdrPID() { return ctrl()->rdrPID; }
-  ZuInline ZmTime *rdrTime() { return ctrl()->rdrTime; }
  
 public:
   ZuInline bool operator !() const { return !m_ctrl.addr(); }
@@ -273,7 +227,7 @@ public:
   ZuInline unsigned full() const { return m_full; }
 
   int open(unsigned flags, ZeError *e = nullptr);
-  int shadow(const ZiRing &ring, ZeError *e = nullptr);
+  int shadow(const ZiVRing &ring, ZeError *e = nullptr);
 
 private:
   bool incRdrCount();
@@ -288,24 +242,16 @@ public:
   unsigned length();
 
   ZuInline unsigned align(unsigned size) {
-    return (size + 8 + CacheLineSize - 1) & ~(CacheLineSize - 1);
+    return (size + CacheLineSize - 1) & ~(CacheLineSize - 1);
   }
 
   // writer
 
-  void *push(unsigned size, bool wait_ = true);
-  ZuInline void *tryPush(unsigned size) { return push(size, false); }
-  void push2();
+  void *push(uint32_t size, bool wait_ = true);
+  ZuInline void *tryPush(uint32_t size) { return push(size, false); }
+  void push2(uint32_t size);
 
   void eof(bool b = true);
-
-  // can be called by writer if ring is full to garbage collect
-  // dead readers and any lingering messages intended exclusively for them;
-  // returns space freed, or -1 if ring is empty and no readers
-  int gc();
-
-  // kills all stalled readers (following a timeout), sleeps, then runs gc()
-  int kill();
 
   // can be called by writers after push returns 0; returns
   // NotReady (no readers), EndOfFile,
@@ -314,13 +260,8 @@ public:
 
   // reader
 
-  ZuInline int id() { return m_id; } // -ve if not attached
-
-  int attach();
-  int detach();
-
   void *shift();
-  void shift2();
+  void shift2(uint32_t size);
 
   // can be called by readers after push returns 0; returns
   // EndOfFile (< 0), or amount of data remaining in ring buffer (>= 0)
@@ -330,34 +271,20 @@ public:
       uint64_t &inCount, uint64_t &inBytes, 
       uint64_t &outCount, uint64_t &outBytes) const;
 
-#ifndef ZiRing_FUNCTEST
+#ifndef ZiVRing_FUNCTEST
 private:
 #endif
-  ZiRingSizeFn		m_sizeFn;
-  ZiRingParams		m_params;
-#ifdef _WIN32
-  HANDLE		m_sem[2];
-#endif
+  ZiVRingParams		m_params;
 
-  uint32_t		m_flags;
-  int			m_id;
+  uint32_t		m_flags = 0;
   ZiFile		m_ctrl;
   ZiFile		m_data;
-  uint32_t		m_tail;	// reader only
-  uint32_t		m_full;
+  uint32_t		m_tail = 0;	// reader only
+  uint32_t		m_full = 0;
 
-#ifdef ZiRing_FUNCTEST
-  ZiRing_Breakpoint	bp_attach1;
-  ZiRing_Breakpoint	bp_attach2;
-  ZiRing_Breakpoint	bp_attach3;
-  ZiRing_Breakpoint	bp_attach4;
-  ZiRing_Breakpoint	bp_detach1;
-  ZiRing_Breakpoint	bp_detach2;
-  ZiRing_Breakpoint	bp_detach3;
-  ZiRing_Breakpoint	bp_detach4;
-  ZiRing_Breakpoint	bp_detach5;
-  ZiRing_Breakpoint	bp_shift1;
+#ifdef ZiVRing_FUNCTEST
+  ZiVRing_Breakpoint	bp_shift1;
 #endif
 };
 
-#endif /* ZiRing_HPP */
+#endif /* ZiVRing_HPP */

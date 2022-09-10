@@ -182,10 +182,22 @@ protected:
   mutable uintptr_t	m_object;
 };
 
+// lambda wrapper object (heap-allocated)
+template <typename L, typename Heap>
+struct ZmLambda_ : public Heap, public ZmPolymorph, public L {
+  ZmLambda_() = delete;
+  ZmLambda_(const ZmLambda_ &) = delete;
+  ZmLambda_ &operator =(const ZmLambda_ &) = delete;
+  ZmLambda_(ZmLambda_ &&) = delete;
+  ZmLambda_ &operator =(ZmLambda_ &&) = delete;
+  template <typename L_> ZuInline ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
+};
 struct ZmLambda_HeapID {
   static constexpr const char *id() { return "ZmLambda"; }
 };
-template <typename L, class HeapID> struct ZmLambda;
+template <typename, unsigned> struct ZmHeap;
+template <typename L, typename HeapID = ZmLambda_HeapID>
+using ZmLambda = ZmLambda_<L, ZmHeap<HeapID, sizeof(ZmLambda_<L, ZuNull>)>>;
 
 template <typename ...Args> class ZmFn : public ZmAnyFn {
   typedef uintptr_t (*Invoker)(uintptr_t &, Args...);

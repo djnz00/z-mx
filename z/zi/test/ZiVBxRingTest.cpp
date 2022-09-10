@@ -8,9 +8,9 @@
 #include <zlib/ZmSingleton.hpp>
 #include <zlib/ZmThread.hpp>
 
-class ZiRing_Breakpoint {
+class ZiVBxRing_Breakpoint {
 public:
-  ZiRing_Breakpoint() : m_enabled(false), m_oneshot(false) { }
+  ZiVBxRing_Breakpoint() : m_enabled(false), m_oneshot(false) { }
   void enable(bool oneshot = true) {
     m_enabled = true;
     m_oneshot = oneshot;
@@ -33,9 +33,9 @@ private:
   ZmSemaphore	m_proceed;
 };
 
-#define ZiRing_FUNCTEST
-#include <zlib/ZiRing.hpp>
-#include "../src/ZiRing.cpp"
+#define ZiVBxRing_FUNCTEST
+#include <zlib/ZiVBxRing.hpp>
+#include "../src/ZiVBxRing.cpp"
 
 void fail()
 {
@@ -50,7 +50,7 @@ void check_(bool ok, unsigned line, const char *exp)
   if (!ok) fail();
 }
 
-using Ring = ZiRing;
+using Ring = ZiVBxRing;
 
 class Msg {
 public:
@@ -83,15 +83,15 @@ public:
   const Thread *thread(unsigned i) const { return m_threads[i]; }
   Thread *thread(unsigned i) { return m_threads[i]; }
 
-  void start(unsigned nThreads, const ZiRingParams &params);
+  void start(unsigned nThreads, ZiVBxRingParams params);
   void stop();
 
-  const ZiRingParams &params() const { return m_params; }
+  const ZiVBxRingParams &params() const { return m_params; }
 
 private:
   unsigned	m_nThreads;
   ZmRef<Thread>	*m_threads;
-  ZiRingParams	m_params;
+  ZiVBxRingParams	m_params;
 };
 
 class Work;
@@ -146,9 +146,9 @@ private:
   ZeError		m_error;
 };
 
-void App::start(unsigned nThreads, const ZiRingParams &params)
+void App::start(unsigned nThreads, ZiVBxRingParams params)
 {
-  m_params = params;
+  m_params = ZuMv(params);
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
   for (unsigned i = 0; i < nThreads; i++)
     (m_threads[i] = new Thread(this, i))->start();
@@ -287,7 +287,7 @@ int synchronous(int tid, Work *work, ZeError *e = 0)
   return app()->thread(tid)->synchronous(work, e);
 }
 
-void asynchronous_(int tid, Work *work, ZiRing_Breakpoint &bp)
+void asynchronous_(int tid, Work *work, ZiVBxRing_Breakpoint &bp)
 {
   bp.enable();
   app()->thread(tid)->asynchronous(work);
@@ -320,15 +320,15 @@ int result(int tid, ZeError *e = 0)
 void cleanup()
 {
 #ifndef _WIN32
-  unlink("/dev/shm/ZiRingTest.ctrl");
-  unlink("/dev/shm/ZiRingTest.data");
+  unlink("/dev/shm/ZiVBxRingTest.ctrl");
+  unlink("/dev/shm/ZiVBxRingTest.data");
 #endif
 }
 
 void usage()
 {
   std::cerr <<
-    "usage: ZiRingTest [SIZE]\n"
+    "usage: ZiVBxRingTest [SIZE]\n"
     "\tSIZE - optional requested size of ring buffer\n"
     << std::flush;
   Zm::exit(1);
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
     if (!size) usage();
   }
 
-  app()->start(3, ZiRingParams("ZiRingTest").size(size));
+  app()->start(3, ZiVBxRingParams("ZiVBxRingTest").size(size));
 
   check(synchronous(0, Open(Ring::Read | Ring::Create)) == Zi::OK);
   check(synchronous(1, Open(Ring::Read | Ring::Create)) == Zi::OK);

@@ -42,7 +42,7 @@ template <> struct ZuCmp<ZuNull> {
   ZuInline static constexpr bool less(ZuNull, ZuNull) { return false; }
   ZuInline static constexpr bool equals(ZuNull, ZuNull) { return true; }
   ZuInline static constexpr bool null(ZuNull) { return true; }
-  ZuInline static const ZuNull &null() { static const ZuNull _; return _; }
+  ZuInline static constexpr ZuNull null() { return {}; }
 };
 
 #endif /* ZuNull_HPP */

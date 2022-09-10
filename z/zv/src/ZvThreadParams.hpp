@@ -38,17 +38,20 @@
 #include <zlib/ZvTelemetry.hpp>
 
 struct ZvThreadParams : public ZmThreadParams {
-  ZvThreadParams() { }
-
-  ZvThreadParams(const ZmThreadParams &p) : ZmThreadParams(p) { }
+  ZvThreadParams(const ZmThreadParams &p) : ZmThreadParams{p} { }
   ZvThreadParams &operator =(const ZmThreadParams &p) {
     ZmThreadParams::operator =(p);
     return *this;
   }
+  ZvThreadParams(ZmThreadParams &&p) : ZmThreadParams{ZuMv(p)} { }
+  ZvThreadParams &operator =(ZmThreadParams &&p) {
+    ZmThreadParams::operator =(ZuMv(p));
+    return *this;
+  }
 
   ZvThreadParams(const ZvCf *cf) { init(cf); }
-  ZvThreadParams(const ZvCf *cf, const ZmThreadParams &deflt) :
-      ZmThreadParams(deflt) { init(cf); }
+  ZvThreadParams(const ZvCf *cf, ZmThreadParams deflt) :
+      ZmThreadParams{ZuMv(deflt)} { init(cf); }
 
   void init(const ZvCf *cf) {
     ZmThreadParams::operator =(ZmThreadParams{});

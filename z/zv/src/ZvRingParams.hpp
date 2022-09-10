@@ -35,17 +35,20 @@
 #include <zlib/ZvCf.hpp>
 
 struct ZvRingParams : public ZiRingParams {
-  ZvRingParams() { }
-
-  ZvRingParams(const ZiRingParams &p) : ZiRingParams(p) { }
+  ZvRingParams(const ZiRingParams &p) : ZiRingParams{p} { }
   ZvRingParams &operator =(const ZiRingParams &p) {
     ZiRingParams::operator =(p);
     return *this;
   }
+  ZvRingParams(ZiRingParams &&p) : ZiRingParams{ZuMv(p)} { }
+  ZvRingParams &operator =(ZiRingParams &&p) {
+    ZiRingParams::operator =(ZuMv(p));
+    return *this;
+  }
 
   ZvRingParams(const ZvCf *cf) { init(cf); }
-  inline ZvRingParams(const ZvCf *cf, const ZiRingParams &deflt) :
-      ZiRingParams(deflt) { init(cf); }
+  ZvRingParams(const ZvCf *cf, ZiRingParams deflt) :
+      ZiRingParams{ZuMv(deflt)} { init(cf); }
 
   void init(const ZvCf *cf) {
     if (!cf) return;

@@ -84,10 +84,11 @@ struct ZmTLock_Depth : public ZmObject {
 
 struct ZmTLockParams {
   ZmTLockParams() :
-    m_idHash(ZmHashParams().bits(8)),
-    m_tidHash(ZmHashParams().bits(8)) { }
-  ZmTLockParams &idHash(ZmHashParams p) { m_idHash = p; return *this; }
-  ZmTLockParams &tidHash(ZmHashParams p) { m_tidHash = p; return *this; }
+    m_idHash(ZmHashParams{}.bits(8)),
+    m_tidHash(ZmHashParams{}.bits(8)) { }
+
+  ZmTLockParams &&idHash(ZmHashParams p) { m_idHash = p; return ZuMv(*this); }
+  ZmTLockParams &&tidHash(ZmHashParams p) { m_tidHash = p; return ZuMv(*this); }
 
   ZmHashParams	m_idHash;
   ZmHashParams	m_tidHash;

@@ -171,7 +171,7 @@ private:
   ZiFile		m_index;
 };
 
-using AlertRing = ZmVRing<ZmRef<IOBuf> >;
+using AlertRing = ZmXRing<ZmRef<IOBuf> >;
 
 template <typename App_, typename Link_>
 class Server : public ZvEngineMgr {

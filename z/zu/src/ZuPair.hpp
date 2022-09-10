@@ -64,14 +64,6 @@ struct ZuTraits<ZuPair<T0, T1>> : public ZuBaseTraits<ZuPair<T0, T1>> {
   enum { IsPOD = ZuTraits<T0>::IsPOD && ZuTraits<T1>::IsPOD };
 };
 
-template <unsigned, typename, typename> struct ZuPair_Type_;
-template <typename T0, typename T1>
-struct ZuPair_Type_<0, T0, T1> { using T = T0; };
-template <typename T0, typename T1>
-struct ZuPair_Type_<1, T0, T1> { using T = T1; };
-template <unsigned I, typename T0, typename T1>
-using ZuPair_Type = typename ZuPair_Type_<I, T0, T1>::T;
-
 template <typename U0, typename U1> struct ZuPair_Print_ {
   ZuPair_Print_() = delete;
   ZuPair_Print_(const ZuPair_Print_ &) = delete;
@@ -125,10 +117,6 @@ struct ZuPair_Print<U0, U1, true, true> :
   }
 };
 
-template <typename T0, typename T1>
-struct ZuPair_Bind {
-};
-
 namespace Zu_ {
 template <typename T0_, typename T1_> class Pair_ : public ZuPair_ {
   template <typename, typename> friend class Pair_;
@@ -138,8 +126,8 @@ public:
   using T1 = T1_;
   using U0 = ZuDeref<T0_>;
   using U1 = ZuDeref<T1_>;
-  template <unsigned I> using Type = ZuPair_Type<I, T0, T1>;
   using Types = ZuTypeList<T0, T1>;
+  template <unsigned I> using Type = ZuType<I, Types>;
 
   template <typename T, typename> struct Bind_P0 {
     static decltype(auto) p0(const T &v) { return v.m_p0; }

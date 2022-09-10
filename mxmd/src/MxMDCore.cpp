@@ -883,7 +883,7 @@ void MxMDCore::subscribeCmd(ZvCf *args, ZtArray<char> &out)
     return;
   }
   if (argc != 2) throw ZvCmdUsage();
-  ZiRingParams ringParams(args->get("1"), m_broadcast.params());
+  ZiVBxRingParams ringParams(args->get("1"), m_broadcast.params());
   if (ZtString spin = args->get("spin"))
     ringParams.spin(ZvCf::toInt("spin", spin, 0, INT_MAX));
   if (ZtString timeout = args->get("timeout"))

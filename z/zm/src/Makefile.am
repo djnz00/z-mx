@@ -8,7 +8,7 @@ pkginclude_HEADERS = \
 	ZmAllocator.hpp ZmHeap.hpp ZmVHeap.hpp \
 	ZmBackTrace.hpp ZmBackTrace_.hpp ZmBackTrace_print.hpp \
 	ZmBackTracer.hpp ZmBackoff.hpp ZmBitmap.hpp ZmBlock.hpp \
-	ZmBxRing.hpp ZmCleanup.hpp ZmCondition.hpp ZmVRing.hpp \
+	ZmBxRing.hpp ZmCleanup.hpp ZmCondition.hpp ZmXRing.hpp \
 	ZmFn.hpp ZmFn_.hpp ZmFn_Lambda.hpp ZmGlobal.hpp ZmGuard.hpp \
 	ZmHash.hpp ZmHashMgr.hpp ZmNode.hpp ZmLHash.hpp \
 	ZmLib.hpp ZmList.hpp ZmLock.hpp ZmLockTraits.hpp ZmNoLock.hpp \

@@ -702,9 +702,9 @@ typedef ZmFn<MxDateTime, MxDateTime &> MxMDTimerFn;
 struct MxMDLibHandler : public ZmObject {
 #define MxMDLibHandler_Fn(Type, member) \
   template <typename Arg> \
-  MxMDLibHandler & member##Fn(Arg &&arg) { \
+  MxMDLibHandler && member##Fn(Arg &&arg) { \
     member = ZuFwd<Arg>(arg); \
-    return *this; \
+    return ZuMv(*this); \
   } \
   Type	member
   MxMDLibHandler_Fn(MxMDExceptionFn,		exception);
@@ -729,9 +729,9 @@ struct MxMDLibHandler : public ZmObject {
 struct MxMDInstrHandler : public ZuObject {
 #define MxMDInstrHandler_Fn(Type, member) \
   template <typename Arg> \
-  MxMDInstrHandler & member##Fn(Arg &&arg) { \
+  MxMDInstrHandler && member##Fn(Arg &&arg) { \
     member = ZuFwd<Arg>(arg); \
-    return *this; \
+    return ZuMv(*this); \
   } \
   Type	member
   MxMDInstrHandler_Fn(MxMDInstrumentFn,	updatedInstrument); // ref. data changed

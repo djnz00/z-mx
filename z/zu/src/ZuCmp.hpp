@@ -148,10 +148,8 @@ template <typename T, bool isSmallInt> struct ZuCmp_Integral {
   static bool less(T i1, T i2) { return i1 < i2; }
   static bool equals(T i1, T i2) { return i1 == i2; }
   static bool null(T i) { return i == null(); }
-  static const T &null() {
-    static const T i =
-      ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
-    return i;
+  static constexpr T null() {
+    return ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
   }
   static T epsilon(T f) { return 0; }
 };
@@ -168,10 +166,8 @@ template <typename T> struct ZuCmp_Integral<T, true> {
   static bool less(T i1, T i2) { return i1 < i2; }
   static bool equals(T i1, T i2) { return i1 == i2; }
   static bool null(T i) { return i == null(); }
-  static const T &null() {
-    static const T i =
-      ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
-    return i;
+  static constexpr T null() {
+    return ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
   }
   static T epsilon(T f) { return 0; }
 };
@@ -182,7 +178,7 @@ template <typename T> struct ZuCmp_Floating {
   static int cmp(T f1, T f2) { return (f1 > f2) - (f1 < f2); }
   static bool less(T f1, T f2) { return f1 < f2; }
   static bool equals(T f1, T f2) { return f1 == f2; }
-  static T null() { return ZuTraits<T>::nan(); }
+  static T null() { return ZuTraits<T>::nan(); } // can't be constexpr
   static bool null(T f) { return ZuTraits<T>::nan(f); }
   static constexpr T inf() { return ZuTraits<T>::inf(); }
   static bool inf(T f) { return ZuTraits<T>::inf(f); }
@@ -276,7 +272,7 @@ template <typename T> struct ZuCmp_Pointer {
   static bool less(const P *p1, const P *p2) { return p1 < p2; }
   static bool equals(const P *p1, const P *p2) { return p1 == p2; }
   static bool null(const P *p) { return !p; }
-  static const T &null() { static const T v = nullptr; return v; }
+  static constexpr T null() { return nullptr; }
 };
 
 template <typename T, bool IsCString>
@@ -463,7 +459,7 @@ struct ZuCmp_String<T, 1, IsString, 0> {
   }
   static bool null(const char *s) { return !s || !*s; }
   static const T &null() {
-    static const T r = static_cast<const T>(reinterpret_cast<const char *>(0));
+    static const T r = static_cast<const T>(static_cast<const char *>(nullptr));
     return r;
   }
 };
@@ -525,7 +521,7 @@ struct ZuCmp_String<T, 1, IsString, 1> {
   static bool null(const wchar_t *w) { return !w || !*w; }
   static const T &null() {
     static const T r =
-      static_cast<const T>(reinterpret_cast<const wchar_t *>(0));
+      static_cast<const T>(static_cast<const wchar_t *>(nullptr));
     return r;
   }
 };
@@ -573,7 +569,7 @@ template <> struct ZuCmp_<bool> {
   static bool less(bool b1, bool b2) { return b1 < b2; }
   static bool equals(bool b1, bool b2) { return b1 == b2; }
   static bool null(bool b) { return !b; }
-  static const bool &null() { static const bool b = 0; return b; }
+  static constexpr bool null() { return false; }
 };
 
 // comparison of char (null value should be '\0')
@@ -583,7 +579,7 @@ template <> struct ZuCmp_<char> {
   static bool less(char c1, char c2) { return c1 < c2; }
   static bool equals(char c1, char c2) { return c1 == c2; }
   static bool null(char c) { return !c; }
-  static const char &null() { static const char c = 0; return c; }
+  static constexpr char null() { return 0; }
 };
 
 // comparison of void
@@ -599,7 +595,7 @@ template <typename T> struct ZuCmp : public ZuCmp_<ZuDecay<T>> { };
 template <typename T> struct ZuCmp0 : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return !v; }
-  static const U &null() { static const U v = 0; return v; }
+  static constexpr U null() { return 0; }
 };
 
 // same as ZuCmp<T> but with -1 (or any negative value) as the null value
@@ -607,7 +603,7 @@ template <typename T> struct ZuCmp0 : public ZuCmp<T> {
 template <typename T> struct ZuCmp_1 : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return v < 0; }
-  static const U &null() { static const U v = -1; return v; }
+  static constexpr U null() { return -1; }
 };
 
 // same as ZuCmp<T> but with N as the null value
@@ -615,7 +611,7 @@ template <typename T> struct ZuCmp_1 : public ZuCmp<T> {
 template <typename T, ZuDecay<T> N> struct ZuCmpN : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return v == N; }
-  static const U &null() { static const U v = N; return v; }
+  static constexpr U null() { return N; }
 };
 
 #ifdef _MSC_VER

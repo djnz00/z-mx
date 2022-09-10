@@ -31,7 +31,7 @@
 #endif
 
 #include <zlib/ZmFn.hpp>
-#include <zlib/ZmVRing.hpp>
+#include <zlib/ZmXRing.hpp>
 #include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmBlock.hpp>
 
@@ -70,7 +70,7 @@ private:
 
   struct HeapID { static constexpr const char *id() { return "ZmEngine"; } };
   using CtrlFnRing =
-    ZmVRing<ZmFn<bool>, ZmVRingLock<ZmNoLock, ZmVRingHeapID<HeapID>>>;
+    ZmXRing<ZmFn<bool>, ZmXRingHeapID<HeapID>>;
 
 public:
   void start(ZmFn<bool>);	// async
@@ -233,11 +233,9 @@ template <typename Impl>
 inline bool ZmEngine<Impl>::stopped()
 {
   using namespace ZmEngineState;
-  ReadGuard guard(m_lock);
   switch (m_state) {
     case Stopping:
     case StartPending:
-      guard.unlock();
       impl()->stop_();
       return true;
   }

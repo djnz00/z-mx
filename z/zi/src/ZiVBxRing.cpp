@@ -21,23 +21,19 @@
 
 #include <zlib/ZuStringN.hpp>
 
-#include <zlib/ZiRing.hpp>
+#include <zlib/ZiVBxRing.hpp>
 
-ZiRing::ZiRing(ZiRingSizeFn fn, const ZiRingParams &params) :
-    m_sizeFn(fn), m_params(params)
-#ifdef _WIN32
-    , m_sem{0, 0}
-#endif
-    , m_flags(0), m_id(-1), m_tail(0), m_full(0)
+ZiVBxRing::ZiVBxRing(ZiVBxRingSizeFn fn, ZiVBxRingParams params) :
+    m_sizeFn{fn}, m_params{ZuMv(params)}
 {
 }
 
-ZiRing::~ZiRing()
+ZiVBxRing::~ZiVBxRing()
 {
   close();
 }
 
-void ZiRing::getpinfo(uint32_t &pid, ZmTime &start)
+void ZiVBxRing::getpinfo(uint32_t &pid, ZmTime &start)
 {
 #ifdef linux
   pid = getpid();
@@ -54,7 +50,7 @@ void ZiRing::getpinfo(uint32_t &pid, ZmTime &start)
 #endif
 }
 
-bool ZiRing::alive(uint32_t pid, ZmTime start)
+bool ZiVBxRing::alive(uint32_t pid, ZmTime start)
 {
   if (!pid) return false;
 #ifdef linux
@@ -76,7 +72,7 @@ bool ZiRing::alive(uint32_t pid, ZmTime start)
 #endif
 }
 
-bool ZiRing::kill(uint32_t pid, bool coredump)
+bool ZiVBxRing::kill(uint32_t pid, bool coredump)
 {
   if (!pid) return false;
 #ifdef linux
@@ -96,11 +92,11 @@ bool ZiRing::kill(uint32_t pid, bool coredump)
 #include <sys/syscall.h>
 #include <linux/futex.h>
 
-int ZiRing::open_(ZeError *e) { return Zi::OK; }
+int ZiVBxRing::open_(ZeError *e) { return Zi::OK; }
 
-int ZiRing::close_(ZeError *e) { return Zi::OK; }
+int ZiVBxRing::close_(ZeError *e) { return Zi::OK; }
 
-int ZiRing::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
+int ZiVBxRing::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
 {
   if (addr.cmpXch(val | Waiting, val) != val) return Zi::OK;
   val |= Waiting;
@@ -133,7 +129,7 @@ int ZiRing::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
   return Zi::OK;
 }
 
-int ZiRing::wake(ZmAtomic<uint32_t> &addr, int n)
+int ZiVBxRing::wake(ZmAtomic<uint32_t> &addr, int n)
 {
   addr &= ~Waiting;
   syscall(SYS_futex, (volatile int *)&addr, FUTEX_WAKE, n, 0, 0, 0);
@@ -144,7 +140,7 @@ int ZiRing::wake(ZmAtomic<uint32_t> &addr, int n)
 
 #ifdef _WIN32
 
-int ZiRing::open_(ZeError *e)
+int ZiVBxRing::open_(ZeError *e)
 {
   if (m_sem[Head]) return Zi::OK;
   ZiFile::Path path(m_params.name().length() + 16);
@@ -162,7 +158,7 @@ int ZiRing::open_(ZeError *e)
   return Zi::OK;
 }
 
-int ZiRing::close_(ZeError *e)
+int ZiVBxRing::close_(ZeError *e)
 {
   if (!m_sem[Head]) return Zi::OK;
   bool error = false;
@@ -172,7 +168,7 @@ int ZiRing::close_(ZeError *e)
   return error ? Zi::IOError : Zi::OK;
 }
 
-int ZiRing::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
+int ZiVBxRing::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
 {
   if (addr.cmpXch(val | Waiting, val) != val) return Zi::OK;
   val |= Waiting;
@@ -193,7 +189,7 @@ int ZiRing::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
   return Zi::OK;
 }
 
-int ZiRing::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
+int ZiVBxRing::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
 {
   addr &= ~Waiting;
   ReleaseSemaphore(m_sem[index], n, 0);
@@ -202,7 +198,7 @@ int ZiRing::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
 
 #endif /* _WIN32 */
 
-int ZiRing::open(unsigned flags, ZeError *e)
+int ZiVBxRing::open(unsigned flags, ZeError *e)
 {
   if (m_ctrl.addr()) goto einval;
   if (!m_params.name()) goto einval;
@@ -277,12 +273,14 @@ einval:
   return Zi::IOError;
 }
 
-int ZiRing::shadow(const ZiRing &ring, ZeError *e)
+int ZiVBxRing::shadow(const ZiVBxRing &ring, ZeError *e)
 {
   if (m_ctrl.addr() || !ring.m_ctrl.addr()) {
     if (e) *e = ZiEINVAL;
     return Zi::IOError;
   }
+  m_params = ring.m_params;
+  m_flags = Read | Shadow;
   if (!m_params.ll() && open_(e) != Zi::OK) return Zi::IOError;
   if (m_ctrl.shadow(ring.m_ctrl, e) != Zi::OK) {
     if (!m_params.ll()) close_();
@@ -300,14 +298,12 @@ int ZiRing::shadow(const ZiRing &ring, ZeError *e)
     if (e) *e = ZiEADDRINUSE;
     return Zi::IOError;
   }
-  m_params = ring.m_params;
-  m_flags = Read | Shadow;
   m_id = -1;
   m_tail = 0;
   return Zi::OK;
 }
 
-bool ZiRing::incRdrCount()
+bool ZiVBxRing::incRdrCount()
 {
   uint32_t rdrCount;
   do {
@@ -317,7 +313,7 @@ bool ZiRing::incRdrCount()
   return true;
 }
 
-void ZiRing::close()
+void ZiVBxRing::close()
 {
   if (!m_ctrl.addr()) return;
   if (m_flags & Read) {
@@ -333,7 +329,7 @@ void ZiRing::close()
   if (!m_params.ll()) close_();
 }
 
-int ZiRing::reset()
+int ZiVBxRing::reset()
 {
   if (!m_ctrl.addr()) return Zi::IOError;
   if ((m_flags & Read) && m_id >= 0) detach();
@@ -343,7 +339,7 @@ int ZiRing::reset()
   return Zi::OK;
 }
 
-unsigned ZiRing::length()
+unsigned ZiVBxRing::length()
 {
   uint32_t head = this->head().load_() & ~Mask;
   uint32_t tail = this->tail().load_() & ~Mask;
@@ -355,7 +351,7 @@ unsigned ZiRing::length()
   return size() - (tail - head);
 }
 
-void *ZiRing::push(unsigned size, bool wait_)
+void *ZiVBxRing::push(unsigned size, bool wait_)
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Write);
@@ -366,10 +362,10 @@ void *ZiRing::push(unsigned size, bool wait_)
 
 retry:
   uint64_t rdrMask = this->rdrMask().load_();
-  if (!rdrMask) return 0; // no readers
+  if (!rdrMask) return nullptr; // no readers
 
   uint32_t head = this->head().load_();
-  if (ZuUnlikely(head & EndOfFile)) return 0; // EOF
+  if (ZuUnlikely(head & EndOfFile)) return nullptr; // EOF
   uint32_t tail = this->tail(); // acquire
   uint32_t head_ = head & ~(Wrapped | Mask);
   uint32_t tail_ = tail & ~(Wrapped | Mask);
@@ -378,22 +374,22 @@ retry:
 	(head_ + size >= tail_) :
 	(head_ + size >= tail_ + this->size())))) {
       int j = gc();
-      if (ZuUnlikely(j < 0)) return 0;
+      if (ZuUnlikely(j < 0)) return nullptr;
       if (ZuUnlikely(j > 0)) goto retry;
       ++m_full;
-      if (!wait_) return 0;
+      if (!wait_) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (ZiRing_wait(Tail, this->tail(), tail) != Zi::OK) return 0;
+	if (ZiIPC_wait(Tail, this->tail(), tail) != Zi::OK) return nullptr;
       goto retry;
     }
   }
 
   uint8_t *ptr = &(data())[head_];
   *reinterpret_cast<uint64_t *>(ptr) = rdrMask;
-  return (void *)&ptr[8];
+  return &ptr[8];
 }
 
-void ZiRing::push2()
+void ZiVBxRing::push2()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Write);
@@ -407,7 +403,7 @@ void ZiRing::push2()
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiRing_wake(Head, this->head(), rdrCount().load_());
+      ZiIPC_wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 
@@ -415,7 +411,7 @@ void ZiRing::push2()
   this->inBytes().store_(this->inBytes().load_() + size_);
 }
 
-void ZiRing::eof(bool b)
+void ZiVBxRing::eof(bool b)
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Write);
@@ -428,12 +424,12 @@ void ZiRing::eof(bool b)
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiRing_wake(Head, this->head(), rdrCount().load_());
+      ZiIPC_wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 }
 
-int ZiRing::gc()
+int ZiVBxRing::gc()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Write);
@@ -482,7 +478,7 @@ int ZiRing::gc()
       if (ZuUnlikely(!m_params.ll())) {
 	if (ZuUnlikely(
 	      this->tail().xch(tail | (tail_ & (Mask & ~Waiting))) & Waiting))
-	  ZiRing_wake(Tail, this->tail(), 1);
+	  ZiIPC_wake(Tail, this->tail(), 1);
       } else
 	this->tail() = tail | (tail_ & Mask); // release
     }
@@ -499,7 +495,7 @@ int ZiRing::gc()
   return freed;
 }
 
-int ZiRing::kill()
+int ZiVBxRing::kill()
 {
   uint64_t targets;
   {
@@ -515,7 +511,7 @@ int ZiRing::kill()
   return gc();
 }
 
-int ZiRing::writeStatus()
+int ZiVBxRing::writeStatus()
 {
   ZmAssert(m_flags & Write);
 
@@ -529,7 +525,7 @@ int ZiRing::writeStatus()
   return size() - (head - tail);
 }
 
-int ZiRing::attach()
+int ZiVBxRing::attach()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Read);
@@ -555,7 +551,7 @@ int ZiRing::attach()
 
   getpinfo(rdrPID()[m_id], rdrTime()[m_id]);
 
-  /**/ZiRing_bp(attach1);
+  /**/ZiVBxRing_bp(attach1);
 
   // skip any trailing messages not intended for us, since other readers
   // may be concurrently advancing the ring's tail; this must be
@@ -563,9 +559,9 @@ int ZiRing::attach()
   // unaware of our attach
   uint32_t tail = this->tail().load_() & ~Mask;
   uint32_t head = this->head() & ~Mask, head_; // acquire
-  /**/ZiRing_bp(attach2);
+  /**/ZiVBxRing_bp(attach2);
   rdrMask() |= (1ULL<<m_id); // notifies the writer about an attach
-  /**/ZiRing_bp(attach3);
+  /**/ZiVBxRing_bp(attach3);
   do {
     while (tail != head) {
       uint8_t *ptr = &(data())[tail & ~Wrapped];
@@ -575,7 +571,7 @@ int ZiRing::attach()
       if ((tail & ~Wrapped) >= size()) tail = (tail ^ Wrapped) - size();
     }
     head_ = head;
-    /**/ZiRing_bp(attach4);
+    /**/ZiVBxRing_bp(attach4);
     head = this->head() & ~Mask; // acquire
   } while (head != head_);
 
@@ -587,7 +583,7 @@ done:
   return Zi::OK;
 }
 
-int ZiRing::detach()
+int ZiVBxRing::detach()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Read);
@@ -597,14 +593,14 @@ int ZiRing::detach()
   ++(this->attSeqNo());
 
   rdrMask() &= ~(1ULL<<m_id); // notifies the writer about a detach
-  /**/ZiRing_bp(detach1);
+  /**/ZiVBxRing_bp(detach1);
 
   // drain any trailing messages that are waiting to be read by us,
   // advancing ring's tail as needed; this must be
   // re-attempted as long as the head keeps moving and the writer remains
   // unaware of our detach
   uint32_t tail = m_tail;
-  /**/ZiRing_bp(detach2);
+  /**/ZiVBxRing_bp(detach2);
   uint32_t head = this->head() & ~Mask, head_; // acquire
   do {
     while (tail != head) {
@@ -615,22 +611,22 @@ int ZiRing::detach()
       if ((tail & ~Wrapped) >= size()) tail = (tail ^ Wrapped) - size();
       if (*reinterpret_cast<ZmAtomic<uint64_t> *>(ptr) &= ~(1ULL<<m_id))
 	continue;
-      /**/ZiRing_bp(detach3);
+      /**/ZiVBxRing_bp(detach3);
       if (ZuUnlikely(!m_params.ll())) {
 	if (ZuUnlikely(this->tail().xch(tail) & Waiting))
-	  ZiRing_wake(Tail, this->tail(), 1);
+	  ZiIPC_wake(Tail, this->tail(), 1);
       } else
 	this->tail() = tail; // release
     }
     head_ = head;
-    /**/ZiRing_bp(detach4);
+    /**/ZiVBxRing_bp(detach4);
     head = this->head() & ~Mask; // acquire
   } while (head != head_);
 done:
   m_tail = tail;
 
   // release ID for re-use by future attach
-  /**/ZiRing_bp(detach5);
+  /**/ZiVBxRing_bp(detach5);
   rdrPID()[m_id] = 0, rdrTime()[m_id] = ZmTime();
 
   ++(this->attSeqNo());
@@ -641,7 +637,7 @@ done:
   return Zi::OK;
 }
 
-void *ZiRing::shift()
+void *ZiVBxRing::shift()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Read);
@@ -651,11 +647,11 @@ void *ZiRing::shift()
   uint32_t head;
 retry:
   head = this->head(); // acquire
-  /**/ZiRing_bp(shift1);
+  /**/ZiVBxRing_bp(shift1);
   if (tail == (head & ~Mask)) {
-    if (ZuUnlikely(head & EndOfFile)) return 0;
+    if (ZuUnlikely(head & EndOfFile)) return nullptr;
     if (ZuUnlikely(!m_params.ll()))
-      if (ZiRing_wait(Head, this->head(), head) != Zi::OK) return 0;
+      if (ZiIPC_wait(Head, this->head(), head) != Zi::OK) return nullptr;
     goto retry;
   }
 
@@ -663,7 +659,7 @@ retry:
   return &ptr[8];
 }
 
-void ZiRing::shift2()
+void ZiVBxRing::shift2()
 {
   ZmAssert(m_ctrl.addr());
   ZmAssert(m_flags & Read);
@@ -678,7 +674,7 @@ void ZiRing::shift2()
   if (*reinterpret_cast<ZmAtomic<uint64_t> *>(ptr) &= ~(1ULL<<m_id)) return;
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->tail().xch(tail) & Waiting))
-      ZiRing_wake(Tail, this->tail(), 1);
+      ZiIPC_wake(Tail, this->tail(), 1);
   } else
     this->tail() = tail; // release
 
@@ -688,7 +684,7 @@ void ZiRing::shift2()
 
 // can be called by readers after push returns 0; returns
 // EndOfFile (< 0), or amount of data remaining in ring buffer (>= 0)
-int ZiRing::readStatus()
+int ZiVBxRing::readStatus()
 {
   ZmAssert(m_flags & Read);
 
@@ -705,7 +701,7 @@ int ZiRing::readStatus()
   return size() - (tail - head);
 }
 
-void ZiRing::stats(
+void ZiVBxRing::stats(
     uint64_t &inCount, uint64_t &inBytes, 
     uint64_t &outCount, uint64_t &outBytes) const
 {

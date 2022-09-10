@@ -47,25 +47,19 @@
 #define ZmStackIncrement	8
 #define ZmStackMaxFrag		50.0
 
-class ZmStackParams {
-public:
-  ZmStackParams() :
-    m_initial(ZmStackInitial),
-    m_increment(ZmStackIncrement),
-    m_maxFrag(ZmStackMaxFrag) { }
-
-  ZmStackParams &initial(unsigned v) { m_initial = v; return *this; }
-  ZmStackParams &increment(unsigned v) { m_increment = v; return *this; }
-  ZmStackParams &maxFrag(double v) { m_maxFrag = v; return *this; }
+struct ZmStackParams {
+  ZmStackParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
+  ZmStackParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
+  ZmStackParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
 
   unsigned initial() const { return m_initial; }
   unsigned increment() const { return m_increment; }
   double maxFrag() const { return m_maxFrag; }
 
 private:
-  unsigned	m_initial;
-  unsigned	m_increment;
-  double	m_maxFrag;
+  unsigned	m_initial = ZmStackInitial;
+  unsigned	m_increment = ZmStackIncrement;
+  double	m_maxFrag = ZmStackMaxFrag;
 };
 
 // uses NTP (named template parameters):
