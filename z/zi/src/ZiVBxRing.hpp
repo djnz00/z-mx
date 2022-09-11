@@ -61,7 +61,7 @@
 
 #include <zlib/ZiPlatform.hpp>
 #include <zlib/ZiFile.hpp>
-#include <zlib/ZiIPC.hpp>
+#include <zlib/ZiRingUtil.hpp>
 
 #ifdef ZiVBxRing_FUNCTEST
 #define ZiVBxRing ZiVBxRingTest
@@ -80,66 +80,52 @@
 #endif
 #endif
 
-// ring buffer parameters
-class ZiVBxRingParams {
+namespace ZiVBxRing_ {
+
+template <typename> class Params;
+class ParamData {
 public:
-  using Path = Zi::Path;
-
-  ZiVBxRingParams() = default;
-  ZiVBxRingParams(const ZiVBxRingParams &) = default;
-  ZiVBxRingParams &operator =(const ZiVBxRingParams &) = default;
-  ZiVBxRingParams(ZiVBxRingParams &&) = default;
-  ZiVBxRingParams &operator =(ZiVBxRingParams &&) = default;
-
-  ZiVBxRingParams(ZuString name) : m_name{name} { }
-  ZiVBxRingParams(ZuString name, ZiVBxRingParams p) :
-    m_name{name},
-    m_size{p.m_size},
-    m_ll{p.m_ll}, m_spin{p.m_spin},
-    m_timeout{p.m_timeout},
-    m_cpuset{ZuMv(p.m_cpuset)},
-    m_killWait{p.m_killWait},
-    m_coredump{p.m_coredump} { }
-
-  ZiVBxRingParams &&name(ZuString s) { m_name = s; return ZuMv(*this); }
-  ZiVBxRingParams &&size(unsigned n) { m_size = n; return ZuMv(*this); }
-  ZiVBxRingParams &&ll(bool b) { m_ll = b; return ZuMv(*this); }
-  ZiVBxRingParams &&spin(unsigned n) { m_spin = n; return ZuMv(*this); }
-  ZiVBxRingParams &&timeout(unsigned n) { m_timeout = n; return ZuMv(*this); }
-  ZiVBxRingParams &&cpuset(ZmBitmap b) {
-    m_cpuset = ZuMv(b);
-    return ZuMv(*this);
-  }
-  ZiVBxRingParams &&killWait(unsigned n) { m_killWait = n; return ZuMv(*this); }
-  ZiVBxRingParams &&coredump(bool b) { m_coredump = b; return ZuMv(*this); }
-
-  const ZtString &name() const { return m_name; }
   unsigned size() const { return m_size; }
   bool ll() const { return m_ll; }
-  unsigned spin() const { return m_spin; }
-  unsigned timeout() const { return m_timeout; }
   const ZmBitmap &cpuset() const { return m_cpuset; }
   unsigned killWait() const { return m_killWait; }
   bool coredump() const { return m_coredump; }
 
 private:
-  ZtString	m_name;
   unsigned	m_size = 0;
   bool		m_ll = false;
-  unsigned	m_spin = 1000;
-  unsigned	m_timeout = 1;
   ZmBitmap	m_cpuset;
   unsigned	m_killWait = 1;
   bool		m_coredump = false;
 };
+template <typename Derived> class Params :
+    public ZiRingUtil_::Params<Derived>, public ParamData {
+  ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
+public:
+  Derived &&size(unsigned n) { m_size = n; return derived(); }
+  Derived &&ll(bool b) { m_ll = b; return derived(); }
+  Derived &&cpuset(ZmBitmap b) {
+    m_cpuset = ZuMv(b);
+    return derived();
+  }
+  Derived &&killWait(unsigned n) { m_killWait = n; return derived(); }
+  Derived &&coredump(bool b) { m_coredump = b; return derived(); }
+};
+
+} // ZiVRing_
+
+struct ZiVBxRingParams : public ZiVRing_::Params<ZiVBxRingParams> { };
 
 typedef unsigned (*ZiVBxRingSizeFn)(const void *);
 
-class ZiVBxRingAPI ZiVBxRing : public ZiIPC {
+class ZiVBxRingAPI ZiVBxRing : public ZiRingUtil {
   ZiVBxRing(const ZiVBxRing &) = delete;
   ZiVBxRing &operator =(const ZiVBxRing &) = delete;
   ZiVBxRing(ZiVBxRing &&) = delete;
   ZiVBxRing &operator =(ZiVBxRing &&) = delete;
+
+  using ParamData = ZiVBxRing_::ParamData;
+  template <typename Derived> using Params = ZiVBxRing_::Params<Derived>;
 
   enum { // head+tail flags
     EndOfFile	= 0x20000000,
@@ -153,10 +139,14 @@ class ZiVBxRingAPI ZiVBxRing : public ZiIPC {
   enum { CacheLineSize = Zm::CacheLineSize };
 
 public:
-  ZiVBxRing(ZiVBxRingSizeFn, ZiVBxRingParams params);
+  template <typename Derived>
+  ZiVBxRing(ZiVBxRingSizeFn, Params<Derived> params) :
+      ZiRingUtil{ZuMv(params)},
+      m_sizeFn{fn},
+      m_params{ZuMv(params)} { }
   ~ZiVBxRing();
 
-  const ZiVBxRingParams &params() const { return m_params; }
+  const ParamData &params() const { return m_params; }
 
   enum { // open() flags
     Create	= 0x00000001,
@@ -303,11 +293,8 @@ public:
 #ifndef ZiVBxRing_FUNCTEST
 private:
 #endif
-  ZiVBxRingSizeFn		m_sizeFn;
-  ZiVBxRingParams		m_params;
-#ifdef _WIN32
-  HANDLE		m_sem[2] = { 0, 0};
-#endif
+  ZiVBxRingSizeFn	m_sizeFn;
+  ParamData		m_params;
 
   uint32_t		m_flags = 0;
   int			m_id = -1;

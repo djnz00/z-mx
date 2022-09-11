@@ -87,6 +87,7 @@ int ZiVRing::open(unsigned flags, ZeError *e)
       hwloc_set_area_membind(
 	  ZmTopology::hwloc(), m_data.addr(), (m_data.mmapLength())<<1,
 	  m_params.cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
+    /**/ZiVRing_bp(open1);
     if (flags & Write) {
       this->head() = this->head().load_() & ~EndOfFile;
     }

@@ -150,7 +150,7 @@ int App::main(int argc, char **argv)
 
   if (!name) usage();
 
-  ring = new Ring(sizeFn, ZiVBxRingParams(name).
+  ring = new Ring(sizeFn, ZiVBxRingParams{name}.
       size(bufsize).ll(ll).spin(spin).coredump(true).cpuset(cpuset));
 
   for (unsigned i = 0; i < loop; i++) {

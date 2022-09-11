@@ -17,27 +17,26 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ring buffer
+// ring buffer common utility functions
 
-#include <zlib/ZmRing.hpp>
+#include <zlib/ZmRingUtil.hpp>
 
 #ifdef linux
 
 #include <sys/syscall.h>
 #include <linux/futex.h>
 
-int ZmRing_::open() { return OK; }
+int ZmRingUtil::open() { return OK; }
 
-int ZmRing_::close() { return OK; }
+int ZmRingUtil::close() { return OK; }
 
-int ZmRing_::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
+int ZmRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
 {
-  // fprintf(stderr, "WAIT addr: %#.8x (%#.8x) val: %#.8x\n", (unsigned)(uintptr_t)(void *)&addr, (unsigned)addr.load_(), (unsigned)val);
   if (addr.cmpXch(val | Waiting, val) != val) return OK;
   val |= Waiting;
-  if (ZuUnlikely(params().timeout())) {
-    ZmTime out(ZmTime::Now, static_cast<int>(params().timeout()));
-    unsigned i = 0, n = params().spin();
+  if (ZuUnlikely(m_params->timeout())) {
+    ZmTime out(ZmTime::Now, static_cast<int>(m_params->timeout()));
+    unsigned i = 0, n = m_params->spin();
     do {
       if (ZuUnlikely(i >= n)) {
 	if (syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
@@ -51,7 +50,7 @@ int ZmRing_::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
 	++i;
     } while (addr == val);
   } else {
-    unsigned i = 0, n = params().spin();
+    unsigned i = 0, n = m_params->spin();
     do {
       if (ZuUnlikely(i >= n)) {
 	syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
@@ -64,9 +63,8 @@ int ZmRing_::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
   return OK;
 }
 
-int ZmRing_::wake(ZmAtomic<uint32_t> &addr, int n)
+int ZmRingUtil::wake(ZmAtomic<uint32_t> &addr, int n)
 {
-  // fprintf(stderr, "WAKE addr: %#.8x (%#.8x) n:%u\n", (unsigned)(uintptr_t)(void *)&addr, (unsigned)addr.load_(), (unsigned)n);
   addr &= ~Waiting;
   syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
       FUTEX_WAKE | FUTEX_PRIVATE_FLAG, n, 0, 0, 0);
@@ -77,7 +75,7 @@ int ZmRing_::wake(ZmAtomic<uint32_t> &addr, int n)
 
 #ifdef _WIN32
 
-int ZmRing_::open()
+int ZmRingUtil::open()
 {
   if (m_sem[Head]) return OK;
   if (!(m_sem[Head] = CreateSemaphore(0, 0, 0x7fffffff, 0))) return Error;
@@ -89,7 +87,7 @@ int ZmRing_::open()
   return OK;
 }
 
-int ZmRing_::close()
+int ZmRingUtil::close()
 {
   if (!m_sem[Head]) return OK;
   bool error = false;
@@ -99,12 +97,12 @@ int ZmRing_::close()
   return error ? Error : OK;
 }
 
-int ZmRing_::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
+int ZmRingUtil::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
 {
   if (addr.cmpXch(val | Waiting, val) != val) return OK;
   val |= Waiting;
-  DWORD timeout = params().timeout() ? params().timeout() * 1000 : INFINITE;
-  unsigned i = 0, n = params().spin();
+  DWORD timeout = m_params->timeout() ? m_params->timeout() * 1000 : INFINITE;
+  unsigned i = 0, n = m_params->spin();
   do {
     if (ZuUnlikely(i >= n)) {
       DWORD r = WaitForSingleObject(m_sem[index], timeout);
@@ -120,7 +118,7 @@ int ZmRing_::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
   return OK;
 }
 
-int ZmRing_::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
+int ZmRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
 {
   addr &= ~Waiting;
   ReleaseSemaphore(m_sem[index], n, 0);

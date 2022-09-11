@@ -44,7 +44,7 @@
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmTime.hpp>
-#include <zlib/ZmRing.hpp>
+#include <zlib/ZmRingUtil.hpp>
 
 // uses NTP (named template parameters):
 //
@@ -55,8 +55,42 @@ struct ZmBxRing_Defaults { };
 
 #define ZmBxRingAlign(x) (((x) + 8 + 15) & ~15)
 
+namespace ZmBxRing_ {
+
+template <typename> class Params;
+class ParamData {
+  template <typename> friend Params;
+public:
+  ParamData() = default;
+  ParamData(const ParamData &) = default; 
+  ParamData &operator =(const ParamData &) = default;
+  ParamData(ParamData &&) = default; 
+  ParamData &operator =(ParamData &&) = default;
+
+  ParamData(unsigned size) : m_size{size} { }
+
+  unsigned size() const { return m_size; }
+  bool ll() const { return m_ll; }
+  const ZmBitmap &cpuset() const { return m_cpuset; }
+
+private:
+  unsigned	m_size = 0;
+  bool		m_ll = false;
+  ZmBitmap	m_cpuset;
+};
+template <typename Derived> class Params :
+    public ZmRingUtil_::Params<Derived>, public ParamData {
+  ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
+public:
+  Derived &&size(unsigned n) { m_size = n; return derived(); }
+  Derived &&ll(bool b) { m_ll = b; return derived(); }
+  Derived &&cpuset(ZmBitmap b) { m_cpuset = ZuMv(b); return derived(); }
+};
+
+} // ZmBxRing_
+
 template <typename T_, class NTP = ZmBxRing_Defaults>
-class ZmBxRing : public ZmRing_ {
+class ZmBxRing : public ZmRingUtil {
   ZmBxRing(const ZmBxRing &) = delete;
   ZmBxRing &operator =(const ZmBxRing &) = delete;
 
@@ -73,13 +107,15 @@ public:
 
   enum { Size = ZmBxRingAlign(sizeof(T)) };
 
-  template <typename ...Args>
-  ZmBxRing(ZmRingParams params = ZmRingParams(0), Args &&... args) :
-      ZmRing_(params),
-      m_flags(0), m_id(-1), m_ctrl(0), m_data(0),
-      m_tail(0), m_size(0), m_full(0) { }
+  ZmBxRing() = default;
+  template <typename Derived, typename ...Args>
+  ZmBxRing(Params<Derived> params, Args &&... args) :
+      ZmRingUtil{ZuMv(params)},
+      m_params{ZuMv(params)} { } // yes, moved twice
 
   ~ZmBxRing() { close(); }
+
+  const ParamData &params() const { return m_params; }
 
 private:
   struct Ctrl {
@@ -150,14 +186,14 @@ public:
       goto ret;
     }
     m_flags = flags;
-    if (!m_params.ll() && ZmRing_::open() != OK) return Error;
+    if (!m_params.ll() && ZmRingUtil::open() != OK) return Error;
     if (!m_params.cpuset())
       m_ctrl = hwloc_alloc(ZmTopology::hwloc(), sizeof(Ctrl));
     else
       m_ctrl = hwloc_alloc_membind(
 	  ZmTopology::hwloc(), sizeof(Ctrl),
 	  m_params.cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
-    if (!m_ctrl) { if (!m_params.ll()) ZmRing_::close(); return Error; }
+    if (!m_ctrl) { if (!m_params.ll()) ZmRingUtil::close(); return Error; }
     memset(m_ctrl, 0, sizeof(Ctrl));
     if (!m_params.cpuset())
       m_data = hwloc_alloc(ZmTopology::hwloc(), size());
@@ -168,7 +204,7 @@ public:
     if (!m_data) {
       hwloc_free(ZmTopology::hwloc(), m_ctrl, sizeof(Ctrl));
       m_ctrl = 0;
-      if (!m_params.ll()) ZmRing_::close();
+      if (!m_params.ll()) ZmRingUtil::close();
       return Error;
     }
   ret:
@@ -198,7 +234,7 @@ public:
     hwloc_free(ZmTopology::hwloc(), m_ctrl, sizeof(Ctrl));
     hwloc_free(ZmTopology::hwloc(), m_data, size());
     m_ctrl = m_data = 0;
-    if (!m_params.ll()) ZmRing_::close();
+    if (!m_params.ll()) ZmRingUtil::close();
   }
 
   int reset() {
@@ -479,13 +515,14 @@ public:
   }
 
 private:
-  uint32_t		m_flags;
-  int			m_id;
-  void			*m_ctrl;
-  void			*m_data;
-  uint32_t		m_tail;
-  uint32_t		m_size;
-  uint32_t		m_full;
+  ParamData		m_params;
+  uint32_t		m_flags = 0;
+  int			m_id = -1;
+  void			*m_ctrl = nullptr;
+  void			*m_data = nullptr;
+  uint32_t		m_tail = 0;
+  uint32_t		m_size = 0;
+  uint32_t		m_full = 0;
 };
 
 #endif /* ZmBxRing_HPP */

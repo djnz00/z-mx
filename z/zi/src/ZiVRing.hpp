@@ -54,7 +54,7 @@
 
 #include <zlib/ZiPlatform.hpp>
 #include <zlib/ZiFile.hpp>
-#include <zlib/ZiIPC.hpp>
+#include <zlib/ZiRingUtil.hpp>
 
 #ifdef ZiVRing_FUNCTEST
 #define ZiVRing ZiVRingTest
@@ -73,64 +73,50 @@
 #endif
 #endif
 
-// ring buffer parameters
-class ZiVRingParams {
+namespace ZiVRing_ {
+
+template <typename> class Params;
+class ParamData {
 public:
-  using Path = Zi::Path;
-
-  ZiVRingParams() = default;
-  ZiVRingParams(const ZiVRingParams &) = default;
-  ZiVRingParams &operator =(const ZiVRingParams &) = default;
-  ZiVRingParams(ZiVRingParams &&) = default;
-  ZiVRingParams &operator =(ZiVRingParams &&) = default;
-
-  ZiVRingParams(ZuString name) : m_name{name} { }
-  ZiVRingParams(ZuString name, ZiVRingParams p) :
-    m_name{name},
-    m_size{p.m_size},
-    m_ll{p.m_ll}, m_spin{p.m_spin},
-    m_timeout{p.m_timeout},
-    m_cpuset{ZuMv(p.m_cpuset)},
-    m_killWait{p.m_killWait},
-    m_coredump{p.m_coredump} { }
-
-  ZiVRingParams &&name(ZuString s) { m_name = s; return ZuMv(*this); }
-  ZiVRingParams &&size(unsigned n) { m_size = n; return ZuMv(*this); }
-  ZiVRingParams &&ll(bool b) { m_ll = b; return ZuMv(*this); }
-  ZiVRingParams &&spin(unsigned n) { m_spin = n; return ZuMv(*this); }
-  ZiVRingParams &&timeout(unsigned n) { m_timeout = n; return ZuMv(*this); }
-  ZiVRingParams &&cpuset(ZmBitmap b) {
-    m_cpuset = ZuMv(b);
-    return ZuMv(*this);
-  }
-  ZiVRingParams &&killWait(unsigned n) { m_killWait = n; return ZuMv(*this); }
-  ZiVRingParams &&coredump(bool b) { m_coredump = b; return ZuMv(*this); }
-
-  const ZtString &name() const { return m_name; }
   unsigned size() const { return m_size; }
   bool ll() const { return m_ll; }
-  unsigned spin() const { return m_spin; }
-  unsigned timeout() const { return m_timeout; }
   const ZmBitmap &cpuset() const { return m_cpuset; }
   unsigned killWait() const { return m_killWait; }
   bool coredump() const { return m_coredump; }
 
 private:
-  ZtString	m_name;
   unsigned	m_size = 0;
   bool		m_ll = false;
-  unsigned	m_spin = 1000;
-  unsigned	m_timeout = 1;
   ZmBitmap	m_cpuset;
   unsigned	m_killWait = 1;
   bool		m_coredump = false;
 };
+template <typename Derived> class Params :
+    public ZiRingUtil_::Params<Derived>, public ParamData {
+  ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
+public:
+  Derived &&size(unsigned n) { m_size = n; return derived(); }
+  Derived &&ll(bool b) { m_ll = b; return derived(); }
+  Derived &&cpuset(ZmBitmap b) {
+    m_cpuset = ZuMv(b);
+    return derived();
+  }
+  Derived &&killWait(unsigned n) { m_killWait = n; return derived(); }
+  Derived &&coredump(bool b) { m_coredump = b; return derived(); }
+};
 
-class ZiVRingAPI ZiVRing : public ZiIPC {
+} // ZiVRing_
+
+struct ZiVRingParams : public ZiVRing_::Params<ZiVRingParams> { };
+
+class ZiVRingAPI ZiVRing : public ZiRingUtil {
   ZiVRing(const ZiVRing &) = delete;
   ZiVRing &operator =(const ZiVRing &) = delete;
   ZiVRing(ZiVRing &&) = delete;
   ZiVRing &operator =(ZiVRing &&) = delete;
+
+  using ParamData = ZiVRing_::ParamData;
+  template <typename Derived> using Params = ZiVRing_::Params<Derived>;
 
   enum { // head+tail flags
     EndOfFile	= 0x20000000,
@@ -144,10 +130,13 @@ class ZiVRingAPI ZiVRing : public ZiIPC {
   enum { CacheLineSize = Zm::CacheLineSize };
 
 public:
-  ZiVRing(ZiVRingParams params);
+  template <typename Derived>
+  ZiVRing(Params<Derived> params) :
+      ZiRingUtil{ZuMv(params)},
+      m_params{ZuMv(params)} { } // yes, moved twice
   ~ZiVRing();
 
-  const ZiVRingParams &params() const { return m_params; }
+  const ParamData &params() const { return m_params; }
 
   enum { // open() flags
     Create	= 0x00000001,
@@ -274,7 +263,7 @@ public:
 #ifndef ZiVRing_FUNCTEST
 private:
 #endif
-  ZiVRingParams		m_params;
+  ParamData		m_params;
 
   uint32_t		m_flags = 0;
   ZiFile		m_ctrl;
@@ -283,6 +272,7 @@ private:
   uint32_t		m_full = 0;
 
 #ifdef ZiVRing_FUNCTEST
+  ZiVRing_Breakpoint	bp_open1;
   ZiVRing_Breakpoint	bp_shift1;
 #endif
 };

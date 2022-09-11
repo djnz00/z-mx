@@ -39,97 +39,19 @@
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmBackTrace.hpp>
+#include <zlib/ZmRingUtil.hpp>
 
 // ring buffer parameters
-class ZmRingParams {
-public:
-  ZmRingParams(unsigned size) : m_size{size} { }
-
-  ZmRingParams(const ZmRingParams &) = default; 
-  ZmRingParams &operator =(const ZmRingParams &) = default;
-  ZmRingParams(ZmRingParams &&) = default; 
-  ZmRingParams &operator =(ZmRingParams &&) = default;
-
-  ZmRingParams &&size(unsigned n) { m_size = n; return ZuMv(*this); }
-  ZmRingParams &&ll(bool b) { m_ll = b; return ZuMv(*this); }
-  ZmRingParams &&spin(unsigned n) { m_spin = n; return ZuMv(*this); }
-  ZmRingParams &&timeout(unsigned n) { m_timeout = n; return ZuMv(*this); }
-  ZmRingParams &&cpuset(ZmBitmap b) { m_cpuset = ZuMv(b); return ZuMv(*this); }
-
-  unsigned size() const { return m_size; }
-  bool ll() const { return m_ll; }
-  unsigned spin() const { return m_spin; }
-  unsigned timeout() const { return m_timeout; }
-  const ZmBitmap &cpuset() const { return m_cpuset; }
-
-private:
-  unsigned	m_size;
-  bool		m_ll = false;
-  unsigned	m_spin = 1000;
-  unsigned	m_timeout = 1;
-  ZmBitmap	m_cpuset;
-};
-
-class ZmAPI ZmRing_ {
-public:
-  enum { OK = 0, EndOfFile = -1, Error = -2, NotReady = -3 };
-
-protected:
-  enum { // flags
-    Ready	= 0x10000000,		// header
-    EndOfFile_	= 0x20000000,		// header, head
-    Waiting	= 0x40000000,		// header, tail
-    Wrapped	= 0x80000000,		// head, tail
-    Mask	= Waiting | EndOfFile_ // does NOT include Wrapped or Ready
-  };
-
-  enum { Head = 0, Tail };
-
-  ZmRing_(ZmRingParams params) : m_params{ZuMv(params)} { }
-
-  int open();
-  int close();
-
-#ifdef linux
-#define ZmRing_wait(index, addr, val) wait(addr, val)
-#define ZmRing_wake(index, addr, n) wake(addr, n)
-  // block until woken or timeout while addr == val
-  int wait(ZmAtomic<uint32_t> &addr, uint32_t val);
-  // wake up waiters on addr (up to n waiters are woken)
-  int wake(ZmAtomic<uint32_t> &addr, int n);
-#endif
-
-#ifdef _WIN32
-#define ZmRing_wait(index, addr, val) wait(index, addr, val)
-#define ZmRing_wake(index, addr, n) wake(index, addr, n)
-  // block until woken or timeout while addr == val
-  int wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val);
-  // wake up waiters on addr (up to n waiters are woken)
-  int wake(unsigned index, ZmAtomic<uint32_t> &addr, int n);
-#endif
-
-public:
-  void init(const ZmRingParams &params) { m_params = params; }
-
-  const ZmRingParams &params() const { return m_params; }
-
-protected:
-  ZmRingParams		m_params;
-private:
-#ifdef _WIN32
-  HANDLE		m_sem[2] = { 0, 0 };
-#endif
-};
 
 struct ZmRingError {
   int code;
   ZmRingError(int code_) : code(code_) { }
   template <typename S> void print(S &s) const {
     switch (code) {
-      case ZmRing_::OK:		s << "OK"; break;
-      case ZmRing_::EndOfFile:	s << "EndOfFile"; break;
-      case ZmRing_::Error:	s << "Error"; break;
-      case ZmRing_::NotReady:	s << "NotReady"; break;
+      case ZmRingUtil::OK:		s << "OK"; break;
+      case ZmRingUtil::EndOfFile:	s << "EndOfFile"; break;
+      case ZmRingUtil::Error:	s << "Error"; break;
+      case ZmRingUtil::NotReady:	s << "NotReady"; break;
       default:			s << "Unknown"; break;
     }
   }
@@ -145,9 +67,48 @@ struct ZmRing_Defaults { };
 
 #define ZmRingAlign(x) (((x) + 8 + 15) & ~15)
 
+namespace ZmRing_ {
+
+template <typename> class Params;
+class ParamData {
+  template <typename> friend Params;
+public:
+  ParamData() = default;
+  ParamData(const ParamData &) = default; 
+  ParamData &operator =(const ParamData &) = default;
+  ParamData(ParamData &&) = default; 
+  ParamData &operator =(ParamData &&) = default;
+
+  ParamData(unsigned size) : m_size{size} { }
+
+  unsigned size() const { return m_size; }
+  bool ll() const { return m_ll; }
+  const ZmBitmap &cpuset() const { return m_cpuset; }
+
+private:
+  unsigned	m_size = 0;
+  bool		m_ll = false;
+  ZmBitmap	m_cpuset;
+};
+template <typename Derived> class Params :
+    public ZmRingUtil_::Params<Derived>, public ParamData {
+  ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
+public:
+  Derived &&size(unsigned n) { m_size = n; return derived(); }
+  Derived &&ll(bool b) { m_ll = b; return derived(); }
+  Derived &&cpuset(ZmBitmap b) { m_cpuset = ZuMv(b); return derived(); }
+};
+
+} // ZmRing_
+
+struct ZmRingParams : public ZmRing_::Params<ZmRingParams> { };
+
 template <typename T_, class NTP = ZmRing_Defaults>
-class ZmRing : public ZmRing_ {
+class ZmRing : public ZmRingUtil {
   ZmRing &operator =(const ZmRing &);	// prevent mis-use
+
+  using ParamData = ZmRing_::ParamData;
+  template <typename Derived> using Params = ZmRing_::Params<Derived>;
 
 public:
   enum { CacheLineSize = Zm::CacheLineSize };
@@ -162,16 +123,19 @@ public:
 
   enum { Size = ZmRingAlign(sizeof(T)) };
 
-  template <typename ...Args>
-  ZmRing(ZmRingParams params = ZmRingParams(0), Args &&... args) :
-      ZmRing_(params),
-      m_flags(0), m_ctrl(0), m_data(0), m_full(0) { }
+  ZmRing() = default;
+  template <typename Derived, typename ...Args>
+  ZmRing(Params<Derived> params, Args &&... args) :
+      ZmRingUtil{ZuMv(params)},
+      m_params{ZuMv(params)} { } // yes, moved twice
 
   ZmRing(const ZmRing &ring) :
       ZmRing_(ring.m_params), m_flags(Shadow),
-      m_ctrl(ring.m_ctrl), m_data(ring.m_data), m_full(0) { }
+      m_ctrl(ring.m_ctrl), m_data(ring.m_data) { }
 
   ~ZmRing() { close(); }
+
+  const ParamData &params() const { return m_params; }
 
 private:
   struct Ctrl {
@@ -218,39 +182,44 @@ public:
   ZuInline bool operator !() const { return !m_ctrl; }
   ZuOpBool;
 
-  ZuInline uint8_t *data() const { return reinterpret_cast<uint8_t *>(m_data); }
+  ZuInline uint8_t *data() const {
+    return reinterpret_cast<uint8_t *>(m_data);
+  }
 
   ZuInline unsigned full() const { return m_full; }
 
   int open(unsigned flags) {
     if (m_ctrl) return OK;
-    if (!m_params.size()) return Error;
+    if (!params().size()) return Error;
     flags &= (Read | Write);
-    m_size = ((m_params.size() + Size - 1) / Size) * Size;
+    m_size = ((params().size() + Size - 1) / Size) * Size;
     if (m_flags & Shadow) {
       m_flags |= flags;
       return OK;
     }
     m_flags = flags;
-    if (!m_params.ll() && ZmRing_::open() != OK) return Error;
-    if (!m_params.cpuset())
+    if (!params().ll() && ZmRingUtil::open() != OK) return Error;
+    if (!params().cpuset())
       m_ctrl = hwloc_alloc(ZmTopology::hwloc(), sizeof(Ctrl));
     else
       m_ctrl = hwloc_alloc_membind(
 	  ZmTopology::hwloc(), sizeof(Ctrl),
-	  m_params.cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
-    if (!m_ctrl) { if (!m_params.ll()) ZmRing_::close(); return Error; }
+	  params().cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
+    if (!m_ctrl) {
+      if (!params().ll()) ZmRingUtil::close();
+      return Error;
+    }
     memset(m_ctrl, 0, sizeof(Ctrl));
-    if (!m_params.cpuset())
+    if (!params().cpuset())
       m_data = hwloc_alloc(ZmTopology::hwloc(), size());
     else
       m_data = hwloc_alloc_membind(
 	  ZmTopology::hwloc(), size(),
-	  m_params.cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
+	  params().cpuset(), HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_MIGRATE);
     if (!m_data) {
       hwloc_free(ZmTopology::hwloc(), m_ctrl, sizeof(Ctrl));
       m_ctrl = 0;
-      if (!m_params.ll()) ZmRing_::close();
+      if (!params().ll()) ZmRingUtil::close();
       return Error;
     }
     return OK;
@@ -262,7 +231,7 @@ public:
     hwloc_free(ZmTopology::hwloc(), m_ctrl, sizeof(Ctrl));
     hwloc_free(ZmTopology::hwloc(), m_data, size());
     m_ctrl = m_data = 0;
-    if (!m_params.ll()) ZmRing_::close();
+    if (!params().ll()) ZmRingUtil::close();
   }
 
   int reset() {
@@ -304,7 +273,7 @@ public:
     if (ZuUnlikely((head ^ tail_) == Wrapped)) {
       ++m_full;
       if constexpr (!Wait) return nullptr;
-      if (ZuUnlikely(!m_params.ll()))
+      if (ZuUnlikely(!params().ll()))
 	if (this->ZmRing_wait(Tail, this->tail(), tail) != OK) return nullptr;
       goto retry;
     }
@@ -325,7 +294,7 @@ public:
 
     auto ptr = &(reinterpret_cast<ZmAtomic<uint32_t> *>(ptr_))[-2];
 
-    if (ZuUnlikely(!m_params.ll())) {
+    if (ZuUnlikely(!params().ll())) {
       if (ZuUnlikely(ptr->xch(Ready) & Waiting))
 	this->ZmRing_wake(Head, *ptr, 1);
     } else
@@ -347,7 +316,7 @@ public:
       this->head() = head & ~EndOfFile_; // release
       return;
     }
-    if (ZuUnlikely(!m_params.ll())) {
+    if (ZuUnlikely(!params().ll())) {
       if (ZuUnlikely(ptr->xch(EndOfFile_) & Waiting))
 	this->ZmRing_wake(Head, *ptr, 1);
     } else
@@ -385,7 +354,7 @@ public:
 	&(data())[tail & ~Wrapped]);
     uint32_t header = *ptr; // acquire
     if (!(header & ~Waiting)) {
-      if (ZuUnlikely(!m_params.ll()))
+      if (ZuUnlikely(!params().ll()))
 	if (this->ZmRing_wait(Head, *ptr, header) != OK) return nullptr;
       goto retry;
     }
@@ -402,7 +371,7 @@ public:
     tail += Size;
     if ((tail & ~Wrapped) >= size()) tail = (tail ^ Wrapped) - size();
 
-    if (ZuUnlikely(!m_params.ll())) {
+    if (ZuUnlikely(!params().ll())) {
       if (ZuUnlikely(this->tail().xch(tail & ~Waiting) & Waiting))
 	this->ZmRing_wake(Tail, this->tail(), 1);
     } else
@@ -450,11 +419,12 @@ public:
   }
 
 private:
-  uint32_t		m_flags;
-  void			*m_ctrl;
-  void			*m_data;
-  uint32_t		m_size;
-  uint32_t		m_full;
+  ParamData		m_params;
+  uint32_t		m_flags = 0;
+  void			*m_ctrl = nullptr;
+  void			*m_data = nullptr;
+  uint32_t		m_size = 0;
+  uint32_t		m_full = 0;
 };
 
 #endif /* ZmRing_HPP */

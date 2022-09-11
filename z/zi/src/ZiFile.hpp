@@ -79,13 +79,7 @@ public:
 
   // Note: Direct requires caller align all reads/writes to blkSize()
 
-  ZiFile() :
-      m_handle(Zi::nullHandle()), m_flags(0),
-      m_offset(0), m_blkSize(0), m_addr(0), m_mmapLength(0)
-#ifdef _WIN32
-      , m_mmapHandle(Zi::nullHandle())
-#endif
-  { }
+  ZiFile() { }
 
   ~ZiFile() { final(); }
 
@@ -212,16 +206,16 @@ private:
   }
 
   Lock		m_lock;
-    Handle	  m_handle;
-    unsigned	  m_flags;
-    Offset	  m_offset;
-    int		  m_blkSize;
-    void	  *m_addr;
-    Offset	  m_mmapLength;
+    Handle	  m_handle = Zi::nullHandle();
+    unsigned	  m_flags = 0;
+    Offset	  m_offset = 0;
+    int		  m_blkSize = 0;
+    void	  *m_addr = nullptr;
+    Offset	  m_mmapLength = 0;
 #ifndef _WIN32
     ZtString	  m_shmName;
 #else
-    Handle	  m_mmapHandle;
+    Handle	  m_mmapHandle = Zi::nullHandle();
 #endif
 };
 

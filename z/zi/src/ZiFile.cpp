@@ -138,7 +138,7 @@ void ZiFile_WindowsDrives::refresh()
   do {
     buf.length(len, false);
   } while ((len = GetLogicalDriveStrings(len, buf.data())) >
-	     (DWORD)buf.length());
+	     static_cast<DWORD>(buf.length()));
   unsigned i = 0;
   ZtWString drive;
   drive += L" :\\";
@@ -334,7 +334,7 @@ int ZiFile::open_(
       { SYSTEM_INFO si; GetSystemInfo(&si); blkSize = si.dwPageSize; }
     length = ((length + blkSize - 1) / blkSize) * blkSize;
     h = CreateFileMapping(
-	INVALID_HANDLE_VALUE, 0, protectFlags, 0, (DWORD)length, name_);
+	INVALID_HANDLE_VALUE, 0, protectFlags, 0, static_cast<DWORD>(length), name_);
   } else {
     blkSize = ZiFile_WindowsDrives::blkSize(name);
     DWORD accessFlags = (flags & ReadOnly) ? GENERIC_READ :
@@ -411,20 +411,21 @@ int ZiFile::mmap(
 	m_addr, m_mmapLength, prot, mmapFlags | MAP_FIXED, m_handle, 0);
     if (addr != m_addr) goto error;
     addr = ::mmap(
-	(char *)m_addr + m_mmapLength, m_mmapLength,
+	static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength,
 	prot, mmapFlags | MAP_FIXED, m_handle, 0);
-    if (addr != (void *)((char *)m_addr + m_mmapLength)) goto error;
+    if (addr != static_cast<void *>(
+	  static_cast<uint8_t *>(m_addr) + m_mmapLength)) goto error;
   } else {
     m_addr = ::mmap(0, m_mmapLength, prot, mmapFlags, m_handle, 0);
     if (m_addr == MAP_FAILED || !m_addr) goto error;
   }
-  *((char *)m_addr + (m_mmapLength - 1)) = (char)0;
+  *(static_cast<uint8_t *>(m_addr) + (m_mmapLength - 1)) = (char)0;
 #else
   if (flags & Shm)
     m_mmapHandle = m_handle;
   else {
     DWORD protectFlags = (flags & ReadOnly) ? PAGE_READONLY : PAGE_READWRITE;
-    m_mmapHandle = CreateFileMapping(m_handle, 0, protectFlags, 0, 0, 0);
+    m_mmapHandle = CreateFileMapping(m_handle, 0, protectFlags, 0, 0, nullptr);
     if (!m_mmapHandle || m_mmapHandle == INVALID_HANDLE_VALUE) goto error;
   }
   {
@@ -432,18 +433,21 @@ int ZiFile::mmap(
     if (flags & ShmDbl) {
 retry:
       m_addr = VirtualAlloc(
-	  0, (DWORD)(m_mmapLength<<1), MEM_RESERVE, PAGE_NOACCESS);
+	  0, static_cast<DWORD>(m_mmapLength<<1), MEM_RESERVE, PAGE_NOACCESS);
       if (!m_addr) goto error;
       if (!VirtualFree(m_addr, 0, MEM_RELEASE)) goto error;
       void *addr = MapViewOfFileEx(
-	  m_mmapHandle, (DWORD)accessFlags, 0, 0, (DWORD)m_mmapLength, m_addr);
+	  m_mmapHandle, static_cast<DWORD>(accessFlags), 0, 0,
+	  static_cast<DWORD>(m_mmapLength), m_addr);
       if (!addr) goto retry;
       if (addr != m_addr) { UnmapViewOfFile(addr); goto retry; }
       addr = MapViewOfFileEx(
-	  m_mmapHandle, (DWORD)accessFlags, 0, 0,
-	  (DWORD)m_mmapLength, (char *)m_addr + m_mmapLength);
+	  m_mmapHandle, static_cast<DWORD>(accessFlags), 0, 0,
+	  static_cast<DWORD>(m_mmapLength),
+	  static_cast<uint8_t *>(m_addr) + m_mmapLength);
       if (!addr) goto retry;
-      if (addr != (void *)((char *)m_addr + m_mmapLength)) {
+      if (addr != static_cast<void *>(
+	    static_cast<uint8_t *>(m_addr) + m_mmapLength)) {
 	UnmapViewOfFile(m_addr);
 	UnmapViewOfFile(addr);
 	goto retry;
@@ -499,7 +503,7 @@ void ZiFile::close()
 #ifndef _WIN32
     munmap(m_addr, m_mmapLength);
     if (m_flags & ShmDbl)
-      munmap((char *)m_addr + m_mmapLength, m_mmapLength);
+      munmap(static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength);
     if ((m_flags & ShmGC) && m_shmName)
       shm_unlink(m_shmName);
     m_shmName = ZtString();
@@ -508,7 +512,7 @@ void ZiFile::close()
     m_mmapHandle = Zi::nullHandle();
     UnmapViewOfFile(m_addr);
     if (m_flags & ShmDbl)
-      UnmapViewOfFile((char *)m_addr + m_mmapLength);
+      UnmapViewOfFile(static_cast<uint8_t *>(m_addr) + m_mmapLength);
 #endif
   }
 
@@ -753,7 +757,7 @@ retry:
   total += r, offset += r;
 
   if ((unsigned)r < len) {
-    ptr = (void *)((char *)ptr + r);
+    ptr = static_cast<void *>(static_cast<uint8_t *>(ptr) + r);
     len -= r;
     goto retry;
   }
@@ -880,8 +884,8 @@ retry:
 
   o.Internal = 0;
   o.InternalHigh = 0;
-  o.Offset = (DWORD)offset;
-  o.OffsetHigh = (DWORD)(offset>>32);
+  o.Offset = static_cast<DWORD>(offset);
+  o.OffsetHigh = static_cast<DWORD>(offset>>32);
   o.hEvent = 0;
 
   if (!WriteFile(m_handle, ptr, len, &r, &o)) {
@@ -898,7 +902,7 @@ retry:
   offset += r;
 
   if ((unsigned)r < len) {
-    ptr = (void *)((char *)ptr + r);
+    ptr = static_cast<void *>(static_cast<uint8_t *>(ptr) + r);
     len -= r;
     goto retry;
   }

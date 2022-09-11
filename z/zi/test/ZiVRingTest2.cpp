@@ -108,9 +108,6 @@ int App::main(int argc, char **argv)
 	if (++i >= argc) usage();
 	loop = atoi(argv[i]);
 	break;
-      case 'g':
-	gc = true;
-	break;
       case 'b':
 	if (++i >= argc) usage();
 	bufsize = atoi(argv[i]);
@@ -149,7 +146,7 @@ int App::main(int argc, char **argv)
 
   if (!name) usage();
 
-  ring = new Ring(sizeFn, ZiVRingParams(name).
+  ring = new Ring(sizeFn, ZiVRingParams{name}.
       size(bufsize).ll(ll).spin(spin).coredump(true).cpuset(cpuset));
 
   for (unsigned i = 0; i < loop; i++) {
@@ -197,17 +194,8 @@ int App::main(int argc, char **argv)
 void App::reader()
 {
   std::cerr << (ZuStringN<80>{} << "reader " << Zm::getTID() << " started\n") << std::flush;
-  if (!gc) {
-    ring->attach();
-    std::cerr << "reader attached\n";
-  }
   if (!(flags & Ring::Write)) start.now();
   for (int j = 0; j < count; j++) {
-    if (gc) {
-      ring->attach();
-      ring->detach();
-      continue;
-    }
     if (const void *msg_ = ring->shift()) {
       // auto msg = static_cast<const Msg *>(msg_);
       // std::cerr << (ZuStringN<80>{} << "shift: " << ZuBoxPtr(msg).hex() << " len: " << ZuBoxed(sizeof(Msg) + msg->length()) << '\n') << std::flush;
@@ -233,7 +221,6 @@ void App::reader()
   }
   std::cerr << (ZuStringN<80>{} << "reader count " << count << " completed\n") << std::flush;
   end.now();
-  if (!gc) ring->detach();
 }
 
 void App::writer()
@@ -241,12 +228,6 @@ void App::writer()
   std::cerr << (ZuStringN<80>{} << "writer " << Zm::getTID() << " started\n") << std::flush;
   start.now();
   for (int j = 0; j < count; j++) {
-    if (gc) {
-      ring->gc();
-      // int i = ring->gc();
-      // { ZuStringN<32> s; s << "GC: " << ZuBoxed(i) << "\n"; std::cerr << s; }
-      continue;
-    }
     if (void *ptr = ring->push(msgsize)) {
       // std::cerr << (ZuStringN<80>{} << "push: " << ZuBoxPtr(ptr).hex() << " len: " << ZuBoxed(msgsize) << '\n') << std::flush;
       // Msg *msg = new (ptr) Msg(0, msgsize - sizeof(Msg));

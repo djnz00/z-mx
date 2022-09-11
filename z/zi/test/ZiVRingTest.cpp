@@ -327,84 +327,32 @@ int main(int argc, char **argv)
     if (!size) usage();
   }
 
-  app()->start(3, ZiVRingParams("ZiVRingTest").size(size));
-
-  check(synchronous(0, Open(Ring::Read | Ring::Create)) == Zi::OK);
-  check(synchronous(1, Open(Ring::Read | Ring::Create)) == Zi::OK);
-  check(synchronous(2, Open(Ring::Write)) == Zi::OK);
+  app()->start(2, ZiVRingParams("ZiVRingTest").size(size));
 
   int size1 =
-    app()->thread(2)->ring().size() - Zm::CacheLineSize - 9;
-  int size2 = (app()->thread(2)->ring().size() / 2) - 7;
+    app()->thread(1)->ring().size() - Zm::CacheLineSize - 1;
+  int size2 = (app()->thread(1)->ring().size() / 2) + 1;
 
   printf("requested size: %u actual size: %u size1: %u size2: %u\n",
       size, app()->thread(2)->ring().size(), size1, size2);
   fflush(stdout);
 
-  // test push with concurrent attach
-  check(synchronous(0, Attach()) == Zi::OK);
-  asynchronous(1, Attach(), attach2);
-  check(synchronous(2, Push(size1)) > 0);
+  // test push with concurrent open
+  asynchronous(0, Open(Ring::Read | Ring::Create), open1);
+  asynchronous(1, Open(Ring::Write), open1);
+  proceed(1, open1);
+  proceed(0, open1);
+  check(result(1) == Zi::OK);
+  check(synchronous(1, Push(size1)) > 0);
+  check(result(0) == Zi::OK);
   asynchronous(0, Shift(), shift1);
-  synchronous(2, Push2());
+  synchronous(1, Push2());
   proceed(0, shift1);
-  proceed(1, attach2);
   check(result(0) == size1);
-  check(result(1) == Zi::OK);
   synchronous(0, Shift2());
-
-  // test push with concurrent attach (2)
-  check(synchronous(0, Detach()) == Zi::OK);
-  asynchronous(0, Attach(), attach3);
-  check(synchronous(2, Push(size1)) > 0);
-  synchronous(2, Push2());
-  proceed(0, attach3);
-  check(result(0) == Zi::OK);
-  check(synchronous(0, Shift()) == size1);
-  synchronous(0, Shift2());
-  check(synchronous(1, Shift()) == size1);
-  synchronous(1, Shift2());
-
-  // test push with concurrent dual shift
-  check(synchronous(2, Push(size2)) > 0);
-  asynchronous(0, Shift(), shift1);
-  asynchronous(1, Shift(), shift1);
-  synchronous(2, Push2());
-  proceed(0, shift1);
-  proceed(1, shift1);
-  check(result(0) == size2);
-  check(result(1) == size2);
-  synchronous(0, Shift2());
-  synchronous(1, Shift2());
-
-  // test push with concurrent detach
-  check(synchronous(2, Push(size1)) > 0); 
-  asynchronous(0, Detach(), detach4);
-  synchronous(2, Push2());
-  check(synchronous(1, Shift()) == size1);
-  synchronous(1, Shift2());
-  proceed(0, detach4);
-  check(result(0) == Zi::OK);
-  check(app()->thread(2)->ring().length() == 0);
-  check(synchronous(1, Detach()) == Zi::OK);
-
-  // test overflow (gc / status) with concurrent detach
-  check(synchronous(0, Attach()) == Zi::OK);
-  check(synchronous(1, Attach()) == Zi::OK);
-  check(synchronous(2, Push(size2)) > 0); synchronous(2, Push2());
-  check(synchronous(2, Push(size2)) == 0);
-  check(synchronous(2, GC()) == 0);
-  check(synchronous(0, Shift()) == size2);
-  synchronous(0, Shift2());
-  asynchronous(1, Detach(), detach1);
-  check(synchronous(0, ReadStatus()) == 0);
-  proceed(1, detach1);
-  check(result(1) == Zi::OK);
-  check(synchronous(0, Detach()) == Zi::OK);
 
   synchronous(0, Close());
   synchronous(1, Close());
-  synchronous(2, Close());
 
   return 0;
 }
