@@ -429,11 +429,7 @@ public:
     S	&m_stream;
   };
   struct CSV {
-    template <typename S> void print(S &s) const {
-      CSV_<S> csv(s);
-      ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{&csv,
-	  [](CSV_<S> *csv, ZmThreadContext *tc) { csv->print(tc); }});
-    }
+    template <typename S> void print(S &s) const;
     friend ZuPrintFn ZuPrintType(CSV *);
   };
   static CSV csv() { return CSV(); }
@@ -453,6 +449,11 @@ inline ZmThreadContext *ZmThreadContext::self() {
 }
 inline ZmThreadContext *ZmThreadContext::self(ZmThreadContext *c) {
   return ZmSpecific<ZmThreadContext>::instance(c);
+}
+template <typename S> inline void ZmThread::CSV::print(S &s) const {
+  CSV_<S> csv{s};
+  ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{&csv,
+      [](CSV_<S> *csv, ZmThreadContext *tc) { csv->print(tc); }});
 }
 
 #endif /* ZmThread_HPP */

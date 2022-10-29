@@ -51,7 +51,7 @@ public:
 
 private:
   enum Acquire_ { Acquire };
-  ZuRef(T *o, Acquire_ _) : m_object(o) { }
+  ZuRef(T *o, Acquire_ _) : m_object{o} { }
 
   // matches ZuRef<U> where U is not T, but is in the same type hierarchy as T
   template <typename U> struct IsOtherRef__ {
@@ -101,27 +101,27 @@ private:
   using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
 
 public:
-  ZuRef() : m_object(0) { }
-  ZuRef(const ZuRef &r) : m_object(r.m_object) {
+  ZuRef() : m_object{0} { }
+  ZuRef(const ZuRef &r) : m_object{r.m_object} {
     if (T *o = m_object) o->ref();
   }
-  ZuRef(ZuRef &&r) noexcept : m_object(r.m_object) {
+  ZuRef(ZuRef &&r) : m_object{r.m_object} {
     r.m_object = 0;
   }
   template <typename R>
-  ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr)
-  noexcept : m_object(
-      static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))) {
+  ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
+    m_object{
+      static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))} {
     ZuMvCp<R>::mvcp(ZuFwd<R>(r),
 	[](auto &&r) { r.m_object = 0; },
 	[this](const auto &) { if (T *o = m_object) o->ref(); });
   }
-  ZuRef(T *o) : m_object(o) {
+  ZuRef(T *o) : m_object{o} {
     if (o) o->ref();
   }
   template <typename O>
   ZuRef(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object(static_cast<T *>(o)) {
+      m_object{static_cast<T *>(o)} {
     if (o) o->ref();
   }
   ~ZuRef() {

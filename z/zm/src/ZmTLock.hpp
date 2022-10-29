@@ -545,8 +545,8 @@ public:
     ThreadRef thread;
     Guard_ guard(m_lock);
 
-    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, (void)0);
-    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, (void)0);
+    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void{});
+    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void{});
 
     unlock_(lock, thread);
   }
@@ -616,7 +616,7 @@ public:
     ThreadRef oldThread, newThread;
     Guard_ guard(m_lock);
 
-    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, (void)0);
+    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void{});
 
     {
       typename ThreadHash::NodeRef threadNode;
@@ -649,7 +649,7 @@ public:
     ThreadRef thread;
     Guard_ guard(m_lock);
 
-    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, (void)0);
+    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void{});
 
     thread->finalize(*this);
   }

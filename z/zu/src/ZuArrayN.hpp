@@ -376,13 +376,13 @@ public:
     return static_cast<T *>(ptr);
   }
   T pop() {
-    if (!m_length) return Cmp::null();
+    if (!m_length) return ZuNullRef<T, Cmp>();
     T t = ZuMv(data()[--m_length]);
     this->destroyItem(data() + m_length);
     return t;
   }
   T shift() {
-    if (!m_length) return Cmp::null();
+    if (!m_length) return ZuNullRef<T, Cmp>();
     T t = ZuMv(data()[0]);
     this->destroyItem(data());
     this->moveItems(data(), data() + 1, --m_length);

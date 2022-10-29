@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     std::cout << T::I << ' ' << T::id() << '\n';
   });
   X x;
-  X y = x;
+  // X y = x;
   X z{x};
   X q;
   q = x;

@@ -39,7 +39,7 @@
 
 struct ZvHeapCSV {
   struct Data : public ZtFieldTuple<Data> {
-    static const ZtFieldArray fields() noexcept;
+    static const ZtFieldArray fields();
 
     ZmIDString		id;
     ZuBox<unsigned>	partition;
@@ -47,13 +47,13 @@ struct ZvHeapCSV {
     ZuBox<uint64_t>	cacheSize;
     ZmBitmap		cpuset;
   };
-  const ZtFieldArray Data::fields() noexcept {
+  const ZtFieldArray Data::fields() {
     ZtFields(Data,
-	(String, id, 0),
-	(Int, partition, 0),
-	(Int, alignment, 0),
-	(Int, cacheSize, 0),
-	(String, cpuset, 0)
+	(String, id),
+	(Int, partition),
+	(Int, alignment),
+	(Int, cacheSize),
+	(String, cpuset)
   }
 
   class CSV : public ZvCSV<Data> {

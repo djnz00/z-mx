@@ -442,11 +442,11 @@ private:
   }
   KeyRet key(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].key();
-    return Cmp::null();
+    return ZuNullRef<Key, Cmp>();
   }
   ValRet val(int slot) const {
     if (ZuLikely(slot >= 0)) return m_table[slot].val();
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
 
 protected:
@@ -926,14 +926,14 @@ private:
     del__(prev);
   }
   Key delKey_(int prev) {
-    if (prev == -1) return Cmp::null();
+    if (prev == -1) return ZuNullRef<Key, Cmp>();
     int slot = prev < 0 ? (-prev - 2) : m_table[prev].next();
     Key key{ZuMv(m_table[slot]).key()};
     del__(prev);
     return key;
   }
   Key delVal_(int prev) {
-    if (prev == -1) return Cmp::null();
+    if (prev == -1) return ZuNullRef<Key, Cmp>();
     int slot = prev < 0 ? (-prev - 2) : m_table[prev].next();
     Val val{ZuMv(m_table[slot]).val()};
     del__(prev);

@@ -78,7 +78,7 @@ public:
     if (ZuUnlikely(owned(m_object))) ZmREF(ptr(m_object));
   }
 
-  ZmAnyFn(ZmAnyFn &&fn) noexcept :
+  ZmAnyFn(ZmAnyFn &&fn) :
       m_invoker(fn.m_invoker), m_object(fn.m_object) {
     // fn.m_object = disown(fn.m_object);
     fn.m_invoker = fn.m_object = 0;
@@ -97,7 +97,7 @@ public:
     return *this;
   }
 
-  ZmAnyFn &operator =(ZmAnyFn &&fn) noexcept {
+  ZmAnyFn &operator =(ZmAnyFn &&fn) {
     if (ZuUnlikely(owned(m_object))) ZmDEREF(ptr(m_object));
     m_invoker = fn.m_invoker;
     m_object = fn.m_object;
@@ -222,7 +222,7 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
 public:
   ZmFn() : ZmAnyFn() { }
   ZmFn(const ZmFn &fn) : ZmAnyFn(fn) { }
-  ZmFn(ZmFn &&fn) noexcept : ZmAnyFn(static_cast<ZmAnyFn &&>(fn)) { }
+  ZmFn(ZmFn &&fn) : ZmAnyFn(static_cast<ZmAnyFn &&>(fn)) { }
 
 private:
   class Pass {
@@ -247,7 +247,7 @@ public:
     ZmAnyFn::operator =(fn);
     return *this;
   }
-  ZmFn &operator =(ZmFn &&fn) noexcept {
+  ZmFn &operator =(ZmFn &&fn) {
     ZmAnyFn::operator =(static_cast<ZmAnyFn &&>(fn));
     return *this;
   }
@@ -257,7 +257,7 @@ private:
     ZmAnyFn::operator =(fn);
     return *this;
   }
-  ZmFn &operator =(ZmAnyFn &&fn) noexcept {
+  ZmFn &operator =(ZmAnyFn &&fn) {
     ZmAnyFn::operator =(static_cast<ZmAnyFn &&>(fn));
     return *this;
   }
@@ -506,17 +506,15 @@ private:
   template <typename L, typename R, class HeapID, typename ...Args_>
   struct LambdaInvoker_<L, R, HeapID, 0, Args_...> {
     template <typename L_> static ZmFn fn(L_ &&l) {
-      using O = typename ZmLambda<L, HeapID>::T;
-      return Member<&L::operator ()>::fn(
-	    ZmRef<O>(new typename ZmLambda<L, HeapID>::T(ZuFwd<L_>(l))));
+      using O = ZmLambda<L, HeapID>;
+      return Member<&L::operator ()>::fn(ZmRef<O>{new O{ZuFwd<L_>(l)}});
     }
   };
   template <typename L, typename R, class HeapID, typename ...Args_>
   struct LambdaInvoker_<const L, R, HeapID, 0, Args_...> {
     template <typename L_> static ZmFn fn(L_ &&l) {
-      using O = typename ZmLambda<L, HeapID>::T;
-      return Member<&L::operator ()>::fn(
-	    ZmRef<const O>(new typename ZmLambda<L, HeapID>::T(ZuFwd<L_>(l))));
+      using O = ZmLambda<L, HeapID>;
+      return Member<&L::operator ()>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
     }
   };
 

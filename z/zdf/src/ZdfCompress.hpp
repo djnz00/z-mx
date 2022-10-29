@@ -54,10 +54,10 @@ public:
     }
     return *this;
   }
-  Decoder(Decoder &&r) noexcept :
+  Decoder(Decoder &&r) :
       m_pos(r.m_pos), m_end(r.m_end),
       m_prev(r.m_prev), m_rle(r.m_rle), m_count(r.m_count) { }
-  Decoder &operator =(Decoder &&r) noexcept {
+  Decoder &operator =(Decoder &&r) {
     if (ZuLikely(this != &r)) {
       this->~Decoder(); // nop
       new (this) Decoder{ZuMv(r)};
@@ -251,7 +251,7 @@ public:
   Encoder(uint8_t *start, uint8_t *end) : m_pos(start), m_end(end) { }
 
   Encoder() : m_pos(nullptr), m_end(nullptr) { }
-  Encoder(Encoder &&w) noexcept :
+  Encoder(Encoder &&w) :
       m_pos(w.m_pos), m_end(w.m_end),
       m_rle(w.m_rle), m_prev(w.m_prev), m_count(w.m_count) {
     w.m_pos = nullptr;
@@ -260,7 +260,7 @@ public:
     w.m_prev = 0;
     w.m_count = 0;
   }
-  Encoder &operator =(Encoder &&w) noexcept {
+  Encoder &operator =(Encoder &&w) {
     if (ZuLikely(this != &w)) {
       this->~Encoder(); // nop
       new (this) Encoder{ZuMv(w)};
@@ -435,11 +435,11 @@ public:
   DeltaEncoder(uint8_t *start, uint8_t *end) : Base(start, end) { }
 
   DeltaEncoder() { }
-  DeltaEncoder(DeltaEncoder &&w) noexcept :
+  DeltaEncoder(DeltaEncoder &&w) :
       Base{static_cast<Base &&>(w)}, m_base{w.m_base} {
     w.m_base = 0;
   }
-  DeltaEncoder &operator =(DeltaEncoder &&w) noexcept {
+  DeltaEncoder &operator =(DeltaEncoder &&w) {
     if (ZuLikely(this != &w)) {
       this->~DeltaEncoder(); // nop
       new (this) DeltaEncoder{ZuMv(w)};

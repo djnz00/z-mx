@@ -54,10 +54,9 @@
 
 #ifndef _WIN32
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-#define ZmPLock_Recursive 0
 using ZmPLock_ = uint32_t;
 #define ZmPLock_init(m) m = 0
-#define ZmPLock_final(m) (void)0
+#define ZmPLock_final(m) (void{})
 ZuInline void ZmPLock_lock_(ZmPLock_ &m) {
   int i = 0x00010000, j;
   __asm__ __volatile__(	"lock; xaddl %0, %1\n\t"
@@ -100,30 +99,14 @@ ZuInline void ZmPLock_unlock_(ZmPLock_ &m) {
 }
 #define ZmPLock_unlock(m) ZmPLock_unlock_(m) 
 #else
-#define ZmPLock_Recursive 1
 using ZmPLock_ = pthread_mutex_t;
-struct ZmPLock_Attr {
-  ZmPLock_Attr() {
-    pthread_mutexattr_init(&m_value);
-    pthread_mutexattr_settype(&m_value, PTHREAD_MUTEX_RECURSIVE);
-  }
-  ~ZmPLock_Attr() {
-    pthread_mutexattr_destroy(&m_value);
-  }
-  pthread_mutexattr_t	m_value;
-  static pthread_mutexattr_t *value() {
-    static ZmPLock_Attr instance;
-    return &instance.m_value;
-  }
-};
-#define ZmPLock_init(m) pthread_mutex_init(&m, ZmPLock_Attr::value())
+#define ZmPLock_init(m) pthread_mutex_init(&m, nullptr);
 #define ZmPLock_final(m) pthread_mutex_destroy(&m)
 #define ZmPLock_lock(m) pthread_mutex_lock(&m)
 #define ZmPLock_trylock(m) (!pthread_mutex_trylock(&m))
 #define ZmPLock_unlock(m) pthread_mutex_unlock(&m)
 #endif
 #else
-#define ZmPLock_Recursive 1
 using ZmPLock_ = CRITICAL_SECTION;
 #define ZmPLock_init(m) \
   InitializeCriticalSectionAndSpinCount(&m, 0x10000)
@@ -145,13 +128,19 @@ public:
   ZuInline int trylock() { return -!ZmPLock_trylock(m_lock); }
   ZuInline void unlock() { ZmPLock_unlock(m_lock); }
 
+  // ZmCondition integration
+  struct Wait { };
+  Wait wait() { return {}; }
+  ZuInline void lock_() { ZmPLock_lock(m_lock); }
+  ZuInline void unlock_() { ZmPLock_unlock(m_lock); }
+
 private:
   ZmPLock_		m_lock;
 };
 
 template <>
 struct ZmLockTraits<ZmPLock> : public ZmGenericLockTraits<ZmPLock> {
-  enum { CanTry = 1, Recursive = ZmPLock_Recursive, RWLock = 0 };
+  enum { CanTry = 1, Recursive = 0, RWLock = 0 };
 };
 
 #endif /* ZmPLock_HPP */

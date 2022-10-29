@@ -43,21 +43,21 @@ template <class Lock> class ZmGuard : private ZmLockTraits<Lock> {
 public:
   enum Try_ { Try };	// disambiguator
 
-  ZmGuard() noexcept : m_lock{nullptr} { }
+  ZmGuard() : m_lock{nullptr} { }
 
-  ZmGuard(Lock &l) noexcept : m_lock(&l) { this->lock(l); }
+  ZmGuard(Lock &l) : m_lock(&l) { this->lock(l); }
 
-  explicit ZmGuard(Lock &l, Try_ _) noexcept : m_lock(&l) {
+  explicit ZmGuard(Lock &l, Try_ _) : m_lock(&l) {
     if (this->trylock(l)) m_lock = nullptr;
   }
-  explicit ZmGuard(Lock &l, Try_ _, int &r) noexcept : m_lock(&l) {
+  explicit ZmGuard(Lock &l, Try_ _, int &r) : m_lock(&l) {
     if (r = this->trylock(l)) m_lock = nullptr;
   }
 
-  ZmGuard(ZmGuard &&guard) noexcept : m_lock(guard.m_lock) {
+  ZmGuard(ZmGuard &&guard) : m_lock(guard.m_lock) {
     guard.m_lock = nullptr;
   }
-  ZmGuard &operator =(ZmGuard &&guard) noexcept {
+  ZmGuard &operator =(ZmGuard &&guard) {
     if (ZuLikely(this != &guard)) {
       if (m_lock) Traits::unlock(*m_lock);
       m_lock = guard.m_lock;
@@ -66,11 +66,11 @@ public:
     return *this;
   }
 
-  ~ZmGuard() noexcept { if (m_lock) Traits::unlock(*m_lock); }
+  ~ZmGuard() { if (m_lock) Traits::unlock(*m_lock); }
 
-  bool locked() const noexcept { return m_lock; }
+  bool locked() const { return m_lock; }
 
-  void unlock() noexcept {
+  void unlock() {
     if (m_lock) { Traits::unlock(*m_lock); m_lock = nullptr; }
   }
 
@@ -90,28 +90,28 @@ template <class Lock> class ZmReadGuard : private ZmLockTraits<Lock> {
 public:
   enum Try_ { Try };	// disambiguator
 
-  ZmReadGuard(const Lock &l) noexcept :
+  ZmReadGuard(const Lock &l) :
     m_lock(&(const_cast<Lock &>(l))) {
     this->readlock(const_cast<Lock &>(l));
   }
-  explicit ZmReadGuard(const Lock &l, Try_ _) noexcept :
+  explicit ZmReadGuard(const Lock &l, Try_ _) :
       m_lock(&(const_cast<Lock &>(l))) {
     if (this->tryreadlock(const_cast<Lock &>(l))) m_lock = nullptr;
   }
-  explicit ZmReadGuard(const Lock &l, Try_ _, int &r) noexcept :
+  explicit ZmReadGuard(const Lock &l, Try_ _, int &r) :
       m_lock(&(const_cast<Lock &>(l))) {
     if (r = this->tryreadlock(const_cast<Lock &>(l))) m_lock = nullptr;
   }
-  ZmReadGuard(ZmReadGuard &&guard) noexcept : m_lock(guard.m_lock) {
+  ZmReadGuard(ZmReadGuard &&guard) : m_lock(guard.m_lock) {
     guard.m_lock = nullptr;
   }
-  ~ZmReadGuard() noexcept { if (m_lock) Traits::readunlock(*m_lock); }
+  ~ZmReadGuard() { if (m_lock) Traits::readunlock(*m_lock); }
 
-  void unlock() noexcept {
+  void unlock() {
     if (m_lock) { Traits::readunlock(*m_lock); m_lock = nullptr; }
   }
 
-  ZmReadGuard &operator =(ZmReadGuard &&guard) noexcept {
+  ZmReadGuard &operator =(ZmReadGuard &&guard) {
     if (ZuLikely(this != &guard)) {
       if (m_lock) Traits::readunlock(*m_lock);
       m_lock = guard.m_lock;

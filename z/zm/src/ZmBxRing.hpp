@@ -132,6 +132,7 @@ private:
     char			pad_4[CacheLineSize - 24];
 
     ZmAtomic<uint32_t>		rdrCount; // reader count
+    uint32_t			pad_5;
     ZmAtomic<uint64_t>		rdrMask;  // active readers
     ZmAtomic<uint64_t>		attMask;  // readers pending attach
     ZmAtomic<uint64_t>		attSeqNo; // attach/detach seqNo

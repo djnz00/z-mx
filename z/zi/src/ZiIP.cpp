@@ -185,7 +185,7 @@ using ZiIP_AddrInfo = struct addrinfo;
 #define ZiIP_FreeAddrInfo freeaddrinfo
 #define ZiIP_GetNameInfo getnameinfo
 
-#define ZiIP_InitOnce() ((void)0)
+#define ZiIP_InitOnce() (void{})
 
 #endif /* _WIN32 */
 

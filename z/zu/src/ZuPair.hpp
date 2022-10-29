@@ -190,7 +190,7 @@ protected:
   }
 
 public:
-  template <typename T> Pair_ &operator =(T &&v) noexcept {
+  template <typename T> Pair_ &operator =(T &&v) {
     assign(ZuFwd<T>(v));
     return *this;
   }

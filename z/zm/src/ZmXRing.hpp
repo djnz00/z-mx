@@ -149,7 +149,7 @@ public:
   using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
-  using KeyCmp = typename NTP::template KeyCmpT<Key>;
+  using KeyCmp = typename NTP::template KeyCmpT<T>;
   using Lock = typename NTP::Lock;
   using HeapID = typename NTP::HeapID;
 
@@ -290,7 +290,7 @@ public:
   T pop() {
     Guard guard(m_lock);
 
-    if (m_count <= 0) return Cmp::null();
+    if (m_count <= 0) return ZuNullRef<T, Cmp>();
     --m_count;
     unsigned o = offset(--m_length);
     T v = ZuMv(m_data[o]);
@@ -339,7 +339,7 @@ public:
   T shift() {
     Guard guard(m_lock);
 
-    if (m_count <= 0) return Cmp::null();
+    if (m_count <= 0) return ZuNullRef<T, Cmp>();
     --m_count;
     int i = m_length, j = 0, o = m_offset;
     T v = ZuMv(m_data[o]);
@@ -353,13 +353,13 @@ public:
   T head() {
     Guard guard(m_lock);
 
-    if (m_length <= 0) return Cmp::null();
+    if (m_length <= 0) return ZuNullRef<T, Cmp>();
     return m_data[m_offset];
   }
   T tail() {
     Guard guard(m_lock);
 
-    if (m_length <= 0) return Cmp::null();
+    if (m_length <= 0) return ZuNullRef<T, Cmp>();
     return m_data[offset(m_length - 1)];
   }
 
@@ -370,7 +370,7 @@ public:
       unsigned o = offset(i);
       if (KeyCmp::equals(KeyAxor::get(m_data[o]), v)) return m_data[o];
     }
-    return Cmp::null();
+    return ZuNullRef<T, Cmp>();
   }
 
 private:
@@ -388,7 +388,7 @@ public:
   T del(const P &v) {
     Guard guard(m_lock);
     T *ptr = findPtr_(v);
-    if (!ptr) return Cmp::null();
+    if (!ptr) return ZuNullRef<T, Cmp>();
     T data = ZuMv(*ptr);
     delPtr_(ptr);
     return data;
@@ -478,7 +478,7 @@ friend Iterator;
     const T &iterate() {
       unsigned o;
       do {
-	if (this->m_i >= (int)this->m_ring.m_length) return Cmp::null();
+	if (this->m_i >= (int)this->m_ring.m_length) return ZuNullRef<T, Cmp>();
 	o = this->m_ring.offset(this->m_i++);
       } while (Cmp::null(this->m_ring.m_data[o]));
       return this->m_ring.m_data[o];
@@ -502,7 +502,7 @@ friend RevIterator;
     const T &iterate() {
       unsigned o;
       do {
-	if (this->m_i <= 0) return Cmp::null();
+	if (this->m_i <= 0) return ZuNullRef<T, Cmp>();
 	o = this->m_ring.offset(--this->m_i);
       } while (Cmp::null(this->m_ring.m_data[o]));
       return this->m_ring.m_data[o];

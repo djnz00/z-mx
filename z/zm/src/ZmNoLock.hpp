@@ -42,6 +42,12 @@ public:
   ZuInline void lock() { }
   ZuInline int trylock() { return 0; }
   ZuInline void unlock() { }
+
+  // ZmCondition integration
+  struct Wait { };
+  Wait wait() { return {}; }
+  ZuInline void lock_() { };
+  ZuInline void unlock_() { };
 };
 
 template <>

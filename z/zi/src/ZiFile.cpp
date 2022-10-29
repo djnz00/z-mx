@@ -328,7 +328,7 @@ int ZiFile::open_(
     Path name_(name.length() + 8);
     name_ << "Local\\" << name; // was Global
     DWORD protectFlags = (flags & ReadOnly) ? PAGE_READONLY : PAGE_READWRITE;
-    if (flags & ShmDbl)
+    if (flags & ShmMirror)
       blkSize = 64<<10; // Windows - 64k, not the system page size
     else
       { SYSTEM_INFO si; GetSystemInfo(&si); blkSize = si.dwPageSize; }
@@ -403,7 +403,7 @@ int ZiFile::mmap(
 #ifdef MAP_POPULATE
   if (flags & MMPopulate) mmapFlags |= MAP_POPULATE;
 #endif
-  if (flags & ShmDbl) {
+  if (flags & ShmMirror) {
     m_addr = ::mmap(
 	0, m_mmapLength<<1, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
     if (m_addr == MAP_FAILED || !m_addr) goto error;
@@ -430,7 +430,7 @@ int ZiFile::mmap(
   }
   {
     DWORD accessFlags = (flags & ReadOnly) ? FILE_MAP_READ : FILE_MAP_WRITE;
-    if (flags & ShmDbl) {
+    if (flags & ShmMirror) {
 retry:
       m_addr = VirtualAlloc(
 	  0, static_cast<DWORD>(m_mmapLength<<1), MEM_RESERVE, PAGE_NOACCESS);
@@ -502,16 +502,16 @@ void ZiFile::close()
   if (m_addr) {
 #ifndef _WIN32
     munmap(m_addr, m_mmapLength);
-    if (m_flags & ShmDbl)
+    if (m_flags & ShmMirror)
       munmap(static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength);
     if ((m_flags & ShmGC) && m_shmName)
       shm_unlink(m_shmName);
-    m_shmName = ZtString();
+    m_shmName = {};
 #else
     if (m_mmapHandle != m_handle) CloseHandle(m_mmapHandle);
     m_mmapHandle = Zi::nullHandle();
     UnmapViewOfFile(m_addr);
-    if (m_flags & ShmDbl)
+    if (m_flags & ShmMirror)
       UnmapViewOfFile(static_cast<uint8_t *>(m_addr) + m_mmapLength);
 #endif
   }

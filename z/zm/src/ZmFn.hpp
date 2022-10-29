@@ -103,6 +103,6 @@
 // implementation moved to ZmFn_.hpp to resolve circular dependency w/ ZmHeap
 
 #include <zlib/ZmFn_.hpp>
-#include <zlib/ZmFn_Lambda.hpp>
+// #include <zlib/ZmFn_Lambda.hpp>
 
 #endif /* ZmFn_HPP */

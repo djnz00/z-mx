@@ -94,20 +94,19 @@ private:
   using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
 
 public:
-  ZuPtr() : m_object(nullptr) { }
-  ZuPtr(ZuPtr &&r) noexcept : m_object(r.m_object) {
+  ZuPtr() : m_object{nullptr} { }
+  ZuPtr(ZuPtr &&r) : m_object{r.m_object} {
     r.m_object = nullptr;
   }
   template <typename R>
-  ZuPtr(R &&r, MatchOtherPtr<ZuDeref<R>> *_ = nullptr)
-  noexcept : m_object(
-      static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))) {
+  ZuPtr(R &&r, MatchOtherPtr<ZuDeref<R>> *_ = nullptr) : m_object{
+      static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))} {
     ZuMvCp<R>::mv(ZuFwd<R>(r), [](auto &&r) { r.m_object = nullptr; });
   }
-  ZuPtr(T *o) : m_object(o) { }
+  ZuPtr(T *o) : m_object{o} { }
   template <typename O>
   ZuPtr(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object(static_cast<T *>(o)) { }
+      m_object{static_cast<T *>(o)} { }
   ~ZuPtr() {
     if (T *o = m_object) delete o;
   }
@@ -128,7 +127,7 @@ public:
     return *this;
   }
   template <typename R>
-  MatchOtherPtr<R, ZuPtr &> operator =(R r) noexcept {
+  MatchOtherPtr<R, ZuPtr &> operator =(R r) {
     swap(r);
     return *this;
   }

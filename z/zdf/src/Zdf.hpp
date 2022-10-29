@@ -373,7 +373,7 @@ public:
   const ZtVField *field(unsigned i) const { return m_fields[i]; }
 
 private:
-  constexpr static const uint64_t pow10_9() { return 1000000000UL; }
+  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
 public:
   ZuFixed nsecs(ZmTime t) {
     t -= m_epoch;

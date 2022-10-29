@@ -278,7 +278,7 @@ private:
   ZtArray(NoInit_ _) { }
 public:
   ZtArray(const ZtArray &a) { ctor(a); }
-  ZtArray(ZtArray &&a) noexcept {
+  ZtArray(ZtArray &&a) {
     if (!a.owned())
       shadow_(a.m_data, a.length());
     else {
@@ -473,7 +473,7 @@ public:
 public:
   ZtArray &operator =(const ZtArray &a)
     { assign(a); return *this; }
-  ZtArray &operator =(ZtArray &&a) noexcept {
+  ZtArray &operator =(ZtArray &&a) {
     free_();
     new (this) ZtArray(ZuMv(a));
     return *this;
@@ -1205,7 +1205,7 @@ public:
   }
   T pop() {
     unsigned n = length();
-    if (!n) return Cmp::null();
+    if (!n) return ZuNullRef<T, Cmp>();
     T v;
     if (ZuUnlikely(!owned())) {
       v = m_data[--n];
@@ -1218,7 +1218,7 @@ public:
   }
   T shift() {
     unsigned n = length();
-    if (!n) return Cmp::null();
+    if (!n) return ZuNullRef<T, Cmp>();
     T v;
     if (ZuUnlikely(!owned())) {
       v = m_data[0];

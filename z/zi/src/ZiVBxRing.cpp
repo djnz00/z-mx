@@ -209,7 +209,7 @@ retry:
       ++m_full;
       if (!wait_) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (ZiIPC_wait(Tail, this->tail(), tail) != Zi::OK) return nullptr;
+	if (ZiRingUtil::wait(Tail, this->tail(), tail) != Zi::OK) return nullptr;
       goto retry;
     }
   }
@@ -233,7 +233,7 @@ void ZiVBxRing::push2()
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiIPC_wake(Head, this->head(), rdrCount().load_());
+      ZiRingUtil::wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 
@@ -254,7 +254,7 @@ void ZiVBxRing::eof(bool b)
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiIPC_wake(Head, this->head(), rdrCount().load_());
+      ZiRingUtil::wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 }
@@ -308,7 +308,7 @@ int ZiVBxRing::gc()
       if (ZuUnlikely(!m_params.ll())) {
 	if (ZuUnlikely(
 	      this->tail().xch(tail | (tail_ & (Mask & ~Waiting))) & Waiting))
-	  ZiIPC_wake(Tail, this->tail(), 1);
+	  ZiRingUtil::wake(Tail, this->tail(), 1);
       } else
 	this->tail() = tail | (tail_ & Mask); // release
     }
@@ -444,7 +444,7 @@ int ZiVBxRing::detach()
       /**/ZiVBxRing_bp(detach3);
       if (ZuUnlikely(!m_params.ll())) {
 	if (ZuUnlikely(this->tail().xch(tail) & Waiting))
-	  ZiIPC_wake(Tail, this->tail(), 1);
+	  ZiRingUtil::wake(Tail, this->tail(), 1);
       } else
 	this->tail() = tail; // release
     }
@@ -481,7 +481,7 @@ retry:
   if (tail == (head & ~Mask)) {
     if (ZuUnlikely(head & EndOfFile)) return nullptr;
     if (ZuUnlikely(!m_params.ll()))
-      if (ZiIPC_wait(Head, this->head(), head) != Zi::OK) return nullptr;
+      if (ZiRingUtil::wait(Head, this->head(), head) != Zi::OK) return nullptr;
     goto retry;
   }
 
@@ -504,7 +504,7 @@ void ZiVBxRing::shift2()
   if (*reinterpret_cast<ZmAtomic<uint64_t> *>(ptr) &= ~(1ULL<<m_id)) return;
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->tail().xch(tail) & Waiting))
-      ZiIPC_wake(Tail, this->tail(), 1);
+      ZiRingUtil::wake(Tail, this->tail(), 1);
   } else
     this->tail() = tail; // release
 

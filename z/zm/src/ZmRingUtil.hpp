@@ -17,7 +17,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ring buffer common utility functions
+// ring buffer utility functions
+//
+// (mainly a wrapper around Linux futexes and Win32 equivalent)
 
 #ifndef ZmRingUtil_HPP
 #define ZmRingUtil_HPP
@@ -74,8 +76,6 @@ public:
   ZmRingUtil(Params<Derived> params) : m_params{ZuMv(params)} { }
 
   const ParamData &params() const { return m_params; }
-
-  enum { OK = 0, EndOfFile = -1, Error = -2, NotReady = -3 };
 
   enum { Head = 0, Tail };
 

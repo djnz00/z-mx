@@ -55,10 +55,10 @@ void ZmAssert_fail(
   ZuStringN<512> buf;
 
   if (fn)
-    buf << '"' << file << "\":" << ZuBoxed(line) <<
+    buf << '"' << file << "\":" << line <<
       ' ' << fn << " Assertion '" << expr << "' failed.";
   else
-    buf << '"' << file << "\":" << ZuBoxed(line) <<
+    buf << '"' << file << "\":" << line <<
       " Assertion '" << expr << "' failed.";
 
 #ifndef _WIN32

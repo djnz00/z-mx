@@ -72,7 +72,7 @@ public:
     MMap	= 0x0200,// memory-mapped file (set internally by mmap())
     Shm		= 0x0400,// global named shared memory, not a real file
     ShmGC	= 0x0800,// remove shared memory on close()
-    ShmDbl	= 0x1000,// map two adjacent copies of the same memory
+    ShmMirror	= 0x1000,// map two adjacent copies of the same memory
     MMPopulate	= 0x2000,// MAP_POPULATE
     Shadow	= 0x4000 // shadow already opened file
   };
@@ -83,7 +83,7 @@ public:
 
   ~ZiFile() { final(); }
 
-  ZuInline Handle handle() { return m_handle; }
+  ZuInline Handle handle() const { return m_handle; }
   ZuInline void *addr() const { return m_addr; }
   ZuInline Offset mmapLength() const { return m_mmapLength; }
 

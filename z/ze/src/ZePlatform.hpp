@@ -152,9 +152,9 @@ public:
     Fn::operator =(fn);
     return *this;
   }
-  ZeMessageFn_(ZeMessageFn_ &&fn) noexcept :
+  ZeMessageFn_(ZeMessageFn_ &&fn) :
     Fn(static_cast<Fn &&>(fn)) { }
-  ZeMessageFn_ &operator =(ZeMessageFn_ &&fn) noexcept {
+  ZeMessageFn_ &operator =(ZeMessageFn_ &&fn) {
     Fn::operator =(static_cast<Fn &&>(fn));
     return *this;
   }

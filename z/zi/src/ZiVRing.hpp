@@ -19,7 +19,7 @@
 
 // shared memory SPSC ring buffer IPC
 
-// supports fixed- and variable length messages
+// supports variable length messages
 // messages are C/C++ POD types
 
 // two modes are supported: normal and low-latency
@@ -69,7 +69,7 @@
 #ifdef ZiVRing_STRESSTEST
 #define ZiVRing_bp(x) Zm::yield()
 #else
-#define ZiVRing_bp(x) (void)0
+#define ZiVRing_bp(x) (void{})
 #endif
 #endif
 
@@ -118,11 +118,34 @@ class ZiVRingAPI ZiVRing : public ZiRingUtil {
   using ParamData = ZiVRing_::ParamData;
   template <typename Derived> using Params = ZiVRing_::Params<Derived>;
 
+  //               | SPSC | MPSC | SPMC | MPMC |
+  //               |------+------+------+------|
+  // Fixed-size    |      | H    |      | H    |
+  // Variable-size | M    | HSM  | M    | HSM  |
+
+  // H - message has a 64bit header for MP
+  // S - size is stored in the header (implies H)
+  // M - mirrored buffer
+
+  // Zm - intra-process
+  // Zi = inter-process
+ 
+  // consolidate into
+  // ZmRingUtil - flags (used for head, tail and header)
+  // ZmRing<typename T, bool MP, bool MC>
+  // ZiRing<typename T, bool MP, bool MC>
+  //
+  // T == ZuAny (sentinel type) implies variable-sized messages
+  // otherwise fixed-size sizeof(T)
+  //
+  // !MP implies SP
+  // !MC implies SC
+
   enum { // head+tail flags
     EndOfFile	= 0x20000000,
     Waiting	= 0x40000000,
     Wrapped	= 0x80000000,
-    Mask	= EndOfFile | Waiting // does NOT include Wrapped
+    Mask	= Waiting | EndOfFile,	// does NOT include Wrapped
   };
 
   enum { Head = 0, Tail };
@@ -196,9 +219,6 @@ private:
  
   ZuInline ZmAtomic<uint32_t> &openSize() { return ctrl()->openSize; }
   ZuInline ZmAtomic<uint32_t> &rdrCount() { return ctrl()->rdrCount; }
-  ZuInline ZmAtomic<uint64_t> &rdrMask() { return ctrl()->rdrMask; }
-  ZuInline ZmAtomic<uint64_t> &attMask() { return ctrl()->attMask; }
-  ZuInline ZmAtomic<uint64_t> &attSeqNo() { return ctrl()->attSeqNo; }
 
   // PIDs may be re-used by the OS, so processes are ID'd by PID + start time
 

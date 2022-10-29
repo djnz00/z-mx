@@ -341,7 +341,7 @@ private:
 
   static KeyRet key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
-    return Cmp::null();
+    return ZuNullRef<Key, Cmp>();
   }
   static Key keyMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -349,11 +349,11 @@ private:
       nodeDelete(node);
       return key;
     }
-    return Cmp::null();
+    return ZuNullRef<Key, Cmp>();
   }
   static ValRet val(Node *node) {
     if (ZuLikely(node)) return node->Node::val();
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
   static Val valMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -361,7 +361,7 @@ private:
       nodeDelete(node);
       return val;
     }
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
 
 public:
@@ -370,7 +370,7 @@ public:
   ZmRBTree(const ZmRBTree &) = delete;
   ZmRBTree &operator =(const ZmRBTree &) = delete;
 
-  ZmRBTree(ZmRBTree &&tree) noexcept {
+  ZmRBTree(ZmRBTree &&tree) {
     Guard guard(tree.m_lock);
     m_root = tree.m_root;
     m_minimum = tree.m_minimum, m_maximum = tree.m_maximum;
@@ -378,7 +378,7 @@ public:
     tree.m_root = tree.m_minimum = tree.m_maximum = nullptr;
     tree.m_count = 0;
   }
-  ZmRBTree &operator =(ZmRBTree &&tree) noexcept {
+  ZmRBTree &operator =(ZmRBTree &&tree) {
     unsigned count;
     Node *root, *minimum, *maximum;
     {
@@ -678,13 +678,13 @@ public:
   Key minimumKey() const {
     ReadGuard guard(m_lock);
     Node *node = m_minimum;
-    if (ZuUnlikely(!node)) return Cmp::null();
+    if (ZuUnlikely(!node)) return ZuNullRef<Key, Cmp>();
     return key(node);
   }
   Val minimumVal() const {
     ReadGuard guard(m_lock);
     Node *node = m_minimum;
-    if (ZuUnlikely(!node)) return ValCmp::null();
+    if (ZuUnlikely(!node)) return ZuNullRef<Val, ValCmp>();
     return val(node);
   }
 
@@ -699,13 +699,13 @@ public:
   Key maximumKey() const {
     ReadGuard guard(m_lock);
     Node *node = m_maximum;
-    if (ZuUnlikely(!node)) return Cmp::null();
+    if (ZuUnlikely(!node)) return ZuNullRef<Key, Cmp>();
     return key(node);
   }
   Val maximumVal() const {
     ReadGuard guard(m_lock);
     Node *node = m_maximum;
-    if (ZuUnlikely(!node)) return ValCmp::null();
+    if (ZuUnlikely(!node)) return ZuNullRef<Val, ValCmp>();
     return val(node);
   }
 
@@ -734,7 +734,7 @@ public:
   MatchKey<P, Key> delKey(const P &key) {
     ReadGuard guard(m_lock);
     Node *node = find_<Direction>(MatchKeyFn<P>{key});
-    if (!node) return Cmp::null();
+    if (!node) return ZuNullRef<Key, Cmp>();
     delNode_(node);
     Key key_ = ZuMv(*node).Node::key();
     nodeDelete(node);
@@ -744,7 +744,7 @@ public:
   MatchData<P, Key> delKey(const P &data) {
     ReadGuard guard(m_lock);
     Node *node = find_<Direction>(MatchDataFn<P>{data});
-    if (!node) return Cmp::null();
+    if (!node) return ZuNullRef<Key, Cmp>();
     delNode_(node);
     Key key = ZuMv(*node).Node::key();
     nodeDelete(node);
@@ -759,7 +759,7 @@ public:
   MatchKey<P, Val> delVal(const P &key) {
     ReadGuard guard(m_lock);
     Node *node = find_<Direction>(MatchKeyFn<P>{key});
-    if (!node) return ValCmp::null();
+    if (!node) return ZuNullRef<Val, ValCmp>();
     delNode_(node);
     Val val = ZuMv(*node).Node::val();
     nodeDelete(node);
@@ -769,7 +769,7 @@ public:
   MatchData<P, Val> delVal(const P &data) {
     ReadGuard guard(m_lock);
     Node *node = find_<Direction>(MatchDataFn<P>{data});
-    if (!node) return ValCmp::null();
+    if (!node) return ZuNullRef<Val, ValCmp>();
     delNode_(node);
     Val val = ZuMv(*node).Node::val();
     nodeDelete(node);

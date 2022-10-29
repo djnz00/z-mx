@@ -90,9 +90,9 @@ public:
   ZmStream(const ZmStream &) = delete;
   ZmStream &operator =(const ZmStream &) = delete;
 
-  ZmStream(ZmStream &&s) noexcept :
+  ZmStream(ZmStream &&s) :
     m_strFn(ZuMv(s.m_strFn)), m_bufFn(ZuMv(s.m_bufFn)) { }
-  ZmStream &operator =(ZmStream &&s) noexcept {
+  ZmStream &operator =(ZmStream &&s) {
     if (ZuLikely(this != &s)) {
       m_strFn = ZuMv(s.m_strFn);
       m_bufFn = ZuMv(s.m_bufFn);

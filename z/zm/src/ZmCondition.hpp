@@ -33,193 +33,159 @@
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmObject.hpp>
-#include <zlib/ZmPLock.hpp>
+#include <zlib/ZmGuard.hpp>
+#include <zlib/ZmSpecific.hpp>
+#include <zlib/ZmSemaphore.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4101 4251)
 #endif
 
-template <typename Lock> class ZmCondition;
-
-#ifndef _WIN32
-#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-#define ZmCondition_Native 0
-#else
-#define ZmCondition_Native 1
-using ZmCondition_ = pthread_cond_t;
-#define ZmCondition_init(c) pthread_cond_init(&c, 0)
-#define ZmCondition_final(c) pthread_cond_destroy(&c)
-#define ZmCondition_wait(c, l) pthread_cond_wait(&c, &l)
-inline static int ZmCondition_timedwait_(
-    ZmCondition_ &c, ZmLock_ &l, const ZmTime &t) {
-  timespec t_;
-  t.convertToNative(t_);
-  return pthread_cond_timedwait(&c, &l, &t_) ? -1 : 0;
-}
-#define ZmCondition_timedwait(c, l, t) ZmCondition_timedwait_(c, l, t)
-#define ZmCondition_signal(c) pthread_cond_signal(&c)
-#define ZmCondition_broadcast(c) pthread_cond_broadcast(&c)
-#endif
-#else
-#define ZmCondition_Native 0
-#endif
-
-#if ZmCondition_Native == 0
-#include <zlib/ZmGuard.hpp>
-#include <zlib/ZmSpecific.hpp>
-#include <zlib/ZmSemaphore.hpp>
-
-class ZmCondition_;
-
-static void ZmCondition_wait_(ZmCondition_ &, ZmPLock_ &);
-static int ZmCondition_timedwait_(ZmCondition_ &, ZmPLock_ &, const ZmTime &);
-static void ZmCondition_signal_(ZmCondition_ &);
-static void ZmCondition_broadcast_(ZmCondition_ &);
-
-class ZmCondition_Thread : public ZmObject {
-friend ZmSpecificCtor<ZmCondition_Thread>;
-template <typename> friend class ZmCondition;
-friend void ZmCondition_wait_(ZmCondition_ &, ZmPLock_ &);
-friend int ZmCondition_timedwait_(ZmCondition_ &, ZmPLock_ &, const ZmTime &);
-friend void ZmCondition_signal_(ZmCondition_ &);
-friend void ZmCondition_broadcast_(ZmCondition_ &);
-  ZmCondition_Thread() : m_waiting(false), m_next(0), m_prev(0) { }
-  ZmSemaphore		m_sem;
-  bool			m_waiting;
-  ZmCondition_Thread	*m_next;
-  ZmCondition_Thread	*m_prev;
-};
-
-class ZmCondition_ {
-template <typename> friend class ZmCondition;
-friend void ZmCondition_wait_(ZmCondition_ &, ZmPLock_ &);
-friend int ZmCondition_timedwait_(ZmCondition_ &, ZmPLock_ &, const ZmTime &);
-friend void ZmCondition_signal_(ZmCondition_ &);
-friend void ZmCondition_broadcast_(ZmCondition_ &);
-  ZmCondition_() : m_head(0), m_tail(0) { }
-  ZmPLock		m_lock;
-  ZmCondition_Thread	*m_head;
-  ZmCondition_Thread	*m_tail;
-};
-
-#define ZmCondition_init(c) (void)0
-#define ZmCondition_final(c) (void)0
-inline static void ZmCondition_wait_(ZmCondition_ &c, ZmPLock_ &l) {
-  ZmCondition_Thread *s = ZmSpecific<ZmCondition_Thread>::instance();
-  s->m_next = 0;
-  s->m_waiting = true;
-  {
-    ZmGuard<ZmPLock> guard(c.m_lock);
-    s->m_prev = c.m_tail;
-    if (c.m_head)
-      c.m_tail->m_next = s;
-    else
-      c.m_head = s;
-    c.m_tail = s;
-  }
-  ZmPLock_unlock(l);
-  s->m_sem.wait();
-  ZmPLock_lock(l);
-}
-#define ZmCondition_wait(c, l) ZmCondition_wait_(c, l) 
-inline static int ZmCondition_timedwait_(ZmCondition_ &c, ZmPLock_ &l,
-					 const ZmTime &t) {
-  ZmCondition_Thread *s = ZmSpecific<ZmCondition_Thread>::instance();
-  s->m_next = 0;
-  s->m_waiting = true;
-  {
-    ZmGuard<ZmPLock> guard(c.m_lock);
-    s->m_prev = c.m_tail;
-    if (c.m_head)
-      c.m_tail->m_next = s;
-    else
-      c.m_head = s;
-    c.m_tail = s;
-  }
-  ZmPLock_unlock(l);
-  if (s->m_sem.timedwait(t)) {
-    ZmGuard<ZmPLock> guard(c.m_lock);
-    if (s->m_waiting) {
-      if (s->m_prev)
-	s->m_prev->m_next = s->m_next;
-      else
-	c.m_head = s->m_next;
-      if (s->m_next)
-	s->m_next->m_prev = s->m_prev;
-      else
-	c.m_tail = s->m_prev;
-      s->m_waiting = false;
-      guard.unlock();
-      ZmPLock_lock(l);
-      return -1;
-    }
-    guard.unlock();
-    s->m_sem.wait();
-  }
-  ZmPLock_lock(l);
-  return 0;
-}
-#define ZmCondition_timedwait(c, l, t) ZmCondition_timedwait_(c, l, t)
-inline static void ZmCondition_signal_(ZmCondition_ &c)
-{
-  ZmGuard<ZmPLock> guard(c.m_lock);
-  if (ZmCondition_Thread *thread = c.m_head) {
-    if (!(c.m_head = thread->m_next)) {
-      c.m_tail = 0;
-    } else {
-      c.m_head->m_prev = 0;
-    }
-    thread->m_waiting = false;
-    thread->m_sem.post();
-  }
-}
-#define ZmCondition_signal(c) ZmCondition_signal_(c)
-inline static void ZmCondition_broadcast_(ZmCondition_ &c)
-{
-  ZmGuard<ZmPLock> guard(c.m_lock);
-  while (ZmCondition_Thread *thread = c.m_head) {
-    if (!(c.m_head = thread->m_next)) {
-      c.m_tail = 0;
-    } else {
-      c.m_head->m_prev = 0;
-    }
-    thread->m_waiting = false;
-    thread->m_sem.post();
-  }
-}
-#define ZmCondition_broadcast(c) ZmCondition_broadcast_(c)
-#endif
-
-template <class Lock> class ZmCondition {
-  ZmCondition();
-  ZmCondition(const ZmCondition &);
-  ZmCondition &operator =(const ZmCondition &);		// prevent mis-use
-
+template <typename Lock> class ZmCondition_ {
   using Wait = typename Lock::Wait;
+  ZmCondition_() = delete;
 
-public:
-  ZuInline ZmCondition(Lock &lock) : m_lock(lock) { ZmCondition_init(m_cond); }
-  ZuInline ~ZmCondition() { ZmCondition_final(m_cond); }
+protected:
+  ZmCondition_(Lock &lock) : m_lock{lock} { }
 
-  void wait() {
-    Wait wait(m_lock.wait());
-
-    ZmCondition_wait(m_cond, m_lock.m_lock);
-  }
-  int timedWait(ZmTime timeout) {
-    Wait wait(m_lock.wait());
-
-    return ZmCondition_timedwait(m_cond, m_lock.m_lock, timeout);
-  }
-  void signal() { ZmCondition_signal(m_cond); }
-  void broadcast() { ZmCondition_broadcast(m_cond); }
-
-  Lock &lock() { return(m_lock); }
+  Wait wait() { return m_lock.wait(); }
+  void lock_() { m_lock.lock_(); }
+  void unlock_() { m_lock.unlock_(); }
 
 private:
   Lock		&m_lock;
-  ZmCondition_	m_cond;
+};
+
+template <> class ZmCondition_<ZmNoLock> {
+  struct Wait { };
+
+protected:
+  ZmCondition_() { }
+
+  Wait wait() { return {}; }
+  void lock_() { }
+  void unlock_() { }
+};
+
+template <typename Lock> class ZmCondition : public ZmCondition_<Lock> {
+  ZmCondition() = delete;
+  ZmCondition(const ZmCondition &) = delete;
+  ZmCondition &operator =(const ZmCondition &) = delete; // prevent mis-use
+
+  using Base = ZmCondition_<Lock>;
+  using Wait = typename Base::Wait;
+  using Base::wait;
+  using Base::lock_;
+  using Base::unlock_;
+
+  struct Thread : public ZmObject {
+    ZmSemaphore	sem;
+    Thread	*next = nullptr;
+    Thread	*prev = nullptr;
+    bool	waiting = false;
+  };
+
+public:
+  template <typename Lock_ = Lock>
+  ZmCondition(ZuIfT<ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
+    Base{} { }
+  template <typename Lock_ = Lock>
+  ZmCondition(
+      Lock &lock,
+      ZuIfT<ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
+    Base{lock} { }
+  ~ZmCondition() { }
+
+  void wait() {
+    Wait wait{this->wait()};
+    Thread *thread = ZmSpecific<Thread>::instance();
+    thread->next = nullptr;
+    thread->waiting = true;
+    {
+      ZmGuard<ZmPLock> guard(m_condLock);
+      thread->prev = m_tail;
+      if (m_head)
+	m_tail->m_next = thread;
+      else
+	m_head = thread;
+      m_tail = thread;
+    }
+    unlock_();
+    thread->sem.wait();
+    lock_();
+  }
+  int timedWait(ZmTime timeout) {
+    Wait wait{this->wait()};
+    Thread *thread = ZmSpecific<Thread>::instance();
+    thread->next = nullptr;
+    thread->waiting = true;
+    {
+      ZmGuard<ZmPLock> guard(m_condLock);
+      thread->prev = m_tail;
+      if (m_head)
+	m_tail->m_next = thread;
+      else
+	m_head = thread;
+      m_tail = thread;
+    }
+    unlock_();
+    if (thread->sem.timedwait(timeout)) { // timed out
+      ZmGuard<ZmPLock> guard(m_condLock);
+      if (thread->waiting) { // normal case, still waiting
+	if (thread->prev)
+	  thread->prev->m_next = thread->next;
+	else
+	  m_head = thread->next;
+	if (thread->next)
+	  thread->next->m_prev = thread->prev;
+	else
+	  m_tail = thread->prev;
+	thread->waiting = false;
+	guard.unlock();
+	lock_();
+	return -1;
+      }
+      guard.unlock(); // timed out, but was concurrently woken
+      thread->sem.wait();
+    }
+    lock_();
+    return 0;
+  }
+  void signal() {
+    ZmGuard<ZmPLock> guard(m_condLock);
+    if (Thread *thread = m_head) {
+      if (!(m_head = thread->m_next)) {
+	m_tail = nullptr;
+      } else {
+	m_head->m_prev = nullptr;
+      }
+      thread->m_waiting = false;
+      guard.unlock();
+      thread->m_sem.post();
+      return;
+    }
+  }
+  void broadcast() {
+loop:
+    ZmGuard<ZmPLock> guard(m_condLock);
+    if (Thread *thread = m_head) {
+      if (!(m_head = thread->m_next)) {
+	m_tail = nullptr;
+      } else {
+	m_head->m_prev = nullptr;
+      }
+      thread->m_waiting = false;
+      guard.unlock();
+      thread->m_sem.post();
+      goto loop;
+    }
+  }
+
+private:
+  ZmPLock	m_condLock;
+    Thread	  *m_head = nullptr;
+    Thread	  *m_tail = nullptr;
 };
 
 #ifdef _MSC_VER

@@ -120,7 +120,7 @@ struct ZmAPI ZmSpecific_Object {
   ZmSpecific_Object	*prev = nullptr;
   ZmSpecific_Object	*next = nullptr;
 #ifdef _WIN32
-  Zm::ThreadID	tid = 0;
+  Zm::ThreadID		tid = 0;
   ZmSpecific_Object	*modPrev = nullptr;
   ZmSpecific_Object	*modNext = nullptr;
 #endif

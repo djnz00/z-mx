@@ -187,18 +187,18 @@ template <typename T> using ZuCRef = const T &;
 
 // shorthand constexpr std::forward without STL cruft
 template <typename T>
-constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
+inline constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
   return static_cast<T &&>(v);
 }
 template <typename T>
-constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
+inline constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
   return static_cast<T &&>(v);
 }
 // use to forward auto &&x parameters (usually template lambda parameters)
 #define ZuAutoFwd(x) ZuFwd<decltype(x)>(x)
 // shorthand constexpr std::move without STL cruft
 template <typename T>
-constexpr ZuDeref<T> &&ZuMv(T &&t) noexcept {
+inline constexpr ZuDeref<T> &&ZuMv(T &&t) noexcept {
   return static_cast<ZuDeref<T> &&>(t);
 }
 

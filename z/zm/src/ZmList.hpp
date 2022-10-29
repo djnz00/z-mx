@@ -114,7 +114,7 @@ public:
   using ValAxor = typename NTP::ValAxor;
   using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
   using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
-  using Cmp = typename NTP::template CmpT<Key>;
+  using Cmp = typename NTP::template CmpT<T>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
@@ -171,7 +171,7 @@ private:
 
   static const Key &key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
-    return Cmp::null();
+    return ZuNullRef<T, Cmp>();
   }
   static Key keyMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -179,11 +179,11 @@ private:
       nodeDelete(node);
       return key;
     }
-    return Cmp::null();
+    return ZuNullRef<T, Cmp>();
   }
   static const Val &val(Node *node) {
     if (ZuLikely(node)) return node->Node::val();
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
   static Val valMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -191,7 +191,7 @@ private:
       nodeDelete(node);
       return val;
     }
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
 
 protected:
@@ -218,7 +218,7 @@ protected:
     const T &iterate() {
       Node *node = m_list.iterate(*this);
       if (ZuLikely(node)) return node->Node::data();
-      return Cmp::null();
+      return ZuNullRef<T, Cmp>();
     }
 
     unsigned count() const { return m_list.count_(); }
@@ -283,14 +283,14 @@ friend ReadIterator;
   ZmList(const ZmList &) = delete;
   ZmList &operator =(const ZmList &) = delete;
 
-  ZmList(ZmList &&list) noexcept {
+  ZmList(ZmList &&list) {
     Guard guard(list.m_lock);
     m_head = list.m_head, m_tail = list.m_tail;
     m_count = list.m_count;
     list.m_head = list.m_tail = nullptr;
     list.m_count = 0;
   }
-  ZmList &operator =(ZmList &&list) noexcept {
+  ZmList &operator =(ZmList &&list) {
     unsigned count;
     Node *head, *tail;
     {
@@ -308,7 +308,7 @@ friend ReadIterator;
     }
     return *this;
   }
-  ZmList &operator +=(ZmList &&list) noexcept {
+  ZmList &operator +=(ZmList &&list) {
     unsigned count;
     Node *head, *tail;
     {

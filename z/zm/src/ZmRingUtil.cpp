@@ -17,7 +17,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ring buffer common utility functions
+// ring buffer utility functions
+//
+// (mainly a wrapper around Linux futexes and Win32 equivalent)
 
 #include <zlib/ZmRingUtil.hpp>
 
@@ -26,12 +28,13 @@
 #include <sys/syscall.h>
 #include <linux/futex.h>
 
-int ZmRingUtil::open() { return OK; }
+int ZmRingUtil::open() { return ZmRingErrorCode::OK; }
 
-int ZmRingUtil::close() { return OK; }
+int ZmRingUtil::close() { return ZmRingErrorCode::OK; }
 
 int ZmRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
 {
+  using namespace ZmRingErrorCode;
   if (addr.cmpXch(val | Waiting, val) != val) return OK;
   val |= Waiting;
   if (ZuUnlikely(m_params->timeout())) {
@@ -63,8 +66,9 @@ int ZmRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
   return OK;
 }
 
-int ZmRingUtil::wake(ZmAtomic<uint32_t> &addr, int n)
+int ZmRingUtil::wake(ZmAtomic<uint32_t> &addr, unsigned n)
 {
+  using namespace ZmRingErrorCode;
   addr &= ~Waiting;
   syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
       FUTEX_WAKE | FUTEX_PRIVATE_FLAG, n, 0, 0, 0);
@@ -77,6 +81,7 @@ int ZmRingUtil::wake(ZmAtomic<uint32_t> &addr, int n)
 
 int ZmRingUtil::open()
 {
+  using namespace ZmRingErrorCode;
   if (m_sem[Head]) return OK;
   if (!(m_sem[Head] = CreateSemaphore(0, 0, 0x7fffffff, 0))) return Error;
   if (!(m_sem[Tail] = CreateSemaphore(0, 0, 0x7fffffff, 0))) {
@@ -89,6 +94,7 @@ int ZmRingUtil::open()
 
 int ZmRingUtil::close()
 {
+  using namespace ZmRingErrorCode;
   if (!m_sem[Head]) return OK;
   bool error = false;
   if (!CloseHandle(m_sem[Head])) error = true;
@@ -99,10 +105,11 @@ int ZmRingUtil::close()
 
 int ZmRingUtil::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
 {
+  using namespace ZmRingErrorCode;
   if (addr.cmpXch(val | Waiting, val) != val) return OK;
   val |= Waiting;
-  DWORD timeout = m_params->timeout() ? m_params->timeout() * 1000 : INFINITE;
-  unsigned i = 0, n = m_params->spin();
+  DWORD timeout = params().timeout() ? params().timeout() * 1000 : INFINITE;
+  unsigned i = 0, n = params().spin();
   do {
     if (ZuUnlikely(i >= n)) {
       DWORD r = WaitForSingleObject(m_sem[index], timeout);
@@ -118,8 +125,9 @@ int ZmRingUtil::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
   return OK;
 }
 
-int ZmRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
+int ZmRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, unsigned n)
 {
+  using namespace ZmRingErrorCode;
   addr &= ~Waiting;
   ReleaseSemaphore(m_sem[index], n, 0);
   return OK;

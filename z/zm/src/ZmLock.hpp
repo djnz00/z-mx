@@ -41,7 +41,6 @@
 #endif
 
 class ZmLock;
-template <class Lock> class ZmCondition;
 
 #ifdef ZmLock_DEBUG
 template <unsigned> class ZmBackTracer;
@@ -55,69 +54,45 @@ friend ZmLock;
 #endif /* ZmLock_DEBUG */
 
 #ifdef _MSC_VER
-#if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
-template class ZmAPI ZmAtomic<uint32_t>;
 template class ZmAPI ZmAtomic<Zm::ThreadID>;
-#endif
 #endif
 
 class ZmLock {
   ZmLock(const ZmLock &);
   ZmLock &operator =(const ZmLock &);	// prevent mis-use
 
-friend ZmCondition<ZmLock>;
-
 public:
-  ZmLock()
-#if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
-    : m_count(0), m_tid(0)
-#ifdef ZmLock_DEBUG
-    , m_prevTID(0)
-#endif
-#endif
-    { ZmPLock_init(m_lock); }
+  ZmLock() { ZmPLock_init(m_lock); }
   ~ZmLock() { ZmPLock_final(m_lock); }
 
   void lock() {
-#if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
-    ZmPLock_lock(m_lock);
-#else
     Zm::ThreadID tid = Zm::getTID();
-    if (m_tid == tid) { m_count++; return; }
+    if (m_tid == tid) { m_count++; return; } // acquire
 #ifdef ZmLock_DEBUG
     if (m_prevTID && m_prevTID != tid)
       ZmLock_Debug::capture();
     m_prevTID = tid;
 #endif
     ZmPLock_lock(m_lock);
-    m_tid = tid;
     m_count = 1;
-#endif
+    m_tid = tid; // release
   }
   int trylock() {
-#if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
-    return ZmPLock_trylock(m_lock);
-#else
-    Zm::ThreadID tid = Zm::getTID();
-    if (m_tid == tid) { m_count++; return 0; }
+    auto tid = Zm::getTID();
+    if (m_tid == tid) { ++m_count; return 0; } // acquire
     if (ZmPLock_trylock(m_lock)) return -1;
-    m_tid = tid;				// remember we locked it
     m_count = 1;
+    m_tid = tid; // release
     return 0;
-#endif
   }
   void unlock() {
-#if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
-    ZmPLock_unlock(m_lock);
-#else
     if (!m_count) return;
-    Zm::ThreadID tid = Zm::getTID();
-    if (m_tid != tid) return;
+    auto tid = Zm::getTID();
+    if (m_tid != tid) return; // acquire
     if (!--m_count) {
-      m_tid = 0;
+      m_tid = 0; // release
       ZmPLock_unlock(m_lock);
     }
-#endif
   }
 
 #ifdef ZmLock_DEBUG
@@ -126,12 +101,7 @@ public:
   static ZmBackTracer<64> *tracer() { return ZmLock_Debug::tracer(); }
 #endif
 
-private:
-#if ZmPLock_Recursive == 1 && !defined(ZmLock_DEBUG)
-  class Wait { };
-
-  Wait wait() { return Wait(); }
-#else
+  // ZmCondition integration
   class Wait;
 friend Wait;
   class Wait {
@@ -148,21 +118,20 @@ friend Wait;
       m_lock.m_tid = m_tid;
     }
   private:
-    ZmLock			&m_lock;
-    uint32_t			m_count;
+    ZmLock		&m_lock;
+    uint32_t		m_count;
     Zm::ThreadID	m_tid;
   };
+  Wait wait() { return {*this}; }
+  ZuInline void lock_() { ZmPLock_lock(m_lock); }
+  ZuInline void unlock_() { ZmPLock_unlock(m_lock); }
 
-  Wait wait() { return Wait(*this); }
-#endif
-
+private:
   ZmPLock_			m_lock;
-#if ZmPLock_Recursive == 0 || defined(ZmLock_DEBUG)
-  ZmAtomic<uint32_t>		m_count;
-  ZmAtomic<Zm::ThreadID>	m_tid;
+  uint32_t			m_count = 0;
+  ZmAtomic<Zm::ThreadID>	m_tid = 0;
 #ifdef ZmLock_DEBUG
-  Zm::ThreadID			m_prevTID;
-#endif
+  Zm::ThreadID			m_prevTID = 0;
 #endif
 };
 

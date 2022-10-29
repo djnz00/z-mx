@@ -14,8 +14,8 @@ pkginclude_HEADERS = \
 	ZmLib.hpp ZmList.hpp ZmLock.hpp ZmLockTraits.hpp ZmNoLock.hpp \
 	ZmObject_.hpp ZmObject.hpp ZmPolymorph.hpp ZmPLock.hpp \
 	ZmPQueue.hpp ZmPlatform.hpp ZmRBTree.hpp ZmRWLock.hpp ZmRandom.hpp \
-	ZmRef.hpp ZmRing.hpp ZmRingUtil.hpp ZmScheduler.hpp \
-	ZmSemaphore.hpp ZmShard.hpp \
+	ZmRef.hpp ZmRing.hpp ZmRingError.hpp ZmRingUtil.hpp ZmRingMirror.hpp \
+	ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp \
 	ZmSingleton.hpp ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp \
 	ZmStream.hpp ZmTLock.hpp ZmThread.hpp ZmTime.hpp \
 	ZmTimeInterval.hpp ZmTimeout.hpp ZmTopology.hpp ZmTrap.hpp \
@@ -24,7 +24,7 @@ lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \
 	ZmLib.cpp ZmLock.cpp ZmObject_.cpp ZmPlatform.cpp ZmRandom.cpp \
-	ZmRingUtil.cpp ZmScheduler.cpp \
+	ZmRingUtil.cpp ZmRingMirror.cpp ZmScheduler.cpp \
 	ZmSingleton.cpp ZmSpecific.cpp \
 	ZmTime.cpp ZmThread.cpp ZmTrap.cpp
 libZm_la_LIBADD = $(top_builddir)/zu/src/libZu.la @Z_MT_LIBS@

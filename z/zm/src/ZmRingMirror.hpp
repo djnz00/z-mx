@@ -17,29 +17,49 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// function name macro
+// ring buffer intra-process mirrored memory region
 
-#ifndef ZuFnName_HPP
-#define ZuFnName_HPP
-
-#ifndef ZuLib_HPP
-#include <zlib/ZuLib.hpp>
-#endif
+#ifndef ZmRingMirror_HPP
+#define ZmRingMirror_HPP
 
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#define ZuFnName nullptr
-
-#ifdef __GNUC__
-#undef ZuFnName
-#define ZuFnName __PRETTY_FUNCTION__
+#ifndef ZmLib_HPP
+#include <zlib/ZmLib.hpp>
 #endif
 
-#ifdef _MSC_VER
-#undef ZuFnName
-#define ZuFnName __FUNCSIG__
+#include <zlib/ZmPlatform.hpp>
+#include <zlib/ZmAssert.hpp>
+#include <zlib/ZmBitmap.hpp>
+#include <zlib/ZmTopology.hpp>
+#include <zlib/ZmLock.hpp>
+#include <zlib/ZmGuard.hpp>
+#include <zlib/ZmAtomic.hpp>
+#include <zlib/ZmTime.hpp>
+#include <zlib/ZmBackTrace.hpp>
+
+class ZmAPI ZmRingMirror {
+public:
+  bool open(unsigned size);
+  void close();
+
+  ZuInline void *addr() const { return m_addr; }
+  ZuInline unsigned size() const { return m_size; }
+
+private:
+#ifndef _WIN32
+  using Handle = int;
+  constexpr static Handle nullHandle() { return -1; }
+#else
+  using Handle = HANDLE;
+  constexpr static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
 #endif
 
-#endif /* ZuFnName_HPP */
+  Handle		m_handle = nullHandle();
+  void			*m_addr = nullptr;
+  unsigned		m_size = 0;
+};
+
+#endif /* ZmRingMirror_HPP */

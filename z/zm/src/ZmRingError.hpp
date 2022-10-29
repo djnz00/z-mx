@@ -17,29 +17,37 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// function name macro
+// ring buffer error codes
 
-#ifndef ZuFnName_HPP
-#define ZuFnName_HPP
-
-#ifndef ZuLib_HPP
-#include <zlib/ZuLib.hpp>
-#endif
+#ifndef ZmRingError_HPP
+#define ZmRingError_HPP
 
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#define ZuFnName nullptr
-
-#ifdef __GNUC__
-#undef ZuFnName
-#define ZuFnName __PRETTY_FUNCTION__
+#ifndef ZmLib_HPP
+#include <zlib/ZmLib.hpp>
 #endif
 
-#ifdef _MSC_VER
-#undef ZuFnName
-#define ZuFnName __FUNCSIG__
-#endif
+namespace ZmRingErrorCode {
+  enum { OK = 0, EndOfFile = -1, Error = -2, NotReady = -3 };
+}
 
-#endif /* ZuFnName_HPP */
+struct ZmRingError {
+  int code;
+  ZmRingError(int code_) : code{code_} { }
+  template <typename S> void print(S &s) const {
+    using namespace ZmRingErrorCode;
+    switch (code) {
+      case OK:		s << "OK"; break;
+      case EndOfFile:	s << "EndOfFile"; break;
+      case Error:	s << "Error"; break;
+      case NotReady:	s << "NotReady"; break;
+      default:		s << "Unknown"; break;
+    }
+  }
+  friend ZuPrintFn ZuPrintType(ZmRingError *);
+};
+
+#endif /* ZmRingError_HPP */

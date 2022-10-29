@@ -17,7 +17,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// shared memory IPC low-level functions
+// ring buffer inter-process utility functions
+//
+// (mainly a wrapper around Linux futexes and Win32 equivalent)
 
 #include <zlib/ZuStringN.hpp>
 
@@ -32,15 +34,12 @@ int ZiRingUtil::open(ZeError *e) { return Zi::OK; }
 
 int ZiRingUtil::close(ZeError *e) { return Zi::OK; }
 
-// FIXME - apply DRY to this and ZmRingUtil, use a constexpr
-// for FUTEX_PRIVATE_FLAG
-
 int ZiRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
 {
   if (addr.cmpXch(val | Waiting, val) != val) return Zi::OK;
   val |= Waiting;
   if (ZuUnlikely(m_params->timeout())) {
-    ZmTime out(ZmTime::Now, (int)m_params->timeout());
+    ZmTime out(ZmTime::Now, static_cast<int>(m_params->timeout()));
     unsigned i = 0, n = m_params->spin();
     do {
       if (ZuUnlikely(i >= n)) {
@@ -129,7 +128,7 @@ int ZiRingUtil::wait(unsigned index, ZmAtomic<uint32_t> &addr, uint32_t val)
   return Zi::OK;
 }
 
-int ZiRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, int n)
+int ZiRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, unsigned n)
 {
   addr &= ~Waiting;
   ReleaseSemaphore(m_sem[index], n, 0);

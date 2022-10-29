@@ -386,7 +386,7 @@ ZmHeap_Init<ZmHeap<ID, Size_> > ZmHeap<ID, Size_>::m_init;
 
 template <unsigned Size> class ZmHeap<ZuNull, Size> { };
 
-#include <zlib/ZmFn_Lambda.hpp>
+// #include <zlib/ZmFn_Lambda.hpp>
 
 template <class ID, unsigned Size>
 inline void ZmHeapCacheT<ID, Size>::allStats(StatsFn fn)

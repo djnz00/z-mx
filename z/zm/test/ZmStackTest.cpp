@@ -66,7 +66,7 @@ void fail(const char *s)
   printf("FAIL: %s\n", s);
 }
 
-#define test(x) ((x) ? (void)0 : fail(#x))
+#define test(x) ((x) ? (void()) : fail(#x))
 
 template <typename S>
 void doit(S &s)

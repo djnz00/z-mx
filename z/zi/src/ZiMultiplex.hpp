@@ -78,7 +78,7 @@
 #ifdef ZiMultiplex_DEBUG
 #define ZiDEBUG(mx, e) do { if ((mx)->debug()) ZeLOG(Debug, (e)); } while (0)
 #else
-#define ZiDEBUG(mx, e) ((void)0)
+#define ZiDEBUG(mx, e) (void{})
 #endif
 
 #ifdef ZiMultiplex_IOCP

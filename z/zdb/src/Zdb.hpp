@@ -84,6 +84,35 @@
 //  Inactive		!Stopped
 //  Stopping		Stopping | StartPending
 
+// FIXME - NEW threading model
+//
+// env has thread
+// each db has a thread, which put, get etc. run on (and all caching etc.)
+// each db has a file thread, which serializes all reads/writes
+// get/put/etc. interface moved to async, using db thread
+// cache eviction enqueues to file thread
+// the pending write buffer cache and index block cache are the only
+//   contended data structures (shared between db thread and file thread)
+// cache miss enqueues read to file thread, avoiding need for pinning, BUT
+//   we have a parallel write blk cache for pending writes that elides
+//   waiting on the write to complete
+//   individual recs are only written once (they are immutable), so no need
+//     to provide for multiple pending writes to same rec, so blk cache works
+// index blocks are mutable, work a little differently, there could be
+//   multiple pending writes, so index block eviction/write is just a move of
+//   the index block in-memory from the main cache to the write cache;
+//   any fallthrough read from the write cache moves the index block back
+//   into the main cache, incrementing the update count above 1, effectively
+//   aborting the earlier pending writes; enqueued stale writes are elided
+//   by decrementing the update  count and only writing if returned to zero;
+//   new index blocks created in memory are always initialized with update
+//   count to 1 so that, if evicted and written, the write will be processed
+// replication processing at the env/host level occurs in the env thread
+// replication processing at the db level occurs in the db thread, enqueuing
+//   as needed to the file thread per above
+//
+//   -------
+
 // - leave start/stop/etc as is, BUT
 // - use DB thread to run all env-related code
 //   - invoked from start()/stop()
@@ -104,7 +133,7 @@
 #ifdef ZdbRep_DEBUG
 #define ZdbDEBUG(env, e) do { if ((env)->debug()) ZeLOG(Debug, (e)); } while (0)
 #else
-#define ZdbDEBUG(env, e) ((void)0)
+#define ZdbDEBUG(env, e) (void{})
 #endif
 
 // new file structure with variable-length flatbuffer-format records

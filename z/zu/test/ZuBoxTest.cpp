@@ -40,8 +40,8 @@ void fail2(unsigned line, const char *s, const V1 &v1, const V2 &v2)
 #endif
 }
 
-#define CHECK(x, v) ((x) ? (void)0 : (void)fail(__LINE__, #x, v))
-#define CHECK2(x, v1, v2) ((x) ? (void)0 : (void)fail2(__LINE__, #x, v1, v2))
+#define CHECK(x, v) ((x) ? (void()) : fail(__LINE__, #x, v))
+#define CHECK2(x, v1, v2) ((x) ? (void()) : fail2(__LINE__, #x, v1, v2))
 
 template <class Fmt, class Boxed> struct VFmt_ {
   static void _(ZuVFmt &fmt) {

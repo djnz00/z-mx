@@ -62,9 +62,9 @@ struct ZmAllocator : private ZmVHeap<ID> {
   ~ZmAllocator() = default;
 
   template <typename U>
-  constexpr ZmAllocator(const ZmAllocator<U, ID> &) noexcept { }
+  constexpr ZmAllocator(const ZmAllocator<U, ID> &) { }
   template <typename U>
-  ZmAllocator &operator =(const ZmAllocator<U, ID> &) noexcept {
+  ZmAllocator &operator =(const ZmAllocator<U, ID> &) {
     return *this;
   }
 
@@ -72,7 +72,7 @@ struct ZmAllocator : private ZmVHeap<ID> {
   struct rebind { using other = ZmAllocator<U, ID_>; };
 
   T *allocate(std::size_t);
-  void deallocate(T *, std::size_t) noexcept;
+  void deallocate(T *, std::size_t);
 
 private:
   using ZmVHeap<ID>::valloc;
@@ -87,7 +87,7 @@ inline T *ZmAllocator<T, ID>::allocate(std::size_t n) {
   throw std::bad_alloc{};
 }
 template <typename T, typename ID>
-inline void ZmAllocator<T, ID>::deallocate(T *p, std::size_t n) noexcept {
+inline void ZmAllocator<T, ID>::deallocate(T *p, std::size_t n) {
   using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size>;
   if (ZuLikely(n == 1))
     Cache::free(p);

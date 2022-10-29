@@ -78,13 +78,13 @@ public:
   ZtRegex(const char *pattern, int options = PCRE_UTF8);
 
   // ZtRegex is move-only (by design)
-  ZtRegex(ZtRegex &&r) noexcept :
+  ZtRegex(ZtRegex &&r) :
       m_regex(r.m_regex), m_extra(r.m_extra), m_captureCount(r.m_captureCount) {
     r.m_regex = 0;
     r.m_extra = 0;
     r.m_captureCount = 0;
   }
-  ZtRegex &operator =(ZtRegex &&r) noexcept {
+  ZtRegex &operator =(ZtRegex &&r) {
     if (this == &r) return *this;
     m_regex = r.m_regex;
     m_extra = r.m_extra;

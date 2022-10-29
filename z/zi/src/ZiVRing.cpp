@@ -37,7 +37,7 @@ int ZiVRing::open(unsigned flags, ZeError *e)
   if (m_ctrl.addr()) goto einval;
   if (!m_params.name()) goto einval;
   m_flags = flags;
-  if (!m_params.ll() && open_(e) != Zi::OK) return Zi::IOError;
+  if (!m_params.ll() && ZiRingUtil::open(e) != Zi::OK) return Zi::IOError;
   {
     unsigned mmapFlags = ZiFile::Shm;
     if (flags & Create) mmapFlags |= ZiFile::Create;
@@ -70,7 +70,7 @@ int ZiVRing::open(unsigned flags, ZeError *e)
       if (alive(oldPID, writerTime()) ||
 	  writerPID().cmpXch(pid, oldPID) != oldPID) {
 	m_ctrl.close();
-	if (!m_params.ll()) close_();
+	if (!m_params.ll()) ZiRingUtil::close();
 	if (e) *e = ZiEADDRINUSE;
 	return Zi::IOError;
       }
@@ -80,7 +80,7 @@ int ZiVRing::open(unsigned flags, ZeError *e)
     if ((r = m_data.mmap(m_params.name() + ".data",
 	    mmapFlags, m_params.size(), true, 0, 0666, e)) != Zi::OK) {
       m_ctrl.close();
-      if (!m_params.ll()) close_();
+      if (!m_params.ll()) ZiRingUtil::close();
       return r;
     }
     if (!!m_params.cpuset())
@@ -94,7 +94,7 @@ int ZiVRing::open(unsigned flags, ZeError *e)
     if (flags & Read) {
       if (!incRdrCount()) {
 	m_ctrl.close();
-	if (!m_params.ll()) close_();
+	if (!m_params.ll()) ZiRingUtil::close();
 	if (e) *e = ZiEADDRINUSE;
 	return Zi::IOError;
       }
@@ -116,20 +116,20 @@ int ZiVRing::shadow(const ZiVRing &ring, ZeError *e)
   }
   m_params = ring.m_params;
   m_flags = Read | Shadow;
-  if (!m_params.ll() && open_(e) != Zi::OK) return Zi::IOError;
+  if (!m_params.ll() && ZiRingUtil::open(e) != Zi::OK) return Zi::IOError;
   if (m_ctrl.shadow(ring.m_ctrl, e) != Zi::OK) {
-    if (!m_params.ll()) close_();
+    if (!m_params.ll()) ZiRingUtil::close();
     return Zi::IOError;
   }
   if (m_data.shadow(ring.m_data, e) != Zi::OK) {
     m_ctrl.close();
-    if (!m_params.ll()) close_();
+    if (!m_params.ll()) ZiRingUtil::close();
     return Zi::IOError;
   }
   if (!incRdrCount()) {
     m_ctrl.close();
     m_data.close();
-    if (!m_params.ll()) close_();
+    if (!m_params.ll()) ZiRingUtil::close();
     if (e) *e = ZiEADDRINUSE;
     return Zi::IOError;
   }
@@ -159,7 +159,7 @@ void ZiVRing::close()
   }
   m_ctrl.close();
   m_data.close();
-  if (!m_params.ll()) close_();
+  if (!m_params.ll()) ZiRingUtil::close();
 }
 
 int ZiVRing::reset()
@@ -207,7 +207,7 @@ retry:
       ++m_full;
       if (!wait_) return nullptr;
       if (ZuUnlikely(!m_params.ll()))
-	if (ZiIPC_wait(Tail, this->tail(), tail) != Zi::OK) return nullptr;
+	if (ZiRingUtil::wait(Tail, this->tail(), tail) != Zi::OK) return nullptr;
       goto retry;
     }
   }
@@ -229,7 +229,7 @@ void ZiVRing::push2(uint32_t size_)
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiIPC_wake(Head, this->head(), rdrCount().load_());
+      ZiRingUtil::wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 
@@ -250,7 +250,7 @@ void ZiVRing::eof(bool b)
 
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
-      ZiIPC_wake(Head, this->head(), rdrCount().load_());
+      ZiRingUtil::wake(Head, this->head(), rdrCount().load_());
   } else
     this->head() = head; // release
 }
@@ -282,7 +282,7 @@ retry:
   if (tail == (head & ~Mask)) {
     if (ZuUnlikely(head & EndOfFile)) return nullptr;
     if (ZuUnlikely(!m_params.ll()))
-      if (ZiIPC_wait(Head, this->head(), head) != Zi::OK) return nullptr;
+      if (ZiRingUtil::wait(Head, this->head(), head) != Zi::OK) return nullptr;
     goto retry;
   }
 
@@ -302,7 +302,7 @@ void ZiVRing::shift2(uint32_t size_)
   m_tail = tail;
   if (ZuUnlikely(!m_params.ll())) {
     if (ZuUnlikely(this->tail().xch(tail) & Waiting))
-      ZiIPC_wake(Tail, this->tail(), 1);
+      ZiRingUtil::wake(Tail, this->tail(), 1);
   } else
     this->tail() = tail; // release
 

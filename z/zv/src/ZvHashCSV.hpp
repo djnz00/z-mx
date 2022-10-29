@@ -40,19 +40,19 @@
 
 struct ZvHashCSV {
   struct Data : public ZtFieldTuple<Data> {
-    static const ZtFieldArray fields() noexcept;
+    static const ZtFieldArray fields();
 
     ZmIDString		id;
     ZuBox<unsigned>	bits;
     ZuBox<double>	loadFactor;
     ZuBox<unsigned>	cBits;
   };
-  const ZtFieldArray Data::fields() noexcept {
+  const ZtFieldArray Data::fields() {
     ZtFields(Data,
-	(String, id, 0),
-	(Int, bits, 0),
-	(Int, loadFactor, 0),
-	(Int, cBits, 0));
+	(String, id),
+	(Int, bits),
+	(Int, loadFactor),
+	(Int, cBits));
   }
 
   class CSV : public ZvCSV<Data> {

@@ -337,7 +337,7 @@ private:
 
   static KeyRet key(const Node *node) {
     if (ZuLikely(node)) return node->Node::key();
-    return Cmp::null();
+    return ZuNullRef<Key, Cmp>();
   }
   Key keyMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -345,11 +345,11 @@ private:
       nodeDelete(node);
       return key;
     }
-    return Cmp::null();
+    return ZuNullRef<Key, Cmp>();
   }
   static ValRet val(const Node *node) {
     if (ZuLikely(node)) return node->Node::val();
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
   Val valMv(NodeRef &&node) {
     if (ZuLikely(node)) {
@@ -357,7 +357,7 @@ private:
       nodeDelete(node);
       return val;
     }
-    return ValCmp::null();
+    return ZuNullRef<Val, ValCmp>();
   }
 
 protected:

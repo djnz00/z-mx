@@ -273,17 +273,17 @@ private:
 public:
   // remove trailing characters
   template <typename Match>
-  void chomp(Match match) noexcept {
+  void chomp(Match match) {
     int o = m_length;
     if (!o) return;
     while (--o >= 0 && match(data()[0]));
     data()[m_length = o + 1] = 0;
   }
-  void chomp() noexcept { return chomp(matchS()); }
+  void chomp() { return chomp(matchS()); }
 
   // remove leading characters
   template <typename Match>
-  void trim(Match match) noexcept {
+  void trim(Match match) {
     int o;
     for (o = 0; o < (int)m_length && match(data()[0]); o++);
     if (!o) return;
@@ -291,11 +291,11 @@ public:
     memmove(data(), data() + o, m_length * sizeof(Char));
     data()[m_length] = 0;
   }
-  void trim() noexcept { return trim(matchS()); }
+  void trim() { return trim(matchS()); }
 
   // remove leading & trailing characters
   template <typename Match>
-  void strip(Match match) noexcept {
+  void strip(Match match) {
     int o = m_length;
     if (!o) return;
     while (--o >= 0 && match(data()[o]));
@@ -307,7 +307,7 @@ public:
     memmove(data(), data() + o, m_length * sizeof(Char));
     data()[m_length] = 0;
   }
-  void strip() noexcept { return strip(matchS()); }
+  void strip() { return strip(matchS()); }
 
 // sprintf
 

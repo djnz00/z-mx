@@ -148,7 +148,7 @@ public:
   using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
-  using KeyCmp = typename NTP::template KeyCmpT<Key>;
+  using KeyCmp = typename NTP::template KeyCmpT<T>;
   using Lock = typename NTP::Lock;
   using HeapID = typename NTP::HeapID;
 
@@ -250,7 +250,7 @@ public:
 
   T pop() {
     Guard guard(m_lock);
-    if (m_length <= 0) return Cmp::null();
+    if (m_length <= 0) return ZuNullRef<T, Cmp>();
     --m_count;
     T v = ZuMv(m_data[--m_length]);
     {
@@ -266,11 +266,11 @@ public:
     Guard guard(m_lock);
     for (unsigned i = 0; i < m_length; i++)
       if (!Cmp::null(m_data[i])) return m_data[i];
-    return Cmp::null();
+    return ZuNullRef<T, Cmp>();
   }
   T tail() {
     Guard guard(m_lock);
-    if (m_length <= 0) return Cmp::null();
+    if (m_length <= 0) return ZuNullRef<T, Cmp>();
     return m_data[m_length - 1];
   }
 
@@ -278,7 +278,7 @@ public:
   T find(const P &v) {
     T *ptr = findPtr_(v);
     if (ZuLikely(ptr)) return *ptr;
-    return Cmp::null();
+    return ZuNullRef<T, Cmp>();
   }
 
 private:
@@ -300,7 +300,7 @@ public:
   T del(const P &v) {
     Guard guard(m_lock);
     T *ptr = findPtr__(v);
-    if (!ptr) return Cmp::null();
+    if (!ptr) return ZuNullRef<T, Cmp>();
     T data = ZuMv(*ptr);
     delPtr_(ptr);
     return data;
@@ -364,7 +364,7 @@ friend Iterator;
     }
     const T &iterate() {
       do {
-	if (m_i <= 0) return Cmp::null();
+	if (m_i <= 0) return ZuNullRef<T, Cmp>();
       } while (Cmp::null(m_stack.m_data[--m_i]));
       return m_stack.m_data[m_i];
     }

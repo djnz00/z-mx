@@ -352,7 +352,7 @@ void ZdbEnv::holdElection()
   if (won = m_master == m_self) {
     state(ZdbHostState::Activating);
     m_appActive = true;
-    m_prev = 0;
+    m_prev = nullptr;
     if (!m_nPeers)
       ZeLOG(Warning, "Zdb activating standalone");
     else
@@ -734,7 +734,7 @@ void ZdbEnv::disconnected(Host *host)
       goto ret;
   }
 
-  if (host == m_prev) m_prev = 0;
+  if (host == m_prev) m_prev = nullptr;
 
   if (host == m_master) {
     switch (state()) {
@@ -793,7 +793,7 @@ void ZdbEnv::setNext(ZdbHost *host)
 {
   m_next = host;
   m_recovering = false;
-  m_nextCxn = 0;
+  m_nextCxn = nullptr;
   if (m_next) {
     m_mx->run(m_cf.writeTID,
 	ZmFn<>{this, [](ZdbEnv *env) { env->replicating(); }});
@@ -836,7 +836,7 @@ void ZdbEnv::setNext()
     }
   }
   m_recovering = false;
-  m_nextCxn = 0;
+  m_nextCxn = nullptr;
   if (m_next) startReplication();
 }
 
@@ -1583,8 +1583,7 @@ bool File::scan() // fileLock held
     return true;
   }
   // rebuild count and bitmap from index blocks
-  m_allocated = 0;
-  m_deleted = 0;
+  m_allocated = m_deleted = 0;
   m_bitmap.zero();
   bool rewrite = false;
   for (unsigned i = 0; i < fileIndices(); i++)

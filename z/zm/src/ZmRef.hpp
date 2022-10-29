@@ -89,7 +89,7 @@ struct ZmRef__ {
 };
 #define ZmREF(o) ((o)->ref())
 #define ZmDEREF(o) ZmRef__::ZmDEREF_(o)
-#define ZmMVREF(o, p, n) ((void)0)
+#define ZmMVREF(o, p, n) (void{})
 #endif
 
 template <typename T_> class ZmRef : public ZuRef_, public ZmRef_ {
@@ -150,19 +150,19 @@ private:
 
 public:
   ZmRef() : m_object(0) { }
-  ZmRef(const ZmRef &r) : m_object(r.m_object) {
+  ZmRef(const ZmRef &r) : m_object{r.m_object} {
     if (T *o = m_object) ZmREF(o);
   }
-  ZmRef(ZmRef &&r) noexcept : m_object(r.m_object) {
+  ZmRef(ZmRef &&r) : m_object{r.m_object} {
     r.m_object = nullptr;
 #ifdef ZmObject_DEBUG
     if (T *o = m_object) ZmMVREF(o, &r, this);
 #endif
   }
   template <typename R>
-  ZmRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr)
-  noexcept : m_object(
-      static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))) {
+  ZmRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
+    m_object{
+      static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))} {
     ZuMvCp<R>::mvcp(ZuFwd<R>(r),
 #ifndef ZmObject_DEBUG
 	[](auto &&r) { r.m_object = nullptr; }
@@ -174,12 +174,12 @@ public:
 #endif
 	, [this](const auto &) { if (T *o = m_object) ZmREF(o); });
   }
-  ZmRef(T *o) : m_object(o) {
+  ZmRef(T *o) : m_object{o} {
     if (o) ZmREF(o);
   }
   template <typename O>
   ZmRef(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object(static_cast<T *>(o)) {
+      m_object{static_cast<T *>(o)} {
     if (o) ZmREF(o);
   }
   ~ZmRef() {

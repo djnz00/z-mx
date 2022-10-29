@@ -32,7 +32,8 @@
 
 #include <zlib/ZuInt.hpp>
 
-// generic run-time access to a reference-counted POD type
+// generic run-time access to a reference-counted generic POD type with
+// run-time variadic access to pointer and size
 
 class ZuAnyPOD_Data {
 public:

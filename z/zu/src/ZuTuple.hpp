@@ -274,7 +274,7 @@ class Tuple_<T0, T1> : public Pair_<T0, T1> {
   using Base = Pair_<T0, T1>;
 
 public:
-  using Types = typename Base::template Types;
+  using Types = typename Base::Types;
   template <unsigned I> using Type = typename Base::template Type<I>;
   enum { N = 2 };
 

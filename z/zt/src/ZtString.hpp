@@ -224,7 +224,7 @@ public:
   ZtString_(const ZtString_ &s) {
     copy_(s.data_(), s.length());
   }
-  ZtString_(ZtString_ &&s) noexcept {
+  ZtString_(ZtString_ &&s) {
     if (s.null__()) { null_(); return; }
     if (s.builtin()) { copy_(s.data_(), s.length()); return; }
     if (!s.owned()) { shadow_(s.data_(), s.length()); return; }
@@ -332,7 +332,7 @@ public:
     }
     return *this;
   }
-  ZtString_ &operator =(ZtString_ &&s) noexcept {
+  ZtString_ &operator =(ZtString_ &&s) {
     if (ZuLikely(this != &s)) {
       free_();
       new (this) ZtString_(ZuMv(s));
@@ -1189,7 +1189,7 @@ private:
 
 private:
   // match whitespace
-  auto matchS() noexcept {
+  auto matchS() {
     return [](int c) {
       return c == ' ' || c == '\t' || c == '\n' || c == '\r';
     };
@@ -1197,7 +1197,7 @@ private:
 public:
   // remove trailing characters
   template <typename Match>
-  void chomp(Match match) noexcept {
+  void chomp(Match match) {
     if (!owned()) truncate();
     int o = length();
     if (!o) return;
@@ -1205,11 +1205,11 @@ public:
     while (--o >= 0 && match(data[o]));
     length_(o + 1);
   }
-  void chomp() noexcept { return chomp(matchS()); }
+  void chomp() { return chomp(matchS()); }
 
   // remove leading characters
   template <typename Match>
-  void trim(Match match) noexcept {
+  void trim(Match match) {
     if (!owned()) truncate();
     unsigned n = length();
     unsigned o;
@@ -1220,11 +1220,11 @@ public:
     memmove(data, data + o, n * sizeof(Char));
     length_(n);
   }
-  void trim() noexcept { return trim(matchS()); }
+  void trim() { return trim(matchS()); }
 
   // remove leading & trailing characters
   template <typename Match>
-  void strip(Match match) noexcept {
+  void strip(Match match) {
     if (!owned()) truncate();
     int o = length();
     if (!o) return;
@@ -1239,7 +1239,7 @@ public:
     memmove(data, data + o, n * sizeof(Char));
     length_(n);
   }
-  void strip() noexcept { return strip(matchS()); }
+  void strip() { return strip(matchS()); }
  
 // sprintf(), vsprintf()
 

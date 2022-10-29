@@ -17,7 +17,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// shared memory IPC low-level functions
+// ring buffer inter-process utility functions
+//
+// (mainly a wrapper around Linux futexes and Win32 equivalent)
 
 #ifndef ZiRingUtil_HPP
 #define ZiRingUtil_HPP
@@ -83,8 +85,8 @@ public:
 
   const ParamData &params() const { return m_params; }
 
-  int open(ZeError *e = 0);
-  int close(ZeError *e = 0);
+  int open(ZeError *e = nullptr);
+  int close(ZeError *e = nullptr);
 
 #ifdef linux
 #define ZiRing_wait(index, addr, val) wait(addr, val)
