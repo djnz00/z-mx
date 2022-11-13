@@ -43,29 +43,33 @@
 #endif
 
 template <typename Lock> class ZmCondition_ {
-  using Wait = typename Lock::Wait;
   ZmCondition_() = delete;
 
 protected:
+  using Wait = typename Lock::Wait;
+
   ZmCondition_(Lock &lock) : m_lock{lock} { }
 
-  Wait wait() { return m_lock.wait(); }
-  void lock_() { m_lock.lock_(); }
-  void unlock_() { m_lock.unlock_(); }
+  ZuInline Wait wait_() { return m_lock.wait(); }
+  ZuInline void lock_() { m_lock.lock_(); }
+  ZuInline void unlock_() { m_lock.unlock_(); }
 
 private:
   Lock		&m_lock;
 };
 
+class ZmNoLock;
+
 template <> class ZmCondition_<ZmNoLock> {
+protected:
   struct Wait { };
 
-protected:
   ZmCondition_() { }
+  ZmCondition_(ZmNoLock &) { }
 
-  Wait wait() { return {}; }
-  void lock_() { }
-  void unlock_() { }
+  ZuInline Wait wait_() { return {}; }
+  ZuInline void lock_() { }
+  ZuInline void unlock_() { }
 };
 
 template <typename Lock> class ZmCondition : public ZmCondition_<Lock> {
@@ -75,7 +79,7 @@ template <typename Lock> class ZmCondition : public ZmCondition_<Lock> {
 
   using Base = ZmCondition_<Lock>;
   using Wait = typename Base::Wait;
-  using Base::wait;
+  using Base::wait_;
   using Base::lock_;
   using Base::unlock_;
 
@@ -93,12 +97,12 @@ public:
   template <typename Lock_ = Lock>
   ZmCondition(
       Lock &lock,
-      ZuIfT<ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
+      ZuIfT<!ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
     Base{lock} { }
   ~ZmCondition() { }
 
   void wait() {
-    Wait wait{this->wait()};
+    Wait wait{this->wait_()};
     Thread *thread = ZmSpecific<Thread>::instance();
     thread->next = nullptr;
     thread->waiting = true;
@@ -106,7 +110,7 @@ public:
       ZmGuard<ZmPLock> guard(m_condLock);
       thread->prev = m_tail;
       if (m_head)
-	m_tail->m_next = thread;
+	m_tail->next = thread;
       else
 	m_head = thread;
       m_tail = thread;
@@ -116,7 +120,7 @@ public:
     lock_();
   }
   int timedWait(ZmTime timeout) {
-    Wait wait{this->wait()};
+    Wait wait{this->wait_()};
     Thread *thread = ZmSpecific<Thread>::instance();
     thread->next = nullptr;
     thread->waiting = true;
@@ -124,7 +128,7 @@ public:
       ZmGuard<ZmPLock> guard(m_condLock);
       thread->prev = m_tail;
       if (m_head)
-	m_tail->m_next = thread;
+	m_tail->next = thread;
       else
 	m_head = thread;
       m_tail = thread;
@@ -134,11 +138,11 @@ public:
       ZmGuard<ZmPLock> guard(m_condLock);
       if (thread->waiting) { // normal case, still waiting
 	if (thread->prev)
-	  thread->prev->m_next = thread->next;
+	  thread->prev->next = thread->next;
 	else
 	  m_head = thread->next;
 	if (thread->next)
-	  thread->next->m_prev = thread->prev;
+	  thread->next->prev = thread->prev;
 	else
 	  m_tail = thread->prev;
 	thread->waiting = false;
@@ -155,14 +159,14 @@ public:
   void signal() {
     ZmGuard<ZmPLock> guard(m_condLock);
     if (Thread *thread = m_head) {
-      if (!(m_head = thread->m_next)) {
+      if (!(m_head = thread->next)) {
 	m_tail = nullptr;
       } else {
-	m_head->m_prev = nullptr;
+	m_head->prev = nullptr;
       }
-      thread->m_waiting = false;
+      thread->waiting = false;
       guard.unlock();
-      thread->m_sem.post();
+      thread->sem.post();
       return;
     }
   }
@@ -170,14 +174,14 @@ public:
 loop:
     ZmGuard<ZmPLock> guard(m_condLock);
     if (Thread *thread = m_head) {
-      if (!(m_head = thread->m_next)) {
+      if (!(m_head = thread->next)) {
 	m_tail = nullptr;
       } else {
-	m_head->m_prev = nullptr;
+	m_head->prev = nullptr;
       }
-      thread->m_waiting = false;
+      thread->waiting = false;
       guard.unlock();
-      thread->m_sem.post();
+      thread->sem.post();
       goto loop;
     }
   }

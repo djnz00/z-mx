@@ -55,8 +55,21 @@ struct ZuTraits_Composite {
   enum { Is = 0 };
 };
 template <typename T>
-struct ZuTraits_Composite<T, decltype((int T::*){}, void())> {
+struct ZuTraits_Composite<T, decltype((int T::*){}, void{})> {
   enum { Is = 1 };
+};
+
+template <typename T, typename = void>
+class ZuTraits_Empty {
+public:
+  enum { Is = 0 };
+};
+template <typename T>
+class ZuTraits_Empty<T, decltype(sizeof(T), (int T::*){}, void{})> {
+  struct A { int _; };
+  struct B : public T { int _; };
+public:
+  enum { Is = sizeof(A) == sizeof(B) };
 };
 
 template <typename T> struct ZuTraits_Enum {
@@ -66,18 +79,19 @@ template <typename T, typename = void> struct ZuTraits_POD {
   enum { Is = !ZuTraits_Composite<T>::Is };
 };
 template <typename T>
-struct ZuTraits_POD<T, decltype(sizeof(T), void())> {
+struct ZuTraits_POD<T, decltype(sizeof(T), void{})> {
 #ifdef _MSC_VER
   enum { Is = __is_pod(T) };
 #else
   enum { Is = __is_standard_layout(T) && __is_trivial(T) };
 #endif
-}; 
+};
 
 // default generic traits
 template <typename T> struct ZuBaseTraits {
-  enum { IsEnum = ZuTraits_Enum<T>::Is };
   enum { IsComposite = ZuTraits_Composite<T>::Is }; // class/struct/union
+  enum { IsEmpty = ZuTraits_Empty<T>::Is };
+  enum { IsEnum = ZuTraits_Enum<T>::Is };
   enum { IsPOD = ZuTraits_POD<T>::Is };
   enum {
     IsReference	= 0,		IsRvalueRef	= 0,
@@ -403,9 +417,12 @@ using ZuIs##Trait = ZuIfT<ZuTraits<U>::Is##Trait, R>; \
 template <typename U, typename R = void> \
 using ZuNot##Trait = ZuIfT<!ZuTraits<U>::Is##Trait, R>;
 
+ZuTraits_SFINAE(Composite)
+ZuTraits_SFINAE(Empty)
+ZuTraits_SFINAE(Enum)
+ZuTraits_SFINAE(POD)
 ZuTraits_SFINAE(Primitive)
 ZuTraits_SFINAE(Real)
-ZuTraits_SFINAE(POD)
 ZuTraits_SFINAE(Integral)
 ZuTraits_SFINAE(Signed)
 ZuTraits_SFINAE(CString)

@@ -181,7 +181,7 @@ int main(int argc, char **argv)
     // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
     // s.add(&timers[j - 1], fns[j - 1], jobs[j - 1]->timeout());
     ZmTime out = t + ZmTime(((double)j) / 10.0);
-    s.add(ZmFn<>::Member<&Job::operator()>::fn(ZmMkRef(new Job(buf, out))),
+    s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
     printf("Hello World %d\n", j);
   }
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
     // jobs[j - 1] = new Job(buf, t + ZmTime(((double)j) / 10.0));
     // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
     ZmTime out = t + ZmTime(((double)j) / 10.0);
-    s.add(ZmFn<>::Member<&Job::operator()>::fn(ZmMkRef(new Job(buf, out))),
+    s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
     printf("Hello World %d\n", j);
     if (j == 1) breakpoint(&timers[j - 1]);
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
 
   for (i = 0; i < 5; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
-    timers[j - 1].fn = ZmFn<>{};
+    timers[j - 1].fn = []() { };
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
   }

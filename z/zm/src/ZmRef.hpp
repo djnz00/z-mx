@@ -99,7 +99,7 @@ public:
 
 private:
   enum Acquire_ { Acquire };
-  ZmRef(T *o, Acquire_ _) : m_object(o) { }
+  ZmRef(T *o, Acquire_ _) : m_object{o} { }
 
   // matches ZmRef<U> where U is not T, but is in the same type hierarchy as T
   template <typename U> struct IsOtherRef__ {

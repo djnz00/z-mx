@@ -43,7 +43,6 @@
 #include <zlib/ZmObject.hpp>
 #include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmLock.hpp>
-#include <zlib/ZmCondition.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmRing.hpp>
 #include <zlib/ZmXRing.hpp>
@@ -156,8 +155,160 @@ class ZmAPI ZmScheduler : public ZmEngine<ZmScheduler> {
 
 friend ZmEngine<ZmScheduler>;
 
+public:
+  using ID = ZmSchedParams::ID;
+
+private:
+  using Ring = ZmRing<ZmRingMW<true>>;
+
+  // run-time encapsulation of generic functor/lambda
+  struct Fn_HeapID {
+    static constexpr const char *id() { return "ZmScheduler.Fn"; }
+  };
+  struct Fn : public ZmVHeap<Fn_HeapID> {
+    typedef unsigned (*InvokeFn)(void *ptr, bool invoke);
+    typedef void (*MoveFn)(void *dst, void *src);
+
+    void	*ptr = nullptr;	// pointer to lambda on stack
+    InvokeFn	invokeFn = nullptr; // invoke lambda, destroy it, return size
+    MoveFn	moveFn = nullptr; // move lambda into ring
+    unsigned	size = 0;	// sizeof lambda type (0 for stateless)
+    bool	onHeap = false;	// true if heap-allocated
+
+    Fn() = default;
+
+    Fn(const Fn &) = delete;
+    Fn &operator =(const Fn &) = delete;
+
+    Fn(Fn &&fn) :
+	ptr{fn.ptr}, invokeFn{fn.invokeFn}, moveFn{fn.moveFn},
+	size{fn.size}, onHeap{fn.onHeap} {
+      fn.clear();
+    }
+    Fn &operator =(Fn &&fn) {
+      this->~Fn();
+      new (this) Fn{ZuMv(fn)};
+      return *this;
+    }
+
+    template <typename L>
+    Fn(L &l, ZuNotStateless<L> *_ = nullptr) :
+      ptr{&l},
+      invokeFn{[](void *ptr_, bool invoke) -> unsigned {
+	auto ptr = reinterpret_cast<L *>(ptr_);
+	if (ZuLikely(invoke)) try { (*ptr)(); } catch (...) { }
+	ptr->~L();
+	return sizeof(L);
+      }},
+      moveFn{[](void *dst, void *src_) {
+	auto src = reinterpret_cast<L *>(src_);
+	new (dst) L{ZuMv(*src)};
+      }},
+      size{sizeof(L)},
+      onHeap{false} { }
+
+    template <typename L>
+    Fn(L &l, ZuIsStateless<L> *_ = nullptr) :
+      ptr{nullptr},
+      invokeFn{[](void *, bool invoke) -> unsigned {
+	if (ZuLikely(invoke))
+	  try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
+	return 0;
+      }},
+      moveFn{[](void *, void *) { }},
+      size{0},
+      onHeap{false} { }
+
+    template <typename L>
+    Fn &operator =(L l) {
+      this->~Fn();
+      new (this) Fn{l};
+      persist();
+      return *this;
+    }
+
+    ~Fn() {
+      if (onHeap && ptr) {
+	invokeFn(ptr, false);
+	vfree(ptr);
+      }
+    }
+
+    void clear() {
+      this->~Fn();
+      new (this) Fn{};
+    }
+
+    bool operator !() const { return !invokeFn; }
+    ZuOpBool
+
+    void persist() {
+      if (ptr && size && !onHeap) {
+	auto stackPtr = ptr;
+	ptr = valloc(size);
+	if (ZuUnlikely(!ptr)) { ptr = stackPtr; throw std::bad_alloc{}; }
+	moveFn(ptr, stackPtr);
+	onHeap = true;
+      }
+    }
+
+    unsigned pushSize() const {
+      return sizeof(InvokeFn) + size;
+    }
+    void push(void *dst_) {
+      auto dst = reinterpret_cast<InvokeFn *>(dst_);
+      *dst = invokeFn;
+      moveFn(&dst[1], ptr);
+      if (onHeap) vfree(ptr);
+      clear();
+    }
+    ZuInline static unsigned invoke(void *ptr_) {
+      auto ptr = reinterpret_cast<InvokeFn *>(ptr_);
+      return (**ptr)(static_cast<void *>(&ptr[1]), true);
+    }
+  };
+
+  // overflow ring DLQ
+  struct OverRing_HeapID {
+    static constexpr const char *id() { return "ZmScheduler.OverRing"; }
+  };
+  using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
+  struct OverRing : public OverRing_ {
+    using Lock = ZmPLock;
+    using Guard = ZmGuard<Lock>;
+    using ReadGuard = ZmReadGuard<Lock>;
+
+    ZuInline void push(Fn fn) {
+      Guard guard(m_lock);
+      OverRing_::push(ZuMv(fn));
+      ++m_inCount;
+    }
+    ZuInline void unshift(Fn fn) {
+      Guard guard(m_lock);
+      OverRing_::unshift(ZuMv(fn));
+      --m_outCount;
+    }
+    ZuInline Fn shift() {
+      Guard guard(m_lock);
+      Fn fn = OverRing_::shift();
+      if (fn) ++m_outCount;
+      return fn;
+    }
+    void stats(uint64_t &inCount, uint64_t &outCount) const {
+      ReadGuard guard(m_lock);
+      inCount = m_inCount;
+      outCount = m_outCount;
+    }
+
+    Lock	m_lock;
+    unsigned	  m_inCount = 0;
+    unsigned	  m_outCount = 0;
+  };
+  enum { OverRing_Increment = 128 };
+
+private:
   struct Timer_ {
-    ZmFn<>	fn;
+    Fn		fn;
     unsigned	index = 0;
     ZmTime	timeout;
     bool	transient = false;
@@ -185,47 +336,9 @@ friend ZmEngine<ZmScheduler>;
       ZmRBTreeKey<Timer_TimeoutAxor,
 	ZmRBTreeNodeDerive<true,
 	  ZmRBTreeObject<ZuShadow,
-	    ZmRBTreeLock<ZmNoLock,
-	      ZmRBTreeHeapID<ScheduleTree_HeapID> > > > > >;
+	      ZmRBTreeHeapID<ScheduleTree_HeapID> > > > >;
 public:
-  using ID = ZmSchedParams::ID;
   using Timer = ScheduleTree::Node;
-
-private:
-  using Ring = ZmRing<ZmFn<>>;
-  using OverRing_ =  ZmXRing<ZmFn<>, ZmXRingLock<ZmNoLock>>;
-  struct OverRing : public OverRing_ {
-    using Lock = ZmPLock;
-    using Guard = ZmGuard<Lock>;
-    using ReadGuard = ZmReadGuard<Lock>;
-
-    ZuInline void push(ZmFn<> fn) {
-      Guard guard(m_lock);
-      OverRing_::push(ZuMv(fn));
-      ++m_inCount;
-    }
-    ZuInline void unshift(ZmFn<> fn) {
-      Guard guard(m_lock);
-      OverRing_::unshift(ZuMv(fn));
-      --m_outCount;
-    }
-    ZuInline ZmFn<> shift() {
-      Guard guard(m_lock);
-      ZmFn<> fn = OverRing_::shift();
-      if (fn) ++m_outCount;
-      return fn;
-    }
-    void stats(uint64_t &inCount, uint64_t &outCount) const {
-      ReadGuard guard(m_lock);
-      inCount = m_inCount;
-      outCount = m_outCount;
-    }
-
-    Lock	m_lock;
-    unsigned	  m_inCount = 0;
-    unsigned	  m_outCount = 0;
-  };
-  enum { OverRing_Increment = 128 };
 
 public:
   // might throw ZmRingError
@@ -269,54 +382,64 @@ public:
 
   // del(timer) - cancel timer
 
-  void add(ZmFn<> fn);
-
-  ZuInline void add(ZmFn<> fn, ZmTime timeout)
-    { run(0, ZuMv(fn), timeout, Update, nullptr); }
-  ZuInline void add(ZmFn<> fn, ZmTime timeout, Timer *ptr)
-    { run(0, ZuMv(fn), timeout, Update, ptr); }
-  ZuInline void add(ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr)
-    { run(0, ZuMv(fn), timeout, mode, ptr); }
-
-  ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout)
-    { run(index, ZuMv(fn), timeout, Update, nullptr); }
-  ZuInline void run(unsigned index, ZmFn<> fn, ZmTime timeout, Timer *ptr)
-    { run(index, ZuMv(fn), timeout, Update, ptr); }
-  void run(unsigned index, ZmFn<> fn, ZmTime timeout, int mode, Timer *ptr);
-
-  bool del(Timer *);			// cancel job - returns true if found
-
-  template <typename Fn>
-  ZuInline void run(unsigned index, Fn &&fn) {
-    ZmAssert(index && index <= m_params.nThreads());
-    runWake_(&m_threads[index - 1], ZmFn<>{ZuFwd<Fn>(fn)});
-  }
-  template <typename Fn>
-  ZuInline void run_(unsigned index, Fn &&fn) {
-    ZmAssert(index && index <= m_params.nThreads());
-    run__(&m_threads[index - 1], ZmFn<>{ZuFwd<Fn>(fn)});
+  template <typename L> void add(L l) {
+    Fn fn{l};
+    add_(fn);
   }
 
-  template <typename Fn>
-  ZuInline void invoke(unsigned index, Fn &&fn) {
+  template <typename L>
+  void add(L l, ZmTime timeout) {
+    Fn fn{l};
+    run(0, fn, timeout, Update, nullptr);
+  }
+  template <typename L>
+  void add(L l, ZmTime timeout, Timer *timer) {
+    Fn fn{l};
+    run(0, fn, timeout, Update, timer);
+  }
+  template <typename L>
+  void add(L l, ZmTime timeout, int mode, Timer *timer) {
+    Fn fn{l};
+    run(0, fn, timeout, mode, timer);
+  }
+
+  template <typename L>
+  void run(unsigned index, L l, ZmTime timeout) {
+    Fn fn{l};
+    run(index, fn, timeout, Update, nullptr);
+  }
+  template <typename L>
+  void run(unsigned index, L l, ZmTime timeout, Timer *timer) {
+    Fn fn{l};
+    run(index, fn, timeout, Update, timer);
+  }
+
+  void run(unsigned index, Fn &, ZmTime timeout, int mode, Timer *);
+
+  bool del(Timer *);		// cancel job - returns true if found
+
+  // run and wake thread
+  template <typename L>
+  void run(unsigned index, L l) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Fn fn{l};
+    runWake_(&m_threads[index - 1], fn);
+  }
+  // run without calling wake() and any custom wakeFn
+  template <typename L>
+  void run_(unsigned index, L l) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Fn fn{l};
+    run__(&m_threads[index - 1], fn);
+  }
+
+  template <typename L>
+  void invoke(unsigned index, L l) {
     ZmAssert(index && index <= m_params.nThreads());
     Thread *thread = &m_threads[index - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(); return; }
-    runWake_(thread, ZmFn<>{ZuFwd<Fn>(fn)});
-  }
-  template <typename O, typename Fn>
-  ZuInline void invoke(unsigned index, ZmRef<O> o, Fn &&fn) {
-    ZmAssert(index && index <= m_params.nThreads());
-    Thread *thread = &m_threads[index - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(ZuMv(o)); return; }
-    runWake_(thread, ZmFn<>::mvFn(ZuMv(o), ZuFwd<Fn>(fn)));
-  }
-  template <typename O, typename Fn>
-  ZuInline void invoke(unsigned index, O *o, Fn &&fn) {
-    ZmAssert(index && index <= m_params.nThreads());
-    Thread *thread = &m_threads[index - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) { fn(o); return; }
-    runWake_(thread, ZmFn<>{o, ZuFwd<Fn>(fn)});
+    if (ZuLikely(Zm::getTID() == thread->tid)) { l(); return; }
+    Fn fn{l};
+    runWake_(thread, fn);
   }
 
   ZuInline void threadInit(ZmFn<> fn) { m_threadInitFn = ZuMv(fn); }
@@ -348,6 +471,7 @@ public:
   unsigned tid(ZuString s) {
     unsigned tid;
     if (tid = ZuBox0(unsigned){s}) return tid;
+    unsigned n;
     for (tid = 0, n = m_params.nThreads(); tid <= n; tid++)
       if (s == m_params.thread(tid).name()) return tid;
     return 0;
@@ -387,12 +511,13 @@ private:
   ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
 
   void timer();
-  bool timerAdd(ZmFn<> &fn);
+  bool timerAdd(Fn &fn);
 
-  void runWake_(Thread *thread, ZmFn<> fn);
-  bool tryRunWake_(Thread *thread, ZmFn<> &fn);
-  bool run__(Thread *thread, ZmFn<> fn);
-  bool tryRun__(Thread *thread, ZmFn<> &fn);
+  void add_(Fn &fn);
+  void runWake_(Thread *thread, Fn &fn);
+  bool tryRunWake_(Thread *thread, Fn &fn);
+  bool run__(Thread *thread, Fn &fn);
+  bool tryRun__(Thread *thread, Fn &fn);
 
   void work();
 

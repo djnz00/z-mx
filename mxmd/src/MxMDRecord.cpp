@@ -277,7 +277,7 @@ void MxMDRecLink::recv(Rx *rx)
 {
   using namespace MxMDStream;
   if (ZuUnlikely(state() != MxLinkState::Up)) {
-    mx()->wakeFn(engine()->rxThread(), ZmFn<>());
+    mx()->wakeFn(engine()->rxThread(), ZmFn<>{});
     return;
   }
   const Hdr *hdr;

@@ -136,7 +136,7 @@ struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
   static T *alloc(unsigned size) {
     auto ptr = static_cast<T *>(
       Zm::alignedAlloc(size * sizeof(T), Zm::CacheLineSize));
-    if (!ptr) throw std::bad_alloc();
+    if (!ptr) throw std::bad_alloc{};
     return ptr;
   }
   static void free(T *ptr) {

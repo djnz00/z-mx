@@ -110,32 +110,17 @@ public:
   ~Tuple_() = default;
 
 private:
-  template <typename T, typename> struct Bind_P0 {
-    using U0 = typename T::U0;
-    static const U0 &p0(const T &v) { return v.m_p0; }
-    static U0 &p0(T &v) { return v.m_p0; }
-    static U0 &&p0(T &&v) { return ZuMv(v.m_p0); }
+  template <typename T, bool> struct Bind_P0 {
+    static decltype(auto) p0(const T &v) { return v.m_p0; }
+    static decltype(auto) p0(T &v) { return v.m_p0; }
+    static decltype(auto) p0(T &&v) { return ZuMv(v.m_p0); }
   };
-  template <typename T, typename P0> struct Bind_P0<T, P0 &> {
-    using U0 = typename T::U0;
-    static U0 &p0(T &v) { return v.m_p0; }
-  };
-  template <typename T, typename P0> struct Bind_P0<T, const P0 &> {
-    using U0 = typename T::U0;
-    static const U0 &p0(const T &v) { return v.m_p0; }
-  };
-  template <typename T, typename P0> struct Bind_P0<T, volatile P0 &> {
-    using U0 = typename T::U0;
-    static volatile U0 &p0(volatile T &v) { return v.m_p0; }
-  };
-  template <typename T, typename P0> struct Bind_P0<T, const volatile P0 &> {
-    using U0 = typename T::U0;
-    static const volatile U0 &p0(const volatile T &v) {
-      return v.m_p0;
-    }
+  template <typename T> struct Bind_P0<T, true> {
+    static decltype(auto) p0(const T &v) { return v.m_p0; }
+    static decltype(auto) p0(T &v) { return v.m_p0; }
   };
   template <typename T>
-  struct Bind : public Bind_P0<T, T0> { };
+  struct Bind : public Bind_P0<T, ZuTraits<typename T::T0>::IsReference> { };
 
 public:
   template <typename T>
@@ -479,14 +464,22 @@ namespace Zu_ {
 // generic accessor
 template <unsigned I = 0>
 struct ZuTupleAxor {
-  template <typename P, unsigned J> struct Bind {
+  template <
+    typename P, unsigned J = I,
+    bool = ZuTraits<typename P::template Type<J>>::IsReference>
+  struct Bind {
     static decltype(auto) get(const P &v) { return v.template p<J>(); }
     static decltype(auto) get(P &v) { return v.template p<J>(); }
     static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
   };
+  template <typename P, unsigned J>
+  struct Bind<P, J, true> {
+    static decltype(auto) get(const P &v) { return v.template p<J>(); }
+    static decltype(auto) get(P &v) { return v.template p<J>(); }
+  };
   template <typename P>
   static decltype(auto) get(P &&v) {
-    return Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
+    return Bind<ZuDecay<P>>::get(ZuFwd<P>(v));
   }
 };
 

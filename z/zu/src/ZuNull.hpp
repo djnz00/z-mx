@@ -33,7 +33,10 @@
 #include <zlib/ZuTraits.hpp>
 
 class ZuNull {
-  struct Traits : public ZuBaseTraits<ZuNull> { enum { IsPOD = 1 }; };
+  struct Traits : public ZuBaseTraits<ZuNull> {
+    enum { IsEmpty = 1 };
+    enum { IsPOD = 1 };
+  };
 };
 
 template <typename T> struct ZuCmp;

@@ -51,7 +51,7 @@ struct Z : public ZmObject {
   int m_z;
 
   struct Traits : public ZuBaseTraits<Z> {
-    enum {  IsPrimitive = 0, IsReal = 0 };
+    enum { IsPrimitive = 0, IsReal = 0 };
   };
   friend Traits ZuTraitsType(Z *);
 };
@@ -65,8 +65,7 @@ struct ZCmp {
   static constexpr const Z *null() { return nullptr; }
 };
 
-using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
-using ZHash = ZmHashKV<int, ZmRef<Z> >;
+using ZHash = ZmHashKV<int, ZmRef<Z>, ZmHashLock<ZmPLock>>;
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 
@@ -163,6 +162,15 @@ struct J : public ZmObject {
 
 int main(int argc, char **argv)
 {
+  {
+    ZmRef<ZHash> hash2 = new ZHash(
+	ZmHashParams().bits(2).loadFactor(1.0).cBits(1));
+    ZmRef<Z> z = new Z;
+    hash2->add(0, z);
+    delete hash2->del(0);
+  }
+
+#if 0
   ZmTime overallStart, overallEnd;
 
   overallStart.now();
@@ -249,4 +257,5 @@ int main(int argc, char **argv)
       puts("");
     }
   }
+#endif
 }

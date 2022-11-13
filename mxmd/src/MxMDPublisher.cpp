@@ -661,7 +661,7 @@ void MxMDPublisher::recv()
     case MxEngineState::Running:
       break;
     default:
-      mx()->wakeFn(rxThread(), ZmFn<>());
+      mx()->wakeFn(rxThread(), ZmFn<>{});
       wake();
       return;
   }

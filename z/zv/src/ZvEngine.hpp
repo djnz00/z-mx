@@ -30,7 +30,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuLambdaTraits.hpp>
+#include <zlib/ZuFunctorTraits.hpp>
 
 #include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmFn.hpp>
@@ -646,10 +646,10 @@ public:
   // ensure passed lambdas are stateless and match required signature
   template <
     typename L,
-    bool = ZuLambdaTraits<L>::template Match<void, Rx *>::OK>
+    bool = ZuFunctorTraits<L>::template Match<void, Rx *>::OK>
   struct RcvdLambda;
   template <typename L>
-  struct RcvdLambda<L, true> : public ZuLambdaTraits<L> { };
+  struct RcvdLambda<L, true> : public ZuFunctorTraits<L> { };
 
   template <typename L>
   typename RcvdLambda<L>::R received(ZmRef<ZvIOMsg> msg, L) {

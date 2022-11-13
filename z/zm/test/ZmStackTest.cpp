@@ -75,15 +75,15 @@ void doit(S &s)
   static int del2[] = { 1,3,4,6,7,8,-1 };
   int i;
 
-  for (i = 1; i < 10; i++) s.push(C(i));
-  for (i = 0; del1[i] >= 0; i++) s.del(C(del1[i]));
+  for (i = 1; i < 10; i++) s.push(C{i});
+  for (i = 0; del1[i] >= 0; i++) s.del(C{del1[i]});
   dump(s);
   test(s.pop().value() == 9);
   test(s.pop().value() == 5);
   test(s.pop().value() == 2);
   test(ZuCmp<C>::null(s.pop()));
-  for (i = 9; i > 0; i--) s.push(C(i));
-  for (i = 0; del2[i] >= 0; i++) s.del(C(del2[i]));
+  for (i = 9; i > 0; i--) s.push(C{i});
+  for (i = 0; del2[i] >= 0; i++) s.del(C{del2[i]});
   dump(s);
   test(s.pop().value() == 2);
   test(s.pop().value() == 5);
@@ -98,29 +98,29 @@ void doit2(S &s)
   static int del2[] = { 1,3,4,6,7,8,-1 };
   int i;
 
-  for (i = 1; i < 10; i++) s.push(C(i));
-  for (i = 0; del1[i] >= 0; i++) s.del(C(del1[i]));
+  for (i = 1; i < 10; i++) s.push(C{i});
+  for (i = 0; del1[i] >= 0; i++) s.del(C{del1[i]});
   dump(s);
   test(s.pop().value() == 9);
   test(s.pop().value() == 5);
   test(s.pop().value() == 2);
   test(ZuCmp<C>::null(s.pop()));
-  for (i = 1; i < 10; i++) s.push(C(i));
-  for (i = 0; del2[i] >= 0; i++) s.del(C(del2[i]));
+  for (i = 1; i < 10; i++) s.push(C{i});
+  for (i = 0; del2[i] >= 0; i++) s.del(C{del2[i]});
   dump(s);
   test(s.shift().value() == 2);
   test(s.shift().value() == 5);
   test(s.shift().value() == 9);
   test(ZuCmp<C>::null(s.shift()));
-  for (i = 1; i < 10; i++) s.unshift(C(i));
-  for (i = 0; del1[i] >= 0; i++) s.del(C(del1[i]));
+  for (i = 1; i < 10; i++) s.unshift(C{i});
+  for (i = 0; del1[i] >= 0; i++) s.del(C{del1[i]});
   dump2(s);
   test(s.shift().value() == 9);
   test(s.shift().value() == 5);
   test(s.shift().value() == 2);
   test(ZuCmp<C>::null(s.shift()));
-  for (i = 1; i < 10; i++) s.unshift(C(i));
-  for (i = 0; del2[i] >= 0; i++) s.del(C(del2[i]));
+  for (i = 1; i < 10; i++) s.unshift(C{i});
+  for (i = 0; del2[i] >= 0; i++) s.del(C{del2[i]});
   dump2(s);
   test(s.pop().value() == 2);
   test(s.pop().value() == 5);
@@ -128,15 +128,15 @@ void doit2(S &s)
   test(ZuCmp<C>::null(s.pop()));
   s.clean();
   int n = s.size();
-  s.push(C(0));
-  for (i = 1; i < n; i++) { s.push(C(i)); s.shift(); }
-  for (i = 0; i < n - 1; i++) s.push(C(i));
+  s.push(C{0});
+  for (i = 1; i < n; i++) { s.push(C{i}); s.shift(); }
+  for (i = 0; i < n - 1; i++) s.push(C{i});
   s.clean();
   n = s.size();
-  s.push(C(0));
-  for (i = 1; i < n; i++) { s.push(C(i)); s.shift(); }
+  s.push(C{0});
+  for (i = 1; i < n; i++) { s.push(C{i}); s.shift(); }
   n = s.size() + 1;
-  for (i = 0; i < n; i++) s.push(C(i));
+  for (i = 0; i < n; i++) s.push(C{i});
 }
 
 ZmAtomic<uint32_t> C::m_count = 0;

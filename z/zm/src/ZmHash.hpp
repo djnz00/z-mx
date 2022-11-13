@@ -80,7 +80,7 @@ protected:
 #else
     m_locks = _aligned_malloc(z, CacheLineSize);
 #endif
-    if (!m_locks) throw std::bad_alloc();
+    if (!m_locks) throw std::bad_alloc{};
     for (unsigned i = 0; i < n; ++i) new (&lock_(i)) Lock();
   }
   ~ZmHash_LockMgr() {

@@ -120,13 +120,15 @@ public:
     if (ZuUnlikely(!length || !diff)) return;
     if (diff < 0 || diff > static_cast<ptrdiff_t>(length * sizeof(T))) {
       do {
-	new (dst++) T{ZuMv(*src++)};
+	new (dst++) T{ZuMv(*src)};
+	(*src++).~T();
       } while (--length > 0);
     } else {
       dst += length;
       src += length;
       do {
 	new (--dst) T{ZuMv(*--src)};
+	(*src).~T();
       } while (--length > 0);
     }
   }

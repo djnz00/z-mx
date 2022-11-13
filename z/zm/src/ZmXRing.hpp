@@ -290,7 +290,7 @@ public:
   T pop() {
     Guard guard(m_lock);
 
-    if (m_count <= 0) return ZuNullRef<T, Cmp>();
+    if (m_count <= 0) return Cmp::null();
     --m_count;
     unsigned o = offset(--m_length);
     T v = ZuMv(m_data[o]);
@@ -339,7 +339,7 @@ public:
   T shift() {
     Guard guard(m_lock);
 
-    if (m_count <= 0) return ZuNullRef<T, Cmp>();
+    if (m_count <= 0) return Cmp::null();
     --m_count;
     int i = m_length, j = 0, o = m_offset;
     T v = ZuMv(m_data[o]);
@@ -353,13 +353,13 @@ public:
   T head() {
     Guard guard(m_lock);
 
-    if (m_length <= 0) return ZuNullRef<T, Cmp>();
+    if (m_length <= 0) return Cmp::null();
     return m_data[m_offset];
   }
   T tail() {
     Guard guard(m_lock);
 
-    if (m_length <= 0) return ZuNullRef<T, Cmp>();
+    if (m_length <= 0) return Cmp::null();
     return m_data[offset(m_length - 1)];
   }
 
@@ -370,7 +370,7 @@ public:
       unsigned o = offset(i);
       if (KeyCmp::equals(KeyAxor::get(m_data[o]), v)) return m_data[o];
     }
-    return ZuNullRef<T, Cmp>();
+    return Cmp::null();
   }
 
 private:
@@ -388,7 +388,7 @@ public:
   T del(const P &v) {
     Guard guard(m_lock);
     T *ptr = findPtr_(v);
-    if (!ptr) return ZuNullRef<T, Cmp>();
+    if (!ptr) return Cmp::null();
     T data = ZuMv(*ptr);
     delPtr_(ptr);
     return data;

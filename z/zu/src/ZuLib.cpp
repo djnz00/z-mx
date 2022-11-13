@@ -29,36 +29,6 @@ ZuExtern const char ZuLib[] = "@(#) Zero Copy Universal Library v" Z_VERNAME;
 #pragma warning(disable:4996)
 #endif
 
-#ifndef _WIN32
-#include <pthread.h>
-#endif
-
-ZuThreadContext::ZuThreadContext()
-{
-#ifndef _WIN32
-  void *addr;
-  size_t size;
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_getattr_np(pthread_self(), &attr);
-  pthread_attr_getstack(&attr, &addr, &size);
-  m_stackAddr = addr;
-  m_stackSize = size;
-#else /* !_WIN32 */
-  auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
-  m_stackAddr = tib->StackLimit;
-  m_stackSize =
-    reinterpret_cast<const uint8_t *>(tib->StackBase) -
-    reinterpret_cast<const uint8_t *>(tib->StackLimit);
-#endif /* !_WIN32 */
-}
-
-ZuThreadContext *ZuSelf()
-{
-  thread_local ZuThreadContext self_;
-  return &self_;
-}
-
 #include <stdarg.h>
 #include <stdio.h>
 

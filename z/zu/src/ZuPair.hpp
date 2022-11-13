@@ -129,46 +129,28 @@ public:
   using Types = ZuTypeList<T0, T1>;
   template <unsigned I> using Type = ZuType<I, Types>;
 
-  template <typename T, typename> struct Bind_P0 {
+  template <typename T, bool> struct Bind_P0 {
     static decltype(auto) p0(const T &v) { return v.m_p0; }
     static decltype(auto) p0(T &v) { return v.m_p0; }
     static decltype(auto) p0(T &&v) { return ZuMv(v.m_p0); }
   };
-  template <typename T, typename P0> struct Bind_P0<T, P0 &> {
-    static U0 &p0(T &v) { return v.m_p0; }
+  template <typename T> struct Bind_P0<T, true> {
+    static decltype(auto) p0(const T &v) { return v.m_p0; }
+    static decltype(auto) p0(T &v) { return v.m_p0; }
   };
-  template <typename T, typename P0> struct Bind_P0<T, const P0 &> {
-    static const U0 &p0(const T &v) { return v.m_p0; }
-  };
-  template <typename T, typename P0> struct Bind_P0<T, volatile P0 &> {
-    static volatile U0 &p0(volatile T &v) { return v.m_p0; }
-  };
-  template <typename T, typename P0> struct Bind_P0<T, const volatile P0 &> {
-    static const volatile U0 &p0(const volatile T &v) {
-      return v.m_p0;
-    }
-  };
-  template <typename T, typename> struct Bind_P1 {
+  template <typename T, bool> struct Bind_P1 {
     static decltype(auto) p1(const T &v) { return v.m_p1; }
     static decltype(auto) p1(T &v) { return v.m_p1; }
     static decltype(auto) p1(T &&v) { return ZuMv(v.m_p1); }
   };
-  template <typename T, typename P1> struct Bind_P1<T, P1 &> {
-    static U1 &p1(T &v) { return v.m_p1; }
-  };
-  template <typename T, typename P1> struct Bind_P1<T, const P1 &> {
-    static const U1 &p1(const T &v) { return v.m_p1; }
-  };
-  template <typename T, typename P1> struct Bind_P1<T, volatile P1 &> {
-    static volatile U1 &p1(volatile T &v) { return v.m_p1; }
-  };
-  template <typename T, typename P1> struct Bind_P1<T, const volatile P1 &> {
-    static const volatile U1 &p1(const volatile T &v) {
-      return v.m_p1;
-    }
+  template <typename T> struct Bind_P1<T, true> {
+    static decltype(auto) p1(const T &v) { return v.m_p1; }
+    static decltype(auto) p1(T &v) { return v.m_p1; }
   };
   template <typename T>
-  struct Bind : public Bind_P0<T, T0>, public Bind_P1<T, T1> { };
+  struct Bind :
+      public Bind_P0<T, ZuTraits<typename T::T0>::IsReference>,
+      public Bind_P1<T, ZuTraits<typename T::T1>::IsReference> { };
 
   Pair_() = default;
   Pair_(const Pair_ &) = default;
@@ -333,13 +315,13 @@ private:
 } // namespace Zu_
 
 template <typename T0, typename T1>
-auto ZuFwdPair(T0 &&v1, T1 &&v2) {
-  return ZuPair<T0 &&, T1 &&>(ZuFwd<T0>(v1), ZuFwd<T1>(v2));
+auto ZuFwdPair(T0 &&v0, T1 &&v1) {
+  return ZuPair<T0 &&, T1 &&>(ZuFwd<T0>(v0), ZuFwd<T1>(v1));
 }
 
 template <typename T0, typename T1>
-auto ZuMvPair(T0 v1, T1 v2) {
-  return ZuPair<T0, T1>(ZuMv(v1), ZuMv(v2));
+auto ZuMvPair(T0 v0, T1 v1) {
+  return ZuPair<T0, T1>(ZuMv(v0), ZuMv(v1));
 }
 
 namespace Zu_ {

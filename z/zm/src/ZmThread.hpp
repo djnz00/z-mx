@@ -46,6 +46,8 @@
 #include <zlib/ZmCleanup.hpp>
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmTime.hpp>
+#include <zlib/ZmPLock.hpp>
+#include <zlib/ZmGuard.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -141,12 +143,16 @@ private:
   bool			m_detached = false;
 };
 
+template <typename> struct ZmAlloc_;
+
 class ZmAPI ZmThreadContext_ {
 #ifndef _WIN32
   friend ZmAPI void *ZmThread_start(void *);
 #else
   friend ZmAPI unsigned __stdcall ZmThread_start(void *);
 #endif
+  template <typename> friend struct ZmAlloc_;
+
 protected:
   ZmThreadContext_() { }
 
@@ -198,6 +204,12 @@ public:
   }
 #endif /* !_WIN32 */
 
+  void *stackAddr() const { return m_stackAddr; }
+  unsigned stackSize() const { return m_stackSize; }
+
+  uint64_t allocStack() const { return m_allocStack; }
+  uint64_t allocHeap() const { return m_allocHeap; }
+
 protected:
   void init();
 
@@ -216,6 +228,10 @@ protected:
   mutable ULONG64	m_cpuLast = 0;
   mutable ULONG64	m_rtLast = 0;
 #endif /* !_WIN32 */
+  void			*m_stackAddr = nullptr;
+  unsigned		m_stackSize = 0;
+  uint64_t		m_allocStack = 0;
+  uint64_t		m_allocHeap = 0;
 };
 
 template <> struct ZmCleanup<ZmThreadContext> {
@@ -272,14 +288,6 @@ public:
   int index() const { return m_index; }
   const ZmThreadName &name() const { return m_name; }
 
-  void *stackAddr() const {
-    if (ZuLikely(m_self)) return m_self->stackAddr();
-    return nullptr;
-  }
-  unsigned stackSize() const {
-    if (ZuLikely(m_self)) return m_self->stackSize();
-    return 0;
-  }
   int priority() const { return m_priority; }
 
   unsigned partition() const { return m_partition; }
@@ -288,15 +296,6 @@ public:
   void *result() const { return m_result; }
 
   bool detached() const { return m_detached; }
-
-  unsigned allocStack() const {
-    if (ZuLikely(m_self)) return m_self->allocStack();
-    return 0;
-  }
-  unsigned allocHeap() const {
-    if (ZuLikely(m_self)) return m_self->allocHeap();
-    return 0;
-  }
 
   void telemetry(ZmThreadTelemetry &data) const;
 
@@ -313,11 +312,11 @@ private:
   void prioritize();
   void bind();
 
-  ZuThreadContext	*m_self = nullptr;
   ZmFn<>		m_fn;
 
   int			m_index = -1;	// index within thread pool/group
   ZmThreadName		m_name;
+
   int			m_priority = -1;
   unsigned		m_partition = 0;
   ZmBitmap		m_cpuset;
@@ -432,7 +431,7 @@ public:
     template <typename S> void print(S &s) const;
     friend ZuPrintFn ZuPrintType(CSV *);
   };
-  static CSV csv() { return CSV(); }
+  static CSV csv() { return {}; }
 
 private:
   ZmRef<Context>	m_context;

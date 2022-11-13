@@ -42,7 +42,7 @@
 #include <zlib/ZmSpecific.hpp>
 #include <zlib/ZmPLock.hpp>
 #include <zlib/ZmGuard.hpp>
-#include <zlib/ZmFn_.hpp>
+#include <zlib/ZmFn_.hpp>	// avoid circular dependency
 
 #if defined(ZDEBUG) && !defined(ZmHeap_DEBUG)
 #define ZmHeap_DEBUG
@@ -386,7 +386,7 @@ ZmHeap_Init<ZmHeap<ID, Size_> > ZmHeap<ID, Size_>::m_init;
 
 template <unsigned Size> class ZmHeap<ZuNull, Size> { };
 
-// #include <zlib/ZmFn_Lambda.hpp>
+#include <zlib/ZmFn.hpp>
 
 template <class ID, unsigned Size>
 inline void ZmHeapCacheT<ID, Size>::allStats(StatsFn fn)

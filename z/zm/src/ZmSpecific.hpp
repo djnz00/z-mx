@@ -78,11 +78,11 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuConversion.hpp>
 #include <zlib/ZuPair.hpp>
-#include <zlib/ZuLambdaTraits.hpp>
+#include <zlib/ZuFunctorTraits.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmObject.hpp>
-#include <zlib/ZmFn_.hpp>
+#include <zlib/ZmFn_.hpp>		// avoid circular dependency
 #include <zlib/ZmCleanup.hpp>
 #include <zlib/ZmGlobal.hpp>
 
@@ -399,8 +399,8 @@ public:
 
 template <typename L>
 auto ZmTLS(L l, ZuIsStateless<L> *_ = nullptr) {
-  using T = ZuDecay<decltype(*ZuLambdaTraits<L>::invoke())>;
-  return ZmSpecific<T, true, ZuLambdaTraits<L>::fn(l)>::instance();
+  using T = ZuDecay<decltype(*ZuFunctorTraits<L>::invoke())>;
+  return ZmSpecific<T, true, ZuFunctorTraits<L>::fn(l)>::instance();
 }
 
 #endif /* ZmSpecific_HPP */

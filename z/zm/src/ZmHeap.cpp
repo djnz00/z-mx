@@ -93,6 +93,7 @@ public:
     while (auto node = i.iterate()) {
       auto c = i.del(node)->val();
       ZmDEREF(c);
+      delete node;
     }
   }
 

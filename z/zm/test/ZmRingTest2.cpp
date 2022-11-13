@@ -150,8 +150,7 @@ int App::main(int argc, char **argv)
   for (unsigned i = 0; i < loop; i++) {
     int r = ring->open(flags);
     if (r != OK) {
-      std::cerr << "open() failed: " <<
-	ZmRingErrorCode::name(r) << '\n' << std::flush;
+      std::cerr << "open() failed: " << ZmRingError{r} << '\n' << std::flush;
       Zm::exit(1);
     }
 
@@ -221,7 +220,7 @@ void App::reader()
 
 void App::writer()
 {
-  using namespace ZmRingErrorCode;
+  using namespace ZmRingErrno;
   std::cerr << (ZuStringN<80>{} << "writer " << Zm::getTID() << " started\n") << std::flush;
   start.now();
   for (int j = 0; j < count; j++) {

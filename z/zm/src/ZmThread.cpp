@@ -116,12 +116,29 @@ void ZmThreadContext_::init()
   ZmSpecific<HandleCloser>::instance()->h = m_handle;
   m_rtLast = __rdtsc();
 #endif /* !_WIN32 */
+
+#ifndef _WIN32
+  void *addr;
+  size_t size;
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_getattr_np(pthread_self(), &attr);
+  pthread_attr_getstack(&attr, &addr, &size);
+  m_stackAddr = addr;
+  m_stackSize = size;
+  pthread_attr_destroy(&attr);
+#else /* !_WIN32 */
+  auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
+  m_stackAddr = tib->StackLimit;
+  m_stackSize =
+    reinterpret_cast<const uint8_t *>(tib->StackBase) -
+    reinterpret_cast<const uint8_t *>(tib->StackLimit);
+#endif /* !_WIN32 */
 }
 
 void ZmThreadContext::init()
 {
   ZmThreadContext_::init();
-  m_self = ZuSelf();
   if (!m_name) {
     if (main())
       m_name = "main";

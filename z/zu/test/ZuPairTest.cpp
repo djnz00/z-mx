@@ -49,7 +49,7 @@ struct A {
   int hash() const { return ZuHash<int>::hash(i); }
   bool operator !() const { return !i; }
 
-  struct Traits : public ZuBaseTraits<A> { enum { IsPrimitive = 0 }; };
+  struct Traits : public ZuBaseTraits<A> { };
   friend Traits ZuTraitsType(A *);
 
   int i;

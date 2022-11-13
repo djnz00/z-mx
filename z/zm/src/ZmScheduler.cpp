@@ -54,11 +54,11 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
 	timeout(m_params.timeout()).
 	cpuset(m_params.thread(index).cpuset()));
     int r;
-    if ((r = ring.open(Ring::Read | Ring::Write)) != Ring::OK)
-      throw ZmRingError(r);
+    if ((r = ring.open(Ring::Read | Ring::Write)) != ZmRingStatus::OK)
+      throw ZmRingError{r};
     // if ((r = ring.attach()) != Ring::OK) throw ZmRingError(r);
     m_threads[i].overRing.init(
-	ZmVRingParams().initial(0).increment(OverRing_Increment));
+	ZmXRingParams{}.initial(0).increment(OverRing_Increment));
     if (!m_params.thread(index).isolated())
       m_workers[m_nWorkers++] = &m_threads[i];
   }
@@ -200,11 +200,10 @@ void ZmScheduler::timer()
 	i.del(timer);
 	bool ok;
 	unsigned index = timer->index;
-	ZmFn<> fn = timer->fn;
 	if (ZuLikely(index))
-	  ok = tryRunWake_(&m_threads[index - 1], fn);
+	  ok = tryRunWake_(&m_threads[index - 1], timer->fn);
 	else
-	  ok = timerAdd(fn);
+	  ok = timerAdd(timer->fn);
 	if (ZuUnlikely(!ok)) {
 	  m_schedule.addNode(timer);
 	  schedGuard.unlock();
@@ -218,7 +217,7 @@ void ZmScheduler::timer()
   }
 }
 
-bool ZmScheduler::timerAdd(ZmFn<> &fn)
+bool ZmScheduler::timerAdd(Fn &fn)
 {
   if (ZuUnlikely(!m_nWorkers)) return false;
   unsigned first = m_next++;
@@ -231,11 +230,9 @@ bool ZmScheduler::timerAdd(ZmFn<> &fn)
 }
 
 void ZmScheduler::run(
-    unsigned index, ZmFn<> fn, ZmTime timeout, int mode, Timer *timer)
+    unsigned index, Fn &fn, ZmTime timeout, int mode, Timer *timer)
 {
   ZmAssert(index <= m_params.nThreads());
-
-  if (ZuUnlikely(!fn)) return;
 
   bool kick = true;
 
@@ -270,6 +267,7 @@ void ZmScheduler::run(
 
     timer->timeout = timeout;
     timer->index = index;
+    fn.persist();
     timer->fn = ZuMv(fn);
     m_schedule.addNode(timer);
   }
@@ -288,9 +286,8 @@ bool ZmScheduler::del(Timer *timer)
   return found;
 }
 
-void ZmScheduler::add(ZmFn<> fn)
+void ZmScheduler::add_(Fn &fn)
 {
-  if (ZuUnlikely(!fn)) return;
   if (ZuUnlikely(!m_nWorkers)) return;
   unsigned first = m_next++;
   unsigned next = first;
@@ -298,39 +295,41 @@ void ZmScheduler::add(ZmFn<> fn)
     auto thread = m_workers[next % m_nWorkers];
     if (tryRunWake_(thread, fn)) return;
   } while (((next = m_next++) - first) < m_nWorkers);
-  runWake_(m_workers[first % m_nWorkers], ZuMv(fn));
+  runWake_(m_workers[first % m_nWorkers], fn);
 }
 
-void ZmScheduler::runWake_(Thread *thread, ZmFn<> fn)
+void ZmScheduler::runWake_(Thread *thread, Fn &fn)
 {
-  if (ZuLikely(run__(thread, ZuMv(fn)))) wake(thread);
+  if (ZuLikely(run__(thread, fn))) wake(thread);
 }
 
-bool ZmScheduler::tryRunWake_(Thread *thread, ZmFn<> &fn)
+bool ZmScheduler::tryRunWake_(Thread *thread, Fn &fn)
 {
   if (ZuLikely(tryRun__(thread, fn))) { wake(thread); return true; }
   return false;
 }
 
-bool ZmScheduler::run__(Thread *thread, ZmFn<> fn)
+bool ZmScheduler::run__(Thread *thread, Fn &fn)
 {
   // Note: the MPSC requirement is to serialize within the producing thread
   if (ZuLikely(!thread->overCount.load_())) goto push;
 overflow:
   ++thread->overCount;
+  fn.persist();
   thread->overRing.push(ZuMv(fn));
   return true;
 push:
   {
+    unsigned size = fn.pushSize();
     void *ptr;
-    if (ZuLikely(ptr = thread->ring.tryPush())) {
-      new (ptr) ZmFn<>(ZuMv(fn));
-      thread->ring.push2(ptr);
+    if (ZuLikely(ptr = thread->ring.tryPush(size))) {
+      fn.push(ptr);
+      thread->ring.push2(ptr, size);
       return true;
     }
   }
   int status = thread->ring.writeStatus();
-  if (status == Ring::EndOfFile) return false;
+  if (status == ZmRingStatus::EndOfFile) return false;
   if (status >= 0) goto overflow;
   // should never happen - the enqueuing thread will normally
   // be forced to wait for the dequeuing thread to drain the ring,
@@ -350,13 +349,14 @@ push:
   return false;
 }
 
-bool ZmScheduler::tryRun__(Thread *thread, ZmFn<> &fn)
+bool ZmScheduler::tryRun__(Thread *thread, Fn &fn)
 {
   {
+    unsigned size = fn.pushSize();
     void *ptr;
-    if (ZuLikely(ptr = thread->ring.tryPush())) {
-      new (ptr) ZmFn<>(ZuMv(fn));
-      thread->ring.push2(ptr);
+    if (ZuLikely(ptr = thread->ring.tryPush(size))) {
+      fn.push(ptr);
+      thread->ring.push2(ptr, size);
       return true;
     }
   }
@@ -374,24 +374,22 @@ void ZmScheduler::work()
 
   for (;;) {
     if (ZuLikely(!thread->overCount.load_())) goto shift;
-    if (ZmFn<> fn = thread->overRing.shift()) {
+    if (Fn fn = thread->overRing.shift()) {
+      unsigned size = fn.pushSize();
       void *ptr;
-      if (ZuLikely(ptr = thread->ring.tryPush())) {
-	new (ptr) ZmFn<>(ZuMv(fn));
-	thread->ring.push2(ptr);
+      if (ZuLikely(ptr = thread->ring.tryPush(size))) {
+	fn.push(ptr);
+	thread->ring.push2(ptr, size);
 	--thread->overCount;
       } else {
 	thread->overRing.unshift(ZuMv(fn));
       }
     }
 shift:
-    if (ZmFn<> *ptr = thread->ring.shift()) {
-      ZmFn<> fn = ZuMv(*ptr);
-      ptr->~ZmFn<>();
-      thread->ring.shift2();
-      try { fn(); } catch (...) { }
+    if (void *ptr = thread->ring.shift()) {
+      thread->ring.shift2(Fn::invoke(ptr));
     } else {
-      if (thread->ring.readStatus() == Ring::EndOfFile) break;
+      if (thread->ring.readStatus() == ZmRingStatus::EndOfFile) break;
     }
   }
 

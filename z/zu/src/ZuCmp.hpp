@@ -212,8 +212,13 @@ struct ZuCmp_Can<P1, P2, typename ZuCmp_Can_<
   enum { OK = 1 };
 };
 
-template <typename T>
+template <typename T, typename = void>
 struct ZuCmp_NullFn {
+  template <typename P> static bool null(const P &p) { return !p; }
+  static T null() { return T{}; }
+};
+template <typename T>
+struct ZuCmp_NullFn<T, decltype(T{ZuDeclVal<const T &>()}, void{})> {
   template <typename P> static bool null(const P &p) { return !p; }
   static const T &null() { static T v; return v; }
 };

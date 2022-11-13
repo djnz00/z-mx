@@ -100,9 +100,36 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-// implementation moved to ZmFn_.hpp to resolve circular dependency w/ ZmHeap
-
 #include <zlib/ZmFn_.hpp>
-// #include <zlib/ZmFn_Lambda.hpp>
+#include <zlib/ZmHeap.hpp>
+
+// lambda wrapper object (heap-allocated)
+template <typename L, typename Heap>
+struct ZmLambda_ : public Heap, public ZmPolymorph, public L {
+  ZmLambda_() = delete;
+  ZmLambda_(const ZmLambda_ &) = delete;
+  ZmLambda_ &operator =(const ZmLambda_ &) = delete;
+  ZmLambda_(ZmLambda_ &&) = delete;
+  ZmLambda_ &operator =(ZmLambda_ &&) = delete;
+  template <typename L_> ZuInline ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
+};
+template <typename L, typename HeapID = ZmLambda_HeapID>
+using ZmLambda = ZmLambda_<L, ZmHeap<HeapID, sizeof(ZmLambda_<L, ZuNull>)>>;
+
+template <typename ...Args>
+template <typename L, typename R, typename HeapID, typename ...Args_>
+template <typename L_>
+ZmFn<Args...> ZmFn<Args...>::LambdaInvoker_<L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
+  using O = ZmLambda<L, HeapID>;
+  return Member<&L::operator ()>::fn(ZmRef<O>{new O{ZuFwd<L_>(l)}});
+}
+
+template <typename ...Args>
+template <typename L, typename R, typename HeapID, typename ...Args_>
+template <typename L_>
+ZmFn<Args...> ZmFn<Args...>::LambdaInvoker_<const L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
+  using O = ZmLambda<L, HeapID>;
+  return Member<&L::operator ()>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
+}
 
 #endif /* ZmFn_HPP */

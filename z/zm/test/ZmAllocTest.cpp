@@ -23,21 +23,25 @@
 
 #include <zlib/ZuBox.hpp>
 
+#include <zlib/ZmAlloc.hpp>
+
 void test()
 {
-  unsigned n = ZuStackAvail();
-  auto ptr = ZuAlloc(uint8_t, n/3);
-  auto ptr2 = ZuAlloc(uint8_t, n);
-  // uint8_t *ptr = static_cast<uint8_t *>(ZuAlloc(n/3));
-  // uint8_t *ptr2 = static_cast<uint8_t *>(ZuAlloc(n));
-  std::cout << "ZuAlloc(" << ZuBoxed(n/3).hex() << "): " << ZuBoxPtr(ptr.ptr).hex() << '\n';
-  std::cout << "ZuAlloc(" << ZuBoxed(n).hex() << "): " << ZuBoxPtr(ptr2.ptr).hex() << '\n';
+  auto self = ZmSelf();
+  std::cout << "stack: " << ZuBoxPtr(self->stackAddr()).hex() << " +" << ZuBoxed(self->stackSize()).hex() << '\n';
+  unsigned n = ZmStackAvail();
+  std::cout << "stack available: " << ZuBoxed(n).hex() << '\n';
+  auto ptr = ZmAlloc(uint8_t, n/3);
+  std::cout << "ZmAlloc(" << ZuBoxed(n/3).hex() << "): " << ZuBoxPtr(ptr.ptr).hex() << '\n';
+  std::cout << "stack available: " << ZuBoxed(ZmStackAvail()).hex() << '\n';
+  auto ptr2 = ZmAlloc(uint8_t, n);
+  std::cout << "ZmAlloc(" << ZuBoxed(n).hex() << "): " << ZuBoxPtr(ptr2.ptr).hex() << '\n';
+  std::cout << "stack available: " << ZuBoxed(ZmStackAvail()).hex() << '\n';
+  // uint8_t *ptr = static_cast<uint8_t *>(ZmAlloc(n/3));
+  // uint8_t *ptr2 = static_cast<uint8_t *>(ZmAlloc(n));
 }
 
 int main(int argc, char **argv)
 {
-  auto self = ZuSelf();
-  std::cout << "stack: " << ZuBoxPtr(self->stackAddr()).hex() << " +" << ZuBoxed(self->stackSize()).hex() << '\n';
-  std::cout << "stack available: " << ZuBoxed(ZuStackAvail()).hex() << '\n';
   test();
 }

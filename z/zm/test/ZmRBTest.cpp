@@ -37,7 +37,7 @@ struct Z : public ZmObject {
   Z(int z) : m_z(z) { }
 
   struct Traits : public ZuBaseTraits<Z> {
-    enum { IsReal = 0, IsBase = 0 };
+    enum { IsReal = 0, IsPrimitive = 0, IsPOD = 1 };
   };
   friend Traits ZuTraitsType(Z *);
 

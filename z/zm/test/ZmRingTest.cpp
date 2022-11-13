@@ -26,13 +26,13 @@ void usage()
 }
 
 struct Msg {
-  ZuInline Msg() : m_p((uintptr_t)(void *)this) { }
-  ZuInline ~Msg() { m_p = 0; }
-  ZuInline bool ok() const { return m_p == (uintptr_t)(void *)this; }
+  Msg() : m_p(reinterpret_cast<uintptr_t>(this)) { }
+  ~Msg() { m_p = 0; }
+  bool ok() const { return m_p == reinterpret_cast<uintptr_t>(this); }
   uintptr_t m_p;
 };
 
-using Ring = ZmRing<Msg>;
+using Ring = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
 
 struct App {
   App() :
@@ -109,7 +109,7 @@ int App::main(int argc, char **argv)
 
   for (unsigned i = 0; i < loop; i++) {
     {
-      if (ring->open(Ring::Read | Ring::Write) != Ring::OK) {
+      if (ring->open(Ring::Read | Ring::Write) != ZmRingStatus::OK) {
 	std::cerr << "open failed\n";
 	Zm::exit(1);
       }
@@ -117,8 +117,7 @@ int App::main(int argc, char **argv)
 
     {
       ZuStringN<80> s;
-      s << "address: 0x" <<
-	  ZuBoxed((uintptr_t)ring->data()).fmt<ZuFmt::Hex<>>() <<
+      s << "address: 0x" << ZuBoxPtr(ring->data()).fmt<ZuFmt::Hex<>>() <<
 	"  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
 	"  size: " << ZuBoxed(ring->size()) <<
 	"  msgSize: " << ZuBoxed(sizeof(Msg)) << '\n';
@@ -179,7 +178,7 @@ void App::reader()
       readTime.add(readEnd -= readStart);
     } else {
       int i = ring->readStatus();
-      if (i == Ring::EndOfFile) {
+      if (i == ZmRingStatus::EndOfFile) {
 	end.now();
 	std::cerr << "reader EOF\n";
 	break;
@@ -221,7 +220,7 @@ void App::writer(unsigned i)
       if (ring->full() == full_) writeTime.add(writeEnd -= writeStart);
     } else {
       int i = ring->writeStatus();
-      if (i == Ring::EndOfFile) {
+      if (i == ZmRingStatus::EndOfFile) {
 	end.now();
 	std::cerr << "writer EOF\n";
 	break;
