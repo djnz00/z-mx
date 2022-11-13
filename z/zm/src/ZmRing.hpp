@@ -168,8 +168,7 @@ public:
       ZmAtomic<uint32_t> &addr, uint32_t val,
       unsigned timeout, unsigned spin);
   // wake up waiters on addr
-  void wake(
-      ZmAtomic<uint32_t> &addr);
+  void wake(ZmAtomic<uint32_t> &addr);
 
 protected:
 #ifdef _WIN32
@@ -406,20 +405,22 @@ protected:
   DataMem		m_data;
 };
 
-enum { // flags
-  Ready		= 0x10000000,		// hdr
-  EndOfFile_	= 0x20000000,		// hdr, head
-  Waiting	= 0x40000000,		// hdr, tail
-  Wrapped	= 0x80000000,		// head, tail
-  Mask		= Waiting | EndOfFile_,	// does NOT include Wrapped or Ready
-  RdrMask	= 0x0fffffff		// hdr
-};
-enum { MaxRdrs = 60 };
+inline constexpr uint64_t EndOfFile_() { return static_cast<uint64_t>(1)<<61; }
+inline constexpr uint64_t Waiting()    { return static_cast<uint64_t>(2)<<61; }
+inline constexpr uint64_t Wrapped()    { return static_cast<uint64_t>(4)<<61; }
+inline constexpr uint64_t Mask()       { return Waiting() | EndOfFile_(); }
+inline constexpr uint64_t RdrMask()  { return ~(static_cast<uint64_t>(7)<<61); }
+enum { MaxRdrs = 61 };
 #ifdef Zu_BIGENDIAN
-enum { HdrOffset = -2 };
+enum { Flags32Offset = 0 };	// 32bit offset in 64bit header
 #else
-enum { HdrOffset = -1 };
+enum { Flags32Offset = 1 };
 #endif
+// 32bit versions of flags
+inline constexpr uint32_t EndOfFile32() { return EndOfFile_()>>32; }
+inline constexpr uint32_t Waiting32()   { return Waiting()>>32; }
+inline constexpr uint32_t Wrapped32()   { return Wrapped()>>32; }
+inline constexpr uint32_t Mask32()      { return Waiting32() | EndOfFile32(); }
 
 // CRTP - SR ring reader functions
 template <typename Ring, bool MR>
@@ -607,12 +608,12 @@ public:
   unsigned size() const { return m_size; }
 
   unsigned length() {
-    uint32_t head = this->head().load_() & ~Mask;
-    uint32_t tail = this->tail().load_() & ~Mask;
+    uint32_t head = this->head().load_() & ~Mask32();
+    uint32_t tail = this->tail().load_() & ~Mask32();
     if (head == tail) return 0;
-    if ((head ^ tail) == Wrapped) return size();
-    head &= ~Wrapped;
-    tail &= ~Wrapped;
+    if ((head ^ tail) == Wrapped32()) return size();
+    head &= ~Wrapped32();
+    tail &= ~Wrapped32();
     if (head > tail) return head - tail;
     return size() - (tail - head);
   }
@@ -639,7 +640,7 @@ public:
 private:
   template <bool V_ = V>
   ZuIfT<!V_, bool> pushFull(uint32_t head, uint32_t tail) {
-    return ZuUnlikely((head ^ tail) == Wrapped);
+    return ZuUnlikely((head ^ tail) == Wrapped32());
   }
   template <bool V_ = V>
   ZuIfT<V_, bool> pushFull(uint32_t head, uint32_t tail, unsigned size) {
@@ -662,7 +663,7 @@ private:
 
 #define ZmRing_push_get_head_tail() \
     uint32_t head = this->head().load_(); \
-    if (ZuUnlikely(head & EndOfFile_)) return nullptr; \
+    if (ZuUnlikely(head & EndOfFile32())) return nullptr; \
     uint32_t tail = this->tail() /* acquire */
 
 #define ZmRing_push_get_rdrMask() \
@@ -680,80 +681,91 @@ private:
       goto retry; \
     } while (0)
 
-#define ZmRing_advance_head_(size_) \
-    auto head_ = head; \
+#define ZmRing_move_head_(size_) \
     head += size_; \
-    if (ZuUnlikely((head & ~(Wrapped | Mask)) >= this->size())) \
-      head = (head ^ Wrapped) - this->size()
+    if (ZuUnlikely((head & ~(Wrapped32() | Mask32())) >= this->size())) \
+      head = (head ^ Wrapped32()) - this->size()
 
-#define ZmRing_advance_head(size_) \
-    ZmRing_advance_head_(size_); \
+// SWSR - push2() advances head, wakeReaders() updates head
+#define ZmRing_move_head_swsr(size_) \
+    ZmRing_move_head_(size_);
+// SWMR - push2() advances head, wakeReaders() does not update head
+#define ZmRing_move_head_swmr(size_) \
+    auto head_ = head; \
+    ZmRing_move_head_(size_); \
     this->head() = head /* release */
-
-#define ZmRing_advance_head_mw(size_) \
-    ZmRing_advance_head_(size_); \
+// MWSR | MWMR - push() advances head, updating it atomically
+#define ZmRing_move_head_mwsr(size_) \
+    auto head_ = head; \
+    ZmRing_move_head_(size_); \
     if (ZuUnlikely(this->head().cmpXch(head, head_) != head_)) goto retry
+#define ZmRing_move_head_mwmr(size_) ZmRing_move_head_mwsr(size_) 
 
-// SWSR
-#define ZmRing_push_return() \
-    return &(data())[head & ~(Wrapped | Mask)]
-
+#define ZmRing_push_return_swsr() \
+    return &(data())[head & ~(Wrapped32() | Mask32())]
 #define ZmRing_push_return_swmr() \
-    uint8_t *ptr = &(data())[head & ~(Wrapped | Mask)]; \
-    *reinterpret_cast<uint64_t *>(ptr) = rdrMask; \
-    return &ptr[8]
-
+    auto ptr = reinterpret_cast<uint64_t *>( \
+	&(data())[head & ~(Wrapped32() | Mask32())]); \
+    *ptr = 0; \
+    return &ptr[1]
 #define ZmRing_push_return_mwsr() \
-    uint8_t *ptr = &(data())[head & ~(Wrapped | Mask)]; \
-    *reinterpret_cast<uint64_t *>(ptr) = 0; \
-    return &ptr[8]
-
-#define ZmRing_push_return_mwmr() ZmRing_push_return_swmr()
+    auto ptr = reinterpret_cast<uint64_t *>( \
+	&(data())[head_ & ~(Wrapped32() | Mask32())]); \
+    *ptr = 0; \
+    return &ptr[1]
+#define ZmRing_push_return_mwmr() ZmRing_push_return_mwsr()
 
 #define ZmRing_push2_get_head() \
     uint32_t head = this->head().load_();
 
 #define ZmRing_eof_get_head() ZmRing_push2_get_head()
 
-  // SW
-  template <uint32_t Flags = Ready, bool MW_ = MW>
-  ZuIfT<!MW_> wakeReaders(uint32_t head) {
+  // SWSR
+  template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && !MR_> wakeReaders(uint32_t head) {
     if (ZuUnlikely(!params().ll())) {
-      if (ZuUnlikely(this->head().xch(head & ~Waiting) & Waiting))
+      if (ZuUnlikely(this->head().xch((head & ~Waiting32()) |
+	      static_cast<uint32_t>(Flags>>32)) & Waiting32()))
 	m_headBlocker.wake(this->head());
     } else
-      this->head() = head; // release
+      this->head() = head | static_cast<uint32_t>(Flags>>32); // release
   }
-  // MW
-  template <uint32_t HdrFlags = Ready, bool MW_ = MW>
-  ZuIfT<MW_> wakeReaders(uint32_t head) {
-    wakeReaders_<HdrFlags>(
-	&(reinterpret_cast<ZmAtomic<uint32_t> *>(
-	    &(data())[head & ~(Wrapped | Mask)]))[2 + HdrOffset]);
+  // !SWSR
+  template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_ || MR_> wakeReaders(uint32_t head) {
+    wakeReaders_<Flags>(
+	reinterpret_cast<ZmAtomic<uint64_t> *>(
+	    &(data())[head & ~(Wrapped32() | Mask32())]));
   }
-  template <uint32_t HdrFlags = Ready, bool MW_ = MW>
-  ZuIfT<MW_> wakeReaders(void *ptr) {
-    wakeReaders_<HdrFlags>(
-	&(reinterpret_cast<ZmAtomic<uint32_t> *>(ptr))[HdrOffset]);
+  template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_ || MR_> wakeReaders(void *ptr) {
+    wakeReaders_<Flags>(
+	&reinterpret_cast<ZmAtomic<uint64_t> *>(ptr)[-1]);
+  }
+  // SWMR | MWMR
+  template <uint64_t Flags = 0, bool MR_ = MR>
+  ZuIfT<MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
+    uint64_t rdrMask = this->rdrMask().load_();
+    if (ZuUnlikely(!m_params.ll())) {
+      if (ZuUnlikely(hdrPtr->xch(Flags | rdrMask) & Waiting())) {
+	auto &hdrPtr32 =
+	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
+	m_headBlocker.wake(hdrPtr32);
+      }
+    } else
+      *hdrPtr = Flags | rdrMask; // release
   }
   // MWSR
-  template <uint32_t HdrFlags, bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MW_ && !MR_> wakeReaders_(ZmAtomic<uint32_t> *hdrPtr) {
+  template <uint64_t Flags = 0, bool MR_ = MR>
+  ZuIfT<!MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
     if (ZuUnlikely(!m_params.ll())) {
-      if (ZuUnlikely(hdrPtr->xch(HdrFlags) & Waiting))
-	m_headBlocker.wake(*hdrPtr);
+      if (ZuUnlikely(hdrPtr->xch(Flags | 1) & Waiting())) {
+	auto &hdrPtr32 =
+	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
+	m_headBlocker.wake(hdrPtr32);
+      }
     } else
-      *hdrPtr = HdrFlags; // release
-  }
-  // MWMR
-  template <uint32_t HdrFlags, bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MW_ && MR_> wakeReaders_(ZmAtomic<uint32_t> *hdrPtr) {
-    auto hdr = (hdrPtr->load_() & RdrMask) | HdrFlags;
-    if (ZuUnlikely(!m_params.ll())) {
-      if (ZuUnlikely(hdrPtr->xch(hdr) & Waiting))
-	m_headBlocker.wake(*hdrPtr);
-    } else
-      *hdrPtr = hdr; // release
+      *hdrPtr = Flags | 1; // release
   }
 
 #define ZmRing_push2_update_stats(size_) \
@@ -766,15 +778,15 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask)) ZmRing_push_retry();
-    ZmRing_push_return();
+    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    ZmRing_push_return_swsr();
   }
 public:
   template <bool MW_ = MW, bool MR_ = MR>
   ZuIfT<!MW_ && !MR_> push2() {
     writeAssert();
     ZmRing_push2_get_head();
-    ZmRing_advance_head(Size);
+    ZmRing_move_head_swsr(Size);
     wakeReaders(head);
     ZmRing_push2_update_stats(Size);
   }
@@ -786,15 +798,15 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask, size)) ZmRing_push_retry();
-    ZmRing_push_return();
+    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    ZmRing_push_return_swsr();
   }
 public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && V_> push2(unsigned size) {
     writeAssert();
     ZmRing_push2_get_head();
-    ZmRing_advance_head(size);
+    ZmRing_move_head_swsr(size);
     wakeReaders(head);
     ZmRing_push2_update_stats(size);
   }
@@ -806,7 +818,7 @@ private:
   retry:
     ZmRing_push_get_rdrMask();
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask)) ZmRing_push_retry();
+    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
     ZmRing_push_return_swmr();
   }
 public:
@@ -814,7 +826,7 @@ public:
   ZuIfT<!MW_ && !MR_ && !V_> push2() {
     writeAssert();
     ZmRing_push2_get_head();
-    ZmRing_advance_head(Size);
+    ZmRing_move_head_swmr(Size);
     wakeReaders(head);
     ZmRing_push2_update_stats(Size);
   }
@@ -823,11 +835,10 @@ private:
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && MR_ && V_, void *> push_(unsigned size) {
     writeAssert();
-    size = alignSize(size);
   retry:
     ZmRing_push_get_rdrMask();
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask, size)) ZmRing_push_retry();
+    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
     ZmRing_push_return_swmr();
   }
 public:
@@ -836,7 +847,7 @@ public:
     writeAssert();
     size = alignSize(size);
     ZmRing_push2_get_head();
-    ZmRing_advance_head(size);
+    ZmRing_move_head_swmr(size);
     wakeReaders(head);
     ZmRing_push2_update_stats(size);
   }
@@ -847,8 +858,8 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask)) ZmRing_push_retry();
-    ZmRing_advance_head_mw(Size);
+    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    ZmRing_move_head_mwsr(Size);
     ZmRing_push_return_mwsr();
   }
 public:
@@ -866,8 +877,8 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask, size)) ZmRing_push_retry();
-    ZmRing_advance_head_mw(size);
+    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    ZmRing_move_head_mwsr(size);
     ZmRing_push_return_mwsr();
   }
 public:
@@ -884,8 +895,8 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask)) ZmRing_push_retry();
-    ZmRing_advance_head_mw(Size);
+    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    ZmRing_move_head_mwmr(Size);
     ZmRing_push_return_mwmr();
   }
 public:
@@ -903,8 +914,8 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask, tail & ~Mask, size)) ZmRing_push_retry();
-    ZmRing_advance_head_mw(size);
+    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    ZmRing_move_head_mwmr(size);
     ZmRing_push_return_mwmr();
   }
 public:
@@ -915,13 +926,24 @@ public:
     ZmRing_push2_update_stats(size);
   }
 
+  // EOF signalling is complex:
+  // for SWSR, readers wait on the head, which is signalled with 32bit flags
+  // in all other cases, readers wait on the hdr
+  // wakeReaders() updates either the head, or the hdr, accordingly
+  // ... however readStatus() only examines the head, not the hdr, and
+  // needs to determine EOF, so eof() updates head explicitly for non-SWSR
   void eof(bool eof = true) {
     writeAssert();
     ZmRing_eof_get_head();
-    if (!eof)
-      wakeReaders(head & ~EndOfFile_);
-    else
-      wakeReaders<Ready | EndOfFile_>(head | EndOfFile_);
+    if (!eof) {
+      head &= ~EndOfFile32();
+      if constexpr (MW || MR) this->head() = head; // see above comment
+      wakeReaders(head);
+    } else {
+      if constexpr (MW || MR) this->head() = head | EndOfFile32(); // ''
+      std::cerr << "eof " << ZuBoxed(head & ~(Wrapped32() | Mask32())) << '\n' << std::flush;
+      wakeReaders<EndOfFile_()>(head);
+    }
   }
 
 #define ZmRing_writeStatus_preamble() \
@@ -930,9 +952,9 @@ public:
 
 #define ZmRing_writeStatus() \
     uint32_t head = this->head().load_(); \
-    if (ZuUnlikely(head & EndOfFile_)) return EndOfFile; \
-    head &= ~(Wrapped | Mask); \
-    uint32_t tail = this->tail() & ~(Wrapped | Mask); \
+    if (ZuUnlikely(head & EndOfFile32())) return EndOfFile; \
+    head &= ~(Wrapped32() | Mask32()); \
+    uint32_t tail = this->tail() & ~(Wrapped32() | Mask32()); \
     if (head < tail) return tail - head; \
     return size() - (head - tail)
 
@@ -966,9 +988,8 @@ public:
     ZmAssert(rdrID() >= 0);
   }
 
-#define ZmRing_shift_get_tail() \
-    uint32_t tail = this->tail().load_() & ~Mask
-
+#define ZmRing_shift_get_tail_sr() \
+    uint32_t tail = this->tail().load_() & ~Mask32()
 #define ZmRing_shift_get_tail_mr() \
     uint32_t tail = rdrTail()
 
@@ -977,55 +998,57 @@ public:
     /**/ZmRing_bp(shift1)
 
 #define ZmRing_shift_get_hdr() \
-    auto hdrPtr = &(reinterpret_cast<ZmAtomic<uint32_t> *>( \
-	  &(data())[tail & ~Wrapped]))[2 + HdrOffset]; \
-    uint32_t hdr = *hdrPtr /* acquire */
+    auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>( \
+	  &(data())[tail & ~Wrapped32()]); \
+    uint64_t hdr = *hdrPtr; /* acquire */ \
+    /**/ZmRing_bp(shift1)
 
-#define ZmRing_shift_empty() (tail == (head & ~Mask))
+#define ZmRing_shift_empty_swsr() (tail == (head & ~Mask32()))
+#define ZmRing_shift_empty_swmr() (!(hdr & ~Waiting()))
+#define ZmRing_shift_empty_mwsr() ZmRing_shift_empty_swmr()
+#define ZmRing_shift_empty_mwmr() ZmRing_shift_empty_swmr()
 
-#define ZmRing_shift_empty_mw() (!(hdr & ~Waiting))
-
-#define ZmRing_shift_retry() \
+#define ZmRing_shift_retry_swsr() \
     do { \
-      if (ZuUnlikely(head & EndOfFile)) return nullptr; \
+      if (ZuUnlikely(head & EndOfFile32())) return nullptr; \
       if (ZuUnlikely(!m_params.ll())) \
 	if (m_headBlocker.wait( \
 	      this->head(), head, \
 	      params().timeout(), params().spin()) != OK) return nullptr; \
       goto retry; \
     } while (0)
-
-#define ZmRing_shift_retry_mw() \
+#define ZmRing_shift_retry_swmr() \
     do { \
-      if (ZuUnlikely(!m_params.ll())) \
+      if (ZuUnlikely(hdr & EndOfFile_())) return nullptr; \
+      if (ZuUnlikely(!m_params.ll())) { \
+	auto &hdrPtr32 = \
+	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset]; \
 	if (m_headBlocker.wait( \
-	      *hdrPtr, hdr, \
+	      hdrPtr32, hdr>>32, \
 	      params().timeout(), params().spin()) != OK) return nullptr; \
+      } \
       goto retry; \
-    } while (0) \
+    } while (0)
+#define ZmRing_shift_retry_mwsr() ZmRing_shift_retry_swmr()
+#define ZmRing_shift_retry_mwmr() ZmRing_shift_retry_swmr()
 
 #define ZmRing_shift_return_swsr() \
-    return reinterpret_cast<T *>(&(data())[tail & ~Wrapped])
-
+    return reinterpret_cast<T *>(&(data())[tail & ~Wrapped32()])
 #define ZmRing_shift_return_swmr() \
-    return reinterpret_cast<T *>(&(data())[(tail & ~Wrapped) + 8])
-
-#define ZmRing_shift_return_mwsr() \
-    if (ZuUnlikely(hdr & EndOfFile)) return nullptr; \
-    ZmRing_shift_return_swmr()
-
+    return reinterpret_cast<T *>(&(data())[(tail & ~Wrapped32()) + 8])
+#define ZmRing_shift_return_mwsr() ZmRing_shift_return_swmr()
 #define ZmRing_shift_return_mwmr() ZmRing_shift_return_mwsr()
 
 #define ZmRing_shift2_move_tail(size_) \
     tail += size_; \
-    if (ZuUnlikely((tail & ~Wrapped) >= this->size())) \
-      tail = (tail ^ Wrapped) - this->size()
+    if (ZuUnlikely((tail & ~Wrapped32()) >= this->size())) \
+      tail = (tail ^ Wrapped32()) - this->size()
 
-  // SR
-  template <bool MR_ = MR>
-  ZuIfT<!MR_> wakeWriters(uint32_t tail) {
+  // SWSR
+  template <bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && !MR_> wakeWriters(uint32_t tail) {
     if (ZuUnlikely(!params().ll())) {
-      if (ZuUnlikely(this->tail().xch(tail & ~Waiting) & Waiting))
+      if (ZuUnlikely(this->tail().xch(tail & ~Waiting32()) & Waiting32()))
 	m_tailBlocker.wake(this->tail());
     } else
       this->tail() = tail; // release
@@ -1034,8 +1057,15 @@ public:
   template <bool MR_ = MR>
   ZuIfT<MR_> wakeWriters(uint32_t tail) {
     if (*reinterpret_cast<ZmAtomic<uint64_t> *>(
-	  &(data())[tail & ~Wrapped]) &= ~(1ULL<<rdrID())) return;
-    wakeWriters<false>(tail);
+	  &(data())[tail & ~Wrapped32()]) &= ~(1ULL<<rdrID())) return;
+    wakeWriters<false, false>(tail);
+  }
+  // MWSR
+  template <bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_ && !MR_> wakeWriters(uint32_t tail) {
+    *reinterpret_cast<ZmAtomic<uint64_t> *>(
+	&(data())[tail & ~Wrapped32()]) &= ~1;
+    wakeWriters<false, false>(tail);
   }
 
 #define ZmRing_shift2_update_stats(size_) \
@@ -1046,17 +1076,17 @@ public:
   template <bool MW_ = MW, bool MR_ = MR>
   ZuIfT<!MW_ && !MR_, T *> shift() {
     readAssert();
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
   retry:
     ZmRing_shift_get_head();
-    if (ZmRing_shift_empty()) ZmRing_shift_retry();
+    if (ZmRing_shift_empty_swsr()) ZmRing_shift_retry_swsr();
     ZmRing_shift_return_swsr();
   }
   // fixed-size SWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && !V_> shift2() {
     readAssert();
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
@@ -1066,7 +1096,7 @@ public:
   ZuIfT<!MW_ && !MR_ && V_> shift2(unsigned size) {
     readAssert();
     size = alignSize(size);
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
@@ -1077,8 +1107,8 @@ public:
     readAssert();
     ZmRing_shift_get_tail_mr();
   retry:
-    ZmRing_shift_get_head();
-    if (ZmRing_shift_empty()) ZmRing_shift_retry();
+    ZmRing_shift_get_hdr();
+    if (ZmRing_shift_empty_swmr()) ZmRing_shift_retry_swmr();
     ZmRing_shift_return_swmr();
   }
   // fixed-size SWMR
@@ -1104,17 +1134,17 @@ public:
   template <bool MW_ = MW, bool MR_ = MR>
   ZuIfT<MW_ && !MR_, T *> shift() {
     readAssert();
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
   retry:
     ZmRing_shift_get_hdr();
-    if (ZmRing_shift_empty_mw()) ZmRing_shift_retry_mw();
+    if (ZmRing_shift_empty_mwsr()) ZmRing_shift_retry_mwsr();
     ZmRing_shift_return_mwsr();
   }
   // fixed-size MWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && !MR_ && !V_> shift2() {
     readAssert();
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
@@ -1124,7 +1154,7 @@ public:
   ZuIfT<MW_ && !MR_ && V_> shift2(unsigned size) {
     readAssert();
     size = alignSize(size);
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
@@ -1136,7 +1166,7 @@ public:
     ZmRing_shift_get_tail_mr();
   retry:
     ZmRing_shift_get_hdr();
-    if (ZmRing_shift_empty_mw()) ZmRing_shift_retry_mw();
+    if (ZmRing_shift_empty_mwmr()) ZmRing_shift_retry_mwmr();
     ZmRing_shift_return_mwmr();
   }
   // fixed-size MWMR
@@ -1165,12 +1195,16 @@ public:
 
 #define ZmRing_readStatus() \
     ZmRing_shift_get_head(); \
-    if (ZuUnlikely(head & EndOfFile)) return EndOfFile; \
-    head &= ~Mask; \
-    if ((head ^ tail) == Wrapped) return size(); \
-    head &= ~Wrapped; \
-    tail &= ~Wrapped; \
-    if (head >= tail) return head - tail; \
+    bool eof = head & EndOfFile32(); \
+    head &= ~Mask32(); \
+    if ((head ^ tail) == Wrapped32()) return size(); \
+    head &= ~Wrapped32(); \
+    tail &= ~Wrapped32(); \
+    if (head >= tail) { \
+      if (head > tail) return head - tail; \
+      if (ZuUnlikely(eof)) return EndOfFile; \
+      return 0; \
+    } \
     return size() - (tail - head)
 
   // can be called by a reader after shift() returns 0; returns
@@ -1179,7 +1213,7 @@ public:
   template <bool MR_ = MR>
   ZuIfT<!MR_, int> readStatus() const {
     ZmRing_readStatus_preamble();
-    ZmRing_shift_get_tail();
+    ZmRing_shift_get_tail_sr();
     ZmRing_readStatus();
   }
   // MR
@@ -1254,17 +1288,13 @@ inline int RingRdr<Ring, true>::attach()
 
   /**/ZmRing_bp(attach1);
 
-  enum {
-    Wrapped = Ring::Wrapped,
-    Mask = Ring::Mask
-  };
-
   // skip any trailing messages not intended for us, since other readers
   // may be concurrently advancing the ring's tail; this must be
   // re-attempted as long as the head keeps moving and the writer remains
   // unaware of our attach
-  uint32_t tail = ring()->tail().load_() & ~Mask;
-  uint32_t head = ring()->head() & ~Mask, head_; // acquire
+  uint32_t tail = ring()->tail().load_() & ~Mask32();
+  uint32_t head = ring()->head() & ~Mask32(); // acquire
+  uint32_t head_;
   /**/ZmRing_bp(attach2);
   ring()->rdrMask() |= (1ULL<<rdrID()); // notifies the writer about an attach
   /**/ZmRing_bp(attach3);
@@ -1275,15 +1305,15 @@ inline int RingRdr<Ring, true>::attach()
 
   do {
     while (tail != head) {
-      uint8_t *ptr = &data[tail & ~Wrapped];
+      uint8_t *ptr = &data[tail & ~Wrapped32()];
       if (*reinterpret_cast<uint64_t *>(ptr) & (1ULL<<rdrID()))
 	goto done; // writer aware
       tail += align(SizeAxor::get(&ptr[8]));
-      if ((tail & ~Wrapped) >= size) tail = (tail ^ Wrapped) - size;
+      if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
     }
     head_ = head;
     /**/ZmRing_bp(attach4);
-    head = ring()->head() & ~Mask; // acquire
+    head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
 
 done:
@@ -1309,34 +1339,27 @@ inline int RingRdr<Ring, true>::detach()
   ring()->rdrMask() &= ~(1ULL<<rdrID()); // notifies the writer about a detach
   /**/ZmRing_bp(detach1);
 
-  enum {
-    Waiting = Ring::Waiting,
-    Wrapped = Ring::Wrapped,
-    Mask = Ring::Mask
-  };
-
   // drain any trailing messages that are waiting to be read by us,
   // advancing ring's tail as needed; this must be
   // re-attempted as long as the head keeps moving and the writer remains
   // unaware of our detach
   uint32_t tail = rdrTail();
   /**/ZmRing_bp(detach2);
-  uint32_t head = ring()->head() & ~Mask, head_; // acquire
+  uint32_t head = ring()->head() & ~Mask32(); // acquire
+  uint32_t head_;
 
   auto data = ring()->data();
   auto size = ring()->size();
 
   using SizeAxor = Ring::SizeAxor;
 
-  enum { Tail = Ring::Tail };
-
   do {
     while (tail != head) {
-      uint8_t *ptr = &data[tail & ~Wrapped];
+      uint8_t *ptr = &data[tail & ~Wrapped32()];
       if (!(*reinterpret_cast<uint64_t *>(ptr) & (1ULL<<rdrID())))
 	goto done; // writer aware
       tail += align(SizeAxor::get(&ptr[8]));
-      if ((tail & ~Wrapped) >= size) tail = (tail ^ Wrapped) - size;
+      if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
       if (*reinterpret_cast<ZmAtomic<uint64_t> *>(ptr) &= ~(1ULL<<rdrID()))
 	continue;
       /**/ZmRing_bp(detach3);
@@ -1344,7 +1367,7 @@ inline int RingRdr<Ring, true>::detach()
     }
     head_ = head;
     /**/ZmRing_bp(detach4);
-    head = ring()->head() & ~Mask; // acquire
+    head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
 done:
   rdrTail(tail);

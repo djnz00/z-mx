@@ -185,7 +185,7 @@ void App::reader()
       } else if (!i)
 	std::cerr << "ring empty\n";
       else {
-	ZuStringN<32> s;
+	ZuStringN<80> s;
 	s << "readStatus() returned " << ZuBoxed(i) << '\n';
 	std::cerr << s;
       }
