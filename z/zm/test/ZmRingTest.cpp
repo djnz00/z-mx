@@ -116,7 +116,7 @@ int App::main(int argc, char **argv)
     }
 
     {
-      ZuStringN<80> s;
+      ZuStringN<100> s;
       s << "address: 0x" << ZuBoxPtr(ring->data()).fmt<ZuFmt::Hex<>>() <<
 	"  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
 	"  size: " << ZuBoxed(ring->size()) <<

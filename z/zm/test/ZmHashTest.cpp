@@ -80,10 +80,10 @@ void hashIt(ZHash *h) {
   for (j = 0; j < hashTestSize; j++)
     h->add(j, z);
   for (j = 0; j < hashTestSize; j++)
-    h->del(j);
+    delete h->del(j);
   for (j = 0; j < hashTestSize; j++) {
     h->add(j, z);
-    h->del(j);
+    delete h->del(j);
   }
 }
 
@@ -162,15 +162,6 @@ struct J : public ZmObject {
 
 int main(int argc, char **argv)
 {
-  {
-    ZmRef<ZHash> hash2 = new ZHash(
-	ZmHashParams().bits(2).loadFactor(1.0).cBits(1));
-    ZmRef<Z> z = new Z;
-    hash2->add(0, z);
-    delete hash2->del(0);
-  }
-
-#if 0
   ZmTime overallStart, overallEnd;
 
   overallStart.now();
@@ -257,5 +248,4 @@ int main(int argc, char **argv)
       puts("");
     }
   }
-#endif
 }
