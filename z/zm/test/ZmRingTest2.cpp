@@ -3,13 +3,13 @@
 
 #include <zlib/ZuStringN.hpp>
 
-// #define ZmVRing_STRESSTEST
-#include <zlib/ZmVRing.hpp>
+// #define ZmRing_STRESSTEST
+#include <zlib/ZmRing.hpp>
 
 void usage()
 {
   std::cerr <<
-    "usage: ZmVRingTest2 [OPTION]... NAME\n"
+    "usage: ZmRingTest2 [OPTION]... NAME\n"
     "  test read/write ring buffer in shared memory\n"
     "\tNAME\t- name of shared memory segment\n\n"
     "Options:\n"
@@ -29,8 +29,6 @@ void usage()
   Zm::exit(1);
 }
 
-using Ring = ZmVRing;
-
 class Msg {
 public:
   Msg() : m_type(0), m_length(0) { }
@@ -47,14 +45,17 @@ private:
   uint16_t	m_length;
 };
 
-unsigned sizeFn(const void *ptr)
-{
-  return sizeof(Msg) + static_cast<const Msg *>(ptr)->length();
-}
+struct SizeAxor {
+  static unsigned get(const void *ptr) {
+    return sizeof(Msg) + static_cast<const Msg *>(ptr)->length();
+  }
+};
+
+using Ring = ZmRing<ZmRingSizeAxor<SizeAxor>>; // ZmRingMW<true>
 
 struct App {
   App() :
-    flags(Ring::Write | Ring::Create), gc(false), ring(0),
+    flags(Ring::Write), gc(false), ring(0),
     count(1), msgsize(1024), interval((time_t)0), slow(false) { }
 
   int main(int, char **);
@@ -80,27 +81,22 @@ int main(int argc, char **argv)
 
 int App::main(int argc, char **argv)
 {
-  const char *name = 0;
   unsigned bufsize = 8192;
   bool ll = false;
   unsigned spin = 1000;
   unsigned loop = 1;
   
   for (int i = 1; i < argc; i++) {
-    if (argv[i][0] != '-') {
-      if (name) usage();
-      name = argv[i];
-      continue;
-    }
+    if (argv[i][0] != '-') usage();
     switch (argv[i][1]) {
       case 'r':
-	flags = Ring::Read | Ring::Create;
+	flags = Ring::Read;
 	break;
       case 'w':
-	flags = Ring::Write | Ring::Create;
+	flags = Ring::Write;
 	break;
       case 'x':
-	flags = Ring::Read | Ring::Write | Ring::Create;
+	flags = Ring::Read | Ring::Write;
 	break;
       case 'l':
 	if (++i >= argc) usage();
@@ -142,19 +138,16 @@ int App::main(int argc, char **argv)
     }
   }
 
-  if (!name) usage();
-
-  ring = new Ring(sizeFn, ZmVRingParams{name}.
-      size(bufsize).ll(ll).spin(spin).coredump(true).cpuset(cpuset));
+  ring = new Ring{ZmRingParams{bufsize}.ll(ll).spin(spin).cpuset(cpuset)};
 
   for (unsigned i = 0; i < loop; i++) {
     int r = ring->open(flags);
-    if (r != OK) {
+    if (r != ZmRingStatus::OK) {
       std::cerr << "open() failed: " << ZmRingError{r} << '\n' << std::flush;
       Zm::exit(1);
     }
 
-    std::cerr << 
+    std::cerr <<
       "address: 0x" << ZuBoxPtr(ring->data()).hex() <<
       "  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
       "  size: " << ZuBoxed(ring->size()) << '\n';
@@ -188,7 +181,8 @@ int App::main(int argc, char **argv)
 
 void App::reader()
 {
-  std::cerr << (ZuStringN<80>{} << "reader " << Zm::getTID() << " started\n") << std::flush;
+  using namespace ZmRingStatus;
+  std::cerr << "reader " << Zm::getTID() << " started\n" << std::flush;
   if (!(flags & Ring::Write)) start.now();
   for (int j = 0; j < count; j++) {
     if (const void *msg_ = ring->shift()) {
@@ -196,7 +190,7 @@ void App::reader()
       // std::cerr << (ZuStringN<80>{} << "shift: " << ZuBoxPtr(msg).hex() << " len: " << ZuBoxed(sizeof(Msg) + msg->length()) << '\n') << std::flush;
       // for (unsigned i = 0, n = msg->length(); i < n; i++) assert(((const char *)(msg->ptr()))[i] == (char)(i & 0xff));
       // std::cerr << "msg read\n";
-      ring->shift2();
+      ring->shift2(SizeAxor::get(msg_));
     } else {
       ZuStringN<80> s;
       s << "reader count " << j << ' ';
@@ -214,14 +208,14 @@ void App::reader()
     }
     if (slow && !!interval) Zm::sleep(interval);
   }
-  std::cerr << (ZuStringN<80>{} << "reader count " << count << " completed\n") << std::flush;
+  std::cerr << "reader count " << count << " completed\n" << std::flush;
   end.now();
 }
 
 void App::writer()
 {
-  using namespace ZmRingErrno;
-  std::cerr << (ZuStringN<80>{} << "writer " << Zm::getTID() << " started\n") << std::flush;
+  using namespace ZmRingStatus;
+  std::cerr << "writer " << Zm::getTID() << " started\n" << std::flush;
   start.now();
   for (int j = 0; j < count; j++) {
     if (void *ptr = ring->push(msgsize)) {
@@ -229,7 +223,7 @@ void App::writer()
       // Msg *msg = new (ptr) Msg(0, msgsize - sizeof(Msg));
       // for (unsigned i = 0, n = msg->length(); i < n; i++) ((char *)(msg->ptr()))[i] = (char)(i & 0xff);
       // std::cerr << "msg written\n";
-      ring->push2();
+      ring->push2(msgsize);
     } else {
       ZuStringN<80> s;
       s << "writer count " << j << ' ';
@@ -249,8 +243,8 @@ void App::writer()
     }
     if (!slow && !!interval) Zm::sleep(interval);
   }
-  std::cerr << (ZuStringN<80>{} << "writer count " << count << " completed\n") << std::flush;
+  std::cerr << "writer count " << count << " completed\n" << std::flush;
   if (!(flags & Ring::Read)) end.now();
   ring->eof();
-  std::cerr << (ZuStringN<80>{} << "ring full " << ZuBoxed(ring->full()) << " times\n") << std::flush;
+  std::cerr << "ring full " << ZuBoxed(ring->full()) << " times\n" << std::flush;
 }

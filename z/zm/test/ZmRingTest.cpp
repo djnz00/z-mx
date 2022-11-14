@@ -115,14 +115,11 @@ int App::main(int argc, char **argv)
       }
     }
 
-    {
-      ZuStringN<100> s;
-      s << "address: 0x" << ZuBoxPtr(ring->data()).fmt<ZuFmt::Hex<>>() <<
-	"  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
-	"  size: " << ZuBoxed(ring->size()) <<
-	"  msgSize: " << ZuBoxed(sizeof(Msg)) << '\n';
-      std::cerr << s;
-    }
+    std::cerr <<
+      "address: 0x" << ZuBoxPtr(ring->data()).hex() <<
+      "  ctrlSize: " << ZuBoxed(ring->ctrlSize()) <<
+      "  size: " << ZuBoxed(ring->size()) <<
+      "  msgSize: " << ZuBoxed(sizeof(Msg)) << '\n';
 
     {
       ZmThread r, w[writers];

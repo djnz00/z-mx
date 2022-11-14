@@ -14,8 +14,8 @@ libZmBTTest2_la_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 TESTPROGS = ZmFnTest ZmHeapTest ZmRBTest ZmRWTest \
 	ZmSchedTest ZmStackTest ZmTest ZmHashTest ZmHashTest2 ZmTLockTest \
 	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread ZmPQueueTest \
-	ZmPQueueTest2 ZmPQueueTest3 ZmRingTest ZmLockTest \
-	ZmTLSTest ZmAllocTest
+	ZmPQueueTest2 ZmPQueueTest3 ZmRingTest ZmRingTest2 ZmRingTest3 \
+	ZmLockTest ZmTLSTest ZmAllocTest
 if MINGW
 bin_PROGRAMS = ZmBTTest
 noinst_PROGRAMS = ${TESTPROGS}
@@ -42,6 +42,8 @@ ZmPQueueTest_SOURCES = ZmPQueueTest.cpp
 ZmPQueueTest2_SOURCES = ZmPQueueTest2.cpp
 ZmPQueueTest3_SOURCES = ZmPQueueTest3.cpp
 ZmRingTest_SOURCES = ZmRingTest.cpp
+ZmRingTest2_SOURCES = ZmRingTest2.cpp
+ZmRingTest3_SOURCES = ZmRingTest3.cpp
 ZmLockTest_SOURCES = ZmLockTest.cpp
 ZmTLSTest_SOURCES = ZmTLSTest.cpp
 ZmAllocTest_SOURCES = ZmAllocTest.cpp

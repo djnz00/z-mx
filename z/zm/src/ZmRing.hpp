@@ -44,12 +44,12 @@
 #include <zlib/ZmBackTrace.hpp>
 
 #ifdef ZmRing_FUNCTEST
-#define ZmRing_bp(x) (bp_##x.reached(#x))
+#define ZmRing_bp(self, name) self->bp_##name.reached(#name)
 #else
 #ifdef ZmRing_STRESSTEST
-#define ZmRing_bp(x) ZmPlatform::yield()
+#define ZmRing_bp(self, name) ZmPlatform::yield()
 #else
-#define ZmRing_bp(x) (void{})
+#define ZmRing_bp(self, name) (void{})
 #endif
 #endif
 
@@ -140,7 +140,7 @@ private:
 template <typename Derived> class Params : public ParamData {
   ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
 public:
-  Params() = delete;
+  Params() = default;
   Params(unsigned size) : ParamData{size} { }
   Derived &&size(unsigned n) { m_size = n; return derived(); }
   Derived &&ll(bool b) { m_ll = b; return derived(); }
@@ -255,10 +255,14 @@ protected:
     { return ctrl()->outBytes; }
   ZuInline ZmAtomic<uint64_t> &outBytes() { return ctrl()->outBytes; }
 
-  ZmAtomic<uint32_t> &rdrCount();	// unused
-  ZmAtomic<uint64_t> &rdrMask();	// ''
-  ZmAtomic<uint64_t> &attMask();	// ''
-  ZmAtomic<uint64_t> &attSeqNo();	// ''
+  ZmAtomic<uint32_t> &rdrCount();		// unused
+  const ZmAtomic<uint32_t> &rdrCount() const;	// ''
+  ZmAtomic<uint64_t> &rdrMask();		// ''
+  const ZmAtomic<uint64_t> &rdrMask() const;	// ''
+  ZmAtomic<uint64_t> &attMask();		// ''
+  const ZmAtomic<uint64_t> &attMask() const;	// ''
+  ZmAtomic<uint64_t> &attSeqNo();		// ''
+  const ZmAtomic<uint64_t> &attSeqNo() const;	// ''
 
 private:
   CtrlMem	m_ctrl;
@@ -280,9 +284,17 @@ protected:
   CtrlMgr_(const CtrlMgr_ &ring) : Base{ring} { }
 
   ZuInline ZmAtomic<uint32_t> &rdrCount() { return ctrl()->rdrCount; }
+  ZuInline const ZmAtomic<uint32_t> &rdrCount() const
+    { return ctrl()->rdrCount; }
   ZuInline ZmAtomic<uint64_t> &rdrMask() { return ctrl()->rdrMask; }
+  ZuInline const ZmAtomic<uint64_t> &rdrMask() const
+    { return ctrl()->rdrMask; }
   ZuInline ZmAtomic<uint64_t> &attMask() { return ctrl()->attMask; }
+  ZuInline const ZmAtomic<uint64_t> &attMask() const
+    { return ctrl()->attMask; }
   ZuInline ZmAtomic<uint64_t> &attSeqNo() { return ctrl()->attSeqNo; }
+  ZuInline const ZmAtomic<uint64_t> &attSeqNo() const
+    { return ctrl()->attSeqNo; }
 };
 template <typename CtrlMem, bool MR>
 using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl_<MR>, MR>;
@@ -691,7 +703,6 @@ private:
     ZmRing_move_head_(size_);
 // SWMR - push2() advances head, wakeReaders() does not update head
 #define ZmRing_move_head_swmr(size_) \
-    auto head_ = head; \
     ZmRing_move_head_(size_); \
     this->head() = head /* release */
 // MWSR | MWMR - push() advances head, updating it atomically
@@ -937,11 +948,10 @@ public:
     ZmRing_eof_get_head();
     if (!eof) {
       head &= ~EndOfFile32();
-      if constexpr (MW || MR) this->head() = head; // see above comment
+      if constexpr (MW || MR) this->head() = head; // see above
       wakeReaders(head);
     } else {
       if constexpr (MW || MR) this->head() = head | EndOfFile32(); // ''
-      std::cerr << "eof " << ZuBoxed(head & ~(Wrapped32() | Mask32())) << '\n' << std::flush;
       wakeReaders<EndOfFile_()>(head);
     }
   }
@@ -995,13 +1005,13 @@ public:
 
 #define ZmRing_shift_get_head() \
     uint32_t head = this->head(); /* acquire */ \
-    /**/ZmRing_bp(shift1)
+    /**/ZmRing_bp(this, shift1)
 
 #define ZmRing_shift_get_hdr() \
     auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>( \
 	  &(data())[tail & ~Wrapped32()]); \
     uint64_t hdr = *hdrPtr; /* acquire */ \
-    /**/ZmRing_bp(shift1)
+    /**/ZmRing_bp(this, shift1)
 
 #define ZmRing_shift_empty_swsr() (tail == (head & ~Mask32()))
 #define ZmRing_shift_empty_swmr() (!(hdr & ~Waiting()))
@@ -1054,7 +1064,7 @@ public:
       this->tail() = tail; // release
   }
   // MR
-  template <bool MR_ = MR>
+  template <bool MW_ = MW, bool MR_ = MR>
   ZuIfT<MR_> wakeWriters(uint32_t tail) {
     if (*reinterpret_cast<ZmAtomic<uint64_t> *>(
 	  &(data())[tail & ~Wrapped32()]) &= ~(1ULL<<rdrID())) return;
@@ -1247,6 +1257,20 @@ private:
   uint32_t		m_flags = 0;
   uint32_t		m_size = 0;
   uint32_t		m_full = 0;
+
+#ifdef ZmRing_FUNCTEST
+public:
+  ZmRing_Breakpoint	bp_attach1;
+  ZmRing_Breakpoint	bp_attach2;
+  ZmRing_Breakpoint	bp_attach3;
+  ZmRing_Breakpoint	bp_attach4;
+  ZmRing_Breakpoint	bp_detach1;
+  ZmRing_Breakpoint	bp_detach2;
+  ZmRing_Breakpoint	bp_detach3;
+  ZmRing_Breakpoint	bp_detach4;
+  ZmRing_Breakpoint	bp_detach5;
+  ZmRing_Breakpoint	bp_shift1;
+#endif
 };
 
 template <typename Ring>
@@ -1286,7 +1310,7 @@ inline int RingRdr<Ring, true>::attach()
 
   ++(ring()->attSeqNo());
 
-  /**/ZmRing_bp(attach1);
+  /**/ZmRing_bp(ring(), attach1);
 
   // skip any trailing messages not intended for us, since other readers
   // may be concurrently advancing the ring's tail; this must be
@@ -1295,9 +1319,9 @@ inline int RingRdr<Ring, true>::attach()
   uint32_t tail = ring()->tail().load_() & ~Mask32();
   uint32_t head = ring()->head() & ~Mask32(); // acquire
   uint32_t head_;
-  /**/ZmRing_bp(attach2);
+  /**/ZmRing_bp(ring(), attach2);
   ring()->rdrMask() |= (1ULL<<rdrID()); // notifies the writer about an attach
-  /**/ZmRing_bp(attach3);
+  /**/ZmRing_bp(ring(), attach3);
   auto data = ring()->data();
   auto size = ring()->size();
 
@@ -1305,14 +1329,14 @@ inline int RingRdr<Ring, true>::attach()
 
   do {
     while (tail != head) {
-      uint8_t *ptr = &data[tail & ~Wrapped32()];
-      if (*reinterpret_cast<uint64_t *>(ptr) & (1ULL<<rdrID()))
-	goto done; // writer aware
-      tail += align(SizeAxor::get(&ptr[8]));
+      auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
+	  &data[tail & ~Wrapped32()]);
+      if (*hdrPtr & (1ULL<<rdrID())) goto done; // writer aware
+      tail += ring()->align(SizeAxor::get(&hdrPtr[1]));
       if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
     }
     head_ = head;
-    /**/ZmRing_bp(attach4);
+    /**/ZmRing_bp(ring(), attach4);
     head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
 
@@ -1337,14 +1361,14 @@ inline int RingRdr<Ring, true>::detach()
   ++(ring()->attSeqNo());
 
   ring()->rdrMask() &= ~(1ULL<<rdrID()); // notifies the writer about a detach
-  /**/ZmRing_bp(detach1);
+  /**/ZmRing_bp(ring(), detach1);
 
   // drain any trailing messages that are waiting to be read by us,
   // advancing ring's tail as needed; this must be
   // re-attempted as long as the head keeps moving and the writer remains
   // unaware of our detach
   uint32_t tail = rdrTail();
-  /**/ZmRing_bp(detach2);
+  /**/ZmRing_bp(ring(), detach2);
   uint32_t head = ring()->head() & ~Mask32(); // acquire
   uint32_t head_;
 
@@ -1355,25 +1379,24 @@ inline int RingRdr<Ring, true>::detach()
 
   do {
     while (tail != head) {
-      uint8_t *ptr = &data[tail & ~Wrapped32()];
-      if (!(*reinterpret_cast<uint64_t *>(ptr) & (1ULL<<rdrID())))
-	goto done; // writer aware
-      tail += align(SizeAxor::get(&ptr[8]));
+      auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
+	  &data[tail & ~Wrapped32()]);
+      if (!(*hdrPtr & (1ULL<<rdrID()))) goto done; // writer aware
+      tail += ring()->align(SizeAxor::get(&hdrPtr[1]));
       if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
-      if (*reinterpret_cast<ZmAtomic<uint64_t> *>(ptr) &= ~(1ULL<<rdrID()))
-	continue;
-      /**/ZmRing_bp(detach3);
-      ring()->template wakeWriters<false>(tail);
+      if (*hdrPtr &= ~(1ULL<<rdrID())) continue;
+      /**/ZmRing_bp(ring(), detach3);
+      ring()->template wakeWriters<false, false>(tail);
     }
     head_ = head;
-    /**/ZmRing_bp(detach4);
+    /**/ZmRing_bp(ring(), detach4);
     head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
 done:
   rdrTail(tail);
 
   // release ID for re-use by future attach
-  /**/ZmRing_bp(detach5);
+  /**/ZmRing_bp(ring(), detach5);
 
   ++(ring()->attSeqNo());
 
@@ -1385,9 +1408,12 @@ done:
 
 } // ZmRing_
 
-class ZmRingParams : public ZmRing_::Params<ZmRingParams> { };
+struct ZmRingParams : public ZmRing_::Params<ZmRingParams> {
+  ZmRingParams() = default;
+  ZmRingParams(unsigned size) : ZmRing_::Params<ZmRingParams>{size} { }
+};
 
-template <typename NTP> using ZmRing = ZmRing_::Ring<NTP>;
+template <typename NTP = ZmRing_::Defaults> using ZmRing = ZmRing_::Ring<NTP>;
 
 namespace ZmRingStatus {
   using namespace ZmRing_::Status;
