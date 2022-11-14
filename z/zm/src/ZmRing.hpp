@@ -1047,33 +1047,25 @@ public:
 #define ZmRing_shift_return_mwsr() ZmRing_shift_return_swmr()
 #define ZmRing_shift_return_mwmr() ZmRing_shift_return_mwsr()
 
+#define ZmRing_clear_reader_mr() \
+    if (*reinterpret_cast<ZmAtomic<uint64_t> *>( \
+	&(data())[tail & ~Wrapped32()]) &= (RdrMask() & ~(1ULL<<rdrID()))) \
+      return
+#define ZmRing_clear_reader_sr() \
+    *reinterpret_cast<ZmAtomic<uint64_t> *>( \
+	&(data())[tail & ~Wrapped32()]) = 0
+
 #define ZmRing_shift2_move_tail(size_) \
     tail += size_; \
     if (ZuUnlikely((tail & ~Wrapped32()) >= this->size())) \
       tail = (tail ^ Wrapped32()) - this->size()
 
-  // SWSR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<!MW_ && !MR_> wakeWriters(uint32_t tail) {
+  void wakeWriters(uint32_t tail) {
     if (ZuUnlikely(!params().ll())) {
       if (ZuUnlikely(this->tail().xch(tail & ~Waiting32()) & Waiting32()))
 	m_tailBlocker.wake(this->tail());
     } else
       this->tail() = tail; // release
-  }
-  // MR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MR_> wakeWriters(uint32_t tail) {
-    if (*reinterpret_cast<ZmAtomic<uint64_t> *>(
-	  &(data())[tail & ~Wrapped32()]) &= ~(1ULL<<rdrID())) return;
-    wakeWriters<false, false>(tail);
-  }
-  // MWSR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MW_ && !MR_> wakeWriters(uint32_t tail) {
-    *reinterpret_cast<ZmAtomic<uint64_t> *>(
-	&(data())[tail & ~Wrapped32()]) &= ~1;
-    wakeWriters<false, false>(tail);
   }
 
 #define ZmRing_shift2_update_stats(size_) \
@@ -1124,6 +1116,7 @@ public:
   ZuIfT<!MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
+    ZmRing_clear_reader_mr();
     ZmRing_shift2_move_tail(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
@@ -1134,6 +1127,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_mr();
+    ZmRing_clear_reader_mr();
     ZmRing_shift2_move_tail(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
@@ -1153,6 +1147,7 @@ public:
   ZuIfT<MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
+    ZmRing_clear_reader_sr();
     ZmRing_shift2_move_tail(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
@@ -1163,6 +1158,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_sr();
+    ZmRing_clear_reader_sr();
     ZmRing_shift2_move_tail(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
@@ -1182,6 +1178,7 @@ public:
   ZuIfT<MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
+    ZmRing_clear_reader_mr();
     ZmRing_shift2_move_tail(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
@@ -1192,6 +1189,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_mr();
+    ZmRing_clear_reader_mr();
     ZmRing_shift2_move_tail(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
@@ -1382,7 +1380,7 @@ inline int RingRdr<Ring, true>::detach()
       if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
       if (*hdrPtr &= ~(1ULL<<rdrID())) continue;
       /**/ZmRing_bp(ring(), detach3);
-      ring()->template wakeWriters<false, false>(tail);
+      ring()->wakeWriters(tail);
     }
     head_ = head;
     /**/ZmRing_bp(ring(), detach4);

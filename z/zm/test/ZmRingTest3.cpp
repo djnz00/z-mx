@@ -369,7 +369,9 @@ int main(int argc, char **argv)
   check(synchronous(0, Shift()) == size1);
   synchronous(0, Shift2(size1));
   check(synchronous(1, Shift()) == size1);
+  std::cout << app()->ring().writeStatus() << '\n';
   synchronous(1, Shift2(size1));
+  std::cout << app()->ring().writeStatus() << '\n';
 
   // test push with concurrent dual shift
   check(synchronous(2, Push(size2)) > 0);
