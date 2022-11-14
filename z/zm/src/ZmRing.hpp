@@ -367,7 +367,6 @@ public:
   ZuInline uint8_t *data() {
     return reinterpret_cast<uint8_t *>(m_data.addr());
   }
-  ZuInline unsigned dataSize() { return m_data.size(); }
 
 private:
   DataMem		m_data;
@@ -518,8 +517,8 @@ public:
       m_params{static_cast<ParamData &&>(params)} { }
 
   Ring(const Ring &ring) :
-      m_params{ring.m_params}, m_flags{Shadow},
-      CtrlMgr_{ring}, DataMgr_{ring} { }
+      CtrlMgr_{ring}, DataMgr_{ring},
+      m_params{ring.m_params}, m_flags{Shadow}, m_size{ring.m_size} { }
 
   Ring &operator =(const Ring &ring) {
     ~Ring();
@@ -549,7 +548,6 @@ private:
   using CtrlMgr_::closeCtrl;
 public:
   using CtrlMgr_::ctrl;
-  using CtrlMgr_::ctrlSize;
 private:
   using CtrlMgr_::head;
   using CtrlMgr_::tail;
@@ -567,7 +565,6 @@ private:
   using DataMgr_::closeData;
 public:
   using DataMgr_::data;
-  using DataMgr_::dataSize;
 
   using RingRdr_::attach;
   using RingRdr_::detach;
@@ -703,6 +700,7 @@ private:
     ZmRing_move_head_(size_);
 // SWMR - push2() advances head, wakeReaders() does not update head
 #define ZmRing_move_head_swmr(size_) \
+    auto head_ = head; \
     ZmRing_move_head_(size_); \
     this->head() = head /* release */
 // MWSR | MWMR - push() advances head, updating it atomically
@@ -838,7 +836,7 @@ public:
     writeAssert();
     ZmRing_push2_get_head();
     ZmRing_move_head_swmr(Size);
-    wakeReaders(head);
+    wakeReaders(head_);
     ZmRing_push2_update_stats(Size);
   }
 private:
@@ -859,7 +857,7 @@ public:
     size = alignSize(size);
     ZmRing_push2_get_head();
     ZmRing_move_head_swmr(size);
-    wakeReaders(head);
+    wakeReaders(head_);
     ZmRing_push2_update_stats(size);
   }
 private:
@@ -1291,8 +1289,6 @@ inline int RingRdr<Ring, true>::attach()
   ZmAssert(ring()->m_flags & Read);
 
   if (rdrID() >= 0) return IOError;
-
-  enum { MaxRdrs = Ring::MaxRdrs };
 
   // allocate an ID for this reader
   {

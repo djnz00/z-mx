@@ -87,12 +87,13 @@ public:
   void start(unsigned nThreads, ZmRingParams params);
   void stop();
 
-  const ZmRingParams &params() const { return m_params; }
+  Ring &ring() { return m_ring; }
+  const Ring &ring() const { return m_ring; }
 
 private:
   unsigned	m_nThreads;
   ZmRef<Thread>	*m_threads;
-  ZmRingParams	m_params;
+  Ring		m_ring;
 };
 
 class Work;
@@ -100,7 +101,7 @@ class Work;
 class Thread : public ZmObject {
 public:
   Thread(App *app, unsigned id) :
-    m_app{app}, m_id{id}, m_ring{app->params()} { }
+    m_app{app}, m_id{id}, m_ring{app->ring()} { }
   ~Thread() { }
 
   void operator ()();
@@ -146,7 +147,8 @@ private:
 
 void App::start(unsigned nThreads, ZmRingParams params)
 {
-  m_params = ZuMv(params);
+  m_ring.init(ZuMv(params));
+  m_ring.open(Ring::Read | Ring::Write);
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
   for (unsigned i = 0; i < nThreads; i++)
     (m_threads[i] = new Thread(this, i))->start();
@@ -161,6 +163,7 @@ void App::stop()
   delete [] m_threads;
   m_threads = 0;
   m_nThreads = 0;
+  m_ring.close();
 }
 
 class Work : public ZmObject {
@@ -171,6 +174,8 @@ public:
     Push,
     Push2,
     EndOfFile,
+    Attach,
+    Detach,
     Shift,
     Shift2,
     ReadStatus,
@@ -207,7 +212,6 @@ int Work::operator ()(Thread *thread)
 
   switch (m_insn) {
     case Open:
-      ring = mainRing; // shadow
       result = ring.open(m_param);
       printf("\t%6u open(): %d\n", thread->id(), result); fflush(stdout);
       break;
@@ -232,6 +236,15 @@ int Work::operator ()(Thread *thread)
     case EndOfFile:
       ring.eof();
       printf("\t%6u eof()\n", thread->id()); fflush(stdout);
+      break;
+    case Attach:
+      result = ring.attach();
+      printf("\t%6u attach(): %d\n", thread->id(), result); fflush(stdout);
+      break;
+    case Detach:
+      result = ring.detach();
+      printf("\t%6u detach(): %d\n", 
+	  thread->id(), result); fflush(stdout);
       break;
     case Shift:
       if (const void *msg_ = ring.shift()) {
@@ -292,6 +305,8 @@ int result(int tid)
 #define Push(p) new Work(Work::Push, p)
 #define Push2(p) new Work(Work::Push2, p)
 #define EndOfFile() new Work(Work::EndOfFile)
+#define Attach() new Work(Work::Attach)
+#define Detach() new Work(Work::Detach)
 #define Shift() new Work(Work::Shift)
 #define Shift2(p) new Work(Work::Shift2, p)
 #define ReadStatus() new Work(Work::ReadStatus)
@@ -316,31 +331,85 @@ int main(int argc, char **argv)
     if (size <= 0) usage();
   }
 
-  // FIXME - need to open shadow ring, fix per-thread rings
-  app()->start(2, ZmRingParams{static_cast<unsigned>(size)});
-
-  int size1 =
-    app()->thread(1)->ring().size() - Zm::CacheLineSize - 1;
-  int size2 = (app()->thread(1)->ring().size() / 2) + 1;
-
-  printf("requested size: %u actual size: %u size1: %u size2: %u\n",
-      size, app()->thread(1)->ring().size(), size1, size2);
-  fflush(stdout);
+  app()->start(3, ZmRingParams{static_cast<unsigned>(size)});
 
   using namespace ZmRingStatus;
 
-  // test push with concurrent open
   check(synchronous(0, Open(Ring::Read)) == OK);
-  check(synchronous(1, Open(Ring::Write)) == OK);
-  check(synchronous(1, Push(size1)) > 0);
+  check(synchronous(1, Open(Ring::Read)) == OK);
+  check(synchronous(2, Open(Ring::Write)) == OK);
+
+  int size1 =
+    app()->ring().size() - Zm::CacheLineSize - 1;
+  int size2 = (app()->ring().size() / 2) + 1;
+
+  printf("requested size: %u actual size: %u size1: %u size2: %u\n",
+      size, app()->ring().size(), size1, size2);
+  fflush(stdout);
+
+  // test push with concurrent attach
+  check(synchronous(0, Attach()) == OK);
+  asynchronous(1, Attach(), attach2);
+  check(synchronous(2, Push(size1)) > 0);
   asynchronous(0, Shift(), shift1);
-  synchronous(1, Push2(size1));
+  synchronous(2, Push2(size1));
   proceed(0, shift1);
+  proceed(1, attach2);
   check(result(0) == size1);
+  check(result(1) == OK);
   synchronous(0, Shift2(size1));
+
+  // test push with concurrent attach (2)
+  check(synchronous(0, Detach()) == OK);
+  asynchronous(0, Attach(), attach3);
+  check(synchronous(2, Push(size1)) > 0);
+  synchronous(2, Push2(size1));
+  proceed(0, attach3);
+  check(result(0) == OK);
+  check(synchronous(0, Shift()) == size1);
+  synchronous(0, Shift2(size1));
+  check(synchronous(1, Shift()) == size1);
+  synchronous(1, Shift2(size1));
+
+  // test push with concurrent dual shift
+  check(synchronous(2, Push(size2)) > 0);
+  asynchronous(0, Shift(), shift1);
+  asynchronous(1, Shift(), shift1);
+  synchronous(2, Push2(size2));
+  proceed(0, shift1);
+  proceed(1, shift1);
+  check(result(0) == size2);
+  check(result(1) == size2);
+  synchronous(0, Shift2(size2));
+  synchronous(1, Shift2(size2));
+
+  // test push with concurrent detach
+  check(synchronous(2, Push(size1)) > 0); 
+  asynchronous(0, Detach(), detach4);
+  synchronous(2, Push2(size1));
+  check(synchronous(1, Shift()) == size1);
+  synchronous(1, Shift2(size1));
+  proceed(0, detach4);
+  check(result(0) == OK);
+  check(app()->thread(2)->ring().length() == 0);
+  check(synchronous(1, Detach()) == OK);
+
+  // test overflow (gc / status) with concurrent detach
+  check(synchronous(0, Attach()) == OK);
+  check(synchronous(1, Attach()) == OK);
+  check(synchronous(2, Push(size2)) > 0); synchronous(2, Push2(size2));
+  check(synchronous(2, Push(size2)) == 0);
+  check(synchronous(0, Shift()) == size2);
+  synchronous(0, Shift2(size2));
+  asynchronous(1, Detach(), detach1);
+  check(synchronous(0, ReadStatus()) == 0);
+  proceed(1, detach1);
+  check(result(1) == OK);
+  check(synchronous(0, Detach()) == OK);
 
   synchronous(0, Close());
   synchronous(1, Close());
+  synchronous(2, Close());
 
   return 0;
 }
