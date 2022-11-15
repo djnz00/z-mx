@@ -423,7 +423,7 @@ inline constexpr uint64_t Mask()       { return Waiting() | EndOfFile_(); }
 inline constexpr uint64_t RdrMask()  { return ~(static_cast<uint64_t>(7)<<61); }
 enum { MaxRdrs = 61 };
 #ifdef Zu_BIGENDIAN
-enum { Flags32Offset = 0 };	// 32bit offset in 64bit header
+enum { Flags32Offset = 0 };	// 32bit offset of flags within 64bit header
 #else
 enum { Flags32Offset = 1 };
 #endif
@@ -437,8 +437,8 @@ inline constexpr uint32_t Mask32()      { return Waiting32() | EndOfFile32(); }
 template <typename Ring, bool MR>
 class RingRdr {
 public:
-  int attach() { return OK; }		// unused
-  int detach() { return OK; }		// ''
+  int attach();				// unused
+  int detach();				// ''
 
   int rdrID() const { return 0; }	// ''
 
@@ -649,14 +649,21 @@ public:
 private:
   template <bool V_ = V>
   ZuIfT<!V_, bool> pushFull(uint32_t head, uint32_t tail) {
+    head &= ~Mask32();
+    tail &= ~Mask32();
     return ZuUnlikely((head ^ tail) == Wrapped32());
   }
   template <bool V_ = V>
   ZuIfT<V_, bool> pushFull(uint32_t head, uint32_t tail, unsigned size) {
+    head &= ~Mask32();
+    tail &= ~Mask32();
     if (ZuUnlikely(head == tail)) return false;
-    return ZuUnlikely(head < tail ?
-	(head + size >= tail) :
-	(head + size >= tail + this->size()));
+    if (ZuUnlikely((head ^ tail) == Wrapped32())) return true;
+    head &= ~Wrapped32();
+    tail &= ~Wrapped32();
+    return ZuUnlikely(head > tail ?
+	(head + size >= tail + this->size()) :
+	(head + size >= tail));
   }
 
   void writeAssert() {
@@ -787,7 +794,7 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    if (pushFull(head, tail)) ZmRing_push_retry();
     ZmRing_push_return_swsr();
   }
 public:
@@ -807,7 +814,7 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    if (pushFull(head, tail, size)) ZmRing_push_retry();
     ZmRing_push_return_swsr();
   }
 public:
@@ -827,7 +834,7 @@ private:
   retry:
     ZmRing_push_get_rdrMask();
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    if (pushFull(head, tail)) ZmRing_push_retry();
     ZmRing_push_return_swmr();
   }
 public:
@@ -847,7 +854,7 @@ private:
   retry:
     ZmRing_push_get_rdrMask();
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    if (pushFull(head, tail, size)) ZmRing_push_retry();
     ZmRing_push_return_swmr();
   }
 public:
@@ -867,7 +874,7 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    if (pushFull(head, tail)) ZmRing_push_retry();
     ZmRing_move_head_mwsr(Size);
     ZmRing_push_return_mwsr();
   }
@@ -886,7 +893,7 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    if (pushFull(head, tail, size)) ZmRing_push_retry();
     ZmRing_move_head_mwsr(size);
     ZmRing_push_return_mwsr();
   }
@@ -904,7 +911,7 @@ private:
     writeAssert();
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32())) ZmRing_push_retry();
+    if (pushFull(head, tail)) ZmRing_push_retry();
     ZmRing_move_head_mwmr(Size);
     ZmRing_push_return_mwmr();
   }
@@ -923,7 +930,7 @@ private:
     size = alignSize(size);
   retry:
     ZmRing_push_get_head_tail();
-    if (pushFull(head & ~Mask32(), tail & ~Mask32(), size)) ZmRing_push_retry();
+    if (pushFull(head, tail, size)) ZmRing_push_retry();
     ZmRing_move_head_mwmr(size);
     ZmRing_push_return_mwmr();
   }
@@ -1047,18 +1054,22 @@ public:
 #define ZmRing_shift_return_mwsr() ZmRing_shift_return_swmr()
 #define ZmRing_shift_return_mwmr() ZmRing_shift_return_mwsr()
 
-#define ZmRing_clear_reader_mr() \
-    if (*reinterpret_cast<ZmAtomic<uint64_t> *>( \
-	&(data())[tail & ~Wrapped32()]) &= (RdrMask() & ~(1ULL<<rdrID()))) \
-      return
-#define ZmRing_clear_reader_sr() \
-    *reinterpret_cast<ZmAtomic<uint64_t> *>( \
-	&(data())[tail & ~Wrapped32()]) = 0
-
-#define ZmRing_shift2_move_tail(size_) \
+#define ZmRing_shift2_move_tail_swsr(size_) \
     tail += size_; \
     if (ZuUnlikely((tail & ~Wrapped32()) >= this->size())) \
       tail = (tail ^ Wrapped32()) - this->size()
+#define ZmRing_shift2_move_tail_swmr(size_) \
+    auto tail_ = tail; \
+    ZmRing_shift2_move_tail_swsr(size_); \
+    rdrTail(tail); \
+    if (*reinterpret_cast<ZmAtomic<uint64_t> *>( \
+	&(data())[tail_ & ~Wrapped32()]) &= (RdrMask() & ~(1ULL<<rdrID()))) \
+      return
+#define ZmRing_shift2_move_tail_mwsr(size_) \
+    *reinterpret_cast<ZmAtomic<uint64_t> *>( \
+	&(data())[tail & ~Wrapped32()]) = 0; \
+    ZmRing_shift2_move_tail_swsr(size_)
+#define ZmRing_shift2_move_tail_mwmr(size_) ZmRing_shift2_move_tail_swmr(size_)
 
   void wakeWriters(uint32_t tail) {
     if (ZuUnlikely(!params().ll())) {
@@ -1087,7 +1098,7 @@ public:
   ZuIfT<!MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail(Size);
+    ZmRing_shift2_move_tail_swsr(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
   }
@@ -1097,7 +1108,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail(size);
+    ZmRing_shift2_move_tail_swsr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
@@ -1116,8 +1127,7 @@ public:
   ZuIfT<!MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_clear_reader_mr();
-    ZmRing_shift2_move_tail(Size);
+    ZmRing_shift2_move_tail_swmr(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
   }
@@ -1127,8 +1137,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_mr();
-    ZmRing_clear_reader_mr();
-    ZmRing_shift2_move_tail(size);
+    ZmRing_shift2_move_tail_swmr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
@@ -1147,8 +1156,7 @@ public:
   ZuIfT<MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_clear_reader_sr();
-    ZmRing_shift2_move_tail(Size);
+    ZmRing_shift2_move_tail_mwsr(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
   }
@@ -1158,8 +1166,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_sr();
-    ZmRing_clear_reader_sr();
-    ZmRing_shift2_move_tail(size);
+    ZmRing_shift2_move_tail_mwsr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
@@ -1178,8 +1185,7 @@ public:
   ZuIfT<MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_clear_reader_mr();
-    ZmRing_shift2_move_tail(Size);
+    ZmRing_shift2_move_tail_mwmr(Size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(Size);
   }
@@ -1189,8 +1195,7 @@ public:
     readAssert();
     size = alignSize(size);
     ZmRing_shift_get_tail_mr();
-    ZmRing_clear_reader_mr();
-    ZmRing_shift2_move_tail(size);
+    ZmRing_shift2_move_tail_mwmr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
@@ -1279,6 +1284,16 @@ inline void RingRdr<Ring, true>::close_()
 }
 
 template <typename Ring>
+inline int RingRdr<Ring, false>::attach()	// unused
+{
+  /**/ZmRing_bp(ring(), attach1);
+  /**/ZmRing_bp(ring(), attach2);
+  /**/ZmRing_bp(ring(), attach3);
+  /**/ZmRing_bp(ring(), attach4);
+  return OK;
+}
+
+template <typename Ring>
 inline int RingRdr<Ring, true>::attach()
 {
   enum { Read = Ring::Read };
@@ -1339,6 +1354,17 @@ done:
 
   ++(ring()->attSeqNo());
 
+  return OK;
+}
+
+template <typename Ring>
+inline int RingRdr<Ring, false>::detach()	// unused
+{
+  /**/ZmRing_bp(ring(), detach1);
+  /**/ZmRing_bp(ring(), detach2);
+  /**/ZmRing_bp(ring(), detach3);
+  /**/ZmRing_bp(ring(), detach4);
+  /**/ZmRing_bp(ring(), detach5);
   return OK;
 }
 

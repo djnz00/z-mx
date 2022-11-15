@@ -172,6 +172,7 @@ public:
     Open = 0,
     Close,
     Push,
+    TryPush,
     Push2,
     EndOfFile,
     Attach,
@@ -205,6 +206,12 @@ void Thread::operator ()()
   }
 }
 
+void pushMsg(void *ptr, unsigned param) {
+  Msg *msg = new (ptr) Msg(0, param - sizeof(Msg));
+  for (unsigned i = 0, n = msg->length(); i < n; i++)
+    ((char *)(msg->ptr()))[i] = (char)(i & 0xff);
+}
+
 int Work::operator ()(Thread *thread)
 {
   Ring &ring = thread->ring();
@@ -222,12 +229,18 @@ int Work::operator ()(Thread *thread)
     case Push:
       if (void *ptr = ring.push(m_param)) {
 	result = m_param;
-	Msg *msg = new (ptr) Msg(0, m_param - sizeof(Msg));
-	for (unsigned i = 0, n = msg->length(); i < n; i++)
-	  ((char *)(msg->ptr()))[i] = (char)(i & 0xff);
+	pushMsg(ptr, m_param);
       } else
 	result = 0;
       printf("\t%6u push(): %d\n", thread->id(), result); fflush(stdout);
+      break;
+    case TryPush:
+      if (void *ptr = ring.tryPush(m_param)) {
+	result = m_param;
+	pushMsg(ptr, m_param);
+      } else
+	result = 0;
+      printf("\t%6u tryPush(): %d\n", thread->id(), result); fflush(stdout);
       break;
     case Push2:
       ring.push2(m_param);
@@ -303,6 +316,7 @@ int result(int tid)
 #define Open(p) new Work(Work::Open, p)
 #define Close() new Work(Work::Close)
 #define Push(p) new Work(Work::Push, p)
+#define TryPush(p) new Work(Work::TryPush, p)
 #define Push2(p) new Work(Work::Push2, p)
 #define EndOfFile() new Work(Work::EndOfFile)
 #define Attach() new Work(Work::Attach)
@@ -396,11 +410,11 @@ int main(int argc, char **argv)
   check(app()->thread(2)->ring().length() == 0);
   check(synchronous(1, Detach()) == OK);
 
-  // test overflow (gc / status) with concurrent detach
+  // test overflow with concurrent detach
   check(synchronous(0, Attach()) == OK);
   check(synchronous(1, Attach()) == OK);
   check(synchronous(2, Push(size2)) > 0); synchronous(2, Push2(size2));
-  check(synchronous(2, Push(size2)) == 0);
+  check(synchronous(2, TryPush(size2)) == 0);
   check(synchronous(0, Shift()) == size2);
   synchronous(0, Shift2(size2));
   asynchronous(1, Detach(), detach1);
