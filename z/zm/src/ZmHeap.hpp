@@ -322,8 +322,6 @@ private:
   ZmHeapStats	m_stats;
 };
 
-// FIXME - move to constexpr function like ZuGrow()
-
 // ZmHeap_Size returns a size that is minimum sizeof(uintptr_t),
 // or the smallest power of 2 greater than the passed size yet smaller
 // than the cache line size, or the size rounded up to the nearest multiple

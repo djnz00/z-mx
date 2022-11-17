@@ -37,7 +37,7 @@
 //   void print(int i) const { printf("%d\n", i); }
 //   void print(double d) const { printf("%g\n", d); }
 // };
-// u.cdispatch([](auto &&i) { print(ZuAutoFwd(i)); });
+// u.cdispatch([] <typename I> (I &&i) { print(ZuFwd<I>(i)); });
 // ZuSwitch::dispatch<U::N>(u.type(), [&u](auto i) { print(u.p<i>()); });
 
 #ifndef ZuUnion_HPP
@@ -383,12 +383,33 @@ public:
   bool contains() const { return type() == Index<T>::I; }
 
   template <unsigned I>
-  const Type_<I> &p() const {
+  const Type_<I> &p() const & {
     using T = Type<I>;
-    static const T null = ZuCmp<T>::null();
-    if (type() != I) return null;
+    if (type() != I) return ZuNullRef<T>();
     const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_u);
     return *ptr;
+  }
+  template <unsigned I>
+  Type_<I> &p() & {
+    using T = Type<I>;
+    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
+    if (ZuUnlikely(type() != I)) {
+      this->~Union();
+      type_(I);
+      ZuUnion_Ops<T>::ctor(m_u);
+    }
+    return *ptr;
+  }
+  template <unsigned I>
+  Type_<I> &&p() && {
+    using T = Type<I>;
+    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
+    if (ZuUnlikely(type() != I)) {
+      this->~Union();
+      type_(I);
+      ZuUnion_Ops<T>::ctor(m_u);
+    }
+    return ZuMv(*ptr);
   }
   template <unsigned I, typename P>
   Union &p(P &&p) {
@@ -402,16 +423,6 @@ public:
     type_(I);
     ZuUnion_Ops<T>::ctor(m_u, ZuFwd<P>(p));
     return *this;
-  }
-  template <unsigned I>
-  Type_<I> &p() {
-    using T = Type<I>;
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
-    if (type() == I) return *ptr;
-    this->~Union();
-    type_(I);
-    ZuUnion_Ops<T>::ctor(m_u);
-    return *ptr;
   }
 
   template <typename T>
@@ -492,63 +503,65 @@ namespace std {
 }
 #include <variant>
 namespace Zu_ {
-  using size_t = std::size_t;
-  using bad_variant_access = std::bad_variant_access;
-  namespace {
-    template <size_t I, typename T>
-    using tuple_element_t = typename std::tuple_element<I, T>::type;
-  }
-  template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Union<Args...>> &
-  get(Union<Args...> &p) {
-    if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
-    return p.template p<I>();
-  }
-  template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Union<Args...>> &
-  get(const Union<Args...> &p) {
-    if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
-    return p.template p<I>();
-  }
-  template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Union<Args...>> &&
-  get(Union<Args...> &&p) {
-    if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
-    return static_cast<tuple_element_t<I, Union<Args...>> &&>(
-	p.template p<I>());
-  }
-  template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Union<Args...>> &&
-  get(const Union<Args...> &&p) {
-    if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
-    return static_cast<const tuple_element_t<I, Union<Args...>> &&>(
-	p.template p<I>());
-  }
 
-  template <typename T, typename ...Args>
-  constexpr T &get(Union<Args...> &p) {
-    if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
-      throw bad_variant_access{};
-    return p.template v<T>();
-  }
-  template <typename T, typename ...Args>
-  constexpr const T &get(const Union<Args...> &p) {
-    if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
-      throw bad_variant_access{};
-    return p.template v<T>();
-  }
-  template <typename T, typename ...Args>
-  constexpr T &&get(Union<Args...> &&p) {
-    if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
-      throw bad_variant_access{};
-    return static_cast<T &&>(p.template v<T>());
-  }
-  template <typename T, typename ...Args>
-  constexpr const T &&get(const Union<Args...> &&p) {
-    if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
-      throw bad_variant_access{};
-    return static_cast<const T &&>(p.template v<T>());
-  }
+using size_t = std::size_t;
+using bad_variant_access = std::bad_variant_access;
+namespace {
+  template <size_t I, typename T>
+  using tuple_element_t = typename std::tuple_element<I, T>::type;
+}
+template <size_t I, typename ...Args>
+constexpr tuple_element_t<I, Union<Args...>> &
+get(Union<Args...> &p) {
+  if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
+  return p.template p<I>();
+}
+template <size_t I, typename ...Args>
+constexpr const tuple_element_t<I, Union<Args...>> &
+get(const Union<Args...> &p) {
+  if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
+  return p.template p<I>();
+}
+template <size_t I, typename ...Args>
+constexpr tuple_element_t<I, Union<Args...>> &&
+get(Union<Args...> &&p) {
+  if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
+  return static_cast<tuple_element_t<I, Union<Args...>> &&>(
+      p.template p<I>());
+}
+template <size_t I, typename ...Args>
+constexpr const tuple_element_t<I, Union<Args...>> &&
+get(const Union<Args...> &&p) {
+  if (ZuUnlikely(p.type() != I)) throw bad_variant_access{};
+  return static_cast<const tuple_element_t<I, Union<Args...>> &&>(
+      p.template p<I>());
+}
+
+template <typename T, typename ...Args>
+constexpr T &get(Union<Args...> &p) {
+  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+    throw bad_variant_access{};
+  return p.template v<T>();
+}
+template <typename T, typename ...Args>
+constexpr const T &get(const Union<Args...> &p) {
+  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+    throw bad_variant_access{};
+  return p.template v<T>();
+}
+template <typename T, typename ...Args>
+constexpr T &&get(Union<Args...> &&p) {
+  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+    throw bad_variant_access{};
+  return static_cast<T &&>(p.template v<T>());
+}
+template <typename T, typename ...Args>
+constexpr const T &&get(const Union<Args...> &&p) {
+  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+    throw bad_variant_access{};
+  return static_cast<const T &&>(p.template v<T>());
+}
+
 } // namespace Zu_
 
 #define ZuUnion_FieldType(args) \
@@ -560,8 +573,9 @@ namespace Zu_ {
   ZuPP_Defer(ZuUnion_FieldFn_)()(N, ZuPP_Strip(args))
 #define ZuUnion_FieldFn_() ZuUnion_FieldFn__
 #define ZuUnion_FieldFn__(N, type, fn) \
-  const auto &fn() const { return this->template p<N>(); } \
-  auto &fn() { return this->template p<N>(); } \
+  const auto &fn() const & { return this->template p<N>(); } \
+  auto &fn() & { return this->template p<N>(); } \
+  auto &&fn() && { return ZuMv(this->template p<N>()); } \
   template <typename P> \
   auto &fn(P &&v) { this->template p<N>(ZuFwd<P>(v)); return *this; } \
   auto ptr_##fn() { return this->template ptr<N>(); } \

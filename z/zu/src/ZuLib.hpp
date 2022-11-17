@@ -194,8 +194,6 @@ template <typename T>
 inline constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
   return static_cast<T &&>(v);
 }
-// use to forward auto &&x parameters (usually generic lambda parameters)
-#define ZuAutoFwd(x) ZuFwd<decltype(x)>(x)
 // shorthand constexpr std::move without STL cruft
 template <typename T>
 inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
@@ -546,19 +544,9 @@ template <typename ...Args>
 struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
 
 // default accessor (pass-through value)
-struct ZuDefaultAxor {
-  template <typename P>
-  static decltype(auto) get(P &&v) { return ZuFwd<P>(v); }
-};
-
-// nest two accessors
-template <typename Outer, typename Inner>
-struct ZuNestAxor {
-  template <typename P>
-  static decltype(auto) get(P &&v) {
-    return Outer::get(Inner::get(ZuFwd<P>(v)));
-  }
-};
+inline constexpr auto ZuDefaultAxor() {
+  return [] <typename T> (T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
+}
 
 // function signature deduction
 

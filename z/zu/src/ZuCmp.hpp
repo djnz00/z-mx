@@ -624,8 +624,8 @@ template <typename T, ZuDecay<T> N> struct ZuCmpN : public ZuCmp<T> {
 template <typename T, typename Cmp, typename R = decltype(Cmp::null())>
 struct ZuNullRef_ {
   inline static const T &null() noexcept {
-    static const T v = Cmp::null();
-    return v;
+    static const T null = Cmp::null();
+    return null;
   }
 };
 template <typename T, typename Cmp>
