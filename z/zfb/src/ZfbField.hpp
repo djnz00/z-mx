@@ -107,7 +107,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
   ZfbFieldGeneric(O_, ID, Base_) \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void())> : \
       public Base_ { \
     using Base = Base_; \
     using Builder = ZfbBuilder<O>; \
@@ -129,7 +129,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     static void load(O &, const FBType *) { } \
   }; \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void())> : \
       public ZfbFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
     using FBType = ZfbType<O>; \
@@ -143,7 +143,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldInline(O_, ID, Base_, SaveFn, LoadFn) \
   ZfbFieldGeneric(O_, ID, Base_) \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void())> : \
       public Base_ { \
     using Base = Base_; \
     using Builder = ZfbBuilder<O>; \
@@ -164,7 +164,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     static void load(O &, const FBType *) { } \
   }; \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void())> : \
       public ZfbFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
     using FBType = ZfbType<O>; \
@@ -178,7 +178,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldPrimitive(O_, ID, Base_) \
   ZfbFieldGeneric(O_, ID, Base_) \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, true, decltype(&ZfbType<O>::ID, void())> : \
       public Base_ { \
     using Base = Base_; \
     using Builder = ZfbBuilder<O>; \
@@ -195,7 +195,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     static void load(O &, const FBType *) { } \
   }; \
   template <typename O> \
-  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void{})> : \
+  struct ZfbFieldType_(O_, ID)<O, false, decltype(&ZfbType<O>::ID, void())> : \
       public ZfbFieldType_(O_, ID)<O, true> { \
     using Base = Base_; \
     using FBType = ZfbType<O>; \

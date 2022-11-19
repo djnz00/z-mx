@@ -163,7 +163,7 @@ private:
 
   // run-time encapsulation of generic functor/lambda
   struct Fn_HeapID {
-    static constexpr const char *id() { return "ZmScheduler.Fn"; }
+    constexpr static const char *id() { return "ZmScheduler.Fn"; }
   };
   struct Fn : public ZmVHeap<Fn_HeapID> {
     typedef unsigned (*InvokeFn)(void *ptr, bool invoke);
@@ -270,7 +270,7 @@ private:
 
   // overflow ring DLQ
   struct OverRing_HeapID {
-    static constexpr const char *id() { return "ZmScheduler.OverRing"; }
+    constexpr static const char *id() { return "ZmScheduler.OverRing"; }
   };
   using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
   struct OverRing : public OverRing_ {
@@ -325,11 +325,9 @@ private:
     ZuInline bool operator !() const { return !timeout; }
     ZuOpBool
   };
-  struct Timer_TimeoutAxor {
-    static const ZmTime &get(const Timer_ &t) { return t.timeout; }
-  };
+  static const ZmTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }
   struct ScheduleTree_HeapID {
-    static constexpr const char *id() { return "ZmScheduler.ScheduleTree"; }
+    constexpr static const char *id() { return "ZmScheduler.ScheduleTree"; }
   };
   using ScheduleTree =
     ZmRBTree<Timer_,

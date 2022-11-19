@@ -76,7 +76,7 @@
 #ifdef ZiVBxRing_STRESSTEST
 #define ZiVBxRing_bp(x) Zm::yield()
 #else
-#define ZiVBxRing_bp(x) (void{})
+#define ZiVBxRing_bp(x) (void())
 #endif
 #endif
 

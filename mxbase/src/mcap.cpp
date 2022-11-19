@@ -178,7 +178,7 @@ private:
   char			m_buf[Size];
 };
 struct Msg_HeapID {
-  static constexpr const char *id() { return "Msg"; }
+  constexpr static const char *id() { return "Msg"; }
 };
 typedef ZmHeap<Msg_HeapID, sizeof(Msg_<ZuNull>)> Msg_Heap;
 typedef Msg_<Msg_Heap> Msg;

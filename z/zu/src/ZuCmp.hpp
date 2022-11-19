@@ -102,26 +102,26 @@ template <typename T> struct ZuCmp_Cannot;
 
 template <typename T, int Size, bool Signed> struct ZuCmp_IntNull;
 template <typename T> struct ZuCmp_IntNull<T, 1, false>
-  { static constexpr T null() { return static_cast<T>(0xff); } };
+  { constexpr static T null() { return static_cast<T>(0xff); } };
 template <typename T> struct ZuCmp_IntNull<T, 1, true>
-  { static constexpr T null() { return static_cast<T>(-0x80); } };
+  { constexpr static T null() { return static_cast<T>(-0x80); } };
 template <typename T> struct ZuCmp_IntNull<T, 2, false>
-  { static constexpr T null() { return static_cast<T>(0xffff); } };
+  { constexpr static T null() { return static_cast<T>(0xffff); } };
 template <typename T> struct ZuCmp_IntNull<T, 2, true>
-  { static constexpr T null() { return static_cast<T>(-0x8000); } };
+  { constexpr static T null() { return static_cast<T>(-0x8000); } };
 template <typename T> struct ZuCmp_IntNull<T, 4, false>
-  { static constexpr T null() { return ~static_cast<T>(0); } };
+  { constexpr static T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 4, true>
-  { static constexpr T null() { return static_cast<T>(-0x80000000); } };
+  { constexpr static T null() { return static_cast<T>(-0x80000000); } };
 template <typename T> struct ZuCmp_IntNull<T, 8, false>
-  { static constexpr T null() { return ~static_cast<T>(0); } };
+  { constexpr static T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 8, true> {
-  static constexpr T null() { return static_cast<T>(-0x8000000000000000LL); }
+  constexpr static T null() { return static_cast<T>(-0x8000000000000000LL); }
 };
 template <typename T> struct ZuCmp_IntNull<T, 16, false>
-  { static constexpr T null() { return ~static_cast<T>(0); } };
+  { constexpr static T null() { return ~static_cast<T>(0); } };
 template <typename T> struct ZuCmp_IntNull<T, 16, true> {
-  static constexpr T null() { return (static_cast<T>(1))<<127; }
+  constexpr static T null() { return (static_cast<T>(1))<<127; }
 };
 
 // comparison of larger-sized (>= sizeof(int)) integral types
@@ -148,7 +148,7 @@ template <typename T, bool isSmallInt> struct ZuCmp_Integral {
   static bool less(T i1, T i2) { return i1 < i2; }
   static bool equals(T i1, T i2) { return i1 == i2; }
   static bool null(T i) { return i == null(); }
-  static constexpr T null() {
+  constexpr static T null() {
     return ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
   }
   static T epsilon(T f) { return 0; }
@@ -166,7 +166,7 @@ template <typename T> struct ZuCmp_Integral<T, true> {
   static bool less(T i1, T i2) { return i1 < i2; }
   static bool equals(T i1, T i2) { return i1 == i2; }
   static bool null(T i) { return i == null(); }
-  static constexpr T null() {
+  constexpr static T null() {
     return ZuCmp_IntNull<T, sizeof(T), ZuTraits<T>::IsSigned>::null();
   }
   static T epsilon(T f) { return 0; }
@@ -180,7 +180,7 @@ template <typename T> struct ZuCmp_Floating {
   static bool equals(T f1, T f2) { return f1 == f2; }
   static T null() { return ZuTraits<T>::nan(); } // can't be constexpr
   static bool null(T f) { return ZuTraits<T>::nan(f); }
-  static constexpr T inf() { return ZuTraits<T>::inf(); }
+  constexpr static T inf() { return ZuTraits<T>::inf(); }
   static bool inf(T f) { return ZuTraits<T>::inf(f); }
   static T epsilon(T f) { return ZuTraits<T>::epsilon(f); }
 };
@@ -218,7 +218,7 @@ struct ZuCmp_NullFn {
   static T null() { return T{}; }
 };
 template <typename T>
-struct ZuCmp_NullFn<T, decltype(T{ZuDeclVal<const T &>()}, void{})> {
+struct ZuCmp_NullFn<T, decltype(T{ZuDeclVal<const T &>()}, void())> {
   template <typename P> static bool null(const P &p) { return !p; }
   static const T &null() { static T v; return v; }
 };
@@ -277,7 +277,7 @@ template <typename T> struct ZuCmp_Pointer {
   static bool less(const P *p1, const P *p2) { return p1 < p2; }
   static bool equals(const P *p1, const P *p2) { return p1 == p2; }
   static bool null(const P *p) { return !p; }
-  static constexpr T null() { return nullptr; }
+  constexpr static T null() { return nullptr; }
 };
 
 template <typename T, bool IsCString>
@@ -574,7 +574,7 @@ template <> struct ZuCmp_<bool> {
   static bool less(bool b1, bool b2) { return b1 < b2; }
   static bool equals(bool b1, bool b2) { return b1 == b2; }
   static bool null(bool b) { return !b; }
-  static constexpr bool null() { return false; }
+  constexpr static bool null() { return false; }
 };
 
 // comparison of char (null value should be '\0')
@@ -584,7 +584,7 @@ template <> struct ZuCmp_<char> {
   static bool less(char c1, char c2) { return c1 < c2; }
   static bool equals(char c1, char c2) { return c1 == c2; }
   static bool null(char c) { return !c; }
-  static constexpr char null() { return 0; }
+  constexpr static char null() { return 0; }
 };
 
 // comparison of void
@@ -600,7 +600,7 @@ template <typename T> struct ZuCmp : public ZuCmp_<ZuDecay<T>> { };
 template <typename T> struct ZuCmp0 : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return !v; }
-  static constexpr U null() { return 0; }
+  constexpr static U null() { return 0; }
 };
 
 // same as ZuCmp<T> but with -1 (or any negative value) as the null value
@@ -608,7 +608,7 @@ template <typename T> struct ZuCmp0 : public ZuCmp<T> {
 template <typename T> struct ZuCmp_1 : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return v < 0; }
-  static constexpr U null() { return -1; }
+  constexpr static U null() { return -1; }
 };
 
 // same as ZuCmp<T> but with N as the null value
@@ -616,7 +616,7 @@ template <typename T> struct ZuCmp_1 : public ZuCmp<T> {
 template <typename T, ZuDecay<T> N> struct ZuCmpN : public ZuCmp<T> {
   using U = ZuDecay<T>;
   static bool null(U v) { return v == N; }
-  static constexpr U null() { return N; }
+  constexpr static U null() { return N; }
 };
 
 // ZuNullRef<T>() returns sentinel null value guaranteed to be a const ref

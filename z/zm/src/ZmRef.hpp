@@ -89,7 +89,7 @@ struct ZmRef__ {
 };
 #define ZmREF(o) ((o)->ref())
 #define ZmDEREF(o) ZmRef__::ZmDEREF_(o)
-#define ZmMVREF(o, p, n) (void{})
+#define ZmMVREF(o, p, n) (void())
 #endif
 
 template <typename T_> class ZmRef : public ZuRef_, public ZmRef_ {

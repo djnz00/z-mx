@@ -125,7 +125,7 @@ struct User__ : public ZuObject {
   User__(uint64_t id_, ZuString name_, Flags flags_) :
       id(id_), name(name_), flags(flags_) { }
 
-  static constexpr mbedtls_md_type_t keyType() {
+  constexpr static mbedtls_md_type_t keyType() {
     return MBEDTLS_MD_SHA256;
   }
 
@@ -150,7 +150,7 @@ struct User__ : public ZuObject {
   }
 };
 struct UserIDHashID {
-  static constexpr const char *id() { return "ZvUserDB.UserIDs"; }
+  constexpr static const char *id() { return "ZvUserDB.UserIDs"; }
 };
 struct UserIDAccessor {
   static uint64_t get(const User__ &u) { return u.id; }
@@ -165,7 +165,7 @@ using UserIDHash =
 	      ZmHashLock<ZmNoLock> > > > > > >;
 using User_ = UserIDHash::Node;
 struct UserNameHashID {
-  static constexpr const char *id() { return "ZvUserDB.UserNames"; }
+  constexpr static const char *id() { return "ZvUserDB.UserNames"; }
 };
 struct UserNameAccessor {
   static ZtString get(const User_ &u) { return u.name; }
@@ -214,7 +214,7 @@ struct Key_ : public ZuObject, public Key__ {
       Key__{id_, KeyData{}, userID_}, next{next_} { }
 
   using IDData = ZuArrayN<uint8_t, 16>;
-  static constexpr const mbedtls_md_type_t keyType() {
+  constexpr static const mbedtls_md_type_t keyType() {
     return MBEDTLS_MD_SHA256;
   }
 
@@ -226,7 +226,7 @@ struct Key_ : public ZuObject, public Key__ {
   }
 };
 struct KeyHashID {
-  static constexpr const char *id() { return "ZvUserDB.Keys"; }
+  constexpr static const char *id() { return "ZvUserDB.Keys"; }
 };
 #if 0
 struct KeyIDAccessor {

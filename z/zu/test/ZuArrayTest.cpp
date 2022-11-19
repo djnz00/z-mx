@@ -85,4 +85,8 @@ int main()
     testSplice(a, 1, 1, 44, 45);
     testSplice(a, -2, 4, 0, 44);
   }
+  {
+    static const int names[] = { 0, 1, 2 };
+    test(ZuArray<const int>::IsPrimitiveArray<ZuDecay<decltype(names)>>::OK);
+  }
 }

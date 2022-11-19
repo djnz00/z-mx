@@ -49,29 +49,29 @@
 //     ZmListCmp<ZtICmp> > >			// case-insensitive comparison
 
 struct ZmList_Defaults {
-  using KeyAxor = ZuDefaultAxor;
-  using ValAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
+  constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
   using Object = ZuNull;
-  struct HeapID { static constexpr const char *id() { return "ZmList"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmList"; } };
 };
 
 // ZmListKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmList_Defaults>
+template <auto KeyAxor_, typename NTP = ZmList_Defaults>
 struct ZmListKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmListKeyVal - key and optional value accessors
 template <
-  typename KeyAxor_, typename ValAxor_,
+  auto KeyAxor_, auto ValAxor_,
   typename NTP = ZmList_Defaults>
 struct ZmListKeyVal : public NTP {
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
 };
 
 // ZmListCmp - the comparator
@@ -110,10 +110,10 @@ class ZmList : public ZmNodePolicy<typename NTP::Object> {
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<T>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   enum { NodeDerive = NTP::NodeDerive };

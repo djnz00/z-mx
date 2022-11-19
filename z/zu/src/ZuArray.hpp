@@ -62,13 +62,18 @@ public:
   using Ops = ZuArrayFn<T, Cmp>;
 
   ZuArray() : m_data(0), m_length(0) { }
-  ZuArray(const ZuArray &a) :
-      m_data(a.m_data), m_length(a.m_length) { }
+  ZuArray(const ZuArray &a) : m_data(a.m_data), m_length(a.m_length) { }
   ZuArray &operator =(const ZuArray &a) {
     if (ZuLikely(this != &a)) {
       m_data = a.m_data;
       m_length = a.m_length;
     }
+    return *this;
+  }
+  ZuArray(ZuArray &&a) : m_data(a.m_data), m_length(a.m_length) { }
+  ZuArray &operator =(ZuArray &&a) {
+    m_data = a.m_data;
+    m_length = a.m_length;
     return *this;
   }
 
@@ -80,7 +85,7 @@ public:
     return *this;
   }
 
-private:
+public:
   template <typename U> struct IsPrimitiveArray_ {
     using V = typename ZuTraits<U>::Elem;
     enum { OK = ZuConversion<V, T>::Same &&
@@ -119,15 +124,15 @@ private:
   };
 
   template <typename U, typename R = void>
-  using MatchStrLiteral = ZuIfT<IsStrLiteral<U>::OK, R>; 
+  using MatchStrLiteral = ZuIfT<IsStrLiteral<ZuDecay<U>>::OK, R>; 
   template <typename U, typename R = void>
-  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<U>::OK, R>; 
+  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<ZuDecay<U>>::OK, R>; 
   template <typename U, typename R = void>
-  using MatchCString = ZuIfT<IsCString<U>::OK, R>; 
+  using MatchCString = ZuIfT<IsCString<ZuDecay<U>>::OK, R>; 
   template <typename U, typename R = void>
-  using MatchOtherArray = ZuIfT<IsOtherArray<U>::OK, R>; 
+  using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>::OK, R>; 
   template <typename U, typename R = void>
-  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>; 
+  using MatchPtr = ZuIfT<IsPtr<ZuDecay<U>>::OK, R>; 
 
 public:
   // compile-time length from string literal (null-terminated)

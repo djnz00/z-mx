@@ -259,7 +259,7 @@ public:
   Char *data() { return (Char *)(&this[1]); }
   const Char *data() const { return (const Char *)(&this[1]); }
   unsigned length() const { return m_length; }
-  static constexpr unsigned size() { return N; }
+  constexpr static unsigned size() { return N; }
 
 // chomp(), trim(), strip()
 
@@ -449,7 +449,7 @@ private:
 public:
   ZuStringN() { }
 
-  ZuStringN(const ZuStringN &s) : Base(Base::Nop) {
+  ZuStringN(const ZuStringN &s) : Base{Base::Nop} {
     this->init(s.data(), s.length());
   }
   ZuStringN &operator =(const ZuStringN &s) {
@@ -464,10 +464,10 @@ public:
   }
 
   // C string types
-  ZuStringN(const char *s) : Base(Base::Nop) {
+  ZuStringN(const char *s) : Base{Base::Nop} {
     this->init(s);
   }
-  ZuStringN(const char *s, unsigned length) : Base(Base::Nop) {
+  ZuStringN(const char *s, unsigned length) : Base{Base::Nop} {
     this->init(s, length);
   }
   ZuStringN &operator =(const char *s) {
@@ -491,7 +491,7 @@ public:
 
   // miscellaneous types handled by base class
   template <typename S>
-  ZuStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base(Base::Nop) {
+  ZuStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Base::Nop} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -512,7 +512,7 @@ public:
 
   // length
   template <typename L>
-  ZuStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base(l) { }
+  ZuStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base{l} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuStringN *);
@@ -558,7 +558,7 @@ private:
 public:
   ZuWStringN() { }
 
-  ZuWStringN(const ZuWStringN &s) : Base(Base::Nop) {
+  ZuWStringN(const ZuWStringN &s) : Base{Base::Nop} {
     this->init(s.data(), s.length());
   }
   ZuWStringN &operator =(const ZuWStringN &s) {
@@ -574,10 +574,10 @@ public:
   }
 
   // C string types
-  ZuWStringN(const wchar_t *s) : Base(Base::Nop) {
+  ZuWStringN(const wchar_t *s) : Base{Base::Nop} {
     this->init(s);
   }
-  ZuWStringN(const wchar_t *s, unsigned length) : Base(Base::Nop) {
+  ZuWStringN(const wchar_t *s, unsigned length) : Base{Base::Nop} {
     this->init(s, length);
   }
   ZuWStringN &operator =(const wchar_t *s) {
@@ -601,7 +601,7 @@ public:
 
   // miscellaneous types handled by base class
   template <typename S>
-  ZuWStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base(Base::Nop) {
+  ZuWStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Base::Nop} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -622,7 +622,7 @@ public:
 
   // length
   template <typename L>
-  ZuWStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base(l) { }
+  ZuWStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base{l} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuWStringN *);

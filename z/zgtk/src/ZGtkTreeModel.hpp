@@ -85,7 +85,7 @@ public:
     if (!atom) atom = gdk_atom_intern_static_string(typeName());
     return atom;
   }
-  static constexpr gint nRowsTargets() { return 1; }
+  constexpr static gint nRowsTargets() { return 1; }
   static const GtkTargetEntry *rowsTargets() {
     static GtkTargetEntry rowsTargets_[] = {
       { (gchar *)nullptr, GTK_TARGET_SAME_APP, 0 }

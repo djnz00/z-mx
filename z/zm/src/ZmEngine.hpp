@@ -68,7 +68,7 @@ private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  struct HeapID { static constexpr const char *id() { return "ZmEngine"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmEngine"; } };
   using CtrlFnRing =
     ZmXRing<ZmFn<bool>, ZmXRingHeapID<HeapID>>;
 
@@ -150,7 +150,7 @@ inline void ZmEngine<Impl>::start(ZmFn<bool> startFn)
 template <typename Impl>
 inline bool ZmEngine<Impl>::start()
 {
-  return ZmBlock<bool>{}([this](auto wake) { start(ZuMv(wake)); });
+  return ZmBlock<bool>{}([this](auto wake) { this->start(ZuMv(wake)); });
 }
 template <typename Impl>
 inline void ZmEngine<Impl>::started(bool ok)
@@ -227,7 +227,7 @@ inline void ZmEngine<Impl>::stop(ZmFn<bool> stopFn)
 template <typename Impl>
 inline bool ZmEngine<Impl>::stop()
 {
-  return ZmBlock<bool>{}([this](auto wake) { stop(ZuMv(wake)); });
+  return ZmBlock<bool>{}([this](auto wake) { this->stop(ZuMv(wake)); });
 }
 template <typename Impl>
 inline bool ZmEngine<Impl>::stopped()

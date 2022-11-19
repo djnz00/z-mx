@@ -255,7 +255,7 @@ private:
   MessageFn	m_messageFn;
 };
 struct ZeEvent_HeapID {
-  static constexpr const char *id() { return "ZeEvent"; }
+  constexpr static const char *id() { return "ZeEvent"; }
 };
 using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID, sizeof(ZeEvent_<ZuNull>)>;
 using ZeEvent = ZeEvent_<ZeEvent_Heap>;

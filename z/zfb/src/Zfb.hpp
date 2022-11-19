@@ -398,11 +398,11 @@ namespace Load {
     template <typename L> void all_(L l) const { \
       auto i = m_s2v->readIterator(); \
       while (auto kv = i.iterate()) { \
-	l(S2V::KeyAxor::get(*kv), S2V::ValAxor::get(*kv)); \
+	l(S2V::KeyAxor(*kv), S2V::ValAxor(*kv)); \
       } \
     } \
   public: \
-    static constexpr const char *id() { return #Enum; } \
+    constexpr static const char *id() { return #Enum; } \
     using Buffer = fbs::Enum; \
     Map_() { m_s2v = new S2V(); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \

@@ -123,7 +123,7 @@ public:
 
 private:
   struct ColTree_HeapID {
-    static constexpr const char *id() { return "ZvCSV.ColTree"; }
+    constexpr static const char *id() { return "ZvCSV.ColTree"; }
   };
   using ColTree =
     ZmRBTreeKV<ZuString, const Field *,

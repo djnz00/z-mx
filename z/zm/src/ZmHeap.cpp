@@ -124,7 +124,7 @@ private:
       {
 	ReadGuard guard(m_lock);
 	c = m_caches3.readIterator<ZmRBTreeGreater>(
-	    ZmHeapCache::IDPartSizeAxor::get(c)).iterateVal();
+	    ZmHeapCache::IDPartSizeAxor(c)).iterateVal();
       }
     }
   }
@@ -139,7 +139,7 @@ private:
       }
       if (!c) return;
       if (strcmp(id, c->info().id)) return;
-      key = ZmHeapCache::IDPartSizeAxor::get(c);
+      key = ZmHeapCache::IDPartSizeAxor(c);
       fn(c);
     }
   }

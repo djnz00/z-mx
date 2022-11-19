@@ -69,18 +69,18 @@ private:
 
 // NTP defaults
 struct ZmStack_Defaults {
-  using KeyAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  struct HeapID { static constexpr const char *id() { return "ZmStack"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmStack"; } };
 };
 
 // ZmStackKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmStack_Defaults>
+template <auto KeyAxor_, typename NTP = ZmStack_Defaults>
 struct ZmStackKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmStackCmp - the comparator
@@ -144,8 +144,8 @@ friend ZmStack_Unlocked<ZmStack>;
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<T>;
@@ -291,7 +291,7 @@ private:
   template <typename P>
   T *findPtr__(const P &v) {
     for (int i = m_length; --i >= 0; )
-      if (KeyCmp::equals(KeyAxor::get(m_data[i]), v)) return &m_data[i];
+      if (KeyCmp::equals(KeyAxor(m_data[i]), v)) return &m_data[i];
     return nullptr;
   }
 

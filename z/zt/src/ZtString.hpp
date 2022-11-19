@@ -1344,7 +1344,7 @@ inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
 }
 
 struct ZtString_ID {
-  static constexpr const char *id() { return "ZtString"; }
+  constexpr static const char *id() { return "ZtString"; }
 };
 
 #ifdef _MSC_VER
@@ -1428,7 +1428,7 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
 struct ZtHexDump_ID {
-  static constexpr const char *id() { return "ZtHexDump"; }
+  constexpr static const char *id() { return "ZtHexDump"; }
 };
 struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
   ZtHexDump(ZuString prefix_, const void *data_, unsigned length_) :

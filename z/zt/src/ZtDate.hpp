@@ -129,8 +129,8 @@ template <int size> class ZtDate_time_t;
 template <> class ZtDate_time_t<4> {
 friend ZtDate;
 private:
-  static constexpr int32_t minimum() { return -0x80000000; } 
-  static constexpr int32_t maximum() { return 0x7fffffff; } 
+  constexpr static int32_t minimum() { return -0x80000000; } 
+  constexpr static int32_t maximum() { return 0x7fffffff; } 
 public:
   static bool isMinimum(int32_t t) { return t == minimum(); }
   static bool isMaximum(int32_t t) { return t == maximum(); }
@@ -151,8 +151,8 @@ public:
 };
 template <> class ZtDate_time_t<8> {
 public:
-  static constexpr bool isMinimum(int64_t) { return false; }
-  static constexpr bool isMaximum(int64_t) { return false; }
+  constexpr static bool isMinimum(int64_t) { return false; }
+  constexpr static bool isMaximum(int64_t) { return false; }
   static int64_t time(int julian, int second) {
     if (julian == ZtDate_NullJulian) return 0;
     return ((int64_t)julian - (int64_t)2440588) * (int64_t)86400 +

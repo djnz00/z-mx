@@ -140,7 +140,7 @@ protected:
 
 public:
   unsigned bits() const { return m_bits; }
-  static constexpr unsigned cBits() { return 0; }
+  constexpr static unsigned cBits() { return 0; }
 
 protected:
   void bits(unsigned u) { m_bits = u; }
@@ -169,29 +169,29 @@ private:
 
 // NTP defaults
 struct ZmHash_Defaults {
-  using KeyAxor = ZuDefaultAxor;
-  using ValAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
+  constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
   enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
   using Object = ZuNull;
-  struct HeapID { static constexpr const char *id() { return "ZmHash"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmHash"; } };
   using ID = HeapID;
 };
 
 // ZmHashKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmHash_Defaults>
+template <auto KeyAxor_, typename NTP = ZmHash_Defaults>
 struct ZmHashKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmHashKeyVal - key and optional value accessors
-template <typename KeyAxor_, typename ValAxor_, typename NTP = ZmHash_Defaults>
+template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmHash_Defaults>
 struct ZmHashKeyVal : public NTP {
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
 };
 
 // ZmHashCmp - the comparator
@@ -257,10 +257,10 @@ class ZmHash :
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
-  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuDecay<KeyRet>;
   using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
@@ -656,7 +656,7 @@ public:
   }
   template <typename P>
   MatchData<P, NodeRef> find(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(lockCode(code));
     return find_(matchData(data), code);
   }
@@ -673,7 +673,7 @@ public:
   }
   template <typename P>
   MatchData<P, Node *> findPtr(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(lockCode(code));
     return find_(matchData(data), code);
   }
@@ -686,7 +686,7 @@ public:
   }
   template <typename P>
   MatchData<P, Key> findKey(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(lockCode(code));
     return key(find_(matchData(data), code));
   }
@@ -703,7 +703,7 @@ public:
   }
   template <typename P>
   MatchData<P, Val> findVal(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(lockCode(code));
     return val(find_(matchData(data), code));
   }
@@ -728,7 +728,7 @@ private:
 public:
   template <typename P>
   NodeRef findAdd(P &&data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return findAdd_(ZuFwd<P>(data), code);
   }
@@ -738,7 +738,7 @@ public:
   }
   template <typename P>
   Node *findAddPtr(P &&data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return findAdd_(ZuFwd<P>(data), code);
   }
@@ -753,7 +753,7 @@ private:
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
     for (node = m_table[slot];
-	 node && !Cmp::equals(node->Node::key(), KeyAxor::get(data));
+	 node && !Cmp::equals(node->Node::key(), KeyAxor(data));
 	 node = node->Fn::next);
 
     if (!node) addNode_(node = new Node{ZuFwd<P>(data)}, code);
@@ -769,7 +769,7 @@ public:
   }
   template <typename P>
   MatchData<P, NodeRef> del(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return del_(matchData(data), code);
   }
@@ -791,7 +791,7 @@ public:
   }
   template <typename P>
   MatchData<P, Key> delKey(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return keyMv(del_(matchData(data), code));
   }
@@ -812,7 +812,7 @@ public:
   }
   template <typename P>
   MatchData<P, Val> delVal(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return valMv(del_(matchData(data), code));
   }
@@ -1045,6 +1045,6 @@ private:
 template <typename P0, typename P1, typename NTP = ZmHash_Defaults>
 using ZmHashKV =
   ZmHash<ZuPair<P0, P1>,
-    ZmHashKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, NTP> >;
+    ZmHashKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP> >;
 
 #endif /* ZmHash_HPP */

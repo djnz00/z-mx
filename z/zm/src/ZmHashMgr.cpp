@@ -34,7 +34,7 @@ class ZmHashMgr_ : public ZmObject {
 friend ZmSingletonCtor<ZmHashMgr_>;
 friend ZmHashMgr;
 
-  struct HeapID { static constexpr const char *id() { return "ZmHashMgr_"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmHashMgr_"; } };
 
   using ID2Params =
     ZmRBTreeKV<ZmIDString, ZmHashParams,
@@ -87,7 +87,7 @@ private:
     ZmGuard<ZmPLock> guard(m_lock);
     // double ref prevents m_tables.del() from recursing into dtor
     tbl->ref2_();
-    if (!m_tables.del(ZmAnyHash_PtrAxor::get(*tbl))) tbl->deref_();
+    if (!m_tables.del(ZmAnyHash_PtrAxor(*tbl))) tbl->deref_();
     tbl->deref_();
   }
 
@@ -105,7 +105,7 @@ private:
       {
 	ZmGuard<ZmPLock> guard(m_lock);
 	next = m_tables.readIterator<ZmRBTreeGreater>(
-	    ZmAnyHash_PtrAxor::get(*tbl)).iterate();
+	    ZmAnyHash_PtrAxor(*tbl)).iterate();
       }
       tbl = ZuMv(next);
     }

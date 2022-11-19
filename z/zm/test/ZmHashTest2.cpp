@@ -33,13 +33,11 @@
 #include <zlib/ZmSpecific.hpp>
 
 struct Orders_HeapID {
-  static constexpr const char *id() { return "Orders"; }
+  constexpr static const char *id() { return "Orders"; }
 };
 
 struct Order : public ZuObject {
-  struct IDAccessor {
-    static unsigned get(const Order *o) { return o->id; }
-  };
+  static unsigned IDAccessor(const Order *o) { return o->id; }
   Order(unsigned id_) : id(id_) { }
   unsigned id;
 };

@@ -341,7 +341,7 @@ public:
   const T *begin() const { return data(); }
   const T *end() const { return data() + m_length; }
 
-  static constexpr unsigned size() { return N; }
+  constexpr static unsigned size() { return N; }
   unsigned length() const { return m_length; }
 
 // reset to null

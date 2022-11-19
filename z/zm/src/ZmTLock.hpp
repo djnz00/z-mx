@@ -113,9 +113,7 @@ struct ZmTLock_Held {
   int		m_lockCount;
 };
 
-struct ZmTLock_Held_ThreadAxor {
-  ZuInline static void *get(ZmTLock_Held h) { return h.m_thread; }
-};
+inline void *ZmTLock_Held_ThreadAxor(ZmTLock_Held h) { return h.m_thread; }
 
 struct ZmTLock_Test;
 
@@ -134,7 +132,7 @@ friend ZmTLock_Test;
   using Guard_ = ZmGuard<Lock_>;
   using ReadGuard_ = ZmReadGuard<Lock_>;
 
-  struct HeapID { static constexpr const char *id() { return "ZmTLock"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmTLock"; } };
 
   using Held = ZmTLock_Held;
   using HeldStack =
@@ -545,8 +543,8 @@ public:
     ThreadRef thread;
     Guard_ guard(m_lock);
 
-    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void{});
-    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void{});
+    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void());
+    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void());
 
     unlock_(lock, thread);
   }
@@ -616,7 +614,7 @@ public:
     ThreadRef oldThread, newThread;
     Guard_ guard(m_lock);
 
-    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void{});
+    ZmTLock_ID2LOCK(ZuFwd<ID_>(id), lock, void());
 
     {
       typename ThreadHash::NodeRef threadNode;
@@ -649,7 +647,7 @@ public:
     ThreadRef thread;
     Guard_ guard(m_lock);
 
-    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void{});
+    ZmTLock_TID2THREAD(ZuFwd<TID_>(tid), thread, void());
 
     thread->finalize(*this);
   }

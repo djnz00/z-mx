@@ -462,26 +462,7 @@ namespace Zu_ {
 }
 
 // generic accessor
-template <unsigned I = 0>
-struct ZuTupleAxor {
-  template <
-    typename P, unsigned J = I,
-    bool = ZuTraits<typename P::template Type<J>>::IsReference>
-  struct Bind {
-    static decltype(auto) get(const P &v) { return v.template p<J>(); }
-    static decltype(auto) get(P &v) { return v.template p<J>(); }
-    static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
-  };
-  template <typename P, unsigned J>
-  struct Bind<P, J, true> {
-    static decltype(auto) get(const P &v) { return v.template p<J>(); }
-    static decltype(auto) get(P &v) { return v.template p<J>(); }
-  };
-  template <typename P>
-  static decltype(auto) get(P &&v) {
-    return Bind<ZuDecay<P>>::get(ZuFwd<P>(v));
-  }
-};
+#define ZuTupleAxor ZuPairAxor
 
 // STL structured binding cruft
 #include <type_traits>

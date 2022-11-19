@@ -37,20 +37,20 @@
 #include <zlib/ZuObject.hpp>
 
 template <
-  typename T, typename KeyAxor, typename ValAxor, typename Heap, bool Derive,
+  typename T, auto KeyAxor, auto ValAxor, typename Heap, bool Derive,
   template <typename, typename, bool> typename Fn>
 class ZmNode;
 
 // node contains type
 template <
-  typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
+  typename T_, auto KeyAxor_, auto ValAxor_, typename Heap,
   template <typename, typename, bool> typename Fn_>
 class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_> :
   public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_>, Heap, 0> {
 public:
   using T = T_;
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
   using Fn = Fn_<ZmNode, Heap, 0>;
   using U = ZuDecay<T>;
 
@@ -68,13 +68,13 @@ public:
   auto &data() & { return m_data; }
   decltype(auto) data() && { return ZuMv(m_data); }
 
-  decltype(auto) key() const & { return KeyAxor::get(data()); }
-  decltype(auto) key() & { return KeyAxor::get(data()); }
-  decltype(auto) key() && { return KeyAxor::get(data()); }
+  decltype(auto) key() const & { return KeyAxor(data()); }
+  decltype(auto) key() & { return KeyAxor(data()); }
+  decltype(auto) key() && { return KeyAxor(data()); }
 
-  decltype(auto) val() const & { return ValAxor::get(data()); }
-  decltype(auto) val() & { return ValAxor::get(data()); }
-  decltype(auto) val() && { return ValAxor::get(data()); }
+  decltype(auto) val() const & { return ValAxor(data()); }
+  decltype(auto) val() & { return ValAxor(data()); }
+  decltype(auto) val() && { return ValAxor(data()); }
 
 private:
   U	m_data;
@@ -82,15 +82,15 @@ private:
 
 // node derives from type
 template <
-  typename T_, typename KeyAxor_, typename ValAxor_, typename Heap,
+  typename T_, auto KeyAxor_, auto ValAxor_, typename Heap,
   template <typename, typename, bool> typename Fn_>
 class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_> :
   public ZuDecay<T_>,
   public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_>, Heap, 1> {
 public:
   using T = T_;
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
   using Fn = Fn_<ZmNode, Heap, 1>;
   using U = ZuDecay<T>;
 
@@ -108,13 +108,13 @@ public:
   decltype(auto) data() & { return static_cast<U &>(*this); }
   decltype(auto) data() && { return static_cast<U &&>(*this); }
 
-  decltype(auto) key() const & { return KeyAxor::get(data()); }
-  decltype(auto) key() & { return KeyAxor::get(data()); }
-  decltype(auto) key() && { return KeyAxor::get(data()); }
+  decltype(auto) key() const & { return KeyAxor(data()); }
+  decltype(auto) key() & { return KeyAxor(data()); }
+  decltype(auto) key() && { return KeyAxor(data()); }
 
-  decltype(auto) val() const & { return ValAxor::get(data()); }
-  decltype(auto) val() & { return ValAxor::get(data()); }
-  decltype(auto) val() && { return ValAxor::get(data()); }
+  decltype(auto) val() const & { return ValAxor(data()); }
+  decltype(auto) val() & { return ValAxor(data()); }
+  decltype(auto) val() && { return ValAxor(data()); }
 };
 
 template <typename O, bool = ZuIsObject_<O>::OK> struct ZmNodePolicy;

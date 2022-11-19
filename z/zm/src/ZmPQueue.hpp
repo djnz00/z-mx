@@ -71,38 +71,39 @@
 // Key would be uint32_t/uint64_t, key() would return the key in the header
 // length() would return the number of bytes in the packet/fragment
 
-struct ZmPQueueDefaultKeyAxor {
-  template <typename P> struct Bind {
-    static decltype(auto) get(const P &v) { return v.key(); }
-    static decltype(auto) get(P &v) { return v.key(); }
-    static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).key()); }
+template <typename T>
+struct ZmPQueue_DefaultKeyAxor_Bind {
+  static decltype(auto) get(const T &v) { return v.key(); }
+  static decltype(auto) get(T &v) { return v.key(); }
+  static decltype(auto) get(T &&v) { return ZuMv(ZuMv(v).key()); }
+};
+inline constexpr auto ZmPQueueDefaultKeyAxor() {
+  return [] <typename T> (T &&v) -> decltype(auto) {
+    return ZmPQueue_DefaultKeyAxor_Bind<ZuDecay<T>>::get(ZuFwd<T>(v));
   };
-  template <typename P>
-  static auto get(P &&v) { return Bind<ZuDecay<P>>::get(ZuFwd<P>(v)); }
-};
-struct ZmPQueueDefaultLenAxor {
-  template <typename Item>
-  static unsigned get(const Item &i) { return i.length(); }
-};
+}
+inline constexpr auto ZmPQueueDefaultLenAxor() {
+  return [] <typename T> (const T &v) -> unsigned { return v.length(); };
+}
 template <
   typename Item,
-  typename KeyAxor_ = ZmPQueueDefaultKeyAxor,
-  typename LenAxor_ = ZmPQueueDefaultLenAxor>
+  auto KeyAxor_ = ZmPQueueDefaultKeyAxor(),
+  auto LenAxor_ = ZmPQueueDefaultLenAxor()>
 class ZmPQueueDefaultFn {
 public:
   // KeyAxor is the accessor for the key (sequence number)
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 
   // LenAxor is the accessor for the length
-  using LenAxor = LenAxor_;
+  constexpr static auto LenAxor = LenAxor_;
 
-  // Key is the type of the sequence number returned by KeyAxor::get()
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const Item &>()))>;
+  // Key is the type of the sequence number returned by KeyAxor()
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const Item &>()))>;
 
   ZmPQueueDefaultFn(Item &item) : m_item(item) { }
 
-  Key key() const { return KeyAxor::get(m_item); }
-  unsigned length() const { return LenAxor::get(m_item); }
+  Key key() const { return KeyAxor(m_item); }
+  unsigned length() const { return LenAxor(m_item); }
 
   // clipHead()/clipTail() remove elements from the item's head or tail
   // clipHead()/clipTail() can just return 1 if item length is always 1,
@@ -129,7 +130,7 @@ struct ZmPQueue_Defaults {
   enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
   using Object = ZuNull;
-  struct HeapID { static constexpr const char *id() { return "ZmPQueue"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmPQueue"; } };
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
 };
@@ -199,7 +200,7 @@ class ZmPQueue :
 public:
   using Item = Item_;
   using Fn = typename NTP::template ZmPQueueFnT<Item>;
-  using KeyAxor = typename Fn::KeyAxor;
+  constexpr static auto KeyAxor = Fn::KeyAxor;
   using Key = typename Fn::Key;
   enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
@@ -248,7 +249,8 @@ public:
   };
 
   template <typename Heap>
-  using Node_ = ZmNode<Item, KeyAxor, ZuDefaultAxor, Heap, NodeDerive, NodeFn_>;
+  using Node_ =
+    ZmNode<Item, KeyAxor, ZuDefaultAxor(), Heap, NodeDerive, NodeFn_>;
   struct NullHeap { }; // deconflict with ZuNull
   using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
   using Node = Node_<NodeHeap>;

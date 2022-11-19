@@ -95,7 +95,7 @@ struct BufLRUNode_ {
   unsigned	blkIndex;
 };
 struct BufLRU_HeapID {
-  static constexpr const char *id() { return "ZdfSeries.BufLRU"; }
+  constexpr static const char *id() { return "ZdfSeries.BufLRU"; }
 };
 using BufLRU =
   ZmList<BufLRUNode_,
@@ -196,7 +196,7 @@ private:
   uint8_t		m_data[Size];
 };
 struct Buf_HeapID {
-  static constexpr const char *id() { return "ZdfSeries.Buf"; }
+  constexpr static const char *id() { return "ZdfSeries.Buf"; }
 };
 using Buf = Buf_<ZmHeap<Buf_HeapID, sizeof(Buf_<ZuNull>)>>;
 

@@ -69,7 +69,7 @@
 #ifdef ZiVRing_STRESSTEST
 #define ZiVRing_bp(x) Zm::yield()
 #else
-#define ZiVRing_bp(x) (void{})
+#define ZiVRing_bp(x) (void())
 #endif
 #endif
 

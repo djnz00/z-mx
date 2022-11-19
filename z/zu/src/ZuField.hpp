@@ -68,13 +68,13 @@
 
 #define ZuField_ID(O_, ID) \
   using O = O_; \
-  static constexpr const char *id() { return #ID; }
+  constexpr static const char *id() { return #ID; }
 #define ZuField_1(O, ID) \
   ZuField_ID(O, ID) \
-  static constexpr uint64_t keys() { return 0; }
+  constexpr static uint64_t keys() { return 0; }
 #define ZuField_2(O, ID, Keys_) \
   ZuField_ID(O, ID) \
-  static constexpr uint64_t keys() { return ZuField_Keys(Keys_); }
+  constexpr static uint64_t keys() { return ZuField_Keys(Keys_); }
 #define ZuField_N(O, _0, _1, Fn, ...) Fn
 #define ZuField__(O, ...) \
   ZuField_N(O, __VA_ARGS__, \
@@ -109,7 +109,7 @@
   using T = ZuDecay<decltype(ZuDeclVal<const O &>().Get())>; \
   static decltype(auto) get(const O &o) { return o.Get(); } \
   static decltype(auto) get(O &o) { return o.Get(); } \
-  static decltype(auto) get(O &&o) { return ZuMv(o).Get(); }
+  static decltype(auto) get(O &&o) { return ZuMv(ZuMv(o).Get()); }
 #define ZuFieldAliasFn_(O, Set) \
   template <typename V> \
   static void set(O &o, V &&v) { o.Set(ZuFwd<V>(v)); }

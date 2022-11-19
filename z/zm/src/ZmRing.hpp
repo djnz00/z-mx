@@ -49,7 +49,7 @@
 #ifdef ZmRing_STRESSTEST
 #define ZmRing_bp(self, name) ZmPlatform::yield()
 #else
-#define ZmRing_bp(self, name) (void{})
+#define ZmRing_bp(self, name) (void())
 #endif
 #endif
 
@@ -61,19 +61,10 @@
 
 namespace ZmRing_ {
 
-template <typename T>
-struct DefaultSizeAxor {
-  static constexpr unsigned get(const void *) { return sizeof(T); }
-};
-template <>
-struct DefaultSizeAxor<void> {
-  static constexpr unsigned get(const void *) { return 0; }
-};
-
 // NTP defaults
 struct Defaults {
   using T = void;					// variable-sized
-  using SizeAxor = DefaultSizeAxor<T>;
+  constexpr static auto SizeAxor = [](const void *) { return 0; };
   enum { MW = 0 };
   enum { MR = 0 };
 };
@@ -84,18 +75,18 @@ struct Defaults {
 template <typename T_, typename NTP = ZmRing_::Defaults>
 struct ZmRingT : public NTP {
   using T = T_;
-  using SizeAxor = ZmRing_::DefaultSizeAxor<T>;
+  constexpr static auto SizeAxor = [](const void *) { return sizeof(T); };
 };
 template <typename NTP>
 struct ZmRingT<ZuNull, NTP> : public NTP {
   using T = void;
-  using SizeAxor = ZmRing_::DefaultSizeAxor<T>;
+  constexpr static auto SizeAxor = [](const void *) { return 0; };
 };
 
 // variable-sized message type
-template <typename SizeAxor_, typename NTP = ZmRing_::Defaults>
+template <auto SizeAxor_, typename NTP = ZmRing_::Defaults>
 struct ZmRingSizeAxor : public NTP {
-  using SizeAxor = SizeAxor_;
+  constexpr static auto SizeAxor = SizeAxor_;
 };
 
 // multiple producers
@@ -179,7 +170,7 @@ protected:
 class ZmAPI CtrlMem {
 public:
   CtrlMem() = default;
-  CtrlMem(const CtrlMem &blk) : m_addr(blk.m_addr) { }
+  CtrlMem(const CtrlMem &mem) : m_addr{mem.m_addr} { }
 
   bool open(unsigned size, const ZmBitmap &cpuset);
   void close(unsigned size);
@@ -188,7 +179,7 @@ public:
   ZuInline void *addr() { return m_addr; }
 
 protected:
-  void			*m_addr = nullptr;
+  void		*m_addr = nullptr;
 };
 
 template <bool MR> struct Ctrl_ {
@@ -313,7 +304,7 @@ template <> struct AlignFn<false, false> {
 class ZmAPI DataMem {
 public:
   DataMem() = default;
-  DataMem(const DataMem &blk) : m_addr(blk.m_addr) { }
+  DataMem(const DataMem &mem) : m_addr(mem.m_addr) { }
 
   bool open(unsigned size, const ZmBitmap &cpuset);
   void close(unsigned size);
@@ -327,6 +318,8 @@ private:
 
 class ZmAPI MirrorDataMem {
 public:
+  static unsigned alignSize(unsigned size);
+
   bool open(unsigned size, const ZmBitmap &cpuset);
   void close(unsigned size);
 
@@ -382,17 +375,16 @@ protected:
 private:
   using Base = DataMgr_<DataMem>;
 
-protected:
-  enum { Size = AlignFn<MW, MR>::align(sizeof(T)) };
+public:
+  enum { MsgSize = AlignFn<MW, MR>::align(sizeof(T)) };
 
+protected:
   DataMgr() = default;
   DataMgr(const DataMgr &ring) : Base{ring} { }
 
-  constexpr static unsigned sizeAlign(unsigned n) {
-    return ((n + Size - 1) / Size) * Size;
+  constexpr static unsigned alignSize(unsigned n) {
+    return ((n + MsgSize - 1) / MsgSize) * MsgSize;
   }
-
-  DataMem		m_data;
 };
 template <typename DataMem_, typename MirrorDataMem_, bool MW, bool MR>
 class DataMgr<DataMem_, MirrorDataMem_, void, MW, MR> :
@@ -404,16 +396,14 @@ private:
   using Base = DataMgr_<DataMem>;
 
 protected:
-  enum { Size = 0 };
+  enum { MsgSize = 0 };
 
   DataMgr() = default;
   DataMgr(const DataMgr &ring) : Base{ring} { }
 
-  constexpr static unsigned sizeAlign(unsigned n) {
-    return AlignFn<MW, MR>::align(n);
+  static unsigned alignSize(unsigned n) {
+    return DataMem::alignSize(n);
   }
-
-  DataMem		m_data;
 };
 
 inline constexpr uint64_t EndOfFile_() { return static_cast<uint64_t>(1)<<61; }
@@ -436,6 +426,9 @@ inline constexpr uint32_t Mask32()      { return Waiting32() | EndOfFile32(); }
 // CRTP - SR ring reader functions
 template <typename Ring, bool MR>
 class RingRdr {
+  Ring *ring() { return static_cast<Ring *>(this); }
+  const Ring *ring() const { return static_cast<const Ring *>(this); }
+
 public:
   int attach();				// unused
   int detach();				// ''
@@ -483,7 +476,7 @@ class Ring :
       DataMem, MirrorDataMem,
       typename NTP::T, NTP::MW, NTP::MR>,
     public RingRdr<Ring<NTP>, NTP::MR> {
-protected:
+public:
   using T = typename NTP::T;
   enum { MW = NTP::MW };
   enum { MR = NTP::MR };
@@ -495,14 +488,17 @@ private:
   using RingRdr_ = RingRdr<Ring<NTP>, MR>;
 friend RingRdr_;
 
-protected:
 public:
-  using SizeAxor = typename NTP::SizeAxor;
+  constexpr static auto SizeAxor = NTP::SizeAxor;
   enum { V = ZuConversion<void, T>::Same };
+  enum { MsgSize = DataMgr_::MsgSize };
 
   // MR requires attach() / detach(), which require a non-default SizeAxor
   ZuAssert(
-      (!MR || !ZuConversion<DefaultSizeAxor<void>, SizeAxor>::Same));
+      (!MR || !ZuConversion<
+	decltype([](const void *) { return 0; }),
+	decltype(SizeAxor)
+      >::Same));
 
   enum { // open() flags
     Read	= 0x00000001,
@@ -543,7 +539,7 @@ public:
 private:
   using AlignFn_::align;
 
-  using Ctrl = CtrlMgr_::Ctrl;
+  using Ctrl = typename CtrlMgr_::Ctrl;
   using CtrlMgr_::openCtrl;
   using CtrlMgr_::closeCtrl;
 public:
@@ -560,9 +556,9 @@ private:
   using CtrlMgr_::attMask;
   using CtrlMgr_::attSeqNo;
 
-  enum { Size = DataMgr_::Size };
   using DataMgr_::openData;
   using DataMgr_::closeData;
+  using DataMgr_::alignSize;
 public:
   using DataMgr_::data;
 
@@ -585,8 +581,7 @@ public:
     }
     if (ctrl()) return OK;
     if (!params().size()) return IOError;
-    m_size = params().size();
-    if constexpr (Size) m_size = ((m_size + Size - 1) / Size) * Size;
+    m_size = alignSize(params().size());
     m_flags = flags;
     if (!openCtrl(params().cpuset())) return IOError;
     if (!openData(m_size, params().cpuset())) {
@@ -671,7 +666,7 @@ private:
     ZmAssert(m_flags & Write);
   }
 
-  unsigned alignSize(unsigned size) {
+  unsigned alignAssert(unsigned size) {
     size = align(size);
     ZmAssert(size < this->size());
     return size;
@@ -798,20 +793,20 @@ private:
     ZmRing_push_return_swsr();
   }
 public:
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<!MW_ && !MR_> push2() {
+  template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
+  ZuIfT<!MW_ && !MR_ && !V_> push2() {
     writeAssert();
     ZmRing_push2_get_head();
-    ZmRing_move_head_swsr(Size);
+    ZmRing_move_head_swsr(MsgSize);
     wakeReaders(head);
-    ZmRing_push2_update_stats(Size);
+    ZmRing_push2_update_stats(MsgSize);
   }
 private:
   // variable-size SWSR
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && V_, void *> push_(unsigned size) {
     writeAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
   retry:
     ZmRing_push_get_head_tail();
     if (pushFull(head, tail, size)) ZmRing_push_retry();
@@ -821,6 +816,7 @@ public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && V_> push2(unsigned size) {
     writeAssert();
+    size = alignAssert(size);
     ZmRing_push2_get_head();
     ZmRing_move_head_swsr(size);
     wakeReaders(head);
@@ -839,18 +835,19 @@ private:
   }
 public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
-  ZuIfT<!MW_ && !MR_ && !V_> push2() {
+  ZuIfT<!MW_ && MR_ && !V_> push2() {
     writeAssert();
     ZmRing_push2_get_head();
-    ZmRing_move_head_swmr(Size);
+    ZmRing_move_head_swmr(MsgSize);
     wakeReaders(head_);
-    ZmRing_push2_update_stats(Size);
+    ZmRing_push2_update_stats(MsgSize);
   }
 private:
   // variable-size SWMR
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && MR_ && V_, void *> push_(unsigned size) {
     writeAssert();
+    size = alignAssert(size);
   retry:
     ZmRing_push_get_rdrMask();
     ZmRing_push_get_head_tail();
@@ -861,7 +858,7 @@ public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && MR_ && V_> push2(unsigned size) {
     writeAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
     ZmRing_push2_get_head();
     ZmRing_move_head_swmr(size);
     wakeReaders(head_);
@@ -875,7 +872,7 @@ private:
   retry:
     ZmRing_push_get_head_tail();
     if (pushFull(head, tail)) ZmRing_push_retry();
-    ZmRing_move_head_mwsr(Size);
+    ZmRing_move_head_mwsr(MsgSize);
     ZmRing_push_return_mwsr();
   }
 public:
@@ -883,14 +880,14 @@ public:
   ZuIfT<MW_ && !MR_ && !V_> push2(void *ptr) {
     writeAssert();
     wakeReaders(ptr);
-    ZmRing_push2_update_stats(Size);
+    ZmRing_push2_update_stats(MsgSize);
   }
 private:
   // variable-size MWSR
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && !MR_ && V_, void *> push_(unsigned size) {
     writeAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
   retry:
     ZmRing_push_get_head_tail();
     if (pushFull(head, tail, size)) ZmRing_push_retry();
@@ -901,6 +898,7 @@ public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && !MR_ && V_> push2(void *ptr, unsigned size) {
     writeAssert();
+    size = alignAssert(size);
     wakeReaders(ptr);
     ZmRing_push2_update_stats(size);
   }
@@ -912,7 +910,7 @@ private:
   retry:
     ZmRing_push_get_head_tail();
     if (pushFull(head, tail)) ZmRing_push_retry();
-    ZmRing_move_head_mwmr(Size);
+    ZmRing_move_head_mwmr(MsgSize);
     ZmRing_push_return_mwmr();
   }
 public:
@@ -920,14 +918,14 @@ public:
   ZuIfT<MW_ && MR_ && !V_> push2(void *ptr) {
     writeAssert();
     wakeReaders(ptr);
-    ZmRing_push2_update_stats(Size);
+    ZmRing_push2_update_stats(MsgSize);
   }
 private:
   // variable-size MWMR - push2() is same as fixed-size
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && MR_ && V_, void *> push_(unsigned size) {
     writeAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
   retry:
     ZmRing_push_get_head_tail();
     if (pushFull(head, tail, size)) ZmRing_push_retry();
@@ -938,6 +936,7 @@ public:
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && MR_ && V_> push2(void *ptr, unsigned size) {
     writeAssert();
+    size = alignAssert(size);
     wakeReaders(ptr);
     ZmRing_push2_update_stats(size);
   }
@@ -1098,15 +1097,15 @@ public:
   ZuIfT<!MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_swsr(Size);
+    ZmRing_shift2_move_tail_swsr(MsgSize);
     wakeWriters(tail);
-    ZmRing_shift2_update_stats(Size);
+    ZmRing_shift2_update_stats(MsgSize);
   }
   // variable-size SWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && V_> shift2(unsigned size) {
     readAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
     ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail_swsr(size);
     wakeWriters(tail);
@@ -1127,15 +1126,15 @@ public:
   ZuIfT<!MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_swmr(Size);
+    ZmRing_shift2_move_tail_swmr(MsgSize);
     wakeWriters(tail);
-    ZmRing_shift2_update_stats(Size);
+    ZmRing_shift2_update_stats(MsgSize);
   }
   // variable-size SWMR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && MR_ && V_> shift2(unsigned size) {
     readAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
     ZmRing_shift_get_tail_mr();
     ZmRing_shift2_move_tail_swmr(size);
     wakeWriters(tail);
@@ -1156,15 +1155,15 @@ public:
   ZuIfT<MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_mwsr(Size);
+    ZmRing_shift2_move_tail_mwsr(MsgSize);
     wakeWriters(tail);
-    ZmRing_shift2_update_stats(Size);
+    ZmRing_shift2_update_stats(MsgSize);
   }
   // variable-size MWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && !MR_ && V_> shift2(unsigned size) {
     readAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
     ZmRing_shift_get_tail_sr();
     ZmRing_shift2_move_tail_mwsr(size);
     wakeWriters(tail);
@@ -1185,15 +1184,15 @@ public:
   ZuIfT<MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_mwmr(Size);
+    ZmRing_shift2_move_tail_mwmr(MsgSize);
     wakeWriters(tail);
-    ZmRing_shift2_update_stats(Size);
+    ZmRing_shift2_update_stats(MsgSize);
   }
   // variable-size MWMR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && MR_ && V_> shift2(unsigned size) {
     readAssert();
-    size = alignSize(size);
+    size = alignAssert(size);
     ZmRing_shift_get_tail_mr();
     ZmRing_shift2_move_tail_mwmr(size);
     wakeWriters(tail);
@@ -1238,7 +1237,10 @@ public:
   unsigned count_() const {
     int i = readStatus();
     if (i < 0) return 0;
-    return i / Size;
+    if constexpr (!MsgSize)
+      return i;
+    else
+      return i / MsgSize;
   }
 
   void stats(
@@ -1268,8 +1270,6 @@ public:
   ZmRing_Breakpoint	bp_detach1;
   ZmRing_Breakpoint	bp_detach2;
   ZmRing_Breakpoint	bp_detach3;
-  ZmRing_Breakpoint	bp_detach4;
-  ZmRing_Breakpoint	bp_detach5;
   ZmRing_Breakpoint	bp_shift1;
 #endif
 };
@@ -1283,8 +1283,8 @@ inline void RingRdr<Ring, true>::close_()
   }
 }
 
-template <typename Ring>
-inline int RingRdr<Ring, false>::attach()	// unused
+template <typename Ring, bool MR>
+inline int RingRdr<Ring, MR>::attach()	// unused
 {
   /**/ZmRing_bp(ring(), attach1);
   /**/ZmRing_bp(ring(), attach2);
@@ -1334,22 +1334,20 @@ inline int RingRdr<Ring, true>::attach()
   auto data = ring()->data();
   auto size = ring()->size();
 
-  using SizeAxor = Ring::SizeAxor;
-
   do {
     while (tail != head) {
       auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
 	  &data[tail & ~Wrapped32()]);
       if (*hdrPtr & (1ULL<<rdrID())) goto done; // writer aware
-      tail += ring()->align(SizeAxor::get(&hdrPtr[1]));
+      tail += ring()->align(Ring::SizeAxor(&hdrPtr[1]));
       if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
     }
     head_ = head;
-    /**/ZmRing_bp(ring(), attach4);
     head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
-
 done:
+  /**/ZmRing_bp(ring(), attach4);
+
   rdrTail(tail);
 
   ++(ring()->attSeqNo());
@@ -1357,14 +1355,12 @@ done:
   return OK;
 }
 
-template <typename Ring>
-inline int RingRdr<Ring, false>::detach()	// unused
+template <typename Ring, bool MR>
+inline int RingRdr<Ring, MR>::detach()	// unused
 {
   /**/ZmRing_bp(ring(), detach1);
   /**/ZmRing_bp(ring(), detach2);
   /**/ZmRing_bp(ring(), detach3);
-  /**/ZmRing_bp(ring(), detach4);
-  /**/ZmRing_bp(ring(), detach5);
   return OK;
 }
 
@@ -1395,28 +1391,25 @@ inline int RingRdr<Ring, true>::detach()
   auto data = ring()->data();
   auto size = ring()->size();
 
-  using SizeAxor = Ring::SizeAxor;
-
   do {
     while (tail != head) {
       auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
 	  &data[tail & ~Wrapped32()]);
       if (!(*hdrPtr & (1ULL<<rdrID()))) goto done; // writer aware
-      tail += ring()->align(SizeAxor::get(&hdrPtr[1]));
+      tail += ring()->align(Ring::SizeAxor(&hdrPtr[1]));
       if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
       if (*hdrPtr &= ~(1ULL<<rdrID())) continue;
-      /**/ZmRing_bp(ring(), detach3);
       ring()->wakeWriters(tail);
     }
     head_ = head;
-    /**/ZmRing_bp(ring(), detach4);
     head = ring()->head() & ~Mask32(); // acquire
   } while (head != head_);
 done:
+  /**/ZmRing_bp(ring(), detach3);
+
   rdrTail(tail);
 
   // release ID for re-use by future attach
-  /**/ZmRing_bp(ring(), detach5);
 
   ++(ring()->attSeqNo());
 

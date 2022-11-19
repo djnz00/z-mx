@@ -45,22 +45,22 @@ class ZuDecimalVFmt;	// internal
 struct ZuDecimal {
   template <unsigned N> using Pow10 = ZuDecimalFn::Pow10<N>;
 
-  static constexpr const int128_t minimum() {
+  constexpr static const int128_t minimum() {
     return -Pow10<36U>::pow10() + 1;
   }
-  static constexpr const int128_t maximum() {
+  constexpr static const int128_t maximum() {
     return Pow10<36U>::pow10() - 1;
   }
-  static constexpr const int128_t reset() {
+  constexpr static const int128_t reset() {
     return -Pow10<36U>::pow10();
   }
-  static constexpr const int128_t null() {
+  constexpr static const int128_t null() {
     return static_cast<int128_t>(1)<<127;
   }
-  static constexpr const uint64_t scale() { // 10^18
+  constexpr static const uint64_t scale() { // 10^18
     return Pow10<18U>::pow10();
   }
-  static constexpr const long double scale_fp() { // 10^18
+  constexpr static const long double scale_fp() { // 10^18
     return 1000000000000000000.0L;
   }
 

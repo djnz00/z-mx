@@ -32,7 +32,7 @@
 
 namespace ZuDecimalFn {
   ZuInline const unsigned pow10_32(unsigned i) {
-    static constexpr unsigned pow10[] = {
+    constexpr static unsigned pow10[] = {
       1U,
       10U,
       100U,
@@ -48,7 +48,7 @@ namespace ZuDecimalFn {
   }
 
   ZuInline const uint64_t pow10_64(unsigned i) {
-    static constexpr uint64_t pow10[] = {
+    constexpr static uint64_t pow10[] = {
       1ULL,
       10ULL,
       100ULL,
@@ -84,70 +84,70 @@ namespace ZuDecimalFn {
 
   template <unsigned I> struct Pow10 { };
   template <> struct Pow10<0U> {
-    ZuInline static constexpr unsigned pow10() { return 1U; }
+    ZuInline constexpr static unsigned pow10() { return 1U; }
   };
   template <> struct Pow10<1U> {
-    ZuInline static constexpr unsigned pow10() { return 10U; }
+    ZuInline constexpr static unsigned pow10() { return 10U; }
   };
   template <> struct Pow10<2U> {
-    ZuInline static constexpr unsigned pow10() { return 100U; }
+    ZuInline constexpr static unsigned pow10() { return 100U; }
   };
   template <> struct Pow10<3U> {
-    ZuInline static constexpr unsigned pow10() { return 1000U; }
+    ZuInline constexpr static unsigned pow10() { return 1000U; }
   };
   template <> struct Pow10<4U> {
-    ZuInline static constexpr unsigned pow10() { return 10000U; }
+    ZuInline constexpr static unsigned pow10() { return 10000U; }
   };
   template <> struct Pow10<5U> {
-    ZuInline static constexpr unsigned pow10() { return 100000U; }
+    ZuInline constexpr static unsigned pow10() { return 100000U; }
   };
   template <> struct Pow10<6U> {
-    ZuInline static constexpr unsigned pow10() { return 1000000U; }
+    ZuInline constexpr static unsigned pow10() { return 1000000U; }
   };
   template <> struct Pow10<7U> {
-    ZuInline static constexpr unsigned pow10() { return 10000000U; }
+    ZuInline constexpr static unsigned pow10() { return 10000000U; }
   };
   template <> struct Pow10<8U> {
-    ZuInline static constexpr unsigned pow10() { return 100000000U; }
+    ZuInline constexpr static unsigned pow10() { return 100000000U; }
   };
   template <> struct Pow10<9U> {
-    ZuInline static constexpr unsigned pow10() { return 1000000000U; }
+    ZuInline constexpr static unsigned pow10() { return 1000000000U; }
   };
   template <> struct Pow10<10U> {
-    ZuInline static constexpr uint64_t pow10() { return 10000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 10000000000ULL; }
   };
   template <> struct Pow10<11U> {
-    ZuInline static constexpr uint64_t pow10() { return 100000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 100000000000ULL; }
   };
   template <> struct Pow10<12U> {
-    ZuInline static constexpr uint64_t pow10() { return 1000000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 1000000000000ULL; }
   };
   template <> struct Pow10<13U> {
-    ZuInline static constexpr uint64_t pow10() { return 10000000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 10000000000000ULL; }
   };
   template <> struct Pow10<14U> {
-    ZuInline static constexpr uint64_t pow10() { return 100000000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 100000000000000ULL; }
   };
   template <> struct Pow10<15U> {
-    ZuInline static constexpr uint64_t pow10() { return 1000000000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 1000000000000000ULL; }
   };
   template <> struct Pow10<16U> {
-    ZuInline static constexpr uint64_t pow10() { return 10000000000000000ULL; }
+    ZuInline constexpr static uint64_t pow10() { return 10000000000000000ULL; }
   };
   template <> struct Pow10<17U> {
-    ZuInline static constexpr uint64_t pow10()
+    ZuInline constexpr static uint64_t pow10()
       { return 100000000000000000ULL; }
   };
   template <> struct Pow10<18U> {
-    ZuInline static constexpr uint64_t pow10()
+    ZuInline constexpr static uint64_t pow10()
       { return 1000000000000000000ULL; }
   };
   template <> struct Pow10<19U> {
-    ZuInline static constexpr uint64_t pow10()
+    ZuInline constexpr static uint64_t pow10()
       { return 10000000000000000000ULL; }
   };
   template <unsigned I> struct Pow10_128 {
-    ZuInline static constexpr uint128_t pow10() {
+    ZuInline constexpr static uint128_t pow10() {
       return
 	(uint128_t)Pow10<I - 19U>::pow10() *
 	(uint128_t)10000000000000000000ULL;

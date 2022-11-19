@@ -74,7 +74,7 @@
 
 struct ZtArray_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
-  struct HeapID { static constexpr const char *id() { return "ZtArray"; } };
+  struct HeapID { constexpr static const char *id() { return "ZtArray"; } };
 };
 
 // ZtArrayCmp - the comparator

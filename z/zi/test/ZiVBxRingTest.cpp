@@ -41,7 +41,7 @@ void fail()
 {
   Zm::exit(1);
 }
-#define ensure(x) ((x) ? void{} : check_(x, __LINE__, #x))
+#define ensure(x) ((x) ? void() : check_(x, __LINE__, #x))
 #define check(x) check_(x, __LINE__, #x)
 void check_(bool ok, unsigned line, const char *exp)
 {

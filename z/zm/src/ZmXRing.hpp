@@ -69,18 +69,18 @@ private:
 //   ZmXRingCmp<ZtICmp> >		// case-insensitive comparison
 
 struct ZmXRing_Defaults {
-  using KeyAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  struct HeapID { static constexpr const char *id() { return "ZmXRing"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmXRing"; } };
 };
 
 // ZmXRingKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmXRing_Defaults>
+template <auto KeyAxor_, typename NTP = ZmXRing_Defaults>
 struct ZmXRingKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmXRingCmp - the comparator
@@ -145,8 +145,8 @@ friend ZmXRing_Unlocked<ZmXRing>;
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<T>;
@@ -368,7 +368,7 @@ public:
     Guard guard(m_lock);
     for (int i = m_length; --i >= 0; ) {
       unsigned o = offset(i);
-      if (KeyCmp::equals(KeyAxor::get(m_data[o]), v)) return m_data[o];
+      if (KeyCmp::equals(KeyAxor(m_data[o]), v)) return m_data[o];
     }
     return Cmp::null();
   }

@@ -93,7 +93,7 @@ namespace Telemetry {
     static auto get(const Watch &v) { return v.ptr_; }
   };
   struct Watch_HeapID {
-    static constexpr const char *id() { return "zdash.Telemetry.Watch"; }
+    constexpr static const char *id() { return "zdash.Telemetry.Watch"; }
   };
   template <typename T>
   using WatchList =
@@ -200,7 +200,7 @@ namespace Telemetry {
   };
 
   struct ItemTree_HeapID {
-    static constexpr const char *id() { return "zdash.Telemetry.Tree"; }
+    constexpr static const char *id() { return "zdash.Telemetry.Tree"; }
   };
   template <typename T>
   struct KeyAccessor {
@@ -842,7 +842,7 @@ struct CliLink_KeyAccessor {
   static CliLink_::Key get(const CliLink_ &link) { return link.key(); }
 };
 struct CliLink_HeapID {
-  static constexpr const char *id() { return "CliLink"; }
+  constexpr static const char *id() { return "CliLink"; }
 };
 using CliLinks =
   ZmRBTree<CliLink_,

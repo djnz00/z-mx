@@ -36,7 +36,7 @@ ZuString Ze::severity(unsigned i)
   static const char * const name[] = {
     "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
   };
-  static constexpr unsigned namelen[] = { 5, 4, 7, 5, 5 };
+  constexpr static unsigned namelen[] = { 5, 4, 7, 5, 5 };
 
   return i > 4 ? ZuString("UNKNOWN", 7) : ZuString(name[i], namelen[i]);
 }
@@ -255,7 +255,7 @@ void Ze::syslog(ZeEvent *e)
     logger->handle, eventlogtype(e->severity()), 0, 512, 0, 1, 0, &w, 0);
 }
 
-static constexpr struct {
+constexpr static struct {
   Ze::ErrNo	code;
   const char		*msg;
 } ZePlatform_WSAErrors_[] = {

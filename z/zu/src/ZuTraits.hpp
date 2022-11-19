@@ -55,7 +55,7 @@ struct ZuTraits_Composite {
   enum { Is = 0 };
 };
 template <typename T>
-struct ZuTraits_Composite<T, decltype((int T::*){}, void{})> {
+struct ZuTraits_Composite<T, decltype((int T::*){}, void())> {
   enum { Is = 1 };
 };
 
@@ -65,11 +65,8 @@ public:
   enum { Is = 0 };
 };
 template <typename T>
-class ZuTraits_Empty<T, decltype(sizeof(T), (int T::*){}, void{})> {
-  struct A { int _; };
-  struct B : public T { int _; };
-public:
-  enum { Is = sizeof(A) == sizeof(B) };
+struct ZuTraits_Empty<T, decltype(sizeof(T), (int T::*){}, void())> {
+  enum { Is = __is_empty(T) };
 };
 
 template <typename T> struct ZuTraits_Enum {
@@ -79,7 +76,7 @@ template <typename T, typename = void> struct ZuTraits_POD {
   enum { Is = !ZuTraits_Composite<T>::Is };
 };
 template <typename T>
-struct ZuTraits_POD<T, decltype(sizeof(T), void{})> {
+struct ZuTraits_POD<T, decltype(sizeof(T), void())> {
 #ifdef _MSC_VER
   enum { Is = __is_pod(T) };
 #else

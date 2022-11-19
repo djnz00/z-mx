@@ -183,7 +183,7 @@ protected:
 };
 
 struct ZmLambda_HeapID {
-  static constexpr const char *id() { return "ZmLambda"; }
+  constexpr static const char *id() { return "ZmLambda"; }
 };
 
 template <typename ...Args> class ZmFn : public ZmAnyFn {
@@ -202,7 +202,7 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <typename T, typename = void>
   struct IsFunctor { enum { OK = 0 }; };
   template <typename T>
-  struct IsFunctor<T, decltype(&T::operator(), void{})> {
+  struct IsFunctor<T, decltype(&T::operator(), void())> {
     enum { OK =
       !ZuConversion<ZmAnyFn, T>::Is &&
       IsFunctor_<decltype(&T::operator())>::OK

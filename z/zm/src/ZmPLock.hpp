@@ -56,7 +56,7 @@
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
 using ZmPLock_ = uint32_t;
 #define ZmPLock_init(m) m = 0
-#define ZmPLock_final(m) (void{})
+#define ZmPLock_final(m) (void())
 ZuInline void ZmPLock_lock_(ZmPLock_ &m) {
   int i = 0x00010000, j;
   __asm__ __volatile__(	"lock; xaddl %0, %1\n\t"

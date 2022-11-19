@@ -62,7 +62,7 @@ struct ZCmp {
   static bool less(const Z *z1, const Z *z2) { return z1->m_z < z2->m_z; }
   static bool equals(const Z *z1, const Z *z2) { return z1->m_z == z2->m_z; }
   static bool null(const Z *z) { return !z; }
-  static constexpr const Z *null() { return nullptr; }
+  constexpr static const Z *null() { return nullptr; }
 };
 
 using ZHash = ZmHashKV<int, ZmRef<Z>, ZmHashLock<ZmPLock>>;
@@ -147,9 +147,7 @@ struct I {
 inline bool operator ==(const I &l, const I &r) { return l.m_i == r.m_i; }
 
 struct J : public ZmObject {
-  struct IAccessor {
-    static const ::I &get(const J *j) { return j->m_i; }
-  };
+  static const ::I &IAccessor(const J *j) { return j->m_i; }
   J(int i) : m_i(i) { }
   J(const J &j) : m_i(j.m_i.m_i) { }
   J &operator =(const J &j) {

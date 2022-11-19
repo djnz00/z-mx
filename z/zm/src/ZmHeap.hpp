@@ -107,23 +107,17 @@ template <class, unsigned> friend class ZmHeapCacheT;
   using StatsFn = ZmFn<const ZmHeapStats &>;
   using AllStatsFn = ZmFn<StatsFn>;
 
-  struct IDAxor {
-    static const char *get(const ZmHeapCache *c) {
-      return c->info().id;
-    }
-  };
+  static const char *IDAxor(const ZmHeapCache *c) {
+    return c->info().id;
+  }
   using IDSize = ZuPair<const char *, unsigned>;
-  struct IDSizeAxor {
-    static IDSize get(const ZmHeapCache *c) {
-      return {c->info().id, c->info().size};
-    }
-  };
+  static IDSize IDSizeAxor(const ZmHeapCache *c) {
+    return {c->info().id, c->info().size};
+  }
   using IDPartSize = ZuTuple<const char *, unsigned, unsigned>;
-  struct IDPartSizeAxor {
-    static IDPartSize get(const ZmHeapCache *c) {
-      return {c->info().id, c->info().partition, c->info().size};
-    }
-  };
+  static IDPartSize IDPartSizeAxor(const ZmHeapCache *c) {
+    return {c->info().id, c->info().partition, c->info().size};
+  }
 
   void *operator new(size_t s);
   void *operator new(size_t s, void *p);

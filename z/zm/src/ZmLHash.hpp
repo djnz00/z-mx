@@ -60,28 +60,28 @@
 
 // NTP defaults
 struct ZmLHash_Defaults {
-  using KeyAxor = ZuDefaultAxor;
-  using ValAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
+  constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
   using Lock = ZmNoLock;
-  struct ID { static constexpr const char *id() { return "ZmLHash"; } };
+  struct ID { constexpr static const char *id() { return "ZmLHash"; } };
   enum { Static = 0 };
   enum { Local = 0 };
 };
 
 // ZmLHashKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmLHash_Defaults>
+template <auto KeyAxor_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmLHashKeyVal - key and optional value accessors
-template <typename KeyAxor_, typename ValAxor_, typename NTP = ZmLHash_Defaults>
+template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashKeyVal : public NTP {
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
 };
 
 // ZmLHashCmp - the comparator
@@ -144,7 +144,7 @@ struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
   }
 };
 
-template <typename T_, typename KeyAxor, typename ValAxor>
+template <typename T_, auto KeyAxor, auto ValAxor>
 class ZmLHash_Node {
 template <typename, typename> friend class ZmLHash;
 template <typename, typename, typename, unsigned> friend class ZmLHash_;
@@ -224,13 +224,13 @@ private:
   unsigned next() const { return m_u>>3U; }
   void next(unsigned n) { m_u = (n<<3U) | (m_u & 7U); }
 
-  decltype(auto) key() const & { return KeyAxor::get(data()); }
-  decltype(auto) key() & { return KeyAxor::get(data()); }
-  decltype(auto) key() && { return KeyAxor::get(ZuMv(data())); }
+  decltype(auto) key() const & { return KeyAxor(data()); }
+  decltype(auto) key() & { return KeyAxor(data()); }
+  decltype(auto) key() && { return KeyAxor(ZuMv(data())); }
 
-  decltype(auto) val() const & { return ValAxor::get(data()); }
-  decltype(auto) val() & { return ValAxor::get(data()); }
-  decltype(auto) val() && { return ValAxor::get(ZuMv(data())); }
+  decltype(auto) val() const & { return ValAxor(data()); }
+  decltype(auto) val() & { return ValAxor(data()); }
+  decltype(auto) val() && { return ValAxor(ZuMv(data())); }
 
   const auto &data() const & {
     ZmAssert(m_u);
@@ -300,10 +300,10 @@ protected:
 template <typename Hash, typename T, typename NTP, unsigned Static>
 class ZmLHash_ : public ZmLHash__<NTP> {
   using Base = ZmLHash__<NTP>;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
@@ -311,7 +311,7 @@ class ZmLHash_ : public ZmLHash__<NTP> {
   using Ops = ZmLHash_Ops<Node>;
 
 public:
-  static constexpr unsigned bits() { return Static; }
+  constexpr static unsigned bits() { return Static; }
 
 protected:
   ZmLHash_(const ZmHashParams &params) : Base(params) { }
@@ -319,7 +319,7 @@ protected:
   void init() { Ops::initItems(m_table, 1U<<Static); }
   void final() { Ops::destroyItems(m_table, 1U<<Static); }
   void resize() { }
-  static constexpr unsigned resized() { return 0; }
+  constexpr static unsigned resized() { return 0; }
 
   Node		m_table[1U<<Static];
 };
@@ -328,10 +328,10 @@ protected:
 template <class Hash, typename T, typename NTP>
 class ZmLHash_<Hash, T, NTP, 0> : public ZmLHash__<NTP> {
   using Base = ZmLHash__<NTP>;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor::get(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor::get(ZuDeclVal<const T &>()))>;
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
@@ -390,10 +390,10 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
-  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuDecay<KeyRet>;
   using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
@@ -614,7 +614,7 @@ public:
 
   template <typename P>
   const T *add(P &&data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(m_lock);
     return ptr(add_(ZuFwd<P>(data), code));
   }
@@ -723,7 +723,7 @@ public:
   }
   template <typename P>
   MatchData<P, bool> exists(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return find_(matchData(data), code) >= 0;
   }
@@ -736,7 +736,7 @@ public:
   }
   template <typename P>
   MatchData<P, const T *> find(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return ptr(find_(matchData(data), code));
   }
@@ -753,7 +753,7 @@ public:
   }
   template <typename P>
   MatchData<P, Key> findKey(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return key(find_(matchData(data), code));
   }
@@ -770,7 +770,7 @@ public:
   }
   template <typename P>
   MatchData<P, Val> findVal(const P &data) const {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     ReadGuard guard(const_cast<Lock &>(m_lock));
     return val(find_(matchData(data), code));
   }
@@ -808,7 +808,7 @@ private:
 public:
   template <typename P>
   const T *findAdd(P &&data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(m_lock);
     return this->ptr(findAdd__(ZuFwd<P>(data), code));
   }
@@ -840,7 +840,7 @@ public:
   }
   template <typename P>
   MatchData<P> del(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(m_lock);
     del_(findPrev_(matchData(data), code));
   }
@@ -857,7 +857,7 @@ public:
   }
   template <typename P>
   MatchData<P, Key> delKey(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(m_lock);
     return delKey_(findPrev_(matchData(data), code));
   }
@@ -874,7 +874,7 @@ public:
   }
   template <typename P>
   MatchData<P, Val> delVal(const P &data) {
-    uint32_t code = HashFn::hash(KeyAxor::get(data));
+    uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(m_lock);
     return delVal_(findPrev_(matchData(data), code));
   }
@@ -1084,6 +1084,6 @@ private:
 template <typename P0, typename P1, typename NTP = ZmLHash_Defaults>
 using ZmLHashKV =
   ZmLHash<ZuPair<P0, P1>,
-    ZmLHashKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, NTP> >;
+    ZmLHashKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP> >;
 
 #endif /* ZmLHash_HPP */

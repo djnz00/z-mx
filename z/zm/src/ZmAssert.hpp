@@ -44,11 +44,11 @@ extern "C" {
 }
 
 #ifdef NDEBUG
-#define ZmAssert(x) (void{})
+#define ZmAssert(x) (void())
 #else
 #include <zlib/ZuFnName.hpp>
 #define ZmAssert(x) \
-  ((x) ? void{} : ZmAssert_fail(#x, __FILE__, __LINE__, ZuFnName))
+  ((x) ? void() : ZmAssert_fail(#x, __FILE__, __LINE__, ZuFnName))
 #endif
 
 #endif /* ZmAssert_HPP */

@@ -271,9 +271,9 @@ auto Ze_BackTrace_fn(ZmBackTrace bt, Msg &&msg) {
 
 // filter out DEBUG messages in production builds
 #define ZeERROR_(sev, e) \
-  ((sev > Ze::Debug) ? Ze_ERROR_(sev, e) : void{})
+  ((sev > Ze::Debug) ? Ze_ERROR_(sev, e) : void())
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? Ze_LOG_(sev, msg) : void{})
+  ((sev > Ze::Debug) ? Ze_LOG_(sev, msg) : void())
 #define ZeBackTrace_(sev, msg) \
   do { if (sev > Ze::Debug) Ze_BackTrace_(sev, msg); } while (0)
 

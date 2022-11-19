@@ -85,13 +85,11 @@ class ZmAPI ZmAnyHash_ : public ZmPolymorph {
 public:
   virtual void telemetry(ZmHashTelemetry &) const { }
 };
-struct ZmAnyHash_PtrAxor {
-  static uintptr_t get(const ZmAnyHash_ &h) {
-    return (uintptr_t)(void *)&h;
-  }
-};
+uintptr_t ZmAnyHash_PtrAxor(const ZmAnyHash_ &h) {
+  return reinterpret_cast<uintptr_t>(&h);
+}
 struct ZmHashMgr_HeapID {
-  static constexpr const char *id() { return "ZmHashMgr_"; }
+  constexpr static const char *id() { return "ZmHashMgr_"; }
 };
 using ZmHashMgr_Tables =
   ZmRBTree<ZmAnyHash_,

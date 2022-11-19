@@ -403,17 +403,25 @@ namespace Zu_ {
 } // namespace Zu_
 
 // generic accessor
-template <unsigned I = 0>
-struct ZuPairAxor {
-  template <typename P, unsigned J> struct Bind {
-    static decltype(auto) get(const P &v) { return v.template p<J>(); }
-    static decltype(auto) get(P &v) { return v.template p<J>(); }
-    static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
-  };
-  template <typename P>
-  static decltype(auto) get(P &&v) {
-    return Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
-  }
+template <
+  typename P,
+  unsigned J,
+  bool = ZuTraits<typename P::template Type<J>>::IsReference>
+struct ZuPairAxor_Bind {
+  static decltype(auto) get(const P &v) { return v.template p<J>(); }
+  static decltype(auto) get(P &v) { return v.template p<J>(); }
+  static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
 };
+template <typename P, unsigned J>
+struct ZuPairAxor_Bind<P, J, true> {
+  static decltype(auto) get(const P &v) { return v.template p<J>(); }
+  static decltype(auto) get(P &v) { return v.template p<J>(); }
+};
+template <unsigned I = 0>
+inline constexpr auto ZuPairAxor() {
+  return [] <typename P> (P &&v) -> decltype(auto) {
+    return ZuPairAxor_Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
+  };
+}
 
 #endif /* ZuPair_HPP */

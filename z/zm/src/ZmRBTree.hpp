@@ -46,30 +46,30 @@
 //     ZmRBTreeValCmp<ZtICmp> >		// case-insensitive comparison
 
 struct ZmRBTree_Defaults {
-  using KeyAxor = ZuDefaultAxor;
-  using ValAxor = ZuDefaultAxor;
+  constexpr static auto KeyAxor = ZuDefaultAxor();
+  constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
   using Object = ZuNull;
-  struct HeapID { static constexpr const char *id() { return "ZmRBTree"; } };
+  struct HeapID { constexpr static const char *id() { return "ZmRBTree"; } };
   enum { Unique = 0 };
 };
 
 // ZmRBTreeKey - key accessor
-template <typename KeyAxor_, typename NTP = ZmRBTree_Defaults>
+template <auto KeyAxor_, typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeKey : public NTP {
-  using KeyAxor = KeyAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
 };
 
 // ZmRBTreeKeyVal - key and optional value accessors
 template <
-  typename KeyAxor_, typename ValAxor_,
+  auto KeyAxor_, auto ValAxor_,
   typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeKeyVal : public NTP {
-  using KeyAxor = KeyAxor_;
-  using ValAxor = ValAxor_;
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
 };
 
 // ZmRBTreeCmp - the comparator
@@ -231,10 +231,10 @@ class ZmRBTree : public ZmNodePolicy<typename NTP::Object> {
 
 public:
   using T = T_;
-  using KeyAxor = typename NTP::KeyAxor;
-  using ValAxor = typename NTP::ValAxor;
-  using KeyRet = decltype(KeyAxor::get(ZuDeclVal<const T &>()));
-  using ValRet = decltype(ValAxor::get(ZuDeclVal<const T &>()));
+  constexpr static auto KeyAxor = NTP::KeyAxor;
+  constexpr static auto ValAxor = NTP::ValAxor;
+  using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
+  using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuDecay<KeyRet>;
   using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
@@ -510,13 +510,13 @@ private:
     int cmp(Node *node) const {
       return Cmp::cmp(node->Node::key(), key);
     }
-    static constexpr bool equals(Node *) { return true; }
+    constexpr static bool equals(Node *) { return true; }
   };
   template <typename P>
   struct MatchDataFn {
     const P &data;
     int cmp(Node *node) const {
-      return Cmp::cmp(node->Node::key(), KeyAxor::get(data));
+      return Cmp::cmp(node->Node::key(), KeyAxor(data));
     }
     bool equals(Node *node) const {
       return node->Node::data() == data;
@@ -1222,6 +1222,6 @@ public:
 template <typename P0, typename P1, typename NTP = ZmRBTree_Defaults>
 using ZmRBTreeKV =
   ZmRBTree<ZuPair<P0, P1>,
-    ZmRBTreeKeyVal<ZuPairAxor<0>, ZuPairAxor<1>, NTP> >;
+    ZmRBTreeKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP> >;
 
 #endif /* ZmRBTree_HPP */

@@ -73,7 +73,7 @@ template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal
 
 class ZuFixed {
-  static constexpr int64_t null_() {
+  constexpr static int64_t null_() {
     return ZuCmp_IntNull<int64_t, 8, 1>::null();
   }
 

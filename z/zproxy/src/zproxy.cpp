@@ -247,9 +247,9 @@ private:
 
 class Proxy : public ZmPolymorph {
 public:
-  struct SrcPortAccessor;
-friend SrcPortAccessor;
-  struct SrcPortAccessor { static unsigned get(Proxy *p); };
+  struct SrcPortAxor;
+friend SrcPortAxor;
+  struct SrcPortAxor { static unsigned get(Proxy *p); };
 
   Proxy(Listener *listener);
   virtual ~Proxy() { }
@@ -488,7 +488,7 @@ class App : public ZmPolymorph, public ZvCmdHost {
 
   using ProxyHash =
     ZmHash<ZmRef<Proxy>,
-      ZmHashKey<Proxy::SrcPortAccessor,
+      ZmHashKey<Proxy::SrcPortAxor,
 	ZmHashObject<ZuNull> > >;
 
 public:
@@ -610,7 +610,7 @@ public:
     m_proxies->add(proxy);
   }
   void del(Proxy *proxy) {
-    delete m_proxies->del(Proxy::SrcPortAccessor::get(proxy));
+    delete m_proxies->del(Proxy::SrcPortAxor::get(proxy));
   }
 
   int proxy(ZvCmdContext *ctx) {
@@ -1350,7 +1350,7 @@ void Connection::release()
   }
 }
 
-unsigned Proxy::SrcPortAccessor::get(Proxy *proxy)
+unsigned Proxy::SrcPortAxor::get(Proxy *proxy)
 {
   if (!proxy->m_out) return 0;
   return proxy->m_out->info().localPort;

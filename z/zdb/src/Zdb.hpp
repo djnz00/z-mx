@@ -133,7 +133,7 @@
 #ifdef ZdbRep_DEBUG
 #define ZdbDEBUG(env, e) do { if ((env)->debug()) ZeLOG(Debug, (e)); } while (0)
 #else
-#define ZdbDEBUG(env, e) (void{})
+#define ZdbDEBUG(env, e) (void())
 #endif
 
 // new file structure with variable-length flatbuffer-format records
@@ -321,11 +321,9 @@ using IndexBlkLRU =
       ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull> > > >;
 
-struct IndexBlk_IDAxor {
-  static uint64_t get(const ZmPolymorph &index);
-};
+uint64_t IndexBlk_IDAxor(const ZmPolymorph &index);
 struct IndexBlkHeapID {
-  static constexpr const char *id() { return "Zdb.IndexBlk"; }
+  constexpr static const char *id() { return "Zdb.IndexBlk"; }
 };
 using IndexBlkCache =
   ZmHash<IndexBlkLRU::Node,
@@ -358,8 +356,7 @@ struct IndexBlk : public IndexBlkCache::Node {
   IndexBlk(IndexBlk &&) = delete;
   IndexBlk &operator =(IndexBlk &&) = delete;
 };
-inline uint64_t IndexBlk_IDAxor::get(const ZmPolymorph &index)
-{
+inline uint64_t IndexBlk_IDAxor(const ZmPolymorph &index) {
   return static_cast<const IndexBlk &>(index).id;
 }
 
@@ -422,11 +419,9 @@ using FileLRU =
       ZmListNodeDerive<true,
 	ZmListHeapID<ZuNull> > > >;
 
-struct File_IDAxor {
-  static uint64_t get(const ZmPolymorph &file);
-};
+uint64_t File_IDAxor(const ZmPolymorph &file);
 struct FileHeapID {
-  static constexpr const char *id() { return "Zdb.File"; }
+  constexpr static const char *id() { return "Zdb.File"; }
 };
 using FileCache =
   ZmHash<FileLRU::Node,
@@ -504,8 +499,7 @@ private:
   Bitmap		m_bitmap;
   SuperBlk		m_superBlk;
 };
-inline uint64_t File_IDAxor::get(const ZmPolymorph &file)
-{
+inline uint64_t File_IDAxor(const ZmPolymorph &file) {
   return static_cast<const File &>(file).id();
 }
 
@@ -539,12 +533,10 @@ private:
 
 // buffer cache
 struct Buf_HeapID {
-  static constexpr const char *id() { return "Zdb::Buf"; }
+  constexpr static const char *id() { return "Zdb::Buf"; }
 };
 using Buf_ = ZiIOVBuf<ZuGrow(0, 1), Buf_HeapID>;
-struct Buf_RNAxor {
-  static ZdbRN get(const Buf_ &buf);
-};
+ZdbRN Buf_RNAxor(const Buf_ &buf);
 using BufCache =
   ZmHash<Buf_,
     ZmHashKey<Buf_RNAxor,
@@ -580,8 +572,7 @@ friend ZdbAnyObject;
     return buf;
   }
 };
-inline ZdbRN Buf_RNAxor::get(const Buf_ &buf)
-{
+inline ZdbRN Buf_RNAxor(const Buf_ &buf) {
   return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
 }
 
@@ -646,12 +637,10 @@ using LRU =
 	ZmListHeapID<ZuNull> > > >;
 using LRUNode = LRU::Node;
 
-struct LRUNode_RNAxor {
-  static ZdbRN get(const LRUNode &object);
-};
+ZdbRN LRUNode_RNAxor(const LRUNode &object);
 
 struct Cache_ID {
-  static constexpr const char *id() { return "Zdb.Cache"; }
+  constexpr static const char *id() { return "Zdb.Cache"; }
 };
 
 using Cache =
@@ -733,15 +722,14 @@ private:
 
 namespace Zdb_ {
 
-inline ZdbRN LRUNode_RNAxor::get(const LRUNode &node)
-{
+inline ZdbRN LRUNode_RNAxor(const LRUNode &node) {
   return static_cast<const ZdbAnyObject &>(node).rn();
 }
 
 }
 
 struct ZdbObject_HeapID { 
-  static constexpr const char *id() { return "Zdb.Object"; }
+  constexpr static const char *id() { return "Zdb.Object"; }
 };
 template <typename T, typename Heap>
 class ZdbObject_ : public Heap, public ZdbAnyObject {
@@ -860,11 +848,13 @@ struct ZdbCf {
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
 
-  struct IDAxor { static ZuID get(const ZdbCf &cf) { return cf.id; } };
+  ZuID IDAxor(const ZdbCf &cf) {
+    return cf.id;
+  }
 };
 
 struct ZdbCfs_HeapID {
-  static constexpr const char *id() { return "ZdbEnv.DBCfs"; }
+  constexpr static const char *id() { return "ZdbEnv.DBCfs"; }
 };
 using ZdbCfs =
   ZmRBTree<ZdbCf,
@@ -875,7 +865,7 @@ using ZdbCfs =
 namespace Zdb_ {
 
 struct Deletes_HeapID {
-  static constexpr const char *id() { return "Zdb.Deletes"; }
+  constexpr static const char *id() { return "Zdb.Deletes"; }
 };
 struct DeleteOp {
   ZdbRN		rn = ZdbNullRN;
@@ -932,9 +922,9 @@ private:
   bool checkpoint_();
 
 public:
-  struct IDAxor {
-    static ZuID get(const Zdb &db) { return db.config().id; }
-  };
+  ZuID IDAxor(const Zdb &db) {
+    return db.config().id;
+  }
 
   ZdbEnv *env() const { return m_env; }
   const ZdbCf &config() const { return *m_cf; }
@@ -1101,7 +1091,7 @@ private:
 namespace Zdb_ {
 
 struct DBs_HeapID {
-  static constexpr const char *id() { return "ZdbEnv.DBs"; }
+  constexpr static const char *id() { return "ZdbEnv.DBs"; }
 };
 using DBs =
   ZmRBTree<Zdb,
@@ -1253,13 +1243,13 @@ struct ZdbHostCf {
     down = cf->get("down");
   }
 
-  struct IDAxor {
-    static ZuID get(const ZdbHostCf &cfg) { return cfg.id; }
-  };
+  ZuID IDAxor(const ZdbHostCf &cfg) {
+    return cfg.id;
+  }
 };
 
 struct HostCfs_HeapID {
-  static constexpr const char *id() { return "ZdbEnv.HostCfs"; }
+  constexpr static const char *id() { return "ZdbEnv.HostCfs"; }
 };
 using HostCfs =
   ZmHash<ZdbHostCf,
@@ -1278,7 +1268,7 @@ using HostCfs =
 // used, e.g. using ZdbHost = Zdb_::Host
 
 struct Hosts_HeapID {
-  static constexpr const char *id() { return "ZdbEnv.Hosts"; }
+  constexpr static const char *id() { return "ZdbEnv.Hosts"; }
 };
 using Hosts =
   ZmHash<Host,
@@ -1299,7 +1289,9 @@ protected:
   ZdbHost(ZdbEnv *env, const ZdbHostCf *config);
 
 public:
-  struct IDAxor { static ZuID get(const ZdbHost &h) { return h.id(); } };
+  ZuID IDAxor(const ZdbHost &h) {
+    return h.id();
+  }
 
   const ZdbHostCf &config() const { return *m_cf; }
 
@@ -1514,7 +1506,7 @@ friend ZdbAnyObject;
 friend Zdb_::Cxn;
 
   struct CxnHash_HeapID {
-    static constexpr const char *id() { return "ZdbEnv.CxnHash"; }
+    constexpr static const char *id() { return "ZdbEnv.CxnHash"; }
   };
   using CxnHash =
     ZmHash<ZmRef<Cxn>,

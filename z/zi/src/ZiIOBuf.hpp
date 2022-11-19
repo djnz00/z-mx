@@ -67,7 +67,7 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = default;
 };
 struct ZiIOBuf_HeapID {
-  static constexpr const char *id() { return "ZiIOBuf"; }
+  constexpr static const char *id() { return "ZiIOBuf"; }
 };
 template <unsigned Size_, typename ID = ZiIOBuf_HeapID>
 struct ZiIOVBuf : private ZmVHeap<ID>, public ZiAnyIOBuf {

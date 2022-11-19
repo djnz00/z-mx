@@ -50,7 +50,7 @@ template <typename Heap> struct S_ : public Heap {
   int m_i;
 };
 struct ID {
-  static constexpr const char *id() { return "S"; }
+  constexpr static const char *id() { return "S"; }
 };
 using S = S_<ZmHeap<ID, sizeof(S_<ZuNull>)> >;
 

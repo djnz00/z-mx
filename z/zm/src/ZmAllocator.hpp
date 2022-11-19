@@ -37,7 +37,7 @@
 #include <zlib/ZmVHeap.hpp>
 
 struct ZmAllocator_ID {
-  static constexpr const char *id() { return "ZmAllocator"; }
+  constexpr static const char *id() { return "ZmAllocator"; }
 };
 template <typename T, typename ID = ZmAllocator_ID>
 struct ZmAllocator : private ZmVHeap<ID> {

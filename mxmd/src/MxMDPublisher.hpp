@@ -182,7 +182,7 @@ friend TCP;
   };
 
   struct TCP_HeapID {
-    static constexpr const char *id() { return "MxMDPublisher.TCP"; }
+    constexpr static const char *id() { return "MxMDPublisher.TCP"; }
   };
   typedef ZmHash<TCP *,
 	    ZmHashLock<ZmNoLock,

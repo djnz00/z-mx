@@ -186,12 +186,12 @@ namespace Zu_aton {
 
 template <class Fmt> struct Zu_nscan_ {
   template <bool Constrain, unsigned Width> struct Len_ {
-    static constexpr unsigned len(unsigned n) {
+    constexpr static unsigned len(unsigned n) {
       return n > Width ? Width : n;
     }
   };
   template <unsigned Width> struct Len_<0, Width> {
-    static constexpr unsigned len(unsigned n) { return n; }
+    constexpr static unsigned len(unsigned n) { return n; }
   };
   using Len = Len_<
     Fmt::Justification_ != ZuFmt::Just::None,

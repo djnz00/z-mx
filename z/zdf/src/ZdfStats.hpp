@@ -137,7 +137,7 @@ private:
 // NTP defaults
 struct StatsTree_Defaults {
   struct HeapID {
-    static constexpr const char *id() { return "Zdf.StatsTree"; }
+    constexpr static const char *id() { return "Zdf.StatsTree"; }
   };
 };
 

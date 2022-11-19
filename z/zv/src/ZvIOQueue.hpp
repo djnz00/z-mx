@@ -84,9 +84,9 @@ private:
 class ZvIOQFn {
 public:
   using Key = ZvSeqNo;
-  struct KeyAxor {
-    static Key get(const ZvIOQItem &item) { return item.id().seqNo; }
-  };
+  Key KeyAxor(const ZvIOQItem &item) {
+    return item.id().seqNo;
+  }
   ZvIOQFn(ZvIOQItem &item) : m_item(item) { }
   Key key() const { return KeyAxor::get(m_item); }
   unsigned length() const { return m_item.skip(); }
@@ -100,7 +100,7 @@ private:
 };
 
 struct ZvIOMsg_HeapID {
-  static constexpr const char *id() { return "ZvIOMsg"; }
+  constexpr static const char *id() { return "ZvIOMsg"; }
 };
 using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
@@ -339,7 +339,7 @@ private:
 template <class Impl, class Lock_ = ZmNoLock>
 class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
   struct Queues_HeapID {
-    static constexpr const char *id() { return "ZvIOQueueTxPool.Queues"; }
+    constexpr static const char *id() { return "ZvIOQueueTxPool.Queues"; }
   };
 
   using Gap = ZvIOQueue::Gap;

@@ -243,8 +243,8 @@ private:
   bool utf8_in() const { return (m_otermios.c_iflag & IUTF8); }
   bool utf8_out() const { return (m_otermios.c_cflag & CSIZE) == CS8; }
 #else
-  static constexpr bool utf8_in() { return true; }
-  static constexpr bool utf8_out() { return true; }
+  constexpr static bool utf8_in() { return true; }
+  constexpr static bool utf8_out() { return true; }
 #endif
 
   // low-level input

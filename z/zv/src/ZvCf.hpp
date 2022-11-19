@@ -528,7 +528,7 @@ private:
 
   using NodeRef = ZmRef<Node>;
 
-  struct HeapID { static constexpr const char *id() { return "ZvCf"; } };
+  struct HeapID { constexpr static const char *id() { return "ZvCf"; } };
 
   using Tree =
     ZmRBTreeKV<ZtString, NodeRef,

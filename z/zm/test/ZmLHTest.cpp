@@ -109,8 +109,8 @@ struct HashAdapter {
 template <typename H>
 struct LHashAdapter {
   using T = const typename H::T *;
-  static decltype(auto) key(T ptr) { return H::KeyAxor::get(*ptr); }
-  static decltype(auto) val(T ptr) { return H::ValAxor::get(*ptr); }
+  static decltype(auto) key(T ptr) { return H::KeyAxor(*ptr); }
+  static decltype(auto) val(T ptr) { return H::ValAxor(*ptr); }
 };
 
 void fail() { }

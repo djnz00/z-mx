@@ -54,8 +54,8 @@ struct ZuFunctorTraits_3<false, true, R, L, Args...> {
     return (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef R (*Fn)(Args...);
-  static constexpr Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
-  static constexpr Fn fn() { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn() { return &ZuFunctorTraits_3::invoke_; }
 };
 
 template <typename L, typename ...Args>
@@ -69,15 +69,15 @@ struct ZuFunctorTraits_3<false, true, void, L, Args...> {
     (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef void (*Fn)(Args...);
-  static constexpr Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
-  static constexpr Fn fn() { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn() { return &ZuFunctorTraits_3::invoke_; }
 };
 
 template <typename R, typename L, typename ...Args>
 struct ZuFunctorTraits_3<true, true, R, L, Args...> :
     public ZuFunctorTraits_3<false, true, R, L, Args...> {
   using typename ZuFunctorTraits_3<false, true, R, L, Args...>::Fn;
-  static constexpr Fn fn(L l) { return static_cast<Fn>(l); }
+  constexpr static Fn fn(L l) { return static_cast<Fn>(l); }
 };
 
 template <typename R1, typename R2, typename Args1, typename Args2>
@@ -112,7 +112,7 @@ struct ZuFunctorTraits {
   enum { IsFunctor = 0, IsMutable = 0, IsStateless = 0 };
 };
 template <typename L>
-struct ZuFunctorTraits<L, decltype(&L::operator(), void{})> :
+struct ZuFunctorTraits<L, decltype(&L::operator(), void())> :
     public ZuFunctorTraits_1<&L::operator()> { };
 
 template <typename L, typename T = void>

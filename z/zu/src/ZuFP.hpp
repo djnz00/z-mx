@@ -89,7 +89,7 @@ template <> struct ZuFP__<long double> {
 
 // CRTP mixin
 template <class FP, typename T> struct ZuFP_ : public ZuFP__<T> {
-  ZuInline static constexpr T inf() { return static_cast<T>(INFINITY); }
+  ZuInline constexpr static T inf() { return static_cast<T>(INFINITY); }
   ZuInline static bool inf(T v) { return v == inf(); }
   ZuInline static T epsilon(T v) {
     if (ZuUnlikely(FP::nan(v))) return v;
