@@ -22,6 +22,21 @@
 //   - supports SWSR MWSR SWMR MWMR
 // - fixed- and variable-sized messages (types)
 
+// FIXME - add unicast MR to complement broadcast MR
+// FIXME - add tryShift()
+
+// MR -> BMR (broadcast multiple readers)
+// add UMR (unicast multiple readers)
+
+// unicast MR is easier - no rdrID() etc. just local copy of
+// tail (need rdrTail()), pre-move shared tail with cmpXch in
+// shift() (like MW push), rdrTail() is moved in shift2()
+
+// UMR has no limits on number of readers, no attach/detach, etc., but
+// still implies header (like MW), so SWUMR is similar to MWSR
+
+// tryShift() uses same pattern as push_<W>, should be straightforward
+
 #ifndef ZmRing_HPP
 #define ZmRing_HPP
 
