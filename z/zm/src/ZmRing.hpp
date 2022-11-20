@@ -22,21 +22,6 @@
 //   - supports SWSR MWSR SWMR MWMR
 // - fixed- and variable-sized messages (types)
 
-// FIXME - add unicast MR to complement broadcast MR
-// FIXME - add tryShift()
-
-// MR -> BMR (broadcast multiple readers)
-// add UMR (unicast multiple readers)
-
-// unicast MR is easier - no rdrID() etc. just local copy of
-// tail (need rdrTail()), pre-move shared tail with cmpXch in
-// shift() (like MW push), rdrTail() is moved in shift2()
-
-// UMR has no limits on number of readers, no attach/detach, etc., but
-// still implies header (like MW), so SWUMR is similar to MWSR
-
-// tryShift() uses same pattern as push_<W>, should be straightforward
-
 #ifndef ZmRing_HPP
 #define ZmRing_HPP
 
@@ -82,6 +67,7 @@ struct Defaults {
   constexpr static auto SizeAxor = [](const void *) { return 0; };
   enum { MW = 0 };
   enum { MR = 0 };
+  enum { Broadcast = 0; }
 };
 
 } // ZmRing_
@@ -104,16 +90,22 @@ struct ZmRingSizeAxor : public NTP {
   constexpr static auto SizeAxor = SizeAxor_;
 };
 
-// multiple producers
+// multiple writers (producers)
 template <bool MW_, typename NTP = ZmRing_::Defaults>
 struct ZmRingMW : public NTP {
   enum { MW = MW_ };
 };
 
-// multiple consumers
+// multiple readers (consumers)
 template <bool MR_, typename NTP = ZmRing_::Defaults>
 struct ZmRingMR : public NTP {
   enum { MR = MR_ };
+};
+
+// broadcast
+template <bool Broadcast_, typename NTP = ZmRing_::Defaults>
+struct ZmRingBroadcast : public NTP {
+  enum { Broadcast = Broadcast_ };
 };
 
 namespace ZmRing_ {
@@ -744,6 +736,10 @@ private:
 #define ZmRing_push2_get_head() \
     uint32_t head = this->head().load_();
 
+#define ZmRing_push2_update_stats(size_) \
+    inCount().store_(inCount().load_() + 1); \
+    inBytes().store_(inBytes().load_() + size_)
+
 #define ZmRing_eof_get_head() ZmRing_push2_get_head()
 
   // SWSR
@@ -793,10 +789,6 @@ private:
     } else
       *hdrPtr = Flags | 1; // release
   }
-
-#define ZmRing_push2_update_stats(size_) \
-    inCount().store_(inCount().load_() + 1); \
-    inBytes().store_(inBytes().load_() + size_)
 
   // fixed-size SWSR
   template <bool Wait, bool MW_ = MW, bool MR_ = MR, bool V_ = V>
@@ -1006,6 +998,11 @@ public:
 
   // reader
 
+public:
+  ZuInline void *shift() { return shift_<1>(); }
+  ZuInline void *tryShift() { return shift_<0>(); }
+
+private:
   template <bool MR_ = MR>
   ZuIfT<!MR_> readAssert() {
     ZmAssert(ctrl());
@@ -1040,6 +1037,7 @@ public:
 #define ZmRing_shift_retry_swsr() \
     do { \
       if (ZuUnlikely(head & EndOfFile32())) return nullptr; \
+      if constexpr (!Wait) return nullptr; \
       if (ZuUnlikely(!m_params.ll())) \
 	if (m_headBlocker.wait( \
 	      this->head(), head, \
@@ -1049,6 +1047,7 @@ public:
 #define ZmRing_shift_retry_swmr() \
     do { \
       if (ZuUnlikely(hdr & EndOfFile_())) return nullptr; \
+      if constexpr (!Wait) return nullptr; \
       if (ZuUnlikely(!m_params.ll())) { \
 	auto &hdrPtr32 = \
 	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset]; \
@@ -1063,27 +1062,46 @@ public:
 
 #define ZmRing_shift_return_swsr() \
     return reinterpret_cast<T *>(&(data())[tail & ~Wrapped32()])
-#define ZmRing_shift_return_swmr() \
+#define ZmRing_shift_return_mwsr() \
     return reinterpret_cast<T *>(&(data())[(tail & ~Wrapped32()) + 8])
-#define ZmRing_shift_return_mwsr() ZmRing_shift_return_swmr()
-#define ZmRing_shift_return_mwmr() ZmRing_shift_return_mwsr()
+#define ZmRing_shift_return_swmr() \
+    if constexpr (!Broadcast) { \
+      /* unicast - skip messages already consumed by another reader */ \
+      auto rdrBit = 1ULL<<rdrID(); \
+      if (ZuUnlikely( \
+	    !(hdr & rdrBit) || \
+	    hdrPtr->cmpXch(hdr & ~(RdrMask() & ~rdrBit), hdr) != hdr)) { \
+	ZmRing_move_tail_(MsgSize); \
+	rdrTail(tail); \
+	goto retry; \
+      } \
+    } \
+    ZmRing_shift_return_mwsr();
+#define ZmRing_shift_return_mwmr() ZmRing_shift_return_swmr()
 
-#define ZmRing_shift2_move_tail_swsr(size_) \
+#define ZmRing_move_tail_(size_) \
     tail += size_; \
     if (ZuUnlikely((tail & ~Wrapped32()) >= this->size())) \
       tail = (tail ^ Wrapped32()) - this->size()
-#define ZmRing_shift2_move_tail_swmr(size_) \
+
+#define ZmRing_move_tail_swsr(size_) \
+    ZmRing_move_tail_(size_)
+#define ZmRing_move_tail_swmr(size_) \
     auto tail_ = tail; \
-    ZmRing_shift2_move_tail_swsr(size_); \
+    ZmRing_move_tail_(size_); \
     rdrTail(tail); \
     if (*reinterpret_cast<ZmAtomic<uint64_t> *>( \
 	&(data())[tail_ & ~Wrapped32()]) &= (RdrMask() & ~(1ULL<<rdrID()))) \
       return
-#define ZmRing_shift2_move_tail_mwsr(size_) \
+#define ZmRing_move_tail_mwsr(size_) \
     *reinterpret_cast<ZmAtomic<uint64_t> *>( \
 	&(data())[tail & ~Wrapped32()]) = 0; \
-    ZmRing_shift2_move_tail_swsr(size_)
-#define ZmRing_shift2_move_tail_mwmr(size_) ZmRing_shift2_move_tail_swmr(size_)
+    ZmRing_move_tail_(size_)
+#define ZmRing_move_tail_mwmr(size_) ZmRing_move_tail_swmr(size_)
+
+#define ZmRing_shift2_update_stats(size_) \
+    this->outCount().store_(this->outCount().load_() + 1); \
+    this->outBytes().store_(this->outBytes().load_() + size_)
 
   void wakeWriters(uint32_t tail) {
     if (ZuUnlikely(!params().ll())) {
@@ -1093,13 +1111,9 @@ public:
       this->tail() = tail; // release
   }
 
-#define ZmRing_shift2_update_stats(size_) \
-    this->outCount().store_(this->outCount().load_() + 1); \
-    this->outBytes().store_(this->outBytes().load_() + size_)
-
   // SWSR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<!MW_ && !MR_, T *> shift() {
+  template <bool Wait, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && !MR_, T *> shift_() {
     readAssert();
     ZmRing_shift_get_tail_sr();
   retry:
@@ -1107,12 +1121,13 @@ public:
     if (ZmRing_shift_empty_swsr()) ZmRing_shift_retry_swsr();
     ZmRing_shift_return_swsr();
   }
+public:
   // fixed-size SWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_swsr(MsgSize);
+    ZmRing_move_tail_swsr(MsgSize);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(MsgSize);
   }
@@ -1122,13 +1137,14 @@ public:
     readAssert();
     size = alignAssert(size);
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_swsr(size);
+    ZmRing_move_tail_swsr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
+private:
   // SWMR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<!MW_ && MR_, T *> shift() {
+  template <bool Wait, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && MR_, T *> shift_() {
     readAssert();
     ZmRing_shift_get_tail_mr();
   retry:
@@ -1136,12 +1152,13 @@ public:
     if (ZmRing_shift_empty_swmr()) ZmRing_shift_retry_swmr();
     ZmRing_shift_return_swmr();
   }
+public:
   // fixed-size SWMR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<!MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_swmr(MsgSize);
+    ZmRing_move_tail_swmr(MsgSize);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(MsgSize);
   }
@@ -1151,13 +1168,14 @@ public:
     readAssert();
     size = alignAssert(size);
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_swmr(size);
+    ZmRing_move_tail_swmr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
+private:
   // MWSR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MW_ && !MR_, T *> shift() {
+  template <bool Wait, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_ && !MR_, T *> shift_() {
     readAssert();
     ZmRing_shift_get_tail_sr();
   retry:
@@ -1165,12 +1183,13 @@ public:
     if (ZmRing_shift_empty_mwsr()) ZmRing_shift_retry_mwsr();
     ZmRing_shift_return_mwsr();
   }
+public:
   // fixed-size MWSR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && !MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_mwsr(MsgSize);
+    ZmRing_move_tail_mwsr(MsgSize);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(MsgSize);
   }
@@ -1180,13 +1199,14 @@ public:
     readAssert();
     size = alignAssert(size);
     ZmRing_shift_get_tail_sr();
-    ZmRing_shift2_move_tail_mwsr(size);
+    ZmRing_move_tail_mwsr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
+private:
   // MWMR
-  template <bool MW_ = MW, bool MR_ = MR>
-  ZuIfT<MW_ && MR_, T *> shift() {
+  template <bool Wait, bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_ && MR_, T *> shift_() {
     readAssert();
     ZmRing_shift_get_tail_mr();
   retry:
@@ -1194,12 +1214,13 @@ public:
     if (ZmRing_shift_empty_mwmr()) ZmRing_shift_retry_mwmr();
     ZmRing_shift_return_mwmr();
   }
+public:
   // fixed-size MWMR
   template <bool MW_ = MW, bool MR_ = MR, bool V_ = V>
   ZuIfT<MW_ && MR_ && !V_> shift2() {
     readAssert();
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_mwmr(MsgSize);
+    ZmRing_move_tail_mwmr(MsgSize);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(MsgSize);
   }
@@ -1209,7 +1230,7 @@ public:
     readAssert();
     size = alignAssert(size);
     ZmRing_shift_get_tail_mr();
-    ZmRing_shift2_move_tail_mwmr(size);
+    ZmRing_move_tail_mwmr(size);
     wakeWriters(tail);
     ZmRing_shift2_update_stats(size);
   }
