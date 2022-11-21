@@ -67,7 +67,6 @@ struct Defaults {
   constexpr static auto SizeAxor = [](const void *) { return 0; };
   enum { MW = 0 };
   enum { MR = 0 };
-  enum { Broadcast = 0 };
 };
 
 } // ZmRing_
@@ -100,13 +99,6 @@ struct ZmRingMW : public NTP {
 template <bool MR_, typename NTP = ZmRing_::Defaults>
 struct ZmRingMR : public NTP {
   enum { MR = MR_ };
-};
-
-// broadcast
-template <bool Broadcast_, typename NTP = ZmRing_::Defaults>
-struct ZmRingBroadcast : public NTP {
-  enum { Broadcast = Broadcast_ };
-  enum { MR = Broadcast_ }; // broadcast implies MR
 };
 
 namespace ZmRing_ {
@@ -207,7 +199,7 @@ template <bool MR> struct Ctrl_ {
 
 template <> struct Ctrl_<true> : public Ctrl_<false> {
   ZmAtomic<uint32_t>		rdrCount; // reader count
-  ZmAtomic<uint32_t>		rdrNext;  // next reader (for unicast)
+  uint32_t			pad_5;
   ZmAtomic<uint64_t>		rdrMask;  // active readers
   ZmAtomic<uint64_t>		attMask;  // readers pending attach
   ZmAtomic<uint64_t>		attSeqNo; // attach/detach seqNo
@@ -257,8 +249,6 @@ protected:
 
   ZmAtomic<uint32_t> &rdrCount();		// unused
   const ZmAtomic<uint32_t> &rdrCount() const;	// ''
-  ZmAtomic<uint32_t> &rdrNext();		// ''
-  const ZmAtomic<uint32_t> &rdrNext() const;	// ''
   ZmAtomic<uint64_t> &rdrMask();		// ''
   const ZmAtomic<uint64_t> &rdrMask() const;	// ''
   ZmAtomic<uint64_t> &attMask();		// ''
@@ -288,9 +278,6 @@ protected:
   ZuInline ZmAtomic<uint32_t> &rdrCount() { return ctrl()->rdrCount; }
   ZuInline const ZmAtomic<uint32_t> &rdrCount() const
     { return ctrl()->rdrCount; }
-  ZuInline ZmAtomic<uint32_t> &rdrNext() { return ctrl()->rdrNext; }
-  ZuInline const ZmAtomic<uint32_t> &rdrNext() const
-    { return ctrl()->rdrNext; }
   ZuInline ZmAtomic<uint64_t> &rdrMask() { return ctrl()->rdrMask; }
   ZuInline const ZmAtomic<uint64_t> &rdrMask() const
     { return ctrl()->rdrMask; }
@@ -498,7 +485,6 @@ public:
   using T = typename NTP::T;
   enum { MW = NTP::MW };
   enum { MR = NTP::MR };
-  enum { Broadcast = NTP::Broadcast };
 
 protected:
   using CtrlMem = CtrlMem_;
@@ -1044,23 +1030,6 @@ private:
     ZmAssert(rdrID() >= 0);
   }
 
-  template <bool MR_ = MR, bool Broadcast_ = Broadcast>
-  ZuIfT<MR_ && !Broadcast, uint32_t> nextRdr() {
-    uint64_t rdrMask = this->rdrMask().load_();
-    uint32_t rdrNext, rdrNext_;
-    // 64bit bitfield lock-free round-robin
-    do {
-      rdrNext_ = this->rdrNext().load_();
-      rdrNext = rdrNext_ & 63;
-      rdrMask = (rdrMask>>rdrNext) | (rdrMask<<((-rdrNext) & 63));
-      rdrNext += __builtin_ctzll(rdrMask);
-      rdrNext &= 63;
-    } while (
-	this->rdrNext().cmpXch(rdrNext + 1, rdrNext_) != rdrNext_ ||
-	this->rdrMask() != rdrMask);
-    return rdrNext;
-  }
-
 #define ZmRing_shift_get_tail_() \
     this->tail().load_() & ~Mask32()
 
@@ -1118,19 +1087,8 @@ private:
 #define ZmRing_shift_return_swsr() \
     return reinterpret_cast<T *>(&(data())[tail & ~Wrapped32()])
 #define ZmRing_shift_return_mwsr() \
-    return reinterpret_cast<T *>(&(data())[(tail & ~Wrapped32()) + 8])
+    return reinterpret_cast<T *>(&hdrPtr[1])
 #define ZmRing_shift_return_swmr() \
-    if constexpr (!Broadcast) { \
-      if (nextRdr() != rdrID()) { \
-	if constexpr (V) { \
-	  unsigned msgSize = align(SizeAxor(&hdrPtr[1])); \
-	  ZmRing_move_tail_(msgSize); \
-	} else { \
-	  ZmRing_move_tail_(MsgSize); \
-	} \
-	goto retry; \
-      } \
-    } \
     ZmRing_shift_return_mwsr();
 #define ZmRing_shift_return_mwmr() ZmRing_shift_return_swmr()
 

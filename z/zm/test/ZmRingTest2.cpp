@@ -390,7 +390,7 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
       printf("\t%6u attach(): %d\n", thread->id(), result); fflush(stdout);
       break;
     case Detach:
-      result = ring.detach();
+      result = ring.detach({});
       printf("\t%6u detach(): %d\n", 
 	  thread->id(), result); fflush(stdout);
       break;
@@ -425,10 +425,10 @@ template <> struct RingT<false, false, true> {
   using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor>>;
 };
 template <> struct RingT<false, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingBroadcast<true>>>;
+  using T = ZmRing<ZmRingT<Msg, ZmRingMR<true>>>;
 };
 template <> struct RingT<false, true, true> {
-  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingBroadcast<true>>>;
+  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMR<true>>>;
 };
 template <> struct RingT<true, false, false> {
   using T = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
@@ -437,14 +437,14 @@ template <> struct RingT<true, false, true> {
   using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMW<true>>>;
 };
 template <> struct RingT<true, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true, ZmRingBroadcast<true>>>>;
+  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true, ZmRingMR<true>>>>;
 };
 template <> struct RingT<true, true, true> {
   using T =
     ZmRing<
       ZmRingSizeAxor<VMsg::SizeAxor,
 	ZmRingMW<true,
-	  ZmRingBroadcast<true>>>>;
+	  ZmRingMR<true>>>>;
 };
 
 template <bool MW, bool MR, bool V>
