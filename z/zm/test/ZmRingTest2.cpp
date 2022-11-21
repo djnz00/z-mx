@@ -232,7 +232,6 @@ public:
     WriteStatus
   };
 
-
   template <bool V = Ring::V>
   ZuIfT<V, void *> push(Ring &ring, unsigned param) {
     void *ptr = ring.push(param);
@@ -426,10 +425,10 @@ template <> struct RingT<false, false, true> {
   using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor>>;
 };
 template <> struct RingT<false, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMR<true>>>;
+  using T = ZmRing<ZmRingT<Msg, ZmRingBroadcast<true>>>;
 };
 template <> struct RingT<false, true, true> {
-  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMR<true>>>;
+  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingBroadcast<true>>>;
 };
 template <> struct RingT<true, false, false> {
   using T = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
@@ -438,11 +437,14 @@ template <> struct RingT<true, false, true> {
   using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMW<true>>>;
 };
 template <> struct RingT<true, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true, ZmRingMR<true>>>>;
+  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true, ZmRingBroadcast<true>>>>;
 };
 template <> struct RingT<true, true, true> {
   using T =
-    ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMW<true, ZmRingMR<true>>>>;
+    ZmRing<
+      ZmRingSizeAxor<VMsg::SizeAxor,
+	ZmRingMW<true,
+	  ZmRingBroadcast<true>>>>;
 };
 
 template <bool MW, bool MR, bool V>
@@ -490,6 +492,8 @@ struct Test {
 #define WriteStatus() new Work(Work::WriteStatus)
 
   static bool run(unsigned size) {
+    std::cout << "\ntest run MW=" << MW << " MR=" << MR << " V=" << V << '\n';
+
     if (!app()->start(2 + MR + MW, ZmRingParams{size})) return false;
 
     using namespace ZmRingStatus;
@@ -508,12 +512,12 @@ struct Test {
 
     // test push with concurrent attach
     if constexpr (MR) check(synchronous(0, Attach()) == OK);
-    asynchronous(0 + MR, Attach(), attach2);
+    asynchronous(0 + MR, Attach(), attach3);
     check(synchronous(1 + MR, Push(size1)) > 0);
     if constexpr (MR) asynchronous(0, Shift(), shift1);
     synchronous(1 + MR, Push2(size1));
     if constexpr (MR) proceed(0, shift1);
-    proceed(0 + MR, attach2);
+    proceed(0 + MR, attach3);
     if constexpr (MR) {
       if constexpr (V)
 	check(result(0) == size1);
@@ -521,9 +525,11 @@ struct Test {
 	size1 = result(0);
     }
     check(result(0 + MR) == OK);
-    if constexpr (MR)
+    if constexpr (MR) {
       synchronous(0, Shift2(size1));
-    else {
+      check(synchronous(0 + MR, Shift()) == size1);
+      synchronous(0 + MR, Shift2(size1));
+    } else {
       check(synchronous(0, Shift()) == size1);
       synchronous(0, Shift2(size1));
     }
@@ -537,8 +543,10 @@ struct Test {
     check(result(0) == OK);
     check(synchronous(0, Shift()) == size1);
     synchronous(0, Shift2(size1));
-    if constexpr (MR) check(synchronous(0 + MR, Shift()) == size1);
-    if constexpr (MR) synchronous(0 + MR, Shift2(size1));
+    if constexpr (MR) {
+      check(synchronous(0 + MR, Shift()) == size1);
+      synchronous(0 + MR, Shift2(size1));
+    }
 
     // test push with concurrent dual shift
     check(synchronous(1 + MR, Push(size2)) > 0);
