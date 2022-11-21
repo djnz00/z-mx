@@ -492,7 +492,10 @@ struct Test {
 #define WriteStatus() new Work(Work::WriteStatus)
 
   static bool run(unsigned size) {
-    std::cout << "\ntest run MW=" << MW << " MR=" << MR << " V=" << V << '\n';
+    std::cout << "\ntest run" <<
+      " MW=" << MW <<
+      " MR=" << MR <<
+      " V=" << V << '\n';
 
     if (!app()->start(2 + MR + MW, ZmRingParams{size})) return false;
 
@@ -512,12 +515,12 @@ struct Test {
 
     // test push with concurrent attach
     if constexpr (MR) check(synchronous(0, Attach()) == OK);
-    asynchronous(0 + MR, Attach(), attach3);
+    asynchronous(0 + MR, Attach(), attach2);
     check(synchronous(1 + MR, Push(size1)) > 0);
     if constexpr (MR) asynchronous(0, Shift(), shift1);
     synchronous(1 + MR, Push2(size1));
     if constexpr (MR) proceed(0, shift1);
-    proceed(0 + MR, attach3);
+    proceed(0 + MR, attach2);
     if constexpr (MR) {
       if constexpr (V)
 	check(result(0) == size1);
@@ -527,8 +530,6 @@ struct Test {
     check(result(0 + MR) == OK);
     if constexpr (MR) {
       synchronous(0, Shift2(size1));
-      check(synchronous(0 + MR, Shift()) == size1);
-      synchronous(0 + MR, Shift2(size1));
     } else {
       check(synchronous(0, Shift()) == size1);
       synchronous(0, Shift2(size1));
@@ -628,7 +629,7 @@ int main(int argc, char **argv)
 
   for (unsigned i = 0; i < 8; i++)
     if (!ZuSwitch::dispatch<8>(i, [size](auto i) -> bool {
-      return Test<((i & 4)>>2), ((i & 2)>>1), i & 1>::run(size);
+      return Test<(i>>2) & 1, (i>>1) & 1, i & 1>::run(size);
     }))
       return 1;
 

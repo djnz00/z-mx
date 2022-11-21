@@ -207,7 +207,7 @@ template <bool MR> struct Ctrl_ {
 
 template <> struct Ctrl_<true> : public Ctrl_<false> {
   ZmAtomic<uint32_t>		rdrCount; // reader count
-  uint32_t			pad_5;
+  ZmAtomic<uint32_t>		rdrNext;  // next reader (for unicast)
   ZmAtomic<uint64_t>		rdrMask;  // active readers
   ZmAtomic<uint64_t>		attMask;  // readers pending attach
   ZmAtomic<uint64_t>		attSeqNo; // attach/detach seqNo
@@ -257,6 +257,8 @@ protected:
 
   ZmAtomic<uint32_t> &rdrCount();		// unused
   const ZmAtomic<uint32_t> &rdrCount() const;	// ''
+  ZmAtomic<uint32_t> &rdrNext();		// ''
+  const ZmAtomic<uint32_t> &rdrNext() const;	// ''
   ZmAtomic<uint64_t> &rdrMask();		// ''
   const ZmAtomic<uint64_t> &rdrMask() const;	// ''
   ZmAtomic<uint64_t> &attMask();		// ''
@@ -286,6 +288,9 @@ protected:
   ZuInline ZmAtomic<uint32_t> &rdrCount() { return ctrl()->rdrCount; }
   ZuInline const ZmAtomic<uint32_t> &rdrCount() const
     { return ctrl()->rdrCount; }
+  ZuInline ZmAtomic<uint32_t> &rdrNext() { return ctrl()->rdrNext; }
+  ZuInline const ZmAtomic<uint32_t> &rdrNext() const
+    { return ctrl()->rdrNext; }
   ZuInline ZmAtomic<uint64_t> &rdrMask() { return ctrl()->rdrMask; }
   ZuInline const ZmAtomic<uint64_t> &rdrMask() const
     { return ctrl()->rdrMask; }
@@ -325,7 +330,7 @@ private:
   void			*m_addr = nullptr;
 };
 
-class ZmAPI MirrorDataMem {
+class ZmAPI MirrorMem {
 public:
   static unsigned alignSize(unsigned size);
 
@@ -375,7 +380,7 @@ private:
 };
 
 template <
-  typename DataMem_, typename MirrorDataMem_,
+  typename DataMem_, typename MirrorMem_,
   typename T, bool MW, bool MR>
 class DataMgr : public DataMgr_<DataMem_> {
 protected:
@@ -395,11 +400,11 @@ protected:
     return ((n + MsgSize - 1) / MsgSize) * MsgSize;
   }
 };
-template <typename DataMem_, typename MirrorDataMem_, bool MW, bool MR>
-class DataMgr<DataMem_, MirrorDataMem_, void, MW, MR> :
-    public DataMgr_<MirrorDataMem_> {
+template <typename DataMem_, typename MirrorMem_, bool MW, bool MR>
+class DataMgr<DataMem_, MirrorMem_, void, MW, MR> :
+    public DataMgr_<MirrorMem_> {
 protected:
-  using DataMem = MirrorDataMem_;
+  using DataMem = MirrorMem_;
 
 private:
   using Base = DataMgr_<DataMem>;
@@ -477,12 +482,16 @@ private:
   uint32_t	m_rdrTail = 0;
 };
 
-template <typename NTP = Defaults>
+template <
+  typename NTP = Defaults,
+  typename CtrlMem_ = CtrlMem,
+  typename DataMem_ = DataMem,
+  typename MirrorMem_ = MirrorMem>
 class Ring :
     public AlignFn<NTP::MW, NTP::MR>,
-    public CtrlMgr<CtrlMem, NTP::MR>,
+    public CtrlMgr<CtrlMem_, NTP::MR>,
     public DataMgr<
-      DataMem, MirrorDataMem,
+      DataMem_, MirrorMem_,
       typename NTP::T, NTP::MW, NTP::MR>,
     public RingRdr<Ring<NTP>, NTP::MR> {
 public:
@@ -491,10 +500,15 @@ public:
   enum { MR = NTP::MR };
   enum { Broadcast = NTP::Broadcast };
 
+protected:
+  using CtrlMem = CtrlMem_;
+  using DataMem = DataMem_;
+  using MirrorMem = MirrorMem_;
+
 private:
   using AlignFn_ = AlignFn<MW, MR>;
   using CtrlMgr_ = CtrlMgr<CtrlMem, MR>;
-  using DataMgr_ = DataMgr<DataMem, MirrorDataMem, T, MW, MR>;
+  using DataMgr_ = DataMgr<DataMem, MirrorMem, T, MW, MR>;
   using RingRdr_ = RingRdr<Ring<NTP>, MR>;
 friend RingRdr_;
 
@@ -782,7 +796,6 @@ private:
   template <uint64_t Flags = 0, bool MR_ = MR>
   ZuIfT<MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
     uint64_t rdrMask = this->rdrMask().load_();
-    // FIXME for MR unicast
     if (ZuUnlikely(!m_params.ll())) {
       if (ZuUnlikely(hdrPtr->xch(Flags | rdrMask) & Waiting())) {
 	auto &hdrPtr32 =
@@ -1031,6 +1044,23 @@ private:
     ZmAssert(rdrID() >= 0);
   }
 
+  template <bool MR_ = MR, bool Broadcast_ = Broadcast>
+  ZuIfT<MR_ && !Broadcast, uint32_t> nextRdr() {
+    uint64_t rdrMask = this->rdrMask().load_();
+    uint32_t rdrNext, rdrNext_;
+    // 64bit bitfield lock-free round-robin
+    do {
+      rdrNext_ = this->rdrNext().load_();
+      rdrNext = rdrNext_ & 63;
+      rdrMask = (rdrMask>>rdrNext) | (rdrMask<<((-rdrNext) & 63));
+      rdrNext += __builtin_ctzll(rdrMask);
+      rdrNext &= 63;
+    } while (
+	this->rdrNext().cmpXch(rdrNext + 1, rdrNext_) != rdrNext_ ||
+	this->rdrMask() != rdrMask);
+    return rdrNext;
+  }
+
 #define ZmRing_shift_get_tail_() \
     this->tail().load_() & ~Mask32()
 
@@ -1090,15 +1120,16 @@ private:
 #define ZmRing_shift_return_mwsr() \
     return reinterpret_cast<T *>(&(data())[(tail & ~Wrapped32()) + 8])
 #define ZmRing_shift_return_swmr() \
-    if (ZuUnlikely(!(hdr & (1ULL<<rdrID())))) { \
-      if constexpr (V) { \
-	unsigned msgSize = align(SizeAxor(&hdrPtr[1])); \
-	std::cout << "\nGOT HERE " << ZuBoxed(hdr).hex() << ' ' << msgSize << '\n' << std::flush; \
-	ZmRing_move_tail_(msgSize); \
-      } else { \
-	ZmRing_move_tail_(MsgSize); \
+    if constexpr (!Broadcast) { \
+      if (nextRdr() != rdrID()) { \
+	if constexpr (V) { \
+	  unsigned msgSize = align(SizeAxor(&hdrPtr[1])); \
+	  ZmRing_move_tail_(msgSize); \
+	} else { \
+	  ZmRing_move_tail_(MsgSize); \
+	} \
+	goto retry; \
       } \
-      goto retry; \
     } \
     ZmRing_shift_return_mwsr();
 #define ZmRing_shift_return_mwmr() ZmRing_shift_return_swmr()
@@ -1377,17 +1408,36 @@ inline int RingRdr<Ring, true>::attach()
 
   /**/ZmRing_bp(ring(), attach1);
 
-  rdrTail(ring()->tail().load_() & ~Mask32());
-
+  // skip any trailing messages not intended for us, since other readers
+  // may be concurrently advancing the ring's tail; this must be
+  // re-attempted as long as the head keeps moving and the writer remains
+  // unaware of our attach
+  uint32_t tail = ring()->tail().load_() & ~Mask32();
+  uint32_t head = ring()->head() & ~Mask32(); // acquire
+  uint32_t head_;
   /**/ZmRing_bp(ring(), attach2);
-
   ring()->rdrMask() |= (1ULL<<rdrID()); // notifies the writer about an attach
-
   /**/ZmRing_bp(ring(), attach3);
+  auto data = ring()->data();
+  auto size = ring()->size();
+
+  do {
+    while (tail != head) {
+      auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
+	  &data[tail & ~Wrapped32()]);
+      if (*hdrPtr & (1ULL<<rdrID())) goto done; // writer aware
+      tail += ring()->align(Ring::SizeAxor(&hdrPtr[1]));
+      if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
+    }
+    head_ = head;
+    head = ring()->head() & ~Mask32(); // acquire
+  } while (head != head_);
+done:
+  /**/ZmRing_bp(ring(), attach4);
+
+  rdrTail(tail);
 
   ++(ring()->attSeqNo());
-
-  /**/ZmRing_bp(ring(), attach4);
 
   return OK;
 }
