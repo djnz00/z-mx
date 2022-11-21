@@ -21,6 +21,12 @@
 // - single/multiple writers/producers and readers/consumers
 //   - supports SWSR MWSR SWMR MWMR
 // - fixed- and variable-sized messages (types)
+// - MR is broadcast
+//   - for unicast, shard writes to multiple MWSR ring buffers
+//   - most applications require sharding to ensure correct sequencing,
+//     and sharding to multiple ring buffers is more performant than
+//     multiple readers contending on a single ring buffer and
+//     skipping past all the essages intended for other readers
 
 #ifndef ZmRing_HPP
 #define ZmRing_HPP
