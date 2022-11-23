@@ -17,6 +17,8 @@ struct D : public C { ~D() { puts("~D()"); } };
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
+inline constexpr auto foo() { return []() { puts("Hello World"); }; }
+
 int main()
 {
   CHECK((ZuConversion<void, void>::Exists));
@@ -72,4 +74,11 @@ int main()
   CHECK((ZuTraits<ZuTuple<int, void *>>::IsPOD));
   CHECK((ZuTraits<ZuTuple<int, void *, A>>::IsPOD));
   CHECK(!(ZuTraits<ZuTuple<int, void *, D>>::IsPOD));
+
+  constexpr auto bar = foo();
+  constexpr auto baz = []() { puts("Goodbye World"); };
+  CHECK((ZuConversion<decltype(foo()), decltype(bar)>::Same));
+  CHECK((!ZuConversion<decltype(foo()), decltype(baz)>::Same));
+
+  bar(); baz();
 }

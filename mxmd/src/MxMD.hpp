@@ -657,6 +657,7 @@ private:
   MxMDOrders		m_orders;
 };
 
+// FIXME
 struct MxMDPxLevels_HeapID : public ZmHeapSharded {
   constexpr static const char *id() { return "MxMDPxLevel"; }
 };
@@ -1293,6 +1294,7 @@ friend MxMDShard;
     }
   };
 
+  // FIXME
   struct OrderBooks_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "MxMDInstrument.OrderBooks"; }
   };
@@ -1708,6 +1710,7 @@ inline ZmRef<MxMDOrder> MxMDVenueShard::delOrder(
 class MxMDAPI MxMDShard : public ZuObject, public ZmShard {
 friend MxMDLib;
 
+  // FIXME
   struct Instruments_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "MxMDShard.Instruments"; }
   };
@@ -1717,6 +1720,7 @@ friend MxMDLib;
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<Instruments_HeapID> > > > > Instruments;
 
+  // FIXME
   struct OrderBooks_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "MxMDShard.OrderBooks"; }
   };

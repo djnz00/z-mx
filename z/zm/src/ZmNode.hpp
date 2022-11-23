@@ -17,10 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// intrusive container node (used by ZmHash, ZmRBTree, ...)
-
-// ZmNode - container node
-// ZmNodePolicy - node ownership (referencing/dereferencing) policy
+// ZmNode - intrusive container node (used by ZmHash, ZmRBTree, ...)
 
 #ifndef ZmNode_HPP
 #define ZmNode_HPP
@@ -34,35 +31,64 @@
 #endif
 
 #include <zlib/ZuNull.hpp>
-#include <zlib/ZuObject.hpp>
+
+template <typename Base, typename Heap, bool = ZuConversion<Heap, Base>::Is>
+struct ZmNode__;
+template <typename Base, typename Heap>
+struct ZmNode__<Base, Heap, false> : public Heap, public Base {
+  ZmNode__() = default;
+  template <typename ...Args>
+  ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+};
+template <typename Base, typename Heap>
+struct ZmNode__<Base, Heap, true> : public Base {
+  ZmNode__() = default;
+  template <typename ...Args>
+  ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+};
+template <typename Base>
+struct ZmNode__<Base, ZuNull, false> : public Base {
+  ZmNode__() = default;
+  template <typename ...Args>
+  ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+};
+template <typename Heap>
+struct ZmNode__<ZuNull, Heap, false> : public Heap {
+  ZmNode__() = default;
+};
+template <>
+struct ZmNode__<ZuNull, ZuNull, true> { };
 
 template <
-  typename T, auto KeyAxor, auto ValAxor, typename Heap, bool Derive,
-  template <typename, typename, bool> typename Fn>
-class ZmNode;
+  typename T,
+  auto KeyAxor,
+  auto ValAxor,
+  typename Base,
+  template <typename> class Fn,
+  typename Heap,
+  bool = ZuConversion<Base, T>::Is>
+class ZmNode_;
 
 // node contains type
 template <
-  typename T_, auto KeyAxor_, auto ValAxor_, typename Heap,
-  template <typename, typename, bool> typename Fn_>
-class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_> :
-  public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 0, Fn_>, Heap, 0> {
+  typename T_,
+  auto KeyAxor_,
+  auto ValAxor_,
+  typename Base_,
+  template <typename> class Fn,
+  typename Heap>
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, false> :
+    public ZmNode__<Base_, Heap>,
+    public Fn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, false>> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = KeyAxor_;
   constexpr static auto ValAxor = ValAxor_;
-  using Fn = Fn_<ZmNode, Heap, 0>;
   using U = ZuDecay<T>;
 
-  ZmNode() = default;
-  ZmNode(const ZmNode &) = default;
-  ZmNode &operator =(const ZmNode &) = default;
-  ZmNode(ZmNode &&) = default;
-  ZmNode &operator =(ZmNode &&) = default;
-  ~ZmNode() = default;
-
+  ZmNode_() = default;
   template <typename ...Args>
-  ZmNode(Args &&... args) : m_data{ZuFwd<Args>(args)...} { }
+  ZmNode_(Args &&... args) : m_data{ZuFwd<Args>(args)...} { }
 
   const auto &data() const & { return m_data; }
   auto &data() & { return m_data; }
@@ -82,27 +108,26 @@ private:
 
 // node derives from type
 template <
-  typename T_, auto KeyAxor_, auto ValAxor_, typename Heap,
-  template <typename, typename, bool> typename Fn_>
-class ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_> :
-  public ZuDecay<T_>,
-  public Fn_<ZmNode<T_, KeyAxor_, ValAxor_, Heap, 1, Fn_>, Heap, 1> {
+  typename T_,
+  auto KeyAxor_,
+  auto ValAxor_,
+  typename Base_,
+  template <typename> class Fn,
+  typename Heap>
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, true> :
+    public ZmNode__<ZuDecay<T_>, Heap>,
+    public Fn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, true>> {
+  using Base = ZmNode__<ZuDecay<T_>, Heap>;
+
 public:
   using T = T_;
   constexpr static auto KeyAxor = KeyAxor_;
   constexpr static auto ValAxor = ValAxor_;
-  using Fn = Fn_<ZmNode, Heap, 1>;
   using U = ZuDecay<T>;
 
-  ZmNode() = default;
-  ZmNode(const ZmNode &) = default;
-  ZmNode &operator =(const ZmNode &) = default;
-  ZmNode(ZmNode &&) = default;
-  ZmNode &operator =(ZmNode &&) = default;
-  ~ZmNode() = default;
-
+  ZmNode_() = default;
   template <typename ...Args>
-  ZmNode(Args &&... args) : U{ZuFwd<Args>(args)...} { }
+  ZmNode_(Args &&... args) : Base_{ZuFwd<Args>(args)...} { }
 
   decltype(auto) data() const & { return static_cast<const U &>(*this); }
   decltype(auto) data() & { return static_cast<U &>(*this); }
@@ -117,45 +142,14 @@ public:
   decltype(auto) val() && { return ValAxor(data()); }
 };
 
-template <typename O, bool = ZuIsObject_<O>::OK> struct ZmNodePolicy;
-// ref-counted nodes
-template <typename O> struct ZmNodePolicy<O, true> {
-  using Object = O;
-  template <typename T> using Ref = ZmRef<T>;
-  template <typename T> void nodeRef(T *o) { ZmREF(o); }
-  template <typename T> void nodeRef(const Ref<T> &o) { ZmREF(o); }
-  template <typename T> void nodeDeref(T *o) { ZmDEREF(o); }
-  template <typename T> void nodeDeref(const Ref<T> &o) { ZmDEREF(o); }
-  template <typename T> Ref<T> nodeAcquire(T *o) { return Ref<T>::acquire(o); }
-  template <typename T> void nodeDelete(T *) { }
-  template <typename T> void nodeDelete(const Ref<T> &) { }
-};
-// own nodes (with app-specified base), delete if not returned to caller
-template <typename O> struct ZmNodePolicy<O, false> {
-  using Object = O;
-  template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T *) { }
-  template <typename T> void nodeDeref(T *) { }
-  template <typename T> T *nodeAcquire(T *o) { return o; }
-  template <typename T> void nodeDelete(T *o) { delete o; }
-};
-// own nodes, delete if not returned to caller
-template <> struct ZmNodePolicy<ZuNull, false> {
-  using Object = ZuNull;
-  template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T *) { }
-  template <typename T> void nodeDeref(T *) { }
-  template <typename T> T *nodeAcquire(T *o) { return o; }
-  template <typename T> void nodeDelete(T *o) { delete o; }
-};
-// shadow nodes, never delete
-template <> struct ZmNodePolicy<ZuShadow, false> {
-  using Object = ZuNull;
-  template <typename T> using Ref = T *;
-  template <typename T> void nodeRef(T *) { }
-  template <typename T> void nodeDeref(T *) { }
-  template <typename T> T *nodeAcquire(T *o) { return o; }
-  template <typename T> void nodeDelete(T *) { }
-};
+template <
+  typename T,
+  auto KeyAxor,
+  auto ValAxor,
+  typename Base,
+  template <typename> class Fn,
+  auto HeapID>
+using ZmNode = ZmNode_<T, KeyAxor, ValAxor, Base, Fn,
+      ZmHeap<HeapID, sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, Fn, ZuNull>)>>;
 
 #endif /* ZmNode_HPP */

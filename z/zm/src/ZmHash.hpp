@@ -43,6 +43,7 @@
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmLockTraits.hpp>
 #include <zlib/ZmNode.hpp>
+#include <zlib/ZmNodeContainer.hpp>
 
 #include <zlib/ZmHashMgr.hpp>
 
@@ -57,7 +58,7 @@ struct ZmHash_Bits {
 
 // hash table lock manager
 
-template <class Lock> class ZmHash_LockMgr {
+template <typename Lock> class ZmHash_LockMgr {
   using LockTraits = ZmLockTraits<Lock>;
 
   enum { CacheLineSize = Zm::CacheLineSize };
@@ -174,11 +175,11 @@ struct ZmHash_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
-  enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
-  using Object = ZuNull;
-  struct HeapID { constexpr static const char *id() { return "ZmHash"; } };
-  using ID = HeapID;
+  using Node = ZuNull;
+  enum { Shadow = 0 };
+  constexpr static auto HeapID = []() { return "ZmHash"; };
+  constexpr static auto ID = HeapID;
 };
 
 // ZmHashKey - key accessor
@@ -212,49 +213,46 @@ struct ZmHashFn : public NTP {
   template <typename T> using HashFnT = HashFn_<T>;
 };
 
-// ZmHashNodeDerive - derive ZmHash::Node from T instead of containing it
-template <bool NodeDerive_, typename NTP = ZmHash_Defaults>
-struct ZmHashNodeDerive : public NTP {
-  enum { NodeDerive = NodeDerive_ };
-};
-
 // ZmHashLock - the lock type used (ZmRWLock will permit concurrent reads)
-template <class Lock_, typename NTP = ZmHash_Defaults>
+template <typename Lock_, typename NTP = ZmHash_Defaults>
 struct ZmHashLock : public NTP {
   using Lock = Lock_;
 };
 
-// ZmHashObject - the reference-counted object type used for nodes
-template <class Object_, typename NTP = ZmHash_Defaults>
-struct ZmHashObject : public NTP {
-  using Object = Object_;
+// ZmHashNode - the base type for nodes
+template <typename Node_, typename NTP = ZmHash_Defaults>
+struct ZmHashNode : public NTP {
+  using Node = Node_;
+};
+
+// ZmHashShadow - shadow nodes, do not manage ownership
+template <bool Shadow_, typename NTP = ZmHash_Defaults>
+struct ZmHashShadow : public NTP {
+  using Shadow = Shadow_;
 };
 
 // ZmHashHeapID - the heap ID
-template <class HeapID_, typename NTP = ZmHash_Defaults>
+template <auto HeapID_, typename NTP = ZmHash_Defaults>
 struct ZmHashHeapID : public NTP {
-  using HeapID = HeapID_;
-  using ID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
+  constexpr static auto ID = HeapID_;
 };
-template <class NTP>
-struct ZmHashHeapID<ZuNull, NTP> : public NTP {
-  using HeapID = ZuNull;
+template <typename NTP>
+struct ZmHashHeapID<ZmHeapDisable(), NTP> : public NTP {
+  constexpr static auto HeapID = ZmHeapDisable();
 };
 
 // ZmHashID - the hash ID (if the heap ID is shared)
-template <class ID_, typename NTP = ZmHash_Defaults>
+template <auto ID_, typename NTP = ZmHash_Defaults>
 struct ZmHashID : public NTP {
-  using ID = ID_;
+  constexpr static auto ID = ID_;
 };
 
 template <typename T_, typename NTP = ZmHash_Defaults>
 class ZmHash :
     public ZmAnyHash,
     public ZmHash_LockMgr<typename NTP::Lock>,
-    public ZmNodePolicy<typename NTP::Object> {
-  using LockMgr = ZmHash_LockMgr<typename NTP::Lock>;
-  using NodePolicy = ZmNodePolicy<typename NTP::Object>;
-
+    public ZmNodeContainer<NTP::Shadow, T_, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
@@ -266,17 +264,20 @@ public:
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
-  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
-  using Object = typename NodePolicy::Object;
-  using ID = typename NTP::ID;
-  using HeapID = typename NTP::HeapID;
+  using NodeBase = typename NTP::Node;
+  enum { Shadow = NTP::Shadow };
+  constexpr static auto ID = NTP::ID;
+  constexpr static auto HeapID = NTP::HeapID;
+
+private:
+  using LockMgr = ZmHash_LockMgr<Lock>;
+  using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
 
   using LockTraits = ZmLockTraits<Lock>;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-private:
   using LockMgr::lockCode;
   using LockMgr::lockSlot;
   using LockMgr::lockAllResize;
@@ -293,47 +294,28 @@ protected:
   template <typename I> class Iterator_;
 template <typename> friend class Iterator_;
 
-public:
+private:
   // node in a hash table
 
-  struct NullObject { }; // deconflict with ZuNull
-  template <typename Node, typename Heap, bool NodeDerive> class NodeFn :
-      public ZuIf<
-	ZuConversion<ZuNull, Object>::Is ||
-	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeDerive && ZuConversion<Object, T>::Is),
-	NullObject, Object>,
-      public Heap {
-    NodeFn(const NodeFn &);
-    NodeFn &operator =(const NodeFn &);	// prevent mis-use
-
+  template <typename Node>
+  class NodeFn {
   friend ZmHash<T, NTP>;
   template <typename> friend class ZmHash<T, NTP>::Iterator_;
 
-  protected:
-    NodeFn() { }
-
-  private:
-    void init() { next = nullptr; }
-
-    Node	*next;
+    Node	*next = nullptr;
   };
 
-  template <typename Heap>
-  using Node_ = ZmNode<T, KeyAxor, ValAxor, Heap, NodeDerive, NodeFn>;
-  struct NullHeap { }; // deconflict with ZuNull
-  using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
-  using Node = Node_<NodeHeap>;
-  using Fn = typename Node::Fn;
-
-  using NodeRef = typename NodePolicy::template Ref<Node>;
+public:
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn, HeapID>;
+  using Fn = NodeFn<Node>;
+  using NodeRef = typename NodeContainer::template Ref<Node>;
   using NodePtr = Node *;
 
 private:
-  using NodePolicy::nodeRef;
-  using NodePolicy::nodeDeref;
-  using NodePolicy::nodeAcquire;
-  using NodePolicy::nodeDelete;
+  using NodeContainer::nodeRef;
+  using NodeContainer::nodeDeref;
+  using NodeContainer::nodeAcquire;
+  using NodeContainer::nodeDelete;
 
   static KeyRet key(const Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -591,7 +573,6 @@ private:
   void addNode_(Node *node, uint32_t code) {
     unsigned count = m_count.load_();
 
-    node->Fn::init();
     {
       unsigned bits = m_bits;
 
@@ -618,7 +599,7 @@ private:
   };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>::OK, R>;
-  template <typename U, typename V = T, bool = NodeDerive>
+  template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
   struct IsData {
     enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
   };
@@ -846,6 +827,8 @@ private:
       prevNode->Fn::next = node->Fn::next;
 
     m_count.store_(count - 1);
+
+    node->Fn::next = nullptr;
 
     return nodeAcquire(node);
   }

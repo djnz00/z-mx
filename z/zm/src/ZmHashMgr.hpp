@@ -88,17 +88,13 @@ public:
 uintptr_t ZmAnyHash_PtrAxor(const ZmAnyHash_ &h) {
   return reinterpret_cast<uintptr_t>(&h);
 }
-struct ZmHashMgr_HeapID {
-  constexpr static const char *id() { return "ZmHashMgr_"; }
-};
 using ZmHashMgr_Tables =
   ZmRBTree<ZmAnyHash_,
-    ZmRBTreeNodeDerive<true,
+    ZmRBTreeNode<ZmAnyHash_,
       ZmRBTreeKey<ZmAnyHash_PtrAxor,
 	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZmPolymorph,
-	    ZmRBTreeHeapID<ZuNull,
-	      ZmRBTreeLock<ZmNoLock> > > > > > >;
+	  ZmRBTreeHeapID<ZmHeapDisable(),
+	    ZmRBTreeLock<ZmNoLock>>>>>>;
 using ZmAnyHash = ZmHashMgr_Tables::Node;
 
 template <typename, typename> class ZmHash; 

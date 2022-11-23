@@ -769,6 +769,7 @@ friend ZiConnection;
     bool		m_up;
     ZiListenInfo	m_info;
   };
+  // FIXME
   struct Listener_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "ZiMultiplex.Listener"; }
   };
@@ -874,6 +875,7 @@ template <typename> friend class Connect_;
     Zi_Overlapped	m_overlapped;
 #endif
   };
+  // FIXME
   struct Connect_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "ZiMultiplex.Connect"; }
   };
@@ -891,6 +893,7 @@ template <typename> friend class Connect_;
   using Connect = Connect_<ConnectHeap>;
 #endif
 
+  // FIXME
   struct CxnHash_HeapID : public ZmHeapSharded {
     constexpr static const char *id() { return "ZiMultiplex.CxnHash"; }
   };

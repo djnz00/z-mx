@@ -41,6 +41,7 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
+#include <zlib/ZmNodeContainer.hpp>
 
 // NTP (named template parameters) convention:
 //
@@ -53,10 +54,10 @@ struct ZmList_Defaults {
   constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
-  enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
-  using Object = ZuNull;
-  struct HeapID { constexpr static const char *id() { return "ZmList"; } };
+  using Node = ZuNull;
+  enum { Shadow = 0 };
+  constexpr static auto HeapID = []() { return "ZmList"; };
 };
 
 // ZmListKey - key accessor
@@ -80,47 +81,52 @@ struct ZmListCmp : public NTP {
   template <typename T> using CmpT = Cmp_<T>;
 };
 
-// ZmListNodeDerive - derive ZmList::Node from T instead of containing it
-template <bool NodeDerive_, typename NTP = ZmList_Defaults>
-struct ZmListNodeDerive : public NTP {
-  enum { NodeDerive = NodeDerive_ };
-};
-
 // ZmListLock - the lock type used (ZmRWLock will permit concurrent reads)
 template <class Lock_, class NTP = ZmList_Defaults>
 struct ZmListLock : public NTP {
   using Lock = Lock_;
 };
 
-// ZmListObject - the reference-counted object type used
-template <class Object_, class NTP = ZmList_Defaults>
-struct ZmListObject : public NTP {
-  using Object = Object_;
+// ZmListNode - the base type for nodes
+template <typename Node_, typename NTP = ZmList_Defaults>
+struct ZmListNode : public NTP {
+  using Node = Node_;
+};
+
+// ZmListShadow - shadow nodes, do not manage ownership
+template <bool Shadow_, typename NTP = ZmList_Defaults>
+struct ZmListShadow : public NTP {
+  using Shadow = Shadow_;
 };
 
 // ZmListHeapID - the heap ID
-template <class HeapID_, class NTP = ZmList_Defaults>
+template <auto HeapID_, class NTP = ZmList_Defaults>
 struct ZmListHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
 };
 
 template <typename T_, class NTP = ZmList_Defaults>
-class ZmList : public ZmNodePolicy<typename NTP::Object> {
-  using NodePolicy = ZmNodePolicy<typename NTP::Object>;
-
+class ZmList :
+    public ZmNodeContainer<NTP::Shadow, T_, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
   constexpr static auto ValAxor = NTP::ValAxor;
-  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<T>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
-  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
-  using Object = typename NodePolicy::Object;
-  using HeapID = typename NTP::HeapID;
+  using NodeBase = typename NTP::Node;
+  enum { Shadow = NTP::Shadow };
+  constexpr static auto HeapID = NTP::HeapID;
 
+private:
+  using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
+
+public:
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
+
+private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
@@ -128,46 +134,28 @@ protected:
   class Iterator_;
 friend Iterator_;
 
-public:
+private:
   // node in a list
 
-  struct NullObject { }; // deconflict with ZuNull
-  template <typename Node, typename Heap, bool NodeDerive> class NodeFn :
-      public ZuIf<
-	ZuConversion<ZuNull, Object>::Is ||
-	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeDerive && ZuConversion<Object, T>::Is),
-	NullObject, Object>,
-      public Heap {
-    NodeFn(const NodeFn &);
-    NodeFn &operator =(const NodeFn &);	// prevent mis-use
-
+  template <typename Node>
+  class NodeFn {
   friend ZmList<T, NTP>;
-  friend ZmList<T, NTP>::Iterator_;
+  template <typename> friend class ZmList<T, NTP>::Iterator_;
 
-  protected:
-    NodeFn() { init(); }
-
-  private:
-    void init() { next = prev = nullptr; }
-
-    Node	*next, *prev;
+    Node	*next = nullptr, *prev = nullptr;
   };
 
-  template <typename Heap>
-  using Node_ = ZmNode<T, KeyAxor, ValAxor, Heap, NodeDerive, NodeFn>;
-  struct NullHeap { }; // deconflict with ZuNull
-  using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
-  using Node = Node_<NodeHeap>;
-  using Fn = typename Node::Fn;
-
-  using NodeRef = typename NodePolicy::template Ref<Node>;
+public:
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn, HeapID>;
+  using Fn = NodeFn<Node>;
+  using NodeRef = typename NodeContainer::template Ref<Node>;
+  using NodePtr = Node *;
 
 private:
-  using NodePolicy::nodeRef;
-  using NodePolicy::nodeDeref;
-  using NodePolicy::nodeDelete;
-  using NodePolicy::nodeAcquire;
+  using NodeContainer::nodeRef;
+  using NodeContainer::nodeDeref;
+  using NodeContainer::nodeDelete;
+  using NodeContainer::nodeAcquire;
 
   static const Key &key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -758,6 +746,8 @@ protected:
       nextNode->Fn::prev = prevNode;
 
     --m_count;
+    
+    node->Fn::next = node->Fn::prev = nullptr;
   }
 
   void clean_() {

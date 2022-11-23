@@ -55,22 +55,22 @@ friend ZmHeapCache;
   using IDPart2Config =
     ZmRBTreeKV<IDPart, ZmHeapConfig,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<ZuNull,
+	ZmRBTreeHeapID<ZmHeapDisable(),
 	  ZmRBTreeLock<ZmNoLock> > > >;
   using ID2Cache =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::IDAxor,
-	ZmRBTreeHeapID<ZuNull,
+	ZmRBTreeHeapID<ZmHeapDisable(),
 	  ZmRBTreeLock<ZmNoLock> > > >;
   using IDSize2Cache =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::IDSizeAxor,
-	ZmRBTreeHeapID<ZuNull,
+	ZmRBTreeHeapID<ZmHeapDisable(),
 	  ZmRBTreeLock<ZmNoLock> > > >;
   using IDPartSize2Cache =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::IDPartSizeAxor,
-	ZmRBTreeHeapID<ZuNull,
+	ZmRBTreeHeapID<ZmHeapDisable(),
 	  ZmRBTreeLock<ZmNoLock> > > >;
 
   using StatsFn = ZmHeapCache::StatsFn;
@@ -372,7 +372,7 @@ void ZmHeapCache::allStats() const
     HistReadGuard guard{m_histLock};
     m_stats = m_histStats;
   }
-  StatsFn fn = StatsFn::Lambda<ZuNull>::fn(
+  StatsFn fn = StatsFn::Lambda<ZmHeapDisable()>::fn(
       [this](const ZmHeapStats &s) {
 	m_stats.heapAllocs += s.heapAllocs;
 	m_stats.cacheAllocs += s.cacheAllocs;

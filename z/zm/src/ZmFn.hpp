@@ -113,21 +113,23 @@ struct ZmLambda_ : public Heap, public ZmPolymorph, public L {
   ZmLambda_ &operator =(ZmLambda_ &&) = delete;
   template <typename L_> ZuInline ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
 };
-template <typename L, typename HeapID = ZmLambda_HeapID>
+template <typename L, auto HeapID = ZmLambda_HeapID()>
 using ZmLambda = ZmLambda_<L, ZmHeap<HeapID, sizeof(ZmLambda_<L, ZuNull>)>>;
 
 template <typename ...Args>
-template <typename L, typename R, typename HeapID, typename ...Args_>
+template <typename L, typename R, auto HeapID, typename ...Args_>
 template <typename L_>
-ZmFn<Args...> ZmFn<Args...>::LambdaInvoker_<L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
+ZmFn<Args...>
+ZmFn<Args...>::LambdaInvoker_<L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
   using O = ZmLambda<L, HeapID>;
   return Member<&L::operator ()>::fn(ZmRef<O>{new O{ZuFwd<L_>(l)}});
 }
 
 template <typename ...Args>
-template <typename L, typename R, typename HeapID, typename ...Args_>
+template <typename L, typename R, auto HeapID, typename ...Args_>
 template <typename L_>
-ZmFn<Args...> ZmFn<Args...>::LambdaInvoker_<const L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
+ZmFn<Args...>
+ZmFn<Args...>::LambdaInvoker_<const L, R, HeapID, 0, Args_...>::fn(L_ &&l) {
   using O = ZmLambda<L, HeapID>;
   return Member<&L::operator ()>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
 }

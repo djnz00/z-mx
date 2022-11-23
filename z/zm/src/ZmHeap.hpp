@@ -51,8 +51,8 @@
 class ZmHeapMgr;
 class ZmHeapMgr_;
 class ZmHeapCache;
-template <typename ID, unsigned Size> class ZmHeap;
-template <typename ID, unsigned Size> class ZmHeapCacheT;
+template <auto ID, unsigned Size, bool Sharded> class ZmHeap;
+template <auto ID, unsigned Size, bool Sharded> class ZmHeapCacheT;
 
 struct ZmHeapConfig {
   uint32_t	alignment;
@@ -96,8 +96,8 @@ struct ZmHeapTelemetry {
 class ZmAPI ZmHeapCache : public ZmObject {
 friend ZmHeapMgr;
 friend ZmHeapMgr_;
-template <class, unsigned> friend class ZmHeap;
-template <class, unsigned> friend class ZmHeapCacheT;
+template <auto, unsigned, bool> friend class ZmHeap;
+template <auto, unsigned, bool> friend class ZmHeapCacheT;
 
   enum { CacheLineSize = Zm::CacheLineSize };
 
@@ -212,7 +212,7 @@ private:
 
 class ZmAPI ZmHeapMgr {
 friend ZmHeapCache;
-template <class, unsigned> friend class ZmHeapCacheT; 
+template <auto, unsigned, bool> friend class ZmHeapCacheT; 
 
   template <class S> struct CSV_ {
     CSV_(S &stream) : m_stream(stream) { }
@@ -269,18 +269,15 @@ private:
       const char *id, unsigned size, bool sharded, AllStatsFn);
 };
 
-// derive ID from ZmHeapSharded to declare a sharded heap
-struct ZmHeapSharded { };
-
-template <typename ID, unsigned Size>
-struct ZmCleanup<ZmHeapCacheT<ID, Size> > {
+template <auto ID, unsigned Size, bool Sharded>
+struct ZmCleanup<ZmHeapCacheT<ID, Size, Sharded> > {
   enum { Level = ZmCleanupLevel::Heap };
 };
 
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
-template <typename ID, unsigned Size>
+template <auto ID, unsigned Size, bool Sharded>
 class ZmHeapCacheT : public ZmObject {
-friend ZmSpecificCtor<ZmHeapCacheT<ID, Size> >;
+friend ZmSpecificCtor<ZmHeapCacheT<ID, Size, Sharded> >;
   using TLS = ZmSpecific<ZmHeapCacheT>;
 
   using StatsFn = ZmHeapCache::StatsFn;
@@ -293,8 +290,7 @@ public:
 
 private:
   ZmHeapCacheT() :
-    m_cache(ZmHeapMgr::cache(ID::id(), Size,
-	  ZuConversion<ZmHeapSharded, ID>::Base,
+    m_cache(ZmHeapMgr::cache(ID(), Size, Sharded,
 	  AllStatsFn::Ptr<&allStats>::fn())), m_stats{} { }
 public:
   ~ZmHeapCacheT() {
@@ -345,18 +341,19 @@ struct ZmHeap_Size<Size_, false, 0, true> { // larger than cache line size
 };
 
 template <typename Heap> class ZmHeap_Init {
-template <typename, unsigned> friend class ZmHeap;
+template <auto, unsigned, bool> friend class ZmHeap;
   ZmHeap_Init();
 };
 
-template <typename ID_, unsigned Size_>
+template <auto ID_, unsigned Size_, bool Sharded_ = false>
 class ZmHeap {
-  enum { Size = ZmHeap_Size<Size_>::Size };
-
 public:
-  using ID = ID_;
+  constexpr static auto ID = ID_;
+  enum { Size = ZmHeap_Size<Size_>::Size };
+  enum { Sharded = Sharded_ };
+
 private:
-  using Cache = ZmHeapCacheT<ID, Size>;
+  using Cache = ZmHeapCacheT<ID, Size, Sharded>;
 
 public:
   void *operator new(size_t) { return Cache::alloc(); }
@@ -373,17 +370,23 @@ private:
 template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
-template <typename ID, unsigned Size_>
-ZmHeap_Init<ZmHeap<ID, Size_> > ZmHeap<ID, Size_>::m_init;
+template <auto ID, unsigned Size, bool Sharded>
+ZmHeap_Init<ZmHeap<ID, Size, Sharded> > ZmHeap<ID, Size, Sharded>::m_init;
 
-template <unsigned Size> class ZmHeap<ZuNull, Size> { };
+// sentinel heap ID used to disable ZmHeap
+inline constexpr auto ZmHeapDisable() {
+  return []() -> const char * { return nullptr; };
+};
+
+template <unsigned Size, bool Sharded>
+class ZmHeap<ZmHeapDisable(), Size, Sharded> { };
 
 #include <zlib/ZmFn.hpp>
 
-template <class ID, unsigned Size>
-inline void ZmHeapCacheT<ID, Size>::allStats(StatsFn fn)
+template <auto ID, unsigned Size, bool Sharded>
+inline void ZmHeapCacheT<ID, Size, Sharded>::allStats(StatsFn fn)
 {
-  TLS::all(ZmFn<ZmHeapCacheT *>::template Lambda<ZuNull>::fn(
+  TLS::all(ZmFn<ZmHeapCacheT *>::template Lambda<ZmHeapDisable()>::fn(
 	[&fn](ZmHeapCacheT *c) { fn(c->m_stats); }));
 }
 

@@ -39,6 +39,7 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
+#include <zlib/ZmNodeContainer.hpp>
 
 // uses NTP (named template parameters):
 //
@@ -50,10 +51,10 @@ struct ZmRBTree_Defaults {
   constexpr static auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
-  enum { NodeDerive = 0 };
   using Lock = ZmNoLock;
-  using Object = ZuNull;
-  struct HeapID { constexpr static const char *id() { return "ZmRBTree"; } };
+  using Node = ZuNull;
+  enum { Shadow = 0 };
+  constexpr static auto HeapID = []() { return "ZmRBTree"; };
   enum { Unique = 0 };
 };
 
@@ -88,28 +89,28 @@ struct ZmRBTreeValCmp : public NTP {
   template <typename T> using ValCmpT = ValCmp_<T>;
 };
 
-// ZmRBTreeNodeDerive - derive ZmRBTree::Node from T instead of containing it
-template <bool NodeDerive_, typename NTP = ZmRBTree_Defaults>
-struct ZmRBTreeNodeDerive : public NTP {
-  enum { NodeDerive = NodeDerive_ };
-};
-
 // ZmRBTreeLock - the lock type used (ZmRWLock will permit concurrent reads)
 template <class Lock_, class NTP = ZmRBTree_Defaults>
 struct ZmRBTreeLock : public NTP {
   using Lock = Lock_;
 };
 
-// ZmRBTreeObject - the reference-counted object type used
-template <class Object_, class NTP = ZmRBTree_Defaults>
-struct ZmRBTreeObject : public NTP {
-  using Object = Object_;
+// ZmRBTreeNode - the base type for nodes
+template <typename Node_, typename NTP = ZmRBTree_Defaults>
+struct ZmRBTreeNode : public NTP {
+  using Node = Node_;
+};
+
+// ZmRBTreeShadow - shadow nodes, do not manage ownership
+template <bool Shadow_, typename NTP = ZmRBTree_Defaults>
+struct ZmRBTreeShadow : public NTP {
+  enum { Shadow = Shadow_ };
 };
 
 // ZmRBTreeHeapID - the heap ID
-template <class HeapID_, class NTP = ZmRBTree_Defaults>
+template <auto HeapID_, class NTP = ZmRBTree_Defaults>
 struct ZmRBTreeHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
 };
 
 // ZmRBTreeUnique - key is unique
@@ -223,11 +224,11 @@ public:
 };
 
 template <typename T_, class NTP = ZmRBTree_Defaults>
-class ZmRBTree : public ZmNodePolicy<typename NTP::Object> {
+class ZmRBTree :
+    public ZmNodeContainer<NTP::Shadow, T_, typename NTP::Node> {
   template <typename, int> friend class ZmRBTreeIterator_;
   template <typename, int> friend class ZmRBTreeIterator;
-
-  using NodePolicy = ZmNodePolicy<typename NTP::Object>;
+  template <typename, int> friend class ZmRBTreeReadIterator;
 
 public:
   using T = T_;
@@ -239,11 +240,14 @@ public:
   using Val = ZuDecay<ValRet>;
   using Cmp = typename NTP::template CmpT<Key>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
-  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
-  using Object = typename NodePolicy::Object;
-  using HeapID = typename NTP::HeapID;
+  using NodeBase = typename NTP::Node;
+  enum { Shadow = NTP::Shadow };
+  constexpr static auto HeapID = NTP::HeapID;
   enum { Unique = NTP::Unique };
+
+private:
+  using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
@@ -253,46 +257,33 @@ public:
   template <int Direction = ZmRBTreeGreaterEqual>
   using ReadIterator = ZmRBTreeReadIterator<ZmRBTree, Direction>;
 
+private:
   // node in a red/black tree
 
-private:
-  struct NullObject { }; // deconflict with ZuNull
   template <typename Node>
   class NodeFn_Dup {
-  public:
-    void init() { m_dup = nullptr; }
+  friend ZmRBTree<T, NTP>;
+  template <typename, int> friend class ZmRBTreeIterator_;
+
     Node *dup() const { return m_dup; }
     void dup(Node *n) { m_dup = n; }
-  private:
-    Node		*m_dup;
+
+    Node	*m_dup = nullptr;
   };
   template <typename Node>
   class NodeFn_Unique {
-  public:
-    void init() { }
+  friend ZmRBTree<T, NTP>;
+  template <typename, int> friend class ZmRBTreeIterator_;
+
     constexpr Node * const dup() const { return nullptr; }
     void dup(Node *) { }
   };
-  template <
-    typename Node, typename Heap, bool NodeDerive, bool Unique>
-  class NodeFn_ :
-      public ZuIf<
-	ZuConversion<ZuNull, Object>::Is ||
-	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeDerive && ZuConversion<Object, T>::Is),
-	NullObject, Object>,
-      public ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>>,
-      public Heap {
+  template <typename Node>
+  class NodeFn : public ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>> {
+  friend ZmRBTree<T, NTP>;
+  template <typename, int> friend class ZmRBTreeIterator_;
+
     using Base = ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>>;
-
-  public:
-    NodeFn_() { }
-
-    void init() {
-      Base::init();
-      m_right = m_left = nullptr;
-      m_parent = 0;
-    }
 
     bool black() { return m_parent & static_cast<uintptr_t>(1); }
     void black(bool black) {
@@ -314,30 +305,22 @@ private:
 	reinterpret_cast<uintptr_t>(n) | (m_parent & static_cast<uintptr_t>(1));
     }
 
-  private:
-    Node		*m_right;
-    Node		*m_left;
-    uintptr_t		m_parent;
+    Node		*m_right = nullptr;
+    Node		*m_left = nullptr;
+    uintptr_t		m_parent = 0;
   };
 
-  template <typename Node, typename Heap, bool NodeDerive>
-  using NodeFn = NodeFn_<Node, Heap, NodeDerive, Unique>;
-  template <typename Heap>
-  using Node_ = ZmNode<T, KeyAxor, ValAxor, Heap, NodeDerive, NodeFn>;
-  struct NullHeap { }; // deconflict with ZuNull
-  using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
-
 public:
-  using Node = Node_<NodeHeap>;
-  using Fn = typename Node::Fn;
-
-  using NodeRef = typename NodePolicy::template Ref<Node>;
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn, HeapID>;
+  using Fn = NodeFn<Node>;
+  using NodeRef = typename NodeContainer::template Ref<Node>;
+  using NodePtr = Node *;
 
 private:
-  using NodePolicy::nodeRef;
-  using NodePolicy::nodeDeref;
-  using NodePolicy::nodeDelete;
-  using NodePolicy::nodeAcquire;
+  using NodeContainer::nodeRef;
+  using NodeContainer::nodeDeref;
+  using NodeContainer::nodeDelete;
+  using NodeContainer::nodeAcquire;
 
   static KeyRet key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -419,20 +402,17 @@ public:
   template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
   ZuIfT<_> addNode(NodeRef &&node_) {
     Node *node = node_.release();
-    node->Fn::init();
     Guard guard(m_lock);
     addNode_(node);
   }
   void addNode(Node *node) {
     nodeRef(node);
-    node->Fn::init();
     Guard guard(m_lock);
     addNode_(node);
   }
 private:
   void addNode_(Node *newNode) {
     Node *node;
-
 
     if (!(node = m_root)) {
       newNode->black(1);
@@ -493,7 +473,7 @@ private:
   };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>::OK, R>;
-  template <typename U, typename V = T, bool = NodeDerive>
+  template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
   struct IsData {
     enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
   };
@@ -797,6 +777,7 @@ private:
 	parent->Fn::dup(dup);
 	if (dup) dup->Fn::parent(parent);
 	--m_count;
+	node->Fn::dup(nullptr);
 	return;
       }
       if (dup) {
@@ -822,6 +803,7 @@ private:
 	if (node == m_minimum) m_minimum = dup;
 	if (node == m_maximum) m_maximum = dup;
 	--m_count;
+	node->Fn::dup(nullptr);
 	return;
       }
     }

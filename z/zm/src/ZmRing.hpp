@@ -510,11 +510,8 @@ public:
   enum { MsgSize = DataMgr_::MsgSize };
 
   // MR requires a non-default SizeAxor
-  ZuAssert(
-      (!MR || !ZuConversion<
-	decltype([](const void *) { return 0; }),
-	decltype(SizeAxor)
-      >::Same));
+  ZuAssert((!MR ||
+	!ZuConversion<decltype(Defaults::SizeAxor), decltype(SizeAxor)>::Same));
 
   enum { // open() flags
     Read	= 0x00000001,

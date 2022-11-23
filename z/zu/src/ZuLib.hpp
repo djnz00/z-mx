@@ -575,9 +575,6 @@ struct ZuDeduce<R_ (*)(Args_...)> {
   using Args = ZuTypeList<Args_...>;
 };
 
-// compile-time policy tag for intrusively shadowed (not owned) objects
-class ZuShadow { }; // tag
-
 // constexpr instantiable numeric constant
 template <unsigned I_> struct ZuConstant {
   enum { I = I_ };

@@ -34,14 +34,11 @@ class ZmHashMgr_ : public ZmObject {
 friend ZmSingletonCtor<ZmHashMgr_>;
 friend ZmHashMgr;
 
-  struct HeapID { constexpr static const char *id() { return "ZmHashMgr_"; } };
-
   using ID2Params =
     ZmRBTreeKV<ZmIDString, ZmHashParams,
       ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeHeapID<HeapID,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+	ZmRBTreeHeapID<[]() { return "ZmHashMgr_"; },
+	  ZmRBTreeLock<ZmNoLock> > > >;
 
   ZmHashMgr_() { }
 public:
