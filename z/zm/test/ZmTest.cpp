@@ -70,7 +70,7 @@ struct ZCmp {
 using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
 using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
-using ZList2 = ZmList<ZuStringN<20>, ZmListNodeDerive<true> >;
+using ZList2 = ZmList<ZuStringN<20>, ZmListNode<ZuStringN<20>>>;
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 

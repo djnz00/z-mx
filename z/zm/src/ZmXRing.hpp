@@ -74,7 +74,8 @@ struct ZmXRing_Defaults {
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  struct HeapID { constexpr static const char *id() { return "ZmXRing"; } };
+  constexpr static auto HeapID = []() { return "ZmXRing"; };
+  enum { Sharded = 0 };
 };
 
 // ZmXRingKey - key accessor
@@ -97,15 +98,21 @@ struct ZmXRingKeyCmp : public NTP {
 };
 
 // ZmXRingLock - the lock type
-template <class Lock_, class NTP = ZmXRing_Defaults>
+template <typename Lock_, class NTP = ZmXRing_Defaults>
 struct ZmXRingLock : public NTP {
   using Lock = Lock_;
 };
 
 // ZmXRingHeapID - the heap ID
-template <class HeapID_, typename NTP = ZmXRing_Defaults>
+template <auto HeapID_, typename NTP = ZmXRing_Defaults>
 struct ZmXRingHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
+};
+
+// ZmXRingSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmXRing_Defaults>
+struct ZmXRingSharded : public NTP {
+  enum { Sharded = Sharded_ };
 };
 
 // only provide delPtr and findPtr methods to callers of unlocked ZmXRings
@@ -113,7 +120,7 @@ struct ZmXRingHeapID : public NTP {
 
 template <typename T, class NTP> class ZmXRing;
 
-template <class Ring> struct ZmXRing_Unlocked;
+template <typename Ring> struct ZmXRing_Unlocked;
 template <typename T, class NTP>
 struct ZmXRing_Unlocked<ZmXRing<T, NTP> > {
   using Ring = ZmXRing<T, NTP>;
@@ -127,15 +134,15 @@ struct ZmXRing_Unlocked<ZmXRing<T, NTP> > {
   }
 };
 
-template <class Ring, class Lock> struct ZmXRing_Base { };
-template <class Ring>
+template <typename Ring, class Lock> struct ZmXRing_Base { };
+template <typename Ring>
 struct ZmXRing_Base<Ring, ZmNoLock> : public ZmXRing_Unlocked<Ring> { };
 
 // derives from Ops so that a ZmXRing includes an *instance* of Ops
 
 template <typename T_, class NTP = ZmXRing_Defaults>
 class ZmXRing :
-    private ZmVHeap<typename NTP::HeapID>,
+    private ZmVHeap<NTP::HeapID, NTP::Sharded>,
     public ZmXRing_Base<ZmXRing<T_, NTP>, typename NTP::Lock>,
     public NTP::template OpsT<T_> {
   ZmXRing(const ZmXRing &);
@@ -151,7 +158,8 @@ public:
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<T>;
   using Lock = typename NTP::Lock;
-  using HeapID = typename NTP::HeapID;
+  constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
@@ -200,8 +208,8 @@ public:
   unsigned offset_() const { return m_offset; }
 
 private:
-  using ZmVHeap<HeapID>::valloc;
-  using ZmVHeap<HeapID>::vfree;
+  using ZmVHeap<HeapID, Sharded>::valloc;
+  using ZmVHeap<HeapID, Sharded>::vfree;
 
   void lazy() {
     if (ZuUnlikely(!m_data)) extend(m_initial);

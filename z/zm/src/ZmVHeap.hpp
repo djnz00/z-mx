@@ -33,18 +33,18 @@
 
 #include <zlib/ZmHeap.hpp>
 
-template <typename ID> class ZmVHeap;
-template <typename ID> class ZmVHeap_Init {
-template <typename> friend class ZmVHeap;
+template <auto ID, bool Sharded> class ZmVHeap;
+template <auto ID, bool Sharded> class ZmVHeap_Init {
+template <auto, bool> friend class ZmVHeap;
   ZmVHeap_Init();
 };
 
-template <typename ID>
+template <auto ID, bool Sharded = false>
 class ZmVHeap {
-  template <typename> friend class ZmVHeap_Init;
+  template <auto, bool> friend class ZmVHeap_Init;
 
   template <unsigned N>
-  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<(1<<N)>::Size>;
+  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<(1<<N)>::Size, Sharded>;
 
 public:
   static void *valloc(size_t n) {
@@ -77,19 +77,19 @@ public:
   }
 
 private:
-  static ZmVHeap_Init<ID>	m_init;
+  static ZmVHeap_Init<ID, Sharded>	m_init;
 };
 
-template <typename ID>
-ZmVHeap_Init<ID>::ZmVHeap_Init() {
+template <auto ID, bool Sharded>
+ZmVHeap_Init<ID, Sharded>::ZmVHeap_Init() {
   for (unsigned i = 0; i < 16; i++)
     ZuSwitch::dispatch<16>(i, [](auto i) {
-      if (auto ptr = ZmVHeap<ID>::template Cache<i>::alloc())
-	ZmVHeap<ID>::template Cache<i>::free(ptr);
+      if (auto ptr = ZmVHeap<ID, Sharded>::template Cache<i>::alloc())
+	ZmVHeap<ID, Sharded>::template Cache<i>::free(ptr);
     });
 }
 
-template <typename ID>
-ZmVHeap_Init<ID> ZmVHeap<ID>::m_init;
+template <auto ID, bool Sharded>
+ZmVHeap_Init<ID, Sharded> ZmVHeap<ID, Sharded>::m_init;
 
 #endif /* ZmVHeap_HPP */

@@ -74,7 +74,8 @@ struct ZmStack_Defaults {
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  struct HeapID { constexpr static const char *id() { return "ZmStack"; } };
+  constexpr static auto HeapID = []() { return "ZmStack"; };
+  enum { Sharded = 0 };
 };
 
 // ZmStackKey - key accessor
@@ -103,9 +104,15 @@ struct ZmStackLock : public NTP {
 };
 
 // ZmStackHeapID - the heap ID
-template <class HeapID_, typename NTP = ZmStack_Defaults>
+template <auto HeapID_, typename NTP = ZmStack_Defaults>
 struct ZmStackHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
+};
+
+// ZmStackSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmStack_Defaults>
+struct ZmStackSharded : public NTP {
+  enum { Sharded = Sharded_ };
 };
 
 // only provide delPtr and findPtr methods to callers of unlocked ZmStacks
@@ -134,7 +141,7 @@ struct ZmStack_Base<Stack, ZmNoLock> : public ZmStack_Unlocked<Stack> { };
 // derives from Ops so that a ZmStack includes an *instance* of Ops
 
 template <typename T_, class NTP = ZmStack_Defaults> class ZmStack :
-    private ZmVHeap<typename NTP::HeapID>,
+    private ZmVHeap<NTP::HeapID, NTP::Sharded>,
     public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
     public NTP::template OpsT<T_> {
   ZmStack(const ZmStack &);
@@ -150,7 +157,8 @@ public:
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<T>;
   using Lock = typename NTP::Lock;
-  using HeapID = typename NTP::HeapID;
+  constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
@@ -197,8 +205,8 @@ public:
   unsigned count_() const { return m_count; }
 
 private:
-  using ZmVHeap<HeapID>::valloc;
-  using ZmVHeap<HeapID>::vfree;
+  using ZmVHeap<HeapID, Sharded>::valloc;
+  using ZmVHeap<HeapID, Sharded>::vfree;
 
   void lazy() {
     if (ZuUnlikely(!m_data)) extend(m_initial);

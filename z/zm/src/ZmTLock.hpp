@@ -132,7 +132,7 @@ friend ZmTLock_Test;
   using Guard_ = ZmGuard<Lock_>;
   using ReadGuard_ = ZmReadGuard<Lock_>;
 
-  struct HeapID { constexpr static const char *id() { return "ZmTLock"; } };
+  constexpr static auto HeapID() { return "ZmTLock"; }
 
   using Held = ZmTLock_Held;
   using HeldStack =

@@ -64,7 +64,7 @@ template <
   auto KeyAxor,
   auto ValAxor,
   typename Base,
-  template <typename> class Fn,
+  template <typename> class NodeFn,
   typename Heap,
   bool = ZuConversion<Base, T>::Is>
 class ZmNode_;
@@ -75,11 +75,11 @@ template <
   auto KeyAxor_,
   auto ValAxor_,
   typename Base_,
-  template <typename> class Fn,
+  template <typename> class NodeFn,
   typename Heap>
-class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, false> :
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, false> :
     public ZmNode__<Base_, Heap>,
-    public Fn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, false>> {
+    public NodeFn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, false>> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = KeyAxor_;
@@ -112,11 +112,11 @@ template <
   auto KeyAxor_,
   auto ValAxor_,
   typename Base_,
-  template <typename> class Fn,
+  template <typename> class NodeFn,
   typename Heap>
-class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, true> :
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, true> :
     public ZmNode__<ZuDecay<T_>, Heap>,
-    public Fn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, Fn, Heap, true>> {
+    public NodeFn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, true>> {
   using Base = ZmNode__<ZuDecay<T_>, Heap>;
 
 public:
@@ -127,7 +127,7 @@ public:
 
   ZmNode_() = default;
   template <typename ...Args>
-  ZmNode_(Args &&... args) : Base_{ZuFwd<Args>(args)...} { }
+  ZmNode_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 
   decltype(auto) data() const & { return static_cast<const U &>(*this); }
   decltype(auto) data() & { return static_cast<U &>(*this); }
@@ -147,9 +147,13 @@ template <
   auto KeyAxor,
   auto ValAxor,
   typename Base,
-  template <typename> class Fn,
-  auto HeapID>
-using ZmNode = ZmNode_<T, KeyAxor, ValAxor, Base, Fn,
-      ZmHeap<HeapID, sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, Fn, ZuNull>)>>;
+  template <typename> class NodeFn,
+  auto HeapID,
+  bool Sharded>
+using ZmNode =
+  ZmNode_<T, KeyAxor, ValAxor, Base, NodeFn,
+    ZmHeap<HeapID,
+      sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, NodeFn, ZuNull>),
+      Sharded>>;
 
 #endif /* ZmNode_HPP */

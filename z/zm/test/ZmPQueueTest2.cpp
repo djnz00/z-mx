@@ -37,7 +37,7 @@
 #include <zlib/ZmList.hpp>
 
 using Msg_Data = ZuPair<uint32_t, unsigned>;
-struct Msg_ : public Msg_Data {
+struct Msg_ : public ZmObject, public Msg_Data {
   using Msg_Data::Msg_Data;
   using Msg_Data::operator =;
   Msg_(const Msg_Data &v) : Msg_Data(v) { }
@@ -58,8 +58,7 @@ struct Msg_ : public Msg_Data {
 
 using Queue =
   ZmPQueue<Msg_,
-    ZmPQueueObject<ZmObject,
-      ZmPQueueNodeDerive<true> > >;
+    ZmPQueueNode<Msg_> >;
 
 class App : public ZmPQRx<App, Queue, ZmNoLock> {
 public:

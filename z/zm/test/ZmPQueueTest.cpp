@@ -31,7 +31,7 @@
 #include <zlib/ZmNoLock.hpp>
 
 using Msg_Data = ZuPair<uint32_t, unsigned>;
-struct Msg : public Msg_Data {
+struct Msg : public ZuObject, public Msg_Data {
   using Msg_Data::Msg_Data;
   using Msg_Data::operator =;
   Msg(const Msg_Data &v) : Msg_Data(v) { }
@@ -52,11 +52,9 @@ struct Msg : public Msg_Data {
 
 using PQueue =
   ZmPQueue<Msg,
-    ZmPQueueLock<ZmNoLock,
+    ZmPQueueNode<Msg,
       ZmPQueueBits<1,
-	ZmPQueueLevels<4,
-	  ZmPQueueObject<ZuObject,
-	    ZmPQueueNodeDerive<true> > > > > >;
+	ZmPQueueLevels<4> > > >;
 
 using QMsg = PQueue::Node;
 

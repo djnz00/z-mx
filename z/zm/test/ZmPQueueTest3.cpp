@@ -33,7 +33,7 @@
 #include <zlib/ZmHash.hpp>
 
 using Msg_Data = ZuPair<uint32_t, unsigned>;
-struct Msg_ : public Msg_Data {
+struct Msg_ : public ZuObject, public Msg_Data {
   using Msg_Data::Msg_Data;
   using Msg_Data::operator =;
   Msg_(const Msg_Data &v) : Msg_Data(v) { }
@@ -52,11 +52,7 @@ struct Msg_ : public Msg_Data {
   unsigned bytes() const { return 1; }
 };
 
-using Queue =
-  ZmPQueue<Msg_,
-    ZmPQueueLock<ZmNoLock,
-      ZmPQueueObject<ZuObject,
-	ZmPQueueNodeDerive<true> > > >;
+using Queue = ZmPQueue<Msg_, ZmPQueueNode<ZuObject>>;
 
 using XXX = decltype(ZuDeclVal<const typename Queue::Node &>().key());
 

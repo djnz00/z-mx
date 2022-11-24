@@ -85,7 +85,7 @@ class ZmAPI ZmAnyHash_ : public ZmPolymorph {
 public:
   virtual void telemetry(ZmHashTelemetry &) const { }
 };
-uintptr_t ZmAnyHash_PtrAxor(const ZmAnyHash_ &h) {
+inline uintptr_t ZmAnyHash_PtrAxor(const ZmAnyHash_ &h) {
   return reinterpret_cast<uintptr_t>(&h);
 }
 using ZmHashMgr_Tables =

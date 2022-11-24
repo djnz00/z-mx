@@ -40,7 +40,7 @@
 #include <zlib/ZuBox.hpp>
 
 template <typename Fmt> struct ZuDecimalFmt;	// internal
-class ZuDecimalVFmt;	// internal
+class ZuDecimalVFmt;				// ''
 
 struct ZuDecimal {
   template <unsigned N> using Pow10 = ZuDecimalFn::Pow10<N>;

@@ -49,9 +49,7 @@ template <typename Heap> struct S_ : public Heap {
   }
   int m_i;
 };
-struct ID {
-  constexpr static const char *id() { return "S"; }
-};
+constexpr static const char *ID() { return "S"; }
 using S = S_<ZmHeap<ID, sizeof(S_<ZuNull>)> >;
 
 static unsigned count = 0;

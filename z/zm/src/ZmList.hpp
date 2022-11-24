@@ -58,6 +58,7 @@ struct ZmList_Defaults {
   using Node = ZuNull;
   enum { Shadow = 0 };
   constexpr static auto HeapID = []() { return "ZmList"; };
+  enum { Sharded = 0 };
 };
 
 // ZmListKey - key accessor
@@ -96,13 +97,19 @@ struct ZmListNode : public NTP {
 // ZmListShadow - shadow nodes, do not manage ownership
 template <bool Shadow_, typename NTP = ZmList_Defaults>
 struct ZmListShadow : public NTP {
-  using Shadow = Shadow_;
+  enum { Shadow = Shadow_ };
 };
 
 // ZmListHeapID - the heap ID
 template <auto HeapID_, class NTP = ZmList_Defaults>
 struct ZmListHeapID : public NTP {
   constexpr static auto HeapID = HeapID_;
+};
+
+// ZmListSharded - shadow nodes, do not manage ownership
+template <bool Sharded_, typename NTP = ZmList_Defaults>
+struct ZmListSharded : public NTP {
+  enum { Sharded = Sharded_ };
 };
 
 template <typename T_, class NTP = ZmList_Defaults>
@@ -112,21 +119,19 @@ public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
   constexpr static auto ValAxor = NTP::ValAxor;
+  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
+  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<T>;
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
   constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
 private:
   using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
 
-public:
-  using Key = ZuDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
-  using Val = ZuDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
-
-private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
@@ -138,16 +143,16 @@ private:
   // node in a list
 
   template <typename Node>
-  class NodeFn {
+  class NodeFn_ {
   friend ZmList<T, NTP>;
-  template <typename> friend class ZmList<T, NTP>::Iterator_;
+  friend class ZmList<T, NTP>::Iterator_;
 
     Node	*next = nullptr, *prev = nullptr;
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn, HeapID>;
-  using Fn = NodeFn<Node>;
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
+  using NodeFn = NodeFn_<Node>;
   using NodeRef = typename NodeContainer::template Ref<Node>;
   using NodePtr = Node *;
 
@@ -309,8 +314,8 @@ friend ReadIterator;
     if (head) {
       Guard guard(m_lock);
       if (m_tail) {
-	m_tail->Fn::next = head;
-	head->Fn::prev = m_tail;
+	m_tail->NodeFn::next = head;
+	head->NodeFn::prev = m_tail;
 	m_tail = tail;
 	m_count += count;
       } else {
@@ -338,7 +343,7 @@ private:
   };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>::OK, R>;
-  template <typename U, typename V = T, bool = NodeDerive>
+  template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
   struct IsData {
     enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
   };
@@ -417,7 +422,7 @@ private:
     Node *node;
     Guard guard(m_lock);
     if (!m_count) return nullptr;
-    for (node = m_head; node && !match(node); node = node->Fn::next);
+    for (node = m_head; node && !match(node); node = node->NodeFn::next);
     return node;
   }
 
@@ -480,7 +485,7 @@ private:
     Guard guard(m_lock);
     if (!m_count) return nullptr;
     Node *node;
-    for (node = m_head; node && !match(node); node = node->Fn::next);
+    for (node = m_head; node && !match(node); node = node->NodeFn::next);
     if (ZuLikely(node)) del__(node);
     return nodeAcquire(node);
   }
@@ -507,12 +512,12 @@ public:
   }
 private:
   void pushNode_(Node *node) {
-    node->Fn::next = nullptr;
-    node->Fn::prev = m_tail;
+    node->NodeFn::next = nullptr;
+    node->NodeFn::prev = m_tail;
     if (!m_tail)
       m_head = node;
     else
-      m_tail->Fn::next = node;
+      m_tail->NodeFn::next = node;
     m_tail = node;
     ++m_count;
   }
@@ -523,10 +528,10 @@ public:
 
     if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->Fn::prev))
+    if (!(m_tail = node->NodeFn::prev))
       m_head = nullptr;
     else
-      m_tail->Fn::next = nullptr;
+      m_tail->NodeFn::next = nullptr;
 
     NodeRef ret = node;
 
@@ -546,13 +551,13 @@ public:
 
     if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->Fn::prev))
+    if (!(m_tail = node->NodeFn::prev))
       m_tail = node;
     else {
-      node->Fn::next(m_head);
-      m_head->Fn::prev = node;
-      (m_head = node)->Fn::prev = nullptr;
-      m_tail->Fn::next = nullptr;
+      node->NodeFn::next(m_head);
+      m_head->NodeFn::prev = node;
+      (m_head = node)->NodeFn::prev = nullptr;
+      m_tail->NodeFn::next = nullptr;
     }
 
     return node;
@@ -572,12 +577,12 @@ public:
     Guard guard(m_lock);
 
     nodeRef(node);
-    node->Fn::prev = nullptr;
-    node->Fn::next = m_head;
+    node->NodeFn::prev = nullptr;
+    node->NodeFn::next = m_head;
     if (!m_head)
       m_tail = node;
     else
-      m_head->Fn::prev = node;
+      m_head->NodeFn::prev = node;
     m_head = node;
     ++m_count;
   }
@@ -587,10 +592,10 @@ public:
 
     if (!(node = m_head)) return nullptr;
 
-    if (!(m_head = node->Fn::next))
+    if (!(m_head = node->NodeFn::next))
       m_tail = nullptr;
     else
-      m_head->Fn::prev = nullptr;
+      m_head->NodeFn::prev = nullptr;
 
     NodeRef ret = node;
 
@@ -612,13 +617,13 @@ public:
 
     if (!(node = m_head)) return nullptr;
 
-    if (!(m_head = node->Fn::next))
+    if (!(m_head = node->NodeFn::next))
       m_head = node;
     else {
-      node->Fn::prev = m_tail;
-      m_tail->Fn::next = node;
-      (m_tail = node)->Fn::next = nullptr;
-      m_head->Fn::prev = nullptr;
+      node->NodeFn::prev = m_tail;
+      m_tail->NodeFn::next = node;
+      (m_tail = node)->NodeFn::next = nullptr;
+      m_head->NodeFn::prev = nullptr;
     }
 
     return node;
@@ -666,7 +671,7 @@ protected:
     if (!node)
       node = m_head;
     else
-      node = node->Fn::next;
+      node = node->NodeFn::next;
 
     if (!node) return nullptr;
 
@@ -682,15 +687,15 @@ protected:
     if (!prevNode) { push(node); return; }
 
     nodeRef(node);
-    if (Node *nextNode = prevNode->Fn::next) {
-      node->Fn::next = nextNode;
-      nextNode->Fn::prev = node;
+    if (Node *nextNode = prevNode->NodeFn::next) {
+      node->NodeFn::next = nextNode;
+      nextNode->NodeFn::prev = node;
     } else {
       m_tail = node;
-      node->Fn::next = nullptr;
+      node->NodeFn::next = nullptr;
     }
-    node->Fn::prev = prevNode;
-    prevNode->Fn::next = node;
+    node->NodeFn::prev = prevNode;
+    prevNode->NodeFn::next = node;
     ++m_count;
   }
 
@@ -704,15 +709,15 @@ protected:
     if (!nextNode) { unshift(node); return; }
 
     nodeRef(node);
-    if (Node *prevNode = nextNode->Fn::prev) {
-      node->Fn::prev = prevNode;
-      prevNode->Fn::next = node;
+    if (Node *prevNode = nextNode->NodeFn::prev) {
+      node->NodeFn::prev = prevNode;
+      prevNode->NodeFn::next = node;
     } else {
       m_head = node;
-      node->Fn::prev = nullptr;
+      node->NodeFn::prev = nullptr;
     }
-    node->Fn::next = nextNode;
-    nextNode->Fn::prev(node);
+    node->NodeFn::next = nextNode;
+    nextNode->NodeFn::prev(node);
     ++m_count;
   }
 
@@ -722,7 +727,7 @@ protected:
     Node *node = iterator.m_node;
 
     if (ZuLikely(node)) {
-      iterator.m_node = node->Fn::prev;
+      iterator.m_node = node->NodeFn::prev;
       del__(node);
     }
 
@@ -730,24 +735,24 @@ protected:
   }
 
   void del__(Node *node) {
-    Node *prevNode = node->Fn::prev;
-    Node *nextNode = node->Fn::next;
+    Node *prevNode = node->NodeFn::prev;
+    Node *nextNode = node->NodeFn::next;
 
     ZmAssert(prevNode || nextNode || (m_head == node && m_tail == node));
 
     if (!prevNode)
       m_head = nextNode;
     else
-      prevNode->Fn::next = nextNode;
+      prevNode->NodeFn::next = nextNode;
 
     if (!nextNode)
       m_tail = prevNode;
     else
-      nextNode->Fn::prev = prevNode;
+      nextNode->NodeFn::prev = prevNode;
 
     --m_count;
     
-    node->Fn::next = node->Fn::prev = nullptr;
+    node->NodeFn::next = node->NodeFn::prev = nullptr;
   }
 
   void clean_() {
@@ -756,7 +761,7 @@ protected:
     Node *node = m_head, *prevNode;
 
     while (prevNode = node) {
-      node = prevNode->Fn::next;
+      node = prevNode->NodeFn::next;
       nodeDeref(prevNode);
       nodeDelete(prevNode);
     }

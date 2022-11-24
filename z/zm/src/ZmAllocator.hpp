@@ -36,10 +36,10 @@
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmVHeap.hpp>
 
-struct ZmAllocator_ID {
-  constexpr static const char *id() { return "ZmAllocator"; }
-};
-template <typename T, typename ID = ZmAllocator_ID>
+inline constexpr auto ZmAllocator_ID() {
+  return []() { return "ZmAllocator"; };
+}
+template <typename T, auto ID = ZmAllocator_ID(), bool Sharded = false>
 struct ZmAllocator : private ZmVHeap<ID> {
   using size_type = std::size_t;
   using difference_type = ptrdiff_t;
@@ -68,7 +68,7 @@ struct ZmAllocator : private ZmVHeap<ID> {
     return *this;
   }
 
-  template <typename U, typename ID_ = ID>
+  template <typename U, auto ID_ = ID>
   struct rebind { using other = ZmAllocator<U, ID_>; };
 
   T *allocate(std::size_t);
@@ -78,27 +78,31 @@ private:
   using ZmVHeap<ID>::valloc;
   using ZmVHeap<ID>::vfree;
 };
-template <typename T, typename ID>
-inline T *ZmAllocator<T, ID>::allocate(std::size_t n) {
-  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size>;
+template <typename T, auto ID, bool Sharded>
+inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
+  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size, Sharded>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
   if (auto ptr = static_cast<T *>(valloc(n * sizeof(T))))
     return ptr;
   throw std::bad_alloc{};
 }
-template <typename T, typename ID>
-inline void ZmAllocator<T, ID>::deallocate(T *p, std::size_t n) {
-  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size>;
+template <typename T, auto ID, bool Sharded>
+inline void ZmAllocator<T, ID, Sharded>::deallocate(T *p, std::size_t n) {
+  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<sizeof(T)>::Size, Sharded>;
   if (ZuLikely(n == 1))
     Cache::free(p);
   else
     vfree(p);
 }
-template <typename T, typename U, class ID>
+template <typename T, typename U, auto ID, bool Sharded>
 inline constexpr bool operator ==(
-    const ZmAllocator<T, ID> &, const ZmAllocator<U, ID> &) { return true; }
-template <typename T, typename U, class ID>
+    const ZmAllocator<T, ID, Sharded> &, const ZmAllocator<U, ID, Sharded> &) {
+  return true;
+}
+template <typename T, typename U, auto ID, bool Sharded>
 inline constexpr bool operator !=(
-    const ZmAllocator<T, ID> &, const ZmAllocator<U, ID> &) { return false; }
+    const ZmAllocator<T, ID, Sharded> &, const ZmAllocator<U, ID, Sharded> &) {
+  return false;
+}
 
 #endif /* ZmAllocator_HPP */

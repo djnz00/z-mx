@@ -32,10 +32,6 @@
 #include <zlib/ZmSingleton.hpp>
 #include <zlib/ZmSpecific.hpp>
 
-struct Orders_HeapID {
-  constexpr static const char *id() { return "Orders"; }
-};
-
 struct Order : public ZuObject {
   static unsigned IDAccessor(const Order *o) { return o->id; }
   Order(unsigned id_) : id(id_) { }
@@ -50,9 +46,8 @@ void dump(Order *o)
 using Orders =
   ZmHash<ZmRef<Order>,
     ZmHashKey<Order::IDAccessor,
-      ZmHashObject<ZuNull,
-	ZmHashLock<ZmNoLock,
-	  ZmHashHeapID<Orders_HeapID> > > > >;
+      ZmHashLock<ZmNoLock,
+	ZmHashHeapID<[]() { return "Orders"; }>>>>;
 
 int main(int argc, char **argv)
 {

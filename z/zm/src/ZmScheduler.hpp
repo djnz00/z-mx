@@ -162,9 +162,7 @@ private:
   using Ring = ZmRing<ZmRingMW<true>>;
 
   // run-time encapsulation of generic functor/lambda
-  struct Fn_HeapID {
-    constexpr static const char *id() { return "ZmScheduler.Fn"; }
-  };
+  constexpr static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
   struct Fn : public ZmVHeap<Fn_HeapID> {
     typedef unsigned (*InvokeFn)(void *ptr, bool invoke);
     typedef void (*MoveFn)(void *dst, void *src);
@@ -269,9 +267,7 @@ private:
   };
 
   // overflow ring DLQ
-  struct OverRing_HeapID {
-    constexpr static const char *id() { return "ZmScheduler.OverRing"; }
-  };
+  constexpr static const char *OverRing_HeapID() { return "ZmScheduler.OverRing"; }
   using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
@@ -326,15 +322,15 @@ private:
     ZuOpBool
   };
   static const ZmTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }
-  struct ScheduleTree_HeapID {
-    constexpr static const char *id() { return "ZmScheduler.ScheduleTree"; }
-  };
+  constexpr static const char *ScheduleTree_HeapID() {
+    return "ZmScheduler.ScheduleTree";
+  }
   using ScheduleTree =
     ZmRBTree<Timer_,
       ZmRBTreeKey<Timer_TimeoutAxor,
-	ZmRBTreeNodeDerive<true,
-	  ZmRBTreeObject<ZuShadow,
-	      ZmRBTreeHeapID<ScheduleTree_HeapID> > > > >;
+	ZmRBTreeNode<Timer_,
+	  ZmRBTreeShadow<true,
+	    ZmRBTreeHeapID<ScheduleTree_HeapID> > > > >;
 public:
   using Timer = ScheduleTree::Node;
 

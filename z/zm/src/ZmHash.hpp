@@ -180,6 +180,7 @@ struct ZmHash_Defaults {
   enum { Shadow = 0 };
   constexpr static auto HeapID = []() { return "ZmHash"; };
   constexpr static auto ID = HeapID;
+  enum { Sharded = 0 };
 };
 
 // ZmHashKey - key accessor
@@ -228,7 +229,7 @@ struct ZmHashNode : public NTP {
 // ZmHashShadow - shadow nodes, do not manage ownership
 template <bool Shadow_, typename NTP = ZmHash_Defaults>
 struct ZmHashShadow : public NTP {
-  using Shadow = Shadow_;
+  enum { Shadow = Shadow_ };
 };
 
 // ZmHashHeapID - the heap ID
@@ -246,6 +247,12 @@ struct ZmHashHeapID<ZmHeapDisable(), NTP> : public NTP {
 template <auto ID_, typename NTP = ZmHash_Defaults>
 struct ZmHashID : public NTP {
   constexpr static auto ID = ID_;
+};
+
+// ZmHashSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmHash_Defaults>
+struct ZmHashSharded : public NTP {
+  enum { Sharded = Sharded_ };
 };
 
 template <typename T_, typename NTP = ZmHash_Defaults>
@@ -269,6 +276,7 @@ public:
   enum { Shadow = NTP::Shadow };
   constexpr static auto ID = NTP::ID;
   constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
 private:
   using LockMgr = ZmHash_LockMgr<Lock>;
@@ -298,7 +306,7 @@ private:
   // node in a hash table
 
   template <typename Node>
-  class NodeFn {
+  class NodeFn_ {
   friend ZmHash<T, NTP>;
   template <typename> friend class ZmHash<T, NTP>::Iterator_;
 
@@ -306,8 +314,8 @@ private:
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn, HeapID>;
-  using Fn = NodeFn<Node>;
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
+  using NodeFn = NodeFn_<Node>;
   using NodeRef = typename NodeContainer::template Ref<Node>;
   using NodePtr = Node *;
 
@@ -520,7 +528,7 @@ private:
   }
 
 public:
-  ZmHash(ZmHashParams params = ZmHashParams{ID::id()}) :
+  ZmHash(ZmHashParams params = ZmHashParams{ID()}) :
       ZmHash_LockMgr<Lock>{params} {
     init(params);
   }
@@ -587,7 +595,7 @@ private:
 
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
-    node->Fn::next = m_table[slot];
+    node->NodeFn::next = m_table[slot];
     m_table[slot] = ZuMv(node);
     m_count.store_(count + 1);
   }
@@ -701,7 +709,7 @@ private:
 
     for (node = m_table[slot];
 	 node && !match(node);
-	 node = node->Fn::next);
+	 node = node->NodeFn::next);
 
     return node;
   }
@@ -735,7 +743,7 @@ private:
 
     for (node = m_table[slot];
 	 node && !Cmp::equals(node->Node::key(), KeyAxor(data));
-	 node = node->Fn::next);
+	 node = node->NodeFn::next);
 
     if (!node) addNode_(node = new Node{ZuFwd<P>(data)}, code);
     return node;
@@ -817,18 +825,18 @@ private:
 
     for (node = m_table[slot];
 	 node && !match(node);
-	 prevNode = node, node = node->Fn::next);
+	 prevNode = node, node = node->NodeFn::next);
 
     if (!node) return 0;
 
     if (!prevNode)
-      m_table[slot] = node->Fn::next;
+      m_table[slot] = node->NodeFn::next;
     else
-      prevNode->Fn::next = node->Fn::next;
+      prevNode->NodeFn::next = node->NodeFn::next;
 
     m_count.store_(count - 1);
 
-    node->Fn::next = nullptr;
+    node->NodeFn::next = nullptr;
 
     return nodeAcquire(node);
   }
@@ -876,7 +884,7 @@ private:
       node = m_table[slot];
     } else {
       prevNode = node;
-      node = node->Fn::next;
+      node = node->NodeFn::next;
     }
 
     if (!node) {
@@ -908,12 +916,12 @@ private:
       node = m_table[slot];
     } else {
       prevNode = node;
-      node = node->Fn::next;
+      node = node->NodeFn::next;
     }
 
     for (;
 	 node && !Cmp::equals(node->Node::key(), iterator.m_key);
-	 prevNode = node, node = node->Fn::next);
+	 prevNode = node, node = node->NodeFn::next);
 
     if (!node) {
       iterator.unlock(lockSlot(slot));
@@ -938,9 +946,9 @@ private:
     if (!count || !node) return;
 
     if (!prevNode)
-      m_table[iterator.m_slot] = node->Fn::next;
+      m_table[iterator.m_slot] = node->NodeFn::next;
     else
-      prevNode->Fn::next = node->Fn::next;
+      prevNode->NodeFn::next = node->NodeFn::next;
 
     iterator.m_node = prevNode;
     nodeDeref(node);
@@ -958,7 +966,7 @@ public:
       node = m_table[i];
 
       while (prevNode = node) {
-	node = prevNode->Fn::next;
+	node = prevNode->NodeFn::next;
 	nodeDeref(prevNode);
 	nodeDelete(prevNode);
       }
@@ -976,7 +984,7 @@ public:
   }
 
   void telemetry(ZmHashTelemetry &data) const {
-    data.id = ID::id();
+    data.id = ID();
     data.addr = reinterpret_cast<uintptr_t>(this);
     data.loadFactor = loadFactor();
     unsigned count = m_count.load_();
@@ -1007,10 +1015,10 @@ private:
 
     for (unsigned i = 0; i < n; i++)
       for (node = m_table[i]; node; node = nextNode) {
-	nextNode = node->Fn::next;
+	nextNode = node->NodeFn::next;
 	unsigned j = ZmHash_Bits::hashBits(
 	    HashFn::hash(node->Node::key()), bits);
-	node->Fn::next = table[j];
+	node->NodeFn::next = table[j];
 	table[j] = node;
       }
     Zm::alignedFree(m_table);

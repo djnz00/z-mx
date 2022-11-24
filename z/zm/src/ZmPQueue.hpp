@@ -24,7 +24,7 @@
 // elements, each of which is individually numbered. This run-length
 // encoding allows highly efficient duplicate detection, enqueuing of
 // both in- and out- of order items as well as in-order deletion (dequeuing)
-// without re-balancing.
+// without tree re-balancing.
 //
 // if used for sequences of packets with bytecount sequence numbering,
 // the elements are chars, the items are packet buffers, and the key
@@ -57,6 +57,7 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
+#include <zlib/ZmNodeContainer.hpp>
 
 // the application will normally substitute ZmPQueueDefaultFn with
 // a type that is specific to the queued Item; it must conform to the
@@ -102,11 +103,12 @@ public:
 
   ZmPQueueDefaultFn(Item &item) : m_item(item) { }
 
-  Key key() const { return KeyAxor(m_item); }
-  unsigned length() const { return LenAxor(m_item); }
+  ZuInline Key key() const { return KeyAxor(m_item); }
+  ZuInline unsigned length() const { return LenAxor(m_item); }
 
   // clipHead()/clipTail() remove elements from the item's head or tail
-  // clipHead()/clipTail() can just return 1 if item length is always 1,
+  // to resolve overlaps
+  // clipHead()/clipTail() can just return 1 if the item length is always 1,
   // or do nothing and return the unchanged length if items are guaranteed
   // never to overlap; these functions return the length remaining in the item
   unsigned clipHead(unsigned n) { return m_item.clipHead(n); }
@@ -127,36 +129,13 @@ private:
 // uses NTP (named template parameters)
 
 struct ZmPQueue_Defaults {
-  enum { NodeDerive = 0 };
-  using Lock = ZmNoLock;
-  using Object = ZuNull;
-  struct HeapID { constexpr static const char *id() { return "ZmPQueue"; } };
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
-};
-
-// ZmPQueueNodeDerive - derive ZmPQueue::Node from Item instead of containing it
-template <bool NodeDerive_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueNodeDerive : public NTP {
-  enum { NodeDerive = NodeDerive_ };
-};
-
-// ZmPQueueLock - the lock type used (ZmRWLock will permit concurrent reads)
-template <class Lock_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueLock : public NTP {
-  using Lock = Lock_;
-};
-
-// ZmPQueueObject - the reference-counted object type used
-template <class Object_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueObject : public NTP {
-  using Object = Object_;
-};
-
-// ZmPQueueHeapID - the heap ID
-template <class HeapID_, class NTP = ZmPQueue_Defaults>
-struct ZmPQueueHeapID : public NTP {
-  using HeapID = HeapID_;
+  using Lock = ZmNoLock;
+  using Node = ZuNull;
+  enum { Shadow = 0 };
+  constexpr static auto HeapID = []() { return "ZmPQueue"; };
+  enum { Sharded = 0 };
 };
 
 // ZmPQueueBits - change skip list factor (power of 2)
@@ -177,6 +156,36 @@ struct ZmPQueueFn : public NTP {
   template <typename> using ZmPQueueFnT = Fn_;
 };
 
+// ZmPQueueLock - the lock type used (ZmRWLock will permit concurrent reads)
+template <class Lock_, class NTP = ZmPQueue_Defaults>
+struct ZmPQueueLock : public NTP {
+  using Lock = Lock_;
+};
+
+// ZmPQueueNode - the base type for nodes
+template <typename Node_, typename NTP = ZmPQueue_Defaults>
+struct ZmPQueueNode : public NTP {
+  using Node = Node_;
+};
+
+// ZmPQueueShadow - shadow nodes, do not manage ownership
+template <bool Shadow_, typename NTP = ZmPQueue_Defaults>
+struct ZmPQueueShadow : public NTP {
+  enum { Shadow = Shadow_ };
+};
+
+// ZmPQueueHeapID - the heap ID
+template <auto HeapID_, class NTP = ZmPQueue_Defaults>
+struct ZmPQueueHeapID : public NTP {
+  constexpr static auto HeapID = HeapID_;
+};
+
+// ZmPQueueSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmPQueue_Defaults>
+struct ZmPQueueSharded : public NTP {
+  enum { Sharded = Sharded_ };
+};
+
 namespace ZmPQueue_ {
   template <int, int, typename = void> struct First;
   template <int Levels, typename T_>
@@ -194,41 +203,33 @@ namespace ZmPQueue_ {
 template <typename Item_, class NTP = ZmPQueue_Defaults>
 class ZmPQueue :
     public ZuPrintable,
-    public ZmNodePolicy<typename NTP::Object> {
-  using NodePolicy = ZmNodePolicy<typename NTP::Object>;
-
+    public ZmNodeContainer<NTP::Shadow, Item_, typename NTP::Node> {
 public:
   using Item = Item_;
+  enum { Bits = NTP::Bits };
+  enum { Levels = NTP::Levels };
   using Fn = typename NTP::template ZmPQueueFnT<Item>;
   constexpr static auto KeyAxor = Fn::KeyAxor;
   using Key = typename Fn::Key;
-  enum { NodeDerive = NTP::NodeDerive };
   using Lock = typename NTP::Lock;
-  using Object = typename NodePolicy::Object;
-  using HeapID = typename NTP::HeapID;
-  enum { Bits = NTP::Bits };
-  enum { Levels = NTP::Levels };
-
-  using Guard = ZmGuard<Lock>;
-  using ReadGuard = ZmReadGuard<Lock>;
+  using NodeBase = typename NTP::Node;
+  enum { Shadow = NTP::Shadow };
+  constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
   ZuDeclTuple(Gap,
       ((ZuBox0(Key)), key),
       ((ZuBox0(unsigned)), length));
 
-  struct NullObject { }; // deconflict with ZuNull
-  template <typename Node, typename Heap, bool NodeIsItem> class NodeFn_ :
-      public ZuIf<
-	ZuConversion<ZuNull, Object>::Is ||
-	ZuConversion<ZuShadow, Object>::Is ||
-	(NodeIsItem && ZuConversion<Object, Item>::Is),
-	NullObject, Object>,
-      public Heap {
-    NodeFn_(const NodeFn_ &);
-    NodeFn_ &operator =(const NodeFn_ &); // prevent mis-use
+private:
+  using NodeContainer = ZmNodeContainer<Shadow, Item, NodeBase>;
 
+  using Guard = ZmGuard<Lock>;
+  using ReadGuard = ZmReadGuard<Lock>;
+
+  template <typename Node>
+  class NodeFn_ {
   friend ZmPQueue<Item, NTP>;
-
   protected:
     NodeFn_() {
       memset(m_next, 0, sizeof(Node *) * Levels);
@@ -248,19 +249,17 @@ public:
     Node	*m_prev[Levels];
   };
 
-  template <typename Heap>
-  using Node_ =
-    ZmNode<Item, KeyAxor, ZuDefaultAxor(), Heap, NodeDerive, NodeFn_>;
-  struct NullHeap { }; // deconflict with ZuNull
-  using NodeHeap = ZmHeap<HeapID, sizeof(Node_<NullHeap>)>;
-  using Node = Node_<NodeHeap>;
-  using NodeFn = typename Node::Fn;
-  using NodeRef = typename NodePolicy::template Ref<Node>;
+public:
+  using Node =
+    ZmNode<Item, KeyAxor, ZuDefaultAxor(), NodeBase, NodeFn_, HeapID, Sharded>;
+  using NodeFn = NodeFn_<Node>;
+  using NodeRef = typename NodeContainer::template Ref<Node>;
+  using NodePtr = Node *;
 
 private:
-  using NodePolicy::nodeRef;
-  using NodePolicy::nodeDeref;
-  using NodePolicy::nodeDelete;
+  using NodeContainer::nodeRef;
+  using NodeContainer::nodeDeref;
+  using NodeContainer::nodeDelete;
 
 public:
   ZmPQueue() = delete;
@@ -281,7 +280,7 @@ private:
   typename ZmPQueue_::First<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
     Node *next;
-    node->NodeFn::prev(0, 0);
+    node->NodeFn::prev(0, nullptr);
     node->NodeFn::next(0, next = m_head[0]);
     m_head[0] = node;
     if (!next)
@@ -293,7 +292,7 @@ private:
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, 0);
+    node->NodeFn::prev(Level, nullptr);
     if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
       Node *next;
       node->NodeFn::next(Level, next = m_head[Level]);
@@ -305,14 +304,14 @@ private:
       addHead_<Level + 1>(node, addSeqNo);
       return;
     }
-    node->NodeFn::next(Level, 0);
+    node->NodeFn::next(Level, nullptr);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addHeadEnd_(
       Node *node, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, 0);
-    node->NodeFn::next(Level, 0);
+    node->NodeFn::prev(Level, nullptr);
+    node->NodeFn::next(Level, nullptr);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
@@ -358,16 +357,16 @@ private:
 	prev->next(Level, node);
       add_<Level + 1>(node, next_, addSeqNo);
     } else {
-      node->NodeFn::prev(Level, 0);
-      node->NodeFn::next(Level, 0);
+      node->NodeFn::prev(Level, nullptr);
+      node->NodeFn::next(Level, nullptr);
       addEnd_<Level + 1>(node, next_, addSeqNo);
     }
   }
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addEnd_(
       Node *node, Node **next_, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, 0);
-    node->NodeFn::next(Level, 0);
+    node->NodeFn::prev(Level, nullptr);
+    node->NodeFn::next(Level, nullptr);
     addEnd_<Level + 1>(node, next_, addSeqNo);
   }
   template <int Level>
@@ -384,7 +383,7 @@ private:
     if (!(m_head[Level] = next))
       m_tail[Level] = 0;
     else
-      next->prev(Level, 0);
+      next->prev(Level, nullptr);
   }
   template <int Level>
   typename ZmPQueue_::First<Level, Levels>::T delHead_() {
