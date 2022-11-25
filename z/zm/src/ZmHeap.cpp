@@ -284,13 +284,13 @@ void ZmHeapCache::init_()
       ZmTopology::hwloc(), len, config.cpuset, HWLOC_MEMBIND_BIND, 0);
   if (!cache) { config.cacheSize = 0; return; }
   uintptr_t n = 0;
-  for (uintptr_t p = (uintptr_t)cache + len;
-      (p -= m_info.size) >= (uintptr_t)cache; )
-    *(uintptr_t *)p = n, n = p;
-  m_end = (void *)((uintptr_t)cache + len);
+  for (auto p = reinterpret_cast<uintptr_t>(cache) + len;
+      (p -= m_info.size) >= reinterpret_cast<uintptr_t>(cache); )
+    *reinterpret_cast<uintptr_t *>(p) = n, n = p;
+  m_end = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(cache) + len);
   m_cache = cache;
 
-  m_head = (uintptr_t)cache; // m_head assignment causes release
+  m_head = reinterpret_cast<uintptr_t>(cache); // assignment causes release
 }
 
 void ZmHeapCache::free_()

@@ -43,11 +43,13 @@ void dump(Order *o)
   printf("order ID: %u\n", o->id);
 }
 
+auto HeapID() { return "Orders"; }
+
 using Orders =
   ZmHash<ZmRef<Order>,
     ZmHashKey<Order::IDAccessor,
       ZmHashLock<ZmNoLock,
-	ZmHashHeapID<[]() { return "Orders"; }>>>>;
+	ZmHashHeapID<HeapID>>>>;
 
 int main(int argc, char **argv)
 {

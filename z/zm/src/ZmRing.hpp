@@ -784,7 +784,11 @@ private:
   // SWMR | MWMR
   template <uint64_t Flags = 0, bool MR_ = MR>
   ZuIfT<MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
-    uint64_t rdrMask = this->rdrMask().load_();
+    uint64_t rdrMask;
+    if constexpr (Flags & EndOfFile_())
+      rdrMask = 0;
+    else
+      rdrMask = this->rdrMask().load_();
     if (ZuUnlikely(!m_params.ll())) {
       if (ZuUnlikely(hdrPtr->xch(Flags | rdrMask) & Waiting())) {
 	auto &hdrPtr32 =
@@ -795,16 +799,17 @@ private:
       *hdrPtr = Flags | rdrMask; // release
   }
   // MWSR
-  template <uint64_t Flags = 0, bool MR_ = MR>
+  template <uint64_t Flags = 0, bool MR_ = MR,
+    uint64_t RdrMask = !(Flags & EndOfFile_())>
   ZuIfT<!MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
     if (ZuUnlikely(!m_params.ll())) {
-      if (ZuUnlikely(hdrPtr->xch(Flags | 1) & Waiting())) {
+      if (ZuUnlikely(hdrPtr->xch(Flags | RdrMask) & Waiting())) {
 	auto &hdrPtr32 =
 	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
 	m_headBlocker.wake(hdrPtr32);
       }
     } else
-      *hdrPtr = Flags | 1; // release
+      *hdrPtr = Flags | RdrMask; // release
   }
 
   // fixed-size SWSR
@@ -979,7 +984,7 @@ public:
     if (!eof) {
       head &= ~EndOfFile32();
       if constexpr (MW || MR) this->head() = head; // see above
-      wakeReaders(head);
+      // readers do not block on EOF, shift() returns nullptr immediately
     } else {
       if constexpr (MW || MR) this->head() = head | EndOfFile32(); // ''
       wakeReaders<EndOfFile_()>(head);
@@ -1052,7 +1057,7 @@ private:
     /**/ZmRing_bp(this, shift1)
 
 #define ZmRing_shift_empty_swsr() (tail == (head & ~Mask32()))
-#define ZmRing_shift_empty_swmr() (!(hdr & ~Waiting()))
+#define ZmRing_shift_empty_swmr() (!(hdr & ~Mask()))
 #define ZmRing_shift_empty_mwsr() ZmRing_shift_empty_swmr()
 #define ZmRing_shift_empty_mwmr() ZmRing_shift_empty_swmr()
 

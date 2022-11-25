@@ -46,13 +46,15 @@ public:
   Job(const char *message, ZmTime timeout) :
 	m_message(message), m_timeout(timeout) { }
   ~Job() {
-    printf("~%s [%d]\n", m_message, (int)ZmThreadContext::self()->index());
+    printf("~Job() %p ~%s [%d]\n",
+	this, m_message, (int)ZmThreadContext::self()->index());
     ::free((void *)m_message);
   }
 
   void *operator()() {
     ZmSpecific<TLS>::instance()->ping();
-    printf("%s [%d]\n", m_message, (int)ZmThreadContext::self()->index());
+    printf("Job::() %p %s [%d]\n",
+	this, m_message, (int)ZmThreadContext::self()->index());
     return 0;
   }
 

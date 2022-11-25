@@ -233,7 +233,6 @@ private:
     }
 
     void clear() {
-      this->~Fn();
       new (this) Fn{};
     }
 
@@ -262,12 +261,14 @@ private:
     }
     ZuInline static unsigned invoke(void *ptr_) {
       auto ptr = reinterpret_cast<InvokeFn *>(ptr_);
-      return (**ptr)(static_cast<void *>(&ptr[1]), true);
+      return (**ptr)(static_cast<void *>(&ptr[1]), true) + sizeof(InvokeFn);
     }
   };
 
   // overflow ring DLQ
-  constexpr static const char *OverRing_HeapID() { return "ZmScheduler.OverRing"; }
+  constexpr static const char *OverRing_HeapID() {
+    return "ZmScheduler.OverRing";
+  }
   using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
