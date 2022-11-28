@@ -62,8 +62,8 @@
 // In addition to the native OS error code, need to handle the EAI_ error
 // codes returned by getaddrinfo() (Windows - GetAddrInfo())
 //
-//   Windows	   - EAI_ codes are #defined identically to equiv. system codes
-//   Linux/Solaris - EAI_ codes are negative, all errno codes are positive
+//   Windows	- EAI_ codes are #defined identically to equiv. system codes
+//   Unix	- EAI_ codes are negative, all errno codes are positive
 //
 // Both types of platform also use a signed integer type for system errors,
 // so both sets of codes can be stored in the same type; However,
@@ -88,8 +88,8 @@ inline const char *strerror(ErrNo e) {
   return e >= 0 ? ::strerror(e) : gai_strerror(e);
 }
 #else
-using ErrNo = DWORD;				// <= sizeof(int)
-inline constexpr ErrNo OK() { return ERROR_SUCCESS; }// == 0
+using ErrNo = DWORD;					// <= sizeof(int)
+inline constexpr ErrNo OK() { return ERROR_SUCCESS; }	// == 0
 
 inline ErrNo errNo() { return GetLastError(); }
 inline ErrNo sockErrNo() { return WSAGetLastError(); }
@@ -200,10 +200,8 @@ public:
 
 using ZeEvent_Queue =
   ZmList<ZmObject,
-    ZmListNodeDerive<true,
-      ZmListObject<ZmObject,
-	ZmListLock<ZmNoLock,
-	  ZmListHeapID<ZuNull> > > > >;
+    ZmListNode<ZmObject,
+      ZmListHeapID<ZmHeapDisable()>>>;
 template <typename Heap>
 class ZeEvent_ : public Heap, public ZeEvent_Queue::Node {
   ZeEvent_(const ZeEvent_ &) = delete;
@@ -254,10 +252,8 @@ private:
   const char	*m_function;
   MessageFn	m_messageFn;
 };
-struct ZeEvent_HeapID {
-  constexpr static const char *id() { return "ZeEvent"; }
-};
-using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID, sizeof(ZeEvent_<ZuNull>)>;
+inline constexpr auto ZeEvent_HeapID() { return []() { return "ZeEvent"; }; }
+using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID(), sizeof(ZeEvent_<ZuNull>)>;
 using ZeEvent = ZeEvent_<ZeEvent_Heap>;
 using ZeMessageFn = ZeEvent::MessageFn;
 

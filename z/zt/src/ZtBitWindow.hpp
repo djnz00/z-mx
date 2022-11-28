@@ -60,12 +60,12 @@ template <unsigned Bits = 1,
 	 bool = ZtBitWindow_<Bits>::Pow2>
 class ZtBitWindow;
 
-struct ZtBitWindow_ID {
-  constexpr static const char *id() { return "ZtBitWindow"; }
-};
+inline constexpr auto ZtBitWindow_ID() {
+  return []() { return "ZtBitWindow"; };
+}
 
 template <unsigned Bits_>
-class ZtBitWindow<Bits_, true, true> : private ZmVHeap<ZtBitWindow_ID> {
+class ZtBitWindow<Bits_, true, true> : private ZmVHeap<ZtBitWindow_ID()> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 
@@ -295,7 +295,7 @@ private:
 };
 
 template <unsigned Bits_>
-class ZtBitWindow<Bits_, true, false> : private ZmVHeap<ZtBitWindow_ID> {
+class ZtBitWindow<Bits_, true, false> : private ZmVHeap<ZtBitWindow_ID()> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 
@@ -524,7 +524,7 @@ private:
 };
 
 template <>
-class ZtBitWindow<64U, true, true> : private ZmVHeap<ZtBitWindow_ID> {
+class ZtBitWindow<64U, true, true> : private ZmVHeap<ZtBitWindow_ID()> {
   ZtBitWindow(const ZtBitWindow &) = delete;
   ZtBitWindow &operator =(const ZtBitWindow &) = delete;
 

@@ -47,6 +47,8 @@
 // ZmRBTreeKV<ZtString, ZtString,	// key, value pair of ZtStrings
 //     ZmRBTreeValCmp<ZtICmp> >		// case-insensitive comparison
 
+// NTP defaults
+inline constexpr auto ZmRBTree_HeapID() { return []() { return "ZmRBTree"; }; }
 struct ZmRBTree_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   constexpr static auto ValAxor = ZuDefaultAxor();
@@ -56,7 +58,7 @@ struct ZmRBTree_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = []() { return "ZmRBTree"; };
+  constexpr static auto HeapID = ZmRBTree_HeapID();
   enum { Sharded = 0 };
 };
 
@@ -121,7 +123,7 @@ struct ZmRBTreeHeapID : public NTP {
   constexpr static auto HeapID = HeapID_;
 };
 
-// ZmRBTreeSharded - shadow nodes, do not manage ownership
+// ZmRBTreeSharded - heap is sharded
 template <bool Sharded_, typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeSharded : public NTP {
   enum { Sharded = Sharded_ };

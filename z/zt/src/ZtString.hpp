@@ -91,14 +91,14 @@ template <> struct ZtString_Char2<char> { using T = wchar_t; };
 template <> struct ZtString_Char2<wchar_t> { using T = char; };
 
 template <typename> struct ZtString__ { };
-template <typename Char_, typename HeapID_>
+template <typename Char_, auto HeapID_>
 class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<Char_> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuConversion<Char, wchar_t>::Same };
   enum { BuiltinSize = (int)ZtString_BuiltinSize / sizeof(Char) };
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
 
 private:
   // from same type ZtString
@@ -1335,7 +1335,7 @@ private:
   uintptr_t		m_data[ZtString_BuiltinSize / sizeof(uintptr_t)];
 };
 
-template <typename Char, typename HeapID>
+template <typename Char, auto HeapID>
 template <typename S>
 inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
 {
@@ -1343,19 +1343,19 @@ inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
   iconv->convert(*this, s);
 }
 
-struct ZtString_ID {
-  constexpr static const char *id() { return "ZtString"; }
-};
+inline constexpr auto ZtString_ID() {
+  return []() { return "ZtString"; };
+}
 
 #ifdef _MSC_VER
-ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID>;
-ZtExplicit template class ZtAPI ZtString_<wchar_t, ZtString_ID>;
+ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID()>;
+ZtExplicit template class ZtAPI ZtString_<wchar_t, ZtString_ID()>;
 #endif
 
-using ZtString = ZtString_<char, ZtString_ID>;
-template <typename HeapID> using ZtVString = ZtString_<char, HeapID>;
-using ZtWString = ZtString_<wchar_t, ZtString_ID>;
-template <typename HeapID> using ZtVWString = ZtString_<wchar_t, HeapID>;
+using ZtString = ZtString_<char, ZtString_ID()>;
+template <auto HeapID> using ZtVString = ZtString_<char, HeapID>;
+using ZtWString = ZtString_<wchar_t, ZtString_ID()>;
+template <auto HeapID> using ZtVWString = ZtString_<wchar_t, HeapID>;
 
 // RVO shortcuts
 
@@ -1427,10 +1427,10 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // the logger, which runs in a different thread and stack, and both the
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
-struct ZtHexDump_ID {
-  constexpr static const char *id() { return "ZtHexDump"; }
-};
-struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
+inline constexpr auto ZtHexDump_ID() {
+  return []() { return "ZtHexDump"; };
+}
+struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID()> {
   ZtHexDump(ZuString prefix_, const void *data_, unsigned length_) :
       prefix(prefix_), data(0), length(length_) {
     if (ZuLikely(data = static_cast<uint8_t *>(valloc(length))))

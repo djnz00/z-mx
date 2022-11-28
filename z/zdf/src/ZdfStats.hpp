@@ -150,7 +150,7 @@ struct StatsTreeHeapID : public NTP {
 template <class NTP = StatsTree_Defaults>
 class StatsTree : public Stats {
 public:
-  using HeapID = typename NTP::HeapID;
+  constexpr static auto HeapID = NTP::HeapID;
   using Alloc = ZmAllocator<std::pair<ZuFixedVal, unsigned>, HeapID>;
 
 private:

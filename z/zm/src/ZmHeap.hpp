@@ -51,7 +51,7 @@
 class ZmHeapMgr;
 class ZmHeapMgr_;
 class ZmHeapCache;
-template <auto ID, unsigned Size, bool Sharded> class ZmHeap;
+template <auto ID, unsigned Size, bool Sharded> class ZmHeap__;
 template <auto ID, unsigned Size, bool Sharded> class ZmHeapCacheT;
 
 struct ZmHeapConfig {
@@ -96,7 +96,7 @@ struct ZmHeapTelemetry {
 class ZmAPI ZmHeapCache : public ZmObject {
 friend ZmHeapMgr;
 friend ZmHeapMgr_;
-template <auto, unsigned, bool> friend class ZmHeap;
+template <auto, unsigned, bool> friend class ZmHeap__;
 template <auto, unsigned, bool> friend class ZmHeapCacheT;
 
   enum { CacheLineSize = Zm::CacheLineSize };
@@ -341,12 +341,12 @@ struct ZmHeap_Size<Size_, false, 0, true> { // larger than cache line size
 };
 
 template <typename Heap> class ZmHeap_Init {
-template <auto, unsigned, bool> friend class ZmHeap;
+template <auto, unsigned, bool> friend class ZmHeap__;
   ZmHeap_Init();
 };
 
-template <auto ID_, unsigned Size_, bool Sharded_ = false>
-class ZmHeap {
+template <auto ID_, unsigned Size_, bool Sharded_>
+class ZmHeap__ {
 public:
   constexpr static auto ID = ID_;
   enum { Size = ZmHeap_Size<Size_>::Size };
@@ -364,22 +364,26 @@ public:
   }
 
 private:
-  static ZmHeap_Init<ZmHeap>	m_init;
+  static ZmHeap_Init<ZmHeap__>	m_init;
 };
 
 template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
 template <auto ID, unsigned Size, bool Sharded>
-ZmHeap_Init<ZmHeap<ID, Size, Sharded> > ZmHeap<ID, Size, Sharded>::m_init;
+ZmHeap_Init<ZmHeap__<ID, Size, Sharded> > ZmHeap__<ID, Size, Sharded>::m_init;
 
 // sentinel heap ID used to disable ZmHeap
 inline constexpr auto ZmHeapDisable() {
   return []() -> const char * { return nullptr; };
 };
 
+template <auto ID, unsigned Size, bool Sharded>
+struct ZmHeap_ { using T = ZmHeap__<ID, Size, Sharded>; };
 template <unsigned Size, bool Sharded>
-class ZmHeap<ZmHeapDisable(), Size, Sharded> { };
+struct ZmHeap_<ZmHeapDisable(), Size, Sharded> { using T = ZuNull; };
+template <auto ID, unsigned Size, bool Sharded = false>
+using ZmHeap = typename ZmHeap_<ID, Size, Sharded>::T;
 
 #include <zlib/ZmFn.hpp>
 

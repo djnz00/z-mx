@@ -69,7 +69,7 @@ struct ZiAnyIOBuf : public ZmPolymorph {
 struct ZiIOBuf_HeapID {
   constexpr static const char *id() { return "ZiIOBuf"; }
 };
-template <unsigned Size_, typename ID = ZiIOBuf_HeapID>
+template <unsigned Size_, auto ID = ZiIOBuf_HeapID>
 struct ZiIOVBuf : private ZmVHeap<ID>, public ZiAnyIOBuf {
   void		*owner = nullptr;
   uint8_t	*jumbo = nullptr;
@@ -268,7 +268,7 @@ public:
   friend Traits ZuTraitsType(ZiIOVBuf *);
 };
 #pragma pack(pop)
-template <unsigned Size_, typename Heap, typename HeapID>
+template <unsigned Size_, typename Heap, auto HeapID>
 struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
   using Base = ZiIOVBuf<Size_, HeapID>;
   using Base::Size;

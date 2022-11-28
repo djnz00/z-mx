@@ -58,6 +58,9 @@
 // run-time encapsulation of generic functor/lambda
 template <auto HeapID, bool Sharded = false>
 class ZmRingFn {
+  // 64bit pointer-packing - uses bit 63
+  constexpr static const uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
+
   typedef unsigned (*InvokeFn)(void *ptr);
   typedef void (*MoveFn)(void *dst, void *src, bool onHeap);
   typedef uintptr_t (*AllocFn)(uintptr_t ptr);
@@ -131,8 +134,8 @@ public:
   }
 
   ~ZmRingFn() {
-    if (ZuUnlikely(m_invokeFn && (m_ptr & 1)))
-      m_allocFn(m_ptr & ~1); // destroys and frees
+    if (ZuUnlikely(m_invokeFn && (m_ptr & OnHeap)))
+      m_allocFn(m_ptr & ~OnHeap); // destroys and frees
   }
 
   bool operator !() const { return !m_invokeFn; }
@@ -158,9 +161,9 @@ public:
   }
 
 private:
-  void *ptr() const { return reinterpret_cast<void *>(m_ptr & ~1); }
+  void *ptr() const { return reinterpret_cast<void *>(m_ptr & ~OnHeap); }
 
-  bool onHeap() const { return m_ptr & 1; }
+  bool onHeap() const { return m_ptr & OnHeap; }
 
   void clear() { m_invokeFn = nullptr; }
 
@@ -170,7 +173,7 @@ private:
       auto heapPtr = reinterpret_cast<void *>(m_allocFn(1)); // heap allocates
       if (ZuUnlikely(!heapPtr)) throw std::bad_alloc{};
       m_moveFn(heapPtr, stackPtr, false);
-      m_ptr = reinterpret_cast<uintptr_t>(heapPtr) | 1;
+      m_ptr = reinterpret_cast<uintptr_t>(heapPtr) | OnHeap;
     }
   }
 

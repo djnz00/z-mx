@@ -72,9 +72,11 @@
 // ZtArray<ZtString,			// array of ZtStrings
 //   ZtArrayCmp<ZtICmp> >		// case-insensitive comparison
 
+// NTP defaults
+inline constexpr auto ZtArray_HeapID() { return []() { return "ZtArray"; }; }
 struct ZtArray_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
-  struct HeapID { constexpr static const char *id() { return "ZtArray"; } };
+  constexpr static auto HeapID = ZtArray_HeapID();
 };
 
 // ZtArrayCmp - the comparator
@@ -84,9 +86,9 @@ struct ZtArrayCmp : public NTP {
 };
 
 // ZtArrayHeapID - the heap ID
-template <class HeapID_, typename NTP = ZtArray_Defaults>
+template <auto HeapID_, typename NTP = ZtArray_Defaults>
 struct ZtArrayHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
 };
 
 template <typename T, typename NTP> class ZtArray;
@@ -99,7 +101,7 @@ template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
 template <typename T_, typename NTP = ZtArray_Defaults>
 class ZtArray :
-    private ZmVHeap<typename NTP::HeapID>,
+    private ZmVHeap<NTP::HeapID>,
     public ZtArray_<T_>,
     public ZuArrayFn<T_, typename NTP::template CmpT<T_>> {
   template <typename, typename> friend class ZtArray;
@@ -107,7 +109,7 @@ class ZtArray :
 public:
   using T = T_;
   using Cmp = typename NTP::template CmpT<T>;
-  using HeapID = typename NTP::HeapID;
+  constexpr static auto HeapID = NTP::HeapID;
 
   using Ops = ZuArrayFn<T, Cmp>;
 

@@ -49,6 +49,8 @@
 //   ZmListLock<ZmRWLock,			// lock with R/W lock
 //     ZmListCmp<ZtICmp> > >			// case-insensitive comparison
 
+// NTP defaults
+inline constexpr auto ZmList_HeapID() { return []() { return "ZmList"; }; }
 struct ZmList_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   constexpr static auto ValAxor = ZuDefaultAxor();
@@ -57,7 +59,7 @@ struct ZmList_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = []() { return "ZmList"; };
+  constexpr static auto HeapID = ZmList_HeapID();
   enum { Sharded = 0 };
 };
 
@@ -106,7 +108,7 @@ struct ZmListHeapID : public NTP {
   constexpr static auto HeapID = HeapID_;
 };
 
-// ZmListSharded - shadow nodes, do not manage ownership
+// ZmListSharded - heap is sharded
 template <bool Sharded_, typename NTP = ZmList_Defaults>
 struct ZmListSharded : public NTP {
   enum { Sharded = Sharded_ };

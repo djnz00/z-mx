@@ -68,13 +68,14 @@ private:
 //    ZmStackCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
+inline constexpr auto ZmStack_HeapID() { return []() { return "ZmStack"; }; }
 struct ZmStack_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  constexpr static auto HeapID = []() { return "ZmStack"; };
+  constexpr static auto HeapID = ZmStack_HeapID();
   enum { Sharded = 0 };
 };
 

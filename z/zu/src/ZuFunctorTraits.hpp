@@ -39,12 +39,14 @@
 #include <zlib/ZuConversion.hpp>
 
 template <bool, bool, typename, typename, typename ...>
-struct ZuFunctorTraits_3 {
+class ZuFunctorTraits_3 {
+public:
   enum { IsStateless = 0 };
 };
 
 template <typename R, typename L, typename ...Args>
-struct ZuFunctorTraits_3<false, true, R, L, Args...> {
+class ZuFunctorTraits_3<false, true, R, L, Args...> {
+public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
   static R invoke(Args_ &&... args) {
@@ -59,7 +61,8 @@ struct ZuFunctorTraits_3<false, true, R, L, Args...> {
 };
 
 template <typename L, typename ...Args>
-struct ZuFunctorTraits_3<false, true, void, L, Args...> {
+class ZuFunctorTraits_3<false, true, void, L, Args...> {
+public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
   static void invoke(Args_ &&... args) {
@@ -74,10 +77,13 @@ struct ZuFunctorTraits_3<false, true, void, L, Args...> {
 };
 
 template <typename R, typename L, typename ...Args>
-struct ZuFunctorTraits_3<true, true, R, L, Args...> :
+class ZuFunctorTraits_3<true, true, R, L, Args...> :
     public ZuFunctorTraits_3<false, true, R, L, Args...> {
-  using typename ZuFunctorTraits_3<false, true, R, L, Args...>::Fn;
+  using Base = ZuFunctorTraits_3<false, true, R, L, Args...>;
+public:
+  using typename Base::Fn;
   constexpr static Fn fn(L l) { return static_cast<Fn>(l); }
+  constexpr static Fn fn() { return &Base::invoke_; }
 };
 
 template <typename R1, typename R2, typename Args1, typename Args2>
