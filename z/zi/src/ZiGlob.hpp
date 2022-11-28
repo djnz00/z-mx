@@ -48,9 +48,8 @@ class ZiAPI ZiGlob {
   ZiGlob(ZiGlob &&) = delete;
   ZiGlob &operator =(ZiGlob &&) = delete;
 
-  using Entries =
-    ZmRBTree<ZtString, ZmRBTreeObject<ZuNull, ZmRBTreeLock<ZmNoLock>>>;
-  using Iterator = typename Entries::ReadIterator<>;
+  using Entries = ZmRBTree<ZtString>;
+  using Iterator = decltype(ZuDeclVal<const Entries &>().readIterator());
 
 public:
   ZiGlob() = default;

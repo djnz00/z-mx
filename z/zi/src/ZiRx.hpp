@@ -52,8 +52,8 @@ namespace ZiRx {
 //   -ve - disconnect immediately
 
 // synchronous receive from ZiIOContext
-template <typename Buf, typename Hdr, typename Body>
-inline void recv(ZiIOContext &io, Hdr, Body) {
+template <auto Hdr, auto Body, typename Buf>
+inline void recv(ZiIOContext &io) {
   ZmRef<Buf> buf = new Buf{};
   auto ptr = buf->data();
   auto size = buf->size;
@@ -62,7 +62,7 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuFunctorTraits<Hdr>::invoke(io, buf);
+    int frameLen = Hdr(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -90,8 +90,8 @@ inline void recv(ZiIOContext &io, Hdr, Body) {
 }
 
 // asynchronous (queued) receive from ZiIOContext
-template <typename Buf, typename Hdr, typename Body>
-inline void recvAsync(ZiIOContext &io, Hdr, Body) {
+template <auto Hdr, auto Body, typename Buf>
+inline void recvAsync(ZiIOContext &io) {
   ZmRef<Buf> buf = new Buf{};
   auto ptr = buf->data();
   auto size = buf->size;
@@ -100,7 +100,7 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
     io.length = 0;
 
     // scan header
-    int frameLen = ZuFunctorTraits<Hdr>::invoke(io, buf);
+    int frameLen = Hdr(io, buf);
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
     if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
@@ -163,10 +163,8 @@ inline void recvAsync(ZiIOContext &io, Hdr, Body) {
 
 // synchronous recv from memory (e.g. TLS)
 // returns bytes consumed, -1 on error
-template <typename Buf, typename Hdr, typename Body>
-inline int recvMem(
-    const uint8_t *data, unsigned rxLen,
-    ZmRef<Buf> &buf, Hdr hdr, Body body) {
+template <auto Hdr, auto Body, typename Buf>
+inline int recvMem(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
   if (!buf) buf = new Buf{};
   unsigned oldLen = buf->length;
   unsigned len = oldLen + rxLen;
@@ -176,7 +174,7 @@ inline int recvMem(
 
   while (len) {
     // scan header
-    int frameLen = hdr(buf.ptr());
+    int frameLen = Hdr(buf.ptr());
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) {
       buf->ensure(frameLen);
@@ -184,7 +182,7 @@ inline int recvMem(
     }
 
     // process body
-    frameLen = body(buf.ptr(), frameLen);
+    frameLen = Body(buf.ptr(), frameLen);
     if (ZuUnlikely(frameLen < 0)) return -1; // error
     if (!frameLen) return rxLen; // EOF - discard remainder
 
@@ -205,10 +203,8 @@ inline int recvMem(
 
 // asynchronous recv from memory
 // returns bytes consumed, -1 on error
-template <typename Buf, typename Hdr, typename Body>
-inline int recvMemAsync(
-    const uint8_t *data, unsigned rxLen,
-    ZmRef<Buf> &buf, Hdr hdr, Body body) {
+template <auto Hdr, auto Body, typename Buf>
+inline int recvMemAsync(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
   if (!buf) buf = new Buf{};
   unsigned oldLen = buf->length;
   unsigned len = oldLen + rxLen;
@@ -218,7 +214,7 @@ inline int recvMemAsync(
 
   while (len) {
     // scan header
-    int frameLen = hdr(buf.ptr());
+    int frameLen = Hdr(buf.ptr());
     if (ZuUnlikely(frameLen < 0)) return -1;
     if (len < static_cast<unsigned>(frameLen)) return 0;
 
@@ -237,7 +233,7 @@ inline int recvMemAsync(
     }
 
     // process body
-    frameLen = body(ZuMv(buf));
+    frameLen = Body(ZuMv(buf));
     if (ZuUnlikely(frameLen < 0)) return -1; // error
     if (!frameLen) return rxLen; // EOF - discard remainder
 

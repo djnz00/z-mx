@@ -902,7 +902,7 @@ retry:
   offset += r;
 
   if ((unsigned)r < len) {
-    ptr = static_cast<void *>(static_cast<uint8_t *>(ptr) + r);
+    ptr = static_cast<const void *>(static_cast<const uint8_t *>(ptr) + r);
     len -= r;
     goto retry;
   }

@@ -44,13 +44,14 @@ inline void send(Cxn *cxn, ZmRef<Buf> buf) {
   }});
 }
 
-template <typename Cxn, typename Buf, typename Sent>
-inline void send(Cxn *cxn, ZmRef<Buf> buf, Sent) {
+// Sent(ZmRef<Buf> buf)
+template <auto Sent, typename Cxn, typename Buf>
+inline void send(Cxn *cxn, ZmRef<Buf> buf) {
   cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
     io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
       if (ZuUnlikely((io.offset += io.length) < io.size)) return;
       io.complete();
-      ZuFunctorTraits<Sent>::invoke(io.fn.mvObject<Buf>());
+      Sent(io.fn.mvObject<Buf>());
     }}, buf->data(), buf->length, 0);
   }});
 }

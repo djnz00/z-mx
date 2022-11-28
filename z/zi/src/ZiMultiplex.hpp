@@ -425,7 +425,7 @@ namespace ZiCxnType {
 
 struct ZiCxnInfo { // pure aggregate, no ctor
   ZtEnum		type;		// ZiCxnType
-  Zi::Socket	socket;
+  Zi::Socket		socket;
   ZiCxnOptions 		options;
   ZiIP			localIP;
   uint16_t		localPort = 0;
@@ -517,11 +517,12 @@ public:
   using Socket = Zi::Socket;
 
   // index on socket
-  struct SocketAccessor;
-friend SocketAccessor;
-  struct SocketAccessor {
-    static Socket get(const ZiConnection *c) { return c->info().socket; }
-  };
+  static Zi::Socket SocketAxor(const ZiConnection *c) {
+    return c->info().socket;
+  }
+  constexpr static const char *HeapID() {
+    return "ZiMultiplex.Connection";
+  }
 
 protected:
   ZiConnection(ZiMultiplex *mx, const ZiCxnInfo &ci);
@@ -735,7 +736,7 @@ friend ZiConnection;
   template <typename> class Connect_;
 #endif
 
-  class Listener_ {
+  class Listener_ : public ZuObject {
   friend ZiMultiplex;
 #if !ZiMultiplex__AcceptHeap
   friend Accept_;
@@ -746,17 +747,18 @@ friend ZiConnection;
     using Socket = Zi::Socket;
 
   public:
-    struct SocketAccessor;
-  friend SocketAccessor;
-    struct SocketAccessor {
-      static Socket get(const Listener_ &l) { return l.info().socket; }
-    };
+    static Zi::Socket SocketAxor(const Listener_ &l) {
+      return l.info().socket;
+    }
+    constexpr static const char *HeapID() {
+      return "ZiMultiplex.Listener";
+    }
 
   protected:
-    template <typename ...Args> Listener_(ZiMultiplex *mx,
-	ZiConnectFn acceptFn, Args &&... args) :
-      m_mx(mx), m_acceptFn(acceptFn), m_up(1),
-      m_info{ZuFwd<Args>(args)...} { }
+    template <typename ...Args>
+    Listener_(ZiMultiplex *mx, ZiConnectFn acceptFn, Args &&... args) :
+	m_mx(mx), m_acceptFn(acceptFn), m_up(1),
+	m_info{ZuFwd<Args>(args)...} { }
 
   private:
     const ZiConnectFn &acceptFn() const { return m_acceptFn; }
@@ -769,17 +771,12 @@ friend ZiConnection;
     bool		m_up;
     ZiListenInfo	m_info;
   };
-  // FIXME
-  struct Listener_HeapID : public ZmHeapSharded {
-    constexpr static const char *id() { return "ZiMultiplex.Listener"; }
-  };
   using ListenerHash =
     ZmHash<Listener_,
-      ZmHashKey<Listener_::SocketAccessor,
-	ZmHashObject<ZuObject,
-	  ZmHashNodeDerive<true,
-	    ZmHashLock<ZmNoLock,
-	      ZmHashHeapID<Listener_HeapID> > > > > >;
+      ZmHashNode<Listener_,
+	ZmHashKey<Listener_::SocketAxor,
+	  ZmHashHeapID<Listener_::HeapID,
+	    ZmHashSharded<true>>>>>;
   using Listener = ListenerHash::Node;
 
 #if ZiMultiplex__AcceptHeap
@@ -788,6 +785,10 @@ friend ZiConnection;
 template <typename> friend class Accept_;
   template <typename Heap> class Accept_ : public Heap {
   friend ZiMultiplex;
+
+    constexpr static auto HeapID() {
+      return []() { return "ZiMultiplex.Accept"; };
+    }
 
     Accept_(Listener *listener) : m_listener(listener), m_info{
 	  ZiCxnType::TCPIn,
@@ -812,10 +813,7 @@ template <typename> friend class Accept_;
     Zi_Overlapped	m_overlapped;
     char		m_buf[(sizeof(struct sockaddr_in) + 16) * 2];
   };
-  struct Accept_HeapID {
-    constexpr static const char *id() { return "ZiMultiplex.Accept"; }
-  };
-  using Accept_Heap = ZmHeap<Accept_HeapID, sizeof(Accept_<ZuNull>)>;
+  using Accept_Heap = ZmHeap<Accept_::HeapID(), sizeof(Accept_<ZuNull>)>;
   using Accept = Accept_<Accept_Heap>; 
 #endif
 
@@ -825,7 +823,7 @@ template <typename> friend class Accept_;
 #else
   template <typename> class Connect_;
 template <typename> friend class Connect_;
-  template <typename Heap> class Connect_ : public Heap
+  template <typename Heap> class Connect_ : public Heap, public ZuObject
 #endif
   {
   friend ZiMultiplex;
@@ -834,12 +832,13 @@ template <typename> friend class Connect_;
 
 #ifdef ZiMultiplex__ConnectHash
   public:
-    struct SocketAccessor;
-  friend SocketAccessor;
-    struct SocketAccessor {
-      static Socket get(const Connect_ &c) { return c.info().socket; }
-    };
+    static Zi::Socket SocketAxor(const Connect_ &c) {
+      return c.info().socket;
+    }
 #endif
+    constexpr static const char *HeapID() {
+      return "ZiMultiplex.Connect";
+    }
 
   protected:
     template <typename ...Args> Connect_(
@@ -875,34 +874,22 @@ template <typename> friend class Connect_;
     Zi_Overlapped	m_overlapped;
 #endif
   };
-  // FIXME
-  struct Connect_HeapID : public ZmHeapSharded {
-    constexpr static const char *id() { return "ZiMultiplex.Connect"; }
-  };
 #if ZiMultiplex__ConnectHash
   using ConnectHash =
     ZmHash<Connect_,
-      ZmHashKey<Connect_::SocketAccessor,
-	ZmHashObject<ZuObject,
-	  ZmHashNodeDerive<true,
-	    ZmHashLock<ZmNoLock,
-	      ZmHashHeapID<Connect_HeapID> > > > > >;
+      ZmHashNode<Connect_,
+	ZmHashKey<Connect_::SocketAxor,
+	  ZmHashHeapID<Connect_::HeapID>>>>;
   using Connect = ConnectHash::Node;
 #else
-  using ConnectHeap = ZmHeap<Connect_HeapID, sizeof(Connect_<ZuNull>)>;
+  using ConnectHeap = ZmHeap<Connect_::HeapID, sizeof(Connect_<ZuNull>)>;
   using Connect = Connect_<ConnectHeap>;
 #endif
 
-  // FIXME
-  struct CxnHash_HeapID : public ZmHeapSharded {
-    constexpr static const char *id() { return "ZiMultiplex.CxnHash"; }
-  };
   using CxnHash =
     ZmHash<ZmRef<ZiConnection>,
-      ZmHashKey<ZiConnection::SocketAccessor,
-	ZmHashObject<ZuNull,
-	  ZmHashLock<ZmNoLock,
-	    ZmHashHeapID<CxnHash_HeapID> > > > >;
+      ZmHashKey<ZiConnection::SocketAxor,
+	ZmHashHeapID<ZiConnection::HeapID>>>;
 
   using StateLock = ZmLock;
   using StateGuard = ZmGuard<StateLock>;

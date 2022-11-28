@@ -32,6 +32,7 @@
 
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmGuard.hpp>
+#include <zlib/ZmAlloc.hpp>
 
 #include <zlib/ZePlatform.hpp>
 
@@ -198,7 +199,7 @@ private:
   }
   template <typename P> MatchPBuffer<P> append_(const P &p) {
     unsigned len = ZuPrint<P>::length(p);
-    auto buf = ZuAlloc(char, len);
+    auto buf = ZmAlloc(char, len);
     if (!buf) throw ZeError{ZiENOMEM};
     ZeError e;
     if (ZuUnlikely(write(buf, ZuPrint<P>::print(buf, len, p), e) != Zi::OK))

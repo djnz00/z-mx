@@ -93,16 +93,17 @@ error:
     return Zi::IOError;
   }
 
-  struct dirent d, *r;
-  int i;
+  struct dirent *r;
 
-  if (i = readdir_r(m_dir, &d, &r)) goto error;
-  if (!r) return Zi::EndOfFile;
-  name = Path{Path::Copy, &d.d_name[0]};
+  errno = 0;
+  if (!(r = readdir(m_dir))) goto error;
+  name = Path{Path::Copy, &(r->d_name)[0]};
   return Zi::OK;
 
 error:
-  if (e) *e = errno;
+  int errno_ = errno;
+  if (!errno_) return Zi::EndOfFile;
+  if (e) *e = errno_;
   close();
   return Zi::IOError;
 
