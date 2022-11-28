@@ -191,8 +191,8 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <bool VoidRet, auto> struct FnInvoker;
   template <typename, bool VoidRet, auto> struct BoundInvoker;
   template <typename, bool VoidRet, auto> struct MemberInvoker;
-  template <typename, auto HeapID> struct LambdaInvoker;
-  template <typename, auto HeapID> struct LBoundInvoker;
+  template <typename, auto HeapID, bool Sharded> struct LambdaInvoker;
+  template <typename, auto HeapID, bool Sharded> struct LBoundInvoker;
 
   template <typename T> struct IsFunctor_ { enum { OK = 0 }; };
   template <typename L, typename R, typename ...Args_>
@@ -338,7 +338,7 @@ public:
   };
 
   // lambdas
-  template <auto HeapID> struct Lambda;
+  template <auto HeapID, bool Sharded> struct Lambda;
   template <typename Arg0, typename ...Args_>
   static ZmFn fn(Arg0 &&arg0, Args_ &&... args) {
     return Lambda<ZmLambda_HeapID()>::fn(
@@ -350,26 +350,26 @@ public:
 	ZuFwd<Arg0>(arg0), ZuFwd<Args_>(args)...);
   }
   // lambdas (specifying heap ID)
-  template <auto HeapID> struct Lambda {
+  template <auto HeapID, bool Sharded = false> struct Lambda {
     template <typename L>
     static ZmFn fn(L &&l) {
       return LambdaInvoker<
-	decltype(&L::operator ()), HeapID>::fn(ZuFwd<L>(l));
+	decltype(&L::operator ()), HeapID, Sharded>::fn(ZuFwd<L>(l));
     }
     template <typename O, typename L>
     static ZmFn fn(O *o, L &&l) {
       return LBoundInvoker<
-	decltype(&L::operator ()), HeapID>::fn(o, ZuFwd<L>(l));
+	decltype(&L::operator ()), HeapID, Sharded>::fn(o, ZuFwd<L>(l));
     }
     template <typename O, typename L>
     static ZmFn fn(ZmRef<O> o, L &&l) {
       return LBoundInvoker<
-	decltype(&L::operator ()), HeapID>::fn(ZuMv(o), ZuFwd<L>(l));
+	decltype(&L::operator ()), HeapID, Sharded>::fn(ZuMv(o), ZuFwd<L>(l));
     }
     template <typename O, typename L>
     static ZmFn mvFn(ZmRef<O> o, L &&l) {
       return LBoundInvoker<
-	decltype(&L::operator ()), HeapID>::mvFn(ZuMv(o), ZuFwd<L>(l));
+	decltype(&L::operator ()), HeapID, Sharded>::mvFn(ZuMv(o), ZuFwd<L>(l));
     }
   };
 
@@ -490,24 +490,28 @@ private:
     typedef R (*Fn)(Args_...);
     enum { OK = ZuConversion<L, Fn>::Exists };
   };
-  template <typename L, typename R, auto HeapID, bool, typename ...Args_>
+  template <
+    typename L, typename R, auto HeapID, bool Sharded, bool, typename ...Args_>
   struct LambdaInvoker_;
-  template <typename, typename, auto, bool, typename ...Args_>
-  friend struct LambdaInvoker_;
+  template <typename, typename, auto, bool, bool, typename ...Args_>
+friend struct LambdaInvoker_;
 
   // lambdas with captures (heap-allocated)
-  template <typename L, typename R, auto HeapID, typename ...Args_>
-  struct LambdaInvoker_<L, R, HeapID, 0, Args_...> {
+  template <
+    typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
+  struct LambdaInvoker_<L, R, HeapID, Sharded, 0, Args_...> {
     template <typename L_> static ZmFn fn(L_ &&l);
   };
-  template <typename L, typename R, auto HeapID, typename ...Args_>
-  struct LambdaInvoker_<const L, R, HeapID, 0, Args_...> {
+  template <
+    typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
+  struct LambdaInvoker_<const L, R, HeapID, Sharded, 0, Args_...> {
     template <typename L_> static ZmFn fn(L_ &&l);
   };
 
   // fast stateless lambdas (i.e. empty class without captures)
-  template <typename L, typename R, auto HeapID, typename ...Args_>
-  struct LambdaInvoker_<L, R, HeapID, 1, Args_...> {
+  template <
+    typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
+  struct LambdaInvoker_<L, R, HeapID, Sharded, 1, Args_...> {
     static uintptr_t invoke(uintptr_t, Args... args) {
       return ZmFn_Cast(
 	  (*static_cast<const L *>(nullptr))(ZuFwd<Args>(args)...));
@@ -518,8 +522,8 @@ private:
 	static_cast<void *>(nullptr)};
     }
   };
-  template <typename L, auto HeapID, typename ...Args_>
-  struct LambdaInvoker_<L, void, HeapID, 1, Args_...> {
+  template <typename L, auto HeapID, bool Sharded, typename ...Args_>
+  struct LambdaInvoker_<L, void, HeapID, Sharded, 1, Args_...> {
     static uintptr_t invoke(uintptr_t, Args... args) {
       (*static_cast<const L *>(nullptr))(ZuFwd<Args>(args)...);
       return 0;
@@ -531,58 +535,69 @@ private:
     }
   };
 
-  template <typename R, typename L, typename ...Args_, auto HeapID>
-  struct LambdaInvoker<R (L::*)(Args_...), HeapID> :
-    public LambdaInvoker_<L, R, HeapID, 0, Args_...> { };
-  template <typename R, typename L, typename ...Args_, auto HeapID>
-  struct LambdaInvoker<R (L::*)(Args_...) const, HeapID> :
-    public LambdaInvoker_<const L, R, HeapID,
+  template <
+    typename R, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LambdaInvoker<R (L::*)(Args_...), HeapID, Sharded> :
+    public LambdaInvoker_<L, R, HeapID, Sharded, 0, Args_...> { };
+  template <
+    typename R, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LambdaInvoker<R (L::*)(Args_...) const, HeapID, Sharded> :
+    public LambdaInvoker_<const L, R, HeapID, Sharded,
 	     LambdaStateless<L, R, Args_...>::OK, Args_...> { };
 
   // bound lambdas
-  template <typename, typename L, typename R, auto HeapID, bool Stateless>
+  template <
+    typename, typename L, typename R, auto HeapID, bool Sharded, bool Stateless>
   struct LBoundInvoker_;
-  template <typename, typename, typename, auto, bool>
+  template <typename, typename, typename, auto, bool, bool>
 friend struct LBoundInvoker_;
 
-  template <typename O, typename L, typename R, auto HeapID>
-  struct LBoundInvoker_<O *, L, R, HeapID, 0> {
+  template <typename O, typename L, typename R, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, 0> {
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> fn(O *o, L_ l) {
-      return Lambda<HeapID>::fn([l = ZuMv(l), o](Args... args) {
+      return Lambda<HeapID, Sharded>::fn([l = ZuMv(l), o](Args... args) {
 	l(o, ZuFwd<Args>(args)...); });
     }
     template <typename L_>
     static ZuIsMutable<L_, ZmFn> fn(O *o, L_ l) {
-      return Lambda<HeapID>::fn([l = ZuMv(l), o](Args... args) mutable {
-	l(o, ZuFwd<Args>(args)...); });
+      return Lambda<HeapID, Sharded>::fn(
+	  [l = ZuMv(l), o](Args... args) mutable {
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn([l = ZuMv(l), o = ZuMv(o)](Args... args) {
-	l(o, ZuFwd<Args>(args)...); });
+      return Lambda<HeapID, Sharded>::fn(
+	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZuIsMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn(
+      return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
-	l(o, ZuFwd<Args>(args)...); });
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn([l = ZuMv(l), o = ZuMv(o)](Args... args) {
-	l(o, ZuFwd<Args>(args)...); });
+      return Lambda<HeapID, Sharded>::fn(
+	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZuIsMutable<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn(
+      return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
-	l(o, ZuFwd<Args>(args)...); });
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
   };
 
-  template <typename O, typename L, typename R, auto HeapID>
-  struct LBoundInvoker_<O *, L, R, HeapID, 1> {
+  template <typename O, typename L, typename R, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       return ZmFn_Cast(
 	  (*static_cast<const L *>(nullptr))(ptr<O>(o), ZuFwd<Args>(args)...));
@@ -597,8 +612,8 @@ friend struct LBoundInvoker_;
       return ZmFn{ZmFn::Pass{}, &LBoundInvoker_::invoke, ZuMv(o)};
     }
   };
-  template <typename O, typename L, auto HeapID>
-  struct LBoundInvoker_<O *, L, void, HeapID, 1> {
+  template <typename O, typename L, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<O *, L, void, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
@@ -614,29 +629,33 @@ friend struct LBoundInvoker_;
     }
   };
 
-  template <typename O, typename L, typename R, auto HeapID>
-  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, 0> {
+  template <typename O, typename L, typename R, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, 0> {
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn([l = ZuMv(l), o = ZuMv(o)](Args... args) {
-	l(o, ZuFwd<Args>(args)...); });
+      return Lambda<HeapID, Sharded>::fn(
+	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZuIsMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn(
+      return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
-	l(o, ZuFwd<Args>(args)...); });
+	    l(o, ZuFwd<Args>(args)...);
+	  });
     }
     template <typename L_>
     static ZmFn mvFn(ZmRef<O> o, L_ l) {
-      return Lambda<HeapID>::fn(
+      return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
-	l(ZuMv(o), ZuFwd<Args>(args)...); });
+	    l(ZuMv(o), ZuFwd<Args>(args)...);
+	  });
     }
   };
 
-  template <typename O, typename L, typename R, auto HeapID>
-  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, 1> {
+  template <typename O, typename L, typename R, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       return ZmFn_Cast(
 	  (*static_cast<const L *>(nullptr))(ptr<O>(o), ZuFwd<Args>(args)...));
@@ -658,8 +677,8 @@ friend struct LBoundInvoker_;
       return ZmFn{ZmFn::Pass{}, &LBoundInvoker_::mvInvoke, ZuMv(o)};
     }
   };
-  template <typename O, typename L, auto HeapID>
-  struct LBoundInvoker_<ZmRef<O>, L, void, HeapID, 1> {
+  template <typename O, typename L, auto HeapID, bool Sharded>
+  struct LBoundInvoker_<ZmRef<O>, L, void, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
@@ -682,38 +701,50 @@ friend struct LBoundInvoker_;
     }
   };
 
-  template <typename O, typename R, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<R (L::*)(O *, Args_...), HeapID> :
-    public LBoundInvoker_<O *, L, R, HeapID,
+  template <
+    typename O, typename R, typename L, typename ...Args_,
+    auto HeapID, bool Sharded>
+  struct LBoundInvoker<R (L::*)(O *, Args_...), HeapID, Sharded> :
+    public LBoundInvoker_<O *, L, R, HeapID, Sharded,
 	   LambdaStateless<L, R, O *, Args_...>::OK> { };
-  template <typename O, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<void (L::*)(O *, Args_...), HeapID> :
-    public LBoundInvoker_<O *, L, void, HeapID,
+  template <
+    typename O, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LBoundInvoker<void (L::*)(O *, Args_...), HeapID, Sharded> :
+    public LBoundInvoker_<O *, L, void, HeapID, Sharded,
 	   LambdaStateless<L, void, O *, Args_...>::OK> { };
-  template <typename O, typename R, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<R (L::*)(O *, Args_...) const, HeapID> :
-    public LBoundInvoker_<O *, const L, R, HeapID,
+  template <
+    typename O, typename R, typename L, typename ...Args_,
+    auto HeapID, bool Sharded>
+  struct LBoundInvoker<R (L::*)(O *, Args_...) const, HeapID, Sharded> :
+    public LBoundInvoker_<O *, const L, R, HeapID, Sharded,
 	   LambdaStateless<L, R, O *, Args_...>::OK> { };
-  template <typename O, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<void (L::*)(O *, Args_...) const, HeapID> :
-    public LBoundInvoker_<O *, const L, void, HeapID,
+  template <
+    typename O, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LBoundInvoker<void (L::*)(O *, Args_...) const, HeapID, Sharded> :
+    public LBoundInvoker_<O *, const L, void, HeapID, Sharded,
 	   LambdaStateless<L, void, O *, Args_...>::OK> { };
 
-  template <typename O, typename R, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<R (L::*)(ZmRef<O>, Args_...), HeapID> :
-    public LBoundInvoker_<ZmRef<O>, L, R, HeapID,
+  template <
+    typename O, typename R, typename L, typename ...Args_,
+    auto HeapID, bool Sharded>
+  struct LBoundInvoker<R (L::*)(ZmRef<O>, Args_...), HeapID, Sharded> :
+    public LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded,
 	   LambdaStateless<L, R, ZmRef<O>, Args_...>::OK> { };
-  template <typename O, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<void (L::*)(ZmRef<O>, Args_...), HeapID> :
-    public LBoundInvoker_<ZmRef<O>, L, void, HeapID,
+  template <
+    typename O, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LBoundInvoker<void (L::*)(ZmRef<O>, Args_...), HeapID, Sharded> :
+    public LBoundInvoker_<ZmRef<O>, L, void, HeapID, Sharded,
 	   LambdaStateless<L, void, ZmRef<O>, Args_...>::OK> { };
-  template <typename O, typename R, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<R (L::*)(ZmRef<O>, Args_...) const, HeapID> :
-    public LBoundInvoker_<ZmRef<O>, const L, R, HeapID,
+  template <
+    typename O, typename R, typename L, typename ...Args_,
+    auto HeapID, bool Sharded>
+  struct LBoundInvoker<R (L::*)(ZmRef<O>, Args_...) const, HeapID, Sharded> :
+    public LBoundInvoker_<ZmRef<O>, const L, R, HeapID, Sharded,
 	   LambdaStateless<L, R, ZmRef<O>, Args_...>::OK> { };
-  template <typename O, typename L, typename ...Args_, auto HeapID>
-  struct LBoundInvoker<void (L::*)(ZmRef<O>, Args_...) const, HeapID> :
-    public LBoundInvoker_<ZmRef<O>, const L, void, HeapID,
+  template <
+    typename O, typename L, typename ...Args_, auto HeapID, bool Sharded>
+  struct LBoundInvoker<void (L::*)(ZmRef<O>, Args_...) const, HeapID, Sharded> :
+    public LBoundInvoker_<ZmRef<O>, const L, void, HeapID, Sharded,
 	   LambdaStateless<L, void, ZmRef<O>, Args_...>::OK> { };
 };
 

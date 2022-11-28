@@ -50,8 +50,8 @@
 #include <zlib/ZmThread.hpp>
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmFn.hpp>
-#include <zlib/ZmSpinLock.hpp>
 #include <zlib/ZmEngine.hpp>
+#include <zlib/ZmRingFn.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -163,107 +163,7 @@ private:
 
   // run-time encapsulation of generic functor/lambda
   constexpr static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
-  struct Fn : public ZmVHeap<Fn_HeapID> {
-    typedef unsigned (*InvokeFn)(void *ptr, bool invoke);
-    typedef void (*MoveFn)(void *dst, void *src);
-
-    void	*ptr = nullptr;	// pointer to lambda on stack
-    InvokeFn	invokeFn = nullptr; // invoke lambda, destroy it, return size
-    MoveFn	moveFn = nullptr; // move lambda into ring
-    unsigned	size = 0;	// sizeof lambda type (0 for stateless)
-    bool	onHeap = false;	// true if heap-allocated
-
-    Fn() = default;
-
-    Fn(const Fn &) = delete;
-    Fn &operator =(const Fn &) = delete;
-
-    Fn(Fn &&fn) :
-	ptr{fn.ptr}, invokeFn{fn.invokeFn}, moveFn{fn.moveFn},
-	size{fn.size}, onHeap{fn.onHeap} {
-      fn.clear();
-    }
-    Fn &operator =(Fn &&fn) {
-      this->~Fn();
-      new (this) Fn{ZuMv(fn)};
-      return *this;
-    }
-
-    template <typename L>
-    Fn(L &l, ZuNotStateless<L> *_ = nullptr) :
-      ptr{&l},
-      invokeFn{[](void *ptr_, bool invoke) -> unsigned {
-	auto ptr = reinterpret_cast<L *>(ptr_);
-	if (ZuLikely(invoke)) try { (*ptr)(); } catch (...) { }
-	ptr->~L();
-	return sizeof(L);
-      }},
-      moveFn{[](void *dst, void *src_) {
-	auto src = reinterpret_cast<L *>(src_);
-	new (dst) L{ZuMv(*src)};
-      }},
-      size{sizeof(L)},
-      onHeap{false} { }
-
-    template <typename L>
-    Fn(L &l, ZuIsStateless<L> *_ = nullptr) :
-      ptr{nullptr},
-      invokeFn{[](void *, bool invoke) -> unsigned {
-	if (ZuLikely(invoke))
-	  try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
-	return 0;
-      }},
-      moveFn{[](void *, void *) { }},
-      size{0},
-      onHeap{false} { }
-
-    template <typename L>
-    Fn &operator =(L l) {
-      this->~Fn();
-      new (this) Fn{l};
-      persist();
-      return *this;
-    }
-
-    ~Fn() {
-      if (onHeap && ptr) {
-	invokeFn(ptr, false);
-	vfree(ptr);
-      }
-    }
-
-    void clear() {
-      new (this) Fn{};
-    }
-
-    bool operator !() const { return !invokeFn; }
-    ZuOpBool
-
-    void persist() {
-      if (ptr && size && !onHeap) {
-	auto stackPtr = ptr;
-	ptr = valloc(size);
-	if (ZuUnlikely(!ptr)) { ptr = stackPtr; throw std::bad_alloc{}; }
-	moveFn(ptr, stackPtr);
-	onHeap = true;
-      }
-    }
-
-    unsigned pushSize() const {
-      return sizeof(InvokeFn) + size;
-    }
-    void push(void *dst_) {
-      auto dst = reinterpret_cast<InvokeFn *>(dst_);
-      *dst = invokeFn;
-      moveFn(&dst[1], ptr);
-      if (onHeap) vfree(ptr);
-      clear();
-    }
-    ZuInline static unsigned invoke(void *ptr_) {
-      auto ptr = reinterpret_cast<InvokeFn *>(ptr_);
-      return (**ptr)(static_cast<void *>(&ptr[1]), true) + sizeof(InvokeFn);
-    }
-  };
+  using Fn = ZmRingFn<Fn_HeapID>;
 
   // overflow ring DLQ
   constexpr static const char *OverRing_HeapID() {

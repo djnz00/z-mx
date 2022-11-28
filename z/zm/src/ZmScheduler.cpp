@@ -117,7 +117,8 @@ bool ZmScheduler::stop()
 	return true;		// return success
       }
   }
-  return ZmEngine::stop();
+  bool b = ZmEngine::stop();
+  return b;
 }
 void ZmScheduler::wake()
 {
@@ -267,7 +268,6 @@ void ZmScheduler::run(
 
     timer->timeout = timeout;
     timer->index = index;
-    fn.persist();
     timer->fn = ZuMv(fn);
     m_schedule.addNode(timer);
   }
@@ -311,11 +311,10 @@ bool ZmScheduler::tryRunWake_(Thread *thread, Fn &fn)
 
 bool ZmScheduler::run__(Thread *thread, Fn &fn)
 {
-  // Note: the MPSC requirement is to serialize within the producing thread
+  // Note: the MPSC requirement is to serialize the producing thread's work
   if (ZuLikely(!thread->overCount.load_())) goto push;
 overflow:
   ++thread->overCount;
-  fn.persist();
   thread->overRing.push(ZuMv(fn));
   return true;
 push:

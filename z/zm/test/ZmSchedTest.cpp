@@ -65,7 +65,7 @@ private:
   ZmTime	m_timeout;
 };
 
-class Timer : public ZmTimeout, public ZmObject {
+class Timer : public ZmObject, public ZmTimeout {
 public:
   Timer(ZmScheduler *s, const ZmBackoff &t) : ZmTimeout(s, t, -1) { }
 
@@ -231,12 +231,14 @@ int main(int argc, char **argv)
     s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
     printf("Hello World %d\n", j);
-    if (j == 1) breakpoint(&timers[j - 1]);
+    if (j == 2) breakpoint(&timers[j - 1]);
   }
 
   for (i = 0; i < 5; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
+
     timers[j - 1].fn = []() { };
+
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
   }

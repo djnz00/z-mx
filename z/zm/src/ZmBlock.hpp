@@ -35,15 +35,14 @@
 #include <zlib/ZuTuple.hpp>
 
 #include <zlib/ZmSemaphore.hpp>
+#include <zlib/ZmSpecific.hpp>
 
-template <typename ...> struct ZmBlock;
 class ZmBlock_ {
-  template <typename ...> friend struct ZmBlock;
-  static auto sem() {
-    thread_local ZmSemaphore sem;
-    return &sem;
-  }
+  struct Sem : public ZmObject, public ZmSemaphore { };
+public:
+  static auto sem() { return ZmSpecific<Sem>::instance(); }
 };
+
 template <typename ...Args> struct ZmBlock {
   using R = ZuTuple<Args...>;
   template <typename L>

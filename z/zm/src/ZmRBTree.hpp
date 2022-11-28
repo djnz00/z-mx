@@ -34,6 +34,7 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuConversion.hpp>
 
+#include <zlib/ZmAssert.hpp>
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmRef.hpp>
@@ -276,6 +277,8 @@ private:
     Node *dup() const { return m_dup; }
     void dup(Node *n) { m_dup = n; }
 
+    void clear() { m_dup = nullptr; }
+
     Node	*m_dup = nullptr;
   };
   template <typename Node>
@@ -283,8 +286,10 @@ private:
   friend ZmRBTree<T, NTP>;
   template <typename, int> friend class ZmRBTreeIterator_;
 
-    constexpr Node * const dup() const { return nullptr; }
-    void dup(Node *) { }
+    ZuInline constexpr Node * const dup() const { return nullptr; }
+    ZuInline void dup(Node *) { }
+
+    ZuInline void clear() { }
   };
   template <typename Node>
   class NodeFn_ : public ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>> {
@@ -311,6 +316,17 @@ private:
     void parent(Node *n) {
       m_parent =
 	reinterpret_cast<uintptr_t>(n) | (m_parent & static_cast<uintptr_t>(1));
+    }
+
+    void clearDup() {
+      Base::clear();
+      m_parent = 0;
+    }
+    void clear() {
+      Base::clear();
+      m_right = nullptr;
+      m_left = nullptr;
+      m_parent = 0;
     }
 
     Node		*m_right = nullptr;
@@ -420,6 +436,12 @@ public:
   }
 private:
   void addNode_(Node *newNode) {
+    if constexpr (Unique) ZmAssert(!newNode->NodeFn::dup());
+    ZmAssert(!newNode->NodeFn::left());
+    ZmAssert(!newNode->NodeFn::right());
+    ZmAssert(!newNode->NodeFn::parent());
+    ZmAssert(!newNode->NodeFn::black());
+
     Node *node;
 
     if (!(node = m_root)) {
@@ -785,7 +807,7 @@ private:
 	parent->NodeFn::dup(dup);
 	if (dup) dup->NodeFn::parent(parent);
 	--m_count;
-	node->NodeFn::dup(nullptr);
+	node->NodeFn::clearDup();
 	return;
       }
       if (dup) {
@@ -793,9 +815,15 @@ private:
 	  Node *child;
 
 	  dup->NodeFn::left(child = node->NodeFn::left());
-	  if (child) child->NodeFn::parent(dup);
+	  if (child) {
+	    node->NodeFn::left(nullptr);
+	    child->NodeFn::parent(dup);
+	  }
 	  dup->NodeFn::right(child = node->NodeFn::right());
-	  if (child) child->NodeFn::parent(dup);
+	  if (child) {
+	    node->NodeFn::right(nullptr);
+	    child->NodeFn::parent(dup);
+	  }
 	}
 	if (!parent) {
 	  m_root = dup;
@@ -811,11 +839,12 @@ private:
 	if (node == m_minimum) m_minimum = dup;
 	if (node == m_maximum) m_maximum = dup;
 	--m_count;
-	node->NodeFn::dup(nullptr);
+	node->NodeFn::clearDup();
 	return;
       }
     }
     delRebalance(node);
+    node->NodeFn::clear();
     --m_count;
   }
 
@@ -929,7 +958,7 @@ public:
 	  parent->NodeFn::black(1);
 	  gParent->NodeFn::black(0);
 	  rotateRight(gParent, gParent->NodeFn::parent());
-	  m_root->NodeFn::black(1);				// force root to black
+	  m_root->NodeFn::black(1);			// force root to black
 	  return;
 	}
       } else {
@@ -947,7 +976,7 @@ public:
 	  parent->NodeFn::black(1);
 	  gParent->NodeFn::black(0);
 	  rotateLeft(gParent, gParent->NodeFn::parent());
-	  m_root->NodeFn::black(1);				// force root to black
+	  m_root->NodeFn::black(1);			// force root to black
 	  return;
 	}
       }
@@ -1049,21 +1078,26 @@ public:
 	    rotateLeft(parent, parent->NodeFn::parent());
 	    sibling = parent->NodeFn::right();
 	  }
-	  if ((!sibling->NodeFn::left() || sibling->NodeFn::left()->NodeFn::black()) &&
-	      (!sibling->NodeFn::right() || sibling->NodeFn::right()->NodeFn::black())) {
+	  if ((!sibling->NodeFn::left() ||
+		sibling->NodeFn::left()->NodeFn::black()) &&
+	      (!sibling->NodeFn::right() ||
+		sibling->NodeFn::right()->NodeFn::black())) {
 	    sibling->NodeFn::black(0);
 	    child = parent;
 	    parent = child->NodeFn::parent();
 	  } else {
-	    if (!sibling->NodeFn::right() || sibling->NodeFn::right()->NodeFn::black()) {
-	      if (sibling->NodeFn::left()) sibling->NodeFn::left()->NodeFn::black(1);
+	    if (!sibling->NodeFn::right() ||
+		sibling->NodeFn::right()->NodeFn::black()) {
+	      if (sibling->NodeFn::left())
+		sibling->NodeFn::left()->NodeFn::black(1);
 	      sibling->NodeFn::black(0);
 	      rotateRight(sibling, parent);
 	      sibling = parent->NodeFn::right();
 	    }
 	    sibling->NodeFn::black(parent->NodeFn::black());
 	    parent->NodeFn::black(1);
-	    if (sibling->NodeFn::right()) sibling->NodeFn::right()->NodeFn::black(1);
+	    if (sibling->NodeFn::right())
+	      sibling->NodeFn::right()->NodeFn::black(1);
 	    rotateLeft(parent, parent->NodeFn::parent());
 	    break;
 	  }
@@ -1075,21 +1109,26 @@ public:
 	    rotateRight(parent, parent->NodeFn::parent());
 	    sibling = parent->NodeFn::left();
 	  }
-	  if ((!sibling->NodeFn::right() || sibling->NodeFn::right()->NodeFn::black()) &&
-	      (!sibling->NodeFn::left() || sibling->NodeFn::left()->NodeFn::black())) {
+	  if ((!sibling->NodeFn::right() ||
+		sibling->NodeFn::right()->NodeFn::black()) &&
+	      (!sibling->NodeFn::left() ||
+		sibling->NodeFn::left()->NodeFn::black())) {
 	    sibling->NodeFn::black(0);
 	    child = parent;
 	    parent = child->NodeFn::parent();
 	  } else {
-	    if (!sibling->NodeFn::left() || sibling->NodeFn::left()->NodeFn::black()) {
-	      if (sibling->NodeFn::right()) sibling->NodeFn::right()->NodeFn::black(1);
+	    if (!sibling->NodeFn::left() ||
+		sibling->NodeFn::left()->NodeFn::black()) {
+	      if (sibling->NodeFn::right())
+		sibling->NodeFn::right()->NodeFn::black(1);
 	      sibling->NodeFn::black(0);
 	      rotateLeft(sibling, parent);
 	      sibling = parent->NodeFn::left();
 	    }
 	    sibling->NodeFn::black(parent->NodeFn::black());
 	    parent->NodeFn::black(1);
-	    if (sibling->NodeFn::left()) sibling->NodeFn::left()->NodeFn::black(1);
+	    if (sibling->NodeFn::left())
+	      sibling->NodeFn::left()->NodeFn::black(1);
 	    rotateRight(parent, parent->NodeFn::parent());
 	    break;
 	  }

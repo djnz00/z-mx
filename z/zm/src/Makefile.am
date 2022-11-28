@@ -14,7 +14,7 @@ pkginclude_HEADERS = \
 	ZmLib.hpp ZmList.hpp ZmLock.hpp ZmLockTraits.hpp ZmNoLock.hpp \
 	ZmObject_.hpp ZmObject.hpp ZmPolymorph.hpp ZmPLock.hpp \
 	ZmPQueue.hpp ZmPlatform.hpp ZmRBTree.hpp ZmRWLock.hpp ZmRandom.hpp \
-	ZmRef.hpp ZmRing.hpp \
+	ZmRef.hpp ZmRing.hpp ZmRingFn.hpp \
 	ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp \
 	ZmSingleton.hpp ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp \
 	ZmStream.hpp ZmTLock.hpp ZmThread.hpp ZmTime.hpp \
