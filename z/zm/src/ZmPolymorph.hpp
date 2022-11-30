@@ -45,7 +45,7 @@ class ZmPolymorph : public ZmObject_Debug {
   ZmPolymorph &operator =(const ZmPolymorph &) = delete;
 
 public:
-  ZmPolymorph()  : m_refCount(0) { }
+  ZmPolymorph()  : m_refCount{0} { }
 
   virtual ~ZmPolymorph() {
 #ifdef ZmObject_DEBUG
@@ -100,7 +100,7 @@ private:
   void del_() const { m_refCount.store_(-1); }
 #endif
 
-  mutable ZmAtomic<int>	m_refCount;
+  mutable ZmAtomic<int>		m_refCount;
 };
 
 #endif /* ZmPolymorph_HPP */

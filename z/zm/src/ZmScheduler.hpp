@@ -337,6 +337,37 @@ public:
     runWake_(thread, fn);
   }
 
+  // invoke(index, object, lambda) is a specialized version of invoke()
+  // that avoids unnecessary calls to ref/deref the object if the lambda is
+  // directly called - the lambda should not capture an object ref
+  // and should return the object this pointer, which may be used to deref
+private:
+  template <typename O1, typename O2>
+  struct IsObjectLambda__ {
+    enum { OK =
+      ZuIsObject_<O1>::OK && ZuIsObject_<O2>::OK &&
+      (ZuConversion<O1, O2>::Is || ZuConversion<O2, O1>::Is)
+    };
+  };
+  template <typename O, typename L, typename = void>
+  struct IsObjectLambda_ { enum { OK = 0 }; };
+  template <typename O, typename L>
+  struct IsObjectLambda_<O, L, decltype(*(ZuDeclVal<L &>())(), void())> :
+      public IsObjectLambda__<O, decltype(*(ZuDeclVal<L &>())())> { };
+  template <typename O, typename L, typename R = void>
+  using IsObjectLambda = ZuIfT<IsObjectLambda_<O, L>::OK, R>;
+public:
+  template <typename O, typename L>
+  IsObjectLambda<O, L> invoke(unsigned index, O *o, L l) {
+    ZmAssert(index && index <= m_params.nThreads());
+    Thread *thread = &m_threads[index - 1];
+    if (ZuLikely(Zm::getTID() == thread->tid)) { l(); return; }
+    o->ref();
+    auto m = [l = ZuMv(l)]() mutable { l()->deref(); };
+    Fn fn{m};
+    runWake_(thread, fn);
+  }
+
   ZuInline void threadInit(ZmFn<> fn) { m_threadInitFn = ZuMv(fn); }
   ZuInline void threadFinal(ZmFn<> fn) { m_threadFinalFn = ZuMv(fn); }
 

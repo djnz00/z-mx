@@ -19,6 +19,8 @@
 
 #include <zlib/ZiPlatform.hpp>
 
+#include <zlib/ZmAlloc.hpp>
+
 #ifndef _WIN32
 
 #include <pwd.h>
@@ -32,7 +34,7 @@ Zi::Username Zi::username(ZeError *e)
 
   bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
   if (bufSize < 0) bufSize = (1<<14);
-  auto pwdBuf = ZuAlloc(char, bufSize);
+  auto pwdBuf = ZmAlloc(char, bufSize);
   if (!pwdBuf) return name;
 
   int s = getpwuid_r(geteuid(), &pwd, pwdBuf.ptr, bufSize, &result);

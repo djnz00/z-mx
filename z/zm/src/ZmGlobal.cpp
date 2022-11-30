@@ -84,14 +84,14 @@ ZmGlobal *ZmGlobal::add(
     ZmGlobal_atexit_ = 1;
     ::atexit(ZmGlobal_atexit);
   }
-  ZmGlobal *c = 0;
+  ZmGlobal *c = nullptr;
   ZmGlobal *g;
 retry:
   for (g = ZmGlobal_list[level]; g; g = g->m_next)
     if (g->m_type == type) {
       unlock(); // do not call dtor with lock held
       // printf("ZmGlobal::add() returning existing instance %s %p\n", g->m_name, g); fflush(stdout);
-      if (ZuUnlikely(c)) delete (ZmGlobal *)c;
+      if (ZuUnlikely(c)) delete c;
       return g;
     }
   if (!c) {

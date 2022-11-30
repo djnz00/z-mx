@@ -26,7 +26,7 @@
 // ZmSingleton<T, false>::instance() can return null since T will not be
 // constructed on-demand - use ZmSingleton<T, false>::instance(new T(...))
 //
-// T can be ZmObject-derived, but does not have to be
+// T can be ZuObject-derived, but does not have to be
 //
 // static T v; can be replaced with:
 // auto &v = *ZmSingleton<T>::instance();
@@ -141,6 +141,8 @@ public:
     return global()->instance_(ptr);
   }
 };
+
+// ODR warning: do not use lambdas in headers outside of an inline function
 
 template <typename L>
 inline auto &ZmStatic(L l, ZuIsStateless<L> *_ = nullptr) {

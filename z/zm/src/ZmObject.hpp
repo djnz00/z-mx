@@ -41,7 +41,7 @@ class ZmObject : public ZmObject_Debug {
   ZmObject &operator =(const ZmObject &) = delete;
 
 public:
-  ZuInline ZmObject()  : m_refCount(0) { }
+  ZuInline ZmObject() : m_refCount{0} { }
 
   ZuInline ~ZmObject() {
 #ifdef ZmObject_DEBUG
@@ -96,7 +96,7 @@ private:
   ZuInline void del_() const { m_refCount.store_(-1); }
 #endif
 
-  mutable ZmAtomic<int>	m_refCount;
+  mutable ZmAtomic<int>		m_refCount;
 };
 
 #endif /* ZmObject_HPP */

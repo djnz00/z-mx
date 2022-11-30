@@ -71,7 +71,7 @@ protected:
   mutable ZmAtomic<void *>	m_debug;
 };
 #else
-class ZmObject_Debug : public ZmObject_ { };
+using ZmObject_Debug = ZmObject_;
 #endif
 
 #endif /* ZmObject__HPP */

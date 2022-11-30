@@ -268,13 +268,12 @@ void ZiMultiplex::udp(ZiConnectFn fn, ZiFailFn failFn,
     return;
   }
 
-  rxInvoke(
-      [this, fn = ZuMv(fn), failFn = ZuMv(failFn),
-	  localIP, localPort,
-	  remoteIP, remotePort, options = ZuMv(options)]() mutable {
-	this->udp_(ZuMv(fn), ZuMv(failFn),
-	    localIP, localPort, remoteIP, remotePort, options);
-      });
+  rxInvoke([this, fn = ZuMv(fn), failFn = ZuMv(failFn),
+      localIP, localPort, remoteIP, remotePort,
+      options = ZuMv(options)]() mutable {
+    udp_(ZuMv(fn), ZuMv(failFn),
+	localIP, localPort, remoteIP, remotePort, options);
+  });
 }
 
 void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
@@ -524,13 +523,12 @@ void ZiMultiplex::connect(
     return;
   }
 
-  rxInvoke(
-      [this, fn = ZuMv(fn), failFn = ZuMv(failFn),
-	  localIP, localPort,
-	  remoteIP, remotePort, options = ZuMv(options)]() mutable {
-	this->connect_(ZuMv(fn), ZuMv(failFn),
-	    localIP, localPort, remoteIP, remotePort, options);
-      });
+  rxInvoke([this, fn = ZuMv(fn), failFn = ZuMv(failFn),
+      localIP, localPort, remoteIP, remotePort,
+      options = ZuMv(options)]() mutable {
+    connect_(ZuMv(fn), ZuMv(failFn),
+	localIP, localPort, remoteIP, remotePort, options);
+  });
 }
 
 void ZiMultiplex::connect_(ZiConnectFn fn, ZiFailFn failFn,
@@ -789,7 +787,7 @@ void ZiConnection::telemetry(ZiCxnTelemetry &data) const
 
 void ZiMultiplex::allCxns(ZmFn<ZiConnection *> fn)
 {
-  rxInvoke([this, fn = ZuMv(fn)]() mutable { this->allCxns_(ZuMv(fn)); });
+  rxInvoke([this, fn = ZuMv(fn)]() mutable { allCxns_(ZuMv(fn)); });
 }
 
 void ZiMultiplex::allCxns_(ZmFn<ZiConnection *> fn)
@@ -817,13 +815,12 @@ void ZiMultiplex::listen(
   }
 #endif
 
-  rxInvoke(
-      [this, listenFn = ZuMv(listenFn),
-	  failFn = ZuMv(failFn), acceptFn = ZuMv(acceptFn),
-	  localIP, localPort, nAccepts, options = ZuMv(options)]() mutable {
-	this->listen_(ZuMv(listenFn), ZuMv(failFn), ZuMv(acceptFn),
-	    localIP, localPort, nAccepts, options);
-      });
+  rxInvoke([this, listenFn = ZuMv(listenFn),
+      failFn = ZuMv(failFn), acceptFn = ZuMv(acceptFn),
+      localIP, localPort, nAccepts, options = ZuMv(options)]() mutable {
+    listen_(ZuMv(listenFn), ZuMv(failFn), ZuMv(acceptFn),
+	localIP, localPort, nAccepts, options);
+  });
 }
 
 void ZiMultiplex::listen_(
@@ -960,10 +957,9 @@ void ZiMultiplex::stopListening(ZiIP localIP, uint16_t localPort)
 {
   if (ZuUnlikely(!running())) return;
 
-  rxInvoke(
-      [this, localIP, localPort]() {
-	this->stopListening_(localIP, localPort);
-      });
+  rxInvoke([this, localIP, localPort]() {
+    stopListening_(localIP, localPort);
+  });
 }
 
 void ZiMultiplex::stopListening_(ZiIP localIP, uint16_t localPort)
@@ -1122,8 +1118,9 @@ void ZiConnection::connected()
 
 void ZiConnection::recv(ZiIOFn fn)
 {
-  m_mx->rxInvoke([cxn = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
-      cxn->recv_(ZuMv(fn));
+  m_mx->rxInvoke(this, [this, fn = ZuMv(fn)]() mutable {
+    recv_(ZuMv(fn));
+    return this;
   });
 }
 
@@ -1387,8 +1384,9 @@ void ZiConnection::executedRecv(unsigned n)
 
 void ZiConnection::send(ZiIOFn fn)
 {
-  m_mx->txInvoke([cxn = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
-      cxn->send_(ZuMv(fn));
+  m_mx->txInvoke(this, [this, fn = ZuMv(fn)]() mutable {
+    send_(ZuMv(fn));
+    return this;
   });
 }
 
@@ -1736,8 +1734,7 @@ void ZiMultiplex::connectDel(Socket s)
 
 void ZiConnection::disconnect()
 {
-  m_mx->txInvoke(ZmMkRef(this),
-      [](ZmRef<ZiConnection> cxn) { cxn->disconnect_1(); });
+  m_mx->txInvoke(this, [this]() { disconnect_1(); return this; });
 }
 
 void ZiConnection::disconnect_1()
@@ -1746,8 +1743,7 @@ void ZiConnection::disconnect_1()
   
   m_txUp = false;
 
-  m_mx->rxRun(ZmFn<>::mvFn(ZmMkRef(this),
-	[](ZmRef<ZiConnection> cxn) { cxn->disconnect_2(); }));
+  m_mx->rxRun([cxn = ZmMkRef(this)]() { cxn->disconnect_2(); });
 }
 
 void ZiConnection::disconnect_2()
@@ -1844,8 +1840,7 @@ void ZiMultiplex::disconnected(ZiConnection *cxn)
 
 void ZiConnection::close()
 {
-  m_mx->txInvoke(ZmMkRef(this),
-      [](ZmRef<ZiConnection> cxn) { cxn->close_1(); });
+  m_mx->txInvoke(this, [this]() { close_1(); return this; });
 }
 
 void ZiConnection::close_1()
@@ -1854,8 +1849,7 @@ void ZiConnection::close_1()
   
   m_txUp = false;
 
-  m_mx->rxRun(ZmFn<>::mvFn(ZmMkRef(this),
-	[](ZmRef<ZiConnection> cxn) { cxn->close_2(); })); 
+  m_mx->rxRun([cxn = ZmMkRef(this)]() { cxn->close_2(); });
 }
 
 void ZiConnection::close_2()
@@ -1972,11 +1966,8 @@ bool ZiMultiplex::start__()
   }
 #endif
 
-  wakeFn(rxThread(), ZmFn<>{this, [](ZiMultiplex *mx) {
-	mx->run_(mx->rxThread(), ZmFn<>::Member<&ZiMultiplex::rx>::fn(mx));
-	mx->wake();
-      }});
-  run_(rxThread(), ZmFn<>::Member<&ZiMultiplex::rx>::fn(this));
+  wakeFn(rxThread(), ZmFn<>{this, [](ZiMultiplex *mx) { mx->wakeRx(); }});
+  run_(rxThread(), [this]() { rx(); });
   return true;
 }
 
@@ -1987,7 +1978,7 @@ bool ZiMultiplex::stop__()
 
   m_stopping = &stopping;
 
-  rxInvoke(this, [](ZiMultiplex *mx) { mx->stop_1(); });
+  rxInvoke([this]() { stop_1(); });
 
   stopping.wait();
 
@@ -2151,8 +2142,7 @@ void ZiMultiplex::rx()
 	  if (events & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR))
 	    if (ZuUnlikely(!cxn->recv())) continue;
 	  if (events & EPOLLOUT)
-	    txRun(ZmFn<>::mvFn(ZmMkRef(cxn),
-		  [](ZmRef<ZiConnection> cxn) { cxn->send(); }));
+	    txRun([cxn = ZmMkRef(cxn)]() { cxn->send(); });
 	  continue;
 	}
 
@@ -2217,6 +2207,12 @@ void ZiMultiplex::wake()
 #ifdef ZiMultiplex_EPoll
   writeWake();
 #endif
+}
+
+void ZiMultiplex::wakeRx()
+{
+  run_(rxThread(), [this]() { rx(); });
+  wake();
 }
 
 #ifdef ZiMultiplex_EPoll

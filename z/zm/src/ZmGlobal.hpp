@@ -100,8 +100,8 @@ protected:
 	Zm::yield();
 	continue;
       }
-      *addr = ptr = (uintptr_t)ZmGlobal::add(
-	  typeid(T), ZmCleanup<typename T::T>::Level, &Ctor<T>::_);
+      *addr = ptr = reinterpret_cast<uintptr_t>(ZmGlobal::add(
+	  typeid(T), ZmCleanup<typename T::T>::Level, &Ctor<T>::_));
     }
     return static_cast<T *>(reinterpret_cast<ZmGlobal *>(ptr));
   }

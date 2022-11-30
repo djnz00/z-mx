@@ -100,7 +100,7 @@ inline ProcessID getPID() { return GetCurrentProcessId(); }
 // thread ID
 ZmExtern ThreadID getTID_();
 inline ThreadID getTID() {
-  thread_local ThreadID tid = getTID_();
+  thread_local ThreadID tid = getTID_(); // FIXME
   return tid;
 }
 

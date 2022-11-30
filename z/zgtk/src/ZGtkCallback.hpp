@@ -39,7 +39,7 @@
 namespace ZGtk {
 
 template <typename L>
-constexpr auto callback(L l) { 
+inline constexpr auto callback(L l) { 
   return G_CALLBACK(ZuFunctorTraits<L>::fn(ZuMv(l)));
 }
 

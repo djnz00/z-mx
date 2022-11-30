@@ -619,7 +619,7 @@ template <typename T, ZuDecay<T> N> struct ZuCmpN : public ZuCmp<T> {
   constexpr static U null() { return N; }
 };
 
-// ZuNullRef<T>() returns sentinel null value guaranteed to be a const ref
+// ZuNullRef<T>() returns a sentinel value that is guaranteed to be a const ref
 
 template <typename T, typename Cmp, typename R = decltype(Cmp::null())>
 struct ZuNullRef_ {
@@ -633,7 +633,7 @@ struct ZuNullRef_<T, Cmp, const T &> {
   ZuInline static const T &null() noexcept { return Cmp::null(); }
 };
 template <typename T, typename Cmp = ZuCmp<T>>
-ZuInline const T &ZuNullRef() { return ZuNullRef_<T, Cmp>::null(); }
+ZuInline const T &ZuNullRef() noexcept { return ZuNullRef_<T, Cmp>::null(); }
 
 #ifdef _MSC_VER
 #pragma warning(pop)

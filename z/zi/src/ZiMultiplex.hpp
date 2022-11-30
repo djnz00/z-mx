@@ -786,9 +786,7 @@ template <typename> friend class Accept_;
   template <typename Heap> class Accept_ : public Heap {
   friend ZiMultiplex;
 
-    constexpr static auto HeapID() {
-      return []() { return "ZiMultiplex.Accept"; };
-    }
+    constexpr static const char *HeapID() { return "ZiMultiplex.Accept"; }
 
     Accept_(Listener *listener) : m_listener(listener), m_info{
 	  ZiCxnType::TCPIn,
@@ -813,13 +811,13 @@ template <typename> friend class Accept_;
     Zi_Overlapped	m_overlapped;
     char		m_buf[(sizeof(struct sockaddr_in) + 16) * 2];
   };
-  using Accept_Heap = ZmHeap<Accept_::HeapID(), sizeof(Accept_<ZuNull>)>;
+  using Accept_Heap = ZmHeap<Accept_::HeapID, sizeof(Accept_<ZuNull>)>;
   using Accept = Accept_<Accept_Heap>; 
 #endif
 
   // heap-allocated non-blocking / asynchronous connect
 #if ZiMultiplex__ConnectHash
-  class Connect_
+  class Connect_ : public ZuObject
 #else
   template <typename> class Connect_;
 template <typename> friend class Connect_;
@@ -836,9 +834,7 @@ template <typename> friend class Connect_;
       return c.info().socket;
     }
 #endif
-    constexpr static const char *HeapID() {
-      return "ZiMultiplex.Connect";
-    }
+    constexpr static const char *HeapID() { return "ZiMultiplex.Connect"; }
 
   protected:
     template <typename ...Args> Connect_(
@@ -890,10 +886,6 @@ template <typename> friend class Connect_;
     ZmHash<ZmRef<ZiConnection>,
       ZmHashKey<ZiConnection::SocketAxor,
 	ZmHashHeapID<ZiConnection::HeapID>>>;
-
-  using StateLock = ZmLock;
-  using StateGuard = ZmGuard<StateLock>;
-  using ShutdownCond = ZmCondition<StateLock>;
 
 public:
   using Socket = Zi::Socket;
@@ -1002,6 +994,7 @@ private:
   void rx();			// handle I/O completions (IOCP) or
   				// readiness notifications (epoll, ports, etc.)
   void wake();			// wake up rx(), cause it to return
+  void wakeRx();		// re-run rx() after wake()
 
 #ifdef ZiMultiplex_EPoll
   void connect(Connect *);

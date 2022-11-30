@@ -39,7 +39,7 @@ class ZuObject : public ZuObject_ {
   ZuObject &operator =(const ZuObject &) = delete;
 
 public:
-  ZuInline ZuObject() : m_refCount(0) { }
+  ZuObject() = default;
 
   ZuInline void ref() const { ++m_refCount; }
   ZuInline bool deref() const { return !--m_refCount; }
@@ -51,7 +51,7 @@ public:
   ZuInline bool deref_() const { return !--m_refCount; }
 
 private:
-  mutable int		m_refCount;
+  mutable int	m_refCount = 0;
 };
 
 #endif /* ZuObject_HPP */

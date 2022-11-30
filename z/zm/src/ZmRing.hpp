@@ -68,9 +68,12 @@
 namespace ZmRing_ {
 
 // NTP defaults
+inline constexpr auto Defaults_SizeAxor() {
+  return [](const void *) { return 0; };
+}
 struct Defaults {
   using T = void;					// variable-sized
-  constexpr static auto SizeAxor = [](const void *) { return 0; };
+  constexpr static auto SizeAxor = Defaults_SizeAxor();
   enum { MW = 0 };
   enum { MR = 0 };
 };
@@ -78,15 +81,21 @@ struct Defaults {
 } // ZmRing_
 
 // fixed-size message type
+template <typename T>
+struct ZmRingT_SizeAxor {
+  constexpr static auto Fn() {
+    return [](const void *) { return sizeof(T); };
+  }
+};
 template <typename T_, typename NTP = ZmRing_::Defaults>
 struct ZmRingT : public NTP {
   using T = T_;
-  constexpr static auto SizeAxor = [](const void *) { return sizeof(T); };
+  constexpr static auto SizeAxor = ZmRingT_SizeAxor<T>::Fn();
 };
 template <typename NTP>
 struct ZmRingT<ZuNull, NTP> : public NTP {
   using T = void;
-  constexpr static auto SizeAxor = [](const void *) { return 0; };
+  constexpr static auto SizeAxor = ZmRing_::Defaults_SizeAxor();
 };
 
 // variable-sized message type

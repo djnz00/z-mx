@@ -34,19 +34,12 @@
 
 struct ZuObject_ { }; // tag
 
-template <typename T> struct ZuIsObject_ {
-  enum { OK = ZuConversion<ZuObject_, T>::Is };
+template <typename U> struct ZuIsObject_ {
+  enum { OK = ZuConversion<ZuObject_, U>::Is };
 };
-// SFINAE
-template <typename T, typename R = void, bool OK = ZuIsObject_<T>::OK>
-struct ZuIsObject;
-template <typename T_, typename R> struct ZuIsObject<T_, R, 1> {
-  using T = R;
-};
-template <typename T, typename R = void, bool OK = !ZuIsObject_<T>::OK>
-struct ZuNotObject;
-template <typename T_, typename R> struct ZuNotObject<T_, R, 1> {
-  using T = R;
-};
+template <typename U, typename R = void>
+using ZuIsObject = ZuIfT<ZuIsObject_<U>::OK, R>;
+template <typename U, typename R = void>
+using ZuNotObject = ZuIfT<!ZuIsObject_<U>::OK, R>;
 
 #endif /* ZuObject__HPP */
