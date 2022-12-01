@@ -101,8 +101,8 @@ template <typename, typename> friend class ZvCmdClient;
   using FBB = Zfb::IOBuilder<IOBuf>;
 
 public:
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
 private:
   using Credentials = ZvCmd_Credentials;

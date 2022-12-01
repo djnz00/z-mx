@@ -774,8 +774,8 @@ struct ZtFieldType_Time<Base, Flags, false> :
   ZuFields_::O ZuFieldList_(O *)
 
 template <typename Impl> struct ZtFieldPrint : public ZuPrintable {
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   template <typename U>
   struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::Synthetic) }; };

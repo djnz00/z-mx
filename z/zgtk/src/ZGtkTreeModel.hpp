@@ -96,10 +96,11 @@ public:
   }
 
 private:
-  Impl *impl() { return static_cast<Impl *>(this); }
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
+
   template <typename Ptr>
-  static Impl *impl(Ptr *ptr) {
+  static auto impl(Ptr *ptr) {
     return static_cast<Impl *>(reinterpret_cast<TreeModel *>(ptr));
   }
 
@@ -460,8 +461,8 @@ template <
   int DefaultCol = GTK_TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID,
   int DefaultOrder = GTK_SORT_ASCENDING>
 class TreeSortable : public TreeModel<Impl> {
-  Impl *impl() { return static_cast<Impl *>(this); }
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
 public:
   gboolean get_sort_column_id(gint *col, GtkSortType *order) {
@@ -517,8 +518,8 @@ class TreeArray : public TreeSortable<TreeArray<Impl, Iter, Data>> {
   ZuAssert(sizeof(Iter) <= sizeof(GtkTreeIter));
   ZuAssert(ZuTraits<Iter>::IsPOD);
 
-  Impl *impl() { return static_cast<Impl *>(this); }
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
 public:
   void load(gint col, GtkSortType order) {
@@ -679,8 +680,8 @@ namespace TreeHierarchy {
   };
 
   template <typename Impl, unsigned Depth_> class Child : public Row {
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     enum { Depth = Depth_ };
@@ -705,8 +706,8 @@ namespace TreeHierarchy {
     void	*m_parent = nullptr;
   };
   template <typename Impl> class Child<Impl, 1> : public Row {
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     enum { Depth = 1 };
@@ -743,8 +744,8 @@ namespace TreeHierarchy {
     Leaf(Leaf &&) = delete;
     Leaf &operator =(Leaf &&) = delete;
 
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     Leaf() = default;
@@ -768,8 +769,8 @@ namespace TreeHierarchy {
     Parent(Parent &&) = delete;
     Parent &operator =(Parent &&) = delete;
 
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     Parent() = default;
@@ -833,8 +834,8 @@ namespace TreeHierarchy {
     Branch(Branch &&) = delete;
     Branch &operator =(Branch &&) = delete;
 
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     Branch() = default;
@@ -898,8 +899,8 @@ namespace TreeHierarchy {
     ZuAssert(sizeof(Iter) <= sizeof(GtkTreeIter));
     ZuAssert(ZuTraits<Iter>::IsPOD);
 
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     GtkTreeModelFlags get_flags() {

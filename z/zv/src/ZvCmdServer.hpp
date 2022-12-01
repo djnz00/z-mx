@@ -82,8 +82,8 @@ template <typename, typename> friend class ZvCmdServer;
   using Bitmap = ZvUserDB::Bitmap;
 
 public:
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   struct State {
     enum {

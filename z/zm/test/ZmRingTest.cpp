@@ -109,7 +109,7 @@ int App::main(int argc, char **argv)
 
   for (unsigned i = 0; i < loop; i++) {
     {
-      if (ring->open(Ring::Read | Ring::Write) != ZmRingStatus::OK) {
+      if (ring->open(Ring::Read | Ring::Write) != Zu::OK) {
 	std::cerr << "open failed\n";
 	Zm::exit(1);
       }
@@ -175,7 +175,7 @@ void App::reader()
       readTime.add(readEnd -= readStart);
     } else {
       int i = ring->readStatus();
-      if (i == ZmRingStatus::EndOfFile) {
+      if (i == Zu::EndOfFile) {
 	end.now();
 	std::cerr << "reader EOF\n";
 	break;
@@ -217,7 +217,7 @@ void App::writer(unsigned i)
       if (ring->full() == full_) writeTime.add(writeEnd -= writeStart);
     } else {
       int i = ring->writeStatus();
-      if (i == ZmRingStatus::EndOfFile) {
+      if (i == Zu::EndOfFile) {
 	end.now();
 	std::cerr << "writer EOF\n";
 	break;

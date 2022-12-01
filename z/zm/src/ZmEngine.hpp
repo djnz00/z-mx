@@ -60,8 +60,8 @@ struct Impl : public ZmEngine<Impl> {
 
 template <typename Impl>
 class ZmEngine {
-  Impl *impl() { return static_cast<Impl *>(this); }
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
 private:
   using Lock = ZmPRWLock;

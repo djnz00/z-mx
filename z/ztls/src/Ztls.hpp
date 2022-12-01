@@ -99,8 +99,8 @@ public:
   using ImplRef = typename TCP::LinkRef;
 friend TCP;
 
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   Link(App *app) : m_app(app) {
     mbedtls_ssl_init(&m_ssl);
@@ -468,8 +468,8 @@ public:
   using TCP = CliLinkTCP<Impl>;
   using Base = CliLink_<App, Impl, TCP>;
 friend Base;
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   CliLink(App *app) : Base{app} {
     mbedtls_ssl_session_init(&m_session);
@@ -617,8 +617,8 @@ public:
   using Base = SrvLink_<App, Impl, TCP>;
 friend Base;
 
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   SrvLink(App *app) : Base(app) { }
 

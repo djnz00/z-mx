@@ -144,8 +144,8 @@ public:
 
   ZvIOQueueRx() : m_queue{new ZvIOQueue{ZvSeqNo{}}} { }
   
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   const ZvIOQueue *rxQueue() const { return m_queue; }
   ZvIOQueue *rxQueue() { return m_queue; }
@@ -239,8 +239,8 @@ protected:
 public:
   ZvIOQueueTx() : m_queue{new ZvIOQueue{ZvSeqNo{}}} { }
 
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   const ZvSeqNo txSeqNo() const { return m_seqNo; }
 

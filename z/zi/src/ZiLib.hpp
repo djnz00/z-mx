@@ -48,9 +48,7 @@
 #endif
 
 namespace Zi {
-  enum Result { OK = 0, EndOfFile = -1, IOError = -2, NotReady = -3 };
-
-  ZiExtern const char *resultName(int r);
+  using namespace Zu::IOResultNS;
 };
 
 #ifndef _WIN32

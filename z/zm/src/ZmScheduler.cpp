@@ -54,9 +54,9 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
 	timeout(m_params.timeout()).
 	cpuset(m_params.thread(index).cpuset()));
     int r;
-    if ((r = ring.open(Ring::Read | Ring::Write)) != ZmRingStatus::OK)
-      throw ZmRingError{r};
-    // if ((r = ring.attach()) != Ring::OK) throw ZmRingError(r);
+    if ((r = ring.open(Ring::Read | Ring::Write)) != Zu::OK)
+      throw Zu::IOResult{r};
+    // if ((r = ring.attach()) != Ring::OK) throw Zu::IOResult(r);
     m_threads[i].overRing.init(
 	ZmXRingParams{}.initial(0).increment(OverRing_Increment));
     if (!m_params.thread(index).isolated())
@@ -328,7 +328,7 @@ push:
     }
   }
   int status = thread->ring.writeStatus();
-  if (status == ZmRingStatus::EndOfFile) return false;
+  if (status == Zu::EndOfFile) return false;
   if (status >= 0) goto overflow;
   // should never happen - the enqueuing thread will normally
   // be forced to wait for the dequeuing thread to drain the ring,
@@ -336,7 +336,7 @@ push:
   ZuStringN<120> s;
   s << "FATAL - Thread Dispatch Failure - push() failed: ";
   if (status <= 0)
-    s << ZmRingError(status);
+    s << Zu::IOResult(status);
   else
     s << ZuBoxed(status) << " bytes remaining";
   s << '\n';
@@ -388,7 +388,7 @@ shift:
     if (void *ptr = thread->ring.shift()) {
       thread->ring.shift2(Fn::invoke(ptr));
     } else {
-      if (thread->ring.readStatus() == ZmRingStatus::EndOfFile) break;
+      if (thread->ring.readStatus() == Zu::EndOfFile) break;
     }
   }
 

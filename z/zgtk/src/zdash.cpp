@@ -276,8 +276,8 @@ namespace Telemetry {
 namespace GtkTree {
   template <typename Impl, typename Item>
   class Row {
-    Impl *impl() { return static_cast<Impl *>(this); }
-    const Impl *impl() const { return static_cast<const Impl *>(this); }
+    auto impl() const { return static_cast<const Impl *>(this); }
+    auto impl() { return static_cast<Impl *>(this); }
 
   public:
     Item	*item = nullptr;
@@ -556,8 +556,8 @@ namespace GtkTree {
     // key printing
     template <typename Impl, typename Key>
     class KeyPrint_ {
-      Impl *impl() { return static_cast<Impl *>(this); }
-      const Impl *impl() const { return static_cast<const Impl *>(this); }
+      auto impl() const { return static_cast<const Impl *>(this); }
+      auto impl() { return static_cast<Impl *>(this); }
     public:
       Key key;
       template <typename Key_>

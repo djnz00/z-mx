@@ -39,6 +39,8 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
+#include <zlib/ZuIOResult.hpp>
+
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmBitmap.hpp>
@@ -118,78 +120,76 @@ struct ZmRingMR : public NTP {
 
 namespace ZmRing_ {
 
-template <typename> class Params;
-class ParamData {
-  template <typename> friend class Params;
-public:
-  ParamData() = default;
-  ParamData(const ParamData &) = default; 
-  ParamData &operator =(const ParamData &) = default;
-  ParamData(ParamData &&) = default; 
-  ParamData &operator =(ParamData &&) = default;
+// ring buffer parameters
 
-  ParamData(unsigned size) : m_size{size} { }
-
-  unsigned size() const { return m_size; }
-  bool ll() const { return m_ll; }
-  const ZmBitmap &cpuset() const { return m_cpuset; }
-  unsigned spin() const { return m_spin; }
-  unsigned timeout() const { return m_timeout; } // milliseconds
-
-private:
-  unsigned	m_size = 0;
-  bool		m_ll = false;
-  ZmBitmap	m_cpuset;
-  unsigned	m_spin = 1000;
-  unsigned	m_timeout = 1;
+struct ParamData {
+  unsigned	size = 0;
+  bool		ll = false;
+  ZmBitmap	cpuset;
+  unsigned	spin = 1000;
+  unsigned	timeout = 1;	// milliseconds
 };
-template <typename Derived> class Params : public ParamData {
-  ZuInline Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
 
+template <typename Derived, typename Data = ParamData>
+class Params_ : public Data {
+  Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
+
+public:
+  Params_() = default;
+  Params_(unsigned size) : Data{size} { }
+
+  Derived &&size(unsigned n) { Data::size = n; return derived(); }
+  Derived &&ll(bool b) { Data::ll = b; return derived(); }
+  Derived &&cpuset(ZmBitmap b) { Data::cpuset = ZuMv(b); return derived(); }
+  Derived &&spin(unsigned n) { Data::spin = n; return derived(); }
+  Derived &&timeout(unsigned n) { Data::timeout = n; return derived(); }
+};
+
+class Params : public Params_<Params> {
 public:
   Params() = default;
-  Params(unsigned size) : ParamData{size} { }
-  Derived &&size(unsigned n) { m_size = n; return derived(); }
-  Derived &&ll(bool b) { m_ll = b; return derived(); }
-  Derived &&cpuset(ZmBitmap b) { m_cpuset = ZuMv(b); return derived(); }
-  Derived &&spin(unsigned n) { m_spin = n; return derived(); }
-  Derived &&timeout(unsigned n) { m_timeout = n; return derived(); }
+  Params(unsigned size) : Params_<Params>{size} { }
 };
-
-namespace Status {
-  enum { OK = 0, EndOfFile = -1, IOError = -2, NotReady = -3 };
-  inline const char *name(int i) {
-    static const char *names[] = { "OK", "EndOfFile", "IOError", "NotReady" };
-    if (i > 0) i = 0;
-    i = -i;
-    if (i > (sizeof(names) / sizeof(names[0]))) return "Unknown";
-    return names[i];
-  }
-}
-using namespace Status;
 
 class ZmAPI Blocker {
 public:
   // block until woken or timeout while addr == val
   int wait(
       ZmAtomic<uint32_t> &addr, uint32_t val,
-      unsigned timeout, unsigned spin);
+      const ParamData &params);
   // wake up waiters on addr
   void wake(ZmAtomic<uint32_t> &addr);
 
 protected:
 #ifdef _WIN32
-  HANDLE		m_sem;
+  HANDLE	m_sem;
 #endif
 };
+
+inline constexpr uint64_t EndOfFile() { return static_cast<uint64_t>(1)<<61; }
+inline constexpr uint64_t Waiting()   { return static_cast<uint64_t>(2)<<61; }
+inline constexpr uint64_t Wrapped()   { return static_cast<uint64_t>(4)<<61; }
+inline constexpr uint64_t Mask()      { return Waiting() | EndOfFile(); }
+inline constexpr uint64_t RdrMask() { return ~(static_cast<uint64_t>(7)<<61); }
+enum { MaxRdrs = 61 };
+#ifdef Zu_BIGENDIAN
+enum { Flags32Offset = 0 };	// 32bit offset of flags within 64bit header
+#else
+enum { Flags32Offset = 1 };
+#endif
+// 32bit versions of flags
+inline constexpr uint32_t EndOfFile32() { return EndOfFile()>>32; }
+inline constexpr uint32_t Waiting32()   { return Waiting()>>32; }
+inline constexpr uint32_t Wrapped32()   { return Wrapped()>>32; }
+inline constexpr uint32_t Mask32()      { return Waiting32() | EndOfFile32(); }
 
 class ZmAPI CtrlMem {
 public:
   CtrlMem() = default;
   CtrlMem(const CtrlMem &mem) : m_addr{mem.m_addr} { }
 
-  bool open(unsigned size, const ZmBitmap &cpuset);
-  void close(unsigned size);
+  bool open(unsigned size, const ParamData &params);
+  void close(unsigned size, const ParamData &params);
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
@@ -198,7 +198,7 @@ protected:
   void		*m_addr = nullptr;
 };
 
-template <bool MR> struct Ctrl_ {
+template <bool MR> struct Ctrl {
   ZmAtomic<uint32_t>		head;
   uint32_t			pad_1;
   ZmAtomic<uint64_t>		inCount;
@@ -212,7 +212,7 @@ template <bool MR> struct Ctrl_ {
   char				pad_4[Zm::CacheLineSize - 24];
 };
 
-template <> struct Ctrl_<true> : public Ctrl_<false> {
+template <> struct Ctrl<true> : public Ctrl<false> {
   ZmAtomic<uint32_t>		rdrCount; // reader count
   uint32_t			pad_5;
   ZmAtomic<uint64_t>		rdrMask;  // active readers
@@ -220,10 +220,11 @@ template <> struct Ctrl_<true> : public Ctrl_<false> {
   ZmAtomic<uint64_t>		attSeqNo; // attach/detach seqNo
 };
 
-template <typename CtrlMem_, typename Ctrl__, bool MR> class CtrlMgr_ {
+template <typename CtrlMem_, typename Ctrl_, bool MR>
+class CtrlMgr_ {
 protected:
   using CtrlMem = CtrlMem_;
-  using Ctrl = Ctrl__;
+  using Ctrl = Ctrl_;
 
   CtrlMgr_() = default;
   CtrlMgr_(const CtrlMgr_ &ring) : m_ctrl{ring.m_ctrl} { }
@@ -237,11 +238,11 @@ public:
   }
 
 protected:
-  bool openCtrl(const ZmBitmap &cpuset) {
-    return m_ctrl.open(sizeof(Ctrl), cpuset);
+  bool openCtrl(const ParamData &params) {
+    return m_ctrl.open(sizeof(Ctrl), params);
   }
-  void closeCtrl() {
-    m_ctrl.close(sizeof(Ctrl));
+  void closeCtrl(const ParamData &params) {
+    m_ctrl.close(sizeof(Ctrl), params);
   }
   constexpr unsigned ctrlSize() const { return sizeof(Ctrl); }
 
@@ -274,15 +275,15 @@ protected:
 private:
   CtrlMem	m_ctrl;
 };
-template <typename CtrlMem_, typename Ctrl__>
-class CtrlMgr_<CtrlMem_, Ctrl__, true> :
-    public CtrlMgr_<CtrlMem_, Ctrl__, false> {
+template <typename CtrlMem_, typename Ctrl_>
+class CtrlMgr_<CtrlMem_, Ctrl_, true> :
+    public CtrlMgr_<CtrlMem_, Ctrl_, false> {
 protected:
   using CtrlMem = CtrlMem_;
-  using Ctrl = Ctrl__;
+  using Ctrl = Ctrl_;
 
 private:
-  using Base =CtrlMgr_<CtrlMem, Ctrl, false>;
+  using Base = CtrlMgr_<CtrlMem, Ctrl, false>;
 
 protected:
   using Base::ctrl;
@@ -304,7 +305,7 @@ protected:
     { return ctrl()->attSeqNo; }
 };
 template <typename CtrlMem, bool MR>
-using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl_<MR>, MR>;
+using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl<MR>, MR>;
 
 template <bool MW, bool MR> struct AlignFn {
   constexpr static unsigned align(unsigned n) {
@@ -322,22 +323,22 @@ public:
   DataMem() = default;
   DataMem(const DataMem &mem) : m_addr(mem.m_addr) { }
 
-  bool open(unsigned size, const ZmBitmap &cpuset);
-  void close(unsigned size);
+  bool open(unsigned size, const ParamData &params);
+  void close(unsigned size, const ParamData &params);
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
 
 private:
-  void			*m_addr = nullptr;
+  void		*m_addr = nullptr;
 };
 
 class ZmAPI MirrorMem {
 public:
   static unsigned alignSize(unsigned size);
 
-  bool open(unsigned size, const ZmBitmap &cpuset);
-  void close(unsigned size);
+  bool open(unsigned size, const ParamData &params);
+  void close(unsigned size, const ParamData &params);
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
@@ -362,11 +363,11 @@ protected:
   DataMgr_() = default;
   DataMgr_(const DataMgr_ &ring) : m_data{ring.m_data} { }
 
-  bool openData(unsigned size, const ZmBitmap &cpuset) {
-    return m_data.open(size, cpuset);
+  bool openData(unsigned size, const ParamData &params) {
+    return m_data.open(size, params);
   }
-  void closeData(unsigned size) {
-    m_data.close(size);
+  void closeData(unsigned size, const ParamData &params) {
+    m_data.close(size, params);
   }
 
 public:
@@ -422,26 +423,10 @@ protected:
   }
 };
 
-inline constexpr uint64_t EndOfFile_() { return static_cast<uint64_t>(1)<<61; }
-inline constexpr uint64_t Waiting()    { return static_cast<uint64_t>(2)<<61; }
-inline constexpr uint64_t Wrapped()    { return static_cast<uint64_t>(4)<<61; }
-inline constexpr uint64_t Mask()       { return Waiting() | EndOfFile_(); }
-inline constexpr uint64_t RdrMask()  { return ~(static_cast<uint64_t>(7)<<61); }
-enum { MaxRdrs = 61 };
-#ifdef Zu_BIGENDIAN
-enum { Flags32Offset = 0 };	// 32bit offset of flags within 64bit header
-#else
-enum { Flags32Offset = 1 };
-#endif
-// 32bit versions of flags
-inline constexpr uint32_t EndOfFile32() { return EndOfFile_()>>32; }
-inline constexpr uint32_t Waiting32()   { return Waiting()>>32; }
-inline constexpr uint32_t Wrapped32()   { return Wrapped()>>32; }
-inline constexpr uint32_t Mask32()      { return Waiting32() | EndOfFile32(); }
 
 // CRTP - SR ring reader functions
 template <typename Ring, bool MR>
-class RingRdr {
+class RdrMgr {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
@@ -458,10 +443,15 @@ protected:
 
   uint32_t rdrTail() const;		// ''
   void rdrTail(uint32_t);		// ''
+
+  constexpr static unsigned gc_(const ParamData &) { return 0; } // ''
+
+  constexpr void attached(unsigned) { }	// ''
+  constexpr void detached(unsigned) { }	// ''
 };
 // CRTP - MR ring reader functions
 template <typename Ring>
-class RingRdr<Ring, true> {
+class RdrMgr<Ring, true> {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
@@ -479,6 +469,11 @@ protected:
   uint32_t rdrTail() const { return m_rdrTail; }
   void rdrTail(uint32_t v) { m_rdrTail = v; }
 
+  constexpr static unsigned gc_(const ParamData &) { return 0; } // unused
+
+  constexpr void attached(unsigned) { }	// ''
+  constexpr void detached(unsigned) { }	// ''
+
 private:
   int		m_rdrID = -1;
   uint32_t	m_rdrTail = 0;
@@ -486,32 +481,35 @@ private:
 
 template <
   typename NTP = Defaults,
-  typename CtrlMem_ = CtrlMem,
-  typename DataMem_ = DataMem,
-  typename MirrorMem_ = MirrorMem>
+  typename ParamData_ = ParamData,
+  typename Blocker_ = Blocker,
+  typename CtrlMgr_ = CtrlMgr<CtrlMem, NTP::MR>,
+  typename DataMgr_ =
+    DataMgr<DataMem, MirrorMem, typename NTP::T, NTP::MW, NTP::MR>,
+  template <typename, bool> typename RdrMgr_ = RdrMgr>
 class Ring :
     public AlignFn<NTP::MW, NTP::MR>,
-    public CtrlMgr<CtrlMem_, NTP::MR>,
-    public DataMgr<
-      DataMem_, MirrorMem_,
-      typename NTP::T, NTP::MW, NTP::MR>,
-    public RingRdr<Ring<NTP>, NTP::MR> {
+    public CtrlMgr_,
+    public DataMgr_,
+    public RdrMgr_<
+      Ring<NTP, ParamData_, Blocker_, CtrlMgr_, DataMgr_, RdrMgr_>,
+      NTP::MR> {
 public:
   using T = typename NTP::T;
   enum { MW = NTP::MW };
   enum { MR = NTP::MR };
 
 protected:
-  using CtrlMem = CtrlMem_;
-  using DataMem = DataMem_;
-  using MirrorMem = MirrorMem_;
+  using ParamData = ParamData_;
+  using Blocker = Blocker_;
+  using CtrlMgr = CtrlMgr_;
+  using DataMgr = DataMgr_;
+  using RdrMgr = RdrMgr_<Ring, MR>;
+    // RdrMgr_<Ring<NTP, ParamData, Blocker, CtrlMgr, DataMgr, RdrMgr_>, MR>;
+friend RdrMgr;
 
 private:
-  using AlignFn_ = AlignFn<MW, MR>;
-  using CtrlMgr_ = CtrlMgr<CtrlMem, MR>;
-  using DataMgr_ = DataMgr<DataMem, MirrorMem, T, MW, MR>;
-  using RingRdr_ = RingRdr<Ring<NTP>, MR>;
-friend RingRdr_;
+  using AlignFn = ZmRing_::AlignFn<MW, MR>;
 
 public:
   constexpr static auto SizeAxor = NTP::SizeAxor;
@@ -530,9 +528,9 @@ public:
 
   Ring() = default;
 
-  template <typename Derived, typename ...Args>
-  Ring(Params<Derived> params, Args &&... args) :
-      m_params{static_cast<ParamData &&>(params)} { }
+  template <typename Params, typename ...Args>
+  Ring(Params params, Args &&... args) :
+      m_params{ZuMv(params)} { }
 
   Ring(const Ring &ring) :
       CtrlMgr_{ring}, DataMgr_{ring},
@@ -546,10 +544,8 @@ public:
 
   ~Ring() { close(); }
 
-  template <typename Derived>
-  void init(Params<Derived> params) {
-    m_params = static_cast<ParamData &&>(params);
-  }
+  template <typename Params>
+  void init(Params params) { m_params = ZuMv(params); }
 
   const ParamData &params() const { return m_params; }
 
@@ -559,37 +555,38 @@ public:
   const auto &tailBlocker() const { return m_tailBlocker; }
 
 private:
-  using AlignFn_::align;
+  using AlignFn::align;
 
   using Ctrl = typename CtrlMgr_::Ctrl;
-  using CtrlMgr_::openCtrl;
-  using CtrlMgr_::closeCtrl;
+  using CtrlMgr::openCtrl;
+  using CtrlMgr::closeCtrl;
 public:
-  using CtrlMgr_::ctrl;
+  using CtrlMgr::ctrl;
 private:
-  using CtrlMgr_::head;
-  using CtrlMgr_::tail;
-  using CtrlMgr_::inCount;
-  using CtrlMgr_::inBytes;
-  using CtrlMgr_::outCount;
-  using CtrlMgr_::outBytes;
-  using CtrlMgr_::rdrCount;
-  using CtrlMgr_::rdrMask;
-  using CtrlMgr_::attMask;
-  using CtrlMgr_::attSeqNo;
+  using CtrlMgr::head;
+  using CtrlMgr::tail;
+  using CtrlMgr::inCount;
+  using CtrlMgr::inBytes;
+  using CtrlMgr::outCount;
+  using CtrlMgr::outBytes;
+  using CtrlMgr::rdrCount;
+  using CtrlMgr::rdrMask;
+  using CtrlMgr::attMask;
+  using CtrlMgr::attSeqNo;
 
-  using DataMgr_::openData;
-  using DataMgr_::closeData;
-  using DataMgr_::alignSize;
+  using DataMgr::openData;
+  using DataMgr::closeData;
+  using DataMgr::alignSize;
 public:
-  using DataMgr_::data;
+  using DataMgr::data;
 
-  using RingRdr_::attach;
-  using RingRdr_::detach;
-  using RingRdr_::rdrID;
+  using RdrMgr::attach;
+  using RdrMgr::detach;
+  using RdrMgr::rdrID;
 private:
-  using RingRdr_::close_;
-  using RingRdr_::rdrTail;
+  using RdrMgr::close_;
+  using RdrMgr::rdrTail;
+  using RdrMgr::gc_;
 
 public:
   // how many times push() was delayed by this ring buffer being full
@@ -599,35 +596,35 @@ public:
     flags &= (Read | Write);
     if (m_flags & Shadow) {
       m_flags = (m_flags & ~(Read | Write)) | flags;
-      return OK;
+      return Zu::OK;
     }
-    if (ctrl()) return OK;
-    if (!params().size()) return IOError;
-    m_size = alignSize(params().size());
+    if (ctrl()) return Zu::OK;
+    if (!params().size) return Zu::IOError;
+    m_size = alignSize(params().size);
     m_flags = flags;
-    if (!openCtrl(params().cpuset())) return IOError;
-    if (!openData(m_size, params().cpuset())) {
-      closeCtrl();
-      return IOError;
+    if (!openCtrl(params())) return Zu::IOError;
+    if (!openData(m_size, params())) {
+      closeCtrl(params());
+      return Zu::IOError;
     }
-    return OK;
+    return Zu::OK;
   }
 
   void close() {
     if (!ctrl()) return;
     close_();
     if (m_flags & Shadow) return;
-    closeCtrl();
-    closeData(m_size);
+    closeCtrl(params());
+    closeData(m_size, params());
     m_size = 0;
   }
 
   int reset() {
-    if (!ctrl()) return IOError;
+    if (!ctrl()) return Zu::IOError;
     memset(static_cast<void *>(ctrl()), 0, sizeof(Ctrl));
     memset(data(), 0, m_size);
     m_full = 0;
-    return OK;
+    return Zu::OK;
   }
 
   constexpr static unsigned ctrlSize() { return sizeof(Ctrl); }
@@ -715,11 +712,11 @@ private:
 #define ZmRing_push_retry() \
     do { \
       ++m_full; \
+      if (gc_(params()) > 0) goto retry; \
       if constexpr (!Wait) return nullptr; \
-      if (ZuUnlikely(!params().ll())) \
+      if (ZuUnlikely(!params().ll)) \
 	if (m_tailBlocker.wait( \
-	      this->tail(), tail, \
-	      params().timeout(), params().spin()) != OK) return nullptr; \
+	      this->tail(), tail, params()) != Zu::OK) return nullptr; \
       goto retry; \
     } while (0)
 
@@ -771,7 +768,7 @@ private:
   // SWSR
   template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
   ZuIfT<!MW_ && !MR_> wakeReaders(uint32_t head) {
-    if (ZuUnlikely(!params().ll())) {
+    if (ZuUnlikely(!params().ll)) {
       if (ZuUnlikely(this->head().xch((head & ~Waiting32()) |
 	      static_cast<uint32_t>(Flags>>32)) & Waiting32()))
 	m_headBlocker.wake(this->head());
@@ -794,11 +791,11 @@ private:
   template <uint64_t Flags = 0, bool MR_ = MR>
   ZuIfT<MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
     uint64_t rdrMask;
-    if constexpr (Flags & EndOfFile_())
+    if constexpr (Flags & EndOfFile())
       rdrMask = 0;
     else
       rdrMask = this->rdrMask().load_();
-    if (ZuUnlikely(!m_params.ll())) {
+    if (ZuUnlikely(!params().ll)) {
       if (ZuUnlikely(hdrPtr->xch(Flags | rdrMask) & Waiting())) {
 	auto &hdrPtr32 =
 	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
@@ -809,9 +806,9 @@ private:
   }
   // MWSR
   template <uint64_t Flags = 0, bool MR_ = MR,
-    uint64_t RdrMask = !(Flags & EndOfFile_())>
+    uint64_t RdrMask = !(Flags & EndOfFile())>
   ZuIfT<!MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
-    if (ZuUnlikely(!m_params.ll())) {
+    if (ZuUnlikely(!params().ll)) {
       if (ZuUnlikely(hdrPtr->xch(Flags | RdrMask) & Waiting())) {
 	auto &hdrPtr32 =
 	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
@@ -996,17 +993,17 @@ public:
       // readers do not block on EOF, shift() returns nullptr immediately
     } else {
       if constexpr (MW || MR) this->head() = head | EndOfFile32(); // ''
-      wakeReaders<EndOfFile_()>(head);
+      wakeReaders<EndOfFile()>(head);
     }
   }
 
 #define ZmRing_writeStatus_preamble() \
     ZmAssert(m_flags & Write); \
-    if (ZuUnlikely(!ctrl())) return IOError
+    if (ZuUnlikely(!ctrl())) return Zu::IOError
 
 #define ZmRing_writeStatus() \
     uint32_t head = this->head().load_(); \
-    if (ZuUnlikely(head & EndOfFile32())) return EndOfFile; \
+    if (ZuUnlikely(head & EndOfFile32())) return Zu::EndOfFile; \
     head &= ~(Wrapped32() | Mask32()); \
     uint32_t tail = this->tail() & ~(Wrapped32() | Mask32()); \
     if (head < tail) return tail - head; \
@@ -1025,7 +1022,7 @@ public:
   template <bool MR_ = MR>
   ZuIfT<MR_, int> writeStatus() const {
     ZmRing_writeStatus_preamble();
-    if (ZuUnlikely(!rdrMask())) return NotReady;
+    if (ZuUnlikely(!rdrMask())) return Zu::NotReady;
     ZmRing_writeStatus();
   }
 
@@ -1074,22 +1071,20 @@ private:
     do { \
       if (ZuUnlikely(head & EndOfFile32())) return nullptr; \
       if constexpr (!Wait) return nullptr; \
-      if (ZuUnlikely(!m_params.ll())) \
+      if (ZuUnlikely(!params().ll)) \
 	if (m_headBlocker.wait( \
-	      this->head(), head, \
-	      params().timeout(), params().spin()) != OK) return nullptr; \
+	      this->head(), head, params()) != Zu::OK) return nullptr; \
       goto retry; \
     } while (0)
 #define ZmRing_shift_retry_swmr() \
     do { \
-      if (ZuUnlikely(hdr & EndOfFile_())) return nullptr; \
+      if (ZuUnlikely(hdr & EndOfFile())) return nullptr; \
       if constexpr (!Wait) return nullptr; \
-      if (ZuUnlikely(!m_params.ll())) { \
+      if (ZuUnlikely(!params().ll)) { \
 	auto &hdrPtr32 = \
 	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset]; \
 	if (m_headBlocker.wait( \
-	      hdrPtr32, hdr>>32, \
-	      params().timeout(), params().spin()) != OK) return nullptr; \
+	      hdrPtr32, hdr>>32, params()) != Zu::OK) return nullptr; \
       } \
       goto retry; \
     } while (0)
@@ -1130,7 +1125,7 @@ private:
     this->outBytes().store_(this->outBytes().load_() + msgSize)
 
   void wakeWriters(uint32_t tail) {
-    if (ZuUnlikely(!params().ll())) {
+    if (ZuUnlikely(!params().ll)) {
       if (ZuUnlikely(this->tail().xch(tail & ~Waiting32()) & Waiting32()))
 	m_tailBlocker.wake(this->tail());
     } else
@@ -1263,7 +1258,7 @@ public:
 
 #define ZmRing_readStatus_preamble() \
     ZmAssert(m_flags & Read); \
-    if (ZuUnlikely(!ctrl())) return IOError
+    if (ZuUnlikely(!ctrl())) return Zu::IOError
 
 #define ZmRing_readStatus() \
     ZmRing_shift_get_head(); \
@@ -1274,7 +1269,7 @@ public:
     tail &= ~Wrapped32(); \
     if (head >= tail) { \
       if (head > tail) return head - tail; \
-      if (ZuUnlikely(eof)) return EndOfFile; \
+      if (ZuUnlikely(eof)) return Zu::EndOfFile; \
       return 0; \
     } \
     return size() - (tail - head)
@@ -1337,7 +1332,7 @@ public:
 };
 
 template <typename Ring>
-inline void RingRdr<Ring, true>::close_()
+inline void RdrMgr<Ring, true>::close_()
 {
   if (ring()->m_flags & Ring::Read) {
     if (rdrID() >= 0) detach();
@@ -1346,24 +1341,24 @@ inline void RingRdr<Ring, true>::close_()
 }
 
 template <typename Ring, bool MR>
-inline int RingRdr<Ring, MR>::attach()	// unused
+inline int RdrMgr<Ring, MR>::attach()	// unused
 {
   /**/ZmRing_bp(ring(), attach1);
   /**/ZmRing_bp(ring(), attach2);
   /**/ZmRing_bp(ring(), attach3);
   /**/ZmRing_bp(ring(), attach4);
-  return OK;
+  return Zu::OK;
 }
 
 template <typename Ring>
-inline int RingRdr<Ring, true>::attach()
+inline int RdrMgr<Ring, true>::attach()
 {
   enum { Read = Ring::Read };
 
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->m_flags & Read);
 
-  if (rdrID() >= 0) return IOError;
+  if (rdrID() >= 0) return Zu::IOError;
 
   // allocate an ID for this reader
   {
@@ -1373,7 +1368,7 @@ inline int RingRdr<Ring, true>::attach()
       attMask = ring()->attMask().load_();
       for (id = 0; id < MaxRdrs; id++)
 	if (!(attMask & (1ULL<<id))) break;
-      if (id == MaxRdrs) return IOError;
+      if (id == MaxRdrs) return Zu::IOError;
     } while (
 	ring()->attMask().cmpXch(attMask | (1ULL<<id), attMask) != attMask);
     rdrID(id);
@@ -1381,7 +1376,12 @@ inline int RingRdr<Ring, true>::attach()
 
   ++(ring()->attSeqNo());
 
+  ring()->attached(rdrID());
+
   /**/ZmRing_bp(ring(), attach1);
+
+  auto data = ring()->data();
+  auto size = ring()->size();
 
   // skip any trailing messages not intended for us, since other readers
   // may be concurrently advancing the ring's tail; this must be
@@ -1393,8 +1393,6 @@ inline int RingRdr<Ring, true>::attach()
   /**/ZmRing_bp(ring(), attach2);
   ring()->rdrMask() |= (1ULL<<rdrID()); // notifies the writer about an attach
   /**/ZmRing_bp(ring(), attach3);
-  auto data = ring()->data();
-  auto size = ring()->size();
 
   do {
     while (tail != head) {
@@ -1414,32 +1412,35 @@ done:
 
   ++(ring()->attSeqNo());
 
-  return OK;
+  return Zu::OK;
 }
 
 template <typename Ring, bool MR>
-inline int RingRdr<Ring, MR>::detach()	// unused
+inline int RdrMgr<Ring, MR>::detach()	// unused
 {
   /**/ZmRing_bp(ring(), detach1);
   /**/ZmRing_bp(ring(), detach2);
   /**/ZmRing_bp(ring(), detach3);
-  return OK;
+  return Zu::OK;
 }
 
 template <typename Ring>
-inline int RingRdr<Ring, true>::detach()
+inline int RdrMgr<Ring, true>::detach()
 {
   enum { Read = Ring::Read };
 
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->m_flags & Read);
 
-  if (rdrID() < 0) return IOError;
+  if (rdrID() < 0) return Zu::IOError;
 
   ++(ring()->attSeqNo());
 
   ring()->rdrMask() &= ~(1ULL<<rdrID()); // notifies the writer about a detach
   /**/ZmRing_bp(ring(), detach1);
+
+  auto data = ring()->data();
+  auto size = ring()->size();
 
   // drain any trailing messages that are waiting to be read by us,
   // advancing ring's tail as needed; this must be
@@ -1449,9 +1450,6 @@ inline int RingRdr<Ring, true>::detach()
   /**/ZmRing_bp(ring(), detach2);
   uint32_t head = ring()->head() & ~Mask32(); // acquire
   uint32_t head_;
-
-  auto data = ring()->data();
-  auto size = ring()->size();
 
   do {
     while (tail != head) {
@@ -1473,34 +1471,21 @@ done:
 
   // release ID for re-use by future attach
 
+  ring()->detached(rdrID());
+
   ++(ring()->attSeqNo());
 
   ring()->attMask() &= ~(1ULL<<rdrID());
   rdrID(-1);
 
-  return OK;
+  return Zu::OK;
 }
 
 } // ZmRing_
 
-struct ZmRingParams : public ZmRing_::Params<ZmRingParams> {
-  ZmRingParams() = default;
-  ZmRingParams(unsigned size) : ZmRing_::Params<ZmRingParams>{size} { }
-};
+using ZmRingParams = ZmRing_::Params;
 
-template <typename NTP = ZmRing_::Defaults> using ZmRing = ZmRing_::Ring<NTP>;
-
-namespace ZmRingStatus {
-  using namespace ZmRing_::Status;
-};
-
-struct ZmRingError {
-  int code;
-  ZmRingError(int code_) : code{code_} { }
-  template <typename S> void print(S &s) const {
-    s << ZmRingStatus::name(code);
-  }
-  friend ZuPrintFn ZuPrintType(ZmRingError *);
-};
+template <typename NTP = ZmRing_::Defaults>
+using ZmRing = ZmRing_::Ring<NTP>;
 
 #endif /* ZmRing_HPP */

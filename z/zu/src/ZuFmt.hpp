@@ -208,7 +208,8 @@ private:
 template <typename Impl> struct ZuVFmtWrapper {
   ZuVFmt	fmt;
 
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   Impl &reset() { fmt.reset(); return *impl(); }
   Impl &left(unsigned width, char pad = '\0') {

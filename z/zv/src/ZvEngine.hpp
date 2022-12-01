@@ -456,8 +456,8 @@ public:
   
   void init(ZvEngine *engine) { Base::init(engine); }
 
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   void scheduleSend() { txInvoke([](Tx *tx) { tx->send(); }); }
   void rescheduleSend() { txRun([](Tx *tx) { tx->send(); }); }
@@ -577,8 +577,8 @@ public:
   using Tx_ = ZmPQTx<Impl, ZvIOQueue, ZmNoLock>;
   using Tx = ZvIOQueueTx<Impl>;
 
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
-  Impl *impl() { return static_cast<Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   const Rx *rx() const { return static_cast<const Rx *>(this); }
   Rx *rx() { return static_cast<Rx *>(this); }
