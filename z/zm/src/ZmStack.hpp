@@ -188,7 +188,7 @@ public:
     stack.m_count = 0;
   }
   ZmStack &operator =(ZmStack &&stack) {
-    ~ZmStack();
+    this->~ZmStack();
     new (this) ZmStack{ZuMv(stack)};
   }
 

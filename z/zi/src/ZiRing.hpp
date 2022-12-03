@@ -76,6 +76,12 @@ public:
 
 class ZiAPI Blocker {
 public:
+  Blocker();
+  ~Blocker();
+
+  bool open(bool head, const ParamData &);
+  void close();
+
   // block until woken or timeout while addr == val
   int wait(
       ZmAtomic<uint32_t> &addr, uint32_t val,
@@ -92,16 +98,16 @@ protected:
 class ZiAPI CtrlMem {
 public:
   CtrlMem() = default;
-  CtrlMem(const CtrlMem &mem) : m_addr{mem.m_addr} { }
+  CtrlMem(const CtrlMem &mem) : m_file{mem.m_file} { }
 
   bool open(unsigned size, const ParamData &params);
   void close(unsigned size, const ParamData &params);
 
-  ZuInline const void *addr() const { return m_addr; }
-  ZuInline void *addr() { return m_addr; }
+  ZuInline const void *addr() const { return m_file.addr(); }
+  ZuInline void *addr() { return m_file.addr(); }
 
 protected:
-  void		*m_addr = nullptr;
+  ZiFile	m_file;
 };
 
 struct Ctrl : public ZmRing_::Ctrl<true> {
@@ -126,7 +132,7 @@ protected:
   using Base::ctrl;
 
   CtrlMgr_() = default;
-  CtrlMgr_(const CtrlMgr_ &ring) : Base{ring} { }
+  CtrlMgr_(const CtrlMgr_ &mgr) : Base{mgr} { }
 
   // PIDs may be re-used by the OS, so processes are ID'd by PID + start time
 
@@ -146,42 +152,37 @@ using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl>;
 class ZiAPI DataMem {
 public:
   DataMem() = default;
-  DataMem(const DataMem &mem) : m_addr(mem.m_addr) { }
+  DataMem(const DataMem &mem) : m_file{mem.m_file} { }
 
   bool open(unsigned size, const ParamData &params);
   void close(unsigned size, const ParamData &params);
 
-  ZuInline const void *addr() const { return m_addr; }
-  ZuInline void *addr() { return m_addr; }
+  ZuInline const void *addr() const { return m_file.addr(); }
+  ZuInline void *addr() { return m_file.addr(); }
 
 private:
-  void		*m_addr = nullptr;
+  ZiFile	m_file;
 };
 
 class ZiAPI MirrorMem {
 public:
+  MirrorMem() = default;
+  MirrorMem(const MirrorMem &mem) : m_file{mem.m_file} { }
+
   static unsigned alignSize(unsigned size);
 
   bool open(unsigned size, const ParamData &params);
   void close(unsigned size, const ParamData &params);
 
-  ZuInline const void *addr() const { return m_addr; }
-  ZuInline void *addr() { return m_addr; }
+  ZuInline const void *addr() const { return m_file.addr(); }
+  ZuInline void *addr() { return m_file.addr(); }
 
 private:
-#ifndef _WIN32
-  using Handle = int;
-  constexpr static Handle nullHandle() { return -1; }
-#else
-  using Handle = HANDLE;
-  constexpr static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
-#endif
-
-  Handle		m_handle = nullHandle();
-  void			*m_addr = nullptr;
+  ZiFile	m_file;
 };
 
 class ZiAPI RdrMgr_ {
+public:
   static void getpinfo(uint32_t &pid, ZmTime &start);
   static bool alive(uint32_t pid, ZmTime start);
   static bool kill(uint32_t pid, bool coredump);
@@ -189,6 +190,8 @@ class ZiAPI RdrMgr_ {
 
 template <typename Ring, bool>
 class RdrMgr : public RdrMgr_, public ZmRing_::RdrMgr<Ring, true> {
+  using Base = ZmRing_::RdrMgr<Ring, true>;
+
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
@@ -196,23 +199,72 @@ public:
   // can be called by writer if ring is full to garbage collect
   // dead readers and any lingering messages intended exclusively for them;
   // returns space freed
-  unsigned gc() { return gc_(params()); }
+  unsigned gc();
 
   // kills all stalled readers (following a timeout), sleeps, then runs gc()
   unsigned kill();
 
 protected:
-  unsigned gc_(const ParamData &);
+  bool open_();
+  void close_();
 
   void attached(unsigned id);
   void detached(unsigned id);
 };
 
 template <typename Ring, bool MR>
-inline unsigned RdrMgr<Ring, MR>::gc_(const ParamData &params)
+inline bool RdrMgr<Ring, MR>::open_()
+{
+  const auto &params = ring()->params();
+
+  if (params.size) {
+    uint32_t reqSize =
+      static_cast<uint32_t>(params.size) |
+      static_cast<uint32_t>(params.ll);
+    // check that requested sizes and latency are consistent
+    if (uint32_t openSize = ring()->openSize().cmpXch(reqSize, 0))
+      if (openSize != reqSize) return false;
+  } else {
+    uint32_t openSize = ring()->openSize();
+    if (!(openSize & ~1)) return false;
+    params.size = openSize & ~1;
+    params.ll = openSize & 1;
+  }
+
+  if (!Base::open_()) return false;
+
+  if (ring()->m_flags & Ring::Write) {
+    uint32_t pid;
+    ZmTime start;
+    getpinfo(pid, start);
+    uint32_t oldPID = ring()->writerPID().load_();
+    if (alive(oldPID, ring()->writerTime()) ||
+	ring()->writerPID().cmpXch(pid, oldPID) != oldPID) {
+      Base::close_();
+      return false;
+    }
+    ring()->writerTime() = start;
+  }
+
+  return true;
+}
+
+template <typename Ring, bool MR>
+inline void RdrMgr<Ring, MR>::close_()
+{
+  if (ring()->m_flags & Ring::Write) {
+    ring()->writerTime() = {}; // writerPID store is a release
+    ring()->writerPID() = 0;
+  }
+
+  Base::close_();
+}
+
+template <typename Ring, bool MR>
+inline unsigned RdrMgr<Ring, MR>::gc()
 {
   ZmAssert(ring()->ctrl());
-  ZmAssert(ring()->m_flags & Write);
+  ZmAssert(ring()->m_flags & Ring::Write);
 
   const auto &params = ring()->params();
 
@@ -257,11 +309,12 @@ inline unsigned RdrMgr<Ring, MR>::gc_(const ParamData &params)
   while (tail != head) {
     auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
 	&data[tail & ~Wrapped32()]);
-    tail += ring()->align(Ring::SizeAxor(&hdrPtr[1]));
+    auto msgSize = ring()->align(Ring::SizeAxor(&hdrPtr[1]));
+    tail += msgSize;
     if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
     uint64_t mask = hdrPtr->xchAnd(~dead);
     if (mask && !(mask & ~dead)) {
-      freed += size_;
+      freed += msgSize;
       ring()->wakeWriters(tail);
     }
   }
@@ -323,8 +376,9 @@ using ZiRing = ZmRing_::Ring<
   ZmRingMR<true, NTP>,
   ZiRing_::ParamData,
   ZiRing_::Blocker,
-  ZiRing_::CtrlMgr<CtrlMem>,
-  ZmRing_::DataMgr<DataMem, MirrorMem, typename NTP::T, NTP::MW, true>,
+  ZiRing_::CtrlMgr<ZiRing_::CtrlMem>,
+  ZmRing_::DataMgr<
+    ZiRing_::DataMem, ZiRing_::MirrorMem, typename NTP::T, NTP::MW, true>,
   ZiRing_::RdrMgr>;
 
 #endif /* ZiRing_HPP */

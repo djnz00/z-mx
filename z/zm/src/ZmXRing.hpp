@@ -191,7 +191,7 @@ public:
     ring.m_count = 0;
   }
   ZmXRing &operator =(ZmXRing &&ring) {
-    ~ZmXRing();
+    this->~ZmXRing();
     new (this) ZmXRing{ZuMv(ring)};
   }
 

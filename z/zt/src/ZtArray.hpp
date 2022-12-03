@@ -476,7 +476,7 @@ public:
   ZtArray &operator =(const ZtArray &a)
     { assign(a); return *this; }
   ZtArray &operator =(ZtArray &&a) {
-    free_();
+    this->~ZtArray();
     new (this) ZtArray(ZuMv(a));
     return *this;
   }

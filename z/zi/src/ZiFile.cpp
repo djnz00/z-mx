@@ -467,30 +467,6 @@ error:
   return Zi::IOError;
 }
 
-int ZiFile::shadow(const ZiFile &file, ZeError *e)
-{
-  Guard guard(m_lock);
-
-  if (m_handle != Zi::nullHandle()) {
-    *e = ZiEINVAL;
-    return Zi::IOError;
-  }
-
-  m_handle = file.m_handle;
-  m_flags = file.m_flags | Shadow;
-  m_offset = file.m_offset;
-  m_blkSize = file.m_blkSize;
-  m_addr = file.m_addr;
-  m_mmapLength = file.m_mmapLength;
-#ifndef _WIN32
-  m_shmName = file.m_shmName;
-#else
-  m_mmapHandle = file.m_mmapHandle;
-#endif
-
-  return Zi::OK;
-}
-
 void ZiFile::close()
 {
   Guard guard(m_lock);

@@ -47,9 +47,6 @@
 #endif
 
 class ZiAPI ZiFile {
-  ZiFile(const ZiFile &) = delete;
-  ZiFile &operator =(const ZiFile &) = delete;	// prevent mis-use
-
 public:
   using Handle = Zi::Handle;
   using Path = Zi::Path;
@@ -81,6 +78,27 @@ public:
   // Note: Direct requires caller align all reads/writes to blkSize()
 
   ZiFile() { }
+
+  ZiFile(const ZiFile &file) :
+      m_handle{file.m_handle},
+      m_flags{file.m_flags | Shadow},
+      m_offset{file.m_offset},
+      m_blkSize{file.m_blkSize},
+      m_addr{file.m_addr},
+      m_mmapLength{file.m_mmapLength},
+#ifndef _WIN32
+      m_shmName{file.m_shmName}
+#else
+      m_mmapHandle{file.m_mmapHandle}
+#endif
+      { }
+  ZiFile &operator =(const ZiFile &file) {
+    if (this != &file) {
+      this->~ZiFile();
+      new (this) ZiFile{file};
+    }
+    return *this;
+  }
 
   ~ZiFile() { final(); }
 
@@ -119,7 +137,6 @@ public:
   int mmap(const Path &name,
       unsigned flags, Offset length, bool shared = true,
       int mmapFlags = 0, unsigned mode = 0666, ZeError *e = nullptr);
-  int shadow(const ZiFile &file, ZeError *e = nullptr);
   void close();
 
   Offset size();

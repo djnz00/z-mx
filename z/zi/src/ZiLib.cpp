@@ -24,13 +24,3 @@
 #include "../../version.h"
 
 ZiExtern const char ZiLib[] = "@(#) Zero Copy I/O Library v" Z_VERNAME;
-
-ZiExtern const char *Zi::resultName(int r)
-{
-  static const char *names[] = {
-    "OK", "EndOfFile", "IOError", "NotReady"
-  };
-  r = -r - OK;
-  if (r < 0 || r >= (int)(sizeof(names) / sizeof(names[0]))) return "Unknown";
-  return names[r];
-}

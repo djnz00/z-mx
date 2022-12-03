@@ -153,6 +153,12 @@ public:
 
 class ZmAPI Blocker {
 public:
+  Blocker();
+  ~Blocker();
+
+  bool open(bool head, const ParamData &);
+  void close();
+
   // block until woken or timeout while addr == val
   int wait(
       ZmAtomic<uint32_t> &addr, uint32_t val,
@@ -162,7 +168,7 @@ public:
 
 protected:
 #ifdef _WIN32
-  HANDLE	m_sem;
+  HANDLE	m_sem = 0;
 #endif
 };
 
@@ -227,7 +233,7 @@ protected:
   using Ctrl = Ctrl_;
 
   CtrlMgr_() = default;
-  CtrlMgr_(const CtrlMgr_ &ring) : m_ctrl{ring.m_ctrl} { }
+  CtrlMgr_(const CtrlMgr_ &mgr) : m_ctrl{mgr.m_ctrl} { }
 
 public:
   ZuInline const Ctrl *ctrl() const {
@@ -289,7 +295,7 @@ protected:
   using Base::ctrl;
 
   CtrlMgr_() = default;
-  CtrlMgr_(const CtrlMgr_ &ring) : Base{ring} { }
+  CtrlMgr_(const CtrlMgr_ &mgr) : Base{mgr} { }
 
   ZuInline ZmAtomic<uint32_t> &rdrCount() { return ctrl()->rdrCount; }
   ZuInline const ZmAtomic<uint32_t> &rdrCount() const
@@ -321,7 +327,7 @@ template <> struct AlignFn<false, false> {
 class ZmAPI DataMem {
 public:
   DataMem() = default;
-  DataMem(const DataMem &mem) : m_addr(mem.m_addr) { }
+  DataMem(const DataMem &mem) : m_addr{mem.m_addr} { }
 
   bool open(unsigned size, const ParamData &params);
   void close(unsigned size, const ParamData &params);
@@ -335,6 +341,11 @@ private:
 
 class ZmAPI MirrorMem {
 public:
+  MirrorMem() = default;
+  MirrorMem(const MirrorMem &mem) :
+      m_handle{nullHandle()},
+      m_addr{mem.m_addr} { }
+
   static unsigned alignSize(unsigned size);
 
   bool open(unsigned size, const ParamData &params);
@@ -437,14 +448,15 @@ public:
   int rdrID() const { return 0; }	// ''
 
 protected:
-  void close_() { }
+  bool open_() { return true; }		// ''
+  void close_() { }			// ''
+
+  constexpr static unsigned gc() { return 0; } // ''
 
   void rdrID(int);			// ''
 
   uint32_t rdrTail() const;		// ''
   void rdrTail(uint32_t);		// ''
-
-  constexpr static unsigned gc_(const ParamData &) { return 0; } // ''
 
   constexpr void attached(unsigned) { }	// ''
   constexpr void detached(unsigned) { }	// ''
@@ -462,14 +474,15 @@ public:
   int rdrID() const { return m_rdrID; }
 
 protected:
+  bool open_();
   void close_();
+
+  constexpr static unsigned gc() { return 0; } // unused
 
   void rdrID(int v) { m_rdrID = v; }
 
   uint32_t rdrTail() const { return m_rdrTail; }
   void rdrTail(uint32_t v) { m_rdrTail = v; }
-
-  constexpr static unsigned gc_(const ParamData &) { return 0; } // unused
 
   constexpr void attached(unsigned) { }	// ''
   constexpr void detached(unsigned) { }	// ''
@@ -535,10 +548,11 @@ public:
   Ring(const Ring &ring) :
       CtrlMgr_{ring}, DataMgr_{ring},
       m_params{ring.m_params}, m_flags{Shadow}, m_size{ring.m_size} { }
-
   Ring &operator =(const Ring &ring) {
-    ~Ring();
-    new (this) Ring{ring};
+    if (this != &ring) {
+      this->~Ring();
+      new (this) Ring{ring};
+    }
     return *this;
   }
 
@@ -584,9 +598,10 @@ public:
   using RdrMgr::detach;
   using RdrMgr::rdrID;
 private:
+  using RdrMgr::open_;
   using RdrMgr::close_;
+  using RdrMgr::gc;
   using RdrMgr::rdrTail;
-  using RdrMgr::gc_;
 
 public:
   // how many times push() was delayed by this ring buffer being full
@@ -594,18 +609,41 @@ public:
 
   int open(unsigned flags) {
     flags &= (Read | Write);
+    if (!m_headBlocker.open(true, m_params))
+      return Zu::IOError;
+    if (!m_tailBlocker.open(false, m_params)) {
+      m_headBlocker.close();
+      return Zu::IOError;
+    }
     if (m_flags & Shadow) {
       m_flags = (m_flags & ~(Read | Write)) | flags;
-      return Zu::OK;
+    } else {
+      if (ctrl()) return Zu::OK;
+      if (!params().size) return Zu::IOError;
+      m_size = alignSize(params().size);
+      m_flags = flags;
+      if (!openCtrl(params())) {
+	m_headBlocker.close();
+	m_tailBlocker.close();
+	return Zu::IOError;
+      }
+      if (!openData(m_size, params())) {
+	m_headBlocker.close();
+	m_tailBlocker.close();
+	closeCtrl(params());
+	return Zu::IOError;
+      }
     }
-    if (ctrl()) return Zu::OK;
-    if (!params().size) return Zu::IOError;
-    m_size = alignSize(params().size);
-    m_flags = flags;
-    if (!openCtrl(params())) return Zu::IOError;
-    if (!openData(m_size, params())) {
+    if (!open_()) {
+      m_headBlocker.close();
+      m_tailBlocker.close();
       closeCtrl(params());
+      closeData(m_size, params());
       return Zu::IOError;
+    }
+    if (flags & Write) {
+      eof(false);
+      gc();
     }
     return Zu::OK;
   }
@@ -613,14 +651,21 @@ public:
   void close() {
     if (!ctrl()) return;
     close_();
-    if (m_flags & Shadow) return;
-    closeCtrl(params());
-    closeData(m_size, params());
+    if (m_flags & Shadow) {
+      closeCtrl(params());
+      closeData(m_size, params());
+    }
+    m_headBlocker.close();
+    m_tailBlocker.close();
     m_size = 0;
   }
 
   int reset() {
     if (!ctrl()) return Zu::IOError;
+    if constexpr (MR) {
+      if ((m_flags & Read) && rdrID() >= 0) detach();
+      if (rdrMask()) return Zu::NotReady;
+    }
     memset(static_cast<void *>(ctrl()), 0, sizeof(Ctrl));
     memset(data(), 0, m_size);
     m_full = 0;
@@ -712,7 +757,7 @@ private:
 #define ZmRing_push_retry() \
     do { \
       ++m_full; \
-      if (gc_(params()) > 0) goto retry; \
+      if (gc() > 0) goto retry; \
       if constexpr (!Wait) return nullptr; \
       if (ZuUnlikely(!params().ll)) \
 	if (m_tailBlocker.wait( \
@@ -1330,6 +1375,19 @@ public:
   ZmRing_Breakpoint	bp_shift1;
 #endif
 };
+
+template <typename Ring>
+inline bool RdrMgr<Ring, true>::open_()
+{
+  if (ring()->m_flags & Ring::Read) {
+    uint32_t rdrCount;
+    do {
+      rdrCount = ring()->rdrCount();
+      if (rdrCount >= MaxRdrs) return false;
+    } while (ring()->rdrCount().cmpXch(rdrCount + 1, rdrCount) != rdrCount);
+  }
+  return true;
+}
 
 template <typename Ring>
 inline void RdrMgr<Ring, true>::close_()

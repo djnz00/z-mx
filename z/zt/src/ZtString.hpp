@@ -334,7 +334,7 @@ public:
   }
   ZtString_ &operator =(ZtString_ &&s) {
     if (ZuLikely(this != &s)) {
-      free_();
+      this->~ZtString_();
       new (this) ZtString_(ZuMv(s));
     }
     return *this;

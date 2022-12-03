@@ -47,6 +47,8 @@
 
 #endif
 
+#include <zlib/ZuIOResult.hpp>
+
 namespace Zi {
   using namespace Zu::IOResultNS;
 };

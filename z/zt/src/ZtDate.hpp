@@ -398,6 +398,7 @@ public:
     ctor(year, month, day, hour, minute, sec, nsec);
   }
   ZtDate &operator =(const struct tm *tm_) {
+    // this->~ZtDate();
     new (this) ZtDate(tm_);
     return *this;
   }

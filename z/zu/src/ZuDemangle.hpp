@@ -60,6 +60,7 @@ public:
   }
 
   ZuDemangle &operator =(ZuString symbol) {
+    // this->~ZuDemangle();
     new (this) ZuDemangle{ZuMv(symbol)};
     return *this;
   }

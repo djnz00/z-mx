@@ -226,7 +226,7 @@ using ErrorStr = ZuStringN<120>;
 
 #define Log(severity, op, result, error) \
   ZeLOG(severity, \
-      ErrorStr() << op << ' ' << Zi::resultName(result) << ' ' << error)
+      ErrorStr() << op << ' ' << Zi::ioResult(result) << ' ' << error)
 #define Error(op, result, error) Log(Error, op, result, error)
 #define Warning(op, result, error) Log(Warning, op, result, error)
 
