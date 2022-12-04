@@ -17,20 +17,21 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ZmRingFn encapsulates a dynamic reference to any lambda for use with
-// ring buffers containing variable-sized messages; it optimizes the
-// stateless case while handling any stateful lambda with captures
+// ZmRingFn encapsulates a generic pointer to any lambda for use with
+// ring buffers containing variable-sized messages; it optimizes for the
+// stateless case, while also handling stateful lambdas with captures
 //
-// ZmRingFn(L &l) stores a pointer to the lambda l together with function
-// pointers that invoke it, move it, allocate a copy of it and free it;
-// initially the lambda instance remains on-stack
+// ZmRingFn(L &l) stores a pointer to the lambda instance together with
+// function pointers that invoke it, move it, allocate a copy of it and free
+// it; initially the lambda instance remains on-stack (C++ guarantees that
+// it remains in scope)
 //
-// in the fast path no heap allocation or freeing is performed during
-// subsequent pushing the message onto the ring, shifting it, and invoking it
+// in the fast path, no heap allocation or freeing is performed during
+// subsequent pushing the message onto a ring, shifting it, and invoking it
 //
-// any ZmRingFn move ensures that the lambda becomes heap-allocated;
-// this enables deferred execution of lambdas (timeouts, etc.), by
-// extending the ZmRingFn scope beyond the scope of the original
+// ZmRingFn move assignment ensures that the lambda becomes heap-allocated;
+// this extends its scope and enables deferred execution (timeouts, etc.)
+// by extending the ZmRingFn scope beyond the scope of the original
 // lambda reference that it was constructed with
 //
 // pushSize() returns the message size needed to store the

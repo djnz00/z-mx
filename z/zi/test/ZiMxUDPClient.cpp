@@ -101,7 +101,7 @@ public:
 
   void failed(bool transient) {
     if (transient)
-      add(ZmFn<>::Member<&Mx::udp>::fn(this), ZmTimeNow(1));
+      add([this]() { udp(); }, ZmTimeNow(1));
     else
       Global::post();
   }

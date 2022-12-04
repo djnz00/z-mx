@@ -219,8 +219,6 @@ public:
 private:
   class Pass {
     friend ZmFn;
-    Pass() { }
-    Pass(const Pass &) { }
     Pass &operator =(const Pass &) = delete;
   };
   template <typename ...Args_>

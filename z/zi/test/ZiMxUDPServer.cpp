@@ -20,7 +20,7 @@
 
 void error(ZiConnection *, const char *op, int result, ZeError e)
 {
-  ZeLOG(Error, ZtString{} << op << ' ' << Zi::resultName(result) << ' ' << e);
+  ZeLOG(Error, ZtString{} << op << ' ' << Zi::ioResult(result) << ' ' << e);
 }
 
 class Mx;
@@ -90,7 +90,7 @@ public:
 
   void failed(bool transient) {
     if (transient)
-      add(ZmFn<>::Member<&Mx::udp>::fn(this), ZmTimeNow(1));
+      add([this] { udp(); }, ZmTimeNow(1));
     else
       Global::post();
   }

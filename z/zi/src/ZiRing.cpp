@@ -244,7 +244,7 @@ void MirrorMem::close(unsigned size, const Params &params)
   m_file.close();
 }
 
-void RdrMgr_::getpinfo(uint32_t &pid, ZmTime &start)
+void RingExt_::getpinfo(uint32_t &pid, ZmTime &start)
 {
 #ifdef linux
   pid = getpid();
@@ -261,7 +261,7 @@ void RdrMgr_::getpinfo(uint32_t &pid, ZmTime &start)
 #endif
 }
 
-bool RdrMgr_::alive(uint32_t pid, ZmTime start)
+bool RingExt_::alive(uint32_t pid, ZmTime start)
 {
   if (!pid) return false;
 #ifdef linux
@@ -283,7 +283,7 @@ bool RdrMgr_::alive(uint32_t pid, ZmTime start)
 #endif
 }
 
-bool RdrMgr_::kill(uint32_t pid, bool coredump)
+bool RingExt_::kill(uint32_t pid, bool coredump)
 {
   if (!pid) return false;
 #ifdef linux

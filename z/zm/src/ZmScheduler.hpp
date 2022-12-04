@@ -339,8 +339,8 @@ public:
 
   // invoke(index, object, lambda) is a specialized version of invoke()
   // that avoids unnecessary calls to ref/deref the object if the lambda is
-  // directly called - the lambda should not capture an object ref
-  // and should return the object this pointer, which may be used to deref
+  // directly called - the lambda must not capture an object ref,
+  // and must return a pointer to the object, which can be used to deref
 private:
   template <typename O1, typename O2>
   struct IsObjectLambda__ {
@@ -364,9 +364,12 @@ public:
   IsObjectLambda<O, L> invoke(unsigned index, O *o, L l) {
     ZmAssert(index && index <= m_params.nThreads());
     Thread *thread = &m_threads[index - 1];
-    if (ZuLikely(Zm::getTID() == thread->tid)) { l(); return; }
-    o->ref();
-    auto m = [l = ZuMv(l)]() mutable { l()->deref(); };
+    if (ZuLikely(Zm::getTID() == thread->tid)) {
+      l(); // direct invocation without manipulating the reference count
+      return;
+    }
+    o->ref(); // increment reference count
+    auto m = [l = ZuMv(l)]() mutable { l()->deref(); }; // invoke and deref
     Fn fn{m};
     runWake_(thread, fn);
   }

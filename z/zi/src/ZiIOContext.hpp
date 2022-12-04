@@ -37,11 +37,7 @@
 
 class ZiConnection;
 
-struct ZiIOContext {
-  ZiIOContext() :
-      cxn{nullptr}, ptr{nullptr}, size{0}, offset{0}, length{0} { }
-
-private:
+class ZiIOContext {
   ZuInline static uint8_t *invalid_ptr() {
     return reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(-1));
   }
@@ -93,8 +89,8 @@ public:
   uintptr_t operator()();
 
   ZiConnection	*cxn = nullptr;	// connection - set by ZiMultiplex
-  ZmAnyFn	fn;		// callback - set by app (null to complete I/O)
-  uint8_t	*ptr = nullptr;	// buffer - set by app (null to disconnect)
+  ZmAnyFn	fn;		// callback - set by app (clear to complete I/O)
+  uint8_t	*ptr = nullptr;	// buffer - set by app (clear to disconnect)
   unsigned	size = 0;	// size of buffer - set by app
   unsigned	offset = 0;	// offset within buffer - set by app
   unsigned	length = 0;	// length - set by ZiMultiplex

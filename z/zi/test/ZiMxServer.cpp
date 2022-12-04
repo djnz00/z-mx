@@ -143,8 +143,7 @@ public:
     if (transient && m_reconnInterval > 0) {
       std::cerr << "bind to " << m_ip << ':' << ZuBoxed(m_port) <<
 	" failed, retrying...\n" << std::flush;
-      add(ZmFn<>::Member<&Mx::listen>::fn(this),
-	  ZmTimeNow(m_reconnInterval));
+      add([this]() { listen(); }, ZmTimeNow(m_reconnInterval));
     } else {
       std::cerr << "listen failed\n" << std::flush;
       Global::post();
