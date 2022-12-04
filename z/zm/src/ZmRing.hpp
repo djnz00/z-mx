@@ -464,22 +464,22 @@ protected:
 };
 
 
-// CRTP - SR ring reader functions
+// CRTP - ring extensions template for multiple readers, shared memory, etc.
 template <typename Ring, bool MR>
-class RdrMgr {
+class RingExt {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
 public:
-  using Friend = RdrMgr;
+  using Friend = RingExt;
 
-  RdrMgr() = default;
+  RingExt() = default;
 
-  RdrMgr(const RdrMgr &) = default;
-  RdrMgr &operator =(const RdrMgr &ring) = default;
+  RingExt(const RingExt &) = default;
+  RingExt &operator =(const RingExt &ring) = default;
 
-  RdrMgr(RdrMgr &&) = delete;
-  RdrMgr &operator =(RdrMgr &&) = delete;
+  RingExt(RingExt &&) = delete;
+  RingExt &operator =(RingExt &&) = delete;
 
   int attach();				// unused
   int detach();				// ''
@@ -500,22 +500,22 @@ protected:
   constexpr void attached(unsigned) { }	// ''
   constexpr void detached(unsigned) { }	// ''
 };
-// CRTP - MR ring reader functions
+// CRTP - multiple reader ring extensions
 template <typename Ring>
-class RdrMgr<Ring, true> {
+class RingExt<Ring, true> {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
 public:
-  using Friend = RdrMgr;
+  using Friend = RingExt;
 
-  RdrMgr() = default;
+  RingExt() = default;
 
-  RdrMgr(const RdrMgr &) = default;
-  RdrMgr &operator =(const RdrMgr &ring) = default;
+  RingExt(const RingExt &) = default;
+  RingExt &operator =(const RingExt &ring) = default;
 
-  RdrMgr(RdrMgr &&) = delete;
-  RdrMgr &operator =(RdrMgr &&) = delete;
+  RingExt(RingExt &&) = delete;
+  RingExt &operator =(RingExt &&) = delete;
 
   int attach();
   int detach();
@@ -548,13 +548,13 @@ template <
   typename CtrlMgr_ = CtrlMgr<CtrlMem, NTP::MR>,
   typename DataMgr_ =
     DataMgr<DataMem, MirrorMem, typename NTP::T, NTP::MW, NTP::MR>,
-  template <typename, bool> typename RdrMgr_ = RdrMgr>
+  template <typename, bool> typename RingExt_ = RingExt>
 class Ring :
     public AlignFn<NTP::MW, NTP::MR>,
     public CtrlMgr_,
     public DataMgr_,
-    public RdrMgr_<
-      Ring<NTP, ParamData_, Blocker_, CtrlMgr_, DataMgr_, RdrMgr_>,
+    public RingExt_<
+      Ring<NTP, ParamData_, Blocker_, CtrlMgr_, DataMgr_, RingExt_>,
       NTP::MR> {
 public:
   using T = typename NTP::T;
@@ -566,9 +566,9 @@ protected:
   using Blocker = Blocker_;
   using CtrlMgr = CtrlMgr_;
   using DataMgr = DataMgr_;
-  using RdrMgr = RdrMgr_<Ring, MR>;
-friend RdrMgr;
-friend typename RdrMgr::Friend;
+  using RingExt = RingExt_<Ring, MR>;
+friend RingExt;
+friend typename RingExt::Friend;
 
 private:
   using AlignFn = ZmRing_::AlignFn<MW, MR>;
@@ -595,7 +595,7 @@ public:
       m_params{ZuMv(params)} { }
 
   Ring(const Ring &ring) :
-      CtrlMgr{ring}, DataMgr{ring}, RdrMgr{ring},
+      CtrlMgr{ring}, DataMgr{ring}, RingExt{ring},
       m_params{ring.m_params}, m_flags{Shadow}, m_size{ring.m_size} { }
   Ring &operator =(const Ring &ring) {
     if (this != &ring) {
@@ -657,14 +657,14 @@ private:
 public:
   using DataMgr::data;
 
-  using RdrMgr::attach;
-  using RdrMgr::detach;
-  using RdrMgr::rdrID;
+  using RingExt::attach;
+  using RingExt::detach;
+  using RingExt::rdrID;
 private:
-  using RdrMgr::rdrTail;
-  using RdrMgr::open_;
-  using RdrMgr::close_;
-  using RdrMgr::gc;
+  using RingExt::rdrTail;
+  using RingExt::open_;
+  using RingExt::close_;
+  using RingExt::gc;
 
 public:
   int open(unsigned flags) {
@@ -1434,7 +1434,7 @@ public:
 };
 
 template <typename Ring>
-inline bool RdrMgr<Ring, true>::open_()
+inline bool RingExt<Ring, true>::open_()
 {
   if (ring()->flags() & Ring::Read) {
     uint32_t rdrCount;
@@ -1447,7 +1447,7 @@ inline bool RdrMgr<Ring, true>::open_()
 }
 
 template <typename Ring>
-inline void RdrMgr<Ring, true>::close_()
+inline void RingExt<Ring, true>::close_()
 {
   if (ring()->flags() & Ring::Read) {
     if (rdrID() >= 0) detach();
@@ -1456,7 +1456,7 @@ inline void RdrMgr<Ring, true>::close_()
 }
 
 template <typename Ring, bool MR>
-inline int RdrMgr<Ring, MR>::attach()	// unused
+inline int RingExt<Ring, MR>::attach()	// unused
 {
   /**/ZmRing_bp(ring(), attach1);
   /**/ZmRing_bp(ring(), attach2);
@@ -1466,7 +1466,7 @@ inline int RdrMgr<Ring, MR>::attach()	// unused
 }
 
 template <typename Ring>
-inline int RdrMgr<Ring, true>::attach()
+inline int RingExt<Ring, true>::attach()
 {
   enum { Read = Ring::Read };
 
@@ -1531,7 +1531,7 @@ done:
 }
 
 template <typename Ring, bool MR>
-inline int RdrMgr<Ring, MR>::detach()	// unused
+inline int RingExt<Ring, MR>::detach()	// unused
 {
   /**/ZmRing_bp(ring(), detach1);
   /**/ZmRing_bp(ring(), detach2);
@@ -1540,7 +1540,7 @@ inline int RdrMgr<Ring, MR>::detach()	// unused
 }
 
 template <typename Ring>
-inline int RdrMgr<Ring, true>::detach()
+inline int RingExt<Ring, true>::detach()
 {
   enum { Read = Ring::Read };
 

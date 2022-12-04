@@ -212,38 +212,40 @@ private:
   ZiFile	m_file;
 };
 
-class ZiAPI RdrMgr_ {
+// ring extensions base class for shared memory IPC
+class ZiAPI RingExt_ {
 public:
   static void getpinfo(uint32_t &pid, ZmTime &start);
   static bool alive(uint32_t pid, ZmTime start);
   static bool kill(uint32_t pid, bool coredump);
 };
 
+// generic ring extensions for shared memory IPC - always multi-reader
 template <typename Ring, bool>
-class RdrMgr :
-    public RdrMgr_,
-    public ZmRing_::RdrMgr<Ring, true> {
-  using Base = ZmRing_::RdrMgr<Ring, true>;
+class RingExt :
+    public RingExt_,
+    public ZmRing_::RingExt<Ring, true> {
+  using Base = ZmRing_::RingExt<Ring, true>;
 
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
 public:
-  using Friend = Base;
+  using Friend = Base; // extend ZmRing friendship to ZmRing_::RingExt
 
-  RdrMgr() = default;
+  RingExt() = default;
 
-  RdrMgr(const RdrMgr &ring) : Base{ring} { }
-  RdrMgr &operator =(const RdrMgr &ring) {
+  RingExt(const RingExt &ring) : Base{ring} { }
+  RingExt &operator =(const RingExt &ring) {
     if (this != &ring) {
-      this->~RdrMgr();
-      new (this) RdrMgr{ring};
+      this->~RingExt();
+      new (this) RingExt{ring};
     }
     return *this;
   }
 
-  RdrMgr(RdrMgr &&) = delete;
-  RdrMgr &operator =(RdrMgr &&) = delete;
+  RingExt(RingExt &&) = delete;
+  RingExt &operator =(RingExt &&) = delete;
 
   // can be called by writer if ring is full to garbage collect
   // dead readers and any lingering messages intended exclusively for them;
@@ -262,7 +264,7 @@ protected:
 };
 
 template <typename Ring, bool MR>
-inline bool RdrMgr<Ring, MR>::open_()
+inline bool RingExt<Ring, MR>::open_()
 {
   auto &params = ring()->params();
 
@@ -299,7 +301,7 @@ inline bool RdrMgr<Ring, MR>::open_()
 }
 
 template <typename Ring, bool MR>
-inline void RdrMgr<Ring, MR>::close_()
+inline void RingExt<Ring, MR>::close_()
 {
   if (ring()->flags() & Ring::Write) {
     ring()->writerTime() = ZmTime{}; // writerPID store is a release
@@ -310,7 +312,7 @@ inline void RdrMgr<Ring, MR>::close_()
 }
 
 template <typename Ring, bool MR>
-inline unsigned RdrMgr<Ring, MR>::gc()
+inline unsigned RingExt<Ring, MR>::gc()
 {
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->flags() & Ring::Write);
@@ -381,7 +383,7 @@ inline unsigned RdrMgr<Ring, MR>::gc()
 }
 
 template <typename Ring, bool MR>
-inline unsigned RdrMgr<Ring, MR>::kill()
+inline unsigned RingExt<Ring, MR>::kill()
 {
   const auto &params = ring()->params();
 
@@ -404,13 +406,13 @@ inline unsigned RdrMgr<Ring, MR>::kill()
 }
 
 template <typename Ring, bool MR>
-inline void RdrMgr<Ring, MR>::attached(unsigned id)
+inline void RingExt<Ring, MR>::attached(unsigned id)
 {
   getpinfo((ring()->rdrPID())[id], (ring()->rdrTime())[id]);
 }
 
 template <typename Ring, bool MR>
-inline void RdrMgr<Ring, MR>::detached(unsigned id)
+inline void RingExt<Ring, MR>::detached(unsigned id)
 {
   (ring()->rdrPID())[id] = 0;
   (ring()->rdrTime())[id] = ZmTime{};
@@ -428,6 +430,6 @@ using ZiRing = ZmRing_::Ring<
   ZiRing_::CtrlMgr<ZiRing_::CtrlMem>,
   ZmRing_::DataMgr<
     ZiRing_::DataMem, ZiRing_::MirrorMem, typename NTP::T, NTP::MW, true>,
-  ZiRing_::RdrMgr>;
+  ZiRing_::RingExt>;
 
 #endif /* ZiRing_HPP */
