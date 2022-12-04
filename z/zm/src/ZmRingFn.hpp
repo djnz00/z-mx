@@ -26,17 +26,17 @@
 // initially the lambda instance remains on-stack
 //
 // in the fast path no heap allocation or freeing is performed during
-// pushing the message onto the ring, shifting it, or invoking it
+// subsequent pushing the message onto the ring, shifting it, and invoking it
 //
-// any ZmRingFn move ensures that the lambda becomes heap-allocated,
-// this is used to enable deferred execution of lambdas (timeouts, etc.),
-// so that the ZmRingFn scope can extend beyond the scope of the original
-// lambda reference it was constructed with
+// any ZmRingFn move ensures that the lambda becomes heap-allocated;
+// this enables deferred execution of lambdas (timeouts, etc.), by
+// extending the ZmRingFn scope beyond the scope of the original
+// lambda reference that it was constructed with
 //
 // pushSize() returns the message size needed to store the
-// lambda in the ring buffer together with it's invocation function
+// lambda in a ring buffer together with its invocation function
 //
-// push() moves the lambda into the ring buffer together with it's
+// push() moves the lambda into a ring buffer together with its
 // invocation function
 //
 // invoke() invokes the lambda directly from the ring buffer pointer,
@@ -58,8 +58,8 @@
 // run-time encapsulation of generic functor/lambda
 template <auto HeapID, bool Sharded = false>
 class ZmRingFn {
-  // 64bit pointer-packing - uses bit 63
-  constexpr static const uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
+  // 64bit pointer-packing - uses bit 63 to indicate on-heap
+  constexpr static uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
 
   typedef unsigned (*InvokeFn)(void *ptr);
   typedef void (*MoveFn)(void *dst, void *src, bool onHeap);
@@ -181,7 +181,7 @@ private:
   InvokeFn	m_invokeFn = nullptr; // invoke lambda, destroy it, return size
   MoveFn	m_moveFn = nullptr;   // move lambda
   AllocFn	m_allocFn = nullptr;  // size+alloc+free (overloaded function)
-  uintptr_t	m_ptr = 0;	    // pointer to lambda (bit 0 is on-heap flag)
+  uintptr_t	m_ptr = 0;            // pointer to lambda
 };
 
 #endif /* ZmRingFn_HPP */

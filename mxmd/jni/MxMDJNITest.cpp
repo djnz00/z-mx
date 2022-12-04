@@ -161,13 +161,13 @@ static void publish_()
       md->instrInvoke(MxInstrKey{*ticker, "JNITest", MxID()},
 	  [ticker](MxMDInstrument *instr) {
 	if (!instr)
-	  throw ZtString() << "instrument \"" << *ticker << "\" not found";
+	  throw ZtString{} << "instrument \"" << *ticker << "\" not found";
 
 	// get order book
 
 	ZmRef<MxMDOrderBook> ob = instr->orderBook("JNITest", MxID());
 	if (!ob)
-	  throw ZtString() << "order book for \"" << *ticker << "\" not found";
+	  throw ZtString{} << "order book for \"" << *ticker << "\" not found";
 
 	// generate random last traded price
 

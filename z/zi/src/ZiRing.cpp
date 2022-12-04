@@ -21,6 +21,8 @@
 
 #include <zlib/ZiRing.hpp>
 
+#include <zlib/ZeLog.hpp>
+
 #ifdef linux
 
 #include <sys/syscall.h>
@@ -95,8 +97,13 @@ bool Blocker::open(bool head, const ParamData &params)
   path << L".sem";
   m_sem = CreateSemaphore(0, 0, 0x7fffffff, path);
   if (m_sem == INVALID_HANDLE_VALUE) m_sem = 0;
-  // FIXME - error logging
-  return !!m_sem;
+  if (!m_sem) {
+    ZeLOG(Error, ZtString{} <<
+	"ZiRing::Blocker::open() CreateSemaphore(" << path << ") failed: " <<
+	ZeLastError);
+    return false;
+  }
+  return true;
 }
 
 void Blocker::close()
@@ -148,11 +155,16 @@ bool CtrlMem::open(unsigned size, const ParamData &params)
 #else
     0;
 #endif
-  // FIXME - error logging
-  if ((r = m_file.mmap(params.name + ".ctrl",
+  Zi::Path path(params.name.length() + 6);
+  path << params.name << ".ctrl";
+  ZeError e;
+  if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm, sizeof(Ctrl),
-	  true, mmapFlags, 0666, e)) != Zi::OK)
+	  true, mmapFlags, 0666, &e)) != Zi::OK) {
+    ZeLOG(Error, ZtString{} <<
+	"ZiRing::CtrlMem::open() mmap(" << path  << ") failed: " << e);
     return false;
+  }
   if (params.cpuset)
     hwloc_set_area_membind(
 	ZmTopology::hwloc(), m_file.addr(), m_file.mmapLength(),
@@ -175,11 +187,16 @@ bool DataMem::open(unsigned size, const ParamData &params)
 #else
     0;
 #endif
-  // FIXME - error logging
-  if ((r = m_file.mmap(params.name + ".data",
+  Zi::Path path(params.name.length() + 6);
+  path << params.name << ".data";
+  ZeError e;
+  if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm, size,
-	  true, mmapFlags, 0666, e)) != Zi::OK)
+	  true, mmapFlags, 0666, &e)) != Zi::OK) {
+    ZeLOG(Error, ZtString{} <<
+	"ZiRing::DataMem::open() mmap(" << path  << ") failed: " << e);
     return false;
+  }
   if (params.cpuset)
     hwloc_set_area_membind(
 	ZmTopology::hwloc(), m_file.addr(), m_file.mmapLength(),
@@ -202,11 +219,16 @@ bool MirrorMem::open(unsigned size, const ParamData &params)
 #else
     0;
 #endif
-  // FIXME - error logging
-  if ((r = m_file.mmap(params.name + ".data",
+  Zi::Path path(params.name.length() + 6);
+  path << params.name << ".data";
+  ZeError e;
+  if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm | ZiFile::ShmMirror, size,
-	  true, mmapFlags, 0666, e)) != Zi::OK)
+	  true, mmapFlags, 0666, &e)) != Zi::OK) {
+    ZeLOG(Error, ZtString{} <<
+	"ZiRing::MirrorMem::open() mmap(" << path  << ") failed: " << e);
     return false;
+  }
   if (params.cpuset)
     hwloc_set_area_membind(
 	ZmTopology::hwloc(), m_file.addr(), (m_file.mmapLength())<<1,
@@ -272,3 +294,5 @@ bool RdrMgr_::kill(uint32_t pid, bool coredump)
   return ok;
 #endif
 }
+
+} // ZiRing_

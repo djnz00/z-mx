@@ -103,7 +103,7 @@ private:
       ZuString key_;
       while (ZmRef<ZvCf> cf_ = i.subset(key_)) {
 	if (cf == cf_.ptr()) {
-	  key = ZtString() << key_ << ':' << key;
+	  key = ZtString{} << key_ << ':' << key;
 	  break;
 	}
       }

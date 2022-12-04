@@ -132,13 +132,13 @@ private:
   ErrNo		m_errNo;
 };
 
-inline ZeError Ze_OK() { return ZeError(); }
+inline ZeError Ze_OK() { return ZeError{}; }
 #define ZeOK Ze_OK()
 
-inline ZeError Ze_LastError() { return ZeError(Ze::errNo()); }
+inline ZeError Ze_LastError() { return ZeError{Ze::errNo()}; }
 #define ZeLastError Ze_LastError()
 
-inline ZeError Ze_LastSockError() { return ZeError(Ze::sockErrNo()); }
+inline ZeError Ze_LastSockError() { return ZeError{Ze::sockErrNo()}; }
 #define ZeLastSockError Ze_LastSockError()
 
 template <typename Event>

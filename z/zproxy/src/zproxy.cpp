@@ -1238,7 +1238,7 @@ void Connection::recv(ZiIOContext *io)
 void Connection::recv_(ZmRef<IOBuf> ioBuf, ZiIOContext &io)
 {
   if (m_flags & Trace) {
-    ZeLOG(Info, ZtHexDump(ZtString() << *this,
+    ZeLOG(Info, ZtHexDump(ZtString{} << *this,
 	  ioBuf->data(), ioBuf->length()));
   }
 
@@ -1326,7 +1326,7 @@ void Connection::send(Guard &guard, ZiIOContext *io)
 void Connection::send_(IOBuf *ioBuf, ZiIOContext &io)
 {
   if (m_flags & Trace) {
-    ZeLOG(Info, ZtHexDump(ZtString() << *this,
+    ZeLOG(Info, ZtHexDump(ZtString{} << *this,
 	  ioBuf->data(), ioBuf->length()));
   }
 

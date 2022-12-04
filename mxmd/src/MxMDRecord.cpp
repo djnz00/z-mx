@@ -39,7 +39,7 @@ void MxMDRecord::init(MxMDCore *core, const ZvCf *cf)
       rxThread() == mx->rxThread() ||
       m_snapThread == mx->rxThread() ||
       m_snapThread == rxThread())
-    throw ZtString() << "recorder misconfigured - thread conflict -"
+    throw ZtString{} << "recorder misconfigured - thread conflict -"
       " Network Rx: " << ZuBoxed(mx->rxThread()) <<
       " IPC Rx: " << ZuBoxed(rxThread()) <<
       " Snapshot: " << ZuBoxed(m_snapThread);

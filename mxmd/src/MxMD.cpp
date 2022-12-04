@@ -1317,7 +1317,7 @@ void MxMDLib::init_(void *cf_)
     while (ZmRef<ZvCf> shardCf = i.subset(key)) {
       ZuBox<unsigned> id = key;
       if (key != ZuStringN<12>{id} || id >= m_shards.length())
-	throw ZtString() << "bad shard ID \"" << key << '"';
+	throw ZtString{} << "bad shard ID \"" << key << '"';
       if (ZuString s = shardCf->get("thread", true))
 	if (!(tid = mx->tid(s)))
 	  throw ZtString()
@@ -1944,17 +1944,17 @@ MxUniKey MxMDLib::parseInstrument(ZvCf *args, unsigned index) const
   }
   if (ZtString mat = args->get("mat")) {
     if (!ZtREGEX("^\d{8}$").m(mat))
-      throw ZtString() << "maturity \"" << mat << "\" invalid - "
+      throw ZtString{} << "maturity \"" << mat << "\" invalid - "
 	"must be YYYYMMDD (DD is usually 00)";
     key.mat = mat;
     bool put = args->getInt("put", 0, 1, false, 0);
     bool call = args->getInt("call", 0, 1, false, 0);
     ZtString strike = args->get("strike");
     if (put && call)
-      throw ZtString() << "put and call are mutually exclusive";
+      throw ZtString{} << "put and call are mutually exclusive";
     if (put || call) {
       if (!strike)
-	throw ZtString() << "strike must be specified for options";
+	throw ZtString{} << "strike must be specified for options";
       key.putCall = put ? MxPutCall::PUT : MxPutCall::CALL;
       key.strike = strike;
     }

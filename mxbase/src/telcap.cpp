@@ -41,10 +41,10 @@ public:
 private:
   void open_(ZiFile &file, ZuString name) {
     ZeError e;
-    ZiFile::Path path = ZiFile::append(m_dir, ZtString() << name << ".csv");
+    ZiFile::Path path = ZiFile::append(m_dir, ZtString{} << name << ".csv");
     if (file.open(path,
 	  ZiFile::Create | ZiFile::WriteOnly | ZiFile::GC, 0666, &e) != Zi::OK)
-      throw ZtString() << path << ": " << e;
+      throw ZtString{} << path << ": " << e;
   }
 
   void write_(ZiFile &file, ZuString s) { file.write(s.data(), s.length()); }

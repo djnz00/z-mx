@@ -266,7 +266,7 @@ Zfb::Offset<fbs::ReqAck> Mgr::request(User *user, bool interactive,
       guard.unlock();
       if (ZuUnlikely(perm < 0)) {
 	using namespace Zfb::Save;
-	auto text_ = str(fbb, ZtString() <<
+	auto text_ = str(fbb, ZtString{} <<
 	    "permission denied (\"" << permName << "\" missing)");
 	fbs::ReqAckBuilder fbb_(fbb);
 	fbb_.add_seqNo(seqNo);
@@ -424,7 +424,7 @@ ZmRef<User> Mgr::login(int &failures,
   }
   if (!(user->flags & User::Enabled)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ZtString() << "authentication failure: "
+      ZeLOG(Warning, ZtString{} << "authentication failure: "
 	  "disabled user \"" << user->name << "\" attempted login");
     }
     failures = user->failures;
@@ -432,7 +432,7 @@ ZmRef<User> Mgr::login(int &failures,
   }
   if (!(user->perms[Perm::Login])) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ZtString() << "authentication failure: "
+      ZeLOG(Warning, ZtString{} << "authentication failure: "
 	  "user without login permission \"" << user->name <<
 	  "\" attempted login");
     }
@@ -448,7 +448,7 @@ ZmRef<User> Mgr::login(int &failures,
     hmac.finish(verify.data());
     if (verify != user->hmac) {
       if (++user->failures < 3) {
-	ZeLOG(Warning, ZtString() << "authentication failure: "
+	ZeLOG(Warning, ZtString{} << "authentication failure: "
 	    "user \"" << user->name << "\" provided invalid password");
       }
       failures = user->failures;
@@ -458,7 +458,7 @@ ZmRef<User> Mgr::login(int &failures,
   if (!Ztls::TOTP::verify(
 	user->secret.data(), user->secret.length(), totp, m_totpRange)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ZtString() << "authentication failure: "
+      ZeLOG(Warning, ZtString{} << "authentication failure: "
 	  "user \"" << user->name << "\" provided invalid OTP");
     }
     failures = user->failures;
@@ -487,7 +487,7 @@ ZmRef<User> Mgr::access(int &failures,
   }
   if (!(user->flags & User::Enabled)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ZtString() << "authentication failure: "
+      ZeLOG(Warning, ZtString{} << "authentication failure: "
 	  "disabled user \"" << user->name << "\" attempted login");
     }
     failures = user->failures;
@@ -495,7 +495,7 @@ ZmRef<User> Mgr::access(int &failures,
   }
   if (!(user->perms[Perm::Access])) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ZtString() << "authentication failure: "
+      ZeLOG(Warning, ZtString{} << "authentication failure: "
 	  "user without API access permission \"" << user->name <<
 	  "\" attempted access");
     }
@@ -520,7 +520,7 @@ ZmRef<User> Mgr::access(int &failures,
     hmac_.finish(verify.data());
     if (verify != hmac) {
       if (++user->failures < 3) {
-	ZeLOG(Warning, ZtString() << "authentication failure: "
+	ZeLOG(Warning, ZtString{} << "authentication failure: "
 	    "user \"" << user->name << "\" provided invalid API key HMAC");
       }
       failures = user->failures;

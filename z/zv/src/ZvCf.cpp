@@ -706,7 +706,7 @@ void ZvCf::print(ZmStream &s, ZtString prefix) const
     }
     if (node->m_cf) {
       s << prefix << node_->key() << " {\n" <<
-	node->m_cf->prefixed(ZtString() << "  " << prefix) <<
+	node->m_cf->prefixed(ZtString{} << "  " << prefix) <<
 	prefix << "}\n";
     }
   }

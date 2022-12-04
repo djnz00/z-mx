@@ -45,8 +45,11 @@ struct ParamData : public ZmRing_::ParamData {
   using Base = ZmRing_::ParamData;
 
   ParamData() = default;
-  ParamData(unsigned size_) : Base{size_} { }
-  ParamData(ZuString name_, unsigned size_) : Base{size_}, name{name_} { }
+  ParamData(const ParamData &) = default;
+  ParamData(ParamData &&) = default;
+  template <typename Name, typename ...Args>
+  ParamData(Name name, Args &&... args) :
+      Base{ZuFwd<Args>(args)...}, name{ZuFwd<Name>(name)} { }
 
   Zi::Path	name;
   unsigned	killWait = 1;
@@ -55,12 +58,16 @@ struct ParamData : public ZmRing_::ParamData {
 
 template <typename Derived, typename Data = ParamData>
 class Params_ : public ZmRing_::Params_<Derived, Data> {
+  using Base = ZmRing_::Params_<Derived, Data>;
+
   Derived &&derived() { return ZuMv(*static_cast<Derived *>(this)); }
 
 public:
   Params_() = default;
-  Params_(unsigned size) : Data{size} { }
-  Params_(ZuString name, unsigned size) : Data{name, size} { }
+  Params_(const Params_ &) = default;
+  Params_(Params_ &&) = default;
+  template <typename ...Args>
+  Params_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 
   Derived &&name(ZuString s) { Data::name = s; return derived(); }
   Derived &&killWait(unsigned n) { Data::killWait = n; return derived(); }
@@ -68,10 +75,14 @@ public:
 };
 
 class Params : public Params_<Params> {
+  using Base = Params_<Params>;
+
 public:
   Params() = default;
-  Params(unsigned size) : Params_<Params>{size} { }
-  Params(ZuString name, unsigned size) : Params_<Params>{name, size} { }
+  Params(const Params &) = default;
+  Params(Params &&) = default;
+  template <typename ...Args>
+  Params(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 };
 
 class ZiAPI Blocker {
@@ -136,6 +147,9 @@ protected:
 
   // PIDs may be re-used by the OS, so processes are ID'd by PID + start time
 
+  ZuInline ZmAtomic<uint32_t> &openSize() { return ctrl()->openSize; }
+  ZuInline const ZmAtomic<uint32_t> &openSize() const
+    { return ctrl()->openSize; }
   ZuInline ZmAtomic<uint32_t> &writerPID() { return ctrl()->writerPID; }
   ZuInline const ZmAtomic<uint32_t> &writerPID() const
     { return ctrl()->writerPID; }
@@ -215,7 +229,7 @@ protected:
 template <typename Ring, bool MR>
 inline bool RdrMgr<Ring, MR>::open_()
 {
-  const auto &params = ring()->params();
+  auto &params = ring()->params();
 
   if (params.size) {
     uint32_t reqSize =
@@ -253,7 +267,7 @@ template <typename Ring, bool MR>
 inline void RdrMgr<Ring, MR>::close_()
 {
   if (ring()->m_flags & Ring::Write) {
-    ring()->writerTime() = {}; // writerPID store is a release
+    ring()->writerTime() = ZmTime{}; // writerPID store is a release
     ring()->writerPID() = 0;
   }
 

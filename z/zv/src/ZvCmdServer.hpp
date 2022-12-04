@@ -316,7 +316,7 @@ friend TLS;
     m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 
     if (!loadUserDB())
-      throw ZtString() << "failed to load \"" << m_userDBPath << '"';
+      throw ZtString{} << "failed to load \"" << m_userDBPath << '"';
 
     TelServer::init(mx, cf->subset("telemetry"));
   }

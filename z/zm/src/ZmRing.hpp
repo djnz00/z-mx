@@ -136,7 +136,10 @@ class Params_ : public Data {
 
 public:
   Params_() = default;
-  Params_(unsigned size) : Data{size} { }
+  Params_(const Params_ &) = default;
+  Params_(Params_ &&) = default;
+  template <typename ...Args>
+  Params_(Args &&... args) : Data{ZuFwd<Args>(args)...} { }
 
   Derived &&size(unsigned n) { Data::size = n; return derived(); }
   Derived &&ll(bool b) { Data::ll = b; return derived(); }
@@ -148,7 +151,10 @@ public:
 class Params : public Params_<Params> {
 public:
   Params() = default;
-  Params(unsigned size) : Params_<Params>{size} { }
+  Params(const Params &) = default;
+  Params(Params &&) = default;
+  template <typename ...Args>
+  Params(Args &&... args) : Params_<Params>{ZuFwd<Args>(args)...} { }
 };
 
 class ZmAPI Blocker {
@@ -561,7 +567,8 @@ public:
   template <typename Params>
   void init(Params params) { m_params = ZuMv(params); }
 
-  const ParamData &params() const { return m_params; }
+  auto &params() { return m_params; }
+  const auto &params() const { return m_params; }
 
   auto &headBlocker() { return m_headBlocker; }
   const auto &headBlocker() const { return m_headBlocker; }

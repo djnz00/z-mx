@@ -707,7 +707,7 @@ void MxMDSubscriber::resendCmd(void *, const ZvCf *args, ZtString &out)
   if (argc != 4) throw ZvCmdUsage();
   auto id = args->get("1");
   ZmRef<MxAnyLink> link_ = link(id);
-  if (!link_) throw ZtString() << id << " - unknown link";
+  if (!link_) throw ZtString{} << id << " - unknown link";
   auto link = static_cast<MxMDSubLink *>(link_.ptr());
   ZuBox<uint64_t> seqNo(args->get("2"));
   ZuBox0(uint16_t) count(args->get("3"));
@@ -718,7 +718,7 @@ void MxMDSubscriber::resendCmd(void *, const ZvCf *args, ZtString &out)
   seqNo = hdr.seqNo;
   out << "seqNo: " << seqNo << '\n';
   out << ZtHexDump{
-      ZtString() << "type: " << Type::name(hdr.type),
+      ZtString{} << "type: " << Type::name(hdr.type),
       msg->ptr<Msg>()->ptr(), msg->length} << '\n';
 }
 

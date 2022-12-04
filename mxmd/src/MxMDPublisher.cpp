@@ -39,7 +39,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
       rxThread() == mx->rxThread() ||
       m_snapThread == mx->rxThread() ||
       m_snapThread == rxThread())
-    throw ZtString() << "publisher misconfigured - thread conflict -"
+    throw ZtString{} << "publisher misconfigured - thread conflict -"
       " I/O Rx: " << ZuBoxed(mx->rxThread()) <<
       " IPC Rx: " << ZuBoxed(rxThread()) <<
       " Snapshot: " << ZuBoxed(m_snapThread);

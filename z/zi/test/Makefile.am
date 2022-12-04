@@ -10,8 +10,7 @@ LDADD = $(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \
 	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
 noinst_PROGRAMS = \
 	ZiFileTest ZiFileAgeTest ZiGlobTest \
-	ZiVRingTest ZiVRingTest2 \
-	ZiVBxRingTest ZiVBxRingTest2 \
+	ZiRingTest \
 	ZiMxClient ZiMxServer ZiMxUDPClient ZiMxUDPServer
 noinst_HEADERS = Global.hpp HttpHeader.hpp
 if NETLINK
@@ -21,7 +20,7 @@ ZiFileTest_SOURCES = ZiFileTest.cpp
 ZiFileAgeTest_SOURCES = ZiFileAgeTest.cpp
 ZiGlobTest_SOURCES = ZiGlobTest.cpp
 ZiRingTest_SOURCES = ZiRingTest.cpp
-ZiRingTest2_SOURCES = ZiRingTest2.cpp
+# ZiRingTest2_SOURCES = ZiRingTest2.cpp
 ZiMxClient_SOURCES = ZiMxClient.cpp
 ZiMxServer_SOURCES = ZiMxServer.cpp
 ZiMxUDPClient_SOURCES = ZiMxUDPClient.cpp

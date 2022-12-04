@@ -276,10 +276,10 @@ private:
   friend ZmRBTree<T, NTP>;
   template <typename, int> friend class ZmRBTreeIterator_;
 
-    Node *dup() const { return m_dup; }
-    void dup(Node *n) { m_dup = n; }
+    ZuInline Node *dup() const { return m_dup; }
+    ZuInline void dup(Node *n) { m_dup = n; }
 
-    void clear() { m_dup = nullptr; }
+    ZuInline void clear() { m_dup = nullptr; }
 
     Node	*m_dup = nullptr;
   };
@@ -297,27 +297,36 @@ private:
   class NodeFn_ : public ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>> {
   friend ZmRBTree<T, NTP>;
   template <typename, int> friend class ZmRBTreeIterator_;
+    // 64bit pointer-packing - uses bit 63
+    constexpr static uintptr_t Black() {
+      return static_cast<uintptr_t>(1)<<63;
+    }
+    constexpr static uintptr_t Black(bool b) {
+      return static_cast<uintptr_t>(b)<<63;
+    }
 
     using Base = ZuIf<Unique, NodeFn_Unique<Node>, NodeFn_Dup<Node>>;
 
-    bool black() { return m_parent & static_cast<uintptr_t>(1); }
-    void black(bool black) {
-      black ?
-	(m_parent |= static_cast<uintptr_t>(1)) :
-	(m_parent &= ~static_cast<uintptr_t>(1));
+    ZuInline bool black() { return m_parent & Black(); }
+    ZuInline void black(bool b) {
+      m_parent = (m_parent & ~Black()) | Black(b);
+    }
+    ZuInline void black(const NodeFn_ *node) {
+      m_parent = (m_parent & ~Black()) | (node->m_parent & Black());
+    }
+    ZuInline void setBlack() { m_parent |= Black(); }
+    ZuInline void clrBlack() { m_parent &= ~Black(); }
+
+    ZuInline Node *right() const { return m_right; }
+    ZuInline Node *left() const { return m_left; }
+    ZuInline Node *parent() const {
+      return reinterpret_cast<Node *>(m_parent & ~Black());
     }
 
-    Node *right() const { return m_right; }
-    Node *left() const { return m_left; }
-    Node *parent() const {
-      return reinterpret_cast<Node *>(m_parent & ~static_cast<uintptr_t>(1));
-    }
-
-    void right(Node *n) { m_right = n; }
-    void left(Node *n) { m_left = n; }
-    void parent(Node *n) {
-      m_parent =
-	reinterpret_cast<uintptr_t>(n) | (m_parent & static_cast<uintptr_t>(1));
+    ZuInline void right(Node *n) { m_right = n; }
+    ZuInline void left(Node *n) { m_left = n; }
+    ZuInline void parent(Node *n) {
+      m_parent = reinterpret_cast<uintptr_t>(n) | (m_parent & Black());
     }
 
     void clearDup() {
@@ -447,7 +456,7 @@ private:
     Node *node;
 
     if (!(node = m_root)) {
-      newNode->NodeFn::black(1);
+      newNode->NodeFn::setBlack();
       m_root = m_minimum = m_maximum = newNode;
       ++m_count;
       return;
@@ -837,7 +846,7 @@ private:
 	  parent->NodeFn::left(dup);
 	  dup->NodeFn::parent(parent);
 	}
-	dup->NodeFn::black(node->NodeFn::black());
+	dup->NodeFn::black(node);
 	if (node == m_minimum) m_minimum = dup;
 	if (node == m_maximum) m_maximum = dup;
 	--m_count;
@@ -939,7 +948,7 @@ public:
     for (;;) {
       Node *parent = node->NodeFn::parent();
 
-      if (!parent) { node->NodeFn::black(1); return; }	// force root to black
+      if (!parent) { node->NodeFn::setBlack(); return; }// force root to black
 
       if (parent->NodeFn::black()) return;
 
@@ -949,36 +958,36 @@ public:
 	Node *uncle = gParent->NodeFn::right();
 
 	if (uncle && !uncle->NodeFn::black()) {
-	  parent->NodeFn::black(1);
-	  uncle->NodeFn::black(1);
-	  (node = gParent)->NodeFn::black(0);
+	  parent->NodeFn::setBlack();
+	  uncle->NodeFn::setBlack();
+	  (node = gParent)->NodeFn::clrBlack();
 	} else {
 	  if (node == parent->NodeFn::right()) {
 	    rotateLeft(node = parent, gParent);
 	    gParent = (parent = node->NodeFn::parent())->NodeFn::parent();
 	  }
-	  parent->NodeFn::black(1);
-	  gParent->NodeFn::black(0);
+	  parent->NodeFn::setBlack();
+	  gParent->NodeFn::clrBlack();
 	  rotateRight(gParent, gParent->NodeFn::parent());
-	  m_root->NodeFn::black(1);			// force root to black
+	  m_root->NodeFn::setBlack();			// force root to black
 	  return;
 	}
       } else {
 	Node *uncle = gParent->NodeFn::left();
 
 	if (uncle && !uncle->NodeFn::black()) {
-	  parent->NodeFn::black(1);
-	  uncle->NodeFn::black(1);
-	  (node = gParent)->NodeFn::black(0);
+	  parent->NodeFn::setBlack();
+	  uncle->NodeFn::setBlack();
+	  (node = gParent)->NodeFn::clrBlack();
 	} else {
 	  if (node == parent->NodeFn::left()) {
 	    rotateRight(node = parent, gParent);
 	    gParent = (parent = node->NodeFn::parent())->NodeFn::parent();
 	  }
-	  parent->NodeFn::black(1);
-	  gParent->NodeFn::black(0);
+	  parent->NodeFn::setBlack();
+	  gParent->NodeFn::clrBlack();
 	  rotateLeft(gParent, gParent->NodeFn::parent());
-	  m_root->NodeFn::black(1);			// force root to black
+	  m_root->NodeFn::setBlack();			// force root to black
 	  return;
 	}
       }
@@ -1025,7 +1034,7 @@ public:
 
       bool black = node->NodeFn::black();
 
-      node->NodeFn::black(successor->NodeFn::black());
+      node->NodeFn::black(successor);
       successor->NodeFn::black(black);
 
       successor = node;
@@ -1075,8 +1084,8 @@ public:
 	if (child == parent->NodeFn::left()) {
 	  sibling = parent->NodeFn::right();
 	  if (!sibling->NodeFn::black()) {
-	    sibling->NodeFn::black(1);
-	    parent->NodeFn::black(0);
+	    sibling->NodeFn::setBlack();
+	    parent->NodeFn::clrBlack();
 	    rotateLeft(parent, parent->NodeFn::parent());
 	    sibling = parent->NodeFn::right();
 	  }
@@ -1084,30 +1093,30 @@ public:
 		sibling->NodeFn::left()->NodeFn::black()) &&
 	      (!sibling->NodeFn::right() ||
 		sibling->NodeFn::right()->NodeFn::black())) {
-	    sibling->NodeFn::black(0);
+	    sibling->NodeFn::clrBlack();
 	    child = parent;
 	    parent = child->NodeFn::parent();
 	  } else {
 	    if (!sibling->NodeFn::right() ||
 		sibling->NodeFn::right()->NodeFn::black()) {
 	      if (sibling->NodeFn::left())
-		sibling->NodeFn::left()->NodeFn::black(1);
-	      sibling->NodeFn::black(0);
+		sibling->NodeFn::left()->NodeFn::setBlack();
+	      sibling->NodeFn::clrBlack();
 	      rotateRight(sibling, parent);
 	      sibling = parent->NodeFn::right();
 	    }
-	    sibling->NodeFn::black(parent->NodeFn::black());
-	    parent->NodeFn::black(1);
+	    sibling->NodeFn::black(parent);
+	    parent->NodeFn::setBlack();
 	    if (sibling->NodeFn::right())
-	      sibling->NodeFn::right()->NodeFn::black(1);
+	      sibling->NodeFn::right()->NodeFn::setBlack();
 	    rotateLeft(parent, parent->NodeFn::parent());
 	    break;
 	  }
 	} else {
 	  sibling = parent->NodeFn::left();
 	  if (!sibling->NodeFn::black()) {
-	    sibling->NodeFn::black(1);
-	    parent->NodeFn::black(0);
+	    sibling->NodeFn::setBlack();
+	    parent->NodeFn::clrBlack();
 	    rotateRight(parent, parent->NodeFn::parent());
 	    sibling = parent->NodeFn::left();
 	  }
@@ -1115,27 +1124,27 @@ public:
 		sibling->NodeFn::right()->NodeFn::black()) &&
 	      (!sibling->NodeFn::left() ||
 		sibling->NodeFn::left()->NodeFn::black())) {
-	    sibling->NodeFn::black(0);
+	    sibling->NodeFn::clrBlack();
 	    child = parent;
 	    parent = child->NodeFn::parent();
 	  } else {
 	    if (!sibling->NodeFn::left() ||
 		sibling->NodeFn::left()->NodeFn::black()) {
 	      if (sibling->NodeFn::right())
-		sibling->NodeFn::right()->NodeFn::black(1);
-	      sibling->NodeFn::black(0);
+		sibling->NodeFn::right()->NodeFn::setBlack();
+	      sibling->NodeFn::clrBlack();
 	      rotateLeft(sibling, parent);
 	      sibling = parent->NodeFn::left();
 	    }
-	    sibling->NodeFn::black(parent->NodeFn::black());
-	    parent->NodeFn::black(1);
+	    sibling->NodeFn::black(parent);
+	    parent->NodeFn::setBlack();
 	    if (sibling->NodeFn::left())
-	      sibling->NodeFn::left()->NodeFn::black(1);
+	      sibling->NodeFn::left()->NodeFn::setBlack();
 	    rotateRight(parent, parent->NodeFn::parent());
 	    break;
 	  }
 	}
-      if (child) child->NodeFn::black(1);
+      if (child) child->NodeFn::setBlack();
     }
   }
 

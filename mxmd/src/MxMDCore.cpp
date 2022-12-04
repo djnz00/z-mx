@@ -86,7 +86,7 @@ void MxMDCore::addTickSize_(ZuAnyPOD *pod)
 {
   const auto &data = pod->as<MxMDTickSizeCSV::Data>();
   ZmRef<MxMDVenue> venue = this->venue(data.venue);
-  if (!venue) throw ZtString() << "unknown venue: " << data.venue;
+  if (!venue) throw ZtString{} << "unknown venue: " << data.venue;
   MxMDTickSizeTbl *tbl = venue->addTickSizeTbl(data.id, data.pxNDP);
   tbl->addTickSize(data.minPrice, data.maxPrice, data.tickSize);
 }
@@ -113,9 +113,9 @@ void MxMDCore::addOrderBook_(ZuAnyPOD *pod)
   MxInstrKey instrKey{
     data.instruments[0], data.instrVenues[0], data.instrSegments[0]};
   MxMDInstrHandle instrHandle = instrument(instrKey);
-  if (!instrHandle) throw ZtString() << "unknown instrument: " << instrKey;
+  if (!instrHandle) throw ZtString{} << "unknown instrument: " << instrKey;
   ZmRef<MxMDVenue> venue = this->venue(data.venue);
-  if (!venue) throw ZtString() << "unknown venue: " << data.venue;
+  if (!venue) throw ZtString{} << "unknown venue: " << data.venue;
   MxMDTickSizeTbl *tbl = venue->addTickSizeTbl(data.tickSizeTbl, data.pxNDP);
   instrHandle.invokeMv(
       [data, venue = ZuMv(venue), tbl = ZuMv(tbl)](
@@ -245,7 +245,7 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
 	    if (schedInitFn) schedInitFn(mx);
 	    if (!mx->start()) {
 	      failed = true;
-	      ZeLOG(Fatal, ZtString() << node->key()->params().id() <<
+	      ZeLOG(Fatal, ZtString{} << node->key()->params().id() <<
 		  " - multiplexer start failed");
 	      break;
 	    }
@@ -267,13 +267,13 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
     md->init_(cf);
 
   } catch (const ZvError &e) {
-    ZeLOG(Fatal, ZtString() << "MxMDLib - configuration error: " << e);
+    ZeLOG(Fatal, ZtString{} << "MxMDLib - configuration error: " << e);
     return md = nullptr;
   } catch (const ZtString &e) {
-    ZeLOG(Fatal, ZtString() << "MxMDLib - error: " << e);
+    ZeLOG(Fatal, ZtString{} << "MxMDLib - error: " << e);
     return md = nullptr;
   } catch (const ZeError &e) {
-    ZeLOG(Fatal, ZtString() << "MxMDLib - error: " << e);
+    ZeLOG(Fatal, ZtString{} << "MxMDLib - error: " << e);
     return md = nullptr;
   } catch (...) {
     ZeLOG(Fatal, "MxMDLib - unknown exception during init");
@@ -328,12 +328,12 @@ void MxMDCore::init_(const ZvCf *cf)
       int preload = feedCf->getInt("preload", 0, 1, false, 0);
       if (preload) preload = ZiModule::Pre;
       if (module.load(name, preload, &e) < 0)
-	throw ZtString() << "failed to load \"" << name << "\": " << ZuMv(e);
+	throw ZtString{} << "failed to load \"" << name << "\": " << ZuMv(e);
       MxMDFeedPluginFn pluginFn =
 	(MxMDFeedPluginFn)module.resolve("MxMDFeed_plugin", &e);
       if (!pluginFn) {
 	module.unload();
-	throw ZtString() <<
+	throw ZtString{} <<
 	  "failed to resolve \"MxMDFeed_plugin\" in \"" <<
 	  name << "\": " << ZuMv(e);
       }
@@ -889,7 +889,7 @@ void MxMDCore::subscribeCmd(ZvCf *args, ZtArray<char> &out)
   if (ZtString timeout = args->get("timeout"))
     ringParams.timeout(ZvCf::toInt("timeout", timeout, 0, 3600));
   if (!m_broadcast.open())
-    throw ZtString() << '"' << m_broadcast.params().name() <<
+    throw ZtString{} << '"' << m_broadcast.params().name() <<
 	"\": failed to open IPC shared memory ring buffer";
   m_snapper.snap(ringParams);
 }

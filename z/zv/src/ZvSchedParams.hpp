@@ -67,7 +67,7 @@ struct ZvSchedParams : public ZmSchedParams {
       while (ZmRef<ZvCf> threadCf = i.subset(id)) {
 	ZuBox<unsigned> tid = id;
 	if (id != ZuStringN<12>{tid})
-	  throw ZtString() << "bad thread ID \"" << id << '"';
+	  throw ZtString{} << "bad thread ID \"" << id << '"';
 	ZmSchedParams::Thread &thread = this->thread(tid);
 	thread.isolated(threadCf->getInt(
 	      "isolated", 0, 1, false, thread.isolated()));
@@ -79,7 +79,7 @@ struct ZvSchedParams : public ZmSchedParams {
 	  else if (s == "High") thread.priority(ZmThreadPriority::High);
 	  else if (s == "Normal") thread.priority(ZmThreadPriority::Normal);
 	  else if (s == "Low") thread.priority(ZmThreadPriority::Low);
-	  else throw ZtString() << "bad thread priority \"" << s << '"';
+	  else throw ZtString{} << "bad thread priority \"" << s << '"';
 	}
 	thread.partition(threadCf->getInt(
 	      "partition", 0, INT_MAX, false, thread.partition()));

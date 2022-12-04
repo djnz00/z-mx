@@ -1545,7 +1545,7 @@ public:
   }
   void state(int n) {
     if (!m_self) {
-      ZeLOG(Fatal, ZtString() <<
+      ZeLOG(Fatal, ZtString{} <<
 	  "ZdbEnv::state(" << ZuBoxed(n) << ") called out of order");
       return;
     }

@@ -317,7 +317,7 @@ int main(int argc, char **argv)
 	  }
 	});
 
-    if (!env->open()) throw ZtString() << "Zdb open failed";
+    if (!env->open()) throw ZtString{} << "Zdb open failed";
     env->start();
 
     done.wait();

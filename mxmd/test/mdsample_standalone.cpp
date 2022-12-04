@@ -187,7 +187,7 @@ void loaded(MxMDVenue *venue)
     md->instrInvoke(MxInstrKey{*ticker, "XTKS", MxID()},
 	[instrHandler, ticker](MxMDInstrument *instr) {
       if (!instr) {
-	ZeLOG(Error, ZtString() <<
+	ZeLOG(Error, ZtString{} <<
 	    "instrument \"" << *ticker << "\" not found");
 	return;
       }
@@ -207,7 +207,7 @@ int subscribe()
 	  timerFn(MxMDTimerFn::Ptr<&timer>::fn()).
 	  refDataLoadedFn(MxMDVenueFn::Ptr<&loaded>::fn())));
   } catch (const ZtString &s) {
-    ZeLOG(Error, ZtString() << "error: " << s);
+    ZeLOG(Error, ZtString{} << "error: " << s);
     return -1;
   } catch (...) {
     ZeLOG(Error, "unknown exception");
@@ -351,7 +351,7 @@ void publish()
 	md->instrInvoke(MxInstrKey{*ticker, "XTKS", MxID()},
 	    [ticker](MxMDInstrument *instr) {
 	  if (!instr) {
-	    ZeLOG(Error, ZtString() <<
+	    ZeLOG(Error, ZtString{} <<
 		"instrument \"" << *ticker << "\" not found");
 	    return;
 	  }
@@ -360,7 +360,7 @@ void publish()
 
 	  ZmRef<MxMDOrderBook> ob = instr->orderBook("XTKS", MxID());
 	  if (!ob) {
-	    ZeLOG(Error, ZtString() <<
+	    ZeLOG(Error, ZtString{} <<
 		"XTKS order book for \"" << *ticker << "\" not found");
 	    return;
 	  }

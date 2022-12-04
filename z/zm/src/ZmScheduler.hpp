@@ -351,9 +351,12 @@ private:
   };
   template <typename O, typename L, typename = void>
   struct IsObjectLambda_ { enum { OK = 0 }; };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
   template <typename O, typename L>
   struct IsObjectLambda_<O, L, decltype(*(ZuDeclVal<L &>())(), void())> :
       public IsObjectLambda__<O, decltype(*(ZuDeclVal<L &>())())> { };
+#pragma GCC diagnostic pop
   template <typename O, typename L, typename R = void>
   using IsObjectLambda = ZuIfT<IsObjectLambda_<O, L>::OK, R>;
 public:

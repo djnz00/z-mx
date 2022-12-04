@@ -297,7 +297,7 @@ int main()
     else puts("ZtString writing to std::ostream FAILED");
   }
 
-  puts(ZtString() << "hello " << "world");
+  puts(ZtString{} << "hello " << "world");
 
   {
     ZtString j = ZtJoin(",", { "x", "y" });

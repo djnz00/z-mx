@@ -11,17 +11,18 @@
 void usage()
 {
   std::cerr <<
-"usage: ZmRingTest [OPTION]...\n"
-"  test read/write ring buffer in shared memory\n\n"
-"Options:\n"
-"  -l N\t\t- loop N times\n"
-"  -b BUFSIZE\t- set buffer size to BUFSIZE (default: 8192)\n"
-"  -n COUNT\t- set number of messages to COUNT (default: 1)\n"
-"  -w N\t\t- number of writer threads\n"
-"  -i INTERVAL\t- set delay between messages in seconds (default: 0)\n"
-"  -L\t\t- low-latency (readers spin indefinitely and do not yield)\n"
-"  -s SPIN\t- set spin count to SPIN (default: 1000)\n"
-"  -S\t\t- slow reader (sleep INTERVAL seconds in between reads)\n";
+    "usage: ZmRingTest [OPTION]...\n"
+    "  test read/write ring buffer in shared memory\n\n"
+    "Options:\n"
+    "  -l N\t\t- loop N times\n"
+    "  -b BUFSIZE\t- set buffer size to BUFSIZE (default: 8192)\n"
+    "  -n COUNT\t- set number of messages to COUNT (default: 1)\n"
+    "  -w N\t\t- number of writer threads\n"
+    "  -i INTERVAL\t- set delay between messages in seconds (default: 0)\n"
+    "  -L\t\t- low-latency (readers spin indefinitely and do not yield)\n"
+    "  -s SPIN\t- set spin count to SPIN (default: 1000)\n"
+    "  -S\t\t- slow reader (sleep INTERVAL seconds in between reads)\n"
+    "  -c CPUSET\t- bind memory to CPUSET\n";
   Zm::exit(1);
 }
 
@@ -35,22 +36,18 @@ struct Msg {
 using Ring = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
 
 struct App {
-  App() :
-    ring(0), count(1), readers(1), writers(1),
-    interval((time_t)0), slow(false) { }
-
   int main(int, char **);
   void reader();
   void writer(unsigned);
 
-  Ring				*ring;
+  Ring				*ring = nullptr;
   ZmTime			start, end;
   ZmTimeInterval<ZmSpinLock>	readTime, writeTime;
-  unsigned			count;
-  unsigned			readers;
-  unsigned			writers;
+  unsigned			count = 1;
+  unsigned			writers = 1;
   ZmTime			interval;
-  bool				slow;
+  bool				slow = false;
+  ZmBitmap			cpuset;
 };
 
 int main(int argc, char **argv)
@@ -95,6 +92,10 @@ int App::main(int argc, char **argv)
       case 'S':
 	slow = true;
 	break;
+      case 'c':
+	if (++i >= argc) usage();
+	cpuset = argv[i];
+	break;
       case 'w':
 	if (++i >= argc) usage();
 	writers = atoi(argv[i]);
@@ -105,12 +106,12 @@ int App::main(int argc, char **argv)
     }
   }
 
-  ring = new Ring(ZmRingParams(bufsize).ll(ll).spin(spin));
+  ring = new Ring(ZmRingParams(bufsize).ll(ll).spin(spin).cpuset(cpuset));
 
   for (unsigned i = 0; i < loop; i++) {
     {
       if (ring->open(Ring::Read | Ring::Write) != Zu::OK) {
-	std::cerr << "open failed\n";
+	std::cerr << "open failed\n" << std::flush;
 	Zm::exit(1);
       }
     }
@@ -128,9 +129,9 @@ int App::main(int argc, char **argv)
       for (unsigned i = 0; i < writers; i++)
 	w[i] = ZmThread(0, ZmFn<>([this, i]() { this->writer(i); }));
       for (unsigned i = 0; i < writers; i++)
-	if (!!w[i]) w[i].join();
+	if (w[i]) w[i].join();
       ring->eof();
-      if (!!r) r.join();
+      if (r) r.join();
     }
 
     start = end - start;

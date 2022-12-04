@@ -36,7 +36,7 @@ void MxMDReplay::init(MxMDCore *core, ZmRef<ZvCf> cf)
   MxEngine::init(core, this, mx, cf);
 
   if (rxThread() == mx->rxThread())
-    throw ZtString() << "replay misconfigured - thread conflict -"
+    throw ZtString{} << "replay misconfigured - thread conflict -"
       " Network Rx: " << ZuBoxed(mx->rxThread()) <<
       " File Rx: " << ZuBoxed(rxThread());
 

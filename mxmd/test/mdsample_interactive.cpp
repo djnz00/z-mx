@@ -185,7 +185,7 @@ int main(int argc, char **argv)
 	md->lookupSyntax(),
 	ZvCmdFn::Ptr<&subscribe>::fn(),
 	"subscribe",
-	ZtString() << "usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
+	ZtString{} << "usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
 	  md->lookupOptions());
 
     md->subscribe(&((new MxMDLibHandler())->
