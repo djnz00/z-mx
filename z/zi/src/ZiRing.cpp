@@ -37,9 +37,12 @@ namespace ZiRing_ {
 Blocker::Blocker() { }
 Blocker::~Blocker() { }
 
+bool Blocker::open(bool, const Params &) { return true; }
+void Blocker::close() { }
+
 int Blocker::wait(
     ZmAtomic<uint32_t> &addr, uint32_t val,
-    const ParamData &params)
+    const Params &params)
 {
   if (addr.cmpXch(val | Waiting32(), val) != val) return Zu::OK;
   val |= Waiting32();
@@ -85,7 +88,7 @@ void Blocker::wake(ZmAtomic<uint32_t> &addr)
 Blocker::Blocker() { }
 Blocker::~Blocker() { close(); }
 
-bool Blocker::open(bool head, const ParamData &params)
+bool Blocker::open(bool head, const Params &params)
 {
   m_waiting = 0;
   Zi::Path path(params.name.length() + 21);
@@ -113,7 +116,7 @@ void Blocker::close()
 
 int Blocker::wait(
     ZmAtomic<uint32_t> &addr, uint32_t val,
-    const ParamData &params)
+    const Params &params)
 {
   if (addr.cmpXch(val | Waiting32(), val) != val) return Zu::OK;
   val |= Waiting32();
@@ -145,7 +148,7 @@ void Blocker::wake(ZmAtomic<uint32_t> &addr)
 
 #endif /* _WIN32 */
 
-bool CtrlMem::open(unsigned size, const ParamData &params)
+bool CtrlMem::open(unsigned size, const Params &params)
 {
   if (m_file) return false;
   int r;
@@ -172,12 +175,12 @@ bool CtrlMem::open(unsigned size, const ParamData &params)
   return true;
 }
 
-void CtrlMem::close(unsigned size, const ParamData &params)
+void CtrlMem::close(unsigned size, const Params &params)
 {
   m_file.close();
 }
 
-bool DataMem::open(unsigned size, const ParamData &params)
+bool DataMem::open(unsigned size, const Params &params)
 {
   if (m_file) return false;
   int r;
@@ -204,12 +207,12 @@ bool DataMem::open(unsigned size, const ParamData &params)
   return true;
 }
 
-void DataMem::close(unsigned, const ParamData &)
+void DataMem::close(unsigned, const Params &)
 {
   m_file.close();
 }
 
-bool MirrorMem::open(unsigned size, const ParamData &params)
+bool MirrorMem::open(unsigned size, const Params &params)
 {
   if (m_file) return false;
   int r;
@@ -236,7 +239,7 @@ bool MirrorMem::open(unsigned size, const ParamData &params)
   return true;
 }
 
-void MirrorMem::close(unsigned size, const ParamData &params)
+void MirrorMem::close(unsigned size, const Params &params)
 {
   m_file.close();
 }

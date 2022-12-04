@@ -47,9 +47,11 @@ struct ParamData : public ZmRing_::ParamData {
   ParamData() = default;
   ParamData(const ParamData &) = default;
   ParamData(ParamData &&) = default;
-  template <typename Name, typename ...Args>
-  ParamData(Name name, Args &&... args) :
-      Base{ZuFwd<Args>(args)...}, name{ZuFwd<Name>(name)} { }
+  template <
+    typename Arg0, typename ...Args,
+    typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
+  ParamData(Arg0 &&arg0, Args &&... args) :
+      Base{ZuFwd<Args>(args)...}, name{ZuFwd<Arg0>(arg0)} { }
 
   Zi::Path	name;
   unsigned	killWait = 1;
@@ -66,8 +68,11 @@ public:
   Params_() = default;
   Params_(const Params_ &) = default;
   Params_(Params_ &&) = default;
-  template <typename ...Args>
-  Params_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <
+    typename Arg0, typename ...Args,
+    typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
+  Params_(Arg0 &&arg0, Args &&... args) :
+      Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
 
   Derived &&name(ZuString s) { Data::name = s; return derived(); }
   Derived &&killWait(unsigned n) { Data::killWait = n; return derived(); }
@@ -81,22 +86,27 @@ public:
   Params() = default;
   Params(const Params &) = default;
   Params(Params &&) = default;
-  template <typename ...Args>
-  Params(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <
+    typename Arg0, typename ...Args,
+    typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
+  Params(Arg0 &&arg0, Args &&... args) :
+      Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
 };
 
 class ZiAPI Blocker {
 public:
+  using Params = ParamData;
+
   Blocker();
   ~Blocker();
 
-  bool open(bool head, const ParamData &);
+  bool open(bool head, const Params &);
   void close();
 
   // block until woken or timeout while addr == val
   int wait(
       ZmAtomic<uint32_t> &addr, uint32_t val,
-      const ParamData &params);
+      const Params &params);
   // wake up waiters on addr
   void wake(ZmAtomic<uint32_t> &addr);
 
@@ -108,11 +118,13 @@ protected:
 
 class ZiAPI CtrlMem {
 public:
+  using Params = ParamData;
+
   CtrlMem() = default;
   CtrlMem(const CtrlMem &mem) : m_file{mem.m_file} { }
 
-  bool open(unsigned size, const ParamData &params);
-  void close(unsigned size, const ParamData &params);
+  bool open(unsigned size, const Params &params);
+  void close(unsigned size, const Params &params);
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
@@ -134,6 +146,7 @@ template <typename CtrlMem_, typename Ctrl_>
 class CtrlMgr_ : public ZmRing_::CtrlMgr_<CtrlMem_, Ctrl_, true> {
 protected:
   using CtrlMem = CtrlMem_;
+  using Params = typename CtrlMem::Params;
   using Ctrl = Ctrl_;
 
 private:
@@ -165,11 +178,13 @@ using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl>;
 
 class ZiAPI DataMem {
 public:
+  using Params = ParamData;
+
   DataMem() = default;
   DataMem(const DataMem &mem) : m_file{mem.m_file} { }
 
-  bool open(unsigned size, const ParamData &params);
-  void close(unsigned size, const ParamData &params);
+  bool open(unsigned size, const Params &params);
+  void close(unsigned size, const Params &params);
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
@@ -180,13 +195,15 @@ private:
 
 class ZiAPI MirrorMem {
 public:
+  using Params = ParamData;
+
   MirrorMem() = default;
   MirrorMem(const MirrorMem &mem) : m_file{mem.m_file} { }
 
   static unsigned alignSize(unsigned size);
 
-  bool open(unsigned size, const ParamData &params);
-  void close(unsigned size, const ParamData &params);
+  bool open(unsigned size, const Params &params);
+  void close(unsigned size, const Params &params);
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
@@ -203,13 +220,31 @@ public:
 };
 
 template <typename Ring, bool>
-class RdrMgr : public RdrMgr_, public ZmRing_::RdrMgr<Ring, true> {
+class RdrMgr :
+    public RdrMgr_,
+    public ZmRing_::RdrMgr<Ring, true> {
   using Base = ZmRing_::RdrMgr<Ring, true>;
 
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
 public:
+  using Friend = Base;
+
+  RdrMgr() = default;
+
+  RdrMgr(const RdrMgr &ring) : Base{ring} { }
+  RdrMgr &operator =(const RdrMgr &ring) {
+    if (this != &ring) {
+      this->~RdrMgr();
+      new (this) RdrMgr{ring};
+    }
+    return *this;
+  }
+
+  RdrMgr(RdrMgr &&) = delete;
+  RdrMgr &operator =(RdrMgr &&) = delete;
+
   // can be called by writer if ring is full to garbage collect
   // dead readers and any lingering messages intended exclusively for them;
   // returns space freed
@@ -247,7 +282,7 @@ inline bool RdrMgr<Ring, MR>::open_()
 
   if (!Base::open_()) return false;
 
-  if (ring()->m_flags & Ring::Write) {
+  if (ring()->flags() & Ring::Write) {
     uint32_t pid;
     ZmTime start;
     getpinfo(pid, start);
@@ -266,7 +301,7 @@ inline bool RdrMgr<Ring, MR>::open_()
 template <typename Ring, bool MR>
 inline void RdrMgr<Ring, MR>::close_()
 {
-  if (ring()->m_flags & Ring::Write) {
+  if (ring()->flags() & Ring::Write) {
     ring()->writerTime() = ZmTime{}; // writerPID store is a release
     ring()->writerPID() = 0;
   }
@@ -278,7 +313,7 @@ template <typename Ring, bool MR>
 inline unsigned RdrMgr<Ring, MR>::gc()
 {
   ZmAssert(ring()->ctrl());
-  ZmAssert(ring()->m_flags & Ring::Write);
+  ZmAssert(ring()->flags() & Ring::Write);
 
   const auto &params = ring()->params();
 
@@ -378,7 +413,7 @@ template <typename Ring, bool MR>
 inline void RdrMgr<Ring, MR>::detached(unsigned id)
 {
   (ring()->rdrPID())[id] = 0;
-  (ring()->rdrTime())[id] = {};
+  (ring()->rdrTime())[id] = ZmTime{};
 }
 
 } // ZiRing_
