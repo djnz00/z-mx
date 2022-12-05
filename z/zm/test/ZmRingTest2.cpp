@@ -192,7 +192,7 @@ bool App<Ring, Msg>::start(unsigned nThreads, ZmRingParams params)
 {
   using namespace Zu::IOResultNS;
   m_ring.init(ZuMv(params));
-  if (m_ring.open(Ring::Read | Ring::Write) != OK) return false;
+  if (m_ring.open(0) != OK) return false;
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
   for (unsigned i = 0; i < nThreads; i++)
     (m_threads[i] = new Thread(this, i))->start();

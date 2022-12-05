@@ -148,16 +148,21 @@ protected:
   ZiFile	m_file;
 };
 
-struct Ctrl : public ZmRing_::Ctrl<true> {
+template <bool MW> struct Ctrl;
+template <>
+struct Ctrl<true> : public ZmRing_::Ctrl<true> {
   ZmAtomic<uint32_t>		openSize; // opened size && latency
   uint32_t			pad_6;
-  ZmAtomic<uint32_t>		writerPID;
-  ZmTime			writerTime;
   uint32_t			rdrPID[MaxRdrs];
   ZmTime			rdrTime[MaxRdrs];
 };
+template <>
+struct Ctrl<false> : public Ctrl<true> {
+  ZmAtomic<uint32_t>		writerPID;
+  ZmTime			writerTime;
+};
 
-template <typename CtrlMem_, typename Ctrl_>
+template <typename CtrlMem_, typename Ctrl_, bool MW>
 class CtrlMgr_ : public ZmRing_::CtrlMgr_<CtrlMem_, Ctrl_, true> {
 protected:
   using CtrlMem = CtrlMem_;
@@ -178,18 +183,41 @@ protected:
   ZuInline ZmAtomic<uint32_t> &openSize() { return ctrl()->openSize; }
   ZuInline const ZmAtomic<uint32_t> &openSize() const
     { return ctrl()->openSize; }
+  ZuInline uint32_t *rdrPID() { return ctrl()->rdrPID; }
+  ZuInline const uint32_t *rdrPID() const { return ctrl()->rdrPID; }
+  ZuInline ZmTime *rdrTime() { return ctrl()->rdrTime; }
+  ZuInline const ZmTime *rdrTime() const { return ctrl()->rdrTime; }
+
+  ZuInline ZmAtomic<uint32_t> &writerPID();		// unused
+  ZuInline const ZmAtomic<uint32_t> &writerPID() const;	// ''
+  ZuInline ZmTime &writerTime();			// ''
+  ZuInline const ZmTime &writerTime() const;		// ''
+};
+template <typename CtrlMem_, typename Ctrl_>
+class CtrlMgr_<CtrlMem_, Ctrl_, false> :
+    public CtrlMgr_<CtrlMem_, Ctrl_, true> {
+protected:
+  using CtrlMem = CtrlMem_;
+  using Ctrl = Ctrl_;
+
+private:
+  using Base = CtrlMgr_<CtrlMem, Ctrl, true>;
+
+public:
+  using Base::ctrl;
+
+  CtrlMgr_() = default;
+  CtrlMgr_(const CtrlMgr_ &mgr) : Base{mgr} { }
+
+protected:
   ZuInline ZmAtomic<uint32_t> &writerPID() { return ctrl()->writerPID; }
   ZuInline const ZmAtomic<uint32_t> &writerPID() const
     { return ctrl()->writerPID; }
   ZuInline ZmTime &writerTime() { return ctrl()->writerTime; }
   ZuInline const ZmTime &writerTime() const { return ctrl()->writerTime; }
-  ZuInline uint32_t *rdrPID() { return ctrl()->rdrPID; }
-  ZuInline const uint32_t *rdrPID() const { return ctrl()->rdrPID; }
-  ZuInline ZmTime *rdrTime() { return ctrl()->rdrTime; }
-  ZuInline const ZmTime *rdrTime() const { return ctrl()->rdrTime; }
 };
-template <typename CtrlMem>
-using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl>;
+template <typename CtrlMem, bool MW>
+using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl<MW>, MW>;
 
 class ZiAPI DataMem {
 public:
@@ -238,11 +266,11 @@ public:
 };
 
 // generic ring extensions for shared memory IPC - always multi-reader
-template <typename Ring, bool>
+template <typename Ring, bool MW, bool>
 class RingExt :
     public RingExt_,
-    public ZmRing_::RingExt<Ring, true> {
-  using Base = ZmRing_::RingExt<Ring, true>;
+    public ZmRing_::RingExt<Ring, MW, true> {
+  using Base = ZmRing_::RingExt<Ring, MW, true>;
 
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
@@ -280,8 +308,8 @@ protected:
   void detached(unsigned id);
 };
 
-template <typename Ring, bool MR>
-inline bool RingExt<Ring, MR>::open_()
+template <typename Ring, bool MW, bool MR>
+inline bool RingExt<Ring, MW, MR>::open_()
 {
   auto &params = ring()->params();
 
@@ -301,35 +329,37 @@ inline bool RingExt<Ring, MR>::open_()
 
   if (!Base::open_()) return false;
 
-  if (ring()->flags() & Ring::Write) {
-    uint32_t pid;
-    ZmTime start;
-    getpinfo(pid, start);
-    uint32_t oldPID = ring()->writerPID().load_();
-    if (alive(oldPID, ring()->writerTime()) ||
-	ring()->writerPID().cmpXch(pid, oldPID) != oldPID) {
-      Base::close_();
-      return false;
+  if constexpr (!MW)
+    if (ring()->flags() & Ring::Write) {
+      uint32_t pid;
+      ZmTime start;
+      getpinfo(pid, start);
+      uint32_t oldPID = ring()->writerPID().load_();
+      if (alive(oldPID, ring()->writerTime()) ||
+	  ring()->writerPID().cmpXch(pid, oldPID) != oldPID) {
+	Base::close_();
+	return false;
+      }
+      ring()->writerTime() = start;
     }
-    ring()->writerTime() = start;
-  }
 
   return true;
 }
 
-template <typename Ring, bool MR>
-inline void RingExt<Ring, MR>::close_()
+template <typename Ring, bool MW, bool MR>
+inline void RingExt<Ring, MW, MR>::close_()
 {
-  if (ring()->flags() & Ring::Write) {
-    ring()->writerTime() = ZmTime{}; // writerPID store is a release
-    ring()->writerPID() = 0;
-  }
+  if constexpr (!MW)
+    if (ring()->flags() & Ring::Write) {
+      ring()->writerTime() = ZmTime{}; // writerPID store is a release
+      ring()->writerPID() = 0;
+    }
 
   Base::close_();
 }
 
-template <typename Ring, bool MR>
-inline unsigned RingExt<Ring, MR>::gc()
+template <typename Ring, bool MW, bool MR>
+inline unsigned RingExt<Ring, MW, MR>::gc()
 {
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->flags() & Ring::Write);
@@ -399,8 +429,8 @@ inline unsigned RingExt<Ring, MR>::gc()
   return freed;
 }
 
-template <typename Ring, bool MR>
-inline unsigned RingExt<Ring, MR>::kill()
+template <typename Ring, bool MW, bool MR>
+inline unsigned RingExt<Ring, MW, MR>::kill()
 {
   const auto &params = ring()->params();
 
@@ -422,14 +452,14 @@ inline unsigned RingExt<Ring, MR>::kill()
   return gc();
 }
 
-template <typename Ring, bool MR>
-inline void RingExt<Ring, MR>::attached(unsigned id)
+template <typename Ring, bool MW, bool MR>
+inline void RingExt<Ring, MW, MR>::attached(unsigned id)
 {
   getpinfo((ring()->rdrPID())[id], (ring()->rdrTime())[id]);
 }
 
-template <typename Ring, bool MR>
-inline void RingExt<Ring, MR>::detached(unsigned id)
+template <typename Ring, bool MW, bool MR>
+inline void RingExt<Ring, MW, MR>::detached(unsigned id)
 {
   (ring()->rdrPID())[id] = 0;
   (ring()->rdrTime())[id] = ZmTime{};
@@ -444,7 +474,7 @@ using ZiRing = ZmRing_::Ring<
   ZmRingMR<true, NTP>,
   ZiRing_::ParamData,
   ZiRing_::Blocker,
-  ZiRing_::CtrlMgr<ZiRing_::CtrlMem>,
+  ZiRing_::CtrlMgr<ZiRing_::CtrlMem, NTP::MW>,
   ZmRing_::DataMgr<
     ZiRing_::DataMem, ZiRing_::MirrorMem, typename NTP::T, NTP::MW, true>,
   ZiRing_::RingExt>;

@@ -176,7 +176,7 @@ bool CtrlMem::open(unsigned size, const Params &params)
   path << params.name << ".ctrl";
   ZeError e;
   if ((r = m_file.mmap(path,
-	  ZiFile::Create | ZiFile::Shm, sizeof(Ctrl),
+	  ZiFile::Create | ZiFile::Shm, size,
 	  true, mmapFlags, 0666, &e)) != Zi::OK) {
     ZeLOG(Error, ZtString{} <<
 	"ZiRing::CtrlMem::open() mmap(" << path  << ") failed: " << e);

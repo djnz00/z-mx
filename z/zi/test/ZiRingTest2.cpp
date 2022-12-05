@@ -192,7 +192,8 @@ bool App<Ring, Msg>::start(unsigned nThreads, ZiRingParams params)
 {
   using namespace Zu::IOResultNS;
   m_ring.init(ZuMv(params));
-  if (m_ring.open(Ring::Read | Ring::Write) != OK) return false;
+  if (m_ring.open(0) != OK) return false;
+  m_ring.reset();
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
   for (unsigned i = 0; i < nThreads; i++)
     (m_threads[i] = new Thread(this, i))->start();
@@ -357,7 +358,8 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
   switch (m_insn) {
     case Open:
       result = ring.open(m_param);
-      printf("\t%6u open(): %d\n", thread->id(), result); fflush(stdout);
+      printf("\t%6u open(%x): %d\n",
+	  m_param, thread->id(), result); fflush(stdout);
       break;
     case Close:
       ring.close();
@@ -476,7 +478,7 @@ struct Test {
 #define WriteStatus() new Work(Work::WriteStatus)
 
   static bool run(unsigned size) {
-    enum { MR = 0 };
+    enum { MR = 1 };
 
     std::cout << "\ntest run" <<
       " MW=" << MW <<

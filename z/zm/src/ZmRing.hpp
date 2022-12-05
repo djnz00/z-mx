@@ -489,7 +489,7 @@ protected:
 
 
 // CRTP - ring extensions template for multiple readers, shared memory, etc.
-template <typename Ring, bool MR>
+template <typename Ring, bool MW, bool MR>
 class RingExt {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
@@ -525,8 +525,8 @@ protected:
   constexpr void detached(unsigned) { }	// ''
 };
 // CRTP - multiple reader ring extensions
-template <typename Ring>
-class RingExt<Ring, true> {
+template <typename Ring, bool MW>
+class RingExt<Ring, MW, true> {
   Ring *ring() { return static_cast<Ring *>(this); }
   const Ring *ring() const { return static_cast<const Ring *>(this); }
 
@@ -572,14 +572,14 @@ template <
   typename CtrlMgr_ = CtrlMgr<CtrlMem, NTP::MR>,
   typename DataMgr_ =
     DataMgr<DataMem, MirrorMem, typename NTP::T, NTP::MW, NTP::MR>,
-  template <typename, bool> typename RingExt_ = RingExt>
+  template <typename, bool, bool> typename RingExt_ = RingExt>
 class Ring :
     public AlignFn<NTP::MW, NTP::MR>,
     public CtrlMgr_,
     public DataMgr_,
     public RingExt_<
       Ring<NTP, ParamData_, Blocker_, CtrlMgr_, DataMgr_, RingExt_>,
-      NTP::MR> {
+      NTP::MW, NTP::MR> {
 public:
   using T = typename NTP::T;
   enum { MW = NTP::MW };
@@ -590,7 +590,7 @@ protected:
   using Blocker = Blocker_;
   using CtrlMgr = CtrlMgr_;
   using DataMgr = DataMgr_;
-  using RingExt = RingExt_<Ring, MR>;
+  using RingExt = RingExt_<Ring, MW, MR>;
 friend RingExt;
 friend typename RingExt::Friend;
 
@@ -696,13 +696,11 @@ private:
 public:
   int open(unsigned flags) {
     flags &= (Read | Write);
-    if (!flags) return Zu::IOError;
     if (m_flags & Shadow) {
       if (m_flags & (Read | Write)) {
 	if ((m_flags & (Read | Write)) == flags) return Zu::OK;
 	return Zu::IOError;
       }
-      m_flags |= flags;
     } else {
       if (ctrl()) return Zu::OK;
       if (!m_headBlocker.open(true, m_params))
@@ -730,7 +728,9 @@ public:
 	return Zu::IOError;
       }
     }
+    m_flags |= flags;
     if (!open_()) {
+      m_flags &= ~(Read | Write);
       closeCtrl();
       closeData();
       m_headBlocker.close();
@@ -749,6 +749,7 @@ public:
   void close() {
     if (!ctrl()) return;
     close_();
+    m_flags &= ~(Read | Write);
     closeCtrl();
     closeData();
     m_headBlocker.close();
@@ -1470,8 +1471,8 @@ public:
 #endif
 };
 
-template <typename Ring>
-inline bool RingExt<Ring, true>::open_()
+template <typename Ring, bool MW>
+inline bool RingExt<Ring, MW, true>::open_()
 {
   if (ring()->flags() & Ring::Read) {
     uint32_t rdrCount;
@@ -1483,8 +1484,8 @@ inline bool RingExt<Ring, true>::open_()
   return true;
 }
 
-template <typename Ring>
-inline void RingExt<Ring, true>::close_()
+template <typename Ring, bool MW>
+inline void RingExt<Ring, MW, true>::close_()
 {
   if (ring()->flags() & Ring::Read) {
     if (rdrID() >= 0) detach();
@@ -1492,8 +1493,8 @@ inline void RingExt<Ring, true>::close_()
   }
 }
 
-template <typename Ring, bool MR>
-inline int RingExt<Ring, MR>::attach()	// unused
+template <typename Ring, bool MW, bool MR>
+inline int RingExt<Ring, MW, MR>::attach()	// unused
 {
   /**/ZmRing_bp(ring(), attach1);
   /**/ZmRing_bp(ring(), attach2);
@@ -1502,8 +1503,8 @@ inline int RingExt<Ring, MR>::attach()	// unused
   return Zu::OK;
 }
 
-template <typename Ring>
-inline int RingExt<Ring, true>::attach()
+template <typename Ring, bool MW>
+inline int RingExt<Ring, MW, true>::attach()
 {
   enum { Read = Ring::Read };
 
@@ -1567,8 +1568,8 @@ done:
   return Zu::OK;
 }
 
-template <typename Ring, bool MR>
-inline int RingExt<Ring, MR>::detach()	// unused
+template <typename Ring, bool MW, bool MR>
+inline int RingExt<Ring, MW, MR>::detach()	// unused
 {
   /**/ZmRing_bp(ring(), detach1);
   /**/ZmRing_bp(ring(), detach2);
@@ -1576,8 +1577,8 @@ inline int RingExt<Ring, MR>::detach()	// unused
   return Zu::OK;
 }
 
-template <typename Ring>
-inline int RingExt<Ring, true>::detach()
+template <typename Ring, bool MW>
+inline int RingExt<Ring, MW, true>::detach()
 {
   enum { Read = Ring::Read };
 
