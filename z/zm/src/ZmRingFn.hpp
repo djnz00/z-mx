@@ -113,9 +113,9 @@ public:
     }},
     m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
       using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
-      // 0 - return sizeof(L)
+      // 0 - return sizeof(L) - used in fast path
       if (ZuLikely(!ptr_)) return sizeof(L);
-      // 1 - heap allocation
+      // 1 - heap allocation - slow path
       if (ZuLikely(ptr_ == 1))
 	return reinterpret_cast<uintptr_t>(Cache::alloc());
       // * - heap free (unless on stack)

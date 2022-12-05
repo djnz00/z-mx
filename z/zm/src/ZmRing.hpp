@@ -711,7 +711,7 @@ public:
   void close() {
     if (!ctrl()) return;
     close_();
-    if (m_flags & Shadow) {
+    if (!(m_flags & Shadow)) {
       closeCtrl(params());
       closeData(m_size, params());
     }
