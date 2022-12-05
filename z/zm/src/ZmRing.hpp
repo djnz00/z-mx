@@ -760,8 +760,11 @@ public:
 
   int reset() {
     if (!ctrl()) return Zu::IOError;
+    auto flags = (m_flags & (Read | Write));
+    close_();
+    m_flags &= ~(Read | Write);
+    ZuGuard guard([this, flags]() { m_flags |= flags; open_(); });
     if constexpr (MR) {
-      if ((m_flags & Read) && rdrID() >= 0) detach();
       if (rdrMask()) return Zu::NotReady;
     }
     memset(static_cast<void *>(ctrl()), 0, sizeof(Ctrl));
@@ -1511,7 +1514,7 @@ inline int RingExt<Ring, MW, true>::attach()
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->flags() & Read);
 
-  if (rdrID() >= 0) return Zu::IOError;
+  if (rdrID() >= 0) return Zu::OK;
 
   // allocate an ID for this reader
   {
@@ -1585,7 +1588,7 @@ inline int RingExt<Ring, MW, true>::detach()
   ZmAssert(ring()->ctrl());
   ZmAssert(ring()->flags() & Read);
 
-  if (rdrID() < 0) return Zu::IOError;
+  if (rdrID() < 0) return Zu::OK;
 
   ++(ring()->attSeqNo());
 

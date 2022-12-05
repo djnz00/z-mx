@@ -16,6 +16,7 @@ void usage()
     "  test read/write ring buffer in shared memory\n\n"
 	"\tNAME\t- name of shared memory segment\n\n"
     "Options:\n"
+    "  -R\t\t- reset buffer\n"
     "  -r\t\t- read from buffer\n"
     "  -w\t\t- write to buffer (default)\n"
     "  -x\t\t- read and write in same process\n"
@@ -37,6 +38,8 @@ struct Msg {
   uintptr_t m_p;
 };
 
+// FIXME - parameterize MR, MW
+// FIXME - permit multiple readers and writers
 using Ring = ZiRing<ZmRingT<Msg>>;
 
 struct App {
@@ -63,6 +66,7 @@ int main(int argc, char **argv)
 int App::main(int argc, char **argv)
 {
   const char *name = 0;
+  bool reset = false;
   unsigned bufsize = 8192;
   bool ll = false;
   unsigned spin = 1000;
@@ -75,6 +79,9 @@ int App::main(int argc, char **argv)
       continue;
     }
     switch (argv[i][1]) {
+      case 'R':
+	reset = true;
+	break;
       case 'r':
 	flags = Ring::Read;
 	break;
@@ -124,6 +131,19 @@ int App::main(int argc, char **argv)
 
   ring = new Ring(ZiRingParams(name, bufsize).
       ll(ll).spin(spin).cpuset(cpuset).coredump(true));
+
+  if (reset) {
+    if (ring->open(0) != Zu::OK) {
+      std::cerr << "open failed\n" << std::flush;
+      Zm::exit(1);
+    }
+    if (ring->reset() != Zu::OK) {
+      std::cerr << "reset failed\n" << std::flush;
+      Zm::exit(1);
+    }
+    ring->close();
+    return 0;
+  }
 
   for (unsigned i = 0; i < loop; i++) {
     {
@@ -178,13 +198,21 @@ int App::main(int argc, char **argv)
 void App::reader()
 {
   std::cerr << "reader started\n";
+  if (ring->attach() != Zu::OK) {
+    std::cerr << "reader attach failed\n";
+    end.now();
+    return;
+  }
   for (unsigned j = 0, n = count; j < n; j++) {
     ZmTime readStart(ZmTime::Now);
     if (const Msg *msg = ring->shift()) {
       // printf("shift: \"%s\"\n", msg->data());
       // fwrite("msg read\n", 1, 9, stderr);
       // assert(*msg == "hello world");
-      if (ZuUnlikely(!msg->ok())) goto failed;
+      if (ZuUnlikely(!msg->ok())) {
+	std::cerr << "reader msg validation FAILED\n";
+	break;
+      }
       msg->~Msg();
       ring->shift2();
       ZmTime readEnd(ZmTime::Now);
@@ -192,7 +220,6 @@ void App::reader()
     } else {
       int i = ring->readStatus();
       if (i == Zu::EndOfFile) {
-	end.now();
 	std::cerr << "reader EOF\n";
 	break;
       } else if (!i)
@@ -209,11 +236,7 @@ void App::reader()
     if (slow && !!interval) Zm::sleep(interval);
   }
   end.now();
-  return;
-failed:
-  end.now();
-  std::cerr << "reader msg validation FAILED\n";
-  return;
+  ring->detach();
 }
 
 void App::writer()

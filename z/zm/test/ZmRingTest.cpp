@@ -33,6 +33,8 @@ struct Msg {
   uintptr_t m_p;
 };
 
+// FIXME - parameterize MR, MW
+// FIXME - permit multiple readers and writers
 using Ring = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
 
 struct App {
@@ -163,13 +165,21 @@ int App::main(int argc, char **argv)
 void App::reader()
 {
   std::cerr << "reader started\n";
+  if (ring->attach() != Zu::OK) {
+    std::cerr << "reader attach failed\n";
+    end.now();
+    return;
+  }
   for (unsigned j = 0, n = count * writers; j < n; j++) {
     ZmTime readStart(ZmTime::Now);
     if (const Msg *msg = ring->shift()) {
       // printf("shift: \"%s\"\n", msg->data());
       // fwrite("msg read\n", 1, 9, stderr);
       // assert(*msg == "hello world");
-      if (ZuUnlikely(!msg->ok())) goto failed;
+      if (ZuUnlikely(!msg->ok())) {
+	std::cerr << "reader msg validation FAILED\n";
+	break;
+      }
       msg->~Msg();
       ring->shift2();
       ZmTime readEnd(ZmTime::Now);
@@ -177,7 +187,6 @@ void App::reader()
     } else {
       int i = ring->readStatus();
       if (i == Zu::EndOfFile) {
-	end.now();
 	std::cerr << "reader EOF\n";
 	break;
       } else if (!i)
@@ -194,11 +203,7 @@ void App::reader()
     if (slow && !!interval) Zm::sleep(interval);
   }
   end.now();
-  return;
-failed:
-  end.now();
-  std::cerr << "reader msg validation FAILED\n";
-  return;
+  ring->detach();
 }
 
 void App::writer(unsigned i)
