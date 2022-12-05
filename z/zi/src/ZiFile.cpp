@@ -280,7 +280,7 @@ int ZiFile::open(
 int ZiFile::open_(
     const Path &name, unsigned flags, unsigned mode, Offset length, ZeError *e)
 {
-  if (m_handle != Zi::nullHandle()) {
+  if (!Zi::nullHandle(m_handle)) {
 #ifndef _WIN32
     if (e) *e = EINVAL;
 #else
@@ -406,27 +406,40 @@ int ZiFile::mmap(
   if (flags & ShmMirror) {
     m_addr = ::mmap(
 	0, m_mmapLength<<1, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    if (m_addr == MAP_FAILED || !m_addr) goto error;
+    if (!m_addr) goto error;
+    if (m_addr == MAP_FAILED) { m_addr = nullptr; goto error; }
     void *addr = ::mmap(
 	m_addr, m_mmapLength, prot, mmapFlags | MAP_FIXED, m_handle, 0);
-    if (addr != m_addr) goto error;
+    if (addr != m_addr) {
+      munmap(m_addr, m_mmapLength<<1);
+      m_addr = nullptr;
+      goto error;
+    }
     addr = ::mmap(
 	static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength,
 	prot, mmapFlags | MAP_FIXED, m_handle, 0);
     if (addr != static_cast<void *>(
-	  static_cast<uint8_t *>(m_addr) + m_mmapLength)) goto error;
+	  static_cast<uint8_t *>(m_addr) + m_mmapLength)) {
+      munmap(m_addr, m_mmapLength<<1);
+      m_addr = nullptr;
+      goto error;
+    }
   } else {
     m_addr = ::mmap(0, m_mmapLength, prot, mmapFlags, m_handle, 0);
-    if (m_addr == MAP_FAILED || !m_addr) goto error;
+    if (!m_addr) goto error;
+    if (m_addr == MAP_FAILED) { m_addr = nullptr; goto error; }
   }
-  *(static_cast<uint8_t *>(m_addr) + (m_mmapLength - 1)) = (char)0;
+  *(static_cast<uint8_t *>(m_addr) + (m_mmapLength - 1)) = 0;
 #else
   if (flags & Shm)
     m_mmapHandle = m_handle;
   else {
     DWORD protectFlags = (flags & ReadOnly) ? PAGE_READONLY : PAGE_READWRITE;
     m_mmapHandle = CreateFileMapping(m_handle, 0, protectFlags, 0, 0, nullptr);
-    if (!m_mmapHandle || m_mmapHandle == INVALID_HANDLE_VALUE) goto error;
+    if (Zi::nullHandle(m_mmapHandle)) {
+      m_mmapHandle = Zi::nullHandle();
+      goto error;
+    }
   }
   {
     DWORD accessFlags = (flags & ReadOnly) ? FILE_MAP_READ : FILE_MAP_WRITE;
@@ -434,8 +447,17 @@ int ZiFile::mmap(
 retry:
       m_addr = VirtualAlloc(
 	  0, static_cast<DWORD>(m_mmapLength<<1), MEM_RESERVE, PAGE_NOACCESS);
-      if (!m_addr) goto error;
-      if (!VirtualFree(m_addr, 0, MEM_RELEASE)) goto error;
+      if (!m_addr) {
+	CloseHandle(m_mmapHandle);
+	m_mmapHandle = nullHandle();
+	goto error;
+      }
+      if (!VirtualFree(m_addr, 0, MEM_RELEASE)) {
+	CloseHandle(m_mmapHandle);
+	m_mmapHandle = nullHandle();
+	m_addr = nullptr;
+	goto error;
+      }
       void *addr = MapViewOfFileEx(
 	  m_mmapHandle, static_cast<DWORD>(accessFlags), 0, 0,
 	  static_cast<DWORD>(m_mmapLength), m_addr);
@@ -454,7 +476,11 @@ retry:
       }
     } else {
       m_addr = MapViewOfFile(m_mmapHandle, accessFlags, 0, 0, 0);
-      if (!m_addr) goto error;
+      if (!m_addr) {
+	CloseHandle(m_mmapHandle);
+	m_mmapHandle = nullHandle();
+	goto error;
+      }
     }
   }
 #endif
@@ -484,7 +510,8 @@ void ZiFile::close()
       shm_unlink(m_shmName);
     m_shmName = {};
 #else
-    if (m_mmapHandle != m_handle) CloseHandle(m_mmapHandle);
+    if (!Zi::nullHandle(m_mmapHandle) && m_mmapHandle != m_handle)
+      CloseHandle(m_mmapHandle);
     m_mmapHandle = Zi::nullHandle();
     UnmapViewOfFile(m_addr);
     if (m_flags & ShmMirror)

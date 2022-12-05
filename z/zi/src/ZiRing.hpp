@@ -52,6 +52,8 @@ struct ParamData : public ZmRing_::ParamData {
     typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
   ParamData(Arg0 &&arg0, Args &&... args) :
       Base{ZuFwd<Args>(args)...}, name{ZuFwd<Arg0>(arg0)} { }
+  ParamData &operator =(const ParamData &) = default;
+  ParamData &operator =(ParamData &&) = default;
 
   Zi::Path	name;
   unsigned	killWait = 1;
@@ -73,6 +75,8 @@ public:
     typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
   Params_(Arg0 &&arg0, Args &&... args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
+  Params_ &operator =(const Params_ &) = default;
+  Params_ &operator =(Params_ &&) = default;
 
   Derived &&name(ZuString s) { Data::name = s; return derived(); }
   Derived &&killWait(unsigned n) { Data::killWait = n; return derived(); }
@@ -91,6 +95,8 @@ public:
     typename = ZuIsNot<ZmRing_::ParamData, Arg0>>
   Params(Arg0 &&arg0, Args &&... args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
+  Params &operator =(const Params &) = default;
+  Params &operator =(Params &&) = default;
 };
 
 class ZiAPI Blocker {
@@ -99,6 +105,15 @@ public:
 
   Blocker();
   ~Blocker();
+
+  Blocker(const Blocker &blocker);
+  Blocker &operator =(const Blocker &blocker) {
+    if (this != &blocker) {
+      this->~Blocker();
+      new (this) Blocker{blocker};
+    }
+    return *this;
+  }
 
   bool open(bool head, const Params &);
   void close();
@@ -124,7 +139,7 @@ public:
   CtrlMem(const CtrlMem &mem) : m_file{mem.m_file} { }
 
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
@@ -184,7 +199,7 @@ public:
   DataMem(const DataMem &mem) : m_file{mem.m_file} { }
 
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
@@ -200,13 +215,15 @@ public:
   MirrorMem() = default;
   MirrorMem(const MirrorMem &mem) : m_file{mem.m_file} { }
 
-  static unsigned alignSize(unsigned size);
-
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_file.addr(); }
   ZuInline void *addr() { return m_file.addr(); }
+
+  static unsigned alignSize(unsigned size) {
+    return ZmRing_::MirrorMem::alignSize(size);
+  }
 
 private:
   ZiFile	m_file;

@@ -34,8 +34,8 @@ private:
 };
 
 #define ZmRing_FUNCTEST
-#include <zlib/ZmRing.hpp>
-#include "../src/ZmRing.cpp"
+#include <zlib/ZiRing.hpp>
+#include "../src/ZiRing.cpp"
 
 void fail()
 {
@@ -122,7 +122,7 @@ public:
   const Thread *thread(unsigned i) const { return m_threads[i]; }
   Thread *thread(unsigned i) { return m_threads[i]; }
 
-  bool start(unsigned nThreads, ZmRingParams params);
+  bool start(unsigned nThreads, ZiRingParams params);
   void stop();
 
   Ring &ring() { return m_ring; }
@@ -188,7 +188,7 @@ private:
 };
 
 template <typename Ring, typename Msg>
-bool App<Ring, Msg>::start(unsigned nThreads, ZmRingParams params)
+bool App<Ring, Msg>::start(unsigned nThreads, ZiRingParams params)
 {
   using namespace Zu::IOResultNS;
   m_ring.init(ZuMv(params));
@@ -415,41 +415,25 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
   return result;
 }
 
-template <bool MW, bool MR, bool V>
+template <bool MW, bool V>
 struct RingT;
 
-template <> struct RingT<false, false, false> {
-  using T = ZmRing<ZmRingT<Msg>>;
+template <> struct RingT<false, false> {
+  using T = ZiRing<ZmRingT<Msg>>;
 };
-template <> struct RingT<false, false, true> {
-  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor>>;
+template <> struct RingT<false, true> {
+  using T = ZiRing<ZmRingSizeAxor<VMsg::SizeAxor>>;
 };
-template <> struct RingT<false, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMR<true>>>;
+template <> struct RingT<true, false> {
+  using T = ZiRing<ZmRingT<Msg, ZmRingMW<true>>>;
 };
-template <> struct RingT<false, true, true> {
-  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMR<true>>>;
-};
-template <> struct RingT<true, false, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true>>>;
-};
-template <> struct RingT<true, false, true> {
-  using T = ZmRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMW<true>>>;
-};
-template <> struct RingT<true, true, false> {
-  using T = ZmRing<ZmRingT<Msg, ZmRingMW<true, ZmRingMR<true>>>>;
-};
-template <> struct RingT<true, true, true> {
-  using T =
-    ZmRing<
-      ZmRingSizeAxor<VMsg::SizeAxor,
-	ZmRingMW<true,
-	  ZmRingMR<true>>>>;
+template <> struct RingT<true, true> {
+  using T = ZiRing<ZmRingSizeAxor<VMsg::SizeAxor, ZmRingMW<true>>>;
 };
 
-template <bool MW, bool MR, bool V>
+template <bool MW, bool V>
 struct Test {
-  using Ring = typename ::RingT<MW, MR, V>::T;
+  using Ring = typename ::RingT<MW, V>::T;
   using Msg = ZuIf<V, VMsg, ::Msg>;
   using App = ::App<Ring, Msg>;
   using Work = ::Work<Ring, Msg>;
@@ -492,12 +476,15 @@ struct Test {
 #define WriteStatus() new Work(Work::WriteStatus)
 
   static bool run(unsigned size) {
+    enum { MR = 0 };
+
     std::cout << "\ntest run" <<
       " MW=" << MW <<
       " MR=" << MR <<
       " V=" << V << '\n';
 
-    if (!app()->start(2 + MR + MW, ZmRingParams{size})) return false;
+    if (!app()->start(2 + MR + MW,
+	  ZiRingParams{"ZiRingTest2", size})) return false;
 
     using namespace Zu::IOResultNS;
 
@@ -611,7 +598,7 @@ struct Test {
 void usage()
 {
   std::cerr <<
-    "usage: ZmRingTest2 [SIZE]\n"
+    "usage: ZiRingTest2 [SIZE]\n"
     "\tSIZE - optional requested size of ring buffer\n"
     << std::flush;
   Zm::exit(1);
@@ -627,9 +614,9 @@ int main(int argc, char **argv)
     if (size <= 0) usage();
   }
 
-  for (unsigned i = 0; i < 8; i++)
-    if (!ZuSwitch::dispatch<8>(i, [size](auto i) -> bool {
-      return Test<(i>>2) & 1, (i>>1) & 1, i & 1>::run(size);
+  for (unsigned i = 0; i < 4; i++)
+    if (!ZuSwitch::dispatch<4>(i, [size](auto i) -> bool {
+      return Test<(i>>1) & 1, i & 1>::run(size);
     }))
       return 1;
 

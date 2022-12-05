@@ -144,6 +144,8 @@ public:
     typename Arg0, typename ...Args, typename = ZuIsNot<ParamData, Arg0>>
   Params_(Arg0 &&arg0, Args &&... args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
+  Params_ &operator =(const Params_ &) = default;
+  Params_ &operator =(Params_ &&) = default;
 
   Derived &&size(unsigned n) { Data::size = n; return derived(); }
   Derived &&ll(bool b) { Data::ll = b; return derived(); }
@@ -163,6 +165,8 @@ public:
     typename Arg0, typename ...Args, typename = ZuIsNot<ParamData, Arg0>>
   Params(Arg0 &&arg0, Args &&... args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
+  Params &operator =(const Params &) = default;
+  Params &operator =(Params &&) = default;
 };
 
 class ZmAPI Blocker {
@@ -171,6 +175,15 @@ public:
 
   Blocker();
   ~Blocker();
+
+  Blocker(const Blocker &blocker);
+  Blocker &operator =(const Blocker &blocker) {
+    if (this != &blocker) {
+      this->~Blocker();
+      new (this) Blocker{blocker};
+    }
+    return *this;
+  }
 
   bool open(bool head, const Params &);
   void close();
@@ -210,16 +223,20 @@ public:
   using Params = ParamData;
 
   CtrlMem() = default;
-  CtrlMem(const CtrlMem &mem) : m_addr{mem.m_addr} { }
+  CtrlMem(const CtrlMem &mem) :
+      m_addr{mem.m_addr}, m_size{mem.m_size}, m_shadow{true} { }
+  ~CtrlMem() { close(); }
 
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
 
 protected:
   void		*m_addr = nullptr;
+  unsigned	m_size = 0;
+  bool		m_shadow = false;
 };
 
 template <bool MR> struct Ctrl {
@@ -254,24 +271,22 @@ protected:
   CtrlMgr_() = default;
   CtrlMgr_(const CtrlMgr_ &mgr) : m_ctrl{mgr.m_ctrl} { }
 
+  bool openCtrl(const Params &params) {
+    return m_ctrl.open(sizeof(Ctrl), params);
+  }
+  void closeCtrl() {
+    m_ctrl.close();
+  }
+
 public:
+  constexpr unsigned ctrlSize() const { return sizeof(Ctrl); }
+
   ZuInline const Ctrl *ctrl() const {
     return static_cast<const Ctrl *>(m_ctrl.addr());
   }
   ZuInline Ctrl *ctrl() {
     return static_cast<Ctrl *>(m_ctrl.addr());
   }
-
-protected:
-  bool openCtrl(const Params &params) {
-    return m_ctrl.open(sizeof(Ctrl), params);
-  }
-  void closeCtrl(const Params &params) {
-    m_ctrl.close(sizeof(Ctrl), params);
-  }
-
-public:
-  constexpr unsigned ctrlSize() const { return sizeof(Ctrl); }
 
 protected:
   ZuInline const ZmAtomic<uint32_t> &head() const { return ctrl()->head; }
@@ -352,16 +367,20 @@ public:
   using Params = ParamData;
 
   DataMem() = default;
-  DataMem(const DataMem &mem) : m_addr{mem.m_addr} { }
+  DataMem(const DataMem &mem) :
+      m_addr{mem.m_addr}, m_size{mem.m_size}, m_shadow{true} { }
+  ~DataMem() { close(); }
 
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
 
 private:
   void		*m_addr = nullptr;
+  unsigned	m_size = 0;
+  bool		m_shadow = false;
 };
 
 class ZmAPI MirrorMem {
@@ -371,12 +390,14 @@ public:
   MirrorMem() = default;
   MirrorMem(const MirrorMem &mem) :
       m_handle{nullHandle()},
-      m_addr{mem.m_addr} { }
+      m_addr{mem.m_addr},
+      m_size{mem.m_size} { }
+  ~MirrorMem() { close(); }
 
   static unsigned alignSize(unsigned size);
 
   bool open(unsigned size, const Params &params);
-  void close(unsigned size, const Params &params);
+  void close();
 
   ZuInline const void *addr() const { return m_addr; }
   ZuInline void *addr() { return m_addr; }
@@ -385,13 +406,16 @@ private:
 #ifndef _WIN32
   using Handle = int;
   constexpr static Handle nullHandle() { return -1; }
+  bool nullHandle(Handle i) { return i < 0; }
 #else
   using Handle = HANDLE;
   constexpr static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
+  bool nullHandle(Handle i) { return !i || i == INVALID_HANDLE_VALUE; }
 #endif
 
-  Handle		m_handle = nullHandle();
-  void			*m_addr = nullptr;
+  Handle	m_handle = nullHandle();
+  void		*m_addr = nullptr;
+  unsigned	m_size = 0;
 };
 
 template <typename DataMem_> class DataMgr_ {
@@ -405,8 +429,8 @@ protected:
   bool openData(unsigned size, const Params &params) {
     return m_data.open(size, params);
   }
-  void closeData(unsigned size, const Params &params) {
-    m_data.close(size, params);
+  void closeData() {
+    m_data.close();
   }
 
 public:
@@ -596,7 +620,10 @@ public:
 
   Ring(const Ring &ring) :
       CtrlMgr{ring}, DataMgr{ring}, RingExt{ring},
-      m_params{ring.m_params}, m_flags{Shadow}, m_size{ring.m_size} { }
+      m_params{ring.m_params},
+      m_headBlocker{ring.m_headBlocker},
+      m_tailBlocker{ring.m_tailBlocker},
+      m_flags{Shadow}, m_size{ring.m_size} { }
   Ring &operator =(const Ring &ring) {
     if (this != &ring) {
       this->~Ring();
@@ -669,36 +696,47 @@ private:
 public:
   int open(unsigned flags) {
     flags &= (Read | Write);
-    if (!m_headBlocker.open(true, m_params))
-      return Zu::IOError;
-    if (!m_tailBlocker.open(false, m_params)) {
-      m_headBlocker.close();
-      return Zu::IOError;
-    }
+    if (!flags) return Zu::IOError;
     if (m_flags & Shadow) {
-      m_flags = (m_flags & ~(Read | Write)) | flags;
+      if (m_flags & (Read | Write)) {
+	if ((m_flags & (Read | Write)) == flags) return Zu::OK;
+	return Zu::IOError;
+      }
+      m_flags |= flags;
     } else {
       if (ctrl()) return Zu::OK;
+      if (!m_headBlocker.open(true, m_params))
+	return Zu::IOError;
+      if (!m_tailBlocker.open(false, m_params)) {
+	m_headBlocker.close();
+	return Zu::IOError;
+      }
       if (!params().size) return Zu::IOError;
       m_size = alignSize(params().size);
       m_flags = flags;
       if (!openCtrl(params())) {
 	m_headBlocker.close();
 	m_tailBlocker.close();
+	m_flags = 0;
+	m_size = 0;
 	return Zu::IOError;
       }
       if (!openData(m_size, params())) {
+	closeCtrl();
 	m_headBlocker.close();
 	m_tailBlocker.close();
-	closeCtrl(params());
+	m_flags = 0;
+	m_size = 0;
 	return Zu::IOError;
       }
     }
     if (!open_()) {
+      closeCtrl();
+      closeData();
       m_headBlocker.close();
       m_tailBlocker.close();
-      closeCtrl(params());
-      closeData(m_size, params());
+      m_flags = 0;
+      m_size = 0;
       return Zu::IOError;
     }
     if (flags & Write) {
@@ -711,12 +749,11 @@ public:
   void close() {
     if (!ctrl()) return;
     close_();
-    if (!(m_flags & Shadow)) {
-      closeCtrl(params());
-      closeData(m_size, params());
-    }
+    closeCtrl();
+    closeData();
     m_headBlocker.close();
     m_tailBlocker.close();
+    m_flags = 0;
     m_size = 0;
   }
 

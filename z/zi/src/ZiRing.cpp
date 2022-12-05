@@ -35,6 +35,7 @@ namespace ZiRing_ {
 #ifdef linux
 
 Blocker::Blocker() { }
+Blocker::Blocker(const Blocker &blocker) { }
 Blocker::~Blocker() { }
 
 bool Blocker::open(bool, const Params &) { return true; }
@@ -86,10 +87,23 @@ void Blocker::wake(ZmAtomic<uint32_t> &addr)
 #ifdef _WIN32
 
 Blocker::Blocker() { }
+
+Blocker::Blocker(const Blocker &blocker) {
+  DuplicateHandle(
+    GetCurrentProcess(),
+    blocker.m_sem,
+    GetCurrentProcess(),
+    &m_sem,
+    0,
+    FALSE,
+    DUPLICATE_SAME_ACCESS);
+}
+
 Blocker::~Blocker() { close(); }
 
 bool Blocker::open(bool head, const Params &params)
 {
+  if (m_sem) return true;
   m_waiting = 0;
   Zi::Path path(params.name.length() + 21);
   path << L"Global\\" << params.name;
@@ -111,7 +125,7 @@ bool Blocker::open(bool head, const Params &params)
 
 void Blocker::close()
 {
-  if (!!m_sem) { CloseHandle(m_sem); m_sem = 0; }
+  if (m_sem) { CloseHandle(m_sem); m_sem = 0; }
 }
 
 int Blocker::wait(
@@ -150,7 +164,7 @@ void Blocker::wake(ZmAtomic<uint32_t> &addr)
 
 bool CtrlMem::open(unsigned size, const Params &params)
 {
-  if (m_file) return false;
+  if (m_file) return true;
   int r;
   int mmapFlags =
 #ifdef linux
@@ -175,14 +189,11 @@ bool CtrlMem::open(unsigned size, const Params &params)
   return true;
 }
 
-void CtrlMem::close(unsigned size, const Params &params)
-{
-  m_file.close();
-}
+void CtrlMem::close() { m_file.close(); }
 
 bool DataMem::open(unsigned size, const Params &params)
 {
-  if (m_file) return false;
+  if (m_file) return true;
   int r;
   int mmapFlags =
 #ifdef linux
@@ -207,14 +218,11 @@ bool DataMem::open(unsigned size, const Params &params)
   return true;
 }
 
-void DataMem::close(unsigned, const Params &)
-{
-  m_file.close();
-}
+void DataMem::close() { m_file.close(); }
 
 bool MirrorMem::open(unsigned size, const Params &params)
 {
-  if (m_file) return false;
+  if (m_file) return true;
   int r;
   int mmapFlags =
 #ifdef linux
@@ -239,10 +247,7 @@ bool MirrorMem::open(unsigned size, const Params &params)
   return true;
 }
 
-void MirrorMem::close(unsigned size, const Params &params)
-{
-  m_file.close();
-}
+void MirrorMem::close() { m_file.close(); }
 
 void RingExt_::getpinfo(uint32_t &pid, ZmTime &start)
 {
