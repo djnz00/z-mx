@@ -884,9 +884,13 @@ private:
       ++m_full; \
       if (gc() > 0) goto retry; \
       if constexpr (!Wait) return nullptr; \
-      if (ZuUnlikely(!params().ll)) \
+      if (ZuUnlikely(!params().ll)) { \
+	if (this->tail().cmpXch(tail | Waiting32(), tail) != tail) \
+          goto retry; \
+	tail |= Waiting32(); \
 	if (m_tailBlocker.wait( \
 	      this->tail(), tail, params()) != Zu::OK) return nullptr; \
+      } \
       goto retry; \
     } while (0)
 
@@ -1243,12 +1247,13 @@ private:
     do { \
       if (ZuUnlikely(head & EndOfFile32())) return nullptr; \
       if constexpr (!Wait) return nullptr; \
-      if (ZuUnlikely(!params().ll)) \
+      if (ZuUnlikely(!params().ll)) { \
 	if (this->head().cmpXch(head | Waiting32(), head) != head) \
           goto retry; \
 	head |= Waiting32(); \
 	if (m_headBlocker.wait( \
 	      this->head(), head, params()) != Zu::OK) return nullptr; \
+      } \
       goto retry; \
     } while (0)
 #define ZmRing_shift_retry_swmr() \
