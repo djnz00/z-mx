@@ -473,7 +473,7 @@ protected:
   DataMgr(const DataMgr &ring) : Base{ring} { }
 
   constexpr static unsigned alignSize(unsigned n) {
-    return ((n + MsgSize - 1) / MsgSize) * MsgSize;
+    return ((n + (MsgSize<<1) - 1) / MsgSize) * MsgSize;
   }
 };
 template <typename DataMem_, typename MirrorMem_, bool MW, bool MR>
@@ -1173,33 +1173,33 @@ public:
     }
   }
 
-#define ZmRing_writeStatus_preamble() \
-    ZmAssert(m_flags & Write); \
-    if (ZuUnlikely(!ctrl())) return Zu::IOError
-
-#define ZmRing_writeStatus() \
-    uint32_t head = this->head().load_(); \
-    if (ZuUnlikely(head & EndOfFile32())) return Zu::EndOfFile; \
-    head &= ~(Wrapped32() | Mask32()); \
-    uint32_t tail = this->tail() & ~(Wrapped32() | Mask32()); \
-    if (head < tail) return tail - head; \
-    return size() - (head - tail)
-
+private:
+  int writeStatus_() const {
+    uint32_t head = this->head().load_();
+    if (ZuUnlikely(head & EndOfFile32())) return Zu::EndOfFile;
+    head &= ~(Wrapped32() | Mask32());
+    uint32_t tail = this->tail() & ~(Wrapped32() | Mask32());
+    if (head < tail) return tail - head;
+    return size() - (head - tail);
+  }
+public:
   // can be called by writers after push() returns 0; returns
   // Error (not open), NotReady (no readers), EndOfFile,
   // or amount of space remaining in ring buffer (>= 0)
   // SR
   template <bool MR_ = MR>
   ZuIfT<!MR_, int> writeStatus() const {
-    ZmRing_writeStatus_preamble();
-    ZmRing_writeStatus();
+    ZmAssert(m_flags & Write);
+    if (ZuUnlikely(!ctrl())) return Zu::IOError;
+    return writeStatus_();
   }
   // MR
   template <bool MR_ = MR>
   ZuIfT<MR_, int> writeStatus() const {
-    ZmRing_writeStatus_preamble();
+    ZmAssert(m_flags & Write);
+    if (ZuUnlikely(!ctrl())) return Zu::IOError;
     if (ZuUnlikely(!rdrMask())) return Zu::NotReady;
-    ZmRing_writeStatus();
+    return writeStatus_();
   }
 
   // reader

@@ -260,7 +260,6 @@ void App<Ring>::writer(unsigned i)
     return;
   }
   for (unsigned j = 0; j < count; j++) {
-    unsigned full_ = writer.full();
     ZmTime writeStart(ZmTime::Now);
     if (void *ptr = writer.push()) {
       // puts("push");
@@ -274,7 +273,7 @@ void App<Ring>::writer(unsigned i)
       else
 	writer.push2();
       ZmTime writeEnd(ZmTime::Now);
-      if (writer.full() == full_) writeTime.add(writeEnd -= writeStart);
+      writeTime.add(writeEnd -= writeStart);
     } else {
       int k = writer.writeStatus();
       if (k == Zu::EndOfFile) {
@@ -296,7 +295,7 @@ void App<Ring>::writer(unsigned i)
   {
     ZuStringN<64> s;
     s << "push failed " << ZuBoxed(failed) << " times\n"
-      << "ring full " << ZuBoxed(ring.full()) << " times\n";
+      << "ring full " << ZuBoxed(writer.full()) << " times\n";
     std::cerr << s;
   }
   writer.close();
