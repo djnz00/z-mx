@@ -392,9 +392,9 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
       printf("\t%6u attach(): %d\n", thread->id(), result); fflush(stdout);
       break;
     case Detach:
-      result = ring.detach();
-      printf("\t%6u detach(): %d\n", 
-	  thread->id(), result); fflush(stdout);
+      ring.detach();
+      result = Zi::OK;
+      printf("\t%6u detach(): %d\n", thread->id(), result); fflush(stdout);
       break;
     case Shift:
       result = shift(ring);

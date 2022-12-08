@@ -198,7 +198,7 @@ int App::main(int argc, char **argv)
 void App::reader()
 {
   std::cerr << "reader started\n";
-  if (ring->attach() != Zu::OK) {
+  if (!ring->attach()) {
     std::cerr << "reader attach failed\n";
     end.now();
     return;

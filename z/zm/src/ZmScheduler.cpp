@@ -56,7 +56,7 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
     int r;
     if ((r = ring.open(Ring::Read | Ring::Write)) != Zu::OK)
       throw Zu::IOResult{r};
-    // if ((r = ring.attach()) != Ring::OK) throw Zu::IOResult(r);
+    // if ((r = ring.attach()) != Zu::OK) throw Zu::IOResult{r};
     m_threads[i].overRing.init(
 	ZmXRingParams{}.initial(0).increment(OverRing_Increment));
     if (!m_params.thread(index).isolated())
