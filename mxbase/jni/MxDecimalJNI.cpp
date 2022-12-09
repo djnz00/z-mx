@@ -121,8 +121,10 @@ jint MxDecimalJNI::compareTo(JNIEnv *env, jobject obj, jobject v_)
 
 int MxDecimalJNI::bind(JNIEnv *env)
 {
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
+#endif
   static JNINativeMethod methods[] = {
     { "init",
       "()V",
@@ -161,7 +163,9 @@ int MxDecimalJNI::bind(JNIEnv *env)
       "(Lcom/shardmx/mxbase/MxDecimal;)I",
       (void *)&MxDecimalJNI::compareTo }
   };
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
   class_ = ZJNI::globalClassRef(env, "com/shardmx/mxbase/MxDecimal");
   if (!class_) return -1;

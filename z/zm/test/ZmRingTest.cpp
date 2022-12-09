@@ -14,11 +14,11 @@ void usage()
     "usage: ZmRingTest [OPTION]...\n"
     "  test read/write ring buffer in shared memory\n\n"
     "Options:\n"
+    "  -w N\t\t- number of writer threads\n"
+    "  -r N\t\t- number of reader threads\n"
     "  -l N\t\t- loop N times\n"
     "  -b BUFSIZE\t- set buffer size to BUFSIZE (default: 8192)\n"
     "  -n COUNT\t- set number of messages to COUNT (default: 1)\n"
-    "  -w N\t\t- number of writer threads\n"
-    "  -r N\t\t- number of reader threads\n"
     "  -i INTERVAL\t- set delay between messages in seconds (default: 0)\n"
     "  -L\t\t- low-latency (readers spin indefinitely and do not yield)\n"
     "  -s SPIN\t- set spin count to SPIN (default: 1000)\n"
@@ -35,14 +35,14 @@ struct Msg {
 };
 
 struct Params {
+  unsigned			writers = 1;
+  unsigned			readers = 1;
   unsigned			bufsize = 8192;
   bool				ll = false;
   unsigned			spin = 1000;
   unsigned			timeout = 1;
   unsigned			loop = 1;
   unsigned			count = 1;
-  unsigned			writers = 1;
-  unsigned			readers = 1;
   ZmTime			interval;
   bool				slow = false;
   ZmBitmap			cpuset;
@@ -53,7 +53,7 @@ class App : public Params {
 public:
 
   App(Params params_) : Params{ZuMv(params_)} {
-    ring.init(ZmRingParams(bufsize).
+    ring.init(ZmRingParams{bufsize}.
 	ll(ll).spin(spin).timeout(timeout).cpuset(cpuset));
   }
   ~App() { }
@@ -78,6 +78,14 @@ int main(int argc, char **argv)
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') usage();
     switch (argv[i][1]) {
+      case 'w':
+	if (++i >= argc) usage();
+	params.writers = ZuBox<unsigned>{argv[i]};
+	break;
+      case 'r':
+	if (++i >= argc) usage();
+	params.readers = ZuBox<unsigned>{argv[i]};
+	break;
       case 'l':
 	if (++i >= argc) usage();
 	params.loop = ZuBox<unsigned>{argv[i]};
@@ -92,7 +100,7 @@ int main(int argc, char **argv)
 	break;
       case 'i':
 	if (++i >= argc) usage();
-	params.interval = ZmTime((double)ZuBox<double>(argv[i]));
+	params.interval = ZmTime(ZuBox<double>{argv[i]}.val());
 	break;
       case 'L':
 	params.ll = true;
@@ -111,14 +119,6 @@ int main(int argc, char **argv)
       case 'c':
 	if (++i >= argc) usage();
 	params.cpuset = argv[i];
-	break;
-      case 'w':
-	if (++i >= argc) usage();
-	params.writers = ZuBox<unsigned>{argv[i]};
-	break;
-      case 'r':
-	if (++i >= argc) usage();
-	params.readers = ZuBox<unsigned>{argv[i]};
 	break;
       default:
 	usage();
@@ -184,8 +184,7 @@ void App<Ring>::run()
       ZuBoxed(start.sec()) << '.' <<
 	ZuBoxed(start.nsec()).fmt<ZuFmt::Frac<9>>() <<
       "  avg time: " <<
-      ZuBoxed((double)((start.dtime() / (double)(count * writers)) *
-	    (double)1000000)) <<
+      ZuBoxed((start.dtime() / static_cast<double>(count)) * 1000000.0) <<
       " usec\n";
     std::cerr << s;
   }
@@ -225,15 +224,15 @@ void App<Ring>::reader(unsigned i)
       ZmTime readEnd(ZmTime::Now);
       readTime.add(readEnd -= readStart);
     } else {
-      int i = reader.readStatus();
-      if (i == Zu::EndOfFile) {
+      int k = reader.readStatus();
+      if (k == Zu::EndOfFile) {
 	std::cerr << "reader EOF\n";
 	break;
-      } else if (!i)
+      } else if (!k)
 	std::cerr << "ring empty\n";
       else {
 	ZuStringN<80> s;
-	s << "readStatus() returned " << ZuBoxed(i) << '\n';
+	s << "readStatus() returned " << ZuBoxed(k) << '\n';
 	std::cerr << s;
       }
       Zm::sleep(.1);

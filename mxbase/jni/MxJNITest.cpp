@@ -131,12 +131,16 @@ static jboolean helloWorld(JNIEnv *env, jobject obj, jstring text)
 
 int MxJNITest_bind(JNIEnv *env)
 {
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
+#endif
   static JNINativeMethod methods[] = {
     { "init", "()I", (void *)&init }
   };
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
   return ZJNI::bind(env, "com/shardmx/mxbase/MxJNITest",
       methods, sizeof(methods) / sizeof(methods[0]));
 }

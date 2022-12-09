@@ -915,10 +915,6 @@ private:
     this->head() = head /* release */
 #define ZmRing_move_head_mwmr(msgSize) ZmRing_move_head_mwsr(msgSize) 
 
-#define ZmRing_push2_ptr2head() \
-    uint32_t head = static_cast<uint32_t>( \
-	(reinterpret_cast<uint8_t *>(ptr) - 8) - data())
-
 #define ZmRing_push_return_swsr() \
     return &(data())[head & ~(Wrapped32() | Mask32())]
 #define ZmRing_push_return_swmr() \
@@ -933,12 +929,13 @@ private:
 
 #define ZmRing_push2_get_head() \
     uint32_t head = this->head().load_();
+#define ZmRing_push2_ptr2head() \
+    uint32_t head = static_cast<uint32_t>( \
+	(reinterpret_cast<uint8_t *>(ptr) - 8) - data())
 
 #define ZmRing_push2_update_stats(msgSize) \
     inCount().store_(inCount().load_() + 1); \
     inBytes().store_(inBytes().load_() + msgSize)
-
-#define ZmRing_eof_get_head() ZmRing_push2_get_head()
 
   // SWSR
   template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
@@ -1157,19 +1154,49 @@ public:
   // in all other cases, readers wait on the hdr
   // wakeReaders() updates either the head, or the hdr, accordingly
   // ... however readStatus() only examines the head, not the hdr, and
-  // needs to determine EOF, so eof() updates head explicitly for non-SWSR
-  void eof(bool eof = true) {
+  // needs to determine EOF, so eof() needs to ensure that both head and hdr
+  // are updated in non-SWSR cases
+  template <bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && !MR_> eof(bool eof = true) {	// SWSR
     writeAssert();
-    ZmRing_eof_get_head();
-    if (!eof) {
-      head &= ~EndOfFile32();
-      this->head() = head;
-      if constexpr (MW || MR)
-	*reinterpret_cast<uint64_t *>(&(data())[
-	    head & ~(Wrapped32() | Mask32())]) &= ~EndOfFile();
+    uint32_t head = this->head().load_();
+    if (eof)
+      wakeReaders<EndOfFile()>(head); // updates head
+    else
+      this->head() = head & ~EndOfFile32();
+  }
+  template <bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<MW_> eof(bool eof = true) {		// MWSR | MWMR
+    writeAssert();
+retry:
+    uint32_t head = this->head().load_();
+    if (head & Locked32()) goto retry;
+    if (eof) {
+      if (this->head().cmpXch(
+	    head | Locked32() | EndOfFile32(), head) != head)
+	goto retry;
+      wakeReaders<EndOfFile()>(head); // updates hdr
+      this->head() = head | EndOfFile32();
     } else {
-      if constexpr (MW || MR) this->head() = head | EndOfFile32(); // see above
-      wakeReaders<EndOfFile()>(head);
+      if (this->head().cmpXch(
+	    (head | Locked32()) & ~EndOfFile32(), head) != head)
+	goto retry;
+      *reinterpret_cast<uint64_t *>(&(data())[
+	  head & ~(Wrapped32() | Mask32())]) &= ~EndOfFile();
+      this->head() = head & ~EndOfFile32();
+    }
+  }
+  template <bool MW_ = MW, bool MR_ = MR>
+  ZuIfT<!MW_ && MR_> eof(bool eof = true) {	// SWMR
+    writeAssert();
+    uint32_t head = this->head().load_();
+    if (eof) {
+      this->head() = (head |= EndOfFile32());
+      wakeReaders<EndOfFile()>(head); // updates hdr
+    } else {
+      this->head() = head & ~EndOfFile32();
+      *reinterpret_cast<uint64_t *>(&(data())[
+	  head & ~(Wrapped32() | Mask32())]) &= ~EndOfFile();
     }
   }
 
@@ -1230,6 +1257,7 @@ private:
 
 #define ZmRing_shift_get_head() \
     uint32_t head = this->head(); /* acquire */ \
+    if constexpr (MW) if (head & Locked32()) goto retry; \
     /**/ZmRing_bp(this, shift1)
 
 #define ZmRing_shift_get_hdr() \
@@ -1438,38 +1466,38 @@ public:
   }
 
 #define ZmRing_readStatus_preamble() \
-    ZmAssert(m_flags & Read); \
-    if (ZuUnlikely(!ctrl())) return Zu::IOError
 
-#define ZmRing_readStatus() \
-    ZmRing_shift_get_head(); \
-    bool eof = head & EndOfFile32(); \
-    head &= ~Mask32(); \
-    if ((head ^ tail) == Wrapped32()) return size(); \
-    head &= ~Wrapped32(); \
-    tail &= ~Wrapped32(); \
-    if (head >= tail) { \
-      if (head > tail) return head - tail; \
-      if (ZuUnlikely(eof)) return Zu::EndOfFile; \
-      return 0; \
-    } \
-    return size() - (tail - head)
-
+private:
+  int readStatus_(uint32_t tail) const {
+    uint32_t head = this->head(); /* acquire */
+    bool eof = head & EndOfFile32();
+    head &= ~Mask32();
+    if ((head ^ tail) == Wrapped32()) return size();
+    head &= ~Wrapped32();
+    tail &= ~Wrapped32();
+    if (head >= tail) {
+      if (head > tail) return head - tail;
+      if (ZuUnlikely(eof)) return Zu::EndOfFile;
+      return 0;
+    }
+    return size() - (tail - head);
+  }
+public:
   // can be called by a reader after shift() returns 0; returns
   // EndOfFile, or amount of data remaining in ring buffer (>= 0)
   // SR
   template <bool MR_ = MR>
   ZuIfT<!MR_, int> readStatus() const {
-    ZmRing_readStatus_preamble();
-    ZmRing_shift_get_tail();
-    ZmRing_readStatus();
+    ZmAssert(m_flags & Read);
+    if (ZuUnlikely(!ctrl())) return Zu::IOError;
+    return readStatus_(this->tail().load_() & ~Mask32());
   }
   // MR
   template <bool MR_ = MR>
   ZuIfT<MR_, int> readStatus() const {
-    ZmRing_readStatus_preamble();
-    ZmRing_shift_get_tail_mr();
-    ZmRing_readStatus();
+    ZmAssert(m_flags & Read);
+    if (ZuUnlikely(!ctrl())) return Zu::IOError;
+    return readStatus_(rdrTail());
   }
 
   unsigned count_() const {

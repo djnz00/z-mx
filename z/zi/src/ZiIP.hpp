@@ -68,7 +68,15 @@ public:
 
   template <typename S>
   ZiIP(S &&s, ZuIsString<S> *_ = nullptr) {
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress"
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
+#endif
     if (!s) { s_addr = 0; return; }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
     ZeError e;
     if (resolve(ZuFwd<S>(s), &e) != OK) throw e;
   }
