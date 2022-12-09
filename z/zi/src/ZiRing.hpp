@@ -412,7 +412,7 @@ inline unsigned RingExt<Ring, MW, MR>::gc()
   uint32_t tail = tail_ & ~Mask32();
   uint32_t head;
   if constexpr (MW)
-    do { head = ring()->head().load_() } while (head & Locked32());
+    do { head = ring()->head().load_(); } while (head & Locked32());
   else
     head = ring()->head().load_();
   head &= ~Mask32();
@@ -430,7 +430,7 @@ inline unsigned RingExt<Ring, MW, MR>::gc()
     }
 
     if constexpr (MW)
-      do { head = ring()->head().load_() } while (head & Locked32());
+      do { head = ring()->head().load_(); } while (head & Locked32());
     else
       head = ring()->head().load_();
     head &= ~Mask32();
