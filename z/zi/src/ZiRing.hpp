@@ -397,12 +397,25 @@ inline unsigned RingExt<Ring, MW, MR>::gc()
     if (++i == params.spin) return 0;
   }
 
+  // remove dead readers from rdrMask
+  for (unsigned id = 0; id < MaxRdrs; id++)
+    if (dead & (1ULL<<id))
+      if (rdrPID[id])
+	ring()->rdrMask() &= ~(1ULL<<id);
+
+  // clear messages intended for dead readers
+
   auto data = ring()->data();
   auto size = ring()->size();
 
   uint32_t tail_ = ring()->tail(); // acquire
   uint32_t tail = tail_ & ~Mask32();
-  uint32_t head = ring()->head().load_() & ~Mask32();
+  uint32_t head;
+  if constexpr (MW)
+    do { head = ring()->head().load_() } while (head & Locked32());
+  else
+    head = ring()->head().load_();
+  head &= ~Mask32();
 
   while (tail != head) {
     auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
@@ -411,21 +424,28 @@ inline unsigned RingExt<Ring, MW, MR>::gc()
     tail += msgSize;
     if ((tail & ~Wrapped32()) >= size) tail = (tail ^ Wrapped32()) - size;
     uint64_t mask = hdrPtr->xchAnd(~dead);
-    if (mask && !(mask & ~dead)) {
+    if (mask && !(mask & (~dead & RdrMask()))) {
       freed += msgSize;
       ring()->wakeWriters(tail);
     }
+
+    if constexpr (MW)
+      do { head = ring()->head().load_() } while (head & Locked32());
+    else
+      head = ring()->head().load_();
+    head &= ~Mask32();
   }
 
+  // detach dead readers
   for (unsigned id = 0; id < MaxRdrs; id++)
     if (dead & (1ULL<<id))
       if (rdrPID[id]) {
-	ring()->rdrMask() &= ~(1ULL<<id);
 	detached(id);
 	++(ring()->attSeqNo());
 	ring()->attMask() &= ~(1ULL<<id);
       }
   ring()->rdrCount() = rdrCount;
+
   return freed;
 }
 
@@ -439,10 +459,8 @@ inline unsigned RingExt<Ring, MW, MR>::kill()
 
   uint64_t hdr;
   {
-    uint32_t tail = ring()->tail() & ~Mask32();
-    if (tail == (ring()->head() & ~Mask32())) return 0;
-    auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(
-	&data[tail & ~Wrapped32()]);
+    uint32_t tail = ring()->tail() & ~(Wrapped32() | Mask32());
+    auto hdrPtr = reinterpret_cast<ZmAtomic<uint64_t> *>(&data[tail]);
     hdr = *hdrPtr;
   }
   for (unsigned id = 0; id < MaxRdrs; id++)

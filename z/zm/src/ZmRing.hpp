@@ -1465,8 +1465,6 @@ public:
     ZmRing_shift2_update_stats(size);
   }
 
-#define ZmRing_readStatus_preamble() \
-
 private:
   int readStatus_(uint32_t tail) const {
     uint32_t head = this->head(); /* acquire */

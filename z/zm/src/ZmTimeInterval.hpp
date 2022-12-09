@@ -48,7 +48,7 @@ class ZmTimeInterval {
   using ReadGuard = ZmReadGuard<Lock>;
 
 public:
-  ZmTimeInterval() : m_min(INT_MAX), m_max(0), m_total(0), m_count(0) { }
+  ZmTimeInterval() { }
 
   void add(ZmTime t) {
     Guard guard(m_lock);
@@ -76,17 +76,22 @@ public:
       ZmTime &min, ZmTime &max, ZmTime &total,
       double &mean, unsigned &count) const {
     ReadGuard guard(m_lock);
-    min = m_min, max = m_max, total = m_total,
-    mean = m_total.dtime() / m_count, count = m_count;
+    if (ZuUnlikely(!m_count)) {
+      min = ZmTime{}, max = ZmTime{}, total = ZmTime{},
+      mean = 0.0, count = 0;
+    } else {
+      min = m_min, max = m_max, total = m_total,
+      mean = m_total.dtime() / m_count, count = m_count;
+    }
   }
   friend ZuPrintFn ZuPrintType(ZmTimeInterval *);
 
 private:
   Lock		m_lock;
-    ZmTime	  m_min;
+    ZmTime	  m_min{INT_MAX};
     ZmTime	  m_max;
     ZmTime	  m_total;
-    unsigned	  m_count;
+    unsigned	  m_count = 0;
 };
 
 #endif /* ZmTimeInterval_HPP */

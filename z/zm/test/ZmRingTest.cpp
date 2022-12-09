@@ -29,7 +29,7 @@ void usage()
 }
 
 struct Msg {
-  Msg() : m_p(reinterpret_cast<uintptr_t>(this)) { }
+  Msg() : m_p{reinterpret_cast<uintptr_t>(this)} { }
   bool ok() const { return m_p == reinterpret_cast<uintptr_t>(this); }
   uintptr_t m_p;
 };
@@ -279,6 +279,8 @@ void App<Ring>::writer(unsigned i)
 	if (!i) end.now();
 	std::cerr << "writer EOF\n";
 	break;
+      } else if (k == Zu::NotReady) {
+	std::cerr << "no readers\n";
       } else if (k >= (int)sizeof(Msg))
 	std::cerr << "writer OK!\n";
       else {

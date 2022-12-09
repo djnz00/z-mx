@@ -35,10 +35,14 @@ void usage()
 }
 
 struct Msg {
-  Msg() : m_p(reinterpret_cast<uintptr_t>(this)) { }
+  constexpr static uintptr_t magic() { return 0x8040201080402010ULL; }
+  Msg() :
+      m_p{reinterpret_cast<uintptr_t>(this)},
+      m_q{m_p ^ magic()} { }
   ~Msg() { m_p = 0; }
-  bool ok() const { return m_p == reinterpret_cast<uintptr_t>(this); }
+  bool ok() const { return (m_p ^ m_q) == magic(); }
   uintptr_t m_p;
+  uintptr_t m_q;
 };
 
 struct Params {
@@ -87,7 +91,11 @@ int main(int argc, char **argv)
   Params params;
 
   for (int i = 1; i < argc; i++) {
-    if (argv[i][0] != '-') usage();
+    if (argv[i][0] != '-') {
+      if (params.name) usage();
+      params.name = argv[i];
+      continue;
+    }
     switch (argv[i][1]) {
       case 'w':
 	params.write = true;
@@ -150,6 +158,8 @@ int main(int argc, char **argv)
     }
   }
 
+  if (!params.name) usage();
+
   return ZuSwitch::dispatch<4>(
       (static_cast<unsigned>(params.mw)<<1) |
        static_cast<unsigned>(params.mr),
@@ -199,8 +209,8 @@ void App<Ring>::run()
 
     if (read) r = ZmThread{0, ZmFn<>{this, [](App *_) { _->reader(); }}};
     if (write) w = ZmThread{0, ZmFn<>{this, [](App *_) { _->writer(); }}};
-    if (w) w.join();
-    {
+    if (w) {
+      w.join();
       Ring writer{ring};
       writer.open(Ring::Write);
       writer.eof();
@@ -209,9 +219,8 @@ void App<Ring>::run()
     if (r) r.join();
   }
 
-  start = end - start;
-
-  {
+  if (start && end) {
+    start = end - start;
     ZuStringN<80> s;
     s << "total time: " <<
       ZuBoxed(start.sec()) << '.' <<
@@ -312,6 +321,8 @@ void App<Ring>::writer()
 	end.now();
 	std::cerr << "writer EOF\n";
 	break;
+      } else if (k == Zu::NotReady) {
+	std::cerr << "no readers\n";
       } else if (k >= (int)sizeof(Msg))
 	std::cerr << "writer OK!\n";
       else {
