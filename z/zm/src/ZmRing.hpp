@@ -558,6 +558,8 @@ public:
   int rdrID() const { return m_rdrID; }
 
 protected:
+  uint32_t openSize_(uint32_t size) { return size; }
+
   bool open_();
   void close_();
 
