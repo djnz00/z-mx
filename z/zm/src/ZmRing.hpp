@@ -520,6 +520,8 @@ public:
   int rdrID() const { return 0; }	// ''
 
 protected:
+  uint32_t openSize_(uint32_t size) { return size; } // ''
+
   bool open_() { return true; }		// ''
   void close_() { }			// ''
 
@@ -698,6 +700,7 @@ public:
   using RingExt::rdrID;
 private:
   using RingExt::rdrTail;
+  using RingExt::openSize_;
   using RingExt::open_;
   using RingExt::close_;
   using RingExt::gc;
@@ -718,16 +721,15 @@ public:
 	m_headBlocker.close();
 	return Zu::IOError;
       }
-      if (!params().size) return Zu::IOError;
-      m_size = alignSize(params().size);
       m_flags = flags;
       if (!openCtrl(params())) {
 	m_headBlocker.close();
 	m_tailBlocker.close();
 	m_flags = 0;
-	m_size = 0;
 	return Zu::IOError;
       }
+      m_size = openSize_(params().size ? alignSize(params().size) : 0);
+      if (!m_size) return Zu::IOError;
       if (!openData(m_size, params())) {
 	closeCtrl();
 	m_headBlocker.close();
@@ -940,12 +942,9 @@ private:
   // SWSR
   template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
   ZuIfT<!MW_ && !MR_> wakeReaders(uint32_t head) {
-    if (ZuUnlikely(!params().ll)) {
-      if (ZuUnlikely(this->head().xch((head & ~Waiting32()) |
-	      static_cast<uint32_t>(Flags>>32)) & Waiting32()))
-	m_headBlocker.wake(this->head());
-    } else
-      this->head() = head | static_cast<uint32_t>(Flags>>32); // release
+    head = (head & ~Waiting32()) | static_cast<uint32_t>(Flags>>32);
+    if (ZuUnlikely(this->head().xch(head) & Waiting32()))
+      m_headBlocker.wake(this->head());
   }
   // !SWSR
   template <uint64_t Flags = 0, bool MW_ = MW, bool MR_ = MR>
@@ -962,27 +961,21 @@ private:
       rdrMask = 0;
     else
       rdrMask = this->rdrMask().load_();
-    if (ZuUnlikely(!params().ll)) {
-      if (ZuUnlikely((hdrPtr->xch(Flags | rdrMask)) & Waiting())) {
-	auto &hdrPtr32 =
-	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
-	m_headBlocker.wake(hdrPtr32);
-      }
-    } else
-      *hdrPtr = Flags | rdrMask; // release
+    if (ZuUnlikely((hdrPtr->xch(Flags | rdrMask)) & Waiting())) {
+      auto &hdrPtr32 =
+	reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
+      m_headBlocker.wake(hdrPtr32);
+    }
   }
   // MWSR
   template <uint64_t Flags = 0, bool MR_ = MR,
     uint64_t RdrMask = !(Flags & EndOfFile())>
   ZuIfT<!MR_> wakeReaders_(ZmAtomic<uint64_t> *hdrPtr) {
-    if (ZuUnlikely(!params().ll)) {
-      if (ZuUnlikely(hdrPtr->xch(Flags | RdrMask) & Waiting())) {
-	auto &hdrPtr32 =
-	  reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
-	m_headBlocker.wake(hdrPtr32);
-      }
-    } else
-      *hdrPtr = Flags | RdrMask; // release
+    if (ZuUnlikely(hdrPtr->xch(Flags | RdrMask) & Waiting())) {
+      auto &hdrPtr32 =
+	reinterpret_cast<ZmAtomic<uint32_t> *>(hdrPtr)[Flags32Offset];
+      m_headBlocker.wake(hdrPtr32);
+    }
   }
 
   // fixed-size SWSR
@@ -1334,11 +1327,9 @@ private:
     this->outBytes().store_(this->outBytes().load_() + msgSize)
 
   void wakeWriters(uint32_t tail) {
-    if (ZuUnlikely(!params().ll)) {
-      if (ZuUnlikely(this->tail().xch(tail & ~Waiting32()) & Waiting32()))
-	m_tailBlocker.wake(this->tail());
-    } else
-      this->tail() = tail; // release
+    tail &= ~Waiting32();
+    if (ZuUnlikely(this->tail().xch(tail) & Waiting32()))
+      m_tailBlocker.wake(this->tail());
   }
 
   // SWSR

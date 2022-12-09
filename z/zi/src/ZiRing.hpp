@@ -151,7 +151,7 @@ protected:
 template <bool MW> struct Ctrl;
 template <>
 struct Ctrl<true> : public ZmRing_::Ctrl<true> {
-  ZmAtomic<uint32_t>		openSize; // opened size && latency
+  ZmAtomic<uint32_t>		openSize; // opened size
   uint32_t			pad_6;
   uint32_t			rdrPID[MaxRdrs];
   ZmTime			rdrTime[MaxRdrs];
@@ -301,6 +301,8 @@ public:
   unsigned kill();
 
 protected:
+  uint32_t openSize_(uint32_t size);
+
   bool open_();
   void close_();
 
@@ -309,24 +311,23 @@ protected:
 };
 
 template <typename Ring, bool MW, bool MR>
-inline bool RingExt<Ring, MW, MR>::open_()
+inline uint32_t RingExt<Ring, MW, MR>::openSize_(uint32_t reqSize)
 {
-  auto &params = ring()->params();
-
-  if (params.size) {
-    uint32_t reqSize =
-      static_cast<uint32_t>(params.size) |
-      static_cast<uint32_t>(params.ll);
+  if (reqSize) {
     // check that requested sizes and latency are consistent
     if (uint32_t openSize = ring()->openSize().cmpXch(reqSize, 0))
-      if (openSize != reqSize) return false;
+      if (openSize != reqSize) return 0;
   } else {
     uint32_t openSize = ring()->openSize();
-    if (!(openSize & ~1)) return false;
-    params.size = openSize & ~1;
-    params.ll = openSize & 1;
+    if (!openSize) return 0;
+    reqSize = openSize;
   }
+  return reqSize;
+}
 
+template <typename Ring, bool MW, bool MR>
+inline bool RingExt<Ring, MW, MR>::open_()
+{
   if (!Base::open_()) return false;
 
   if constexpr (!MW)
