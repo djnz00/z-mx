@@ -285,32 +285,40 @@ public:
   template <typename L>
   void add(L l, ZmTime timeout) {
     Fn fn{l};
-    run(0, fn, timeout, Update, nullptr);
+    run_(0, fn, timeout, Update, nullptr);
   }
   template <typename L>
   void add(L l, ZmTime timeout, Timer *timer) {
     Fn fn{l};
-    run(0, fn, timeout, Update, timer);
+    run_(0, fn, timeout, Update, timer);
   }
   template <typename L>
   void add(L l, ZmTime timeout, int mode, Timer *timer) {
     Fn fn{l};
-    run(0, fn, timeout, mode, timer);
+    run_(0, fn, timeout, mode, timer);
   }
 
   template <typename L>
   void run(unsigned index, L l, ZmTime timeout) {
     Fn fn{l};
-    run(index, fn, timeout, Update, nullptr);
+    run_(index, fn, timeout, Update, nullptr);
   }
   template <typename L>
   void run(unsigned index, L l, ZmTime timeout, Timer *timer) {
     Fn fn{l};
-    run(index, fn, timeout, Update, timer);
+    run_(index, fn, timeout, Update, timer);
   }
 
-  void run(unsigned index, Fn &, ZmTime timeout, int mode, Timer *);
+  template <typename L>
+  void run(unsigned index, L l, ZmTime timeout, int mode, Timer *timer) {
+    Fn fn{l};
+    run_(index, fn, timeout, mode, timer);
+  }
 
+private:
+  void run_(unsigned index, Fn &, ZmTime timeout, int mode, Timer *);
+
+public:
   bool del(Timer *);		// cancel job - returns true if found
 
   // run and wake thread
@@ -413,7 +421,11 @@ public:
 private:
   void start_();
   void stop_();
-  bool spawn(ZmFn<>);
+  template <typename L>
+  bool spawn(L l) {
+    m_thread = ZmThread{ZuMv(l), m_params.thread(0), 0};
+    return !!m_thread;
+  }
   void wake();
 
 protected:

@@ -161,9 +161,9 @@ void App<Ring>::run()
     ZmThread r[readers], w[writers];
 
     for (unsigned i = 0; i < readers; i++)
-      r[i] = ZmThread{0, ZmFn<>{[this, i]() { reader(i); }}};
+      r[i] = ZmThread{[this, i]() { reader(i); }};
     for (unsigned i = 0; i < writers; i++)
-      w[i] = ZmThread{0, ZmFn<>{[this, i]() { writer(i); }}};
+      w[i] = ZmThread{[this, i]() { writer(i); }};
     for (unsigned i = 0; i < writers; i++)
       if (w[i]) w[i].join();
     {

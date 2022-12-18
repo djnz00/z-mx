@@ -154,7 +154,7 @@ public:
   Ring &ring() { return m_ring; }
 
   void start() {
-    m_thread = ZmThread(0, ZmFn<>::Member<&Thread::operator()>::fn(this));
+    m_thread = ZmThread{[self = ZmMkRef(this)]() { (*self)(); }};
   }
   int synchronous(Work *work) {
     m_work = work;
@@ -195,7 +195,7 @@ bool App<Ring, Msg>::start(unsigned nThreads, ZmRingParams params)
   if (m_ring.open(0) != OK) return false;
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
   for (unsigned i = 0; i < nThreads; i++)
-    (m_threads[i] = new Thread(this, i))->start();
+    (m_threads[i] = new Thread{this, i})->start();
   return true;
 }
 

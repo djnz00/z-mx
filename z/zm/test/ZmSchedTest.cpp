@@ -32,10 +32,10 @@
 
 struct TLS : public ZmObject {
   TLS() : m_ping(0) {
-    printf("TLS(0) [%d]\n", ZmThreadContext::self()->index());
+    printf("TLS(0) [%d]\n", ZmThreadContext::self()->sid());
   }
   ~TLS() {
-    printf("~TLS(%u) [%d]\n", m_ping, ZmThreadContext::self()->index());
+    printf("~TLS(%u) [%d]\n", m_ping, ZmThreadContext::self()->sid());
   }
   void ping() { ++m_ping; }
   unsigned	m_ping;
@@ -47,14 +47,14 @@ public:
 	m_message(message), m_timeout(timeout) { }
   ~Job() {
     printf("~Job() %p ~%s [%d]\n",
-	this, m_message, (int)ZmThreadContext::self()->index());
+	this, m_message, (int)ZmThreadContext::self()->sid());
     ::free((void *)m_message);
   }
 
   void *operator()() {
     ZmSpecific<TLS>::instance()->ping();
     printf("Job::() %p %s [%d]\n",
-	this, m_message, (int)ZmThreadContext::self()->index());
+	this, m_message, (int)ZmThreadContext::self()->sid());
     return 0;
   }
 

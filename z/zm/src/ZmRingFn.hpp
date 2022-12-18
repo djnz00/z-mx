@@ -86,45 +86,45 @@ public:
 
   template <typename L>
   ZmRingFn(L &l, ZuIsStateless<L> *_ = nullptr) :
-    m_invokeFn{[](void *) -> unsigned {
-      try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
-      return 0;
-    }},
-    m_moveFn{nullptr},
-    m_allocFn{[](uintptr_t) -> uintptr_t {
-      return 0;
-    }},
-    m_ptr{0} { }
+      m_invokeFn{[](void *) -> unsigned {
+	try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
+	return 0;
+      }},
+      m_moveFn{nullptr},
+      m_allocFn{[](uintptr_t) -> uintptr_t {
+	return 0;
+      }},
+      m_ptr{0} { }
 
   template <typename L>
   ZmRingFn(L &l, ZuNotStateless<L> *_ = nullptr) :
-    m_invokeFn{[](void *ptr_) -> unsigned {
-      auto ptr = reinterpret_cast<L *>(ptr_);
-      try { (*ptr)(); } catch (...) { }
-      ptr->~L();
-      return sizeof(L);
-    }},
-    m_moveFn{[](void *dst, void *src_, bool onHeap) {
-      using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
-      auto src = reinterpret_cast<L *>(src_);
-      new (dst) L{ZuMv(*src)};
-      src->~L();
-      if (ZuUnlikely(onHeap)) Cache::free(src);
-    }},
-    m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
-      using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
-      // 0 - return sizeof(L) - used in fast path
-      if (ZuLikely(!ptr_)) return sizeof(L);
-      // 1 - heap allocation - slow path
-      if (ZuLikely(ptr_ == 1))
-	return reinterpret_cast<uintptr_t>(Cache::alloc());
-      // * - heap free (unless on stack)
-      auto ptr = reinterpret_cast<L *>(ptr_);
-      ptr->~L();
-      Cache::free(ptr);
-      return 0;
-    }},
-    m_ptr{reinterpret_cast<uintptr_t>(&l)} { }
+      m_invokeFn{[](void *ptr_) -> unsigned {
+	auto ptr = reinterpret_cast<L *>(ptr_);
+	try { (*ptr)(); } catch (...) { }
+	ptr->~L();
+	return sizeof(L);
+      }},
+      m_moveFn{[](void *dst, void *src_, bool onHeap) {
+	using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
+	auto src = reinterpret_cast<L *>(src_);
+	new (dst) L{ZuMv(*src)};
+	src->~L();
+	if (ZuUnlikely(onHeap)) Cache::free(src);
+      }},
+      m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
+	using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
+	// 0 - return sizeof(L) - used in fast path
+	if (ZuLikely(!ptr_)) return sizeof(L);
+	// 1 - heap allocation - slow path
+	if (ZuLikely(ptr_ == 1))
+	  return reinterpret_cast<uintptr_t>(Cache::alloc());
+	// * - heap free (unless on stack)
+	auto ptr = reinterpret_cast<L *>(ptr_);
+	ptr->~L();
+	Cache::free(ptr);
+	return 0;
+      }},
+      m_ptr{reinterpret_cast<uintptr_t>(&l)} { }
 
   template <typename L>
   ZmRingFn &operator =(L l) {

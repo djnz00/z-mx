@@ -87,16 +87,14 @@ public:
 	fbb.CreateVector(apiperms.data, Bitmap::Words));
   }
 };
-struct RoleNameAccessor {
-  static const ZtString &get(const Role_ &r) { return r.name; }
-};
+inline constexpr auto RoleNameAxor() {
+  return [](const Role_ &r) { return r.name; };
+}
 using RoleTree =
   ZmRBTree<Role_,
-    ZmRBTreeKey<RoleNameAccessor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeNodeDerive<true,
-	  ZmRBTreeObject<ZuObject,
-	    ZmRBTreeLock<ZmNoLock> > > > > >;
+    ZmRBTreeNode<Role_,
+      ZmRBTreeKey<RoleNameAxor(),
+	ZmRBTreeUnique<true>>>>;
 using Role = RoleTree::Node;
 ZmRef<Role> loadRole(const fbs::Role *role_) {
   using namespace Zfb::Load;
@@ -149,34 +147,30 @@ struct User__ : public ZuObject {
 	}), flags);
   }
 };
-struct UserIDHashID {
-  constexpr static const char *id() { return "ZvUserDB.UserIDs"; }
-};
-struct UserIDAccessor {
-  static uint64_t get(const User__ &u) { return u.id; }
-};
+inline constexpr auto UserIDHashID() {
+  return []() { return "ZvUserDB.UserIDs"; };
+}
+inline constexpr auto UserIDAxor() {
+  return [](const User__ &u) { return u.id; };
+}
 using UserIDHash =
   ZmHash<User__,
-    ZmHashKey<UserIDAccessor,
-      ZmHashNodeDerive<true,
-	ZmHashObject<ZuShadow,
-	  ZmHashHeapID<ZuNull,
-	    ZmHashID<UserIDHashID,
-	      ZmHashLock<ZmNoLock> > > > > > >;
+    ZmHashNode<User__,
+      ZmHashKey<UserIDAxor(),
+	ZmHashHeapID<ZmHeapDisable(),
+	  ZmHashID<UserIDHashID()>>>>>;
 using User_ = UserIDHash::Node;
-struct UserNameHashID {
-  constexpr static const char *id() { return "ZvUserDB.UserNames"; }
-};
-struct UserNameAccessor {
-  static ZtString get(const User_ &u) { return u.name; }
-};
+inline constexpr auto UserNameHashID() {
+  return []() { return "ZvUserDB.UserNames"; };
+}
+inline constexpr auto UserNameAxor() {
+  return [](const User_ &u) { return u.name; };
+}
 using UserNameHash =
   ZmHash<User_,
-    ZmHashKey<UserNameAccessor,
-      ZmHashNodeDerive<true,
-	ZmHashObject<ZuObject,
-	  ZmHashHeapID<UserNameHashID,
-	    ZmHashLock<ZmNoLock> > > > > >;
+    ZmHashNode<User_,
+      ZmHashKey<UserNameAxor(),
+	ZmHashHeapID<UserNameHashID()>>>>;
 using User = UserNameHash::Node;
 template <typename Roles>
 ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {
@@ -225,21 +219,19 @@ struct Key_ : public ZuObject, public Key__ {
     return fbs::CreateKey(fbb, str(fbb, id), bytes(fbb, secret), userID);
   }
 };
-struct KeyHashID {
-  constexpr static const char *id() { return "ZvUserDB.Keys"; }
-};
+inline constexpr auto KeyHashID() {
+  return []() { return "ZvUserDB.Keys"; };
+}
 #if 0
-struct KeyIDAccessor {
-  static ZtString get(const Key_ &k) { return k.id; }
-};
+inline constexpr auto KeyIDAxor() {
+  return [](const Key_ &k) { return k.id; };
+}
 #endif
 using KeyHash =
   ZmHash<Key_,
-    ZmHashKey<ZuFieldAxor<Key_, 0>,
-      ZmHashNodeDerive<true,
-	ZmHashObject<ZuObject,
-	  ZmHashHeapID<KeyHashID,
-	    ZmHashLock<ZmNoLock> > > > > >;
+    ZmHashNode<Key_,
+      ZmHashKey<ZuFieldAxor<Key_, 0>(),
+	  ZmHashHeapID<KeyHashID()>>>>;
 using Key = KeyHash::Node;
 
 class ZvAPI Mgr {

@@ -19,13 +19,13 @@
 
 // IO buffer (packet buffer)
 //
-//              /------------+-------------\
+//               ------------ -------------
 //              |   ZmVHeap  |  ZiAnyIOBuf |
-// /------------+--------------------------+
+//  ------------+-------------------------- 
 // |   ZmHeap   |         ZiIOVBuf         |
-// +------------+--------------------------+
+//  ------------+-------------------------- 
 // |                ZiIOBuf                |
-// \---------------------------------------/
+//  --------------------------------------- 
 //
 // ZiIOBuf<Size> is ZmHeap allocated up to Size, ZmVHeap allocated
 // for extended "jumbo" packets >Size
@@ -66,10 +66,8 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   ZiAnyIOBuf(ZiAnyIOBuf &&) = default;
   ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = default;
 };
-struct ZiIOBuf_HeapID {
-  constexpr static const char *id() { return "ZiIOBuf"; }
-};
-template <unsigned Size_, auto ID = ZiIOBuf_HeapID>
+inline constexpr auto ZiIOBuf_HeapID() { return []() { return "ZiIOBuf"; }; };
+template <unsigned Size_, auto ID = ZiIOBuf_HeapID()>
 struct ZiIOVBuf : private ZmVHeap<ID>, public ZiAnyIOBuf {
   void		*owner = nullptr;
   uint8_t	*jumbo = nullptr;
@@ -274,7 +272,7 @@ struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
   using Base::Size;
   ZiIOBuf_() = default;
   template <typename ...Args>
-  ZiIOBuf_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  ZiIOBuf_(Args &&... args) : Base(ZuFwd<Args>(args)...) { }
   ~ZiIOBuf_() = default;
   ZiIOBuf_(const ZiIOBuf_ &) = delete;
   ZiIOBuf_ &operator =(const ZiIOBuf_ &) = delete;
@@ -283,9 +281,9 @@ struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
 };
 template <unsigned Size>
 using ZiIOBuf_Heap =
-  ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID>)>;
+  ZmHeap<ZiIOBuf_HeapID(), sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID()>)>;
  
 template <unsigned Size = ZiIOBuf_DefaultSize>
-using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID>;
+using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID()>;
 
 #endif /* ZiIOBuf_HPP */

@@ -1494,6 +1494,10 @@ friend Zdb;
 friend ZdbHost;
 friend ZdbAnyObject;
 
+  using Engine = ZmEngine<ZdbEnv>;
+  using Engine::start;
+  using Engine::stop;
+
   using Lock = ZmLock;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
@@ -1528,7 +1532,12 @@ public:
 private:
   void start_();
   void stop_();
-  bool spawn(ZmFn<>);
+  template <typename L>
+  bool spawn(L l) {
+    if (!m_mx || !m_mx->running()) return false;
+    m_mx->run(m_cf.tid, ZuMv(l));
+    return true;
+  }
   void wake();
 
   bool open();

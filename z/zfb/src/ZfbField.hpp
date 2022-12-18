@@ -32,11 +32,17 @@
 
 // ZtField extensions for flatbuffers, with extensible type support
 
+// Syntax
+// ------
+// (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Flags...)])
+// 
+// Example: (((id, Rd), (0)), (String), (Ctor(0)))
+
 // macro DSL syntax is identical to that for ZtField, with the Type
 // extended to specify an extensible flatbuffers<->C++ mapping
 
-// ZvFB Type	ZtField Type	C++ Type
-// ---------	------------	--------
+// ZfbField	ZtField		C++ Type
+// --------	-------		--------
 // String	String		<String>
 // Bytes	String		<String>
 // Bool		Bool		<Integral>
@@ -48,6 +54,7 @@
 // Fixed	Fixed		ZuFixed
 // Decimal	Decimal		ZuDecimal
 // Time		Time		ZmTime
+//
 // Bitmap	Composite	ZmBitmap
 // IP		Composite	ZiIP
 // ID		Composite	ZuID

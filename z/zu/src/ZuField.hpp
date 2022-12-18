@@ -262,7 +262,12 @@ struct ZuFieldKey {
   struct Filter { enum { OK = U::keys() & (1<<KeyID) }; };
 };
 template <typename O, unsigned KeyID = 0>
-using ZuFieldAxor =
-  ZuFieldTuple<ZuTypeGrep<ZuFieldKey<KeyID>::template Filter, ZuFieldList<O>>>;
+inline constexpr auto ZuFieldAxor() {
+  return [] <typename P> (P &&o) -> decltype(auto) {
+    using Fields =
+      ZuTypeGrep<ZuFieldKey<KeyID>::template Filter, ZuFieldList<O>>;
+    return ZuFieldTuple_Bind<O, Fields>::get(ZuFwd<P>(o));
+  };
+}
 
 #endif /* ZuField_HPP */

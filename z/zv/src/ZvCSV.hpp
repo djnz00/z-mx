@@ -122,15 +122,11 @@ public:
   using ColArray = ZtArray<const Field *>;
 
 private:
-  struct ColTree_HeapID {
-    constexpr static const char *id() { return "ZvCSV.ColTree"; }
-  };
+  constexpr static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
   using ColTree =
     ZmRBTreeKV<ZuString, const Field *,
       ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeLock<ZmNoLock,
-	    ZmRBTreeHeapID<ColTree_HeapID> > > > >;
+	ZmRBTreeHeapID<ColTree_HeapID>>>;
 
 public:
   ZvCSV() {

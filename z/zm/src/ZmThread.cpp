@@ -156,7 +156,7 @@ void ZmThreadContext::telemetry(ZmThreadTelemetry &data) const {
   data.allocStack = allocStack();
   data.allocHeap = allocHeap();
   data.sysPriority = sysPriority();
-  data.index = m_index;
+  data.sid = m_sid;
   data.priority = m_priority;
   data.partition = m_partition;
   data.main = this->main();
@@ -246,58 +246,56 @@ ZmAPI unsigned __stdcall ZmThread_start(void *c_)
 #endif
   pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, 0);
   c->bind();
-  ZmFn<> fn = c->m_fn;
-  c->m_fn = ZmFn<>{};
-  return c->m_result = reinterpret_cast<void *>(fn());
+  auto lambda = c->m_lambda;
+  c->m_lambda = nullptr;
+  return c->m_result = c->m_callFn(lambda);
 #else
   c->bind();
   if (c->m_detached) {
     CloseHandle(c->m_handle);
     c->m_handle = 0;
   }
-  ZmFn<> fn = c->m_fn;
-  c->m_fn = ZmFn<>{};
-  c->m_result = reinterpret_cast<void *>(fn());
+  auto lambda = c->m_lambda;
+  c->m_lambda = nullptr;
+  c->m_result = c->m_callFn(lambda);
   _endthreadex(0);
   return 0;
 #endif
 }
 
-int ZmThread::run(int id, ZmFn<> fn, ZmThreadParams params)
+int ZmThread::run_(ZmThreadContext *c)
 {
-  m_context = new ZmThreadContext(id, fn, params);
-  ZmREF(m_context);
+  ZmREF(c);
+  m_context = c;
 #ifndef _WIN32
   {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    if (params.detached())
+    if (c->detached())
       pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    if (params.stackSize())
-      pthread_attr_setstacksize(&attr, params.stackSize());
+    if (c->stackSize())
+      pthread_attr_setstacksize(&attr, c->stackSize());
     // pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-    if ((*params.createFn())(
-	  &m_context->m_pthread, &attr,
-	  &ZmThread_start, (void *)m_context.ptr()) < 0) {
+    if (pthread_create(&c->m_pthread, &attr, &ZmThread_start, c) < 0) {
       pthread_attr_destroy(&attr);
-      ZmDEREF(m_context);
+      ZmDEREF(c);
       m_context = nullptr;
       return -1;
     }
     pthread_attr_destroy(&attr);
   }
-  m_context->prioritize();
+  c->prioritize();
 #else
   HANDLE h = (HANDLE)_beginthreadex(
-      0, params.stackSize(), &ZmThread_start,
-      (void *)m_context.ptr(), CREATE_SUSPENDED, &m_context->m_tid);
+      0, c->stackSize(), &ZmThread_start,
+      c, CREATE_SUSPENDED, &c->m_tid);
   if (!h) {
-    ZmDEREF(m_context);
+    ZmDEREF(c);
     m_context = nullptr;
     return -1;
   }
-  m_context->m_handle = h;
-  m_context->prioritize();
+  c->m_handle = h;
+  c->prioritize();
   ResumeThread(h);
 #endif
   return 0;

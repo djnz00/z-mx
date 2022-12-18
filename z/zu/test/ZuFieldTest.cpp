@@ -51,7 +51,7 @@ int main()
   ZuTypeAll<ZuFieldList<B>>::invoke([&b]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(b) << '\n';
   });
-  std::cout << ZuFieldAxor<A>::get(a).print() << '\n';
-  std::cout << ZuFieldAxor<A, 1>::get(a).print() << '\n';
+  std::cout << ZuFieldAxor<A>()(a).print() << '\n';
+  std::cout << ZuFieldAxor<A, 1>()(a).print() << '\n';
   return 0;
 }

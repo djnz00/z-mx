@@ -60,9 +60,7 @@ protected:
 public:
   using Mx = ZvMultiplex;
 
-  struct IDAccessor {
-    static ZuID get(const ZvAnyTx *tx) { return tx->id(); }
-  };
+  static ZuID IDAxor(const ZvAnyTx *tx) { return tx->id(); }
 
   ZvEngine *engine() const { return m_engine; }
   Mx *mx() const { return m_mx; }
@@ -223,9 +221,7 @@ friend ZvAnyLink;
   using StateReadGuard = ZmReadGuard<StateLock>;
 
 public:
-  struct IDAccessor {
-    static ZuID get(const ZvEngine *e) { return e->id(); }
-  };
+  static ZuID IDAxor(const ZvEngine *e) { return e->id(); }
 
   using Sched = ZvScheduler;
   using Mx = ZvMultiplex;
@@ -241,11 +237,11 @@ public:
     m_id = cf->get("id", true);
     m_mx = mx;
     if (ZuString s = cf->get("rxThread"))
-      m_rxThread = mx->index(s);
+      m_rxThread = mx->tid(s);
     else
       m_rxThread = mx->rxThread();
     if (ZuString s = cf->get("txThread"))
-      m_txThread = mx->index(s);
+      m_txThread = mx->tid(s);
     else
       m_txThread = mx->txThread();
   }
@@ -286,7 +282,7 @@ public:
   // generic O.S. error logging
   auto osError(const char *op, int result, ZeError e) {
     return [id = m_id, op, result, e](const ZeEvent &, ZmStream &s) {
-      s << id << " - " << op << " - " << Zi::resultName(result) << " - " << e;
+      s << id << " - " << op << " - " << Zi::ioResult(result) << " - " << e;
     };
   }
 
@@ -304,16 +300,12 @@ public:
 private:
   using TxPools =
     ZmRBTree<ZmRef<ZvAnyTxPool>,
-      ZmRBTreeKey<ZvAnyTxPool::IDAccessor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+      ZmRBTreeKey<ZvAnyTxPool::IDAxor,
+	ZmRBTreeUnique<true>>>;
   using Links =
     ZmRBTree<ZmRef<ZvAnyLink>,
-      ZmRBTreeKey<ZvAnyLink::IDAccessor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+      ZmRBTreeKey<ZvAnyLink::IDAxor,
+	ZmRBTreeUnique<true>>>;
 
 public:
   ZmRef<ZvAnyTxPool> txPool(ZuID id) {

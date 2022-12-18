@@ -41,6 +41,7 @@
 #include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmBitmap.hpp>
+#include <zlib/ZmAlloc.hpp>
 
 #include <zlib/ZtDate.hpp>
 
@@ -138,7 +139,7 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZuAlloc(T, n);
+    auto buf = ZmAlloc(T, n);
     if (!buf) return {};
     push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
@@ -149,7 +150,7 @@ namespace Save {
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZuAlloc(Offset<T>, n);
+    auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     lpush_(buf.ptr, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
@@ -159,7 +160,7 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZuAlloc(Offset<T>, n);
+    auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
@@ -168,7 +169,7 @@ namespace Save {
   // iterated creation of a vector of non-primitive values
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
-    auto buf = ZuAlloc(Offset<T>, n);
+    auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
     auto r = b.CreateVector(buf.ptr, n);
@@ -188,7 +189,7 @@ namespace Save {
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZuAlloc(Offset<T>, n);
+    auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
@@ -197,7 +198,7 @@ namespace Save {
   // iterated creation of a vector of lambda-transformed keyed items
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> keyVecIter(B &b, unsigned n, L l) {
-    auto buf = ZuAlloc(Offset<T>, n);
+    auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);

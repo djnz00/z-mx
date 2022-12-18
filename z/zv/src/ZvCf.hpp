@@ -528,12 +528,11 @@ private:
 
   using NodeRef = ZmRef<Node>;
 
-  struct HeapID { constexpr static const char *id() { return "ZvCf"; } };
-
+  constexpr static const char *HeapID() { return "ZvCf"; }
   using Tree =
     ZmRBTreeKV<ZtString, NodeRef,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<HeapID> > >;
+	ZmRBTreeHeapID<HeapID>>>;
 
 public:
   unsigned count() const { return m_tree.count_(); }

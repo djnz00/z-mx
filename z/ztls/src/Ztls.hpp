@@ -143,7 +143,7 @@ private:
       impl->disconnected_2(tcp);
       auto mx = tcp->mx();
       // drain Tx while keeping tcp referenced
-      mx->txRun(ZmFn<>{ZuMv(tcp), [](TCP *) { }});
+      mx->txRun([tcp = ZuMv(tcp)]() { });
     });
   }
   void disconnected_2(TCP *tcp) { // TLS thread
@@ -423,7 +423,7 @@ public:
       auto mx = tcp->mx();
       if (notify) {
 	// drain Tx while keeping tcp referenced
-	mx->txRun(ZmFn<>{ZuMv(tcp), [](TCP *tcp) { tcp->disconnect(); }});
+	mx->txRun([tcp = ZuMv(tcp)]() { tcp->disconnect(); });
       } else
 	tcp->close();
     }
@@ -651,7 +651,7 @@ template <typename, typename> friend class SrvLink;
   template <typename L>
   bool init(ZiMultiplex *mx, ZuString thread, L l) {
     m_mx = mx;
-    if (!(m_thread = m_mx->index(thread))) {
+    if (!(m_thread = m_mx->tid(thread))) {
       logError("invalid Rx thread ID \"", ZtString{thread}, '"');
       return false;
     }
@@ -946,8 +946,7 @@ protected:
   void listenFailed(bool transient) { // default
     unsigned rebindFreq = app()->rebindFreq();
     if (transient && rebindFreq > 0)
-      app()->run(
-	  ZmFn<>{this, [](Server *server) { server->listen(); }},
+      app()->run([this]() { listen(); },
 	  ZmTimeNow(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
     else
       app()->logError("listen() failed ", transient ? "(transient)" : "");

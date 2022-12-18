@@ -198,7 +198,7 @@ struct Thread : public Thread_, public ZtFieldPrint<Thread> {
 };
 ZfbFields(Thread,
     (((name)), (String), (Ctor(0))),
-    (((index)), (Int), (Ctor(8))),
+    (((sid)), (Int), (Ctor(8))),
     (((tid), (0)), (Int), (Ctor(1))),
     (((cpuUsage)), (Float), (Ctor(4), Update, Series, NDP(2))),
     (((allocStack)), (Int), (Ctor(5), Update, Series)),
@@ -358,6 +358,8 @@ struct Engine_ {
 };
 struct Engine : public Engine_, public ZtFieldPrint<Engine> {
   Engine() = default;
+  Engine(const Engine &) = default;
+  Engine(Engine &&) = default;
   template <typename ...Args>
   Engine(Args &&... args) : Engine_{ZuFwd<Args>(args)...} { }
 

@@ -72,7 +72,7 @@ inline void recv(ZiIOContext &io) {
     }
 
     // process body
-    frameLen = ZuFunctorTraits<Body>::invoke(io, buf, frameLen);
+    frameLen = Body(io, buf, frameLen);
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 
@@ -124,7 +124,7 @@ inline void recvAsync(ZiIOContext &io) {
     }
 
     // process body
-    frameLen = ZuFunctorTraits<Body>::invoke(io, io.fn.mvObject<Buf>());
+    frameLen = Body(io, io.fn.mvObject<Buf>());
     if (ZuUnlikely(frameLen < 0)) return 0;
     if (!frameLen) return len;
 

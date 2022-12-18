@@ -75,11 +75,6 @@ ZmScheduler::~ZmScheduler()
   delete [] m_threads;
 }
 
-bool ZmScheduler::spawn(ZmFn<> fn)
-{
-  m_thread = ZmThread{0, ZuMv(fn), m_params.thread(0)};
-  return !!m_thread;
-}
 void ZmScheduler::start_()
 {
   bool ok = start__();
@@ -94,10 +89,10 @@ bool ZmScheduler::start__()
     for (unsigned i = 0; i < n; i++)
       m_threads[i].ring.eof(false);
     while (m_runThreads < n) {
-      unsigned index = ++m_runThreads;
-      if (!(m_threads[index - 1].thread = ZmThread(index,
-	  ZmFn<>::Member<&ZmScheduler::work>::fn(this),
-	  m_params.thread(index))))
+      int sid = ++m_runThreads;
+      if (!(m_threads[sid - 1].thread = ZmThread{
+	  [this]() { work(); },
+	  m_params.thread(sid), sid}))
 	return false;
     }
   }
@@ -230,7 +225,7 @@ bool ZmScheduler::timerAdd(Fn &fn)
   return false;
 }
 
-void ZmScheduler::run(
+void ZmScheduler::run_(
     unsigned index, Fn &fn, ZmTime timeout, int mode, Timer *timer)
 {
   ZmAssert(index <= m_params.nThreads());
@@ -364,10 +359,7 @@ bool ZmScheduler::tryRun__(Thread *thread, Fn &fn)
 
 void ZmScheduler::work()
 {
-  unsigned index = ZmThreadContext::self()->index();
-  Thread *thread = &m_threads[index - 1];
-
-  thread->tid = Zm::getTID();
+  Thread *thread = &m_threads[ZmThreadContext::self()->sid() - 1];
 
   m_threadInitFn();
 

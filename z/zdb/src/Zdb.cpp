@@ -168,19 +168,10 @@ Zdb *ZdbEnv::db_(ZuID id, ZdbHandler handler)
   return db;
 }
 
-bool ZdbEnv::spawn(ZmFn<> fn)
-{
-  if (!m_mx || !m_mx->running()) return false;
-  m_mx->run(m_cf.tid, ZuMv(fn));
-  return true;
-}
-
 void ZdbEnv::wake()
 {
   if (!m_mx || !m_mx->running()) return false;
-  m_mx->run(m_cf.tid, ZmFn<>{this, [](ZdbEnv *self) {
-    self->stopped();
-  }});
+  m_mx->run(m_cf.tid, [this]() { stopped(); });
 }
 
 void ZdbEnv::checkpoint()

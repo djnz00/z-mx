@@ -290,11 +290,10 @@ template <typename H, template <typename> class A> void perfTest_(int bits)
 
   if (n > 16) n = 16;
 
-  ZmRef<H> h_ = new H(ZmHashParams().bits(bits).loadFactor(1.0));
-  H &h = *h_;
+  ZmRef<H> h = new H(ZmHashParams().bits(bits).loadFactor(1.0));
 
   for (int i = 0; i < n; i++)
-    threads[i] = ZmThread(0, ZmFn<>::Bound<&hashIt<H> >::fn(&h));
+    threads[i] = ZmThread{[h]() { hashIt<H>(h.ptr()); }};
   for (int i = 0; i < n; i++) threads[i].join(0);
 }
 

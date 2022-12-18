@@ -182,8 +182,7 @@ int main(int argc, char **argv)
 
     start.now();
 
-    for (j = 0; j < n; j++) r[j] =
-      ZmThread(0, ZmFn<>::Bound<&hashIt>::fn(hash2.ptr()));
+    for (j = 0; j < n; j++) r[j] = {[hash2]() { hashIt(hash2.ptr()); }};
 
     for (j = 0; j < n; j++) r[j].join(0);
 
@@ -207,8 +206,7 @@ int main(int argc, char **argv)
 
     start.now();
 
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Bound<&hashIt>::fn(hash2.ptr()));
+    for (j = 0; j < n; j++) r[j] = {[hash2]() { hashIt(hash2.ptr()); }};
 
     for (j = 0; j < n; j++) r[j].join(0);
 

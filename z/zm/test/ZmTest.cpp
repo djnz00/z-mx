@@ -386,7 +386,7 @@ int main(int argc, char **argv)
     puts("spawning 80 threads...");
 
     for (j = 0; j < 80; j++)
-      r[j] = ZmThread(0, ZmFn<>::Bound<&semPost>::fn(sema));
+      r[j] = ZmThread{[sema]() { semPost(sema); }};
 
     for (j = 0; j < 80; j++) sema->wait();
 
@@ -397,10 +397,10 @@ int main(int argc, char **argv)
     puts("spawning 80 threads...");
 
     for (j = 0; j < 40; j++)
-      r[j] = ZmThread(0, ZmFn<>::Bound<&semWait>::fn(sema));
+      r[j] = ZmThread{[sema]() { semWait(sema); }};
 
     for (j = 40; j < 80; j++)
-      r[j] = ZmThread(0, ZmFn<>::Bound<&semPost>::fn(sema));
+      r[j] = ZmThread{[sema]() { semPost(sema); }};
 
     for (j = 0; j < 80; j++) r[j].join(0);
 
@@ -475,7 +475,7 @@ int main(int argc, char **argv)
     start.now();
 
     for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Ptr<&S::meyers>::fn());
+      r[j] = ZmThread{S::meyers};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
@@ -494,7 +494,7 @@ int main(int argc, char **argv)
     start.now();
 
     for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Ptr<&S::singleton>::fn());
+      r[j] = ZmThread{S::singleton};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
@@ -512,7 +512,7 @@ int main(int argc, char **argv)
     start.now();
 
     for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Ptr<&S::specific>::fn());
+      r[j] = ZmThread{S::specific};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
@@ -530,7 +530,7 @@ int main(int argc, char **argv)
     start.now();
 
     for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Ptr<&S::tls>::fn());
+      r[j] = ZmThread{S::tls};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
@@ -551,7 +551,7 @@ int main(int argc, char **argv)
   {
     W w;
     for (j = 0; j < n; j++)
-      r[j] = ZmThread(0, ZmFn<>::Member<&W::wait>::fn(&w));
+      r[j] = ZmThread{[w = &w]() { w->wait(); }};
     Zm::sleep(1);
     ZmSpecific<ZmThreadContext>::all(
 	ZmFn<ZmThreadContext *>::Member<&W::fn1>::fn(&w));

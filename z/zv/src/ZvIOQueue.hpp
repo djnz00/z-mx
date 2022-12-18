@@ -49,7 +49,7 @@
 #include <zlib/ZvSeqNo.hpp>
 #include <zlib/ZvMsgID.hpp>
 
-struct ZvIOQItem {
+struct ZvIOQItem : public ZmPolymorph {
   ZvIOQItem(ZmRef<ZiAnyIOBuf> buf) :
       m_buf(ZuMv(buf)) { }
   ZvIOQItem(ZmRef<ZiAnyIOBuf> buf, ZvMsgID id) :
@@ -60,8 +60,10 @@ struct ZvIOQItem {
   template <typename T = ZiAnyIOBuf>
   T *buf() { return m_buf.ptr<T>(); }
 
-  template <typename T = void *> T owner() const { return (T)m_owner; }
-  template <typename T> void owner(T v) { m_owner = (void *)v; }
+  template <typename T = void *> T owner() const {
+    return reinterpret_cast<T>(m_owner);
+  }
+  template <typename T> void owner(T v) { m_owner = v; }
 
   const ZvMsgID id() const { return m_id; }
 
@@ -84,11 +86,11 @@ private:
 class ZvIOQFn {
 public:
   using Key = ZvSeqNo;
-  Key KeyAxor(const ZvIOQItem &item) {
-    return item.id().seqNo;
-  }
+  static Key KeyAxor(const ZvIOQItem &item) { return item.id().seqNo; }
+
   ZvIOQFn(ZvIOQItem &item) : m_item(item) { }
-  Key key() const { return KeyAxor::get(m_item); }
+
+  Key key() const { return KeyAxor(m_item); }
   unsigned length() const { return m_item.skip(); }
   unsigned clipHead(unsigned) { return length(); }
   unsigned clipTail(unsigned) { return length(); }
@@ -99,16 +101,14 @@ private:
   ZvIOQItem	&m_item;
 };
 
-struct ZvIOMsg_HeapID {
-  constexpr static const char *id() { return "ZvIOMsg"; }
-};
+inline constexpr auto ZvIOMsg_HeapID() { 
+  return []() { return "ZvIOMsg"; };
+}
 using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
-    ZmPQueueNodeDerive<true,
-      ZmPQueueObject<ZmPolymorph,
-	ZmPQueueFn<ZvIOQFn,
-	  ZmPQueueLock<ZmNoLock,
-	    ZmPQueueHeapID<ZvIOMsg_HeapID> > > > > >;
+    ZmPQueueNode<ZvIOQItem,
+      ZmPQueueFn<ZvIOQFn,
+	ZmPQueueHeapID<ZvIOMsg_HeapID()>>>>;
 using ZvIOMsg = ZvIOQueue_::Node;
 using ZvIOQGap = ZvIOQueue_::Gap;
 struct ZvIOQueue : public ZmObject, public ZvIOQueue_ {
@@ -338,21 +338,18 @@ private:
 
 template <class Impl, class Lock_ = ZmNoLock>
 class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
-  struct Queues_HeapID {
-    constexpr static const char *id() { return "ZvIOQueueTxPool.Queues"; }
-  };
-
   using Gap = ZvIOQueue::Gap;
   using Tx = ZvIOQueueTx<Impl, Lock_>;
 
   using Lock = Lock_;
   using Guard = ZmGuard<Lock>;
 
+  constexpr static const char *Queues_HeapID() {
+    return "ZvIOQueueTxPool.Queues";
+  }
   using Queues =
     ZmRBTreeKV<ZmTime, ZmRef<Tx>,
-      ZmRBTreeObject<ZuNull,
-	ZmRBTreeLock<ZmNoLock,
-	  ZmRBTreeHeapID<Queues_HeapID> > > >;
+      ZmRBTreeHeapID<Queues_HeapID>>;
 
 public:
   void loaded_(ZvIOMsg *) { }   // may be overridden by Impl

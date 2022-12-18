@@ -207,8 +207,8 @@ void App<Ring>::run()
   {
     ZmThread r, w;
 
-    if (read) r = ZmThread{0, ZmFn<>{this, [](App *_) { _->reader(); }}};
-    if (write) w = ZmThread{0, ZmFn<>{this, [](App *_) { _->writer(); }}};
+    if (read) r = ZmThread{[this]() { reader(); }};
+    if (write) w = ZmThread{[this]() { writer(); }};
     if (w) {
       w.join();
       Ring writer{ring};

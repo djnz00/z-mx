@@ -52,7 +52,7 @@ public:
   void operator()();
 
   void start() {
-    m_thread = ZmThread(0, ZmFn<>::Member<&Thread::operator()>::fn(this));
+    m_thread = ZmThread{[self = ZmMkRef(this)]() { (*self)(); }};
   }
   int synchronous(Work *work) {
     m_work = work;

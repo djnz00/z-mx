@@ -141,12 +141,10 @@ int main(int argc, char **argv)
     if (ogc != gc) { ogc = gc; printf("gc: %d\n", ogc); i++; }
     if (gc < 2) {
       gc++;
-      ZmThread(0, ZmFn<>::Bound<&reader>::fn(&c),
-	  ZmThreadParams().detached(true));
+      ZmThread([c = &c]() { reader(c); }, ZmThreadParams().detached(true));
     } else if (gc < 100) {
       gc++;
-      ZmThread(0, ZmFn<>::Bound<&writer>::fn(&c),
-	  ZmThreadParams().detached(true));
+      ZmThread([c = &c]() { writer(c); }, ZmThreadParams().detached(true));
     }
   }
   dump(&c);

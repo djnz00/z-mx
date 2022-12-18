@@ -38,7 +38,7 @@ void ZvCmdDispatcher::map(ZuID id, Fn fn)
 {
   Guard guard(m_lock);
   if (auto data = m_fnMap->find(id))
-    FnMap::ValAxor::get(*const_cast<FnMap::T *>(data)) = ZuMv(fn);
+    FnMap::ValAxor(*const_cast<FnMap::T *>(data)) = ZuMv(fn);
   else
     m_fnMap->add(id, ZuMv(fn));
 }

@@ -67,9 +67,9 @@ int main(int argc, char *argv[])
   ZmTrap::trap();
   TestObject prog;
 
-  ZmThread inserter(0, ZmFn<>::Member<&TestObject::inserter>::fn(&prog));
-  ZmThread remover(0, ZmFn<>::Member<&TestObject::remover>::fn(&prog));
-  ZmThread finder(0, ZmFn<>::Member<&TestObject::finder>::fn(&prog));
+  ZmThread inserter{[&prog]() { prog.inserter(); }};
+  ZmThread remover{[&prog]() { prog.remover(); }};
+  ZmThread finder{[&prog]() { prog.finder(); }};
 
   sem.wait();
 

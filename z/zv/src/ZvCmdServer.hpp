@@ -212,7 +212,9 @@ public:
 
     scheduleTimeout();
 
-    int i = ZiRx::recvMem(data, length, m_rxBuf,
+    // FIXME
+    int i = ZiRx::recvMem
+      (data, length, m_rxBuf,
 	ZvCmd::loadHdr<IOBuf>,
 	[this](const IOBuf *buf, unsigned) -> int {
 	  return ZvCmd::verifyHdr(buf,
@@ -338,7 +340,7 @@ friend TLS;
   }
   void stop() {
     this->stopListening();
-    this->run(ZmFn<>{this, [](ZvCmdServer *server) { server->stop_(); }});
+    this->run([this]() { stop_(); });
   }
 private:
   void stop_() {
@@ -409,8 +411,7 @@ public:
     auto &fbb = link->fbb();
     fbb.Finish(m_userDB->request(user, interactive, in, fbb));
     if (m_userDB->modified())
-      this->run(
-	  ZmFn<>{this, [](ZvCmdServer *server) { server->saveUserDB(); }},
+      this->run([this]() { saveUserDB(); },
 	  ZmTimeNow(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);
   }
   void processCmd(Link *link, User *user, bool interactive,

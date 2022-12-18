@@ -53,8 +53,9 @@ struct Impl : public ZmEngine<Impl> {
 
   void stateChanged(int state);	// state change notification
 
-  bool spawn(ZmFn<>);	// spawn control thread - return true if successful
-  void wake();		// wake-up control thread, impl should call stopped()
+  template <typename L>
+  bool spawn(L);	// spawn control thread - returns true if successful
+  void wake();		// wake-up control thread, have it call stopped()
 };
 #endif
 
@@ -98,7 +99,8 @@ protected:
 
   void stateChanged(int) { }			// optional
 
-  bool spawn(ZmFn<> fn) { fn(); return true; }	// default
+  template <typename L>
+  bool spawn(L l) { l(); return true; }		// default
   void wake() { stopped(); }			// default
 
 private:
@@ -139,9 +141,7 @@ inline void ZmEngine<Impl>::start(ZmFn<bool> startFn)
     }
   }
 
-  ok = impl()->spawn(ZmFn<>{this, [](ZmEngine *self) {
-    self->impl()->start_();
-  }});
+  ok = impl()->spawn([this]() { impl()->start_(); });
 
   if (ok) impl()->stateChanged(Starting);
 

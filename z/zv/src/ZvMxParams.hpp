@@ -134,9 +134,7 @@ class ZvMultiplex : public ZuPolymorph, public ZiMultiplex {
 public:
   using ID = ZmScheduler::ID;
 
-  struct IDAccessor {
-    static ID get(const ZvMultiplex *mx) { return mx->params().id(); }
-  };
+  static ID IDAxor(const ZvMultiplex *mx) { return mx->params().id(); }
 
   template <typename ID_>
   ZvMultiplex(const ID_ &id) :

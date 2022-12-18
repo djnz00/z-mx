@@ -54,7 +54,7 @@
 // ------
 // (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Flags...)])
 //
-// (((id, Rd), (0)), (String), (Ctor(0)))
+// Example: (((id, Rd), (0)), (String), (Ctor(0)))
 //
 // ZtField Type	C++ Type
 // ------------	--------

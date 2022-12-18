@@ -174,18 +174,22 @@ private:
 using AlertRing = ZmXRing<ZmRef<IOBuf> >;
 
 template <typename App_, typename Link_>
-class Server : public ZvEngineMgr {
+class Server : public ZmEngine<Server<App_, Link_>>, ZvEngineMgr {
+friend ZmEngine<Server>;
+
 public:
   using App = App_;
   using Link = Link_;
 
+  using ZmEngine<Server>::start;
+  using ZmEngine<Server>::stop;
+
 private:
   using MxTbl =
     ZmRBTree<ZmRef<ZvMultiplex>,
-      ZmRBTreeKey<ZvMultiplex::IDAccessor,
+      ZmRBTreeKey<ZvMultiplex::IDAxor,
 	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmRWLock> > > > >;
+	  ZmRBTreeLock<ZmRWLock>>>>;
 
 public:
   const App *app() const { return static_cast<const App *>(this); }
@@ -212,7 +216,7 @@ public:
     }
 
     if (auto thread = cf->get("telemetry:thread", false))
-      m_thread = mx->index(thread);
+      m_thread = mx->tid(thread);
     else
       m_thread = mx->txThread();
 
@@ -244,15 +248,20 @@ public:
     m_dbEnvFn = DBEnvFn{};
   }
 
-  void start() {
-    m_mx->invoke(
-	m_thread, this, [](Server *server) { server->start_(); });
-  }
-  void stop() {
-    m_mx->invoke(
-	m_thread, this, [](Server *server) { server->stop_(); });
+private:
+  template <typename L>
+  bool spawn(L l) {
+    if (!m_mx || !m_mx->running()) return false;
+    m_mx->run(m_thread, ZuMv(l));
+    return true;
   }
 
+  void wake() {
+    if (ZuUnlikely(!m_mx || !m_mx->running())) return;
+    m_mx->run(m_thread, [this]() { this->stopped(); });
+  }
+
+public:
   ZvMultiplex *mxLookup(const ZuID &id) const {
     return m_mxTbl.findVal(id);
   }
@@ -272,18 +281,15 @@ public:
   };
 
   void process(Link *link, const fbs::Request *in) {
-    auto request = new Request{
+    m_mx->invoke(m_thread, [req = Request{
       this, link, in->type(), in->interval(),
       Zfb::Load::str(in->filter()), in->subscribe()
-    };
-    m_mx->invoke(m_thread, request, [](Request *req) {
-      req->server->process_(req);
-    });
+    }]() mutable { req.server->process_(req); });
   }
-  void process_(Request *req) {
-    if (req->interval && req->interval < m_minInterval)
-      req->interval = m_minInterval;
-    switch (req->type) {
+  void process_(Request &req) {
+    if (req.interval && req.interval < m_minInterval)
+      req.interval = m_minInterval;
+    switch (req.type) {
       case ReqType::Heap:	heapQuery(req); break;
       case ReqType::HashTbl:	hashQuery(req); break;
       case ReqType::Thread:	threadQuery(req); break;
@@ -295,87 +301,70 @@ public:
       case ReqType::Alert:	alertQuery(req); break;
       default: break;
     }
-    delete req;
   }
 
   void disconnected(Link *link) {
-    m_mx->invoke(m_thread, this,
-	[link = ZmMkRef(link)](Server *server) {
-	  server->disconnected_(link);
-	});
+    m_mx->invoke(m_thread,
+	[this, link = ZmMkRef(link)]() { disconnected_(link); });
   }
 
   // EngineMgr functions
 
   void updEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread, this,
-	[engine = ZmMkRef(engine)](Server *server) {
-	  server->engineScan(engine);
-	});
+    m_mx->invoke(m_thread,
+	[this, engine = ZmMkRef(engine)]() { engineScan(engine); });
   }
   void updLink(ZvAnyLink *link) {
-    m_mx->invoke(m_thread, this,
-	[link = ZmMkRef(link)](Server *server) {
-	  server->linkScan(link);
-	});
+    m_mx->invoke(m_thread,
+	[this, link = ZmMkRef(link)]() { linkScan(link); });
   }
 
   void addEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread, this,
-	[engine = ZmMkRef(engine)](Server *server) mutable {
-	  if (!server->m_engines.find(engine->id()))
-	    server->m_engines.add(ZuMv(engine));
-	});
+    m_mx->invoke(m_thread, [this, engine = ZmMkRef(engine)]() mutable {
+      if (!m_engines.find(engine->id())) m_engines.add(ZuMv(engine));
+    });
   }
   void delEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread, this, [id = engine->id()](Server *server) {
-      delete server->m_engines.del(id);
+    m_mx->invoke(m_thread, [this, id = engine->id()]() {
+      delete m_engines.del(id);
     });
   }
   void addQueue(unsigned type, ZuID id, QueueFn queueFn) {
-    m_mx->invoke(m_thread, this,
-	[type, id, queueFn = ZuMv(queueFn)](Server *server) mutable {
-	  auto key = ZuFwdPair(type, id);
-	  if (!server->m_queues.find(key))
-	    server->m_queues.add(key, ZuMv(queueFn));
-	});
+    m_mx->invoke(m_thread, [this, type, id, queueFn = ZuMv(queueFn)]() mutable {
+      auto key = ZuFwdPair(type, id);
+      if (!m_queues.find(key)) m_queues.add(key, ZuMv(queueFn));
+    });
   }
   void delQueue(unsigned type, ZuID id) {
-    m_mx->invoke(m_thread, this, [type, id](Server *server) {
+    m_mx->invoke(m_thread, [this, type, id]() {
       auto key = ZuFwdPair(type, id);
-      delete server->m_queues.del(key);
+      delete m_queues.del(key);
     });
   }
 
   // ZdbEnv registration
  
   void addDBEnv(DBEnvFn fn) {
-    m_mx->invoke(m_thread, this,
-	[fn = ZuMv(fn)](Server *server) mutable {
-	  server->m_dbEnvFn = ZuMv(fn);
-	});
+    m_mx->invoke(m_thread, [this, fn = ZuMv(fn)]() mutable {
+      m_dbEnvFn = ZuMv(fn);
+    });
   }
   void delDBEnv() {
-    m_mx->invoke(m_thread, this, [](Server *server) {
-      server->m_dbEnvFn = DBEnvFn{};
-    });
+    m_mx->invoke(m_thread, [this]() { m_dbEnvFn = DBEnvFn{}; });
   }
 
   // app RAG updates
 
   void appUpdated() {
-    m_mx->invoke(m_thread, this, [](Server *server) {
-      server->m_appUpdated = true;
-    });
+    m_mx->invoke(m_thread, [this]() { m_appUpdated = true; });
   }
 
   // alerts
 
   void alert(ZmRef<ZeEvent> e) {
-    m_mx->invoke(m_thread, this,
-	[e = ZuMv(e)](Server *server) mutable {
-	  server->alert_(ZuMv(e));
-	});
+    m_mx->invoke(m_thread, [this, e = ZuMv(e)]() mutable {
+      alert_(ZuMv(e));
+    });
   }
 
 private:
@@ -442,29 +431,19 @@ private:
 
   using Queues =
     ZmRBTreeKV<ZuPair<unsigned, ZuID>, QueueFn,
-      ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeLock<ZmNoLock> > > >;
+      ZmRBTreeUnique<true>>;
 
-  struct EngineIDAccessor {
-    static ZuID get(const ZvEngine *engine) { return engine->id(); }
-  };
+  static ZuID EngineIDAxor(const ZvEngine *engine) { return engine->id(); }
   using Engines =
     ZmRBTree<ZmRef<ZvEngine>,
-      ZmRBTreeKey<EngineIDAccessor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeObject<ZuNull,
-	    ZmRBTreeLock<ZmNoLock> > > > >;
+      ZmRBTreeKey<EngineIDAxor,
+	ZmRBTreeUnique<true>>>;
 
   struct Watch_ {
     Link	*link = nullptr;
     ZmIDString	filter;
   };
-  using WatchList_ =
-    ZmList<Watch_,
-      ZmListObject<ZuNull,
-	ZmListNodeDerive<true,
-	  ZmListLock<ZmNoLock> > > >;
+  using WatchList_ = ZmList<Watch_, ZmListNode<Watch_>>;
   using Watch = typename WatchList_::Node;
   struct WatchList {
     WatchList_		list;
@@ -498,13 +477,14 @@ private:
   }
   template <typename L>
   void reschedule(WatchList &list) {
-    m_mx->run(m_thread,
-	ZmFn<>{&list, [](WatchList *list) {
+    m_mx->run(
+	m_thread,
+	[list = &list]() {
 	  ZuFunctorTraits<L>::invoke(list->server);
 	  list->server->template reschedule<L>(*list);
-	}},
-	ZmTimeNow() + ZmTime{ZmTime::Nano,
-	  static_cast<int64_t>(list.interval) * 1000000},
+	},
+	ZmTimeNow(ZmTime{ZmTime::Nano,
+	  static_cast<int64_t>(list.interval) * 1000000}),
 	ZmScheduler::Advance, &list.timer);
   }
 
@@ -576,21 +556,21 @@ private:
 
   // heap processing
 
-  void heapQuery(Request *req) {
+  void heapQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Heap];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->heapScan(); });
     ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
       watch, [](Watch *watch, ZmHeapCache *heap) {
 	watch->link->app()->heapQuery_(watch, heap);
       }});
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void heapQuery_(Watch *watch, const ZmHeapCache *heap) {
     Heap data;
@@ -624,21 +604,21 @@ private:
 
   // hash table processing
 
-  void hashQuery(Request *req) {
+  void hashQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::HashTbl];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->hashScan(); });
     ZmHashMgr::all(ZmFn<ZmAnyHash *>{
       watch, [](Watch *watch, ZmAnyHash *tbl) {
 	watch->link->app()->hashQuery_(watch, tbl);
       }});
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void hashQuery_(Watch *watch, const ZmAnyHash *tbl) {
     HashTbl data;
@@ -672,21 +652,21 @@ private:
 
   // thread processing
 
-  void threadQuery(Request *req) {
+  void threadQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Thread];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->threadScan(); });
     ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{
       watch, [](Watch *watch, ZmThreadContext *tc) {
 	watch->link->app()->threadQuery_(watch, tc);
       }});
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void threadQuery_(Watch *watch, const ZmThreadContext *tc) {
     Thread data;
@@ -720,20 +700,20 @@ private:
 
   // mx processing
 
-  void mxQuery(Request *req) {
+  void mxQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Mx];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->mxScan(); });
-    allMx(ZmFn<ZvMultiplex *>{watch, [](Watch *watch, ZvMultiplex *mx) {
-	watch->link->app()->mxQuery_(watch, mx);
-      }});
-    if (!req->interval) delete watch;
+    allMx([watch](ZvMultiplex *mx) {
+      watch->link->app()->mxQuery_(watch, mx);
+    });
+    if (!req.interval) delete watch;
   }
   void mxQuery_(Watch *watch, ZvMultiplex *mx) {
     Mx data;
@@ -758,7 +738,7 @@ private:
 		fbs::CreateQueue(m_fbb,
 		  str(m_fbb, queueID), 0, ring.count_(),
 		  inCount, inBytes, outCount, outBytes,
-		  ring.params().size(), ring.full(),
+		  ring.params().size, ring.full(),
 		  fbs::QueueType_Thread).Union()));
 	  ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
 	  watch->link->send(m_fbb.buf());
@@ -795,9 +775,7 @@ private:
 
   void mxScan() {
     if (!m_watchLists[ReqType::Mx].list.count_()) return;
-    allMx(ZmFn<ZvMultiplex *>{this, [](Server *server, ZvMultiplex *mx) {
-      server->mxScan(mx);
-    }});
+    allMx([this](ZvMultiplex *mx) { mxScan(mx); });
   }
   void mxScan(ZvMultiplex *mx) {
     Mx data;
@@ -882,19 +860,19 @@ private:
 	    (uint8_t)QueueType::IPC));
 #endif
 
-  void queueQuery(Request *req) {
+  void queueQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Queue];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->queueScan(); });
     auto i = m_queues.readIterator();
     while (auto node = i.iterate()) queueQuery_(watch, node->val());
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void queueQuery_(Watch *watch, const QueueFn &fn) {
     Queue data;
@@ -925,21 +903,21 @@ private:
 
   // engine processing
 
-  void engineQuery(Request *req) {
+  void engineQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Engine];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->engineScan(); });
     {
       auto i = m_engines.readIterator();
       while (auto node = i.iterate()) engineQuery_(watch, node->val());
     }
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void engineQuery_(Watch *watch, ZvEngine *engine) {
     Engine data;
@@ -995,18 +973,18 @@ private:
 
   // DB processing
 
-  void dbEnvQuery(Request *req) {
+  void dbEnvQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::DBEnv];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->dbEnvScan(); });
     dbEnvQuery_(watch);
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void dbEnvQuery_(Watch *watch) {
     if (!m_dbEnvFn) return;
@@ -1053,18 +1031,18 @@ private:
 
   // app processing
 
-  void appQuery(Request *req) {
+  void appQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::App];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->appScan(); });
     appQuery_(watch);
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void appQuery_(Watch *watch) {
     ZvTelemetry::App data;
@@ -1092,18 +1070,18 @@ private:
 
   // alert processing
 
-  void alertQuery(Request *req) {
+  void alertQuery(const Request &req) {
     auto &list = m_watchLists[ReqType::Alert];
-    if (req->interval && !req->subscribe) {
-      unsubscribe(list, req->link, req->filter);
+    if (req.interval && !req.subscribe) {
+      unsubscribe(list, req.link, req.filter);
       return;
     }
-    auto watch = new Watch{req->link, req->filter};
-    if (req->interval)
-      this->subscribe(list, watch, req->interval,
+    auto watch = new Watch{req.link, req.filter};
+    if (req.interval)
+      this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->alertScan(); });
     alertQuery_(watch);
-    if (!req->interval) delete watch;
+    if (!req.interval) delete watch;
   }
   void alertQuery_(Watch *watch) {
     // parse filter - yyyymmdd:seqNo

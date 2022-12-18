@@ -263,6 +263,7 @@ private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
+public:
   template <int Direction = ZmRBTreeGreaterEqual>
   using Iterator = ZmRBTreeIterator<ZmRBTree, Direction>;
   template <int Direction = ZmRBTreeGreaterEqual>

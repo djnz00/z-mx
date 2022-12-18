@@ -37,6 +37,7 @@
 #endif
 
 #include <zlib/ZuConversion.hpp>
+#include <zlib/ZuTraits.hpp>
 
 template <bool, bool, typename, typename, typename ...>
 class ZuFunctorTraits_3 {
