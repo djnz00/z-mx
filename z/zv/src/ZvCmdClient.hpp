@@ -89,15 +89,19 @@ using ZvCmd_Credentials = ZuUnion<ZvCmd_Login, ZvCmd_Access>;
 template <typename App, typename Link> class ZvCmdClient;
 
 template <typename App_, typename Impl_>
-class ZvCmdCliLink : public Ztls::CliLink<App_, Impl_> {
+class ZvCmdCliLink :
+    public Ztls::CliLink<App_, Impl_>,
+    public ZiRx<ZvCmdCliLink<App_, Impl_>, Ztls::IOBuf> {
 public:
   using App = App_;
   using Impl = Impl_;
   using Base = Ztls::CliLink<App_, Impl_>;
+  using IOBuf = Ztls::IOBuf;
+  using Rx = ZiRx<ZvCmdCliLink, IOBuf>;
+
 friend Base;
 template <typename, typename> friend class ZvCmdClient;
 
-  using IOBuf = Ztls::IOBuf;
   using FBB = Zfb::IOBuilder<IOBuf>;
 
 public:
@@ -260,26 +264,29 @@ public:
     m_rxBuf = nullptr;
   }
 
+private:
+  int loadBody(const IOBuf *buf, unsigned) {
+    return ZvCmd::verifyHdr(buf,
+	[this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
+      auto type = hdr->type;
+      if (ZuUnlikely(m_state.load_() == State::Login)) {
+	cancelTimeout();
+	if (type != ZvCmd::Type::login()) return -1;
+	return processLoginAck(buf->data(), buf->length);
+      }
+      return this->app()->dispatch(
+	  type, impl(), buf->data(), buf->length);
+    });
+  }
+
 public:
   int process(const uint8_t *data, unsigned length) {
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    int i = ZiRx::recvMem(data, length, m_rxBuf,
-	ZvCmd::loadHdr<IOBuf>,
-	[this](const IOBuf *buf, unsigned) -> int {
-	  return ZvCmd::verifyHdr(buf,
-	      [this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
-	    auto type = hdr->type;
-	    if (ZuUnlikely(m_state.load_() == State::Login)) {
-	      cancelTimeout();
-	      if (type != ZvCmd::Type::login()) return -1;
-	      return processLoginAck(buf->data(), buf->length);
-	    }
-	    return this->app()->dispatch(
-		type, impl(), buf->data(), buf->length);
-	  });
-	});
+    int i = Rx::recvMem<
+      ZvCmd::loadHdr<IOBuf>, &ZvCmdCliLink::loadBody>(data, length, m_rxBuf);
+
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
   }

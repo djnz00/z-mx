@@ -99,10 +99,9 @@ struct BufLRU_HeapID {
 };
 using BufLRU =
   ZmList<BufLRUNode_,
-    ZmListObject<ZuShadow,
-      ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull,
-	  ZmListLock<ZmNoLock> > > > >;
+    ZmListNode<BufLRUNode_,
+      ZmListShadow<true,
+	ZmListHeapID<ZmHeapDisable()>>>>;
 using BufLRUNode = BufLRU::Node;
 
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
@@ -195,10 +194,8 @@ private:
 
   uint8_t		m_data[Size];
 };
-struct Buf_HeapID {
-  constexpr static const char *id() { return "ZdfSeries.Buf"; }
-};
-using Buf = Buf_<ZmHeap<Buf_HeapID, sizeof(Buf_<ZuNull>)>>;
+constexpr auto Buf_HeapID() { return []() { return "ZdfSeries.Buf"; }; }
+using Buf = Buf_<ZmHeap<Buf_HeapID(), sizeof(Buf_<ZuNull>)>>;
 
 using BufUnloadFn = ZmFn<Buf *>;
 

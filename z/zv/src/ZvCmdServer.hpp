@@ -67,15 +67,19 @@
 template <typename App, typename Link> class ZvCmdServer;
 
 template <typename App_, typename Impl_>
-class ZvCmdSrvLink : public Ztls::SrvLink<App_, Impl_> {
+class ZvCmdSrvLink :
+    public Ztls::SrvLink<App_, Impl_>,
+    public ZiRx<ZvCmdSrvLink<App_, Impl_>, Ztls::IOBuf> {
 public:
   using App = App_;
   using Impl = Impl_;
   using Base = Ztls::SrvLink<App, Impl>;
+  using IOBuf = Ztls::IOBuf;
+  using Rx = ZiRx<ZvCmdSrvLink, IOBuf>;
+
 friend Base;
 template <typename, typename> friend class ZvCmdServer;
 
-  using IOBuf = Ztls::IOBuf;
   using FBB = Zfb::IOBuilder<IOBuf>;
 
   using User = ZvUserDB::User;
@@ -202,6 +206,20 @@ private:
     return len;
   }
 
+private:
+  int loadBody(const IOBuf *buf, unsigned) {
+    return ZvCmd::verifyHdr(buf,
+	[this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
+      auto type = hdr->type;
+      if (ZuUnlikely(m_state == State::Login)) {
+	if (type != ZvCmd::Type::login()) return -1;
+	return processLogin(buf->data(), buf->length);
+      }
+      return this->app()->dispatch(
+	  type, impl(), buf->data(), buf->length);
+    });
+  }
+
 public:
   int process(const uint8_t *data, unsigned length) {
     if (ZuUnlikely(m_state == State::Down))
@@ -212,22 +230,9 @@ public:
 
     scheduleTimeout();
 
-    // FIXME
-    int i = ZiRx::recvMem
-      (data, length, m_rxBuf,
-	ZvCmd::loadHdr<IOBuf>,
-	[this](const IOBuf *buf, unsigned) -> int {
-	  return ZvCmd::verifyHdr(buf,
-	      [this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
-	    auto type = hdr->type;
-	    if (ZuUnlikely(m_state == State::Login)) {
-	      if (type != ZvCmd::Type::login()) return -1;
-	      return processLogin(buf->data(), buf->length);
-	    }
-	    return this->app()->dispatch(
-		type, impl(), buf->data(), buf->length);
-	  });
-	});
+    int i = Rx::template recvMem<
+      ZvCmd::loadHdr<IOBuf>, &ZvCmdSrvLink::loadBody>(data, length, m_rxBuf);
+
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
   }
@@ -237,9 +242,8 @@ public:
 private:
   void scheduleTimeout() {
     if (this->app()->timeout())
-      this->app()->mx()->add(ZmFn<>{ZmMkRef(this), [](ZvCmdSrvLink *link) {
-	link->disconnect();
-      }}, ZmTimeNow(this->app()->timeout()), &m_timer);
+      this->app()->mx()->add([this]() { this->disconnect(); },
+	  ZmTimeNow(this->app()->timeout()), &m_timer);
   }
   void cancelTimeout() { this->app()->mx()->del(&m_timer); }
 

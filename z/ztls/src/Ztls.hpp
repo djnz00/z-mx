@@ -408,7 +408,7 @@ private:
 public:
   void disconnect() { // App thread(s)
     m_disconnecting = 1;
-    app()->invoke(this, [](Link *link) { link->disconnect_(); });
+    app()->invoke([this]() { disconnect_(); });
   }
   void disconnect_(bool notify = true) { // TLS thread
     m_disconnecting = 1; // disconnect() might be bypassed

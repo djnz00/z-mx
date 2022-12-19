@@ -615,6 +615,28 @@ template <typename U, typename R> struct ZuNotVolatile_<volatile U, R> { };
 template <typename U, typename R = void>
 using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 
+// static/member function SFINAE
+template <typename Fn> struct ZuIsStaticFn_;
+template <typename R, typename ...Args>
+struct ZuIsStaticFn_<R (*)(Args...)> { using T = R; };
+template <auto Fn>
+using ZuIsStaticFn = typename ZuIsStaticFn_<decltype(Fn)>::T;
+
+template <typename Fn> struct ZuIsMemberFn_;
+template <typename T_, typename R, typename ...Args>
+struct ZuIsMemberFn_<R (T_::*)(Args...)> { using T = R; };
+template <auto Fn>
+using ZuIsMemberFn = typename ZuIsMemberFn_<decltype(Fn)>::T;
+
+template <auto Fn, typename T, typename ...Args>
+ZuInline auto ZuInvoke(T *, Args &&... args) -> ZuIsStaticFn<Fn> {
+  return (*Fn)(ZuFwd<Args>(args)...);
+}
+template <auto Fn, typename T, typename ...Args>
+ZuInline auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsMemberFn<Fn> {
+  return (ptr->*Fn)(ZuFwd<Args>(args)...);
+}
+
 // alloca() alias
 
 #ifdef _MSC_VER
