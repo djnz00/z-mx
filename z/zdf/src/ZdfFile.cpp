@@ -34,7 +34,7 @@ void FileMgr::init(ZmScheduler *sched, const ZvCf *cf)
   m_sched = sched;
   m_dir = config.dir;
   m_coldDir = config.coldDir;
-  m_writeThread = sched->index(config.writeThread);
+  m_writeThread = sched->sid(config.writeThread);
   if (!m_writeThread ||
       m_writeThread > sched->params().nThreads())
     throw ZtString{} <<
@@ -207,12 +207,13 @@ bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
 void FileMgr::save(ZmRef<Buf> buf)
 {
   buf->save([this, buf = ZuMv(buf)]() {
-    m_sched->run(m_writeThread, ZmFn<>{ZuMv(buf), [](Buf *buf) {
-      buf->save_([buf]() {
+    m_sched->run(m_writeThread, [buf = ZuMv(buf)]() mutable {
+      auto buf_ = buf.ptr();
+      buf_->save_([buf = ZuMv(buf)]() {
 	static_cast<FileMgr *>(buf->mgr)->save_(
 	    buf->seriesID, buf->blkIndex, buf->data());
       });
-    }});
+    });
   });
 }
 

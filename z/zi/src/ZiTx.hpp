@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// IO Rx/Tx
+// IO Tx
 
 #ifndef ZiTx_HPP
 #define ZiTx_HPP
@@ -32,30 +32,38 @@
 
 #include <zlib/ZiIOContext.hpp>
 
-namespace ZiTx {
+// CRTP sender
 
-template <typename Cxn, typename Buf>
-inline void send(Cxn *cxn, ZmRef<Buf> buf) {
-  cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
-    io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
-      if (ZuUnlikely((io.offset += io.length) < io.size)) return;
-      io.complete();
-    }}, buf->data(), buf->length, 0);
-  }});
-}
+template <typename Impl_, typename Buf_>
+class ZiTx {
+public:
+  using Impl = Impl_;
+  using Buf = Buf_;
 
-// Sent(ZmRef<Buf> buf)
-template <auto Sent, typename Cxn, typename Buf>
-inline void send(Cxn *cxn, ZmRef<Buf> buf) {
-  cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
-    io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
-      if (ZuUnlikely((io.offset += io.length) < io.size)) return;
-      io.complete();
-      Sent(io.fn.mvObject<Buf>());
-    }}, buf->data(), buf->length, 0);
-  }});
-}
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
-} // ZiTx
+  template <typename Cxn>
+  void send(Cxn *cxn, ZmRef<Buf> buf) {
+    cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
+      io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
+	if (ZuUnlikely((io.offset += io.length) < io.size)) return;
+	io.complete();
+      }}, buf->data(), buf->length, 0);
+    }});
+  }
+
+  // void Sent(ZmRef<Buf> buf) // async
+  template <auto Sent, typename Cxn>
+  void send(Cxn *cxn, ZmRef<Buf> buf) {
+    cxn->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
+      io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
+	if (ZuUnlikely((io.offset += io.length) < io.size)) return;
+	io.complete();
+	ZuInvoke<Sent>(impl(), io.fn.mvObject<Buf>());
+      }}, buf->data(), buf->length, 0);
+    }});
+  }
+};
 
 #endif /* ZiTx_HPP */

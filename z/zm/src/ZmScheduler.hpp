@@ -122,11 +122,11 @@ struct ZmAPI ZmSchedParams {
   const Thread &thread(unsigned tid) const { return m_threads[tid]; }
 
 public:
-  unsigned tid(ZuString s) {
-    unsigned tid;
-    if (tid = ZuBox0(unsigned){s}) return tid;
-    for (tid = 0; tid <= m_nThreads; tid++)
-      if (s == m_threads[tid].name()) return tid;
+  unsigned sid(ZuString s) const {
+    unsigned sid;
+    if (sid = ZuBox0(unsigned){s}) return sid;
+    for (sid = 0; sid <= m_nThreads; sid++)
+      if (s == m_threads[sid].name()) return sid;
     return 0;
   }
 
@@ -408,12 +408,12 @@ public:
     return m_threads[index - 1].overRing;
   }
 
-  unsigned tid(ZuString s) {
-    unsigned tid;
-    if (tid = ZuBox0(unsigned){s}) return tid;
+  unsigned sid(ZuString s) const {
+    unsigned sid;
+    if (sid = ZuBox0(unsigned){s}) return sid;
     unsigned n;
-    for (tid = 0, n = m_params.nThreads(); tid <= n; tid++)
-      if (s == m_params.thread(tid).name()) return tid;
+    for (sid = 0, n = m_params.nThreads(); sid <= n; sid++)
+      if (s == m_params.thread(sid).name()) return sid;
     return 0;
   }
 

@@ -216,7 +216,7 @@ public:
     }
 
     if (auto thread = cf->get("telemetry:thread", false))
-      m_thread = mx->tid(thread);
+      m_thread = mx->sid(thread);
     else
       m_thread = mx->txThread();
 

@@ -55,34 +55,27 @@ namespace Zdf {
 ZuDeclTuple(FileID, (unsigned, seriesID), (unsigned, index));
 ZuDeclTuple(FilePos, (unsigned, index), (unsigned, offset));
 
-struct File_ : public ZiFile {
+struct File_ : public ZmObject, public ZiFile {
   template <typename ...Args>
   File_(Args &&... args) : id{ZuFwd<Args>(args)...} { }
 
+  static const FileID &IDAxor(const File_ &file) { return file.id; }
+
   FileID	id;
 };
-struct File_IDAccessor {
-  static const FileID &get(const File_ &file) { return file.id; }
-};
-
 using FileLRU =
   ZmList<File_,
-    ZmListObject<ZuShadow,
-      ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull,
-	  ZmListLock<ZmNoLock> > > > >;
-using FileLRUNode = FileLRU::Node;
+    ZmListNode<File_,
+      ZmListShadow<true,
+	ZmListHeapID<ZmHeapDisable()>>>>;
+using FileLRUNode = typename FileLRU::Node;
 
-struct File_HeapID {
-  constexpr static const char *id() { return "Zdf.File"; }
-};
+constexpr auto File_HeapID() { return []() { return "Zdf.File"; }; }
 using FileHash =
   ZmHash<FileLRUNode,
-    ZmHashKey<File_IDAccessor,
-      ZmHashObject<ZmObject,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<File_HeapID,
-	    ZmHashLock<ZmNoLock> > > > > >;
+    ZmHashNode<FileLRUNode,
+      ZmHashKey<File_::IDAxor,
+	ZmHashHeapID<File_HeapID()>>>>;
 using File = typename FileHash::Node;
 
 class ZdfAPI FileMgr : public Mgr {

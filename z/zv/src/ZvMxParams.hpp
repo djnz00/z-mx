@@ -113,8 +113,8 @@ struct ZvMxParams : public ZiMxParams {
     if (!cf) return;
 
     scheduler().init(cf);
-    if (ZuString s = cf->get("rxThread")) rxThread(scheduler().tid(s));
-    if (ZuString s = cf->get("txThread")) txThread(scheduler().tid(s));
+    if (ZuString s = cf->get("rxThread")) rxThread(scheduler().sid(s));
+    if (ZuString s = cf->get("txThread")) txThread(scheduler().sid(s));
 #ifdef ZiMultiplex_EPoll
     epollMaxFDs(cf->getInt("epollMaxFDs", 1, 100000, false, epollMaxFDs()));
     epollQuantum(cf->getInt("epollQuantum", 1, 1024, false, epollQuantum()));

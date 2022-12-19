@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// IO Rx/Tx
+// IO Rx
 
 #ifndef ZiRx_HPP
 #define ZiRx_HPP
@@ -33,6 +33,8 @@
 #include <zlib/ZmRef.hpp>
 
 #include <zlib/ZiIOContext.hpp>
+
+// CRTP receiver
 
 template <typename Impl_, typename Buf_>
 class ZiRx {
@@ -62,7 +64,7 @@ public:
 
   // synchronous receive from ZiIOContext
   template <auto Hdr, auto Body>
-  inline void recv(ZiIOContext &io) {
+  void recv(ZiIOContext &io) {
     ZmRef<Buf> buf = new Buf{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
@@ -100,7 +102,7 @@ public:
 
   // asynchronous (queued) receive from ZiIOContext
   template <auto Hdr, auto Body>
-  inline void recvAsync(ZiIOContext &io) {
+  void recvAsync(ZiIOContext &io) {
     ZmRef<Buf> buf = new Buf{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
@@ -173,7 +175,7 @@ public:
   // synchronous recv from memory (e.g. TLS)
   // returns bytes consumed, -1 on error
   template <auto Hdr, auto Body>
-  inline int recvMem(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
+  int recvMem(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
     if (!buf) buf = new Buf{impl()};
     unsigned oldLen = buf->length;
     unsigned len = oldLen + rxLen;
@@ -213,8 +215,7 @@ public:
   // asynchronous recv from memory
   // returns bytes consumed, -1 on error
   template <auto Hdr, auto Body>
-  inline int recvMemAsync(
-      const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
+  int recvMemAsync(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
     if (!buf) buf = new Buf{impl()};
     unsigned oldLen = buf->length;
     unsigned len = oldLen + rxLen;
