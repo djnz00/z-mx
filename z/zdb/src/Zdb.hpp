@@ -155,6 +155,10 @@
 
 #include <zlib/zdb__fbs.h>
 
+// FIXME - move everything into Zdb_, then externalize with typedefs
+class Zdb;
+class ZdbAnyObject;
+
 namespace Zdb_ {
 
 using RN = uint64_t;		// record ID
@@ -284,6 +288,7 @@ inline const T *data_(const fbs::Record *record) {
   auto data = Zfb::Load::bytes(record->data());
   if (ZuUnlikely(!data)) return nullptr;
   return Zfb::GetRoot<T>(data.data());
+}
 
 using Magic = uint32_t;
 
@@ -317,20 +322,17 @@ class Cxn;				// connection
 
 using IndexBlkLRU =
   ZmList<ZmPolymorph,
-    ZmListObject<ZuShadow,
-      ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull> > > >;
+    ZmListShadow<true,
+      ZmListNode<ZmPolymorph,
+	ZmListHeapID<ZmHeapDisable()> > > >;
 
 uint64_t IndexBlk_IDAxor(const ZmPolymorph &index);
-struct IndexBlkHeapID {
-  constexpr static const char *id() { return "Zdb.IndexBlk"; }
-};
+inline const char *IndexBlkHeapID() { return "Zdb.IndexBlk"; }
 using IndexBlkCache =
   ZmHash<IndexBlkLRU::Node,
-    ZmHashKey<IndexBlk_IDAxor,
-      ZmHashObject<ZmPolymorph,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<IndexBlkHeapID> > > > >;
+    ZmHashNode<IndexBlkLRU::Node,
+      ZmHashKey<IndexBlk_IDAxor,
+	ZmHashHeapID<IndexBlkHeapID>>>>;
 
 struct IndexBlk : public IndexBlkCache::Node {
 #pragma pack(push, 1)
@@ -376,6 +378,10 @@ namespace FileFlags {
 
 #define ZdbCommitted 0xc001da7a	// "cool data"
 
+using ZdbRN = uint64_t;
+using Magic = uint32_t;
+using SeqLen = uint32_t;
+
 #pragma pack(push, 1)
 using U32LE = ZuLittleEndian<uint32_t>;
 using U64LE = ZuLittleEndian<uint64_t>;
@@ -415,20 +421,17 @@ struct FileRecTrlr {	// record trailer
 
 using FileLRU =
   ZmList<ZmPolymorph,
-    ZmListObject<ZuShadow,
-      ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull> > > >;
+    ZmListNode<ZmPolymorph,
+      ZmListShadow<true,
+	ZmListHeapID<ZmHeapDisable()>>>>;
 
 uint64_t File_IDAxor(const ZmPolymorph &file);
-struct FileHeapID {
-  constexpr static const char *id() { return "Zdb.File"; }
-};
+inline const char *FileHeapID() { return "Zdb.File"; }
 using FileCache =
   ZmHash<FileLRU::Node,
-    ZmHashKey<File_IDAxor,
-      ZmHashObject<ZmPolymorph,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<FileHeapID> > > > >;
+    ZmHashNode<FileLRU::Node,
+      ZmHashKey<File_IDAxor,
+	ZmHashHeapID<FileHeapID>>>>;
 
 class ZdbAPI File : public FileCache::Node, public ZiFile {
   using Bitmap = ZuBitmap<fileRecs()>;
@@ -532,18 +535,15 @@ private:
 };
 
 // buffer cache
-struct Buf_HeapID {
-  constexpr static const char *id() { return "Zdb::Buf"; }
-};
+inline const char *Buf_HeapID() { return "Zdb::Buf"; }
 using Buf_ = ZiIOVBuf<ZuGrow(0, 1), Buf_HeapID>;
 ZdbRN Buf_RNAxor(const Buf_ &buf);
 using BufCache =
   ZmHash<Buf_,
-    ZmHashKey<Buf_RNAxor,
-      ZmHashObject<ZmPolymorph,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Buf_HeapID> > > > > >;
+    ZmHashNode<Buf_,
+      ZmHashKey<Buf_RNAxor,
+	ZmHashHeapID<ZmHeapDisable(),
+	  ZmHashID<Buf_HeapID>>>>>;
 
 class ZdbAPI Buf : public BufCache::Node {
 public:
@@ -632,24 +632,20 @@ namespace Zdb_ {
 // object cache
 using LRU =
   ZmList<ZmPolymorph,
-    ZmListObject<ZuShadow,
-      ZmListNodeDerive<true,
-	ZmListHeapID<ZuNull> > > >;
+    ZmListNode<ZmPolymorph,
+      ZmListShadow<true,
+	ZmListHeapID<ZmHeapDisable()> > > >;
 using LRUNode = LRU::Node;
 
 ZdbRN LRUNode_RNAxor(const LRUNode &object);
 
-struct Cache_ID {
-  constexpr static const char *id() { return "Zdb.Cache"; }
-};
-
+inline const char *Cache_ID() { return "Zdb.Cache"; }
 using Cache =
   ZmHash<LRUNode,
-    ZmHashKey<LRUNode_RNAxor,
-      ZmHashObject<ZmPolymorph,
-	ZmHashNodeDerive<true,
-	  ZmHashHeapID<ZuNull,
-	    ZmHashID<Cache_ID> > > > > >;
+    ZmHashNode<LRUNode,
+      ZmHashKey<LRUNode_RNAxor,
+	ZmHashHeapID<ZmHeapDisable(),
+	  ZmHashID<Cache_ID>>>>>;
 using CacheNode = Cache::Node;
 
 } // Zdb_
@@ -728,9 +724,7 @@ inline ZdbRN LRUNode_RNAxor(const LRUNode &node) {
 
 }
 
-struct ZdbObject_HeapID { 
-  constexpr static const char *id() { return "Zdb.Object"; }
-};
+const char *ZdbObject_HeapID() { return "Zdb.Object"; }
 template <typename T, typename Heap>
 class ZdbObject_ : public Heap, public ZdbAnyObject {
   ZdbObject_() = delete;
@@ -848,25 +842,19 @@ struct ZdbCf {
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
 
-  ZuID IDAxor(const ZdbCf &cf) {
-    return cf.id;
-  }
+  static ZuID IDAxor(const ZdbCf &cf) { return cf.id; }
 };
 
-struct ZdbCfs_HeapID {
-  constexpr static const char *id() { return "ZdbEnv.DBCfs"; }
-};
+inline const char *ZdbCfs_HeapID() { return "ZdbEnv.DBCfs"; }
 using ZdbCfs =
   ZmRBTree<ZdbCf,
     ZmRBTreeKey<ZdbCf::IDAxor,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<ZdbCfs_HeapID> > > >;
+	ZmRBTreeHeapID<ZdbCfs_HeapID>>>>;
 
 namespace Zdb_ {
 
-struct Deletes_HeapID {
-  constexpr static const char *id() { return "Zdb.Deletes"; }
-};
+inline const char *Deletes_HeapID() { return "Zdb.Deletes"; }
 struct DeleteOp {
   ZdbRN		rn = ZdbNullRN;
   SeqLen	seqLenOp = 0;
@@ -874,7 +862,7 @@ struct DeleteOp {
 using Deletes =
   ZmRBTreeKV<ZdbRN, DeleteOp,
     ZmRBTreeUnique<true,
-      ZmRBTreeHeapID<Deletes_HeapID> > >;
+      ZmRBTreeHeapID<Deletes_HeapID>>>;
 
 } // Zdb_
 
@@ -922,10 +910,6 @@ private:
   bool checkpoint_();
 
 public:
-  ZuID IDAxor(const Zdb &db) {
-    return db.config().id;
-  }
-
   ZdbEnv *env() const { return m_env; }
   const ZdbCf &config() const { return *m_cf; }
   unsigned cacheSize() const { return m_cacheSize; } // unclean read
@@ -973,6 +957,8 @@ public:
   using Telemetry = ZvTelemetry::DB;
 
   void telemetry(Telemetry &data) const;
+
+  static ZuID IDAxor(const Zdb &db) { return db.config().id; }
 
 private:
   // push initial record
@@ -1090,15 +1076,13 @@ private:
 
 namespace Zdb_ {
 
-struct DBs_HeapID {
-  constexpr static const char *id() { return "ZdbEnv.DBs"; }
-};
+inline const char *DBs_HeapID() { return "ZdbEnv.DBs"; }
 using DBs =
   ZmRBTree<Zdb,
     ZmRBTreeKey<Zdb::IDAxor,
-      ZmRBTreeNodeDerive<true,
+      ZmRBTreeNode<Zdb,
 	ZmRBTreeUnique<true,
-	  ZmRBTreeHeapID<DBs_HeapID> > > > >;
+	  ZmRBTreeHeapID<DBs_HeapID>>>>>;
 
 using DBState_ = ZmLHashKV<ZuID, ZdbRN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
@@ -1243,18 +1227,14 @@ struct ZdbHostCf {
     down = cf->get("down");
   }
 
-  ZuID IDAxor(const ZdbHostCf &cfg) {
-    return cfg.id;
-  }
+  static ZuID IDAxor(const ZdbHostCf &cfg) { return cfg.id; }
 };
 
-struct HostCfs_HeapID {
-  constexpr static const char *id() { return "ZdbEnv.HostCfs"; }
-};
+inline const char *HostCfs_HeapID() { return "ZdbEnv.HostCfs"; }
 using HostCfs =
   ZmHash<ZdbHostCf,
     ZmHashKey<ZdbHostCf::IDAxor,
-      ZmHashHeapID<ZdbHostCfs_HeapID> > >;
+      ZmHashHeapID<ZdbHostCfs_HeapID>>>;
 
 // FIXME
 // - file reads and writes are serialized via filethread
@@ -1267,14 +1247,12 @@ using HostCfs =
 // FIXME - all classes/structs in Zdb_ namespace, with external aliases
 // used, e.g. using ZdbHost = Zdb_::Host
 
-struct Hosts_HeapID {
-  constexpr static const char *id() { return "ZdbEnv.Hosts"; }
-};
+inline const char *Hosts_HeapID() { return "ZdbEnv.Hosts"; }
 using Hosts =
   ZmHash<Host,
-    ZmHashKey<Host::IDAxor,
-      ZmHashNodeDerive<true,
-	ZmHashHeapID<ZdbHosts_HeapID> > > >;
+    ZmHashNode<Host,
+      ZmHashKey<Host::IDAxor,
+	ZmHashHeapID<ZdbHosts_HeapID>>>>;
 
 class ZdbAPI ZdbHost {
 friend ZdbEnv;
@@ -1289,10 +1267,6 @@ protected:
   ZdbHost(ZdbEnv *env, const ZdbHostCf *config);
 
 public:
-  ZuID IDAxor(const ZdbHost &h) {
-    return h.id();
-  }
-
   const ZdbHostCf &config() const { return *m_cf; }
 
   ZuID id() const { return m_cf->id; }
@@ -1314,6 +1288,8 @@ public:
       " S:" << state() << "] " << dbState();
   }
   friend ZuPrintFn ZuPrintType(ZdbHost *);
+
+  ZuID IDAxor(const ZdbHost &h) { return h.id(); }
 
 private:
   ZmRef<Cxn> cxn() const { return m_cxn; }
@@ -1509,14 +1485,11 @@ friend ZdbAnyObject;
 
 friend Zdb_::Cxn;
 
-  struct CxnHash_HeapID {
-    constexpr static const char *id() { return "ZdbEnv.CxnHash"; }
-  };
+  static const char *CxnHash_HeapID() { return "ZdbEnv.CxnHash"; }
   using CxnHash =
     ZmHash<ZmRef<Cxn>,
       ZmHashLock<ZmPLock,
-	ZmHashObject<ZuNull,
-	  ZmHashHeapID<CxnHash_HeapID> > > >;
+	  ZmHashHeapID<CxnHash_HeapID>>>;
 
 #ifdef ZdbRep_DEBUG
   bool debug() const { return m_cf.debug; }
