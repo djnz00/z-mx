@@ -73,10 +73,9 @@
 //   ZtArrayCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
-inline constexpr auto ZtArray_HeapID() { return []() { return "ZtArray"; }; }
 struct ZtArray_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
-  constexpr static auto HeapID = ZtArray_HeapID();
+  static const char *HeapID() { return "ZtArray"; }
 };
 
 // ZtArrayCmp - the comparator

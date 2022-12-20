@@ -82,7 +82,15 @@ public:
   }
   template <typename S>
   ZuIsString<S, ZiIP &> &operator =(S &&s) {
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress"
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
+#endif
     if (!s) { s_addr = 0; return *this; }
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
     ZeError e;
     if (resolve(ZuFwd<S>(s), &e) != OK) throw e;
     return *this;

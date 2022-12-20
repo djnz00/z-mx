@@ -69,14 +69,13 @@ private:
 //   ZmXRingCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
-inline constexpr auto ZmXRing_HeapID() { return []() { return "ZmXRing"; }; }
 struct ZmXRing_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  constexpr static auto HeapID = ZmXRing_HeapID();
+  static const char *HeapID() { return "ZmXRing"; }
   enum { Sharded = 0 };
 };
 

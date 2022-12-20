@@ -48,7 +48,6 @@
 //     ZmRBTreeValCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
-inline constexpr auto ZmRBTree_HeapID() { return []() { return "ZmRBTree"; }; }
 struct ZmRBTree_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   constexpr static auto ValAxor = ZuDefaultAxor();
@@ -58,7 +57,7 @@ struct ZmRBTree_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = ZmRBTree_HeapID();
+  static const char *HeapID() { return "ZmRBTree"; }
   enum { Sharded = 0 };
 };
 

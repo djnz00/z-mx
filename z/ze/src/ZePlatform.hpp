@@ -252,8 +252,8 @@ private:
   const char	*m_function;
   MessageFn	m_messageFn;
 };
-inline constexpr auto ZeEvent_HeapID() { return []() { return "ZeEvent"; }; }
-using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID(), sizeof(ZeEvent_<ZuNull>)>;
+inline const char *ZeEvent_HeapID() { return "ZeEvent"; }
+using ZeEvent_Heap = ZmHeap<ZeEvent_HeapID, sizeof(ZeEvent_<ZuNull>)>;
 using ZeEvent = ZeEvent_<ZeEvent_Heap>;
 using ZeMessageFn = ZeEvent::MessageFn;
 

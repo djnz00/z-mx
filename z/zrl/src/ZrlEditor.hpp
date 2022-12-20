@@ -251,22 +251,18 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
   int32_t	vkey = -VKey::Null;
   CmdSeq	cmds;
 
+  static auto KeyAxor(const Binding *b) { return b->vkey; }
+  static auto ValAxor(const Binding *b) { return b; }
+
   void print_(ZmStream &) const;
   template <typename S> void print(S &s_) const { ZmStream s{s_}; print_(s); }
   void print(ZmStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(Binding *);
 };
-struct Binding_KeyAccessor {
-  static int32_t get(const Binding *b) { return b->vkey; }
-};
-struct Binding_ValAccessor {
-  static const Binding *get(const Binding *b) { return b; }
-};
 
 using Bindings_ =
   ZmLHash<ZuPtr<Binding>,
-    ZmLHashKeyVal<Binding_KeyAccessor, Binding_ValAccessor,
-	ZmLHashLock<ZmNoLock>>>;
+    ZmLHashKeyVal<Binding::KeyAxor, Binding::ValAxor>>;
 
 struct Bindings : public Bindings_ {
   Bindings() : Bindings_{ZmHashParams{}.bits(8).loadFactor(1.0)} { }
@@ -290,6 +286,8 @@ struct ZrlAPI Map_ {
   ID		id;		// identifier for map
   ZtArray<Mode>	modes;		// modes
 
+  static auto IDAxor(const Map_ &m) { return m.id; }
+
   int parse(ZuString s, int off);
 
   void addMode(unsigned mode, int type);
@@ -310,10 +308,8 @@ struct Map_IDAccessor {
 
 using Maps =
   ZmRBTree<Map_,
-    ZmRBTreeKey<Map_IDAccessor,
-      ZmRBTreeObject<ZuNull,
-	ZmRBTreeNodeDerive<true,
-	  ZmRBTreeLock<ZmNoLock>>>>>;
+    ZmRBTreeNode<Map_,
+      ZmRBTreeKey<Map_::IDAxor>>>;
 
 using Map = Maps::Node;
 

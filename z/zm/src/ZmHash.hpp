@@ -169,7 +169,6 @@ private:
 //   ZmHashKeyCmp<ZtICmp> >		// case-insensitive comparison
 
 // NTP defaults
-inline constexpr auto ZmHash_HeapID() { return []() { return "ZmHash"; }; }
 struct ZmHash_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   constexpr static auto ValAxor = ZuDefaultAxor();
@@ -179,7 +178,7 @@ struct ZmHash_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = ZmHash_HeapID();
+  static const char *HeapID() { return "ZmHash"; }
   constexpr static auto ID = HeapID;
   enum { Sharded = 0 };
 };

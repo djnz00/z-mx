@@ -284,7 +284,7 @@ public:
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    int i = Rx::recvMem<
+    int i = Rx::template recvMem<
       ZvCmd::loadHdr<IOBuf>, &ZvCmdCliLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;
@@ -359,10 +359,9 @@ private:
 
   void scheduleTimeout() {
     if (this->app()->timeout())
-      this->app()->mx()->add(
-	  ZmFn<>{ZmMkRef(impl()), [](Impl *link) {
-	    link->disconnect();
-	  }}, ZmTimeNow(this->app()->timeout()), &m_timer);
+      this->app()->mx()->add([link = ZmMkRef(impl())]() {
+	link->disconnect();
+      }, ZmTimeNow(this->app()->timeout()), &m_timer);
   }
   void cancelTimeout() {
     this->app()->mx()->del(&m_timer);

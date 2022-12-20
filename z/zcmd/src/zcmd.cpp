@@ -101,9 +101,8 @@ public:
     using FBType = ZfbType<Data>;
     using Tree_ =
       ZmRBTree<Data,
-	ZmRBTreeKey<ZuFieldAxor<Data>,
-	  ZmRBTreeUnique<true,
-	    ZmRBTreeLock<ZmNoLock> > > >;
+	ZmRBTreeKey<ZuFieldAxor<Data>(),
+	  ZmRBTreeUnique<true>>>;
     struct Tree : public ZuObject, public Tree_ { };
     ZmRef<Tree> tree = new Tree{};
     return TelCap{[

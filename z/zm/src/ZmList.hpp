@@ -50,7 +50,6 @@
 //     ZmListCmp<ZtICmp> > >			// case-insensitive comparison
 
 // NTP defaults
-inline constexpr auto ZmList_HeapID() { return []() { return "ZmList"; }; }
 struct ZmList_Defaults {
   constexpr static auto KeyAxor = ZuDefaultAxor();
   constexpr static auto ValAxor = ZuDefaultAxor();
@@ -59,7 +58,7 @@ struct ZmList_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = ZmList_HeapID();
+  static const char *HeapID() { return "ZmList"; }
   enum { Sharded = 0 };
 };
 

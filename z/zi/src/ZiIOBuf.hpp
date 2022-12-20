@@ -66,8 +66,9 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   ZiAnyIOBuf(ZiAnyIOBuf &&) = default;
   ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = default;
 };
-inline constexpr auto ZiIOBuf_HeapID() { return []() { return "ZiIOBuf"; }; };
-template <unsigned Size_, auto ID = ZiIOBuf_HeapID()>
+
+inline const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
+template <unsigned Size_, auto ID = ZiIOBuf_HeapID>
 struct ZiIOVBuf : private ZmVHeap<ID>, public ZiAnyIOBuf {
   void		*owner = nullptr;
   uint8_t	*jumbo = nullptr;
@@ -281,9 +282,9 @@ struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
 };
 template <unsigned Size>
 using ZiIOBuf_Heap =
-  ZmHeap<ZiIOBuf_HeapID(), sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID()>)>;
+  ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID>)>;
  
 template <unsigned Size = ZiIOBuf_DefaultSize>
-using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID()>;
+using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID>;
 
 #endif /* ZiIOBuf_HPP */

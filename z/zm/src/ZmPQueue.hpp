@@ -129,14 +129,13 @@ private:
 // uses NTP (named template parameters)
 
 // NTP defaults
-inline constexpr auto ZmPQueue_HeapID() { return []() { return "ZmPQueue"; }; }
 struct ZmPQueue_Defaults {
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
-  constexpr static auto HeapID = ZmPQueue_HeapID();
+  static const char *HeapID() { return "ZmPQueue"; }
   enum { Sharded = 0 };
 };
 

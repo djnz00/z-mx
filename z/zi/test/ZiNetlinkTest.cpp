@@ -22,8 +22,8 @@ const char TestRequest[] = "netlink-ping";
 
 void error(const char *op, int result, ZeError e)
 {
-  ZeLOG(Error, ZtSprintf("%s - %s - %s",
-			 op, Zi::resultName(result), e.message().data()));
+  ZeLOG(Error,
+      ZtSprintf("%s - %s - %s", op, Zi::ioResult(result), e.message().data()));
 }
 
 class Mx;

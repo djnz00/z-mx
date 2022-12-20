@@ -32,6 +32,8 @@
 
 #include <zlib/ZiLib.hpp>
 
+#include <zlib/ZmAlloc.hpp>
+
 #include <zlib/ZrlTerminal.hpp>
 
 namespace Zrl {
@@ -39,7 +41,7 @@ namespace Zrl {
 using ErrorStr = ZuStringN<120>;
 
 #define ZrlError(op, result, error) \
-  Zrl::ErrorStr() << op << ' ' << Zi::resultName(result) << ' ' << error
+  Zrl::ErrorStr() << op << ' ' << Zi::ioResult(result) << ' ' << error
 
 namespace VKey {
 ZrlExtern void print_(int32_t vkey, ZmStream &s)
@@ -213,9 +215,8 @@ void Terminal::stop() // async
 {
   if (!isOpen_()) return;
   Guard guard(m_lock);
-  m_sched->wakeFn(m_thread, ZmFn<>());
-  m_sched->run_(m_thread, 
-      ZmFn<>{this, [](Terminal *this_) { this_->stop_(); }});
+  m_sched->wakeFn(m_thread, {});
+  m_sched->run_(m_thread, [this]() { stop_(); });
   wake_();
 }
 
@@ -862,8 +863,7 @@ void Terminal::cursor_off()
 
 void Terminal::wake()
 {
-  m_sched->run_(m_thread,
-      ZmFn<>{this, [](Terminal *this_) { this_->read(); }});
+  m_sched->run_(m_thread, [this]() { read(); });
   wake_();
 }
 
@@ -889,8 +889,7 @@ void Terminal::wake_()
 #ifndef _WIN32
 void Terminal::sigwinch()
 {
-  m_sched->run(m_thread, 
-      ZmFn<>{this, [](Terminal *this_) { this_->resized(); }});
+  m_sched->run(m_thread, [this]() { resized(); });
 }
 #endif
 
@@ -1777,7 +1776,7 @@ void Terminal::splice(
 	trailRows = (bol(oldWidth) - bolPos) / m_width + 1;
     }
   }
-  if (trailRows) glyphMarks = ZuAlloc(GlyphMark, trailRows);
+  if (trailRows) glyphMarks = ZmAlloc(GlyphMark, trailRows);
   if (glyphMarks) {
     unsigned endPos = m_pos + span.inLen();
     unsigned shiftOff;

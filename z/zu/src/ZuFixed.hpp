@@ -74,7 +74,7 @@ struct ZuFixed_VFmt;				// internal
 
 class ZuFixed {
   constexpr static int64_t null_() {
-    return ZuCmp_IntNull<int64_t, 8, 1>::null();
+    return ZuCmp_IntNull<int64_t, 8, true>::null();
   }
 
 public:

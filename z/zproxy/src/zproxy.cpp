@@ -75,7 +75,7 @@ template <typename T> struct Print : public ZuPrintable {
   template <typename S, typename T_ = T>
   ZuIs<T_, Error> print(S &s) const {
     s << v.op()
-      << "() - " << Zi::resultName(v.result()) << " - "
+      << "() - " << Zi::ioResult(v.result()) << " - "
       << v.error();
   }
   // ZiCxnInfo
@@ -247,10 +247,6 @@ private:
 
 class Proxy : public ZmPolymorph {
 public:
-  struct SrcPortAxor;
-friend SrcPortAxor;
-  struct SrcPortAxor { static unsigned get(Proxy *p); };
-
   Proxy(Listener *listener);
   virtual ~Proxy() { }
 
@@ -258,6 +254,8 @@ friend SrcPortAxor;
   App *app() const { return m_app; }
 
   ZmRef<Listener> listener() const { return m_listener; }
+
+  static unsigned SrcPortAxor(Proxy *p);
 
   ZmRef<Connection> in() { return m_in; }
   ZmRef<Connection> out() { return m_out; }
@@ -313,17 +311,9 @@ template <typename S> inline void Connection::print(S &s) const
 struct ListenerPrintIn;
 struct ListenerPrintOut;
 class Listener : public ZmObject {
-  using ProxyHash =
-    ZmHash<ZmRef<Proxy>,
-      ZmHashObject<ZuNull> >;
+  using ProxyHash = ZmHash<ZmRef<Proxy>>;
 
 public:
-  struct LocalPortAccessor;
-friend LocalPortAccessor;
-  struct LocalPortAccessor {
-    static int get(Listener *listener) { return listener->m_localPort; }
-  };
-
   Listener(App *app, uint32_t cxnFlags,
       double cxnLatency, uint32_t cxnFrag, uint32_t cxnPack, double cxnDelay,
       ZiIP localIP, unsigned localPort, ZiIP remoteIP, unsigned remotePort,
@@ -355,6 +345,10 @@ friend LocalPortAccessor;
   void stop();
 
   ZiConnection *accepted(const ZiCxnInfo &ci);
+
+  static int LocalPortAxor(Listener *listener) {
+    return listener->m_localPort;
+  }
 
 private:
   void status_(ZmStream &) const;
@@ -483,13 +477,11 @@ class App : public ZmPolymorph, public ZvCmdHost {
 
   using ListenerHash =
     ZmHash<ZmRef<Listener>,
-      ZmHashKey<Listener::LocalPortAccessor,
-	ZmHashObject<ZuNull> > >;
+      ZmHashKey<Listener::LocalPortAxor>>;
 
   using ProxyHash =
     ZmHash<ZmRef<Proxy>,
-      ZmHashKey<Proxy::SrcPortAxor,
-	ZmHashObject<ZuNull> > >;
+      ZmHashKey<Proxy::SrcPortAxor>>;
 
 public:
   App() : m_verbose(false) {
@@ -610,7 +602,7 @@ public:
     m_proxies->add(proxy);
   }
   void del(Proxy *proxy) {
-    delete m_proxies->del(Proxy::SrcPortAxor::get(proxy));
+    delete m_proxies->del(Proxy::SrcPortAxor(proxy));
   }
 
   int proxy(ZvCmdContext *ctx) {
@@ -1183,7 +1175,7 @@ Connection::Connection(Proxy *proxy, uint32_t flags,
     double latency, uint32_t frag, uint32_t pack, double delay,
     const ZiConnectionInfo &ci) :
   ZiConnection(proxy->mx(), ci),
-  m_mx(proxy->mx()), m_proxy(proxy), m_peer(0),
+  m_mx(proxy->mx()), m_proxy(proxy), m_peer(nullptr),
   m_flags(flags), m_latency(latency),
   m_frag(frag), m_pack(pack), m_delay(delay)
 {
@@ -1192,7 +1184,7 @@ Connection::Connection(Proxy *proxy, uint32_t flags,
 void Connection::connected(ZiIOContext &io)
 {
   io.complete();
-  m_mx->add(ZmFn<>::Member<&Connection::connected_>::fn(this));
+  m_mx->add([this]() { connected_(); });
 }
 
 void Connection::connected_()
@@ -1206,7 +1198,7 @@ void Connection::disconnected()
     if (ZuBoxed(m_latency).fgt(0)) {
       // double the latency to avoid overtaking pending delayed sends
       ZmTime next(ZmTime::Now, m_latency * 2.0);
-      m_mx->add(ZmFn<>::Member<&ZiConnection::disconnect>::fn(m_peer), next);
+      m_mx->add([peer = ZmMkRef(m_peer)]() { peer->disconnect(); }, next);
     } else
       m_peer->disconnect();
   }
@@ -1224,10 +1216,7 @@ void Connection::recv(ZiIOContext *io)
 
   if (ZuUnlikely(ZuBoxed(m_delay).fgt(0))) {
     if (io) io->complete();
-    m_mx->add(
-	ZmFn<>::Member<static_cast<void (Connection::*)()>(
-	  &Connection::recv)>::fn(this),
-	ZmTime(ZmTime::Now, m_delay));
+    m_mx->add([this]() { recv(); }, ZmTime(ZmTime::Now, m_delay));
     return;
   }
 
@@ -1269,7 +1258,7 @@ void Connection::send(ZmRef<IOBuf> ioBuf)
     ZmTime next = m_queue.tail()->stamp() + m_latency;
     if (next > now) {
       m_sendPending = true;
-      m_mx->add(ZmFn<>::Member<&Connection::delayedSend>::fn(this), next);
+      m_mx->add([this]() { delayedSend(); }, next);
       return;
     }
   }
@@ -1350,7 +1339,7 @@ void Connection::release()
   }
 }
 
-unsigned Proxy::SrcPortAxor::get(Proxy *proxy)
+unsigned Proxy::SrcPortAxor(Proxy *proxy)
 {
   if (!proxy->m_out) return 0;
   return proxy->m_out->info().localPort;
@@ -1393,8 +1382,7 @@ void Proxy::connect2()
 void Proxy::failed2(bool transient)
 {
   if (transient) {
-    m_mx->add(
-	ZmFn<>::Member<&Proxy::connect2>::fn(this),
+    m_mx->add([this]() { connect2(); },
 	ZmTimeNow((int)m_listener->reconnectFreq()));
   } else {
     if (m_app->verbose()) { ZeLOG(Info, this->status()); }

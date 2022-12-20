@@ -316,7 +316,7 @@ eof:
 
 error:
   ZeLOG(Error, ZtString{} << '"' << m_app->replay() << "\": read() - " <<
-      Zi::resultName(n) << " - " << e);
+      Zi::ioResult(n) << " - " << e);
   return Zi::IOError;
 
 lenerror:

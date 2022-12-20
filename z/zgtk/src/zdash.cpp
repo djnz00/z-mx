@@ -910,10 +910,10 @@ public:
       auto i = writeStatus();
       if (i < 0)
 	ZeLOG(Error, ZtString{} <<
-	    "ZiVRing::push() failed - " << Zi::resultName(i));
+	    "ZiRing::push() failed - " << Zi::ioResult(i));
       else
 	ZeLOG(Error, ZtString{} <<
-	    "ZiVRing::push() failed - writeStatus=" << i);
+	    "ZiRing::push() failed - writeStatus=" << i);
       return false;
     }
     template <typename L>
@@ -952,7 +952,7 @@ public:
       int r;
       if ((r = m_telRing->reset()) != Zi::OK)
 	throw ZtString{} << m_telRingParams.name() <<
-	  ": reset failed - " << Zi::resultName(r);
+	  ": reset failed - " << Zi::ioResult(r);
     }
 
     m_role = cf->getEnum<ZvTelemetry::AppRole::Map>(

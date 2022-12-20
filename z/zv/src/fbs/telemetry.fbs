@@ -45,7 +45,7 @@ table Thread {			// == ZmThreadTelemetry
   alloc_stack:uint64;
   alloc_heap:uint64;
   sys_priority:int32;
-  index:int16;
+  sid:int16;
   partition:uint16;
   priority:ThreadPriority;
   main:uint8;

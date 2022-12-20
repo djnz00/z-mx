@@ -70,12 +70,12 @@ using FileLRU =
 	ZmListHeapID<ZmHeapDisable()>>>>;
 using FileLRUNode = typename FileLRU::Node;
 
-constexpr auto File_HeapID() { return []() { return "Zdf.File"; }; }
+inline const char *File_HeapID() { return "Zdf.File"; }
 using FileHash =
   ZmHash<FileLRUNode,
     ZmHashNode<FileLRUNode,
       ZmHashKey<File_::IDAxor,
-	ZmHashHeapID<File_HeapID()>>>>;
+	ZmHashHeapID<File_HeapID>>>>;
 using File = typename FileHash::Node;
 
 class ZdfAPI FileMgr : public Mgr {

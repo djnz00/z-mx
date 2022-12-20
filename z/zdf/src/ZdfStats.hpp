@@ -136,15 +136,13 @@ private:
 
 // NTP defaults
 struct StatsTree_Defaults {
-  struct HeapID {
-    constexpr static const char *id() { return "Zdf.StatsTree"; }
-  };
+  static const char *HeapID() { return "Zdf.StatsTree"; }
 };
 
 // StatsTreeHeapID - the heap ID
-template <class HeapID_, class NTP = StatsTree_Defaults>
+template <auto HeapID_, class NTP = StatsTree_Defaults>
 struct StatsTreeHeapID : public NTP {
-  using HeapID = HeapID_;
+  constexpr static auto HeapID = HeapID_;
 };
 
 template <class NTP = StatsTree_Defaults>

@@ -23,6 +23,8 @@
 
 #include <zlib/ZuSort.hpp>
 
+#include <zlib/ZmAlloc.hpp>
+
 #include <zlib/ZrlEditor.hpp>
 
 namespace Zrl {
@@ -677,7 +679,7 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
   if (mode.bindings) {
     unsigned n = 0;
     for (auto i = mode.bindings->readIterator(); i.iterateVal(); ) ++n;
-    auto bindings = ZuAlloc(const Binding *, n);
+    auto bindings = ZmAlloc(const Binding *, n);
     if (bindings) {
       unsigned j = 0;
       for (auto i = mode.bindings->readIterator();
@@ -745,7 +747,7 @@ bool Editor::loadMap(ZuString file, bool select)
     if ((r = f.open(file,
 	    ZiFile::ReadOnly | ZiFile::GC, 0666, 0, &e)) != Zi::OK) {
       m_loadError = ZtString{} <<
-	"open(\"" << file << "\"): " << Zi::resultName(r);
+	"open(\"" << file << "\"): " << Zi::ioResult(r);
       if (r == Zi::IOError) m_loadError << " - " << e;
       return false;
     }
@@ -757,7 +759,7 @@ bool Editor::loadMap(ZuString file, bool select)
     s.length(len);
     if ((r = f.read(s.data(), len, &e)) < 0) {
       m_loadError = ZtString{} <<
-	"read(\"" << file << "\"): " << Zi::resultName(r);
+	"read(\"" << file << "\"): " << Zi::ioResult(r);
       if (r == Zi::IOError) m_loadError << " - " << e;
       return false;
     }
