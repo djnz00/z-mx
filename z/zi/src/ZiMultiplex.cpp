@@ -1647,7 +1647,7 @@ bool ZiMultiplex::cxnAdd(ZiConnection *cxn, Socket s)
     ev.data.u64 = (uintptr_t)cxn;
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
-      delete m_cxns->del(s);
+      m_cxns->del(s);
       Zi::closeSocket(s);
       Error("epoll_ctl(EPOLL_CTL_ADD)", Zi::IOError, e);
       return false;
@@ -1664,7 +1664,7 @@ void ZiMultiplex::cxnDel(Socket s)
   epoll_ctl(m_epollFD, EPOLL_CTL_DEL, s, 0);
 #endif
 
-  delete m_cxns->del(s);
+  m_cxns->del(s);
 }
 
 bool ZiMultiplex::listenerAdd(Listener *listener, Socket s)

@@ -233,23 +233,27 @@ template <typename L> struct ZuGuard {
       static_cast<const void *>(this); \
   }
 
-// move/copy universal reference
-// ZuMvCp<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
-template <typename T_> struct ZuMvCp {
+// generic binding of universal reference parameter for move/copy
+// ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
+template <typename T_> struct ZuBind {
   using T = ZuDecay<T_>;
 
   template <typename Mv, typename Cp>
-  static auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
+  constexpr static auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
   template <typename Mv, typename Cp>
-  static auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
+  constexpr static auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
 
+  // undefined - ensures that parameter is movable at compile time
   template <typename Mv>
   static void mv(const T &v, Mv); // undefined
+
   template <typename Mv>
-  static auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
+  constexpr static auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
 
   template <typename Cp>
-  static auto cp(const T &v, Cp cp_) { return cp_(v); }
+  constexpr static auto cp(const T &v, Cp cp_) { return cp_(v); }
+
+  // undefined - ensures that parameter is not movable at compile time
   template <typename Cp>
   static void cp(T &&v, Cp); // undefined
 };

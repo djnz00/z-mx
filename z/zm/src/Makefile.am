@@ -19,7 +19,7 @@ pkginclude_HEADERS = \
 	ZmSingleton.hpp ZmSpecific.hpp ZmSpinLock.hpp ZmStack.hpp \
 	ZmStream.hpp ZmTLock.hpp ZmThread.hpp ZmTime.hpp \
 	ZmTimeInterval.hpp ZmTimeout.hpp ZmTopology.hpp ZmTrap.hpp \
-	ZmEngine.hpp
+	ZmEngine.hpp ZmCache.hpp
 lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \

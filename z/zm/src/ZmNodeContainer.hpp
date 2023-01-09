@@ -31,12 +31,14 @@
 #endif
 
 #include <zlib/ZuObject.hpp>
+#include <zlib/ZuPtr.hpp>
 
 template <bool Shadow, bool IsObject>
 struct ZmNodeContainer_;
 // ref-counted nodes
 template <> struct ZmNodeContainer_<false, true> {
   template <typename T> using Ref = ZmRef<T>;
+  template <typename T> using MvRef = ZmRef<T>;
   template <typename T> void nodeRef(T *o) { ZmREF(o); }
   template <typename T> void nodeRef(const Ref<T> &o) { ZmREF(o); }
   template <typename T> void nodeDeref(T *o) { ZmDEREF(o); }
@@ -51,6 +53,7 @@ template <> struct ZmNodeContainer_<false, true> {
 template <>
 struct ZmNodeContainer_<false, false> {
   template <typename T> using Ref = T *;
+  template <typename T> using MvRef = ZuPtr<T>;
   template <typename T> static void nodeRef(T *) { }
   template <typename T> static void nodeDeref(T *) { }
   template <typename T> static T *nodeAcquire(T *o) { return o; }
@@ -60,6 +63,7 @@ struct ZmNodeContainer_<false, false> {
 template <bool IsObject>
 struct ZmNodeContainer_<true, IsObject> {
   template <typename T> using Ref = T *;
+  template <typename T> using MvRef = T *;
   template <typename T> static void nodeRef(T *) { }
   template <typename T> static void nodeDeref(T *) { }
   template <typename T> static T *nodeAcquire(T *o) { return o; }

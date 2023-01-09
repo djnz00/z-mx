@@ -117,16 +117,13 @@ const char *state(int i)
   }
 }
 
-void dump_(T *t)
-{
-  printf("TID %d State %s\n", t->m_tid, state(t->m_state));
-}
-
 void dump(C *c)
 {
   printf("counter: %d\n", c->m_counter);
   std::cout << c->m_rwLock << '\n';
-  ZmSpecific<T>::all(ZmFn<T *>::Ptr<&dump_>::fn());
+  ZmSpecific<T>::all([](const T *v) { 
+    printf("TID %d State %s\n", v->m_tid, state(v->m_state));
+  });
   fflush(stdout);
 }
 

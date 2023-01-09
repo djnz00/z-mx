@@ -100,8 +100,7 @@ struct BufLRU_HeapID {
 using BufLRU =
   ZmList<BufLRUNode_,
     ZmListNode<BufLRUNode_,
-      ZmListShadow<true,
-	ZmListHeapID<ZmHeapDisable()>>>>;
+      ZmListShadow<true>>>;
 using BufLRUNode = BufLRU::Node;
 
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)

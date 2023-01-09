@@ -321,7 +321,7 @@ public:
   virtual ~Listener() { }
 
   void add(Proxy *proxy) { m_proxies->add(proxy); }
-  void del(Proxy *proxy) { delete m_proxies->del(proxy); }
+  void del(Proxy *proxy) { m_proxies->del(proxy); }
 
   ZiMultiplex *mx() const { return m_mx; }
   App *app() const { return m_app; }
@@ -602,7 +602,7 @@ public:
     m_proxies->add(proxy);
   }
   void del(Proxy *proxy) {
-    delete m_proxies->del(Proxy::SrcPortAxor(proxy));
+    m_proxies->del(Proxy::SrcPortAxor(proxy));
   }
 
   int proxy(ZvCmdContext *ctx) {
@@ -684,7 +684,7 @@ public:
       while (ZmRef<Listener> listener = i.iterateVal()) {
         if (listener->tag() != tag) continue;
         listener->stop();
-        delete m_listeners->del(listener->localPort());
+        m_listeners->del(listener->localPort());
         out << listener->status() << '\n';
         status(ctx);
       }
@@ -696,7 +696,7 @@ public:
       }
       listener->stop();
       out << listener->status() << '\n';
-      delete m_listeners->del(localPort);
+      m_listeners->del(localPort);
     }
     return 0;
   }

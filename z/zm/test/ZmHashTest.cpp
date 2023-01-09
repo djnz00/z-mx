@@ -65,7 +65,7 @@ struct ZCmp {
   constexpr static const Z *null() { return nullptr; }
 };
 
-using ZHash = ZmHashKV<int, ZmRef<Z>, ZmHashLock<ZmPLock>>;
+using ZHash = ZmHashKV<unsigned, ZmRef<Z>, ZmHashLock<ZmPLock>>;
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 
@@ -75,28 +75,24 @@ int hashTestSize = 1000;
 
 void hashIt(ZHash *h) {
   ZmRef<Z> z = new Z;
-  int j;
+  unsigned j;
 
   for (j = 0; j < hashTestSize; j++)
     h->add(j, z);
   for (j = 0; j < hashTestSize; j++)
-    delete h->del(j);
+    h->del(j);
   for (j = 0; j < hashTestSize; j++) {
     h->add(j, z);
-    delete h->del(j);
+    h->del(j);
   }
 }
 
 void semPost(ZmSemaphore *sema) {
-  int i;
-
-  for (i = 0; i < 10; i++) sema->post();
+  for (unsigned i = 0; i < 10; i++) sema->post();
 }
 
 void semWait(ZmSemaphore *sema) {
-  int i;
-
-  for (i = 0; i < 10; i++) sema->wait();
+  for (unsigned i = 0; i < 10; i++) sema->wait();
 }
 
 struct S : public ZmObject {

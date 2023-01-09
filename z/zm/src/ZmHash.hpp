@@ -103,7 +103,7 @@ protected:
   Lock &lockCode(uint32_t code) const {
     return lockSlot(ZmHash_Bits::hashBits(code, m_bits));
   }
-  Lock &lockSlot(int slot) const {
+  Lock &lockSlot(unsigned slot) const {
     return lock_(slot>>(m_bits - m_cBits));
   }
 
@@ -149,7 +149,7 @@ protected:
   ZmNoLock &lockCode(uint32_t code) const {
     return const_cast<ZmNoLock &>(m_noLock);
   }
-  ZmNoLock &lockSlot(int slot) const {
+  ZmNoLock &lockSlot(unsigned slot) const {
     return const_cast<ZmNoLock &>(m_noLock);
   }
 
@@ -230,6 +230,7 @@ struct ZmHashNode : public NTP {
 template <bool Shadow_, typename NTP = ZmHash_Defaults>
 struct ZmHashShadow : public NTP {
   enum { Shadow = Shadow_ };
+  constexpr static auto HeapID = ZmHeapDisable();
 };
 
 // ZmHashHeapID - the heap ID
@@ -317,9 +318,9 @@ public:
   using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
   using NodeFn = NodeFn_<Node>;
   using NodeRef = typename NodeContainer::template Ref<Node>;
+  using NodeMvRef = typename NodeContainer::template MvRef<Node>;
   using NodePtr = Node *;
 
-private:
   using NodeContainer::nodeRef;
   using NodeContainer::nodeDeref;
   using NodeContainer::nodeAcquire;
@@ -329,24 +330,16 @@ private:
     if (ZuLikely(node)) return node->Node::key();
     return ZuNullRef<Key, Cmp>();
   }
-  Key keyMv(NodeRef &&node) {
-    if (ZuLikely(node)) {
-      Key key = ZuMv(*node).Node::key();
-      nodeDelete(node);
-      return key;
-    }
+  Key keyMv(NodeMvRef node) {
+    if (ZuLikely(node)) return ZuMv(*node).Node::key();
     return ZuNullRef<Key, Cmp>();
   }
   static ValRet val(const Node *node) {
     if (ZuLikely(node)) return node->Node::val();
     return ZuNullRef<Val, ValCmp>();
   }
-  Val valMv(NodeRef &&node) {
-    if (ZuLikely(node)) {
-      Val val = ZuMv(*node).Node::val();
-      nodeDelete(node);
-      return val;
-    }
+  Val valMv(NodeMvRef node) {
+    if (ZuLikely(node)) return ZuMv(*node).Node::val();
     return ZuNullRef<Val, ValCmp>();
   }
 
@@ -439,7 +432,7 @@ public:
 
     Iterator(Hash &hash) : Base(hash) { hash.startIterate(*this); }
     virtual ~Iterator() { m_hash.endIterate(*this); }
-    void del() { m_hash.delIterate(*this); }
+    NodeMvRef del() { return m_hash.delIterate(*this); }
   };
 
   class ReadIterator : public Iterator_<ReadIterator> {
@@ -488,7 +481,7 @@ public:
       hash.startKeyIterate(*this);
     }
     ~KeyIterator() { m_hash.endIterate(*this); }
-    void del() { m_hash.delIterate(*this); }
+    NodeMvRef del() { return m_hash.delIterate(*this); }
   };
 
   class ReadKeyIterator : public KeyIterator_<ReadKeyIterator> {
@@ -751,22 +744,22 @@ private:
 
 public:
   template <typename P>
-  MatchKey<P, NodeRef> del(const P &key) {
+  MatchKey<P, NodeMvRef> del(const P &key) {
     uint32_t code = HashFn::hash(key);
     Guard guard(lockCode(code));
     return del_(matchKey(key), code);
   }
   template <typename P>
-  MatchData<P, NodeRef> del(const P &data) {
+  MatchData<P, NodeMvRef> del(const P &data) {
     uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
     return del_(matchData(data), code);
   }
   template <typename P0, typename P1>
-  NodeRef del(P0 &&p0, P1 &&p1) {
+  NodeMvRef del(P0 &&p0, P1 &&p1) {
     return del(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  NodeRef delNode(Node *node) {
+  NodeMvRef delNode(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     Guard guard(lockCode(code));
     return del_(matchNode(node), code);
@@ -816,7 +809,7 @@ public:
 
 private:
   template <typename Match>
-  NodeRef del_(Match match, uint32_t code) {
+  NodeMvRef del_(Match match, uint32_t code) {
     unsigned count = m_count.load_();
     if (!count) return 0;
 
@@ -939,11 +932,11 @@ private:
     iterator.unlock(lockSlot(iterator.m_slot));
   }
   template <typename I>
-  void delIterate(I &iterator) {
+  NodeMvRef delIterate(I &iterator) {
     Node *node = iterator.m_node, *prevNode = iterator.m_prev;
 
     unsigned count = m_count.load_();
-    if (!count || !node) return;
+    if (!count || !node) return nullptr;
 
     if (!prevNode)
       m_table[iterator.m_slot] = node->NodeFn::next;
@@ -951,9 +944,12 @@ private:
       prevNode->NodeFn::next = node->NodeFn::next;
 
     iterator.m_node = prevNode;
-    nodeDeref(node);
-    nodeDelete(node);
+
     m_count.store_(count - 1);
+
+    node->NodeFn::next = nullptr;
+
+    return nodeAcquire(node);
   }
 
 public:

@@ -93,8 +93,7 @@ using ZmHashMgr_Tables =
     ZmRBTreeNode<ZmAnyHash_,
       ZmRBTreeKey<ZmAnyHash_PtrAxor,
 	ZmRBTreeUnique<true,
-	  ZmRBTreeHeapID<ZmHeapDisable(),
-	    ZmRBTreeLock<ZmNoLock>>>>>>;
+	  ZmRBTreeHeapID<ZmHeapDisable()>>>>>;
 using ZmAnyHash = ZmHashMgr_Tables::Node;
 
 template <typename, typename> class ZmHash; 

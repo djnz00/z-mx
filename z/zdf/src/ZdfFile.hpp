@@ -66,8 +66,7 @@ struct File_ : public ZmObject, public ZiFile {
 using FileLRU =
   ZmList<File_,
     ZmListNode<File_,
-      ZmListShadow<true,
-	ZmListHeapID<ZmHeapDisable()>>>>;
+      ZmListShadow<true>>>;
 using FileLRUNode = typename FileLRU::Node;
 
 inline const char *File_HeapID() { return "Zdf.File"; }

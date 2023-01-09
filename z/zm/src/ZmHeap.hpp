@@ -390,8 +390,7 @@ using ZmHeap = typename ZmHeap_<ID, Size, Sharded>::T;
 template <auto ID, unsigned Size, bool Sharded>
 inline void ZmHeapCacheT<ID, Size, Sharded>::allStats(StatsFn fn)
 {
-  TLS::all(ZmFn<ZmHeapCacheT *>::template Lambda<ZmHeapDisable()>::fn(
-	[&fn](ZmHeapCacheT *c) { fn(c->m_stats); }));
+  TLS::all([&fn](ZmHeapCacheT *c) { fn(c->m_stats); });
 }
 
 #endif /* ZmHeap_HPP */

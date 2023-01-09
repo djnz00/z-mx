@@ -160,10 +160,9 @@ public:
 #endif
   }
   template <typename R>
-  ZmRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
-    m_object{
+  ZmRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept : m_object{
       static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))} {
-    ZuMvCp<R>::mvcp(ZuFwd<R>(r),
+    ZuBind<R>::mvcp(ZuFwd<R>(r),
 #ifndef ZmObject_DEBUG
 	[](auto &&r) { r.m_object = nullptr; }
 #else

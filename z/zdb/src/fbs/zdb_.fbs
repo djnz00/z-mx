@@ -5,7 +5,7 @@ struct DBState {
   rn:uint64;
 }
 table Heartbeat {
-  host_i_d:Zfb.ID;
+  host:Zfb.ID;
   state:uint32;
   env_state:[DBState];
 }

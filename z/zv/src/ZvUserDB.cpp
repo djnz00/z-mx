@@ -36,10 +36,10 @@ Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
   m_keyInterval(keyInterval),
   m_maxSize(maxSize)
 {
-  m_users = new UserIDHash();
-  m_userNames = new UserNameHash();
-  m_keys = new KeyHash();
-  m_permNames = new PermNames();
+  m_users = new UserIDHash{};
+  m_userNames = new UserNameHash{};
+  m_keys = new KeyHash{};
+  m_permNames = new PermNames{};
 }
 
 Mgr::~Mgr()

@@ -91,9 +91,9 @@ public:
     m_caches3.clean();
     auto i = m_caches.iterator();
     while (auto node = i.iterate()) {
-      auto c = i.del(node)->val();
+      auto c = ZuMv(*(i.del(node))).val();
       ZmDEREF(c);
-      delete node;
+      // delete node;
     }
   }
 

@@ -206,12 +206,13 @@ bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
 
 void FileMgr::save(ZmRef<Buf> buf)
 {
-  buf->save([this, buf = ZuMv(buf)]() {
-    m_sched->run(m_writeThread, [buf = ZuMv(buf)]() mutable {
+  buf->save([buf = ZuMv(buf)]() {
+    auto self = static_cast<FileMgr *>(buf->mgr);
+    self->m_sched->run(m_writeThread, [buf = ZuMv(buf)]() mutable {
       auto buf_ = buf.ptr();
       buf_->save_([buf = ZuMv(buf)]() {
-	static_cast<FileMgr *>(buf->mgr)->save_(
-	    buf->seriesID, buf->blkIndex, buf->data());
+	auto self = static_cast<FileMgr *>(buf->mgr);
+	self->save_(buf->seriesID, buf->blkIndex, buf->data());
       });
     });
   });

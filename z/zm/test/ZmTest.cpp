@@ -151,15 +151,15 @@ struct S : public ZmObject {
 unsigned S::m_j = 0;
 
 struct W {
-  void fn(const char *prefix, ZmThreadContext *c) {
+  void fn(const char *prefix, const ZmThreadContext *c) {
     const ZmThreadName &s = c->name();
     if (!s)
       printf("%s: %d\n", prefix, (int)c->tid());
     else
       printf("%s: %.*s\n", prefix, s.length(), s.data());
   }
-  void fn1(ZmThreadContext *c) { fn("list1", c); }
-  void fn2(ZmThreadContext *c) { fn("list2", c); }
+  void fn1(const ZmThreadContext *c) { fn("list1", c); }
+  void fn2(const ZmThreadContext *c) { fn("list2", c); }
   void post() { m_sem.post(); }
   void wait() { m_sem.wait(); }
   ZmSemaphore				m_sem;
@@ -363,7 +363,10 @@ int main(int argc, char **argv)
     }
 
     puts("list tests 1 ok");
+
+    printf("list2 count: %u\n", list2.count_());
   }
+
   {
     ZList2 list;
     list.addNode(new ZList2::Node("foo"));
@@ -554,11 +557,11 @@ int main(int argc, char **argv)
       r[j] = ZmThread{[w = &w]() { w->wait(); }};
     Zm::sleep(1);
     ZmSpecific<ZmThreadContext>::all(
-	ZmFn<ZmThreadContext *>::Member<&W::fn1>::fn(&w));
+	[&w](const ZmThreadContext *tc) { w.fn1(tc); });
     for (j = 0; j < n; j++) w.post();
     for (j = 0; j < n; j++) r[j].join(0);
     ZmSpecific<ZmThreadContext>::all(
-	ZmFn<ZmThreadContext *>::Member<&W::fn2>::fn(&w));
+	[&w](const ZmThreadContext *tc) { w.fn2(tc); });
   }
 
   {

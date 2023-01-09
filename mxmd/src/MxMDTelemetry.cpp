@@ -178,7 +178,7 @@ void MxMDTelemetry::delQueue(MxID id, bool tx)
 {
   auto key = ZuFwdPair(id, tx);
   Guard guard(m_lock);
-  delete m_queues.del(key);
+  m_queues.del(key);
 }
 
 void MxMDTelemetry::addDBEnv(ZdbEnv *env)

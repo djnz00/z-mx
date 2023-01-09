@@ -193,13 +193,13 @@ public:
   }
 #endif
 
-  template <typename T>
-  void all_(ZmFn<T *> fn) {
-    all_2(&fn);
+  template <typename L>
+  void all_(L l) {
+    all_2(&l);
   }
 
-  template <typename T>
-  void all_2(ZmFn<T *> *fn) {
+  template <typename L>
+  void all_2(L *l) {
     ZmSpecific_lock();
 
     if (ZuUnlikely(!m_count)) { ZmSpecific_unlock(); return; }
@@ -207,11 +207,11 @@ public:
     auto objects = static_cast<Object **>(ZuAlloca(m_count * sizeof(Object *)));
     if (ZuUnlikely(!objects)) { ZmSpecific_unlock(); return; }
     memset(objects, 0, sizeof(Object *) * m_count);
-    all_3(objects, fn);
+    all_3(objects, l);
   }
 
-  template <typename T>
-  void all_3(Object **objects, ZmFn<T *> *fn) {
+  template <typename L>
+  void all_3(Object **objects, L *l) {
     unsigned j = 0, n = m_count;
 
     for (Object *o = m_head; j < n && o; ++j, o = o->next)
@@ -237,17 +237,19 @@ public:
     }
 #endif
 
+    using Ptr = ZuType<0, typename ZuDeduce<decltype(&L::operator())>::Args>;
+
     for (j = 0; j < n; j++)
       if (Object *o = objects[j])
-	if (T *ptr = static_cast<T *>(o->ptr))
+	if (Ptr ptr = static_cast<Ptr>(o->ptr))
 	  ZmREF(ptr);
 
     ZmSpecific_unlock();
 
     for (j = 0; j < n; j++)
       if (Object *o = objects[j])
-	if (T *ptr = static_cast<T *>(o->ptr)) {
-	  (*fn)(ptr);
+	if (Ptr ptr = static_cast<Ptr>(o->ptr)) {
+	  (*l)(ptr);
 	  ZmDEREF(ptr);
 	}
   }
@@ -394,7 +396,8 @@ public:
     return global()->instance_(ptr);
   }
 
-  static void all(ZmFn<T *> fn) { return global()->all_(fn); }
+  template <typename L>
+  static void all(L l) { return global()->all_(ZuMv(l)); }
 };
 
 template <typename L>

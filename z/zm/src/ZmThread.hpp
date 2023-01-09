@@ -567,8 +567,8 @@ inline ZmThreadContext *ZmThreadContext::self(ZmThreadContext *c) {
 }
 template <typename S> inline void ZmThread::CSV::print(S &s) const {
   CSV_<S> csv{s};
-  ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{&csv,
-      [](CSV_<S> *csv, ZmThreadContext *tc) { csv->print(tc); }});
+  ZmSpecific<ZmThreadContext>::all(
+      [&csv](const ZmThreadContext *tc) { csv.print(tc); });
 }
 
 #endif /* ZmThread_HPP */

@@ -152,7 +152,7 @@ public:
   Mx *mx() { return m_mx; }
 
   void connected_(Connection *cxn) { m_cxns->add(cxn); }
-  void disconnected_(Connection *cxn) { delete m_cxns->del(cxn->groupID()); }
+  void disconnected_(Connection *cxn) { m_cxns->del(cxn->groupID()); }
   int nCxns() { return m_cxns->count_(); }
 
 private:

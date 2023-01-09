@@ -230,8 +230,8 @@ private:
     ZmRBTree<Timer_,
       ZmRBTreeKey<Timer_TimeoutAxor,
 	ZmRBTreeNode<Timer_,
-	  ZmRBTreeShadow<true,
-	    ZmRBTreeHeapID<ScheduleTree_HeapID> > > > >;
+	  ZmRBTreeHeapID<ScheduleTree_HeapID,	// overrides Shadow
+	    ZmRBTreeShadow<true>>>>>;
 public:
   using Timer = ScheduleTree::Node;
 

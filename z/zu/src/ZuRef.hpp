@@ -112,7 +112,7 @@ public:
   ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
     m_object{
       static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))} {
-    ZuMvCp<R>::mvcp(ZuFwd<R>(r),
+    ZuBind<R>::mvcp(ZuFwd<R>(r),
 	[](auto &&r) { r.m_object = 0; },
 	[this](const auto &) { if (T *o = m_object) o->ref(); });
   }

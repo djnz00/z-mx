@@ -99,6 +99,7 @@ struct ZmListNode : public NTP {
 template <bool Shadow_, typename NTP = ZmList_Defaults>
 struct ZmListShadow : public NTP {
   enum { Shadow = Shadow_ };
+  constexpr static auto HeapID = ZmHeapDisable();
 };
 
 // ZmListHeapID - the heap ID
@@ -155,6 +156,7 @@ public:
   using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
   using NodeFn = NodeFn_<Node>;
   using NodeRef = typename NodeContainer::template Ref<Node>;
+  using NodeMvRef = typename NodeContainer::template MvRef<Node>;
   using NodePtr = Node *;
 
 private:
@@ -167,24 +169,16 @@ private:
     if (ZuLikely(node)) return node->Node::key();
     return ZuNullRef<T, Cmp>();
   }
-  static Key keyMv(NodeRef &&node) {
-    if (ZuLikely(node)) {
-      Key key = ZuMv(*node).Node::key();
-      nodeDelete(node);
-      return key;
-    }
+  static Key keyMv(NodeMvRef node) {
+    if (ZuLikely(node)) return ZuMv(*node).Node::key();
     return ZuNullRef<T, Cmp>();
   }
   static const Val &val(Node *node) {
     if (ZuLikely(node)) return node->Node::val();
     return ZuNullRef<Val, ValCmp>();
   }
-  static Val valMv(NodeRef &&node) {
-    if (ZuLikely(node)) {
-      Val val = ZuMv(*node).Node::val();
-      nodeDelete(node);
-      return val;
-    }
+  static Val valMv(NodeMvRef node) {
+    if (ZuLikely(node)) return ZuMv(*node).Node::val();
     return ZuNullRef<Val, ValCmp>();
   }
 
@@ -253,7 +247,7 @@ friend Iterator;
       this->m_list.unshiftIterateNode(*this, node);
     }
 
-    NodeRef del() { return this->m_list.delIterate(*this); }
+    NodeMvRef del() { return this->m_list.delIterate(*this); }
   };
 
   class ReadIterator;
@@ -433,10 +427,10 @@ public:
   template <typename P>
   MatchData<P, NodeRef> del(const P &data) { return del_(matchData(data)); }
   template <typename P0, typename P1>
-  NodeRef del(P0 &&p0, P1 &&p1) {
+  NodeMvRef del(P0 &&p0, P1 &&p1) {
     return del(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  NodeRef delNode(Node *node) {
+  NodeMvRef delNode(Node *node) {
     Guard guard(m_lock);
     if (ZuLikely(node)) del__(node);
     return nodeAcquire(node);
@@ -482,7 +476,7 @@ public:
 
 private:
   template <typename Match>
-  NodeRef del_(Match match) {
+  NodeMvRef del_(Match match) {
     Guard guard(m_lock);
     if (!m_count) return nullptr;
     Node *node;
@@ -523,7 +517,7 @@ private:
     ++m_count;
   }
 public:
-  NodeRef popNode() {
+  NodeMvRef popNode() {
     Guard guard(m_lock);
     Node *node;
 
@@ -542,11 +536,11 @@ public:
     return ret;
   }
   T pop() {
-    NodeRef node = popNode();
+    NodeMvRef node = popNode();
     if (ZuUnlikely(!node)) return T{};
     return ZuMv(*node).Node::data();
   }
-  NodeRef rpopNode() {
+  NodeMvRef rpopNode() {
     Guard guard(m_lock);
     Node *node;
 
@@ -564,7 +558,7 @@ public:
     return node;
   }
   T rpop() {
-    NodeRef node = rpopNode();
+    NodeMvRef node = rpopNode();
     if (ZuUnlikely(!node)) return T{};
     return node->Node::data();
   }
@@ -587,7 +581,7 @@ public:
     m_head = node;
     ++m_count;
   }
-  NodeRef shiftNode() {
+  NodeMvRef shiftNode() {
     Guard guard(m_lock);
     Node *node;
 
@@ -606,13 +600,11 @@ public:
     return ret;
   }
   T shift() {
-    NodeRef node = shiftNode();
+    NodeMvRef node = shiftNode();
     if (ZuUnlikely(!node)) return T{};
-    T data = ZuMv(*node).Node::data();
-    nodeDelete(node);
-    return data;
+    return ZuMv(*node).Node::data();
   }
-  NodeRef rshiftNode() {
+  NodeMvRef rshiftNode() {
     Guard guard(m_lock);
     Node *node;
 
@@ -630,7 +622,7 @@ public:
     return node;
   }
   T rshift() {
-    NodeRef node = rshiftNode();
+    NodeMvRef node = rshiftNode();
     if (ZuUnlikely(!node)) return T{};
     return node->Node::data();
   }
@@ -722,7 +714,7 @@ protected:
     ++m_count;
   }
 
-  NodeRef delIterate(Iterator_ &iterator) {
+  NodeMvRef delIterate(Iterator_ &iterator) {
     if (!m_count) return nullptr;
 
     Node *node = iterator.m_node;

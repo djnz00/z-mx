@@ -131,7 +131,6 @@ public:
 
   template <typename T, bool> struct Bind_P0 {
     static decltype(auto) p0(const T &v) { return v.m_p0; }
-    static decltype(auto) p0(T &v) { return v.m_p0; }
     static decltype(auto) p0(T &&v) { return ZuMv(v.m_p0); }
   };
   template <typename T> struct Bind_P0<T, true> {
@@ -140,7 +139,6 @@ public:
   };
   template <typename T, bool> struct Bind_P1 {
     static decltype(auto) p1(const T &v) { return v.m_p1; }
-    static decltype(auto) p1(T &v) { return v.m_p1; }
     static decltype(auto) p1(T &&v) { return ZuMv(v.m_p1); }
   };
   template <typename T> struct Bind_P1<T, true> {

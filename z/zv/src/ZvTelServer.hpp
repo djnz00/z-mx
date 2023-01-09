@@ -326,7 +326,7 @@ public:
   }
   void delEngine(ZvEngine *engine) {
     m_mx->invoke(m_thread, [this, id = engine->id()]() {
-      delete m_engines.del(id);
+      m_engines.del(id);
     });
   }
   void addQueue(unsigned type, ZuID id, QueueFn queueFn) {
@@ -338,7 +338,7 @@ public:
   void delQueue(unsigned type, ZuID id) {
     m_mx->invoke(m_thread, [this, type, id]() {
       auto key = ZuFwdPair(type, id);
-      delete m_queues.del(key);
+      m_queues.del(key);
     });
   }
 

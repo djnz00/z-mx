@@ -228,9 +228,6 @@ struct ZuFieldTuple_Bind {
   static decltype(auto) get(const O &o) {
     return ZuFieldTuple_<O, ZuCRef, Fields...>{Fields::get(o)...};
   }
-  static decltype(auto) get(O &o) {
-    return ZuFieldTuple_<O, ZuLRef, Fields...>{Fields::get(o)...};
-  }
   static decltype(auto) get(O &&o) {
     return ZuFieldTuple_<O, ZuAsIs, Fields...>{Fields::get(ZuMv(o))...};
   }

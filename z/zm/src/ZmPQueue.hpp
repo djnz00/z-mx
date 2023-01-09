@@ -72,15 +72,11 @@
 // Key would be uint32_t/uint64_t, key() would return the key in the header
 // length() would return the number of bytes in the packet/fragment
 
-template <typename T>
-struct ZmPQueue_DefaultKeyAxor_Bind {
-  static decltype(auto) get(const T &v) { return v.key(); }
-  static decltype(auto) get(T &v) { return v.key(); }
-  static decltype(auto) get(T &&v) { return ZuMv(ZuMv(v).key()); }
-};
 inline constexpr auto ZmPQueueDefaultKeyAxor() {
   return [] <typename T> (T &&v) -> decltype(auto) {
-    return ZmPQueue_DefaultKeyAxor_Bind<ZuDecay<T>>::get(ZuFwd<T>(v));
+    return ZuBind<T>::mvcp(ZuFwd<T>(v),
+	[](auto &&v) -> decltype(auto) { return ZuMv(v).key(); },
+	[](const auto &v) { return v.key(); });
   };
 }
 inline constexpr auto ZmPQueueDefaultLenAxor() {
@@ -173,6 +169,7 @@ struct ZmPQueueNode : public NTP {
 template <bool Shadow_, typename NTP = ZmPQueue_Defaults>
 struct ZmPQueueShadow : public NTP {
   enum { Shadow = Shadow_ };
+  constexpr static auto HeapID = ZmHeapDisable();
 };
 
 // ZmPQueueHeapID - the heap ID

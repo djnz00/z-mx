@@ -101,12 +101,11 @@ public:
   template <typename R>
   ZuPtr(R &&r, MatchOtherPtr<ZuDeref<R>> *_ = nullptr) : m_object{
       static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))} {
-    ZuMvCp<R>::mv(ZuFwd<R>(r), [](auto &&r) { r.m_object = nullptr; });
+    ZuBind<R>::mv(ZuFwd<R>(r), [](auto &&r) { r.m_object = nullptr; });
   }
   ZuPtr(T *o) : m_object{o} { }
   template <typename O>
-  ZuPtr(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object{static_cast<T *>(o)} { }
+  ZuPtr(O *o, MatchPtr<O> *_ = nullptr) : m_object{static_cast<T *>(o)} { }
   ~ZuPtr() {
     if (T *o = m_object) delete o;
   }

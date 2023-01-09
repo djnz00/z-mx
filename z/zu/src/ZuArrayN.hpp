@@ -216,7 +216,7 @@ protected:
   }
 
   template <typename A> MatchArray<A> init(A &&a) {
-    ZuMvCp<A>::mvcp(ZuFwd<A>(a),
+    ZuBind<A>::mvcp(ZuFwd<A>(a),
       [this](auto &&a_) {
 	using Array = ZuDecay<decltype(a_)>;
 	using Elem = typename ZuTraits<Array>::Elem;
@@ -280,7 +280,7 @@ protected:
   }
 
   template <typename A> MatchArray<A> append_(A &&a) {
-    ZuMvCp<A>::mvcp(ZuFwd<A>(a),
+    ZuBind<A>::mvcp(ZuFwd<A>(a),
       [this](auto &&a_) {
 	using Array = ZuDecay<decltype(a_)>;
 	using Elem = typename ZuTraits<Array>::Elem;
