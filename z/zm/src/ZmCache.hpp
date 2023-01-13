@@ -30,13 +30,31 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-#include <ZmGuard.hpp>
-#include <ZmList.hpp>
-#include <ZmHash.hpp>
+#include <zlib/ZmPLock.hpp>
+#include <zlib/ZmGuard.hpp>
+#include <zlib/ZmAlloc.hpp>
+#include <zlib/ZmList.hpp>
+#include <zlib/ZmHash.hpp>
 
 // NTP defaults
 struct ZmCache_Defaults : public ZmHash_Defaults {
+  constexpr static auto KeyAxor = ZuDefaultAxor();
+  constexpr static auto ValAxor = ZuDefaultAxor();
   enum { Evict = 1 };
+  using Lock = ZmPLock;
+};
+
+// ZmCacheKey - key accessor
+template <auto KeyAxor_, typename NTP = ZmCache_Defaults>
+struct ZmCacheKey : public NTP {
+  constexpr static auto KeyAxor = KeyAxor_;
+};
+
+// ZmCacheKeyVal - key and optional value accessors
+template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmCache_Defaults>
+struct ZmCacheKeyVal : public NTP {
+  constexpr static auto KeyAxor = KeyAxor_;
+  constexpr static auto ValAxor = ValAxor_;
 };
 
 // ZmCacheEvict - enable/disable eviction
@@ -45,11 +63,21 @@ struct ZmCacheEvict : public NTP {
   enum { Evict = Evict_ };
 };
 
-template <typename T, auto KeyAxor, typename NTP = ZmCache_Defaults>
+// ZmCacheLock - the lock type used
+template <typename Lock_, typename NTP = ZmCache_Defaults>
+struct ZmCacheLock : public NTP {
+  using Lock = Lock_;
+};
+
+template <typename T, typename NTP = ZmCache_Defaults>
 class ZmCache {
+public:
+  using Lock = typename NTP::Lock;
+  enum { Evict = NTP::Evict };
+
+private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
-  enum { Evict = NTP::Evict };
   using LRUList = ZmList<T, ZmListNode<T, ZmListShadow<true>>>;
   struct LRUDisable { // LRU list is not needed if eviction is disabled
     using Node = T;
@@ -59,18 +87,19 @@ class ZmCache {
   };
   using LRU = ZuIf<Evict, LRUList, LRUDisable>;
   using Hash =
-    ZmHash<LRU::Node,
-      ZmHashNode<LRU::Node,
-	ZmHashKey<KeyAxor, NTP>>>;
+    ZmHash<typename LRU::Node,
+      ZmHashNode<typename LRU::Node, NTP>>;
+
+public:
   using Key = typename Hash::Key;
   using Node = typename Hash::Node;
   using NodeRef = typename Hash::NodeRef;
 
-public:
   ZmCache(uint32_t size) : m_size{size} {
     m_hash = new Hash{ZmHashParams{size}};
   }
 
+  unsigned count_() const { return m_hash->count_(); }
   uint64_t loads() const { return m_loads; }
   uint64_t misses() const { return m_misses; }
 
@@ -78,7 +107,7 @@ public:
   Node *find(const P &key) const {
     ReadGuard guard{m_lock};
     ++m_loads;
-    if (Node *node = m_hash.findPtr(key)) {
+    if (Node *node = m_hash->findPtr(key)) {
       if constexpr (Evict) m_lru.pushNode(m_lru.delNode(node));
       return node;
     }
@@ -94,42 +123,44 @@ public:
 
   template <bool Evict_ = Evict>
   ZuIfT<Evict_, NodeRef> add(NodeRef node) {
-    auto ptr = node.ptr();
+    Node *ptr = node;
     NodeRef lru = nullptr;
     Guard guard{m_lock};
-    if (m_hash.count_() >= m_size)
-      if (lru = m_lru.shiftNode()) m_hash->delNode(lru);
+    if (m_hash->count_() >= m_size)
+      if (lru = static_cast<NodeRef>(m_lru.shiftNode())) m_hash->delNode(lru);
     m_hash->addNode(ZuMv(node));
     m_lru.pushNode(ptr);
     return lru;
   }
 
-public:
   // all() is const by default, but all<true>() empties the cache
   template <bool Delete = false, typename L>
   ZuIfT<!Delete> all(L l) const {
     m_lock.lock();
-    const_cast<ZmCache *>(this)->all_<Delete>(ZuMv(map), ZuMv(reduce));
+    const_cast<ZmCache *>(this)->all_<Delete>(ZuMv(l));
   }
-  template <bool Delete, typename Map, typename Reduce>
+  template <bool Delete, typename L>
   ZuIfT<Delete> all(L l) {
     m_lock.lock();
-    all_<Delete>(ZuMv(map), ZuMv(reduce));
+    all_<Delete>(ZuMv(l));
   }
 private:
   template <bool Delete, typename L>
-  void all_(L l, Reduce reduce) {
+  bool all_(L l) {
     unsigned n = m_hash.count_();
     auto buf = ZmAlloc(NodeRef, n);
     if (!buf) return false;
     all__<Delete>(ZuMv(l), buf, n);
+    return true;
   }
   template <bool Delete>
-  ZuIfT<!Delete, decltype(m_hash.iterator())> allIterator() {
+  ZuIfT<!Delete, decltype(ZuDeclVal<Hash &>().iterator())>
+  allIterator() {
     return m_hash.iterator();
   }
   template <bool Delete>
-  ZuIfT<Delete, decltype(m_hash.readIterator())> allIterator() {
+  ZuIfT<Delete, decltype(ZuDeclVal<const Hash &>().readIterator())>
+  allIterator() {
     return m_hash.readIterator();
   }
   template <typename NodeRef>
@@ -169,10 +200,15 @@ private:
   unsigned		m_size;
 
   Lock			m_lock;
-    LRU			  m_lru;
     ZmRef<Hash>		  m_hash;
+    mutable LRU		  m_lru;
     mutable uint64_t	  m_loads = 0;
     mutable uint64_t	  m_misses = 0;
 };
+
+template <typename P0, typename P1, typename NTP = ZmCache_Defaults>
+using ZmCacheKV =
+  ZmCache<ZuPair<P0, P1>,
+    ZmCacheKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP>>;
 
 #endif /* ZmCache_HPP */

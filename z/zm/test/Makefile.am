@@ -15,7 +15,7 @@ TESTPROGS = ZmFnTest ZmHeapTest ZmRBTest ZmRWTest \
 	ZmSchedTest ZmStackTest ZmTest ZmHashTest ZmHashTest2 ZmTLockTest \
 	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread ZmPQueueTest \
 	ZmPQueueTest2 ZmPQueueTest3 ZmRingTest ZmRingTest2 \
-	ZmLockTest ZmTLSTest ZmAllocTest
+	ZmLockTest ZmTLSTest ZmAllocTest ZmCacheTest
 if MINGW
 bin_PROGRAMS = ZmBTTest
 noinst_PROGRAMS = ${TESTPROGS}
@@ -46,3 +46,4 @@ ZmRingTest2_SOURCES = ZmRingTest2.cpp
 ZmLockTest_SOURCES = ZmLockTest.cpp
 ZmTLSTest_SOURCES = ZmTLSTest.cpp
 ZmAllocTest_SOURCES = ZmAllocTest.cpp
+ZmCacheTest_SOURCES = ZmCacheTest.cpp

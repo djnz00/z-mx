@@ -1032,6 +1032,6 @@ private:
 template <typename P0, typename P1, typename NTP = ZmHash_Defaults>
 using ZmHashKV =
   ZmHash<ZuPair<P0, P1>,
-    ZmHashKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP> >;
+    ZmHashKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP>>;
 
 #endif /* ZmHash_HPP */

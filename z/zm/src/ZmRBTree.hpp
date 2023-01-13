@@ -1240,6 +1240,6 @@ public:
 template <typename P0, typename P1, typename NTP = ZmRBTree_Defaults>
 using ZmRBTreeKV =
   ZmRBTree<ZuPair<P0, P1>,
-    ZmRBTreeKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP> >;
+    ZmRBTreeKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP>>;
 
 #endif /* ZmRBTree_HPP */
