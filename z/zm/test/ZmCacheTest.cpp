@@ -25,7 +25,7 @@
 #include <zlib/ZmRBTree.hpp>
 
 struct Z {
-  int v;
+  unsigned v;
 
   struct Traits : public ZuBaseTraits<Z> {
     enum { IsPrimitive = 0, IsReal = 0 };
@@ -47,23 +47,22 @@ using ZNode = ZCache::Node;
 
 using ZTree = ZmRBTreeKV<unsigned, Z>;
 
-void fill(ZCache &cache, ZTree &tree, unsigned thread, unsigned cacheSize)
+void backFill(ZTree &tree, unsigned cacheSize)
 {
-  for (unsigned i = 0; i < cacheSize; i++)
-    if (auto evicted = cache.add(new ZNode{(thread * cacheSize) + i, i}))
-      tree.add(evicted->key(), evicted->val());
+  for (unsigned i = 0; i < cacheSize; i++) tree.add(i, Z{i});
 }
 
 void find(ZCache &cache, ZTree &tree, unsigned thread, unsigned cacheSize)
 {
   for (unsigned i = 0; i < cacheSize; i++) {
-    auto key = (thread * cacheSize) + i;
-    if (auto node = cache.find(key)) {
-    } else if (auto node = tree.find(key)) {
-      if (auto evicted = cache.add(new ZNode{key, node->val().v}))
-	tree.add(evicted->key(), evicted->val());
-    } else {
-    }
+    auto key = 
+    cache.find((thread * cacheSize) + i,
+	  [&tree](unsigned key) -> ZNode * {
+	    if (auto node = tree.find(key))
+	      return new ZNode{key, node->val().v};
+	    return nullptr;
+	  },
+	  [](ZNode *) { });
   }
 }
 
@@ -94,7 +93,9 @@ int main(int argc, char **argv)
   ZCache cache{cacheSize};
   ZTree tree;
 
-  fill(cache, tree, 0, cacheSize);
+  backFill(tree, cacheSize);
+  find(cache, tree, 0, cacheSize);
+  find(cache, tree, 0, cacheSize);
   stats(cache);
 
 #if 0
