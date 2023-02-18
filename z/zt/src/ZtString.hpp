@@ -1343,18 +1343,16 @@ inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
   iconv->convert(*this, s);
 }
 
-inline constexpr auto ZtString_ID() {
-  return []() { return "ZtString"; };
-}
+inline const char *ZtString_ID() { return "ZtString"; }
 
 #ifdef _MSC_VER
-ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID()>;
-ZtExplicit template class ZtAPI ZtString_<wchar_t, ZtString_ID()>;
+ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID>;
+ZtExplicit template class ZtAPI ZtString_<wchar_t, ZtString_ID>;
 #endif
 
-using ZtString = ZtString_<char, ZtString_ID()>;
+using ZtString = ZtString_<char, ZtString_ID>;
 template <auto HeapID> using ZtVString = ZtString_<char, HeapID>;
-using ZtWString = ZtString_<wchar_t, ZtString_ID()>;
+using ZtWString = ZtString_<wchar_t, ZtString_ID>;
 template <auto HeapID> using ZtVWString = ZtString_<wchar_t, HeapID>;
 
 // RVO shortcuts

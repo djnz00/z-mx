@@ -182,9 +182,7 @@ protected:
   mutable uintptr_t	m_object;
 };
 
-inline constexpr auto ZmLambda_HeapID() {
-  return []() { return "ZmLambda"; };
-}
+inline const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
 template <typename ...Args> class ZmFn : public ZmAnyFn {
   typedef uintptr_t (*Invoker)(uintptr_t &, Args...);
@@ -339,12 +337,12 @@ public:
   template <auto HeapID, bool Sharded> struct Lambda;
   template <typename Arg0, typename ...Args_>
   static ZmFn fn(Arg0 &&arg0, Args_ &&... args) {
-    return Lambda<ZmLambda_HeapID()>::fn(
+    return Lambda<ZmLambda_HeapID>::fn(
 	ZuFwd<Arg0>(arg0), ZuFwd<Args_>(args)...);
   }
   template <typename Arg0, typename ...Args_>
   static ZmFn mvFn(Arg0 &&arg0, Args_ &&... args) {
-    return Lambda<ZmLambda_HeapID()>::mvFn(
+    return Lambda<ZmLambda_HeapID>::mvFn(
 	ZuFwd<Arg0>(arg0), ZuFwd<Args_>(args)...);
   }
   // lambdas (specifying heap ID)

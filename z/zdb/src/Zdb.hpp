@@ -1335,7 +1335,7 @@ inline const char *CxnHeapID() { return "Zdb.Cxn"; }
 using CxnList =
   ZmList<Cxn_,
     ZmListNode<Cxn_,
-      ZmListHeapID<CxnHeapID()>>>;
+      ZmListHeapID<CxnHeapID>>>;
 using Cxn = CxnList::Node;
 
 // ActiveFn() - activate / inactivate
