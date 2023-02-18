@@ -31,6 +31,8 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
+#include <zlib/ZuSwitch.hpp>
+
 #include <zlib/ZmHeap.hpp>
 
 template <auto ID, bool Sharded> class ZmVHeap;

@@ -231,21 +231,25 @@ public:
 
   ZvEngine() { }
 
-  void init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf) {
-    m_mgr = mgr,
-    m_app = app;
-    m_id = cf->get("id", true);
-    m_mx = mx;
-    if (ZuString s = cf->get("rxThread"))
-      m_rxThread = mx->sid(s);
-    else
-      m_rxThread = mx->rxThread();
-    if (ZuString s = cf->get("txThread"))
-      m_txThread = mx->sid(s);
-    else
-      m_txThread = mx->txThread();
+  bool init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf) {
+    return ZmEngine<ZvEngine>::lock(
+	ZmEngineState::Stopped, [this, mgr, app, mx, cf]() {
+      m_mgr = mgr;
+      m_app = app;
+      m_id = cf->get("id", true);
+      m_mx = mx;
+      if (ZuString s = cf->get("rxThread"))
+	m_rxThread = mx->sid(s);
+      else
+	m_rxThread = mx->rxThread();
+      if (ZuString s = cf->get("txThread"))
+	m_txThread = mx->sid(s);
+      else
+	m_txThread = mx->txThread();
+      return true;
+    });
   }
-  void final();
+  bool final();
 
   Mgr *mgr() const { return m_mgr; }
   ZvEngineApp *app() const { return m_app; }

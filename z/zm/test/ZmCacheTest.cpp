@@ -52,26 +52,28 @@ void backFill(ZTree &tree, unsigned cacheSize)
   for (unsigned i = 0; i < cacheSize; i++) tree.add(i, Z{i});
 }
 
-void find(ZCache &cache, ZTree &tree, unsigned thread, unsigned cacheSize)
+void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned cacheSize)
 {
-  for (unsigned i = 0; i < cacheSize; i++) {
-    auto key = 
-    cache.find((thread * cacheSize) + i,
-	  [&tree](unsigned key) -> ZNode * {
+  for (unsigned i = 0; i < cacheSize; i++)
+    cache.find(offset + i,
+	  [&tree] <typename L> (unsigned key, L l) {
 	    if (auto node = tree.find(key))
-	      return new ZNode{key, node->val().v};
-	    return nullptr;
+	      l(new ZNode{key, node->val().v});
+	    else
+	      l(nullptr);
 	  },
 	  [](ZNode *) { });
-  }
 }
 
 void stats(const ZCache &cache)
 {
+  ZCache::Stats stats;
+  cache.stats(stats);
   std::cout <<
-    "count=" << cache.count_() <<
-    " loads=" << cache.loads() <<
-    " misses=" << cache.misses() <<
+    "count=" << stats.count <<
+    " loads=" << stats.loads <<
+    " misses=" << stats.misses <<
+    " evictions=" << stats.evictions <<
     '\n' << std::flush;
 }
 
@@ -79,10 +81,12 @@ int main(int argc, char **argv)
 {
   unsigned cacheSize = 100;
   unsigned nThreads = 2;
+  unsigned nLoops = 2;
   ZmTime overallStart, overallEnd;
 
   if (argc > 1) cacheSize = atoi(argv[1]);
   if (argc > 2) nThreads = atoi(argv[2]);
+  if (argc > 3) nLoops = atoi(argv[3]);
 
   auto threads = ZmAlloc(ZmThread, nThreads);
 
@@ -94,20 +98,22 @@ int main(int argc, char **argv)
   ZTree tree;
 
   backFill(tree, cacheSize);
-  find(cache, tree, 0, cacheSize);
-  find(cache, tree, 0, cacheSize);
-  stats(cache);
 
 #if 0
-  for (unsigned i = 0; i < nThreads; i++) {
-    if (!(i & 1))
-      threads[i] = {[&cache, &tree, i = (i>>1), cacheSize]() {
-	fill(cache, tree, i, cacheSize);
-      }};
-    else
-      threads[i] = {[&cache, &tree, i = (i>>1), cacheSize]() {
-	find(cache, tree, i, cacheSize);
-      }};
-  }
+  find(cache, tree, 0, cacheSize);
+  find(cache, tree, 0, cacheSize);
 #endif
+
+  auto increment = cacheSize / nThreads;
+
+  for (unsigned l = 0; l < nLoops; l++) {
+    for (unsigned i = 0, j = 0; i < nThreads; i++, j += increment)
+      new (&threads[i]) ZmThread{[&cache, &tree, j, cacheSize]() {
+	find(cache, tree, j, cacheSize);
+      }};
+    for (unsigned i = 0; i < nThreads; i++)
+      threads[i].join();
+  }
+
+  stats(cache);
 }

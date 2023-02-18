@@ -204,48 +204,56 @@ public:
       m_watchLists[i].server = this;
   }
 
-  void init(ZiMultiplex *mx, const ZvCf *cf) {
-    m_mx = mx;
+  bool init(ZiMultiplex *mx, const ZvCf *cf) {
+    return ZmEngine<Server>::lock(
+	ZmEngineState::Stopped, [this, mx, cf]() -> bool {
+      m_mx = mx;
 
-    if (!cf) {
-      m_thread = mx->txThread();
-      m_minInterval = 10;
-      m_alertPrefix = "alerts";
-      m_alertMaxReplay = 10;
-      return;
-    }
+      if (!cf) {
+	m_thread = mx->txThread();
+	m_minInterval = 10;
+	m_alertPrefix = "alerts";
+	m_alertMaxReplay = 10;
+	return true;
+      }
 
-    if (auto thread = cf->get("telemetry:thread", false))
-      m_thread = mx->sid(thread);
-    else
-      m_thread = mx->txThread();
+      if (auto thread = cf->get("telemetry:thread", false))
+	m_thread = mx->sid(thread);
+      else
+	m_thread = mx->txThread();
 
-    if (ZmRef<ZvCf> mxCf = cf->subset("mx")) {
-      ZvCf::Iterator i(mxCf);
-      ZuString key;
-      while (ZmRef<ZvCf> mxCf_ = i.subset(key))
-	m_mxTbl.add(new ZvMultiplex(key, mxCf_));
-    }
+      if (ZmRef<ZvCf> mxCf = cf->subset("mx")) {
+	ZvCf::Iterator i(mxCf);
+	ZuString key;
+	while (ZmRef<ZvCf> mxCf_ = i.subset(key))
+	  m_mxTbl.add(new ZvMultiplex(key, mxCf_));
+      }
 
-    m_minInterval =
-      cf->getInt("telemetry:minInterval", 1, 1000000, false, 10);
-    m_alertPrefix = cf->get("telemetry:alertPrefix", false, "alerts");
-    m_alertMaxReplay =
-      cf->getInt("telemetry:alertMaxReplay", 1, 1000, false, 10);
+      m_minInterval =
+	cf->getInt("telemetry:minInterval", 1, 1000000, false, 10);
+      m_alertPrefix = cf->get("telemetry:alertPrefix", false, "alerts");
+      m_alertMaxReplay =
+	cf->getInt("telemetry:alertMaxReplay", 1, 1000, false, 10);
+
+      return true;
+    });
   }
-  void final() {
-    stop_();
+  bool final() {
+    return ZmEngine<Server>::lock(ZmEngineState::Stopped, [this]() {
+      stop_();
 
-    for (unsigned i = 0; i < ReqType::N; i++)
-      m_watchLists[i].clean();
+      for (unsigned i = 0; i < ReqType::N; i++)
+	m_watchLists[i].clean();
 
-    m_alertRing.clean();
-    m_alertFile.close();
+      m_alertRing.clean();
+      m_alertFile.close();
 
-    m_mxTbl.clean();
-    m_queues.clean();
-    m_engines.clean();
-    m_dbEnvFn = DBEnvFn{};
+      m_mxTbl.clean();
+      m_queues.clean();
+      m_engines.clean();
+      m_dbEnvFn = DBEnvFn{};
+      return true;
+    });
   }
 
 private:

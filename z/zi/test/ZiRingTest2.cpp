@@ -616,11 +616,9 @@ int main(int argc, char **argv)
     if (size <= 0) usage();
   }
 
-  for (unsigned i = 0; i < 4; i++)
-    if (!ZuSwitch::dispatch<4>(i, [size](auto i) -> bool {
-      return Test<(i>>1) & 1, i & 1>::run(size);
-    }))
-      return 1;
+  if (!ZuSwitch::all<4>(true, [size](auto i, bool b) {
+    return b ? (b && Test<(i>>1) & 1, i & 1>::run(size)) : false;
+  })) return 1;
 
   return 0;
 }

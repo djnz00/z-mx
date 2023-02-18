@@ -55,16 +55,22 @@
 #define ZiIOBuf_DefaultSize 1460
 
 #pragma pack(push, 1)
+
 struct ZiAnyIOBuf : public ZmPolymorph {
   uint32_t	size = 0;
   uint32_t	length = 0;
 
+  bool operator !() const { return !length; }
+  ZuOpBool
+
   ZiAnyIOBuf() = default;
-  ZiAnyIOBuf(uint32_t length_) : length{length_} { }
-  ZiAnyIOBuf(const ZiAnyIOBuf &) = default;
-  ZiAnyIOBuf &operator =(const ZiAnyIOBuf &) = default;
-  ZiAnyIOBuf(ZiAnyIOBuf &&) = default;
-  ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = default;
+  ZiAnyIOBuf(uint32_t size_, uint32_t length_) :
+      size{size_}, length{length_} { }
+
+  ZiAnyIOBuf(const ZiAnyIOBuf &) = delete;
+  ZiAnyIOBuf &operator =(const ZiAnyIOBuf &) = delete;
+  ZiAnyIOBuf(ZiAnyIOBuf &&) = delete;
+  ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = delete;
 };
 
 inline const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
@@ -85,13 +91,38 @@ public:
   ZiIOVBuf() { }
   ZiIOVBuf(void *owner_) : owner{owner_} { }
   ZiIOVBuf(void *owner_, uint32_t length) :
-      ZiAnyIOBuf{length}, owner{owner_} { }
+      ZiAnyIOBuf{Size_, length}, owner{owner_} { }
   ~ZiIOVBuf() { if (ZuUnlikely(jumbo)) vfree(jumbo); }
 
-  ZiIOVBuf(const ZiIOVBuf &) = delete;
-  ZiIOVBuf &operator =(const ZiIOVBuf &) = delete;
-  ZiIOVBuf(ZiIOVBuf &&) = delete;
-  ZiIOVBuf &operator =(ZiIOVBuf &&) = delete;
+  ZiIOVBuf(const ZiIOVBuf &buf) : owner{buf.owner} {
+    if (auto data = alloc(buf.length)) {
+      memcpy(data, buf.data(), length = buf.length);
+      skip = buf.skip;
+    }
+  }
+  ZiIOVBuf &operator =(const ZiIOVBuf &buf) {
+    if (ZuLikely(this != &buf)) {
+      this->~ZiIOVBuf();
+      new (this) ZiIOVBuf{buf};
+    }
+    return *this;
+  }
+  ZiIOVBuf(ZiIOVBuf &&buf) :
+      ZiAnyIOBuf{buf.size, buf.length},
+      owner{buf.owner}, jumbo{buf.jumbo}, skip{buf.skip} {
+    if (ZuUnlikely(jumbo)) {
+      buf.size = 0;
+      buf.length = 0;
+      buf.jumbo = nullptr;
+      buf.skip = 0;
+    } else
+      memcpy(data_, buf.data_, length);
+  }
+  ZiIOVBuf &operator =(ZiIOVBuf &&buf) {
+    this->~ZiIOVBuf();
+    new (this) ZiIOVBuf{ZuMv(buf)};
+    return *this;
+  }
 
   uint8_t *alloc(unsigned size_) {
     if (ZuLikely(size_ <= Size)) {
@@ -227,6 +258,10 @@ private:
     ZuPrint<U>::OK && !ZuPrint<U>::String, R>;
 
 public:
+  ZiIOVBuf &operator <<(const ZuArray<const uint8_t> &buf) {
+    append(buf.data(), buf.length());
+    return *this;
+  }
   template <typename C>
   MatchChar<C, ZiIOVBuf &> operator <<(C c) {
     this->append(&c, 1);
@@ -266,7 +301,9 @@ public:
   };
   friend Traits ZuTraitsType(ZiIOVBuf *);
 };
+
 #pragma pack(pop)
+
 template <unsigned Size_, typename Heap, auto HeapID>
 struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
   using Base = ZiIOVBuf<Size_, HeapID>;

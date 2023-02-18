@@ -403,17 +403,17 @@ namespace Zu_ {
 // generic accessor
 template <
   typename P,
-  unsigned J,
-  bool = ZuTraits<typename P::template Type<J>>::IsReference>
+  unsigned I,
+  bool = ZuTraits<typename P::template Type<I>>::IsReference>
 struct ZuPairAxor_Bind {
-  static decltype(auto) get(const P &v) { return v.template p<J>(); }
-  static decltype(auto) get(P &v) { return v.template p<J>(); }
-  static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<J>()); }
+  static decltype(auto) get(const P &v) { return v.template p<I>(); }
+  static decltype(auto) get(P &v) { return v.template p<I>(); }
+  static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<I>()); }
 };
-template <typename P, unsigned J>
-struct ZuPairAxor_Bind<P, J, true> {
-  static decltype(auto) get(const P &v) { return v.template p<J>(); }
-  static decltype(auto) get(P &v) { return v.template p<J>(); }
+template <typename P, unsigned I>
+struct ZuPairAxor_Bind<P, I, true> {
+  static decltype(auto) get(const P &v) { return v.template p<I>(); }
+  static decltype(auto) get(P &v) { return v.template p<I>(); }
 };
 template <unsigned I = 0>
 inline constexpr auto ZuPairAxor() {

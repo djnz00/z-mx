@@ -1427,10 +1427,8 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // the logger, which runs in a different thread and stack, and both the
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
-inline constexpr auto ZtHexDump_ID() {
-  return []() { return "ZtHexDump"; };
-}
-struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID()> {
+inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
+struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
   ZtHexDump(ZuString prefix_, const void *data_, unsigned length_) :
       prefix(prefix_), data(0), length(length_) {
     if (ZuLikely(data = static_cast<uint8_t *>(valloc(length))))

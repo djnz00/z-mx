@@ -53,7 +53,7 @@
 #endif
 
 struct ZuArray_ { };
-template <typename T_, class Cmp_ = ZuCmp<T_> >
+template <typename T_, class Cmp_ = ZuCmp<T_>>
 class ZuArray : public ZuArray_ {
 public:
   using T = T_;

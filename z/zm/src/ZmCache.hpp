@@ -31,7 +31,7 @@
 #endif
 
 #include <zlib/ZmLockTraits.hpp>
-#include <zlib/ZmRWLock.hpp>
+#include <zlib/ZmPLock.hpp>
 #include <zlib/ZmGuard.hpp>
 #include <zlib/ZmAlloc.hpp>
 #include <zlib/ZmList.hpp>
@@ -39,35 +39,36 @@
 
 // NTP defaults
 struct ZmCache_Defaults : public ZmHash_Defaults {
-  constexpr static auto KeyAxor = ZuDefaultAxor();
-  constexpr static auto ValAxor = ZuDefaultAxor();
+  using Lock = ZmPLock;
+  static const char *HeapID() { return "ZmCache"; }
+  constexpr static auto ID = HeapID;
   enum { Evict = 1 };
-  using Lock = ZmPRWLock;
 };
 
-// ZmCacheKey - key accessor
-template <auto KeyAxor_, typename NTP = ZmCache_Defaults>
-struct ZmCacheKey : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
-};
-
-// ZmCacheKeyVal - key and optional value accessors
-template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmCache_Defaults>
-struct ZmCacheKeyVal : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
-};
+// most NTP parameters are identical to ZmHash
+template <auto KeyAxor, typename NTP = ZmCache_Defaults>
+using ZmCacheKey = ZmHashKey<KeyAxor, NTP>;
+template <auto KeyAxor, auto ValAxor, typename NTP = ZmCache_Defaults>
+using ZmCacheKeyVal = ZmHashKeyVal<KeyAxor, ValAxor, NTP>;
+template <template <typename> typename Cmp, typename NTP = ZmCache_Defaults>
+using ZmCacheCmp = ZmHashCmp<Cmp, NTP>;
+template <template <typename> typename ValCmp, typename NTP = ZmCache_Defaults>
+using ZmCacheValCmp = ZmHashValCmp<ValCmp, NTP>;
+template <template <typename> typename HashFn, typename NTP = ZmCache_Defaults>
+using ZmCacheHashFn = ZmHashFn<HashFn, NTP>;
+template <typename Lock, typename NTP = ZmCache_Defaults>
+using ZmCacheLock = ZmHashLock<Lock, NTP>;
+template <typename Node, typename NTP = ZmCache_Defaults>
+using ZmCacheNode = ZmHashNode<Node, NTP>;
+template <auto HeapID, typename NTP = ZmCache_Defaults>
+using ZmCacheHeapID = ZmHashHeapID<HeapID, NTP>;
+template <auto ID, typename NTP = ZmCache_Defaults>
+using ZmCacheID = ZmHashID<ID, NTP>;
 
 // ZmCacheEvict - enable/disable eviction
 template <bool Evict_, typename NTP = ZmCache_Defaults>
 struct ZmCacheEvict : public NTP {
   enum { Evict = Evict_ };
-};
-
-// ZmCacheLock - the lock type used
-template <typename Lock_, typename NTP = ZmCache_Defaults>
-struct ZmCacheLock : public NTP {
-  using Lock = Lock_;
 };
 
 template <typename T, typename NTP = ZmCache_Defaults>
@@ -89,99 +90,109 @@ private:
   using LRU = ZuIf<Evict, LRUList, LRUDisable>;
   using Hash =
     ZmHash<typename LRU::Node,
-      ZmHashNode<typename LRU::Node, NTP>>;
+      ZmHashNode<typename LRU::Node,
+        ZmHashLock<ZmNoLock, NTP>>>;
 
 public:
   using Key = typename Hash::Key;
   using Node = typename Hash::Node;
   using NodeRef = typename Hash::NodeRef;
 
+private:
+  using FindFn = ZmFn<Node *>;
+  using FindFnList = ZmList<FindFn>;
+  using LoadHash = ZmHashKV<Key, FindFnList, ZmHashHeapID<NTP::HeapID>>;
+
+public:
   ZmCache(uint32_t size) : m_size{size} {
     m_hash = new Hash{ZmHashParams{size}};
+    m_loadHash = new LoadHash{ZmHashParams{size}};
   }
 
-  unsigned count_() const { return m_hash->count_(); }
-  uint64_t loads() const { return m_loads; }
-  uint64_t misses() const { return m_misses; }
+  unsigned size() const { return m_size; }
 
-  // intentional DRY violation below
+  struct Stats {
+    unsigned	size;
+    unsigned	count;
+    uint64_t	loads;
+    uint64_t	misses;
+    uint64_t	evictions;
 
-  template <typename P, typename Add, bool Evict_ = Evict>
-  ZuIfT<!Evict_, Node *> find(const P &key, Add add) {
-    if constexpr (ZmLockTraits<Lock>::RWLock) {
-      ReadGuard guard{m_lock};
-      ++m_loads;
-      if (Node *node = find_(key)) return node;
+    template <typename S> void print(S &s) const {
+      s << "size=" << size << " count=" << count <<
+	" loads=" << loads << " misses=" << misses <<
+	" evictions=" << evictions;
     }
-    {
-      Node *nodePtr;
-      {
-	Guard guard(m_lock);
-	if constexpr (!ZmLockTraits<Lock>::RWLock) ++m_loads;
-	if (Node *node = find_(key)) return node;
-	++m_misses;
-	NodeRef node = add(key);
-	if (ZuUnlikely(!node)) return nullptr;
-	nodePtr = node;
-	add_(ZuMv(node));
-      }
-      return nodePtr;
-    }
+    friend ZuPrintFn ZuPrintType(Stats *);
+  };
+
+  template <bool Reset = false>
+  void stats(Stats &r) const {
+    ReadGuard guard{m_lock};
+    r.size = m_size;
+    r.count = m_hash->count_();
+    r.loads = m_loads;
+    r.misses = m_misses;
+    r.evictions = m_evictions;
+    if constexpr (Reset) m_loads = m_misses = m_evictions = 0;
   }
 
-  template <typename P, typename Add, bool Evict_ = Evict>
-  ZuIfT<Evict_, Node *> find(const P &key, Add add) {
-    if constexpr (ZmLockTraits<Lock>::RWLock) {
-      ReadGuard guard{m_lock};
-      ++m_loads;
-      if (Node *node = find_(key)) return node;
-    }
-    {
-      Node *nodePtr;
-      {
-	Guard guard(m_lock);
-	if constexpr (!ZmLockTraits<Lock>::RWLock) ++m_loads;
-	if (Node *node = find_(key)) return node;
-	++m_misses;
-	NodeRef node = add(key);
-	if (ZuUnlikely(!node)) return nullptr;
-	nodePtr = node;
-	add_(ZuMv(node));
-      }
-      return nodePtr;
-    }
+  template <bool UpdateLRU = Evict, typename Key>
+  NodeRef find(const Key &key) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef *nodePtr = find_<UpdateLRU>(key)) return nodePtr;
+    ++m_misses;
+    return nullptr;
   }
 
-  template <typename P, typename Add, typename Evicted, bool Evict_ = Evict>
-  ZuIfT<Evict_, Node *> find(const P &key, Add add, Evicted evicted) {
-    if constexpr (ZmLockTraits<Lock>::RWLock) {
-      ReadGuard guard{m_lock};
-      ++m_loads;
-      if (Node *node = find_(key)) return node;
-    }
-    {
-      Node *nodePtr;
-      NodeRef evictedNode;
-      {
-	Guard guard(m_lock);
-	if constexpr (!ZmLockTraits<Lock>::RWLock) ++m_loads;
-	if (Node *node = find_(key)) return node;
-	++m_misses;
-	NodeRef node = add(key);
-	if (ZuUnlikely(!node)) return nullptr;
-	nodePtr = node;
-	evictedNode = add_(ZuMv(node));
-      }
-      if (evictedNode) evicted(ZuMv(evictedNode));
-      return nodePtr;
-    }
+  template <
+    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    typename Key, typename LoadFn>
+  NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn) {
+    return find(
+	key, ZuMv(loadFn), ZuMv(findFn),
+	[] <typename NodeMvRef> (NodeMvRef) { });
+  }
+
+  template <
+    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    typename Key, typename LoadFn, typename EvictFn>
+  NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn, EvictFn evictFn) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    ++m_misses;
+    typename LoadHash::Node *load = m_loadHash->find(key);
+    bool pending = !!load;
+    if (!pending)
+      m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
+    load->val().push(ZuMv(findFn));
+    guard.unlock();
+    if (!pending)
+      loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
+	Guard guard{m_lock};
+	if (ZuLikely(node)) {
+	  if constexpr (!Evict_)
+	    add_(node);
+	  else
+	    evictFn(add_(node));
+	}
+	if (auto load = m_loadHash->del(node->key())) {
+	  guard.unlock();
+	  while (auto findFn = load->val().shift())
+	    findFn(node);
+	}
+      });
+    return nullptr;
   }
 
 private:
-  template <typename P>
-  Node *find_(const P &key) {
-    if (Node *node = m_hash->findPtr(key)) {
-      if constexpr (Evict) m_lru.pushNode(m_lru.delNode(node));
+  template <bool UpdateLRU = Evict, typename P>
+  NodeRef find_(const P &key) {
+    if (auto node = m_hash->find(key)) {
+      if constexpr (UpdateLRU && Evict)
+	m_lru.pushNode(m_lru.delNode(node));
       return node;
     }
     return nullptr;
@@ -197,8 +208,10 @@ private:
     Node *nodePtr = node;
     NodeRef evicted = nullptr;
     if (m_hash->count_() >= m_size)
-      if (evicted = static_cast<NodeRef>(m_lru.shiftNode()))
+      if (evicted = static_cast<NodeRef>(m_lru.shiftNode())) {
+	++m_evictions;
 	m_hash->delNode(evicted);
+      }
     m_hash->addNode(ZuMv(node));
     m_lru.pushNode(nodePtr);
     return evicted;
@@ -275,8 +288,10 @@ private:
   Lock			m_lock;
     ZmRef<Hash>		  m_hash;
     LRU			  m_lru;
+    ZmRef<LoadHash>	  m_loadHash;
     uint64_t		  m_loads = 0;
     uint64_t		  m_misses = 0;
+    uint64_t		  m_evictions = 0;
 };
 
 template <typename P0, typename P1, typename NTP = ZmCache_Defaults>

@@ -3,6 +3,9 @@
 
 #include <zlib/ZuLib.hpp>
 
+#include <zlib/ZuAssert.hpp>
+#include <zlib/ZuSwitch.hpp>
+
 #include <iostream>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
@@ -30,12 +33,25 @@ struct X {
 
 int main(int argc, char **argv)
 {
-  ZuTypeAll<Sorted>::invoke([]<typename T>() {
-    std::cout << T::I << ' ' << T::id() << '\n';
-  });
-  X x;
-  // X y = x;
-  X z{x};
-  X q;
-  q = x;
+  {
+    ZuTypeAll<Sorted>::invoke([]<typename T>() {
+      std::cout << T::I << ' ' << T::id() << '\n';
+    });
+    X x;
+    // X y = x;
+    X z{x};
+    X q;
+    q = x;
+  }
+  {
+    ZuSwitch::all<4>([](auto i) { std::cout << i << '\n'; });
+    ZuAssert(ZuSwitch::all<4>(0, [](auto i, int j) {
+      return j + 1;
+    }) == 4);
+    auto j = ZuSwitch::all<4>(0, [](auto i, int j) {
+      std::cout << i << '\n';
+      return j + 1;
+    });
+    std::cout << "j=" << j << '\n';
+  }
 }

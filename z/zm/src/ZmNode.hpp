@@ -37,25 +37,47 @@ struct ZmNode__;
 template <typename Base, typename Heap>
 struct ZmNode__<Base, Heap, false> : public Heap, public Base {
   ZmNode__() = default;
+  ZmNode__(const ZmNode__ &) = default;
+  ZmNode__ &operator =(const ZmNode__ &) = default;
+  ZmNode__(ZmNode__ &&) = default;
+  ZmNode__ &operator =(ZmNode__ &&) = default;
   template <typename ...Args>
   ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <typename Arg>
+  ZmNode__ &operator =(Arg &&arg) {
+    return static_cast<ZmNode__ &>(Base::operator =(ZuFwd<Arg>(arg)));
+  }
 };
 template <typename Base, typename Heap>
 struct ZmNode__<Base, Heap, true> : public Base {
   ZmNode__() = default;
+  ZmNode__(const ZmNode__ &) = default;
+  ZmNode__ &operator =(const ZmNode__ &) = default;
+  ZmNode__(ZmNode__ &&) = default;
+  ZmNode__ &operator =(ZmNode__ &&) = default;
   template <typename ...Args>
   ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <typename Arg>
+  ZmNode__ &operator =(Arg &&arg) {
+    return static_cast<ZmNode__ &>(Base::operator =(ZuFwd<Arg>(arg)));
+  }
 };
 template <typename Base>
 struct ZmNode__<Base, ZuNull, false> : public Base {
   ZmNode__() = default;
+  ZmNode__(const ZmNode__ &) = default;
+  ZmNode__ &operator =(const ZmNode__ &) = default;
+  ZmNode__(ZmNode__ &&) = default;
+  ZmNode__ &operator =(ZmNode__ &&) = default;
   template <typename ...Args>
   ZmNode__(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <typename Arg>
+  ZmNode__ &operator =(Arg &&arg) {
+    return static_cast<ZmNode__ &>(Base::operator =(ZuFwd<Arg>(arg)));
+  }
 };
 template <typename Heap>
-struct ZmNode__<ZuNull, Heap, false> : public Heap {
-  ZmNode__() = default;
-};
+struct ZmNode__<ZuNull, Heap, false> : public Heap { };
 template <>
 struct ZmNode__<ZuNull, ZuNull, true> { };
 
@@ -87,8 +109,17 @@ public:
   using U = ZuDecay<T>;
 
   ZmNode_() = default;
+  ZmNode_(const ZmNode_ &) = default;
+  ZmNode_ &operator =(const ZmNode_ &) = default;
+  ZmNode_(ZmNode_ &&) = default;
+  ZmNode_ &operator =(ZmNode_ &&) = default;
   template <typename ...Args>
   ZmNode_(Args &&... args) : m_data{ZuFwd<Args>(args)...} { }
+  template <typename Arg>
+  ZmNode_ &operator =(Arg &&arg) {
+    m_data = ZuFwd<Arg>(arg);
+    return *this;
+  }
 
   const auto &data() const & { return m_data; }
   auto &data() & { return m_data; }
@@ -126,8 +157,16 @@ public:
   using U = ZuDecay<T>;
 
   ZmNode_() = default;
+  ZmNode_(const ZmNode_ &) = default;
+  ZmNode_ &operator =(const ZmNode_ &) = default;
+  ZmNode_(ZmNode_ &&) = default;
+  ZmNode_ &operator =(ZmNode_ &&) = default;
   template <typename ...Args>
   ZmNode_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  template <typename Arg>
+  ZmNode_ &operator =(Arg &&arg) {
+    return static_cast<ZmNode_ &>(Base::operator =(ZuFwd<Arg>(arg)));
+  }
 
   decltype(auto) data() const & { return static_cast<const U &>(*this); }
   decltype(auto) data() & { return static_cast<U &>(*this); }

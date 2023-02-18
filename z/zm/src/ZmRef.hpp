@@ -149,7 +149,7 @@ private:
   using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
 
 public:
-  ZmRef() : m_object(0) { }
+  ZmRef() = default;
   ZmRef(const ZmRef &r) : m_object{r.m_object} {
     if (T *o = m_object) ZmREF(o);
   }
@@ -248,7 +248,7 @@ public:
   friend Traits ZuTraitsType(ZmRef *);
 
 protected:
-  T		*m_object;
+  T		*m_object = nullptr;
 };
 
 template <typename T> struct ZuCmp;

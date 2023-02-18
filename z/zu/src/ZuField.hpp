@@ -26,8 +26,10 @@
 //
 // macro DSL for declaring metadata identifying and accessing fields and keys:
 //
-// Syntax
-// ------
+// ZuFields(Type, Field, ...);
+//
+// Field Syntax
+// ------------
 // ((Accessor)[, (Keys...)])
 //
 // Accessor			Description

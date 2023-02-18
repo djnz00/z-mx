@@ -1164,7 +1164,7 @@ void ZiConnection::recv()
   if (m_mx->trace()) m_mx->traceCapture();
 #endif
 
-  if (ZuUnlikely(!m_rxUp)) {
+  if (ZuUnlikely(!m_rxUp.load_())) {
     m_rxContext.complete();
 #ifdef ZiMultiplex_EPoll
     return false;
@@ -1327,11 +1327,11 @@ retry:
 void ZiConnection::overlappedRecv(int status, unsigned n, ZeError e)
 {
   if (ZuUnlikely(status != Zi::OK)) {
-    if (m_rxUp) errorRecv(status, e);
+    if (m_rxUp.load_()) errorRecv(status, e);
     return;
   }
   if (ZuUnlikely(!n && !m_info.options.udp())) {
-    if (m_rxUp) disconnect();
+    if (m_rxUp.load_()) disconnect();
     return;
   }
 
@@ -1353,7 +1353,7 @@ void ZiConnection::overlappedRecv(int status, unsigned n, ZeError e)
 
 void ZiConnection::errorRecv(int status, ZeError e)
 {
-  if (m_rxUp) close();
+  if (m_rxUp.load_()) close();
   if (status == Zi::IOError &&
       (e.errNo() == ZiENOTCONN || e.errNo() == ZiECONNRESET)) return;
   Error(
@@ -1402,7 +1402,7 @@ void ZiConnection::send()
   if (m_mx->trace()) m_mx->traceCapture();
 #endif
 
-  if (ZuUnlikely(!m_txUp)) { m_txContext.complete(); return; }
+  if (ZuUnlikely(!m_txUp.load_())) { m_txContext.complete(); return; }
 
   if (ZuLikely(m_txContext.completed())) return;
 
@@ -1739,7 +1739,7 @@ void ZiConnection::disconnect()
 
 void ZiConnection::disconnect_1()
 {
-  if (!m_txUp) return;
+  if (!m_txUp.load_()) return;
   
   m_txUp = false;
 
@@ -1748,9 +1748,9 @@ void ZiConnection::disconnect_1()
 
 void ZiConnection::disconnect_2()
 {
-  if (!m_rxUp) return;
+  if (!m_rxUp.load_()) return;
 
-  m_rxUp = false;
+  m_rxUp = 0;
 
   if (m_info.options.udp()
 #ifdef ZiMultiplex_NetLink
@@ -1845,7 +1845,7 @@ void ZiConnection::close()
 
 void ZiConnection::close_1()
 {
-  if (!m_txUp) return;
+  if (!m_txUp.load_()) return;
   
   m_txUp = false;
 
@@ -1854,9 +1854,9 @@ void ZiConnection::close_1()
 
 void ZiConnection::close_2()
 {
-  if (!m_rxUp) return;
+  if (!m_rxUp.load_()) return;
   
-  m_rxUp = false;
+  m_rxUp = 0;
 
   ZiDEBUG(m_mx, ZtSprintf("FD: % 3d close()", (int)m_info.socket));
 

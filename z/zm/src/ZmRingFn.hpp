@@ -99,14 +99,14 @@ public:
   template <typename L>
   ZmRingFn(L &l, ZuNotStateless<L> *_ = nullptr) :
       m_invokeFn{[](void *ptr_) -> unsigned {
-	auto ptr = reinterpret_cast<L *>(ptr_);
+	auto ptr = static_cast<L *>(ptr_);
 	try { (*ptr)(); } catch (...) { }
 	ptr->~L();
 	return sizeof(L);
       }},
       m_moveFn{[](void *dst, void *src_, bool onHeap) {
 	using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
-	auto src = reinterpret_cast<L *>(src_);
+	auto src = static_cast<L *>(src_);
 	new (dst) L{ZuMv(*src)};
 	src->~L();
 	if (ZuUnlikely(onHeap)) Cache::free(src);

@@ -74,6 +74,13 @@ private:
     ZmXRing<ZmFn<bool>, ZmXRingHeapID<HeapID>>;
 
 public:
+  template <typename L>
+  bool lock(int state, L l) {
+    Guard guard(m_lock);
+    if (m_state != state) return false;
+    return l();
+  }
+
   void start(ZmFn<bool>);	// async
   void stop(ZmFn<bool>);
 

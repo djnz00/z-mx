@@ -473,18 +473,6 @@ template <typename T_> struct ZuTraits<ZmAtomic<T_> > : public ZuTraits<T_> {
   enum { IsPrimitive = 0 };
 };
 
-template <typename T>
-ZmAtomic<T> &ZmAtomize(T &v) {
-  ZmAtomic<T> *ZuMayAlias(ptr) = reinterpret_cast<ZmAtomic<T> *>(&v);
-  return *ptr;
-}
-template <typename T>
-const ZmAtomic<T> &ZmAtomize(const T &v) {
-  const ZmAtomic<T> *ZuMayAlias(ptr) =
-    reinterpret_cast<const ZmAtomic<T> *>(&v);
-  return *ptr;
-}
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

@@ -99,11 +99,11 @@ struct ZmAPI ZmSchedParams {
   ZmSchedParams &&startTimer(bool b) { m_startTimer = b; return ZuMv(*this); }
 
   template <typename L>
-  ZmSchedParams &&thread(unsigned tid, L l) {
-    l(m_threads[tid]);
+  ZmSchedParams &&thread(unsigned sid, L l) {
+    l(m_threads[sid]);
     return ZuMv(*this);
   }
-  Thread &thread(unsigned tid) { return m_threads[tid]; }
+  Thread &thread(unsigned sid) { return m_threads[sid]; }
 
   ID id() const { return m_id; }
   unsigned nThreads() const { return m_nThreads; }
@@ -119,7 +119,7 @@ struct ZmAPI ZmSchedParams {
 
   bool startTimer() const { return m_startTimer; }
 
-  const Thread &thread(unsigned tid) const { return m_threads[tid]; }
+  const Thread &thread(unsigned sid) const { return m_threads[sid]; }
 
 public:
   unsigned sid(ZuString s) const {
@@ -206,7 +206,7 @@ private:
 private:
   struct Timer_ {
     Fn		fn;
-    unsigned	index = 0;
+    unsigned	sid = 0;
     ZmTime	timeout;
     bool	transient = false;
 
@@ -259,6 +259,8 @@ public:
   //   unlike run(), invoke() will execute synchronously if the caller is
   //   already running on the specified thread; returns true if synchronous
 
+  // run(tid, fn, timeout)
+  // run(tid, fn, timeout, mode)
   // run(tid, fn, timeout, mode, timer) - deferred execution
   //   tid == 0 - run on any worker thread
   //   mode:
@@ -267,13 +269,13 @@ public:
   //     Defer - reschedule unless outstanding timeout is later
 
   // add(fn, timeout) -
-  //   shorthand for run(0, fn, timeout, Update, nullptr)
+  //   forwards to run(0, fn, timeout, Update, nullptr)
   // add(fn, timeout, timer) -
-  //   shorthand for run(0, fn, timeout, Update, timer)
+  //   forwards to run(0, fn, timeout, Update, timer)
   // add(fn, timeout, mode, timer) -
-  //   shorthand for run(0, fn, timeout, mode, timer)
+  //   forwards to run(0, fn, timeout, mode, timer)
   // add(fn, timeout, mode, timer) -
-  //   shorthand for run(0, fn, timeout, mode, timer)
+  //   forwards to run(0, fn, timeout, mode, timer)
 
   // del(timer) - cancel timer
 
@@ -299,56 +301,78 @@ public:
   }
 
   template <typename L>
-  void run(unsigned index, L l, ZmTime timeout) {
+  void run(unsigned sid, L l, ZmTime timeout) {
     Fn fn{l};
-    run_(index, fn, timeout, Update, nullptr);
+    run_(sid, fn, timeout, Update, nullptr);
   }
   template <typename L>
-  void run(unsigned index, L l, ZmTime timeout, Timer *timer) {
+  void run(unsigned sid, L l, ZmTime timeout, Timer *timer) {
     Fn fn{l};
-    run_(index, fn, timeout, Update, timer);
+    run_(sid, fn, timeout, Update, timer);
   }
 
   template <typename L>
-  void run(unsigned index, L l, ZmTime timeout, int mode, Timer *timer) {
+  void run(unsigned sid, L l, ZmTime timeout, int mode, Timer *timer) {
     Fn fn{l};
-    run_(index, fn, timeout, mode, timer);
+    run_(sid, fn, timeout, mode, timer);
   }
 
 private:
-  void run_(unsigned index, Fn &, ZmTime timeout, int mode, Timer *);
+  void run_(unsigned sid, Fn &, ZmTime timeout, int mode, Timer *);
 
 public:
   bool del(Timer *);		// cancel job - returns true if found
 
+  // returns true if caller is running on thread slot sid
+  bool invoked(unsigned sid) {
+    ZmAssert(sid && sid <= m_params.nThreads());
+    Thread *thread = &m_threads[sid - 1];
+    return Zm::getTID() == thread->tid;
+  }
+
   // run and wake thread
   template <typename L>
-  void run(unsigned index, L l) {
-    ZmAssert(index && index <= m_params.nThreads());
+  void run(unsigned sid, L l) {
+    ZmAssert(sid && sid <= m_params.nThreads());
     Fn fn{l};
-    runWake_(&m_threads[index - 1], fn);
+    runWake_(&m_threads[sid - 1], fn);
   }
   // run without calling wake() and any custom wakeFn
   template <typename L>
-  void run_(unsigned index, L l) {
-    ZmAssert(index && index <= m_params.nThreads());
+  void run_(unsigned sid, L l) {
+    ZmAssert(sid && sid <= m_params.nThreads());
     Fn fn{l};
-    run__(&m_threads[index - 1], fn);
+    run__(&m_threads[sid - 1], fn);
   }
 
   template <typename L>
-  void invoke(unsigned index, L l) {
-    ZmAssert(index && index <= m_params.nThreads());
-    Thread *thread = &m_threads[index - 1];
+  void invoke(unsigned sid, L l) {
+    ZmAssert(sid && sid <= m_params.nThreads());
+    Thread *thread = &m_threads[sid - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) { l(); return; }
     Fn fn{l};
     runWake_(thread, fn);
   }
 
-  // invoke(index, object, lambda) is a specialized version of invoke()
+  // invoke(sid, object, lambda) is a specialized version of invoke()
   // that avoids unnecessary calls to ref/deref the object if the lambda is
   // directly called - the lambda must not capture an object ref,
   // and must return a pointer to the object, which can be used to deref
+  //
+  // struct A : public ZmObject {
+  //   void foo() { ... }
+  //
+  //   void bar(ZmScheduler *sched, unsigned sid) { 
+  //     // need to ensure that this object remains positively ref-counted
+  //     // until foo() completes, whether synchronously or asynchronously
+  //
+  //     // less efficient
+  //     sched->invoke(sid, [self = ZmMkRef(this)]() { self->foo(); });
+  //
+  //     // more efficient, with more natural capture of this
+  //     sched->invoke(sid, this, [this]() { foo(); return this; });
+  //   }
+  // };
 private:
   template <typename O1, typename O2>
   struct IsObjectLambda__ {
@@ -369,9 +393,9 @@ private:
   using IsObjectLambda = ZuIfT<IsObjectLambda_<O, L>::OK, R>;
 public:
   template <typename O, typename L>
-  IsObjectLambda<O, L> invoke(unsigned index, O *o, L l) {
-    ZmAssert(index && index <= m_params.nThreads());
-    Thread *thread = &m_threads[index - 1];
+  IsObjectLambda<O, L> invoke(unsigned sid, O *o, L l) {
+    ZmAssert(sid && sid <= m_params.nThreads());
+    Thread *thread = &m_threads[sid - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) {
       l(); // direct invocation without manipulating the reference count
       return;
@@ -401,11 +425,11 @@ public:
       count += m_threads[i].ring.count_();
     return count;
   }
-  const Ring &ring(unsigned index) const {
-    return m_threads[index - 1].ring;
+  const Ring &ring(unsigned sid) const {
+    return m_threads[sid - 1].ring;
   }
-  const OverRing &overRing(unsigned index) const {
-    return m_threads[index - 1].overRing;
+  const OverRing &overRing(unsigned sid) const {
+    return m_threads[sid - 1].overRing;
   }
 
   unsigned sid(ZuString s) const {

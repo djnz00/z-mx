@@ -508,8 +508,8 @@ private:
 // derived class must supply connected() and disconnected() functions
 // (and probably a destructor)
 class ZiAPI ZiConnection : public ZmPolymorph {
-  ZiConnection(const ZiConnection &);
-  ZiConnection &operator =(const ZiConnection &);	// prevent mis-use
+  ZiConnection(const ZiConnection &) = delete;
+  ZiConnection &operator =(const ZiConnection &) = delete;
 
 friend ZiMultiplex;
 
@@ -547,7 +547,7 @@ public:
   virtual void disconnected() = 0;
 
   bool up() const {
-    return m_rxUp && m_txUp; // unclean read
+    return m_rxUp.load_() && m_txUp.load_();
   }
 
   ZiMultiplex *mx() const { return m_mx; }
@@ -591,7 +591,7 @@ private:
 #endif
 
   // Rx thread exclusive
-  unsigned		m_rxUp;
+  ZmAtomic<unsigned>	m_rxUp;
   uint64_t		m_rxRequests;
   uint64_t		m_rxBytes;
   ZiIOContext		m_rxContext;
@@ -601,7 +601,7 @@ private:
 #endif
 
   // Tx thread exclusive
-  unsigned		m_txUp;
+  ZmAtomic<unsigned>	m_txUp;
   uint64_t		m_txRequests;
   uint64_t		m_txBytes;
   ZiIOContext		m_txContext;

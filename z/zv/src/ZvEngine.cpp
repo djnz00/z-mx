@@ -155,10 +155,13 @@ void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
   }
 }
 
-void ZvEngine::final()
+bool ZvEngine::final()
 {
-  m_links.clean();
-  m_txPools.clean();
+  return ZmEngine<ZvEngine>::lock(ZmEngineState::Stopped, [this]() {
+    m_links.clean();
+    m_txPools.clean();
+    return true;
+  });
 }
 
 void ZvEngine::telemetry(Telemetry &data) const

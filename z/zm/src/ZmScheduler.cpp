@@ -31,13 +31,13 @@
 ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
 {
   unsigned n = m_params.nThreads();
-  for (unsigned index = 0; index <= n; index++) {
-    auto &thread = m_params.thread(index);
+  for (unsigned sid = 0; sid <= n; sid++) {
+    auto &thread = m_params.thread(sid);
     if (!thread.name()) {
-      if (!index)
+      if (!sid)
 	thread.name(ZmThreadName() << m_params.id() << ":timer");
       else
-	thread.name(ZmThreadName() << m_params.id() << ':' << ZuBoxed(index));
+	thread.name(ZmThreadName() << m_params.id() << ':' << ZuBoxed(sid));
     }
     if (!thread.stackSize()) thread.stackSize(m_params.stackSize());
     if (thread.priority() < 0) thread.priority(m_params.priority());
@@ -46,20 +46,20 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
   m_threads = new Thread[n];
   m_workers = new Thread *[n];
   for (unsigned i = 0; i < n; i++) {
-    unsigned index = i + 1;
+    unsigned sid = i + 1;
     Ring &ring = m_threads[i].ring;
     ring.init(ZmRingParams(m_params.queueSize()).
 	ll(m_params.ll()).
 	spin(m_params.spin()).
 	timeout(m_params.timeout()).
-	cpuset(m_params.thread(index).cpuset()));
+	cpuset(m_params.thread(sid).cpuset()));
     int r;
     if ((r = ring.open(Ring::Read | Ring::Write)) != Zu::OK)
       throw Zu::IOResult{r};
     // if ((r = ring.attach()) != Zu::OK) throw Zu::IOResult{r};
     m_threads[i].overRing.init(
 	ZmXRingParams{}.initial(0).increment(OverRing_Increment));
-    if (!m_params.thread(index).isolated())
+    if (!m_params.thread(sid).isolated())
       m_workers[m_nWorkers++] = &m_threads[i];
   }
 }
@@ -158,10 +158,10 @@ bool ZmScheduler::reset()
   return true;
 }
 
-void ZmScheduler::wakeFn(unsigned index, ZmFn<> fn)
+void ZmScheduler::wakeFn(unsigned sid, ZmFn<> fn)
 {
-  ZmAssert(index && index <= m_params.nThreads());
-  m_threads[index - 1].wakeFn = ZuMv(fn);
+  ZmAssert(sid && sid <= m_params.nThreads());
+  m_threads[sid - 1].wakeFn = ZuMv(fn);
 }
 
 void ZmScheduler::timer()
@@ -195,9 +195,9 @@ void ZmScheduler::timer()
       while (Timer *timer = i.iterate()) {
 	i.del(timer);
 	bool ok;
-	unsigned index = timer->index;
-	if (ZuLikely(index))
-	  ok = tryRunWake_(&m_threads[index - 1], timer->fn);
+	unsigned sid = timer->sid;
+	if (ZuLikely(sid))
+	  ok = tryRunWake_(&m_threads[sid - 1], timer->fn);
 	else
 	  ok = timerAdd(timer->fn);
 	if (ZuUnlikely(!ok)) {
@@ -226,9 +226,9 @@ bool ZmScheduler::timerAdd(Fn &fn)
 }
 
 void ZmScheduler::run_(
-    unsigned index, Fn &fn, ZmTime timeout, int mode, Timer *timer)
+    unsigned sid, Fn &fn, ZmTime timeout, int mode, Timer *timer)
 {
-  ZmAssert(index <= m_params.nThreads());
+  ZmAssert(sid <= m_params.nThreads());
 
   bool kick = true;
 
@@ -251,8 +251,8 @@ void ZmScheduler::run_(
     }
 
     if (ZuUnlikely(timeout <= ZmTimeNow())) {
-      if (ZuLikely(index)) {
-	if (ZuLikely(tryRunWake_(&m_threads[index - 1], fn))) return;
+      if (ZuLikely(sid)) {
+	if (ZuLikely(tryRunWake_(&m_threads[sid - 1], fn))) return;
       } else {
 	if (ZuLikely(timerAdd(fn))) return;
       }
@@ -262,7 +262,7 @@ void ZmScheduler::run_(
       kick = timeout < first->timeout;
 
     timer->timeout = timeout;
-    timer->index = index;
+    timer->sid = sid;
     timer->fn = ZuMv(fn);
     m_schedule.addNode(timer);
   }

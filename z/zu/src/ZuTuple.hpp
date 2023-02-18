@@ -124,9 +124,7 @@ private:
 
 public:
   template <typename T>
-  Tuple_(T &&v, ZuIfT<
-	ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK
-      > *_ = nullptr) :
+  Tuple_(T &&v, ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK> *_ = nullptr) :
     m_p0{Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))} { }
 
   template <typename T>

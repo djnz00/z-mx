@@ -102,9 +102,7 @@ namespace DBHostState {
       Closing,
       Stopped,
       Electing,
-      Activating,
       Active,
-      Deactivating,
       Inactive,
       Stopping)
 
@@ -112,7 +110,7 @@ namespace DBHostState {
     using namespace RAG;
     if (i < 0 || i >= N) return Off;
     static const int values[N] = {
-      Off, Amber, Amber, Amber, Red, Amber, Amber, Green, Amber, Amber, Amber
+      Off, Amber, Amber, Amber, Red, Amber, Green, Amber, Amber
     };
     return values[i];
   }
