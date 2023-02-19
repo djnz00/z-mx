@@ -171,7 +171,7 @@ private:
   ZiFile		m_index;
 };
 
-using AlertRing = ZmXRing<ZmRef<IOBuf> >;
+using AlertRing = ZmXRing<ZmRef<IOBuf>>;
 
 template <typename App_, typename Link_>
 class Server : public ZmEngine<Server<App_, Link_>>, ZvEngineMgr {
@@ -670,10 +670,9 @@ private:
     if (req.interval)
       this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->threadScan(); });
-    ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{
-      watch, [](Watch *watch, ZmThreadContext *tc) {
-	watch->link->app()->threadQuery_(watch, tc);
-      }});
+    ZmSpecific<ZmThreadContext>::all([watch](ZmThreadContext *tc) {
+      watch->link->app()->threadQuery_(watch, tc);
+    });
     if (!req.interval) delete watch;
   }
   void threadQuery_(Watch *watch, const ZmThreadContext *tc) {
@@ -688,10 +687,9 @@ private:
 
   void threadScan() {
     if (!m_watchLists[ReqType::Thread].list.count_()) return;
-    ZmSpecific<ZmThreadContext>::all(ZmFn<ZmThreadContext *>{
-      this, [](Server *server, ZmThreadContext *tc) {
-	server->threadScan(tc);
-      }});
+    ZmSpecific<ZmThreadContext>::all([this](ZmThreadContext *tc) {
+      threadScan(tc);
+    });
   }
   void threadScan(const ZmThreadContext *tc) {
     Thread data;

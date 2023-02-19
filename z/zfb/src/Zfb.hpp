@@ -293,9 +293,13 @@ namespace Save {
     return data;
   }
 
-  // nest following Finish()
-  inline Offset<Vector<uint8_t>> nest(Builder &fbb) {
-    return {fbb.PushElement(fbb.GetSize())};
+  // nest flatbuffer
+  template <typename L>
+  inline Offset<Vector<uint8_t>> nest(Builder &fbb, L l) {
+    auto o = fbb.GetSize();
+    fbb.Finish(l(fbb));
+    o = fbb.GetSize() - o;
+    return {fbb.PushElement(o)};
   }
 
 } // Save

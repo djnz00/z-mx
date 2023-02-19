@@ -321,7 +321,7 @@ class Cxn;
 
 // file index block cache
 
-struct IndexBlk_ : public ZmPolymorph {
+struct IndexBlk_ : public ZmObject {
 #pragma pack(push, 1)
   struct Index {
     uint64_t		offset;
@@ -413,7 +413,7 @@ struct FileRecTrlr {		// record trailer
 #pragma pack(pop)
 
 // file cache
-class ZdbAPI File_ : public ZiFile {
+class ZdbAPI File_ : public ZmObject, public ZiFile {
   File_() = delete;
   File_(const File_ &) = delete;
   File_(File_ &&) = delete;
@@ -930,7 +930,7 @@ using Deletes =
       ZmRBTreeLock<ZmPLock,
 	ZmRBTreeHeapID<DeletesHeapID>>>>;
 
-class ZdbAPI DB : public ZmPolymorph {
+class ZdbAPI DB : public ZmObject {
 friend Cxn;
 friend File;
 friend AnyObject;
@@ -951,7 +951,6 @@ private:
 
   bool recover();
   void checkpoint();
-  bool checkpoint_();
 
 public:
   Env *env() const { return m_env; }
@@ -959,10 +958,6 @@ public:
   const DBCf &config() const { return *m_cf; }
 
   static ZuID IDAxor(const DB &db) { return db.config().id; }
-
-  unsigned cacheSize() const { return m_cache.size(); }
-  unsigned fileCacheSize() const { return m_fileCache.size(); }
-  unsigned indexBlkCacheSize() const { return m_indexBlkCache.size(); }
 
   template <typename ...Args>
   void invoke(Args &&... args) const {
@@ -1120,8 +1115,8 @@ private:
   // FIXME - remove m_standalone, standalone() can run in dbThread
 
   // RN allocator
-  RN			m_minRN = maxRN();
-  ZmAtomic<RN>		m_nextRN = 0;	// shared
+  ZmAtomic<RN>		m_minRN = maxRN();
+  ZmAtomic<RN>		m_nextRN = 0;
 
   // object cache
   LRU			m_lru;
@@ -1396,7 +1391,7 @@ struct EnvCf {
   }
 };
 
-class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
+class ZdbAPI Env : public ZmObject, public ZmEngine<Env> {
   Env(const Env &);
   Env &operator =(const Env &);		// prevent mis-use
 

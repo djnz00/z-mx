@@ -691,15 +691,14 @@ private:
     length_mallocd(0, 0);
   }
 
-  void own_(
-      const T *data, unsigned length, unsigned size, bool mallocd) {
+  void own_(const T *data, unsigned length, unsigned size, bool mallocd) {
     ZmAssert(size >= length);
     if (!size) {
       if (data && mallocd) vfree(data);
       null_();
       return;
     }
-    m_data = (T *)data;
+    m_data = const_cast<T *>(data);
     size_owned(size, 1);
     length_mallocd(length, mallocd);
   }
@@ -808,22 +807,25 @@ public:
 
 private:
   void length_(unsigned v) {
-    m_length_mallocd = (m_length_mallocd & (1U<<31U)) | (uint32_t)v;
+    m_length_mallocd =
+      (m_length_mallocd & (1U<<31U)) | static_cast<uint32_t>(v);
   }
   void mallocd(bool v) {
-    m_length_mallocd = (m_length_mallocd & ~(1U<<31U)) | (((uint32_t)v)<<31U);
+    m_length_mallocd =
+      (m_length_mallocd & ~(1U<<31U)) | ((static_cast<uint32_t>(v))<<31U);
   }
   void length_mallocd(unsigned l, bool m) {
-    m_length_mallocd = l | (((uint32_t)m)<<31U);
+    m_length_mallocd = l | ((static_cast<uint32_t>(m))<<31U);
   }
   void size_(unsigned v) {
-    m_size_owned = (m_size_owned & (1U<<31U)) | (uint32_t)v;
+    m_size_owned = (m_size_owned & (1U<<31U)) | static_cast<uint32_t>(v);
   }
   void owned(bool v) {
-    m_size_owned = (m_size_owned & ~(1U<<31U)) | (((uint32_t)v)<<31U);
+    m_size_owned =
+      (m_size_owned & ~(1U<<31U)) | ((static_cast<uint32_t>(v))<<31U);
   }
   void size_owned(unsigned z, bool o) {
-    m_size_owned = z | (((uint32_t)o)<<31U);
+    m_size_owned = z | ((static_cast<uint32_t>(o))<<31U);
   }
 
 public:
@@ -1271,9 +1273,9 @@ private:
     if (offset < 0) { if ((offset += n) < 0) offset = 0; }
     if (length < 0) { if ((length += (n - offset)) < 0) length = 0; }
 
-    if (offset > (int)n) {
+    if (offset > static_cast<int>(n)) {
       if (removed) removed->clear();
-      if (!owned() || offset > (int)z) {
+      if (!owned() || offset > static_cast<int>(z)) {
 	z = grow_(z, offset);
 	size(z);
       }
@@ -1282,17 +1284,17 @@ private:
       return;
     }
 
-    if (offset + length > (int)n) length = n - offset;
+    if (offset + length > static_cast<int>(n)) length = n - offset;
 
     int l = n - length;
 
-    if (l > 0 && (!owned() || l > (int)z)) {
+    if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
       T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
-      if (offset + length < (int)n)
+      if (offset + length < static_cast<int>(n))
 	this->moveItems(
 	    newData + offset,
 	    m_data + offset + length,
@@ -1307,7 +1309,7 @@ private:
     if (removed) removed->move(m_data + offset, length);
     this->destroyItems(m_data + offset, length);
     if (l > 0) {
-      if (offset + length < (int)n)
+      if (offset + length < static_cast<int>(n))
 	this->moveItems(
 	    m_data + offset,
 	    m_data + offset + length,
@@ -1328,9 +1330,10 @@ private:
     if (offset < 0) { if ((offset += n) < 0) offset = 0; }
     if (length < 0) { if ((length += (n - offset)) < 0) length = 0; }
 
-    if (offset > (int)n) {
+    if (offset > static_cast<int>(n)) {
       if (removed) removed->clear();
-      if (!owned() || offset + (int)rlength > (int)z) {
+      if (!owned() ||
+	  offset + static_cast<int>(rlength) > static_cast<int>(z)) {
 	z = grow_(z, offset + rlength);
 	size(z);
       }
@@ -1340,18 +1343,18 @@ private:
       return;
     }
 
-    if (offset + length > (int)n) length = n - offset;
+    if (offset + length > static_cast<int>(n)) length = n - offset;
 
     int l = n + rlength - length;
 
-    if (l > 0 && (!owned() || l > (int)z)) {
+    if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
       T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->copyItems(newData + offset, replace, rlength);
-      if (offset + length < (int)n)
+      if (offset + length < static_cast<int>(n))
 	this->moveItems(
 	    newData + offset + rlength,
 	    m_data + offset + length,
@@ -1366,7 +1369,8 @@ private:
     if (removed) removed->move(m_data + offset, length);
     this->destroyItems(m_data + offset, length);
     if (l > 0) {
-      if ((int)rlength != length && offset + length < (int)n)
+      if (static_cast<int>(rlength) != length &&
+	  offset + length < static_cast<int>(n))
 	this->moveItems(
 	    m_data + offset + rlength,
 	    m_data + offset + length,
@@ -1388,9 +1392,10 @@ private:
     if (offset < 0) { if ((offset += n) < 0) offset = 0; }
     if (length < 0) { if ((length += (n - offset)) < 0) length = 0; }
 
-    if (offset > (int)n) {
+    if (offset > static_cast<int>(n)) {
       if (removed) removed->clear();
-      if (!owned() || offset + (int)rlength > (int)z) {
+      if (!owned() ||
+	  offset + static_cast<int>(rlength) > static_cast<int>(z)) {
 	z = grow_(z, offset + rlength);
 	size(z);
       }
@@ -1400,18 +1405,19 @@ private:
       return;
     }
 
-    if (offset + length > (int)n) length = n - offset;
+    if (offset + length > static_cast<int>(n)) length = n - offset;
 
     int l = n + rlength - length;
 
-    if (l > 0 && (!owned() || l > (int)z)) {
+    if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
       T *newData = static_cast<T *>(valloc(z * sizeof(T)));
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->moveItems(newData + offset, replace, rlength);
-      if ((int)rlength != length && offset + length < (int)n)
+      if (static_cast<int>(rlength) != length &&
+	  offset + length < static_cast<int>(n))
 	this->moveItems(
 	    newData + offset + rlength,
 	    m_data + offset + length,
@@ -1426,7 +1432,8 @@ private:
     if (removed) removed->move(m_data + offset, length);
     this->destroyItems(m_data + offset, length);
     if (l > 0) {
-      if ((int)rlength != length && offset + length < (int)n)
+      if (static_cast<int>(rlength) != length &&
+	  offset + length < static_cast<int>(n))
 	this->moveItems(
 	    m_data + offset + rlength,
 	    m_data + offset + length,

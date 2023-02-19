@@ -97,7 +97,9 @@ public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuConversion<Char, wchar_t>::Same };
-  enum { BuiltinSize = (int)ZtString_BuiltinSize / sizeof(Char) };
+  constexpr static unsigned BuiltinSize() {
+    return ZtString_BuiltinSize / sizeof(Char);
+  }
   constexpr static auto HeapID = HeapID_;
 
 private:
@@ -225,9 +227,9 @@ public:
     copy_(s.data_(), s.length());
   }
   ZtString_(ZtString_ &&s) {
-    if (s.null__()) { null_(); return; }
-    if (s.builtin()) { copy_(s.data_(), s.length()); return; }
-    if (!s.owned()) { shadow_(s.data_(), s.length()); return; }
+    if (ZuUnlikely(s.null__())) { null_(); return; }
+    if (ZuLikely(s.builtin())) { copy_(s.data_(), s.length()); return; }
+    if (ZuUnlikely(!s.owned())) { shadow_(s.data_(), s.length()); return; }
     own_(s.data_(), s.length(), s.size(), s.mallocd());
     s.owned(s.builtin());
     s.mallocd(0);
@@ -555,38 +557,37 @@ private:
 
   void null_() {
     m_data[0] = 0;
-    size_owned_null(BuiltinSize, 1, 1);
+    size_owned_null(BuiltinSize(), 1, 1);
     length_mallocd_builtin(0, 0, 1);
   }
 
-  void own_(
-      const Char *data, unsigned length, unsigned size, bool mallocd) {
+  void own_(const Char *data, unsigned length, unsigned size, bool mallocd) {
     if (!size) {
       if (data && mallocd) vfree((void *)data);
       null_();
       return;
     }
-    m_data[0] = (uintptr_t)(Char *)data;
+    m_data[0] = reinterpret_cast<uintptr_t>(data);
     size_owned_null(size, 1, 0);
     length_mallocd_builtin(length, mallocd, 0);
   }
 
   void shadow_(const Char *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data[0] = (uintptr_t)(Char *)data;
+    m_data[0] = reinterpret_cast<uintptr_t>(data);
     size_owned_null(length + 1, 0, 0);
     length_mallocd_builtin(length, 0, 0);
   }
 
   Char *alloc_(unsigned size, unsigned length) {
-    if (ZuLikely(size <= (unsigned)BuiltinSize)) {
+    if (ZuLikely(size <= BuiltinSize())) {
       size_owned_null(size, 1, 0);
       length_mallocd_builtin(length, 0, 1);
-      return (Char *)m_data;
+      return reinterpret_cast<Char *>(m_data);
     }
-    Char *newData = (Char *)valloc(size * sizeof(Char));
+    Char *newData = static_cast<Char *>(valloc(size * sizeof(Char)));
     if (!newData) throw std::bad_alloc{};
-    m_data[0] = (uintptr_t)newData;
+    m_data[0] = reinterpret_cast<uintptr_t>(newData);
     size_owned_null(size, 1, 0);
     length_mallocd_builtin(length, 1, 0);
     return newData;;
@@ -594,18 +595,18 @@ private:
 
   void copy_(const Char *copyData, unsigned length) {
     if (!length) { null_(); return; }
-    if (length < (unsigned)BuiltinSize) {
-      memcpy((Char *)m_data, copyData, length * sizeof(Char));
-      ((Char *)m_data)[length] = 0;
-      size_owned_null(BuiltinSize, 1, 0);
+    if (length < BuiltinSize()) {
+      memcpy(reinterpret_cast<Char *>(m_data), copyData, length * sizeof(Char));
+      (reinterpret_cast<Char *>(m_data))[length] = 0;
+      size_owned_null(BuiltinSize(), 1, 0);
       length_mallocd_builtin(length, 0, 1);
       return;
     }
-    Char *newData = (Char *)valloc((length + 1) * sizeof(Char));
+    Char *newData = static_cast<Char *>(valloc((length + 1) * sizeof(Char)));
     if (!newData) throw std::bad_alloc{};
     memcpy(newData, copyData, length * sizeof(Char));
     newData[length] = 0;
-    m_data[0] = (uintptr_t)newData;
+    m_data[0] = reinterpret_cast<uintptr_t>(newData);
     size_owned_null(length + 1, 1, 0);
     length_mallocd_builtin(length, 1, 0);
   }
@@ -613,7 +614,9 @@ private:
   template <typename S> void convert_(const S &s, ZtIconv *iconv);
 
   void free_() {
-    if (mallocd()) if (Char *data = (Char *)m_data[0]) vfree(data);
+    if (mallocd())
+      if (Char *data = reinterpret_cast<Char *>(m_data[0]))
+	vfree(data);
   }
   Char *free_1() {
     if (!mallocd()) return 0;
@@ -660,14 +663,18 @@ public:
     return data_();
   }
   Char *data_() {
-    return builtin() ? (Char *)m_data : (Char *)m_data[0];
+    return builtin() ?
+      reinterpret_cast<Char *>(m_data) :
+      reinterpret_cast<Char *>(m_data[0]);
   }
   const Char *data() const {
     if (null__()) return nullptr;
     return data_();
   }
   const Char *data_() const {
-    return builtin() ? (const Char *)m_data : (const Char *)m_data[0];
+    return builtin() ?
+      reinterpret_cast<const Char *>(m_data) :
+      reinterpret_cast<const Char *>(m_data[0]);
   }
   const Char *ndata() const {
     if (null__()) return ZtString_Null<Char>();
@@ -691,14 +698,17 @@ private:
   }
   void mallocd(bool v) {
     m_length_mallocd_builtin =
-      (m_length_mallocd_builtin & ~(1U<<30U)) | (((uint32_t)v)<<30U);
+      (m_length_mallocd_builtin & ~(1U<<30U)) |
+      ((static_cast<uint32_t>(v))<<30U);
   }
   void builtin(bool v) {
     m_length_mallocd_builtin =
-      (m_length_mallocd_builtin & ~(1U<<31U)) | (((uint32_t)v)<<31U);
+      (m_length_mallocd_builtin & ~(1U<<31U)) |
+      ((static_cast<uint32_t>(v))<<31U);
   }
   void length_mallocd_builtin(unsigned l, bool m, bool b) {
-    m_length_mallocd_builtin = l | (((uint32_t)m)<<30U) | (((uint32_t)b)<<31U);
+    m_length_mallocd_builtin =
+      l | ((static_cast<uint32_t>(m))<<30U) | (((uint32_t)b)<<31U);
   }
   unsigned size_() const {
     return m_size_owned_null & ~(3U<<30U);
@@ -708,15 +718,16 @@ private:
   }
   void owned(bool v) {
     m_size_owned_null =
-      (m_size_owned_null & ~(1U<<30U)) | (((uint32_t)v)<<30U);
+      (m_size_owned_null & ~(1U<<30U)) | ((static_cast<uint32_t>(v))<<30U);
   }
   bool null__() const { return m_size_owned_null>>31U; }
   void null__(bool v) {
     m_size_owned_null =
-      (m_size_owned_null & ~(1U<<31U)) | (((uint32_t)v)<<31U);
+      (m_size_owned_null & ~(1U<<31U)) | ((static_cast<uint32_t>(v))<<31U);
   }
   void size_owned_null(unsigned z, bool o, bool n) {
-    m_size_owned_null = z | (((uint32_t)o)<<30U) | (((uint32_t)n)<<31U);
+    m_size_owned_null =
+      z | ((static_cast<uint32_t>(o))<<30U) | (((uint32_t)n)<<31U);
   }
 
 public:
@@ -724,14 +735,14 @@ public:
     if (!move) return data_();
     if (null__()) return 0;
     if (builtin()) {
-      Char *newData = (Char *)valloc(BuiltinSize * sizeof(Char));
+      Char *newData = static_cast<Char *>(valloc(BuiltinSize() * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
       memcpy(newData, m_data, (length() + 1) * sizeof(Char));
       return newData;
     } else {
       owned(0);
       mallocd(0);
-      return (Char *)m_data[0];
+      return reinterpret_cast<Char *>(m_data[0]);
     }
   }
 
@@ -778,10 +789,10 @@ public:
     if (owned() && z == size_()) return data_();
     Char *oldData = data_();
     Char *newData;
-    if (z <= (unsigned)BuiltinSize)
-      newData = (Char *)m_data;
+    if (z <= BuiltinSize())
+      newData = reinterpret_cast<Char *>(m_data);
     else {
-      newData = (Char *)valloc(z * sizeof(Char));
+      newData = static_cast<Char *>(valloc(z * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
     }
     unsigned n = z - 1U;
@@ -790,12 +801,12 @@ public:
       memcpy(newData, oldData, (n + 1) * sizeof(Char));
       if (mallocd()) vfree(oldData);
     }
-    if (z <= (unsigned)BuiltinSize) {
+    if (z <= BuiltinSize()) {
       size_owned_null(z, 1, 0);
       length_mallocd_builtin(n, 0, 1);
       return newData;
     }
-    m_data[0] = (uintptr_t)newData;
+    m_data[0] = reinterpret_cast<uintptr_t>(newData);
     size_owned_null(z, 1, 0);
     length_mallocd_builtin(n, 1, 0);
     return newData;
@@ -921,7 +932,7 @@ private:
     unsigned n = this->length();
     unsigned o = n + length;
     if (ZuUnlikely(!o)) return ZtString_{};
-    Char *newData = (Char *)valloc((o + 1) * sizeof(Char));
+    Char *newData = static_cast<Char *>(valloc((o + 1) * sizeof(Char)));
     if (!newData) throw std::bad_alloc{};
     if (n) memcpy(newData, data_(), n * sizeof(Char));
     if (length) memcpy(newData + n, data, length * sizeof(Char));
@@ -1089,7 +1100,7 @@ public:
     if (offset < 0) {
       if ((offset += n) < 0) offset = 0;
     } else {
-      if (offset > (int)n) offset = n;
+      if (offset > static_cast<int>(n)) offset = n;
     }
     return ZuArray<const Char>(data_() + offset, n - offset);
   }
@@ -1099,12 +1110,12 @@ public:
     if (offset < 0) {
       if ((offset += n) < 0) offset = 0;
     } else {
-      if (offset > (int)n) offset = n;
+      if (offset > static_cast<int>(n)) offset = n;
     }
     if (length < 0) {
       if ((length += n - offset) < 0) length = 0;
     } else {
-      if (offset + length > (int)n) length = n - offset;
+      if (offset + length > static_cast<int>(n)) length = n - offset;
     }
     return ZuArray<const Char>(data_() + offset, length);
   }
@@ -1121,10 +1132,10 @@ private:
     if (offset < 0) { if ((offset += n) < 0) offset = 0; }
     if (length < 0) { if ((length += (n - offset)) < 0) length = 0; }
 
-    if (offset > (int)n) {
+    if (offset > static_cast<int>(n)) {
       if (removed) removed->clear();
       Char *data;
-      if (!owned() || offset + (int)rlength >= (int)z) {
+      if (!owned() || offset + rlength >= static_cast<int>(z)) {
 	z = grow_(z, offset + rlength + 1);
 	data = size(z);
       } else
@@ -1135,39 +1146,39 @@ private:
       return;
     }
 
-    if (length == INT_MAX || offset + length > (int)n)
+    if (length == INT_MAX || offset + length > static_cast<int>(n))
       length = n - offset;
 
     int l = n + rlength - length;
 
-    if (l > 0 && (!owned() || l >= (int)z)) {
+    if (l > 0 && (!owned() || l >= static_cast<int>(z))) {
       z = grow_(z, l + 1);
       Char *oldData = data_();
       if (removed) removed->init(Copy, oldData + offset, length);
       Char *newData;
-      if (z <= (unsigned)BuiltinSize)
-	newData = (Char *)m_data;
+      if (z <= BuiltinSize())
+	newData = reinterpret_cast<Char *>(m_data);
       else {
-	newData = (Char *)valloc(z * sizeof(Char));
+	newData = static_cast<Char *>(valloc(z * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
       }
       if (oldData != newData && offset)
 	memcpy(newData, oldData, offset * sizeof(Char));
       if (rlength)
 	memcpy(newData + offset, replace, rlength * sizeof(Char));
-      if (offset + length < (int)n &&
-	  (oldData != newData || (int)rlength != length))
+      if (offset + length < static_cast<int>(n) &&
+	  (oldData != newData || static_cast<int>(rlength) != length))
 	memmove(newData + offset + rlength,
 		oldData + offset + length,
 		(n - (offset + length)) * sizeof(Char));
       if (oldData != newData && mallocd()) vfree(oldData);
       newData[l] = 0;
-      if (z <= (unsigned)BuiltinSize) {
+      if (z <= BuiltinSize()) {
 	size_owned_null(z, 1, 0);
 	length_mallocd_builtin(l, 0, 1);
 	return;
       }
-      m_data[0] = (uintptr_t)newData;
+      m_data[0] = reinterpret_cast<uintptr_t>(newData);
       size_owned_null(z, 1, 0);
       length_mallocd_builtin(l, 1, 0);
       return;
@@ -1176,7 +1187,8 @@ private:
     Char *data = data_();
     if (removed) removed->init(Copy, data + offset, length);
     if (l > 0) {
-      if ((int)rlength != length && offset + length < (int)n)
+      if (static_cast<int>(rlength) != length &&
+	  offset + length < static_cast<int>(n))
 	memmove(data + offset + rlength,
 		data + offset + length,
 		(n - (offset + length)) * sizeof(Char));
@@ -1233,7 +1245,7 @@ public:
     if (o < 0) { null(); return; }
     length_(o + 1);
     unsigned n = o + 1;
-    for (o = 0; o < (int)n && match(data[o]); o++);
+    for (o = 0; o < static_cast<int>(n) && match(data[o]); o++);
     if (!o) { length_(n); return; }
     if (!(n -= o)) { null(); return; }
     memmove(data, data + o, n * sizeof(Char));
@@ -1267,7 +1279,7 @@ public:
 
 private:
   static unsigned grow_(unsigned o, unsigned n) {
-    if (n <= (unsigned)BuiltinSize) return BuiltinSize;
+    if (n <= BuiltinSize()) return BuiltinSize();
     return ZuGrow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
   }
 
@@ -1332,7 +1344,7 @@ public:
 private:
   uint32_t		m_size_owned_null;
   uint32_t		m_length_mallocd_builtin;
-  uintptr_t		m_data[ZtString_BuiltinSize / sizeof(uintptr_t)];
+  uintptr_t		m_data[BuiltinSize() / sizeof(uintptr_t)];
 };
 
 template <typename Char, auto HeapID>
@@ -1426,31 +1438,47 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
 inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
-struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
-  ZtHexDump(ZuString prefix_, const void *data_, unsigned length_) :
-      prefix(prefix_), data(0), length(length_) {
-    if (ZuLikely(data = static_cast<uint8_t *>(valloc(length))))
-      memcpy(data, data_, length);
+class ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
+public:
+  ZtHexDump() = delete;
+  template <typename T, typename Cmp>
+  ZtHexDump(ZuString prefix, ZuArray<T, Cmp> data) :
+      m_prefix{prefix}, m_length{data.length() * sizeof(T)} {
+    init_(reinterpret_cast<const uint8_t *>(data.data()));
+  }
+  template <typename T>
+  ZtHexDump(ZuString prefix, const T *data, unsigned length) :
+      m_prefix{prefix}, m_length{length * sizeof(T)} {
+    init_(reinterpret_cast<const uint8_t *>(data));
   }
   ~ZtHexDump() {
-    if (ZuLikely(data)) vfree(data);
+    if (ZuLikely(m_data)) vfree(m_data);
   }
   ZtHexDump(ZtHexDump &&d) :
-    prefix(ZuMv(d.prefix)), data(d.data), length(d.length) {
-    d.data = 0;
+    m_prefix(ZuMv(d.m_prefix)), m_data(d.m_data), m_length(d.m_length) {
+    d.m_data = 0;
   }
   ZtHexDump &operator =(ZtHexDump &&d) {
     if (ZuLikely(this != &d)) {
-      prefix = ZuMv(d.prefix);
-      data = d.data;
-      length = d.length;
-      d.data = 0;
+      m_prefix = ZuMv(d.m_prefix);
+      m_data = d.m_data;
+      m_length = d.m_length;
+      d.m_data = 0;
     }
     return *this;
   }
   ZtHexDump(const ZtHexDump &) = delete;
   ZtHexDump &operator =(const ZtHexDump &) = delete;
 
+private:
+  void init_(const uint8_t *data) {
+    if (ZuLikely(m_data = static_cast<uint8_t *>(valloc(m_length))))
+      memcpy(m_data, data, m_length);
+    else
+      m_length = 0;
+  }
+
+public:
   void print(ZmStream &s) const;
   struct Print : public ZuPrintDelegate {
     template <typename S>
@@ -1465,9 +1493,9 @@ struct ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
   friend Print ZuPrintType(ZtHexDump *);
 
 private:
-  ZtString	prefix;
-  uint8_t	*data;
-  unsigned	length;
+  ZtString	m_prefix;
+  uint8_t	*m_data = nullptr;
+  unsigned	m_length = 0;
 };
 
 #ifdef _MSC_VER

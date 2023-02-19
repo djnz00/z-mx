@@ -208,7 +208,7 @@ void FileMgr::save(ZmRef<Buf> buf)
 {
   buf->save([buf = ZuMv(buf)]() {
     auto self = static_cast<FileMgr *>(buf->mgr);
-    self->m_sched->run(m_writeThread, [buf = ZuMv(buf)]() mutable {
+    self->m_sched->run(self->m_writeThread, [buf = ZuMv(buf)]() mutable {
       auto buf_ = buf.ptr();
       buf_->save_([buf = ZuMv(buf)]() {
 	auto self = static_cast<FileMgr *>(buf->mgr);

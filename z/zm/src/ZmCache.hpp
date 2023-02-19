@@ -165,7 +165,6 @@ public:
     ++m_misses;
     typename LoadHash::Node *load = m_loadHash->find(key);
     bool pending = !!load;
-    // FIXME - initialize FindFnList then move it in
     if (!pending)
       m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
     load->val().push(ZuMv(findFn));

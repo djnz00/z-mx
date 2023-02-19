@@ -1,5 +1,19 @@
 namespace zfbtest.fbs;
-table Buf {
-  data:[ubyte];
+table String {
+  value:string;
 }
-root_type Buf;
+table Nested {
+  value:[uint8] (nested_flatbuffer: "Tree");
+}
+union Value {
+  String,
+  Nested
+}
+table Item {
+  key:string;
+  value:Value;
+}
+table Tree {
+  items:[Item];
+}
+root_type Tree;

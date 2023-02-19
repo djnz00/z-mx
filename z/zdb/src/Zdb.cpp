@@ -467,6 +467,7 @@ void Env::telemetry(Telemetry &data) const
   data.electionTimeout = m_cf.electionTimeout;
   data.writeThread = m_cf.writeTID;
 
+  // FIXME
   ReadGuard guard(m_lock);
   data.nCxns = m_cxns.count_();
   data.self = m_self->id();
@@ -1178,20 +1179,16 @@ void Env::replicated(Host *host, ZuID dbID, RN rn)
 DB::DB(ZdbEnv *env, ZdbCf *cf) :
   m_env{env}, m_mx{env->mx()}, m_cf{cf},
   m_path{ZiFile::append(env->config().path, cf->id)},
-  m_cache{new Cache{}}, m_cacheSize{m_cache->size()},
+  m_cache{new Cache{}},
   m_buffers{new Buffers{}},
   m_files{new FileCache{}},
-  m_fileCacheSize{m_files->size()},
-  m_indexBlks{new IndexBlkCache{}},
-  m_indexBlkCacheSize{m_indexBlks->size()}
+  m_indexBlks{new IndexBlkCache{}}
 {
 }
 
 DB::~DB()
 {
   close();
-  m_lru.clean();
-  m_fileLRU.clean();
 }
 
 void DB::init(DBHandler handler)
@@ -1211,6 +1208,8 @@ void DB::telemetry(Telemetry &data) const
   data.name = config().id;
   data.cacheMode = config().cacheMode;
   data.warmUp = config().warmUp;
+  // FIXME - minRN, nextRN are atomics
+  // FIXME - caches have stats() functions that hold read locks
   {
     ReadGuard guard(m_cacheLock);
     data.minRN = m_minRN;
@@ -1453,6 +1452,8 @@ void DB::repGap(ZmRef<Buf> buf)
 
 void DB::write(ZmRef<Buf> buf)
 {
+  ZmAssert(invoked());
+
   m_buffers->addNode(buf);
   if (config().repMode) {
     m_env->invoke([this, env = m_env, buf = ZuMv(buf)]() mutable {
@@ -1483,6 +1484,8 @@ void DB::write(ZmRef<Buf> buf)
 
 void File_::reset()
 {
+  ZmAssert(m_db->fileInvoked());
+
   m_flags = 0;
   m_allocated = m_deleted = 0;
   m_bitmap.zero();
@@ -1491,6 +1494,8 @@ void File_::reset()
 
 bool File_::scan()
 {
+  ZmAssert(m_db->fileInvoked());
+
   // if file is truncated below minimum header size, reset/rewrite it
   if (size() < sizeof(FileHdr) + sizeof(FileBitmap) + sizeof(FileSuperBlk)) {
     reset();
@@ -1602,8 +1607,10 @@ bool File_::scan()
   return !rewrite || sync_();
 }
 
-bool File_::sync_() // file thread
+bool File_::sync_()
 {
+  ZmAssert(m_db->fileInvoked());
+
   int r;
   ZeError e;
   // header
@@ -1663,6 +1670,8 @@ bool File_::sync_() // file thread
 
 bool File_::sync() // file thread
 {
+  ZmAssert(m_db->fileInvoked());
+
   m_flags |= FileFlags::Clean;
   if (!sync_()) goto error;
   {
@@ -1726,27 +1735,16 @@ void Env::checkpoint()
   allDBs([](DB *db) { db->checkpoint(); });
 }
 
-void DB::checkpoint()
-{
-  m_env->mx()->run(config().sid, ZmFn<>{this, [](DB *self) {
-    self->checkpoint_1();
-  }});
-}
-
-bool DB::checkpoint_1()
+bool DB::checkpoint()
 {
   bool ok = true;
-  {
-    auto i = m_indexBlkLRU.readIterator();
-    while (IndexBlk *blk = static_cast<IndexBlk *>(i.iterateNode()))
-      if (File *file = getFile(blk->id>>(fileShift() - indexShift()), false))
-	ok &&= file->writeIndexBlk(blk);
-  }
-  {
-    auto i = m_fileLRU.readIterator();
-    while (File *file = static_cast<File *>(i.iterateNode()))
-      ok &&= file->sync_();
-  }
+  m_indexBlks->all([&ok](ZmRef<IndexBlk> blk) mutable {
+    if (File *file = getFile(blk->id>>(fileShift() - indexShift()), false))
+      ok &&= file->writeIndexBlk(blk);
+  });
+  m_files->all([&ok](ZmRef<File> file) mutable {
+    ok &&= file->sync_();
+  });
   return ok;
 }
 

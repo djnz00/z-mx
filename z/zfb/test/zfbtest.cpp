@@ -25,8 +25,27 @@ void build(IOBuilder &fbb, unsigned n)
     uint8_t *zero = reinterpret_cast<uint8_t *>(::malloc(n));
     memset(zero, 0, n);
     fbb.Clear();
-    auto o = zfbtest::fbs::CreateBuf(fbb, Zfb::Save::bytes(fbb, zero, n));
-    fbb.Finish(o);
+    auto o1 = Zfb::Save::nest(fbb, [](Zfb::Builder &fbb) {
+      return zfbtest::fbs::CreateTree(fbb,
+	Zfb::Save::vector<zfbtest::fbs::Item>(fbb,
+	  zfbtest::fbs::CreateItem(fbb,
+	      Zfb::Save::str(fbb, "nested_key"),
+	      zfbtest::fbs::Value_String,
+	      zfbtest::fbs::CreateString(fbb,
+		Zfb::Save::str(fbb, "nested_value")).Union())));
+    });
+    auto o2 = zfbtest::fbs::CreateTree(fbb,
+	Zfb::Save::vector<zfbtest::fbs::Item>(fbb,
+	  zfbtest::fbs::CreateItem(fbb,
+	      Zfb::Save::str(fbb, "key1"),
+	      zfbtest::fbs::Value_Nested,
+	      zfbtest::fbs::CreateNested(fbb,
+		Zfb::Save::bytes(fbb, zero, n)).Union()),
+	  zfbtest::fbs::CreateItem(fbb,
+	      Zfb::Save::str(fbb, "key2"),
+	      zfbtest::fbs::Value_Nested,
+	      zfbtest::fbs::CreateNested(fbb, o1).Union())));
+    fbb.Finish(o2);
     fbb.PushElement(static_cast<uint32_t>(42));
     fbb.PushElement(static_cast<uint32_t>(fbb.GetSize()));
     ::free(zero);
@@ -37,13 +56,36 @@ void build(IOBuilder &fbb, unsigned n)
     int len = Detach ? buf->length : fbb.GetSize();
     uint32_t len_ = *reinterpret_cast<ZuLittleEndian<uint32_t> *>(ptr);
     uint32_t type_ = *reinterpret_cast<ZuLittleEndian<uint32_t> *>(ptr + 4);
-    auto buf_ = zfbtest::fbs::GetBuf(ptr + 8);
-    auto data = Zfb::Load::bytes(buf_->data());
+    auto tree = zfbtest::fbs::GetTree(ptr + 8);
+    auto item = tree->items()->Get(0);
+    auto key = Zfb::Load::str(item->key());
+    auto nested = item->value_as_Nested();
+    auto data = Zfb::Load::bytes(nested->value());
     std::cout
       << "ptr=" << ZuBoxPtr(ptr).hex() << " len=" << len
       << " len_=" << len_ << " type_=" << type_
+      << " key1=" << key
+      << " value_type=" << zfbtest::fbs::EnumNameValue(item->value_type())
       << " data=" << ZuBoxPtr(data.data()).hex()
       << " len__=" << data.length() << '\n' << std::flush;
+    item = tree->items()->Get(1);
+    key = Zfb::Load::str(item->key());
+    nested = item->value_as_Nested();
+    data = Zfb::Load::bytes(nested->value());
+    std::cout
+      << "key2=" << key
+      << " value_type=" << zfbtest::fbs::EnumNameValue(item->value_type())
+      << " data=" << ZuBoxPtr(data.data()).hex()
+      << " len__=" << data.length() << '\n' << std::flush;
+    tree = nested->value_nested_root();
+    item = tree->items()->Get(0);
+    key = Zfb::Load::str(item->key());
+    auto string = item->value_as_String();
+    std::cout
+      << "nested tree ptr=" << ZuBoxPtr(tree).hex()
+      << " value_type=" << zfbtest::fbs::EnumNameValue(item->value_type())
+      << " value=" << Zfb::Load::str(string->value())
+      << '\n' << std::flush;
   }
 }
 

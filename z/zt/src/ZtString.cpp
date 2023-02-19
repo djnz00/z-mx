@@ -33,9 +33,9 @@ template class ZtString_<wchar_t, ZtString_ID>;
 
 void ZtHexDump::print(ZmStream &s) const
 {
-  if (ZuUnlikely(!data)) return;
+  if (ZuUnlikely(!m_data)) return;
 
-  s << prefix << '\n';
+  s << m_prefix << '\n';
 
   ZuStringN<64> hex;
   ZuStringN<20> ascii;
@@ -45,19 +45,20 @@ void ZtHexDump::print(ZmStream &s) const
 
   unsigned offset, col;
 
-  for (offset = 0; offset < length; offset += 16) {
+  for (offset = 0; offset < m_length; offset += 16) {
     hex.null();
     ascii.null();
     using namespace ZuFmt;
     hex << ZuBoxed(offset).fmt<Hex<0, Alt<Right<8>>>>() << "  ";
     for (col = 0; col < 16; col++) {
-      if (offset + col >= length) {
+      if (offset + col >= m_length) {
 	hex << ZuString(pad.data(), 3 * (16 - col));
 	break;
       }
-      ZuBox<uint8_t> byte = data[offset + col];
+      ZuBox<uint8_t> byte = m_data[offset + col];
       hex << byte.fmt<Hex<0, Right<2>>>() << ' ';
-      ascii << ((byte >= 0x20 && byte < 0x7f) ? (char)byte : '.');
+      ascii << ((byte >= 0x20 && byte < 0x7f) ?
+	  static_cast<char>(byte.val()) : '.');
     }
     hex << ' ';
     s << hex << ascii << '\n';
