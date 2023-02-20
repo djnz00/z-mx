@@ -14,7 +14,7 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 	perl -pi -e 's|^#include "(\w+)_generated\.h"|#include <zlib/$${1}_fbs.h>|; s|^#include "flatbuffers/flatbuffers.h"|#include <flatbuffers/flatbuffers.h>|;' $@
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
-pkginclude_HEADERS = ZfbLib.hpp Zfb.hpp ${FBS_H}
+pkginclude_HEADERS = ZfbLib.hpp Zfb.hpp ZfbTree.hpp ${FBS_H}
 fbsdir = $(datarootdir)/${PACKAGE}/fbs
 dist_fbs_DATA = fbs/types.fbs fbs/tree.fbs
 lib_LTLIBRARIES = libZfb.la
