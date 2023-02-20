@@ -145,6 +145,15 @@ namespace Save {
     auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
+  // iterated creation of a vector of primitive values
+  template <typename T, typename B, typename L>
+  inline Offset<Vector<T>> pvectorIter(B &b, unsigned n, L l) {
+    auto buf = ZmAlloc(T, n);
+    if (!buf) return {};
+    for (unsigned i = 0; i < n; i++) buf[i] = l(i);
+    auto r = b.CreateVector(buf.ptr, n);
+    return r;
+  }
 
   // inline creation of a vector of lambda-transformed non-primitive values
   template <typename T, typename B, typename L, typename ...Args>
@@ -180,7 +189,7 @@ namespace Save {
   template <typename T, typename B, typename L>
   inline Offset<Vector<const T *>> structVecIter(B &b, unsigned n, L l) {
     return b.template CreateVectorOfStructs<T>(n,
-	[l = ZuMv(l)](size_t i, T *ptr, void *){
+	[l = ZuMv(l)](size_t i, T *ptr, void *) {
       l(ptr, i);
     }, static_cast<void *>(nullptr));
   }
@@ -237,26 +246,22 @@ namespace Save {
     return b.CreateVector(a.data(), a.length());
   }
 
+  // bitmap
+  template <typename B>
+  inline auto bitmap(B &b, const ZmBitmap &v) {
+    int n = v.last();
+    if (ZuUnlikely(n <= 0)) return CreateBitmap(b);
+    n = (n>>6) + 1;
+    return CreateBitmap(b, pvectorIter<uint64_t>(n, [&v](unsigned i) {
+      return hwloc_bitmap_to_ith_ulong(v, i);
+    }));
+  }
+
   // decimal
   inline auto decimal(const ZuDecimal &v) {
     return Decimal{
       static_cast<uint64_t>(v.value>>64),
       static_cast<uint64_t>(v.value)};
-  }
-
-  // bitmap
-  template <typename B>
-  inline auto bitmap(B &b, const ZmBitmap &m) {
-    thread_local ZtArray<uint64_t> v;
-    v.clear();
-    int n = m.last();
-    if (n > 0) {
-      n = (n>>6) + 1;
-      v.size(n);
-      for (unsigned i = 0; i < static_cast<unsigned>(n); i++)
-	v.push(hwloc_bitmap_to_ith_ulong(m, i));
-    }
-    return b.CreateVector(v.data(), v.length());
   }
 
   // date/time
@@ -324,12 +329,6 @@ namespace Load {
     return {v->data(), v->size()};
   }
 
-  // decimal
-  inline ZuDecimal decimal(const Decimal *v) {
-    return ZuDecimal{ZuDecimal::Unscaled,
-      (static_cast<int128_t>(v->h())<<64) | v->l()};
-  }
-
   // bitmap
   inline ZmBitmap bitmap(const Vector<uint64_t> *v) {
     if (!v) return ZmBitmap{};
@@ -343,6 +342,12 @@ namespace Load {
       }
     }
     return m;
+  }
+
+  // decimal
+  inline ZuDecimal decimal(const Decimal *v) {
+    return ZuDecimal{ZuDecimal::Unscaled,
+      (static_cast<int128_t>(v->h())<<64) | v->l()};
   }
 
   // date/time

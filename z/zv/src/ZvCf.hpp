@@ -73,8 +73,7 @@ extern "C" {
 #endif
 
 namespace ZvOptTypes {
-  ZtEnumValues_(
-      Flag = ZvOptFlag, Scalar = ZvOptScalar, Multi = ZvOptMulti);
+  ZtEnumValues_(Flag = ZvOptFlag, Scalar = ZvOptScalar, Multi = ZvOptMulti);
   ZtEnumMap("ZvOptTypes", Map, "flag", Flag, "scalar", Scalar, "multi", Multi);
 }
 
