@@ -12,8 +12,6 @@
 #include <zlib/Zfb.hpp>
 #include <zlib/ZfbTree.hpp>
 
-#include <zlib/tree_fbs.h>
-
 using IOBuilder = Zfb::IOBuilder<>;
 using IOBuf = IOBuilder::IOBuf;
 std::vector<ZmRef<IOBuf>> bufs;
