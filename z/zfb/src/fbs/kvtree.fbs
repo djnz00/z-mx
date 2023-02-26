@@ -1,5 +1,6 @@
 include "types.fbs";
-namespace Zfb;
+namespace ZfbTree;
+table UInt8Vec { data:[uint8]; }
 struct Int32 { value:int32; }
 table Int32Vec { data:[int32]; }
 struct UInt32 { value:uint32; }
@@ -17,10 +18,11 @@ table DateTimeVec { data:[Zfb.DateTime]; }
 table IPVec { data:[Zfb.IP]; }
 table IDVec { data:[Zfb.ID]; }
 table NestedKVTree {
-  value:[uint8] (nested_flatbuffer: "KVTree");
+  data:[uint8] (nested_flatbuffer: "Zfb.KVTree");
 }
 table NestedKVTreeVec { data:[NestedKVTree]; }
 union Value {
+  UInt8Vec,
   Int32, Int32Vec,
   UInt32, UInt32Vec,
   Int64, Int64Vec,
@@ -34,9 +36,10 @@ union Value {
   ID:Zfb.ID, IDVec,
   NestedKVTree, NestedKVTreeVec
 }
+namespace Zfb;
 table KV {
   key:string;
-  value:Value;
+  value:ZfbTree.Value;
 }
 table KVTree {
   items:[KV];

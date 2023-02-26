@@ -15,14 +15,6 @@
 
 #include "zfbtest_fbs.h"
 
-namespace Zfb::Save {
-  template <typename B, typename ...Args>
-  inline auto kvNested_(B &b, ZuString key, Args &&... args) {
-    return CreateKV(b, str(b, key), Value_NestedKVTree,
-	CreateNestedKVTree(b, ZuFwd<Args>(args)...).Union());
-  }
-}
-
 namespace zfbtest {
   using namespace Zfb;
 
@@ -39,7 +31,7 @@ namespace zfbtest {
 	      kvNested(b, "key1", vector<KV>(b,
 		  kvString(b, "nested_key1", "nested_value"))),
 	      kvNested(b, "key2", vector<KV>(b,
-		  kvNested_(b, "nested_key2",
+		  kvUInt8Vec(b, "nested_key2",
 		    bytes(b, test.zero, test.n))))));
       }, [test]<typename S>(S &s) {
 	s << "key1={nested_key1=nested_value} key2={nested_key2={"
@@ -48,8 +40,8 @@ namespace zfbtest {
       ([](Test &test, const KVTree *kvTree) {
 	using namespace Zfb::Load;
 	auto data = bytes(kvTree->items()->Get(1)->
-	    value_as_NestedKVTree()->value_nested_root()->items()->Get(0)->
-	    value_as_NestedKVTree()->value());
+	    value_as_NestedKVTree()->data_nested_root()->items()->Get(0)->
+	    value_as_UInt8Vec()->data());
 	test.zero = const_cast<uint8_t *>(data.data());
 	test.n = data.length();
       }))), (KVTree), (Synthetic)));
@@ -88,7 +80,7 @@ void build(IOBuilder &fbb, unsigned n)
     auto kv = kvTree->items()->Get(1);
     auto key = str(kv->key());
     auto nested = kv->value_as_NestedKVTree();
-    auto data = bytes(nested->value());
+    auto data = bytes(nested->data());
     std::cout
       << "ptr=" << ZuBoxPtr(ptr).hex() << " len=" << len
       << " len_=" << len_ << " type_=" << type_
@@ -96,11 +88,11 @@ void build(IOBuilder &fbb, unsigned n)
       << " value_type=" << EnumNameValue(kv->value_type())
       << " data=" << ZuBoxPtr(data.data()).hex()
       << " len__=" << data.length() << '\n' << std::flush;
-    kvTree = nested->value_nested_root();
+    kvTree = nested->data_nested_root();
     kv = kvTree->items()->Get(0);
     key = str(kv->key());
-    nested = kv->value_as_NestedKVTree();
-    data = bytes(nested->value());
+    auto blob = kv->value_as_UInt8Vec();
+    data = bytes(blob->data());
     std::cout
       << "nested kvTree ptr=" << ZuBoxPtr(kvTree).hex()
       << " key2=" << key
@@ -111,13 +103,13 @@ void build(IOBuilder &fbb, unsigned n)
     kv = kvTree->items()->Get(0);
     key = str(kv->key());
     nested = kv->value_as_NestedKVTree();
-    data = bytes(nested->value());
+    data = bytes(nested->data());
     std::cout
       << "key1=" << key
       << " value_type=" << EnumNameValue(kv->value_type())
       << " data=" << ZuBoxPtr(data.data()).hex()
       << " len__=" << data.length() << '\n' << std::flush;
-    kvTree = nested->value_nested_root();
+    kvTree = nested->data_nested_root();
     kv = kvTree->items()->Get(0);
     key = str(kv->key());
     auto string = kv->value_as_String();

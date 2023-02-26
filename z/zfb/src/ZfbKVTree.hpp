@@ -32,7 +32,7 @@
 
 #include <zlib/Zfb.hpp>
 
-#include <zlib/tree_fbs.h>
+#include <zlib/kvtree_fbs.h>
 
 namespace Zfb {
 
@@ -51,7 +51,16 @@ struct KVTreeGet {
 namespace Save {
   template <typename B, typename ...Args>
   inline auto kvTree(B &b, Args &&... args) {
+    using namespace ZfbTree;
     return CreateKVTree(b, ZuFwd<Args>(args)...);
+  }
+
+  // kvUInt8Vec(b, "bytes", bytes(b, "data", 4));
+  template <typename B, typename ...Args>
+  inline auto kvUInt8Vec(B &b, ZuString key, Args &&... args) {
+    using namespace ZfbTree;
+    return CreateKV(b, str(b, key), Value_UInt8Vec,
+	CreateUInt8Vec(b, ZuFwd<Args>(args)...).Union());
   }
 
   // Example:
@@ -59,11 +68,13 @@ namespace Save {
 #define ZfbKVTree_Primitive(ctype, fbstype) \
   template <typename B> \
   inline auto kv##fbstype(B &b, ZuString key, ctype value) { \
+    using namespace ZfbTree; \
     return CreateKV(b, str(b, key), Value_##fbstype, \
 	b.CreateStruct(fbstype{value}).Union()); \
   } \
   template <typename B, typename L> \
   inline auto kv##fbstype##Vec(B &b, ZuString key, unsigned n, L l) { \
+    using namespace ZfbTree; \
     return CreateKV(b, str(b, key), Value_##fbstype##Vec, \
 	Create##fbstype##Vec(b, pvectorIter(b, n, l)).Union()); \
   }
@@ -75,6 +86,7 @@ namespace Save {
 
   template <typename B>
   inline auto kvString(B &b, ZuString key, ZuString value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_String,
 	str(b, value).Union());
   }
@@ -83,12 +95,14 @@ namespace Save {
   //   [](unsigned i) { return ZtString{} << "value" << i; });
   template <typename B, typename L>
   inline auto kvStringVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_StringVec,
 	CreateStringVec(b, strVecIter(b, n, l)).Union());
   }
 
   template <typename B>
   inline auto kvBitmap(B &b, ZuString key, const ZmBitmap &value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_Bitmap,
 	bitmap(b, value).Union());
   }
@@ -98,12 +112,14 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvBitmapVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_BitmapVec,
 	CreateBitmapVec(b, vectorIter<Bitmap>(b, n, l)).Union());
   }
 
   template <typename B>
   inline auto kvDecimal(B &b, ZuString key, const ZuDecimal &value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_Decimal,
 	b.CreateStruct(decimal(value)).Union());
   }
@@ -113,12 +129,14 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvDecimalVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_DecimalVec,
 	CreateDecimalVec(b, structVecIter(b, n, l)).Union());
   }
 
   template <typename B>
   inline auto kvDateTime(B &b, ZuString key, const ZtDate &value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_DateTime,
 	b.CreateStruct(dateTime(value)).Union());
   }
@@ -128,12 +146,14 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvDateTimeVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_DateTimeVec,
 	CreateDateTimeVec(b, structVecIter(b, n, l)).Union());
   }
 
   template <typename B>
   inline auto kvIP(B &b, ZuString key, const ZiIP &value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_IP,
 	b.CreateStruct(ip(value)).Union());
   }
@@ -143,12 +163,14 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvIPVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_IPVec,
 	CreateIPVec(b, structVecIter(b, n, l)).Union());
   }
 
   template <typename B>
   inline auto kvID(B &b, ZuString key, const ZuID &value) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_ID,
 	b.CreateStruct(id(value)).Union());
   }
@@ -158,13 +180,14 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvIDVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_IDVec,
 	CreateIDVec(b, structVecIter(b, n, l)).Union());
   }
 
   template <typename B, typename ...Args>
   inline auto kvNested(B &b, ZuString key, Args &&... args) {
-    using namespace Save;
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_NestedKVTree,
 	CreateNestedKVTree(b,
 	  nest(b, [...args = ZuFwd<Args>(args)]<typename B_>(B_ &b) mutable {
@@ -177,6 +200,7 @@ namespace Save {
   // }
   template <typename B, typename L>
   inline auto kvNestedVec(B &b, ZuString key, unsigned n, L l) {
+    using namespace ZfbTree;
     return CreateKV(b, str(b, key), Value_NestedKVTreeVec,
 	CreateBitmapVec(b, vectorIter<NestedKVTree>(b, n, l)).Union());
   }
