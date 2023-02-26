@@ -26,8 +26,8 @@
 #pragma once
 #endif
 
-#ifndef ZvLib_HPP
-#include <zlib/ZvLib.hpp>
+#ifndef ZfbLib_HPP
+#include <zlib/ZfbLib.hpp>
 #endif
 
 // ZtField extensions for flatbuffers, with extensible type support
@@ -58,6 +58,7 @@
 // Bitmap	Composite	ZmBitmap
 // IP		Composite	ZiIP
 // ID		Composite	ZuID
+// Object	Composite	<Any>
 
 // Type extension - ZiIP support is added as follows:
 //   (network/host byte-order swapping is deliberately bypassed since
@@ -70,13 +71,13 @@
 //   }
 //
 // C++:
-//   namespace Zfb::Load {
+//   namespace Zfb::Save {
 //     inline IP ip(ZiIP addr) {
 //       return {span<const uint8_t, 4>{
 //         reinterpret_cast<const uint8_t *>(&addr.s_addr), 4}};
 //     }
 //   }
-//   namespace Zfb::Save {
+//   namespace Zfb::Load {
 //     inline ZiIP ip(const IP *v) {
 //       return ZiIP{in_addr{
 //         .s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data())}};

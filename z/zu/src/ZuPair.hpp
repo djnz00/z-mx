@@ -417,7 +417,7 @@ struct ZuPairAxor_Bind<P, I, true> {
 };
 template <unsigned I = 0>
 inline constexpr auto ZuPairAxor() {
-  return [] <typename P> (P &&v) -> decltype(auto) {
+  return []<typename P>(P &&v) -> decltype(auto) {
     return ZuPairAxor_Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
   };
 }

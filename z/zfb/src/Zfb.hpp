@@ -92,9 +92,6 @@ public:
   const IOBuf *cbuf() const { return m_buf.ptr(); }
 
 protected:
-  // override ZiIOBuf's default grow() with a pass-through because flatbuffers
-  // has it's own buffer growth algorithm in vector_downward::reallocate()
-
   uint8_t *allocate(size_t size) {
     if (ZuLikely(!m_buf)) m_buf = new IOBuf{};
     return m_buf->alloc(size);
@@ -107,6 +104,8 @@ protected:
   uint8_t *reallocate_downward(
       uint8_t *old_p, size_t old_size, size_t new_size,
       size_t in_use_back, size_t in_use_front) {
+    // override ZiIOBuf's default grow() with a pass-through because flatbuffers
+    // has it's own buffer growth algorithm in vector_downward::reallocate()
     return m_buf->realloc(
 	old_size, new_size, in_use_front, in_use_back,
 	[](unsigned o, unsigned n) { return n; });
@@ -371,6 +370,7 @@ namespace Load {
   using LoadFn = ZmFn<const uint8_t *, unsigned>;
   ZfbExtern int load(
       const Zi::Path &path, LoadFn, unsigned maxSize, ZeError *e);
+
 } // Load
 
 } // Zfb

@@ -37,7 +37,7 @@
 //   void print(int i) const { printf("%d\n", i); }
 //   void print(double d) const { printf("%g\n", d); }
 // };
-// u.cdispatch([] <typename I> (I &&i) { print(ZuFwd<I>(i)); });
+// u.cdispatch([]<typename I>(I &&i) { print(ZuFwd<I>(i)); });
 // ZuSwitch::dispatch<U::N>(u.type(), [&u](auto i) { print(u.p<i>()); });
 
 #ifndef ZuUnion_HPP

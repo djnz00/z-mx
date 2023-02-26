@@ -655,7 +655,7 @@ invalid:
 
 void ZtDate::ctor(const ZtDateScan::Any &fmt, ZuString s)
 {
-  fmt.cdispatch([this, s] <typename I> (I &&i) { ctor(ZuFwd<I>(i), s); });
+  fmt.cdispatch([this, s]<typename I>(I &&i) { ctor(ZuFwd<I>(i), s); });
 }
 
 void ZtDate_strftime::print_(

@@ -56,7 +56,7 @@ void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned cacheSize)
 {
   for (unsigned i = 0; i < cacheSize; i++)
     cache.find(offset + i,
-	  [&tree] <typename L> (unsigned key, L l) {
+	  [&tree]<typename L>(unsigned key, L l) {
 	    if (auto node = tree.find(key))
 	      l(new ZNode{key, node->val().v});
 	    else

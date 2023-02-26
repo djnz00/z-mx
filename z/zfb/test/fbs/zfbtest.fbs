@@ -1,0 +1,4 @@
+include "tree.fbs";
+namespace zfbtest.fbs;
+table Test { kvTree:Zfb.KVTree; }
+root_type Test;

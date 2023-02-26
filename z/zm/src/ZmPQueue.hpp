@@ -73,14 +73,14 @@
 // length() would return the number of bytes in the packet/fragment
 
 inline constexpr auto ZmPQueueDefaultKeyAxor() {
-  return [] <typename T> (T &&v) -> decltype(auto) {
+  return []<typename T>(T &&v) -> decltype(auto) {
     return ZuBind<T>::mvcp(ZuFwd<T>(v),
 	[](auto &&v) -> decltype(auto) { return ZuMv(v).key(); },
 	[](const auto &v) { return v.key(); });
   };
 }
 inline constexpr auto ZmPQueueDefaultLenAxor() {
-  return [] <typename T> (const T &v) -> unsigned { return v.length(); };
+  return []<typename T>(const T &v) -> unsigned { return v.length(); };
 }
 template <
   typename Item,

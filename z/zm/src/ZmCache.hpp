@@ -152,7 +152,7 @@ public:
   NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn) {
     return find(
 	key, ZuMv(loadFn), ZuMv(findFn),
-	[] <typename NodeMvRef> (NodeMvRef) { });
+	[]<typename NodeMvRef>(NodeMvRef) { });
   }
 
   template <

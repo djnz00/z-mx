@@ -91,12 +91,13 @@ namespace ZtFieldFlags {
   enum {
     Synthetic	= 0x00001,	// synthetic and read-only
     Update	= 0x00002,	// include in updates
-    Ctor_	= 0x00004,	// constructor parameter
-    NDP_	= 0x00008,	// NDP for printing float/fixed/decimal
-    Series	= 0x00010,	// data series
-      Index	= 0x00020,	// - index (e.g. time stamp)
-      Delta	= 0x00040,	// - first derivative
-      Delta2	= 0x00080	// - second derivative
+    DoNotPrint	= 0x00004,	// do not print
+    Ctor_	= 0x00008,	// constructor parameter
+    NDP_	= 0x00010,	// NDP for printing float/fixed/decimal
+    Series	= 0x00020,	// data series
+      Index	= 0x00040,	// - index (e.g. time stamp)
+      Delta	= 0x00080,	// - first derivative
+      Delta2	= 0x00100	// - second derivative
   };
   enum {
     CtorShift	= 10,		// bit-shift for constructor parameter index
@@ -191,7 +192,7 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
   using O = typename Base::O;
   template <typename P, typename S>
   static void print(P &&o, S &s, const ZtFieldFmt &) {
-    s << Base::get(ZuFwd<P>(o));
+    s << '"' << Base::get(ZuFwd<P>(o)) << '"';
   }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -234,7 +235,7 @@ struct ZtFieldType_Composite : public ZtField_<Base, Flags> {
   using O = typename Base::O;
   template <typename P, typename S>
   static void print(P &&o, S &s, const ZtFieldFmt &) {
-    s << Base::get(ZuFwd<P>(o));
+    s << '{' << Base::get(ZuFwd<P>(o)) << '}';
   }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -275,7 +276,7 @@ struct ZtFieldType_Bool : public ZtField_<Base, Flags> {
   using O = typename Base::O;
   template <typename P, typename S>
   static void print(P &&o, S &s, const ZtFieldFmt &) {
-    s << (Base::get(o) ? '1' : '0');
+    s << (Base::get(ZuFwd<P>(o)) ? '1' : '0');
   }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -773,19 +774,19 @@ struct ZtFieldType_Time<Base, Flags, false> :
   O *ZuFielded_(O *); \
   ZuFields_::O ZuFieldList_(O *)
 
-template <typename Impl> struct ZtFieldPrint : public ZuPrintable {
+template <typename Impl> struct ZtFieldPrint {
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
 
   template <typename U>
-  struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::Synthetic) }; };
+  struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) }; };
   template <typename S> void print(S &s) const {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<Impl>>;
     thread_local ZtFieldFmt fmt;
     ZuTypeAll<FieldList>::invoke([o = impl(), &s]<typename Field>() {
       if constexpr (ZuTypeIndex<Field, FieldList>::I) s << ' ';
       s << Field::id() << '=';
-      Field::print(o, s, fmt);
+      Field::print(*o, s, fmt);
     });
   }
   friend ZuPrintFn ZuPrintType(Impl *);

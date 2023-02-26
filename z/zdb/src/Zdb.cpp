@@ -1804,7 +1804,7 @@ ZmRef<AnyObject> DB::get_(RN rn, GenFn fn)
     fn(nullptr);
     return nullptr;
   }
-  return m_cache->find<UpdateLRU>(rn, [this] <typename L> (RN rn, L l) {
+  return m_cache->find<UpdateLRU>(rn, [this]<typename L>(RN rn, L l) {
     {
       ZmRef<Buf> buf = m_buffers->find(rn);
       if (ZuLikely(buf)) {

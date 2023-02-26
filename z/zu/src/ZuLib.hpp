@@ -549,7 +549,7 @@ struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
 
 // default accessor (pass-through value)
 inline constexpr auto ZuDefaultAxor() {
-  return [] <typename T> (T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
+  return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
 
 // function signature deduction
