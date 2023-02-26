@@ -18,12 +18,18 @@
 namespace zfbtest {
   using namespace Zfb;
 
-  struct Test : public ZtFieldPrint<Test> {
+  struct Test {
+    int foo = 42;
+    ZtString bar;
     uint8_t *zero;
     unsigned n;
+
+    friend ZtFieldPrint_ ZuPrintType(Test *);
   };
 
   ZfbFields(Test,
+    (((foo)), (Int), (Ctor(0))),
+    (((bar)), (String), (Ctor(1))),
     (((kvTree, Lambda,
       ([](const Test &test) { return KVTreeGet{[test]<typename B>(B &b) {
 	using namespace Zfb::Save;
@@ -57,7 +63,7 @@ void build(IOBuilder &fbb, unsigned n)
   using namespace Zfb;
   ZmRef<IOBuf> buf;
   {
-    zfbtest::Test test;
+    zfbtest::Test test{42, "Hello"};
     test.zero = reinterpret_cast<uint8_t *>(::malloc(n));
     test.n = n;
     memset(test.zero, 0, test.n);
@@ -118,9 +124,7 @@ void build(IOBuilder &fbb, unsigned n)
       << " key=" << key
       << " value_type=" << EnumNameValue(kv->value_type())
       << " value=" << str(string) << '\n' << std::flush;
-    zfbtest::Test test_;
-    ZfbField::load(test_, test);
-    std::cout << test_ << '\n' << std::flush;
+    std::cout << ZfbField::Load<zfbtest::Test>{test} << '\n' << std::flush;
   }
 }
 

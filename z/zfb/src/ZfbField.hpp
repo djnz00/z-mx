@@ -108,7 +108,6 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
     static void save(Builder &, const O &) { } \
-    static void load_(const FBType *) { } \
     static void load(O &, const FBType *) { } \
   };
 
