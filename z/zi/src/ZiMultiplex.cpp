@@ -1967,7 +1967,7 @@ bool ZiMultiplex::start__()
 #endif
 
   wakeFn(rxThread(), ZmFn<>{this, [](ZiMultiplex *mx) { mx->wakeRx(); }});
-  run_(rxThread(), [this]() { rx(); });
+  enqueue(rxThread(), [this]() { rx(); });
   return true;
 }
 
@@ -2211,7 +2211,7 @@ void ZiMultiplex::wake()
 
 void ZiMultiplex::wakeRx()
 {
-  run_(rxThread(), [this]() { rx(); });
+  enqueue(rxThread(), [this]() { rx(); });
   wake();
 }
 

@@ -24,10 +24,10 @@ namespace zfbtest {
     uint8_t *zero;
     unsigned n;
 
-    friend ZtFieldPrint_ ZuPrintType(Test *);
+    friend ZtFieldPrint ZuPrintType(Test *);
   };
 
-  ZfbFields(Test,
+  ZfbFields(Test, fbs::Test,
     (((foo)), (Int), (Ctor(0))),
     (((bar)), (String), (Ctor(1))),
     (((kvTree, Lambda,

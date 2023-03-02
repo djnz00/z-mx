@@ -51,9 +51,9 @@
 
 class ZuID {
 public:
-  ZuID() : m_val(0) { }
+  ZuID() : m_val{0} { }
 
-  ZuID(const ZuID &b) : m_val(b.m_val) { }
+  ZuID(const ZuID &b) : m_val{b.m_val} { }
   ZuID &operator =(const ZuID &b) { m_val = b.m_val; return *this; }
 
   template <typename S>
@@ -73,7 +73,7 @@ public:
   using MatchUInt64 = ZuIfT<IsUInt64<V>::OK, R>;
 
   template <typename V>
-  ZuID(V v, MatchUInt64<V> *_ = nullptr) : m_val(v) { }
+  ZuID(V v, MatchUInt64<V> *_ = nullptr) : m_val{v} { }
   template <typename V>
   MatchUInt64<V, ZuID &> operator =(V v) {
     m_val = v;

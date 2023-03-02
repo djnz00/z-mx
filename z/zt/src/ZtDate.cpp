@@ -411,7 +411,7 @@ void ZtDate::ctor(const ZtDateScan::CSV &fmt, ZuString s)
     if (ZuUnlikely(end - ptr < 10)) goto invalid;
     c = *ptr++;
     if (ZuUnlikely(c == '-')) { bc = 1; goto bc; }
-    c = (char)c - '0'; year = c * 1000;
+    c = static_cast<char>(c) - '0'; year = c * 1000;
     c = *ptr++ - '0'; year += c * 100;
     c = *ptr++ - '0'; year += c * 10;
     c = *ptr++ - '0'; year += c;
@@ -549,7 +549,7 @@ void ZtDate::ctor(const ZtDateScan::ISO &fmt, ZuString s)
     if (ZuUnlikely(end - ptr < 10)) goto invalid;
     c = *ptr++;
     if (ZuUnlikely(c == '-')) { bc = 1; goto bc; }
-    c = (char)c - '0'; year = c * 1000;
+    c = static_cast<char>(c) - '0'; year = c * 1000;
     c = *ptr++ - '0'; year += c * 100;
     c = *ptr++ - '0'; year += c * 10;
     c = *ptr++ - '0'; year += c;
@@ -636,7 +636,7 @@ void ZtDate::ctor(const ZtDateScan::ISO &fmt, ZuString s)
       c = *ptr++;
     } else
       if (ZuUnlikely(end - ptr < 1)) goto invalid;
-    c = (char)c - '0'; offsetMinutes = c * 10;
+    c = static_cast<char>(c) - '0'; offsetMinutes = c * 10;
     c = *ptr++ - '0'; offsetMinutes += c;
 
   offset:

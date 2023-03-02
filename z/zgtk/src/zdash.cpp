@@ -136,20 +136,22 @@ namespace Telemetry {
     }
     ZtString	telKey_;
   };
-  template <> struct Item__<ZvTelemetry::DBEnv> {
+  template <> struct Item__<ZvTelemetry::ZdbEnv> {
     using TelKey = ZuTuple<const char *>;
-    static TelKey telKey(const ZvTelemetry::DBEnv &) {
+    static TelKey telKey(const ZvTelemetry::ZdbEnv &) {
       return TelKey{"dbenv"};
     }
-    static int rag(const ZvTelemetry::DBEnv &) {
+    static int rag(const ZvTelemetry::ZdbEnv &) {
       return ZvTelemetry::RAG::Off;
     }
   };
   template <typename Data_> class Item_ : public Item__<Data_> {
+    using Base = Item__<Data_>;
+
   public:
     using Data = Data_;
     using Load = ZfbField::Load<Data>;
-    using TelKey = typename Item__<Data_>::TelKey;
+    using TelKey = typename Base::TelKey;
 
     Item_(void *link__) : link_{link__} { }
     template <typename FBType>
@@ -177,8 +179,8 @@ namespace Telemetry {
     template <typename T>
     void gtkRow(T *node) { gtkRow_ = node; }
 
-    TelKey telKey() const { return Item__<Data_>::telKey(data); }
-    int rag() const { return Item__<Data_>::rag(data); }
+    TelKey telKey() const { return Base::telKey(data); }
+    int rag() const { return Base::rag(data); }
 
     bool record(ZuString name, Zdf::Mgr *mgr, ZeError *e = nullptr) {
       dataFrame = new Zdf::DataFrame{Data::fields(), name, true};
@@ -258,8 +260,8 @@ namespace Telemetry {
   template <> struct Container_<ZvTelemetry::App> {
     using T = ItemSingleton<ZvTelemetry::App>;
   };
-  template <> struct Container_<ZvTelemetry::DBEnv> {
-    using T = ItemSingleton<ZvTelemetry::DBEnv>;
+  template <> struct Container_<ZvTelemetry::ZdbEnv> {
+    using T = ItemSingleton<ZvTelemetry::ZdbEnv>;
   };
   template <> struct Container_<ZvTelemetry::Alert> {
     using T = AlertArray;
@@ -345,19 +347,19 @@ namespace GtkTree {
   using Queue = Leaf<3, TelItem<ZvTelemetry::Queue>>;
   using Link = Leaf<4, TelItem<ZvTelemetry::Link>>;
   using Engine = Parent<3, TelItem<ZvTelemetry::Engine>, Link>;
-  using DBHost = Leaf<4, TelItem<ZvTelemetry::DBHost>>;
-  using DB = Leaf<4, TelItem<ZvTelemetry::DB>>;
+  using ZdbHost = Leaf<4, TelItem<ZvTelemetry::ZdbHost>>;
+  using Zdb = Leaf<4, TelItem<ZvTelemetry::Zdb>>;
 
-  // DB hosts
-  struct DBHosts : public BranchChild<ZuTuple<const char *>> {
+  // Zdb hosts
+  struct ZdbHosts : public BranchChild<ZuTuple<const char *>> {
     static auto telKey() { return TelKey{"hosts"}; }
   };
-  using DBHostParent = Parent<3, DBHosts, DBHost>;
-  // DBs
-  struct DBs : public BranchChild<ZuTuple<const char *>> {
+  using ZdbHostParent = Parent<3, ZdbHosts, ZdbHost>;
+  // Zdbs
+  struct Zdbs : public BranchChild<ZuTuple<const char *>> {
     static auto telKey() { return TelKey{"dbs"}; }
   };
-  using DBParent = Parent<3, DBs, DB>;
+  using ZdbParent = Parent<3, Zdbs, Zdb>;
 
   // heaps
   struct Heaps :
@@ -391,11 +393,11 @@ namespace GtkTree {
   };
   using EngineParent = Parent<2, Engines, Engine>;
 
-  // dbEnv
-  ZuDeclTuple(DBEnvTuple,
-      (DBHostParent, hosts),
-      (DBParent, dbs));
-  using DBEnv = Branch<2, TelItem<ZvTelemetry::DBEnv>, DBEnvTuple>;
+  // zdbEnv
+  ZuDeclTuple(ZdbEnvTuple,
+      (ZdbHostParent, hosts),
+      (ZdbParent, dbs));
+  using ZdbEnv = Branch<2, TelItem<ZvTelemetry::ZdbEnv>, ZdbEnvTuple>;
   // applications
   ZuDeclTuple(AppTuple,
       (HeapParent, heaps),
@@ -404,7 +406,7 @@ namespace GtkTree {
       (MxParent, mxs),
       (QueueParent, queues),
       (EngineParent, engines),
-      (DBEnv, dbEnv));
+      (ZdbEnv, zdbEnv));
   using App = Branch<1, TelItem<ZvTelemetry::App>, AppTuple>;
 
   struct Root : public ZGtk::TreeHierarchy::Parent<Root, 0, App> { };
@@ -434,14 +436,14 @@ namespace GtkTree {
   inline Link *row(TelItem<ZvTelemetry::Link> *item) {
     return item->template gtkRow<Link>();
   }
-  inline DB *row(TelItem<ZvTelemetry::DB> *item) {
-    return item->template gtkRow<DB>();
+  inline Zdb *row(TelItem<ZvTelemetry::Zdb> *item) {
+    return item->template gtkRow<Zdb>();
   }
-  inline DBHost *row(TelItem<ZvTelemetry::DBHost> *item) {
-    return item->template gtkRow<DBHost>();
+  inline ZdbHost *row(TelItem<ZvTelemetry::ZdbHost> *item) {
+    return item->template gtkRow<ZdbHost>();
   }
-  inline DBEnv *row(TelItem<ZvTelemetry::DBEnv> *item) {
-    return item->template gtkRow<DBEnv>();
+  inline ZdbEnv *row(TelItem<ZvTelemetry::ZdbEnv> *item) {
+    return item->template gtkRow<ZdbEnv>();
   }
   inline App *row(TelItem<ZvTelemetry::App> *item) {
     return item->template gtkRow<App>();
@@ -461,7 +463,7 @@ namespace GtkTree {
     MxParent *,		// app->mxs (*)
     QueueParent *,	// app->queues (*)
     EngineParent *,	// app->engines (*)
-    DBEnv *,		// app->dbEnv (*)
+    ZdbEnv *,		// app->zdbEnv (*)
 
     // app grandchildren
     Heap *,		// app->heaps->[heap]
@@ -475,13 +477,13 @@ namespace GtkTree {
     Socket *,		// app->mxs->mx->[socket]
     Link *,		// app->engines->engine->[link]
 
-    // DBEnv children
-    DBHostParent *,	// app->dbEnv->hosts (*)
-    DBParent *,		// app->dbEnv->dbs (*)
+    // ZdbEnv children
+    ZdbHostParent *,	// app->zdbEnv->hosts (*)
+    ZdbParent *,	// app->zdbEnv->dbs (*)
 
-    // DBEnv grandchildren
-    DBHost *,		// app->dbEnv->hosts->[host]
-    DB *>;		// app->dbEnv->dbs->[db]
+    // ZdbEnv grandchildren
+    ZdbHost *,		// app->zdbEnv->hosts->[host]
+    Zdb *>;		// app->zdbEnv->dbs->[db]
 
   class Model : public ZGtk::TreeHierarchy::Model<Model, Iter, Depth> {
   public:
@@ -503,7 +505,7 @@ namespace GtkTree {
 	ZuConversion<T, MxParent>::Same ||
 	ZuConversion<T, QueueParent>::Same ||
 	ZuConversion<T, EngineParent>::Same ||
-	ZuConversion<T, DBEnv>::Same, App> *parent(void *ptr) {
+	ZuConversion<T, ZdbEnv>::Same, App> *parent(void *ptr) {
       return static_cast<App *>(ptr);
     }
     template <typename T>
@@ -540,17 +542,17 @@ namespace GtkTree {
     }
     template <typename T>
     static ZuIfT<
-	ZuConversion<T, DBHostParent>::Same ||
-	ZuConversion<T, DBParent>::Same, DBEnv> *parent(void *ptr) {
-      return static_cast<DBEnv *>(ptr);
+	ZuConversion<T, ZdbHostParent>::Same ||
+	ZuConversion<T, ZdbParent>::Same, ZdbEnv> *parent(void *ptr) {
+      return static_cast<ZdbEnv *>(ptr);
     }
     template <typename T>
-    static ZuSame<T, DBHost, DBHostParent> *parent(void *ptr) {
-      return static_cast<DBHostParent *>(ptr);
+    static ZuSame<T, ZdbHost, ZdbHostParent> *parent(void *ptr) {
+      return static_cast<ZdbHostParent *>(ptr);
     }
     template <typename T>
-    static ZuSame<T, DB, DBParent> *parent(void *ptr) {
-      return static_cast<DBParent *>(ptr);
+    static ZuSame<T, Zdb, ZdbParent> *parent(void *ptr) {
+      return static_cast<ZdbParent *>(ptr);
     }
 
     // key printing
@@ -935,7 +937,7 @@ public:
   template <typename T> using TelItem = Telemetry::Item<T>;
 
   using AppItem = TelItem<ZvTelemetry::App>;
-  using DBEnvItem = TelItem<ZvTelemetry::DBEnv>;
+  using ZdbEnvItem = TelItem<ZvTelemetry::ZdbEnv>;
 
   void init(ZiMultiplex *mx, const ZvCf *cf) {
     if (ZmRef<ZvCf> telRingCf = cf->subset("telRing"))
@@ -1423,13 +1425,13 @@ private:
     }
     return item;
   }
-  DBEnvItem *dbEnvItem(CliLink_ *cliLink) {
-    ZuConstant<ZuTypeIndex<ZvTelemetry::DBEnv, ZvTelemetry::TypeList>::I> i;
+  ZdbEnvItem *zdbEnvItem(CliLink_ *cliLink) {
+    ZuConstant<ZuTypeIndex<ZvTelemetry::ZdbEnv, ZvTelemetry::TypeList>::I> i;
     auto &container = cliLink->telemetry.p<i>();
     auto item = container.lookup(
-	static_cast<const ZvTelemetry::fbs::DBEnv *>(nullptr));
+	static_cast<const ZvTelemetry::fbs::ZdbEnv *>(nullptr));
     if (!item) {
-      item = new TelItem<ZvTelemetry::DBEnv>{cliLink};
+      item = new TelItem<ZvTelemetry::ZdbEnv>{cliLink};
       container.add(item);
       addGtkRow(cliLink, item);
     }
@@ -1502,29 +1504,29 @@ private:
     }
     m_gtkModel->add(new GtkTree::Link{item}, GtkTree::row(engItem));
   }
-  void addGtkRow(CliLink_ *cliLink, DBEnvItem *item) {
+  void addGtkRow(CliLink_ *cliLink, ZdbEnvItem *item) {
     auto appGtkRow = GtkTree::row(appItem(cliLink));
-    auto &dbEnv = appGtkRow->dbEnv();
-    dbEnv.init(item);
-    m_gtkModel->add(&dbEnv, appGtkRow);
+    auto &zdbEnv = appGtkRow->zdbEnv();
+    zdbEnv.init(item);
+    m_gtkModel->add(&zdbEnv, appGtkRow);
   }
   template <typename Item, typename ParentFn>
-  void addGtkRow_(DBEnvItem *dbEnvItem, Item *item, ParentFn parentFn) {
-    auto dbEnvGtkRow = GtkTree::row(dbEnvItem);
-    auto &parent = parentFn(dbEnvGtkRow);
-    if (parent.row() < 0) m_gtkModel->add(&parent, dbEnvGtkRow);
+  void addGtkRow_(ZdbEnvItem *zdbEnvItem, Item *item, ParentFn parentFn) {
+    auto zdbEnvGtkRow = GtkTree::row(zdbEnvItem);
+    auto &parent = parentFn(zdbEnvGtkRow);
+    if (parent.row() < 0) m_gtkModel->add(&parent, zdbEnvGtkRow);
     using GtkRow = ZuDecay<decltype(*GtkTree::row(item))>;
     m_gtkModel->add(new GtkRow{item}, &parent);
   }
-  void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::DBHost> *item) {
-    addGtkRow_(dbEnvItem(cliLink), item,
-	[](GtkTree::DBEnv *_) -> GtkTree::DBHostParent & {
+  void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::ZdbHost> *item) {
+    addGtkRow_(zdbEnvItem(cliLink), item,
+	[](GtkTree::ZdbEnv *_) -> GtkTree::ZdbHostParent & {
 	  return _->hosts();
 	});
   }
-  void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::DB> *item) {
-    addGtkRow_(dbEnvItem(cliLink), item,
-	[](GtkTree::DBEnv *_) -> GtkTree::DBParent & {
+  void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::Zdb> *item) {
+    addGtkRow_(zdbEnvItem(cliLink), item,
+	[](GtkTree::ZdbEnv *_) -> GtkTree::ZdbParent & {
 	  return _->dbs();
 	});
   }

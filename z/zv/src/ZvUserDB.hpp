@@ -194,7 +194,7 @@ struct Key {
   KeyData	secret;
   uint64_t	userID;
 };
-ZfbFields(Key,
+ZfbFields(Key, fbs::Key,
     (((id, Rd), (0)), (String)),
     (((secret)), (Bytes), (Update)),
     (((userID, Rd)), (Int)));

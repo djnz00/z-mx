@@ -197,7 +197,7 @@ void ZmScheduler::timer()
 	bool ok;
 	unsigned sid = timer->sid;
 	if (ZuLikely(sid))
-	  ok = tryRunWake_(&m_threads[sid - 1], timer->fn);
+	  ok = tryRun_(&m_threads[sid - 1], timer->fn);
 	else
 	  ok = timerAdd(timer->fn);
 	if (ZuUnlikely(!ok)) {
@@ -220,12 +220,12 @@ bool ZmScheduler::timerAdd(Fn &fn)
   unsigned next = first;
   do {
     Thread *thread = m_workers[next % m_nWorkers];
-    if (tryRunWake_(thread, fn)) return true;
+    if (tryRun_(thread, fn)) return true;
   } while (((next = m_next++) - first) < m_nWorkers);
   return false;
 }
 
-void ZmScheduler::run_(
+void ZmScheduler::schedule_(
     unsigned sid, Fn &fn, ZmTime timeout, int mode, Timer *timer)
 {
   ZmAssert(sid <= m_params.nThreads());
@@ -252,7 +252,7 @@ void ZmScheduler::run_(
 
     if (ZuUnlikely(timeout <= ZmTimeNow())) {
       if (ZuLikely(sid)) {
-	if (ZuLikely(tryRunWake_(&m_threads[sid - 1], fn))) return;
+	if (ZuLikely(tryRun_(&m_threads[sid - 1], fn))) return;
       } else {
 	if (ZuLikely(timerAdd(fn))) return;
       }
@@ -288,23 +288,23 @@ void ZmScheduler::add_(Fn &fn)
   unsigned next = first;
   do {
     auto thread = m_workers[next % m_nWorkers];
-    if (tryRunWake_(thread, fn)) return;
+    if (tryRun_(thread, fn)) return;
   } while (((next = m_next++) - first) < m_nWorkers);
-  runWake_(m_workers[first % m_nWorkers], fn);
+  run_(m_workers[first % m_nWorkers], fn);
 }
 
-void ZmScheduler::runWake_(Thread *thread, Fn &fn)
+void ZmScheduler::run_(Thread *thread, Fn &fn)
 {
-  if (ZuLikely(run__(thread, fn))) wake(thread);
+  if (ZuLikely(push_(thread, fn))) wake(thread);
 }
 
-bool ZmScheduler::tryRunWake_(Thread *thread, Fn &fn)
+bool ZmScheduler::tryRun_(Thread *thread, Fn &fn)
 {
-  if (ZuLikely(tryRun__(thread, fn))) { wake(thread); return true; }
+  if (ZuLikely(tryPush_(thread, fn))) { wake(thread); return true; }
   return false;
 }
 
-bool ZmScheduler::run__(Thread *thread, Fn &fn)
+bool ZmScheduler::push_(Thread *thread, Fn &fn)
 {
   // Note: the MPSC requirement is to serialize the producing thread's work
   if (ZuLikely(!thread->overCount.load_())) goto push;
@@ -343,7 +343,7 @@ push:
   return false;
 }
 
-bool ZmScheduler::tryRun__(Thread *thread, Fn &fn)
+bool ZmScheduler::tryPush_(Thread *thread, Fn &fn)
 {
   {
     unsigned size = fn.pushSize();

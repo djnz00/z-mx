@@ -59,6 +59,7 @@
 // ZtField Type	C++ Type
 // ------------	--------
 // String	<String>
+// Composite	<Composite>
 // Bool		<Integral>
 // Int		<Integral>
 // Hex		<Integral>
@@ -68,7 +69,6 @@
 // Fixed	ZuFixed
 // Decimal	ZuDecimal
 // Time		ZmTime
-// Composite	<Composite>
 
 namespace ZtFieldType {
   enum _ {
@@ -774,25 +774,7 @@ struct ZtFieldType_Time<Base, Flags, false> :
   O *ZuFielded_(O *); \
   ZuFields_::O ZuFieldList_(O *)
 
-template <typename Impl> struct ZtFieldPrint {
-  auto impl() const { return static_cast<const Impl *>(this); }
-  auto impl() { return static_cast<Impl *>(this); }
-
-  template <typename U>
-  struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) }; };
-  template <typename S> void print(S &s) const {
-    using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<Impl>>;
-    thread_local ZtFieldFmt fmt;
-    ZuTypeAll<FieldList>::invoke([o = impl(), &s]<typename Field>() {
-      if constexpr (ZuTypeIndex<Field, FieldList>::I) s << ' ';
-      s << Field::id() << '=';
-      Field::print(*o, s, fmt);
-    });
-  }
-  friend ZuPrintFn ZuPrintType(Impl *);
-};
-
-struct ZtFieldPrint_ {
+struct ZtFieldPrint {
   enum { OK = 1, String = 0, Delegate = 1, Buffer = 0 };
   template <typename U>
   struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) }; };
@@ -819,8 +801,8 @@ struct ZtVField {
 
   union {
     void		*null;
-    ZtVFieldEnum	*(*enum_)();			// Enum
-    ZtVFieldFlags	*(*flags)();			// Flags
+    ZtVFieldEnum	*(*enum_)();		// Enum
+    ZtVFieldFlags	*(*flags)();		// Flags
   } info;
 
   void		(*print)(const void *, ZmStream &, const ZtFieldFmt &);

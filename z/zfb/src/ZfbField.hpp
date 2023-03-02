@@ -267,9 +267,9 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
   ZuPP_Defer(ZfbFieldType)(O, ZuPP_Nest(ZtField_BaseID(Base)))
 #define ZfbField_Type(O, Args) ZuPP_Defer(ZfbField_Type_)(O, ZuPP_Strip(Args))
 
-#define ZfbFields(O, ...)  \
-  fbs::O##Builder *ZfbBuilder_(O *); \
-  fbs::O *ZfbType_(O *); \
+#define ZfbFields(O, FBType, ...)  \
+  FBType##Builder *ZfbBuilder_(O *); \
+  FBType *ZfbType_(O *); \
   namespace ZuFields_ { \
     ZuPP_Eval(ZuPP_MapArg(ZfbField_Decl, O, __VA_ARGS__)) \
     using O = \

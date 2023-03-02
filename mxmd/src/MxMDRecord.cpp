@@ -199,11 +199,11 @@ void MxMDRecLink::connect()
 
   mx()->wakeFn(engine()->rxThread(),
       ZmFn<>{this, [](MxMDRecLink *link) {
-	link->rxRun_([](Rx *rx) { rx->impl()->recv(rx); });
+	link->rxPush([](Rx *rx) { rx->impl()->recv(rx); });
 	link->wake();
       }});
 
-  rxRun_([](Rx *rx) { rx->impl()->recv(rx); });
+  rxPush([](Rx *rx) { rx->impl()->recv(rx); });
 }
 
 void MxMDRecLink::disconnect()

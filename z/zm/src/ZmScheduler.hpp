@@ -287,38 +287,38 @@ public:
   template <typename L>
   void add(L l, ZmTime timeout) {
     Fn fn{l};
-    run_(0, fn, timeout, Update, nullptr);
+    schedule_(0, fn, timeout, Update, nullptr);
   }
   template <typename L>
   void add(L l, ZmTime timeout, Timer *timer) {
     Fn fn{l};
-    run_(0, fn, timeout, Update, timer);
+    schedule_(0, fn, timeout, Update, timer);
   }
   template <typename L>
   void add(L l, ZmTime timeout, int mode, Timer *timer) {
     Fn fn{l};
-    run_(0, fn, timeout, mode, timer);
+    schedule_(0, fn, timeout, mode, timer);
   }
 
   template <typename L>
   void run(unsigned sid, L l, ZmTime timeout) {
     Fn fn{l};
-    run_(sid, fn, timeout, Update, nullptr);
+    schedule_(sid, fn, timeout, Update, nullptr);
   }
   template <typename L>
   void run(unsigned sid, L l, ZmTime timeout, Timer *timer) {
     Fn fn{l};
-    run_(sid, fn, timeout, Update, timer);
+    schedule_(sid, fn, timeout, Update, timer);
   }
 
   template <typename L>
   void run(unsigned sid, L l, ZmTime timeout, int mode, Timer *timer) {
     Fn fn{l};
-    run_(sid, fn, timeout, mode, timer);
+    schedule_(sid, fn, timeout, mode, timer);
   }
 
 private:
-  void run_(unsigned sid, Fn &, ZmTime timeout, int mode, Timer *);
+  void schedule_(unsigned sid, Fn &, ZmTime timeout, int mode, Timer *);
 
 public:
   bool del(Timer *);		// cancel job - returns true if found
@@ -335,14 +335,14 @@ public:
   void run(unsigned sid, L l) {
     ZmAssert(sid && sid <= m_params.nThreads());
     Fn fn{l};
-    runWake_(&m_threads[sid - 1], fn);
+    run_(&m_threads[sid - 1], fn);
   }
   // run without calling wake() and any custom wakeFn
   template <typename L>
-  void run_(unsigned sid, L l) {
+  void push(unsigned sid, L l) {
     ZmAssert(sid && sid <= m_params.nThreads());
     Fn fn{l};
-    run__(&m_threads[sid - 1], fn);
+    push_(&m_threads[sid - 1], fn);
   }
 
   template <typename L>
@@ -351,7 +351,7 @@ public:
     Thread *thread = &m_threads[sid - 1];
     if (ZuLikely(Zm::getTID() == thread->tid)) { l(); return; }
     Fn fn{l};
-    runWake_(thread, fn);
+    run_(thread, fn);
   }
 
   // invoke(sid, object, lambda) is a specialized version of invoke()
@@ -403,7 +403,7 @@ public:
     o->ref(); // increment reference count
     auto m = [l = ZuMv(l)]() mutable { l()->deref(); }; // invoke and deref
     Fn fn{m};
-    runWake_(thread, fn);
+    run_(thread, fn);
   }
 
   ZuInline void threadInit(ZmFn<> fn) { m_threadInitFn = ZuMv(fn); }
@@ -482,10 +482,10 @@ private:
   bool timerAdd(Fn &fn);
 
   void add_(Fn &fn);
-  void runWake_(Thread *thread, Fn &fn);
-  bool tryRunWake_(Thread *thread, Fn &fn);
-  bool run__(Thread *thread, Fn &fn);
-  bool tryRun__(Thread *thread, Fn &fn);
+  void run_(Thread *thread, Fn &fn);
+  bool tryRun_(Thread *thread, Fn &fn);
+  bool push_(Thread *thread, Fn &fn);
+  bool tryPush_(Thread *thread, Fn &fn);
 
   void work();
 

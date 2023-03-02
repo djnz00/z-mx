@@ -260,8 +260,8 @@ public:
 
   template <typename ...Args> void rxRun(Args &&... args)
     { m_mx->run(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> void rxRun_(Args &&... args)
-    { m_mx->run_(m_rxThread, ZuFwd<Args>(args)...); }
+  template <typename ...Args> void rxPush(Args &&... args)
+    { m_mx->push(m_rxThread, ZuFwd<Args>(args)...); }
   template <typename ...Args> void rxInvoke(Args &&... args)
     { m_mx->invoke(m_rxThread, ZuFwd<Args>(args)...); }
   template <typename ...Args> void txRun(Args &&... args)
@@ -406,6 +406,7 @@ public:
     return m_links.count_();
   }
   template <typename Link, typename L> bool allLinks(L l) {
+    ReadGuard guard(m_lock);
     auto i = m_links.readIterator();
     while (ZvAnyLink *link = i.iterateVal())
       if (!l(static_cast<Link *>(link))) return false;
@@ -455,6 +456,15 @@ public:
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
 
+  template <typename L> void txRun(L &&l)
+    { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
+  template <typename L> void txRun(L &&l) const
+    { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
+  template <typename L> void txInvoke(L &&l)
+    { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
+  template <typename L> void txInvoke(L &&l) const
+    { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
+
   void scheduleSend() { txInvoke([](Tx *tx) { tx->send(); }); }
   void rescheduleSend() { txRun([](Tx *tx) { tx->send(); }); }
   void idleSend() { }
@@ -466,15 +476,6 @@ public:
   void scheduleArchive() { rescheduleArchive(); }
   void rescheduleArchive() { txRun([](Tx *tx) { tx->archive(); }); }
   void idleArchive() { }
-
-  template <typename L> void txRun(L &&l)
-    { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
-  template <typename L> void txRun(L &&l) const
-    { this->engine()->txRun(ZmFn<>{impl()->tx(), ZuFwd<L>(l)}); }
-  template <typename L> void txInvoke(L &&l)
-    { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
-  template <typename L> void txInvoke(L &&l) const
-    { this->engine()->txInvoke(impl()->tx(), ZuFwd<L>(l)); }
 };
 
 // CRTP - implementation must conform to the following interface:
@@ -630,10 +631,10 @@ public:
   template <typename L, typename ...Args>
   void rxRun(L &&l, Args &&... args) const
     { this->engine()->rxRun(ZmFn<>{rx(), ZuFwd<L>(l)}, ZuFwd<Args>(args)...); }
-  template <typename L> void rxRun_(L &&l)
-    { this->engine()->rxRun_(ZmFn<>{rx(), ZuFwd<L>(l)}); }
-  template <typename L> void rxRun_(L &&l) const
-    { this->engine()->rxRun_(ZmFn<>{rx(), ZuFwd<L>(l)}); }
+  template <typename L> void rxPush(L &&l)
+    { this->engine()->rxPush(ZmFn<>{rx(), ZuFwd<L>(l)}); }
+  template <typename L> void rxPush(L &&l) const
+    { this->engine()->rxPush(ZmFn<>{rx(), ZuFwd<L>(l)}); }
   template <typename L> void rxInvoke(L &&l)
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
   template <typename L> void rxInvoke(L &&l) const

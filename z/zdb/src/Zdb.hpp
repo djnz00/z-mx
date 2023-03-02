@@ -146,6 +146,7 @@
 // each record on disk is {data, trailer}
 
 #include <zlib/zdb__fbs.h>
+#include <zlib/telemetry_fbs.h>
 
 namespace Zdb_ {
 
@@ -308,7 +309,7 @@ namespace SeqLenOp {
 }
 
 namespace HostState {
-  using namespace ZvTelemetry::DBHostState;
+  using namespace ZvTelemetry::ZdbHostState;
 }
 
 class AnyObject;
@@ -890,7 +891,7 @@ struct DBHandler {
 };
 
 namespace ZdbCacheMode {
-  using namespace ZvTelemetry::DBCacheMode;
+  using namespace ZvTelemetry::ZdbCacheMode;
 }
 
 struct DBCf {
@@ -1030,11 +1031,9 @@ public:
   // purge all records < minRN
   void purge(RN minRN);
 
-  using Telemetry = ZvTelemetry::DB;
-
-  void telemetry(Telemetry &data) const;
-
 private:
+  Zfb::Offset<ZvTelemetry::fbs::Zdb> telemetry(IOBuilder &) const;
+
   // push initial record
   ZmRef<AnyObject> push_();
   // idempotent push
@@ -1115,11 +1114,10 @@ private:
   // FIXME - remove m_standalone, standalone() can run in dbThread
 
   // RN allocator
-  ZmAtomic<RN>		m_minRN = maxRN();
-  ZmAtomic<RN>		m_nextRN = 0;
+  RN			m_minRN = maxRN();
+  RN			m_nextRN = 0;
 
   // object cache
-  LRU			m_lru;
   ZmRef<ObjectCache>	m_cache;
 
   // pending writes, deletes, vacuums
@@ -1207,10 +1205,6 @@ public:
 
   static const char *stateName(int);
 
-  using Telemetry = ZvTelemetry::DBHost;
-
-  void telemetry(Telemetry &data) const;
-
   template <typename S> void print(S &s) const {
     s << "[ID:" << id() << " PRI:" << priority() << " V:" << voted() <<
       " S:" << state() << "] " << envState();
@@ -1223,6 +1217,8 @@ public:
   }
 
 private:
+  Zfb::Offset<ZvTelemetry::fbs::ZdbHost> telemetry(IOBuilder &) const;
+
   ZmRef<Cxn> cxn() const { return m_cxn; }
 
   void state(int s) { m_state = s; }
@@ -1463,12 +1459,10 @@ private:
     ZmAssert(invoked());
     return m_self;
   } // used by Cxn
-  template <typename L> bool allHosts(L l) const {
+  template <typename L> void allHosts(L l) const {
     ZmAssert(invoked());
     auto i = m_hosts.readIterator();
-    while (auto node = i.iterate())
-      if (!l(node)) return false;
-    return true;
+    while (auto node = i.iterate()) l(node);
   }
 
 public:
@@ -1497,36 +1491,10 @@ private:
     while (auto db = i.iterate()) l(db);
   }
 
+  Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> telemetry(IOBuilder &) const;
+
 public:
-  using Telemetry = ZvTelemetry::DBEnv;
-
-  void telemetry(Telemetry &data) const;
-
-  ZvTelemetry::DBEnvFn telFn() {
-    return ZvTelemetry::DBEnvFn{ZmMkRef(this), [](
-	Env *dbEnv,
-	ZmFn<const ZvTelemetry::DBEnv &> envFn,
-	ZmFn<const ZvTelemetry::DBHost &> hostFn,
-	ZmFn<const ZvTelemetry::DB &> dbFn) {
-      {
-	ZvTelemetry::DBEnv data;
-	dbEnv->telemetry(data);
-	envFn(data);
-      }
-      dbEnv->allHosts([&hostFn](const Host *host) {
-	ZvTelemetry::DBHost data;
-	host->telemetry(data);
-	hostFn(data);
-	return true;
-      });
-      dbEnv->allDBs([&dbFn](const DB *db) {
-	ZvTelemetry::DB data;
-	db->telemetry(data);
-	dbFn(data);
-	return true;
-      });
-    }};
-  }
+  ZvTelemetry::DBEnvFn telFn();
 
 private:
   // ZmEngine implementation
@@ -1540,10 +1508,8 @@ private:
   }
   void wake();
 
-  bool open(); // FIXME?
-  void close();
-
-  void startNet();
+  void stop_1();
+  void stop_2();
 
   void listen();
   void listening(const ZiListenInfo &);
@@ -1552,12 +1518,12 @@ private:
 
   bool disconnectAll();
 
-  void holdElection();	// elect new master
-  void deactivate();	// become client (following dup master)
+  void holdElection();		// elect new master
+  void deactivate();		// become client (following dup master)
   void reactivate(Host *host);	// re-assert master
 
-  void up_();		// run up command
-  void down_();		// run down command
+  void up_();			// run up command
+  void down_();			// run down command
 
   ZiConnection *accepted(const ZiCxnInfo &ci);
   void connected(Cxn *cxn);
@@ -1575,7 +1541,7 @@ private:
 
   void envStateRefresh();	// refresh m_self->envState()
 
-  Host *setMaster();	// returns old master
+  Host *setMaster();		// returns old master
   void setNext(Host *host);
   void setNext();
 
@@ -1626,6 +1592,8 @@ private:
   ZmScheduler::Timer	m_hbSendTimer;
   ZmScheduler::Timer	m_electTimer;
 
+  // telemetry
+  ZuID			m_selfID, m_masterID, m_prevID, m_nextID;
 };
 
 inline ZiFile::Path DB::dirName(uint64_t id) const

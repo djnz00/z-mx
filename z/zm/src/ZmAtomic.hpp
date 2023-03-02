@@ -303,7 +303,7 @@ private:
   using U = typename Ops::U;
 
 public:
-  ZmAtomic() : m_val(0) { };
+  ZmAtomic() : m_val{0} { };
 
   // store/relaxed when first creating new objects
   ZmAtomic(const ZmAtomic &a) {
@@ -398,7 +398,7 @@ private:
   using U = typename Ops::U;
 
 public:
-  ZmAtomic() : m_val(0) { }
+  ZmAtomic() : m_val{0} { }
  
   // store/relaxed when first creating new objects
   ZmAtomic(const ZmAtomic &a) {

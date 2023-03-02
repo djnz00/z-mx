@@ -132,17 +132,17 @@
 #define ZuFieldLambdaRd_(Get) \
   template <typename P> \
   static decltype(auto) get(P &&o) { \
-    auto fn = Get(); \
+    constexpr auto fn = Get(); \
     return fn(ZuFwd<P>(o)); \
   }
 #define ZuFieldLambda_(O, Set) \
   template <typename P> \
   static void set(O &o, P &&v) { \
-    auto fn = ZuPP_Strip(Set); \
+    constexpr auto fn = ZuPP_Strip(Set); \
     fn(o, ZuFwd<P>(v)); \
   }
 #define ZuFieldLambdaRd(O, ID, Get, Args) \
-  inline auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
+  inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuFieldType(O, ID) { \
     enum { ReadOnly = 1 }; \
     using T = \
@@ -152,7 +152,7 @@
     template <typename P> static void set(O &, P &&) { } \
   };
 #define ZuFieldLambda(O, ID, Get, Set, Args) \
-  inline auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
+  inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuFieldType(O, ID) { \
     enum { ReadOnly = 0 }; \
     using T = \

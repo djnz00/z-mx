@@ -44,10 +44,14 @@ namespace ZvTelemetry {
 
 using QueueFn = ZvEngineMgr::QueueFn;
 
-using DBEnvFn =
-  ZmFn<ZmFn<const DBEnv &>, ZmFn<const DBHost &>, ZmFn<const DB &>>;
+using ZdbEnvFn =
+  ZmFn<
+    ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>,
+    ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>,
+    ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>>;
 
 using IOBuf = Ztls::IOBuf;
+using IOBuilder = Zfb::IOBuilder<IOBuf>;
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -251,22 +255,32 @@ public:
       m_mxTbl.clean();
       m_queues.clean();
       m_engines.clean();
-      m_dbEnvFn = DBEnvFn{};
+      m_zdbEnvFn = ZdbEnvFn{};
       return true;
     });
+  }
+
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_mx->invoke(m_thread, ZuFwd<Args>(args)...);
+  }
+  bool invoked() { return m_mx->invoked(m_thread); }
+  template <typename ...Args>
+  void run(Args &&... args) const {
+    m_mx->run(m_thread, ZuFwd<Args>(args)...);
   }
 
 private:
   template <typename L>
   bool spawn(L l) {
     if (!m_mx || !m_mx->running()) return false;
-    m_mx->run(m_thread, ZuMv(l));
+    run(ZuMv(l));
     return true;
   }
 
   void wake() {
     if (ZuUnlikely(!m_mx || !m_mx->running())) return;
-    m_mx->run(m_thread, [this]() { this->stopped(); });
+    run([this]() { this->stopped(); });
   }
 
 public:
@@ -289,7 +303,7 @@ public:
   };
 
   void process(Link *link, const fbs::Request *in) {
-    m_mx->invoke(m_thread, [req = Request{
+    invoke([req = Request{
       this, link, in->type(), in->interval(),
       Zfb::Load::str(in->filter()), in->subscribe()
     }]() mutable { req.server->process_(req); });
@@ -304,7 +318,7 @@ public:
       case ReqType::Mx:		mxQuery(req); break;
       case ReqType::Queue:	queueQuery(req); break;
       case ReqType::Engine:	engineQuery(req); break;
-      case ReqType::DBEnv:	dbEnvQuery(req); break;
+      case ReqType::ZdbEnv:	dbEnvQuery(req); break;
       case ReqType::App:	appQuery(req); break;
       case ReqType::Alert:	alertQuery(req); break;
       default: break;
@@ -312,39 +326,36 @@ public:
   }
 
   void disconnected(Link *link) {
-    m_mx->invoke(m_thread,
-	[this, link = ZmMkRef(link)]() { disconnected_(link); });
+    invoke([this, link = ZmMkRef(link)]() { disconnected_(link); });
   }
 
   // EngineMgr functions
 
   void updEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread,
-	[this, engine = ZmMkRef(engine)]() { engineScan(engine); });
+    invoke([this, engine = ZmMkRef(engine)]() { engineScan(engine); });
   }
   void updLink(ZvAnyLink *link) {
-    m_mx->invoke(m_thread,
-	[this, link = ZmMkRef(link)]() { linkScan(link); });
+    invoke([this, link = ZmMkRef(link)]() { linkScan(link); });
   }
 
   void addEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread, [this, engine = ZmMkRef(engine)]() mutable {
+    invoke([this, engine = ZmMkRef(engine)]() mutable {
       if (!m_engines.find(engine->id())) m_engines.add(ZuMv(engine));
     });
   }
   void delEngine(ZvEngine *engine) {
-    m_mx->invoke(m_thread, [this, id = engine->id()]() {
+    invoke([this, id = engine->id()]() {
       m_engines.del(id);
     });
   }
   void addQueue(unsigned type, ZuID id, QueueFn queueFn) {
-    m_mx->invoke(m_thread, [this, type, id, queueFn = ZuMv(queueFn)]() mutable {
+    invoke([this, type, id, queueFn = ZuMv(queueFn)]() mutable {
       auto key = ZuFwdPair(type, id);
       if (!m_queues.find(key)) m_queues.add(key, ZuMv(queueFn));
     });
   }
   void delQueue(unsigned type, ZuID id) {
-    m_mx->invoke(m_thread, [this, type, id]() {
+    invoke([this, type, id]() {
       auto key = ZuFwdPair(type, id);
       m_queues.del(key);
     });
@@ -352,25 +363,25 @@ public:
 
   // ZdbEnv registration
  
-  void addDBEnv(DBEnvFn fn) {
-    m_mx->invoke(m_thread, [this, fn = ZuMv(fn)]() mutable {
-      m_dbEnvFn = ZuMv(fn);
+  void addZdbEnv(ZdbEnvFn fn) {
+    invoke([this, fn = ZuMv(fn)]() mutable {
+      m_zdbEnvFn = ZuMv(fn);
     });
   }
-  void delDBEnv() {
-    m_mx->invoke(m_thread, [this]() { m_dbEnvFn = DBEnvFn{}; });
+  void delZdbEnv() {
+    invoke([this]() { m_zdbEnvFn = ZdbEnvFn{}; });
   }
 
   // app RAG updates
 
   void appUpdated() {
-    m_mx->invoke(m_thread, [this]() { m_appUpdated = true; });
+    invoke([this]() { m_appUpdated = true; });
   }
 
   // alerts
 
   void alert(ZmRef<ZeEvent> e) {
-    m_mx->invoke(m_thread, [this, e = ZuMv(e)]() mutable {
+    invoke([this, e = ZuMv(e)]() mutable {
       alert_(ZuMv(e));
     });
   }
@@ -398,7 +409,7 @@ private:
 	case fbs::ReqType_Engine:
 	  reschedule(list, [](Server *server) { server->engineScan(); });
 	  break;
-	case fbs::ReqType_DBEnv:
+	case fbs::ReqType_ZdbEnv:
 	  reschedule(list, [](Server *server) { server->dbEnvScan(); });
 	  break;
 	case fbs::ReqType_App:
@@ -462,9 +473,9 @@ private:
     template <typename P>
     void push(P &&v) { list.pushNode(ZuFwd<P>(v)); }
     void clean() { list.clean(); }
-    auto count() { return list.count_(); }
+    auto count() const { return list.count_(); }
     auto iterator() { return list.iterator(); }
-    auto readIterator() { return list.readIterator(); }
+    auto readIterator() const { return list.readIterator(); }
   };
 
   template <typename L>
@@ -485,15 +496,13 @@ private:
   }
   template <typename L>
   void reschedule(WatchList &list) {
-    m_mx->run(
-	m_thread,
-	[list = &list]() {
-	  ZuFunctorTraits<L>::invoke(list->server);
-	  list->server->template reschedule<L>(*list);
-	},
-	ZmTimeNow(ZmTime{ZmTime::Nano,
-	  static_cast<int64_t>(list.interval) * 1000000}),
-	ZmScheduler::Advance, &list.timer);
+    run([list = &list]() {
+      ZuFunctorTraits<L>::invoke(list->server);
+      list->server->template reschedule<L>(*list);
+    },
+    ZmTimeNow(ZmTime{ZmTime::Nano,
+      static_cast<int64_t>(list.interval) * 1000000}),
+    ZmScheduler::Advance, &list.timer);
   }
 
   void unsubscribe(WatchList &list, Link *link, ZuString filter) {
@@ -977,10 +986,10 @@ private:
     watch->link->send(m_fbb.buf());
   }
 
-  // DB processing
+  // Zdb processing
 
   void dbEnvQuery(const Request &req) {
-    auto &list = m_watchLists[ReqType::DBEnv];
+    auto &list = m_watchLists[ReqType::ZdbEnv];
     if (req.interval && !req.subscribe) {
       unsubscribe(list, req.link, req.filter);
       return;
@@ -993,42 +1002,49 @@ private:
     if (!req.interval) delete watch;
   }
   void dbEnvQuery_(Watch *watch) {
-    if (!m_dbEnvFn) return;
-    m_dbEnvFn([this, watch](const DBEnv &data) {
-      m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	    fbs::TelData_DBEnv, ZfbField::save(m_fbb, data).Union()));
-      ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-      watch->link->send(m_fbb.buf());
-    }, [this, watch](const DBHost &data) {
-      m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	    fbs::TelData_DBHost, ZfbField::save(m_fbb, data).Union()));
-      ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-      watch->link->send(m_fbb.buf());
-    }, [this, watch](const DB &data) {
-      m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	    fbs::TelData_DB, ZfbField::save(m_fbb, data).Union()));
-      ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-      watch->link->send(m_fbb.buf());
-    });
+    if (!m_zdbEnvFn) return;
+    // these callbacks can execute async
+    m_zdbEnvFn(
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>{ZmMkRef(watch->link),
+	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::ZdbEnv> offset) {
+	  fbb.Finish(fbs::CreateTelemetry(fbb,
+		fbs::TelData_ZdbEnv, offset.Union()));
+	  ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	  link->send(fbb.buf());
+	}},
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>{ZmMkRef(watch->link),
+	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::ZdbHost> offset) {
+	  fbb.Finish(fbs::CreateTelemetry(fbb,
+		fbs::TelData_ZdbHost, offset.Union()));
+	  ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	  link->send(fbb.buf());
+	}},
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>{ZmMkRef(watch->link),
+	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::Zdb> offset) {
+	  fbb.Finish(fbs::CreateTelemetry(fbb,
+		fbs::TelData_Zdb, offset.Union()));
+	  ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	  link->send(fbb.buf());
+	}});
   }
   void dbEnvScan() {
-    if (!m_watchLists[ReqType::DBEnv].list.count_()) return;
-    if (!m_dbEnvFn) return;
-    auto i = m_watchLists[ReqType::DBEnv].list.readIterator();
+    if (!m_watchLists[ReqType::ZdbEnv].list.count_()) return;
+    if (!m_zdbEnvFn) return;
+    auto i = m_watchLists[ReqType::ZdbEnv].list.readIterator();
     while (auto watch = i.iterateNode()) {
-      m_dbEnvFn([this, watch](const DBEnv &data) {
+      m_zdbEnvFn([this, watch](const ZdbEnv &data) {
 	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_DBEnv, ZfbField::saveUpdate(m_fbb, data).Union()));
+	      fbs::TelData_ZdbEnv, ZfbField::saveUpdate(m_fbb, data).Union()));
 	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
 	watch->link->send(m_fbb.buf());
-      }, [this, watch](const DBHost &data) {
+      }, [this, watch](const ZdbHost &data) {
 	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_DBHost, ZfbField::saveUpdate(m_fbb, data).Union()));
+	      fbs::TelData_ZdbHost, ZfbField::saveUpdate(m_fbb, data).Union()));
 	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
 	watch->link->send(m_fbb.buf());
-      }, [this, watch](const DB &data) {
+      }, [this, watch](const Zdb &data) {
 	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_DB, ZfbField::saveUpdate(m_fbb, data).Union()));
+	      fbs::TelData_Zdb, ZfbField::saveUpdate(m_fbb, data).Union()));
 	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
 	watch->link->send(m_fbb.buf());
       });
@@ -1159,11 +1175,11 @@ private:
   unsigned		m_alertMaxReplay;// max. replay in days
 
   // telemetry thread exclusive
-  Zfb::IOBuilder<IOBuf>	m_fbb;
+  IOBuilder		m_fbb;
   MxTbl			m_mxTbl;
   Queues		m_queues;
   Engines		m_engines;
-  DBEnvFn		m_dbEnvFn;
+  ZdbEnvFn		m_zdbEnvFn;
   WatchList		m_watchLists[ReqType::N];
   AlertRing		m_alertRing;		// in-memory ring of alerts
   AlertFile		m_alertFile;		// current file being written

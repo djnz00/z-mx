@@ -152,18 +152,17 @@ void Terminal::open(ZmScheduler *sched, unsigned thread,
 {
   m_sched = sched;
   m_thread = thread;
-  m_sched->invoke(m_thread,
-      [this, openFn = ZuMv(openFn), errorFn = ZuMv(errorFn)]() mutable {
-	m_errorFn = ZuMv(errorFn);
-	openFn(this->open_());
-      });
+  invoke([this, openFn = ZuMv(openFn), errorFn = ZuMv(errorFn)]() mutable {
+    m_errorFn = ZuMv(errorFn);
+    openFn(this->open_());
+  });
 }
 
 bool Terminal::isOpen() const // synchronous
 {
   bool ok = false;
   thread_local ZmSemaphore sem;
-  m_sched->invoke(m_thread, [this, sem = &sem, ok = &ok]() {
+  invoke([this, sem = &sem, ok = &ok]() {
     *ok = isOpen_();
     sem->post();
   });
@@ -182,7 +181,7 @@ bool Terminal::isOpen_() const
 
 void Terminal::close(CloseFn fn) // async
 {
-  m_sched->invoke(m_thread, [this, fn = ZuMv(fn)]() { this->close_(); fn(); });
+  invoke([this, fn = ZuMv(fn)]() { this->close_(); fn(); });
 }
 
 void Terminal::start(StartFn startFn, KeyFn keyFn) // async
@@ -190,7 +189,7 @@ void Terminal::start(StartFn startFn, KeyFn keyFn) // async
   Guard guard(m_lock);
   m_sched->wakeFn(m_thread,
       ZmFn<>{this, [](Terminal *this_) { this_->wake(); }});
-  m_sched->run_(m_thread,
+  m_sched->enqueue(m_thread,
       [this, startFn = ZuMv(startFn), keyFn = ZuMv(keyFn)]() mutable {
 	start_();
 	StartFn{ZuMv(startFn)}();
@@ -203,7 +202,7 @@ bool Terminal::running() const // synchronous
 {
   bool ok = false;
   thread_local ZmSemaphore sem;
-  m_sched->invoke(m_thread, [this, sem = &sem, ok = &ok]() {
+  invoke([this, sem = &sem, ok = &ok]() {
     *ok = m_running;
     sem->post();
   });
@@ -216,7 +215,7 @@ void Terminal::stop() // async
   if (!isOpen_()) return;
   Guard guard(m_lock);
   m_sched->wakeFn(m_thread, {});
-  m_sched->run_(m_thread, [this]() { stop_(); });
+  m_sched->push(m_thread, [this]() { stop_(); });
   wake_();
 }
 
@@ -863,7 +862,7 @@ void Terminal::cursor_off()
 
 void Terminal::wake()
 {
-  m_sched->run_(m_thread, [this]() { read(); });
+  m_sched->push(m_thread, [this]() { read(); });
   wake_();
 }
 

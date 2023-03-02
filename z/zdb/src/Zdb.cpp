@@ -205,7 +205,28 @@ void Env::start_()
     }
   }
 
-  run([this]() { startNet(); });
+  // refresh db state vector, begin election
+  dbStateRefresh();
+  m_self->state(Stopped);
+  stopReplication();
+  m_self->state(Electing);
+
+  if (!(m_nPeers = m_hosts.count_() - 1)) { // standalone
+    holdElection();
+    return;
+  }
+
+  run([this]() { hbSend(); },
+      m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
+  run([this]() { holdElection(); },
+      ZmTimeNow((int)m_cf.electionTimeout), &m_electTimer);
+
+  listen();
+
+  {
+    auto i = m_hostIndex.readIterator<ZmRBTreeLess>(Host::IndexAxor(*m_self));
+    while (Host *host = i.iterate()) host->connect();
+  }
 }
 
 void Env::stop_()
@@ -273,35 +294,6 @@ bool Env::disconnectAll()
       cxn->disconnect();
     }
   return disconnected;
-}
-
-void Env::startNet()
-{
-  ZmAssert(invoked());
-
-  // refresh db state vector, begin election
-
-  dbStateRefresh();
-  m_self->state(Stopped);
-  stopReplication();
-  m_self->state(Electing);
-
-  if (!(m_nPeers = m_hosts.count_() - 1)) { // standalone
-    holdElection();
-    return;
-  }
-
-  run([this]() { hbSend(); },
-      m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
-  run([this]() { holdElection(); },
-      ZmTimeNow((int)m_cf.electionTimeout), &m_electTimer);
-
-  listen();
-
-  {
-    auto i = m_hostIndex.readIterator<ZmRBTreeLess>(Host::IndexAxor(*m_self));
-    while (Host *host = i.iterate()) host->connect();
-  }
 }
 
 void Env::listen()
@@ -459,42 +451,73 @@ void Env::down_()
   m_handler.inactiveFn(this, m_self);
 }
 
-void Env::telemetry(Telemetry &data) const
+ZvTelemetry::DBEnvFn Env::telFn()
 {
-  data.heartbeatFreq = m_cf.heartbeatFreq;
-  data.heartbeatTimeout = m_cf.heartbeatTimeout;
-  data.reconnectFreq = m_cf.reconnectFreq;
-  data.electionTimeout = m_cf.electionTimeout;
-  data.writeThread = m_cf.writeTID;
-
-  // FIXME
-  ReadGuard guard(m_lock);
-  data.nCxns = m_cxns.count_();
-  data.self = m_self->id();
-  data.master = m_master ? m_master->id() : ZuID{};
-  data.prev = m_prev ? m_prev->id() : ZuID{};
-  data.next = m_next ? m_next->id() : ZuID{};
-  data.nHosts = m_hosts.count_();
-  data.nPeers = m_nPeers;
-  data.nDBs = m_dbs.count_();
-  {
-    using namespace HostState;
-    int state = this->state();
-    data.state = state;
-    data.active = state == Active;
-  }
-  data.recovering = m_recovering;
-  data.replicating = !!m_nextCxn;
+  return ZvTelemetry::DBEnvFn{ZmMkRef(this), [](
+      Env *dbEnv,
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::DBEnv>> envFn,
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::DBHost>> hostFn,
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>> dbFn) {
+    dbEnv->invoke(
+  [dbEnv, envFn = ZuMv(envFn), hostFn = ZuMv(hostFn), dbFn = ZuMv(dbFn)]() {
+      {
+	ZvTelemetry::IOBuilder fbb;
+	envFn(fbb, dbEnv->telemetry(fbb));
+	dbEnv->allHosts([&hostFn](const Host *host) {
+	  hostFn(fbb, host->telemetry(fbb));
+	});
+      }
+      dbEnv->allDBs([&dbFn](const DB *db) {
+	ZvTelemetry::IOBuilder fbb;
+	dbFn(fbb, db->telemetry(fbb));
+      });
+    });
+  }};
 }
 
-void Host::telemetry(Telemetry &data) const
+Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> DBEnv::telemetry(IOBuilder &fbb_)
 {
-  data.ip = config().ip;
-  data.id = config().id;
-  data.priority = config().priority;
-  data.port = config().port;
-  data.state = m_state;
-  data.voted = m_voted;
+  using namespace Zfb;
+  using namespace Zfb::Save;
+  auto appID = str(fbb_, m_cf.appID);
+  auto thread = str(fbb_, m_cf.thread);
+  auto writeThread = str(fbb_, m_cf.writeThread);
+  fbs::ZdbEnvBuilder fbb{fbb_};
+  fbb.add_appID(appID);
+  fbb.add_thread(thread);
+  fbb.add_writeThread(writeThread);
+  { auto v = id(m_self->id()); fbb.add_self(&v); }
+  { auto v = id(m_master ? m_master->id() : ZuID{}); fbb.add_master(&v); }
+  { auto v = id(m_prev ? m_prev->id() : ZuID{}); fbb.add_prev(&v); }
+  { auto v = id(m_next ? m_next->id() : ZuID{}); fbb.add_next(&v); }
+  fbb.add_nCxns(m_cxns.count_());
+  fbb.add_heartbeatFreq(m_cf.heartbeatFreq);
+  fbb.add_heartbeatTimeout(m_cf.heartbeatTimeout);
+  fbb.add_reconnectFreq(m_cf.reconnectFreq);
+  fbb.add_electionTimeout(m_cf.electionTimeout);
+  fbb.add_nDBs(m_dbs.count_());
+  fbb.add_nHosts(m_hosts.count_());
+  fbb.add_nPeers(m_nPeers);
+  auto state = this->state();
+  fbb.add_state(state);
+  fbb.add_active(state == HostState::Active);
+  fbb.add_recovering(m_recovering);
+  fbb.add_replicating(!!m_nextCxn);
+  return fbb.Finish();
+}
+
+Zfb::Offset<ZvTelemetry::fbs::ZdbHost> Host::telemetry(IOBuilder &fbb_)
+{
+  using namespace Zfb;
+  using namespace Zfb::Save;
+  fbs::ZdbHostBuilder fbb{fbb_};
+  { auto v = ip(config().ip); fbb.add_ip(&v); }
+  { auto v = id(config().id); fbb.add_id(&v); }
+  fbb.add_priority(config().priority);
+  fbb.add_port(config().port);
+  fbb.add_state(m_state);
+  fbb.add_voted(m_voted);
+  return fbb.Finish();
 }
 
 Host::Host(ZdbEnv *env, const HostCf *cf, unsigned dbCount) :
@@ -1202,35 +1225,44 @@ void DB::final()
 }
 
 // telemetry
-void DB::telemetry(Telemetry &data) const
+Zfb::Offset<ZvTelemetry::fbs::Zdb> DB::telemetry(IOBuilder &fbb_)
 {
-  data.path = m_path;
-  data.name = config().id;
-  data.cacheMode = config().cacheMode;
-  data.warmUp = config().warmUp;
-  // FIXME - minRN, nextRN are atomics
-  // FIXME - caches have stats() functions that hold read locks
+  using namespace Zfb;
+  using namespace Zfb::Save;
+  auto path = str(fbb_, m_path);
+  auto name = str(fbb_, config().id);
+  fbs::ZdbBuilder fbb{fbb_};
+  fbb.add_path(path);
+  fbb.add_name(name);
+  fbb.add_minRN(m_minRN);
+  fbb.add_nextRN(m_nextRN);
   {
-    ReadGuard guard(m_cacheLock);
-    data.minRN = m_minRN;
-    data.nextRN = m_nextRN;
-    data.cacheSize = m_cacheSize;
-    data.cacheLoads = m_cacheLoads;
-    data.cacheMisses = m_cacheMisses;
+    ObjectCache::Stats stats;
+    m_cache->stats(stats);
+    fbb.add_cacheLoads(stats.loads);
+    fbb.add_cacheMisses(stats.misses);
+    fbb.add_cacheSize(stats.size);
   }
   {
-    ReadGuard guard(m_indexLock);
-    data.indexBlkCacheSize = m_indexBlkCacheSize;
-    data.indexBlkLoads = m_indexBlkLoads;
-    data.indexBlkMisses = m_indexBlkMisses;
+    FileCache::Stats stats;
+    m_files->stats(stats);
+    fbb.add_fileLoads(stats.loads);
+    fbb.add_fileMisses(stats.misses);
+    fbb.add_fileCacheSize(stats.size);
   }
   {
-    ReadGuard guard(m_fileLock);
-    data.fileCacheSize = m_fileCacheSize;
-    data.fileLoads = m_fileLoads;
-    data.fileMisses = m_fileMisses;
+    IndexBlkCache::Stats stats;
+    m_indexBlks->stats(stats);
+    fbb.add_indexBlkLoads(stats.loads);
+    fbb.add_indexBlkMisses(stats.misses);
+    fbb.add_indexBlkCacheSize(stats.size);
   }
+  fbb.add_cacheMode(config().cacheMode);
+  fbb.add_warmUp(config().warmUp);
+  return fbb.Finish();
 }
+
+// FIXME from here
 
 // load object from buffer
 ZmRef<AnyObject> DB::load(const fbs::Record *record) // cacheLock held
@@ -1723,6 +1755,7 @@ void DB::close()
       file->writeIndexBlk(blk);
     m_indexBlks->delNode(blk);
   }
+
   // files
   while (auto file = static_cast<File *>(m_fileLRU.shiftNode())) {
     file->sync();
@@ -1936,7 +1969,7 @@ void DB::put(AnyObject *object)
     object->put(); // resets seqLen to 1
     cache(object);
   }
-  m_env->write(ZuMv(buf));
+  m_env->write(ZuMv(buf)); // FIXME
 }
 
 // commits appended update()
@@ -1950,7 +1983,7 @@ void DB::append(AnyObject *object)
     m_buffers->addNode(buf);
     cache(object);
   }
-  m_env->write(ZuMv(buf));
+  m_env->write(ZuMv(buf)); // FIXME
 }
 
 // commits delete following push() / update()
@@ -1971,7 +2004,7 @@ void DB::del(AnyObject *object)
     buf = object->replicate(fbs::Body_Rep);
     m_buffers->addNode(buf);
   }
-  m_env->write(ZuMv(buf));
+  m_env->write(ZuMv(buf)); // FIXME
 }
 
 // aborts push() / update()
@@ -2079,7 +2112,7 @@ void DB::purge(RN minRN)
     m_deletes.add(rn, DeleteOp{minRN, SeqLenOp::mk(1, Op::Purge)});
     m_buffers->addNode(buf);
   }
-  m_env->write(ZuMv(buf));
+  m_env->write(ZuMv(buf)); // FIXME
 }
 
 // FIXME - this dispatches back to the DB file thread for writing
@@ -2089,7 +2122,7 @@ void DB::purge(RN minRN)
 // thread function to add to writeCache, invoke Env repSend then run (not
 // invoke) DB file thread write2 and call that everywhere env->write is
 // currently called
-void Env::write(ZmRef<Buf> buf)
+void Env::write(ZmRef<Buf> buf) // FIXME - deprecated - replaced by DB::write
 {
   if (reinterpret_cast<DB *>(buf->owner)->config().repMode)
     this->repSend(buf);				// send to replica

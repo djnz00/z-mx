@@ -90,12 +90,12 @@ namespace LinkState {
   }
 }
 
-namespace DBCacheMode {
-  ZfbEnumValues(DBCacheMode, Normal, All)
+namespace ZdbCacheMode {
+  ZfbEnumValues(ZdbCacheMode, Normal, All)
 }
 
-namespace DBHostState {
-  ZfbEnumValues(DBHostState,
+namespace ZdbHostState {
+  ZfbEnumValues(ZdbHostState,
       Instantiated,
       Initialized,
       Opening,
@@ -125,7 +125,7 @@ namespace Severity {
 }
 
 using Heap_ = ZmHeapTelemetry;
-struct Heap : public Heap_, public ZtFieldPrint<Heap> {
+struct Heap : public Heap_ {
   Heap() = default;
   template <typename ...Args>
   Heap(Args &&... args) : Heap_{ZuFwd<Args>(args)...} { }
@@ -140,8 +140,10 @@ struct Heap : public Heap_, public ZtFieldPrint<Heap> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Heap *);
 };
-ZfbFields(Heap,
+ZfbFields(Heap, fbs::Heap,
     (((id), (0)), (String), (Ctor(0))),
     (((size), (0)), (Int), (Ctor(6))),
     (((alignment)), (Int), (Ctor(9))),
@@ -156,7 +158,7 @@ ZfbFields(Heap,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using HashTbl_ = ZmHashTelemetry;
-struct HashTbl : public HashTbl_, public ZtFieldPrint<HashTbl> {
+struct HashTbl : public HashTbl_ {
   HashTbl() = default;
   template <typename ...Args>
   HashTbl(Args &&... args) : HashTbl_{ZuFwd<Args>(args)...} { }
@@ -167,8 +169,10 @@ struct HashTbl : public HashTbl_, public ZtFieldPrint<HashTbl> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(HashTbl *);
 };
-ZfbFields(HashTbl,
+ZfbFields(HashTbl, fbs::HashTbl,
     (((id), (0)), (String), (Ctor(0))),
     (((addr), (0)), (Hex), (Ctor(1))),
     (((linear)), (Bool), (Ctor(9))),
@@ -182,7 +186,7 @@ ZfbFields(HashTbl,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Thread_ = ZmThreadTelemetry;
-struct Thread : public Thread_, public ZtFieldPrint<Thread> {
+struct Thread : public Thread_ {
   Thread() = default;
   template <typename ...Args>
   Thread(Args &&... args) : Thread_{ZuFwd<Args>(args)...} { }
@@ -193,8 +197,10 @@ struct Thread : public Thread_, public ZtFieldPrint<Thread> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Thread *);
 };
-ZfbFields(Thread,
+ZfbFields(Thread, fbs::Thread,
     (((name)), (String), (Ctor(0))),
     (((sid)), (Int), (Ctor(8))),
     (((tid), (0)), (Int), (Ctor(1))),
@@ -211,15 +217,17 @@ ZfbFields(Thread,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Mx_ = ZiMxTelemetry;
-struct Mx : public Mx_, public ZtFieldPrint<Mx> {
+struct Mx : public Mx_ {
   Mx() = default;
   template <typename ...Args>
   Mx(Args &&... args) : Mx_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Mx *);
 };
-ZfbFields(Mx,
+ZfbFields(Mx, fbs::Mx,
     (((id), (0)), (String), (Ctor(0))),
     (((state)), (Enum, EngineState::Map), (Ctor(10), Update, Series)),
     (((nThreads)), (Int), (Ctor(13))),
@@ -237,7 +245,7 @@ ZfbFields(Mx,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 using Socket_ = ZiCxnTelemetry;
-struct Socket : public Socket_, public ZtFieldPrint<Socket> {
+struct Socket : public Socket_ {
   Socket() = default;
   template <typename ...Args>
   Socket(Args &&... args) : Socket_{ZuFwd<Args>(args)...} { }
@@ -250,8 +258,10 @@ struct Socket : public Socket_, public ZtFieldPrint<Socket> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Socket *);
 };
-ZfbFields(Socket,
+ZfbFields(Socket, fbs::Socket,
     (((mxID)), (String), (Ctor(0))),
     (((type)), (Enum, SocketType::Map), (Ctor(15))),
     (((remoteIP)), (IP), (Ctor(11))),
@@ -273,7 +283,7 @@ ZfbFields(Socket,
 // display sequence:
 //   id, type, size, full, count, seqNo,
 //   inCount, inBytes, outCount, outBytes
-struct Queue_ {
+struct Queue {
   ZuID		id;		// primary key - same as Link id for Rx/Tx
   uint64_t	seqNo = 0;	// 0 for Thread, IPC
   uint64_t	count = 0;	// dynamic - may not equal in - out
@@ -284,11 +294,6 @@ struct Queue_ {
   uint32_t	size = 0;	// 0 for Rx, Tx
   uint32_t	full = 0;	// dynamic - how many times queue overflowed
   int8_t	type = -1;	// primary key - QueueType
-};
-struct Queue : public Queue_, public ZtFieldPrint<Queue> {
-  Queue() = default;
-  template <typename ...Args>
-  Queue(Args &&... args) : Queue_{ZuFwd<Args>(args)...} { }
 
   // RAG for queues - count > 50% size - amber; 80% - red
   int rag() const {
@@ -298,8 +303,10 @@ struct Queue : public Queue_, public ZtFieldPrint<Queue> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Queue *);
 };
-ZfbFields(Queue,
+ZfbFields(Queue, fbs::Queue,
     (((id), (0)), (String), (Ctor(0))),
     (((type), (0)), (Enum, QueueType::Map), (Ctor(9))),
     (((size)), (Int), (Ctor(7))),
@@ -314,23 +321,20 @@ ZfbFields(Queue,
 
 // display sequence:
 //   id, state, reconnects, rxSeqNo, txSeqNo
-struct Link_ {
+struct Link {
   ZuID		id;
   ZuID		engineID;
   uint64_t	rxSeqNo = 0;
   uint64_t	txSeqNo = 0;
   uint32_t	reconnects = 0;
   int8_t	state = 0;
-};
-struct Link : public Link_, public ZtFieldPrint<Link> {
-  Link() = default;
-  template <typename ...Args>
-  Link(Args &&... args) : Link_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return LinkState::rag(state); }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Link *);
 };
-ZfbFields(Link,
+ZfbFields(Link, fbs::Link,
     (((id), (0)), (String), (Ctor(0))),
     (((engineID)), (String), (Ctor(1))),
     (((state)), (Enum, LinkState::Map), (Ctor(5), Update, Series)),
@@ -339,7 +343,7 @@ ZfbFields(Link,
     (((txSeqNo)), (Int), (Ctor(3), Update, Series, Delta)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
-struct Engine_ {
+struct Engine {
   ZuID		id;		// primary key
   ZuID		type;
   ZuID		mxID;
@@ -353,18 +357,13 @@ struct Engine_ {
   uint16_t	rxThread = 0;
   uint16_t	txThread = 0;
   int8_t	state = -1;
-};
-struct Engine : public Engine_, public ZtFieldPrint<Engine> {
-  Engine() = default;
-  Engine(const Engine &) = default;
-  Engine(Engine &&) = default;
-  template <typename ...Args>
-  Engine(Args &&... args) : Engine_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Engine *);
 };
-ZfbFields(Engine,
+ZfbFields(Engine, fbs::Engine,
     (((id), (0)), (String), (Ctor(0))),
     (((type)), (String), (Ctor(1))),
     (((state)), (Enum, EngineState::Map), (Ctor(12), Update, Series)),
@@ -387,7 +386,7 @@ ZfbFields(Engine,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   fileCacheSize, fileLoads, fileMisses
 //   indexBlkCacheSize, indexBlkLoads, indexBlkMisses
-struct DB_ {
+struct Zdb {
   using Path = ZuStringN<124>;
   using Name = ZuStringN<28>;
 
@@ -406,11 +405,6 @@ struct DB_ {
   uint32_t	indexBlkCacheSize = 0;
   int8_t	cacheMode = -1;		// ZdbCacheMode
   uint8_t	warmUp = 0;
-};
-struct DB : public DB_, public ZtFieldPrint<DB> {
-  DB() = default;
-  template <typename ...Args>
-  DB(Args &&... args) : DB_{ZuFwd<Args>(args)...} { }
 
   int rag() const {
     unsigned total = cacheLoads + cacheMisses;
@@ -420,10 +414,12 @@ struct DB : public DB_, public ZtFieldPrint<DB> {
     return RAG::Green;
   }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(Zdb *);
 };
-ZfbFields(DB,
+ZfbFields(Zdb, fbs::Zdb,
     (((name), (0)), (String), (Ctor(1))),
-    (((cacheMode)), (Enum, DBCacheMode::Map), (Ctor(13))),
+    (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor(13))),
     (((cacheSize)), (Int), (Ctor(10))),
     (((path)), (String), (Ctor(0))),
     (((fileCacheSize)), (Int), (Ctor(11))),
@@ -441,27 +437,24 @@ ZfbFields(DB,
 
 // display sequence:
 //   id, priority, state, voted, ip, port
-struct DBHost_ {
+struct ZdbHost {
   ZiIP		ip;
-  uint32_t	id = 0;
+  ZuID		id = 0;
   uint32_t	priority = 0;
   uint16_t	port = 0;
   int8_t	state = 0;// RAG: Instantiated - Red; Active - Green; * - Amber
   uint8_t	voted = 0;
-};
-struct DBHost : public DBHost_, public ZtFieldPrint<DBHost> {
-  DBHost() = default;
-  template <typename ...Args>
-  DBHost(Args &&... args) : DBHost_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return DBHostState::rag(state); }
+  int rag() const { return ZdbHostState::rag(state); }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(ZdbHost *);
 };
-ZfbFields(DBHost,
+ZfbFields(ZdbHost, fbs::ZdbHost,
     (((ip)), (IP), (Ctor(0))),
-    (((id), (0)), (Int), (Ctor(1))),
+    (((id), (0)), (ID), (Ctor(1))),
     (((priority)), (Int), (Ctor(2))),
-    (((state)), (Enum, DBHostState::Map), (Ctor(4), Update, Series)),
+    (((state)), (Enum, ZdbHostState::Map), (Ctor(4), Update, Series)),
     (((voted)), (Bool), (Ctor(5), Update, Series)),
     (((port)), (Int), (Ctor(3))),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
@@ -471,68 +464,64 @@ ZfbFields(DBHost,
 //   nDBs, nHosts, nPeers, nCxns,
 //   heartbeatFreq, heartbeatTimeout, reconnectFreq, electionTimeout,
 //   writeThread
-struct DBEnv_ {
+struct ZdbEnv {
+  ZmThreadName	thread;
+  ZmThreadName	writeThread;
+  ZuID		self;			// primary key - host ID 
+  ZuID		master;			// host ID
+  ZuID		prev;			// ''
+  ZuID		next;			// ''
   uint32_t	nCxns = 0;
   uint32_t	heartbeatFreq = 0;
   uint32_t	heartbeatTimeout = 0;
   uint32_t	reconnectFreq = 0;
   uint32_t	electionTimeout = 0;
-  uint32_t	self = 0;		// primary key - host ID 
-  uint32_t	master = 0;		// host ID
-  uint32_t	prev = 0;		// ''
-  uint32_t	next = 0;		// ''
-  uint16_t	writeThread = 0;
-  uint8_t	nDBs = 0;
+  uint16_t	nZdbs = 0;
   uint8_t	nHosts = 0;
   uint8_t	nPeers = 0;
   int8_t	state = -1;		// same as hosts[hostID].state
   uint8_t	active = 0;
   uint8_t	recovering = 0;
   uint8_t	replicating = 0;
-};
-struct DBEnv : public DBEnv_, public ZtFieldPrint<DBEnv> {
-  DBEnv() = default;
-  template <typename ...Args>
-  DBEnv(Args &&... args) : DBEnv_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return DBHostState::rag(state); }
+  int rag() const { return ZdbHostState::rag(state); }
   void rag(int) { } // unused
+
+  friend ZtFieldPrint ZuPrintType(ZdbEnv *);
 };
-ZfbFields(DBEnv,
-    (((self), (0)), (Int), (Ctor(5))),
-    (((master)), (Int), (Ctor(6), Update)),
-    (((prev)), (Int), (Ctor(7), Update)),
-    (((next)), (Int), (Ctor(8), Update)),
-    (((state)), (Enum, DBHostState::Map), (Ctor(13), Update, Series)),
-    (((active)), (Int), (Ctor(14), Update)),
-    (((recovering)), (Int), (Ctor(15), Update)),
-    (((replicating)), (Int), (Ctor(16), Update)),
-    (((nDBs)), (Int), (Ctor(10))),
-    (((nHosts)), (Int), (Ctor(11))),
-    (((nPeers)), (Int), (Ctor(12))),
-    (((nCxns)), (Int), (Ctor(0), Update, Series)),
-    (((heartbeatFreq)), (Int), (Ctor(1))),
-    (((heartbeatTimeout)), (Int), (Ctor(2))),
-    (((reconnectFreq)), (Int), (Ctor(3))),
-    (((electionTimeout)), (Int), (Ctor(4))),
-    (((writeThread)), (Int), (Ctor(9))),
+ZfbFields(ZdbEnv, fbs::ZdbEnv,
+    (((thread)), (String), (Ctor(0))),
+    (((writeThread)), (String), (Ctor(1))),
+    (((self)), (ID), (Ctor(2))),
+    (((master)), (ID), (Ctor(3), Update)),
+    (((prev)), (ID), (Ctor(4), Update)),
+    (((next)), (ID), (Ctor(5), Update)),
+    (((state)), (Enum, ZdbHostState::Map), (Ctor(14), Update, Series)),
+    (((active)), (Int), (Ctor(15), Update)),
+    (((recovering)), (Int), (Ctor(16), Update)),
+    (((replicating)), (Int), (Ctor(17), Update)),
+    (((nDBs)), (Int), (Ctor(11))),
+    (((nHosts)), (Int), (Ctor(12))),
+    (((nPeers)), (Int), (Ctor(13))),
+    (((nCxns)), (Int), (Ctor(6), Update, Series)),
+    (((heartbeatFreq)), (Int), (Ctor(7))),
+    (((heartbeatTimeout)), (Int), (Ctor(8))),
+    (((reconnectFreq)), (Int), (Ctor(9))),
+    (((electionTimeout)), (Int), (Ctor(10))),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:
 //   id, role, RAG, uptime, version
-struct App_ {
+struct App {
   ZmIDString	id;
   ZmIDString	version;
   ZtDate	uptime;
   int8_t	role = -1;
   int8_t	rag = -1;
+
+  friend ZtFieldPrint ZuPrintType(App *);
 };
-struct App : public App_, public ZtFieldPrint<App> {
-  App() = default;
-  template <typename ...Args>
-  App(Args &&... args) : App_{ZuFwd<Args>(args)...} { }
-};
-ZfbFields(App,
+ZfbFields(App, fbs::App,
     (((id), (0)), (String), (Ctor(0))),
     (((version)), (String), (Ctor(1))),
     (((uptime)), (Time), (Ctor(2), Update)),
@@ -541,19 +530,16 @@ ZfbFields(App,
 
 // display sequence:
 //   time, severity, tid, message
-struct Alert_ {
+struct Alert {
   ZtDate	time;
   uint32_t	seqNo = 0;
   uint32_t	tid = 0;
   int8_t	severity = -1;
   ZtString	message;
+
+  friend ZtFieldPrint ZuPrintType(Alert *);
 };
-struct Alert : public Alert_, public ZtFieldPrint<Alert> {
-  Alert() = default;
-  template <typename ...Args>
-  Alert(Args &&... args) : Alert_{ZuFwd<Args>(args)...} { }
-};
-ZfbFields(Alert,
+ZfbFields(Alert, fbs::Alert,
     (((time)), (Time), (Ctor(0))),
     (((seqNo)), (Int), (Ctor(1))),
     (((tid)), (Int), (Ctor(2))),
@@ -562,18 +548,18 @@ ZfbFields(Alert,
 
 namespace ReqType {
   ZfbEnumValues(ReqType,
-      Heap, HashTbl, Thread, Mx, Queue, Engine, DBEnv, App, Alert);
+      Heap, HashTbl, Thread, Mx, Queue, Engine, ZdbEnv, App, Alert);
 }
 
 namespace TelData {
   ZfbEnumUnion(TelData,
       Heap, HashTbl, Thread, Mx, Socket, Queue, Engine, Link,
-      DB, DBHost, DBEnv, App, Alert);
+      Zdb, ZdbHost, ZdbEnv, App, Alert);
 }
 
 using TypeList = ZuTypeList<
   Heap, HashTbl, Thread, Mx, Socket, Queue, Engine, Link,
-  DB, DBHost, DBEnv, App, Alert>;
+  Zdb, ZdbHost, ZdbEnv, App, Alert>;
 
 } // ZvTelemetry
 

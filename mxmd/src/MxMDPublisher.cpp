@@ -614,11 +614,11 @@ bool MxMDPublisher::attach()
   }
 
   mx()->wakeFn(rxThread(), ZmFn<>{this, [](MxMDPublisher *pub) {
-    pub->rxRun_(ZmFn<>{pub, [](MxMDPublisher *pub) { pub->recv(); }});
+    pub->rxPush(ZmFn<>{pub, [](MxMDPublisher *pub) { pub->recv(); }});
     pub->wake();
   }});
 
-  rxRun_(ZmFn<>{this, [](MxMDPublisher *pub) { pub->recv(); }});
+  rxPush(ZmFn<>{this, [](MxMDPublisher *pub) { pub->recv(); }});
 
   txRun(ZmFn<>{this, [](MxMDPublisher *pub) { pub->ack(); }},
       ZmTimeNow(ackInterval()), &m_ackTimer);
