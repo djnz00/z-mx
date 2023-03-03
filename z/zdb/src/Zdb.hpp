@@ -212,7 +212,7 @@ inline int verifyHdr(const Buf *buf, Fn fn) {
 }
 // returns buffer containing message
 inline ZuArray<uint8_t> msgData(const Hdr *hdr) {
-  if (ZuUnlikely(!hdr)) return nullptr;
+  if (ZuUnlikely(!hdr)) return {};
   return {
     reinterpret_cast<const uint8_t *>(hdr),
     static_cast<unsigned>(hdr->length) + sizeof(Hdr)};
@@ -961,14 +961,14 @@ public:
   static ZuID IDAxor(const DB &db) { return db.config().id; }
 
   template <typename ...Args>
-  void invoke(Args &&... args) const {
-    m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
-  }
-  bool invoked() { return m_mx->invoked(m_cf->sid); }
-  template <typename ...Args>
   void run(Args &&... args) const {
     m_mx->run(m_cf->sid, ZuFwd<Args>(args)...);
   }
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_mx->invoked(m_cf->sid); }
 
   template <typename ...Args>
   void fileInvoke(Args &&... args) const {
@@ -1032,7 +1032,8 @@ public:
   void purge(RN minRN);
 
 private:
-  Zfb::Offset<ZvTelemetry::fbs::Zdb> telemetry(IOBuilder &) const;
+  Zfb::Offset<ZvTelemetry::fbs::Zdb>
+  telemetry(IOBuilder &, bool update) const;
 
   // push initial record
   ZmRef<AnyObject> push_();
@@ -1217,7 +1218,8 @@ public:
   }
 
 private:
-  Zfb::Offset<ZvTelemetry::fbs::ZdbHost> telemetry(IOBuilder &) const;
+  Zfb::Offset<ZvTelemetry::fbs::ZdbHost>
+  telemetry(IOBuilder &, bool update) const;
 
   ZmRef<Cxn> cxn() const { return m_cxn; }
 
@@ -1426,15 +1428,14 @@ public:
   void final();
 
   template <typename ...Args>
-  void invoke(Args &&... args) const {
-    m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
-  }
-  bool invoked() { return m_mx->invoked(m_cf->sid); }
-
-  template <typename ...Args>
   void run(Args &&... args) const {
     m_mx->run(m_cf->sid, ZuFwd<Args>(args)...);
   }
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_mx->invoked(m_cf->sid); }
 
   void checkpoint();
 
@@ -1491,10 +1492,11 @@ private:
     while (auto db = i.iterate()) l(db);
   }
 
-  Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> telemetry(IOBuilder &) const;
+  Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>
+  telemetry(IOBuilder &, bool update) const;
 
 public:
-  ZvTelemetry::DBEnvFn telFn();
+  ZvTelemetry::ZdbEnvFn telFn();
 
 private:
   // ZmEngine implementation

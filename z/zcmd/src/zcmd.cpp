@@ -1362,15 +1362,15 @@ private:
 		TelCap::keyedFn<ZvTelemetry::Link>(
 		    ZiFile::append(dir, "link.csv"));
 	      break;
-	    case ReqType::DBEnv:
-	      m_telcap[TelData::DBEnv - TelData::MIN] =
-		TelCap::singletonFn<DBEnv>(
+	    case ReqType::ZdbEnv:
+	      m_telcap[TelData::ZdbEnv - TelData::MIN] =
+		TelCap::singletonFn<ZdbEnv>(
 		    ZiFile::append(dir, "dbenv.csv"));
-	      m_telcap[TelData::DBHost - TelData::MIN] =
-		TelCap::keyedFn<DBHost>(
+	      m_telcap[TelData::ZdbHost - TelData::MIN] =
+		TelCap::keyedFn<ZdbHost>(
 		    ZiFile::append(dir, "dbhost.csv"));
-	      m_telcap[TelData::DB - TelData::MIN] =
-		TelCap::keyedFn<DB>(
+	      m_telcap[TelData::Zdb - TelData::MIN] =
+		TelCap::keyedFn<Zdb>(
 		    ZiFile::append(dir, "db.csv"));
 	      break;
 	    case ReqType::App:

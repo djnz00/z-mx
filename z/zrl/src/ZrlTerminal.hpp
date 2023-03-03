@@ -189,9 +189,14 @@ public:
   bool running() const; // blocking
 
   template <typename ...Args>
-  ZuInline void invoke(Args &&... args) {
+  void run(Args &&... args) const {
     m_sched->invoke(m_thread, ZuFwd<Args>(args)...);
   }
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_sched->invoke(m_thread, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_sched->invoked(m_thread); }
 
   const Line &line() const { return m_line; } // terminal I/O thread
 

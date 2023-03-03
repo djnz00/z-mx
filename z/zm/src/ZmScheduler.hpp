@@ -324,7 +324,7 @@ public:
   bool del(Timer *);		// cancel job - returns true if found
 
   // returns true if caller is running on thread slot sid
-  bool invoked(unsigned sid) {
+  bool invoked(unsigned sid) const {
     ZmAssert(sid && sid <= m_params.nThreads());
     Thread *thread = &m_threads[sid - 1];
     return Zm::getTID() == thread->tid;

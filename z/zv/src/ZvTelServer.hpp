@@ -31,7 +31,11 @@
 #include <zlib/ZuGrow.hpp>
 #include <zlib/ZuFunctorTraits.hpp>
 
+#include <zlib/ZmFn.hpp>
+
 #include <zlib/Ztls.hpp>
+
+#include <zlib/Zfb.hpp>
 
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvEngine.hpp>
@@ -44,14 +48,15 @@ namespace ZvTelemetry {
 
 using QueueFn = ZvEngineMgr::QueueFn;
 
+using IOBuf = Ztls::IOBuf;
+using IOBuilder = Zfb::IOBuilder<IOBuf>;
+
 using ZdbEnvFn =
   ZmFn<
     ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>,
     ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>,
-    ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>>;
-
-using IOBuf = Ztls::IOBuf;
-using IOBuilder = Zfb::IOBuilder<IOBuf>;
+    ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>,
+    bool>; // true if update
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -261,14 +266,14 @@ public:
   }
 
   template <typename ...Args>
-  void invoke(Args &&... args) const {
-    m_mx->invoke(m_thread, ZuFwd<Args>(args)...);
-  }
-  bool invoked() { return m_mx->invoked(m_thread); }
-  template <typename ...Args>
   void run(Args &&... args) const {
     m_mx->run(m_thread, ZuFwd<Args>(args)...);
   }
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_mx->invoke(m_thread, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_mx->invoked(m_thread); }
 
 private:
   template <typename L>
@@ -1025,29 +1030,38 @@ private:
 		fbs::TelData_Zdb, offset.Union()));
 	  ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
 	  link->send(fbb.buf());
-	}});
+	}},
+      false);
   }
   void dbEnvScan() {
     if (!m_watchLists[ReqType::ZdbEnv].list.count_()) return;
     if (!m_zdbEnvFn) return;
     auto i = m_watchLists[ReqType::ZdbEnv].list.readIterator();
     while (auto watch = i.iterateNode()) {
-      m_zdbEnvFn([this, watch](const ZdbEnv &data) {
-	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_ZdbEnv, ZfbField::saveUpdate(m_fbb, data).Union()));
-	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-	watch->link->send(m_fbb.buf());
-      }, [this, watch](const ZdbHost &data) {
-	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_ZdbHost, ZfbField::saveUpdate(m_fbb, data).Union()));
-	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-	watch->link->send(m_fbb.buf());
-      }, [this, watch](const Zdb &data) {
-	m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
-	      fbs::TelData_Zdb, ZfbField::saveUpdate(m_fbb, data).Union()));
-	ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry());
-	watch->link->send(m_fbb.buf());
-      });
+      // these callbacks can execute async
+      m_zdbEnvFn(
+	ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>{ZmMkRef(watch->link),
+	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::ZdbEnv> offset) {
+	    fbb.Finish(fbs::CreateTelemetry(fbb,
+		  fbs::TelData_ZdbEnv, offset.Union()));
+	    ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	    link->send(fbb.buf());
+	  }},
+	ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>{ZmMkRef(watch->link),
+	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::ZdbHost> offset) {
+	    fbb.Finish(fbs::CreateTelemetry(fbb,
+		  fbs::TelData_ZdbHost, offset.Union()));
+	    ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	    link->send(fbb.buf());
+	  }},
+	ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>{ZmMkRef(watch->link),
+	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::Zdb> offset) {
+	    fbb.Finish(fbs::CreateTelemetry(fbb,
+		  fbs::TelData_Zdb, offset.Union()));
+	    ZvCmd::saveHdr(fbb, ZvCmd::Type::telemetry());
+	    link->send(fbb.buf());
+	  }},
+	true);
     }
   }
 

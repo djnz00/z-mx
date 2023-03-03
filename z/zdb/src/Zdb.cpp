@@ -451,31 +451,35 @@ void Env::down_()
   m_handler.inactiveFn(this, m_self);
 }
 
-ZvTelemetry::DBEnvFn Env::telFn()
+ZvTelemetry::ZdbEnvFn Env::telFn()
 {
   return ZvTelemetry::DBEnvFn{ZmMkRef(this), [](
       Env *dbEnv,
       ZmFn<IOBuilder &, Zfb::Offset<fbs::DBEnv>> envFn,
       ZmFn<IOBuilder &, Zfb::Offset<fbs::DBHost>> hostFn,
-      ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>> dbFn) {
-    dbEnv->invoke(
-  [dbEnv, envFn = ZuMv(envFn), hostFn = ZuMv(hostFn), dbFn = ZuMv(dbFn)]() {
+      ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>> dbFn,
+      bool update) {
+    dbEnv->invoke([dbEnv,
+	envFn = ZuMv(envFn),
+	hostFn = ZuMv(hostFn),
+	dbFn = ZuMv(dbFn), update]() {
       {
 	ZvTelemetry::IOBuilder fbb;
-	envFn(fbb, dbEnv->telemetry(fbb));
-	dbEnv->allHosts([&hostFn](const Host *host) {
-	  hostFn(fbb, host->telemetry(fbb));
+	envFn(fbb, dbEnv->telemetry(fbb, update));
+	dbEnv->allHosts([&hostFn, update](const Host *host) {
+	  hostFn(fbb, host->telemetry(fbb, update));
 	});
       }
-      dbEnv->allDBs([&dbFn](const DB *db) {
+      dbEnv->allDBs([&dbFn, update](const DB *db) {
 	ZvTelemetry::IOBuilder fbb;
-	dbFn(fbb, db->telemetry(fbb));
+	dbFn(fbb, db->telemetry(fbb, update));
       });
     });
   }};
 }
 
-Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> DBEnv::telemetry(IOBuilder &fbb_)
+Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>
+DBEnv::telemetry(IOBuilder &fbb_, bool update)
 {
   using namespace Zfb;
   using namespace Zfb::Save;
@@ -483,21 +487,24 @@ Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> DBEnv::telemetry(IOBuilder &fbb_)
   auto thread = str(fbb_, m_cf.thread);
   auto writeThread = str(fbb_, m_cf.writeThread);
   fbs::ZdbEnvBuilder fbb{fbb_};
-  fbb.add_appID(appID);
-  fbb.add_thread(thread);
-  fbb.add_writeThread(writeThread);
-  { auto v = id(m_self->id()); fbb.add_self(&v); }
+  if (!update) {
+    fbb.add_thread(thread);
+    fbb.add_writeThread(writeThread);
+    { auto v = id(m_self->id()); fbb.add_self(&v); }
+  }
   { auto v = id(m_master ? m_master->id() : ZuID{}); fbb.add_master(&v); }
   { auto v = id(m_prev ? m_prev->id() : ZuID{}); fbb.add_prev(&v); }
   { auto v = id(m_next ? m_next->id() : ZuID{}); fbb.add_next(&v); }
   fbb.add_nCxns(m_cxns.count_());
-  fbb.add_heartbeatFreq(m_cf.heartbeatFreq);
-  fbb.add_heartbeatTimeout(m_cf.heartbeatTimeout);
-  fbb.add_reconnectFreq(m_cf.reconnectFreq);
-  fbb.add_electionTimeout(m_cf.electionTimeout);
-  fbb.add_nDBs(m_dbs.count_());
-  fbb.add_nHosts(m_hosts.count_());
-  fbb.add_nPeers(m_nPeers);
+  if (!update) {
+    fbb.add_heartbeatFreq(m_cf.heartbeatFreq);
+    fbb.add_heartbeatTimeout(m_cf.heartbeatTimeout);
+    fbb.add_reconnectFreq(m_cf.reconnectFreq);
+    fbb.add_electionTimeout(m_cf.electionTimeout);
+    fbb.add_nDBs(m_dbs.count_());
+    fbb.add_nHosts(m_hosts.count_());
+    fbb.add_nPeers(m_nPeers);
+  }
   auto state = this->state();
   fbb.add_state(state);
   fbb.add_active(state == HostState::Active);
@@ -506,15 +513,18 @@ Zfb::Offset<ZvTelemetry::fbs::ZdbEnv> DBEnv::telemetry(IOBuilder &fbb_)
   return fbb.Finish();
 }
 
-Zfb::Offset<ZvTelemetry::fbs::ZdbHost> Host::telemetry(IOBuilder &fbb_)
+Zfb::Offset<ZvTelemetry::fbs::ZdbHost>
+Host::telemetry(IOBuilder &fbb_, bool update)
 {
   using namespace Zfb;
   using namespace Zfb::Save;
   fbs::ZdbHostBuilder fbb{fbb_};
-  { auto v = ip(config().ip); fbb.add_ip(&v); }
-  { auto v = id(config().id); fbb.add_id(&v); }
-  fbb.add_priority(config().priority);
-  fbb.add_port(config().port);
+  if (!update) {
+    { auto v = ip(config().ip); fbb.add_ip(&v); }
+    { auto v = id(config().id); fbb.add_id(&v); }
+    fbb.add_priority(config().priority);
+    fbb.add_port(config().port);
+  }
   fbb.add_state(m_state);
   fbb.add_voted(m_voted);
   return fbb.Finish();
@@ -1225,15 +1235,18 @@ void DB::final()
 }
 
 // telemetry
-Zfb::Offset<ZvTelemetry::fbs::Zdb> DB::telemetry(IOBuilder &fbb_)
+Zfb::Offset<ZvTelemetry::fbs::Zdb>
+DB::telemetry(IOBuilder &fbb_, bool update)
 {
   using namespace Zfb;
   using namespace Zfb::Save;
   auto path = str(fbb_, m_path);
   auto name = str(fbb_, config().id);
   fbs::ZdbBuilder fbb{fbb_};
-  fbb.add_path(path);
-  fbb.add_name(name);
+  if (!update) {
+    fbb.add_path(path);
+    fbb.add_name(name);
+  }
   fbb.add_minRN(m_minRN);
   fbb.add_nextRN(m_nextRN);
   {
@@ -1241,24 +1254,26 @@ Zfb::Offset<ZvTelemetry::fbs::Zdb> DB::telemetry(IOBuilder &fbb_)
     m_cache->stats(stats);
     fbb.add_cacheLoads(stats.loads);
     fbb.add_cacheMisses(stats.misses);
-    fbb.add_cacheSize(stats.size);
+    if (!update) fbb.add_cacheSize(stats.size);
   }
   {
     FileCache::Stats stats;
     m_files->stats(stats);
     fbb.add_fileLoads(stats.loads);
     fbb.add_fileMisses(stats.misses);
-    fbb.add_fileCacheSize(stats.size);
+    if (!update) fbb.add_fileCacheSize(stats.size);
   }
   {
     IndexBlkCache::Stats stats;
     m_indexBlks->stats(stats);
     fbb.add_indexBlkLoads(stats.loads);
     fbb.add_indexBlkMisses(stats.misses);
-    fbb.add_indexBlkCacheSize(stats.size);
+    if (!update) fbb.add_indexBlkCacheSize(stats.size);
   }
-  fbb.add_cacheMode(config().cacheMode);
-  fbb.add_warmUp(config().warmUp);
+  if (!update) {
+    fbb.add_cacheMode(config().cacheMode);
+    fbb.add_warmUp(config().warmUp);
+  }
   return fbb.Finish();
 }
 

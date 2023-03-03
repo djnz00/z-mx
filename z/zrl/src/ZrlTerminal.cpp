@@ -189,7 +189,7 @@ void Terminal::start(StartFn startFn, KeyFn keyFn) // async
   Guard guard(m_lock);
   m_sched->wakeFn(m_thread,
       ZmFn<>{this, [](Terminal *this_) { this_->wake(); }});
-  m_sched->enqueue(m_thread,
+  m_sched->push(m_thread,
       [this, startFn = ZuMv(startFn), keyFn = ZuMv(keyFn)]() mutable {
 	start_();
 	StartFn{ZuMv(startFn)}();
@@ -888,7 +888,7 @@ void Terminal::wake_()
 #ifndef _WIN32
 void Terminal::sigwinch()
 {
-  m_sched->run(m_thread, [this]() { resized(); });
+  run([this]() { resized(); });
 }
 #endif
 

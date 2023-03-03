@@ -1912,11 +1912,13 @@ private:
 
 friend ZmShard;
   template <typename ...Args>
-  void run(unsigned tid, Args &&... args)
-    { m_scheduler->run(tid, ZuFwd<Args>(args)...); }
+  void run(unsigned tid, Args &&... args) {
+    m_scheduler->run(tid, ZuFwd<Args>(args)...);
+  }
   template <typename ...Args>
-  void invoke(unsigned tid, Args &&... args)
-    { m_scheduler->invoke(tid, ZuFwd<Args>(args)...); }
+  void invoke(unsigned tid, Args &&... args) {
+    m_scheduler->invoke(tid, ZuFwd<Args>(args)...);
+  }
 
   typedef ZtArray<ZuRef<MxMDShard> > Shards;
 

@@ -272,6 +272,10 @@ friend TLS;
   using User = ZvUserDB::User;
   using TelServer = ZvTelemetry::Server<App, Link>;
 
+  using TelServer::run;
+  using TelServer::invoked;
+  using TelServer::invoke;
+
   enum { OutBufSize = 8000 }; // initial TLS buffer size
 
   struct UserDB : public ZuObject, public ZvUserDB::Mgr {
