@@ -1438,6 +1438,8 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
 inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
+template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
+template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
 class ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
 public:
   ZtHexDump() = delete;
@@ -1446,9 +1448,10 @@ public:
       m_prefix{prefix}, m_length{data.length() * sizeof(T)} {
     init_(reinterpret_cast<const uint8_t *>(data.data()));
   }
+public:
   template <typename T>
   ZtHexDump(ZuString prefix, const T *data, unsigned length) :
-      m_prefix{prefix}, m_length{length * sizeof(T)} {
+      m_prefix{prefix}, m_length{length * ZtHexDump_Size<T>::N} {
     init_(reinterpret_cast<const uint8_t *>(data));
   }
   ~ZtHexDump() {

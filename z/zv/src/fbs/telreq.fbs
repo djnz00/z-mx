@@ -7,7 +7,7 @@ enum ReqType:uint8 {
   Mx,
   Queue,
   Engine,
-  DBEnv,
+  ZdbEnv,
   App,
   Alert
 }

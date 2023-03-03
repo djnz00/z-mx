@@ -251,7 +251,7 @@ namespace Save {
     int n = v.last();
     if (ZuUnlikely(n <= 0)) return CreateBitmap(b);
     n = (n>>6) + 1;
-    return CreateBitmap(b, pvectorIter<uint64_t>(n, [&v](unsigned i) {
+    return CreateBitmap(b, pvectorIter<uint64_t>(b, n, [&v](unsigned i) {
       return hwloc_bitmap_to_ith_ulong(v, i);
     }));
   }

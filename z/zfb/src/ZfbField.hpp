@@ -121,8 +121,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using FBType = ZfbType<O>; \
     enum { Inline = 0 }; \
     static Zfb::Offset<void> save(Zfb::Builder &fbb, const O &o) { \
-      using namespace Zfb::Save; \
-      return SaveFn(fbb, Base::get(o)).Union(); \
+      return Zfb::Save::SaveFn(fbb, Base::get(o)).Union(); \
     } \
     template <typename Builder_> \
     static void save(Builder_ &fbb, Zfb::Offset<void> offset) { \
@@ -130,8 +129,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
-      using namespace Zfb::Load; \
-      return LoadFn(fbo->ID()); \
+      return Zfb::Load::LoadFn(fbo->ID()); \
     } \
     static void load(O &, const FBType *) { } \
   }; \
@@ -158,15 +156,13 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     enum { Inline = 1 }; \
     template <typename Builder_> \
     static void save(Builder_ &fbb, const O &o) { \
-      using namespace Zfb::Save; \
-      auto v = SaveFn(Base::get(o)); \
+      auto v = Zfb::Save::SaveFn(Base::get(o)); \
       fbb.add_##ID(&v); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
-      using namespace Zfb::Load; \
       auto v = fbo->ID(); \
-      return LoadFn(v); \
+      return Zfb::Load::LoadFn(v); \
     } \
     static void load(O &, const FBType *) { } \
   }; \

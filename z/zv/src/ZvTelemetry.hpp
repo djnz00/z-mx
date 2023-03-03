@@ -439,7 +439,7 @@ ZfbFields(Zdb, fbs::Zdb,
 //   id, priority, state, voted, ip, port
 struct ZdbHost {
   ZiIP		ip;
-  ZuID		id = 0;
+  ZuID		id;
   uint32_t	priority = 0;
   uint16_t	port = 0;
   int8_t	state = 0;// RAG: Instantiated - Red; Active - Green; * - Amber
@@ -476,7 +476,7 @@ struct ZdbEnv {
   uint32_t	heartbeatTimeout = 0;
   uint32_t	reconnectFreq = 0;
   uint32_t	electionTimeout = 0;
-  uint16_t	nZdbs = 0;
+  uint16_t	nDBs = 0;
   uint8_t	nHosts = 0;
   uint8_t	nPeers = 0;
   int8_t	state = -1;		// same as hosts[hostID].state

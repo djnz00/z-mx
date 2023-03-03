@@ -345,7 +345,7 @@ public:
     ZmRef<ZvAnyTxPool> txPool;
     if (txPool = m_txPools.delVal(id)) {
       guard.unlock();
-      mgrDelQueue(id, 1);
+      mgrDelQueue(ZvQueueType::Tx, id);
     }
     return txPool;
   }
@@ -395,8 +395,8 @@ public:
     ZmRef<ZvAnyLink> link;
     if (link = m_links.delVal(id)) {
       guard.unlock();
-      mgrDelQueue(id, 0);
-      mgrDelQueue(id, 1);
+      mgrDelQueue(ZvQueueType::Rx, id);
+      mgrDelQueue(ZvQueueType::Tx, id);
       link->deleted_();	// calls linkState(), mgrUpdLink()
     }
     return link;
