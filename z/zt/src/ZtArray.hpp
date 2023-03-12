@@ -54,7 +54,6 @@
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuEquivChar.hpp>
-#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmVHeap.hpp>
@@ -1479,7 +1478,7 @@ public:
   }
 private:
   static unsigned grow_(unsigned o, unsigned n) {
-    return ZuGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
+    return ZmGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
   }
 
 public:

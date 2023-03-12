@@ -44,7 +44,6 @@
 #include <zlib/ZiLib.hpp>
 #endif
 
-#include <zlib/ZuGrow.hpp>
 #include <zlib/ZuPrint.hpp>
 
 #include <zlib/ZmPolymorph.hpp>
@@ -96,8 +95,8 @@ public:
 
   ZiIOVBuf(const ZiIOVBuf &buf) : owner{buf.owner} {
     if (auto data = alloc(buf.length)) {
-      memcpy(data, buf.data(), length = buf.length);
       skip = buf.skip;
+      memcpy(data + skip, buf.data() + skip, (length = buf.length) - skip);
     }
   }
   ZiIOVBuf &operator =(const ZiIOVBuf &buf) {
@@ -115,8 +114,9 @@ public:
       buf.length = 0;
       buf.jumbo = nullptr;
       buf.skip = 0;
-    } else
-      memcpy(data_, buf.data_, length);
+    } else {
+      memcpy(data_ + skip, buf.data_ + skip, length - skip);
+    }
   }
   ZiIOVBuf &operator =(ZiIOVBuf &&buf) {
     this->~ZiIOVBuf();
@@ -159,17 +159,20 @@ public:
   }
 
   template <typename T>
-  const T &as() const { return *reinterpret_cast<const T *>(data()); }
+  const T *ptr() const { return reinterpret_cast<const T *>(data()); }
   template <typename T>
-  T &as() { return *reinterpret_cast<T *>(data()); }
+  T *ptr() { return reinterpret_cast<T *>(data()); }
+
+  template <typename T>
+  const T &as() const { return *ptr(); }
+  template <typename T>
+  T &as() { return *ptr(); }
 
   // reallocate (while building buffer), preserving head and tail bytes
-  template <typename Grow>
+  template <auto Grow = ZmGrow>
   uint8_t *realloc(
       unsigned oldSize, unsigned newSize,
-      unsigned head, unsigned tail,
-      Grow grow = [](unsigned o, unsigned n) { return ZuGrow(o, n); })
-  {
+      unsigned head, unsigned tail) {
     if (ZuLikely(newSize <= Size)) {
       if (tail) memmove(data_ + newSize - tail, data_ + oldSize - tail, tail);
       size = newSize;
@@ -180,7 +183,7 @@ public:
       size = newSize;
       return jumbo;
     }
-    newSize = grow(size, newSize);
+    newSize = Grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
     jumbo = static_cast<uint8_t *>(valloc(newSize));
     if (ZuLikely(jumbo)) {
@@ -194,24 +197,60 @@ public:
   }
 
   // ensure at least newSize bytes in buffer, preserving any existing data
+  template <auto Grow = ZmGrow>
   uint8_t *ensure(unsigned newSize) {
-    return
-      ensure(newSize, [](unsigned o, unsigned n) { return ZuGrow(o, n); });
-  }
-  template <typename Grow>
-  uint8_t *ensure(unsigned newSize, Grow grow) {
     if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
     if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
-    newSize = grow(size, newSize);
+    newSize = Grow(size, newSize);
     uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
     jumbo = static_cast<uint8_t *>(valloc(newSize));
-    if (ZuLikely(jumbo)) {
-      if (length) memcpy(jumbo, old, length);
-      size = newSize;
-    } else
-      length = size = 0;
+    if (ZuUnlikely(!jumbo)) return nullptr;
+    if (length) memcpy(jumbo + skip, old + skip, length - skip);
+    size = newSize;
     if (ZuUnlikely(old != data_)) vfree(old);
     return jumbo;
+  }
+
+  template <auto Grow = ZmGrow>
+  uint8_t *ensure(unsigned newSize) {
+    ZmAssert(!skip);
+    if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
+    if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
+    newSize = Grow(size, newSize);
+    uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
+    jumbo = static_cast<uint8_t *>(valloc(newSize));
+    if (ZuUnlikely(!jumbo)) return nullptr;
+    if (length) memcpy(jumbo, old, length);
+    size = newSize;
+    if (ZuUnlikely(old != data_)) vfree(old);
+    return jumbo;
+  }
+
+  template <auto Grow = ZmGrow>
+  uint8_t *prepend(unsigned length_) {
+    ZmAssert(size == length);
+    if (ZuLikely(skip >= length_)) {
+      skip -= length_;
+      return data() + skip;
+    }
+    auto newSize = length + length_;
+    if (ZuLikely(newSize <= Size)) {
+      auto newSkip = skip + (Size - size);
+      memmove(data_ + newSkip + length_, data_ + skip, length - skip);
+      length = size = Size;
+      skip = newSkip;
+      return data_ + skip;
+    }
+    newSize = Grow(size, newSize);
+    uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
+    jumbo = static_cast<uint8_t *>(valloc(newSize));
+    if (ZuUnlikely(!jumbo)) return nullptr;
+    auto newSkip = skip + (newSize - size);
+    if (length) memcpy(jumbo + newSkip + length_, old + skip, length - skip);
+    length = size = newSize;
+    skip = newSkip;
+    if (ZuUnlikely(old != data_)) vfree(old);
+    return jumbo + skip;
   }
 
 private:
@@ -317,11 +356,10 @@ struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
   ZiIOBuf_(ZiIOBuf_ &&) = delete;
   ZiIOBuf_ &operator =(ZiIOBuf_ &&) = delete;
 };
-template <unsigned Size>
-using ZiIOBuf_Heap =
-  ZmHeap<ZiIOBuf_HeapID, sizeof(ZiIOBuf_<Size, ZuNull, ZiIOBuf_HeapID>)>;
+template <unsigned Size, auto HeapID>
+using ZiIOBuf_Heap = ZmHeap<HeapID, sizeof(ZiIOBuf_<Size, ZuNull, HeapID>)>;
  
-template <unsigned Size = ZiIOBuf_DefaultSize>
-using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size>, ZiIOBuf_HeapID>;
+template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
+using ZiIOBuf = ZiIOBuf_<Size, ZiIOBuf_Heap<Size, HeapID>, HeapID>;
 
 #endif /* ZiIOBuf_HPP */

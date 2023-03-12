@@ -37,7 +37,6 @@
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuInt.hpp>
-#include <zlib/ZuGrow.hpp>
 #include <zlib/ZuBitmap.hpp>
 
 #include <zlib/ZmAssert.hpp>
@@ -182,9 +181,11 @@ struct Hdr {
 template <typename Builder, typename Owner>
 inline auto saveHdr(Builder &fbb, Owner *owner) {
   unsigned length = fbb.GetSize();
-  new (Zfb::Save::extend(fbb, sizeof(Hdr))) Hdr{length};
   auto buf = fbb.buf();
   buf->owner = owner;
+  auto ptr = buf->prepend(sizeof(Hdr));
+  if (ZuUnlikely(!ptr)) return nullptr;
+  new (ptr) Hdr{length};
   return buf;
 }
 template <typename Builder>
@@ -196,14 +197,14 @@ inline auto saveHdr(Builder &fbb) {
 template <typename Buf>
 inline int loadHdr(const Buf *buf) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return INT_MAX;
-  auto hdr = buf->hdr();
+  auto hdr = buf->ptr<Hdr>();
   return sizeof(Hdr) + static_cast<uint32_t>(hdr->length);
 }
 // returns -1 if the header is invalid/corrupted, or lambda return
 template <typename Buf, typename Fn>
 inline int verifyHdr(const Buf *buf, Fn fn) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
-  auto hdr = buf->hdr();
+  auto hdr = buf->ptr<Hdr>();
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
   int i = fn(hdr, buf);
@@ -215,7 +216,7 @@ inline ZuArray<uint8_t> msgData(const Hdr *hdr) {
   if (ZuUnlikely(!hdr)) return {};
   return {
     reinterpret_cast<const uint8_t *>(hdr),
-    static_cast<unsigned>(hdr->length) + sizeof(Hdr)};
+    static_cast<unsigned>(sizeof(Hdr) + hdr->length)};
 }
 
 inline const fbs::Msg *msg(const Hdr *hdr) {
@@ -524,47 +525,48 @@ private:
   unsigned	m_indexOff = 0;
 };
 
-// buffer cache
-using Buf__ = ZiIOVBuf<ZuGrow(0, 1), Buf_HeapID>;
-class ZdbAPI Buf_ : public Buf__ {
-  using Base = ZiIOVBuf<ZuGrow(0, 1), Buf_HeapID>;
+inline constexpr unsigned BuiltinSize() {
+  enum { CacheLineSize = Zm::CacheLineSize };
+  enum { N = sizeof(ZiIOBuf<0, Buf_HeapID>) }; // ZiIOBuf overhead
+  // take overhead rounded up to cache line size, multiply by 4,
+  // subtract overhead, and use that as the built-in buffer size
+  return (((N + CacheLineSize) & ~(CacheLineSize - 1))<<2) - N;
+};
+using Buf = ZiIOBuf<BuiltinSize(), Buf_HeapID>;
+using IOBuilder = Zfb::IOBuilder<Buf>;
 
+// replication buffer cache
+class ZdbAPI RepBuf_ : public Buf {
 public:
-  Buf_() = default;
-  Buf_(const Buf_ &) = default;
-  Buf_ &operator =(const Buf_ &) = default;
-  Buf_(Buf_ &&) = default;
-  Buf_ &operator =(Buf_ &&) = default;
+  RepBuf_() = default;
+  RepBuf_(const RepBuf_ &) = default;
+  RepBuf_ &operator =(const RepBuf_ &) = default;
+  RepBuf_(RepBuf_ &&) = default;
+  RepBuf_ &operator =(RepBuf_ &&) = default;
   template <typename ...Args>
-  Buf_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  RepBuf_(Args &&... args) : Buf{ZuFwd<Args>(args)...} { }
   template <typename Arg>
-  Buf_ &operator =(Arg &&arg) {
-    return static_cast<Buf_ &>(Base::operator =(ZuFwd<Arg>(arg)));
+  RepBuf_ &operator =(Arg &&arg) {
+    return static_cast<RepBuf_ &>(Buf::operator =(ZuFwd<Arg>(arg)));
   }
 
   DB *db() const { return static_cast<DB *>(owner); }
 
   using Buf__::data;
 
-  const Hdr *hdr() const { return reinterpret_cast<const Hdr *>(data()); }
-
-  static RN RNAxor(const Buf_ &buf) { return record_(msg_(buf.hdr()))->rn(); }
-
-  void send(ZiIOContext &);
-  void sent(ZiIOContext &);
-
-  template <typename S> void print(S &s) const;
-
-  friend ZuPrintFn ZuPrintType(Buf *);
+  static RN RNAxor(const Buf_ &buf) {
+    return record_(msg_(buf.ptr<Hdr>()))->rn();
+  }
 };
-inline const char *BufHeapID() { return "Zdb::Buf"; }
-using Buffers =
-  ZmHash<Buf_,
-    ZmHashNode<Buf_,
-      ZmHashKey<Buf_::RNAxor,
+inline const char *RepBufHeapID() { return "Zdb::RepBuf"; }
+using RepBufs =
+  ZmHash<RepBuf_,
+    ZmHashNode<RepBuf_,
+      ZmHashKey<RepBuf_::RNAxor,
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<BufHeapID>>>>>;
-using Buf = Buffers::Node;
+using RepBuf = RepBufs::Node;
+using RepBuilder = Zfb::IOBuilder<RepBuf>;
 
 using EnvState_ = ZmLHashKV<ZuID, RN, ZmLHashLocal<>>;
 struct EnvState : public EnvState_ {
@@ -694,42 +696,44 @@ struct EnvState_Print : public ZuPrintDelegate {
 };
 EnvState_Print ZuPrintType(EnvState *);
 
-template <typename S>
-void Buf::print(S &s) const
-{
-  auto msg = Zdb_::msg(hdr());
-  if (!msg) {
-    s << "corrupt{}";
-    return;
+struct Buf_Print : public ZuPrintDelegate {
+  template <typename S>
+  static void print(S &s, const Buf &buf) {
+    auto msg = Zdb_::msg(buf->ptr<Hdr>());
+    if (!msg) {
+      s << "corrupt{}";
+      return;
+    }
+    if (auto hb = Zdb_::hb(msg)) {
+      auto id = Zfb::Load::id(hb->host());
+      s << "heartbeat{host=" << id <<
+	" state=" << HostState::name(hb->state()) <<
+	" envState=" << EnvState{hb->envState()} << "}";
+      return;
+    }
+    if (auto record = Zdb_::record(msg)) {
+      auto id = Zfb::Load::id(record->db());
+      auto seqLenOp = record->seqLenOp();
+      auto data = Zfb::Load::bytes(record->data());
+      s << "record{db=" << id <<
+	" RN=" << record->rn() <<
+	" prevRN=" << record->prevRN() <<
+	" seqLen=" << SeqLenOp::seqLen(seqLenOp) <<
+	" op=" << Op::name(SeqLenOp::op(seqLenOp)) <<
+	ZtHexDump("}\n", data.data(), data.length());
+      return;
+    }
+    if (auto gap = Zdb_::gap(msg)) {
+      auto id = Zfb::Load::id(gap->db());
+      s << "gap{db=" << id <<
+	" RN=" << gap->rn() <<
+	" count=" << gap->count() << "}";
+      return;
+    }
+    s << "unknown{}";
   }
-  if (auto hb = Zdb_::hb(msg)) {
-    auto id = Zfb::Load::id(hb->host());
-    s << "heartbeat{host=" << id <<
-      " state=" << HostState::name(hb->state()) <<
-      " envState=" << EnvState{hb->envState()} << "}";
-    return;
-  }
-  if (auto record = Zdb_::record(msg)) {
-    auto id = Zfb::Load::id(record->db());
-    auto seqLenOp = record->seqLenOp();
-    auto data = Zfb::Load::bytes(record->data());
-    s << "record{db=" << id <<
-      " RN=" << record->rn() <<
-      " prevRN=" << record->prevRN() <<
-      " seqLen=" << SeqLenOp::seqLen(seqLenOp) <<
-      " op=" << Op::name(SeqLenOp::op(seqLenOp)) <<
-      ZtHexDump("}\n", data.data(), data.length());
-    return;
-  }
-  if (auto gap = Zdb_::gap(msg)) {
-    auto id = Zfb::Load::id(gap->db());
-    s << "gap{db=" << id <<
-      " RN=" << gap->rn() <<
-      " count=" << gap->count() << "}";
-    return;
-  }
-  s << "unknown{}";
-}
+};
+Buf_Print ZuPrintType(Buf *);
 
 // object cache
 
@@ -752,6 +756,7 @@ public:
   SeqLen seqLen() const { return SeqLenOp::seqLen(m_seqLenOp); }
   int op() const { return SeqLenOp::op(m_seqLenOp); }
   bool deleted() const { return op() == Op::Delete; }
+  bool committed() const { return m_committed; }
 
   ZmRef<Buf> replicate(int type);
 
@@ -768,22 +773,39 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 private:
-  void init(RN rn) { m_rn = rn; }
-  void load(RN rn, RN prevRN, SeqLen seqLenOp) {
-    using namespace Zdb_;
+  void init(RN rn, RN prevRN, SeqLen seqLenOp) {
     m_rn = rn;
     m_prevRN = prevRN;
     m_seqLenOp = seqLenOp;
   }
 
-  void push(RN rn) { m_origRN = m_rn; m_rn = rn; }
-  void commit(int op) {
-    using namespace Zdb_;
-    m_prevRN = m_origRN;
-    m_origRN = nullRN();
-    m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
+  void push(RN rn) {
+    m_rn = rn;
+    m_committed = false;
   }
-  void abort() { m_rn = m_origRN; m_origRN = nullRN(); }
+  bool update(RN rn) {
+    if (ZuUnlikely(!m_committed)) return false;
+    m_origRN = m_rn;
+    m_rn = rn;
+    m_committed = false;
+    return true;
+  }
+  void commit(int op) { // idempotent
+    if (ZuLikely(!m_committed)) {
+      using namespace Zdb_;
+      m_prevRN = m_origRN;
+      m_origRN = nullRN();
+      m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
+      m_committed = true;
+    }
+  }
+  void abort() { // idempotent
+    if (ZuLikely(!m_committed)) {
+      m_rn = m_origRN;
+      m_origRN = nullRN();
+      m_committed = true;
+    }
+  }
 
   void put() {
     using namespace Zdb_;
@@ -793,16 +815,17 @@ private:
   DB		*m_db;
   RN		m_rn = nullRN();
   RN		m_prevRN = nullRN();
-  RN		m_origRN = nullRN();	// RN backup before put()
+  RN		m_origRN = nullRN();	// RN backup before commit() / abort()
   SeqLen	m_seqLenOp = 0;
+  bool		m_committed = true;
 };
 const char *ObjectHeapID() { return "Zdb.Object"; }
-using ObjectCache =
+using ObjCache =
   ZmCache<AnyObject_
     ZmCacheNode<AnyObject_
       ZmCacheKey<AnyObject_::RNAxor,
 	ZmCacheHeapID<ObjectHeapID>>>>;
-using AnyObject = ObjectCache::Node;
+using AnyObject = ObjCache::Node;
 
 template <typename T>
 class Object : public AnyObject {
@@ -901,7 +924,8 @@ struct DBCf {
   ZmThreadName		fileThread;	// file I/O thread
   mutable unsigned	fileSID = 0;	// file I/O thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
-  unsigned		vacuumBatch = 1000;
+  // FIXME - cache sizes, including buffer cache size
+  unsigned		vacuumBatch = 0;
   bool			warmUp = false;	// pre-write initial DB file
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
@@ -912,7 +936,7 @@ struct DBCf {
     fileThread = cf->get("fileThread");
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", false, ZdbCacheMode::Normal);
-    vacuumBatch = cf->getInt("vacuumBatch", 1, 100000, false, 1000);
+    vacuumBatch = cf->getInt("vacuumBatch", 1, 100000, false, 0);
     warmUp = cf->getInt("warmUp", 0, 1, false, 0);
     repMode = cf->getInt("repMode", 0, 1, false, 0);
   }
@@ -1000,12 +1024,13 @@ public:
   // create new record (idempotent)
   ZmRef<AnyObject> push(RN rn);
 
+  using GetFn = typename ObjCache::FindFn;
+
 private:
-  template <bool UpdateLRU>
+  template <bool UpdateLRU, bool Evict>
   ZmRef<AnyObject> get_(RN, GetFn);
 public:
   // get record
-  using GetFn = typename ObjectCache::FindFn;
   ZmRef<AnyObject> get(RN rn, GetFn fn);
   // use getUpdate() if a call to update() potentially follows
   ZmRef<AnyObject> getUpdate(RN rn, GetFn fn);
@@ -1015,9 +1040,9 @@ public:
   // update record (idempotent) - returns true if update can proceed
   bool update(AnyObject *object, RN rn);
   // update record (with prevRN, without object)
-  ZmRef<AnyObject> update(RN prevRN);
+  ZmRef<AnyObject> update(RN prevRN, GetFn fn);
   // update record (idempotent) (with prevRN, without object)
-  ZmRef<AnyObject> update(RN prevRN, RN rn);
+  ZmRef<AnyObject> update(RN prevRN, RN rn, GetFn fn);
 
   // commit push() /update() - causes replication / write
   void put(AnyObject *);
@@ -1033,15 +1058,11 @@ public:
 
 private:
   Zfb::Offset<ZvTelemetry::fbs::Zdb>
-  telemetry(IOBuilder &, bool update) const;
-
-  // push initial record
-  ZmRef<AnyObject> push_();
-  // idempotent push
-  ZmRef<AnyObject> push_(RN rn);
+  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
 
   // low-level get, does not filter deleted records
-  ZmRef<AnyObject> get__(RN rn);
+  template <bool UpdateLRU, bool Evict>
+  ZmRef<AnyObject> get_(RN rn);
 
   // load object from buffer
   ZmRef<AnyObject> load(const fbs::Record *record);
@@ -1052,10 +1073,10 @@ private:
   void repRecord(ZmRef<Buf> buf);
   void repGap(ZmRef<Buf> buf);
 
-  // forward replication data
-  ZmRef<Buf> replicateFwd(const Buf *buf);
-  // prepare recovery data for sending
-  ZmRef<Buf> recovery(RN rn);
+  // recovery
+  void recover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
+  void fileRecover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
+  ZmRef<Buf> recover_(RN rn);
   ZmRef<Buf> gap(RN rn, uint64_t count);
 
   // transition to standalone, trigger vacuuming
@@ -1089,7 +1110,7 @@ private:
   void vacuum();
   ZuPair<int, RN> del_(const DeleteOp &, unsigned maxBatchSize);
   RN del_prevRN(RN rn);
-  void del__(RN rn);
+  void del_write(RN rn);
 
   void fileRdError_(File *, ZiFile::Offset, int, ZeError e);
   void fileWrError_(File *, ZiFile::Offset, ZeError e);
@@ -1119,10 +1140,10 @@ private:
   RN			m_nextRN = 0;
 
   // object cache
-  ZmRef<ObjectCache>	m_cache;
+  ZmRef<ObjCache>	m_objCache;
 
-  // pending writes, deletes, vacuums
-  ZmRef<Buffers>	m_buffers;		// MT locked
+  // pending replications, deletes, vacuums
+  ZmRef<RepBufs>	m_repBufs;		// MT locked
   Deletes		m_deletes;		// MT locked
   RN			m_vacuumRN = nullRN();	// file thread
   uint64_t		m_lastFile = 0;		// file thread
@@ -1204,6 +1225,11 @@ public:
   bool voted() const { return m_voted; }
   int state() const { return m_state; }
 
+  bool replicating() const { return m_cxn; }
+  static bool replicating(const Host *host) {
+    return host ? host->replicating() : false;
+  }
+
   static const char *stateName(int);
 
   template <typename S> void print(S &s) const {
@@ -1219,7 +1245,7 @@ public:
 
 private:
   Zfb::Offset<ZvTelemetry::fbs::ZdbHost>
-  telemetry(IOBuilder &, bool update) const;
+  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
 
   ZmRef<Cxn> cxn() const { return m_cxn; }
 
@@ -1288,11 +1314,15 @@ using Hosts =
       ZmHashKey<Host::IDAxor,
 	ZmHashHeapID<Hosts_HeapID>>>>;
 
-class Cxn_ : public ZiConnection, public ZiRx<Cxn_, Buf> {
+class Cxn_ :
+    public ZiConnection,
+    public ZiRx<Cxn_, Buf>,
+    public ZiTx<Cxn_, Buf> {
 friend Env;
 friend Host;
 
   using Rx = ZiRx<Cxn_, Buf>;
+  using Tx = ZiTx<Cxn_>;
 
   Cxn_(Env *env, Host *host, const ZiCxnInfo &ci);
 
@@ -1354,6 +1384,7 @@ struct EnvCf {
   unsigned			heartbeatTimeout = 0;
   unsigned			reconnectFreq = 0;
   unsigned			electionTimeout = 0;
+  unsigned			vacuumBatch = 0;
   ZmHashParams			cxnHash;
 #ifdef ZdbRep_DEBUG
   bool				debug = 0;
@@ -1382,6 +1413,7 @@ struct EnvCf {
     heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, false, 4);
     reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, false, 1);
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, false, 8);
+    vacuumBatch = cf->getInt("vacuumBatch", 1, 1<<20, false, 1000);
     cxnHash.init(cf->get("cxnHash", false, "Zdb.CxnHash"));
 #ifdef ZdbRep_DEBUG
     debug = cf->getInt("debug", 0, 1, false, 0);
@@ -1493,7 +1525,7 @@ private:
   }
 
   Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>
-  telemetry(IOBuilder &, bool update) const;
+  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
 
 public:
   ZvTelemetry::ZdbEnvFn telFn();

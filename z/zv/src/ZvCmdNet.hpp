@@ -66,9 +66,19 @@ struct Hdr {
 #pragma pack(pop)
 
 // call following Finish() to ensure alignment
-inline void saveHdr(Zfb::Builder &fbb, ZuID type) {
+template <typename Builder, typename Owner>
+inline auto saveHdr(Builder &fbb, ZuID type, Owner *owner) {
   unsigned length = fbb.GetSize();
-  new (Zfb::Save::extend(fbb, sizeof(Hdr))) Hdr{type, length};
+  auto buf = fbb.buf();
+  buf->owner = owner;
+  auto ptr = buf->prepend(sizeof(Hdr));
+  if (ZuUnlikely(!ptr)) return nullptr;
+  new (ptr) Hdr{type, length};
+  return buf;
+}
+template <typename Builder>
+inline auto saveHdr(Builder &fbb, ZuID type) {
+  return saveHdr(fbb, type, static_cast<void *>(nullptr));
 }
 // returns the total length of the message including the header, or
 // INT_MAX if not enough bytes have been read yet

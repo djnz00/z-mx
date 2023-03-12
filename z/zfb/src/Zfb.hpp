@@ -38,7 +38,6 @@
 #include <zlib/ZuID.hpp>
 
 #include <zlib/ZuDecimal.hpp>
-#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmBitmap.hpp>
 #include <zlib/ZmAlloc.hpp>
@@ -101,14 +100,14 @@ protected:
     if (m_buf) m_buf->free(ptr);
   }
 
+  // override ZiIOBuf's default grow() with a pass-through because flatbuffers
+  // has it's own buffer growth algorithm in vector_downward::reallocate()
+  static unsigned grow(unsigned, unsigned n) { return n; }
   uint8_t *reallocate_downward(
       uint8_t *old_p, size_t old_size, size_t new_size,
       size_t in_use_back, size_t in_use_front) {
-    // override ZiIOBuf's default grow() with a pass-through because flatbuffers
-    // has it's own buffer growth algorithm in vector_downward::reallocate()
-    return m_buf->realloc(
-	old_size, new_size, in_use_front, in_use_back,
-	[](unsigned o, unsigned n) { return n; });
+    return m_buf->realloc<grow>(
+	old_size, new_size, in_use_front, in_use_back);
   }
 
 private:
@@ -134,23 +133,29 @@ namespace Save {
     lpush_(buf, ZuConstant<i + 1>{}, l, ZuFwd<Args>(args)...);
   }
 
+  // push uninitialized vector
+  template <typename B, typename T>
+  inline Offset<Vector<T>> pvector_(B &b, unsigned length, T *&data) {
+    return fbb.CreateUninitializedVector(
+	length, sizeof(T), AlignOf<T>(), reinterpret_cast<uint8_t **>(&data));
+  }
   // inline creation of a vector of primitive scalars
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZmAlloc(T, n);
-    if (!buf) return {};
-    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
+    T *buf = nullptr;
+    auto r = pvector_(b, n, buf);
+    if (r.IsNull() || !buf) return {};
+    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     return r;
   }
   // iterated creation of a vector of primitive values
   template <typename T, typename B, typename L>
   inline Offset<Vector<T>> pvectorIter(B &b, unsigned n, L l) {
-    auto buf = ZmAlloc(T, n);
-    if (!buf) return {};
+    T *buf = nullptr;
+    auto r = pvector_(b, n, buf);
+    if (r.IsNull() || !buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(i);
-    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
 
@@ -158,29 +163,29 @@ namespace Save {
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZmAlloc(Offset<T>, n);
-    if (!buf) return {};
-    lpush_(buf.ptr, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
+    Offset<T> *buf = nullptr;
+    auto r = pvector_(b, n, buf);
+    if (r.IsNull() || !buf) return {};
+    lpush_(buf, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
     return r;
   }
   // inline creation of a vector of non-primitive values
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZmAlloc(Offset<T>, n);
-    if (!buf) return {};
-    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
+    Offset<T> *buf = nullptr;
+    auto r = pvector_(b, n, buf);
+    if (r.IsNull() || !buf) return {};
+    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
     return r;
   }
   // iterated creation of a vector of non-primitive values
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
-    auto buf = ZmAlloc(Offset<T>, n);
-    if (!buf) return {};
+    Offset<T> *buf = nullptr;
+    auto r = pvector_(b, n, buf);
+    if (r.IsNull() || !buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
 
@@ -283,19 +288,6 @@ namespace Save {
   // save file
   ZfbExtern int save(
       const Zi::Path &path, Builder &fbb, unsigned mode, ZeError *e);
-
-  // push uninitialized space
-  inline uint8_t *extend(Builder &fbb, unsigned length) {
-    uint8_t *data;
-    fbb.CreateUninitializedVector(length, &data);
-    return data;
-  }
-  inline uint8_t *extend(Builder &fbb, unsigned length,
-      Offset<Vector<uint8_t>> &offset) {
-    uint8_t *data;
-    offset = fbb.CreateUninitializedVector(length, &data);
-    return data;
-  }
 
   // nest flatbuffer
   template <typename L>

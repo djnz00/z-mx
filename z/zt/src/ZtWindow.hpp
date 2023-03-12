@@ -66,7 +66,7 @@ public:
     unsigned o = m_data.length();
     if (j >= o) {
       unsigned n = j + 1;
-      n = ZuGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
+      n = ZmGrow(o * sizeof(T), n * sizeof(T)) / sizeof(T);
       if (n > m_max) n = m_max;
       m_data.length(n);
     }

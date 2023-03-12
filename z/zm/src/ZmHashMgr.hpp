@@ -38,13 +38,10 @@
 
 class ZmHashParams {
 public:
-  ZmHashParams() : m_bits{8}, m_loadFactor{1.0}, m_cBits{5} { }
-  ZmHashParams(ZuString id) : m_bits{8}, m_loadFactor{1.0}, m_cBits{5} {
-    init(id);
-  }
+  ZmHashParams() { }
+  ZmHashParams(ZuString id) { init(id); }
   ZmHashParams(uint32_t size) :
-	m_bits{size <= 8 ? 3 : (32U - __builtin_clz(size - 1))},
-	m_loadFactor{1.0}, m_cBits{5} { }
+	m_bits{size <= 8 ? 3 : (32U - __builtin_clz(size - 1))} { }
 
   const ZmHashParams &init(ZuString id);
 
@@ -57,9 +54,9 @@ public:
   unsigned cBits() const { return m_cBits; }
 
 private:
-  unsigned	m_bits;
-  double	m_loadFactor;
-  unsigned	m_cBits;
+  unsigned	m_bits = 8;
+  double	m_loadFactor = 1.0;
+  unsigned	m_cBits = 5;
 };
 
 // display sequence:

@@ -156,8 +156,7 @@ private:
 	    m_fbb.CreateVector(m_user->perms.data, Bitmap::Words),
 	    m_user->flags, 1));
     }
-    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::login());
-    this->send_(m_fbb.buf());
+    this->send_(ZvCmd::saveHdr(m_fbb, ZvCmd::Type::login()));
     m_state = State::Up;
     return len;
   }
@@ -172,8 +171,7 @@ private:
     this->app()->processUserDB(
 	impl(), m_user, m_interactive, fbs::GetRequest(data));
     if (m_fbb.GetSize()) { // synchronous response
-      ZvCmd::saveHdr(m_fbb, ZvCmd::Type::userDB());
-      this->send_(m_fbb.buf());
+      this->send_(ZvCmd::saveHdr(m_fbb, ZvCmd::Type::userDB()));
     }
     return len;
   }
@@ -187,8 +185,7 @@ private:
     }
     this->app()->processCmd(impl(), m_user, m_interactive,
 	fbs::GetRequest(data));
-    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::cmd());
-    this->send_(m_fbb.buf());
+    this->send_(ZvCmd::saveHdr(m_fbb, ZvCmd::Type::cmd()));
     return len;
   }
   int processTelReq(const uint8_t *data, unsigned len) {
@@ -201,8 +198,7 @@ private:
     }
     this->app()->processTelReq(
 	impl(), m_user, m_interactive, fbs::GetRequest(data));
-    ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telReq());
-    this->send_(m_fbb.buf());
+    this->send_(ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telReq()));
     return len;
   }
 

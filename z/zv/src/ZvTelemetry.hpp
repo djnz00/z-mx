@@ -400,7 +400,7 @@ struct Zdb {
   uint64_t	fileMisses = 0;		// dynamic
   uint64_t	indexBlkLoads = 0;	// dynamic
   uint64_t	indexBlkMisses = 0;	// dynamic
-  uint32_t	cacheSize = 0;
+  uint32_t	objCacheSize = 0;
   uint32_t	fileCacheSize = 0;
   uint32_t	indexBlkCacheSize = 0;
   int8_t	cacheMode = -1;		// ZdbCacheMode
@@ -420,7 +420,7 @@ struct Zdb {
 ZfbFields(Zdb, fbs::Zdb,
     (((name), (0)), (String), (Ctor(1))),
     (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor(13))),
-    (((cacheSize)), (Int), (Ctor(10))),
+    (((objCacheSize)), (Int), (Ctor(10))),
     (((path)), (String), (Ctor(0))),
     (((fileCacheSize)), (Int), (Ctor(11))),
     (((indexBlkCacheSize)), (Int), (Ctor(12))),

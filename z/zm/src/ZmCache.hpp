@@ -150,9 +150,27 @@ public:
     bool UpdateLRU = Evict, bool Evict_ = Evict,
     typename Key, typename LoadFn>
   NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn) {
-    return find(
-	key, ZuMv(loadFn), ZuMv(findFn),
-	[]<typename NodeMvRef>(NodeMvRef) { });
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    ++m_misses;
+    typename LoadHash::Node *load = m_loadHash->find(key);
+    bool pending = !!load;
+    if (!pending)
+      m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
+    load->val().push(ZuMv(findFn));
+    guard.unlock();
+    if (!pending)
+      loadFn(key, [this](NodeRef node) {
+	Guard guard{m_lock};
+	if (ZuLikely(node)) add_(node);
+	if (auto load = m_loadHash->del(node->key())) {
+	  guard.unlock();
+	  while (auto findFn = load->val().shift())
+	    findFn(node);
+	}
+      });
+    return nullptr;
   }
 
   template <
@@ -173,10 +191,12 @@ public:
       loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
 	Guard guard{m_lock};
 	if (ZuLikely(node)) {
-	  if constexpr (!Evict_)
-	    add_(node);
-	  else
-	    evictFn(add_(node));
+	  if constexpr (!Evict_ || !Evict)
+	    add_<false>(node);
+	  else {
+	    if (auto evicted = add_<true>(node))
+	      evictFn(ZuMv(evicted));
+	  }
 	}
 	if (auto load = m_loadHash->del(node->key())) {
 	  guard.unlock();
@@ -185,6 +205,35 @@ public:
 	}
       });
     return nullptr;
+  }
+
+  NodeRef add(Node *node) {
+    Guard guard{m_lock};
+    add_(ZuMv(node));
+  }
+
+  template <bool UpdateLRU = Evict, bool Evict_ = Evict, typename EvictFn>
+  NodeRef add(NodeRef node, EvictFn evictFn) {
+    Guard guard{m_lock};
+    if constexpr (!Evict_ || !Evict)
+      add_<false>(ZuMv(node));
+    else
+      if (auto evicted = add_<true>(ZuMv(node)))
+	evictFn(ZuMv(evicted));
+  }
+
+  template <typename Key>
+  NodeRef del(const Key &key) {
+    Guard guard{m_lock};
+    NodeRef node = m_hash->del(key);
+    if constexpr (Evict) if (node) m_lru.delNode(node);
+    return node;
+  }
+
+  void delNode(Node *node_) {
+    Guard guard{m_lock};
+    NodeRef node = m_hash->delNode(node_);
+    if constexpr (Evict) if (node) m_lru.delNode(node);
   }
 
 private:
@@ -199,12 +248,14 @@ private:
   }
 
   template <bool Evict_ = Evict>
-  ZuIfT<!Evict_> add_(NodeRef node) {
+  ZuIfT<!Evict_ || !Evict> add_(NodeRef node) {
+    Node *nodePtr = node;
     m_hash->addNode(ZuMv(node));
+    if constexpr (Evict) m_lru.pushNode(nodePtr);
   }
 
   template <bool Evict_ = Evict>
-  ZuIfT<Evict_, NodeRef> add_(NodeRef node) {
+  ZuIfT<Evict_ && Evict, NodeRef> add_(NodeRef node) {
     Node *nodePtr = node;
     NodeRef evicted = nullptr;
     if (m_hash->count_() >= m_size)

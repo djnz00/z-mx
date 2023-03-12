@@ -45,6 +45,13 @@ struct ZuPrintFn {
   static void print(S &s, const T &v) { v.print(s); }
 };
 
+template <auto Fn>
+struct ZuPrintLambda {
+  enum { OK = 1, String = 0, Delegate = 1, Buffer = 0 };
+  template <typename S, typename T>
+  static void print(S &s, const T &v) { Fn()(s, v); }
+};
+
 ZuPrintCannot ZuPrintType(...);
 
 template <typename U, bool = ZuConversion<ZuPrintable, U>::Base>

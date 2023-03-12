@@ -58,7 +58,6 @@
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuEquivChar.hpp>
-#include <zlib/ZuGrow.hpp>
 
 #include <zlib/ZmStream.hpp>
 #include <zlib/ZmVHeap.hpp>
@@ -77,9 +76,7 @@
 
 template <typename Char> inline const Char *ZtString_Null();
 template <> inline const char *ZtString_Null() { return ""; }
-template <> inline const wchar_t *ZtString_Null() {
-  return Zu::nullWString();
-}
+template <> inline const wchar_t *ZtString_Null() { return Zu::nullWString(); }
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -1280,7 +1277,7 @@ public:
 private:
   static unsigned grow_(unsigned o, unsigned n) {
     if (n <= BuiltinSize()) return BuiltinSize();
-    return ZuGrow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
+    return ZmGrow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
   }
 
   unsigned vsnprintf_grow(unsigned z) {

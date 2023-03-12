@@ -194,23 +194,20 @@ public:
   // send userDB request
   void sendUserDB(FBB &fbb, ZvSeqNo seqNo, ZvCmdUserDBAckFn fn) {
     using namespace ZvCmd;
-    saveHdr(fbb, Type::userDB());
     m_userDBReqs.add(seqNo, ZuMv(fn));
-    this->send(fbb.buf());
+    this->send(saveHdr(fbb, Type::userDB()));
   }
   // send command
   void sendCmd(FBB &fbb, ZvSeqNo seqNo, ZvCmdAckFn fn) {
     using namespace ZvCmd;
-    saveHdr(fbb, Type::cmd());;
     m_cmdReqs.add(seqNo, ZuMv(fn));
-    this->send(fbb.buf());
+    this->send(saveHdr(fbb, Type::cmd()));
   }
   // send telemetry request
   void sendTelReq(FBB &fbb, ZvSeqNo seqNo, ZvCmdTelAckFn fn) {
     using namespace ZvCmd;
-    saveHdr(fbb, Type::telReq());;
     m_telReqs.add(seqNo, ZuMv(fn));
-    this->send(fbb.buf());
+    this->send(saveHdr(fbb, Type::telReq()));
   }
 
   void loggedIn() { } // default
@@ -248,8 +245,7 @@ public:
 	      data.stamp,
 	      bytes(fbb, data.hmac)).Union()));
     }
-    ZvCmd::saveHdr(fbb, ZvCmd::Type::login());;
-    this->send_(fbb.buf());
+    this->send_(ZvCmd::saveHdr(fbb, ZvCmd::Type::login()));
   }
 
   void disconnected() {
