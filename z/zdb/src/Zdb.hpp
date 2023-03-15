@@ -46,9 +46,9 @@
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmSemaphore.hpp>
-#include <zlib/ZmPLock.hpp>
 #include <zlib/ZmEngine.hpp>
 #include <zlib/ZmCache.hpp>
+#include <zlib/ZmPLock.hpp>
 
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtEnum.hpp>
@@ -323,7 +323,7 @@ class Cxn;
 
 // file index block cache
 
-struct IndexBlk_ : public ZmObject {
+struct IndexBlk_ : public ZuObject {
 #pragma pack(push, 1)
   struct Index {
     uint64_t		offset;
@@ -415,7 +415,7 @@ struct FileRecTrlr {		// record trailer
 #pragma pack(pop)
 
 // file cache
-class ZdbAPI File_ : public ZmObject, public ZiFile {
+class ZdbAPI File_ : public ZuObject, public ZiFile {
   File_() = delete;
   File_(const File_ &) = delete;
   File_(File_ &&) = delete;
@@ -527,7 +527,8 @@ private:
 
 inline constexpr unsigned BuiltinSize() {
   enum { CacheLineSize = Zm::CacheLineSize };
-  enum { N = sizeof(ZiIOBuf<0, Buf_HeapID>) }; // ZiIOBuf overhead
+  enum { M = sizeof(uintptr_t) }; // minimum built-in buffer size
+  enum { N = sizeof(ZiIOBuf<M, Buf_HeapID>) - M }; // ZiIOBuf overhead
   // take overhead rounded up to cache line size, multiply by 4,
   // subtract overhead, and use that as the built-in buffer size
   return (((N + CacheLineSize) & ~(CacheLineSize - 1))<<2) - N;
@@ -824,7 +825,8 @@ using ObjCache =
   ZmCache<AnyObject_
     ZmCacheNode<AnyObject_
       ZmCacheKey<AnyObject_::RNAxor,
-	ZmCacheHeapID<ObjectHeapID>>>>;
+	ZmCacheLock<ZmPLock,
+	  ZmCacheHeapID<ObjectHeapID>>>>>;
 using AnyObject = ObjCache::Node;
 
 template <typename T>
@@ -1019,6 +1021,9 @@ public:
   // create new placeholder record (null RN, in-memory only, never in DB)
   ZmRef<AnyObject> placeholder();
 
+private:
+  ZmRef<AnyObject> DB::push_(RN rn)
+public:
   // create new record
   ZmRef<AnyObject> push();
   // create new record (idempotent)
@@ -1035,6 +1040,9 @@ public:
   // use getUpdate() if a call to update() potentially follows
   ZmRef<AnyObject> getUpdate(RN rn, GetFn fn);
 
+private:
+  bool update_(AnyObject *object, RN rn);
+public:
   // update record - returns true if update can proceed
   bool update(AnyObject *object);
   // update record (idempotent) - returns true if update can proceed
@@ -1076,7 +1084,7 @@ private:
   // recovery
   void recover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
   void fileRecover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
-  ZmRef<Buf> recover_(RN rn);
+  ZmRef<Buf> recoverBuf(RN rn);
   ZmRef<Buf> gap(RN rn, uint64_t count);
 
   // transition to standalone, trigger vacuuming
@@ -1091,21 +1099,21 @@ private:
     return fileName(dirName(id), id);
   }
 
-  FileRec rn2file(RN rn, bool write);
+  template <bool Write> FileRec rn2file(RN rn);
 
-  File *getFile(uint64_t id, bool create);
-  ZmRef<File> openFile(uint64_t id, bool create);
-  ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id, bool create);
+  template <bool Create> ZmRef<File> getFile(uint64_t id);
+  template <bool Create> ZmRef<File> openFile(uint64_t id);
+  template <bool Create>
+  ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id);
   void delFile(File *file);
   void recover(File *file);
   void recover(const FileRec &rec);
-  ZmRef<AnyObject> recover_(const fbs::Record *record);
+  ZmRef<AnyObject> recoverObj(const fbs::Record *record);
   void scan(File *file);
-  IndexBlk *getIndexBlk(File *, uint64_t id, bool create);
-  ZmRef<Buf> read_(const FileRec &);
+  template <bool Create> ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id);
+  ZmRef<Buf> readBuf(const FileRec &);
 
   void write2(ZmRef<Buf> buf);
-  bool write_(const Buf *buf);
   bool ack(RN rn);
   void vacuum();
   ZuPair<int, RN> del_(const DeleteOp &, unsigned maxBatchSize);
@@ -1137,7 +1145,7 @@ private:
 
   // RN allocator
   RN			m_minRN = maxRN();
-  RN			m_nextRN = 0;
+  ZmAtomic<RN>		m_nextRN = 0;
 
   // object cache
   ZmRef<ObjCache>	m_objCache;
@@ -1322,7 +1330,9 @@ friend Env;
 friend Host;
 
   using Rx = ZiRx<Cxn_, Buf>;
-  using Tx = ZiTx<Cxn_>;
+  using Tx = ZiTx<Cxn_, Buf>;
+
+  using Tx::send;
 
   Cxn_(Env *env, Host *host, const ZiCxnInfo &ci);
 
@@ -1343,8 +1353,6 @@ friend Host;
 
   void repRecord(ZmRef<Buf> buf);
   void repGap(ZmRef<Buf> buf);
-
-  void repSend(ZmRef<Buf> buf);
 
   void ackRcvd();
   void ackSend(int type, AnyObject *o);
@@ -1584,7 +1592,6 @@ private:
 
   void replicated(Host *host, ZuID id, RN rn);
 
-  void recSend();
   bool repSend(ZmRef<Buf> buf);
 
   void ackRcvd(Host *host, bool positive, ZuID db, RN rn);
@@ -1613,7 +1620,7 @@ private:
   Host			*m_prev = nullptr;	// previous-ranked host
   Host			*m_next = nullptr;	// next-ranked host
   ZmRef<Cxn>		m_nextCxn;		// replica peer's cxn
-  bool			m_recovering = false;	// recovering next-ranked host
+  unsigned		m_recovering = 0;	// recovering next-ranked host
   EnvState		m_recover{4};		// recovery state
   EnvState		m_recoverEnd{4};	// recovery end
   int			m_nPeers = 0;	// # up to date peers

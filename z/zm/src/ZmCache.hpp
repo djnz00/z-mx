@@ -39,7 +39,6 @@
 
 // NTP defaults
 struct ZmCache_Defaults : public ZmHash_Defaults {
-  using Lock = ZmPLock;
   static const char *HeapID() { return "ZmCache"; }
   constexpr static auto ID = HeapID;
   enum { Evict = 1 };
@@ -149,13 +148,47 @@ public:
   template <
     bool UpdateLRU = Evict, bool Evict_ = Evict,
     typename Key, typename LoadFn>
-  NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn) {
+  NodeRef find(const Key &key, LoadFn loadFn) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    ++m_misses;
+    guard.unlock();
+    return loadFn(key, [this](NodeRef node) {
+      if (ZuUnlikely(!node)) return nullptr;
+      Guard guard{m_lock};
+      add_(node);
+      return node;
+    });
+  }
+
+  template <
+    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    typename Key, typename LoadFn, typename EvictFn>
+  NodeRef find(const Key &key, LoadFn loadFn, EvictFn evictFn) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    ++m_misses;
+    guard.unlock();
+    return loadFn(key, [this](NodeRef node) {
+      if (ZuUnlikely(!node)) return nullptr;
+      Guard guard{m_lock};
+      if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
+      return node;
+    });
+  }
+
+  template <
+    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    typename Key, typename LoadFn>
+  NodeRef findAsync(const Key &key, LoadFn loadFn, FindFn findFn) {
     Guard guard{m_lock};
     ++m_loads;
     if (NodeRef node = find_<UpdateLRU>(key)) return node;
     ++m_misses;
     typename LoadHash::Node *load = m_loadHash->find(key);
-    bool pending = !!load;
+    bool pending = load;
     if (!pending)
       m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
     load->val().push(ZuMv(findFn));
@@ -166,17 +199,17 @@ public:
 	if (ZuLikely(node)) add_(node);
 	if (auto load = m_loadHash->del(node->key())) {
 	  guard.unlock();
-	  while (auto findFn = load->val().shift())
-	    findFn(node);
+	  while (auto findFn = load->val().shift()) findFn(node);
 	}
       });
     return nullptr;
   }
 
   template <
-    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    bool UpdateLRU = Evict,
     typename Key, typename LoadFn, typename EvictFn>
-  NodeRef find(const Key &key, LoadFn loadFn, FindFn findFn, EvictFn evictFn) {
+  NodeRef findAsync(
+      const Key &key, LoadFn loadFn, FindFn findFn, EvictFn evictFn) {
     Guard guard{m_lock};
     ++m_loads;
     if (NodeRef node = find_<UpdateLRU>(key)) return node;
@@ -190,14 +223,8 @@ public:
     if (!pending)
       loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
 	Guard guard{m_lock};
-	if (ZuLikely(node)) {
-	  if constexpr (!Evict_ || !Evict)
-	    add_<false>(node);
-	  else {
-	    if (auto evicted = add_<true>(node))
-	      evictFn(ZuMv(evicted));
-	  }
-	}
+	if (ZuLikely(node))
+	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
 	if (auto load = m_loadHash->del(node->key())) {
 	  guard.unlock();
 	  while (auto findFn = load->val().shift())
@@ -207,19 +234,23 @@ public:
     return nullptr;
   }
 
-  NodeRef add(Node *node) {
+  template <bool Evict_ = Evict>
+  ZuIfT<!Evict_ || !Evict> add(NodeRef node) {
     Guard guard{m_lock};
-    add_(ZuMv(node));
+    add_<false>(ZuMv(node));
   }
 
-  template <bool UpdateLRU = Evict, bool Evict_ = Evict, typename EvictFn>
+  template <bool Evict_ = Evict>
+  ZuIfT<Evict_ && Evict, NodeRef> add(NodeRef node) {
+    Guard guard{m_lock};
+    return add_<true>(ZuMv(node));
+  }
+
+  template <bool UpdateLRU = Evict, typename EvictFn>
   NodeRef add(NodeRef node, EvictFn evictFn) {
     Guard guard{m_lock};
-    if constexpr (!Evict_ || !Evict)
-      add_<false>(ZuMv(node));
-    else
-      if (auto evicted = add_<true>(ZuMv(node)))
-	evictFn(ZuMv(evicted));
+    if (auto evicted = add_<true>(ZuMv(node)))
+      evictFn(ZuMv(evicted));
   }
 
   template <typename Key>
