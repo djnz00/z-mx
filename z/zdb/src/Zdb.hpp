@@ -82,21 +82,6 @@
 //  Inactive		!Stopped
 //  Stopping		Stopping | StartPending
 
-// FIXME - NEW threading model
-//
-// env has thread
-// each db has a thread, which put, get etc. run on (and all caching etc.)
-// each db has a file thread, which serializes all reads/writes
-// get/put/etc. interface moved to async, using db thread
-// cache eviction enqueues to file thread
-// the pending write buffer cache and index block cache are the only
-//   contended data structures (shared between db thread and file thread)
-// cache miss enqueues read to file thread, avoiding need for pinning, BUT
-//   we have a parallel write blk cache for pending writes that elides
-//   waiting on the write to complete
-//   individual recs are only written once (they are immutable), so no need
-//     to provide for multiple pending writes to same rec, so blk cache
-//     indexed by RN works (since RN is also an update number)
 // index blocks are mutable, work a little differently, there could be
 //   multiple pending writes, so index block eviction/write is just a move of
 //   the index block in-memory from the main cache to the write cache;
@@ -474,6 +459,8 @@ public:
   bool sync();
   bool sync_();
 
+  bool append(ZuArray<const uint8_t>
+
   static uint64_t IDAxor(const File &file) { return file.id(); }
 
 private:
@@ -756,10 +743,9 @@ public:
   RN origRN() const { return m_origRN; }
   SeqLen seqLen() const { return SeqLenOp::seqLen(m_seqLenOp); }
   int op() const { return SeqLenOp::op(m_seqLenOp); }
-  bool deleted() const { return op() == Op::Delete; }
   bool committed() const { return m_committed; }
 
-  ZmRef<Buf> replicate(int type);
+  ZmRef<RepBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject_ *>(this)->ptr_(); }
@@ -872,8 +858,10 @@ typedef AnyObject *(*LoadFn)(DB *, const uint8_t *, unsigned);
 typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb
 typedef void (*SaveFn)(Zfb::Builder &, const void *);
-// RecoverFn(object, buf) - object recovered (added, updated, deleted)
-typedef void (*RecoverFn)(AnyObject *, const Buf *buf);
+// RecoverFn(object) - object recovered
+typedef void (*RecoverFn)(AnyObject *);
+// DeleteFn(RN) - object deleted
+typedef void (*DeleteFn)(RN);
 
 struct DBHandler {
   CtorFn	ctorFn =
@@ -884,6 +872,7 @@ struct DBHandler {
   UpdateFn	updateFn = nullptr;
   SaveFn	saveFn = nullptr;
   RecoverFn	recoverFn = nullptr;
+  DeleteFn	deleteFn = nullptr;
 
   template <typename T>
   static DBHandler bind() {
@@ -945,6 +934,12 @@ struct DBCf {
 
   static ZuID IDAxor(const DBCf &cf) { return cf.id; }
 };
+
+// Deletes is a R/B tree of pending deletes, keyed by the deletion
+// request record - the value is a DeleteOp that indicates the
+// tail RN to be deleted (can be the same as the key), and the sequence
+// length - actual deletion is lazy and progresses backwards along
+// the prevRN sequence deleting all prior records within the sequence
 
 inline const char *DeletesHeapID() { return "Zdb.Deletes"; }
 struct DeleteOp {
@@ -1023,7 +1018,7 @@ private:
 	}
       }
       fileRun([this, rn, l = ZuMv(l)]() {
-	FileRec rec = rn2file(rn, false);
+	FileRec rec = rn2file<false>(rn);
 	if (rec) buf = read(rec);
 	if (ZuLikely(buf))
 	  l(load(record_(msg_(buf->hdr()))));
@@ -1060,7 +1055,7 @@ private:
       ZmRef<AnyObject> object;
       ZmBlock<>{}([this, rn, &object](auto wake) {
 	fileInvoke([this, rn, &object, wake = ZuMv(wake)]() {
-	  FileRec rec = rn2file(rn, false);
+	  FileRec rec = rn2file<false>(rn);
 	  if (rec) buf = read(rec);
 	  if (buf) object = load(record_(msg_(buf->hdr())));
 	  wake();
@@ -1185,20 +1180,18 @@ private:
   // save object to buffer
   void save(Zfb::Builder &fbb, AnyObject *object);
 
-  // replication data rcvd (copy/commit, called while env is unlocked)
-  void repRecord(ZmRef<Buf> buf);
-  void repGap(ZmRef<Buf> buf);
+  // inbound replication
+  void repRecRcvd(ZmRef<Buf> buf);
+  void repGapRcvd(ZmRef<Buf> buf);
 
-  // recovery
+  // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
   void recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
-  void recSendBuf(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf);
+  void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf);
   ZmRef<Buf> repBuf(RN rn);
-  ZmRef<Buf> gap(RN rn, uint64_t count);
+  ZmRef<Buf> repGap(RN rn, uint64_t count);
 
-  // transition to standalone, trigger vacuuming
-  void standalone();
-
+  // immutable
   ZiFile::Path dirName(uint64_t id) const;
   ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
     return ZiFile::append(dir, ZuStringN<12>() <<
@@ -1208,6 +1201,11 @@ private:
     return fileName(dirName(id), id);
   }
 
+  // recovery - DB thread
+  void recover(ZmRef<Buf>);
+  void recover(const fbs::Record *record);
+
+  // file thread
   template <bool Write> FileRec rn2file(RN rn);
 
   template <bool Create> ZmRef<File> getFile(uint64_t id);
@@ -1216,11 +1214,9 @@ private:
   ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id);
   void delFile(File *file);
   void recover(File *file);
-  void recover(const FileRec &rec);
-  ZmRef<AnyObject> recoverObj(const fbs::Record *record);
   void scan(File *file);
   template <bool Create> ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id);
-  ZmRef<Buf> readBuf(const FileRec &);
+  ZmRef<Buf> read(const FileRec &);
 
   void write(ZmRef<Buf> buf);
   void write2(ZmRef<Buf> buf);
@@ -1233,32 +1229,22 @@ private:
   void fileRdError_(File *, ZiFile::Offset, int, ZeError e);
   void fileWrError_(File *, ZiFile::Offset, ZeError e);
 
-  void cache(AnyObject *object);
-  void cache_(AnyObject *object);
-  ZmRef<AnyObject> cacheDel_(RN rn);
-  void cacheDel_(AnyObject *object);
-
+  // immutable
   Env			*m_env;
   ZiMultiplex		*m_mx;
   const DBCf		*m_cf;
   DBHandler		m_handler;
   ZtString		m_path;
 
-  // FIXME - env has a single env thread
-  // FIXME - write thread performs all cache indexBlk/file cache eviction,
-  // allowing FileRecs to be relied on even when the DB is unlocked,
-  // and all disk I/O is performed blocking and unlocked, any eviction is
-  // enqueued on run queue
-  // FIXME - each DB can have it's own thread
-  // FIXME - all can run in parallel - use an async continuation
-  // FIXME - remove m_standalone, standalone() can run in dbThread
-
   // RN allocator
-  RN			m_minRN = maxRN();
+  ZmAtomic<RN>		m_minRN = maxRN();
   ZmAtomic<RN>		m_nextRN = 0;
 
+  // open/closed state
+  bool			m_open = false;		// DB thread
+
   // object cache
-  ZmRef<ObjCache>	m_objCache;
+  ZmRef<ObjCache>	m_objCache;		// MT locked
 
   // pending replications, deletes, vacuums
   ZmRef<RepBufs>	m_repBufs;		// MT locked
@@ -1267,10 +1253,10 @@ private:
   uint64_t		m_lastFile = 0;		// file thread
 
   // index block cache
-  ZmRef<IndexBlkCache>	m_indexBlks;
+  ZmRef<IndexBlkCache>	m_indexBlks;		// file thread
 
   // file cache
-  ZmRef<FileCache>	m_files;
+  ZmRef<FileCache>	m_files;		// file thread
 };
 
 inline const char *DBCfsHeapID() { return "Env.DBCfs"; }
@@ -1313,17 +1299,6 @@ using HostCfs =
   ZmHash<HostCf,
     ZmHashKey<HostCf::IDAxor,
       ZmHashHeapID<HostCfs_HeapID>>>;
-
-// FIXME
-// - file reads and writes are serialized via filethread
-// - allows eviction and write enqueue to be performed together (any read will follow write)
-// - eliminates problem with unstable writes
-// - removes need for write buf cache
-// - careful - any index block read must NOT be performed immediately but scheduled via fileThread to ensure pending writes complete
-
-// FIXME - all external interfaces become async, including start/stop/init etc.
-// FIXME - all classes/structs in Zdb_ namespace, with external aliases
-// used, e.g. using Host = Zdb_::Host
 
 class ZdbAPI Host {
 friend Cxn;
@@ -1461,7 +1436,7 @@ friend Host;
   void hbTimeout();
   void hbSend();
 
-  void repRecord(ZmRef<Buf> buf);
+  void repRec(ZmRef<Buf> buf);
   void repGap(ZmRef<Buf> buf);
 
   void ackRcvd();
@@ -1647,6 +1622,13 @@ public:
       if (auto db = i.iterate())
 	db->invoke([db, l = l(), wake = ZuMv(wake)]() { l(db); wake(); });
     });
+  }
+private:
+  template <typename L> void all_file(L l) const {
+    ZmAssert(invoked());
+
+    auto i = m_dbs.readIterator();
+    while (auto db = i.iterate()) db->fileInvoke([db, l = l()]() { l(db); });
   }
 
   Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>

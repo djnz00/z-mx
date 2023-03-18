@@ -96,6 +96,7 @@ public:
   using Key = typename Hash::Key;
   using Node = typename Hash::Node;
   using NodeRef = typename Hash::NodeRef;
+  using NodeMvRef = typename Hash::NodeMvRef;
 
 private:
   using FindFn = ZmFn<Node *>;
@@ -254,17 +255,18 @@ public:
   }
 
   template <typename Key>
-  NodeRef del(const Key &key) {
+  NodeMvRef del(const Key &key) {
     Guard guard{m_lock};
-    NodeRef node = m_hash->del(key);
+    NodeMvRef node = m_hash->del(key);
     if constexpr (Evict) if (node) m_lru.delNode(node);
     return node;
   }
 
-  void delNode(Node *node_) {
+  NodeMvRef delNode(Node *node_) {
     Guard guard{m_lock};
-    NodeRef node = m_hash->delNode(node_);
+    NodeMvRef node = m_hash->delNode(node_);
     if constexpr (Evict) if (node) m_lru.delNode(node);
+    return node;
   }
 
 private:
@@ -286,11 +288,11 @@ private:
   }
 
   template <bool Evict_ = Evict>
-  ZuIfT<Evict_ && Evict, NodeRef> add_(NodeRef node) {
+  ZuIfT<Evict_ && Evict, NodeMvRef> add_(NodeRef node) {
     Node *nodePtr = node;
-    NodeRef evicted = nullptr;
+    NodeMvRef evicted = nullptr;
     if (m_hash->count_() >= m_size)
-      if (evicted = static_cast<NodeRef>(m_lru.shiftNode())) {
+      if (evicted = NodeMvRef{m_lru.shiftNode()}) {
 	++m_evictions;
 	m_hash->delNode(evicted);
       }
