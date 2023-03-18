@@ -128,6 +128,7 @@ public:
   using U1 = ZuDeref<T1_>;
   using Types = ZuTypeList<T0, T1>;
   template <unsigned I> using Type = ZuType<I, Types>;
+  enum { N = 2 };
 
   template <typename T, bool> struct Bind_P0 {
     static decltype(auto) p0(const T &v) { return v.m_p0; }
@@ -322,82 +323,83 @@ auto ZuMvPair(T0 v0, T1 v1) {
   return ZuPair<T0, T1>(ZuMv(v0), ZuMv(v1));
 }
 
-namespace Zu_ {
-  template <typename ...Args> Pair_(Args...) -> Pair_<Args...>;
-}
-
 // STL structured binding cruft
 #include <type_traits>
 namespace std {
-  template <class> struct tuple_size;
-  template <typename T0, typename T1>
-  struct tuple_size<ZuPair<T0, T1>> :
-  public integral_constant<size_t, 2> { };
 
-  template <size_t, class> struct tuple_element;
-  template <typename T0, typename T1>
-  struct tuple_element<0, ZuPair<T0, T1>> { using type = T0; };
-  template <typename T0, typename T1>
-  struct tuple_element<1, ZuPair<T0, T1>> { using type = T1; };
-}
+template <class> struct tuple_size;
+template <typename T0, typename T1>
+struct tuple_size<ZuPair<T0, T1>> :
+public integral_constant<size_t, 2> { };
+
+template <size_t, class> struct tuple_element;
+template <typename T0, typename T1>
+struct tuple_element<0, ZuPair<T0, T1>> { using type = T0; };
+template <typename T0, typename T1>
+struct tuple_element<1, ZuPair<T0, T1>> { using type = T1; };
+
+} // std
+
 namespace Zu_ {
-  using size_t = std::size_t;
-  namespace {
-    template <size_t I, typename T>
-    using tuple_element_t = typename std::tuple_element<I, T>::type;
-  }
-  template <size_t I, typename T0, typename T1>
-  constexpr tuple_element_t<I, Pair_<T0, T1>> &
-  get(Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
-  template <size_t I, typename T0, typename T1>
-  constexpr const tuple_element_t<I, Pair_<T0, T1>> &
-  get(const Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
-  template <size_t I, typename T0, typename T1>
-  constexpr tuple_element_t<I, Pair_<T0, T1>> &&
-  get(Pair_<T0, T1> &&p) noexcept {
-    return static_cast<tuple_element_t<I, Pair_<T0, T1>> &&>(
-	p.template p<I>());
-  }
-  template <size_t I, typename T0, typename T1>
-  constexpr const tuple_element_t<I, Pair_<T0, T1>> &&
-  get(const Pair_<T0, T1> &&p) noexcept {
-    return static_cast<const tuple_element_t<I, Pair_<T0, T1>> &&>(
-	p.template p<I>());
-  }
 
-  template <typename T, typename U>
-  constexpr T &get(Pair_<T, U> &p) noexcept {
-    return p.template p<0>();
-  }
-  template <typename T, typename U>
-  constexpr const T &get(const Pair_<T, U> &p) noexcept {
-    return p.template p<0>();
-  }
-  template <typename T, typename U>
-  constexpr T &&get(Pair_<T, U> &&p) noexcept {
-    return static_cast<T &&>(p.template p<0>());
-  }
-  template <typename T, typename U>
-  constexpr const T &&get(const Pair_<T, U> &&p) noexcept {
-    return static_cast<const T &&>(p.template p<0>());
-  }
+using size_t = std::size_t;
+namespace {
+  template <size_t I, typename T>
+  using tuple_element_t = typename std::tuple_element<I, T>::type;
+}
+template <size_t I, typename T0, typename T1>
+constexpr tuple_element_t<I, Pair_<T0, T1>> &
+get(Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
+template <size_t I, typename T0, typename T1>
+constexpr const tuple_element_t<I, Pair_<T0, T1>> &
+get(const Pair_<T0, T1> &p) noexcept { return p.template p<I>(); }
+template <size_t I, typename T0, typename T1>
+constexpr tuple_element_t<I, Pair_<T0, T1>> &&
+get(Pair_<T0, T1> &&p) noexcept {
+  return static_cast<tuple_element_t<I, Pair_<T0, T1>> &&>(
+      p.template p<I>());
+}
+template <size_t I, typename T0, typename T1>
+constexpr const tuple_element_t<I, Pair_<T0, T1>> &&
+get(const Pair_<T0, T1> &&p) noexcept {
+  return static_cast<const tuple_element_t<I, Pair_<T0, T1>> &&>(
+      p.template p<I>());
+}
 
-  template <typename T, typename U>
-  constexpr T &get(Pair_<U, T> &p) noexcept {
-    return p.template p<1>();
-  }
-  template <typename T, typename U>
-  constexpr const T &get(const Pair_<U, T> &p) noexcept {
-    return p.template p<1>();
-  }
-  template <typename T, typename U>
-  constexpr T &&get(Pair_<U, T> &&p) noexcept {
-    return static_cast<T &&>(p.template p<1>());
-  }
-  template <typename T, typename U>
-  constexpr const T &&get(const Pair_<U, T> &&p) noexcept {
-    return static_cast<const T &&>(p.template p<1>());
-  }
+template <typename T, typename U>
+constexpr T &get(Pair_<T, U> &p) noexcept {
+  return p.template p<0>();
+}
+template <typename T, typename U>
+constexpr const T &get(const Pair_<T, U> &p) noexcept {
+  return p.template p<0>();
+}
+template <typename T, typename U>
+constexpr T &&get(Pair_<T, U> &&p) noexcept {
+  return static_cast<T &&>(p.template p<0>());
+}
+template <typename T, typename U>
+constexpr const T &&get(const Pair_<T, U> &&p) noexcept {
+  return static_cast<const T &&>(p.template p<0>());
+}
+
+template <typename T, typename U>
+constexpr T &get(Pair_<U, T> &p) noexcept {
+  return p.template p<1>();
+}
+template <typename T, typename U>
+constexpr const T &get(const Pair_<U, T> &p) noexcept {
+  return p.template p<1>();
+}
+template <typename T, typename U>
+constexpr T &&get(Pair_<U, T> &&p) noexcept {
+  return static_cast<T &&>(p.template p<1>());
+}
+template <typename T, typename U>
+constexpr const T &&get(const Pair_<U, T> &&p) noexcept {
+  return static_cast<const T &&>(p.template p<1>());
+}
+
 } // namespace Zu_
 
 // generic accessor
@@ -417,8 +419,8 @@ struct ZuPairAxor_Bind<P, I, true> {
 };
 template <unsigned I = 0>
 inline constexpr auto ZuPairAxor() {
-  return []<typename P>(P &&v) -> decltype(auto) {
-    return ZuPairAxor_Bind<ZuDecay<P>, I>::get(ZuFwd<P>(v));
+  return []<unsigned I_ = I, typename P>(P &&v) -> decltype(auto) {
+    return ZuPairAxor_Bind<ZuDecay<P>, I_>::get(ZuFwd<P>(v));
   };
 }
 

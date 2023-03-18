@@ -126,7 +126,7 @@ void Env::final()
 {
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped, [this]() {
     if (state() != HostState::Instantiated) return false;
-    allDBs_([](DB *db) { db->final(); });
+    all_([](DB *db) { db->final(); });
     m_handler = {};
     return true;
   }))
@@ -165,6 +165,8 @@ void Env::wake()
 
 void Env::start_()
 {
+  ZmAssert(invoked());
+
   if (state() != HostState::Initialized) {
     ZeLOG(Fatal, "Env::start_() called out of order");
     started(false);
@@ -197,19 +199,21 @@ void Env::start_()
 
   // open and recover all databases
   {
-    bool ok = true; 
-    allDBs_([&ok](DB *db) { if (ZuLikely(ok)) ok &&= db->open(); });
+    ZmAtomic<unsigned> ok = true; 
+    allSync([&ok](DB *db) { return [&ok, db]() {
+      if (ZuLikely(ok.load_())) ok &= db->open();
+    }; });
     if (!ok) {
-      allDBs_([](DB *db) { db->close(); });
+      allSync([](DB *db) { return [db]() { db->close(); }; });
       started(false);
       return;
     }
   }
 
   // refresh db state vector, begin election
-  dbStateRefresh();
+  envStateRefresh();
   m_self->state(Stopped);
-  stopReplication();
+  repStop();
   m_self->state(Electing);
 
   if (!(m_nPeers = m_hosts.count_() - 1)) { // standalone
@@ -258,7 +262,7 @@ void Env::stop_1()
   ZmAssert(invoked());
 
   state(Stopping);
-  stopReplication();
+  repStop();
   m_mx->del(&m_hbSendTimer);
   m_mx->del(&m_electTimer);
 
@@ -278,7 +282,7 @@ void Env::stop_2()
 {
   ZmAssert(invoked());
 
-  allDBs_([](DB *db) { db->close(); });
+  allSync([](DB *db) { return [db]() { db->close(); }; });
 
   stopped(true);
 }
@@ -471,10 +475,10 @@ ZvTelemetry::ZdbEnvFn Env::telFn()
 	  hostFn(fbb, host->telemetry(fbb, update));
 	});
       }
-      dbEnv->allDBs([&dbFn, update](const DB *db) {
+      dbEnv->all([dbFn, update](const DB *db) { return [db, dbFn, update]() {
 	ZvTelemetry::IOBuilder fbb;
 	dbFn(fbb, db->telemetry(fbb, update));
-      });
+      }; });
     });
   }};
 }
@@ -765,7 +769,7 @@ Host *Env::setMaster()
 
   Host *oldMaster = m_master;
 
-  dbStateRefresh();
+  envStateRefresh();
 
   m_master = nullptr;
   m_nPeers = 0;
@@ -814,10 +818,10 @@ void Env::setNext(Host *host)
 
   if (m_next) {
     m_standalone = false;
-    startReplication();
+    repStart();
   } else {
     m_standalone = true;
-    allDBs([](DB *db) { db->standalone(); });
+    all([](DB *db) { return [db]() { db->standalone(); }; });
   }
 }
 
@@ -852,16 +856,16 @@ void Env::setNext()
   setNext(next);
 }
 
-void Env::startReplication()
+void Env::repStart()
 {
   ZmAssert(invoked());
 
   ZeLOG(Info, ZtString{} <<
 	"Zdb host " << m_next->id() << " is next in line");
 
-  dbStateRefresh();
+  envStateRefresh();
 
-  ZdbDEBUG(this, ZtString{} << "startReplication()\n" <<
+  ZdbDEBUG(this, ZtString{} << "repStart()\n" <<
       " self=" << m_self << '\n' <<
       " master=" << m_master << '\n' <<
       " prev=" << m_prev << '\n' <<
@@ -871,7 +875,7 @@ void Env::startReplication()
 
   if (m_self->dbState().cmp(m_next->dbState()) < 0 || m_recovering) return;
 
-  // ZeLOG(Info, "startReplication() initiating recovery");
+  // ZeLOG(Info, "repStart() initiating recovery");
   m_recover = m_next->dbState();
   m_recoverEnd = m_self->dbState();
   if (ZmRef<Cxn> cxn = m_next->cxn()) {
@@ -883,35 +887,35 @@ void Env::startReplication()
 	  ++m_recovering;
 	  db->run([db, cxn,
 	      rn = state->p<1>(), endRN = endState->p<1>()]() mutable {
-	    db->recover(ZuMv(cxn), rn, endRN);
+	    db->recSend(ZuMv(cxn), rn, endRN);
 	  });
 	}
     }
   }
 }
 
-void DB::recover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
+void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
 {
   ZmAssert(invoked());
 
   if (!cxn->up()) return;
-  if (auto buf = recoverBuf(rn)) {
-    recSend(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
+  if (auto buf = repBuf(rn)) {
+    recSendBuf(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
     return;
   }
   fileRun([this, cxn = ZuMv(cxn), rn, endRN, gapRN]() mutable {
-    fileRecover(ZuMv(cxn), rn, endRN, gapRN);
+    recSend_file(ZuMv(cxn), rn, endRN, gapRN);
   });
 }
 
-void DB::fileRecover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
+void DB::recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
 {
   ZmAssert(fileInvoked());
 
   if (!cxn->up()) return;
   if (FileRec rec = rn2file(rn, false))
-    if (auto buf = readBuf(rec)) {
-      recSend(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
+    if (auto buf = read(rec)) {
+      recSendBuf(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
       return;
     }
   if (gapRN != nullRN()) gapRN = rn;
@@ -921,16 +925,16 @@ void DB::fileRecover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
     return;
   }
   run([this, cxn, rn, endRN, gapRN]() mutable {
-    recover(ZuMv(cxn), rn, endRN, gapRN);
+    recSend(ZuMv(cxn), rn, endRN, gapRN);
   });
 }
 
-void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf)
+void DB::recSendBuf(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf)
 {
   if (gapRN != nullRN()) cxn->send(gap(gapRN, rn - gapRN));
   cxn->send(ZuMv(buf));
   if (++rn < endRN)
-    run([this, cxn, rn, endRN]() mutable { recover(ZuMv(cxn), rn, endRN); });
+    run([this, cxn, rn, endRN]() mutable { recSend(ZuMv(cxn), rn, endRN); });
   else
     m_env->invoke([env = m_env]() { env->recEnd(); });
 }
@@ -940,8 +944,8 @@ void Env::recEnd()
   if (m_recovering) --m_recovering;
 }
 
-// prepare recovery data for sending
-ZmRef<RepBuf> DB::recoverBuf(RN rn)
+// prepare replication buffer for sending
+ZmRef<RepBuf> DB::repBuf(RN rn)
 {
   ZmAssert(invoked());
 
@@ -970,7 +974,7 @@ ZmRef<RepBuf> DB::recoverBuf(RN rn)
   return nullptr;
 }
 
-void Env::stopReplication()
+void Env::repStop()
 {
   ZmAssert(invoked());
 
@@ -1127,7 +1131,7 @@ void Env::vote(Host *host)
 }
 
 // send replication message to next-in-line
-bool Env::repSend(ZmRef<Buf> buf)
+bool Env::replicate(ZmRef<Buf> buf)
 {
   if (m_next)
     if (ZmRef<Cxn> cxn = m_next->cxn()) {
@@ -1194,7 +1198,7 @@ void Env::envStateRefresh()
   ZmAssert(m_env->invoked());
 
   EnvState &envState = m_self->envState();
-  allDBs_([&envState](DB *db) {
+  all_([&envState](DB *db) {
     envState.update(db->config().id, db->nextRN());
   });
 }
@@ -1437,12 +1441,6 @@ bool DB::recover()
   return true;
 }
 
-// FIXME - naming - need to straighten out naming:
-// readBuf()
-// read()
-// write() / write2()
-// recover() - for recovering from a file at startup/open
-// recover() - for recovering a peer -> repSend()
 void DB::recover(File *file)
 {
   if (!file->allocated()) return;
@@ -1469,7 +1467,7 @@ void DB::recover(File *file)
 
 void DB::recover(const FileRec &rec)
 {
-  if (auto buf = readBuf(rec)) {
+  if (auto buf = read(rec)) {
     auto record = record_(msg_(buf->hdr()));
     RN rn = record->rn();
     if (m_minRN > rn) m_minRN = rn;
@@ -1530,7 +1528,7 @@ void DB::repGap(ZmRef<Buf> buf)
   RN rn = gap->rn();
   if (m_nextRN.cmpXch(rn + gap->count(), rn) != rn) return;
   m_env->invoke([env = m_env, buf = ZuMv(buf)]() mutable {
-    env->repSend(ZuMv(buf));
+    env->replicate(ZuMv(buf));
   });
 }
 
@@ -1541,7 +1539,7 @@ void DB::write(ZmRef<Buf> buf)
   m_repBufs->addNode(buf);
   if (config().repMode) {
     m_env->invoke([this, env = m_env, buf = ZuMv(buf)]() mutable {
-      if (env->repSend(buf))
+      if (env->replicate(buf))
 	fileRun([this, buf = ZuMv(buf)]() {
 	  write2(buf);
 	  m_repBufs->delNode(buf);
@@ -1559,7 +1557,7 @@ void DB::write(ZmRef<Buf> buf)
       ZdbRN rn = write2(buf);
       m_repBufs->delNode(buf);
       m_env->invoke([this, rn, buf = ZuMv(buf)]() mutable {
-	if (!env->repSend(ZuMv(buf)) && rn != nullRN())
+	if (!env->replicate(ZuMv(buf)) && rn != nullRN())
 	  invoke([this, rn]() { if (ack(rn + 1)) vacuum(); });
       });
     });
@@ -1784,16 +1782,13 @@ error:
 
 bool DB::open()
 {
+  ZmAssert(invoked()); // FIXME
+
   if (!recover()) return false;
 
   if (config().warmUp) {
-    // FIXME
-    m_env->mx()->run(config().fileTID, ZmFn<>{this, [](DB *self) {
-      self->rn2file(m_nextRN, true);
-    }});
-    m_env->mx()->run(config().sid, ZmFn<>{this, [](DB *self) {
-      ZmRef<AnyObject>{self->m_handler.ctorFn(self)};
-    }});
+    run([this]() { ZmRef<AnyObject>{m_handler.ctorFn(this)}; });
+    fileRun([this, rn = m_nextRN.load_()]() { rn2file(rn, true);
   }
 
   return true;
@@ -1801,6 +1796,8 @@ bool DB::open()
 
 void DB::close()
 {
+  ZmAssert(invoked()); // FIXME
+
   // index blocks
   while (IndexBlk *blk = static_cast<IndexBlk *>(m_indexBlkLRU.shiftNode())) {
     if (File *file = getFile(blk->id>>(fileShift() - indexShift()), false))
@@ -1817,7 +1814,9 @@ void DB::close()
 
 void Env::checkpoint()
 {
-  allDBs([](DB *db) { db->checkpoint(); });
+  ZmAssert(invoked());
+
+  all([](DB *db) { return [db]() { db->checkpoint(); }; });
 }
 
 bool DB::checkpoint()
@@ -1860,47 +1859,6 @@ ZmRef<AnyObject> DB::push(RN rn)
   return push_(nextRN);
 }
 
-template <bool UpdateLRU, bool Evict>
-ZmRef<AnyObject> DB::get_(RN rn, GetFn fn)
-{
-  if (ZuUnlikely(rn < m_minRN || rn >= m_nextRN.load_())) {
-    fn(nullptr);
-    return nullptr;
-  }
-  return m_objCache->findAsync<UpdateLRU, Evict>(
-      rn, [this]<typename L>(RN rn, L l) {
-    {
-      auto buf = m_repBufs->find(rn);
-      if (ZuLikely(buf)) {
-	l(load(record_(msg_(buf->hdr()))));
-	return;
-      }
-    }
-    fileRun([this, rn, l = ZuMv(l)]() {
-      FileRec rec = rn2file(rn, false);
-      if (rec) buf = readBuf(rec);
-      if (buf)
-	l(load(record_(msg_(buf->hdr()))));
-      else
-	l(nullptr);
-    });
-  }, ZuMv(fn)); // write to file is triggered by put(), not eviction
-}
-
-ZmRef<AnyObject> DB::get(RN rn, GetFn fn)
-{
-  return config().cacheMode == ZdbCacheMode::All ?
-    get_<true, false>(rn, ZuMv(fn)) :
-    get_<true, true >(rn, ZuMv(fn));
-}
-
-ZmRef<AnyObject> DB::getUpdate(RN rn, GetFn fn)
-{
-  return config().cacheMode == ZdbCacheMode::All ?
-    get_<false, false>(rn, ZuMv(fn)) :
-    get_<false, true >(rn, ZuMv(fn));
-}
-
 bool DB::update_(AnyObject *object, RN rn)
 {
   if (ZuUnlikely(object->seqLen() == SeqLenOp::maxSeqLen())) return false;
@@ -1920,45 +1878,6 @@ bool DB::update(AnyObject *object, RN rn)
   RN nextRN = m_nextRN.load_();
   if (ZuUnlikely(rn != nullRN() && nextRN > rn)) return false;
   return update_(object, nextRN);
-}
-
-ZmRef<AnyObject> DB::update_(RN prevRN, RN rn, GetFn fn_)
-{
-  GetFn fn = [this, fn_ = ZuMv(fn_)](AnyObject *object) mutable {
-    if (ZuUnlikely(!object)) {
-      fn_(nullptr);
-      return;
-    }
-    invoke([fn_ = ZuMv(fn_), object = ZmMkRef(object)]() {
-      if (ZuUnlikely(!update(object)))
-	fn_(nullptr);
-      else
-	fn_(object);
-    });
-  };
-  if (ZmRef<AnyObject> object = getUpdate(prevRN, ZuMv(fn))) {
-    if (ZuUnlikely(!update_(object, rn)))
-      return nullptr;
-    return object;
-  }
-  return nullptr;
-}
-
-ZmRef<AnyObject> DB::update(RN prevRN, GetFn fn)
-{
-  RN nextRN = m_nextRN.load_();
-  if (ZuUnlikely(prevRN < m_minRN || prevRN >= nextRN)) return nullptr;
-  return update_(prevRN, nextRN, ZuMv(fn));
-}
-
-ZmRef<AnyObject> DB::update(RN prevRN, RN rn, GetFn fn)
-{
-  RN nextRN = m_nextRN.load_();
-  if (ZuUnlikely(rn != nullRN() && nextRN > rn)) {
-    fn(nullptr);
-    return nullptr;
-  }
-  return update_(prevRN, nextRN, ZuMv(fn));
 }
 
 // commits push() / update()
@@ -2228,7 +2147,7 @@ bool File_::writeIndexBlk(IndexBlk *indexBlk) // cacheLock held
 }
 
 // read individual record from disk
-ZmRef<RepBuf> DB::readBuf(const FileRec &rec)
+ZmRef<RepBuf> DB::read(const FileRec &rec)
 {
   ZmAssert(fileInvoked());
 

@@ -1006,13 +1006,103 @@ public:
     m_mx->run(m_cf->fileSID, ZuFwd<Args>(args)...);
   }
 
-  // table scan
+private:
+  template <bool UpdateLRU, bool Evict, typename L>
+  void get_(RN rn, L l) {
+    if (ZuUnlikely(rn < m_minRN || rn >= m_nextRN.load_())) {
+      l(nullptr);
+      return;
+    }
+    m_objCache->findAsync<UpdateLRU, Evict>(
+	rn, ZuMv(l), [this]<typename L>(RN rn, L l) {
+      {
+	auto buf = m_repBufs->find(rn);
+	if (ZuLikely(buf)) {
+	  l(load(record_(msg_(buf->hdr()))));
+	  return;
+	}
+      }
+      fileRun([this, rn, l = ZuMv(l)]() {
+	FileRec rec = rn2file(rn, false);
+	if (rec) buf = read(rec);
+	if (ZuLikely(buf))
+	  l(load(record_(msg_(buf->hdr()))));
+	else
+	  l(nullptr);
+      });
+    });
+  }
+
+public:
+  template <typename L>
+  void get(RN rn, L l) {
+    config().cacheMode == ZdbCacheMode::All ?
+      get_<true, false>(rn, ZuMv(l)) :
+      get_<true, true >(rn, ZuMv(l));
+  }
+
+  template <typename L>
+  void getUpdate(RN rn, L l) {
+    config().cacheMode == ZdbCacheMode::All ?
+      get_<false, false>(rn, ZuMv(l)) :
+      get_<false, true >(rn, ZuMv(l));
+  }
+
+private:
+  template <bool UpdateLRU, bool Evict>
+  ZmRef<AnyObject> getSync_(RN rn) {
+    if (ZuUnlikely(rn < m_minRN || rn >= m_nextRN.load_()))
+      return nullptr;
+    return m_objCache->find<UpdateLRU, Evict>(
+	rn, [this]<typename L>(RN rn, L l) {
+      if (ZuLikely(auto buf = m_repBufs->find(rn)))
+	return l(load(record_(msg_(buf->hdr()))));
+      ZmRef<AnyObject> object;
+      ZmBlock<>{}([this, rn, &object](auto wake) {
+	fileInvoke([this, rn, &object, wake = ZuMv(wake)]() {
+	  FileRec rec = rn2file(rn, false);
+	  if (rec) buf = read(rec);
+	  if (buf) object = load(record_(msg_(buf->hdr())));
+	  wake();
+	});
+      });
+      return l(object);
+    });
+  }
+
+public:
+  template <typename L>
+  ZmRef<AnyObject> getSync(RN rn) {
+    return config().cacheMode == ZdbCacheMode::All ?
+      getSync_<true, false>(rn) :
+      getSync_<true, true >(rn);
+  }
+
+  template <typename L>
+  ZmRef<AnyObject> getUpdateSync(RN rn) {
+    return config().cacheMode == ZdbCacheMode::All ?
+      getSync_<false, false>(rn) :
+      getSync_<false, true >(rn);
+  }
+
+  // table scan - pass maxRN() for a full scan
   template <typename L>
   void scan(RN maxRN, L l) const {
     ZmAssert(invoked());
-    if (maxRN > m_nextRN) maxRN = m_nextRN.load_();
-    for (RN rn = m_minRN; rn < maxRN; rn++)
-      if (auto object = get__(rn)) l(ZuMv(object));
+
+    auto nextRN = m_nextRN.load_();
+    if (maxRN > nextRN) maxRN = nextRN;
+    scan_(m_minRN, maxRN, ZuMv(l));
+  }
+  template <typename L>
+  void scan_(RN minRN, RN maxRN, L l) {
+    get(rn, [this, minRN, maxRN, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+      if (ZuLikely(object)) l(object);
+      if (++minRN < maxRN)
+	run([this, minRN, maxRN, l = ZuMv(l)]() mutable {
+	  scan_(minRN, maxRN, ZuMv(l));
+	});
+    }
   }
 
   // next RN that will be allocated
@@ -1029,17 +1119,6 @@ public:
   // create new record (idempotent)
   ZmRef<AnyObject> push(RN rn);
 
-  using GetFn = typename ObjCache::FindFn;
-
-private:
-  template <bool UpdateLRU, bool Evict>
-  ZmRef<AnyObject> get_(RN, GetFn);
-public:
-  // get record
-  ZmRef<AnyObject> get(RN rn, GetFn fn);
-  // use getUpdate() if a call to update() potentially follows
-  ZmRef<AnyObject> getUpdate(RN rn, GetFn fn);
-
 private:
   bool update_(AnyObject *object, RN rn);
 public:
@@ -1047,10 +1126,39 @@ public:
   bool update(AnyObject *object);
   // update record (idempotent) - returns true if update can proceed
   bool update(AnyObject *object, RN rn);
+
   // update record (with prevRN, without object)
-  ZmRef<AnyObject> update(RN prevRN, GetFn fn);
+  template <typename L>
+  void update(RN prevRN, L l) {
+    getUpdate(prevRN, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+      if (ZuUnlikely(!object)) {
+	l(nullptr);
+	return;
+      }
+      invoke([this, l = ZuMv(l), object = ZuMv(object)]() mutable {
+	if (ZuUnlikely(!update(object)))
+	  l(nullptr);
+	else
+	  l(ZuMv(object));
+      });
+    });
+  }
   // update record (idempotent) (with prevRN, without object)
-  ZmRef<AnyObject> update(RN prevRN, RN rn, GetFn fn);
+  template <typename L>
+  void update(RN prevRN, RN rn, L l) {
+    getUpdate(prevRN, [this, rn, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+      if (ZuUnlikely(!object)) {
+	l(nullptr);
+	return;
+      }
+      invoke([this, rn, l = ZuMv(l), object = ZuMv(object)]() mutable {
+	if (ZuUnlikely(!update(object, rn)))
+	  l(nullptr);
+	else
+	  l(ZuMv(object));
+      });
+    });
+  }
 
   // commit push() /update() - causes replication / write
   void put(AnyObject *);
@@ -1082,9 +1190,10 @@ private:
   void repGap(ZmRef<Buf> buf);
 
   // recovery
-  void recover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
-  void fileRecover(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gap = nullRN());
-  ZmRef<Buf> recoverBuf(RN rn);
+  void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
+  void recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
+  void recSendBuf(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf);
+  ZmRef<Buf> repBuf(RN rn);
   ZmRef<Buf> gap(RN rn, uint64_t count);
 
   // transition to standalone, trigger vacuuming
@@ -1113,6 +1222,7 @@ private:
   template <bool Create> ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id);
   ZmRef<Buf> readBuf(const FileRec &);
 
+  void write(ZmRef<Buf> buf);
   void write2(ZmRef<Buf> buf);
   bool ack(RN rn);
   void vacuum();
@@ -1140,7 +1250,7 @@ private:
   // and all disk I/O is performed blocking and unlocked, any eviction is
   // enqueued on run queue
   // FIXME - each DB can have it's own thread
-  // FIXME - allDBs can run in parallel - use an async continuation
+  // FIXME - all can run in parallel - use an async continuation
   // FIXME - remove m_standalone, standalone() can run in dbThread
 
   // RN allocator
@@ -1516,20 +1626,27 @@ public:
 private:
   DB *db_(ZuID id);
 
-public:
-  template <typename L> void allDBs(L l) const {
+  template <typename L> void all_(L l) const {
     ZmAssert(invoked());
-    auto i = m_dbs.readIterator();
-    static ZmSemaphore sem;
-    unsigned n = m_dbs.count_();
-    while (auto db = i.iterate())
-      db->invoke([db, sem = &sem, l = ZuMv(l)]() { l(db); sem->post(); });
-    for (unsigned j = 0; j < n; j++) sem.wait();
-  }
-private:
-  template <typename L> void allDBs_(L l) const {
+
     auto i = m_dbs.readIterator();
     while (auto db = i.iterate()) l(db);
+  }
+public:
+  template <typename L> void all(L l) const {
+    ZmAssert(invoked());
+
+    auto i = m_dbs.readIterator();
+    while (auto db = i.iterate()) db->invoke([db, l = l()]() { l(db); });
+  }
+  template <typename L> void allSync(L l) const {
+    ZmAssert(invoked());
+
+    auto i = m_dbs.readIterator();
+    ZmBlock<>{}(m_dbs.count_(), [this, &l, &i](unsigned, auto wake) {
+      if (auto db = i.iterate())
+	db->invoke([db, l = l(), wake = ZuMv(wake)]() { l(db); wake(); });
+    });
   }
 
   Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>
@@ -1587,16 +1704,12 @@ private:
   void setNext(Host *host);
   void setNext();
 
-  void startReplication();
-  void stopReplication();
+  void repStart();
+  void repStop();
 
   void replicated(Host *host, ZuID id, RN rn);
 
-  bool repSend(ZmRef<Buf> buf);
-
-  void ackRcvd(Host *host, bool positive, ZuID db, RN rn);
-
-  void write(ZmRef<Buf> buf);
+  bool replicate(ZmRef<Buf> buf);
 
   bool isStandalone() const { return m_standalone; }
 

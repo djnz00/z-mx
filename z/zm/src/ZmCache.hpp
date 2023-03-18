@@ -181,17 +181,17 @@ public:
 
   template <
     bool UpdateLRU = Evict, bool Evict_ = Evict,
-    typename Key, typename LoadFn>
-  NodeRef findAsync(const Key &key, LoadFn loadFn, FindFn findFn) {
+    typename Key, typename FindFn_, typename LoadFn>
+  void findAsync(const Key &key, FindFn_ findFn, LoadFn loadFn) {
     Guard guard{m_lock};
     ++m_loads;
-    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
     ++m_misses;
     typename LoadHash::Node *load = m_loadHash->find(key);
     bool pending = load;
     if (!pending)
       m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
-    load->val().push(ZuMv(findFn));
+    load->val().push(FindFn{ZuMv(findFn)});
     guard.unlock();
     if (!pending)
       loadFn(key, [this](NodeRef node) {
@@ -207,18 +207,18 @@ public:
 
   template <
     bool UpdateLRU = Evict,
-    typename Key, typename LoadFn, typename EvictFn>
-  NodeRef findAsync(
-      const Key &key, LoadFn loadFn, FindFn findFn, EvictFn evictFn) {
+    typename Key, typename FindFn_, typename LoadFn, typename EvictFn>
+  void findAsync(
+      const Key &key, FindFn_ findFn, LoadFn loadFn, EvictFn evictFn) {
     Guard guard{m_lock};
     ++m_loads;
-    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
     ++m_misses;
     typename LoadHash::Node *load = m_loadHash->find(key);
     bool pending = !!load;
     if (!pending)
       m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
-    load->val().push(ZuMv(findFn));
+    load->val().push(FindFn{ZuMv(findFn)});
     guard.unlock();
     if (!pending)
       loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {

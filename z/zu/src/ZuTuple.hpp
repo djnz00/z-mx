@@ -455,68 +455,93 @@ auto inline ZuMvTuple(Args... args) {
   return ZuTuple<Args...>{ZuMv(args)...};
 }
 
-namespace Zu_ {
-  template <typename ...Args> Tuple_(Args...) -> Tuple_<Args...>;
-}
-
 // generic accessor
 #define ZuTupleAxor ZuPairAxor
+
+// generic call
+// Example:
+// ZuTupleApply(ZuMvTuple("the answer is", 42, "not", 43),
+//   []<typename Arg, typename ...Args>(Arg arg, Args... args) {
+//     std::cout << arg;
+//     (std::cout << ' ' << ... << args) << '\n';
+//   });
+template <typename P, typename L>
+decltype(auto) ZuTupleCall(P &&v, L l) {
+  return ZuSeqCall<ZuDecay<P>::N, ZuTupleAxor()>(ZuFwd<P>(v), ZuMv(l));
+}
+
+// Example:
+// ZuTupleIter(ZuMvTuple("the answer is", 42, "not", 43),
+//   []<unsigned I>(Arg arg) {
+//     if constexpr (I) std::cout << ' ';
+//     std::cout << arg;
+//   });
+// std::cout << '\n';
+template <typename P, typename L>
+decltype(auto) ZuTupleIter(P &&v, L l) {
+  return ZuSeqIter<ZuDecay<P>::N, ZuTupleAxor()>(ZuFwd<P>(v), ZuMv(l));
+}
 
 // STL structured binding cruft
 #include <type_traits>
 namespace std {
-  template <class> struct tuple_size;
-  template <typename ...Args>
-  struct tuple_size<ZuTuple<Args...>> :
-  public integral_constant<size_t, sizeof...(Args)> { };
 
-  template <size_t, typename> struct tuple_element;
-  template <size_t I, typename ...Args>
-  struct tuple_element<I, ZuTuple<Args...>> {
-    using type = typename ZuTuple<Args...>::template Type<I>;
-  };
-}
+template <class> struct tuple_size;
+template <typename ...Args>
+struct tuple_size<ZuTuple<Args...>> :
+public integral_constant<size_t, sizeof...(Args)> { };
+
+template <size_t, typename> struct tuple_element;
+template <size_t I, typename ...Args>
+struct tuple_element<I, ZuTuple<Args...>> {
+  using type = typename ZuTuple<Args...>::template Type<I>;
+};
+
+} // std
+
 namespace Zu_ {
-  using size_t = std::size_t;
-  namespace {
-    template <size_t I, typename T>
-    using tuple_element_t = typename std::tuple_element<I, T>::type;
-  }
-  template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Tuple_<Args...>> &
-  get(Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
-  template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Tuple_<Args...>> &
-  get(const Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
-  template <size_t I, typename ...Args>
-  constexpr tuple_element_t<I, Tuple_<Args...>> &&
-  get(Tuple_<Args...> &&p) noexcept {
-    return static_cast<tuple_element_t<I, Tuple_<Args...>> &&>(
-	p.template p<I>());
-  }
-  template <size_t I, typename ...Args>
-  constexpr const tuple_element_t<I, Tuple_<Args...>> &&
-  get(const Tuple_<Args...> &&p) noexcept {
-    return static_cast<const tuple_element_t<I, Tuple_<Args...>> &&>(
-	p.template p<I>());
-  }
 
-  template <typename T, typename ...Args>
-  constexpr T &get(Tuple_<Args...> &p) noexcept {
-    return p.template v<T>();
-  }
-  template <typename T, typename ...Args>
-  constexpr const T &get(const Tuple_<Args...> &p) noexcept {
-    return p.template v<T>();
-  }
-  template <typename T, typename ...Args>
-  constexpr T &&get(Tuple_<Args...> &&p) noexcept {
-    return static_cast<T &&>(p.template v<T>());
-  }
-  template <typename T, typename ...Args>
-  constexpr const T &&get(const Tuple_<Args...> &&p) noexcept {
-    return static_cast<const T &&>(p.template v<T>());
-  }
+using size_t = std::size_t;
+namespace {
+  template <size_t I, typename T>
+  using tuple_element_t = typename std::tuple_element<I, T>::type;
+}
+template <size_t I, typename ...Args>
+constexpr tuple_element_t<I, Tuple_<Args...>> &
+get(Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
+template <size_t I, typename ...Args>
+constexpr const tuple_element_t<I, Tuple_<Args...>> &
+get(const Tuple_<Args...> &p) noexcept { return p.template p<I>(); }
+template <size_t I, typename ...Args>
+constexpr tuple_element_t<I, Tuple_<Args...>> &&
+get(Tuple_<Args...> &&p) noexcept {
+  return static_cast<tuple_element_t<I, Tuple_<Args...>> &&>(
+      p.template p<I>());
+}
+template <size_t I, typename ...Args>
+constexpr const tuple_element_t<I, Tuple_<Args...>> &&
+get(const Tuple_<Args...> &&p) noexcept {
+  return static_cast<const tuple_element_t<I, Tuple_<Args...>> &&>(
+      p.template p<I>());
+}
+
+template <typename T, typename ...Args>
+constexpr T &get(Tuple_<Args...> &p) noexcept {
+  return p.template v<T>();
+}
+template <typename T, typename ...Args>
+constexpr const T &get(const Tuple_<Args...> &p) noexcept {
+  return p.template v<T>();
+}
+template <typename T, typename ...Args>
+constexpr T &&get(Tuple_<Args...> &&p) noexcept {
+  return static_cast<T &&>(p.template v<T>());
+}
+template <typename T, typename ...Args>
+constexpr const T &&get(const Tuple_<Args...> &&p) noexcept {
+  return static_cast<const T &&>(p.template v<T>());
+}
+
 } // namespace Zu_
 
 // ZuDeclTuple(Type, (Type0, Fn0), (Type1, Fn1), ...) creates

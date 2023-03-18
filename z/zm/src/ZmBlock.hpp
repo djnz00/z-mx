@@ -56,6 +56,19 @@ template <typename ...Args> struct ZmBlock {
     sem->wait();
     return r;
   }
+  template <typename L, typename Reduce>
+  R operator ()(unsigned n, L l, Reduce reduce) const {
+    ZtArray<R> r{n};
+    auto sem = ZmBlock_::sem();
+    for (unsigned i = 0; i < n; i++)
+      l(i, [sem, &r = r[i]](Args... args) {
+	r = ZuMvTuple(args...);
+	sem->post();
+      });
+    for (unsigned i = 0; i < n; i++) sem->wait();
+    for (unsigned i = 1; i < n; i++) reduce(r[0], r[i]);
+    return r[0];
+  }
 };
 template <typename Arg> struct ZmBlock<Arg> {
   using R = Arg;
@@ -70,6 +83,19 @@ template <typename Arg> struct ZmBlock<Arg> {
     sem->wait();
     return r;
   }
+  template <typename L, typename Reduce>
+  R operator ()(unsigned n, L l, Reduce reduce) const {
+    ZtArray<R> r{n};
+    auto sem = ZmBlock_::sem();
+    for (unsigned i = 0; i < n; i++)
+      l(i, [sem, &r = r[i]](Arg arg) {
+	r = ZuMv(arg);
+	sem->post();
+      });
+    for (unsigned i = 0; i < n; i++) sem->wait();
+    for (unsigned i = 1; i < n; i++) reduce(r[0], r[i]);
+    return r[0];
+  }
 };
 template <> struct ZmBlock<> {
   template <typename L>
@@ -77,6 +103,12 @@ template <> struct ZmBlock<> {
     auto sem = ZmBlock_::sem();
     l([sem]() { sem->post(); });
     sem->wait();
+    return;
+  }
+  void operator ()(unsigned n, L l) const {
+    auto sem = ZmBlock_::sem();
+    for (unsigned i = 0; i < n; i++) l(i, [sem]() { sem->post(); });
+    for (unsigned i = 0; i < n; i++) sem->wait();
     return;
   }
 };

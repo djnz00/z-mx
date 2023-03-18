@@ -138,4 +138,23 @@ int main()
     auto b = a;
     CHECK(b.v<int>() == 1 && b.v<float>() == 2 && b.v<double>() == 3);
   }
+
+  ZuTupleCall(ZuFwdPair("the answer is", 42),
+    []<typename Arg, typename ...Args>(Arg arg, Args... args) {
+      std::cout << arg;
+      ((std::cout << ' ' << args), ...) << '\n';
+    });
+
+  ZuTupleCall(ZuMvTuple("the answer is", 42, "not", 43),
+    []<typename Arg, typename ...Args>(Arg arg, Args... args) {
+      std::cout << arg;
+      ((std::cout << ' ' << args), ...) << '\n';
+    });
+
+  ZuTupleIter(ZuMvTuple("the answer is", 42, "not", 43),
+    []<unsigned I, typename Arg>(Arg arg) {
+      if constexpr (I) std::cout << ' ';
+      std::cout << arg;
+    });
+  std::cout << '\n';
 }

@@ -490,18 +490,22 @@ template <typename ...Args> using ZuUnion = Zu_::Union<Args...>;
 // STL variant cruft
 #include <type_traits>
 namespace std {
-  template <class> struct tuple_size;
-  template <typename ...Args>
-  struct tuple_size<ZuUnion<Args...>> :
-  public integral_constant<size_t, sizeof...(Args)> { };
 
-  template <size_t, typename> struct tuple_element;
-  template <size_t I, typename ...Args>
-  struct tuple_element<I, ZuUnion<Args...>> {
-    using type = typename ZuUnion<Args...>::template Type<I>;
-  };
-}
+template <class> struct tuple_size;
+template <typename ...Args>
+struct tuple_size<ZuUnion<Args...>> :
+public integral_constant<size_t, sizeof...(Args)> { };
+
+template <size_t, typename> struct tuple_element;
+template <size_t I, typename ...Args>
+struct tuple_element<I, ZuUnion<Args...>> {
+  using type = typename ZuUnion<Args...>::template Type<I>;
+};
+
+} // std
+
 #include <variant>
+
 namespace Zu_ {
 
 using size_t = std::size_t;

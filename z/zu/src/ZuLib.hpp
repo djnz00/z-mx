@@ -377,6 +377,7 @@ template <template <typename> class Filter, typename ...Args>
 using ZuTypeGrep = typename ZuTypeGrep_<Filter, Args...>::T;
 
 // reduce (recursive pair-wise reduction)
+// - Reduce<T0, T1>::T should reduce T0, T1 to T
 template <template <typename...> class, typename ...>
 struct ZuTypeReduce_;
 template <template <typename...> class Reduce, typename T0>
@@ -547,9 +548,94 @@ struct ZuTypeAll<T0, Args...> {
 template <typename ...Args>
 struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
 
+// compile-time numerical sequence
+template <unsigned ...> struct ZuSeq { };
+template <typename> struct ZuUnshiftSeq_;
+template <unsigned ...I>
+struct ZuUnshiftSeq_<ZuSeq<I...>> {
+  using T = ZuSeq<0, (I + 1)...>;
+};
+template <unsigned> struct ZuMkSeq_;
+template <> struct ZuMkSeq_<0> { using T = ZuSeq<>; };
+template <> struct ZuMkSeq_<1> { using T = ZuSeq<0>; };
+template <unsigned N> struct ZuMkSeq_ {
+  using T = typename ZuUnshiftSeq_<typename ZuMkSeq_<N - 1>::T>::T;
+};
+template <unsigned N> using ZuMkSeq = typename ZuMkSeq_<N>::T;
+
 // default accessor (pass-through value)
 inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
+}
+
+// ZuSeqCall<Axor, N>(value, lambda)
+// invokes lambda(Axor.operator ()<I>(value), ...) for I in [0,N)
+template <auto Axor, typename Seq, typename T> struct ZuSeqCall_;
+template <auto Axor, unsigned ...I, typename T>
+struct ZuSeqCall_<Axor, ZuSeq<I...>, T> {
+  template <typename L>
+  static decltype(auto) fn(const T &v, L l) {
+    return l(Axor.template operator ()<I>(v)...);
+  }
+  template <typename L>
+  static decltype(auto) fn(T &v, L l) {
+    return l(Axor.template operator()<I>(v)...);
+  }
+  template <typename L>
+  static decltype(auto) fn(T &&v, L l) {
+    return l(Axor.template operator()<I>(ZuMv(v))...);
+  }
+};
+template <unsigned N, auto Axor = ZuDefaultAxor(), typename T, typename L>
+inline decltype(auto) ZuSeqCall(T &&v, L l) {
+  return ZuSeqCall_<Axor, ZuMkSeq<N>, ZuDecay<T>>::fn(ZuFwd<T>(v), ZuMv(l));
+}
+
+// ZuSeqIter<Fn, N>(value, lambda)
+// invokes lambda(Fn.operator ()<I>(value)) for I in [0,N)
+template <auto Axor, typename Seq, typename T> struct ZuSeqIter_;
+template <auto Axor, unsigned I, unsigned ...J, typename T>
+struct ZuSeqIter_<Axor, ZuSeq<I, J...>, T> {
+  template <typename L>
+  static void fn(const T &v, L l) {
+    l.template operator ()<I>(Axor.template operator ()<I>(v));
+    return ZuSeqIter_<Axor, ZuSeq<J...>, T>::fn(v, ZuMv(l));
+  }
+  template <typename L>
+  static void fn(T &v, L l) {
+    l.template operator ()<I>(Axor.template operator()<I>(v));
+    return ZuSeqIter_<Axor, ZuSeq<J...>, T>::fn(v, ZuMv(l));
+  }
+  template <typename L>
+  static void fn(T &&v, L l) {
+    l.template operator ()<I>(Axor.template operator()<I>(ZuMv(v)));
+    return ZuSeqIter_<Axor, ZuSeq<J...>, T>::fn(ZuMv(v), ZuMv(l));
+  }
+};
+template <auto Axor, unsigned I, typename T>
+struct ZuSeqIter_<Axor, ZuSeq<I>, T> {
+  template <typename L>
+  static void fn(const T &v, L l) {
+    l.template operator ()<I>(Axor.template operator ()<I>(v));
+  }
+  template <typename L>
+  static void fn(T &v, L l) {
+    l.template operator ()<I>(Axor.template operator()<I>(v));
+  }
+  template <typename L>
+  static void fn(T &&v, L l) {
+    l.template operator ()<I>(Axor.template operator()<I>(ZuMv(v)));
+  }
+};
+template <auto Axor, typename T>
+struct ZuSeqIter_<Axor, ZuSeq<>, T> {
+  template <typename L> static void fn(const T &, L) { }
+  template <typename L> static void fn(T &, L) { }
+  template <typename L> static void fn(T &&, L) { }
+};
+template <unsigned N, auto Axor = ZuDefaultAxor(), typename T, typename L>
+inline decltype(auto) ZuSeqIter(T &&v, L l) {
+  return ZuSeqIter_<Axor, ZuMkSeq<N>, ZuDecay<T>>::fn(ZuFwd<T>(v), ZuMv(l));
 }
 
 // function signature deduction

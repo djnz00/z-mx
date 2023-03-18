@@ -52,61 +52,44 @@
 
 namespace ZuSwitch {
 
-template <unsigned ...> struct Seq { };
-
-template <typename> struct Unshift_;
-template <unsigned ...Case>
-struct Unshift_<Seq<Case...>> {
-  using T = Seq<0, (Case + 1)...>;
-};
-template <typename T> using Unshift = typename Unshift_<T>::T;
-
-template <unsigned> struct MkSeq_;
-template <> struct MkSeq_<0> { using T = Seq<>; };
-template <> struct MkSeq_<1> { using T = Seq<0>; };
-template <unsigned N> struct MkSeq_ {
-  using T = Unshift<typename MkSeq_<N - 1>::T>;
-};
-template <unsigned N> using MkSeq = typename MkSeq_<N>::T;
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
 template <typename R, typename Seq> struct Dispatch;
-template <unsigned ...Case> struct Dispatch<void, Seq<Case...>> {
+template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
   template <typename L>
   constexpr static void fn(unsigned i, L l) {
     std::initializer_list<int>{
-      (i == Case ? l(ZuConstant<Case>{}), 0 : 0)...
+      (i == I ? l(ZuConstant<I>{}), 0 : 0)...
     };
   }
 };
-template <typename R, unsigned ...Case> struct Dispatch<R, Seq<Case...>> {
+template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
   template <typename L>
   constexpr static R fn(unsigned i, L l) {
     R r;
     std::initializer_list<int>{
-      (i == Case ? (r = l(ZuConstant<Case>{})), 0 : 0)...
+      (i == I ? (r = l(ZuConstant<I>{})), 0 : 0)...
     };
     return r;
   }
 };
 
 template <typename R, typename Seq> struct All;
-template <unsigned ...Case> struct All<void, Seq<Case...>> {
+template <unsigned ...I> struct All<void, ZuSeq<I...>> {
   template <typename L>
   constexpr static void fn(L l) {
     std::initializer_list<int>{
-      (l(ZuConstant<Case>{}), 0)...
+      (l(ZuConstant<I>{}), 0)...
     };
   }
 };
 
-template <typename R, unsigned ...Case> struct All<R, Seq<Case...>> {
+template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   template <typename L>
   constexpr static R fn(L l) {
     R r;
     std::initializer_list<int>{
-      ((r = l(ZuConstant<Case>{})), 0)...
+      ((r = l(ZuConstant<I>{})), 0)...
     };
     return r;
   }
@@ -114,7 +97,7 @@ template <typename R, unsigned ...Case> struct All<R, Seq<Case...>> {
   template <typename L>
   constexpr static R fn(R r, L l) {
     std::initializer_list<int>{
-      ((r = l(ZuConstant<Case>{}, r)), 0)...
+      ((r = l(ZuConstant<I>{}, r)), 0)...
     };
     return r;
   }
@@ -125,26 +108,26 @@ template <typename R, unsigned ...Case> struct All<R, Seq<Case...>> {
 template <unsigned N, typename L>
 constexpr decltype(auto) dispatch(unsigned i, L l) {
   using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
-  return Dispatch<R, MkSeq<N>>::fn(i, ZuMv(l));
+  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
 }
 
 template <unsigned N, typename L, typename D>
 constexpr decltype(auto) dispatch(unsigned i, L l, D d) {
   using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
   if (ZuUnlikely(i >= N)) return d();
-  return Dispatch<R, MkSeq<N>>::fn(i, ZuMv(l));
+  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
 }
 
 template <unsigned N, typename L>
 constexpr decltype(auto) all(L l) {
   using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
-  return All<R, MkSeq<N>>::fn(ZuMv(l));
+  return All<R, ZuMkSeq<N>>::fn(ZuMv(l));
 }
 
 // map/reduce all() - caller supplies initial value of accumulator
 template <unsigned N, typename L, typename R>
 constexpr decltype(auto) all(R r, L l) {
-  return All<R, MkSeq<N>>::fn(ZuMv(r), ZuMv(l));
+  return All<R, ZuMkSeq<N>>::fn(ZuMv(r), ZuMv(l));
 }
 
 } // ZuSwitch
