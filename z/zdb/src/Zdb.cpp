@@ -1255,10 +1255,10 @@ void Env::replicated(Host *host, ZuID dbID, RN rn)
 DB::DB(ZdbEnv *env, ZdbCf *cf) :
   m_env{env}, m_mx{env->mx()}, m_cf{cf},
   m_path{ZiFile::append(env->config().path, cf->id)},
-  m_objCache{new ObjCache{cf->}}, // FIXME
-  m_repBufs{new RepBufs{}}, // FIXME
-  m_files{new FileCache{}}, // FIXME
-  m_indexBlks{new IndexBlkCache{}} // FIXME
+  m_objCache{new ObjCache{}},
+  m_repBufs{new RepBufs{}},
+  m_files{new FileCache{}},
+  m_indexBlks{new IndexBlkCache{}}
 {
 }
 

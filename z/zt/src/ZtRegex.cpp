@@ -168,6 +168,8 @@ static const char *exec_errors[] = {
 
 const char *ZtRegexError::strerror(int i)
 {
-  if (i < -33 || i > -1) return "UNKNOWN";
-  return exec_errors[-i - 1];
+  enum { N = sizeof(exec_errors) / sizeof(exec_errors[0]) };
+  i = -i - 1;
+  if (i < 0 || i >= N) return "UNKNOWN";
+  return exec_errors[i];
 }

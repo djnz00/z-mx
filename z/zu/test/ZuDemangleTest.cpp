@@ -7,8 +7,14 @@
 
 #include <iostream>
 
+template <template <typename> class, typename>
+struct Foo { template <unsigned> static int bar(const char *); };
+
+template <typename> struct Baz { };
+
 int main()
 {
   constexpr auto foo = ZuDefaultAxor();
   std::cout << ZuDemangle<1000>{typeid(foo).name()} << '\n';
+  std::cout << ZuDemangle<1000>{typeid(Foo<Baz, Baz<int>>).name()} << '\n';
 }

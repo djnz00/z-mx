@@ -236,14 +236,14 @@ private:
   void age_();
 
 private:
-  ZtString	m_program;
-  int		m_level;
-  ZmSemaphore	m_work;
-  ZmSemaphore	m_started;
-  Lock		m_lock;
-    ZmRef<ZeSink> m_sink;
-    EventQueue	  m_queue;
-    ZmThread	  m_thread;
+  ZtString		m_program;
+  int			m_level;
+  ZmSemaphore		m_work;
+  ZmSemaphore		m_started;
+  Lock			m_lock;
+    ZmRef<ZeSink>	  m_sink;
+    EventQueue		  m_queue;
+    ZmThread		  m_thread;
 };
 
 #ifdef _MSC_VER

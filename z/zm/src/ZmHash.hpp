@@ -71,8 +71,8 @@ template <typename Lock> class ZmHash_LockMgr {
 
 protected:
   ZmHash_LockMgr(const ZmHashParams &p) :
-      m_bits(p.bits()   < 2 ? 2 : p.bits()  > 28 ? 28 : p.bits()),
-      m_cBits(p.cBits() < 0 ? 0 : p.cBits() > 12 ? 12 : p.cBits()) {
+      m_bits{p.bits()   < 2 ? 2 : p.bits()  > 28 ? 28 : p.bits()},
+      m_cBits{p.cBits() < 0 ? 0 : p.cBits() > 12 ? 12 : p.cBits()} {
     if (m_cBits > m_bits) m_cBits = m_bits;
     unsigned n = 1U<<m_cBits;
     unsigned z = n * CacheLineSize;
@@ -136,7 +136,7 @@ private:
 template <> class ZmHash_LockMgr<ZmNoLock> {
 protected:
   ZmHash_LockMgr(const ZmHashParams &p) :
-      m_bits(p.bits() < 2 ? 2 : p.bits() > 28 ? 28 : p.bits()) { }
+      m_bits{p.bits() < 2 ? 2 : p.bits() > 28 ? 28 : p.bits()} { }
   ~ZmHash_LockMgr() { }
 
 public:
@@ -537,9 +537,11 @@ public:
   }
 
   unsigned loadFactor_() const { return m_loadFactor; }
-  double loadFactor() const { return (double)m_loadFactor / 16.0; }
+  double loadFactor() const {
+    return static_cast<double>(m_loadFactor) / 16.0;
+  }
   unsigned size() const {
-    return (double)(((uint64_t)1)<<m_bits) * loadFactor();
+    return static_cast<double>(static_cast<uint64_t>(1)<<m_bits) * loadFactor();
   }
 
   unsigned count_() const { return m_count.load_(); }

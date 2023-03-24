@@ -915,7 +915,6 @@ struct DBCf {
   ZmThreadName		fileThread;	// file I/O thread
   mutable unsigned	fileSID = 0;	// file I/O thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
-  // FIXME - cache sizes, including buffer cache size
   unsigned		vacuumBatch = 0;
   bool			warmUp = false;	// pre-write initial DB file
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()

@@ -42,7 +42,7 @@ struct ZCmp {
   constexpr static const Z *null() { return nullptr; }
 };
 
-using ZCache = ZmCacheKV<unsigned, Z>;
+using ZCache = ZmCacheKV<unsigned, Z, ZmCacheLock<ZmPLock>>;
 using ZNode = ZCache::Node;
 
 using ZTree = ZmRBTreeKV<unsigned, Z>;
@@ -56,13 +56,11 @@ void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned cacheSize)
 {
   for (unsigned i = 0; i < cacheSize; i++)
     cache.find(offset + i,
-	  [&tree]<typename L>(unsigned key, L l) {
+	  [&tree](unsigned key) -> ZCache::NodeRef {
 	    if (auto node = tree.find(key))
-	      l(new ZNode{key, node->val().v});
-	    else
-	      l(nullptr);
-	  },
-	  [](ZNode *) { });
+	      return new ZNode{key, node->val().v};
+	    return nullptr;
+	  });
 }
 
 void stats(const ZCache &cache)
@@ -94,7 +92,7 @@ int main(int argc, char **argv)
 
   overallStart.now();
 
-  ZCache cache{cacheSize};
+  ZCache cache{ZmHashParams{cacheSize}};
   ZTree tree;
 
   backFill(tree, cacheSize);

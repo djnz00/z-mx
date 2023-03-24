@@ -160,7 +160,8 @@ public:
   }
 
 private:
-  template <typename U> struct IsLiteral {
+  template <typename U_> struct IsLiteral {
+    using U = ZuDecay<U_>;
     enum { OK = ZuTraits<U>::IsArray &&
       ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
       ZuConversion<typename ZuTraits<U>::Elem, const char>::Same };
@@ -168,7 +169,8 @@ private:
   template <typename U, typename R = void>
   using MatchLiteral = ZuIfT<IsLiteral<U>::OK, R>;
 
-  template <typename U> struct IsPrint {
+  template <typename U_> struct IsPrint {
+    using U = ZuDecay<U_>;
     enum { OK = !IsLiteral<U>::OK &&
       (ZuTraits<U>::IsString || ZuPrint<U>::OK) };
   };
@@ -182,12 +184,12 @@ public:
   // from string literal
   template <typename P>
   ZeMessageFn_(P &&p, MatchLiteral<P> *_ = nullptr) :
-    Fn([p = ZuString(p)](const Event &, ZmStream &s) { s << p; }) { }
+    Fn{[p = ZuString(ZuFwd<P>(p))](const Event &, ZmStream &s) { s << p; }} { }
 
   // from something printable (that's not a string literal)
   template <typename P>
   ZeMessageFn_(P &&p, MatchPrint<P> *_ = nullptr) :
-    Fn([p = ZuFwd<P>(p)](const Event &, ZmStream &s) { s << p; }) { }
+    Fn{[p = ZuFwd<P>(p)](const Event &, ZmStream &s) { s << p; }} { }
 
   // fwd anything else to ZmFn
   template <typename P>
@@ -195,7 +197,7 @@ public:
     Fn(ZuFwd<P>(p)) { }
   template <typename P1, typename P2, typename ...Args>
   ZeMessageFn_(P1 &&p1, P2 &&p2, Args &&... args) :
-    Fn(ZuFwd<P1>(p1), ZuFwd<P2>(p2), ZuFwd<Args>(args)...) { }
+    Fn{ZuFwd<P1>(p1), ZuFwd<P2>(p2), ZuFwd<Args>(args)...} { }
 };
 
 using ZeEvent_Queue =

@@ -36,12 +36,12 @@
 
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmSpecific.hpp>
+#include <zlib/ZmAlloc.hpp>
 
-class ZmBlock_ {
+namespace ZmBlock_ {
   struct Sem : public ZmObject, public ZmSemaphore { };
-public:
-  static auto sem() { return ZmSpecific<Sem>::instance(); }
-};
+  inline auto sem() { return ZmSpecific<Sem>::instance(); }
+}
 
 template <typename ...Args> struct ZmBlock {
   using R = ZuTuple<Args...>;
@@ -58,7 +58,8 @@ template <typename ...Args> struct ZmBlock {
   }
   template <typename L, typename Reduce>
   R operator ()(unsigned n, L l, Reduce reduce) const {
-    ZtArray<R> r{n};
+    auto r = ZmAlloc(R, n);
+    if (!r) throw std::bad_alloc{};
     auto sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++)
       l(i, [sem, &r = r[i]](Args... args) {
@@ -85,7 +86,8 @@ template <typename Arg> struct ZmBlock<Arg> {
   }
   template <typename L, typename Reduce>
   R operator ()(unsigned n, L l, Reduce reduce) const {
-    ZtArray<R> r{n};
+    auto r = ZmAlloc(R, n);
+    if (!r) throw std::bad_alloc{};
     auto sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++)
       l(i, [sem, &r = r[i]](Arg arg) {
@@ -105,6 +107,7 @@ template <> struct ZmBlock<> {
     sem->wait();
     return;
   }
+  template <typename L>
   void operator ()(unsigned n, L l) const {
     auto sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++) l(i, [sem]() { sem->post(); });
