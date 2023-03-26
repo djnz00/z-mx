@@ -51,7 +51,7 @@ struct Impl : public ZmEngine<Impl> {
 
   // optional functions
 
-  void stateChanged(int state);	// state change notification
+  void stateChanged();	// state change notification
 
   template <typename L>
   bool spawn(L);	// spawn control thread - returns true if successful
@@ -104,7 +104,7 @@ protected:
   void started(bool ok);
   void stopped(bool ok);
 
-  void stateChanged(int) { }			// optional
+  void stateChanged() { }			// optional
 
   template <typename L>
   bool spawn(L l) { l(); return true; }		// default
@@ -136,12 +136,12 @@ inline void ZmEngine<Impl>::start(ZmFn<bool> startFn)
       case Stopping:
 	m_state = StartPending;
 	guard.unlock();
-	impl()->stateChanged(Stopping);
+	impl()->stateChanged();
 	return;
       case StopPending:
 	m_state = Starting;
 	guard.unlock();
-	impl()->stateChanged(StopPending);
+	impl()->stateChanged();
 	return;
       default:
 	return; // Starting || Running || StartPending
@@ -150,9 +150,10 @@ inline void ZmEngine<Impl>::start(ZmFn<bool> startFn)
 
   ok = impl()->spawn([this]() { impl()->start_(); });
 
-  if (ok) impl()->stateChanged(Starting);
-
-  if (!ok) { started(false); return; }
+  if (ok)
+    impl()->stateChanged();
+  else
+    started(false);
 }
 template <typename Impl>
 inline bool ZmEngine<Impl>::start()
@@ -188,9 +189,8 @@ inline void ZmEngine<Impl>::started(bool ok)
 	break;
     }
   }
-  int state = m_state;
   guard.unlock();
-  impl()->stateChanged(state);
+  impl()->stateChanged();
   while (auto fn = startFn.shift()) fn(ok);
   if (stop) this->stop({});
   else if (stopped) this->stopped(true);
@@ -215,19 +215,19 @@ inline void ZmEngine<Impl>::stop(ZmFn<bool> stopFn)
       case Starting:
 	m_state = StopPending;
 	guard.unlock();
-	impl()->stateChanged(StopPending);
+	impl()->stateChanged();
 	return;
       case StartPending:
 	m_state = Stopping;
 	guard.unlock();
-	impl()->stateChanged(Stopping);
+	impl()->stateChanged();
 	return;
       default:
 	return; // Stopping || Stopped || StopPending
     }
   }
 
-  impl()->stateChanged(Stopping);
+  impl()->stateChanged();
 
   impl()->wake();
 }
@@ -277,9 +277,8 @@ inline void ZmEngine<Impl>::stopped(bool ok)
 	break;
     }
   }
-  int state = m_state;
   guard.unlock();
-  impl()->stateChanged(state);
+  impl()->stateChanged();
   while (auto fn = stopFn.shift()) fn(ok);
   if (start) this->start({});
   else if (started) this->started(true);

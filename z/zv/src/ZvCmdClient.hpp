@@ -280,7 +280,7 @@ public:
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    int i = Rx::template recvMem<
+    int i = Rx::template recvMemSync<
       ZvCmd::loadHdr<IOBuf>, &ZvCmdCliLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;

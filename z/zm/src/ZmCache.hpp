@@ -141,15 +141,25 @@ public:
     friend ZuPrintFn ZuPrintType(Stats *);
   };
 
-  template <bool Reset = false>
-  void stats(Stats &r) const {
-    ReadGuard guard{m_lock};
+private:
+  void stats_(Stats &r) const {
     r.size = m_hash->size();
     r.count = m_hash->count_();
     r.loads = m_loads;
     r.misses = m_misses;
     r.evictions = m_evictions;
-    if constexpr (Reset) m_loads = m_misses = m_evictions = 0;
+  }
+public:
+  template <bool Reset = false>
+  ZuIfT<!Reset> stats(Stats &r) const {
+    ReadGuard guard{m_lock};
+    stats_(r);
+  }
+  template <bool Reset = false>
+  ZuIfT<Reset> stats(Stats &r) {
+    Guard guard{m_lock};
+    stats_(r);
+    m_loads = m_misses = m_evictions = 0;
   }
 
   template <bool UpdateLRU = Evict, typename Key>
@@ -213,7 +223,8 @@ public:
     typename LoadHash::Node *load = m_loadHash->find(key);
     bool pending = load;
     if (!pending)
-      m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
+      m_loadHash->addNode(
+	  load = new typename LoadHash::Node{key, FindFnList{}});
     load->val().push(FindFn{ZuMv(findFn)});
     guard.unlock();
     if (!pending)
@@ -239,7 +250,8 @@ public:
     typename LoadHash::Node *load = m_loadHash->find(key);
     bool pending = !!load;
     if (!pending)
-      m_loadHash->addNode(load = new LoadHash::Node{key, FindFnList{}});
+      m_loadHash->addNode(
+	  load = new typename LoadHash::Node{key, FindFnList{}});
     load->val().push(FindFn{ZuMv(findFn)});
     guard.unlock();
     if (!pending)

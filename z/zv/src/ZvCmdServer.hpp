@@ -226,7 +226,7 @@ public:
 
     scheduleTimeout();
 
-    int i = Rx::template recvMem<
+    int i = Rx::template recvMemSync<
       ZvCmd::loadHdr<IOBuf>, &ZvCmdSrvLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;

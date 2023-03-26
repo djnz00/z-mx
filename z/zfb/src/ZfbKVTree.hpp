@@ -45,8 +45,8 @@ struct KVTreeGet {
 
   friend ZuPrintFn ZuPrintType(KVTreeGet *);
 };
-// template <typename SaveFn, typename PrintFn>
-// KVTreeGet(SaveFn saveFn, PrintFn printFn) -> KVTreeGet<SaveFn, PrintFn>;
+template <typename SaveFn, typename PrintFn>
+KVTreeGet(SaveFn saveFn, PrintFn printFn) -> KVTreeGet<SaveFn, PrintFn>;
 
 namespace Save {
   template <typename B, typename ...Args>

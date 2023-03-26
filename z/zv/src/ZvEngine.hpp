@@ -192,7 +192,7 @@ struct ZvEngineMgr {
   // Engine Management
   virtual void addEngine(ZvEngine *) { }
   virtual void delEngine(ZvEngine *) { }
-  virtual void updEngine(ZvEngine *, int state) { }
+  virtual void updEngine(ZvEngine *) { }
 
   // Link Management
   virtual void updLink(ZvAnyLink *) { }
@@ -418,7 +418,7 @@ private:
 
   void start_();
   void stop_();
-  void stateChanged(int state) { mgr()->updEngine(this, state); }
+  void stateChanged() { mgr()->updEngine(this); }
 
 private:
   ZuID				m_id;

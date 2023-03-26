@@ -391,26 +391,26 @@ struct Zdb {
   using Name = ZuStringN<28>;
 
   Path		path;
-  Name		name;			// primary key
-  uint64_t	minRN = 0;		// dynamic
-  uint64_t	nextRN = 0;		// dynamic
-  uint64_t	cacheLoads = 0;		// dynamic (*)
-  uint64_t	cacheMisses = 0;	// dynamic (*)
-  uint64_t	fileLoads = 0;		// dynamic
-  uint64_t	fileMisses = 0;		// dynamic
-  uint64_t	indexBlkLoads = 0;	// dynamic
-  uint64_t	indexBlkMisses = 0;	// dynamic
+  Name		name;				// primary key
+  uint64_t	minRN = 0;			// dynamic
+  uint64_t	nextRN = 0;			// dynamic
+  uint64_t	objCacheLoads = 0;		// dynamic (*)
+  uint64_t	objCacheMisses = 0;		// dynamic (*)
+  uint64_t	fileCacheLoads = 0;		// dynamic
+  uint64_t	fileCacheMisses = 0;		// dynamic
+  uint64_t	indexBlkCacheLoads = 0;		// dynamic
+  uint64_t	indexBlkCacheMisses = 0;	// dynamic
   uint32_t	objCacheSize = 0;
   uint32_t	fileCacheSize = 0;
   uint32_t	indexBlkCacheSize = 0;
-  int8_t	cacheMode = -1;		// ZdbCacheMode
+  int8_t	cacheMode = -1;			// ZdbCacheMode
   uint8_t	warmUp = 0;
 
   int rag() const {
-    unsigned total = cacheLoads + cacheMisses;
+    unsigned total = objCacheLoads + objCacheMisses;
     if (!total) return RAG::Off;
-    if (cacheMisses * 10 > (total<<3)) return RAG::Red;
-    if ((cacheMisses<<1) > total) return RAG::Amber;
+    if (objCacheMisses * 10 > (total<<3)) return RAG::Red;
+    if ((objCacheMisses<<1) > total) return RAG::Amber;
     return RAG::Green;
   }
   void rag(int) { } // unused
@@ -420,19 +420,19 @@ struct Zdb {
 ZfbFields(Zdb, fbs::Zdb,
     (((name), (0)), (String), (Ctor(1))),
     (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor(13))),
-    (((objCacheSize)), (Int), (Ctor(10))),
     (((path)), (String), (Ctor(0))),
+    (((objCacheSize)), (Int), (Ctor(10))),
     (((fileCacheSize)), (Int), (Ctor(11))),
     (((indexBlkCacheSize)), (Int), (Ctor(12))),
     (((warmUp)), (Int), (Ctor(14))),
     (((minRN)), (Int), (Ctor(2), Update)),
     (((nextRN)), (Int), (Ctor(3), Update, Series, Delta)),
-    (((cacheLoads)), (Int), (Ctor(4), Update, Series, Delta)),
-    (((cacheMisses)), (Int), (Ctor(5), Update, Series, Delta)),
-    (((fileLoads)), (Int), (Ctor(6), Update, Series, Delta)),
-    (((fileMisses)), (Int), (Ctor(7), Update, Series, Delta)),
-    (((indexBlkLoads)), (Int), (Ctor(8), Update, Series, Delta)),
-    (((indexBlkMisses)), (Int), (Ctor(9), Update, Series, Delta)),
+    (((objCacheLoads)), (Int), (Ctor(4), Update, Series, Delta)),
+    (((objCacheMisses)), (Int), (Ctor(5), Update, Series, Delta)),
+    (((fileCacheLoads)), (Int), (Ctor(6), Update, Series, Delta)),
+    (((fileCacheMisses)), (Int), (Ctor(7), Update, Series, Delta)),
+    (((indexBlkCacheLoads)), (Int), (Ctor(8), Update, Series, Delta)),
+    (((indexBlkCacheMisses)), (Int), (Ctor(9), Update, Series, Delta)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:

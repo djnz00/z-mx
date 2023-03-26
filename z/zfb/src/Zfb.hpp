@@ -102,11 +102,13 @@ protected:
 
   // override ZiIOBuf's default grow() with a pass-through because flatbuffers
   // has it's own buffer growth algorithm in vector_downward::reallocate()
+private:
   static unsigned grow(unsigned, unsigned n) { return n; }
+protected:
   uint8_t *reallocate_downward(
       uint8_t *old_p, size_t old_size, size_t new_size,
       size_t in_use_back, size_t in_use_front) {
-    return m_buf->realloc<grow>(
+    return m_buf->template realloc<grow>(
 	old_size, new_size, in_use_front, in_use_back);
   }
 
@@ -136,7 +138,7 @@ namespace Save {
   // push uninitialized vector
   template <typename B, typename T>
   inline Offset<Vector<T>> pvector_(B &b, unsigned length, T *&data) {
-    return fbb.CreateUninitializedVector(
+    return b.CreateUninitializedVector(
 	length, sizeof(T), AlignOf<T>(), reinterpret_cast<uint8_t **>(&data));
   }
   // inline creation of a vector of primitive scalars

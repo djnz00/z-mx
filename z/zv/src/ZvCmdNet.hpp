@@ -67,7 +67,8 @@ struct Hdr {
 
 // call following Finish() to ensure alignment
 template <typename Builder, typename Owner>
-inline auto saveHdr(Builder &fbb, ZuID type, Owner *owner) {
+inline ZmRef<typename Builder::IOBuf>
+saveHdr(Builder &fbb, ZuID type, Owner *owner) {
   unsigned length = fbb.GetSize();
   auto buf = fbb.buf();
   buf->owner = owner;

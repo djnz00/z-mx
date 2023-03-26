@@ -199,20 +199,6 @@ public:
   // ensure at least newSize bytes in buffer, preserving any existing data
   template <auto Grow = ZmGrow>
   uint8_t *ensure(unsigned newSize) {
-    if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
-    if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
-    newSize = Grow(size, newSize);
-    uint8_t *old = ZuUnlikely(jumbo) ? jumbo : data_;
-    jumbo = static_cast<uint8_t *>(valloc(newSize));
-    if (ZuUnlikely(!jumbo)) return nullptr;
-    if (length) memcpy(jumbo + skip, old + skip, length - skip);
-    size = newSize;
-    if (ZuUnlikely(old != data_)) vfree(old);
-    return jumbo;
-  }
-
-  template <auto Grow = ZmGrow>
-  uint8_t *ensure(unsigned newSize) {
     ZmAssert(!skip);
     if (ZuLikely(newSize <= Size)) { size = newSize; return data_; }
     if (ZuUnlikely(newSize <= size)) { size = newSize; return jumbo; }
