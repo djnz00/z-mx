@@ -4,11 +4,14 @@
 #include <zlib/ZuLib.hpp>
 
 #include <stdio.h>
+#include <iostream>
 
 #include <zlib/ZuConversion.hpp>
 #include <zlib/ZuUnion.hpp>
 #include <zlib/ZuTuple.hpp>
 #include <zlib/ZuTraits.hpp>
+#include <zlib/ZuPrint.hpp>
+#include <zlib/ZuDemangle.hpp>
 
 struct A { };
 struct B : public A { };
@@ -18,6 +21,19 @@ struct D : public C { ~D() { puts("~D()"); } };
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
 inline constexpr auto foo() { return []() { puts("Hello World"); }; }
+
+struct A_Print : public ZuPrintDelegate {
+  template <typename S>
+  static void print(S &s, const A &) { s << "A{}"; }
+};
+A_Print ZuPrintType(A *);
+using APtr = A *;
+using Baz = decltype(ZuPrintType(ZuDeclVal<APtr *>()));
+struct APtr_Print : public ZuPrintDelegate {
+  template <typename S>
+  static void print(S &s, APtr) { s << "&A{}"; }
+};
+APtr_Print ZuPrintType(APtr *);
 
 int main()
 {
@@ -81,4 +97,11 @@ int main()
   CHECK((!ZuConversion<decltype(foo()), decltype(baz)>::Same));
 
   bar(); baz();
+
+  {
+    A a;
+    std::cout << a << '\n';
+    std::cout << ZuDemangle<128>{typeid(ZuPrint<A *>).name()} << '\n';
+    std::cout << &a << '\n';
+  }
 }

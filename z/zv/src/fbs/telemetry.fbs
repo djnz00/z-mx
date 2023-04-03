@@ -167,6 +167,8 @@ enum ZdbCacheMode:int8 {
 table Zdb {
   path:string;
   name:string;
+  thread:string;
+  file_thread:string;
   min_r_n:uint64;
   next_r_n:uint64;
   file_r_n:uint64;
@@ -206,7 +208,7 @@ table ZdbHost {
 }
 table ZdbEnv {
   thread:string;
-  write_thread:string;
+  file_thread:string;
   self:Zfb.ID;
   master:Zfb.ID;
   prev:Zfb.ID;

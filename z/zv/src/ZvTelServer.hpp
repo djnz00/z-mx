@@ -50,12 +50,11 @@ using QueueFn = ZvEngineMgr::QueueFn;
 using IOBuf = Ztls::IOBuf;
 using IOBuilder = Zfb::IOBuilder<IOBuf>;
 
+using BuildZdbEnvFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>;
+using BuildZdbHostFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>;
+using BuildZdbFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>;
 using ZdbEnvFn =
-  ZmFn<
-    ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>,
-    ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbHost>>,
-    ZmFn<IOBuilder &, Zfb::Offset<fbs::Zdb>>,
-    bool>; // true if update
+  ZmFn<BuildZdbEnvFn, BuildZdbHostFn, BuildZdbFn, bool>; // true if update
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -162,7 +161,8 @@ public:
       error(true, "corrupt");
       return BufRef{};
     }
-    ZmRef<IOBuf> buf = new IOBuf(bufOwner, next - offset);
+    ZmRef<IOBuf> buf =
+      new IOBuf{bufOwner, static_cast<unsigned>(next - offset)};
     if (m_file.pread(offset, buf->data(), buf->length, &e) != Zi::OK) {
       error(false, e);
       return BufRef{};

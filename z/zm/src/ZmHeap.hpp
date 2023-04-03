@@ -311,7 +311,7 @@ private:
   ZmHeapStats	m_stats;
 };
 
-// ZmHeap_Size returns a size that is minimum sizeof(uintptr_t),
+// ZmHeapAllocSize returns a size that is minimum sizeof(uintptr_t),
 // or the smallest power of 2 greater than the passed size yet smaller
 // than the cache line size, or the size rounded up to the nearest multiple
 // of the cache line size
@@ -319,24 +319,22 @@ template <unsigned Size_,
 	  bool Small = (Size_ <= sizeof(uintptr_t)),
 	  unsigned RShift = 0,
 	  bool Big = (Size_ > (Zm::CacheLineSize>>RShift))>
-  struct ZmHeap_Size;
+  struct ZmHeapAllocSize;
 template <unsigned Size_, unsigned RShift, bool Big> // smallest
-struct ZmHeap_Size<Size_, true, RShift, Big> {
-  enum { Size = sizeof(uintptr_t) };
+struct ZmHeapAllocSize<Size_, true, RShift, Big> {
+  enum { N = sizeof(uintptr_t) };
 };
 template <unsigned Size_, unsigned RShift> // smaller
-struct ZmHeap_Size<Size_, false, RShift, false> {
-  enum { Size = ZmHeap_Size<Size_, false, RShift + 1>::Size };
+struct ZmHeapAllocSize<Size_, false, RShift, false> {
+  enum { N = ZmHeapAllocSize<Size_, false, RShift + 1>::N };
 };
 template <unsigned Size_, unsigned RShift> // larger
-struct ZmHeap_Size<Size_, false, RShift, true> {
-  enum { CacheLineSize = Zm::CacheLineSize };
-  enum { Size = (CacheLineSize>>(RShift - 1)) };
+struct ZmHeapAllocSize<Size_, false, RShift, true> {
+  enum { N = (Zm::CacheLineSize>>(RShift - 1)) };
 };
 template <unsigned Size_>
-struct ZmHeap_Size<Size_, false, 0, true> { // larger than cache line size
-  enum { CacheLineSize = Zm::CacheLineSize };
-  enum { Size = ((Size_ + CacheLineSize - 1) & ~(CacheLineSize - 1)) };
+struct ZmHeapAllocSize<Size_, false, 0, true> { // larger than cache line size
+  enum { N = ((Size_ + Zm::CacheLineSize - 1) & ~(Zm::CacheLineSize - 1)) };
 };
 
 template <typename Heap> class ZmHeap_Init {
@@ -348,11 +346,12 @@ template <auto ID_, unsigned Size_, bool Sharded_>
 class ZmHeap__ {
 public:
   constexpr static auto ID = ID_;
-  enum { Size = ZmHeap_Size<Size_>::Size };
+  // enum { Size = Size_ };
+  enum { AllocSize = ZmHeapAllocSize<Size_>::N };
   enum { Sharded = Sharded_ };
 
 private:
-  using Cache = ZmHeapCacheT<ID, Size, Sharded>;
+  using Cache = ZmHeapCacheT<ID, AllocSize, Sharded>;
 
 public:
   void *operator new(size_t) { return Cache::alloc(); }

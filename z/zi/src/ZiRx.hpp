@@ -86,7 +86,7 @@ public:
 
       // copy any trailing data that is (part of) the next message
       if (nextLen) {
-	next = new Buf{impl()};
+	next = new Buf{impl(buf)};
 	nextPtr = next->ensure(nextLen);
 	memcpy(nextPtr, io.ptr + frameLen, nextLen);
 	next->length = nextLen;
@@ -100,7 +100,7 @@ public:
 
       // no trailing data - allocate blank next message
       if (!next) {
-	next = new Buf{impl()};
+	next = new Buf{impl(buf)};
 	nextPtr = next->data();
       }
 

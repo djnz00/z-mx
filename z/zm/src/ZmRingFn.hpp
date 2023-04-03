@@ -59,7 +59,7 @@
 // run-time encapsulation of generic functor/lambda
 template <auto HeapID, bool Sharded = false>
 class ZmRingFn {
-  // 64bit pointer-packing - uses bit 63 to indicate on-heap
+  // 64bit pointer packing - uses bit 63 to indicate on-heap
   constexpr static uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
 
   typedef unsigned (*InvokeFn)(void *ptr);

@@ -1205,8 +1205,8 @@ private:
     return size() - (head - tail);
   }
 public:
-  // can be called by writers after push() returns 0; returns
-  // Error (not open), NotReady (no readers), EndOfFile,
+  // can be called by writers after push() returns 0;
+  // returns Error (not open), NotReady (no readers), EndOfFile,
   // or amount of space remaining in ring buffer (>= 0)
   // SR
   template <bool MR_ = MR>

@@ -63,11 +63,11 @@ using Builder = FlatBufferBuilder;
 template <typename IOBuf_ = ZiIOBuf<>>
 class IOBuilder : public Allocator, public Builder {
 public:
-  enum { Size = IOBuf_::Size }; // Size conflicts with Builder::Size()
+  enum { BufSize = IOBuf_::BufSize };
   enum { Align = 8 };
   using IOBuf = IOBuf_;
 
-  IOBuilder() : Builder{Size & ~(Align - 1), this, false, Align} { }
+  IOBuilder() : Builder{BufSize & ~(Align - 1), this, false, Align} { }
 
   // attach buffer to builder
   void buf(ZmRef<IOBuf> buf) {

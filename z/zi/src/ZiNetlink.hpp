@@ -62,7 +62,7 @@ public:
       " groups=" << ZuBoxed(m_snl.nl_groups);
   }
 };
-template <> struct ZuPrint<ZiNetlinkSockAddr> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(ZiNetlinkSockAddr *);
 
 class ZiNetlink {
   friend ZiMultiplex;

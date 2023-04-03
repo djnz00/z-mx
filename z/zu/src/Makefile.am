@@ -7,7 +7,7 @@ pkginclude_HEADERS = \
 	ZuBitmap.hpp ZuByteSwap.hpp ZuCmp.hpp ZuConversion.hpp \
 	ZuFnName.hpp ZuFmt.hpp ZuFP.hpp ZuHash.hpp ZuID.hpp \
 	ZuInt.hpp ZuFunctorTraits.hpp ZuLargest.hpp \
-	ZuLib.hpp ZuMixin.hpp ZuMvArray.hpp ZuNull.hpp \
+	ZuLib.hpp ZuMvArray.hpp ZuNull.hpp \
 	ZuObject_.hpp ZuObject.hpp ZuPolymorph.hpp ZuPOD.hpp ZuPP.hpp \
 	ZuPair.hpp ZuPrint.hpp ZuRef.hpp ZuStdString.hpp ZuString.hpp \
 	ZuStringFn.hpp ZuStringN.hpp ZuTraits.hpp ZuTuple.hpp ZuUnion.hpp \

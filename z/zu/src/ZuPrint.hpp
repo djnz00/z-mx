@@ -54,14 +54,17 @@ struct ZuPrintLambda {
 
 ZuPrintCannot ZuPrintType(...);
 
-template <typename U, bool = ZuConversion<ZuPrintable, U>::Base>
-struct ZuPrint_ {
-  using T = decltype(ZuPrintType(ZuDeclVal<U *>()));
-};
 template <typename U>
-struct ZuPrint_<U, true> { using T = ZuPrintFn; };
+struct ZuPrintT_ { using T = U; };
+template <typename U>
+struct ZuPrintT_<U *> { using T = typename ZuPrintT_<ZuDecay<U>>::T *; };
+template <typename U>
+using ZuPrintT = typename ZuPrintT_<ZuDecay<U>>::T *;
 
-template <typename U> using ZuPrint = typename ZuPrint_<ZuDecay<U>>::T;
+template <typename U>
+using ZuPrint = decltype(ZuPrintType(ZuDeclVal<ZuPrintT<U>>()));
+
+ZuPrintFn ZuPrintType(ZuPrintable *);
 
 struct ZuPrintString {
   enum { OK = 1, String = 1, Delegate = 0, Buffer = 0 };

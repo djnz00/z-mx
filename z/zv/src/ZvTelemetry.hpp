@@ -385,13 +385,16 @@ ZfbFields(Engine, fbs::Engine,
 //   minRN, nextRN,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   fileCacheSize, fileLoads, fileMisses
-//   indexBlkCacheSize, indexBlkLoads, indexBlkMisses
+//   indexBlkCacheSize, indexBlkLoads, indexBlkMisses,
+//   thread, fileThread
 struct Zdb {
   using Path = ZuStringN<124>;
   using Name = ZuStringN<28>;
 
   Path		path;
   Name		name;				// primary key
+  ZmThreadName	thread;
+  ZmThreadName	fileThread;
   uint64_t	minRN = 0;			// dynamic
   uint64_t	nextRN = 0;			// dynamic
   uint64_t	objCacheLoads = 0;		// dynamic (*)
@@ -418,21 +421,23 @@ struct Zdb {
   friend ZtFieldPrint ZuPrintType(Zdb *);
 };
 ZfbFields(Zdb, fbs::Zdb,
-    (((name), (0)), (String), (Ctor(1))),
-    (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor(13))),
-    (((path)), (String), (Ctor(0))),
-    (((objCacheSize)), (Int), (Ctor(10))),
-    (((fileCacheSize)), (Int), (Ctor(11))),
-    (((indexBlkCacheSize)), (Int), (Ctor(12))),
-    (((warmUp)), (Int), (Ctor(14))),
-    (((minRN)), (Int), (Ctor(2), Update)),
-    (((nextRN)), (Int), (Ctor(3), Update, Series, Delta)),
-    (((objCacheLoads)), (Int), (Ctor(4), Update, Series, Delta)),
-    (((objCacheMisses)), (Int), (Ctor(5), Update, Series, Delta)),
-    (((fileCacheLoads)), (Int), (Ctor(6), Update, Series, Delta)),
-    (((fileCacheMisses)), (Int), (Ctor(7), Update, Series, Delta)),
-    (((indexBlkCacheLoads)), (Int), (Ctor(8), Update, Series, Delta)),
-    (((indexBlkCacheMisses)), (Int), (Ctor(9), Update, Series, Delta)),
+    (((name), (0)), (String), (Ctor(3))),
+    (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor(15))),
+    (((path)), (String), (Ctor(2))),
+    (((objCacheSize)), (Int), (Ctor(12))),
+    (((fileCacheSize)), (Int), (Ctor(13))),
+    (((indexBlkCacheSize)), (Int), (Ctor(14))),
+    (((warmUp)), (Int), (Ctor(16))),
+    (((minRN)), (Int), (Ctor(4), Update)),
+    (((nextRN)), (Int), (Ctor(5), Update, Series, Delta)),
+    (((objCacheLoads)), (Int), (Ctor(6), Update, Series, Delta)),
+    (((objCacheMisses)), (Int), (Ctor(7), Update, Series, Delta)),
+    (((fileCacheLoads)), (Int), (Ctor(8), Update, Series, Delta)),
+    (((fileCacheMisses)), (Int), (Ctor(9), Update, Series, Delta)),
+    (((indexBlkCacheLoads)), (Int), (Ctor(10), Update, Series, Delta)),
+    (((indexBlkCacheMisses)), (Int), (Ctor(11), Update, Series, Delta)),
+    (((thread)), (String), (Ctor(0))),
+    (((fileThread)), (String), (Ctor(1))),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:
@@ -462,11 +467,11 @@ ZfbFields(ZdbHost, fbs::ZdbHost,
 // display sequence: 
 //   self, master, prev, next, state, active, recovering, replicating,
 //   nDBs, nHosts, nPeers, nCxns,
-//   heartbeatFreq, heartbeatTimeout, reconnectFreq, electionTimeout,
-//   writeThread
+//   thread, fileThread,
+//   heartbeatFreq, heartbeatTimeout, reconnectFreq, electionTimeout
 struct ZdbEnv {
   ZmThreadName	thread;
-  ZmThreadName	writeThread;
+  ZmThreadName	fileThread;
   ZuID		self;			// primary key - host ID 
   ZuID		master;			// host ID
   ZuID		prev;			// ''
@@ -490,8 +495,6 @@ struct ZdbEnv {
   friend ZtFieldPrint ZuPrintType(ZdbEnv *);
 };
 ZfbFields(ZdbEnv, fbs::ZdbEnv,
-    (((thread)), (String), (Ctor(0))),
-    (((writeThread)), (String), (Ctor(1))),
     (((self)), (ID), (Ctor(2))),
     (((master)), (ID), (Ctor(3), Update)),
     (((prev)), (ID), (Ctor(4), Update)),
@@ -504,6 +507,8 @@ ZfbFields(ZdbEnv, fbs::ZdbEnv,
     (((nHosts)), (Int), (Ctor(12))),
     (((nPeers)), (Int), (Ctor(13))),
     (((nCxns)), (Int), (Ctor(6), Update, Series)),
+    (((thread)), (String), (Ctor(0))),
+    (((fileThread)), (String), (Ctor(1))),
     (((heartbeatFreq)), (Int), (Ctor(7))),
     (((heartbeatTimeout)), (Int), (Ctor(8))),
     (((reconnectFreq)), (Int), (Ctor(9))),

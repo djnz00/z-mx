@@ -240,7 +240,7 @@ int main(int argc, char **argv)
 
   try {
     cf = inlineCf(
-      "writeThread 3\n"
+      "fileThread 3\n"
       "hostID 1\n"
       "hosts { 1 { priority 100 IP 127.0.0.1 port 9943 } }\n"
       "hosts { 2 { priority 75 IP 127.0.0.1 port 9944 } }\n"

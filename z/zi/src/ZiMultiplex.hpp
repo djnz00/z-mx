@@ -530,6 +530,7 @@ protected:
 public:
   virtual ~ZiConnection();
 
+  // recv
   void recv(ZiIOFn fn);
   void recv_(ZiIOFn fn);	// direct call from within rx thread
 

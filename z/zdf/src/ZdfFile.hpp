@@ -89,14 +89,14 @@ private:
     Config(const ZvCf *cf) {
       dir = cf->get("dir", true);
       coldDir = cf->get("coldDir", true);
-      writeThread = cf->get("writeThread", true);
+      thread = cf->get("thread", true);
       maxFileSize = cf->getInt("maxFileSize", 1, 1<<30, false, 10<<20);
       maxBufs = cf->getInt("maxBufs", 0, 1<<20, false, 1<<10);
     }
 
     ZiFile::Path	dir;
     ZiFile::Path	coldDir;
-    ZmThreadName	writeThread;
+    ZmThreadName	thread;
     unsigned		maxFileSize = 0;
     unsigned		maxBufs = 0;
   };
@@ -113,6 +113,16 @@ public:
   void close(unsigned seriesID);
 
 private:
+  template <typename ...Args>
+  void run(Args &&... args) const {
+    m_sched->run(m_sid, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args>
+  void invoke(Args &&... args) const {
+    m_sched->invoke(m_sid, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_sched->invoked(m_sid); }
+
   ZmRef<File> getFile(const FileID &fileID, bool create);
   ZmRef<File> openFile(const FileID &fileID, bool create);
   void archiveFile(const FileID &fileID);
@@ -165,7 +175,7 @@ private:
   ZmScheduler		*m_sched = nullptr;
   ZiFile::Path		m_dir;
   ZiFile::Path		m_coldDir;
-  unsigned		m_writeThread = 0;	// write thread index
+  unsigned		m_sid = 0;		// thread slot index
   unsigned		m_maxFileSize;		// maximum file size
   unsigned		m_maxOpenFiles;		// maximum #files open
   unsigned		m_fileLoads = 0;

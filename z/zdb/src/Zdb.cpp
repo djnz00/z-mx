@@ -52,18 +52,16 @@
 #include <zlib/ZtBitWindow.hpp>
 
 #include <zlib/ZiDir.hpp>
-#include <zlib/ZiRx.hpp>
-#include <zlib/ZiTx.hpp>
 
 #include <assert.h>
 #include <errno.h>
 
 namespace Zdb_ {
 
-void Env::init(ZdbEnvCf config, ZiMultiplex *mx, EnvHandler handler)
+void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 {
   if (!ZmEngine<Env>::lock(
-	ZmEngineState::Stopped, [this, &config, mx, &handler]() {
+	ZmEngineState::Stopped, [this, &config, mx, &handler]() mutable {
     if (state() != HostState::Instantiated) return false;
 
     auto invalidSID = [mx](unsigned sid) -> bool {
@@ -122,6 +120,24 @@ void Env::init(ZdbEnvCf config, ZiMultiplex *mx, EnvHandler handler)
     throw ZtString{} << "ZdbEnv::init called out of order";
 }
 
+DB *Env::initDB_(ZuID id, DBHandler handler)
+{
+  DB *db = nullptr;
+  if (!ZmEngine<Env>::lock(ZmEngineState::Stopped,
+	[this, &db, id, handler = ZuMv(handler)]() {
+    if (state() != HostState::Initialized) return false;
+    auto cf = m_cf.dbCfs.find(id);
+    if (!cf) m_cf.dbCfs.addNode(cf = new DBCfs::Node{id});
+    if (m_dbs.findPtr(id)) return false;
+    db = new DBs::Node{this, &(cf->val())};
+    db->init(ZuMv(handler));
+    m_dbs.addNode(db);
+    return true;
+  }))
+    throw ZtString{} << "ZdbEnv::initDB called out of order";
+  return db;
+}
+
 void Env::final()
 {
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped, [this]() {
@@ -131,31 +147,6 @@ void Env::final()
     return true;
   }))
     throw ZtString{} << "ZdbEnv::final called out of order";
-}
-
-DB *Env::db(ZuID id, DBHandler handler)
-{
-  DB *db;
-  if (!ZmEngine<Env>::lock(ZmEngineState::Stopped,
-	[this, &db, id, handler = ZuMv(handler)]() {
-    if (state() != HostState::Initialized) return false;
-    db = db_(id, ZuMv(handler));
-    return true;
-  }))
-    throw ZtString{} << "ZdbEnv::db called out of order";
-  return db;
-}
-
-DB *Env::db_(ZuID id, DBHandler handler)
-{
-  DB *db;
-  if (db = m_dbs.findPtr(id)) return db;
-  auto cf = m_cf.dbCfs.find(id);
-  if (!cf) m_cf.dbCfs.addNode(cf = new DBCfs::Node{id});
-  db = new DBs::Node{this, &(cf->val())};
-  db->init(DBHandler{});
-  m_dbs.addNode(db);
-  return db;
 }
 
 void Env::wake()
@@ -179,8 +170,8 @@ void Env::start_()
 
   // initialize hosts, connections
   // finalize connections, hosts
-  m_hosts = new Hosts{};
   m_hostIndex.clean();
+  m_hosts = new Hosts{};
   {
     unsigned dbCount = m_dbs.count_();
     auto i = m_cf.hostCfs.readIterator();
@@ -201,7 +192,13 @@ void Env::start_()
 
   // open and recover all databases
   {
-    ZmAtomic<unsigned> ok = true; 
+    auto i = m_cf.dbCfs.readIterator();
+    while (auto cf = i.iterate())
+      if (!m_dbs.findPtr(cf->key()))
+	m_dbs.addNode(new DBs::Node{this, &(cf->val())});
+  }
+  {
+    ZmAtomic<unsigned> ok = true;
     allSync([&ok](DB *db) { return [&ok, db]() {
       if (ZuLikely(ok.load_())) ok &= db->open();
     }; });
@@ -449,7 +446,7 @@ void Env::up_(Host *oldMaster)
     ZeLOG(Info, ZtString{} << "Zdb invoking \"" << cmd << '\"');
     ::system(cmd);
   }
-  m_handler.active(this, m_self); // FIXME - old master
+  m_handler.upFn(this, oldMaster);
 }
 
 void Env::down_()
@@ -459,16 +456,16 @@ void Env::down_()
     ZeLOG(Info, ZtString{} << "Zdb invoking \"" << cmd << '\"');
     ::system(cmd);
   }
-  m_handler.inactive(this, m_self); // FIXME - new master?
+  m_handler.downFn(this);
 }
 
 ZvTelemetry::ZdbEnvFn Env::telFn()
 {
-  return ZvTelemetry::DBEnvFn{ZmMkRef(this), [](
+  return ZvTelemetry::ZdbEnvFn{ZmMkRef(this), [](
       Env *dbEnv,
-      ZmFn<ZvTelemetry::IOBuilder &, Zfb::Offset<fbs::DBEnv>> envFn,
-      ZmFn<ZvTelemetry::IOBuilder &, Zfb::Offset<fbs::DBHost>> hostFn,
-      ZmFn<ZvTelemetry::IOBuilder &, Zfb::Offset<fbs::DB>>> dbFn,
+      ZvTelemetry::BuildZdbEnvFn envFn,
+      ZvTelemetry::BuildZdbHostFn hostFn,
+      ZvTelemetry::BuildZdbFn dbFn,
       bool update) {
     dbEnv->invoke([dbEnv,
 	envFn = ZuMv(envFn),
@@ -477,30 +474,34 @@ ZvTelemetry::ZdbEnvFn Env::telFn()
       {
 	ZvTelemetry::IOBuilder fbb;
 	envFn(fbb, dbEnv->telemetry(fbb, update));
-	dbEnv->allHosts([&hostFn, update](const Host *host) {
+	dbEnv->allHosts([&hostFn, &fbb, update](const Host *host) {
 	  hostFn(fbb, host->telemetry(fbb, update));
 	});
       }
-      dbEnv->all([dbFn, update](const DB *db) { return [db, dbFn, update]() {
-	ZvTelemetry::IOBuilder fbb;
-	dbFn(fbb, db->telemetry(fbb, update));
-      }; });
+      dbEnv->all([dbFn = ZuMv(dbFn), update](const DB *db) {
+	return [dbFn, update, db]() {
+	  ZvTelemetry::IOBuilder fbb;
+	  dbFn(fbb, db->telemetry(fbb, update));
+	};
+      });
     });
   }};
 }
 
 Zfb::Offset<ZvTelemetry::fbs::ZdbEnv>
-Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update)
+Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
-  auto appID = str(fbb_, m_cf.appID);
-  auto thread = str(fbb_, m_cf.thread);
-  auto writeThread = str(fbb_, m_cf.writeThread);
-  fbs::ZdbEnvBuilder fbb{fbb_};
+  Zfb::Offset<String> thread, fileThread;
+  if (!update) {
+    thread = str(fbb_, m_cf.thread);
+    fileThread = str(fbb_, m_cf.fileThread);
+  }
+  ZvTelemetry::fbs::ZdbEnvBuilder fbb{fbb_};
   if (!update) {
     fbb.add_thread(thread);
-    fbb.add_writeThread(writeThread);
+    fbb.add_fileThread(fileThread);
     { auto v = id(m_self->id()); fbb.add_self(&v); }
   }
   { auto v = id(m_master ? m_master->id() : ZuID{}); fbb.add_master(&v); }
@@ -517,7 +518,7 @@ Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update)
     fbb.add_nPeers(m_nPeers);
   }
   auto state = this->state();
-  fbb.add_state(state);
+  fbb.add_state(static_cast<ZvTelemetry::fbs::ZdbHostState>(state));
   fbb.add_active(state == HostState::Active);
   fbb.add_recovering(m_recovering);
   fbb.add_replicating(Host::replicating(m_next));
@@ -525,27 +526,27 @@ Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update)
 }
 
 Zfb::Offset<ZvTelemetry::fbs::ZdbHost>
-Host::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update)
+Host::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
-  fbs::ZdbHostBuilder fbb{fbb_};
+  ZvTelemetry::fbs::ZdbHostBuilder fbb{fbb_};
   if (!update) {
-    { auto v = ip(config().ip); fbb.add_ip(&v); }
-    { auto v = id(config().id); fbb.add_id(&v); }
+    { auto v = Zfb::Save::ip(config().ip); fbb.add_ip(&v); }
+    { auto v = Zfb::Save::id(config().id); fbb.add_id(&v); }
     fbb.add_priority(config().priority);
     fbb.add_port(config().port);
   }
-  fbb.add_state(m_state);
+  fbb.add_state(static_cast<ZvTelemetry::fbs::ZdbHostState>(m_state));
   fbb.add_voted(m_voted);
   return fbb.Finish();
 }
 
-Host::Host(ZdbEnv *env, const HostCf *cf, unsigned dbCount) :
+Host::Host(Env *env, const HostCf *cf, unsigned dbCount) :
   m_env{env},
   m_cf{cf},
   m_mx{env->mx()},
-  m_dbState{dbCount}
+  m_envState{dbCount}
 {
 }
 
@@ -597,7 +598,7 @@ ZiConnection *Env::accepted(const ZiCxnInfo &ci)
   return new Cxn{this, nullptr, ci};
 }
 
-Cxn_::Cxn_(ZdbEnv *env, Host *host, const ZiCxnInfo &ci) :
+Cxn_::Cxn_(Env *env, Host *host, const ZiCxnInfo &ci) :
   ZiConnection{env->mx(), ci},
   m_env{env},
   m_host{host}
@@ -608,26 +609,29 @@ void Cxn_::connected(ZiIOContext &io)
 {
   if (!m_env->running()) { io.disconnect(); return; }
 
-  m_env->run([this]() { m_env->connected(this); });
+  m_env->run([self = ZmMkRef(this)]() mutable {
+    auto env = self->env();
+    env->connected(ZuMv(self));
+  });
 
-  m_env->run([this]() { hbTimeout(); },
+  m_env->run([self = ZmMkRef(this)]() { self->hbTimeout(); },
       ZmTimeNow(static_cast<int>(m_env->config().heartbeatTimeout)),
       ZmScheduler::Defer, &m_hbTimer);
 
   msgRead(io);
 }
 
-void Env::connected(Cxn *cxn)
+void Env::connected(ZmRef<Cxn> cxn)
 {
   ZmAssert(invoked());
 
   if (!cxn->up()) return;
 
-  m_cxns.add(cxn);
-
   if (Host *host = cxn->host()) associate(cxn, host);
 
   hbSend_(cxn);
+
+  m_cxns.addNode(ZuMv(cxn));
 }
 
 void Env::associate(Cxn *cxn, ZuID hostID)
@@ -682,7 +686,7 @@ void Host::associate(Cxn *cxn)
 void Host::reconnect()
 {
   m_env->run([this]() { connect(); },
-      ZmTimeNow(static_cast<int>(m_env->config().reconnectFreq),
+      ZmTimeNow(static_cast<int>(m_env->config().reconnectFreq)),
       ZmScheduler::Defer, &m_connectTimer);
 }
 
@@ -706,16 +710,19 @@ void Cxn_::disconnected()
       ZuBoxed(m_host ? (int)m_host->id() : -1) << " (" <<
       info().remoteIP << ':' << info().remotePort << ')');
 
-  m_mx->del(&m_hbTimer);
+  mx()->del(&m_hbTimer);
 
-  m_env->run([this]() { m_env->disconnected(this); });
+  m_env->run([self = ZmMkRef(this)]() mutable {
+    auto env = self->env();
+    env->disconnected(ZuMv(self));
+  });
 }
 
-void Env::disconnected(Cxn *cxn)
+void Env::disconnected(ZmRef<Cxn> cxn)
 {
   ZmAssert(invoked());
 
-  m_cxns->del(cxn);
+  m_cxns.delNode(cxn);
 
   Host *host = cxn->host();
 
@@ -782,17 +789,18 @@ Host *Env::setMaster()
 
   {
     auto i = m_hostIndex.readIterator();
+
     ZdbDEBUG(this, ZtString{} << "setMaster()\n" << 
-	" self=" << m_self << '\n' <<
-	" prev=" << m_prev << '\n' <<
-	" next=" << m_next << '\n' <<
+	" self=" << HostPtr{m_self} << '\n' <<
+	" prev=" << HostPtr{m_prev} << '\n' <<
+	" next=" << HostPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 
     while (Host *host = i.iterate()) {
       ZdbDEBUG(this, ZtString{} <<
 	  " host=" << *host << '\n' <<
-	  " master=" << m_master);
+	  " master=" << HostPtr{m_master});
 
       if (host->voted()) {
 	if (host != m_self) ++m_nPeers;
@@ -841,10 +849,10 @@ void Env::setNext()
     auto i = m_hostIndex.readIterator();
 
     ZdbDEBUG(this, ZtString{} << "setNext()\n" <<
-	" self=" << m_self << '\n' <<
-	" master=" << m_master << '\n' <<
-	" prev=" << m_prev << '\n' <<
-	" next=" << m_next << '\n' <<
+	" self=" << HostPtr{m_self} << '\n' <<
+	" master=" << HostPtr{m_master} << '\n' <<
+	" prev=" << HostPtr{m_prev} << '\n' <<
+	" next=" << HostPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 
@@ -854,8 +862,8 @@ void Env::setNext()
 	next = host;
 
       ZdbDEBUG(this, ZtString{} <<
-	  " host=" << host << '\n' <<
-	  " next=" << next);
+	  " host=" << HostPtr{host} << '\n' <<
+	  " next=" << HostPtr{next});
     }
   }
 
@@ -872,18 +880,18 @@ void Env::repStart()
   envStateRefresh();
 
   ZdbDEBUG(this, ZtString{} << "repStart()\n" <<
-      " self=" << m_self << '\n' <<
-      " master=" << m_master << '\n' <<
-      " prev=" << m_prev << '\n' <<
-      " next=" << m_next << '\n' <<
+      " self=" << HostPtr{m_self} << '\n' <<
+      " master=" << HostPtr{m_master} << '\n' <<
+      " prev=" << HostPtr{m_prev} << '\n' <<
+      " next=" << HostPtr{m_next} << '\n' <<
       " recovering=" << m_recovering <<
       " replicating=" << Host::replicating(m_next));
 
-  if (m_self->dbState().cmp(m_next->dbState()) < 0 || m_recovering) return;
+  if (m_self->envState().cmp(m_next->envState()) < 0 || m_recovering) return;
 
   // ZeLOG(Info, "repStart() initiating recovery");
-  m_recover = m_next->dbState();
-  m_recoverEnd = m_self->dbState();
+  m_recover = m_next->envState();
+  m_recoverEnd = m_self->envState();
   if (ZmRef<Cxn> cxn = m_next->cxn()) {
     auto i = m_recover.readIterator();
     while (auto state = i.iterate()) {
@@ -935,7 +943,7 @@ void DB::recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
   });
 }
 
-void DB::recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<VBuf> buf)
+void DB::recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf)
 {
   if (gapRN != nullRN()) cxn->send(repGap(gapRN, rn - gapRN));
   cxn->send(ZuMv(buf));
@@ -956,7 +964,7 @@ ZmRef<Buf> DB::repBuf(RN rn)
   ZmAssert(invoked());
 
   // recover from outbound replication buffer cache
-  if (auto buf = m_repBufs->find(rn)) {
+  if (auto buf = findBuf(rn)) {
     auto record = record_(msg_(buf->hdr()));
     auto repData = Zfb::Load::bytes(record->data());
     IOBuilder fbb;
@@ -975,7 +983,7 @@ ZmRef<Buf> DB::repBuf(RN rn)
     return saveHdr(fbb, this);
   }
   // recover from object cache (without falling through to reading from disk)
-  if (auto object = m_objCache->find<false>(rn))
+  if (auto object = m_objCache.findSync<false>(rn))
     return object->replicate(fbs::Body_Rec);
   return nullptr;
 }
@@ -998,7 +1006,7 @@ void Env::repStop()
 
 void Cxn_::msgRead(ZiIOContext &io)
 {
-  Rx::recv<
+  recv<
     [](const ZiIOContext &, const Buf *buf) -> int {
       return loadHdr(buf);
     },
@@ -1019,11 +1027,11 @@ int Cxn_::msgRead2(const Buf *buf)
       case fbs::Body_Gap:
       case fbs::Body_Rep:
       case fbs::Body_Rec:
-	ZmRef<Buf> buf = new Buf{this};
+	ZmRef<Buf> buf = new Buf{};
 	*buf << msgData(hdr);
 	if (ZuLikely(buf->length))
-	  m_env->run([this, buf = ZuMv(buf)]() mutable {
-	    msgRead3(ZuMv(buf));
+	  m_env->run([cxn = ZmMkRef(this), buf = ZuMv(buf)]() mutable {
+	    cxn->msgRead3(ZuMv(buf));
 	  });
 	break;
     }
@@ -1038,6 +1046,8 @@ int Cxn_::msgRead2(const Buf *buf)
 void Cxn_::msgRead3(ZmRef<Buf> buf)
 {
   ZmAssert(m_env->invoked());
+
+  if (!up()) return;
 
   auto msg = Zdb_::msg(buf->hdr());
   if (!msg) return;
@@ -1057,7 +1067,8 @@ void Cxn_::msgRead3(ZmRef<Buf> buf)
 
 void Cxn_::hbRcvd(const fbs::Heartbeat *hb)
 {
-  if (!m_host) m_env->associate(this, hb->hostID());
+  if (!m_host) m_env->associate(
+      static_cast<Cxn *>(this), Zfb::Load::id(hb->host()));
 
   if (!m_host) { disconnect(); return; }
 
@@ -1068,16 +1079,16 @@ void Cxn_::hbRcvd(const fbs::Heartbeat *hb)
 void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
 {
   ZdbDEBUG(this, ZtString{} << "hbDataRcvd()\n" << 
-	" host=" << host << '\n' <<
-	" self=" << m_self << '\n' <<
-	" master=" << m_master << '\n' <<
-	" prev=" << m_prev << '\n' <<
-	" next=" << m_next << '\n' <<
+	" host=" << HostPtr{host} << '\n' <<
+	" self=" << HostPtr{m_self} << '\n' <<
+	" master=" << HostPtr{m_master} << '\n' <<
+	" prev=" << HostPtr{m_prev} << '\n' <<
+	" next=" << HostPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 
   host->state(hb->state());
-  host->dbState().load(hb->envState());
+  host->envState().load(hb->envState());
 
   using namespace HostState;
 
@@ -1106,7 +1117,7 @@ void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
 	  if (host->cmp(m_self) > 0)
 	    deactivate();
 	  else
-	    reactivate();
+	    reactivate(host);
 	  return;
       }
   }
@@ -1155,7 +1166,7 @@ void Env::hbSend()
 
   hbSend_();
 
-  m_mx->add(m_cf.sid, ZmFn<>::Member<&Env::hbSend>::fn(this),
+  run([this]() { hbSend(); },
     m_hbSendTime += (time_t)m_cf.heartbeatFreq,
     ZmScheduler::Defer, &m_hbSendTimer);
 }
@@ -1166,7 +1177,7 @@ void Env::hbSend_()
   ZmAssert(invoked());
 
   envStateRefresh();
-  auto i = m_cxns->readIterator();
+  auto i = m_cxns.readIterator();
   while (auto cxn = i.iterateNode()) cxn->hbSend();
 }
 
@@ -1188,12 +1199,15 @@ void Cxn_::hbSend()
   IOBuilder fbb;
   {
     const auto &envState = self->envState();
+    auto id = Zfb::Save::id(self->id());
     auto msg = fbs::CreateMsg(fbb, fbs::Body_HB, 
-	fbs::CreateHeartbeat(fbb,
-	  self->id(), m_env->state(), envState.save(fbb)).Union());
+	fbs::CreateHeartbeat(fbb, &id,
+	  m_env->state(), envState.save(fbb)).Union());
     fbb.Finish(msg);
   }
-  ZiTx::send(saveHdr(fbb));
+
+  send(saveHdr(fbb, this));
+
   ZdbDEBUG(m_env, ZtString{} << "hbSend()"
       "  self[ID:" << self->id() << " S:" << m_env->state() <<
       " N:" << self->envState().count_() << "] " << self->envState());
@@ -1202,7 +1216,7 @@ void Cxn_::hbSend()
 // refresh db state vector
 void Env::envStateRefresh()
 {
-  ZmAssert(m_env->invoked());
+  ZmAssert(invoked());
 
   EnvState &envState = m_self->envState();
   all_([&envState](DB *db) {
@@ -1218,14 +1232,17 @@ void Cxn_::repRecRcvd(ZmRef<Buf> buf)
   if (!m_host) return;
   auto record = record_(msg_(buf->hdr()));
   auto id = Zfb::Load::id(record->db());
-  DB *db = m_env->db_(id);
-  ZmAssert(db);
+  DB *db = m_env->db(id);
   if (ZuUnlikely(!db)) return;
   buf->owner = db;
-  ZdbDEBUG(m_env, ZtString{} << "replicated(" << id << ", " <<
-      host << ", Record{" << record->rn() << "})");
-  m_env->replicated(m_host, db->config().id, record->rn() + 1);
-  db->invoke([db, buf = ZuMv(buf)]() mutable { db->repRecRcvd(ZuMv(buf)); });
+  ZdbDEBUG(m_env, ZtString{} <<
+      "replicated(host=" << m_host->id() << ", " <<
+      Record_Print{record} << ')');
+  m_env->replicated(m_host, id, record->rn() + 1);
+  db->invoke([buf = ZuMv(buf)]() mutable {
+    auto db = buf->db();
+    db->repRecRcvd(ZuMv(buf));
+  });
 }
 
 // process received replicated gap
@@ -1236,14 +1253,17 @@ void Cxn_::repGapRcvd(ZmRef<Buf> buf)
   if (!m_host) return;
   auto gap = gap_(msg_(buf->hdr()));
   auto id = Zfb::Load::id(gap->db());
-  DB *db = m_env->db_(id);
-  ZmAssert(db);
+  DB *db = m_env->db(id);
   if (ZuUnlikely(!db)) return;
   buf->owner = db;
-  ZdbDEBUG(m_env, ZtString{} << "replicated(" << id << ", " <<
-      host << ", Gap{" << gap->rn() << ", " << gap->count() << "})");
+  ZdbDEBUG(m_env, ZtString{} <<
+      "replicated(host=" << m_host->id() << ", " <<
+      Gap_Print{gap} << ')');
   m_env->replicated(m_host, db->config().id, gap->rn() + gap->count());
-  db->invoke([db, buf = ZuMv(buf)]() mutable { db->repGapRcvd(ZuMv(buf)); });
+  db->invoke([buf = ZuMv(buf)]() mutable {
+    auto db = buf->db();
+    db->repGapRcvd(ZuMv(buf));
+  });
 }
 
 void Env::replicated(Host *host, ZuID dbID, RN rn)
@@ -1259,13 +1279,10 @@ void Env::replicated(Host *host, ZuID dbID, RN rn)
   }
 }
 
-DB::DB(ZdbEnv *env, ZdbCf *cf) :
+DB::DB(Env *env, DBCf *cf) :
   m_env{env}, m_mx{env->mx()}, m_cf{cf},
   m_path{ZiFile::append(env->config().path, cf->id)},
-  m_objCache{new ObjCache{}},
-  m_repBufs{new RepBufs{}},
-  m_files{new FileCache{}},
-  m_indexBlks{new IndexBlkCache{}}
+  m_repBufs{new RepBufs{}}
 {
 }
 
@@ -1286,42 +1303,50 @@ void DB::final()
 
 // telemetry
 Zfb::Offset<ZvTelemetry::fbs::Zdb>
-DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update)
+DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
-  auto path = str(fbb_, m_path);
-  auto name = str(fbb_, config().id);
-  fbs::ZdbBuilder fbb{fbb_};
+  Zfb::Offset<String> path, name, thread, fileThread;
+  if (!update) {
+    path = str(fbb_, m_path);
+    name = str(fbb_, config().id);
+    thread = str(fbb_, config().thread);
+    fileThread = str(fbb_, config().fileThread);
+  }
+  ZvTelemetry::fbs::ZdbBuilder fbb{fbb_};
   if (!update) {
     fbb.add_path(path);
     fbb.add_name(name);
+    fbb.add_thread(thread);
+    fbb.add_fileThread(fileThread);
   }
   fbb.add_minRN(m_minRN.load_());
   fbb.add_nextRN(m_nextRN.load_());
   {
     ObjCache::Stats stats;
-    m_objCache->stats(stats);
-    fbb.add_cacheLoads(stats.loads);
-    fbb.add_cacheMisses(stats.misses);
+    m_objCache.stats(stats);
+    fbb.add_objCacheLoads(stats.loads);
+    fbb.add_objCacheMisses(stats.misses);
     if (!update) fbb.add_objCacheSize(stats.size);
   }
   {
     FileCache::Stats stats;
-    m_files->stats(stats);
-    fbb.add_fileLoads(stats.loads);
-    fbb.add_fileMisses(stats.misses);
+    m_files.stats(stats);
+    fbb.add_fileCacheLoads(stats.loads);
+    fbb.add_fileCacheMisses(stats.misses);
     if (!update) fbb.add_fileCacheSize(stats.size);
   }
   {
     IndexBlkCache::Stats stats;
-    m_indexBlks->stats(stats);
-    fbb.add_indexBlkLoads(stats.loads);
-    fbb.add_indexBlkMisses(stats.misses);
+    m_indexBlks.stats(stats);
+    fbb.add_indexBlkCacheLoads(stats.loads);
+    fbb.add_indexBlkCacheMisses(stats.misses);
     if (!update) fbb.add_indexBlkCacheSize(stats.size);
   }
   if (!update) {
-    fbb.add_cacheMode(config().cacheMode);
+    fbb.add_cacheMode(
+	static_cast<ZvTelemetry::fbs::ZdbCacheMode>(config().cacheMode));
     fbb.add_warmUp(config().warmUp);
   }
   return fbb.Finish();
@@ -1338,21 +1363,23 @@ ZmRef<AnyObject> DB::load(const fbs::Record *record)
       return nullptr;
   }
   ZmRef<AnyObject> object;
-  if (prevRN != nullRN()) object = m_objCache->del(prevRN);
+  if (prevRN != nullRN()) object = m_objCache.del(prevRN);
   auto data = Zfb::Load::bytes(record->data());
   if (!object) {
-    object = m_handler.loadFn(this, data.data(), data.length());
+    if (auto fn = m_handler.loadFn)
+      object = fn(this, data.data(), data.length());
   } else {
-    object = m_handler.updateFn(object, data.data(), data.length());
+    if (auto fn = m_handler.updateFn)
+      object = fn(object, data.data(), data.length());
   }
-  object->init(record->rn(), prevRN, seqLenOp);
+  if (object) object->init(record->rn(), prevRN, seqLenOp);
   return object;
 }
 
 // save object to buffer
-void DB::save(Zfb::Builder &fbb, AnyObject *object)
+Zfb::Offset<void> DB::save(Zfb::Builder &fbb, AnyObject_ *object)
 {
-  m_handler.saveFn(fbb, object->ptr_());
+  return m_handler.saveFn(fbb, object->ptr_());
 }
 
 bool DB::recover()
@@ -1393,7 +1420,7 @@ bool DB::recover()
     dir.close();
   }
   // subdirectories
-  subDirs.all([&](unsigned i, bool) {
+  return subDirs.all([&](unsigned i, bool) {
 #ifdef _WIN32
     ZtString subName_;
 #else
@@ -1430,49 +1457,46 @@ bool DB::recover()
       subDir.close();
     }
     // data files
-    files.all([&](unsigned j, bool) {
+    return files.all([&](unsigned j, bool) {
 #ifdef _WIN32
       ZtString fileName_;
 #else
       auto &fileName_ = fileName;
 #endif
       uint64_t id = (static_cast<uint64_t>(i)<<20) | j;
-      {
-	Guard guard(m_fileLock);
-	ZmRef<File> file = openFile_(fileName_, id, false);
-	if (!file) return false;
-	recover(file);
-      }
-      return true;
+      if (ZmRef<File> file = openFile_<false>(fileName_, id))
+	return recover(file);
+      return false;
     });
-    return true;
   });
-  return true;
 }
 
-void DB::recover(File *file)
+bool DB::recover(File *file)
 {
   ZmAssert(fileInvoked());
 
-  if (!file->allocated()) return;
-  if (file->deleted() >= fileRecs()) { delFile(file); return; }
+  if (!file->allocated()) return true;
+  if (file->deleted() >= fileRecs()) { delFile(file); return true; }
   RN rn = (file->id())<<fileShift();
-  ZmRef<IndexBlk> indexBlk;
+  ZmRef<IndexBlk> blk;
   int first = file->first();
-  if (ZuUnlikely(first < 0)) return;
+  if (ZuUnlikely(first < 0)) return true;
   int last = file->last();
-  if (ZuUnlikely(last < 0)) return; // should never happen
+  if (ZuUnlikely(last < 0)) return false; // file corrupt
   rn += first;
   for (int j = first; j <= last; j++, rn++) {
     if (!file->exists(j)) continue;
-    auto indexBlkID = rn>>indexShift();
-    if (!indexBlk || indexBlk->id != indexBlkID)
-      indexBlk = file->readIndexBlk(indexBlkID);
-    if (!indexBlk) return; // I/O error on file, logged within readIndexBlk
+    auto blkID = rn>>indexShift();
+    if (!blk || blk->id != blkID) blk = file->readIndexBlk(blkID);
+    if (!blk) return false; // I/O error on file
     if (auto buf = read(
-	FileRec{file, indexBlk, static_cast<unsigned>(rn & indexMask())}))
-      invoke([this, buf = ZuMv(buf)]() mutable { recover(ZuMv(buf)); });
+	FileRec{file, blk, static_cast<unsigned>(rn & indexMask())}))
+      invoke([buf = ZuMv(buf)]() mutable {
+	auto db = buf->db();
+	db->recover(ZuMv(buf));
+      });
   }
+  return true;
 }
 
 // recover buffer from file
@@ -1499,28 +1523,28 @@ void DB::recover(const fbs::Record *record)
 
   switch (SeqLenOp::op(seqLenOp)) {
     default:
-      return nullptr;
+      return;
     case Op::Put:
       if (SeqLenOp::seqLen(seqLenOp) > 1) {
 	m_deletes.add(rn, DeleteOp{prevRN,
 	  SeqLenOp::mk(SeqLenOp::seqLen(seqLenOp) - 1, Op::Put)});
-	if (auto &fn = m_handler.deleteFn) fn(prevRN);
+	if (auto fn = m_handler.deleteFn) fn(prevRN);
       }
       if (auto object = load(record)) {
-	if (auto &fn = m_handler.recoverFn) fn(object);
-	m_objCache->add(ZuMv(object));
+	if (auto fn = m_handler.recoverFn) fn(object);
+	m_objCache.add(ZuMv(object));
       }
       break;
     case Op::Append:
       if (auto object = load(record)) {
-	if (auto &fn = m_handler.recoverFn) fn(object);
-	m_objCache->add(ZuMv(object));
+	if (auto fn = m_handler.recoverFn) fn(object);
+	m_objCache.add(ZuMv(object));
       }
       break;
     case Op::Delete:
       m_deletes.add(rn, DeleteOp{rn, seqLenOp});
-      if (auto &fn = m_handler.deleteFn) fn(rn);
-      m_objCache->del(prevRN);
+      if (auto fn = m_handler.deleteFn) fn(rn);
+      m_objCache.del(prevRN);
       break;
     case Op::Purge:
       m_deletes.add(rn, DeleteOp{prevRN, seqLenOp});
@@ -1542,6 +1566,7 @@ void DB::repGapRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
+  auto gap = gap_(msg_(buf->hdr()));
   RN rn = gap->rn();
   if (m_nextRN.cmpXch(rn + gap->count(), rn) != rn) return;
   m_env->invoke([env = m_env, buf = ZuMv(buf)]() mutable {
@@ -1549,35 +1574,52 @@ void DB::repGapRcvd(ZmRef<Buf> buf)
   });
 }
 
-// outbound replication and persistency
+// outbound replication / persistency
 void DB::write(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
+  ZmAssert(buf->db() == this);
 
   m_repBufs->addNode(buf);
-  if (config().repMode) {
-    m_env->invoke([this, env = m_env, buf = ZuMv(buf)]() mutable {
+  if (config().repMode) { // replicate then disk write (faster)
+    m_env->invoke([buf = ZuMv(buf)]() mutable {
+      auto db = buf->db();
+      auto env = db->env();
       if (env->replicate(buf))
-	fileRun([this, buf = ZuMv(buf)]() {
-	  write2(buf);
-	  m_repBufs->delNode(buf);
+	// replicated - peer will ack
+	db->fileRun([buf = ZuMv(buf)]() {
+	  auto db = buf->db();
+	  db->write2(buf); // return value ignored
 	});
       else
-	fileRun([this, buf = ZuMv(buf)]() {
-	  ZdbRN rn = write2(buf);
-	  m_repBufs->delNode(buf);
-	  if (rn != nullRN())
-	    fileInvoke([this, rn]() { ack(rn + 1); });
+	// standalone - ack on successful disk write
+	db->fileRun([buf = ZuMv(buf)]() {
+	  auto db = buf->db();
+	  if (db->write2(buf)) {
+	    auto rn = record_(msg_(buf->hdr()))->rn();
+	    db->ack(rn + 1);
+	  }
 	});
     });
-  } else {
-    fileRun([this, buf = ZuMv(buf)]() {
-      ZdbRN rn = write2(buf);
-      m_repBufs->delNode(buf);
-      m_env->invoke([this, rn, buf = ZuMv(buf)]() mutable {
-	if (!m_env->replicate(ZuMv(buf)) && rn != nullRN())
-	  fileInvoke([this, rn]() { ack(rn + 1); });
-      });
+  } else { // disk write then replicate (slower but potentially more durable)
+    fileRun([buf = ZuMv(buf)]() {
+      auto db = buf->db();
+      auto env = db->env();
+      if (db->write2(buf))
+	env->invoke([buf = ZuMv(buf)]() mutable {
+	  auto db = buf->db();
+	  auto env = db->env();
+	  if (!env->replicate(ZuMv(buf))) { // standalone - ack disk write
+	    auto rn = record_(msg_(buf->hdr()))->rn();
+	    db->fileInvoke([db, rn]() { db->ack(rn + 1); });
+	  }
+	});
+      else
+	env->invoke([buf = ZuMv(buf)]() mutable {
+	  auto db = buf->db();
+	  auto env = db->env();
+	  env->replicate(ZuMv(buf)); // return value ignored
+	});
     });
   }
 }
@@ -1814,7 +1856,8 @@ bool DB::open()
   if (!ok) return false;
 
   if (config().warmUp) {
-    run([this]() { ZmRef<AnyObject>{m_handler.ctorFn(this)}; });
+    if (auto fn = m_handler.ctorFn)
+      run([this, fn]() { ZmRef<AnyObject>{fn(this)}; });
     fileRun([this, rn = m_nextRN.load_()]() { rn2file<true>(rn); });
   }
 
@@ -1831,18 +1874,14 @@ void DB::close()
   ZmBlock<>{}([this](auto wake) {
     fileInvoke([this, wake = ZuMv(wake)]() {
       // index blocks
-      while (IndexBlk *blk =
-	  static_cast<IndexBlk *>(m_indexBlkLRU.shiftNode())) {
-	if (File *file = getFile(blk->id>>(fileShift() - indexShift()), false))
+      m_indexBlks.all<true>([this](ZmRef<IndexBlk> blk) {
+	auto fileID = (blk->id)>>(fileShift() - indexShift());
+	if (File *file = getFile<true>(fileID))
 	  file->writeIndexBlk(blk);
-	m_indexBlks->delNode(blk);
-      }
+      });
 
       // files
-      while (auto file = static_cast<File *>(m_fileLRU.shiftNode())) {
-	file->sync();
-	m_files->delNode(file);
-      }
+      m_files.all<true>([this](ZmRef<File> file) { file->sync(); });
 
       wake();
     });
@@ -1863,24 +1902,28 @@ bool DB::checkpoint()
   ZmAssert(fileInvoked());
 
   bool ok = true;
-  m_indexBlks->all([&ok](ZmRef<IndexBlk> blk) mutable {
-    if (File *file = getFile(blk->id>>(fileShift() - indexShift()), false))
-      ok &&= file->writeIndexBlk(blk);
+  m_indexBlks.all([this, &ok](ZmRef<IndexBlk> blk) mutable {
+    auto fileID = (blk->id)>>(fileShift() - indexShift());
+    if (File *file = getFile<true>(fileID))
+      ok = ok && file->writeIndexBlk(blk);
   });
-  m_files->all([&ok](ZmRef<File> file) mutable {
-    ok &&= file->sync_();
+  m_files.all([&ok](ZmRef<File> file) mutable {
+    ok = ok && file->sync_();
   });
   return ok;
 }
 
 ZmRef<AnyObject> DB::placeholder()
 {
-  return m_handler.ctorFn(this);
+  if (auto fn = m_handler.ctorFn) return fn(this);
+  return nullptr;
 }
 
 ZmRef<AnyObject> DB::push_(RN rn)
 {
-  ZmRef<AnyObject> object = m_handler.ctorFn(this);
+  auto fn = m_handler.ctorFn;
+  if (ZuUnlikely(!fn)) return nullptr;
+  ZmRef<AnyObject> object = fn(this);
   if (!object) return nullptr;
   object->push(rn);
   m_minRN.maximum(rn);
@@ -1924,7 +1967,7 @@ bool DB::update(AnyObject *object, RN rn)
 // commits push() / update()
 void DB::put(AnyObject *object_)
 {
-  auto object = m_objCache->delNode(object_);
+  auto object = m_objCache.delNode(object_);
   object->commit(Op::Put);
   if (object->seqLen() > 1)
     m_deletes.add(object->rn(),
@@ -1932,22 +1975,22 @@ void DB::put(AnyObject *object_)
 	  SeqLenOp::mk(object->seqLen() - 1, Op::Put)});
   write(object->replicate(fbs::Body_Rep));
   object->put(); // resets seqLen to 1
-  m_objCache->add(ZuMv(object));
+  m_objCache.add(ZuMv(object));
 }
 
 // commits appended update()
 void DB::append(AnyObject *object_)
 {
-  auto object = m_objCache->delNode(object_);
+  auto object = m_objCache.delNode(object_);
   object->commit(Op::Append);
   write(object->replicate(fbs::Body_Rep));
-  m_objCache->add(ZuMv(object));
+  m_objCache.add(ZuMv(object));
 }
 
 // commits delete following push() / update()
 void DB::del(AnyObject *object_)
 {
-  auto object = m_objCache->delNode(object_);
+  auto object = m_objCache.delNode(object_);
   if (ZuUnlikely(!object->seqLen())) {
     fileRun([this, rn = object->rn()]() { del_write(rn); });
     object->commit(Op::Delete);
@@ -1966,19 +2009,19 @@ void DB::abort(AnyObject *object)
 }
 
 // prepare replication data for sending & writing to disk
-ZmRef<Buf> AnyObject::replicate(int type)
+ZmRef<Buf> AnyObject_::replicate(int type)
 {
   ZmAssert(committed());
   ZmAssert(m_rn != nullRN());
 
   ZdbDEBUG(m_db->env(),
-      ZtString{} << "AnyObject::replicate(" << type << ')');
+      ZtString{} << "AnyObject_::replicate(" << type << ')');
   IOBuilder fbb;
   Zfb::Offset<Zfb::Vector<uint8_t>> data;
-  if (op() != Op::Delete && this->ptr_()) {
-    m_db->save(fbb, this);
-    data = Zfb::Save::nest(fbb);
-  }
+  if (op() != Op::Delete && this->ptr_())
+    data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
+      return m_db->save(fbb, this);
+    });
   {
     auto id = Zfb::Save::id(m_db->config().id);
     auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
@@ -2052,7 +2095,7 @@ ZmRef<File> DB::getFile(uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  return m_files->find(id, [this](uint64_t id) {
+  return m_files.findSync(id, [this](uint64_t id) -> ZmRef<File> {
     ZmRef<File> file = openFile<Create>(id);
     if (ZuUnlikely(!file)) return nullptr;
     if (id > m_lastFile) m_lastFile = id;
@@ -2065,14 +2108,14 @@ ZmRef<IndexBlk> DB::getIndexBlk(File *file, uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  return m_indexBlks->find(id, [file](uint64_t id) {
+  return m_indexBlks.findSync(id, [file](uint64_t id) -> ZmRef<IndexBlk> {
     if constexpr (Create)
       return file->writeIndexBlk(id);
     else
       return file->readIndexBlk(id);
   }, [this](ZmRef<IndexBlk> indexBlk) {
-    if (ZmRef<File> file = getFile<false>(
-	  (indexBlk->id)>>(fileShift() - indexShift())));
+    auto fileID = (indexBlk->id)>>(fileShift() - indexShift());
+    if (ZmRef<File> file = getFile<Create>(fileID))
       file->writeIndexBlk(indexBlk);
   });
 }
@@ -2100,7 +2143,7 @@ void DB::delFile(File *file)
 
   bool lastFile;
   uint64_t id = file->id();
-  m_files->delNode(file);
+  m_files.delNode(file);
   lastFile = id == m_lastFile;
   if (ZuUnlikely(lastFile)) getFile<true>(id + 1);
   file->close();
@@ -2186,7 +2229,7 @@ bool File_::writeIndexBlk(IndexBlk *indexBlk)
   return true;
 }
 
-// read individual record from disk
+// read individual record from disk into buffer
 ZmRef<Buf> DB::read(const FileRec &rec)
 {
   ZmAssert(fileInvoked());
@@ -2236,16 +2279,18 @@ ZmRef<Buf> DB::read(const FileRec &rec)
 
 // write individual record to disk
 // - updates the file bitmap, index block and appends the record on disk
-ZdbRN DB::write2(const Buf *buf)
+bool DB::write2(Buf *buf)
 {
   ZmAssert(fileInvoked());
+
+  ZuGuard guard([this, buf]() { m_repBufs->delNode(buf); });
 
   auto record = record_(msg_(buf->hdr()));
   RN rn = record->rn();
   auto data = Zfb::Load::bytes(record->data());
   {
     FileRec rec = rn2file<true>(rn);
-    if (!rec) return nullRN();
+    if (!rec) return false;
     auto &index = rec.index();
     File *file = rec.file();
     file->alloc(rn & fileRecMask());
@@ -2266,7 +2311,7 @@ ZdbRN DB::write2(const Buf *buf)
 	fileWrError_(file, index.offset, e);
 	index.offset = 0;
 	index.length = 0;
-	return nullRN();
+	return false;
       }
     }
     // write trailer
@@ -2275,10 +2320,10 @@ ZdbRN DB::write2(const Buf *buf)
       fileWrError_(file, index.offset + index.length, e);
       index.offset = 0;
       index.length = 0;
-      return nullRN();
+      return false;
     }
   }
-  return rn;
+  return true;
 }
 
 void DB::ack(RN rn)
@@ -2294,10 +2339,10 @@ void DB::ack(RN rn)
   auto startRN = m_deletes.minimumKey();
   if (startRN == nullRN() || rn < startRN) return;
   m_vacuumRN = rn;
-  vacuum_();
+  vacuum();
 }
 
-void DB::vacuum_()
+void DB::vacuum()
 {
   ZmAssert(fileInvoked());
 
@@ -2321,7 +2366,7 @@ again1:
 	DeleteOp{outcome.p<1>(), SeqLenOp::mk(-outcome.p<0>(), Op::Delete)});
 
 again2:
-  fileRun([this]() { vacuum_(); });
+  fileRun([this]() { vacuum(); });
 }
 
 // del_() returns a {int, RN} pair:
@@ -2390,7 +2435,7 @@ RN DB::del_prevRN(RN rn)
 {
   ZmAssert(fileInvoked());
 
-  if (auto object = m_objCache->del(rn)) {
+  if (auto object = m_objCache.del(rn)) {
     if (object->committed()) return object->prevRN();
   }
   FileRec rec = rn2file<false>(rn);

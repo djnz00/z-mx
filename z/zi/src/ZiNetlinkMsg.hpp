@@ -77,7 +77,7 @@ private:
   struct nlmsghdr		m_n;
   char				m_pad[PADDING];
 };
-template <> struct ZuPrint<ZiNetlinkHdr> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 
 class ZiGenericNetlinkHdr : public ZiNetlinkHdr {
   ZiGenericNetlinkHdr(const ZiGenericNetlinkHdr &);
@@ -115,7 +115,7 @@ private:
   char			m_pad[PADDING];
 };
 #define ZiGenericNetlinkHdr2Vec(x) (void *)&(x), x.hdrSize()
-template <> struct ZuPrint<ZiGenericNetlinkHdr> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(ZiGenericNetlinkHdr *);
 
 // Netlink Attributes
 
@@ -171,7 +171,7 @@ private:
   struct nlattr		m_na;
   char			m_pad[PADDING];
 };
-template <> struct ZuPrint<ZiNetlinkHdr> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 
 class ZiNetlinkFamilyName : public ZiNetlinkAttr {
   enum _ { PADDING = NLA_ALIGN(GENL_NAMSIZ) - GENL_NAMSIZ };
@@ -194,7 +194,7 @@ private:
   char m_familyName[GENL_NAMSIZ];
   char m_pad[PADDING];
 };
-template <> struct ZuPrint<ZiNetlinkFamilyName> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(ZiNetlinkFamilyName *);
 
 class ZiNetlinkDataAttr : public ZiNetlinkAttr {
 public:

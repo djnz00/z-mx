@@ -34,12 +34,11 @@ void FileMgr::init(ZmScheduler *sched, const ZvCf *cf)
   m_sched = sched;
   m_dir = config.dir;
   m_coldDir = config.coldDir;
-  m_writeThread = sched->sid(config.writeThread);
-  if (!m_writeThread ||
-      m_writeThread > sched->params().nThreads())
+  m_sid = sched->sid(config.thread);
+  if (!m_sid || m_sid > sched->params().nThreads())
     throw ZtString{} <<
-      "Zdf::FileMgr writeThread misconfigured: " <<
-      config.writeThread;
+      "Zdf::FileMgr thread misconfigured: " <<
+      config.thread;
   m_files = new FileHash{};
   m_maxFileSize = config.maxFileSize;
   m_maxOpenFiles = m_files->size();
@@ -208,7 +207,7 @@ void FileMgr::save(ZmRef<Buf> buf)
 {
   buf->save([buf = ZuMv(buf)]() {
     auto self = static_cast<FileMgr *>(buf->mgr);
-    self->m_sched->run(self->m_writeThread, [buf = ZuMv(buf)]() mutable {
+    self->run([buf = ZuMv(buf)]() mutable {
       auto buf_ = buf.ptr();
       buf_->save_([buf = ZuMv(buf)]() {
 	auto self = static_cast<FileMgr *>(buf->mgr);

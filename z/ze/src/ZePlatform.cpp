@@ -169,8 +169,9 @@ static int eventlogtype(int i) {
     EVENTLOG_ERROR_TYPE,	// Error
     EVENTLOG_ERROR_TYPE		// Fatal
   };
+  enum { N = sizeof(types) / sizeof(types[0]) };
 
-  return (i < 0 || i > 4) ? EVENTLOG_WARNING_TYPE : types[i];
+  return (i < 0 || i >= N) ? EVENTLOG_WARNING_TYPE : types[i];
 }
 
 #define Ze_NTFS_MAX_PATH	32768	// MAX_PATH is 260 and deprecated
@@ -257,7 +258,7 @@ void Ze::syslog(ZeEvent *e)
 
 constexpr static struct {
   Ze::ErrNo	code;
-  const char		*msg;
+  const char	*msg;
 } ZePlatform_WSAErrors_[] = {
 { WSAEINTR,		  "Interrupted system call" },
 { WSAEBADF,		  "Bad file number" },

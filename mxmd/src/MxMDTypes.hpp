@@ -100,7 +100,7 @@ struct MxMDLotSizes {
   }
 };
 
-template <> struct ZuPrint<MxMDLotSizes> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(MxMDLotSizes *);
 
 struct MxMDL1Data {
   MxDateTime	stamp;

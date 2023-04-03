@@ -242,7 +242,7 @@ struct MxTTimeFmt {
     return csv_;
   }
 };
-template <> struct ZuPrint<MxTTimeFmt::Null> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(MxTTimeFmt::Null *);
 
 struct MxTCSVTimeFmt {
   static ZtDateFmt::CSV &fmt() {
@@ -258,6 +258,6 @@ struct MxTBoolFmt {
   }
   MxBool	v;
 };
-template <> struct ZuPrint<MxTBoolFmt> : public ZuPrintFn { };
+ZuPrintFn ZuPrintType(MxTBoolFmt *);
 
 #endif /* MxTTypes_HPP */

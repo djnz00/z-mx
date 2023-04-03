@@ -331,11 +331,11 @@ public:
 
 template <unsigned Size_, typename Heap, auto HeapID>
 struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
-  using Base = ZiIOVBuf<Size_, HeapID>;
-  using Base::Size;
+  using VBuf = ZiIOVBuf<Size_, HeapID>;
+  enum { BufSize = VBuf::Size };
   ZiIOBuf_() = default;
   template <typename ...Args>
-  ZiIOBuf_(Args &&... args) : Base(ZuFwd<Args>(args)...) { }
+  ZiIOBuf_(Args &&... args) : VBuf{ZuFwd<Args>(args)...} { }
   ~ZiIOBuf_() = default;
   ZiIOBuf_(const ZiIOBuf_ &) = delete;
   ZiIOBuf_ &operator =(const ZiIOBuf_ &) = delete;

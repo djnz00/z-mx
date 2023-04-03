@@ -119,11 +119,11 @@ protected:
 
 private:
   void connected_(TCP *tcp, ZiIOContext &io) {
-    m_rxBuf = new IOBuf(this, 0);
+    m_rxBuf = new IOBuf{this, 0U};
     io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) -> uintptr_t {
       link->rx(io);
       return 0;
-    }}, m_rxBuf->data_, IOBuf::Size, 0);
+    }}, m_rxBuf->data_, IOBuf::BufSize, 0);
     ZmRef<Impl> impl{this};
     this->app()->run([impl = ZuMv(impl), tcp = ZmMkRef(tcp)]() {
       impl->connected_2(ZuMv(tcp));
@@ -169,9 +169,9 @@ private:
 	auto link = static_cast<Link *>(buf->owner);
 	link->recv_(ZuMv(buf));
       });
-    m_rxBuf = new IOBuf(this, 0);
+    m_rxBuf = new IOBuf{this, 0U};
     io.ptr = m_rxBuf->data_;
-    io.length = IOBuf::Size;
+    io.length = IOBuf::BufSize;
     io.offset = 0;
   }
 
@@ -181,9 +181,9 @@ private:
       unsigned i = m_rxRingOffset + m_rxRingCount - 1;
       if (ZuUnlikely(i >= RxRingSize)) i -= RxRingSize;
       unsigned len = m_rxRing[i]->length;
-      if (ZuUnlikely(len < IOBuf::Size)) {
+      if (ZuUnlikely(len < IOBuf::BufSize)) {
 	unsigned n = buf->length;
-	unsigned o = IOBuf::Size - len;
+	unsigned o = IOBuf::BufSize - len;
 	if (n > o) n = o;
 	memcpy(m_rxRing[i]->data() + len, buf->data(), n);
 	m_rxRing[i]->length = len + n;
@@ -328,8 +328,8 @@ public:
     unsigned offset = 0;
     do {
       unsigned n = len - offset;
-      if (ZuUnlikely(n > IOBuf::Size)) n = IOBuf::Size;
-      ZmRef<IOBuf> buf = new IOBuf(this, n);
+      if (ZuUnlikely(n > IOBuf::BufSize)) n = IOBuf::BufSize;
+      ZmRef<IOBuf> buf = new IOBuf{this, n};
       memcpy(buf->data_, data + offset, n);
       app()->invoke([buf = ZuMv(buf)]() mutable {
 	auto link = static_cast<Link *>(buf->owner);
@@ -387,8 +387,8 @@ private:
     auto mx = app()->mx();
     do {
       unsigned n = len - offset;
-      if (ZuUnlikely(n > IOBuf::Size)) n = IOBuf::Size;
-      ZmRef<IOBuf> buf = new IOBuf(static_cast<TCP *>(m_tcp), n);
+      if (ZuUnlikely(n > IOBuf::BufSize)) n = IOBuf::BufSize;
+      ZmRef<IOBuf> buf = new IOBuf{static_cast<TCP *>(m_tcp), n};
       memcpy(buf->data_, data + offset, n);
       mx->txRun([buf = ZuMv(buf)]() mutable {
 	auto tcp = static_cast<TCP *>(buf->owner);
@@ -432,7 +432,7 @@ public:
 private:
   enum {
     RxRingSize =
-      (MBEDTLS_SSL_MAX_CONTENT_LEN + IOBuf::Size - 1) / IOBuf::Size
+      (MBEDTLS_SSL_MAX_CONTENT_LEN + IOBuf::BufSize - 1) / IOBuf::BufSize
   };
 
   App			*m_app = nullptr;

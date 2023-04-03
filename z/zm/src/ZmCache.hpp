@@ -36,6 +36,7 @@
 #include <zlib/ZmAlloc.hpp>
 #include <zlib/ZmList.hpp>
 #include <zlib/ZmHash.hpp>
+#include <zlib/ZmBlock.hpp>
 
 // NTP defaults
 struct ZmCache_Defaults : public ZmHash_Defaults {
@@ -162,11 +163,67 @@ public:
     m_loads = m_misses = m_evictions = 0;
   }
 
-  template <bool UpdateLRU = Evict, typename Key>
-  NodeRef find(const Key &key) {
+  template <
+    bool UpdateLRU = Evict, bool Evict_ = Evict,
+    typename Key, typename FindFn_, typename LoadFn>
+  void find(const Key &key, FindFn_ findFn, LoadFn loadFn) {
     Guard guard{m_lock};
     ++m_loads;
-    if (NodeRef *nodePtr = find_<UpdateLRU>(key)) return nodePtr;
+    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
+    ++m_misses;
+    typename LoadHash::Node *load = m_loadHash->find(key);
+    bool pending = load;
+    if (!pending)
+      m_loadHash->addNode(
+	  load = new typename LoadHash::Node{key, FindFnList{}});
+    load->val().push(FindFn{ZuMv(findFn)});
+    guard.unlock();
+    if (!pending)
+      loadFn(key, [this](NodeRef node) {
+	Guard guard{m_lock};
+	if (ZuLikely(node)) {
+	  add_(node);
+	  if (auto load = m_loadHash->del(node->key())) {
+	    guard.unlock();
+	    while (auto findFn = load->val().shift()) findFn(node);
+	  }
+	}
+      });
+  }
+
+  template <
+    bool UpdateLRU = Evict,
+    typename Key, typename FindFn_, typename LoadFn, typename EvictFn>
+  void find(const Key &key, FindFn_ findFn, LoadFn loadFn, EvictFn evictFn) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
+    ++m_misses;
+    typename LoadHash::Node *load = m_loadHash->find(key);
+    bool pending = !!load;
+    if (!pending)
+      m_loadHash->addNode(
+	  load = new typename LoadHash::Node{key, FindFnList{}});
+    load->val().push(FindFn{ZuMv(findFn)});
+    guard.unlock();
+    if (!pending)
+      loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
+	Guard guard{m_lock};
+	if (ZuLikely(node)) {
+	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
+	  if (auto load = m_loadHash->del(node->key())) {
+	    guard.unlock();
+	    while (auto findFn = load->val().shift()) findFn(node);
+	  }
+	}
+      });
+  }
+
+  template <bool UpdateLRU = Evict, typename Key>
+  NodeRef findSync(const Key &key) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
     ++m_misses;
     return nullptr;
   }
@@ -174,7 +231,7 @@ public:
   template <
     bool UpdateLRU = Evict, bool Evict_ = Evict,
     typename Key, typename LoadFn>
-  NodeRef find(const Key &key, LoadFn loadFn) {
+  NodeRef findSync(const Key &key, LoadFn loadFn) {
     {
       Guard guard{m_lock};
       ++m_loads;
@@ -193,7 +250,7 @@ public:
   template <
     bool UpdateLRU = Evict, bool Evict_ = Evict,
     typename Key, typename LoadFn, typename EvictFn>
-  NodeRef find(const Key &key, LoadFn loadFn, EvictFn evictFn) {
+  NodeRef findSync(const Key &key, LoadFn loadFn, EvictFn evictFn) {
     {
       Guard guard{m_lock};
       ++m_loads;
@@ -210,61 +267,6 @@ public:
       }
     }
     return node;
-  }
-
-  template <
-    bool UpdateLRU = Evict, bool Evict_ = Evict,
-    typename Key, typename FindFn_, typename LoadFn>
-  void findAsync(const Key &key, FindFn_ findFn, LoadFn loadFn) {
-    Guard guard{m_lock};
-    ++m_loads;
-    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
-    ++m_misses;
-    typename LoadHash::Node *load = m_loadHash->find(key);
-    bool pending = load;
-    if (!pending)
-      m_loadHash->addNode(
-	  load = new typename LoadHash::Node{key, FindFnList{}});
-    load->val().push(FindFn{ZuMv(findFn)});
-    guard.unlock();
-    if (!pending)
-      loadFn(key, [this](NodeRef node) {
-	Guard guard{m_lock};
-	if (ZuLikely(node)) add_(node);
-	if (auto load = m_loadHash->del(node->key())) {
-	  guard.unlock();
-	  while (auto findFn = load->val().shift()) findFn(node);
-	}
-      });
-  }
-
-  template <
-    bool UpdateLRU = Evict,
-    typename Key, typename FindFn_, typename LoadFn, typename EvictFn>
-  void findAsync(
-      const Key &key, FindFn_ findFn, LoadFn loadFn, EvictFn evictFn) {
-    Guard guard{m_lock};
-    ++m_loads;
-    if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
-    ++m_misses;
-    typename LoadHash::Node *load = m_loadHash->find(key);
-    bool pending = !!load;
-    if (!pending)
-      m_loadHash->addNode(
-	  load = new typename LoadHash::Node{key, FindFnList{}});
-    load->val().push(FindFn{ZuMv(findFn)});
-    guard.unlock();
-    if (!pending)
-      loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
-	Guard guard{m_lock};
-	if (ZuLikely(node))
-	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
-	if (auto load = m_loadHash->del(node->key())) {
-	  guard.unlock();
-	  while (auto findFn = load->val().shift())
-	    findFn(node);
-	}
-      });
   }
 
   template <bool Evict_ = Evict>
@@ -338,32 +340,44 @@ public:
   template <bool Delete = false, typename L>
   ZuIfT<!Delete> all(L l) const {
     m_lock.lock();
-    const_cast<ZmCache *>(this)->all_<Delete>(ZuMv(l));
+    const_cast<ZmCache *>(this)->all_<Delete, false>(ZuMv(l));
   }
   template <bool Delete, typename L>
   ZuIfT<Delete> all(L l) {
     m_lock.lock();
-    all_<Delete>(ZuMv(l));
+    all_<Delete, false>(ZuMv(l));
+  }
+
+  // allSync() synchronously blocks
+  template <bool Delete = false, typename L>
+  ZuIfT<!Delete> allSync(L l) const {
+    m_lock.lock();
+    const_cast<ZmCache *>(this)->all_<Delete, true>(ZuMv(l));
+  }
+  template <bool Delete, typename L>
+  ZuIfT<Delete> allSync(L l) {
+    m_lock.lock();
+    all_<Delete, true>(ZuMv(l));
   }
 
 private:
-  template <bool Delete, typename L>
+  template <bool Delete, bool Sync, typename L>
   bool all_(L l) {
-    unsigned n = m_hash.count_();
+    unsigned n = m_hash->count_();
     auto buf = ZmAlloc(NodeRef, n);
     if (!buf) return false;
-    all__<Delete>(ZuMv(l), buf, n);
+    all__<Delete, Sync>(ZuMv(l), buf, n);
     return true;
   }
   template <bool Delete>
   ZuIfT<!Delete, decltype(ZuDeclVal<Hash &>().iterator())>
   allIterator() {
-    return m_hash.iterator();
+    return m_hash->iterator();
   }
   template <bool Delete>
   ZuIfT<Delete, decltype(ZuDeclVal<const Hash &>().readIterator())>
   allIterator() {
-    return m_hash.readIterator();
+    return m_hash->readIterator();
   }
   template <typename NodeRef>
   struct NodeRefFn {
@@ -378,7 +392,7 @@ private:
     static void ctor(NodeRef *ptr, NodeRef ref) { *ptr = ref; }
     constexpr static void dtor(NodeRef &) { }
   };
-  template <bool Delete, typename L>
+  template <bool Delete, bool Sync, typename L>
   void all__(L l, NodeRef *buf, unsigned n) {
     using Fn = NodeRefFn<NodeRef>;
     {
@@ -392,16 +406,22 @@ private:
       n = j;
     }
     m_lock.unlock();
-    for (unsigned j = 0; j < n; j++) {
-      l(ZuMv(buf[j]));
-      Fn::dtor(buf[j]);
-    }
+    if constexpr (Sync)
+      ZmBlock<>{}(n, [&l, buf](unsigned j, auto wake) {
+	l(ZuMv(buf[j]), ZuMv(wake));
+	Fn::dtor(buf[j]);
+      });
+    else
+      for (unsigned j = 0; j < n; j++) {
+	l(ZuMv(buf[j]));
+	Fn::dtor(buf[j]);
+      }
   }
 
 private:
   unsigned		m_size;
  
-  Lock			m_lock;
+  mutable Lock		m_lock;
     ZmRef<Hash>		  m_hash;
     LRU			  m_lru;
     ZmRef<LoadHash>	  m_loadHash;

@@ -55,7 +55,7 @@ void backFill(ZTree &tree, unsigned cacheSize)
 void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned cacheSize)
 {
   for (unsigned i = 0; i < cacheSize; i++)
-    cache.find(offset + i,
+    cache.findSync(offset + i,
 	  [&tree](unsigned key) -> ZCache::NodeRef {
 	    if (auto node = tree.find(key))
 	      return new ZNode{key, node->val().v};

@@ -43,23 +43,17 @@ public:
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
 
-  void send(ZmRef<Buf> buf) {
-    impl()->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
-      io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
-	if (ZuUnlikely((io.offset += io.length) < io.size)) return;
-	io.complete();
-      }}, buf->data(), buf->length, 0);
-    }});
-  }
+  static auto impl(const Buf *buf) { return static_cast<Impl *>(buf->owner); }
 
-  // void Sent(ZmRef<Buf> buf) // async
-  template <auto Sent>
+  void sent(ZmRef<Buf>) { } // can be overridden
+
   void send(ZmRef<Buf> buf) {
-    impl()->send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
+    buf->owner = impl();
+    impl()->ZiConnection::send(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
       io.init(ZiIOFn{io.fn.mvObject<Buf>(), [](Buf *buf, ZiIOContext &io) {
 	if (ZuUnlikely((io.offset += io.length) < io.size)) return;
 	io.complete();
-	ZuInvoke<Sent>(io.fn.mvObject<Buf>());
+	impl(buf)->sent(io.fn.mvObject<Buf>());
       }}, buf->data(), buf->length, 0);
     }});
   }

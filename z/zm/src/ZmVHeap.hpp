@@ -48,7 +48,7 @@ inline unsigned ZmGrow(unsigned o, unsigned n)
   unsigned i = 64 - __builtin_clzll(n);
   if (ZuUnlikely(i >= 17)) return n - sizeof(uintptr_t);
   return ZuSwitch::dispatch<17>(i, [](auto i) {
-    return static_cast<unsigned>(ZmHeap_Size<(1<<i)>::Size);
+    return static_cast<unsigned>(ZmHeapAllocSize<(1<<i)>::N);
   }) - sizeof(uintptr_t);
 }
 
@@ -57,7 +57,7 @@ class ZmVHeap {
   template <auto, bool> friend class ZmVHeap_Init;
 
   template <unsigned N>
-  using Cache = ZmHeapCacheT<ID, ZmHeap_Size<(1<<N)>::Size, Sharded>;
+  using Cache = ZmHeapCacheT<ID, ZmHeapAllocSize<(1<<N)>::N, Sharded>;
 
 public:
   static void *valloc(size_t n) {
