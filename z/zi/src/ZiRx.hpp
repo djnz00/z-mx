@@ -182,7 +182,7 @@ public:
 
     while (len) {
       // scan header
-      int frameLen = ZuInvoke<Hdr>(impl(buf), buf.ptr());
+      int frameLen = ZuInvoke<Hdr>(impl(buf), buf);
       if (ZuUnlikely(frameLen < 0)) return -1;
       if (len < static_cast<unsigned>(frameLen)) return 0;
 
@@ -230,7 +230,7 @@ public:
 
     while (len) {
       // scan header
-      int frameLen = ZuInvoke<Hdr>(impl(buf), buf.ptr());
+      int frameLen = ZuInvoke<Hdr>(impl(buf), buf);
       if (ZuUnlikely(frameLen < 0)) return -1;
       if (len < static_cast<unsigned>(frameLen)) {
 	buf->ensure(frameLen);

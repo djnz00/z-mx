@@ -193,12 +193,12 @@ inline int loadHdr(const Buf *buf) {
 }
 // returns -1 if the header is invalid/corrupted, or lambda return
 template <typename Buf, typename Fn>
-inline int verifyHdr(const Buf *buf, Fn fn) {
+inline int verifyHdr(ZmRef<Buf> buf, Fn fn) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
   auto hdr = buf->template ptr<Hdr>();
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
-  int i = fn(hdr, buf);
+  int i = fn(hdr, ZuMv(buf));
   if (i < 0) return i;
   return sizeof(Hdr) + i;
 }
@@ -420,6 +420,7 @@ class ZdbAPI File_ : public ZuObject, public ZiFile {
 
 friend DB;
 
+protected:
   File_(DB *db, uint64_t id) : m_db{db}, m_id{id} { }
 
 public:
@@ -599,7 +600,7 @@ private:
   void disconnected();
 
   void msgRead(ZiIOContext &);
-  int msgRead2(const Buf *);
+  int msgRead2(ZmRef<Buf>);
   void msgRead3(ZmRef<Buf>);
 
   void hbRcvd(const fbs::Heartbeat *);

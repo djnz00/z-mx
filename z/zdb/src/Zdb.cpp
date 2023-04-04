@@ -1016,20 +1016,17 @@ void Cxn_::msgRead(ZiIOContext &io)
 }
 int Cxn_::msgRead2(ZmRef<Buf> buf)
 {
-  // FIXME - buf should be moved in
-  return verifyHdr(buf, [this](const Hdr *hdr, const Buf *buf) -> int {
+  return verifyHdr(ZuMv(buf), [this](const Hdr *hdr, ZmRef<Buf> buf) -> int {
     auto msg = Zdb_::msg(hdr);
     if (ZuUnlikely(!msg)) return -1;
 
-    auto length = static_cast<unsigned>(hdr->length);
+    auto length = static_cast<uint32_t>(hdr->length);
 
     switch (static_cast<int>(msg->body_type())) {
       case fbs::Body_HB:
       case fbs::Body_Gap:
       case fbs::Body_Rep:
       case fbs::Body_Rec:
-	ZmRef<Buf> buf = new Buf{}; // FIXME - not needed, buf is already a detached single-message buffer processed by ZiRx
-	*buf << msgData(hdr);
 	if (ZuLikely(buf->length))
 	  m_env->run([cxn = ZmMkRef(this), buf = ZuMv(buf)]() mutable {
 	    cxn->msgRead3(ZuMv(buf));
@@ -1882,7 +1879,7 @@ void DB::close()
       });
 
       // files
-      m_files.all<true>([this](ZmRef<File> file) { file->sync(); });
+      m_files.all<true>([](ZmRef<File> file) { file->sync(); });
 
       wake();
     });

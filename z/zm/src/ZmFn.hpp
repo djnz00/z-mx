@@ -19,14 +19,14 @@
 
 // function delegate optimized for performance and avoidance of heap allocation
 
-// most uses of function delegates involve capturing "this", and almost all
-// uses can be reduced to capturing a single pointer; ZmFn<> provides
-// single pointer capture without heap allocation overhead, falling back to
-// heap allocation when capturing larger parameter packs
+// most uses of function delegates involve capturing "this", and most
+// capture packs can be reduced to a single instance pointer; ZmFn<> captures
+// a function pointer and an instance pointer without heap allocation,
+// falling back to heap allocation for larger capture packs
 
 // return types must either be void or be statically convertible to uintptr_t
 
-// ZmFn<> has a single built-in capture of either an arbitrary pointer, or a
+// ZmFn<> has a single built-in capture of either an instance pointer, or a
 // ZmRef<T> where T is ZmPolymorph-derived (i.e. is both reference-counted
 // and has a virtual destructor); when used with ZmRef/ZmPolymorph, the
 // ZmFn reference-counts the referenced object during its lifetime, ensuring

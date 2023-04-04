@@ -733,12 +733,12 @@ auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsMemberFn<Fn> {
   return (ptr->*Fn)(ZuFwd<Args>(args)...);
 }
 template <auto Fn, typename T, typename ...Args>
-auto ZuInvoke(T *, Args &&... args) -> ZuIsLambdaFn<Fn> {
-  return Fn(ZuFwd<Args>(args)...);
+auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsLambdaFn<Fn> {
+  return Fn(ptr, ZuFwd<Args>(args)...);
 }
 template <auto Fn, typename T, typename ...Args>
-auto ZuInvoke(T *, Args &&... args) -> ZuIsStaticFn<Fn> {
-  return (*Fn)(ZuFwd<Args>(args)...);
+auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsStaticFn<Fn> {
+  return (*Fn)(ptr, ZuFwd<Args>(args)...);
 }
 
 // alloca() alias

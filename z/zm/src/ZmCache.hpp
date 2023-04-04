@@ -370,12 +370,12 @@ private:
     return true;
   }
   template <bool Delete>
-  ZuIfT<!Delete, decltype(ZuDeclVal<Hash &>().iterator())>
+  ZuIfT<Delete, decltype(ZuDeclVal<Hash &>().iterator())>
   allIterator() {
     return m_hash->iterator();
   }
   template <bool Delete>
-  ZuIfT<Delete, decltype(ZuDeclVal<const Hash &>().readIterator())>
+  ZuIfT<!Delete, decltype(ZuDeclVal<const Hash &>().readIterator())>
   allIterator() {
     return m_hash->readIterator();
   }
