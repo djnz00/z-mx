@@ -1045,7 +1045,7 @@ using DBCfs =
 
 // -- main DB class
 
-class ZdbAPI DB : public ZmObject {
+class ZdbAPI DB : public ZmPolymorph {
 friend File_;
 friend Cxn_;
 friend AnyObject_;
@@ -1476,18 +1476,6 @@ private:
   bool			m_voted = false;
 };
 
-// host pointer printing
-struct HostPtr {
-  Host *ptr = nullptr;
-  template <typename S> void print(S &s) const {
-    if (!ptr)
-      s << "(null)";
-    else
-      s << *ptr;
-  }
-  friend ZuPrintFn ZuPrintType(HostPtr *);
-};
-
 // host container
 using HostIndex =
   ZmRBTree<Host,
@@ -1571,7 +1559,7 @@ struct EnvCf {
 
 // -- main DB environment class
 
-class ZdbAPI Env : public ZmObject, public ZmEngine<Env> {
+class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
   Env(const Env &);
   Env &operator =(const Env &);		// prevent mis-use
 
@@ -1675,7 +1663,7 @@ public:
     ZmAssert(invoked());
 
     auto i = m_dbs.readIterator();
-    while (auto db = i.iterate()) db->invoke([db, l = l(db)]() { l(); });
+    while (auto db = i.iterate()) db->invoke([l = l(db)]() { l(); });
   }
   template <typename L> void allSync(L l) const {
     ZmAssert(invoked());

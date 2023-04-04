@@ -35,6 +35,8 @@
 
 #include <string.h>
 
+struct ZmBackTrace_Print;
+
 class ZmAPI ZmBackTrace {
 public:
   ZmBackTrace() {
@@ -67,6 +69,8 @@ public:
 #endif
 
   void *const *frames() const { return m_frames; }
+
+  friend ZmBackTrace_Print ZuPrintType(ZmBackTrace *);
 
 private:
   void		*m_frames[ZmBackTrace_DEPTH];

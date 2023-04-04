@@ -774,8 +774,7 @@ struct ZtFieldType_Time<Base, Flags, false> :
   O *ZuFielded_(O *); \
   ZuFields_::O ZuFieldList_(O *)
 
-struct ZtFieldPrint {
-  enum { OK = 1, String = 0, Delegate = 1, Buffer = 0 };
+struct ZtFieldPrint : public ZuPrintDelegate {
   template <typename U>
   struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) }; };
   template <typename S, typename O>

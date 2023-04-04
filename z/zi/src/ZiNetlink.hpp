@@ -61,8 +61,8 @@ public:
     s << "pid=" << ZuBoxed(m_snl.nl_pid) <<
       " groups=" << ZuBoxed(m_snl.nl_groups);
   }
+  friend ZuPrintFn ZuPrintType(ZiNetlinkSockAddr *);
 };
-ZuPrintFn ZuPrintType(ZiNetlinkSockAddr *);
 
 class ZiNetlink {
   friend ZiMultiplex;

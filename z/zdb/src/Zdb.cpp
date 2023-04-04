@@ -791,16 +791,16 @@ Host *Env::setMaster()
     auto i = m_hostIndex.readIterator();
 
     ZdbDEBUG(this, ZtString{} << "setMaster()\n" << 
-	" self=" << HostPtr{m_self} << '\n' <<
-	" prev=" << HostPtr{m_prev} << '\n' <<
-	" next=" << HostPtr{m_next} << '\n' <<
+	" self=" << ZuPrintPtr{m_self} << '\n' <<
+	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
+	" next=" << ZuPrintPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 
     while (Host *host = i.iterate()) {
       ZdbDEBUG(this, ZtString{} <<
-	  " host=" << *host << '\n' <<
-	  " master=" << HostPtr{m_master});
+	  " host=" << ZuPrintPtr{host} << '\n' <<
+	  " master=" << ZuPrintPtr{m_master});
 
       if (host->voted()) {
 	if (host != m_self) ++m_nPeers;
@@ -849,10 +849,10 @@ void Env::setNext()
     auto i = m_hostIndex.readIterator();
 
     ZdbDEBUG(this, ZtString{} << "setNext()\n" <<
-	" self=" << HostPtr{m_self} << '\n' <<
-	" master=" << HostPtr{m_master} << '\n' <<
-	" prev=" << HostPtr{m_prev} << '\n' <<
-	" next=" << HostPtr{m_next} << '\n' <<
+	" self=" << ZuPrintPtr{m_self} << '\n' <<
+	" master=" << ZuPrintPtr{m_master} << '\n' <<
+	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
+	" next=" << ZuPrintPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 
@@ -862,8 +862,8 @@ void Env::setNext()
 	next = host;
 
       ZdbDEBUG(this, ZtString{} <<
-	  " host=" << HostPtr{host} << '\n' <<
-	  " next=" << HostPtr{next});
+	  " host=" << ZuPrintPtr{host} << '\n' <<
+	  " next=" << *next);
     }
   }
 
@@ -880,10 +880,10 @@ void Env::repStart()
   envStateRefresh();
 
   ZdbDEBUG(this, ZtString{} << "repStart()\n" <<
-      " self=" << HostPtr{m_self} << '\n' <<
-      " master=" << HostPtr{m_master} << '\n' <<
-      " prev=" << HostPtr{m_prev} << '\n' <<
-      " next=" << HostPtr{m_next} << '\n' <<
+      " self=" << ZuPrintPtr{m_self} << '\n' <<
+      " master=" << ZuPrintPtr{m_master} << '\n' <<
+      " prev=" << ZuPrintPtr{m_prev} << '\n' <<
+      " next=" << ZuPrintPtr{m_next} << '\n' <<
       " recovering=" << m_recovering <<
       " replicating=" << Host::replicating(m_next));
 
@@ -1007,15 +1007,16 @@ void Env::repStop()
 void Cxn_::msgRead(ZiIOContext &io)
 {
   recv<
-    [](const ZiIOContext &, const Buf *buf) -> int {
+    [](Cxn_ *, const ZiIOContext &, const Buf *buf) -> int {
       return loadHdr(buf);
     },
-    [](const ZiIOContext &io, const Buf *buf, unsigned) -> int {
-      return static_cast<Cxn *>(io.cxn)->msgRead2(buf);
+    [](Cxn_ *cxn, const ZiIOContext &, ZmRef<Buf> buf) -> int {
+      return cxn->msgRead2(ZuMv(buf));
     }>(io);
 }
-int Cxn_::msgRead2(const Buf *buf)
+int Cxn_::msgRead2(ZmRef<Buf> buf)
 {
+  // FIXME - buf should be moved in
   return verifyHdr(buf, [this](const Hdr *hdr, const Buf *buf) -> int {
     auto msg = Zdb_::msg(hdr);
     if (ZuUnlikely(!msg)) return -1;
@@ -1027,7 +1028,7 @@ int Cxn_::msgRead2(const Buf *buf)
       case fbs::Body_Gap:
       case fbs::Body_Rep:
       case fbs::Body_Rec:
-	ZmRef<Buf> buf = new Buf{};
+	ZmRef<Buf> buf = new Buf{}; // FIXME - not needed, buf is already a detached single-message buffer processed by ZiRx
 	*buf << msgData(hdr);
 	if (ZuLikely(buf->length))
 	  m_env->run([cxn = ZmMkRef(this), buf = ZuMv(buf)]() mutable {
@@ -1079,11 +1080,11 @@ void Cxn_::hbRcvd(const fbs::Heartbeat *hb)
 void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
 {
   ZdbDEBUG(this, ZtString{} << "hbDataRcvd()\n" << 
-	" host=" << HostPtr{host} << '\n' <<
-	" self=" << HostPtr{m_self} << '\n' <<
-	" master=" << HostPtr{m_master} << '\n' <<
-	" prev=" << HostPtr{m_prev} << '\n' <<
-	" next=" << HostPtr{m_next} << '\n' <<
+	" host=" << ZuPrintPtr{host} << '\n' <<
+	" self=" << ZuPrintPtr{m_self} << '\n' <<
+	" master=" << ZuPrintPtr{m_master} << '\n' <<
+	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
+	" next=" << ZuPrintPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
 	" replicating=" << Host::replicating(m_next));
 

@@ -402,7 +402,6 @@ public:
     s << this->name() << " (" << ZuBoxed(sid()) << ") [" << m_cpuset << "] "
       << ZuBoxed(cpuUsage() * 100.0).fmt<ZuFmt::FP<2>>() << '%';
   }
-
   friend ZuPrintFn ZuPrintType(ZmThreadContext *);
 
 private:
@@ -429,18 +428,6 @@ private:
 
   bool			m_detached = false;
 };
-
-using ZmThreadContext_Ptr = const ZmThreadContext *;
-struct ZmThreadContext_Ptr_Print : public ZuPrintDelegate {
-  template <typename S>
-  static void print(S &s, ZmThreadContext_Ptr v) {
-    if (!v)
-      s << "null";
-    else
-      s << *v;
-  }
-};
-ZmThreadContext_Ptr_Print ZuPrintType(ZmThreadContext_Ptr *);
 
 #define ZmSelf() (ZmThreadContext::self())
 

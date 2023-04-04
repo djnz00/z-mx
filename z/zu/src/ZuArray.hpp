@@ -52,9 +52,13 @@
 // #pragma warning(disable:4800)
 #endif
 
-struct ZuArray_ { };
-template <typename T_, class Cmp_ = ZuCmp<T_>>
-class ZuArray : public ZuArray_ {
+template <typename T> struct ZuArray_ { };
+template <> struct ZuArray_<char> {
+  friend ZuPrintString ZuPrintType(ZuArray_ *);
+};
+
+template <typename T_, typename Cmp_ = ZuCmp<T_>>
+class ZuArray : public ZuArray_<T_> {
 public:
   using T = T_;
   using Cmp = Cmp_;
@@ -368,9 +372,6 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.length(); }
 };
-
-template <typename T>
-ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZuArray<T> *);
 
 template <typename T>
 using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;

@@ -533,12 +533,12 @@ const ZuIsBoxed<T, T> &ZuBoxed(const T &t) { return t; }
 template <typename T>
 ZuIsBoxed<T, T> &ZuBoxed(T &t) { return t; }
 template <typename T>
-const ZuNotBoxed<T, ZuBox<T> > &ZuBoxed(const T &t) {
+const ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(const T &t) {
   const ZuBox<T> *ZuMayAlias(t_) = reinterpret_cast<const ZuBox<T> *>(&t);
   return *t_;
 }
 template <typename T>
-ZuNotBoxed<T, ZuBox<T> > &ZuBoxed(T &t) {
+ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(T &t) {
   ZuBox<T> *ZuMayAlias(t_) = reinterpret_cast<ZuBox<T> *>(&t);
   return *t_;
 }

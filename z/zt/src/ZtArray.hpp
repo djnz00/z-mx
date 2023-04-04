@@ -92,6 +92,9 @@ struct ZtArrayHeapID : public NTP {
 template <typename T, typename NTP> class ZtArray;
 
 template <typename T> struct ZtArray_ { };
+template <> struct ZtArray_<char> {
+  friend ZuPrintString ZuPrintType(ZtArray_ *);
+};
 
 template <typename T_> struct ZtArray_Char2 { using T = ZuNull; };
 template <> struct ZtArray_Char2<char> { using T = wchar_t; };
@@ -1516,9 +1519,5 @@ inline void ZtArray<T, NTP>::convert_(const S &s, ZtIconv *iconv) {
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
-
-// generic printing
-template <typename T, typename NTP>
-ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZtArray<T, NTP> *);
 
 #endif /* ZtArray_HPP */

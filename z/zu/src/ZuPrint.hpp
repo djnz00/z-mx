@@ -80,6 +80,19 @@ struct ZuPrintNull : public ZuPrintable {
   template <typename S> void print(S &) const { }
 };
 
+template <typename T>
+struct ZuPrintPtr {
+  T	*ptr;
+  template <typename S> void print(S &s) const {
+    if (!ptr)
+      s << "(null)";
+    else
+      s << *ptr;
+  }
+  friend ZuPrintFn ZuPrintType(ZuPrintPtr *);
+};
+template <typename T> ZuPrintPtr(T *) -> ZuPrintPtr<T>;
+
 template <typename S> struct ZuStdStream;
 
 template <typename S> struct ZuStdStream__ {

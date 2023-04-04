@@ -241,8 +241,8 @@ struct MxTTimeFmt {
     thread_local ZtDateFmt::CSV csv_;
     return csv_;
   }
+  // friend ZuPrintFn ZuPrintType(MxTTimeFmt::Null *);
 };
-ZuPrintFn ZuPrintType(MxTTimeFmt::Null *);
 
 struct MxTCSVTimeFmt {
   static ZtDateFmt::CSV &fmt() {
@@ -252,12 +252,13 @@ struct MxTCSVTimeFmt {
 };
 
 struct MxTBoolFmt {
+  MxBool	v;
+
   template <typename S> void print(S &s) const {
     if (!*v) return;
     s << (v ? '1' : '0');
   }
-  MxBool	v;
+  friend ZuPrintFn ZuPrintType(MxTBoolFmt *);
 };
-ZuPrintFn ZuPrintType(MxTBoolFmt *);
 
 #endif /* MxTTypes_HPP */

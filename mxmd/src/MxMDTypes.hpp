@@ -98,9 +98,9 @@ struct MxMDLotSizes {
   template <typename S> void print(S &s) const {
     s << '[' << oddLotSize << ", " << lotSize << ", " << blockLotSize << ']';
   }
+  friend ZuPrintFn ZuPrintType(MxMDLotSizes *);
 };
 
-ZuPrintFn ZuPrintType(MxMDLotSizes *);
 
 struct MxMDL1Data {
   MxDateTime	stamp;

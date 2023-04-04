@@ -53,6 +53,5 @@ struct ZmBackTrace_Print : public ZuPrintDelegate {
     ZmBackTrace_print(s, bt);
   }
 };
-ZmBackTrace_Print ZuPrintType(ZmBackTrace *);
 
 #endif /* ZmBackTrace_print_HPP */

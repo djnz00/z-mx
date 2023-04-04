@@ -32,13 +32,21 @@
 
 #include <zlib/ZuArray.hpp>
 #include <zlib/ZuArrayFn.hpp>
+#include <zlib/ZuPrint.hpp>
 
-template <typename T_> class ZuMvArray : public ZuArrayFn<T_> {
+template <typename T> struct ZuMvArray_ { };
+template <> struct ZuMvArray_<char> {
+  friend ZuPrintString ZuPrintType(ZuMvArray_ *);
+};
+
+template <typename T_, typename Cmp_ = ZuCmp<T_>>
+class ZuMvArray : public ZuMvArray_<T_>, public ZuArrayFn<T_, Cmp_> {
   ZuMvArray(const ZuMvArray &) = delete;
   ZuMvArray &operator =(const ZuMvArray &) = delete;
 
 public:
   using T = T_;
+  using Cmp = Cmp_;
 
   ZuMvArray() = default;
 
@@ -165,9 +173,5 @@ private:
   uint32_t	m_length = 0;
   T		*m_data = nullptr;
 };
-
-// generic printing
-template <typename T>
-ZuSame<ZuDecay<T>, char, ZuPrintString> ZuPrintType(ZuMvArray<T> *);
 
 #endif /* ZuMvArray_HPP */

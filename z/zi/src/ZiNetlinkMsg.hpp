@@ -65,6 +65,7 @@ public:
       << "] [size = " << hdrSize()
       << "]]";
   }
+  friend ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 
 protected:
   ZiNetlinkHdr() { memset(&m_n, 0, sizeof(struct nlmsghdr)); }
@@ -77,7 +78,6 @@ private:
   struct nlmsghdr		m_n;
   char				m_pad[PADDING];
 };
-ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 
 class ZiGenericNetlinkHdr : public ZiNetlinkHdr {
   ZiGenericNetlinkHdr(const ZiGenericNetlinkHdr &);
@@ -109,13 +109,13 @@ public:
       << "] [size = " << hdrSize()
       << "]]";
   }
+  friend ZuPrintFn ZuPrintType(ZiGenericNetlinkHdr *);
 
 private:
   struct genlmsghdr	m_g;
   char			m_pad[PADDING];
 };
 #define ZiGenericNetlinkHdr2Vec(x) (void *)&(x), x.hdrSize()
-ZuPrintFn ZuPrintType(ZiGenericNetlinkHdr *);
 
 // Netlink Attributes
 
@@ -162,6 +162,7 @@ public:
       << "] [size = " << size()
       << "]]";
   }
+  friend ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 		
 protected:	   
   ZiNetlinkAttr(uint16_t type, uint16_t len) :
@@ -171,7 +172,6 @@ private:
   struct nlattr		m_na;
   char			m_pad[PADDING];
 };
-ZuPrintFn ZuPrintType(ZiNetlinkHdr *);
 
 class ZiNetlinkFamilyName : public ZiNetlinkAttr {
   enum _ { PADDING = NLA_ALIGN(GENL_NAMSIZ) - GENL_NAMSIZ };
@@ -189,12 +189,12 @@ public:
     s << "ZiNetlinkFamilyName [" << static_cast<const ZiNetlinkAttr &>(*this)
       << " [familyName = " << m_familyName << "]]";
   }
+  friend ZuPrintFn ZuPrintType(ZiNetlinkFamilyName *);
 
 private:
   char m_familyName[GENL_NAMSIZ];
   char m_pad[PADDING];
 };
-ZuPrintFn ZuPrintType(ZiNetlinkFamilyName *);
 
 class ZiNetlinkDataAttr : public ZiNetlinkAttr {
 public:
