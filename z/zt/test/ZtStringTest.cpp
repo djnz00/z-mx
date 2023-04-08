@@ -212,7 +212,7 @@ int main()
 
     ZtString msg = "Hello World";
     q.push(msg);
-    ZtString res = q.shift();
+    ZtString res = q.shiftVal();
     puts(res.data());
   }
 

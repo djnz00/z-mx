@@ -149,12 +149,12 @@ public:
     IOList::unshift(ZuMv(ioBuf));
   }
   ZmRef<IOBuf> pop() {
-    ZmRef<IOBuf> ioBuf = IOList::pop();
+    ZmRef<IOBuf> ioBuf = IOList::popVal();
     if (ioBuf) m_size -= ioBuf->length();
     return ioBuf;
   }
   ZmRef<IOBuf> shift() {
-    ZmRef<IOBuf> ioBuf = IOList::shift();
+    ZmRef<IOBuf> ioBuf = IOList::shiftVal();
     if (ioBuf) m_size -= ioBuf->length();
     return ioBuf;
   }

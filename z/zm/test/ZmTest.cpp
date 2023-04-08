@@ -296,14 +296,14 @@ int main(int argc, char **argv)
     list.del(z);
     list1.add(z);
     list2.add(z);
-    z = list1.shift();
+    z = list1.shiftVal();
     if (z->m_z != 1234) puts("list1 test 1 failed");
-    z = list2.shift();
+    z = list2.shiftVal();
     if (z->m_z != 1234) puts("list2 test 1 failed");
     list.del(z);
-    z = list1.shift();
+    z = list1.shiftVal();
     if (z->m_z != 1234) puts("list1 test 2 failed");
-    z = list2.shift();
+    z = list2.shiftVal();
     if (z->m_z != 1234) puts("list2 test 2 failed");
 
     ZList list3;
@@ -325,24 +325,24 @@ int main(int argc, char **argv)
     printf("z2: "); z2->debug();
     printf("z3: "); z3->debug();
 #endif
-    z = list1.shift();
+    z = list1.shiftVal();
     if (z->m_z != 1234) puts("list1 test 3 failed");
-    z = list2.pop();
+    z = list2.popVal();
     if (z->m_z != 3456) puts("list2 test 3 failed");
-    z = list1.shift();
+    z = list1.shiftVal();
     if (z->m_z != 2345) puts("list1 test 4 failed");
-    z = list2.pop();
+    z = list2.popVal();
     if (z->m_z != 2345) puts("list2 test 4 failed");
-    z = list1.shift();
+    z = list1.shiftVal();
     if (z->m_z != 3456) puts("list1 test 5 failed");
-    z = list2.pop();
+    z = list2.popVal();
     if (z->m_z != 1234) puts("list2 test 5 failed");
 
     puts("list3 iteration 1");
     {
       ZList::Iterator iter(list3);
 
-      while (z = iter.iterate())
+      while (z = iter.iterateVal())
 	printf("%d\n", z->m_z);
     }
 
@@ -350,7 +350,7 @@ int main(int argc, char **argv)
     {
       ZList::Iterator iter(list3);
 
-      while (z = iter.iterate())
+      while (z = iter.iterateVal())
 	printf("%d\n", z->m_z);
     }
 
@@ -358,7 +358,7 @@ int main(int argc, char **argv)
     {
       ZList::Iterator iter(list3);
 
-      while (z = iter.iterate())
+      while (z = iter.iterateVal())
 	printf("%d\n", z->m_z);
     }
 
@@ -376,7 +376,7 @@ int main(int argc, char **argv)
       ZList2::Iterator iter(list);
       ZList2::NodeRef z;
 
-      while (z = iter.iterateNode()) puts(*z);
+      while (z = iter.iterate()) puts(*z);
     }
   }
 

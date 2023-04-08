@@ -85,7 +85,7 @@ private:
   struct LRUDisable { // LRU list is not needed if eviction is disabled
     using Node = T;
     Node *delNode(Node *node) { return node; }
-    Node *shiftNode() { return nullptr; }
+    Node *shift() { return nullptr; }
     void pushNode(Node *) { }
   };
   using LRU = ZuIf<Evict, LRUList, LRUDisable>;
@@ -163,6 +163,15 @@ public:
     m_loads = m_misses = m_evictions = 0;
   }
 
+  template <bool UpdateLRU = Evict, typename Key>
+  NodeRef find(const Key &key) {
+    Guard guard{m_lock};
+    ++m_loads;
+    if (NodeRef node = find_<UpdateLRU>(key)) return node;
+    ++m_misses;
+    return nullptr;
+  }
+
   template <
     bool UpdateLRU = Evict, bool Evict_ = Evict,
     typename Key, typename FindFn_, typename LoadFn>
@@ -185,7 +194,7 @@ public:
 	  add_(node);
 	  if (auto load = m_loadHash->del(node->key())) {
 	    guard.unlock();
-	    while (auto findFn = load->val().shift()) findFn(node);
+	    while (auto findFn = load->val().shiftVal()) findFn(node);
 	  }
 	}
       });
@@ -213,60 +222,10 @@ public:
 	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
 	  if (auto load = m_loadHash->del(node->key())) {
 	    guard.unlock();
-	    while (auto findFn = load->val().shift()) findFn(node);
+	    while (auto findFn = load->val().shiftVal()) findFn(node);
 	  }
 	}
       });
-  }
-
-  template <bool UpdateLRU = Evict, typename Key>
-  NodeRef findSync(const Key &key) {
-    Guard guard{m_lock};
-    ++m_loads;
-    if (NodeRef node = find_<UpdateLRU>(key)) return node;
-    ++m_misses;
-    return nullptr;
-  }
-
-  template <
-    bool UpdateLRU = Evict, bool Evict_ = Evict,
-    typename Key, typename LoadFn>
-  NodeRef findSync(const Key &key, LoadFn loadFn) {
-    {
-      Guard guard{m_lock};
-      ++m_loads;
-      if (NodeRef node = find_<UpdateLRU>(key)) return node;
-      ++m_misses;
-    }
-    NodeRef node = loadFn(key);
-    if (ZuUnlikely(!node)) return nullptr;
-    {
-      Guard guard{m_lock};
-      add_(node);
-    }
-    return node;
-  }
-
-  template <
-    bool UpdateLRU = Evict, bool Evict_ = Evict,
-    typename Key, typename LoadFn, typename EvictFn>
-  NodeRef findSync(const Key &key, LoadFn loadFn, EvictFn evictFn) {
-    {
-      Guard guard{m_lock};
-      ++m_loads;
-      if (NodeRef node = find_<UpdateLRU>(key)) return node;
-      ++m_misses;
-    }
-    NodeRef node = loadFn(key);
-    if (ZuUnlikely(!node)) return nullptr;
-    {
-      Guard guard{m_lock};
-      if (auto evicted = add_<true>(node)) {
-	guard.unlock();
-	evictFn(ZuMv(evicted));
-      }
-    }
-    return node;
   }
 
   template <bool Evict_ = Evict>
@@ -326,9 +285,9 @@ private:
     Node *nodePtr = node;
     NodeMvRef evicted = nullptr;
     if (m_hash->count_() >= m_size)
-      if (evicted = NodeMvRef{m_lru.shiftNode()}) {
+      if (evicted = NodeMvRef{m_lru.shift()}) {
 	++m_evictions;
-	m_hash->delNode(evicted);
+	m_hash->delNode(ZuMv(evicted));
       }
     m_hash->addNode(ZuMv(node));
     m_lru.pushNode(nodePtr);

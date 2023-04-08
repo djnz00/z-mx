@@ -50,7 +50,7 @@ ZtFields(Row,
     (((mabbit)), (Time), (Ctor(6))), 
     (((flags)), (Flags, DaFlags::Map), (Ctor(7))));
 
-using CSVWrite = ZmList<ZuRef<ZuPOD<Row> > >;
+using CSVWrite = ZmList<Row>;
 
 int main()
 {
@@ -61,44 +61,43 @@ int main()
     CSVWrite unFiltList;
 
     for (int i = 0; i < 10; i++) {
-      ZuRef<ZuPOD<Row> > row = new ZuPOD<Row>();
-      Row * r = new (row->ptr()) Row();
-      r->foo = ZtSprintf("Sup Homie %d", i).data();
-      r->bar = i % 2;
-      r->bah = i * 2;
-      r->baz = i * 2.2;
-      r->bam_ = ZuFixed{r->baz * 2.2, 2}.mantissa();
+      auto node = new CSVWrite::Node{};
+      Row *row = &node->val();
+      row->foo = ZtSprintf("Sup Homie %d", i).data();
+      row->bar = i % 2;
+      row->bah = i * 2;
+      row->baz = i * 2.2;
+      row->bam_ = ZuFixed{row->baz * 2.2, 2}.mantissa();
       switch(i) {
-	case 1: r->snafu = 1; break;
-	case 2: r->snafu = 42; break;
-	case 3: r->snafu = 43; break;
-	case 4: r->snafu = 44; break;
-	case 5: r->snafu = 45; break;
-	default: r->snafu = 99; break;
+	case 1: row->snafu = 1; break;
+	case 2: row->snafu = 42; break;
+	case 3: row->snafu = 43; break;
+	case 4: row->snafu = 44; break;
+	case 5: row->snafu = 45; break;
+	default: row->snafu = 99; break;
       }
-      r->mabbit = ZtDateNow();
+      row->mabbit = ZtDateNow();
       switch(i) {
-	case 1: r->flags = 0x10 | 0x08; break;
-	case 2: r->flags = 0x01 | 0x02; break;
-	case 3: r->flags = 0x04 | 0x08; break;
-	case 4: r->flags = 0x10; break;
-	case 5: r->flags = 0x08; break;
-	default: r->flags = ZuCmp<int>::null(); break;
+	case 1: row->flags = 0x10 | 0x08; break;
+	case 2: row->flags = 0x01 | 0x02; break;
+	case 3: row->flags = 0x04 | 0x08; break;
+	case 4: row->flags = 0x10; break;
+	case 5: row->flags = 0x08; break;
+	default: row->flags = ZuCmp<int>::null(); break;
       }
       switch(i) {
-	case 1: r->mabbit = ZtDate(2010, 01, 22, 15, 22, 14); break;
+	case 1: row->mabbit = ZtDate(2010, 01, 22, 15, 22, 14); break;
 	default: break;
       }
-      filtList.push(row);
-      unFiltList.push(row);
+      filtList.pushNode(node);
+      unFiltList.pushNode(node);
     }
 
     ZtArray<ZtString> filter;
     filter.push("*");
     {
       auto fn = csv.writeFile("all.written.csv", filter);
-      while (ZuRef<ZuPOD<Row>> pod = unFiltList.shift())
-	fn(pod->ptr());
+      while (auto node = unFiltList.shift()) fn(&node->val());
       fn(nullptr);
     }
     filter.null();
@@ -106,8 +105,7 @@ int main()
     filter.push("flags");
     {
       auto fn = csv.writeFile("filt.written.csv", filter);
-      while (ZuRef<ZuPOD<Row>> pod = filtList.shift())
-	fn(pod->ptr());
+      while (auto node = filtList.shift()) fn(&node->val());
       fn(nullptr);
     }
   } catch (const ZvError &e) {

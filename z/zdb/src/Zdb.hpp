@@ -30,8 +30,6 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
-// #include <lz4.h>
-
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
@@ -72,6 +70,14 @@
 #define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
 
+// Zdb is a clustered in-process in-memory journal DB that implements leader
+// election and failover. Zdb dynamically organizes cluster hosts into a
+// replication chain from the leader to the lowest-priority follower.
+// Replication is async. ZmEngine is used for start/stop state management.
+// Zdb applications are back-end services that are expected to defer to
+// Zdb for state management. Restart recovery is from persistent storage
+// then from cluster leader (if the local host is not itself elected leader).
+
 //  host state		engine state
 //  ==========		============
 //  Instantiated	Stopped
@@ -83,26 +89,6 @@
 //  Active		!Stopped
 //  Inactive		!Stopped
 //  Stopping		Stopping | StartPending
-
-// index blocks are mutable, work a little differently, there could be
-//   multiple pending writes, so index block eviction/write is just a move of
-//   the index block in-memory from the main cache to the write cache;
-//   any fallthrough read from the write cache moves the index block back
-//   into the main cache, incrementing the update count above 1, effectively
-//   aborting the earlier pending writes; enqueued stale writes are elided
-//   by decrementing the update count and only writing if returned to zero;
-//   new index blocks created in memory are always initialized with update
-//   count to 1 so that, if evicted and written, the write will be processed
-// replication processing at the env/host level occurs in the env thread
-// replication processing at the db level occurs in the db thread, enqueuing
-//   as needed to the file thread per above
-//
-//   -------
-
-// get(prevRN) returns newly instantiated object that may be superceded
-// get(rn) where rn was deleted returns tombstone
-// once deleted, predecessors are no longer guaranteed to be available
-//   (they are removed at some unspecified time later)
 
 #if defined(ZDEBUG) && !defined(ZdbRep_DEBUG)
 #define ZdbRep_DEBUG
@@ -118,7 +104,7 @@
 
 // each DB file contains up to 16K records, organized as a 1Kb superblock
 // that indexes up to 128 index blocks, each 1.5Kb index block indexing
-// to 128 individual records with {offset, length} tuples
+// to 128 individual records with {u64 offset, u32 length} tuples
 // super-block is immediately followed by first index-block
 
 // LRU write-through cache of files is maintained
@@ -127,25 +113,59 @@
 
 // file hdr, bitmap, superblock are written on file eviction
 // index blocks are written on index block eviction
-// on close, all files and index blocks are both written and evicted
+// on close, all files and index blocks are written and evicted
 
-// each record on disk is {data, trailer}
+// each record on disk is {data, trailer}, where trailer is the on-disk
+// equivalent of the network message header
 
 #include <zlib/zdb__fbs.h>
 #include <zlib/telemetry_fbs.h>
 
 namespace Zdb_ {
 
-// -- record number type and sentinel values
+// record number type and sentinel values
 using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
 
-// -- file offset type and sentinel values
+// -- file format
+
+// 0,+20 header (magic:u32, version:u32, flags:u32, allocated:u32, deleted:u32)
+// 20,+256 bitmap (FileBitmap) (16384 x u1)
+// 276,+1024 superblock (FileSuperBlk) (128 x u64)
+// ... followed by index blocks interleaved with variable length records
+// Offset,+1536 index block (FileIndexBlk) (128 x {u64,u32})
+
+// primitive database journal op codes
+namespace Op {
+  ZtEnumValues("Zdb_::Op",
+    Put = 0,	// add this record, delete prevRN (and predecessors)
+    Append,	// add this record, preserve prevRN
+    Delete,	// add this tombstone, delete prevRN (no data)
+    Purge	// add this purge instruction, delete all < prevRN (no data)
+  );
+}
+
+// sequence length type
+using SeqLen = uint32_t;
+
+// {sequence length, operation} packed type
+namespace SeqLenOp {
+  inline SeqLen mk(SeqLen length, int op) {
+    return (length<<2) | op;
+  }
+  inline SeqLen seqLen(SeqLen seqLenOp) { return seqLenOp>>2; }
+  inline int op(SeqLen seqLenOp) {
+    return !seqLenOp ? -1 : static_cast<int>(seqLenOp & 3);
+  }
+  inline constexpr SeqLen maxSeqLen() { return 0x3fffffffU; }
+}
+
+// file offset type and sentinel values
 using Offset = uint64_t;
 inline constexpr uint64_t deleted() { return ~static_cast<uint64_t>(0); }
 
-// -- file format constants
+// file format constants
 inline constexpr unsigned fileShift()	{ return 14; }
 inline constexpr unsigned fileMask()	{ return 0x7fU; }
 inline constexpr unsigned fileIndices()	{ return 128; }
@@ -155,7 +175,56 @@ inline constexpr unsigned indexShift()	{ return 7; }
 inline constexpr unsigned indexMask()	{ return 0x7fU; }
 inline constexpr unsigned indexRecs()	{ return 128; }
 
-// -- network protocol functions
+namespace FileFlags {
+  enum {
+    IOError	= 0x00000001,	// I/O error during open
+    Clean	= 0x00000002	// closed cleanly
+  };
+};
+
+#define ZdbCommitted 0xc001da7a	// "cool data"
+
+using Magic = uint32_t;
+using SeqLen = uint32_t;
+
+#pragma pack(push, 1)
+using U32LE = ZuLittleEndian<uint32_t>;
+using U64LE = ZuLittleEndian<uint64_t>;
+using I64LE = ZuLittleEndian<int64_t>;
+
+using RNLE = ZuLittleEndian<RN>;
+using MagicLE = ZuLittleEndian<Magic>;
+using SeqLenLE = ZuLittleEndian<SeqLen>;
+
+struct FileHdr {
+  MagicLE	magic;		// ZdbMagic
+  U32LE		version;
+  U32LE		flags;		// FileFlags
+  U32LE		allocated;	// allocated record count
+  U32LE		deleted;	// deleted record count
+};
+struct FileBitmap {		// bitmap
+  U64LE		data[fileRecs()>>6];
+};
+struct FileSuperBlk {		// super block
+  U64LE		data[fileIndices()];
+};
+struct FileIndex {
+  U64LE		offset;
+  U32LE		length;
+};
+struct FileIndexBlk {		// index block
+  FileIndex	data[indexRecs()];
+};
+struct FileRecTrlr {		// record trailer
+  RNLE		rn;
+  RNLE		prevRN;
+  SeqLenLE	seqLenOp;	// chain length + op
+  MagicLE	magic;		// ZdbCommitted
+};
+#pragma pack(pop)
+
+// -- message format - re-used for both disk and network
 
 // custom header with an explicitly little-endian uint32 length
 #pragma pack(push, 1)
@@ -220,17 +289,17 @@ inline const fbs::Msg *msg(const Hdr *hdr) {
 inline const fbs::Msg *msg_(const Hdr *hdr) {
   return Zfb::GetRoot<fbs::Msg>(hdr->data());
 }
+inline const fbs::Heartbeat *hb_(const fbs::Msg *msg) {
+  return static_cast<const fbs::Heartbeat *>(msg->body());
+}
 inline const fbs::Heartbeat *hb(const fbs::Msg *msg) {
   if (ZuUnlikely(!msg)) return nullptr;
   switch (static_cast<int>(msg->body_type())) {
     default:
       return nullptr;
     case fbs::Body_HB:
-      return static_cast<const fbs::Heartbeat *>(msg->body());
+      return hb_(msg);
   }
-}
-inline const fbs::Heartbeat *hb_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Heartbeat *>(msg->body());
 }
 inline bool recovery(const fbs::Msg *msg) {
   if (ZuUnlikely(!msg)) return false;
@@ -239,6 +308,9 @@ inline bool recovery(const fbs::Msg *msg) {
 inline bool recovery_(const fbs::Msg *msg) {
   return msg->body_type() == fbs::Body_Rec;
 }
+inline const fbs::Record *record_(const fbs::Msg *msg) {
+  return static_cast<const fbs::Record *>(msg->body());
+}
 inline const fbs::Record *record(const fbs::Msg *msg) {
   if (ZuUnlikely(!msg)) return nullptr;
   switch (static_cast<int>(msg->body_type())) {
@@ -246,20 +318,17 @@ inline const fbs::Record *record(const fbs::Msg *msg) {
       return nullptr;
     case fbs::Body_Rep:
     case fbs::Body_Rec:
-      return static_cast<const fbs::Record *>(msg->body());
+      return record_(msg);
   }
 }
-inline const fbs::Record *record_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Record *>(msg->body());
+inline const fbs::Gap *gap_(const fbs::Msg *msg) {
+  return static_cast<const fbs::Gap *>(msg->body());
 }
 inline const fbs::Gap *gap(const fbs::Msg *msg) {
   if (ZuUnlikely(!msg)) return nullptr;
   if (static_cast<int>(msg->body_type()) != fbs::Body_Gap)
     return nullptr;
-  return static_cast<const fbs::Gap *>(msg->body());
-}
-inline const fbs::Gap *gap_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Gap *>(msg->body());
+  return gap_(msg);
 }
 template <typename T>
 inline const T *data(const fbs::Record *record) {
@@ -278,43 +347,10 @@ inline const T *data_(const fbs::Record *record) {
   return Zfb::GetRoot<T>(data.data());
 }
 
-// primitive database journal operations
-namespace Op {
-  ZtEnumValues("Zdb_::Op",
-    Put = 0,	// add this record, delete prevRN (and predecessors)
-    Append,	// add this record, preserve prevRN
-    Delete,	// add this tombstone, delete prevRN (no data)
-    Purge	// add this purge instruction, delete all < prevRN (no data)
-  );
-}
-
-// sequence length type
-using SeqLen = uint32_t;
-
-// {sequence length, operation} packed type
-namespace SeqLenOp {
-  inline SeqLen mk(SeqLen length, int op) {
-    return (length<<2) | op;
-  }
-  inline SeqLen seqLen(SeqLen seqLenOp) { return seqLenOp>>2; }
-  inline int op(SeqLen seqLenOp) {
-    return !seqLenOp ? -1 : static_cast<int>(seqLenOp & 3);
-  }
-  inline constexpr SeqLen maxSeqLen() { return 0x3fffffffU; }
-}
-
-// DB host state
-namespace HostState {
-  using namespace ZvTelemetry::ZdbHostState;
-}
-
-class DB;
-class Env;
-class Host;
-class Cxn_;
-
 // -- file index block cache
-struct IndexBlk_ : public ZuObject {
+
+class File_;
+struct IndexBlk_ {
 #pragma pack(push, 1)
   struct Index {
     uint64_t		offset;
@@ -326,8 +362,10 @@ struct IndexBlk_ : public ZuObject {
 #pragma pack(pop)
 
   IndexBlk_(uint64_t id_, uint64_t offset_) : id{id_}, offset{offset_} {
-    // leave blk uninitialized, it most likely will be read from disk
+    // shortcut endian conversion when initializing a blank index block
+    memset(&blk, 0, sizeof(Blk));
   }
+  IndexBlk_(uint64_t id, uint64_t offset, File_ *, bool &ok); // read from file
 
   uint64_t	id = 0;			// (RN>>indexShift())
   uint64_t	offset = 0;		// offset of this index block
@@ -351,62 +389,7 @@ using IndexBlk = IndexBlkCache::Node;
 
 // -- file cache
 
-// data file format:
-// 0 +20 header (magic:u32, version:u32, flags:u32, allocated:u32, deleted:u32)
-// 20 +1024 superblock (FileSuperBlk) (128 x u64)
-// followed by sequences of 1.5K-sized index blocks (FileIndexBlk)
-//   and records, appended as they are created
-namespace FileFlags {
-  enum {
-    IOError	= 0x00000001,	// I/O error during open
-    Clean	= 0x00000002	// closed cleanly
-  };
-};
-
-#define ZdbCommitted 0xc001da7a	// "cool data"
-
-using Magic = uint32_t;
-using SeqLen = uint32_t;
-
-#pragma pack(push, 1)
-using U32LE = ZuLittleEndian<uint32_t>;
-using U64LE = ZuLittleEndian<uint64_t>;
-using I64LE = ZuLittleEndian<int64_t>;
-
-using RNLE = ZuLittleEndian<RN>;
-using MagicLE = ZuLittleEndian<Magic>;
-using SeqLenLE = ZuLittleEndian<SeqLen>;
-
-struct FileHdr {
-  MagicLE	magic;		// ZdbMagic
-  U32LE		version;
-  U32LE		flags;		// FileFlags
-  U32LE		allocated;	// allocated record count
-  U32LE		deleted;	// deleted record count
-};
-struct FileBitmap {		// bitmap
-  U64LE		data[fileRecs()>>6];
-};
-struct FileSuperBlk {		// super block
-  U64LE		data[fileIndices()];
-};
-struct FileIndex {
-  U64LE		offset;
-  U32LE		length;
-};
-struct FileIndexBlk {		// index block
-  FileIndex	data[indexRecs()];
-};
-struct FileRecTrlr {		// record trailer
-  RNLE		rn;
-  RNLE		prevRN;
-  SeqLenLE	seqLenOp;	// chain length + op
-  MagicLE	magic;		// ZdbCommitted
-};
-#pragma pack(pop)
-
-// -- file cache
-class ZdbAPI File_ : public ZuObject, public ZiFile {
+class ZdbAPI File_ : public ZiFile {
   File_() = delete;
   File_(const File_ &) = delete;
   File_(File_ &&) = delete;
@@ -456,8 +439,8 @@ public:
     return offset;
   }
 
-  ZmRef<IndexBlk> readIndexBlk(uint64_t id);
-  ZmRef<IndexBlk> writeIndexBlk(uint64_t id);
+  IndexBlk *readIndexBlk(uint64_t id);
+  IndexBlk *writeIndexBlk(uint64_t id);
 
   bool readIndexBlk(IndexBlk *);
   bool writeIndexBlk(IndexBlk *);
@@ -489,7 +472,15 @@ using FileCache =
 	ZmCacheHeapID<File_HeapID>>>>;
 using File = FileCache::Node;
 
-// -- file record - file, indexBlk, RN offset within index block
+IndexBlk_::IndexBlk_(uint64_t id_, uint64_t offset_, File_ *file, bool &ok) :
+  id{id_}, offset{offset_}
+{
+  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
+  ok = file->readIndexBlk(this);
+}
+
+// -- on-disk record - file, indexBlk, RN offset within index block
+
 class FileRec {
 public:
   FileRec() { }
@@ -517,17 +508,24 @@ private:
   unsigned	m_indexOff = 0;
 };
 
-// -- network/file I/O buffer
+// -- I/O buffer
+
 inline const char *Buf_HeapID() { return "Zdb.Buf"; }
 inline constexpr unsigned BuiltinSize() {
   enum { CacheLineSize = Zm::CacheLineSize };
-  enum { M = sizeof(uintptr_t)<<1 }; // minimum built-in buffer size
-  // the overhead calculation does not subtract M, which is re-used as
-  // a proxy for the RepBufs hash table node overhead and the heap overhead
-  enum { N = sizeof(ZiIOBuf<M, Buf_HeapID>) }; // ZiIOBuf overhead
+  // MinBufSz - minimum built-in buffer size
+  enum { MinBufSz = sizeof(uintptr_t)<<1 };
+  // IOBufOverhead - ZiIOBuf overhead
+  enum { IOBufOverhead = sizeof(ZiIOBuf<MinBufSz, Buf_HeapID>) - MinBufSz };
+  // HeapOverhead - Heap overhead - assumed to be sizeof(uintptr_t)
+  enum { HeapOverhead = sizeof(uintptr_t); }
+  // HashOverhead - ZmHash node overhead - assumed to be sizeof(uintptr_t)
+  enum { HashOverhead = sizeof(uintptr_t); }
+  // TotalOverhead - total buffer overhead
+  enum { Overhead = IOBufOverhead + HeapOverhead + HashOverhead };
   // round up overhead to cache line size, multiply by 4,
   // subtract original overhead, and use that as the built-in buffer size
-  return (((N + CacheLineSize) & ~(CacheLineSize - 1))<<2) - N;
+  return (((Overhead + CacheLineSize) & ~(CacheLineSize - 1))<<2) - Overhead;
 };
 using VBuf = ZiIOVBuf<BuiltinSize(), Buf_HeapID>; 
 RN VBuf_RNAxor(const VBuf &);
@@ -571,7 +569,13 @@ inline RN VBuf_RNAxor(const VBuf &buf) {
 ZuAssert(!((sizeof(Buf) + sizeof(uintptr_t)) & (Zm::CacheLineSize - 1)));
 using IOBuilder = Zfb::IOBuilder<Buf>;
 
+class DB;
+class Env;
+class Host;
+class Cxn_;
+
 // -- main replication connection class
+
 class Cxn_ :
     public ZiConnection,
     public ZiRx<Cxn_, Buf>,
@@ -580,13 +584,13 @@ friend Env;
 friend Host;
 friend DB;
 
-  using Buf = Zdb_::Buf; // avoid conflict with ZiConnection
+  using Buf = Zdb_::Buf; // de-conflict with ZiConnection
 
   using Rx = ZiRx<Cxn_, Buf>;
   using Tx = ZiTx<Cxn_, Buf>;
 
-  using Rx::recv;
-  using Tx::send;
+  using Rx::recv; // de-conflict with ZiConnection
+  using Tx::send; // ''
 
 protected:
   Cxn_(Env *env, Host *host, const ZiCxnInfo &ci);
@@ -611,7 +615,7 @@ private:
   void repGapRcvd(ZmRef<Buf>);
 
   Env			*m_env;
-  Host			*m_host;	// 0 if not yet associated
+  Host			*m_host;	// nullptr if not yet associated
 
   ZmScheduler::Timer	m_hbTimer;
 };
@@ -623,6 +627,7 @@ using CxnList =
 using Cxn = CxnList::Node;
 
 // -- DB environment state (key/value linear hash from DBID -> RN)
+
 using EnvState_ = ZmLHashKV<ZuID, RN, ZmLHashLocal<>>;
 struct EnvState : public EnvState_ {
   EnvState() = delete;
@@ -752,6 +757,10 @@ inline void EnvState::print(S &s) const {
 }
 
 // -- replication message printing
+
+namespace HostState {
+  using namespace ZvTelemetry::ZdbHostState;
+}
 
 struct Record_Print {
   const fbs::Record *record = nullptr;
@@ -933,13 +942,13 @@ private:
 
 // -- DB application handler functions
 
-// CtorFn(db) - construct new object from flatbuffer
+// CtorFn(db) - construct new object
 typedef AnyObject *(*CtorFn)(DB *);
-// LoadFn(db, data, length) - construct new object from flatbuffer
+// LoadFn(db, data, length) - reconstruct object from flatbuffer
 typedef AnyObject *(*LoadFn)(DB *, const uint8_t *, unsigned);
-// UpdateFn(object, data, length) - load flatbuffer into object
+// UpdateFn(object, data, length) - update object from flatbuffer
 typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
-// SaveFn(fbb, ptr) - save *ptr into flatbuffer fbb, return offset
+// SaveFn(fbb, ptr) - save object into flatbuffer builder, return offset
 typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
 // RecoverFn(object) - object recovered
 typedef void (*RecoverFn)(AnyObject *);
@@ -1129,48 +1138,12 @@ public:
       get_<true, true >(rn, ZuMv(l));
   }
 
+  // get for subsequent update - do not update LRU (yet)
   template <typename L>
   void getUpdate(RN rn, L l) {
     config().cacheMode == ZdbCacheMode::All ?
       get_<false, false>(rn, ZuMv(l)) :
       get_<false, true >(rn, ZuMv(l));
-  }
-
-private:
-  template <bool UpdateLRU, bool Evict>
-  ZmRef<AnyObject> getSync_(RN rn) {
-    if (ZuUnlikely(rn < m_minRN || rn >= m_nextRN.load_()))
-      return nullptr;
-    return m_objCache.find<UpdateLRU, Evict>(
-	rn, [this]<typename L>(RN rn, L l) {
-      if (auto buf = findBuf(rn))
-	return l(load(record_(msg_(buf->template ptr<Hdr>()))));
-      ZmRef<AnyObject> object;
-      ZmBlock<>{}([this, rn, &object](auto wake) {
-	fileInvoke([this, rn, &object, wake = ZuMv(wake)]() {
-	  if (FileRec rec = rn2file<false>(rn))
-	    if (auto buf = read(rec))
-	      object = load(record_(msg_(buf->template ptr<Hdr>())));
-	  wake();
-	});
-      });
-      return l(object);
-    });
-  }
-
-public:
-  template <typename L>
-  ZmRef<AnyObject> getSync(RN rn) {
-    return config().cacheMode == ZdbCacheMode::All ?
-      getSync_<true, false>(rn) :
-      getSync_<true, true >(rn);
-  }
-
-  template <typename L>
-  ZmRef<AnyObject> getUpdateSync(RN rn) {
-    return config().cacheMode == ZdbCacheMode::All ?
-      getSync_<false, false>(rn) :
-      getSync_<false, true >(rn);
   }
 
   // table scan - pass maxRN() for a full scan
@@ -1182,6 +1155,7 @@ public:
     if (maxRN > nextRN) maxRN = nextRN;
     scan_(m_minRN, maxRN, ZuMv(l));
   }
+private:
   template <typename L>
   void scan_(RN rn, RN maxRN, L l) {
     get(rn, [this, rn, maxRN, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
@@ -1193,10 +1167,11 @@ public:
     });
   }
 
+public:
   // next RN that will be allocated
   RN nextRN() const { return m_nextRN; }
 
-  // create new placeholder record (null RN, in-memory only, never in DB)
+  // create placeholder record (null RN, in-memory, never persisted/replicated)
   ZmRef<AnyObject> placeholder();
 
 private:
@@ -1264,10 +1239,6 @@ private:
   Zfb::Offset<ZvTelemetry::fbs::Zdb>
   telemetry(ZvTelemetry::IOBuilder &, bool update) const;
 
-  // low-level get, does not filter deleted records
-  template <bool UpdateLRU, bool Evict>
-  ZmRef<AnyObject> get_(RN rn);
-
   // load object from buffer
   ZmRef<AnyObject> load(const fbs::Record *record);
   // save object to buffer
@@ -1275,7 +1246,7 @@ private:
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
-  void recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
+  void recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf);
   ZmRef<Buf> repBuf(RN rn);
   ZmRef<Buf> repGap(RN rn, uint64_t count);
@@ -1301,14 +1272,14 @@ private:
   // file thread
   template <bool Write> FileRec rn2file(RN rn);
 
-  template <bool Create> ZmRef<File> getFile(uint64_t id);
-  template <bool Create> ZmRef<File> openFile(uint64_t id);
+  template <bool Create> File *getFile(uint64_t id);
+  template <bool Create> File *openFile(uint64_t id);
   template <bool Create>
-  ZmRef<File> openFile_(const ZiFile::Path &name, uint64_t id);
+  File *openFile_(const ZiFile::Path &name, uint64_t id);
   void delFile(File *file);
   bool recover(File *file);
   void scan(File *file);
-  template <bool Create> ZmRef<IndexBlk> getIndexBlk(File *, uint64_t id);
+  template <bool Create> IndexBlk *getIndexBlk(File *, uint64_t id);
   ZmRef<Buf> read(const FileRec &);
 
   void write(ZmRef<Buf> buf);
@@ -1689,6 +1660,10 @@ private:
 public:
   ZvTelemetry::ZdbEnvFn telFn();
 
+  // debug printing
+  template <typename S> void print(S &);
+  friend ZuPrintFn ZuPrintType(Env *);
+
 private:
   // ZmEngine implementation
   void start_();
@@ -1704,6 +1679,15 @@ private:
   void stop_1();
   void stop_2();
 
+  // leader election and activation/deactivation
+  void holdElection();		// elect new leader
+  void deactivate();		// become client (following dup leader)
+  void reactivate(Host *host);	// re-assert leader
+
+  void up_(Host *oldMaster);	// run up command
+  void down_();			// run down command
+
+  // host connection management
   void listen();
   void listening(const ZiListenInfo &);
   void listenFailed(bool transient);
@@ -1711,19 +1695,13 @@ private:
 
   bool disconnectAll();
 
-  void holdElection();		// elect new master
-  void deactivate();		// become client (following dup master)
-  void reactivate(Host *host);	// re-assert master
-
-  void up_(Host *oldMaster);	// run up command
-  void down_();			// run down command
-
   ZiConnection *accepted(const ZiCxnInfo &ci);
   void connected(ZmRef<Cxn> cxn);
   void disconnected(ZmRef<Cxn> cxn);
   void associate(Cxn *cxn, ZuID hostID);
   void associate(Cxn *cxn, Host *host);
 
+  // heartbeats and voting
   void hbRcvd(Host *host, const fbs::Heartbeat *hb);
   void vote(Host *host);
 
@@ -1734,7 +1712,7 @@ private:
 
   void envStateRefresh();	// refresh m_self->envState()
 
-  Host *setMaster();		// returns old master
+  Host *setMaster();		// returns old leader
   void setNext(Host *host);
   void setNext();
 
@@ -1766,7 +1744,7 @@ private:
 
   bool			m_appActive =false;
   Host			*m_self = nullptr;
-  Host			*m_master = nullptr;	// == m_self if Active
+  Host			*m_leader = nullptr;	// == m_self if Active
   Host			*m_prev = nullptr;	// previous-ranked host
   Host			*m_next = nullptr;	// next-ranked host
   ZmRef<Cxn>		m_nextCxn;		// replica peer's cxn
@@ -1784,8 +1762,38 @@ private:
   ZmScheduler::Timer	m_electTimer;
 
   // telemetry
-  ZuID			m_selfID, m_masterID, m_prevID, m_nextID;
+  ZuID			m_selfID, m_leaderID, m_prevID, m_nextID;
 };
+
+template <typename S>
+inline void Env::print(S &s)
+{
+  s <<
+    "self=" << ZuPrintPtr{m_self} << '\n' <<
+    " prev=" << ZuPrintPtr{m_prev} << '\n' <<
+    " next=" << ZuPrintPtr{m_next} << '\n' <<
+    " recovering=" << m_recovering <<
+    " replicating=" << Host::replicating(m_next);
+
+  auto i = m_hostIndex.readIterator();
+
+  while (Host *host = i.iterate()) {
+    ZdbDEBUG(this, ZtString{} <<
+	" host=" << ZuPrintPtr{host} << '\n' <<
+	" leader=" << ZuPrintPtr{m_leader});
+
+    if (host->voted()) {
+      if (host != m_self) ++m_nPeers;
+      if (!m_leader) { m_leader = host; continue; }
+      int diff = host->cmp(m_leader);
+      if (ZuCmp<int>::null(diff)) {
+	m_leader = nullptr;
+	break;
+      } else if (diff > 0)
+	m_leader = host;
+    }
+  }
+}
 
 inline ZiFile::Path DB::dirName(uint64_t id) const
 {
@@ -1796,6 +1804,7 @@ inline ZiFile::Path DB::dirName(uint64_t id) const
 } // Zdb_
 
 // external API
+
 using ZdbRN = Zdb_::RN;
 
 using ZdbAnyObject = Zdb_::AnyObject;

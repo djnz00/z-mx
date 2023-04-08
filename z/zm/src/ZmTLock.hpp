@@ -661,7 +661,7 @@ public:
 private:
   template <typename ID_>
   LockRef allocLock(ID_ &&id) {
-    LockRef lock = m_freeLocks.pop();
+    LockRef lock = m_freeLocks.popVal();
     if (ZuUnlikely(!lock))
       return new Lock(ZuFwd<ID_>(id), m_lock);
     lock->m_id = ZuFwd<ID_>(id);

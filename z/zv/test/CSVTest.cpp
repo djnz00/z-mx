@@ -51,16 +51,19 @@ ZtFields(Row,
     (((time, Alias, m_time)), (Time), (Ctor(5))),
     (((flags, Alias, m_flags)), (Flags, DaFlags::Map), (Ctor(6))));
 
-using CSVWrite = ZmList<ZuRef<ZuPOD<Row> > >;
+using CSVWrite = ZmList<Row>;
 
 struct RowSet {
+  using List = ZmList<Row>;
+  using Node = List::Node;
+
+  List		rows;
+
   Row *alloc() {
-    ZuRef<ZuPOD<Row> > row = new ZuPOD<Row>();
-    new (row->ptr()) Row();
-    rows.push(row);
-    return row->ptr();
+    Node *node = new Node{};
+    rows.pushNode(node);
+    return &node->data();
   }
-  ZmList<ZuRef<ZuPOD<Row> > >	rows;
 };
 
 int main()
@@ -83,21 +86,20 @@ int main()
 	  [&rowSet]() { return rowSet.alloc(); },
 	  [](Row *) { });
 
-      ZuRef<ZuPOD<Row> > row;
-
       CSVWrite unFiltList;
       CSVWrite filtList;
 
-      while (row = rowSet.rows.shift()) {
+      while (auto node = rowSet.rows.shift()) {
+	const auto &row = node->val();
 	printf("%s, %d, %c, %f, %s (%d:%d) %i\n", 
-	       row->ptr()->m_string.data(),
-	       (int)row->ptr()->m_int,
-	       row->ptr()->m_bool ? 'Y' : 'N',
-	       (double)row->ptr()->m_float,
-	       (const char *)Enums::Map::v2s(row->ptr()->m_enum),
-	       (row->ptr()->m_time).yyyymmdd(),
-	       (row->ptr()->m_time).hhmmss(),
-	       (int)row->ptr()->m_flags);
+	       row.m_string.data(),
+	       (int)row.m_int,
+	       row.m_bool ? 'Y' : 'N',
+	       (double)row.m_float,
+	       (const char *)Enums::Map::v2s(row.m_enum),
+	       (row.m_time).yyyymmdd(),
+	       (row.m_time).hhmmss(),
+	       (int)row.m_flags);
 	unFiltList.push(row);
 	filtList.push(row);
       }
@@ -106,8 +108,7 @@ int main()
       filter.push("*");
       {
 	auto fn = csv.writeFile("all.written.csv", filter);
-	while (ZuRef<ZuPOD<Row>> pod = unFiltList.shift())
-	  fn(pod->ptr());
+	while (auto node = unFiltList.shift()) fn(&node->val());
 	fn(nullptr);
       }
       filter.null();
@@ -115,8 +116,7 @@ int main()
       filter.push("flags");
       {
 	auto fn = csv.writeFile("filt.written.csv", filter);
-	while (ZuRef<ZuPOD<Row>> pod = filtList.shift())
-	  fn(pod->ptr());
+	while (auto node = filtList.shift()) fn(&node->val());
 	fn(nullptr);
       }
     }

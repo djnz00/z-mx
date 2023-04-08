@@ -23,8 +23,8 @@
 
 // voted (connected, associated and heartbeated) hosts are sorted in
 // priority order (i.e. dbState then priority):
-//   first-ranked is master
-//   second-ranked is master's next
+//   first-ranked is leader
+//   second-ranked is leader's next
 //   third-ranked is second-ranked's next
 //   etc.
 
@@ -33,18 +33,18 @@
 // * a new host heartbeats for first time after election completes
 // * an existing host disconnects
 
-// a new master is identified (and the local instance may activate/deactivate)
+// a new leader is identified (and the local instance may activate/deactivate)
 // when:
 // * an election ends
 // * a new host heartbeats for first time after election completes
 //   - possible deactivation of local instance only -
-//   - if self is master and the new host < this one, we just heartbeat it
-// * an existing host disconnects (if that is master, a new election begins)
+//   - if self is leader and the new host < this one, we just heartbeat it
+// * an existing host disconnects (if that is leader, a new election begins)
 
 // if replicating from primary to DR and a down secondary comes back up,
 // then primary's m_next will be DR and DR's m_next will be secondary
 
-// if master and not replicating, then no host is a replica, so master runs
+// if leader and not replicating, then no host is a replica, so leader runs
 // as standalone until peers have recovered
 
 #include <zlib/Zdb.hpp>
@@ -294,7 +294,7 @@ bool Env::disconnectAll()
 
   bool disconnected = false;
   auto i = m_cxns.readIterator();
-  while (auto cxn = i.iterateNode())
+  while (auto cxn = i.iterate())
     if (cxn->up()) {
       disconnected = true;
       cxn->disconnect();
@@ -354,13 +354,13 @@ void Env::holdElection()
 
   oldMaster = setMaster();
 
-  if (won = m_master == m_self) {
+  if (won = m_leader == m_self) {
     m_appActive = true;
     m_prev = nullptr;
     if (!m_nPeers)
       ZeLOG(Warning, "Zdb activating standalone");
     else
-      hbSend_(); // announce new master
+      hbSend_(); // announce new leader
   } else {
     m_appActive = false;
   }
@@ -504,7 +504,7 @@ Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
     fbb.add_fileThread(fileThread);
     { auto v = id(m_self->id()); fbb.add_self(&v); }
   }
-  { auto v = id(m_master ? m_master->id() : ZuID{}); fbb.add_master(&v); }
+  { auto v = id(m_leader ? m_leader->id() : ZuID{}); fbb.add_leader(&v); }
   { auto v = id(m_prev ? m_prev->id() : ZuID{}); fbb.add_prev(&v); }
   { auto v = id(m_next ? m_next->id() : ZuID{}); fbb.add_next(&v); }
   fbb.add_nCxns(m_cxns.count_());
@@ -754,7 +754,7 @@ void Env::disconnected(ZmRef<Cxn> cxn)
 
   if (host == m_prev) m_prev = nullptr;
 
-  if (host == m_master) {
+  if (host == m_leader) {
     switch (state()) {
       case Inactive:
 	state(Electing);
@@ -780,11 +780,11 @@ Host *Env::setMaster()
 {
   ZmAssert(invoked());
 
-  Host *oldMaster = m_master;
+  Host *oldMaster = m_leader;
 
   envStateRefresh();
 
-  m_master = nullptr;
+  m_leader = nullptr;
   m_nPeers = 0;
 
   {
@@ -800,25 +800,25 @@ Host *Env::setMaster()
     while (Host *host = i.iterate()) {
       ZdbDEBUG(this, ZtString{} <<
 	  " host=" << ZuPrintPtr{host} << '\n' <<
-	  " master=" << ZuPrintPtr{m_master});
+	  " leader=" << ZuPrintPtr{m_leader});
 
       if (host->voted()) {
 	if (host != m_self) ++m_nPeers;
-	if (!m_master) { m_master = host; continue; }
-	int diff = host->cmp(m_master);
+	if (!m_leader) { m_leader = host; continue; }
+	int diff = host->cmp(m_leader);
 	if (ZuCmp<int>::null(diff)) {
-	  m_master = nullptr;
+	  m_leader = nullptr;
 	  break;
 	} else if (diff > 0)
-	  m_master = host;
+	  m_leader = host;
       }
     }
   }
 
-  if (m_master)
-    ZeLOG(Info, ZtString{} << "Zdb host " << m_master->id() << " is master");
+  if (m_leader)
+    ZeLOG(Info, ZtString{} << "Zdb host " << m_leader->id() << " is leader");
   else
-    ZeLOG(Error, "Zdb master election failed - hosts inconsistent");
+    ZeLOG(Error, "Zdb leader election failed - hosts inconsistent");
 
   return oldMaster;
 }
@@ -850,7 +850,7 @@ void Env::setNext()
 
     ZdbDEBUG(this, ZtString{} << "setNext()\n" <<
 	" self=" << ZuPrintPtr{m_self} << '\n' <<
-	" master=" << ZuPrintPtr{m_master} << '\n' <<
+	" leader=" << ZuPrintPtr{m_leader} << '\n' <<
 	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
 	" next=" << ZuPrintPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
@@ -881,7 +881,7 @@ void Env::repStart()
 
   ZdbDEBUG(this, ZtString{} << "repStart()\n" <<
       " self=" << ZuPrintPtr{m_self} << '\n' <<
-      " master=" << ZuPrintPtr{m_master} << '\n' <<
+      " leader=" << ZuPrintPtr{m_leader} << '\n' <<
       " prev=" << ZuPrintPtr{m_prev} << '\n' <<
       " next=" << ZuPrintPtr{m_next} << '\n' <<
       " recovering=" << m_recovering <<
@@ -918,11 +918,11 @@ void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
     return;
   }
   fileRun([this, cxn = ZuMv(cxn), rn, endRN, gapRN]() mutable {
-    recSend_file(ZuMv(cxn), rn, endRN, gapRN);
+    recSendFile(ZuMv(cxn), rn, endRN, gapRN);
   });
 }
 
-void DB::recSend_file(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
+void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
 {
   ZmAssert(fileInvoked());
 
@@ -988,11 +988,46 @@ ZmRef<Buf> DB::repBuf(RN rn)
   return nullptr;
 }
 
+// prepare run-length encoded gap for sending
+ZmRef<Buf> DB::repGap(RN rn, uint64_t count)
+{
+  IOBuilder fbb;
+  auto id = Zfb::Save::id(config().id);
+  auto msg = fbs::CreateMsg(fbb, fbs::Body_Gap,
+      fbs::CreateGap(fbb, &id, rn, count).Union());
+  fbb.Finish(msg);
+  return saveHdr(fbb, this);
+}
+
+// prepare replication data
+ZmRef<Buf> AnyObject_::replicate(int type)
+{
+  ZmAssert(committed());
+  ZmAssert(m_rn != nullRN());
+
+  ZdbDEBUG(m_db->env(),
+      ZtString{} << "AnyObject_::replicate(" << type << ')');
+  IOBuilder fbb;
+  Zfb::Offset<Zfb::Vector<uint8_t>> data;
+  if (op() != Op::Delete && this->ptr_())
+    data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
+      return m_db->save(fbb, this);
+    });
+  {
+    auto id = Zfb::Save::id(m_db->config().id);
+    auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
+	fbs::CreateRecord(fbb, &id,
+	  m_rn, m_prevRN, m_seqLenOp, data).Union());
+    fbb.Finish(msg);
+  }
+  return saveHdr(fbb, m_db);
+}
+
 void Env::repStop()
 {
   ZmAssert(invoked());
 
-  m_master = nullptr;
+  m_leader = nullptr;
   m_prev = nullptr;
   m_next = nullptr;
   m_recovering = false;
@@ -1007,7 +1042,7 @@ void Env::repStop()
 void Cxn_::msgRead(ZiIOContext &io)
 {
   recv<
-    [](Cxn_ *, const ZiIOContext &, const Buf *buf) -> int {
+    [](const ZiIOContext &, const Buf *buf) -> int {
       return loadHdr(buf);
     },
     [](Cxn_ *cxn, const ZiIOContext &, ZmRef<Buf> buf) -> int {
@@ -1079,7 +1114,7 @@ void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
   ZdbDEBUG(this, ZtString{} << "hbDataRcvd()\n" << 
 	" host=" << ZuPrintPtr{host} << '\n' <<
 	" self=" << ZuPrintPtr{m_self} << '\n' <<
-	" master=" << ZuPrintPtr{m_master} << '\n' <<
+	" leader=" << ZuPrintPtr{m_leader} << '\n' <<
 	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
 	" next=" << ZuPrintPtr{m_next} << '\n' <<
 	" recovering=" << m_recovering <<
@@ -1106,7 +1141,7 @@ void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
       return;
   }
 
-  // check for duplicate master (dual active)
+  // check for duplicate leader (dual active)
   switch (state) {
     case Active:
       switch (host->state()) {
@@ -1176,7 +1211,7 @@ void Env::hbSend_()
 
   envStateRefresh();
   auto i = m_cxns.readIterator();
-  while (auto cxn = i.iterateNode()) cxn->hbSend();
+  while (auto cxn = i.iterate()) cxn->hbSend();
 }
 
 // send heartbeat (directed)
@@ -1462,7 +1497,7 @@ bool DB::recover()
       auto &fileName_ = fileName;
 #endif
       uint64_t id = (static_cast<uint64_t>(i)<<20) | j;
-      if (ZmRef<File> file = openFile_<false>(fileName_, id))
+      if (File *file = openFile_<false>(fileName_, id))
 	return recover(file);
       return false;
     });
@@ -1572,7 +1607,7 @@ void DB::repGapRcvd(ZmRef<Buf> buf)
   });
 }
 
-// outbound replication / persistency
+// outbound replication + persistency
 void DB::write(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
@@ -1872,14 +1907,14 @@ void DB::close()
   ZmBlock<>{}([this](auto wake) {
     fileInvoke([this, wake = ZuMv(wake)]() {
       // index blocks
-      m_indexBlks.all<true>([this](ZmRef<IndexBlk> blk) {
+      m_indexBlks.all<true>([this](IndexBlk *blk) {
 	auto fileID = (blk->id)>>(fileShift() - indexShift());
 	if (File *file = getFile<true>(fileID))
 	  file->writeIndexBlk(blk);
       });
 
       // files
-      m_files.all<true>([](ZmRef<File> file) { file->sync(); });
+      m_files.all<true>([](File *file) { file->sync(); });
 
       wake();
     });
@@ -1900,14 +1935,12 @@ bool DB::checkpoint()
   ZmAssert(fileInvoked());
 
   bool ok = true;
-  m_indexBlks.all([this, &ok](ZmRef<IndexBlk> blk) mutable {
+  m_indexBlks.all([this, &ok](IndexBlk *blk) mutable {
     auto fileID = (blk->id)>>(fileShift() - indexShift());
     if (File *file = getFile<true>(fileID))
       ok = ok && file->writeIndexBlk(blk);
   });
-  m_files.all([&ok](ZmRef<File> file) mutable {
-    ok = ok && file->sync_();
-  });
+  m_files.all([&ok](File *file) mutable { ok = ok && file->sync_(); });
   return ok;
 }
 
@@ -2006,41 +2039,7 @@ void DB::abort(AnyObject *object)
   object->abort();
 }
 
-// prepare replication data for sending & writing to disk
-ZmRef<Buf> AnyObject_::replicate(int type)
-{
-  ZmAssert(committed());
-  ZmAssert(m_rn != nullRN());
-
-  ZdbDEBUG(m_db->env(),
-      ZtString{} << "AnyObject_::replicate(" << type << ')');
-  IOBuilder fbb;
-  Zfb::Offset<Zfb::Vector<uint8_t>> data;
-  if (op() != Op::Delete && this->ptr_())
-    data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
-      return m_db->save(fbb, this);
-    });
-  {
-    auto id = Zfb::Save::id(m_db->config().id);
-    auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
-	fbs::CreateRecord(fbb, &id,
-	  m_rn, m_prevRN, m_seqLenOp, data).Union());
-    fbb.Finish(msg);
-  }
-  return saveHdr(fbb, m_db);
-}
-
-// prepare run-length encoded gap for sending
-ZmRef<Buf> DB::repGap(RN rn, uint64_t count)
-{
-  IOBuilder fbb;
-  auto id = Zfb::Save::id(config().id);
-  auto msg = fbs::CreateMsg(fbb, fbs::Body_Gap,
-      fbs::CreateGap(fbb, &id, rn, count).Union());
-  fbb.Finish(msg);
-  return saveHdr(fbb, this);
-}
-
+// purge all records < minRN
 void DB::purge(RN minRN)
 {
   IOBuilder fbb;
@@ -2057,14 +2056,14 @@ void DB::purge(RN minRN)
 }
 
 template <bool Create>
-ZmRef<File> DB::openFile_(const ZiFile::Path &name, uint64_t id)
+File *DB::openFile_(const ZiFile::Path &name, uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  ZmRef<File> file = new File{this, id};
+  ZuPtr<File> file = new File{this, id};
   if (file->open(name, ZiFile::GC, 0666) == Zi::OK) {
     if (!file->scan()) return nullptr;
-    return file;
+    return file.release();
   }
   if constexpr (!Create) return nullptr;
   ZiFile::mkdir(dirName(id)); // pre-emptive idempotent
@@ -2077,11 +2076,11 @@ ZmRef<File> DB::openFile_(const ZiFile::Path &name, uint64_t id)
     return nullptr;
   }
   file->sync_();
-  return file;
+  return file.release();
 }
 
 template <bool Create>
-ZmRef<File> DB::openFile(uint64_t id)
+File *DB::openFile(uint64_t id)
 {
   ZmAssert(fileInvoked());
 
@@ -2089,12 +2088,12 @@ ZmRef<File> DB::openFile(uint64_t id)
 }
 
 template <bool Create>
-ZmRef<File> DB::getFile(uint64_t id)
+File *DB::getFile(uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  return m_files.findSync(id, [this](uint64_t id) -> ZmRef<File> {
-    ZmRef<File> file = openFile<Create>(id);
+  return m_files.findSync(id, [this](uint64_t id) -> File * {
+    File *file = openFile<Create>(id);
     if (ZuUnlikely(!file)) return nullptr;
     if (id > m_lastFile) m_lastFile = id;
     return file;
@@ -2106,14 +2105,14 @@ ZmRef<IndexBlk> DB::getIndexBlk(File *file, uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  return m_indexBlks.findSync(id, [file](uint64_t id) -> ZmRef<IndexBlk> {
+  return m_indexBlks.findSync(id, [file](uint64_t id) -> IndexBlk * {
     if constexpr (Create)
       return file->writeIndexBlk(id);
     else
       return file->readIndexBlk(id);
-  }, [this](ZmRef<IndexBlk> indexBlk) {
+  }, [this](IndexBlk *indexBlk) {
     auto fileID = (indexBlk->id)>>(fileShift() - indexShift());
-    if (ZmRef<File> file = getFile<Create>(fileID))
+    if (File *file = getFile<Create>(fileID))
       file->writeIndexBlk(indexBlk);
   });
 }
@@ -2125,51 +2124,35 @@ FileRec DB::rn2file(RN rn)
   ZmAssert(fileInvoked());
 
   uint64_t fileID = rn>>fileShift();
-  File *file = getFile<Write>(fileID);
+  ZmRef<File> file = getFile<Write>(fileID);
   if (!file) return {};
   if constexpr (!Write) if (!file->exists(rn & fileRecMask())) return {};
   uint64_t indexBlkID = rn>>indexShift();
-  IndexBlk *indexBlk = getIndexBlk<Write>(file, indexBlkID);
+  ZmRef<IndexBlk> indexBlk = getIndexBlk<Write>(file, indexBlkID);
   if (!indexBlk) return {};
   auto indexOff = static_cast<unsigned>(rn & indexMask());
-  return {file, indexBlk, indexOff};
+  return {ZuMv(file), ZuMv(indexBlk), indexOff};
 }
 
-void DB::delFile(File *file)
+IndexBlk *File_::readIndexBlk(uint64_t id)
 {
-  ZmAssert(fileInvoked());
-
-  bool lastFile;
-  uint64_t id = file->id();
-  m_files.delNode(file);
-  lastFile = id == m_lastFile;
-  if (ZuUnlikely(lastFile)) getFile<true>(id + 1);
-  file->close();
-  ZiFile::remove(fileName(id));
-}
-
-ZmRef<IndexBlk> File_::readIndexBlk(uint64_t id)
-{
-  ZmRef<IndexBlk> indexBlk;
-  auto offset = m_superBlk.data[id & indexMask()];
-  if (offset) {
-    indexBlk = new IndexBlk{id, offset};
-    if (!readIndexBlk(indexBlk)) return nullptr;
-    return indexBlk;
+  ZuPtr<IndexBlk> indexBlk;
+  if (auto offset = m_superBlk.data[id & indexMask()]) {
+    bool ok;
+    indexBlk = new IndexBlk{id, offset, this, ok};
+    if (!ok) return nullptr;
+    return indexBlk.release();
   }
   return nullptr;
 }
 
-ZmRef<IndexBlk> File_::writeIndexBlk(uint64_t id)
+IndexBlk *File_::writeIndexBlk(uint64_t id)
 {
-  ZmRef<IndexBlk> indexBlk;
-  if (indexBlk = readIndexBlk(id)) return indexBlk;
+  ZuPtr<IndexBlk> indexBlk;
+  if (indexBlk = readIndexBlk(id)) return indexBlk.release();
   auto offset = m_offset;
   m_superBlk.data[id & indexMask()] = offset;
   indexBlk = new IndexBlk{id, offset};
-  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
-  // shortcut endian conversion when initializing a blank index block
-  memset(&indexBlk->blk, 0, sizeof(FileIndexBlk));
   {
     int r;
     ZeError e;
@@ -2180,7 +2163,7 @@ ZmRef<IndexBlk> File_::writeIndexBlk(uint64_t id)
     }
   }
   m_offset = offset + sizeof(FileIndexBlk);
-  return indexBlk;
+  return indexBlk.release();
 }
 
 bool File_::readIndexBlk(IndexBlk *indexBlk)
@@ -2330,12 +2313,12 @@ void DB::ack(RN rn)
 
   if (ZuUnlikely(rn <= m_minRN.load_())) return;
   if (ZuUnlikely(rn > m_nextRN.load_())) rn = m_nextRN;
+  auto startRN = m_deletes.minimumKey();
+  if (startRN == nullRN() || rn < startRN) return;
   if (m_vacuumRN != nullRN()) {
     if (rn > m_vacuumRN) m_vacuumRN = rn;
     return;
   }
-  auto startRN = m_deletes.minimumKey();
-  if (startRN == nullRN() || rn < startRN) return;
   m_vacuumRN = rn;
   vacuum();
 }
@@ -2469,6 +2452,20 @@ void DB::del_write(RN rn)
   rec.index().offset = deleted();
   if (rec.file()->del(rn & fileRecMask()))
     delFile(rec.file());
+}
+
+// delete file
+void DB::delFile(File *file)
+{
+  ZmAssert(fileInvoked());
+
+  bool lastFile;
+  uint64_t id = file->id();
+  m_files.delNode(file);
+  lastFile = id == m_lastFile;
+  if (ZuUnlikely(lastFile)) getFile<true>(id + 1);
+  file->close();
+  ZiFile::remove(fileName(id));
 }
 
 // disk read error

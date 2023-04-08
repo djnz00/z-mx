@@ -43,13 +43,13 @@ unsigned BufMgr::alloc(BufUnloadFn unloadFn)
 void BufMgr::free(unsigned seriesID) // caller unloads
 {
   auto i = m_lru.iterator();
-  while (auto node = i.iterateNode())
+  while (auto node = i.iterate())
     if (node->seriesID == seriesID) i.del();
 }
 
 void BufMgr::purge(unsigned seriesID, unsigned blkIndex) // caller unloads
 {
   auto i = m_lru.iterator();
-  while (auto node = i.iterateNode())
+  while (auto node = i.iterate())
     if (node->seriesID == seriesID && node->blkIndex < blkIndex) i.del();
 }

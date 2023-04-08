@@ -705,40 +705,54 @@ template <typename U, typename R> struct ZuNotVolatile_<volatile U, R> { };
 template <typename U, typename R = void>
 using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 
-// member function / static function SFINAE
-template <typename Fn> struct ZuIsMemberFn_;
-template <typename T_, typename R, typename ...Args>
-struct ZuIsMemberFn_<R (T_::*)(Args...)> { using T = R; };
-template <typename T_, typename R, typename ...Args>
-struct ZuIsMemberFn_<R (T_::*)(Args...) const> { using T = R; };
-template <typename T_, typename R, typename ...Args>
-struct ZuIsMemberFn_<R (T_::*)(Args...) volatile> { using T = R; };
-template <typename T_, typename R, typename ...Args>
-struct ZuIsMemberFn_<R (T_::*)(Args...) const volatile> { using T = R; };
-template <auto Fn>
-using ZuIsMemberFn = typename ZuIsMemberFn_<decltype(Fn)>::T;
+// generic invocation
 
-template <auto Fn>
-using ZuIsLambdaFn =
-  typename ZuIsMemberFn_<decltype(&decltype(Fn)::operator())>::T;
-
-template <typename Fn> struct ZuIsStaticFn_;
-template <typename R, typename ...Args>
-struct ZuIsStaticFn_<R (*)(Args...)> { using T = R; };
-template <auto Fn>
-using ZuIsStaticFn = typename ZuIsStaticFn_<decltype(Fn)>::T;
-
-template <auto Fn, typename T, typename ...Args>
-auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsMemberFn<Fn> {
+template <auto Fn, typename O, typename Args, typename = void>
+struct ZuInvoke_MemberFn_;
+template <auto Fn, typename O, typename ...Args>
+struct ZuInvoke_MemberFn_<
+    Fn, O, ZuTypeList<Args...>,
+    decltype((ZuDeclVal<O *>()->*Fn)(ZuDeclVal<Args>()...), void())> {
+  using T = decltype((ZuDeclVal<O *>()->*Fn)(ZuDeclVal<Args>()...));
+};
+template <auto Fn, typename O, typename ...Args>
+using ZuInvoke_MemberFn =
+  typename ZuInvoke_MemberFn_<Fn, O, ZuTypeList<Args...>>::T;
+template <auto Fn, typename O, typename ...Args>
+auto ZuInvoke(O *ptr, Args &&... args) -> ZuInvoke_MemberFn<Fn, O, Args...> {
   return (ptr->*Fn)(ZuFwd<Args>(args)...);
 }
-template <auto Fn, typename T, typename ...Args>
-auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsLambdaFn<Fn> {
+
+template <auto Fn, typename O, typename Args, typename = void>
+struct ZuInvoke_BoundFn_;
+template <auto Fn, typename O, typename ...Args>
+struct ZuInvoke_BoundFn_<
+    Fn, O, ZuTypeList<Args...>,
+    decltype(Fn(ZuDeclVal<O *>(), ZuDeclVal<Args>()...), void())> {
+  using T = decltype(Fn(ZuDeclVal<O *>(), ZuDeclVal<Args>()...));
+};
+template <auto Fn, typename O, typename ...Args>
+using ZuInvoke_BoundFn =
+  typename ZuInvoke_BoundFn_<Fn, O, ZuTypeList<Args...>>::T;
+template <auto Fn, typename O, typename ...Args>
+auto ZuInvoke(O *ptr, Args &&... args) -> ZuInvoke_BoundFn<Fn, O, Args...> {
   return Fn(ptr, ZuFwd<Args>(args)...);
 }
-template <auto Fn, typename T, typename ...Args>
-auto ZuInvoke(T *ptr, Args &&... args) -> ZuIsStaticFn<Fn> {
-  return (*Fn)(ptr, ZuFwd<Args>(args)...);
+
+template <auto Fn, typename O, typename Args, typename = void>
+struct ZuInvoke_UnboundFn_;
+template <auto Fn, typename O, typename ...Args>
+struct ZuInvoke_UnboundFn_<
+    Fn, O, ZuTypeList<Args...>,
+    decltype(Fn(ZuDeclVal<Args>()...), void())> {
+  using T = decltype(Fn(ZuDeclVal<Args>()...));
+};
+template <auto Fn, typename O, typename ...Args>
+using ZuInvoke_UnboundFn =
+  typename ZuInvoke_UnboundFn_<Fn, O, ZuTypeList<Args...>>::T;
+template <auto Fn, typename O, typename ...Args>
+auto ZuInvoke(O *, Args &&... args) -> ZuInvoke_UnboundFn<Fn, O, Args...> {
+  return Fn(ZuFwd<Args>(args)...);
 }
 
 // alloca() alias

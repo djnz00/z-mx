@@ -101,8 +101,7 @@ void FileMgr::close(unsigned seriesID)
 {
   auto i = m_lru.iterator();
   ZmRef<File> fileRef; // need to keep ref count +ve during loop iteration
-  while (auto file_ = i.iterateNode()) {
-    auto file = static_cast<File *>(file_);
+  while (auto file = static_cast<File *>(i.iterate())) {
     if (file->id.seriesID() == seriesID) {
       i.del();
       fileRef = m_files->del(file->id); // see above comment
@@ -122,7 +121,7 @@ ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
   file = openFile(fileID, create);
   if (ZuUnlikely(!file)) return nullptr;
   while (m_lru.count_() >= m_maxOpenFiles) {
-    auto node = m_lru.shiftNode();
+    auto node = m_lru.shift();
     m_files->del(static_cast<File *>(node)->id);
   }
   m_files->addNode(file);
@@ -237,8 +236,7 @@ void FileMgr::purge(unsigned seriesID, unsigned blkIndex)
   {
     auto i = m_lru.iterator();
     ZmRef<File> fileRef; // need to keep ref count +ve during loop iteration
-    while (auto file_ = i.iterateNode()) {
-      auto file = static_cast<File *>(file_);
+    while (auto file = static_cast<File *>(i.iterate())) {
       if (file->id.seriesID() == seriesID &&
 	  file->id.index() < pos.index()) {
 	i.del();

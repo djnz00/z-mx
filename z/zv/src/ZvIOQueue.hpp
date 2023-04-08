@@ -34,7 +34,6 @@
 #endif
 
 #include <zlib/ZuArrayN.hpp>
-#include <zlib/ZuPOD.hpp>
 #include <zlib/ZuRef.hpp>
 #include <zlib/ZuID.hpp>
 

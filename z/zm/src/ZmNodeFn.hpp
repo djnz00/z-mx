@@ -17,10 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ZmNodeContainer - node ownership (referencing/dereferencing)
+// ZmNodeFn - node ownership (referencing/dereferencing)
 
-#ifndef ZmNodeContainer_HPP
-#define ZmNodeContainer_HPP
+#ifndef ZmNodeFn_HPP
+#define ZmNodeFn_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -34,9 +34,9 @@
 #include <zlib/ZuPtr.hpp>
 
 template <bool Shadow, bool IsObject>
-struct ZmNodeContainer_;
+struct ZmNodeFn_;
 // ref-counted nodes
-template <> struct ZmNodeContainer_<false, true> {
+template <> struct ZmNodeFn_<false, true> {
   template <typename T> using Ref = ZmRef<T>;
   template <typename T> using MvRef = ZmRef<T>;
   template <typename T> void nodeRef(T *o) { ZmREF(o); }
@@ -51,7 +51,7 @@ template <> struct ZmNodeContainer_<false, true> {
 };
 // own nodes, delete if not returned to caller
 template <>
-struct ZmNodeContainer_<false, false> {
+struct ZmNodeFn_<false, false> {
   template <typename T> using Ref = T *;
   template <typename T> using MvRef = ZuPtr<T>;
   template <typename T> static void nodeRef(T *) { }
@@ -61,7 +61,7 @@ struct ZmNodeContainer_<false, false> {
 };
 // shadow nodes, never delete
 template <bool IsObject>
-struct ZmNodeContainer_<true, IsObject> {
+struct ZmNodeFn_<true, IsObject> {
   template <typename T> using Ref = T *;
   template <typename T> using MvRef = T *;
   template <typename T> static void nodeRef(T *) { }
@@ -71,7 +71,7 @@ struct ZmNodeContainer_<true, IsObject> {
 };
 
 template <bool Shadow, typename T, typename NodeBase>
-using ZmNodeContainer =
-  ZmNodeContainer_<Shadow, ZuIsObject_<T>::OK || ZuIsObject_<NodeBase>::OK>;
+using ZmNodeFn =
+  ZmNodeFn_<Shadow, ZuIsObject_<T>::OK || ZuIsObject_<NodeBase>::OK>;
 
-#endif /* ZmNodeContainer_HPP */
+#endif /* ZmNodeFn_HPP */

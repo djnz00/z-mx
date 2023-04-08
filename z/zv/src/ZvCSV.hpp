@@ -38,7 +38,6 @@
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuString.hpp>
 
-#include <zlib/ZuPOD.hpp>
 #include <zlib/ZuRef.hpp>
 
 #include <zlib/ZmObject.hpp>

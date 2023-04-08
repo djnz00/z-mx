@@ -57,7 +57,7 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
-#include <zlib/ZmNodeContainer.hpp>
+#include <zlib/ZmNodeFn.hpp>
 
 // the application will normally substitute ZmPQueueDefaultFn with
 // a type that is specific to the queued Item; it must conform to the
@@ -201,7 +201,7 @@ namespace ZmPQueue_ {
 template <typename Item_, class NTP = ZmPQueue_Defaults>
 class ZmPQueue :
     public ZuPrintable,
-    public ZmNodeContainer<NTP::Shadow, Item_, typename NTP::Node> {
+    public ZmNodeFn<NTP::Shadow, Item_, typename NTP::Node> {
 public:
   using Item = Item_;
   enum { Bits = NTP::Bits };
@@ -220,16 +220,16 @@ public:
       ((ZuBox0(unsigned)), length));
 
 private:
-  using NodeContainer = ZmNodeContainer<Shadow, Item, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, Item, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
   template <typename Node>
-  class NodeFn_ {
+  class NodeExt_ {
   friend ZmPQueue<Item, NTP>;
   protected:
-    NodeFn_() {
+    NodeExt_() {
       memset(m_next, 0, sizeof(Node *) * Levels);
       memset(m_prev, 0, sizeof(Node *) * Levels);
     }
@@ -249,15 +249,15 @@ private:
 
 public:
   using Node =
-    ZmNode<Item, KeyAxor, ZuDefaultAxor(), NodeBase, NodeFn_, HeapID, Sharded>;
-  using NodeFn = NodeFn_<Node>;
-  using NodeRef = typename NodeContainer::template Ref<Node>;
+    ZmNode<Item, KeyAxor, ZuDefaultAxor(), NodeBase, NodeExt_, HeapID, Sharded>;
+  using NodeExt = NodeExt_<Node>;
+  using NodeRef = typename NodeFn::template Ref<Node>;
   using NodePtr = Node *;
 
 private:
-  using NodeContainer::nodeRef;
-  using NodeContainer::nodeDeref;
-  using NodeContainer::nodeDelete;
+  using NodeFn::nodeRef;
+  using NodeFn::nodeDeref;
+  using NodeFn::nodeDelete;
 
 public:
   ZmPQueue() = delete;
@@ -278,8 +278,8 @@ private:
   typename ZmPQueue_::First<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
     Node *next;
-    node->NodeFn::prev(0, nullptr);
-    node->NodeFn::next(0, next = m_head[0]);
+    node->NodeExt::prev(0, nullptr);
+    node->NodeExt::next(0, next = m_head[0]);
     m_head[0] = node;
     if (!next)
       m_tail[0] = node;
@@ -290,10 +290,10 @@ private:
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, nullptr);
+    node->NodeExt::prev(Level, nullptr);
     if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
       Node *next;
-      node->NodeFn::next(Level, next = m_head[Level]);
+      node->NodeExt::next(Level, next = m_head[Level]);
       m_head[Level] = node;
       if (!next)
 	m_tail[Level] = node;
@@ -302,14 +302,14 @@ private:
       addHead_<Level + 1>(node, addSeqNo);
       return;
     }
-    node->NodeFn::next(Level, nullptr);
+    node->NodeExt::next(Level, nullptr);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addHeadEnd_(
       Node *node, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, nullptr);
-    node->NodeFn::next(Level, nullptr);
+    node->NodeExt::prev(Level, nullptr);
+    node->NodeExt::next(Level, nullptr);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
@@ -325,12 +325,12 @@ private:
       Node *node, Node **next_, unsigned addSeqNo) {
     Node *next = next_[0];
     Node *prev = next ? next->prev(0) : m_tail[0];
-    node->NodeFn::next(0, next);
+    node->NodeExt::next(0, next);
     if (ZuUnlikely(!next))
       m_tail[0] = node;
     else
       next->prev(0, node);
-    node->NodeFn::prev(0, prev);
+    node->NodeExt::prev(0, prev);
     if (ZuUnlikely(!prev))
       m_head[0] = node;
     else
@@ -343,28 +343,28 @@ private:
     if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
       Node *next = next_[Level];
       Node *prev = next ? next->prev(Level) : m_tail[Level];
-      node->NodeFn::next(Level, next);
+      node->NodeExt::next(Level, next);
       if (ZuUnlikely(!next))
 	m_tail[Level] = node;
       else
 	next->prev(Level, node);
-      node->NodeFn::prev(Level, prev);
+      node->NodeExt::prev(Level, prev);
       if (ZuUnlikely(!prev))
 	m_head[Level] = node;
       else
 	prev->next(Level, node);
       add_<Level + 1>(node, next_, addSeqNo);
     } else {
-      node->NodeFn::prev(Level, nullptr);
-      node->NodeFn::next(Level, nullptr);
+      node->NodeExt::prev(Level, nullptr);
+      node->NodeExt::next(Level, nullptr);
       addEnd_<Level + 1>(node, next_, addSeqNo);
     }
   }
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T addEnd_(
       Node *node, Node **next_, unsigned addSeqNo) {
-    node->NodeFn::prev(Level, nullptr);
-    node->NodeFn::next(Level, nullptr);
+    node->NodeExt::prev(Level, nullptr);
+    node->NodeExt::next(Level, nullptr);
     addEnd_<Level + 1>(node, next_, addSeqNo);
   }
   template <int Level>
@@ -400,8 +400,8 @@ private:
   // delete result from find
   template <int Level>
   Node *del__(Node *node) {
-    Node *next(node->NodeFn::next(Level));
-    Node *prev(node->NodeFn::prev(Level));
+    Node *next(node->NodeExt::next(Level));
+    Node *prev(node->NodeExt::prev(Level));
     if (ZuUnlikely(!prev))
       m_head[Level] = next;
     else
@@ -450,7 +450,7 @@ private:
       Key key, Node **next) const {
     Node *node;
     if (!(node = next[Levels - Level]) ||
-	!(node = node->NodeFn::prev(Levels - Level)))
+	!(node = node->NodeExt::prev(Levels - Level)))
       next[Levels - Level - 1] = m_head[Levels - Level - 1];
     else
       next[Levels - Level - 1] = node;
@@ -489,7 +489,7 @@ private:
 	Fn item{node->Node::data()};
 	if (item.key() == key) goto found;
 	if (item.key() > key) goto passed;
-      } while (node = node->NodeFn::next(Levels - Level - 1));
+      } while (node = node->NodeExt::next(Levels - Level - 1));
       next[Levels - Level - 1] = node;
     }
     findRev_<Level + 1>(key, next);
@@ -498,7 +498,7 @@ private:
     found_<Level>(node, next);
     return;
   passed:
-    Node *prev = node->NodeFn::prev(Levels - Level - 1);
+    Node *prev = node->NodeExt::prev(Levels - Level - 1);
     next[Levels - Level - 1] = node;
     if (findDir_(key, prev, node))
       findFwd_<Level + 1>(key, next);
@@ -513,7 +513,7 @@ private:
       do {
 	Fn item{node->Node::data()};
 	if (item.key() >= key) break;
-      } while (node = node->NodeFn::next(0));
+      } while (node = node->NodeExt::next(0));
       next[0] = node;
     }
   }
@@ -526,7 +526,7 @@ private:
 	Fn item{node->Node::data()};
 	if (item.key() == key) goto found;
 	if (item.key() < key) goto passed;
-      } while (node = node->NodeFn::prev(Levels - Level - 1));
+      } while (node = node->NodeExt::prev(Levels - Level - 1));
     }
     next[Levels - Level - 1] = m_head[Levels - Level - 1];
     findFwd_<Level + 1>(key, next);
@@ -536,7 +536,7 @@ private:
     return;
   passed:
     Node *prev = node;
-    next[Levels - Level - 1] = node = node->NodeFn::next(Levels - Level - 1);
+    next[Levels - Level - 1] = node = node->NodeExt::next(Levels - Level - 1);
     if (findDir_(key, prev, node))
       findFwd_<Level + 1>(key, next);
     else
@@ -550,8 +550,8 @@ private:
       do {
 	Fn item{node->Node::data()};
 	if (item.key() == key) { next[0] = node; return; }
-	if (item.key() < key) { next[0] = node->NodeFn::next(0); return; }
-      } while (node = node->NodeFn::prev(0));
+	if (item.key() < key) { next[0] = node->NodeExt::next(0); return; }
+      } while (node = node->NodeExt::prev(0));
     }
     next[0] = m_head[0];
   }
@@ -621,7 +621,7 @@ public:
       if (key > tail) return Gap(tail, key - tail);
       Key end = key + item.length();
       if (end > tail) tail = end;
-      node = node->NodeFn::next(0);
+      node = node->NodeExt::next(0);
     }
     if (m_tailKey > tail) return Gap(tail, m_tailKey - tail);
     return Gap();
@@ -776,7 +776,7 @@ private:
 	if (key_ == key)
 	  node_ = nullptr;	// don't process the same item twice
 	else
-	  node_ = node_->NodeFn::prev(0);
+	  node_ = node_->NodeExt::prev(0);
       } else
 	node_ = m_tail[0];
 
@@ -979,7 +979,7 @@ public:
 
 	if (ZuLikely(key_ == key)) return node = node_;
 
-	node_ = node_->NodeFn::prev(0);
+	node_ = node_->NodeExt::prev(0);
       } else
 	node_ = m_tail[0];
 

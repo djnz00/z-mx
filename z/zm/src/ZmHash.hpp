@@ -43,7 +43,7 @@
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmLockTraits.hpp>
 #include <zlib/ZmNode.hpp>
-#include <zlib/ZmNodeContainer.hpp>
+#include <zlib/ZmNodeFn.hpp>
 
 #include <zlib/ZmHashMgr.hpp>
 
@@ -260,7 +260,7 @@ template <typename T_, typename NTP = ZmHash_Defaults>
 class ZmHash :
     public ZmAnyHash,
     public ZmHash_LockMgr<typename NTP::Lock>,
-    public ZmNodeContainer<NTP::Shadow, T_, typename NTP::Node> {
+    public ZmNodeFn<NTP::Shadow, T_, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
@@ -281,7 +281,7 @@ public:
 
 private:
   using LockMgr = ZmHash_LockMgr<Lock>;
-  using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, T, NodeBase>;
 
   using LockTraits = ZmLockTraits<Lock>;
   using Guard = ZmGuard<Lock>;
@@ -299,15 +299,14 @@ public:
   unsigned bits() const { return m_bits; }
   using LockMgr::cBits;
 
-protected:
+private:
   template <typename I> class Iterator_;
 template <typename> friend class Iterator_;
 
-private:
   // node in a hash table
 
   template <typename Node>
-  class NodeFn_ {
+  class NodeExt_ {
   friend ZmHash<T, NTP>;
   template <typename> friend class ZmHash<T, NTP>::Iterator_;
 
@@ -315,16 +314,16 @@ private:
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
-  using NodeFn = NodeFn_<Node>;
-  using NodeRef = typename NodeContainer::template Ref<Node>;
-  using NodeMvRef = typename NodeContainer::template MvRef<Node>;
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeExt_, HeapID, Sharded>;
+  using NodeExt = NodeExt_<Node>;
+  using NodeRef = typename NodeFn::template Ref<Node>;
+  using NodeMvRef = typename NodeFn::template MvRef<Node>;
   using NodePtr = Node *;
 
-  using NodeContainer::nodeRef;
-  using NodeContainer::nodeDeref;
-  using NodeContainer::nodeAcquire;
-  using NodeContainer::nodeDelete;
+  using NodeFn::nodeRef;
+  using NodeFn::nodeDeref;
+  using NodeFn::nodeAcquire;
+  using NodeFn::nodeDelete;
 
   static KeyRet key(const Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -343,7 +342,7 @@ public:
     return ZuNullRef<Val, ValCmp>();
   }
 
-protected:
+private:
   template <typename I> struct Iterator__ {
     decltype(auto) iterateKey() {
       return key(static_cast<I *>(this)->iterate());
@@ -423,15 +422,13 @@ public:
 
     using Base::m_hash;
 
-    void lock(Lock &l) { LockTraits::lock(l); }
-    void unlock(Lock &l) { LockTraits::unlock(l); }
-
   public:
     Iterator(Iterator &&) = default;
     Iterator &operator =(Iterator &&) = default;
 
-    Iterator(Hash &hash) : Base(hash) { hash.startIterate(*this); }
-    virtual ~Iterator() { m_hash.endIterate(*this); }
+    Iterator(Hash &hash) : Base{hash} { hash.startIterate(*this); }
+    ~Iterator() { m_hash.endIterate(*this); }
+
     NodeMvRef del() { return m_hash.delIterate(*this); }
   };
 
@@ -445,14 +442,11 @@ public:
 
     using Base::m_hash;
 
-    void lock(Lock &l) { LockTraits::readlock(l); }
-    void unlock(Lock &l) { LockTraits::readunlock(l); }
-
   public:
     ReadIterator(ReadIterator &&) = default;
     ReadIterator &operator =(ReadIterator &&) = default;
 
-    ReadIterator(const Hash &hash) : Base(const_cast<Hash &>(hash)) {
+    ReadIterator(const Hash &hash) : Base{const_cast<Hash &>(hash)} {
       const_cast<Hash &>(hash).startIterate(*this);
     }
     ~ReadIterator() { m_hash.endIterate(*this); }
@@ -467,9 +461,6 @@ public:
     using Base = KeyIterator_<KeyIterator>;
 
     using Base::m_hash;
-
-    void lock(Lock &l) { LockTraits::lock(l); }
-    void unlock(Lock &l) { LockTraits::unlock(l); }
 
   public:
     KeyIterator(KeyIterator &&) = default;
@@ -493,9 +484,6 @@ public:
     using Base = KeyIterator_<ReadKeyIterator>;
 
     using Base::m_hash;
-
-    void lock(Lock &l) { LockTraits::readlock(l); }
-    void unlock(Lock &l) { LockTraits::readunlock(l); }
 
   public:
     ReadKeyIterator(ReadKeyIterator &&) = default;
@@ -590,7 +578,7 @@ private:
 
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
-    node->NodeFn::next = m_table[slot];
+    node->NodeExt::next = m_table[slot];
     m_table[slot] = ZuMv(node);
     m_count.store_(count + 1);
   }
@@ -704,7 +692,7 @@ private:
 
     for (node = m_table[slot];
 	 node && !match(node);
-	 node = node->NodeFn::next);
+	 node = node->NodeExt::next);
 
     return node;
   }
@@ -738,7 +726,7 @@ private:
 
     for (node = m_table[slot];
 	 node && !Cmp::equals(node->Node::key(), KeyAxor(data));
-	 node = node->NodeFn::next);
+	 node = node->NodeExt::next);
 
     if (!node) addNode_(node = new Node{ZuFwd<P>(data)}, code);
     return node;
@@ -820,18 +808,18 @@ private:
 
     for (node = m_table[slot];
 	 node && !match(node);
-	 prevNode = node, node = node->NodeFn::next);
+	 prevNode = node, node = node->NodeExt::next);
 
     if (!node) return 0;
 
     if (!prevNode)
-      m_table[slot] = node->NodeFn::next;
+      m_table[slot] = node->NodeExt::next;
     else
-      prevNode->NodeFn::next = node->NodeFn::next;
+      prevNode->NodeExt::next = node->NodeExt::next;
 
     m_count.store_(count - 1);
 
-    node->NodeFn::next = nullptr;
+    node->NodeExt::next = nullptr;
 
     return nodeAcquire(node);
   }
@@ -852,7 +840,7 @@ public:
 private:
   template <typename I>
   void startIterate(I &iterator) {
-    iterator.lock(lockSlot(0));
+    LockTraits::lock(lockSlot(0));
     iterator.m_slot = 0;
     iterator.m_node = nullptr;
     iterator.m_prev = nullptr;
@@ -861,7 +849,7 @@ private:
   void startKeyIterate(I &iterator) {
     uint32_t code = HashFn::hash(iterator.m_key);
 
-    iterator.lock(lockCode(code));
+    LockTraits::lock(lockCode(code));
     iterator.m_slot = ZmHash_Bits::hashBits(code, m_bits);
     iterator.m_node = nullptr;
     iterator.m_prev = nullptr;
@@ -879,18 +867,18 @@ private:
       node = m_table[slot];
     } else {
       prevNode = node;
-      node = node->NodeFn::next;
+      node = node->NodeExt::next;
     }
 
     if (!node) {
       prevNode = nullptr;
       do {
-	iterator.unlock(lockSlot(slot));
+	LockTraits::unlock(lockSlot(slot));
 	if (++slot >= (1U<<m_bits)) {
 	  iterator.m_slot = -1;
 	  return nullptr;
 	}
-	iterator.lock(lockSlot(slot));
+	LockTraits::lock(lockSlot(slot));
 	iterator.m_slot = slot;
       } while (!(node = m_table[slot]));
     }
@@ -911,15 +899,15 @@ private:
       node = m_table[slot];
     } else {
       prevNode = node;
-      node = node->NodeFn::next;
+      node = node->NodeExt::next;
     }
 
     for (;
 	 node && !Cmp::equals(node->Node::key(), iterator.m_key);
-	 prevNode = node, node = node->NodeFn::next);
+	 prevNode = node, node = node->NodeExt::next);
 
     if (!node) {
-      iterator.unlock(lockSlot(slot));
+      LockTraits::unlock(lockSlot(slot));
       iterator.m_slot = -1;
       return nullptr;
     }
@@ -931,7 +919,7 @@ private:
   void endIterate(I &iterator) {
     if (iterator.m_slot < 0) return;
 
-    iterator.unlock(lockSlot(iterator.m_slot));
+    LockTraits::unlock(lockSlot(iterator.m_slot));
   }
   template <typename I>
   NodeMvRef delIterate(I &iterator) {
@@ -941,15 +929,15 @@ private:
     if (!count || !node) return nullptr;
 
     if (!prevNode)
-      m_table[iterator.m_slot] = node->NodeFn::next;
+      m_table[iterator.m_slot] = node->NodeExt::next;
     else
-      prevNode->NodeFn::next = node->NodeFn::next;
+      prevNode->NodeExt::next = node->NodeExt::next;
 
     iterator.m_node = prevNode;
 
     m_count.store_(count - 1);
 
-    node->NodeFn::next = nullptr;
+    node->NodeExt::next = nullptr;
 
     return nodeAcquire(node);
   }
@@ -964,7 +952,7 @@ public:
       node = m_table[i];
 
       while (prevNode = node) {
-	node = prevNode->NodeFn::next;
+	node = prevNode->NodeExt::next;
 	nodeDeref(prevNode);
 	nodeDelete(prevNode);
       }
@@ -1013,10 +1001,10 @@ private:
 
     for (unsigned i = 0; i < n; i++)
       for (node = m_table[i]; node; node = nextNode) {
-	nextNode = node->NodeFn::next;
+	nextNode = node->NodeExt::next;
 	unsigned j = ZmHash_Bits::hashBits(
 	    HashFn::hash(node->Node::key()), bits);
-	node->NodeFn::next = table[j];
+	node->NodeExt::next = table[j];
 	table[j] = node;
       }
     Zm::alignedFree(m_table);

@@ -41,7 +41,7 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmNode.hpp>
-#include <zlib/ZmNodeContainer.hpp>
+#include <zlib/ZmNodeFn.hpp>
 
 // NTP (named template parameters) convention:
 //
@@ -116,7 +116,7 @@ struct ZmListSharded : public NTP {
 
 template <typename T_, class NTP = ZmList_Defaults>
 class ZmList :
-    public ZmNodeContainer<NTP::Shadow, T_, typename NTP::Node> {
+    public ZmNodeFn<NTP::Shadow, T_, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
@@ -132,38 +132,38 @@ public:
   enum { Sharded = NTP::Sharded };
 
 private:
-  using NodeContainer = ZmNodeContainer<Shadow, T, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, T, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-protected:
-  class Iterator_;
-friend Iterator_;
+private:
+  template <typename I> class Iterator_;
+template <typename> friend class Iterator_;
 
 private:
   // node in a list
 
   template <typename Node>
-  class NodeFn_ {
+  class NodeExt_ {
   friend ZmList<T, NTP>;
-  friend class ZmList<T, NTP>::Iterator_;
+  template <typename> friend class ZmList<T, NTP>::Iterator_;
 
     Node	*next = nullptr, *prev = nullptr;
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeFn_, HeapID, Sharded>;
-  using NodeFn = NodeFn_<Node>;
-  using NodeRef = typename NodeContainer::template Ref<Node>;
-  using NodeMvRef = typename NodeContainer::template MvRef<Node>;
+  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeExt_, HeapID, Sharded>;
+  using NodeExt = NodeExt_<Node>;
+  using NodeRef = typename NodeFn::template Ref<Node>;
+  using NodeMvRef = typename NodeFn::template MvRef<Node>;
   using NodePtr = Node *;
 
 private:
-  using NodeContainer::nodeRef;
-  using NodeContainer::nodeDeref;
-  using NodeContainer::nodeDelete;
-  using NodeContainer::nodeAcquire;
+  using NodeFn::nodeRef;
+  using NodeFn::nodeDeref;
+  using NodeFn::nodeDelete;
+  using NodeFn::nodeAcquire;
 
   static const Key &key(Node *node) {
     if (ZuLikely(node)) return node->Node::key();
@@ -182,8 +182,17 @@ private:
     return ZuNullRef<Val, ValCmp>();
   }
 
-protected:
-  class Iterator_ {			// iterator
+private:
+  template <typename I> struct Iterator__ {
+    decltype(auto) iterateKey() {
+      return key(static_cast<I *>(this)->iterate());
+    }
+    decltype(auto) iterateVal() {
+      return val(static_cast<I *>(this)->iterate());
+    }
+  };
+
+  template <typename I> class Iterator_ : public Iterator__<I> {
     Iterator_(const Iterator_ &) = delete;
     Iterator_ &operator =(const Iterator_ &) = delete;
 
@@ -194,19 +203,14 @@ protected:
     Iterator_(Iterator_ &&) = default;
     Iterator_ &operator =(Iterator_ &&) = default;
 
-    Iterator_(List &list) : m_list(list) {
-      list.startIterate(*this);
-    }
+    Iterator_(List &list) : m_list(list) { }
 
   public:
-    void reset() { m_list.startIterate(*this); }
-
-    Node *iterateNode() { return m_list.iterate(*this); }
-
-    const T &iterate() {
-      Node *node = m_list.iterate(*this);
-      if (ZuLikely(node)) return node->Node::data();
-      return ZuNullRef<T, Cmp>();
+    void reset() {
+      m_list.startIterate(static_cast<I &>(*this));
+    }
+    Node *iterate() {
+      return m_list.iterate(static_cast<I &>(*this));
     }
 
     unsigned count() const { return m_list.count_(); }
@@ -217,53 +221,68 @@ protected:
   };
 
 public:
-  class Iterator;
-friend Iterator;
-  class Iterator : private Guard, public Iterator_ {
+  class Iterator : public Iterator_<Iterator> {
     Iterator(const Iterator &) = delete;
     Iterator &operator =(const Iterator &) = delete;
 
     using List = ZmList<T, NTP>;
+  friend List;
+    using Base = Iterator_<Iterator>;
+
+    using Base::m_list;
 
   public:
     Iterator(Iterator &&) = default;
     Iterator &operator =(Iterator &&) = default;
 
-    Iterator(List &list) : Guard(list.m_lock), Iterator_(list) { }
+    Iterator(List &list) : Base{list} { list.startIterate(*this); }
+    ~Iterator() { m_list.endIterate(); }
 
     template <typename P>
     NodeRef push(P &&data) {
-      return this->m_list.pushIterate(*this, ZuFwd<P>(data));
+      return m_list.pushIterate(*this, ZuFwd<P>(data));
+    }
+    template <typename P0, typename P1>
+    NodeRef push(P0 &&p0, P1 &&p1) {
+      return push(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
     }
     void pushNode(Node *node) {
-      this->m_list.pushIterateNode(*this, node);
+      m_list.pushIterateNode(*this, node);
     }
 
     template <typename P>
     NodeRef unshift(P &&data) {
-      return this->m_list.unshiftIterate(*this, ZuFwd<P>(data));
+      return m_list.unshiftIterate(*this, ZuFwd<P>(data));
+    }
+    template <typename P0, typename P1>
+    NodeRef unshift(P0 &&p0, P1 &&p1) {
+      return unshift(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
     }
     void unshiftNode(Node *node) {
-      this->m_list.unshiftIterateNode(*this, node);
+      m_list.unshiftIterateNode(*this, node);
     }
 
     NodeMvRef del() { return this->m_list.delIterate(*this); }
   };
 
-  class ReadIterator;
-friend ReadIterator;
-  class ReadIterator : private ReadGuard, public Iterator_ {
+  class ReadIterator : public Iterator_<ReadIterator> {
     ReadIterator(const ReadIterator &) = delete;
     ReadIterator &operator =(const ReadIterator &) = delete;
 
     using List = ZmList<T, NTP>;
+  friend List;
+    using Base = Iterator_<ReadIterator>;
+
+    using Base::m_list;
 
   public:
     ReadIterator(ReadIterator &&) = default;
     ReadIterator &operator =(ReadIterator &&) = default;
 
-    ReadIterator(const List &list) :
-      ReadGuard(list.m_lock), Iterator_(const_cast<List &>(list)) { }
+    ReadIterator(const List &list) : Base{const_cast<List &>(list)} {
+      const_cast<List &>(list).startIterate(*this);
+    }
+    ~ReadIterator() { m_list.endIterate(); }
   };
 
   ZmList() = default;
@@ -309,8 +328,8 @@ friend ReadIterator;
     if (head) {
       Guard guard(m_lock);
       if (m_tail) {
-	m_tail->NodeFn::next = head;
-	head->NodeFn::prev = m_tail;
+	m_tail->NodeExt::next = head;
+	head->NodeExt::prev = m_tail;
 	m_tail = tail;
 	m_count += count;
       } else {
@@ -417,7 +436,7 @@ private:
     Node *node;
     Guard guard(m_lock);
     if (!m_count) return nullptr;
-    for (node = m_head; node && !match(node); node = node->NodeFn::next);
+    for (node = m_head; node && !match(node); node = node->NodeExt::next);
     return node;
   }
 
@@ -480,7 +499,7 @@ private:
     Guard guard(m_lock);
     if (!m_count) return nullptr;
     Node *node;
-    for (node = m_head; node && !match(node); node = node->NodeFn::next);
+    for (node = m_head; node && !match(node); node = node->NodeExt::next);
     if (ZuLikely(node)) del__(node);
     return nodeAcquire(node);
   }
@@ -491,6 +510,10 @@ public:
     NodeRef node = new Node{ZuFwd<P>(data)};
     pushNode(node);
     return node;
+  }
+  template <typename P0, typename P1>
+  NodeRef push(P0 &&p0, P1 &&p1) {
+    return push(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
   template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
   ZuIfT<_> pushNode(const NodeRef &node_) { pushNode(node_.ptr()); }
@@ -507,26 +530,26 @@ public:
   }
 private:
   void pushNode_(Node *node) {
-    node->NodeFn::next = nullptr;
-    node->NodeFn::prev = m_tail;
+    node->NodeExt::next = nullptr;
+    node->NodeExt::prev = m_tail;
     if (!m_tail)
       m_head = node;
     else
-      m_tail->NodeFn::next = node;
+      m_tail->NodeExt::next = node;
     m_tail = node;
     ++m_count;
   }
 public:
-  NodeMvRef popNode() {
+  NodeMvRef pop() {
     Guard guard(m_lock);
     Node *node;
 
     if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->NodeFn::prev))
+    if (!(m_tail = node->NodeExt::prev))
       m_head = nullptr;
     else
-      m_tail->NodeFn::next = nullptr;
+      m_tail->NodeExt::next = nullptr;
 
     NodeRef ret = node;
 
@@ -535,62 +558,62 @@ public:
 
     return ret;
   }
-  T pop() {
-    NodeMvRef node = popNode();
-    if (ZuUnlikely(!node)) return T{};
-    return ZuMv(*node).Node::data();
-  }
-  NodeMvRef rpopNode() {
+  Key popKey() { return keyMv(pop()); }
+  Val popVal() { return valMv(pop()); }
+  NodeRef rpop() {
     Guard guard(m_lock);
     Node *node;
 
     if (!(node = m_tail)) return nullptr;
 
-    if (!(m_tail = node->NodeFn::prev))
+    if (!(m_tail = node->NodeExt::prev))
       m_tail = node;
     else {
-      node->NodeFn::next(m_head);
-      m_head->NodeFn::prev = node;
-      (m_head = node)->NodeFn::prev = nullptr;
-      m_tail->NodeFn::next = nullptr;
+      node->NodeExt::next(m_head);
+      m_head->NodeExt::prev = node;
+      (m_head = node)->NodeExt::prev = nullptr;
+      m_tail->NodeExt::next = nullptr;
     }
 
     return node;
   }
-  T rpop() {
-    NodeMvRef node = rpopNode();
-    if (ZuUnlikely(!node)) return T{};
-    return node->Node::data();
-  }
+  Key rpopKey() { return keyMv(rpop()); }
+  Val rpopVal() { return valMv(rpop()); }
+
   template <typename P>
   NodeRef unshift(P &&data) {
     NodeRef node = new Node{ZuFwd<P>(data)};
     unshiftNode(node);
     return node;
   }
+  template <typename P0, typename P1>
+  NodeRef unshift(P0 &&p0, P1 &&p1) {
+    return unshift(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
+  }
   void unshiftNode(Node *node) {
     Guard guard(m_lock);
 
     nodeRef(node);
-    node->NodeFn::prev = nullptr;
-    node->NodeFn::next = m_head;
+    node->NodeExt::prev = nullptr;
+    node->NodeExt::next = m_head;
     if (!m_head)
       m_tail = node;
     else
-      m_head->NodeFn::prev = node;
+      m_head->NodeExt::prev = node;
     m_head = node;
     ++m_count;
   }
-  NodeMvRef shiftNode() {
+
+  NodeMvRef shift() {
     Guard guard(m_lock);
     Node *node;
 
     if (!(node = m_head)) return nullptr;
 
-    if (!(m_head = node->NodeFn::next))
+    if (!(m_head = node->NodeExt::next))
       m_tail = nullptr;
     else
-      m_head->NodeFn::prev = nullptr;
+      m_head->NodeExt::prev = nullptr;
 
     NodeRef ret = node;
 
@@ -599,33 +622,27 @@ public:
 
     return ret;
   }
-  T shift() {
-    NodeMvRef node = shiftNode();
-    if (ZuUnlikely(!node)) return T{};
-    return ZuMv(*node).Node::data();
-  }
-  NodeMvRef rshiftNode() {
+  Key shiftKey() { return keyMv(shift()); }
+  Val shiftVal() { return valMv(shift()); }
+  NodeRef rshift() {
     Guard guard(m_lock);
     Node *node;
 
     if (!(node = m_head)) return nullptr;
 
-    if (!(m_head = node->NodeFn::next))
+    if (!(m_head = node->NodeExt::next))
       m_head = node;
     else {
-      node->NodeFn::prev = m_tail;
-      m_tail->NodeFn::next = node;
-      (m_tail = node)->NodeFn::next = nullptr;
-      m_head->NodeFn::prev = nullptr;
+      node->NodeExt::prev = m_tail;
+      m_tail->NodeExt::next = node;
+      (m_tail = node)->NodeExt::next = nullptr;
+      m_head->NodeExt::prev = nullptr;
     }
 
     return node;
   }
-  T rshift() {
-    NodeMvRef node = rshiftNode();
-    if (ZuUnlikely(!node)) return T{};
-    return node->Node::data();
-  }
+  Key rshiftKey() { return keyMv(rshift()); }
+  Val rshiftVal() { return valMv(rshift()); }
 
   T head() const {
     ReadGuard guard(m_lock);
@@ -651,101 +668,111 @@ public:
     clean_();
   }
 
-  auto iterator() { return Iterator(*this); }
-  auto readIterator() const { return ReadIterator(*this); }
+  auto iterator() { return Iterator{*this}; }
+  auto readIterator() const { return ReadIterator{*this}; }
 
 protected:
-  void startIterate(Iterator_ &iterator) {
+  template <typename I>
+  void startIterate(I &iterator) {
+    m_lock.lock();
     iterator.m_node = nullptr;
   }
-  Node *iterate(Iterator_ &iterator) {
+  template <typename I>
+  Node *iterate(I &iterator) {
     Node *node = iterator.m_node;
 
     if (!node)
       node = m_head;
     else
-      node = node->NodeFn::next;
+      node = node->NodeExt::next;
 
     if (!node) return nullptr;
 
     return iterator.m_node = node;
   }
-  template <typename P>
-  NodeRef pushIterate(Iterator_ &iterator, P &&data) {
+  template <typename I, typename P>
+  NodeRef pushIterate(I &iterator, P &&data) {
     pushIterateNode(iterator, new Node{ZuFwd<P>(data)});
   }
-  void pushIterateNode(Iterator_ &iterator, Node *node) {
+  template <typename I>
+  void pushIterateNode(I &iterator, Node *node) {
     Node *prevNode = iterator.m_node;
 
     if (!prevNode) { push(node); return; }
 
     nodeRef(node);
-    if (Node *nextNode = prevNode->NodeFn::next) {
-      node->NodeFn::next = nextNode;
-      nextNode->NodeFn::prev = node;
+    if (Node *nextNode = prevNode->NodeExt::next) {
+      node->NodeExt::next = nextNode;
+      nextNode->NodeExt::prev = node;
     } else {
       m_tail = node;
-      node->NodeFn::next = nullptr;
+      node->NodeExt::next = nullptr;
     }
-    node->NodeFn::prev = prevNode;
-    prevNode->NodeFn::next = node;
+    node->NodeExt::prev = prevNode;
+    prevNode->NodeExt::next = node;
     ++m_count;
   }
 
-  template <typename P>
-  NodeRef unshiftIterate(Iterator_ &iterator, P &&data) {
+  template <typename I, typename P>
+  NodeRef unshiftIterate(I &iterator, P &&data) {
     unshiftIterateNode(iterator, new Node{ZuFwd<P>(data)});
   }
-  void unshiftIterateNode(Iterator_ &iterator, Node *node) {
+  template <typename I>
+  void unshiftIterateNode(I &iterator, Node *node) {
     Node *nextNode = iterator.m_node;
 
     if (!nextNode) { unshift(node); return; }
 
     nodeRef(node);
-    if (Node *prevNode = nextNode->NodeFn::prev) {
-      node->NodeFn::prev = prevNode;
-      prevNode->NodeFn::next = node;
+    if (Node *prevNode = nextNode->NodeExt::prev) {
+      node->NodeExt::prev = prevNode;
+      prevNode->NodeExt::next = node;
     } else {
       m_head = node;
-      node->NodeFn::prev = nullptr;
+      node->NodeExt::prev = nullptr;
     }
-    node->NodeFn::next = nextNode;
-    nextNode->NodeFn::prev(node);
+    node->NodeExt::next = nextNode;
+    nextNode->NodeExt::prev(node);
     ++m_count;
   }
 
-  NodeMvRef delIterate(Iterator_ &iterator) {
+  template <typename I>
+  NodeMvRef delIterate(I &iterator) {
     if (!m_count) return nullptr;
 
     Node *node = iterator.m_node;
 
     if (ZuLikely(node)) {
-      iterator.m_node = node->NodeFn::prev;
+      iterator.m_node = node->NodeExt::prev;
       del__(node);
     }
 
     return nodeAcquire(node);
   }
 
+  void endIterate() {
+    m_lock.unlock();
+  }
+
   void del__(Node *node) {
-    Node *prevNode = node->NodeFn::prev;
-    Node *nextNode = node->NodeFn::next;
+    Node *prevNode = node->NodeExt::prev;
+    Node *nextNode = node->NodeExt::next;
 
     ZmAssert(prevNode || nextNode || (m_head == node && m_tail == node));
 
     if (!prevNode)
       m_head = nextNode;
     else
-      prevNode->NodeFn::next = nextNode;
+      prevNode->NodeExt::next = nextNode;
 
     if (!nextNode)
       m_tail = prevNode;
     else
-      nextNode->NodeFn::prev = prevNode;
+      nextNode->NodeExt::prev = prevNode;
 
     --m_count;
     
-    node->NodeFn::next = node->NodeFn::prev = nullptr;
+    node->NodeExt::next = node->NodeExt::prev = nullptr;
   }
 
   void clean_() {
@@ -754,7 +781,7 @@ protected:
     Node *node = m_head, *prevNode;
 
     while (prevNode = node) {
-      node = prevNode->NodeFn::next;
+      node = prevNode->NodeExt::next;
       nodeDeref(prevNode);
       nodeDelete(prevNode);
     }
@@ -768,5 +795,10 @@ protected:
     Node	  *m_head = nullptr;
     Node	  *m_tail = nullptr;
 };
+
+template <typename P0, typename P1, typename NTP = ZmList_Defaults>
+using ZmListKV =
+  ZmList<ZuPair<P0, P1>,
+    ZmListKeyVal<ZuPairAxor<0>(), ZuPairAxor<1>(), NTP>>;
 
 #endif /* ZmList_HPP */

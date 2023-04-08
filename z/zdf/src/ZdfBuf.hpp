@@ -208,7 +208,7 @@ public:
 
   virtual void shift() {
     if (m_lru.count_() >= m_maxBufs) {
-      auto lru_ = m_lru.shiftNode();
+      auto lru_ = m_lru.shift();
       if (ZuLikely(lru_)) {
 	Buf *lru = static_cast<Buf *>(lru_);
 	lru->pinned([this, lru_ = ZuMv(lru_), lru](unsigned pinned) {

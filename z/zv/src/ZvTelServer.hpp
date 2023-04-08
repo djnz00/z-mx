@@ -512,7 +512,7 @@ private:
   void unsubscribe(WatchList &list, Link *link, ZuString filter) {
     {
       auto i = list.iterator();
-      while (auto watch = i.iterateNode())
+      while (auto watch = i.iterate())
 	if (watch->link == link && (!filter || watch->filter == filter))
 	  i.del();
     }
@@ -613,7 +613,7 @@ private:
     Heap data;
     heap->telemetry(data);
     auto i = m_watchLists[ReqType::Heap].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!match(watch->filter, data.id)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_Heap, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -659,7 +659,7 @@ private:
     HashTbl data;
     tbl->telemetry(data);
     auto i = m_watchLists[ReqType::HashTbl].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!match(watch->filter, data.id)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_HashTbl, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -703,7 +703,7 @@ private:
     Thread data;
     tc->telemetry(data);
     auto i = m_watchLists[ReqType::Thread].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!matchThread(watch->filter, data.name, data.tid)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_Thread, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -791,7 +791,7 @@ private:
     Mx data;
     mx->telemetry(data);
     auto i = m_watchLists[ReqType::Mx].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!match(watch->filter, data.id)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_Mx, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -897,7 +897,7 @@ private:
     Queue data;
     fn(data);
     auto i = m_watchLists[ReqType::Queue].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!matchQueue(watch->filter, data.type, data.id)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_Queue, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -948,7 +948,7 @@ private:
     Engine data;
     engine->telemetry(data);
     auto i = m_watchLists[ReqType::Engine].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       if (!match(watch->filter, data.id)) continue;
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_Engine, ZfbField::saveUpdate(m_fbb, data).Union()));
@@ -961,7 +961,7 @@ private:
   }
   void linkScan(const ZvAnyLink *link) {
     auto i = m_watchLists[ReqType::Engine].list.readIterator();
-    while (auto watch = i.iterateNode()) linkScan(link, watch);
+    while (auto watch = i.iterate()) linkScan(link, watch);
   }
   void linkScan(const ZvAnyLink *link, Watch *watch) {
     ZvTelemetry::Link data;
@@ -1014,7 +1014,7 @@ private:
     if (!m_watchLists[ReqType::ZdbEnv].list.count_()) return;
     if (!m_zdbEnvFn) return;
     auto i = m_watchLists[ReqType::ZdbEnv].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       // these callbacks can execute async
       m_zdbEnvFn(
 	ZmFn<IOBuilder &, Zfb::Offset<fbs::ZdbEnv>>{ZmMkRef(watch->link),
@@ -1069,7 +1069,7 @@ private:
     ZvTelemetry::App data;
     app()->telemetry(data);
     auto i = m_watchLists[ReqType::App].list.readIterator();
-    while (auto watch = i.iterateNode()) {
+    while (auto watch = i.iterate()) {
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData_App, ZfbField::saveUpdate(m_fbb, data).Union()));
       watch->link->send(ZvCmd::saveHdr(m_fbb, ZvCmd::Type::telemetry()));
@@ -1150,7 +1150,7 @@ private:
     // dequeue all alerts in-memory, send to all watchers
     while (ZmRef<IOBuf> buf = m_alertRing.shift()) {
       auto i = m_watchLists[ReqType::Alert].list.readIterator();
-      while (auto watch = i.iterateNode()) watch->link->send(buf);
+      while (auto watch = i.iterate()) watch->link->send(buf);
     }
   }
 

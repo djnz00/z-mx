@@ -449,7 +449,7 @@ public:
   using Mx = ZvMultiplex;
   using Gap = ZvIOQueue::Gap;
 
-  ZvTx(ZuID id) : Base(id) { }
+  ZvTx(ZuID id) : Base{id} { }
   
   void init(ZvEngine *engine) { Base::init(engine); }
 
@@ -495,7 +495,7 @@ public:
   using Tx_ = ZmPQTx<Impl, ZvIOQueue, ZmNoLock>;
   using Tx = ZvIOQueueTxPool<Impl>;
 
-  ZvTxPool(ZuID id) : Base(id) { }
+  ZvTxPool(ZuID id) : Base{id} { }
 
   const ZvIOQueue *txQueue() const { return ZvIOQueueTxPool<Impl>::txQueue(); }
   ZvIOQueue *txQueue() { return ZvIOQueueTxPool<Impl>::txQueue(); }
@@ -582,7 +582,7 @@ public:
   const Tx *tx() const { return static_cast<const Tx *>(this); }
   Tx *tx() { return static_cast<Tx *>(this); }
 
-  ZvLink(ZuID id) : Base(id) { }
+  ZvLink(ZuID id) : Base{id} { }
 
   void init(ZvEngine *engine) { Base::init(engine); }
 
