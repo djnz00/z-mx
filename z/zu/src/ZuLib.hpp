@@ -706,6 +706,10 @@ template <typename U, typename R = void>
 using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
 
 // generic invocation
+// ZuInvoke<Fn>(this, args...) invokes one of:
+//   (this->*Fn)(args...)	// member function
+//   Fn(this, args...)		// bound function (passing this explicitly)
+//   Fn(args)			// unbound function (discarding this)
 
 template <auto Fn, typename O, typename Args, typename = void>
 struct ZuInvoke_MemberFn_;

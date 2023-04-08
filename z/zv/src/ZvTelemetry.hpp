@@ -465,7 +465,7 @@ ZfbFields(ZdbHost, fbs::ZdbHost,
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence: 
-//   self, master, prev, next, state, active, recovering, replicating,
+//   self, leader, prev, next, state, active, recovering, replicating,
 //   nDBs, nHosts, nPeers, nCxns,
 //   thread, fileThread,
 //   heartbeatFreq, heartbeatTimeout, reconnectFreq, electionTimeout
@@ -473,7 +473,7 @@ struct ZdbEnv {
   ZmThreadName	thread;
   ZmThreadName	fileThread;
   ZuID		self;			// primary key - host ID 
-  ZuID		master;			// host ID
+  ZuID		leader;			// host ID
   ZuID		prev;			// ''
   ZuID		next;			// ''
   uint32_t	nCxns = 0;
@@ -496,7 +496,7 @@ struct ZdbEnv {
 };
 ZfbFields(ZdbEnv, fbs::ZdbEnv,
     (((self)), (ID), (Ctor(2))),
-    (((master)), (ID), (Ctor(3), Update)),
+    (((leader)), (ID), (Ctor(3), Update)),
     (((prev)), (ID), (Ctor(4), Update)),
     (((next)), (ID), (Ctor(5), Update)),
     (((state)), (Enum, ZdbHostState::Map), (Ctor(14), Update, Series)),

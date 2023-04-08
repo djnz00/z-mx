@@ -983,7 +983,7 @@ ZmRef<Buf> DB::repBuf(RN rn)
     return saveHdr(fbb, this);
   }
   // recover from object cache (without falling through to reading from disk)
-  if (auto object = m_objCache.findSync<false>(rn))
+  if (auto object = m_objCache.find(rn))
     return object->replicate(fbs::Body_Rec);
   return nullptr;
 }
@@ -1511,7 +1511,7 @@ bool DB::recover(File *file)
   if (!file->allocated()) return true;
   if (file->deleted() >= fileRecs()) { delFile(file); return true; }
   RN rn = (file->id())<<fileShift();
-  ZmRef<IndexBlk> blk;
+  IndexBlk *blk = nullptr;
   int first = file->first();
   if (ZuUnlikely(first < 0)) return true;
   int last = file->last();
@@ -1898,6 +1898,23 @@ bool DB::open()
   return true;
 }
 
+template <bool Create>
+File *DB::getFile(uint64_t id)
+{
+  ZmAssert(fileInvoked());
+
+  File *file = nullptr;
+  m_files.find(id,
+    [&file](File *file_) { file = file_; },
+    [this]<typename L>(uint64_t id, L l) {
+      File *file = openFile<Create>(id);
+      if (ZuUnlikely(!file)) { l(nullptr); return; }
+      if (id > m_lastFile) m_lastFile = id;
+      l(file);
+    }, [](File *file) { file->sync(); });
+  return file;
+}
+
 void DB::close()
 {
   ZmAssert(invoked());
@@ -1939,6 +1956,8 @@ bool DB::checkpoint()
     auto fileID = (blk->id)>>(fileShift() - indexShift());
     if (File *file = getFile<true>(fileID))
       ok = ok && file->writeIndexBlk(blk);
+    else
+      ok = false;
   });
   m_files.all([&ok](File *file) mutable { ok = ok && file->sync_(); });
   return ok;
@@ -2088,33 +2107,24 @@ File *DB::openFile(uint64_t id)
 }
 
 template <bool Create>
-File *DB::getFile(uint64_t id)
+IndexBlk *DB::getIndexBlk(File *file, uint64_t id)
 {
   ZmAssert(fileInvoked());
 
-  return m_files.findSync(id, [this](uint64_t id) -> File * {
-    File *file = openFile<Create>(id);
-    if (ZuUnlikely(!file)) return nullptr;
-    if (id > m_lastFile) m_lastFile = id;
-    return file;
-  }, [](ZmRef<File> file) { file->sync(); });
-}
-
-template <bool Create>
-ZmRef<IndexBlk> DB::getIndexBlk(File *file, uint64_t id)
-{
-  ZmAssert(fileInvoked());
-
-  return m_indexBlks.findSync(id, [file](uint64_t id) -> IndexBlk * {
-    if constexpr (Create)
-      return file->writeIndexBlk(id);
-    else
-      return file->readIndexBlk(id);
-  }, [this](IndexBlk *indexBlk) {
-    auto fileID = (indexBlk->id)>>(fileShift() - indexShift());
-    if (File *file = getFile<Create>(fileID))
-      file->writeIndexBlk(indexBlk);
-  });
+  IndexBlk *blk;
+  m_indexBlks.find(id,
+    [&blk](IndexBlk *blk_) { blk = blk_; },
+    [file]<typename L>(uint64_t id, L l) {
+      if constexpr (Create)
+	l(file->writeIndexBlk(id));
+      else
+	l(file->readIndexBlk(id));
+    }, [this](IndexBlk *blk) {
+      auto fileID = (blk->id)>>(fileShift() - indexShift());
+      if (File *file = getFile<Create>(fileID))
+	file->writeIndexBlk(blk);
+    });
+  return blk;
 }
 
 // creates/caches file and index block as needed
@@ -2124,11 +2134,11 @@ FileRec DB::rn2file(RN rn)
   ZmAssert(fileInvoked());
 
   uint64_t fileID = rn>>fileShift();
-  ZmRef<File> file = getFile<Write>(fileID);
+  File *file = getFile<Write>(fileID);
   if (!file) return {};
   if constexpr (!Write) if (!file->exists(rn & fileRecMask())) return {};
   uint64_t indexBlkID = rn>>indexShift();
-  ZmRef<IndexBlk> indexBlk = getIndexBlk<Write>(file, indexBlkID);
+  IndexBlk *indexBlk = getIndexBlk<Write>(file, indexBlkID);
   if (!indexBlk) return {};
   auto indexOff = static_cast<unsigned>(rn & indexMask());
   return {ZuMv(file), ZuMv(indexBlk), indexOff};

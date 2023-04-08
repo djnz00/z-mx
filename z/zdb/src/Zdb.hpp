@@ -347,6 +347,13 @@ inline const T *data_(const fbs::Record *record) {
   return Zfb::GetRoot<T>(data.data());
 }
 
+// -- pre-declarations
+
+class DB;	// database
+class Env;	// database environment
+class Host;	// cluster host
+class Cxn_;	// network connection
+
 // -- file index block cache
 
 class File_;
@@ -476,7 +483,7 @@ IndexBlk_::IndexBlk_(uint64_t id_, uint64_t offset_, File_ *file, bool &ok) :
   id{id_}, offset{offset_}
 {
   ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
-  ok = file->readIndexBlk(this);
+  ok = file->readIndexBlk(static_cast<IndexBlk *>(this));
 }
 
 // -- on-disk record - file, indexBlk, RN offset within index block
@@ -518,9 +525,9 @@ inline constexpr unsigned BuiltinSize() {
   // IOBufOverhead - ZiIOBuf overhead
   enum { IOBufOverhead = sizeof(ZiIOBuf<MinBufSz, Buf_HeapID>) - MinBufSz };
   // HeapOverhead - Heap overhead - assumed to be sizeof(uintptr_t)
-  enum { HeapOverhead = sizeof(uintptr_t); }
+  enum { HeapOverhead = sizeof(uintptr_t) };
   // HashOverhead - ZmHash node overhead - assumed to be sizeof(uintptr_t)
-  enum { HashOverhead = sizeof(uintptr_t); }
+  enum { HashOverhead = sizeof(uintptr_t) };
   // TotalOverhead - total buffer overhead
   enum { Overhead = IOBufOverhead + HeapOverhead + HashOverhead };
   // round up overhead to cache line size, multiply by 4,
@@ -568,11 +575,6 @@ inline RN VBuf_RNAxor(const VBuf &buf) {
 }
 ZuAssert(!((sizeof(Buf) + sizeof(uintptr_t)) & (Zm::CacheLineSize - 1)));
 using IOBuilder = Zfb::IOBuilder<Buf>;
-
-class DB;
-class Env;
-class Host;
-class Cxn_;
 
 // -- main replication connection class
 

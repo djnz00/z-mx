@@ -193,7 +193,7 @@ enum ZdbHostState:int8 {
   Stopped,		// open() or stop() completed
   Electing,		// start() called, determining active/inactive
   Activating,		// activating application
-  Active,		// active (master)
+  Active,		// active (leader)
   Deactivating,		// deactivating application
   Inactive,		// inactive (client)
   Stopping		// stop() in process
@@ -210,7 +210,7 @@ table ZdbEnv {
   thread:string;
   file_thread:string;
   self:Zfb.ID;
-  master:Zfb.ID;
+  leader:Zfb.ID;
   prev:Zfb.ID;
   next:Zfb.ID;
   n_cxns:uint32;

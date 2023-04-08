@@ -190,12 +190,11 @@ public:
     if (!pending)
       loadFn(key, [this](NodeRef node) {
 	Guard guard{m_lock};
-	if (ZuLikely(node)) {
-	  add_(node);
-	  if (auto load = m_loadHash->del(node->key())) {
-	    guard.unlock();
-	    while (auto findFn = load->val().shiftVal()) findFn(node);
-	  }
+	if (ZuUnlikely(!node)) return;
+	add_(node);
+	if (auto load = m_loadHash->del(node->key())) {
+	  guard.unlock();
+	  while (auto findFn = load->val().shiftVal()) findFn(node);
 	}
       });
   }
@@ -209,7 +208,7 @@ public:
     if (NodeRef node = find_<UpdateLRU>(key)) { findFn(ZuMv(node)); return; }
     ++m_misses;
     typename LoadHash::Node *load = m_loadHash->find(key);
-    bool pending = !!load;
+    bool pending = load;
     if (!pending)
       m_loadHash->addNode(
 	  load = new typename LoadHash::Node{key, FindFnList{}});
@@ -218,12 +217,11 @@ public:
     if (!pending)
       loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
 	Guard guard{m_lock};
-	if (ZuLikely(node)) {
-	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
-	  if (auto load = m_loadHash->del(node->key())) {
-	    guard.unlock();
-	    while (auto findFn = load->val().shiftVal()) findFn(node);
-	  }
+	if (ZuUnlikely(!node)) return;
+	if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
+	if (auto load = m_loadHash->del(node->key())) {
+	  guard.unlock();
+	  while (auto findFn = load->val().shiftVal()) findFn(node);
 	}
       });
   }
