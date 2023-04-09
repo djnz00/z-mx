@@ -96,7 +96,7 @@ private:
 	  << ',' << data.name
 	  << ',' << data.index
 	  << ',' << data.tid
-	  << ',' << ZuBoxed(data.cpuUsage * 100.0).fmt(ZuFmt::FP<2>())
+	  << ',' << ZuBoxed(data.cpuUsage * 100.0).fp<2>()
 	  << ",\"" << ZmBitmap(data.cpuset) << '"'
 	  << ',' << ZuBoxed(data.priority)
 	  << ',' << data.sysPriority

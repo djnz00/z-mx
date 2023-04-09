@@ -21,8 +21,7 @@ void fail(const char *s, int64_t i) { print(s, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
-template <typename T>
-void describe(const T &w) {
+void describe(const Zdf::StatsTree<> &w) {
   std::cout << "iteration\n";
   for (auto i = w.begin(); i != w.end(); ++i)
     std::cout << i->first << ' ' << i->second << '\n';
@@ -36,9 +35,9 @@ void describe(const T &w) {
     "count=" << ZuBoxed(w.count()) <<
     " min=" << ZuBoxed(w.minimum()) <<
     " max=" << ZuBoxed(w.maximum()) <<
-    " mean=" << ZuBoxed(w.mean()) <<
-    " stddev=" << ZuBoxed(w.std()) <<
-    " median=" << ZuBoxed(w.median()) <<
+    " mean=" << ZuBoxed(w.mean()).fp<-8>() <<
+    " stddev=" << ZuBoxed(w.std()).fp<-8>() <<
+    " median=" << ZuBoxed(w.median()).fp<-8>() <<
     " 80%=" << ZuBoxed(w.rank(0.80)) <<
     " 95%=" << ZuBoxed(w.rank(0.95)) << "\n\n";
 }

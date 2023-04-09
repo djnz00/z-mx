@@ -350,8 +350,15 @@ public:
     return ZuBoxFmt<ZuBox, Fmt>{*this};
   }
   template <bool Upper = false, typename Fmt = ZuFmt::Default>
-  ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt> > hex() const {
-    return ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt> >{*this};
+  ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt>> hex() const {
+    return ZuBoxFmt<ZuBox, ZuFmt::Hex<Upper, Fmt>>{*this};
+  }
+  template <
+    int NDP = -ZuFmt::Default::NDP_,
+    char Trim = '\0',
+    typename Fmt = ZuFmt::Default>
+  ZuBoxFmt<ZuBox, ZuFmt::FP<NDP, Trim, Fmt>> fp() const {
+    return ZuBoxFmt<ZuBox, ZuFmt::FP<NDP, Trim, Fmt>>{*this};
   }
   // run-time formatting
   ZuBoxVFmt<ZuBox> vfmt() const {

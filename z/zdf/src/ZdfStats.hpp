@@ -65,20 +65,42 @@ public:
   }
 
   unsigned count() const { return m_count; }
-  double total() const { return m_total; }
+  double total() const { return fp(m_total); }
   double mean() const {
     if (ZuUnlikely(!m_count)) return 0.0;
-    return m_total / static_cast<double>(m_count);
+    return fp(m_total) / static_cast<double>(m_count);
   }
   double var() const {
     if (ZuUnlikely(!m_count)) return 0.0;
-    return m_var / static_cast<double>(m_count);
+    return (m_var / static_cast<double>(m_count)) / m_varMul;
   }
+  // Note: std() returns the population standard deviation, i.e.
+  // the equivalent of Excel's STDEVP(); by contrast, Excel's STDEV() uses
+  // the n-1 formula intended for statistical sampling - this
+  // implementation performs a running calculation on an entire series
   double std() const { return sqrt(var()); }
   unsigned exponent() const { return m_exponent; }
 
-  void exponent(unsigned exp) {
-    m_exponent = exp;
+  void exponent(unsigned newExp) {
+    auto exp = m_exponent;
+    if (ZuUnlikely(newExp != exp)) {
+      if (m_count) {
+	if (newExp > exp) {
+	  auto m = ZuDecimalFn::pow10_64(newExp - exp);
+	  m_total *= m;
+	  auto m_ = static_cast<double>(m);
+	  m_var *= (m_ * m_);
+	} else {
+	  auto m = ZuDecimalFn::pow10_64(exp - newExp);
+	  m_total /= m;
+	  auto m_ = static_cast<double>(m);
+	  m_var /= (m_ * m_);
+	}
+      }
+    }
+    m_exponent = newExp;
+    auto m = static_cast<double>(ZuDecimalFn::pow10_64(newExp));
+    m_varMul = m * m;
   }
 
   void add(const ZuFixed &v) {
@@ -87,14 +109,15 @@ public:
   }
 protected:
   void add_(ZuFixedVal v_) {
-    auto v = fp(v_);
     if (!m_count) {
-      m_total = v;
+      m_total = v_;
     } else {
       double n = m_count;
-      auto prev = m_total / n;
-      auto mean = (m_total += v) / (n + 1.0);
+      auto prev = static_cast<double>(m_total) / n;
+      auto mean = static_cast<double>(m_total += v_) / (n + 1.0);
+      auto v = static_cast<double>(v_);
       m_var += (v - prev) * (v - mean);
+	// ZuFixed{fp(m_var) + (v - prev) * (v - mean), m_exponent}.mantissa();
     }
     ++m_count;
   }
@@ -105,33 +128,36 @@ public:
   }
 protected:
   void del_(ZuFixedVal v_) {
-    auto v = fp(v_);
+    std::cout << "del_(" << ZuBoxed(v_) << ")\n";
     if (ZuUnlikely(!m_count)) return;
     if (m_count == 1) {
-      m_total = 0.0;
+      m_total = 0;
     } else if (m_count == 2) {
-      m_total -= v;
+      m_total -= v_;
       m_var = 0.0;
     } else {
       double n = m_count;
-      auto prev = m_total / n;
-      auto mean = (m_total -= v) / (n - 1.0);
+      auto prev = static_cast<double>(m_total) / n;
+      auto mean = static_cast<double>(m_total -= v_) / (n - 1.0);
+      auto v = static_cast<double>(v_);
       m_var -= (v - prev) * (v - mean);
+	// ZuFixed{fp(m_var) - (v - prev) * (v - mean), m_exponent}.mantissa();
     }
     --m_count;
   }
 
   void clean() {
     m_count = 0;
-    m_total = 0.0;
+    m_total = 0;
     m_var = 0.0;
   }
 
 private:
   unsigned	m_count = 0;
-  double	m_total = 0.0;
+  ZuFixedVal	m_total = 0;
   double	m_var = 0.0;	// accumulated variance
   unsigned	m_exponent = 0;
+  double	m_varMul = 1.0;
 };
 
 // NTP defaults
