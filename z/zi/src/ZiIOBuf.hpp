@@ -218,7 +218,7 @@ public:
     if (ZuLikely(skip >= length_)) {
       skip -= length_;
       length += length_;
-      return data() + skip;
+      return data();
     }
     auto newSize = length + length_;
     if (ZuLikely(newSize <= Size)) {

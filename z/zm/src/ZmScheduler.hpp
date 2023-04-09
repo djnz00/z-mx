@@ -476,7 +476,7 @@ private:
     OverRing		overRing;	// fallback overflow ring
   };
 
-  ZuInline void wake(Thread *thread) { (thread->wakeFn)(); }
+  void wake(Thread *thread) { (thread->wakeFn)(); }
 
   void timer();
   bool timerAdd(Fn &fn);

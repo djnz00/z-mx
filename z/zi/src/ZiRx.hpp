@@ -231,7 +231,7 @@ public:
     while (len) {
       // scan header
       int frameLen = ZuInvoke<Hdr>(impl(buf), buf);
-      if (ZuUnlikely(frameLen < 0)) return -1;
+      if (ZuUnlikely(frameLen < 0)) return frameLen;
       if (len < static_cast<unsigned>(frameLen)) {
 	buf->ensure(frameLen);
 	return 0;
@@ -239,8 +239,8 @@ public:
 
       // process body
       frameLen = ZuInvoke<Body>(impl(buf), buf.ptr(), frameLen);
-      if (ZuUnlikely(frameLen < 0)) return -1; // error
-      if (!frameLen) return rxLen; // EOF - discard remainder
+      if (ZuUnlikely(frameLen < 0)) return frameLen; // error
+      if (ZuUnlikely(!frameLen)) return rxLen; // EOF - discard remainder
 
       // skip to next msg
       buf->skip += frameLen;

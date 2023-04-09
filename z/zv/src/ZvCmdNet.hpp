@@ -97,7 +97,7 @@ inline int verifyHdr(const Buf *buf, Fn fn) {
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
   int i = fn(hdr, buf);
-  if (i < 0) return i;
+  if (i <= 0) return i;
   return sizeof(Hdr) + i;
 }
 

@@ -2211,7 +2211,7 @@ void ZiMultiplex::wake()
 
 void ZiMultiplex::wakeRx()
 {
-  push(rxThread(), [this]() { rx(); });
+  if (running()) push(rxThread(), [this]() { rx(); });
   wake();
 }
 

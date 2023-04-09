@@ -204,15 +204,15 @@ private:
 
 private:
   int loadBody(const IOBuf *buf, unsigned) {
-    return ZvCmd::verifyHdr(buf,
-	[this](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
+    return ZvCmd::verifyHdr(buf, [](const ZvCmd::Hdr *hdr, const IOBuf *buf) {
+      auto this_ = static_cast<ZvCmdSrvLink *>(buf->owner);
       auto type = hdr->type;
-      if (ZuUnlikely(m_state == State::Login)) {
+      if (ZuUnlikely(this_->m_state == State::Login)) {
 	if (type != ZvCmd::Type::login()) return -1;
-	return processLogin(buf->data(), buf->length);
+	return this_->processLogin(hdr->data(), hdr->length);
       }
-      return this->app()->dispatch(
-	  type, impl(), buf->data(), buf->length);
+      return this_->app()->dispatch(
+	  type, this_->impl(), hdr->data(), hdr->length);
     });
   }
 

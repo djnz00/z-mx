@@ -161,16 +161,13 @@ namespace Save {
     return r;
   }
 
-  // inline creation of a vector of lambda-transformed offsets
-  template <typename T, typename B, typename L, typename ...Args>
-  inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
-    auto buf = ZmAlloc(Offset<T>, n);
-    if (!buf) return {};
-    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
-    return r;
-  }
+  // Note: CreateUninitializedVector() cannot be used for vectors
+  // of offsets. flatbuffers offsets are always unsigned and positive,
+  // and the vector must therefore be lower in memory than the referenced
+  // entities. Since flatbuffers are written downwards in memory, the
+  // vector must be written following the entities, and the offsets
+  // collected in a temporary buffer while they are being written.
+
   // inline creation of a vector of offsets
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
@@ -178,6 +175,16 @@ namespace Save {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
+    return r;
+  }
+  // inline creation of a vector of lambda-transformed offsets
+  template <typename T, typename B, typename L, typename ...Args>
+  inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
+    auto n = ZuConstant<sizeof...(Args)>{};
+    auto buf = ZmAlloc(Offset<T>, n);
+    if (!buf) return {};
+    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
@@ -207,6 +214,16 @@ namespace Save {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
+    return r;
+  }
+  // inline creation of a vector of lambda-transformed keyed offsets
+  template <typename T, typename B, typename L, typename ...Args>
+  inline Offset<Vector<Offset<T>>> lkeyVec(B &b, L l, Args &&... args) {
+    auto n = ZuConstant<sizeof...(Args)>{};
+    auto buf = ZmAlloc(Offset<T>, n);
+    if (!buf) return {};
+    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
