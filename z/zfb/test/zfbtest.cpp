@@ -31,7 +31,7 @@ namespace zfbtest {
     (((foo)), (Int), (Ctor(0))),
     (((bar)), (String), (Ctor(1))),
     (((kvTree, Lambda,
-      ([](const Test &test) { return KVTreeGet{[test]<typename B>(B &b) {
+      ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
 	using namespace Zfb::Save;
 	return kvTree(b, vector<KV>(b,
 	      kvNested(b, "key1", vector<KV>(b,
@@ -39,7 +39,7 @@ namespace zfbtest {
 	      kvNested(b, "key2", vector<KV>(b,
 		  kvUInt8Vec(b, "nested_key2",
 		    bytes(b, test.zero, test.n))))));
-      }, [test]<typename S>(S &s) {
+      }, [&test]<typename S>(S &s) {
 	s << "key1={nested_key1=nested_value} key2={nested_key2={"
 	  << ZuBoxPtr(test.zero).hex() << "[" << test.n << "]}}";
       }}; }),
@@ -81,6 +81,7 @@ void build(IOBuilder &fbb, unsigned n)
     int len = Detach ? buf->length : fbb.GetSize();
     uint32_t len_ = *reinterpret_cast<ZuLittleEndian<uint32_t> *>(ptr);
     uint32_t type_ = *reinterpret_cast<ZuLittleEndian<uint32_t> *>(ptr + 4);
+    std::cout << ZtHexDump(ZtString{} << ZuBoxPtr(ptr).hex(), ptr, len);
     auto test = zfbtest::fbs::GetTest(ptr + 8);
     auto kvTree = test->kvTree();
     auto kv = kvTree->items()->Get(1);

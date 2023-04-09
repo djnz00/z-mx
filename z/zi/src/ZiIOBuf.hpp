@@ -96,7 +96,7 @@ public:
   ZiIOVBuf(const ZiIOVBuf &buf) : owner{buf.owner} {
     if (auto data = alloc(buf.length)) {
       skip = buf.skip;
-      memcpy(data + skip, buf.data() + skip, (length = buf.length) - skip);
+      memcpy(data + skip, buf.data() + skip, length = buf.length);
     }
   }
   ZiIOVBuf &operator =(const ZiIOVBuf &buf) {
@@ -115,7 +115,7 @@ public:
       buf.jumbo = nullptr;
       buf.skip = 0;
     } else {
-      memcpy(data_ + skip, buf.data_ + skip, length - skip);
+      memcpy(data_ + skip, buf.data_ + skip, length);
     }
   }
   ZiIOVBuf &operator =(ZiIOVBuf &&buf) {
@@ -214,17 +214,19 @@ public:
 
   template <auto Grow = ZmGrow>
   uint8_t *prepend(unsigned length_) {
-    ZmAssert(size == length);
+    ZmAssert(size == skip + length);
     if (ZuLikely(skip >= length_)) {
       skip -= length_;
+      length += length_;
       return data() + skip;
     }
     auto newSize = length + length_;
     if (ZuLikely(newSize <= Size)) {
       auto newSkip = skip + (Size - size);
-      memmove(data_ + newSkip + length_, data_ + skip, length - skip);
-      length = size = Size;
-      skip = newSkip;
+      if (length) memmove(data_ + newSkip, data_ + skip, length);
+      size = Size;
+      skip = newSkip - length_;
+      length += length_;
       return data_ + skip;
     }
     newSize = Grow(size, newSize);
@@ -232,9 +234,10 @@ public:
     jumbo = static_cast<uint8_t *>(valloc(newSize));
     if (ZuUnlikely(!jumbo)) return nullptr;
     auto newSkip = skip + (newSize - size);
-    if (length) memcpy(jumbo + newSkip + length_, old + skip, length - skip);
-    length = size = newSize;
-    skip = newSkip;
+    if (length) memcpy(jumbo + newSkip, old + skip, length);
+    size = newSize;
+    skip = newSkip - length_;
+    length += length_;
     if (ZuUnlikely(old != data_)) vfree(old);
     return jumbo + skip;
   }

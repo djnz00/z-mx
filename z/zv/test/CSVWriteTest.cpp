@@ -50,7 +50,7 @@ ZtFields(Row,
     (((mabbit)), (Time), (Ctor(6))), 
     (((flags)), (Flags, DaFlags::Map), (Ctor(7))));
 
-using CSVWrite = ZmList<Row>;
+using CSVWrite = ZmList<Row, ZmListNode<ZuObject>>;
 
 int main()
 {

@@ -127,12 +127,12 @@ namespace Save {
   }
 
   // compile-time-recursive vector push, with a lambda map function
-  template <typename T, typename I, typename L>
-  inline void lpush_(T *, I, L &) { }
-  template <typename T, typename I, typename L, typename Arg0, typename ...Args>
-  inline void lpush_(T *buf, I i, L &l, Arg0 &&arg0, Args &&... args) {
+  template <typename T, typename L, typename I>
+  inline void lpush_(T *, L, I) { }
+  template <typename T, typename L, typename I, typename Arg0, typename ...Args>
+  inline void lpush_(T *buf, L l, I i, Arg0 &&arg0, Args &&... args) {
     buf[i] = l(ZuFwd<Arg0>(arg0));
-    lpush_(buf, ZuConstant<i + 1>{}, l, ZuFwd<Args>(args)...);
+    lpush_(buf, ZuMv(l), ZuConstant<i + 1>{}, ZuFwd<Args>(args)...);
   }
 
   // push uninitialized vector
@@ -161,33 +161,33 @@ namespace Save {
     return r;
   }
 
-  // inline creation of a vector of lambda-transformed non-primitive values
+  // inline creation of a vector of lambda-transformed offsets
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    Offset<T> *buf = nullptr;
-    auto r = pvector_(b, n, buf);
-    if (r.IsNull() || !buf) return {};
-    lpush_(buf, ZuConstant<0>{}, l, ZuFwd<Args>(args)...);
+    auto buf = ZmAlloc(Offset<T>, n);
+    if (!buf) return {};
+    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
-  // inline creation of a vector of non-primitive values
+  // inline creation of a vector of offsets
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
-    Offset<T> *buf = nullptr;
-    auto r = pvector_(b, n, buf);
-    if (r.IsNull() || !buf) return {};
-    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto buf = ZmAlloc(Offset<T>, n);
+    if (!buf) return {};
+    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
-  // iterated creation of a vector of non-primitive values
+  // iterated creation of a vector of offsets
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
-    Offset<T> *buf = nullptr;
-    auto r = pvector_(b, n, buf);
-    if (r.IsNull() || !buf) return {};
-    for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
+    auto buf = ZmAlloc(Offset<T>, n);
+    if (!buf) return {};
+    for (unsigned i = 0; i < n; i++) buf.ptr[i] = l(b, i);
+    auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
 
@@ -200,7 +200,7 @@ namespace Save {
     }, static_cast<void *>(nullptr));
   }
 
-  // inline creation of a vector of keyed items
+  // inline creation of a vector of keyed offsets
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
     auto n = ZuConstant<sizeof...(Args)>{};
@@ -210,7 +210,7 @@ namespace Save {
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
-  // iterated creation of a vector of lambda-transformed keyed items
+  // iterated creation of a vector of lambda-transformed keyed offsets
   template <typename T, typename B, typename L>
   inline Offset<Vector<Offset<T>>> keyVecIter(B &b, unsigned n, L l) {
     auto buf = ZmAlloc(Offset<T>, n);

@@ -20,7 +20,7 @@
 // byte swap utility class
 
 // Example:
-// using UInt32N = typename ZuBigEndian<ZuBox0(uint32_t)>::T;
+// using UInt32N = typename ZuBigEndian<ZuBox0(uint32_t)>;
 // #pragma pack(push, 1)
 // struct Hdr {
 //   ...
