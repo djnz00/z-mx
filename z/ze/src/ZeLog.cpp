@@ -175,11 +175,11 @@ static ZeLog_Buf *logBuf(int tzOffset)
 
 void ZeFileSink::init()
 {
-  if (!m_filename) m_filename << ZeLog::program() << ".log";
+  if (!m_path) m_path << ZeLog::program() << ".log";
 
-  if (m_filename != "&2") {
+  if (m_path != "&2") {
     age_();
-    m_file = fopen(m_filename, "w");
+    m_file = fopen(m_path, "w");
   }
 
   if (!m_file)
@@ -233,24 +233,24 @@ void ZeFileSink::age()
 
   fclose(m_file);
   age_();
-  m_file = fopen(m_filename, "w");
+  m_file = fopen(m_path, "w");
 }
 
 void ZeFileSink::age_()
 {
-  unsigned size = m_filename.length() + ZuBoxed(m_age).length() + 4;
+  unsigned size = m_path.length() + ZuBoxed(m_age).length() + 4;
 
   ZtString prevName_(size), nextName_(size), sideName_(size);
   ZtString *prevName = &prevName_;
   ZtString *nextName = &nextName_;
   ZtString *sideName = &sideName_;
 
-  *prevName << m_filename;
+  *prevName << m_path;
   bool last = false;
   unsigned i;
   for (i = 0; i < m_age && !last; i++) {
     nextName->length(0);
-    *nextName << m_filename << '.' << ZuBoxed(i + 1);
+    *nextName << m_path << '.' << ZuBoxed(i + 1);
     sideName->length(0);
     *sideName << *nextName << '_';
     last = (::rename(*nextName, *sideName) < 0);
@@ -264,9 +264,9 @@ void ZeFileSink::age_()
 
 void ZeDebugSink::init()
 {
-  m_filename << ZeLog::program() << ".log." << ZuBoxed(Zm::getPID());
+  m_path << ZeLog::program() << ".log." << ZuBoxed(Zm::getPID());
 
-  if (m_filename != "&2") m_file = fopen(m_filename, "w");
+  if (m_path != "&2") m_file = fopen(m_path, "w");
 
   if (!m_file)
     m_file = stderr;

@@ -44,20 +44,6 @@
 #include <zlib/ZrlGlobber.hpp>
 #include <zlib/ZrlHistory.hpp>
 
-#ifdef _WIN32
-#include <io.h>		// for _isatty
-#ifndef isatty
-#define isatty _isatty
-#endif
-#ifndef fileno
-#define fileno _fileno
-#endif
-#else
-#include <termios.h>
-#include <unistd.h>	// for isatty
-#include <fcntl.h>
-#endif
-
 #ifdef _MSC_VER
 #pragma warning(disable:4800)
 #endif
@@ -367,19 +353,25 @@ private:
   void exec(ZtString cmd) {
     if (!cmd) return;
     ZtString cmd_ = ZuMv(cmd);
-    ZvCmdContext ctx{.app_ = this, .link_ = m_link};
+    ZvCmdContext ctx{
+      .app_ = this,
+      .link_ = m_link,
+      .interactive = m_interactive
+    };
     {
       ZtRegex::Captures c;
       unsigned pos = 0, n = 0;
       if (n = ZtREGEX("\s*>>\s*").m(cmd, c, pos)) {
-	if (!(ctx.file = fopen(c[2], "a"))) {
-	  logError(ZtString{c[2]}, ": ", ZeLastError);
+	ZtString path{c[2]};
+	if (!(ctx.file = fopen(path, "a"))) {
+	  logError(path, ": ", ZeLastError);
 	  return;
 	}
 	cmd = c[0];
       } else if (n = ZtREGEX("\s*>\s*").m(cmd, c, pos)) {
-	if (!(ctx.file = fopen(c[2], "w"))) {
-	  logError(ZtString{c[2]}, ": ", ZeLastError);
+	ZtString path{c[2]};
+	if (!(ctx.file = fopen(path, "w"))) {
+	  logError(path, ": ", ZeLastError);
 	  return;
 	}
 	cmd = c[0];
@@ -400,14 +392,14 @@ private:
 	fwrite(out.data(), 1, out.length(), ctx.file);
       } else if (args.length() == 2 && hasCmd(args[1])) {
 	int code = processCmd(&ctx, args);
-	if (code || ctx.out) executed(code, &ctx);
+	executed(code, &ctx);
 	return;
       }
     } else if (args[0] == "remote") {
       args.shift();
     } else if (hasCmd(args[0])) {
       int code = processCmd(&ctx, args);
-      if (code || ctx.out) executed(code, &ctx);
+      executed(code, &ctx);
       return;
     }
     send(&ctx, args);
@@ -438,7 +430,7 @@ private:
     if (ctx->file != stdout) { fclose(ctx->file); ctx->file = stdout; }
     m_code = ctx->code;
     m_executed.post();
-    return ctx->code;
+    return m_code;
   }
 
 private:
@@ -1481,7 +1473,7 @@ int main(int argc, char **argv)
 	[](ZeEvent *e) { std::cerr << e->message() << '\n' << std::flush; }));
   ZeLog::start();
 
-  bool interactive = isatty(fileno(stdin));
+  bool interactive = Zrl::interactive();
   ZuString keyID = ::getenv("ZCMD_KEY_ID");
   ZuString secret = ::getenv("ZCMD_KEY_SECRET");
   ZtString user, server;

@@ -17,11 +17,11 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// compile-time functor (callable object) traits
+// compile-time callable traits
 //
-// - relies on decltype(&operator()) to deduce function call operator signature
-// - will not work with templated function call operators (e.g. generic lambdas)
-// - if needed, a wrapper lambda can instantiate the template member function:
+// - relies on decltype(&operator()) to deduce function call signature
+// - will not work with templated function call operators (generic lambdas)
+// - workaround: a wrapper lambda can instantiate the template member function:
 // auto generic = []<typename T>(T v) { std::cout << v << '\n' << std::flush; };
 // auto wrapper = [&generic](int v) { generic(v); };
 
@@ -88,9 +88,9 @@ public:
 };
 
 template <typename R1, typename R2, typename Args1, typename Args2>
-struct ZuFunctorMatch_ { enum { OK = 0 }; };
+struct ZuFnMatch_ { enum { OK = 0 }; };
 template <typename R, typename Args>
-struct ZuFunctorMatch_<R, R, Args, Args> { enum { OK = 1 }; };
+struct ZuFnMatch_<R, R, Args, Args> { enum { OK = 1 }; };
 
 template <typename R_, typename L_, typename ...Args_>
 struct ZuFnTraits_2 : public ZuFnTraits_3<
@@ -102,21 +102,21 @@ struct ZuFnTraits_2 : public ZuFnTraits_3<
   typedef R (*Fn)(Args_...);
   template <typename R__, typename ...Args__>
   struct Match :
-      public ZuFunctorMatch_<R, R__, Args, ZuTypeList<Args__...>> { };
+      public ZuFnMatch_<R, R__, Args, ZuTypeList<Args__...>> { };
 };
 
 template <auto> struct ZuFnTraits_1;
 template <typename R, typename L, typename ...Args, R (L::*Fn)(Args...) const>
 struct ZuFnTraits_1<Fn> : public ZuFnTraits_2<R, L, Args...> {
-  enum { IsFunctor = 1, IsMutable = 0 };
+  enum { IsCallable = 1, IsMutable = 0 };
 };
 template <typename R, typename L, typename ...Args, R (L::*Fn)(Args...)>
 struct ZuFnTraits_1<Fn> : public ZuFnTraits_2<R, L, Args...> {
-  enum { IsFunctor = 1, IsMutable = 1 };
+  enum { IsCallable = 1, IsMutable = 1 };
 };
 template <typename L, typename = void>
 struct ZuFnTraits {
-  enum { IsFunctor = 0, IsMutable = 0, IsStateless = 0 };
+  enum { IsCallable = 0, IsMutable = 0, IsStateless = 0 };
 };
 template <typename L>
 struct ZuFnTraits<L, decltype(&L::operator(), void())> :
@@ -124,15 +124,15 @@ struct ZuFnTraits<L, decltype(&L::operator(), void())> :
 
 template <typename L, typename T = void>
 using ZuIsMutable =
-  ZuIfT<ZuFnTraits<L>::IsFunctor && ZuFnTraits<L>::IsMutable, T>;
+  ZuIfT<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsMutable, T>;
 template <typename L, typename T = void>
 using ZuNotMutable =
-  ZuIfT<ZuFnTraits<L>::IsFunctor && !ZuFnTraits<L>::IsMutable, T>;
+  ZuIfT<ZuFnTraits<L>::IsCallable && !ZuFnTraits<L>::IsMutable, T>;
 template <typename L, typename T = void>
 using ZuIsStateless =
-  ZuIfT<ZuFnTraits<L>::IsFunctor && ZuFnTraits<L>::IsStateless, T>;
+  ZuIfT<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsStateless, T>;
 template <typename L, typename T = void>
 using ZuNotStateless =
-  ZuIfT<ZuFnTraits<L>::IsFunctor && !ZuFnTraits<L>::IsStateless, T>;
+  ZuIfT<ZuFnTraits<L>::IsCallable && !ZuFnTraits<L>::IsStateless, T>;
 
 #endif /* ZuFnTraits_HPP */

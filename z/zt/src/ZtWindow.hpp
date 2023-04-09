@@ -49,6 +49,39 @@ public:
     m_data = {};
   }
 
+  class ElemRO {
+  public:
+    ElemRO(const ZtWindow &window, int index) :
+	m_window{window}, m_index{index} { }
+
+    operator const T *() const {
+      if (ZuUnlikely(m_index < 0)) return nullptr;
+      return m_window.val(m_index);
+    }
+    T *operator ->() const {
+      if (ZuUnlikely(m_index < 0)) return nullptr;
+      return m_window.val(m_index);
+    }
+
+  protected:
+    const ZtWindow	&m_window;
+    int			m_index;
+  };
+  class Elem : public ElemRO {
+    using ElemRO::m_window;
+    using ElemRO::m_index;
+  public:
+    Elem(const ZtWindow &window, unsigned index) : ElemRO{window, index} { }
+
+    Elem &operator =(T v) {
+      if (ZuUnlikely(m_index < 0)) return *this;
+      const_cast<ZtWindow &>(m_window).set(m_index, ZuMv(v));
+      return *this;
+    }
+  };
+  ElemRO operator [](int i) const { return {this, i}; }
+  Elem operator [](int i) { return {this, i}; }
+
   void set(unsigned i, T v) {
     if (i < m_offset) return;
     if (i >= m_offset + m_max) {

@@ -46,7 +46,8 @@ inline unsigned ZmGrow(unsigned o, unsigned n)
   if (ZuUnlikely(o >= n)) return o;
   n += sizeof(uintptr_t);
   unsigned i = 64 - __builtin_clzll(n);
-  if (ZuUnlikely(i >= 17)) return n - sizeof(uintptr_t);
+  if (ZuUnlikely(i >= 17))
+    return ((n + 0xffffU) & ~0xffffU) - sizeof(uintptr_t);
   return ZuSwitch::dispatch<17>(i, [](auto i) {
     return static_cast<unsigned>(ZmHeapAllocSize<(1<<i)>::N);
   }) - sizeof(uintptr_t);

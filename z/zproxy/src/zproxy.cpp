@@ -46,18 +46,6 @@
 #include <zlib/ZrlGlobber.hpp>
 #include <zlib/ZrlHistory.hpp>
 
-#ifdef _WIN32
-#include <io.h>		// for _isatty
-#ifndef isatty
-#define isatty _isatty
-#endif
-#ifndef fileno
-#define fileno _fileno
-#endif
-#else
-#include <unistd.h>	// for isatty
-#endif
-
 class IOBuf;		// I/O buffer
 class Connection;	// ZiConnection, owns queue of IO buffers
 class Proxy;		// pair of active connections
@@ -1547,7 +1535,7 @@ int main(int argc, char **argv)
 
   app->start();
 
-  if (isatty(fileno(stdin))) {
+  if (Zrl::interactive()) {
     Zrl::Globber globber;
     Zrl::History history{100};
     Zrl::CLI cli;

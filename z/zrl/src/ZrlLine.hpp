@@ -21,8 +21,7 @@
 // of text displayed on a terminal, comprised of variable-width glyphs.
 // Each glyph is either regular width, i.e. 1 display position, or full-width,
 // i.e. 2 display positions. The line wraps around the display width and
-// is re-flowed such that full-width glyphs are always intact on the
-// same line.
+// is re-flowed such that full-width glyphs are always intact on a line.
 
 #ifndef ZrlLine_HPP
 #define ZrlLine_HPP

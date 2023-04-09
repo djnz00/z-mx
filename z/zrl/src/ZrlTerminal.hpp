@@ -39,6 +39,18 @@
 #include <sys/ioctl.h>
 #endif
 
+#ifdef _WIN32
+#include <io.h>		// for _isatty
+#ifndef isatty
+#define isatty _isatty
+#endif
+#ifndef fileno
+#define fileno _fileno
+#endif
+#else
+#include <unistd.h>	// for isatty
+#endif
+
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuUTF.hpp>
 #include <zlib/ZuArrayN.hpp>
@@ -55,6 +67,8 @@
 #include <zlib/ZrlLine.hpp>
 
 namespace Zrl {
+
+inline bool interactive() { return isatty(fileno(stdin)); }
 
 // a virtual key is UTF32 if positive, otherwise -ve the VKey enum value
 namespace VKey {

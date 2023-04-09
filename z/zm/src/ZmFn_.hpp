@@ -192,22 +192,22 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <typename, auto HeapID, bool Sharded> struct LambdaInvoker;
   template <typename, auto HeapID, bool Sharded> struct LBoundInvoker;
 
-  template <typename T> struct IsFunctor_ { enum { OK = 0 }; };
+  template <typename T> struct IsCallable_ { enum { OK = 0 }; };
   template <typename L, typename R, typename ...Args_>
-    struct IsFunctor_<R (L::*)(Args_...) const> { enum { OK = 1 }; };
+    struct IsCallable_<R (L::*)(Args_...) const> { enum { OK = 1 }; };
   template <typename L, typename R, typename ...Args_>
-    struct IsFunctor_<R (L::*)(Args_...)> { enum { OK = 1 }; };
+    struct IsCallable_<R (L::*)(Args_...)> { enum { OK = 1 }; };
   template <typename T, typename = void>
-  struct IsFunctor { enum { OK = 0 }; };
+  struct IsCallable { enum { OK = 0 }; };
   template <typename T>
-  struct IsFunctor<T, decltype(&T::operator(), void())> {
+  struct IsCallable<T, decltype(&T::operator(), void())> {
     enum { OK =
       !ZuConversion<ZmAnyFn, T>::Is &&
-      IsFunctor_<decltype(&T::operator())>::OK
+      IsCallable_<decltype(&T::operator())>::OK
     };
   };
   template <typename T, typename R = void>
-  using MatchFunctor = ZuIfT<IsFunctor<T>::OK, R>;
+  using MatchCallable = ZuIfT<IsCallable<T>::OK, R>;
 
 public:
   ZmFn() : ZmAnyFn() { }
@@ -225,11 +225,10 @@ private:
 public:
   // syntactic sugar for lambdas
   template <typename L>
-  ZmFn(L &&l, MatchFunctor<L> *_ = nullptr) :
-    ZmAnyFn(fn(ZuFwd<L>(l))) { }
+  ZmFn(L &&l, MatchCallable<L> *_ = nullptr) : ZmAnyFn{fn(ZuFwd<L>(l))} { }
   template <typename O, typename L>
-  ZmFn(O &&o, L &&l, MatchFunctor<L> *_ = nullptr) :
-    ZmAnyFn(fn(ZuFwd<O>(o), ZuFwd<L>(l))) { }
+  ZmFn(O &&o, L &&l, MatchCallable<L> *_ = nullptr) :
+    ZmAnyFn{fn(ZuFwd<O>(o), ZuFwd<L>(l))} { }
 
   ZmFn &operator =(const ZmFn &fn) {
     ZmAnyFn::operator =(fn);

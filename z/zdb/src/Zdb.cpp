@@ -452,7 +452,7 @@ void Env::up_(Host *oldMaster)
 void Env::down_()
 {
   ZeLOG(Info, "Zdb INACTIVE");
-  if (ZuString cmd = m_self->config().down) {
+  if (ZtString cmd = m_self->config().down) {
     ZeLOG(Info, ZtString{} << "Zdb invoking \"" << cmd << '\"');
     ::system(cmd);
   }

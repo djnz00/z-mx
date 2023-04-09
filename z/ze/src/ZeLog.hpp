@@ -83,9 +83,9 @@ class ZeAPI ZeFileSink : public ZeSink {
 public:
   ZeFileSink() :
       ZeSink{ZeSinkType::File} { init(); }
-  ZeFileSink(ZuString name, unsigned age = 8, int tzOffset = 0) :
+  ZeFileSink(ZuString path, unsigned age = 8, int tzOffset = 0) :
       ZeSink{ZeSinkType::File},
-      m_filename(name), m_age(age), m_tzOffset(tzOffset) { init(); }
+      m_path{path}, m_age{age}, m_tzOffset{tzOffset} { init(); }
 
   ~ZeFileSink();
 
@@ -96,7 +96,7 @@ private:
   void init();
   void age_();
 
-  ZtString	m_filename;
+  ZtString	m_path;
   unsigned	m_age = 8;
   int		m_tzOffset = 0;	// timezone offset
 
@@ -111,8 +111,8 @@ class ZeAPI ZeDebugSink : public ZeSink {
 public:
   ZeDebugSink() : ZeSink{ZeSinkType::Debug},
     m_started(ZmTime::Now) { init(); }
-  ZeDebugSink(ZuString name) : ZeSink{ZeSinkType::Debug},
-    m_filename(name), m_started(ZmTime::Now) { init(); }
+  ZeDebugSink(ZuString path) : ZeSink{ZeSinkType::Debug},
+    m_path(path), m_started(ZmTime::Now) { init(); }
 
   ~ZeDebugSink();
 
@@ -122,7 +122,7 @@ public:
 private:
   void init();
 
-  ZtString	m_filename;
+  ZtString	m_path;
   FILE *	m_file = nullptr;
   ZmTime	m_started;
 };
