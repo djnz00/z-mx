@@ -93,26 +93,24 @@ struct ZuPrintPtr {
 };
 template <typename T> ZuPrintPtr(T *) -> ZuPrintPtr<T>;
 
-template <typename S> struct ZuStdStream;
+#include <iostream>
 
-template <typename S> struct ZuStdStream__ {
-  enum { Is = 1 };
-  template <typename P> static ZuIfT<ZuPrint<P>::String>
-      print(S &s, const P &p) {
+template <typename Impl, typename S> struct ZuStdStream_ {
+  enum { OK = 1 };
+  template <typename P>
+  static ZuIfT<ZuPrint<P>::String> print(S &s, const P &p) {
     const typename ZuTraits<P>::Elem *ptr = ZuTraits<P>::data(p);
-    if (ZuLikely(ptr))
-      ZuStdStream<S>::append(s, ptr, ZuTraits<P>::length(p));
+    if (ZuLikely(ptr)) Impl::append(s, ptr, ZuTraits<P>::length(p));
   }
-  template <typename P> static ZuIfT<ZuPrint<P>::Delegate>
-      print(S &s, const P &p) {
+  template <typename P>
+  static ZuIfT<ZuPrint<P>::Delegate> print(S &s, const P &p) {
     ZuPrint<P>::print(s, p);
   }
-  template <typename P> static ZuIfT<ZuPrint<P>::Buffer>
-      print(S &s, const P &p) {
+  template <typename P>
+  static ZuIfT<ZuPrint<P>::Buffer> print(S &s, const P &p) {
     unsigned len = ZuPrint<P>::length(p);
     auto buf = static_cast<char *>(ZuAlloca(len));
-    if (ZuLikely(buf))
-      ZuStdStream<S>::append(s, buf, ZuPrint<P>::print(buf, len, p));
+    if (ZuLikely(buf)) Impl::append(s, buf, ZuPrint<P>::print(buf, len, p));
   }
 };
 
@@ -120,32 +118,31 @@ template <typename S> struct ZuStdStream__ {
 
 #include <zlib/ZuStdString.hpp>
 
-template <typename, bool> struct ZuStdStream_ { enum { Is = 0 }; };
-template <typename S> struct ZuStdStream_<S, true> : public ZuStdStream__<S> {
+template <typename S, bool = ZuConversion<std::ios_base, S>::Base>
+struct ZuStdStream { enum { OK = 0 }; };
+template <typename S>
+struct ZuStdStream<S, true> : public ZuStdStream_<ZuStdStream<S, true>, S> {
   static S &append(S &s, const char *data, unsigned length) {
-    if (ZuLikely(data)) s.write(data, (size_t)length);
+    if (ZuLikely(data)) s.write(data, static_cast<size_t>(length));
     return s;
   }
 };
-template <typename S> struct ZuStdStream :
-  public ZuStdStream_<S, ZuConversion<std::ios_base, S>::Base> { };
-
 template <typename T, typename A>
-struct ZuStdStream<std::basic_string<char, T, A> > :
-    public ZuStdStream__<std::basic_string<char, T, A> > {
+struct ZuStdStream<std::basic_string<char, T, A>, false> :
+    public ZuStdStream_<
+      ZuStdStream<std::basic_string<char, T, A>, false>,
+      std::basic_string<char, T, A>> {
   using S = std::basic_string<char, T, A>;
   static S &append(S &s, const char *data, unsigned length) {
-    if (ZuLikely(data)) s.append(data, (size_t)length);
+    if (ZuLikely(data)) s.append(data, static_cast<size_t>(length));
     return s;
   }
 };
 
-template <typename S, typename P, bool>
-struct ZuStdStreamable_ { enum { OK = 0 }; };
+template <typename S, typename P, bool = ZuStdStream<S>::OK>
+struct ZuStdStreamable { enum { OK = 0 }; };
 template <typename S, typename P>
-struct ZuStdStreamable_<S, P, true> { enum { OK = ZuPrint<P>::OK }; };
-template <typename S, typename P>
-struct ZuStdStreamable : public ZuStdStreamable_<S, P, ZuStdStream<S>::Is> { };
+struct ZuStdStreamable<S, P, true> { enum { OK = ZuPrint<P>::OK }; };
 
 template <typename S, typename P>
 inline ZuIfT<ZuStdStreamable<S, P>::OK, S &>

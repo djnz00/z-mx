@@ -40,10 +40,12 @@
 class ZmStreamBuf {
 public:
   template <typename T> ZmStreamBuf(const T &v) :
-    m_lengthFn(&v, [](const T *v) -> unsigned {
-	return ZuPrint<T>::length(*v); }),
-    m_printFn(&v, [](const T *v, char *buf, unsigned n) -> unsigned {
-	return ZuPrint<T>::print(buf, n, *v); }) { }
+    m_lengthFn{&v, [](const T *v) -> unsigned {
+	return ZuPrint<T>::length(*v);
+    }},
+    m_printFn{&v, [](const T *v, char *buf, unsigned n) -> unsigned {
+	return ZuPrint<T>::print(buf, n, *v);
+    }} { }
 
   ZmStreamBuf(const ZmStreamBuf &) = delete;
   ZmStreamBuf &operator =(const ZmStreamBuf &) = delete;
@@ -125,12 +127,12 @@ private:
 public:
   template <typename C>
   MatchChar<C, ZmStream &> operator <<(C c) {
-    m_strFn(ZuString(&c, 1));
+    m_strFn(ZuString{&c, 1});
     return *this;
   }
   template <typename R>
   MatchReal<R, ZmStream &> operator <<(const R &r) {
-    m_bufFn(ZmStreamBuf(ZuBoxed(r)));
+    m_bufFn(ZmStreamBuf{ZuBoxed(r)});
     return *this;
   }
   ZmStream &operator <<(ZuString s) {
@@ -139,7 +141,7 @@ public:
   }
   template <typename S>
   MatchString<S, ZmStream &> operator <<(S &&s_) {
-    m_strFn(ZuString(ZuFwd<S>(s_)));
+    m_strFn(ZuString{ZuFwd<S>(s_)});
     return *this;
   }
   template <typename P>

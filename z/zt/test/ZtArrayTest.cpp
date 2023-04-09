@@ -105,8 +105,8 @@ int main()
   {
     std::vector<const char *> v = { { "hello", "world" } };
     ZtArray<ZuString> b = v;
-    puts(b[0]);
-    puts(b[1]);
+    puts(b[0].data());
+    puts(b[1].data());
   }
 
   {

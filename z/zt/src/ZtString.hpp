@@ -68,7 +68,7 @@
 
 // built-in buffer size (before falling back to malloc())
 // Note: must be a multiple of sizeof(uintptr_t)
-#define ZtString_BuiltinSize	(3 * sizeof(uintptr_t))
+#define ZtString_Builtin	(3 * sizeof(uintptr_t))
 
 // buffer size increment for vsnprintf()
 #define ZtString_vsnprintf_Growth	256
@@ -88,15 +88,20 @@ template <> struct ZtString_Char2<char> { using T = wchar_t; };
 template <> struct ZtString_Char2<wchar_t> { using T = char; };
 
 template <typename> struct ZtString__ { };
+template <> struct ZtString__<char> {
+  friend ZuPrintString ZuPrintType(ZtString__ *);
+};
+
 template <typename Char_, auto HeapID_>
-class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<Char_> {
+class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<ZuStrip<Char_>> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuConversion<Char, wchar_t>::Same };
-  constexpr static unsigned BuiltinSize() {
-    return ZtString_BuiltinSize / sizeof(Char);
-  }
+  enum { BuiltinSize_ = (ZtString_Builtin + sizeof(Char) - 1) / sizeof(Char) };
+  enum { BuiltinU64 =
+    (BuiltinSize_ * sizeof(Char) + sizeof(uintptr_t) - 1) / sizeof(uintptr_t) };
+  enum { BuiltinSize = (BuiltinU64 * sizeof(uintptr_t)) / sizeof(Char) };
   constexpr static auto HeapID = HeapID_;
 
 private:
@@ -554,7 +559,7 @@ private:
 
   void null_() {
     m_data[0] = 0;
-    size_owned_null(BuiltinSize(), 1, 1);
+    size_owned_null(BuiltinSize, 1, 1);
     length_mallocd_builtin(0, 0, 1);
   }
 
@@ -577,7 +582,7 @@ private:
   }
 
   Char *alloc_(unsigned size, unsigned length) {
-    if (ZuLikely(size <= BuiltinSize())) {
+    if (ZuLikely(size <= BuiltinSize)) {
       size_owned_null(size, 1, 0);
       length_mallocd_builtin(length, 0, 1);
       return reinterpret_cast<Char *>(m_data);
@@ -592,10 +597,10 @@ private:
 
   void copy_(const Char *copyData, unsigned length) {
     if (!length) { null_(); return; }
-    if (length < BuiltinSize()) {
+    if (length < BuiltinSize) {
       memcpy(reinterpret_cast<Char *>(m_data), copyData, length * sizeof(Char));
       (reinterpret_cast<Char *>(m_data))[length] = 0;
-      size_owned_null(BuiltinSize(), 1, 0);
+      size_owned_null(BuiltinSize, 1, 0);
       length_mallocd_builtin(length, 0, 1);
       return;
     }
@@ -732,7 +737,7 @@ public:
     if (!move) return data_();
     if (null__()) return 0;
     if (builtin()) {
-      Char *newData = static_cast<Char *>(valloc(BuiltinSize() * sizeof(Char)));
+      Char *newData = static_cast<Char *>(valloc(BuiltinSize * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
       memcpy(newData, m_data, (length() + 1) * sizeof(Char));
       return newData;
@@ -786,7 +791,7 @@ public:
     if (owned() && z == size_()) return data_();
     Char *oldData = data_();
     Char *newData;
-    if (z <= BuiltinSize())
+    if (z <= BuiltinSize)
       newData = reinterpret_cast<Char *>(m_data);
     else {
       newData = static_cast<Char *>(valloc(z * sizeof(Char)));
@@ -798,7 +803,7 @@ public:
       memcpy(newData, oldData, (n + 1) * sizeof(Char));
       if (mallocd()) vfree(oldData);
     }
-    if (z <= BuiltinSize()) {
+    if (z <= BuiltinSize) {
       size_owned_null(z, 1, 0);
       length_mallocd_builtin(n, 0, 1);
       return newData;
@@ -1153,7 +1158,7 @@ private:
       Char *oldData = data_();
       if (removed) removed->init(Copy, oldData + offset, length);
       Char *newData;
-      if (z <= BuiltinSize())
+      if (z <= BuiltinSize)
 	newData = reinterpret_cast<Char *>(m_data);
       else {
 	newData = static_cast<Char *>(valloc(z * sizeof(Char)));
@@ -1170,7 +1175,7 @@ private:
 		(n - (offset + length)) * sizeof(Char));
       if (oldData != newData && mallocd()) vfree(oldData);
       newData[l] = 0;
-      if (z <= BuiltinSize()) {
+      if (z <= BuiltinSize) {
 	size_owned_null(z, 1, 0);
 	length_mallocd_builtin(l, 0, 1);
 	return;
@@ -1276,7 +1281,7 @@ public:
 
 private:
   static unsigned grow_(unsigned o, unsigned n) {
-    if (n <= BuiltinSize()) return BuiltinSize();
+    if (n <= BuiltinSize) return BuiltinSize;
     return ZmGrow(o * sizeof(Char), n * sizeof(Char)) / sizeof(Char);
   }
 
@@ -1335,13 +1340,10 @@ public:
   };
   friend Traits ZuTraitsType(ZtString_ *);
 
-  // printing
-  friend ZuPrintString ZuPrintType(ZtString_ *);
-
 private:
   uint32_t		m_size_owned_null;
   uint32_t		m_length_mallocd_builtin;
-  uintptr_t		m_data[BuiltinSize() / sizeof(uintptr_t)];
+  uintptr_t		m_data[BuiltinU64];
 };
 
 template <typename Char, auto HeapID>

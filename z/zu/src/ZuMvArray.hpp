@@ -40,7 +40,7 @@ template <> struct ZuMvArray_<char> {
 };
 
 template <typename T_, typename Cmp_ = ZuCmp<T_>>
-class ZuMvArray : public ZuMvArray_<T_>, public ZuArrayFn<T_, Cmp_> {
+class ZuMvArray : public ZuMvArray_<ZuStrip<T_>>, public ZuArrayFn<T_, Cmp_> {
   ZuMvArray(const ZuMvArray &) = delete;
   ZuMvArray &operator =(const ZuMvArray &) = delete;
 

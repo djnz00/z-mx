@@ -305,14 +305,12 @@ int main()
   }
 
   {
-    std::cout << ZtHexDump("Whoot!",
-	"This\x1cis\x09""a\x05test\x01of\x04the\x1ehexadecimal\x13""dumper!",
-	42);
-
+    std::cout << ZuString{"Hello World 2\n"} << std::flush;
+    std::cout << ZtHexDump{"Whoot!", "This\x1cis\x09""a\x05test\x01of\x04the\x1ehexadecimal\x13""dumper!", 42};
   }
 
   {
-    ZtString s("inline const char *");
+    ZtString s{"inline const char *"};
     // s[0] = 'X';
   }
 }

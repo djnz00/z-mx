@@ -148,8 +148,9 @@ public:
 
 private:
   void printFrame_info(ZmStream &s,
-      uintptr_t addr, ZuString module, ZuString symbol,
+      uintptr_t addr, const char *module_, const char *symbol,
       ZuString file, unsigned line) {
+    ZuString module{module_};
     if (module.length() > 24) {
       module.offset(module.length() - 21);
       s << "...";
@@ -793,7 +794,7 @@ bool ZmBackTrace_Mgr::printFrame_(ZmStream &s, void *addr)
     module = "?";
   }
   printFrame_info(s, (uintptr_t)addr - (uintptr_t)si->ModBase,
-      module, ZuString(si->Name, si->NameLen), "", 0);
+      module, si->Name, "", 0);
   return true;
 #endif /* _WIN32 */
 }

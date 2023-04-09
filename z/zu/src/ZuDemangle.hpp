@@ -45,7 +45,7 @@ class ZuDemangle : public ZuPrintable {
 public:
   ZuDemangle() { m_buf[0] = 0; }
 
-  ZuDemangle(ZuString symbol) {
+  ZuDemangle(const char *symbol) {
     int status;
     size_t len = BufSize;
     const char *demangled =
@@ -59,9 +59,9 @@ public:
     }
   }
 
-  ZuDemangle &operator =(ZuString symbol) {
+  ZuDemangle &operator =(const char *symbol) {
     // this->~ZuDemangle();
-    new (this) ZuDemangle{ZuMv(symbol)};
+    new (this) ZuDemangle{symbol};
     return *this;
   }
 

@@ -63,9 +63,13 @@ struct ZuArrayN_CanAppend<U, T,
   enum { OK = 1 };
 };
 
-struct ZuArrayN___ { };
+template <typename> struct ZuArrayN___ { };
+template <> struct ZuArrayN___<char> {
+  friend ZuPrintString ZuPrintType(ZuArrayN___ *);
+};
 
-template <typename T> struct ZuArrayN__ : public ZuArrayN___ {
+template <typename T>
+struct ZuArrayN__ : public ZuArrayN___<ZuStrip<T>> {
 protected:
   using Nop_ = enum { Nop };
   ZuArrayN__(Nop_ _) { }
@@ -640,11 +644,8 @@ public:
   };
   friend Traits ZuTraitsType(ArrayN *);
 
-  // printing
-  friend ZuPrintString ZuPrintType(ArrayN *);
-
 private:
-  char	*m_data[N * sizeof(T)];
+  char	m_data[N * sizeof(T)];
 };
 
 } // namespace Zu_

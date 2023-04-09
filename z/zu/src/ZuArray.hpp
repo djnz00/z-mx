@@ -58,7 +58,7 @@ template <> struct ZuArray_<char> {
 };
 
 template <typename T_, typename Cmp_ = ZuCmp<T_>>
-class ZuArray : public ZuArray_<T_> {
+class ZuArray : public ZuArray_<ZuStrip<T_>> {
 public:
   using T = T_;
   using Cmp = Cmp_;
@@ -235,15 +235,8 @@ public:
   T *begin() { return m_data; }
   T *end() { return m_data + length(); }
 
-  // operator T *() must return nullptr if the string is empty, oherwise
-  // these use cases stop working:
-  // if (ZuString s = "") { } else { puts("ok"); }
-  // if (ZuString s = 0) { } else { puts("ok"); }
-  operator T *() const {
-    return !length() ? (const T *)nullptr : m_data;
-  }
-
   bool operator !() const { return !length(); }
+  ZuOpBool
 
   void offset(unsigned n) {
     if (ZuUnlikely(!n)) return;

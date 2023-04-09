@@ -103,7 +103,7 @@ template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 template <typename T_, typename NTP = ZtArray_Defaults>
 class ZtArray :
     private ZmVHeap<NTP::HeapID>,
-    public ZtArray_<T_>,
+    public ZtArray_<ZuStrip<T_>>,
     public ZuArrayFn<T_, typename NTP::template CmpT<T_>> {
   template <typename, typename> friend class ZtArray;
 
@@ -782,9 +782,6 @@ public:
   T &operator [](int i) { return m_data[i]; }
   const T &operator [](int i) const { return m_data[i]; }
 
-  operator T *() { return m_data; }
-  operator const T *() const { return m_data; }
-
 // accessors
 
   using iterator = T *;
@@ -920,6 +917,7 @@ public:
 // comparison
 
   bool operator !() const { return !length(); }
+  ZuOpBool
 
   template <typename A>
   MatchZtArray<A, bool> equals(const A &a) const {
