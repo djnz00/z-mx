@@ -210,14 +210,17 @@ private:
 
   void init_(ZuString program) {
     m_program = program;
+    m_facility = "user";
     Ze::sysloginit(m_program, 0);
   }
   void init_(ZuString program, ZuString facility) {
     m_program = program;
-    Ze::sysloginit(m_program, facility);
+    m_facility = facility;
+    Ze::sysloginit(m_program, m_facility);
   }
 
   ZuString program_();
+  ZuString facility_() const { return m_facility; }
 
   int level_() const { return m_level; }
   void level_(int l) { m_level = l; }
@@ -237,6 +240,7 @@ private:
 
 private:
   ZtString		m_program;
+  ZtString		m_facility;
   int			m_level;
   ZmSemaphore		m_work;
   ZmSemaphore		m_started;

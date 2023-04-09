@@ -644,11 +644,11 @@ struct ZiMxParams {
     { m_rxBufSize = v; return ZuMv(*this); }
   ZiMxParams &&txBufSize(unsigned v)
     { m_txBufSize = v; return ZuMv(*this); }
-  ZiMxParams &&listenerHash(ZuString id)
+  ZiMxParams &&listenerHash(const char *id)
     { m_listenerHash = id; return ZuMv(*this); }
-  ZiMxParams &&requestHash(ZuString id)
+  ZiMxParams &&requestHash(const char *id)
     { m_requestHash = id; return ZuMv(*this); }
-  ZiMxParams &&cxnHash(ZuString id)
+  ZiMxParams &&cxnHash(const char *id)
     { m_cxnHash = id; return ZuMv(*this); }
 #ifdef ZiMultiplex_DEBUG
   ZiMxParams &&trace(bool b) { m_trace = b; return ZuMv(*this); }

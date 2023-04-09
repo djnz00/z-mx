@@ -29,11 +29,11 @@
 // T can be ZuObject-derived, but does not have to be
 //
 // static T v; can be replaced with:
-// auto &v = *ZmSingleton<T>::instance();
-// auto &v = ZmStatic([]() { return new T(); });
+// auto &v = *ZmSingleton<T>::instance(); // if T is unique
+// auto &v = ZmStatic([]() { return new T(); }); // do not use in a header
 //
 // static T v(args); can be replaced with:
-// auto &v = ZmStatic([]() { return new T(args...); });
+// auto &v = ZmStatic([]() { return new T(args...); }); // do not use in a header
 
 #ifndef ZmSingleton_HPP
 #define ZmSingleton_HPP
@@ -48,7 +48,7 @@
 
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuConversion.hpp>
-#include <zlib/ZuFunctorTraits.hpp>
+#include <zlib/ZuFnTraits.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmCleanup.hpp>
@@ -112,7 +112,7 @@ public:
     ZmSingleton_dtor();
 #endif
     if (T *ptr = m_instance.load_()) {
-      final(ptr); // calls ZmCleanup<T>::final() if it exists
+      final(ptr);
       this->deref(ptr);
     }
   }
@@ -134,10 +134,10 @@ private:
   }
 
 public:
-  static T *instance() {
+  ZuInline static T *instance() {
     return global()->m_instance.load_();
   }
-  static T *instance(T *ptr) {
+  ZuInline static T *instance(T *ptr) {
     return global()->instance_(ptr);
   }
 };
@@ -146,8 +146,8 @@ public:
 
 template <typename L>
 inline auto &ZmStatic(L l, ZuIsStateless<L> *_ = nullptr) {
-  using T = ZuDecay<decltype(*ZuFunctorTraits<L>::invoke())>;
-  return *(ZmSingleton<T, true, ZuFunctorTraits<L>::fn()>::instance());
+  using T = ZuDecay<decltype(*ZuFnTraits<L>::invoke())>;
+  return *(ZmSingleton<T, true, ZuFnTraits<L>::fn()>::instance());
 }
 
 #endif /* ZmSingleton_HPP */

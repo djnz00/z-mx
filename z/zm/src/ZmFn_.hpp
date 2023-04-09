@@ -31,7 +31,7 @@
 #endif
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuFunctorTraits.hpp>
+#include <zlib/ZuFnTraits.hpp>
 #include <zlib/ZuConversion.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>

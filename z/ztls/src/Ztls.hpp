@@ -742,7 +742,7 @@ protected:
   // NetBSD - /etc/openssl/certs
   // AIX - /var/ssl/certs
   // Windows - ROOT certificate store (using Cert* API)
-  bool loadCA(ZuString path) {
+  bool loadCA(const char *path) {
     int n;
     const char *function;
     if (ZiFile::isdir(path)) {
@@ -799,7 +799,7 @@ friend Base;
   App *app() { return static_cast<App *>(this); }
 
   bool init(ZiMultiplex *mx, ZuString thread,
-      ZuString caPath, const char **alpn) {
+      const char *caPath, const char **alpn) {
     return Base::init(mx, thread, [&]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_CLIENT,
@@ -879,8 +879,8 @@ friend Base;
   }
 
   bool init(ZiMultiplex *mx, ZuString thread,
-      ZuString caPath, const char **alpn, ZuString certPath,
-      ZuString keyPath, int cacheMax = -1, int cacheTimeout = -1) {
+      const char *caPath, const char **alpn, const char *certPath,
+      const char *keyPath, int cacheMax = -1, int cacheTimeout = -1) {
     return Base::init(mx, thread, [&]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_SERVER,

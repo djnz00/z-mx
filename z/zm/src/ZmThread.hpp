@@ -39,7 +39,7 @@
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuConversion.hpp>
-#include <zlib/ZuFunctorTraits.hpp>
+#include <zlib/ZuFnTraits.hpp>
 
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmBitmap.hpp>
@@ -276,8 +276,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuFunctorTraits<L>::IsStateless &&
-	    ZuConversion<typename ZuFunctorTraits<L>::R, void>::Same>
+      ZuIfT<ZuFnTraits<L>::IsStateless &&
+	    ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *) -> void * {
 	try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
@@ -294,8 +294,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<!ZuFunctorTraits<L>::IsStateless &&
-	    ZuConversion<typename ZuFunctorTraits<L>::R, void>::Same>
+      ZuIfT<!ZuFnTraits<L>::IsStateless &&
+	    ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *lambda_) -> void * {
 	if (ZuUnlikely(!lambda_)) return nullptr;
@@ -317,8 +317,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuFunctorTraits<L>::IsStateless &&
-	    !ZuConversion<typename ZuFunctorTraits<L>::R, void>::Same>
+      ZuIfT<ZuFnTraits<L>::IsStateless &&
+	    !ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *) -> void * {
 	void *res = nullptr;
@@ -338,8 +338,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<!ZuFunctorTraits<L>::IsStateless &&
-	    !ZuConversion<typename ZuFunctorTraits<L>::R, void>::Same>
+      ZuIfT<!ZuFnTraits<L>::IsStateless &&
+	    !ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *lambda_) -> void * {
 	if (ZuUnlikely(!lambda_)) return nullptr;

@@ -91,15 +91,15 @@ int main()
 
       while (auto node = rowSet.rows.shift()) {
 	const auto &row = node->val();
-	printf("%s, %d, %c, %f, %s (%d:%d) %i\n", 
-	       row.m_string.data(),
-	       (int)row.m_int,
-	       row.m_bool ? 'Y' : 'N',
-	       (double)row.m_float,
-	       (const char *)Enums::Map::v2s(row.m_enum),
-	       (row.m_time).yyyymmdd(),
-	       (row.m_time).hhmmss(),
-	       (int)row.m_flags);
+	std::cout << 
+	  row.m_string.data() << ", " <<
+	  row.m_int << ", " <<
+	  (row.m_bool ? 'Y' : 'N') << ", " <<
+	  row.m_float << ", " <<
+	  Enums::Map::v2s(row.m_enum) << " (" <<
+	  (row.m_time).yyyymmdd() << ':' <<
+	  (row.m_time).hhmmss() << ") " <<
+	  row.m_flags << '\n';
 	unFiltList.push(row);
 	filtList.push(row);
       }

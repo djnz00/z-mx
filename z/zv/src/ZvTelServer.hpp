@@ -28,7 +28,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuFunctorTraits.hpp>
+#include <zlib/ZuFnTraits.hpp>
 
 #include <zlib/ZmFn.hpp>
 
@@ -501,7 +501,7 @@ private:
   template <typename L>
   void reschedule(WatchList &list) {
     run([list = &list]() {
-      ZuFunctorTraits<L>::invoke(list->server);
+      ZuFnTraits<L>::invoke(list->server);
       list->server->template reschedule<L>(*list);
     },
     ZmTimeNow(ZmTime{ZmTime::Nano,

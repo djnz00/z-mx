@@ -413,9 +413,9 @@ public:
     ZtString		m_fmt;
   };
 
-  ZuString get(ZuString key, bool required, ZuString def) const;
-  ZuString get(ZuString key, bool required = false) const {
-    return get(key, required, ZuString{});
+  ZtString get(ZuString key, bool required, ZtString def) const;
+  ZtString get(ZuString key, bool required = false) const {
+    return get(key, required, ZtString{});
   }
 
   const ZtArray<ZtString> *getMultiple(ZuString key,
@@ -546,7 +546,7 @@ friend Iterator;
 	m_iterator(cf->m_tree, prefix) { }
     ~Iterator();
 
-    ZuString get(ZuString &key);
+    const ZtString &get(ZuString &key);
     const ZtArray<ZtString> *getMultiple(ZuString &key,
 	unsigned minimum, unsigned maximum);
     ZmRef<ZvCf> subset(ZuString &key);

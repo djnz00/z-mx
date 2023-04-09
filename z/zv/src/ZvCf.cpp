@@ -419,8 +419,8 @@ append:
   if (fileValueVar.m(in, c, off)) {
     off += c[1].length();
     ZuString d = defines->findVal(c[2]);
-    if (!d) d = ::getenv(c[2]);
-    if (!!d) val += d;
+    if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
+    if (d) val += d;
     goto append;
   }
   if (fileDblQuote.m(in, c, off)) {
@@ -760,7 +760,7 @@ void ZvCf::toFile_(ZiFile &file)
   if (file.write(out.data(), out.length(), &e) != Zi::OK) throw e;
 }
 
-ZuString ZvCf::get(ZuString fullKey, bool required, ZuString def) const
+ZtString ZvCf::get(ZuString fullKey, bool required, ZtString def) const
 {
   ZuString key;
   ZmRef<ZvCf> self = const_cast<ZvCf *>(this)->scope(fullKey, key, 0);
@@ -895,15 +895,17 @@ ZvCf::Iterator::~Iterator()
 {
 }
 
-ZuString ZvCf::Iterator::get(ZuString &key)
+static ZtString nullString;
+
+const ZtString &ZvCf::Iterator::get(ZuString &key)
 {
   Tree::NodeRef node;
 
   do {
     node = m_iterator.iterate();
     if (!node) {
-      key = ZuString();
-      return ZuString();
+      key = ZuString{};
+      return nullString;
     }
   } while (!node->val()->m_values);
 

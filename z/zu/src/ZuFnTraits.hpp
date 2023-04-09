@@ -25,8 +25,8 @@
 // auto generic = []<typename T>(T v) { std::cout << v << '\n' << std::flush; };
 // auto wrapper = [&generic](int v) { generic(v); };
 
-#ifndef ZuFunctorTraits_HPP
-#define ZuFunctorTraits_HPP
+#ifndef ZuFnTraits_HPP
+#define ZuFnTraits_HPP
 
 #ifndef ZuLib_HPP
 #include <zlib/ZuLib.hpp>
@@ -40,13 +40,13 @@
 #include <zlib/ZuTraits.hpp>
 
 template <bool, bool, typename, typename, typename ...>
-class ZuFunctorTraits_3 {
+class ZuFnTraits_3 {
 public:
   enum { IsStateless = 0 };
 };
 
 template <typename R, typename L, typename ...Args>
-class ZuFunctorTraits_3<false, true, R, L, Args...> {
+class ZuFnTraits_3<false, true, R, L, Args...> {
 public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
@@ -57,12 +57,12 @@ public:
     return (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef R (*Fn)(Args...);
-  constexpr static Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
-  constexpr static Fn fn() { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn(L l) { return &ZuFnTraits_3::invoke_; }
+  constexpr static Fn fn() { return &ZuFnTraits_3::invoke_; }
 };
 
 template <typename L, typename ...Args>
-class ZuFunctorTraits_3<false, true, void, L, Args...> {
+class ZuFnTraits_3<false, true, void, L, Args...> {
 public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
@@ -73,14 +73,14 @@ public:
     (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef void (*Fn)(Args...);
-  constexpr static Fn fn(L l) { return &ZuFunctorTraits_3::invoke_; }
-  constexpr static Fn fn() { return &ZuFunctorTraits_3::invoke_; }
+  constexpr static Fn fn(L l) { return &ZuFnTraits_3::invoke_; }
+  constexpr static Fn fn() { return &ZuFnTraits_3::invoke_; }
 };
 
 template <typename R, typename L, typename ...Args>
-class ZuFunctorTraits_3<true, true, R, L, Args...> :
-    public ZuFunctorTraits_3<false, true, R, L, Args...> {
-  using Base = ZuFunctorTraits_3<false, true, R, L, Args...>;
+class ZuFnTraits_3<true, true, R, L, Args...> :
+    public ZuFnTraits_3<false, true, R, L, Args...> {
+  using Base = ZuFnTraits_3<false, true, R, L, Args...>;
 public:
   using typename Base::Fn;
   constexpr static Fn fn(L l) { return static_cast<Fn>(l); }
@@ -93,7 +93,7 @@ template <typename R, typename Args>
 struct ZuFunctorMatch_<R, R, Args, Args> { enum { OK = 1 }; };
 
 template <typename R_, typename L_, typename ...Args_>
-struct ZuFunctorTraits_2 : public ZuFunctorTraits_3<
+struct ZuFnTraits_2 : public ZuFnTraits_3<
     ZuConversion<L_, R_ (*)(Args_...)>::Exists, ZuTraits<L_>::IsEmpty,
     R_, L_, Args_...> {
   using R = R_;
@@ -105,34 +105,34 @@ struct ZuFunctorTraits_2 : public ZuFunctorTraits_3<
       public ZuFunctorMatch_<R, R__, Args, ZuTypeList<Args__...>> { };
 };
 
-template <auto> struct ZuFunctorTraits_1;
+template <auto> struct ZuFnTraits_1;
 template <typename R, typename L, typename ...Args, R (L::*Fn)(Args...) const>
-struct ZuFunctorTraits_1<Fn> : public ZuFunctorTraits_2<R, L, Args...> {
+struct ZuFnTraits_1<Fn> : public ZuFnTraits_2<R, L, Args...> {
   enum { IsFunctor = 1, IsMutable = 0 };
 };
 template <typename R, typename L, typename ...Args, R (L::*Fn)(Args...)>
-struct ZuFunctorTraits_1<Fn> : public ZuFunctorTraits_2<R, L, Args...> {
+struct ZuFnTraits_1<Fn> : public ZuFnTraits_2<R, L, Args...> {
   enum { IsFunctor = 1, IsMutable = 1 };
 };
 template <typename L, typename = void>
-struct ZuFunctorTraits {
+struct ZuFnTraits {
   enum { IsFunctor = 0, IsMutable = 0, IsStateless = 0 };
 };
 template <typename L>
-struct ZuFunctorTraits<L, decltype(&L::operator(), void())> :
-    public ZuFunctorTraits_1<&L::operator()> { };
+struct ZuFnTraits<L, decltype(&L::operator(), void())> :
+    public ZuFnTraits_1<&L::operator()> { };
 
 template <typename L, typename T = void>
 using ZuIsMutable =
-  ZuIfT<ZuFunctorTraits<L>::IsFunctor && ZuFunctorTraits<L>::IsMutable, T>;
+  ZuIfT<ZuFnTraits<L>::IsFunctor && ZuFnTraits<L>::IsMutable, T>;
 template <typename L, typename T = void>
 using ZuNotMutable =
-  ZuIfT<ZuFunctorTraits<L>::IsFunctor && !ZuFunctorTraits<L>::IsMutable, T>;
+  ZuIfT<ZuFnTraits<L>::IsFunctor && !ZuFnTraits<L>::IsMutable, T>;
 template <typename L, typename T = void>
 using ZuIsStateless =
-  ZuIfT<ZuFunctorTraits<L>::IsFunctor && ZuFunctorTraits<L>::IsStateless, T>;
+  ZuIfT<ZuFnTraits<L>::IsFunctor && ZuFnTraits<L>::IsStateless, T>;
 template <typename L, typename T = void>
 using ZuNotStateless =
-  ZuIfT<ZuFunctorTraits<L>::IsFunctor && !ZuFunctorTraits<L>::IsStateless, T>;
+  ZuIfT<ZuFnTraits<L>::IsFunctor && !ZuFnTraits<L>::IsStateless, T>;
 
-#endif /* ZuFunctorTraits_HPP */
+#endif /* ZuFnTraits_HPP */

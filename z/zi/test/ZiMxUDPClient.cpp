@@ -206,7 +206,7 @@ int main(int argc, const char *argv[])
 	    int n = ZtREGEX(":").split(argv[++i], c);
 	    if (n != 2) usage();
 	    localIP = c[0].length() ? ZiIP(c[0]) : ZiIP();
-	    localPort = atoi(c[1]);
+	    localPort = ZuBox<unsigned>{c[1]};
 	  } catch (...) { usage(); }
 	}
 	break;
@@ -217,7 +217,7 @@ int main(int argc, const char *argv[])
 	    int n = ZtREGEX(":").split(argv[++i], c);
 	    if (n != 2) usage();
 	    remoteIP = c[0];
-	    remotePort = atoi(c[1]);
+	    remotePort = ZuBox<unsigned>{c[1]};
 	  } catch (...) { usage(); }
 	}
 	break;
