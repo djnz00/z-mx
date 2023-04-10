@@ -81,7 +81,7 @@ map emacs {
     Left[Shift|Alt] { RevWord[Mv|Vis|Unix]; }
     Right[Shift|Alt] { FwdWordEnd[Mv|Vis|Unix|Past]; }
     ^G { Pop; ClrVis; }
-    ^W { Pop; ClrVis[Copy|Del]; }
+    ^W { Pop; ClrVis[Del|Copy]; }
     ^[ { Push(5); }
     ^X { Push(7); }
   }
@@ -113,7 +113,7 @@ map emacs {
     Left[Shift|Alt] { RevWord[Mv|Vis|Unix]; }
     Right[Shift|Alt] { FwdWordEnd[Mv|Vis|Unix|Past]; }
     ^G { Pop; ClrVis; }
-    ^W { Pop; ClrVis[Copy|Del]; }
+    ^W { Pop; ClrVis[Del|Copy]; }
     ^[ { Push(5); }
     ^X { Push(7); }
   }
@@ -122,7 +122,7 @@ map emacs {
     Any { Pop; }
     AnySys { Pop; Syn; }
     AnyFn { Pop; Syn; }
-    Erase { Pop; RevWord[Copy|Del]; }
+    Erase { Pop; RevWord[Del|Copy]; }
     ^G { Pop; }
     'p' { Pop; Prev; }
     'n' { Pop; Next; }
@@ -130,7 +130,7 @@ map emacs {
     'f' { Pop; FwdWord[Mv]; }
     'a' { Pop; Home[Mv]; }
     'e' { Pop; End[Mv]; }
-    'd' { Pop; FwdWord[Copy|Del]; }
+    'd' { Pop; FwdWord[Del|Copy]; }
     'y' { Pop; Rotate; }
     'c' { Pop; CapWord; }
     'u' { Pop; UpperWord; }

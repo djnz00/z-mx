@@ -83,7 +83,7 @@ public:
 
   void finalFn(ZmFn<>);
 
-  virtual int executed(ZvCmdContext *ctx) { return 0; }
+  virtual int executed(ZvCmdContext *) { return 0; }
 
   virtual ZvCmdDispatcher *dispatcher() { return nullptr; }
   virtual void send(void *link, ZmRef<ZiAnyIOBuf>) { }

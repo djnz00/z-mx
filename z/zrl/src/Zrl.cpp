@@ -44,14 +44,14 @@ private:
     Editing,
     Processing
   };
-  // 		 Stopped Editing    Processing
-  // 		 ------- -------    ----------
-  // readline()  Editing            Editing
-  // app.enter()         Processing
-  // app.end()           Stopped
-  // SIGINT              Stopped
-  // app.error()         Stopped
-  // stop()              Stopped    Stopped
+  // 		 Stopped    Editing    Processing
+  // 		 -------    -------    ----------
+  // readline()  Editing               Editing
+  // app.enter()            Processing
+  // app.end()              Stopped
+  // SIGINT                 Stopped
+  // app.error()            Stopped
+  // stop()                 Stopped    Stopped
 
   Lock			lock;
     Zrl::Globber	  globber;

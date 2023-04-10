@@ -313,6 +313,37 @@ using Maps =
 
 using Map = Maps::Node;
 
+// Note: this implementation of registers isn't strictly consistent
+// with vi or vim/gvim (and they in turn are not mutually consistent)
+//
+// vi/vim both distinguish yanks from deletes, and distinguish small
+// intra-line deletes from larger multi-line deletes
+//
+// in both traditional vi and vim:
+//   - yanking (copying) stores into register "0
+//   - deleting (cutting) shifts up registers "1-"9 and stores into "1
+//   - small deletes within a line use the 'small delete' register "-
+//     and do not update registers "1-"9
+//   - all yanks/deletes update the shadow 'unnamed' register "", which
+//     is used as a default for retrieval, to point to the last yank/delete
+//     (i.e. "0, "1 or "-)
+//
+// in vim:
+//   - storing explicitly to "" selects "0
+//
+// in traditional vi:
+//   - "- and "" are internal and are not accessible as named registers
+//
+// none of this quirkiness reflects good product design or usability
+// and most vi users are unaware of these nuances; most vi mode emulators
+// neglect register handling in its entirety; in this implementation
+// all yanks and deletes shift up registers 0>9 and store into register "0,
+// and the 'unnamed' register is always implicitly "0; "" and "- do not
+// separately exist and are aliased to "0; these design choices retain
+// the usability of multiple registers while adopting a logically consistent
+// use of the numbered registers whose implementation can be shared with
+// Emacs behavior
+
 using RegData = ZtArray<uint8_t>;
 using Register = ZuPtr<RegData>;
 
@@ -325,6 +356,8 @@ public:
     if (ZuLikely(c == '/')) return 36;		// search string
     if (ZuLikely(c == '+')) return 37;		// clipboard
     if (ZuLikely(c == '*')) return 38;		// alt. clipboard
+    if (ZuLikely(c == '"')) return 0;		// alias for "0
+    if (ZuLikely(c == '-')) return 0;		// alias for "0
     return -1;
   }
 
@@ -342,16 +375,8 @@ public:
   RegData &vi_yank() {
     m_offset = 0;
     if (m_count < 10) ++m_count;
-    m_array[9].~Register();
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
-    memmove(&m_array[1], &m_array[0], 9 * sizeof(Register));
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-    new (&m_array[0]) Register{new RegData{}};
+    for (unsigned i = 10; --i > 0; ) m_array[i] = ZuMv(m_array[i - 1]);
+    m_array[0] = new RegData{};
     return *(m_array[0]);
   }
   const RegData &vi_put() { return get(0); }
@@ -362,7 +387,7 @@ public:
     if (ZuUnlikely(++m_offset >= m_count)) m_offset = 0;
   }
   void emacs_rotateRev() {
-    if (ZuUnlikely(!m_offset--)) m_offset = m_count - 1;
+    if (ZuUnlikely(!m_offset--)) m_offset = !m_count ? 0 : m_count - 1;
   }
 
 private:

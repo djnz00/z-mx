@@ -39,6 +39,7 @@
 
 #include <zlib/ZtlsBase32.hpp>
 #include <zlib/ZtlsBase64.hpp>
+#include <zlib/ZtlsTOTP.hpp>
 
 #include <zlib/ZrlCLI.hpp>
 #include <zlib/ZrlGlobber.hpp>
@@ -183,7 +184,7 @@ friend Link;
     initCmds();
     if (m_interactive)
       m_cli.init(Zrl::App{
-	.error = [this](ZuString s) { std::cerr << s << '\n'; post(); },
+	.error = [this](ZuString s) { std::cerr << s << '\n'; done(); },
 	.prompt = [this](ZtArray<uint8_t> &s) {
 	  ZmGuard guard(m_promptLock);
 	  if (m_prompt.owned()) s = ZuMv(m_prompt);
@@ -193,7 +194,7 @@ friend Link;
 	  m_executed.wait();
 	  return code();
 	},
-	.end = [this]() { post(); },
+	.end = [this]() { done(); },
 	.sig = [](int sig) -> bool {
 	  switch (sig) {
 	    case SIGINT:
@@ -235,9 +236,22 @@ friend Link;
   template <typename Server, typename ...Args>
   void login(Server &&server, uint16_t port, Args &&... args) {
     m_cli.open(); // idempotent
-    ZtString passwd = m_cli.getpass("password: ", 100);
+    ZtString passwd;
+    if (auto passwd_ = ::getenv("ZCMD_PASSWD"))
+      passwd = passwd_;
+    else
+      passwd = m_cli.getpass("password: ", 100);
     if (!passwd) return;
-    ZuBox<unsigned> totp = m_cli.getpass("totp: ", 6);
+    ZuBox<unsigned> totp;
+    if (auto secret_ = ::getenv("ZCMD_TOTP_SECRET")) {
+      unsigned n = strlen(secret_);
+      ZtArray<uint8_t> secret;
+      secret.length(Ztls::Base32::declen(n));
+      secret.length(
+	  Ztls::Base32::decode(secret.data(), secret.length(), secret_, n));
+      if (secret) totp = Ztls::TOTP::calc(secret.data(), secret.length());
+    } else
+      totp = m_cli.getpass("totp: ", 6);
     if (!*totp) return;
     m_link = new Link{this, ZuFwd<Server>(server), port};
     m_link->login(ZuFwd<Args>(args)..., ZuMv(passwd), totp);
@@ -251,7 +265,7 @@ friend Link;
   void disconnect() { if (m_link) m_link->disconnect(); }
 
   void wait() { m_done.wait(); }
-  void post() { m_done.post(); }
+  void done() { m_done.post(); }
 
   void exiting() { m_exiting = true; }
 
@@ -285,7 +299,7 @@ private:
     if (m_solo) {
       exec(ZuMv(m_soloMsg));
       m_executed.wait();
-      post();
+      done();
     } else {
       if (m_interactive) {
 	std::cout <<
@@ -302,7 +316,7 @@ private:
 	  if (code()) break;
 	  cmd.size(4096);
 	}
-	post();
+	done();
       }
     }
   }
@@ -333,7 +347,10 @@ private:
       m_cli.stop();
       m_cli.close();
     }
-    if (m_exiting) return;
+    if (m_exiting) {
+      done();
+      return;
+    }
     if (m_interactive) {
       m_cli.final();
       std::cerr << "server disconnected\n" << std::flush;
@@ -1548,7 +1565,7 @@ int main(int argc, char **argv)
 
   ZmRef<ZCmd> client = new ZCmd();
 
-  ZmTrap::sigintFn({client, [](ZCmd *client) { client->post(); }});
+  ZmTrap::sigintFn({client, [](ZCmd *client) { client->done(); }});
   ZmTrap::trap();
 
   {
@@ -1590,10 +1607,14 @@ int main(int argc, char **argv)
 
   client->wait();
 
-  if (client->interactive()) std::cout << std::flush;
+  if (client->interactive()) {
+    std::cerr << std::flush;
+    std::cout << std::flush;
+  }
 
   client->exiting();
   client->disconnect();
+  client->wait();
 
   mx->stop();
 

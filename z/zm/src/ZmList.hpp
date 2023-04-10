@@ -666,6 +666,8 @@ public:
   void clean() {
     Guard guard(m_lock);
     clean_();
+    m_head = m_tail = nullptr;
+    m_count = 0;
   }
 
   auto iterator() { return Iterator{*this}; }
@@ -785,9 +787,6 @@ protected:
       nodeDeref(prevNode);
       nodeDelete(prevNode);
     }
-
-    m_head = m_tail = nullptr;
-    m_count = 0;
   }
 
   Lock		m_lock;

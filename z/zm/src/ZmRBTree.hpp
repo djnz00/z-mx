@@ -394,7 +394,6 @@ public:
       tree.m_count = 0;
     }
     {
-      Guard guard(m_lock);
       clean_();
       m_root = root, m_minimum = minimum, m_maximum = maximum;
       m_count = count;
@@ -675,47 +674,15 @@ public:
   }
 
 public:
-  NodeRef minimum() const {
-    ReadGuard guard(m_lock);
-    return m_minimum;
-  }
-  Node *minimumPtr() const {
-    ReadGuard guard(m_lock);
-    return m_minimum;
-  }
-  Key minimumKey() const {
-    ReadGuard guard(m_lock);
-    Node *node = m_minimum;
-    if (ZuUnlikely(!node)) return ZuNullRef<Key, Cmp>();
-    return key(node);
-  }
-  Val minimumVal() const {
-    ReadGuard guard(m_lock);
-    Node *node = m_minimum;
-    if (ZuUnlikely(!node)) return ZuNullRef<Val, ValCmp>();
-    return val(node);
-  }
+  NodeRef minimum() const { ReadGuard guard(m_lock); return m_minimum; }
+  Node *minimumPtr() const { ReadGuard guard(m_lock); return m_minimum; }
+  Key minimumKey() const { ReadGuard guard(m_lock); return key(m_minimum); }
+  Val minimumVal() const { ReadGuard guard(m_lock); return val(m_minimum); }
 
-  NodeRef maximum() const {
-    ReadGuard guard(m_lock);
-    return m_maximum;
-  }
-  Node *maximumPtr() const {
-    ReadGuard guard(m_lock);
-    return m_maximum;
-  }
-  Key maximumKey() const {
-    ReadGuard guard(m_lock);
-    Node *node = m_maximum;
-    if (ZuUnlikely(!node)) return ZuNullRef<Key, Cmp>();
-    return key(node);
-  }
-  Val maximumVal() const {
-    ReadGuard guard(m_lock);
-    Node *node = m_maximum;
-    if (ZuUnlikely(!node)) return ZuNullRef<Val, ValCmp>();
-    return val(node);
-  }
+  NodeRef maximum() const { ReadGuard guard(m_lock); return m_maximum; }
+  Node *maximumPtr() const { ReadGuard guard(m_lock); return m_maximum; }
+  Key maximumKey() const { ReadGuard guard(m_lock); return key(m_maximum); }
+  Val maximumVal() const { ReadGuard guard(m_lock); return val(m_maximum); }
 
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, NodeMvRef> del(const P &key) {
@@ -861,12 +828,31 @@ public:
   void clean() {
     Guard guard(m_lock);
     clean_();
-  }
-  void clean_() {
-    auto i = iterator();
-    while (auto node = i.iterate()) i.del(node);
     m_minimum = m_maximum = m_root = nullptr;
     m_count = 0;
+  }
+  void clean_() {
+    Node *node = m_minimum, *next;
+    if (!node) return;
+    do {
+      if (next = node->NodeExt::left()) { node = next; continue; }
+      if (next = node->NodeExt::dup()) { node = next; continue; }
+      if (next = node->NodeExt::right()) { node = next; continue; }
+      if (next = node->NodeExt::parent()) {
+	if (node == next->NodeExt::left())
+	  next->NodeExt::left(nullptr);
+	else if constexpr (!Unique) {
+	  if (node == next->NodeExt::dup())
+	    next->NodeExt::dup(nullptr);
+	  else
+	    next->NodeExt::right(nullptr);
+	} else
+	  next->NodeExt::right(nullptr);
+      }
+      nodeDeref(node);
+      nodeDelete(node);
+      node = next;
+    } while (node);
   }
 
   void rotateRight(Node *node, Node *parent) {

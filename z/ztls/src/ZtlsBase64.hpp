@@ -40,7 +40,11 @@ ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
 ZuInline unsigned encode(
     char *dst, unsigned dlen, const void *src, unsigned slen) {
   using base64 = cppcodec::base64_rfc4648;
-  return base64::encode(dst, dlen, (const uint8_t *)src, slen);
+  try {
+    return base64::encode(dst, dlen, (const uint8_t *)src, slen);
+  } catch (...) {
+    return 0;
+  }
 }
 
 // does not null-terminate dst
@@ -48,7 +52,11 @@ ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
 ZuInline unsigned decode(
     void *dst, unsigned dlen, const char *src, unsigned slen) {
   using base64 = cppcodec::base64_rfc4648;
-  return base64::decode((uint8_t *)dst, dlen, src, slen);
+  try {
+    return base64::decode((uint8_t *)dst, dlen, src, slen);
+  } catch (...) {
+    return 0;
+  }
 }
 
 }

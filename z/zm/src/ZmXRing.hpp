@@ -248,7 +248,6 @@ private:
 public:
   void init(ZmXRingParams params = ZmXRingParams()) {
     Guard guard(m_lock);
-
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
     m_defrag = 1.0 - (double)params.maxFrag() / 100.0;
@@ -256,7 +255,6 @@ public:
 
   void clean() {
     Guard guard(m_lock);
-
     clean_();
     m_offset = m_length = m_count = 0;
   }

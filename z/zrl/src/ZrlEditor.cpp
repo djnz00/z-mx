@@ -925,7 +925,10 @@ bool Editor::process__(const CmdSeq &cmds, int32_t vkey)
     if (!(cmd.op() & Op::KeepReg)) m_context.register_ = -1;
     if (Cmd::nullArg(cmd.arg()) &&
 	!(cmd.op() & Op::KeepArg)) m_context.clrArg();
-    if (stop) return true;
+    if (stop) {
+      m_app.end();
+      return true;
+    }
   }
   if (m_tty.write() != Zi::OK) {
     m_app.end();

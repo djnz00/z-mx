@@ -91,7 +91,7 @@ int main()
 
   fputs("17 to 1, odd: ", stdout);
   {
-    auto iter = tree.iterator<ZmRBTreeLess>();
+    auto iter = tree.iterator<ZmRBTreeLess>(tree.maximumKey());
     Tree::NodeRef node;
 
     while (node = iter.iterate())
@@ -620,6 +620,13 @@ int main()
   printf("min: %d, max: %d\n", tree.minimum()->key()->m_z, tree.maximum()->key()->m_z);
 
   tree.clean();
+
+  fputs("empty tree: ", stdout);
+  {
+    auto i = tree.iterator();
+    while (auto node = i.iterate()) printf("%d ", node->key()->m_z);
+  }
+  putchar('\n');
 
   {
     ZmRBTree<uint64_t> tree2;
