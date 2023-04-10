@@ -2218,6 +2218,7 @@ void Editor::histLoad(int offset, ZuArray<const uint8_t> data, bool save)
 {
   m_context.horizPos = -1;
   m_context.histLoadOff = offset;
+  unsigned origPos = m_tty.pos();
   unsigned pos = m_context.startPos;
   m_tty.mv(pos);
   const auto &line = m_tty.line();
@@ -2230,6 +2231,9 @@ void Editor::histLoad(int offset, ZuArray<const uint8_t> data, bool save)
       begin, ZuUTF<uint32_t, uint8_t>::span(orig),
       data, ZuUTF<uint32_t, uint8_t>::span(data),
       !data || !commandMode());
+  unsigned finPos = line.width();
+  if (origPos >= finPos) origPos = finPos;
+  m_tty.mv(origPos);
 }
 bool Editor::cmdNext(Cmd cmd, int32_t vkey)
 {

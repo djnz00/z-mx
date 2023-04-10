@@ -439,7 +439,7 @@ private:
     using namespace ZvUserDB;
     if (ack->rejCode()) {
       out << '[' << ZuBox<unsigned>(ack->rejCode()) << "] "
-	<< Zfb::Load::str(ack->rejText()) << '\n';
+	<< Zfb::Load::str(ack->rejText());
       return 1;
     }
     auto ackType = ack->data_type();

@@ -267,7 +267,7 @@ Zfb::Offset<fbs::ReqAck> Mgr::request(User *user, bool interactive,
       if (ZuUnlikely(perm < 0)) {
 	using namespace Zfb::Save;
 	auto text_ = str(fbb, ZtString{} <<
-	    "permission denied (\"" << permName << "\" missing)");
+	    "permission denied (\"" << permName << "\" missing)\n");
 	fbs::ReqAckBuilder fbb_(fbb);
 	fbb_.add_seqNo(seqNo);
 	fbb_.add_rejCode(__LINE__);
@@ -279,7 +279,7 @@ Zfb::Offset<fbs::ReqAck> Mgr::request(User *user, bool interactive,
     if (ZuUnlikely(!ok(user, interactive, perm))) {
       using namespace Zfb::Save;
       ZtString text = "permission denied";
-      if (user->flags & User::ChPass) text << " (user must change password)";
+      if (user->flags & User::ChPass) text << " (user must change password)\n";
       auto text_ = str(fbb, text);
       fbs::ReqAckBuilder fbb_(fbb);
       fbb_.add_seqNo(seqNo);
