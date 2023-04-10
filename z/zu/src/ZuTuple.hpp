@@ -58,13 +58,6 @@ template <typename T, typename P> struct ZuTuple1_Cvt :
     ZuConversion<ZuTuple1_, ZuDeref<T>>::Base> { };
 
 template <typename U0> struct ZuTuple1_Print_ {
-  ZuTuple1_Print_() = delete;
-  ZuTuple1_Print_(const ZuTuple1_Print_ &) = delete;
-  ZuTuple1_Print_ &operator =(const ZuTuple1_Print_ &) = delete;
-  ZuTuple1_Print_(ZuTuple1_Print_ &&) = delete;
-  ZuTuple1_Print_ &operator =(ZuTuple1_Print_ &&) = delete;
-  ZuTuple1_Print_(const U0 &p0_, const ZuString &delim_) :
-      p0{p0_}, delim{delim_} { }
   const U0		&p0;
   const ZuString	&delim;
 };
@@ -102,6 +95,7 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0>;
 
+  // need to explicitly default these for overload resolution
   Tuple_() = default;
   Tuple_(const Tuple_ &) = default;
   Tuple_ &operator =(const Tuple_ &) = default;
@@ -264,6 +258,7 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0, T1>;
 
+  // need to explicitly default these for overload resolution
   Tuple_() = default;
   Tuple_(const Tuple_ &) = default;
   Tuple_ &operator =(const Tuple_ &) = default;
@@ -354,6 +349,7 @@ public:
   template <typename T>
   using Index = ZuTypeIndex<T, T0, T1, Args...>;
 
+  // need to explicitly default these for overload resolution
   Tuple_() = default;
   Tuple_(const Tuple_ &) = default;
   Tuple_ &operator =(const Tuple_ &) = default;

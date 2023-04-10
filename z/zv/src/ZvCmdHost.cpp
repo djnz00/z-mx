@@ -26,8 +26,10 @@
 void ZvCmdHost::init()
 {
   m_syntax = new ZvCf();
-  addCmd("help", "", ZvCmdFn::Member<&ZvCmdHost::help>::fn(this),
+  addCmd("help", "", ZvCmdFn::Member<&ZvCmdHost::helpCmd>::fn(this),
       "list commands", "usage: help [COMMAND]");
+  addCmd("loadmod", "", ZvCmdFn::Member<&ZvCmdHost::loadModCmd>::fn(this),
+      "load application-specific module", "usage: loadmod MODULE");
 }
 
 void ZvCmdHost::final()
@@ -54,9 +56,9 @@ void ZvCmdHost::addCmd(
 
 bool ZvCmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
 
-int ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
+void ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
 {
-  if (!args_) return 0;
+  if (!args_) return;
   auto &out = ctx->out;
   const ZtString &name = args_[0];
   typename Cmds::NodeRef cmd;
@@ -68,41 +70,46 @@ int ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
     args->fromArgs(m_syntax->subset(name, false), args_);
     if (args->getInt("help", 0, 1, false, 0)) {
       out << cmd->val().usage << '\n';
-      return 0;
+      return;
     }
-    uint32_t r = (cmd->val().fn)(ctx);
-    r &= ~(static_cast<uint32_t>(1)<<31); // ensure +ve
-    return r;
+    (cmd->val().fn)(ctx);
   } catch (const ZvCmdUsage &) {
     out << cmd->val().usage << '\n';
+    executed(1, ctx);
   } catch (const ZvError &e) {
     out << e << '\n';
+    executed(1, ctx);
   } catch (const ZeError &e) {
     out << '"' << name << "\": " << e << '\n';
+    executed(1, ctx);
   } catch (const ZtString &s) {
     out << '"' << name << "\": " << s << '\n';
+    executed(1, ctx);
   } catch (const ZtArray<char> &s) {
     out << '"' << name << "\": " << s << '\n';
+    executed(1, ctx);
   } catch (...) {
     out << '"' << name << "\": unknown exception\n";
+    executed(1, ctx);
   }
-  return -1;
 }
 
-int ZvCmdHost::help(ZvCmdContext *ctx)
+void ZvCmdHost::helpCmd(ZvCmdContext *ctx)
 {
   auto &out = ctx->out;
   const auto &args = ctx->args;
-  int argc = ZuBox<int>(args->get("#"));
+  int argc = ZuBox<int>{args->get("#")};
   if (argc > 2) throw ZvCmdUsage();
   if (ZuUnlikely(argc == 2)) {
     auto cmd = m_cmds.find(args->get("1"));
     if (!cmd) {
       out << args->get("1") << ": unknown command\n";
-      return 1;
+      executed(1, ctx);
+      return;
     }
     out << cmd->val().usage << '\n';
-    return 0;
+    executed(0, ctx);
+    return;
   }
   out.size(m_cmds.count_() * 80 + 40);
   out << "commands:\n\n";
@@ -111,17 +118,22 @@ int ZvCmdHost::help(ZvCmdContext *ctx)
     while (auto cmd = i.iterate())
       out << cmd->key() << " -- " << cmd->val().brief << '\n';
   }
-  return 0;
+  executed(0, ctx);
 }
 
-int ZvCmdHost::loadMod(ZuString name_, ZtString &out)
+void ZvCmdHost::loadModCmd(ZvCmdContext *ctx)
 {
+  auto &out = ctx->out;
+  const auto &args = ctx->args;
+  int argc = ZuBox<int>{args->get("#")};
+  if (argc != 2) throw ZvCmdUsage{};
   ZiModule module;
-  ZiModule::Path name{name_};
+  ZiModule::Path name = args->get("1", true);
   ZtString e;
   if (module.load(name, false, &e) < 0) {
     out << "failed to load \"" << name << "\": " << ZuMv(e) << '\n';
-    return 1;
+    executed(1, ctx);
+    return;
   }
   ZvCmdInitFn initFn = reinterpret_cast<ZvCmdInitFn>(
       module.resolve("ZvCmd_plugin", &e));
@@ -129,11 +141,12 @@ int ZvCmdHost::loadMod(ZuString name_, ZtString &out)
     module.unload();
     out << "failed to resolve \"ZvCmd_plugin\" in \"" <<
       name << "\": " << ZuMv(e) << '\n';
-    return 1;
+    executed(1, ctx);
+    return;
   }
   (*initFn)(static_cast<ZvCmdHost *>(this));
   out << "module \"" << name << "\" loaded\n";
-  return 0;
+  executed(0, ctx);
 }
 
 void ZvCmdHost::finalFn(ZmFn<> fn)

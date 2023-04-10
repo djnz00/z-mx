@@ -190,9 +190,8 @@ friend Link;
 	  if (m_prompt.owned()) s = ZuMv(m_prompt);
 	},
 	.enter = [this](ZuString s) -> bool {
-	  exec(ZtString{s});
-	  m_executed.wait();
-	  return code();
+	  exec(ZtString{s}); // ignore result code
+	  return false;
 	},
 	.end = [this]() { done(); },
 	.sig = [](int sig) -> bool {
@@ -269,8 +268,6 @@ friend Link;
 
   void exiting() { m_exiting = true; }
 
-  int code() const { return m_code; }
-
   // ZvCmdHost virtual functions
   ZvCmdDispatcher *dispatcher() { return this; }
   void send(void *link, ZmRef<ZiAnyIOBuf> buf) {
@@ -288,18 +285,17 @@ friend Link;
 private:
   void loggedIn() {
     if (auto plugin = ::getenv("ZCMD_PLUGIN")) {
-      ZtString out;
-      loadMod(plugin, out);
-      if (out) std::cerr << out;
+      auto cmd = ZtString{} << "loadmod " << plugin;
+      if (exec(cmd) != 0) std::cerr << cmd << " failed\n";
     }
     start();
   }
 
   void start() {
     if (m_solo) {
-      exec(ZuMv(m_soloMsg));
-      m_executed.wait();
+      int code = exec(ZuMv(m_soloMsg));
       done();
+      Zm::exit(code);
     } else {
       if (m_interactive) {
 	std::cout <<
@@ -311,9 +307,7 @@ private:
 	while (fgets(cmd, cmd.size() - 1, stdin)) {
 	  cmd.calcLength();
 	  cmd.chomp();
-	  exec(ZuMv(cmd));
-	  m_executed.wait();
-	  if (code()) break;
+	  if (exec(ZuMv(cmd))) break;
 	  cmd.size(4096);
 	}
 	done();
@@ -367,8 +361,8 @@ private:
     Zm::exit(1);
   }
 
-  void exec(ZtString cmd) {
-    if (!cmd) return;
+  int exec(ZtString cmd) {
+    if (!cmd) return 0;
     ZtString cmd_ = ZuMv(cmd);
     ZvCmdContext ctx{
       .app_ = this,
@@ -382,14 +376,14 @@ private:
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "a"))) {
 	  logError(path, ": ", ZeLastError);
-	  return;
+	  return -1;
 	}
 	cmd = c[0];
       } else if (n = ZtREGEX("\s*>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "w"))) {
 	  logError(path, ": ", ZeLastError);
-	  return;
+	  return -1;
 	}
 	cmd = c[0];
       } else {
@@ -399,30 +393,19 @@ private:
     }
     ZtArray<ZtString> args;
     ZvCf::parseCLI(cmd, args);
-    if (!args) return;
-    auto &out = ctx.out;
-    if (args[0] == "help") {
-      if (args.length() == 1) {
-	out << "Local ";
-	processCmd(&ctx, args);
-	out << "\nRemote ";
-	fwrite(out.data(), 1, out.length(), ctx.file);
-      } else if (args.length() == 2 && hasCmd(args[1])) {
-	int code = processCmd(&ctx, args);
-	executed(code, &ctx);
-	return;
-      }
-    } else if (args[0] == "remote") {
+    if (!args) return 0;
+    if (args[0] == "remote") {
       args.shift();
     } else if (hasCmd(args[0])) {
-      int code = processCmd(&ctx, args);
-      executed(code, &ctx);
-      return;
+      processCmd(&ctx, args);
+      m_executed.wait();
+      return ctx.code;
     }
     send(&ctx, args);
+    m_executed.wait();
+    return ctx.code;
   }
 
-  // async invoke
   void send(ZvCmdContext *ctx, ZuArray<const ZtString> args) {
     auto seqNo = m_seqNo++;
     m_fbb.Finish(ZvCmd::fbs::CreateRequest(m_fbb, seqNo,
@@ -436,18 +419,13 @@ private:
     });
   }
 
-  int executed(int code, ZvCmdContext *ctx) {
-    ctx->code = code;
-    return executed(ctx);
-  }
-
-  int executed(ZvCmdContext *ctx) {
+  using ZvCmdHost::executed;
+  void executed(ZvCmdContext *ctx) {
     if (const auto &out = ctx->out)
       fwrite(out.data(), 1, out.length(), ctx->file);
+    fflush(stdout);
     if (ctx->file != stdout) { fclose(ctx->file); ctx->file = stdout; }
-    m_code = ctx->code;
     m_executed.post();
-    return m_code;
   }
 
 private:
@@ -477,138 +455,92 @@ private:
 
   void initCmds() {
     addCmd("passwd", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->passwdCmd(ctx);
-	  }},  "change passwd", "usage: passwd");
+	ZvCmdFn::Member<&ZCmd::passwdCmd>::fn(this),
+	"change passwd", "usage: passwd");
 
     addCmd("users", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->usersCmd(ctx);
-	  }},  "list users", "usage: users");
+	ZvCmdFn::Member<&ZCmd::usersCmd>::fn(this),
+	"list users", "usage: users");
     addCmd("useradd",
 	"e enabled enabled { type flag } "
 	"i immutable immutable { type flag }",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->userAddCmd(ctx);
-	  }},  "add user",
+	ZvCmdFn::Member<&ZCmd::userAddCmd>::fn(this),
+	"add user",
 	"usage: useradd ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("resetpass", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->resetPassCmd(ctx);
-	  }},  "reset password", "usage: resetpass USERID");
+	ZvCmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
+	"reset password", "usage: resetpass USERID");
     addCmd("usermod",
 	"e enabled enabled { type flag } "
 	"i immutable immutable { type flag }",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->userModCmd(ctx);
-	  }},  "modify user",
+	ZvCmdFn::Member<&ZCmd::userModCmd>::fn(this),
+	"modify user",
 	"usage: usermod ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("userdel", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->userDelCmd(ctx);
-	  }},  "delete user", "usage: userdel ID");
+	ZvCmdFn::Member<&ZCmd::userDelCmd>::fn(this),
+	"delete user", "usage: userdel ID");
 
     addCmd("roles", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->rolesCmd(ctx);
-	  }},  "list roles", "usage: roles");
+	ZvCmdFn::Member<&ZCmd::rolesCmd>::fn(this),
+	"list roles", "usage: roles");
     addCmd("roleadd", "i immutable immutable { type flag }",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->roleAddCmd(ctx);
-	  }},  "add role",
+	ZvCmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
+	"add role",
 	"usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("rolemod", "i immutable immutable { type scalar }",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->roleModCmd(ctx);
-	  }},  "modify role",
+	ZvCmdFn::Member<&ZCmd::roleModCmd>::fn(this),
+	"modify role",
 	"usage: rolemod NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("roledel", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->roleDelCmd(ctx);
-	  }},  "delete role",
+	ZvCmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
+	"delete role",
 	"usage: roledel NAME");
 
     addCmd("perms", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->permsCmd(ctx);
-	  }},  "list permissions", "usage: perms");
+	ZvCmdFn::Member<&ZCmd::permsCmd>::fn(this),
+	"list permissions", "usage: perms");
     addCmd("permadd", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->permAddCmd(ctx);
-	  }},  "add permission", "usage: permadd NAME");
+	ZvCmdFn::Member<&ZCmd::permAddCmd>::fn(this),
+	"add permission", "usage: permadd NAME");
     addCmd("permmod", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->permModCmd(ctx);
-	  }},  "modify permission", "usage: permmod ID NAME");
+	ZvCmdFn::Member<&ZCmd::permModCmd>::fn(this),
+	"modify permission", "usage: permmod ID NAME");
     addCmd("permdel", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->permDelCmd(ctx);
-	  }},  "delete permission", "usage: permdel ID");
+	ZvCmdFn::Member<&ZCmd::permDelCmd>::fn(this),
+	"delete permission", "usage: permdel ID");
 
     addCmd("keys", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->keysCmd(ctx);
-	  }},  "list keys", "usage: keys [USERID]");
+	ZvCmdFn::Member<&ZCmd::keysCmd>::fn(this),
+	"list keys", "usage: keys [USERID]");
     addCmd("keyadd", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->keyAddCmd(ctx);
-	  }},  "add key", "usage: keyadd [USERID]");
+	ZvCmdFn::Member<&ZCmd::keyAddCmd>::fn(this),
+	"add key", "usage: keyadd [USERID]");
     addCmd("keydel", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->keyDelCmd(ctx);
-	  }},  "delete key", "usage: keydel ID");
+	ZvCmdFn::Member<&ZCmd::keyDelCmd>::fn(this),
+	"delete key", "usage: keydel ID");
     addCmd("keyclr", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->keyClrCmd(ctx);
-	  }},  "clear all keys", "usage: keyclr [USERID]");
+	ZvCmdFn::Member<&ZCmd::keyClrCmd>::fn(this),
+	"clear all keys", "usage: keyclr [USERID]");
 
     addCmd("remote", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->remoteCmd(ctx);
-	  }},  "run command remotely", "usage: remote COMMAND...");
-
-    addCmd("loadmod", "",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->loadModCmd(ctx);
-	  }},  "load application-specific module", "usage: loadmod MODULE");
+	ZvCmdFn::Member<&ZCmd::remoteCmd>::fn(this),
+	"run command remotely", "usage: remote COMMAND...");
 
     addCmd("telcap",
 	"i interval interval { type scalar } "
 	"u unsubscribe unsubscribe { type flag }",
-	ZvCmdFn{this,
-	  [](ZCmd *app, ZvCmdContext *ctx) {
-	    return app->telcapCmd(ctx);
-	  }},  "telemetry capture",
+	ZvCmdFn::Member<&ZCmd::telcapCmd>::fn(this),
+	"telemetry capture",
 	"usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"
 	"  PATH\tdirectory for capture CSV files\n"
 	"  TYPE\t[Heap|HashTbl|Thread|Mx|Queue|Engine|DbEnv|App|Alert]\n"
@@ -619,7 +551,7 @@ private:
 	"  -u, --unsubscribe\tunsubscribe (i.e. end capture)\n");
   }
 
-  int passwdCmd(ZvCmdContext *ctx) {
+  void passwdCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 1) throw ZvCmdUsage{};
     ZtString oldpw = m_cli.getpass("Current password: ", 100);
@@ -627,7 +559,8 @@ private:
     ZtString checkpw = m_cli.getpass("Re-type new password: ", 100);
     if (checkpw != newpw) {
       ctx->out << "passwords do not match\npassword unchanged!\n";
-      return 1;
+      executed(1, ctx);
+      return;
     }
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
@@ -642,18 +575,20 @@ private:
     m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       if (int code = filterAck(
-	    ctx.out, ack, fbs::ReqAckData_ChPass, -1, "password change"))
-	return executed(code, &ctx);
+	    ctx.out, ack, fbs::ReqAckData_ChPass, -1, "password change")) {
+	executed(code, &ctx);
+	return;
+      }
       auto &out = ctx.out;
       auto userAck = static_cast<const fbs::UserAck *>(ack->data());
       if (!userAck->ok()) {
 	out << "password change rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       out << "password changed\n";
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
   static void printUser(ZtString &out, const ZvUserDB::fbs::User *user_) {
@@ -692,7 +627,7 @@ private:
     }
   }
 
-  int usersCmd(ZvCmdContext *ctx) {
+  void usersCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -709,18 +644,20 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_UserGet, -1, "user get"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_UserGet, -1, "user get")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userList = static_cast<const fbs::UserList *>(ack->data());
       using namespace Zfb::Load;
       all(userList->list(), [&out](unsigned, auto user_) {
 	printUser(out, user_); out << '\n';
       });
-      return executed(0, &ctx);
+      executed(0, &ctx);
+      return;
     });
-    return 0;
   }
-  int userAddCmd(ZvCmdContext *ctx) {
+  void userAddCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -745,21 +682,23 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_UserAdd, -1, "user add"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_UserAdd, -1, "user add")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userPass = static_cast<const fbs::UserPass *>(ack->data());
       if (!userPass->ok()) {
 	out << "user add rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printUser(out, userPass->user()); out << '\n';
       using namespace Zfb::Load;
       out << "passwd=" << str(userPass->passwd()) << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int resetPassCmd(ZvCmdContext *ctx) {
+  void resetPassCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -775,21 +714,23 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_ResetPass, -1, "reset password"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_ResetPass, -1, "reset password")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userPass = static_cast<const fbs::UserPass *>(ack->data());
       if (!userPass->ok()) {
 	out << "reset password rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printUser(out, userPass->user()); out << '\n';
       using namespace Zfb::Load;
       out << "passwd=" << str(userPass->passwd()) << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int userModCmd(ZvCmdContext *ctx) {
+  void userModCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -814,19 +755,21 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_UserMod, -1, "user modify"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_UserMod, -1, "user modify")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userUpdAck = static_cast<const fbs::UserUpdAck *>(ack->data());
       if (!userUpdAck->ok()) {
 	out << "user modify rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printUser(out, userUpdAck->user()); out << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int userDelCmd(ZvCmdContext *ctx) {
+  void userDelCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -842,18 +785,20 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_UserDel, -1, "user delete"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_UserDel, -1, "user delete")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userUpdAck = static_cast<const fbs::UserUpdAck *>(ack->data());
       if (!userUpdAck->ok()) {
 	out << "user delete rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printUser(out, userUpdAck->user()); out << '\n';
       out << "user deleted\n";
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
   static void printRole(ZtString &out, const ZvUserDB::fbs::Role *role_) {
@@ -873,7 +818,7 @@ private:
     if (role_->flags() & Role::Immutable) out << "Immutable";
   }
 
-  int rolesCmd(ZvCmdContext *ctx) {
+  void rolesCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -892,18 +837,19 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_RoleGet, -1, "role get"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_RoleGet, -1, "role get")) {
+	executed(code, &ctx);
+	return;
+      }
       auto roleList = static_cast<const fbs::RoleList *>(ack->data());
       using namespace Zfb::Load;
       all(roleList->list(), [&out](unsigned, auto role_) {
 	printRole(out, role_); out << '\n';
       });
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int roleAddCmd(ZvCmdContext *ctx) {
+  void roleAddCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -926,19 +872,21 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_RoleAdd, -1, "role add"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_RoleAdd, -1, "role add")) {
+	executed(code, &ctx);
+	return;
+      }
       auto roleUpdAck = static_cast<const fbs::RoleUpdAck *>(ack->data());
       if (!roleUpdAck->ok()) {
 	out << "role add rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printRole(out, roleUpdAck->role()); out << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int roleModCmd(ZvCmdContext *ctx) {
+  void roleModCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -961,19 +909,21 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_RoleMod, -1, "role modify"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_RoleMod, -1, "role modify")) {
+	executed(code, &ctx);
+	return;
+      }
       auto roleUpdAck = static_cast<const fbs::RoleUpdAck *>(ack->data());
       if (!roleUpdAck->ok()) {
 	out << "role modify rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printRole(out, roleUpdAck->role()); out << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int roleDelCmd(ZvCmdContext *ctx) {
+  void roleDelCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -988,21 +938,23 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_RoleMod, -1, "role delete"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_RoleMod, -1, "role delete")) {
+	executed(code, &ctx);
+	return;
+      }
       auto roleUpdAck = static_cast<const fbs::RoleUpdAck *>(ack->data());
       if (!roleUpdAck->ok()) {
 	out << "role delete rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       printRole(out, roleUpdAck->role()); out << '\n';
       out << "role deleted\n";
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int permsCmd(ZvCmdContext *ctx) {
+  void permsCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1019,19 +971,20 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_PermGet, -1, "perm get"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_PermGet, -1, "perm get")) {
+	executed(code, &ctx);
+	return;
+      }
       auto permList = static_cast<const fbs::PermList *>(ack->data());
       using namespace Zfb::Load;
       all(permList->list(), [&out](unsigned, auto perm_) {
 	out << ZuBoxed(perm_->id()).template fmt<ZuFmt::Right<3, ' '>>() <<
 	  ' ' << str(perm_->name()) << '\n';
       });
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int permAddCmd(ZvCmdContext *ctx) {
+  void permAddCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1047,21 +1000,23 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_PermAdd, -1, "permission add"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_PermAdd, -1, "permission add")) {
+	executed(code, &ctx);
+	return;
+      }
       using namespace Zfb::Load;
       auto permUpdAck = static_cast<const fbs::PermUpdAck *>(ack->data());
       if (!permUpdAck->ok()) {
 	out << "permission add rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       auto perm = permUpdAck->perm();
       out << "added " << perm->id() << ' ' << str(perm->name()) << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int permModCmd(ZvCmdContext *ctx) {
+  void permModCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 3) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1078,21 +1033,23 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_PermMod, -1, "permission modify"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_PermMod, -1, "permission modify")) {
+	executed(code, &ctx);
+	return;
+      }
       using namespace Zfb::Load;
       auto permUpdAck = static_cast<const fbs::PermUpdAck *>(ack->data());
       if (!permUpdAck->ok()) {
 	out << "permission modify rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       auto perm = permUpdAck->perm();
       out << "modified " << perm->id() << ' ' << str(perm->name()) << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
-  int permDelCmd(ZvCmdContext *ctx) {
+  void permDelCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1108,22 +1065,24 @@ private:
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, fbs::ReqAckData_PermDel, -1, "permission delete"))
-	return executed(code, &ctx);
+	    out, ack, fbs::ReqAckData_PermDel, -1, "permission delete")) {
+	executed(code, &ctx);
+	return;
+      }
       using namespace Zfb::Load;
       auto permUpdAck = static_cast<const fbs::PermUpdAck *>(ack->data());
       if (!permUpdAck->ok()) {
 	out << "permission delete rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       auto perm = permUpdAck->perm();
       out << "deleted " << perm->id() << ' ' << str(perm->name()) << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int keysCmd(ZvCmdContext *ctx) {
+  void keysCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1146,19 +1105,20 @@ private:
       auto &out = ctx.out;
       if (int code = filterAck(
 	    out, ack, fbs::ReqAckData_OwnKeyGet, fbs::ReqAckData_KeyGet,
-	    "key get"))
-	return executed(code, &ctx);
+	    "key get")) {
+	executed(code, &ctx);
+	return;
+      }
       auto keyIDList = static_cast<const fbs::KeyIDList *>(ack->data());
       using namespace Zfb::Load;
       all(keyIDList->list(), [&out](unsigned, auto key_) {
 	out << str(key_) << '\n';
       });
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int keyAddCmd(ZvCmdContext *ctx) {
+  void keyAddCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1181,13 +1141,16 @@ private:
       auto &out = ctx.out;
       if (int code = filterAck(
 	    out, ack, fbs::ReqAckData_OwnKeyAdd, fbs::ReqAckData_KeyAdd,
-	    "key add"))
-	return executed(code, &ctx);
+	    "key add")) {
+	executed(code, &ctx);
+	return;
+      }
       using namespace Zfb::Load;
       auto keyUpdAck = static_cast<const fbs::KeyUpdAck *>(ack->data());
       if (!keyUpdAck->ok()) {
 	out << "key add rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       auto secret_ = bytes(keyUpdAck->key()->secret());
       ZtString secret;
@@ -1196,12 +1159,11 @@ private:
 	  secret.data(), secret.length(), secret_.data(), secret_.length());
       out << "id: " << str(keyUpdAck->key()->id())
 	<< "\nsecret: " << secret << '\n';
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int keyDelCmd(ZvCmdContext *ctx) {
+  void keyDelCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1218,21 +1180,23 @@ private:
       auto &out = ctx.out;
       if (int code = filterAck(
 	    out, ack, fbs::ReqAckData_OwnKeyDel, fbs::ReqAckData_KeyDel,
-	    "key delete"))
-	return executed(code, &ctx);
+	    "key delete")) {
+	executed(code, &ctx);
+	return;
+      }
       using namespace Zfb::Load;
       auto userAck = static_cast<const fbs::UserAck *>(ack->data());
       if (!userAck->ok()) {
 	out << "key delete rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       out << "key deleted\n";
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int keyClrCmd(ZvCmdContext *ctx) {
+  void keyClrCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZvCmdUsage{};
     auto seqNo = m_seqNo++;
@@ -1255,28 +1219,24 @@ private:
       auto &out = ctx.out;
       if (int code = filterAck(
 	    out, ack, fbs::ReqAckData_OwnKeyClr, fbs::ReqAckData_KeyClr,
-	    "key clear"))
-	return executed(code, &ctx);
+	    "key clear")) {
+	executed(code, &ctx);
+	return;
+      }
       auto userAck = static_cast<const fbs::UserAck *>(ack->data());
       if (!userAck->ok()) {
 	out << "key clear rejected\n";
-	return executed(1, &ctx);
+	executed(1, &ctx);
+	return;
       }
       out << "keys cleared\n";
-      return executed(0, &ctx);
+      executed(0, &ctx);
     });
-    return 0;
   }
 
-  int remoteCmd(ZvCmdContext *) { return 0; } // unused
+  void remoteCmd(ZvCmdContext *) { } // unused
 
-  int loadModCmd(ZvCmdContext *ctx) {
-    ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
-    return loadMod(ctx->args->get("1", true), ctx->out);
-  }
-
-  int telcapCmd(ZvCmdContext *ctx) {
+  void telcapCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     using namespace ZvTelemetry;
     unsigned interval = ctx->args->getInt("interval", 100, 1000000, false, 0);
@@ -1329,7 +1289,8 @@ private:
 	ZeError e;
 	if (ZiFile::mkdir(dir, &e) != Zi::OK) {
 	  out << dir << ": " << e << '\n';
-	  return 1;
+	  executed(1, ctx);
+	  return;
 	}
       }
       for (unsigned i = 0, n = ok.length(); i < n; i++) {
@@ -1395,7 +1356,8 @@ private:
 	  }
 	} catch (const ZvError &e) {
 	  out << e << '\n';
-	  return 1;
+	  executed(1, ctx);
+	  return;
 	}
       }
     }
@@ -1420,7 +1382,10 @@ private:
 	  << reqNames[types[i]] << ':' << filters[i] << " rejected\n";
 	allOK = false;
       }
-    if (!allOK) return 1;
+    if (!allOK) {
+      executed(1, ctx);
+      return;
+    }
     if (subscribe) {
       if (!interval)
 	out << "telemetry queried\n";
@@ -1428,7 +1393,7 @@ private:
 	out << "telemetry subscribed\n";
     } else
       out << "telemetry unsubscribed\n";
-    return 0;
+    executed(0, ctx);
   }
 
 private:
@@ -1451,7 +1416,6 @@ private:
 
   FBB			m_fbb;
 
-  int			m_code = 0;
   bool			m_exiting = false;
 
   TelCap		m_telcap[TelDataN];
@@ -1626,5 +1590,5 @@ int main(int argc, char **argv)
 
   ZmTrap::sigintFn(ZmFn<>{});
 
-  return client->code();
+  return 0;
 }

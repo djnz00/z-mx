@@ -422,9 +422,11 @@ public:
       const ZvCmd::fbs::Request *in) {
     auto &fbb = link->fbb();
     if (m_cmdPerm < 0 || !m_userDB->ok(user, interactive, m_cmdPerm)) {
+      ZtString text = "permission denied";
+      if (user->flags & User::ChPass) text << " (user must change password)";
       fbb.Finish(ZvCmd::fbs::CreateReqAck(fbb,
 	    in->seqNo(), __LINE__,
-	    Zfb::Save::str(fbb, "permission denied\n")));
+	    Zfb::Save::str(fbb, text)));
       return;
     }
     auto cmd_ = in->cmd();

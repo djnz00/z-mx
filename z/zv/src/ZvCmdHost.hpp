@@ -77,13 +77,15 @@ public:
 
   bool hasCmd(ZuString name);
 
-  int processCmd(ZvCmdContext *, ZuArray<const ZtString> args);
-
-  int loadMod(ZuString name, ZtString &out);
+  void processCmd(ZvCmdContext *, ZuArray<const ZtString> args);
 
   void finalFn(ZmFn<>);
 
-  virtual int executed(ZvCmdContext *) { return 0; }
+  void executed(int code, ZvCmdContext *ctx) {
+    ctx->code = code;
+    executed(ctx);
+  }
+  virtual void executed(ZvCmdContext *) { }
 
   virtual ZvCmdDispatcher *dispatcher() { return nullptr; }
   virtual void send(void *link, ZmRef<ZiAnyIOBuf>) { }
@@ -94,7 +96,8 @@ public:
   virtual Ztls::Random *rng() { return nullptr; }
 
 private:
-  int help(ZvCmdContext *);
+  void helpCmd(ZvCmdContext *);
+  void loadModCmd(ZvCmdContext *);
 
 private:
   using Lock = ZmPLock;

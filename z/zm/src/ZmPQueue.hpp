@@ -199,9 +199,7 @@ namespace ZmPQueue_ {
 };
 
 template <typename Item_, class NTP = ZmPQueue_Defaults>
-class ZmPQueue :
-    public ZuPrintable,
-    public ZmNodeFn<NTP::Shadow, Item_, typename NTP::Node> {
+class ZmPQueue : public ZmNodeFn<NTP::Shadow, Item_, typename NTP::Node> {
 public:
   using Item = Item_;
   enum { Bits = NTP::Bits };
@@ -1017,6 +1015,7 @@ public:
       << "  length: " << m_length
       << "  count: " << m_count;
   }
+  friend ZuPrintFn ZuPrintType(ZmPQueue *);
 
 private:
   Lock		m_lock;

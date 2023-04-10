@@ -65,13 +65,6 @@ struct ZuTraits<ZuPair<T0, T1>> : public ZuBaseTraits<ZuPair<T0, T1>> {
 };
 
 template <typename U0, typename U1> struct ZuPair_Print_ {
-  ZuPair_Print_() = delete;
-  ZuPair_Print_(const ZuPair_Print_ &) = delete;
-  ZuPair_Print_ &operator =(const ZuPair_Print_ &) = delete;
-  ZuPair_Print_(ZuPair_Print_ &&) = delete;
-  ZuPair_Print_ &operator =(ZuPair_Print_ &&) = delete;
-  ZuPair_Print_(const U0 &p0_, const U1 &p1_, const ZuString &delim_) :
-      p0{p0_}, p1{p1_}, delim{delim_} { }
   const U0	&p0;
   const U1	&p1;
   ZuString	delim;
@@ -151,6 +144,7 @@ public:
       public Bind_P0<T, ZuTraits<typename T::T0>::IsReference>,
       public Bind_P1<T, ZuTraits<typename T::T1>::IsReference> { };
 
+  // need to explicitly default these for overload resolution
   Pair_() = default;
   Pair_(const Pair_ &) = default;
   Pair_ &operator =(const Pair_ &) = default;

@@ -76,7 +76,7 @@ template <typename T> struct Print : public ZuPrintable {
 
   const T &v;
 };
-template <typename T> Print<T> print(const T &v) { return Print<T>(v); }
+template <typename T> Print<T> print(const T &v) { return Print<T>{v}; }
 
 class IOBuf : public ZmPolymorph {
 public:
@@ -216,7 +216,6 @@ public:
   void delay(double n) { m_delay = n; }
 
   template <typename S> void print(S &) const;
-
   friend ZuPrintFn ZuPrintType(Connection *);
 
 private:
@@ -493,7 +492,7 @@ public:
 	"pack { type scalar } "
 	"delay { type scalar } "
 	"reconnect { type scalar }",
-	ZvCmdFn::Member<&App::proxy>::fn(this),
+	ZvCmdFn::Member<&App::proxyCmd>::fn(this),
 	"establish TCP proxy",
 	"usage: proxy [LOCALIP:]LOCALPORT [REMOTEIP:]REMOTEPORT "
 	    "[[SRCIP:][SRCPORT]] [OPTION]...\n\n"
@@ -509,36 +508,36 @@ public:
 	    "  --delay=N\t- delay each receive by N seconds\n"
 	    "  --reconnect=N\t- retry connect every N seconds (0 - disabled)");
     addCmd("stop", "",
-	ZvCmdFn::Member<&App::stopListening>::fn(this),
+	ZvCmdFn::Member<&App::stopListeningCmd>::fn(this),
 	"stop listening (do not disconnect open connections)",
 	"usage: stop #TAG|LOCALPORT");
     addCmd("hold", "",
-	ZvCmdFn::Member<&App::hold>::fn(this),
+	ZvCmdFn::Member<&App::holdCmd>::fn(this),
 	"hold [one side] open",
 	"usage: hold SRCPORT|#TAG|all [in|out]");
     addCmd("release", "",
-	ZvCmdFn::Member<&App::release>::fn(this),
+	ZvCmdFn::Member<&App::releaseCmd>::fn(this),
 	"release [one side], permit disconnect\n"
 	"Note: remote-initiated disconnects always occur regardless",
 	"usage: release SRCPORT|#TAG|all [in|out]");
     addCmd("disc", "",
-	ZvCmdFn::Member<&App::disc>::fn(this),
+	ZvCmdFn::Member<&App::discCmd>::fn(this),
 	"disconnect SRCPORT",
 	"disc SRCPORT|#TAG|all");
     addCmd("suspend", "",
-	ZvCmdFn::Member<&App::suspend>::fn(this),
+	ZvCmdFn::Member<&App::suspendCmd>::fn(this),
 	"suspend I/O",
 	"usage: suspend SRCPORT|#TAG|all [in|out [send|recv]]");
     addCmd("resume", "",
-	ZvCmdFn::Member<&App::resume>::fn(this),
+	ZvCmdFn::Member<&App::resumeCmd>::fn(this),
 	"resume I/O",
 	"resume SRCPORT|#TAG|all [in|out [send|recv]]");
     addCmd("trace", "",
-	ZvCmdFn::Member<&App::trace>::fn(this),
+	ZvCmdFn::Member<&App::traceCmd>::fn(this),
 	"hex dump traffic (0 - off, 1 - on)",
 	"trace SRCPORT|#TAG|all [0|1 [in|out]]");
     addCmd("drop", "",
-	ZvCmdFn::Member<&App::drop>::fn(this),
+	ZvCmdFn::Member<&App::dropCmd>::fn(this),
 	"drop (discard) incoming traffic (0 - off, 1 - on)",
 	"drop SRCPORT|#TAG|all [0|1 [in|out]]");
     addCmd("verbose", "",
@@ -546,11 +545,11 @@ public:
 	"log connection setup and teardown (0 - off, 1 - on)",
 	"verbose 0|1");
     addCmd("status", "",
-	ZvCmdFn::Member<&App::status>::fn(this),
+	ZvCmdFn::Member<&App::statusCmd>::fn(this),
 	"list listeners and open connections (including queue sizes)",
 	"status [#TAG]");
     addCmd("quit", "",
-	ZvCmdFn::Member<&App::quit>::fn(this),
+	ZvCmdFn::Member<&App::quitCmd>::fn(this),
 	"shutdown and exit", "");
   }
   void final() {
@@ -573,17 +572,23 @@ public:
   void wait() { m_done.wait(); }
   void post() { m_done.post(); }
 
-  bool processCmd(ZuString cmd) {
-    if (!cmd) return false;
+  int exec(ZtString cmd) {
+    if (!cmd) return 0;
     ZtArray<ZtString> args;
     ZvCf::parseCLI(cmd, args);
-    if (!args) return false;
-    ZvCmdContext ctx{.app_ = this};
-    int r = ZvCmdHost::processCmd(&ctx, args);
-    const auto &out = ctx.out;
-    fwrite(out.data(), 1, out.length(), stdout);
+    if (!args) return 0;
+    ZvCmdContext ctx{.app_ = this, .interactive = true};
+    processCmd(&ctx, args);
+    m_executed.wait();
+    return ctx.code;
+  }
+
+  using ZvCmdHost::executed;
+  void executed(ZvCmdContext *ctx) {
+    if (const auto &out = ctx->out)
+      fwrite(out.data(), 1, out.length(), stdout);
     fflush(stdout);
-    return r;
+    m_executed.post();
   }
 
   void add(Proxy *proxy) {
@@ -593,7 +598,7 @@ public:
     m_proxies->del(Proxy::SrcPortAxor(proxy));
   }
 
-  int proxy(ZvCmdContext *ctx) {
+  void proxyCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZmRef<Listener> listener;
@@ -636,7 +641,8 @@ public:
     }
     if (m_listeners->findVal(localPort)) {
       out << "already listening on port " << ZuBoxed(localPort) << '\n';
-      return 1;
+      executed(1, ctx);
+      return;
     }
     listener = new Listener(
 	this, cxnFlags, cxnLatency, cxnFrag, cxnPack, cxnDelay,
@@ -648,14 +654,13 @@ public:
     else
       code = 1;
     out << listener->status() << '\n';
-    return code;
+    executed(code, ctx);
   }
 
-  int stopListening(ZvCmdContext *ctx) {
+  void stopListeningCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
-    ZmRef<Listener> listener;
     unsigned localPort;
     bool isTag = false;
     try {
@@ -674,22 +679,23 @@ public:
         listener->stop();
         m_listeners->del(listener->localPort());
         out << listener->status() << '\n';
-        status(ctx);
       }
-    } else {
-      ZmRef<Listener> listener = m_listeners->findVal(localPort);
-      if (!listener) {
-	out << "no listener on port " << ZuBoxed(localPort) << '\n';
-	return 1;
-      }
-      listener->stop();
-      out << listener->status() << '\n';
-      m_listeners->del(localPort);
+      statusCmd(ctx);
+      return;
     }
-    return 0;
+    ZmRef<Listener> listener = m_listeners->findVal(localPort);
+    if (!listener) {
+      out << "no listener on port " << ZuBoxed(localPort) << '\n';
+      executed(1, ctx);
+      return;
+    }
+    listener->stop();
+    out << listener->status() << '\n';
+    m_listeners->del(localPort);
+    executed(0, ctx);
   }
 
-  int hold(ZvCmdContext *ctx) {
+  void holdCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     unsigned srcPort;
@@ -721,26 +727,27 @@ public:
 	    (connection = proxy->out()))
 	  connection->hold();
       }
-      return status(ctx);
-    } else {
-      ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
-      if (!proxy) {
-	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
-      }
-      ZmRef<Connection> connection;
-      if ((side == Side::In || side == Side::Both) &&
-	  (connection = proxy->in()))
-	connection->hold();
-      if ((side == Side::Out || side == Side::Both) &&
-	  (connection = proxy->out()))
-	connection->hold();
-      out << proxy->status() << '\n';
+      statusCmd(ctx);
+      return;
     }
-    return 0;
+    ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
+    if (!proxy) {
+      out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
+      executed(1, ctx);
+      return;
+    }
+    ZmRef<Connection> connection;
+    if ((side == Side::In || side == Side::Both) &&
+	(connection = proxy->in()))
+      connection->hold();
+    if ((side == Side::Out || side == Side::Both) &&
+	(connection = proxy->out()))
+      connection->hold();
+    out << proxy->status() << '\n';
+    executed(0, ctx);
   }
 
-  int release(ZvCmdContext *ctx) {
+  void releaseCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -772,12 +779,14 @@ public:
 	    (connection = proxy->out()))
 	  connection->release();
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if ((side == Side::In || side == Side::Both) &&
@@ -788,10 +797,10 @@ public:
 	connection->release();
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int disc(ZvCmdContext *ctx) {
+  void discCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -817,22 +826,24 @@ public:
 	if (connection = proxy->in()) connection->disconnect();
 	if (connection = proxy->out()) connection->disconnect();
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if (connection = proxy->in()) connection->disconnect();
       if (connection = proxy->out()) connection->disconnect();
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int suspend(ZvCmdContext *ctx) {
+  void suspendCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -873,12 +884,14 @@ public:
 	    connection->suspRecv();
 	}
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if ((side == Side::In || side == Side::Both) &&
@@ -893,10 +906,10 @@ public:
       }
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int resume(ZvCmdContext *ctx) {
+  void resumeCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -933,12 +946,14 @@ public:
 	  if (op == IOOp::Recv || op == IOOp::Both) connection->resRecv();
 	}
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if ((side == Side::In || side == Side::Both) &&
@@ -953,10 +968,10 @@ public:
       }
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int trace(ZvCmdContext *ctx) {
+  void traceCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -990,12 +1005,14 @@ public:
 	    (connection = proxy->out()))
 	  connection->trace(on);
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if ((side == Side::In || side == Side::Both) &&
@@ -1006,10 +1023,10 @@ public:
 	connection->trace(on);
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int drop(ZvCmdContext *ctx) {
+  void dropCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -1043,12 +1060,14 @@ public:
 	    (connection = proxy->out()))
 	  connection->drop(on);
       }
-      return status(ctx);
+      statusCmd(ctx);
+      return;
     } else {
       ZmRef<Proxy> proxy = m_proxies->findVal(srcPort);
       if (!proxy) {
 	out << "no proxy on source port " << ZuBoxed(srcPort) << '\n';
-	return 1;
+	executed(1, ctx);
+	return;
       }
       ZmRef<Connection> connection;
       if ((side == Side::In || side == Side::Both) &&
@@ -1059,10 +1078,10 @@ public:
 	connection->drop(on);
       out << proxy->status() << '\n';
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int verboseCmd(ZvCmdContext *ctx) {
+  void verboseCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     bool on;
@@ -1073,10 +1092,10 @@ public:
     }
     m_verbose = on;
     out = on ? "verbose on\n" : "verbose off\n";
-    return 0;
+    executed(0, ctx);
   }
 
-  int status(ZvCmdContext *ctx) {
+  void statusCmd(ZvCmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
     ZuString tag;
@@ -1103,19 +1122,22 @@ public:
 	out << proxy->status();
       }
     }
-    return 0;
+    executed(0, ctx);
   }
 
-  int quit(ZvCmdContext *ctx) {
+  void quitCmd(ZvCmdContext *ctx) {
     auto &out = ctx->out;
     post();
     out << "shutting down\n";
-    return 0;
+    executed(0, ctx);
   }
 
 private:
   ZmRef<Mx>		m_mx;
+
   ZmSemaphore		m_done;
+  ZmSemaphore		m_executed;
+
   ZmRef<ListenerHash>	m_listeners;
   ZmRef<ProxyHash>	m_proxies;
   bool			m_verbose;
@@ -1543,7 +1565,8 @@ int main(int argc, char **argv)
       .error = [](ZuString s) { std::cerr << s << '\n'; },
       .prompt = [](ZtArray<uint8_t> &s) { if (!s) s = "zproxy] "; },
       .enter = [app = app.ptr()](ZuString cmd) -> bool {
-	return app->processCmd(cmd);
+	app->exec(ZtString{cmd}); // ignore result code
+	return false;
       },
       .sig = [app = app.ptr()](int sig) -> bool {
 	switch (sig) {
@@ -1578,7 +1601,7 @@ int main(int argc, char **argv)
     while (fgets(cmd.data(), cmd.size() - 1, stdin)) {
       cmd.calcLength();
       cmd.chomp();
-      if (app->processCmd(cmd)) break;
+      if (app->exec(cmd)) break;
     }
     app->wait();
   }
