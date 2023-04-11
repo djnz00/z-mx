@@ -148,7 +148,8 @@ namespace Save {
     T *buf = nullptr;
     auto r = pvector_(b, n, buf);
     if (r.IsNull() || !buf) return {};
-    push_(buf, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    lpush_(buf, [](T v) { return EndianScalar(v); },
+	ZuConstant<0>{}, ZuFwd<Args>(args)...);
     return r;
   }
   // iterated creation of a vector of primitive values
@@ -157,7 +158,7 @@ namespace Save {
     T *buf = nullptr;
     auto r = pvector_(b, n, buf);
     if (r.IsNull() || !buf) return {};
-    for (unsigned i = 0; i < n; i++) buf[i] = l(i);
+    for (unsigned i = 0; i < n; i++) buf[i] = EndianScalar<T>(l(i));
     return r;
   }
 
@@ -271,11 +272,11 @@ namespace Save {
 
   // bitmap
   template <typename B>
-  inline auto bitmap(B &b, const ZmBitmap &v) {
+  inline Offset<Bitmap> bitmap(B &b, const ZmBitmap &v) {
     int n = v.last();
-    if (ZuUnlikely(n <= 0)) return CreateBitmap(b);
-    n = (n>>6) + 1;
-    return CreateBitmap(b, pvectorIter<uint64_t>(b, n, [&v](unsigned i) {
+    if (ZuUnlikely(n <= 0)) return {};
+    n = (n + 0x3f)>>6;
+    return CreateBitmap(b, pvectorIter<uint32_t>(b, n, [&v](unsigned i) {
       return hwloc_bitmap_to_ith_ulong(v, i);
     }));
   }
@@ -346,10 +347,7 @@ namespace Load {
     if (unsigned n = v->size()) {
       --n;
       hwloc_bitmap_from_ith_ulong(m, n, (*v)[n]);
-      while (n) {
-	--n;
-	hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
-      }
+      while (n--) hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
     }
     return m;
   }

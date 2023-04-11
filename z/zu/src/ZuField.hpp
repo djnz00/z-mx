@@ -87,9 +87,9 @@
 
 #define ZuFieldAliasRd_(O, Member) \
   using T = ZuDecay<decltype(ZuDeclVal<const O &>().Member)>; \
-  static decltype(auto) get(const O &o) { return o.Member; } \
-  static decltype(auto) get(O &o) { return o.Member; } \
-  static decltype(auto) get(O &&o) { return ZuMv(o.Member); }
+  static const T &get(const O &o) { return o.Member; } \
+  static T &get(O &o) { return o.Member; } \
+  static T &&get(O &&o) { return ZuMv(o.Member); }
 #define ZuFieldAlias_(O, Member) \
   template <typename P> \
   static void set(O &o, P &&v) { o.Member = ZuFwd<P>(v); }

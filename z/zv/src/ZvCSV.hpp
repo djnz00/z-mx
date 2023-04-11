@@ -60,23 +60,22 @@
 namespace ZvCSV_ {
   ZvExtern void split(ZuString row, ZtArray<ZtArray<char>> &a);
 
-  template <typename Row> void quote_2(Row &row, ZuString s) {
-    for (unsigned i = 0, n = s.length(); i < n; i++) {
-      char ch = s[i];
-      row << ch;
-      if (ZuUnlikely(ch == '"')) row << '"'; // double-up quotes within quotes
-    }
-  }
   template <typename Row> void quote_(Row &row, ZuString s) {
     row << '"';
-    quote_2(row, s);
+    for (unsigned i = 0, n = s.length(); i < n; i++) {
+      char c = s[i];
+      row << c;
+      if (ZuUnlikely(c == '"')) row << '"'; // double-up quotes within quotes
+    }
     row << '"';
   }
-  template <typename Field, typename T, typename Fmt, typename Row>
+  template <typename T, typename Fmt, typename Row>
   void quote(
-      Row &row, const Field *field, const T *object, const Fmt &fmt) {
+      Row &row, const ZtVField *field, const T *object, const Fmt &fmt) {
     switch ((int)field->type) {
-      case ZtFieldType::String:
+      case ZtFieldType::String: {
+	quote_(row, field->getFn.string(object));
+      } break;
       case ZtFieldType::Composite:
       case ZtFieldType::Enum:
       case ZtFieldType::Flags: {

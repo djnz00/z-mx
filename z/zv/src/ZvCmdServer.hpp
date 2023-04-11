@@ -413,7 +413,7 @@ public:
   void processUserDB(Link *link, User *user, bool interactive,
       const ZvUserDB::fbs::Request *in) {
     auto &fbb = link->fbb();
-    fbb.Finish(m_userDB->request(user, interactive, in, fbb));
+    fbb.Finish(m_userDB->request(fbb, user, interactive, in));
     if (m_userDB->modified())
       this->run([this]() { saveUserDB(); },
 	  ZmTimeNow(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);

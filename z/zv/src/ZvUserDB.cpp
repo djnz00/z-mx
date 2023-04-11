@@ -246,8 +246,8 @@ int Mgr::loginReq(
   return failures;
 }
 
-Zfb::Offset<fbs::ReqAck> Mgr::request(User *user, bool interactive,
-    const fbs::Request *request_, Zfb::Builder &fbb)
+Zfb::Offset<fbs::ReqAck> Mgr::request(Zfb::Builder &fbb,
+    User *user, bool interactive, const fbs::Request *request_)
 {
   uint64_t seqNo = request_->seqNo();
   const void *reqData = request_->data();

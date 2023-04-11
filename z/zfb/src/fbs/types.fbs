@@ -1,6 +1,6 @@
 namespace Zfb;
 table Bitmap {
-  data:[uint64];
+  data:[uint32];
 }
 struct Decimal { // ZuDecimal
   h:uint64;
