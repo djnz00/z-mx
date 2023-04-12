@@ -1643,7 +1643,7 @@ int main(int argc, char **argv)
   ZeLog::start();
 
   ZiMultiplex *mx = new ZiMultiplex(
-      ZiMxParams()
+      ZiMxParams{}
 	.scheduler([](auto &s) {
 	  s.nThreads(5)
 	  .thread(1, [](auto &t) { t.isolated(1); })

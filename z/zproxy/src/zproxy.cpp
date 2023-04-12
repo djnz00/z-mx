@@ -167,7 +167,7 @@ public:
 
   Connection(Proxy *proxy,
       uint32_t flags, double latency, uint32_t frag,
-      uint32_t pack, double delay, const ZiConnectionInfo &ci);
+      uint32_t pack, double delay, const ZiCxnInfo &ci);
 
   ZiMultiplex *mx() const { return m_mx; }
 
@@ -251,7 +251,7 @@ public:
 
   void connected(Connection *connection);
   void connect2();
-  ZiConnection *connected2(const ZiConnectionInfo &ci);
+  ZiConnection *connected2(const ZiCxnInfo &ci);
   void failed2(bool transient);
   void disconnected(Connection *connection);
 
@@ -458,8 +458,8 @@ class App : public ZmPolymorph, public ZvCmdHost {
 
   class Mx : public ZuObject, public ZiMultiplex {
   public:
-    Mx() : ZiMultiplex(ZvMxParams()) { }
-    Mx(const ZvCf *cf) : ZiMultiplex(ZvMxParams(cf)) { }
+    Mx() : ZiMultiplex{ZvMxParams{}} { }
+    Mx(const ZvCf *cf) : ZiMultiplex{ZvMxParams{"zproxy", cf}} { }
   };
 
   using ListenerHash =
@@ -1183,7 +1183,7 @@ void IOBuf::sent_(ZiIOContext &io)
 
 Connection::Connection(Proxy *proxy, uint32_t flags,
     double latency, uint32_t frag, uint32_t pack, double delay,
-    const ZiConnectionInfo &ci) :
+    const ZiCxnInfo &ci) :
   ZiConnection(proxy->mx(), ci),
   m_mx(proxy->mx()), m_proxy(proxy), m_peer(nullptr),
   m_flags(flags), m_latency(latency),
@@ -1403,7 +1403,7 @@ void Proxy::failed2(bool transient)
   }
 }
 
-ZiConnection *Proxy::connected2(const ZiConnectionInfo &ci)
+ZiConnection *Proxy::connected2(const ZiCxnInfo &ci)
 {
   return new Connection(this, m_listener->cxnFlags(),
       m_listener->cxnLatency(),

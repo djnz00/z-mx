@@ -1086,11 +1086,11 @@ class ZmPQRx : public ZuPrintable {
 public:
   template <typename S> static void printFlags(S &s, unsigned v) {
     static const char *flagNames[] = { "Queuing", "Dequeuing" };
-    bool comma = false;
+    bool first = true;
     for (unsigned i = 0; i < sizeof(flagNames) / sizeof(flagNames[0]); i++)
       if (v & (1U<<i)) {
-	if (comma) s << ',';
-	comma = true;
+	if (!first) s << ',';
+	first = false;
 	s << flagNames[i];
       }
   }

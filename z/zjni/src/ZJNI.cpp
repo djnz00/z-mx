@@ -149,12 +149,6 @@ void ZJNI::trap()
 
 static JavaVM *jvm = nullptr;
 
-class TLS;
-
-template <> struct ZmCleanup<TLS> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class TLS : public ZmObject {
 public:
   TLS() {
@@ -180,6 +174,8 @@ public:
   static JNIEnv *env() {
     return ZmSpecific<TLS>::instance()->m_env;
   }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(TLS *);
 
 private:
   JNIEnv	*m_env = nullptr;

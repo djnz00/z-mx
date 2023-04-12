@@ -25,11 +25,6 @@
 
 #include <zlib/ZmSingleton.hpp>
 
-template <>
-struct ZmCleanup<ZmHashMgr_> {
-  enum { Level = ZmCleanupLevel::Library };
-};
-
 class ZmHashMgr_ : public ZmObject {
 friend ZmSingletonCtor<ZmHashMgr_>;
 friend ZmHashMgr;
@@ -51,6 +46,8 @@ public:
       (i.del(tbl))->deref_();
     }
   }
+
+  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmHashMgr_ *);
 
 private:
   static ZmHashMgr_ *instance() {

@@ -62,10 +62,6 @@ ZuString Ze::function(ZuString s)
 
 #ifndef _WIN32
 
-struct ZePlatform_Syslog;
-template <> struct ZmCleanup<ZePlatform_Syslog> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZePlatform_Syslog {
 public:
   ZePlatform_Syslog() { openlog("", 0, LOG_USER); }
@@ -74,6 +70,8 @@ public:
   void init(const char *program, int facility = LOG_USER);
 
   int facility() { return m_facility; }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_Syslog *);
 
 private:
   ZmLock	m_lock;
@@ -128,12 +126,10 @@ void Ze::sysloginit(const char *program, const char *facility)
   syslogger()->init(program, LOG_USER);
 }
 
-struct ZePlatform_SyslogBuf;
-template <> struct ZmCleanup<ZePlatform_SyslogBuf> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZePlatform_SyslogBuf : public ZmObject {
   ZuStringN<ZeLog_BUFSIZ>	s;
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_SyslogBuf *);
 };
 static ZePlatform_SyslogBuf *syslogBuf()
 {
@@ -176,10 +172,6 @@ static int eventlogtype(int i) {
 
 #define Ze_NTFS_MAX_PATH	32768	// MAX_PATH is 260 and deprecated
 
-struct ZePlatform_EventLogger;
-template <> struct ZmCleanup<ZePlatform_EventLogger> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZePlatform_EventLogger {
   ZePlatform_EventLogger() {
     handle = RegisterEventSource(0, L"EventSystem");
@@ -202,6 +194,9 @@ struct ZePlatform_EventLogger {
     DeregisterEventSource(handle);
   }
 
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(
+      ZePlatform_EventLogger *);
+
   HANDLE	handle;
   ZtString	program;
 };
@@ -215,13 +210,12 @@ void Ze::sysloginit(const char *program, const char *facility)
   eventLogger()->program = program;
 }
 
-struct ZePlatform_SyslogBuf;
-template <> struct ZmCleanup<ZePlatform_SyslogBuf> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZePlatform_SyslogBuf : public ZmObject {
   ZuWStringN<ZeLog_BUFSIZ / 2>	w;
   ZuStringN<ZeLog_BUFSIZ>	s;
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(
+      ZePlatform_SyslogBuf *);
 };
 static ZePlatform_SyslogBuf *syslogBuf()
 {
@@ -345,13 +339,11 @@ private:
   ZmRef<Hash>	m_hash;
 };
 
-struct ZePlatform_FMBuf;
-template <> struct ZmCleanup<ZePlatform_FMBuf> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZePlatform_FMBuf : public ZmObject {
   ZuWStringN<ZeLog_BUFSIZ / 2>	w;
   ZuStringN<ZeLog_BUFSIZ>	s;
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_FMBuf *);
 };
 static ZePlatform_FMBuf *fmBuf()
 {

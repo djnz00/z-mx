@@ -38,12 +38,6 @@
 #include <zlib/ZmAtomic.hpp>
 #include <zlib/ZmCleanup.hpp>
 
-class ZmTopology;
-
-template <> struct ZmCleanup<ZmTopology> {
-  enum { Level = ZmCleanupLevel::Thread };
-};
-
 template <typename, bool> struct ZmSingletonCtor;
 
 class ZmAPI ZmTopology {
@@ -56,6 +50,8 @@ friend ZmSingletonCtor<ZmTopology, true>;
 
 public:
   ~ZmTopology();
+
+  friend ZuConstant<ZmCleanup::Thread> ZmCleanupLevel(ZmTopology *);
 
 private:
   static ZmTopology *instance();

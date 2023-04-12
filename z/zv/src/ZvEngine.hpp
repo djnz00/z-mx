@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ZvEngine - Connectivity Framework
+// ZvEngine - connectivity framework
 
 #ifndef ZvEngine_HPP
 #define ZvEngine_HPP
@@ -39,7 +39,6 @@
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvIOQueue.hpp>
-#include <zlib/ZvSchedParams.hpp>
 #include <zlib/ZvMxParams.hpp>
 #include <zlib/ZvTelemetry.hpp>
 
@@ -58,7 +57,7 @@ protected:
   void init(ZvEngine *engine);
 
 public:
-  using Mx = ZvMultiplex;
+  using Mx = ZiMultiplex;
 
   static ZuID IDAxor(const ZvAnyTx *tx) { return tx->id(); }
 
@@ -73,8 +72,8 @@ public:
 
 private:
   ZuID			m_id;
-  ZvEngine		*m_engine = 0;
-  Mx			*m_mx = 0;
+  ZvEngine		*m_engine = nullptr;
+  Mx			*m_mx = nullptr;
   uintptr_t		m_appData = 0;
 };
 
@@ -223,8 +222,7 @@ friend ZvAnyLink;
 public:
   static ZuID IDAxor(const ZvEngine *e) { return e->id(); }
 
-  using Sched = ZvScheduler;
-  using Mx = ZvMultiplex;
+  using Mx = ZiMultiplex;
   using Mgr = ZvEngineMgr;
   using App = ZvEngineApp;
   using QueueFn = ZvEngineMgr::QueueFn;
@@ -296,9 +294,6 @@ public:
 
   using Telemetry = ZvTelemetry::Engine;
 
-  // display sequence:
-  //   id, state, nLinks, up, down, disabled, transient, reconn, failed,
-  //   mxID, rxThread, txThread
   void telemetry(Telemetry &data) const;
 
 private:
@@ -424,7 +419,7 @@ private:
   ZuID				m_id;
   Mgr				*m_mgr = 0;
   App				*m_app = 0;
-  ZmRef<Mx>			m_mx;
+  Mx				*m_mx;
   unsigned			m_rxThread = 0;
   unsigned			m_txThread = 0;
 
@@ -446,7 +441,7 @@ class ZvTx : public Base {
   using Tx = ZvIOQueueTx<Impl>;
 
 public:
-  using Mx = ZvMultiplex;
+  using Mx = ZiMultiplex;
   using Gap = ZvIOQueue::Gap;
 
   ZvTx(ZuID id) : Base{id} { }

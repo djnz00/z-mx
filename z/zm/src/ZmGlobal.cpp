@@ -33,8 +33,8 @@
 
 // statically-initialized spinlock to guard initial singleton registration
 // and cleanup at exit; little if any contention is anticipated; access
-// intended to be exceptional, intermittent, almost exclusively during
-// application startup and shutdown
+// intended to be exceptional, intermittent, almost entirely during
+// process startup and shutdown
 static uint32_t ZmGlobal_lock = 0;
 #define lock() \
   ZmAtomic<uint32_t> *ZuMayAlias(lock) = \
@@ -44,7 +44,7 @@ static uint32_t ZmGlobal_lock = 0;
 
 static uint32_t ZmGlobal_atexit_ = 0;
 using ZmGlobalPtr = ZmGlobal *;
-static ZmGlobalPtr ZmGlobal_list[ZmCleanupLevel::N] = { 0 };
+static ZmGlobalPtr ZmGlobal_list[ZmCleanup::N] = { 0 };
 
 // atexit handler
 ZmExtern void ZmGlobal_atexit()
@@ -52,13 +52,13 @@ ZmExtern void ZmGlobal_atexit()
   lock();
   ZmGlobal_atexit_ = 0;
   unsigned n = 0;
-  for (unsigned i = 0; i < ZmCleanupLevel::N; i++)
+  for (unsigned i = 0; i < ZmCleanup::N; i++)
     for (ZmGlobal *g = ZmGlobal_list[i]; g; g = g->m_next) ++n;
   if (ZuUnlikely(!n)) { unlock(); return; }
   auto globals = static_cast<ZmGlobal **>(ZuAlloca(n * sizeof(ZmGlobal *)));
   if (ZuUnlikely(!globals)) { unlock(); return; }
   unsigned o = 0;
-  for (unsigned i = 0; i < ZmCleanupLevel::N; i++) {
+  for (unsigned i = 0; i < ZmCleanup::N; i++) {
     for (ZmGlobal *g = ZmGlobal_list[i]; g; g = g->m_next) {
       if (ZuUnlikely(o >= n)) { unlock(); return; }
       globals[o++] = g;
@@ -111,7 +111,7 @@ retry:
 void ZmGlobal::dump(ZmStream &s)
 {
   lock();
-  for (unsigned i = 0; i < ZmCleanupLevel::N; i++)
+  for (unsigned i = 0; i < ZmCleanup::N; i++)
     for (ZmGlobal *g = ZmGlobal_list[i]; g; g = g->m_next)
       s << g->m_name << ' ' << ZuBoxPtr(g).hex() << '\n';
   unlock();

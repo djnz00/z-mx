@@ -116,7 +116,7 @@ private:
 
 class Mx : public ZmObject, public ZiMultiplex {
 public:
-  Mx(const ZvCf *cf) : ZiMultiplex(ZvMxParams(cf)) { }
+  Mx(const ZvCf *cf) : ZiMultiplex{ZvMxParams{cf}} { }
   ~Mx() { }
 };
 

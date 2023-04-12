@@ -83,7 +83,7 @@ public:
   ~Dest() { }
 
   void connect();
-  ZiConnection *connected(const ZiConnectionInfo &ci);
+  ZiConnection *connected(const ZiCxnInfo &ci);
   void connectFailed(bool transient);
 
   App *app() const { return m_app; }
@@ -100,7 +100,7 @@ public:
     static uint16_t get(const Connection *c) { return c->groupID(); }
   };
 
-  Connection(Dest *dest, const ZiConnectionInfo &ci);
+  Connection(Dest *dest, const ZiCxnInfo &ci);
   ~Connection() { }
 
   App *app() const { return m_app; }
@@ -118,7 +118,7 @@ private:
 
 class Mx : public ZmObject, public ZiMultiplex {
 public:
-  Mx(const ZvCf *cf) : ZiMultiplex(ZvMxParams(cf)) { }
+  Mx(const ZvCf *cf) : ZiMultiplex{ZvMxParams{cf}} { }
   ~Mx() { }
 };
 
@@ -227,7 +227,7 @@ void Dest::connect()
       ZiIP(), m_group.port, ZiIP(), 0, options);
 }
 
-ZiConnection *Dest::connected(const ZiConnectionInfo &ci)
+ZiConnection *Dest::connected(const ZiCxnInfo &ci)
 {
   return new Connection(this, ci);
 }
@@ -242,7 +242,7 @@ void Dest::connectFailed(bool transient)
     m_app->post();
 }
 
-Connection::Connection(Dest *dest, const ZiConnectionInfo &ci) :
+Connection::Connection(Dest *dest, const ZiCxnInfo &ci) :
     ZiConnection(dest->app()->mx(), ci),
     m_app(dest->app()),
     m_groupID(dest->group().id),

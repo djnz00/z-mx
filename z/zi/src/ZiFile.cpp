@@ -46,12 +46,6 @@ extern "C" {
   typedef LONG (WINAPI *PNtQueryObject)(HANDLE, int, void *, ULONG, PULONG);
 }
 
-class ZiFile_WindowsDrives;
-
-template <> struct ZmCleanup<ZiFile_WindowsDrives> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class ZiFile_WindowsDrives {
 friend ZmSingletonCtor<ZiFile_WindowsDrives>;
 
@@ -73,6 +67,8 @@ private:
   ZiFile_WindowsDrives();
 public:
   ~ZiFile_WindowsDrives();
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiFile_WindowsDrives *);
 
 private:
   int blkSize_path(ZtWString path);

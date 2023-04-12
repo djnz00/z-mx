@@ -81,7 +81,7 @@ struct ZmAPI ZmSchedParams {
 
   using ID = ZuID;
 
-  ZmSchedParams &&id(ZuID id) { m_id = id; return ZuMv(*this); }
+  ZmSchedParams &&id(ID id) { m_id = id; return ZuMv(*this); }
   ZmSchedParams &&nThreads(unsigned v) {
     m_threads.length((m_nThreads = v) + 1);
     return ZuMv(*this);
@@ -245,6 +245,8 @@ protected:
   ZmSchedParams &params_() { return m_params; }
 
 public:
+  ZuID id() const { return m_params.id(); }
+
   bool stop();
 
   bool reset(); // reset while stopped - true if ok, false if running

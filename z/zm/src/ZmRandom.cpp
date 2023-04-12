@@ -23,10 +23,6 @@
 
 #include <zlib/ZmRandom.hpp>
 
-template <> struct ZmCleanup<ZmRand> {
-  enum { Level = ZmCleanupLevel::Library };
-};
-
 ZmRandom *ZmRand::instance()
 {
   return static_cast<ZmRandom *>(ZmSpecific<ZmRand>::instance());

@@ -30,12 +30,10 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-struct ZmCleanupLevel {
+namespace ZmCleanup {
   enum { Application = 0, Library, Platform, Heap, HeapMgr, Thread, Final, N };
-};
+}
 
-template <class T> struct ZmCleanup {
-  enum { Level = ZmCleanupLevel::Application };
-};
+ZuConstant<ZmCleanup::Application> ZmCleanupLevel(...);
 
 #endif /* ZmCleanup_HPP */

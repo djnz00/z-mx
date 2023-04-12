@@ -21,7 +21,8 @@
 
 // ZmSingleton<T>::instance() returns T * pointer
 //
-// ZmCleanup<T>::Level determines order of destruction (per ZmCleanupLevel)
+// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuConstant<N>
+// where N determines order of destruction (per ZmCleanup enum)
 //
 // ZmSingleton<T, false>::instance() can return null since T will not be
 // constructed on-demand - use ZmSingleton<T, false>::instance(new T(...))

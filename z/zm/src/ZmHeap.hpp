@@ -159,25 +159,25 @@ private:
     p = m_head.load_();
     if (ZuUnlikely(!p)) return nullptr;
     if (ZuLikely(m_info.sharded)) { // sharded - no contention
-      m_head.store_(*(uintptr_t *)p);
-      return (void *)p;
+      m_head.store_(*reinterpret_cast<uintptr_t *>(p));
+      return reinterpret_cast<void *>(p);
     }
     if (ZuUnlikely(p & 1)) { ZmAtomic_acquire(); goto loop; }
     if (ZuUnlikely(m_head.cmpXch(p | 1, p) != p)) goto loop;
-    m_head = ((ZmAtomic<uintptr_t> *)p)->load_();
-    return (void *)p;
+    m_head = reinterpret_cast<ZmAtomic<uintptr_t> *>(p)->load_();
+    return reinterpret_cast<void *>(p);
   }
   void free__(void *p) {
     uintptr_t n;
   loop:
     n = m_head.load_();
     if (n & 1) { ZmAtomic_acquire(); goto loop; }
-    ((ZmAtomic<uintptr_t> *)p)->store_(n);
-    if (m_head.cmpXch((uintptr_t)p, n) != n) goto loop;
+    reinterpret_cast<ZmAtomic<uintptr_t> *>(p)->store_(n);
+    if (m_head.cmpXch(reinterpret_cast<uintptr_t>(p), n) != n) goto loop;
   }
   void free__sharded(void *p) { // sharded - no contention
-    *(uintptr_t *)p = m_head.load_();
-    m_head.store_((uintptr_t)p);
+    *reinterpret_cast<uintptr_t *>(p) = m_head.load_();
+    m_head.store_(reinterpret_cast<uintptr_t>(p));
   }
 
   void allStats() const;
@@ -268,11 +268,6 @@ private:
       const char *id, unsigned size, bool sharded, AllStatsFn);
 };
 
-template <auto ID, unsigned Size, bool Sharded>
-struct ZmCleanup<ZmHeapCacheT<ID, Size, Sharded> > {
-  enum { Level = ZmCleanupLevel::Heap };
-};
-
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
 template <auto ID, unsigned Size, bool Sharded>
 class ZmHeapCacheT : public ZmObject {
@@ -295,6 +290,8 @@ public:
   ~ZmHeapCacheT() {
     m_cache->histStats(m_stats);
   }
+
+  friend ZuConstant<ZmCleanup::Heap> ZmCleanupLevel(ZmHeapCacheT *);
 
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {

@@ -184,10 +184,8 @@ ZuString ZtDate::monthLongName(int i)
   return ZuString(s[i], l[i]);
 }
 
-class ZtDate_TzLock : public ZmLock { };
-
-template <> struct ZmCleanup<ZtDate_TzLock> {
-  enum { Level = ZmCleanupLevel::Platform };
+class ZtDate_TzLock : public ZmLock {
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZtDate_TzLock *);
 };
 
 class ZtDate_TzGuard : public ZmGuard<ZmLock> {

@@ -31,11 +31,6 @@
 
 #include <zlib/ZeLog.hpp>
 
-void ZmCleanup<ZeLog>::final(ZeLog *log)
-{
-  try { log->stop_(); } catch (...) { }
-}
-
 ZeLog::ZeLog() : m_level(1) { }
 
 ZeLog *ZeLog::instance()
@@ -89,9 +84,9 @@ void ZeLog::stop_()
   {
     Guard guard(m_lock);
     thread = m_thread;
-    m_thread = 0;
+    m_thread = {};
   }
-  if (!thread) return;
+  if (thread) return;
   m_work.post();
   thread.join();
 }
@@ -149,15 +144,13 @@ void ZeLog::age_()
   if (sink) sink->age();
 }
 
-struct ZeLog_Buf;
-template <> struct ZmCleanup<ZeLog_Buf> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 struct ZeLog_Buf : public ZmObject {
-  ZeLog_Buf() { dateFmt.pad(' '); }
-
   ZuStringN<ZeLog_BUFSIZ>	s;
   ZtDateFmt::CSV		dateFmt;
+
+  ZeLog_Buf() { dateFmt.pad(' '); }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZeLog_Buf *);
 };
 static ZeLog_Buf *logBuf()
 {

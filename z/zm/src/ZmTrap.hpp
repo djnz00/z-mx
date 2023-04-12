@@ -42,12 +42,6 @@ extern "C" {
 #pragma warning(disable:4251)
 #endif
 
-class ZmTrap;
-
-template <> struct ZmCleanup<ZmTrap> {
-  enum { Level = ZmCleanupLevel::Library };
-};
-
 class ZmAPI ZmTrap {
 public:
   static void trap() { instance()->trap_(); }
@@ -57,6 +51,8 @@ public:
 
   static void sighupFn(ZmFn<> fn) { instance()->m_sighupFn = fn; }
   static ZmFn<> sighupFn() { return instance()->m_sighupFn; }
+
+  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmTrap *);
 
 private:
   static ZmTrap *instance();

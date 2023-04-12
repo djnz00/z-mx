@@ -65,12 +65,6 @@ extern "C" {
   {0x7fda2e11,0x8630,0x436f,{0xa0,0x31,0xf5,0x36,0xa6,0xee,0xc1,0x57}}
 #endif
 
-class ZiMultiplex_WSExt;
-
-template <> struct ZmCleanup<ZiMultiplex_WSExt> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class ZiMultiplex_WSExt {
 friend ZmSingletonCtor<ZiMultiplex_WSExt>;
 
@@ -107,6 +101,8 @@ public:
   }
 
   static ZiMultiplex_WSExt *instance();
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiMultiplex_WSExt *);
 
 private:
   PConnectEx		m_connectEx;
@@ -767,7 +763,7 @@ void ZiConnection::telemetry(ZiCxnTelemetry &data) const
     mreqAddr = mreqs[0].imr_multiaddr;
     mreqIf = mreqs[0].imr_interface;
   }
-  data.mxID = m_mx->params().id();
+  data.mxID = m_mx->id();
   data.socket = m_info.socket;
   data.rxBufSize = rxBufSize;
   data.rxBufLen = rxBufLen;
@@ -1894,10 +1890,13 @@ ZiMultiplex::ZiMultiplex(ZiMxParams mxParams) :
     params_().thread(m_rxThread).name("ioRx");
   if (!params().thread(m_txThread).name())
     params_().thread(m_txThread).name("ioTx");
+
+  ZiMxMgr::instance()->add(this);
 }
 
 ZiMultiplex::~ZiMultiplex()
 {
+  ZiMxMgr::instance()->del(this);
 }
 
 bool ZiMultiplex::start__()
@@ -2255,4 +2254,19 @@ void ZiMultiplex::telemetry(ZiMxTelemetry &data) const
   data.ll = params().ll();
   data.priority = params().priority();
   data.nThreads = params().nThreads();
+}
+
+ZiMxMgr *ZiMxMgr::instance()
+{
+  return ZmSingleton<ZiMxMgr>::instance();
+}
+
+void ZiMxMgr::add(ZiMultiplex *mx)
+{
+  instance()->m_map.add(mx->id(), mx);
+}
+
+void ZiMxMgr::del(ZiMultiplex *mx)
+{
+  instance()->m_map.del(mx->id(), mx);
 }

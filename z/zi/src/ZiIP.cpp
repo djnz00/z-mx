@@ -46,12 +46,6 @@ extern "C" {
       wchar_t *, DWORD, wchar_t *, DWORD, int);
 }
 
-class ZiIP_WSDLL;
-
-template <> struct ZmCleanup<ZiIP_WSDLL> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class ZiIP_WSDLL {
 friend ZmSingletonCtor<ZiIP_WSDLL>;
 
@@ -69,6 +63,8 @@ private:
   ZiIP_WSDLL();
 public:
   ~ZiIP_WSDLL();
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSDLL *);
 
 private:
   HMODULE		m_wsdll;
@@ -134,12 +130,6 @@ int ZiIP_WSDLL::getNameInfo(const struct sockaddr *sa, socklen_t salen,
 
 #endif /* defined(__GNUC__) && !defined(GetAddrInfo) */
 
-class ZiIP_WSAStartup;
-
-template <> struct ZmCleanup<ZiIP_WSAStartup> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class ZiIP_WSAStartup {
 friend ZmSingletonCtor<ZiIP_WSAStartup>;
 
@@ -150,6 +140,8 @@ private:
   ZiIP_WSAStartup();
 public:
   ~ZiIP_WSAStartup();
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSAStartup *);
 
 private:
   bool		m_wsaCleanup;

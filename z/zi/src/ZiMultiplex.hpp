@@ -97,10 +97,6 @@ class ZiMultiplex;
 class ZiCxnOptions;
 struct ZiCxnInfo;
 
-// legacy compatibility
-#define ZiOptions ZiCxnOptions
-#define ZiConnectionInfo ZiCxnInfo
-
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4251 4244 4800)
@@ -623,17 +619,10 @@ struct ZiMxParams {
   ZiMxParams(ZiMxParams &&) = default;
   ZiMxParams &operator =(ZiMxParams &&) = default;
 
-  template <typename L>
-  ZiMxParams &&scheduler(L l) { l(m_scheduler); return ZuMv(*this); }
-
-  ZiMxParams &&rxThread(unsigned tid) {
-    m_rxThread = tid;
-    return ZuMv(*this);
-  }
-  ZiMxParams &&txThread(unsigned tid) {
-    m_txThread = tid;
-    return ZuMv(*this);
-  }
+  ZiMxParams &&rxThread(unsigned tid)
+    { m_rxThread = tid; return ZuMv(*this); }
+  ZiMxParams &&txThread(unsigned tid)
+    { m_txThread = tid; return ZuMv(*this); }
 #ifdef ZiMultiplex_EPoll
   ZiMxParams &&epollMaxFDs(unsigned n)
     { m_epollMaxFDs = n; return ZuMv(*this); }
@@ -658,6 +647,9 @@ struct ZiMxParams {
 #endif
 
   ZmSchedParams &scheduler() { return m_scheduler; }
+
+  template <typename L>
+  ZiMxParams &&scheduler(L l) { l(m_scheduler); return ZuMv(*this); }
 
   unsigned rxThread() const { return m_rxThread; }
   unsigned txThread() const { return m_txThread; }
@@ -891,17 +883,9 @@ template <typename> friend class Connect_;
 public:
   using Socket = Zi::Socket;
 
-  ZiMultiplex(ZiMxParams mxParams = ZiMxParams());
+  ZiMultiplex(ZiMxParams mxParams = ZiMxParams{});
   ~ZiMultiplex();
 
-  bool start__();	
-  bool stop__();	
-
-  void stop_1();	// Rx thread - disconnect all connections
-  void stop_2();	// Rx thread - stop connecting / listening / accepting
-  void stop_3();	// App thread - clean up
-
-public:
   void allCxns(ZmFn<ZiConnection *> fn);
   void allCxns_(ZmFn<ZiConnection *> fn);			// Rx thread
 
@@ -989,6 +973,13 @@ public:
   void telemetry(ZiMxTelemetry &data) const;
 
 private:
+  bool start__();
+  bool stop__();
+
+  void stop_1();	// Rx thread - disconnect all connections
+  void stop_2();	// Rx thread - stop connecting / listening / accepting
+  void stop_3();	// App thread - clean up
+
   void busy() { ZmScheduler::busy(); }
   void idle() { ZmScheduler::idle(); }
 
@@ -1071,6 +1062,35 @@ public:
 private:
   ZmBackTracer<64>	m_tracer;
 #endif
+};
+
+#include <zlib/ZmRBTree.hpp>
+
+class ZiAPI ZiMxMgr {
+  using Map = ZmRBTreeKV<ZuID, ZiMultiplex *, ZmRBTreeLock<ZmPLock>>;
+
+friend ZiMultiplex;
+
+public:
+  static ZiMxMgr *instance();
+
+  template <typename L>
+  static void all(L l) {
+    instance()->all_(ZuMv(l));
+  }
+
+private:
+  static void add(ZiMultiplex *);
+  static void del(ZiMultiplex *);
+
+  template <typename L>
+  void all_(L l) const {
+    auto i = m_map.readIterator();
+    while (auto mx = i.iterateVal()) l(mx);
+  }
+
+private:
+  Map	m_map;
 };
 
 #endif /* ZiMultiplex_HPP */

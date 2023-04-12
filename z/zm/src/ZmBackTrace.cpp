@@ -124,12 +124,6 @@ extern "C" {
 }
 #endif /* _WIN32 */
 
-class ZmBackTrace_Mgr;
-
-template <> struct ZmCleanup<ZmBackTrace_Mgr> {
-  enum { Level = ZmCleanupLevel::Final };
-};
-
 struct ZmBackTrace_MgrInit;
 
 class ZmBackTrace_Mgr {
@@ -145,6 +139,8 @@ friend void ZmBackTrace_print(ZmStream &s, const ZmBackTrace &bt);
   ZmBackTrace_Mgr();
 public:
   ~ZmBackTrace_Mgr();
+
+  friend ZuConstant<ZmCleanup::Final> ZmCleanupLevel(ZmBackTrace_Mgr *);
 
 private:
   void printFrame_info(ZmStream &s,

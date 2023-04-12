@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// Mx Multiplex
+// multiplexer configuration
 
 #ifndef ZvMxParams_HPP
 #define ZvMxParams_HPP
@@ -30,17 +30,15 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuPolymorph.hpp>
-
 #include <zlib/ZiMultiplex.hpp>
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvError.hpp>
-#include <zlib/ZvSchedParams.hpp>
+#include <zlib/ZvTelemetry.hpp>
 
 class ZvAPI ZvInvalidMulticastIP : public ZvError {
 public:
-  ZvInvalidMulticastIP(ZuString s) : m_addr(s) { }
+  ZvInvalidMulticastIP(ZuString s) : m_addr{s} { }
 
   void print_(ZmStream &s) const {
     s << "invalid multicast IP \"" << m_addr << '"';
@@ -51,18 +49,18 @@ private:
 };
 
 struct ZvCxnOptions : public ZiCxnOptions {
-  ZvCxnOptions() : ZiCxnOptions() { }
+  ZvCxnOptions() : ZiCxnOptions{} { }
 
-  ZvCxnOptions(const ZiCxnOptions &p) : ZiCxnOptions(p) { }
+  ZvCxnOptions(const ZiCxnOptions &p) : ZiCxnOptions{p} { }
   ZvCxnOptions &operator =(const ZiCxnOptions &p) {
     ZiCxnOptions::operator =(p);
     return *this;
   }
 
-  ZvCxnOptions(const ZvCf *cf) : ZiCxnOptions() { init(cf); }
+  ZvCxnOptions(const ZvCf *cf) : ZiCxnOptions{} { init(cf); }
 
   ZvCxnOptions(const ZvCf *cf, const ZiCxnOptions &deflt) :
-      ZiCxnOptions(deflt) { init(cf); }
+      ZiCxnOptions{deflt} { init(cf); }
 
   void init(const ZvCf *cf) {
     if (!cf) return;
@@ -96,23 +94,64 @@ struct ZvCxnOptions : public ZiCxnOptions {
 };
 
 struct ZvMxParams : public ZiMxParams {
-  ZvMxParams() : ZiMxParams() { }
+  ZvMxParams() = default;
+  ZvMxParams(ZuString id, const ZvCf *cf) { init(id, cf); }
+  ZvMxParams(ZuString id, const ZvCf *cf, ZiMxParams &&deflt) :
+    ZiMxParams{ZuMv(deflt)} { init(id, cf); }
 
-  using ZiMxParams::ZiMxParams;
-
-  ZvMxParams(const ZvCf *cf) { init(cf); }
-
-  ZvMxParams(const ZvCf *cf, ZiMxParams &&deflt) :
-    ZiMxParams(ZuMv(deflt)) { init(cf); }
-
-  ZvSchedParams &scheduler() {
-    return static_cast<ZvSchedParams &>(ZiMxParams::scheduler());
-  }
-
-  void init(const ZvCf *cf) {
+  void init(ZuString id, const ZvCf *cf) {
     if (!cf) return;
 
-    scheduler().init(cf);
+    {
+      ZmSchedParams &sched = scheduler();
+      static unsigned ncpu = Zm::getncpu();
+
+      sched.id(id);
+      sched.nThreads(
+	  cf->getInt("nThreads", 1, 1024, false, sched.nThreads()));
+      sched.stackSize(
+	  cf->getInt("stackSize", 16384, 2<<20, false, sched.stackSize()));
+      sched.priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
+	    "priority", false, ZmThreadPriority::Normal));
+      sched.partition(cf->getInt("partition", 0, ncpu - 1, false, 0));
+      if (ZuString s = cf->get("quantum"))
+	sched.quantum((double)ZuBox<double>(s));
+      sched.queueSize(
+	  cf->getInt("queueSize", 8192, (1U<<30U), false, sched.queueSize()));
+      sched.ll(cf->getInt("ll", 0, 1, false, sched.ll()));
+      sched.spin(cf->getInt("spin", 0, INT_MAX, false, sched.spin()));
+      sched.timeout(cf->getInt("timeout", 0, 3600, false, sched.timeout()));
+      sched.startTimer(
+	  cf->getInt("startTimer", 0, 1, false, sched.startTimer()));
+      if (ZmRef<ZvCf> threadsCf = cf->subset("threads")) {
+	ZvCf::Iterator i(threadsCf);
+	ZuString id;
+	while (ZmRef<ZvCf> threadCf = i.subset(id)) {
+	  ZuBox<unsigned> tid = id;
+	  if (id != ZuStringN<12>{tid})
+	    throw ZtString{} << "bad thread ID \"" << id << '"';
+	  ZmSchedParams::Thread &thread = sched.thread(tid);
+	  thread.isolated(threadCf->getInt(
+		"isolated", 0, 1, false, thread.isolated()));
+	  if (ZuString s = threadCf->get("name")) thread.name(s);
+	  thread.stackSize(threadCf->getInt(
+		"stackSize", 0, INT_MAX, false, thread.stackSize()));
+	  if (ZuString s = threadCf->get("priority")) {
+	    if (s == "RealTime") thread.priority(ZmThreadPriority::RealTime);
+	    else if (s == "High") thread.priority(ZmThreadPriority::High);
+	    else if (s == "Normal") thread.priority(ZmThreadPriority::Normal);
+	    else if (s == "Low") thread.priority(ZmThreadPriority::Low);
+	    else throw ZtString{} << "bad thread priority \"" << s << '"';
+	  }
+	  thread.partition(threadCf->getInt(
+		"partition", 0, INT_MAX, false, thread.partition()));
+	  if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
+	  thread.detached(
+	      threadCf->getInt("detached", 0, 1, false, thread.detached()));
+	}
+      }
+    }
+
     if (ZuString s = cf->get("rxThread")) rxThread(scheduler().sid(s));
     if (ZuString s = cf->get("txThread")) txThread(scheduler().sid(s));
 #ifdef ZiMultiplex_EPoll
@@ -128,21 +167,6 @@ struct ZvMxParams : public ZiMxParams {
     yield(cf->getInt("yield", 0, 1, false, yield()));
 #endif
   }
-};
-
-class ZvMultiplex : public ZuPolymorph, public ZiMultiplex {
-public:
-  using ID = ZmScheduler::ID;
-
-  static ID IDAxor(const ZvMultiplex *mx) { return mx->params().id(); }
-
-  template <typename ID_>
-  ZvMultiplex(const ID_ &id) :
-      ZiMultiplex(ZiMxParams().scheduler([&](auto &s) { s.id(id); })) { }
-  template <typename ID_>
-  ZvMultiplex(const ID_ &id, const ZvCf *cf) :
-      ZiMultiplex(ZvMxParams(cf,
-	    ZiMxParams().scheduler([&](auto &s) { s.id(id); }))) { }
 };
 
 #endif /* ZvMxParams_HPP */

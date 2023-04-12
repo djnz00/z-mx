@@ -28,7 +28,7 @@ class Mx;
 class Connection : public ZiConnection {
 public:
   Connection(
-      ZiMultiplex *mx, const ZiConnectionInfo &ci,
+      ZiMultiplex *mx, const ZiCxnInfo &ci,
       ZiIP remoteIP, unsigned remotePort) :
     ZiConnection(mx, ci), m_counter(0) {
     if (!!remoteIP) m_dest.init(remoteIP, remotePort);
@@ -74,7 +74,7 @@ public:
     m_connect(connect), m_options(options), m_nMessages(nMessages) { }
   ~Mx() { }
 		
-  ZiConnection *connected(const ZiConnectionInfo &ci) {
+  ZiConnection *connected(const ZiCxnInfo &ci) {
     return new Connection(this, ci, m_remoteIP, m_remotePort);
   }
 

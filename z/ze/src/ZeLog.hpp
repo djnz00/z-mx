@@ -142,19 +142,11 @@ struct ZeLambdaSink : public ZeSink, public L {
   void age() { } // unused
 };
 
-class ZeLog;
-
-template <> struct ZmCleanup<ZeLog> {
-  enum { Level = ZmCleanupLevel::Library };
-  static void final(ZeLog *);
-};
-
 class ZeAPI ZeLog {
   ZeLog(const ZeLog &);
   ZeLog &operator =(const ZeLog &);		// prevent mis-use
 
 friend ZmSingletonCtor<ZeLog>;
-friend ZmCleanup<ZeLog>;
 
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -164,7 +156,9 @@ friend ZmCleanup<ZeLog>;
   ZeLog();
 
 public:
-  virtual ~ZeLog() { }
+  virtual ~ZeLog() { m_work.post(); } // ensure thread is woken up
+
+  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
 
   template <typename ...Args>
   static ZmRef<ZeSink> fileSink(Args &&... args) {

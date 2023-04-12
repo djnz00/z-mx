@@ -64,12 +64,11 @@
 
 struct ZmTLock_Depth;
 
-template <> struct ZmCleanup<ZmTLock_Depth> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 struct ZmTLock_Depth : public ZmObject {
   ZmTLock_Depth() : m_depth(0) { }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZmTLock_Depth *);
+
   void inc() {
     if (m_depth > 20) {
       fputs("INFINITE RECURSION\n", stderr);

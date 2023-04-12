@@ -192,14 +192,6 @@ public:
   using ZmEngine<Server>::start;
   using ZmEngine<Server>::stop;
 
-private:
-  using MxTbl =
-    ZmRBTree<ZmRef<ZvMultiplex>,
-      ZmRBTreeKey<ZvMultiplex::IDAxor,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeLock<ZmRWLock>>>>;
-
-public:
   const App *app() const { return static_cast<const App *>(this); }
   App *app() { return static_cast<App *>(this); }
 
@@ -230,13 +222,6 @@ public:
       else
 	m_thread = mx->txThread();
 
-      if (ZmRef<ZvCf> mxCf = cf->subset("mx")) {
-	ZvCf::Iterator i(mxCf);
-	ZuString key;
-	while (ZmRef<ZvCf> mxCf_ = i.subset(key))
-	  m_mxTbl.add(new ZvMultiplex(key, mxCf_));
-      }
-
       m_minInterval =
 	cf->getInt("telemetry:minInterval", 1, 1000000, false, 10);
       m_alertPrefix = cf->get("telemetry:alertPrefix", false, "alerts");
@@ -256,7 +241,6 @@ public:
       m_alertRing.clean();
       m_alertFile.close();
 
-      m_mxTbl.clean();
       m_queues.clean();
       m_engines.clean();
       m_zdbEnvFn = ZdbEnvFn{};
@@ -288,15 +272,6 @@ private:
   }
 
 public:
-  ZvMultiplex *mxLookup(const ZuID &id) const {
-    return m_mxTbl.findVal(id);
-  }
-  template <typename L>
-  void allMx(L l) const {
-    auto i = m_mxTbl.readIterator();
-    while (auto node = i.iterate()) l(node->val());
-  }
-
   struct Request {
     Server	*server;
     ZmRef<Link>	link;
@@ -723,12 +698,12 @@ private:
     if (req.interval)
       this->subscribe(list, watch, req.interval,
 	  [](Server *server) { server->mxScan(); });
-    allMx([watch](ZvMultiplex *mx) {
+    ZiMxMgr::all([watch](ZiMultiplex *mx) {
       watch->link->app()->mxQuery_(watch, mx);
     });
     if (!req.interval) delete watch;
   }
-  void mxQuery_(Watch *watch, ZvMultiplex *mx) {
+  void mxQuery_(Watch *watch, ZiMultiplex *mx) {
     Mx data;
     mx->telemetry(data);
     if (!match(watch->filter, data.id)) return;
@@ -785,9 +760,9 @@ private:
 
   void mxScan() {
     if (!m_watchLists[ReqType::Mx].list.count_()) return;
-    allMx([this](ZvMultiplex *mx) { mxScan(mx); });
+    ZiMxMgr::all([this](ZiMultiplex *mx) { mxScan(mx); });
   }
-  void mxScan(ZvMultiplex *mx) {
+  void mxScan(ZiMultiplex *mx) {
     Mx data;
     mx->telemetry(data);
     auto i = m_watchLists[ReqType::Mx].list.readIterator();
@@ -1162,7 +1137,6 @@ private:
 
   // telemetry thread exclusive
   IOBuilder		m_fbb;
-  MxTbl			m_mxTbl;
   Queues		m_queues;
   Engines		m_engines;
   ZdbEnvFn		m_zdbEnvFn;

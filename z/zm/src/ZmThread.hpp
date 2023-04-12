@@ -219,10 +219,6 @@ protected:
   uint64_t		m_allocHeap = 0;
 };
 
-template <> struct ZmCleanup<ZmThreadContext> {
-  enum { Level = ZmCleanupLevel::Thread };
-};
-
 template <typename, bool> struct ZmSpecificCtor;
 
 class ZmThread;
@@ -364,6 +360,8 @@ public:
   ~ZmThreadContext() {
     if (m_dtorFn) (*m_dtorFn)(m_lambda);
   }
+
+  friend ZuConstant<ZmCleanup::Thread> ZmCleanupLevel(ZmThreadContext *);
 
   void init();
 

@@ -60,10 +60,6 @@ struct ZtAPI ZtRegexError {
   friend ZuPrintFn ZuPrintType(ZtRegexError *);
 };
 
-class ZtRegex_;
-template <> struct ZmCleanup<ZtRegex_> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
 class ZtAPI ZtRegex {
   ZtRegex(const ZtRegex &) = delete;
   ZtRegex &operator =(const ZtRegex &) = delete;
@@ -96,6 +92,8 @@ public:
   }
 
   ~ZtRegex();
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZtRegex *);
 
   void study();
 

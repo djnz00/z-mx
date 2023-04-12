@@ -272,6 +272,8 @@ protected:
       { return m ^ (mixBits(s0,s1)>>1) ^ (-(int32_t)loBit(s1) & 0x9908b0df); }
 };
 
+#include <zlib/ZmCleanup.hpp>
+
 template <typename, bool> struct ZmSpecificCtor;
 
 class ZmAPI ZmRand : public ZmObject, public ZmRandom {
@@ -283,6 +285,8 @@ friend ZmSpecificCtor<ZmRand, true>;
   ZmRand() : ZmRandom() { }
 
   static ZmRandom *instance();
+
+  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmRand *);
 
 public:
   ZuInline static double rand()			// real number in [0,1]

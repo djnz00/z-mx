@@ -31,7 +31,7 @@ class Message;
 
 class Connection : public ZiConnection {
 public:
-  Connection(ZiMultiplex *mx, const ZiConnectionInfo &ci, ZmTime now) : 
+  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZmTime now) :
     ZiConnection(mx, ci) { }
   ~Connection() { }
 
@@ -126,7 +126,7 @@ public:
   }
   ~Mx() { }
 
-  ZiConnection *connected(int status, const ZiConnectionInfo &ci, ZeError e) {
+  ZiConnection *connected(int status, const ZiCxnInfo &ci, ZeError e) {
     if (status != Zi::OK) {
       if (status == Zi::NotReady) return 0;
       ::error("connected", status, e);

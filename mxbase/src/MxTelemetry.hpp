@@ -273,7 +273,7 @@ namespace MxTelemetry {
       friend Client;
 
     public:
-      Cxn(Client *client, const ZiConnectionInfo &info) :
+      Cxn(Client *client, const ZiCxnInfo &info) :
 	ZiConnection(client->mx(), info), m_client(client) { }
 
       Client *client() const { return m_client; }
@@ -333,7 +333,7 @@ namespace MxTelemetry {
   friend Cxn;
     class MxBaseAPI Cxn : public ZiConnection {
     public:
-      Cxn(Server *server, const ZiConnectionInfo &info) :
+      Cxn(Server *server, const ZiCxnInfo &info) :
 	ZiConnection(server->mx(), info), m_server(server) { }
 
       Server *server() const { return m_server; }

@@ -30,7 +30,7 @@ class Mx;
 class Connection : public ZiConnection {
 public:
   Connection(
-      ZiMultiplex *mx, const ZiConnectionInfo &ci, const ZiSockAddr &dest) :
+      ZiMultiplex *mx, const ZiCxnInfo &ci, const ZiSockAddr &dest) :
     ZiConnection(mx, ci), m_counter(0), m_dest(dest) { }
   ~Connection() { }
 
@@ -84,7 +84,7 @@ public:
     m_connect(connect), m_options(options), m_nMessages(nMessages) { }
   ~Mx() { }
 
-  ZiConnection *connected(const ZiConnectionInfo &ci) {
+  ZiConnection *connected(const ZiCxnInfo &ci) {
     return new Connection(this, ci, m_dest);
   }
 

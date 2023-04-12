@@ -32,11 +32,6 @@
 #include <zlib/ZmRBTree.hpp>
 #include <zlib/ZmNoLock.hpp>
 
-template <>
-struct ZmCleanup<ZmHeapMgr_> {
-  enum { Level = ZmCleanupLevel::HeapMgr };
-};
-
 class ZmHeapMgr;
 class ZmHeapCache;
 
@@ -96,6 +91,8 @@ public:
       // delete node;
     }
   }
+
+  friend ZuConstant<ZmCleanup::HeapMgr> ZmCleanupLevel(ZmHeapMgr_ *);
 
 private:
   static ZmHeapMgr_ *instance() {
@@ -164,11 +161,11 @@ private:
     ZmHeapCache *n = m_caches2.delVal(ZuFwdTuple(id, size));
     if (IDPart2Config::NodeRef node = 
 	  m_configs.find(ZuFwdPair(id, partition)))
-      c = new ZmHeapCache(id, size, partition, sharded,
-	  node->val(), n, allStatsFn);
+      c = new ZmHeapCache(
+	  id, size, partition, sharded, node->val(), n, allStatsFn);
     else
-      c = new ZmHeapCache(id, size, partition, sharded,
-	  ZmHeapConfig{}, n, allStatsFn);
+      c = new ZmHeapCache(
+	  id, size, partition, sharded, ZmHeapConfig{}, n, allStatsFn);
     c->ref();
     m_caches.add(c);
     m_caches2.add(c);

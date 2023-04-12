@@ -343,6 +343,9 @@ ZfbFields(Link, fbs::Link,
     (((txSeqNo)), (Int), (Ctor(3), Update, Series, Delta)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
+// display sequence:
+//   id, state, nLinks, up, down, disabled, transient, reconn, failed,
+//   mxID, rxThread, txThread
 struct Engine {
   ZuID		id;		// primary key
   ZuID		type;

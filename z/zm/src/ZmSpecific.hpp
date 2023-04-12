@@ -44,7 +44,8 @@
 //
 // ZmSpecific<T>::all(ZmFn<T *> fn) calls fn for all instances of T
 //
-// ZmCleanup<T>::Level determines order of destruction (per ZmCleanupLevel)
+// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuConstant<N>
+// where N determines order of destruction (per ZmCleanup enum)
 //
 // ZmSpecific<T, false>::instance() can return null since T will not be
 // constructed on-demand - use ZmSpecific<T, false>::instance(new T(...))

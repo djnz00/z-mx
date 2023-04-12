@@ -25,12 +25,6 @@
 #include <zlib/ZmBackTracer.hpp>
 #include <zlib/ZmSingleton.hpp>
 
-class ZmLock_Debug_;
-
-template <> struct ZmCleanup<ZmLock_Debug_> {
-  enum { Level = ZmCleanupLevel::Platform };
-};
-
 class ZmLock_Debug_ {
 public:
   ZmLock_Debug_() : m_enabled(0) { }
@@ -41,6 +35,8 @@ public:
     if (m_enabled) m_tracer.capture(skip);
   }
   ZmBackTracer<64> *tracer() { return &m_tracer; }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZmLock_Debug_ *);
 
 private:
   ZmAtomic<uint32_t>	m_enabled;
