@@ -35,9 +35,9 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
     auto &thread = m_params.thread(sid);
     if (!thread.name()) {
       if (!sid)
-	thread.name(ZmThreadName() << m_params.id() << ":timer");
+	thread.name(ZmThreadName{} << m_params.id() << ":timer");
       else
-	thread.name(ZmThreadName() << m_params.id() << ':' << ZuBoxed(sid));
+	thread.name(ZmThreadName{} << m_params.id() << ':' << ZuBoxed(sid));
     }
     if (!thread.stackSize()) thread.stackSize(m_params.stackSize());
     if (thread.priority() < 0) thread.priority(m_params.priority());
@@ -48,7 +48,7 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
   for (unsigned i = 0; i < n; i++) {
     unsigned sid = i + 1;
     Ring &ring = m_threads[i].ring;
-    ring.init(ZmRingParams(m_params.queueSize()).
+    ring.init(ZmRingParams{m_params.queueSize()}.
 	ll(m_params.ll()).
 	spin(m_params.spin()).
 	timeout(m_params.timeout()).

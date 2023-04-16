@@ -825,13 +825,16 @@ public:
 
 // clean tree
 
-  void clean() {
+  void clean() { clean([](NodeMvRef) { }); }
+  template <typename L> void clean(L l) {
     Guard guard(m_lock);
-    clean_();
+    clean_(ZuMv(l));
     m_minimum = m_maximum = m_root = nullptr;
     m_count = 0;
   }
-  void clean_() {
+private:
+  void clean_() { clean_([](NodeMvRef) { }); }
+  template <typename L> void clean_(L l) {
     Node *node = m_minimum, *next;
     if (!node) return;
     do {
@@ -849,8 +852,7 @@ public:
 	} else
 	  next->NodeExt::right(nullptr);
       }
-      nodeDeref(node);
-      nodeDelete(node);
+      l(nodeAcquire(node));
       node = next;
     } while (node);
   }

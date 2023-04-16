@@ -120,7 +120,6 @@ struct ZmLHashStatic : public NTP {
   enum { Static = Static_ };
 };
 
-
 // ZmLHashLocal<> - local hash table
 // - not registered with hash mgr
 // - no telemetry
@@ -294,7 +293,6 @@ protected:
   void init() { ZmHashMgr::add(this); }
   void final() { ZmHashMgr::del(this); }
 };
-
 
 // statically allocated hash table base class
 template <typename Hash, typename T, typename NTP, unsigned Static>
@@ -591,7 +589,7 @@ public:
     ReadKeyIterator &operator =(ReadKeyIterator &&) = default;
 
     template <typename Index_>
-    ReadKeyIterator(Hash &hash, Index_ &&index) :
+    ReadKeyIterator(const Hash &hash, Index_ &&index) :
 	KeyIterator_(const_cast<Hash &>(hash), ZuFwd<Index_>(index))
       { const_cast<Hash &>(hash).startIterate(*this); }
     ~ReadKeyIterator() { m_hash.endIterate(*this); }

@@ -524,6 +524,7 @@ inline constexpr unsigned BuiltinSize() {
   enum { MinBufSz = sizeof(uintptr_t)<<1 };
   // IOBufOverhead - ZiIOBuf overhead
   enum { IOBufOverhead = sizeof(ZiIOBuf<MinBufSz, Buf_HeapID>) - MinBufSz };
+  // FIXME - verify HeapOverhead
   // HeapOverhead - Heap overhead - assumed to be sizeof(uintptr_t)
   enum { HeapOverhead = sizeof(uintptr_t) };
   // HashOverhead - ZmHash node overhead - assumed to be sizeof(uintptr_t)
