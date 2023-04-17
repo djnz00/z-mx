@@ -173,7 +173,7 @@ void funcTest_(int bits, double loadFactor)
 {
   ZmRef<H> h_ = new H{ZmHashParams{}.bits(bits).loadFactor(loadFactor)};
   H &h = *h_;
-  std::cout << "funcTest_<" << ZmDemangle{typeid(H).name()} << ", " << ZmDemangle{typeid(A<H>).name()} << ">(" << bits << ", " << loadFactor << ")\n";
+  // std::cout << "funcTest_<" << ZmDemangle{typeid(H).name()} << ", " << ZmDemangle{typeid(A<H>).name()} << ">(" << bits << ", " << loadFactor << ")\n";
   h.add("Goodbye", -42);
   CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -42);
   add(h), iter(h, 42+43+44);
@@ -317,18 +317,6 @@ int main(int argc, char **argv)
 
   funcTest<Hash, HashAdapter>();
   funcTest<LHash, LHashAdapter>();
-
-  {
-    ZmLHashKV<uintptr_t, unsigned, ZmLHashLocal<>> hash{ZmHashParams{8}};
-
-    hash.add(static_cast<uintptr_t>(0x1fe0268978), 0U);
-    hash.add(static_cast<uintptr_t>(0x1fe0268974), 2U);
-    hash.add(static_cast<uintptr_t>(0x1fe0268970), 3U);
-    hash.add(static_cast<uintptr_t>(0x1fe026896c), 1U);
-    auto i = hash.readIterator(static_cast<uintptr_t>(0x1fe0268974));
-    while (auto node = i.iterate())
-      std::cout << "found " << node->template p<1>() << '\n';
-  }
 
   if (argc > 1) perfTestSize = atoi(argv[1]);
   if (argc > 2) concurrency = atoi(argv[2]);

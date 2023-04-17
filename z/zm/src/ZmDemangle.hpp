@@ -30,10 +30,16 @@
 #pragma once
 #endif
 
-#include <cxxabi.h>
+// #include <cxxabi.h>
 
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuPrint.hpp>
+
+// Note: __cxxabiv1::__cxa_demangle() can't demangle
+// "Z1XvEUlTyOT_E_" to
+// "X()::{lambda<typename $T0>($T0&&)#1}"
+//
+// in contrast, binutils/bfd cplus_demangle() does this correctly
 
 // from binutils demangle.h
 #define DMGL_PARAMS	 (1<<0)	/* Include function args */
