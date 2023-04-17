@@ -166,7 +166,7 @@ int main(int argc, char **argv)
       params.thread(tid).isolated(true);
   }
 
-  ZmScheduler s(ZuMv(params));
+  ZmScheduler s{ZuMv(params)};
   // ZmRef<Job> jobs[10];
   // ZmFn<> fns[10];
   ZmScheduler::Timer timers[10];

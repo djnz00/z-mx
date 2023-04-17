@@ -115,7 +115,7 @@ public:
   const ZmThreadName &name() const { return m_name; }
   unsigned stackSize() const { return m_stackSize; }
   int priority() const { return m_priority; }
-  unsigned partition() const { return m_partition; }
+  int partition() const { return m_partition; }
   const ZmBitmap &cpuset() const { return m_cpuset; }
   bool detached() const { return m_detached; }
 
@@ -123,7 +123,7 @@ private:
   ZmThreadName		m_name;
   unsigned		m_stackSize = 0;
   int			m_priority = -1;
-  unsigned		m_partition = 0;
+  int			m_partition = -1;
   ZmBitmap		m_cpuset;
   bool			m_detached = false;
 };
@@ -246,7 +246,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{reinterpret_cast<void *>(l)},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -265,7 +266,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{reinterpret_cast<void *>(l)},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -276,6 +278,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 	    ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *) -> void * {
+	// no, this->x does not imply evaluating (*this).x; the reverse is true
 	try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
 	return nullptr;
       }},
@@ -283,7 +286,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{nullptr},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -306,7 +310,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{new L{ZuMv(l)}},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -319,6 +324,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_callFn{[](void *) -> void * {
 	void *res = nullptr;
 	try {
+	// no, this->x does not imply evaluating (*this).x; the reverse is true
 	  res = reinterpret_cast<void *>((*reinterpret_cast<const L *>(0))());
 	} catch (...) { }
 	return res;
@@ -327,7 +333,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{nullptr},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -351,7 +358,8 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       m_lambda{new L{ZuMv(l)}},
       m_name{params.name()}, m_sid{sid},
       m_priority{params.priority()},
-      m_partition{params.partition()}, m_cpuset{params.cpuset()},
+      m_partition{params.partition()},
+      m_cpuset{params.cpuset()},
       m_detached{params.detached()} {
     m_stackSize = params.stackSize();
   }
@@ -387,7 +395,7 @@ public:
 
   int priority() const { return m_priority; }
 
-  unsigned partition() const { return m_partition; }
+  int partition() const { return m_partition; }
   const ZmBitmap &cpuset() const { return m_cpuset; }
 
   void *result() const { return m_result; }
@@ -419,7 +427,7 @@ private:
   int			m_sid = -1;	// thread container's slot ID
 
   int			m_priority = -1;
-  unsigned		m_partition = 0;
+  int			m_partition = -1;
   ZmBitmap		m_cpuset;
 
   void			*m_result = nullptr;

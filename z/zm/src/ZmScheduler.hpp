@@ -44,6 +44,7 @@
 #include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmLock.hpp>
 #include <zlib/ZmSemaphore.hpp>
+#include <zlib/ZmRingFn.hpp>
 #include <zlib/ZmRing.hpp>
 #include <zlib/ZmXRing.hpp>
 #include <zlib/ZmRBTree.hpp>
@@ -51,7 +52,6 @@
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmFn.hpp>
 #include <zlib/ZmEngine.hpp>
-#include <zlib/ZmRingFn.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -63,7 +63,7 @@ public:
   ZmSchedTParams &&isolated(bool b)
     { m_isolated = b; return ZuMv(*this); }
 
-  ZuInline bool isolated() const { return m_isolated; }
+  bool isolated() const { return m_isolated; }
 
 private:
   bool		m_isolated = false;
@@ -109,7 +109,7 @@ struct ZmAPI ZmSchedParams {
   unsigned nThreads() const { return m_nThreads; }
   unsigned stackSize() const { return m_stackSize; }
   int priority() const { return m_priority; }
-  unsigned partition() const { return m_partition; }
+  int partition() const { return m_partition; }
   const ZmTime &quantum() const { return m_quantum; }
 
   unsigned queueSize() const { return m_queueSize; }
@@ -135,7 +135,7 @@ private:
   unsigned	m_nThreads = 1;
   unsigned	m_stackSize = 0;
   int		m_priority = -1;
-  unsigned	m_partition = 0;
+  int		m_partition = -1;
   ZmTime	m_quantum{ZmTime::Nano, 1000}; // 1us
 
   unsigned	m_queueSize = 131072;
@@ -161,7 +161,7 @@ public:
 private:
   using Ring = ZmRing<ZmRingMW<true>>;
 
-  // run-time encapsulation of generic functor/lambda
+  // run-time encapsulation of generic function/lambda
   constexpr static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
   using Fn = ZmRingFn<Fn_HeapID>;
 
@@ -236,7 +236,6 @@ public:
   using Timer = ScheduleTree::Node;
 
 public:
-  // might throw ZmRingError
   ZmScheduler(ZmSchedParams params = {});
   virtual ~ZmScheduler();
 

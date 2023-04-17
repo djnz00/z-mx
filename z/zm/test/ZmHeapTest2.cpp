@@ -19,25 +19,9 @@
 
 /* test program */
 
-#include <new>
-
-#include <stdio.h>
-#include <stdlib.h>
-
-#ifndef _WIN32
-#include <alloca.h>
-#endif
-
-#include <vector>
-#include <list>
-
 #include <zlib/ZmTime.hpp>
 #include <zlib/ZmHeap.hpp>
-#include <zlib/ZmAllocator.hpp>
-#include <zlib/ZmThread.hpp>
-#include <zlib/ZmSemaphore.hpp>
-#include <zlib/ZmFn.hpp>
-#include <zlib/ZmAlloc.hpp>
+#include <zlib/ZmScheduler.hpp>
 
 static bool verbose = false;
 
@@ -53,26 +37,6 @@ template <typename Heap> struct S_ : public Heap {
 constexpr static const char *ID() { return "S"; }
 using S = S_<ZmHeap<ID, sizeof(S_<ZuNull>)> >;
 
-static unsigned count = 0;
-
-void doit()
-{
-  std::cerr << (ZuStringN<80>{} << *ZmSelf() << '\n') << std::flush;
-  for (unsigned i = 0; i < count; i++) {
-    S *s = new S(i);
-    s->doit();
-    delete s;
-  }
-  {
-    std::vector<S, ZmAllocator<S, ID>> v;
-    std::list<S, ZmAllocator<S>> l;
-    for (unsigned i = 0; i < count; i++) {
-      v.emplace_back(i);
-      l.emplace_back(i);
-    }
-  }
-}
-
 void usage()
 {
   fputs(
@@ -85,34 +49,41 @@ void usage()
   Zm::exit(1);
 }
 
+int count;
+int size;
+int nthr;
+ZmSemaphore sem;
+ZmScheduler *sched;
+
 int main(int argc, char **argv)
 {
   if (argc < 4 || argc > 5) usage();
-  {
-    std::cout << "ZmGrow sizes:\n";
-    unsigned n = 1;
-    for (unsigned i = 0; i < 18; i++) {
-      auto m = ZmGrow(n, n + 1);
-      std::cout <<  n << " -> " << m << '\n';
-      n = m;
-    }
-  }
   count = atoi(argv[1]);
-  int size = atoi(argv[2]);
-  int nthr = atoi(argv[3]);
+  size = atoi(argv[2]);
+  nthr = atoi(argv[3]);
   if (argc == 5) verbose = atoi(argv[4]);
   if (!count || !nthr) usage();
   for (int i = 0; i < nthr; i++)
     ZmHeapMgr::init("S", i, ZmHeapConfig{0, static_cast<unsigned>(size)});
-  auto threads = ZmAlloc(ZmThread, nthr * sizeof(ZmThread));
-  if (!threads) {
-    fputs("ZmAlloc() failed\n", stderr);
-    Zm::exit(1);
-  }
-  ZmTime start(ZmTime::Now);
+  ZmSchedParams params;
+  params.id("sched").nThreads(nthr).startTimer(false);
   for (int i = 0; i < nthr; i++)
-    new (&threads[i]) ZmThread{doit, ZmThreadParams{}.partition(i), i};
-  for (int i = 0; i < nthr; i++) threads[i].join();
+    params.thread(i + 1).partition(i);
+  ZmScheduler sched_{ZuMv(params)};
+  sched = &sched_;
+  sched->start();
+  ZmTime start(ZmTime::Now);
+  for (int j = 0; j < count; j++)
+    for (int i = 0; i < nthr; i++)
+      sched->run(i + 1, [i, j]() {
+	auto s = new S{i + j};
+	sched->run(((i + 1) % nthr) + 1, [s]() {
+	  delete s;
+	  sem.post();
+	});
+      });
+  for (int k = 0, n = count * nthr; k < n; k++) sem.wait();
+  sched->stop();
   ZmTime end(ZmTime::Now);
   end -= start;
   printf("%u.%09u\n", (unsigned)end.sec(), (unsigned)end.nsec());

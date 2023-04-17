@@ -4,7 +4,8 @@
 #include <iostream>
 
 #include <zlib/ZuStringN.hpp>
-#include <zlib/ZuDemangle.hpp>
+
+#include <zlib/ZmDemangle.hpp>
 
 #include <zlib/ZdfCompress.hpp>
 
@@ -44,9 +45,9 @@ void test() {
 	CHECK(nw.write(-(j + k * k)));
       }
       std::cout <<
-	ZuDemangle<200>{typeid(Encoder).name()} << " +ve: " << pw.count() << ' ' << (pw.pos() - p) << '\n';
+	ZmDemangle{typeid(Encoder).name()} << " +ve: " << pw.count() << ' ' << (pw.pos() - p) << '\n';
       std::cout <<
-	ZuDemangle<200>{typeid(Encoder).name()} << " -ve: " << nw.count() << ' ' << (nw.pos() - n) << '\n';
+	ZmDemangle{typeid(Encoder).name()} << " -ve: " << nw.count() << ' ' << (nw.pos() - n) << '\n';
     }
     {
       Decoder pr{p, p + 4096};

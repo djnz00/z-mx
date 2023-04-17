@@ -11,11 +11,11 @@ libZmBTTest_la_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 libZmBTTest_la_LIBADD = libZmBTTest2.la
 libZmBTTest2_la_SOURCES = libZmBTTest2.cpp
 libZmBTTest2_la_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
-TESTPROGS = ZmFnTest ZmHeapTest ZmRBTest ZmRWTest \
+TESTPROGS = ZmFnTest ZmHeapTest ZmHeapTest2 ZmRBTest ZmRWTest \
 	ZmSchedTest ZmStackTest ZmTest ZmHashTest ZmHashTest2 ZmTLockTest \
 	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread ZmPQueueTest \
 	ZmPQueueTest2 ZmPQueueTest3 ZmRingTest ZmRingTest2 \
-	ZmLockTest ZmTLSTest ZmAllocTest ZmCacheTest
+	ZmLockTest ZmTLSTest ZmAllocTest ZmCacheTest ZmDemangleTest
 if MINGW
 bin_PROGRAMS = ZmBTTest
 noinst_PROGRAMS = ${TESTPROGS}
@@ -26,6 +26,7 @@ ZmBTTest_SOURCES = ZmBTTest.cpp
 ZmBTTest_LDADD = libZmBTTest.la ${LDADD}
 ZmFnTest_SOURCES = ZmFnTest.cpp
 ZmHeapTest_SOURCES = ZmHeapTest.cpp
+ZmHeapTest2_SOURCES = ZmHeapTest2.cpp
 ZmRBTest_SOURCES = ZmRBTest.cpp
 ZmRWTest_SOURCES = ZmRWTest.cpp
 ZmSchedTest_SOURCES = ZmSchedTest.cpp
@@ -47,3 +48,4 @@ ZmLockTest_SOURCES = ZmLockTest.cpp
 ZmTLSTest_SOURCES = ZmTLSTest.cpp
 ZmAllocTest_SOURCES = ZmAllocTest.cpp
 ZmCacheTest_SOURCES = ZmCacheTest.cpp
+ZmDemangleTest_SOURCES = ZmDemangleTest.cpp

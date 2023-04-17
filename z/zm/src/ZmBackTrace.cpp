@@ -42,7 +42,7 @@
 #ifdef _WIN32
 #define ZmBackTrace_BFD
 #endif
-#include <zlib/ZuDemangle.hpp>
+#include <zlib/ZmDemangle.hpp>
 #endif
 
 #ifdef ZmBackTrace_BFD
@@ -131,10 +131,6 @@ friend ZmSingletonCtor<ZmBackTrace_Mgr>;
 friend ZmBackTrace;
 friend ZmBackTrace_MgrInit;
 friend void ZmBackTrace_print(ZmStream &s, const ZmBackTrace &bt);
-
-#if defined(__GNUC__) || defined(linux)
-  using Demangle = ZuDemangle<ZmBackTrace_BUFSIZ>;
-#endif
 
   ZmBackTrace_Mgr();
 public:
@@ -520,24 +516,24 @@ notfound:
   bool printFrame_(ZmStream &s, void *addr);
 
   Lock				m_lock;
-  bool				m_initialized;
+  bool				m_initialized = false;
 
 #ifdef _WIN32
-  HMODULE			m_dll;
-  HMODULE			m_ntdll;
-  PSymSetOptions		m_symSetOptions;
-  PSymInitialize		m_symInitialize;
-  PSymCleanup			m_symCleanup;
-  PSymFromAddr			m_symFromAddr;
-  PStackWalk64			m_stackWalk64;
-  PSymFunctionTableAccess64	m_symFunctionTableAccess64;
-  PSymGetModuleBase64		m_symGetModuleBase64;
-  PRtlCaptureStackBackTrace	m_rtlCaptureStackBackTrace;
-  char				m_nameBuf[ZmBackTrace_BUFSIZ]; // not MAX_PATH
+  HMODULE			m_dll = 0;
+  HMODULE			m_ntdll = 0;
+  PSymSetOptions		m_symSetOptions = nullptr;
+  PSymInitialize		m_symInitialize = nullptr;
+  PSymCleanup			m_symCleanup = nullptr;
+  PSymFromAddr			m_symFromAddr = nullptr;
+  PStackWalk64			m_stackWalk64 = nullptr;
+  PSymFunctionTableAccess64	m_symFunctionTableAccess64 = nullptr;
+  PSymGetModuleBase64		m_symGetModuleBase64 = nullptr;
+  PRtlCaptureStackBackTrace	m_rtlCaptureStackBackTrace = nullptr;
+  char				m_nameBuf[ZmBackTrace_BUFSIZ] = {};
 #endif
 
 #if defined(__GNUC__) || defined(linux)
-  Demangle			m_demangle;
+  ZmDemangle			m_demangle;
 #endif
 
 #ifdef ZmBackTrace_BFD
@@ -558,23 +554,7 @@ struct ZmBackTrace_MgrInit {
 
 static ZmBackTrace_MgrInit ZmBackTrace_mgrInit;
 
-ZmBackTrace_Mgr::ZmBackTrace_Mgr() :
-  m_initialized(false)
-#ifdef _WIN32
-  , m_dll(0),
-  m_ntdll(0),
-  m_symSetOptions(0),
-  m_symInitialize(0),
-  m_symCleanup(0),
-  m_symFromAddr(0),
-  m_stackWalk64(0),
-  m_symFunctionTableAccess64(0),
-  m_symGetModuleBase64(0),
-  m_rtlCaptureStackBackTrace(0)
-#endif
-#ifdef ZmBackTrace_BFD
-  , m_bfd(0)
-#endif
+ZmBackTrace_Mgr::ZmBackTrace_Mgr()
 {
 }
 

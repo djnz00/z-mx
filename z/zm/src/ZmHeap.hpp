@@ -94,6 +94,8 @@ struct ZmHeapTelemetry {
 
 class ZmHeapLookup;
 
+typedef void (*ZmHeapStatsFn)();
+
 // cache (LIFO free list) of fixed-size blocks; one per CPU set / NUMA node
 class ZmAPI ZmHeapCache : public ZmObject {
 friend ZmHeapMgr;
@@ -107,18 +109,23 @@ template <auto, unsigned, bool> friend class ZmHeapCacheT;
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
-  // FIXME
-  using StatsFn = ZmFn<const ZmHeapStats &>;
-  // FIXME
-  using AllStatsFn = ZmFn<StatsFn>;
+  using StatsFn = ZmHeapStatsFn;
 
-  static const char *IDAxor(const ZmHeapCache *c) {
-    return c->info().id;
+  void stats(const ZmHeapStats &s) { // aggregate statistics from ZmHeapCacheT
+    m_stats.heapAllocs += s.heapAllocs;
+    m_stats.cacheAllocs += s.cacheAllocs;
+    m_stats.frees += s.frees;
+  }
+
+  static const char *IDAxor(const ZmHeapCache *this_) {
+    return this_->m_info.id;
   }
   using IDSize = ZuPair<const char *, unsigned>;
-  using IDPartSize = ZuTuple<const char *, unsigned, unsigned>;
-  static IDPartSize IDPartSizeAxor(const ZmHeapCache *c) {
-    return {c->info().id, c->info().partition, c->info().size};
+  // primary key for a heap is {ID, partition, size, sharded}
+  using Key = ZuTuple<const char *, unsigned, unsigned, bool>;
+  static Key KeyAxor(const ZmHeapCache *this_) {
+    const auto &info = this_->m_info;
+    return {info.id, info.partition, info.size, info.sharded};
   }
 
   void *operator new(size_t s);
@@ -129,7 +136,7 @@ public:
 private:
   ZmHeapCache(
       const char *id, unsigned size, unsigned partition, bool sharded,
-      const ZmHeapConfig &, AllStatsFn, hwloc_topology_t);
+      const ZmHeapConfig &, StatsFn, hwloc_topology_t);
 
   void lookup(ZmHeapLookup *l) { m_lookup = l; }
   ZmHeapLookup *lookup() const { return m_lookup; }
@@ -138,7 +145,6 @@ public:
   ~ZmHeapCache();
 
   const ZmHeapInfo &info() const { return m_info; }
-  const ZmHeapStats &stats() const { return m_stats; }
 
   void telemetry(ZmHeapTelemetry &data) const;
 
@@ -187,7 +193,7 @@ private:
     return p >= m_begin && p < m_end;
   }
 
-  void allStats() const;
+  void stats() const;
   void histStats(const ZmHeapStats &stats) const;
 
   // cache, end, lookup are guarded by ZmHeapMgr
@@ -197,7 +203,7 @@ private:
 
   ZmHeapInfo		m_info;
   ZmHeapLookup		*m_lookup = nullptr;
-  AllStatsFn		m_allStatsFn;		// aggregates stats from TLS
+  StatsFn		m_statsFn;	// aggregates stats from TLS
 
   void			*m_begin = nullptr;	// bound memory region
   void			*m_end = nullptr;	// end of memory region
@@ -212,8 +218,8 @@ private:
   using HistReadGuard = ZmReadGuard<HistLock>;
 
   mutable HistLock	m_histLock;
-    mutable ZmHeapStats	  m_histStats = { 0 };	// stats from exited threads
-  mutable ZmHeapStats	m_stats = { 0 };	// aggregated on demand
+    mutable ZmHeapStats	  m_histStats{};// stats from exited threads
+  mutable ZmHeapStats	m_stats{};	// aggregated on demand
 };
 
 class ZmAPI ZmHeapMgr {
@@ -228,11 +234,11 @@ template <auto, unsigned, bool> friend class ZmHeapCacheT;
 	"cacheAllocs,heapAllocs,frees\n";
       ZmHeapMgr::all(ZmFn<ZmHeapCache *>::Member<&CSV_::print_>::fn(this));
     }
-    void print_(ZmHeapCache *c) {
+    void print_(ZmHeapCache *cache) {
       ZmHeapTelemetry data;
-      c->telemetry(data);
+      cache->telemetry(data);
       m_stream <<
-	data.id << ',' <<
+	'"' << data.id << "\"," <<	// assume no need to quote embedded "
 	ZuBoxed(data.size) << ',' <<
 	ZuBoxed(data.partition) << ',' <<
 	ZuBoxed(data.sharded) << ',' <<
@@ -269,10 +275,10 @@ public:
 #endif
 
 private:
-  using AllStatsFn = ZmHeapCache::AllStatsFn;
+  using StatsFn = ZmHeapStatsFn;
 
   static ZmHeapCache *cache(
-      const char *id, unsigned size, bool sharded, AllStatsFn);
+      const char *id, unsigned size, bool sharded, StatsFn);
 };
 
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
@@ -281,18 +287,15 @@ class ZmHeapCacheT : public ZmObject {
 friend ZmSpecificCtor<ZmHeapCacheT<ID, Size, Sharded> >;
   using TLS = ZmSpecific<ZmHeapCacheT>;
 
-  using StatsFn = ZmHeapCache::StatsFn;
-  using AllStatsFn = ZmHeapCache::AllStatsFn;
-
 public:
-  // allStats uses ZmSpecific::all to iterate over all threads and
+  // stats() uses ZmSpecific::all to iterate over all threads and
   // collect/aggregate statistics for each TLS instance
-  static void allStats(StatsFn fn);
+  static void stats();
 
 private:
   ZmHeapCacheT() :
-    m_cache{ZmHeapMgr::cache(ID(), Size, Sharded,
-	  AllStatsFn::Ptr<&allStats>::fn())}, m_stats{} { }
+      m_cache{ZmHeapMgr::cache(ID(), Size, Sharded, &stats)}, m_stats{} { }
+
 public:
   ~ZmHeapCacheT() {
     m_cache->histStats(m_stats);
@@ -302,12 +305,12 @@ public:
 
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {
-    ZmHeapCacheT *self = instance();
-    return self->m_cache->alloc(self->m_stats);
+    ZmHeapCacheT *this_ = instance();
+    return this_->m_cache->alloc(this_->m_stats);
   }
   static void free(void *p) {
-    ZmHeapCacheT *self = instance();
-    self->m_cache->free(self->m_stats, p);
+    ZmHeapCacheT *this_ = instance();
+    this_->m_cache->free(this_->m_stats, p);
   }
 
 private:
@@ -350,7 +353,6 @@ template <auto ID_, unsigned Size_, bool Sharded_>
 class ZmHeap__ {
 public:
   constexpr static auto ID = ID_;
-  // enum { Size = Size_ };
   enum { AllocSize = ZmHeapAllocSize<Size_>::N };
   enum { Sharded = Sharded_ };
 
@@ -390,9 +392,10 @@ using ZmHeap = typename ZmHeap_<ID, Size, Sharded>::T;
 #include <zlib/ZmFn.hpp>
 
 template <auto ID, unsigned Size, bool Sharded>
-inline void ZmHeapCacheT<ID, Size, Sharded>::allStats(StatsFn fn)
+inline void ZmHeapCacheT<ID, Size, Sharded>::stats()
 {
-  TLS::all([&fn](ZmHeapCacheT *c) { fn(c->m_stats); });
+  // aggregate heap cache statistics
+  TLS::all([](ZmHeapCacheT *this_) { this_->m_cache->stats(this_->m_stats); });
 }
 
 #endif /* ZmHeap_HPP */

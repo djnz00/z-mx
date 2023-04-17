@@ -131,6 +131,15 @@ private:
   template <typename U, typename R = void>
   using MatchReal = ZuIfT<IsReal<U>::OK, R>;
 
+  // from primitive pointer (not an array, string, or otherwise printable)
+  template <typename U, typename V = Char> struct IsPtr {
+    enum { OK = ZuEquivChar<char, V>::Same &&
+      ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
+      !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString };
+  };
+  template <typename U, typename R = void>
+  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
+
 protected:
   ZuStringN_() : m_length(0) { data()[0] = 0; }
 
@@ -189,6 +198,9 @@ protected:
   template <typename V> MatchReal<V> init(V v) {
     init(ZuBoxed(v));
   }
+  template <typename V> MatchPtr<V> init(V v) {
+    init(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
+  }
 
   void append(const Char *s, unsigned length) {
     if (m_length + length >= N) length = M - m_length;
@@ -235,6 +247,9 @@ protected:
 
   template <typename V> MatchReal<V> append_(V v) {
     append_(ZuBoxed(v));
+  }
+  template <typename V> MatchPtr<V> append_(V v) {
+    append_(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
 public:

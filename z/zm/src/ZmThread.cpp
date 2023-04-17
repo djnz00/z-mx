@@ -145,6 +145,7 @@ void ZmThreadContext::init()
     else
       m_name = ZuBoxed(tid());
   }
+  if (m_partition < 0) m_partition = 0;
 }
 
 void ZmThreadContext::telemetry(ZmThreadTelemetry &data) const {

@@ -3,7 +3,7 @@
 
 #include <zlib/ZuLib.hpp>
 
-#include <zlib/ZuDemangle.hpp>
+#include <zlib/ZmDemangle.hpp>
 
 #include <iostream>
 
@@ -15,6 +15,9 @@ template <typename> struct Baz { };
 int main()
 {
   constexpr auto foo = ZuDefaultAxor();
-  std::cout << ZuDemangle<1000>{typeid(foo).name()} << '\n';
-  std::cout << ZuDemangle<1000>{typeid(Foo<Baz, Baz<int>>).name()} << '\n';
+  std::cout << ZmDemangle{"Z13ZuDefaultAxorvEUlTyOT_E_"} << '\n';
+  std::cout << ZmDemangle{"Z13ZuDefaultAxorvEUlOT_E_"} << '\n';
+  std::cout << typeid(foo).name() << '\n';
+  std::cout << ZmDemangle{typeid(foo).name()} << '\n';
+  std::cout << ZmDemangle{typeid(Foo<Baz, Baz<int>>).name()} << '\n';
 }

@@ -82,8 +82,7 @@ template <typename T, auto ID, bool Sharded>
 inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
   using Cache = ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, Sharded>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
-  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T))))
-    return ptr;
+  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T)))) return ptr;
   throw std::bad_alloc{};
 }
 template <typename T, auto ID, bool Sharded>

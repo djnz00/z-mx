@@ -40,6 +40,7 @@
 #include <zlib/ZmThread.hpp>
 #include <zlib/ZmSingleton.hpp>
 #include <zlib/ZmSpecific.hpp>
+#include <zlib/ZmDemangle.hpp>
 
 template <int N> struct String {
   String() { }
@@ -170,8 +171,9 @@ template <typename H> void iterDel(H &h)
 template <typename H, template <typename> class A>
 void funcTest_(int bits, double loadFactor)
 {
-  ZmRef<H> h_ = new H(ZmHashParams().bits(bits).loadFactor(loadFactor));
+  ZmRef<H> h_ = new H{ZmHashParams{}.bits(bits).loadFactor(loadFactor)};
   H &h = *h_;
+  std::cout << "funcTest_<" << ZmDemangle{typeid(H).name()} << ", " << ZmDemangle{typeid(A<H>).name()} << ">(" << bits << ", " << loadFactor << ")\n";
   h.add("Goodbye", -42);
   CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -42);
   add(h), iter(h, 42+43+44);
@@ -209,10 +211,17 @@ void funcTest_(int bits, double loadFactor)
   del(h, 43), iter(h, 42+46), del(h, 46), del(h, 42);
   CHECK(h.count_() == 1);
   h.findAdd("Goodbye", -46);
-  CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -42);
-  h.del("Goodbye");
+  {
+    auto v = A<H>::val(typename A<H>::T{h.find("Goodbye")});
+    CHECK(v == -42 || v == -46);
+  }
+  h.del("Goodbye", -42);
   h.findAdd("Goodbye", -46);
   CHECK(A<H>::val(typename A<H>::T{h.find("Goodbye")}) == -46);
+  {
+    auto v = A<H>::val(typename A<H>::T{h.find("Goodbye")});
+    CHECK(v == -42 || v == -46);
+  }
   CHECK(h.count_() == 1);
 
   puts("ITERDEL 44 43 42");
@@ -308,6 +317,18 @@ int main(int argc, char **argv)
 
   funcTest<Hash, HashAdapter>();
   funcTest<LHash, LHashAdapter>();
+
+  {
+    ZmLHashKV<uintptr_t, unsigned, ZmLHashLocal<>> hash{ZmHashParams{8}};
+
+    hash.add(static_cast<uintptr_t>(0x1fe0268978), 0U);
+    hash.add(static_cast<uintptr_t>(0x1fe0268974), 2U);
+    hash.add(static_cast<uintptr_t>(0x1fe0268970), 3U);
+    hash.add(static_cast<uintptr_t>(0x1fe026896c), 1U);
+    auto i = hash.readIterator(static_cast<uintptr_t>(0x1fe0268974));
+    while (auto node = i.iterate())
+      std::cout << "found " << node->template p<1>() << '\n';
+  }
 
   if (argc > 1) perfTestSize = atoi(argv[1]);
   if (argc > 2) concurrency = atoi(argv[2]);

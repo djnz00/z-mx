@@ -51,9 +51,11 @@ public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
   static R invoke(Args_ &&... args) {
+    // no, this->x does not imply evaluating (*this).x; the reverse is true
     return (*reinterpret_cast<const L *>(0))(ZuFwd<Args_>(args)...);
   }
   static R invoke_(Args... args) {
+    // no, this->x does not imply evaluating (*this).x; the reverse is true
     return (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef R (*Fn)(Args...);
@@ -67,9 +69,11 @@ public:
   enum { IsStateless = 1 };
   template <typename ...Args_>
   static void invoke(Args_ &&... args) {
+    // no, this->x does not imply evaluating (*this).x; the reverse is true
     (*reinterpret_cast<const L *>(0))(ZuFwd<Args_>(args)...);
   }
   static void invoke_(Args... args) {
+    // no, this->x does not imply evaluating (*this).x; the reverse is true
     (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
   typedef void (*Fn)(Args...);

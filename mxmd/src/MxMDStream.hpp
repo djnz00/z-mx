@@ -559,6 +559,7 @@ namespace MxMDStream {
   template <typename Cxn, typename L> struct IOLambda<Cxn, L, true> {
     typedef void T;
     static void invoke(ZiIOContext &io) {
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
       (*reinterpret_cast<const L *>(0))(
 	  static_cast<Cxn *>(io.cxn), io.fn.mvObject<MxQMsg>(), io);
     }

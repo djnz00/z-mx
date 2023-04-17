@@ -235,6 +235,15 @@ private:
   template <typename U, typename R = void>
   using MatchReal = ZuIfT<IsReal<U>::OK, R>;
 
+  // from primitive pointer (not an array, string, or otherwise printable)
+  template <typename U, typename V = Char> struct IsPtr {
+    enum { OK = ZuEquivChar<char, V>::Same &&
+      ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
+      !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString };
+  };
+  template <typename U, typename R = void>
+  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
+
   // from individual element
   template <typename U, typename V = T> struct IsElem {
     enum { OK = ZuConversion<U, V>::Same ||
@@ -244,6 +253,7 @@ private:
        !IsChar2<U>::OK &&
        !IsPrint<U>::OK &&
        !IsReal<U>::OK &&
+       !IsPtr<U>::OK &&
        ZuConversion<U, V>::Exists) };
   };
   template <typename U, typename R = void>
@@ -268,6 +278,7 @@ private:
       !IsChar2<U>::OK &&
       !IsPrint<U>::OK &&
       !IsReal<U>::OK &&
+      !IsPtr<U>::OK &&
       !IsCtorSize<U>::OK &&
       ZuConversion<U, V>::Exists };
   };
@@ -543,6 +554,9 @@ private:
 
   template <typename V> MatchReal<V> assign(V v) {
     assign(ZuBoxed(v));
+  }
+  template <typename V> MatchPtr<V> assign(V v) {
+    assign(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
   template <typename I> MatchElem<I> assign(I &&i) {
@@ -1087,6 +1101,9 @@ private:
 
   template <typename V> MatchReal<V> append_(V v) {
     append_(ZuBoxed(v));
+  }
+  template <typename V> MatchPtr<V> append_(V v) {
+    append_(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
   template <typename I> MatchElem<I> append_(I &&i) {

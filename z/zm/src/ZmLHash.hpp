@@ -644,6 +644,7 @@ private:
   }
   template <typename P>
   int add_(P &&data, uint32_t code) {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add_() code=" << code << '\n');
     unsigned size = 1U<<bits();
 
     unsigned count = m_count.load_();
@@ -655,34 +656,41 @@ private:
     if (count >= size) return -1;
 
     m_count.store_(count + 1);
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add_() count=" << m_count.load_() << '\n');
 
     return add__(ZuFwd<P>(data), code);
   }
   template <typename P>
   int add__(P &&data, uint32_t code) {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() code=" << code << '\n');
     unsigned size = 1U<<bits();
     unsigned slot = code & (size - 1);
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() slot=" << slot << '\n');
 
     if (!m_table[slot]) {
       m_table[slot].init(1, 1, 0, ZuFwd<P>(data));
       return slot;
     }
 
-    int move = alloc(slot);
-    if (move < 0) return -1;
+    int vacant = alloc(slot);
+    if (vacant < 0) return -1;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() vacant slot=" << vacant << '\n');
 
     if (m_table[slot].head()) {
-      (m_table[move] = ZuMv(m_table[slot])).clrHead();
-      m_table[slot].init(1, 0, move, ZuFwd<P>(data));
+      (m_table[vacant] = ZuMv(m_table[slot])).clrHead();
+      m_table[slot].init(1, 0, vacant, ZuFwd<P>(data));
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() head slot=" << slot << '\n');
       return slot;
     }
 
     int prev = this->prev(slot);
     if (prev < 0) return -1;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() prev slot=" << prev << '\n');
 
-    m_table[move] = ZuMv(m_table[slot]);
-    m_table[prev].next(move);
+    m_table[vacant] = ZuMv(m_table[slot]);
+    m_table[prev].next(vacant);
     m_table[slot].init(1, 1, 0, ZuFwd<P>(data));
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() add slot=" << slot << '\n');
     return slot;
   }
 
@@ -702,6 +710,7 @@ private:
   template <typename P>
   static auto matchKey(const P &key) {
     return [&key](const Node *node) -> bool {
+      // std::cout << (ZuStringN<80>{} << "matchKey() node key=" << node->Node::key() << " val=" << node->Node::val() << " key=" << key << '\n');
       return Cmp::equals(node->Node::key(), key);
     };
   }
@@ -780,26 +789,51 @@ public:
 private:
   template <typename Match>
   int find_(Match match, uint32_t code) const {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() code=" << code << '\n');
     unsigned size = 1U<<bits();
     unsigned slot = code & (size - 1);
-    if (!m_table[slot] || !m_table[slot].head()) return -1;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() slot=" << slot << '\n');
+    if (!m_table[slot] || !m_table[slot].head()) {
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() empty slot=" << slot << '\n');
+      return -1;
+    }
     for (;;) {
-      if (match(&m_table[slot])) return slot;
-      if (m_table[slot].tail()) return -1;
+      if (match(&m_table[slot])) {
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() found slot=" << slot << '\n');
+	return slot;
+      }
+      if (m_table[slot].tail()) {
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() tail slot=" << slot << '\n');
+	return -1;
+      }
       slot = m_table[slot].next();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::find_() next slot=" << slot << '\n');
     }
   }
   template <typename Match>
   int findPrev_(Match match, uint32_t code) const {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() code=" << code << '\n');
     unsigned size = 1U<<bits();
     unsigned slot = code & (size - 1);
-    if (!m_table[slot] || !m_table[slot].head()) return -1;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() slot=" << slot << '\n');
+    if (!m_table[slot] || !m_table[slot].head()) {
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() empty slot=" << slot << '\n');
+      return -1;
+    }
     int prev = -1;
     for (;;) {
-      if (match(&m_table[slot]))
-	return prev < 0 ? (-(static_cast<int>(slot)) - 2) : prev;
-      if (m_table[slot].tail()) return -1;
+      if (match(&m_table[slot])) {
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() found slot=" << slot << '\n');
+	prev = prev < 0 ? (-(static_cast<int>(slot)) - 2) : prev;
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() found prev=" << prev << '\n');
+	return prev;
+      }
+      if (m_table[slot].tail()) {
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() tail slot=" << slot << '\n');
+	return -1;
+      }
       prev = slot, slot = m_table[slot].next();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() next slot=" << slot << '\n');
     }
   }
 
@@ -818,13 +852,16 @@ public:
 private:
   template <typename P>
   int findAdd__(P &&data, uint32_t code) {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findAdd__() code=" << code << '\n');
     unsigned size = 1U<<bits();
     unsigned slot = code & (size - 1);
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findAdd__() slot=" << slot << '\n');
     if (!!m_table[slot] && m_table[slot].head())
       for (;;) {
 	if (m_table[slot].data() == data) return slot;
 	if (m_table[slot].tail()) break;
 	slot = m_table[slot].next();
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findAdd__() next=" << slot << '\n');
       }
     return add_(ZuFwd<P>(data), code);
   }
@@ -885,12 +922,19 @@ private:
   void del__(int prev) {
     int slot;
 
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() prev=" << prev << '\n');
+
     if (prev < 0)
       slot = (-prev - 2), prev = -1;
     else
       slot = m_table[prev].next();
 
-    if (!m_table[slot]) return;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() slot=" << slot << '\n');
+
+    if (!m_table[slot]) {
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() empty slot=" << slot << '\n');
+      return;
+    }
 
     if (unsigned count = m_count.load_())
       m_count.store_(count - 1);
@@ -898,25 +942,32 @@ private:
     if (m_table[slot].head()) {
       ZmAssert(prev < 0);
       if (m_table[slot].tail()) {
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() head+tail slot=" << slot << '\n');
 	m_table[slot].null();
 	return;
       }
       unsigned next = m_table[slot].next();
       (m_table[slot] = ZuMv(m_table[next])).setHead();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() new head slot=" << slot << '\n');
       m_table[next].null();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() cleared slot=" << next << '\n');
       return;
     }
 
     if (m_table[slot].tail()) {
       ZmAssert(prev >= 0);
       if (prev >= 0) m_table[prev].setTail();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() new tail slot=" << prev << '\n');
       m_table[slot].null();
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() cleared slot=" << slot << '\n');
       return;
     }
 
     unsigned next = m_table[slot].next();
     m_table[slot] = ZuMv(m_table[next]);
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() moved slot=" << slot << '\n');
     m_table[next].null();
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() cleared slot=" << next << '\n');
   }
 
   void del_(int prev) {
@@ -994,12 +1045,14 @@ private:
       findPrev_(matchKey(iterator.m_key), HashFn::hash(iterator.m_key));
     if (prev == -1) {
       iterator.m_next = iterator.m_prev = -1;
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.m_key << ") not found\n");
       return;
     }
     if (prev < 0)
       iterator.m_next = -prev - 2, iterator.m_prev = -1;
     else
       iterator.m_next = m_table[iterator.m_prev = prev].next();
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.m_key << ") found slot=" << iterator.m_next << " prev=" << iterator.m_prev << "\n");
   }
   void iterate_(Iterator_ &iterator) {
     int next = iterator.m_next;
@@ -1020,17 +1073,23 @@ private:
     int next = iterator.m_next;
     if (next < 0) {
       iterator.m_slot = -1;
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") ended\n");
       return;
     }
-    if (iterator.m_slot >= 0) iterator.m_prev = iterator.m_slot;
     iterator.m_slot = next;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=" << next << "\n");
     while (!m_table[next].tail()) {
       next = m_table[next].next();
       if (Cmp::equals(m_table[next].key(), iterator.m_key)) {
 	iterator.m_next = next;
+	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") found slot=" << next << "\n");
 	return;
       }
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=" << next << "\n");
+      iterator.m_prev = next;
     }
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=-1\n");
+    iterator.m_prev = next;
     iterator.m_next = -1;
   }
   template <typename I>

@@ -226,6 +226,7 @@ namespace MxTelemetry {
   template <typename Cxn, typename L> struct IOLambda<Cxn, L, true> {
     using T = void;
     static void invoke(ZiIOContext &io) {
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
       (*reinterpret_cast<const L *>(0))(
 	  static_cast<Cxn *>(io.cxn), io.fn.mvObject<Msg>(), io);
     }

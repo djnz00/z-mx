@@ -610,6 +610,7 @@ friend struct LBoundInvoker_;
   template <typename O, typename L, auto HeapID, bool Sharded>
   struct LBoundInvoker_<O *, L, void, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
       (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
     }
@@ -675,11 +676,13 @@ friend struct LBoundInvoker_;
   template <typename O, typename L, auto HeapID, bool Sharded>
   struct LBoundInvoker_<ZmRef<O>, L, void, HeapID, Sharded, 1> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
       (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
       o = disown(o);
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
       (*reinterpret_cast<const L *>(0))(
 	  ZmRef<O>::acquire(ptr<O>(o)),
 	  ZuFwd<Args>(args)...);

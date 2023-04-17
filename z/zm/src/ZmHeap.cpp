@@ -36,6 +36,10 @@ class ZmHeapMgr;
 class ZmHeapCache;
 
 class ZmHeapLookup {
+  using Lock = ZmPLock;
+  using Guard = ZmGuard<Lock>;
+  using ReadGuard = ZmGuard<Lock>;
+
 public:
   constexpr static unsigned hashSize() { return 8; }
 
@@ -47,6 +51,7 @@ public:
   void add(ZmHeapCache *c) {
     auto begin = reinterpret_cast<uintptr_t>(c->m_begin);
     auto end = reinterpret_cast<uintptr_t>(c->m_end) - 1;
+    Guard guard(m_lock);
     if (ZuUnlikely(!m_shift))
       m_shift = 32U - __builtin_clz(end - begin);
     begin >>= m_shift;
@@ -58,6 +63,7 @@ public:
   void del(ZmHeapCache *c) {
     auto begin = reinterpret_cast<uintptr_t>(c->m_begin);
     auto end = reinterpret_cast<uintptr_t>(c->m_end) - 1;
+    Guard guard(m_lock);
     begin >>= m_shift;
     end >>= m_shift;
     m_hash.del(begin, c);
@@ -65,18 +71,20 @@ public:
     c->lookup(nullptr);
   }
 
-  ZmHeapCache *find(void *p) const {
+  ZmHeapCache *find(ZmHeapCache *skip, void *p) const {
+    ReadGuard guard(m_lock);
     if (ZuUnlikely(!m_shift)) return nullptr;
     uintptr_t key = reinterpret_cast<uintptr_t>(p)>>m_shift;
     auto i = m_hash.readIterator(key);
     while (ZmHeapCache *c = i.iterateVal())
-      if (ZuLikely(c->owned(p))) return c;
+      if (ZuLikely(c != skip && c->owned(p))) return c;
     return nullptr;
   }
 
 private:
-  unsigned	  m_shift = 0;
-  Hash		  m_hash;
+  mutable Lock		m_lock;
+    unsigned		  m_shift = 0;
+    Hash		  m_hash;
 };
 
 class ZmHeapMgr_ : public ZmObject {
@@ -90,40 +98,46 @@ friend ZmHeapCache;
 
   using IDPart = ZuPair<ZmIDString, unsigned>;
   using IDSize = ZuPair<const char *, unsigned>;
-  using IDPartSize = ZmHeapCache::IDPartSize;
+  using Key = ZmHeapCache::Key;
 
+  // primary key for heap configurations is {ID, partition}
   using IDPart2Config =
     ZmRBTreeKV<IDPart, ZmHeapConfig,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
+  // id2Cache is non-unique map used to find and configure heaps that were
+  // constructed prior to configuration, and enable/disable tracing by apps
   using ID2Cache =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::IDAxor,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
+  // key2Cache is unique map from primary key to individual heap cache;
+  // primary key for a heap is {ID, partition, size, sharded}
+  using Key2Cache =
+    ZmRBTree<ZmHeapCache *,
+      ZmRBTreeKey<ZmHeapCache::KeyAxor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeHeapID<ZmHeapDisable()>>>>;
+  // lookups are only used for non-sharded heaps; primary key is {ID, size};
+  // IDSize2Lookup maps direct from {ID, size, address} to individual heap
+  // for free()
   using IDSize2Lookup =
     ZmRBTreeKV<IDSize, ZmHeapLookup,
-      ZmRBTreeHeapID<ZmHeapDisable()>>;
-  using IDPartSize2Cache =
-    ZmRBTree<ZmHeapCache *,
-      ZmRBTreeKey<ZmHeapCache::IDPartSizeAxor,
+      ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
 
-  using StatsFn = ZmHeapCache::StatsFn;
-  using AllStatsFn = ZmHeapCache::AllStatsFn;
+  using StatsFn = ZmHeapStatsFn;
 
 #ifdef ZmHeap_DEBUG
   using TraceFn = ZmHeapMgr::TraceFn;
 #endif
 
-  ZmHeapMgr_() {
-    // printf("ZmHeapMgr_() %p\n", this); fflush(stdout);
-  }
+  ZmHeapMgr_() { }
 
 public:
   ~ZmHeapMgr_() {
-    // printf("~ZmHeapMgr_() %p\n", this); fflush(stdout);
-    m_caches2.clean();
-    m_caches.clean([
+    m_key2Cache.clean();
+    m_id2Cache.clean([
 #ifdef ZmObject_DEBUG
       this
 #endif
@@ -143,7 +157,7 @@ private:
     m_configs.del(ZuFwdPair(id, partition));
     m_configs.add(ZuFwdPair(id, partition), config);
     {
-      auto i = m_caches.readIterator<ZmRBTreeEqual>(id);
+      auto i = m_id2Cache.readIterator<ZmRBTreeEqual>(id);
       while (ZmHeapCache *c = i.iterateVal())
 	if (c->info().partition == partition)
 	  c->init(config, hwloc);
@@ -154,36 +168,36 @@ private:
     ZmRef<ZmHeapCache> c;
     {
       ReadGuard guard(m_lock);
-      c = m_caches2.minimumVal();
+      c = m_key2Cache.minimumVal();
     }
     while (c) {
       fn(c);
       {
 	ReadGuard guard(m_lock);
-	c = m_caches2.readIterator<ZmRBTreeGreater>(
-	    ZmHeapCache::IDPartSizeAxor(c)).iterateVal();
+	c = m_key2Cache.readIterator<ZmRBTreeGreater>(
+	    ZmHeapCache::KeyAxor(c)).iterateVal();
       }
     }
   }
 
   void all(const char *id, ZmFn<ZmHeapCache *> fn) {
-    IDPartSize key{id, 0U, 0U};
+    Key key{id, 0U, 0U, false};
     ZmRef<ZmHeapCache> c;
     for (;;) {
       {
 	ReadGuard guard(m_lock);
-	c = m_caches2.readIterator<ZmRBTreeGreater>(key).iterateVal();
+	c = m_key2Cache.readIterator<ZmRBTreeGreater>(key).iterateVal();
       }
       if (!c) return;
       if (strcmp(id, c->info().id)) return;
-      key = ZmHeapCache::IDPartSizeAxor(c);
+      key = ZmHeapCache::KeyAxor(c);
       fn(c);
     }
   }
 
 #ifdef ZmHeap_DEBUG
   void trace(const char *id, TraceFn allocFn, TraceFn freeFn) {
-    auto i = m_caches.readIterator<ZmRBTreeEqual>(id);
+    auto i = m_id2Cache.readIterator<ZmRBTreeEqual>(id);
     while (ZmHeapCache *c = i.iterateVal()) {
       c->m_traceAllocFn = allocFn;
       c->m_traceFreeFn = freeFn;
@@ -192,29 +206,29 @@ private:
 #endif
 
   ZmHeapCache *cache(
-      const char *id, unsigned size, bool sharded, AllStatsFn allStatsFn) {
+      const char *id, unsigned size, bool sharded, StatsFn statsFn) {
     unsigned partition = ZmThreadContext::self()->partition();
     ZmHeapCache *c = 0;
     auto hwloc = ZmTopology::hwloc();
     Guard guard(m_lock);
-    if (c = m_caches2.findVal(ZuFwdTuple(id, partition, size)))
+    if (c = m_key2Cache.findVal(ZuFwdTuple(id, partition, size, sharded)))
       return c;
     if (IDPart2Config::NodeRef node = 
 	  m_configs.find(ZuFwdPair(id, partition)))
       c = new ZmHeapCache(
-	  id, size, partition, sharded, node->val(), allStatsFn, hwloc);
+	  id, size, partition, sharded, node->val(), statsFn, hwloc);
     else
       c = new ZmHeapCache(
-	  id, size, partition, sharded, ZmHeapConfig{}, allStatsFn, hwloc);
+	  id, size, partition, sharded, ZmHeapConfig{}, statsFn, hwloc);
     ZmREF(c);
-    m_caches.add(c);
-    m_caches2.add(c);
-    if (c->info().config.cacheSize) {
-      IDSize2Lookup::Node *lookupNode = m_lookup.find(ZuFwdPair(id, size));
+    m_id2Cache.add(c);
+    m_key2Cache.add(c);
+    if (!sharded && c->info().config.cacheSize) {
+      IDSize2Lookup::Node *lookupNode = m_lookups.find(ZuFwdPair(id, size));
       if (!lookupNode) {
 	lookupNode = new IDSize2Lookup::Node{};
 	lookupNode->key() = ZuFwdPair(id, size);
-	m_lookup.addNode(lookupNode);
+	m_lookups.addNode(lookupNode);
       }
       lookupNode->val().add(c);
     }
@@ -222,10 +236,10 @@ private:
   }
 
   ZmPLock		m_lock;
-  IDPart2Config		m_configs;
-  ID2Cache		m_caches;
-  IDPartSize2Cache	m_caches2;
-  IDSize2Lookup		m_lookup;
+    IDPart2Config	  m_configs;
+    ID2Cache		  m_id2Cache;
+    Key2Cache		  m_key2Cache;
+    IDSize2Lookup	  m_lookups;
 };
 
 void ZmHeapMgr::init(
@@ -247,18 +261,21 @@ void ZmHeapMgr::trace(const char *id, TraceFn allocFn, TraceFn freeFn)
 #endif
 
 ZmHeapCache *ZmHeapMgr::cache(
-    const char *id, unsigned size, bool sharded, AllStatsFn allStatsFn)
+    const char *id, unsigned size, bool sharded, StatsFn statsFn)
 {
-  return ZmHeapMgr_::instance()->cache(id, size, sharded, allStatsFn);
+  return ZmHeapMgr_::instance()->cache(id, size, sharded, statsFn);
 }
 
 void *ZmHeapCache::operator new(size_t s) {
 #ifndef _WIN32
   void *p = 0;
   int errNo = posix_memalign(&p, 512, s);
-  return (!p || errNo) ? 0 : p;
+  if (ZuUnlikely(!p || errNo)) throw std::bad_alloc{};
+  return p;
 #else
-  return _aligned_malloc(s, 512);
+  void *p = _aligned_malloc(s, 512);
+  if (ZuUnlikely(!p)) throw std::bad_alloc{};
+  return p;
 #endif
 }
 void *ZmHeapCache::operator new(size_t s, void *p)
@@ -276,10 +293,8 @@ void ZmHeapCache::operator delete(void *p)
 
 ZmHeapCache::ZmHeapCache(
     const char *id, unsigned size, unsigned partition, bool sharded,
-    const ZmHeapConfig &config, AllStatsFn allStatsFn,
-    hwloc_topology_t hwloc) :
-  m_info{id, size, partition, sharded, config},
-  m_allStatsFn{allStatsFn}
+    const ZmHeapConfig &config, StatsFn statsFn, hwloc_topology_t hwloc) :
+  m_info{id, size, partition, sharded, config}, m_statsFn{statsFn}
 {
   init_(hwloc);
 }
@@ -341,8 +356,7 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
 #ifdef ZmHeap_DEBUG
   {
     TraceFn fn;
-    if (ZuUnlikely(fn = m_traceAllocFn))
-      (*fn)(m_info.id, m_info.size);
+    if (ZuUnlikely(fn = m_traceAllocFn)) (*fn)(m_info.id, m_info.size);
   }
 #endif
   void *p;
@@ -351,6 +365,7 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
     return p;
   }
   p = ::malloc(m_info.size);
+  if (ZuUnlikely(!p)) throw std::bad_alloc{};
   ++stats.heapAllocs;
   return p;
 }
@@ -380,25 +395,23 @@ void ZmHeapCache::free(ZmHeapStats &stats, void *p)
     return;
   }
   if (auto lookup = this->lookup())
-    if (auto other = lookup->find(p)) {
+    if (auto other = lookup->find(this, p)) {
       other->free_(p);
       return;
     }
   ::free(p);
 }
 
-void ZmHeapCache::allStats() const
+// stats() iterates over the ZmHeapCacheT instances using
+// ZmSpecific::all, compiling aggregate statistics from the
+// thread-specific instances
+void ZmHeapCache::stats() const
 {
   {
     HistReadGuard guard{m_histLock};
     m_stats = m_histStats;
   }
-  StatsFn fn = StatsFn::Lambda<ZmHeapDisable()>::fn(
-      [this](const ZmHeapStats &s) {
-	m_stats.heapAllocs += s.heapAllocs;
-	m_stats.cacheAllocs += s.cacheAllocs;
-	m_stats.frees += s.frees; });
-  m_allStatsFn(ZuMv(fn));
+  m_statsFn(); // calls ZmHeapCacheT::stats() { TLS::all(...) }
 }
 
 void ZmHeapCache::histStats(const ZmHeapStats &s) const
@@ -411,17 +424,15 @@ void ZmHeapCache::histStats(const ZmHeapStats &s) const
 
 void ZmHeapCache::telemetry(ZmHeapTelemetry &data) const
 {
-  allStats();
-  const ZmHeapInfo &info = this->info();
-  const ZmHeapStats &stats = this->stats();
-  data.id = info.id;
-  data.cacheSize = info.config.cacheSize;
-  data.cpuset = info.config.cpuset;
-  data.cacheAllocs = stats.cacheAllocs;
-  data.heapAllocs = stats.heapAllocs;
-  data.frees = stats.frees;
-  data.size = info.size;
-  data.partition = info.partition;
-  data.sharded = info.sharded;
-  data.alignment = info.config.alignment;
+  stats();
+  data.id = m_info.id;
+  data.cacheSize = m_info.config.cacheSize;
+  data.cpuset = m_info.config.cpuset;
+  data.cacheAllocs = m_stats.cacheAllocs;
+  data.heapAllocs = m_stats.heapAllocs;
+  data.frees = m_stats.frees;
+  data.size = m_info.size;
+  data.partition = m_info.partition;
+  data.sharded = m_info.sharded;
+  data.alignment = m_info.config.alignment;
 }

@@ -11,7 +11,6 @@
 #include <zlib/ZuTuple.hpp>
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuPrint.hpp>
-#include <zlib/ZuDemangle.hpp>
 
 struct A { };
 struct B : public A { };
@@ -101,7 +100,6 @@ int main()
   {
     A a;
     std::cout << a << '\n';
-    std::cout << ZuDemangle<128>{typeid(ZuPrint<A *>).name()} << '\n';
     std::cout << &a << '\n';
   }
 }

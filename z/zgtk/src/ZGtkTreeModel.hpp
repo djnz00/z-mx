@@ -37,7 +37,6 @@
 #include <gtk/gtk.h>
 
 #include <zlib/ZuSort.hpp>
-#include <zlib/ZuDemangle.hpp>
 
 #include <zlib/ZmPLock.hpp>
 

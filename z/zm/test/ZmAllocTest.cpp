@@ -45,12 +45,4 @@ void test()
 int main(int argc, char **argv)
 {
   test();
-  {
-    unsigned n = 1;
-    for (unsigned i = 0; i < 18; i++) {
-      auto m = ZmGrow(n, n + 1);
-      std::cout <<  n << " -> " << m << '\n';
-      n = m;
-    }
-  }
 }

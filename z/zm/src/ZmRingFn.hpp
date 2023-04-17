@@ -56,7 +56,7 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-// run-time encapsulation of generic functor/lambda
+// run-time encapsulation of generic function/lambda
 template <auto HeapID, bool Sharded = false>
 class ZmRingFn {
   // 64bit pointer packing - uses bit 63 to indicate on-heap
@@ -87,13 +87,12 @@ public:
   template <typename L>
   ZmRingFn(L &l, ZuIsStateless<L> *_ = nullptr) :
       m_invokeFn{[](void *) -> unsigned {
+	// no, this->x does not imply evaluating (*this).x; the reverse is true
 	try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
 	return 0;
       }},
       m_moveFn{nullptr},
-      m_allocFn{[](uintptr_t) -> uintptr_t {
-	return 0;
-      }},
+      m_allocFn{[](uintptr_t) -> uintptr_t { return 0; }},
       m_ptr{0} { }
 
   template <typename L>
@@ -169,7 +168,7 @@ private:
   void clear() { m_invokeFn = nullptr; }
 
   void heapAlloc() {
-    if (ZuLikely(onHeap())) return;
+    if (ZuLikely(onHeap())) return; // idempotent
     if (auto stackPtr = ptr()) {
       auto heapPtr = reinterpret_cast<void *>(m_allocFn(1)); // heap allocates
       if (ZuUnlikely(!heapPtr)) throw std::bad_alloc{};
@@ -182,7 +181,7 @@ private:
   InvokeFn	m_invokeFn = nullptr; // invoke lambda, destroy it, return size
   MoveFn	m_moveFn = nullptr;   // move lambda
   AllocFn	m_allocFn = nullptr;  // size+alloc+free (overloaded function)
-  uintptr_t	m_ptr = 0;            // pointer to lambda
+  uintptr_t	m_ptr = 0;            // pointer to lambda instance
 };
 
 #endif /* ZmRingFn_HPP */

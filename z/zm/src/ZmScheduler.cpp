@@ -41,7 +41,7 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
     }
     if (!thread.stackSize()) thread.stackSize(m_params.stackSize());
     if (thread.priority() < 0) thread.priority(m_params.priority());
-    if (!thread.partition()) thread.partition(m_params.partition());
+    if (thread.partition() < 0) thread.partition(m_params.partition());
   }
   m_threads = new Thread[n];
   m_workers = new Thread *[n];
@@ -151,8 +151,14 @@ bool ZmScheduler::reset()
   {
     unsigned n = m_params.nThreads();
     SpawnGuard spawnGuard(m_spawnLock);
-    for (unsigned i = 0; i < n; i++)
-      if (!m_threads[i].thread) m_threads[i].ring.reset();
+    for (unsigned i = 0; i < n; i++) {
+      auto thread = &m_threads[i];
+      if (!thread->thread) {
+	thread->overCount = 0;
+	thread->overRing.clean();
+	thread->ring.reset();
+      }
+    }
   }
 
   return true;
@@ -323,8 +329,7 @@ push:
     }
   }
   int status = thread->ring.writeStatus();
-  if (status == Zu::EndOfFile) return false;
-  if (status >= 0) goto overflow;
+  if (status == Zu::EndOfFile || status >= 0) goto overflow;
   // should never happen - the enqueuing thread will normally
   // be forced to wait for the dequeuing thread to drain the ring,
   // i.e. a slower consumer will apply back-pressure to the producer

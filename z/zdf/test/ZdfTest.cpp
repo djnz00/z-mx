@@ -4,7 +4,6 @@
 #include <iostream>
 
 #include <zlib/ZuStringN.hpp>
-#include <zlib/ZuDemangle.hpp>
 
 #include <zlib/ZdfMem.hpp>
 #include <zlib/ZdfFile.hpp>
