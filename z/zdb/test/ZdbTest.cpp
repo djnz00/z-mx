@@ -18,37 +18,28 @@
 #pragma warning(disable:4996)
 #endif
 
-enum Side { Buy, Sell };
+namespace Side {
+  ZtEnumValues("Side", Buy = 0, Sell);
+};
 
 struct Order {
   Side		side;
   char		symbol[32];
   int		price;
   int		quantity;
-  // char	pad[1500];
-  template <typename S> void print(S &s) const {
-    s << "Side: " << (side == Buy ? "Buy" : "Sell") <<
-      " Symbol: " << symbol <<
-      " Price: " << price <<
-      " Qty: " << quantity;
-  }
-  friend ZuPrintFn ZuPrintType(Order *);
 };
+ZtFields(Order,
+    (((side)), (Enum, Side::Map), (Ctor(0))),
+    (((symbol)), (String), (Ctor(1))),
+    (((price)), (Int), (Ctor(2))),
+    (((quantity)), (Int), (Ctor(3))));
 
 using OrderDB = Zdb<Order>;
 
-static void dump(const char *prefix, int op, ZdbAnyPOD *pod)
-{
-  ZuStringN<200> s;
-  s << prefix << ZdbOp::name(op)
-    << " RN=" << ZuBoxed(pod->rn())
-    << ", prevRN=" << ZuBoxed(pod->prevRN())
-    << ", data={" << *(Order *)pod->ptr() << "}}";
-  std::cout << s << '\n' << std::flush;
-}
-
 ZmRef<OrderDB> orders;
+
 ZmSemaphore done;
+
 ZmScheduler *appMx = 0;
 ZiMultiplex *dbMx = 0;
 unsigned del = 0;
@@ -108,7 +99,7 @@ void push() {
   appMx->add(ZmFn<>::Ptr<&push>::fn());
 }
 
-void active() {
+void active(ZdbEnv *, ZdbHost *) {
   puts("ACTIVE");
   if (del) {
     for (unsigned i = 0; i < del; i++)
@@ -131,7 +122,9 @@ void active() {
   for (unsigned i = 0; i < nThreads; i++) appMx->add(ZmFn<>::Ptr<&push>::fn());
 }
 
-void inactive() { puts("INACTIVE"); }
+void inactive(ZdbEnv *) {
+  puts("INACTIVE");
+}
 
 void usage()
 {
@@ -143,8 +136,8 @@ void usage()
     "  -s, --stride=N\t\t- increment RNs by N with each operation\n"
     "  -a, --append\t\t\t- append\n"
     "  -c, --chain=N\t\t\t- append chains of N records\n"
-    "  -f, --dbs:0:path=PATH\t\t- file path\n"
-    "  -p, --dbs:0:preAlloc=N\t- number of records to pre-allocate\n"
+    "  -f, --dbs:orders:path=PATH\t\t- file path\n"
+    "  -p, --dbs:orders:preAlloc=N\t- number of records to pre-allocate\n"
     "  -h, --hostID=N\t\t- host ID\n"
     "  -H, --hashOut=FILE\t\t- hash table CSV output file\n"
     "  -d\t\t\t\t- enable debug logging\n"
@@ -153,16 +146,6 @@ void usage()
     "  --heartbeatTimeout=N\t\t- heartbeat timeout in seconds\n"
     "  --reconnectFreq=N\t\t- reconnect frequency in seconds\n"
     "  --electionTimeout=N\t\t- election timeout in seconds\n"
-    "  --orders:cache:bits=N\t\t- bits for cache\n"
-    "  --orders:cache:loadFactor=N\t- load factor for cache\n"
-    "  --orders:fileHash:bits=N\t- bits for file hash table\n"
-    "  --orders:fileHash:loadFactor=N - load factor for file hash table\n"
-    "  --orders:fileHash:cBits=N\t- concurrency bits for file hash table\n"
-    "  --orders:indexHash:bits=N\t- bits for index hash table\n"
-    "  --orders:indexHash:loadFactor=N - load factor for index hash table\n"
-    "  --orders:indexHash:cBits=N\t- concurrency bits for index hash table\n"
-    "  --orders:lockHash:bits=N\t- bits for lock hash table\n"
-    "  --orders:lockHash:loadFactor=N - load factor for lock hash table\n"
     "  --hosts:1:priority=N\t\t- host 0 priority\n"
     "  --hosts:1:IP=N\t\t- host 0 IP\n"
     "  --hosts:1:port=N\t\t- host 0 port\n"
@@ -177,10 +160,7 @@ void usage()
     "  --hosts:3:IP=N\t\t- host 2 IP\n"
     "  --hosts:3:port=N\t\t- host 2 port\n"
     "  --hosts:3:up=CMD\t\t- host 2 up command\n"
-    "  --hosts:3:down=CMD\t\t- host 2 down command\n"
-    "  --cxnHash:bits=N\t\t- bits for cxn hash table\n"
-    "  --cxnHash:loadFactor=N\t- load factor for cxn hash table\n"
-    "  --cxnHash:cBits=N\t\t- concurrency bits for cxn hash table\n";
+    "  --hosts:3:down=CMD\t\t- host 2 down command\n";
 
   std::cerr << help << std::flush;
   Zm::exit(1);
@@ -194,21 +174,8 @@ int main(int argc, char **argv)
     { "stride", "s", ZvOptScalar, "1" },
     { "append", "a", ZvOptFlag },
     { "chain", "c", ZvOptScalar, "0" },
-    { "orders:path", "f", ZvOptScalar, "orders" },
-    { "orders:preAlloc", "p", ZvOptScalar, "1" },
-    { "orders:cache:bits", 0, ZvOptScalar, "8" },
-    { "orders:cache:loadFactor", 0, ZvOptScalar, "1.0" },
-    { "orders:fileHash:bits", 0, ZvOptScalar, "8" },
-    { "orders:fileHash:loadFactor", 0, ZvOptScalar, "1.0" },
-    { "orders:fileHash:cBits", 0, ZvOptScalar, "5" },
-    { "orders:indexHash:bits", 0, ZvOptScalar, "8" },
-    { "orders:indexHash:loadFactor", 0, ZvOptScalar, "1.0" },
-    { "orders:indexHash:cBits", 0, ZvOptScalar, "5" },
-    { "orders:lockHash:bits", 0, ZvOptScalar, "8" },
-    { "orders:lockHash:loadFactor", 0, ZvOptScalar, "1.0" },
-    { "cxnHash:bits", 0, ZvOptScalar, "5" },
-    { "cxnHash:loadFactor", 0, ZvOptScalar, "1.0" },
-    { "cxnHash:cBits", 0, ZvOptScalar, "5" },
+    { "dbs:orders:path", "f", ZvOptScalar, "orders" },
+    { "dbs:orders:preAlloc", "p", ZvOptScalar, "1" },
     { "hostID", "h", ZvOptScalar, "0" },
     { "hashOut", "H", ZvOptScalar },
     { "debug", "d", ZvOptFlag },
@@ -242,10 +209,14 @@ int main(int argc, char **argv)
     cf = inlineCf(
       "fileThread 3\n"
       "hostID 1\n"
-      "hosts { 1 { priority 100 IP 127.0.0.1 port 9943 } }\n"
-      "hosts { 2 { priority 75 IP 127.0.0.1 port 9944 } }\n"
-      "hosts { 3 { priority 50 IP 127.0.0.1 port 9945 } }\n"
-      "dbs orders\n"
+      "hosts {
+      "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"
+      "  2 { priority 75 IP 127.0.0.1 port 9944 }\n"
+      "  3 { priority 50 IP 127.0.0.1 port 9945 }\n"
+      "}\n"
+      "dbs {\n"
+      "  orders { }\n"
+      "}\n"
     );
 
     if (cf->fromArgs(opts, argc, argv) != 3) usage();
@@ -301,21 +272,10 @@ int main(int argc, char **argv)
 
     ZmRef<ZdbEnv> env = new ZdbEnv();
 
-    env->init(ZdbEnvConfig(cf),
-      dbMx, ZmFn<>::Ptr<&active>::fn(), ZmFn<>::Ptr<&inactive>::fn());
+    env->init(ZdbEnvConfig(cf), dbMx, EnvHandler{
+      .upFn = &active, .downFn = &inactive});
 
-    orders = new OrderDB(env, "orders", 0, ZdbCacheMode::Normal, ZdbHandler{
-	  [](ZdbAny *db, ZmRef<ZdbAnyPOD> &pod) {
-	    pod = new ZdbPOD<Order>(db);
-	    // new (pod->ptr()) Order();
-	  },
-	  [](ZdbAnyPOD *pod, int op, bool recovered) {
-	    dump(recovered ? "recovered " : "replicated ", op, pod);
-	  },
-	  [](ZdbAnyPOD *pod, int op) {
-	    dump("DC ", op, pod);
-	  }
-	});
+    orders = env->initDB<Order>("orders");
 
     if (!env->open()) throw ZtString{} << "Zdb open failed";
     env->start();

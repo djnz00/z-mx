@@ -262,8 +262,8 @@ retry:
       name = strdup(name_);
       base = base_;
 #ifdef _WIN32
-      // due to address randomization (ASLR), BFD doesn't obtain the same
-      // base address as used in-memory; neither does BFD reliably report
+      // due to address randomization (ASLR), Win32 BFD doesn't obtain the
+      // live base address used in-memory; neither does BFD reliably report
       // the PE-COFF base after loading; so here it is obtained directly
       // from the file by navigating the DOS/PE-COFF headers, then the
       // open file is handed off to BFD via openr_iovec

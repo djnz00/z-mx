@@ -28,13 +28,12 @@
 //   third-ranked is second-ranked's next
 //   etc.
 
-// a new next is identified and recovery/replication restarts when
+// a new next is selected and recovery/replication restarts when
 // * an election ends
 // * a new host heartbeats for first time after election completes
 // * an existing host disconnects
 
-// a new leader is identified (and the local instance may activate/deactivate)
-// when:
+// a new leader is selected (the local instance may activate/deactivate) when:
 // * an election ends
 // * a new host heartbeats for first time after election completes
 //   - possible deactivation of local instance only -
@@ -120,9 +119,9 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
     throw ZtString{} << "ZdbEnv::init called out of order";
 }
 
-DB *Env::initDB_(ZuID id, DBHandler handler)
+ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
 {
-  DB *db = nullptr;
+  ZmRef<DB> db = nullptr;
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped,
 	[this, &db, id, handler = ZuMv(handler)]() {
     if (state() != HostState::Initialized) return false;

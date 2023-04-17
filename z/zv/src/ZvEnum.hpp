@@ -96,10 +96,10 @@ private:
       "\" did not match { ";
     bool first = true;
     this->all([&s, &first](ZuString name, ZtEnum ordinal) {
-	  if (ZuLikely(!first)) s << ", ";
-	  first = false;
-	  s << name << "=" << ordinal;
-	});
+      if (ZuLikely(!first)) s << ", ";
+      first = false;
+      s << name << "=" << ordinal;
+    });
     s << " }";
   }
 };

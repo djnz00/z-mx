@@ -1569,11 +1569,11 @@ public:
   void final();
 
   template <typename T>
-  DB *initDB(ZuID id) {
+  ZmRef<DB> initDB(ZuID id) {
     return initDB_(id, DBHandler::bind<T>());
   }
 private:
-  DB *initDB_(ZuID, DBHandler);
+  ZmRef<DB> initDB_(ZuID, DBHandler);
 
 public:
   template <typename ...Args>
@@ -1617,10 +1617,10 @@ private:
 
 public:
   // find database
-  DB *db(ZuID id) {
+  ZmRef<DB> db(ZuID id) {
     ZmAssert(invoked());
 
-    return m_dbs.findPtr(id);
+    return m_dbs.find(id);
   }
 
 private:
