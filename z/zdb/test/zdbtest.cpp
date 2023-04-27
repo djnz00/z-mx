@@ -6,7 +6,8 @@
 #include <limits.h>
 
 #include <zlib/ZmTrap.hpp>
-#include <zlib/ZmRandom.hpp>
+
+#include <zlib/ZtEnum.hpp>
 
 #include <zlib/ZeLog.hpp>
 
@@ -19,16 +20,17 @@
 #endif
 
 namespace Side {
-  ZtEnumValues("Side", Buy = 0, Sell);
+  ZfbEnumValues(Side, Buy, Sell);
 };
 
 struct Order {
-  Side		side;
-  char		symbol[32];
-  int		price;
-  int		quantity;
+  Side			side;
+  ZuStringN<32>		symbol[32];
+  int			price;
+  int			quantity;
 };
-ZtFields(Order,
+
+ZfbFields(Order,
     (((side)), (Enum, Side::Map), (Ctor(0))),
     (((symbol)), (String), (Ctor(1))),
     (((price)), (Int), (Ctor(2))),
@@ -37,6 +39,50 @@ ZtFields(Order,
 using OrderDB = Zdb<Order>;
 
 ZmRef<OrderDB> orders;
+
+struct TestStep {
+  unsigned	repeat;
+  bool		push;
+  unsigned	append;
+  bool		del;
+
+  TestStep() = delete;
+  TestStep(const TestStep &) = default;
+  TestStep(TestStep &&) = default;
+  TestStep &operator =(const TestStep &) = default;
+  TestStep &operator =(TestStep &&) = default;
+
+  TestStep(ZvCf *cf) {
+    repeat = cf->getInt("repeat", 0, INT_MAX, false, 1);
+    push = cf->getInt("push", 0, 1, false, 0);
+    append = cf->getInt("append", 0, INT_MAX, false, 0);
+    del = cf->getInt("del", 0, 1, false, 0);
+  }
+
+  RN size() const { return repeat * (push + append + del); }
+  void run(RN rn) const;
+};
+
+struct TestSeq {
+  ZtArray<TestStep>	steps;
+};
+
+struct TestPlan {
+  ZtArray<TestSeq>	sequences;
+
+  RN size() const {
+  void run(Rn rn) const;
+};
+
+#if 0
+TestSeq(ZdbRN rn, TestLoop l0, l1, ...) // sequence of op loops
+  // rn += range.size(), ...
+  RN run(RN rn) { rn = l0.run(rn), rn = l1.run(rn), ... }
+
+TestPlan(unsigned n, TestSeq seq)
+  RN run(RN rn) { for (unsigned i = 0, i < n, i++) rn = seq.run(rn); }
+
+#endif
 
 ZmSemaphore done;
 
@@ -65,58 +111,77 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void push() {
-  unsigned op = opCount++;
-  if (op >= nOps) return;
-  ZdbRN rn = initRN + skip + op * (stride + chain);
-  ZmRef<ZdbPOD<Order> > pod;
-  if (append) {
-    do {
-      ZdbRN prevRN = initRN - nOps + op;
-      if (pod = orders->get(prevRN))
-	if (!(pod = orders->update(pod, rn))) return;
-    } while (!pod);
-  } else
-    if (!(pod = orders->push(rn))) return;
-  Order *order = pod->ptr();
+void updateOrder(Order *order) {
   order->m_side = Buy;
   strncpy(order->m_symbol, "IBM", 32);
   order->m_price = 100;
   order->m_quantity = 100;
-  if (!append)
-    orders->put(ZdbPOD<Order>::pod(order));
-  else
-    orders->putUpdate(pod, false);
+}
+
+void push() {
+  unsigned op = opCount++;
+  if (op >= nOps) return;
+  ZdbRN rn = initRN + skip + op * (stride + chain);
+  using ObjRef = ZmRef<ZdbObject<Order>>;
+  ObjRef object;
+  if (append) {
+    while (ZmBlock<bool>{}(
+	  [prevRN = initRN - nOps + op, &object](auto wake) mutable {
+      orders->invoke([prevRN, &object, wake = ZuMv(wake)]() mutable {
+	orders->update(prevRN, [&object, wake = ZuMv(wake)](ObjRef object_) {
+	  if (!object_) { wake(false); return; }
+	  object = ZuMv(object_);
+	  updateOrder(object->ptr());
+	  object->append();
+	  wake(true);
+	});
+      });
+    }));
+    if (!object) return;
+  } else {
+    if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
+      orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
+	orders->push(rn, [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
+	  if (!object_) { wake(false); return; }
+	  object = ZuMv(object_);
+	  updateOrder(object->ptr());
+	  object->put();
+	  wake(true);
+	});
+      });
+    }) return;
+  }
   if (chain) {
     ++rn;
     for (unsigned i = 0; i < chain; i++) {
-      pod = orders->update(pod, rn + i);
-      order = pod->ptr();
+      object = orders->update(object, rn + i);
+      order = object->ptr();
       ++order->m_price;
-      orders->putUpdate(pod, false);
+      orders->putUpdate(object, false);
     }
   }
   appMx->add(ZmFn<>::Ptr<&push>::fn());
 }
 
+// FIXME
 void active(ZdbEnv *, ZdbHost *) {
   puts("ACTIVE");
   if (del) {
     for (unsigned i = 0; i < del; i++)
-      if (ZmRef<ZdbPOD<Order> > pod = orders->get_(i))
-	orders->del(pod);
+      if (ZmRef<ZdbObject<Order> > object = orders->get_(i))
+	orders->del(object);
   }
   initRN = orders->nextRN();
   if (append) {
     for (unsigned i = 0; i < nOps; i++) {
-      ZmRef<ZdbPOD<Order> > pod = orders->push(initRN++);
-      if (!pod) break;
-      Order *order = pod->ptr();
+      ZmRef<ZdbObject<Order> > object = orders->push(initRN++);
+      if (!object) break;
+      Order *order = object->ptr();
       order->m_side = Buy;
       strcpy(order->m_symbol, "IBM");
       order->m_price = 100;
       order->m_quantity = 100;
-      orders->put(pod);
+      orders->put(object);
     }
   }
   for (unsigned i = 0; i < nThreads; i++) appMx->add(ZmFn<>::Ptr<&push>::fn());

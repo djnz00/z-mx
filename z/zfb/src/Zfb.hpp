@@ -243,6 +243,12 @@ namespace Save {
   inline auto str(B &b, ZuString s) {
     return b.CreateString(s.data(), s.length());
   }
+  // fixed-width string -> flatbuffers::span<const uint8_t>
+  template <unsigned N>
+  inline auto strN(ZuString s) -> span<const uint8_t, N> {
+    return {span<const uint8_t, N>{
+      reinterpret_cast<const uint8_t *>(s.data()), N}};
+  }
 
   // inline creation of a vector of strings
   template <typename B, typename ...Args>
@@ -332,6 +338,13 @@ namespace Load {
   inline ZuString str(const flatbuffers::String *s) {
     if (!s) return {};
     return {reinterpret_cast<const char *>(s->Data()), s->size()};
+  }
+  // inline zero-copy conversion of a fixed-width FB string to a ZuString
+  inline ZuString strN(const flatbuffers::Array<uint8_t, N> *s) {
+    if (!s) return {};
+    auto data = reinterpret_cast<const char *>(s->Data());
+    if (data[N-1]) return {data, N};
+    return {data}; // deferred strlen
   }
 
   // inline zero-copy conversion of a [uint8] to a ZuArray<const uint8_t>

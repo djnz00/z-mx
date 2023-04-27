@@ -337,16 +337,33 @@ protected:
 public:
 // array/ptr operators
 
-  T &operator [](int i) { return data()[i]; }
   const T &operator [](int i) const { return data()[i]; }
+  T &operator [](int i) { return data()[i]; }
 
 // accessors
 
-  const T *begin() const { return data(); }
-  const T *end() const { return data() + m_length; }
-
   constexpr static unsigned size() { return N; }
   unsigned length() const { return m_length; }
+
+// iteration
+  template <typename L> void all(L l) const {
+    auto data_ = data();
+    for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
+  }
+  template <typename L> void all(L l) {
+    auto data_ = data();
+    for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
+  }
+
+// STL cruft
+  using iterator = T *;
+  using const_iterator = const T *;
+  const T *begin() const { return data(); }
+  const T *end() const { return data() + m_length; }
+  const T *cbegin() const { return data(); } // sigh
+  const T *cend() const { return data() + m_length; }
+  T *begin() { return data(); }
+  T *end() { return data() + m_length; }
 
 // reset to null
 
@@ -466,12 +483,8 @@ private:
 public:
 // buffer access
 
-  auto buf() {
-    return ZuArray{data(), N};
-  }
-  auto cbuf() const {
-    return ZuArray{data(), m_length};
-  }
+  auto buf() { return ZuArray{data(), N}; }
+  auto cbuf() const { return ZuArray{data(), m_length}; }
 
 // comparison
 

@@ -56,12 +56,11 @@ private:
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
-  using FnMap =
-    ZmLHashKV<ZuID, Fn,
-      ZmLHashLock<ZmNoLock>>;
+  static const char *FnMapID() { return "ZvCmdDispatcher.FnMap"; }
+  using FnMap = ZmLHashKV<ZuID, Fn, ZmLHashID<FnMapID, ZmLHashLocal<>>>;
 
   Lock			m_lock;
-    ZmRef<FnMap>	  m_fnMap;
+    FnMap		  m_fnMap;
     DefltFn		  m_defltFn;
 };
 

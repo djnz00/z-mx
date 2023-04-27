@@ -67,16 +67,16 @@
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvTelServer.hpp>
 
-#define ZdbMagic	0x0db3a61c	// file magic number
 #define ZdbVersion	1		// file format version
 
-// Zdb is a clustered in-process in-memory journal DB that implements leader
-// election and failover. Zdb dynamically organizes cluster hosts into a
-// replication chain from the leader to the lowest-priority follower.
-// Replication is async. ZmEngine is used for start/stop state management.
-// Zdb applications are back-end services that are expected to defer to
-// Zdb for state management. Restart recovery is from persistent storage
-// then from cluster leader (if the local host is not itself elected leader).
+// Zdb is a clustered/replicated in-process/in-memory journal DB that
+// includes leader election and failover. Zdb dynamically organizes
+// cluster hosts into a replication chain from the leader to the
+// lowest-priority follower. Replication is async. ZmEngine is used for
+// start/stop state management. Zdb applications are stateful back-end
+// services that are expected to defer to Zdb for activation/deactivation.
+// Restart/recovery is from persistent storage, then from the cluster
+// leader (if the local host is not itself elected leader).
 
 //  host state		engine state
 //  ==========		============
@@ -182,7 +182,8 @@ namespace FileFlags {
   };
 };
 
-#define ZdbCommitted 0xc001da7a	// "cool data"
+#define ZdbMagic	0x0db3a61c	// file magic number
+#define ZdbCommitted	0xc001da7a	// "cool data"
 
 using Magic = uint32_t;
 using SeqLen = uint32_t;
@@ -847,6 +848,12 @@ public:
 
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
+public:
+  void put() { m_db->put(this); }
+  void append() { m_db->append(this); }
+  void del() { m_db->del(this); }
+  void abort() { m_db->abort(this); }
+
 private:
   void init(RN rn, RN prevRN, SeqLen seqLenOp) {
     m_rn = rn;
@@ -854,35 +861,33 @@ private:
     m_seqLenOp = seqLenOp;
   }
 
-  void push(RN rn) {
+  void push_(RN rn) {
     m_rn = rn;
     m_committed = false;
   }
-  bool update(RN rn) {
+  bool update_(RN rn) {
     if (ZuUnlikely(!m_committed)) return false;
     m_origRN = m_rn;
     m_rn = rn;
     m_committed = false;
     return true;
   }
-  void commit(int op) { // idempotent
-    if (ZuLikely(!m_committed)) {
-      using namespace Zdb_;
-      m_prevRN = m_origRN;
-      m_origRN = nullRN();
-      m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
-      m_committed = true;
-    }
+  void commit_(int op) {
+    using namespace Zdb_;
+    m_prevRN = m_origRN;
+    m_origRN = nullRN();
+    m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
+    m_committed = true;
+    return true;
   }
-  void abort() { // idempotent
-    if (ZuLikely(!m_committed)) {
-      m_rn = m_origRN;
-      m_origRN = nullRN();
-      m_committed = true;
-    }
+  void abort_() {
+    m_rn = m_origRN;
+    m_origRN = nullRN();
+    m_committed = true;
+    return true;
   }
 
-  void put() {
+  void put_() {
     using namespace Zdb_;
     m_seqLenOp = SeqLenOp::mk(1, Op::Put);
   }
@@ -1122,10 +1127,12 @@ private:
       fileRun([this, rn, l = ZuMv(l)]() {
 	if (FileRec rec = rn2file<false>(rn))
 	  if (auto buf = read(rec)) {
-	    l(load(record_(msg_(buf->template ptr<Hdr>()))));
+	    invoke([this, l = ZuMv(l), buf = ZuMv(buf)]() mutable {
+	      l(load(record_(msg_(buf->template ptr<Hdr>()))));
+	    });
 	    return;
 	  }
-	l(nullptr);
+	invoke([this, l = ZuMv(l)] mutable { l(nullptr); }
       });
     });
   }
@@ -1178,60 +1185,73 @@ private:
   ZmRef<AnyObject> push_(RN rn);
 public:
   // create new record
-  ZmRef<AnyObject> push();
+  template <typename L> void push(L l) {
+    ZmRef<AnyObject> object = push_(m_nextRN.load_());
+    if (!object) { l(nullptr); return; }
+    l(object);
+    object->abort();
+  }
   // create new record (idempotent)
-  ZmRef<AnyObject> push(RN rn);
+  template <typename L> void push(RN rn, L l) {
+    RN nextRN = m_nextRN.load_();
+    if (ZuUnlikely(rn != nullRN() && nextRN > rn)) { l(nullptr); return; }
+    ZmRef<AnyObject> object = push_(nextRN);
+    if (!object) { l(nullptr); return; }
+    l(object);
+    object->abort();
+  }
 
 private:
   bool update_(AnyObject *object, RN rn);
 public:
   // update record - returns true if update can proceed
-  bool update(AnyObject *object);
+  template <typename L> void update(ZmRef<AnyObject> object, L l) {
+    if (!update_(object, m_nextRN.load_())) { l(nullptr); return; }
+    l(object);
+    object->abort();
+  }
   // update record (idempotent) - returns true if update can proceed
-  bool update(AnyObject *object, RN rn);
+  template <typename L> void update(ZmRef<AnyObject> object, RN rn, L l) {
+    RN nextRN = m_nextRN.load_();
+    if (ZuUnlikely(rn != nullRN() && nextRN > rn)) { l(nullptr); return; }
+    if (!update_(object, nextRN)) { l(nullptr); return; }
+    l(object);
+    object->abort();
+  }
 
   // update record (with prevRN, without object)
-  template <typename L>
-  void update(RN prevRN, L l) {
+  template <typename L> void update(RN prevRN, L l) {
     getUpdate(prevRN, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) {
-	l(nullptr);
-	return;
-      }
-      invoke([this, l = ZuMv(l), object = ZuMv(object)]() mutable {
-	if (ZuUnlikely(!update(object)))
-	  l(nullptr);
-	else
-	  l(ZuMv(object));
-      });
+      if (ZuUnlikely(!object)) { l(nullptr); return; }
+      update(ZuMv(object), ZuMv(l));
     });
   }
   // update record (idempotent) (with prevRN, without object)
-  template <typename L>
-  void update(RN prevRN, RN rn, L l) {
+  template <typename L> void update(RN prevRN, RN rn, L l) {
     getUpdate(prevRN, [this, rn, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) {
-	l(nullptr);
-	return;
-      }
-      invoke([this, rn, l = ZuMv(l), object = ZuMv(object)]() mutable {
-	if (ZuUnlikely(!update(object, rn)))
-	  l(nullptr);
-	else
-	  l(ZuMv(object));
-      });
+      if (ZuUnlikely(!object)) { l(nullptr); return; }
+      update(ZuMv(object), rn, ZuMv(l));
     });
   }
 
-  // commit push() /update() - causes replication / write
-  void put(AnyObject *);
-  // commit appended update() - causes replication / write
-  void append(AnyObject *);
-  // commits delete following push() / update()
-  void del(AnyObject *);
-  // abort push() / update()
-  void abort(AnyObject *);
+  // all transactions begin with a push() or update(),
+  // and complete with a put(), append(), del() or abort()
+  // put(), append() and del() commit the respective operations
+  // abort() aborts the pending push() or update()
 
+private:
+  // commit push() or update() - causes replication / write
+  void put(ZmRef<AnyObject>);
+  // commit appended update() - causes replication / write
+  void append(ZmRef<AnyObject>);
+  // commit delete following push() or update()
+  void del(ZmRef<AnyObject>);
+  // abort push() or update()
+  void abort(ZmRef<AnyObject>);
+
+  // purge() is a complete transaction comprising a single purge operation
+
+public:
   // purge all records < minRN
   void purge(RN minRN);
 

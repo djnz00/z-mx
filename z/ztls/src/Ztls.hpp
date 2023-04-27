@@ -69,12 +69,12 @@ namespace Ztls {
 using IOBuf = ZiIOBuf<>;
 
 template <typename Link_, typename LinkRef_>
-class LinkTCP : public ZiConnection {
+class Cxn : public ZiConnection {
 public:
   using Link = Link_;
   using LinkRef = LinkRef_;
 
-  LinkTCP(LinkRef link, const ZiCxnInfo &ci) :
+  Cxn(LinkRef link, const ZiCxnInfo &ci) :
     ZiConnection(link->app()->mx(), ci), m_link(ZuMv(link)) { }
 
   void connected(ZiIOContext &io) { m_link->connected_(this, io); }
@@ -87,17 +87,17 @@ private:
 };
 
 // client links are persistent, own the (transient) connection
-template <typename Link> using CliLinkTCP = LinkTCP<Link, Link *>;
+template <typename Link> using CliCxn = Cxn<Link, Link *>;
 // server links are transient, are owned by the connection
-template <typename Link> using SrvLinkTCP = LinkTCP<Link, ZmRef<Link> >;
+template <typename Link> using SrvCxn = Cxn<Link, ZmRef<Link> >;
 
-template <typename App, typename Impl, typename TCP_, typename TCPRef_>
+template <typename App, typename Impl, typename Cxn_, typename CxnRef_>
 class Link : public ZmPolymorph {
 public:
-  using TCP = TCP_;
-  using TCPRef = TCPRef_;
-  using ImplRef = typename TCP::LinkRef;
-friend TCP;
+  using Cxn = Cxn_;
+  using CxnRef = CxnRef_;
+  using ImplRef = typename Cxn::LinkRef;
+friend Cxn;
 
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
@@ -112,43 +112,43 @@ friend TCP;
   }
 
   App *app() const { return m_app; }
-  TCP *tcp() const { return m_tcp; }
+  Cxn *cxn() const { return m_cxn; }
 
 protected:
   mbedtls_ssl_context *ssl() { return &m_ssl; }
 
 private:
-  void connected_(TCP *tcp, ZiIOContext &io) {
+  void connected_(Cxn *cxn, ZiIOContext &io) {
     m_rxBuf = new IOBuf{this, 0U};
     io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) -> uintptr_t {
       link->rx(io);
       return 0;
     }}, m_rxBuf->data_, IOBuf::BufSize, 0);
     ZmRef<Impl> impl{this};
-    this->app()->run([impl = ZuMv(impl), tcp = ZmMkRef(tcp)]() {
-      impl->connected_2(ZuMv(tcp));
+    this->app()->run([impl = ZuMv(impl), cxn = ZmMkRef(cxn)]() {
+      impl->connected_2(ZuMv(cxn));
     });
   }
-  void connected_2(ZmRef<TCP> tcp) {
-    if (ZuUnlikely(m_tcp == tcp)) return;
-    if (ZuUnlikely(m_tcp)) { auto tcp_ = ZuMv(m_tcp); tcp_->close(); }
-    m_tcp = ZuMv(tcp);
+  void connected_2(ZmRef<Cxn> cxn) {
+    if (ZuUnlikely(m_cxn == cxn)) return;
+    if (ZuUnlikely(m_cxn)) { auto cxn_ = ZuMv(m_cxn); cxn_->close(); }
+    m_cxn = ZuMv(cxn);
     impl()->connected__();
   }
 
   template <typename ImplRef_>
-  void disconnected_(TCP *tcp, ImplRef_ impl_) {
+  void disconnected_(Cxn *cxn, ImplRef_ impl_) {
     ZmRef<Impl> impl{ZuMv(impl_)};
-    this->app()->run([impl = ZuMv(impl), tcp = ZmMkRef(tcp)]() {
-      impl->disconnected_2(tcp);
-      auto mx = tcp->mx();
-      // drain Tx while keeping tcp referenced
-      mx->txRun([tcp = ZuMv(tcp)]() { });
+    this->app()->run([impl = ZuMv(impl), cxn = ZmMkRef(cxn)]() {
+      impl->disconnected_2(cxn);
+      auto mx = cxn->mx();
+      // drain Tx while keeping cxn referenced
+      mx->txRun([cxn = ZuMv(cxn)]() { });
     });
   }
-  void disconnected_2(TCP *tcp) { // TLS thread
+  void disconnected_2(Cxn *cxn) { // TLS thread
     mbedtls_ssl_session_reset(&m_ssl);
-    if (m_tcp == tcp) m_tcp = nullptr;
+    if (m_cxn == cxn) m_cxn = nullptr;
     m_rxInOffset = 0;
     for (unsigned i = 0; i < m_rxRingCount; i++) {
       unsigned j = m_rxRingOffset + i;
@@ -217,7 +217,7 @@ recv:
   }
   int rxIn(void *ptr, size_t len) { // TLS thread
     if (ZuUnlikely(!m_rxRingCount)) {
-      if (ZuUnlikely(!m_tcp)) return MBEDTLS_ERR_SSL_CONN_EOF;
+      if (ZuUnlikely(!m_cxn)) return MBEDTLS_ERR_SSL_CONN_EOF;
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
     auto *inBuf = m_rxRing[m_rxRingOffset].ptr();
@@ -382,17 +382,17 @@ private:
   }
   int txOut(const uint8_t *data, size_t len) { // TLS thread
     if (ZuUnlikely(!len)) return 0;
-    if (ZuUnlikely(!m_tcp)) return len; // discard late Tx
+    if (ZuUnlikely(!m_cxn)) return len; // discard late Tx
     unsigned offset = 0;
     auto mx = app()->mx();
     do {
       unsigned n = len - offset;
       if (ZuUnlikely(n > IOBuf::BufSize)) n = IOBuf::BufSize;
-      ZmRef<IOBuf> buf = new IOBuf{static_cast<TCP *>(m_tcp), n};
+      ZmRef<IOBuf> buf = new IOBuf{static_cast<Cxn *>(m_cxn), n};
       memcpy(buf->data_, data + offset, n);
       mx->txRun([buf = ZuMv(buf)]() mutable {
-	auto tcp = static_cast<TCP *>(buf->owner);
-	tcp->send_(ZiIOFn{ZuMv(buf),
+	auto cxn = static_cast<Cxn *>(buf->owner);
+	cxn->send_(ZiIOFn{ZuMv(buf),
 	  [](IOBuf *buf, ZiIOContext &io) {
 	    io.init(ZiIOFn{io.fn.mvObject<IOBuf>(),
 	      [](IOBuf *buf, ZiIOContext &io) {
@@ -417,15 +417,15 @@ public:
       int n = mbedtls_ssl_close_notify(&m_ssl);
       if (n) app()->logWarning("mbedtls_ssl_close_notify(): ", strerror_(n));
     }
-    auto tcp = ZmRef<TCP>{ZuMv(m_tcp)};
-    m_tcp = nullptr;
-    if (tcp) {
-      auto mx = tcp->mx();
+    auto cxn = ZmRef<Cxn>{ZuMv(m_cxn)};
+    m_cxn = nullptr;
+    if (cxn) {
+      auto mx = cxn->mx();
       if (notify) {
-	// drain Tx while keeping tcp referenced
-	mx->txRun([tcp = ZuMv(tcp)]() { tcp->disconnect(); });
+	// drain Tx while keeping cxn referenced
+	mx->txRun([cxn = ZuMv(cxn)]() { cxn->disconnect(); });
       } else
-	tcp->close();
+	cxn->close();
     }
   }
 
@@ -443,7 +443,7 @@ private:
 
   // TLS thread
   mbedtls_ssl_context	m_ssl;
-  TCPRef		m_tcp = nullptr;
+  CxnRef		m_cxn = nullptr;
   unsigned		m_rxInOffset = 0;
   unsigned		m_rxRingOffset = 0;
   unsigned		m_rxRingCount = 0;
@@ -456,17 +456,17 @@ private:
 };
 
 // client links are persistent, own the (transient) connection
-template <typename App, typename Impl, typename TCP>
-using CliLink_ = Link<App, Impl, TCP, ZmRef<TCP> >;
+template <typename App, typename Impl, typename Cxn>
+using CliLink_ = Link<App, Impl, Cxn, ZmRef<Cxn> >;
 // server links are transient, are owned by the connection
-template <typename App, typename Impl, typename TCP>
-using SrvLink_ = Link<App, Impl, TCP, TCP *>;
+template <typename App, typename Impl, typename Cxn>
+using SrvLink_ = Link<App, Impl, Cxn, Cxn *>;
 
 template <typename App, typename Impl>
-class CliLink : public CliLink_<App, Impl, CliLinkTCP<Impl> > {
+class CliLink : public CliLink_<App, Impl, CliCxn<Impl> > {
 public:
-  using TCP = CliLinkTCP<Impl>;
-  using Base = CliLink_<App, Impl, TCP>;
+  using Cxn = CliCxn<Impl>;
+  using Base = CliLink_<App, Impl, Cxn>;
 friend Base;
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
@@ -516,7 +516,7 @@ friend Base;
 
     this->app()->mx()->connect(
 	ZiConnectFn{impl(), [](Impl *impl, const ZiCxnInfo &ci) -> uintptr_t {
-	  return (uintptr_t)(new TCP(impl, ci));
+	  return (uintptr_t)(new Cxn(impl, ci));
 	}},
 	ZiFailFn{impl(), [](Impl *impl, bool transient) {
 	  impl->connectFailed(transient);
@@ -611,10 +611,10 @@ private:
 };
 
 template <typename App, typename Impl>
-class SrvLink : public SrvLink_<App, Impl, SrvLinkTCP<Impl> > {
+class SrvLink : public SrvLink_<App, Impl, SrvCxn<Impl> > {
 public:
-  using TCP = SrvLinkTCP<Impl>;
-  using Base = SrvLink_<App, Impl, TCP>;
+  using Cxn = SrvCxn<Impl>;
+  using Base = SrvLink_<App, Impl, Cxn>;
 friend Base;
 
   auto impl() const { return static_cast<const Impl *>(this); }
@@ -841,9 +841,9 @@ protected:
       int process(const uint8_t *data, unsigned len); // process received data
     };
 
-    Link::TCP *accepted(const ZiCxnInfo &ci) {
+    Link::Cxn *accepted(const ZiCxnInfo &ci) {
       // ... potentially return nullptr if too many open connections
-      return new Link::TCP(new Link(this), ci);
+      return new Link::Cxn(new Link(this), ci);
     }
 
     ZiIP localIP() const;

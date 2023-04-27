@@ -393,14 +393,16 @@ private:
     ZtArray<ZtString> args;
     ZvCf::parseCLI(cmd, args);
     if (!args) return 0;
+    bool local;
     if (args[0] == "remote") {
       args.shift();
-    } else if (hasCmd(args[0])) {
+      local = false;
+    } else
+      local = hasCmd(args[0]);
+    if (local)
       processCmd(&ctx, args);
-      m_executed.wait();
-      return ctx.code;
-    }
-    send(&ctx, args);
+    else
+      send(&ctx, args);
     m_executed.wait();
     return ctx.code;
   }
@@ -1407,11 +1409,25 @@ private:
   Zrl::History		m_history{100};
   Zrl::CLI		m_cli;
 
+// FIXME
+// - enable switching between multiple client connections
+// - each client connection is composed of {link, seqNo, prompt, telcap}
+//
+// - m_fbb can be shared
+
+// FIXME
+// - telemetry should be distinguished by app ID + instanceID from
+//   initial App telemetry msg
+
+// FIXME
+// reconcile tension between zdash telemetry aggregation and
+// zcmd vs zdash fanout
+
+  ZmRef<Link>		m_link;	
+  ZvSeqNo		m_seqNo = 0;
+
   ZmPLock		m_promptLock;
     ZtArray<uint8_t>	  m_prompt;
-
-  ZmRef<Link>		m_link;
-  ZvSeqNo		m_seqNo = 0;
 
   FBB			m_fbb;
 

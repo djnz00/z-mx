@@ -59,8 +59,7 @@ namespace EngineState {
 }
 
 namespace SocketType {
-  ZfbEnumMatch(SocketType, ZiCxnType,
-      TCPIn, TCPOut, UDP);
+  ZfbEnumMatch(SocketType, ZiCxnType, TCPIn, TCPOut, UDP);
 }
 
 namespace QueueType {
@@ -524,6 +523,7 @@ struct App {
   ZmIDString	id;
   ZmIDString	version;
   ZtDate	uptime;
+  // FIXME - need instanceID (i.e. hostID if Zdb) for clustered apps
   int8_t	role = -1;
   int8_t	rag = -1;
 

@@ -21,12 +21,10 @@
 
 void ZvCmdDispatcher::init()
 {
-  m_fnMap = new FnMap{};
 }
 void ZvCmdDispatcher::final()
 {
-  m_fnMap->clean();
-  m_fnMap = {};
+  m_fnMap.clean();
 }
 
 void ZvCmdDispatcher::deflt(DefltFn fn)
@@ -37,16 +35,16 @@ void ZvCmdDispatcher::deflt(DefltFn fn)
 void ZvCmdDispatcher::map(ZuID id, Fn fn)
 {
   Guard guard(m_lock);
-  if (auto data = m_fnMap->find(id))
+  if (auto data = m_fnMap.find(id))
     FnMap::ValAxor(*const_cast<FnMap::T *>(data)) = ZuMv(fn);
   else
-    m_fnMap->add(id, ZuMv(fn));
+    m_fnMap.add(id, ZuMv(fn));
 }
 
 int ZvCmdDispatcher::dispatch(
     ZuID id, void *link, const uint8_t *data, unsigned len)
 {
-  if (auto node = m_fnMap->find(id))
+  if (auto node = m_fnMap.find(id))
     return (node->template p<1>())(link, data, len);
   if (m_defltFn) return m_defltFn(link, id, data, len);
   return -1;

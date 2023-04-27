@@ -352,9 +352,9 @@ private:
     if (m_userDB->modified()) saveUserDB();
   }
 
-  using TCP = typename Link::TCP;
-  TCP *accepted(const ZiCxnInfo &ci) {
-    return new TCP(new Link{app()}, ci);
+  using Cxn = typename Link::Cxn;
+  Cxn *accepted(const ZiCxnInfo &ci) {
+    return new Cxn(new Link{app()}, ci);
   }
 public:
   ZiIP localIP() const { return m_ip; }

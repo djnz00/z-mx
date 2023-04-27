@@ -86,27 +86,20 @@ public:
     return *this;
   }
 
-  // array/ptr operators
-
+// array/ptr operators
   T &operator [](int i) { return m_data[i]; }
   const T &operator [](int i) const { return m_data[i]; }
 
-  // accessors
-
-  const T *begin() const { return m_data; }
-  const T *end() const { return &m_data[m_length]; }
-
+// accessors
   unsigned length() const { return m_length; } 
 
   T *data() { return m_data; }
   const T *data() const { return m_data; }
 
-  // reset to null
-
+// reset to null
   void null() { delete [] m_data; m_length = 0;  m_data = nullptr;}
 
-  // set length
-
+// set length
   void length(unsigned newLength) {
     T *oldData = m_data;
     unsigned oldLength = m_length;
@@ -119,10 +112,27 @@ public:
     ::free(oldData);
   }
 
-  // comparison
-
+// comparison
   bool operator !() const { return !m_length; }
   ZuOpBool
+
+// iteration
+  template <typename L> void all(L l) const {
+    for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
+  }
+  template <typename L> void all(L l) {
+    for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
+  }
+
+// STL cruft
+  using iterator = T *;
+  using const_iterator = const T *;
+  const T *begin() const { return m_data; }
+  const T *end() const { return m_data + m_length; }
+  const T *cbegin() const { return m_data; } // sigh
+  const T *cend() const { return m_data + m_length; }
+  T *begin() { return m_data; }
+  T *end() { return m_data + m_length; }
 
 protected:
   bool same(const ZuMvArray &a) const { return this == &a; }
@@ -147,12 +157,12 @@ protected:
   friend inline ZuIfT<ZuConversion<ZuMvArray, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
-  // hash
+// hash
   uint32_t hash() const {
     return ZuHash<ZuMvArray>::hash(*this);
   }
 
-  // traits
+// traits
   struct Traits : public ZuBaseTraits<ZuMvArray> {
     using Elem = T;
     enum {

@@ -1,7 +1,5 @@
-#include <stdlib.h>
-#ifndef _WIN32
-#include <alloca.h>
-#endif
+//  -*- mode:c++; indent-tabs-mode:t; tab-width:8; c-basic-offset:2; -*-
+//  vi: noet ts=8 sw=2 cino=l1,g0,N-s,j1,U1,i4
 
 #include <iostream>
 #include <string>
@@ -16,42 +14,44 @@
 #include "zfbtest_fbs.h"
 
 namespace zfbtest {
-  using namespace Zfb;
 
-  struct Test {
-    int foo = 42;
-    ZtString bar;
-    uint8_t *zero;
-    unsigned n;
+using namespace Zfb;
 
-    friend ZtFieldPrint ZuPrintType(Test *);
-  };
+struct Test {
+  int foo = 42;
+  ZtString bar;
+  uint8_t *zero;
+  unsigned n;
 
-  ZfbFields(Test, fbs::Test,
-    (((foo)), (Int), (Ctor(0))),
-    (((bar)), (String), (Ctor(1))),
-    (((kvTree, Lambda,
-      ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
-	using namespace Zfb::Save;
-	return kvTree(b, vector<KV>(b,
-	      kvNested(b, "key1", vector<KV>(b,
-		  kvString(b, "nested_key1", "nested_value"))),
-	      kvNested(b, "key2", vector<KV>(b,
-		  kvUInt8Vec(b, "nested_key2",
-		    bytes(b, test.zero, test.n))))));
-      }, [&test]<typename S>(S &s) {
-	s << "key1={nested_key1=nested_value} key2={nested_key2={"
-	  << ZuBoxPtr(test.zero).hex() << "[" << test.n << "]}}";
-      }}; }),
-      ([](Test &test, const KVTree *kvTree) {
-	using namespace Zfb::Load;
-	auto data = bytes(kvTree->items()->Get(1)->
-	    value_as_NestedKVTree()->data_nested_root()->items()->Get(0)->
-	    value_as_UInt8Vec()->data());
-	test.zero = const_cast<uint8_t *>(data.data());
-	test.n = data.length();
-      }))), (KVTree), (Synthetic)));
-}
+  friend ZtFieldPrint ZuPrintType(Test *);
+};
+
+ZfbFields(Test, fbs::Test,
+  (((foo)), (Int), (Ctor(0))),
+  (((bar)), (String), (Ctor(1))),
+  (((kvTree, Lambda,
+    ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
+      using namespace Zfb::Save;
+      return kvTree(b, vector<KV>(b,
+	    kvNested(b, "key1", vector<KV>(b,
+		kvString(b, "nested_key1", "nested_value"))),
+	    kvNested(b, "key2", vector<KV>(b,
+		kvUInt8Vec(b, "nested_key2",
+		  bytes(b, test.zero, test.n))))));
+    }, [&test]<typename S>(S &s) {
+      s << "key1={nested_key1=nested_value} key2={nested_key2={"
+	<< ZuBoxPtr(test.zero).hex() << "[" << test.n << "]}}";
+    }}; }),
+    ([](Test &test, const KVTree *kvTree) {
+      using namespace Zfb::Load;
+      auto data = bytes(kvTree->items()->Get(1)->
+	  value_as_NestedKVTree()->data_nested_root()->items()->Get(0)->
+	  value_as_UInt8Vec()->data());
+      test.zero = const_cast<uint8_t *>(data.data());
+      test.n = data.length();
+    }))), (KVTree), (Synthetic)));
+
+} // zfbtest
 
 using IOBuilder = Zfb::IOBuilder<>;
 using IOBuf = IOBuilder::IOBuf;

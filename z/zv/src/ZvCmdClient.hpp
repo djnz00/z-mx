@@ -29,7 +29,6 @@
 #endif
 
 #include <zlib/ZuString.hpp>
-#include <zlib/ZuByteSwap.hpp>
 #include <zlib/ZuUnion.hpp>
 
 #include <zlib/ZmObject.hpp>

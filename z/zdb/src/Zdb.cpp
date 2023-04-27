@@ -1974,87 +1974,70 @@ ZmRef<AnyObject> DB::push_(RN rn)
   if (ZuUnlikely(!fn)) return nullptr;
   ZmRef<AnyObject> object = fn(this);
   if (!object) return nullptr;
-  object->push(rn);
-  m_minRN.maximum(rn);
-  m_nextRN = rn + 1;
+  object->push_(rn);
   return object;
-}
-
-ZmRef<AnyObject> DB::push()
-{
-  return push_(m_nextRN.load_());
-}
-
-ZmRef<AnyObject> DB::push(RN rn)
-{
-  RN nextRN = m_nextRN.load_();
-  if (ZuUnlikely(rn != nullRN() && nextRN > rn)) return nullptr;
-  return push_(nextRN);
 }
 
 bool DB::update_(AnyObject *object, RN rn)
 {
   if (ZuUnlikely(object->seqLen() == SeqLenOp::maxSeqLen())) return false;
-  if (!object->update(rn)) return false;
-  m_minRN.maximum(rn);
-  m_nextRN = rn + 1;
+  if (!object->update_(rn)) return false;
   return true;
 }
 
-bool DB::update(AnyObject *object)
+// commits push() or update()
+void DB::put(AnyObject *object)
 {
-  return update_(object, m_nextRN.load_());
-}
-
-bool DB::update(AnyObject *object, RN rn)
-{
-  RN nextRN = m_nextRN.load_();
-  if (ZuUnlikely(rn != nullRN() && nextRN > rn)) return false;
-  return update_(object, nextRN);
-}
-
-// commits push() / update()
-void DB::put(AnyObject *object_)
-{
-  auto object = m_objCache.delNode(object_);
-  object->commit(Op::Put);
+  if (object->committed()) return;
+  m_objCache.delNode(object);
+  object->commit_(Op::Put);
+  auto rn = object->rn();
+  m_minRN.maximum(rn);
+  m_nextRN = rn + 1;
   if (object->seqLen() > 1)
-    m_deletes.add(object->rn(),
+    m_deletes.add(rn,
 	DeleteOp{object->prevRN(),
 	  SeqLenOp::mk(object->seqLen() - 1, Op::Put)});
   write(object->replicate(fbs::Body_Rep));
-  object->put(); // resets seqLen to 1
+  object->put_(); // resets seqLen to 1
   m_objCache.add(ZuMv(object));
 }
 
 // commits appended update()
-void DB::append(AnyObject *object_)
+void DB::append(AnyObject *object)
 {
-  auto object = m_objCache.delNode(object_);
-  object->commit(Op::Append);
+  if (object->committed()) return;
+  m_objCache.delNode(object);
+  object->commit_(Op::Append);
+  auto rn = object->rn();
+  m_minRN.maximum(rn);
+  m_nextRN = rn + 1;
   write(object->replicate(fbs::Body_Rep));
   m_objCache.add(ZuMv(object));
 }
 
-// commits delete following push() / update()
-void DB::del(AnyObject *object_)
+// commits delete following push() or update()
+void DB::del(AnyObject *object)
 {
-  auto object = m_objCache.delNode(object_);
   if (ZuUnlikely(!object->seqLen())) {
-    fileRun([this, rn = object->rn()]() { del_write(rn); });
-    object->commit(Op::Delete);
+    object->abort_();
     return;
   }
-  object->commit(Op::Delete);
-  RN rn = object->rn();
+  if (object->committed()) return;
+  m_objCache.delNode(object);
+  object->commit_(Op::Delete);
+  auto rn = object->rn();
+  m_minRN.maximum(rn);
+  m_nextRN = rn + 1;
   m_deletes.add(rn, DeleteOp{rn, SeqLenOp::mk(object->seqLen(), Op::Delete)});
   write(object->replicate(fbs::Body_Rep));
 }
 
-// aborts push() / update()
+// aborts push() or update()
 void DB::abort(AnyObject *object)
 {
-  object->abort();
+  if (object->committed()) return;
+  object->abort_();
 }
 
 // purge all records < minRN
@@ -2406,8 +2389,9 @@ ZuPair<int, RN> DB::del_(const DeleteOp &deleteOp, unsigned maxBatchSize)
   unsigned i = 0;
   do {
     batch[i++] = rn;
+    if (i >= batchSize) break;
     rn = del_prevRN(rn);
-  } while (i < batchSize && rn != nullRN());
+  } while (rn != nullRN());
 
   // sequence is longer than the batch size, need to split it
   if (rn != nullRN())
@@ -2425,9 +2409,11 @@ RN DB::del_prevRN(RN rn)
 {
   ZmAssert(fileInvoked());
 
+#if 0
   if (auto object = m_objCache.del(rn)) {
     if (object->committed()) return object->prevRN();
   }
+#endif
   FileRec rec = rn2file<false>(rn);
   if (!rec) return nullRN();
   const auto &index = rec.index();

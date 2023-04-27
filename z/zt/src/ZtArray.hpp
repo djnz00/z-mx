@@ -789,7 +789,6 @@ public:
   }
 
 // array / ptr operators
-
   T &item(int i) { return m_data[i]; }
   const T &item(int i) const { return m_data[i]; }
 
@@ -797,18 +796,6 @@ public:
   const T &operator [](int i) const { return m_data[i]; }
 
 // accessors
-
-  using iterator = T *;
-  using const_iterator = const T *;
-  const T *begin() const { return m_data; }
-  const T *end() const { return &m_data[length()]; }
-  T *begin() {
-    return const_cast<T *>(static_cast<const ZtArray &>(*this).begin());
-  }
-  T *end() {
-    return const_cast<T *>(static_cast<const ZtArray &>(*this).end());
-  }
-
   T *data() { return m_data; }
   const T *data() const { return m_data; }
 
@@ -817,6 +804,24 @@ public:
 
   bool mallocd() const { return m_length_mallocd>>31U; }
   bool owned() const { return m_size_owned>>31U; }
+
+// iteration
+  template <typename L> void all(L l) const {
+    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  }
+  template <typename L> void all(L l) {
+    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  }
+
+// STL cruft
+  using iterator = T *;
+  using const_iterator = const T *;
+  const T *begin() const { return m_data; }
+  const T *end() const { return &m_data[length()]; }
+  const T *cbegin() const { return m_data; } // sigh
+  const T *cend() const { return &m_data[length()]; }
+  T *begin() { return m_data; }
+  T *end() { return &m_data[length()]; }
 
 private:
   void length_(unsigned v) {

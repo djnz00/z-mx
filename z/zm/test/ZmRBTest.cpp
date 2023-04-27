@@ -70,6 +70,7 @@ static void delptr(Tree *tree, Z *z) {
 int main()
 {
   Tree tree;
+  printf("sizeof(Tree::Node)=%u\n", static_cast<unsigned>(sizeof(Tree::Node)));
   ZmRef<Z> z;
   int i;
 

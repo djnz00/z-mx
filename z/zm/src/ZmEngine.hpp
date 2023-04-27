@@ -55,7 +55,8 @@ struct Impl : public ZmEngine<Impl> {
 
   template <typename L>
   bool spawn(L);	// spawn control thread - returns true if successful
-  void wake();		// wake-up control thread, have it call stopped()
+  void wake();		// wake-up control thread, have it evaluate stopped()
+			// and exit if true
 };
 #endif
 

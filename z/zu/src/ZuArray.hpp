@@ -228,13 +228,6 @@ public:
   const T &operator [](int i) const { return m_data[i]; }
   T &operator [](int i) { return m_data[i]; }
 
-  const T *begin() const { return m_data; }
-  const T *end() const { return m_data + length(); }
-  const T *cbegin() const { return m_data; } // sigh
-  const T *cend() const { return m_data + length(); }
-  T *begin() { return m_data; }
-  T *end() { return m_data + length(); }
-
   bool operator !() const { return !length(); }
   ZuOpBool
 
@@ -285,6 +278,24 @@ public:
 
   uint32_t hash() const { return ZuHash<ZuArray>::hash(*this); }
 
+// iteration
+  template <typename L> void all(L l) const {
+    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  }
+  template <typename L> void all(L l) {
+    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  }
+
+// STL cruft
+  using iterator = T *;
+  using const_iterator = const T *;
+  const T *begin() const { return m_data; }
+  const T *end() const { return m_data + length(); }
+  const T *cbegin() const { return m_data; } // sigh
+  const T *cend() const { return m_data + length(); }
+  T *begin() { return m_data; }
+  T *end() { return m_data + length(); }
+
 private:
   T	*m_data;
   int	m_length;	// -ve used to defer calculation 
@@ -299,6 +310,8 @@ template <typename T> class ZuArray_Null {
   bool operator !() const { return true; }
 
   void offset(unsigned n) { }
+
+  template <typename L> void all(L l) { }
 };
 
 template <typename Cmp>

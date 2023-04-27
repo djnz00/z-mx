@@ -88,7 +88,8 @@ namespace MxTEventFlags { // event flags
       "Unsolicited", "Synthetic", "Pending");
   MxEnumFlags(Flags,
       "Rx", Rx, "Tx", Tx, "Ack", Ack,
-      "ModifyCxl", ModifyCxl, "ModifyNew", ModifyNew,
+      "ModifyCxl", ModifyCxl,
+      "ModifyNew", ModifyNew,
       "Unsolicited", Unsolicited,
       "Synthetic", Synthetic,
       "Pending", Pending);

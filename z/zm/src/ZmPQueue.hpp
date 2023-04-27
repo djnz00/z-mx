@@ -289,7 +289,7 @@ private:
   typename ZmPQueue_::Next<Level, Levels>::T addHead_(
       Node *node, unsigned addSeqNo) {
     node->NodeExt::prev(Level, nullptr);
-    if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
+    if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
       Node *next;
       node->NodeExt::next(Level, next = m_head[Level]);
       m_head[Level] = node;
@@ -338,7 +338,7 @@ private:
   template <int Level>
   typename ZmPQueue_::Next<Level, Levels>::T add_(
       Node *node, Node **next_, unsigned addSeqNo) {
-    if (ZuUnlikely(!(addSeqNo & ((1<<(Bits * Level)) - 1)))) {
+    if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
       Node *next = next_[Level];
       Node *prev = next ? next->prev(Level) : m_tail[Level];
       node->NodeExt::next(Level, next);

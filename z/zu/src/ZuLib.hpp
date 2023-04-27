@@ -202,13 +202,21 @@ inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
 
 // generic RAII guard
 template <typename L> struct ZuGuard {
-  ZuGuard(L fn_) : fn(ZuMv(fn_)) { }
-  ~ZuGuard() { fn(); }
+  L	fn;
+  bool	cancelled = false;
+
+  ZuGuard(L fn_) : fn{ZuMv(fn_)} { }
+  ~ZuGuard() { if (!cancelled) fn(); }
   ZuGuard(const ZuGuard &) = delete;
   ZuGuard &operator =(const ZuGuard &) = delete;
-  ZuGuard(ZuGuard &&) = default;
-  ZuGuard &operator =(ZuGuard &&) = default;
-  L fn;
+  ZuGuard(ZuGuard &&o) : fn{ZuMv(o.fn)} { o.cancelled = true; }
+  ZuGuard &operator =(ZuGuard &&o) {
+    if (this != &o) { this->~ZuGuard(); new (this) ZuGuard{ZuMv(o)}; }
+    return *this;
+  }
+
+  void cancel() { cancelled = true; }
+  void cancel(bool v) { cancelled = v; }
 };
 #endif
 
