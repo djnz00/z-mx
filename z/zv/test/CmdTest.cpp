@@ -39,7 +39,7 @@ public:
     ZvCmdServer::init(mx, cf);
     addCmd("ackme", "", ZvCmdFn{
       [](ZvCmdContext *ctx) {
-	if (auto cxn = ctx->link<Link>()->tcp())
+	if (auto cxn = ctx->link<Link>()->cxn())
 	  std::cout << cxn->info().remoteIP << ':'
 	    << ZuBoxed(cxn->info().remotePort) << ' ';
 	std::cout << "user: "
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
   ZeLog::init("CmdTest");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::lambdaSink(
-	[](ZeEvent *e) { std::cerr << e->message() << '\n' << std::flush; }));
+	[](ZeEvent *e) { std::cerr << *e << '\n' << std::flush; }));
   ZeLog::start();
 
   ZiMultiplex *mx = new ZiMultiplex(
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
     cf->set("localIP", cf->get("4"));
     cf->set("localPort", cf->get("5"));
     server->init(mx, cf);
-  } catch (const ZvCf::Usage &e) {
+  } catch (const ZvCfError::Usage &e) {
     usage();
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;

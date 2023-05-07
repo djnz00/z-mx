@@ -115,8 +115,7 @@ struct ZmListSharded : public NTP {
 };
 
 template <typename T_, class NTP = ZmList_Defaults>
-class ZmList :
-    public ZmNodeFn<NTP::Shadow, T_, typename NTP::Node> {
+class ZmList : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
@@ -132,7 +131,7 @@ public:
   enum { Sharded = NTP::Sharded };
 
 private:
-  using NodeFn = ZmNodeFn<Shadow, T, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;

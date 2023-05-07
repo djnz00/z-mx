@@ -19,7 +19,7 @@
 
 // object base class
 
-#include <zlib/ZmObject.hpp>
+#include <zlib/ZmObjectDebug.hpp>
 
 #ifdef ZmObject_DEBUG
 #include <zlib/ZmBackTrace.hpp>
@@ -31,7 +31,7 @@ using DebugTree =
     ZmRBTreeUnique<true,
       ZmRBTreeLock<ZmPLock> > >;
 
-void ZmObject_Debug::debug() const
+void ZmObjectDebug::debug() const
 {
   if (!m_debug) {
     void *n = ::malloc(sizeof(DebugTree));
@@ -40,7 +40,7 @@ void ZmObject_Debug::debug() const
   }
 }
 
-void ZmObject_Debug::dump(void *context, DumpFn fn) const
+void ZmObjectDebug::dump(void *context, DumpFn fn) const
 {
   if (!m_debug) return;
   auto i =
@@ -49,7 +49,7 @@ void ZmObject_Debug::dump(void *context, DumpFn fn) const
   while (n = i.iterate()) (*fn)(context, n->key(), n->val());
 }
 
-void ZmObject_ref(const ZmObject_Debug *o, const void *referrer)
+void ZmObject_ref(const ZmObjectDebug *o, const void *referrer)
 {
   ZmBackTrace *bt = new ZmBackTrace();
   bt->capture(1);
@@ -57,7 +57,7 @@ void ZmObject_ref(const ZmObject_Debug *o, const void *referrer)
       ZuFwdPair(referrer, bt));
 }
 
-void ZmObject_deref(const ZmObject_Debug *o, const void *referrer)
+void ZmObject_deref(const ZmObjectDebug *o, const void *referrer)
 {
   DebugTree::NodeRef n =
     (static_cast<DebugTree *>(o->m_debug.operator void *()))->del(referrer);
@@ -66,7 +66,7 @@ void ZmObject_deref(const ZmObject_Debug *o, const void *referrer)
 
 #else
 
-void ZmObject_ref(const ZmObject_Debug *, const void *) { }
-void ZmObject_deref(const ZmObject_Debug *, const void *) { }
+void ZmObject_ref(const ZmObjectDebug *, const void *) { }
+void ZmObject_deref(const ZmObjectDebug *, const void *) { }
 
 #endif

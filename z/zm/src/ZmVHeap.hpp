@@ -44,7 +44,7 @@ template <auto, bool> friend class ZmVHeap;
 inline unsigned ZmGrow(unsigned o, unsigned n)
 {
   if (ZuUnlikely(o >= n)) return o;
-  unsigned i = 64 - __builtin_clzll(n - 1);
+  unsigned i = n <= 1 ? 0 : 64 - __builtin_clzll(n - 1);
   if (ZuUnlikely(i >= 17)) return ((n + 0xffffU) & ~0xffffU);
   return ZuSwitch::dispatch<17>(i, [](auto i) {
     return static_cast<unsigned>(ZmHeapAllocSize<(1<<i)>::N);
@@ -79,11 +79,11 @@ public:
     if (ZuUnlikely(!p)) return;
     uintptr_t *ptr = static_cast<uintptr_t *>(const_cast<void *>(p));
     auto i = *--ptr;
-    if (ZuUnlikely(i >= 16)) {
+    if (ZuUnlikely(i >= 17)) {
       ::free(ptr);
       return;
     }
-    ZuSwitch::dispatch<16>(i, [ptr](auto i) {
+    ZuSwitch::dispatch<17>(i, [ptr](auto i) {
       Cache<i>::free(ptr);
     });
   }

@@ -17,10 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// compile-time tag for atomically intrusively reference-counted objects
+// intrusively reference-counted object debugging
 
-#ifndef ZmObject__HPP
-#define ZmObject__HPP
+#ifndef ZmObjectDebug_HPP
+#define ZmObjectDebug_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -30,34 +30,29 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
+#ifdef ZmObject_DEBUG
+
 #include <stddef.h>
 #include <stdlib.h>
 
-#include <zlib/ZuObject_.hpp>
-
 #include <zlib/ZmAtomic.hpp>
 
-#ifdef ZmObject_DEBUG
 #include <zlib/ZmBackTrace_.hpp>
-#endif
 
-class ZmObject_Debug;
+class ZmObjectDebug;
 
 extern "C" {
-  ZmExtern void ZmObject_ref(const ZmObject_Debug *, const void *);
-  ZmExtern void ZmObject_deref(const ZmObject_Debug *, const void *);
+  ZmExtern void ZmObject_ref(const ZmObjectDebug *, const void *);
+  ZmExtern void ZmObject_deref(const ZmObjectDebug *, const void *);
 }
 
-struct ZmObject_ : public ZuObject_ { };
-
-#ifdef ZmObject_DEBUG
-class ZmAPI ZmObject_Debug : public ZmObject_ {
-friend ZmAPI void ZmObject_ref(const ZmObject_Debug *, const void *);
-friend ZmAPI void ZmObject_deref(const ZmObject_Debug *, const void *);
+class ZmAPI ZmObjectDebug {
+friend ZmAPI void ZmObject_ref(const ZmObjectDebug *, const void *);
+friend ZmAPI void ZmObject_deref(const ZmObjectDebug *, const void *);
 
 public:
-  ZmObject_Debug() : m_debug(0) { }
-  ~ZmObject_Debug() { ::free(m_debug); }
+  ZmObjectDebug() : m_debug(0) { }
+  ~ZmObjectDebug() { ::free(m_debug); }
 
   void debug() const;
 
@@ -70,8 +65,7 @@ protected:
 
   mutable ZmAtomic<void *>	m_debug;
 };
-#else
-using ZmObject_Debug = ZmObject_;
-#endif
 
-#endif /* ZmObject__HPP */
+#endif /* ZmObject_DEBUG */
+
+#endif /* ZmObjectDebug_HPP */

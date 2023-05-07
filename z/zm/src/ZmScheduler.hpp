@@ -162,13 +162,11 @@ private:
   using Ring = ZmRing<ZmRingMW<true>>;
 
   // run-time encapsulation of generic function/lambda
-  constexpr static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
-  using Fn = ZmRingFn<Fn_HeapID>;
+  static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
+  using Fn = ZmRingFn<ZmRingFnHeapID<Fn_HeapID>>;
 
   // overflow ring DLQ
-  constexpr static const char *OverRing_HeapID() {
-    return "ZmScheduler.OverRing";
-  }
+  static const char *OverRing_HeapID() { return "ZmScheduler.OverRing"; }
   using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
@@ -223,7 +221,7 @@ private:
     ZuOpBool
   };
   static const ZmTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }
-  constexpr static const char *ScheduleTree_HeapID() {
+  static const char *ScheduleTree_HeapID() {
     return "ZmScheduler.ScheduleTree";
   }
   using ScheduleTree =
@@ -378,7 +376,7 @@ private:
   template <typename O1, typename O2>
   struct IsObjectLambda__ {
     enum { OK =
-      ZuIsObject_<O1>::OK && ZuIsObject_<O2>::OK &&
+      ZuObjectTraits<O1>::IsObject && ZuObjectTraits<O2>::IsObject &&
       (ZuConversion<O1, O2>::Is || ZuConversion<O2, O1>::Is)
     };
   };

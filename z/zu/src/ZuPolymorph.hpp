@@ -32,15 +32,17 @@
 
 #include <stddef.h>
 
-#include <zlib/ZuObject_.hpp>
+#include <zlib/ZuObjectTraits.hpp>
 
-class ZuPolymorph : public ZuObject_ {
+class ZuPolymorph {
   ZuPolymorph(const ZuPolymorph &) = delete;
   ZuPolymorph &operator =(const ZuPolymorph &) = delete;
 
+  friend ZuPolymorph ZuObjectType(ZuPolymorph *);
+
 public:
   ZuInline ZuPolymorph() : m_refCount(0) { }
-
+ 
   virtual ~ZuPolymorph() { }
 
   ZuInline void ref() const { m_refCount++; }

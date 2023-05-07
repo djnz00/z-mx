@@ -8,7 +8,7 @@ pkginclude_HEADERS = \
 	ZuFnName.hpp ZuFmt.hpp ZuFP.hpp ZuHash.hpp ZuID.hpp \
 	ZuInt.hpp ZuFnTraits.hpp ZuLargest.hpp \
 	ZuLib.hpp ZuMvArray.hpp ZuNull.hpp \
-	ZuObject_.hpp ZuObject.hpp ZuPolymorph.hpp ZuPP.hpp \
+	ZuObjectTraits.hpp ZuObject.hpp ZuPolymorph.hpp ZuPP.hpp \
 	ZuPair.hpp ZuPrint.hpp ZuRef.hpp ZuStdString.hpp ZuString.hpp \
 	ZuStringFn.hpp ZuStringN.hpp ZuTraits.hpp ZuTuple.hpp ZuUnion.hpp \
 	ZuVersion.hpp Zu_aton.hpp Zu_ntoa.hpp ZuDecimalFn.hpp ZuUTF.hpp \

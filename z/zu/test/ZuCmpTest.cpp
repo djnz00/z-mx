@@ -16,6 +16,8 @@
 #include <zlib/ZuArrayN.hpp>
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuSort.hpp>
+#include <zlib/ZuObject.hpp>
+#include <zlib/ZuRef.hpp>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
@@ -201,6 +203,8 @@ struct M {
 };
 
 inline bool operator ==(const M &, const M &) { return true; }
+
+struct O : public ZuObject { };
 
 int main()
 {
@@ -478,5 +482,10 @@ int main()
 
   {
     CHECK(M{} == ZuCmp<M>::null());
+  }
+
+  {
+    ZuRef<O> o = new O{};
+    CHECK(ZuObjectTraits<O>::IsObject);
   }
 }

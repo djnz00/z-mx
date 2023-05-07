@@ -30,7 +30,7 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-#include <zlib/ZuObject.hpp>
+#include <zlib/ZuObjectTraits.hpp>
 #include <zlib/ZuPtr.hpp>
 
 template <bool Shadow, bool IsObject>
@@ -70,8 +70,7 @@ struct ZmNodeFn_<true, IsObject> {
   template <typename T> static void nodeDelete(T *) { }
 };
 
-template <bool Shadow, typename T, typename NodeBase>
-using ZmNodeFn =
-  ZmNodeFn_<Shadow, ZuIsObject_<T>::OK || ZuIsObject_<NodeBase>::OK>;
+template <bool Shadow, typename NodeBase>
+using ZmNodeFn = ZmNodeFn_<Shadow, ZuObjectTraits<NodeBase>::IsObject>;
 
 #endif /* ZmNodeFn_HPP */

@@ -1639,7 +1639,7 @@ int main(int argc, char **argv)
   ZeLog::init("zcmd");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::lambdaSink(
-	[](ZeEvent *e) { std::cerr << e->message() << '\n' << std::flush; }));
+	[](ZeEvent *e) { std::cerr << *e << '\n' << std::flush; }));
   ZeLog::start();
 
   ZiMultiplex *mx = new ZiMultiplex(

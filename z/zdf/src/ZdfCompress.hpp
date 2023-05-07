@@ -292,7 +292,7 @@ public:
     unsigned negative = value_ < 0;
     int64_t value = value_;
     if (negative) value = ~value;
-    unsigned n = !value ? 0 : 64U - __builtin_clzll(value);
+    unsigned n = !value ? 0 : 64 - __builtin_clzll(value);
     n = (n + 1) / 7;
     if (n >= 6) n = 8;
     if (m_pos + n >= m_end) return false;
@@ -335,12 +335,12 @@ public:
       case 6:							// 64 bits
 	*m_pos++ = negative | 0x3f;
 #ifdef __x86_64__
-	// potentially misaligned
+	// potentially misaligned (intentional)
 	*reinterpret_cast<ZuLittleEndian<uint64_t> *>(m_pos) = value;
 #else
 	{
 	  ZuLittleEndian<uint64_t> value_ = value;
-	  memcpy(m_pos, &value_, 8);
+	  memcpy(m_pos, static_cast<void *>(&value_), 8);
 	}
 #endif
 	m_pos += 8;

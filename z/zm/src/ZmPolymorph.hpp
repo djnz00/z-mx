@@ -37,12 +37,20 @@
 #include <stdlib.h>
 #endif
 
-#include <zlib/ZmObject_.hpp>
 #include <zlib/ZmAtomic.hpp>
+#ifdef ZmObject_DEBUG
+#include <zlib/ZmObjectDebug.hpp>
+#endif
 
-class ZmPolymorph : public ZmObject_Debug {
+class ZmPolymorph
+#ifdef ZmObject_DEBUG
+: public ZmObjectDebug
+#endif
+{
   ZmPolymorph(const ZmPolymorph &) = delete;
   ZmPolymorph &operator =(const ZmPolymorph &) = delete;
+
+  friend ZmPolymorph ZuObjectType(ZmPolymorph *);
 
 public:
   ZmPolymorph()  : m_refCount{0} { }

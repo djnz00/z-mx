@@ -67,7 +67,7 @@ protected:
   }
 
 public:
-  ZmAnyFn() : m_invoker(0), m_object(0) { }
+  ZmAnyFn() : m_invoker{0}, m_object{0} { }
 
   ~ZmAnyFn() {
     if (ZuUnlikely(owned(m_object))) ZmDEREF(ptr(m_object));
@@ -177,6 +177,9 @@ public:
       ZuHash<uintptr_t>::hash(m_invoker) ^ ZuHash<uintptr_t>::hash(m_object);
   }
 
+  struct Traits : public ZuBaseTraits<ZmAnyFn> { enum { IsPOD = 1 }; };
+  friend Traits ZuTraitsType(ZmAnyFn *);
+
 protected:
   uintptr_t		m_invoker;
   mutable uintptr_t	m_object;
@@ -210,9 +213,9 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   using MatchCallable = ZuIfT<IsCallable<T>::OK, R>;
 
 public:
-  ZmFn() : ZmAnyFn() { }
-  ZmFn(const ZmFn &fn) : ZmAnyFn(fn) { }
-  ZmFn(ZmFn &&fn) : ZmAnyFn(static_cast<ZmAnyFn &&>(fn)) { }
+  ZmFn() : ZmAnyFn{} { }
+  ZmFn(const ZmFn &fn) : ZmAnyFn{fn} { }
+  ZmFn(ZmFn &&fn) : ZmAnyFn{static_cast<ZmAnyFn &&>(fn)} { }
 
 private:
   class Pass {
@@ -744,6 +747,8 @@ friend struct LBoundInvoker_;
   struct LBoundInvoker<void (L::*)(ZmRef<O>, Args_...) const, HeapID, Sharded> :
     public LBoundInvoker_<ZmRef<O>, const L, void, HeapID, Sharded,
 	   LambdaStateless<L, void, ZmRef<O>, Args_...>::OK> { };
+
+  friend ZuTraits<ZmAnyFn> ZuTraitsType(ZmFn *);
 };
 
 #endif /* ZmFn__HPP */

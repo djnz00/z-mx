@@ -343,9 +343,7 @@ class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
   using Lock = Lock_;
   using Guard = ZmGuard<Lock>;
 
-  constexpr static const char *Queues_HeapID() {
-    return "ZvIOQueueTxPool.Queues";
-  }
+  static const char *Queues_HeapID() { return "ZvIOQueueTxPool.Queues"; }
   using Queues =
     ZmRBTreeKV<ZmTime, ZmRef<Tx>,
       ZmRBTreeHeapID<Queues_HeapID>>;

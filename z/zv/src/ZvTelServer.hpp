@@ -410,7 +410,7 @@ private:
 
   void alert_(ZmRef<ZeEvent> alert) {
     m_alertBuf.length(0);
-    m_alertBuf << alert->message();
+    m_alertBuf << *alert;
     ZtDate date{alert->time()};
     unsigned yyyymmdd = date.yyyymmdd();
     unsigned seqNo = m_alertFile.alloc(m_alertPrefix, yyyymmdd);

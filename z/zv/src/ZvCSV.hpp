@@ -120,7 +120,7 @@ public:
   using ColArray = ZtArray<const Field *>;
 
 private:
-  constexpr static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
+  static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
   using ColTree =
     ZmRBTreeKV<ZuString, const Field *,
       ZmRBTreeUnique<true,

@@ -6,8 +6,7 @@ AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 pkginclude_HEADERS = \
 	ZiDir.hpp ZiFile.hpp ZiGlob.hpp ZiIP.hpp ZiLib.hpp ZiModule.hpp \
-	ZiMultiplex.hpp ZiPlatform.hpp ZiSocket.hpp \
-	ZiRing.hpp \
+	ZiMultiplex.hpp ZiPlatform.hpp ZiRing.hpp \
 	ZiIOBuf.hpp ZiRx.hpp ZiTx.hpp
 if NETLINK
 pkginclude_HEADERS += ZiNetlinkMsg.hpp ZiNetlink.hpp zi_netlink.h

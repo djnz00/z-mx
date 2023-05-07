@@ -1564,7 +1564,7 @@ inline int RingExt<Ring, MW, MR>::attach()	// unused
 }
 
 template <typename Ring, bool MW>
-inline int RingExt<Ring, MW, true>::attach()
+inline int RingExt<Ring, MW, true>::attach()	// MR attach
 {
   enum { Read = Ring::Read };
 
@@ -1637,7 +1637,7 @@ inline void RingExt<Ring, MW, MR>::detach()	// unused
 }
 
 template <typename Ring, bool MW>
-inline void RingExt<Ring, MW, true>::detach()
+inline void RingExt<Ring, MW, true>::detach()	// MR detach
 {
   enum { Read = Ring::Read };
 

@@ -32,11 +32,13 @@
 
 #include <stddef.h>
 
-#include <zlib/ZuObject_.hpp>
+#include <zlib/ZuObjectTraits.hpp>
 
-class ZuObject : public ZuObject_ {
+class ZuObject {
   ZuObject(const ZuObject &) = delete;
   ZuObject &operator =(const ZuObject &) = delete;
+
+  friend ZuObject ZuObjectType(ZuObject *);
 
 public:
   ZuObject() = default;

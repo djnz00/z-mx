@@ -472,47 +472,51 @@ public:
   class Iterator;
 friend Iterator;
   class Iterator : private Iterator_ {
+    using Iterator_::m_ring;
+    using Iterator_::m_i;
   public:
     Iterator(typename Iterator_::Ring &ring) : Iterator_(ring, 0) { }
     T *iteratePtr() {
       unsigned o;
       do {
-	if (this->m_i >= this->m_ring.m_length) return nullptr;
-	o = this->m_ring.offset(this->m_i++);
-      } while (Cmp::null(this->m_ring.m_data[o]));
-      return this->m_ring.m_data + o;
+	if (m_i >= m_ring.m_length) return nullptr;
+	o = m_ring.offset(m_i++);
+      } while (Cmp::null(m_ring.m_data[o]));
+      return m_ring.m_data + o;
     }
     const T &iterate() {
       unsigned o;
       do {
-	if (this->m_i >= (int)this->m_ring.m_length) return ZuNullRef<T, Cmp>();
-	o = this->m_ring.offset(this->m_i++);
-      } while (Cmp::null(this->m_ring.m_data[o]));
-      return this->m_ring.m_data[o];
+	if (m_i >= (int)m_ring.m_length) return ZuNullRef<T, Cmp>();
+	o = m_ring.offset(m_i++);
+      } while (Cmp::null(m_ring.m_data[o]));
+      return m_ring.m_data[o];
     }
   };
   auto iterator() { return Iterator{*this}; }
   class RevIterator;
 friend RevIterator;
   class RevIterator : private Iterator_ {
+    using Iterator_::m_ring;
+    using Iterator_::m_i;
   public:
     RevIterator(typename Iterator_::Ring &ring) :
 	Iterator_(ring, ring.m_length) { }
     T *iteratePtr() {
       unsigned o;
       do {
-	if (this->m_i <= 0) return nullptr;
-	o = this->m_ring.offset(--this->m_i);
-      } while (Cmp::null(this->m_ring.m_data[o]));
-      return this->m_ring.m_data + o;
+	if (m_i <= 0) return nullptr;
+	o = m_ring.offset(--m_i);
+      } while (Cmp::null(m_ring.m_data[o]));
+      return m_ring.m_data + o;
     }
     const T &iterate() {
       unsigned o;
       do {
-	if (this->m_i <= 0) return ZuNullRef<T, Cmp>();
-	o = this->m_ring.offset(--this->m_i);
-      } while (Cmp::null(this->m_ring.m_data[o]));
-      return this->m_ring.m_data[o];
+	if (m_i <= 0) return ZuNullRef<T, Cmp>();
+	o = m_ring.offset(--m_i);
+      } while (Cmp::null(m_ring.m_data[o]));
+      return m_ring.m_data[o];
     }
   };
   auto revIterator() { return RevIterator{*this}; }

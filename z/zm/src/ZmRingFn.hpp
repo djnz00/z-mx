@@ -21,17 +21,17 @@
 // ring buffers containing variable-sized messages; it optimizes for the
 // stateless case, while also handling stateful lambdas with captures
 //
-// ZmRingFn(L &l) stores a pointer to the lambda instance together with
-// function pointers that invoke it, move it, allocate a copy of it and free
-// it; initially the lambda instance remains on-stack (C++ guarantees that
-// it remains in scope)
+// ZmRingFn(L &l) stores a pointer to an on-stack lambda instance together
+// with function pointers that invoke it, move it, allocate a copy of it
+// and free it; while the lambda remains in scope, the ZmRingFn instance
+// references the lambda instance on-stack without copying it
 //
 // in the fast path, no heap allocation or freeing is performed during
-// subsequent pushing the message onto a ring, shifting it, and invoking it
+// subsequent pushing of the lambda onto a ring, shifting it, and invoking it
 //
 // ZmRingFn move assignment ensures that the lambda becomes heap-allocated;
-// this extends its scope and enables deferred execution (timeouts, etc.)
-// by extending the ZmRingFn scope beyond the scope of the original
+// this extends its scope and enables deferred execution (timeouts, etc.) -
+// the ZmRingFn scope is extended beyond the scope of the original on-stack
 // lambda reference that it was constructed with
 //
 // pushSize() returns the message size needed to store the
@@ -41,7 +41,8 @@
 // invocation function
 //
 // invoke() invokes the lambda directly from the ring buffer pointer,
-// destroys it and returns the size of the message
+// destroys it and returns the size of the message so that the ring
+// dequeue can complete
 
 // ZmHeap is used for heap allocation
 
@@ -56,39 +57,74 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
+// NTP (named template parameters):
+//
+// inline constexpr auto HeapID() { return []() { return "HeapID"; }; }
+// ZmRingFn<
+//   ZmRingFnArgs<ZuTypeList<ZmStream &>,	// parameters
+//     ZmRingFnHeapID<HeapID()>>>		// heap ID
+
+// NTP defaults
+struct ZmRingFn_Defaults {
+  using Args = ZuTypeList<>;
+  static const char *HeapID() { return "ZmRingFn"; }
+  enum { Sharded = false };
+};
+
+// ZmRingFnArgs - parameter type list
+template <typename Args_, typename NTP = ZmRingFn_Defaults>
+struct ZmRingFnArgs : public NTP {
+  using Args = Args_;
+};
+
+// ZmRingFnHeapID - the heap ID
+template <auto HeapID_, typename NTP = ZmRingFn_Defaults>
+struct ZmRingFnHeapID : public NTP {
+  constexpr static auto HeapID = HeapID_;
+};
+
+// ZmRingFnSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmRingFn_Defaults>
+struct ZmRingFnSharded : public NTP {
+  enum { Sharded = Sharded_ };
+};
+
 // run-time encapsulation of generic function/lambda
-template <auto HeapID, bool Sharded = false>
-class ZmRingFn {
+template <typename NTP = ZmRingFn_Defaults, typename ...Args>
+class ZmRingFn_ {
   // 64bit pointer packing - uses bit 63 to indicate on-heap
   constexpr static uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
 
-  typedef unsigned (*InvokeFn)(void *ptr);
+  typedef unsigned (*InvokeFn)(void *ptr, Args...);
   typedef void (*MoveFn)(void *dst, void *src, bool onHeap);
   typedef uintptr_t (*AllocFn)(uintptr_t ptr);
 
+  constexpr static auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
+
 public:
-  ZmRingFn() = default;
+  ZmRingFn_() = default;
 
-  ZmRingFn(const ZmRingFn &) = delete;
-  ZmRingFn &operator =(const ZmRingFn &) = delete;
+  ZmRingFn_(const ZmRingFn_ &) = delete;
+  ZmRingFn_ &operator =(const ZmRingFn_ &) = delete;
 
-  ZmRingFn(ZmRingFn &&fn) :
+  ZmRingFn_(ZmRingFn_ &&fn) :
       m_invokeFn{fn.m_invokeFn}, m_moveFn{fn.m_moveFn}, m_allocFn{fn.m_allocFn},
       m_ptr{fn.m_ptr} {
     fn.clear();
     heapAlloc();
   }
-  ZmRingFn &operator =(ZmRingFn &&fn) {
-    this->~ZmRingFn();
-    new (this) ZmRingFn{ZuMv(fn)};
+  ZmRingFn_ &operator =(ZmRingFn_ &&fn) {
+    this->~ZmRingFn_();
+    new (this) ZmRingFn_{ZuMv(fn)};
     return *this;
   }
 
   template <typename L>
-  ZmRingFn(L &l, ZuIsStateless<L> *_ = nullptr) :
-      m_invokeFn{[](void *) -> unsigned {
+  ZmRingFn_(L &l, ZuIsStateless<L> *_ = nullptr) :
+      m_invokeFn{[](void *, Args... args) -> unsigned {
 	// no, this->x does not imply evaluating (*this).x; the reverse is true
-	try { (*reinterpret_cast<const L *>(0))(); } catch (...) { }
+	try { (*reinterpret_cast<const L *>(0))(args...); } catch (...) { }
 	return 0;
       }},
       m_moveFn{nullptr},
@@ -96,10 +132,10 @@ public:
       m_ptr{0} { }
 
   template <typename L>
-  ZmRingFn(L &l, ZuNotStateless<L> *_ = nullptr) :
-      m_invokeFn{[](void *ptr_) -> unsigned {
+  ZmRingFn_(L &l, ZuNotStateless<L> *_ = nullptr) :
+      m_invokeFn{[](void *ptr_, Args... args) -> unsigned {
 	auto ptr = static_cast<L *>(ptr_);
-	try { (*ptr)(); } catch (...) { }
+	try { (*ptr)(args...); } catch (...) { }
 	ptr->~L();
 	return sizeof(L);
       }},
@@ -126,14 +162,14 @@ public:
       m_ptr{reinterpret_cast<uintptr_t>(&l)} { }
 
   template <typename L>
-  ZmRingFn &operator =(L l) {
-    this->~ZmRingFn();
-    new (this) ZmRingFn{l};
+  ZmRingFn_ &operator =(L l) {
+    this->~ZmRingFn_();
+    new (this) ZmRingFn_{l};
     heapAlloc();
     return *this;
   }
 
-  ~ZmRingFn() {
+  ~ZmRingFn_() {
     if (ZuUnlikely(m_invokeFn && (m_ptr & OnHeap)))
       m_allocFn(m_ptr & ~OnHeap); // destroys and frees
   }
@@ -155,9 +191,12 @@ public:
 
   // ring shift() - invokes lambda and returns size
 
-  ZuInline static unsigned invoke(void *ptr_) {
+  template <typename ...Args_>
+  ZuInline static unsigned invoke(void *ptr_, Args_ &&... args) {
     auto ptr = reinterpret_cast<InvokeFn *>(ptr_);
-    return (**ptr)(static_cast<void *>(&ptr[1])) + sizeof(InvokeFn);
+    return
+      (**ptr)(static_cast<void *>(&ptr[1]), ZuFwd<Args_>(args)...) +
+      sizeof(InvokeFn);
   }
 
 private:
@@ -183,5 +222,8 @@ private:
   AllocFn	m_allocFn = nullptr;  // size+alloc+free (overloaded function)
   uintptr_t	m_ptr = 0;            // pointer to lambda instance
 };
+
+template <typename NTP>
+using ZmRingFn = ZuTypeApply<ZmRingFn_, typename NTP::Args::template Prepend<NTP>>;
 
 #endif /* ZmRingFn_HPP */

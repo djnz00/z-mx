@@ -248,27 +248,39 @@ public:
     }
   }
 
-protected:
-  bool same(const ZuArray &v) const { return this == &v; }
-  template <typename V> bool same(const V &v) const { return false; }
-
-public:
-  template <typename V> bool equals(const V &v_) const {
-    if (same(v_)) return true;
-    ZuArray v{v_};
+private:
+  bool equals_(const ZuArray &v) const {
     unsigned l = length();
     unsigned n = v.length();
     if (l != n) return false;
     return Ops::equals(data(), v.data(), l);
   }
-  template <typename V> int cmp(const V &v_) const {
-    if (same(v_)) return 0;
+public:
+  bool equals(const ZuArray &v) const {
+    if (this == &v) return true;
+    return equals_(v);
+  }
+  template <typename V> bool equals(const V &v_) const {
     ZuArray v{v_};
+    return equals_(v);
+  }
+private:
+  int cmp_(const ZuArray &v) const {
     int l = length();
     int n = v.length();
     if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i;
     return ZuCmp<int>::cmp(l, n);
   }
+public:
+  template <typename V> int cmp(const V &v_) const {
+    ZuArray v{v_};
+    return cmp_(v);
+  }
+  int cmp(const ZuArray &v) const {
+    if (this == &v) return 0;
+    return cmp_(v);
+  }
+
   template <typename L, typename R>
   friend inline ZuIfT<ZuConversion<ZuArray, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
@@ -278,11 +290,13 @@ public:
 
   uint32_t hash() const { return ZuHash<ZuArray>::hash(*this); }
 
-// iteration
-  template <typename L> void all(L l) const {
+// iteration - all() is const by default, all<true>() is mutable
+  template <bool Mutable = false, typename L>
+  ZuIfT<!Mutable> all(L l) const {
     for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
   }
-  template <typename L> void all(L l) {
+  template <bool Mutable, typename L>
+  ZuIfT<Mutable> all(L l) {
     for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
   }
 

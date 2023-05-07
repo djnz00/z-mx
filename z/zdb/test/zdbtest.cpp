@@ -52,7 +52,7 @@ struct TestStep {
   TestStep &operator =(const TestStep &) = default;
   TestStep &operator =(TestStep &&) = default;
 
-  TestStep(ZvCf *cf) {
+  TestStep(const ZvCf *cf) {
     repeat = cf->getInt("repeat", 0, INT_MAX, false, 1);
     push = cf->getInt("push", 0, 1, false, 0);
     append = cf->getInt("append", 0, INT_MAX, false, 0);
@@ -60,18 +60,43 @@ struct TestStep {
   }
 
   RN size() const { return repeat * (push + append + del); }
-  void run(RN rn) const;
+  RN run(RN rn) const;
 };
 
 struct TestSeq {
   ZtArray<TestStep>	steps;
+
+  TestSeq(const ZvCf *cf) {
+    // FIXME
+  }
+
+  RN size() const {
+    RN n = 0;
+    steps.all([&n](const TestStep &step) { n += step.size(); });
+    return n;
+  }
+  RN run(RN rn) const {
+    steps.all([&rn](const TestStep &step) { rn = step.run(rn); });
+    return rn;
+  }
 };
 
 struct TestPlan {
   ZtArray<TestSeq>	sequences;
 
+  TestPlan(const ZvCf *cf) {
+    // FIXME
+  }
+
   RN size() const {
-  void run(Rn rn) const;
+    RN n = 0;
+    sequences.all([&n](const TestSeq &seq) { n += seq.size(); });
+    return n;
+  }
+  RN run(RN rn) const {
+    sequences.all([&rn](const TestSeq &seq) { rn = seq.run(rn); });
+    return rn;
+  }
 };
 
 #if 0

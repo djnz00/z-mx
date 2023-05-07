@@ -79,13 +79,12 @@ struct ZvCxnOptions : public ZiCxnOptions {
       if (ZuString s = cf->get("multicastInterface", false)) mif(s);
       ttl(cf->getInt("multicastTTL", 0, INT_MAX, false, ttl()));
       if (ZmRef<ZvCf> groups = cf->subset("multicastGroups")) {
-	ZvCf::Iterator i(groups);
-	ZuString addr_, mif_;
-	while (mif_ = i.get(addr_)) {
-	  ZiIP addr(addr_), mif(mif_);
-	  if (!addr || !addr.multicast()) throw ZvInvalidMulticastIP(addr_);
+	groups->all([this](ZvCfNode *node) {
+	  ZiIP addr{node->key}, mif{node->values[0]};
+	  if (!addr || !addr.multicast())
+	    throw ZvInvalidMulticastIP{node->key};
 	  mreq(ZiMReq(addr, mif));
-	}
+	});
       }
     }
     if (netlink())
@@ -124,31 +123,32 @@ struct ZvMxParams : public ZiMxParams {
       sched.startTimer(
 	  cf->getInt("startTimer", 0, 1, false, sched.startTimer()));
       if (ZmRef<ZvCf> threadsCf = cf->subset("threads")) {
-	ZvCf::Iterator i(threadsCf);
-	ZuString id;
-	while (ZmRef<ZvCf> threadCf = i.subset(id)) {
-	  ZuBox<unsigned> tid = id;
-	  if (id != ZuStringN<12>{tid})
-	    throw ZtString{} << "bad thread ID \"" << id << '"';
-	  ZmSchedParams::Thread &thread = sched.thread(tid);
-	  thread.isolated(threadCf->getInt(
-		"isolated", 0, 1, false, thread.isolated()));
-	  if (ZuString s = threadCf->get("name")) thread.name(s);
-	  thread.stackSize(threadCf->getInt(
-		"stackSize", 0, INT_MAX, false, thread.stackSize()));
-	  if (ZuString s = threadCf->get("priority")) {
-	    if (s == "RealTime") thread.priority(ZmThreadPriority::RealTime);
-	    else if (s == "High") thread.priority(ZmThreadPriority::High);
-	    else if (s == "Normal") thread.priority(ZmThreadPriority::Normal);
-	    else if (s == "Low") thread.priority(ZmThreadPriority::Low);
-	    else throw ZtString{} << "bad thread priority \"" << s << '"';
+	threadsCf->all([&sched](ZvCfNode *node) {
+	  if (auto threadCf = node->cf) {
+	    ZuString id = node->key;
+	    ZuBox<unsigned> tid = id;
+	    if (id != ZuStringN<12>{tid})
+	      throw ZtString{} << "bad thread ID \"" << id << '"';
+	    ZmSchedParams::Thread &thread = sched.thread(tid);
+	    thread.isolated(threadCf->getInt(
+		  "isolated", 0, 1, false, thread.isolated()));
+	    if (ZuString s = threadCf->get("name")) thread.name(s);
+	    thread.stackSize(threadCf->getInt(
+		  "stackSize", 0, INT_MAX, false, thread.stackSize()));
+	    if (ZuString s = threadCf->get("priority")) {
+	      if (s == "RealTime") thread.priority(ZmThreadPriority::RealTime);
+	      else if (s == "High") thread.priority(ZmThreadPriority::High);
+	      else if (s == "Normal") thread.priority(ZmThreadPriority::Normal);
+	      else if (s == "Low") thread.priority(ZmThreadPriority::Low);
+	      else throw ZtString{} << "bad thread priority \"" << s << '"';
+	    }
+	    thread.partition(threadCf->getInt(
+		  "partition", 0, INT_MAX, false, thread.partition()));
+	    if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
+	    thread.detached(
+		threadCf->getInt("detached", 0, 1, false, thread.detached()));
 	  }
-	  thread.partition(threadCf->getInt(
-		"partition", 0, INT_MAX, false, thread.partition()));
-	  if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
-	  thread.detached(
-	      threadCf->getInt("detached", 0, 1, false, thread.detached()));
-	}
+	});
       }
     }
 

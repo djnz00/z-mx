@@ -199,7 +199,7 @@ namespace ZmPQueue_ {
 };
 
 template <typename Item_, class NTP = ZmPQueue_Defaults>
-class ZmPQueue : public ZmNodeFn<NTP::Shadow, Item_, typename NTP::Node> {
+class ZmPQueue : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
 public:
   using Item = Item_;
   enum { Bits = NTP::Bits };
@@ -218,7 +218,7 @@ public:
       ((ZuBox0(unsigned)), length));
 
 private:
-  using NodeFn = ZmNodeFn<Shadow, Item, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;

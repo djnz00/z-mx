@@ -340,6 +340,7 @@ namespace Load {
     return {reinterpret_cast<const char *>(s->Data()), s->size()};
   }
   // inline zero-copy conversion of a fixed-width FB string to a ZuString
+  template <unsigned N>
   inline ZuString strN(const flatbuffers::Array<uint8_t, N> *s) {
     if (!s) return {};
     auto data = reinterpret_cast<const char *>(s->Data());

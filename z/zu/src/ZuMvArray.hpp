@@ -96,8 +96,17 @@ public:
   T *data() { return m_data; }
   const T *data() const { return m_data; }
 
+// release / free
+  T *release() {
+    auto ptr = m_data;
+    m_length = 0;
+    m_data = nullptr;
+    return ptr;
+  }
+  void free(const T *ptr) { ::free(ptr); }
+
 // reset to null
-  void null() { delete [] m_data; m_length = 0;  m_data = nullptr;}
+  void null() { ::free(m_data); m_length = 0;  m_data = nullptr;}
 
 // set length
   void length(unsigned newLength) {
@@ -117,10 +126,12 @@ public:
   ZuOpBool
 
 // iteration
-  template <typename L> void all(L l) const {
+  template <bool Mutable = false, typename L>
+  ZuIfT<!Mutable> all(L l) const {
     for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
   }
-  template <typename L> void all(L l) {
+  template <bool Mutable, typename L>
+  ZuIfT<Mutable> all(L l) {
     for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
   }
 

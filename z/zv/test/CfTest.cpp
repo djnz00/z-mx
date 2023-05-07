@@ -101,7 +101,7 @@ int main()
       bool caught = false;
       try {
 	cf->fromString("fubar snafu", true);
-      } catch (const ZvCf::Invalid &e) {
+      } catch (const ZvCfError::Invalid &e) {
 	if (e.key() != "fubar") ZeLOG(Error, "Invalid key not passed");
 	caught = true;
       }

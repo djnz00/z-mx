@@ -805,11 +805,13 @@ public:
   bool mallocd() const { return m_length_mallocd>>31U; }
   bool owned() const { return m_size_owned>>31U; }
 
-// iteration
-  template <typename L> void all(L l) const {
+// iteration - all() is const by default, all<true>() is mutable
+  template <bool Mutable = false, typename L>
+  ZuIfT<!Mutable> all(L l) const {
     for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
   }
-  template <typename L> void all(L l) {
+  template <bool Mutable, typename L>
+  ZuIfT<Mutable> all(L l) {
     for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
   }
 
@@ -847,10 +849,12 @@ private:
   }
 
 public:
-  T *data(bool move) {
-    if (move) owned(0);
+// release / free
+  T *release() {
+    owned(0);
     return m_data;
   }
+  static void free(const T *ptr) { vfree(ptr); }
 
 // reset to null array
 

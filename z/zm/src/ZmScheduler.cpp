@@ -312,7 +312,7 @@ bool ZmScheduler::tryRun_(Thread *thread, Fn &fn)
 
 bool ZmScheduler::push_(Thread *thread, Fn &fn)
 {
-  // Note: the MPSC requirement is to serialize the producing thread's work
+  // Note: the MPSC requirement is to serialize each producing thread's work
   if (ZuLikely(!thread->overCount.load_())) goto push;
 overflow:
   ++thread->overCount;

@@ -60,7 +60,8 @@ extern "C" {
   ZmExtern void ZmSingleton_dtor();
 }
 
-template <typename T, bool IsObject = ZuIsObject_<T>::OK> struct ZmSingleton_ {
+template <typename T, bool = ZuObjectTraits<T>::IsObject>
+struct ZmSingleton_ {
   void ref(T *p) { ZmREF(p); }
   void deref(T *p) { ZmDEREF(p); }
 };

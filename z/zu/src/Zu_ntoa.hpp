@@ -346,43 +346,23 @@ namespace Zu_ntoa {
   template <unsigned Size> struct Log16;
   template <> struct Log16<1> {
     ZuInline static unsigned log(unsigned v) {
-      unsigned l;
-      if (ZuLikely(v < 0x10))
-	l = 1U;
-      else
-	l = 2U;
-      return l;
+      return ZuLikely(v < 0x10) ? 1U : 2U;
     }
   };
   template <> struct Log16<4> {
     ZuInline static unsigned log(uint32_t v) {
-      unsigned l;
-      if (ZuUnlikely(!v))
-	l = 1U;
-      else
-	l = (35U - __builtin_clz(v))>>2U;
-      return l;
+      return ZuUnlikely(!v) ? 1U : (35U - __builtin_clz(v))>>2;
     }
   };
   template <> struct Log16<2> : public Log16<4> { };
   template <> struct Log16<8> {
     ZuInline static unsigned log(uint64_t v) {
-      unsigned l;
-      if (ZuUnlikely(!v))
-	l = 1U;
-      else
-	l = (67U - __builtin_clzll(v))>>2U;
-      return l;
+      return ZuUnlikely(!v) ? 1U : (67U - __builtin_clzll(v))>>2;
     }
   };
   template <> struct Log16<16> {
     ZuInline static unsigned log(uint128_t v) {
-      unsigned l;
-      if (ZuLikely(!(v>>64U)))
-	l = Log16<8>::log(v);
-      else
-	l = Log16<8>::log(v>>64U) + 16U;
-      return l;
+      return ZuLikely(!(v>>64)) ? Log16<8>::log(v) : Log16<8>::log(v>>64) + 16U;
     }
   };
 

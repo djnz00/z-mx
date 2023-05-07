@@ -745,9 +745,9 @@ private:
   }
 
 public:
-  Char *data(bool move) {
-    if (!move) return data_();
-    if (null__()) return 0;
+// release / free
+  Char *release() {
+    if (null__()) return nullptr;
     if (builtin()) {
       Char *newData = static_cast<Char *>(valloc(BuiltinSize * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
@@ -759,6 +759,7 @@ public:
       return reinterpret_cast<Char *>(m_data[0]);
     }
   }
+  static void free(const Char *ptr) { vfree(ptr); }
 
 // reset to null string
 

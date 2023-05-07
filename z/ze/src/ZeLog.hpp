@@ -48,12 +48,11 @@
 
 #include <zlib/ZmBackTrace.hpp>
 #include <zlib/ZmCleanup.hpp>
-#include <zlib/ZmList.hpp>
-#include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmThread.hpp>
 #include <zlib/ZmTime.hpp>
-#include <zlib/ZmNoLock.hpp>
+#include <zlib/ZmRing.hpp>
+#include <zlib/ZmRingFn.hpp>
 
 #include <zlib/ZtString.hpp>
 
@@ -64,16 +63,21 @@
 #pragma warning(disable:4251 4231 4660)
 #endif
 
+class ZeLog;
+
+using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
+
 namespace ZeSinkType {
   ZtEnumValues("ZeSinkType", File, Debug, System, Lambda);
 }
 struct ZeSink : public ZmPolymorph {
+  int	type;	// ZeSinkType
+
   ZeSink(int type_) : type(type_) { }
 
-  virtual void log(ZeEvent *) = 0;
+  virtual void pre(ZeLogBuf &, const ZeEvent &) = 0;
+  virtual void post(ZeLogBuf &, const ZeEvent &) = 0;
   virtual void age() = 0;
-
-  int	type;	// ZeSinkType
 };
 
 class ZeAPI ZeFileSink : public ZeSink {
@@ -85,23 +89,24 @@ public:
       ZeSink{ZeSinkType::File} { init(); }
   ZeFileSink(ZuString path, unsigned age = 8, int tzOffset = 0) :
       ZeSink{ZeSinkType::File},
-      m_path{path}, m_age{age}, m_tzOffset{tzOffset} { init(); }
+      m_path{path}, m_age{age}, m_dateFmt{tzOffset} { init(); }
 
   ~ZeFileSink();
 
-  void log(ZeEvent *e);
+  void pre(ZeLogBuf &, const ZeEvent &);
+  void post(ZeLogBuf &, const ZeEvent &);
   void age();
 
 private:
   void init();
   void age_();
 
-  ZtString	m_path;
-  unsigned	m_age = 8;
-  int		m_tzOffset = 0;	// timezone offset
+  ZtString		m_path;
+  unsigned		m_age = 8;
+  ZtDateFmt::CSV	m_dateFmt;
 
-  Lock		m_lock;
-    FILE *	  m_file = nullptr;
+  Lock			m_lock;
+    FILE *		  m_file = nullptr;
 };
 
 class ZeAPI ZeDebugSink : public ZeSink {
@@ -110,13 +115,14 @@ class ZeAPI ZeDebugSink : public ZeSink {
 
 public:
   ZeDebugSink() : ZeSink{ZeSinkType::Debug},
-    m_started(ZmTime::Now) { init(); }
+    m_started{ZmTime::Now} { init(); }
   ZeDebugSink(ZuString path) : ZeSink{ZeSinkType::Debug},
-    m_path(path), m_started(ZmTime::Now) { init(); }
+    m_path{path}, m_started{ZmTime::Now} { init(); }
 
   ~ZeDebugSink();
 
-  void log(ZeEvent *e);
+  void pre(ZeLogBuf &, const ZeEvent &);
+  void post(ZeLogBuf &, const ZeEvent &);
   void age() { } // unused
 
 private:
@@ -130,7 +136,8 @@ private:
 struct ZeAPI ZeSysSink : public ZeSink {
   ZeSysSink() : ZeSink{ZeSinkType::System} { }
 
-  void log(ZeEvent *e);
+  void pre(ZeLogBuf &, const ZeEvent &);
+  void post(ZeLogBuf &, const ZeEvent &);
   void age() { } // unused
 };
 
@@ -138,7 +145,8 @@ template <typename L>
 struct ZeLambdaSink : public ZeSink, public L {
   ZeLambdaSink(L l) : ZeSink{ZeSinkType::Lambda}, L{ZuMv(l)} { }
 
-  void log(ZeEvent *e) { L::operator()(e); }
+  void pre(ZeLogBuf &, const ZeEvent &);
+  void post(ZeLogBuf &, const ZeEvent &);
   void age() { } // unused
 };
 
@@ -151,13 +159,12 @@ friend ZmSingletonCtor<ZeLog>;
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
-  using EventQueue = ZeEvent_Queue;
+  using Ring = ZmRing<ZmRingMW<true>>;
+  using Fn = ZmRingFn<ZmRingFnArgs<ZuTypeList<ZeLog *>>>;
 
   ZeLog();
 
 public:
-  virtual ~ZeLog() { m_work.post(); } // ensure thread is woken up
-
   friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
 
   template <typename ...Args>
@@ -177,9 +184,11 @@ public:
     return new ZeLambdaSink<L>(ZuMv(l));
   }
 
-  template <typename ...Args>
-  static void init(Args &&... args) {
-    instance()->init_(ZuFwd<Args>(args)...);
+  static void init(const char *program) {
+    instance()->init_(program);
+  }
+  static void init(const char *program, const char *facility) {
+    instance()->init_(program, facility);
   }
 
   static ZuString program() { return instance()->program_(); }
@@ -196,29 +205,38 @@ public:
   static void stop() { instance()->stop_(); }
   static void forked() { instance()->forked_(); }
 
-  static void log(ZmRef<ZeEvent> e) { instance()->log_(ZuMv(e)); }
+  template <typename L>
+  static void log(ZeEvent e, L l) { instance()->log_(ZuMv(e), ZuMv(l)); }
+  template <typename L>
+  void log_(ZeEvent e, L l) {
+    if (static_cast<int>(e.severity) < m_level) return;
+    auto fn_ = [e = ZuMv(e), l = ZuMv(l)](ZeLog *this_) mutable {
+      auto sink = this_->sink_();
+      auto &buf = this_->m_buf;
+      buf.null();
+      sink->pre(buf, e);
+      ZuMv(l)(buf);
+      sink->post(buf, e);
+    };
+    Fn fn{fn_};
+    log__(fn);
+  }
   static void age() { instance()->age_(); }
 
 private:
   static ZeLog *instance();
 
-  void init_(ZuString program) {
-    m_program = program;
-    m_facility = "user";
-    Ze::sysloginit(m_program, 0);
-  }
-  void init_(ZuString program, ZuString facility) {
-    m_program = program;
-    m_facility = facility;
-    Ze::sysloginit(m_program, m_facility);
-  }
+  void init_();
+  void init_(const char *program);
+  void init_(const char *program, const char *facility);
 
-  ZuString program_();
+  ZuString program_() const { return m_program; }
   ZuString facility_() const { return m_facility; }
 
   int level_() const { return m_level; }
   void level_(int l) { m_level = l; }
 
+  ZmRef<ZeSink> sink_();
   void sink_(ZmRef<ZeSink> sink);
 
   void start_();
@@ -227,8 +245,8 @@ private:
   void forked_();
 
   void work_();
-  void log_(ZmRef<ZeEvent> e);
-  void log__(ZeEvent *e);
+
+  void log__(Fn &fn);
 
   void age_();
 
@@ -236,54 +254,96 @@ private:
   ZtString		m_program;
   ZtString		m_facility;
   int			m_level;
-  ZmSemaphore		m_work;
-  ZmSemaphore		m_started;
+
+  ZmThread		m_thread;
+  Ring			m_ring;
+
   Lock			m_lock;
     ZmRef<ZeSink>	  m_sink;
-    EventQueue		  m_queue;
-    ZmThread		  m_thread;
+
+  // thread-specific
+  ZeLogBuf		m_buf;
 };
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 
+namespace ZeLog_ {
+
+template <typename U_> struct IsLiteral {
+  using U = ZuDecay<U_>;
+  enum { OK = ZuTraits<U>::IsArray &&
+    ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
+    ZuConversion<typename ZuTraits<U>::Elem, const char>::Same };
+};
+template <typename U, typename R = void>
+using MatchLiteral = ZuIfT<IsLiteral<U>::OK, R>;
+
+template <typename U_> struct IsPrint {
+  using U = ZuDecay<U_>;
+  enum { OK = !IsLiteral<U_>::OK &&
+    (ZuTraits<U>::IsString || ZuPrint<U>::OK) };
+};
+template <typename U, typename R = void>
+using MatchPrint = ZuIfT<IsPrint<U>::OK, R>;
+
+template <typename U_> struct IsOther {
+  using U = ZuDecay<U_>;
+  enum { OK = !IsLiteral<U_>::OK && !IsPrint<U_>::OK };
+};
+template <typename U, typename R = void>
+using MatchOther = ZuIfT<IsOther<U>::OK, R>;
+
 template <typename Msg>
-auto Ze_BackTrace_fn(ZmBackTrace bt, Msg &&msg) {
-  return [bt = ZuMv(bt), fn = ZeMessageFn(ZuFwd<Msg>(msg))](
-      const ZeEvent &e, ZmStream &s) {
-    fn(e, s);
-    s << '\n' << bt;
+inline auto fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {
+  return ZuFwd<Msg>(msg);
+}
+template <typename Msg>
+inline auto fn(Msg &&msg, ZeLog_::MatchLiteral<Msg> *_ = nullptr) {
+  return [msg = ZuString{ZuFwd<Msg>(msg)}](ZeLogBuf &buf) mutable {
+    buf << ZuMv(msg);
+  };
+}
+template <typename Msg>
+inline auto fn(Msg &&msg, ZeLog_::MatchPrint<Msg> *_ = nullptr) {
+  return [msg = ZuFwd<Msg>(msg)](ZeLogBuf &buf) mutable {
+    buf << ZuMv(msg);
   };
 }
 
-#define Ze_ERROR_(sev, e) ZeLog::log(ZeEVENT_(sev, (e)))
-#define Ze_LOG_(sev, msg) ZeLog::log(ZeEVENT_(sev, msg))
-#define Ze_BackTrace_(sev, msg) \
-  do { \
-    ZmBackTrace bt__(0); \
-    ZeLog::log(ZeEVENT_(sev, Ze_BackTrace_fn(bt__, msg))); \
-  } while (0)
+} // ZeLog_
+
+template <typename Msg>
+inline void ZeLOG__(ZeEvent e, Msg &&msg) {
+  ZeLog::log(ZuMv(e), ZeLog_::fn(ZuFwd<Msg>(msg)));
+}
+
+template <typename Msg>
+inline void ZeBackTrace__(ZeEvent e, Msg &&msg) {
+  ZmBackTrace bt{1};
+  ZeLog::log(ZuMv(e),
+      [bt = ZuMv(bt), fn = ZeLog_::fn(ZuFwd<Msg>(msg))](ZeLogBuf &buf) mutable {
+    ZuMv(fn)(buf);
+    buf << '\n' << ZuMv(bt);
+  });
+}
 
 #ifndef ZDEBUG
 
 // filter out DEBUG messages in production builds
-#define ZeERROR_(sev, e) \
-  ((sev > Ze::Debug) ? Ze_ERROR_(sev, e) : void())
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? Ze_LOG_(sev, msg) : void())
+  ((sev > Ze::Debug) ? ZeLOG__(ZeEVENT_(sev), msg) : void())
 #define ZeBackTrace_(sev, msg) \
-  do { if (sev > Ze::Debug) Ze_BackTrace_(sev, msg); } while (0)
+  do { if (sev > Ze::Debug) ZeBackTrace__(ZeEVENT_(sev), msg); } while (0)
 
 #else /* !ZEBUG */
 
-#define ZeERROR_(sev, e) Ze_ERROR_(sev, e)
-#define ZeLOG_(sev, msg) Ze_LOG_(sev, msg)
-#define ZeBackTrace_(sev, msg) Ze_BackTrace_(sev, msg)
+#define ZeLOG_(sev, msg) ZeLOG__(ZeEVENT_(sev), msg)
+#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeEVENT_(sev), msg)
 
 #endif /* !ZEBUG */
 
-#define ZeERROR(sev, e) ZeERROR_(Ze:: sev, e)
 #define ZeLOG(sev, msg) ZeLOG_(Ze:: sev, msg)
 #define ZeBackTrace(sev, msg) ZeBackTrace_(Ze:: sev, msg)
 

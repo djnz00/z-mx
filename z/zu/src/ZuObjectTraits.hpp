@@ -17,49 +17,35 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// socket I/O
+// compile-time traits for intrusively reference-counted objects
 
-#ifndef ZiSocket_HPP
-#define ZiSocket_HPP
+#ifndef ZuObjectTraits_HPP
+#define ZuObjectTraits_HPP
 
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#ifndef ZiLib_HPP
-#include <zlib/ZiLib.hpp>
+#ifndef ZuLib_HPP
+#include <zlib/ZuLib.hpp>
 #endif
 
-#include <zlib/ZiPlatform.hpp>
+void ZuObjectType(...);
 
-class ZiAPI ZiSocket {
-public:
-  using Socket = Zi::Socket;
-  using SocketCmp = Zi::SocketCmp;
-  using Hostname = Zi::Hostname;
-
-  enum Result {
-    OK		= Zi::OK,
-    EndOfFile	= Zi::EndOfFile,
-    IOError	= Zi::IOError
-  };
-
-  enum Flags {
-    OOB		= 0x01,
-    GC		= 0x02
-  };
-  enum Protocol { UDP = 0, TCP = 1 };
-
-  ZiSocket() { }
-
-  Result socket(Protocol protocol);
-  Result connect(const Hostname &hostname, int port, Error *Error = 0);
-  Result bind(const Hostname &hostname, int port, Error *Error = 0);
-  Result listen(Error *error = 0);
-  Result accept(ZiSocket &socket, Error *error = 0);
-
-private:
-  Socket	m_socket;
+template <
+  typename U,
+  typename O = decltype(ZuObjectType(ZuDeclVal<ZuDecay<U> *>()))>
+struct ZuObjectTraits {
+  using T = O;
+  enum { IsObject = 1 };
 };
+template <typename U>
+struct ZuObjectTraits<U, void> {
+  enum { IsObject = 0 };
+};
+template <typename U, typename R = void>
+using ZuIsObject = ZuIfT<ZuObjectTraits<U>::IsObject, R>;
+template <typename U, typename R = void>
+using ZuNotObject = ZuIfT<!ZuObjectTraits<U>::IsObject, R>;
 
-#endif /* ZiSocket_HPP */
+#endif /* ZuObjectTraits_HPP */

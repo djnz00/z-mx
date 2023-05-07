@@ -216,7 +216,7 @@ public:
     if (ZuUnlikely(i == -1)) return last();
     do {
       if (--i < 0) return -1;
-    } while (!(*this && i));
+    } while (!get(i));
     return i;
   }
 

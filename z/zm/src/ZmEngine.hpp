@@ -70,7 +70,7 @@ private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  constexpr static const char *HeapID() { return "ZmEngine"; };
+  static const char *HeapID() { return "ZmEngine"; };
   using CtrlFnRing =
     ZmXRing<ZmFn<bool>, ZmXRingHeapID<HeapID>>;
 

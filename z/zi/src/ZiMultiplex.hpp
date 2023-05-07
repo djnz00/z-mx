@@ -516,9 +516,7 @@ public:
   static Zi::Socket SocketAxor(const ZiConnection *c) {
     return c->info().socket;
   }
-  constexpr static const char *HeapID() {
-    return "ZiMultiplex.Connection";
-  }
+  static const char *HeapID() { return "ZiMultiplex.Connection"; }
 
 protected:
   ZiConnection(ZiMultiplex *mx, const ZiCxnInfo &ci);
@@ -743,9 +741,7 @@ friend ZiConnection;
     static Zi::Socket SocketAxor(const Listener_ &l) {
       return l.info().socket;
     }
-    constexpr static const char *HeapID() {
-      return "ZiMultiplex.Listener";
-    }
+    static const char *HeapID() { return "ZiMultiplex.Listener"; }
 
   protected:
     template <typename ...Args>

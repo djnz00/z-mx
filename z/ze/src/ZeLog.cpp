@@ -31,12 +31,120 @@
 
 #include <zlib/ZeLog.hpp>
 
-ZeLog::ZeLog() : m_level(1) { }
+ZeLog::ZeLog() : m_level{1} {
+  init_();
+}
 
 ZeLog *ZeLog::instance()
 {
   return ZmSingleton<ZeLog>::instance();
 }
+
+#ifndef _WIN32
+
+struct ZePlatform_Syslogger {
+  using Lock = ZmLock;
+  using Guard = ZmGuard<Lock>;
+
+public:
+  ZePlatform_Syslogger() { openlog("", 0, LOG_USER); }
+  ~ZePlatform_Syslogger() { closelog(); }
+
+  void init(const char *program, int facility = LOG_USER) {
+    Guard guard(m_lock);
+
+    closelog();
+    openlog(program, 0, m_facility = facility);
+  }
+
+  int facility() { return m_facility; }
+
+  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_Syslogger *);
+
+private:
+  ZmLock	m_lock;
+    int		  m_facility;
+};
+
+static ZePlatform_Syslogger *syslogger() {
+  return ZmSingleton<ZePlatform_Syslogger>::instance();
+}
+
+static int sysloglevel(int i) {
+  static const int levels[] = {
+    LOG_DEBUG,		// Debug
+    LOG_INFO,		// Info
+    LOG_WARNING,	// Warning
+    LOG_ERR,		// Error
+    LOG_CRIT		// Fatal
+  };
+
+  return (i < 0 || i > 4) ? LOG_ERR : levels[i];
+}
+
+#else /* !_WIN32 */
+
+#define Ze_NTFS_MAX_PATH	32768	// MAX_PATH is 260 and deprecated
+
+static int eventlogtype(int i) {
+  static const int types[] = {
+    EVENTLOG_SUCCESS,		// Debug
+    EVENTLOG_INFORMATION_TYPE,	// Info
+    EVENTLOG_WARNING_TYPE,	// Warning
+    EVENTLOG_ERROR_TYPE,	// Error
+    EVENTLOG_ERROR_TYPE		// Fatal
+  };
+  enum { N = sizeof(types) / sizeof(types[0]) };
+
+  return (i < 0 || i >= N) ? EVENTLOG_WARNING_TYPE : types[i];
+}
+
+struct ZePlatform_EventLogger {
+  HANDLE			handle = INVALID_HANDLE_VALUE;
+  ZtString			program;
+  ZuWStringN<ZeLog_BUFSIZ / 2>	buf;
+
+  ZePlatform_EventLogger() {
+    handle = RegisterEventSource(0, L"EventSystem");
+
+    ZtWString path_;
+
+    path_.size(Ze_NTFS_MAX_PATH);
+    GetModuleFileName(0, path_.data(), Ze_NTFS_MAX_PATH);
+    path_.calcLength();
+
+    ZtString path(path_);
+
+    program = "Application";
+    try {
+      ZtRegex::Captures c;
+      if (ZtREGEX("[^\\]*$").m(path, c, 0)) program = c[1];
+    } catch (...) { }
+  }
+  ~ZePlatform_EventLogger() {
+    DeregisterEventSource(handle);
+  }
+
+  void report(const ZeEvent &e, const ZeLog::Buf &buf) {
+    wbuf.null();
+    wbuf.length(ZuUTF<wchar_t, char>::cvt(
+	  ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
+    const wchar_t *w = buf.data();
+
+    ReportEvent(
+      handle, eventlogtype(e.severity), 0, 512, 0, 1, 0, &w, 0);
+  }
+
+  friend ZuConstant<ZmCleanup::Platform>
+    ZmCleanupLevel(ZePlatform_EventLogger *);
+};
+
+static ZePlatform_EventLogger *eventLogger()
+{
+  return ZmSingleton<ZePlatform_EventLogger>::instance();
+}
+
+#endif /* !_WIN32 */
 
 #ifdef linux
 extern "C" {
@@ -44,12 +152,48 @@ extern "C" {
 }
 #endif
 
-ZuString ZeLog::program_() {
+void ZeLog::init_()
+{
 #ifdef linux
-  if (ZuUnlikely(!m_program))
-    m_program = program_invocation_short_name;
+  init_(program_invocation_short_name, "user");
+#else
+  init_("ZeLog", "user");
 #endif
-  return m_program;
+}
+
+void ZeLog::init_(const char *program)
+{
+  init_(program, "user");
+}
+
+void ZeLog::init_(const char *program, const char *facility)
+{
+  m_program = program;
+  m_facility = facility;
+#ifndef _WIN32
+  static const char * const names[] = {
+    "daemon",
+    "local0", "local1", "local2", "local3",
+    "local4", "local5", "local6", "local7", 0
+  };
+  static const int values[] = {
+    LOG_DAEMON,
+    LOG_LOCAL0, LOG_LOCAL1, LOG_LOCAL2, LOG_LOCAL3,
+    LOG_LOCAL4, LOG_LOCAL5, LOG_LOCAL6, LOG_LOCAL7
+  };
+  const char *name;
+
+  if (facility)
+    for (unsigned i = 0; name = names[i]; i++) {
+      if (!strcmp(facility, name)) {
+	syslogger()->init(program, values[i]);
+	return;
+      }
+    }
+  syslogger()->init(program, LOG_USER);
+#else
+  eventLogger()->program = program;
+#endif
 }
 
 void ZeLog::sink_(ZmRef<ZeSink> sink)
@@ -61,15 +205,15 @@ void ZeLog::sink_(ZmRef<ZeSink> sink)
 void ZeLog::start_()
 {
   Guard guard(m_lock);
-  if (!!m_thread) return;
+  if (m_thread) return;
   start__();
 }
 
 void ZeLog::start__()
 {
+  m_ring.eof(false);
   m_thread = ZmThread{[this]() { work_(); },
       ZmThreadParams().name("log").priority(ZmThreadPriority::Low)};
-  m_started.wait();
 }
 
 void ZeLog::forked_()
@@ -87,51 +231,42 @@ void ZeLog::stop_()
     m_thread = {};
   }
   if (thread) return;
-  m_work.post();
+  m_ring.eof(true);
   thread.join();
 }
 
 void ZeLog::work_()
 {
-  m_started.post();
   for (;;) {
-    m_work.wait();
-    ZmRef<ZeEvent> event;
-    {
-      Guard guard(m_lock);
-      event = m_queue.shift();
+    if (void *ptr = m_ring.shift()) {
+      m_ring.shift2(Fn::invoke(ptr, this));
+    } else {
+      if (m_ring.readStatus() == Zu::EndOfFile) break;
     }
-    if (!event) return;
-    log__(event);
   }
 }
 
-void ZeLog::log_(ZmRef<ZeEvent> e)
+ZmRef<ZeSink> ZeLog::sink_()
 {
-  if (!e) return;
-  if ((int)e->severity() < m_level) return;
-  {
-    Guard guard(m_lock);
-    m_queue.pushNode(ZuMv(e));
-  }
-  m_work.post();
-}
-
-void ZeLog::log__(ZeEvent *e)
-{
-  ZmRef<ZeSink> sink;
-  {
-    Guard guard(m_lock);
-    sink = m_sink;
-    if (ZuUnlikely(!sink)) {
+  Guard guard(m_lock);
+  if (ZuUnlikely(!m_sink)) {
 #ifdef _WIN32
-      sink = m_sink = sysSink();	// on Windows, default to the event log
+    m_sink = sysSink(); // on Windows, default to the event log
 #else
-      sink = m_sink = fileSink();	// on Unix, default to stderr
+    m_sink = fileSink(); // on Unix, default to stderr
 #endif
-    }
   }
-  sink->log(e);
+  return m_sink;
+}
+
+void ZeLog::log__(Fn &fn)
+{
+  unsigned size = fn.pushSize();
+  void *ptr;
+  if (ZuLikely(ptr = m_ring.push(size))) {
+    fn.push(ptr);
+    m_ring.push2(ptr, size);
+  }
 }
 
 void ZeLog::age_()
@@ -144,27 +279,49 @@ void ZeLog::age_()
   if (sink) sink->age();
 }
 
-struct ZeLog_Buf : public ZmObject {
-  ZuStringN<ZeLog_BUFSIZ>	s;
-  ZtDateFmt::CSV		dateFmt;
-
-  ZeLog_Buf() { dateFmt.pad(' '); }
-
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZeLog_Buf *);
-};
-static ZeLog_Buf *logBuf()
+void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 {
-  ZeLog_Buf *buf = ZmSpecific<ZeLog_Buf>::instance();
-  buf->s.null();
-  return buf;
+#ifndef _WIN32
+  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
+    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+      ZuBoxed(e.lineNumber) << ' ';
+  buf << Ze::function(e.function);
+#else
+  ZePlatform_EventLogger *logger = eventLogger();
+  buf <<
+    logger->program << ' ' <<
+    ZuBoxed(e.tid) << " - ";
+  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
+    buf <<
+      '\"' << Ze::filename(e.filename) << "\":" <<
+      ZuBoxed(e.lineNumber) << ' ';
+  buf << Ze::function(e.function) << ' ' << *e;
+#endif
 }
-static ZeLog_Buf *logBuf(int tzOffset)
+
+void ZeSysSink::post(ZeLogBuf &buf, const ZeEvent &e)
 {
-  ZeLog_Buf *buf = ZmSpecific<ZeLog_Buf>::instance();
-  buf->s.null();
-  buf->dateFmt.offset(tzOffset);
-  return buf;
+  buf << '\n';
+
+  {
+    unsigned len = buf.length();
+
+    if (buf[len - 1] != '\n') buf[len - 1] = '\n';
+  }
+
+#ifndef _WIN32
+  ::syslog(syslogger()->facility() | sysloglevel(e.severity),
+      "%.*s", buf.length(), buf.data());
+#else
+  eventLogger()->report(e, buf);
+#endif
 }
+
+// suppress security warnings about fopen()
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
 
 void ZeFileSink::init()
 {
@@ -186,38 +343,29 @@ ZeFileSink::~ZeFileSink()
   if (m_file) fclose(m_file);
 }
 
-// suppress security warning about fopen()
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4996)
-#endif
-
-void ZeFileSink::log(ZeEvent *e)
+void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 {
-  Guard guard(m_lock);
+  ZtDate d{e.time};
 
-  ZeLog_Buf *buf = logBuf(m_tzOffset);
+  buf << d.print(m_dateFmt) << ' ' <<
+    ZuBoxed(e.tid) << ' ' <<
+    Ze::severity(e.severity) << ' ';
+  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
+    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+      ZuBoxed(e.lineNumber) << ' ';
+  buf << Ze::function(e.function) << "() ";
+}
 
-  ZtDate d{e->time()};
+void ZeFileSink::post(ZeLogBuf &buf, const ZeEvent &e)
+{
+  buf << '\n';
 
-  buf->s <<
-    d.print(buf->dateFmt) << ' ' <<
-    ZuBoxed(e->tid()) << ' ' <<
-    Ze::severity(e->severity()) << ' ';
-  if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
-    buf->s <<
-      '\"' << Ze::filename(e->filename()) << "\":" <<
-      ZuBoxed(e->lineNumber()) << ' ';
-  buf->s <<
-    Ze::function(e->function()) << "() " <<
-    e->message() << '\n';
+  unsigned len = buf.length();
 
-  unsigned len = buf->s.length();
+  if (buf[len - 1] != '\n') buf[len - 1] = '\n';
 
-  if (buf->s[len - 1] != '\n') buf->s[len - 1] = '\n';
-
-  fwrite(buf->s.data(), 1, len, m_file);
-  if (e->severity() > Ze::Debug) fflush(m_file);
+  fwrite(buf.data(), 1, len, m_file);
+  if (e.severity > Ze::Debug) fflush(m_file);
 }
 
 void ZeFileSink::age()
@@ -272,37 +420,34 @@ ZeDebugSink::~ZeDebugSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeDebugSink::log(ZeEvent *e)
+void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 {
-  ZeLog_Buf *buf = logBuf();
+  ZmTime d = e.time - m_started;
 
-  ZmTime d = e->time() - m_started;
-
-  buf->s <<
+  buf <<
     '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
-    ZuBoxed(e->tid()) << ' ' <<
-    Ze::severity(e->severity()) << ' ';
-  if (e->severity() == Ze::Debug || e->severity() == Ze::Fatal)
-    buf->s <<
-      '\"' << Ze::filename(e->filename()) << "\":" <<
-      ZuBoxed(e->lineNumber()) << ' ';
-  buf->s <<
-    Ze::function(e->function()) << "() " <<
-    e->message() << '\n';
+    ZuBoxed(e.tid) << ' ' <<
+    Ze::severity(e.severity) << ' ';
+  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
+    buf <<
+      '\"' << Ze::filename(e.filename) << "\":" <<
+      ZuBoxed(e.lineNumber) << ' ';
+  buf <<
+    Ze::function(e.function) << "() ";
+}
 
-  unsigned len = buf->s.length();
+void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent &e)
+{
+  buf << '\n';
 
-  if (buf->s[len - 1] != '\n') buf->s[len - 1] = '\n';
+  unsigned len = buf.length();
 
-  fwrite(buf->s.data(), 1, len, m_file);
+  if (buf[len - 1] != '\n') buf[len - 1] = '\n';
+
+  fwrite(buf.data(), 1, len, m_file);
   fflush(m_file);
 }
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
-
-void ZeSysSink::log(ZeEvent *e)
-{
-  Ze::syslog(e);
-}

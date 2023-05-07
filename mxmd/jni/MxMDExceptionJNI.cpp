@@ -49,7 +49,7 @@ namespace MxMDExceptionJNI {
 jobject MxMDExceptionJNI::ctor(JNIEnv *env, const ZeEvent *data)
 {
   ZuStringN<BUFSIZ> s;
-  s << data->message();
+  s << *data;
   return env->CallStaticObjectMethod(class_, ctorMethod[0].mid,
       ZJNI::t2j(env, ZtDate{data->time()}),
       (jlong)data->tid(),

@@ -387,12 +387,14 @@ struct IndexBlk_ {
   IndexBlk_(IndexBlk_ &&) = delete;
   IndexBlk_ &operator =(IndexBlk_ &&) = delete;
 };
-inline const char *IndexBlk_HeapID() { return "Zdb.IndexBlk"; }
+inline constexpr auto IndexBlk_HeapID() { 
+  return []() { return "Zdb.IndexBlk"; }
+}
 using IndexBlkCache =
   ZmCache<IndexBlk_,
     ZmCacheNode<IndexBlk_,
       ZmCacheKey<IndexBlk_::IDAxor,
-	ZmCacheHeapID<IndexBlk_HeapID>>>>;
+	ZmCacheHeapID<IndexBlk_HeapID()>>>>;
 using IndexBlk = IndexBlkCache::Node;
 
 // -- file cache

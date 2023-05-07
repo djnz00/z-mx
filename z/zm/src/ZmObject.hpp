@@ -33,12 +33,20 @@
 
 #include <stddef.h>
 
-#include <zlib/ZmObject_.hpp>
 #include <zlib/ZmAtomic.hpp>
+#ifdef ZmObject_DEBUG
+#include <zlib/ZmObjectDebug.hpp>
+#endif
 
-class ZmObject : public ZmObject_Debug {
+class ZmObject 
+#ifdef ZmObject_DEBUG
+: public ZmObjectDebug
+#endif
+{
   ZmObject(const ZmObject &) = delete;
   ZmObject &operator =(const ZmObject &) = delete;
+
+  friend ZmObject ZuObjectType(ZmObject *);
 
 public:
   ZuInline ZmObject() : m_refCount{0} { }

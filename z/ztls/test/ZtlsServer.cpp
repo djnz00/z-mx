@@ -54,9 +54,9 @@ struct App : public Ztls::Server<App> {
     }
   };
 
-  using TCP = typename Link::TCP;
-  TCP *accepted(const ZiCxnInfo &ci) {
-    return new TCP(new Link(this), ci);
+  using Cxn = typename Link::Cxn;
+  Cxn *accepted(const ZiCxnInfo &ci) {
+    return new Cxn(new Link(this), ci);
   }
 
   App(ZtString server, unsigned port) : m_localIP(server), m_localPort(port) { }

@@ -235,8 +235,7 @@ public:
 };
 
 template <typename T_, class NTP = ZmRBTree_Defaults>
-class ZmRBTree :
-    public ZmNodeFn<NTP::Shadow, T_, typename NTP::Node> {
+class ZmRBTree : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
   template <typename, int> friend class ZmRBTreeIterator_;
   template <typename, int> friend class ZmRBTreeIterator;
   template <typename, int> friend class ZmRBTreeReadIterator;
@@ -259,7 +258,7 @@ public:
   enum { Sharded = NTP::Sharded };
 
 private:
-  using NodeFn = ZmNodeFn<Shadow, T, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, NodeBase>;
 
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;

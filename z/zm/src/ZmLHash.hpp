@@ -66,7 +66,7 @@ struct ZmLHash_Defaults {
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
   using Lock = ZmNoLock;
-  struct ID { constexpr static const char *id() { return "ZmLHash"; } };
+  static const char *ID() { return "ZmHash"; }
   enum { Static = 0 };
   enum { Local = 0 };
 };
@@ -109,9 +109,9 @@ struct ZmLHashLock : public NTP {
 };
 
 // ZmLHashID - the hash ID
-template <class ID_, typename NTP = ZmLHash_Defaults>
+template <auto ID_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashID : public NTP {
-  using ID = ID_;
+  constexpr static auto ID = ID_;
 };
 
 // ZmLHashStatic<Bits> - static/non-resizable vs dynamic/resizable allocation
@@ -398,13 +398,15 @@ public:
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
   using Lock = typename NTP::Lock;
-  using ID = typename NTP::ID;
+  constexpr static auto ID = NTP::ID;
+  enum { Static = NTP::Static };
+
   using LockTraits = ZmLockTraits<Lock>;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
+
   using Node = ZmLHash_Node<T, KeyAxor, ValAxor>;
   using Ops = ZmLHash_Ops<Node>;
-  enum { Static = NTP::Static };
  
 private:
   // CheckHashFn ensures that legacy hash functions returning int
@@ -596,7 +598,7 @@ public:
   };
 
   template <typename ...Args>
-  ZmLHash(ZmHashParams params = ZmHashParams{ID::id()}) : Base{params} {
+  ZmLHash(ZmHashParams params = ZmHashParams{ID()}) : Base{params} {
     Base::init();
   }
   ZmLHash(const ZmLHash &) = delete;
@@ -999,12 +1001,12 @@ public:
   }
 
   void telemetry(ZmHashTelemetry &data) const {
-    data.id = ID::id();
-    data.addr = (uintptr_t)this;
+    data.id = ID();
+    data.addr = reinterpret_cast<uintptr_t>(this);
     data.loadFactor = loadFactor();
     unsigned count = m_count.load_();
     unsigned bits = this->bits();
-    data.effLoadFactor = ((double)count) / ((double)(1<<bits));
+    data.effLoadFactor = static_cast<double>(count) / (1<<bits);
     data.nodeSize = sizeof(Node);
     data.count = count;
     data.resized = resized();

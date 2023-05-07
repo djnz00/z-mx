@@ -10,9 +10,9 @@ pkginclude_HEADERS = \
 	ZmBackTracer.hpp ZmBackoff.hpp ZmBitmap.hpp ZmBlock.hpp \
 	ZmCleanup.hpp ZmCondition.hpp ZmXRing.hpp \
 	ZmFn.hpp ZmFn_.hpp ZmGlobal.hpp ZmGuard.hpp \
-	ZmHash.hpp ZmHashMgr.hpp ZmNode.hpp ZmNodeContainer.hpp ZmLHash.hpp \
+	ZmHash.hpp ZmHashMgr.hpp ZmNode.hpp ZmNodeFn.hpp ZmLHash.hpp \
 	ZmLib.hpp ZmList.hpp ZmLock.hpp ZmLockTraits.hpp ZmNoLock.hpp \
-	ZmObject_.hpp ZmObject.hpp ZmPolymorph.hpp ZmPLock.hpp \
+	ZmObject.hpp ZmObjectDebug.hpp ZmPolymorph.hpp ZmPLock.hpp \
 	ZmPQueue.hpp ZmPlatform.hpp ZmRBTree.hpp ZmRWLock.hpp ZmRandom.hpp \
 	ZmRef.hpp ZmRing.hpp ZmRingFn.hpp \
 	ZmScheduler.hpp ZmSemaphore.hpp ZmShard.hpp \
@@ -23,7 +23,7 @@ pkginclude_HEADERS = \
 lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \
-	ZmLib.cpp ZmLock.cpp ZmObject_.cpp ZmPlatform.cpp ZmRandom.cpp \
+	ZmLib.cpp ZmLock.cpp ZmObjectDebug.cpp ZmPlatform.cpp ZmRandom.cpp \
 	ZmRing.cpp ZmScheduler.cpp \
 	ZmSingleton.cpp ZmSpecific.cpp \
 	ZmTime.cpp ZmThread.cpp ZmTrap.cpp

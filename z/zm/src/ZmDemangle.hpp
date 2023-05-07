@@ -35,7 +35,7 @@
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuPrint.hpp>
 
-// Note: __cxxabiv1::__cxa_demangle() can't demangle
+// Note: __cxxabiv1::__cxa_demangle() doesn't correctly demangle
 // "Z1XvEUlTyOT_E_" to
 // "X()::{lambda<typename $T0>($T0&&)#1}"
 //

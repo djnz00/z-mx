@@ -679,7 +679,7 @@ private:
 	case 3: sev = Ze::Info;
 	default: sev = Ze::Debug;
       }
-      app->exception(new ZeEvent(sev, file, line, "", ZtString{message}));
+      app->exception(new ZeEvent{sev, file, line, "", ZtString{message}});
     }, app());
     if (!Random::init()) {
       app()->logError("mbedtls_ctr_drbg_seed() failed");

@@ -346,11 +346,13 @@ public:
   unsigned length() const { return m_length; }
 
 // iteration
-  template <typename L> void all(L l) const {
+  template <bool Mutable = false, typename L>
+  ZuIfT<!Mutable> all(L l) const {
     auto data_ = data();
     for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
   }
-  template <typename L> void all(L l) {
+  template <bool Mutable, typename L>
+  ZuIfT<Mutable> all(L l) {
     auto data_ = data();
     for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
   }

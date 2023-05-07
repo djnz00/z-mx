@@ -42,10 +42,12 @@
 //   under you if they think they are referenced by nothing!
 // * pass by raw pointer (unless moving), and return by ZuRef value
 
-struct ZuRef_ { }; // compile-time tag
+void ZuRefType(...);
 
-template <typename T_> class ZuRef : public ZuRef_ {
+template <typename T_> class ZuRef {
 template <typename> friend class ZuRef;
+  friend T_ ZuRefType(ZuRef *);
+
 public:
   using T = T_;
 
@@ -54,42 +56,26 @@ private:
   ZuRef(T *o, Acquire_ _) : m_object{o} { }
 
   // matches ZuRef<U> where U is not T, but is in the same type hierarchy as T
-  template <typename U> struct IsOtherRef__ {
-    enum { OK =
-      (ZuConversion<T, typename U::T>::Base ||
-       ZuConversion<typename U::T, T>::Base) };
+  template <typename U> struct IsOtherRef {
+    using V = decltype(ZuRefType(ZuDeclVal<U *>()));
+    enum { OK = ZuConversion<T, V>::Base || ZuConversion<V, T>::Base };
   };
-  template <typename U, typename = void, bool = IsOtherRef__<U>::OK>
-  struct MatchOtherRef__ { };
+  template <typename U, typename = void, bool = IsOtherRef<U>::OK>
+  struct MatchOtherRef_ { };
   template <typename U, typename R>
-  struct MatchOtherRef__<U, R, true> { using T = R; };
-  template <typename U> struct IsOtherRef_ {
-    enum { OK = ZuConversion<ZuRef_, U>::Base };
-  };
-  template <typename U, typename = void, bool = IsOtherRef_<U>::OK>
-  struct MatchOtherRef_;
-  template <typename U, typename R>
-  struct MatchOtherRef_<U, R, true> : public MatchOtherRef__<U, R> { };
+  struct MatchOtherRef_<U, R, true> { using T = R; };
   template <typename U, typename R = void>
   using MatchOtherRef = typename MatchOtherRef_<U, R>::T;
 
   // matches ZuRef<U> where U is either T or in the same type hierarchy as T
-  template <typename U> struct IsRef__ {
-    enum { OK =
-      (ZuConversion<T, typename U::T>::Is ||
-       ZuConversion<typename U::T, T>::Is) };
+  template <typename U> struct IsRef {
+    using V = decltype(ZuRefType(ZuDeclVal<U *>()));
+    enum { OK = ZuConversion<T, V>::Is || ZuConversion<V, T>::Is };
   };
-  template <typename U, typename = void, bool = IsRef__<U>::OK>
-  struct MatchRef__ { };
+  template <typename U, typename = void, bool = IsRef<U>::OK>
+  struct MatchRef_ { };
   template <typename U, typename R>
-  struct MatchRef__<U, R, true> { using T = R; };
-  template <typename U> struct IsRef_ {
-    enum { OK = ZuConversion<ZuRef_, U>::Base };
-  };
-  template <typename U, typename = void, bool = IsRef_<U>::OK>
-  struct MatchRef_;
-  template <typename U, typename R>
-  struct MatchRef_<U, R, true> : public MatchRef__<U, R> { };
+  struct MatchRef_<U, R, true> { using T = R; };
   template <typename U, typename R = void>
   using MatchRef = typename MatchRef_<U, R>::T;
 

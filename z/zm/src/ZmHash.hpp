@@ -260,7 +260,7 @@ template <typename T_, typename NTP = ZmHash_Defaults>
 class ZmHash :
     public ZmAnyHash,
     public ZmHash_LockMgr<typename NTP::Lock>,
-    public ZmNodeFn<NTP::Shadow, T_, typename NTP::Node> {
+    public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
 public:
   using T = T_;
   constexpr static auto KeyAxor = NTP::KeyAxor;
@@ -281,7 +281,7 @@ public:
 
 private:
   using LockMgr = ZmHash_LockMgr<Lock>;
-  using NodeFn = ZmNodeFn<Shadow, T, NodeBase>;
+  using NodeFn = ZmNodeFn<Shadow, NodeBase>;
 
   using LockTraits = ZmLockTraits<Lock>;
   using Guard = ZmGuard<Lock>;
@@ -509,8 +509,7 @@ private:
   }
 
 public:
-  ZmHash(ZmHashParams params = ZmHashParams{ID()}) :
-      ZmHash_LockMgr<Lock>{params} {
+  ZmHash(ZmHashParams params = ZmHashParams{ID()}) : LockMgr{params} {
     init(params);
   }
   ZmHash(const ZmHash &) = delete;
@@ -737,13 +736,13 @@ public:
   MatchKey<P, NodeMvRef> del(const P &key) {
     uint32_t code = HashFn::hash(key);
     Guard guard(lockCode(code));
-    return del_(matchKey(key), code);
+    return delNode_(matchKey(key), code);
   }
   template <typename P>
   MatchData<P, NodeMvRef> del(const P &data) {
     uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
-    return del_(matchData(data), code);
+    return delNode_(matchData(data), code);
   }
   template <typename P0, typename P1>
   NodeMvRef del(P0 &&p0, P1 &&p1) {
@@ -752,20 +751,20 @@ public:
   NodeMvRef delNode(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
     Guard guard(lockCode(code));
-    return del_(matchNode(node), code);
+    return delNode_(matchNode(node), code);
   }
 
   template <typename P>
   MatchKey<P, Key> delKey(const P &key) {
     uint32_t code = HashFn::hash(key);
     Guard guard(lockCode(code));
-    return keyMv(del_(matchKey(key), code));
+    return keyMv(delNode_(matchKey(key), code));
   }
   template <typename P>
   MatchData<P, Key> delKey(const P &data) {
     uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
-    return keyMv(del_(matchData(data), code));
+    return keyMv(delNode_(matchData(data), code));
   }
   template <typename P0, typename P1>
   decltype(auto) delKey(P0 &&p0, P1 &&p1) {
@@ -773,20 +772,20 @@ public:
   }
   decltype(auto) delNodeKey(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
-    return keyMv(del_(matchNode(node), code));
+    return keyMv(delNode_(matchNode(node), code));
   }
 
   template <typename P>
   MatchKey<P, Val> delVal(const P &key) {
     uint32_t code = HashFn::hash(key);
     Guard guard(lockCode(code));
-    return valMv(del_(matchKey(key), code));
+    return valMv(delNode_(matchKey(key), code));
   }
   template <typename P>
   MatchData<P, Val> delVal(const P &data) {
     uint32_t code = HashFn::hash(KeyAxor(data));
     Guard guard(lockCode(code));
-    return valMv(del_(matchData(data), code));
+    return valMv(delNode_(matchData(data), code));
   }
   template <typename P0, typename P1>
   decltype(auto) delVal(P0 &&p0, P1 &&p1) {
@@ -794,12 +793,12 @@ public:
   }
   decltype(auto) delNodeVal(Node *node) {
     uint32_t code = HashFn::hash(node->Node::key());
-    return valMv(del_(matchNode(node), code));
+    return valMv(delNode_(matchNode(node), code));
   }
 
 private:
   template <typename Match>
-  NodeMvRef del_(Match match, uint32_t code) {
+  NodeMvRef delNode_(Match match, uint32_t code) {
     unsigned count = m_count.load_();
     if (!count) return 0;
 

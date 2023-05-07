@@ -131,7 +131,7 @@ friend ZmTLock_Test;
   using Guard_ = ZmGuard<Lock_>;
   using ReadGuard_ = ZmReadGuard<Lock_>;
 
-  constexpr static auto HeapID() { return "ZmTLock"; }
+  static auto HeapID() { return "ZmTLock"; }
 
   using Held = ZmTLock_Held;
   using HeldStack =
