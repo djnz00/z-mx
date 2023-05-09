@@ -63,10 +63,10 @@ void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
   }
 
 #if 0
-  appException(ZeEVENT(Info,
+  ZeLOG(Info,
     ([id = link->id(), prev, next](const ZeEvent &, ZmStream &s) {
       s << "link " << id << ' ' <<
-      ZvLinkState::name(prev) << "->" << ZvLinkState::name(next); })));
+      ZvLinkState::name(prev) << "->" << ZvLinkState::name(next); }));
 #endif
   mgrUpdLink(link);
 

@@ -34,8 +34,8 @@ private:
 };
 
 #define ZmRing_FUNCTEST
+
 #include <zlib/ZiRing.hpp>
-#include "../src/ZiRing.cpp"
 
 void fail()
 {

@@ -283,7 +283,7 @@ void App::write(const MxMCapHdr *hdr, const char *buf)
   return;
 
 error:
-  ZeLOG(Error, ZtString{} << '"' << m_path << "\": " << e);
+  ZeLOG(Error, ([](auto &s) { s << '"' << m_path << "\": " << e; }));
 }
 
 App::App(const ZvCf *cf) :
@@ -303,7 +303,7 @@ int App::start()
     ZeError e;
     if (m_file.open(
 	  m_path, ZiFile::Create | ZiFile::Append, 0666, &e) != Zi::OK) {
-      ZeLOG(Fatal, ZtString{} << '"' << m_path << "\": " << e);
+      ZeLOG(Fatal, ([](auto &s) { s << '"' << m_path << "\": " << e; }));
       goto error;
     }
     if (!m_mx->start() || !m_mx2->start()) {
@@ -313,10 +313,10 @@ int App::start()
     GroupCSV csv;
     csv.read(m_groups, ZvCSVReadFn::Member<&App::connect>::fn(this));
   } catch (const ZvError &e) {
-    ZeLOG(Fatal, ZtString{} << e);
+    ZeLOG(Fatal, ([](auto &s) { s << e; }));
     goto error;
   } catch (const ZeError &e) {
-    ZeLOG(Fatal, ZtString{} << e);
+    ZeLOG(Fatal, ([](auto &s) { s << e; }));
     goto error;
   } catch (...) {
     ZeLOG(Fatal, "Unknown Exception");
@@ -396,10 +396,10 @@ int main(int argc, const char *argv[])
       app = new App(cf);
 
     } catch (const ZvError &e) {
-      ZeLOG(Fatal, ZtString{} << e);
+      ZeLOG(Fatal, ([](auto &s) { s << e; }));
       goto error;
     } catch (const ZeError &e) {
-      ZeLOG(Fatal, ZtString{} << e);
+      ZeLOG(Fatal, ([](auto &s) { s << e; }));
       goto error;
     } catch (...) {
       ZeLOG(Fatal, "Unknown Exception");

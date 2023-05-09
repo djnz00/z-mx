@@ -89,7 +89,7 @@ namespace ZvCfError {
 using Cf = ZvCf_::Cf;
 
 // thrown by all get methods for missing values when required is true
-class ZvAPI Required : public ZvError {
+class Required : public ZvError {
 public:
   Required(const Cf *cf, ZuString key) :
       m_key{fullKey(cf, key)}, m_bt{1} { }

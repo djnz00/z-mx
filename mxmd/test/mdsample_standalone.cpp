@@ -152,8 +152,6 @@ void deletedPxLevel(MxMDPxLevel *pxLevel, MxDateTime stamp)
       (double)MxValNDP{pxLevel->data().qty, pxLevel->qtyNDP()}.fp());
 }
 
-void exception(const MxMDLib *, ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
-
 void timer(MxDateTime now, MxDateTime &next)
 {
   thread_local ZtDateFmt::ISO fmt;
@@ -187,8 +185,8 @@ void loaded(MxMDVenue *venue)
     md->instrInvoke(MxInstrKey{*ticker, "XTKS", MxID()},
 	[instrHandler, ticker](MxMDInstrument *instr) {
       if (!instr) {
-	ZeLOG(Error, ZtString{} <<
-	    "instrument \"" << *ticker << "\" not found");
+	ZeLOG(Error, ([](auto &s) { s <<
+	    "instrument \"" << *ticker << "\" not found"; }));
 	return;
       }
       instr->subscribe(instrHandler); // subscribe to L1/L2 data
@@ -207,7 +205,7 @@ int subscribe()
 	  timerFn(MxMDTimerFn::Ptr<&timer>::fn()).
 	  refDataLoadedFn(MxMDVenueFn::Ptr<&loaded>::fn())));
   } catch (const ZtString &s) {
-    ZeLOG(Error, ZtString{} << "error: " << s);
+    ZeLOG(Error, ([](auto &s) { s << "error: " << s; }));
     return -1;
   } catch (...) {
     ZeLOG(Error, "unknown exception");
@@ -351,8 +349,8 @@ void publish()
 	md->instrInvoke(MxInstrKey{*ticker, "XTKS", MxID()},
 	    [ticker](MxMDInstrument *instr) {
 	  if (!instr) {
-	    ZeLOG(Error, ZtString{} <<
-		"instrument \"" << *ticker << "\" not found");
+	    ZeLOG(Error, ([](auto &s) { s <<
+		"instrument \"" << *ticker << "\" not found"; }));
 	    return;
 	  }
 
@@ -360,8 +358,8 @@ void publish()
 
 	  ZmRef<MxMDOrderBook> ob = instr->orderBook("XTKS", MxID());
 	  if (!ob) {
-	    ZeLOG(Error, ZtString{} <<
-		"XTKS order book for \"" << *ticker << "\" not found");
+	    ZeLOG(Error, ([](auto &s) { s <<
+		"XTKS order book for \"" << *ticker << "\" not found"; }));
 	    return;
 	  }
 

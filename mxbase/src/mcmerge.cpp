@@ -54,7 +54,7 @@ public:
   void open() {
     ZeError e;
     if (m_file.open(m_path, ZiFile::ReadOnly, 0, &e) != Zi::OK) {
-      ZeLOG(Error, ZtString{} << '"' << m_path << "\": " << e);
+      ZeLOG(Error, ([](auto &s) { s << '"' << m_path << "\": " << e; }));
       Zm::exit(1);
     }
   }
@@ -63,7 +63,7 @@ public:
     ZeError e;
     int i;
     if ((i = m_file.read(&m_hdr, sizeof(MxMCapHdr), &e)) == Zi::IOError) {
-      ZeLOG(Error, ZtString{} << '"' << m_path << "\": " << e);
+      ZeLOG(Error, ([](auto &s) { s << '"' << m_path << "\": " << e; }));
       Zm::exit(1);
     }
     if (i == Zi::EndOfFile || (unsigned)i < sizeof(MxMCapHdr)) {
@@ -71,12 +71,12 @@ public:
       return ZmTime();
     }
     if (m_hdr.len > MsgSize) {
-      ZeLOG(Error, ZtString{} << "message length >" << ZuBoxed(MsgSize) <<
-	  " at offset " << ZuBoxed(m_file.offset() - sizeof(MxMCapHdr)));
+      ZeLOG(Error, ([](auto &s) { s << "message length >" << ZuBoxed(MsgSize) <<
+	  " at offset " << ZuBoxed(m_file.offset() - sizeof(MxMCapHdr)); }));
       Zm::exit(1);
     }
     if ((i = m_file.read(m_buf, m_hdr.len, &e)) == Zi::IOError) {
-      ZeLOG(Error, ZtString{} << '"' << m_path << "\": " << e);
+      ZeLOG(Error, ([](auto &s) { s << '"' << m_path << "\": " << e; }));
       Zm::exit(1);
     }
     if (i == Zi::EndOfFile || (unsigned)i < m_hdr.len) {
@@ -142,7 +142,7 @@ int main(int argc, const char *argv[])
   ZeError e;
 
   if (out.open(outPath, ZiFile::Create | ZiFile::Append, 0666, &e) < 0) {
-    ZeLOG(Error, ZtString{} << '"' << outPath << "\": " << e);
+    ZeLOG(Error, ([](auto &s) { s << '"' << outPath << "\": " << e; }));
     Zm::exit(1);
   }
 
@@ -154,7 +154,7 @@ int main(int argc, const char *argv[])
     }
     if (!file) break;
     if (file->write(&out, &e) != Zi::OK) {
-      ZeLOG(Error, ZtString{} << '"' << outPath << "\": " << e);
+      ZeLOG(Error, ([](auto &s) { s << '"' << outPath << "\": " << e; }));
       Zm::exit(1);
     }
     ZmTime t = file->read();

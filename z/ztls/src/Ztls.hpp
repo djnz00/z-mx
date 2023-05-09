@@ -193,7 +193,7 @@ private:
     }
     if (buf->length) {
       if (ZuUnlikely(m_rxRingCount >= RxRingSize)) {
-	app()->logError("TLS Rx buffer overflow");
+	ZeLOG(Error, "TLS Rx buffer overflow");
 	disconnect_(false);
 	return;
       }
@@ -254,12 +254,15 @@ protected:
 	case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED: {
 	  const char *hostname = m_ssl.hostname;
 	  if (!hostname) hostname = "(null)";
-	  app()->logError(
-	      "server \"", hostname, "\": unable to verify X.509 cert");
+	  ZeLOG(Error, ([hostname = ZtString{hostname}](auto &s) {
+	    s << "server \"" << hostname << "\": unable to verify X.509 cert";
+	  }));
 	  disconnect_(false);
 	} break;
 	default:
-	  app()->logError("mbedtls_ssl_handshake(): ", strerror_(n));
+	  ZeLOG(Error, ([n](auto &s) {
+	    s << "mbedtls_ssl_handshake(): " << strerror_(n);
+	  }));
 	  disconnect_(false);
 	  break;
       }
@@ -282,7 +285,7 @@ private:
 
     if (n <= 0) {
       if (ZuUnlikely(!n)) {
-	app()->logError("mbedtls_ssl_read(): unknown error");
+	ZeLOG(Error, "mbedtls_ssl_read(): unknown error");
 	disconnect_(false);
 	return false;
       }
@@ -296,7 +299,9 @@ private:
 	case MBEDTLS_ERR_SSL_CONN_EOF:
 	  break;
 	default:
-	  app()->logError("mbedtls_ssl_read(): ", strerror_(n));
+	  ZeLOG(Error, ([n](auto &s) {
+	    s << "mbedtls_ssl_read(): " << strerror_(n);
+	  }));
 	  disconnect_(false);
 	  break;
       }
@@ -359,7 +364,7 @@ public:
       int n = mbedtls_ssl_write(&m_ssl, data + offset, len - offset);
       if (n <= 0) {
 	if (ZuUnlikely(!n)) {
-	  app()->logError("mbedtls_ssl_write(): unknown error");
+	  ZeLOG(Error, "mbedtls_ssl_write(): unknown error");
 	  return;
 	}
 	switch (n) {
@@ -367,7 +372,9 @@ public:
 	  case MBEDTLS_ERR_SSL_WANT_WRITE:
 	    continue;
 	}
-	app()->logError("mbedtls_ssl_write(): ", strerror_(n));
+	ZeLOG(Error, ([n](auto &s) {
+	  s << "mbedtls_ssl_write(): " << strerror_(n);
+	}));
 	disconnect_(false);
 	return;
       }
@@ -415,7 +422,9 @@ public:
     app()->mx()->del(&m_reconnTimer);
     if (notify) {
       int n = mbedtls_ssl_close_notify(&m_ssl);
-      if (n) app()->logWarning("mbedtls_ssl_close_notify(): ", strerror_(n));
+      if (n) ZeLOG(Warning, ([n](auto &s) {
+	s << "mbedtls_ssl_close_notify(): " << strerror_(n);
+      }));
     }
     auto cxn = ZmRef<Cxn>{ZuMv(m_cxn)};
     m_cxn = nullptr;
@@ -497,7 +506,9 @@ friend Base;
   void connect_() { // TLS thread
     ZiIP ip = m_server;
     if (!ip) {
-      this->app()->logError('"', m_server, "\": hostname lookup failure");
+      ZeLOG(Error, ([server = ZtString{m_server}](auto &s) {
+	s << '"' << server << "\": hostname lookup failure";
+      }));
       impl()->connectFailed(true);
       return;
     }
@@ -505,8 +516,10 @@ friend Base;
       int n;
       n = mbedtls_ssl_set_hostname(this->ssl(), m_server);
       if (n) {
-	this->app()->logError(
-	    "mbedtls_ssl_set_hostname(\"", m_server, "\"): ", strerror_(n));
+	ZeLOG(Error, ([server = ZtString{m_server}, n](auto &s) {
+	  s << "mbedtls_ssl_set_hostname(\"" << server << "\"): " <<
+	    strerror_(n);
+	}));
 	impl()->connectFailed(true);
 	return;
       }
@@ -528,7 +541,9 @@ private:
   void save_() {
     int n = mbedtls_ssl_get_session(this->ssl(), &m_session);
     if (n) {
-      this->app()->logError("mbedtls_ssl_get_session(): ", strerror_(n));
+      ZeLOG(Error, ([n](auto &s) {
+	s << "mbedtls_ssl_get_session(): " << strerror_(n);
+      }));
       return;
     }
     m_saved = true;
@@ -538,7 +553,9 @@ private:
     if (!m_saved) return;
     int n = mbedtls_ssl_set_session(this->ssl(), &m_session);
     if (n) {
-      this->app()->logWarning("mbedtls_ssl_set_session(): ", strerror_(n));
+      ZeLOG(Warning, ([n](auto &s) {
+	s << "mbedtls_ssl_set_session(): " << strerror_(n);
+      }));
       return;
     }
   }
@@ -551,41 +568,43 @@ private:
     if (this->ssl()->conf->endpoint == MBEDTLS_SSL_IS_CLIENT) {
       uint32_t flags;
       if (flags = mbedtls_ssl_get_verify_result(this->ssl())) {
-	ZtString s;
-	s << "server \"" << this->ssl()->hostname
-	  << "\": X.509 cert verification failure: ";
-	static const char *errors[] = {
-	  "validity has expired",
-	  "revoked (is on a CRL)",
-	  "CN does not match with the expected CN",
-	  "not correctly signed by the trusted CA",
-	  "CRL is not correctly signed by the trusted CA",
-	  "CRL is expired",
-	  "certificate missing",
-	  "certificate verification skipped",
-	  "unspecified/other",
-	  "validity starts in the future",
-	  "CRL is from the future",
-	  "usage does not match the keyUsage extension",
-	  "usage does not match the extendedKeyUsage extension",
-	  "usage does not match the nsCertType extension",
-	  "signed with an bad hash",
-	  "signed with an bad PK alg (e.g. RSA vs ECDSA)",
-	  "signed with bad key (e.g. bad curve, RSA too short)",
-	  "CRL signed with an bad hash",
-	  "CRL signed with bad PK alg (e.g. RSA vs ECDSA)",
-	  "CRL signed with bad key (e.g. bad curve, RSA too short)"
-	};
-	{
-	  bool comma = false;
-	  for (unsigned i = 0; i < sizeof(errors) / sizeof(errors[0]); i++)
-	    if (flags & (1<<i)) {
-	      if (comma) s << ", ";
-	      comma = true;
-	      s << errors[i];
-	    }
-	}
-	this->app()->logError(s);
+	ZeLOG(Error,
+	    ([hostname = ZtString{this->ssl()->hostname}, flags](auto &s) {
+	  s << "server \"" << hostname <<
+	    "\": X.509 cert verification failure: ";
+	  static const char *errors[] = {
+	    "validity has expired",
+	    "revoked (is on a CRL)",
+	    "CN does not match with the expected CN",
+	    "not correctly signed by the trusted CA",
+	    "CRL is not correctly signed by the trusted CA",
+	    "CRL is expired",
+	    "certificate missing",
+	    "certificate verification skipped",
+	    "unspecified/other",
+	    "validity starts in the future",
+	    "CRL is from the future",
+	    "usage does not match the keyUsage extension",
+	    "usage does not match the extendedKeyUsage extension",
+	    "usage does not match the nsCertType extension",
+	    "signed with an bad hash",
+	    "signed with an bad PK alg (e.g. RSA vs ECDSA)",
+	    "signed with bad key (e.g. bad curve, RSA too short)",
+	    "CRL signed with an bad hash",
+	    "CRL signed with bad PK alg (e.g. RSA vs ECDSA)",
+	    "CRL signed with bad key (e.g. bad curve, RSA too short)"
+	  };
+	  {
+	    bool comma = false;
+	    constexpr unsigned n = sizeof(errors) / sizeof(errors[0]);
+	    for (unsigned i = 0; i < n; i++)
+	      if (flags & (1U<<i)) {
+		if (comma) s << ", ";
+		comma = true;
+		s << errors[i];
+	      }
+	  }
+	}));
 	this->disconnect_(false);
       }
     }
@@ -599,7 +618,7 @@ public:
 	  ZmFn<>{this, [](CliLink *link) { link->connect_(); }},
 	  ZmTimeNow(reconnFreq), ZmScheduler::Update, &m_reconnTimer);
     else
-      this->app()->logError("connect failed");
+      ZeLOG(Error, "connect failed");
   }
 
 private:
@@ -652,7 +671,9 @@ template <typename, typename> friend class SrvLink;
   bool init(ZiMultiplex *mx, ZuString thread, L l) {
     m_mx = mx;
     if (!(m_thread = m_mx->sid(thread))) {
-      logError("invalid Rx thread ID \"", ZtString{thread}, '"');
+      ZeLOG(Error, ([thread = ZtString{thread}](auto &s) {
+	s << "invalid Rx thread ID \"" << thread << '"';
+      }));
       return false;
     }
     thread_local ZmSemaphore sem;
@@ -668,9 +689,8 @@ private:
   template <typename L>
   bool init_(L l) {
     mbedtls_ssl_conf_dbg(&m_conf, [](
-	  void *app_, int level,
+	  void *, int level,
 	  const char *file, int line, const char *message) {
-      auto app = static_cast<App *>(app_);
       int sev;
       switch (level) {
 	case 0: sev = Ze::Error;
@@ -679,10 +699,14 @@ private:
 	case 3: sev = Ze::Info;
 	default: sev = Ze::Debug;
       }
-      app->exception(new ZeEvent{sev, file, line, "", ZtString{message}});
-    }, app());
+#ifndef ZDEBUG
+      if (sev > Ze::Debug)
+#endif
+      ZeLOG__(ZeEvent{sev, file, line, ""},
+	  [message = ZtString{message}](auto &s) { s << message; });
+    }, nullptr);
     if (!Random::init()) {
-      app()->logError("mbedtls_ctr_drbg_seed() failed");
+      ZeLOG(Error, "mbedtls_ctr_drbg_seed() failed");
       return false;
     }
     mbedtls_ssl_conf_rng(&m_conf, mbedtls_ctr_drbg_random, ctr_drbg());
@@ -709,32 +733,6 @@ protected:
   // TLS thread
   mbedtls_ssl_config *conf() { return &m_conf; }
 
-  void exception(ZmRef<ZeEvent> e) const { ZeLog::log(ZuMv(e)); } // default
-
-  static void log__(ZmStream &s) { }
-  template <typename Arg0, typename ...Args>
-  static ZuIsNot<ZuString, Arg0>
-  log__(ZmStream &s, Arg0 arg0, Args... args) {
-    s << ZuMv(arg0);
-    log__(s, ZuMv(args)...);
-  }
-  template <int Level, typename ...Args> void log_(Args... args) const {
-    app()->exception(ZeEVENT_(Level, (
-      [...args = ZuMv(args)](const ZeEvent &, ZmStream &s) mutable {
-	log__(s, ZuMv(args)...);
-      })));
-  }
-  template <typename ...Args> void logDebug(Args &&... args) const
-    { log_<Ze::Debug>(ZuFwd<Args>(args)...); }
-  template <typename ...Args> void logInfo(Args &&... args) const
-    { log_<Ze::Info>(ZuFwd<Args>(args)...); }
-  template <typename ...Args> void logWarning(Args &&... args) const
-    { log_<Ze::Warning>(ZuFwd<Args>(args)...); }
-  template <typename ...Args> void logError(Args &&... args) const
-    { log_<Ze::Error>(ZuFwd<Args>(args)...); }
-  template <typename ...Args> void logFatal(Args &&... args) const
-    { log_<Ze::Fatal>(ZuFwd<Args>(args)...); }
-
   // Arch/Ubuntu/Debian/SLES - /etc/ssl/certs
   // Fedora/CentOS/RHEL - /etc/pki/tls/certs
   // Android - /system/etc/security/cacerts
@@ -753,7 +751,9 @@ protected:
       n = mbedtls_x509_crt_parse_file(&m_cacert, path);
     }
     if (n < 0) {
-      logError(function, "(): ", strerror_(n));
+      ZeLOG(Error, ([function, n](auto &s) {
+	s << function << "(): " << strerror_(n);
+      }));
       return false;
     }
     mbedtls_ssl_conf_ca_chain(&m_conf, &m_cacert, nullptr);
@@ -946,7 +946,9 @@ protected:
 
   void listening(const ZiListenInfo &info) { // default
     m_listening = true;
-    app()->logInfo("listening(", info.ip, ':', info.port, ')');
+    ZeLOG(Info, ([info](auto &s) {
+      s << "listening(" << info.ip << ':' << info.port << ')';
+    }));
   }
   void listenFailed(bool transient) { // default
     unsigned rebindFreq = app()->rebindFreq();
@@ -954,7 +956,9 @@ protected:
       app()->run([this]() { listen(); },
 	  ZmTimeNow(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
     else
-      app()->logError("listen() failed ", transient ? "(transient)" : "");
+      ZeLOG(Error, ([transient](auto &s) {
+	s << "listen() failed " << transient ? "(transient)" : "";
+      }));
   }
 
 private:

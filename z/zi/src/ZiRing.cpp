@@ -115,9 +115,9 @@ bool Blocker::open(bool head, const Params &params)
   m_sem = CreateSemaphore(0, 0, 0x7fffffff, path);
   if (m_sem == INVALID_HANDLE_VALUE) m_sem = 0;
   if (!m_sem) {
-    ZeLOG(Error, ZtString{} <<
+    ZeLOG(Error, ([](auto &s) { s <<
 	"ZiRing::Blocker::open() CreateSemaphore(" << path << ") failed: " <<
-	ZeLastError);
+	ZeLastError; }));
     return false;
   }
   return true;
@@ -178,8 +178,9 @@ bool CtrlMem::open(unsigned size, const Params &params)
   if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm, size,
 	  true, mmapFlags, 0666, &e)) != Zi::OK) {
-    ZeLOG(Error, ZtString{} <<
-	"ZiRing::CtrlMem::open() mmap(" << path  << ") failed: " << e);
+    ZeLOG(Error, ([path, e](auto &s) {
+      s << "ZiRing::CtrlMem::open() mmap(" << path  << ") failed: " << e;
+    }));
     return false;
   }
   if (params.cpuset)
@@ -207,8 +208,9 @@ bool DataMem::open(unsigned size, const Params &params)
   if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm, size,
 	  true, mmapFlags, 0666, &e)) != Zi::OK) {
-    ZeLOG(Error, ZtString{} <<
-	"ZiRing::DataMem::open() mmap(" << path  << ") failed: " << e);
+    ZeLOG(Error, ([path, e](auto &s) {
+      s << "ZiRing::DataMem::open() mmap(" << path  << ") failed: " << e;
+    }));
     return false;
   }
   if (params.cpuset)
@@ -236,8 +238,8 @@ bool MirrorMem::open(unsigned size, const Params &params)
   if ((r = m_file.mmap(path,
 	  ZiFile::Create | ZiFile::Shm | ZiFile::ShmMirror, size,
 	  true, mmapFlags, 0666, &e)) != Zi::OK) {
-    ZeLOG(Error, ZtString{} <<
-	"ZiRing::MirrorMem::open() mmap(" << path  << ") failed: " << e);
+    ZeLOG(Error, ([path, e](auto &s) { s <<
+	"ZiRing::MirrorMem::open() mmap(" << path  << ") failed: " << e; }));
     return false;
   }
   if (params.cpuset)

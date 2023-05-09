@@ -36,7 +36,7 @@
 #include <zlib/ZvError.hpp>
 #include <zlib/ZvTelemetry.hpp>
 
-class ZvAPI ZvInvalidMulticastIP : public ZvError {
+class ZvInvalidMulticastIP : public ZvError {
 public:
   ZvInvalidMulticastIP(ZuString s) : m_addr{s} { }
 

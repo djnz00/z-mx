@@ -1277,11 +1277,6 @@ bool MxMDLib::allVenues(ZmFn<MxMDVenue *> fn) const
   return true;
 }
 
-static void exception(const MxMDLib *, ZmRef<ZeEvent> e)
-{
-  ZeLog::log(ZuMv(e));
-}
-
 MxMDLib::MxMDLib(ZmScheduler *scheduler) :
   m_scheduler(scheduler),
 #if 0

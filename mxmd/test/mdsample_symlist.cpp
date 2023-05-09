@@ -102,8 +102,6 @@ void l2(MxMDOrderBook *ob, MxDateTime stamp)
   std::cout << "L2 updated\n";
 }
 
-void exception(const MxMDLib *, ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
-
 typedef ZmLHash<MxIDString> Syms; // hash table of syms
 static ZmRef<Syms> syms;
 

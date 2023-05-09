@@ -1618,8 +1618,8 @@ public:
   }
   void state(int n) {
     if (ZuUnlikely(!m_self)) {
-      ZeLOG(Fatal, ZtString{} <<
-	  "ZdbEnv::state(" << HostState::name(n) << ") called out of order");
+      ZeLOG(Fatal, ([](auto &s) { s <<
+	  "ZdbEnv::state(" << HostState::name(n) << ") called out of order"; }));
       return;
     }
     m_self->state(n);

@@ -288,12 +288,9 @@ void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent &e)
   buf << Ze::function(e.function);
 #else
   ZePlatform_EventLogger *logger = eventLogger();
-  buf <<
-    logger->program << ' ' <<
-    ZuBoxed(e.tid) << " - ";
+  buf << logger->program << ' ' << ZuBoxed(e.tid) << " - ";
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf <<
-      '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::filename(e.filename) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function) << ' ' << *e;
 #endif
@@ -446,6 +443,19 @@ void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent &e)
 
   fwrite(buf.data(), 1, len, m_file);
   fflush(m_file);
+}
+
+void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEvent &e)
+{
+  ZtDate d{e.time};
+
+  buf << d.print(m_dateFmt) << ' ' <<
+    ZuBoxed(e.tid) << ' ' <<
+    Ze::severity(e.severity) << ' ';
+  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
+    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+      ZuBoxed(e.lineNumber) << ' ';
+  buf << Ze::function(e.function) << "() ";
 }
 
 #ifdef _MSC_VER

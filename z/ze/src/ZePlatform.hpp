@@ -121,11 +121,10 @@ public:
   ZuOpBool
 
   template <typename S> void print(S &s) const { s << message(); }
+  friend ZuPrintFn ZuPrintType(ZeError *);
 
   struct Traits : public ZuBaseTraits<ZeError> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZeError *);
-
-  friend ZuPrintFn ZuPrintType(ZeError *);
 
 private:
   ErrNo		m_errNo;

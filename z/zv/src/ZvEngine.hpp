@@ -199,9 +199,6 @@ struct ZvEngineMgr {
   // Queue Management
   virtual void addQueue(unsigned type, ZuID id, QueueFn queueFn) { }
   virtual void delQueue(unsigned type, ZuID id) { }
-
-  // Alert handling
-  virtual void alert(ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
 };
 
 class ZvAPI ZvEngine : public ZmPolymorph, public ZmEngine<ZvEngine> {
@@ -286,10 +283,6 @@ public:
     return [id = m_id, op, result, e](const ZeEvent &, ZmStream &s) {
       s << id << " - " << op << " - " << Zi::ioResult(result) << " - " << e;
     };
-  }
-
-  void mgrAlert(ZmRef<ZeEvent> e) const {
-    mgr()->alert(ZuMv(e));
   }
 
   using Telemetry = ZvTelemetry::Engine;

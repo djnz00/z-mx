@@ -1430,7 +1430,7 @@ inline ZtString ZtJoin(const D &d, const A &a) {
 template <typename D, typename E>
 inline ZtString ZtJoin(const D &d, const std::initializer_list<E> &a) {
   ZtString o;
-  ZtJoin(d, ZuArray<const E>(a), o);
+  ZtJoin(d, ZuArray<const E>{a}, o);
   return o;
 }
 template <typename D, typename A>
@@ -1442,15 +1442,15 @@ inline ZtWString ZtWJoin(const D &d, const A &a) {
 template <typename D, typename E>
 inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
   ZtWString o;
-  ZtJoin(d, ZuArray<E>(a), o);
+  ZtJoin(d, ZuArray<E>{a}, o);
   return o;
 }
 
 // hex dump
 
-// copies of the prefix and the data are taken since this is used mainly for
-// troubleshooting / logging; ZeLog printing is deferred to a later time by
-// the logger, which runs in a different thread and stack, and both the
+// copies of the prefix and the data are taken since ZtHexDump is mainly used
+// for troubleshooting / logging; ZeLog printing is deferred to a later time
+// by the logger, which runs in a different thread and stack; both the
 // prefix and the data are possibly/probably transient and subsequently
 // overwritten/freed by the caller in the interim
 inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
@@ -1474,15 +1474,15 @@ public:
     if (ZuLikely(m_data)) vfree(m_data);
   }
   ZtHexDump(ZtHexDump &&d) :
-    m_prefix(ZuMv(d.m_prefix)), m_data(d.m_data), m_length(d.m_length) {
-    d.m_data = 0;
+    m_prefix{ZuMv(d.m_prefix)}, m_data{d.m_data}, m_length{d.m_length} {
+    d.m_data = nullptr;
   }
   ZtHexDump &operator =(ZtHexDump &&d) {
     if (ZuLikely(this != &d)) {
       m_prefix = ZuMv(d.m_prefix);
       m_data = d.m_data;
       m_length = d.m_length;
-      d.m_data = 0;
+      d.m_data = nullptr;
     }
     return *this;
   }

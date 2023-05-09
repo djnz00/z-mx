@@ -945,8 +945,7 @@ public:
   void yield(bool b) { m_yield = b; }
 #else
   void debugWarning(const char *fn) {
-    ZeLOG(Warning,
-	ZtSprintf("ZiMultiplex::%s(true) called while "
+    ZeLOG(Warning, ZtSprintf("ZiMultiplex::%s(true) called while "
 	  "ZiMultiplex_DEBUG undefined", fn));
   }
   bool trace() const { return false; }

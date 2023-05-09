@@ -911,11 +911,11 @@ public:
       }
       auto i = writeStatus();
       if (i < 0)
-	ZeLOG(Error, ZtString{} <<
-	    "ZiRing::push() failed - " << Zi::ioResult(i));
+	ZeLOG(Error, ([](auto &s) { s <<
+	    "ZiRing::push() failed - " << Zi::ioResult(i); }));
       else
-	ZeLOG(Error, ZtString{} <<
-	    "ZiRing::push() failed - writeStatus=" << i);
+	ZeLOG(Error, ([](auto &s) { s <<
+	    "ZiRing::push() failed - writeStatus=" << i; }));
       return false;
     }
     template <typename L>
@@ -1639,7 +1639,7 @@ int main(int argc, char **argv)
   ZeLog::init("zcmd");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::lambdaSink(
-	[](ZeEvent *e) { std::cerr << *e << '\n' << std::flush; }));
+	[](ZeLogBuf &buf) { buf << '\n'; std::cerr << buf << std::flush; }));
   ZeLog::start();
 
   ZiMultiplex *mx = new ZiMultiplex(

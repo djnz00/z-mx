@@ -24,7 +24,7 @@
 // ZeLOG(Debug, "debug message");	// ZeLOG() is macro
 // ZeLOG(Error, ZeLastError);		// errno / GetLastError()
 // ZeLOG(Error,
-//	 ZtSprintf("fopen(%s) failed: %s", file, ZeLastError.message().data()));
+//      ZtSprintf("fopen(%s) failed: %s", file, ZeLastError.message().data()));
 // try { ... } catch (ZeError &e) { ZeLOG(Error, e); }
 
 // if no sink is registered at initialization, the default sink is stderr
@@ -141,12 +141,22 @@ struct ZeAPI ZeSysSink : public ZeSink {
   void age() { } // unused
 };
 
-template <typename L>
-struct ZeLambdaSink : public ZeSink, public L {
-  ZeLambdaSink(L l) : ZeSink{ZeSinkType::Lambda}, L{ZuMv(l)} { }
+struct ZeAPI ZeLambdaSink_ : public ZeSink {
+  ZeLambdaSink_(int tzOffset = 0) :
+      ZeSink{ZeSinkType::Lambda}, m_dateFmt{tzOffset} { }
 
-  void pre(ZeLogBuf &, const ZeEvent &);
-  void post(ZeLogBuf &, const ZeEvent &);
+  void pre(ZeLogBuf &buf, const ZeEvent &e);
+
+private:
+  ZtDateFmt::CSV	m_dateFmt;
+};
+template <typename Fn>
+struct ZeLambdaSink : public ZeLambdaSink_ {
+  Fn	fn;
+
+  ZeLambdaSink(Fn fn_) : fn{ZuMv(fn_)} { }
+
+  void post(ZeLogBuf &buf, const ZeEvent &) { fn(buf); }
   void age() { } // unused
 };
 
@@ -301,8 +311,8 @@ inline auto fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {
 }
 template <typename Msg>
 inline auto fn(Msg &&msg, ZeLog_::MatchLiteral<Msg> *_ = nullptr) {
-  return [msg = ZuString{ZuFwd<Msg>(msg)}](ZeLogBuf &buf) mutable {
-    buf << ZuMv(msg);
+  return [msg = static_cast<const char *>(msg)](ZeLogBuf &buf) mutable {
+    buf << msg;
   };
 }
 template <typename Msg>

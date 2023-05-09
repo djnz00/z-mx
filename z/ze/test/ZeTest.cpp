@@ -39,7 +39,7 @@ int main(int argc, char **argv)
   ZeLOG(Error, "test Error message");
   ZeLOG(Fatal, "test Fatal message");
   ZeLOG(Error, ZtSprintf("test %s %d", "Error message", 42));
-  ZeLOG(Error, ZeError(TestError));
+  ZeLOG(Error, ZeError{TestError});
   ZeLOG(Error, ZtSprintf("fopen() failed: %s",
 			 ZeError(TestError).message()));
 

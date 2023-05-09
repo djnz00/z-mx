@@ -40,7 +40,7 @@
 
 template <typename T> class ZvEnum;
 
-class ZvAPI ZvInvalidEnum : public ZvError {
+class ZvInvalidEnum : public ZvError {
 public:
   template <typename Key, typename Value>
   ZvInvalidEnum(Key &&key, Value &&value) :

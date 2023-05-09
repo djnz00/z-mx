@@ -311,21 +311,21 @@ int Msg_<Heap>::read(ZiFile *file)
   return Zi::OK;
 
 eof:
-  ZeLOG(Info, ZtString{} << '"' << m_app->replay() << "\": EOF");
+  ZeLOG(Info, ([](auto &s) { s << '"' << m_app->replay() << "\": EOF"; }));
   return Zi::EndOfFile;
 
 error:
-  ZeLOG(Error, ZtString{} << '"' << m_app->replay() << "\": read() - " <<
-      Zi::ioResult(n) << " - " << e);
+  ZeLOG(Error, ([](auto &s) { s << '"' << m_app->replay() << "\": read() - " <<
+      Zi::ioResult(n) << " - " << e; }));
   return Zi::IOError;
 
 lenerror:
   {
     uint64_t offset = file->offset();
     offset -= sizeof(MxMCapHdr);
-    ZeLOG(Error, ZtString{} << '"' << m_app->replay() << "\": "
+    ZeLOG(Error, ([](auto &s) { s << '"' << m_app->replay() << "\": "
 	"message length >" << ZuBoxed(Size) <<
-	" at offset " << ZuBoxed(offset));
+	" at offset " << ZuBoxed(offset); }));
   }
   return Zi::IOError;
 }
@@ -372,7 +372,7 @@ int App::start()
   try {
     ZeError e;
     if (m_file.open(m_replay, ZiFile::ReadOnly, 0666, &e) != Zi::OK) {
-      ZeLOG(Fatal, ZtString{} << '"' << m_replay << "\": " << e);
+      ZeLOG(Fatal, ([](auto &s) { s << '"' << m_replay << "\": " << e; }));
       goto error;
     }
     if (!m_mx->start()) {
@@ -383,10 +383,10 @@ int App::start()
     csv.read(m_groups, ZvCSVReadFn::Member<&App::connect>::fn(this));
     m_mx->add(ZmFn<>::Member<&App::read>::fn(this));
   } catch (const ZvError &e) {
-    ZeLOG(Fatal, ZtString{} << e);
+    ZeLOG(Fatal, ([](auto &s) { s << e; }));
     goto error;
   } catch (const ZeError &e) {
-    ZeLOG(Fatal, ZtString{} << e);
+    ZeLOG(Fatal, ([](auto &s) { s << e; }));
     goto error;
   } catch (...) {
     ZeLOG(Fatal, "Unknown Exception");
@@ -455,10 +455,10 @@ int main(int argc, const char *argv[])
       app = new App(cf);
 
     } catch (const ZvError &e) {
-      ZeLOG(Fatal, ZtString{} << e);
+      ZeLOG(Fatal, ([](auto &s) { s << e; }));
       goto error;
     } catch (const ZeError &e) {
-      ZeLOG(Fatal, ZtString{} << e);
+      ZeLOG(Fatal, ([](auto &s) { s << e; }));
       goto error;
     } catch (...) {
       ZeLOG(Fatal, "Unknown Exception");

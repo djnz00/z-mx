@@ -10,20 +10,20 @@ public:
   void addEngine(MxEngine *) { }
   void delEngine(MxEngine *) { }
   void engineState(MxEngine *engine, MxEnum prev, MxEnum next) {
-    exception(ZeEVENT(Info,
-      ([id = engine->id(), prev, next](const ZeEvent &, ZmStream &s) {
+    ZeLOG(Info,
+      ([id = engine->id(), prev, next](auto &s) {
 	s << "engine " << id << ' ' <<
-	MxEngineState::name(prev) << "->" << MxEngineState::name(next); })));
+	MxEngineState::name(prev) << "->" << MxEngineState::name(next); }));
   }
 
   // Link Management
   void updateLink(MxAnyLink *) { }
   void delLink(MxAnyLink *) { }
   void linkState(MxAnyLink *link, MxEnum prev, MxEnum next) {
-    exception(ZeEVENT(Info,
-      ([id = link->id(), prev, next](const ZeEvent &, ZmStream &s) {
+    ZeLOG(Info,
+      ([id = link->id(), prev, next](auto &s) {
 	s << "link " << id << ' ' <<
-	MxLinkState::name(prev) << "->" << MxLinkState::name(next); })));
+	MxLinkState::name(prev) << "->" << MxLinkState::name(next); }));
   }
 
   // Pool Management
@@ -33,9 +33,6 @@ public:
   // Queue Management
   void addQueue(MxID id, bool tx, MxQueue *) { }
   void delQueue(MxID id, bool tx) { }
-
-  // Exception handling
-  void exception(ZmRef<ZeEvent> e) const { ZeLog::log(ZuMv(e)); }
 
   // Traffic Logging
   void log(MxMsgID, MxTraffic) { }

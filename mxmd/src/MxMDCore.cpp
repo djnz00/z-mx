@@ -245,8 +245,8 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
 	    if (schedInitFn) schedInitFn(mx);
 	    if (!mx->start()) {
 	      failed = true;
-	      ZeLOG(Fatal, ZtString{} << node->key()->params().id() <<
-		  " - multiplexer start failed");
+	      ZeLOG(Fatal, ([](auto &s) { s << node->key()->params().id() <<
+		  " - multiplexer start failed"; }));
 	      break;
 	    }
 	  }
@@ -267,13 +267,13 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
     md->init_(cf);
 
   } catch (const ZvError &e) {
-    ZeLOG(Fatal, ZtString{} << "MxMDLib - configuration error: " << e);
+    ZeLOG(Fatal, ([](auto &s) { s << "MxMDLib - configuration error: " << e; }));
     return md = nullptr;
   } catch (const ZtString &e) {
-    ZeLOG(Fatal, ZtString{} << "MxMDLib - error: " << e);
+    ZeLOG(Fatal, ([](auto &s) { s << "MxMDLib - error: " << e; }));
     return md = nullptr;
   } catch (const ZeError &e) {
-    ZeLOG(Fatal, ZtString{} << "MxMDLib - error: " << e);
+    ZeLOG(Fatal, ([](auto &s) { s << "MxMDLib - error: " << e; }));
     return md = nullptr;
   } catch (...) {
     ZeLOG(Fatal, "MxMDLib - unknown exception during init");
