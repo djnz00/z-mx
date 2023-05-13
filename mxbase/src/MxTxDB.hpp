@@ -38,9 +38,6 @@
 #if 0
 struct App : public MxTxDB<App> {
   void txAdded(TxPOD *);		// transmission recovered/replicated
-
-  template <typename ...Args>
-  void logError(Args &&... args);	// log error
 };
 #endif
 
@@ -107,7 +104,7 @@ public:
       if (ZuUnlikely(msgID.seqNo <= txPOD->data().msgID.seqNo)) return;
       txPOD = m_txDB->update(txPOD);
     }
-    if (ZuUnlikely(!txPOD)) { app()->logError("txDB update failed"); return; }
+    if (ZuUnlikely(!txPOD)) { ZeLOG(Error, "txDB update failed"); return; }
     auto &txData = txPOD->data();
     txData.msgID = msgID;
     l(txData.msgRN, txData.msgType);

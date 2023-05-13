@@ -374,14 +374,14 @@ private:
       if (n = ZtREGEX("\s*>>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "a"))) {
-	  logError(path, ": ", ZeLastError);
+	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) { s << path << ": " << e; }));
 	  return -1;
 	}
 	cmd = c[0];
       } else if (n = ZtREGEX("\s*>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "w"))) {
-	  logError(path, ": ", ZeLastError);
+	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) { s << path << ": " << e; }));
 	  return -1;
 	}
 	cmd = c[0];
@@ -446,8 +446,7 @@ private:
     auto ackType = ack->data_type();
     if ((int)ackType != ackType1 &&
 	ackType2 >= fbs::ReqAckData_MIN && (int)ackType != ackType2) {
-      logError("mismatched ack from server: ",
-	  fbs::EnumNameReqAckData(ackType));
+      ZeLOG(Error, ([ackType](auto &s) { s << "mismatched ack from server: " << fbs::EnumNameReqAckData(ackType); }));
       out << op << " failed\n";
       return 1;
     }
@@ -1465,8 +1464,10 @@ int main(int argc, char **argv)
 
   ZeLog::init("zcmd");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::lambdaSink(
-	[](ZeLogBuf &buf) { buf << '\n'; std::cerr << buf << std::flush; }));
+  ZeLog::sink(ZeLog::lambdaSink([](ZeLogBuf &buf, const ZeEvent &) {
+    buf << '\n';
+    std::cerr << buf << std::flush;
+  }));
   ZeLog::start();
 
   bool interactive = Zrl::interactive();

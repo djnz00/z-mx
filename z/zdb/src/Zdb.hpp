@@ -387,14 +387,12 @@ struct IndexBlk_ {
   IndexBlk_(IndexBlk_ &&) = delete;
   IndexBlk_ &operator =(IndexBlk_ &&) = delete;
 };
-inline constexpr auto IndexBlk_HeapID() { 
-  return []() { return "Zdb.IndexBlk"; }
-}
+inline const char *IndexBlk_HeapID() { return "Zdb.IndexBlk"; }
 using IndexBlkCache =
   ZmCache<IndexBlk_,
     ZmCacheNode<IndexBlk_,
       ZmCacheKey<IndexBlk_::IDAxor,
-	ZmCacheHeapID<IndexBlk_HeapID()>>>>;
+	ZmCacheHeapID<IndexBlk_HeapID>>>>;
 using IndexBlk = IndexBlkCache::Node;
 
 // -- file cache
@@ -574,7 +572,7 @@ public:
 inline RN VBuf_RNAxor(const VBuf &buf) {
   return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
 }
-ZuAssert(!((sizeof(Buf) + sizeof(uintptr_t)) & (Zm::CacheLineSize - 1)));
+ZuAssert(!((sizeof(Buf)) & (Zm::CacheLineSize - 1)));
 using IOBuilder = Zfb::IOBuilder<Buf>;
 
 // -- main replication connection class
@@ -851,10 +849,10 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 public:
-  void put() { m_db->put(this); }
-  void append() { m_db->append(this); }
-  void del() { m_db->del(this); }
-  void abort() { m_db->abort(this); }
+  void put();
+  void append();
+  void del();
+  void abort();
 
 private:
   void init(RN rn, RN prevRN, SeqLen seqLenOp) {
@@ -880,13 +878,11 @@ private:
     m_origRN = nullRN();
     m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
     m_committed = true;
-    return true;
   }
   void abort_() {
     m_rn = m_origRN;
     m_origRN = nullRN();
     m_committed = true;
-    return true;
   }
 
   void put_() {
@@ -1134,7 +1130,7 @@ private:
 	    });
 	    return;
 	  }
-	invoke([this, l = ZuMv(l)] mutable { l(nullptr); }
+	invoke([this, l = ZuMv(l)]() mutable { l(nullptr); });
       });
     });
   }
@@ -1345,6 +1341,11 @@ private:
   FileCache		m_files;		// file thread
 };
 
+inline void AnyObject_::put() { m_db->put(this); }
+inline void AnyObject_::append() { m_db->append(this); }
+inline void AnyObject_::del() { m_db->del(this); }
+inline void AnyObject_::abort() { m_db->abort(this); }
+
 // -- DB container
 
 inline const char *DBs_HeapID() { return "Env.DBs"; }
@@ -1523,18 +1524,14 @@ struct EnvCf {
     path = cf->get("path", true);
     thread = cf->get("thread", true);
     fileThread = cf->get("fileThread");
-    {
-      ZvCf::Iterator i(cf->subset("dbs", true));
-      ZuString key;
-      while (ZmRef<ZvCf> dbCf = i.subset(key))
-	dbCfs.addNode(new DBCfs::Node{key, dbCf});
-    }
-    {
-      ZvCf::Iterator i(cf->subset("hosts", true));
-      ZuString key;
-      while (ZmRef<ZvCf> hostCf = i.subset(key))
-	hostCfs.addNode(new HostCfs::Node{key, hostCf});
-    }
+    cf->subset("dbs", true)->all([this](ZvCfNode *node) {
+      if (auto dbCf = node->cf)
+	dbCfs.addNode(new DBCfs::Node{node->key, ZuMv(dbCf)});
+    });
+    cf->subset("hosts", true)->all([this](ZvCfNode *node) {
+      if (auto hostCf = node->cf)
+	hostCfs.addNode(new HostCfs::Node{node->key, ZuMv(hostCf)});
+    });
     hostID = cf->getInt("hostID", 0, 1<<30, true);
     nAccepts = cf->getInt("nAccepts", 1, 1<<10, false, 8);
     heartbeatFreq = cf->getInt("heartbeatFreq", 1, 3600, false, 1);
@@ -1618,8 +1615,10 @@ public:
   }
   void state(int n) {
     if (ZuUnlikely(!m_self)) {
-      ZeLOG(Fatal, ([](auto &s) { s <<
-	  "ZdbEnv::state(" << HostState::name(n) << ") called out of order"; }));
+      ZeLOG(Fatal, ([n](auto &s) {
+	s << "ZdbEnv::state(" << HostState::name(n) <<
+	  ") called out of order";
+      }));
       return;
     }
     m_self->state(n);

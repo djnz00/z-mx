@@ -571,7 +571,7 @@ template <unsigned N> struct ZuMkSeq_ {
 };
 template <unsigned N> using ZuMkSeq = typename ZuMkSeq_<N>::T;
 
-// default accessor (pass-through value)
+// default accessor (pass-through)
 inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }

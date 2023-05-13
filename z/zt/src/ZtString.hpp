@@ -1451,8 +1451,7 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // copies of the prefix and the data are taken since ZtHexDump is mainly used
 // for troubleshooting / logging; ZeLog printing is deferred to a later time
 // by the logger, which runs in a different thread and stack; both the
-// prefix and the data are possibly/probably transient and subsequently
-// overwritten/freed by the caller in the interim
+// prefix and the data need to reliably remain in scope
 inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
 template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
 template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };

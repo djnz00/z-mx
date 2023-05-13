@@ -118,7 +118,7 @@ public:
   T value() const { return m_value; }
 
 protected:
-  void print_(ZmStream &s, ZuString msg) const {
+  void print__(ZmStream &s, ZuString msg) const {
     s << '"' << m_key << "\" " << msg << ' ' <<
       "min(" << m_minimum << ") <= " << m_value <<
       " <= max(" << m_maximum << ")";
@@ -137,7 +137,9 @@ class Range : public Range_<T> {
 public:
   Range(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
-  void print_(ZmStream &s) const { Base::print_(s, "out of range"); }
+  void print_(ZmStream &s) const {
+    Base::print__(s, "out of range");
+  }
 };
 // thrown by getMultiple() on number of values error
 class NValues : public Range_<unsigned> {
@@ -147,7 +149,7 @@ public:
   NValues(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
   void print_(ZmStream &s) const {
-    Base::print_(s, "invalid number of values");
+    Base::print__(s, "invalid number of values");
   }
 };
 
@@ -328,7 +330,7 @@ inline uint64_t getFlags64(Args &&... args) {
 
 class Cf;
 
-struct Node {
+struct CfNode {
   Cf * const		owner = nullptr;
   const ZtString	key;
   ZtArray<ZtString>	values;
@@ -337,18 +339,18 @@ struct Node {
 friend Cf;
 
 private:
-  Node() = delete;
-  Node(const Node &) = delete;
-  Node &operator =(const Node &) = delete;
-  Node(Node &&) = delete;
-  Node &operator =(Node &&) = delete;
+  CfNode() = delete;
+  CfNode(const CfNode &) = delete;
+  CfNode &operator =(const CfNode &) = delete;
+  CfNode(CfNode &&) = delete;
+  CfNode &operator =(CfNode &&) = delete;
 
 protected:
   template <typename Key>
-  Node(Cf *owner_, Key &&key_) : owner{owner_}, key{ZuFwd<Key>(key_)} { }
+  CfNode(Cf *owner_, Key &&key_) : owner{owner_}, key{ZuFwd<Key>(key_)} { }
 
 public:
-  static const ZtString &KeyAxor(const Node &node) { return node.key; }
+  static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
   ZtString get(bool required = false, ZtString def = {}) const {
     if (!values) {
@@ -411,7 +413,7 @@ class ZvAPI Cf : public ZuObject {
 public:
   Cf() = default;
 private:
-  Cf(Node *node) : m_node{node} { }
+  Cf(CfNode *node) : m_node{node} { }
 public:
   static void parseCLI(ZuString line, ZtArray<ZtString> &args);
 
@@ -499,9 +501,9 @@ private:
 private:
   static const char *HeapID() { return "ZvCf"; }
   using Tree =
-    ZmRBTree<Node,
-      ZmRBTreeNode<Node,
-	ZmRBTreeKey<Node::KeyAxor,
+    ZmRBTree<CfNode,
+      ZmRBTreeNode<CfNode,
+	ZmRBTreeKey<CfNode::KeyAxor,
 	  ZmRBTreeUnique<true,
 	    ZmRBTreeHeapID<HeapID>>>>>;
   using TreeNode = Tree::Node;
@@ -594,7 +596,7 @@ public:
   }
 
   unsigned count() const { return m_tree.count_(); }
-  Node *node() const { return m_node; }
+  CfNode *node() const { return m_node; }
 
   template <typename L>
   void all(L l) {
@@ -618,12 +620,12 @@ private:
   static ZtString quoteValue(ZuString value);
 
   Tree		m_tree;
-  Node		*m_node;
+  CfNode	*m_node;
 };
 
 inline ZtString fullKey(const Cf *cf, ZtString key) {
   while (auto node = cf->node()) {
-    key = ZtString{} << node->Node::key << ':' << key;
+    key = ZtString{} << node->CfNode::key << ':' << key;
     if (!(cf = node->owner)) break;
   }
   return key;
@@ -645,7 +647,7 @@ using ZvCfBadDefine = ZvCf_::BadDefine;
 #endif
 
 using ZvCf = ZvCf_::Cf;
-using ZvCfNode = ZvCf_::Node;
+using ZvCfNode = ZvCf_::CfNode;
 
 #ifdef _MSC_VER
 #pragma warning(pop)

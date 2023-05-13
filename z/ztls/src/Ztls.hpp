@@ -957,7 +957,7 @@ protected:
 	  ZmTimeNow(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
     else
       ZeLOG(Error, ([transient](auto &s) {
-	s << "listen() failed " << transient ? "(transient)" : "";
+	s << "listen() failed " << (transient ? "(transient)" : "");
       }));
   }
 

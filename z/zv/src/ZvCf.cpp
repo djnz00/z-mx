@@ -647,8 +647,8 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
       int n = node->values.length();
       if (n) {
 	ZtString arg;
-	if (!ZtREGEX("^\d+$").m(node->Node::key))
-	  arg << "--" << prefix << node->Node::key << '=';
+	if (!ZtREGEX("^\d+$").m(node->CfNode::key))
+	  arg << "--" << prefix << node->CfNode::key << '=';
 	for (int i = 0; i < n; i++) {
 	  arg << quoteArgValue(node->values[i]);
 	  if (i < n - 1) arg << ',';
@@ -657,7 +657,7 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
       }
     }
     if (node->cf)
-      node->cf->toArgs(args, ZtString{} << prefix << node->Node::key << ':');
+      node->cf->toArgs(args, ZtString{} << prefix << node->CfNode::key << ':');
   }
 }
 
@@ -690,7 +690,7 @@ void Cf::print(ZmStream &s, ZtString prefix) const
     {
       unsigned n = node->values.length();
       if (n) {
-	s << prefix << node->Node::key << ' ';
+	s << prefix << node->CfNode::key << ' ';
 	for (int i = 0; i < n; i++) {
 	  s << quoteValue(node->values[i]);
 	  if (i < n - 1)
@@ -701,7 +701,7 @@ void Cf::print(ZmStream &s, ZtString prefix) const
       }
     }
     if (node->cf) {
-      s << prefix << node->Node::key << " {\n" <<
+      s << prefix << node->CfNode::key << " {\n" <<
 	node->cf->prefixed(ZtString{} << "  " << prefix) <<
 	prefix << "}\n";
     }
@@ -825,7 +825,7 @@ void Cf::merge(Cf *cf)
 {
   auto i = cf->m_tree.iterator();
   while (TreeNodeRef srcNode = i.iterate()) {
-    TreeNodeRef dstNode = m_tree.find(srcNode->Node::key);
+    TreeNodeRef dstNode = m_tree.find(srcNode->CfNode::key);
     if (!dstNode) {
       m_tree.addNode(i.del(srcNode).release());
       const_cast<Cf * &>(srcNode->owner) = this;

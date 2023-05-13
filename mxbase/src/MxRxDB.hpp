@@ -38,9 +38,6 @@
 #if 0
 struct App : public MxRxDB<App> {
   void rxAdded(RxPOD *);		// reception recovered/replicated
-
-  template <typename ...Args>
-  void logError(Args &&... args);	// log error
 };
 #endif
 
@@ -91,7 +88,7 @@ public:
       rxPOD = m_rxDB->push();
     else
       rxPOD = m_rxDB->update(rxPOD);
-    if (ZuUnlikely(!rxPOD)) { app()->logError("rxDB update failed"); return; }
+    if (ZuUnlikely(!rxPOD)) { ZeLOG(Error, "rxDB update failed"); return; }
     auto &rxData = rxPOD->data();
     rxData.msgID = msgID;
     if (ZuUnlikely(rxPOD->rn() == rxPOD->prevRN()))

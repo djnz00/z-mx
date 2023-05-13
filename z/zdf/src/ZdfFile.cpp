@@ -83,7 +83,7 @@ bool FileMgr::open(
     try {
       if (!regex.m(fileName_)) continue;
     } catch (const ZtRegexError &e) {
-      ZeLOG(Error, ([](auto &s) { s << e; }));
+      ZeLOG(Error, ([e](auto &s) { s << e; }));
       continue;
     } catch (...) {
       continue;
@@ -143,7 +143,7 @@ retry:
   if (file->open(path, ZiFile::Create | ZiFile::GC,
 	0666, fileSize, &e) != Zi::OK) {
     if (retried) {
-      ZeLOG(Error, ([](auto &s) { s <<
+      ZeLOG(Error, ([path, e](auto &s) { s <<
 	  "Zdf::FileMgr could not open or create \"" <<
 	  path << "\": " << e; }));
       return nullptr; 
@@ -164,7 +164,7 @@ void FileMgr::archiveFile(const FileID &fileID)
   name = ZiFile::append(m_dir, name);
   ZeError e;
   if (ZiFile::rename(name, coldName, &e) != Zi::OK) {
-    ZeLOG(Error, ([](auto &s) { s <<
+    ZeLOG(Error, ([name, coldName, e](auto &s) { s <<
 	"Zdf::FileMgr could not rename \"" << name << "\" to \"" <<
 	coldName << "\": " << e; }));
   }
@@ -272,14 +272,12 @@ void FileMgr::fileRdError_(
     const FileID &fileID, ZiFile::Offset off, int r, ZeError e)
 {
   if (r < 0) {
-    ZeLOG(Error, ([](auto &s) { s <<
-	"Zdf::FileMgr pread() failed on \"" <<
-	fileName(fileID) <<
+    ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) { s <<
+	"Zdf::FileMgr pread() failed on \"" << name <<
 	"\" at offset " << ZuBoxed(off) <<  ": " << e; }));
   } else {
-    ZeLOG(Error, ([](auto &s) { s <<
-	"Zdf::FileMgr pread() truncated on \"" <<
-	fileName(fileID) <<
+    ZeLOG(Error, ([name = fileName(fileID), off](auto &s) { s <<
+	"Zdf::FileMgr pread() truncated on \"" << name <<
 	"\" at offset " << ZuBoxed(off); }));
   }
 }
@@ -287,8 +285,7 @@ void FileMgr::fileRdError_(
 void FileMgr::fileWrError_(
     const FileID &fileID, ZiFile::Offset off, ZeError e)
 {
-  ZeLOG(Error, ([](auto &s) { s <<
-      "Zdf::FileMgr pwrite() failed on \"" <<
-      fileName(fileID) <<
+  ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) { s <<
+      "Zdf::FileMgr pwrite() failed on \"" << name <<
       "\" at offset " << ZuBoxed(off) <<  ": " << e; }));
 }

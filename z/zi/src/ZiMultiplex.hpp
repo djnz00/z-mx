@@ -427,8 +427,10 @@ struct ZiCxnInfo { // pure aggregate, no ctor
   uint16_t		localPort = 0;
   ZiIP			remoteIP;
   uint16_t		remotePort = 0;
+#ifdef ZiMultiplex_Netlink
   uint32_t		familyID = 0; // non-zero for connected netlink sockets
   uint32_t		portID = 0; // only valid when familyID is valid
+#endif
 
   bool operator !() const { return !*type; }
   ZuOpBool
@@ -441,8 +443,10 @@ struct ZiCxnInfo { // pure aggregate, no ctor
       s << "localAddr=" << localIP << ':' << localPort <<
 	" remoteAddr=" << remoteIP << ':' << remotePort;
     } else {
+#ifdef ZiMultiplex_Netlink
       s << "familyID=" << familyID;
       if (familyID) s << " portID=" << portID;
+#endif
     }
   }
   friend ZuPrintFn ZuPrintType(ZiCxnInfo *);

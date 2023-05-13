@@ -154,9 +154,10 @@ template <typename Fn>
 struct ZeLambdaSink : public ZeLambdaSink_ {
   Fn	fn;
 
-  ZeLambdaSink(Fn fn_) : fn{ZuMv(fn_)} { }
+  ZeLambdaSink(Fn fn_, int tzOffset = 0) :
+      ZeLambdaSink_{tzOffset}, fn{ZuMv(fn_)} { }
 
-  void post(ZeLogBuf &buf, const ZeEvent &) { fn(buf); }
+  void post(ZeLogBuf &buf, const ZeEvent &e) { fn(buf, e); }
   void age() { } // unused
 };
 
