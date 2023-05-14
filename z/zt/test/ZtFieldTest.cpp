@@ -8,7 +8,8 @@ namespace Values {
 }
 
 namespace Flags {
-  ZtEnumValues("Flags", Bit0, Bit1, Bit2);
+  ZtEnumValues_(Bit0, Bit1, Bit2);
+  ZtEnumFlags("Flags", Map, "0", Bit0, "1", Bit1, "2", Bit2);
 }
 
 struct Foo {
@@ -40,14 +41,17 @@ ZtFields(Foo,
 
 template <typename T, typename = void>
 struct MinMax {
+  const ZtFieldFmt &fmt; // unused
   template <typename S>
   friend S &operator <<(S &s, const MinMax &) { return s; }
 };
 template <typename T>
 struct MinMax<T, decltype(T::minimum(), void())> {
+  const ZtFieldFmt &fmt;
   template <typename S>
-  friend S &operator <<(S &s, const MinMax &) {
-    s << " minimum=" << T::minimum() << " maximum=" << T::maximum();
+  friend S &operator <<(S &s, const MinMax &m) {
+    s << " minimum=" << typename T::Print{T::minimum(), m.fmt}
+      << " maximum=" << typename T::Print{T::maximum(), m.fmt};
     return s;
   }
 };
@@ -55,9 +59,11 @@ struct MinMax<T, decltype(T::minimum(), void())> {
 int main()
 {
   using Fields = ZuFieldList<Foo>;
-  ZuTypeAll<Fields>::invoke([]<typename Field>() {
-    std::cout << Field::id() << " deflt=" << Field::deflt() <<
-      MinMax<Field>{} << '\n';
+  ZtFieldFmt fmt;
+  ZuTypeAll<Fields>::invoke([&fmt]<typename Field>() {
+    std::cout << Field::id()
+      << " deflt=" << typename Field::Print{Field::deflt(), fmt}
+      << MinMax<Field>{fmt} << '\n';
   });
   std::cout << "double nan=" << __builtin_nan("0") << '\n';
 }

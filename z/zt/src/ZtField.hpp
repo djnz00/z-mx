@@ -202,7 +202,7 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
     const ZtFieldFmt &fmt; // unused
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
-      const auto &v = print.v;
+      ZuString v{print.v};
       s << '"';
       for (unsigned i = 0, n = v.length(); i < n; i++) {
 	char c = v[i];
@@ -703,9 +703,9 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
       if (Flags & ZtFieldFlags::NDP_)
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
+	return s << print.v.vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
       else
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar);
+	return s << print.v.vfmt(print.fmt.scalar);
     }
   };
   const O &o;
@@ -773,9 +773,9 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
       if (Flags & ZtFieldFlags::NDP_)
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
+	return s << print.v.vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
       else
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar);
+	return s << print.v.vfmt(print.fmt.scalar);
     }
   };
   const O &o;
