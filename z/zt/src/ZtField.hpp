@@ -56,21 +56,21 @@
 // a Field is of the form:
 // (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Flags...)])
 //
-// Example: (((id, Rd), (0)), (String), (Ctor(0)))
+// Example: (((id, Rd), (0)), (String, "default"), (Ctor(0)))
 //
-// ZtField Type	C++ Type
-// ------------	--------
-// String	<String>
-// Composite	<Composite>
-// Bool		<Integral>
-// Int		<Integral>
-// Hex		<Integral>
-// Enum, Map	<Integral>
-// Flags, Map	<Integral>
-// Float	<FloatingPoint>
-// Fixed	ZuFixed
-// Decimal	ZuDecimal
-// Time		ZmTime
+// ZtField Type	C++ Type		ZtField Args
+// ------------	--------		------------
+// String	<String>		[, default]
+// Composite	<Composite>		[, default]
+// Bool		<Integral>		[, default]
+// Int		<Integral>		[, min, max, default]
+// Hex		<Integral>		[, default]
+// Enum, Map	<Integral>		[, default]
+// Flags, Map	<Integral>		[, default]
+// Float	<FloatingPoint>		[, min, max, default]
+// Fixed	ZuFixed			[, min, max, default]
+// Decimal	ZuDecimal		[, min, max, default]
+// Time		ZmTime			[, default]
 
 namespace ZtFieldType {
   enum _ {
