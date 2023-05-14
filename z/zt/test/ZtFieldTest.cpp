@@ -19,6 +19,7 @@ struct Foo {
   int enum_;
   uint64_t flags;
   double float_;
+  double float_ranged;
   ZuFixed fixed;
   ZuDecimal decimal;
   ZmTime time_;
@@ -28,20 +29,35 @@ ZtFields(Foo,
     (((string)), (String, "hello"), (Ctor(0))),
     (((int_)), (Int), (Ctor(1))),
     (((int_ranged)), (Int, 0, 100, 42), (Ctor(2))),
-    (((hex)), (Hex), (Ctor(3))),
+    (((hex)), (Hex, 0xdeadbeef), (Ctor(3))),
     (((enum_)), (Enum, Values::Map), (Ctor(4))),
     (((flags)), (Flags, Flags::Map), (Ctor(5))),
-    (((float_)), (Float, 0.0, 1, 0.42), (Ctor(6))),
-    (((fixed)), (Fixed), (Ctor(7))),
-    (((decimal)), (Decimal), (Ctor(8))),
-    (((time_)), (Time), (Ctor(9))));
+    (((float_)), (Float), (Ctor(6))),
+    (((float_ranged)), (Float, 0.0, 1, 0.42), (Ctor(7))),
+    (((fixed)), (Fixed), (Ctor(8))),
+    (((decimal)), (Decimal), (Ctor(9))),
+    (((time_)), (Time), (Ctor(10))));
+
+template <typename T, typename = void>
+struct MinMax {
+  template <typename S>
+  friend S &operator <<(S &s, const MinMax &) { return s; }
+};
+template <typename T>
+struct MinMax<T, decltype(T::minimum(), void())> {
+  template <typename S>
+  friend S &operator <<(S &s, const MinMax &) {
+    s << " minimum=" << T::minimum() << " maximum=" << T::maximum();
+    return s;
+  }
+};
 
 int main()
 {
   using Fields = ZuFieldList<Foo>;
   ZuTypeAll<Fields>::invoke([]<typename Field>() {
-    std::cout << Field::id() << " deflt=" << Field::deflt() << '\n';
+    std::cout << Field::id() << " deflt=" << Field::deflt() <<
+      MinMax<Field>{} << '\n';
   });
-
   std::cout << "double nan=" << __builtin_nan("0") << '\n';
 }
