@@ -634,13 +634,15 @@ struct ZtFieldType_Float : public ZtField_<Base, Flags> {
   struct Print {
     const T &v;
     const ZtFieldFmt &fmt;
-    template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    template <typename S> S &print(S &s) const {
       if (Flags & ZtFieldFlags::NDP_)
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
+	return
+	  s << ZuBoxed(v).vfmt(fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
       else
-	return s << ZuBoxed(print.v).vfmt(print.fmt.scalar);
+	return s << ZuBoxed(v).vfmt(fmt.scalar);
     }
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
   };
   const O &o;
   const ZtFieldFmt &fmt;
@@ -700,13 +702,14 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
   struct Print {
     const T &v;
     const ZtFieldFmt &fmt;
-    template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    template <typename S> S &print(S &s) const {
       if (Flags & ZtFieldFlags::NDP_)
-	return s << print.v.vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
+	return s << v.vfmt(fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
       else
-	return s << print.v.vfmt(print.fmt.scalar);
+	return s << v.vfmt(fmt.scalar);
     }
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
   };
   const O &o;
   const ZtFieldFmt &fmt;
@@ -770,13 +773,14 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
   struct Print {
     const T &v;
     const ZtFieldFmt &fmt;
-    template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    template <typename S> S &print(S &s) const {
       if (Flags & ZtFieldFlags::NDP_)
-	return s << print.v.vfmt(print.fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
+	return s << v.vfmt(fmt.scalar).fp(-ZtFieldFlags::getNDP(Flags));
       else
-	return s << print.v.vfmt(print.fmt.scalar);
+	return s << v.vfmt(fmt.scalar);
     }
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
   };
   const O &o;
   const ZtFieldFmt &fmt;
