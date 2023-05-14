@@ -123,7 +123,7 @@ namespace Save {
   template <typename T, typename I, typename Arg0, typename ...Args>
   inline void push_(T *buf, I i, Arg0 &&arg0, Args &&... args) {
     buf[i] = ZuFwd<Arg0>(arg0);
-    push_(buf, ZuConstant<i + 1>{}, ZuFwd<Args>(args)...);
+    push_(buf, ZuUnsigned<i + 1>{}, ZuFwd<Args>(args)...);
   }
 
   // compile-time-recursive vector push, with a lambda map function
@@ -132,7 +132,7 @@ namespace Save {
   template <typename T, typename L, typename I, typename Arg0, typename ...Args>
   inline void lpush_(T *buf, L l, I i, Arg0 &&arg0, Args &&... args) {
     buf[i] = l(ZuFwd<Arg0>(arg0));
-    lpush_(buf, ZuMv(l), ZuConstant<i + 1>{}, ZuFwd<Args>(args)...);
+    lpush_(buf, ZuMv(l), ZuUnsigned<i + 1>{}, ZuFwd<Args>(args)...);
   }
 
   // push uninitialized vector
@@ -144,12 +144,12 @@ namespace Save {
   // inline creation of a vector of primitive scalars
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
+    auto n = ZuUnsigned<sizeof...(Args)>{};
     T *buf = nullptr;
     auto r = pvector_(b, n, buf);
     if (r.IsNull() || !buf) return {};
     lpush_(buf, [](T v) { return EndianScalar(v); },
-	ZuConstant<0>{}, ZuFwd<Args>(args)...);
+	ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     return r;
   }
   // iterated creation of a vector of primitive values
@@ -172,20 +172,20 @@ namespace Save {
   // inline creation of a vector of offsets
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
+    auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    push_(buf.ptr, ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
   // inline creation of a vector of lambda-transformed offsets
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
+    auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    lpush_(buf.ptr, ZuMv(l), ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVector(buf.ptr, n);
     return r;
   }
@@ -211,20 +211,20 @@ namespace Save {
   // inline creation of a vector of keyed offsets
   template <typename T, typename B, typename ...Args>
   inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
+    auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    push_(buf.ptr, ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    push_(buf.ptr, ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
   // inline creation of a vector of lambda-transformed keyed offsets
   template <typename T, typename B, typename L, typename ...Args>
   inline Offset<Vector<Offset<T>>> lkeyVec(B &b, L l, Args &&... args) {
-    auto n = ZuConstant<sizeof...(Args)>{};
+    auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    lpush_(buf.ptr, ZuMv(l), ZuConstant<0>{}, ZuFwd<Args>(args)...);
+    lpush_(buf.ptr, ZuMv(l), ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }

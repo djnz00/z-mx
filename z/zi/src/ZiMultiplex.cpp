@@ -102,7 +102,7 @@ public:
 
   static ZiMultiplex_WSExt *instance();
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiMultiplex_WSExt *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiMultiplex_WSExt *);
 
 private:
   PConnectEx		m_connectEx;

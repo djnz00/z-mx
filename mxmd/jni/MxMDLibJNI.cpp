@@ -118,8 +118,8 @@ jobject MxMDLibJNI::init(JNIEnv *env, jclass c, jstring cf)
   {
     MxMDLib *md = MxMDLib_JNI::init(ZJNI::j2s_ZtString(env, cf),
 	[](ZmScheduler *mx) {
-      mx->threadInit([]() { ZJNI::attach(); });
-      mx->threadFinal([]() { ZJNI::detach(); });
+      mx->threadInit([]{ ZJNI::attach(); });
+      mx->threadFinal([]{ ZJNI::detach(); });
     });
     if (ZuUnlikely(!md)) {
       ZJNI::throwNPE(env, "MxMDLib.init() failed");

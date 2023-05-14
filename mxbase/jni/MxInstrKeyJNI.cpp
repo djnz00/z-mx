@@ -40,7 +40,7 @@ namespace MxInstrKeyJNI {
   };
 
   // MxInstrKey accessors
-  ZJNI::JavaMethod methods[] {
+  ZJNI::JavaMethod methods[] = {
     { "id", "()Ljava/lang/String;" },
     { "venue", "()Ljava/lang/String;" },
     { "segment", "()Ljava/lang/String;" },

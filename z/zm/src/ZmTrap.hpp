@@ -52,7 +52,7 @@ public:
   static void sighupFn(ZmFn<> fn) { instance()->m_sighupFn = fn; }
   static ZmFn<> sighupFn() { return instance()->m_sighupFn; }
 
-  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmTrap *);
+  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmTrap *);
 
 private:
   static ZmTrap *instance();

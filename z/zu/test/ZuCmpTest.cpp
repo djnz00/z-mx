@@ -446,8 +446,8 @@ int main()
   }
 
   {
-    ZuConstant<1> i;
-    ZuConstant<i> j;
+    ZuUnsigned<1> i;
+    ZuUnsigned<i> j;
     CHECK(K<j>::k == 1);
   }
 

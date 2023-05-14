@@ -1371,7 +1371,7 @@ inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
   iconv->convert(*this, s);
 }
 
-inline const char *ZtString_ID() { return "ZtString"; }
+inline constexpr const char *ZtString_ID() { return "ZtString"; }
 
 #ifdef _MSC_VER
 ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID>;
@@ -1452,7 +1452,7 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 // for troubleshooting / logging; ZeLog printing is deferred to a later time
 // by the logger, which runs in a different thread and stack; both the
 // prefix and the data need to reliably remain in scope
-inline const char *ZtHexDump_ID() { return "ZtHexDump"; }
+inline constexpr const char *ZtHexDump_ID() { return "ZtHexDump"; }
 template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
 template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
 class ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {

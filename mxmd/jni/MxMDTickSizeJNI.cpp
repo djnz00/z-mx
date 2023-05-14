@@ -37,7 +37,7 @@ namespace MxMDTickSizeJNI {
 
 #if 0
   // MxMDTickSize accessors
-  ZJNI::JavaMethod methods[] {
+  ZJNI::JavaMethod methods[] = {
     { "minPrice", "()J" },
     { "maxPrice", "()J" },
     { "tickSize", "()J" },

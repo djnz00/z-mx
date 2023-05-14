@@ -67,7 +67,7 @@ struct ZmTLock_Depth;
 struct ZmTLock_Depth : public ZmObject {
   ZmTLock_Depth() : m_depth(0) { }
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZmTLock_Depth *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZmTLock_Depth *);
 
   void inc() {
     if (m_depth > 20) {

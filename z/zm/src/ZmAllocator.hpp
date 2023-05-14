@@ -36,10 +36,8 @@
 #include <zlib/ZmHeap.hpp>
 #include <zlib/ZmVHeap.hpp>
 
-inline constexpr auto ZmAllocator_ID() {
-  return []() { return "ZmAllocator"; };
-}
-template <typename T, auto ID = ZmAllocator_ID(), bool Sharded = false>
+inline const char *ZmAllocator_ID() { return "ZmAllocator"; }
+template <typename T, auto ID = ZmAllocator_ID, bool Sharded = false>
 struct ZmAllocator : private ZmVHeap<ID> {
   using size_type = std::size_t;
   using difference_type = ptrdiff_t;

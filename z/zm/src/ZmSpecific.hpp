@@ -44,7 +44,7 @@
 //
 // ZmSpecific<T>::all(ZmFn<T *> fn) calls fn for all instances of T
 //
-// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuConstant<N>
+// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuUnsigned<N>
 // where N determines order of destruction (per ZmCleanup enum)
 //
 // ZmSpecific<T, false>::instance() can return null since T will not be
@@ -54,10 +54,10 @@
 //
 // thread_local T v; can be replaced with:
 // auto &v = *ZmSpecific<T>::instance();
-// auto &v = ZmTLS([]() { return new T(); });
+// auto &v = ZmTLS([]{ return new T(); });
 //
 // thread_local T v(args); can be replaced with:
-// auto &v = ZmTLS([]() { return new T(args...); });
+// auto &v = ZmTLS([]{ return new T(args...); });
 
 #ifndef ZmSpecific_HPP
 #define ZmSpecific_HPP

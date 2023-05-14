@@ -286,7 +286,7 @@ friend ZmSpecificCtor<ZmRand, true>;
 
   static ZmRandom *instance();
 
-  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmRand *);
+  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmRand *);
 
 public:
   ZuInline static double rand()			// real number in [0,1]

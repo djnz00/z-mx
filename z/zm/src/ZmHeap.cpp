@@ -144,7 +144,7 @@ public:
     ](auto node) { ZmDEREF(node->val()); });
   }
 
-  friend ZuConstant<ZmCleanup::HeapMgr> ZmCleanupLevel(ZmHeapMgr_ *);
+  friend ZuUnsigned<ZmCleanup::HeapMgr> ZmCleanupLevel(ZmHeapMgr_ *);
 
 private:
   static ZmHeapMgr_ *instance() {

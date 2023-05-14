@@ -147,9 +147,7 @@ struct User__ : public ZuObject {
 	}), flags);
   }
 };
-inline constexpr auto UserIDHashID() {
-  return []() { return "ZvUserDB.UserIDs"; };
-}
+inline constexpr const char *UserIDHashID() { return "ZvUserDB.UserIDs"; }
 inline constexpr auto UserIDAxor() {
   return [](const User__ &u) { return u.id; };
 }
@@ -158,10 +156,10 @@ using UserIDHash =
     ZmHashNode<User__,
       ZmHashKey<UserIDAxor(),
 	ZmHashHeapID<ZmHeapDisable(),
-	  ZmHashID<UserIDHashID()>>>>>;
+	  ZmHashID<UserIDHashID>>>>>;
 using User_ = UserIDHash::Node;
 inline constexpr auto UserNameHashID() {
-  return []() { return "ZvUserDB.UserNames"; };
+  return []{ return "ZvUserDB.UserNames"; };
 }
 inline constexpr auto UserNameAxor() {
   return [](const User_ &u) { return u.name; };
@@ -219,19 +217,12 @@ struct Key_ : public ZuObject, public Key__ {
     return fbs::CreateKey(fbb, str(fbb, id), bytes(fbb, secret), userID);
   }
 };
-inline constexpr auto KeyHashID() {
-  return []() { return "ZvUserDB.Keys"; };
-}
-#if 0
-inline constexpr auto KeyIDAxor() {
-  return [](const Key_ &k) { return k.id; };
-}
-#endif
+inline constexpr const char *KeyHashID() { return "ZvUserDB.Keys"; }
 using KeyHash =
   ZmHash<Key_,
     ZmHashNode<Key_,
       ZmHashKey<ZuFieldAxor<Key_, 0>(),
-	  ZmHashHeapID<KeyHashID()>>>>;
+	  ZmHashHeapID<KeyHashID>>>>;
 using Key = KeyHash::Node;
 
 class ZvAPI Mgr {

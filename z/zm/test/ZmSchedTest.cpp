@@ -237,7 +237,7 @@ int main(int argc, char **argv)
   for (i = 0; i < 5; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
 
-    timers[j - 1].fn = []() { };
+    timers[j - 1].fn = []{ };
 
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;

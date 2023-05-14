@@ -193,7 +193,7 @@ private:
 
   uint8_t		m_data[Size];
 };
-inline const char *Buf_HeapID() { return "ZdfSeries.Buf"; }
+inline constexpr const char *Buf_HeapID() { return "ZdfSeries.Buf"; }
 using Buf = Buf_<ZmHeap<Buf_HeapID, sizeof(Buf_<ZuNull>)>>;
 
 using BufUnloadFn = ZmFn<Buf *>;

@@ -36,7 +36,7 @@ public:
   }
   ZmBackTracer<64> *tracer() { return &m_tracer; }
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZmLock_Debug_ *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZmLock_Debug_ *);
 
 private:
   ZmAtomic<uint32_t>	m_enabled;

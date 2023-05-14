@@ -301,7 +301,7 @@ public:
     m_cache->histStats(m_stats);
   }
 
-  friend ZuConstant<ZmCleanup::Heap> ZmCleanupLevel(ZmHeapCacheT *);
+  friend ZuUnsigned<ZmCleanup::Heap> ZmCleanupLevel(ZmHeapCacheT *);
 
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {

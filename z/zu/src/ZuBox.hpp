@@ -208,20 +208,20 @@ using ZuBox_IsCharPtr =
     ZuTraits<S>::IsArray>::T;
 
 template <typename U>
-struct ZuBox_Unbox_ { using T = U; };
+struct ZuUnbox_ { using T = U; };
 template <typename U, typename Cmp>
-struct ZuBox_Unbox_<ZuBox<U, Cmp> > { using T = U; };
+struct ZuUnbox_<ZuBox<U, Cmp> > { using T = U; };
 template <typename U>
-using ZuBox_Unbox = typename ZuBox_Unbox_<U>::T;
+using ZuUnbox = typename ZuUnbox_<U>::T;
 
-template <typename T_, typename Cmp_ = ZuCmp<ZuBox_Unbox<T_>> >
+template <typename T_, typename Cmp_ = ZuCmp<ZuUnbox<T_>> >
 class ZuBox {
 template <typename, typename> friend class ZuBox;
 template <typename, typename> friend class ZuBoxFmt;
 template <typename> friend class ZuBoxVFmt;
 
 public:
-  using T = ZuBox_Unbox<T_>;
+  using T = ZuUnbox<T_>;
   using Cmp = Cmp_;
 
 private:

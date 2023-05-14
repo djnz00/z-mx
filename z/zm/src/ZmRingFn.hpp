@@ -59,10 +59,10 @@
 
 // NTP (named template parameters):
 //
-// inline constexpr auto HeapID() { return []() { return "HeapID"; }; }
+// inline constexpr const char *HeapID() { return "HeapID"; }
 // ZmRingFn<
 //   ZmRingFnArgs<ZuTypeList<ZmStream &>,	// parameters
-//     ZmRingFnHeapID<HeapID()>>>		// heap ID
+//     ZmRingFnHeapID<HeapID>>>			// heap ID
 
 // NTP defaults
 struct ZmRingFn_Defaults {

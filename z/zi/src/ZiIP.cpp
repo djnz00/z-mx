@@ -64,7 +64,7 @@ private:
 public:
   ~ZiIP_WSDLL();
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSDLL *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSDLL *);
 
 private:
   HMODULE		m_wsdll;
@@ -141,7 +141,7 @@ private:
 public:
   ~ZiIP_WSAStartup();
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSAStartup *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSAStartup *);
 
 private:
   bool		m_wsaCleanup;

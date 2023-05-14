@@ -155,7 +155,7 @@ struct ZePlatform_FMBuf : public ZmObject {
   ZuWStringN<ZeLog_BUFSIZ / 2>	w;
   ZuStringN<ZeLog_BUFSIZ>	s;
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_FMBuf *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_FMBuf *);
 };
 static ZePlatform_FMBuf *fmBuf()
 {

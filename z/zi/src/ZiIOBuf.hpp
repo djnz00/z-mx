@@ -72,7 +72,7 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   ZiAnyIOBuf &operator =(ZiAnyIOBuf &&) = delete;
 };
 
-inline const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
+inline constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
 template <unsigned Size_, auto ID = ZiIOBuf_HeapID>
 struct ZiIOVBuf : private ZmVHeap<ID>, public ZiAnyIOBuf {
   void		*owner = nullptr;

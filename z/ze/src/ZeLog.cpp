@@ -59,7 +59,7 @@ public:
 
   int facility() { return m_facility; }
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_Syslogger *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_Syslogger *);
 
 private:
   ZmLock	m_lock;
@@ -135,7 +135,7 @@ struct ZePlatform_EventLogger {
       handle, eventlogtype(e.severity), 0, 512, 0, 1, 0, &w, 0);
   }
 
-  friend ZuConstant<ZmCleanup::Platform>
+  friend ZuUnsigned<ZmCleanup::Platform>
     ZmCleanupLevel(ZePlatform_EventLogger *);
 };
 

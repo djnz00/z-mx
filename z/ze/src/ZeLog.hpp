@@ -176,7 +176,7 @@ friend ZmSingletonCtor<ZeLog>;
   ZeLog();
 
 public:
-  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
+  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
 
   template <typename ...Args>
   static ZmRef<ZeSink> fileSink(Args &&... args) {

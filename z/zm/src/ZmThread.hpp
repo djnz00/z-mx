@@ -369,7 +369,7 @@ public:
     if (m_dtorFn) (*m_dtorFn)(m_lambda);
   }
 
-  friend ZuConstant<ZmCleanup::Thread> ZmCleanupLevel(ZmThreadContext *);
+  friend ZuUnsigned<ZmCleanup::Thread> ZmCleanupLevel(ZmThreadContext *);
 
   void init();
 

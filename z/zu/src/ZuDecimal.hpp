@@ -66,56 +66,56 @@ struct ZuDecimal {
 
   int128_t	value;
 
-  ZuDecimal() : value{null()} { }
-  ZuDecimal(const ZuDecimal &v) : value{v.value} { }
-  ZuDecimal &operator =(const ZuDecimal &v) {
+  constexpr ZuDecimal() : value{null()} { }
+  constexpr ZuDecimal(const ZuDecimal &v) : value{v.value} { }
+  constexpr ZuDecimal &operator =(const ZuDecimal &v) {
     value = v.value;
     return *this;
   }
-  ZuDecimal(ZuDecimal &&v) : value{v.value} { }
-  ZuDecimal &operator =(ZuDecimal &&v) {
+  constexpr ZuDecimal(ZuDecimal &&v) : value{v.value} { }
+  constexpr ZuDecimal &operator =(ZuDecimal &&v) {
     value = v.value;
     return *this;
   }
-  ~ZuDecimal() { }
+  constexpr ~ZuDecimal() { }
 
   enum NoInit_ { NoInit };
-  ZuDecimal(NoInit_ _) { }
+  constexpr ZuDecimal(NoInit_ _) { }
 
   enum Unscaled_ { Unscaled };
-  ZuDecimal(Unscaled_ _, int128_t v) : value{v} { }
+  constexpr ZuDecimal(Unscaled_ _, int128_t v) : value{v} { }
 
   template <typename V>
-  ZuDecimal(V v, ZuIsIntegral<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, ZuIsIntegral<V> *_ = nullptr) :
       value(static_cast<int128_t>(v) * scale()) { }
 
   template <typename V>
-  ZuDecimal(V v, ZuIsFloatingPoint<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, ZuIsFloatingPoint<V> *_ = nullptr) :
       value((long double)v * scale_fp()) { }
 
   template <typename V>
-  ZuDecimal(V v, unsigned exponent, ZuIsIntegral<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, unsigned exponent, ZuIsIntegral<V> *_ = nullptr) :
       value(static_cast<int128_t>(v) * ZuDecimalFn::pow10_64(18 - exponent)) { }
 
-  int128_t adjust(unsigned exponent) const {
+  constexpr int128_t adjust(unsigned exponent) const {
     if (ZuUnlikely(exponent == 18)) return value;
     return value / ZuDecimalFn::pow10_64(18 - exponent);
   }
 
-  ZuDecimal operator -() { return ZuDecimal{Unscaled, -value}; }
+  constexpr ZuDecimal operator -() { return ZuDecimal{Unscaled, -value}; }
 
-  ZuDecimal operator +(const ZuDecimal &v) const {
+  constexpr ZuDecimal operator +(const ZuDecimal &v) const {
     return ZuDecimal{Unscaled, value + v.value};
   }
-  ZuDecimal &operator +=(const ZuDecimal &v) {
+  constexpr ZuDecimal &operator +=(const ZuDecimal &v) {
     value += v.value;
     return *this;
   }
 
-  ZuDecimal operator -(const ZuDecimal &v) const {
+  constexpr ZuDecimal operator -(const ZuDecimal &v) const {
     return ZuDecimal{Unscaled, value - v.value};
   }
-  ZuDecimal &operator -=(const ZuDecimal &v) {
+  constexpr ZuDecimal &operator -=(const ZuDecimal &v) {
     value -= v.value;
     return *this;
   }
@@ -349,8 +349,10 @@ public:
   // scan from string
   template <typename S>
   ZuDecimal(const S &s_, ZuIsString<S> *_ = nullptr) {
-    ZuString s(s_);
+    ZuString s{s_};
     if (ZuUnlikely(!s)) goto null;
+    if (ZuUnlikely(s.length() == 3 &&
+	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) goto null;
     {
       bool negative = s[0] == '-';
       if (ZuUnlikely(negative)) {
@@ -434,7 +436,7 @@ template <typename Fmt> struct ZuDecimalFmt {
   const ZuDecimal	&fixed;
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*fixed)) return;
+    if (ZuUnlikely(!*fixed)) { s << "nan"; return; }
     uint128_t iv, fv;
     if (ZuUnlikely(fixed.value < 0)) {
       s << '-';
@@ -465,7 +467,7 @@ public:
     ZuVFmtWrapper<ZuDecimalVFmt>{ZuFwd<VFmt>(fmt)}, m_decimal{decimal} { }
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*m_decimal)) return;
+    if (ZuUnlikely(!*m_decimal)) { s << "nan"; return; }
     uint128_t iv, fv;
     if (ZuUnlikely(m_decimal.value < 0)) {
       s << '-';
@@ -499,7 +501,7 @@ template <> struct ZuCmp<ZuDecimal> {
   static bool less(const T &t1, const T &t2) { return t1 < t2; }
   static bool equals(const T &t1, const T &t2) { return t1 == t2; }
   static bool null(const T &t) { return !*t; }
-  static const T &null() { static const T t; return t; }
+  constexpr static T null() { return {}; }
 };
 
 #endif /* ZuDecimal_HPP */

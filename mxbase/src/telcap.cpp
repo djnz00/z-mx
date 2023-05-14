@@ -296,7 +296,7 @@ int main(int argc, char **argv)
     }
   }
 
-  ZmTrap::sigintFn([]() { sem.post(); });
+  ZmTrap::sigintFn([]{ sem.post(); });
   ZmTrap::trap();
 
   ZeLog::init("telcap");

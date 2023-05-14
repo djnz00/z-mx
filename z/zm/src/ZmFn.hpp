@@ -34,7 +34,7 @@
 
 // usage:
 //
-// ZmThread t([]() { puts("Hello World"); });	// lambda
+// ZmThread t([]{ puts("Hello World"); });	// lambda
 //
 // R foo() { ... }				// plain function
 // ZmThread t(ZmFn<>::Ptr<&foo>::fn());		// R must cast ok to uintptr_t

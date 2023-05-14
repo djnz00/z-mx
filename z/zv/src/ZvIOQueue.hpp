@@ -100,14 +100,12 @@ private:
   ZvIOQItem	&m_item;
 };
 
-inline constexpr auto ZvIOMsg_HeapID() { 
-  return []() { return "ZvIOMsg"; };
-}
+inline constexpr const char *ZvIOMsg_HeapID() { return "ZvIOMsg"; };
 using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
     ZmPQueueNode<ZvIOQItem,
       ZmPQueueFn<ZvIOQFn,
-	ZmPQueueHeapID<ZvIOMsg_HeapID()>>>>;
+	ZmPQueueHeapID<ZvIOMsg_HeapID>>>>;
 using ZvIOMsg = ZvIOQueue_::Node;
 using ZvIOQGap = ZvIOQueue_::Gap;
 struct ZvIOQueue : public ZmObject, public ZvIOQueue_ {

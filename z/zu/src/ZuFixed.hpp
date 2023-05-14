@@ -73,20 +73,18 @@ template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal
 
 class ZuFixed {
-  constexpr static int64_t null_() {
-    return ZuCmp_IntNull<int64_t, 8, true>::null();
-  }
+  constexpr static int64_t null_() { return ZuCmp<int64_t>::null(); }
 
 public:
   ZuFixed() = default;
 
   template <typename M>
-  ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = nullptr) :
+  constexpr ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = nullptr) :
       m_mantissa{static_cast<int64_t>(m)},
       m_exponent{static_cast<uint8_t>(e)} { }
 
   template <typename V>
-  ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = nullptr) :
+  constexpr ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = nullptr) :
     m_mantissa{static_cast<int64_t>(
 	static_cast<double>(v) * ZuDecimalFn::pow10_64(e))},
     m_exponent{static_cast<uint8_t>(e)} { }
@@ -186,6 +184,8 @@ private:
   template <bool Exponent>
   void scan(ZuString s, unsigned e) {
     if (ZuUnlikely(!s)) goto null;
+    if (ZuUnlikely(s.length() == 3 &&
+	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) goto null;
     if constexpr (Exponent) if (e > 18) e = 18;
     {
       bool negative = s[0] == '-';
@@ -246,13 +246,13 @@ template <typename Fmt> struct ZuFixed_Fmt {
   const ZuFixed	&value;
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*value)) return;
+    if (ZuUnlikely(!*value)) { s << "nan"; return; }
     auto iv = value.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
     uint64_t factor = ZuDecimalFn::pow10_64(value.exponent());
     ZuFixedVal fv = iv % factor;
     iv /= factor;
-    s << ZuBoxed(iv).fmt(Fmt());
+    s << ZuBoxed(iv).template fmt<Fmt>();
     if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(value.exponent());
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_Fmt *);
@@ -275,7 +275,7 @@ struct ZuFixed_VFmt : public ZuVFmtWrapper<ZuFixed_VFmt> {
     ZuVFmtWrapper<ZuFixed_VFmt>{ZuFwd<VFmt>(fmt)}, value{value_} { }
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*value)) return;
+    if (ZuUnlikely(!*value)) { s << "nan"; return; }
     ZuFixedVal iv = value.mantissa();
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
     uint64_t factor = ZuDecimalFn::pow10_64(value.exponent());

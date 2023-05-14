@@ -95,7 +95,7 @@ void App::detach_(ZmFn<> fn)
 
 void App::wake()
 {
-  m_sched->push(m_tid, []() { run_(); });
+  m_sched->push(m_tid, []{ run_(); });
   wake_();
 }
 

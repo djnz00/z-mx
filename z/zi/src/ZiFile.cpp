@@ -68,7 +68,7 @@ private:
 public:
   ~ZiFile_WindowsDrives();
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(ZiFile_WindowsDrives *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiFile_WindowsDrives *);
 
 private:
   int blkSize_path(ZtWString path);

@@ -363,6 +363,7 @@ public:
   template <typename T>
   T getScalar(
       T minimum, T maximum,
+      // FIXME - make required a constexpr template param
       bool required = false, T def = {}) const {
     if (!values) {
       if (required) throw Required{owner, key};
@@ -629,6 +630,176 @@ inline ZtString fullKey(const Cf *cf, ZtString key) {
     if (!(cf = node->owner)) break;
   }
   return key;
+}
+
+template <typename Field>
+ZuIfT<Field::Type == ZtFieldType::String> loadField(Cf *cf) {
+  return cf->getNode(Field::id(), false, Field::deflt());
+}
+
+    template <typename U> struct Filter {
+      enum { OK = !(U::Flags & ZtFieldFlags::Synthetic); };
+    };
+    using Fields = ZuTypeGrep<Filter, ZuFieldList<O>>;
+    ZuTypeAll<Fields>::invoke([this]<typename Field>() {
+	     if constexpr (Field::Type == ZtFieldType::String) {
+	Field::set(o, get(Field::id(), false, Field::get(o)));
+      } else if constexpr (Field::Type == ZtFieldType::Bool) {
+      } else if constexpr (Field::Type == ZtFieldType::Int) {
+      } else if constexpr (Field::Type == ZtFieldType::Hex) {
+      } else if constexpr (Field::Type == ZtFieldType::Enum) {
+      } else if constexpr (Field::Type == ZtFieldType::Flags) {
+      } else if constexpr (Field::Type == ZtFieldType::Float) {
+      } else if constexpr (Field::Type == ZtFieldType::Fixed) {
+      } else if constexpr (Field::Type == ZtFieldType::Decimal) {
+      } else if constexpr (Field::Type == ZtFieldType::Time) {
+      }
+    });
+  }
+
+template <typename O>
+struct Fielded_ {
+  using FieldList = ZuFieldList<O>;
+
+  template <typename U>
+  struct AllFilter { enum { OK = !U::ReadOnly }; };
+  using AllFields = ZuTypeGrep<AllFilter, FieldList>;
+
+  template <typename U>
+  struct UpdateFilter { enum { OK = U::Flags & Flags::Update }; };
+  using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
+
+  template <typename U>
+  struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
+  using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
+  template <typename U>
+  struct CtorIndex {
+    enum { I = (U::Flags>>Flags::CtorShift) & Flags::CtorMask };
+  };
+  using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
+
+  template <typename U>
+  struct InitFilter { enum { OK = !(U::Flags & Flags::Ctor_) }; };
+  using InitFields = ZuTypeGrep<InitFilter, AllFields>;
+
+  template <typename ...Fields>
+  struct Ctor {
+    static O ctor(const FBType *fbo) {
+      return O{Fields::load_(fbo)...};
+    }
+    static void ctor(void *ptr, const FBType *fbo) {
+      new (ptr) O{Fields::load_(fbo)...};
+    }
+  };
+  static O ctor(const FBType *fbo) {
+    O o = ZuTypeApply<Ctor, CtorFields>::ctor(fbo);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+    return o;
+  }
+  static void ctor(void *ptr, const FBType *fbo) {
+    ZuTypeApply<Ctor, CtorFields>::ctor(ptr, fbo);
+    O &o = *reinterpret_cast<O *>(ptr);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+  }
+
+  template <typename ...Fields>
+  struct Load__ : public O {
+    Load__() = default;
+    Load__(const FBType *fbo) : O{Fields::load_(fbo)...} { }
+    template <typename ...Args>
+    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+  };
+  using Load_ = ZuTypeApply<Load__, CtorFields>;
+  struct Load : public Load_ {
+    Load() = default;
+    Load(const FBType *fbo) : Load_{fbo} {
+      ZuTypeAll<InitFields>::invoke(
+	  [this, fbo]<typename Field>() { Field::load(*this, fbo); });
+    }
+    template <typename ...Args>
+    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
+  };
+
+  static void load(O &o, const FBType *fbo) {
+    ZuTypeAll<AllFields>::invoke(
+	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+  }
+  static void loadUpdate(O &o, const FBType *fbo) {
+    ZuTypeAll<UpdateFields>::invoke(
+	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+  }
+
+  template <typename ...Fields>
+  struct Key {
+    using Tuple = ZuTuple<typename Fields::T...>;
+    static decltype(auto) tuple(const FBType *fbo) {
+      return Tuple{Fields::load_(fbo)...};
+    }
+  };
+  template <typename ...Fields>
+  struct Key<ZuTypeList<Fields...>> : public Key<Fields...> { };
+
+  template <unsigned KeyID>
+  struct KeyFilter {
+    template <typename U>
+    struct T {
+      enum { OK = U::keys() & (1<<KeyID) };
+    };
+  };
+  template <unsigned KeyID = 0>
+  static decltype(auto) key(const FBType *fbo) {
+    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
+    return Key<Fields>::tuple(fbo);
+  }
+};
+template <typename O>
+using Fielded = Fielded_<ZuFielded<O>>;
+
+template <typename O>
+inline auto save(Zfb::Builder &fbb, const O &o) {
+  return Table<O>::save(fbb, o);
+}
+template <typename O>
+inline auto saveUpdate(Zfb::Builder &fbb, const O &o) {
+  return Table<O>::saveUpdate(fbb, o);
+}
+
+template <typename O>
+inline ZfbType<O> *root(const uint8_t *data) {
+  return Zfb::GetRoot<ZfbType<O>>(data);
+}
+
+template <typename O>
+inline ZfbType<O> *verify(const uint8_t *data, unsigned len) {
+  if (!Zfb::Verifier{data, len}.VerifyBuffer<ZfbType<O>>()) return nullptr;
+  return root<O>(data);
+}
+
+template <typename O>
+inline O ctor(const ZfbType<O> *fbo) {
+  return Table<O>::ctor(fbo);
+}
+template <typename O>
+inline void ctor(void *ptr, const ZfbType<O> *fbo) {
+  Table<O>::ctor(ptr, fbo);
+}
+
+template <typename O> using Load = typename Table<O>::Load;
+
+template <typename O>
+inline void load(O &o, const ZfbType<O> *fbo) {
+  Table<O>::load(o, fbo);
+}
+template <typename O>
+inline void loadUpdate(O &o, const ZfbType<O> *fbo) {
+  Table<O>::loadUpdate(o, fbo);
+}
+
+template <typename O>
+inline auto key(const ZfbType<O> *fbo) {
+  return Table<O>::key(fbo);
 }
 
 } // ZvCf_

@@ -144,7 +144,7 @@ void fail() { Zm::exit(1); }
 template <typename L> void isStateless(const L &l) {
   printf("%d", (int)(ZmFn<>::template LambdaStateless<L, void>::OK));
 }
-auto fast() { return []() { putchar('a'); }; }
+auto fast() { return []{ putchar('a'); }; }
 auto slow(char c) { return [c]() { putchar(c); }; }
 
 extern "C" {
@@ -295,7 +295,7 @@ int main()
   {
     {
       ZmFn<> foo = ZmFn<>::Lambda<ZmLambda_HeapID>::fn(
-	  []() { puts("Hello World"); });
+	  []{ puts("Hello World"); });
       foo();
 #if 0
       printf("fast slow ");
@@ -306,7 +306,7 @@ int main()
 #endif
     }
     {
-      ZmFn<> foo = ZmFn<>([]() { puts("Hello World"); return 42; });
+      ZmFn<> foo = ZmFn<>([]{ puts("Hello World"); return 42; });
       printf("foo() %d (should be 42)\n", (int)foo());
     }
     ZmRef<E3> e3 = new E3();
@@ -355,7 +355,7 @@ int main()
     fn();
   }
   {
-    ZmFn<> fn{[]() { return -42; }};
+    ZmFn<> fn{[]{ return -42; }};
     short x = fn();
     CHECK(x == -42);
   }

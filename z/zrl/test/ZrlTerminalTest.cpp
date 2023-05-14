@@ -35,10 +35,10 @@ int main()
       });
   done.wait();
   tty.start(
-      []() { std::cerr << "started\r\n" << std::flush; },
+      []{ std::cerr << "started\r\n" << std::flush; },
       [&tty, &done](int32_t key) -> bool { return process(tty, done, key); });
   done.wait();
   tty.stop();
-  tty.close([]() { });
+  tty.close([]{ });
   s.stop();
 }

@@ -32,7 +32,7 @@ friend ZmHashMgr;
   using ID2Params =
     ZmRBTreeKV<ZmIDString, ZmHashParams,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<[]() { return "ZmHashMgr_"; },
+	ZmRBTreeHeapID<[]{ return "ZmHashMgr_"; },
 	  ZmRBTreeLock<ZmNoLock> > > >;
 
   ZmHashMgr_() { }
@@ -47,7 +47,7 @@ public:
     }
   }
 
-  friend ZuConstant<ZmCleanup::Library> ZmCleanupLevel(ZmHashMgr_ *);
+  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmHashMgr_ *);
 
 private:
   static ZmHashMgr_ *instance() {

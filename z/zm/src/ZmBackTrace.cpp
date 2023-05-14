@@ -136,7 +136,7 @@ friend void ZmBackTrace_print(ZmStream &s, const ZmBackTrace &bt);
 public:
   ~ZmBackTrace_Mgr();
 
-  friend ZuConstant<ZmCleanup::Final> ZmCleanupLevel(ZmBackTrace_Mgr *);
+  friend ZuUnsigned<ZmCleanup::Final> ZmCleanupLevel(ZmBackTrace_Mgr *);
 
 private:
   void printFrame_info(ZmStream &s,

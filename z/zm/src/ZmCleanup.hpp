@@ -34,6 +34,6 @@ namespace ZmCleanup {
   enum { Application = 0, Library, Platform, Heap, HeapMgr, Thread, Final, N };
 }
 
-ZuConstant<ZmCleanup::Application> ZmCleanupLevel(...);
+ZuUnsigned<ZmCleanup::Application> ZmCleanupLevel(...);
 
 #endif /* ZmCleanup_HPP */

@@ -69,7 +69,7 @@ using FileLRU =
       ZmListShadow<true>>>;
 using FileLRUNode = typename FileLRU::Node;
 
-inline const char *File_HeapID() { return "Zdf.File"; }
+inline constexpr const char *File_HeapID() { return "Zdf.File"; }
 using FileHash =
   ZmHash<FileLRUNode,
     ZmHashNode<FileLRUNode,

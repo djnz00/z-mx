@@ -36,7 +36,7 @@
 // unsigned i = ...;
 // ZuSwitch::dispatch<3>(i, [](auto i) { foo<i>(); });
 // ZuSwitch::dispatch<3>(
-//   i, [](auto i) { foo<i>(); }, []() { puts("default"); });
+//   i, [](auto i) { foo<i>(); }, []{ puts("default"); });
 
 // gcc/clang at -O2 or better compiles to a classic switch jump table
 
@@ -59,7 +59,7 @@ template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
   template <typename L>
   constexpr static void fn(unsigned i, L l) {
     std::initializer_list<int>{
-      (i == I ? l(ZuConstant<I>{}), 0 : 0)...
+      (i == I ? l(ZuUnsigned<I>{}), 0 : 0)...
     };
   }
 };
@@ -68,7 +68,7 @@ template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
   constexpr static R fn(unsigned i, L l) {
     R r;
     std::initializer_list<int>{
-      (i == I ? (r = l(ZuConstant<I>{})), 0 : 0)...
+      (i == I ? (r = l(ZuUnsigned<I>{})), 0 : 0)...
     };
     return r;
   }
@@ -79,7 +79,7 @@ template <unsigned ...I> struct All<void, ZuSeq<I...>> {
   template <typename L>
   constexpr static void fn(L l) {
     std::initializer_list<int>{
-      (l(ZuConstant<I>{}), 0)...
+      (l(ZuUnsigned<I>{}), 0)...
     };
   }
 };
@@ -89,7 +89,7 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   constexpr static R fn(L l) {
     R r;
     std::initializer_list<int>{
-      ((r = l(ZuConstant<I>{})), 0)...
+      ((r = l(ZuUnsigned<I>{})), 0)...
     };
     return r;
   }
@@ -97,7 +97,7 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   template <typename L>
   constexpr static R fn(R r, L l) {
     std::initializer_list<int>{
-      ((r = l(ZuConstant<I>{}, r)), 0)...
+      ((r = l(ZuUnsigned<I>{}, r)), 0)...
     };
     return r;
   }
@@ -107,20 +107,20 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
 
 template <unsigned N, typename L>
 constexpr decltype(auto) dispatch(unsigned i, L l) {
-  using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
+  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
   return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
 }
 
 template <unsigned N, typename L, typename D>
 constexpr decltype(auto) dispatch(unsigned i, L l, D d) {
-  using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
+  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
   if (ZuUnlikely(i >= N)) return d();
   return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
 }
 
 template <unsigned N, typename L>
 constexpr decltype(auto) all(L l) {
-  using R = ZuDecay<decltype(l(ZuConstant<0>{}))>;
+  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
   return All<R, ZuMkSeq<N>>::fn(ZuMv(l));
 }
 

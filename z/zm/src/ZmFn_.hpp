@@ -185,7 +185,7 @@ protected:
   mutable uintptr_t	m_object;
 };
 
-inline const char *ZmLambda_HeapID() { return "ZmLambda"; }
+inline constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
 template <typename ...Args> class ZmFn : public ZmAnyFn {
   typedef uintptr_t (*Invoker)(uintptr_t &, Args...);

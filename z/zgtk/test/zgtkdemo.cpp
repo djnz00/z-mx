@@ -22,7 +22,7 @@ int main(int argc, char **argv)
   ZeLog::sink(ZeLog::fileSink("zgtkdemo.log"));
   ZeLog::start();
 
-  ZmTrap::sigintFn([]() { done.post(); });
+  ZmTrap::sigintFn([]{ done.post(); });
   ZmTrap::trap();
 
   ZmScheduler s{ZmSchedParams().id("sched").nThreads(2)};
@@ -32,11 +32,11 @@ int main(int argc, char **argv)
 
   app.attach(&s, 1);
 
-  app.run([]() { start(); });
+  app.run([]{ start(); });
 
 #if 0
   for (int i = 0; i < 5; i++) {
-    app.run([]() {
+    app.run([]{
       std::cout << ZmThreadContext::self() << '\n' << std::flush;
     }, ZmTimeNow(i));
   }
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 
   s.stop();
 
-  app.detach([]() { });
+  app.detach([]{ });
 
   ZmTrap::sigintFn(ZmFn<>{});
 

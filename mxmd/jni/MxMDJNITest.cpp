@@ -209,7 +209,7 @@ static void publish_()
 
 void MxMDJNITest::publish(JNIEnv *env, jobject obj)
 {
-  ZmThread thread{0, []() { publish_(); }};
+  ZmThread thread{0, []{ publish_(); }};
   thread.join();
 }
 

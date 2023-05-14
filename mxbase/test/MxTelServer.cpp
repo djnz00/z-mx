@@ -32,7 +32,7 @@ private:
 
 int main()
 {
-  ZmTrap::sigintFn([]() { sem.post(); });
+  ZmTrap::sigintFn([]{ sem.post(); });
   ZmTrap::trap();
 
   ZeLog::init("MxTelServer");
@@ -57,7 +57,7 @@ int main()
 
   mx->start();
 
-  ZmThread{0, []() { while (sem.trywait() < 0); sem.post(); },
+  ZmThread{0, []{ while (sem.trywait() < 0); sem.post(); },
     ZmThreadParams().name("busy")};
 
   app.start();

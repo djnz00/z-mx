@@ -51,7 +51,7 @@ friend ZmSingletonCtor<ZmTopology, true>;
 public:
   ~ZmTopology();
 
-  friend ZuConstant<ZmCleanup::Thread> ZmCleanupLevel(ZmTopology *);
+  friend ZuUnsigned<ZmCleanup::Thread> ZmCleanupLevel(ZmTopology *);
 
 private:
   static ZmTopology *instance();

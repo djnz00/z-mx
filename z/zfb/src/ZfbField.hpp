@@ -61,7 +61,7 @@
 // Object	Composite	<Any>
 
 // Type extension - ZiIP support is added as follows:
-//   (network/host byte-order swapping is deliberately bypassed since
+//   (network/host byte-order swapping is intentionally elided since
 //   IP addresses are in network byte order both on the wire and in memory)
 //
 // fbs:
@@ -352,8 +352,8 @@ struct Table_ {
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U>
-  struct UpdatedFilter { enum { OK = U::Flags & Flags::Update }; };
-  using UpdatedFields = ZuTypeGrep<UpdatedFilter, AllFields>;
+  struct UpdateFilter { enum { OK = U::Flags & Flags::Update }; };
+  using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>
   struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
@@ -374,7 +374,7 @@ struct Table_ {
   }
   static Zfb::Offset<FBType> saveUpdate(Zfb::Builder &fbb, const O &o) {
     using namespace Save;
-    return SaveFieldList<O, UpdatedFields>::save(fbb, o);
+    return SaveFieldList<O, UpdateFields>::save(fbb, o);
   }
 
   template <typename ...Fields>
@@ -422,7 +422,7 @@ struct Table_ {
 	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
   }
   static void loadUpdate(O &o, const FBType *fbo) {
-    ZuTypeAll<UpdatedFields>::invoke(
+    ZuTypeAll<UpdateFields>::invoke(
 	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
   }
 

@@ -387,7 +387,7 @@ struct IndexBlk_ {
   IndexBlk_(IndexBlk_ &&) = delete;
   IndexBlk_ &operator =(IndexBlk_ &&) = delete;
 };
-inline const char *IndexBlk_HeapID() { return "Zdb.IndexBlk"; }
+inline constexpr const char *IndexBlk_HeapID() { return "Zdb.IndexBlk"; }
 using IndexBlkCache =
   ZmCache<IndexBlk_,
     ZmCacheNode<IndexBlk_,
@@ -472,7 +472,7 @@ private:
   Bitmap		m_bitmap;
   SuperBlk		m_superBlk;
 };
-inline const char *File_HeapID() { return "Zdb.File"; }
+inline constexpr const char *File_HeapID() { return "Zdb.File"; }
 using FileCache =
   ZmCache<File_,
     ZmCacheNode<File_,
@@ -518,7 +518,7 @@ private:
 
 // -- I/O buffer
 
-inline const char *Buf_HeapID() { return "Zdb.Buf"; }
+inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 inline constexpr unsigned BuiltinSize() {
   enum { CacheLineSize = Zm::CacheLineSize };
   // MinBufSz - minimum built-in buffer size
@@ -620,7 +620,7 @@ private:
 
   ZmScheduler::Timer	m_hbTimer;
 };
-inline const char *CxnHeapID() { return "Zdb.Cxn"; }
+inline constexpr const char *CxnHeapID() { return "Zdb.Cxn"; }
 using CxnList =
   ZmList<Cxn_,
     ZmListNode<Cxn_,
@@ -1036,7 +1036,7 @@ struct DBCf {
 // length - actual deletion is lazy and progresses backwards along
 // the prevRN sequence deleting all prior records within the sequence
 
-inline const char *DeletesHeapID() { return "Zdb.Deletes"; }
+inline constexpr const char *DeletesHeapID() { return "Zdb.Deletes"; }
 struct DeleteOp {
   RN		rn = nullRN();
   SeqLen	seqLenOp = 0;
@@ -1049,7 +1049,7 @@ using Deletes =
 
 // -- DB configurations
 
-inline const char *DBCfs_HeapID() { return "ZdbEnv.DBCfs"; }
+inline constexpr const char *DBCfs_HeapID() { return "ZdbEnv.DBCfs"; }
 using DBCfs =
   ZmRBTree<DBCf,
     ZmRBTreeKey<DBCf::IDAxor,
@@ -1348,7 +1348,7 @@ inline void AnyObject_::abort() { m_db->abort(this); }
 
 // -- DB container
 
-inline const char *DBs_HeapID() { return "Env.DBs"; }
+inline constexpr const char *DBs_HeapID() { return "Env.DBs"; }
 using DBs =
   ZmRBTree<DB,
     ZmRBTreeNode<DB,
@@ -1378,7 +1378,7 @@ struct HostCf {
   static ZuID IDAxor(const HostCf &cfg) { return cfg.id; }
 };
 
-inline const char *HostCfs_HeapID() { return "ZdbEnv.HostCfs"; }
+inline constexpr const char *HostCfs_HeapID() { return "ZdbEnv.HostCfs"; }
 using HostCfs =
   ZmRBTree<HostCf,
     ZmRBTreeKey<HostCf::IDAxor,
@@ -1478,7 +1478,7 @@ using HostIndex =
       ZmRBTreeShadow<true,
 	ZmRBTreeKey<Host::IndexAxor,
 	  ZmRBTreeUnique<true>>>>>;
-inline const char *Hosts_HeapID() { return "ZdbEnv.Hosts"; }
+inline constexpr const char *Hosts_HeapID() { return "ZdbEnv.Hosts"; }
 using Hosts =
   ZmHash<HostIndex::Node,
     ZmHashNode<HostIndex::Node,

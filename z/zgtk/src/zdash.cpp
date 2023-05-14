@@ -1393,7 +1393,7 @@ private:
   template <typename FBType>
   ZuIsNot<ZvTelemetry::fbs::Alert, FBType>
   processTel3(CliLink_ *cliLink, const FBType *fbo) {
-    ZuConstant<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
     using Item = TelItem<T>;
@@ -1412,7 +1412,7 @@ private:
     m_gtkModel->add(new GtkTree::App{item}, m_gtkModel->root());
   }
   AppItem *appItem(CliLink_ *cliLink) {
-    ZuConstant<ZuTypeIndex<ZvTelemetry::App, ZvTelemetry::TypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<ZvTelemetry::App, ZvTelemetry::TypeList>::I> i;
     auto &container = cliLink->telemetry.p<i>();
     auto item = container.lookup(
 	static_cast<const ZvTelemetry::fbs::App *>(nullptr));
@@ -1424,7 +1424,7 @@ private:
     return item;
   }
   ZdbEnvItem *zdbEnvItem(CliLink_ *cliLink) {
-    ZuConstant<ZuTypeIndex<ZvTelemetry::ZdbEnv, ZvTelemetry::TypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<ZvTelemetry::ZdbEnv, ZvTelemetry::TypeList>::I> i;
     auto &container = cliLink->telemetry.p<i>();
     auto item = container.lookup(
 	static_cast<const ZvTelemetry::fbs::ZdbEnv *>(nullptr));
@@ -1466,7 +1466,7 @@ private:
 	[](GtkTree::App *_) -> GtkTree::MxParent & { return _->mxs(); });
   }
   void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::Socket> *item) {
-    ZuConstant<ZuTypeIndex<ZvTelemetry::Mx, ZvTelemetry::TypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<ZvTelemetry::Mx, ZvTelemetry::TypeList>::I> i;
     auto &mxContainer = cliLink->telemetry.p<i>();
     auto mxItem = mxContainer.find(ZuFwdTuple(item->data.mxID));
     if (!mxItem) {
@@ -1490,7 +1490,7 @@ private:
 	});
   }
   void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::Link> *item) {
-    ZuConstant<ZuTypeIndex<ZvTelemetry::Engine, ZvTelemetry::TypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<ZvTelemetry::Engine, ZvTelemetry::TypeList>::I> i;
     auto &engContainer = cliLink->telemetry.p<i>();
     auto engItem =
       engContainer.find(ZuFwdTuple(item->data.engineID));
@@ -1531,7 +1531,7 @@ private:
   template <typename FBType>
   ZuIs<ZvTelemetry::fbs::Alert, FBType>
   processTel3(CliLink_ *cliLink, const FBType *fbo) {
-    ZuConstant<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
+    ZuUnsigned<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
     processAlert(new (container.data.push()) ZfbField::Load<T>{fbo});

@@ -132,7 +132,7 @@ void ZJNI::trap()
   ZJNI_trapped = 1;
   ZJNI_unlock();
   ::atexit(ZJNI_atexit);
-  ZmThread(0, []() { ZJNI_sig(); }, ZmThreadParams().name("ZJNI_sig"));
+  ZmThread(0, []{ ZJNI_sig(); }, ZmThreadParams().name("ZJNI_sig"));
 #ifndef _WIN32
   struct sigaction s, o;
   memset(&s, 0, sizeof(struct sigaction));
@@ -175,7 +175,7 @@ public:
     return ZmSpecific<TLS>::instance()->m_env;
   }
 
-  friend ZuConstant<ZmCleanup::Platform> ZmCleanupLevel(TLS *);
+  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(TLS *);
 
 private:
   JNIEnv	*m_env = nullptr;

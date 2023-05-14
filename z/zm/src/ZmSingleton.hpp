@@ -21,7 +21,7 @@
 
 // ZmSingleton<T>::instance() returns T * pointer
 //
-// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuConstant<N>
+// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuUnsigned<N>
 // where N determines order of destruction (per ZmCleanup enum)
 //
 // ZmSingleton<T, false>::instance() can return null since T will not be
@@ -31,10 +31,10 @@
 //
 // static T v; can be replaced with:
 // auto &v = *ZmSingleton<T>::instance(); // if T is unique
-// auto &v = ZmStatic([]() { return new T(); }); // do not use in a header
+// auto &v = ZmStatic([]{ return new T(); }); // do not use in a header
 //
 // static T v(args); can be replaced with:
-// auto &v = ZmStatic([]() { return new T(args...); }); // do not use in a header
+// auto &v = ZmStatic([]{ return new T(args...); }); // do not use in a header
 
 #ifndef ZmSingleton_HPP
 #define ZmSingleton_HPP

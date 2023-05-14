@@ -673,15 +673,14 @@ struct ZuDeduce<R_ (*)(Args_...)> {
   using Args = ZuTypeList<Args_...>;
 };
 
-// constexpr instantiable integral constants
-template <typename T_, int I_> struct ZuIntegral {
+// constexpr instantiable constants
+template <typename T_, T_ V> struct ZuConstant {
   using T = T_;
-  enum { I = I_ };
-  constexpr operator T() const noexcept { return I; }
-  constexpr T operator()() const noexcept { return I; }
+  constexpr operator T() const noexcept { return V; }
+  constexpr T operator()() const noexcept { return V; }
 };
-template <unsigned I> using ZuConstant = ZuIntegral<unsigned, I>;
-template <bool B> using ZuBool = ZuIntegral<bool, B>;
+template <unsigned I> using ZuUnsigned = ZuConstant<unsigned, I>;
+template <bool B> using ZuBool = ZuConstant<bool, B>;
 using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
 using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
 

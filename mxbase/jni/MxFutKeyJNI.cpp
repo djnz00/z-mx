@@ -36,7 +36,7 @@ namespace MxFutKeyJNI {
   };
 
   // MxFutKey accessors
-  ZJNI::JavaMethod methods[] {
+  ZJNI::JavaMethod methods[] = {
     { "mat", "()I" }
   };
 }

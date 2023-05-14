@@ -2504,7 +2504,7 @@ void DB::fileRdError_(File *file, ZiFile::Offset off, int r, ZeError e)
 	"\" at offset " << ZuBoxed(off) << ": " << e;
     }));
   } else {
-    ZeLOG(Error, ([this, id = file->id(), off, e](auto &s) { s <<
+    ZeLOG(Error, ([this, id = file->id(), off](auto &s) { s <<
 	"Zdb pread() truncated on \"" << fileName(id) <<
 	"\" at offset " << ZuBoxed(off);
     }));

@@ -19,7 +19,7 @@ struct D : public C { ~D() { puts("~D()"); } };
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
-inline constexpr auto foo() { return []() { puts("Hello World"); }; }
+inline constexpr auto foo() { return []{ puts("Hello World"); }; }
 
 struct A_Print : public ZuPrintDelegate {
   template <typename S>
@@ -91,7 +91,7 @@ int main()
   CHECK(!(ZuTraits<ZuTuple<int, void *, D>>::IsPOD));
 
   constexpr auto bar = foo();
-  constexpr auto baz = []() { puts("Goodbye World"); };
+  constexpr auto baz = []{ puts("Goodbye World"); };
   CHECK((ZuConversion<decltype(foo()), decltype(bar)>::Same));
   CHECK((!ZuConversion<decltype(foo()), decltype(baz)>::Same));
 

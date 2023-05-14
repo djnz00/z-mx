@@ -42,7 +42,7 @@ namespace MxOptKeyJNI {
   };
 
   // MxOptKey accessors
-  ZJNI::JavaMethod methods[] {
+  ZJNI::JavaMethod methods[]{
     { "mat", "()I" },
     { "putCall", "()Lcom/shardmx/mxbase/MxPutCall;" },
     { "strike", "()J" },
