@@ -1507,7 +1507,7 @@ struct EnvCf {
   mutable unsigned		fileSID = 0;
   DBCfs				dbCfs;
   HostCfs			hostCfs;
-  unsigned			hostID = 0;
+  ZuID				hostID;
   unsigned			nAccepts = 0;
   unsigned			heartbeatFreq = 0;
   unsigned			heartbeatTimeout = 0;
@@ -1524,22 +1524,21 @@ struct EnvCf {
     path = cf->get("path", true);
     thread = cf->get("thread", true);
     fileThread = cf->get("fileThread");
-    cf->subset("dbs", true)->all([this](ZvCfNode *node) {
+    cf->subset<true>("dbs")->all([this](ZvCfNode *node) {
       if (auto dbCf = node->cf)
 	dbCfs.addNode(new DBCfs::Node{node->key, ZuMv(dbCf)});
     });
-    cf->subset("hosts", true)->all([this](ZvCfNode *node) {
+    cf->subset<true>("hosts")->all([this](ZvCfNode *node) {
       if (auto hostCf = node->cf)
 	hostCfs.addNode(new HostCfs::Node{node->key, ZuMv(hostCf)});
     });
-    hostID = cf->getInt("hostID", 0, 1<<30, true);
+    hostID = cf->get<true>("hostID");
     nAccepts = cf->getInt("nAccepts", 1, 1<<10, 8);
     heartbeatFreq = cf->getInt("heartbeatFreq", 1, 3600, 1);
     heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, 4);
     reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, 1);
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
     vacuumBatch = cf->getInt("vacuumBatch", 1, 1<<20, 1000);
-    cxnHash.init(cf->get("cxnHash", false, "Zdb.CxnHash"));
 #ifdef ZdbRep_DEBUG
     debug = cf->getInt("debug", 0, 1, 0);
 #endif
