@@ -1942,8 +1942,8 @@ MxUniKey MxMDLib::parseInstrument(ZvCf *args, unsigned index) const
       throw ZtString{} << "maturity \"" << mat << "\" invalid - "
 	"must be YYYYMMDD (DD is usually 00)";
     key.mat = mat;
-    bool put = args->getInt("put", 0, 1, false, 0);
-    bool call = args->getInt("call", 0, 1, false, 0);
+    bool put = args->getInt("put", 0, 1, 0);
+    bool call = args->getInt("call", 0, 1, 0);
     ZtString strike = args->get("strike");
     if (put && call)
       throw ZtString{} << "put and call are mutually exclusive";

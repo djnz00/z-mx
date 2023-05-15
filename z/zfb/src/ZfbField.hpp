@@ -334,8 +334,9 @@ struct SaveFieldList<O, FieldList, OffsetFieldList, 0> {
   using FBType = ZfbType<O>;
   static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
     Builder fbb{fbb_};
-    ZuTypeAll<FieldList>::invoke(
-	[&fbb, &o]<typename Field>() { Field::save(fbb, o); });
+    ZuTypeAll<FieldList>::invoke([&fbb, &o]<typename Field>() {
+      Field::save(fbb, o);
+    });
     return fbb.Finish();
   }
 };
@@ -389,15 +390,17 @@ struct Fielded_ {
   };
   static O ctor(const FBType *fbo) {
     O o = ZuTypeApply<Ctor, CtorFields>::ctor(fbo);
-    ZuTypeAll<InitFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+    ZuTypeAll<InitFields>::invoke([&o, fbo]<typename Field>() {
+      Field::load(o, fbo);
+    });
     return o;
   }
   static void ctor(void *ptr, const FBType *fbo) {
     ZuTypeApply<Ctor, CtorFields>::ctor(ptr, fbo);
     O &o = *reinterpret_cast<O *>(ptr);
-    ZuTypeAll<InitFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+    ZuTypeAll<InitFields>::invoke([&o, fbo]<typename Field>() {
+      Field::load(o, fbo);
+    });
   }
 
   template <typename ...Fields>
@@ -411,20 +414,23 @@ struct Fielded_ {
   struct Load : public Load_ {
     Load() = default;
     Load(const FBType *fbo) : Load_{fbo} {
-      ZuTypeAll<InitFields>::invoke(
-	  [this, fbo]<typename Field>() { Field::load(*this, fbo); });
+      ZuTypeAll<InitFields>::invoke([this, fbo]<typename Field>() {
+	Field::load(*this, fbo);
+      });
     }
     template <typename ...Args>
     Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
   };
 
   static void load(O &o, const FBType *fbo) {
-    ZuTypeAll<AllFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+    ZuTypeAll<AllFields>::invoke([&o, fbo]<typename Field>() {
+      Field::load(o, fbo);
+    });
   }
   static void loadUpdate(O &o, const FBType *fbo) {
-    ZuTypeAll<UpdateFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
+    ZuTypeAll<UpdateFields>::invoke([&o, fbo]<typename Field>() {
+      Field::load(o, fbo);
+    });
   }
 
   template <typename ...Fields>

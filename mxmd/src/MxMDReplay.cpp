@@ -125,7 +125,7 @@ void MxMDReplayLink::update(const ZvCf *cf)
   if (ZtString path = cf->get("path"))
     replay(ZuMv(path),
       MxDateTime{cf->get("begin", false, "")},
-      cf->getInt("filter", 0, 1, false, 0));
+      cf->getInt("filter", 0, 1, 0));
   else
     stopReplaying();
 }

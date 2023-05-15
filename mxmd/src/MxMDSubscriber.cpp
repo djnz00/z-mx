@@ -34,13 +34,13 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
   MxEngine::init(core, this, mx, cf);
 
   if (ZuString ip = cf->get("interface")) m_interface = ip;
-  m_filter = cf->getInt("filter", 0, 1, false, 0);
-  m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, false, 100000);
-  m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, false, 3);
-  m_timeout = cf->getDbl("timeout", 0, 3600, false, 3);
-  m_reconnInterval = cf->getDbl("reconnInterval", 0, 3600, false, 10);
-  m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, false, 1);
-  m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, false, 10);
+  m_filter = cf->getInt("filter", 0, 1, 0);
+  m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, 100000);
+  m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, 3);
+  m_timeout = cf->getDbl("timeout", 0, 3600, 3);
+  m_reconnInterval = cf->getDbl("reconnInterval", 0, 3600, 10);
+  m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, 1);
+  m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, 10);
 
   if (ZuString channels = cf->get("channels"))
     updateLinks(channels);

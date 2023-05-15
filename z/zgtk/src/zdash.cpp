@@ -958,14 +958,14 @@ public:
     }
 
     m_role = cf->getEnum<ZvTelemetry::AppRole::Map>(
-	"appRole", false, ZvTelemetry::AppRole::Dev);
+	"appRole", ZvTelemetry::AppRole::Dev);
 
     m_gladePath = cf->get("gtkGlade", true);
     m_stylePath = cf->get("gtkStyle");
 
     {
       int64_t refreshRate =
-	cf->getInt64("gtkRefresh", 1, 60000, false, 1) * (int64_t)1000000;
+	cf->getInt64("gtkRefresh", 1, 60000, 1) * (int64_t)1000000;
       m_refreshQuantum = ZmTime{ZmTime::Nano, refreshRate>>1};
       if (m_refreshQuantum < mx->params().quantum()) {
 	m_refreshQuantum = mx->params().quantum();

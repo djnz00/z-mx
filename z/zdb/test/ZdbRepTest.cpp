@@ -131,7 +131,7 @@ int main(int argc, char **argv)
     u = cf->getInt("3", 0, 1<<20, true),
     s = cf->getInt("4", 0, 1<<20, true);
 
-    stats = cf->getInt("stats", 0, 1, false, 0);
+    stats = cf->getInt("stats", 0, 1, 0);
   } catch (const ZvError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);

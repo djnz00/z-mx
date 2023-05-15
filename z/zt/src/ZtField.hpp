@@ -258,14 +258,17 @@ struct ZtFieldType_String<Base, Flags, Def, false> :
 };
 
 template <typename Base, unsigned Flags,
-  bool = (Flags & ZtFieldFlags::Synthetic)>
+  bool = (Flags & ZtFieldFlags::Synthetic),
+  typename = void>
 struct ZtFieldType_Composite_ {
+  constexpr static void deflt() { } // unused
+};
+// only default non-synthetic fields that are default-constructible
+template <typename Base, unsigned Flags>
+struct ZtFieldType_Composite_<
+    Base, Flags, false, decltype(typename Base::T{}, void())> {
   using T = typename Base::T;
   constexpr static T deflt() { return {}; }
-};
-template <typename Base, unsigned Flags>
-struct ZtFieldType_Composite_<Base, Flags, true> {
-  constexpr static void deflt() { }
 };
 template <
   typename Base, unsigned Flags,

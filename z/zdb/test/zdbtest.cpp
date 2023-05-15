@@ -53,10 +53,10 @@ struct TestStep {
   TestStep &operator =(TestStep &&) = default;
 
   TestStep(const ZvCf *cf) {
-    repeat = cf->getInt("repeat", 0, INT_MAX, false, 1);
-    push = cf->getInt("push", 0, 1, false, 0);
-    append = cf->getInt("append", 0, INT_MAX, false, 0);
-    del = cf->getInt("del", 0, 1, false, 0);
+    repeat = cf->getInt("repeat", 0, INT_MAX, 1);
+    push = cf->getInt("push", 0, 1, 0);
+    append = cf->getInt("append", 0, INT_MAX, 0);
+    del = cf->getInt("del", 0, 1, 0);
   }
 
   RN size() const { return repeat * (push + append + del); }
@@ -311,11 +311,11 @@ int main(int argc, char **argv)
 
     if (cf->fromArgs(opts, argc, argv) != 3) usage();
 
-    del = cf->getInt("del", 1, INT_MAX, false, 0);
-    skip = cf->getInt("skip", 0, INT_MAX, false, 0);
-    stride = cf->getInt("stride", 1, INT_MAX, false, 1);
-    append = cf->getInt("append", 0, 1, false, 0);
-    chain = cf->getInt("chain", 0, INT_MAX, false, 0);
+    del = cf->getInt("del", 1, INT_MAX, 0);
+    skip = cf->getInt("skip", 0, INT_MAX, 0);
+    stride = cf->getInt("stride", 1, INT_MAX, 1);
+    append = cf->getInt("append", 0, 1, 0);
+    chain = cf->getInt("chain", 0, INT_MAX, 0);
     nThreads = cf->getInt("1", 1, 1<<10, true);
     nOps = cf->getInt("2", 0, 1<<20, true);
     hashOut = cf->get("hashOut");
@@ -352,7 +352,7 @@ int main(int argc, char **argv)
 	      .thread(3, [](auto &t) { t.isolated(1); }); })
 	    .rxThread(1).txThread(2)
 #ifdef ZiMultiplex_DEBUG
-	    .debug(cf->getInt("debug", 0, 1, false, 0))
+	    .debug(cf->getInt("debug", 0, 1, 0))
 #endif
 	    );
     }

@@ -480,7 +480,7 @@ public:
     // cf->set("mx:debug", "1");
     ZvCmdHost::init();
     m_mx = new Mx(cf->subset("mx"));
-    m_verbose = cf->getInt("verbose", 0, 1, false, 0);
+    m_verbose = cf->getInt("verbose", 0, 1, 0);
     addCmd("proxy",
 	"tag { type scalar } "
 	"suspend { type flag } "
@@ -623,19 +623,19 @@ public:
 	if (!validateTag(tag)) throw ZeError();
       } else
 	tag = "#default";
-      if (args->getInt("suspend", 0, 1, false, 0))
+      if (args->getInt("suspend", 0, 1, 0))
 	cxnFlags |= Connection::SuspRecv | Connection::SuspSend;
-      if (args->getInt("hold", 0, 1, false, 0))
+      if (args->getInt("hold", 0, 1, 0))
 	cxnFlags |= Connection::Hold;
-      if (args->getInt("trace", 0, 1, false, 0))
+      if (args->getInt("trace", 0, 1, 0))
 	cxnFlags |= Connection::Trace;
-      if (args->getInt("drop", 0, 1, false, 0))
+      if (args->getInt("drop", 0, 1, 0))
 	cxnFlags |= Connection::Drop;
-      cxnLatency = args->getDbl("latency", 0, 3600, false, 0);
-      cxnFrag = args->getInt("frag", INT_MIN, INT_MAX, false, 0);
-      cxnPack = args->getInt("pack", INT_MIN, INT_MAX, false, 0);
-      cxnDelay = args->getDbl("delay", 0, 3600, false, 0);
-      reconnectFreq = args->getInt("reconnect", 0, 3600, false, 0);
+      cxnLatency = args->getDbl("latency", 0, 3600, 0);
+      cxnFrag = args->getInt("frag", INT_MIN, INT_MAX, 0);
+      cxnPack = args->getInt("pack", INT_MIN, INT_MAX, 0);
+      cxnDelay = args->getDbl("delay", 0, 3600, 0);
+      reconnectFreq = args->getInt("reconnect", 0, 3600, 0);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -710,7 +710,7 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      side = args->getEnum<Side::Map>("2", false, Side::Both);
+      side = args->getEnum<Side::Map>("2", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -762,7 +762,7 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      side = args->getEnum<Side::Map>("2", false, Side::Both);
+      side = args->getEnum<Side::Map>("2", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -858,8 +858,8 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      side = args->getEnum<Side::Map>("2", false, Side::Both);
-      op = args->getEnum<IOOp::Map>("3", false, IOOp::Both);
+      side = args->getEnum<Side::Map>("2", Side::Both);
+      op = args->getEnum<IOOp::Map>("3", IOOp::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -924,8 +924,8 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      side = args->getEnum<Side::Map>("2", false, Side::Both);
-      op = args->getEnum<IOOp::Map>("3", false, IOOp::Both);
+      side = args->getEnum<Side::Map>("2", Side::Both);
+      op = args->getEnum<IOOp::Map>("3", IOOp::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -987,8 +987,8 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      on = args->getInt("2", 0, 1, false, 1);
-      side = args->getEnum<Side::Map>("3", false, Side::Both);
+      on = args->getInt("2", 0, 1, 1);
+      side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -1042,8 +1042,8 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      on = args->getInt("2", 0, 1, false, 1);
-      side = args->getEnum<Side::Map>("3", false, Side::Both);
+      on = args->getInt("2", 0, 1, 1);
+      side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -1086,7 +1086,7 @@ public:
     auto &out = ctx->out;
     bool on;
     try {
-      on = args->getInt("1", 0, 1, false, 1);
+      on = args->getInt("1", 0, 1, 1);
     } catch (...) {
       throw ZvCmdUsage();
     }

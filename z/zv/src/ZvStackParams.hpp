@@ -56,9 +56,9 @@ struct ZvStackParams : public ZmStackParams {
 
     if (!cf) return;
 
-    initial(cf->getInt("initial", 2, 28, false, initial()));
-    increment(cf->getInt("increment", 0, 12, false, increment()));
-    maxFrag(cf->getDbl("maxFrag", 1, 256, false, maxFrag()));
+    initial(cf->getInt("initial", 2, 28, initial()));
+    increment(cf->getInt("increment", 0, 12, increment()));
+    maxFrag(cf->getDbl("maxFrag", 1, 256, maxFrag()));
   }
 };
 

@@ -208,11 +208,11 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
   }
 
   try {
-    ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, false, Ze::Info));
+    ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, Ze::Info));
     if (ZuString logFile = cf->get("log:file")) {
       ZeLog::sink(ZeLog::fileSink(logFile,
-	    cf->getInt("log:age", 0, 1000, false, 8),
-	    cf->getInt("log:tzOffset", INT_MIN, INT_MAX, false, 0)));
+	    cf->getInt("log:age", 0, 1000, 8),
+	    cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0)));
     }
   } catch (...) { }
   ZeLog::start();
@@ -318,14 +318,14 @@ void MxMDCore::init_(const ZvCf *cf)
 	ZuString id;
 	while (ZmRef<ZvCf> venueCf = j.subset(id))
 	  addVenue(new MxMDVenue(this, m_localFeed, id,
-	      venueCf->getEnum<MxMDOrderIDScope::Map>("orderIDScope", false),
-	      venueCf->getFlags<MxMDVenueFlags::Flags>("flags", false, 0)));
+	      venueCf->getEnum<MxMDOrderIDScope::Map>("orderIDScope"),
+	      venueCf->getFlags<MxMDVenueFlags::Flags>("flags", 0)));
 	continue;
       }
       ZtString e;
       ZiModule module;
       ZiModule::Path name = feedCf->get("module", true);
-      int preload = feedCf->getInt("preload", 0, 1, false, 0);
+      int preload = feedCf->getInt("preload", 0, 1, 0);
       if (preload) preload = ZiModule::Pre;
       if (module.load(name, preload, &e) < 0)
 	throw ZtString{} << "failed to load \"" << name << "\": " << ZuMv(e);

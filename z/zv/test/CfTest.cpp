@@ -211,14 +211,14 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 101", false);
-      if (cf->getInt("j", 1, 100, false, 42) != 42)
+      if (cf->getInt("j", 1, 100, 42) != 42)
 	ZeLOG(Error, "getInt() default failed");
       try {
 	cf->getInt("j", 1, 100, true);
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getInt("i", 1, 100, false, 42);
+      cf->getInt("i", 1, 100, 42);
       ZeLOG(Error, "getInt() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
@@ -228,14 +228,14 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01", false);
-      if (cf->getDbl("j", .1, 100, false, .42) != .42)
+      if (cf->getDbl("j", .1, 100, .42) != .42)
 	ZeLOG(Error, "getDbl() default failed");
       try {
 	cf->getDbl("j", .1, 100, true);
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getDbl("i", .1, 100, false, .42);
+      cf->getDbl("i", .1, 100, .42);
       ZeLOG(Error, "getDbl() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
@@ -244,9 +244,9 @@ int main()
     try {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("i FooHigh", false);
-      if (cf->getEnum<Values::Map>("j", false, -1) >= 0)
+      if (cf->getEnum<Values::Map>("j", -1) >= 0)
 	ZeLOG(Error, "getEnum() default failed");
-      cf->getEnum<Values::Map>("i", false, 0);
+      cf->getEnum<Values::Map>("i", 0);
       ZeLOG(Error, "getEnum() invalid failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';

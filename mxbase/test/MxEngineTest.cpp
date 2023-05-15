@@ -151,8 +151,8 @@ ZmRef<MxAnyLink> App::createLink(MxID id) { return new Link(id); }
 void Engine::init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf)
 {
   MxEngine::init(mgr, app, mx, cf);
-  m_reconnInterval = cf->getDbl("reconnInterval", 0, 3600, false, 1);
-  m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, false, 1);
+  m_reconnInterval = cf->getDbl("reconnInterval", 0, 3600, 1);
+  m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, 1);
   if (ZmRef<ZvCf> linksCf = cf->subset("links")) {
     ZvCf::Iterator i(linksCf);
     ZuString id;

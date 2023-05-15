@@ -223,10 +223,10 @@ public:
 	m_thread = mx->txThread();
 
       m_minInterval =
-	cf->getInt("telemetry:minInterval", 1, 1000000, false, 10);
+	cf->getInt("telemetry:minInterval", 1, 1000000, 10);
       m_alertPrefix = cf->get("telemetry:alertPrefix", false, "alerts");
       m_alertMaxReplay =
-	cf->getInt("telemetry:alertMaxReplay", 1, 1000, false, 10);
+	cf->getInt("telemetry:alertMaxReplay", 1, 1000, 10);
 
       return true;
     });

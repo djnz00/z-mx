@@ -1239,8 +1239,8 @@ private:
   void telcapCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     using namespace ZvTelemetry;
-    unsigned interval = ctx->args->getInt("interval", 100, 1000000, false, 0);
-    bool subscribe = !ctx->args->getInt("unsubscribe", 0, 1, false, 0);
+    unsigned interval = ctx->args->getInt("interval", 100, 1000000, 0);
+    bool subscribe = !ctx->args->getInt("unsubscribe", 0, 1, 0);
     if (!subscribe) {
       for (unsigned i = 0; i < TelDataN; i++) m_telcap[i] = TelCap{};
       if (argc > 1) throw ZvCmdUsage{};

@@ -55,11 +55,11 @@ int main(int argc, char **argv)
   try {
     cf->fromArgs(opts, argc, argv);
 
-    // if (cf->getInt("help", 0, 1, false, 0)) usage();
+    // if (cf->getInt("help", 0, 1, 0)) usage();
 
     username = cf->get("1");
     password = cf->get("2");
-    daemonize = cf->getInt("daemonize", 0, 1, false, 0);
+    daemonize = cf->getInt("daemonize", 0, 1, 0);
   } catch (const ZvError &e) {
     ZeLog::start();
     ZeLOG(Error, e.message());
