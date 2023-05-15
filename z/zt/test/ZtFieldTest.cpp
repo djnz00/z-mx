@@ -30,7 +30,7 @@ struct Foo {
 };
 
 ZtFields(Foo,
-    (((string)), (String, "hello \"world\""), (Ctor(0), Quote)),
+    (((string, Rd)), (String, "hello \"world\""), (Ctor(0), Quote)),
     (((id)), (String, "goodbye"), (Ctor(1))),
     (((int_)), (Int), (Ctor(2))),
     (((int_ranged)), (Int, 0, 100, 42), (Ctor(3))),
@@ -69,5 +69,34 @@ int main()
       << " deflt=" << typename Field::Print_{Field::deflt(), fmt}
       << MinMax<Field>{fmt} << '\n';
   });
-  std::cout << "double nan=" << __builtin_nan("0") << '\n';
+  ZtVFieldArray fields{ZtVFields<Foo>()};
+  auto print = [](auto &s, const ZtVField &field, int constant) {
+    using namespace ZtFieldType;
+    const auto &fn = field.constantFn;
+    switch (field.type) {
+      case String:		s << fn.string(constant); break;
+      case Composite: {
+	ZmStream s_{s};
+	fn.composite(constant)(s_);
+      } break;
+      case Bool:
+      case Int:	
+      case Hex:	
+      case Enum:
+      case ZtFieldType::Flags:	s << fn.int_(constant); break;
+      case Float:		s << fn.float_(constant); break;
+      case Fixed:		s << fn.fixed(constant); break;
+      case Decimal:		s << fn.decimal(constant); break;
+      case Time:		s << fn.time(constant); break;
+    }
+  };
+  for (unsigned i = 0, n = fields.length(); i < n; i++) {
+    std::cout << fields[i].id << " deflt=";
+    print(std::cout, fields[i], ZtVFieldConstant::Deflt);
+    std::cout << " minimum=";
+    print(std::cout, fields[i], ZtVFieldConstant::Minimum);
+    std::cout << " maximum=";
+    print(std::cout, fields[i], ZtVFieldConstant::Maximum);
+    std::cout << '\n';
+  }
 }

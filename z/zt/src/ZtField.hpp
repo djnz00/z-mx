@@ -137,6 +137,10 @@ struct ZtFieldFmt {
   char			flagsDelim = '|';	// flags delimiter
 };
 
+namespace ZtVFieldConstant {
+  enum { Deflt = 0, Minimum, Maximum };		// (*constantFn) parameter
+}
+
 struct ZtVFieldEnum {
   const char	*(*id)();
   int		(*s2v)(ZuString);
@@ -232,6 +236,13 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
     }
   };
   ZuInline static const char *deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> ZuString {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_String_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -305,6 +316,15 @@ struct ZtFieldType_Composite : public ZtField_<Base, Flags> {
     }
   };
   ZuInline static constexpr auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> ZmStreamFn {
+      switch (i) {
+	case Deflt:	return {[](ZmStream &s) { s << deflt(); }};
+      }
+      return {};
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -364,6 +384,13 @@ struct ZtFieldType_Bool : public ZtField_<Base, Flags> {
     }
   };
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> int64_t {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_Bool_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -433,6 +460,17 @@ struct ZtFieldType_Int : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> int64_t {
+      switch (i) {
+	case Deflt:	return deflt();
+	case Minimum:	return minimum();
+	case Maximum:	return maximum();
+      }
+      return ZtFieldType_Int_<Base>::deflt();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -490,6 +528,13 @@ struct ZtFieldType_Hex : public ZtField_<Base, Flags> {
     }
   };
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> int64_t {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_Hex_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -548,6 +593,13 @@ struct ZtFieldType_Enum : public ZtField_<Base, Flags> {
   };
   using Map = Map_;
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> int64_t {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_Enum_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -611,6 +663,13 @@ struct ZtFieldType_Flags : public ZtField_<Base, Flags> {
   };
   using Map = Map_;
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> int64_t {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_Flags_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -688,6 +747,17 @@ struct ZtFieldType_Float : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> double {
+      switch (i) {
+	case Deflt:	return deflt();
+	case Minimum:	return minimum();
+	case Maximum:	return maximum();
+      }
+      return ZtFieldType_Float_<Base>::deflt();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -757,6 +827,17 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> ZuFixed {
+      switch (i) {
+	case Deflt:	return deflt();
+	case Minimum:	return minimum();
+	case Maximum:	return maximum();
+      }
+      return ZtFieldType_Fixed_::deflt();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -830,6 +911,17 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> ZuDecimal {
+      switch (i) {
+	case Deflt:	return deflt();
+	case Minimum:	return minimum();
+	case Maximum:	return maximum();
+      }
+      return ZtFieldType_Decimal_::deflt();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -890,6 +982,13 @@ struct ZtFieldType_Time : public ZtField_<Base, Flags> {
     }
   };
   ZuInline constexpr static auto deflt() { return Def(); }
+  static auto constantFn() {
+    using namespace ZtVFieldConstant;
+    return [](int i) -> ZmTime {
+      if (ZuLikely(i == Deflt)) return deflt();
+      return ZtFieldType_Time_Def();
+    };
+  }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
       s << Print{*static_cast<const O *>(o), fmt};
@@ -909,7 +1008,7 @@ struct ZtFieldType_Time<Base, Flags, Def, false> :
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZtFieldFmt &fmt) {
-    Base::set(o, ZtDate{fmt.dateScan, s});
+    Base::set(o, ZtDate{fmt.dateScan, s}.zmTime());
   }
   static auto setFn() {
     return [](void *o, ZmTime v) { Base::set(*static_cast<O *>(o), v); };
@@ -1021,6 +1120,16 @@ struct ZtVField {
     ZtVFieldFlags	*(*flags)();		// Flags
   } info;
 
+  union {
+    ZuString	(*string)(int);			// String
+    ZmStreamFn	(*composite)(int);		// Composite
+    int64_t	(*int_)(int);			// Bool|Int|Hex|Enum|Flags
+    double	(*float_)(int);			// Float
+    ZuFixed	(*fixed)(int);			// Fixed
+    ZuDecimal	(*decimal)(int);		// Decimal
+    ZmTime	(*time)(int);			// Time
+  } constantFn;
+
   void		(*print)(const void *, ZmStream &, const ZtFieldFmt &);
   void		(*scan)(void *, ZuString, const ZtFieldFmt &);
   union {
@@ -1047,6 +1156,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.string = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.string = Field::getFn()},
@@ -1058,6 +1168,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.composite = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.composite = Field::getFn()},
@@ -1072,6 +1183,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.int_ = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.int_ = Field::getFn()},
@@ -1083,6 +1195,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.enum_ = Field::enumFn()},
+      constantFn{.int_ = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.int_ = Field::getFn()},
@@ -1094,6 +1207,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.flags = Field::flagsFn()},
+      constantFn{.int_ = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.int_ = Field::getFn()},
@@ -1105,6 +1219,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.float_ = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.float_ = Field::getFn()},
@@ -1116,6 +1231,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.fixed = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.fixed = Field::getFn()},
@@ -1127,6 +1243,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.decimal = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.decimal = Field::getFn()},
@@ -1138,6 +1255,7 @@ struct ZtVField {
       id{Field::id()}, type{Field::Type}, flags{Field::Flags},
       cmp{Field::cmpFn()},
       info{.null = nullptr},
+      constantFn{.time = Field::constantFn()},
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.time = Field::getFn()},
