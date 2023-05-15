@@ -305,7 +305,7 @@ friend TLS;
 	cf->get("thread", true), cf->get("caPath", true), alpn,
 	cf->get("certPath", true), cf->get("keyPath", true));
 
-    m_ip = cf->get("localIP", false, "127.0.0.1");
+    m_ip = cf->get("localIP", "127.0.0.1");
     m_port = cf->getInt("localPort", 1, (1<<16) - 1, 19400);
     m_nAccepts = cf->getInt("nAccepts", 1, 1024, 8);
     m_rebindFreq = cf->getInt("rebindFreq", 0, 3600, 0);

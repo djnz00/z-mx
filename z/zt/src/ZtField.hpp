@@ -297,7 +297,7 @@ struct ZtFieldType_Composite : public ZtField_<Base, Flags> {
   ZuInline static constexpr auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Composite{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -356,7 +356,7 @@ struct ZtFieldType_Bool : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Bool{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -425,7 +425,7 @@ struct ZtFieldType_Int : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Int{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -482,7 +482,7 @@ struct ZtFieldType_Hex : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Hex{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -540,7 +540,7 @@ struct ZtFieldType_Enum : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Enum{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto enumFn() {
@@ -603,7 +603,7 @@ struct ZtFieldType_Flags : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Flags{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto flagsFn() {
@@ -680,7 +680,7 @@ struct ZtFieldType_Float : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Float{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -697,7 +697,7 @@ struct ZtFieldType_Float<Base, Flags, Min, Max, Def, false> :
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZtFieldFmt &) {
-    Base::set(o, s);
+    Base::set(o, ZuBoxT<typename Base::T>{s});
   }
   static auto setFn() {
     return [](void *o, double v) { Base::set(*static_cast<O *>(o), v); };
@@ -749,7 +749,7 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Fixed{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -822,7 +822,7 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Decimal{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -882,7 +882,7 @@ struct ZtFieldType_Time : public ZtField_<Base, Flags> {
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_Time{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
