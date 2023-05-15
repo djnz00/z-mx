@@ -94,19 +94,20 @@ namespace ZtFieldFlags {
     Synthetic	= 0x00001,	// synthetic and read-only
     Update	= 0x00002,	// include in updates
     DoNotPrint	= 0x00004,	// do not print
-    Ctor_	= 0x00008,	// constructor parameter
-    NDP_	= 0x00010,	// NDP for printing float/fixed/decimal
-    Series	= 0x00020,	// data series
-      Index	= 0x00040,	// - index (e.g. time stamp)
-      Delta	= 0x00080,	// - first derivative
-      Delta2	= 0x00100	// - second derivative
+    Required	= 0x00008,	// required - do not default
+    Ctor_	= 0x00010,	// constructor parameter
+    NDP_	= 0x00020,	// NDP for printing float/fixed/decimal
+    Series	= 0x00040,	// data series
+      Index	= 0x00080,	// - index (e.g. time stamp)
+      Delta	= 0x00100,	// - first derivative
+      Delta2	= 0x00200	// - second derivative
   };
   enum {
-    CtorShift	= 10,		// bit-shift for constructor parameter index
+    CtorShift	= 11,		// bit-shift for constructor parameter index
     CtorMask	= 0x3f		// 6 bits
   };
   enum {
-    NDPShift	= 16,
+    NDPShift	= 17,
     NDPMask	= 0x1f		// 0-31
   };
   // parameter index -> flags
@@ -951,7 +952,9 @@ struct ZtFieldType_Time<Base, Flags, false> :
 
 struct ZtFieldPrint : public ZuPrintDelegate {
   template <typename U>
-  struct Print_Filter { enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) }; };
+  struct Print_Filter {
+    enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) };
+  };
   template <typename S, typename O>
   static void print(S &s, const O &o) {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<O>>;

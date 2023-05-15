@@ -756,19 +756,6 @@ void Cf::toFile_(ZiFile &file)
   if (file.write(out.data(), out.length(), &e) != Zi::OK) throw e;
 }
 
-Cf::TreeNodeRef Cf::getNode(ZuString fullKey, bool required) const
-{
-  ZuString key;
-  auto self = getScope(fullKey, key);
-  if (!self) {
-    if (required) throw Required{this, fullKey};
-    return nullptr;
-  }
-  TreeNodeRef node = self->m_tree.find(key);
-  if (!node && required) throw Required{this, fullKey};
-  return node;
-}
-
 Cf::TreeNodeRef Cf::mkNode(ZuString fullKey)
 {
   ZuString key;
@@ -796,22 +783,6 @@ void Cf::unset(ZuString fullKey)
   ZuString key;
   auto self = mkScope(fullKey, key);
   self->m_tree.del(key);
-}
-
-ZmRef<Cf> Cf::subset(ZuString key, bool required, bool create)
-{
-  TreeNodeRef node;
-  if (!create) {
-    node = getNode(key, required);
-    if (!node->cf) {
-      if (required) throw Required{this, key};
-      return nullptr;
-    }
-  } else {
-    node = mkNode(key);
-    if (!node->cf) node->cf = new Cf{node};
-  }
-  return node->cf;
 }
 
 void Cf::subset(ZuString key, Cf *cf)

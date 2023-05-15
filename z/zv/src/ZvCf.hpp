@@ -45,6 +45,7 @@
 #include <zlib/ZtArray.hpp>
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtRegex.hpp>
+#include <zlib/ZtField.hpp>
 
 #include <zlib/ZiFile.hpp>
 
@@ -273,59 +274,68 @@ namespace ZvCf_ {
 
 using namespace ZvCfError;
 
-template <typename T>
+template <typename T, bool = ZuTraits<T>::IsPrimitive> struct Scan_;
+template <typename T_>
+struct Scan_<T_, true> { using T = ZuBox<T_>; };
+template <typename T_>
+struct Scan_<ZuBox<T_>, false> { using T = ZuBox<T_>; };
+template <> struct Scan_<ZuFixed, false> { using T = ZuFixed; };
+template <> struct Scan_<ZuDecimal, false> { using T = ZuDecimal; };
+template <typename T> using Scan = typename Scan_<T>::T;
+template <typename T, bool Required_ = false>
 inline T toScalar(
     const Cf *cf, ZuString key, ZuString value,
-    T minimum, T maximum, bool required = false, T def = {})
+    T minimum, T maximum, T deflt = {})
 {
   if (!value) {
-    if (required) throw Required{cf, key};
-    return def;
+    if constexpr (Required_) throw Required{cf, key};
+    return deflt;
   }
-  ZuBoxT<T> v{value};
+  Scan<T> v{value};
   if (v < minimum || v > maximum)
     throw Range<T>{cf, key, minimum, maximum, v};
   return v;
 }
-template <typename ...Args>
+template <bool Required_ = false, typename ...Args>
 inline auto toInt(Args &&... args) {
-  return toScalar<int>(ZuFwd<Args>(args)...);
+  return toScalar<int, Required_>(ZuFwd<Args>(args)...);
 }
-template <typename ...Args>
+template <bool Required_ = false, typename ...Args>
 inline auto toInt64(Args &&... args) {
-  return toScalar<int64_t>(ZuFwd<Args>(args)...);
+  return toScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
 }
-template <typename ...Args>
+template <bool Required_ = false, typename ...Args>
 inline auto toDbl(Args &&... args) {
-  return toScalar<double>(ZuFwd<Args>(args)...);
+  return toScalar<double, Required_>(ZuFwd<Args>(args)...);
 }
 
-template <typename Map>
+template <typename Map, bool Required_ = false>
 inline ZtEnum toEnum(
-    const Cf *cf, ZuString key, ZuString value,
-    bool required = false, ZtEnum def = {})
+    const Cf *cf, ZuString key, ZuString value, ZtEnum deflt = {})
 {
   if (!value) {
-    if (required) throw Required{cf, key};
-    return def;
+    if constexpr (Required_) throw Required{cf, key};
+    return deflt;
   }
-  return ZvEnum<Map>::instance()->s2v(key, value, def);
+  return ZvEnum<Map>::instance()->s2v(key, value, deflt);
 }
 
-template <typename Map, typename T = uint32_t>
-inline T toFlags(
-    const Cf *cf, ZuString key, ZuString value,
-    bool required = false, T def = 0)
+template <typename Map, typename T, bool Required_ = false>
+inline T toFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
 {
   if (!value) {
-    if (required) throw Required{cf, key};
-    return def;
+    if constexpr (Required_) throw Required{cf, key};
+    return deflt;
   }
   return ZvFlags<Map>::instance()->template scan<T>(key, value);
 }
-template <typename Map, typename ...Args>
-inline uint64_t getFlags64(Args &&... args) {
-  return getFlags<Map, uint64_t>(ZuFwd<Args>(args)...);
+template <typename Map, bool Required_ = false, typename ...Args>
+inline uint32_t toFlags(Args &&... args) {
+  return toFlags<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
+}
+template <typename Map, bool Required_ = false, typename ...Args>
+inline uint64_t toFlags64(Args &&... args) {
+  return toFlags<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
 }
 
 class Cf;
@@ -352,60 +362,165 @@ protected:
 public:
   static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
-  ZtString get(bool required = false, ZtString def = {}) const {
+  template <bool Required_ = false>
+  ZtString get(ZtString deflt = {}) const {
     if (!values) {
-      if (required) throw Required{owner, key};
-      return def;
+      if constexpr (Required_) throw Required{owner, key};
+      return deflt;
     }
     return values[0];
   }
 
-  template <typename T>
-  T getScalar(
-      T minimum, T maximum,
-      // FIXME - make required a constexpr template param
-      bool required = false, T def = {}) const {
+  template <typename T, bool Required_ = false>
+  T getScalar(T minimum, T maximum, T deflt = {}) const {
     if (!values) {
-      if (required) throw Required{owner, key};
-      return def;
+      if constexpr (Required_) throw Required{owner, key};
+      return deflt;
     }
-    return toScalar<T>(owner, key, values[0], minimum, maximum, required, def);
+    return toScalar<T, Required_>(
+	owner, key, values[0], minimum, maximum, deflt);
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getInt(Args &&... args) const {
-    return getScalar<int>(ZuFwd<Args>(args)...);
+    return getScalar<int, Required_>(ZuFwd<Args>(args)...);
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getInt64(Args &&... args) const {
-    return getScalar<int64_t>(ZuFwd<Args>(args)...);
+    return getScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getDbl(Args &&... args) const {
-    return getScalar<double>(ZuFwd<Args>(args)...);
+    return getScalar<double, Required_>(ZuFwd<Args>(args)...);
   }
 
-  template <typename Map>
-  ZtEnum getEnum(bool required = false, ZtEnum def = {}) const {
+  template <typename Map, bool Required_ = false>
+  ZtEnum getEnum(ZtEnum deflt = {}) const {
     if (!values) {
-      if (required) throw Required{owner, key};
-      return def;
+      if constexpr (Required_) throw Required{owner, key};
+      return deflt;
     }
-    return toEnum<Map>(owner, key, values[0], required, def);
+    return toEnum<Map, Required_>(owner, key, values[0], deflt);
   }
 
-  template <typename Map, typename T = uint32_t>
-  T getFlags(bool required = false, T def = 0) const {
+  template <typename Map, typename T, bool Required_ = false>
+  T getFlags_(T deflt = 0) const {
     if (!values) {
-      if (required) throw Required{owner, key};
-      return def;
+      if constexpr (Required_) throw Required{owner, key};
+      return deflt;
     }
-    return toFlags<Map, T>(owner, key, values[0], required, def);
+    return toFlags<Map, T, Required_>(owner, key, values[0], deflt);
   }
-  template <typename Map, typename ...Args>
+  template <typename Map, bool Required_ = false, typename ...Args>
+  uint32_t getFlags(Args &&... args) const {
+    return getFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
+  }
+  template <typename Map, bool Required_ = false, typename ...Args>
   uint64_t getFlags64(Args &&... args) const {
-    return getFlags<Map, uint64_t>(ZuFwd<Args>(args)...);
+    return getFlags_<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
   }
 };
+
+template <typename O, typename Cf_>
+struct Fielded_ {
+  using FieldList = ZuFieldList<O>;
+
+  template <typename U>
+  struct AllFilter { enum { OK = !U::ReadOnly }; };
+  using AllFields = ZuTypeGrep<AllFilter, FieldList>;
+
+  template <typename U>
+  struct UpdateFilter { enum { OK = U::Flags & Flags::Update }; };
+  using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
+
+  template <typename U>
+  struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
+  using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
+  template <typename U>
+  struct CtorIndex {
+    enum { I = (U::Flags>>Flags::CtorShift) & Flags::CtorMask };
+  };
+  using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
+
+  template <typename U>
+  struct InitFilter { enum { OK = !(U::Flags & Flags::Ctor_) }; };
+  using InitFields = ZuTypeGrep<InitFilter, AllFields>;
+
+  template <typename ...Fields>
+  struct Ctor {
+    static O ctor(const Cf_ *cf) {
+      return O{cf->getField<Fields>()...};
+    }
+    static void ctor(void *ptr, const Cf_ *cf) {
+      new (ptr) O{cf->getField<Fields>()...};
+    }
+  };
+  static O ctor(const Cf_ *cf) {
+    O o = ZuTypeApply<Ctor, CtorFields>::ctor(cf);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, cf]<typename Field>() { Field::set(o, cf->getField<Field>()); });
+    return o;
+  }
+  static void ctor(void *ptr, const Cf_ *cf) {
+    ZuTypeApply<Ctor, CtorFields>::ctor(ptr, cf);
+    O &o = *reinterpret_cast<O *>(ptr);
+    ZuTypeAll<InitFields>::invoke(
+	[&o, cf]<typename Field>() { Field::set(o, cf->getField<Field>()); });
+  }
+
+  template <typename ...Fields>
+  struct Load__ : public O {
+    Load__() = default;
+    Load__(const Cf_ *cf) : O{cf->getField<Fields>()...} { }
+    template <typename ...Args>
+    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+  };
+  using Load_ = ZuTypeApply<Load__, CtorFields>;
+  struct Load : public Load_ {
+    Load() = default;
+    Load(const Cf_ *cf) : Load_{cf} {
+      ZuTypeAll<InitFields>::invoke(
+	  [this, cf]<typename Field>() {
+	    Field::set(*this, cf->getField<Field>());
+	  });
+    }
+    template <typename ...Args>
+    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
+  };
+
+  static void load(O &o, const Cf_ *cf) {
+    ZuTypeAll<AllFields>::invoke(
+	[&o, cf]<typename Field>() { Field::set(o, cf->getField<Field>()); });
+  }
+  static void loadUpdate(O &o, const Cf_ *cf) {
+    ZuTypeAll<UpdateFields>::invoke(
+	[&o, cf]<typename Field>() { Field::set(o, cf->getField<Field>()); });
+  }
+
+  template <typename ...Fields>
+  struct Key {
+    using Tuple = ZuTuple<typename Fields::T...>;
+    static decltype(auto) tuple(const Cf_ *cf) {
+      return Tuple{cf->getField<Fields>()...};
+    }
+  };
+  template <typename ...Fields>
+  struct Key<ZuTypeList<Fields...>> : public Key<Fields...> { };
+
+  template <unsigned KeyID>
+  struct KeyFilter {
+    template <typename U>
+    struct T {
+      enum { OK = U::keys() & (1<<KeyID) };
+    };
+  };
+  template <unsigned KeyID = 0>
+  static auto key(const Cf_ *cf) {
+    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
+    return Key<Fields>::tuple(cf);
+  }
+};
+template <typename O, typename Cf_ = Cf>
+using Fielded = Fielded_<ZuFielded<O>, Cf_>;
 
 class ZvAPI Cf : public ZuObject {
   Cf(const Cf &);
@@ -510,31 +625,42 @@ private:
   using TreeNode = Tree::Node;
   using TreeNodeRef = Tree::NodeRef;
 
-  TreeNodeRef getNode(ZuString fullKey, bool required) const;
+  template <bool Required_ = false>
+  TreeNodeRef getNode(ZuString fullKey) const {
+    ZuString key;
+    auto self = getScope(fullKey, key);
+    if (!self) {
+      if constexpr (Required_) throw Required{this, fullKey};
+      return nullptr;
+    }
+    TreeNodeRef node = self->m_tree.find(key);
+    if (!node)
+      if constexpr (Required_) throw Required{this, fullKey};
+    return node;
+  }
   TreeNodeRef mkNode(ZuString fullKey);
 
 public:
-  ZtString get(ZuString key, bool required, ZtString def) const {
-    if (auto node = getNode(key, required))
-      return node->get(required, def);
-    if (required) throw Required{this, key};
-    return def;
+  template <bool Required_ = false>
+  ZtString get(ZuString key, ZtString deflt) const {
+    if (auto node = getNode<Required_>(key))
+      return node->get<Required_>(deflt);
+    if constexpr (Required_) throw Required{this, key};
+    return deflt;
   }
-  template <typename Key>
-  ZtString get(const Key &key, bool required = false) const {
-    return get(key, required, {});
-  }
+  template <typename Key, bool Required_ = false>
+  ZtString get(const Key &key) const { return get<Required_>(key, {}); }
 
-  template <typename Key>
-  const ZtArray<ZtString> *getMultiple(const Key &key,
-      unsigned minimum, unsigned maximum, bool required = false) const {
-    if (auto node = getNode(key, required)) {
+  template <typename Key, bool Required_ = false>
+  const ZtArray<ZtString> *getMultiple(
+      const Key &key, unsigned minimum, unsigned maximum) const {
+    if (auto node = getNode<Required_>(key)) {
       unsigned n = node->values.length();
       if (n < minimum || n > maximum)
 	throw NValues{this, key, minimum, maximum, n};
       return &node->values;
     }
-    if (required) throw Required{this, key};
+    if constexpr (Required_) throw Required{this, key};
     return nullptr;
   }
 
@@ -543,57 +669,147 @@ public:
 
   void unset(ZuString key);
 
-  ZmRef<Cf> subset(ZuString key) const {
-    return const_cast<Cf *>(this)->subset(key, false, false);
+private:
+  template <bool Required_ = false, bool Create = false>
+  ZmRef<Cf> subset_(ZuString key) {
+    TreeNodeRef node;
+    if constexpr (!Create) {
+      node = getNode<Required_>(key);
+      if (!node->cf) {
+	if constexpr (Required_) throw Required{this, key};
+	return nullptr;
+      }
+    } else {
+      node = mkNode(key);
+      if (!node->cf) node->cf = new Cf{node};
+    }
+    return node->cf;
   }
-  ZmRef<Cf> subset(ZuString key, bool required) const {
-    return const_cast<Cf *>(this)->subset(key, required, false);
+public:
+  template <bool Required_ = false, bool Create = false>
+  ZuIfT<Create, ZmRef<Cf>> subset(ZuString key) {
+    return subset_<Required_, Create>(key);
   }
-  ZmRef<Cf> subset(ZuString key,  bool required, bool create);
+  template <bool Required_ = false, bool Create = false>
+  ZuIfT<!Create, ZmRef<Cf>> subset(ZuString key) const {
+    return const_cast<ZvCf *>(this)->subset_<Required_, Create>(key);
+  }
   void subset(ZuString key, Cf *cf);
 
   void merge(Cf *cf);
 
-  template <typename T = int, typename Key>
-  T getScalar(
-      const Key &key, T minimum, T maximum,
-      bool required = false, T def = {}) const {
-    if (auto node = getNode(key, required))
-      return node->template getScalar<T>(minimum, maximum, required, def);
-    if (required) throw Required{this, key};
-    return def;
+  template <typename T, bool Required_ = false, typename Key>
+  T getScalar(const Key &key, T minimum, T maximum, T deflt = {}) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template getScalar<T, Required_>(minimum, maximum, deflt);
+    if constexpr (Required_) throw Required{this, key};
+    return deflt;
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getInt(Args &&... args) const {
-    return getScalar<int>(ZuFwd<Args>(args)...);
+    return getScalar<int, Required_>(ZuFwd<Args>(args)...);
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getInt64(Args &&... args) const {
-    return getScalar<int64_t>(ZuFwd<Args>(args)...);
+    return getScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
   }
-  template <typename ...Args>
+  template <bool Required_ = false, typename ...Args>
   auto getDbl(Args &&... args) const {
-    return getScalar<double>(ZuFwd<Args>(args)...);
+    return getScalar<double, Required_>(ZuFwd<Args>(args)...);
   }
 
-  template <typename Map, typename Key>
-  ZtEnum getEnum(const Key &key, bool required = false, ZtEnum def = {}) const {
-    if (auto node = getNode(key, required))
-      return node->template getEnum<Map>(required, def);
-    if (required) throw Required{this, key};
-    return def;
+  template <typename Map, bool Required_ = false, typename Key>
+  ZtEnum getEnum(const Key &key, ZtEnum deflt = {}) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template getEnum<Map, Required_>(deflt);
+    if constexpr (Required_) throw Required{this, key};
+    return deflt;
   }
 
-  template <typename Map, typename T = uint32_t, typename Key>
-  T getFlags(const Key &key, bool required = false, T def = {}) const {
-    if (auto node = getNode(key, required))
-      return node->template getFlags<Map, T>(required, def);
-    if (required) throw Required{this, key};
-    return def;
+  template <typename Map, typename T, bool Required_ = false, typename Key>
+  T getFlags_(const Key &key, T deflt = {}) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template getFlags<Map, T, Required_>(deflt);
+    if constexpr (Required_) throw Required{this, key};
+    return deflt;
   }
-  template <typename Map, typename ...Args>
+  template <typename Map, bool Required_ = false, typename ...Args>
+  uint32_t getFlags(Args &&... args) const {
+    return getFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
+  }
+  template <typename Map, bool Required_ = false, typename ...Args>
   uint64_t getFlags64(Args &&... args) const {
-    return getFlags<Map, uint64_t>(ZuFwd<Args>(args)...);
+    return getFlags_<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
+  }
+
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::String, typename Field::T>
+  getField() {
+    return get<Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Composite ||
+	Field::Type == ZtFieldType::Time, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    auto s = get<Field::Flags & ZtFieldFlags::Required>(Field::id(), "");
+    if (ZuUnlikely(!s)) return Field::deflt();
+    return T{s};
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Bool, typename Field::T>
+  getField() {
+    return getScalar<bool, Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), 0, 1, Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Int ||
+	Field::Type == ZtFieldType::Float ||
+	Field::Type == ZtFieldType::Fixed ||
+	Field::Type == ZtFieldType::Decimal, typename Field::T>
+  getField() {
+    return getScalar<typename Field::T, Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), Field::minimum(), Field::maximum(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Hex, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    return getScalar<T, Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Enum, typename Field::T>
+  getField() {
+    using Map = typename Field::Map;
+    return getEnum<Map, Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::Flags, typename Field::T>
+  getField() {
+    using Map = typename Field::Map;
+    using T = typename Field::T;
+    return getFlags_<Map, T, Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), Field::deflt());
+  }
+
+  template <typename O>
+  inline O getCtor() const { return Fielded<O>::ctor(this); }
+  template <typename O>
+  inline void getCtor(void *ptr) const { Fielded<O>::ctor(ptr, this); }
+
+  template <typename O> using GetLoad = typename Fielded<O>::Load;
+
+  template <typename O>
+  inline void getLoad(O &o) const { Fielded<O>::load(o, this); }
+  template <typename O>
+  inline void getUpdate(O &o) const { Fielded<O>::loadUpdate(o, this); }
+
+  template <typename O, unsigned KeyID = 0>
+  inline auto getKey() const {
+    return Fielded<O>::key<KeyID>(this);
   }
 
   unsigned count() const { return m_tree.count_(); }
@@ -630,176 +846,6 @@ inline ZtString fullKey(const Cf *cf, ZtString key) {
     if (!(cf = node->owner)) break;
   }
   return key;
-}
-
-template <typename Field>
-ZuIfT<Field::Type == ZtFieldType::String> loadField(Cf *cf) {
-  return cf->getNode(Field::id(), false, Field::deflt());
-}
-
-    template <typename U> struct Filter {
-      enum { OK = !(U::Flags & ZtFieldFlags::Synthetic); };
-    };
-    using Fields = ZuTypeGrep<Filter, ZuFieldList<O>>;
-    ZuTypeAll<Fields>::invoke([this]<typename Field>() {
-	     if constexpr (Field::Type == ZtFieldType::String) {
-	Field::set(o, get(Field::id(), false, Field::get(o)));
-      } else if constexpr (Field::Type == ZtFieldType::Bool) {
-      } else if constexpr (Field::Type == ZtFieldType::Int) {
-      } else if constexpr (Field::Type == ZtFieldType::Hex) {
-      } else if constexpr (Field::Type == ZtFieldType::Enum) {
-      } else if constexpr (Field::Type == ZtFieldType::Flags) {
-      } else if constexpr (Field::Type == ZtFieldType::Float) {
-      } else if constexpr (Field::Type == ZtFieldType::Fixed) {
-      } else if constexpr (Field::Type == ZtFieldType::Decimal) {
-      } else if constexpr (Field::Type == ZtFieldType::Time) {
-      }
-    });
-  }
-
-template <typename O>
-struct Fielded_ {
-  using FieldList = ZuFieldList<O>;
-
-  template <typename U>
-  struct AllFilter { enum { OK = !U::ReadOnly }; };
-  using AllFields = ZuTypeGrep<AllFilter, FieldList>;
-
-  template <typename U>
-  struct UpdateFilter { enum { OK = U::Flags & Flags::Update }; };
-  using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
-
-  template <typename U>
-  struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
-  using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
-  template <typename U>
-  struct CtorIndex {
-    enum { I = (U::Flags>>Flags::CtorShift) & Flags::CtorMask };
-  };
-  using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
-
-  template <typename U>
-  struct InitFilter { enum { OK = !(U::Flags & Flags::Ctor_) }; };
-  using InitFields = ZuTypeGrep<InitFilter, AllFields>;
-
-  template <typename ...Fields>
-  struct Ctor {
-    static O ctor(const FBType *fbo) {
-      return O{Fields::load_(fbo)...};
-    }
-    static void ctor(void *ptr, const FBType *fbo) {
-      new (ptr) O{Fields::load_(fbo)...};
-    }
-  };
-  static O ctor(const FBType *fbo) {
-    O o = ZuTypeApply<Ctor, CtorFields>::ctor(fbo);
-    ZuTypeAll<InitFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
-    return o;
-  }
-  static void ctor(void *ptr, const FBType *fbo) {
-    ZuTypeApply<Ctor, CtorFields>::ctor(ptr, fbo);
-    O &o = *reinterpret_cast<O *>(ptr);
-    ZuTypeAll<InitFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
-  }
-
-  template <typename ...Fields>
-  struct Load__ : public O {
-    Load__() = default;
-    Load__(const FBType *fbo) : O{Fields::load_(fbo)...} { }
-    template <typename ...Args>
-    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
-  };
-  using Load_ = ZuTypeApply<Load__, CtorFields>;
-  struct Load : public Load_ {
-    Load() = default;
-    Load(const FBType *fbo) : Load_{fbo} {
-      ZuTypeAll<InitFields>::invoke(
-	  [this, fbo]<typename Field>() { Field::load(*this, fbo); });
-    }
-    template <typename ...Args>
-    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
-  };
-
-  static void load(O &o, const FBType *fbo) {
-    ZuTypeAll<AllFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
-  }
-  static void loadUpdate(O &o, const FBType *fbo) {
-    ZuTypeAll<UpdateFields>::invoke(
-	[&o, fbo]<typename Field>() { Field::load(o, fbo); });
-  }
-
-  template <typename ...Fields>
-  struct Key {
-    using Tuple = ZuTuple<typename Fields::T...>;
-    static decltype(auto) tuple(const FBType *fbo) {
-      return Tuple{Fields::load_(fbo)...};
-    }
-  };
-  template <typename ...Fields>
-  struct Key<ZuTypeList<Fields...>> : public Key<Fields...> { };
-
-  template <unsigned KeyID>
-  struct KeyFilter {
-    template <typename U>
-    struct T {
-      enum { OK = U::keys() & (1<<KeyID) };
-    };
-  };
-  template <unsigned KeyID = 0>
-  static decltype(auto) key(const FBType *fbo) {
-    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
-    return Key<Fields>::tuple(fbo);
-  }
-};
-template <typename O>
-using Fielded = Fielded_<ZuFielded<O>>;
-
-template <typename O>
-inline auto save(Zfb::Builder &fbb, const O &o) {
-  return Table<O>::save(fbb, o);
-}
-template <typename O>
-inline auto saveUpdate(Zfb::Builder &fbb, const O &o) {
-  return Table<O>::saveUpdate(fbb, o);
-}
-
-template <typename O>
-inline ZfbType<O> *root(const uint8_t *data) {
-  return Zfb::GetRoot<ZfbType<O>>(data);
-}
-
-template <typename O>
-inline ZfbType<O> *verify(const uint8_t *data, unsigned len) {
-  if (!Zfb::Verifier{data, len}.VerifyBuffer<ZfbType<O>>()) return nullptr;
-  return root<O>(data);
-}
-
-template <typename O>
-inline O ctor(const ZfbType<O> *fbo) {
-  return Table<O>::ctor(fbo);
-}
-template <typename O>
-inline void ctor(void *ptr, const ZfbType<O> *fbo) {
-  Table<O>::ctor(ptr, fbo);
-}
-
-template <typename O> using Load = typename Table<O>::Load;
-
-template <typename O>
-inline void load(O &o, const ZfbType<O> *fbo) {
-  Table<O>::load(o, fbo);
-}
-template <typename O>
-inline void loadUpdate(O &o, const ZfbType<O> *fbo) {
-  Table<O>::loadUpdate(o, fbo);
-}
-
-template <typename O>
-inline auto key(const ZfbType<O> *fbo) {
-  return Table<O>::key(fbo);
 }
 
 } // ZvCf_

@@ -342,7 +342,7 @@ struct SaveFieldList<O, FieldList, OffsetFieldList, 0> {
 } // Save
 
 template <typename O>
-struct Table_ {
+struct Fielded_ {
   // using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   using FieldList = ZuFieldList<O>;
@@ -444,21 +444,21 @@ struct Table_ {
     };
   };
   template <unsigned KeyID = 0>
-  static decltype(auto) key(const FBType *fbo) {
+  static auto key(const FBType *fbo) {
     using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
     return Key<Fields>::tuple(fbo);
   }
 };
 template <typename O>
-using Table = Table_<ZuFielded<O>>;
+using Fielded = Fielded_<ZuFielded<O>>;
 
 template <typename O>
 inline auto save(Zfb::Builder &fbb, const O &o) {
-  return Table<O>::save(fbb, o);
+  return Fielded<O>::save(fbb, o);
 }
 template <typename O>
 inline auto saveUpdate(Zfb::Builder &fbb, const O &o) {
-  return Table<O>::saveUpdate(fbb, o);
+  return Fielded<O>::saveUpdate(fbb, o);
 }
 
 template <typename O>
@@ -474,27 +474,27 @@ inline ZfbType<O> *verify(const uint8_t *data, unsigned len) {
 
 template <typename O>
 inline O ctor(const ZfbType<O> *fbo) {
-  return Table<O>::ctor(fbo);
+  return Fielded<O>::ctor(fbo);
 }
 template <typename O>
 inline void ctor(void *ptr, const ZfbType<O> *fbo) {
-  Table<O>::ctor(ptr, fbo);
+  Fielded<O>::ctor(ptr, fbo);
 }
 
-template <typename O> using Load = typename Table<O>::Load;
+template <typename O> using Load = typename Fielded<O>::Load;
 
 template <typename O>
 inline void load(O &o, const ZfbType<O> *fbo) {
-  Table<O>::load(o, fbo);
+  Fielded<O>::load(o, fbo);
 }
 template <typename O>
 inline void loadUpdate(O &o, const ZfbType<O> *fbo) {
-  Table<O>::loadUpdate(o, fbo);
+  Fielded<O>::loadUpdate(o, fbo);
 }
 
-template <typename O>
+template <typename O, unsigned KeyID = 0>
 inline auto key(const ZfbType<O> *fbo) {
-  return Table<O>::key(fbo);
+  return Fielded<O>::key<KeyID>(fbo);
 }
 
 } // ZfbField
