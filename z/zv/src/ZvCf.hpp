@@ -809,7 +809,7 @@ public:
 
   template <typename O, unsigned KeyID = 0>
   inline auto getKey() const {
-    return Fielded<O>::key<KeyID>(this);
+    return Fielded<O>::template key<KeyID>(this);
   }
 
   unsigned count() const { return m_tree.count_(); }

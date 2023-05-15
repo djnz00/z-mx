@@ -50,8 +50,8 @@ struct MinMax<T, decltype(T::minimum(), void())> {
   const ZtFieldFmt &fmt;
   template <typename S>
   friend S &operator <<(S &s, const MinMax &m) {
-    s << " minimum=" << typename T::Print{T::minimum(), m.fmt}
-      << " maximum=" << typename T::Print{T::maximum(), m.fmt};
+    s << " minimum=" << typename T::Print_{T::minimum(), m.fmt}
+      << " maximum=" << typename T::Print_{T::maximum(), m.fmt};
     return s;
   }
 };
@@ -62,7 +62,7 @@ int main()
   ZtFieldFmt fmt;
   ZuTypeAll<Fields>::invoke([&fmt]<typename Field>() {
     std::cout << Field::id()
-      << " deflt=" << typename Field::Print{Field::deflt(), fmt}
+      << " deflt=" << typename Field::Print_{Field::deflt(), fmt}
       << MinMax<Field>{fmt} << '\n';
   });
   std::cout << "double nan=" << __builtin_nan("0") << '\n';

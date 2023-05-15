@@ -47,7 +47,7 @@
 #include <zlib/ZtEnum.hpp>
 #include <zlib/ZtDate.hpp>
 
-#define ZtFieldType_(O, ID) ZtField_##O##_##ID
+#define ZtFieldType(O, ID) ZtField_##O##_##ID
 
 // Metadata macro DSL for identifying and accessing data fields and keys:
 //
@@ -198,11 +198,11 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::String };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt; // unused
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       ZuString v{print.v};
       s << '"';
       for (unsigned i = 0, n = v.length(); i < n; i++) {
@@ -213,16 +213,18 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
       return s << '"';
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_String &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline static const char *deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
-      s << ZtFieldType_String{*static_cast<const O *>(o), fmt};
+      s << Print{*static_cast<const O *>(o), fmt};
     };
   }
   static auto getFn() {
@@ -255,33 +257,40 @@ struct ZtFieldType_String<Base, Flags, Def, false> :
   }
 };
 
-template <typename Base>
+template <typename Base, unsigned Flags,
+  bool = (Flags & ZtFieldFlags::Synthetic)>
 struct ZtFieldType_Composite_ {
-  using T = ZuUnbox<typename Base::T>;
-  constexpr static T deflt() { return {}; };
+  using T = typename Base::T;
+  constexpr static T deflt() { return {}; }
+};
+template <typename Base, unsigned Flags>
+struct ZtFieldType_Composite_<Base, Flags, true> {
+  constexpr static void deflt() { }
 };
 template <
   typename Base, unsigned Flags,
-  auto Def = ZtFieldType_Composite_<Base>::deflt,
+  auto Def = ZtFieldType_Composite_<Base, Flags>::deflt,
   bool = Base::ReadOnly>
 struct ZtFieldType_Composite : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Composite };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt; // unused
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << '{' << print.v << '}';
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Composite &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline static constexpr auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -325,20 +334,22 @@ struct ZtFieldType_Bool : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Bool };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << (print.v ? '1' : '0');
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Bool &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -376,9 +387,9 @@ struct ZtFieldType_Bool<Base, Flags, Def, false> :
 template <typename Base>
 struct ZtFieldType_Int_ {
   using T = ZuUnbox<typename Base::T>;
-  constexpr static auto minimum() { return ZuCmp<T>::minimum(); };
-  constexpr static auto maximum() { return ZuCmp<T>::maximum(); };
-  constexpr static auto deflt() { return ZuCmp<T>::null(); };
+  constexpr static auto minimum() { return ZuCmp<T>::minimum(); }
+  constexpr static auto maximum() { return ZuCmp<T>::maximum(); }
+  constexpr static auto deflt() { return ZuCmp<T>::null(); }
 };
 template <
   typename Base, unsigned Flags,
@@ -390,20 +401,22 @@ struct ZtFieldType_Int : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Int };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << ZuBoxed(print.v).vfmt(print.fmt.scalar);
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Int &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
@@ -447,20 +460,22 @@ struct ZtFieldType_Hex : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Hex };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << ZuBoxed(print.v).vfmt(print.fmt.scalar).hex();
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Hex &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -502,20 +517,22 @@ struct ZtFieldType_Enum : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Enum };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << Map::v2s(print.v);
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Enum &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   using Map = Map_;
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
@@ -563,20 +580,22 @@ struct ZtFieldType_Flags : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Flags };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       return s << Map::print(print.v, print.fmt.flagsDelim);
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Flags &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   using Map = Map_;
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
@@ -597,9 +616,9 @@ struct ZtFieldType_Flags : public ZtField_<Base, Flags> {
   static auto setFn() { return [](void *, int64_t) { }; }
   static auto scanFn() { return [](void *, ZuString, const ZtFieldFmt &) { }; }
 };
-template <typename Base, unsigned Flags, typename Map>
-struct ZtFieldType_Flags<Base, Flags, Map, false> :
-    public ZtFieldType_Flags<Base, Flags, Map, true> {
+template <typename Base, unsigned Flags, typename Map, auto Def>
+struct ZtFieldType_Flags<Base, Flags, Map, Def, false> :
+    public ZtFieldType_Flags<Base, Flags, Map, Def, true> {
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZtFieldFmt &fmt) {
@@ -618,9 +637,9 @@ struct ZtFieldType_Flags<Base, Flags, Map, false> :
 template <typename Base>
 struct ZtFieldType_Float_ {
   using T = ZuUnbox<typename Base::T>;
-  constexpr static auto minimum() { return -ZuFP<T>::inf(); };
-  constexpr static auto maximum() { return ZuFP<T>::inf(); };
-  constexpr static auto deflt() { return ZuCmp<T>::null(); };
+  constexpr static auto minimum() { return -ZuFP<T>::inf(); }
+  constexpr static auto maximum() { return ZuFP<T>::inf(); }
+  constexpr static auto deflt() { return ZuCmp<T>::null(); }
 };
 template <
   typename Base, unsigned Flags,
@@ -632,7 +651,7 @@ struct ZtFieldType_Float : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Float };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S> S &print(S &s) const {
@@ -643,14 +662,16 @@ struct ZtFieldType_Float : public ZtField_<Base, Flags> {
 	return s << ZuBoxed(v).vfmt(fmt.scalar);
     }
     template <typename S>
-    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
+    friend S &operator <<(S &s, const Print_ &self) { return self.print(s); }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Float &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
@@ -700,7 +721,7 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Fixed };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S> S &print(S &s) const {
@@ -710,14 +731,16 @@ struct ZtFieldType_Fixed : public ZtField_<Base, Flags> {
 	return s << v.vfmt(fmt.scalar);
     }
     template <typename S>
-    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
+    friend S &operator <<(S &s, const Print_ &self) { return self.print(s); }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Fixed &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
@@ -771,7 +794,7 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Decimal };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S> S &print(S &s) const {
@@ -781,14 +804,16 @@ struct ZtFieldType_Decimal : public ZtField_<Base, Flags> {
 	return s << v.vfmt(fmt.scalar);
     }
     template <typename S>
-    friend S &operator <<(S &s, const Print &self) { return self.print(s); }
+    friend S &operator <<(S &s, const Print_ &self) { return self.print(s); }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Decimal &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto minimum() { return Min(); }
   ZuInline constexpr static auto maximum() { return Max(); }
   ZuInline constexpr static auto deflt() { return Def(); }
@@ -834,21 +859,23 @@ struct ZtFieldType_Time : public ZtField_<Base, Flags> {
   enum { Type = ZtFieldType::Time };
   using O = typename Base::O;
   using T = typename Base::T;
-  struct Print {
+  struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt;
     template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
+    friend S &operator <<(S &s, const Print_ &print) {
       ZtDate v{print.v};
       return s << v.print(print.fmt.datePrint);
     }
   };
-  const O &o;
-  const ZtFieldFmt &fmt;
-  template <typename S>
-  friend S &operator <<(S &s, const ZtFieldType_Time &field) {
-    return s << field.id() << '=' << Print{Base::get(field.o), field.fmt};
-  }
+  struct Print {
+    const O &o;
+    const ZtFieldFmt &fmt;
+    template <typename S>
+    friend S &operator <<(S &s, const Print &self) {
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
+    }
+  };
   ZuInline constexpr static auto deflt() { return Def(); }
   static auto printFn() {
     return [](const void *o, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -863,9 +890,9 @@ struct ZtFieldType_Time : public ZtField_<Base, Flags> {
   static auto setFn() { return [](void *, ZmTime) { }; }
   static auto scanFn() { return [](void *, ZuString, const ZtFieldFmt &) { }; }
 };
-template <typename Base, unsigned Flags>
-struct ZtFieldType_Time<Base, Flags, false> :
-    public ZtFieldType_Time<Base, Flags, true> {
+template <typename Base, unsigned Flags, auto Def>
+struct ZtFieldType_Time<Base, Flags, Def, false> :
+    public ZtFieldType_Time<Base, Flags, Def, true> {
   using O = typename Base::O;
   template <typename P>
   static void scan(P &o, ZuString s, const ZtFieldFmt &fmt) {
@@ -918,12 +945,12 @@ struct ZtFieldType_Time<Base, Flags, false> :
 
 #define ZtField_Decl_4(O, ID, Base, TypeName, Type) \
   ZuField_Decl(O, Base) \
-  using ZtFieldType_(O, ID) = \
+  using ZtFieldType(O, ID) = \
   ZtFieldType_##TypeName<ZuFieldType(O, ID), \
       0 ZtField_TypeArgs(Type)>;
 #define ZtField_Decl_5(O, ID, Base, TypeName, Type, Flags) \
   ZuField_Decl(O, Base) \
-  using ZtFieldType_(O, ID) = \
+  using ZtFieldType(O, ID) = \
   ZtFieldType_##TypeName<ZuFieldType(O, ID), \
       ZtField_Flags(Flags) ZtField_TypeArgs(Type)>;
 #define ZtField_Decl_N(O, _0, _1, _2, _3, _4, Fn, ...) Fn
@@ -938,7 +965,7 @@ struct ZtFieldType_Time<Base, Flags, false> :
 #define ZtField_Decl(O, Args) ZuPP_Defer(ZtField_Decl_)(O, ZuPP_Strip(Args))
 
 #define ZtField_Type_(O, Base, ...) \
-  ZuPP_Defer(ZtFieldType_)(O, ZuPP_Nest(ZtField_BaseID(Base)))
+  ZuPP_Defer(ZtFieldType)(O, ZuPP_Nest(ZtField_BaseID(Base)))
 #define ZtField_Type(O, Args) ZuPP_Defer(ZtField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZtFields(O, ...)  \
@@ -961,7 +988,7 @@ struct ZtFieldPrint : public ZuPrintDelegate {
     thread_local ZtFieldFmt fmt;
     ZuTypeAll<FieldList>::invoke([&o, &s]<typename Field>() {
       if constexpr (ZuTypeIndex<Field, FieldList>::I) s << ' ';
-      s << Field{o, fmt};
+      s << typename Field::Print{o, fmt};
     });
   }
 };

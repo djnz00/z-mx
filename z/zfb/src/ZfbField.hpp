@@ -104,6 +104,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldGeneric(O_, ID, Base_) \
   template <typename O = O_, bool = Base_::ReadOnly, typename = void> \
   struct ZfbFieldType_(O_, ID) : public Base_ { \
+    using Base = Base_; \
     using Builder = ZfbBuilder<O>; \
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
@@ -494,7 +495,7 @@ inline void loadUpdate(O &o, const ZfbType<O> *fbo) {
 
 template <typename O, unsigned KeyID = 0>
 inline auto key(const ZfbType<O> *fbo) {
-  return Fielded<O>::key<KeyID>(fbo);
+  return Fielded<O>::template key<KeyID>(fbo);
 }
 
 } // ZfbField
