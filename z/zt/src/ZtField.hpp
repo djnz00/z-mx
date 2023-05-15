@@ -93,14 +93,15 @@ namespace ZtFieldFlags {
   enum {
     Synthetic	= 0x00001,	// synthetic and read-only
     Update	= 0x00002,	// include in updates
-    DoNotPrint	= 0x00004,	// do not print
-    Required	= 0x00008,	// required - do not default
-    Ctor_	= 0x00010,	// constructor parameter
-    NDP_	= 0x00020,	// NDP for printing float/fixed/decimal
-    Series	= 0x00040,	// data series
-      Index	= 0x00080,	// - index (e.g. time stamp)
-      Delta	= 0x00100,	// - first derivative
-      Delta2	= 0x00200	// - second derivative
+    Hidden	= 0x00004,	// do not print
+    Quote	= 0x00008,	// print quoted string
+    Required	= 0x00010,	// required - do not default
+    Ctor_	= 0x00020,	// constructor parameter
+    NDP_	= 0x00040,	// NDP for printing float/fixed/decimal
+    Series	= 0x00080,	// data series
+      Index	= 0x00100,	// - index (e.g. time stamp)
+      Delta	= 0x00200,	// - first derivative
+      Delta2	= 0x00400	// - second derivative
   };
   enum {
     CtorShift	= 11,		// bit-shift for constructor parameter index
@@ -201,8 +202,11 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
   struct Print_ {
     const T &v;
     const ZtFieldFmt &fmt; // unused
-    template <typename S>
-    friend S &operator <<(S &s, const Print_ &print) {
+    enum { Quote =
+      (Flags & ZtFieldFlags::Quote) &&
+      ZuTraits<T>::IsString && !ZuTraits<T>::IsWString };
+    template <typename S, bool Quote_ = Quote>
+    friend ZuIfT<Quote_, S &> operator <<(S &s, const Print_ &print) {
       ZuString v{print.v};
       s << '"';
       for (unsigned i = 0, n = v.length(); i < n; i++) {
@@ -210,6 +214,12 @@ struct ZtFieldType_String : public ZtField_<Base, Flags> {
 	if (ZuUnlikely(c == '"')) s << '\\';
 	s << c;
       }
+      return s << '"';
+    }
+    template <typename S, bool Quote_ = Quote>
+    friend ZuIfT<!Quote_, S &> operator <<(S &s, const Print_ &print) {
+      s << '"';
+      s << print.v;
       return s << '"';
     }
   };
@@ -983,7 +993,7 @@ struct ZtFieldType_Time<Base, Flags, Def, false> :
 struct ZtFieldPrint : public ZuPrintDelegate {
   template <typename U>
   struct Print_Filter {
-    enum { OK = !(U::Flags & ZtFieldFlags::DoNotPrint) };
+    enum { OK = !(U::Flags & ZtFieldFlags::Hidden) };
   };
   template <typename S, typename O>
   static void print(S &s, const O &o) {

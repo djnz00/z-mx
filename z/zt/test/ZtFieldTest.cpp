@@ -1,6 +1,8 @@
 //  -*- mode:c++; indent-tabs-mode:t; tab-width:8; c-basic-offset:2; -*-
 //  vi: noet ts=8 sw=2 cino=l1,g0,N-s,j1,U1,i4
 
+#include <zlib/ZuID.hpp>
+
 #include <zlib/ZtField.hpp>
 
 namespace Values {
@@ -14,6 +16,7 @@ namespace Flags {
 
 struct Foo {
   const char *string;
+  ZuID id;
   int int_;
   int int_ranged;
   unsigned hex;
@@ -27,17 +30,18 @@ struct Foo {
 };
 
 ZtFields(Foo,
-    (((string)), (String, "hello"), (Ctor(0))),
-    (((int_)), (Int), (Ctor(1))),
-    (((int_ranged)), (Int, 0, 100, 42), (Ctor(2))),
-    (((hex)), (Hex, 0xdeadbeef), (Ctor(3))),
-    (((enum_)), (Enum, Values::Map), (Ctor(4))),
-    (((flags)), (Flags, Flags::Map), (Ctor(5))),
-    (((float_)), (Float), (Ctor(6))),
-    (((float_ranged)), (Float, 0.0, 1, 0.42), (Ctor(7))),
-    (((fixed)), (Fixed), (Ctor(8))),
-    (((decimal)), (Decimal), (Ctor(9))),
-    (((time_)), (Time), (Ctor(10))));
+    (((string)), (String, "hello \"world\""), (Ctor(0), Quote)),
+    (((id)), (String, "goodbye"), (Ctor(1))),
+    (((int_)), (Int), (Ctor(2))),
+    (((int_ranged)), (Int, 0, 100, 42), (Ctor(3))),
+    (((hex)), (Hex, 0xdeadbeef), (Ctor(4))),
+    (((enum_)), (Enum, Values::Map), (Ctor(5))),
+    (((flags)), (Flags, Flags::Map), (Ctor(6))),
+    (((float_)), (Float), (Ctor(7))),
+    (((float_ranged)), (Float, 0.0, 1, 0.42), (Ctor(8))),
+    (((fixed)), (Fixed), (Ctor(9))),
+    (((decimal)), (Decimal), (Ctor(10))),
+    (((time_)), (Time), (Ctor(11))));
 
 template <typename T, typename = void>
 struct MinMax {
