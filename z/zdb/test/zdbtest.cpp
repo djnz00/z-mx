@@ -45,14 +45,6 @@ struct TestStep {
   bool		push;
   unsigned	append;
   bool		del;
-
-  TestStep() = delete;
-  TestStep(const TestStep &) = default;
-  TestStep(TestStep &&) = default;
-  TestStep &operator =(const TestStep &) = default;
-  TestStep &operator =(TestStep &&) = default;
-
-  TestStep(const ZvCf *cf) {
     repeat = cf->getInt("repeat", 0, INT_MAX, 1);
     push = cf->getInt("push", 0, 1, 0);
     append = cf->getInt("append", 0, INT_MAX, 0);
@@ -62,6 +54,12 @@ struct TestStep {
   RN size() const { return repeat * (push + append + del); }
   RN run(RN rn) const;
 };
+
+ZtFields(TestStep,
+    (((repeat)), (Int, 1, 0, INT_MAX), (Ctor(0))),
+    (((push)), (Bool), (Ctor(0))),
+    (((append)), (Int, 0, 0, INT_MAX), (Ctor(0))),
+    (((del)), (Bool), (Ctor(0))),
 
 struct TestSeq {
   ZtArray<TestStep>	steps;
