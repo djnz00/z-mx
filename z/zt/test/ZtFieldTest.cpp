@@ -11,7 +11,7 @@ namespace Values {
 
 namespace Flags {
   ZtEnumValues_(Bit0, Bit1, Bit2);
-  ZtEnumFlags("Flags", Map, "0", Bit0, "1", Bit1, "2", Bit2);
+  ZtEnumFlags("Flags", Map, "Bit0", Bit0, "Bit1", Bit1, "Bit2", Bit2);
 }
 
 struct Foo {
@@ -35,8 +35,8 @@ ZtFields(Foo,
     (((int_)), (Int), (Ctor(2))),
     (((int_ranged)), (Int, 42, 0, 100), (Ctor(3))),
     (((hex)), (Hex, 0xdeadbeef), (Ctor(4))),
-    (((enum_)), (Enum, Values::Map), (Ctor(5))),
-    (((flags)), (Flags, Flags::Map), (Ctor(6))),
+    (((enum_)), (Enum, Values::Map, Values::Normal), (Ctor(5))),
+    (((flags)), (Flags, Flags::Map, (1<<Flags::Bit1)), (Ctor(6))),
     (((float_)), (Float), (Ctor(7))),
     (((float_ranged)), (Float, 0.42, 0.0, 1), (Ctor(8))),
     (((fixed)), (Fixed), (Ctor(9))),
@@ -70,24 +70,28 @@ int main()
       << MinMax<Field>{fmt} << '\n';
   });
   ZtVFieldArray fields{ZtVFields<Foo>()};
-  auto print = [](auto &s, const ZtVField &field, int constant) {
+  auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldType;
+    using ZtFieldType::Flags;
     const auto &fn = field.constantFn;
     switch (field.type) {
-      case String:		s << fn.string(constant); break;
+      case String:	s << fn.string(constant); break;
       case Composite: {
 	ZmStream s_{s};
 	fn.composite(constant)(s_);
       } break;
       case Bool:
-      case Int:	
-      case Hex:	
-      case Enum:
-      case ZtFieldType::Flags:	s << fn.int_(constant); break;
-      case Float:		s << fn.float_(constant); break;
-      case Fixed:		s << fn.fixed(constant); break;
-      case Decimal:		s << fn.decimal(constant); break;
-      case Time:		s << fn.time(constant); break;
+      case Int:		s << fn.int_(constant); break;
+      case Hex:		s << ZuBoxed(fn.int_(constant)).hex(); break;
+      case Enum:	s << field.info.enum_()->v2s(fn.int_(constant)); break;
+      case Flags: {
+	ZmStream s_{s};
+	field.info.flags()->print(fn.int_(constant), s_, fmt);
+      } break;
+      case Float:	s << fn.float_(constant); break;
+      case Fixed:	s << fn.fixed(constant); break;
+      case Decimal:	s << fn.decimal(constant); break;
+      case Time:	s << fn.time(constant); break;
     }
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {

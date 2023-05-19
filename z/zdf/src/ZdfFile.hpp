@@ -90,8 +90,8 @@ private:
       dir = cf->get("dir", true);
       coldDir = cf->get("coldDir", true);
       thread = cf->get("thread", true);
-      maxFileSize = cf->getInt("maxFileSize", 1, 1<<30, 10<<20);
-      maxBufs = cf->getInt("maxBufs", 0, 1<<20, 1<<10);
+      maxFileSize = cf->getInt("maxFileSize", 10<<20, 1, 1<<30);
+      maxBufs = cf->getInt("maxBufs", 1<<10, 0, 1<<20);
     }
 
     ZiFile::Path	dir;

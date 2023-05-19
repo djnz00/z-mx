@@ -27,7 +27,7 @@ void MxMDRecord::init(MxMDCore *core, const ZvCf *cf)
 {
   if (!cf->get("id")) cf->set("id", "record");
 
-  Mx *mx = core->mx(cf->get("mx", false, "core"));
+  Mx *mx = core->mx(cf->get("mx", "core"));
 
   if (!mx) throw ZvCf::Required(cf, "mx");
 

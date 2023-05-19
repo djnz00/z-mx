@@ -306,18 +306,18 @@ friend TLS;
 	cf->get("certPath", true), cf->get("keyPath", true));
 
     m_ip = cf->get("localIP", "127.0.0.1");
-    m_port = cf->getInt("localPort", 1, (1<<16) - 1, 19400);
-    m_nAccepts = cf->getInt("nAccepts", 1, 1024, 8);
-    m_rebindFreq = cf->getInt("rebindFreq", 0, 3600, 0);
-    m_timeout = cf->getInt("timeout", 0, 3600, 0);
+    m_port = cf->getInt("localPort", 19400, 1, (1<<16) - 1);
+    m_nAccepts = cf->getInt("nAccepts", 8, 1, 1024);
+    m_rebindFreq = cf->getInt("rebindFreq", 0, 0, 3600);
+    m_timeout = cf->getInt("timeout", 0, 0, 3600);
     unsigned passLen = 12, totpRange = 6, keyInterval = 30, maxSize = (10<<20);
     if (ZmRef<ZvCf> mgrCf = cf->subset("userDB")) {
-      passLen = mgrCf->getInt("passLen", 6, 60, 12);
-      totpRange = mgrCf->getInt("totpRange", 0, 100, 6);
-      keyInterval = mgrCf->getInt("keyInterval", 0, 36000, 30);
-      maxSize = mgrCf->getInt("maxSize", 0, (10<<24), (10<<20));
+      passLen = mgrCf->getInt("passLen", 12, 6, 60);
+      totpRange = mgrCf->getInt("totpRange", 6, 0, 100);
+      keyInterval = mgrCf->getInt("keyInterval", 30, 0, 36000);
+      maxSize = mgrCf->getInt("maxSize", (10<<20), 0, (10<<24));
       m_userDBPath = mgrCf->get("path", true);
-      m_userDBMaxAge = mgrCf->getInt("maxAge", 0, INT_MAX, 8);
+      m_userDBMaxAge = mgrCf->getInt("maxAge", 8, 0, INT_MAX);
     }
     m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 

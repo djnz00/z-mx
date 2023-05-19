@@ -53,12 +53,12 @@ struct ZvRingParams : public ZiRingParams {
   void init(const ZvCf *cf) {
     if (!cf) return;
     name(cf->get("name", true));
-    size(cf->getInt("size", 8192, (1U<<30U), 131072));
-    ll(cf->getInt("ll", 0, 1, 0));
-    spin(cf->getInt("spin", 0, INT_MAX, 1000));
-    timeout(cf->getInt("timeout", 0, 3600, 1));
-    killWait(cf->getInt("killWait", 0, 3600, 1));
-    coredump(cf->getInt("coredump", 0, 1, 0));
+    size(cf->getInt("size", 131072, 8192, (1U<<30U)));
+    ll(cf->getInt("ll", 0, 0, 1));
+    spin(cf->getInt("spin", 1000, 0, INT_MAX));
+    timeout(cf->getInt("timeout", 1, 0, 3600));
+    killWait(cf->getInt("killWait", 1, 0, 3600));
+    coredump(cf->getInt("coredump", 0, 0, 1));
   }
 };
 

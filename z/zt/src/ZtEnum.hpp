@@ -134,7 +134,7 @@ using ZtEnum = ZuBox_1(int8_t);
       bool first = true; \
       unsigned n = 0; \
       for (unsigned i = 0; i < N; i++) { \
-	if (v & (((Flags_)1U)<<i)) { \
+	if (v & (static_cast<Flags_>(1U)<<i)) { \
 	  if (ZuString s_ = this->v2s(i)) { \
 	    if (!first) s << delim; \
 	    s << s_; \
@@ -173,16 +173,15 @@ using ZtEnum = ZuBox_1(int8_t);
     } \
     template <typename Flags_> \
     struct Print : public ZuPrintable { \
-      Print(const Flags_ &v_, char delim_ = '|') : \
-	v(v_), delim(delim_) { } \
+      Print(Flags_ v_, char delim_ = '|') : v(v_), delim(delim_) { } \
       template <typename S> void print(S &s) const { \
 	ZmSingleton<Map>::instance()->print_(s, v, delim); \
       } \
-      const Flags_	&v; \
+      const Flags_	v; \
       char		delim; \
     }; \
     template <typename Flags_> \
-    static Print<Flags_> print(const Flags_ &v, char delim = '|') { \
+    static Print<Flags_> print(Flags_ v, char delim = '|') { \
       return Print<Flags_>{v, delim}; \
     } \
   };

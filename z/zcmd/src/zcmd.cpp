@@ -104,7 +104,7 @@ public:
       if (!node)
 	tree->addNode(node = new typename Tree::Node{fbo});
       else
-	ZfbField::loadUpdate(node->data(), fbo);
+	ZfbField::update(node->data(), fbo);
       l(&(node->data()));
     }};
   }
@@ -124,7 +124,7 @@ public:
       if (!data)
 	data = new Data{fbo};
       else
-	ZfbField::loadUpdate(*data, fbo);
+	ZfbField::update(*data, fbo);
       l(data);
     }};
   }

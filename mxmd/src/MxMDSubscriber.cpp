@@ -27,20 +27,20 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
 {
   if (!cf->get("id")) cf->set("id", "subscrib");
 
-  Mx *mx = core->mx(cf->get("mx", false, "core"));
+  Mx *mx = core->mx(cf->get("mx", "core"));
 
   if (!mx) throw ZvCf::Required(cf, "mx");
 
   MxEngine::init(core, this, mx, cf);
 
   if (ZuString ip = cf->get("interface")) m_interface = ip;
-  m_filter = cf->getInt("filter", 0, 1, 0);
-  m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, 100000);
-  m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, 3);
-  m_timeout = cf->getDbl("timeout", 0, 3600, 3);
-  m_reconnInterval = cf->getDbl("reconnInterval", 0, 3600, 10);
-  m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, 1);
-  m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, 10);
+  m_filter = cf->getInt("filter", 0, 0, 1);
+  m_maxQueueSize = cf->getInt("maxQueueSize", 100000, 1000, 1000000);
+  m_loginTimeout = cf->getDbl("loginTimeout", 3, 0, 3600);
+  m_timeout = cf->getDbl("timeout", 3, 0, 3600);
+  m_reconnInterval = cf->getDbl("reconnInterval", 10, 0, 3600);
+  m_reReqInterval = cf->getDbl("reReqInterval", 1, 0, 3600);
+  m_reReqMaxGap = cf->getInt("reReqMaxGap", 10, 0, 1000000);
 
   if (ZuString channels = cf->get("channels"))
     updateLinks(channels);

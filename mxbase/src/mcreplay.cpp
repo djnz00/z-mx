@@ -352,11 +352,11 @@ void Msg_<Heap>::sent_(ZiIOContext &io)
 App::App(const ZvCf *cf) :
   m_replay(cf->get("replay", true)),
   m_groups(cf->get("groups", true)),
-  m_speed(cf->getDbl("speed", 0, ZuBox<double>::inf(), 1)),
-  m_interval(cf->getDbl("interval", 0, 1, 0)),
-  m_interface(cf->get("interface", false, "0.0.0.0")),
-  m_ttl(cf->getInt("ttl", 0, INT_MAX, 1)),
-  m_loopBack(cf->getInt("loopBack", 0, 1, 0))
+  m_speed(cf->getDbl("speed", 1, 0, ZuBox<double>::inf())),
+  m_interval(cf->getDbl("interval", 0, 0, 1)),
+  m_interface(cf->get("interface", "0.0.0.0")),
+  m_ttl(cf->getInt("ttl", 1, 0, INT_MAX)),
+  m_loopBack(cf->getInt("loopBack", 0, 0, 1))
 {
   m_mx = new Mx(cf->subset("mx"));
   m_cxns = new Cxns();

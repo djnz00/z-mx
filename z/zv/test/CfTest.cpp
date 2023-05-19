@@ -211,14 +211,14 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 101", false);
-      if (cf->getInt("j", 1, 100, 42) != 42)
+      if (cf->getInt("j", 42, 1, 100) != 42)
 	ZeLOG(Error, "getInt() default failed");
       try {
-	cf->getInt("j", 1, 100, true);
+	cf->getInt("j", true, 1, 100);
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getInt("i", 1, 100, 42);
+      cf->getInt("i", 42, 1, 100);
       ZeLOG(Error, "getInt() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
@@ -228,14 +228,14 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01", false);
-      if (cf->getDbl("j", .1, 100, .42) != .42)
+      if (cf->getDbl("j", .42, .1, 100) != .42)
 	ZeLOG(Error, "getDbl() default failed");
       try {
-	cf->getDbl("j", .1, 100, true);
+	cf->getDbl("j", true, .1, 100);
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getDbl("i", .1, 100, .42);
+      cf->getDbl("i", .42, .1, 100);
       ZeLOG(Error, "getDbl() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';

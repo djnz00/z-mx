@@ -68,9 +68,9 @@ int main(int argc, char **argv)
 
     cf->fromFile(cf->get("1"), false);
 
-    n = cf->getInt("2", 0, 1<<20, true);
-    u = cf->getInt("3", 0, 1<<20, true);
-    p = cf->getInt("4", 0, 1<<20, true);
+    n = cf->getInt("2", true, 0, 1<<20);
+    u = cf->getInt("3", true, 0, 1<<20);
+    p = cf->getInt("4", true, 0, 1<<20);
 
   } catch (const ZvError &e) {
     fputs(e.message().data(), stderr);

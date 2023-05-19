@@ -976,8 +976,8 @@ public:
     unsigned gtkTID;
     {
       unsigned nThreads = mx->params().nThreads();
-      m_tid = cf->getInt("thread", 1, nThreads, true);
-      gtkTID = cf->getInt("gtkThread", 1, nThreads, true);
+      m_tid = cf->getInt("thread", true, 1, nThreads);
+      gtkTID = cf->getInt("gtkThread", true, 1, nThreads);
     }
 
     // both server and client are initialized with the same mx, cf
@@ -1011,8 +1011,8 @@ public:
     m_uptime.now();
 
     i18n(
-	cf->get("i18n_domain", false, "zdash"),
-	cf->get("dataDir", false, DATADIR));
+	cf->get("i18n_domain", "zdash"),
+	cf->get("dataDir", DATADIR));
 
     attach(mx, gtkTID);
     mx->run(gtkTID, [this]() { gtkInit(); });
@@ -1399,7 +1399,7 @@ private:
     using Item = TelItem<T>;
     Item *item;
     if (item = container.lookup(fbo)) {
-      ZfbField::loadUpdate(item->data, fbo);
+      ZfbField::update(item->data, fbo);
       m_gtkModel->updated(GtkTree::row(item));
     } else {
       item = new Item{cliLink, fbo};

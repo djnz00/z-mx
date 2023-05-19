@@ -208,11 +208,11 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
   }
 
   try {
-    ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, Ze::Info));
+    ZeLog::level(cf->getInt("log:level", Ze::Info, 0, Ze::Fatal));
     if (ZuString logFile = cf->get("log:file")) {
       ZeLog::sink(ZeLog::fileSink(logFile,
-	    cf->getInt("log:age", 0, 1000, 8),
-	    cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0)));
+	    cf->getInt("log:age", 8, 0, 1000),
+	    cf->getInt("log:tzOffset", 0, INT_MIN, INT_MAX)));
     }
   } catch (...) { }
   ZeLog::start();
@@ -325,7 +325,7 @@ void MxMDCore::init_(const ZvCf *cf)
       ZtString e;
       ZiModule module;
       ZiModule::Path name = feedCf->get("module", true);
-      int preload = feedCf->getInt("preload", 0, 1, 0);
+      int preload = feedCf->getInt("preload", 0, 0, 1);
       if (preload) preload = ZiModule::Pre;
       if (module.load(name, preload, &e) < 0)
 	throw ZtString{} << "failed to load \"" << name << "\": " << ZuMv(e);
@@ -376,7 +376,7 @@ void MxMDCore::init_(const ZvCf *cf)
 
   if (ZmRef<ZvCf> cmdCf = cf->subset("cmd")) {
     m_cmdServer = new MxMDCmdServer();
-    Mx *mx = this->mx(cmdCf->get("mx", false, "cmd"));
+    Mx *mx = this->mx(cmdCf->get("mx", "cmd"));
     if (!mx) throw ZvCf::Required(cf, "cmd:mx");
     m_cmdServer->init(mx, cmdCf);
     initCmds();

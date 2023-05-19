@@ -427,7 +427,7 @@ struct Fielded_ {
       Field::load(o, fbo);
     });
   }
-  static void loadUpdate(O &o, const FBType *fbo) {
+  static void update(O &o, const FBType *fbo) {
     ZuTypeAll<UpdateFields>::invoke([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
@@ -495,8 +495,8 @@ inline void load(O &o, const ZfbType<O> *fbo) {
   Fielded<O>::load(o, fbo);
 }
 template <typename O>
-inline void loadUpdate(O &o, const ZfbType<O> *fbo) {
-  Fielded<O>::loadUpdate(o, fbo);
+inline void update(O &o, const ZfbType<O> *fbo) {
+  Fielded<O>::update(o, fbo);
 }
 
 template <typename O, unsigned KeyID = 0>

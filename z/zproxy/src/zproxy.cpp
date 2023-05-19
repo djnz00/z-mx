@@ -480,7 +480,7 @@ public:
     // cf->set("mx:debug", "1");
     ZvCmdHost::init();
     m_mx = new Mx(cf->subset("mx"));
-    m_verbose = cf->getInt("verbose", 0, 1, 0);
+    m_verbose = cf->getInt("verbose", 0, 0, 1);
     addCmd("proxy",
 	"tag { type scalar } "
 	"suspend { type flag } "

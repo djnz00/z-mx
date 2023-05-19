@@ -285,7 +285,7 @@ template <typename T> using Scan = typename Scan_<T>::T;
 template <typename T, bool Required_ = false>
 inline T toScalar(
     const Cf *cf, ZuString key, ZuString value,
-    T minimum, T maximum, T deflt = {})
+    T deflt, T minimum, T maximum)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -344,7 +344,12 @@ struct CfNode {
   Cf * const		owner = nullptr;
   const ZtString	key;
   ZtArray<ZtString>	values;
-  ZmRef<Cf>		cf;
+  ZmRef<Cf>		cf;	// FIXME - permit multiple
+
+  // FIXME - check fromString, etc.; think about improving cf file
+  // format for multiple values, and explicitly making a node have either
+  // string value(s) or cf subset(s), but preclude both together
+  key [ { foo bar }, { baz bah } ]
 
 friend Cf;
 
@@ -372,13 +377,13 @@ public:
   }
 
   template <typename T, bool Required_ = false>
-  T getScalar(T minimum, T maximum, T deflt = {}) const {
+  T getScalar(T deflt, T minimum, T maximum) const {
     if (!values) {
       if constexpr (Required_) throw Required{owner, key};
       return deflt;
     }
     return toScalar<T, Required_>(
-	owner, key, values[0], minimum, maximum, deflt);
+	owner, key, values[0], deflt, minimum, maximum);
   }
   template <bool Required_ = false, typename ...Args>
   auto getInt(Args &&... args) const {
@@ -493,7 +498,7 @@ struct Fielded_ {
       Field::set(o, cf->template getField<Field>());
     });
   }
-  static void loadUpdate(O &o, const Cf_ *cf) {
+  static void update(O &o, const Cf_ *cf) {
     ZuTypeAll<UpdateFields>::invoke([&o, cf]<typename Field>() {
       Field::set(o, cf->template getField<Field>());
     });
@@ -702,9 +707,9 @@ public:
   void merge(Cf *cf);
 
   template <typename T, bool Required_ = false, typename Key>
-  T getScalar(const Key &key, T minimum, T maximum, T deflt = {}) const {
+  T getScalar(const Key &key, T deflt, T minimum, T maximum) const {
     if (auto node = getNode<Required_>(key))
-      return node->template getScalar<T, Required_>(minimum, maximum, deflt);
+      return node->template getScalar<T, Required_>(deflt, minimum, maximum);
     if constexpr (Required_) throw Required{this, key};
     return deflt;
   }
@@ -773,14 +778,14 @@ public:
 	Field::Type == ZtFieldType::Decimal, typename Field::T>
   getField() {
     return getScalar<typename Field::T, Field::Flags & ZtFieldFlags::Required>(
-	Field::id(), Field::minimum(), Field::maximum(), Field::deflt());
+	Field::id(), Field::deflt(), Field::minimum(), Field::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Hex, typename Field::T>
   getField() {
     using T = typename Field::T;
     return getScalar<T, Field::Flags & ZtFieldFlags::Required>(
-	Field::id(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum(), Field::deflt());
+	Field::id(), Field::deflt(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Enum, typename Field::T>
@@ -799,19 +804,19 @@ public:
   }
 
   template <typename O>
-  inline O getCtor() const { return Fielded<O>::ctor(this); }
+  inline O ctor() const { return Fielded<O>::ctor(this); }
   template <typename O>
-  inline void getCtor(void *ptr) const { Fielded<O>::ctor(ptr, this); }
+  inline void ctor(void *ptr) const { Fielded<O>::ctor(ptr, this); }
 
-  template <typename O> using GetLoad = typename Fielded<O>::Load;
+  template <typename O> using Load = typename Fielded<O>::Load;
 
   template <typename O>
-  inline void getLoad(O &o) const { Fielded<O>::load(o, this); }
+  inline void load(O &o) const { Fielded<O>::load(o, this); }
   template <typename O>
-  inline void getUpdate(O &o) const { Fielded<O>::loadUpdate(o, this); }
+  inline void update(O &o) const { Fielded<O>::update(o, this); }
 
   template <typename O, unsigned KeyID = 0>
-  inline auto getKey() const {
+  inline auto key() const {
     return Fielded<O>::template key<KeyID>(this);
   }
 

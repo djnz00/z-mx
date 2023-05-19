@@ -29,7 +29,7 @@ void MxMDReplay::init(MxMDCore *core, ZmRef<ZvCf> cf)
 
   if (!cf->get("id")) cf->set("id", "replay");
 
-  Mx *mx = core->mx(cf->get("mx", false, "core"));
+  Mx *mx = core->mx(cf->get("mx", "core"));
 
   if (!mx) throw ZvCf::Required(cf, "mx");
 
@@ -124,8 +124,8 @@ void MxMDReplayLink::update(const ZvCf *cf)
 {
   if (ZtString path = cf->get("path"))
     replay(ZuMv(path),
-      MxDateTime{cf->get("begin", false, "")},
-      cf->getInt("filter", 0, 1, 0));
+      MxDateTime{cf->get("begin", "")},
+      cf->getInt("filter", 0, 0, 1));
   else
     stopReplaying();
 }

@@ -127,11 +127,11 @@ int main(int argc, char **argv)
 
     cf->fromFile(cf->get("1"), false);
 
-    n = cf->getInt("2", 0, 1<<20, true),
-    u = cf->getInt("3", 0, 1<<20, true),
-    s = cf->getInt("4", 0, 1<<20, true);
+    n = cf->getInt("2", true, 0, 1<<20),
+    u = cf->getInt("3", true, 0, 1<<20),
+    s = cf->getInt("4", true, 0, 1<<20);
 
-    stats = cf->getInt("stats", 0, 1, 0);
+    stats = cf->getInt("stats", 0, 0, 1);
   } catch (const ZvError &e) {
     fputs(e.message().data(), stderr);
     fputc('\n', stderr);
