@@ -15,6 +15,8 @@
 
 #include <zlib/Zdb.hpp>
 
+#include "zdbtest_fbs.h"
+
 #ifdef _MSC_VER
 #pragma warning(disable:4996)
 #endif
@@ -30,7 +32,7 @@ struct Order {
   int			quantity;
 };
 
-ZfbFields(Order,
+ZfbFields(Order, fbs::Order,
     (((side)), (Enum, Side::Map), (Ctor(0))),
     (((symbol)), (String), (Ctor(1))),
     (((price)), (Int), (Ctor(2))),
@@ -293,7 +295,7 @@ int main(int argc, char **argv)
     cf = inlineCf(
       "fileThread 3\n"
       "hostID 1\n"
-      "hosts {
+      "hosts {\n"
       "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"
       "  2 { priority 75 IP 127.0.0.1 port 9944 }\n"
       "  3 { priority 50 IP 127.0.0.1 port 9945 }\n"

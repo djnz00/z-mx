@@ -574,14 +574,14 @@ public:
 
   void fromString(
       ZuString in, bool validate,
-      ZmRef<Defines> defines = new Defines()) {
+      ZmRef<Defines> defines = new Defines{}) {
     fromString(in, validate, {}, defines);
   }
 
   template <typename FileName>
   void fromFile(
       const FileName &fileName, bool validate,
-      ZmRef<Defines> defines = new Defines()) {
+      ZmRef<Defines> defines = new Defines{}) {
     ZtString in;
     {
       ZiFile file;

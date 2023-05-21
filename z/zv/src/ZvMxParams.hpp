@@ -80,7 +80,7 @@ struct ZvCxnOptions : public ZiCxnOptions {
       ttl(cf->getInt("multicastTTL", ttl(), 0, INT_MAX));
       if (ZmRef<ZvCf> groups = cf->getCf("multicastGroups")) {
 	groups->all([this](ZvCfNode *node) {
-	  ZiIP addr{node->key}, mif{node->values[0]};
+	  ZiIP addr{node->key}, mif{node->get<true>()};
 	  if (!addr || !addr.multicast())
 	    throw ZvInvalidMulticastIP{node->key};
 	  mreq(ZiMReq(addr, mif));
@@ -124,7 +124,7 @@ struct ZvMxParams : public ZiMxParams {
 	  cf->getInt("startTimer", sched.startTimer(), 0, 1));
       if (ZmRef<ZvCf> threadsCf = cf->getCf("threads")) {
 	threadsCf->all([&sched](ZvCfNode *node) {
-	  if (auto threadCf = node->cf) {
+	  if (auto threadCf = node->getCf()) {
 	    ZuString id = node->key;
 	    ZuBox<unsigned> tid = id;
 	    if (id != ZuStringN<12>{tid})
