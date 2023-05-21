@@ -42,7 +42,7 @@ int Cf::fromCLI(Cf *syntax, ZuString line)
   ZtArray<ZtString> args;
   parseCLI(line, args);
   if (!args.length()) return 0;
-  return fromArgs(syntax->subset(args[0]), args);
+  return fromArgs(syntax->getCf(args[0]), args);
 }
 
 int Cf::fromCLI(const ZvOpt *opts, ZuString line)
@@ -56,7 +56,7 @@ int Cf::fromCLI(const ZvOpt *opts, ZuString line)
 void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
 {
   args.length(0);
-  ZtString val;
+  ZtString value;
   const auto &cliValue = ZtREGEX("\G[^\"'`#;\s]+");
   const auto &cliSglQuote = ZtREGEX("\G'");
   const auto &cliSglQuotedValue = ZtREGEX("\G[^'`]+");
@@ -72,7 +72,7 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
   while (off < line.length()) {
     if (cliValue.m(line, c, off)) {
       off += c[1].length();
-      val += c[1];
+      value += c[1];
       continue;
     }
     if (cliSglQuote.m(line, c, off)) {
@@ -80,12 +80,12 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
       while (off < line.length()) {
 	if (cliSglQuotedValue.m(line, c, off)) {
 	  off += c[1].length();
-	  val += c[1];
+	  value += c[1];
 	  continue;
 	}
 	if (cliQuoted.m(line, c, off)) {
 	  off += c[1].length();
-	  val += c[1];
+	  value += c[1];
 	  continue;
 	}
 	if (cliSglQuote.m(line, c, off)) {
@@ -100,12 +100,12 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
       while (off < line.length()) {
 	if (cliDblQuotedValue.m(line, c, off)) {
 	  off += c[1].length();
-	  val += c[1];
+	  value += c[1];
 	  continue;
 	}
 	if (cliQuoted.m(line, c, off)) {
 	  off += c[1].length();
-	  val += c[1];
+	  value += c[1];
 	  continue;
 	}
 	if (cliDblQuote.m(line, c, off)) {
@@ -117,13 +117,13 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
     }
     if (cliQuoted.m(line, c, off)) {
       off += c[1].length();
-      val += c[1];
+      value += c[1];
       continue;
     }
     if (cliWhiteSpace.m(line, c, off)) {
       off += c[1].length();
-      args.push(ZuMv(val));
-      val.null();
+      args.push(ZuMv(value));
+      value.null();
       continue;
     }
     if (cliComment.m(line, c, off)) break;
@@ -131,7 +131,7 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
     ZmAssert(false);	// should not get here
     break;
   }
-  if (val) args.push(ZuMv(val));
+  if (value) args.push(ZuMv(value));
 }
 
 #ifdef _MSC_VER
@@ -172,7 +172,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 	ZuString longOpt;
 	if (!options ||
 	    !(longOpt = options->get(shortOpt)) ||
-	    !(option = options->subset(longOpt)))
+	    !(option = options->getCf(longOpt)))
 	  throw Usage{args[0], shortOpt};
 	int type = option->getEnum<ZvOptTypes::Map, true>("type");
 	if (type == ZvOptFlag) {
@@ -200,7 +200,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
     } else if (argLongFlag.m(args[i], c)) {
       ZtString longOpt = c[2];
       if (!options ||
-	  !(option = options->subset(longOpt)))
+	  !(option = options->getCf(longOpt)))
 	throw Usage{args[0], longOpt};
       int type = option->getEnum<ZvOptTypes::Map, true>("type");
       if (type == ZvOptFlag) {
@@ -212,7 +212,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
       }
     } else if (argLongValue.m(args[i], c)) {
       ZtString longOpt = c[2];
-      if (!options || !(option = options->subset(longOpt)))
+      if (!options || !(option = options->getCf(longOpt)))
 	throw Usage{args[0], longOpt};
       fromArg(longOpt,
 	  option->getEnum<ZvOptTypes::Map>("type", ZvOptScalar), c[3]);
@@ -223,25 +223,26 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
   {
     TreeNodeRef node = m_tree.find("#");
     if (!node) m_tree.addNode(node = new TreeNode{this, "#"});
-    node->values.null();
-    node->values.push(ZuBox<int>{p});
+    auto &values = node->values.p<0>();
+    values.null();
+    values.push(ZuBox<int>{p});
   }
   return p;
 }
 
 int Cf::fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args)
 {
-  ZmRef<Cf> options = new Cf();
+  ZmRef<Cf> options = new Cf{};
 
   for (int i = 0; opts[i].m_long; i++) {
-    ZmRef<Cf> option = new Cf();
+    ZmRef<Cf> option = new Cf{};
     static const char *types[] = { "flag", "scalar", "multi" };
     if (opts[i].m_type < 0 ||
 	opts[i].m_type >= (int)(sizeof(types) / sizeof(types[0])))
       throw Usage{args[0], opts[i].m_long};
     option->set("type", types[opts[i].m_type]);
     if (opts[i].m_default) option->set("default", opts[i].m_default);
-    options->subset(opts[i].m_long, option);
+    options->setCf(opts[i].m_long, option);
     if (opts[i].m_short) options->set(opts[i].m_short, opts[i].m_long);
   }
 
@@ -267,8 +268,10 @@ ZmRef<Cf> Cf::getScope(ZuString fullKey, ZuString &key) const
     while (nscope = scope_(fullKey)) {
       TreeNodeRef node = self->m_tree.find(scope);
       if (!node) return nullptr;
-      if (!node->cf) return nullptr;
-      self = node->cf;
+      if (node->values.type() != 1) return nullptr;
+      const auto &cfs = node->values.p<1>();
+      if (!cfs || !cfs[0]) return nullptr;
+      self = cfs[0];
       scope = nscope;
     }
   key = scope;
@@ -284,9 +287,10 @@ ZmRef<Cf> Cf::mkScope(ZuString fullKey, ZuString &key)
     while (nscope = scope_(fullKey)) {
       TreeNodeRef node = self->m_tree.find(scope);
       if (!node) self->m_tree.addNode(node = new TreeNode{self, scope});
-      if (!node->cf) node->cf = new Cf{node};
-      self = node->cf;
+      ZmRef<Cf> cf = new Cf{node};
+      self = cf;
       scope = nscope;
+      node->set<1>(ZuMv(cf));
     }
   key = scope;
   return self;
@@ -304,10 +308,11 @@ void Cf::fromArg(ZuString fullKey, int type, ZuString argVal)
   auto self = mkScope(fullKey, key);
   TreeNodeRef node = self->m_tree.find(key);
   if (!node) self->m_tree.addNode(node = new TreeNode{self, key});
-  node->values.null();
+  auto &values = node->values.p<0>();
+  values.null();
 
   if (type == ZvOptFlag) {
-    node->values.push(flagValue(argVal) ? "1" : "0");
+    values.push(flagValue(argVal) ? "1" : "0");
     return;
   }
 
@@ -320,8 +325,8 @@ void Cf::fromArg(ZuString fullKey, int type, ZuString argVal)
   ZtRegex::Captures c;
   unsigned off = 0;
 
-val:
-  ZtString val;
+value:
+  ZtString value;
   bool multi = false;
 
 append:
@@ -329,11 +334,11 @@ append:
       argValue.m(argVal, c, off) :
       argValueMulti.m(argVal, c, off)) {
     off += c[1].length();
-    val += c[1];
+    value += c[1];
   }
   if (argValueQuoted.m(argVal, c, off)) {
     off += c[1].length();
-    val += c[2];
+    value += c[2];
     goto append;
   }
   if (type == ZvOptMulti && argValueComma.m(argVal, c, off)) {
@@ -341,8 +346,8 @@ append:
     multi = true;
   }
 
-  node->values.push(ZuMv(val));
-  if (multi) goto val;
+  values.push(ZuMv(value));
+  if (multi) goto value;
 }
 
 void Cf::fromString(ZuString in,
@@ -378,6 +383,7 @@ key:
     goto key;
   }
   if (!fileKey.m(in, c, off)) {
+syntax:
     if (off < n - 1) {
       unsigned lpos = 0, line = 0;
       while (lpos < off && fileLine.m(in, c, lpos)) {
@@ -400,28 +406,28 @@ key:
   }
   ZtArray<ZtString> values;
 
-val:
+value:
   while (fileSkip.m(in, c, off))
     off += c[1].length();
 
-  ZtString val;
+  ZtString value;
   bool multi = false;
 
 append:
   if (fileValue.m(in, c, off)) {
     off += c[1].length();
-    val += c[1];
+    value += c[1];
   }
   if (fileValueQuoted.m(in, c, off)) {
     off += c[1].length();
-    val += c[2];
+    value += c[2];
     goto append;
   }
   if (fileValueVar.m(in, c, off)) {
     off += c[1].length();
     ZuString d = defines->findVal(c[2]);
     if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
-    if (d) val += d;
+    if (d) value += d;
     goto append;
   }
   if (fileDblQuote.m(in, c, off)) {
@@ -429,33 +435,29 @@ append:
 quoted:
     if (fileValueDblQuoted.m(in, c, off)) {
       off += c[1].length();
-      val += c[1];
+      value += c[1];
     }
     if (fileValueQuoted.m(in, c, off)) {
       off += c[1].length();
-      val += c[2];
+      value += c[2];
       goto quoted;
     }
     if (off < n - 1) {
       off++;
       goto append;
     }
-    values.push(ZuMv(val));
-    node->values = ZuMv(values);
+    values.push(ZuMv(value));
+    node->values.p<0>(ZuMv(values));
     return;
   }
   if (fileBeginScope.m(in, c, off)) {
+    if (!node || value || values.length()) goto syntax;
     off += c[1].length();
-    if (val) values.push(ZuMv(val));
-    if (node && values.length()) {
-      node->values = ZuMv(values);
-      values.length(0);
-    }
-    if (node && !node->cf) {
+    if (!node->values.p<1>()) {
       if (validate) throw Invalid{self, key, fileName};
-      node->cf = new Cf{node};
-    }
-    self = node ? node->cf.ptr() : self;
+      node->set<1>(self = new Cf{node});
+    } else
+      self = node->values.p<1>()[0];
     goto key;
   }
   if (fileComma.m(in, c, off)) {
@@ -463,10 +465,10 @@ quoted:
     multi = true;
   }
 
-  values.push(ZuMv(val));
-  if (multi) goto val;
+  values.push(ZuMv(value));
+  if (multi) goto value;
   if (node) {
-    node->values = ZuMv(values);
+    node->values.p<0>(ZuMv(values));
     values.length(0);
   } else {
     if (key == "%include") {
@@ -543,29 +545,29 @@ key:
   ZuString key = c[1];
   TreeNodeRef node = self->m_tree.find(key);
   if (!node) {
-    if (validate) throw Invalid{self, key, ZuString()};
+    if (validate) throw Invalid{self, key, ZuString{}};
     self->m_tree.addNode(node = new TreeNode{self, key});
   }
 
   ZtArray<ZtString> values;
-val:
+value:
   if (!values.length()) {
     if (!envEquals.m(data, c, off))
       throw EnvSyntax{off, data[off]};
     off += c[1].length();
   }
 
-  ZtString val;
+  ZtString value;
   bool multi = false;
 
 append:
   if (envValue.m(data, c, off)) {
     off += c[1].length();
-    val += c[1];
+    value += c[1];
   }
   if (envValueQuoted.m(data, c, off)) {
     off += c[1].length();
-    val += c[2];
+    value += c[2];
     goto append;
   }
   if (envDblQuote.m(data, c, off)) {
@@ -573,33 +575,29 @@ append:
 quoted:
     if (envValueDblQuoted.m(data, c, off)) {
       off += c[1].length();
-      val += c[1];
+      value += c[1];
     }
     if (envValueQuoted.m(data, c, off)) {
       off += c[1].length();
-      val += c[2];
+      value += c[2];
       goto quoted;
     }
     if (off < n - 1) {
       off++;
       goto append;
     }
-    values.push(ZuMv(val));
-    node->values = ZuMv(values);
+    values.push(ZuMv(value));
+    node->values.p<0>(ZuMv(values));
     return;
   }
   if (envBeginScope.m(data, c, off)) {
+    if (!node || value || values.length()) throw EnvSyntax{off, data[off]};
     off += c[1].length();
-    if (val) values.push(ZuMv(val));
-    if (values.length()) {
-      node->values = ZuMv(values);
-      values.length(0);
-    }
-    if (!node->cf) {
-      if (validate) throw Invalid{self, key, ZuString()};
-      node->cf = new Cf{node};
-    }
-    self = node->cf;
+    if (!node->values.p<1>()) {
+      if (validate) throw Invalid{self, key, ZuString{}};
+      node->set<1>(self = new Cf{node});
+    } else
+      self = node->values.p<1>()[0];
     first = true;
     goto key;
   }
@@ -608,9 +606,9 @@ quoted:
     multi = true;
   }
 
-  values.push(ZuMv(val));
-  if (multi) goto val;
-  node->values = ZuMv(values);
+  values.push(ZuMv(value));
+  if (multi) goto value;
+  node->values.p<0>(ZuMv(values));
   values.length(0);
   goto key;
 }
@@ -640,24 +638,25 @@ void Cf::freeArgs(int argc, char **argv)
 void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
 {
   auto i = m_tree.readIterator();
-  TreeNodeRef node;
-
-  while (node = i.iterate()) {
-    {
-      int n = node->values.length();
+  while (auto node = i.iterate()) {
+    if (node->values.type() == 0) {
+      const auto &values = node->values.p<0>();
+      int n = values.length();
       if (n) {
 	ZtString arg;
 	if (!ZtREGEX("^\d+$").m(node->CfNode::key))
 	  arg << "--" << prefix << node->CfNode::key << '=';
 	for (int i = 0; i < n; i++) {
-	  arg << quoteArgValue(node->values[i]);
+	  arg << quoteArgValue(values[i]);
 	  if (i < n - 1) arg << ',';
 	}
 	args.push(ZuMv(arg));
       }
+    } else {
+      if (const auto &values = node->values.p<1>())
+	if (auto cf = values[0])
+	  cf->toArgs(args, ZtString{} << prefix << node->CfNode::key << ':');
     }
-    if (node->cf)
-      node->cf->toArgs(args, ZtString{} << prefix << node->CfNode::key << ':');
   }
 }
 
@@ -684,26 +683,26 @@ ZtString Cf::quoteArgValue(ZuString in)
 void Cf::print(ZmStream &s, ZtString prefix) const
 {
   auto i = m_tree.readIterator();
-  TreeNodeRef node;
-
-  while (node = i.iterate()) {
-    {
-      unsigned n = node->values.length();
+  while (auto node = i.iterate()) {
+    if (node->values.type() == 0) {
+      const auto &values = node->values.p<0>();
+      unsigned n = values.length();
       if (n) {
 	s << prefix << node->CfNode::key << ' ';
 	for (int i = 0; i < n; i++) {
-	  s << quoteValue(node->values[i]);
+	  s << quoteValue(values[i]);
 	  if (i < n - 1)
 	    s << ", ";
 	  else
 	    s << '\n';
 	}
       }
-    }
-    if (node->cf) {
-      s << prefix << node->CfNode::key << " {\n" <<
-	node->cf->prefixed(ZtString{} << "  " << prefix) <<
-	prefix << "}\n";
+    } else {
+      if (const auto &values = node->values.p<1>())
+	if (auto cf = values[0])
+	  s << prefix << node->CfNode::key << " {\n" <<
+	    cf->prefixed(ZtString{} << "  " << prefix) <<
+	    prefix << "}\n";
     }
   }
 }
@@ -765,17 +764,17 @@ Cf::TreeNodeRef Cf::mkNode(ZuString fullKey)
   return node;
 }
 
-void Cf::set(ZuString key, ZtString val)
+void Cf::set(ZuString key, ZtString value)
 {
   auto node = mkNode(key);
-  node->values.length(1, true);
-  node->values[0] = ZuMv(val);
+  node->set<0>(ZuMv(value));
 }
 
 ZtArray<ZtString> *Cf::setMultiple(ZuString key)
 {
   auto node = mkNode(key);
-  return &node->values;
+  auto &values = node->values.p<0>();
+  return &values;
 }
 
 void Cf::unset(ZuString fullKey)
@@ -785,11 +784,12 @@ void Cf::unset(ZuString fullKey)
   self->m_tree.del(key);
 }
 
-void Cf::subset(ZuString key, Cf *cf)
+void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 {
   TreeNodeRef node;
   node = mkNode(key);
-  node->cf = cf;
+  if (!cf) cf = new Cf{node};
+  node->set<1>(ZuMv(cf));
 }
 
 void Cf::merge(Cf *cf)
@@ -801,19 +801,29 @@ void Cf::merge(Cf *cf)
       m_tree.addNode(i.del(srcNode).release());
       const_cast<Cf * &>(srcNode->owner) = this;
     } else {
-      if (srcNode->values) {
-	if (dstNode->values)
-	  dstNode->values += srcNode->values;
+      if (srcNode->values.type() == 0) {
+	auto &srcValues = srcNode->values.p<0>();
+	auto &dstValues = dstNode->values.p<0>();
+	if (dstValues)
+	  dstValues += srcValues;
 	else
-	  dstNode->values = ZuMv(srcNode->values);
-	srcNode->values.null();
-      }
-      if (srcNode->cf) {
-	if (dstNode->cf)
-	  dstNode->cf->merge(srcNode->cf);	// recursive
-	else
-	  dstNode->cf = ZuMv(srcNode->cf);
-	srcNode->cf = nullptr;
+	  dstValues = ZuMv(srcValues);
+	srcValues.null();
+      } else if (srcNode->values.type() == 1) {
+	auto &srcCfs = srcNode->values.p<1>();
+	auto &dstCfs = dstNode->values.p<1>();
+	unsigned n = srcCfs.length();
+	dstCfs.ensure(n);
+	if (dstCfs.length() < n) dstCfs.length(n);
+	for (unsigned i = 0; i < n; i++) {
+	  auto &srcCf = srcCfs[i];
+	  auto &dstCf = dstCfs[i];
+	  if (dstCf)
+	    dstCf->merge(srcCf);	// recursive
+	  else
+	    dstCf = ZuMv(srcCf);
+	  srcCf = nullptr;
+	}
       }
     }
   }

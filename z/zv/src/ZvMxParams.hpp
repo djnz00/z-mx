@@ -78,7 +78,7 @@ struct ZvCxnOptions : public ZiCxnOptions {
     if (multicast()) {
       if (ZuString s = cf->get("multicastInterface")) mif(s);
       ttl(cf->getInt("multicastTTL", ttl(), 0, INT_MAX));
-      if (ZmRef<ZvCf> groups = cf->subset("multicastGroups")) {
+      if (ZmRef<ZvCf> groups = cf->getCf("multicastGroups")) {
 	groups->all([this](ZvCfNode *node) {
 	  ZiIP addr{node->key}, mif{node->values[0]};
 	  if (!addr || !addr.multicast())
@@ -122,7 +122,7 @@ struct ZvMxParams : public ZiMxParams {
       sched.timeout(cf->getInt("timeout", sched.timeout(), 0, 3600));
       sched.startTimer(
 	  cf->getInt("startTimer", sched.startTimer(), 0, 1));
-      if (ZmRef<ZvCf> threadsCf = cf->subset("threads")) {
+      if (ZmRef<ZvCf> threadsCf = cf->getCf("threads")) {
 	threadsCf->all([&sched](ZvCfNode *node) {
 	  if (auto threadCf = node->cf) {
 	    ZuString id = node->key;

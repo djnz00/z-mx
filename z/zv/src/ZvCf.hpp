@@ -343,13 +343,7 @@ class Cf;
 struct CfNode {
   Cf * const		owner = nullptr;
   const ZtString	key;
-  ZtArray<ZtString>	values;
-  ZmRef<Cf>		cf;	// FIXME - permit multiple
-
-  // FIXME - check fromString, etc.; think about improving cf file
-  // format for multiple values, and explicitly making a node have either
-  // string value(s) or cf subset(s), but preclude both together
-  key [ { foo bar }, { baz bah } ]
+  ZuUnion<ZtArray<ZtString>, ZtArray<ZmRef<Cf>>> values;
 
 friend Cf;
 
@@ -367,23 +361,48 @@ protected:
 public:
   static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
+  template <unsigned I, typename T>
+  void set(T v) {
+    auto &elems = values.p<I>();
+    if (!elems)
+      elems.push(ZuMv(v));
+    else if (elems.length() == 1)
+      elems[0] = ZuMv(v);
+    else {
+      elems.null();
+      elems.push(ZuMv(v));
+    }
+  }
+
   template <bool Required_ = false>
   ZtString get(ZtString deflt = {}) const {
-    if (!values) {
+    const auto &values_ = values.p<0>();
+    if (!values_) {
       if constexpr (Required_) throw Required{owner, key};
       return deflt;
     }
-    return values[0];
+    return values_[0];
+  }
+
+  template <bool Required_ = false>
+  ZmRef<Cf> getCf() const {
+    const auto &values_ = values.p<1>();
+    if (!values_ || !values_[0]) {
+      if constexpr (Required_) throw Required{owner, key};
+      return {};
+    }
+    return values_[0];
   }
 
   template <typename T, bool Required_ = false>
   T getScalar(T deflt, T minimum, T maximum) const {
-    if (!values) {
+    const auto &values_ = values.p<0>();
+    if (!values_ || !values_[0]) {
       if constexpr (Required_) throw Required{owner, key};
       return deflt;
     }
     return toScalar<T, Required_>(
-	owner, key, values[0], deflt, minimum, maximum);
+	owner, key, values_[0], deflt, minimum, maximum);
   }
   template <bool Required_ = false, typename ...Args>
   auto getInt(Args &&... args) const {
@@ -400,20 +419,22 @@ public:
 
   template <typename Map, bool Required_ = false>
   ZtEnum getEnum(ZtEnum deflt = -1) const {
-    if (!values) {
+    const auto &values_ = values.p<0>();
+    if (!values_ || !values_[0]) {
       if constexpr (Required_) throw Required{owner, key};
       return deflt;
     }
-    return toEnum<Map, Required_>(owner, key, values[0], deflt);
+    return toEnum<Map, Required_>(owner, key, values_[0], deflt);
   }
 
   template <typename Map, typename T, bool Required_ = false>
   T getFlags_(T deflt = 0) const {
-    if (!values) {
+    const auto &values_ = values.p<0>();
+    if (!values_ || !values_[0]) {
       if constexpr (Required_) throw Required{owner, key};
       return deflt;
     }
-    return toFlags_<Map, T, Required_>(owner, key, values[0], deflt);
+    return toFlags_<Map, T, Required_>(owner, key, values_[0], deflt);
   }
   template <typename Map, bool Required_ = false, typename ...Args>
   uint32_t getFlags(Args &&... args) const {
@@ -663,46 +684,29 @@ public:
   const ZtArray<ZtString> *getMultiple(
       const Key &key, unsigned minimum, unsigned maximum) const {
     if (auto node = getNode<Required_>(key)) {
-      unsigned n = node->values.length();
+      const auto &values = node->values.template p<0>();
+      unsigned n = values.length();
       if (n < minimum || n > maximum)
 	throw NValues{this, key, minimum, maximum, n};
-      return &node->values;
+      return &values;
     }
     if constexpr (Required_) throw Required{this, key};
     return nullptr;
   }
 
-  void set(ZuString key, ZtString val);
+  void set(ZuString key, ZtString value);
   ZtArray<ZtString> *setMultiple(ZuString key);
 
   void unset(ZuString key);
 
-private:
-  template <bool Required_ = false, bool Create = false>
-  ZmRef<Cf> subset_(ZuString key) {
-    TreeNodeRef node;
-    if constexpr (!Create) {
-      node = getNode<Required_>(key);
-      if (!node->cf) {
-	if constexpr (Required_) throw Required{this, key};
-	return nullptr;
-      }
-    } else {
-      node = mkNode(key);
-      if (!node->cf) node->cf = new Cf{node};
-    }
-    return node->cf;
+  template <bool Required_ = false>
+  ZmRef<Cf> getCf(ZuString key) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template getCf<Required_>();
+    if constexpr (Required_) throw Required{this, key};
+    return {};
   }
-public:
-  template <bool Required_ = false, bool Create = false>
-  ZuIfT<Create, ZmRef<Cf>> subset(ZuString key) {
-    return subset_<Required_, Create>(key);
-  }
-  template <bool Required_ = false, bool Create = false>
-  ZuIfT<!Create, ZmRef<Cf>> subset(ZuString key) const {
-    return const_cast<Cf *>(this)->subset_<Required_, Create>(key);
-  }
-  void subset(ZuString key, Cf *cf);
+  void setCf(ZuString key, ZmRef<Cf> cf = {});
 
   void merge(Cf *cf);
 
