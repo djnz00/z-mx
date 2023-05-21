@@ -1,0 +1,13 @@
+include "types.fbs";
+namespace zdbtest.fbs;
+enum Side:int8 {
+  Buy = 0,
+  Sell
+}
+table Order {
+  side:Side;
+  symbol:string;
+  price:int32;
+  quantity:int32;
+}
+root_type Order;
