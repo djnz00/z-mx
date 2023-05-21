@@ -1524,11 +1524,11 @@ struct EnvCf {
     path = cf->get("path", true);
     thread = cf->get("thread", true);
     fileThread = cf->get("fileThread");
-    cf->subset<true>("dbs")->all([this](ZvCfNode *node) {
+    cf->getCf<true>("dbs")->all([this](ZvCfNode *node) {
       if (auto dbCf = node->cf)
 	dbCfs.addNode(new DBCfs::Node{node->key, ZuMv(dbCf)});
     });
-    cf->subset<true>("hosts")->all([this](ZvCfNode *node) {
+    cf->getCf<true>("hosts")->all([this](ZvCfNode *node) {
       if (auto hostCf = node->cf)
 	hostCfs.addNode(new HostCfs::Node{node->key, ZuMv(hostCf)});
     });

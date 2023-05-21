@@ -300,7 +300,7 @@ void MxMDCore::init_(const ZvCf *cf)
   MxMDLib::init_(cf);
 
   // initialize telemetry first
-  if (ZmRef<ZvCf> telCf = cf->subset("telemetry")) {
+  if (ZmRef<ZvCf> telCf = cf->getCf("telemetry")) {
     m_telemetry = new MxMDTelemetry();
     m_telemetry->init(this, telCf);
   }
@@ -308,7 +308,7 @@ void MxMDCore::init_(const ZvCf *cf)
   m_localFeed = new MxMDFeed(this, "_LOCAL", 3);
   addFeed(m_localFeed);
 
-  if (ZmRef<ZvCf> feedsCf = cf->subset("feeds")) {
+  if (ZmRef<ZvCf> feedsCf = cf->getCf("feeds")) {
     ZeLOG(Info, "MxMDLib - configuring feeds...");
     ZvCf::Iterator i(feedsCf);
     ZuString key;
@@ -374,7 +374,7 @@ void MxMDCore::init_(const ZvCf *cf)
 
   m_broadcast.init(this);
 
-  if (ZmRef<ZvCf> cmdCf = cf->subset("cmd")) {
+  if (ZmRef<ZvCf> cmdCf = cf->getCf("cmd")) {
     m_cmdServer = new MxMDCmdServer();
     Mx *mx = this->mx(cmdCf->get("mx", "cmd"));
     if (!mx) throw ZvCf::Required(cf, "cmd:mx");
@@ -383,15 +383,15 @@ void MxMDCore::init_(const ZvCf *cf)
   }
 
   m_record = new MxMDRecord();
-  m_record->init(this, cf->subset("record", true));
+  m_record->init(this, cf->getCf<true>("record"));
   m_replay = new MxMDReplay();
-  m_replay->init(this, cf->subset("replay"));
+  m_replay->init(this, cf->getCf("replay"));
 
-  if (ZmRef<ZvCf> publisherCf = cf->subset("publisher")) {
+  if (ZmRef<ZvCf> publisherCf = cf->getCf("publisher")) {
     m_publisher = new MxMDPublisher();
     m_publisher->init(this, publisherCf);
   }
-  if (ZmRef<ZvCf> subscriberCf = cf->subset("subscriber")) {
+  if (ZmRef<ZvCf> subscriberCf = cf->getCf("subscriber")) {
     m_subscriber = new MxMDSubscriber();
     m_subscriber->init(this, subscriberCf);
   }

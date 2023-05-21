@@ -49,11 +49,11 @@ int main()
       "}\n",
       false);
 
-  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->subset("mx"));
+  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->getCf("mx"));
 
   App app;
 
-  app.init(mx, cf->subset("telemetry", true));
+  app.init(mx, cf->getCf<true>("telemetry"));
 
   mx->start();
 

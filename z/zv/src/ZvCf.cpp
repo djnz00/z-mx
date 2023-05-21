@@ -784,11 +784,19 @@ void Cf::unset(ZuString fullKey)
   self->m_tree.del(key);
 }
 
+ZmRef<Cf> Cf::mkCf(ZuString key)
+{
+  TreeNodeRef node;
+  node = mkNode(key);
+  ZmRef<Cf> cf = new Cf{node};
+  node->set<1>(cf);
+  return cf;
+}
+
 void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 {
   TreeNodeRef node;
   node = mkNode(key);
-  if (!cf) cf = new Cf{node};
   node->set<1>(ZuMv(cf));
 }
 

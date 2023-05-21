@@ -311,7 +311,7 @@ friend TLS;
     m_rebindFreq = cf->getInt("rebindFreq", 0, 0, 3600);
     m_timeout = cf->getInt("timeout", 0, 0, 3600);
     unsigned passLen = 12, totpRange = 6, keyInterval = 30, maxSize = (10<<20);
-    if (ZmRef<ZvCf> mgrCf = cf->subset("userDB")) {
+    if (ZmRef<ZvCf> mgrCf = cf->getCf("userDB")) {
       passLen = mgrCf->getInt("passLen", 12, 6, 60);
       totpRange = mgrCf->getInt("totpRange", 6, 0, 100);
       keyInterval = mgrCf->getInt("keyInterval", 30, 0, 36000);
@@ -324,7 +324,7 @@ friend TLS;
     if (!loadUserDB())
       throw ZtString{} << "failed to load \"" << m_userDBPath << '"';
 
-    TelServer::init(mx, cf->subset("telemetry"));
+    TelServer::init(mx, cf->getCf("telemetry"));
   }
 
   void final() {

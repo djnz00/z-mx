@@ -36,7 +36,7 @@ void MxMDBroadcast::init(MxMDCore *core)
 {
   m_core = core;
 
-  if (ZmRef<ZvCf> cf = core->cf()->subset("broadcast", false))
+  if (ZmRef<ZvCf> cf = core->cf()->getCf<false>("broadcast"))
     m_params.init(cf);
   else
     m_params.name("RMD").size(131072); // 131072 is ~100mics at 1Gbit/s

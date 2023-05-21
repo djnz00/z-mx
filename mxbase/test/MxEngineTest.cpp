@@ -153,7 +153,7 @@ void Engine::init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf)
   MxEngine::init(mgr, app, mx, cf);
   m_reconnInterval = cf->getDbl("reconnInterval", 1, 0, 3600);
   m_reReqInterval = cf->getDbl("reReqInterval", 1, 0, 3600);
-  if (ZmRef<ZvCf> linksCf = cf->subset("links")) {
+  if (ZmRef<ZvCf> linksCf = cf->getCf("links")) {
     ZvCf::Iterator i(linksCf);
     ZuString id;
     while (ZmRef<ZvCf> linkCf = i.subset(id))
@@ -186,7 +186,7 @@ int main()
   Mgr* mgr = new Mgr();
   ZmRef<Engine> engine = new Engine();
 
-  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->subset("mx"));
+  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->getCf("mx"));
 
   engine->init(mgr, app, mx, cf);
 

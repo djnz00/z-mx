@@ -940,7 +940,7 @@ public:
   using ZdbEnvItem = TelItem<ZvTelemetry::ZdbEnv>;
 
   void init(ZiMultiplex *mx, const ZvCf *cf) {
-    if (ZmRef<ZvCf> telRingCf = cf->subset("telRing"))
+    if (ZmRef<ZvCf> telRingCf = cf->getCf("telRing"))
       m_telRingParams.init(telRingCf);
     else
       m_telRingParams.name("zdash").size(131072);

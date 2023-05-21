@@ -1304,7 +1304,7 @@ void MxMDLib::init_(void *cf_)
   ZvCf *cf = (ZvCf *)cf_;
   ZiMultiplex *mx = static_cast<ZiMultiplex *>(m_scheduler);
   unsigned tid = 0;
-  if (ZmRef<ZvCf> shardsCf = cf->subset("shards")) {
+  if (ZmRef<ZvCf> shardsCf = cf->getCf("shards")) {
     ZeLOG(Info, "MxMDLib - configuring shards...");
     m_shards.length(shardsCf->count());
     ZvCf::Iterator i(shardsCf);

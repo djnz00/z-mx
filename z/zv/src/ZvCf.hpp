@@ -706,7 +706,8 @@ public:
     if constexpr (Required_) throw Required{this, key};
     return {};
   }
-  void setCf(ZuString key, ZmRef<Cf> cf = {});
+  ZmRef<Cf> mkCf(ZuString key);
+  void setCf(ZuString key, ZmRef<Cf> cf);
 
   void merge(Cf *cf);
 

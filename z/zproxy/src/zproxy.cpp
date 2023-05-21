@@ -479,7 +479,7 @@ public:
   void init(const ZvCf *cf) {
     // cf->set("mx:debug", "1");
     ZvCmdHost::init();
-    m_mx = new Mx(cf->subset("mx"));
+    m_mx = new Mx(cf->getCf("mx"));
     m_verbose = cf->getInt("verbose", 0, 0, 1);
     addCmd("proxy",
 	"tag { type scalar } "

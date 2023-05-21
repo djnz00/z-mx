@@ -293,8 +293,8 @@ App::App(const ZvCf *cf) :
   m_interface(cf->get("interface", "0.0.0.0")),
   m_reconnectFreq(cf->getInt("reconnect", 0, 0, 3600))
 {
-  m_mx = new Mx(cf->subset("mx"));
-  m_mx2 = new Mx(cf->subset("mx2"));
+  m_mx = new Mx(cf->getCf("mx"));
+  m_mx2 = new Mx(cf->getCf("mx2"));
 }
 
 int App::start()

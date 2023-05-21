@@ -313,12 +313,12 @@ int main(int argc, char **argv)
       false);
   if (port) cf->set("telemetry:port", port);
 
-  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->subset("mx"));
+  ZmRef<MxMultiplex> mx = new MxMultiplex("mx", cf->getCf("mx"));
 
   App app;
 
   try {
-    app.init(mx, ZuMv(dir), cf->subset("telemetry", true));
+    app.init(mx, ZuMv(dir), cf->getCf<true>("telemetry"));
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
     usage();

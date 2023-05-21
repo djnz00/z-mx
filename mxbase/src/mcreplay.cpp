@@ -358,7 +358,7 @@ App::App(const ZvCf *cf) :
   m_ttl(cf->getInt("ttl", 1, 0, INT_MAX)),
   m_loopBack(cf->getInt("loopBack", 0, 0, 1))
 {
-  m_mx = new Mx(cf->subset("mx"));
+  m_mx = new Mx(cf->getCf("mx"));
   m_cxns = new Cxns();
 }
 
