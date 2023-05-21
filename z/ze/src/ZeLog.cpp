@@ -211,7 +211,12 @@ void ZeLog::start_()
 
 void ZeLog::start__()
 {
-  m_ring.eof(false);
+  m_ring.init(ZmRingParams{m_bufSize});
+  {
+    int r;
+    if ((r = m_ring.open(Ring::Read | Ring::Write)) != Zu::OK) // idempotent
+      throw Zu::IOResult{r};
+  }
   m_thread = ZmThread{[this]() { work_(); },
       ZmThreadParams().name("log").priority(ZmThreadPriority::Low)};
 }
@@ -230,9 +235,10 @@ void ZeLog::stop_()
     thread = m_thread;
     m_thread = {};
   }
-  if (thread) return;
+  if (!thread) return;
   m_ring.eof(true);
-  thread.join();
+  thread.join();		// wait for ring buffer to drain
+  m_ring.close();
 }
 
 void ZeLog::work_()

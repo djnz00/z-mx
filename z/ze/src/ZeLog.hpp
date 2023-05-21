@@ -202,6 +202,10 @@ public:
     instance()->init_(program, facility);
   }
 
+  static void bufSize(unsigned n) {
+    instance()->bufSize_(n);
+  }
+
   static ZuString program() { return instance()->program_(); }
 
   static int level() { return instance()->level_(); }
@@ -241,6 +245,8 @@ private:
   void init_(const char *program);
   void init_(const char *program, const char *facility);
 
+  void bufSize_(unsigned n) { m_bufSize = n; }
+
   ZuString program_() const { return m_program; }
   ZuString facility_() const { return m_facility; }
 
@@ -265,6 +271,7 @@ private:
   ZtString		m_program;
   ZtString		m_facility;
   int			m_level;
+  unsigned		m_bufSize = (1<<20);	// 1Mbyte
 
   ZmThread		m_thread;
   Ring			m_ring;

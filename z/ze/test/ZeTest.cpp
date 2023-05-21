@@ -40,8 +40,7 @@ int main(int argc, char **argv)
   ZeLOG(Fatal, "test Fatal message");
   ZeLOG(Error, ZtSprintf("test %s %d", "Error message", 42));
   ZeLOG(Error, ZeError{TestError});
-  ZeLOG(Error, ZtSprintf("fopen() failed: %s",
-			 ZeError(TestError).message()));
+  ZeLOG(Error, ZtSprintf("fopen() failed: %s", ZeError{TestError}.message()));
 
   ZeLog::stop();
 
