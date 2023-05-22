@@ -62,7 +62,7 @@ struct TestSeq {
   ZtArray<TestStep>	steps;
 
   TestSeq(const ZvCf *cf) {
-    cf->allCf("steps", [this](Cf *cf) {
+    cf->allCf("steps", [this](const Cf *cf) {
       cf->ctor<TestStep>(steps.push());
     });
   }
@@ -82,7 +82,9 @@ struct TestPlan {
   ZtArray<TestSeq>	sequences;
 
   TestPlan(const ZvCf *cf) {
-    // FIXME
+    cf->allCf("sequences", [this](const Cf *cf) {
+      new (sequences.push()) TestSeq(cf);
+    });
   }
 
   RN size() const {
