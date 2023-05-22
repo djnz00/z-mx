@@ -709,7 +709,7 @@ public:
   ZmRef<Cf> mkCf(ZuString key);
   void setCf(ZuString key, ZmRef<Cf> cf);
 
-  void merge(Cf *cf);
+  void merge(const Cf *cf);
 
   template <typename T, bool Required_ = false, typename Key>
   T getScalar(const Key &key, T deflt, T minimum, T maximum) const {
@@ -837,8 +837,8 @@ public:
   friend ZuPrintFn ZuPrintType(Cf *);
 
 private:
-  ZmRef<Cf> getScope(ZuString fullKey, ZuString &key) const;
-  ZmRef<Cf> mkScope(ZuString fullKey, ZuString &key);
+  Cf *getScope(ZuString fullKey, ZuString &key) const;
+  Cf *mkScope(ZuString fullKey, ZuString &key);
 
   void fromArg(ZuString fullKey, int type, ZuString argVal);
   void fromString(ZuString in, bool validate,

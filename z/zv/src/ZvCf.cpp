@@ -169,7 +169,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
       int m = c[2].length();
       for (j = 0; j < m; j++) {
 	ZtString shortOpt(ZtString::Copy, c[2].data() + j, 1);
-	ZuString longOpt;
+	ZtString longOpt;
 	if (!options ||
 	    !(longOpt = options->get(shortOpt)) ||
 	    !(option = options->getCf(longOpt)))
@@ -259,7 +259,7 @@ static ZuString scope_(ZuString &key)
   return s;
 }
 
-ZmRef<Cf> Cf::getScope(ZuString fullKey, ZuString &key) const
+Cf *Cf::getScope(ZuString fullKey, ZuString &key) const
 {
   const Cf *self = this;
   ZuString scope = scope_(fullKey);
@@ -267,8 +267,7 @@ ZmRef<Cf> Cf::getScope(ZuString fullKey, ZuString &key) const
   if (scope)
     while (nscope = scope_(fullKey)) {
       TreeNodeRef node = self->m_tree.find(scope);
-      if (!node) return nullptr;
-      if (node->values.type() != 1) return nullptr;
+      if (!node || node->values.type() != 1) return nullptr;
       const auto &cfs = node->values.p<1>();
       if (!cfs || !cfs[0]) return nullptr;
       self = cfs[0];
@@ -278,7 +277,7 @@ ZmRef<Cf> Cf::getScope(ZuString fullKey, ZuString &key) const
   return const_cast<ZvCf *>(self);
 }
 
-ZmRef<Cf> Cf::mkScope(ZuString fullKey, ZuString &key)
+Cf *Cf::mkScope(ZuString fullKey, ZuString &key)
 {
   Cf *self = this;
   ZuString scope = scope_(fullKey);
@@ -287,10 +286,12 @@ ZmRef<Cf> Cf::mkScope(ZuString fullKey, ZuString &key)
     while (nscope = scope_(fullKey)) {
       TreeNodeRef node = self->m_tree.find(scope);
       if (!node) self->m_tree.addNode(node = new TreeNode{self, scope});
-      ZmRef<Cf> cf = new Cf{node};
-      self = cf;
+      auto &values_ = node->values.p<1>();
+      if (!values_ || !values_[0])
+	node->set<1>(self = new Cf{node});
+      else
+	self = values_[0];
       scope = nscope;
-      node->set<1>(ZuMv(cf));
     }
   key = scope;
   return self;
@@ -397,7 +398,7 @@ syntax:
   }
   off += c[1].length();
   ZuString key = c[1];
-  TreeNodeRef node;
+  TreeNodeRef node = nullptr;
   if (key[0] != '%') {
     if (!(node = self->m_tree.find(key))) {
       if (validate) throw Invalid{self, key, fileName};
@@ -786,8 +787,7 @@ void Cf::unset(ZuString fullKey)
 
 ZmRef<Cf> Cf::mkCf(ZuString key)
 {
-  TreeNodeRef node;
-  node = mkNode(key);
+  TreeNodeRef node = mkNode(key);
   ZmRef<Cf> cf = new Cf{node};
   node->set<1>(cf);
   return cf;
@@ -795,43 +795,32 @@ ZmRef<Cf> Cf::mkCf(ZuString key)
 
 void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 {
-  TreeNodeRef node;
-  node = mkNode(key);
+  TreeNodeRef node = mkNode(key);
   node->set<1>(ZuMv(cf));
 }
 
-void Cf::merge(Cf *cf)
+void Cf::merge(const Cf *cf)
 {
-  auto i = cf->m_tree.iterator();
+  auto i = cf->m_tree.readIterator();
   while (TreeNodeRef srcNode = i.iterate()) {
     TreeNodeRef dstNode = m_tree.find(srcNode->CfNode::key);
-    if (!dstNode) {
-      m_tree.addNode(i.del(srcNode).release());
-      const_cast<Cf * &>(srcNode->owner) = this;
-    } else {
-      if (srcNode->values.type() == 0) {
-	auto &srcValues = srcNode->values.p<0>();
-	auto &dstValues = dstNode->values.p<0>();
-	if (dstValues)
-	  dstValues += srcValues;
-	else
-	  dstValues = ZuMv(srcValues);
-	srcValues.null();
-      } else if (srcNode->values.type() == 1) {
-	auto &srcCfs = srcNode->values.p<1>();
-	auto &dstCfs = dstNode->values.p<1>();
-	unsigned n = srcCfs.length();
-	dstCfs.ensure(n);
-	if (dstCfs.length() < n) dstCfs.length(n);
-	for (unsigned i = 0; i < n; i++) {
-	  auto &srcCf = srcCfs[i];
-	  auto &dstCf = dstCfs[i];
-	  if (dstCf)
-	    dstCf->merge(srcCf);	// recursive
-	  else
-	    dstCf = ZuMv(srcCf);
-	  srcCf = nullptr;
-	}
+    if (!dstNode)
+      m_tree.addNode(dstNode = new TreeNode{this, srcNode->CfNode::key});
+    if (srcNode->values.type() == 0) {
+      auto &srcValues = srcNode->values.p<0>();
+      auto &dstValues = dstNode->values.p<0>();
+      dstValues += srcValues;
+    } else if (srcNode->values.type() == 1) {
+      auto &srcCfs = srcNode->values.p<1>();
+      auto &dstCfs = dstNode->values.p<1>();
+      unsigned n = srcCfs.length();
+      dstCfs.ensure(n);
+      if (dstCfs.length() < n) dstCfs.length(n);
+      for (unsigned i = 0; i < n; i++) {
+	auto &srcCf = srcCfs[i];
+	auto &dstCf = dstCfs[i];
+	if (!dstCf) dstCf = new Cf{dstNode};
+	dstCf->merge(srcCf);	// recursive
       }
     }
   }

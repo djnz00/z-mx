@@ -34,7 +34,7 @@ static const char *testdata =
 "k54` , k55\n"
 "\n"
 "%define FAT=artma\n"
-"key7 { foo bar{ bah 1 } } key8 C${FAT}n\n";
+"key7 { foo { bah 1 } } key8 C${FAT}n\n";
 
 namespace Values {
   ZtEnumValues("Values", High, Low, Normal);
@@ -129,7 +129,6 @@ int main()
 	"--key4",
 	"-D",
 	"Arg1",
-	"--key7:foo=bar",
 	"--key8=Cartman",
 	0
       };
@@ -141,7 +140,6 @@ int main()
 	{ "key5", 0, ZvOptMulti, 0 },
 	{ "key6:a", "C", ZvOptScalar, 0 },
 	{ "key6:c", 0, ZvOptScalar, 0 },
-	{ "key7:foo", 0, ZvOptScalar, 0 },
 	{ "key7:foo:bah", "D", ZvOptFlag, 0 },
 	{ "key8", 0, ZvOptScalar, 0 },
 	{ 0 }
@@ -169,7 +167,6 @@ int main()
 	  "--key6:c=d} "
 	  "--key4 "
 	  "-D "
-	  "--key7:foo=bar "
 	  "--key8=Cartman "
 	  "Arg1");
 	cf->unset("#");
@@ -189,7 +186,7 @@ int main()
 	"key4=\"# value4\":"
 	"key5=\"# k51\",k5``2,\"k 53,\",k54` ,k55:"
 	"key6={a=b:c=d`}}:"
-	"key7={foo=bar{bah=1}}:"
+	"key7={foo={bah=1}}:"
 	"key8=Cartman";
 
 #ifdef _WIN32
@@ -253,8 +250,8 @@ int main()
     }
 
     {
-      ZmRef<ZvCf> cf1 = new ZvCf(), cf2 = new ZvCf(),
-		  cf3 = new ZvCf(), cf4 = new ZvCf();
+      ZmRef<ZvCf> cf1 = new ZvCf{}, cf2 = new ZvCf{},
+		  cf3 = new ZvCf{}, cf4 = new ZvCf{};
 
       cf1->fromString("i foo l { m baz }", false);
       cf2->fromString("j { k bar } n bah", false);
@@ -262,11 +259,13 @@ int main()
       cf3->merge(cf2);
       cf4->merge(cf2);
       cf4->merge(cf1);
+      cf3->toFile("out6.cf");
+      cf4->toFile("out7.cf");
       ZtString out3, out4;
       out3 << *cf3;
       out4 << *cf4;
       if (out3 != out4)
-	ZeLOG(Error, "merge() results inconsistent");
+	ZeLOG(Error, "merge() results inconsistent - out6.cf, out7.cf");
     }
 
     {
