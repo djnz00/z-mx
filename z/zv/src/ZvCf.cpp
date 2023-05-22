@@ -181,18 +181,18 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 	  ZuString deflt = option->get("default");
 	  if (deflt) {
 	    if (n < l && args[n][0] != '-') {
-	      fromArg(longOpt, type,
-		      args[n].data() +
-			(args[n][0] == '`' && args[n][1] == '-'));
+	      fromArg(
+		  longOpt, type,
+		  args[n].data() + (args[n][0] == '`' && args[n][1] == '-'));
 	      n++;
 	    } else {
 	      fromArg(longOpt, type, deflt);
 	    }
 	  } else {
 	    if (n == l) throw Usage{args[0], shortOpt};
-	    fromArg(longOpt, type,
-		    args[n].data() +
-		      (args[n][0] == '`' && args[n][1] == '-'));
+	    fromArg(
+		longOpt, type,
+		args[n].data() + (args[n][0] == '`' && args[n][1] == '-'));
 	    n++;
 	  }
 	}
@@ -362,16 +362,16 @@ void Cf::fromString(ZuString in,
 
   const auto &fileSkip = ZtREGEX("\G(?:#[^\n]*\n|\s+)");
   const auto &fileEndScope = ZtREGEX("\G\}");
-  const auto &fileKey = ZtREGEX("\G(?:[^$#%`\"{},:=\s]+|[%=]\w+)");
+  const auto &fileKey = ZtREGEX("\G(?:[^$#%\\\"{},:=\s]+|[%=]\w+)");
   const auto &fileLine = ZtREGEX("\G[^\n]*\n");
-  const auto &fileValue = ZtREGEX("\G[^$#`\"{},\s]+");
-  const auto &fileValueQuoted = ZtREGEX("\G`(.)");
+  const auto &fileValue = ZtREGEX("\G[^$#\\\"{},\s]+");
+  const auto &fileValueQuoted = ZtREGEX("\G\\(.)");
   const auto &fileDblQuote = ZtREGEX("\G\"");
-  const auto &fileValueDblQuoted = ZtREGEX("\G[^`\"]+");
+  const auto &fileValueDblQuoted = ZtREGEX("\G[^\\\"]+");
   const auto &fileBeginScope = ZtREGEX("\G\{");
   const auto &fileComma = ZtREGEX("\G,");
-  const auto &fileDefine = ZtREGEX("([^$#%`\"{},:=\s]+)=(.+)");
-  const auto &fileValueVar = ZtREGEX("\G\${([^$#%`\"{},:=\s]+)}");
+  const auto &fileDefine = ZtREGEX("([^$#%\\\"{},:=\s]+)=(.+)");
+  const auto &fileValueVar = ZtREGEX("\G\${([^$#%\\\"{},:=\s]+)}");
   ZtRegex::Captures c;
   unsigned off = 0;
 
@@ -512,12 +512,12 @@ void Cf::fromEnv(const char *name, bool validate)
   unsigned off = 0;
   const auto &envEndScope = ZtREGEX("\G\}");
   const auto &envColon = ZtREGEX("\G:");
-  const auto &envKey = ZtREGEX("\G[^#`\"{},:=\s]+");
+  const auto &envKey = ZtREGEX("\G[^#\\\"{},:=\s]+");
   const auto &envEquals = ZtREGEX("\G=");
-  const auto &envValue = ZtREGEX("\G[^`\"{},:]+");
-  const auto &envValueQuoted = ZtREGEX("\G`([`\"{},:\s])");
+  const auto &envValue = ZtREGEX("\G[^\\\"{},:]+");
+  const auto &envValueQuoted = ZtREGEX("\G\\(.)");
   const auto &envDblQuote = ZtREGEX("\G\"");
-  const auto &envValueDblQuoted = ZtREGEX("\G[^`\"]+");
+  const auto &envValueDblQuoted = ZtREGEX("\G[^\\\"]+");
   const auto &envBeginScope = ZtREGEX("\G\{");
   const auto &envComma = ZtREGEX("\G,");
   ZtRegex::Captures c;
@@ -667,13 +667,13 @@ ZtString Cf::quoteArgValue(ZuString in)
 
   ZtString out = in;
 
-  const auto &argQuote = ZtREGEX("[`,]");
+  const auto &argQuote = ZtREGEX("[\\,]");
   ZtRegex::Captures c;
   unsigned off = 0;
 
   while (off < out.length() && argQuote.m(out, c, off)) {
     off = c[0].length();
-    out.splice(off, 0, "`", 1);
+    out.splice(off, 0, "\\", 1);
     off += c[1].length() + 1;
     off++;
   }
@@ -714,10 +714,10 @@ ZtString Cf::quoteValue(ZuString in)
 
   ZtString out = in;
 
-  const auto &quote1 = ZtREGEX("[#`\"{},\s]");
-  const auto &quote2 = ZtREGEX("[#`\",\s]");
-  const auto &quoteValueDbl = ZtREGEX("[`\"]");
-  const auto &quoteValue = ZtREGEX("[#`\"{},\s]");
+  const auto &quote1 = ZtREGEX("[#\\\"{},\s]");
+  const auto &quote2 = ZtREGEX("[#\\\",\s]");
+  const auto &quoteValueDbl = ZtREGEX("[\\\"]");
+  const auto &quoteValue = ZtREGEX("[#\\\"{},\s]");
   ZtRegex::Captures c;
   bool doubleQuote = false;
   unsigned off = 0;
@@ -732,7 +732,7 @@ ZtString Cf::quoteValue(ZuString in)
   if (doubleQuote) {
     while (quoteValueDbl.m(out, c, off)) {
       off = c[0].length();
-      out.splice(off, 0, "`", 1);
+      out.splice(off, 0, "\\", 1);
       off += c[1].length() + 1;
     }
     out.splice(0, 0, "\"", 1);
@@ -740,7 +740,7 @@ ZtString Cf::quoteValue(ZuString in)
   } else {
     while (quoteValue.m(out, c, off)) {
       off = c[0].length();
-      out.splice(off, 0, "`", 1);
+      out.splice(off, 0, "\\", 1);
       off += c[1].length() + 1;
     }
   }

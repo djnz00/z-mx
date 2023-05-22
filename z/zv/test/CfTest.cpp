@@ -19,19 +19,19 @@ static const char *testdata =
 "     key4 # kick kick\n"
 "\n"
 "\n"
-"     `#` value4\n"
-"key2 ok` \n"
-"key3 ok2``\n"
+"     \\#\\ value4\n"
+"key2 ok\\ \n"
+"key3 ok2\\\\\n"
 "\n"
-"# `grok this sucker\n"
+"# \\grok this sucker\n"
 "\n"
 "	key1		\n"
-"			\"ok `\"this is val1``\"		# comment !!\n"
+"			\"ok \\\"this is val1\\\\\"		# comment !!\n"
 "  0 \"\" 1 Arg1\n"
-"key6 { a b c d`} }\n"
+"key6 { a b c d\\} }\n"
 "\n"
-"key5 `#` k51, \"k5``2\", k` 53`,,\n"
-"k54` , k55\n"
+"key5 \\#\\ k51, \"k5\\\\2\", k\\ 53\\,,\n"
+"k54\\ , k55\n"
 "\n"
 "%define FAT=artma\n"
 "key7 { foo { bah 1 } } key8 C${FAT}n\n";
@@ -51,10 +51,12 @@ int main()
     {
       ZiFile file;
       ZeError e;
-      if (file.open("in.cf", ZiFile::Create | ZiFile::Truncate,
-		    0777, &e) != Zi::OK)
+      if (file.open(
+	    "in.cf", ZiFile::Create | ZiFile::Truncate, 0777, &e) != Zi::OK)
 	throw e;
-      if (file.write((void *)testdata, (int)strlen(testdata), &e) != Zi::OK)
+      if (file.write(
+	    static_cast<const void *>(testdata),
+	    strlen(testdata), &e) != Zi::OK)
 	throw e;
     }
     {
@@ -121,9 +123,9 @@ int main()
     {
       static const char *argv[] = {
 	"",
-	"--key1=ok \"this is val1``",
-	"-AB", "ok ", "ok2``",
-	"--key5=# k51,k5``2,k` 53`,,k54` ,k55",
+	"--key1=ok \"this is val1`\\",
+	"-AB", "ok ", "ok2`\\",
+	"--key5=# k51,k5`\\2,k` 53`,,k54` ,k55",
 	"-C", "b",
 	"--key6:c=d}",
 	"--key4",
@@ -160,9 +162,9 @@ int main()
 
 	cf->fromCLI(opts,
 	  " "
-	  "--key1=\'ok \"this is val1``\' "
-	  "-AB \"ok \" ok2`` "
-	  "--key5=\"# k51,k5``2,k 53`,,k54 ,k55\" "
+	  "--key1=\'ok \"this is val1`\\\' "
+	  "-AB \"ok \" ok2`\\ "
+	  "--key5=\"# k51,k5`\\2,k 53`,,k54 ,k55\" "
 	  "-C b "
 	  "--key6:c=d} "
 	  "--key4 "
@@ -180,12 +182,12 @@ int main()
       static const char *env = "CFTEST="
 	"0=:"
 	"1=Arg1:"
-	"key1=\"ok `\"this is val1``\":"
-	"key2=ok` :"
-	"key3=ok2``:"
+	"key1=\"ok \\\"this is val1\\\\\":"
+	"key2=ok\\ :"
+	"key3=ok2\\\\:"
 	"key4=\"# value4\":"
-	"key5=\"# k51\",k5``2,\"k 53,\",k54` ,k55:"
-	"key6={a=b:c=d`}}:"
+	"key5=\"# k51\",k5\\\\2,\"k 53,\",k54\\ ,k55:"
+	"key6={a=b:c=d\\}}:"
 	"key7={foo={bah=1}}:"
 	"key8=Cartman";
 
