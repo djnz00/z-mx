@@ -62,8 +62,9 @@ struct TestSeq {
   ZtArray<TestStep>	steps;
 
   TestSeq(const ZvCf *cf) {
-    cf->all(
-    cf->ctor<TestStep>(steps.push());
+    cf->allCf("steps", [this](Cf *cf) {
+      cf->ctor<TestStep>(steps.push());
+    });
   }
 
   RN size() const {

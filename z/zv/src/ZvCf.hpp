@@ -142,7 +142,7 @@ public:
     Base::print__(s, "out of range");
   }
 };
-// thrown by getMultiple() on number of values error
+// thrown by getArray() on number of values error
 class NValues : public Range_<unsigned> {
   using T = unsigned;
   using Base = Range_<T>;
@@ -680,22 +680,49 @@ public:
   template <bool Required_ = false, typename Key>
   ZtString get(const Key &key) const { return get<Required_>(key, {}); }
 
-  template <bool Required_ = false, typename Key>
-  const ZtArray<ZtString> *getMultiple(
-      const Key &key, unsigned minimum, unsigned maximum) const {
+  template <bool Required_ = false, typename Key, typename L>
+  void all(const Key &key, L l) const {
+    if (auto node = getNode<Required_>(key)) {
+      const auto &values = node->values.template p<0>();
+      values.all(ZuMv(l));
+    }
+    if constexpr (Required_) throw Required{this, key};
+  }
+  template <bool Required_ = false, typename Key, typename L>
+  void all(const Key &key, unsigned minimum, unsigned maximum, L l) const {
     if (auto node = getNode<Required_>(key)) {
       const auto &values = node->values.template p<0>();
       unsigned n = values.length();
       if (n < minimum || n > maximum)
 	throw NValues{this, key, minimum, maximum, n};
-      return &values;
+      values.all(ZuMv(l));
     }
     if constexpr (Required_) throw Required{this, key};
-    return nullptr;
+  }
+
+  template <bool Required_ = false, typename Key, typename L>
+  void allCf(const Key &key, L l) const {
+    if (auto node = getNode<Required_>(key)) {
+      const auto &values = node->values.template p<1>();
+      values.all(ZuMv(l));
+    }
+    if constexpr (Required_) throw Required{this, key};
+  }
+  template <bool Required_ = false, typename Key, typename L>
+  void allCf(const Key &key, unsigned minimum, unsigned maximum, L l) const {
+    if (auto node = getNode<Required_>(key)) {
+      const auto &values = node->values.template p<1>();
+      unsigned n = values.length();
+      if (n < minimum || n > maximum)
+	throw NValues{this, key, minimum, maximum, n};
+      values.all(ZuMv(l));
+    }
+    if constexpr (Required_) throw Required{this, key};
   }
 
   void set(ZuString key, ZtString value);
-  ZtArray<ZtString> *setMultiple(ZuString key);
+  ZtArray<ZtString> *setArray(ZuString key);
+  ZtArray<ZmRef<Cf>> *setCfArray(ZuString key);
 
   void unset(ZuString key);
 

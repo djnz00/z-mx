@@ -771,10 +771,17 @@ void Cf::set(ZuString key, ZtString value)
   node->set<0>(ZuMv(value));
 }
 
-ZtArray<ZtString> *Cf::setMultiple(ZuString key)
+ZtArray<ZtString> *Cf::setArray(ZuString key)
 {
   auto node = mkNode(key);
   auto &values = node->values.p<0>();
+  return &values;
+}
+
+ZtArray<ZmRef<Cf>> *Cf::setCfArray(ZuString key)
+{
+  auto node = mkNode(key);
+  auto &values = node->values.p<1>();
   return &values;
 }
 
