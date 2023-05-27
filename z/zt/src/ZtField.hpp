@@ -36,13 +36,13 @@
 // String	<String>		[, default]
 // Composite	<Composite>		[, default]
 // Bool		<Integral>		[, default]
-// Int		<Integral>		[, min, max, default]
+// Int		<Integral>		[, default, min, max]
 // Hex		<Integral>		[, default]
 // Enum, Map	<Integral>		[, default]
 // Flags, Map	<Integral>		[, default]
-// Float	<FloatingPoint>		[, min, max, default]
-// Fixed	ZuFixed			[, min, max, default]
-// Decimal	ZuDecimal		[, min, max, default]
+// Float	<FloatingPoint>		[, default, min, max]
+// Fixed	ZuFixed			[, default, min, max]
+// Decimal	ZuDecimal		[, default, min, max]
 // Time		ZmTime			[, default]
 
 #ifndef ZtField_HPP

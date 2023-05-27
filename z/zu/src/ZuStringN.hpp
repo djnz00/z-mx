@@ -255,8 +255,8 @@ protected:
 public:
 // array/ptr operators
 
-  Char &operator [](int i) { return data()[i]; }
-  const Char &operator [](int i) const { return data()[i]; }
+  Char &operator [](unsigned i) { return data()[i]; }
+  const Char &operator [](unsigned i) const { return data()[i]; }
 
   // operator Char *() must return 0 if the string is empty, oherwise
   // these use cases stop working:

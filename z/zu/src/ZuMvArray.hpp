@@ -87,8 +87,8 @@ public:
   }
 
 // array/ptr operators
-  T &operator [](int i) { return m_data[i]; }
-  const T &operator [](int i) const { return m_data[i]; }
+  T &operator [](unsigned i) { return m_data[i]; }
+  const T &operator [](unsigned i) const { return m_data[i]; }
 
 // accessors
   unsigned length() const { return m_length; } 

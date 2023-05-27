@@ -559,9 +559,9 @@ private:
     assign(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
-  template <typename I> MatchElem<I> assign(I &&i) {
+  template <typename V> MatchElem<V> assign(V &&v) {
     free_();
-    ctor(ZuFwd<I>(i));
+    ctor(ZuFwd<V>(v));
   }
 
 public:
@@ -789,11 +789,8 @@ public:
   }
 
 // array / ptr operators
-  T &item(int i) { return m_data[i]; }
-  const T &item(int i) const { return m_data[i]; }
-
-  T &operator [](int i) { return m_data[i]; }
-  const T &operator [](int i) const { return m_data[i]; }
+  T &operator [](unsigned i) { return m_data[i]; }
+  const T &operator [](unsigned i) const { return m_data[i]; }
 
 // accessors
   T *data() { return m_data; }
@@ -900,12 +897,15 @@ public:
     length_(length);
   }
 
-// set size
+// ensure size
 
   T *ensure(unsigned z) {
     if (ZuLikely(z <= size())) return m_data;
     return size(z);
   }
+
+// set size
+
   T *size(unsigned z) {
     if (!z) { null(); return 0; }
     if (owned() && z == size()) return m_data;
@@ -922,6 +922,45 @@ public:
     size_owned(z, 1);
     length_mallocd(n, 1);
     return newData;
+  }
+
+// set element i, extending array as needed
+
+  void *set(unsigned i) {
+    unsigned n = length();
+    if (ZuLikely(i < n)) {
+      this->destroyItem(m_data + i);
+      return m_data + i;
+    }
+    unsigned z = size();
+    if (!owned() || i + 1 > z) {
+      z = grow_(z, i + 1);
+      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      if (!newData) throw std::bad_alloc{};
+      this->moveItems(newData, m_data, n);
+      free_();
+      m_data = newData;
+      size_owned(z, 1);
+      if (i > n) this->initItems(m_data + n, i - n);
+      length_mallocd(i + 1, 1);
+    } else {
+      if (i > n) this->initItems(m_data + n, i - n);
+      length_(i + 1);
+    }
+    return m_data + i;
+  }
+  template <typename V> void set(unsigned i, V &&v) {
+    auto ptr = set(i);
+    this->initItem(ptr, ZuFwd<V>(v));
+  }
+
+  const T *getPtr(unsigned i) const {
+    if (ZuUnlikely(i >= length())) return nullptr;
+    return static_cast<const T *>(m_data + i);
+  }
+  const T &get(unsigned i) const {
+    if (ZuUnlikely(i >= length())) return ZuNullRef<T, Cmp>();
+    return m_data[i];
   }
 
 // hash()
@@ -1115,8 +1154,8 @@ private:
     append_(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
-  template <typename I> MatchElem<I> append_(I &&i) {
-    this->initItem(push(), ZuFwd<I>(i));
+  template <typename V> MatchElem<V> append_(V &&v) {
+    this->initItem(push(), ZuFwd<V>(v));
   }
 
 public:
@@ -1225,11 +1264,11 @@ public:
       length_mallocd(n + 1, 1);
     } else
       length_(n + 1);
-    return (void *)(m_data + n);
+    return static_cast<void *>(m_data + n);
   }
-  template <typename I> T * push(I &&i) {
+  template <typename V> T *push(V &&v) {
     auto ptr = push();
-    if (ZuLikely(ptr)) this->initItem(ptr, ZuFwd<I>(i));
+    if (ZuLikely(ptr)) this->initItem(ptr, ZuFwd<V>(v));
     return static_cast<T *>(ptr);
   }
   T pop() {
@@ -1283,10 +1322,10 @@ public:
       this->moveItems(m_data + 1, m_data, n);
       length_(n + 1);
     }
-    return (void *)m_data;
+    return static_cast<void *>(m_data);
   }
-  template <typename I> void unshift(I &&i) {
-    this->initItem(unshift(), ZuFwd<I>(i));
+  template <typename V> void unshift(V &&v) {
+    this->initItem(unshift(), ZuFwd<V>(v));
   }
 
 private:

@@ -68,9 +68,6 @@ public:
 
 // FIXME - use WAL (write ahead logging)
 //
-// FIXME - update ZtField usages to new interface (update all
-// macro declare definitions in ZtField.hpp first, then update ZvCSV, Zdf etc.)
-
 // FIXME - use custom functions to print/scan enums, flags, decimals
 // (convert fixed -> decimal to store)
 

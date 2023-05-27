@@ -295,7 +295,8 @@ private:
     ZuInline void clear() { }
   };
   template <typename Node>
-  class NodeExt_ : public ZuIf<Unique, NodeExt_Unique<Node>, NodeExt_Dup<Node>> {
+  class NodeExt_ :
+      public ZuIf<Unique, NodeExt_Unique<Node>, NodeExt_Dup<Node>> {
   friend ZmRBTree<T, NTP>;
   template <typename, int> friend class ZmRBTreeIterator_;
     // 64bit pointer-packing - uses bit 63

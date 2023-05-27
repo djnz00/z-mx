@@ -82,9 +82,7 @@ public:
   const Bit operator [](unsigned i) const {
     return {*const_cast<ZuBitmap *>(this), i};
   }
-  Bit operator [](unsigned i) {
-    return {*this, i};
-  }
+  Bit operator [](unsigned i) { return {*this, i}; }
 
   template <unsigned I> struct Index { enum { OK = I < Words }; };
   template <typename Fn, unsigned I>

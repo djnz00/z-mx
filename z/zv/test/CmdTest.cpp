@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 	"  totpRange 6\n"
 	"  keyInterval 30\n"
 	"  maxAge 8\n"
-	"}\n", false);
+	"}\n");
     if (cf->fromArgs(opts, argc, argv) != 6) usage();
     cf->set("certPath", cf->get("1"));
     cf->set("keyPath", cf->get("2"));

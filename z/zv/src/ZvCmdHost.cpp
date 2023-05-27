@@ -45,7 +45,7 @@ void ZvCmdHost::addCmd(
   Guard guard(m_lock);
   {
     ZmRef<ZvCf> cf = m_syntax->mkCf(name);
-    cf->fromString(syntax, false);
+    cf->fromString(syntax);
     cf->set("help:type", "flag");
   }
   if (auto cmd = m_cmds.find(name))

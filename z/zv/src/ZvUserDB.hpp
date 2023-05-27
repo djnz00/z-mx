@@ -86,14 +86,13 @@ public:
 	fbb.CreateVector(perms.data, Bitmap::Words),
 	fbb.CreateVector(apiperms.data, Bitmap::Words));
   }
+
+  static const ZtString &NameAxor(const Role_ &r) { return r.name; }
 };
-inline constexpr auto RoleNameAxor() {
-  return [](const Role_ &r) { return r.name; };
-}
 using RoleTree =
   ZmRBTree<Role_,
     ZmRBTreeNode<Role_,
-      ZmRBTreeKey<RoleNameAxor(),
+      ZmRBTreeKey<Role_::NameAxor,
 	ZmRBTreeUnique<true>>>>;
 using Role = RoleTree::Node;
 ZmRef<Role> loadRole(const fbs::Role *role_) {
@@ -146,29 +145,24 @@ struct User__ : public ZuObject {
 	  return roles[k]->name;
 	}), flags);
   }
+
+  static auto IDAxor(const User__ &u) { return u.id; }
 };
 inline constexpr const char *UserIDHashID() { return "ZvUserDB.UserIDs"; }
-inline constexpr auto UserIDAxor() {
-  return [](const User__ &u) { return u.id; };
-}
 using UserIDHash =
   ZmHash<User__,
     ZmHashNode<User__,
-      ZmHashKey<UserIDAxor(),
+      ZmHashKey<User__::IDAxor,
 	ZmHashHeapID<ZmHeapDisable(),
 	  ZmHashID<UserIDHashID>>>>>;
 using User_ = UserIDHash::Node;
-inline constexpr auto UserNameHashID() {
-  return []{ return "ZvUserDB.UserNames"; };
-}
-inline constexpr auto UserNameAxor() {
-  return [](const User_ &u) { return u.name; };
-}
+inline constexpr const char *UserNameHashID() { return "ZvUserDB.UserNames"; }
+inline const ZtString &User_NameAxor(const User_ &u) { return u.name; }
 using UserNameHash =
   ZmHash<User_,
     ZmHashNode<User_,
-      ZmHashKey<UserNameAxor(),
-	ZmHashHeapID<UserNameHashID()>>>>;
+      ZmHashKey<User_NameAxor,
+	ZmHashHeapID<UserNameHashID>>>>;
 using User = UserNameHash::Node;
 template <typename Roles>
 ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {

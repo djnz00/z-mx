@@ -563,12 +563,14 @@ private:
   using ZmVHeap<HeapID>::valloc;
   using ZmVHeap<HeapID>::vfree;
 
+public: // useful if the caller is sure that the length is being reduced
   void length_(unsigned n) {
     null__(0);
     length__(n);
     data_()[n] = 0;
   }
 
+private:
   void null_() {
     m_data[0] = 0;
     size_owned_null(BuiltinSize, 1, 1);
@@ -647,8 +649,8 @@ public:
 
 // array / ptr operators
 
-  Char &operator [](int i) { return data_()[i]; }
-  Char operator [](int i) const { return data_()[i]; }
+  Char &operator [](unsigned i) { return data_()[i]; }
+  Char operator [](unsigned i) const { return data_()[i]; }
 
   operator Char *() { return null__() ? 0 : data_(); }
   operator const Char *() const { return null__() ? 0 : data_(); }

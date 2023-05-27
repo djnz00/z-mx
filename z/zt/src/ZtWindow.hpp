@@ -79,8 +79,8 @@ public:
       return *this;
     }
   };
-  ElemRO operator [](int i) const { return {this, i}; }
-  Elem operator [](int i) { return {this, i}; }
+  ElemRO operator [](unsigned i) const { return {this, i}; }
+  Elem operator [](unsigned i) { return {this, i}; }
 
   void set(unsigned i, T v) {
     if (i < m_offset) return;

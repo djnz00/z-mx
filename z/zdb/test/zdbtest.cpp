@@ -21,12 +21,14 @@
 #pragma warning(disable:4996)
 #endif
 
+using namespace zdbtest;
+
 namespace Side {
   ZfbEnumValues(Side, Buy, Sell);
 };
 
 struct Order {
-  Side			side;
+  int			side;
   ZuStringN<32>		symbol[32];
   int			price;
   int			quantity;

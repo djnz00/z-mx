@@ -11,7 +11,7 @@ int main(int argc, char **argv)
 
   ZmRef<ZvCf> cf = new ZvCf();
   try {
-    cf->fromFile(argv[1], false);
+    cf->fromFile(argv[1]);
   } catch (ZvError &e) {
     std::cerr << e << '\n';
     return 1;

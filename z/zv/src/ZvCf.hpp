@@ -168,22 +168,6 @@ private:
   ZtString	m_option;
 };
 
-// thrown by fromString() and fromFile() for an invalid key
-class Invalid : public ZvError {
-public:
-  Invalid(const Cf *cf, ZuString key, ZuString fileName) :
-      m_key(fullKey(cf, key)), m_fileName(fileName) { }
-  void print_(ZmStream &s) const {
-    if (m_fileName) s << '"' << m_fileName << "\": ";
-    s << "invalid key \"" << m_key << '"';
-  }
-  const ZtString &key() const { return m_key; }
-
-private:
-  ZtString	m_key;
-  ZtString	m_fileName;
-};
-
 // thrown by fromString() and fromFile() on error
 class Syntax : public ZvError {
 public:
@@ -341,9 +325,11 @@ inline uint64_t toFlags64(Args &&... args) {
 class Cf;
 
 struct CfNode {
+  using Values = ZuUnion<ZtArray<ZtString>, ZtArray<ZmRef<Cf>>>;
+
   Cf * const		owner = nullptr;
   const ZtString	key;
-  ZuUnion<ZtArray<ZtString>, ZtArray<ZmRef<Cf>>> values;
+  Values		values;
 
 friend Cf;
 
@@ -361,17 +347,11 @@ protected:
 public:
   static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
-  template <unsigned I, typename T>
-  void set(T v) {
+  template <unsigned I, typename P>
+  void set(P &&v, unsigned i = 0) {
+    using Elem = Values::Type<I>::T;
     auto &elems = values.p<I>();
-    if (!elems)
-      elems.push(ZuMv(v));
-    else if (elems.length() == 1)
-      elems[0] = ZuMv(v);
-    else {
-      elems.null();
-      elems.push(ZuMv(v));
-    }
+    new (elems.set(i)) Elem{ZuFwd<P>(v)};
   }
 
   template <bool Required_ = false>
@@ -566,76 +546,61 @@ public:
   int fromCLI(Cf *syntax, ZuString line);
   int fromArgs(Cf *options, const ZtArray<ZtString> &args);
   int fromArgs(const ZvOpt *opts, int argc, char **argv);
-  int fromCLI(const ZvOpt *opts, ZuString line); // deprecated
-  int fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args); // deprecated
+  int fromCLI(const ZvOpt *opts, ZuString line);
+  int fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args);
 
   using Defines_ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
   struct Defines : public ZuObject, public Defines_ { };
 
-  void fromString(
-      ZuString in, bool validate,
-      ZmRef<Defines> defines = new Defines{}) {
-    fromString(in, validate, {}, defines);
+  void fromString(ZuString in, ZmRef<Defines> defines = new Defines{}) {
+    fromString(in, {}, defines);
   }
 
-  template <typename FileName>
-  void fromFile(
-      const FileName &fileName, bool validate,
-      ZmRef<Defines> defines = new Defines{}) {
+  template <typename Path>
+  void fromFile(const Path &path, ZmRef<Defines> defines = new Defines{}) {
     ZtString in;
     {
       ZiFile file;
       ZeError e;
-      if (file.open(fileName, ZiFile::ReadOnly, 0, &e) < 0)
-	throw FileOpenError{fileName, e};
+      if (file.open(path, ZiFile::ReadOnly, 0, &e) < 0)
+	throw FileOpenError{path, e};
       int n = static_cast<int>(file.size());
-      if (n >= ZvCfMaxFileSize) throw File2Big{fileName};
+      if (n >= ZvCfMaxFileSize) throw File2Big{path};
       in.length(n);
       if (file.read(in.data(), n, &e) < 0) throw e;
       file.close();
     }
-    ZtString dir = ZiFile::dirname(fileName);
+    ZtString dir = ZiFile::dirname(path);
     if (!defines->find("TOPDIR")) defines->add("TOPDIR", dir);
     defines->del("CURDIR"); defines->add("CURDIR", ZuMv(dir));
-    fromString(in, validate, fileName, defines);
+    fromString(in, path, defines);
   }
 
-  void fromEnv(const char *name, bool validate);
+  void fromEnv(const char *name, ZmRef<Defines> defines = new Defines{});
 
   // caller must call freeArgs() after toArgs()
   void toArgs(int &argc, char **&argv) const;
   static void freeArgs(int argc, char **argv);
 
-  void print(ZmStream &s, ZtString prefix) const;
+  void print(ZmStream &s, ZtString &indent) const;
 
   template <typename S> void print(S &s_) const {
     ZmStream s{s_};
-    print(s, "");
+    ZtString indent;
+    print(s, indent);
   }
-  void print(ZmStream &s) const { print(s, ""); }
-
-  struct Prefixed {
-    const Cf		&cf;
-    mutable ZtString	prefix;
-
-    template <typename S> void print(S &s_) const {
-      ZmStream s{s_};
-      print(s);
-    }
-    void print(ZmStream &s) const { cf.print(s, ZuMv(prefix)); }
-    friend ZuPrintFn ZuPrintType(Prefixed *);
-  };
-  template <typename Prefix>
-  Prefixed prefixed(Prefix &&prefix) {
-    return Prefixed{*this, ZuFwd<Prefix>(prefix)};
+  void print(ZmStream &s) const {
+    ZtString indent;
+    print(s, indent);
   }
+  friend ZuPrintFn ZuPrintType(Cf *);
 
   // toFile() will throw ZeError on I/O error
-  template <typename FileName>
-  void toFile(const FileName &fileName) {
+  template <typename Path>
+  void toFile(const Path &path) {
     ZiFile file;
     ZeError e;
-    if (file.open(fileName, ZiFile::Create | ZiFile::Truncate, 0777, &e) < 0)
+    if (file.open(path, ZiFile::Create | ZiFile::Truncate, 0777, &e) < 0)
       throw e;
     toFile_(file);
   }
@@ -722,9 +687,6 @@ public:
 
   void set(ZuString key, ZtString value);
   ZtArray<ZtString> *setArray(ZuString key);
-  ZtArray<ZmRef<Cf>> *setCfArray(ZuString key);
-
-  void unset(ZuString key);
 
   template <bool Required_ = false>
   ZmRef<Cf> getCf(ZuString key) const {
@@ -735,7 +697,11 @@ public:
   }
   ZmRef<Cf> mkCf(ZuString key);
   void setCf(ZuString key, ZmRef<Cf> cf);
+  ZtArray<ZmRef<Cf>> *setCfArray(ZuString key);
 
+  void unset(ZuString key);
+
+  void clean();
   void merge(const Cf *cf);
 
   template <typename T, bool Required_ = false, typename Key>
@@ -861,20 +827,14 @@ public:
     while (auto node = i.iterate()) l(node);
   }
 
-  friend ZuPrintFn ZuPrintType(Cf *);
-
 private:
   Cf *getScope(ZuString fullKey, ZuString &key) const;
   Cf *mkScope(ZuString fullKey, ZuString &key);
 
   void fromArg(ZuString fullKey, int type, ZuString argVal);
-  void fromString(ZuString in, bool validate,
-      ZuString fileName, ZmRef<Defines> defines);
+  void fromString(ZuString in, ZuString path, ZmRef<Defines> defines);
 
   void toArgs(ZtArray<ZtString> &args, ZuString prefix = {}) const;
-
-  static ZtString quoteArgValue(ZuString value);
-  static ZtString quoteValue(ZuString value);
 
   Tree		m_tree;
   CfNode	*m_node;
@@ -895,7 +855,6 @@ using ZvCfRequired = ZvCf_::Required;
 template <typename T> using ZvCfRange = ZvCf_::Range<T>;
 using ZvCfNValues = ZvCf_::NValues;
 using ZvCfUsage = ZvCf_::Usage;
-using ZvCfInvalid = ZvCf_::Invalid;
 using ZvCfSyntax = ZvCf_::Syntax;
 using ZvCfFileOpenError = ZvCf_::FileOpenError;
 using ZvCfFile2Big = ZvCf_::File2Big;

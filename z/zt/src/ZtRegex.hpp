@@ -112,9 +112,9 @@ public:
   //   2 implies $`, $&, $1, $' captured (n == 4)
   // etc.
   /*
-     $& returns the entire matched string.
-     $` returns everything before the matched string.
-     $' returns everything after the matched string.
+     $& is the entire matched string.
+     $` is everything before the matched string.
+     $' is everything after the matched string.
   */
 
   unsigned m(ZuString s, unsigned offset = 0, int options = 0) const {

@@ -30,10 +30,10 @@ static const char *testdata =
 "  0 \"\" 1 Arg1\n"
 "key6 { a b c d\\} }\n"
 "\n"
-"key5 \\#\\ k51, \"k5\\\\2\", k\\ 53\\,,\n"
-"k54\\ , k55\n"
+"key5 [\\#\\ k51, \"k5\\\\2\", k\\ 53\\,,\n"
+"k54\\ , k55 ]\n"
 "\n"
-"%define FAT=artma\n"
+"%define FAT artma\n"
 "key7 { foo { bah 1 } } key8 C${FAT}n\n";
 
 namespace Values {
@@ -62,18 +62,18 @@ int main()
     {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromFile("in.cf", false);
+      cf->fromFile("in.cf");
       cf->toFile("out.cf");
     }
     ZtString out;
     {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromFile("out.cf", false);
+      cf->fromFile("out.cf");
       out << *cf;
       bool caught = false;
       try {
-	cf->fromFile("out_.cf", false);
+	cf->fromFile("out_.cf");
       } catch (const ZvError &) {
 	caught = true;
       } catch (const ZeError &) {
@@ -84,37 +84,24 @@ int main()
     {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromString(out, false);
-      cf->fromFile("in.cf", true);
+      cf->fromString(out);
+      cf->fromFile("in.cf");
       cf->toFile("out2.cf");
     }
     {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromFile("out2.cf", false);
+      cf->fromFile("out2.cf");
       ZtString out2;
       out2 << *cf;
       if (out != out2) ZeLOG(Error, "out.cf and out2.cf differ");
-    }
-    {
-      ZmRef<ZvCf> cf = new ZvCf();
-
-      cf->fromString(out, false);
-      bool caught = false;
-      try {
-	cf->fromString("fubar snafu", true);
-      } catch (const ZvCfError::Invalid &e) {
-	if (e.key() != "fubar") ZeLOG(Error, "Invalid key not passed");
-	caught = true;
-      }
-      if (!caught) ZeLOG(Error, "Invalid key not detected");
     }
     {
       int argc;
       char **argv;
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromFile("in.cf", false);
+      cf->fromFile("in.cf");
       cf->toArgs(argc, argv);
       for (int i = 0; i < argc; i++)
 	printf("%d: %s\n", i, argv[i]);
@@ -127,7 +114,7 @@ int main()
 	"-AB", "ok ", "ok2`\\",
 	"--key5=# k51,k5`\\2,k` 53`,,k54` ,k55",
 	"-C", "b",
-	"--key6:c=d}",
+	"--key6.c=d}",
 	"--key4",
 	"-D",
 	"Arg1",
@@ -140,9 +127,9 @@ int main()
 	{ "key3", "B", ZvOptScalar, 0 },
 	{ "key4", 0, ZvOptScalar, "# value4" },
 	{ "key5", 0, ZvOptMulti, 0 },
-	{ "key6:a", "C", ZvOptScalar, 0 },
-	{ "key6:c", 0, ZvOptScalar, 0 },
-	{ "key7:foo:bah", "D", ZvOptFlag, 0 },
+	{ "key6.a", "C", ZvOptScalar, 0 },
+	{ "key6.c", 0, ZvOptScalar, 0 },
+	{ "key7.foo.bah", "D", ZvOptFlag, 0 },
 	{ "key8", 0, ZvOptScalar, 0 },
 	{ 0 }
       };
@@ -166,7 +153,7 @@ int main()
 	  "-AB \"ok \" ok2`\\ "
 	  "--key5=\"# k51,k5`\\2,k 53`,,k54 ,k55\" "
 	  "-C b "
-	  "--key6:c=d} "
+	  "--key6.c=d} "
 	  "--key4 "
 	  "-D "
 	  "--key8=Cartman "
@@ -186,7 +173,7 @@ int main()
 	"key2=ok\\ :"
 	"key3=ok2\\\\:"
 	"key4=\"# value4\":"
-	"key5=\"# k51\",k5\\\\2,\"k 53,\",k54\\ ,k55:"
+	"key5=[\"# k51\",k5\\\\2,\"k 53,\",k54\\ ,k55]:"
 	"key6={a=b:c=d\\}}:"
 	"key7={foo={bah=1}}:"
 	"key8=Cartman";
@@ -199,7 +186,7 @@ int main()
 
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromEnv("CFTEST", false);
+      cf->fromEnv("CFTEST");
       cf->toFile("out5.cf");
       ZtString out5;
       out5 << *cf;
@@ -209,7 +196,7 @@ int main()
     try {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromString("i 101", false);
+      cf->fromString("i 101");
       if (cf->getInt("j", 42, 1, 100) != 42)
 	ZeLOG(Error, "getInt() default failed");
       try {
@@ -226,7 +213,7 @@ int main()
     try {
       ZmRef<ZvCf> cf = new ZvCf();
 
-      cf->fromString("i 100.01", false);
+      cf->fromString("i 100.01");
       if (cf->getDbl("j", .42, .1, 100) != .42)
 	ZeLOG(Error, "getDbl() default failed");
       try {
@@ -242,7 +229,7 @@ int main()
 
     try {
       ZmRef<ZvCf> cf = new ZvCf();
-      cf->fromString("i FooHigh", false);
+      cf->fromString("i FooHigh");
       if (cf->getEnum<Values::Map>("j", -1) >= 0)
 	ZeLOG(Error, "getEnum() default failed");
       cf->getEnum<Values::Map>("i", 0);
@@ -255,8 +242,8 @@ int main()
       ZmRef<ZvCf> cf1 = new ZvCf{}, cf2 = new ZvCf{},
 		  cf3 = new ZvCf{}, cf4 = new ZvCf{};
 
-      cf1->fromString("i foo l { m baz }", false);
-      cf2->fromString("j { k bar } n bah", false);
+      cf1->fromString("i foo l { m baz }");
+      cf2->fromString("j { k bar } n bah");
       cf3->merge(cf1);
       cf3->merge(cf2);
       cf4->merge(cf2);
@@ -272,7 +259,7 @@ int main()
 
     {
       ZmRef<ZvCf> cf = new ZvCf();
-      cf->fromString("=A value", false);
+      cf->fromString("\\=A value");
       std::cout << "OK: " << cf->get("=A", 1) << '\n';
     }
 

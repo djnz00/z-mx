@@ -337,8 +337,8 @@ protected:
 public:
 // array/ptr operators
 
-  const T &operator [](int i) const { return data()[i]; }
-  T &operator [](int i) { return data()[i]; }
+  const T &operator [](unsigned i) const { return data()[i]; }
+  T &operator [](unsigned i) { return data()[i]; }
 
 // accessors
 
