@@ -227,8 +227,8 @@ void usage()
     "  -s, --stride=N\t\t- increment RNs by N with each operation\n"
     "  -a, --append\t\t\t- append\n"
     "  -c, --chain=N\t\t\t- append chains of N records\n"
-    "  -f, --dbs:orders:path=PATH\t\t- file path\n"
-    "  -p, --dbs:orders:preAlloc=N\t- number of records to pre-allocate\n"
+    "  -f, --dbs.orders.path=PATH\t\t- file path\n"
+    "  -p, --dbs.orders.preAlloc=N\t- number of records to pre-allocate\n"
     "  -h, --hostID=N\t\t- host ID\n"
     "  -H, --hashOut=FILE\t\t- hash table CSV output file\n"
     "  -d\t\t\t\t- enable debug logging\n"
@@ -237,21 +237,21 @@ void usage()
     "  --heartbeatTimeout=N\t\t- heartbeat timeout in seconds\n"
     "  --reconnectFreq=N\t\t- reconnect frequency in seconds\n"
     "  --electionTimeout=N\t\t- election timeout in seconds\n"
-    "  --hosts:1:priority=N\t\t- host 0 priority\n"
-    "  --hosts:1:IP=N\t\t- host 0 IP\n"
-    "  --hosts:1:port=N\t\t- host 0 port\n"
-    "  --hosts:1:up=CMD\t\t- host 0 up command\n"
-    "  --hosts:1:down=CMD\t\t- host 0 down command\n"
-    "  --hosts:2:priority=N\t\t- host 1 priority\n"
-    "  --hosts:2:IP=N\t\t- host 1 IP\n"
-    "  --hosts:2:port=N\t\t- host 1 port\n"
-    "  --hosts:2:up=CMD\t\t- host 1 up command\n"
-    "  --hosts:2:down=CMD\t\t- host 1 down command\n"
-    "  --hosts:3:priority=N\t\t- host 2 priority\n"
-    "  --hosts:3:IP=N\t\t- host 2 IP\n"
-    "  --hosts:3:port=N\t\t- host 2 port\n"
-    "  --hosts:3:up=CMD\t\t- host 2 up command\n"
-    "  --hosts:3:down=CMD\t\t- host 2 down command\n";
+    "  --hosts.1.priority=N\t\t- host 0 priority\n"
+    "  --hosts.1.IP=N\t\t- host 0 IP\n"
+    "  --hosts.1.port=N\t\t- host 0 port\n"
+    "  --hosts.1.up=CMD\t\t- host 0 up command\n"
+    "  --hosts.1.down=CMD\t\t- host 0 down command\n"
+    "  --hosts.2.priority=N\t\t- host 1 priority\n"
+    "  --hosts.2.IP=N\t\t- host 1 IP\n"
+    "  --hosts.2.port=N\t\t- host 1 port\n"
+    "  --hosts.2.up=CMD\t\t- host 1 up command\n"
+    "  --hosts.2.down=CMD\t\t- host 1 down command\n"
+    "  --hosts.3.priority=N\t\t- host 2 priority\n"
+    "  --hosts.3.IP=N\t\t- host 2 IP\n"
+    "  --hosts.3.port=N\t\t- host 2 port\n"
+    "  --hosts.3.up=CMD\t\t- host 2 up command\n"
+    "  --hosts.3.down=CMD\t\t- host 2 down command\n";
 
   std::cerr << help << std::flush;
   Zm::exit(1);
@@ -265,26 +265,26 @@ int main(int argc, char **argv)
     { "stride", "s", ZvOptScalar, "1" },
     { "append", "a", ZvOptFlag },
     { "chain", "c", ZvOptScalar, "0" },
-    { "dbs:orders:path", "f", ZvOptScalar, "orders" },
-    { "dbs:orders:preAlloc", "p", ZvOptScalar, "1" },
+    { "dbs.orders.path", "f", ZvOptScalar, "orders" },
+    { "dbs.orders.preAlloc", "p", ZvOptScalar, "1" },
     { "hostID", "h", ZvOptScalar, "0" },
     { "hashOut", "H", ZvOptScalar },
     { "debug", "d", ZvOptFlag },
-    { "hosts:1:priority", 0, ZvOptScalar, "100" },
-    { "hosts:1:IP", 0, ZvOptScalar, "127.0.0.1" },
-    { "hosts:1:port", 0, ZvOptScalar, "9943" },
-    { "hosts:1:up", 0, ZvOptScalar },
-    { "hosts:1:down", 0, ZvOptScalar },
-    { "hosts:2:priority", 0, ZvOptScalar },
-    { "hosts:2:IP", 0, ZvOptScalar },
-    { "hosts:2:port", 0, ZvOptScalar },
-    { "hosts:2:up", 0, ZvOptScalar },
-    { "hosts:2:down", 0, ZvOptScalar },
-    { "hosts:3:priority", 0, ZvOptScalar },
-    { "hosts:3:IP", 0, ZvOptScalar },
-    { "hosts:3:port", 0, ZvOptScalar },
-    { "hosts:3:up", 0, ZvOptScalar },
-    { "hosts:3:down", 0, ZvOptScalar },
+    { "hosts.1.priority", 0, ZvOptScalar, "100" },
+    { "hosts.1.IP", 0, ZvOptScalar, "127.0.0.1" },
+    { "hosts.1.port", 0, ZvOptScalar, "9943" },
+    { "hosts.1.up", 0, ZvOptScalar },
+    { "hosts.1.down", 0, ZvOptScalar },
+    { "hosts.2.priority", 0, ZvOptScalar },
+    { "hosts.2.IP", 0, ZvOptScalar },
+    { "hosts.2.port", 0, ZvOptScalar },
+    { "hosts.2.up", 0, ZvOptScalar },
+    { "hosts.2.down", 0, ZvOptScalar },
+    { "hosts.3.priority", 0, ZvOptScalar },
+    { "hosts.3.IP", 0, ZvOptScalar },
+    { "hosts.3.port", 0, ZvOptScalar },
+    { "hosts.3.up", 0, ZvOptScalar },
+    { "hosts.3.down", 0, ZvOptScalar },
     { "nAccepts", 0, ZvOptScalar },
     { "heartbeatFreq", 0, ZvOptScalar },
     { "heartbeatTimeout", 0, ZvOptScalar },

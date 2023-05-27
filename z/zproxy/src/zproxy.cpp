@@ -1522,7 +1522,7 @@ int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
     { "verbose", "v", ZvOptFlag },
-    { "mx:nThreads", "t", ZvOptScalar },
+    { "mx.nThreads", "t", ZvOptScalar },
     { 0 }
   };
 

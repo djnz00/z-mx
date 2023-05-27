@@ -86,10 +86,10 @@ void usage()
     "    PORT\tlistener port\n\n"
     "Options:\n"
     "    --caPath=CAPATH\t\tset CA path (default: /etc/ssl/certs)\n"
-    "    --userDB:passLen=N\t\tset default password length (default: 12)\n"
-    "    --userDB:totpRange=N\tset TOTP accepted range (default: 6)\n"
-    "    --userDB:keyInterval=N\tset key refresh interval (default: 30)\n"
-    "    --userDB:maxAge=N\t\tset user DB file backups (default: 8)\n"
+    "    --userDB.passLen=N\t\tset default password length (default: 12)\n"
+    "    --userDB.totpRange=N\tset TOTP accepted range (default: 6)\n"
+    "    --userDB.keyInterval=N\tset key refresh interval (default: 30)\n"
+    "    --userDB.maxAge=N\t\tset user DB file backups (default: 8)\n"
     << std::flush;
   ::exit(1);
 }
@@ -98,10 +98,10 @@ int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
     { "caPath", "C", ZvOptScalar },
-    { "userDB:passLen", nullptr, ZvOptScalar },
-    { "userDB:totpRange", nullptr, ZvOptScalar },
-    { "userDB:keyInterval", nullptr, ZvOptScalar },
-    { "userDB:maxAge", nullptr, ZvOptScalar },
+    { "userDB.passLen", nullptr, ZvOptScalar },
+    { "userDB.totpRange", nullptr, ZvOptScalar },
+    { "userDB.keyInterval", nullptr, ZvOptScalar },
+    { "userDB.maxAge", nullptr, ZvOptScalar },
     { nullptr }
   };
 
