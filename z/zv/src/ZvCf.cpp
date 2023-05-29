@@ -869,6 +869,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	node = nullptr;
 	continue;
       }
+      goto syntax;
     }
   }
   return;
@@ -1063,6 +1064,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	node = nullptr;
 	continue;
       }
+      goto syntax;
     }
   }
   return;

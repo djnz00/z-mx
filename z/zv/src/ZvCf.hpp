@@ -267,7 +267,7 @@ template <> struct Scan_<ZuFixed, false> { using T = ZuFixed; };
 template <> struct Scan_<ZuDecimal, false> { using T = ZuDecimal; };
 template <typename T> using Scan = typename Scan_<T>::T;
 template <typename T, bool Required_ = false>
-inline T toScalar(
+inline T scanScalar(
     const Cf *cf, ZuString key, ZuString value,
     T minimum, T maximum, T deflt = ZuCmp<T>::null())
 {
@@ -281,20 +281,20 @@ inline T toScalar(
   return v;
 }
 template <bool Required_ = false, typename ...Args>
-inline auto toInt(Args &&... args) {
-  return toScalar<int, Required_>(ZuFwd<Args>(args)...);
+inline auto scanInt(Args &&... args) {
+  return scanScalar<int, Required_>(ZuFwd<Args>(args)...);
 }
 template <bool Required_ = false, typename ...Args>
-inline auto toInt64(Args &&... args) {
-  return toScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
+inline auto scanInt64(Args &&... args) {
+  return scanScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
 }
 template <bool Required_ = false, typename ...Args>
-inline auto toDbl(Args &&... args) {
-  return toScalar<double, Required_>(ZuFwd<Args>(args)...);
+inline auto scanDbl(Args &&... args) {
+  return scanScalar<double, Required_>(ZuFwd<Args>(args)...);
 }
 
 template <typename Map, bool Required_ = false>
-inline int toEnum(const Cf *cf, ZuString key, ZuString value, int deflt = -1)
+inline int scanEnum(const Cf *cf, ZuString key, ZuString value, int deflt = -1)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -304,7 +304,7 @@ inline int toEnum(const Cf *cf, ZuString key, ZuString value, int deflt = -1)
 }
 
 template <typename Map, typename T, bool Required_ = false>
-inline T toFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
+inline T scanFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -313,12 +313,12 @@ inline T toFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
   return ZvFlags<Map>::instance()->template scan<T>(key, value);
 }
 template <typename Map, bool Required_ = false, typename ...Args>
-inline auto toFlags(Args &&... args) {
-  return toFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
+inline auto scanFlags(Args &&... args) {
+  return scanFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
 }
 template <typename Map, bool Required_ = false, typename ...Args>
-inline auto toFlags64(Args &&... args) {
-  return toFlags_<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
+inline auto scanFlags64(Args &&... args) {
+  return scanFlags_<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
 }
 
 namespace Quoting { // quoting types
@@ -397,17 +397,17 @@ public:
 
   template <typename T, bool Required_ = false>
   T getScalar(T minimum, T maximum) const {
-    return toScalar<T, Required_>(
+    return scanScalar<T, Required_>(
 	owner, key, get<Required_>(),
 	minimum, maximum);
   }
   template <typename T>
   T getScalar(T minimum, T maximum, T deflt) const {
-    return toScalar<T>(owner, key, get(), minimum, maximum, deflt);
+    return scanScalar<T>(owner, key, get(), minimum, maximum, deflt);
   }
   template <typename T>
   T assureScalar(T minimum, T maximum, T deflt) {
-    return toScalar<T>(
+    return scanScalar<T>(
 	owner, key, assure(ZtString{} << deflt),
 	minimum, maximum, deflt);
   }
@@ -447,30 +447,30 @@ public:
 
   template <typename Map, bool Required_ = false>
   int getEnum() const {
-    return toEnum<Map, Required_>(owner, key, get<Required_>(), -1);
+    return scanEnum<Map, Required_>(owner, key, get<Required_>(), -1);
   }
   template <typename Map>
   int getEnum(int deflt) const {
-    return toEnum<Map>(owner, key, get(), deflt);
+    return scanEnum<Map>(owner, key, get(), deflt);
   }
   template <typename Map>
   int assureEnum(int deflt) {
-    return toEnum<Map>(owner, key, assure<String>(Map::v2s(deflt)), deflt);
+    return scanEnum<Map>(owner, key, assure<String>(Map::v2s(deflt)), deflt);
   }
 
   template <typename Map, typename T, bool Required_ = false>
   T getFlags_() const {
-    return toFlags_<Map, T, Required_>(
+    return scanFlags_<Map, T, Required_>(
 	owner, key, get<Required_>(), 0);
   }
   template <typename Map, typename T>
   T getFlags_(T deflt) const {
-    return toFlags_<Map, T>(owner, key, get(), deflt);
+    return scanFlags_<Map, T>(owner, key, get(), deflt);
   }
   template <typename Map, typename T>
   T assureFlags_(T deflt) {
     using Print = typename Map::Print;
-    return toFlags_<Map, T>(
+    return scanFlags_<Map, T>(
 	owner, key, get(ZtString{} << Print{deflt}), deflt);
   }
 
