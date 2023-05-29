@@ -329,7 +329,7 @@ namespace Quoting { // quoting types
       CLI	= 0x002,
       Raw	= 0x003,
 
-    Value	= 0x004
+    Key		= 0x004		// flag
   };
 }
 

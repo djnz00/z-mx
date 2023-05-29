@@ -258,9 +258,9 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
   if (!n) return {ZtString{}, 0U};
 
   const auto &fileSpace = ZtREGEX("\G\s+");
-  const auto &fileUnquoted = (Q & Quoting::Value) ?
-    ZtREGEX("\G[^\\\"\$\s{}\[\],]+") :
-    ZtREGEX("\G[^\\\"\$\s{}\[\]\.]+");
+  const auto &fileUnquoted = (Q & Quoting::Key) ?
+    ZtREGEX("\G[^\\\"\$\s{}\[\]\.]+") :
+    ZtREGEX("\G[^\\\"\$\s{}\[\],]+");
   const auto &fileQuoted = ZtREGEX("\G\\(.)");
   const auto &fileRefVar = ZtREGEX("\G\${(\w+)}");
   const auto &fileDblQuote = ZtREGEX("\G\"");
@@ -327,9 +327,9 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
   if (!n) return {ZtString{}, 0U};
 
-  const auto &envUnquoted = (Q & Quoting::Value) ?
-    ZtREGEX("\G[^\\\"\$;{}\[\],]+") :
-    ZtREGEX("\G[^\\\"\$:{}\[\]\.]+");
+  const auto &envUnquoted = (Q & Quoting::Key) ?
+    ZtREGEX("\G[^\\\"\$:{}\[\]\.]+") :
+    ZtREGEX("\G[^\\\"\$;{}\[\],]+");
   const auto &envQuoted = ZtREGEX("\G\\(.)");
   const auto &envRefVar = ZtREGEX("\G\${(\w+)}");
   const auto &envDblQuote = ZtREGEX("\G\"");
@@ -427,9 +427,9 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
   if (!n) return {ZtString{}, 0U};
 
-  const auto &argUnquoted = (Q & Quoting::Value) ?
-    ZtREGEX("\G[^`\$,]+") :
-    ZtREGEX("\G[^`\$\.\[\]]+");
+  const auto &argUnquoted = (Q & Quoting::Key) ?
+    ZtREGEX("\G[^`\$\.\[\]]+") :
+    ZtREGEX("\G[^`\$,]+");
   const auto &argQuoted = ZtREGEX("\G`(.)");
   const auto &argRefVar = ZtREGEX("\G\${(\w+)}");
 
@@ -521,7 +521,7 @@ null:
 
   unsigned off_ = off;
 
-  auto [key, o] = scanString<Q>(in, off, defines);
+  auto [key, o] = scanString<Q | Quoting::Key>(in, off, defines);
   if (!o) goto null;
   off += o;
 
@@ -642,7 +642,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
 	node->setElem_<StrArray>(index, value);
     } break;
     case ZvOptValue: {
-      auto [value, o] = scanString<Quoting::CLI | Quoting::Value>(in, 0);
+      auto [value, o] = scanString<Quoting::CLI>(in, 0);
       if (index < 0)
 	node->set_<String>(value);
       else
@@ -659,7 +659,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
       values.clear();
 
       if (off < n) do {
-	auto [value, o] = scanString<Quoting::CLI | Quoting::Value>(in, off);
+	auto [value, o] = scanString<Quoting::CLI>(in, off);
 	values.push(value);
 	off += o;
 	if (off >= n || !argComma.m(in, c, off)) break;
@@ -725,7 +725,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (fileDirective.m(in, c, off)) {
 	off += c[1].length();
 	if (c[2] == "%include") {
-	  auto [file, o] = scanString<Quoting::Value>(in, off, defines);
+	  auto [file, o] = scanString(in, off, defines);
 	  if (!file) goto syntax;
 	  off += o;
 	  ZmRef<Cf> incCf = new Cf{};
@@ -737,7 +737,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	  if (!fileDefine.m(in, c, off)) goto syntax;
 	  off += c[1].length();
 	  auto var = c[2];
-	  auto [value, o] = scanString<Quoting::Value>(in, off, defines);
+	  auto [value, o] = scanString(in, off, defines);
 	  if (!o) goto syntax;
 	  off += o;
 	  defines->del(var);
@@ -822,7 +822,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] = scanString<Quoting::Value>(in, off, defines);
+      auto [value, o] = scanString(in, off, defines);
       if (!o) goto syntax;
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>::I:
@@ -1017,8 +1017,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] =
-	scanString<Quoting::Env | Quoting::Value>(in, off, defines);
+      auto [value, o] = scanString<Quoting::Env>(in, off, defines);
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>::I:
 	  break;
