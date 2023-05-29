@@ -97,11 +97,11 @@ void usage()
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
-    { "caPath", "C", ZvOptScalar },
-    { "userDB.passLen", nullptr, ZvOptScalar },
-    { "userDB.totpRange", nullptr, ZvOptScalar },
-    { "userDB.keyInterval", nullptr, ZvOptScalar },
-    { "userDB.maxAge", nullptr, ZvOptScalar },
+    { "caPath", "C", ZvOptValue },
+    { "userDB.passLen", nullptr, ZvOptValue },
+    { "userDB.totpRange", nullptr, ZvOptValue },
+    { "userDB.keyInterval", nullptr, ZvOptValue },
+    { "userDB.maxAge", nullptr, ZvOptValue },
     { nullptr }
   };
 

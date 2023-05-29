@@ -29,7 +29,7 @@ namespace Side {
 
 struct Order {
   int			side;
-  ZuStringN<32>		symbol[32];
+  ZuStringN<32>		symbol;
   int			price;
   int			quantity;
 };
@@ -40,9 +40,7 @@ ZfbFields(Order, fbs::Order,
     (((price)), (Int), (Ctor(2))),
     (((quantity)), (Int), (Ctor(3))));
 
-using OrderDB = Zdb<Order>;
-
-ZmRef<OrderDB> orders;
+ZmRef<Zdb> orders;
 
 struct TestStep {
   unsigned	repeat;
@@ -50,8 +48,8 @@ struct TestStep {
   unsigned	append;
   bool		del;
 
-  RN size() const { return repeat * (push + append + del); }
-  RN run(RN rn) const;
+  ZdbRN size() const { return repeat * (push + append + del); }
+  ZdbRN run(ZdbRN rn) const;
 };
 
 ZtFields(TestStep,
@@ -69,12 +67,12 @@ struct TestSeq {
     });
   }
 
-  RN size() const {
-    RN n = 0;
+  ZdbRN size() const {
+    ZdbRN n = 0;
     steps.all([&n](const TestStep &step) { n += step.size(); });
     return n;
   }
-  RN run(RN rn) const {
+  ZdbRN run(ZdbRN rn) const {
     steps.all([&rn](const TestStep &step) { rn = step.run(rn); });
     return rn;
   }
@@ -89,12 +87,12 @@ struct TestPlan {
     });
   }
 
-  RN size() const {
-    RN n = 0;
+  ZdbRN size() const {
+    ZdbRN n = 0;
     sequences.all([&n](const TestSeq &seq) { n += seq.size(); });
     return n;
   }
-  RN run(RN rn) const {
+  ZdbRN run(ZdbRN rn) const {
     sequences.all([&rn](const TestSeq &seq) { rn = seq.run(rn); });
     return rn;
   }
@@ -137,80 +135,76 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void updateOrder(Order *order) {
-  order->m_side = Buy;
-  strncpy(order->m_symbol, "IBM", 32);
-  order->m_price = 100;
-  order->m_quantity = 100;
+void initOrder(Order *order) {
+  order->side = Buy;
+  order->symbol = "IBM";
+  order->price = 100;
+  order->quantity = 100;
 }
 
-void push() {
-  unsigned op = opCount++;
-  if (op >= nOps) return;
-  ZdbRN rn = initRN + skip + op * (stride + chain);
+void updateOrder(Order *order) {
+  ++order->price;
+}
+
+ZdbRN TestStep::run(ZdbRN rn)
+{
   using ObjRef = ZmRef<ZdbObject<Order>>;
   ObjRef object;
-  if (append) {
-    while (ZmBlock<bool>{}(
-	  [prevRN = initRN - nOps + op, &object](auto wake) mutable {
-      orders->invoke([prevRN, &object, wake = ZuMv(wake)]() mutable {
-	orders->update(prevRN, [&object, wake = ZuMv(wake)](ObjRef object_) {
-	  if (!object_) { wake(false); return; }
-	  object = ZuMv(object_);
-	  updateOrder(object->ptr());
-	  object->append();
-	  wake(true);
+  for (unsigned i = 0; i < repeat; i++) {
+    if (push) {
+      if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
+	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
+	  orders->push(rn,
+	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
+	    if (!object_) { wake(false); return; }
+	    object = ZuMv(object_);
+	    initOrder(object->ptr());
+	    object->put();
+	    wake(true);
+	  });
 	});
-      });
-    }));
-    if (!object) return;
-  } else {
-    if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
-      orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
-	orders->push(rn, [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
-	  if (!object_) { wake(false); return; }
-	  object = ZuMv(object_);
-	  updateOrder(object->ptr());
-	  object->put();
-	  wake(true);
+      }) return;
+      ++rn;
+    }
+    while (append) {
+      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
+	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
+	  orders->update(object, rn,
+	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
+	    if (!object_) { wake(false); return; }
+	    object = ZuMv(object_);
+	    updateOrder(object->ptr());
+	    object->append();
+	    wake(true);
+	  });
 	});
-      });
-    }) return;
-  }
-  if (chain) {
-    ++rn;
-    for (unsigned i = 0; i < chain; i++) {
-      object = orders->update(object, rn + i);
-      order = object->ptr();
-      ++order->m_price;
-      orders->putUpdate(object, false);
+      })) return;
+      ++rn;
+      --append;
+    }
+    if (del) {
+      if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
+	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
+	  orders->update(object, rn,
+	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
+	    if (!object_) { wake(false); return; }
+	    object = ZuMv(object_);
+	    object->del();
+	    wake(true);
+	  });
+	});
+      }) return;
+      ++rn;
     }
   }
-  appMx->add(ZmFn<>::Ptr<&push>::fn());
 }
 
-// FIXME
 void active(ZdbEnv *, ZdbHost *) {
   puts("ACTIVE");
-  if (del) {
-    for (unsigned i = 0; i < del; i++)
-      if (ZmRef<ZdbObject<Order> > object = orders->get_(i))
-	orders->del(object);
-  }
   initRN = orders->nextRN();
-  if (append) {
-    for (unsigned i = 0; i < nOps; i++) {
-      ZmRef<ZdbObject<Order> > object = orders->push(initRN++);
-      if (!object) break;
-      Order *order = object->ptr();
-      order->m_side = Buy;
-      strcpy(order->m_symbol, "IBM");
-      order->m_price = 100;
-      order->m_quantity = 100;
-      orders->put(object);
-    }
+  for (unsigned i = 0; i < nThreads; i++) {
+    appMx->add(ZmFn<>::Ptr<&push>::fn());
   }
-  for (unsigned i = 0; i < nThreads; i++) appMx->add(ZmFn<>::Ptr<&push>::fn());
 }
 
 void inactive(ZdbEnv *) {

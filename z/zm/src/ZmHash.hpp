@@ -166,7 +166,7 @@ private:
 // NTP (named template parameters):
 //
 // ZmHashKV<ZtString, ZtString,		// key, value pair of ZtStrings
-//   ZmHashKeyCmp<ZtICmp> >		// case-insensitive comparison
+//   ZmHashKeyCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmHash_Defaults {

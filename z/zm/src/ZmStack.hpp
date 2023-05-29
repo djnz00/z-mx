@@ -65,7 +65,7 @@ private:
 // uses NTP (named template parameters):
 //
 // ZmStack<ZtString>			// stack of ZtStrings
-//    ZmStackCmp<ZtICmp> >		// case-insensitive comparison
+//    ZmStackCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmStack_Defaults {

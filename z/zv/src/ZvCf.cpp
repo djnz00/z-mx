@@ -20,12 +20,12 @@
 // application configuration
 
 #include <zlib/ZuBox.hpp>
+#include <zlib/ZuICmp.hpp>
 
 #include <zlib/ZmAssert.hpp>
 
 #include <zlib/ZePlatform.hpp>
 
-#include <zlib/ZtICmp.hpp>
 #include <zlib/ZtRegex.hpp>
 
 #include <zlib/ZvCf.hpp>
@@ -219,17 +219,15 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
       if (!options || !(option = options->getCf(longOpt)))
 	throw Usage{args[0], longOpt};
       fromArg(longOpt,
-	  option->getEnum<ZvOptTypes::Map>("type", ZvOptScalar), c[3]);
+	  option->getEnum<ZvOptTypes::Map>("type", ZvOptValue), c[3]);
     } else {
-      fromArg(ZtString(ZuBox<int>{p++}), ZvOptScalar, args[i]);
+      fromArg(ZtString{ZuBox<int>{p++}}, ZvOptValue, args[i]);
     }
   }
   {
-    TreeNodeRef node = m_tree.find("#");
-    if (!node) m_tree.addNode(node = new TreeNode{this, "#"});
-    auto &values = node->values.p<0>();
-    values.null();
-    values.push(ZuBox<int>{p});
+    auto node = m_tree.find("#");
+    if (!node) m_tree.addNode(node = new Node{this, "#"});
+    node->set_<String>(ZuBox<int>{p});
   }
   return p;
 }
@@ -240,11 +238,9 @@ int Cf::fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args)
 
   for (int i = 0; opts[i].m_long; i++) {
     ZmRef<Cf> option = new Cf{};
-    static const char *types[] = { "flag", "scalar", "multi" };
-    if (opts[i].m_type < 0 ||
-	opts[i].m_type >= (int)(sizeof(types) / sizeof(types[0])))
-      throw Usage{args[0], opts[i].m_long};
-    option->set("type", types[opts[i].m_type]);
+    auto type = ZvOptTypes::Map::v2s(opts[i].m_type);
+    if (!type) throw Usage{args[0], opts[i].m_long};
+    option->set("type", type);
     if (opts[i].m_default) option->set("default", opts[i].m_default);
     options->setCf(opts[i].m_long, option);
     if (opts[i].m_short) options->set(opts[i].m_short, opts[i].m_long);
@@ -253,163 +249,62 @@ int Cf::fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args)
   return fromArgs(options, args);
 }
 
-static ZuString scope_(ZuString &key)
-{
-  if (!key) return key;
-  unsigned i = 0, n = key.length();
-  for (; i < n && key[i] != '.'; ++i);
-  ZuString s{key.data(), i};
-  key.offset(i + (i < n));
-  return s;
-}
-
-Cf *Cf::getScope(ZuString fullKey, ZuString &key) const
-{
-  const Cf *self = this;
-  ZuString scope = scope_(fullKey);
-  ZuString nscope;
-  if (scope)
-    while (nscope = scope_(fullKey)) {
-      TreeNodeRef node = self->m_tree.find(scope);
-      if (!node || node->values.type() != 1) return nullptr;
-      const auto &cfs = node->values.p<1>();
-      if (!cfs || !cfs[0]) return nullptr;
-      self = cfs[0];
-      scope = nscope;
-    }
-  key = scope;
-  return const_cast<ZvCf *>(self);
-}
-
-Cf *Cf::mkScope(ZuString fullKey, ZuString &key)
-{
-  Cf *self = this;
-  ZuString scope = scope_(fullKey);
-  ZuString nscope;
-  if (scope)
-    while (nscope = scope_(fullKey)) {
-      TreeNodeRef node = self->m_tree.find(scope);
-      if (!node) self->m_tree.addNode(node = new TreeNode{self, scope});
-      auto &values_ = node->values.p<1>();
-      if (!values_ || !values_[0])
-	node->set<1>(self = new Cf{node});
-      else
-	self = values_[0];
-      scope = nscope;
-    }
-  key = scope;
-  return self;
-}
-
-static bool flagValue(const ZtString &s)
-{
-  using Cmp = ZtICmp<ZtString>;
-  return s == "1" || Cmp::equals(s, "y") || Cmp::equals(s, "yes");
-}
-
-void Cf::fromArg(ZuString fullKey, int type, ZuString argVal)
-{
-  ZuString key;
-  auto self = mkScope(fullKey, key);
-  TreeNodeRef node = self->m_tree.find(key);
-  if (!node) self->m_tree.addNode(node = new TreeNode{self, key});
-  // std::cerr << "fromArg(key=" << key << ")\n" << std::flush;
-  auto &values = node->values.p<0>();
-  values.null();
-
-  if (type == ZvOptFlag) {
-    values.push(flagValue(argVal) ? "1" : "0");
-    return;
-  }
-
-  // type == ZvOptScalar || ZvOptMulti
-
-  const auto &argValue = ZtREGEX("\G[^`]+");
-  const auto &argValueMulti = ZtREGEX("\G[^`,]+");
-  const auto &argValueQuoted = ZtREGEX("\G`(.)");
-  const auto &argValueComma = ZtREGEX("\G,");
-
-  ZtRegex::Captures c;
-  unsigned off = 0;
-
-value:
-  ZtString value;
-  bool multi = false;
-
-append:
-  if (type == ZvOptScalar ?
-      argValue.m(argVal, c, off) :
-      argValueMulti.m(argVal, c, off)) {
-    off += c[1].length();
-    value += c[1];
-  }
-  if (argValueQuoted.m(argVal, c, off)) {
-    off += c[1].length();
-    value += c[2];
-    goto append;
-  }
-  if (type == ZvOptMulti && argValueComma.m(argVal, c, off)) {
-    off += c[1].length();
-    multi = true;
-  }
-
-  // std::cerr << "fromArg(key=" << key << "): " << value << '\n' << std::flush;
-  values.push(ZuMv(value));
-  if (multi) goto value;
-}
-
-static ZuPair<ZtString, unsigned>
-scanString(ZuString in, unsigned off, Cf::Defines *defines)
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZuPair<ZtString, unsigned>>
+scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
   if (!n) return {ZtString{}, 0U};
 
-  const auto &strSpace = ZtREGEX("\G\s+");
-  const auto &strValue = ZtREGEX("\G\w+");
-  const auto &strValueQuoted = ZtREGEX("\G\\(.)");
-  const auto &strRefVar = ZtREGEX("\G\${(\w+)}");
-  const auto &strDblQuote = ZtREGEX("\G\"");
-  const auto &strValueDblQuoted = ZtREGEX("\G[^\\\"]+");
+  const auto &fileSpace = ZtREGEX("\G\s+");
+  const auto &fileUnquoted = (Q & Quoting::Value) ?
+    ZtREGEX("\G[^\\\"\$\s{}\[\],]+") :
+    ZtREGEX("\G[^\\\"\$\s{}\[\]\.]+");
+  const auto &fileQuoted = ZtREGEX("\G\\(.)");
+  const auto &fileRefVar = ZtREGEX("\G\${(\w+)}");
+  const auto &fileDblQuote = ZtREGEX("\G\"");
+  const auto &fileDblUnquoted = ZtREGEX("\G[^\\\"]+");
 
   ZtString value;
   ZtRegex::Captures c;
   unsigned off_ = off;
 
   while (off < n) {
-    if (strValue.m(in, c, off)) {
+    if (fileUnquoted.m(in, c, off)) {
       off += c[1].length();
       value += c[1];
       continue;
     }
-    if (strValueQuoted.m(in, c, off)) {
+    if (fileQuoted.m(in, c, off)) {
       off += c[1].length();
       value += c[2];
       continue;
     }
-    if (strRefVar.m(in, c, off)) {
+    if (fileRefVar.m(in, c, off)) {
       off += c[1].length();
-      ZuString d = defines->findVal(c[2]);
+      ZuString d;
+      if (defines) d = defines->findVal(c[2]);
       if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
       if (d) value += d;
       continue;
     }
-    if (strDblQuote.m(in, c, off)) {
+    if (fileDblQuote.m(in, c, off)) {
       off += c[1].length();
       while (off < n) {
-	if (strValueDblQuoted.m(in, c, off)) {
+	if (fileDblUnquoted.m(in, c, off)) {
 	  off += c[1].length();
 	  value += c[1];
 	  continue;
 	}
-	if (strValueQuoted.m(in, c, off)) {
+	if (fileQuoted.m(in, c, off)) {
 	  off += c[1].length();
 	  value += c[2];
 	  continue;
 	}
-	++off; // elide strDblQuote.m() of closing "
+	++off; // elide fileDblQuote.m() of closing "
 #if 0
-	if (strDblQuote.m(in, c, off)) {
+	if (fileDblQuote.m(in, c, off)) {
 	  off += c[1].length();
 	  break;
 	}
@@ -420,22 +315,92 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines)
     }
     break;
   }
-  if (off > off_ && off < n && strSpace.m(in, c, off)) off += c[1].length();
+  if (off > off_ && off < n && fileSpace.m(in, c, off)) off += c[1].length();
   return {ZuMv(value), off - off_};
 }
 
-static ZtString quoteString(ZuString in)
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::Env, ZuPair<ZtString, unsigned>>
+scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+{
+  unsigned n = in.length();
+
+  if (!n) return {ZtString{}, 0U};
+
+  const auto &envUnquoted = (Q & Quoting::Value) ?
+    ZtREGEX("\G[^\\\"\$;{}\[\],]+") :
+    ZtREGEX("\G[^\\\"\$:{}\[\]\.]+");
+  const auto &envQuoted = ZtREGEX("\G\\(.)");
+  const auto &envRefVar = ZtREGEX("\G\${(\w+)}");
+  const auto &envDblQuote = ZtREGEX("\G\"");
+  const auto &envDblUnquoted = ZtREGEX("\G[^\\\"]+");
+
+  ZtString value;
+  ZtRegex::Captures c;
+  unsigned off_ = off;
+
+  while (off < n) {
+    if (envUnquoted.m(in, c, off)) {
+      off += c[1].length();
+      value += c[1];
+      continue;
+    }
+    if (envQuoted.m(in, c, off)) {
+      off += c[1].length();
+      value += c[2];
+      continue;
+    }
+    if (envRefVar.m(in, c, off)) {
+      off += c[1].length();
+      ZuString d;
+      if (defines) d = defines->findVal(c[2]);
+      if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
+      if (d) value += d;
+      continue;
+    }
+    if (envDblQuote.m(in, c, off)) {
+      off += c[1].length();
+      while (off < n) {
+	if (envDblUnquoted.m(in, c, off)) {
+	  off += c[1].length();
+	  value += c[1];
+	  continue;
+	}
+	if (envQuoted.m(in, c, off)) {
+	  off += c[1].length();
+	  value += c[2];
+	  continue;
+	}
+	++off; // elide envDblQuote.m() of closing "
+#if 0
+	if (envDblQuote.m(in, c, off)) {
+	  off += c[1].length();
+	  break;
+	}
+#endif
+	break;
+      }
+      continue;
+    }
+    break;
+  }
+  return {ZuMv(value), off - off_};
+}
+
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZtString>
+quoteString(ZuString in)
 {
   unsigned n = in.length();
 
   if (!n) return "\"\"";
 
-  const auto &quoteNonWord = ZtREGEX("\W");
-  const auto &quoteRegular = ZtREGEX("\G[^\\\"]+");
+  const auto &strQuoted = ZtREGEX("\W");
+  const auto &strUnquoted = ZtREGEX("\G[^\\\"]+");
 
   ZtRegex::Captures c;
 
-  if (!quoteNonWord.m(in, c, 0)) return in;
+  if (!strQuoted.m(in, c, 0)) return in;
 
   ZtString out{n + (n>>3) + 2}; // 1+1/8 size estimation
 
@@ -443,7 +408,7 @@ static ZtString quoteString(ZuString in)
 
   out << '"';
   while (off < n) {
-    if (quoteRegular.m(in, c, off)) {
+    if (strUnquoted.m(in, c, off)) {
       off += c[1].length();
       out << c[1];
       continue;
@@ -454,24 +419,68 @@ static ZtString quoteString(ZuString in)
   return out;
 }
 
-static ZtString quoteArg(ZuString in)
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZuPair<ZtString, unsigned>>
+scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
-  if (!n) return "\"\"";
+  if (!n) return {ZtString{}, 0U};
 
-  const auto &quoteSpecial = ZtREGEX("[`,]");
-  const auto &quoteRegular = ZtREGEX("\G[^`,]+");
+  const auto &argUnquoted = (Q & Quoting::Value) ?
+    ZtREGEX("\G[^`\$,]+") :
+    ZtREGEX("\G[^`\$\.\[\]]+");
+  const auto &argQuoted = ZtREGEX("\G`(.)");
+  const auto &argRefVar = ZtREGEX("\G\${(\w+)}");
+
+  ZtString value;
+  ZtRegex::Captures c;
+  unsigned off_ = off;
+
+  while (off < n) {
+    if (argUnquoted.m(in, c, off)) {
+      off += c[1].length();
+      value += c[1];
+      continue;
+    }
+    if (argQuoted.m(in, c, off)) {
+      off += c[1].length();
+      value += c[2];
+      continue;
+    }
+    if (argRefVar.m(in, c, off)) {
+      off += c[1].length();
+      ZuString d;
+      if (defines) d = defines->findVal(c[2]);
+      if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
+      if (d) value += d;
+      continue;
+    }
+    break;
+  }
+  return {ZuMv(value), off - off_};
+}
+
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZtString>
+quoteString(ZuString in)
+{
+  unsigned n = in.length();
+
+  if (!n) return {};
+
+  const auto &argQuoted = ZtREGEX("\G[`\$\.\[\],]");
+  const auto &argUnquoted = ZtREGEX("\G[^`\$\.\[\],]+");
 
   ZtRegex::Captures c;
 
-  if (!quoteSpecial.m(in, c, 0)) return in;
+  if (!argQuoted.m(in, c, 0)) return in;
 
   ZtString out{n + (n>>3)}; // 1+1/8 size estimation
   unsigned off = 0;
 
   while (off < n) {
-    if (quoteRegular.m(in, c, off)) {
+    if (argUnquoted.m(in, c, off)) {
       off += c[1].length();
       out << c[1];
       continue;
@@ -479,6 +488,185 @@ static ZtString quoteArg(ZuString in)
     out << '`' << in[off++];
   }
   return out;
+}
+
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZuPair<ZtString, unsigned>>
+scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+{
+  if (off >= in.length()) return {ZtString{}, 0U};
+  in.offset(off);
+  return {in, in.length()};
+}
+
+template <unsigned Q = Quoting::File>
+ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZtString>
+quoteString(ZuString in)
+{
+  return in;
+}
+
+static const auto &indexMatch() { return ZtREGEX("\G\[(\d+)\]$"); }
+
+template <unsigned Q = Quoting::File>
+ZuTuple<ZtString, int, unsigned>
+scanKey(ZuString in, unsigned off, int index, Cf::Defines *defines = nullptr)
+{
+  unsigned n = in.length();
+
+  if (off >= n) {
+null:
+    return {ZtString{}, 0, 0U};
+  }
+
+  unsigned off_ = off;
+
+  auto [key, o] = scanString<Q>(in, off, defines);
+  if (!o) goto null;
+  off += o;
+
+  if constexpr ((Q & Quoting::Mask) == Quoting::CLI) {
+    ZtRegex::Captures c;
+
+    if (indexMatch().m(in, c, off)) {
+      off += c[1].length();
+      index = ZuBox<unsigned>{c[2]};
+    }
+  }
+
+  return {ZuMv(key), index, off - off_};
+}
+
+static const auto &matchDot() { return ZtREGEX("\G\."); }
+
+template <unsigned Q>
+ZuTuple<Cf *, ZtString, int, unsigned>
+Cf::getScope_(ZuString in, Cf::Defines *defines) const
+{
+  unsigned n = in.length();
+
+  ZtRegex::Captures c;
+  unsigned off = 0;
+
+  auto self = const_cast<Cf *>(this);
+  ZtString key;
+  int index = -1;
+
+  while (off < n) {
+    auto [key_, index_, o] = scanKey<Q>(in, off, -1, defines);
+    off += o;
+    key = ZuMv(key_);
+    index = index_;
+    if (!matchDot().m(in, c, off)) break;
+    off += c[1].length();
+    auto node = self->m_tree.find(key);
+    if (!node) goto null;
+    if (index < 0) {
+      if (!node->CfNode::data.contains<CfRef>()) goto null;
+      self = node->get_<CfRef>();
+    } else {
+      if (!node->CfNode::data.contains<CfArray>()) goto null;
+      self = node->get_<CfArray>().get(index);
+    }
+    if (!self) goto null;
+  }
+
+  return {self, ZuMv(key), index, off};
+
+null:
+  return {nullptr, ZtString{}, 0, 0U};
+}
+  
+template <unsigned Q>
+ZuTuple<Cf *, ZtString, int, unsigned>
+Cf::mkScope_(ZuString in, Cf::Defines *defines)
+{
+  unsigned n = in.length();
+
+  ZtRegex::Captures c;
+  unsigned off = 0;
+
+  Cf *self = this;
+  ZtString key;
+  int index = -1;
+
+  while (off < n) {
+    auto [key_, index_, o] = scanKey<Q>(in, off, -1, defines);
+    off += o;
+    key = ZuMv(key_);
+    index = index_;
+    if (!matchDot().m(in, c, off)) break;
+    off += c[1].length();
+    auto node = self->m_tree.find(key);
+    if (!node) self->m_tree.addNode(node = new Cf::Node{self, key});
+    if (index < 0) {
+      self = node->get_<CfRef>();
+      if (!self) node->set_<CfRef>(self = new Cf{node});
+    } else {
+      self = node->getElem_<CfArray>(index);
+      if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+    }
+  }
+
+  return {self, ZuMv(key), index, off};
+}
+
+template <unsigned Q>
+ZuTuple<Cf *, CfNode *, int, unsigned>
+Cf::mkNode_(ZuString in)
+{
+  auto [self, key, index, o] = mkScope_<Q>(in);
+  auto node = self->m_tree.find(key);
+  if (!node) self->m_tree.addNode(node = new Node{self, key});
+  return {self, ZuMv(node), index, o};
+}
+
+bool flagValue(ZuString s)
+{
+  using Cmp = ZuICmp<ZuString>;
+  return s == "1" || Cmp::equals(s, "y") || Cmp::equals(s, "yes");
+}
+
+void Cf::fromArg(ZuString key, int type, ZuString in)
+{
+  const auto &argComma = ZtREGEX("\G,");
+
+  auto [self, node, index, o] = mkNode_<Quoting::CLI>(key);
+
+  switch (type) {
+    case ZvOptFlag: {
+      auto value = flagValue(in) ? "1" : "0";
+      if (index < 0)
+	node->set_<String>(value);
+      else
+	node->setElem_<StrArray>(index, value);
+    } break;
+    case ZvOptValue: {
+      auto [value, o] = scanString<Quoting::CLI | Quoting::Value>(in, 0);
+      if (index < 0)
+	node->set_<String>(value);
+      else
+	node->setElem_<StrArray>(index, value);
+    } break;
+    case ZvOptArray: {
+      
+      unsigned n = in.length();
+
+      ZtRegex::Captures c;
+      unsigned off = 0;
+
+      auto &values = node->data.v<StrArray>();
+      values.clear();
+
+      if (off < n) do {
+	auto [value, o] = scanString<Quoting::CLI | Quoting::Value>(in, off);
+	values.push(value);
+	off += o;
+	if (off >= n || !argComma.m(in, c, off)) break;
+	off += c[1].length();
+      } while (true);
+    } break;
+  }
 }
 
 void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
@@ -512,16 +700,16 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
     ArrayMask	= 0x000c,
     NoArray	= 0x0000,
     UnkArray	= 0x0004,
-    ValArray	= 0x0008,
-    CfArray	= 0x000c,
+    StrArray_	= 0x0008,
+    CfArray_	= 0x000c,
   };
 
   auto self = this;
   unsigned state = Key;
-  unsigned index = 0;
-  using State = ZuPair<unsigned, unsigned>; // state, index
+  int index = -1;
+  using State = ZuPair<unsigned, int>; // state, index
   ZtArray<State> stack;
-  TreeNodeRef node = nullptr;
+  Node *node = nullptr;
   ZtRegex::Captures c;
   unsigned off = 0;
   
@@ -537,7 +725,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (fileDirective.m(in, c, off)) {
 	off += c[1].length();
 	if (c[2] == "%include") {
-	  auto [file, o] = scanString(in, off, defines);
+	  auto [file, o] = scanString<Quoting::Value>(in, off, defines);
 	  if (!file) goto syntax;
 	  off += o;
 	  ZmRef<Cf> incCf = new Cf{};
@@ -549,7 +737,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	  if (!fileDefine.m(in, c, off)) goto syntax;
 	  off += c[1].length();
 	  auto var = c[2];
-	  auto [value, o] = scanString(in, off, defines);
+	  auto [value, o] = scanString<Quoting::Value>(in, off, defines);
 	  if (!o) goto syntax;
 	  off += o;
 	  defines->del(var);
@@ -563,15 +751,20 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	if (!stack) goto syntax;
 	off += c[1].length();
 	self = self->node()->owner;
-	{ auto p = stack.pop(); state = p.p<0>(); index = p.p<1>(); }
+	{
+	  auto [ state_, index_ ] = stack.pop();
+	  state = state_;
+	  index = index_;
+	}
 	continue;
       }
       // key
-      auto [key, o] = scanString(in, off, defines);
+      auto [key, index_, o] = scanKey(in, off, index, defines);
       if (!o) goto syntax;
+      index = index_;
       off += o;
       node = self->m_tree.find(key);
-      if (!node) self->m_tree.addNode(node = new TreeNode{self, key});
+      if (!node) self->m_tree.addNode(node = new Node{self, key});
       state = (state & ~KVMask) | Value;
       continue;
     }
@@ -581,28 +774,44 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	if ((state & ArrayMask) != NoArray) goto syntax;
 	off += c[1].length();
 	state = (state & ~ArrayMask) | UnkArray;
+	index = 0;
 	continue;
       }
       // begin scope
       if (fileBeginScope.m(in, c, off)) {
-	if (node->values.type() == 0 && node->values.p<0>()) goto syntax;
-	if ((state & ArrayMask) == ValArray) goto syntax;
+	switch (node->CfNode::data.type()) {
+	  case Data::Index<Null>::I:
+	    break;
+	  case Data::Index<String>::I:
+	  case Data::Index<StrArray>::I:
+	    goto syntax;
+	  case Data::Index<CfRef>::I:
+	    if (index >= 0) goto syntax;
+	    break;
+	  case Data::Index<CfArray>::I:
+	    if (index < 0) goto syntax;
+	    break;
+	}
+	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
-	if (node->values.p<1>().length() <= index)
-	  node->set<1>(self = new Cf{node}, index);
-	else
-	  self = node->values.p<1>()[index];
+	if (index < 0) {
+	  self = node->get_<CfRef>();
+	  if (!self) node->set_<CfRef>(self = new Cf{node});
+	} else {
+	  self = node->getElem_<CfArray>(index);
+	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
 	  node = nullptr;
 	} else {
 	  if ((state & ArrayMask) == UnkArray)
-	    state = (state & ~ArrayMask) | CfArray;
+	    state = (state & ~ArrayMask) | CfArray_;
 	  state = (state & ~KVMask) | Next;
 	}
 	stack.push(State{state, index});
 	state = Key;
-	index = 0;
+	index = -1;
 	node = nullptr;
 	continue;
       }
@@ -613,18 +822,33 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] = scanString(in, off, defines);
+      auto [value, o] = scanString<Quoting::Value>(in, off, defines);
       if (!o) goto syntax;
-      if (node->values.type() == 1 && node->values.p<1>()) goto syntax;
-      if ((state & ArrayMask) == CfArray) goto syntax;
+      switch (node->CfNode::data.type()) {
+	case Data::Index<Null>::I:
+	  break;
+	case Data::Index<String>::I:
+	  if (index >= 0) goto syntax;
+	  break;
+	case Data::Index<StrArray>::I:
+	  if (index < 0) goto syntax;
+	  break;
+	case Data::Index<CfRef>::I:
+	case Data::Index<CfArray>::I:
+	  goto syntax;
+      }
+      if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
-      node->set<0>(ZuMv(value), index);
+      if (index < 0)
+	node->set_<String>(ZuMv(value));
+      else
+	node->setElem_<StrArray>(index, ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
       } else {
 	if ((state & ArrayMask) == UnkArray)
-	  state = (state & ~ArrayMask) | ValArray;
+	  state = (state & ~ArrayMask) | StrArray_;
 	state = (state & ~KVMask) | Next;
       }
       continue;
@@ -641,7 +865,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (fileEndArray.m(in, c, off)) {
 	off += c[1].length();
 	state = (state & ~(ArrayMask | KVMask)) | Key;
-	index = 0;
+	index = -1;
 	node = nullptr;
 	continue;
       }
@@ -674,8 +898,8 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 
   if (!n) return;
 
-  const auto &envEquals = ZtREGEX("\G=");
   const auto &envColon = ZtREGEX("\G:");
+  const auto &envSemiColon = ZtREGEX("\G;");
 
   const auto &envBeginScope = ZtREGEX("\G\{");
   const auto &envEndScope = ZtREGEX("\G\}");
@@ -693,18 +917,18 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
     ArrayMask	= 0x000c,
     NoArray	= 0x0000,
     UnkArray	= 0x0004,
-    ValArray	= 0x0008,
-    CfArray	= 0x000c,
+    StrArray_	= 0x0008,
+    CfArray_	= 0x000c,
 
     First	= 0x0010
   };
 
   auto self = this;
   unsigned state = First | Key;
-  unsigned index = 0;
-  using State = ZuPair<unsigned, unsigned>; // state, index
+  int index = -1;
+  using State = ZuPair<unsigned, int>; // state, index
   ZtArray<State> stack;
-  TreeNodeRef node = nullptr;
+  Node *node = nullptr;
   ZtRegex::Captures c;
   unsigned off = 0;
   
@@ -715,22 +939,27 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	if (!stack) goto syntax;
 	off += c[1].length();
 	self = self->node()->owner;
-	{ auto p = stack.pop(); state = p.p<0>(); index = p.p<1>(); }
+	{
+	  auto [ state_, index_ ] = stack.pop();
+	  state = state_;
+	  index = index_;
+	}
 	continue;
       }
       // key
       if (!(state & First)) {
-	if (!envColon.m(in, c, off)) goto syntax;
+	if (!envSemiColon.m(in, c, off)) goto syntax;
 	off += c[1].length();
       } else
 	state &= ~First;
-      auto [key, o] = scanString(in, off, defines);
+      auto [key, index_, o] = scanKey<Quoting::Env>(in, off, index, defines);
       if (!o) goto syntax;
+      index = index_;
       off += o;
-      if (!envEquals.m(in, c, off)) goto syntax;
+      if (!envColon.m(in, c, off)) goto syntax;
       off += c[1].length();
       node = self->m_tree.find(key);
-      if (!node) self->m_tree.addNode(node = new TreeNode{self, key});
+      if (!node) self->m_tree.addNode(node = new Node{self, key});
       state = (state & ~KVMask) | Value;
       continue;
     }
@@ -740,28 +969,44 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	if ((state & ArrayMask) != NoArray) goto syntax;
 	off += c[1].length();
 	state = (state & ~ArrayMask) | UnkArray;
+	index = 0;
 	continue;
       }
       // begin scope
       if (envBeginScope.m(in, c, off)) {
-	if (node->values.type() == 0 && node->values.p<0>()) goto syntax;
-	if ((state & ArrayMask) == ValArray) goto syntax;
+	switch (node->CfNode::data.type()) {
+	  case Data::Index<Null>::I:
+	    break;
+	  case Data::Index<String>::I:
+	  case Data::Index<StrArray>::I:
+	    goto syntax;
+	  case Data::Index<CfRef>::I:
+	    if (index >= 0) goto syntax;
+	    break;
+	  case Data::Index<CfArray>::I:
+	    if (index < 0) goto syntax;
+	    break;
+	}
+	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
-	if (node->values.p<1>().length() <= index)
-	  node->set<1>(self = new Cf{node}, index);
-	else
-	  self = node->values.p<1>()[index];
+	if (index < 0) {
+	  self = node->get_<CfRef>();
+	  if (!self) node->set_<CfRef>(self = new Cf{node});
+	} else {
+	  self = node->getElem_<CfArray>(index);
+	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
 	  node = nullptr;
 	} else {
 	  if ((state & ArrayMask) == UnkArray)
-	    state = (state & ~ArrayMask) | CfArray;
+	    state = (state & ~ArrayMask) | CfArray_;
 	  state = (state & ~KVMask) | Next;
 	}
 	stack.push(State{state, index});
 	state = First | Key;
-	index = 0;
+	index = -1;
 	node = nullptr;
 	continue;
       }
@@ -772,17 +1017,33 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] = scanString(in, off, defines);
-      if (node->values.type() == 1 && node->values.p<1>()) goto syntax;
-      if ((state & ArrayMask) == CfArray) goto syntax;
+      auto [value, o] =
+	scanString<Quoting::Env | Quoting::Value>(in, off, defines);
+      switch (node->CfNode::data.type()) {
+	case Data::Index<Null>::I:
+	  break;
+	case Data::Index<String>::I:
+	  if (index >= 0) goto syntax;
+	  break;
+	case Data::Index<StrArray>::I:
+	  if (index < 0) goto syntax;
+	  break;
+	case Data::Index<CfRef>::I:
+	case Data::Index<CfArray>::I:
+	  goto syntax;
+      }
+      if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
-      node->set<0>(ZuMv(value), index);
+      if (index < 0)
+	node->set_<String>(ZuMv(value));
+      else
+	node->setElem_<StrArray>(index, ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
       } else {
 	if ((state & ArrayMask) == UnkArray)
-	  state = (state & ~ArrayMask) | ValArray;
+	  state = (state & ~ArrayMask) | StrArray_;
 	state = (state & ~KVMask) | Next;
       }
       continue;
@@ -799,7 +1060,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       if (envEndArray.m(in, c, off)) {
 	off += c[1].length();
 	state = (state & ~(ArrayMask | KVMask)) | Key;
-	index = 0;
+	index = -1;
 	node = nullptr;
 	continue;
       }
@@ -836,67 +1097,82 @@ void Cf::freeArgs(int argc, char **argv)
 void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
 {
   auto i = m_tree.readIterator();
-  while (auto node = i.iterate()) {
-    if (node->values.type() == 0) {
-      const auto &values = node->values.p<0>();
-      int n = values.length();
-      if (n) {
+  while (auto node = i.iterate())
+    switch (node->CfNode::data.type()) {
+      case Data::Index<Null>::I:
+	break;
+      case Data::Index<String>::I:
+      case Data::Index<StrArray>::I: {
 	ZtString arg;
 	if (!ZtREGEX("^\d+$").m(node->CfNode::key))
 	  arg << "--" << prefix << node->CfNode::key << '=';
-	for (int i = 0; i < n; i++) {
-	  arg << quoteArg(values[i]);
-	  if (i < n - 1) arg << ',';
-	}
+	if (node->CfNode::data.contains<String>())
+	  arg << quoteString<Quoting::CLI>(node->get_<String>());
+	else
+	  node->CfNode::data.v<StrArray>().all(
+	      [&arg, first = true](const String &value) mutable {
+	    if (ZuUnlikely(first)) first = false; else arg << ',';
+	    arg << quoteString<Quoting::CLI>(value);
+	  });
 	args.push(ZuMv(arg));
-      }
-    } else {
-      if (const auto &values = node->values.p<1>())
-	if (auto cf = values[0])
+      } break;
+      case Data::Index<CfRef>::I:
+	if (Cf *cf = node->get_<CfRef>())
 	  cf->toArgs(args, ZtString{} << prefix << node->CfNode::key << '.');
+	break;
+      case Data::Index<CfArray>::I: {
+	auto prefix_ = ZtString{} << prefix << node->CfNode::key << '.';
+	node->CfNode::data.v<CfArray>().all(
+	    [&args, prefix_ = ZuMv(prefix_)](Cf *cf) {
+	  cf->toArgs(args, prefix_);
+	});
+      } break;
     }
-  }
 }
 
 void Cf::print(ZmStream &s, ZtString &indent) const
 {
   auto i = m_tree.readIterator();
   while (auto node = i.iterate()) {
-    if (node->values.type() == 0) {
-      const auto &values = node->values.p<0>();
-      if (unsigned n = values.length()) {
-	s << indent << node->CfNode::key << ' ';
-	if (n > 1) s << "[ ";
-	for (unsigned j = 0; j < n; j++) {
-	  s << quoteString(values[j]);
-	  if (j < n - 1) s << ", ";
+    s << indent << quoteString(node->CfNode::key) << ' ';
+    switch (node->CfNode::data.type()) {
+      case Data::Index<Null>::I:
+	break;
+      case Data::Index<String>::I:
+      case Data::Index<StrArray>::I: {
+	if (node->CfNode::data.contains<String>())
+	  s << quoteString(node->get_<String>());
+	else {
+	  s << '[';
+	  node->CfNode::data.v<StrArray>().all(
+	      [&s, first = true](const String &value) mutable {
+	    if (ZuUnlikely(first)) first = false; else s << ", ";
+	    s << quoteString(value);
+	  });
+	  s << ']';
 	}
-	if (n > 1)
-	  s << " ]\n";
+	s << '\n';
+      } break;
+      case Data::Index<CfRef>::I:
+      case Data::Index<CfArray>::I: {
+	auto output = [&indent](Cf *cf, ZmStream &s) mutable {
+	  if (!cf || !cf->count()) { s << "{}"; return; }
+	  s << "{\n";
+	  indent.append("  ", 2);
+	  cf->print(s, indent);
+	  indent.length_(indent.length() - 2);
+	  s << indent << '}';
+	};
+	if (node->CfNode::data.contains<CfRef>())
+	  output(node->get_<CfRef>(), s);
 	else
-	  s << "\n";
-      }
-    } else {
-      const auto &values = node->values.p<1>();
-      if (unsigned n = values.length()) {
-	s << indent << node->CfNode::key << ' ';
-	if (n > 1) s << "[ ";
-	for (unsigned j = 0; j < n; j++) {
-	  if (auto cf = values[j]) {
-	    s << "{\n";
-	    indent.append("  ", 2);
-	    cf->print(s, indent);
-	    indent.length_(indent.length() - 2);
-	    s << indent << "}";
-	  } else
-	    s << "{}";
-	  if (j < n - 1) s << ", ";
-	}
-	if (n > 1)
-	  s << " ]\n";
-	else
-	  s << "\n";
-      }
+	  node->CfNode::data.v<CfArray>().all(
+	      [&s, output = ZuMv(output), first = true](Cf *cf) mutable {
+	    if (ZuUnlikely(first)) first = false; else s << ",\n";
+	    output(cf, s);
+	  });
+	s << '\n';
+      } break;
     }
   }
 }
@@ -909,54 +1185,52 @@ void Cf::toFile_(ZiFile &file)
   if (file.write(out.data(), out.length(), &e) != Zi::OK) throw e;
 }
 
-Cf::TreeNodeRef Cf::mkNode(ZuString fullKey)
+ZuPair<Cf *, ZtString> Cf::getScope(ZuString fullKey) const
 {
-  ZuString key;
-  auto self = mkScope(fullKey, key);
-  TreeNodeRef node = self->m_tree.find(key);
-  if (!node) self->m_tree.addNode(node = new TreeNode{self, key});
+  auto [self, key, index, o] = getScope_<Quoting::Raw>(fullKey);
+  return {self, key};
+}
+
+CfNode *Cf::mkNode(ZuString fullKey)
+{
+  auto [self, node, index, o] = mkNode_<Quoting::Raw>(fullKey);
   return node;
 }
 
 void Cf::set(ZuString key, ZtString value)
 {
-  auto node = mkNode(key);
-  node->set<0>(ZuMv(value));
-}
-
-ZtArray<ZtString> *Cf::setArray(ZuString key)
-{
-  auto node = mkNode(key);
-  auto &values = node->values.p<0>();
-  return &values;
+  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
+  if (index < 0)
+    node->set_<String>(ZuMv(value));
+  else
+    node->setElem_<StrArray>(index, ZuMv(value));
 }
 
 ZmRef<Cf> Cf::mkCf(ZuString key)
 {
-  TreeNodeRef node = mkNode(key);
+  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
   ZmRef<Cf> cf = new Cf{node};
-  node->set<1>(cf);
+  if (index < 0)
+    node->set_<CfRef>(cf);
+  else
+    node->setElem_<CfArray>(index, cf);
   return cf;
 }
 
 void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 {
-  TreeNodeRef node = mkNode(key);
-  node->set<1>(ZuMv(cf));
-}
-
-ZtArray<ZmRef<Cf>> *Cf::setCfArray(ZuString key)
-{
-  auto node = mkNode(key);
-  auto &values = node->values.p<1>();
-  return &values;
+  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
+  cf->m_node = node;
+  if (index < 0)
+    node->set_<CfRef>(ZuMv(cf));
+  else
+    node->setElem_<CfArray>(index, ZuMv(cf));
 }
 
 void Cf::unset(ZuString fullKey)
 {
-  ZuString key;
-  auto self = mkScope(fullKey, key);
-  self->m_tree.del(key);
+  auto [self, key, index, o] = getScope_<Quoting::Raw>(fullKey);
+  if (self) self->m_tree.del(key);
 }
 
 void Cf::clean()
@@ -967,26 +1241,35 @@ void Cf::clean()
 void Cf::merge(const Cf *cf)
 {
   auto i = cf->m_tree.readIterator();
-  while (TreeNodeRef srcNode = i.iterate()) {
-    TreeNodeRef dstNode = m_tree.find(srcNode->CfNode::key);
+  while (auto srcNode = i.iterate()) {
+    auto dstNode = m_tree.find(srcNode->CfNode::key);
     if (!dstNode)
-      m_tree.addNode(dstNode = new TreeNode{this, srcNode->CfNode::key});
-    if (srcNode->values.type() == 0) {
-      auto &srcValues = srcNode->values.p<0>();
-      auto &dstValues = dstNode->values.p<0>();
-      dstValues += srcValues;
-    } else if (srcNode->values.type() == 1) {
-      auto &srcCfs = srcNode->values.p<1>();
-      auto &dstCfs = dstNode->values.p<1>();
-      unsigned n = srcCfs.length();
-      dstCfs.ensure(n);
-      if (dstCfs.length() < n) dstCfs.length(n);
-      for (unsigned i = 0; i < n; i++) {
-	auto &srcCf = srcCfs[i];
-	auto &dstCf = dstCfs[i];
-	if (!dstCf) dstCf = new Cf{dstNode};
-	dstCf->merge(srcCf);	// recursive
-      }
+      m_tree.addNode(dstNode = new Node{this, srcNode->CfNode::key});
+    switch (srcNode->CfNode::data.type()) {
+      case Data::Index<Null>::I:
+	break;
+      case Data::Index<String>::I:
+	dstNode->set_<String>(srcNode->get_<String>());
+	break;
+      case Data::Index<StrArray>::I:
+	dstNode->set_<StrArray>(srcNode->get_<StrArray>());
+	break;
+      case Data::Index<CfRef>::I: {
+	if (auto srcCf = srcNode->get_<CfRef>()) {
+	  auto dstCf = dstNode->get_<CfRef>();
+	  if (!dstCf) dstNode->set_<CfRef>(dstCf = new Cf{dstNode});
+	  dstCf->merge(srcCf);
+	}
+      } break;
+      case Data::Index<CfArray>::I: {
+	for (unsigned i = 0, n = srcNode->get_<CfArray>().length();
+	    i < n; i++)
+	  if (auto srcCf = srcNode->getElem_<CfArray>(i)) {
+	    auto dstCf = dstNode->getElem_<CfArray>(i);
+	    if (!dstCf) dstNode->set_<CfArray>(dstCf = new Cf{dstNode});
+	    dstCf->merge(srcCf);
+	  }
+      } break;
     }
   }
 }

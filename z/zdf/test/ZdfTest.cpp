@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     cf->fromString(
 	"dir .\n"
 	"coldDir .\n"
-	"writeThread 1\n", false);
+	"writeThread 1\n");
     fileMgr.init(&sched, cf);
   }
   DataFrame df{ZtVFields<Frame>(), "frame"};

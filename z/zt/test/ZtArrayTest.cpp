@@ -144,5 +144,15 @@ int main()
     CHECK(ptr == a.data());
   }
 
+  {
+    ZtArray<ZtString> a = { "foo", "bar", "baz", "bah" };
+    ZtString out;
+    a.all([&out, first = true](const ZtString &s) mutable {
+      if (first) first = false; else out << '.';
+      out << s;
+    });
+    CHECK(out == "foo.bar.baz.bah");
+  }
+
   return 0;
 }

@@ -45,7 +45,7 @@
 // uses NTP (named template parameters):
 //
 // ZmRBTreeKV<ZtString, ZtString,	// key, value pair of ZtStrings
-//     ZmRBTreeValCmp<ZtICmp> >		// case-insensitive comparison
+//     ZmRBTreeValCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmRBTree_Defaults {

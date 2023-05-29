@@ -66,7 +66,7 @@ private:
 // uses NTP (named template parameters):
 //
 // ZmXRing<ZtString,			// ring of ZtStrings
-//   ZmXRingCmp<ZtICmp> >		// case-insensitive comparison
+//   ZmXRingCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZmXRing_Defaults {

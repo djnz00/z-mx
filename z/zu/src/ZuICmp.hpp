@@ -18,29 +18,25 @@
  */
 
 // case-insensitive matching
-//
-// works for ZtString, ZtArray<char>
 
-#ifndef ZtICmp_HPP
-#define ZtICmp_HPP
+#ifndef ZuICmp_HPP
+#define ZuICmp_HPP
 
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#ifndef ZtLib_HPP
-#include <zlib/ZtLib.hpp>
+#ifndef ZuLib_HPP
+#include <zlib/ZuLib.hpp>
 #endif
 
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuString.hpp>
-
-#include <zlib/ZtPlatform.hpp>
-#include <zlib/ZtString.hpp>
+#include <zlib/ZuStringFn.hpp>
 
 template <typename T>
-struct ZtICmp {
+struct ZuICmp : public ZuCmp<T> {
 public:
   static int cmp(ZuString s1, ZuString s2) {
     int l1 = s1.length(), l2 = s2.length();
@@ -63,8 +59,6 @@ public:
     if (l1 != l2) return false;
     return !Zu::stricmp_(s1.data(), s2.data(), l1);
   }
-  static bool null(const T &s) { return ZuCmp<T>::null(s); }
-  static const T &null() { return ZuCmp<T>::null(); }
 };
 
-#endif /* ZtICmp_HPP */
+#endif /* ZuICmp_HPP */

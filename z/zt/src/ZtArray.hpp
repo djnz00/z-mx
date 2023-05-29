@@ -69,7 +69,7 @@
 // uses NTP (named template parameters):
 //
 // ZtArray<ZtString,			// array of ZtStrings
-//   ZtArrayCmp<ZtICmp> >		// case-insensitive comparison
+//   ZtArrayCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
 struct ZtArray_Defaults {

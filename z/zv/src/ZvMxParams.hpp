@@ -79,7 +79,7 @@ struct ZvCxnOptions : public ZiCxnOptions {
       if (ZuString s = cf->get("multicastInterface")) mif(s);
       ttl(cf->getInt("multicastTTL", ttl(), 0, INT_MAX));
       if (ZmRef<ZvCf> groups = cf->getCf("multicastGroups")) {
-	groups->all([this](ZvCfNode *node) {
+	groups->all([this](const ZvCfNode *node) {
 	  ZiIP addr{node->key}, mif{node->get<true>()};
 	  if (!addr || !addr.multicast())
 	    throw ZvInvalidMulticastIP{node->key};

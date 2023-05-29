@@ -122,15 +122,15 @@ int main()
 	0
       };
       static ZvOpt opts[] = {
-	{ "key1", 0, ZvOptScalar, 0 },
-	{ "key2", "A", ZvOptScalar, 0 },
-	{ "key3", "B", ZvOptScalar, 0 },
-	{ "key4", 0, ZvOptScalar, "# value4" },
-	{ "key5", 0, ZvOptMulti, 0 },
-	{ "key6.a", "C", ZvOptScalar, 0 },
-	{ "key6.c", 0, ZvOptScalar, 0 },
+	{ "key1", 0, ZvOptValue, 0 },
+	{ "key2", "A", ZvOptValue, 0 },
+	{ "key3", "B", ZvOptValue, 0 },
+	{ "key4", 0, ZvOptValue, "# value4" },
+	{ "key5", 0, ZvOptArray, 0 },
+	{ "key6.a", "C", ZvOptValue, 0 },
+	{ "key6.c", 0, ZvOptValue, 0 },
 	{ "key7.foo.bah", "D", ZvOptFlag, 0 },
-	{ "key8", 0, ZvOptScalar, 0 },
+	{ "key8", 0, ZvOptValue, 0 },
 	{ 0 }
       };
 
@@ -167,16 +167,16 @@ int main()
     }
     {
       static const char *env = "CFTEST="
-	"0=:"
-	"1=Arg1:"
-	"key1=\"ok \\\"this is val1\\\\\":"
-	"key2=ok\\ :"
-	"key3=ok2\\\\:"
-	"key4=\"# value4\":"
-	"key5=[\"# k51\",k5\\\\2,\"k 53,\",k54\\ ,k55]:"
-	"key6={a=b:c=d\\}}:"
-	"key7={foo={bah=1}}:"
-	"key8=Cartman";
+	"0:;"
+	"1:Arg1;"
+	"key1:\"ok \\\"this is val1\\\\\";"
+	"key2:ok\\ ;"
+	"key3:ok2\\\\;"
+	"key4:\"# value4\";"
+	"key5:[\"# k51\",k5\\\\2,\"k 53,\",k54\\ ,k55];"
+	"key6:{a:b;c:d\\}};"
+	"key7:{foo:{bah:1}};"
+	"key8:Cartman";
 
 #ifdef _WIN32
       _putenv(env);
@@ -197,14 +197,15 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 101");
-      if (cf->getInt("j", 42, 1, 100) != 42)
+      if (cf->getInt("j", 1, 100, 42) != 42)
 	ZeLOG(Error, "getInt() default failed");
       try {
-	cf->getInt("j", true, 1, 100);
+	cf->getInt<true>("j", 1, 100);
+	ZeLOG(Error, "getInt() required failed");
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getInt("i", 42, 1, 100);
+      cf->getInt("i", 1, 100, 42);
       ZeLOG(Error, "getInt() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
@@ -214,14 +215,15 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01");
-      if (cf->getDbl("j", .42, .1, 100) != .42)
+      if (cf->getDbl("j", .1, 100, .42) != .42)
 	ZeLOG(Error, "getDbl() default failed");
       try {
-	cf->getDbl("j", true, .1, 100);
+	cf->getDbl<true>("j", .1, 100);
+	ZeLOG(Error, "getDbl() required failed");
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getDbl("i", .42, .1, 100);
+      cf->getDbl("i", .1, 100, .42);
       ZeLOG(Error, "getDbl() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
@@ -230,7 +232,7 @@ int main()
     try {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("i FooHigh");
-      if (cf->getEnum<Values::Map>("j", -1) >= 0)
+      if (cf->getEnum<Values::Map>("j") >= 0)
 	ZeLOG(Error, "getEnum() default failed");
       cf->getEnum<Values::Map>("i", 0);
       ZeLOG(Error, "getEnum() invalid failed");
@@ -260,7 +262,7 @@ int main()
     {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("\\=A value");
-      std::cout << "OK: " << cf->get("=A", 1) << '\n';
+      std::cout << "OK: \"\\=A\"=" << cf->get("=A", 1) << '\n';
     }
 
   } catch (const ZvError &e) {

@@ -47,7 +47,7 @@
 //
 // ZmList<ZtString,				// list of ZtStrings
 //   ZmListLock<ZmRWLock,			// lock with R/W lock
-//     ZmListCmp<ZtICmp> > >			// case-insensitive comparison
+//     ZmListCmp<ZuICmp> > >			// case-insensitive comparison
 
 // NTP defaults
 struct ZmList_Defaults {
