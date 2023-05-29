@@ -282,7 +282,7 @@ inline T scanScalar(
     throw Range<T>{cf, key, minimum, maximum, v};
   return v;
 }
-// shorthand forwarding functions
+// scanScalar() shorthand forwarding functions
 template <bool Required_ = false, typename ...Args>
 inline auto scanInt(Args &&... args) {
   return scanScalar<int, Required_>(ZuFwd<Args>(args)...);
@@ -378,7 +378,7 @@ public:
   // generic set()
   template <typename T, typename P>
   void set_(P &&v) { data.v<T>(ZuFwd<P>(v)); }
-  // shorthand forwarding functions for ZtString and ZmRef<Cf>
+  // set() shorthand forwarding functions for ZtString and ZmRef<Cf>
   template <typename P> void set(P &&v) { set_<ZtString>(ZuFwd<P>(v)); }
   template <typename P> void setCf(P &&v) { set_<ZmRef<Cf>>(ZuFwd<P>(v)); }
 
@@ -401,13 +401,13 @@ public:
     return data.v<T>();
   }
 
-  // shorthand forwarding functions for ZtString
+  // get/assure shorthand forwarding functions for ZtString
   template <bool Required_ = false>
   const ZtString &get() const { return get_<ZtString, Required_>(); }
   ZtString get(ZtString deflt) const { return get_<ZtString>(ZuMv(deflt)); }
   template <typename L>
   const ZtString &assure(L l) { return assure_<ZtString>(ZuMv(l)); }
-  // shorthand forwarding functions for ZmRef<Cf>
+  // get/assure shorthand forwarding functions for ZmRef<Cf>
   template <bool Required_ = false>
   const ZmRef<Cf> &getCf() const { return get_<ZmRef<Cf>, Required_>(); }
   template <typename L>
@@ -432,7 +432,7 @@ public:
 	minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for int
+  // getScalar/assureScalar shorthand forwarding functions for int
   template <bool Required_ = false>
   int getInt(int minimum, int maximum) const {
     return getScalar<int, Required_>(minimum, maximum);
@@ -444,7 +444,7 @@ public:
     return assureScalar<int>(minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for int64_t
+  // getScalar/assureScalar shorthand forwarding functions for int64_t
   template <bool Required_ = false>
   int64_t getInt64(int64_t minimum, int64_t maximum) const {
     return getScalar<int64_t, Required_>(minimum, maximum);
@@ -456,7 +456,7 @@ public:
     return assureScalar<int64_t>(minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for double
+  // getScalar/assureScalar shorthand forwarding functions for double
   template <bool Required_ = false>
   double getDbl(double minimum, double maximum) const {
     return getScalar<double, Required_>(minimum, maximum);
@@ -534,14 +534,14 @@ public:
       throw NElems{owner, key, minimum, maximum, n};
     elems.all(ZuMv(l));
   }
-  // shorthand forwarding functions for iterating over ZtString array
+  // all() shorthand forwarding functions for ZtString array
   template <typename L>
   void all(L l) const { all_<StrArray>(ZuMv(l)); }
   template <typename T, typename L>
   void all(unsigned minimum, unsigned maximum, L l) const {
     all_<StrArray>(minimum, maximum, ZuMv(l));
   }
-  // shorthand forwarding functions for iterating over ZmRef<Cf> array
+  // all() shorthand forwarding functions for ZmRef<Cf> array
   template <typename L>
   void allCf(L l) const { all_<CfArray>(ZuMv(l)); }
   template <typename T, typename L>
@@ -579,7 +579,7 @@ public:
     return data.v<T>().get(i);
   }
 
-  // shorthand forwarding set/get/assure array element for ZtString
+  // set/get/assure shorthand forwarding functions for ZtString array
   template <typename P>
   void setElem(unsigned i, P &&v) {
     return setElem_<StrArray>(i, ZuFwd<P>(v));
@@ -596,7 +596,7 @@ public:
     return assureElem_<StrArray>(i, l());
   }
 
-  // shorthand forwarding set/get array element for ZmRef<Cf>
+  // set/get/assure shorthand forwarding functions for ZmRef<Cf> array
   template <typename P>
   void setElemCf(unsigned i, P &&v) {
     return setElem_<CfArray>(i, ZuFwd<P>(v));
@@ -955,7 +955,7 @@ public:
     return mkNode(key)->template assureScalar<T>(minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for int
+  // get/assure shorthand forwarding functions for int
   template <bool Required_ = false>
   int getInt(ZuString key, int minimum, int maximum) const {
     return getScalar<int, Required_>(key, minimum, maximum);
@@ -967,7 +967,7 @@ public:
     return assureScalar<int>(key, minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for int64_t
+  // get/assure shorthand forwarding functions for int64_t
   template <bool Required_ = false>
   int64_t getInt64(ZuString key, int64_t minimum, int64_t maximum) const {
     return getScalar<int64_t, Required_>(key, minimum, maximum);
@@ -981,7 +981,7 @@ public:
     return assureScalar<int64_t>(key, minimum, maximum, deflt);
   }
 
-  // shorthand forwarding functions for double
+  // get/assure shorthand forwarding functions for double
   template <bool Required_ = false>
   double getDbl(ZuString key, double minimum, double maximum) const {
     return getScalar<double, Required_>(key, minimum, maximum);
@@ -1033,7 +1033,7 @@ public:
     return mkNode(key)->template assureFlags_<Map, T>(deflt);
   }
 
-  // shorthand forwarding get/assure for uint32_t flags
+  // get/assure shorthand forwarding functions for uint32_t flags
   template <typename Map, bool Required_ = false>
   uint32_t getFlags(ZuString key) const {
     return getFlags_<Map, uint32_t, Required_>(key);
@@ -1047,7 +1047,7 @@ public:
     return assureFlags_<Map, uint32_t>(key, deflt);
   }
 
-  // shorthand forwarding get/assure for uint64_t flags
+  // get/assure shorthand forwarding functions for uint64_t flags
   template <typename Map, bool Required_ = false>
   uint64_t getFlags64(ZuString key) const {
     return getFlags_<Map, uint64_t, Required_>(key);
