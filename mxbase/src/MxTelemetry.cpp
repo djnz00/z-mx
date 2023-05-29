@@ -29,7 +29,7 @@ void Client::init(MxMultiplex *mx, const ZvCf *cf)
 
   if (ZuString ip = cf->get("interface")) m_interface = ip;
   m_ip = cf->get("ip", "127.0.0.1");
-  m_port = cf->getInt("port", 19300, 1, (1<<16) - 1);
+  m_port = cf->getInt("port", 1, (1<<16) - 1, 19300);
 }
 
 void Client::final()
@@ -98,10 +98,10 @@ void Server::init(MxMultiplex *mx, const ZvCf *cf)
 
   if (ZuString ip = cf->get("interface")) m_interface = ip;
   m_ip = cf->get("ip", "127.0.0.1");
-  m_port = cf->getInt("port", 19300, 1, (1<<16) - 1);
-  m_ttl = cf->getInt("ttl", 1, 0, INT_MAX);
-  m_loopBack = cf->getInt("loopBack", 0, 0, 1);
-  m_freq = cf->getInt("freq", 1000000, 0, 60000000); // microsecs
+  m_port = cf->getInt("port", 1, (1<<16) - 1, 19300);
+  m_ttl = cf->getInt("ttl", 0, INT_MAX, 1);
+  m_loopBack = cf->getInt("loopBack", 0, 1, 0);
+  m_freq = cf->getInt("freq", 0, 60000000, 1000000); // microsecs
 
   m_addr = ZiSockAddr(m_ip, m_port);
 }

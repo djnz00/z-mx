@@ -1020,9 +1020,9 @@ struct DBCf {
     fileThread = cf->get("fileThread");
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
-    vacuumBatch = cf->getInt("vacuumBatch", 0, 1, 100000);
-    warmUp = cf->getInt("warmUp", 0, 0, 1);
-    repMode = cf->getInt("repMode", 0, 0, 1);
+    vacuumBatch = cf->getInt("vacuumBatch", 0, 100000, 1);
+    warmUp = cf->getInt("warmUp", 0, 1, 0);
+    repMode = cf->getInt("repMode", 0, 1, 0);
   }
 
   static ZuID IDAxor(const DBCf &cf) { return cf.id; }
@@ -1368,9 +1368,9 @@ struct HostCf {
 
   HostCf(const ZtString &key, const ZvCf *cf) {
     id = cf->get("id", true);
-    priority = cf->getInt("priority", true, 0, 1<<30);
+    priority = cf->getInt<true>("priority", 0, 1<<30);
     ip = cf->get("ip", true);
-    port = cf->getInt("port", true, 1, (1<<16) - 1);
+    port = cf->getInt<true>("port", 1, (1<<16) - 1);
     up = cf->get("up");
     down = cf->get("down");
   }
@@ -1533,14 +1533,14 @@ struct EnvCf {
 	hostCfs.addNode(new HostCfs::Node{node->key, ZuMv(hostCf)});
     });
     hostID = cf->get<true>("hostID");
-    nAccepts = cf->getInt("nAccepts", 8, 1, 1<<10);
-    heartbeatFreq = cf->getInt("heartbeatFreq", 1, 1, 3600);
-    heartbeatTimeout = cf->getInt("heartbeatTimeout", 4, 1, 14400);
-    reconnectFreq = cf->getInt("reconnectFreq", 1, 1, 3600);
-    electionTimeout = cf->getInt("electionTimeout", 8, 1, 3600);
-    vacuumBatch = cf->getInt("vacuumBatch", 1000, 1, 1<<20);
+    nAccepts = cf->getInt("nAccepts", 1, 1<<10, 8);
+    heartbeatFreq = cf->getInt("heartbeatFreq", 1, 3600, 1);
+    heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, 4);
+    reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, 1);
+    electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
+    vacuumBatch = cf->getInt("vacuumBatch", 1, 1<<20, 1000);
 #ifdef ZdbRep_DEBUG
-    debug = cf->getInt("debug", 0, 0, 1);
+    debug = cf->getInt("debug", 0, 1, 0);
 #endif
   }
   EnvCf(EnvCf &&) = default;

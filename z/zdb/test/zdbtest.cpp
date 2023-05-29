@@ -306,13 +306,13 @@ int main(int argc, char **argv)
 
     if (cf->fromArgs(opts, argc, argv) != 3) usage();
 
-    del = cf->getInt("del", 0, 1, INT_MAX);
-    skip = cf->getInt("skip", 0, 0, INT_MAX);
-    stride = cf->getInt("stride", 1, 1, INT_MAX);
-    append = cf->getInt("append", 0, 0, 1);
-    chain = cf->getInt("chain", 0, 0, INT_MAX);
-    nThreads = cf->getInt("1", true, 1, 1<<10);
-    nOps = cf->getInt("2", true, 0, 1<<20);
+    del = cf->getInt("del", 1, INT_MAX, 0);
+    skip = cf->getInt("skip", 0, INT_MAX, 0);
+    stride = cf->getInt("stride", 1, INT_MAX, 1);
+    append = cf->getInt("append", 0, 1, 0);
+    chain = cf->getInt("chain", 0, INT_MAX, 0);
+    nThreads = cf->getInt<true>("1", 1, 1<<10);
+    nOps = cf->getInt<true>("2", 0, 1<<20);
     hashOut = cf->get("hashOut");
 
   } catch (const ZvError &e) {
@@ -347,7 +347,7 @@ int main(int argc, char **argv)
 	      .thread(3, [](auto &t) { t.isolated(1); }); })
 	    .rxThread(1).txThread(2)
 #ifdef ZiMultiplex_DEBUG
-	    .debug(cf->getInt("debug", 0, 0, 1))
+	    .debug(cf->getInt("debug", 0, 1, 0))
 #endif
 	    );
     }

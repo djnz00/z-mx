@@ -976,8 +976,8 @@ public:
     unsigned gtkTID;
     {
       unsigned nThreads = mx->params().nThreads();
-      m_tid = cf->getInt("thread", true, 1, nThreads);
-      gtkTID = cf->getInt("gtkThread", true, 1, nThreads);
+      m_tid = cf->getInt<true>("thread", 1, nThreads);
+      gtkTID = cf->getInt<true>("gtkThread", 1, nThreads);
     }
 
     // both server and client are initialized with the same mx, cf

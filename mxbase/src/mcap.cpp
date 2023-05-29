@@ -289,9 +289,9 @@ error:
 App::App(const ZvCf *cf) :
   m_path(cf->get("path", true)),
   m_groups(cf->get("groups", true)),
-  m_raw(cf->getInt("raw", 0, 0, 1)),
+  m_raw(cf->getInt("raw", 0, 1, 0)),
   m_interface(cf->get("interface", "0.0.0.0")),
-  m_reconnectFreq(cf->getInt("reconnect", 0, 0, 3600))
+  m_reconnectFreq(cf->getInt("reconnect", 0, 3600, 0))
 {
   m_mx = new Mx(cf->getCf("mx"));
   m_mx2 = new Mx(cf->getCf("mx2"));

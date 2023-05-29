@@ -45,13 +45,13 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
       " Snapshot: " << ZuBoxed(m_snapThread);
 
   if (ZuString ip = cf->get("interface")) m_interface = ip;
-  m_maxQueueSize = cf->getInt("maxQueueSize", 100000, 1000, 1000000);
-  m_loginTimeout = cf->getDbl("loginTimeout", 3, 0, 3600);
-  m_ackInterval = cf->getDbl("ackInterval", 10, 0, 3600);
-  m_reReqMaxGap = cf->getInt("reReqMaxGap", 10, 0, 1000000);
-  m_ttl = cf->getInt("ttl", 1, 0, INT_MAX);
-  m_nAccepts = cf->getInt("nAccepts", 8, 1, INT_MAX);
-  m_loopBack = cf->getInt("loopBack", 0, 0, 1);
+  m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, 100000);
+  m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, 3);
+  m_ackInterval = cf->getDbl("ackInterval", 0, 3600, 10);
+  m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, 10);
+  m_ttl = cf->getInt("ttl", 0, INT_MAX, 1);
+  m_nAccepts = cf->getInt("nAccepts", 1, INT_MAX, 8);
+  m_loopBack = cf->getInt("loopBack", 0, 1, 0);
 
   if (ZuString channels = cf->get("channels"))
     updateLinks(channels);

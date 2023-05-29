@@ -208,11 +208,11 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
   }
 
   try {
-    ZeLog::level(cf->getInt("log:level", Ze::Info, 0, Ze::Fatal));
+    ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, Ze::Info));
     if (ZuString logFile = cf->get("log:file")) {
       ZeLog::sink(ZeLog::fileSink(logFile,
-	    cf->getInt("log:age", 8, 0, 1000),
-	    cf->getInt("log:tzOffset", 0, INT_MIN, INT_MAX)));
+	    cf->getInt("log:age", 0, 1000, 8),
+	    cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0)));
     }
   } catch (...) { }
   ZeLog::start();
@@ -325,7 +325,7 @@ void MxMDCore::init_(const ZvCf *cf)
       ZtString e;
       ZiModule module;
       ZiModule::Path name = feedCf->get("module", true);
-      int preload = feedCf->getInt("preload", 0, 0, 1);
+      int preload = feedCf->getInt("preload", 0, 1, 0);
       if (preload) preload = ZiModule::Pre;
       if (module.load(name, preload, &e) < 0)
 	throw ZtString{} << "failed to load \"" << name << "\": " << ZuMv(e);

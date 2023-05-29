@@ -635,7 +635,7 @@ private:
     {
       using namespace Zfb::Save;
       fbs::UserIDBuilder fbb_(m_fbb);
-      if (argc == 2) fbb_.add_id(ctx->args->getInt64("1", 0, LLONG_MAX, true));
+      if (argc == 2) fbb_.add_id(ctx->args->getInt64<true>("1", 0, LLONG_MAX));
       auto userID = fbb_.Finish();
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_UserGet, userID.Union()));
@@ -672,7 +672,7 @@ private:
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_UserAdd,
 	    fbs::CreateUser(m_fbb,
-	      ctx->args->getInt64("1", 0, LLONG_MAX, true),
+	      ctx->args->getInt64<true>("1", 0, LLONG_MAX),
 	      str(m_fbb, ctx->args->get("2")), 0, 0,
 	      strVecIter(m_fbb, roles.length(),
 		[&roles](unsigned i) { return roles[i]; }),
@@ -708,7 +708,7 @@ private:
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_ResetPass,
 	    fbs::CreateUserID(m_fbb,
-	      ctx->args->getInt64("1", 0, LLONG_MAX, true)).Union()));
+	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
     }
     m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -745,7 +745,7 @@ private:
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_UserMod,
 	    fbs::CreateUser(m_fbb,
-	      ctx->args->getInt64("1", 0, LLONG_MAX, true),
+	      ctx->args->getInt64<true>("1", 0, LLONG_MAX),
 	      str(m_fbb, ctx->args->get("2")), 0, 0,
 	      strVecIter(m_fbb, roles.length(),
 		[&roles](unsigned i) { return roles[i]; }),
@@ -779,7 +779,7 @@ private:
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_UserDel,
 	    fbs::CreateUserID(m_fbb,
-	      ctx->args->getInt64("1", 0, LLONG_MAX, true)).Union()));
+	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
     }
     m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -962,7 +962,7 @@ private:
     {
       using namespace Zfb::Save;
       fbs::PermIDBuilder fbb_(m_fbb);
-      if (argc == 2) fbb_.add_id(ctx->args->getInt("1", 0, Bitmap::Bits, true));
+      if (argc == 2) fbb_.add_id(ctx->args->getInt<true>("1", 0, Bitmap::Bits));
       auto permID = fbb_.Finish();
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_PermGet, permID.Union()));
@@ -1023,7 +1023,7 @@ private:
     using namespace ZvUserDB;
     {
       using namespace Zfb::Save;
-      auto permID = ctx->args->getInt("1", 0, Bitmap::Bits, true);
+      auto permID = ctx->args->getInt<true>("1", 0, Bitmap::Bits);
       auto permName = ctx->args->get("2");
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_PermMod,
@@ -1056,7 +1056,7 @@ private:
     using namespace ZvUserDB;
     {
       using namespace Zfb::Save;
-      auto permID = ctx->args->getInt("1", 0, Bitmap::Bits, true);
+      auto permID = ctx->args->getInt<true>("1", 0, Bitmap::Bits);
       m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
 	    fbs::ReqData_PermDel,
 	    fbs::CreatePermID(m_fbb, permID).Union()));
@@ -1239,7 +1239,7 @@ private:
   void telcapCmd(ZvCmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     using namespace ZvTelemetry;
-    unsigned interval = ctx->args->getInt("interval", 100, 1000000, 0);
+    unsigned interval = ctx->args->getInt("interval", 0, 1000000, 100);
     bool subscribe = !ctx->args->getInt("unsubscribe", 0, 1, 0);
     if (!subscribe) {
       for (unsigned i = 0; i < TelDataN; i++) m_telcap[i] = TelCap{};
