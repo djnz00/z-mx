@@ -133,8 +133,9 @@ using ZtEnum = ZuBox_1(int8_t);
       if (!v) return 0; \
       bool first = true; \
       unsigned n = 0; \
-      for (unsigned i = 0; i < N; i++) { \
-	if (v & (static_cast<Flags_>(1U)<<i)) { \
+      Flags_ mask = 1; \
+      for (unsigned i = 0; i < N; i++, (mask <<= 1)) { \
+	if (v & mask) { \
 	  if (ZuString s_ = this->v2s(i)) { \
 	    if (!first) s << delim; \
 	    s << s_; \
@@ -153,6 +154,7 @@ using ZtEnum = ZuBox_1(int8_t);
       unsigned len = 0, clen = 0; \
       const char *cstr = s.data(), *next; \
       char c = 0; \
+      Flags_ mask = 1; \
       do { \
 	for (next = cstr; \
 	    ++len <= s.length() && (c = *next) != 0 && c != delim; \
@@ -160,7 +162,7 @@ using ZtEnum = ZuBox_1(int8_t);
 	if (len > s.length() || c == 0) end = true; \
 	ZtEnum i = this->s2v(ZuString(cstr, clen)); \
 	if (ZuUnlikely(!*i)) return 0; \
-	v |= (((Flags_)1U)<<(unsigned)i); \
+	v |= (mask<<static_cast<unsigned>(i)); \
 	cstr = ++next; \
 	clen = 0; \
       } while (!end); \

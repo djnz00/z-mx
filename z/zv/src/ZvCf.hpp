@@ -89,7 +89,7 @@ namespace ZvCfError {
 
 using Cf = ZvCf_::Cf;
 
-// thrown by all get methods for missing values when required is true
+// thrown by all get methods for missing required values
 class Required : public ZvError {
 public:
   Required(const Cf *cf, ZuString key) :
@@ -142,7 +142,7 @@ public:
     Base::print__(s, "out of range");
   }
 };
-// thrown by all() on number of values error
+// thrown by all() on number of elements error
 class NElems : public Range_<unsigned> {
   using T = unsigned;
   using Base = Range_<T>;
@@ -266,6 +266,8 @@ struct Scan_<ZuBox<T_>, false> { using T = ZuBox<T_>; };
 template <> struct Scan_<ZuFixed, false> { using T = ZuFixed; };
 template <> struct Scan_<ZuDecimal, false> { using T = ZuDecimal; };
 template <typename T> using Scan = typename Scan_<T>::T;
+
+// scan generic scalar
 template <typename T, bool Required_ = false>
 inline T scanScalar(
     const Cf *cf, ZuString key, ZuString value,
@@ -280,6 +282,7 @@ inline T scanScalar(
     throw Range<T>{cf, key, minimum, maximum, v};
   return v;
 }
+// shorthand forwarding functions
 template <bool Required_ = false, typename ...Args>
 inline auto scanInt(Args &&... args) {
   return scanScalar<int, Required_>(ZuFwd<Args>(args)...);
@@ -293,8 +296,10 @@ inline auto scanDbl(Args &&... args) {
   return scanScalar<double, Required_>(ZuFwd<Args>(args)...);
 }
 
+// scan enum
 template <typename Map, bool Required_ = false>
-inline int scanEnum(const Cf *cf, ZuString key, ZuString value, int deflt = -1)
+inline ZtEnum scanEnum(
+    const Cf *cf, ZuString key, ZuString value, ZtEnum deflt = {})
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -303,6 +308,7 @@ inline int scanEnum(const Cf *cf, ZuString key, ZuString value, int deflt = -1)
   return ZvEnum<Map>::instance()->s2v(key, value, deflt);
 }
 
+// scan generic flags
 template <typename Map, typename T, bool Required_ = false>
 inline T scanFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
 {
@@ -312,6 +318,7 @@ inline T scanFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
   }
   return ZvFlags<Map>::instance()->template scan<T>(key, value);
 }
+// forwarding functions for uint32_t and uint64_t flags
 template <typename Map, bool Required_ = false, typename ...Args>
 inline auto scanFlags(Args &&... args) {
   return scanFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
@@ -333,15 +340,16 @@ namespace Quoting { // quoting types
   };
 }
 
+// data in a tree node
 using Null = ZuNull;
-using String = ZtString;
-using StrArray = ZtArray<String>;
-using CfRef = ZmRef<Cf>;
-using CfArray = ZtArray<CfRef>;
-using Data = ZuUnion<Null, String, StrArray, CfRef, CfArray>;
+using StrArray = ZtArray<ZtString>;
+using CfArray = ZtArray<ZmRef<Cf>>;
+using Data = ZuUnion<Null, ZtString, StrArray, ZmRef<Cf>, CfArray>;
 
+// main configuration class
 class Cf;
 
+// configuration tree node
 struct CfNode {
   Cf * const		owner = nullptr;
   const ZtString	key;
@@ -367,34 +375,45 @@ public:
 
   auto type() const { return data.type(); }
 
+  // generic set()
   template <typename T, typename P>
   void set_(P &&v) { data.v<T>(ZuFwd<P>(v)); }
-  template <typename P> void set(P &&v) { set_<String>(ZuFwd<P>(v)); }
-  template <typename P> void setCf(P &&v) { set_<CfRef>(ZuFwd<P>(v)); }
+  // shorthand forwarding functions for ZtString and ZmRef<Cf>
+  template <typename P> void set(P &&v) { set_<ZtString>(ZuFwd<P>(v)); }
+  template <typename P> void setCf(P &&v) { set_<ZmRef<Cf>>(ZuFwd<P>(v)); }
 
+  // generic get()
   template <typename T, bool Required_ = false>
-  const T &get_() const {
+  const T &get_() const { // optionally required, no specified default value
     if constexpr (Required_)
       if (!data.contains<T>()) throw Required{owner, key};
     return data.v<T>();
   }
   template <typename T>
-  T get_(T deflt) const {
+  T get_(T deflt) const { // not required, specified default value
     if (!data.contains<T>()) return deflt;
     return data.v<T>();
   }
-  template <typename T>
-  const T &assure_(const T &deflt) {
-    if (!data.contains<T>()) data.v<T>(deflt);
+  // generic assure() - sets to a specified default value if unset
+  template <typename T, typename L>
+  const T &assure_(L l) { // not required, set default if unset
+    if (!data.contains<T>()) data.v<T>(l());
     return data.v<T>();
   }
-  template <bool Required_ = false>
-  const String &get() const { return get_<String, Required_>(); }
-  String get(String deflt) const { return get_<String>(ZuMv(deflt)); }
-  const String &assure(const String &deflt) { return assure_<String>(deflt); }
-  template <bool Required_ = false>
-  const CfRef &getCf() const { return get_<CfRef, Required_>(); }
 
+  // shorthand forwarding functions for ZtString
+  template <bool Required_ = false>
+  const ZtString &get() const { return get_<ZtString, Required_>(); }
+  ZtString get(ZtString deflt) const { return get_<ZtString>(ZuMv(deflt)); }
+  template <typename L>
+  const ZtString &assure(L l) { return assure_<ZtString>(ZuMv(l)); }
+  // shorthand forwarding functions for ZmRef<Cf>
+  template <bool Required_ = false>
+  const ZmRef<Cf> &getCf() const { return get_<ZmRef<Cf>, Required_>(); }
+  template <typename L>
+  const ZmRef<Cf> &assureCf(L l) { return assure_<ZmRef<Cf>>(ZuMv(l)); }
+
+  // generic get/assure scalar
   template <typename T, bool Required_ = false>
   T getScalar(T minimum, T maximum) const {
     return scanScalar<T, Required_>(
@@ -408,10 +427,12 @@ public:
   template <typename T>
   T assureScalar(T minimum, T maximum, T deflt) {
     return scanScalar<T>(
-	owner, key, assure(ZtString{} << deflt),
+	owner, key,
+	assure([deflt = ZuMv(deflt)]() { return ZtString{} << deflt; }),
 	minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for int
   template <bool Required_ = false>
   int getInt(int minimum, int maximum) const {
     return getScalar<int, Required_>(minimum, maximum);
@@ -423,6 +444,7 @@ public:
     return assureScalar<int>(minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for int64_t
   template <bool Required_ = false>
   int64_t getInt64(int64_t minimum, int64_t maximum) const {
     return getScalar<int64_t, Required_>(minimum, maximum);
@@ -434,6 +456,7 @@ public:
     return assureScalar<int64_t>(minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for double
   template <bool Required_ = false>
   double getDbl(double minimum, double maximum) const {
     return getScalar<double, Required_>(minimum, maximum);
@@ -445,19 +468,22 @@ public:
     return assureScalar<double>(minimum, maximum, deflt);
   }
 
+  // get/assure enum
   template <typename Map, bool Required_ = false>
-  int getEnum() const {
-    return scanEnum<Map, Required_>(owner, key, get<Required_>(), -1);
+  ZtEnum getEnum() const {
+    return scanEnum<Map, Required_>(owner, key, get<Required_>(), {});
   }
   template <typename Map>
-  int getEnum(int deflt) const {
+  ZtEnum getEnum(ZtEnum deflt) const {
     return scanEnum<Map>(owner, key, get(), deflt);
   }
   template <typename Map>
-  int assureEnum(int deflt) {
-    return scanEnum<Map>(owner, key, assure<String>(Map::v2s(deflt)), deflt);
+  ZtEnum assureEnum(ZtEnum deflt) {
+    return scanEnum<Map>(
+	owner, key, assure([deflt]() { return Map::v2s(deflt); }), deflt);
   }
 
+  // get/assure flags (generic)
   template <typename Map, typename T, bool Required_ = false>
   T getFlags_() const {
     return scanFlags_<Map, T, Required_>(
@@ -471,9 +497,11 @@ public:
   T assureFlags_(T deflt) {
     using Print = typename Map::Print;
     return scanFlags_<Map, T>(
-	owner, key, get(ZtString{} << Print{deflt}), deflt);
+	owner, key,
+	assure([deflt]() { return ZtString{} << Print{deflt}; }), deflt);
   }
 
+  // forwarding functions for uint32_t flags
   template <typename Map, bool Required_ = false> uint32_t getFlags() const {
     return getFlags_<Map, uint32_t, Required_>();
   }
@@ -484,6 +512,7 @@ public:
     return assureFlags_<Map, uint32_t>(deflt);
   }
 
+  // forwarding functions for uint64_t flags
   template <typename Map, bool Required_ = false> uint64_t getFlags64() const {
     return getFlags_<Map, uint64_t, Required_>();
   }
@@ -494,6 +523,7 @@ public:
     return assureFlags_<Map, uint64_t>(deflt);
   }
 
+  // generic iterate over array
   template <typename T, typename L>
   void all_(L l) const { data.v<T>().all(ZuMv(l)); }
   template <typename T, typename L>
@@ -504,12 +534,14 @@ public:
       throw NElems{owner, key, minimum, maximum, n};
     elems.all(ZuMv(l));
   }
+  // shorthand forwarding functions for iterating over ZtString array
   template <typename L>
   void all(L l) const { all_<StrArray>(ZuMv(l)); }
   template <typename T, typename L>
   void all(unsigned minimum, unsigned maximum, L l) const {
     all_<StrArray>(minimum, maximum, ZuMv(l));
   }
+  // shorthand forwarding functions for iterating over ZmRef<Cf> array
   template <typename L>
   void allCf(L l) const { all_<CfArray>(ZuMv(l)); }
   template <typename T, typename L>
@@ -517,6 +549,7 @@ public:
     all_<CfArray>(minimum, maximum, ZuMv(l));
   }
 
+  // generic set/get/assure array element
   template <typename T, typename P>
   void setElem_(unsigned i, P &&v) {
     using Elem = typename T::T;
@@ -539,38 +572,46 @@ public:
     if (i >= elems.length()) return deflt;
     return elems.get(i);
   }
-  template <typename T>
-  const typename T::T &assureElem_(unsigned i, const typename T::T &deflt) {
+  template <typename T, typename L>
+  const typename T::T &assureElem_(unsigned i, L l) {
     if (!data.contains<T>() || i >= data.v<T>().length())
-      data.v<T>().set(i, deflt);
+      data.v<T>().set(i, l());
     return data.v<T>().get(i);
   }
 
+  // shorthand forwarding set/get/assure array element for ZtString
   template <typename P>
   void setElem(unsigned i, P &&v) {
     return setElem_<StrArray>(i, ZuFwd<P>(v));
   }
   template <bool Required_ = false>
-  const String &getElem(unsigned i) const {
+  const ZtString &getElem(unsigned i) const {
     return getElem_<StrArray, Required_>(i);
   }
-  String getElem(unsigned i, String deflt) const {
+  ZtString getElem(unsigned i, ZtString deflt) const {
     return getElem_<StrArray>(i, ZuMv(deflt));
   }
-  const String &assureElem(unsigned i, const String &deflt) {
-    return assureElem_<StrArray>(i, deflt);
+  template <typename L>
+  const ZtString &assureElem(unsigned i, L l) {
+    return assureElem_<StrArray>(i, l());
   }
 
+  // shorthand forwarding set/get array element for ZmRef<Cf>
   template <typename P>
   void setElemCf(unsigned i, P &&v) {
     return setElem_<CfArray>(i, ZuFwd<P>(v));
   }
   template <bool Required_ = false>
-  const CfRef &getElemCf(unsigned i) const {
+  const ZmRef<Cf> &getElemCf(unsigned i) const {
     return getElem_<CfArray, Required_>(i);
+  }
+  template <typename L>
+  const ZmRef<Cf> &assureElemCf(unsigned i, L l) {
+    return assureElem_<CfArray>(i, l());
   }
 };
 
+// ZtField integration
 template <typename O, typename Cf_>
 struct Fielded_ {
   using FieldList = ZuFieldList<O>;
@@ -676,6 +717,7 @@ struct Fielded_ {
 template <typename O, typename Cf_ = Cf>
 using Fielded = Fielded_<ZuFielded<O>, Cf_>;
 
+// main configuration class - contains tree of CfNodes (key + data pairs)
 class ZvAPI Cf : public ZuObject {
   Cf(const Cf &);
   Cf &operator =(const Cf &);	// prevent mis-use
@@ -780,6 +822,7 @@ private:
   CfNode *mkNode(ZuString fullKey);
 
 public:
+  // set/get/assure ZtString
   void set(ZuString key, ZtString value);
   template <bool Required_ = false>
   const ZtString &get(ZuString key) const {
@@ -792,20 +835,27 @@ public:
     if (auto node = getNode(key)) return node->get(deflt);
     return deflt;
   }
-  const ZtString &assure(ZuString key, const ZtString &deflt) {
-    return mkNode(key)->assure(deflt);
+  template <typename L>
+  const ZtString &assure(ZuString key, L l) {
+    return mkNode(key)->assure(ZuMv(l));
   }
 
+  // set/get/assure ZmRef<Cf>
   ZmRef<Cf> mkCf(ZuString key);
   void setCf(ZuString key, ZmRef<Cf> cf);
   template <bool Required_ = false>
-  ZmRef<Cf> getCf(ZuString key) const {
+  const ZmRef<Cf> &getCf(ZuString key) const {
     if (auto node = getNode<Required_>(key))
-      return node->template get_<CfRef, Required_>();
+      return node->template get_<ZmRef<Cf>, Required_>();
     if constexpr (Required_) throw Required{this, key};
-    return {};
+    return ZuNullRef<ZmRef<Cf>>();
+  }
+  template <typename L>
+  const ZmRef<Cf> &assureCf(ZuString key, L l) {
+    return mkNode(key)->assureCf(ZuMv(l));
   }
 
+  // iterate over ZtString array
   template <bool Required_ = false, typename L>
   void all(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
@@ -818,6 +868,7 @@ public:
       node->template all<StrArray>(minimum, maximum, ZuMv(l));
     if constexpr (Required_) throw Required{this, key};
   }
+  // iterate over ZmRef<Cf> array
   template <bool Required_ = false, typename L>
   void allCf(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
@@ -831,50 +882,61 @@ public:
     if constexpr (Required_) throw Required{this, key};
   }
 
+  // set/get/assure ZtString array element
   template <typename P>
   void setElem(ZuString key, unsigned i, P &&v) {
     return mkNode(key)->setElem(i, ZuFwd<P>(v));
   }
-  template <bool Required_ = false, typename P>
-  const String &getElem(ZuString key, unsigned i) const {
+  template <bool Required_ = false>
+  const ZtString &getElem(ZuString key, unsigned i) const {
     if (auto node = getNode<Required_>(key))
       return node->template getElem<Required_>(i);
     if constexpr (Required_) throw Required{this, key};
-    return ZuNullRef<String>();
+    return ZuNullRef<ZtString>();
   }
-  template <typename P>
-  String getElem(ZuString key, unsigned i, String deflt) const {
+  ZtString getElem(ZuString key, unsigned i, ZtString deflt) const {
     if (auto node = getNode(key)) return node->getElem(i, ZuMv(deflt));
     return deflt;
   }
-  template <typename P>
-  const String &assureElem(ZuString key, unsigned i, const String &deflt) {
-    return mkNode(key)->assureElem(i, deflt);
+  template <typename L>
+  const ZtString &assureElem(ZuString key, unsigned i, L l) {
+    return mkNode(key)->assureElem(i, ZuMv(l));
   }
 
+  // set/get/assure ZmRef<Cf> array element
   template <typename P>
   void setElemCf(ZuString key, unsigned i, P &&v) {
     return mkNode(key)->setElemCf(i, ZuFwd<P>(v));
   }
-  template <bool Required_ = false, typename P>
-  const CfRef &getElemCf(ZuString key, unsigned i) const {
+  template <bool Required_ = false>
+  const ZmRef<Cf> &getElemCf(ZuString key, unsigned i) const {
     if (auto node = getNode<Required_>(key))
       return node->template getElemCf<Required_>(i);
     if constexpr (Required_) throw Required{this, key};
-    return ZuNullRef<CfRef>();
+    return ZuNullRef<ZmRef<Cf>>();
+  }
+  template <typename L>
+  const ZmRef<Cf> &assureElemCf(ZuString key, unsigned i, L l) {
+    return mkNode(key)->assureElem(i, ZuMv(l));
   }
 
+  // unset node
   void unset(ZuString key);
 
+  // iterate over nodes
   template <typename L>
   void all(L l) {
     auto i = m_tree.iterator();
     while (auto node = i.iterate()) l(node);
   }
 
+  // clean tree
   void clean();
+
+  // merge tree
   void merge(const Cf *cf);
 
+  // generic get/assure scalar
   template <typename T, bool Required_ = false>
   T getScalar(ZuString key, T minimum, T maximum) const {
     if (auto node = getNode<Required_>(key))
@@ -893,6 +955,7 @@ public:
     return mkNode(key)->template assureScalar<T>(minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for int
   template <bool Required_ = false>
   int getInt(ZuString key, int minimum, int maximum) const {
     return getScalar<int, Required_>(key, minimum, maximum);
@@ -904,6 +967,7 @@ public:
     return assureScalar<int>(key, minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for int64_t
   template <bool Required_ = false>
   int64_t getInt64(ZuString key, int64_t minimum, int64_t maximum) const {
     return getScalar<int64_t, Required_>(key, minimum, maximum);
@@ -917,6 +981,7 @@ public:
     return assureScalar<int64_t>(key, minimum, maximum, deflt);
   }
 
+  // shorthand forwarding functions for double
   template <bool Required_ = false>
   double getDbl(ZuString key, double minimum, double maximum) const {
     return getScalar<double, Required_>(key, minimum, maximum);
@@ -930,24 +995,26 @@ public:
     return assureScalar<double>(key, minimum, maximum, deflt);
   }
 
+  // get/assure for enum
   template <typename Map, bool Required_ = false>
-  int getEnum(ZuString key) const {
+  ZtEnum getEnum(ZuString key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getEnum<Map, Required_>();
     if constexpr (Required_) throw Required{this, key};
-    return -1;
+    return {};
   }
   template <typename Map>
-  int getEnum(ZuString key, int deflt) const {
+  ZtEnum getEnum(ZuString key, ZtEnum deflt) const {
     if (auto node = getNode(key))
       return node->template getEnum<Map>(deflt);
     return deflt;
   }
   template <typename Map>
-  int assureEnum(ZuString key, int deflt) {
+  ZtEnum assureEnum(ZuString key, ZtEnum deflt) {
     return mkNode(key)->template assureEnum<Map>(deflt);
   }
 
+  // generic get/assure for flags
   template <typename Map, typename T, bool Required_ = false>
   T getFlags_(ZuString key) const {
     if (auto node = getNode<Required_>(key))
@@ -966,6 +1033,7 @@ public:
     return mkNode(key)->template assureFlags_<Map, T>(deflt);
   }
 
+  // shorthand forwarding get/assure for uint32_t flags
   template <typename Map, bool Required_ = false>
   uint32_t getFlags(ZuString key) const {
     return getFlags_<Map, uint32_t, Required_>(key);
@@ -979,6 +1047,7 @@ public:
     return assureFlags_<Map, uint32_t>(key, deflt);
   }
 
+  // shorthand forwarding get/assure for uint64_t flags
   template <typename Map, bool Required_ = false>
   uint64_t getFlags64(ZuString key) const {
     return getFlags_<Map, uint64_t, Required_>(key);
@@ -992,6 +1061,7 @@ public:
     return assureFlags_<Map, uint64_t>(key, deflt);
   }
 
+  // ZtField integration - get individual field
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::String, typename Field::T>
   getField() {
@@ -1045,11 +1115,13 @@ public:
 	Field::id(), Field::deflt());
   }
 
+  // ZtField integration - construct fielded object
   template <typename O>
   inline O ctor() const { return Fielded<O>::ctor(this); }
   template <typename O>
   inline void ctor(void *ptr) const { Fielded<O>::ctor(ptr, this); }
 
+  // ZtField integration - load fielded object
   template <typename O> using Load = typename Fielded<O>::Load;
 
   template <typename O>
@@ -1057,12 +1129,16 @@ public:
   template <typename O>
   inline void update(O &o) const { Fielded<O>::update(o, this); }
 
+  // ZtField integration - get key
   template <typename O, unsigned KeyID = 0>
   inline auto key() const {
     return Fielded<O>::template key<KeyID>(this);
   }
 
+  // node count
   unsigned count() const { return m_tree.count_(); }
+
+  // parent node (nullptr if root)
   CfNode *node() const { return m_node; }
 
 private:
@@ -1084,6 +1160,7 @@ private:
   CfNode	*m_node;
 };
 
+// equivalent of pwd - returns the full key from a nested tree key
 inline ZtString fullKey(const Cf *cf, ZtString key) {
   while (auto node = cf->node()) {
     key = ZtString{} << node->CfNode::key << ':' << key;

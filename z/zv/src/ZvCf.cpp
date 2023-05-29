@@ -227,7 +227,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
   {
     auto node = m_tree.find("#");
     if (!node) m_tree.addNode(node = new Node{this, "#"});
-    node->set_<String>(ZuBox<int>{p});
+    node->set_<ZtString>(ZuBox<int>{p});
   }
   return p;
 }
@@ -562,8 +562,8 @@ Cf::getScope_(ZuString in, Cf::Defines *defines) const
     auto node = self->m_tree.find(key);
     if (!node) goto null;
     if (index < 0) {
-      if (!node->CfNode::data.contains<CfRef>()) goto null;
-      self = node->get_<CfRef>();
+      if (!node->CfNode::data.contains<ZmRef<Cf>>()) goto null;
+      self = node->get_<ZmRef<Cf>>();
     } else {
       if (!node->CfNode::data.contains<CfArray>()) goto null;
       self = node->get_<CfArray>().get(index);
@@ -600,8 +600,8 @@ Cf::mkScope_(ZuString in, Cf::Defines *defines)
     auto node = self->m_tree.find(key);
     if (!node) self->m_tree.addNode(node = new Cf::Node{self, key});
     if (index < 0) {
-      self = node->get_<CfRef>();
-      if (!self) node->set_<CfRef>(self = new Cf{node});
+      self = node->get_<ZmRef<Cf>>();
+      if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
     } else {
       self = node->getElem_<CfArray>(index);
       if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
@@ -637,14 +637,14 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
     case ZvOptFlag: {
       auto value = flagValue(in) ? "1" : "0";
       if (index < 0)
-	node->set_<String>(value);
+	node->set_<ZtString>(value);
       else
 	node->setElem_<StrArray>(index, value);
     } break;
     case ZvOptValue: {
       auto [value, o] = scanString<Quoting::CLI>(in, 0);
       if (index < 0)
-	node->set_<String>(value);
+	node->set_<ZtString>(value);
       else
 	node->setElem_<StrArray>(index, value);
     } break;
@@ -782,10 +782,10 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	switch (node->CfNode::data.type()) {
 	  case Data::Index<Null>::I:
 	    break;
-	  case Data::Index<String>::I:
+	  case Data::Index<ZtString>::I:
 	  case Data::Index<StrArray>::I:
 	    goto syntax;
-	  case Data::Index<CfRef>::I:
+	  case Data::Index<ZmRef<Cf>>::I:
 	    if (index >= 0) goto syntax;
 	    break;
 	  case Data::Index<CfArray>::I:
@@ -795,8 +795,8 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
 	if (index < 0) {
-	  self = node->get_<CfRef>();
-	  if (!self) node->set_<CfRef>(self = new Cf{node});
+	  self = node->get_<ZmRef<Cf>>();
+	  if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
 	} else {
 	  self = node->getElem_<CfArray>(index);
 	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
@@ -827,20 +827,20 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>::I:
 	  break;
-	case Data::Index<String>::I:
+	case Data::Index<ZtString>::I:
 	  if (index >= 0) goto syntax;
 	  break;
 	case Data::Index<StrArray>::I:
 	  if (index < 0) goto syntax;
 	  break;
-	case Data::Index<CfRef>::I:
+	case Data::Index<ZmRef<Cf>>::I:
 	case Data::Index<CfArray>::I:
 	  goto syntax;
       }
       if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
       if (index < 0)
-	node->set_<String>(ZuMv(value));
+	node->set_<ZtString>(ZuMv(value));
       else
 	node->setElem_<StrArray>(index, ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
@@ -978,10 +978,10 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	switch (node->CfNode::data.type()) {
 	  case Data::Index<Null>::I:
 	    break;
-	  case Data::Index<String>::I:
+	  case Data::Index<ZtString>::I:
 	  case Data::Index<StrArray>::I:
 	    goto syntax;
-	  case Data::Index<CfRef>::I:
+	  case Data::Index<ZmRef<Cf>>::I:
 	    if (index >= 0) goto syntax;
 	    break;
 	  case Data::Index<CfArray>::I:
@@ -991,8 +991,8 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
 	if (index < 0) {
-	  self = node->get_<CfRef>();
-	  if (!self) node->set_<CfRef>(self = new Cf{node});
+	  self = node->get_<ZmRef<Cf>>();
+	  if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
 	} else {
 	  self = node->getElem_<CfArray>(index);
 	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
@@ -1022,20 +1022,20 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>::I:
 	  break;
-	case Data::Index<String>::I:
+	case Data::Index<ZtString>::I:
 	  if (index >= 0) goto syntax;
 	  break;
 	case Data::Index<StrArray>::I:
 	  if (index < 0) goto syntax;
 	  break;
-	case Data::Index<CfRef>::I:
+	case Data::Index<ZmRef<Cf>>::I:
 	case Data::Index<CfArray>::I:
 	  goto syntax;
       }
       if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
       if (index < 0)
-	node->set_<String>(ZuMv(value));
+	node->set_<ZtString>(ZuMv(value));
       else
 	node->setElem_<StrArray>(index, ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
@@ -1102,23 +1102,23 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
     switch (node->CfNode::data.type()) {
       case Data::Index<Null>::I:
 	break;
-      case Data::Index<String>::I:
+      case Data::Index<ZtString>::I:
       case Data::Index<StrArray>::I: {
 	ZtString arg;
 	if (!ZtREGEX("^\d+$").m(node->CfNode::key))
 	  arg << "--" << prefix << node->CfNode::key << '=';
-	if (node->CfNode::data.contains<String>())
-	  arg << quoteString<Quoting::CLI>(node->get_<String>());
+	if (node->CfNode::data.contains<ZtString>())
+	  arg << quoteString<Quoting::CLI>(node->get_<ZtString>());
 	else
 	  node->CfNode::data.v<StrArray>().all(
-	      [&arg, first = true](const String &value) mutable {
+	      [&arg, first = true](const ZtString &value) mutable {
 	    if (ZuUnlikely(first)) first = false; else arg << ',';
 	    arg << quoteString<Quoting::CLI>(value);
 	  });
 	args.push(ZuMv(arg));
       } break;
-      case Data::Index<CfRef>::I:
-	if (Cf *cf = node->get_<CfRef>())
+      case Data::Index<ZmRef<Cf>>::I:
+	if (Cf *cf = node->get_<ZmRef<Cf>>())
 	  cf->toArgs(args, ZtString{} << prefix << node->CfNode::key << '.');
 	break;
       case Data::Index<CfArray>::I: {
@@ -1139,14 +1139,14 @@ void Cf::print(ZmStream &s, ZtString &indent) const
     switch (node->CfNode::data.type()) {
       case Data::Index<Null>::I:
 	break;
-      case Data::Index<String>::I:
+      case Data::Index<ZtString>::I:
       case Data::Index<StrArray>::I: {
-	if (node->CfNode::data.contains<String>())
-	  s << quoteString(node->get_<String>());
+	if (node->CfNode::data.contains<ZtString>())
+	  s << quoteString(node->get_<ZtString>());
 	else {
 	  s << '[';
 	  node->CfNode::data.v<StrArray>().all(
-	      [&s, first = true](const String &value) mutable {
+	      [&s, first = true](const ZtString &value) mutable {
 	    if (ZuUnlikely(first)) first = false; else s << ", ";
 	    s << quoteString(value);
 	  });
@@ -1154,7 +1154,7 @@ void Cf::print(ZmStream &s, ZtString &indent) const
 	}
 	s << '\n';
       } break;
-      case Data::Index<CfRef>::I:
+      case Data::Index<ZmRef<Cf>>::I:
       case Data::Index<CfArray>::I: {
 	auto output = [&indent](Cf *cf, ZmStream &s) mutable {
 	  if (!cf || !cf->count()) { s << "{}"; return; }
@@ -1164,8 +1164,8 @@ void Cf::print(ZmStream &s, ZtString &indent) const
 	  indent.length_(indent.length() - 2);
 	  s << indent << '}';
 	};
-	if (node->CfNode::data.contains<CfRef>())
-	  output(node->get_<CfRef>(), s);
+	if (node->CfNode::data.contains<ZmRef<Cf>>())
+	  output(node->get_<ZmRef<Cf>>(), s);
 	else
 	  node->CfNode::data.v<CfArray>().all(
 	      [&s, output = ZuMv(output), first = true](Cf *cf) mutable {
@@ -1202,7 +1202,7 @@ void Cf::set(ZuString key, ZtString value)
 {
   auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
   if (index < 0)
-    node->set_<String>(ZuMv(value));
+    node->set_<ZtString>(ZuMv(value));
   else
     node->setElem_<StrArray>(index, ZuMv(value));
 }
@@ -1212,7 +1212,7 @@ ZmRef<Cf> Cf::mkCf(ZuString key)
   auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
   ZmRef<Cf> cf = new Cf{node};
   if (index < 0)
-    node->set_<CfRef>(cf);
+    node->set_<ZmRef<Cf>>(cf);
   else
     node->setElem_<CfArray>(index, cf);
   return cf;
@@ -1223,7 +1223,7 @@ void Cf::setCf(ZuString key, ZmRef<Cf> cf)
   auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
   cf->m_node = node;
   if (index < 0)
-    node->set_<CfRef>(ZuMv(cf));
+    node->set_<ZmRef<Cf>>(ZuMv(cf));
   else
     node->setElem_<CfArray>(index, ZuMv(cf));
 }
@@ -1249,16 +1249,16 @@ void Cf::merge(const Cf *cf)
     switch (srcNode->CfNode::data.type()) {
       case Data::Index<Null>::I:
 	break;
-      case Data::Index<String>::I:
-	dstNode->set_<String>(srcNode->get_<String>());
+      case Data::Index<ZtString>::I:
+	dstNode->set_<ZtString>(srcNode->get_<ZtString>());
 	break;
       case Data::Index<StrArray>::I:
 	dstNode->set_<StrArray>(srcNode->get_<StrArray>());
 	break;
-      case Data::Index<CfRef>::I: {
-	if (auto srcCf = srcNode->get_<CfRef>()) {
-	  auto dstCf = dstNode->get_<CfRef>();
-	  if (!dstCf) dstNode->set_<CfRef>(dstCf = new Cf{dstNode});
+      case Data::Index<ZmRef<Cf>>::I: {
+	if (auto srcCf = srcNode->get_<ZmRef<Cf>>()) {
+	  auto dstCf = dstNode->get_<ZmRef<Cf>>();
+	  if (!dstCf) dstNode->set_<ZmRef<Cf>>(dstCf = new Cf{dstNode});
 	  dstCf->merge(srcCf);
 	}
       } break;
