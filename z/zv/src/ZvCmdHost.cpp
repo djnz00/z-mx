@@ -68,7 +68,7 @@ void ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
     auto &args = ctx->args;
     args = new ZvCf();
     args->fromArgs(m_syntax->getCf(name), args_);
-    if (args->getInt("help", 0, 1, 0)) {
+    if (args->getBool("help")) {
       out << cmd->val().usage << '\n';
       return;
     }

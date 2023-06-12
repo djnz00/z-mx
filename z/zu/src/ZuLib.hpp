@@ -267,7 +267,7 @@ template <typename T_> struct ZuBind {
 };
 
 // compile-time ?:
-// ZuIf<bool B, typename T1, typename T2> evaluates to B ? T1 : T2
+// ZuIf<typename B, typename T1, typename T2> evaluates to B ? T1 : T2
 template <typename T1, typename T2, bool B> struct ZuIf_;
 template <typename T1, typename T2> struct ZuIf_<T1, T2, true> {
   using T = T1;
@@ -410,42 +410,48 @@ template <template <typename...> class Reduce, typename ...Args>
 using ZuTypeReduce = typename ZuTypeReduce_<Reduce, Args...>::T;
 
 // split typelist left, 0..N-1
-template <unsigned N, typename ...Args> struct ZuTypeLeft_;
+template <unsigned N, typename ...Args> struct ZuTypeLeft__;
 template <unsigned N, typename Arg0, typename ...Args>
-struct ZuTypeLeft_<N, Arg0, Args...> {
-  using T = typename ZuTypeLeft_<N - 1, Args...>::T::template Prepend<Arg0>;
+struct ZuTypeLeft__<N, Arg0, Args...> {
+  using T = typename ZuTypeLeft__<N - 1, Args...>::T::template Prepend<Arg0>;
 };
 template <typename Arg0, typename ...Args>
-struct ZuTypeLeft_<0, Arg0, Args...> {
+struct ZuTypeLeft__<0, Arg0, Args...> {
   using T = ZuTypeList<>;
 };
 template <typename ...Args>
-struct ZuTypeLeft_<0, Args...> {
+struct ZuTypeLeft__<0, Args...> {
   using T = ZuTypeList<>;
 };
 template <unsigned N, typename ...Args>
+struct ZuTypeLeft_ :
+    public ZuTypeLeft__<N, Args...> { };
+template <unsigned N, typename ...Args>
 struct ZuTypeLeft_<N, ZuTypeList<Args...>> :
-    public ZuTypeLeft_<N, Args...> { };
+    public ZuTypeLeft__<N, Args...> { };
 template <unsigned N, typename ...Args>
 using ZuTypeLeft = typename ZuTypeLeft_<N, Args...>::T;
 
 // split typelist right, N..
-template <unsigned N, typename ...Args> struct ZuTypeRight_;
+template <unsigned N, typename ...Args> struct ZuTypeRight__;
 template <unsigned N, typename Arg0, typename ...Args>
-struct ZuTypeRight_<N, Arg0, Args...> {
-  using T = typename ZuTypeRight_<N - 1, Args...>::T;
+struct ZuTypeRight__<N, Arg0, Args...> {
+  using T = typename ZuTypeRight__<N - 1, Args...>::T;
 };
 template <typename Arg0, typename ...Args>
-struct ZuTypeRight_<0, Arg0, Args...> {
+struct ZuTypeRight__<0, Arg0, Args...> {
   using T = ZuTypeList<Arg0, Args...>;
 };
 template <typename ...Args>
-struct ZuTypeRight_<0, Args...> {
+struct ZuTypeRight__<0, Args...> {
   using T = ZuTypeList<Args...>;
 };
 template <unsigned N, typename ...Args>
+struct ZuTypeRight_ :
+    public ZuTypeRight__<N, Args...> { };
+template <unsigned N, typename ...Args>
 struct ZuTypeRight_<N, ZuTypeList<Args...>> :
-    public ZuTypeRight_<N, Args...> { };
+    public ZuTypeRight__<N, Args...> { };
 template <unsigned N, typename ...Args>
 using ZuTypeRight = typename ZuTypeRight_<N, Args...>::T;
 

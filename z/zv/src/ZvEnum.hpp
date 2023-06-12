@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ZtEnum wrapper, used by configuration and CSV
+// Zv layer enum/flags <-> string conversions, used by ZvCf and ZvCSV
 
 #ifndef ZvEnum_HPP
 #define ZvEnum_HPP
@@ -38,98 +38,94 @@
 
 #include <zlib/ZvError.hpp>
 
-template <typename T> class ZvEnum;
+namespace ZvEnum {
 
-class ZvInvalidEnum : public ZvError {
+class Invalid : public ZvError {
 public:
   template <typename Key, typename Value>
-  ZvInvalidEnum(Key &&key, Value &&value) :
+  Invalid(Key &&key, Value &&value) :
     m_key(ZuFwd<Key>(key)), m_value(ZuFwd<Value>(value)) { }
 
   const ZtString &key() const { return m_key; }
   const ZtString &value() const { return m_value; }
 
 private:
-  ZtString			m_key;
-  ZtString			m_value;
+  ZtString		m_key;
+  ZtString		m_value;
 };
-template <typename T> class ZvInvalidEnumT : public ZvInvalidEnum {
+template <typename Map> class InvalidT : public Invalid {
 public:
   template <typename Key, typename Value>
-  ZvInvalidEnumT(
-      Key &&key, Value &&value, const ZvEnum<T> *enum_) :
-    ZvInvalidEnum(ZuFwd<Key>(key), ZuFwd<Value>(value)), m_enum(enum_) { }
+  InvalidT(Key &&key, Value &&value) :
+    Invalid{ZuFwd<Key>(key), ZuFwd<Value>(value)} { }
 
   void print_(ZmStream &s) const;
-
-private:
-  const ZvEnum<T>	*m_enum;
 };
 
-template <typename T> class ZvEnum : public T {
-template <typename> friend class ZvInvalidEnumT;
-
-public:
-  static ZvEnum *instance() {
-    return static_cast<ZvEnum *>(T::instance());
-  }
-
-  ZtEnum s2v(ZuString key, ZuString s,
-      int def = ZtEnum{}, bool noThrow = false) const {
-    if (ZuUnlikely(!s)) return def;
-    ZtEnum v = T::s2v(s);
-    if (ZuLikely(*v)) return v;
-    if (noThrow) return def;
-    throw ZvInvalidEnumT<T>{key, s, this};
-  }
-
-  const char *v2s(ZuString key, ZtEnum v) const {
-    const char *s = T::v2s(v);
-    if (ZuLikely(s)) return s;
-    throw ZvInvalidEnumT<T>{key, v, this};
-  }
-
-private:
-  template <typename Key, typename Value>
-  void errorMessage(ZmStream &s, Key &&key, Value &&value) const {
-    s << ZuFwd<Key>(key) << ": \"" << ZuFwd<Value>(value) <<
-      "\" did not match { ";
-    bool first = true;
-    this->all([&s, &first](ZuString name, ZtEnum ordinal) {
-      if (ZuLikely(!first)) s << ", ";
-      first = false;
-      s << name << "=" << ordinal;
-    });
-    s << " }";
-  }
-};
-
-template <typename T>
-void ZvInvalidEnumT<T>::print_(ZmStream &s) const
+template <typename Map, bool Throw = true>
+inline ZuIfT<Throw, ZtEnum>
+s2v(ZuString key, ZuString s)
 {
-  m_enum->errorMessage(s, this->key(), this->value());
+  auto v = Map::s2v(s);
+  if (ZuLikely(*v)) return v;
+  throw InvalidT<Map>{key, s};
+}
+template <typename Map, bool Throw = true>
+inline ZuIfT<!Throw, ZtEnum>
+s2v(ZuString key, ZuString s, int deflt = -1)
+{
+  auto v = Map::s2v(s);
+  if (ZuLikely(*v)) return v;
+  return deflt;
 }
 
-template <typename T> class ZvFlags : public ZvEnum<T> {
-public:
-  static ZvFlags *instance() {
-    return static_cast<ZvFlags *>(T::instance());
-  }
+template <typename Map>
+inline const char *v2s(ZuString key, ZtEnum v)
+{
+  const char *s = Map::v2s(v);
+  if (ZuLikely(s)) return s;
+  throw InvalidT<Map>{key, v};
+}
 
-  template <typename S, typename Flags> unsigned print(
-      ZuString key, S &s, const Flags &v, char delim = '|') const {
-    if (!v) return 0;
-    return T::print(s, v, delim);
-  }
+template <typename Map, typename Key, typename Value>
+inline void errorMessage(ZmStream &s, Key &&key, Value &&value)
+{
+  s << ZuFwd<Key>(key) << ": \"" << ZuFwd<Value>(value) <<
+    "\" did not match { ";
+  bool first = true;
+  Map::all([&s, &first](ZuString s_, ZtEnum v) {
+    if (ZuLikely(!first)) s << ", ";
+    first = false;
+    s << s_ << "=" << v;
+  });
+  s << " }";
+}
 
-  template <typename Flags>
-  Flags scan(ZuString key, ZuString s, char delim = '|') const {
-    if (!s) return 0;
-    if (Flags v = T::template scan<Flags>(s, delim)) return v;
-    throw ZvInvalidEnumT<T>{
-	key, s, static_cast<const ZvEnum<T> *>(this)};
-    // not reached
-  }
-};
+template <typename Map>
+inline void InvalidT<Map>::print_(ZmStream &s) const
+{
+  errorMessage<Map>(s, this->key(), this->value());
+}
+
+template <typename Map, typename S, typename Flags>
+inline unsigned print(
+    ZuString key, S &s, const Flags &v, char delim = '|')
+{
+  if (!v) return 0;
+  return Map::print(s, v, delim);
+}
+
+template <typename Map, typename Flags>
+inline Flags scan(ZuString key, ZuString s, char delim = '|')
+{
+  if (!s) return 0;
+  if (Flags v = Map::template scan<Flags>(s, delim)) return v;
+  throw InvalidT<Map>{key, s};
+  // not reached
+}
+
+} // ZvEnum
+
+using ZvInvalidEnum = ZvEnum::Invalid;
 
 #endif /* ZvEnum_HPP */

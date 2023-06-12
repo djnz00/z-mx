@@ -54,12 +54,9 @@ int main(int argc, char **argv)
 
   try {
     cf->fromArgs(opts, argc, argv);
-
-    // if (cf->getInt("help", 0, 0, 1)) usage();
-
     username = cf->get("1");
     password = cf->get("2");
-    daemonize = cf->getInt("daemonize", 0, 0, 1);
+    daemonize = cf->getBool("daemonize");
   } catch (const ZvError &e) {
     ZeLog::start();
     ZeLOG(Error, e.message());
@@ -67,8 +64,7 @@ int main(int argc, char **argv)
     Zm::exit(1);
   }
 
-  int r = ZvDaemon::init(
-      username, password, 0, daemonize, "DaemonTest.pid");
+  int r = ZvDaemon::init(username, password, 0, daemonize, "DaemonTest.pid");
 
   ZeLog::start();
 

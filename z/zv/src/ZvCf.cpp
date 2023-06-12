@@ -19,9 +19,6 @@
 
 // application configuration
 
-#include <zlib/ZuBox.hpp>
-#include <zlib/ZuICmp.hpp>
-
 #include <zlib/ZmAssert.hpp>
 
 #include <zlib/ZePlatform.hpp>
@@ -242,7 +239,7 @@ int Cf::fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args)
     if (!type) throw Usage{args[0], opts[i].m_long};
     option->set("type", type);
     if (opts[i].m_default) option->set("default", opts[i].m_default);
-    options->setCf(opts[i].m_long, option);
+    options->setCf(opts[i].m_long, ZuMv(option));
     if (opts[i].m_short) options->set(opts[i].m_short, opts[i].m_long);
   }
 
@@ -621,12 +618,6 @@ Cf::mkNode_(ZuString in)
   return {self, ZuMv(node), index, o};
 }
 
-bool flagValue(ZuString s)
-{
-  using Cmp = ZuICmp<ZuString>;
-  return s == "1" || Cmp::equals(s, "y") || Cmp::equals(s, "yes");
-}
-
 void Cf::fromArg(ZuString key, int type, ZuString in)
 {
   const auto &argComma = ZtREGEX("\G,");
@@ -634,13 +625,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
   auto [self, node, index, o] = mkNode_<Quoting::CLI>(key);
 
   switch (type) {
-    case ZvOptFlag: {
-      auto value = flagValue(in) ? "1" : "0";
-      if (index < 0)
-	node->set_<ZtString>(value);
-      else
-	node->setElem_<StrArray>(index, value);
-    } break;
+    case ZvOptFlag:
     case ZvOptValue: {
       auto [value, o] = scanString<Quoting::CLI>(in, 0);
       if (index < 0)
@@ -649,7 +634,6 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
 	node->setElem_<StrArray>(index, value);
     } break;
     case ZvOptArray: {
-      
       unsigned n = in.length();
 
       ZtRegex::Captures c;

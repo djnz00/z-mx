@@ -908,7 +908,7 @@ using AnyObject = ObjCache::Node;
 
 // -- DB type-specific object
 
-template <typename T>
+template <typename T_>
 class Object : public AnyObject {
   Object() = delete;
   Object(const Object &) = delete;
@@ -917,6 +917,8 @@ class Object : public AnyObject {
   Object &operator =(Object &&) = delete;
 
 public:
+  using T = T_;
+
   template <typename L>
   Object(DB *db_, L l) : AnyObject{db_} {
     l(static_cast<void *>(&m_data[0]));
@@ -967,7 +969,9 @@ struct DBHandler {
   DeleteFn	deleteFn = nullptr;
 
   template <typename T>
-  static DBHandler bind() {
+  static DBHandler bind(
+      RecoverFn recoverFn_ = nullptr,
+      DeleteFn deleteFn_ = nullptr) {
     return DBHandler{
       .ctorFn = [](DB *db) -> AnyObject * {
 	return new Object<T>{db, [](void *ptr) { new (ptr) T{}; }};
@@ -991,7 +995,9 @@ struct DBHandler {
       },
       .saveFn = [](Zfb::Builder &fbb, const void *ptr) -> Zfb::Offset<void> {
 	return ZfbField::save<T>(fbb, *static_cast<const T *>(ptr)).Union();
-      }
+      },
+      .recoverFn = ZuMv(recoverFn_),
+      .deleteFn = ZuMv(deleteFn_)
     };
   }
 };
@@ -1021,8 +1027,8 @@ struct DBCf {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
     vacuumBatch = cf->getInt("vacuumBatch", 0, 100000, 1);
-    warmUp = cf->getInt("warmUp", 0, 1, 0);
-    repMode = cf->getInt("repMode", 0, 1, 0);
+    warmUp = cf->getBool("warmUp");
+    repMode = cf->getBool("repMode");
   }
 
   static ZuID IDAxor(const DBCf &cf) { return cf.id; }
@@ -1173,6 +1179,8 @@ private:
   }
 
 public:
+  // minimum RN (oldest undeleted RN)
+  RN minRN() const { return m_minRN; }
   // next RN that will be allocated
   RN nextRN() const { return m_nextRN; }
 
@@ -1247,10 +1255,8 @@ private:
   // abort push() or update()
   void abort(ZmRef<AnyObject>);
 
-  // purge() is a complete transaction comprising a single purge operation
-
 public:
-  // purge all records < minRN
+  // purge all records < minRN - purge() is an isolated transaction
   void purge(RN minRN);
 
 private:
@@ -1292,8 +1298,7 @@ private:
 
   template <bool Create> File *getFile(uint64_t id);
   template <bool Create> File *openFile(uint64_t id);
-  template <bool Create>
-  File *openFile_(const ZiFile::Path &name, uint64_t id);
+  template <bool Create> File *openFile_(const ZiFile::Path &, uint64_t id);
   void delFile(File *file);
   bool recover(File *file);
   void scan(File *file);
@@ -1540,7 +1545,7 @@ struct EnvCf {
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
     vacuumBatch = cf->getInt("vacuumBatch", 1, 1<<20, 1000);
 #ifdef ZdbRep_DEBUG
-    debug = cf->getInt("debug", 0, 1, 0);
+    debug = cf->getBool("debug");
 #endif
   }
   EnvCf(EnvCf &&) = default;
@@ -1587,8 +1592,11 @@ public:
   void final();
 
   template <typename T>
-  ZmRef<DB> initDB(ZuID id) {
-    return initDB_(id, DBHandler::bind<T>());
+  ZmRef<DB> initDB(
+      ZuID id,
+      RecoverFn recoverFn = nullptr,
+      DeleteFn deleteFn = nullptr) {
+    return initDB_(id, DBHandler::bind<T>(recoverFn, deleteFn));
   }
 private:
   ZmRef<DB> initDB_(ZuID, DBHandler);

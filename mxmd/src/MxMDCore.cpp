@@ -325,7 +325,7 @@ void MxMDCore::init_(const ZvCf *cf)
       ZtString e;
       ZiModule module;
       ZiModule::Path name = feedCf->get("module", true);
-      int preload = feedCf->getInt("preload", 0, 1, 0);
+      int preload = feedCf->getBool("preload");
       if (preload) preload = ZiModule::Pre;
       if (module.load(name, preload, &e) < 0)
 	throw ZtString{} << "failed to load \"" << name << "\": " << ZuMv(e);

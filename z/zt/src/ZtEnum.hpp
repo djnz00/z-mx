@@ -49,8 +49,8 @@ using ZtEnum = ZuBox_1(int8_t);
 #define ZtEnumNames_(ID, ...) \
   inline ZuPair<const char *const *const, unsigned> names() { \
     static const char *names[] = { __VA_ARGS__ }; \
-    return ZuPair<const char *const *const, unsigned>( \
-	names, static_cast<unsigned>(sizeof(names) / sizeof(names[0]))); \
+    return ZuPair<const char *const *const, unsigned>{ \
+	names, static_cast<unsigned>(sizeof(names) / sizeof(names[0]))}; \
   } \
   inline const char *name(int i) { \
     ZuPair<const char *const *const, unsigned> names_ = names(); \

@@ -35,6 +35,7 @@
 #endif
 
 #include <zlib/ZuBox.hpp>
+#include <zlib/ZuICmp.hpp>
 
 #include <zlib/ZmObject.hpp>
 #include <zlib/ZmRef.hpp>
@@ -44,7 +45,6 @@
 
 #include <zlib/ZtArray.hpp>
 #include <zlib/ZtString.hpp>
-#include <zlib/ZtRegex.hpp>
 #include <zlib/ZtField.hpp>
 
 #include <zlib/ZiFile.hpp>
@@ -106,6 +106,20 @@ private:
   ZmBackTrace	m_bt;
 };
 
+// thrown by getBool() on error
+class BadBool : public ZvError {
+public:
+  BadBool(ZtString key, ZtString value) :
+      m_key{ZuMv(key)}, m_value{ZuMv(value)} { }
+  void print_(ZmStream &s) const {
+    s << '"' << m_key << "\": invalid bool value \"" << m_value << '"';
+  }
+
+private:
+  ZtString	m_key;
+  ZtString	m_value;
+};
+
 // template base class for NElems / Range exceptions
 template <typename T> class Range_ : public ZvError {
 public:
@@ -160,7 +174,7 @@ public:
   Usage(ZuString cmd, ZuString option) :
     m_cmd(cmd), m_option(option) { }
   void print_(ZmStream &s) const {
-    s << "\"" << m_cmd << "\": invalid option \"" << m_option << '"';
+    s << '"' << m_cmd << "\": invalid option \"" << m_option << '"';
   }
 
 private:
@@ -267,6 +281,23 @@ template <> struct Scan_<ZuFixed, false> { using T = ZuFixed; };
 template <> struct Scan_<ZuDecimal, false> { using T = ZuDecimal; };
 template <typename T> using Scan = typename Scan_<T>::T;
 
+// scan bool
+template <bool Required_ = false>
+inline bool scanBool(
+    const Cf *cf, ZuString key, ZuString value, bool deflt = false)
+{
+  if (!value) {
+    if constexpr (Required_) throw Required{cf, key};
+    return deflt;
+  }
+  using Cmp = ZuICmp<ZuString>;
+  if (value == "1" || Cmp::equals(value, "y") || Cmp::equals(value, "yes"))
+    return true;
+  if (value == "0" || Cmp::equals(value, "n") || Cmp::equals(value, "no"))
+    return false;
+  throw BadBool{key, value};
+}
+
 // scan generic scalar
 template <typename T, bool Required_ = false>
 inline T scanScalar(
@@ -305,18 +336,22 @@ inline ZtEnum scanEnum(
     if constexpr (Required_) throw Required{cf, key};
     return deflt;
   }
-  return ZvEnum<Map>::instance()->s2v(key, value, deflt);
+  if constexpr (Required_)
+    return ZvEnum::s2v<Map, true>(key, value);
+  else
+    return ZvEnum::s2v<Map, false>(key, value, deflt);
 }
 
 // scan generic flags
-template <typename Map, typename T, bool Required_ = false>
-inline T scanFlags_(const Cf *cf, ZuString key, ZuString value, T deflt = 0)
+template <typename Map, typename Flags, bool Required_ = false>
+inline Flags scanFlags_(
+    const Cf *cf, ZuString key, ZuString value, Flags deflt = 0)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
     return deflt;
   }
-  return ZvFlags<Map>::instance()->template scan<T>(key, value);
+  return ZvEnum::scan<Map, Flags>(key, value, deflt);
 }
 // forwarding functions for uint32_t and uint64_t flags
 template <typename Map, bool Required_ = false, typename ...Args>
@@ -412,6 +447,19 @@ public:
   const ZmRef<Cf> &getCf() const { return get_<ZmRef<Cf>, Required_>(); }
   template <typename L>
   const ZmRef<Cf> &assureCf(L l) { return assure_<ZmRef<Cf>>(ZuMv(l)); }
+
+  // get/assure bool
+  template <bool Required_ = false>
+  bool getBool() const {
+    return scanBool<Required_>(owner, key, get<Required_>());
+  }
+  bool getBool(bool deflt) const {
+    return scanBool(owner, key, get(), deflt);
+  }
+  bool assureBool(bool deflt) {
+    return scanBool(
+	owner, key, assure([deflt]() { return deflt ? "1" : "0"; }), deflt);
+  }
 
   // generic get/assure scalar
   template <typename T, bool Required_ = false>
@@ -936,6 +984,23 @@ public:
   // merge tree
   void merge(const Cf *cf);
 
+  // get/assure bool
+  template <bool Required_ = false>
+  bool getBool(ZuString key) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template getBool<Required_>();
+    if constexpr (Required_) throw Required{this, key};
+    return false;
+  }
+  bool getBool(ZuString key, bool deflt) const {
+    if (auto node = getNode(key))
+      return node->getBool(deflt);
+    return deflt;
+  }
+  bool assureBool(ZuString key, bool deflt) {
+    return mkNode(key)->assureBool(deflt);
+  }
+
   // generic get/assure scalar
   template <typename T, bool Required_ = false>
   T getScalar(ZuString key, T minimum, T maximum) const {
@@ -1080,8 +1145,8 @@ public:
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Bool, typename Field::T>
   getField() {
-    return getScalar<bool, Field::Flags & ZtFieldFlags::Required>(
-	Field::id(), 0, 1, Field::deflt());
+    return getBool<Field::Flags & ZtFieldFlags::Required>(
+	Field::id(), Field::deflt());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Int ||

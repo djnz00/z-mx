@@ -42,62 +42,6 @@ ZfbFields(Order, fbs::Order,
 
 ZmRef<Zdb> orders;
 
-struct TestStep {
-  unsigned	repeat;
-  bool		push;
-  unsigned	append;
-  bool		del;
-
-  ZdbRN size() const { return repeat * (push + append + del); }
-  ZdbRN run(ZdbRN rn) const;
-};
-
-ZtFields(TestStep,
-    (((repeat)), (Int, 1), (Ctor(0))),
-    (((push)), (Bool), (Ctor(1))),
-    (((append)), (Int, 0), (Ctor(2))),
-    (((del)), (Bool), (Ctor(3))));
-
-struct TestSeq {
-  ZtArray<TestStep>	steps;
-
-  TestSeq(const ZvCf *cf) {
-    cf->allCf("steps", [this](const Cf *cf) {
-      cf->ctor<TestStep>(steps.push());
-    });
-  }
-
-  ZdbRN size() const {
-    ZdbRN n = 0;
-    steps.all([&n](const TestStep &step) { n += step.size(); });
-    return n;
-  }
-  ZdbRN run(ZdbRN rn) const {
-    steps.all([&rn](const TestStep &step) { rn = step.run(rn); });
-    return rn;
-  }
-};
-
-struct TestPlan {
-  ZtArray<TestSeq>	sequences;
-
-  TestPlan(const ZvCf *cf) {
-    cf->allCf("sequences", [this](const Cf *cf) {
-      new (sequences.push()) TestSeq(cf);
-    });
-  }
-
-  ZdbRN size() const {
-    ZdbRN n = 0;
-    sequences.all([&n](const TestSeq &seq) { n += seq.size(); });
-    return n;
-  }
-  ZdbRN run(ZdbRN rn) const {
-    sequences.all([&rn](const TestSeq &seq) { rn = seq.run(rn); });
-    return rn;
-  }
-};
-
 #if 0
 TestSeq(ZdbRN rn, TestLoop l0, l1, ...) // sequence of op loops
   // rn += range.size(), ...
@@ -131,12 +75,12 @@ void sigint()
 ZmRef<ZvCf> inlineCf(ZuString s)
 {
   ZmRef<ZvCf> cf = new ZvCf();
-  cf->fromString(s, false);
+  cf->fromString(s);
   return cf;
 }
 
 void initOrder(Order *order) {
-  order->side = Buy;
+  order->side = Side::Buy;
   order->symbol = "IBM";
   order->price = 100;
   order->quantity = 100;
@@ -146,13 +90,13 @@ void updateOrder(Order *order) {
   ++order->price;
 }
 
-ZdbRN TestStep::run(ZdbRN rn)
+ZdbRN TestStep::run(ZdbRN rn) const
 {
   using ObjRef = ZmRef<ZdbObject<Order>>;
   ObjRef object;
   for (unsigned i = 0; i < repeat; i++) {
     if (push) {
-      if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
+      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
 	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
 	  orders->push(rn,
 	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
@@ -163,46 +107,45 @@ ZdbRN TestStep::run(ZdbRN rn)
 	    wake(true);
 	  });
 	});
-      }) return;
+      })) return rn;
       ++rn;
     }
-    while (append) {
+    for (unsigned j = 0; j < append; j++) {
       if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
 	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
 	  orders->update(object, rn,
-	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
-	    if (!object_) { wake(false); return; }
-	    object = ZuMv(object_);
+	      [wake = ZuMv(wake)](ObjRef object) mutable {
+	    if (!object) { wake(false); return; }
 	    updateOrder(object->ptr());
 	    object->append();
 	    wake(true);
 	  });
 	});
-      })) return;
+      })) return rn;
       ++rn;
-      --append;
     }
     if (del) {
-      if (!ZmBlock<bool>{}([rn, &object])(auto wake) mutable {
+      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
 	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
 	  orders->update(object, rn,
-	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
-	    if (!object_) { wake(false); return; }
-	    object = ZuMv(object_);
+	      [wake = ZuMv(wake)](ObjRef object) mutable {
+	    if (!object) { wake(false); return; }
 	    object->del();
 	    wake(true);
 	  });
 	});
-      }) return;
+      })) return rn;
       ++rn;
     }
   }
+  return rn;
 }
 
 void active(ZdbEnv *, ZdbHost *) {
   puts("ACTIVE");
   initRN = orders->nextRN();
   for (unsigned i = 0; i < nThreads; i++) {
+    // FIXME
     appMx->add(ZmFn<>::Ptr<&push>::fn());
   }
 }
@@ -254,36 +197,36 @@ void usage()
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
-    { "del", "D", ZvOptScalar },
-    { "skip", "k", ZvOptScalar, "0" },
-    { "stride", "s", ZvOptScalar, "1" },
+    { "del", "D", ZvOptValue },
+    { "skip", "k", ZvOptValue, "0" },
+    { "stride", "s", ZvOptValue, "1" },
     { "append", "a", ZvOptFlag },
-    { "chain", "c", ZvOptScalar, "0" },
-    { "dbs.orders.path", "f", ZvOptScalar, "orders" },
-    { "dbs.orders.preAlloc", "p", ZvOptScalar, "1" },
-    { "hostID", "h", ZvOptScalar, "0" },
-    { "hashOut", "H", ZvOptScalar },
+    { "chain", "c", ZvOptValue, "0" },
+    { "dbs.orders.path", "f", ZvOptValue, "orders" },
+    { "dbs.orders.preAlloc", "p", ZvOptValue, "1" },
+    { "hostID", "h", ZvOptValue, "0" },
+    { "hashOut", "H", ZvOptValue },
     { "debug", "d", ZvOptFlag },
-    { "hosts.1.priority", 0, ZvOptScalar, "100" },
-    { "hosts.1.IP", 0, ZvOptScalar, "127.0.0.1" },
-    { "hosts.1.port", 0, ZvOptScalar, "9943" },
-    { "hosts.1.up", 0, ZvOptScalar },
-    { "hosts.1.down", 0, ZvOptScalar },
-    { "hosts.2.priority", 0, ZvOptScalar },
-    { "hosts.2.IP", 0, ZvOptScalar },
-    { "hosts.2.port", 0, ZvOptScalar },
-    { "hosts.2.up", 0, ZvOptScalar },
-    { "hosts.2.down", 0, ZvOptScalar },
-    { "hosts.3.priority", 0, ZvOptScalar },
-    { "hosts.3.IP", 0, ZvOptScalar },
-    { "hosts.3.port", 0, ZvOptScalar },
-    { "hosts.3.up", 0, ZvOptScalar },
-    { "hosts.3.down", 0, ZvOptScalar },
-    { "nAccepts", 0, ZvOptScalar },
-    { "heartbeatFreq", 0, ZvOptScalar },
-    { "heartbeatTimeout", 0, ZvOptScalar },
-    { "reconnectFreq", 0, ZvOptScalar },
-    { "electionTimeout", 0, ZvOptScalar },
+    { "hosts.1.priority", 0, ZvOptValue, "100" },
+    { "hosts.1.IP", 0, ZvOptValue, "127.0.0.1" },
+    { "hosts.1.port", 0, ZvOptValue, "9943" },
+    { "hosts.1.up", 0, ZvOptValue },
+    { "hosts.1.down", 0, ZvOptValue },
+    { "hosts.2.priority", 0, ZvOptValue },
+    { "hosts.2.IP", 0, ZvOptValue },
+    { "hosts.2.port", 0, ZvOptValue },
+    { "hosts.2.up", 0, ZvOptValue },
+    { "hosts.2.down", 0, ZvOptValue },
+    { "hosts.3.priority", 0, ZvOptValue },
+    { "hosts.3.IP", 0, ZvOptValue },
+    { "hosts.3.port", 0, ZvOptValue },
+    { "hosts.3.up", 0, ZvOptValue },
+    { "hosts.3.down", 0, ZvOptValue },
+    { "nAccepts", 0, ZvOptValue },
+    { "heartbeatFreq", 0, ZvOptValue },
+    { "heartbeatTimeout", 0, ZvOptValue },
+    { "reconnectFreq", 0, ZvOptValue },
+    { "electionTimeout", 0, ZvOptValue },
     { 0 }
   };
 
@@ -309,7 +252,7 @@ int main(int argc, char **argv)
     del = cf->getInt("del", 1, INT_MAX, 0);
     skip = cf->getInt("skip", 0, INT_MAX, 0);
     stride = cf->getInt("stride", 1, INT_MAX, 1);
-    append = cf->getInt("append", 0, 1, 0);
+    append = cf->getBool("append");
     chain = cf->getInt("chain", 0, INT_MAX, 0);
     nThreads = cf->getInt<true>("1", 1, 1<<10);
     nOps = cf->getInt<true>("2", 0, 1<<20);
@@ -347,7 +290,7 @@ int main(int argc, char **argv)
 	      .thread(3, [](auto &t) { t.isolated(1); }); })
 	    .rxThread(1).txThread(2)
 #ifdef ZiMultiplex_DEBUG
-	    .debug(cf->getInt("debug", 0, 1, 0))
+	    .debug(cf->getBool("debug"))
 #endif
 	    );
     }
@@ -360,7 +303,9 @@ int main(int argc, char **argv)
     env->init(ZdbEnvConfig(cf), dbMx, EnvHandler{
       .upFn = &active, .downFn = &inactive});
 
-    orders = env->initDB<Order>("orders");
+    orders = env->initDB<Order>("orders",
+	[](AnyObject *object) { },
+	[](ZdbRN rn) { });
 
     if (!env->open()) throw ZtString{} << "Zdb open failed";
     env->start();

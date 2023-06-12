@@ -380,17 +380,23 @@ private:
   bool loadUserDB() {
     ZeError e;
     if (m_userDB->load(m_userDBPath, &e) != Zi::OK) {
-      ZeLOG(Warning, ([userDBPath = m_userDBPath, e](auto &s) { s << "load(\"" << userDBPath << "\"): " << e; }));
+      ZeLOG(Warning, ([userDBPath = m_userDBPath, e](auto &s) {
+	s << "load(\"" << userDBPath << "\"): " << e;
+      }));
       ZtString backup{m_userDBPath.length() + 3};
       backup << m_userDBPath << ".1";
       if (m_userDB->load(backup, &e) != Zi::OK) {
-	ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) { s << "load(\"" << userDBPath << ".1\"): " << e; }));
+	ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
+	  s << "load(\"" << userDBPath << ".1\"): " << e;
+	}));
 	return false;
       }
     }
     m_cmdPerm = m_userDB->findPerm("ZCmd");
     if (m_cmdPerm < 0) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath](auto &s) { s << userDBPath << ": ZCmd permission missing"; }));
+      ZeLOG(Error, ([userDBPath = m_userDBPath](auto &s) {
+	s << userDBPath << ": ZCmd permission missing";
+      }));
       return false;
     }
     m_telPerm = m_userDB->findPerm("ZTel"); // optional
@@ -399,7 +405,9 @@ private:
   bool saveUserDB() {
     ZeError e;
     if (m_userDB->save(m_userDBPath, m_userDBMaxAge, &e) != Zi::OK) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) { s << "save(\"" << userDBPath << "\"): " << e; }));
+      ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
+	s << "save(\"" << userDBPath << "\"): " << e;
+      }));
       return false;
     }
     return true;

@@ -1588,6 +1588,7 @@ void DB::recover(const fbs::Record *record)
 	m_deletes.add(rn, DeleteOp{prevRN,
 	  SeqLenOp::mk(SeqLenOp::seqLen(seqLenOp) - 1, Op::Put)});
 	if (auto fn = m_handler.deleteFn) fn(prevRN);
+	m_objCache.del(prevRN);
       }
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
@@ -1595,15 +1596,18 @@ void DB::recover(const fbs::Record *record)
       }
       break;
     case Op::Append:
+      if (SeqLenOp::seqLen(seqLenOp) > 1)
+	m_objCache.del(prevRN);
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
 	m_objCache.add(ZuMv(object));
       }
       break;
     case Op::Delete:
+      m_objCache.del(prevRN);
       m_deletes.add(rn, DeleteOp{rn, seqLenOp});
       if (auto fn = m_handler.deleteFn) fn(rn);
-      m_objCache.del(prevRN);
+      m_objCache.del(rn);
       break;
     case Op::Purge:
       m_deletes.add(rn, DeleteOp{prevRN, seqLenOp});
@@ -2401,7 +2405,7 @@ ZuPair<int, RN> DB::del_(const DeleteOp &deleteOp, unsigned maxBatchSize)
 	m_minRN = minRN;
       }
       if (i >= maxBatchSize) return {-1, nullRN()}; // re-attempt
-      return {static_cast<int>(i), nullRN()};
+      return {static_cast<int>(i), nullRN()}; // purge complete
     }
   }
 

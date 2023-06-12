@@ -51,7 +51,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
   m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, 10);
   m_ttl = cf->getInt("ttl", 0, INT_MAX, 1);
   m_nAccepts = cf->getInt("nAccepts", 1, INT_MAX, 8);
-  m_loopBack = cf->getInt("loopBack", 0, 1, 0);
+  m_loopBack = cf->getBool("loopBack");
 
   if (ZuString channels = cf->get("channels"))
     updateLinks(channels);

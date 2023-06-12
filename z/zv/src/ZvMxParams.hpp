@@ -117,11 +117,10 @@ struct ZvMxParams : public ZiMxParams {
 	sched.quantum((double)ZuBox<double>(s));
       sched.queueSize(
 	  cf->getInt("queueSize", sched.queueSize(), 8192, (1U<<30U)));
-      sched.ll(cf->getInt("ll", sched.ll(), 0, 1));
+      sched.ll(cf->getBool("ll", sched.ll()));
       sched.spin(cf->getInt("spin", sched.spin(), 0, INT_MAX));
       sched.timeout(cf->getInt("timeout", sched.timeout(), 0, 3600));
-      sched.startTimer(
-	  cf->getInt("startTimer", sched.startTimer(), 0, 1));
+      sched.startTimer(cf->getBool("startTimer", sched.startTimer()));
       if (ZmRef<ZvCf> threadsCf = cf->getCf("threads")) {
 	threadsCf->all([&sched](ZvCfNode *node) {
 	  if (auto threadCf = node->getCf()) {
@@ -145,8 +144,7 @@ struct ZvMxParams : public ZiMxParams {
 	    thread.partition(threadCf->getInt(
 		  "partition", thread.partition(), 0, INT_MAX));
 	    if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
-	    thread.detached(
-		threadCf->getInt("detached", thread.detached(), 0, 1));
+	    thread.detached(threadCf->getBool("detached", thread.detached()));
 	  }
 	});
       }
@@ -161,10 +159,10 @@ struct ZvMxParams : public ZiMxParams {
     rxBufSize(cf->getInt("rcvBufSize", rxBufSize(), 0, INT_MAX));
     txBufSize(cf->getInt("sndBufSize", txBufSize(), 0, INT_MAX));
 #ifdef ZiMultiplex_DEBUG
-    trace(cf->getInt("trace", trace(), 0, 1));
-    debug(cf->getInt("debug", debug(), 0, 1));
-    frag(cf->getInt("frag", frag(), 0, 1));
-    yield(cf->getInt("yield", yield(), 0, 1));
+    trace(cf->getBool("trace", trace()));
+    debug(cf->getBool("debug", debug()));
+    frag(cf->getBool("frag", frag()));
+    yield(cf->getBool("yield", yield()));
 #endif
   }
 };

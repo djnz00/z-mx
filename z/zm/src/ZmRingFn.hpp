@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ZmRingFn encapsulates a generic pointer to any lambda for use with
+// ZmRingFn encapsulates a generic lambda payload, for use with ZmRing
 // ring buffers containing variable-sized messages; it optimizes for the
 // stateless case, while also handling stateful lambdas with captures
 //
@@ -34,15 +34,15 @@
 // the ZmRingFn scope is extended beyond the scope of the original on-stack
 // lambda reference that it was constructed with
 //
-// pushSize() returns the message size needed to store the
+// pushSize() returns the message byte size needed to store the
 // lambda in a ring buffer together with its invocation function
 //
 // push() moves the lambda into a ring buffer together with its
 // invocation function
 //
 // invoke() invokes the lambda directly from the ring buffer pointer,
-// destroys it and returns the size of the message so that the ring
-// dequeue can complete
+// destroys it and returns the size of the message so that a ring
+// dequeue can complete correctly
 
 // ZmHeap is used for heap allocation
 
@@ -223,7 +223,22 @@ private:
   uintptr_t	m_ptr = 0;            // pointer to lambda instance
 };
 
-template <typename NTP>
-using ZmRingFn = ZuTypeApply<ZmRingFn_, typename NTP::Args::template Prepend<NTP>>;
+template <typename Args, unsigned N = Args::N>
+struct ZmRingFn_MapArgs {
+  constexpr static ZuFalse match(...);
+  constexpr static ZuTrue match(ZmRingFn_Defaults *);
+
+  using T =
+    ZuIf<!N, ZmRingFn_<ZmRingFn_Defaults>,
+      ZuIf<!decltype(match(ZuDeclVal<ZuType<N - 1, Args> *>())){},
+	ZuTypeApply<ZmRingFn_,
+	  typename Args::template Prepend<ZmRingFn_Defaults>>,
+	ZuTypeApply<ZmRingFn_,
+	  typename ZuTypeLeft<N - 1, Args>::template Prepend<
+	    ZuType<N - 1, Args>>>>>;
+};
+
+template <typename ...Args>
+using ZmRingFn = typename ZmRingFn_MapArgs<ZuTypeList<Args...>>::T;
 
 #endif /* ZmRingFn_HPP */

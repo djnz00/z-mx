@@ -31,8 +31,7 @@ struct Link : public ZvCmdSrvLink<CmdTest, Link> {
   Link(CmdTest *app) : Base{app} { }
 };
 
-class CmdTest :
-    public ZmPolymorph, public ZvCmdServer<CmdTest, Link> {
+class CmdTest : public ZmPolymorph, public ZvCmdServer<CmdTest, Link> {
 public:
   void init(ZiMultiplex *mx, const ZvCf *cf) {
     m_uptime.now();
@@ -122,7 +121,7 @@ int main(int argc, char **argv)
 	  .thread(3, [](auto &t) { t.isolated(1); }); })
 	.rxThread(1).txThread(2));
 
-  ZmRef<CmdTest> server = new CmdTest();
+  ZmRef<CmdTest> server = new CmdTest{};
 
   ZmTrap::sigintFn(ZmFn<>{server, [](CmdTest *server) { server->post(); }});
   ZmTrap::trap();
@@ -130,7 +129,7 @@ int main(int argc, char **argv)
   mx->start();
 
   try {
-    ZmRef<ZvCf> cf = new ZvCf();
+    ZmRef<ZvCf> cf = new ZvCf{};
     cf->fromString(
 	"thread 3\n"
 	"caPath /etc/ssl/certs\n"

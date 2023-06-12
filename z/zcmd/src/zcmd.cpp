@@ -374,14 +374,18 @@ private:
       if (n = ZtREGEX("\s*>>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "a"))) {
-	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) { s << path << ": " << e; }));
+	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) {
+	    s << path << ": " << e;
+	  }));
 	  return -1;
 	}
 	cmd = c[0];
       } else if (n = ZtREGEX("\s*>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "w"))) {
-	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) { s << path << ": " << e; }));
+	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) {
+	    s << path << ": " << e;
+	  }));
 	  return -1;
 	}
 	cmd = c[0];
@@ -446,7 +450,10 @@ private:
     auto ackType = ack->data_type();
     if ((int)ackType != ackType1 &&
 	ackType2 >= fbs::ReqAckData_MIN && (int)ackType != ackType2) {
-      ZeLOG(Error, ([ackType](auto &s) { s << "mismatched ack from server: " << fbs::EnumNameReqAckData(ackType); }));
+      ZeLOG(Error, ([ackType](auto &s) {
+	s << "mismatched ack from server: "
+	  << fbs::EnumNameReqAckData(ackType);
+      }));
       out << op << " failed\n";
       return 1;
     }
@@ -1240,7 +1247,7 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     using namespace ZvTelemetry;
     unsigned interval = ctx->args->getInt("interval", 0, 1000000, 100);
-    bool subscribe = !ctx->args->getInt("unsubscribe", 0, 1, 0);
+    bool subscribe = !ctx->args->getBool("unsubscribe");
     if (!subscribe) {
       for (unsigned i = 0; i < TelDataN; i++) m_telcap[i] = TelCap{};
       if (argc > 1) throw ZvCmdUsage{};

@@ -32,6 +32,8 @@
 
 #include <zlib/ZmFn.hpp>
 
+#include <zlib/ZtRegex.hpp>
+
 #include <zlib/Ztls.hpp>
 
 #include <zlib/Zfb.hpp>
@@ -222,11 +224,9 @@ public:
       else
 	m_thread = mx->txThread();
 
-      m_minInterval =
-	cf->getInt("telemetry:minInterval", 10, 1, 1000000);
+      m_minInterval = cf->getInt("telemetry:minInterval", 1, 1000000, 10);
       m_alertPrefix = cf->get("telemetry:alertPrefix", "alerts");
-      m_alertMaxReplay =
-	cf->getInt("telemetry:alertMaxReplay", 10, 1, 1000);
+      m_alertMaxReplay = cf->getInt("telemetry:alertMaxReplay", 1, 1000, 10);
 
       return true;
     });

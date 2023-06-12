@@ -171,7 +171,7 @@ friend ZmSingletonCtor<ZeLog>;
   using Guard = ZmGuard<Lock>;
 
   using Ring = ZmRing<ZmRingMW<true>>;
-  using Fn = ZmRingFn<ZmRingFnArgs<ZuTypeList<ZeLog *>>>;
+  using Fn = ZmRingFn<ZeLog *>;
 
   ZeLog();
 

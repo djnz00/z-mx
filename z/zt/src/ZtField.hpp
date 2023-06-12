@@ -315,7 +315,7 @@ struct ZtFieldType_Composite : public ZtField_<Base, Flags> {
       return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
     }
   };
-  ZuInline static constexpr auto deflt() { return Def(); }
+  ZuInline constexpr static auto deflt() { return Def(); }
   static auto constantFn() {
     using namespace ZtVFieldConstant;
     return [](int i) -> ZmStreamFn {

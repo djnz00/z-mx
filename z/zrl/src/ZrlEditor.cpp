@@ -25,6 +25,8 @@
 
 #include <zlib/ZmAlloc.hpp>
 
+#include <zlib/ZtRegex.hpp>
+
 #include <zlib/ZrlEditor.hpp>
 
 namespace Zrl {

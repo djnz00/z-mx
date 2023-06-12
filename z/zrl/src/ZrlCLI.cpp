@@ -21,6 +21,8 @@
 
 #include <zlib/ZrlCLI.hpp>
 
+#include <zlib/ZtRegex.hpp>
+
 using namespace Zrl;
 
 namespace {

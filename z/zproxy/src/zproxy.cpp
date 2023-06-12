@@ -623,13 +623,13 @@ public:
 	if (!validateTag(tag)) throw ZeError();
       } else
 	tag = "#default";
-      if (args->getInt("suspend", 0, 1, 0))
+      if (args->getBool("suspend"))
 	cxnFlags |= Connection::SuspRecv | Connection::SuspSend;
-      if (args->getInt("hold", 0, 1, 0))
+      if (args->getBool("hold"))
 	cxnFlags |= Connection::Hold;
-      if (args->getInt("trace", 0, 1, 0))
+      if (args->getBool("trace"))
 	cxnFlags |= Connection::Trace;
-      if (args->getInt("drop", 0, 1, 0))
+      if (args->getBool("drop"))
 	cxnFlags |= Connection::Drop;
       cxnLatency = args->getDbl("latency", 0, 3600, 0);
       cxnFrag = args->getInt("frag", INT_MIN, INT_MAX, 0);
@@ -987,7 +987,7 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      on = args->getInt("2", 0, 1, 1);
+      on = args->getBool("2", true);
       side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
@@ -1042,7 +1042,7 @@ public:
 	allProxies = true;
       else
 	srcPort = args->getInt("1", 1, 65535, true);
-      on = args->getInt("2", 0, 1, 1);
+      on = args->getBool("2", true);
       side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
@@ -1086,7 +1086,7 @@ public:
     auto &out = ctx->out;
     bool on;
     try {
-      on = args->getInt("1", 0, 1, 1);
+      on = args->getBool("1", true);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -1522,7 +1522,7 @@ int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
     { "verbose", "v", ZvOptFlag },
-    { "mx.nThreads", "t", ZvOptScalar },
+    { "mx.nThreads", "t", ZvOptValue },
     { 0 }
   };
 

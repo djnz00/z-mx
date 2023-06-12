@@ -356,7 +356,7 @@ App::App(const ZvCf *cf) :
   m_interval(cf->getDbl("interval", 0, 1, 0)),
   m_interface(cf->get("interface", "0.0.0.0")),
   m_ttl(cf->getInt("ttl", 0, INT_MAX, 1)),
-  m_loopBack(cf->getInt("loopBack", 0, 1, 0))
+  m_loopBack(cf->getBool("loopBack"))
 {
   m_mx = new Mx(cf->getCf("mx"));
   m_cxns = new Cxns();

@@ -21,6 +21,8 @@
 
 #include <zlib/ZdfFile.hpp>
 
+#include <zlib/ZtRegex.hpp>
+
 #include <zlib/ZeLog.hpp>
 
 #include <zlib/ZiDir.hpp>
