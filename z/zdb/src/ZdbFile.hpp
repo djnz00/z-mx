@@ -129,9 +129,7 @@ class File_;
 struct IndexBlk_ {
 #pragma pack(push, 1)
   struct Index {
-    int64_t	offset;	// FIXME - use -ve for deleted, 
-			// FIXME - make this relative to index block offset
-			// FIXME - 
+    int64_t	offset;
     uint32_t	length;
   };
   struct Blk {

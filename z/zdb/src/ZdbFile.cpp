@@ -173,6 +173,8 @@ void File_::reset()
   memset(&m_superBlk.data[0], 0, sizeof(FileSuperBlk));
 }
 
+// FIXME compact will have a similar structure to scan
+
 bool File_::scan()
 {
   // if file is truncated below minimum header size, reset/rewrite it
@@ -243,45 +245,48 @@ bool File_::scan()
   m_allocated = m_deleted = 0;
   m_bitmap.zero();
   bool rewrite = false;
-  for (unsigned i = 0; i < fileIndices(); i++)
-    if (uint64_t indexBlkOffset = m_superBlk.data[i]) {
-      FileIndexBlk indexBlk;
-      if (ZuUnlikely((r = pread(indexBlkOffset,
-		&indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-	m_mgr->fileRdError_(static_cast<File *>(this), indexBlkOffset, r, e);
-	return false;
-      }
-      bool rewriteIndexBlk = false;
-      for (unsigned j = 0; j < indexRecs(); j++)
-	if (uint64_t offset = indexBlk.data[j].offset)
-	  if (offset == deleted()) {
-	    ++m_deleted;
-	  } else {
-	    offset += indexBlk.data[j].length;
-	    FileRecTrlr trlr;
-	    if (ZuUnlikely((r = pread(offset,
-		      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-	      m_mgr->fileRdError_(static_cast<File *>(this), offset, r, e);
-	      return false;
-	    }
-	    if (trlr.rn != ((id()<<fileShift()) | (i<<indexShift()) | j) ||
-		trlr.magic != ZdbCommitted) {
-	      indexBlk.data[j] = { 0, 0 };
-	      rewriteIndexBlk = true;
-	      continue;
-	    }
-	    ++m_allocated;
-	    m_bitmap[(i<<indexShift()) | j].set();
-	  }
-      if (rewriteIndexBlk) {
-	rewrite = true;
-	if (ZuUnlikely((r = pwrite(indexBlkOffset,
-		  &indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-	  m_mgr->fileWrError_(static_cast<File *>(this), indexBlkOffset, e);
+  for (unsigned i = 0; i < fileIndices(); i++) {
+    uint64_t indexBlkOffset = m_superBlk.data[i];
+    if (!indexBlkOffset) break;
+    FileIndexBlk indexBlk;
+    if (ZuUnlikely((r = pread(indexBlkOffset,
+	      &indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
+      m_mgr->fileRdError_(static_cast<File *>(this), indexBlkOffset, r, e);
+      return false;
+    }
+    bool rewriteIndexBlk = false;
+    for (unsigned j = 0; j < indexRecs(); j++) {
+      uint64_t offset = indexBlk.data[j].offset;
+      if (!offset) break;
+      if (offset < 0) {
+	++m_deleted;
+      } else {
+	offset += indexBlk->offset + indexBlk.data[j].length;
+	FileRecTrlr trlr;
+	if (ZuUnlikely((r = pread(offset,
+		  &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
+	  m_mgr->fileRdError_(static_cast<File *>(this), offset, r, e);
 	  return false;
 	}
+	if (trlr.rn != ((id()<<fileShift()) | (i<<indexShift()) | j) ||
+	    trlr.magic != ZdbCommitted) {
+	  indexBlk.data[j] = { 0, 0 };
+	  rewriteIndexBlk = true;
+	  break;
+	}
+	++m_allocated;
+	m_bitmap[(i<<indexShift()) | j].set();
       }
     }
+    if (rewriteIndexBlk) {
+      rewrite = true;
+      if (ZuUnlikely((r = pwrite(indexBlkOffset,
+		&indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
+	m_mgr->fileWrError_(static_cast<File *>(this), indexBlkOffset, e);
+	return false;
+      }
+    }
+  }
   m_offset = size();
   return !rewrite || sync_();
 }
@@ -389,6 +394,12 @@ File *FileMgr::getFile(uint64_t id)
 }
 
 template <bool Create>
+File *FileMgr::openFile(uint64_t id)
+{
+  return openFile_<Create>(fileName(dirName(id), id), id);
+}
+
+template <bool Create>
 File *FileMgr::openFile_(const ZiFile::Path &name, uint64_t id)
 {
   ZuPtr<File> file = new File{this, id};
@@ -409,12 +420,6 @@ File *FileMgr::openFile_(const ZiFile::Path &name, uint64_t id)
   }
   file->sync_();
   return file.release();
-}
-
-template <bool Create>
-File *FileMgr::openFile(uint64_t id)
-{
-  return openFile_<Create>(fileName(dirName(id), id), id);
 }
 
 template <bool Create>
@@ -472,12 +477,6 @@ IndexBlk *File_::readIndexBlk(uint64_t id)
 // this would be run-length batched; note that offset reduction has to
 // occur both on-disk and in-cache - file cache m_offset, superBlk,
 // index blk cache offset, blk
-//
-// efficient way to do this would be to mmap the file, then use memmove
-// to defrag it, then munmap and truncate - note that mmap() is also
-// a file open, so would need to evict from cache during compaction -
-// schedule compaction on cache evict, and only if not in cache at that
-// time?
 
 IndexBlk *File_::writeIndexBlk(uint64_t id)
 {
@@ -551,15 +550,14 @@ void FileMgr::warmup(ZdbRN rn)
 // read individual record from disk into buffer
 ZmRef<Buf> FileMgr::read_(ZdbRN rn)
 {
-  if (FileRec rec = rn2file<false>(rn))
-    return read_(rec);
+  if (FileRec rec = rn2file<false>(rn)) return read_(rec);
   return {};
 }
 
 ZmRef<Buf> FileMgr::read_(const FileRec &rec)
 {
   const auto &index = rec.index();
-  if (ZuUnlikely(!index.offset || index.offset == deleted())) {
+  if (ZuUnlikely(index.offset <= 0)) {
     ZeLOG(Error, ([id = config().id, rn = rec.rn()](auto &s) {
       s << "Zdb internal error on DB " << id <<
 	" bitmap inconsistent with index for RN " << rn;
@@ -575,19 +573,21 @@ ZmRef<Buf> FileMgr::read_(const FileRec &rec)
   }
   FileRecTrlr trlr;
   {
-    File *file = rec.file();
+    auto file = rec.file();
+    auto indexBlk = rec.indexBlk();
     int r;
     ZeError e;
     if (index.length) {
       // read record
-      if (ZuUnlikely((r = file->pread(index.offset,
+      if (ZuUnlikely((r = file->pread(indexBlk->offset + index.offset,
 		ptr, index.length, &e)) != Zi::OK)) {
 	fileRdError_(file, index.offset, r, e);
 	return nullptr;
       }
     }
     // read trailer
-    if (ZuUnlikely((r = file->pread(index.offset + index.length,
+    if (ZuUnlikely((r = file->pread(
+	      indexBlk->offset + index.offset + index.length,
 	      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
       fileRdError_(file, index.offset + index.length, r, e);
       return nullptr;
@@ -615,10 +615,12 @@ bool FileMgr::write_(Buf *buf)
   {
     FileRec rec = rn2file<true>(rn);
     if (!rec) return false;
+    auto file = rec.file();
+    auto indexBlk = rec.indexBlk();
     auto &index = rec.index();
-    File *file = rec.file();
     file->alloc(rn & fileRecMask());
-    index.offset = file->append(data.length() + sizeof(FileRecTrlr));
+    index.offset =
+      file->append(data.length() + sizeof(FileRecTrlr)) - indexBlk->offset;
     index.length = data.length();
     FileRecTrlr trlr{
       .rn = rn,
@@ -630,7 +632,7 @@ bool FileMgr::write_(Buf *buf)
     ZeError e;
     if (data) {
       // write record
-      if (ZuUnlikely((r = file->pwrite(index.offset,
+      if (ZuUnlikely((r = file->pwrite(indexBlk->offset + index.offset,
 		data.data(), data.length(), &e)) != Zi::OK)) {
 	fileWrError_(file, index.offset, e);
 	index.offset = 0;
@@ -639,7 +641,8 @@ bool FileMgr::write_(Buf *buf)
       }
     }
     // write trailer
-    if (ZuUnlikely((r = file->pwrite(index.offset + index.length,
+    if (ZuUnlikely((r = file->pwrite(
+	      indexBlk->offset + index.offset + index.length,
 	      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
       fileWrError_(file, index.offset + index.length, e);
       index.offset = 0;
@@ -661,15 +664,15 @@ RN FileMgr::del_prevRN(RN rn)
   FileRec rec = rn2file<false>(rn);
   if (!rec) return nullRN();
   const auto &index = rec.index();
-  if (ZuUnlikely(!index.offset || index.offset == deleted())) {
+  if (ZuUnlikely(index.offset <= 0)) {
     ZeLOG(Error, ([id = config().id, rn = rec.rn()](auto &s) {
       s << "Zdb internal error on DB " << id <<
 	" bitmap inconsistent with index for RN " << rn;
     }));
     return nullRN();
   }
-  auto offset = index.offset + index.length;
-  File *file = rec.file();
+  auto file = rec.file();
+  auto offset = rec.indexBlk()->offset + index.offset + index.length;
   FileRecTrlr trlr;
   int r;
   ZeError e;
@@ -688,7 +691,7 @@ void FileMgr::del_write(RN rn)
 {
   FileRec rec = rn2file<false>(rn);
   if (!rec) return;
-  rec.index().offset = deleted();
+  rec.index().offset = -rec.index().offset;
   auto file = rec.file();
   if (file->del(rn & fileRecMask()))
     delFile(file);
@@ -730,6 +733,52 @@ void FileMgr::del_write(RN rn)
     }
   }
 }
+
+compact should 
+
+-0  +1  -2  +3  -4  +5  -6/0+7/2-8/4
+
+// FIXME - NEW DESIGN
+
+// record lifecycle:
+//
+// 0, 0 - uninitialized/unused (only possible if file is incomplete)
+// offset, N - record data
+// -offset, N - deletion tombstone (uncompacted)
+// -offset, 0 - deletion tombstone (compacted)
+// a file that is entirely comprised of tombstones is a candidate for removal
+
+// 1] file flags:
+//    complete (no longer appending)
+//    fragmented (fragmentation > threshold)
+//    active (deletion occurred, implies complete) - cleared each sweep
+//    compacting (implies inactive, fragmented and complete)
+//    tombstone (entirely comprised of tombstones)
+//    zombie (will be deleted in next vacuum - implies tombstone)
+//
+// 2] files maintain the following counts:
+//    allocated - all allocated records
+//    deleted - all deleted records
+//    tombstones - all zero-length records (deletions and previously compacted)
+//
+// 3] fragmentation calculation:
+//    fragmentation % is (deleted - tombstones) / ((deleted - tombstones) + allocated)
+//
+// 4] mark files as fragmented (or not) following each deletion
+// 5] mark files as active following each deletion
+// 6] unmark files as active during each sweep
+// 7] only initiate compaction for files that are inactive for an entire
+//    interval and fragmented
+// 8] abort compaction if file becomes active during compaction
+//    - remainder of file is copied to compacted file as is, compacted
+//      file replaces previous
+// 9] dead files are also marked for deletion each sweep
+// 10] dead files are deleted in order once marked in next sweep
+
+// parameters:
+//   vacuum interval
+//   vacuum batch size (number of records processed in each iteration)
+//   compaction threshold
 
 // delete file
 void FileMgr::delFile(File *file)
