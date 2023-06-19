@@ -357,7 +357,8 @@ int ZiFile::open_(
   }
 #endif
 
-  init_(h, flags | GC, blkSize, (flags & (MMap | Shm)) ? length : (Offset)0);
+  init_(h, flags | GC, blkSize,
+      (flags & (MMap | Shm)) ? length : static_cast<Offset>(0));
   return Zi::OK;
 
 error:
@@ -525,7 +526,7 @@ closed:
   m_handle = Zi::nullHandle();
   m_flags = 0;
   m_offset = 0;
-  m_addr = 0;
+  m_addr = nullptr;
   m_mmapLength = 0;
 #ifndef _WIN32
   m_shmName.null();

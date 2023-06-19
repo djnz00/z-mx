@@ -798,8 +798,19 @@ friend Base;
   const App *app() const { return static_cast<const App *>(this); }
   App *app() { return static_cast<App *>(this); }
 
+  Client() {
+    mbedtls_x509_crt_init(&m_cert);
+    mbedtls_pk_init(&m_key);
+  }
+  ~Client() {
+    mbedtls_pk_free(&m_key);
+    mbedtls_x509_crt_free(&m_cert);
+  }
+
+  // specify certPath and keyPath for mTLS
   bool init(ZiMultiplex *mx, ZuString thread,
-      const char *caPath, const char **alpn) {
+      const char *caPath, const char **alpn,
+      const char *certPath = nullptr, const char *keyPath = nullptr) {
     return Base::init(mx, thread, [&]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_CLIENT,
@@ -812,6 +823,13 @@ friend Base;
       mbedtls_ssl_conf_authmode(this->conf(), MBEDTLS_SSL_VERIFY_REQUIRED);
       if (!this->loadCA(caPath)) return false;
       if (alpn) mbedtls_ssl_conf_alpn_protocols(this->conf(), alpn);
+
+      if (certPath && keyPath) {
+	if (mbedtls_x509_crt_parse_file(&m_cert, certPath)) return false;
+	if (mbedtls_pk_parse_keyfile(&m_key, keyPath, "")) return false;
+	if (mbedtls_ssl_conf_own_cert(this->conf(), &m_cert, &m_key))
+	  return false;
+      }
       return true;
     });
   }
@@ -820,6 +838,10 @@ friend Base;
 
 protected:
   unsigned reconnFreq() const { return 0; } // default
+
+private:
+  mbedtls_x509_crt		m_cert;
+  mbedtls_pk_context		m_key;
 };
 
 // CRTP - implementation must conform to the following interface:
@@ -879,8 +901,9 @@ friend Base;
   }
 
   bool init(ZiMultiplex *mx, ZuString thread,
-      const char *caPath, const char **alpn, const char *certPath,
-      const char *keyPath, int cacheMax = -1, int cacheTimeout = -1) {
+      const char *caPath, const char **alpn,
+      const char *certPath, const char *keyPath,
+      bool mTLS = false, int cacheMax = -1, int cacheTimeout = -1) {
     return Base::init(mx, thread, [&]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_SERVER,
@@ -904,7 +927,8 @@ friend Base;
 	  mbedtls_ssl_ticket_parse,
 	  &m_ticket_ctx);
 
-      mbedtls_ssl_conf_authmode(this->conf(), MBEDTLS_SSL_VERIFY_NONE);
+      mbedtls_ssl_conf_authmode(this->conf(),
+	  mTLS ? MBEDTLS_SSL_VERIFY_REQUIRED : MBEDTLS_SSL_VERIFY_NONE);
       if (!this->loadCA(caPath)) return false;
       if (alpn) mbedtls_ssl_conf_alpn_protocols(this->conf(), alpn);
 

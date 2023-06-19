@@ -20,11 +20,11 @@
 // Julian (serial) date based date/time class - JD(UT1) in IAU nomenclature
 
 // * handles dates from Jan 1st 4713BC to Oct 14th 1465002AD
-//   Note: 4713BC is -4712 when printed as an ISO8601 date, since
+//   Note: 4713BC is -4712 when printed in ISO8601 format, since
 //   historians do not include a 0 year (1BC immediately precedes 1AD)
 
 // * date/times are internally represented as a Julian date with
-//   intraday time in POSIX time_t seconds (effectively UT1 seconds)
+//   intraday time in POSIX time_t seconds (i.e. UT1 seconds)
 //   from midnight in the GMT timezone, and a number of nanoseconds
 
 // * intraday timespan of each day is midnight-to-midnight instead
@@ -51,7 +51,7 @@
 //   when performing calculations involving time values that are exchanged
 //   with external systems requiring accuracy to the atomic second (such
 //   as astronomical systems, etc.), the caller may need to compensate for
-//   the difference between atomic time and POSIX time_t, in particular:
+//   the difference between atomic time (UTC) and POSIX time_t (UT1):
 //
 //   * when repeatedly adding/subtracting atomic time values to advance or
 //     reverse a POSIX time, it is possible to accumulate more than one

@@ -182,7 +182,7 @@ table Zdb {
   file_cache_size:uint32;
   index_blk_cache_size:uint32;
   cache_mode:ZdbCacheMode;
-  warm_up:uint8;
+  warmup:uint8;
   compress:uint8;
 }
 enum ZdbHostState:int8 {

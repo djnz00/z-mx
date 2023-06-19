@@ -67,14 +67,17 @@
 #include <zlib/ZvTelemetry.hpp>
 #include <zlib/ZvTelServer.hpp>
 
-#define ZdbVersion	1		// file format version
+#include <zlib/ZdbTypes.hpp>
+#include <zlib/ZdbMsg.hpp>
+#include <zlib/ZdbBuf.hpp>
+#include <zlib/ZdbFile.hpp>
 
 // Zdb is a clustered/replicated in-process/in-memory journal DB that
 // includes leader election and failover. Zdb dynamically organizes
 // cluster hosts into a replication chain from the leader to the
 // lowest-priority follower. Replication is async. ZmEngine is used for
 // start/stop state management. Zdb applications are stateful back-end
-// services that are expected to defer to Zdb for activation/deactivation.
+// services that defer to Zdb for activation/deactivation.
 // Restart/recovery is from persistent storage, then from the cluster
 // leader (if the local host is not itself elected leader).
 
@@ -100,253 +103,9 @@
 #define ZdbDEBUG(env, e) (void())
 #endif
 
-// new file structure with variable-length flatbuffer-format records
-
-// each DB file contains up to 16K records, organized as a 1Kb superblock
-// that indexes up to 128 index blocks, each 1.5Kb index block indexing
-// to 128 individual records with {u64 offset, u32 length} tuples
-// super-block is immediately followed by first index-block
-
-// LRU write-through cache of files is maintained
-// each cached file containes a write-through cache of the superblock
-// a global LRU write-through cache of index blocks is maintained
-
-// file hdr, bitmap, superblock are written on file eviction
-// index blocks are written on index block eviction
-// on close, all files and index blocks are written and evicted
-
-// each record on disk is {data, trailer}, where trailer is the on-disk
-// equivalent of the network message header
-
-#include <zlib/zdb__fbs.h>
 #include <zlib/telemetry_fbs.h>
 
 namespace Zdb_ {
-
-// record number type and sentinel values
-using RN = uint64_t;		// RN is primary object key / ID
-inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
-inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
-
-// -- file format
-
-// 0,+20 header (magic:u32, version:u32, flags:u32, allocated:u32, deleted:u32)
-// 20,+256 bitmap (FileBitmap) (16384 x u1)
-// 276,+1024 superblock (FileSuperBlk) (128 x u64)
-// ... followed by index blocks interleaved with variable length records
-// Offset,+1536 index block (FileIndexBlk) (128 x {u64,u32})
-
-// primitive database journal op codes
-namespace Op {
-  ZtEnumValues("Zdb_::Op",
-    Put = 0,	// add this record, delete prevRN (and predecessors)
-    Append,	// add this record, preserve prevRN
-    Delete,	// add this tombstone, delete prevRN (no data)
-    Purge	// add this purge instruction, delete all < prevRN (no data)
-  );
-}
-
-// sequence length type
-using SeqLen = uint32_t;
-
-// {sequence length, operation} packed type
-namespace SeqLenOp {
-  inline SeqLen mk(SeqLen length, int op) {
-    return (length<<2) | op;
-  }
-  inline SeqLen seqLen(SeqLen seqLenOp) { return seqLenOp>>2; }
-  inline int op(SeqLen seqLenOp) {
-    return !seqLenOp ? -1 : static_cast<int>(seqLenOp & 3);
-  }
-  inline constexpr SeqLen maxSeqLen() { return 0x3fffffffU; }
-}
-
-// file offset type and sentinel values
-using Offset = uint64_t;
-inline constexpr uint64_t deleted() { return ~static_cast<uint64_t>(0); }
-
-// file format constants
-inline constexpr unsigned fileShift()	{ return 14; }
-inline constexpr unsigned fileMask()	{ return 0x7fU; }
-inline constexpr unsigned fileIndices()	{ return 128; }
-inline constexpr unsigned fileRecs()	{ return 16384; }
-inline constexpr unsigned fileRecMask()	{ return 0x3fff; }
-inline constexpr unsigned indexShift()	{ return 7; }
-inline constexpr unsigned indexMask()	{ return 0x7fU; }
-inline constexpr unsigned indexRecs()	{ return 128; }
-
-namespace FileFlags {
-  enum {
-    IOError	= 0x00000001,	// I/O error during open
-    Clean	= 0x00000002	// closed cleanly
-  };
-};
-
-#define ZdbMagic	0x0db3a61c	// file magic number
-#define ZdbCommitted	0xc001da7a	// "cool data"
-
-using Magic = uint32_t;
-using SeqLen = uint32_t;
-
-#pragma pack(push, 1)
-using U32LE = ZuLittleEndian<uint32_t>;
-using U64LE = ZuLittleEndian<uint64_t>;
-using I64LE = ZuLittleEndian<int64_t>;
-
-using RNLE = ZuLittleEndian<RN>;
-using MagicLE = ZuLittleEndian<Magic>;
-using SeqLenLE = ZuLittleEndian<SeqLen>;
-
-struct FileHdr {
-  MagicLE	magic;		// ZdbMagic
-  U32LE		version;
-  U32LE		flags;		// FileFlags
-  U32LE		allocated;	// allocated record count
-  U32LE		deleted;	// deleted record count
-};
-struct FileBitmap {		// bitmap
-  U64LE		data[fileRecs()>>6];
-};
-struct FileSuperBlk {		// super block
-  U64LE		data[fileIndices()];
-};
-struct FileIndex {
-  U64LE		offset;
-  U32LE		length;
-};
-struct FileIndexBlk {		// index block
-  FileIndex	data[indexRecs()];
-};
-struct FileRecTrlr {		// record trailer
-  RNLE		rn;
-  RNLE		prevRN;
-  SeqLenLE	seqLenOp;	// chain length + op
-  MagicLE	magic;		// ZdbCommitted
-};
-#pragma pack(pop)
-
-// -- message format - re-used for both disk and network
-
-// custom header with an explicitly little-endian uint32 length
-#pragma pack(push, 1)
-struct Hdr {
-  ZuLittleEndian<uint32_t>	length;	// length of body
-
-  const uint8_t *data() const {
-    return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
-  }
-};
-#pragma pack(pop)
-
-// call following Finish() to push header and detach buffer
-template <typename Builder, typename Owner>
-inline auto saveHdr(Builder &fbb, Owner *owner) {
-  unsigned length = fbb.GetSize();
-  auto buf = fbb.buf();
-  buf->owner = owner;
-  auto ptr = buf->prepend(sizeof(Hdr));
-  if (ZuUnlikely(!ptr)) return decltype(buf){};
-  new (ptr) Hdr{length};
-  return buf;
-}
-template <typename Builder>
-inline auto saveHdr(Builder &fbb) {
-  return saveHdr(fbb, static_cast<void *>(nullptr));
-}
-// returns the total length of the message including the header,
-// INT_MAX if not enough bytes have been read yet, -1 if corrupt
-template <typename Buf>
-inline int loadHdr(const Buf *buf) {
-  if (ZuUnlikely(buf->length < sizeof(Hdr))) return INT_MAX;
-  auto hdr = buf->template ptr<Hdr>();
-  return sizeof(Hdr) + static_cast<uint32_t>(hdr->length);
-}
-// returns -1 if the header is invalid/corrupted, or lambda return
-template <typename Buf, typename Fn>
-inline int verifyHdr(ZmRef<Buf> buf, Fn fn) {
-  if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
-  auto hdr = buf->template ptr<Hdr>();
-  unsigned length = hdr->length;
-  if (length > (buf->length - sizeof(Hdr))) return -1;
-  int i = fn(hdr, ZuMv(buf));
-  if (i < 0) return i;
-  return sizeof(Hdr) + i;
-}
-// payload data containing a single whole message
-inline ZuArray<const uint8_t> msgData(const Hdr *hdr) {
-  if (ZuUnlikely(!hdr)) return {};
-  return {
-    reinterpret_cast<const uint8_t *>(hdr),
-    static_cast<unsigned>(sizeof(Hdr) + hdr->length)};
-}
-
-inline const fbs::Msg *msg(const Hdr *hdr) {
-  if (ZuUnlikely(!hdr)) return nullptr;
-  auto data = hdr->data();
-  if (ZuUnlikely((!Zfb::Verifier{data, hdr->length}.VerifyBuffer<fbs::Msg>())))
-    return nullptr;
-  return Zfb::GetRoot<fbs::Msg>(data);
-}
-inline const fbs::Msg *msg_(const Hdr *hdr) {
-  return Zfb::GetRoot<fbs::Msg>(hdr->data());
-}
-inline const fbs::Heartbeat *hb_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Heartbeat *>(msg->body());
-}
-inline const fbs::Heartbeat *hb(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  switch (static_cast<int>(msg->body_type())) {
-    default:
-      return nullptr;
-    case fbs::Body_HB:
-      return hb_(msg);
-  }
-}
-inline bool recovery(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return false;
-  return msg->body_type() == fbs::Body_Rec;
-}
-inline bool recovery_(const fbs::Msg *msg) {
-  return msg->body_type() == fbs::Body_Rec;
-}
-inline const fbs::Record *record_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Record *>(msg->body());
-}
-inline const fbs::Record *record(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  switch (static_cast<int>(msg->body_type())) {
-    default:
-      return nullptr;
-    case fbs::Body_Rep:
-    case fbs::Body_Rec:
-      return record_(msg);
-  }
-}
-inline const fbs::Gap *gap_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Gap *>(msg->body());
-}
-inline const fbs::Gap *gap(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  if (static_cast<int>(msg->body_type()) != fbs::Body_Gap)
-    return nullptr;
-  return gap_(msg);
-}
-template <typename T>
-inline const T *data(const fbs::Record *record) {
-  if (ZuUnlikely(!record)) return nullptr;
-  auto data = Zfb::Load::bytes(record->data());
-  if (ZuUnlikely(!data)) return nullptr;
-  if (ZuUnlikely((
-	!Zfb::Verifier{data.data(), data.length()}.VerifyBuffer<T>())))
-    return nullptr;
-  return Zfb::GetRoot<T>(data.data());
-}
-template <typename T>
-inline const T *data_(const fbs::Record *record) {
-  auto data = Zfb::Load::bytes(record->data());
-  if (ZuUnlikely(!data)) return nullptr;
-  return Zfb::GetRoot<T>(data.data());
-}
 
 // -- pre-declarations
 
@@ -354,226 +113,6 @@ class DB;	// database
 class Env;	// database environment
 class Host;	// cluster host
 class Cxn_;	// network connection
-
-// -- file index block cache
-
-class File_;
-struct IndexBlk_ {
-#pragma pack(push, 1)
-  struct Index {
-    uint64_t		offset;
-    uint32_t		length;
-  };
-  struct Blk {
-    Index		data[indexRecs()];	// RN -> {offset, length}
-  };
-#pragma pack(pop)
-
-  IndexBlk_(uint64_t id_, uint64_t offset_) : id{id_}, offset{offset_} {
-    // shortcut endian conversion when initializing a blank index block
-    memset(&blk, 0, sizeof(Blk));
-  }
-  IndexBlk_(uint64_t id, uint64_t offset, File_ *, bool &ok); // read from file
-
-  uint64_t	id = 0;			// (RN>>indexShift())
-  uint64_t	offset = 0;		// offset of this index block
-  Blk		blk;
-
-  static uint64_t IDAxor(const IndexBlk_ &blk) { return blk.id; }
-
-  IndexBlk_() = delete;
-  IndexBlk_(const IndexBlk_ &) = delete;
-  IndexBlk_ &operator =(const IndexBlk_ &) = delete;
-  IndexBlk_(IndexBlk_ &&) = delete;
-  IndexBlk_ &operator =(IndexBlk_ &&) = delete;
-};
-inline constexpr const char *IndexBlk_HeapID() { return "Zdb.IndexBlk"; }
-using IndexBlkCache =
-  ZmCache<IndexBlk_,
-    ZmCacheNode<IndexBlk_,
-      ZmCacheKey<IndexBlk_::IDAxor,
-	ZmCacheHeapID<IndexBlk_HeapID>>>>;
-using IndexBlk = IndexBlkCache::Node;
-
-// -- file cache
-
-class ZdbAPI File_ : public ZiFile {
-  File_() = delete;
-  File_(const File_ &) = delete;
-  File_(File_ &&) = delete;
-  File_ &operator =(const File_ &) = delete;
-  File_ &operator =(File_ &&) = delete;
-
-  using Bitmap = ZuBitmap<fileRecs()>;
-  struct SuperBlk {
-    uint64_t	data[fileIndices()];	// offsets to index blocks
-  };
-
-friend DB;
-
-protected:
-  File_(DB *db, uint64_t id) : m_db{db}, m_id{id} { }
-
-public:
-  uint64_t id() const { return m_id; }
-
-  void alloc(unsigned i) {
-    if (!m_bitmap[i]) alloc_(i);
-  }
-  void alloc_(unsigned i) {
-    m_bitmap[i].set();
-    ++m_allocated;
-  }
-
-  bool del(unsigned i) {
-    if (m_bitmap[i]) del_(i);
-    return m_deleted >= fileRecs();
-  }
-  void del_(unsigned i) {
-    m_bitmap[i].clr();
-    ++m_deleted;
-  }
-
-  bool exists(unsigned i) const { return m_bitmap[i]; }
-
-  unsigned allocated() const { return m_allocated; }
-  unsigned deleted() const { return m_deleted; }
-  unsigned first() const { return m_bitmap.first(); }
-  unsigned last() const { return m_bitmap.last(); }
-
-  uint64_t append(unsigned length) {
-    uint64_t offset = m_offset;
-    m_offset += length;
-    return offset;
-  }
-
-  IndexBlk *readIndexBlk(uint64_t id);
-  IndexBlk *writeIndexBlk(uint64_t id);
-
-  bool readIndexBlk(IndexBlk *);
-  bool writeIndexBlk(IndexBlk *);
-
-  bool scan();
-  bool sync();
-  bool sync_();
-
-  static uint64_t IDAxor(const File_ &file) { return file.id(); }
-
-private:
-  void reset();
-
-  DB			*m_db = nullptr;
-  uint64_t		m_id = 0;	// (RN>>fileShift())
-
-  uint64_t		m_offset = 0;	// append offset
-  uint32_t		m_flags = 0;
-  unsigned		m_allocated = 0;
-  unsigned		m_deleted = 0;
-  Bitmap		m_bitmap;
-  SuperBlk		m_superBlk;
-};
-inline constexpr const char *File_HeapID() { return "Zdb.File"; }
-using FileCache =
-  ZmCache<File_,
-    ZmCacheNode<File_,
-      ZmCacheKey<File_::IDAxor,
-	ZmCacheHeapID<File_HeapID>>>>;
-using File = FileCache::Node;
-
-IndexBlk_::IndexBlk_(uint64_t id_, uint64_t offset_, File_ *file, bool &ok) :
-  id{id_}, offset{offset_}
-{
-  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
-  ok = file->readIndexBlk(static_cast<IndexBlk *>(this));
-}
-
-// -- on-disk record - file, indexBlk, RN offset within index block
-
-class FileRec {
-public:
-  FileRec() { }
-  FileRec(File *file, IndexBlk *indexBlk, unsigned indexOff) :
-    m_file{file}, m_indexBlk{indexBlk}, m_indexOff{indexOff} { }
-
-  bool operator !() const { return !m_file; }
-  ZuOpBool
-
-  File *file() const { return m_file; }
-  IndexBlk *indexBlk() const { return m_indexBlk; }
-  unsigned indexOff() const { return m_indexOff; }
-
-  RN rn() const {
-    return ((m_indexBlk->id)<<indexShift()) | m_indexOff;
-  }
-  const IndexBlk::Index &index() const {
-    return const_cast<FileRec *>(this)->index();
-  }
-  IndexBlk::Index &index() { return m_indexBlk->blk.data[m_indexOff]; }
-
-private:
-  File		*m_file = nullptr;
-  IndexBlk	*m_indexBlk = nullptr;
-  unsigned	m_indexOff = 0;
-};
-
-// -- I/O buffer
-
-inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
-inline constexpr unsigned BuiltinSize() {
-  enum { CacheLineSize = Zm::CacheLineSize };
-  // MinBufSz - minimum built-in buffer size
-  enum { MinBufSz = sizeof(uintptr_t)<<1 };
-  // IOBufOverhead - ZiIOBuf overhead
-  enum { IOBufOverhead = sizeof(ZiIOBuf<MinBufSz, Buf_HeapID>) - MinBufSz };
-  // HashOverhead - ZmHash node overhead - assumed to be sizeof(uintptr_t)
-  enum { HashOverhead = sizeof(uintptr_t) };
-  // TotalOverhead - total buffer overhead
-  enum { Overhead = IOBufOverhead + HashOverhead };
-  // round up overhead to cache line size, multiply by 4,
-  // subtract original overhead, and use that as the built-in buffer size
-  return (((Overhead + CacheLineSize) & ~(CacheLineSize - 1))<<2) - Overhead;
-};
-using VBuf = ZiIOVBuf<BuiltinSize(), Buf_HeapID>; 
-RN VBuf_RNAxor(const VBuf &);
-using RepBufs =
-  ZmHash<VBuf,
-    ZmHashNode<VBuf,
-      ZmHashKey<VBuf_RNAxor,
-	ZmHashLock<ZmPLock,
-	  ZmHashHeapID<Buf_HeapID>>>>>;
-class ZdbAPI Buf : public RepBufs::Node {
-  using Buf_ = RepBufs::Node;
-
-public:
-  enum { BufSize = VBuf::Size };
-  Buf() = default;
-  Buf(const Buf &) = default;
-  Buf &operator =(const Buf &) = default;
-  Buf(Buf &&) = default;
-  Buf &operator =(Buf &&) = default;
-  template <typename ...Args>
-  Buf(Args &&... args) : Buf_{ZuFwd<Args>(args)...} { }
-  template <typename Arg>
-  Buf &operator =(Arg &&arg) {
-    return static_cast<Buf &>(Buf_::operator =(ZuFwd<Arg>(arg)));
-  }
-
-  DB *db() const { return static_cast<DB *>(owner); }
-  Env *env() const { return static_cast<Env *>(owner); }
-
-  auto hdr() const { return ptr<Hdr>(); }
-  auto hdr() { return ptr<Hdr>(); }
-
-  using VBuf::data; // deconflict with RepBufs node data()
-
-  template <typename S> void print(S &) const;
-  friend ZuPrintFn ZuPrintType(Buf *);
-};
-inline RN VBuf_RNAxor(const VBuf &buf) {
-  return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
-}
-ZuAssert(!((sizeof(Buf)) & (Zm::CacheLineSize - 1)));
-using IOBuilder = Zfb::IOBuilder<Buf>;
 
 // -- main replication connection class
 
@@ -1016,7 +555,7 @@ struct DBCf {
   mutable unsigned	fileSID = 0;	// file I/O thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
   unsigned		vacuumBatch = 0;
-  bool			warmUp = false;	// pre-write initial DB file
+  bool			warmup = false;	// pre-write initial DB file
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
   DBCf() = default;
@@ -1027,7 +566,7 @@ struct DBCf {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
     vacuumBatch = cf->getInt("vacuumBatch", 0, 100000, 1);
-    warmUp = cf->getBool("warmUp");
+    warmup = cf->getBool("warmup");
     repMode = cf->getBool("repMode");
   }
 
@@ -1064,7 +603,7 @@ using DBCfs =
 
 // -- main DB class
 
-class ZdbAPI DB : public ZmPolymorph {
+class ZdbAPI DB : public FileMgr, ZmPolymorph {
 friend File_;
 friend Cxn_;
 friend AnyObject_;
@@ -1082,9 +621,6 @@ private:
 
   bool open();
   void close();
-
-  bool recover();
-  bool checkpoint();
 
 public:
   Env *env() const { return m_env; }
@@ -1129,13 +665,12 @@ private:
 	return;
       }
       fileRun([this, rn, l = ZuMv(l)]() {
-	if (FileRec rec = rn2file<false>(rn))
-	  if (auto buf = read(rec)) {
-	    invoke([this, l = ZuMv(l), buf = ZuMv(buf)]() mutable {
-	      l(load(record_(msg_(buf->template ptr<Hdr>()))));
-	    });
-	    return;
-	  }
+	if (auto buf = read_(rn)) {
+	  invoke([this, l = ZuMv(l), buf = ZuMv(buf)]() mutable {
+	    l(load(record_(msg_(buf->template ptr<Hdr>()))));
+	  });
+	  return;
+	}
 	invoke([this, l = ZuMv(l)]() mutable { l(nullptr); });
       });
     });
@@ -1279,42 +814,14 @@ private:
   void repRecRcvd(ZmRef<Buf> buf);
   void repGapRcvd(ZmRef<Buf> buf);
 
-  // immutable
-  ZiFile::Path dirName(uint64_t id) const;
-  ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
-    return ZiFile::append(dir, ZuStringN<12>() <<
-	ZuBox<unsigned>{id & 0xfffffU}.hex<false, ZuFmt::Right<5>>() << ".zdb");
-  }
-  ZiFile::Path fileName(uint64_t id) const {
-    return fileName(dirName(id), id);
-  }
-
   // recovery - DB thread
-  void recover(ZmRef<Buf>);
+  void recovered(ZmRef<Buf>);
   void recover(const fbs::Record *record);
 
   // file thread
-  template <bool Write> FileRec rn2file(RN rn);
-
-  template <bool Create> File *getFile(uint64_t id);
-  template <bool Create> File *openFile(uint64_t id);
-  template <bool Create> File *openFile_(const ZiFile::Path &, uint64_t id);
-  void delFile(File *file);
-  bool recover(File *file);
-  void scan(File *file);
-  template <bool Create> IndexBlk *getIndexBlk(File *, uint64_t id);
-  ZmRef<Buf> read(const FileRec &);
-
   void write(ZmRef<Buf> buf);
-  bool write2(Buf *buf);
   void ack(RN rn);
   void vacuum();
-  ZuPair<int, RN> del_(const DeleteOp &, unsigned maxBatchSize);
-  RN del_prevRN(RN rn);
-  void del_write(RN rn);
-
-  void fileRdError_(File *, ZiFile::Offset, int, ZeError e);
-  void fileWrError_(File *, ZiFile::Offset, ZeError e);
 
   // immutable
   Env			*m_env;
@@ -1337,13 +844,6 @@ private:
   ZmRef<RepBufs>	m_repBufs;		// MT locked
   Deletes		m_deletes;		// MT locked
   RN			m_vacuumRN = nullRN();	// file thread
-  uint64_t		m_lastFile = 0;		// file thread
-
-  // index block cache
-  IndexBlkCache		m_indexBlks;		// file thread
-
-  // file cache
-  FileCache		m_files;		// file thread
 };
 
 inline void AnyObject_::put() { m_db->put(this); }
@@ -1821,12 +1321,6 @@ inline void Env::print(S &s)
 	m_leader = host;
     }
   }
-}
-
-inline ZiFile::Path DB::dirName(uint64_t id) const
-{
-  return ZiFile::append(m_env->config().path, ZuStringN<8>() <<
-      ZuBox<unsigned>{id>>20}.hex<false, ZuFmt::Right<5>>());
 }
 
 } // Zdb_

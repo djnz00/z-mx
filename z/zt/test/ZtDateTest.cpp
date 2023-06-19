@@ -20,7 +20,7 @@ auto isoPrint(const ZtDate &d, int offset = 0) {
 }
 
 ZuStringN<40> isoStr(const ZtDate &d, int offset = 0) {
-  return ZuStringN<40>() << isoPrint(d, offset);
+  return ZuStringN<40>{} << isoPrint(d, offset);
 }
 
 struct LocalDT {

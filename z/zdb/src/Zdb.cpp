@@ -952,11 +952,10 @@ void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
   ZmAssert(fileInvoked());
 
   if (!cxn->up()) return;
-  if (FileRec rec = rn2file<false>(rn))
-    if (auto buf = read(rec)) {
-      recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
-      return;
-    }
+  if (auto buf = read_(rn)) {
+    recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
+    return;
+  }
   if (gapRN != nullRN()) gapRN = rn;
   if (++rn >= endRN) { // trailing gap
     cxn->send(repGap(gapRN, rn - gapRN));
@@ -1406,7 +1405,7 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
   if (!update) {
     fbb.add_cacheMode(
 	static_cast<ZvTelemetry::fbs::ZdbCacheMode>(config().cacheMode));
-    fbb.add_warmUp(config().warmUp);
+    fbb.add_warmup(config().warmup);
   }
   return fbb.Finish();
 }
@@ -1441,125 +1440,8 @@ Zfb::Offset<void> DB::save(Zfb::Builder &fbb, AnyObject_ *object)
   return m_handler.saveFn(fbb, object->ptr_());
 }
 
-bool DB::recover()
-{
-  ZmAssert(fileInvoked());
-
-  ZeError e;
-  ZiDir::Path subName;
-  ZtBitWindow<1> subDirs;
-  // main directory
-  {
-    ZiDir dir;
-    if (dir.open(m_path) != Zi::OK) {
-      if (ZiFile::mkdir(m_path, &e) != Zi::OK) {
-	ZeLOG(Fatal, ([path = m_path, e](auto &s) { s << path << ": " << e; }));
-	return false;
-      }
-      return true;
-    }
-    while (dir.read(subName) == Zi::OK) {
-#ifdef _WIN32
-      ZtString subName_{subName};
-#else
-      const auto &subName_ = subName;
-#endif
-      try {
-	if (!ZtREGEX("^[0-9a-f]{5}$").m(subName_)) continue;
-      } catch (const ZtRegexError &e) {
-	ZeLOG(Error, ([e](auto &s) { s << e; }));
-	continue;
-      } catch (...) {
-	continue;
-      }
-      ZuBox<unsigned> subIndex;
-      subIndex.scan<ZuFmt::Hex<>>(subName_);
-      subDirs.set(subIndex);
-    }
-    dir.close();
-  }
-  // subdirectories
-  return subDirs.all([&](unsigned i, bool) {
-#ifdef _WIN32
-    ZtString subName_;
-#else
-    auto &subName_ = subName;
-#endif
-    subName_ = ZuBox<unsigned>{i}.hex<false, ZuFmt::Right<5>>();
-    subName = ZiFile::append(m_path, subName_);
-    ZiDir::Path fileName;
-    ZtBitWindow<1> files;
-    {
-      ZiDir subDir;
-      if (subDir.open(subName, &e) != Zi::OK) {
-	ZeLOG(Error, ([subName, e](auto &s) { s << subName << ": " << e; }));
-	return true;
-      }
-      while (subDir.read(fileName) == Zi::OK) {
-#ifdef _WIN32
-	ZtString fileName_{fileName};
-#else
-	auto &fileName_ = fileName;
-#endif
-	try {
-	  if (!ZtREGEX("^[0-9a-f]{5}\.zdb$").m(fileName_)) continue;
-	} catch (const ZtRegexError &e) {
-	  ZeLOG(Error, ([e](auto &s) { s << e; }));
-	  continue;
-	} catch (...) {
-	  continue;
-	}
-	ZuBox<unsigned> fileIndex;
-	fileIndex.scan<ZuFmt::Hex<>>(fileName_);
-	files.set(fileIndex);
-      }
-      subDir.close();
-    }
-    // data files
-    return files.all([&](unsigned j, bool) {
-#ifdef _WIN32
-      ZtString fileName_;
-#else
-      auto &fileName_ = fileName;
-#endif
-      uint64_t id = (static_cast<uint64_t>(i)<<20) | j;
-      if (File *file = openFile_<false>(fileName_, id))
-	return recover(file);
-      return false;
-    });
-  });
-}
-
-bool DB::recover(File *file)
-{
-  ZmAssert(fileInvoked());
-
-  if (!file->allocated()) return true;
-  if (file->deleted() >= fileRecs()) { delFile(file); return true; }
-  RN rn = (file->id())<<fileShift();
-  IndexBlk *blk = nullptr;
-  int first = file->first();
-  if (ZuUnlikely(first < 0)) return true;
-  int last = file->last();
-  if (ZuUnlikely(last < 0)) return false; // file corrupt
-  rn += first;
-  for (int j = first; j <= last; j++, rn++) {
-    if (!file->exists(j)) continue;
-    auto blkID = rn>>indexShift();
-    if (!blk || blk->id != blkID) blk = file->readIndexBlk(blkID);
-    if (!blk) return false; // I/O error on file
-    if (auto buf = read(
-	FileRec{file, blk, static_cast<unsigned>(rn & indexMask())}))
-      invoke([buf = ZuMv(buf)]() mutable {
-	auto db = buf->db();
-	db->recover(ZuMv(buf));
-      });
-  }
-  return true;
-}
-
 // recover buffer from file
-void DB::recover(ZmRef<Buf> buf)
+void DB::recovered(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
@@ -1652,13 +1534,13 @@ void DB::write(ZmRef<Buf> buf)
 	// replicated - peer will ack
 	db->fileRun([buf = ZuMv(buf)]() {
 	  auto db = buf->db();
-	  db->write2(buf); // return value ignored
+	  db->write_(buf); // return value ignored
 	});
       else
 	// standalone - ack on successful disk write
 	db->fileRun([buf = ZuMv(buf)]() {
 	  auto db = buf->db();
-	  if (db->write2(buf)) {
+	  if (db->write_(buf)) {
 	    auto rn = record_(msg_(buf->hdr()))->rn();
 	    db->ack(rn + 1);
 	  }
@@ -1668,7 +1550,7 @@ void DB::write(ZmRef<Buf> buf)
     fileRun([buf = ZuMv(buf)]() {
       auto db = buf->db();
       auto env = db->env();
-      if (db->write2(buf))
+      if (db->write_(buf))
 	env->invoke([buf = ZuMv(buf)]() mutable {
 	  auto db = buf->db();
 	  auto env = db->env();
@@ -1687,222 +1569,6 @@ void DB::write(ZmRef<Buf> buf)
   }
 }
 
-void File_::reset()
-{
-  ZmAssert(m_db->fileInvoked());
-
-  m_flags = 0;
-  m_allocated = m_deleted = 0;
-  m_bitmap.zero();
-  memset(&m_superBlk.data[0], 0, sizeof(FileSuperBlk));
-}
-
-bool File_::scan()
-{
-  ZmAssert(m_db->fileInvoked());
-
-  // if file is truncated below minimum header size, reset/rewrite it
-  if (size() < sizeof(FileHdr) + sizeof(FileBitmap) + sizeof(FileSuperBlk)) {
-    reset();
-    return sync_();
-  }
-  int r;
-  ZeError e;
-  // header
-  {
-    FileHdr hdr;
-    if (ZuUnlikely((r = pread(0, &hdr, sizeof(FileHdr), &e)) != Zi::OK)) {
-      m_db->fileRdError_(static_cast<File *>(this), 0, r, e);
-      return false;
-    }
-    if (hdr.magic != ZdbMagic) return false;
-    if (hdr.version != ZdbVersion) return false;
-    m_flags = hdr.flags;
-    m_allocated = hdr.allocated;
-    m_deleted = hdr.deleted;
-  }
-  // bitmap
-  {
-#if Zu_BIGENDIAN
-    FileBitmap bitmap;
-    auto bitmapData = &(bitmap.data[0]);
-#else
-    auto bitmapData = &(m_bitmap.data[0]);
-#endif
-    if (ZuUnlikely((r = pread(
-	      sizeof(FileHdr),
-	      &bitmapData[0], sizeof(FileBitmap), &e)) != Zi::OK)) {
-      m_db->fileRdError_(static_cast<File *>(this), sizeof(FileHdr), r, e);
-      return false;
-    }
-#if Zu_BIGENDIAN
-    for (unsigned i = 0; i < Bitmap::Words; i++)
-      m_bitmap.data[i] = bitmapData[i];
-#endif
-  }
-  // superblock
-  {
-#if Zu_BIGENDIAN
-    FileSuperBlk superBlk;
-    auto superData = &(superBlk.data[0]);
-#else
-    auto superData = &m_superBlk.data[0];
-#endif
-    if (ZuUnlikely((r = pread(
-	      sizeof(FileHdr) + sizeof(FileBitmap),
-	      &superData[0], sizeof(FileSuperBlk), &e)) != Zi::OK)) {
-      m_db->fileRdError_(static_cast<File *>(this),
-	  sizeof(FileHdr) + sizeof(FileBitmap), r, e);
-      return false;
-    }
-#if Zu_BIGENDIAN
-    for (unsigned i = 0; i < fileIndices(); i++)
-      m_superBlk.data[i] = superData[i];
-#endif
-  }
-  if (m_flags & FileFlags::Clean) {
-    m_flags &= ~FileFlags::Clean;
-    m_offset = size();
-    return true;
-  }
-  // rebuild count and bitmap from index blocks
-  m_allocated = m_deleted = 0;
-  m_bitmap.zero();
-  bool rewrite = false;
-  for (unsigned i = 0; i < fileIndices(); i++)
-    if (uint64_t indexBlkOffset = m_superBlk.data[i]) {
-      FileIndexBlk indexBlk;
-      if (ZuUnlikely((r = pread(indexBlkOffset,
-		&indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-	m_db->fileRdError_(static_cast<File *>(this), indexBlkOffset, r, e);
-	return false;
-      }
-      bool rewriteIndexBlk = false;
-      for (unsigned j = 0; j < indexRecs(); j++)
-	if (uint64_t offset = indexBlk.data[j].offset)
-	  if (offset == deleted()) {
-	    ++m_deleted;
-	  } else {
-	    offset += indexBlk.data[j].length;
-	    FileRecTrlr trlr;
-	    if (ZuUnlikely((r = pread(offset,
-		      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-	      m_db->fileRdError_(static_cast<File *>(this), offset, r, e);
-	      return false;
-	    }
-	    if (trlr.rn != ((id()<<fileShift()) | (i<<indexShift()) | j) ||
-		trlr.magic != ZdbCommitted) {
-	      indexBlk.data[j] = { 0, 0 };
-	      rewriteIndexBlk = true;
-	      continue;
-	    }
-	    ++m_allocated;
-	    m_bitmap[(i<<indexShift()) | j].set();
-	  }
-      if (rewriteIndexBlk) {
-	rewrite = true;
-	if (ZuUnlikely((r = pwrite(indexBlkOffset,
-		  &indexBlk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-	  m_db->fileWrError_(static_cast<File *>(this), indexBlkOffset, e);
-	  return false;
-	}
-      }
-    }
-  m_offset = size();
-  return !rewrite || sync_();
-}
-
-bool File_::sync_()
-{
-  ZmAssert(m_db->fileInvoked());
-
-  int r;
-  ZeError e;
-  // header
-  {
-    FileHdr hdr{
-      .magic = ZdbMagic,
-      .version = ZdbVersion,
-      .flags = m_flags,
-      .allocated = m_allocated,
-      .deleted = m_deleted
-    };
-    if (ZuUnlikely((r = pwrite(0, &hdr, sizeof(FileHdr), &e)) != Zi::OK)) {
-      m_db->fileWrError_(static_cast<File *>(this), sizeof(FileHdr), e);
-      m_flags |= FileFlags::IOError;
-      return false;
-    }
-  }
-  // bitmap
-  {
-#if Zu_BIGENDIAN
-    FileBitmap bitmap;
-    auto bitmapData = &(bitmap.data[0]);
-    for (unsigned i = 0; i < Bitmap::Words; i++)
-      bitmapData[i] = m_bitmap.data[i];
-#else
-    auto bitmapData = &(m_bitmap.data[0]);
-#endif
-    if (ZuUnlikely((r = pwrite(
-	      sizeof(FileHdr),
-	      &bitmapData[0], sizeof(FileBitmap), &e)) != Zi::OK)) {
-      m_db->fileWrError_(static_cast<File *>(this), sizeof(FileHdr), e);
-      m_flags |= FileFlags::IOError;
-      return false;
-    }
-  }
-  // superblock
-  {
-#if Zu_BIGENDIAN
-    FileSuperBlk superBlk;
-    auto superData = &(super.data[0]);
-    for (unsigned i = 0; i < fileIndices(); i++)
-      superData[i] = m_superBlk.data[i];
-#else
-    auto superData = &m_superBlk.data[0];
-#endif
-    if (ZuUnlikely((r = pwrite(
-	      sizeof(FileHdr) + sizeof(FileBitmap),
-	      &superData[0], sizeof(FileSuperBlk), &e)) != Zi::OK)) {
-      m_db->fileWrError_(static_cast<File *>(this),
-	  sizeof(FileHdr) + sizeof(FileBitmap), e);
-      m_flags |= FileFlags::IOError;
-      return false;
-    }
-  }
-  return true;
-}
-
-bool File_::sync() // file thread
-{
-  ZmAssert(m_db->fileInvoked());
-
-  m_flags |= FileFlags::Clean;
-  if (!sync_()) goto error;
-  {
-    ZeError e;
-    if (ZiFile::sync(&e) != Zi::OK) {
-      m_db->fileWrError_(static_cast<File *>(this), 0, e);
-      m_flags |= FileFlags::IOError;
-      goto error;
-    }
-  }
-  m_flags &= ~FileFlags::Clean;
-  return true;
-error:
-  m_flags &= ~FileFlags::Clean;
-  FileHdr hdr{
-    .magic = ZdbMagic,
-    .version = ZdbVersion,
-    .flags = m_flags,
-    .allocated = m_allocated,
-    .deleted = m_deleted
-  };
-  pwrite(0, &hdr, sizeof(FileHdr)); // best effort to clear Clean flag
-  m_flags &= ~FileFlags::Clean;
-  return false;
-}
-
 bool DB::open()
 {
   ZmAssert(invoked());
@@ -1912,37 +1578,20 @@ bool DB::open()
   bool ok = false;
   ZmBlock<>{}([this, &ok](auto wake) {
     fileInvoke([this, &ok, wake = ZuMv(wake)]() {
-      ok = recover();
+      ok = open_();
       wake();
     });
   });
   if (!ok) return false;
 
-  if (config().warmUp) {
+  if (config().warmup) {
     if (auto fn = m_handler.ctorFn)
       run([this, fn]() { ZmRef<AnyObject>{fn(this)}; });
-    fileRun([this, rn = m_nextRN.load_()]() { rn2file<true>(rn); });
+    fileRun([this, rn = m_nextRN.load_()]() { warmup_(rn); });
   }
 
   m_open = true;
   return true;
-}
-
-template <bool Create>
-File *DB::getFile(uint64_t id)
-{
-  ZmAssert(fileInvoked());
-
-  File *file = nullptr;
-  m_files.find(id,
-    [&file](File *file_) { file = file_; },
-    [this]<typename L>(uint64_t id, L l) {
-      File *file = openFile<Create>(id);
-      if (ZuUnlikely(!file)) { l(nullptr); return; }
-      if (id > m_lastFile) m_lastFile = id;
-      l(file);
-    }, [](File *file) { file->sync(); });
-  return file;
 }
 
 void DB::close()
@@ -1953,16 +1602,7 @@ void DB::close()
 
   ZmBlock<>{}([this](auto wake) {
     fileInvoke([this, wake = ZuMv(wake)]() {
-      // index blocks
-      m_indexBlks.all<true>([this](IndexBlk *blk) {
-	auto fileID = (blk->id)>>(fileShift() - indexShift());
-	if (File *file = getFile<true>(fileID))
-	  file->writeIndexBlk(blk);
-      });
-
-      // files
-      m_files.all<true>([](File *file) { file->sync(); });
-
+      close_();
       wake();
     });
   });
@@ -1975,22 +1615,6 @@ void Env::checkpoint()
   ZmAssert(invoked());
 
   all_file([](DB *db) { return [db]() { db->checkpoint(); }; });
-}
-
-bool DB::checkpoint()
-{
-  ZmAssert(fileInvoked());
-
-  bool ok = true;
-  m_indexBlks.all([this, &ok](IndexBlk *blk) mutable {
-    auto fileID = (blk->id)>>(fileShift() - indexShift());
-    if (File *file = getFile<true>(fileID))
-      ok = ok && file->writeIndexBlk(blk);
-    else
-      ok = false;
-  });
-  m_files.all([&ok](File *file) mutable { ok = ok && file->sync_(); });
-  return ok;
 }
 
 ZmRef<AnyObject> DB::placeholder()
@@ -2087,252 +1711,6 @@ void DB::purge(RN minRN)
   write(saveHdr(fbb, this));
 }
 
-template <bool Create>
-File *DB::openFile_(const ZiFile::Path &name, uint64_t id)
-{
-  ZmAssert(fileInvoked());
-
-  ZuPtr<File> file = new File{this, id};
-  if (file->open(name, ZiFile::GC, 0666) == Zi::OK) {
-    if (!file->scan()) return nullptr;
-    return file.release();
-  }
-  if constexpr (!Create) return nullptr;
-  ZiFile::mkdir(dirName(id)); // pre-emptive idempotent
-  ZeError e;
-  auto fileSize = sizeof(FileHdr) + sizeof(FileBitmap) + sizeof(FileSuperBlk);
-  if (file->open(
-	name, ZiFile::Create | ZiFile::GC, 0666, fileSize, &e) != Zi::OK) {
-    ZeLOG(Fatal, ([name, e](auto &s) {
-      s << "Zdb could not open or create \"" << name << "\": " << e;
-    }));
-    return nullptr;
-  }
-  file->sync_();
-  return file.release();
-}
-
-template <bool Create>
-File *DB::openFile(uint64_t id)
-{
-  ZmAssert(fileInvoked());
-
-  return openFile_<Create>(fileName(dirName(id), id), id);
-}
-
-template <bool Create>
-IndexBlk *DB::getIndexBlk(File *file, uint64_t id)
-{
-  ZmAssert(fileInvoked());
-
-  IndexBlk *blk;
-  m_indexBlks.find(id,
-    [&blk](IndexBlk *blk_) { blk = blk_; },
-    [file]<typename L>(uint64_t id, L l) {
-      if constexpr (Create)
-	l(file->writeIndexBlk(id));
-      else
-	l(file->readIndexBlk(id));
-    }, [this](IndexBlk *blk) {
-      auto fileID = (blk->id)>>(fileShift() - indexShift());
-      if (File *file = getFile<Create>(fileID))
-	file->writeIndexBlk(blk);
-    });
-  return blk;
-}
-
-// creates/caches file and index block as needed
-template <bool Write>
-FileRec DB::rn2file(RN rn)
-{
-  ZmAssert(fileInvoked());
-
-  uint64_t fileID = rn>>fileShift();
-  File *file = getFile<Write>(fileID);
-  if (!file) return {};
-  if constexpr (!Write) if (!file->exists(rn & fileRecMask())) return {};
-  uint64_t indexBlkID = rn>>indexShift();
-  IndexBlk *indexBlk = getIndexBlk<Write>(file, indexBlkID);
-  if (!indexBlk) return {};
-  auto indexOff = static_cast<unsigned>(rn & indexMask());
-  return {ZuMv(file), ZuMv(indexBlk), indexOff};
-}
-
-IndexBlk *File_::readIndexBlk(uint64_t id)
-{
-  ZuPtr<IndexBlk> indexBlk;
-  if (auto offset = m_superBlk.data[id & indexMask()]) {
-    bool ok;
-    indexBlk = new IndexBlk{id, offset, this, ok};
-    if (!ok) return nullptr;
-    return indexBlk.release();
-  }
-  return nullptr;
-}
-
-IndexBlk *File_::writeIndexBlk(uint64_t id)
-{
-  ZuPtr<IndexBlk> indexBlk;
-  if (indexBlk = readIndexBlk(id)) return indexBlk.release();
-  auto offset = m_offset;
-  m_superBlk.data[id & indexMask()] = offset;
-  indexBlk = new IndexBlk{id, offset};
-  {
-    int r;
-    ZeError e;
-    if (ZuUnlikely((r = pwrite(offset,
-	      &indexBlk->blk, sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-      m_db->fileWrError_(static_cast<File *>(this), offset, e);
-      return nullptr;
-    }
-  }
-  m_offset = offset + sizeof(FileIndexBlk);
-  return indexBlk.release();
-}
-
-bool File_::readIndexBlk(IndexBlk *indexBlk)
-{
-  int r;
-  ZeError e;
-#if Zu_BIGENDIAN
-  FileIndexBlk fileIndexBlk;
-  auto indexData = &(fileIndexBlk.data[0]);
-#else
-  auto indexData = &indexBlk->blk.data[0];
-#endif
-  if (ZuUnlikely((r = pread(indexBlk->offset,
-	    &indexData[0], sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-    m_db->fileRdError_(static_cast<File *>(this), indexBlk->offset, r, e);
-    return false;
-  }
-#if Zu_BIGENDIAN
-  for (unsigned i = 0; i < indexRecs(); i++)
-    indexBlk->blk.data[i] = { indexData[i].offset, indexData[i].length };
-#endif
-  return true;
-}
-
-bool File_::writeIndexBlk(IndexBlk *indexBlk)
-{
-  int r;
-  ZeError e;
-#if Zu_BIGENDIAN
-  FileIndexBlk fileIndexBlk;
-  auto indexData = &(fileIndexBlk.data[0]);
-  for (unsigned i = 0; i < indexRecs(); i++) {
-    const auto &index = indexBlk->blk.data[i];
-    indexData[i] = { index.offset, index.length };
-  }
-#else
-  auto indexData = &indexBlk->blk.data[0];
-#endif
-  if (ZuUnlikely((r = pwrite(indexBlk->offset,
-	    &indexData[0], sizeof(FileIndexBlk), &e)) != Zi::OK)) {
-    m_db->fileWrError_(static_cast<File *>(this), indexBlk->offset, e);
-    return false;
-  }
-  return true;
-}
-
-// read individual record from disk into buffer
-ZmRef<Buf> DB::read(const FileRec &rec)
-{
-  ZmAssert(fileInvoked());
-
-  const auto &index = rec.index();
-  if (ZuUnlikely(!index.offset || index.offset == deleted())) {
-    ZeLOG(Error, ([id = config().id, rn = rec.rn()](auto &s) {
-      s << "Zdb internal error on DB " << id <<
-	" bitmap inconsistent with index for RN " << rn;
-    }));
-    return nullptr;
-  }
-  IOBuilder fbb;
-  Zfb::Offset<Zfb::Vector<uint8_t>> data;
-  uint8_t *ptr = nullptr;
-  if (index.length) {
-    data = Zfb::Save::pvector_(fbb, index.length, ptr);
-    if (data.IsNull() || !ptr) return nullptr;
-  }
-  FileRecTrlr trlr;
-  {
-    File *file = rec.file();
-    int r;
-    ZeError e;
-    if (index.length) {
-      // read record
-      if (ZuUnlikely((r = file->pread(index.offset,
-		ptr, index.length, &e)) != Zi::OK)) {
-	fileRdError_(file, index.offset, r, e);
-	return nullptr;
-      }
-    }
-    // read trailer
-    if (ZuUnlikely((r = file->pread(index.offset + index.length,
-	      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-      fileRdError_(file, index.offset + index.length, r, e);
-      return nullptr;
-    }
-  }
-  uint32_t magic = trlr.magic;
-  if (magic != ZdbCommitted) return nullptr;
-  auto id = Zfb::Save::id(config().id);
-  auto msg = fbs::CreateMsg(fbb, fbs::Body_Rec,
-      fbs::CreateRecord(fbb,
-	&id, trlr.rn, trlr.prevRN, trlr.seqLenOp, data).Union());
-  fbb.Finish(msg);
-  return saveHdr(fbb, this);
-}
-
-// write individual record to disk
-// - updates the file bitmap, index block and appends the record on disk
-bool DB::write2(Buf *buf)
-{
-  ZmAssert(fileInvoked());
-
-  ZuGuard guard([this, buf]() { m_repBufs->delNode(buf); });
-
-  auto record = record_(msg_(buf->hdr()));
-  RN rn = record->rn();
-  auto data = Zfb::Load::bytes(record->data());
-  {
-    FileRec rec = rn2file<true>(rn);
-    if (!rec) return false;
-    auto &index = rec.index();
-    File *file = rec.file();
-    file->alloc(rn & fileRecMask());
-    index.offset = file->append(data.length() + sizeof(FileRecTrlr));
-    index.length = data.length();
-    FileRecTrlr trlr{
-      .rn = rn,
-      .prevRN = record->prevRN(),
-      .seqLenOp = record->seqLenOp(),
-      .magic = ZdbCommitted
-    };
-    int r;
-    ZeError e;
-    if (data) {
-      // write record
-      if (ZuUnlikely((r = file->pwrite(index.offset,
-		data.data(), data.length(), &e)) != Zi::OK)) {
-	fileWrError_(file, index.offset, e);
-	index.offset = 0;
-	index.length = 0;
-	return false;
-      }
-    }
-    // write trailer
-    if (ZuUnlikely((r = file->pwrite(index.offset + index.length,
-	      &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-      fileWrError_(file, index.offset + index.length, e);
-      index.offset = 0;
-      index.length = 0;
-      return false;
-    }
-  }
-  return true;
-}
-
 void DB::ack(RN rn)
 {
   ZmAssert(fileInvoked());
@@ -2353,174 +1731,64 @@ void DB::vacuum()
 {
   ZmAssert(fileInvoked());
 
-  auto i = m_deletes.iterator();
+  auto batch = ZmAlloc(RN, config().vacuumBatch);
+  if (!batch) return;
+
   unsigned j = 0;
   unsigned n = config().vacuumBatch;
-  ZuPair<int, RN> outcome;
+
+  auto i = m_deletes.iterator();
   while (auto node = i.iterate()) {
     if (node->key() >= m_vacuumRN) break;
-    outcome = del_(node->val(), n - j);
-    if (outcome.p<0>() < 0) goto again1;
-    i.del(node);
-    if ((j += outcome.p<0>()) >= n) goto again2;
-  }
-  m_vacuumRN = nullRN();
-  return;
+    if (j >= n) {
+      fileRun([this]() { vacuum(); });
+      return;
+    }
 
-again1:
-  if (outcome.p<1>() != nullRN()) // split long sequence
-    m_deletes.add(outcome.p<1>(),
-	DeleteOp{outcome.p<1>(), SeqLenOp::mk(-outcome.p<0>(), Op::Delete)});
+    auto &deleteOp = const_cast<DeleteOp &>(node->val());
+    RN rn = deleteOp.rn;
+    int op = SeqLenOp::op(deleteOp.seqLenOp);
+    unsigned seqLen = SeqLenOp::seqLen(deleteOp.seqLenOp);
 
-again2:
-  fileRun([this]() { vacuum(); });
-}
-
-// del_() returns a {int, RN} pair:
-// 0, nullRN() - nothing to do
-// +ve, nullRN() - all done (work was within batch size), continue
-// -ve, nullRN() - work exceeded batch size, some work done, re-attempt
-// -ve, rn - work exceeded batch size, need to split sequence at rn
-//   (remaining sequence length is encoded in the negative return code)
-ZuPair<int, RN> DB::del_(const DeleteOp &deleteOp, unsigned maxBatchSize)
-{
-  ZmAssert(fileInvoked());
-
-  RN rn = deleteOp.rn;
-
-  switch (SeqLenOp::op(deleteOp.seqLenOp)) {
-    default:
-      return {0, nullRN()};
-    case Op::Put:
-      break;
-    case Op::Delete:
-      break;
-    case Op::Purge: {
-      RN minRN = m_minRN.load_();
-      unsigned i = 0;
-      if (minRN < rn) {
-	do {
+    switch (op) {
+      default:
+	break;
+      case Op::Put:
+      case Op::Delete:
+	if (ZuLikely(seqLen)) {
+	  unsigned batchSize = seqLen;
+	  bool atHead = (j + batchSize) <= n;
+	  if (!atHead) batchSize = n - j;
+	  for (unsigned k = 0; k < batchSize; k++) {
+	    batch[k] = rn;
+	    if ((rn = del_prevRN(rn)) == nullRN()) {
+	      atHead = true;
+	      batchSize = k + 1;
+	    }
+	  }
+	  if (atHead) {
+	    i.del(node);
+	    // delete the oldest batched RNs in reverse order (oldest first)
+	    for (unsigned k = batchSize; k-- > 0; ) del_write(batch[k]);
+	  } else {
+	    deleteOp.seqLenOp = SeqLenOp::mk(batchSize, op);
+	    m_deletes.add(rn,
+		DeleteOp{rn, SeqLenOp::mk(seqLen - batchSize, Op::Delete)});
+	  }
+	  j += batchSize;
+	}
+	break;
+      case Op::Purge: {
+	RN minRN = m_minRN.load_();
+	while (minRN < rn) {
 	  del_write(minRN++);
-	} while (++i < maxBatchSize && minRN < rn);
+	  if (++j >= n) break;
+	}
 	m_minRN = minRN;
-      }
-      if (i >= maxBatchSize) return {-1, nullRN()}; // re-attempt
-      return {static_cast<int>(i), nullRN()}; // purge complete
+      } break;
     }
   }
-
-  auto seqLen = SeqLenOp::seqLen(deleteOp.seqLenOp);
-
-  if (ZuUnlikely(!seqLen)) return {0, nullRN()};
-
-  auto batchSize = seqLen;
-  if (batchSize > maxBatchSize) batchSize = maxBatchSize;
-
-  auto batch = ZmAlloc(RN, batchSize);
-  if (!batch) return {0, nullRN()};
-
-  // fill the batch
-  unsigned i = 0;
-  do {
-    batch[i++] = rn;
-    if (i >= batchSize) break;
-    rn = del_prevRN(rn);
-  } while (rn != nullRN());
-
-  // sequence is longer than the batch size, need to split it
-  if (rn != nullRN())
-    return {-static_cast<int>(seqLen - batchSize), rn};
-
-  // delete the oldest batched RNs in reverse order (oldest first)
-  for (unsigned j = i; j-- > 0; ) del_write(batch[j]);
-
-  // entire sequence was deleted
-  return {static_cast<int>(i), nullRN()};
-}
-
-// obtain prevRN for a record pending deletion
-RN DB::del_prevRN(RN rn)
-{
-  ZmAssert(fileInvoked());
-
-#if 0
-  if (auto object = m_objCache.del(rn)) {
-    if (object->committed()) return object->prevRN();
-  }
-#endif
-  FileRec rec = rn2file<false>(rn);
-  if (!rec) return nullRN();
-  const auto &index = rec.index();
-  if (ZuUnlikely(!index.offset || index.offset == deleted())) {
-    ZeLOG(Error, ([id = config().id, rn = rec.rn()](auto &s) {
-      s << "Zdb internal error on DB " << id <<
-	" bitmap inconsistent with index for RN " << rn;
-    }));
-    return nullRN();
-  }
-  auto offset = index.offset + index.length;
-  File *file = rec.file();
-  FileRecTrlr trlr;
-  int r;
-  ZeError e;
-  if (ZuUnlikely((r = file->pread(offset,
-	    &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-    fileRdError_(file, offset, r, e);
-    return nullRN();
-  }
-  uint32_t magic = trlr.magic;
-  if (magic != ZdbCommitted) return nullRN();
-  return trlr.prevRN;
-}
-
-// delete individual record
-void DB::del_write(RN rn)
-{
-  ZmAssert(fileInvoked());
-
-  FileRec rec = rn2file<false>(rn);
-  if (!rec) return;
-  rec.index().offset = deleted();
-  if (rec.file()->del(rn & fileRecMask()))
-    delFile(rec.file());
-}
-
-// delete file
-void DB::delFile(File *file)
-{
-  ZmAssert(fileInvoked());
-
-  bool lastFile;
-  uint64_t id = file->id();
-  m_files.delNode(file);
-  lastFile = id == m_lastFile;
-  if (ZuUnlikely(lastFile)) getFile<true>(id + 1);
-  file->close();
-  ZiFile::remove(fileName(id));
-}
-
-// disk read error
-void DB::fileRdError_(File *file, ZiFile::Offset off, int r, ZeError e)
-{
-  if (r < 0) {
-    ZeLOG(Error, ([this, id = file->id(), off, e](auto &s) { s <<
-	"Zdb pread() failed on \"" << fileName(id) <<
-	"\" at offset " << ZuBoxed(off) << ": " << e;
-    }));
-  } else {
-    ZeLOG(Error, ([this, id = file->id(), off](auto &s) { s <<
-	"Zdb pread() truncated on \"" << fileName(id) <<
-	"\" at offset " << ZuBoxed(off);
-    }));
-  }
-}
-
-// disk write error
-void DB::fileWrError_(File *file, ZiFile::Offset off, ZeError e)
-{
-  ZeLOG(Error, ([this, id = file->id(), off, e](auto &s) { s <<
-      "Zdb pwrite() failed on \"" << fileName(id) <<
-      "\" at offset " << ZuBoxed(off) <<  ": " << e; }));
+  m_vacuumRN = nullRN();
 }
 
 } // namespace Zdb_

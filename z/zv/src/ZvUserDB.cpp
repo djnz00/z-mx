@@ -30,11 +30,11 @@ namespace ZvUserDB {
 
 Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
     unsigned totpRange, unsigned keyInterval, unsigned maxSize) :
-  m_rng(rng),
-  m_passLen(passLen),
-  m_totpRange(totpRange),
-  m_keyInterval(keyInterval),
-  m_maxSize(maxSize)
+  m_rng{rng},
+  m_passLen{passLen},
+  m_totpRange{totpRange},
+  m_keyInterval{keyInterval},
+  m_maxSize{maxSize}
 {
   m_users = new UserIDHash{};
   m_userNames = new UserNameHash{};
@@ -67,8 +67,7 @@ bool Mgr::bootstrap(
     roleAdd_(role, Role::Immutable, Bitmap{}.fill(), Bitmap{}.fill());
   if (!m_users->count_()) {
     ZmRef<User> user = userAdd_(
-	0, name, role, User::Immutable | User::Enabled | User::ChPass,
-	passwd);
+	0, name, role, User::Immutable | User::Enabled | User::ChPass, passwd);
     secret.length(Ztls::Base32::enclen(user->secret.length()));
     Ztls::Base32::encode(
 	secret.data(), secret.length(),
@@ -194,7 +193,6 @@ Zfb::Offset<fbs::UserDB> Mgr::save_(Zfb::Builder &fbb) const
 
 int Mgr::load(const ZiFile::Path &path, ZeError *e)
 {
-  using namespace Zfb::Load;
   return Zfb::Load::load(path,
       LoadFn{this, [](Mgr *this_, const uint8_t *data, unsigned len) {
 	return this_->load_(data, len);
@@ -222,7 +220,7 @@ int Mgr::loginReq(
 {
   using namespace Zfb::Load;
   int failures;
-  switch ((int)loginReq_->data_type()) {
+  switch (static_cast<int>(loginReq_->data_type())) {
     case fbs::LoginReqData_Access: {
       auto access = static_cast<const fbs::Access *>(loginReq_->data());
       user = this->access(failures,

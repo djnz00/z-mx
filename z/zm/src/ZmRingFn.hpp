@@ -60,21 +60,13 @@
 // NTP (named template parameters):
 //
 // inline constexpr const char *HeapID() { return "HeapID"; }
-// ZmRingFn<
-//   ZmRingFnArgs<ZuTypeList<ZmStream &>,	// parameters
-//     ZmRingFnHeapID<HeapID>>>			// heap ID
+// ZmRingFn<ZmStream &,				// parameters
+//   ZmRingFnHeapID<HeapID>>			// heap ID
 
 // NTP defaults
 struct ZmRingFn_Defaults {
-  using Args = ZuTypeList<>;
   static const char *HeapID() { return "ZmRingFn"; }
   enum { Sharded = false };
-};
-
-// ZmRingFnArgs - parameter type list
-template <typename Args_, typename NTP = ZmRingFn_Defaults>
-struct ZmRingFnArgs : public NTP {
-  using Args = Args_;
 };
 
 // ZmRingFnHeapID - the heap ID
@@ -223,8 +215,10 @@ private:
   uintptr_t	m_ptr = 0;            // pointer to lambda instance
 };
 
+// permit use of an optional trailing NTP (named template parameter)
 template <typename Args, unsigned N = Args::N>
 struct ZmRingFn_MapArgs {
+  // distinguish NTP from function signature
   constexpr static ZuFalse match(...);
   constexpr static ZuTrue match(ZmRingFn_Defaults *);
 
