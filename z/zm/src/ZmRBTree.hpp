@@ -299,6 +299,7 @@ private:
       public ZuIf<Unique, NodeExt_Unique<Node>, NodeExt_Dup<Node>> {
   friend ZmRBTree<T, NTP>;
   template <typename, int> friend class ZmRBTreeIterator_;
+
     // 64bit pointer-packing - uses bit 63
     constexpr static uintptr_t Black() {
       return static_cast<uintptr_t>(1)<<63;

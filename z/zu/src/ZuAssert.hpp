@@ -45,8 +45,8 @@ template <int N> struct ZuAssert_TEST { };
 #define ZuAssert_Typedef_(p, l) p##l
 #define ZuAssert_Typedef(p, l) ZuAssert_Typedef_(p, l)
 
-#define ZuAssert(x) \
-	typedef ZuAssert_TEST<sizeof(ZuAssertion_FAILED<(bool)(x)>)> \
+#define ZuAssert(x) typedef \
+	ZuAssert_TEST<sizeof(ZuAssertion_FAILED<static_cast<bool>(x)>)> \
 	ZuAssert_Typedef(ZuAssert_, __LINE__) ZuAssert_Unused_Typedef
 
 // compile time C assert

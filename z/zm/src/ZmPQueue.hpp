@@ -20,16 +20,16 @@
 // priority queue (optimized for message sequence reassembly)
 
 // internal data structure is a deterministic skip list. The list is a
-// sequence of ordered items. Each item contains one or more adjacent
-// elements, each of which is individually numbered. This run-length
-// encoding allows highly efficient duplicate detection, enqueuing of
-// both in- and out- of order items as well as in-order deletion (dequeuing)
-// without tree re-balancing.
+// sequence of ordered items. Each item is a run-length encoded sequence of
+// one or more adjacent elements, each of which is individually numbered.
+// This run-length encoding allows highly efficient duplicate detection,
+// enqueuing of both in- and out- of order items as well as in-order
+// deletion (dequeuing) without tree re-balancing.
 //
 // if used for sequences of packets with bytecount sequence numbering,
 // the elements are chars, the items are packet buffers, and the key
 // is the bytecount; other possibilities are elements being individual
-// messages within a containing packet, as in FIX, OUCH, ITCH and similar
+// messages within a containing buffer, as in FIX, OUCH, ITCH and similar
 // protocols
 
 #ifndef ZmPQueue_HPP
@@ -136,13 +136,13 @@ struct ZmPQueue_Defaults {
 };
 
 // ZmPQueueBits - change skip list factor (power of 2)
-template <int Bits_, class NTP = ZmPQueue_Defaults>
+template <unsigned Bits_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueBits : public NTP {
   enum { Bits = Bits_ };
 };
 
 // ZmPQueueLevels - change skip list #levels
-template <int Levels_, class NTP = ZmPQueue_Defaults>
+template <unsigned Levels_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueLevels : public NTP {
   enum { Levels = Levels_ };
 };

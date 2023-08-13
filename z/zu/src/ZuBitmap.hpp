@@ -43,6 +43,7 @@ public:
   enum { Shift = 6 };
   enum { Mask = ((1U<<Shift) - 1) };
   enum { Words = (Bits>>Shift) };
+  enum { Unroll = 8 };	// unroll small loops where N <= Unroll
 
   ZuBitmap() { zero(); }
   ZuBitmap(const ZuBitmap &b) { memcpy(data, b.data, Bytes); }
@@ -59,14 +60,14 @@ public:
   ZuBitmap &fill() { memset(data, 0xff, Bytes); return *this; }
 
   bool get(unsigned i) const {
-    return data[i>>Shift] & ((uint64_t)1)<<(i & Mask);
+    return data[i>>Shift] & (static_cast<uint64_t>(1)<<(i & Mask));
   }
   ZuBitmap &set(unsigned i) {
-    data[i>>Shift] |= ((uint64_t)1)<<(i & Mask);
+    data[i>>Shift] |= (static_cast<uint64_t>(1)<<(i & Mask));
     return *this;
   }
   ZuBitmap &clr(unsigned i) {
-    data[i>>Shift] &= ~(((uint64_t)1)<<(i & Mask));
+    data[i>>Shift] &= ~(static_cast<uint64_t>(1)<<(i & Mask));
     return *this;
   }
 
@@ -74,7 +75,6 @@ public:
     ZuBitmap	&bitmap;
     unsigned	i;
     operator bool() const { return bitmap.get(i); }
-    ZuOpBool
     void set() { bitmap.set(i); }
     void clr() { bitmap.clr(i); }
     Bit &operator =(bool v) { v ? set() : clr(); return *this; }
@@ -84,51 +84,37 @@ public:
   }
   Bit operator [](unsigned i) { return {*this, i}; }
 
-  template <unsigned I> struct Index { enum { OK = I < Words }; };
-  template <typename Fn, unsigned I>
-  static ZuIfT<Index<I>::OK>
-  opFn(uint64_t *v1) {
-    Fn::fn(v1[I]);
-    opFn<Fn, I + 1>(v1);
-  }
-  template <typename Fn, unsigned I>
-  static ZuIfT<Index<I>::OK>
-  opFn(uint64_t *v1, const uint64_t *v2) {
-    Fn::fn(v1[I], v2[I]);
-    opFn<Fn, I + 1>(v1, v2);
-  }
-  template <typename, unsigned I>
-  static ZuIfT<!Index<I>::OK>
-  opFn(uint64_t *) { }
-  template <typename, unsigned I>
-  static ZuIfT<!Index<I>::OK>
-  opFn(uint64_t *, const uint64_t *) { }
+  static void notFn(uint64_t &v1) { v1 = ~v1; }
+  static void orFn(uint64_t &v1, const uint64_t v2) { v1 |= v2; }
+  static void andFn(uint64_t &v1, const uint64_t v2) { v1 &= v2; }
+  static void xorFn(uint64_t &v1, const uint64_t v2) { v1 ^= v2; }
 
-  struct Not {
-    static void fn(uint64_t &v1) { v1 = ~v1; }
-  };
-  struct Or {
-    static void fn(uint64_t &v1, const uint64_t &v2) { v1 |= v2; }
-  };
-  struct And {
-    static void fn(uint64_t &v1, const uint64_t &v2) { v1 &= v2; }
-  };
-  struct Xor {
-    static void fn(uint64_t &v1, const uint64_t &v2) { v1 ^= v2; }
-  };
-
-  void flip() { opFn<Not, 0>(data); }
+  void flip() {
+    if constexpr (Words <= Unroll)
+      ZuUnroll::all<Words>([this](auto i) { data[i] = ~data[i]; });
+    else
+      for (unsigned i = 0; i < Words; i++) data[i] = ~data[i];
+  }
 
   ZuBitmap &operator |=(const ZuBitmap &b) {
-    opFn<Or, 0>(data, b.data);
+    if constexpr (Words <= Unroll)
+      ZuUnroll::all<Words>([this, &b](auto i) { data[i] |= b.data[i]; });
+    else
+      for (unsigned i = 0; i < Words; i++) data[i] |= b.data[i];
     return *this;
   }
   ZuBitmap &operator &=(const ZuBitmap &b) {
-    opFn<And, 0>(data, b.data);
+    if constexpr (Words <= Unroll)
+      ZuUnroll::all<Words>([this, &b](auto i) { data[i] &= b.data[i]; });
+    else
+      for (unsigned i = 0; i < Words; i++) data[i] &= b.data[i];
     return *this;
   }
   ZuBitmap &operator ^=(const ZuBitmap &b) {
-    opFn<Xor, 0>(data, b.data);
+    if constexpr (Words <= Unroll)
+      ZuUnroll::all<Words>([this, &b](auto i) { data[i] ^= b.data[i]; });
+    else
+      for (unsigned i = 0; i < Words; i++) data[i] ^= b.data[i];
     return *this;
   }
 
@@ -262,9 +248,6 @@ public:
       begin = next;
     }
   }
-
-  struct Traits : public ZuBaseTraits<ZuBitmap> { enum { IsComparable = 1 }; };
-  friend Traits ZuTraitsType(ZuBitmap *);
 
   friend ZuPrintFn ZuPrintType(ZuBitmap *);
 

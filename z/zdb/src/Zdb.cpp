@@ -1449,6 +1449,8 @@ void DB::recovered(ZmRef<Buf> buf)
   RN rn = record->rn();
   m_minRN.maximum(rn);
   m_nextRN.minimum(rn + 1);
+  // FIXME - validate nextRN, do not permit implied gaps?
+  // FIXME - if gap, may need to manipulate file alloc()/del() count
   recover(record);
 }
 
@@ -1456,6 +1458,9 @@ void DB::recovered(ZmRef<Buf> buf)
 void DB::recover(const fbs::Record *record)
 {
   ZmAssert(invoked());
+
+  // FIXME - validate nextRN, do not permit implied gaps
+  // FIXME - if gap, may need to manipulate file alloc()/del() count
 
   RN rn = record->rn();
   RN prevRN = record->prevRN();
@@ -1467,10 +1472,11 @@ void DB::recover(const fbs::Record *record)
       return;
     case Op::Put:
       if (SeqLenOp::seqLen(seqLenOp) > 1) {
-	m_deletes.add(rn, DeleteOp{prevRN,
-	  SeqLenOp::mk(SeqLenOp::seqLen(seqLenOp) - 1, Op::Put)});
-	if (auto fn = m_handler.deleteFn) fn(prevRN);
 	m_objCache.del(prevRN);
+	m_deletes.del(prevRN); // FIXME
+	m_deletes.add(rn, DeleteOp{prevRN,
+	  SeqLenOp::mk(SeqLenOp::seqLen(seqLenOp) - 1, Op::Put)}); // FIXME
+	if (auto fn = m_handler.deleteFn) fn(prevRN); // FIXME
       }
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
@@ -1479,20 +1485,22 @@ void DB::recover(const fbs::Record *record)
       break;
     case Op::Append:
       if (SeqLenOp::seqLen(seqLenOp) > 1)
-	m_objCache.del(prevRN);
+	m_objCache.del(prevRN); // yes!
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
 	m_objCache.add(ZuMv(object));
       }
+      // FIXME - call app's appendFn(prevRN, rn)
       break;
     case Op::Delete:
       m_objCache.del(prevRN);
+      m_deletes.del(prevRN); // FIXME
       m_deletes.add(rn, DeleteOp{rn, seqLenOp});
       if (auto fn = m_handler.deleteFn) fn(rn);
-      m_objCache.del(rn);
+      m_objCache.del(rn); // FIXME -unnecessary
       break;
     case Op::Purge:
-      m_deletes.add(rn, DeleteOp{prevRN, seqLenOp});
+      m_deletes.add(rn, DeleteOp{prevRN, seqLenOp}); // FIXME
       break;
   }
 }
@@ -1502,6 +1510,7 @@ void DB::repRecRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
+  // FIXME - validate nextRN
   recover(record_(msg_(buf->hdr())));
   write(ZuMv(buf));
 }
@@ -1532,18 +1541,16 @@ void DB::write(ZmRef<Buf> buf)
       auto env = db->env();
       if (env->replicate(buf))
 	// replicated - peer will ack
-	db->fileRun([buf = ZuMv(buf)]() {
+	db->fileRun([buf = ZuMv(buf)]() mutable {
 	  auto db = buf->db();
-	  db->write_(buf); // return value ignored
+	  db->write_(ZuMv(buf)); // return value ignored
 	});
       else
 	// standalone - ack on successful disk write
-	db->fileRun([buf = ZuMv(buf)]() {
+	db->fileRun([buf = ZuMv(buf)]() mutable {
 	  auto db = buf->db();
-	  if (db->write_(buf)) {
-	    auto rn = record_(msg_(buf->hdr()))->rn();
-	    db->ack(rn + 1);
-	  }
+	  auto rn = record_(msg_(buf->hdr()))->rn();
+	  if (db->write_(ZuMv(buf))) db->ack(rn + 1);
 	});
     });
   } else { // disk write then replicate (slower but potentially more durable)
@@ -1567,6 +1574,14 @@ void DB::write(ZmRef<Buf> buf)
 	});
     });
   }
+}
+
+bool DB::write_(ZmRef<Buf> buf)
+{
+  auto ptr = buf.ptr();
+  bool ok = FileMgr::write_(ZuMv(buf));
+  m_repBufs->delNode(ptr);
+  return ok;
 }
 
 bool DB::open()
@@ -1684,6 +1699,7 @@ void DB::del(ZmRef<AnyObject> object)
   auto rn = object->rn();
   m_minRN.maximum(rn);
   m_nextRN = rn + 1;
+  // FIXME
   m_deletes.add(rn, DeleteOp{rn, SeqLenOp::mk(object->seqLen(), Op::Delete)});
   write(object->replicate(fbs::Body_Rep));
 }
@@ -1707,6 +1723,7 @@ void DB::purge(RN minRN)
 	  rn, minRN, SeqLenOp::mk(1, Op::Purge), {}).Union());
     fbb.Finish(msg);
   }
+  // FIXME
   m_deletes.add(rn, DeleteOp{minRN, SeqLenOp::mk(1, Op::Purge)});
   write(saveHdr(fbb, this));
 }
@@ -1717,7 +1734,7 @@ void DB::ack(RN rn)
 
   if (ZuUnlikely(rn <= m_minRN.load_())) return;
   if (ZuUnlikely(rn > m_nextRN.load_())) rn = m_nextRN;
-  auto startRN = m_deletes.minimumKey();
+  auto startRN = m_deletes.minimumKey(); // FIXME - call ZdbFile
   if (startRN == nullRN() || rn < startRN) return;
   if (m_vacuumRN != nullRN()) {
     if (rn > m_vacuumRN) m_vacuumRN = rn;
@@ -1727,6 +1744,7 @@ void DB::ack(RN rn)
   vacuum();
 }
 
+// FIXME - move to ZdbFile
 void DB::vacuum()
 {
   ZmAssert(fileInvoked());
@@ -1772,6 +1790,7 @@ void DB::vacuum()
 	    for (unsigned k = batchSize; k-- > 0; ) del_write(batch[k]);
 	  } else {
 	    deleteOp.seqLenOp = SeqLenOp::mk(batchSize, op);
+	    // FIXME - possible issue - modifying tree while iterating
 	    m_deletes.add(rn,
 		DeleteOp{rn, SeqLenOp::mk(seqLen - batchSize, Op::Delete)});
 	  }

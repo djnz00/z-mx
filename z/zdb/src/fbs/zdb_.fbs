@@ -9,12 +9,13 @@ table Heartbeat {
   state:uint32;
   env_state:[DBState];
 }
-// Records on disk are one of four journal operations
 table Record {
-  db:Zfb.ID;
-  rn:uint64;
-  prev_r_n:uint64;
-  seq_len_op:uint32;	// sequence length + op
+  db:Zfb.ID;		// DB ID
+  rn:uint64;		// record RN
+  prev_r_n:uint64;	// previous RN
+  op_r_n:uint64;	// operation RN (target RN)
+  op:uint16;		// DB operation
+  state:uint16;		// record state
   data:[uint8];		// nested table data - null if Delete or Purge
 }
 table Gap {		// record gap

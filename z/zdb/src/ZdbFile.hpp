@@ -48,16 +48,22 @@
 // each cached file containes a write-through cache of the superblock
 // a global LRU write-through cache of index blocks is maintained
 
-// file hdr, bitmap, superblock are written on file eviction
+// file hdr, bitfield, superblock are written on file eviction
 // index blocks are written on index block eviction
 // on close, all files and index blocks are written and evicted
 
 // each record on disk is {data, trailer}, where trailer is the on-disk
 // equivalent of the network message header
 
-// 0,+20 header (magic:u32, version:u32, flags:u32, allocated:u32, deleted:u32)
-// 20,+256 bitmap (FileBitmap) (16384 x u1)
-// 276,+1024 superblock (FileSuperBlk) (128 x u64)
+// 0,+24 header (
+//   magic:u32,
+//   version:u32,
+//   flags:u32,
+//   allocated:u32,
+//   deleted:u32,
+//   expunged:u32)
+// 24,+512 bitfield (FileBitfield) (16384 x u2)
+// 536,+1024 superblock (FileSuperBlk) (128 x u64)
 // ... followed by index blocks interleaved with variable length records
 // Offset,+1536 index block (FileIndexBlk) (128 x {u64,u32})
 
@@ -78,15 +84,17 @@ namespace FileFlags {
     IOError	= 0x00000001,	// I/O error during open
     Clean	= 0x00000002	// closed cleanly
   };
-};
+}
 
-#define ZdbMagic	0x0db3a61c	// file magic number
-#define ZdbCommitted	0xc001da7a	// "cool data"
+namespace Magic {	// magic numbers
+  inline constexpr uint32_t file()	{ return 0x0db3a61c; }
+  inline constexpr uint32_t committed()	{ return 0xc001da7a; }
+}
 
 using Magic = uint32_t;
-using SeqLen = uint32_t;
 
 #pragma pack(push, 1)
+using U32LE = ZuLittleEndian<uint16_t>;
 using U32LE = ZuLittleEndian<uint32_t>;
 using U64LE = ZuLittleEndian<uint64_t>;
 using I64LE = ZuLittleEndian<int64_t>;
@@ -96,60 +104,246 @@ using MagicLE = ZuLittleEndian<Magic>;
 using SeqLenLE = ZuLittleEndian<SeqLen>;
 
 struct FileHdr {
-  MagicLE	magic;		// ZdbMagic
+  MagicLE	magic;		// Magic::file()
   U32LE		version;
-  U32LE		flags;		// FileFlags
+  U64LE		clean;		// clean to this extent
+  U64LE		rn;		// base RN
   U32LE		allocated;	// allocated record count
   U32LE		deleted;	// deleted record count
+  U32LE		expunged;	// expunged record count
 };
-struct FileBitmap {		// bitmap
-  U64LE		data[fileRecs()>>6];
+struct FileBitfield {		// bitfield - 2 bits per record
+  U64LE		data[fileRecs()>>5];
 };
 struct FileSuperBlk {		// super block
-  U64LE		data[fileIndices()];
+  U64LE		data[fileIndices()];	// encoded type+offset - IdxBlkOff
 };
-struct FileIndex {
-  U64LE		offset;
-  U32LE		length;
+struct FileExtent {		// file extent header
+  U64LE		value;			// encoded type+length - Extent
 };
 struct FileIndexBlk {		// index block
-  FileIndex	data[indexRecs()];
+  U64LE		data[indexRecs()];	// encoded type+offset - RecOffset
+};
+struct FileIdxBlkTrlr {		// index block trailer
+  RNLE		rn;		// base RN
+  MagicLE	magic;		// committed()
 };
 struct FileRecTrlr {		// record trailer
   RNLE		rn;
-  RNLE		prevRN;
-  SeqLenLE	seqLenOp;	// chain length + op
-  MagicLE	magic;		// ZdbCommitted
+  RNLE		prevRN;		// prevRN
+  RNLE		opRN;		// opRN
+  U16LE		op;		// operation
+  U16LE		state;		// state (mutable)
+  MagicLE	magic;		// committed()
 };
 #pragma pack(pop)
 
+// Note: all offsets in superblock and index block reference extent header
+
+// bitfield states
+namespace BitField {
+  enum {
+    Uninitialized = 0,
+    Created,
+    Deleted,
+    Expunged
+  };
+}
+
+// extent header - encodes type and exclusive length for journal extent
+struct Extent {
+  uint64_t	value = 0;
+
+  enum {
+    Uninitialized = 0,
+    IndexBlk,
+    Record			// must be last
+  };
+
+  ZuAssert(sizeof(FileRecTrlr) >= Record);
+  ZuAssert(sizeof(FileIndexBlk) + sizeof(FileIdxBlkTrlr) >= Record);
+
+  int type() const { return value < Record ? value : Record; }
+
+  // extent length exclusive of FileExtent header
+  uint64_t length() const {
+    if (value >= Record) return value;
+    switch (value) {
+      case IndexBlk:	return sizeof(FileIndexBlk) + sizeof(FileIdxBlkTrlr);
+      default:		return 0;
+    }
+  }
+};
+
+// super block element - encodes type and offset for index block
+struct IdxBlkOff {
+  uint64_t	value = 0;
+
+  enum {
+    Uninitialized = 0,
+    Expunged,
+    IndexBlk			// must be last
+  };
+
+  ZuAssert(sizeof(FileSuperBlk) >= IndexBlk);
+
+  int type() const { return value < IndexBlk ? value : IndexBlk; }
+
+  // absolute offset of index block's FileExtent
+  uint64_t offset() const {
+    return value >= IndexBlk ? value : 0;
+  }
+};
+
+// index block element - encodes type and offset for RN
+struct RecOffset {
+  uint64_t	value = 0;
+
+  enum {
+    Uninitialized = 0,
+    Expunged,
+    Record			// must be last
+  };
+
+  ZuAssert(sizeof(FileIndexBlk) >= Record);
+
+  int type() const { return value < Record ? value : Record; }
+
+  // relative offset (relative to offset of index block's FileExtent)
+  uint64_t offset() const {
+    return value >= Record ? value : 0;
+  }
+};
+
+// FIXME - header is clean "as of" a file length, i.e. any append
+// invalidates cleanliness
+
 // -- file index block cache
+
+// trigger delete processing from FileMgr::write_()
+
+// recover deletes in recover()
+// - if a Delete is recovered, use temporary tree to prevent
+// recovery of subsequent Deletes in the same sequence, by remembering
+// the opRN as each is recovered
+//
+// schedule any deletion needed once recovery completes
+
+// record lifecycle has following states
+//
+// Created -> Deleting -> Deleted // put/append
+// Deleting -> Deleted // delete
+// Purging -> Purged // purge
+//
+//   deleting count updates on initial delete request - count of records with state Deleting
+//   deleted count updates on delete request completion - count of records with state Deleted that are candidates for compaction
+
+// initial puts/deletes - write the RN, enqueue the pending delete with origRN=RN and RN=prevRN
+// pending deletes keyed on RN
+//   { RN, origRN }
+//   - read the RN
+//   - process the state transition diagram, using origRN as appropriate
+//   - set origRN to RN and RN to prevRN/opRN before re-enqueuing
+// initial purge - write the RN, set purgeRN to target minRN
+// pending purges (one per DB, not a container)
+//   purgeRN (nullRN means no purge in process)
+//   - write Deleted to minRN
+//   - ++minRN
+//   - re-enqueue if minRN < purgeRN
+
+// recovery prevents recovering more than the lowest-RN pending deletion
+// in a single sequence via the opRN, using a set keyed on opRN -
+// when tail is reached, set is cleared
+
+// FIXME - use a write-through cache of mutable record trailers to elide
+// file-write of interim recState=Deleting and opRN on short sequences;
+// also need to flush this on fileMgr close
+
+// Note: *prevRN means
+// prevRN != nullRN() && prevRN >= minRN && op == (Append | Delete)
+// during recovery, recovery will rewrite the prevRN to null if prevRN
+// is < minRN
+
+// W(state) - write state
+// WN(state) - write state, opRN=nextRN
+// WM(state) - write state, opRN=minRN
+
+//		Put		Append		Delete		Purge
+//
+// New		W(Created)	W(Created)	W(Deleting)	WM(Purging)
+// New(*prevRN)	Delete(*prevRN)			Delete(*prevRN)	Purge(*minRN++)
+//
+// Created(*prevRN) -		-		WN(Deleting)	W(Deleted)
+// 						Delete(*prevRN)	Purge(*minRN++)
+// Created(!*prevRN) -		-		WN(Deleted)
+// 						Delete(*opRN)
+//
+// Deleting	-		-		W(Deleted)	W(Deleted)
+// 						Delete(*opRN)	
+// 
+// Deleted	-		-		Nop		Nop
+//
+// Purging	-		-		-		W(Purged)
+// 								Purge(*minRN++)
+//
+// Purged	-		-		-		Nop
+// 								Purge(*minRN++)
+
+// 		Alloc8d	Deleted	Bitfld	Offset
+//
+// Null		N	N	0	0
+// Created	Y	N	1	N
+// Deleting	Y	N	1	N
+// Deleted	Y	Y	2	N
+// Purging	Y	N	1	N
+// Purged	Y	Y	2	N
+// Expunged	Y	Y	3	1
+
+//
+// Null
+// Created		++allocated
+// Deleted|Purged	++deleted
+// Expunged		++expunged
+
+// compaction migrates deleted/purged to unavailable
 
 class File_;
 struct IndexBlk_ {
 #pragma pack(push, 1)
-  struct Index {
-    int64_t	offset;
-    uint32_t	length;
-  };
   struct Blk {
-    Index		data[indexRecs()];	// RN -> {offset, length}
+    uint64_t	data[indexRecs()];	// RN -> offset
   };
 #pragma pack(pop)
 
+  uint64_t	id = 0;		// (RN>>indexShift())
+  uint64_t	offset = 0;	// absolute offset of this block's FileExtent
+  Blk		blk;
+
+  IndexBlk_() { }
   IndexBlk_(uint64_t id_, uint64_t offset_) : id{id_}, offset{offset_} {
     // shortcut endian conversion when initializing a blank index block
     memset(&blk, 0, sizeof(Blk));
   }
   IndexBlk_(uint64_t id, uint64_t offset, File_ *, bool &ok); // read from file
 
-  uint64_t	id = 0;			// (RN>>indexShift())
-  uint64_t	offset = 0;		// offset of this index block
-  Blk		blk;
+  ~IndexBlk_() { }
 
   static uint64_t IDAxor(const IndexBlk_ &blk) { return blk.id; }
 
-  IndexBlk_() = delete;
+  RN rn() const { return id<<indexShift(); }
+
+  void reset() {
+    ~IndexBlk_();
+    new (this) IndexBlk_{};
+  }
+  void init(uint64_t id_, uint64_t offset_) {
+    ~IndexBlk_();
+    new (this) IndexBlk_{id_, offset_};
+  }
+
+  bool operator !() const { return !offset; }
+  ZuOpBool
+
   IndexBlk_(const IndexBlk_ &) = delete;
   IndexBlk_ &operator =(const IndexBlk_ &) = delete;
   IndexBlk_(IndexBlk_ &&) = delete;
@@ -174,7 +368,7 @@ class ZdbAPI File_ : public ZiFile {
   File_ &operator =(const File_ &) = delete;
   File_ &operator =(File_ &&) = delete;
 
-  using Bitmap = ZuBitmap<fileRecs()>;
+  using Bitfield = ZuBitfield<fileRecs(), 2>;
   struct SuperBlk {
     uint64_t	data[fileIndices()];	// offsets to index blocks
   };
@@ -185,31 +379,23 @@ protected:
   File_(FileMgr *mgr, uint64_t id) : m_mgr{mgr}, m_id{id} { }
 
 public:
+  RN rn() const { return m_id<<fileShift(); }
   uint64_t id() const { return m_id; }
 
-  void alloc(unsigned i) {
-    if (!m_bitmap[i]) alloc_(i);
-  }
-  void alloc_(unsigned i) {
-    m_bitmap[i].set();
-    ++m_allocated;
-  }
+  void alloc(unsigned i) { if (!m_bitfield[i]) alloc_(i); }
+  void alloc_(unsigned i) { m_bitfield[i] = 1; ++m_allocated; }
 
-  bool del(unsigned i) {
-    if (m_bitmap[i]) del_(i);
-    return m_deleted >= fileRecs();
-  }
-  void del_(unsigned i) {
-    m_bitmap[i].clr();
-    ++m_deleted;
-  }
+  void del(unsigned i) { if (m_bitfield[i] == 1) del_(i); }
+  void del_(unsigned i) { m_bitfield[i] = 2; ++m_deleted; }
 
-  bool exists(unsigned i) const { return m_bitmap[i]; }
+  void expunge(unsigned i) { if (m_bitfield[i] == 2) expunge_(i); }
+  void expunge_(unsigned i) { m_bitfield[i] = 3; ++m_expunged; }
+
+  bool exists(unsigned i) const { return m_bitfield[i] == 1; }
 
   unsigned allocated() const { return m_allocated; }
   unsigned deleted() const { return m_deleted; }
-  unsigned first() const { return m_bitmap.first(); }
-  unsigned last() const { return m_bitmap.last(); }
+  unsigned expunged() const { return m_expunged; }
 
   uint64_t append(unsigned length) {
     uint64_t offset = m_offset;
@@ -239,7 +425,8 @@ private:
   uint32_t		m_flags = 0;
   unsigned		m_allocated = 0;
   unsigned		m_deleted = 0;
-  Bitmap		m_bitmap;
+  unsigned		m_expunged = 0;
+  Bitfield		m_bitfield;
   SuperBlk		m_superBlk;
 };
 inline constexpr const char *File_HeapID() { return "Zdb.File"; }
@@ -286,6 +473,29 @@ private:
   unsigned	m_indexOff = 0;
 };
 
+// -- pending deletes
+
+// Deletes is a R/B tree of pending deletes, keyed by the deletion
+// request RN - the value is the origRN of the previous deletion -
+// deletion progresses backwards along the linkRN sequence marking all
+// prior records within the sequence as pending deletion and
+// updating the opRN to point forward, then moves forwards finalizing
+// the deletions using the previously written opRN chain
+inline constexpr const char *DeletesHeapID() { return "Zdb.Deletes"; }
+using Deletes =
+  ZmRBTreeKV<RN, RN,	// rn, origRN
+    ZmRBTreeUnique<true,
+      ZmRBTreeHeapID<DeletesHeapID>>>;
+
+// As recovery progresses, RecDeletes follows recovered deletion chains
+// that were previously recovered in order to prevent recovering multiple
+// pending deletion operations for the same chain of records
+inline constexpr const char *RecDeletesHeapID() { return "Zdb.RecDeletes"; }
+using RecDeletes =
+  ZmRBTree<RN,
+    ZmRBTreeUnique<true,
+      ZmRBTreeHeapID<RecDeletesHeapID>>>;
+
 class ZdbAPI FileMgr {
 friend File_;
 
@@ -310,7 +520,7 @@ protected:
   void warmup_(ZdbRN nextRN);
 
   ZmRef<Buf> read_(ZdbRN rn);
-  bool write_(Buf *buf);
+  bool write_(ZmRef<Buf> buf);
 
   void del_write(RN rn);
   RN del_prevRN(RN rn);
@@ -339,6 +549,17 @@ private:
 
   // file cache
   FileCache		m_files;
+
+  // in-progress deletes
+  Deletes		m_revDeletes;	// reversing back to head
+  Deletes		m_fwdDeletes;	// going forward to tail
+
+  // recovered deletions
+  RecDeletes		m_recDeletes;
+
+  // pending purge
+  RN			m_purgeRN = nullRN();
+  RN			m_purgeOpRN = nullRN();
 };
 
 inline ZiFile::Path FileMgr::dirName(uint64_t id) const

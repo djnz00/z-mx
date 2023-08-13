@@ -66,7 +66,8 @@ template <typename Lock> class ZmHash_LockMgr {
   ZuAssert(sizeof(Lock) <= CacheLineSize);
 
   Lock &lock_(unsigned i) const {
-    return *(Lock *)((char *)m_locks + (i * CacheLineSize));
+    return *reinterpret_cast<Lock *>(
+	reinterpret_cast<uint8_t *>(m_locks) + (i * CacheLineSize));
   }
 
 protected:
@@ -107,15 +108,14 @@ protected:
     return lock_(slot>>(m_bits - m_cBits));
   }
 
-  int lockAllResize(unsigned bits) {
+  void lockAllResize(unsigned bits) {
     for (unsigned i = 0; i < (1U<<m_cBits); i++) {
       LockTraits::lock(lock_(i));
-      if (m_bits != bits) {
+      if (m_bits >= bits) {
 	for (int j = i; j >= 0; --j) LockTraits::unlock(lock_(j));
-	return 1;
+	return;
       }
     }
-    return 0;
   }
   void lockAll() {
     unsigned n = (1U<<m_cBits);
@@ -153,7 +153,7 @@ protected:
     return const_cast<ZmNoLock &>(m_noLock);
   }
 
-  int lockAllResize(unsigned bits) { return 0; }
+  void lockAllResize(unsigned) { }
   void lockAll() { }
   void unlockAll() { }
 
@@ -570,7 +570,7 @@ private:
 	Lock &lock = lockCode(code);
 
 	LockTraits::unlock(lock);
-	resize(bits);
+	resize(bits + 1);
 	LockTraits::lock(lock);
       }
     }
@@ -985,13 +985,13 @@ public:
 
 private:
   void resize(unsigned bits) {
-    if (lockAllResize(bits)) return;
+    if (!lockAllResize(bits)) return;
 
     m_resized.store_(m_resized.load_() + 1);
 
-    unsigned n = (1U<<bits);
+    unsigned n = (1U<<m_bits);
 
-    m_bits = ++bits;
+    m_bits = bits;
 
     NodePtr *table = static_cast<NodePtr *>(
 	Zm::alignedAlloc(sizeof(NodePtr)<<bits, Zm::CacheLineSize));

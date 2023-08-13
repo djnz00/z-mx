@@ -56,7 +56,7 @@ public:
 private:
   unsigned	m_bits = 8;
   double	m_loadFactor = 1.0;
-  unsigned	m_cBits = 5;
+  unsigned	m_cBits = 3;
 };
 
 // display sequence:

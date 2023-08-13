@@ -124,7 +124,7 @@ public:
     }
   }
 
-  ZuInline bool operator !() const {
+  bool operator !() const {
     ReadGuard guard(m_lock);
     return Zi::nullHandle(m_handle);
   }

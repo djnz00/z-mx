@@ -202,9 +202,7 @@ template <typename AppTypes> struct MxTAppTypes {
       eventLeg = 0;
     }
 
-    ZuInline bool operator !() const {
-      return eventState == MxTEventState::Unset;
-    }
+    bool operator !() const { return eventState == MxTEventState::Unset; }
     ZuOpBool;
 
     template <bool Rx, bool Tx, bool Ack>

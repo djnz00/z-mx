@@ -30,6 +30,8 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZdbMsg.hpp>
+
 namespace Zdb_ {
 
 // -- I/O buffer

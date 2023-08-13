@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <zlib/ZuUnroll.hpp>
+
 #include <zlib/ZmSemaphore.hpp>
 #include <zlib/ZmSingleton.hpp>
 #include <zlib/ZmThread.hpp>
@@ -616,7 +618,7 @@ int main(int argc, char **argv)
     if (size <= 0) usage();
   }
 
-  if (!ZuSwitch::all<4>(true, [size](auto i, bool b) {
+  if (!ZuUnroll::all<4>(true, [size](auto i, bool b) {
     return b ? (b && Test<(i>>1) & 1, i & 1>::run(size)) : false;
   })) return 1;
 

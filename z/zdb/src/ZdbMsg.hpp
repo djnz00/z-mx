@@ -30,6 +30,8 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZdbTypes.hpp>
+
 #include <zlib/zdb__fbs.h>
 
 namespace Zdb_ {

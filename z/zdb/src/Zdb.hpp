@@ -379,7 +379,9 @@ public:
 
   template <typename S> void print(S &s) const {
     using namespace Zdb_;
-    s << "rn=" << m_rn << " prevRN=" << m_prevRN << " origRN=" << m_origRN <<
+    s << "rn=" << m_rn <<
+      " prevRN=" << m_prevRN <<
+      " origRN=" << m_origRN <<
       " seqLen=" << SeqLenOp::seqLen(m_seqLenOp) <<
       " op=" << Op::name(SeqLenOp::op(m_seqLenOp));
   }
@@ -572,25 +574,6 @@ struct DBCf {
 
   static ZuID IDAxor(const DBCf &cf) { return cf.id; }
 };
-
-// -- pending deletes
-
-// Deletes is a R/B tree of pending deletes, keyed by the deletion
-// request RN - the value is a DeleteOp that indicates the
-// tail RN to be deleted (can be the same as the key), and the sequence
-// length - actual deletion is lazy and progresses backwards along
-// the prevRN sequence deleting all prior records within the sequence
-
-inline constexpr const char *DeletesHeapID() { return "Zdb.Deletes"; }
-struct DeleteOp {
-  RN		rn = nullRN();
-  SeqLen	seqLenOp = 0;
-};
-using Deletes =
-  ZmRBTreeKV<RN, DeleteOp,
-    ZmRBTreeUnique<true,
-      ZmRBTreeLock<ZmPLock,
-	ZmRBTreeHeapID<DeletesHeapID>>>>;
 
 // -- DB configurations
 
@@ -820,6 +803,8 @@ private:
 
   // file thread
   void write(ZmRef<Buf> buf);
+  bool write_(ZmRef<Buf> buf);
+
   void ack(RN rn);
   void vacuum();
 
@@ -840,10 +825,8 @@ private:
   // object cache
   ObjCache		m_objCache;		// MT locked
 
-  // pending replications, deletes, vacuums
+  // pending replications
   ZmRef<RepBufs>	m_repBufs;		// MT locked
-  Deletes		m_deletes;		// MT locked
-  RN			m_vacuumRN = nullRN();	// file thread
 };
 
 inline void AnyObject_::put() { m_db->put(this); }

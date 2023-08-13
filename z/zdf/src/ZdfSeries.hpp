@@ -152,7 +152,7 @@ public:
     return m_buf->hdr()->offset() + m_decoder.count();
   }
 
-  ZuInline bool operator !() const { return !m_decoder; }
+  bool operator !() const { return !m_decoder; }
   ZuOpBool
 
 private:

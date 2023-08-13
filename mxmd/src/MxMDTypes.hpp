@@ -44,7 +44,7 @@ struct MxMDSegment { // venue segment
   MxEnum	session;	// MxTradingSession
   MxDateTime	stamp;		// session start time stamp
 
-  ZuInline bool operator !() const { return !id; }
+  bool operator !() const { return !id; }
   ZuOpBool
 };
 
@@ -92,7 +92,7 @@ struct MxMDLotSizes {
   MxValue	lotSize;
   MxValue	blockLotSize;
 
-  ZuInline bool operator !() const { return !*lotSize; }
+  bool operator !() const { return !*lotSize; }
   ZuOpBool
 
   template <typename S> void print(S &s) const {

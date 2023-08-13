@@ -37,32 +37,26 @@ using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
 
-// primitive database journal op codes
+// primitive database journal op codes; ops are mutable, lifecycle is:
 namespace Op {
   ZtEnumValues("Zdb_::Op",
     Put = 0,	// add this record, delete prevRN (and predecessors)
     Append,	// add this record, preserve prevRN
-    Delete,	// add this tombstone, delete prevRN (no data)
+    Delete,	// tombstone, delete prevRN (no data)
     Purge	// add this purge instruction, delete all < prevRN (no data)
   );
 }
 
-// sequence length type
-using SeqLen = uint32_t;
-
-// {sequence length, operation} packed type
-namespace SeqLenOp {
-  inline SeqLen mk(SeqLen length, int op) {
-    return (length<<2) | op;
-  }
-  inline SeqLen seqLen(SeqLen seqLenOp) { return seqLenOp>>2; }
-  inline int op(SeqLen seqLenOp) {
-    return !seqLenOp ? -1 : static_cast<int>(seqLenOp & 3);
-  }
-  inline constexpr SeqLen maxSeqLen() { return 0x3fffffffU; }
+namespace RecState {
+  ZtEnumValues("Zdb_::RecState",
+    Created = 0,
+    Deleting,
+    Deleted,
+    Purging,
+    Purged
+  );
 }
 
-// file offset type and sentinel values
 using Offset = int64_t;
 
 // -- message format - used for both file and network
