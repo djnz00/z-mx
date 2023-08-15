@@ -246,11 +246,13 @@ bool File_::scan()
     m_offset = size();
     return true;
   }
+  // scan file extents, rebuilding bitfield, superblock and index blocks
   m_offset = sizeof(FileHdr) + sizeof(FileBitfield) + sizeof(FileSuperBlk);
-  IndexBlk_ indexBlk;
+  IndexBlk_ indexBlk; // current index block
   while (m_offset < size) {
     int type;
     uint64_t length;
+    // read extent header
     {
       FileExtent extent_;
       if (ZuUnlikely((r = pread(m_offset,
@@ -262,10 +264,12 @@ bool File_::scan()
       type = extent.type();
       length = extent.length();
     }
+    // validate extent header
     if (type == Extent::Uninitialized || !length ||
-	(m_offset + sizeof(FileExtent) + length) > size) break;
+	(m_offset + sizeof(FileExtent) + length) > size) goto eof;
     switch (type) {
       case Extent::IndexBlk: {
+	// read index block trailer
 	FileIdxBlkTrlr trlr;
 	if (ZuUnlikely((r = pread(
 		m_offset + sizeof(FileExtent) + length - sizeof(FileIdxBlkTrlr),
@@ -276,9 +280,11 @@ bool File_::scan()
 	RN rn = trlr.rn;
 	{
 	  RN allocRN = rn() + m_allocated;
+	  // validate trailer
 	  if (trlr.magic != ZdbCommitted ||
 	      rn < allocRN ||
-	      rn >= this->rn() + fileRecs() - indexRecs()) break;
+	      rn >= this->rn() + fileRecs() - indexRecs()) goto eof;
+	  // gap-fill from last-allocated RN to this RN
 	  while (allocRN < rn) {
 	    m_bitfield[allocRN & fileRecMask()] = BitField::Expunged;
 	    if (indexBlk)
@@ -291,6 +297,7 @@ bool File_::scan()
 	    ++m_expunged;
 	    ++allocRN;
 	    if (indexBlk) {
+	      // write out index block if filled
 	      if (allocRN >= indexBlk.rn() + indexRecs()) {
 		if (!writeIndexBlk(&indexBlk)) return false;
 		indexBlk.reset();
@@ -303,7 +310,8 @@ bool File_::scan()
 	m_offset += sizeof(FileExtent) + length;
       } break;
       case Extent::Record: {
-	if (!indexBlk) break; // no preceding index block
+	if (!indexBlk) goto eof; // records must be preceded by index blocks
+	// read record trailer
 	FileRecTrlr trlr;
 	if (ZuUnlikely((r = pread(
 		  m_offset + sizeof(FileExtent) + length - sizeof(FileRecTrlr),
@@ -314,10 +322,12 @@ bool File_::scan()
 	RN rn = trlr.rn;
 	{
 	  RN allocRN = rn() + m_allocated;
+	  // validate trailer
 	  if (trlr.magic != ZdbCommitted ||
 	      rn < allocRN ||
 	      rn < indexBlk.rn() ||
-	      rn >= indexBlk.rn() + indexRecs()) break;
+	      rn >= indexBlk.rn() + indexRecs()) goto eof;
+	  // gap-fill from last-allocated RN to this RN
 	  while (allocRN < rn) {
 	    m_bitfield[allocRN & fileRecMask()] = BitField::Expunged;
 	    indexBlk.blk[allocRN & indexMask()] = RecOffset::Expunged;
@@ -327,6 +337,7 @@ bool File_::scan()
 	    ++allocRN;
 	  }
 	}
+	// rebuild bitfield from record
 	switch (static_cast<int>(trlr.state)) {
 	  case RecState::Created:
 	  case RecState::Deleting:
@@ -341,7 +352,9 @@ bool File_::scan()
 	    ++m_deleted;
 	    break;
 	}
+	// rebuild index block from record
 	indexBlk.blk[rn & indexMask()] = m_offset - indexBlk.offset;
+	// rebuild pending deletions from record
 	switch (static_cast<int>(trlr.state)) {
 	  case RecState::Deleting:
 	    if (!m_recDeletes.del(trlr.rn))
@@ -361,6 +374,10 @@ bool File_::scan()
 	}
       } break;
     }
+  }
+eof:
+  if (m_offset < size) {
+    if (truncate(m_offset) != Zi::OK) return false;
   }
   if (indexBlk) {
     if (!writeIndexBlk(&indexBlk)) return false;
@@ -431,7 +448,6 @@ bool File_::sync_()
 
 bool File_::sync() // file thread
 {
-  m_flags |= FileFlags::Clean;
   if (!sync_()) goto error;
   {
     ZeError e;
@@ -441,19 +457,19 @@ bool File_::sync() // file thread
       goto error;
     }
   }
-  m_flags &= ~FileFlags::Clean;
   return true;
 error:
   m_flags &= ~FileFlags::Clean;
   FileHdr hdr{
     .magic = Magic::file(),
     .version = ZdbVersion,
-    .flags = m_flags,
+    .clean = 0,			// force re-scan on next open
+    .rn = rn(),
     .allocated = m_allocated,
-    .deleted = m_deleted
+    .deleted = m_deleted,
+    .expunged = m_expunged
   };
-  pwrite(0, &hdr, sizeof(FileHdr)); // best effort to clear Clean flag
-  m_flags &= ~FileFlags::Clean;
+  pwrite(0, &hdr, sizeof(FileHdr));
   return false;
 }
 
@@ -538,7 +554,14 @@ FileRec FileMgr::rn2file(RN rn)
 IndexBlk *File_::readIndexBlk(uint64_t id)
 {
   ZuPtr<IndexBlk> indexBlk;
-  if (auto offset = m_superBlk.data[id & indexMask()]) {
+  IdxBlkOff idxBlkOff{m_superBlk.data[id & indexMask()]};
+  switch (static_cast<int>(idxBlkOff.type())) {
+    case Uninitialized:
+    case Expunged:
+      return nullptr;
+  }
+  {
+    auto offset = idxBlkOff.offset();
     bool ok;
     indexBlk = new IndexBlk{id, offset, this, ok}; // calls readIndexBlk
     if (!ok) return nullptr;
@@ -575,6 +598,7 @@ bool File_::readIndexBlk(IndexBlk_ *indexBlk)
 {
   int r;
   ZeError e;
+  // FIXME - read and validate FileExtent
 #if Zu_BIGENDIAN
   FileIndexBlk fileIndexBlk;
   auto indexData = &(fileIndexBlk.data[0]);
@@ -598,6 +622,7 @@ bool File_::writeIndexBlk(IndexBlk_ *indexBlk)
 {
   int r;
   ZeError e;
+  // FIXME - write FileExtent
 #if Zu_BIGENDIAN
   FileIndexBlk fileIndexBlk;
   auto indexData = &(fileIndexBlk.data[0]);

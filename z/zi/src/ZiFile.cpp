@@ -330,7 +330,8 @@ int ZiFile::open_(
       { SYSTEM_INFO si; GetSystemInfo(&si); blkSize = si.dwPageSize; }
     length = ((length + blkSize - 1) / blkSize) * blkSize;
     h = CreateFileMapping(
-	INVALID_HANDLE_VALUE, 0, protectFlags, 0, static_cast<DWORD>(length), name_);
+	INVALID_HANDLE_VALUE, 0, protectFlags, 0,
+	static_cast<DWORD>(length), name_);
   } else {
     blkSize = ZiFile_WindowsDrives::blkSize(name);
     DWORD accessFlags = (flags & ReadOnly) ? GENERIC_READ :
@@ -786,7 +787,8 @@ int ZiFile::writev(const ZiVec *vecs, unsigned nVecs, ZeError *e)
   return r;
 }
 
-int ZiFile::pwritev(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e)
+int ZiFile::pwritev(
+    Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e)
 {
 #if 0
   unsigned len = 0;
@@ -906,6 +908,46 @@ retry:
     len -= r;
     goto retry;
   }
+
+  return Zi::OK;
+
+error:
+  if (e) *e = ZeError(errNo);
+  return Zi::IOError;
+}
+
+int ZiFile::truncate(Offset offset, ZeError *e)
+{
+  Guard guard(m_lock);
+
+  Ze::ErrNo errNo;
+
+retry:
+
+#ifndef _WIN32
+  int r = ftruncate(m_handle, offset);
+  if (r < 0) {
+    errNo = errno;
+    switch (errNo) {
+      case EINTR:
+      case EAGAIN:
+	goto retry;
+      default:
+	goto error;
+    }
+  }
+#else
+  errNo = NO_ERROR;
+  LONG high = offset>>32;
+  if (SetFilePointer(m_handle, offset & 0xffffffffU, &high, FILE_BEGIN) ==
+	INVALID_SET_FILE_POINTER)
+     errNo = GetLastError();
+  if (errNo != NO_ERROR) goto error;
+  if (!SetEndOfFile(m_handle)) {
+    errNo = GetLastError();
+    goto error;
+  }
+#endif
 
   return Zi::OK;
 

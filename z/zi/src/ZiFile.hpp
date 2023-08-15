@@ -165,6 +165,8 @@ public:
   int pwritev(Offset offset,
       const ZiVec *vecs, unsigned nVecs, ZeError *e = nullptr);
 
+  int truncate(Offset offset, ZeError *e = nullptr);
+
   // Note: unbuffered!
   template <typename V> ZiFile &operator <<(V &&v) {
     append_(ZuFwd<V>(v));

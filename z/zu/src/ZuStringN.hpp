@@ -63,6 +63,11 @@ template <typename T_> struct ZuStringN_Char2;
 template <> struct ZuStringN_Char2<char> { using T = wchar_t; };
 template <> struct ZuStringN_Char2<wchar_t> { using T = char; };
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
+
 template <typename Char_, unsigned N, typename StringN>
 class ZuStringN_ {
   ZuConversionFriend;
@@ -203,7 +208,10 @@ protected:
   }
 
   void append(const Char *s, unsigned length) {
-    if (m_length + length >= N) length = M - m_length;
+    if (m_length + length >= N) {
+      if (m_length >= M) return;
+      length = M - m_length;
+    }
     if (s && length) memcpy(data() + m_length, s, length * sizeof(Char));
     data()[m_length += length] = 0;
   }
@@ -214,11 +222,10 @@ protected:
   }
 
   template <typename C> MatchChar<C> append_(C c) {
-    if (m_length < M) {
-      auto data = this->data();
-      data[m_length++] = c;
-      data[m_length] = 0;
-    }
+    if (m_length >= M) return;
+    auto data = this->data();
+    data[m_length++] = c;
+    data[m_length] = 0;
   }
 
   template <typename S>
@@ -263,16 +270,16 @@ public:
   // if (ZuStringN<2> s = "") { } else { puts("ok"); }
   // if (ZuStringN<2> s = 0) { } else { puts("ok"); }
   operator Char *() {
-    return !m_length ? (Char *)0 : data();
+    return !m_length ? static_cast<Char *>(nullptr) : data();
   }
   operator const Char *() const {
-    return !m_length ? (const Char *)0 : data();
+    return !m_length ? static_cast<const Char *>(nullptr) : data();
   }
 
 // accessors
 
-  Char *data() { return (Char *)(&this[1]); }
-  const Char *data() const { return (const Char *)(&this[1]); }
+  Char *data() { return reinterpret_cast<Char *>(&this[1]); }
+  const Char *data() const { return reinterpret_cast<const Char *>(&this[1]); }
   unsigned length() const { return m_length; }
   constexpr static unsigned size() { return N; }
 
@@ -429,6 +436,10 @@ public:
 protected:
   uint16_t	m_length;
 };
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 template <unsigned N_>
 class ZuStringN : public ZuStringN_<char, N_, ZuStringN<N_>> {

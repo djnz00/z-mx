@@ -462,9 +462,11 @@ public:
   RN rn() const {
     return ((m_indexBlk->id)<<indexShift()) | m_indexOff;
   }
+  // FIXME
   const IndexBlk::Index &index() const {
     return const_cast<FileRec *>(this)->index();
   }
+  // FIXME
   IndexBlk::Index &index() { return m_indexBlk->blk.data[m_indexOff]; }
 
 private:

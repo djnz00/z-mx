@@ -179,6 +179,11 @@ inline void ZuSort(T *data, unsigned n, Cmp cmp) {
 inline bool ZuSearchFound(unsigned i) { return i & 1; }
 inline unsigned ZuSearchPos(unsigned i) { return i>>1; }
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 // binary search in sorted data (i.e. following ZuSort)
 // - returns insertion position if not found
 template <typename, typename> struct ZuSearch_OK;
@@ -216,6 +221,10 @@ inline unsigned ZuSearch(T *data, unsigned n, const T &item) {
   return ZuSearch<Match>(data, n,
       [&item](const T &v) { return ZuCmp<T>::cmp(item, v); });
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 // interpolation search in sorted data (i.e. following ZuSort)
 // - returns insertion position if not found

@@ -66,7 +66,7 @@ template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
 template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
   template <typename L>
   constexpr static R fn(unsigned i, L l) {
-    R r;
+    R r = {};
     std::initializer_list<int>{
       (i == I ? (r = l(ZuUnsigned<I>{})), 0 : 0)...
     };
