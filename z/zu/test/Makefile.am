@@ -1,4 +1,6 @@
 METASOURCES = AUTO
+.cpp.s:
+	$(CXXCOMPILE) -c -S $<
 AM_CPPFLAGS = -I$(top_srcdir)/zu/src \
 	@Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@

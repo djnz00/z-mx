@@ -37,23 +37,22 @@ using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
 
-// primitive database journal op codes; ops are mutable, lifecycle is:
+// primitive database journal op codes; ops are immutable
 namespace Op {
   ZtEnumValues("Zdb_::Op",
-    Put = 0,	// add this record, delete prevRN (and predecessors)
-    Append,	// add this record, preserve prevRN
-    Delete,	// tombstone, delete prevRN (no data)
-    Purge	// add this purge instruction, delete all < prevRN (no data)
+    Put = 0,	// append record, delete prevRN (and predecessors)
+    Append,	// append record, preserve prevRN
+    Delete,	// append tombstone, delete prevRN (no data)
+    Purge	// append purge instruction, delete all < opRN (no data)
   );
 }
 
+// database journal states; states are mutable
 namespace RecState {
   ZtEnumValues("Zdb_::RecState",
     Created = 0,
     Deleting,
-    Deleted,
-    Purging,
-    Purged
+    Deleted
   );
 }
 

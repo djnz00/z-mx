@@ -61,7 +61,7 @@
 //   flags:u32,
 //   allocated:u32,
 //   deleted:u32,
-//   expunged:u32)
+//   excised:u32)
 // 24,+512 bitfield (FileBitfield) (16384 x u2)
 // 536,+1024 superblock (FileSuperBlk) (128 x u64)
 // ... followed by index blocks interleaved with variable length records
@@ -73,11 +73,11 @@ namespace Zdb_ {
 inline constexpr unsigned fileShift()	{ return 14; }
 inline constexpr unsigned fileMask()	{ return 0x7fU; }
 inline constexpr unsigned fileIndices()	{ return 128; }
-inline constexpr unsigned fileRecs()	{ return 16384; }
-inline constexpr unsigned fileRecMask()	{ return 0x3fff; }
+inline constexpr unsigned fileRNMask()	{ return 0x3fff; }
+inline constexpr unsigned fileRNs()	{ return 16384; }
 inline constexpr unsigned indexShift()	{ return 7; }
 inline constexpr unsigned indexMask()	{ return 0x7fU; }
-inline constexpr unsigned indexRecs()	{ return 128; }
+inline constexpr unsigned indexRNs()	{ return 128; }
 
 namespace FileFlags {
   enum {
@@ -110,19 +110,19 @@ struct FileHdr {
   U64LE		rn;		// base RN
   U32LE		allocated;	// allocated record count
   U32LE		deleted;	// deleted record count
-  U32LE		expunged;	// expunged record count
+  U32LE		excised;	// excised record count
 };
 struct FileBitfield {		// bitfield - 2 bits per record
-  U64LE		data[fileRecs()>>5];
+  U64LE		data[fileRNs()>>5];
 };
 struct FileSuperBlk {		// super block
-  U64LE		data[fileIndices()];	// encoded type+offset - IdxBlkOff
+  U64LE		data[fileIndices()];	// encoded type+offset - SuperElem
 };
 struct FileExtent {		// file extent header
   U64LE		value;			// encoded type+length - Extent
 };
 struct FileIndexBlk {		// index block
-  U64LE		data[indexRecs()];	// encoded type+offset - RecOffset
+  U64LE		data[indexRNs() + 1];	// encoded type+offset - IndexElem
 };
 struct FileIdxBlkTrlr {		// index block trailer
   RNLE		rn;		// base RN
@@ -136,21 +136,63 @@ struct FileRecTrlr {		// record trailer
   U16LE		state;		// state (mutable)
   MagicLE	magic;		// committed()
 };
+
+inline constexpr unsigned fileMinSize()	{
+  return sizeof(FileHdr) + sizeof(FileBitfield) + sizeof(FileSuperBlk);
+}
+inline constexpr unsigned fileIdxBlkSize() {
+  return sizeof(FileExtent) + sizeof(FileIndexBlk) + sizeof(FileIdxBlkTrlr);
+}
+inline constexpr unsigned fileRecMinSize() {
+  return sizeof(FileExtent) + sizeof(FileRecTrlr);
+}
 #pragma pack(pop)
 
 // Note: all offsets in superblock and index block reference extent header
 
-// bitfield states
-namespace BitField {
+// RN states used in bitfield
+namespace RNState {
   enum {
     Uninitialized = 0,
-    Created,
+    Allocated,
     Deleted,
-    Expunged
+    Excised
   };
 }
 
-// extent header - encodes type and exclusive length for journal extent
+// super block element - encodes type and offset for index block
+struct SuperElem {
+  uint64_t	value = 0;
+
+  enum {
+    Uninitialized = 0,
+    Excised,
+    IndexBlk			// must be last
+  };
+
+  ZuAssert(sizeof(FileSuperBlk) >= IndexBlk);
+
+  int type() const { return value < IndexBlk ? value : IndexBlk; }
+
+  // absolute offset of index block's FileExtent
+  uint64_t offset() const {
+    return value >= IndexBlk ? value : 0;
+  }
+};
+
+// index block element - encodes RNState and record offset
+struct IndexElem {
+  uint64_t	value = 0;
+
+  IndexElem(int state, uint64_t offset) : value{(offset<<2) | state} { }
+
+  int state() const { return value & 0x3; }
+
+  // absolute offset of record's FileExtent
+  uint64_t offset() const { return value>>2; }
+};
+
+// extent header - encodes type and inclusive length for journal extent
 struct Extent {
   uint64_t	value = 0;
 
@@ -172,46 +214,6 @@ struct Extent {
       case IndexBlk:	return sizeof(FileIndexBlk) + sizeof(FileIdxBlkTrlr);
       default:		return 0;
     }
-  }
-};
-
-// super block element - encodes type and offset for index block
-struct IdxBlkOff {
-  uint64_t	value = 0;
-
-  enum {
-    Uninitialized = 0,
-    Expunged,
-    IndexBlk			// must be last
-  };
-
-  ZuAssert(sizeof(FileSuperBlk) >= IndexBlk);
-
-  int type() const { return value < IndexBlk ? value : IndexBlk; }
-
-  // absolute offset of index block's FileExtent
-  uint64_t offset() const {
-    return value >= IndexBlk ? value : 0;
-  }
-};
-
-// index block element - encodes type and offset for RN
-struct RecOffset {
-  uint64_t	value = 0;
-
-  enum {
-    Uninitialized = 0,
-    Expunged,
-    Record			// must be last
-  };
-
-  ZuAssert(sizeof(FileIndexBlk) >= Record);
-
-  int type() const { return value < Record ? value : Record; }
-
-  // relative offset (relative to offset of index block's FileExtent)
-  uint64_t offset() const {
-    return value >= Record ? value : 0;
   }
 };
 
@@ -295,23 +297,24 @@ struct RecOffset {
 // Created	Y	N	1	N
 // Deleting	Y	N	1	N
 // Deleted	Y	Y	2	N
-// Purging	Y	N	1	N
-// Purged	Y	Y	2	N
-// Expunged	Y	Y	3	1
+// Excised	Y	Y	3	1
 
 //
 // Null
 // Created		++allocated
 // Deleted|Purged	++deleted
-// Expunged		++expunged
+// Excised		++excised
 
 // compaction migrates deleted/purged to unavailable
 
 class File_;
+
+struct Excision;
+
 struct IndexBlk_ {
 #pragma pack(push, 1)
   struct Blk {
-    uint64_t	data[indexRecs()];	// RN -> offset
+    IndexElem	data[indexRNs() + 1];	// RN -> offset
   };
 #pragma pack(pop)
 
@@ -319,12 +322,13 @@ struct IndexBlk_ {
   uint64_t	offset = 0;	// absolute offset of this block's FileExtent
   Blk		blk;
 
+  static uint64_t mkID(RN rn) { return rn>>indexShift(); }
+
   IndexBlk_() { }
   IndexBlk_(uint64_t id_, uint64_t offset_) : id{id_}, offset{offset_} {
     // shortcut endian conversion when initializing a blank index block
     memset(&blk, 0, sizeof(Blk));
   }
-  IndexBlk_(uint64_t id, uint64_t offset, File_ *, bool &ok); // read from file
 
   ~IndexBlk_() { }
 
@@ -340,6 +344,65 @@ struct IndexBlk_ {
     ~IndexBlk_();
     new (this) IndexBlk_{id_, offset_};
   }
+
+  void alloc(RN rn, uint64_t offset, uint64_t length) {
+    unsigned i = rn & indexMask();
+
+    ZmAssert((rn>>indexShift()) == m_id);
+    ZmAssert(!i || (
+	  blk.data[i - 1].state() != RNState::Uninitialized &&
+	  blk.data[i - 1].offset() >= fileMinSize() + fileIdxBlkSize() &&
+	  blk.data[i - 1].offset() <= offset));
+    ZmAssert(!i || (
+	  blk.data[i].state() == RNState::Uninitialized &&
+	  blk.data[i].offset() == offset));
+    ZmAssert(
+	  blk.data[i + 1].state() == RNState::Uninitialized &&
+	  !blk.data[i + 1].offset());
+
+    blk.data[i] = IndexElem{RNState::Allocated, offset};
+    blk.data[i + 1] = IndexElem{RNState::Uninitialized, offset + length};
+  }
+
+  // rollback alloc()
+  void free(RN rn) {
+    unsigned i = rn & indexMask();
+
+    ZmAssert((rn>>indexShift()) == m_id);
+
+    blk.data[i] = IndexElem{RNState::Uninitialized, blk.data[i].offset()};
+    blk.data[i + 1] = IndexElem{RNState::Uninitialized, 0};
+  }
+
+  void del(RN rn) {
+    unsigned i = rn & indexMask();
+
+    ZmAssert((rn>>indexShift()) == m_id);
+    ZmAssert(
+	blk.data[i].state() == RNState::Allocated &&
+	blk.data[i].offset() >= fileMinSize() + fileIdxBlkSize());
+    ZmAssert(blk.data[i + 1].offset() >=
+	blk.data[i].offset() + sizeof(FileExtent) + sizeof(FileRecTrlr));
+
+    blk.data[i] = IndexElem{RNState::Deleted, blk.data[i].offset()};
+  }
+
+  void skip(RN rn) {
+    unsigned i = rn & indexMask();
+
+    ZmAssert((rn>>indexShift()) == m_id);
+    ZmAssert(!i || (
+	  blk.data[i].state() == RNState::Uninitialized &&
+	  blk.data[i].offset() == offset));
+    ZmAssert(
+	  blk.data[i + 1].state() == RNState::Uninitialized &&
+	  !blk.data[i + 1].offset());
+
+    blk.data[i] = IndexElem{RNState::Excised, offset};
+    blk.data[i + 1] = IndexElem{RNState::Uninitialized, offset};
+  }
+
+  // void excise(Excision &excision);
 
   bool operator !() const { return !offset; }
   ZuOpBool
@@ -368,9 +431,9 @@ class ZdbAPI File_ : public ZiFile {
   File_ &operator =(const File_ &) = delete;
   File_ &operator =(File_ &&) = delete;
 
-  using Bitfield = ZuBitfield<fileRecs(), 2>;
+  using Bitfield = ZuBitfield<fileRNs(), 2>;
   struct SuperBlk {
-    uint64_t	data[fileIndices()];	// offsets to index blocks
+    SuperElem	data[fileIndices()];	// offsets to index blocks
   };
 
 friend FileMgr;
@@ -382,20 +445,88 @@ public:
   RN rn() const { return m_id<<fileShift(); }
   uint64_t id() const { return m_id; }
 
-  void alloc(unsigned i) { if (!m_bitfield[i]) alloc_(i); }
-  void alloc_(unsigned i) { m_bitfield[i] = 1; ++m_allocated; }
+  static uint64_t IDAxor(const File_ &file) { return file.id(); }
 
-  void del(unsigned i) { if (m_bitfield[i] == 1) del_(i); }
-  void del_(unsigned i) { m_bitfield[i] = 2; ++m_deleted; }
+  void alloc(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+    ZmAssert(!(rn & fileRNMask()) ||
+	m_bitfield[(rn - 1) & fileRNMask()] != RNState::Uninitialized);
 
-  void expunge(unsigned i) { if (m_bitfield[i] == 2) expunge_(i); }
-  void expunge_(unsigned i) { m_bitfield[i] = 3; ++m_expunged; }
+    unsigned i = rn & fileRNMask();
+    if (m_bitfield[i] == RNState::Uninitialized) alloc_(i);
+  }
+private:
+  void alloc_(unsigned i) {
+    m_bitfield[i] = RNState::Allocated;
+    ++m_allocated;
+  }
+public:
 
-  bool exists(unsigned i) const { return m_bitfield[i] == 1; }
+  // rollback alloc()
+  void free(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+
+    unsigned i = rn & fileRNMask();
+    m_bitfield[i] = RNState::Uninitialized;
+    --m_allocated;
+  }
+
+  void del(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+    ZmAssert(!(rn & fileRNMask()) ||
+	m_bitfield[(rn - 1) & fileRNMask()] != RNState::Uninitialized);
+
+    unsigned i = rn & fileRNMask();
+    if (m_bitfield[i] == RNState::Allocated) del_(i);
+  }
+private:
+  void del_(unsigned i) {
+    m_bitfield[i] = RNState::Deleted;
+    ++m_deleted;
+  }
+public:
+
+  void excise(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+    ZmAssert(!(rn & fileRNMask()) ||
+	m_bitfield[(rn - 1) & fileRNMask()] != RNState::Uninitialized);
+
+    unsigned i = rn & fileRNMask();
+    if (m_bitfield[i] == RNState::Deleted) excise_(i);
+  }
+private:
+  void excise_(unsigned i) {
+    m_bitfield[i] = RNState::Excised;
+    ++m_excised;
+  }
+public:
+
+  int rnState(unsigned i) const { return m_bitfield[i] }
 
   unsigned allocated() const { return m_allocated; }
   unsigned deleted() const { return m_deleted; }
-  unsigned expunged() const { return m_expunged; }
+  unsigned excised() const { return m_excised; }
+
+  void skip(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+    ZmAssert(!(rn & fileRNMask()) ||
+	m_bitfield[(rn - 1) & fileRNMask()] != RNState::Uninitialized);
+
+    m_bitfield[rn & fileRNMask()] = RNState::Excised;
+    ++m_allocated;
+    ++m_deleted;
+    ++m_excised;
+  }
+
+  void skipBlk(RN rn) {
+    ZmAssert((rn>>fileShift()) == m_id);
+    ZmAssert(!(rn & indexMask()));
+    ZmAssert(!((rn>>indexShift()) & fileMask()) ||
+	m_superBlk.data[((rn>>indexShift()) - 1) & fileMask()].type() !=
+	  SuperElem::Uninitialized);
+
+    m_superBlk.data[(rn>>indexShift()) & fileMask()] = {SuperElem::Excised};
+  }
 
   uint64_t append(unsigned length) {
     uint64_t offset = m_offset;
@@ -403,8 +534,10 @@ public:
     return offset;
   }
 
-  IndexBlk *readIndexBlk(uint64_t id);
-  IndexBlk *writeIndexBlk(uint64_t id);
+  uint64_t indexBlkOffset(uint64_t id);	// returns 0 if non-existent
+
+  ZuPair<bool, IndexBlk *> readIndexBlk(uint64_t id);
+  ZuPair<bool, IndexBlk *> writeIndexBlk(uint64_t id);
 
   bool readIndexBlk(IndexBlk *);
   bool writeIndexBlk(IndexBlk *);
@@ -412,8 +545,6 @@ public:
   bool scan();
   bool sync();
   bool sync_();
-
-  static uint64_t IDAxor(const File_ &file) { return file.id(); }
 
 private:
   void reset();
@@ -425,7 +556,7 @@ private:
   uint32_t		m_flags = 0;
   unsigned		m_allocated = 0;
   unsigned		m_deleted = 0;
-  unsigned		m_expunged = 0;
+  unsigned		m_excised = 0;
   Bitfield		m_bitfield;
   SuperBlk		m_superBlk;
 };
@@ -437,43 +568,30 @@ using FileCache =
 	ZmCacheHeapID<File_HeapID>>>>;
 using File = FileCache::Node;
 
-IndexBlk_::IndexBlk_(uint64_t id_, uint64_t offset_, File_ *file, bool &ok) :
-  id{id_}, offset{offset_}
-{
-  ZuAssert(sizeof(FileIndexBlk) == sizeof(IndexBlk::Blk));
-  ok = file->readIndexBlk(static_cast<IndexBlk *>(this));
-}
-
-// -- on-disk record - file, indexBlk, RN offset within index block
-
-class FileRec {
-public:
-  FileRec() { }
-  FileRec(File *file, IndexBlk *indexBlk, unsigned indexOff) :
-    m_file{file}, m_indexBlk{indexBlk}, m_indexOff{indexOff} { }
-
-  bool operator !() const { return !m_file; }
-  ZuOpBool
-
-  File *file() const { return m_file; }
-  IndexBlk *indexBlk() const { return m_indexBlk; }
-  unsigned indexOff() const { return m_indexOff; }
-
-  RN rn() const {
-    return ((m_indexBlk->id)<<indexShift()) | m_indexOff;
-  }
-  // FIXME
-  const IndexBlk::Index &index() const {
-    return const_cast<FileRec *>(this)->index();
-  }
-  // FIXME
-  IndexBlk::Index &index() { return m_indexBlk->blk.data[m_indexOff]; }
-
-private:
-  File		*m_file = nullptr;
-  IndexBlk	*m_indexBlk = nullptr;
-  unsigned	m_indexOff = 0;
+struct Excision {
+  IndexBlk_	*blk;		// current block
+  RN		rn;		// current RN
+  uint64_t	excised = 0;	// excised bytes
 };
+
+#if 0
+inline void IndexBlk_::excise(Excision &excision) {
+  unsigned i = excision.rn & indexMask();
+
+  ZmAssert(this == excision.blk);
+  ZmAssert(this->rn() == excision.rn & ~indexMask());
+  ZmAssert(blk.data[i].state() == RNState::Deleted && blk.data[i].offset());
+
+  auto origOff = blk.data[i].offset;
+
+  ZmAssert(origOff > fileMinSize() + sizeof(FileIndexBlk) + excision.excised);
+  ZmAssert(blk.data[i + 1].offset() >= origOffset);
+
+  blk.data[i] = IndexElem{RNState::Excised, origOffset - excision.excised};
+  excision.excised += (blk.data[i + 1].offset() - origOffset);
+  ++excision.rn;
+}
+#endif
 
 // -- pending deletes
 
@@ -528,9 +646,9 @@ protected:
   RN del_prevRN(RN rn);
 
 private:
-  template <bool Write> FileRec rn2file(RN rn);
+  template <bool Write> ZuPair<File *, IndexBlk *> rn2file(RN rn);
 
-  ZmRef<Buf> read_(const FileRec &);
+  ZmRef<Buf> read_(File *, IndexBlk *, RN);
 
   template <bool Create> File *getFile(uint64_t id);
   template <bool Create> File *openFile(uint64_t id);
@@ -544,6 +662,7 @@ private:
   void fileWrError_(File *, ZiFile::Offset, ZeError e);
 
 private:
+  RN			m_allocRN = 0;
   uint64_t		m_lastFile = 0;
 
   // index block cache

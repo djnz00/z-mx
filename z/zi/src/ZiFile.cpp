@@ -642,7 +642,7 @@ int ZiFile::readv(const ZiVec *vecs, unsigned nVecs, ZeError *e)
 
 int ZiFile::preadv(Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e)
 {
-#if 0
+#ifndef _WIN32
   unsigned len = 0;
   unsigned i;
 
@@ -666,9 +666,7 @@ retry:
 
   if (!r) return Zi::EndOfFile;
 
-  offset += r;
-
-  if (r < len) {
+  if (r < static_cast<int>(len)) {
     // adjust r downwards to the nearest Vec boundary
     {
       int r_ = r;
@@ -683,6 +681,7 @@ retry:
     }
     vecs += i;
     nVecs -= i;
+    offset += r;
     len -= r;
     goto retry;
   }
@@ -695,7 +694,6 @@ error:
 #else
   // Windows	- ReadFileScatter() cannot be used since it only accepts
   //		  page-sized and page-aligned buffers
-  // Linux	- preadv() is missing
 
   int total = 0, r = 0;
 
@@ -705,7 +703,7 @@ error:
     r = pread(offset, ptr, len, e);
     if (r < 0) return total ? total : r;
     total += r, offset += r;
-    if (r < (int)len) break;
+    if (r < static_cast<int>(len)) break;
   }
   return total;
 #endif
@@ -790,7 +788,7 @@ int ZiFile::writev(const ZiVec *vecs, unsigned nVecs, ZeError *e)
 int ZiFile::pwritev(
     Offset offset, const ZiVec *vecs, unsigned nVecs, ZeError *e)
 {
-#if 0
+#ifndef _WIN32
   unsigned len = 0;
   unsigned i;
 
@@ -812,9 +810,7 @@ retry:
     }
   }
 
-  offset += r;
-
-  if (r < len) {
+  if (r < static_cast<int>(len)) {
     // adjust r downwards to the nearest Vec boundary
     {
       int r_ = r;
@@ -829,6 +825,7 @@ retry:
     }
     vecs += i;
     nVecs -= i;
+    offset += r;
     len -= r;
     goto retry;
   }
@@ -841,7 +838,6 @@ error:
 #else
   // Windows	- WriteFileGather() cannot be used since it only accepts
   //		  page-sized and page-aligned buffers
-  // Linux	- pwritev() is missing
 
   int r = 0;
 

@@ -131,6 +131,10 @@ using ZiVecLen = u_long;
 #define ZiVec_ptr(x) (x).buf
 #define ZiVec_len(x) (x).len
 #endif
+inline ZiVec_init(ZiVec &vec, void *ptr, size_t len) {
+  ZiVec_ptr(vec) = ptr;
+  ZiVec_len(vec) = len;
+}
 
 #ifndef _WIN32
 #include <dlfcn.h>	// dlerror()
