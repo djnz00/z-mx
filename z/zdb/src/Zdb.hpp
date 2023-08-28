@@ -170,40 +170,51 @@ using Cxn = CxnList::Node;
 
 using EnvState_ = ZmLHashKV<ZuID, RN, ZmLHashLocal<>>;
 struct EnvState : public EnvState_ {
+  UN		un;
+
   EnvState() = delete;
 
   EnvState(unsigned size) : EnvState_{ZmHashParams{size}} { }
 
-  EnvState(const Zfb::Vector<const fbs::DBState *> *envState) :
-      EnvState_{ZmHashParams{envState->size()}} {
+  EnvState(const fbs::EnvState *envState) :
+      EnvState_{ZmHashParams{envState->dbStates()->size()}},
+      un{Zfb::Load::zdb_un(envState->un())} {
     using namespace Zdb_;
     using namespace Zfb::Load;
-    all(envState, [this](unsigned, const fbs::DBState *dbState) {
+    all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
       add(id(&(dbState->db())), dbState->rn());
     });
   }
-  void load(const Zfb::Vector<const fbs::DBState *> *envState) {
+  void load(const fbs::EnvState *envState) {
     using namespace Zdb_;
     using namespace Zfb::Load;
-    all(envState, [this](unsigned, const fbs::DBState *dbState) {
+    un = zdb_un(envState->un());
+    all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
       update(id(&(dbState->db())), dbState->rn());
     });
   }
-  Zfb::Offset<Zfb::Vector<const fbs::DBState *>>
-  save(Zfb::Builder &fbb) const {
+  Zfb::Offset<fbs::EnvState> save(Zfb::Builder &fbb) const {
     using namespace Zdb_;
     using namespace Zfb::Save;
+    auto un = zdb_un(un);
     auto i = readIterator();
-    return structVecIter<fbs::DBState>(
+    return fbs::CreateEnvState(fbb, &un, structVecIter<fbs::DBState>(
 	fbb, i.count(), [&i](fbs::DBState *ptr, unsigned) {
       if (auto state = i.iterate())
 	new (ptr)
 	  fbs::DBState{id(state->template p<0>()), state->template p<1>()};
       else
 	new (ptr) fbs::DBState{}; // unused
-    });
+    }));
   }
 
+  bool updateUN(UN un_) {
+    if (un < un_) {
+      un = un_;
+      return true;
+    }
+    return false;
+  }
   bool update(ZuID id, RN rn) {
     auto state = find(id);
     if (!state) {
@@ -219,6 +230,7 @@ struct EnvState : public EnvState_ {
   }
   EnvState &operator |=(const EnvState &r) {
     if (ZuLikely(this != &r)) {
+      updateUN(r.un);
       auto i = r.readIterator();
       while (auto rstate = i.iterate())
 	update(rstate->template p<0>(), rstate->template p<1>());
@@ -234,50 +246,8 @@ struct EnvState : public EnvState_ {
   }
 
   int cmp(const EnvState &r) const {
-    bool inconsistent;
-    {
-      unsigned n = count_();
-      inconsistent = n != r.count_();
-      if (!n && !inconsistent) return 0;
-    }
-    int diff, ret = 0;
-    {
-      auto i = readIterator();
-      while (auto state = i.iterate()) {
-	auto rstate = r.find(state->template p<0>());
-	if (!rstate)
-	  diff = !!state->template p<1>();
-	else
-	  diff = ZuCmp<RN>::cmp(
-	      state->template p<0>(), rstate->template p<1>());
-	if (diff < 0) {
-	  if (ret > 0) return ZuCmp<int>::null();
-	  ret += diff;
-	} else if (diff > 0) {
-	  if (ret < 0) return ZuCmp<int>::null();
-	  ret += diff;
-	}
-      }
-    }
-    if (inconsistent) {
-      auto i = r.readIterator();
-      while (auto rstate = i.iterate()) {
-	auto state = find(rstate->template p<0>());
-	if (!state)
-	  diff = -!!rstate->template p<1>();
-	else
-	  diff = ZuCmp<RN>::cmp(
-	      state->template p<1>(), rstate->template p<1>());
-	if (diff < 0) {
-	  if (ret > 0) return ZuCmp<int>::null();
-	  ret += diff;
-	} else if (diff > 0) {
-	  if (ret < 0) return ZuCmp<int>::null();
-	  ret += diff;
-	}
-      }
-    }
-    return ret;
+    return un <=> r.un;
+    // return (un > r.un) - (un < r.un);
   }
 
   template <typename S> void print(S &) const;
@@ -285,15 +255,18 @@ struct EnvState : public EnvState_ {
 };
 template <typename S>
 inline void EnvState::print(S &s) const {
+  s << "{un=" << ZuBoxed(un) << ",dbs={";
   unsigned n = count_();
-  if (ZuUnlikely(!n)) return;
-  unsigned j = 0;
-  auto i = readIterator();
-  while (auto state = i.iterate()) {
-    if (j++) s << ',';
-    s << '{' << state->template p<0>() << ',' <<
-      ZuBoxed(state->template p<1>()) << '}';
+  if (ZuLikely(n)) {
+    unsigned j = 0;
+    auto i = readIterator();
+    while (auto state = i.iterate()) {
+      if (j++) s << ',';
+      s << '{' << state->template p<0>() << ',' <<
+	ZuBoxed(state->template p<1>()) << '}';
+    }
   }
+  s << "}}";
 }
 
 // -- replication message printing
@@ -365,6 +338,7 @@ public:
   AnyObject_(DB *db) : m_db{db} { }
 
   DB *db() const { return m_db; }
+  UN un() const { return m_un; }
   RN rn() const { return m_rn; }
   RN prevRN() const { return m_prevRN; }
   RN origRN() const { return m_origRN; }
@@ -413,11 +387,13 @@ private:
     m_committed = false;
     return true;
   }
-  void commit_(int op) {
+  void commit_(UN un, int op) {
     using namespace Zdb_;
+    m_un = un;
     m_prevRN = m_origRN;
     m_origRN = nullRN();
-    m_seqLenOp = SeqLenOp::mk(seqLen() + 1, op);
+    m_op = op;
+    m_state = RecState::Created;
     m_committed = true;
   }
   void abort_() {
@@ -432,6 +408,7 @@ private:
   }
 
   DB		*m_db;
+  UN		m_un = 0;
   RN		m_rn = nullRN();
   RN		m_prevRN = nullRN();
   RN		m_origRN = nullRN();	// RN backup before commit() / abort()
@@ -586,7 +563,7 @@ using DBCfs =
 
 // -- main DB class
 
-class ZdbAPI DB : public FileMgr, ZmPolymorph {
+class ZdbAPI DB : public ZmPolymorph, public FileMgr {
 friend File_;
 friend Cxn_;
 friend AnyObject_;
@@ -609,6 +586,8 @@ public:
   Env *env() const { return m_env; }
   ZiMultiplex *mx() const { return m_mx; }
   const DBCf &config() const { return *m_cf; }
+
+  ZuID id() const { return config().id; }
 
   static ZuID IDAxor(const DB &db) { return db.config().id; }
 
@@ -787,11 +766,10 @@ private:
   Zfb::Offset<void> save(Zfb::Builder &fbb, AnyObject_ *object);
 
   // outbound recovery / replication
-  void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
-  void recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN = nullRN());
-  void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf);
+  void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
+  void recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN);
+  void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
   ZmRef<Buf> repBuf(RN rn);
-  ZmRef<Buf> repGap(RN rn, uint64_t count);
 
   // inbound replication
   void repRecRcvd(ZmRef<Buf> buf);
@@ -800,6 +778,16 @@ private:
   // recovery - DB thread
   void recovered(ZmRef<Buf>);
   void recover(const fbs::Record *record);
+
+  // RN allocator
+  void allocatedRN(RN rn) {
+    m_minRN.maximum(rn);
+    m_nextRN = rn + 1;
+  }
+  void recoveredRN(RN rn) {
+    m_minRN.maximum(rn);
+    m_nextRN.minimum(rn + 1);
+  }
 
   // file thread
   void write(ZmRef<Buf> buf);
@@ -900,6 +888,7 @@ public:
 
   static const char *stateName(int);
 
+  // FIXME
   template <typename S> void print(S &s) const {
     s << "[ID:" << id() << " PRI:" << priority() << " V:" << voted() <<
       " S:" << state() << "] " << envState();
@@ -1239,6 +1228,11 @@ private:
 
   bool isStandalone() const { return m_standalone; }
 
+  // UN
+  UN nextUN() const { return m_nextUN; }
+  UN allocUN() { return m_nextUN++; }
+  void recoveredUN(UN un) { m_nextUN.minimum(un + 1); }
+
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
 
@@ -1246,6 +1240,9 @@ private:
   EnvHandler		m_handler;
   ZmRef<Hosts>		m_hosts;
   HostIndex		m_hostIndex;
+
+  // atomic update number
+  ZmAtomic<uint128_t>	m_nextUN = 0;
 
   // environment thread
   DBs			m_dbs;

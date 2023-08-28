@@ -4,7 +4,7 @@
 #include <zlib/ZuLib.hpp>
 
 #include <zlib/ZuAssert.hpp>
-#include <zlib/ZuSwitch.hpp>
+#include <zlib/ZuUnroll.hpp>
 
 #include <iostream>
 
@@ -44,11 +44,11 @@ int main(int argc, char **argv)
     q = x;
   }
   {
-    ZuSwitch::all<4>([](auto i) { std::cout << i << '\n'; });
-    ZuAssert(ZuSwitch::all<4>(0, [](auto i, int j) {
+    ZuUnroll::all<4>([](auto i) { std::cout << i << '\n'; });
+    ZuAssert(ZuUnroll::all<4>(0, [](auto i, int j) {
       return j + 1;
     }) == 4);
-    auto j = ZuSwitch::all<4>(0, [](auto i, int j) {
+    auto j = ZuUnroll::all<4>(0, [](auto i, int j) {
       std::cout << i << '\n';
       return j + 1;
     });

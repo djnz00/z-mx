@@ -23,6 +23,9 @@
 
 #include <zlib/ZiDir.hpp>
 
+#define FileMgr_Assert(x, r) \
+    ZeAssert(x, (dbID = this->id(), rn), "DB=" << dbID << " RN=" << rn, r)
+
 namespace Zdb_ {
 
 bool FileMgr::open_()
@@ -113,37 +116,40 @@ bool FileMgr::open_()
 }
 
 // file has been scanned by scan() prior to recover()
-bool FileMgr::recover(File *file)
+bool FileMgr::recover_(File *file)
 {
   if (!file->allocated()) return true;
   if (file->deleted() >= fileRNs()) { delFile(file); return true; }
+
+  IndexBlk_ indexBlk;
+
   RN rn = file->rn();
   unsigned n = file->allocated();
-  IndexBlk_ indexBlk;
+
+
+
   for (unsigned j = 0; j < n; j++, rn++) {
     {
       int rnState = file->rnState(j);
       if (rnState == RNState::Uninitialized) break;
       if (rnState == RNState::Excised) continue;
     }
+
     auto indexBlkID = rn>>indexShift();
     if (!indexBlk || indexBlk.id != indexBlkID) {
-      auto offset = file->indexBlkOffset(id);
-      if (!offset) {
-	// FIXME - corrupt file but need to prevent data loss
-	m_nextRN = rn;
-	return false;
-      }
+      auto offset = file->indexBlkOffset(indexBlkID);
+
+      FileMgr_Assert(offset, false);
+
       indexBlk.init(indexBlkID, offset);
-      if (!file->readIndexBlk(indexBlk)) {
-	// FIXME - corrupt file but need to prevent data loss
-	m_nextRN = rn;
-	return false;
-      }
+      bool readIndexBlkOK = file->readIndexBlk(indexBlk)
+
+      FileMgr_Assert(readIndexBlkOK, false);
     }
-    if (auto buf = read_(FileRec{file, &indexBlk, j & indexMask()})) {
+
+    if (auto buf = read_(file, &indexBlk, rn)) {
       auto record = record_(msg_(buf->hdr()));
-      // rebuild pending deletions from record
+      // rebuild pending purge / deletions from record
       switch (static_cast<int>(record->state())) {
 	case RecState::Created:
 	  invoke([buf = ZuMv(buf)]() mutable { recovered(ZuMv(buf)); });
@@ -153,17 +159,19 @@ bool FileMgr::recover(File *file)
 	    m_purgeRN = record->rn();
 	    m_purgeOpRN = record->opRN();
 	  } else {
-	    if (!m_recDeletes.del(record->rn()))
-	      m_revDeletes.add(record->prevRN(), record->rn());
+	    if (!m_recDeletes.del(record->rn())) {
+	      ZmAssert(record->prevRN() != nullRN());
+	      m_deletes.add(record->prevRN(), record->rn());
+	    }
 	    if (record->opRN() != nullRN())
 	      m_recDeletes.add(record->opRN());
 	  }
 	  break;
 	case RecState::Deleted:
 	  if (record->op() != Op::Purge) {
-	    m_fwdDeletes.del(record->rn());
+	    m_deletes.del(record->rn());
 	    if (record->opRN() != nullRN())
-	      m_fwdDeletes.add(record->opRN(), record->rn());
+	      m_deletes.add(record->opRN(), record->rn());
 	  }
 	  break;
 	default:
@@ -171,8 +179,21 @@ bool FileMgr::recover(File *file)
       }
     }
   }
-  m_nextRN = rn;
+
   return true;
+}
+
+bool FileMgr::recover(File *file)
+{
+  bool ok = recover_(file);
+
+  // schedule vacuum if needed
+  m_recDeletes.clean();
+  if (m_deletes.count()) scheduleVacuum();
+  // FIXME - check fragmentation
+
+  m_allocRN = rn;
+  return ok;
 }
 
 void FileMgr::close_()
@@ -414,7 +435,6 @@ bool File_::sync_()
     };
     if (ZuUnlikely((r = pwrite(0, &hdr, sizeof(FileHdr), &e)) != Zi::OK)) {
       m_mgr->fileWrError_(static_cast<File *>(this), sizeof(FileHdr), e);
-      m_flags |= FileFlags::IOError;
       return false;
     }
   }
@@ -432,7 +452,6 @@ bool File_::sync_()
 	      sizeof(FileHdr),
 	      &bitfieldData[0], sizeof(FileBitfield), &e)) != Zi::OK)) {
       m_mgr->fileWrError_(static_cast<File *>(this), sizeof(FileHdr), e);
-      m_flags |= FileFlags::IOError;
       return false;
     }
   }
@@ -451,27 +470,25 @@ bool File_::sync_()
 	      &superData[0], sizeof(FileSuperBlk), &e)) != Zi::OK)) {
       m_mgr->fileWrError_(static_cast<File *>(this),
 	  sizeof(FileHdr) + sizeof(FileBitfield), e);
-      m_flags |= FileFlags::IOError;
       return false;
     }
   }
   return true;
 }
 
-bool File_::sync() // file thread
+bool File_::sync()
 {
   if (!sync_()) goto error;
   {
     ZeError e;
     if (ZiFile::sync(&e) != Zi::OK) {
       m_mgr->fileWrError_(static_cast<File *>(this), 0, e);
-      m_flags |= FileFlags::IOError;
       goto error;
     }
   }
   return true;
+
 error:
-  m_flags &= ~FileFlags::Clean;
   FileHdr hdr{
     .magic = Magic::file(),
     .version = ZdbVersion,
@@ -559,9 +576,24 @@ ZuPair<File *, IndexBlk *> FileMgr::rn2file(RN rn)
 {
   File *file = getFile<Write>(rn>>fileShift());
   if (!file) return {};
-  if constexpr (!Write) if (!file->exists(rn & fileRNMask())) return {};
+  if constexpr (Write) {
+    ZmAssert(file->rnState(rn) == RNState::Uninitialized);
+  } else {
+    if (file->rnState(rn) != RNState::Allocated) return {};
+  }
   IndexBlk *indexBlk = getIndexBlk<Write>(file, rn>>indexShift());
   if (!indexBlk) return {};
+#ifndef NDEBUG
+  if constexpr (Write) {
+    ZmAssert(indexBlk->elem(rn).state() == RNState::Uninitialized);
+    ZmAssert(indexBlk->elem(rn).offset() == file->offset());
+    ZmAssert(!(rn & indexMask()) ||
+	indexBlk->elem(rn - 1).state != RNState::Unitialized);
+  } else {
+    ZmAssert(indexBlk->elem(rn).state() == RNState::Allocated);
+    ZmAssert(indexBlk->elem(rn + 1).offset() > indexBlk->elem(rn).offset());
+  }
+#endif
   return {file, indexBlk};
 }
 
@@ -711,78 +743,99 @@ bool File_::writeIndexBlk(const IndexBlk_ &indexBlk)
   return true;
 }
 
-void FileMgr::warmup_(ZdbRN rn)
+void FileMgr::warmup_()
 {
-  rn2file<true>(rn);
+  rn2file<true>(m_allocRN);
 }
 
 // read individual record from disk into buffer
-ZmRef<Buf> FileMgr::read_(ZdbRN rn)
+ZmRef<Buf> FileMgr::read_(RN rn)
 {
-  if (FileRec rec = rn2file<false>(rn)) return read_(rec);
-  return {};
+  auto [file, indexBlk] = rn2file<false>(rn);
+  if (!file) return {};
+  return read_(file, indexBlk, rn);
 }
 
-ZmRef<Buf> FileMgr::read_(const FileRec &rec)
+ZmRef<Buf> FileMgr::read_(File *file, IndexBlk *indexBlk, RN rn);
 {
-  // FIXME - read FileExtent header
-  const auto &index = rec.index();
-  if (ZuUnlikely(!index.offset || index.length < sizeof(FileRecTrlr))) {
-    ZeLOG(Error, ([id = config().id, rn = rec.rn()](auto &s) {
-      s << "Zdb internal error on DB " << id <<
-	" bitfield inconsistent with index for RN " << rn;
-    }));
-    return {};
+  uint64_t offset, length;
+  {
+    auto indexElem = indexBlk->elem(rn);
+
+    FileMgr_Assert(indexElem.state() == RNState::Allocated, {});
+
+    offset = indexElem.offset();
+    length = indexBlk->elem(rn + 1).offset();
+
+    FileMgr_Assert(length >= offset + fileRecMinSize(), {});
+
+    length -= offset;
   }
+
   IOBuilder fbb;
   Zfb::Offset<Zfb::Vector<uint8_t>> data;
   unsigned dataLen = 0;
   uint8_t *ptr = nullptr;
-  // FIXME - use index offset and next offset to determine length
-  if (index.length > sizeof(FileRecTrlr)) {
-    dataLen = index.length - sizeof(FileRecTrlr);
+
+  if (length > fileRecMinSize()) {
+    dataLen = length - fileRecMinSize();
     data = Zfb::Save::pvector_(fbb, dataLen, ptr);
-    if (data.IsNull() || !ptr) return {};
+
+    FileMgr_Assert(!data.IsNull() && ptr, {});
   }
+
+  int r;
+  ZeError e;
+  ZiVec vecs[3];
+  unsigned nVecs = 0;
+  FileExtent extent;
   FileRecTrlr trlr;
-  {
-    auto file = rec.file();
-    auto indexBlk = rec.indexBlk();
-    auto offset = indexBlk->offset + index.offset;
-    int r;
-    ZeError e;
-    if (dataLen) {
-      // read record
-      if (ZuUnlikely((r = file->pread(offset, ptr, dataLen, &e)) != Zi::OK)) {
-	fileRdError_(file, offset, r, e);
-	return {};
-      }
-      offset += dataLen;
-    }
-    // read trailer
-    if (ZuUnlikely((r = file->pread(
-	      offset, &trlr, sizeof(FileRecTrlr), &e)) != Zi::OK)) {
-      fileRdError_(file, offset, r, e);
-      return {};
-    }
+
+  ZiVec_init(vecs[nVecs++], &extent, sizeof(FileExtent));
+  if (dataLen) ZiVec_init(vecs[nVecs++], ptr, dataLen);
+  ZiVec_init(vecs[nVecs++], &trlr, sizeof(FileRecTrlr));
+
+  // read header, data, trailer
+  if (ZuUnlikely((r = file->preadv(offset, vecs, nVecs, &e)) != Zi::OK)) {
+    fileRdError_(file, offset, r, e);
+    return {};
   }
-  uint32_t magic = trlr.magic;
-  if (magic != ZdbCommitted) return {};
+
+  // check the trailer was committed
+  if (ZuUnlikely(trlr.magic != ZdbCommitted)) return {};
+
+#ifndef NDEBUG
+  // validate the extent header
+  {
+    Extent extent_{extent.value};
+
+    ZmAssert(extent_.type() == Extent::Record);
+    ZmAssert(extent_.length() == length);
+  }
+
+  // validate the trailer
+  ZmAssert(
+      trlr.state == RecState::Created ||
+      trlr.state == RecState::Deleting);
+#endif
+
   auto id = Zfb::Save::id(config().id);
+  auto un = Zfb::Save::zdb_un(trlr.un);
   auto msg = fbs::CreateMsg(fbb, fbs::Body_Rec,
       fbs::CreateRecord(fbb, &id,
-	trlr.rn, trlr.prevRN, trlr.opRN, trlr.op, trlr.state, data).Union());
+	&un, trlr.rn, trlr.prevRN, trlr.opRN,
+	trlr.op, trlr.state, data).Union());
   fbb.Finish(msg);
   return saveHdr(fbb, this);
 }
 
 // write individual record to disk
-// - updates the file bitfield, index block and appends the record on disk
+// - updates file bitfield, index block and appends the record on disk
 bool FileMgr::write_(ZmRef<Buf> buf)
 {
   auto record = record_(msg_(buf->hdr()));
   RN rn = record->rn();
-  if (rn < m_allocRN) return true; // idempotent
+  if (m_allocRN > rn) return true; // idempotent
 
   File *file = nullptr;
   IndexBlk *indexBlk = nullptr;
@@ -828,6 +881,7 @@ bool FileMgr::write_(ZmRef<Buf> buf)
     } while (m_allocRN < rn);
   }
 
+  // ensure file and index block are provisioned
   if (!file) {
     file = getFile<true>(rn>>fileShift());
     if (!file) return false;
@@ -845,9 +899,26 @@ bool FileMgr::write_(ZmRef<Buf> buf)
   auto length = sizeof(FileExtent) + data.length() + sizeof(FileRecTrlr);
   auto offset = file->append(length);
 
+  // update bitfield and index block
   file->alloc(rn);
   indexBlk->alloc(rn, offset, length);
+  
+  bool scheduleVacuum = false;
+
   switch (static_cast<int>(record->state())) {
+    case RecState::Deleting:
+      vacuum = true;
+      // update pending purge / deletions
+      switch (static_cast<int>(record->op())) {
+	case Op::Purge:
+	  m_purgeRN = record->rn();
+	  m_purgeOpRN = record->opRN();
+	  break;
+	case Op::Delete:
+	  m_deletes.add(record->prevRN(), record->rn());
+	  break;
+      }
+      break;
     case RecState::Deleted:
     case RecState::Purged:
       file->del(rn);
@@ -855,12 +926,14 @@ bool FileMgr::write_(ZmRef<Buf> buf)
       break;
   }
 
+  // prepare data for writing to disk
   int r;
   ZeError e;
   ZiVec vecs[3];
   unsigned nVecs = 0;
   FileExtent extent{length};
   FileRecTrlr trlr{
+    .un = Zfb::Load::zdb_un(record->un()),
     .rn = rn,
     .prevRN = record->prevRN(),
     .opRN = record->opRN(),
@@ -880,7 +953,59 @@ bool FileMgr::write_(ZmRef<Buf> buf)
     m_mgr->fileWrError_(file, offset, e);
     return false;
   }
+
+  if (vacuum) this->scheduleVacuum();
+
   return true;
+}
+
+// FIXME from here
+
+// FIXME - in caller - need vacuum max CPU %
+// - i.e. skip and reschedule (defer) if file thread is busier than threshold
+
+// FIXME - when creating a new file - update allFiles
+
+void FileMgr::vacuum(unsigned batchSize)
+{
+  // unmark all files as active
+  //
+  // if purge in progress, execute purge {
+  //   read record trailer
+  //   update to Deleted inc bitfield and indexBlk
+  //   update file flags (mark as active, possibly fragmented)
+  // } else if m_deletes.count() {
+  //   get/del m_deletes.min()
+  //   if value > key then moving backwards, otherwise forwards
+  //   if (backwards) {
+  //     // mark file as active, possibly fragmented
+  //     read record trailer
+  //     if prevRN {
+  //       update to Deleting
+  //       write opRN
+  //       add new backwards move to m_deletes
+  //     } else {
+  //       update to Deleted (inc bitfield and indexBlk)
+  //       write opRN
+  //       add new forwards move to m_deletes
+  //     }
+  //   } else {
+  //     // mark file as active, possibly fragmented
+  //     read record trailer
+  //     update to Deleted (inc bitfield and indexBlk)
+  //     if opRN {
+  //       add new forwards move to m_deletes
+  //     }
+  //   }
+  // }
+  //
+  // scan allFiles looking for compacting
+  //   - continue compaction if found (up to remaining batchSize)
+  //
+  // scan allFiles looking for inactive + fragmented
+  //   - if found - mark as compacting
+  //
+  // reschedule vacuum as needed
 }
 
 // obtain prevRN for a record pending deletion
@@ -891,7 +1016,7 @@ RN FileMgr::del_prevRN(RN rn)
     if (object->committed()) return object->prevRN();
   }
 #endif
-  FileRec rec = rn2file<false>(rn);
+  auto [file, indexBlk] = rn2file<false>(rn);
   if (!rec) return nullRN();
   const auto &index = rec.index();
   if (ZuUnlikely(index.offset <= 0)) {
@@ -919,16 +1044,13 @@ RN FileMgr::del_prevRN(RN rn)
 // delete individual record
 void FileMgr::del_write(RN rn)
 {
-  FileRec rec = rn2file<false>(rn);
+  auto [file, indexBlk] = rn2file<false>(rn);
   if (!rec) return;
   rec.index().offset = -rec.index().offset;
   auto file = rec.file();
   if (file->del(rn & fileRNMask()))
     delFile(file);
   else {
-    // FIXME - index block offsets are relative to index block itself
-    // (eases completion of compaction for remainder of file)
-    //
     // FIXME - when compacting, superblock needs updating in memory
     // and writing to disk on completion (can be skipped on initial
     // write of compacted file, along with file header)
@@ -960,52 +1082,46 @@ void FileMgr::del_write(RN rn)
   }
 }
 
-compact should 
+// compact should 
 
--0  +1  -2  +3  -4  +5  -6/0+7/2-8/4
+// -0  +1  -2  +3  -4  +5  -6/0+7/2-8/4
 
-// 1] file flags:
-//    complete (no longer appending)
-//    fragmented (fragmentation > threshold)
-//    active (deletion occurred, implies complete) - cleared each sweep
-//    compacting (implies inactive, fragmented and complete)
-//    graveyard (entirely comprised of tombstones)
-//    disused (will be deleted in next vacuum - implies graveyard)
-//
-// 2] files maintain the following counts:
+// file flags (4-bit bitfield):
+
+// 1 exists		// file exists
+// 2 active		// deletion occurred since last sweep
+// 4 fragmented		// fragmentation > threshold
+// 8 compacting		// undergoing compaction
+
+// files maintain the following counts:
 //    allocated - all allocated records
 //    deleted - all deleted records
-//    tombstones - all zero-length records (deletions and previously compacted)
+//    excised - all zero-length records
 //
-// 3] fragmentation calculation:
-//    fragmentation % is (deleted - tombstones) / ((deleted - tombstones) + allocated)
+// fragmentation % calculation:
+//    (deleted - excised) / ((deleted - excised) + allocated)
 //
-// 4] mark files as fragmented (or not) following each deletion
-// 5] mark files as active following each deletion
-// 6] unmark files as active during each sweep
-// 7] only initiate compaction for files that are inactive for an entire
-//    interval and fragmented
-// 8] abort compaction if file becomes active during compaction
+// 1] mark files as fragmented (or not) following each deletion
+// 2] mark files as active following each deletion
+// 3] unmark files as active during each vacuum, except currently appending file
+// 4] only initiate compaction for files that are both inactive and fragmented
+// 5] abort compaction if file becomes active during compaction
 //    - remainder of file is copied to compacted file as is, compacted
 //      file replaces previous
-// 9] dead files are also marked for deletion each sweep
-// 10] dead files are deleted in order once marked in next sweep
+// 6] compaction simply removes the file if complete and 100% deleted
 
 // parameters:
 //   vacuum interval
 //   vacuum batch size (number of records processed in each iteration)
-//   compaction threshold
+//   vacuum max fragmentation %
+//   vacuum max CPU %
 
-// delete file
+// delete file - never called for active file (i.e. currently appending file)
 void FileMgr::delFile(File *file)
 {
   bool lastFile;
   uint64_t id = file->id();
   m_files.delNode(file);
-  lastFile = id == m_lastFile;
-  if (ZuUnlikely(lastFile)) getFile<true>(id + 1); // ensure recovery of nextRN
-  // FIXME - lastFile will not work, need to preserve headRN even if Deleted
-  // in order to ensure RNs continuously increment
   file->close();
   ZiFile::remove(fileName(id));
 }

@@ -40,8 +40,8 @@
 // new file structure with variable-length flatbuffer-format records
 
 // each DB file contains up to 16K records, organized as a 1Kb superblock
-// that indexes up to 128 index blocks, each a 1.5Kb index block indexing
-// up to 128 individual records with {u64 offset, u32 length} tuples
+// that indexes up to 128 index blocks, each a 1Kb index block indexing
+// up to 128 individual records with {u64 offset} tuples
 // super-block is immediately followed by first index-block
 
 // LRU write-through cache of files is maintained
@@ -64,8 +64,10 @@
 //   excised:u32)
 // 24,+512 bitfield (FileBitfield) (16384 x u2)
 // 536,+1024 superblock (FileSuperBlk) (128 x u64)
-// ... followed by index blocks interleaved with variable length records
-// Offset,+1536 index block (FileIndexBlk) (128 x {u64,u32})
+// ... followed by extents - index blocks interleaved with records
+// Offset,+8 extent header
+// Offset+8,+1032 index block (FileIndexBlk) (129 x u64)
+// Offset+1040,+12 index block trailer
 
 namespace Zdb_ {
 
@@ -79,13 +81,6 @@ inline constexpr unsigned indexShift()	{ return 7; }
 inline constexpr unsigned indexMask()	{ return 0x7fU; }
 inline constexpr unsigned indexRNs()	{ return 128; }
 
-namespace FileFlags {
-  enum {
-    IOError	= 0x00000001,	// I/O error during open
-    Clean	= 0x00000002	// closed cleanly
-  };
-}
-
 namespace Magic {	// magic numbers
   inline constexpr uint32_t file()	{ return 0x0db3a61c; }
   inline constexpr uint32_t committed()	{ return 0xc001da7a; }
@@ -98,7 +93,10 @@ using U32LE = ZuLittleEndian<uint16_t>;
 using U32LE = ZuLittleEndian<uint32_t>;
 using U64LE = ZuLittleEndian<uint64_t>;
 using I64LE = ZuLittleEndian<int64_t>;
+using U128LE = ZuLittleEndian<uint128_t>;
+using I128LE = ZuLittleEndian<int128_t>;
 
+using UNLE = ZuLittleEndian<UN>;
 using RNLE = ZuLittleEndian<RN>;
 using MagicLE = ZuLittleEndian<Magic>;
 using SeqLenLE = ZuLittleEndian<SeqLen>;
@@ -129,6 +127,7 @@ struct FileIdxBlkTrlr {		// index block trailer
   MagicLE	magic;		// committed()
 };
 struct FileRecTrlr {		// record trailer
+  UNLE		un;		// update number
   RNLE		rn;
   RNLE		prevRN;		// prevRN
   RNLE		opRN;		// opRN
@@ -150,7 +149,7 @@ inline constexpr unsigned fileRecMinSize() {
 
 // Note: all offsets in superblock and index block reference extent header
 
-// RN states used in bitfield
+// RN states used in bitfield and index block
 namespace RNState {
   enum {
     Uninitialized = 0,
@@ -217,9 +216,6 @@ struct Extent {
   }
 };
 
-// FIXME - header is clean "as of" a file length, i.e. any append
-// invalidates cleanliness
-
 // -- file index block cache
 
 // trigger delete processing from FileMgr::write_()
@@ -234,8 +230,7 @@ struct Extent {
 // record lifecycle has following states
 //
 // Created -> Deleting -> Deleted // put/append
-// Deleting -> Deleted // delete
-// Purging -> Purged // purge
+// Deleting -> Deleted // delete/purge
 //
 //   deleting count updates on initial delete request - count of records with state Deleting
 //   deleted count updates on delete request completion - count of records with state Deleted that are candidates for compaction
@@ -256,10 +251,6 @@ struct Extent {
 // recovery prevents recovering more than the lowest-RN pending deletion
 // in a single sequence via the opRN, using a set keyed on opRN -
 // when tail is reached, set is cleared
-
-// FIXME - use a write-through cache of mutable record trailers to elide
-// file-write of interim recState=Deleting and opRN on short sequences;
-// also need to flush this on fileMgr close
 
 // Note: *prevRN means
 // prevRN != nullRN() && prevRN >= minRN && op == (Append | Delete)
@@ -343,6 +334,14 @@ struct IndexBlk_ {
   void init(uint64_t id_, uint64_t offset_) {
     ~IndexBlk_();
     new (this) IndexBlk_{id_, offset_};
+  }
+
+  IndexElem elem(RN rn) const {
+    ZmAssert((rn>>indexShift()) == m_id);
+
+    unsigned i = rn & indexMask();
+
+    return blk.data[i].state();
   }
 
   void alloc(RN rn, uint64_t offset, uint64_t length) {
@@ -501,7 +500,11 @@ private:
   }
 public:
 
-  int rnState(unsigned i) const { return m_bitfield[i] }
+  int rnState(RN rn) const {
+    ZmAssert((rn>>fileShift()) == m_id);
+
+    return m_bitfield[rn & fileRNMask()];
+  }
 
   unsigned allocated() const { return m_allocated; }
   unsigned deleted() const { return m_deleted; }
@@ -527,6 +530,8 @@ public:
 
     m_superBlk.data[(rn>>indexShift()) & fileMask()] = {SuperElem::Excised};
   }
+
+  uint64_t offset() const { return m_offset; }
 
   uint64_t append(unsigned length) {
     uint64_t offset = m_offset;
@@ -597,13 +602,13 @@ inline void IndexBlk_::excise(Excision &excision) {
 
 // Deletes is a R/B tree of pending deletes, keyed by the deletion
 // request RN - the value is the origRN of the previous deletion -
-// deletion progresses backwards along the linkRN sequence marking all
+// deletion progresses backwards along the prevRN sequence marking all
 // prior records within the sequence as pending deletion and
 // updating the opRN to point forward, then moves forwards finalizing
 // the deletions using the previously written opRN chain
 inline constexpr const char *DeletesHeapID() { return "Zdb.Deletes"; }
 using Deletes =
-  ZmRBTreeKV<RN, RN,	// rn, origRN
+  ZmRBTreeKV<RN, RN,	// targetRN, origRN
     ZmRBTreeUnique<true,
       ZmRBTreeHeapID<DeletesHeapID>>>;
 
@@ -616,6 +621,79 @@ using RecDeletes =
     ZmRBTreeUnique<true,
       ZmRBTreeHeapID<RecDeletesHeapID>>>;
 
+namespace FileFlags {
+  enum {
+    Exists	= 0x1,
+    Active	= 0x2,
+    Fragmented	= 0x4,
+    Compacting	= 0x8
+  };
+}
+// file bitfield
+inline constexpr const char *AllFilesHeapID() { return "Zdb.AllFiles"; }
+class AllFiles {
+  enum { Shift = 10 };
+  enum { Size = (1<<Shift) };
+  enum { Mask = (1<<Shift) - 1 };
+  struct Bitfield : public ZuBitfield<Size, 4> {
+    unsigned	count = 0;
+  };
+  using Tree =
+    ZmRBTreeKV<uint64_t, Bitfield,
+      ZmRBTreeUnique<true,
+	ZmRBTreeHeapID<AllFilesHeapID>>>;
+
+public:
+  AllFiles() = default;
+  ~AllFiles() = default;
+  AllFiles(const AllFiles &b) = delete;
+  AllFiles &operator =(const AllFiles &b) = delete;
+  AllFiles(AllFiles &&b) = delete;
+  AllFiles &operator =(AllFiles &&b) = delete;
+
+  // FIXME - need iteration for efficient scanning
+
+  unsigned get(RN rn) {
+    ZmAssert(!(rn & fileRNMask()));
+    auto id = rn>>fileShift();
+
+    if (auto node = m_tree.find(static_cast<uint64_t>(id>>Shift)))
+      return node->val().get(id & Mask);
+    else
+      return 0;
+  }
+  void set(RN rn, unsigned v) {
+    ZmAssert(!(rn & fileRNMask()));
+    auto id = rn>>fileShift();
+
+    if (auto node = m_tree.find(static_cast<uint64_t>(id>>Shift))) {
+      auto &bitfield = node->val();
+      id &= Mask;
+      if (!bitfield.get(id)) {
+	if (v) ++bitfield.count;
+      } else {
+	if (!v && !--bitfield.count) {
+	  m_tree.delNode(node);
+	  return;
+	}
+      }
+      bitfield.set(id, v);
+    } else if (v) {
+      auto node = new Tree::Node{};
+      node->key() = id>>Shift;
+      auto &bitfield = node->val();
+      id &= Mask;
+      bitfield.set(id, v);
+      ++bitfield.count;
+      m_tree.addNode(node);
+    }
+  }
+  void clr(RN rn) { return set(rn, 0); }
+
+private:
+  Tree	m_tree;
+};
+
 class ZdbAPI FileMgr {
 friend File_;
 
@@ -624,22 +702,19 @@ protected:
   bool open_();
   void close_();
 
+  // database ID (used for error logging)
+  virtual ZuID id() = 0;
+
   // recovered - called from within open_()
   virtual void recovered(ZmRef<Buf> buf) = 0;
 
-  // immutable
-  ZiFile::Path dirName(uint64_t id) const;
-  ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
-    return ZiFile::append(dir, ZuStringN<12>() <<
-	ZuBox<unsigned>{id & 0xfffffU}.hex<false, ZuFmt::Right<5>>() << ".zdb");
-  }
-  ZiFile::Path fileName(uint64_t id) const {
-    return fileName(dirName(id), id);
-  }
+  // schedule vacuum
+  virtual void scheduleVacuum() = 0;
+  void vacuum(unsigned batchSize);
 
-  void warmup_(ZdbRN nextRN);
+  void warmup_();
 
-  ZmRef<Buf> read_(ZdbRN rn);
+  ZmRef<Buf> read_(RN rn);
   bool write_(ZmRef<Buf> buf);
 
   void del_write(RN rn);
@@ -661,9 +736,18 @@ private:
   void fileRdError_(File *, ZiFile::Offset, int, ZeError e);
   void fileWrError_(File *, ZiFile::Offset, ZeError e);
 
+  // immutable
+  ZiFile::Path dirName(uint64_t id) const;
+  ZiFile::Path fileName(ZiFile::Path dir, uint64_t id) const {
+    return ZiFile::append(dir, ZuStringN<12>() <<
+	ZuBox<unsigned>{id & 0xfffffU}.hex<false, ZuFmt::Right<5>>() << ".zdb");
+  }
+  ZiFile::Path fileName(uint64_t id) const {
+    return fileName(dirName(id), id);
+  }
+
 private:
   RN			m_allocRN = 0;
-  uint64_t		m_lastFile = 0;
 
   // index block cache
   IndexBlkCache		m_indexBlks;
@@ -671,9 +755,8 @@ private:
   // file cache
   FileCache		m_files;
 
-  // in-progress deletes
-  Deletes		m_revDeletes;	// reversing back to head
-  Deletes		m_fwdDeletes;	// going forward to tail
+  // pending deletions
+  Deletes		m_deletes;
 
   // recovered deletions
   RecDeletes		m_recDeletes;
@@ -681,6 +764,9 @@ private:
   // pending purge
   RN			m_purgeRN = nullRN();
   RN			m_purgeOpRN = nullRN();
+
+  // sparse bitfield of files
+  AllFiles		m_allFiles;
 };
 
 inline ZiFile::Path FileMgr::dirName(uint64_t id) const

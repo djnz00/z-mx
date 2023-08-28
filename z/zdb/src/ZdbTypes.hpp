@@ -32,6 +32,9 @@
 
 namespace Zdb_ {
 
+// 128bit update number
+using UN = uint128_t;
+
 // record number type and sentinel values
 using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }

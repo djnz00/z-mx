@@ -933,21 +933,21 @@ void Env::repStart()
   }
 }
 
-void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
+void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN)
 {
   ZmAssert(invoked());
 
   if (!cxn->up()) return;
   if (auto buf = repBuf(rn)) {
-    recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
+    recSend_(ZuMv(cxn), rn, endRN, ZuMv(buf));
     return;
   }
-  fileRun([this, cxn = ZuMv(cxn), rn, endRN, gapRN]() mutable {
-    recSendFile(ZuMv(cxn), rn, endRN, gapRN);
+  fileRun([this, cxn = ZuMv(cxn), rn, endRN]() mutable {
+    recSendFile(ZuMv(cxn), rn, endRN);
   });
 }
 
-void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
+void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN)
 {
   ZmAssert(fileInvoked());
 
@@ -956,20 +956,13 @@ void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN)
     recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
     return;
   }
-  if (gapRN != nullRN()) gapRN = rn;
-  if (++rn >= endRN) { // trailing gap
-    cxn->send(repGap(gapRN, rn - gapRN));
-    m_env->invoke([env = m_env]() { env->recEnd(); });
-    return;
-  }
   run([this, cxn, rn, endRN, gapRN]() mutable {
     recSend(ZuMv(cxn), rn, endRN, gapRN);
   });
 }
 
-void DB::recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, RN gapRN, ZmRef<Buf> buf)
+void DB::recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf)
 {
-  if (gapRN != nullRN()) cxn->send(repGap(gapRN, rn - gapRN));
   cxn->send(ZuMv(buf));
   if (++rn < endRN)
     run([this, cxn, rn, endRN]() mutable { recSend(ZuMv(cxn), rn, endRN); });
@@ -1000,9 +993,11 @@ ZmRef<Buf> DB::repBuf(RN rn)
 	memcpy(ptr, repData.data(), repData.length());
     }
     auto id = Zfb::Save::id(config().id);
+    auto un = Zfb::Save::zdb_un(record->un());
     auto msg = fbs::CreateMsg(fbb, fbs::Body_Rec,
 	fbs::CreateRecord(fbb, &id,
-	  record->rn(), record->prevRN(), record->seqLenOp(), data).Union());
+	  record->un(), record->rn(), record->prevRN(), record->opRN(),
+	  record->op(), record->state(), data).Union());
     fbb.Finish(msg);
     return saveHdr(fbb, this);
   }
@@ -1010,17 +1005,6 @@ ZmRef<Buf> DB::repBuf(RN rn)
   if (auto object = m_objCache.find(rn))
     return object->replicate(fbs::Body_Rec);
   return nullptr;
-}
-
-// prepare run-length encoded gap for sending
-ZmRef<Buf> DB::repGap(RN rn, uint64_t count)
-{
-  IOBuilder fbb;
-  auto id = Zfb::Save::id(config().id);
-  auto msg = fbs::CreateMsg(fbb, fbs::Body_Gap,
-      fbs::CreateGap(fbb, &id, rn, count).Union());
-  fbb.Finish(msg);
-  return saveHdr(fbb, this);
 }
 
 // prepare replication data
@@ -1041,7 +1025,7 @@ ZmRef<Buf> AnyObject_::replicate(int type)
     auto id = Zfb::Save::id(m_db->config().id);
     auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
 	fbs::CreateRecord(fbb, &id,
-	  m_rn, m_prevRN, m_seqLenOp, data).Union());
+	  m_un, m_rn, m_prevRN, m_seqLenOp, data).Union());
     fbb.Finish(msg);
   }
   return saveHdr(fbb, m_db);
@@ -1083,7 +1067,6 @@ int Cxn_::msgRead2(ZmRef<Buf> buf)
 
     switch (static_cast<int>(msg->body_type())) {
       case fbs::Body_HB:
-      case fbs::Body_Gap:
       case fbs::Body_Rep:
       case fbs::Body_Rec:
 	if (ZuLikely(buf->length))
@@ -1115,9 +1098,6 @@ void Cxn_::msgRead3(ZmRef<Buf> buf)
     case fbs::Body_Rep:
     case fbs::Body_Rec:
       repRecRcvd(ZuMv(buf));
-      break;
-    case fbs::Body_Gap:
-      repGapRcvd(ZuMv(buf));
       break;
   }
 }
@@ -1267,6 +1247,7 @@ void Cxn_::hbSend()
 
   ZdbDEBUG(m_env, ZtString{} << "hbSend()"
       "  self[ID:" << self->id() << " S:" << m_env->state() <<
+      " UN:" << self->un() <<
       " N:" << self->envState().count_() << "] " << self->envState());
 }
 
@@ -1276,6 +1257,7 @@ void Env::envStateRefresh()
   ZmAssert(invoked());
 
   EnvState &envState = m_self->envState();
+  envState.updateUN(m_un);
   all_([&envState](DB *db) {
     envState.update(db->config().id, db->nextRN());
   });
@@ -1295,39 +1277,19 @@ void Cxn_::repRecRcvd(ZmRef<Buf> buf)
   ZdbDEBUG(m_env, ZtString{} <<
       "replicated(host=" << m_host->id() << ", " <<
       Record_Print{record} << ')');
-  m_env->replicated(m_host, id, record->rn() + 1);
+  m_env->replicated(m_host, record->un() + 1, id, record->rn() + 1);
   db->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     db->repRecRcvd(ZuMv(buf));
   });
 }
 
-// process received replicated gap
-void Cxn_::repGapRcvd(ZmRef<Buf> buf)
-{
-  ZmAssert(m_env->invoked());
-
-  if (!m_host) return;
-  auto gap = gap_(msg_(buf->hdr()));
-  auto id = Zfb::Load::id(gap->db());
-  DB *db = m_env->db(id);
-  if (ZuUnlikely(!db)) return;
-  buf->owner = db;
-  ZdbDEBUG(m_env, ZtString{} <<
-      "replicated(host=" << m_host->id() << ", " <<
-      Gap_Print{gap} << ')');
-  m_env->replicated(m_host, db->config().id, gap->rn() + gap->count());
-  db->invoke([buf = ZuMv(buf)]() mutable {
-    auto db = buf->db();
-    db->repGapRcvd(ZuMv(buf));
-  });
-}
-
-void Env::replicated(Host *host, ZuID dbID, RN rn)
+void Env::replicated(Host *host, UN un, ZuID dbID, RN rn)
 {
   ZmAssert(invoked());
 
-  bool updated = host->envState().update(dbID, rn);
+  bool updated =
+    host->envState().updateUN(un) || host->envState().update(dbID, rn);
   if ((active() || host == m_next) && !updated) return;
   if (!m_prev) {
     m_prev = host;
@@ -1446,11 +1408,9 @@ void DB::recovered(ZmRef<Buf> buf)
   ZmAssert(invoked());
 
   auto record = record_(msg_(buf->hdr()));
-  RN rn = record->rn();
-  m_minRN.maximum(rn);
-  m_nextRN.minimum(rn + 1);
-  // FIXME - validate nextRN, do not permit implied gaps?
-  // FIXME - if gap, may need to manipulate file alloc()/del() count
+  // FIXME - shouldn't this also be in DB::recover() ?
+  m_env->recoveredUN(record->un());
+  recoveredRN(record->rn());
   recover(record);
 }
 
@@ -1459,24 +1419,16 @@ void DB::recover(const fbs::Record *record)
 {
   ZmAssert(invoked());
 
-  // FIXME - validate nextRN, do not permit implied gaps
-  // FIXME - if gap, may need to manipulate file alloc()/del() count
-
   RN rn = record->rn();
   RN prevRN = record->prevRN();
 
-  auto seqLenOp = record->seqLenOp();
-
-  switch (SeqLenOp::op(seqLenOp)) {
+  switch (static_cast<int>(record->op())) {
     default:
       return;
     case Op::Put:
-      if (SeqLenOp::seqLen(seqLenOp) > 1) {
+      if (prevRN != nullRN()) {
 	m_objCache.del(prevRN);
-	m_deletes.del(prevRN); // FIXME
-	m_deletes.add(rn, DeleteOp{prevRN,
-	  SeqLenOp::mk(SeqLenOp::seqLen(seqLenOp) - 1, Op::Put)}); // FIXME
-	if (auto fn = m_handler.deleteFn) fn(prevRN); // FIXME
+	if (auto fn = m_handler.deleteFn) fn(prevRN);
       }
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
@@ -1484,8 +1436,7 @@ void DB::recover(const fbs::Record *record)
       }
       break;
     case Op::Append:
-      if (SeqLenOp::seqLen(seqLenOp) > 1)
-	m_objCache.del(prevRN); // yes!
+      if (prevRN != nullRN()) m_objCache.del(prevRN);
       if (auto object = load(record)) {
 	if (auto fn = m_handler.recoverFn) fn(object);
 	m_objCache.add(ZuMv(object));
@@ -1493,14 +1444,12 @@ void DB::recover(const fbs::Record *record)
       // FIXME - call app's appendFn(prevRN, rn)
       break;
     case Op::Delete:
-      m_objCache.del(prevRN);
-      m_deletes.del(prevRN); // FIXME
-      m_deletes.add(rn, DeleteOp{rn, seqLenOp});
-      if (auto fn = m_handler.deleteFn) fn(rn);
-      m_objCache.del(rn); // FIXME -unnecessary
+      if (prevRN != nullRN()) {
+	m_objCache.del(prevRN);
+	if (auto fn = m_handler.deleteFn) fn(prevRN);
+      }
       break;
     case Op::Purge:
-      m_deletes.add(rn, DeleteOp{prevRN, seqLenOp}); // FIXME
       break;
   }
 }
@@ -1510,22 +1459,8 @@ void DB::repRecRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
-  // FIXME - validate nextRN
   recover(record_(msg_(buf->hdr())));
   write(ZuMv(buf));
-}
-
-// process inbound replication - gap
-void DB::repGapRcvd(ZmRef<Buf> buf)
-{
-  ZmAssert(invoked());
-
-  auto gap = gap_(msg_(buf->hdr()));
-  RN rn = gap->rn();
-  if (m_nextRN.cmpXch(rn + gap->count(), rn) != rn) return;
-  m_env->invoke([env = m_env, buf = ZuMv(buf)]() mutable {
-    env->replicate(ZuMv(buf));
-  });
 }
 
 // outbound replication + persistency
@@ -1660,10 +1595,8 @@ void DB::put(ZmRef<AnyObject> object)
 {
   if (object->committed()) return;
   m_objCache.delNode(object);
-  object->commit_(Op::Put);
-  auto rn = object->rn();
-  m_minRN.maximum(rn);
-  m_nextRN = rn + 1;
+  object->commit_(m_env->allocUN(), Op::Put);
+  allocatedRN(object->rn());
   if (object->seqLen() > 1)
     m_deletes.add(rn,
 	DeleteOp{object->prevRN(),
@@ -1678,10 +1611,8 @@ void DB::append(ZmRef<AnyObject> object)
 {
   if (object->committed()) return;
   m_objCache.delNode(object);
-  object->commit_(Op::Append);
-  auto rn = object->rn();
-  m_minRN.maximum(rn);
-  m_nextRN = rn + 1;
+  object->commit_(m_env->allocUN(), Op::Append);
+  allocatedRN(object->rn());
   write(object->replicate(fbs::Body_Rep));
   m_objCache.add(ZuMv(object));
 }
@@ -1695,11 +1626,8 @@ void DB::del(ZmRef<AnyObject> object)
   }
   if (object->committed()) return;
   m_objCache.delNode(object);
-  object->commit_(Op::Delete);
-  auto rn = object->rn();
-  m_minRN.maximum(rn);
-  m_nextRN = rn + 1;
-  // FIXME
+  object->commit_(m_env->allocUN(), Op::Delete);
+  allocatedRN(object->rn());
   m_deletes.add(rn, DeleteOp{rn, SeqLenOp::mk(object->seqLen(), Op::Delete)});
   write(object->replicate(fbs::Body_Rep));
 }
@@ -1720,6 +1648,7 @@ void DB::purge(RN minRN)
     auto id = Zfb::Save::id(config().id);
     auto msg = fbs::CreateMsg(fbb, fbs::Body_Rep,
 	fbs::CreateRecord(fbb, &id,
+	  // FIXME - un, opRN, etc.
 	  rn, minRN, SeqLenOp::mk(1, Op::Purge), {}).Union());
     fbb.Finish(msg);
   }

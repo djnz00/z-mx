@@ -1352,24 +1352,21 @@ private:
   void gtkRefresh() {
     // FIXME - freeze, save sort col, unset sort col
 
-    bool busy = false;
     ZmTime deadline = ZmTimeNow() + m_refreshQuantum;
     unsigned i = 0, n;
     while (m_telRing->shift([](
 	    CliLink_ *cliLink, const ZuArray<const uint8_t> &msg) {
       static_cast<App *>(cliLink->app())->processTel2(cliLink, msg);
     })) {
-      n = --m_telCount;
-      if (ZuUnlikely(n == ~0U)) n = m_telCount = 0;
-      if (!(++i & 0xf) && ZmTimeNow() >= deadline) {
-	busy = true;
-	break;
-      }
+      do {
+	if (!(n = m_telCount.load_())) break;
+      } while (m_telCount.cmpXch(n - 1, n) != n);
+      if (!(++i & 0xf) && ZmTimeNow() >= deadline) break;
     }
 
     // FIXME - restore sort col, thaw
 
-    if (busy && n)
+    if (n)
       gtkRun(ZmFn<>{this, [](App *this_) { this_->gtkRefresh(); }},
 	  ZmTimeNow() + m_refreshRate, ZmScheduler::Defer, &m_refreshTimer);
   }

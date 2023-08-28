@@ -341,9 +341,9 @@ template <typename Msg>
 inline void ZeBackTrace__(ZeEvent e, Msg &&msg) {
   ZmBackTrace bt{1};
   ZeLog::log(ZuMv(e),
-      [bt = ZuMv(bt), fn = ZeLog_::fn(ZuFwd<Msg>(msg))](ZeLogBuf &buf) mutable {
-    ZuMv(fn)(buf);
-    buf << '\n' << ZuMv(bt);
+      [bt = ZuMv(bt), fn = ZeLog_::fn(ZuFwd<Msg>(msg))](auto &s) mutable {
+    ZuMv(fn)(s);
+    s << '\n' << ZuMv(bt);
   });
 }
 

@@ -1,16 +1,25 @@
 include "types.fbs";
 namespace Zdb_.fbs;
+struct UN {		// 128bit update number
+  h:uint64;
+  l:uint64;
+}
 struct DBState {
   db:Zfb.ID;
   rn:uint64;
 }
+table EnvState {
+  un:UN;
+  dbs:[DBState];
+}
 table Heartbeat {
   host:Zfb.ID;
   state:uint32;
-  env_state:[DBState];
+  env_state:EnvState;
 }
 table Record {
   db:Zfb.ID;		// DB ID
+  un:UN;		// update number
   rn:uint64;		// record RN
   prev_r_n:uint64;	// previous RN
   op_r_n:uint64;	// operation RN (target RN)
@@ -18,16 +27,10 @@ table Record {
   state:uint16;		// record state
   data:[uint8];		// nested table data - null if Delete or Purge
 }
-table Gap {		// record gap
-  db:Zfb.ID;
-  rn:uint64;
-  count:uint64;		// repeat count
-}
 union Body {
   HB:Heartbeat,
   Rep:Record,
-  Rec:Record,
-  Gap:Gap
+  Rec:Record
 }
 table Msg {
   body:Body;

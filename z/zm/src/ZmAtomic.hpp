@@ -77,6 +77,7 @@
 #if ZmAtomic_GccVersion >= 40300 && !defined _WIN32
 #define ZmAtomic_GccBuiltins32
 #define ZmAtomic_GccBuiltins64
+#define ZmAtomic_GccBuiltins128
 #if defined(__i386__) && !defined(__x86_64__)
 #undef ZmAtomic_GccBuiltins64
 #endif
@@ -150,16 +151,18 @@ template <typename Int32> struct ZmAtomicOps<Int32, 4> {
 
 #if defined(_WIN32) && defined(_MSC_VER)
   static Int32 atomicXch(volatile Int32 *ptr, Int32 value) {
-    return _InterlockedExchange((volatile long *)ptr, value);
+    return _InterlockedExchange(reinterpret_cast<volatile long *>(ptr), value);
   }
 
   static Int32 atomicCmpXch(
       volatile Int32 *ptr, Int32 value, Int32 cmp) {
-    return _InterlockedCompareExchange((volatile long *)ptr, value, cmp);
+    return _InterlockedCompareExchange(
+	reinterpret_cast<volatile long *>(ptr), value, cmp);
   }
 
   static Int32 atomicXchAdd(volatile Int32 *ptr, int32_t value) {
-    return _InterlockedExchangeAdd((volatile long *)ptr, value);
+    return _InterlockedExchangeAdd(
+	reinterpret_cast<volatile long *>(ptr), value);
   }
 #endif /* _WIN32 && _MSC_VER */
 };
@@ -257,11 +260,13 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
 #if defined(_WIN32) && defined(_MSC_VER)
 #ifdef _WIN64
   static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
-    return _InterlockedExchange64((volatile long long *)ptr, value);
+    return _InterlockedExchange64(
+	reinterpret_cast<volatile long long *>(ptr), value);
   }
 
   static Int64 atomicXchAdd(volatile Int64 *ptr, int64_t value) {
-    return _InterlockedExchangeAdd64((volatile long long *)ptr, value);
+    return _InterlockedExchangeAdd64(
+	reinterpret_cast<volatile long long *>(ptr), value);
   }
 #else
   static Int64 atomicXch(volatile Int64 *ptr, Int64 value) {
@@ -270,7 +275,7 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
     do {
       old = *ptr;
     } while (_InterlockedCompareExchange64(
-	  (volatile long long *)ptr, old, old) != old);
+	  reinterpret_cast<volatile long long *>(ptr), old, old) != old);
     return old;
   }
 
@@ -280,17 +285,55 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
     do {
       old = *ptr;
     } while (_InterlockedCompareExchange64(
-	  (volatile long long *)ptr, old + value, old) != old);
+	  reinterpret_cast<volatile long long *>(ptr), old + value, old)
+	!= old);
     return old;
   }
 #endif
 
   static Int64 atomicCmpXch(volatile Int64 *ptr, Int64 value, Int64 cmp) {
     return _InterlockedCompareExchange64(
-	(volatile long long *)ptr, value, cmp);
+	reinterpret_cast<volatile long long *>(ptr), value, cmp);
   }
 #endif /* _WIN32 && _MSC_VER */
 };
+
+// 128bit atomic operations
+#ifdef ZmAtomic_GccBuiltins128
+template <typename Int128> struct ZmAtomicOps<Int128, 16> {
+  using S = int128_t;
+  using U = uint128_t;
+
+  static Int128 load_(const Int128 *ptr) {
+    return ZmAtomic_load(ptr);
+  }
+  static Int128 load(const Int128 *ptr) {
+    Int128 i = ZmAtomic_load(ptr);
+    ZmAtomic_acquire();
+    return i;
+  }
+  static void store_(Int128 *ptr, Int128 value) {
+    ZmAtomic_store(ptr, value);
+  }
+  static void store(Int128 *ptr, Int128 value) {
+    ZmAtomic_release();
+    ZmAtomic_store(ptr, value);
+  }
+
+  static Int128 atomicXch(volatile Int128 *ptr, Int128 value) {
+    return __sync_lock_test_and_set(ptr, value);
+  }
+
+  static Int128 atomicXchAdd(volatile Int128 *ptr, Int128 value) {
+    return __sync_fetch_and_add(ptr, value);
+  }
+
+  static Int128 atomicCmpXch(
+      volatile Int128 *ptr, Int128 value, Int128 cmp) {
+    return __sync_val_compare_and_swap(ptr, cmp, value);
+  }
+};
+#endif /* ZmAtomic_GccBuiltins128 */
 
 template <typename T> class ZmAtomic {
   ZuAssert(ZuTraits<T>::IsPrimitive && ZuTraits<T>::IsIntegral);

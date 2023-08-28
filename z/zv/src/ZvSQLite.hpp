@@ -28,6 +28,17 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
+// FIXME - move this so Zdb comes first
+// FIXME -
+// WAL
+// exclusive mode
+// custom VFS and IO:
+//   WAL index in local memory (actually all shared memory -> local memory)
+//   fsync elided
+//   file locking elided
+//   file I/O via ZiFile
+//   ZmVHeap replaces malloc/free/etc
+
 // #include <sqlite3.h>
 #include <sqlite3ext.h> // includes sqlite3.h
 

@@ -51,12 +51,15 @@
 
 #include <zlib/ZuInt.hpp>
 
-// use optimized compiler built-ins wherever possible
+// use optimized compiler built-ins
 #ifdef __GNUC__
 #define Zu_bswap16(x) __builtin_bswap16(x)
 #define Zu_bswap32(x) __builtin_bswap32(x)
 #define Zu_bswap64(x) __builtin_bswap64(x)
-#elif defined(_MSC_VER) && !defined(_DEBUG)
+#define Zu_bswap128(x) __builtin_bswap128(x)
+#endif
+#if 0
+#if defined(_MSC_VER) && !defined(_DEBUG)
 #include <stdlib.h>
 #define Zu_bswap16(x) _byteswap_ushort(x)
 #define Zu_bswap32(x) _byteswap_ulong(x)
@@ -79,12 +82,13 @@ inline uint64_t Zu_bswap64(const uint64_t &i) {
     ((i >> 40) & 0xff00ULL) | (i >> 56);
 }
 #endif
+#endif
 
 template <typename T, class Cmp> class ZuBox;
 template <typename T_> struct ZuByteSwap_Unbox {
   using T = T_;
 };
-template <typename T_, class Cmp> struct ZuByteSwap_Unbox<ZuBox<T_, Cmp> > {
+template <typename T_, class Cmp> struct ZuByteSwap_Unbox<ZuBox<T_, Cmp>> {
   using T = T_;
 };
 
@@ -106,6 +110,10 @@ template <> struct ZuByteSwap_<4> {
 template <> struct ZuByteSwap_<8> {
   using T = uint64_t;
   ZuInline static T bswap(const T &i) { return Zu_bswap64(i); }
+};
+template <> struct ZuByteSwap_<16> {
+  using T = uint128_t;
+  ZuInline static T bswap(const T &i) { return Zu_bswap128(i); }
 };
 template <typename T_> class ZuByteSwap : public ZuByteSwap_<sizeof(T_)> {
   using B = ZuByteSwap_<sizeof(T_)>;

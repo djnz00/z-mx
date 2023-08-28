@@ -189,8 +189,8 @@ public:
     guard.unlock();
     if (!pending)
       loadFn(key, [this](NodeRef node) {
-	Guard guard{m_lock};
 	if (ZuUnlikely(!node)) return;
+	Guard guard{m_lock};
 	add_(node);
 	if (auto load = m_loadHash->del(node->key())) {
 	  guard.unlock();
@@ -216,8 +216,8 @@ public:
     guard.unlock();
     if (!pending)
       loadFn(key, [this, evictFn = ZuMv(evictFn)](NodeRef node) {
-	Guard guard{m_lock};
 	if (ZuUnlikely(!node)) return;
+	Guard guard{m_lock};
 	if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
 	if (auto load = m_loadHash->del(node->key())) {
 	  guard.unlock();

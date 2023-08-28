@@ -427,16 +427,13 @@ void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 {
   ZmTime d = e.time - m_started;
 
-  buf <<
-    '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
+  buf << '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
     ZuBoxed(e.tid) << ' ' <<
     Ze::severity(e.severity) << ' ';
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf <<
-      '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::filename(e.filename) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
-  buf <<
-    Ze::function(e.function) << "() ";
+  buf << Ze::function(e.function) << "() ";
 }
 
 void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent &e)
