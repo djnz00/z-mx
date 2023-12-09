@@ -116,6 +116,24 @@ bool FileMgr::open_()
 }
 
 // file has been scanned by scan() prior to recover()
+bool FileMgr::recover(File *file)
+{
+  bool ok = recover_(file);
+
+  // FIXME - if !ok we should not add to allFiles, schedule vacuum, etc.
+
+  // FIXME - check fragmentation
+  // FIXME - set Fragmented flag, update fragmented count
+  m_allFiles.set(id, FileFlags::Exists | FileFlags::Active | FileFlags::Cached);
+
+  // schedule vacuum if needed
+  m_recDeletes.clean();
+  if (m_deletes.count()) scheduleVacuum();
+
+  m_allocRN = rn;
+  return ok;
+}
+
 bool FileMgr::recover_(File *file)
 {
   if (!file->allocated()) return true;
@@ -125,8 +143,6 @@ bool FileMgr::recover_(File *file)
 
   RN rn = file->rn();
   unsigned n = file->allocated();
-
-
 
   for (unsigned j = 0; j < n; j++, rn++) {
     {
@@ -183,19 +199,6 @@ bool FileMgr::recover_(File *file)
   return true;
 }
 
-bool FileMgr::recover(File *file)
-{
-  bool ok = recover_(file);
-
-  // schedule vacuum if needed
-  m_recDeletes.clean();
-  if (m_deletes.count()) scheduleVacuum();
-  // FIXME - check fragmentation
-
-  m_allocRN = rn;
-  return ok;
-}
-
 void FileMgr::close_()
 {
   // index blocks
@@ -206,7 +209,10 @@ void FileMgr::close_()
   });
 
   // files
-  m_files.all<true>([](File *file) { file->sync(); });
+  m_files.all<true>([this](File *file) {
+    file->sync();
+    m_allFiles.clr(file->id(), FileFlags::Cached);
+  });
 }
 
 bool FileMgr::checkpoint()
@@ -511,9 +517,11 @@ File *FileMgr::getFile(uint64_t id)
     [this]<typename L>(uint64_t id, L l) {
       File *file = openFile<Create>(id);
       if (ZuUnlikely(!file)) { l(nullptr); return; }
-      if (id > m_lastFile) m_lastFile = id;
       l(file);
-    }, [](File *file) { file->sync(); });
+    }, [](File *file) {
+      file->sync();
+      m_allFiles.clr(file->id(), FileFlags::Cached);
+    });
   return file;
 }
 
@@ -529,7 +537,7 @@ File *FileMgr::openFile_(const ZiFile::Path &name, uint64_t id)
   ZuPtr<File> file = new File{this, id};
   if (file->open(name, ZiFile::GC, 0666) == Zi::OK) {
     if (!file->scan()) return nullptr;
-    return file.release();
+    goto ret;
   }
   if constexpr (!Create) return nullptr;
   ZiFile::mkdir(dirName(id)); // pre-emptive idempotent
@@ -542,7 +550,12 @@ File *FileMgr::openFile_(const ZiFile::Path &name, uint64_t id)
     }));
     return nullptr;
   }
-  file->sync_();
+  if (!file->sync_()) {
+    file->close();
+    ZiFile::remove(fileName(id));
+    return nullptr;
+  }
+ret:
   return file.release();
 }
 
@@ -597,9 +610,9 @@ ZuPair<File *, IndexBlk *> FileMgr::rn2file(RN rn)
   return {file, indexBlk};
 }
 
-uint64_t File_::indexBlkOffset(uint64_t id)
+uint64_t File_::indexBlkOffset(uint64_t blkID)
 {
-  const auto &superElem = m_superBlk.data[id & fileMask()];
+  const auto &superElem = m_superBlk.data[blkID & fileMask()];
   switch (static_cast<int>(superElem.type())) {
     case Uninitialized:
     case Excised:
@@ -608,31 +621,31 @@ uint64_t File_::indexBlkOffset(uint64_t id)
   return superElem.offset();
 }
 
-ZuPair<bool, IndexBlk *> File_::readIndexBlk(uint64_t id)
+ZuPair<bool, IndexBlk *> File_::readIndexBlk(uint64_t blkID)
 {
   ZuPtr<IndexBlk> indexBlk;
 
   // attempt read
-  auto offset = indexBlkOffset(id);
+  auto offset = indexBlkOffset(blkID);
   if (!offset) return {true, nullptr};
-  indexBlk = new IndexBlk{id, offset};
+  indexBlk = new IndexBlk{blkID, offset};
   if (!readIndexBlk(*indexBlk)) return {false, nullptr};
   return {true, indexBlk.release()};
 }
 
-ZuPair<bool, IndexBlk *> File_::writeIndexBlk(uint64_t id)
+ZuPair<bool, IndexBlk *> File_::writeIndexBlk(uint64_t blkID)
 {
   ZuPtr<IndexBlk> indexBlk;
 
   // attempt read
-  if (auto offset = indexBlkOffset(id)) {
-    indexBlk = new IndexBlk{id, offset};
+  if (auto offset = indexBlkOffset(blkID)) {
+    indexBlk = new IndexBlk{blkID, offset};
     if (!readIndexBlk(*indexBlk)) return {false, nullptr};
     return {true, indexBlk.release()};
   }
 
   // index blk does not exist, ensure this is an append, attempt to write it
-  unsigned super = id & fileMask();
+  unsigned super = blkID & fileMask();
   const auto &superElem = m_superBlk.data[super];
 
   // validate append
@@ -642,8 +655,8 @@ ZuPair<bool, IndexBlk *> File_::writeIndexBlk(uint64_t id)
 
   // attempt write
   auto offset = append(fileIdxBlkSize());
-  m_superBlk.data[id & fileMask()] = SuperElem{offset};
-  indexBlk = new IndexBlk{id, offset};
+  m_superBlk.data[super] = SuperElem{offset};
+  indexBlk = new IndexBlk{blkID, offset};
   if (!writeIndexBlk(*indexBlk)) {
     m_offset -= fileIdxBlkSize();
     return {false, nullptr};
@@ -968,6 +981,22 @@ bool FileMgr::write_(ZmRef<Buf> buf)
 
 void FileMgr::vacuum(unsigned batchSize)
 {
+  bool defragged = false;
+  m_allFiles.all(
+      [&defragged]<template Field>(uint64_t fileID, Field &flags) -> bool {
+    uint64_t flags_ = flags;
+    if (!defragged) {
+      if ((flags_ & (
+	      FileFlags::Fragmented |
+	      FileFlags::Active)) == FileFlags::Fragmented) {
+	defrag(fileID); // FIXME - in defrag use Cached flag to find file in cache, or open directly if not cached; also decrement m_fragmented
+	defragged = true;
+      }
+    }
+    flags_ &= ~FileFlags::Active;
+    return true;
+  });
+
   // unmark all files as active
   //
   // if purge in progress, execute purge {
@@ -999,13 +1028,7 @@ void FileMgr::vacuum(unsigned batchSize)
   //   }
   // }
   //
-  // scan allFiles looking for compacting
-  //   - continue compaction if found (up to remaining batchSize)
-  //
-  // scan allFiles looking for inactive + fragmented
-  //   - if found - mark as compacting
-  //
-  // reschedule vacuum as needed
+  // reschedule vacuum as needed (if fragmented count remains +ve, etc.)
 }
 
 // obtain prevRN for a record pending deletion
@@ -1124,6 +1147,7 @@ void FileMgr::delFile(File *file)
   m_files.delNode(file);
   file->close();
   ZiFile::remove(fileName(id));
+  // FIXME - update allFiles
 }
 
 // disk read error

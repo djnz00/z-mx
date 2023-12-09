@@ -233,7 +233,7 @@ struct Extent {
 // Deleting -> Deleted // delete/purge
 //
 //   deleting count updates on initial delete request - count of records with state Deleting
-//   deleted count updates on delete request completion - count of records with state Deleted that are candidates for compaction
+//   deleted count updates on delete request completion - count of records with state Deleted that are candidates for defragging
 
 // initial puts/deletes - write the RN, enqueue the pending delete with origRN=RN and RN=prevRN
 // pending deletes keyed on RN
@@ -296,7 +296,7 @@ struct Extent {
 // Deleted|Purged	++deleted
 // Excised		++excised
 
-// compaction migrates deleted/purged to unavailable
+// defragging migrates deleted/purged to unavailable
 
 class File_;
 
@@ -521,14 +521,13 @@ public:
     ++m_excised;
   }
 
-  void skipBlk(RN rn) {
-    ZmAssert((rn>>fileShift()) == m_id);
-    ZmAssert(!(rn & indexMask()));
-    ZmAssert(!((rn>>indexShift()) & fileMask()) ||
-	m_superBlk.data[((rn>>indexShift()) - 1) & fileMask()].type() !=
+  void skipBlk(uint64_t blkID) {
+    ZmAssert((blkID>>(fileShift() - indexShift())) == m_id);
+    ZmAssert(!(blkID & fileMask()) ||
+	m_superBlk.data[(blkID - 1) & fileMask()].type() !=
 	  SuperElem::Uninitialized);
 
-    m_superBlk.data[(rn>>indexShift()) & fileMask()] = {SuperElem::Excised};
+    m_superBlk.data[blkID & fileMask()] = {SuperElem::Excised};
   }
 
   uint64_t offset() const { return m_offset; }
@@ -539,10 +538,10 @@ public:
     return offset;
   }
 
-  uint64_t indexBlkOffset(uint64_t id);	// returns 0 if non-existent
+  uint64_t indexBlkOffset(uint64_t blkID);	// returns 0 if non-existent
 
-  ZuPair<bool, IndexBlk *> readIndexBlk(uint64_t id);
-  ZuPair<bool, IndexBlk *> writeIndexBlk(uint64_t id);
+  ZuPair<bool, IndexBlk *> readIndexBlk(uint64_t blkID);
+  ZuPair<bool, IndexBlk *> writeIndexBlk(uint64_t blkID);
 
   bool readIndexBlk(IndexBlk *);
   bool writeIndexBlk(IndexBlk *);
@@ -626,7 +625,7 @@ namespace FileFlags {
     Exists	= 0x1,
     Active	= 0x2,
     Fragmented	= 0x4,
-    Compacting	= 0x8
+    Cached	= 0x8
   };
 }
 // file bitfield
@@ -651,44 +650,67 @@ public:
   AllFiles(AllFiles &&b) = delete;
   AllFiles &operator =(AllFiles &&b) = delete;
 
-  // FIXME - need iteration for efficient scanning
+  // all(lambda) iterates over bitfields from minimum ID to maximum,
+  // calling lambda for all files with non-zero bits
+  //
+  // lambda(uint64_t fileID, unsigned fileFlags) -> bool
+  // - should return true to end iteration, or false to continue
+  template <typename L>
+  void all(L l) {
+    auto i = m_tree.readIterator();
+    while (auto node = i.iterate()) {
+      uint64_t id = (node->key())<<Shift;
+      auto &bitField = node->val();
+      for (unsigned j = 0; j < Size; j++) {
+	auto &field = bitField[j];
+	if (flags && !l(id + j, field)) return;
+      }
+    }
+  }
 
-  unsigned get(RN rn) {
-    ZmAssert(!(rn & fileRNMask()));
-    auto id = rn>>fileShift();
-
-    if (auto node = m_tree.find(static_cast<uint64_t>(id>>Shift)))
-      return node->val().get(id & Mask);
+  // gets bits
+  unsigned get(uint64_t fileID) {
+    if (auto node = m_tree.find(static_cast<uint64_t>(fileID>>Shift)))
+      return node->val().get(fileID & Mask);
     else
       return 0;
   }
-  void set(RN rn, unsigned v) {
-    ZmAssert(!(rn & fileRNMask()));
-    auto id = rn>>fileShift();
 
-    if (auto node = m_tree.find(static_cast<uint64_t>(id>>Shift))) {
+  // sets bits
+  void set(uint64_t fileID, unsigned v) {
+    if (auto node = m_tree.find(static_cast<uint64_t>(fileID>>Shift))) {
       auto &bitfield = node->val();
-      id &= Mask;
-      if (!bitfield.get(id)) {
-	if (v) ++bitfield.count;
-      } else {
-	if (!v && !--bitfield.count) {
-	  m_tree.delNode(node);
-	  return;
-	}
+      fileID &= Mask;
+      unsigned w = bitfield.get(fileID);
+      if (v &= ~w) {
+	if (!w) ++bitfield.count;
+	bitfield.set(fileID, w | v);
       }
-      bitfield.set(id, v);
     } else if (v) {
       auto node = new Tree::Node{};
-      node->key() = id>>Shift;
+      node->key() = fileID>>Shift;
       auto &bitfield = node->val();
-      id &= Mask;
-      bitfield.set(id, v);
+      fileID &= Mask;
+      bitfield.set(fileID, v);
       ++bitfield.count;
       m_tree.addNode(node);
     }
   }
-  void clr(RN rn) { return set(rn, 0); }
+  // clears bits
+  void clr(uint64_t fileID, unsigned v) {
+    if (auto node = m_tree.find(static_cast<uint64_t>(fileID>>Shift))) {
+      auto &bitfield = node->val();
+      fileID &= Mask;
+      unsigned w = bitfield.get(fileID);
+      if (v &= w) {
+	if (v == w && !--bitfield.count) {
+	  m_tree.delNode(node);
+	  return;
+	}
+	bitfield.set(fileID, w & ~v);
+      }
+    }
+  }
 
 private:
   Tree	m_tree;
@@ -767,6 +789,7 @@ private:
 
   // sparse bitfield of files
   AllFiles		m_allFiles;
+  uint64_t		m_fragmented = 0;	// count of fragmented files
 };
 
 inline ZiFile::Path FileMgr::dirName(uint64_t id) const

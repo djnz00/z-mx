@@ -246,8 +246,7 @@ struct EnvState : public EnvState_ {
   }
 
   int cmp(const EnvState &r) const {
-    return un <=> r.un;
-    // return (un > r.un) - (un < r.un);
+    return (un > r.un) - (un < r.un);
   }
 
   template <typename S> void print(S &) const;

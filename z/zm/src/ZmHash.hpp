@@ -108,14 +108,16 @@ protected:
     return lock_(slot>>(m_bits - m_cBits));
   }
 
-  void lockAllResize(unsigned bits) {
+  bool lockAllResize(unsigned bits) {
     for (unsigned i = 0; i < (1U<<m_cBits); i++) {
       LockTraits::lock(lock_(i));
+      // concurrent resize() occurred, m_bits changed, abandon attempt
       if (m_bits >= bits) {
 	for (int j = i; j >= 0; --j) LockTraits::unlock(lock_(j));
-	return;
+	return false;
       }
     }
+    return true;
   }
   void lockAll() {
     unsigned n = (1U<<m_cBits);
@@ -153,7 +155,7 @@ protected:
     return const_cast<ZmNoLock &>(m_noLock);
   }
 
-  void lockAllResize(unsigned) { }
+  bool lockAllResize(unsigned) { return true; }
   void lockAll() { }
   void unlockAll() { }
 

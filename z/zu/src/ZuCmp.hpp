@@ -178,8 +178,7 @@ struct ZuCmp_Integral :
     return -(delta | 1);
   }
   constexpr static int cmp(T i1, T i2) {
-    return i1 <=> i2;
-    // return (i1 > i2) - (i1 < i2);
+    return (i1 > i2) - (i1 < i2);
   }
   constexpr static bool less(T i1, T i2) { return i1 < i2; }
   constexpr static bool equals(T i1, T i2) { return i1 == i2; }

@@ -10,7 +10,7 @@ noinst_PROGRAMS = \
 	ZuConversionTest ZuHashTest ZuCmpTest ZuBoxTest \
 	ZuArrayTest ZuPairTest ZuIDTest ZuUTFTest ZuBitmapTest \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
-	ZuAxorTest
+	ZuAxorTest ZuPtrTest
 ZuConversionTest_SOURCES = ZuConversionTest.cpp
 ZuHashTest_SOURCES = ZuHashTest.cpp Analyze.hpp
 ZuCmpTest_SOURCES = ZuCmpTest.cpp
@@ -26,3 +26,4 @@ ZuDecimalTest_SOURCES = ZuDecimalTest.cpp
 ZuFieldTest_SOURCES = ZuFieldTest.cpp
 ZuTLTest_SOURCES = ZuTLTest.cpp
 ZuAxorTest_SOURCES = ZuAxorTest.cpp
+ZuPtrTest_SOURCES = ZuPtrTest.cpp

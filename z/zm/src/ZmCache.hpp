@@ -238,8 +238,8 @@ public:
     return add_<true>(ZuMv(node));
   }
 
-  template <bool UpdateLRU = Evict, typename EvictFn>
-  NodeRef add(NodeRef node, EvictFn evictFn) {
+  template <bool Evict_ = Evict, typename EvictFn>
+  ZuIfT<Evict_ && Evict, NodeRef> add(NodeRef node, EvictFn evictFn) {
     Guard guard{m_lock};
     if (auto evicted = add_<true>(ZuMv(node)))
       evictFn(ZuMv(evicted));
