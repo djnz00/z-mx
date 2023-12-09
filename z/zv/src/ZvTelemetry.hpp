@@ -383,7 +383,7 @@ ZfbFields(Engine, fbs::Engine,
 
 // display sequence: 
 //   name, id,
-//   path, warmUp,
+//   path, warmup,
 //   minRN, nextRN,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   fileCacheSize, fileLoads, fileMisses
@@ -409,7 +409,7 @@ struct Zdb {
   uint32_t	fileCacheSize = 0;
   uint32_t	indexBlkCacheSize = 0;
   int8_t	cacheMode = -1;			// ZdbCacheMode
-  uint8_t	warmUp = 0;
+  uint8_t	warmup = 0;
 
   int rag() const {
     unsigned total = objCacheLoads + objCacheMisses;
@@ -429,7 +429,7 @@ ZfbFields(Zdb, fbs::Zdb,
     (((objCacheSize)), (Int), (Ctor(12))),
     (((fileCacheSize)), (Int), (Ctor(13))),
     (((indexBlkCacheSize)), (Int), (Ctor(14))),
-    (((warmUp)), (Int), (Ctor(16))),
+    (((warmup)), (Int), (Ctor(16))),
     (((minRN)), (Int), (Ctor(4), Update)),
     (((nextRN)), (Int), (Ctor(5), Update, Series, Delta)),
     (((objCacheLoads)), (Int), (Ctor(6), Update, Series, Delta)),

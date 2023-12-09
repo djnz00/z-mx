@@ -211,7 +211,7 @@ public:
 
   void loggedIn() { } // default
 
-  void connected(const char *, const char *alpn) {
+  void connected(const char *alpn) {
     if (!alpn || strcmp(alpn, "zcmd")) {
       this->disconnect();
       return;
