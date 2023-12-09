@@ -31,11 +31,9 @@ struct App : public Ztls::Server<App> {
   struct Link : public Ztls::SrvLink<App, Link> {
     Link(App *app) : Ztls::SrvLink<App, Link>(app) { }
 
-    void connected(const char *hostname, const char *alpn) {
-      if (!hostname) hostname = "(null)";
+    void connected(const char *alpn) {
       std::cerr << (ZuStringN<100>()
-	  << "TLS handshake completed (hostname: " << hostname
-	  << " ALPN: " << alpn << ")\n")
+	  << "TLS handshake completed ALPN: " << alpn << ")\n")
 	<< std::flush;
     }
     void disconnected() {

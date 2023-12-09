@@ -103,7 +103,7 @@ public:
   User *user() const { return m_user.ptr(); }
   bool interactive() const { return m_interactive; }
 
-  void connected(const char *, const char *alpn) {
+  void connected(const char *alpn) {
     scheduleTimeout();
 
     if (!alpn || strcmp(alpn, "zcmd")) {

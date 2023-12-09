@@ -193,6 +193,7 @@ Zfb::Offset<fbs::UserDB> Mgr::save_(Zfb::Builder &fbb) const
 
 int Mgr::load(const ZiFile::Path &path, ZeError *e)
 {
+  using LoadFn = Zfb::Load::LoadFn;
   return Zfb::Load::load(path,
       LoadFn{this, [](Mgr *this_, const uint8_t *data, unsigned len) {
 	return this_->load_(data, len);

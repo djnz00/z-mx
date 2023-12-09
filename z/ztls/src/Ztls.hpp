@@ -201,14 +201,9 @@ private:
       if (ZuUnlikely(i >= RxRingSize)) i -= RxRingSize;
       m_rxRing[i] = ZuMv(buf);
     }
-    if (ZuLikely(m_ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER)) {
-recv:
-      while (recv());
-    } else {
-      while (handshake())
-	if (ZuLikely(m_ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER))
-	  goto recv;
-    }
+    while (!mbedtls_ssl_is_handshake_over(&m_ssl))
+      if (!handshake()) return;
+    while (recv());
   }
 
   // ssl bio f_recv function - TLS thread
@@ -252,9 +247,7 @@ protected:
 	case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE: // remote verification failure
 	  break;
 	case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED: {
-	  const char *hostname = m_ssl.hostname;
-	  if (!hostname) hostname = "(null)";
-	  ZeLOG(Error, ([hostname = ZtString{hostname}](auto &s) {
+	  ZeLOG(Error, ([hostname = ZtString{impl()->server()}](auto &s) {
 	    s << "server \"" << hostname << "\": unable to verify X.509 cert";
 	  }));
 	  disconnect_(false);
@@ -272,7 +265,7 @@ protected:
     impl()->verify_(); // client only - verify server cert
     impl()->save_(); // client only - save session for subsequent reconnect
 
-    impl()->connected(m_ssl.hostname, mbedtls_ssl_get_alpn_protocol(&m_ssl));
+    impl()->connected(mbedtls_ssl_get_alpn_protocol(&m_ssl));
 
     return recv();
   }
@@ -281,7 +274,7 @@ private:
   bool recv() { // TLS thread
     int n = mbedtls_ssl_read(&m_ssl,
 	(unsigned char *)(m_rxOutBuf + m_rxOutOffset),
-	MBEDTLS_SSL_MAX_CONTENT_LEN - m_rxOutOffset);
+	MBEDTLS_SSL_IN_CONTENT_LEN - m_rxOutOffset);
 
     if (n <= 0) {
       if (ZuUnlikely(!n)) {
@@ -441,7 +434,7 @@ public:
 private:
   enum {
     RxRingSize =
-      (MBEDTLS_SSL_MAX_CONTENT_LEN + IOBuf::BufSize - 1) / IOBuf::BufSize
+      (MBEDTLS_SSL_IN_CONTENT_LEN + IOBuf::BufSize - 1) / IOBuf::BufSize
   };
 
   App			*m_app = nullptr;
@@ -458,7 +451,7 @@ private:
   unsigned		m_rxRingCount = 0;
   ZmRef<IOBuf>		m_rxRing[RxRingSize];
   unsigned		m_rxOutOffset = 0;
-  uint8_t		m_rxOutBuf[MBEDTLS_SSL_MAX_CONTENT_LEN];
+  uint8_t		m_rxOutBuf[MBEDTLS_SSL_IN_CONTENT_LEN];
 
   // Contended
   ZmAtomic<unsigned>	m_disconnecting = 0;
@@ -565,48 +558,46 @@ private:
   }
 
   void verify_() {
-    if (this->ssl()->conf->endpoint == MBEDTLS_SSL_IS_CLIENT) {
-      uint32_t flags;
-      if (flags = mbedtls_ssl_get_verify_result(this->ssl())) {
-	ZeLOG(Error,
-	    ([hostname = ZtString{this->ssl()->hostname}, flags](auto &s) {
-	  s << "server \"" << hostname <<
-	    "\": X.509 cert verification failure: ";
-	  static const char *errors[] = {
-	    "validity has expired",
-	    "revoked (is on a CRL)",
-	    "CN does not match with the expected CN",
-	    "not correctly signed by the trusted CA",
-	    "CRL is not correctly signed by the trusted CA",
-	    "CRL is expired",
-	    "certificate missing",
-	    "certificate verification skipped",
-	    "unspecified/other",
-	    "validity starts in the future",
-	    "CRL is from the future",
-	    "usage does not match the keyUsage extension",
-	    "usage does not match the extendedKeyUsage extension",
-	    "usage does not match the nsCertType extension",
-	    "signed with an bad hash",
-	    "signed with an bad PK alg (e.g. RSA vs ECDSA)",
-	    "signed with bad key (e.g. bad curve, RSA too short)",
-	    "CRL signed with an bad hash",
-	    "CRL signed with bad PK alg (e.g. RSA vs ECDSA)",
-	    "CRL signed with bad key (e.g. bad curve, RSA too short)"
-	  };
-	  {
-	    bool comma = false;
-	    constexpr unsigned n = sizeof(errors) / sizeof(errors[0]);
-	    for (unsigned i = 0; i < n; i++)
-	      if (flags & (1U<<i)) {
-		if (comma) s << ", ";
-		comma = true;
-		s << errors[i];
-	      }
-	  }
-	}));
-	this->disconnect_(false);
-      }
+    uint32_t flags;
+    if (flags = mbedtls_ssl_get_verify_result(this->ssl())) {
+      ZeLOG(Error,
+	  ([hostname = m_server, flags](auto &s) {
+	s << "server \"" << hostname <<
+	  "\": X.509 cert verification failure: ";
+	static const char *errors[] = {
+	  "validity has expired",
+	  "revoked (is on a CRL)",
+	  "CN does not match with the expected CN",
+	  "not correctly signed by the trusted CA",
+	  "CRL is not correctly signed by the trusted CA",
+	  "CRL is expired",
+	  "certificate missing",
+	  "certificate verification skipped",
+	  "unspecified/other",
+	  "validity starts in the future",
+	  "CRL is from the future",
+	  "usage does not match the keyUsage extension",
+	  "usage does not match the extendedKeyUsage extension",
+	  "usage does not match the nsCertType extension",
+	  "signed with an bad hash",
+	  "signed with an bad PK alg (e.g. RSA vs ECDSA)",
+	  "signed with bad key (e.g. bad curve, RSA too short)",
+	  "CRL signed with an bad hash",
+	  "CRL signed with bad PK alg (e.g. RSA vs ECDSA)",
+	  "CRL signed with bad key (e.g. bad curve, RSA too short)"
+	};
+	{
+	  bool comma = false;
+	  constexpr unsigned n = sizeof(errors) / sizeof(errors[0]);
+	  for (unsigned i = 0; i < n; i++)
+	    if (flags & (1U<<i)) {
+	      if (comma) s << ", ";
+	      comma = true;
+	      s << errors[i];
+	    }
+	}
+      }));
+      this->disconnect_(false);
     }
   }
 
@@ -642,6 +633,8 @@ friend Base;
   SrvLink(App *app) : Base(app) { }
 
 private:
+  const char *server() { return nullptr; } // unused
+
   void save_() { } // unused
   void load_() { } // unused
   void connected__() { } // unused
@@ -775,7 +768,7 @@ private:
 
     struct Link : public CliLink<App, Link> {
       // TLS thread - handshake completed
-      void connected(const char *hostname, const char *alpn);
+      void connected(const char *alpn);
 
       void disconnected(); // TLS thread
       void connectFailed(bool transient); // I/O Tx thread
@@ -826,7 +819,8 @@ friend Base;
 
       if (certPath && keyPath) {
 	if (mbedtls_x509_crt_parse_file(&m_cert, certPath)) return false;
-	if (mbedtls_pk_parse_keyfile(&m_key, keyPath, "")) return false;
+	if (mbedtls_pk_parse_keyfile(&m_key, keyPath, "",
+	    mbedtls_ctr_drbg_random, this->ctr_drbg())) return false;
 	if (mbedtls_ssl_conf_own_cert(this->conf(), &m_cert, &m_key))
 	  return false;
       }
@@ -851,7 +845,7 @@ private:
 
     struct Link : public SrvLink<App, Link> {
       // TLS thread - handshake completed
-      void connected(const char *, const char *alpn);
+      void connected(const char *alpn);
 
       void disconnected(); // TLS thread
       void connectFailed(bool transient); // I/O Tx thread
@@ -933,7 +927,8 @@ friend Base;
       if (alpn) mbedtls_ssl_conf_alpn_protocols(this->conf(), alpn);
 
       if (mbedtls_x509_crt_parse_file(&m_cert, certPath)) return false;
-      if (mbedtls_pk_parse_keyfile(&m_key, keyPath, "")) return false;
+      if (mbedtls_pk_parse_keyfile(&m_key, keyPath, "",
+	    mbedtls_ctr_drbg_random, this->ctr_drbg())) return false;
       if (mbedtls_ssl_conf_own_cert(this->conf(), &m_cert, &m_key))
 	return false;
       return true;

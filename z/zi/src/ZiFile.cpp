@@ -27,6 +27,10 @@
 
 #define ZiFile_CopyBufSize	(128<<10)	// 128k
 
+#ifndef _WIN32
+#include <sys/uio.h>
+#endif
+
 #ifdef _WIN32
 
 #include <ctype.h>
@@ -409,7 +413,7 @@ int ZiFile::mmap(
     void *addr = ::mmap(
 	m_addr, m_mmapLength, prot, mmapFlags | MAP_FIXED, m_handle, 0);
     if (addr != m_addr) {
-      munmap(m_addr, m_mmapLength<<1);
+      ::munmap(m_addr, m_mmapLength<<1);
       m_addr = nullptr;
       goto error;
     }
@@ -418,7 +422,7 @@ int ZiFile::mmap(
 	prot, mmapFlags | MAP_FIXED, m_handle, 0);
     if (addr != static_cast<void *>(
 	  static_cast<uint8_t *>(m_addr) + m_mmapLength)) {
-      munmap(m_addr, m_mmapLength<<1);
+      ::munmap(m_addr, m_mmapLength<<1);
       m_addr = nullptr;
       goto error;
     }
@@ -501,9 +505,9 @@ void ZiFile::close()
 
   if (m_addr) {
 #ifndef _WIN32
-    munmap(m_addr, m_mmapLength);
+    ::munmap(m_addr, m_mmapLength);
     if (m_flags & ShmMirror)
-      munmap(static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength);
+      ::munmap(static_cast<uint8_t *>(m_addr) + m_mmapLength, m_mmapLength);
     if ((m_flags & ShmGC) && m_shmName)
       shm_unlink(m_shmName);
     m_shmName = {};
