@@ -287,7 +287,7 @@ template <typename S> inline void Connection::print(S &s) const
     info.localIP << ':' << ZuBoxed(info.localPort) <<
     (this->up() ? " -> " : " !> ") <<
     info.remoteIP << ':' << ZuBoxed(info.remotePort) <<
-    " (" << m_proxy->tag() << ") [" <<
+    " (" << (m_proxy ? m_proxy->tag() : ZuString{"null"}) << ") [" <<
     ((m_flags & Connection::Hold) ? 'H' : '-') <<
     ((m_flags & Connection::SuspRecv) ? 'R' : '-') <<
     ((m_flags & Connection::SuspSend) ? 'S' : '-') <<
@@ -610,7 +610,7 @@ public:
     uint32_t cxnFrag = 0;
     uint32_t cxnPack = 0;
     double cxnDelay = 0;
-    unsigned reconnectFreq = 0;
+    unsigned reconnectFreq = 1;
     try {
       parseAddr(args->get("1"), localIP, localPort);
       if (!localPort) throw ZeError();
@@ -635,7 +635,7 @@ public:
       cxnFrag = args->getInt("frag", INT_MIN, INT_MAX, 0);
       cxnPack = args->getInt("pack", INT_MIN, INT_MAX, 0);
       cxnDelay = args->getDbl("delay", 0, 3600, 0);
-      reconnectFreq = args->getInt("reconnect", 0, 3600, 0);
+      reconnectFreq = args->getInt("reconnect", 1, 3600, 1);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -1395,7 +1395,7 @@ void Proxy::failed2(bool transient)
     m_mx->add([this]() { connect2(); },
 	ZmTimeNow((int)m_listener->reconnectFreq()));
   } else {
-    if (m_app->verbose()) { ZeLOG(Info, this->status()); }
+    if (m_app->verbose()) { ZeLOG(Info, status()); }
     m_in->proxy(0);
     m_in->disconnect();
     m_listener->del(this);
@@ -1504,7 +1504,7 @@ void Listener::stop()
 ZiConnection *Listener::accepted(const ZiCxnInfo &ci)
 {
   ZmRef<Proxy> proxy = new Proxy(this);
-  if (m_app->verbose()) { ZeLOG(Info, this->status()); }
+  if (m_app->verbose()) { ZeLOG(Info, status()); }
   add(proxy);
   return new Connection(proxy, Connection::In | m_cxnFlags,
       m_cxnLatency, m_cxnFrag, m_cxnPack, m_cxnDelay, ci);
@@ -1515,7 +1515,7 @@ void Listener::status_(ZmStream &s) const
   s << *this;
   auto i = m_proxies->readIterator();
   while (ZmRef<Proxy> proxy = i.iterateVal())
-    s << "\n" << proxy->status();
+    s << '\n' << proxy->status();
 }
 
 int main(int argc, char **argv)
@@ -1533,10 +1533,7 @@ int main(int argc, char **argv)
     "  -v, --verbose\t- log connection setup and teardown events\n"
     "  -t, --mx:nThreads=N\t- set number of threads\n";
 
-  ZeLog::init("zproxy");
-  ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("&2"));
-  ZeLog::start();
+  bool interactive = Zrl::interactive();
 
   ZmRef<App> app = new App();
   ZmRef<ZvCf> args = new ZvCf();
@@ -1557,7 +1554,10 @@ int main(int argc, char **argv)
 
   app->start();
 
-  if (Zrl::interactive()) {
+  ZeLog::init("zproxy");
+  ZeLog::level(0);
+
+  if (interactive) {
     Zrl::Globber globber;
     Zrl::History history{100};
     Zrl::CLI cli;
@@ -1590,13 +1590,22 @@ int main(int argc, char **argv)
       .histSave = history.saveFn(),
       .histLoad = history.loadFn()
     });
-    cli.open();
-    cli.start();
-    cli.join();
-    cli.stop();
-    cli.close();
+    if (cli.open()) {
+      ZeLog::sink(ZeLog::lambdaSink([&cli](ZeLogBuf &buf, const ZeEvent &) {
+	buf << '\n';
+	cli.print([&buf]() { std::cout << buf << std::flush; });
+      }));
+      ZeLog::start();
+      cli.start();
+      cli.join();
+      ZeLog::stop();
+      cli.stop();
+      cli.close();
+    }
     cli.final();
   } else {
+    ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
+    ZeLog::start();
     ZtString cmd(1024);
     while (fgets(cmd.data(), cmd.size() - 1, stdin)) {
       cmd.calcLength();
@@ -1604,11 +1613,10 @@ int main(int argc, char **argv)
       if (app->exec(cmd)) break;
     }
     app->wait();
+    ZeLog::stop();
   }
 
   app->stop();
-
-  ZeLog::stop();
 
   app->final();
 

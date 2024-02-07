@@ -127,7 +127,7 @@ int main(int argc, const char *argv[])
     
     ZeLog::init("mcmerge");
     ZeLog::level(0);
-    ZeLog::sink(ZeLog::fileSink("&2"));
+    ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
     ZeLog::start();
 
     for (int i = 1, n = paths.length(); i < n; i++) {

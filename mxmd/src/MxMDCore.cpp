@@ -210,9 +210,9 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
   try {
     ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, Ze::Info));
     if (ZuString logFile = cf->get("log:file")) {
-      ZeLog::sink(ZeLog::fileSink(logFile,
-	    cf->getInt("log:age", 0, 1000, 8),
-	    cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0)));
+      ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path(logFile).
+	    age(cf->getInt("log:age", 0, 1000, 8)).
+	    tzOffset(cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0))));
     }
   } catch (...) { }
   ZeLog::start();

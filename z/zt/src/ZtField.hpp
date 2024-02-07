@@ -99,7 +99,7 @@ namespace ZtFieldFlags {
     Ctor_	= 0x00020,	// constructor parameter
     NDP_	= 0x00040,	// NDP for printing float/fixed/decimal
     Series	= 0x00080,	// data series
-      Index	= 0x00100,	// - index (e.g. time stamp)
+      Index	= 0x00100,	// - index (e.g. time, nonce, offset, seq#)
       Delta	= 0x00200,	// - first derivative
       Delta2	= 0x00400	// - second derivative
   };

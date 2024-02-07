@@ -81,7 +81,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("ZtlsClient");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("&2"));
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
   ZeLog::start();
 
   static const char *alpn[] = { "http/1.1", 0 };

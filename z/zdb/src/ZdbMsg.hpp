@@ -36,6 +36,10 @@
 
 namespace Zdb_ {
 
+namespace Op {
+  ZfbEnumValues(Op, New, Mod, Del);
+}
+
 // call following Finish() to push header and detach buffer
 template <typename Builder, typename Owner>
 inline auto saveHdr(Builder &fbb, Owner *owner) {
@@ -119,15 +123,6 @@ inline const fbs::Record *record(const fbs::Msg *msg) {
     case fbs::Body_Rec:
       return record_(msg);
   }
-}
-inline const fbs::Gap *gap_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Gap *>(msg->body());
-}
-inline const fbs::Gap *gap(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  if (static_cast<int>(msg->body_type()) != fbs::Body_Gap)
-    return nullptr;
-  return gap_(msg);
 }
 template <typename T>
 inline const T *data(const fbs::Record *record) {

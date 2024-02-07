@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 {
   ZeLog::init("zgtkdemo");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("zgtkdemo.log"));
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("zgtkdemo.log")));
   ZeLog::start();
 
   ZmTrap::sigintFn([]{ done.post(); });

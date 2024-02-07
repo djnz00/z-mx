@@ -266,7 +266,7 @@ int main(int argc, const char *argv[])
 
   ZeLog::init("ZiMxUDPClient");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("&2"));
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
   ZeLog::start();
 
   Mx mx(localIP, localPort, remoteIP, remotePort, connect, options,

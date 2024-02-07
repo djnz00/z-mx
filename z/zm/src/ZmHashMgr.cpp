@@ -29,11 +29,12 @@ class ZmHashMgr_ : public ZmObject {
 friend ZmSingletonCtor<ZmHashMgr_>;
 friend ZmHashMgr;
 
+  static const char *HeapID() { return "ZmHashMgr_"; }
   using ID2Params =
     ZmRBTreeKV<ZmIDString, ZmHashParams,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<[]{ return "ZmHashMgr_"; },
-	  ZmRBTreeLock<ZmNoLock> > > >;
+	ZmRBTreeHeapID<HeapID,
+	  ZmRBTreeLock<ZmNoLock>>>>;
 
   ZmHashMgr_() { }
 public:

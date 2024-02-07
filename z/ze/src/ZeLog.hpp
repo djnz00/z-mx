@@ -80,6 +80,22 @@ struct ZeSink : public ZmPolymorph {
   virtual void age() = 0;
 };
 
+struct ZeSinkOptions {
+  ZeSinkOptions &path(ZuString path) { m_path = path; return *this; }
+  ZeSinkOptions &age(unsigned age) { m_age = age; return *this; }
+  ZeSinkOptions &tzOffset(unsigned tzOffset)
+    { m_tzOffset = tzOffset; return *this; }
+
+  const auto &path() const { return m_path; }
+  auto age() const { return m_age; }
+  auto tzOffset() const { return m_tzOffset; }
+
+private:
+  ZuString	m_path;
+  unsigned	m_age = 8;
+  int		m_tzOffset = 0;
+};
+
 class ZeAPI ZeFileSink : public ZeSink {
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -87,9 +103,9 @@ class ZeAPI ZeFileSink : public ZeSink {
 public:
   ZeFileSink() :
       ZeSink{ZeSinkType::File} { init(); }
-  ZeFileSink(ZuString path, unsigned age = 8, int tzOffset = 0) :
-      ZeSink{ZeSinkType::File},
-      m_path{path}, m_age{age}, m_dateFmt{tzOffset} { init(); }
+  ZeFileSink(const ZeSinkOptions &options) :
+      ZeSink{ZeSinkType::File}, m_path{options.path()},
+      m_age{options.age()}, m_dateFmt{options.tzOffset()} { init(); }
 
   ~ZeFileSink();
 
@@ -116,8 +132,9 @@ class ZeAPI ZeDebugSink : public ZeSink {
 public:
   ZeDebugSink() : ZeSink{ZeSinkType::Debug},
     m_started{ZmTime::Now} { init(); }
-  ZeDebugSink(ZuString path) : ZeSink{ZeSinkType::Debug},
-    m_path{path}, m_started{ZmTime::Now} { init(); }
+  ZeDebugSink(const ZeSinkOptions &options) :
+      ZeSink{ZeSinkType::Debug},
+      m_path{options.path()}, m_started{ZmTime::Now} { init(); }
 
   ~ZeDebugSink();
 

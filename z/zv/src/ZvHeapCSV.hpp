@@ -37,46 +37,44 @@
 #include <zlib/ZtField.hpp>
 #include <zlib/ZvCSV.hpp>
 
-struct ZvHeapCSV {
-  struct Data : public ZtFieldTuple<Data> {
-    static const ZtFieldArray fields();
+namespace ZvHeapCSV {
 
-    ZmIDString		id;
-    ZuBox<unsigned>	partition;
-    ZuBox<unsigned>	alignment;
-    ZuBox<uint64_t>	cacheSize;
-    ZmBitmap		cpuset;
-  };
-  const ZtFieldArray Data::fields() {
-    ZtFields(Data,
-	(String, id),
-	(Int, partition),
-	(Int, alignment),
-	(Int, cacheSize),
-	(String, cpuset)
-  }
-
-  class CSV : public ZvCSV<Data> {
-  public:
-    void read(ZuString file) {
-      ZvCSV::readFile(file,
-	  [this]() { return &m_data; },
-	  [](Data *data) {
-	    ZmHeapMgr::init(data->id, data->partition, ZmHeapConfig{
-		data->alignment,
-		data->cacheSize,
-		data->cpuset});
-	  });
-    }
-
-  private:
-    Data	m_data;
-  };
-
-  static void init(ZuString file) {
-    if (!file) return;
-    CSV().read(file);
-  }
+struct Data {
+  ZmIDString	id;
+  unsigned	partition;
+  unsigned	alignment;
+  uint64_t	cacheSize;
+  ZmBitmap	cpuset;
 };
+
+ZtFields(Data,
+    (((id)), (String), (Ctor(0))),
+    (((partition)), (Int), (Ctor(1))),
+    (((alignment)), (Int), (Ctor(2))),
+    (((cacheSize)), (Int), (Ctor(3))),
+    (((cpuset)), (String), (Ctor(4))));
+
+class CSV : public ZvCSV<Data> {
+public:
+  void read(ZuString file) {
+    ZvCSV::readFile(file,
+	[this]() { return &m_data; },
+	[](Data *data) {
+	  ZmHeapMgr::init(data->id, data->partition, ZmHeapConfig{
+	      data->alignment,
+	      data->cacheSize,
+	      data->cpuset});
+	});
+  }
+
+private:
+  Data	m_data;
+};
+
+inline void init(ZuString file) {
+  if (file) CSV{}.read(file);
+}
+
+} // ZvHeapCSV
 
 #endif /* ZvHeapCSV_HPP */

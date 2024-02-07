@@ -165,7 +165,7 @@ int main()
 {
   ZeLog::init("MxEngineTest");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("&2"));
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
   ZeLog::start();
 
   ZmRef<ZvCf> cf = new ZvCf();

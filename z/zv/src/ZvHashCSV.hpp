@@ -38,43 +38,42 @@
 #include <zlib/ZtField.hpp>
 #include <zlib/ZvCSV.hpp>
 
-struct ZvHashCSV {
-  struct Data : public ZtFieldTuple<Data> {
-    static const ZtFieldArray fields();
+namespace ZvHashCSV {
 
-    ZmIDString		id;
-    ZuBox<unsigned>	bits;
-    ZuBox<double>	loadFactor;
-    ZuBox<unsigned>	cBits;
-  };
-  const ZtFieldArray Data::fields() {
-    ZtFields(Data,
-	(String, id),
-	(Int, bits),
-	(Int, loadFactor),
-	(Int, cBits));
-  }
-
-  class CSV : public ZvCSV<Data> {
-  public:
-    void read(ZuString file) {
-      ZvCSV::readFile(file,
-	  [this]() { return &m_data; },
-	  [](Data *data) {
-	    ZmHashMgr::init(data->id, ZmHashParams().
-		bits(data->bits).
-		loadFactor(data->loadFactor).
-		cBits(data->cBits));
-	  });
-    }
-
-  private:
-    Data	m_data;
-  };
-
-  static void init(ZuString file) {
-    if (file) CSV().read(file);
-  }
+struct Data {
+  ZmIDString	id;
+  unsigned	bits;
+  double	loadFactor;
+  unsigned	cBits;
 };
+
+ZtFields(Data,
+    (((id)), (String), (Ctor(0))),
+    (((bits)), (Int), (Ctor(1))),
+    (((loadFactor)), (Int), (Ctor(2))),
+    (((cBits)), (Int), (Ctor(3))));
+
+class CSV : public ZvCSV<Data> {
+public:
+  void read(ZuString file) {
+    ZvCSV::readFile(file,
+	[this]() { return &m_data; },
+	[](Data *data) {
+	  ZmHashMgr::init(data->id, ZmHashParams{}.
+	      bits(data->bits).
+	      loadFactor(data->loadFactor).
+	      cBits(data->cBits));
+	});
+  }
+
+private:
+  Data	m_data;
+};
+
+inline void init(ZuString file) {
+  if (file) CSV{}.read(file);
+}
+
+} // ZvHashCSV
 
 #endif /* ZvHashCSV_HPP */

@@ -301,7 +301,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("telcap");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink("&2"));
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
   ZeLog::start();
 
   ZmRef<ZvCf> cf = new ZvCf();

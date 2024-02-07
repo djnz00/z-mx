@@ -952,7 +952,7 @@ void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN)
   ZmAssert(fileInvoked());
 
   if (!cxn->up()) return;
-  if (auto buf = read_(rn)) {
+  if (auto buf = read_(rn)) {	// FIXME - async
     recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
     return;
   }
@@ -1485,7 +1485,7 @@ void DB::write(ZmRef<Buf> buf)
 	db->fileRun([buf = ZuMv(buf)]() mutable {
 	  auto db = buf->db();
 	  auto rn = record_(msg_(buf->hdr()))->rn();
-	  if (db->write_(ZuMv(buf))) db->ack(rn + 1);
+	  if (db->write_(ZuMv(buf))) db->ack(rn + 1); // FIXME - async
 	});
     });
   } else { // disk write then replicate (slower but potentially more durable)
@@ -1702,6 +1702,7 @@ void DB::vacuum()
 	break;
       case Op::Put:
       case Op::Delete:
+	// FIXME - get rid of all this
 	if (ZuLikely(seqLen)) {
 	  unsigned batchSize = seqLen;
 	  bool atHead = (j + batchSize) <= n;

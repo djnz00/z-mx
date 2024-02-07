@@ -70,7 +70,7 @@
 #include <zlib/ZdbTypes.hpp>
 #include <zlib/ZdbMsg.hpp>
 #include <zlib/ZdbBuf.hpp>
-#include <zlib/ZdbFile.hpp>
+// #include <zlib/ZdbFile.hpp>
 
 // Zdb is a clustered/replicated in-process/in-memory journal DB that
 // includes leader election and failover. Zdb dynamically organizes
@@ -324,6 +324,9 @@ inline void Buf::print(S &s) const {
 
 // -- DB generic object
 
+// RN, prevRN, origRN etc. are established at construction
+// UN is allocated and assigned when committed
+
 class ZdbAPI AnyObject_ : public ZmPolymorph {
   AnyObject_() = delete;
   AnyObject_(const AnyObject_ &) = delete;
@@ -352,7 +355,8 @@ public:
 
   template <typename S> void print(S &s) const {
     using namespace Zdb_;
-    s << "rn=" << m_rn <<
+    s << "un=" << m_un <<
+      " rn=" << m_rn <<
       " prevRN=" << m_prevRN <<
       " origRN=" << m_origRN <<
       " seqLen=" << SeqLenOp::seqLen(m_seqLenOp) <<

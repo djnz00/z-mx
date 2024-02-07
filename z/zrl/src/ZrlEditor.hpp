@@ -334,9 +334,9 @@ using Map = Maps::Node;
 // in traditional vi:
 //   - "- and "" are internal and are not accessible as named registers
 //
-// none of this quirkiness reflects good product design or usability
-// and most vi users are unaware of these nuances; most vi mode emulators
-// neglect register handling in its entirety; in this implementation
+// none of this quirkiness embodies good product design or usability -
+// most vi users are probably unaware of these nuances; vi mode emulators
+// typipcally neglect register handling in its entirety; in this implementation
 // all yanks and deletes shift up registers 0>9 and store into register "0,
 // and the 'unnamed' register is always implicitly "0; "" and "- do not
 // separately exist and are aliased to "0; these design choices retain
@@ -584,6 +584,18 @@ public:
   // can be called before start(), or from within terminal thread once running
   ZtString getpass(ZuString prompt, unsigned passLen) {
     return m_tty.getpass(prompt, passLen);
+  }
+
+  // print using std cout/cerr
+  template <typename L>
+  void print(L l) {
+    m_tty.invoke([this, l = ZuMv(l)]() {
+      m_tty.opost_off();
+      std::cout << "\r";
+      l();
+      m_tty.opost_on();
+      m_tty.redraw();
+    });
   }
 
   // start/stop
