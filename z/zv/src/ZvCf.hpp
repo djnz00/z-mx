@@ -665,24 +665,22 @@ struct Fielded_ {
   using FieldList = ZuFieldList<O>;
 
   template <typename U>
-  struct AllFilter { enum { OK = !U::ReadOnly }; };
+  struct AllFilter : public ZuBool<!U::ReadOnly> { };
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U>
-  struct UpdateFilter { enum { OK = U::Flags & ZtFieldFlags::Update }; };
+  struct UpdateFilter : public ZuTypeIn<ZtFieldProp::Update, U::Props> { };
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>
-  struct CtorFilter { enum { OK = U::Flags & ZtFieldFlags::Ctor_ }; };
-  using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
+  struct CtorFilter :
+      public ZuBool<(ZtFieldProp::GetCtor<U::Props>{} >= 0)> { };
   template <typename U>
-  struct CtorIndex {
-    enum { I = (U::Flags>>ZtFieldFlags::CtorShift) & ZtFieldFlags::CtorMask };
-  };
-  using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
+  struct CtorIndex : public ZtFieldProp::GetCtor<U::Props> { };
+  using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
 
   template <typename U>
-  struct InitFilter { enum { OK = !(U::Flags & ZtFieldFlags::Ctor_) }; };
+  struct InitFilter : public ZuBool<!(U::Flags & ZtFieldFlags::Ctor_)> { };
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
   template <typename ...Fields>
@@ -751,10 +749,7 @@ struct Fielded_ {
 
   template <unsigned KeyID>
   struct KeyFilter {
-    template <typename U>
-    struct T {
-      enum { OK = U::keys() & (1<<KeyID) };
-    };
+    template <typename U> struct T : ZuBool<(U::keys() & (1<<KeyID))> { };
   };
   template <unsigned KeyID = 0>
   static auto key(const Cf_ *cf) {

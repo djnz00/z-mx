@@ -230,7 +230,7 @@ public:
 
   template <typename T>
   T *new_() {
-    this->type_(Index<T>::I);
+    this->type_(Index<T>{});
     return reinterpret_cast<T *>(&m_u[0]);
   }
   template <typename T>
@@ -240,13 +240,13 @@ public:
 
   template <typename T> T *init() {
     this->~Union();
-    this->type_(Index<T>::I);
+    this->type_(Index<T>{});
     return reinterpret_cast<T *>(&m_u[0]);
   }
 
 private:
   template <typename V, bool = ZuConversion<Union, V>::Is> struct Fwd_Ctor_ {
-    using T = Type<Index_<V>::I>;
+    using T = Type<Index_<V>{}>;
     static void ctor(Union *this_, V &&v) {
       new (new_<T>(this_)) T{ZuMv(v)};
     }
@@ -272,7 +272,7 @@ public:
 
 private:
   template <typename V, bool = ZuTraits<V>::IsPrimitive> struct Fwd_Assign__ {
-    using T = Type<Index_<V>::I>;
+    using T = Type<Index_<V>{}>;
     static void assign(Union *this_, V &&v) {
       new (this_->init<T>()) T{ZuMv(v)};
     }
@@ -281,7 +281,7 @@ private:
     }
   };
   template <typename V> struct Fwd_Assign__<V, true> {
-    using T = Type<Index_<V>::I>;
+    using T = Type<Index_<V>{}>;
     static void assign(Union *this_, V v) {
       *(this_->init<T>()) = v;
     }
@@ -380,7 +380,7 @@ public:
   unsigned type() const { return m_u[Size]; }
 
   template <typename T>
-  bool contains() const { return type() == Index<T>::I; }
+  bool contains() const { return type() == Index<T>{}; }
 
   template <unsigned I>
   const Type_<I> &p() const & {
@@ -426,16 +426,16 @@ public:
   }
 
   template <typename T>
-  const Type_<Index<T>::I> &v() const {
-    return this->template p<Index<T>::I>();
+  const Type_<Index<T>{}> &v() const {
+    return this->template p<Index<T>{}>();
   }
   template <typename T, typename P>
   Union &v(P &&p) {
-    return this->template p<Index<T>::I>(ZuFwd<P>(p));
+    return this->template p<Index<T>{}>(ZuFwd<P>(p));
   }
   template <typename T>
-  Type_<Index<T>::I> &v() {
-    return this->template p<Index<T>::I>();
+  Type_<Index<T>{}> &v() {
+    return this->template p<Index<T>{}>();
   }
 
   template <unsigned I>
@@ -543,25 +543,25 @@ get(const Union<Args...> &&p) {
 
 template <typename T, typename ...Args>
 constexpr T &get(Union<Args...> &p) {
-  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+  if (ZuUnlikely(p.type() != typename Union<Args...>::template Index<T>{}))
     throw bad_variant_access{};
   return p.template v<T>();
 }
 template <typename T, typename ...Args>
 constexpr const T &get(const Union<Args...> &p) {
-  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+  if (ZuUnlikely(p.type() != typename Union<Args...>::template Index<T>{}))
     throw bad_variant_access{};
   return p.template v<T>();
 }
 template <typename T, typename ...Args>
 constexpr T &&get(Union<Args...> &&p) {
-  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+  if (ZuUnlikely(p.type() != typename Union<Args...>::template Index<T>{}))
     throw bad_variant_access{};
   return static_cast<T &&>(p.template v<T>());
 }
 template <typename T, typename ...Args>
 constexpr const T &&get(const Union<Args...> &&p) {
-  if (ZuUnlikely(p.type() != Union<Args...>::template Index<T>::I))
+  if (ZuUnlikely(p.type() != typename Union<Args...>::template Index<T>{}))
     throw bad_variant_access{};
   return static_cast<const T &&>(p.template v<T>());
 }

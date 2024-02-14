@@ -90,53 +90,42 @@ public:
   }
 
 public:
-  template <typename U> struct IsPrimitiveArray_ {
-    using V = typename ZuTraits<U>::Elem;
-    enum { OK = ZuConversion<V, T>::Same &&
-      ZuTraits<U>::IsArray && ZuTraits<U>::IsPrimitive };
-  };
-  template <typename U> struct IsChar_ {
-    enum { OK =
+  template <typename U, typename V = T>
+  struct IsPrimitiveArray_ : public ZuBool<
+      ZuConversion<typename ZuTraits<U>::Elem, V>::Same &&
+      ZuTraits<U>::IsArray &&
+      ZuTraits<U>::IsPrimitive> { };
+  template <typename U> struct IsChar_ : public ZuBool<
       ZuConversion<char, U>::Same ||
-      ZuConversion<wchar_t, U>::Same
-    };
-  };
-  template <typename U> struct IsCharElem_ {
-    using V = typename ZuTraits<U>::Elem;
-    enum { OK = IsChar_<V>::OK };
-  };
-  template <typename U> struct IsStrLiteral {
-    enum { OK = IsPrimitiveArray_<U>::OK && IsCharElem_<U>::OK };
-  };
-  template <typename U> struct IsPrimitiveArray {
-    enum { OK = IsPrimitiveArray_<U>::OK && !IsCharElem_<U>::OK };
-  };
-  template <typename U> struct IsCString {
-    enum { OK = !IsPrimitiveArray_<U>::OK && ZuTraits<U>::IsPointer &&
-      IsCharElem_<U>::OK };
-  };
-  template <typename U, typename V = T> struct IsOtherArray {
-    enum { OK =
-      !IsPrimitiveArray_<U>::OK && !IsCString<U>::OK &&
+      ZuConversion<wchar_t, U>::Same> { };
+  template <typename U>
+  struct IsCharElem_ : public IsChar_<typename ZuTraits<U>::Elem> { };
+  template <typename U> struct IsStrLiteral :
+    public ZuBool<IsPrimitiveArray_<U>{} && IsCharElem_<U>{}> { };
+  template <typename U> struct IsPrimitiveArray :
+    public ZuBool<IsPrimitiveArray_<U>{} && !IsCharElem_<U>{}> { };
+  template <typename U> struct IsCString : public ZuBool<
+      !IsPrimitiveArray_<U>{} &&
+      ZuTraits<U>::IsPointer &&
+      IsCharElem_<U>{}> { };
+  template <typename U, typename V = T> struct IsOtherArray : public ZuBool<
+      !IsPrimitiveArray_<U>{} &&
+      !IsCString<U>{} &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
-  template <typename U, typename V = T> struct IsPtr {
-    using W = ZuNormChar<U>;
-    using X = ZuNormChar<V>;
-    enum { OK = ZuConversion<W *, X *>::Exists };
-  };
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
+  template <typename U, typename V = T> struct IsPtr : public ZuBool<
+      ZuConversion<ZuNormChar<U> *, ZuNormChar<V> *>::Exists> { };
 
   template <typename U, typename R = void>
-  using MatchStrLiteral = ZuIfT<IsStrLiteral<ZuDecay<U>>::OK, R>; 
+  using MatchStrLiteral = ZuIfT<IsStrLiteral<ZuDecay<U>>{}, R>; 
   template <typename U, typename R = void>
-  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<ZuDecay<U>>::OK, R>; 
+  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<ZuDecay<U>>{}, R>; 
   template <typename U, typename R = void>
-  using MatchCString = ZuIfT<IsCString<ZuDecay<U>>::OK, R>; 
+  using MatchCString = ZuIfT<IsCString<ZuDecay<U>>{}, R>; 
   template <typename U, typename R = void>
-  using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>::OK, R>; 
+  using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>{}, R>; 
   template <typename U, typename R = void>
-  using MatchPtr = ZuIfT<IsPtr<ZuDecay<U>>::OK, R>; 
+  using MatchPtr = ZuIfT<IsPtr<ZuDecay<U>>{}, R>; 
 
 public:
   // compile-time length from string literal (null-terminated)
@@ -395,6 +384,8 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
 
 template <typename T>
 using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;
+
+using ZuBytes = ZuArray<uint8_t>;
 
 #ifdef _MSC_VER
 #pragma warning(pop)

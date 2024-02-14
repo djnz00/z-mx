@@ -19,9 +19,7 @@ DEFINE(C, 1);
 DEFINE(D, 5);
 DEFINE(E, 4);
 
-template <typename T> struct Index {
-  enum { I = T::I };
-};
+template <typename T> struct Index : public ZuUnsigned<T::I> { };
 
 using Sorted = ZuTypeSort<Index, A, B, C, D, E>;
 

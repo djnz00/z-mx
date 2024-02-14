@@ -631,7 +631,7 @@ public:
   // ensure passed lambdas are stateless and match required signature
   template <
     typename L,
-    bool = ZuFnTraits<L>::template Match<void, Rx *>::OK>
+    bool = ZuFnTraits<L>::template Match<void, Rx *>{}>
   struct RcvdLambda;
   template <typename L>
   struct RcvdLambda<L, true> : public ZuFnTraits<L> { };

@@ -120,7 +120,6 @@
 
 #include <zlib/ZtString.hpp>
 
-#define ZtDate_NullJulian	INT_MIN
 #define ZtDate_MaxJulian	(0x1fffffff - 68572)
 
 class ZtDate;
@@ -134,8 +133,8 @@ private:
 public:
   static bool isMinimum(int32_t t) { return t == minimum(); }
   static bool isMaximum(int32_t t) { return t == maximum(); }
-  static int32_t time(int julian, int second) {
-    if (julian == ZtDate_NullJulian) return 0;
+  static time_t time(int32_t julian, int second) {
+    if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
     if (julian < 2415732) {
       return minimum();
     } else if (julian == 2415732) {
@@ -153,8 +152,8 @@ template <> class ZtDate_time_t<8> {
 public:
   constexpr static bool isMinimum(int64_t) { return false; }
   constexpr static bool isMaximum(int64_t) { return false; }
-  static int64_t time(int julian, int second) {
-    if (julian == ZtDate_NullJulian) return 0;
+  static time_t time(int32_t julian, int second) {
+    if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
     return ((int64_t)julian - (int64_t)2440588) * (int64_t)86400 +
       (int64_t)second;
   }
@@ -322,10 +321,10 @@ public:
   enum Now_ { Now };		// disambiguator
   enum Julian_ { Julian };	// ''
 
-  ZtDate() : m_julian(ZtDate_NullJulian), m_sec(0), m_nsec(0) { }
+  ZtDate() = default;
 
   ZtDate(const ZtDate &date) :
-    m_julian(date.m_julian), m_sec(date.m_sec), m_nsec(date.m_nsec) { }
+    m_julian{date.m_julian}, m_sec{date.m_sec}, m_nsec{date.m_nsec} { }
 
   ZtDate &operator =(const ZtDate &date) {
     if (ZuUnlikely(this == &date)) return *this;
@@ -336,8 +335,7 @@ public:
   }
 
   void update(const ZtDate &date) {
-    if (ZuUnlikely(this == &date) ||
-	date.m_julian == ZtDate_NullJulian) return;
+    if (ZuUnlikely(this == &date) || !date) return;
     m_julian = date.m_julian;
     m_sec = date.m_sec;
     m_nsec = date.m_nsec;
@@ -660,7 +658,7 @@ public:
     return (time_t)Native::time(m_julian, m_sec);
   }
   double dtime() const {
-    if (ZuUnlikely(m_julian == ZtDate_NullJulian)) return ZuCmp<double>::null();
+    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
     time_t t = Native::time(m_julian, m_sec);
     if (ZuUnlikely(Native::isMinimum(t))) return -ZuCmp<double>::inf();
     if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<double>::inf();
@@ -668,8 +666,8 @@ public:
   }
   operator ZmTime() const { return this->zmTime(); }
   ZmTime zmTime() const {
-    if (ZuUnlikely(m_julian == ZtDate_NullJulian)) return ZmTime();
-    return ZmTime(this->time(), m_nsec);
+    if (ZuUnlikely(!*this)) return {};
+    return ZmTime{this->time(), m_nsec};
   }
 
   struct tm *tm(struct tm *tm) const;
@@ -1075,8 +1073,8 @@ public:
     return l.cmp(r);
   }
 
-  bool operator !() const {
-    return (int)m_julian == (int)ZtDate_NullJulian;
+  constexpr bool operator !() const {
+    return m_julian == ZuCmp<int32_t>::null();
   }
   ZuOpBool
 
@@ -1157,8 +1155,13 @@ public:
 	       int hour, int minute, int second, const char *tz);
 
   void init(time_t t) {
-    m_julian = static_cast<int32_t>((t / 86400) + 2440588);
-    m_sec = static_cast<int32_t>(t % 86400);
+    if (ZuUnlikely(ZuCmp<time_t>::null(t))) {
+      m_julian = ZuCmp<int32_t>::null();
+      m_sec = 0;
+    } else {
+      m_julian = static_cast<int32_t>((t / 86400) + 2440588);
+      m_sec = static_cast<int32_t>(t % 86400);
+    }
     m_nsec = 0;
   }
 
@@ -1167,9 +1170,9 @@ public:
   friend Traits ZuTraitsType(ZtDate *);
 
 private:
-  int32_t	m_julian;	// julian day
-  int32_t	m_sec;		// time within day, in seconds, from midnight
-  int32_t	m_nsec;		// nanoseconds
+  int32_t	m_julian = ZuCmp<int32_t>::null();	// julian day
+  int32_t	m_sec = 0;	// time within day, in seconds, from midnight
+  int32_t	m_nsec = 0;	// nanoseconds
 
 // effective date of the reformation (default 14th September 1752)
 
@@ -1244,16 +1247,16 @@ inline void ZtDatePrint::print(S &s) const {
   using namespace ZtDateFmt;
   switch (fmt.type()) {
     default:
-    case Any::Index<CSV>::I:
+    case Any::Index<CSV>{}:
       s << value.print(fmt.csv());
       break;
-    case Any::Index<FIXDeflt>::I:
+    case Any::Index<FIXDeflt>{}:
       s << value.print(fmt.fix());
       break;
-    case Any::Index<ISO>::I:
+    case Any::Index<ISO>{}:
       s << value.print(fmt.iso());
       break;
-    case Any::Index<Strftime>::I: {
+    case Any::Index<Strftime>{}: {
       const auto &strftime = fmt.strftime();
       s << value.strftime(strftime.format, strftime.offset);
     } break;

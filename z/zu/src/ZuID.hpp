@@ -66,11 +66,10 @@ public:
     return *this;
   }
 
-  template <typename V> struct IsUInt64 {
-    enum { OK = !ZuTraits<V>::IsString && ZuConversion<V, uint64_t>::Exists };
-  };
+  template <typename V> struct IsUInt64 : public ZuBool<
+    !ZuTraits<V>::IsString && ZuConversion<V, uint64_t>::Exists> { };
   template <typename V, typename R = void>
-  using MatchUInt64 = ZuIfT<IsUInt64<V>::OK, R>;
+  using MatchUInt64 = ZuIfT<IsUInt64<V>{}, R>;
 
   template <typename V>
   ZuID(V v, MatchUInt64<V> *_ = nullptr) : m_val{v} { }

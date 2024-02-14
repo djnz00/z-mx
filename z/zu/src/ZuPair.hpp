@@ -40,18 +40,15 @@
 struct ZuPair_ { };
 
 template <typename T, typename P, bool IsPair> struct ZuPair_Cvt_;
-template <typename T, typename P> struct ZuPair_Cvt_<T, P, 0> {
-  enum { OK = 0 };
-};
-template <typename T, typename P> struct ZuPair_Cvt_<T, P, 1> {
-  enum {
-    OK = ZuConversion<typename T::T0, typename P::T0>::Exists &&
-	 ZuConversion<typename T::T1, typename P::T1>::Exists
-  };
-};
-template <typename T, typename P> struct ZuPair_Cvt :
-  public ZuPair_Cvt_<ZuDecay<T>, P,
-    ZuConversion<ZuPair_, ZuDecay<T>>::Base> { };
+template <typename T, typename P>
+struct ZuPair_Cvt_<T, P, 0> : public ZuFalse { };
+template <typename T, typename P>
+struct ZuPair_Cvt_<T, P, 1> : public ZuBool<
+  ZuConversion<typename T::T0, typename P::T0>::Exists &&
+  ZuConversion<typename T::T1, typename P::T1>::Exists> { };
+template <typename T, typename P>
+struct ZuPair_Cvt : public
+  ZuPair_Cvt_<ZuDecay<T>, P, ZuConversion<ZuPair_, ZuDecay<T>>::Base> { };
 
 // fwd-declare the traits
 namespace Zu_ {
@@ -153,13 +150,13 @@ public:
   ~Pair_() = default;
 
   template <typename T>
-  Pair_(T &&v, ZuIfT<ZuPair_Cvt<ZuDecay<T>, Pair_>::OK> *_ = nullptr) :
+  Pair_(T &&v, ZuIfT<ZuPair_Cvt<ZuDecay<T>, Pair_>{}> *_ = nullptr) :
     m_p0{Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))},
     m_p1{Bind<ZuDecay<T>>::p1(ZuFwd<T>(v))} { }
 
 protected:
   template <typename T>
-  ZuIfT<ZuPair_Cvt<ZuDecay<T>, Pair_>::OK> assign(T &&v) {
+  ZuIfT<ZuPair_Cvt<ZuDecay<T>, Pair_>{}> assign(T &&v) {
     m_p0 = Bind<ZuDecay<T>>::p0(ZuFwd<T>(v));
     m_p1 = Bind<ZuDecay<T>>::p1(ZuFwd<T>(v));
   }

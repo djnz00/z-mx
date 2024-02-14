@@ -258,7 +258,7 @@ struct ZuFieldTuple<ZuTypeList<Fields...>> :
 template <unsigned KeyID>
 struct ZuFieldKey {
   template <typename U>
-  struct Filter { enum { OK = U::keys() & (1<<KeyID) }; };
+  struct Filter : public ZuBool<U::keys() & (1<<KeyID)> { };
 };
 template <typename O, unsigned KeyID = 0>
 inline constexpr auto ZuFieldAxor() {

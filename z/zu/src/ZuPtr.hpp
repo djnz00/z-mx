@@ -47,19 +47,16 @@ public:
 
 private:
   // matches ZuPtr<U> where U is not T, but is in the same type hierarchy as T
-  template <typename U> struct IsOtherPtr_ {
-    enum { OK =
-      (ZuConversion<T, typename U::T>::Base ||
-       ZuConversion<typename U::T, T>::Base) };
-  };
-  template <typename U, typename = void, bool = IsOtherPtr_<U>::OK>
+  template <typename U> struct IsOtherPtr_ : public ZuBool<
+    (ZuConversion<T, typename U::T>::Base ||
+     ZuConversion<typename U::T, T>::Base)> { };
+  template <typename U, typename = void, bool = IsOtherPtr_<U>{}>
   struct MatchOtherPtr__ { };
   template <typename U, typename R>
   struct MatchOtherPtr__<U, R, true> { using T = R; };
-  template <typename U> struct IsOtherPtr1 {
-    enum { OK = ZuConversion<ZuPtr_, U>::Base };
-  };
-  template <typename U, typename = void, bool = IsOtherPtr1<U>::OK>
+  template <typename U> struct IsOtherPtr1 :
+    public ZuBool<ZuConversion<ZuPtr_, U>::Base> { };
+  template <typename U, typename = void, bool = IsOtherPtr1<U>{}>
   struct MatchOtherPtr_;
   template <typename U, typename R>
   struct MatchOtherPtr_<U, R, true> : public MatchOtherPtr__<U, R> { };
@@ -67,19 +64,16 @@ private:
   using MatchOtherPtr = typename MatchOtherPtr_<U, R>::T;
 
   // matches ZuPtr<U> where U is either T or in the same type hierarchy as T
-  template <typename U> struct IsZuPtr__ {
-    enum { OK =
-      (ZuConversion<T, typename U::T>::Is ||
-       ZuConversion<typename U::T, T>::Is) };
-  };
-  template <typename U, typename = void, bool = IsZuPtr__<U>::OK>
+  template <typename U> struct IsZuPtr__ : public ZuBool<
+    (ZuConversion<T, typename U::T>::Is ||
+     ZuConversion<typename U::T, T>::Is)> { };
+  template <typename U, typename = void, bool = IsZuPtr__<U>{}>
   struct MatchZuPtr__ { };
   template <typename U, typename R>
   struct MatchZuPtr__<U, R, true> { using T = R; };
-  template <typename U> struct IsZuPtr_ {
-    enum { OK = ZuConversion<ZuPtr_, U>::Base };
-  };
-  template <typename U, typename = void, bool = IsZuPtr_<U>::OK>
+  template <typename U> struct IsZuPtr_ :
+    public ZuBool<ZuConversion<ZuPtr_, U>::Base> { };
+  template <typename U, typename = void, bool = IsZuPtr_<U>{}>
   struct MatchZuPtr_;
   template <typename U, typename R>
   struct MatchZuPtr_<U, R, true> : public MatchZuPtr__<U, R> { };
@@ -87,11 +81,10 @@ private:
   using MatchZuPtr = typename MatchZuPtr_<U, R>::T;
 
   // matches U * where U is either T or in the same type hierarchy as T
-  template <typename U> struct IsPtr {
-    enum { OK = (ZuConversion<T, U>::Is || ZuConversion<U, T>::Is) };
-  };
+  template <typename U> struct IsPtr :
+    public ZuBool<(ZuConversion<T, U>::Is || ZuConversion<U, T>::Is)> { };
   template <typename U, typename R = void>
-  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
+  using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 
 public:
   ZuPtr() : m_object{nullptr} { }

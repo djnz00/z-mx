@@ -74,8 +74,8 @@ namespace T1 {
   using T = _::T;
 }
 
-ZuAssert(ZuHash_Can<T1::V>::OK);
-ZuAssert(ZuHash_Can<T1::T>::OK);
+ZuAssert(ZuHash_Can<T1::V>{});
+ZuAssert(ZuHash_Can<T1::T>{});
 
 namespace T2 {
   using I = int;
@@ -412,7 +412,7 @@ int main()
     char c_[sizeof(U)];
     *reinterpret_cast<double *>(c_) = 42.0;
     auto c = reinterpret_cast<U *>(c_);
-    c->type_(U::Index<double>::I);
+    c->type_(U::Index<double>{});
     CHECK(c->v<double>() == 42.0);
     auto d = get<double>(*c);
     CHECK(d == 42.0);

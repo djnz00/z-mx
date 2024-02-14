@@ -87,6 +87,6 @@ int main()
   }
   {
     static const int names[] = { 0, 1, 2 };
-    test(ZuArray<const int>::IsPrimitiveArray<ZuDecay<decltype(names)>>::OK);
+    test(ZuArray<const int>::IsPrimitiveArray<ZuDecay<decltype(names)>>{});
   }
 }

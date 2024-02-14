@@ -59,7 +59,7 @@ public:
   enum Now_ { Now };		// disambiguator
   enum Nano_ { Nano };		// ''
 
-  constexpr ZmTime() : timespec{0, 0} { }
+  constexpr ZmTime() : timespec{ZuCmp<time_t>::null(), 0} { }
 
   constexpr ZmTime(const ZmTime &t) : timespec{t.tv_sec, t.tv_nsec} { }
   constexpr ZmTime &operator =(const ZmTime &t) {
@@ -70,15 +70,13 @@ public:
 
   constexpr ~ZmTime() { }
 
-  template <typename T> struct IsInt {
-    enum { OK =
+  template <typename T> struct IsInt : public ZuBool<
       ZuConversion<int, T>::Same ||
       ZuConversion<unsigned, T>::Same ||
       ZuConversion<long, T>::Same ||
-      ZuConversion<time_t, T>::Same };
-  };
+      ZuConversion<time_t, T>::Same> { };
   template <typename T, typename R = void>
-  using MatchInt = ZuIfT<IsInt<T>::OK, R>;
+  using MatchInt = ZuIfT<IsInt<T>{}, R>;
 
   ZmTime(Now_) { now(); }
   template <typename T>
@@ -142,6 +140,7 @@ public:
   constexpr time_t time() const { return(tv_sec); }
   constexpr operator time_t() const { return(tv_sec); }
   constexpr double dtime() const {
+    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
     return (double)tv_sec + (double)tv_nsec / (double)1000000000;
   }
   constexpr int32_t millisecs() const {
@@ -270,8 +269,8 @@ public:
     return l.cmp(r);
   }
 
-  constexpr int operator !() const {
-    return !(tv_sec || tv_nsec);
+  constexpr bool operator !() const {
+    return ZuCmp<time_t>::null(tv_sec);
   }
   ZuOpBool
 
@@ -288,6 +287,7 @@ public:
   friend Traits ZuTraitsType(ZmTime *);
 
   template <typename S> void print(S &s) const {
+    if (!*this) return;
     int year, month, day, hour, minute, sec;
     {
       int julian;
@@ -319,6 +319,18 @@ public:
       ZuBoxed(tv_nsec).fmt<ZuFmt::Frac<9>>();
   }
   friend ZuPrintFn ZuPrintType(ZmTime *);
+
+  // print as interval
+  struct Interval {
+    const ZmTime &time;
+    template <typename S> void print(S &s) const {
+      if (!time) return;
+      s << ZuBoxed(time.tv_sec) << '.' <<
+	ZuBoxed(time.tv_nsec).fmt<ZuFmt::Frac<9>>();
+    }
+    friend ZuPrintFn ZuPrintType(Interval *);
+  };
+  Interval interval() const { return {*this}; }
 };
 
 inline ZmTime ZmTimeNow() { return ZmTime{ZmTime::Now}; }

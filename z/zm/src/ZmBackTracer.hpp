@@ -67,7 +67,7 @@ public:
     bool first = true;
     for (unsigned i = 0; i < N; i++) {
       unsigned j = (m_offset + (N - 1) - i) % N;
-      if (m_captures[j].type() == Capture::Index<Data>::I) {
+      if (m_captures[j].type() == Capture::Index<Data>{}) {
 	const Data &data = m_captures[j].template p<0>();
 	if (!first) s << "---\n";
 	first = false;

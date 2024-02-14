@@ -281,24 +281,12 @@ struct Record_Print {
     auto seqLenOp = record->seqLenOp();
     auto data = Zfb::Load::bytes(record->data());
     s << "record{db=" << id <<
-      " RN=" << record->rn() <<
-      " prevRN=" << record->prevRN() <<
-      " seqLen=" << SeqLenOp::seqLen(seqLenOp) <<
-      " op=" << Op::name(SeqLenOp::op(seqLenOp)) <<
+      " un=" << Zfb::Load::zdb_un(record->un()) <<
+      " rn=" << record->rn() <<
+      " op=" << Op::name(record->op()) <<
       ZtHexDump("}\n", data.data(), data.length());
   }
   friend ZuPrintFn ZuPrintType(Record_Print *);
-};
-
-struct Gap_Print {
-  const fbs::Gap *gap = nullptr;
-  template <typename S> void print(S &s) const {
-    auto id = Zfb::Load::id(gap->db());
-    s << "gap{db=" << id <<
-      " RN=" << gap->rn() <<
-      " count=" << gap->count() << "}";
-  }
-  friend ZuPrintFn ZuPrintType(Gap_Print *);
 };
 
 struct HB_Print {
@@ -317,15 +305,50 @@ inline void Buf::print(S &s) const {
   auto msg = Zdb_::msg(ptr<Hdr>());
   if (!msg) { s << "corrupt{}"; return; }
   if (auto record = Zdb_::record(msg)) { s << Record_Print{record}; return; }
-  if (auto gap = Zdb_::gap(msg)) { s << Gap_Print{gap}; return; }
   if (auto hb = Zdb_::hb(msg)) { s << HB_Print{hb}; return; }
   s << "unknown{}";
 }
 
 // -- DB generic object
 
-// RN, prevRN, origRN etc. are established at construction
+// RN is allocated at construction
 // UN is allocated and assigned when committed
+
+namespace ObjState {
+  ZtEnumValues("ObjState",
+      Undefined = 0,
+      Push,
+      Update,
+      Committed,
+      Delete,
+      Deleted);
+}
+
+// possible state paths:
+//
+// Undefined, Push			push
+// Push, Committed			push committed
+// Push, Undefined			push aborted
+// Committed, Update, Committed		update committed or aborted
+// Committed, Delete, Deleted		delete committed
+// Committed, Delete, Committed		delete aborted
+//
+// path forks:
+//
+// Push   > (Committed|Undefined)
+// Delete > (Deleted|Committed)
+//
+// events:
+//
+// Undefined > Push	push
+// Push > Committed	put
+// Push > Undefined	abort
+// Committed > Update	update
+// Update > Committed	put
+// Update > Committed	abort
+// Committed > Delete	del
+// Delete > Deleted	put
+// Delete > Committed	abort
 
 class ZdbAPI AnyObject_ : public ZmPolymorph {
   AnyObject_() = delete;
@@ -342,11 +365,7 @@ public:
   DB *db() const { return m_db; }
   UN un() const { return m_un; }
   RN rn() const { return m_rn; }
-  RN prevRN() const { return m_prevRN; }
-  RN origRN() const { return m_origRN; }
-  SeqLen seqLen() const { return SeqLenOp::seqLen(m_seqLenOp); }
-  int op() const { return SeqLenOp::op(m_seqLenOp); }
-  bool committed() const { return m_committed; }
+  int state() const { return m_state; }
 
   ZmRef<Buf> replicate(int type);
 
@@ -355,12 +374,7 @@ public:
 
   template <typename S> void print(S &s) const {
     using namespace Zdb_;
-    s << "un=" << m_un <<
-      " rn=" << m_rn <<
-      " prevRN=" << m_prevRN <<
-      " origRN=" << m_origRN <<
-      " seqLen=" << SeqLenOp::seqLen(m_seqLenOp) <<
-      " op=" << Op::name(SeqLenOp::op(m_seqLenOp));
+    s << "un=" << m_un << " rn=" << m_rn;
   }
   friend ZuPrintFn ZuPrintType(AnyObject_ *);
 
@@ -368,55 +382,32 @@ public:
 
 public:
   void put();
-  void append();
   void del();
   void abort();
 
 private:
-  void init(RN rn, RN prevRN, SeqLen seqLenOp) {
+  void init(RN rn) {
     m_rn = rn;
-    m_prevRN = prevRN;
-    m_seqLenOp = seqLenOp;
+    m_state = ObjState::Committed;
   }
 
-  void push_(RN rn) {
-    m_rn = rn;
-    m_committed = false;
-  }
-  bool update_(RN rn) {
-    if (ZuUnlikely(!m_committed)) return false;
-    m_origRN = m_rn;
-    m_rn = rn;
-    m_committed = false;
-    return true;
-  }
-  void commit_(UN un, int op) {
+  bool push_() { m_state = ObjState::Push; }
+  bool update_() { m_state = ObjState::Update; }
+  bool del_() { m_state = ObjState::Delete; }
+  void commit_(UN un) {
     using namespace Zdb_;
     m_un = un;
-    m_prevRN = m_origRN;
-    m_origRN = nullRN();
-    m_op = op;
-    m_state = RecState::Created;
-    m_committed = true;
+    m_state = ObjState::Committed;
   }
   void abort_() {
-    m_rn = m_origRN;
-    m_origRN = nullRN();
-    m_committed = true;
-  }
-
-  void put_() {
-    using namespace Zdb_;
-    m_seqLenOp = SeqLenOp::mk(1, Op::Put);
+    m_state = m_state == ObjState::Push ?
+      ObjState::Undefined : ObjState::Committed;
   }
 
   DB		*m_db;
   UN		m_un = 0;
   RN		m_rn = nullRN();
-  RN		m_prevRN = nullRN();
-  RN		m_origRN = nullRN();	// RN backup before commit() / abort()
-  SeqLen	m_seqLenOp = 0;
-  bool		m_committed = true;
+  int		m_state = ObjState::Undefined;
 };
 const char *Object_HeapID() { return "Zdb.Object"; }
 using ObjCache =
@@ -486,8 +477,6 @@ struct DBHandler {
   LoadFn	loadFn = nullptr;
   UpdateFn	updateFn = nullptr;
   SaveFn	saveFn = nullptr;
-  RecoverFn	recoverFn = nullptr;
-  DeleteFn	deleteFn = nullptr;
 
   template <typename T>
   static DBHandler bind(
@@ -516,9 +505,7 @@ struct DBHandler {
       },
       .saveFn = [](Zfb::Builder &fbb, const void *ptr) -> Zfb::Offset<void> {
 	return ZfbField::save<T>(fbb, *static_cast<const T *>(ptr)).Union();
-      },
-      .recoverFn = ZuMv(recoverFn_),
-      .deleteFn = ZuMv(deleteFn_)
+      }
     };
   }
 };
@@ -536,8 +523,7 @@ struct DBCf {
   ZmThreadName		fileThread;	// file I/O thread
   mutable unsigned	fileSID = 0;	// file I/O thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
-  unsigned		vacuumBatch = 0;
-  bool			warmup = false;	// pre-write initial DB file
+  bool			warmup = false;	// warm-up back-end
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
   DBCf() = default;
@@ -710,15 +696,15 @@ public:
 private:
   bool update_(AnyObject *object, RN rn);
 public:
-  // update record - returns true if update can proceed
+  // update record
   template <typename L> void update(ZmRef<AnyObject> object, L l) {
     if (!update_(object, m_nextRN.load_())) { l(nullptr); return; }
     l(object);
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
-  template <typename L> void update(ZmRef<AnyObject> object, RN rn, L l) {
-    RN nextRN = m_nextRN.load_();
+  template <typename L> void update(ZmRef<AnyObject> object, UN un, L l) {
+    RN nextRN = m_nextRN.load_(); // FIXME
     if (ZuUnlikely(rn != nullRN() && nextRN > rn)) { l(nullptr); return; }
     if (!update_(object, nextRN)) { l(nullptr); return; }
     l(object);

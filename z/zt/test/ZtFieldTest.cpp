@@ -30,18 +30,18 @@ struct Foo {
 };
 
 ZtFields(Foo,
-    (((string, Rd)), (String, "hello \"world\""), (Ctor(0), Quote)),
-    (((id)), (String, "goodbye"), (Ctor(1))),
-    (((int_)), (Int), (Ctor(2))),
-    (((int_ranged)), (Int, 42, 0, 100), (Ctor(3))),
-    (((hex)), (Hex, 0xdeadbeef), (Ctor(4))),
-    (((enum_)), (Enum, Values::Map, Values::Normal), (Ctor(5))),
-    (((flags)), (Flags, Flags::Map, (1<<Flags::Bit1)), (Ctor(6))),
-    (((float_)), (Float), (Ctor(7))),
-    (((float_ranged)), (Float, 0.42, 0.0, 1), (Ctor(8))),
-    (((fixed)), (Fixed), (Ctor(9))),
-    (((decimal)), (Decimal), (Ctor(10))),
-    (((time_)), (Time), (Ctor(11))));
+    (((string, Rd)), (String, "hello \"world\""), (Ctor<0>, Quote)),
+    (((id)), (String, "goodbye"), (Ctor<1>)),
+    (((int_)), (Int), (Ctor<2>)),
+    (((int_ranged)), (Int, 42, 0, 100), (Ctor<3>)),
+    (((hex)), (Hex, 0xdeadbeef), (Ctor<4>)),
+    (((enum_)), (Enum, Values::Map, Values::Normal), (Ctor<5>)),
+    (((flags)), (Flags, Flags::Map, (1<<Flags::Bit1)), (Ctor<6>)),
+    (((float_)), (Float), (Ctor<7>)),
+    (((float_ranged)), (Float, 0.42, 0.0, 1), (Ctor<8>)),
+    (((fixed)), (Fixed), (Ctor<9>)),
+    (((decimal)), (Decimal), (Ctor<10>)),
+    (((time_)), (Time), (Ctor<11>)));
 
 template <typename T, typename = void>
 struct MinMax {
@@ -69,7 +69,7 @@ int main()
       << " deflt=" << typename Field::Print_{Field::deflt(), fmt}
       << MinMax<Field>{fmt} << '\n';
   });
-  ZtVFieldArray fields{ZtVFields<Foo>()};
+  ZtVFieldArray<> fields{ZtVFields<Foo>()};
   auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldType;
     using ZtFieldType::Flags;
@@ -95,12 +95,12 @@ int main()
     }
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {
-    std::cout << fields[i].id << " deflt=";
-    print(std::cout, fields[i], ZtVFieldConstant::Deflt);
+    std::cout << fields[i]->id << " deflt=";
+    print(std::cout, *fields[i], ZtVFieldConstant::Deflt);
     std::cout << " minimum=";
-    print(std::cout, fields[i], ZtVFieldConstant::Minimum);
+    print(std::cout, *fields[i], ZtVFieldConstant::Minimum);
     std::cout << " maximum=";
-    print(std::cout, fields[i], ZtVFieldConstant::Maximum);
+    print(std::cout, *fields[i], ZtVFieldConstant::Maximum);
     std::cout << '\n';
   }
 }

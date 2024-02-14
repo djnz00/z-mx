@@ -106,125 +106,107 @@ public:
 
 private:
   // from same type ZtString
-  template <typename U, typename V = Char> struct IsZtString {
-    enum { OK = ZuConversion<ZtString__<V>, U>::Base };
-  };
+  template <typename U, typename V = Char> struct IsZtString :
+    public ZuBool<ZuConversion<ZtString__<V>, U>::Base> { };
   template <typename U, typename R = void>
-  using MatchZtString = ZuIfT<IsZtString<U>::OK, R>;
+  using MatchZtString = ZuIfT<IsZtString<U>{}, R>;
 
   // from string literal with same char
-  template <typename U, typename V = Char> struct IsStrLiteral {
-    enum { OK = ZuTraits<U>::IsCString &&
+  template <typename U, typename V = Char> struct IsStrLiteral : public ZuBool<
+      ZuTraits<U>::IsCString &&
       ZuTraits<U>::IsArray && ZuTraits<U>::IsPrimitive &&
-      ZuConversion<typename ZuTraits<U>::Elem, V>::Same };
-  };
+      ZuConversion<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchStrLiteral = ZuIfT<IsStrLiteral<U>::OK, R>;
+  using MatchStrLiteral = ZuIfT<IsStrLiteral<U>{}, R>;
 
   // from some other C string with same char (including string literals)
-  template <typename U, typename V = Char> struct IsAnyCString {
-    enum { OK =
-      !IsZtString<U>::OK &&
+  template <typename U, typename V = Char> struct IsAnyCString : public ZuBool<
+      !IsZtString<U>{} &&
       ZuTraits<U>::IsCString &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchAnyCString = ZuIfT<IsAnyCString<U>::OK, R>;
+  using MatchAnyCString = ZuIfT<IsAnyCString<U>{}, R>;
 
   // from some other C string with same char (other than a string literal)
-  template <typename U, typename V = Char> struct IsCString {
-    enum { OK =
-      !IsStrLiteral<U>::OK &&
-      IsAnyCString<U>::OK };
-  };
+  template <typename U, typename V = Char> struct IsCString : public ZuBool<
+      !IsStrLiteral<U>{} && IsAnyCString<U>{}> { };
   template <typename U, typename R = void>
-  using MatchCString = ZuIfT<IsCString<U>::OK, R>;
+  using MatchCString = ZuIfT<IsCString<U>{}, R>;
 
   // from some other non-C string with same char (non-null-terminated)
-  template <typename U, typename V = Char> struct IsOtherString {
-    enum { OK =
-      !IsZtString<U>::OK &&
+  template <typename U, typename V = Char>
+  struct IsOtherString : public ZuBool<
+      !IsZtString<U>{} &&
       ZuTraits<U>::IsString && !ZuTraits<U>::IsCString &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchOtherString = ZuIfT<IsOtherString<U>::OK, R>;
+  using MatchOtherString = ZuIfT<IsOtherString<U>{}, R>;
 
   // from char2 string (requires conversion)
-  template <typename U, typename V = Char2> struct IsChar2String {
-    enum { OK = (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
+  template <typename U, typename V = Char2>
+  struct IsChar2String : public ZuBool<
+      (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchChar2String = ZuIfT<IsChar2String<U>::OK, R>;
+  using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from individual char2 (requires conversion, char->wchar_t only)
-  template <typename U, typename V = Char2> struct IsChar2 {
-    enum { OK = ZuEquivChar<U, V>::Same &&
-      !ZuEquivChar<U, wchar_t>::Same };
-  };
+  template <typename U, typename V = Char2> struct IsChar2 : public ZuBool<
+      ZuEquivChar<U, V>::Same &&
+      !ZuEquivChar<U, wchar_t>::Same> { };
   template <typename U, typename R = void>
-  using MatchChar2 = ZuIfT<IsChar2<U>::OK, R>;
+  using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
-  template <typename U, typename V = Char> struct IsPrint {
-    enum { OK = ZuEquivChar<char, V>::Same &&
-      ZuPrint<U>::OK && !ZuPrint<U>::String };
-  };
+  template <typename U, typename V = Char> struct IsPrint : public ZuBool<
+      ZuEquivChar<char, V>::Same &&
+      ZuPrint<U>::OK && !ZuPrint<U>::String> { };
   template <typename U, typename R = void>
-  using MatchPrint = ZuIfT<IsPrint<U>::OK, R>;
-  template <typename U, typename V = Char> struct IsPDelegate {
-    enum { OK = ZuEquivChar<char, V>::Same && ZuPrint<U>::Delegate };
-  };
+  using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
+  template <typename U, typename V = Char> struct IsPDelegate : public ZuBool<
+      ZuEquivChar<char, V>::Same && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
-  using MatchPDelegate = ZuIfT<IsPDelegate<U>::OK, R>;
-  template <typename U, typename V = Char> struct IsPBuffer {
-    enum { OK = ZuEquivChar<char, V>::Same && ZuPrint<U>::Buffer };
-  };
+  using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
+  template <typename U, typename V = Char> struct IsPBuffer :
+    public ZuBool<ZuEquivChar<char, V>::Same && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
-  using MatchPBuffer = ZuIfT<IsPBuffer<U>::OK, R>;
+  using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from any other real and primitive type (integers, floating point, etc.)
-  template <typename U, typename V = Char> struct IsReal {
-    enum { OK = ZuEquivChar<char, V>::Same && !ZuEquivChar<U, V>::Same &&
+  template <typename U, typename V = Char> struct IsReal : public ZuBool<
+      ZuEquivChar<char, V>::Same && !ZuEquivChar<U, V>::Same &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
-      !ZuTraits<U>::IsArray };
-  };
+      !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
-  using MatchReal = ZuIfT<IsReal<U>::OK, R>;
+  using MatchReal = ZuIfT<IsReal<U>{}, R>;
 
   // from primitive pointer (not an array, string, or otherwise printable)
-  template <typename U, typename V = Char> struct IsPtr {
-    enum { OK = ZuEquivChar<char, V>::Same &&
+  template <typename U, typename V = Char> struct IsPtr : public ZuBool<
+      ZuEquivChar<char, V>::Same &&
       ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
-      !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString };
-  };
+      !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString> { };
   template <typename U, typename R = void>
-  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
+  using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 
   // from individual char
-  template <typename U, typename V = Char> struct IsChar {
-    enum { OK = ZuEquivChar<U, V>::Same };
-  };
+  template <typename U, typename V = Char> struct IsChar :
+    public ZuBool<ZuEquivChar<U, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchChar = ZuIfT<IsChar<U>::OK, R>;
+  using MatchChar = ZuIfT<IsChar<U>{}, R>;
 
   // an unsigned|int|size_t parameter to the constructor is a buffer size
-  template <typename U, typename V = Char> struct IsCtorSize {
-    enum { OK =
+  template <typename U, typename V = Char> struct IsCtorSize : public ZuBool<
       ZuConversion<U, unsigned>::Same ||
       ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same };
-  };
+      ZuConversion<U, size_t>::Same> { };
   template <typename U, typename R = void>
-  using MatchCtorSize = ZuIfT<IsCtorSize<U>::OK, R>;
+  using MatchCtorSize = ZuIfT<IsCtorSize<U>{}, R>;
 
   // construction from any other real and primitive type
-  template <typename U, typename V = Char> struct IsCtorReal {
-    enum { OK = IsReal<U>::OK && !IsCtorSize<U>::OK };
-  };
+  template <typename U, typename V = Char> struct IsCtorReal :
+    public ZuBool<IsReal<U>{} && !IsCtorSize<U>{}> { };
   template <typename U, typename R = void>
-  using MatchCtorReal = ZuIfT<IsCtorReal<U>::OK, R>;
+  using MatchCtorReal = ZuIfT<IsCtorReal<U>{}, R>;
 
 public:
 // constructors, assignment operators and destructor
@@ -1450,40 +1432,93 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 
 // hex dump
 
+// ZtHexDump_ is a low-level hex dumper that does NOT copy the data
+template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
+template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
+class ZtAPI ZtHexDump_ {
+protected:
+  ZtHexDump_() = default;
+
+public:
+  template <typename T, typename Cmp>
+  ZtHexDump_(ZuArray<T, Cmp> data) :
+      m_data{reinterpret_cast<const uint8_t *>(data.data())},
+      m_length{data.length() * sizeof(T)} { }
+
+  template <typename T>
+  ZtHexDump_(const T *data, unsigned length) :
+      m_data{reinterpret_cast<const uint8_t *>(data)},
+      m_length{length * ZtHexDump_Size<T>::N} { }
+
+  ZtHexDump_(const ZtHexDump_ &d) : m_data{d.m_data}, m_length{d.m_length} { }
+  ZtHexDump_ &operator =(const ZtHexDump_ &d) {
+    if (ZuLikely(this != &d)) {
+      m_data = d.m_data;
+      m_length = d.m_length;
+    }
+    return *this;
+  }
+
+public:
+  void print(ZmStream &s) const;
+  struct Print : public ZuPrintDelegate {
+    template <typename S>
+    static void print(S &s_, const ZtHexDump_ &d) {
+      ZmStream s{s_};
+      d.print(s);
+    }
+    static void print(ZmStream &s, const ZtHexDump_ &d) {
+      d.print(s);
+    }
+  };
+  friend Print ZuPrintType(ZtHexDump_ *);
+
+protected:
+  uint8_t	*m_data = nullptr;
+  unsigned	m_length = 0;
+};
+
 // copies of the prefix and the data are taken since ZtHexDump is mainly used
 // for troubleshooting / logging; ZeLog printing is deferred to a later time
 // by the logger, which runs in a different thread and stack; both the
 // prefix and the data need to reliably remain in scope
 inline constexpr const char *ZtHexDump_ID() { return "ZtHexDump"; }
-template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
-template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
-class ZtAPI ZtHexDump : private ZmVHeap<ZtHexDump_ID> {
-public:
+class ZtHexDump : private ZmVHeap<ZtHexDump_ID>, public ZtHexDump_ {
   ZtHexDump() = delete;
+
+public:
   template <typename T, typename Cmp>
-  ZtHexDump(ZuString prefix, ZuArray<T, Cmp> data) :
-      m_prefix{prefix}, m_length{data.length() * sizeof(T)} {
+  ZtHexDump(ZuString prefix, ZuArray<T, Cmp> data) : m_prefix{prefix} {
+    m_length = data.length() * sizeof(T);
     init_(reinterpret_cast<const uint8_t *>(data.data()));
   }
-public:
+
   template <typename T>
   ZtHexDump(ZuString prefix, const T *data, unsigned length) :
-      m_prefix{prefix}, m_length{length * ZtHexDump_Size<T>::N} {
+      m_prefix{prefix} {
+    m_length = length * ZtHexDump_Size<T>::N;
     init_(reinterpret_cast<const uint8_t *>(data));
   }
+
   ~ZtHexDump() {
     if (ZuLikely(m_data)) vfree(m_data);
   }
-  ZtHexDump(ZtHexDump &&d) :
-    m_prefix{ZuMv(d.m_prefix)}, m_data{d.m_data}, m_length{d.m_length} {
+
+  ZtHexDump(ZtHexDump &&d) : m_prefix{ZuMv(d.m_prefix)} {
+    m_data = d.m_data;
+    m_length = d.m_length;
+    d.m_prefix = {};
     d.m_data = nullptr;
+    d.m_length = 0;
   }
   ZtHexDump &operator =(ZtHexDump &&d) {
     if (ZuLikely(this != &d)) {
       m_prefix = ZuMv(d.m_prefix);
       m_data = d.m_data;
       m_length = d.m_length;
+      d.m_prefix = {};
       d.m_data = nullptr;
+      d.m_length = 0;
     }
     return *this;
   }
@@ -1499,23 +1534,16 @@ private:
   }
 
 public:
-  void print(ZmStream &s) const;
   struct Print : public ZuPrintDelegate {
     template <typename S>
-    static void print(S &s_, const ZtHexDump &d) {
-      ZmStream s{s_};
-      d.print(s);
-    }
-    static void print(ZmStream &s, const ZtHexDump &d) {
-      d.print(s);
+    static void print(S &s, const ZtHexDump &d) {
+      s << d.m_prefix << static_cast<const ZtHexDump_ &>(d);
     }
   };
   friend Print ZuPrintType(ZtHexDump *);
 
 private:
   ZtString	m_prefix;
-  uint8_t	*m_data = nullptr;
-  unsigned	m_length = 0;
 };
 
 #ifdef _MSC_VER

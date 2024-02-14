@@ -286,6 +286,18 @@ template <typename U> struct ZuIfT_<true, U> { using T = U; };
 template <bool B, typename U = void>
 using ZuIfT = typename ZuIfT_<B, U>::T;
 
+// constexpr instantiable constants
+template <typename T_, T_ V> struct ZuConstant {
+  using T = T_;
+  constexpr operator T() const noexcept { return V; }
+  constexpr T operator()() const noexcept { return V; }
+};
+template <int I> using ZuInt = ZuConstant<int, I>;
+template <unsigned I> using ZuUnsigned = ZuConstant<unsigned, I>;
+template <auto B> using ZuBool = ZuConstant<bool, static_cast<bool>(B)>;
+using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
+using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
+
 // type list
 template <typename ...Args> struct ZuTypeList {
   enum { N = sizeof...(Args) };
@@ -328,18 +340,16 @@ using ZuType = typename ZuType_<I, Args...>::T;
 // type -> index
 template <typename, typename ...> struct ZuTypeIndex;
 template <typename T, typename ...Args>
-struct ZuTypeIndex<T, T, Args...> {
-  enum { I = 0 };
-};
+struct ZuTypeIndex<T, T, Args...> : public ZuUnsigned<0> { };
 template <typename T, typename O, typename ...Args>
-struct ZuTypeIndex<T, O, Args...> {
-  enum { I = 1 + ZuTypeIndex<T, Args...>::I };
-};
+struct ZuTypeIndex<T, O, Args...> :
+  public ZuUnsigned<1 + ZuTypeIndex<T, Args...>{}> { };
 template <typename T, typename ...Args>
 struct ZuTypeIndex<T, ZuTypeList<Args...>> :
   public ZuTypeIndex<T, Args...> { };
 
 // map
+// - maps T to Map<T> for each T in the list
 template <template <typename> class, typename ...> struct ZuTypeMap_;
 template <template <typename> class Map, typename T0>
 struct ZuTypeMap_<Map, T0> {
@@ -358,10 +368,11 @@ template <template <typename> class Map, typename ...Args>
 using ZuTypeMap = typename ZuTypeMap_<Map, Args...>::T;
 
 // grep
-template <typename T0, int> struct ZuTypeGrep__ {
+// - Filter<T>{} should be true to include T in resulting list
+template <typename T0, bool> struct ZuTypeGrep__ {
   using T = ZuTypeList<T0>;
 };
-template <typename T0> struct ZuTypeGrep__<T0, 0> {
+template <typename T0> struct ZuTypeGrep__<T0, false> {
   using T = ZuTypeList<>;
 };
 template <template <typename> class, typename ...>
@@ -370,12 +381,12 @@ struct ZuTypeGrep_ {
 };
 template <template <typename> class Filter, typename T0>
 struct ZuTypeGrep_<Filter, T0> {
-  using T = typename ZuTypeGrep__<T0, Filter<T0>::OK>::T;
+  using T = typename ZuTypeGrep__<T0, Filter<T0>{}>::T;
 };
 template <template <typename> class Filter, typename T0, typename ...Args>
 struct ZuTypeGrep_<Filter, T0, Args...> {
   using T =
-    typename ZuTypeGrep__<T0, Filter<T0>::OK>::T::template Append<
+    typename ZuTypeGrep__<T0, Filter<T0>{}>::T::template Append<
       typename ZuTypeGrep_<Filter, Args...>::T>;
 };
 template <template <typename> class Filter, typename ...Args>
@@ -384,24 +395,37 @@ struct ZuTypeGrep_<Filter, ZuTypeList<Args...>> :
 template <template <typename> class Filter, typename ...Args>
 using ZuTypeGrep = typename ZuTypeGrep_<Filter, Args...>::T;
 
+// test for inclusion in list
+// ZuTypeIn<T, List>{} evaluates to true if T is in List
+template <typename, typename ...>
+struct ZuTypeIn : public ZuFalse { };
+template <typename U>
+struct ZuTypeIn<U, U> : public ZuTrue { };
+template <typename U, typename ...Args>
+struct ZuTypeIn<U, U, Args...> : public ZuTrue { };
+template <typename U, typename T0, typename ...Args>
+struct ZuTypeIn<U, T0, Args...> : public ZuTypeIn<U, Args...> { };
+template <typename U, typename ...Args>
+struct ZuTypeIn<U, ZuTypeList<Args...>> : public ZuTypeIn<U, Args...> { };
+
 // reduce (recursive pair-wise reduction)
-// - Reduce<T0, T1>::T should reduce T0, T1 to T
+// - T0 will be reduced to Reduce<T0>
+// - T0, T1 will be reduced to Reduce<T0, T1>
 template <template <typename...> class, typename ...>
 struct ZuTypeReduce_;
 template <template <typename...> class Reduce, typename T0>
 struct ZuTypeReduce_<Reduce, T0> {
-  using T = typename Reduce<T0>::T;
+  using T = Reduce<T0>;
 };
 template <template <typename...> class Reduce, typename T0, typename T1>
 struct ZuTypeReduce_<Reduce, T0, T1> {
-  using T = typename Reduce<T0, T1>::T;
+  using T = Reduce<T0, T1>;
 };
 template <
   template <typename...> class Reduce,
   typename T0, typename T1, typename ...Args>
 struct ZuTypeReduce_<Reduce, T0, T1, Args...> {
-  using T =
-    typename Reduce<T0, typename ZuTypeReduce_<Reduce, T1, Args...>::T>::T;
+  using T = Reduce<T0, typename ZuTypeReduce_<Reduce, T1, Args...>::T>;
 };
 template <template <typename...> class Reduce, typename ...Args>
 struct ZuTypeReduce_<Reduce, ZuTypeList<Args...>> :
@@ -455,7 +479,7 @@ struct ZuTypeRight_<N, ZuTypeList<Args...>> :
 template <unsigned N, typename ...Args>
 using ZuTypeRight = typename ZuTypeRight_<N, Args...>::T;
 
-// compile-time merge sort typelist using Index<T>::I
+// compile-time merge sort typelist using Index<T>{}
 template <template <typename> class Index, typename Left, typename Right>
 struct ZuTypeMerge_;
 template <template <typename> class, typename, typename, bool>
@@ -492,7 +516,7 @@ struct ZuTypeMerge_<Index,
     public ZuTypeMerge__<Index, 
       ZuTypeList<LeftArg0, LeftArgs...>,
       ZuTypeList<RightArg0, RightArgs...>,
-      (Index<LeftArg0>::I > Index<RightArg0>::I)> { };
+      (Index<LeftArg0>{} > Index<RightArg0>{})> { };
 template <template <typename> class Index, typename ...Args>
 struct ZuTypeMerge_<Index, ZuTypeList<>, ZuTypeList<Args...>> {
   using T = ZuTypeList<Args...>;
@@ -678,17 +702,6 @@ struct ZuDeduce<R_ (*)(Args_...)> {
   using R = R_;
   using Args = ZuTypeList<Args_...>;
 };
-
-// constexpr instantiable constants
-template <typename T_, T_ V> struct ZuConstant {
-  using T = T_;
-  constexpr operator T() const noexcept { return V; }
-  constexpr T operator()() const noexcept { return V; }
-};
-template <unsigned I> using ZuUnsigned = ZuConstant<unsigned, I>;
-template <bool B> using ZuBool = ZuConstant<bool, B>;
-using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
-using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
 
 // shorthand for std::declval
 template <typename U> struct ZuDeclVal__ { using T = U; };

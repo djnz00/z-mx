@@ -374,14 +374,11 @@ public:
   // };
 private:
   template <typename O1, typename O2>
-  struct IsObjectLambda__ {
-    enum { OK =
+  struct IsObjectLambda__ : public ZuBool<
       ZuObjectTraits<O1>::IsObject && ZuObjectTraits<O2>::IsObject &&
-      (ZuConversion<O1, O2>::Is || ZuConversion<O2, O1>::Is)
-    };
-  };
+      (ZuConversion<O1, O2>::Is || ZuConversion<O2, O1>::Is)> { };
   template <typename O, typename L, typename = void>
-  struct IsObjectLambda_ { enum { OK = 0 }; };
+  struct IsObjectLambda_ : public ZuFalse { };
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
   template <typename O, typename L>
@@ -389,7 +386,7 @@ private:
       public IsObjectLambda__<O, decltype(*(ZuDeclVal<L &>())())> { };
 #pragma GCC diagnostic pop
   template <typename O, typename L, typename R = void>
-  using IsObjectLambda = ZuIfT<IsObjectLambda_<O, L>::OK, R>;
+  using IsObjectLambda = ZuIfT<IsObjectLambda_<O, L>{}, R>;
 public:
   template <typename O, typename L>
   IsObjectLambda<O, L> invoke(unsigned sid, O *o, L l) {

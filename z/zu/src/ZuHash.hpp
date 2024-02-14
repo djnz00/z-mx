@@ -176,14 +176,12 @@ template <typename T> struct ZuHash_Primitive<T, true, false> :
 
 template <typename> struct ZuHash_Can_;
 template <> struct ZuHash_Can_<uint32_t> { using T = void; }; 
-template <typename, typename = void>
-struct ZuHash_Can { enum { OK = 0 }; };
+template <typename, typename = void> struct ZuHash_Can : public ZuFalse { };
 template <typename U>
-struct ZuHash_Can<U, typename ZuHash_Can_<
-    decltype(ZuDeclVal<const U &>().hash())>::T> {
-  enum { OK = 1 };
-};
-template <typename T, bool Fwd, bool = ZuHash_Can<T>::OK>
+struct ZuHash_Can<U,
+  typename ZuHash_Can_<decltype(ZuDeclVal<const U &>().hash())>::T> :
+  public ZuTrue { };
+template <typename T, bool Fwd, bool = ZuHash_Can<T>{}>
 struct ZuHash_NonPrimitive : public ZuHash_Cannot<T> { };
 
 template <typename P, bool IsPrimitive> struct ZuHash_NonPrimitive___ :
@@ -244,7 +242,7 @@ template <typename T> struct ZuHash_PrimitivePointer<T *> :
 template <typename T, bool IsPrimitive, bool IsPointer> struct ZuHash_NonString;
 
 template <typename T> struct ZuHash_NonString<T, false, false> :
-  public ZuHash_NonPrimitive<T, ZuHash_Can<T>::OK, true> { };
+  public ZuHash_NonPrimitive<T, ZuHash_Can<T>{}, true> { };
 
 template <typename T> struct ZuHash_NonString<T, false, true> :
   public ZuHash_Pointer<T, sizeof(T)> { };

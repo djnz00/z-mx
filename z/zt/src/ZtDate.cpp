@@ -472,7 +472,7 @@ void ZtDate::ctor(const ZtDateScan::CSV &fmt, ZuString s)
   }
 
 invalid:
-  m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
+  m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
 }
 
 void ZtDate::ctor(const ZtDateScan::FIX &fmt, ZuString s)
@@ -531,7 +531,7 @@ void ZtDate::ctor(const ZtDateScan::FIX &fmt, ZuString s)
   }
 
 invalid:
-  m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
+  m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
 }
 
 void ZtDate::ctor(const ZtDateScan::ISO &fmt, ZuString s)
@@ -648,7 +648,7 @@ void ZtDate::ctor(const ZtDateScan::ISO &fmt, ZuString s)
   }
 
 invalid:
-  m_julian = ZtDate_NullJulian, m_sec = 0, m_nsec = 0;
+  m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
 }
 
 void ZtDate::ctor(const ZtDateScan::Any &fmt, ZuString s)

@@ -55,14 +55,14 @@
 #endif
 
 template <typename T, typename Cmp> class ZuBox;
-template <typename> struct ZuIsBoxed_ { enum { OK = 0 }; };
+template <typename> struct ZuIsBoxed_ : public ZuFalse { };
 template <typename T, typename Cmp>
-struct ZuIsBoxed_<ZuBox<T, Cmp>> { enum { OK = 1 }; };
+struct ZuIsBoxed_<ZuBox<T, Cmp>> : public ZuTrue { };
 
 template <typename U, typename R = void>
-using ZuIsBoxed = ZuIfT<ZuIsBoxed_<U>::OK, R>;
+using ZuIsBoxed = ZuIfT<ZuIsBoxed_<U>{}, R>;
 template <typename U, typename R = void>
-using ZuNotBoxed = ZuIfT<!ZuIsBoxed_<U>::OK, R>;
+using ZuNotBoxed = ZuIfT<!ZuIsBoxed_<U>{}, R>;
 
 // compile-time formatting
 template <typename T, typename Fmt,
@@ -189,7 +189,7 @@ private:
 // SFINAE...
 template <typename U, typename T, typename R = void>
 using ZuBox_IsReal =
-  ZuIfT<!ZuIsBoxed_<U>::OK && !ZuTraits<U>::IsString && (
+  ZuIfT<!ZuIsBoxed_<U>{} && !ZuTraits<U>::IsString && (
       ZuTraits<U>::IsReal ||
       ZuConversion<U, T>::Exists ||
       ZuConversion<U, int>::Exists), R>;

@@ -30,7 +30,7 @@
 #pragma once
 #endif
 
-// ZuUnroll::all<3>(i, [](auto i) { foo<i>(); });
+// ZuUnroll::all<3>([](auto i) { foo<i>(); });
 
 // gcc/clang at -O2 or better compiles to a fully unrolled sequence
 

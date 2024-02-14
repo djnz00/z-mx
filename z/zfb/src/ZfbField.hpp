@@ -34,7 +34,7 @@
 
 // Syntax
 // ------
-// (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Flags...)])
+// (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Props...)])
 // 
 // Example: (((id, Rd), (0)), (String), (Ctor(0)))
 
@@ -278,21 +278,18 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 namespace ZfbField {
 
 namespace Type = ZtFieldType;
-namespace Flags = ZtFieldFlags;
+namespace Prop = ZtFieldProp;
 
 namespace Save {
 
 template <typename T> using Offset = Zfb::Offset<T>;
 
-template <typename Field> struct HasOffset {
-  enum { OK =
+template <typename Field> struct HasOffset : public ZuBool<
     Field::Type == Type::String ||
-    (Field::Type == Type::Composite && !Field::Inline)
-  };
-};
+    (Field::Type == Type::Composite && !Field::Inline)> { };
 template <
   typename O, typename OffsetFieldList, typename Field,
-  bool = HasOffset<Field>::OK>
+  bool = HasOffset<Field>{}>
 struct SaveField {
   template <typename Builder>
   static void save(Builder &fbb, const O &o, const Offset<void> *) {
@@ -318,7 +315,7 @@ struct SaveFieldList {
     ZuTypeAll<OffsetFieldList>::invoke(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
 	  using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
-	  offsets[OffsetIndex::I] = Field::save(fbb_, o).Union();
+	  offsets[OffsetIndex::I] = Field::save(fbb_, o);
 	});
     Builder fbb{fbb_};
     ZuTypeAll<FieldList>::invoke(
@@ -350,24 +347,21 @@ struct Fielded_ {
   using FieldList = ZuFieldList<O>;
 
   template <typename U>
-  struct AllFilter { enum { OK = !U::ReadOnly }; };
+  struct AllFilter : public ZuBool<!U::ReadOnly> { };
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U>
-  struct UpdateFilter { enum { OK = U::Flags & Flags::Update }; };
+  struct UpdateFilter : public ZuTypeIn<Prop::Update, U::Props> { };
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>
-  struct CtorFilter { enum { OK = U::Flags & Flags::Ctor_ }; };
-  using CtorFields_ = ZuTypeGrep<CtorFilter, AllFields>;
+  struct CtorFilter : public ZuBool<(Prop::GetCtor<U::Props>{} >= 0)> { };
   template <typename U>
-  struct CtorIndex {
-    enum { I = (U::Flags>>Flags::CtorShift) & Flags::CtorMask };
-  };
-  using CtorFields = ZuTypeSort<CtorIndex, CtorFields_>;
+  struct CtorIndex : public Prop::GetCtor<U::Props> { };
+  using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
 
   template <typename U>
-  struct InitFilter { enum { OK = !(U::Flags & Flags::Ctor_) }; };
+  struct InitFilter : public ZuBool<!(U::Flags & Flags::Ctor_)> { };
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
   static Zfb::Offset<FBType> save(Zfb::Builder &fbb, const O &o) {
@@ -445,10 +439,7 @@ struct Fielded_ {
 
   template <unsigned KeyID>
   struct KeyFilter {
-    template <typename U>
-    struct T {
-      enum { OK = U::keys() & (1<<KeyID) };
-    };
+    template <typename U> struct T : public ZuBool<U::keys() & (1<<KeyID)> { };
   };
   template <unsigned KeyID = 0>
   static auto key(const FBType *fbo) {

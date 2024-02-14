@@ -45,6 +45,28 @@
 
 #include <zlib/dataframe_fbs.h>
 
+namespace ZtFieldProp {
+  struct Series { };	// data series column
+  struct Index { };	// - index (e.g. time, nonce, offset, seq#)
+  struct Delta { };	// - first derivative
+  struct Delta2 { };	// - second derivative
+}
+
+namespace ZtVFieldProp {
+  using namespace ZtVFieldProp;
+
+  enum {
+    Series	= (0x1<<ZdfShift),
+    Index	= (0x2<<ZdfShift),
+    Delta	= (0x4<<ZdfShift),
+    Delta2	= (0x8<<ZdfShift)
+  };
+  template <> struct Bits<ZtFieldProp::Series> { enum { N = Series }; };
+  template <> struct Bits<ZtFieldProp::Index> { enum { N = Index }; };
+  template <> struct Bits<ZtFieldProp::Delta> { enum { N = Delta }; };
+  template <> struct Bits<ZtFieldProp::Delta2> { enum { N = Delta2 }; };
+}
+
 namespace Zdf {
 
 // Data d;
@@ -114,10 +136,10 @@ public:
   }
   ~AnyReader() = default;
 
-  void seek(const Series *s, unsigned flags, uint64_t offset) {
-    if (flags & ZtFieldFlags::Delta)
+  void seek(const Series *s, unsigned props, uint64_t offset) {
+    if (props & ZtVFieldProp::Delta)
       init_<DeltaReader>(s, offset);
-    else if (flags & ZtFieldFlags::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       init_<Delta2Reader>(s, offset);
     else
       init_<AbsReader>(s, offset);
@@ -125,10 +147,10 @@ public:
 
   // series must be monotonically increasing
 
-  void find(const Series *s, unsigned flags, const ZuFixed &value) {
-    if (flags & ZtFieldFlags::Delta)
+  void find(const Series *s, unsigned props, const ZuFixed &value) {
+    if (props & ZtVFieldProp::Delta)
       find_<DeltaReader>(s, value);
-    else if (flags & ZtFieldFlags::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       find_<Delta2Reader>(s, value);
     else
       find_<AbsReader>(s, value);
@@ -217,10 +239,10 @@ public:
   }
   ~AnyWriter() = default;
 
-  void init(Series *s, unsigned flags) {
-    if (flags & ZtFieldFlags::Delta)
+  void init(Series *s, unsigned props) {
+    if (props & ZtVFieldProp::Delta)
       init_<DeltaWriter>(s);
-    else if (flags & ZtFieldFlags::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       init_<Delta2Writer>(s);
     else
       init_<AbsWriter>(s);
@@ -259,10 +281,10 @@ private:
 };
 
 template <typename Field>
-struct FieldFilter { enum { OK = (Field::Flags & ZtFieldFlags::Series) }; };
+struct FieldFilter : public ZuTypeIn<ZtFieldProp::Series, Field::Props> { };
 
 template <typename T>
-ZtVFieldArray fields() {
+auto fields() {
   using Fields = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
   return ZtVFields_<Fields>();
 }
@@ -352,19 +374,19 @@ friend Writer;
 private:
   void writer_(AnyWriter &w, unsigned i) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
-    w.init(m_series[i], flags);
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
+    w.init(m_series[i], props);
   }
 public:
   void seek(AnyReader &r, unsigned i, uint64_t offset = 0) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
-    r.seek(m_series[i], flags, offset);
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
+    r.seek(m_series[i], props, offset);
   }
   void find(AnyReader &r, unsigned i, const ZuFixed &value) {
     auto field = m_fields[i];
-    unsigned flags = field ? field->flags : ZtFieldFlags::Delta;
-    r.find(m_series[i], flags, value);
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
+    r.find(m_series[i], props, value);
   }
 
   unsigned nSeries() const { return m_series.length(); }

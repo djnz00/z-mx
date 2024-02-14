@@ -55,13 +55,12 @@ template <typename U, typename> struct ZuArrayN_CanAppend_;
 template <typename U> struct ZuArrayN_CanAppend_<U, void> { using T = void; };
 template <typename U> struct ZuArrayN_CanAppend_<U, U &> { using T = void; };
 template <typename U, typename T, typename = void>
-struct ZuArrayN_CanAppend { enum { OK = 0 }; };
+struct ZuArrayN_CanAppend : public ZuFalse { };
 template <typename U, typename T>
 struct ZuArrayN_CanAppend<U, T,
   typename ZuArrayN_CanAppend_<U,
-    decltype(ZuDeclVal<U>().append(ZuDeclVal<const T *>(), 1))>::T> {
-  enum { OK = 1 };
-};
+    decltype(ZuDeclVal<U>().append(ZuDeclVal<const T *>(), 1))>::T> :
+  public ZuTrue { };
 
 template <typename> struct ZuArrayN___ { };
 template <> struct ZuArrayN___<char> {
@@ -106,79 +105,70 @@ public:
 
 protected:
   // from some string with same char (including string literals)
-  template <typename U, typename V = T> struct IsString {
-    enum { OK =
+  template <typename U, typename V = T> struct IsString : public ZuBool<
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchString = ZuIfT<IsString<U>::OK, R>;
+  using MatchString = ZuIfT<IsString<U>{}, R>;
 
   // from char2 string (requires conversion)
-  template <typename U, typename V = Char2> struct IsChar2String {
-    enum { OK = !ZuConversion<ZuNull, V>::Same &&
+  template <typename U, typename V = Char2>
+  struct IsChar2String : public ZuBool<
+      !ZuConversion<ZuNull, V>::Same &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same };
-  };
+      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
-  using MatchChar2String = ZuIfT<IsChar2String<U>::OK, R>;
+  using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from any array type with convertible element type (not a string)
-  template <typename U, typename V = T> struct IsArray {
-    enum { OK =
-      !IsString<U>::OK &&
-      !IsChar2String<U>::OK &&
+  template <typename U, typename V = T> struct IsArray : public ZuBool<
+      !IsString<U>{} &&
+      !IsChar2String<U>{} &&
       !ZuConversion<U, V>::Same &&
       ZuTraits<U>::IsArray &&
-      ZuConversion<typename ZuTraits<U>::Elem, V>::Exists };
-  };
+      ZuConversion<typename ZuTraits<U>::Elem, V>::Exists> { };
   template <typename U, typename R = void>
-  using MatchArray = ZuIfT<IsArray<U>::OK, R>;
+  using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
   // from individual char2 (requires conversion, char->wchar_t only)
-  template <typename U, typename V = Char2> struct IsChar2 {
-    enum { OK = !ZuConversion<ZuNull, V>::Same &&
+  template <typename U, typename V = Char2> struct IsChar2 :
+    public ZuBool<!ZuConversion<ZuNull, V>::Same &&
       ZuConversion<U, V>::Same &&
-      !ZuConversion<U, wchar_t>::Same };
-  };
+      !ZuConversion<U, wchar_t>::Same> { };
   template <typename U, typename R = void>
-  using MatchChar2 = ZuIfT<IsChar2<U>::OK, R>;
+  using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
-  template <typename U, typename V = T> struct IsPDelegate {
-    enum { OK = ZuEquivChar<char, V>::Same && ZuPrint<U>::Delegate };
-  };
+  template <typename U, typename V = T> struct IsPDelegate :
+    public ZuBool<ZuEquivChar<char, V>::Same && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
-  using MatchPDelegate = ZuIfT<IsPDelegate<U>::OK, R>;
-  template <typename U, typename V = T> struct IsPBuffer {
-    enum { OK = ZuEquivChar<char, V>::Same && ZuPrint<U>::Buffer };
-  };
+  using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
+  template <typename U, typename V = T> struct IsPBuffer :
+    public ZuBool<ZuEquivChar<char, V>::Same && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
-  using MatchPBuffer = ZuIfT<IsPBuffer<U>::OK, R>;
+  using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char string)
-  template <typename U, typename V = T> struct IsReal {
-    enum { OK = ZuEquivChar<char, V>::Same && !ZuEquivChar<U, V>::Same &&
+  template <typename U, typename V = T> struct IsReal : public ZuBool<
+      ZuEquivChar<char, V>::Same && !ZuEquivChar<U, V>::Same &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
-      !ZuTraits<U>::IsArray };
-  };
+      !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
-  using MatchReal = ZuIfT<IsReal<U>::OK, R>;
+  using MatchReal = ZuIfT<IsReal<U>{}, R>;
 
   // from individual element
-  template <typename U, typename V = T> struct IsElem {
-    enum { OK = ZuConversion<U, V>::Same ||
-      (!IsString<U>::OK &&
-       !IsArray<U>::OK &&
-       !IsChar2String<U>::OK &&
-       !IsChar2<U>::OK &&
-       !IsPDelegate<U>::OK &&
-       !IsPBuffer<U>::OK &&
-       !IsReal<U>::OK &&
-       ZuConversion<U, V>::Exists) };
-  };
+  template <typename U, typename V = T> struct IsElem : public ZuBool<
+      ZuConversion<U, V>::Same ||
+      (!IsString<U>{} &&
+       !IsArray<U>{} &&
+       !IsChar2String<U>{} &&
+       !IsChar2<U>{} &&
+       !IsPDelegate<U>{} &&
+       !IsPBuffer<U>{} &&
+       !IsReal<U>{} &&
+       ZuConversion<U, V>::Exists)> { };
   template <typename U, typename R = void>
-  using MatchElem = ZuIfT<IsElem<U>::OK, R>;
+  using MatchElem = ZuIfT<IsElem<U>{}, R>;
 
   ~ZuArrayN_() { dtor(); }
 
@@ -428,23 +418,20 @@ public:
   }
 
 private:
-  template <typename U> struct IsVoid {
-    enum { OK = ZuConversion<void, U>::Same };
-  };
+  template <typename U> struct IsVoid :
+    public ZuBool<ZuConversion<void, U>::Same> { };
   template <typename U, typename R = void>
-  using MatchVoid = ZuIfT<IsVoid<U>::OK, R>;
+  using MatchVoid = ZuIfT<IsVoid<U>{}, R>;
 
-  template <typename U, typename V = T> struct IsAppend {
-    enum { OK = ZuArrayN_CanAppend<U, V>::OK };
-  };
+  template <typename U, typename V = T> struct IsAppend :
+    public ZuBool<ZuArrayN_CanAppend<U, V>{}> { };
   template <typename U, typename R = void>
-  using MatchAppend = ZuIfT<IsAppend<U>::OK, R>;
+  using MatchAppend = ZuIfT<IsAppend<U>{}, R>;
 
-  template <typename U, typename V = T> struct IsSplice {
-    enum { OK = !IsVoid<U>::OK && !IsAppend<U>::OK };
-  };
+  template <typename U, typename V = T> struct IsSplice :
+    public ZuBool<!IsVoid<U>{} && !IsAppend<U>{}> { };
   template <typename U, typename R = void>
-  using MatchSplice = ZuIfT<IsSplice<U>::OK, R>;
+  using MatchSplice = ZuIfT<IsSplice<U>{}, R>;
 
   template <typename U>
   void splice_(int offset, int length, U *removed) {
@@ -547,23 +534,19 @@ public:
 
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
-  template <typename U> struct IsCtorLength {
-    enum { OK =
+  template <typename U> struct IsCtorLength : public ZuBool<
       ZuConversion<U, unsigned>::Same ||
       ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same };
-  };
+      ZuConversion<U, size_t>::Same> { };
   template <typename U, typename R = void>
-  using MatchCtorLength = ZuIfT<IsCtorLength<U>::OK, R>;
+  using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
   // constructor arg
-  template <typename U> struct IsCtorArg {
-    enum { OK =
-      !IsCtorLength<U>::OK &&
-      !ZuConversion<Base, U>::Base };
-  };
+  template <typename U> struct IsCtorArg : public ZuBool<
+      !IsCtorLength<U>{} &&
+      !ZuConversion<Base, U>::Base> { };
   template <typename U, typename R = void>
-  using MatchCtorArg = ZuIfT<IsCtorArg<U>::OK, R>;
+  using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
 public:
   ArrayN() { }

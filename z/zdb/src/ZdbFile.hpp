@@ -716,12 +716,25 @@ private:
   Tree	m_tree;
 };
 
+// FIXME
+//
+// Scylla notes
+//
+// create table "if not exist"
+// primary key ((partition), cluster)
+// intra-partition is atomic and isolated, otherwise not...
+// - actually for Zdb, RNs are isolated, the app has to use sagas for
+//   eventually-consistent grouped updates, so fine to use RN as partition
+// - secondary indices will therefore straddle partitions
+// - use prepared statements for insert, select, etc.
+// - create type for UDTs - use frozen UDTs
+
 class ZdbAPI FileMgr {
 friend File_;
 
 protected:
   // open/close
-  bool open_();
+  bool open_(name, fields);
   void close_();
 
   // database ID (used for error logging)

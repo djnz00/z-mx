@@ -44,7 +44,7 @@
 using ZtEnum = ZuBox_1(int8_t);
 
 // ZtEnum class declaration macros
-//   Note: must use in this order: Values; Map; Flags;...
+//   Note: use in this order: Values; Map; Flags;...
 
 #define ZtEnumNames_(ID, ...) \
   inline ZuPair<const char *const *const, unsigned> names() { \

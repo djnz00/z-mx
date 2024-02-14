@@ -45,14 +45,11 @@ template <typename ...Args> using ZuTuple = Zu_::Tuple_<Args...>;
 struct ZuTuple1_ { }; // tuple containing single value
 
 template <typename T, typename P, bool IsTuple0> struct ZuTuple1_Cvt_;
-template <typename T, typename P> struct ZuTuple1_Cvt_<T, P, 0> {
-  enum { OK = 0 };
-};
-template <typename T, typename P> struct ZuTuple1_Cvt_<T, P, 1> {
-  enum {
-    OK = ZuConversion<typename T::T0, typename P::T0>::Exists
-  };
-};
+template <typename T, typename P>
+struct ZuTuple1_Cvt_<T, P, false> : public ZuFalse { };
+template <typename T, typename P>
+struct ZuTuple1_Cvt_<T, P, true> :
+  public ZuBool<ZuConversion<typename T::T0, typename P::T0>::Exists> { };
 template <typename T, typename P> struct ZuTuple1_Cvt :
   public ZuTuple1_Cvt_<ZuDeref<T>, P,
     ZuConversion<ZuTuple1_, ZuDeref<T>>::Base> { };
@@ -118,19 +115,19 @@ private:
 
 public:
   template <typename T>
-  Tuple_(T &&v, ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK> *_ = nullptr) :
+  Tuple_(T &&v, ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{}> *_ = nullptr) :
     m_p0{Bind<ZuDecay<T>>::p0(ZuFwd<T>(v))} { }
 
   template <typename T>
   Tuple_(T &&v, ZuIfT<
-      !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
+      !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{} &&
 	(!ZuTraits<T0>::IsReference ||
 	  ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is)
       > *_ = nullptr) :
     m_p0{ZuFwd<T>(v)} { }
 
   template <typename T>
-  ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK, Tuple_ &>
+  ZuIfT<ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{}, Tuple_ &>
   operator =(T &&v) {
     m_p0 = Bind<ZuDecay<T>>::p0(ZuFwd<T>(v));
     return *this;
@@ -138,7 +135,7 @@ public:
 
   template <typename T>
   ZuIfT<
-    !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>::OK &&
+    !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{} &&
       (!ZuTraits<T0>::IsReference ||
 	ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is),
     Tuple_ &>
@@ -291,16 +288,16 @@ public:
   }
 
   template <typename T>
-  const Type<Index<T>::I> &v() const {
-    return p<Index<T>::I>();
+  const Type<Index<T>{}> &v() const {
+    return p<Index<T>{}>();
   }
   template <typename T>
-  Type<Index<T>::I> &v() {
-    return p<Index<T>::I>();
+  Type<Index<T>{}> &v() {
+    return p<Index<T>{}>();
   }
   template <typename T, typename P>
   Tuple_ &v(P &&p) {
-    return p<Index<T>::I>(ZuFwd<P>(p));
+    return p<Index<T>{}>(ZuFwd<P>(p));
   }
 
   template <typename L>
@@ -406,19 +403,19 @@ public:
 
   template <typename T>
   decltype(auto) v() const & {
-    return p<Index<T>::I>();
+    return p<Index<T>{}>();
   }
   template <typename T>
   decltype(auto) v() & {
-    return p<Index<T>::I>();
+    return p<Index<T>{}>();
   }
   template <typename T>
   decltype(auto) v() && {
-    return ZuMv(ZuMv(*this).template p<Index<T>::I>());
+    return ZuMv(ZuMv(*this).template p<Index<T>{}>());
   }
   template <typename T, typename P>
   decltype(auto) v(P &&p) {
-    return p<Index<T>::I>(ZuFwd<P>(p));
+    return p<Index<T>{}>(ZuFwd<P>(p));
   }
 
   template <typename L>

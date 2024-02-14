@@ -31,11 +31,11 @@ template class ZtString_<wchar_t, ZtString_ID>;
 #pragma warning(disable:4311 4244 4996)
 #endif
 
-void ZtHexDump::print(ZmStream &s) const
+void ZtHexDump_::print(ZmStream &s) const
 {
   if (ZuUnlikely(!m_data)) return;
 
-  s << m_prefix << '\n';
+  s << '\n';
 
   ZuStringN<64> hex;
   ZuStringN<20> ascii;
@@ -57,7 +57,7 @@ void ZtHexDump::print(ZmStream &s) const
       }
       ZuBox<uint8_t> byte = m_data[offset + col];
       hex << byte.fmt<Hex<0, Right<2>>>() << ' ';
-      ascii << ((byte >= 0x20 && byte < 0x7f) ?
+      ascii << (((byte >= 0x20 && byte < 0x7f) || byte == '"') ?
 	  static_cast<char>(byte.val()) : '.');
     }
     hex << ' ';

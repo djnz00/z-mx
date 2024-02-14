@@ -351,21 +351,15 @@ public:
 
 private:
   template <typename U, typename V = Key>
-  struct IsKey {
-    enum { OK = ZuConversion<U, V>::Exists };
-  };
+  struct IsKey : public ZuBool<ZuConversion<U, V>::Exists> { };
   template <typename U, typename R = void>
-  using MatchKey = ZuIfT<IsKey<U>::OK, R>;
+  using MatchKey = ZuIfT<IsKey<U>{}, R>;
   template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
-  struct IsData {
-    enum { OK = !IsKey<U>::OK && ZuConversion<U, V>::Exists };
-  };
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuConversion<U, V>::Exists> { };
   template <typename U, typename V>
-  struct IsData<U, V, true> {
-    enum { OK = 0 };
-  };
+  struct IsData<U, V, true> : public ZuFalse { };
   template <typename U, typename R = void>
-  using MatchData = ZuIfT<IsData<U>::OK, R>;
+  using MatchData = ZuIfT<IsData<U>{}, R>;
 
   template <typename P>
   static auto matchKey(const P &key) {

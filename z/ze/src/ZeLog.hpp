@@ -306,29 +306,25 @@ private:
 
 namespace ZeLog_ {
 
-template <typename U_> struct IsLiteral {
-  using U = ZuDecay<U_>;
-  enum { OK = ZuTraits<U>::IsArray &&
+template <typename U> struct IsLiteral_ : public ZuBool<
+    ZuTraits<U>::IsArray &&
     ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
-    ZuConversion<typename ZuTraits<U>::Elem, const char>::Same };
-};
+    ZuConversion<typename ZuTraits<U>::Elem, const char>::Same> { };
+template <typename U> struct IsLiteral : public IsLiteral_<ZuDecay<U>> { };
 template <typename U, typename R = void>
-using MatchLiteral = ZuIfT<IsLiteral<U>::OK, R>;
+using MatchLiteral = ZuIfT<IsLiteral<U>{}, R>;
 
-template <typename U_> struct IsPrint {
-  using U = ZuDecay<U_>;
-  enum { OK = !IsLiteral<U_>::OK &&
-    (ZuTraits<U>::IsString || ZuPrint<U>::OK) };
-};
+template <typename U> struct IsPrint_ : public ZuBool<
+    !IsLiteral<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
+template <typename U> struct IsPrint : public IsPrint_<ZuDecay<U>> { };
 template <typename U, typename R = void>
-using MatchPrint = ZuIfT<IsPrint<U>::OK, R>;
+using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
 
-template <typename U_> struct IsOther {
-  using U = ZuDecay<U_>;
-  enum { OK = !IsLiteral<U_>::OK && !IsPrint<U_>::OK };
-};
+template <typename U> struct IsOther_ :
+  public ZuBool<!IsLiteral<U>{} && !IsPrint<U>{}> { };
+template <typename U> struct IsOther : public IsOther_<ZuDecay<U>> { };
 template <typename U, typename R = void>
-using MatchOther = ZuIfT<IsOther<U>::OK, R>;
+using MatchOther = ZuIfT<IsOther<U>{}, R>;
 
 template <typename Msg>
 inline auto fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {

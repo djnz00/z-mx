@@ -92,9 +92,9 @@ public:
 };
 
 template <typename R1, typename R2, typename Args1, typename Args2>
-struct ZuFnMatch_ { enum { OK = 0 }; };
+struct ZuFnMatch_ : public ZuFalse { };
 template <typename R, typename Args>
-struct ZuFnMatch_<R, R, Args, Args> { enum { OK = 1 }; };
+struct ZuFnMatch_<R, R, Args, Args> : public ZuTrue { };
 
 template <typename R_, typename L_, typename ...Args_>
 struct ZuFnTraits_2 : public ZuFnTraits_3<

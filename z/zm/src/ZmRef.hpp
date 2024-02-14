@@ -107,11 +107,11 @@ private:
   ZmRef(T *o, Acquire_ _) : m_object{o} { }
 
   // matches ZmRef<U> where U is not T, but is in the same type hierarchy as T
-  template <typename U> struct IsOtherRef {
-    using V = decltype(ZmRefType(ZuDeclVal<U *>()));
-    enum { OK = ZuConversion<T, V>::Base || ZuConversion<V, T>::Base };
-  };
-  template <typename U, typename = void, bool = IsOtherRef<U>::OK>
+  template <typename V> struct IsOtherRef_ :
+      public ZuBool<ZuConversion<T, V>::Base || ZuConversion<V, T>::Base> { };
+  template <typename U> struct IsOtherRef :
+      public IsOtherRef_<decltype(ZmRefType(ZuDeclVal<U *>()))> { };
+  template <typename U, typename = void, bool = IsOtherRef<U>{}>
   struct MatchOtherRef_ { };
   template <typename U, typename R>
   struct MatchOtherRef_<U, R, true> { using T = R; };
@@ -119,11 +119,11 @@ private:
   using MatchOtherRef = typename MatchOtherRef_<U, R>::T;
 
   // matches ZmRef<U> where U is either T or in the same type hierarchy as T
-  template <typename U> struct IsRef {
-    using V = decltype(ZmRefType(ZuDeclVal<U *>()));
-    enum { OK = ZuConversion<T, V>::Is || ZuConversion<V, T>::Is };
-  };
-  template <typename U, typename = void, bool = IsRef<U>::OK>
+  template <typename V> struct IsRef_ :
+      public ZuBool<ZuConversion<T, V>::Is || ZuConversion<V, T>::Is> { };
+  template <typename U> struct IsRef :
+      public IsRef_<decltype(ZmRefType(ZuDeclVal<U *>()))> { };
+  template <typename U, typename = void, bool = IsRef<U>{}>
   struct MatchRef_ { };
   template <typename U, typename R>
   struct MatchRef_<U, R, true> { using T = R; };
@@ -131,11 +131,10 @@ private:
   using MatchRef = typename MatchRef_<U, R>::T;
 
   // matches U * where U is either T or in the same type hierarchy as T
-  template <typename U> struct IsPtr {
-    enum { OK = (ZuConversion<T, U>::Is || ZuConversion<U, T>::Is) };
-  };
+  template <typename U> struct IsPtr :
+    public ZuBool<(ZuConversion<T, U>::Is || ZuConversion<U, T>::Is)> { };
   template <typename U, typename R = void>
-  using MatchPtr = ZuIfT<IsPtr<U>::OK, R>;
+  using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 
 public:
   ZmRef() = default;
