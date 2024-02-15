@@ -31,8 +31,8 @@ struct Frame {
   void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
 ZtFields(Frame,
-    (((v1)), (Int), (Ctor(0), Series, Index, Delta)),
-    (((v2, Fn)), (Fixed), (Series, Delta, NDP(9))));
+    (((v1)), (Int), (Ctor<0>, Series, Index, Delta)),
+    (((v2, Fn)), (Fixed), (Series, Delta, NDP<9>)));
 
 void usage() {
   std::cerr << "usage: ZdfTest mem|load|save\n" << std::flush;
@@ -53,6 +53,9 @@ int main(int argc, char **argv)
     usage();
     return 1; // suppress compiler warning
   }
+  ZeLog::init("ZdfTest");
+  ZeLog::level(0);
+  ZeLog::start();
   using namespace Zdf;
   using namespace ZdfCompress;
   MemMgr memMgr;
@@ -124,6 +127,7 @@ int main(int argc, char **argv)
   }
   df.close();
   sched.stop();
+  ZeLog::stop();
   std::cout << ZmHeapMgr::csv();
   // df.final();
   // mgr.final();

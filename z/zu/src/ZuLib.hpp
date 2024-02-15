@@ -713,6 +713,10 @@ template <typename U> decltype(ZuDeclVal_<U>(0)) ZuDeclVal();
 template <typename ...> struct ZuVoid_ { using T = void; };
 template <typename ...Args> using ZuVoid = typename ZuVoid_<Args...>::T;
 
+// sizeof(void) handling
+template <typename T> struct ZuSize : public ZuUnsigned<sizeof(T)> { };
+template <> struct ZuSize<void> : public ZuUnsigned<0> { };
+
 // cv checking
 template <typename U, typename R = void> struct ZuIsConst_;
 template <typename U, typename R>

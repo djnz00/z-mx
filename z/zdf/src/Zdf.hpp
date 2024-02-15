@@ -45,28 +45,6 @@
 
 #include <zlib/dataframe_fbs.h>
 
-namespace ZtFieldProp {
-  struct Series { };	// data series column
-  struct Index { };	// - index (e.g. time, nonce, offset, seq#)
-  struct Delta { };	// - first derivative
-  struct Delta2 { };	// - second derivative
-}
-
-namespace ZtVFieldProp {
-  using namespace ZtVFieldProp;
-
-  enum {
-    Series	= (0x1<<ZdfShift),
-    Index	= (0x2<<ZdfShift),
-    Delta	= (0x4<<ZdfShift),
-    Delta2	= (0x8<<ZdfShift)
-  };
-  template <> struct Bits<ZtFieldProp::Series> { enum { N = Series }; };
-  template <> struct Bits<ZtFieldProp::Index> { enum { N = Index }; };
-  template <> struct Bits<ZtFieldProp::Delta> { enum { N = Delta }; };
-  template <> struct Bits<ZtFieldProp::Delta2> { enum { N = Delta2 }; };
-}
-
 namespace Zdf {
 
 // Data d;
@@ -180,28 +158,27 @@ private:
   }
 
   void initFn() {
-    dispatch(
-	[this](auto &&v) { initFn_<ZuDecay<decltype(v)>>(); });
+    dispatch([this](auto &&v) { initFn_<ZuDecay<decltype(v)>>(); });
   }
   template <typename Reader>
   void initFn_() {
     m_readFn = [](AnyReader *this_, ZuFixed &v) {
-      return this_->ptr_<Index<Reader>::I>()->read(v);
+      return this_->ptr_<Index<Reader>{}>()->read(v);
     };
     m_seekFwdFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Index<Reader>::I>()->seekFwd(offset);
+      this_->ptr_<Index<Reader>{}>()->seekFwd(offset);
     };
     m_seekRevFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Index<Reader>::I>()->seekRev(offset);
+      this_->ptr_<Index<Reader>{}>()->seekRev(offset);
     };
     m_findFwdFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Index<Reader>::I>()->findFwd(value);
+      this_->ptr_<Index<Reader>{}>()->findFwd(value);
     };
     m_findRevFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Index<Reader>::I>()->findRev(value);
+      this_->ptr_<Index<Reader>{}>()->findRev(value);
     };
     m_offsetFn = [](const AnyReader *this_) {
-      return this_->ptr_<Index<Reader>::I>()->offset();
+      return this_->ptr_<Index<Reader>{}>()->offset();
     };
   }
 
@@ -265,10 +242,10 @@ private:
   template <typename Writer>
   void initFn_() {
     m_writeFn = [](AnyWriter *this_, const ZuFixed &v) {
-      return this_->ptr_<Index<Writer>::I>()->write(v);
+      return this_->ptr_<Index<Writer>{}>()->write(v);
     };
     m_syncFn = [](AnyWriter *this_) {
-      this_->ptr_<Index<Writer>::I>()->sync();
+      this_->ptr_<Index<Writer>{}>()->sync();
     };
   }
 
@@ -280,8 +257,8 @@ private:
   SyncFn	m_syncFn = nullptr;
 };
 
-template <typename Field>
-struct FieldFilter : public ZuTypeIn<ZtFieldProp::Series, Field::Props> { };
+template <typename Field> struct FieldFilter :
+    public ZuTypeIn<ZtFieldProp::Series, typename Field::Props> { };
 
 template <typename T>
 auto fields() {

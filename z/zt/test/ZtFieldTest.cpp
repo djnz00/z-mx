@@ -69,7 +69,7 @@ int main()
       << " deflt=" << typename Field::Print_{Field::deflt(), fmt}
       << MinMax<Field>{fmt} << '\n';
   });
-  ZtVFieldArray<> fields{ZtVFields<Foo>()};
+  ZtVFieldArray fields{ZtVFields<Foo>()};
   auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldType;
     using ZtFieldType::Flags;

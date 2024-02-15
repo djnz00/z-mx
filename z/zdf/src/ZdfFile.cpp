@@ -206,7 +206,8 @@ bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
 
 void FileMgr::save(ZmRef<Buf> buf)
 {
-  buf->save([buf = ZuMv(buf)]() {
+  auto buf_ = buf.ptr();
+  buf_->save([buf = ZuMv(buf)]() {
     auto self = static_cast<FileMgr *>(buf->mgr);
     self->run([buf = ZuMv(buf)]() mutable {
       auto buf_ = buf.ptr();
@@ -227,7 +228,7 @@ void FileMgr::save_(unsigned seriesID, unsigned blkIndex, const void *buf)
   ZmRef<File> file = getFile(fileID, true);
   if (!file) return;
   if (ZuUnlikely((r = file->pwrite(
-	    pos.offset(), buf, BufSize, &e)) != (int)BufSize))
+	    pos.offset(), buf, BufSize, &e)) != Zi::OK))
     fileWrError_(fileID, pos.offset(), e);
 }
 

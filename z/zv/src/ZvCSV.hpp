@@ -122,15 +122,16 @@ public:
 private:
   static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
   using ColTree =
-    ZmRBTreeKV<ZuString, const Field *,
+    ZmRBTreeKV<ZuString, ZuPair<int, const Field *>,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ColTree_HeapID>>>;
 
 public:
   ZvCSV() {
     m_fields = ZtVFields<T>();
-    for (unsigned i = 0, n = m_fields.length(); i < n; i++)
-      m_columns.add(m_fields[i].id, &m_fields[i]);
+    for (int i = 0, n = m_fields.length(); i < n; i++)
+      m_columns.add(
+	  m_fields[i]->id, ZuPair<int, const Field *>{i, m_fields[i]});
   }
 
   struct FieldFmt : public ZtFieldFmt {
@@ -147,18 +148,22 @@ public:
     return const_cast<ZvCSV *>(this)->fmt();
   }
 
-  const Field *find(ZuString id) const { return m_columns.findVal(id); }
+  ZuPair<int, const Field *> find(ZuString id) const {
+    auto node = m_columns.find(id);
+    if (!node) return {-1, nullptr};
+    return node->val();
+  }
 
   const Field *field(unsigned i) const {
     if (i >= m_fields.length()) return nullptr;
-    return &m_fields[i];
+    return m_fields[i];
   }
 
 private:
   void writeHeaders(ZtArray<ZuString> &headers) const {
     unsigned n = m_fields.length();
     headers.size(n);
-    for (unsigned i = 0; i < n; i++) headers.push(m_fields[i].id);
+    for (unsigned i = 0; i < n; i++) headers.push(m_fields[i]->id);
   }
 
   void header(ColIndex &colIndex, ZuString hdr) const {
@@ -169,9 +174,10 @@ private:
     colIndex.length(n);
     for (unsigned i = 0; i < n; i++) colIndex[i] = -1;
     n = a.length();
-    for (unsigned i = 0; i < n; i++)
-      if (const Field *field = find(a[i]))
-	colIndex[(int)(field - &m_fields[0])] = i;
+    for (unsigned i = 0; i < n; i++) {
+      int j = find(a[i]).template p<0>();
+      if (j >= 0) colIndex[j] = i;
+    }
   }
 
   void scan(
@@ -184,12 +190,12 @@ private:
     for (unsigned i = 0; i < m; i++) {
       int j;
       if ((j = colIndex[i]) < 0 || j >= (int)n)
-        m_fields[i].scan(object, ZuString{}, fmt);
+        m_fields[i]->scan(object, ZuString{}, fmt);
     }
     for (unsigned i = 0; i < m; i++) {
       int j;
       if ((j = colIndex[i]) >= 0 && j < (int)n)
-        m_fields[i].scan(object, a[j], fmt);
+        m_fields[i]->scan(object, a[j], fmt);
     }
   }
 
@@ -198,12 +204,13 @@ private:
     if (!names.length() || (names.length() == 1 && names[0] == "*")) {
       unsigned n = m_fields.length();
       colArray.size(n);
-      for (unsigned i = 0; i < n; i++) colArray.push(&m_fields[i]);
+      for (unsigned i = 0; i < n; i++) colArray.push(m_fields[i]);
     } else {
       unsigned n = names.length();
       colArray.size(n);
       for (unsigned i = 0; i < n; i++)
-	if (const Field *field = find(names[i])) colArray.push(field);
+	if (auto field = find(names[i]).template p<1>())
+	  colArray.push(field);
     }
     return colArray;
   }

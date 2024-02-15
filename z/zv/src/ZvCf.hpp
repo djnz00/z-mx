@@ -668,19 +668,20 @@ struct Fielded_ {
   struct AllFilter : public ZuBool<!U::ReadOnly> { };
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
-  template <typename U>
-  struct UpdateFilter : public ZuTypeIn<ZtFieldProp::Update, U::Props> { };
+  template <typename U> struct UpdateFilter :
+      public ZuTypeIn<ZtFieldProp::Update, typename U::Props> { };
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>
   struct CtorFilter :
-      public ZuBool<(ZtFieldProp::GetCtor<U::Props>{} >= 0)> { };
+      public ZuBool<(ZtFieldProp::GetCtor<typename U::Props>{} >= 0)> { };
   template <typename U>
-  struct CtorIndex : public ZtFieldProp::GetCtor<U::Props> { };
+  struct CtorIndex : public ZtFieldProp::GetCtor<typename U::Props> { };
   using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
 
   template <typename U>
-  struct InitFilter : public ZuBool<!(U::Flags & ZtFieldFlags::Ctor_)> { };
+  struct InitFilter :
+      public ZuBool<(ZtFieldProp::GetCtor<typename U::Props>{} < 0)> { };
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
   template <typename ...Fields>
@@ -1125,7 +1126,7 @@ public:
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::String, typename Field::T>
   getField() {
-    return get<Field::Flags & ZtFieldFlags::Required>(
+    return get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
@@ -1133,14 +1134,14 @@ public:
 	Field::Type == ZtFieldType::Time, typename Field::T>
   getField() {
     using T = typename Field::T;
-    auto s = get<Field::Flags & ZtFieldFlags::Required>(Field::id(), "");
+    auto s = get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(Field::id(), "");
     if (ZuUnlikely(!s)) return Field::deflt();
     return T{s};
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Bool, typename Field::T>
   getField() {
-    return getBool<Field::Flags & ZtFieldFlags::Required>(
+    return getBool<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
@@ -1149,21 +1150,21 @@ public:
 	Field::Type == ZtFieldType::Fixed ||
 	Field::Type == ZtFieldType::Decimal, typename Field::T>
   getField() {
-    return getScalar<typename Field::T, Field::Flags & ZtFieldFlags::Required>(
+    return getScalar<typename Field::T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt(), Field::minimum(), Field::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Hex, typename Field::T>
   getField() {
     using T = typename Field::T;
-    return getScalar<T, Field::Flags & ZtFieldFlags::Required>(
+    return getScalar<T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Enum, typename Field::T>
   getField() {
     using Map = typename Field::Map;
-    return getEnum<Map, Field::Flags & ZtFieldFlags::Required>(
+    return getEnum<Map, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
@@ -1171,7 +1172,7 @@ public:
   getField() {
     using Map = typename Field::Map;
     using T = typename Field::T;
-    return getFlags_<Map, T, Field::Flags & ZtFieldFlags::Required>(
+    return getFlags_<Map, T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
 

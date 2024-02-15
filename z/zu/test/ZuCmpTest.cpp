@@ -488,4 +488,12 @@ int main()
     ZuRef<O> o = new O{};
     CHECK(ZuObjectTraits<O>::IsObject);
   }
+
+  {
+    ZuUnion<void, bool> a, b = true;
+    CHECK(ZuCmp<unsigned>::cmp(a.type(), 0) == 0);
+    CHECK(ZuCmp<unsigned>::cmp(b.type(), 1) == 0);
+    CHECK(ZuCmp<bool>::cmp(a.v<bool>(), true) != 0);
+    CHECK(ZuCmp<bool>::cmp(b.v<bool>(), true) == 0);
+  }
 }

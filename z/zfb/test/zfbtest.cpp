@@ -27,8 +27,8 @@ struct Test {
 };
 
 ZfbFields(Test, fbs::Test,
-  (((foo)), (Int), (Ctor(0))),
-  (((bar)), (String), (Ctor(1))),
+  (((foo)), (Int), (Ctor<0>)),
+  (((bar)), (String), (Ctor<1>)),
   (((kvTree, Lambda,
     ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
       using namespace Zfb::Save;

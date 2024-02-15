@@ -164,7 +164,7 @@ namespace Zu_ {
 template <typename ...Args> class Union {
 public:
   using Largest = ZuLargest<Args...>;
-  enum { Size = sizeof(Largest) };
+  enum { Size = ZuSize<Largest>{} };
   enum { N = sizeof...(Args) };
   template <unsigned I> using Type = ZuType<I, Args...>;
   template <unsigned I> using Type_ = ZuDecay<Type<I>>;
@@ -175,7 +175,7 @@ public:
   Union() {
     using T0 = Type<0>;
     type_(0);
-    new (&m_u[0]) T0{};
+    if constexpr (ZuSize<T0>{} > 0) new (&m_u[0]) T0{};
   }
 
   ~Union() {
@@ -238,10 +238,14 @@ public:
     return reinterpret_cast<Union *>(ptr)->new_<T>();
   }
 
-  template <typename T> T *init() {
+  template <typename T> ZuIfT<!ZuConversion<void, T>::Same, T *> init() {
     this->~Union();
     this->type_(Index<T>{});
     return reinterpret_cast<T *>(&m_u[0]);
+  }
+  template <typename T> ZuIfT<ZuConversion<void, T>::Same> init() {
+    this->~Union();
+    this->type_(Index<T>{});
   }
 
 private:

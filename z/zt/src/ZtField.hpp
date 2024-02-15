@@ -60,6 +60,8 @@
 #include <zlib/ZtLib.hpp>
 #endif
 
+#include <typeinfo>
+
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuArray.hpp>
@@ -99,14 +101,17 @@ namespace ZtFieldType {
 
 // compile-time field property list is a typelist of individual properties
 // - each type is declared in the ZtFieldProp namespace
-// - higher layers can declare their own properties in the same namespace
-// - only ZtField layer properties are represented in ZtVField::props
+// - additional properties can be injected into the ZtFieldProp namespace
 namespace ZtFieldProp {
   struct Synthetic { };		// synthetic and read-only
   struct Update { };		// include in updates
   struct Hidden { };		// do not print
   struct Quote { };		// print quoted string
   struct Required { };		// required - do not default
+  struct Series { };		// data series column
+  struct Index { };		// - index (e.g. time, nonce, offset, seq#)
+  struct Delta { };		// - first derivative
+  struct Delta2 { };		// - second derivative
 
   template <unsigned I>
   struct Ctor : public ZuUnsigned<I> { }; // constructor parameter
@@ -149,22 +154,20 @@ namespace ZtVFieldProp {
     Required	= 0x00010,
     Ctor_	= 0x00020,
     NDP_	= 0x00040,
+    Series	= 0x00080,
+    Index	= 0x00100,
+    Delta	= 0x00200,
+    Delta2	= 0x00400
   };
   enum {
-    CtorShift	= 8,		// bit-shift for constructor parameter index
+    CtorShift	= 11,		// bit-shift for constructor parameter index
     CtorMask	= 0x3f		// 6 bits, 0-63
   };
   enum {
-    NDPShift	= 14,
+    NDPShift	= 17,
     NDPMask	= 0x1f		// 5 bits, 0-31
   };
-  // placeholders for higher layers
-  enum {
-    ZdfShift	= 20,		// for use by Zdf
-    ZdfMask	= 0xf,		// 4 bits
-    ZdbShift	= 24,		// for use by Zdb
-    ZdbMask	= 0xff		// 8 bits
-  };
+
   // parameter index -> flags
   inline constexpr unsigned Ctor(unsigned i) {
     return Ctor_ | (i<<CtorShift);
@@ -188,6 +191,10 @@ namespace ZtVFieldProp {
   template <> struct Bits<ZtFieldProp::Hidden>    { enum { N = Hidden }; };
   template <> struct Bits<ZtFieldProp::Quote>     { enum { N = Quote }; };
   template <> struct Bits<ZtFieldProp::Required>  { enum { N = Required }; };
+  template <> struct Bits<ZtFieldProp::Series>    { enum { N = Series }; };
+  template <> struct Bits<ZtFieldProp::Index>     { enum { N = Index }; };
+  template <> struct Bits<ZtFieldProp::Delta>     { enum { N = Delta }; };
+  template <> struct Bits<ZtFieldProp::Delta2>    { enum { N = Delta2 }; };
 
   template <unsigned I>
   struct Bits<ZtFieldProp::Ctor<I>> { enum { N = Ctor(I) }; };
@@ -1253,19 +1260,26 @@ struct ZtFieldPrint : public ZuPrintDelegate {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<O>>;
     thread_local ZtFieldFmt fmt;
     ZuTypeAll<FieldList>::invoke([&o, &s]<typename Field>() {
-      if constexpr (ZuTypeIndex<Field, FieldList>::I) s << ' ';
+      if constexpr (ZuTypeIndex<Field, FieldList>{}) s << ' ';
       s << typename Field::Print{o, fmt};
     });
   }
 };
 
 // run-time introspection
+//
+// Note: virtual polymorphism and RTTI are avoided here because:
+// 1] If ZtVField were virtually polymorphic, deriving from it to enrich it
+//    with capabilities such as data-store serdes would entail a much
+//    more complex type hierarchy with diamond-shaped inheritance
+// 2] ZtVField (and derived classes) need to be POD
+// 3] Very little syntactic benefit would be obtained
 
 struct ZtVField {
-  const char	*id;
-  uint32_t	type;		// ZtFieldType
-  uint32_t	props;		// ZtVFieldProp
-  uint64_t	keys;
+  const char		*id;
+  uint32_t		type;		// ZtFieldType
+  uint32_t		props;		// ZtVFieldProp
+  uint64_t		keys;
 
   int		(*cmp)(const void *, const void *);
 
@@ -1508,8 +1522,7 @@ struct ZtVField {
   }
 };
 
-template <typename VField = ZtVField>
-using ZtVFieldArray = ZuArray<const VField *>;
+using ZtVFieldArray = ZuArray<const ZtVField *>;
 
 template <typename VField, typename ...Fields>
 struct ZtVFields_ {
@@ -1520,8 +1533,10 @@ struct ZtVFields_ {
     {
       VField{Fields{}}...
     };
-    static const VField *ptr_[N];
-    ZuUnroll::all<N>([](auto i) { ptr_[i] = &fields_[i]; });
+    static const ZtVField *ptr_[N];
+    ZuUnroll::all<N>([](auto i) {
+      ptr_[i] = static_cast<const ZtVField *>(&fields_[i]);
+    });
     return {&ptr_[0], N};
   }
 };

@@ -44,6 +44,10 @@ template <typename Arg0, typename ...Args> struct ZuLargest_<Arg0, Args...> {
       Arg0, typename ZuLargest_<Args...>::T>;
 };
 template <typename ...Args>
+struct ZuLargest_<void, Args...> {
+  using T = typename ZuLargest_<Args...>::T;
+};
+template <typename ...Args>
 using ZuLargest = typename ZuLargest_<Args...>::T;
 
 #endif /* ZuLargest_HPP */

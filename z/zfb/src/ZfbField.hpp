@@ -301,7 +301,7 @@ struct SaveField<O, OffsetFieldList, Field, true> {
   template <typename Builder>
   static void save(Builder &fbb, const O &, const Offset<void> *offsets) {
     using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
-    Field::save(fbb, offsets[OffsetIndex::I]);
+    Field::save(fbb, offsets[OffsetIndex{}]);
   }
 };
 template <typename O, typename FieldList,
@@ -315,7 +315,7 @@ struct SaveFieldList {
     ZuTypeAll<OffsetFieldList>::invoke(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
 	  using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
-	  offsets[OffsetIndex::I] = Field::save(fbb_, o);
+	  offsets[OffsetIndex{}] = Field::save(fbb_, o);
 	});
     Builder fbb{fbb_};
     ZuTypeAll<FieldList>::invoke(
@@ -351,17 +351,17 @@ struct Fielded_ {
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U>
-  struct UpdateFilter : public ZuTypeIn<Prop::Update, U::Props> { };
+  struct UpdateFilter : public ZuTypeIn<Prop::Update, typename U::Props> { };
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
+  template <typename U> struct CtorFilter :
+      public ZuBool<(Prop::GetCtor<typename U::Props>{} >= 0)> { };
   template <typename U>
-  struct CtorFilter : public ZuBool<(Prop::GetCtor<U::Props>{} >= 0)> { };
-  template <typename U>
-  struct CtorIndex : public Prop::GetCtor<U::Props> { };
+  struct CtorIndex : public Prop::GetCtor<typename U::Props> { };
   using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
 
-  template <typename U>
-  struct InitFilter : public ZuBool<!(U::Flags & Flags::Ctor_)> { };
+  template <typename U> struct InitFilter :
+      public ZuBool<(Prop::GetCtor<typename U::Props>{} < 0)> { };
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
   static Zfb::Offset<FBType> save(Zfb::Builder &fbb, const O &o) {

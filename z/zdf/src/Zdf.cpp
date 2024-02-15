@@ -32,13 +32,13 @@ DataFrame::DataFrame(ZtVFieldArray fields, ZuString name, bool timeIndex) :
   m_fields.size(n + timeIndex);
   for (unsigned i = 0; i < n; i++) {
     ZuPtr<Series> series = new Series();
-    if (!indexed && (fields[i].flags & ZtFieldFlags::Index)) {
+    if (!indexed && (fields[i]->props & ZtVFieldProp::Index)) {
       indexed = true;
       m_series.unshift(ZuMv(series));
-      m_fields.unshift(&fields[i]);
+      m_fields.unshift(fields[i]);
     } else {
       m_series.push(ZuMv(series));
-      m_fields.push(&fields[i]);
+      m_fields.push(fields[i]);
     }
   }
   if (timeIndex) {
