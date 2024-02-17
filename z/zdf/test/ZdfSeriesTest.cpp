@@ -15,8 +15,8 @@ void print(const char *s) {
 void print(const char *s, int64_t i) {
   std::cout << s << ' ' << i << '\n' << std::flush;
 }
-void ok(const char *s) { } // { print(s); }
-void ok(const char *s, int64_t i) { } // { print(s, i); }
+void ok(const char *s) { print(s); }
+void ok(const char *s, int64_t i) { print(s, i); }
 void fail(const char *s) { print(s); }
 void fail(const char *s, int64_t i) { print(s, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))

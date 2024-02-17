@@ -19,6 +19,9 @@
 
 // shared memory IPC ring buffer
 
+// Linux - /dev/shm/*
+// Windows - Local\*
+
 #ifndef ZiRing_HPP
 #define ZiRing_HPP
 

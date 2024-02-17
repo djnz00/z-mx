@@ -88,9 +88,9 @@ public:
 
 private:
   Lock		m_lock;
-    ZmTime	  m_min{INT_MAX};
-    ZmTime	  m_max;
-    ZmTime	  m_total;
+    ZmTime	  m_min{ZuCmp<time_t>::maximum(), 0};
+    ZmTime	  m_max{ZuCmp<time_t>::minimum(), 0};
+    ZmTime	  m_total{0, 0};
     unsigned	  m_count = 0;
 };
 

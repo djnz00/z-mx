@@ -212,6 +212,9 @@ public:
     return new ZeLambdaSink<L>(ZuMv(l));
   }
 
+  static void init() {
+    instance()->init_();
+  }
   static void init(const char *program) {
     instance()->init_(program);
   }
@@ -259,8 +262,10 @@ private:
   static ZeLog *instance();
 
   void init_();
+  void init__();
   void init_(const char *program);
   void init_(const char *program, const char *facility);
+  void init__(const char *program, const char *facility);
 
   void bufSize_(unsigned n) { m_bufSize = n; }
 

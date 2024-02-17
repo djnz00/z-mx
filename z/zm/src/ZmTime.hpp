@@ -91,10 +91,15 @@ public:
   constexpr ZmTime(time_t t, long n) : timespec{t, n} { }
 
   constexpr ZmTime(double d) :
-    timespec{(time_t)d, (long)((d - (double)(time_t)d) * 1000000000)} { }
+    timespec{
+      static_cast<time_t>(d),
+      static_cast<long>(
+	  (d - static_cast<double>(static_cast<time_t>(d))) * 1000000000)} { }
 
   constexpr ZmTime(Nano_, int64_t nano) : 
-    timespec{(time_t)(nano / 1000000000), (long)(nano % 1000000000)} { }
+    timespec{
+      static_cast<time_t>(nano / 1000000000),
+      static_cast<long>(nano % 1000000000)} { }
 
 #ifndef _WIN32
   constexpr ZmTime(const timespec &t) : timespec{t.tv_sec, t.tv_nsec} { }

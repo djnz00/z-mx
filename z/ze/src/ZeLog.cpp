@@ -154,20 +154,35 @@ extern "C" {
 
 void ZeLog::init_()
 {
+  Guard guard(m_lock);
+  init__();
+}
+
+void ZeLog::init__()
+{
+  if (m_program) return;
 #ifdef linux
-  init_(program_invocation_short_name, "user");
+  init__(program_invocation_short_name, "user");
 #else
-  init_("ZeLog", "user");
+  init__("ZeLog", "user");
 #endif
 }
 
 void ZeLog::init_(const char *program)
 {
-  init_(program, "user");
+  Guard guard(m_lock);
+  init__(program, "user");
 }
 
 void ZeLog::init_(const char *program, const char *facility)
 {
+  Guard guard(m_lock);
+  init__(program, facility);
+}
+
+void ZeLog::init__(const char *program, const char *facility)
+{
+  // intentionally not idempotent - permit re-initialization
   m_program = program;
   m_facility = facility;
 #ifndef _WIN32
@@ -205,12 +220,12 @@ void ZeLog::sink_(ZmRef<ZeSink> sink)
 void ZeLog::start_()
 {
   Guard guard(m_lock);
-  if (m_thread) return;
   start__();
 }
 
 void ZeLog::start__()
 {
+  if (m_thread) return;
   m_ring.init(ZmRingParams{m_bufSize});
   {
     int r;
@@ -224,7 +239,9 @@ void ZeLog::start__()
 void ZeLog::forked_()
 {
   Guard guard(m_lock);
-  start__();
+  try { start__(); } catch (...) {
+    throw ZtString{"ZeLog::start failed!"};
+  }
 }
 
 void ZeLog::stop_()
@@ -267,6 +284,13 @@ ZmRef<ZeSink> ZeLog::sink_()
 
 void ZeLog::log__(Fn &fn)
 {
+  if (ZuUnlikely(!m_ring.ctrl())) {
+    Guard guard(m_lock);
+    if (!m_program) init__();
+    try { start__(); } catch (...) {
+      throw ZtString{"ZeLog::start failed!"};
+    }
+  }
   unsigned size = fn.pushSize();
   void *ptr;
   if (ZuLikely(ptr = m_ring.push(size))) {

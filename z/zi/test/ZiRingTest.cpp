@@ -222,9 +222,7 @@ void App<Ring>::run()
   if (start && end) {
     start = end - start;
     ZuStringN<80> s;
-    s << "total time: " <<
-      ZuBoxed(start.sec()) << '.' <<
-	ZuBoxed(start.nsec()).fmt<ZuFmt::Frac<9>>() <<
+    s << "total time: " << start.interval() <<
       "  avg time: " <<
       ZuBoxed((start.dtime() / static_cast<double>(count)) * 1000000.0) <<
       " usec\n";
@@ -244,6 +242,7 @@ template <typename Ring>
 void App<Ring>::reader()
 {
   std::cerr << "reader started\n";
+  if (!write) start.now();
   Ring reader{ring};
   if (reader.open(Ring::Read) != Zu::OK) {
     std::cerr << "reader open failed\n";
@@ -269,7 +268,6 @@ void App<Ring>::reader()
       int k = reader.readStatus();
       if (k == Zu::EndOfFile) {
 	std::cerr << "reader EOF\n";
-	break;
       } else if (!k)
 	std::cerr << "ring empty\n";
       else {
@@ -304,10 +302,8 @@ void App<Ring>::writer()
     ZmTime writeStart(ZmTime::Now);
     if (void *ptr = writer.push()) {
       // puts("push");
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-      Msg *msg = new (ptr) Msg{};
-#pragma GCC diagnostic pop
+      // Msg *msg =
+      new (ptr) Msg{};
       // fwrite("msg written\n", 1, 12, stderr);
       if constexpr (Ring::MW)
 	writer.push2(ptr);
