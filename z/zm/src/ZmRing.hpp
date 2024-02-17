@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// ring buffer
+// local memory intra-process ring buffer
 // - single/multiple writers/producers and readers/consumers
 //   - supports SWSR MWSR SWMR MWMR
 // - fixed- and variable-sized messages (types)
@@ -26,7 +26,7 @@
 //   - most applications require sharding to ensure correct sequencing,
 //     and sharding to multiple ring buffers is more performant than
 //     multiple readers contending on a single ring buffer and
-//     skipping past all the essages intended for other readers
+//     skipping past all the messages intended for other readers
 
 #ifndef ZmRing_HPP
 #define ZmRing_HPP

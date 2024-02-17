@@ -17,7 +17,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// shared memory IPC ring buffer
+// shared memory inter-process ring buffer
+// layered on ZmRing, but ZiRing is always multiple reader (MR)
+// - single/multiple writers/producers - supports SWMR MWMR
+// - fixed- and variable-sized messages (types)
+// - broadcast - all readers receive all messages
+//   - for unicast, shard writes to multiple MWMR ring buffers
+//   - most applications require sharding to ensure correct sequencing,
+//     and sharding to multiple ring buffers is more performant than
+//     multiple readers contending on a single ring buffer and
+//     skipping past all the messages intended for other readers
 
 // Linux - /dev/shm/*
 // Windows - Local\*
