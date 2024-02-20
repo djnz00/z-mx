@@ -56,14 +56,15 @@ void Globber::init(
   unsigned end = data.length();		// end of line data
 
   // if cursor is at line end or cursor is not on white space,
-  // then we need to append a space to every completion
+  // then we need to append a space to every completion, unless
+  // the completion is a directory in which case a '/' is appended
   m_appendSpace = cursor == end || !isspace__(data[cursor]);
 
 // --- 1st pass - find the beginning of the quoted path ending at cursor
 
   // regrettably a 2-pass scan is more efficient than a 1-pass due
-  // to the need to persist the unquoted path; we subsequently splice
-  // any re-quoted span back into the line
+  // to the need to persist the unquoted path; any re-quoted span
+  // is subsequently spliced back into the line
   int qstate = QState::WhiteSpace;
   unsigned off = 0;
   while (off < cursor) {
@@ -116,7 +117,7 @@ void Globber::init(
 
 // --- 2nd pass - re-scan the line, building the unquoted path
 
-  // {} not used to avoid std::initializer_list<T> ctor overload
+  // {} not used - avoid std::initializer_list<T> ctor overload
   ZtArray<uint8_t> path(cursor - begin);// unquoted path (estimated size)
 
   // capture any span within the path that needs re-quoting
@@ -240,7 +241,7 @@ void Globber::init(
     case QMode::DblQuote: replace << '"';  ++rspan; ++m_lspan; break;
   }
 
-  // splice replacement quoted path into line
+  // splice replacement quoted path back into line
   splice(qoff, qspan, replace, rspan);
 }
 
