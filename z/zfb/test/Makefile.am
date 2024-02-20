@@ -5,7 +5,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	@Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@
-FBS = zfbtest.fbs
+FBS = zfbtest.fbs zfbtest2.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs
 	flatc -c --cpp-field-case-style lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
@@ -21,5 +21,6 @@ LDADD = $(top_builddir)/zfb/src/libZfb.la \
 	$(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@FBS_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-noinst_PROGRAMS = zfbtest
+noinst_PROGRAMS = zfbtest zfbtest2
 zfbtest_SOURCES = zfbtest.cpp
+zfbtest2_SOURCES = zfbtest2.cpp

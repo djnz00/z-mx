@@ -124,9 +124,9 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     static Zfb::Offset<void> save(Zfb::Builder &fbb, const O &o) { \
       return Zfb::Save::SaveFn(fbb, Base::get(o)).Union(); \
     } \
-    template <typename Builder_> \
-    static void save(Builder_ &fbb, Zfb::Offset<void> offset) { \
-      fbb.add_##ID(offset.o); \
+    template <typename B> \
+    static void save(B &b, Zfb::Offset<void> offset) { \
+      b.add_##ID(offset.o); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
@@ -155,10 +155,10 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using Builder = ZfbBuilder<O>; \
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
-    template <typename Builder_> \
-    static void save(Builder_ &fbb, const O &o) { \
+    template <typename B> \
+    static void save(B &b, const O &o) { \
       auto v = Zfb::Save::SaveFn(Base::get(o)); \
-      fbb.add_##ID(&v); \
+      b.add_##ID(&v); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
@@ -188,11 +188,11 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using Builder = ZfbBuilder<O>; \
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
-    template <typename Builder_> \
-    static void save(Builder_ &fbb, const O &o) { \
+    template <typename B> \
+    static void save(B &b, const O &o) { \
       using P = \
-        ZuType<0, typename ZuDeduce<decltype(&Builder_::add_##ID)>::Args>; \
-      fbb.add_##ID(static_cast<P>(Base::get(o))); \
+        ZuType<0, typename ZuDeduce<decltype(&B::add_##ID)>::Args>; \
+      b.add_##ID(static_cast<P>(Base::get(o))); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { return fbo->ID(); } \
@@ -247,7 +247,7 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
   ZfbFieldInline(O, __VA_ARGS__, id, id)
 #define ZfbFieldObject_T Composite
 #define ZfbFieldObject(O, ...) \
-  ZfbFieldNested(O, __VA_ARGS__, Zfb::ctor<O>, Zfb::save<O>)
+  ZfbFieldNested(O, __VA_ARGS__, object, object<Base::T>)
 
 #define ZfbField_Decl__(O, ID, Base, TypeName, Type, ...) \
   ZuPP_Defer(ZtField_Decl_)(O, Base, \
@@ -291,17 +291,17 @@ template <
   typename O, typename OffsetFieldList, typename Field,
   bool = HasOffset<Field>{}>
 struct SaveField {
-  template <typename Builder>
-  static void save(Builder &fbb, const O &o, const Offset<void> *) {
-    Field::save(fbb, o);
+  template <typename B>
+  static void save(B &b, const O &o, const Offset<void> *) {
+    Field::save(b, o);
   }
 };
 template <typename O, typename OffsetFieldList, typename Field>
 struct SaveField<O, OffsetFieldList, Field, true> {
-  template <typename Builder>
-  static void save(Builder &fbb, const O &, const Offset<void> *offsets) {
+  template <typename B>
+  static void save(B &b, const O &, const Offset<void> *offsets) {
     using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
-    Field::save(fbb, offsets[OffsetIndex{}]);
+    Field::save(b, offsets[OffsetIndex{}]);
   }
 };
 template <typename O, typename FieldList,
@@ -496,5 +496,20 @@ inline auto key(const ZfbType<O> *fbo) {
 }
 
 } // ZfbField
+
+namespace Zfb {
+namespace Load {
+  template <typename O>
+  inline O object(const ZfbType<O> *fbo) {
+    return ZfbField::Fielded<O>::ctor(fbo);
+  }
+}
+namespace Save {
+  template <typename B, typename O>
+  inline auto object(B &b, const O &o) {
+    return ZfbField::Fielded<O>::save(b, o);
+  }
+}
+} // Zfb
 
 #endif /* ZfbField_HPP */

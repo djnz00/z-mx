@@ -87,8 +87,7 @@ namespace Save {
   template <typename B>
   inline auto kvString(B &b, ZuString key, ZuString value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_String,
-	str(b, value).Union());
+    return CreateKV(b, str(b, key), Value_String, str(b, value).Union());
   }
   // Example:
   // kvStringVec(b, "strings", 2,
