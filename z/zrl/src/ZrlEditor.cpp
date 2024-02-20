@@ -2142,7 +2142,7 @@ void Editor::initComplete()
   unsigned cursor = line.position(m_tty.pos()).mapping();
   unsigned end = line.length();
   auto data = substr(start, end);
-  m_app.compInit(data, cursor, m_compSpliceFn);
+  m_app.compInit(data, cursor - start, m_compSpliceFn);
 }
 void Editor::finalComplete()
 {

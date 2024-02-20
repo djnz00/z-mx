@@ -152,6 +152,11 @@ void Globber::init(
     uint32_t c;
     unsigned n = ZuUTF8::in(&data[off], end - off, c);
     if (!n) break;
+    if (qoff == UINT_MAX && (c == '*' || c == '?' || c == '{' || c == '}')) {
+      qoff = off;
+      pqoff = path.length();
+      setQMode();
+    }
     {
       ZuUTFSpan span{n, 1, ZuUTF32::width(c)};
       if (qoff < UINT_MAX)
@@ -179,11 +184,6 @@ void Globber::init(
 	case QState::DblQuoted:
 	  if (c == '"') { qstate = QState::Unquoted; off += n; continue; }
 	  break;
-      }
-      if (qoff == UINT_MAX && (c == '*' || c == '?' || c == '{' || c == '}')) {
-	qoff = off;
-	pqoff = path.length();
-	setQMode();
       }
     }
     if (qstate == QState::WhiteSpace) break; // white space under cursor
@@ -236,7 +236,6 @@ void Globber::init(
     case QMode::SglQuote: replace << '\''; ++rspan; ++m_lspan; break;
     case QMode::DblQuote: replace << '"';  ++rspan; ++m_lspan; break;
   }
-  if (m_appendSpace) { replace << ' '; ++rspan; ++m_lspan; }
 
   // splice replacement quoted path into line
   splice(qoff, qspan, replace, rspan);
@@ -284,6 +283,7 @@ bool Globber::subst(CompSpliceFn splice, bool next)
     case QMode::SglQuote: replace << '\''; ++rspan; break;
     case QMode::DblQuote: replace << '"';  ++rspan; break;
   }
+  // FIXME - append a '/' if a directory, not a ' '
   if (m_appendSpace) { replace << ' '; ++rspan; }
 
   // splice replacement leafname into line

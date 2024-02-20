@@ -1216,10 +1216,12 @@ ZiFile::Path ZiFile::dirname(const Path &name)
   for (o = n; --o >= 0; )
 #ifndef _WIN32
     if (name[o] == '/') break;
-  if (o < 0) return '.';
+  if (o < 0) return ".";
+  if (!o) return "/";
 #else
     if (name[o] == L'\\' || name[o] == L'/') break;
   if (o < 0) return L".";
+  if (!o) return L"/";
 #endif
   return name.splice(0, o);
 }
