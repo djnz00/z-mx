@@ -71,7 +71,7 @@ public:
 
   void start();
 
-  bool subst(CompSpliceFn splice);
+  bool subst(CompSpliceFn splice, bool next);
 
   bool next(CompIterFn iter);
 

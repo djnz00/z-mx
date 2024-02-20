@@ -1109,6 +1109,7 @@ private:
     }
   }
 
+public:
   Node *next(Node *node) {
     Node *next;
 
@@ -1166,6 +1167,8 @@ private:
 
     return prev;
   }
+
+private:
 
 // iterator functions
 

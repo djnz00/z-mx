@@ -155,6 +155,7 @@ Editor::Editor()
   m_cmdFn[Op::RevGlyphSrch] = &Editor::cmdRevGlyphSrch;
 
   m_cmdFn[Op::Complete] = &Editor::cmdComplete;
+  m_cmdFn[Op::RevComplete] = &Editor::cmdRevComplete;
   m_cmdFn[Op::ListComplete] = &Editor::cmdListComplete;
 
   m_cmdFn[Op::Next] = &Editor::cmdNext;
@@ -171,6 +172,8 @@ Editor::Editor()
 
   m_cmdFn[Op::FwdSearch] = &Editor::cmdFwdSearch;
   m_cmdFn[Op::RevSearch] = &Editor::cmdRevSearch;
+
+  m_compSpliceFn = CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this);
 }
 
 void Editor::init(Config config, App app)
@@ -215,7 +218,8 @@ void Editor::init(Config config, App app)
   m_defltMap->bind(0, -VKey::PgUp, { { Op::Prev } });
   m_defltMap->bind(0, -VKey::PgDn, { { Op::Next } });
 
-  m_defltMap->bind(0, '\t', { { Op::Complete } });
+  m_defltMap->bind(0, -VKey::Tab, { { Op::Complete } });
+  m_defltMap->bind(0, -(VKey::Tab | VKey::Shift), { { Op::RevComplete } });
   m_defltMap->bind(0, '\x04', { { Op::ListComplete } });
 
   m_defltMap->bind(0, '\x0c', { { Op::Clear } });
@@ -922,8 +926,11 @@ bool Editor::process__(const CmdSeq &cmds, int32_t vkey)
     // clear completion context
     switch (m_context.prevCmd.op()) {
       case Op::Complete:
+      case Op::RevComplete:
       case Op::ListComplete:
-	if (op != Op::Complete && op != Op::ListComplete)
+	if (op != Op::Complete &&
+	    op != Op::RevComplete &&
+	    op != Op::ListComplete)
 	  finalComplete();
 	break;
     }
@@ -2135,8 +2142,7 @@ void Editor::initComplete()
   unsigned cursor = line.position(m_tty.pos()).mapping();
   unsigned end = line.length();
   auto data = substr(start, end);
-  m_app.compInit(data, cursor,
-    CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this));
+  m_app.compInit(data, cursor, m_compSpliceFn);
 }
 void Editor::finalComplete()
 {
@@ -2145,6 +2151,26 @@ void Editor::finalComplete()
 void Editor::startComplete()
 {
   m_app.compStart();
+}
+bool Editor::cmdComplete(Cmd, int32_t)
+{
+  complete(true);
+  return false;
+}
+bool Editor::cmdRevComplete(Cmd, int32_t)
+{
+  complete(false);
+  return false;
+}
+void Editor::complete(bool next)
+{
+  unsigned prevOp = m_context.prevCmd.op();
+  if (prevOp != Op::Complete && prevOp != Op::RevComplete) {
+    if (prevOp != Op::ListComplete) initComplete();
+    startComplete();
+  }
+  if (!m_app.compSubst(m_compSpliceFn, next))
+    m_tty.bell();
 }
 void Editor::spliceCompletion(
   unsigned off,
@@ -2160,22 +2186,12 @@ void Editor::spliceCompletion(
     splice(off, span, replace, rspan, true);
   }
 }
-bool Editor::cmdComplete(Cmd, int32_t)
-{
-  unsigned prevOp = m_context.prevCmd.op();
-  if (prevOp != Op::Complete) {
-    if (prevOp != Op::ListComplete) initComplete();
-    startComplete();
-  }
-  if (m_app.compSubst(
-	CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this)))
-    return true;
-  return false;
-}
 bool Editor::cmdListComplete(Cmd, int32_t)
 {
   unsigned prevOp = m_context.prevCmd.op();
-  if (prevOp != Op::ListComplete && prevOp != Op::Complete) initComplete();
+  if (prevOp != Op::ListComplete &&
+      prevOp != Op::Complete &&
+      prevOp != Op::RevComplete) initComplete();
   startComplete();
   unsigned ttyWidth = m_tty.width();
   unsigned maxHeight = m_config.maxCompPages * m_tty.height();
@@ -2317,12 +2333,12 @@ bool Editor::searchFwd(int arg)
   if (ZuUnlikely(arg <= 0)) return false;
   int offset = m_context.histLoadOff;
   if (ZuUnlikely(offset < 0)) return false;
+  HistFn fn{[this, offset, &arg](ZuArray<const uint8_t> data) {
+    if (match(data) && !--arg) histLoad(offset, data, false);
+  }};
   while (offset < m_context.histSaveOff) {
     ++offset;
-    if (!m_app.histLoad(offset,
-	  [this, offset, &arg](ZuArray<const uint8_t> data) {
-      if (match(data) && !--arg) histLoad(offset, data, false);
-    })) break;
+    if (!m_app.histLoad(offset, fn)) break;
     if (m_context.histLoadOff == offset) return true;
   }
   return false;
@@ -2335,12 +2351,12 @@ bool Editor::searchRev(int arg)
   if (ZuUnlikely(offset < 0)) offset = m_context.histSaveOff;
   if (ZuUnlikely(!offset)) return false;
   bool save = offset == m_context.histSaveOff;
+  HistFn fn{[this, offset, save, &arg](ZuArray<const uint8_t> data) {
+    if (match(data) && !--arg) histLoad(offset, data, save);
+  }};
   while (offset > 0) {
     --offset;
-    if (!m_app.histLoad(offset,
-	  [this, offset, save, &arg](ZuArray<const uint8_t> data) {
-      if (match(data) && !--arg) histLoad(offset, data, save);
-    })) break;
+    if (!m_app.histLoad(offset, fn)) break;
     if (m_context.histLoadOff == offset) return true;
   }
   return false;

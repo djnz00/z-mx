@@ -36,14 +36,14 @@ int main()
     }
     return false;
   };
-  ZtArray<ZtString> history;
-  app.histSave = [&history](unsigned i, ZuString s) {
+  ZtArray<ZtArray<const uint8_t>> history;
+  app.histSave = [&history](unsigned i, ZuArray<const uint8_t> s) {
     if (history.length() <= i) history.grow(i + 1);
     history[i] = s;
   };
-  app.histLoad = [&history](unsigned i, ZuString &s) -> bool {
+  app.histLoad = [&history](unsigned i, Zrl::HistFn fn) -> bool {
     if (i >= history.length()) return false;
-    s = history[i];
+    fn(history[i]);
     return true;
   };
   editor.init(config, app);

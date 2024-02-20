@@ -330,6 +330,8 @@ bool Terminal::open_()
   m_civis = tigetstr("civis");
   m_cnorm = tigetstr("cnorm");
 
+  m_bel = tigetstr("bel");
+
   if (m_ul) {
     thread_local Terminal *this_;
     m_underline << ' ';
@@ -423,6 +425,10 @@ bool Terminal::open_()
   addCtrlKey(m_otermios.c_cc[VEOL], VKey::Enter);
   addCtrlKey(m_otermios.c_cc[VEOL2], VKey::Enter);
   addVKey("kent", nullptr, VKey::Enter);
+
+  // Tab
+  addCtrlKey('\t', VKey::Tab);
+  addVKey("kcbt", nullptr, VKey::Tab | VKey::Shift);
 
   // EOF
   addCtrlKey(m_otermios.c_cc[VEOF], VKey::EndOfFile);
@@ -553,6 +559,9 @@ bool Terminal::open_()
   // Enter
   addCtrlKey('\r', VKey::Enter);	// ^M
 
+  // Tab
+  addCtrlKey('\t', VKey::Tab);		// ^I
+
   // EOF
   addCtrlKey('\x04', VKey::EndOfFile);	// ^D
 
@@ -636,6 +645,8 @@ void Terminal::close_()
   m_rmso = nullptr;
   m_civis = nullptr;
   m_cnorm = nullptr;
+
+  m_bel = nullptr;
 
   m_underline = {};
 
@@ -858,6 +869,15 @@ void Terminal::cursor_off()
 #endif
 }
 
+void Terminal::bell()
+{
+#ifndef _WIN32
+  if (m_bel) tputs(m_bel);
+#else
+  m_out << "\x07";
+#endif
+}
+
 // I/O multiplexing
 
 void Terminal::wake()
@@ -1056,7 +1076,7 @@ void Terminal::read()
       vkey = VKey::Null;
       switch (code) {
 	case VK_SPACE: c = ' '; break;
-	case VK_TAB: c = '\t'; break;
+	case VK_TAB: vkey = VKey::Tab; break;
 	case VK_ESCAPE: c = '\x1b'; break;
 	case VK_BACK: vkey = VKey::Erase; break;
 	case VK_RETURN: vkey = VKey::Enter; break;
@@ -1557,9 +1577,14 @@ void Terminal::clrOver(unsigned endPos)
   m_pos = endPos;
 }
 
-// Note: there are only 34 out of 1550 non-hardcopy terminals in the
-// terminfo database without cuu/cuu1; all of them are ancient, dumb or
-// in "line mode"; prominent are Matrix Orbital LCDs, the
+// Note: This implementation does not support terminals lacking cuu/cuu1.
+//
+// There are only 34 out of 1550 non-hardcopy terminals in the
+// terminfo database that lack the cuu/cuu1 capability.
+//
+// All such terminals are ancient, "dumb" or in "line mode".
+//
+// Prominent examples are Matrix Orbital LCDs, the
 // Lear-Siegler ADM3, the Plan 9 terminal, obsolete DEC gt40/42,
 // Hazeltine 1000/2000, ansi-mini (ansi-mr would be a good substitute),
 // Tektronix 40xx and 41xx, GE Terminet, TI 7xx, Xerox 17xx, and
@@ -1998,6 +2023,7 @@ int32_t Terminal::literal(int32_t vkey) const
     case VKey::SigQuit:		return m_otermios.c_cc[VQUIT];
     case VKey::SigSusp:		return m_otermios.c_cc[VSUSP];
     case VKey::Enter:		return '\r';
+    case VKey::Tab:		return '\t';
     case VKey::Erase:		return m_otermios.c_cc[VERASE];
     case VKey::WErase:		return m_otermios.c_cc[VWERASE];
     case VKey::Kill:		return m_otermios.c_cc[VKILL];
@@ -2013,6 +2039,7 @@ int32_t Terminal::literal(int32_t vkey) const
     case VKey::SigQuit:		return '\x1c';	// ^ backslash
     case VKey::SigSusp:		return '\x1a';	// ^Z
     case VKey::Enter:		return '\r';	// ^M
+    case VKey::Tab:		return '\t';	// ^I
     case VKey::Erase:		return '\x08';	// ^H
     case VKey::WErase:		return '\x17';	// ^W
     case VKey::Kill:		return '\x15';	// ^U

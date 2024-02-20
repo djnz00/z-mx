@@ -145,6 +145,7 @@ namespace Op { // line editor operation codes
 
     // auto-completion
     Complete,		// attempt completion
+    RevComplete,	// revert completion
     ListComplete,	// list possible completions
 
     // history
@@ -722,12 +723,14 @@ private:
   void initComplete();		// initialize completions context
   void finalComplete();		// finalize completions context
   void startComplete();		// (re-)start completions enumeration
+  void complete(bool next);	// called by cmdComplete() / cmdRevComplete()
   void spliceCompletion(	// splice completion into line
     unsigned off,
     ZuUTFSpan span,
     ZuArray<const uint8_t> replace,
     ZuUTFSpan rspan);
   bool cmdComplete(Cmd, int32_t);
+  bool cmdRevComplete(Cmd, int32_t);
   bool cmdListComplete(Cmd, int32_t);
 
   // loads data previously retrieved from app at history offset
@@ -778,6 +781,8 @@ private:
   Terminal	m_tty;			// terminal
 
   CmdContext	m_context;		// command execution context
+
+  CompSpliceFn	m_compSpliceFn;		// splice callback for completions
 };
 
 } // Zrl

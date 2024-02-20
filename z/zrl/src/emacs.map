@@ -44,7 +44,8 @@ map emacs {
     ^K { End[Del|Copy]; }
     #^D { Right[Del|Copy]; }
     ^D { ListComplete; }
-    ^I { Complete; }
+    Tab { Complete; }
+    Tab[Shift] { RevComplete; }
     ^L { Clear; }
     #Redraw { Redraw; } # deconflict with ^R
     ^[ { Push(4); } # Meta

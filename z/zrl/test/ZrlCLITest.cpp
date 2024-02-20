@@ -24,6 +24,7 @@ int main()
     },
     .compInit = globber.initFn(),
     .compStart = globber.startFn(),
+    .compSubst = globber.substFn(),
     .compNext = globber.nextFn(),
     .histSave = history.saveFn(),
     .histLoad = history.loadFn()

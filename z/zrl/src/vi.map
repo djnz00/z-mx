@@ -37,7 +37,8 @@ map vi {
     Right[Shift|Alt] { FwdWordEnd[Mv|Vis|Unix|Past]; Push(2); }
     Redraw { Redraw; }
     ^D { ListComplete; }
-    ^I { Complete; }
+    Tab { Complete; }
+    Tab[Shift] { RevComplete; }
     ^L { Clear; }
     ^[ { EditRep; Left[Mv]; Mode(3); }
   }

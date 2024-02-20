@@ -102,6 +102,7 @@ namespace VKey {
 
     // motion/Fn keys
     Enter,		// line entered
+    Tab,		// ^I tab
 
     Up,
     Down,
@@ -315,6 +316,9 @@ public:
   // turn off cursor (e.g. while highlighting)
   void cursor_off();
 
+  // sound bell
+  void bell();
+
   unsigned bol(unsigned pos) { return pos - (pos % m_width); }
   unsigned eol(unsigned pos) { return m_line.align(pos + m_width - 1); }
 
@@ -480,6 +484,8 @@ private:
   const char		*m_rmso = nullptr;	// end standout mode
   const char		*m_civis = nullptr;	// invisible cursor
   const char		*m_cnorm = nullptr;	// normal cursor
+
+  const char		*m_bel = nullptr;	// bell
 
   ZtArray<uint8_t>	m_underline;
 #endif /* !_WIN32 */

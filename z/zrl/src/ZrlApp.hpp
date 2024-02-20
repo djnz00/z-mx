@@ -64,12 +64,14 @@ using CompIterFn = ZmFn<
   ZuArray<const uint8_t>,	// data    - completion data
   ZuUTFSpan>;			// span    - UTF8 span of completion
 
-using CompInitFn = ZmFn<
+using CompInitFn = ZmFn<		// initialize completion
   ZuArray<const uint8_t>,	// data    - line data (entire line)
   unsigned,			// cursor  - byte offset of cursor
   CompSpliceFn>;		// splice  - line splice function
 using CompStartFn = ZmFn<>;		// re-start iteration
-using CompSubstFn = ZmFn<CompSpliceFn>;	// substitute next completion
+using CompSubstFn = ZmFn<		// substitute next/prev completion
+  CompSpliceFn,			// splice  - line splice function
+  bool>;			// next    - true for next, false for previous
 using CompNextFn = ZmFn<CompIterFn>;	// iterate next completion
 using CompFinalFn = ZmFn<>;		// finalize completion
 

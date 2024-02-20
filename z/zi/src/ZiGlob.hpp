@@ -63,16 +63,21 @@ public:
   const ZtString &dirName() const { return m_dirName; }
   const ZtString &leafName() const { return m_leafName; }
 
-  ZuString next() const;
+  ZuString iterate(bool next, bool wrap) const;
 
   void reset() const;
 
 private:
+  using NodePtr = Entries::Node *;
+
+  bool match(NodePtr);
+
   ZtString			m_dirName;
   ZtString			m_leafName;
   ZuPtr<ZiDir>			m_dir;
   ZuPtr<Entries>		m_entries;
-  mutable ZuPtr<Iterator>	m_iterator;
+  NodePtr			m_first, m_last;
+  mutable NodePtr		m_node;
 };
 
 #endif /* ZiGlob_HPP */

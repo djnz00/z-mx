@@ -55,9 +55,9 @@ void Globber::init(
   unsigned begin = 0;			// beginning of path in line
   unsigned end = data.length();		// end of line data
 
-  // if cursor < line end and cursor is not on white space,
+  // if cursor is at line end or cursor is not on white space,
   // then we need to append a space to every completion
-  m_appendSpace = cursor < end && !isspace__(data[cursor]);
+  m_appendSpace = cursor == end || !isspace__(data[cursor]);
 
 // --- 1st pass - find the beginning of the quoted path ending at cursor
 
@@ -256,9 +256,9 @@ void Globber::start()
   m_glob.reset();
 }
 
-bool Globber::subst(CompSpliceFn splice)
+bool Globber::subst(CompSpliceFn splice, bool next)
 {
-  ZuArray<const uint8_t> leaf = m_glob.next();	// ZiGlob returns leafnames
+  ZuArray<const uint8_t> leaf = m_glob.iterate(next, true);
   if (!leaf) return false;
 
   // quote leaf into replace, building rspan
@@ -297,7 +297,7 @@ bool Globber::subst(CompSpliceFn splice)
 
 bool Globber::next(CompIterFn iter)
 {
-  auto leaf = m_glob.next();
+  auto leaf = m_glob.iterate(true, false);
   if (leaf) {
     iter(leaf, ZuUTF<uint32_t, uint8_t>::span(leaf));
     return true;

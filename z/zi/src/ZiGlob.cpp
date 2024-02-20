@@ -30,45 +30,76 @@ bool ZiGlob::init(ZuString prefix, ZeError *e)
     if (m_dir) m_dir->close(); else m_dir = new ZiDir{};
     if (m_dir->open(dirName, e) != Zi::OK) {
       m_dir = nullptr;
-      m_iterator = nullptr;
+      m_first = m_last = m_node = nullptr;
       return false;
     }
     m_dirName = ZuMv(dirName);
     if (m_entries) m_entries->clean(); else m_entries = new Entries{};
     ZiFile::Path path;
     while (m_dir->read(path) == Zi::OK) m_entries->add(ZtString{ZuMv(path)});
-    m_iterator = nullptr;
   }
   if (m_leafName != leafName) {
     m_leafName = ZuMv(leafName);
-    m_iterator = nullptr;
   }
+  m_first = m_entries->findPtr<ZmRBTreeGreaterEqual>(m_leafName);
+  if (!m_first || !match(m_first)) {
+    m_first = m_last = m_node = nullptr;
+    return true;
+  }
+  NodePtr prev = m_first;
+  NodePtr next = m_entries->next(prev);
+  while (next && match(next)) {
+    prev = next;
+    next = m_entries->next(prev);
+  }
+  m_last = prev;
+  m_node = nullptr;
   return true;
 }
 
 void ZiGlob::final()
 {
-  m_iterator = nullptr;
+  m_first = m_last = m_node = nullptr;
   m_entries = nullptr;
   m_dir = nullptr;
   m_dirName = {};
   m_leafName = {};
 }
 
-ZuString ZiGlob::next() const
+ZuString ZiGlob::iterate(bool next, bool wrap) const
 {
-  if (!m_iterator) reset();
-  ZuString entryName = m_iterator->iterateKey();
-  unsigned len = m_leafName.length();
-  if (entryName.length() < len ||
-      memcmp(entryName.data(), m_leafName.data(), len)) {
-    m_iterator = nullptr;
-    return {};
+  if (next) {
+    if (!m_node)
+      m_node = m_first;
+    else if (m_node != m_last)
+      m_node = m_entries->next(m_node);
+    else if (wrap)
+      m_node = m_first;
+    else
+      m_node = nullptr;
+  } else {
+    if (!m_node)
+      m_node = m_last;
+    if (m_node != m_first)
+      m_node = m_entries->prev(m_node);
+    else if (wrap)
+      m_node = m_last;
+    else
+      m_node = nullptr;
   }
-  return entryName;
+  if (m_node) return m_node->key();
+  return {};
 }
 
 void ZiGlob::reset() const
 {
-  m_iterator = new Iterator{m_entries->readIterator(m_leafName)};
+  m_node = nullptr;
+}
+
+bool ZiGlob::match(NodePtr node)
+{
+  ZuString entryName = node->key();
+  unsigned len = m_leafName.length();
+  return entryName.length() >= len &&
+    !memcmp(entryName.data(), m_leafName.data(), len);
 }

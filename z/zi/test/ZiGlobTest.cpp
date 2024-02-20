@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     g.init(argv[i]);
     const auto &leafName = g.leafName();
     const auto &dirName = g.dirName();
-    while (auto s = g.next()) {
+    while (auto s = g.iterate(true, false)) {
       s.offset(leafName.length());
       std::cout << dirName << '/' << leafName << s << '\n';
     }
