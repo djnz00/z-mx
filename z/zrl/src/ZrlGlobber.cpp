@@ -130,9 +130,9 @@ void Globber::init(
 
   // capture leafname span within the quoted path
 
-  m_loff = 0;		// leafname offset in line
-  m_lspan = {};		// leafname span in line
-  int xqstate = -1;	// extant quoting state at beginning of leafname
+  m_loff = 0;				// leafname offset in line
+  m_lspan = {};				// leafname span in line
+  int xqstate = QState::Unquoted;	// extant quoting state at leafname
 
   qstate = QState::Unquoted;
   off = begin;
@@ -184,7 +184,7 @@ void Globber::init(
     off += n;
   }
   {
-    bool extant = xqstate >= 0;
+    bool extant = xqstate != QState::Unquoted;
     if (!extant) xqstate = qstate;	// use last qstate within leafname
     switch (xqstate & QState::Mask) {
       case QState::Unquoted:
