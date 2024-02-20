@@ -51,19 +51,25 @@ class ZiAPI ZiGlob {
   ZiGlob(ZiGlob &&) = delete;
   ZiGlob &operator =(ZiGlob &&) = delete;
 
-  using Entries = ZmRBTree<ZtString>;
+  struct Entry {
+    Zi::Path	name;
+    bool	isdir = false;
+
+    static const ZtString &NameAxor(const Entry &entry) { return entry.name; }
+  };
+  using Entries = ZmRBTree<Entry, ZmRBTreeKey<Entry::NameAxor>>;
   using Iterator = decltype(ZuDeclVal<const Entries &>().readIterator());
 
 public:
   ZiGlob() = default;
 
-  bool init(ZuString prefix, ZeError *e = nullptr);
+  bool init(Zi::Path prefix, ZeError *e = nullptr);
   void final();
 
-  const ZtString &dirName() const { return m_dirName; }
-  const ZtString &leafName() const { return m_leafName; }
+  const Zi::Path &dirName() const { return m_dirName; }
+  const Zi::Path &leafName() const { return m_leafName; }
 
-  ZuString iterate(bool next, bool wrap) const;
+  const Entry *iterate(bool next, bool wrap) const;
 
   void reset() const;
 
@@ -72,8 +78,8 @@ private:
 
   bool match(NodePtr);
 
-  ZtString			m_dirName;
-  ZtString			m_leafName;
+  Zi::Path			m_dirName;
+  Zi::Path			m_leafName;
   ZuPtr<ZiDir>			m_dir;
   ZuPtr<Entries>		m_entries;
   NodePtr			m_first, m_last;

@@ -12,11 +12,9 @@ int main(int argc, char **argv)
   ZiGlob g;
   for (int i = 1; i < argc; i++) {
     g.init(argv[i]);
-    const auto &leafName = g.leafName();
     const auto &dirName = g.dirName();
-    while (auto s = g.iterate(true, false)) {
-      s.offset(leafName.length());
-      std::cout << dirName << '/' << leafName << s << '\n';
-    }
+    while (auto entry = g.iterate(true, false))
+      std::cout << dirName << '/' << entry->name <<
+	(entry->isdir ? "/\n" : "\n");
   }
 }

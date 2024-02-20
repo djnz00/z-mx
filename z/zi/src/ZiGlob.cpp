@@ -21,10 +21,10 @@
 
 #include <zlib/ZiGlob.hpp>
 
-bool ZiGlob::init(ZuString prefix, ZeError *e)
+bool ZiGlob::init(Zi::Path prefix, ZeError *e)
 {
-  ZtString dirName = ZiFile::dirname(prefix);
-  ZtString leafName = ZiFile::leafname(prefix);
+  Zi::Path dirName = ZiFile::dirname(prefix);
+  Zi::Path leafName = ZiFile::leafname(prefix);
   if (m_dirName != dirName) {
     m_leafName = {};
     if (m_dir) m_dir->close(); else m_dir = new ZiDir{};
@@ -35,8 +35,11 @@ bool ZiGlob::init(ZuString prefix, ZeError *e)
     }
     m_dirName = ZuMv(dirName);
     if (m_entries) m_entries->clean(); else m_entries = new Entries{};
-    ZiFile::Path path;
-    while (m_dir->read(path) == Zi::OK) m_entries->add(ZtString{ZuMv(path)});
+    Zi::Path name;
+    while (m_dir->read(name) == Zi::OK) {
+      bool isdir = ZiFile::isdir(ZiFile::append(dirName, name));
+      m_entries->add(Entry{ZuMv(name), isdir});
+    }
   }
   if (m_leafName != leafName) {
     m_leafName = ZuMv(leafName);
@@ -66,7 +69,7 @@ void ZiGlob::final()
   m_leafName = {};
 }
 
-ZuString ZiGlob::iterate(bool next, bool wrap) const
+const ZiGlob::Entry *ZiGlob::iterate(bool next, bool wrap) const
 {
   if (next) {
     if (!m_node)
@@ -87,8 +90,8 @@ ZuString ZiGlob::iterate(bool next, bool wrap) const
     else
       m_node = nullptr;
   }
-  if (m_node) return m_node->key();
-  return {};
+  if (m_node) return &(m_node->val());
+  return nullptr;
 }
 
 void ZiGlob::reset() const
@@ -98,8 +101,7 @@ void ZiGlob::reset() const
 
 bool ZiGlob::match(NodePtr node)
 {
-  ZuString entryName = node->key();
+  const Zi::Path &name = node->key();
   unsigned len = m_leafName.length();
-  return entryName.length() >= len &&
-    !memcmp(entryName.data(), m_leafName.data(), len);
+  return name.length() >= len && !memcmp(name.data(), m_leafName.data(), len);
 }
