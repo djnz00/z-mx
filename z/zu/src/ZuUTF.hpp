@@ -78,7 +78,7 @@ struct ZuUTF8 {
     if (ZuUnlikely(n < 3)) return 0;
     if (ZuLikely((c>>4) == 0xe)) {
       c = *++s;
-      u = ((u<<12) & 0xffff) + ((((uint32_t)c)<<6) & 0xfff);
+      u = ((u<<12) & 0xf000) + ((static_cast<uint32_t>(c)<<6) & 0xfc0);
       c = *++s;
       u_ = u + (c & 0x3f);
       return 3;
@@ -86,9 +86,9 @@ struct ZuUTF8 {
     if (ZuUnlikely(n < 4)) return 0;
     if (ZuLikely((c>>3U) == 0x1e)) {
       c = *++s;
-      u = ((u<<18) & 0x1fffff) + ((((uint32_t)c)<<12) & 0x3ffff);
+      u = ((u<<18) & 0x1c0000) + ((static_cast<uint32_t>(c)<<12) & 0x3f000);
       c = *++s;
-      u += (((uint32_t)c)<<6) & 0xfff;
+      u += ((static_cast<uint32_t>(c)<<6) & 0xfc0);
       c = *++s;
       u_ = u + (c & 0x3f);
       return 4;
@@ -257,6 +257,12 @@ public:
       m_value = 0;
     else
       m_value -= o.m_value;
+    return *this;
+  }
+
+  // shorthand for += ZuUTFSpan{1, 1, 1};
+  ZuUTFSpan &operator ++() {
+    m_value += ZuUTFSpan{1, 1, 1}.m_value;
     return *this;
   }
 

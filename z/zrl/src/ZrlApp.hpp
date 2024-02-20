@@ -42,8 +42,6 @@
 
 #include <zlib/ZePlatform.hpp>
 
-#include <zlib/ZrlApp.hpp>
-
 namespace Zrl {
 
 using ErrorFn = ZmFn<ZuString>;		// (message)
@@ -57,11 +55,28 @@ using EnterFn = ZmFn<ZuString>;
 using EndFn = ZmFn<>;
 using SigFn = ZmFn<int>;
 
-using CompInitFn = ZmFn<ZuString>;	// (prefix)
-using CompNextFn = ZmFn<ZuString &>;	// (suffix)
+using CompSpliceFn = ZmFn<
+  unsigned,			// off     - byte offset
+  ZuUTFSpan,			// span    - UTF8 span to be replaced
+  ZuArray<const uint8_t>,	// replace - replacement data
+  ZuUTFSpan>;			// rspan   - UTF8 span of replacement
+using CompIterFn = ZmFn<
+  ZuArray<const uint8_t>,	// data    - completion data
+  ZuUTFSpan>;			// span    - UTF8 span of completion
 
-using HistSaveFn = ZmFn<unsigned, ZuString>;
-using HistLoadFn = ZmFn<unsigned, ZuString &>;
+using CompInitFn = ZmFn<
+  ZuArray<const uint8_t>,	// data    - line data (entire line)
+  unsigned,			// cursor  - byte offset of cursor
+  CompSpliceFn>;		// splice  - line splice function
+using CompStartFn = ZmFn<>;		// re-start iteration
+using CompSubstFn = ZmFn<CompSpliceFn>;	// substitute next completion
+using CompNextFn = ZmFn<CompIterFn>;	// iterate next completion
+using CompFinalFn = ZmFn<>;		// finalize completion
+
+using HistFn = ZmFn<ZuArray<const uint8_t>>;
+
+using HistSaveFn = ZmFn<unsigned, ZuArray<const uint8_t>>;
+using HistLoadFn = ZmFn<unsigned, HistFn>;
 
 struct App {
   ErrorFn	error;		// I/O error
@@ -75,8 +90,11 @@ struct App {
   EndFn		end;		// end of input (EOF)
   SigFn		sig;		// signal (^C ^\ ^Z)
 
-  CompInitFn	compInit;	// initialize possible completions of prefix
-  CompNextFn	compNext;	// enumerate next completion in sequence
+  CompInitFn	compInit;	// initialize completions
+  CompFinalFn	compFinal;	// finalize completions
+  CompStartFn	compStart;	// (re-)start enumeration of completions
+  CompSubstFn	compSubst;	// substitute next completion in sequence
+  CompNextFn	compNext;	// iterate next completion in sequence
 
   HistSaveFn	histSave;	// save line in history with index
   HistLoadFn	histLoad;	// load line from history given index

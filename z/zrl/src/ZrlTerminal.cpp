@@ -1747,7 +1747,7 @@ void Terminal::splice(
   // is being interactively edited at its beginning: When shifting the
   // trailing data, if the shift distance is less than half the width
   // of the display, and the overall width of the trailing data is greater
-  // than the the shift distance, it's worth leaving the old data in
+  // than the shift distance, it's worth leaving the old data in
   // place on the terminal and using insertions/deletions on each
   // trailing row, rather than completely redrawing all the trailing rows
   if (off + span.inLen() < m_line.length()) {

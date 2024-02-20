@@ -1586,6 +1586,9 @@ int main(int argc, char **argv)
 	}
       },
       .compInit = globber.initFn(),
+      .compFinal = globber.finalFn(),
+      .compStart = globber.startFn(),
+      .compSubst = globber.substFn(),
       .compNext = globber.nextFn(),
       .histSave = history.saveFn(),
       .histLoad = history.loadFn()

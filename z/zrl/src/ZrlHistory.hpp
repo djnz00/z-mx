@@ -39,8 +39,8 @@
 namespace Zrl {
 
 // in-memory history with maximum number of entries
-struct ZrlAPI History : public ZtWindow<ZtArray<char>> {
-  using Base = ZtWindow<ZtArray<char>>;
+struct ZrlAPI History : public ZtWindow<ZtArray<const uint8_t>> {
+  using Base = ZtWindow<ZtArray<const uint8_t>>;
 
 public:
   History() = default;
@@ -51,8 +51,8 @@ public:
 
   History(unsigned max) : Base{max} { }
 
-  void save(unsigned i, ZuString s);
-  bool load(unsigned i, ZuString &s) const;
+  void save(unsigned i, ZuArray<const uint8_t> s);
+  bool load(unsigned i, HistFn) const;
 
   auto saveFn() { return HistSaveFn::Member<&History::save>::fn(this); }
   auto loadFn() { return HistLoadFn::Member<&History::load>::fn(this); }

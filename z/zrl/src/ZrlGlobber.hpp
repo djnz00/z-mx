@@ -31,6 +31,7 @@
 #endif
 
 #include <zlib/ZuString.hpp>
+#include <zlib/ZuUTF.hpp>
 
 #include <zlib/ZiGlob.hpp>
 
@@ -39,22 +40,54 @@
 namespace Zrl {
 
 // filename glob completion
-struct Globber {
-  ZiGlob globber;
+class ZrlAPI Globber {
+  struct QState {	// quoting state
+    enum {
+      WhiteSpace	= 0x000,
+      Unquoted		= 0x001,
+      SglQuoted		= 0x002,
+      DblQuoted		= 0x003,
+      Mask		= 0x003,
+      BackQuote		= 0x004		// flag - implies !WhiteSpace
+    };
+  };
+  struct QMode {	// quoting mode
+    enum { Unset = -1, BackQuote = 0, SglQuote, DblQuote };
+  };
 
-  void init(ZuString prefix) { globber.init(prefix); }
-  bool next(ZuString &suffix) {
-    if (suffix = globber.next()) {
-      suffix.offset(globber.leafName().length());
-      return true;
-    }
-    return false;
+private:
+  constexpr static bool isspace__(char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
   }
+  typedef bool (*QuoteFn)(uint32_t c);
+  QuoteFn quoteFn();
+
+public:
+  void init(
+      ZuArray<const uint8_t> data,	// line data
+      unsigned cursor,			// cursor offset (in bytes)
+      CompSpliceFn splice);		// line splice callback function
+  void final();
+
+  void start();
+
+  bool subst(CompSpliceFn splice);
+
+  bool next(CompIterFn iter);
 
   auto initFn() { return CompInitFn::Member<&Globber::init>::fn(this); }
+  auto finalFn() { return CompFinalFn::Member<&Globber::final>::fn(this); }
+  auto startFn() { return CompStartFn::Member<&Globber::start>::fn(this); }
+  auto substFn() { return CompSubstFn::Member<&Globber::subst>::fn(this); }
   auto nextFn() { return CompNextFn::Member<&Globber::next>::fn(this); }
-};
 
+private:
+  bool		m_appendSpace = false;	// append space to leafname?
+  int		m_qmode = QMode::Unset;	// quoting mode for leafname
+  unsigned	m_loff = 0;		// current leafname offset in line
+  ZuUTFSpan	m_lspan;		// current leafname span in line
+  ZiGlob	m_glob;			// filesystem globber
+};
 
 } // Zrl
 

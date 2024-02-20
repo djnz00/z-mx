@@ -17,7 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// directory scanning
+// file system pathname auto-completion and directory scanning
+//
+// not a full glob-expression processor, this performs path
+// completion for CLIs (typically via TAB or ^D)
 
 #ifndef ZiGlob_HPP
 #define ZiGlob_HPP
@@ -55,15 +58,16 @@ public:
   ZiGlob() = default;
 
   bool init(ZuString prefix, ZeError *e = nullptr);
+  void final();
 
   const ZtString &dirName() const { return m_dirName; }
   const ZtString &leafName() const { return m_leafName; }
 
   ZuString next() const;
 
-private:
   void reset() const;
 
+private:
   ZtString			m_dirName;
   ZtString			m_leafName;
   ZuPtr<ZiDir>			m_dir;

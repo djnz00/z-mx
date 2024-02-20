@@ -425,9 +425,9 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
   if (!n) return {ZtString{}, 0U};
 
   const auto &argUnquoted = (Q & Quoting::Key) ?
-    ZtREGEX("\G[^`\$\.\[\]]+") :
-    ZtREGEX("\G[^`\$,]+");
-  const auto &argQuoted = ZtREGEX("\G`(.)");
+    ZtREGEX("\G[^\\\$\.\[\]]+") :
+    ZtREGEX("\G[^\\\$,]+");
+  const auto &argQuoted = ZtREGEX("\G\\(.)");
   const auto &argRefVar = ZtREGEX("\G\${(\w+)}");
 
   ZtString value;
@@ -466,8 +466,8 @@ quoteString(ZuString in)
 
   if (!n) return {};
 
-  const auto &argQuoted = ZtREGEX("\G[`\$\.\[\],]");
-  const auto &argUnquoted = ZtREGEX("\G[^`\$\.\[\],]+");
+  const auto &argQuoted =    ZtREGEX("\G[\\\$\.\[\],]");
+  const auto &argUnquoted = ZtREGEX("\G[^\\\$\.\[\],]+");
 
   ZtRegex::Captures c;
 
@@ -482,7 +482,7 @@ quoteString(ZuString in)
       out << c[1];
       continue;
     }
-    out << '`' << in[off++];
+    out << '\\' << in[off++];
   }
   return out;
 }

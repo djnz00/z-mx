@@ -12,7 +12,7 @@ pkginclude_HEADERS = ZrlLib.hpp Zrl.hpp ZrlCLI.hpp \
 lib_LTLIBRARIES = libZrl.la
 libZrl_la_SOURCES = ZrlLib.cpp Zrl.cpp ZrlCLI.cpp \
 	ZrlLine.cpp ZrlTerminal.cpp ZrlEditor.cpp \
-	ZrlHistory.cpp
+	ZrlHistory.cpp ZrlGlobber.cpp
 libZrl_la_LIBADD = \
 	$(top_builddir)/zv/src/libZv.la $(top_builddir)/zi/src/libZi.la \
 	$(top_builddir)/ze/src/libZe.la $(top_builddir)/zt/src/libZt.la \

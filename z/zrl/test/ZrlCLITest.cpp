@@ -23,6 +23,7 @@ int main()
       return false;
     },
     .compInit = globber.initFn(),
+    .compStart = globber.startFn(),
     .compNext = globber.nextFn(),
     .histSave = history.saveFn(),
     .histLoad = history.loadFn()

@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// directory scanning
+// file system pathname auto-completion and directory scanning
 
 #include <zlib/ZiGlob.hpp>
 
@@ -44,6 +44,15 @@ bool ZiGlob::init(ZuString prefix, ZeError *e)
     m_iterator = nullptr;
   }
   return true;
+}
+
+void ZiGlob::final()
+{
+  m_iterator = nullptr;
+  m_entries = nullptr;
+  m_dir = nullptr;
+  m_dirName = {};
+  m_leafName = {};
 }
 
 ZuString ZiGlob::next() const

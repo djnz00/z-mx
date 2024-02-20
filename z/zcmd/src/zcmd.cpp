@@ -211,6 +211,9 @@ friend Link;
 	  }
 	},
 	.compInit = m_globber.initFn(),
+	.compFinal = m_globber.finalFn(),
+	.compStart = m_globber.startFn(),
+	.compSubst = m_globber.substFn(),
 	.compNext = m_globber.nextFn(),
 	.histSave = m_history.saveFn(),
 	.histLoad = m_history.loadFn()

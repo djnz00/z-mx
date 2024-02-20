@@ -439,13 +439,6 @@ struct CmdContext {
   int			undoIndex = -1;	// undo index of undo/redo
   int			undoPos = -1;	// saved position prior to first undo
 
-  // completion context
-  unsigned		compPrefixOff = 0;	// completion prefix offset
-  unsigned		compPrefixEnd = 0;	// completion prefix end
-  unsigned		compEnd = 0;		// current completion end
-  ZuUTFSpan		compSpan;		// current completion span
-  unsigned		compWidth = 0;		// completion list width
-
   // history context
   int			histLoadOff = -1;	// history load offset
   unsigned		histSaveOff = 0;	// history save offset
@@ -518,14 +511,6 @@ struct CmdContext {
     undo.clear();
   }
   
-  void clrComp() {
-    compPrefixOff = 0;
-    compPrefixEnd = 0;
-    compEnd = 0;
-    compSpan = {};
-    compWidth = 0;
-  }
-
   void reset() {
     startPos = 0;
 
@@ -543,8 +528,6 @@ struct CmdContext {
     register_ = -1;
 
     clrUndo();
-
-    clrComp();
 
     histLoadOff = -1;
 
@@ -736,12 +719,14 @@ private:
   bool cmdFwdGlyphSrch(Cmd, int32_t);
   bool cmdRevGlyphSrch(Cmd, int32_t);
 
-  // initialize possible completions context
-  void initComplete();
-  // (re-)start possible completions enumeration
-  void startComplete();
-  // apply auto-completion
-  void completed(ZuArray<const uint8_t> data);
+  void initComplete();		// initialize completions context
+  void finalComplete();		// finalize completions context
+  void startComplete();		// (re-)start completions enumeration
+  void spliceCompletion(	// splice completion into line
+    unsigned off,
+    ZuUTFSpan span,
+    ZuArray<const uint8_t> replace,
+    ZuUTFSpan rspan);
   bool cmdComplete(Cmd, int32_t);
   bool cmdListComplete(Cmd, int32_t);
 

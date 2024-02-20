@@ -23,15 +23,15 @@
 
 namespace Zrl {
 
-void History::save(unsigned i, ZuString s)
+void History::save(unsigned i, ZuArray<const uint8_t> s)
 {
   if (s) set(i, s);
 }
 
-bool History::load(unsigned i, ZuString &s) const
+bool History::load(unsigned i, HistFn fn) const
 {
   if (auto s_ = val(i)) {
-    s = *s_;
+    fn(*s_);
     return true;
   }
   return false;

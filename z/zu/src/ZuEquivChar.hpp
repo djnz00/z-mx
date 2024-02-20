@@ -49,11 +49,14 @@ template <typename U, typename W = wchar_t,
 	 ZuConversion<U, int8_t>::Same ||
 	 ZuConversion<U, uint8_t>::Same,
   bool = ZuConversion<U, W>::Same ||
-	 sizeof(W) == 2 && (
-	     ZuConversion<U, short>::Same ||
-	     ZuConversion<U, unsigned short>::Same ||
-	     ZuConversion<U, int16_t>::Same ||
-	     ZuConversion<U, uint16_t>::Same)>
+	 (sizeof(W) == 2 && (
+	       ZuConversion<U, short>::Same ||
+	       ZuConversion<U, unsigned short>::Same ||
+	       ZuConversion<U, int16_t>::Same ||
+	       ZuConversion<U, uint16_t>::Same)) ||
+	 (sizeof(W) == 4 && (
+	       ZuConversion<U, int32_t>::Same ||
+	       ZuConversion<U, uint32_t>::Same))>
 struct ZuNormChar_ { using T = U; };
 
 template <typename U, typename W, bool _>

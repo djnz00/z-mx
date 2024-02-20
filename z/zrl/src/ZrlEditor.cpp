@@ -919,6 +919,14 @@ bool Editor::process__(const CmdSeq &cmds, int32_t vkey)
       vkey_ = vkey;
     else if (vkey_ == -VKey::Unset)
       vkey_ = -VKey::Null;
+    // clear completion context
+    switch (m_context.prevCmd.op()) {
+      case Op::Complete:
+      case Op::ListComplete:
+	if (op != Op::Complete && op != Op::ListComplete)
+	  finalComplete();
+	break;
+    }
     bool stop = false;
     if (auto fn = m_cmdFn[op]) {
       stop = (this->*fn)(cmd, vkey_);
@@ -1076,9 +1084,9 @@ void Editor::splice_(
   m_context.horizPos = -1;
   m_context.histLoadOff = -1;
 
+  const auto &line = m_tty.line();
   if (rspan.inLen() <= span.inLen() ||
-      m_tty.line().length() + (rspan.inLen() - span.inLen()) <
-	m_config.maxLineLen)
+      line.length() + (rspan.inLen() - span.inLen()) < m_config.maxLineLen)
     m_tty.splice(off, span, replace, rspan, append);
 }
 
@@ -2122,35 +2130,34 @@ bool Editor::cmdRevGlyphSrch(Cmd cmd, int32_t vkey)
 
 void Editor::initComplete()
 {
-  unsigned pos = m_tty.pos();
   const auto &line = m_tty.line();
-  m_context.compPrefixEnd = line.position(pos).mapping();
-  if (pos == line.width()) pos = line.align(pos - 1);
   unsigned start = line.position(m_context.startPos).mapping();
-  unsigned end = line.position(pos).mapping();
-  end = line.fwdUnixWordEnd(end, true);
-  unsigned begin = line.revUnixWord(end);
-  if (begin < start) begin = start;
-  if (end < begin) end = begin;
-  m_context.compPrefixOff = begin;
-  m_context.compPrefixEnd = m_context.compEnd = end;
-  m_context.compSpan = {};
+  unsigned cursor = line.position(m_tty.pos()).mapping();
+  unsigned end = line.length();
+  auto data = substr(start, end);
+  m_app.compInit(data, cursor,
+    CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this));
+}
+void Editor::finalComplete()
+{
+  m_app.compFinal();
 }
 void Editor::startComplete()
 {
-  m_app.compInit(substr(m_context.compPrefixOff, m_context.compPrefixEnd));
+  m_app.compStart();
 }
-void Editor::completed(ZuArray<const uint8_t> data)
+void Editor::spliceCompletion(
+  unsigned off,
+  ZuUTFSpan span,
+  ZuArray<const uint8_t> replace,
+  ZuUTFSpan rspan)
 {
-  auto span = m_context.compSpan;
-  auto rspan = ZuUTF<uint32_t, uint8_t>::span(data);
   const auto &line = m_tty.line();
-  m_tty.mv(line.byte(m_context.compPrefixEnd).mapping());
+  off += line.position(m_context.startPos).mapping();
   if (rspan.inLen() <= span.inLen() ||
       line.length() + (rspan.inLen() - span.inLen()) < m_config.maxLineLen) {
-    splice(m_context.compPrefixEnd, span, data, rspan, true);
-    m_context.compEnd = m_context.compPrefixEnd + data.length();
-    m_context.compSpan = rspan;
+    m_tty.mv(line.byte(off).mapping());
+    splice(off, span, replace, rspan, true);
   }
 }
 bool Editor::cmdComplete(Cmd, int32_t)
@@ -2160,9 +2167,9 @@ bool Editor::cmdComplete(Cmd, int32_t)
     if (prevOp != Op::ListComplete) initComplete();
     startComplete();
   }
-  ZuString suffix;
-  if (m_app.compNext(suffix) || m_app.compNext(suffix))
-    completed(suffix);
+  if (m_app.compSubst(
+	CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this)))
+    return true;
   return false;
 }
 bool Editor::cmdListComplete(Cmd, int32_t)
@@ -2170,41 +2177,35 @@ bool Editor::cmdListComplete(Cmd, int32_t)
   unsigned prevOp = m_context.prevCmd.op();
   if (prevOp != Op::ListComplete && prevOp != Op::Complete) initComplete();
   startComplete();
-  m_context.compWidth = 0;
   unsigned ttyWidth = m_tty.width();
   unsigned maxHeight = m_config.maxCompPages * m_tty.height();
   unsigned colWidth = 0, colHeight, nCols;
-  auto prefix = substr(m_context.compPrefixOff, m_context.compPrefixEnd);
-  auto prefixSpan = ZuUTF<uint32_t, uint8_t>::span(prefix);
-  ZtArray<ZtArray<uint8_t>> matches;
-  {
-    ZuString suffix;
-    while (m_app.compNext(suffix)) {
-      matches.push(ZuArray<const uint8_t>{suffix});
-      auto suffixSpan = ZuUTF<uint32_t, uint8_t>::span(suffix);
-      auto width = (prefixSpan + suffixSpan).width() + 1;
-      if (width > colWidth) colWidth = width;
-      // abort if more than maxCompPages of output
-      nCols = colWidth > (ttyWidth>>1) ? 1 : ttyWidth / colWidth;
-      colHeight = (matches.length() + nCols - 1) / nCols;
-      if (colHeight > maxHeight) break;
-    }
-  }
+  using Match = ZuPair<ZtArray<uint8_t>, ZuUTFSpan>;
+  ZtArray<Match> matches;
+  CompIterFn fn{
+    [ttyWidth, maxHeight, &colWidth, &colHeight, &nCols, &matches](
+	ZuArray<const uint8_t> data, ZuUTFSpan span) {
+    Match match{data, span};
+    matches.push(match);
+    auto width = span.width() + 1;
+    if (width > colWidth) colWidth = width;
+    // abort if more than maxCompPages of output
+    nCols = colWidth > (ttyWidth>>1) ? 1 : ttyWidth / colWidth;
+    colHeight = (matches.length() + nCols - 1) / nCols;
+  }};
+  while (m_app.compNext(fn) && colHeight <= maxHeight) { }
   if (!matches) return false;
-  m_context.compWidth = colWidth = ttyWidth / nCols;
+  colWidth = ttyWidth / nCols;
   if (m_tty.write() != Zi::OK) return false;
   m_tty.crnl_();
   for (unsigned row = 0; row < colHeight; row++) {
     unsigned i = row;
     unsigned col;
     for (col = 0; col < nCols; col++) {
-      ZuArray<uint8_t> suffix = matches[i];
-      m_tty.out_(prefix);
-      m_tty.out_(suffix);
-      auto suffixSpan = ZuUTF<uint32_t, uint8_t>::span(suffix);
-      auto width = (prefixSpan + suffixSpan).width();
-      if (width < m_context.compWidth)
-	m_tty.clrOver_(m_context.compWidth - width);
+      const auto &[ data, span ] = matches[i];
+      m_tty.out_(data);
+      auto width = span.width();
+      if (width < colWidth) m_tty.clrOver_(colWidth - width);
       if ((i += colHeight) >= matches.length()) break;
     }
     auto width = col * colWidth;
@@ -2246,9 +2247,10 @@ bool Editor::cmdNext(Cmd cmd, int32_t vkey)
   if (m_context.histLoadOff >= 0 &&
       m_context.histLoadOff <= m_context.histSaveOff - (arg - 1)) {
     int offset = m_context.histLoadOff + arg;
-    ZuString data;
-    m_app.histLoad(offset, data);
-    histLoad(offset, data, false); // regardless of app.histLoad success
+    if (!m_app.histLoad(offset, [this, offset](ZuArray<const uint8_t> data) {
+      histLoad(offset, data, false);
+    }))
+      histLoad(m_context.histLoadOff, {}, false);
   }
   return false;
 }
@@ -2262,9 +2264,10 @@ bool Editor::cmdPrev(Cmd cmd, int32_t vkey)
   if (arg > m_context.histLoadOff) arg = m_context.histLoadOff;
   {
     bool save = m_context.histLoadOff == m_context.histSaveOff;
-    int offset = (m_context.histLoadOff -= arg);
-    ZuString data;
-    if (m_app.histLoad(offset, data)) histLoad(offset, data, save);
+    int offset = m_context.histLoadOff - arg;
+    m_app.histLoad(offset, [this, offset, save](ZuArray<const uint8_t> data) {
+      histLoad(offset, data, save);
+    });
   }
   return false;
 }
@@ -2275,13 +2278,11 @@ bool Editor::cmdClrIncSrch(Cmd, int32_t)
   if (m_context.histLoadOff >= 0 &&
       m_context.histLoadOff < m_context.histSaveOff) {
     m_context.histLoadOff = -1;
-    ZuString data;
     int offset = m_context.histSaveOff;
-    if (!m_app.histLoad(offset, data)) {
-      data = ZuArray<const uint8_t>{};
-      offset = -1;
-    }
-    histLoad(offset, data, false);
+    if (!m_app.histLoad(offset, [this, offset](ZuArray<const uint8_t> data) {
+      histLoad(offset, data, false);
+    }))
+      histLoad(-1, {}, false);
   }
   return false;
 }
@@ -2316,13 +2317,13 @@ bool Editor::searchFwd(int arg)
   if (ZuUnlikely(arg <= 0)) return false;
   int offset = m_context.histLoadOff;
   if (ZuUnlikely(offset < 0)) return false;
-  ZuString data;
   while (offset < m_context.histSaveOff) {
-    if (!m_app.histLoad(++offset, data)) break;
-    if (match(data) && !--arg) {
-      histLoad(offset, data, false);
-      return true;
-    }
+    ++offset;
+    if (!m_app.histLoad(offset,
+	  [this, offset, &arg](ZuArray<const uint8_t> data) {
+      if (match(data) && !--arg) histLoad(offset, data, false);
+    })) break;
+    if (m_context.histLoadOff == offset) return true;
   }
   return false;
 }
@@ -2334,13 +2335,13 @@ bool Editor::searchRev(int arg)
   if (ZuUnlikely(offset < 0)) offset = m_context.histSaveOff;
   if (ZuUnlikely(!offset)) return false;
   bool save = offset == m_context.histSaveOff;
-  ZuString data;
   while (offset > 0) {
-    if (!m_app.histLoad(--offset, data)) break;
-    if (match(data) && !--arg) {
-      histLoad(offset, data, save);
-      return true;
-    }
+    --offset;
+    if (!m_app.histLoad(offset,
+	  [this, offset, save, &arg](ZuArray<const uint8_t> data) {
+      if (match(data) && !--arg) histLoad(offset, data, save);
+    })) break;
+    if (m_context.histLoadOff == offset) return true;
   }
   return false;
 }
@@ -2425,13 +2426,13 @@ void Editor::srchEndPrompt(int op)
   if (!found) {
     if (m_context.histLoadOff < 0)
       m_context.histLoadOff = m_context.histSaveOff;
-    if (m_context.histLoadOff >= 0) {
-      ZuString data;
-      if (m_app.histLoad(m_context.histLoadOff, data))
+    if (m_context.histLoadOff >= 0)
+      m_app.histLoad(m_context.histLoadOff,
+	  [this, begin, orig](ZuArray<const uint8_t> data) {
 	m_tty.splice(
 	    begin, ZuUTF<uint32_t, uint8_t>::span(orig),
 	    data, ZuUTF<uint32_t, uint8_t>::span(data), true);
-    }
+      });
   }
   m_context.mode = m_context.stack.pop();
   m_context.srchPrmptSpan = {};
