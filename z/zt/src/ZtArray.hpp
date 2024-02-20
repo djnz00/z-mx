@@ -1534,9 +1534,9 @@ public:
     enum {
       IsArray = 1, IsPrimitive = 0,
       IsString =
-	ZuConversion<char, T>::Same ||
-	ZuConversion<wchar_t, T>::Same,
-      IsWString = ZuConversion<wchar_t, T>::Same
+	ZuEquivChar<char, T>::Same ||
+	ZuEquivChar<wchar_t, T>::Same,
+      IsWString = ZuEquivChar<wchar_t, T>::Same
     };
     template <typename U = ZtArray>
     static ZuNotConst<U, T *> data(U &a) { return a.data(); }

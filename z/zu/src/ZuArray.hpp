@@ -374,9 +374,9 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
   enum {
     IsArray = 1, IsPrimitive = 0,
     IsString =
-      ZuConversion<char, Elem>::Same ||
-      ZuConversion<wchar_t, Elem>::Same,
-    IsWString = ZuConversion<wchar_t, Elem>::Same
+      ZuEquivChar<char, Elem>::Same ||
+      ZuEquivChar<wchar_t, Elem>::Same,
+    IsWString = ZuEquivChar<wchar_t, Elem>::Same
   };
   template <typename U = T>
   static ZuNotConst<U, Elem *> data(U &a) { return a.data(); }

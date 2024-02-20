@@ -52,7 +52,14 @@ class ZrlAPI Globber {
     };
   };
   struct QMode {	// quoting mode
-    enum { Unset = -1, BackQuote = 0, SglQuote, DblQuote };
+    enum {
+      Unset		= 0x000,
+      BackQuote		= 0x001,
+      SglQuote		= 0x002,
+      DblQuote		= 0x003,
+      Mask		= 0x003,
+      Extant		= 0x004		// flag - implies single/double
+    };
   };
 
 private:

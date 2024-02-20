@@ -2189,9 +2189,7 @@ void Editor::spliceCompletion(
 bool Editor::cmdListComplete(Cmd, int32_t)
 {
   unsigned prevOp = m_context.prevCmd.op();
-  if (prevOp != Op::ListComplete &&
-      prevOp != Op::Complete &&
-      prevOp != Op::RevComplete) initComplete();
+  if (prevOp != Op::ListComplete) initComplete();
   startComplete();
   unsigned ttyWidth = m_tty.width();
   unsigned maxHeight = m_config.maxCompPages * m_tty.height();

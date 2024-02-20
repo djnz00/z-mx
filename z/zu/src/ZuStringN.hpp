@@ -415,7 +415,7 @@ public:
     using Elem = Char;
     enum {
       IsPOD = 1, IsCString = 1, IsString = 1, IsStream = 1,
-      IsWString = ZuConversion<Char, wchar_t>::Same
+      IsWString = ZuEquivChar<wchar_t, Char>::Same
     };
     template <typename U = ZuStringN_>
     static typename ZuNotConst<U, Char *>::T data(U &s) { return s.data(); }

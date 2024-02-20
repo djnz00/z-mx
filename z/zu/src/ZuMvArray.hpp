@@ -179,9 +179,9 @@ protected:
     enum {
       IsArray = 1, IsPrimitive = 0, IsPOD = 0,
       IsString =
-	ZuConversion<char, T>::Same ||
-	ZuConversion<wchar_t, T>::Same,
-      IsWString = ZuConversion<wchar_t, T>::Same
+	ZuEquivChar<char, T>::Same ||
+	ZuEquivChar<wchar_t, T>::Same,
+      IsWString = ZuEquivChar<wchar_t, T>::Same
     };
     template <typename U = ZuMvArray>
     static typename ZuNotConst<U, T *>::T data(U &a) { return a.data(); }

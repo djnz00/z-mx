@@ -27,7 +27,7 @@ typedef bool (*QuoteFn)(uint32_t);
 
 QuoteFn Globber::quoteFn()
 {
-  switch (m_qmode) {
+  switch (m_qmode & QMode::Mask) {
     case QMode::BackQuote:
       return [](uint32_t c) {
 	return
@@ -129,22 +129,9 @@ void Globber::init(
 
   // capture leafname span within the quoted path
 
-  m_loff = 0;				// leafname offset in line
-  m_lspan = {};				// leafname span in line
-
-  auto setQMode = [&]() {		// set quoting mode from state
-    switch (qstate & QState::Mask) {
-      case QState::Unquoted:
-	m_qmode = QMode::BackQuote;
-	break;
-      case QState::SglQuoted:
-	m_qmode = QMode::SglQuote;
-	break;
-      case QState::DblQuoted:
-	m_qmode = QMode::DblQuote;
-	break;
-    }
-  };
+  m_loff = 0;		// leafname offset in line
+  m_lspan = {};		// leafname span in line
+  int xqstate = -1;	// extant quoting state at beginning of leafname
 
   qstate = QState::Unquoted;
   off = begin;
@@ -152,16 +139,16 @@ void Globber::init(
     uint32_t c;
     unsigned n = ZuUTF8::in(&data[off], end - off, c);
     if (!n) break;
-    if (qoff == UINT_MAX && (c == '*' || c == '?' || c == '{' || c == '}')) {
+    if (qstate == QState::Unquoted && !(qstate & QState::BackQuote) &&
+	qoff == UINT_MAX && (c == '*' || c == '?' || c == '{' || c == '}')) {
       qoff = off;
       pqoff = path.length();
-      setQMode();
     }
     {
       ZuUTFSpan span{n, 1, ZuUTF32::width(c)};
       if (qoff < UINT_MAX)
 	qspan += span;
-      else
+      else if (c != '/')
 	m_lspan += span;	// don't extend leaf span into re-quote span
     }
     if (qstate & QState::BackQuote) {
@@ -185,16 +172,32 @@ void Globber::init(
 	  if (c == '"') { qstate = QState::Unquoted; off += n; continue; }
 	  break;
       }
-    }
-    if (qstate == QState::WhiteSpace) break; // white space under cursor
-    if (c == '/') {
-      m_loff = off + 1;
-      m_lspan = {};
+      if (qstate == QState::WhiteSpace) break; // white space under cursor
+      if (c == '/') {
+	m_loff = off + 1;
+	m_lspan = {};
+	xqstate = qstate;
+      }
     }
     path << ZuArray<const uint8_t>{&data[off], n};
     off += n;
   }
-  if (m_qmode == QMode::Unset) setQMode();
+  {
+    bool extant = xqstate >= 0;
+    if (!extant) xqstate = qstate;	// use last qstate within leafname
+    switch (xqstate & QState::Mask) {
+      case QState::Unquoted:
+	m_qmode = QMode::BackQuote;
+	break;
+      case QState::SglQuoted:
+	m_qmode = QMode::SglQuote;
+	break;
+      case QState::DblQuoted:
+	m_qmode = QMode::DblQuote;
+	break;
+    }
+    if (extant) m_qmode |= QMode::Extant;
+  }
 
   // initialize filesystem globber
   m_glob.init(path);
@@ -225,14 +228,14 @@ void Globber::init(
       ZuUTFSpan span{n, 1, ZuUTF32::width(c)};
       rspan += span;
       if (c == '/') {
-	m_loff = qoff + replace.length() + 1;
+	m_loff = qoff + replace.length();
 	m_lspan = {};
       } else
 	m_lspan += span;
     }
     off += n;
   }
-  switch (m_qmode) {
+  switch (m_qmode & QMode::Mask) {
     case QMode::SglQuote: replace << '\''; ++rspan; ++m_lspan; break;
     case QMode::DblQuote: replace << '"';  ++rspan; ++m_lspan; break;
   }
@@ -257,8 +260,16 @@ void Globber::start()
 
 bool Globber::subst(CompSpliceFn splice, bool next)
 {
-  ZuArray<const uint8_t> leaf = m_glob.iterate(next, true);
-  if (!leaf) return false;
+skip:
+  auto entry = m_glob.iterate(next, true);
+  if (!entry) return false;
+#ifndef _WIN32
+  ZuArray<const uint8_t> leaf = entry->name;
+#else
+  ZtString leaf_ = entry->name;	// convert from Windows UCS2 to UTF8
+  ZuArray<const uint8_t> leaf = leaf_;
+#endif
+  if (!m_glob.leafName() && leaf[0] == '.') goto skip;
 
   // quote leaf into replace, building rspan
   ZtArray<uint8_t> replace;
@@ -268,6 +279,11 @@ bool Globber::subst(CompSpliceFn splice, bool next)
     rlen += (rlen>>3);
     replace.size(rlen);
   }
+  if (!(m_qmode & QMode::Extant))
+    switch (m_qmode & QMode::Mask) {
+      case QMode::SglQuote: replace << '\''; ++rspan; break;
+      case QMode::DblQuote: replace << '"';  ++rspan; break;
+    }
   unsigned off = 0;
   auto quoteFn = this->quoteFn();
   while (off < leaf.length()) {
@@ -279,12 +295,17 @@ bool Globber::subst(CompSpliceFn splice, bool next)
     rspan += ZuUTFSpan{n, 1, ZuUTF32::width(c)};
     off += n;
   }
-  switch (m_qmode) {
+  switch (m_qmode & QMode::Mask) {
     case QMode::SglQuote: replace << '\''; ++rspan; break;
     case QMode::DblQuote: replace << '"';  ++rspan; break;
   }
-  // FIXME - append a '/' if a directory, not a ' '
-  if (m_appendSpace) { replace << ' '; ++rspan; }
+  if (entry->isdir) {
+    replace << '/';
+    ++rspan;
+  } else if (m_appendSpace) {
+    replace << ' ';
+    ++rspan;
+  }
 
   // splice replacement leafname into line
   splice(m_loff, m_lspan, replace, rspan);
@@ -297,12 +318,18 @@ bool Globber::subst(CompSpliceFn splice, bool next)
 
 bool Globber::next(CompIterFn iter)
 {
-  auto leaf = m_glob.iterate(true, false);
-  if (leaf) {
-    iter(leaf, ZuUTF<uint32_t, uint8_t>::span(leaf));
-    return true;
-  }
-  return false;
+skip:
+  auto entry = m_glob.iterate(true, false);
+  if (!entry) return false;
+#ifndef _WIN32
+  ZuArray<const uint8_t> leaf = entry->name;
+#else
+  ZtString leaf_ = entry->name;	// convert from Windows UCS2 to UTF8
+  ZuArray<const uint8_t> leaf = leaf_;
+#endif
+  if (!m_glob.leafName() && leaf[0] == '.') goto skip;
+  iter(leaf, ZuUTF<uint32_t, uint8_t>::span(leaf));
+  return true;
 }
 
 } // Zrl
