@@ -1432,7 +1432,7 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
 
 // hex dump
 
-// ZtHexDump_ is a low-level hex dumper that does NOT copy the data
+// ZtHexDump_ is a low-level hex dumper that does NOT copy data
 template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
 template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
 class ZtAPI ZtHexDump_ {
@@ -1443,7 +1443,7 @@ public:
   template <typename T, typename Cmp>
   ZtHexDump_(ZuArray<T, Cmp> data) :
       m_data{reinterpret_cast<const uint8_t *>(data.data())},
-      m_length{data.length() * sizeof(T)} { }
+      m_length(data.length() * sizeof(T)) { }
 
   template <typename T>
   ZtHexDump_(const T *data, unsigned length) :
@@ -1474,7 +1474,7 @@ public:
   friend Print ZuPrintType(ZtHexDump_ *);
 
 protected:
-  uint8_t	*m_data = nullptr;
+  const uint8_t	*m_data = nullptr;
   unsigned	m_length = 0;
 };
 
@@ -1526,11 +1526,15 @@ public:
   ZtHexDump &operator =(const ZtHexDump &) = delete;
 
 private:
-  void init_(const uint8_t *data) {
-    if (ZuLikely(m_data = static_cast<uint8_t *>(valloc(m_length))))
-      memcpy(m_data, data, m_length);
-    else
+  void init_(const uint8_t *data_) {
+    uint8_t *data;
+    if (ZuLikely(data = static_cast<uint8_t *>(valloc(m_length)))) {
+      memcpy(data, data_, m_length);
+      m_data = data;
+    } else {
+      m_data = nullptr;
       m_length = 0;
+    }
   }
 
 public:

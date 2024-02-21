@@ -271,8 +271,17 @@ struct ZtVFieldFlags_ : public ZtVFieldFlags {
   }
 };
 
-template <typename Base, typename Props_>
+template <typename Base, typename Props_, typename = void>
 struct ZtField_ : public Base {
+  using Props = Props_;
+  using O = typename Base::O;
+  static auto cmpFn() {
+    return [](const void *o1, const void *o2) { return 0; };
+  }
+};
+template <typename Base, typename Props_>
+struct ZtField_<Base, Props_,
+    decltype(&ZuCmp<typename Base::T>::cmp, void())> : public Base {
   using Props = Props_;
   using O = typename Base::O;
   static auto cmpFn() {
@@ -368,17 +377,18 @@ struct ZtFieldType_String<Base, Props, Def, false> :
   }
 };
 
-inline const char *ZtFieldType_Bytes_Def() { return ""; }
+inline ZuBytes ZtFieldType_Bytes_Def() { return {}; }
 template <
   typename Base, typename Props,
   auto Def = ZtFieldType_Bytes_Def,
   bool = Base::ReadOnly>
 struct ZtFieldType_Bytes : public ZtField_<Base, Props> {
-  enum { Type = ZtFieldType::String };
+  enum { Type = ZtFieldType::Bytes };
   using O = typename Base::O;
   using T = typename Base::T;
   struct Print_ {
     const T &v;
+    const ZtFieldFmt &fmt; // unused, but needed at compile-time
     template <typename S>
     friend S &operator <<(S &s, const Print_ &print) {
       return s << ZtHexDump_{ZuBytes{print.v}};
@@ -386,13 +396,13 @@ struct ZtFieldType_Bytes : public ZtField_<Base, Props> {
   };
   struct Print {
     const O &o;
-    const ZtFieldFmt &fmt;
+    const ZtFieldFmt &fmt; // unused, but needed at compile-time
     template <typename S>
     friend S &operator <<(S &s, const Print &self) {
-      return s << Base::id() << "=\"" << Print_{Base::get(self.o)} << '"';
+      return s << Base::id() << '=' << Print_{Base::get(self.o), self.fmt};
     }
   };
-  ZuInline static const char *deflt() { return Def(); }
+  ZuInline static ZuBytes deflt() { return Def(); }
   static auto constantFn() {
     using namespace ZtVFieldConstant;
     return [](int i) -> ZuBytes {
@@ -499,20 +509,39 @@ struct ZtFieldType_Composite : public ZtField_<Base, Props> {
   static auto setFn() { return [](void *, ZuString) { }; }
   static auto scanFn() { return [](void *, ZuString, const ZtFieldFmt &) { }; }
 };
+template <typename Base, typename Props, auto Def, typename = void>
+struct ZtFieldType_Composite_Scan :
+    public ZtFieldType_Composite<Base, Props, Def, true> {
+  template <typename P>
+  static void scan(P &, ZuString, const ZtFieldFmt &) { }
+  static auto scanFn() {
+    return [](void *, ZuString, const ZtFieldFmt &) { };
+  }
+};
 template <typename Base, typename Props, auto Def>
-struct ZtFieldType_Composite<Base, Props, Def, false> :
+struct ZtFieldType_Composite_Scan<Base, Props, Def, decltype(
+      Base::set(ZuDeclVal<typename Base::O *>(), ZuDeclVal<ZuString>()),
+      void())> :
     public ZtFieldType_Composite<Base, Props, Def, true> {
   using O = typename Base::O;
   template <typename P>
-  static void scan(P &o, ZuString s, const ZtFieldFmt &) { Base::set(o, s); }
-  static auto setFn() {
-    return [](void *o, ZuString s) {
-      Base::set(*static_cast<O *>(o), s);
-    };
+  static void scan(P &o, ZuString s, const ZtFieldFmt &) {
+    Base::set(o, s);
   }
   static auto scanFn() {
     return [](void *o, ZuString s, const ZtFieldFmt &) {
       Base::set(*static_cast<O *>(o), s);
+    };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtFieldType_Composite<Base, Props, Def, false> :
+    public ZtFieldType_Composite_Scan<Base, Props, Def> {
+  using O = typename Base::O;
+  using T = typename Base::T;
+  static auto setFn() {
+    return [](void *o, const void *p) {
+      Base::set(*static_cast<O *>(o), *static_cast<const T *>(p));
     };
   }
 };
@@ -1313,8 +1342,9 @@ struct ZtVField {
     ZmTime	(*time)(const void *);		// Time
   } getFn;
   union {
-    void	(*string)(void *, ZuString);	// String|Composite
+    void	(*string)(void *, ZuString);	// String
     void	(*bytes)(void *, ZuBytes);	// Bytes
+    void	(*composite)(void *, const void *);// Composite
     void	(*int_)(void *, int64_t);	// Bool|Int|Hex|Enum|Flags
     void	(*float_)(void *, double);	// Float
     void	(*fixed)(void *, ZuFixed);	// Fixed
@@ -1359,7 +1389,7 @@ struct ZtVField {
       print{Field::printFn()},
       scan{Field::scanFn()},
       getFn{.composite = Field::getFn()},
-      setFn{.string = Field::setFn()} { }
+      setFn{.composite = Field::setFn()} { }
 
   template <typename Field>
   ZtVField(Field,

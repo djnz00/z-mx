@@ -222,7 +222,7 @@ public:
 
     // send login
     FBB fbb;
-    if (m_credentials.type() == Credentials::Index<ZvCmd_Login>::I) {
+    if (m_credentials.type() == Credentials::Index<ZvCmd_Login>{}) {
       using namespace ZvUserDB;
       using namespace Zfb::Save;
       const auto &data = m_credentials.v<ZvCmd_Login>();

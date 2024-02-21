@@ -171,11 +171,11 @@ public:
   template <typename A>
   ZuArray(A &&a, MatchOtherArray<A> *_ = nullptr) :
       m_data{reinterpret_cast<T *>(ZuTraits<A>::data(a))},
-      m_length{!m_data ? 0 : (int)ZuTraits<A>::length(a)} { }
+      m_length{!m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a))} { }
   template <typename A>
   MatchOtherArray<A, ZuArray &> operator =(A &&a) {
     m_data = reinterpret_cast<T *>(ZuTraits<A>::data(a));
-    m_length = !m_data ? 0 : (int)ZuTraits<A>::length(a);
+    m_length = !m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a));
     return *this;
   }
 
@@ -387,7 +387,7 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
 template <typename T>
 using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;
 
-using ZuBytes = ZuArray<uint8_t>;
+using ZuBytes = ZuArray<const uint8_t>;
 
 #ifdef _MSC_VER
 #pragma warning(pop)
