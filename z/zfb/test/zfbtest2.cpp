@@ -84,4 +84,7 @@ int main(int argc, char **argv)
   build<false>(fbb, n);
   build<true>(fbb, n);
   build<true>(fbb, n);
+
+  for (auto field : zfbtest2::vfields)
+    std::cout << *field << '\n';
 }

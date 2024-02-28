@@ -520,8 +520,6 @@ struct DBCf {
   ZuID			id;
   ZmThreadName		thread;		// in-memory thread
   mutable unsigned	sid = 0;	// in-memory thread slot ID
-  ZmThreadName		fileThread;	// file I/O thread
-  mutable unsigned	fileSID = 0;	// file I/O thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
   bool			warmup = false;	// warm-up back-end
   uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
@@ -530,10 +528,8 @@ struct DBCf {
   DBCf(ZuString id_) : id{id_} { }
   DBCf(ZuString id_, const ZvCf *cf) : id{id_} {
     thread = cf->get("thread");
-    fileThread = cf->get("fileThread");
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
-    vacuumBatch = cf->getInt("vacuumBatch", 0, 100000, 1);
     warmup = cf->getBool("warmup");
     repMode = cf->getBool("repMode");
   }
@@ -552,7 +548,20 @@ using DBCfs =
 
 // -- main DB class
 
-class ZdbAPI DB : public ZmPolymorph, public FileMgr {
+// FIXME - FE<>BE API
+//
+// init -> <- initialized
+// open -> <- opened (success/failure - success includes next UN, next RN)
+//   // Note: next UN is used by Env, not DB
+//   // Note: we assume that no replication commences until all DBs are opened,
+//   // Note: open() is triggered by DB binding, 
+//   // ensuring accurate recovery of last UN
+// get (checks repBufs before requesting) -> <- gotten
+// push/update/del committed (DB::write) -> <- written (DB::write_ removes from repBufs)
+// close -> <- closed
+// final -> <- finalized
+
+class ZdbAPI DB : public ZmPolymorph {
 friend File_;
 friend Cxn_;
 friend AnyObject_;
@@ -966,11 +975,13 @@ struct EnvHandler {
 // -- DB environment configuration
 
 struct EnvCf {
-  ZtString			path;
+  // FIXME - do we need two threads - one for replication and one for
+  // back-end?
   ZmThreadName			thread;
   mutable unsigned		sid = 0;
-  ZmThreadName			fileThread;
-  mutable unsigned		fileSID = 0;
+
+  // FIXME - back-end ZiRing params
+
   DBCfs				dbCfs;
   HostCfs			hostCfs;
   ZuID				hostID;
@@ -979,7 +990,6 @@ struct EnvCf {
   unsigned			heartbeatTimeout = 0;
   unsigned			reconnectFreq = 0;
   unsigned			electionTimeout = 0;
-  unsigned			vacuumBatch = 0;
   ZmHashParams			cxnHash;
 #ifdef ZdbRep_DEBUG
   bool				debug = 0;

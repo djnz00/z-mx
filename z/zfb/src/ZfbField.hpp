@@ -55,10 +55,10 @@
 // Decimal	Decimal		ZuDecimal
 // Time		Time		ZmTime
 //
-// Bitmap	Composite	ZmBitmap
-// IP		Composite	ZiIP
-// ID		Composite	ZuID
-// Object	Composite	<Any>
+// Bitmap	UDT		ZmBitmap
+// IP		UDT		ZiIP
+// ID		UDT		ZuID
+// Object	UDT		<Any>
 
 // Type extension - ZiIP support is added as follows:
 //   (network/host byte-order swapping is intentionally elided since
@@ -83,7 +83,7 @@
 //         .s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data())}};
 //     }
 //   }
-//   #define ZfbFieldIP_T Composite
+//   #define ZfbFieldIP_T UDT
 //   #define ZfbFieldIP(O, ...) ZfbFieldInline(O, __VA_ARGS__, ip, ip)
 
 #include <zlib/Zfb.hpp>
@@ -124,9 +124,9 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     static Zfb::Offset<void> save(Zfb::Builder &fbb, const O &o) { \
       return Zfb::Save::SaveFn(fbb, Base::get(o)).Union(); \
     } \
-    template <typename B> \
-    static void save(B &b, Zfb::Offset<void> offset) { \
-      b.add_##ID(offset.o); \
+    template <typename Builder> \
+    static void save(Builder &fbb, Zfb::Offset<void> offset) { \
+      fbb.add_##ID(offset.o); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
@@ -155,10 +155,10 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using Builder = ZfbBuilder<O>; \
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
-    template <typename B> \
-    static void save(B &b, const O &o) { \
+    template <typename Builder> \
+    static void save(Builder &fbb, const O &o) { \
       auto v = Zfb::Save::SaveFn(Base::get(o)); \
-      b.add_##ID(&v); \
+      fbb.add_##ID(&v); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { \
@@ -188,11 +188,11 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
     using Builder = ZfbBuilder<O>; \
     using FBType = ZfbType<O>; \
     enum { Inline = 1 }; \
-    template <typename B> \
-    static void save(B &b, const O &o) { \
+    template <typename Builder> \
+    static void save(Builder &fbb, const O &o) { \
       using P = \
-        ZuType<0, typename ZuDeduce<decltype(&B::add_##ID)>::Args>; \
-      b.add_##ID(static_cast<P>(Base::get(o))); \
+        ZuType<0, typename ZuDeduce<decltype(&Builder::add_##ID)>::Args>; \
+      fbb.add_##ID(static_cast<P>(Base::get(o))); \
     } \
     template <typename FBType_> \
     static decltype(auto) load_(const FBType_ *fbo) { return fbo->ID(); } \
@@ -236,16 +236,16 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldTime_T Time
 #define ZfbFieldTime(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, dateTime, dateTime)
-#define ZfbFieldBitmap_T Composite
+#define ZfbFieldBitmap_T UDT
 #define ZfbFieldBitmap(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, bitmap, bitmap)
-#define ZfbFieldIP_T Composite
+#define ZfbFieldIP_T UDT
 #define ZfbFieldIP(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, ip, ip)
-#define ZfbFieldID_T Composite
+#define ZfbFieldID_T UDT
 #define ZfbFieldID(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, id, id)
-#define ZfbFieldObject_T Composite
+#define ZfbFieldObject_T UDT
 #define ZfbFieldObject(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, object, object<Base::T>)
 
@@ -286,22 +286,22 @@ template <typename T> using Offset = Zfb::Offset<T>;
 
 template <typename Field> struct HasOffset : public ZuBool<
     Field::Type == Type::String ||
-    (Field::Type == Type::Composite && !Field::Inline)> { };
+    (Field::Type == Type::UDT && !Field::Inline)> { };
 template <
   typename O, typename OffsetFieldList, typename Field,
   bool = HasOffset<Field>{}>
 struct SaveField {
-  template <typename B>
-  static void save(B &b, const O &o, const Offset<void> *) {
-    Field::save(b, o);
+  template <typename Builder>
+  static void save(Builder &fbb, const O &o, const Offset<void> *) {
+    Field::save(fbb, o);
   }
 };
 template <typename O, typename OffsetFieldList, typename Field>
 struct SaveField<O, OffsetFieldList, Field, true> {
-  template <typename B>
-  static void save(B &b, const O &, const Offset<void> *offsets) {
+  template <typename Builder>
+  static void save(Builder &fbb, const O &, const Offset<void> *offsets) {
     using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
-    Field::save(b, offsets[OffsetIndex{}]);
+    Field::save(fbb, offsets[OffsetIndex{}]);
   }
 };
 template <typename O, typename FieldList,
@@ -505,9 +505,9 @@ namespace Load {
   }
 }
 namespace Save {
-  template <typename B, typename O>
-  inline auto object(B &b, const O &o) {
-    return ZfbField::Fielded<O>::save(b, o);
+  template <typename Builder, typename O>
+  inline auto object(Builder &fbb, const O &o) {
+    return ZfbField::Fielded<O>::save(fbb, o);
   }
 }
 } // Zfb

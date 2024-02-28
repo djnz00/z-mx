@@ -19,6 +19,11 @@
 
 // generic printing, with support for output to non-Z strings / streams
 
+// struct UDT {
+//   template <typename S> void print(S &s) const { ... }
+//   friend ZuPrintFn ZuPrintType(Nested *);
+// }
+
 #ifndef ZuPrint_HPP
 #define ZuPrint_HPP
 

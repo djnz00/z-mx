@@ -49,34 +49,34 @@ template <typename SaveFn, typename PrintFn>
 KVTreeGet(SaveFn saveFn, PrintFn printFn) -> KVTreeGet<SaveFn, PrintFn>;
 
 namespace Save {
-  template <typename B, typename ...Args>
-  inline auto kvTree(B &b, Args &&... args) {
+  template <typename Builder, typename ...Args>
+  inline auto kvTree(Builder &fbb, Args &&... args) {
     using namespace ZfbTree;
-    return CreateKVTree(b, ZuFwd<Args>(args)...);
+    return CreateKVTree(fbb, ZuFwd<Args>(args)...);
   }
 
-  // kvUInt8Vec(b, "bytes", bytes(b, "data", 4));
-  template <typename B, typename ...Args>
-  inline auto kvUInt8Vec(B &b, ZuString key, Args &&... args) {
+  // kvUInt8Vec(fbb, "bytes", bytes(fbb, "data", 4));
+  template <typename Builder, typename ...Args>
+  inline auto kvUInt8Vec(Builder &fbb, ZuString key, Args &&... args) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_UInt8Vec,
-	CreateUInt8Vec(b, ZuFwd<Args>(args)...).Union());
+    return CreateKV(fbb, str(fbb, key), Value_UInt8Vec,
+	CreateUInt8Vec(fbb, ZuFwd<Args>(args)...).Union());
   }
 
   // Example:
-  // kvInt32Vec(b, "integers", 2, [](unsigned i) { return i; });
+  // kvInt32Vec(fbb, "integers", 2, [](unsigned i) { return i; });
 #define ZfbKVTree_Primitive(ctype, fbstype) \
-  template <typename B> \
-  inline auto kv##fbstype(B &b, ZuString key, ctype value) { \
+  template <typename Builder> \
+  inline auto kv##fbstype(Builder &fbb, ZuString key, ctype value) { \
     using namespace ZfbTree; \
-    return CreateKV(b, str(b, key), Value_##fbstype, \
-	b.CreateStruct(fbstype{value}).Union()); \
+    return CreateKV(fbb, str(fbb, key), Value_##fbstype, \
+	fbb.CreateStruct(fbstype{value}).Union()); \
   } \
-  template <typename B, typename L> \
-  inline auto kv##fbstype##Vec(B &b, ZuString key, unsigned n, L l) { \
+  template <typename Builder, typename L> \
+  inline auto kv##fbstype##Vec(Builder &fbb, ZuString key, unsigned n, L l) { \
     using namespace ZfbTree; \
-    return CreateKV(b, str(b, key), Value_##fbstype##Vec, \
-	Create##fbstype##Vec(b, pvectorIter(b, n, l)).Union()); \
+    return CreateKV(fbb, str(fbb, key), Value_##fbstype##Vec, \
+	Create##fbstype##Vec(fbb, pvectorIter(fbb, n, l)).Union()); \
   }
   ZfbKVTree_Primitive(int, Int32)
   ZfbKVTree_Primitive(unsigned, UInt32)
@@ -84,130 +84,131 @@ namespace Save {
   ZfbKVTree_Primitive(uint64_t, UInt64)
   ZfbKVTree_Primitive(double, Double)
 
-  template <typename B>
-  inline auto kvString(B &b, ZuString key, ZuString value) {
+  template <typename Builder>
+  inline auto kvString(Builder &fbb, ZuString key, ZuString value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_String, str(b, value).Union());
+    return CreateKV(fbb, str(fbb, key), Value_String, str(fbb, value).Union());
   }
   // Example:
-  // kvStringVec(b, "strings", 2,
+  // kvStringVec(fbb, "strings", 2,
   //   [](unsigned i) { return ZtString{} << "value" << i; });
-  template <typename B, typename L>
-  inline auto kvStringVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvStringVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_StringVec,
-	CreateStringVec(b, strVecIter(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_StringVec,
+	CreateStringVec(fbb, strVecIter(fbb, n, l)).Union());
   }
 
-  template <typename B>
-  inline auto kvBitmap(B &b, ZuString key, const ZmBitmap &value) {
+  template <typename Builder>
+  inline auto kvBitmap(Builder &fbb, ZuString key, const ZmBitmap &value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_Bitmap,
-	bitmap(b, value).Union());
+    return CreateKV(fbb, str(fbb, key), Value_Bitmap,
+	bitmap(fbb, value).Union());
   }
   // Example:
-  // kvBitmapVec(b, "bitmaps", 2, [] <template B> (B &b, unsigned i) {
-  //   return bitmap(b, ZmBitmap{static_cast<uint64_t>(i)});
+  // kvBitmapVec(fbb, "bitmaps", 2, [] <template B> (Builder &fbb, unsigned i) {
+  //   return bitmap(fbb, ZmBitmap{static_cast<uint64_t>(i)});
   // }
-  template <typename B, typename L>
-  inline auto kvBitmapVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvBitmapVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_BitmapVec,
-	CreateBitmapVec(b, vectorIter<Bitmap>(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_BitmapVec,
+	CreateBitmapVec(fbb, vectorIter<Bitmap>(fbb, n, l)).Union());
   }
 
-  template <typename B>
-  inline auto kvDecimal(B &b, ZuString key, const ZuDecimal &value) {
+  template <typename Builder>
+  inline auto kvDecimal(Builder &fbb, ZuString key, const ZuDecimal &value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_Decimal,
-	b.CreateStruct(decimal(value)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_Decimal,
+	fbb.CreateStruct(decimal(value)).Union());
   }
   // Example:
-  // kvDecimalVec(b, "decimals", 2, [] <template T> (T *ptr, unsigned i) {
+  // kvDecimalVec(fbb, "decimals", 2, [] <template T> (T *ptr, unsigned i) {
   //   new (ptr) Decimal{decimal(ZuDecimal{i})};
   // }
-  template <typename B, typename L>
-  inline auto kvDecimalVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvDecimalVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_DecimalVec,
-	CreateDecimalVec(b, structVecIter(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_DecimalVec,
+	CreateDecimalVec(fbb, structVecIter(fbb, n, l)).Union());
   }
 
-  template <typename B>
-  inline auto kvDateTime(B &b, ZuString key, const ZtDate &value) {
+  template <typename Builder>
+  inline auto kvDateTime(Builder &fbb, ZuString key, const ZtDate &value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_DateTime,
-	b.CreateStruct(dateTime(value)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_DateTime,
+	fbb.CreateStruct(dateTime(value)).Union());
   }
   // Example:
-  // kvDateTimeVec(b, "dateTimes", 2, [] <template T> (T *ptr, unsigned i) {
+  // kvDateTimeVec(fbb, "dateTimes", 2, [] <template T> (T *ptr, unsigned i) {
   //   new (ptr) DateTime{dateTime(ZtDate{2023, 2, i})};
   // }
-  template <typename B, typename L>
-  inline auto kvDateTimeVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvDateTimeVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_DateTimeVec,
-	CreateDateTimeVec(b, structVecIter(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_DateTimeVec,
+	CreateDateTimeVec(fbb, structVecIter(fbb, n, l)).Union());
   }
 
-  template <typename B>
-  inline auto kvIP(B &b, ZuString key, const ZiIP &value) {
+  template <typename Builder>
+  inline auto kvIP(Builder &fbb, ZuString key, const ZiIP &value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_IP,
-	b.CreateStruct(ip(value)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_IP,
+	fbb.CreateStruct(ip(value)).Union());
   }
   // Example:
-  // kvIPVec(b, "ips", 2, [] <template T> (T *ptr, unsigned i) {
+  // kvIPVec(fbb, "ips", 2, [] <template T> (T *ptr, unsigned i) {
   //   new (ptr) IP{ip(ZiIP{ZtString{} << "192.168.0." << i})};
   // }
-  template <typename B, typename L>
-  inline auto kvIPVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvIPVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_IPVec,
-	CreateIPVec(b, structVecIter(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_IPVec,
+	CreateIPVec(fbb, structVecIter(fbb, n, l)).Union());
   }
 
-  template <typename B>
-  inline auto kvID(B &b, ZuString key, const ZuID &value) {
+  template <typename Builder>
+  inline auto kvID(Builder &fbb, ZuString key, const ZuID &value) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_ID,
-	b.CreateStruct(id(value)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_ID,
+	fbb.CreateStruct(id(value)).Union());
   }
   // Example:
-  // kvIDVec(b, "ids", 2, [] <template T> (T *ptr, unsigned i) {
+  // kvIDVec(fbb, "ids", 2, [] <template T> (T *ptr, unsigned i) {
   //   new (ptr) ID{id(ZuID{ZtString{} << i})};
   // }
-  template <typename B, typename L>
-  inline auto kvIDVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvIDVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_IDVec,
-	CreateIDVec(b, structVecIter(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_IDVec,
+	CreateIDVec(fbb, structVecIter(fbb, n, l)).Union());
   }
 
-  template <typename B, typename ...Args>
-  inline auto kvNested(B &b, ZuString key, Args &&... args) {
+  template <typename Builder, typename ...Args>
+  inline auto kvNested(Builder &fbb, ZuString key, Args &&... args) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_NestedKVTree,
-	CreateNestedKVTree(b,
-	  nest(b, [...args = ZuFwd<Args>(args)]<typename B_>(B_ &b) mutable {
-	    return CreateKVTree(b, args...);
+    return CreateKV(fbb, str(fbb, key), Value_NestedKVTree,
+	CreateNestedKVTree(fbb,
+	  nest(fbb, [...args = ZuFwd<Args>(args)]<typename Builder_>(
+	      Builder_ &fbb) mutable {
+	    return CreateKVTree(fbb, args...);
 	  })).Union());
   }
   // Example:
-  // kvNestedVec(b, "nested", 2, [] <template B> (B &b, unsigned i) {
-  //   return kvNestedVec(b, vector<Item>(b, kvString(b, "key", "value")));
+  // kvNestedVec(fbb, "nested", 2, [] <template B> (Builder &fbb, unsigned i) {
+  //   return kvNestedVec(fbb, vector<Item>(fbb, kvString(fbb, "key", "value")));
   // }
-  template <typename B, typename L>
-  inline auto kvNestedVec(B &b, ZuString key, unsigned n, L l) {
+  template <typename Builder, typename L>
+  inline auto kvNestedVec(Builder &fbb, ZuString key, unsigned n, L l) {
     using namespace ZfbTree;
-    return CreateKV(b, str(b, key), Value_NestedKVTreeVec,
-	CreateBitmapVec(b, vectorIter<NestedKVTree>(b, n, l)).Union());
+    return CreateKV(fbb, str(fbb, key), Value_NestedKVTreeVec,
+	CreateBitmapVec(fbb, vectorIter<NestedKVTree>(fbb, n, l)).Union());
   }
 
   // save function for key-value tree
-  template <typename B, typename SaveFn, typename PrintFn>
-  inline auto kvTreeSave(B &b, KVTreeGet<SaveFn, PrintFn> v) {
-    return v.saveFn(b);
+  template <typename Builder, typename SaveFn, typename PrintFn>
+  inline auto kvTreeSave(Builder &fbb, KVTreeGet<SaveFn, PrintFn> v) {
+    return v.saveFn(fbb);
   }
 
 } // Save
@@ -221,7 +222,7 @@ namespace Load {
 } // Load
 } // Zfb
 
-#define ZfbFieldKVTree_T Composite
+#define ZfbFieldKVTree_T UDT
 #define ZfbFieldKVTree(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, kvTreeSave, kvTreeLoad)
 

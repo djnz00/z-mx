@@ -22,9 +22,7 @@ namespace Snafus {
 }
 
 namespace DaFlags {
-  ZtEnumValues_(S, A, P, SUP, HI);
-  ZtEnumFlags("DaFlags", Map,
-      "S", S, "A", A, "P", P, "SUP", SUP, "HI", HI);
+  ZtEnumFlags("DaFlags", S, A, P, SUP, HI);
 }
 
 struct Row {

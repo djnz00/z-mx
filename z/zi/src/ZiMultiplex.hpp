@@ -178,7 +178,7 @@ public:
 
 // protocol/socket options
 namespace ZiCxnFlags {
-  ZtEnumValues_(
+  ZtEnumFlags_("ZiCxnFlags",
     UDP,		// U - create UDP socket (default TCP)
     Multicast,          // M - combine with U for multicast server socket
     LoopBack,		// L - combine with M and U for multicast loopback
@@ -186,7 +186,7 @@ namespace ZiCxnFlags {
     NetLink,		// N - NetLink socket
     Nagle		// D - enable Nagle algorithm (no TCP_NODELAY)
   );
-  ZtEnumFlags("ZiCxnFlags", Map,
+  ZtEnumFlagsMap("ZiCxnFlags", Map,
       "U", UDP, "M", Multicast, "L", LoopBack, "L", KeepAlive, "N", NetLink,
       "D", Nagle);
 }
@@ -252,38 +252,38 @@ public:
   }
   bool udp() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<UDP);
+    return m_flags & UDP;
   }
   ZiCxnOptions &udp(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<UDP)) : (m_flags &= ~(1<<UDP));
+    b ? (m_flags |= UDP) : (m_flags &= ~UDP);
     return *this;
   }
   bool multicast() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<Multicast);
+    return m_flags & Multicast;
   }
   ZiCxnOptions &multicast(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<Multicast)) : (m_flags &= ~(1<<Multicast));
+    b ? (m_flags |= Multicast) : (m_flags &= ~Multicast);
     return *this;
   }
   bool loopBack() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<LoopBack);
+    return m_flags & LoopBack;
   }
   ZiCxnOptions &loopBack(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<LoopBack)) : (m_flags &= ~(1<<LoopBack));
+    b ? (m_flags |= LoopBack) : (m_flags &= ~LoopBack);
     return *this;
   }
   bool keepAlive() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<KeepAlive);
+    return m_flags & KeepAlive;
   }
   ZiCxnOptions &keepAlive(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<KeepAlive)) : (m_flags &= ~(1<<KeepAlive));
+    b ? (m_flags |= KeepAlive) : (m_flags &= ~KeepAlive);
     return *this;
   }
   const MReqs &mreqs() const {
@@ -303,11 +303,11 @@ public:
 #ifdef ZiMultiplex_Netlink
   bool netlink() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<NetLink);
+    return m_flags & NetLink;
   }
   ZiCxnOptions &netlink(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<NetLink)) : (m_flags &= ~(1<<NetLink));
+    b ? (m_flags |= NetLink) : (m_flags &= ~NetLink);
     return *this;
   }
   const ZuStringN &familyName() const { return m_familyName; }
@@ -323,11 +323,11 @@ public:
 #endif
   bool nagle() const {
     using namespace ZiCxnFlags;
-    return m_flags & (1<<Nagle);
+    return m_flags & Nagle;
   }
   ZiCxnOptions &nagle(bool b) {
     using namespace ZiCxnFlags;
-    b ? (m_flags |= (1<<Nagle)) : (m_flags &= ~(1<<Nagle));
+    b ? (m_flags |= Nagle) : (m_flags &= ~Nagle);
     return *this;
   }
 
@@ -335,9 +335,9 @@ public:
     using namespace ZiCxnFlags;
     if (m_flags != o.m_flags) return false;
 #ifdef ZiMultiplex_Netlink
-    if ((m_flags & (1<<NetLink))) return m_familyName == o.m_familyName;
+    if ((m_flags & NetLink)) return m_familyName == o.m_familyName;
 #endif
-    if (!(m_flags & (1<<Multicast))) return true;
+    if (!(m_flags & Multicast)) return true;
     return m_mreqs == o.m_mreqs && m_mif == o.m_mif && m_ttl == o.m_ttl;
   }
   int cmp(const ZiCxnOptions &o) const {
@@ -345,9 +345,9 @@ public:
     int i;
     if (i = ZuCmp<uint32_t>::cmp(m_flags, o.m_flags)) return i;
 #ifdef ZiMultiplex_Netlink
-    if ((m_flags & (1<<NetLink))) return m_familyName.cmp(o.m_familyName);
+    if ((m_flags & NetLink)) return m_familyName.cmp(o.m_familyName);
 #endif
-    if (!(m_flags & (1<<Multicast))) return i;
+    if (!(m_flags & Multicast)) return i;
     if (i = m_mreqs.cmp(o.m_mreqs)) return i;
     if (i = m_mif.cmp(o.m_mif)) return i;
     return ZuBoxed(m_ttl).cmp(o.m_ttl);
@@ -363,16 +363,16 @@ public:
     using namespace ZiCxnFlags;
     uint32_t code = ZuHash<uint32_t>::hash(m_flags);
 #ifdef ZiMultiplex_Netlink
-    if (m_flags & (1<<NetLink)) return code ^ m_familyName.hash();
+    if (m_flags & NetLink) return code ^ m_familyName.hash();
 #endif
-    if (!(m_flags & (1<<Multicast))) return code;
+    if (!(m_flags & Multicast)) return code;
     return code ^ m_mreqs.hash() ^ m_mif.hash() ^ ZuBoxed(m_ttl).hash();
   }
 
   template <typename S> void print(S &s) const {
     using namespace ZiCxnFlags;
     s << "flags=" << Map::print(m_flags);
-    if (m_flags & (1<<Multicast)) {
+    if (m_flags & Multicast) {
       s << " mreqs={";
       for (unsigned i = 0; i < m_mreqs.length(); i++) {
 	if (i) s << ',';
@@ -381,7 +381,7 @@ public:
       s << "} mif=" << m_mif << " TTL=" << ZuBoxed(m_ttl);
     }
 #ifdef ZiMultiplex_Netlink
-    if (m_flags & (1<<NetLink)) s << " familyName=" << m_familyName;
+    if (m_flags & NetLink) s << " familyName=" << m_familyName;
 #endif
   }
 

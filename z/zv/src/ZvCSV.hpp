@@ -76,7 +76,7 @@ namespace ZvCSV_ {
       case ZtFieldType::String: {
 	quote_(row, field->getFn.string(object));
       } break;
-      case ZtFieldType::Composite:
+      case ZtFieldType::UDT:
       case ZtFieldType::Enum:
       case ZtFieldType::Flags: {
 	ZtString s_;

@@ -41,7 +41,7 @@
 // invocation function
 //
 // invoke() invokes the lambda directly from the ring buffer pointer,
-// destroys it and returns the size of the message so that a ring
+// destroys it and returns the size of the message so that a ring buffer
 // dequeue can complete correctly
 
 // ZmHeap is used for heap allocation

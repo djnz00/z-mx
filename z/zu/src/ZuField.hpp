@@ -49,6 +49,15 @@
 // from 0, e.g. (0, 1) - by convention, 0 is the primary key and 1+ are
 // secondary keys
 
+// ZuField API:
+//   O		- type of containing object
+//   T		- type of field
+//   ReadOnly	- true if read-only
+//   id()	- identifier (unique name) of field
+//   keys()	- keys bitfield (64bit)
+//   get(o)	- get function
+//   set(o, v)	- set function
+
 #ifndef ZuField_HPP
 #define ZuField_HPP
 
@@ -62,7 +71,7 @@
 
 #include <zlib/ZuTuple.hpp>
 
-#define ZuFieldType(O, ID) ZuField_##O##_##ID
+#define ZuField_TypeID(O, ID) ZuField_##O##_##ID
 
 #define ZuField_Keys__(Key) (static_cast<uint64_t>(1)<<Key) |
 #define ZuField_Keys_(...) (ZuPP_Map(ZuField_Keys__, __VA_ARGS__) 0)
@@ -94,14 +103,14 @@
   template <typename P> \
   static void set(O &o, P &&v) { o.Member = ZuFwd<P>(v); }
 #define ZuFieldAliasRd(O, ID, Member, Args) \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 1 }; \
     ZuField_(O, ID, Args) \
     ZuFieldAliasRd_(O, Member) \
     template <typename P> static void set(O &, P &&) { } \
   };
 #define ZuFieldAlias(O, ID, Member, Args) \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 0 }; \
     ZuField_(O, ID, Args) \
     ZuFieldAliasRd_(O, Member) \
@@ -116,14 +125,14 @@
   template <typename V> \
   static void set(O &o, V &&v) { o.Set(ZuFwd<V>(v)); }
 #define ZuFieldAliasRdFn(O, ID, Get, Args) \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 1 }; \
     ZuField_(O, ID, Args) \
     ZuFieldAliasRdFn_(O, Get) \
     template <typename P> static void set(O &, P &&) { } \
   };
 #define ZuFieldAliasFn(O, ID, Get, Set, Args) \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 0 }; \
     ZuField_(O, ID, Args) \
     ZuFieldAliasRdFn_(O, Get) \
@@ -143,7 +152,7 @@
   }
 #define ZuFieldLambdaRd(O, ID, Get, Args) \
   inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 1 }; \
     using T = \
       ZuDecay<decltype(ZuField_##O##_##ID##_get()(ZuDeclVal<const O &>()))>; \
@@ -153,7 +162,7 @@
   };
 #define ZuFieldLambda(O, ID, Get, Set, Args) \
   inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
-  struct ZuFieldType(O, ID) { \
+  struct ZuField_TypeID(O, ID) { \
     enum { ReadOnly = 0 }; \
     using T = \
       ZuDecay<decltype(ZuField_##O##_##ID##_get()(ZuDeclVal<const O &>()))>; \
@@ -191,7 +200,7 @@
   ZuPP_Defer(ZuField_Decl__)(O, ZuPP_Strip(Axor), (__VA_ARGS__))
 #define ZuField_Decl(O, Args) ZuPP_Defer(ZuField_Decl_)(O, ZuPP_Strip(Args))
 
-#define ZuField_Type__(O, ID, ...) ZuFieldType(O, ID)
+#define ZuField_Type__(O, ID, ...) ZuField_TypeID(O, ID)
 #define ZuField_Type_(O, Axor, ...) \
   ZuPP_Defer(ZuField_Type__)(O, ZuPP_Strip(Axor))
 #define ZuField_Type(O, Args) ZuPP_Defer(ZuField_Type_)(O, ZuPP_Strip(Args))

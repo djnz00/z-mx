@@ -29,8 +29,7 @@ namespace Enums {
 }
 
 namespace DaFlags {
-  ZtEnumValues_(Flag1, Flag2, P, SUP);
-  ZtEnumFlags("DaFlags", Map, "Flag1", 0, "Flag2", 1, "P", 2, "SUP", 3);
+  ZtEnumFlags("DaFlags", Flag1, Flag2, P, SUP);
 }
 
 struct Row {

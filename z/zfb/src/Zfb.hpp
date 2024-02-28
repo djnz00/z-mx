@@ -136,27 +136,27 @@ namespace Save {
   }
 
   // push uninitialized vector
-  template <typename B, typename T>
-  inline Offset<Vector<T>> pvector_(B &b, unsigned length, T *&data) {
-    return b.CreateUninitializedVector(
+  template <typename Builder, typename T>
+  inline Offset<Vector<T>> pvector_(Builder &fbb, unsigned length, T *&data) {
+    return fbb.CreateUninitializedVector(
 	length, sizeof(T), AlignOf<T>(), reinterpret_cast<uint8_t **>(&data));
   }
   // inline creation of a vector of primitive scalars
-  template <typename T, typename B, typename ...Args>
-  inline Offset<Vector<T>> pvector(B &b, Args &&... args) {
+  template <typename T, typename Builder, typename ...Args>
+  inline Offset<Vector<T>> pvector(Builder &fbb, Args &&... args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     T *buf = nullptr;
-    auto r = pvector_(b, n, buf);
+    auto r = pvector_(fbb, n, buf);
     if (r.IsNull() || !buf) return {};
     lpush_(buf, [](T v) { return EndianScalar(v); },
 	ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
     return r;
   }
   // iterated creation of a vector of primitive values
-  template <typename T, typename B, typename L>
-  inline Offset<Vector<T>> pvectorIter(B &b, unsigned n, L l) {
+  template <typename T, typename Builder, typename L>
+  inline Offset<Vector<T>> pvectorIter(Builder &fbb, unsigned n, L l) {
     T *buf = nullptr;
-    auto r = pvector_(b, n, buf);
+    auto r = pvector_(fbb, n, buf);
     if (r.IsNull() || !buf) return {};
     for (unsigned i = 0; i < n; i++) buf[i] = EndianScalar<T>(l(i));
     return r;
@@ -170,78 +170,78 @@ namespace Save {
   // collected in a temporary buffer while they are being written.
 
   // inline creation of a vector of offsets
-  template <typename T, typename B, typename ...Args>
-  inline Offset<Vector<Offset<T>>> vector(B &b, Args &&... args) {
+  template <typename T, typename Builder, typename ...Args>
+  inline Offset<Vector<Offset<T>>> vector(Builder &fbb, Args &&... args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
+    auto r = fbb.CreateVector(buf.ptr, n);
     return r;
   }
   // inline creation of a vector of lambda-transformed offsets
-  template <typename T, typename B, typename L, typename ...Args>
-  inline Offset<Vector<Offset<T>>> lvector(B &b, L l, Args &&... args) {
+  template <typename T, typename Builder, typename L, typename ...Args>
+  inline Offset<Vector<Offset<T>>> lvector(Builder &fbb, L l, Args &&... args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     lpush_(buf.ptr, ZuMv(l), ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVector(buf.ptr, n);
+    auto r = fbb.CreateVector(buf.ptr, n);
     return r;
   }
   // iterated creation of a vector of offsets
-  template <typename T, typename B, typename L>
-  inline Offset<Vector<Offset<T>>> vectorIter(B &b, unsigned n, L l) {
+  template <typename T, typename Builder, typename L>
+  inline Offset<Vector<Offset<T>>> vectorIter(Builder &fbb, unsigned n, L l) {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    for (unsigned i = 0; i < n; i++) buf.ptr[i] = l(b, i);
-    auto r = b.CreateVector(buf.ptr, n);
+    for (unsigned i = 0; i < n; i++) buf.ptr[i] = l(fbb, i);
+    auto r = fbb.CreateVector(buf.ptr, n);
     return r;
   }
 
   // iterated creation of a vector of structs
-  template <typename T, typename B, typename L>
-  inline Offset<Vector<const T *>> structVecIter(B &b, unsigned n, L l) {
-    return b.template CreateVectorOfStructs<T>(n,
+  template <typename T, typename Builder, typename L>
+  inline Offset<Vector<const T *>> structVecIter(Builder &fbb, unsigned n, L l) {
+    return fbb.template CreateVectorOfStructs<T>(n,
 	[l = ZuMv(l)](size_t i, T *ptr, void *) {
       l(ptr, i);
     }, static_cast<void *>(nullptr));
   }
 
   // inline creation of a vector of keyed offsets
-  template <typename T, typename B, typename ...Args>
-  inline Offset<Vector<Offset<T>>> keyVec(B &b, Args &&... args) {
+  template <typename T, typename Builder, typename ...Args>
+  inline Offset<Vector<Offset<T>>> keyVec(Builder &fbb, Args &&... args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     push_(buf.ptr, ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
+    auto r = fbb.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
   // inline creation of a vector of lambda-transformed keyed offsets
-  template <typename T, typename B, typename L, typename ...Args>
-  inline Offset<Vector<Offset<T>>> lkeyVec(B &b, L l, Args &&... args) {
+  template <typename T, typename Builder, typename L, typename ...Args>
+  inline Offset<Vector<Offset<T>>> lkeyVec(Builder &fbb, L l, Args &&... args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
     lpush_(buf.ptr, ZuMv(l), ZuUnsigned<0>{}, ZuFwd<Args>(args)...);
-    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
+    auto r = fbb.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
   // iterated creation of a vector of lambda-transformed keyed offsets
-  template <typename T, typename B, typename L>
-  inline Offset<Vector<Offset<T>>> keyVecIter(B &b, unsigned n, L l) {
+  template <typename T, typename Builder, typename L>
+  inline Offset<Vector<Offset<T>>> keyVecIter(Builder &fbb, unsigned n, L l) {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    for (unsigned i = 0; i < n; i++) buf[i] = l(b, i);
-    auto r = b.CreateVectorOfSortedTables(buf.ptr, n);
+    for (unsigned i = 0; i < n; i++) buf[i] = l(fbb, i);
+    auto r = fbb.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
 
   // inline creation of a string (shorthand alias for CreateString)
-  template <typename B>
-  inline auto str(B &b, ZuString s) {
-    return b.CreateString(s.data(), s.length());
+  template <typename Builder>
+  inline auto str(Builder &fbb, ZuString s) {
+    return fbb.CreateString(s.data(), s.length());
   }
   // fixed-width string -> flatbuffers::span<const uint8_t>
   template <unsigned N>
@@ -251,38 +251,38 @@ namespace Save {
   }
 
   // inline creation of a vector of strings
-  template <typename B, typename ...Args>
-  inline auto strVec(B &b, Args &&... args) {
-    return lvector<String>(b, [&b](const auto &s) {
-      return str(b, s);
+  template <typename Builder, typename ...Args>
+  inline auto strVec(Builder &fbb, Args &&... args) {
+    return lvector<String>(fbb, [&fbb](const auto &s) {
+      return str(fbb, s);
     }, ZuFwd<Args>(args)...);
   }
   // iterated creation of a vector of strings
-  template <typename B, typename L>
-  inline auto strVecIter(B &b, unsigned n, L l) {
-    return vectorIter<String>(b, n, [l = ZuMv(l)](B &b, unsigned i) mutable {
-      return str(b, l(i));
+  template <typename Builder, typename L>
+  inline auto strVecIter(Builder &fbb, unsigned n, L l) {
+    return vectorIter<String>(fbb, n, [l = ZuMv(l)](Builder &fbb, unsigned i) mutable {
+      return str(fbb, l(i));
     });
   }
 
   // inline creation of a vector of bytes from raw data
-  template <typename B>
-  inline auto bytes(B &b, const void *data, unsigned len) {
-    return b.CreateVector(static_cast<const uint8_t *>(data), len);
+  template <typename Builder>
+  inline auto bytes(Builder &fbb, const void *data, unsigned len) {
+    return fbb.CreateVector(static_cast<const uint8_t *>(data), len);
   }
   // inline creation of a vector of bytes from raw data
-  template <typename B>
-  inline auto bytes(B &b, ZuArray<const uint8_t> a) {
-    return b.CreateVector(a.data(), a.length());
+  template <typename Builder>
+  inline auto bytes(Builder &fbb, ZuArray<const uint8_t> a) {
+    return fbb.CreateVector(a.data(), a.length());
   }
 
   // bitmap
-  template <typename B>
-  inline Offset<Bitmap> bitmap(B &b, const ZmBitmap &v) {
+  template <typename Builder>
+  inline Offset<Bitmap> bitmap(Builder &fbb, const ZmBitmap &v) {
     int n = v.last();
     if (ZuUnlikely(n <= 0)) return {};
     n = (n + 0x3f)>>6;
-    return CreateBitmap(b, pvectorIter<uint32_t>(b, n, [&v](unsigned i) {
+    return CreateBitmap(fbb, pvectorIter<uint32_t>(fbb, n, [&v](unsigned i) {
       return hwloc_bitmap_to_ith_ulong(v, i);
     }));
   }

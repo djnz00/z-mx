@@ -1130,11 +1130,18 @@ public:
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Composite ||
+  ZuIfT<Field::Type == ZtFieldType::Bytes, typename Field::T>
+  getField() {
+    return get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+	Field::id(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type == ZtFieldType::UDT ||
 	Field::Type == ZtFieldType::Time, typename Field::T>
   getField() {
     using T = typename Field::T;
-    auto s = get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(Field::id(), "");
+    auto s = get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+	Field::id(), "");
     if (ZuUnlikely(!s)) return Field::deflt();
     return T{s};
   }
@@ -1150,21 +1157,23 @@ public:
 	Field::Type == ZtFieldType::Fixed ||
 	Field::Type == ZtFieldType::Decimal, typename Field::T>
   getField() {
-    return getScalar<typename Field::T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+    return getScalar<typename Field::T,
+	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt(), Field::minimum(), Field::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Hex, typename Field::T>
   getField() {
-    using T = typename Field::T;
-    return getScalar<T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+    return getScalar<typename Field::T,
+	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum());
   }
   template <typename Field>
   ZuIfT<Field::Type == ZtFieldType::Enum, typename Field::T>
   getField() {
     using Map = typename Field::Map;
-    return getEnum<Map, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+    return getEnum<Map,
+	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
@@ -1172,7 +1181,8 @@ public:
   getField() {
     using Map = typename Field::Map;
     using T = typename Field::T;
-    return getFlags_<Map, T, ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
+    return getFlags_<Map, T,
+	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
 

@@ -66,7 +66,7 @@ using ZtEnum = ZuBox_1(int8_t);
     return Map::s2v(s); \
   }
 #define ZtEnumValues_(...) \
-  enum _ { Invalid = -1, __VA_ARGS__, N }; \
+  enum { Invalid = -1, __VA_ARGS__, N }; \
   ZuAssert(N <= 1024); \
   enum { Bits = \
     N <= 2 ? 1 : N <= 4 ? 2 : N <= 8 ? 3 : N <= 16 ? 4 : N <= 32 ? 5 : \
@@ -122,7 +122,7 @@ using ZtEnum = ZuBox_1(int8_t);
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   }
 
-#define ZtEnumFlags(ID, Map, ...) \
+#define ZtEnumFlagsMap(ID, Map, ...) \
   class Map : public Map_<Map> { \
   public: \
     constexpr static const char *id() { return ID; } \
@@ -187,5 +187,21 @@ using ZtEnum = ZuBox_1(int8_t);
       return Print<Flags_>{v, delim}; \
     } \
   };
+
+#define ZtEnumFlag_(V) V##_
+#define ZtEnumFlagLookup_(V) #V, V##_
+#define ZtEnumFlagValue_(V) V = (1<<V##_)
+
+#define ZtEnumFlags_(ID, ...) \
+  ZtEnumValues_(ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \
+  enum { \
+    ZuPP_Eval(ZuPP_MapComma(ZtEnumFlagValue_, __VA_ARGS__)), \
+    Mask = (1<<N) - 1 \
+  }
+
+#define ZtEnumFlags(ID, ...) \
+  ZtEnumFlags_(ID, __VA_ARGS__); \
+  ZtEnumFlagsMap(ID, Map, \
+      ZuPP_Eval(ZuPP_MapComma(ZtEnumFlagLookup_, __VA_ARGS__)))
 
 #endif /* ZtEnum_HPP */

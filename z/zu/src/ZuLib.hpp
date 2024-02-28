@@ -134,7 +134,7 @@
 #ifdef _MSC_VER
 #define ZuInline __forceinline
 #else
-#define ZuInline
+#define ZuInline inline
 #endif
 #define ZuNoInline
 
@@ -413,6 +413,10 @@ struct ZuTypeIn<U, ZuTypeList<Args...>> : public ZuTypeIn<U, Args...> { };
 // - T0, T1 will be reduced to Reduce<T0, T1>
 template <template <typename...> class, typename ...>
 struct ZuTypeReduce_;
+template <template <typename...> class Reduce>
+struct ZuTypeReduce_<Reduce> {
+  using T = Reduce<>;
+};
 template <template <typename...> class Reduce, typename T0>
 struct ZuTypeReduce_<Reduce, T0> {
   using T = Reduce<T0>;

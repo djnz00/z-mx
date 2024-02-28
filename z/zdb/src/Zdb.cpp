@@ -952,7 +952,7 @@ void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN)
   ZmAssert(fileInvoked());
 
   if (!cxn->up()) return;
-  if (auto buf = read_(rn)) {	// FIXME - async
+  if (auto buf = read_(rn)) {	// FIXME - async, and from env
     recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
     return;
   }
@@ -1402,8 +1402,9 @@ Zfb::Offset<void> DB::save(Zfb::Builder &fbb, AnyObject_ *object)
   return m_handler.saveFn(fbb, object->ptr_());
 }
 
+// FIXME - this should really be a completion lambda passed to env open_()
 // recover buffer from file
-void DB::recovered(ZmRef<Buf> buf)
+void DB::recovered(ZmRef<Buf> buf) // FIXME - pass UN, RN
 {
   ZmAssert(invoked());
 
@@ -1514,7 +1515,7 @@ void DB::write(ZmRef<Buf> buf)
 bool DB::write_(ZmRef<Buf> buf)
 {
   auto ptr = buf.ptr();
-  bool ok = FileMgr::write_(ZuMv(buf));
+  bool ok = FileMgr::write_(ZuMv(buf)); // FIXME
   m_repBufs->delNode(ptr);
   return ok;
 }
@@ -1528,7 +1529,7 @@ bool DB::open()
   bool ok = false;
   ZmBlock<>{}([this, &ok](auto wake) {
     fileInvoke([this, &ok, wake = ZuMv(wake)]() {
-      ok = open_();
+      ok = open_(); // FIXME - call env
       wake();
     });
   });
@@ -1537,7 +1538,7 @@ bool DB::open()
   if (config().warmup) {
     if (auto fn = m_handler.ctorFn)
       run([this, fn]() { ZmRef<AnyObject>{fn(this)}; });
-    fileRun([this, rn = m_nextRN.load_()]() { warmup_(rn); });
+    fileRun([this, rn = m_nextRN.load_()]() { warmup_(rn); }); // FIXME
   }
 
   m_open = true;
@@ -1552,7 +1553,7 @@ void DB::close()
 
   ZmBlock<>{}([this](auto wake) {
     fileInvoke([this, wake = ZuMv(wake)]() {
-      close_();
+      close_(); // FIXME
       wake();
     });
   });

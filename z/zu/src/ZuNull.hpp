@@ -37,6 +37,7 @@ class ZuNull {
     enum { IsEmpty = 1 };
     enum { IsPOD = 1 };
   };
+  friend Traits ZuTraitsType(ZuNull *);
 };
 
 template <typename T> struct ZuCmp;

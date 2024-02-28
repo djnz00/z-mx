@@ -63,7 +63,7 @@ template <typename T_> struct ZuStringN_Char2;
 template <> struct ZuStringN_Char2<char> { using T = wchar_t; };
 template <> struct ZuStringN_Char2<wchar_t> { using T = char; };
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__llvm__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
@@ -428,7 +428,7 @@ protected:
   uint16_t	m_length;
 };
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__llvm__)
 #pragma GCC diagnostic pop
 #endif
 

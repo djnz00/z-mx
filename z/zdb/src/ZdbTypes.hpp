@@ -30,6 +30,8 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZuInt.hpp>
+
 namespace Zdb_ {
 
 // 128bit update number
