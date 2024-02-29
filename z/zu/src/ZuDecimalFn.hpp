@@ -78,81 +78,46 @@ namespace ZuDecimalFn {
     if (ZuLikely(i < 20U))
       v = pow10_64(i);
     else
-      v = (uint128_t)pow10_64(i - 19U) * (uint128_t)10000000000000000000ULL;
+      v = static_cast<uint128_t>(pow10_64(i - 19U)) *
+	  static_cast<uint128_t>(10000000000000000000ULL);
     return v;
   }
 
   template <unsigned I> struct Pow10 { };
-  template <> struct Pow10<0U> {
-    ZuInline constexpr static unsigned pow10() { return 1U; }
-  };
-  template <> struct Pow10<1U> {
-    ZuInline constexpr static unsigned pow10() { return 10U; }
-  };
-  template <> struct Pow10<2U> {
-    ZuInline constexpr static unsigned pow10() { return 100U; }
-  };
-  template <> struct Pow10<3U> {
-    ZuInline constexpr static unsigned pow10() { return 1000U; }
-  };
-  template <> struct Pow10<4U> {
-    ZuInline constexpr static unsigned pow10() { return 10000U; }
-  };
-  template <> struct Pow10<5U> {
-    ZuInline constexpr static unsigned pow10() { return 100000U; }
-  };
-  template <> struct Pow10<6U> {
-    ZuInline constexpr static unsigned pow10() { return 1000000U; }
-  };
-  template <> struct Pow10<7U> {
-    ZuInline constexpr static unsigned pow10() { return 10000000U; }
-  };
-  template <> struct Pow10<8U> {
-    ZuInline constexpr static unsigned pow10() { return 100000000U; }
-  };
-  template <> struct Pow10<9U> {
-    ZuInline constexpr static unsigned pow10() { return 1000000000U; }
-  };
-  template <> struct Pow10<10U> {
-    ZuInline constexpr static uint64_t pow10() { return 10000000000ULL; }
-  };
-  template <> struct Pow10<11U> {
-    ZuInline constexpr static uint64_t pow10() { return 100000000000ULL; }
-  };
-  template <> struct Pow10<12U> {
-    ZuInline constexpr static uint64_t pow10() { return 1000000000000ULL; }
-  };
-  template <> struct Pow10<13U> {
-    ZuInline constexpr static uint64_t pow10() { return 10000000000000ULL; }
-  };
-  template <> struct Pow10<14U> {
-    ZuInline constexpr static uint64_t pow10() { return 100000000000000ULL; }
-  };
-  template <> struct Pow10<15U> {
-    ZuInline constexpr static uint64_t pow10() { return 1000000000000000ULL; }
-  };
-  template <> struct Pow10<16U> {
-    ZuInline constexpr static uint64_t pow10() { return 10000000000000000ULL; }
-  };
-  template <> struct Pow10<17U> {
-    ZuInline constexpr static uint64_t pow10()
-      { return 100000000000000000ULL; }
-  };
-  template <> struct Pow10<18U> {
-    ZuInline constexpr static uint64_t pow10()
-      { return 1000000000000000000ULL; }
-  };
-  template <> struct Pow10<19U> {
-    ZuInline constexpr static uint64_t pow10()
-      { return 10000000000000000000ULL; }
-  };
-  template <unsigned I> struct Pow10_128 {
-    ZuInline constexpr static uint128_t pow10() {
-      return
-	(uint128_t)Pow10<I - 19U>::pow10() *
-	(uint128_t)10000000000000000000ULL;
-    }
-  };
+  template <> struct Pow10<0U> : public ZuConstant<unsigned, 1U> { };
+  template <> struct Pow10<1U> : public ZuConstant<unsigned, 10U> { };
+  template <> struct Pow10<2U> : public ZuConstant<unsigned, 100U> { };
+  template <> struct Pow10<3U> : public ZuConstant<unsigned, 1000U> { };
+  template <> struct Pow10<4U> : public ZuConstant<unsigned, 10000U> { };
+  template <> struct Pow10<5U> : public ZuConstant<unsigned, 100000U> { };
+  template <> struct Pow10<6U> : public ZuConstant<unsigned, 1000000U> { };
+  template <> struct Pow10<7U> : public ZuConstant<unsigned, 10000000U> { };
+  template <> struct Pow10<8U> : public ZuConstant<unsigned, 100000000U> { };
+  template <> struct Pow10<9U> : public ZuConstant<unsigned, 1000000000U> { };
+  template <> struct Pow10<10U> :
+    public ZuConstant<uint64_t, 10000000000ULL> { };
+  template <> struct Pow10<11U> :
+    public ZuConstant<uint64_t, 100000000000ULL> { };
+  template <> struct Pow10<12U> :
+    public ZuConstant<uint64_t, 1000000000000ULL> { };
+  template <> struct Pow10<13U> :
+    public ZuConstant<uint64_t, 10000000000000ULL> { };
+  template <> struct Pow10<14U> :
+    public ZuConstant<uint64_t, 100000000000000ULL> { };
+  template <> struct Pow10<15U> :
+    public ZuConstant<uint64_t, 1000000000000000ULL> { };
+  template <> struct Pow10<16U> :
+    public ZuConstant<uint64_t, 10000000000000000ULL> { };
+  template <> struct Pow10<17U> :
+    public ZuConstant<uint64_t, 100000000000000000ULL> { };
+  template <> struct Pow10<18U> :
+    public ZuConstant<uint64_t, 1000000000000000000ULL> { };
+  template <> struct Pow10<19U> :
+    public ZuConstant<uint64_t, 10000000000000000000ULL> { };
+  template <unsigned I> struct Pow10_128 :
+    public ZuConstant<uint128_t,
+      static_cast<uint128_t>(Pow10<I - 19U>{}) *
+      static_cast<uint128_t>(10000000000000000000ULL)> { };
   template <> struct Pow10<20U> : public Pow10_128<20U> { };
   template <> struct Pow10<21U> : public Pow10_128<21U> { };
   template <> struct Pow10<22U> : public Pow10_128<22U> { };

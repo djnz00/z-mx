@@ -2196,9 +2196,8 @@ bool Editor::cmdListComplete(Cmd, int32_t)
   unsigned colWidth = 0, colHeight, nCols;
   using Match = ZuPair<ZtArray<uint8_t>, ZuUTFSpan>;
   ZtArray<Match> matches;
-  CompIterFn fn{
-    [ttyWidth, maxHeight, &colWidth, &colHeight, &nCols, &matches](
-	ZuArray<const uint8_t> data, ZuUTFSpan span) {
+  CompIterFn fn{[ttyWidth, &colWidth, &colHeight, &nCols, &matches](
+      ZuArray<const uint8_t> data, ZuUTFSpan span) {
     Match match{data, span};
     matches.push(match);
     auto width = span.width() + 1;

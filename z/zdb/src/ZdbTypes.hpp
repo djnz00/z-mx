@@ -31,6 +31,7 @@
 #endif
 
 #include <zlib/ZuInt.hpp>
+#include <zlib/ZuCmp.hpp>
 
 namespace Zdb_ {
 

@@ -296,7 +296,7 @@ template <class Fmt> struct Zu_nscan_ {
 	++o;
 	v += (T)0.1 * (T)(c - '0');
       }
-      v_ = (T)iv + v / (T)ZuDecimalFn::Pow10<FP::MaxDigits - 1>::pow10();
+      v_ = (T)iv + v / (T)ZuDecimalFn::Pow10<FP::MaxDigits - 1>{};
       if (negative) v_ = -v_;
       return o;
     }

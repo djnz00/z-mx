@@ -79,4 +79,31 @@ int main()
     s << ZuDecimal{"42000.42"}.fmt(ZuFmt::Comma<>());
     CHECK(s == "42,000.42");
   }
+  CHECK((ZuDecimal{".000000000000000001"}.exponent() == 18));
+  CHECK((ZuDecimal{".10000000000000001"}.exponent() == 17));
+  CHECK((ZuDecimal{".0000000000000001"}.exponent() == 16));
+  CHECK((ZuDecimal{".100000000000001"}.exponent() == 15));
+  CHECK((ZuDecimal{".00000000000001"}.exponent() == 14));
+  CHECK((ZuDecimal{".1000000000001"}.exponent() == 13));
+  CHECK((ZuDecimal{".000000000001"}.exponent() == 12));
+  CHECK((ZuDecimal{".10000000001"}.exponent() == 11));
+  CHECK((ZuDecimal{".0000000001"}.exponent() == 10));
+  CHECK((ZuDecimal{".100000001"}.exponent() == 9));
+  CHECK((ZuDecimal{".00000001"}.exponent() == 8));
+  CHECK((ZuDecimal{".1000001"}.exponent() == 7));
+  CHECK((ZuDecimal{".000001"}.exponent() == 6));
+  CHECK((ZuDecimal{".10001"}.exponent() == 5));
+  CHECK((ZuDecimal{".0001"}.exponent() == 4));
+  CHECK((ZuDecimal{".101"}.exponent() == 3));
+  CHECK((ZuDecimal{".01"}.exponent() == 2));
+  CHECK((ZuDecimal{".1"}.exponent() == 1));
+  CHECK((ZuDecimal{"0"}.exponent() == 0));
+  CHECK((ZuDecimal{"1"}.exponent() == 0));
+  CHECK((ZuDecimal{"100000000000000000"}.exponent() == 0));
+  CHECK((ZuFixed{ZuDecimal("1.0001")}.exponent() == 4));
+  CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("1.0001")}) == "1.0001"));
+  CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("0")}) == "0"));
+  CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("1")}) == "1"));
+  CHECK(((ZuStringN<48>{} << ZuFixed{ZuDecimal(".000000000000000001")}) == "0.000000000000000001"));
+  CHECK(((ZuStringN<48>{} << ZuFixed{ZuDecimal("999999999999999999")}) == "999999999999999999"));
 }

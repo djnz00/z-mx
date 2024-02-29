@@ -17,12 +17,13 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// object introspection
+// object introspection - compile-time (ZtField*) and run-time (ZtVField*)
 // - print/scan (CSV, etc.)
 // - ORM
 // - data series
+// - any other application that needs to introspect structured data
 
-// metadata macro DSL for identifying and accessing data fields and keys
+// metadata macro DSL for identifying and using data fields and keys
 //
 // ZtFields(Type, Fields...)
 //
@@ -33,6 +34,9 @@
 // (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Props...)])
 //
 // Example: (((id, Rd), (0)), (String, "default"), (Ctor(0)))
+// Meaning: This is a read-only string field named "id" with a default
+//   value of "default" that is also the containing object's zeroth
+//   constructor parameter
 //
 // ZtField Type	C++ Type		ZtField Args
 // ------------	--------		------------
@@ -49,45 +53,46 @@
 // Decimal	ZuDecimal		[, default, min, max]
 // Time		ZmTime			[, default]
 
-// Notes on run-time introspection (ZVField*): virtual polymorphism and
-// RTTI are avoided because:
-// 1] If ZtVField were virtually polymorphic, deriving from it to enrich it
+// Note on run-time introspection (ZVField*):
+// virtual polymorphism and RTTI are intentionally avoided:
+// 1] if ZtVField were virtually polymorphic, deriving from it to enrich it
 //    with capabilities such as data-store serdes would entail a far more
 //    complex type hierarchy with diamond-shaped inheritance
 // 2] ZtVField (and derived classes) benefit from being POD
-// 3] Very little syntactic benefit would be obtained
+// 3] very little syntactic benefit would be obtained
 
-// ZtFieldType provides:
+// ZtFieldType is keyed on <Code, T, Map, Props> and provides:
+//   Code	- type code
 //   T		- underlying type
+//   Map	- map (only defined for Enum and Flags)
 //   Props	- properties type list
 //   Print	- Print{const T &, const ZtFieldFmt &} - formatted printing
 //   vtype()	- ZtVFieldType * instance
 // 
 // ZtField derives from ZuField and adds:
-//   Type	- ZtFieldType
-//   Map	- map (only defined for Enum and Flags)
+//   Type	- ZtFieldType * instance
 //   Print	- Print{const O &, const ZtFieldFmt &} - formatted printing
 //   deflt()	- canonical default value
 //
 // ZtVFieldType provides:
 //   code	- ZtFieldTypeCode
 //   info	- enum / flags metadata
-//   getFn	- get canonical type from opaque value
-//   setFn	- set opaque value to canonical type
+//   get	- get canonical type from opaque value
+//   set	- set opaque value to canonical type
 //   print	- print opaque value
 //   scan	- scan opaque value from string
 //   cmp	- compare opaque values
 //
-// ZtVField{ZtField{}} instantiates VField with ZtField
+// ZtVField{ZtField{}} instantiates VField from ZtField
 //
 // ZtVField provides:
 //   type	- ZtVFieldType * instance
 //   id		- ZtField::id()
 //   props	- ZtVFieldProp properties bitfield
 //   keys	- ZtField::keys()
-//   constantFn	- run-time constant function (ZtVFieldConstant) -> const void *
-//   getFn	- run-time get function (const void *o, ZmFn<const void *> fn)
-//   setFn	- run-time set function (void *o) -> ZmFn<void *>
+//   constant	- run-time constant function (ZtVFieldConstant) -> const void *
+//   get	- run-time get function (const void *o, ZmFn<const void *> fn)
+//   set	- run-time set function (void *o) -> ZmFn<void *>
 
 #ifndef ZtField_HPP
 #define ZtField_HPP
@@ -287,7 +292,7 @@ struct ZtFieldType_ {
   }
 };
 // Map is void if neither Enum nor Flags
-template <int TypeCode, typename T, typename Map, typename Props>
+template <int Code, typename T, typename Map, typename Props>
 struct ZtFieldType;
 
 // deduced function to scan from a string
@@ -382,8 +387,8 @@ struct ZtVFieldType {
     void		*null;
     ZuString		(*string)(const void *);	// String
     ZuBytes		(*bytes)(const void *);		// Bytes
-    bool		(*bool_)(const void *);		// Bool
     const void *	(*udt)(const void *);		// UDT
+    bool		(*bool_)(const void *);		// Bool
     int64_t		(*int_)(const void *);		// Int
     uint64_t		(*uint_)(const void *);		// UInt
     int			(*enum_)(const void *);		// Enum
@@ -1185,12 +1190,11 @@ ZtVFieldType *ZtFieldType_Enum<T, Map, Props>::vtype() {
 
 inline constexpr int ZtField_Enum_Def() { return -1; }
 template <
-  typename Base, typename Props, typename Map_,
+  typename Base, typename Props, typename Map,
   auto Def = ZtField_Enum_Def>
 struct ZtField_Enum : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
-  using Map = Map_;
   using Type = ZtFieldType_Enum<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   using Print_ = typename Type::Print;
@@ -1270,12 +1274,11 @@ ZtVFieldType *ZtFieldType_Flags<T, Map, Props>::vtype() {
 
 inline constexpr int ZtField_Flags_Def() { return 0; }
 template <
-  typename Base, typename Props, typename Map_,
+  typename Base, typename Props, typename Map,
   auto Def = ZtField_Flags_Def>
 struct ZtField_Flags : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
-  using Map = Map_;
   using Type = ZtFieldType_Flags<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   using Print_ = typename Type::Print;
@@ -1783,7 +1786,7 @@ struct ZtVField {
   uint32_t		props;			// ZtVFieldProp
   uint64_t		keys;
 
-  const void *		(*constantFn)(int);
+  const void *		(*constant)(int);
   void			(*getFn)(const void *, ZmFn<const void *>);
   void			(*setFn)(void *, ZmFn<void *>);
 
@@ -1793,7 +1796,7 @@ struct ZtVField {
       id{Field::id()},
       props{Field::vprops()},
       keys{Field::keys()},
-      constantFn{Field::constantFn()},
+      constant{Field::constantFn()},
       getFn{Field::getFn()},
       setFn{Field::setFn()} { }
 

@@ -85,7 +85,7 @@ int main()
   auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldTypeCode;
     using ZtFieldTypeCode::Flags;
-    const void *ptr = field.constantFn(constant);
+    const void *ptr = field.constant(constant);
     ZmStream s_{s};
     field.type->print(ptr, s_, fmt);
   };

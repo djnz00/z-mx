@@ -38,6 +38,7 @@
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuFmt.hpp>
 #include <zlib/ZuBox.hpp>
+#include <zlib/ZuFixed.hpp>
 
 template <typename Fmt> struct ZuDecimalFmt;	// internal
 class ZuDecimalVFmt;				// ''
@@ -46,19 +47,19 @@ struct ZuDecimal {
   template <unsigned N> using Pow10 = ZuDecimalFn::Pow10<N>;
 
   constexpr static const int128_t minimum() {
-    return -Pow10<36U>::pow10() + 1;
+    return -Pow10<36U>{} + 1;
   }
   constexpr static const int128_t maximum() {
-    return Pow10<36U>::pow10() - 1;
+    return Pow10<36U>{} - 1;
   }
   constexpr static const int128_t reset() {
-    return -Pow10<36U>::pow10();
+    return -Pow10<36U>{};
   }
   constexpr static const int128_t null() {
     return static_cast<int128_t>(1)<<127;
   }
   constexpr static const uint64_t scale() { // 10^18
-    return Pow10<18U>::pow10();
+    return Pow10<18U>{};
   }
   constexpr static const long double scale_fp() { // 10^18
     return 1000000000000000000.0L;
@@ -416,6 +417,41 @@ public:
     int128_t v = value - null();
     return static_cast<bool>(
 	static_cast<uint64_t>(v>>64) | static_cast<uint64_t>(v));
+  }
+
+  operator int64_t() const {
+    uint128_t scale_ = static_cast<uint128_t>(scale());
+    return static_cast<int64_t>(value / scale_);
+  }
+  uint64_t frac_() const {
+    uint128_t scale_ = static_cast<uint128_t>(scale());
+    uint128_t value_ = value < 0 ? -value : value;
+    return value_ % scale_;
+  }
+  int64_t round() const {
+    uint128_t scale_ = static_cast<uint128_t>(scale());
+    auto int_ = static_cast<int64_t>(value / scale_);
+    return value < 0 ?
+  int_ - ((static_cast<uint128_t>(-value) % scale_) > 500000000000000000ULL) :
+  int_ + ((static_cast<uint128_t>( value) % scale_) > 500000000000000000ULL);
+  }
+
+  unsigned exponent() const {
+    auto frac = frac_();
+    if (ZuLikely(!frac)) return 0;
+    unsigned exp = 18;
+    // binary search
+    if (!(frac % 1000000000ULL)) { frac /= 1000000000ULL; exp -= 9; }
+    if (!(frac % 100000ULL)) { frac /= 100000ULL; exp -= 5; }
+    if (!(frac % 1000ULL)) { frac /= 1000ULL; exp -= 3; }
+    if (!(frac % 100ULL)) { frac /= 100ULL; exp -= 2; }
+    if (!(frac % 10ULL)) --exp;
+    return exp;
+  }
+
+  operator ZuFixed() {
+    auto e = exponent();
+    return {value / ZuDecimalFn::pow10_128(18 - e), e};
   }
 
   template <typename S> void print(S &s) const;
