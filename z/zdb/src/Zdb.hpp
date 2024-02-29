@@ -70,7 +70,6 @@
 #include <zlib/ZdbTypes.hpp>
 #include <zlib/ZdbMsg.hpp>
 #include <zlib/ZdbBuf.hpp>
-// #include <zlib/ZdbFile.hpp>
 
 // Zdb is a clustered/replicated in-process/in-memory journal DB that
 // includes leader election and failover. Zdb dynamically organizes
@@ -254,14 +253,14 @@ struct EnvState : public EnvState_ {
 };
 template <typename S>
 inline void EnvState::print(S &s) const {
-  s << "{un=" << ZuBoxed(un) << ",dbs={";
+  s << "{un=" << ZuBoxed(un) << ", dbs={";
   unsigned n = count_();
   if (ZuLikely(n)) {
     unsigned j = 0;
     auto i = readIterator();
     while (auto state = i.iterate()) {
       if (j++) s << ',';
-      s << '{' << state->template p<0>() << ',' <<
+      s << '{' << state->template p<0>() << ", " <<
 	ZuBoxed(state->template p<1>()) << '}';
     }
   }
@@ -315,7 +314,7 @@ inline void Buf::print(S &s) const {
 // UN is allocated and assigned when committed
 
 namespace ObjState {
-  ZtEnumValues("ObjState",
+  ZtEnumValues(ObjState,
       Undefined = 0,
       Push,
       Update,
@@ -467,16 +466,14 @@ typedef AnyObject *(*LoadFn)(DB *, const uint8_t *, unsigned);
 typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save object into flatbuffer builder, return offset
 typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
-// RecoverFn(object) - object recovered
-typedef void (*RecoverFn)(AnyObject *);
-// DeleteFn(RN) - object deleted
-typedef void (*DeleteFn)(RN);
 
 struct DBHandler {
   CtorFn	ctorFn = nullptr;
   LoadFn	loadFn = nullptr;
   UpdateFn	updateFn = nullptr;
   SaveFn	saveFn = nullptr;
+  RecoverFn	recoverFn = nullptr;
+  DeleteFn	deleteFn = nullptr;
 
   template <typename T>
   static DBHandler bind(
@@ -505,7 +502,9 @@ struct DBHandler {
       },
       .saveFn = [](Zfb::Builder &fbb, const void *ptr) -> Zfb::Offset<void> {
 	return ZfbField::save<T>(fbb, *static_cast<const T *>(ptr)).Union();
-      }
+      },
+      .recoverFn = ZuMv(recoverFn_),
+      .deleteFn = ZuMv(deleteFn_)
     };
   }
 };
@@ -548,19 +547,6 @@ using DBCfs =
 
 // -- main DB class
 
-// FIXME - FE<>BE API
-//
-// init -> <- initialized
-// open -> <- opened (success/failure - success includes next UN, next RN)
-//   // Note: next UN is used by Env, not DB
-//   // Note: we assume that no replication commences until all DBs are opened,
-//   // Note: open() is triggered by DB binding, 
-//   // ensuring accurate recovery of last UN
-// get (checks repBufs before requesting) -> <- gotten
-// push/update/del committed (DB::write) -> <- written (DB::write_ removes from repBufs)
-// close -> <- closed
-// final -> <- finalized
-
 class ZdbAPI DB : public ZmPolymorph {
 friend File_;
 friend Cxn_;
@@ -599,22 +585,12 @@ public:
   }
   bool invoked() const { return m_mx->invoked(m_cf->sid); }
 
-  template <typename ...Args>
-  void fileInvoke(Args &&... args) const {
-    m_mx->invoke(m_cf->fileSID, ZuFwd<Args>(args)...);
-  }
-  bool fileInvoked() { return m_mx->invoked(m_cf->fileSID); }
-  template <typename ...Args>
-  void fileRun(Args &&... args) const {
-    m_mx->run(m_cf->fileSID, ZuFwd<Args>(args)...);
-  }
-
 private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
 
   template <bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
-    if (ZuUnlikely(rn < m_minRN || rn >= m_nextRN.load_())) {
+    if (ZuUnlikely(rn >= m_nextRN.load_())) {
       l(nullptr);
       return;
     }
@@ -644,7 +620,7 @@ public:
       get_<true, true >(rn, ZuMv(l));
   }
 
-  // get for subsequent update - do not update LRU (yet)
+  // get (RMU version) - do not update LRU (yet)
   template <typename L>
   void getUpdate(RN rn, L l) {
     config().cacheMode == ZdbCacheMode::All ?
@@ -652,6 +628,7 @@ public:
       get_<false, true >(rn, ZuMv(l));
   }
 
+#if 0
   // table scan - pass maxRN() for a full scan
   template <typename L>
   void scan(RN maxRN, L l) const {
@@ -672,10 +649,9 @@ private:
 	});
     });
   }
+#endif
 
 public:
-  // minimum RN (oldest undeleted RN)
-  RN minRN() const { return m_minRN; }
   // next RN that will be allocated
   RN nextRN() const { return m_nextRN; }
 
@@ -750,10 +726,6 @@ private:
   // abort push() or update()
   void abort(ZmRef<AnyObject>);
 
-public:
-  // purge all records < minRN - purge() is an isolated transaction
-  void purge(RN minRN);
-
 private:
   Zfb::Offset<ZvTelemetry::fbs::Zdb>
   telemetry(ZvTelemetry::IOBuilder &, bool update) const;
@@ -779,12 +751,7 @@ private:
 
   // RN allocator
   void allocatedRN(RN rn) {
-    m_minRN.maximum(rn);
     m_nextRN = rn + 1;
-  }
-  void recoveredRN(RN rn) {
-    m_minRN.maximum(rn);
-    m_nextRN.minimum(rn + 1);
   }
 
   // file thread
@@ -802,7 +769,6 @@ private:
   ZtString		m_path;
 
   // RN allocator
-  ZmAtomic<RN>		m_minRN = maxRN();
   ZmAtomic<RN>		m_nextRN = 0;
 
   // open/closed state
@@ -1024,6 +990,26 @@ struct EnvCf {
 };
 
 // -- main DB environment class
+
+// FIXME - FE<>BE API
+//
+// init -> <- initialized
+// open -> <- opened (success/failure - success includes next UN, next RN)
+//   // Note: next UN is used by Env, not DB
+//   // Note: we assume that no replication commences until all DBs are opened,
+//   // Note: open() is triggered by DB binding, 
+//   //   ensuring accurate recovery of last UN
+//   // Note: app may want a full table scan to populate in-memory indices
+//   //   or the cache (if caching mode is fully-cached) - BE will need to
+//   //   select *, using batching/paging, and populate app with recovered
+//   //   callbacks
+//   // Note: recovered callback is also used by inactive hosts to maintain
+//   //   app in-memory indices
+//   <- recovered
+// get (checks repBufs before requesting) -> <- gotten
+// push/update/del committed (DB::write) -> <- written (DB::write_ removes from repBufs)
+// close -> <- closed
+// final -> <- finalized
 
 class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
   Env(const Env &);

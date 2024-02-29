@@ -126,7 +126,7 @@
 #include <zlib/ZtString.hpp>
 
 namespace ZtFieldTypeCode {
-  ZtEnumValues("ZtFieldTypeCode",
+  ZtEnumValues(ZtFieldTypeCode,
     String,		// a contiguous UTF-8 string
     Bytes,		// byte array
     UDT,		// generic udt type
@@ -208,7 +208,7 @@ template <> struct ZtFieldType_Props<ZtFieldProp::Hex> : public ZuTrue { };
 
 // ZtVFieldProp bitfield encapsulates introspected ZtField properties
 namespace ZtVFieldProp {
-  ZtEnumFlags("ZtVFieldProp",
+  ZtEnumFlags(ZtVFieldProp,
     Synthetic,
     Update,
     Hidden,

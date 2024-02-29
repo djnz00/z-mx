@@ -68,7 +68,7 @@ class ZeLog;
 using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
 
 namespace ZeSinkType {
-  ZtEnumValues("ZeSinkType", File, Debug, System, Lambda);
+  ZtEnumValues(ZeSinkType, File, Debug, System, Lambda);
 }
 struct ZeSink : public ZmPolymorph {
   int	type;	// ZeSinkType

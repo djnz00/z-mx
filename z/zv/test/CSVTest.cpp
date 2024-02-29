@@ -24,12 +24,12 @@ static const char *testdata =
 
 namespace Enums {
   ZtEnumValues_(Sasha = 1, Grey, Girlfriend = 43, Experience, __);
-  ZtEnumMap("Enums", Map,
+  ZtEnumMap(Enums, Map,
       "sasha", 1, "grey", 42, "\"girlfriend", 43, "experience\"", 44, "", 45);
 }
 
 namespace DaFlags {
-  ZtEnumFlags("DaFlags", Flag1, Flag2, P, SUP);
+  ZtEnumFlags(DaFlags, Flag1, Flag2, P, SUP);
 }
 
 struct Row {

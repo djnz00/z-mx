@@ -1,15 +1,11 @@
 include "types.fbs";
 namespace Zdb_.fbs;
-struct UN {		// 128bit update number
-  h:uint64;
-  l:uint64;
-}
 struct DBState {
   db:Zfb.ID;
   rn:uint64;
 }
 table EnvState {
-  un:UN;
+  un:uint64;
   dbs:[DBState];
 }
 table Heartbeat {
@@ -24,7 +20,7 @@ enum Op:int8 {
 }
 table Record {
   db:Zfb.ID;		// DB ID
-  un:UN;		// update number
+  un:uint64;		// update number
   rn:uint64;		// record number
   op:Op;		// operation code
   data:[uint8];		// nested table data - null if Delete or Purge

@@ -72,7 +72,7 @@
 #define ZeLog_BUFSIZ (32<<10)	// caps individual log message size to 32k
 
 namespace Ze {
-  ZtEnumValues("Ze", Debug, Info, Warning, Error, Fatal);
+  ZtEnumValues(Ze, Debug, Info, Warning, Error, Fatal);
 }
 
 namespace Ze {

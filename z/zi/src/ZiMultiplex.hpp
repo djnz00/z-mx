@@ -178,7 +178,7 @@ public:
 
 // protocol/socket options
 namespace ZiCxnFlags {
-  ZtEnumFlags_("ZiCxnFlags",
+  ZtEnumFlags_(ZiCxnFlags,
     UDP,		// U - create UDP socket (default TCP)
     Multicast,          // M - combine with U for multicast server socket
     LoopBack,		// L - combine with M and U for multicast loopback
@@ -186,7 +186,7 @@ namespace ZiCxnFlags {
     NetLink,		// N - NetLink socket
     Nagle		// D - enable Nagle algorithm (no TCP_NODELAY)
   );
-  ZtEnumFlagsMap("ZiCxnFlags", Map,
+  ZtEnumFlagsMap(ZiCxnFlags, Map,
       "U", UDP, "M", Multicast, "L", LoopBack, "L", KeepAlive, "N", NetLink,
       "D", Nagle);
 }
@@ -416,7 +416,7 @@ struct ZiListenInfo {
 
 // cxn information (direction, socket, local & remote IP/port, options)
 namespace ZiCxnType {
-  ZtEnumValues("ZiCxnType", TCPIn, TCPOut, UDP);
+  ZtEnumValues(ZiCxnType, TCPIn, TCPOut, UDP);
 }
 
 struct ZiCxnInfo { // pure aggregate, no ctor

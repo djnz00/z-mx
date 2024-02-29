@@ -33,17 +33,19 @@
 #include <zlib/ZuInt.hpp>
 #include <zlib/ZuCmp.hpp>
 
+#include <zlib/zdb__fbs.h>
+
 namespace Zdb_ {
 
-// 128bit update number
-using UN = uint128_t;
+// Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
+
+// 64bit update number
+using UN = uint64_t;
 
 // record number type and sentinel values
 using RN = uint64_t;		// RN is primary object key / ID
-inline constexpr uint64_t maxRN() { return ~static_cast<uint64_t>(0); }
+inline constexpr uint64_t maxRN() { return ZuCmp<RN>::maximum(); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
-
-using Offset = int64_t;
 
 // -- message format - used for both file and network
 
@@ -141,15 +143,6 @@ inline const fbs::Record *record(const fbs::Msg *msg) {
     case fbs::Body_Rec:
       return record_(msg);
   }
-}
-inline const fbs::Gap *gap_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Gap *>(msg->body());
-}
-inline const fbs::Gap *gap(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  if (static_cast<int>(msg->body_type()) != fbs::Body_Gap)
-    return nullptr;
-  return gap_(msg);
 }
 template <typename T>
 inline const T *data(const fbs::Record *record) {

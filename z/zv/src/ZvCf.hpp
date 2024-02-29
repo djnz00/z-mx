@@ -74,7 +74,7 @@ extern "C" {
 
 namespace ZvOptTypes {
   ZtEnumValues_(Flag = ZvOptFlag, Value = ZvOptValue, Array = ZvOptArray);
-  ZtEnumMap("ZvOptTypes", Map, "flag", Flag, "value", Value, "array", Array);
+  ZtEnumMap(ZvOptTypes, Map, "flag", Flag, "value", Value, "array", Array);
 }
 
 namespace ZvCf_ {

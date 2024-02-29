@@ -16,13 +16,13 @@
 namespace Snafus {
   ZtEnumValues_(
       Sasha = 1, Grey = 42, Girlfriend = 43, Experience = 44, TigerWoods = 45);
-  ZtEnumMap("Snafus", Map,
+  ZtEnumMap(Snafus, Map,
       "sasha", 1, "grey", 42, "girlfriend", 43, "experience", 44,
       "tiger-woods", 45);
 }
 
 namespace DaFlags {
-  ZtEnumFlags("DaFlags", S, A, P, SUP, HI);
+  ZtEnumFlags(DaFlags, S, A, P, SUP, HI);
 }
 
 struct Row {

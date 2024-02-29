@@ -59,7 +59,7 @@ using ZtEnum = ZuBox_1(int8_t);
     return names_.p<0>()[i]; \
   } \
   struct Map : public Map_<Map> { \
-    constexpr static const char *id() { return ID; } \
+    constexpr static const char *id() { return #ID; } \
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
   template <typename S> inline ZtEnum lookup(const S &s) { \
@@ -118,14 +118,14 @@ using ZtEnum = ZuBox_1(int8_t);
 
 #define ZtEnumMap(ID, Map, ...) \
   struct Map : public Map_<Map> { \
-    constexpr static const char *id() { return ID; } \
+    constexpr static const char *id() { return #ID; } \
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   }
 
 #define ZtEnumFlagsMap(ID, Map, ...) \
   class Map : public Map_<Map> { \
   public: \
-    constexpr static const char *id() { return ID; } \
+    constexpr static const char *id() { return #ID; } \
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   private: \
     template <typename S, typename Flags_> \

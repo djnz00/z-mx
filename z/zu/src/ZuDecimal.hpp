@@ -444,8 +444,8 @@ public:
     if (!(frac % 1000000000ULL)) { frac /= 1000000000ULL; exp -= 9; }
     if (!(frac % 100000ULL)) { frac /= 100000ULL; exp -= 5; }
     if (!(frac % 1000ULL)) { frac /= 1000ULL; exp -= 3; }
-    if (!(frac % 100ULL)) { frac /= 100ULL; exp -= 2; }
-    if (!(frac % 10ULL)) --exp;
+    if (exp >= 2 && !(frac % 100ULL)) { frac /= 100ULL; exp -= 2; }
+    if (exp >= 1 && !(frac % 10ULL)) --exp;
     return exp;
   }
 

@@ -447,11 +447,11 @@ void parseAddr(const S &s, ZiIP &ip, uint16_t &port) {
 #endif
 
 namespace Side {
-  ZtEnumValues("Side", In, Out, Both);
+  ZtEnumValues(Side, In, Out, Both);
 }
 
 namespace IOOp {
-  ZtEnumValues("IOOp", Send, Recv, Both);
+  ZtEnumValues(IOOp, Send, Recv, Both);
 }
 
 class App : public ZmPolymorph, public ZvCmdHost {

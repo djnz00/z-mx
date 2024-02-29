@@ -51,7 +51,7 @@
 namespace Zrl {
 
 namespace Op { // line editor operation codes
-  ZtEnumValues("Zrl.Op",
+  ZtEnumValues(Zrl.Op,
     Null,		// sentinel
 
     Nop,		// no-operation
@@ -271,7 +271,7 @@ struct Bindings : public Bindings_ {
 
 namespace ModeType {
   ZtEnumValues_(Edit, Command, Base);
-  ZtEnumNames_("ModeType", "edit", "command", "base");
+  ZtEnumNames_(ModeType, "edit", "command", "base");
 }
 
 // line editor mode

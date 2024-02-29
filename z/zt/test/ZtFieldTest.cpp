@@ -6,11 +6,11 @@
 #include <zlib/ZtField.hpp>
 
 namespace Values {
-  ZtEnumValues("Values", High, Low, Normal);
+  ZtEnumValues(Values, High, Low, Normal);
 }
 
 namespace Flags {
-  ZtEnumFlags("Flags", Bit0, Bit1, Bit2);
+  ZtEnumFlags(Flags, Bit0, Bit1, Bit2);
 }
 
 struct Nested {

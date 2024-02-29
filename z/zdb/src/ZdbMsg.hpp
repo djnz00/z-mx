@@ -32,8 +32,6 @@
 
 #include <zlib/ZdbTypes.hpp>
 
-#include <zlib/zdb__fbs.h>
-
 namespace Zdb_ {
 
 namespace Op {
