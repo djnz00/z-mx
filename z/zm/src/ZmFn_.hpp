@@ -510,8 +510,8 @@ friend struct LambdaInvoker_;
     typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
   struct LambdaInvoker_<L, R, HeapID, Sharded, 1, Args_...> {
     static uintptr_t invoke(uintptr_t, Args... args) {
-      return ZmFn_Cast(
-	  (*static_cast<const L *>(nullptr))(ZuFwd<Args>(args)...));
+      return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
+	    ZuFwd<Args>(args)...));
     }
     template <typename L_> static ZmFn fn(L_ &&) {
       return ZmFn{
@@ -522,7 +522,7 @@ friend struct LambdaInvoker_;
   template <typename L, auto HeapID, bool Sharded, typename ...Args_>
   struct LambdaInvoker_<L, void, HeapID, Sharded, 1, Args_...> {
     static uintptr_t invoke(uintptr_t, Args... args) {
-      (*static_cast<const L *>(nullptr))(ZuFwd<Args>(args)...);
+      reinterpret_cast<const L *>(0)->operator ()(ZuFwd<Args>(args)...);
       return 0;
     }
     template <typename L_> static ZmFn fn(L_ &&) {
@@ -550,7 +550,7 @@ friend struct LambdaInvoker_;
 friend struct LBoundInvoker_;
 
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, 0> {
+  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, false> {
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> fn(O *o, L_ l) {
       return Lambda<HeapID, Sharded>::fn([l = ZuMv(l), o](Args... args) {
@@ -594,10 +594,11 @@ friend struct LBoundInvoker_;
   };
 
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, 1> {
+  struct LBoundInvoker_<O *, L, R, HeapID, Sharded, true> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      return ZmFn_Cast(
-	  (*static_cast<const L *>(nullptr))(ptr<O>(o), ZuFwd<Args>(args)...));
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
+      return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
+	    ptr<O>(o), ZuFwd<Args>(args)...));
     }
     static ZmFn fn(O *o, L) {
       return ZmFn{ZmFn::Pass{}, &LBoundInvoker_::invoke, o};
@@ -610,10 +611,11 @@ friend struct LBoundInvoker_;
     }
   };
   template <typename O, typename L, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<O *, L, void, HeapID, Sharded, 1> {
+  struct LBoundInvoker_<O *, L, void, HeapID, Sharded, true> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       // no, this->x does not imply evaluating (*this).x; the reverse is true
-      (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
+      reinterpret_cast<const L *>(0)->operator ()(
+	  ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
     }
     static ZmFn fn(O *o, L) {
@@ -628,7 +630,7 @@ friend struct LBoundInvoker_;
   };
 
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, 0> {
+  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, false> {
     template <typename L_>
     static ZuNotMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
@@ -653,17 +655,17 @@ friend struct LBoundInvoker_;
   };
 
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, 1> {
+  struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, true> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      return ZmFn_Cast(
-	  (*static_cast<const L *>(nullptr))(ptr<O>(o), ZuFwd<Args>(args)...));
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
+      return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
+	    ptr<O>(o), ZuFwd<Args>(args)...));
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
       o = disown(o);
-      return ZmFn_Cast(
-	  (*static_cast<const L *>(nullptr))(
-	    ZmRef<O>::acquire(ptr<O>(o)),
-	    ZuFwd<Args>(args)...));
+      // no, this->x does not imply evaluating (*this).x; the reverse is true
+      return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
+	    ZmRef<O>::acquire(ptr<O>(o)), ZuFwd<Args>(args)...));
     }
     static ZmFn fn(O *o, L) {
       return ZmFn{ZmFn::Pass{}, &LBoundInvoker_::invoke, o};
@@ -676,16 +678,17 @@ friend struct LBoundInvoker_;
     }
   };
   template <typename O, typename L, auto HeapID, bool Sharded>
-  struct LBoundInvoker_<ZmRef<O>, L, void, HeapID, Sharded, 1> {
+  struct LBoundInvoker_<ZmRef<O>, L, void, HeapID, Sharded, true> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       // no, this->x does not imply evaluating (*this).x; the reverse is true
-      (*reinterpret_cast<const L *>(0))(ptr<O>(o), ZuFwd<Args>(args)...);
+      reinterpret_cast<const L *>(0)->operator ()(
+	  ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
     }
     static uintptr_t mvInvoke(uintptr_t &o, Args... args) {
       o = disown(o);
       // no, this->x does not imply evaluating (*this).x; the reverse is true
-      (*reinterpret_cast<const L *>(0))(
+      reinterpret_cast<const L *>(0)->operator ()(
 	  ZmRef<O>::acquire(ptr<O>(o)),
 	  ZuFwd<Args>(args)...);
       return 0;

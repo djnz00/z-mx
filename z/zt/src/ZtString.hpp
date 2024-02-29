@@ -1335,7 +1335,7 @@ public:
       IsWString = ZuEquivChar<wchar_t, Char>::Same
     };
     template <typename U = ZtString_>
-    static ZuNotConst<U, Char *> data(U &s) { return s.data(); }
+    static ZuMutable<U, Char *> data(U &s) { return s.data(); }
     static const Char *data(const ZtString_ &s) { return s.data(); }
     static unsigned length(const ZtString_ &s) { return s.length(); }
   };

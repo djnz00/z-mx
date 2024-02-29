@@ -379,7 +379,7 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
     IsWString = ZuEquivChar<wchar_t, Elem>::Same
   };
   template <typename U = T>
-  static ZuNotConst<U, Elem *> data(U &a) { return a.data(); }
+  static ZuMutable<U, Elem *> data(U &a) { return a.data(); }
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.length(); }
 };

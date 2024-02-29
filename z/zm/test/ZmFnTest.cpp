@@ -368,8 +368,9 @@ int main()
       for (unsigned i = 0; i < 1000000000; i++) d.foo();
       ZmTime end(ZmTime::Now); end -= begin;
       baseline = end.dtime();
-      std::cout << "direct call:\t" << ZuBoxed(baseline).fmt<ZuFmt::FP<9>>() <<
-	"\t(" << ZuBox<uint64_t>(d.i) << ")\n";
+      puts(ZuStringN<80>{} <<
+	  "direct call:\t" << ZuBoxed(baseline).fmt<ZuFmt::FP<9>>() <<
+	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
       Derived d(i);
@@ -377,9 +378,9 @@ int main()
       ZmTime begin(ZmTime::Now);
       for (unsigned i = 0; i < 1000000000; i++) bar();
       ZmTime end(ZmTime::Now); end -= begin;
-      std::cout << "castFn:\t\t" <<
-	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
-	"\t(" << ZuBox<uint64_t>(d.i) << ")\n";
+      puts(ZuStringN<80>{} << "castFn:\t\t" <<
+	  ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
+	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
       Derived d(i);
@@ -387,9 +388,9 @@ int main()
       ZmTime begin(ZmTime::Now);
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZmTime end(ZmTime::Now); end -= begin;
-      std::cout << "fast lambdaFn:\t" <<
+      puts(ZuStringN<80>{} << "fast lambdaFn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
-	"\t(" << ZuBox<uint64_t>(d.i) << ")\n";
+	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
       Derived d(i);
@@ -397,9 +398,9 @@ int main()
       ZmTime begin(ZmTime::Now);
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZmTime end(ZmTime::Now); end -= begin;
-      std::cout << "slow lambdaFn:\t" <<
+      puts(ZuStringN<80>{} << "slow lambdaFn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
-	"\t(" << ZuBox<uint64_t>(d.i) << ")\n";
+	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
       Derived d(i);
@@ -407,9 +408,9 @@ int main()
       ZmTime begin(ZmTime::Now);
       for (unsigned i = 0; i < 1000000000; i++) b->bar();
       ZmTime end(ZmTime::Now); end -= begin;
-      std::cout << "virtual fn:\t" <<
+      puts(ZuStringN<80>{} << "virtual fn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
-	"\t(" << ZuBox<uint64_t>(d.i) << ")\n";
+	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
   }
 }

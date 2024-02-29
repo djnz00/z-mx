@@ -131,8 +131,8 @@ template <typename T1, typename T2> class ZuConversion {
   using U2 = typename ZuConversion_Void<ZuDeref<T2>>::T;
 public:
   enum {
-    Exists = ZuConversion_<U1, U2>::Exists,
     Same = ZuConversion_<U1, U2>::Same,
+    Exists = ZuConversion_<U1, U2>::Exists,
     Is = ZuConversion_<U1, U2>::Is,
     Base = ZuConversion_<U1, U2>::Is && !ZuConversion_<U1, U2>::Same
   };

@@ -56,7 +56,14 @@
 #define Zu_bswap16(x) __builtin_bswap16(x)
 #define Zu_bswap32(x) __builtin_bswap32(x)
 #define Zu_bswap64(x) __builtin_bswap64(x)
+#ifndef __llvm__
 #define Zu_bswap128(x) __builtin_bswap128(x)
+#else
+inline uint128_t Zu_bswap128(const uint128_t &i) {
+  return (static_cast<uint128_t>(__builtin_bswap64(i))<<64) |
+    static_cast<uint128_t>(__builtin_bswap64(i>>64));
+}
+#endif
 #endif
 #if 0
 #if defined(_MSC_VER) && !defined(_DEBUG)

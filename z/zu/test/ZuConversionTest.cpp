@@ -102,4 +102,11 @@ int main()
     std::cout << a << '\n';
     std::cout << &a << '\n';
   }
+  {
+    const int &foo(const int &);
+    int &foo(int &);
+    CHECK((ZuIsExact<int &, decltype(foo(ZuDeclVal<int &>()))>{}));
+    CHECK((ZuIsExact<const int &, decltype(foo(ZuDeclVal<const int &>()))>{}));
+    CHECK((!ZuIsExact<int &, const int &>{}));
+  }
 }

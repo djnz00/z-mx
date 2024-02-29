@@ -173,7 +173,7 @@ struct HashTbl : public HashTbl_ {
 };
 ZfbFields(HashTbl, fbs::HashTbl,
     (((id), (0)), (String), (Ctor<0>)),
-    (((addr), (0)), (Hex), (Ctor<1>)),
+    (((addr), (0)), (UInt), (Ctor<1>, Hex)),
     (((linear)), (Bool), (Ctor<9>)),
     (((bits)), (Int), (Ctor<7>)),
     (((cBits)), (Int), (Ctor<8>)),

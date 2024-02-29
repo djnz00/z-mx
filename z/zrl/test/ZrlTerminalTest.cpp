@@ -4,8 +4,6 @@
 
 #include <zlib/ZrlTerminal.hpp>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
-
 bool process(Zrl::Terminal &tty, ZmSemaphore &done, int32_t key)
 {
   using namespace Zrl;

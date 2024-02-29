@@ -1539,7 +1539,7 @@ public:
       IsWString = ZuEquivChar<wchar_t, T>::Same
     };
     template <typename U = ZtArray>
-    static ZuNotConst<U, T *> data(U &a) { return a.data(); }
+    static ZuMutable<U, T *> data(U &a) { return a.data(); }
     static const T *data(const ZtArray &a) { return a.data(); }
     static unsigned length(const ZtArray &a) { return a.length(); }
   };

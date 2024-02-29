@@ -1124,20 +1124,20 @@ public:
 
   // ZtField integration - get individual field
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::String, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::String, typename Field::T>
   getField() {
     return get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Bytes, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Bytes, typename Field::T>
   getField() {
     return get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::UDT ||
-	Field::Type == ZtFieldType::Time, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::UDT ||
+	Field::Type::Code == ZtFieldTypeCode::Time, typename Field::T>
   getField() {
     using T = typename Field::T;
     auto s = get<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
@@ -1146,30 +1146,24 @@ public:
     return T{s};
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Bool, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Bool, typename Field::T>
   getField() {
     return getBool<ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Int ||
-	Field::Type == ZtFieldType::Float ||
-	Field::Type == ZtFieldType::Fixed ||
-	Field::Type == ZtFieldType::Decimal, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Int ||
+	Field::Type::Code == ZtFieldTypeCode::UInt ||
+	Field::Type::Code == ZtFieldTypeCode::Float ||
+	Field::Type::Code == ZtFieldTypeCode::Fixed ||
+	Field::Type::Code == ZtFieldTypeCode::Decimal, typename Field::T>
   getField() {
     return getScalar<typename Field::T,
 	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt(), Field::minimum(), Field::maximum());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Hex, typename Field::T>
-  getField() {
-    return getScalar<typename Field::T,
-	   ZuTypeIn<ZtFieldProp::Required, typename Field::Props>{}>(
-	Field::id(), Field::deflt(), ZuCmp<T>::minimum(), ZuCmp<T>::maximum());
-  }
-  template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Enum, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Enum, typename Field::T>
   getField() {
     using Map = typename Field::Map;
     return getEnum<Map,
@@ -1177,7 +1171,7 @@ public:
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type == ZtFieldType::Flags, typename Field::T>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Flags, typename Field::T>
   getField() {
     using Map = typename Field::Map;
     using T = typename Field::T;

@@ -184,7 +184,7 @@ protected:
       IsWString = ZuEquivChar<wchar_t, T>::Same
     };
     template <typename U = ZuMvArray>
-    static typename ZuNotConst<U, T *>::T data(U &a) { return a.data(); }
+    static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }
     static const T *data(const ZuMvArray &a) { return a.data(); }
     static unsigned length(const ZuMvArray &a) { return a.length(); }
   };

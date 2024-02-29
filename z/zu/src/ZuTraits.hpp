@@ -234,7 +234,7 @@ struct ZuTraits_Array : public ZuBaseTraits<T> {
     IsArray = 1
   };
   template <typename U = T>
-  static typename ZuNotConst<U, Elem *>::T data(U &a) { return &a[0]; }
+  static typename ZuMutable<U, Elem *>::T data(U &a) { return &a[0]; }
   static const Elem *data(const T &a) { return &a[0]; }
   static unsigned length(const T &a) { return sizeof(a) / sizeof(a[0]); }
 };

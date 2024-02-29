@@ -418,7 +418,7 @@ public:
       IsWString = ZuEquivChar<wchar_t, Char>::Same
     };
     template <typename U = ZuStringN_>
-    static typename ZuNotConst<U, Char *>::T data(U &s) { return s.data(); }
+    static typename ZuMutable<U, Char *>::T data(U &s) { return s.data(); }
     static const Elem *data(const ZuStringN_ &s) { return s.data(); }
     static unsigned length(const ZuStringN_ &s) { return s.length(); }
   };

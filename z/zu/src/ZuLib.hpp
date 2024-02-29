@@ -180,10 +180,11 @@ template <typename T> using ZuDecay = ZuStrip<ZuDeref<T>>;
 
 // various type mappings used as template parameters
 template <typename T> using ZuAsIs = T;
-template <typename T> using ZuConst = const T;
-template <typename T> using ZuVolatile = volatile T;
-template <typename T> using ZuLRef = T &;
-template <typename T> using ZuCRef = const T &;
+template <typename T> using ZuMkConst = const T;
+template <typename T> using ZuMkVolatile = volatile T;
+template <typename T> using ZuMkRRef = T &&;
+template <typename T> using ZuMkLRef = T &;
+template <typename T> using ZuMkCRef = const T &;
 
 // shorthand constexpr std::forward without STL cruft
 template <typename T>
@@ -707,13 +708,13 @@ struct ZuDeduce<R_ (*)(Args_...)> {
   using Args = ZuTypeList<Args_...>;
 };
 
-// shorthand for std::declval
+// alternative for std::declval
 template <typename U> struct ZuDeclVal__ { using T = U; };
 template <typename T> auto ZuDeclVal_(int) -> typename ZuDeclVal__<T&&>::T;
 template <typename T> auto ZuDeclVal_(...) -> typename ZuDeclVal__<T>::T;
 template <typename U> decltype(ZuDeclVal_<U>(0)) ZuDeclVal();
  
-// shorthand for std::void_t
+// alternative for std::void_t
 template <typename ...> struct ZuVoid_ { using T = void; };
 template <typename ...Args> using ZuVoid = typename ZuVoid_<Args...>::T;
 
@@ -722,27 +723,94 @@ template <typename T> struct ZuSize : public ZuUnsigned<sizeof(T)> { };
 template <> struct ZuSize<void> : public ZuUnsigned<0> { };
 
 // cv checking
-template <typename U, typename R = void> struct ZuIsConst_;
-template <typename U, typename R>
-struct ZuIsConst_<const U, R> { using T = R; };
-template <typename U, typename R = void>
-using ZuIsConst = typename ZuIsConst_<U, R>::T;
-template <typename U, typename R = void>
-struct ZuNotConst_ { using T = R; };
-template <typename U, typename R> struct ZuNotConst_<const U, R> { };
-template <typename U, typename R = void>
-using ZuNotConst = typename ZuNotConst_<U, R>::T;
+template <typename U> struct ZuIsConst : public ZuFalse { };
+template <typename U> struct ZuIsConst<const U> : public ZuTrue { };
 
-template <typename U, typename R = void> struct ZuIsVolatile_;
+template <typename U> struct ZuIsVolatile : public ZuFalse { };
+template <typename U> struct ZuIsVolatile<volatile U> : public ZuTrue { };
+
+template <typename U, typename R, bool = ZuIsConst<U>{}>
+struct ZuConst_;
 template <typename U, typename R>
-struct ZuIsVolatile_<volatile U, R> { using T = R; };
+struct ZuConst_<U, R, true> { using T = R; };
 template <typename U, typename R = void>
-using ZuIsVolatile = typename ZuIsVolatile_<U, R>::T;
+using ZuConst = typename ZuConst_<U, R>::T;
+
+template <typename U, typename R, bool = !ZuIsConst<U>{}>
+struct ZuMutable_;
+template <typename U, typename R>
+struct ZuMutable_<U, R, true> { using T = R; };
 template <typename U, typename R = void>
-struct ZuNotVolatile_ { using T = R; };
-template <typename U, typename R> struct ZuNotVolatile_<volatile U, R> { };
+using ZuMutable = typename ZuMutable_<U, R>::T;
+
+template <typename U, typename R, bool = ZuIsVolatile<U>{}>
+struct ZuVolatile_;
+template <typename U, typename R>
+struct ZuVolatile_<U, R, true> { using T = R; };
 template <typename U, typename R = void>
-using ZuNotVolatile = typename ZuNotVolatile_<U, R>::T;
+using ZuVolatile = typename ZuVolatile_<U, R>::T;
+
+template <typename U, typename R, bool = !ZuIsVolatile<U>{}>
+struct ZuNonVolatile_;
+template <typename U, typename R>
+struct ZuNonVolatile_<U, R, true> { using T = R; };
+template <typename U, typename R = void>
+using ZuNonVolatile = typename ZuNonVolatile_<U, R>::T;
+
+// ref checking
+template <typename U> struct ZuIsRRef : public ZuFalse { };
+template <typename U> struct ZuIsRRef<U &&> : public ZuTrue { };
+
+template <typename U> struct ZuIsLRef : public ZuFalse { };
+template <typename U> struct ZuIsLRef<U &> : public ZuTrue { };
+
+template <typename U, typename R, bool = ZuIsRRef<U>{}>
+struct ZuRRef_;
+template <typename U, typename R>
+struct ZuRRef_<U, R, true> { using T = R; };
+template <typename U, typename R = void>
+using ZuRRef = typename ZuRRef_<U, R>::T;
+
+template <typename U, typename R, bool = !ZuIsRRef<U>{}>
+struct ZuNotRRef_;
+template <typename U, typename R>
+struct ZuNotRRef_<U, R, true> { using T = R; };
+template <typename U, typename R = void>
+using ZuNotRRef = typename ZuNotRRef_<U, R>::T;
+
+template <typename U, typename R, bool = ZuIsLRef<U>{}>
+struct ZuLRef_;
+template <typename U, typename R>
+struct ZuLRef_<U, R, true> { using T = R; };
+template <typename U, typename R = void>
+using ZuLRef = typename ZuLRef_<U, R>::T;
+
+template <typename U, typename R, bool = !ZuIsLRef<U>{}>
+struct ZuNotLRef_;
+template <typename U, typename R>
+struct ZuNotLRef_<U, R, true> { using T = R; };
+template <typename U, typename R = void>
+using ZuNotLRef = typename ZuNotLRef_<U, R>::T;
+
+// exact type matching
+template <typename U1, typename U2>
+struct ZuIsExact : public ZuFalse { };
+template <typename U>
+struct ZuIsExact<U, U> : public ZuTrue { };
+
+template <typename U1, typename U2, typename R>
+struct ZuExact_;
+template <typename U, typename R>
+struct ZuExact_<U, U, R> { using T = R; };
+template <typename U1, typename U2, typename R = void>
+using ZuExact = typename ZuExact_<U1, U2, R>::T;
+
+template <typename U1, typename U2, typename R, bool = !ZuIsExact<U1, U2>{}>
+struct ZuNotExact_;
+template <typename U1, typename U2, typename R>
+struct ZuNotExact_<U1, U2, R, true> { using T = R; };
+template <typename U1, typename U2, typename R = void>
+using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 
 // generic invocation
 // ZuInvoke<Fn>(this, args...) invokes one of:

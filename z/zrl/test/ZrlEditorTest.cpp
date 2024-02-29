@@ -4,8 +4,6 @@
 
 #include <zlib/ZrlEditor.hpp>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
-
 int main()
 {
   ZmScheduler s{ZmSchedParams{}.id("sched").nThreads(1)};

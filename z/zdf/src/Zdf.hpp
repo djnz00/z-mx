@@ -307,18 +307,27 @@ public:
       if (ZuUnlikely(!n)) return;
       ZuFixed v;
       for (unsigned i = 0; i < n; i++) {
+	using namespace ZtFieldTypeCode;
 	auto field = m_df->field(i);
 	if (i || field) {
-	  switch (field->type) {
-	    case ZtFieldType::Int:
-	    case ZtFieldType::Enum:
-	      v = {field->getFn.int_(ptr), 0};
+	  switch (field->type->code) {
+	    case Int:
+	      field->get<Int>(ptr, [&v](int64_t _) { v = _; });
 	      break;
-	    case ZtFieldType::Fixed:
-	      v = field->getFn.fixed(ptr);
+	    case UInt:
+	      field->get<UInt>(ptr, [&v](uint64_t _) { v = _; });
 	      break;
-	    case ZtFieldType::Time:
-	      v = m_df->nsecs(field->getFn.time(ptr));
+	    case Enum:
+	      field->get<Enum>(ptr, [&v](int _) { v = _; });
+	      break;
+	    case Fixed:
+	      field->get<Fixed>(ptr, [&v](ZuFixed _) { v = _; });
+	      break;
+	      // FIXME - Decimal?
+	    case Time:
+	      field->get<Time>(ptr, [this, &v](ZmTime _) {
+		v = m_df->nsecs(_);
+	      });
 	      break;
 	    default:
 	      v = ZuFixed{0, 0};

@@ -72,21 +72,22 @@ namespace ZvCSV_ {
   template <typename T, typename Fmt, typename Row>
   void quote(
       Row &row, const ZtVField *field, const T *object, const Fmt &fmt) {
-    switch ((int)field->type) {
-      case ZtFieldType::String: {
-	quote_(row, field->getFn.string(object));
+    switch (field->type->code) {
+      case ZtFieldTypeCode::String: {
+	field->get<ZtFieldTypeCode::String>(object,
+	    [&row](ZuString v) { quote_(row, v); });
       } break;
-      case ZtFieldType::UDT:
-      case ZtFieldType::Enum:
-      case ZtFieldType::Flags: {
+      case ZtFieldTypeCode::UDT:
+      case ZtFieldTypeCode::Enum:
+      case ZtFieldTypeCode::Flags: {
 	ZtString s_;
 	ZmStream s{s_};
-	field->print(object, s, fmt);
+	field->type->print(object, s, fmt);
 	quote_(row, s_);
       } break;
       default: {
 	ZmStream s{row};
-	field->print(object, s, fmt);
+	field->type->print(object, s, fmt);
       } break;
     }
   }
@@ -190,12 +191,12 @@ private:
     for (unsigned i = 0; i < m; i++) {
       int j;
       if ((j = colIndex[i]) < 0 || j >= (int)n)
-        m_fields[i]->scan(object, ZuString{}, fmt);
+        m_fields[i]->type->scan(object, ZuString{}, fmt);
     }
     for (unsigned i = 0; i < m; i++) {
       int j;
       if ((j = colIndex[i]) >= 0 && j < (int)n)
-        m_fields[i]->scan(object, a[j], fmt);
+        m_fields[i]->type->scan(object, a[j], fmt);
     }
   }
 

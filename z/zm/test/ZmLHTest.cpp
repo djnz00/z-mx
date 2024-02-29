@@ -83,7 +83,7 @@ template <int N> struct String {
     using Elem = char;
     enum { IsPOD = 1, IsCString = 1, IsString = 1 };
     template <typename U = String>
-    static ZuNotConst<U, char *> data(U &s) { return s.data(); }
+    static ZuMutable<U, char *> data(U &s) { return s.data(); }
     static const char *data(const String<N> &s) { return s.data(); }
     static unsigned length(const String<N> &s) { return s.length(); }
   };
