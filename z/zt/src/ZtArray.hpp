@@ -1558,6 +1558,8 @@ inline void ZtArray<T, NTP>::convert_(const S &s, ZtIconv *iconv) {
   iconv->convert(*this, s);
 }
 
+using ZtBytes = ZtArray<uint8_t>;
+
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

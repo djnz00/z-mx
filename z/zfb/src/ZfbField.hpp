@@ -269,12 +269,12 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
   O *ZuFielded_(O *); \
   ZuFields_::O ZuFieldList_(O *)
 
+// --- load/save functions
+
 namespace ZfbField {
 
 namespace TypeCode = ZtFieldTypeCode;
 namespace Prop = ZtFieldProp;
-
-namespace Save {
 
 template <typename T> using Offset = Zfb::Offset<T>;
 
@@ -282,89 +282,86 @@ template <typename Field> struct HasOffset : public ZuBool<
     Field::Type::Code == TypeCode::String ||
     (Field::Type::Code == TypeCode::UDT && !Field::Inline)> { };
 template <
-  typename O, typename OffsetFieldList, typename Field,
+  typename O, typename OffsetFields, typename Field,
   bool = HasOffset<Field>{}>
+  // could use ZuTypeIn<>, but OffsetFields is built using HasOffset<>
 struct SaveField {
   template <typename Builder>
   static void save(Builder &fbb, const O &o, const Offset<void> *) {
     Field::save(fbb, o);
   }
 };
-template <typename O, typename OffsetFieldList, typename Field>
-struct SaveField<O, OffsetFieldList, Field, true> {
+template <typename O, typename OffsetFields, typename Field>
+struct SaveField<O, OffsetFields, Field, true> {
   template <typename Builder>
   static void save(Builder &fbb, const O &, const Offset<void> *offsets) {
-    using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
+    using OffsetIndex = ZuTypeIndex<Field, OffsetFields>;
     Field::save(fbb, offsets[OffsetIndex{}]);
   }
 };
-template <typename O, typename FieldList,
-  typename OffsetFieldList = ZuTypeGrep<HasOffset, FieldList>,
-  int = OffsetFieldList::N>
-struct SaveFieldList {
+template <typename O, typename Fields,
+  typename OffsetFields = ZuTypeGrep<HasOffset, Fields>,
+  int = OffsetFields::N>
+struct SaveFields {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
-  static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
-    Offset<void> offsets[OffsetFieldList::N];
-    ZuTypeAll<OffsetFieldList>::invoke(
+  static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
+    Offset<void> offsets[OffsetFields::N];
+    ZuTypeAll<OffsetFields>::invoke(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
-	  using OffsetIndex = ZuTypeIndex<Field, OffsetFieldList>;
+	  using OffsetIndex = ZuTypeIndex<Field, OffsetFields>;
 	  offsets[OffsetIndex{}] = Field::save(fbb_, o);
 	});
     Builder fbb{fbb_};
-    ZuTypeAll<FieldList>::invoke(
+    ZuTypeAll<Fields>::invoke(
 	[&fbb, &o, offsets = &offsets[0]]<typename Field>() {
-	  SaveField<O, OffsetFieldList, Field>::save(fbb, o, offsets);
+	  SaveField<O, OffsetFields, Field>::save(fbb, o, offsets);
 	});
     return fbb.Finish();
   }
 };
-template <typename O, typename FieldList, typename OffsetFieldList>
-struct SaveFieldList<O, FieldList, OffsetFieldList, 0> {
+template <typename O, typename Fields, typename OffsetFields>
+struct SaveFields<O, Fields, OffsetFields, 0> {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
-  static Zfb::Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
+  static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
     Builder fbb{fbb_};
-    ZuTypeAll<FieldList>::invoke([&fbb, &o]<typename Field>() {
+    ZuTypeAll<Fields>::invoke([&fbb, &o]<typename Field>() {
       Field::save(fbb, o);
     });
     return fbb.Finish();
   }
 };
 
-} // Save
-
 template <typename O>
 struct Fielded_ {
   // using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
-  using FieldList = ZuFieldList<O>;
+  using AllFields = ZuFieldList<O>;
 
   template <typename U>
-  struct AllFilter : public ZuBool<!U::ReadOnly> { };
-  using AllFields = ZuTypeGrep<AllFilter, FieldList>;
+  struct LoadFilter : public ZuBool<!U::ReadOnly> { };
+  using LoadFields = ZuTypeGrep<LoadFilter, AllFields>;
 
   template <typename U>
   struct UpdateFilter : public ZuTypeIn<Prop::Update, typename U::Props> { };
-  using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
+  using UpdateFields = ZuTypeGrep<UpdateFilter, LoadFields>;
 
   template <typename U> struct CtorFilter :
       public ZuBool<(Prop::GetCtor<typename U::Props>{} >= 0)> { };
   template <typename U>
   struct CtorIndex : public Prop::GetCtor<typename U::Props> { };
-  using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
+  using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, LoadFields>>;
 
   template <typename U> struct InitFilter :
       public ZuBool<(Prop::GetCtor<typename U::Props>{} < 0)> { };
-  using InitFields = ZuTypeGrep<InitFilter, AllFields>;
+  using InitFields = ZuTypeGrep<InitFilter, LoadFields>;
 
-  static Zfb::Offset<FBType> save(Zfb::Builder &fbb, const O &o) {
-    using namespace Save;
-    return SaveFieldList<O, AllFields>::save(fbb, o);
+  static Offset<FBType> save(Zfb::Builder &fbb, const O &o) {
+    return SaveFields<O, LoadFields>::save(fbb, o);
   }
-  static Zfb::Offset<FBType> saveUpdate(Zfb::Builder &fbb, const O &o) {
-    using namespace Save;
-    return SaveFieldList<O, UpdateFields>::save(fbb, o);
+  static Offset<FBType> saveUpdate(Zfb::Builder &fbb, const O &o) {
+    return SaveFields<O, UpdateFields>::save(fbb, o);
   }
 
   template <typename ...Fields>
@@ -372,8 +369,8 @@ struct Fielded_ {
     static O ctor(const FBType *fbo) {
       return O{Fields::load_(fbo)...};
     }
-    static void ctor(void *ptr, const FBType *fbo) {
-      new (ptr) O{Fields::load_(fbo)...};
+    static void ctor(void *o, const FBType *fbo) {
+      new (o) O{Fields::load_(fbo)...};
     }
   };
   static O ctor(const FBType *fbo) {
@@ -383,18 +380,18 @@ struct Fielded_ {
     });
     return o;
   }
-  static void ctor(void *ptr, const FBType *fbo) {
-    ZuTypeApply<Ctor, CtorFields>::ctor(ptr, fbo);
-    O &o = *reinterpret_cast<O *>(ptr);
+  static void ctor(void *o_, const FBType *fbo) {
+    ZuTypeApply<Ctor, CtorFields>::ctor(o_, fbo);
+    O &o = *static_cast<O *>(o_);
     ZuTypeAll<InitFields>::invoke([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
   }
 
-  template <typename ...Fields>
+  template <typename ...Field>
   struct Load__ : public O {
     Load__() = default;
-    Load__(const FBType *fbo) : O{Fields::load_(fbo)...} { }
+    Load__(const FBType *fbo) : O{Field::load_(fbo)...} { }
     template <typename ...Args>
     Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
   };
@@ -411,7 +408,7 @@ struct Fielded_ {
   };
 
   static void load(O &o, const FBType *fbo) {
-    ZuTypeAll<AllFields>::invoke([&o, fbo]<typename Field>() {
+    ZuTypeAll<LoadFields>::invoke([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
   }
@@ -421,11 +418,11 @@ struct Fielded_ {
     });
   }
 
-  template <typename ...Fields>
+  template <typename ...Field>
   struct Key {
-    using Tuple = ZuTuple<typename Fields::T...>;
+    using Tuple = ZuTuple<typename Field::T...>;
     static decltype(auto) tuple(const FBType *fbo) {
-      return Tuple{Fields::load_(fbo)...};
+      return Tuple{Field::load_(fbo)...};
     }
   };
   template <typename ...Fields>
@@ -437,7 +434,7 @@ struct Fielded_ {
   };
   template <unsigned KeyID = 0>
   static auto key(const FBType *fbo) {
-    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, FieldList>;
+    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, AllFields>;
     return Key<Fields>::tuple(fbo);
   }
 };
@@ -469,8 +466,8 @@ inline O ctor(const ZfbType<O> *fbo) {
   return Fielded<O>::ctor(fbo);
 }
 template <typename O>
-inline void ctor(void *ptr, const ZfbType<O> *fbo) {
-  Fielded<O>::ctor(ptr, fbo);
+inline void ctor(void *o_, const ZfbType<O> *fbo) {
+  Fielded<O>::ctor(o_, fbo);
 }
 
 template <typename O> using Load = typename Fielded<O>::Load;

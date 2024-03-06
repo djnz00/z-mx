@@ -172,24 +172,12 @@ public:
   bool operator !() const { return !m_p0; }
   ZuOpBool
 
-  uint32_t hash() const {
-    return ZuHash<T0>::hash(m_p0);
-  }
+  uint32_t hash() const { return ZuHash<T0>::hash(m_p0); }
 
-  template <unsigned I>
-  ZuIfT<!I, const U0 &> p() const & {
-    return m_p0;
-  }
-  template <unsigned I>
-  ZuIfT<!I, U0 &> p() & {
-    return m_p0;
-  }
-  template <unsigned I>
-  ZuIfT<!I, U0 &&> p() && {
-    return ZuMv(m_p0);
-  }
-  template <unsigned I, typename P>
-  ZuIfT<!I, Tuple_ &> p(P &&p) {
+  template <unsigned I> ZuIfT<!I, const U0 &> p() const & { return m_p0; }
+  template <unsigned I> ZuIfT<!I, U0 &> p() & { return m_p0; }
+  template <unsigned I> ZuIfT<!I, U0 &&> p() && { return ZuMv(m_p0); }
+  template <unsigned I, typename P> ZuIfT<!I, Tuple_ &> p(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
@@ -273,14 +261,44 @@ public:
   template <typename P0, typename P1>
   Tuple_(P0 &&p0, P1 &&p1) : Base{ZuFwd<P0>(p0), ZuFwd<P1>(p1)} { }
 
-  template <unsigned I>
-  const Type<I> &p() const {
-    return Base::template p<I>();
+#if 0
+  template <typename P0, typename P1>
+  bool equals(const Tuple_<P0, P1> &p) const {
+    return
+      ZuCmp<T0>::equals(Base::template p<0>(), p.template p<0>()) &&
+      ZuCmp<T1>::equals(Base::template p<1>(), p.template p<1>());
   }
-  template <unsigned I>
-  Type<I> &p() {
-    return Base::template p<I>();
+  template <typename P0, typename P1>
+  int cmp(const Tuple_<P0, P1> &p) const {
+    if (int i = ZuCmp<T0>::cmp(Base::template p<0>(), p.template p<0>()))
+      return i;
+    return ZuCmp<T1>::cmp(Base::template p<1>(), p.template p<1>());
   }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
+
+  bool operator !() const {
+    return !Base::template p<0>() && !Base::template p<1>();
+  }
+  ZuOpBool
+
+  uint32_t hash() const {
+    return
+      ZuHash<T0>::hash(Base::template p<0>()) ^
+      ZuHash<T1>::hash(Base::template p<1>());
+  }
+#endif
+
+  template <unsigned I>
+  const Type<I> &p() const & { return Base::template p<I>(); }
+  template <unsigned I>
+  Type<I> &p() & { return Base::template p<I>(); }
+  template <unsigned I>
+  Type<I> &&p() && { return ZuMv(ZuMv(*this).Base::template p<I>()); }
   template <unsigned I, typename P>
   Tuple_ &p(P &&p) {
     Base::template p<I>(ZuFwd<P>(p));
@@ -365,14 +383,42 @@ public:
   Tuple_(P0 &&p0, P1 &&p1, Args_ &&... args) :
       Base{ZuFwd<P0>(p0), Right{ZuFwd<P1>(p1), ZuFwd<Args_>(args)...}} { }
 
-  template <unsigned I>
-  ZuIfT<!I, const Type<I> &> p() const & {
-    return Base::template p<0>();
+#if 0
+  template <typename P0, typename P1, typename ...Args_>
+  bool equals(const Tuple_<P0, P1, Args_...> &p) const {
+    return
+      ZuCmp<T0>::equals(Base::template p<0>(), p.template p<0>()) &&
+      ZuCmp<T1>::equals(Base::template p<1>(), p.template p<1>());
   }
-  template <unsigned I>
-  ZuIfT<!I, Type<I> &> p() & {
-    return Base::template p<0>();
+  template <typename P0, typename P1, typename ...Args_>
+  int cmp(const Tuple_<P0, P1, Args_...> &p) const {
+    if (int i = ZuCmp<T0>::cmp(Base::template p<0>(), p.template p<0>()))
+      return i;
+    return ZuCmp<T1>::cmp(Base::template p<1>(), p.template p<1>());
   }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
+
+  bool operator !() const {
+    return !Base::template p<0>() && !Base::template p<1>();
+  }
+  ZuOpBool
+
+  uint32_t hash() const {
+    return
+      ZuHash<T0>::hash(Base::template p<0>()) ^
+      ZuHash<T1>::hash(Base::template p<1>());
+  }
+#endif
+
+  template <unsigned I>
+  ZuIfT<!I, const Type<I> &> p() const & { return Base::template p<0>(); }
+  template <unsigned I>
+  ZuIfT<!I, Type<I> &> p() & { return Base::template p<0>(); }
   template <unsigned I>
   ZuIfT<!I, Type<I> &&> p() && {
     return ZuMv(ZuMv(*this).Base::template p<0>());

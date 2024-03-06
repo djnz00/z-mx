@@ -50,10 +50,6 @@
 
 template <typename T, bool = ZuTraits<T>::IsString> struct ZuHash_;
 
-// deliberately undefined template
-
-template <typename T> struct ZuHash_Cannot;
-
 // golden prime function, specialized for 32bit and 64bit types
 
 struct ZuHash_GoldenPrime32 {
@@ -166,50 +162,44 @@ template <typename T> struct ZuHash_Real<T, false> :
 
 // hashing of primitive types
 
-template <typename T, bool IsReal, bool IsVoid>
-struct ZuHash_Primitive : public ZuHash_Cannot<T> { };
+template <typename T, bool IsReal, bool IsVoid> struct ZuHash_Primitive;
 
 template <typename T> struct ZuHash_Primitive<T, true, false> :
   public ZuHash_Real<T, ZuTraits<T>::IsIntegral> { };
 
 // hashing of non-primitive types
 
-template <typename> struct ZuHash_Can_;
-template <> struct ZuHash_Can_<uint32_t> { using T = void; }; 
-template <typename, typename = void> struct ZuHash_Can : public ZuFalse { };
-template <typename U>
-struct ZuHash_Can<U,
-  typename ZuHash_Can_<decltype(ZuDeclVal<const U &>().hash())>::T> :
-  public ZuTrue { };
-template <typename T, bool Fwd, bool = ZuHash_Can<T>{}>
-struct ZuHash_NonPrimitive : public ZuHash_Cannot<T> { };
+// test for hash()
+template <typename> struct ZuCmp_Can_hash_;
+template <> struct ZuCmp_Can_hash_<uint32_t> { using T = void; }; 
+template <typename, typename = void>
+struct ZuHash_Can_hash : public ZuFalse { };
+template <typename T>
+struct ZuHash_Can_hash<T, typename ZuCmp_Can_hash_<
+  decltype(ZuDeclVal<const T &>().hash())>::T> :
+    public ZuTrue { };
 
-template <typename P, bool IsPrimitive> struct ZuHash_NonPrimitive___ :
-    public ZuHash_NonPrimitive<P, false> { };
-template <typename P>
-struct ZuHash_NonPrimitive___<P, true> : public ZuHash_<P> { };
+// test for hash_code() (STL cruft)
+template <typename, typename = void>
+struct ZuHash_Can_hash_code : public ZuFalse { };
+template <typename T>
+struct ZuHash_Can_hash_code<T,
+    decltype(ZuDeclVal<const T &>().hash_code(), void())> :
+  public ZuIsExact<std::size_t, decltype(ZuDeclVal<const T &>().hash_code())> {
+};
 
-template <typename T, typename P> struct ZuHash_NonPrimitive__ :
-    public ZuHash_NonPrimitive___<P, ZuTraits<P>::IsPrimitive> { };
-template <typename T> struct ZuHash_NonPrimitive__<T, T> {
-  static uint32_t hash(const T &v) { return v.hash(); }
-};
-template <typename T, typename P, bool Fwd>
-struct ZuHash_NonPrimitive_ : public ZuHash_NonPrimitive__<T, P> { };
-template <typename T, typename P> struct ZuHash_NonPrimitive_<T, P, false> {
-  static uint32_t hash(const T &v) { return v.hash(); }
-};
-template <typename T, bool Fwd> struct ZuHash_NonPrimitive<T, Fwd, true> {
-  template <typename P>
-  static uint32_t hash(const P &p) {
-    return ZuHash_NonPrimitive_<T, P, Fwd>::hash(p);
-  }
+template <typename T> struct ZuHash_NonPrimitive {
+  template <typename U>
+  static ZuIfT<ZuHash_Can_hash_code<U>{}, uint32_t>
+  hash(const U &v) { return v.hash_code(); }
+  template <typename U>
+  static ZuIfT<ZuHash_Can_hash<U>{} && !ZuHash_Can_hash_code<U>{}, uint32_t>
+  hash(const U &v) { return v.hash(); }
 };
 
 // hashing of pointers
 
-template <typename T, int Size>
-struct ZuHash_Pointer : public ZuHash_Cannot<T> { };
+template <typename T, int Size> struct ZuHash_Pointer;
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -242,7 +232,7 @@ template <typename T> struct ZuHash_PrimitivePointer<T *> :
 template <typename T, bool IsPrimitive, bool IsPointer> struct ZuHash_NonString;
 
 template <typename T> struct ZuHash_NonString<T, false, false> :
-  public ZuHash_NonPrimitive<T, ZuHash_Can<T>{}, true> { };
+  public ZuHash_NonPrimitive<T> { };
 
 template <typename T> struct ZuHash_NonString<T, false, true> :
   public ZuHash_Pointer<T, sizeof(T)> { };

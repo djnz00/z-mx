@@ -141,17 +141,4 @@ inline const T *data_(const fbs::Record *record) {
 
 } // Zdb_
 
-namespace Zfb {
-namespace Save {
-  inline auto zdb_un(UN v) {
-    return fbs::UN{static_cast<uint64_t>(v>>64), static_cast<uint64_t>(v)};
-  }
-}
-namespace Load { 
-  inline UN zdb_un(const fbs::UN *v) {
-    return (static_cast<UN>(v->h())<<64) | v->l();
-  }
-}
-} // Zfb
-
 #endif /* ZdbMsg_HPP */

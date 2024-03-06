@@ -225,22 +225,40 @@ using ZuFielded = ZuDeref<decltype(*ZuFielded_(ZuDeclVal<ZuDecay<T> *>()))>;
 
 // generic tuple from field list
 
-template <typename O, template <typename> typename Map, typename ...Fields>
+template <
+  typename O,
+  template <typename> typename ObjectMap,
+  template <typename> typename ValueMap,
+  typename ...Fields>
 struct ZuFieldTuple__ {
-  using T = ZuTuple<decltype(Fields::get(ZuDeclVal<Map<O>>()))...>;
+  using T =
+    ZuTuple<ValueMap<decltype(Fields::get(ZuDeclVal<ObjectMap<O>>()))>...>;
 };
-template <typename O, template <typename> typename Map, typename ...Fields>
-struct ZuFieldTuple__<O, Map, ZuTypeList<Fields...>> :
-  public ZuFieldTuple__<O, Map, Fields...> { };
-template <typename O, template <typename> typename Map, typename ...Fields>
-using ZuFieldTuple_ = typename ZuFieldTuple__<O, Map, Fields...>::T;
+template <
+  typename O,
+  template <typename> typename ObjectMap,
+  template <typename> typename ValueMap,
+  typename ...Fields>
+struct ZuFieldTuple__<O, ObjectMap, ValueMap, ZuTypeList<Fields...>> :
+  public ZuFieldTuple__<O, ObjectMap, ValueMap, Fields...> { };
+template <
+  typename O,
+  template <typename> typename ObjectMap,
+  template <typename> typename ValueMap,
+  typename ...Fields>
+using ZuFieldTuple_ =
+  typename ZuFieldTuple__<O, ObjectMap, ValueMap, Fields...>::T;
 template <typename O, typename ...Fields>
 struct ZuFieldTuple_Bind {
   static decltype(auto) get(const O &o) {
-    return ZuFieldTuple_<O, ZuMkCRef, Fields...>{Fields::get(o)...};
+    return ZuFieldTuple_<O, ZuMkCRef, ZuAsIs, Fields...>{
+      Fields::get(o)...
+    };
   }
   static decltype(auto) get(O &&o) {
-    return ZuFieldTuple_<O, ZuAsIs, Fields...>{Fields::get(ZuMv(o))...};
+    return ZuFieldTuple_<O, ZuMkRRef, ZuAsIs, Fields...>{
+      Fields::get(ZuMv(o))...
+    };
   }
 };
 template <typename O, typename ...Fields>
@@ -249,13 +267,12 @@ struct ZuFieldTuple_Bind<O, ZuTypeList<Fields...>> :
 template <typename ...Fields>
 struct ZuFieldTuple {
   using O = typename ZuType<0, Fields...>::O;
+  using T = ZuFieldTuple_<O, ZuMkCRef, ZuDecay, Fields...>;
+  using Ref = ZuFieldTuple_<O, ZuMkCRef, ZuAsIs, Fields...>;
+  using MvRef = ZuFieldTuple_<O, ZuMkRRef, ZuAsIs, Fields...>;
   template <typename P>
   static decltype(auto) get(P &&o) {
     return ZuFieldTuple_Bind<O, Fields...>::get(ZuFwd<P>(o));
-  }
-  template <typename ...Args>
-  static decltype(auto) mk(Args &&... args) {
-    return ZuFieldTuple_<O, ZuDecay, Fields...>{ZuFwd<Args>(args)...};
   }
 };
 template <typename ...Fields>

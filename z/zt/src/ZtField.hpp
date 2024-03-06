@@ -372,17 +372,10 @@ struct ZtVFieldFlags_ : public ZtVFieldFlags {
   }
 };
 
-// ZtVFieldType encapsulates introspected type metadata
-struct ZtVFieldType {
-  int			code;			// ZtFieldTypeCode
-  uint32_t		props;			// ZtVFieldProp
+// FIXME - need to populate udtID from ZtField using specialization,
+// e.g. <ZmBitmap> -> "Bitmap", etc.
 
-  union {
-    void		*null;
-    ZtVFieldEnum *	(*enum_)();		// Enum
-    ZtVFieldFlags *	(*flags_)();		// Flags
-  } info;
-
+struct ZtVFieldGet {
   union {
     void		*null;
     ZuString		(*string)(const void *);	// String
@@ -399,6 +392,57 @@ struct ZtVFieldType {
     ZmTime		(*time)(const void *);		// Time
   } getFn;
 
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::String, ZuString> get(const void *p) const {
+    return getFn.string(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Bytes, ZuBytes> get(const void *p) const {
+    return getFn.bytes(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::UDT, const void *> get(const void *p) const {
+    return getFn.udt(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Bool, bool> get(const void *p) const {
+    return getFn.bool_(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Int, int64_t> get(const void *p) const {
+    return getFn.int_(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::UInt, uint64_t> get(const void *p) const {
+    return getFn.uint_(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Enum, int> get(const void *p) const {
+    return getFn.enum_(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Flags, uint64_t> get(const void *p) const {
+    return getFn.flags(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Float, double> get(const void *p) const {
+    return getFn.float_(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Fixed, ZuFixed> get(const void *p) const {
+    return getFn.fixed(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Decimal, ZuDecimal> get(const void *p) const {
+    return getFn.decimal(p);
+  }
+  template <unsigned I>
+  ZuIfT<I == ZtFieldTypeCode::Time, ZmTime> get(const void *p) const {
+    return getFn.time(p);
+  }
+};
+
+struct ZtVFieldSet {
   union {
     void		*null;
     void		(*string)(void *, ZuString);	// String
@@ -415,60 +459,6 @@ struct ZtVFieldType {
     void		(*time)(void *, ZmTime);	// Time
   } setFn;
 
-  void (*print)(const void *, ZmStream &, const ZtFieldFmt &);
-  void (*scan)(void *, ZuString, const ZtFieldFmt &);
-
-  int (*cmp)(const void *, const void *);
-
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::String> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.string(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Bytes> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.bytes(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::UDT> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(p);
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Bool> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.bool_(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Int> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.int_(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::UInt> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.uint_(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Enum> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.enum_(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Flags> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.flags(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Float> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.float_(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Fixed> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.fixed(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Decimal> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.decimal(p));
-  }
-  template <unsigned I, typename L>
-  ZuIfT<I == ZtFieldTypeCode::Time> get(const void *p, L &&l) const {
-    (ZuFwd<L>(l))(getFn.time(p));
-  }
-
   template <unsigned I, typename U>
   ZuIfT<I == ZtFieldTypeCode::String> set(void *p, U &&v) const {
     setFn.string(p, ZuString{ZuFwd<U>(v)});
@@ -477,9 +467,9 @@ struct ZtVFieldType {
   ZuIfT<I == ZtFieldTypeCode::Bytes> set(void *p, U &&v) const {
     setFn.bytes(p, ZuBytes{ZuFwd<U>(v)});
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::UDT> set(void *p, const void *v) const {
-    setFn.udt(p, v);
+  template <unsigned I, typename U>
+  ZuIfT<I == ZtFieldTypeCode::UDT> set(void *p, const U &v) const {
+    setFn.udt(p, static_cast<const void *>(&v));
   }
   template <unsigned I, typename U>
   ZuIfT<I == ZtFieldTypeCode::Bool> set(void *p, U &&v) const {
@@ -519,61 +509,37 @@ struct ZtVFieldType {
   }
 };
 
+// ZtVFieldType encapsulates introspected type metadata
+struct ZtVFieldType : public ZtVFieldGet, public ZtVFieldSet {
+  int			code;			// ZtFieldTypeCode
+  uint32_t		props;			// ZtVFieldProp
+
+  union {
+    void		*null;
+    ZtVFieldEnum *	(*enum_)();		// Enum
+    ZtVFieldFlags *	(*flags)();		// Flags
+    ZuID		udtID;			// UDT ID - FIXME - populate
+  } info;
+
+  void (*print)(const void *, ZmStream &, const ZtFieldFmt &);
+  void (*scan)(void *, ZuString, const ZtFieldFmt &);
+
+  int (*cmp)(const void *, const void *);
+};
+
 // ZtVFieldConstant is used to retrieve field constants
 namespace ZtVFieldConstant {
   enum { Null = 0, Deflt, Minimum, Maximum };
 }
 
 // ZtField_ compile-time encapsulates an individual field, derives from ZuField
-template <typename Base, typename Props_, bool = Base::ReadOnly>
+template <typename Base, typename Props_>
 struct ZtField_ : public Base {
   using O = typename Base::O;
   using T = typename Base::T;
   using Props = Props_;
   constexpr static uint64_t vprops() {
     return ZtVFieldProp::Value<Props>{};
-  }
-  template <typename O_ = O, typename T_ = T>
-  static auto getFn(ZuExact<const T_ &,
-      decltype(Base::get(ZuDeclVal<const O_ &>()))> *_ = nullptr) {
-    return [](const void *o, ZmFn<const void *> fn) {
-      const T &v = Base::get(*static_cast<const O *>(o));
-      fn(static_cast<const void *>(&v));
-    };
-  }
-  template <typename O_ = O, typename T_ = T>
-  static auto getFn(ZuNotExact<const T_ &,
-      decltype(Base::get(ZuDeclVal<const O_ &>()))> *_ = nullptr) {
-    return [](const void *o, ZmFn<const void *> fn) {
-      T v = Base::get(*static_cast<const O *>(o));
-      fn(static_cast<const void *>(&v));
-    };
-  }
-  static auto setFn() {
-    typedef void (*Fn)(void *, ZmFn<void *>);
-    return static_cast<Fn>(nullptr);
-  }
-};
-template <typename Base, typename Props>
-struct ZtField_<Base, Props, false> : public ZtField_<Base, Props, true> {
-  using O = typename Base::O;
-  using T = typename Base::T;
-  template <typename O_ = O, typename T_ = T>
-  static auto setFn(ZuExact<T_ &,
-      decltype(Base::get(ZuDeclVal<O_ &>()))> *_ = nullptr) {
-    return [](void *o, ZmFn<void *> fn) {
-      T_ &v = Base::get(static_cast<O &>(*static_cast<O *>(o)));
-      fn(static_cast<void *>(&v));
-    };
-  }
-  template <typename O_ = O, typename T_ = T>
-  static auto setFn(ZuNotExact<T_ &,
-      decltype(Base::get(ZuDeclVal<O_ &>()))> *_ = nullptr) {
-    return [](void *o, ZmFn<void *> fn) {
-      T v;
-      fn(static_cast<void *>(&v));
-      Base::set(*static_cast<O *>(o), ZuMv(v));
-    };
   }
 };
 
@@ -618,15 +584,15 @@ template <typename T, typename Props,
   bool = ZuTraits<T>::IsCString && ZuTraits<T>::IsPrimitive>
 struct ZtVFieldType_String : public ZtVFieldType {
   ZtVFieldType_String() : ZtVFieldType{
+    ZtVFieldGet{.getFn = {.string = [](const void *ptr) -> ZuString {
+      return *(static_cast<const T *>(ptr));
+    }}},
+    ZtVFieldSet{.setFn = {.string = [](void *ptr, ZuString v) {
+      *(static_cast<T *>(ptr)) = v;
+    }}},
     .code = ZtFieldTypeCode::String,
     .props = ZtVFieldProp::Value<Props>{},
     .info = {.null = nullptr},
-    .getFn = {.string = [](const void *ptr) -> ZuString {
-      return *(static_cast<const T *>(ptr));
-    }},
-    .setFn = {.string = [](void *ptr, ZuString v) {
-      *(static_cast<T *>(ptr)) = v;
-    }},
     .print = [](const void *ptr, ZmStream &s, const ZtFieldFmt &fmt) {
       using Print = typename ZtFieldType_String<T, Props>::Print;
       s << Print{*static_cast<const T *>(ptr), fmt};
@@ -661,13 +627,45 @@ ZtVFieldType *ZtFieldType_String<T, Props>::vtype() {
 }
 
 inline ZuString ZtField_String_Def() { return {}; }
-template <typename Base, typename Props, auto Def = ZtField_String_Def>
-struct ZtField_String : public ZtField_<Base, Props> {
+template <typename Base, typename = void>
+struct ZtField_String_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a temporary
+    return {.string = [](const void *o) -> ZuString {
+      thread_local ZtString v;
+      v = Base::get(*static_cast<const O *>(o));
+      return v;
+    }};
+  }
+};
+template <typename Base,
+  decltype(&Base::get(ZuDeclVal<const typename Base::O &>()), void())>
+struct ZtField_String_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a crvalue
+    return {.string = [](const void *o) -> ZuString {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+};
+template <
+  typename Base, typename Props,
+  auto Def = ZtField_String_Def,
+  bool = Base::ReadOnly>
+struct ZtField_String :
+    public ZtField_<Base, Props>,
+    public ZtField_String_Get<Base> {
   using O = typename Base::O;
   using T = typename Base::T;
-  using Type = ZtFieldType_String<
-    typename Base::T, ZuTypeGrep<ZtFieldType_Props, Props>>;
+  using Type = ZtFieldType_String<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldSet setFn() {
+    return {.string = [](void *, ZuString) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -685,6 +683,16 @@ struct ZtField_String : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return nullptr;
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_String<Base, Props, Def, false> :
+    public ZtField_String<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.string = [](void *o, ZuString s) {
+      Base::set(*static_cast<O *>(o), s);
+    }};
   }
 };
 
@@ -738,13 +746,45 @@ ZtVFieldType *ZtFieldType_Bytes<T, Props>::vtype() {
 }
 
 inline ZuBytes ZtField_Bytes_Def() { return {}; }
-template <typename Base, typename Props, auto Def = ZtField_Bytes_Def>
-struct ZtField_Bytes : public ZtField_<Base, Props> {
+template <typename Base, typename = void>
+struct ZtField_Bytes_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a temporary
+    return {.bytes = [](const void *o) -> ZuBytes {
+      thread_local ZtBytes v;
+      v = Base::get(*static_cast<const O *>(o));
+      return v;
+    }};
+  }
+};
+template <typename Base,
+  decltype(&Base::get(ZuDeclVal<const typename Base::O &>()), void())>
+struct ZtField_Bytes_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a crvalue
+    return {.bytes = [](const void *o) -> ZuBytes {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+};
+template <
+  typename Base, typename Props,
+  auto Def = ZtField_Bytes_Def,
+  bool = Base::ReadOnly>
+struct ZtField_Bytes :
+    public ZtField_<Base, Props>,
+    public ZtField_Bytes_Get<Base> {
   using O = typename Base::O;
   using T = typename Base::T;
-  using Type = ZtFieldType_Bytes<
-    typename Base::T, ZuTypeGrep<ZtFieldType_Props, Props>>;
+  using Type = ZtFieldType_Bytes<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldSet setFn() {
+    return {.bytes = [](void *, ZuBytes) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -762,6 +802,16 @@ struct ZtField_Bytes : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return nullptr;
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Bytes<Base, Props, Def, false> :
+    public ZtField_Bytes<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.bytes = [](void *o, ZuBytes) {
+      Base::set(*static_cast<O *>(o), s);
+    }};
   }
 };
 
@@ -830,16 +880,17 @@ struct ZtField_UDT_Null<T, decltype(T{}, void())> {
     return static_cast<const void *>(&null_);
   }
 };
-template <typename T, auto Def, typename = void>
+template <typename, auto, typename = void>
 struct ZtField_UDT_Constant {
   static auto constantFn() {
     typedef const void *(*Fn)(int);
     return static_cast<Fn>(nullptr);
   }
 };
-template <typename T, auto Def>
-struct ZtField_UDT_Constant<T, Def, decltype(T{Def()}, void())> {
+template <typename Base, auto Def>
+struct ZtField_UDT_Constant<Base, Def, decltype(T{Def()}, void())> {
   static auto constantFn() {
+    using T = typename Base::T;
     using namespace ZtVFieldConstant;
     static T deflt_{Def()};
     return [](int i) -> const void * {
@@ -848,16 +899,45 @@ struct ZtField_UDT_Constant<T, Def, decltype(T{Def()}, void())> {
     };
   }
 };
+template <typename Base, typename = void>
+struct ZtField_UDT_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a temporary
+    return {.udt = [](const void *o) -> const void * {
+      thread_local T v;
+      v = Base::get(*static_cast<const O *>(o));
+      return static_cast<const void *>(&v);
+    }};
+  }
+};
+template <typename Base,
+  decltype(&Base::get(ZuDeclVal<const typename Base::O &>()), void())>
+struct ZtField_UDT_Get {
+  static ZtVFieldGet getFn() {
+    using O = typename Base::O;
+    using T = typename Base::T;
+    // field get() returns a crvalue
+    return {.udt = [](const void *o) -> const void * {
+      return static_cast<const void *>(&Base::get(*static_cast<const O *>(o)));
+    }};
+  }
+};
 template <
   typename Base, typename Props,
   auto Def = ZtField_UDT_Def<typename Base::T>::value>
 struct ZtField_UDT :
     public ZtField_<Base, Props>,
-    public ZtField_UDT_Constant<typename Base::T, Def> {
+    public ZtField_UDT_Constant<Base, Def>,
+    public ZtField_UDT_Get<Base> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_UDT<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldSet setFn() {
+    return {.udt = [](void *, const void *) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -868,6 +948,16 @@ struct ZtField_UDT :
     }
   };
   static auto deflt() { return Def(); }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_UDT<Base, Props, Def, false> :
+    public ZtField_UDT<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.udt = [](void *o, const void *p) {
+      Base::set(*static_cast<O *>(o), *static_cast<const T *>(p));
+    }};
+  }
 };
 
 // --- Bool
@@ -919,12 +1009,23 @@ ZtVFieldType *ZtFieldType_Bool<T, Props>::vtype() {
 }
 
 inline constexpr bool ZtField_Bool_Def() { return false; }
-template <typename Base, typename Props, auto Def = ZtField_Bool_Def>
+template <
+  typename Base, typename Props
+  auto Def = ZtField_Bool_Def,
+  bool = Base::ReadOnly>
 struct ZtField_Bool : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_Bool<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.bool_ = [](const void *o) -> bool {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.bool_ = [](void *, bool) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -943,6 +1044,16 @@ struct ZtField_Bool : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Bool<Base, Props, Def, false> :
+    public ZtField_Bool<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.bool_ = [](void *o, bool v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1010,12 +1121,21 @@ template <
   typename Base, typename Props,
   auto Def = ZtFieldType_Int_Def<typename Base::T>::deflt,
   auto Min = ZtFieldType_Int_Def<typename Base::T>::minimum,
-  auto Max = ZtFieldType_Int_Def<typename Base::T>::maximum>
+  auto Max = ZtFieldType_Int_Def<typename Base::T>::maximum,
+  bool = Base::ReadOnly>
 struct ZtField_Int : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_Int<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.int_ = [](const void *o) -> int64_t {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.int_ = [](void *, int64_t) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1040,6 +1160,16 @@ struct ZtField_Int : public ZtField_<Base, Props> {
       }
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Int<Base, Props, Def, false> :
+    public ZtField_Int<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.int_ = [](void *o, int64_t v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1101,12 +1231,21 @@ template <
   typename Base, typename Props,
   auto Def = ZtFieldType_Int_Def<typename Base::T>::deflt,
   auto Min = ZtFieldType_Int_Def<typename Base::T>::minimum,
-  auto Max = ZtFieldType_Int_Def<typename Base::T>::maximum>
+  auto Max = ZtFieldType_Int_Def<typename Base::T>::maximum,
+  bool = Base::ReadOnly>
 struct ZtField_UInt : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_UInt<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.uint_ = [](const void *o) -> uint64_t {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.uint_ = [](void *, uint64_t) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1131,6 +1270,16 @@ struct ZtField_UInt : public ZtField_<Base, Props> {
       }
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_UInt<Base, Props, Def, false> :
+    public ZtField_UInt<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.uint_ = [](void *o, uint64_t v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1191,12 +1340,21 @@ ZtVFieldType *ZtFieldType_Enum<T, Map, Props>::vtype() {
 inline constexpr int ZtField_Enum_Def() { return -1; }
 template <
   typename Base, typename Props, typename Map,
-  auto Def = ZtField_Enum_Def>
+  auto Def = ZtField_Enum_Def,
+  bool = Base::ReadOnly>
 struct ZtField_Enum : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_Enum<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.enum_ = [](const void *o) -> int {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.enum_ = [](void *, int) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1215,6 +1373,16 @@ struct ZtField_Enum : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Enum<Base, Props, Def, false> :
+    public ZtField_Enum<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.enum_ = [](void *o, int v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1245,7 +1413,7 @@ struct ZtVFieldType_Flags : public ZtVFieldType {
   ZtVFieldType_Flags() : ZtVFieldType{
     .code = ZtFieldTypeCode::Flags,
     .props = ZtVFieldProp::Value<Props>{},
-    .info = {.flags_ = []() -> ZtVFieldFlags * {
+    .info = {.flags = []() -> ZtVFieldFlags * {
       return ZtVFieldFlags_<Map>::instance();
     }},
     .getFn = {.flags = [](const void *ptr) -> uint64_t {
@@ -1275,12 +1443,21 @@ ZtVFieldType *ZtFieldType_Flags<T, Map, Props>::vtype() {
 inline constexpr int ZtField_Flags_Def() { return 0; }
 template <
   typename Base, typename Props, typename Map,
-  auto Def = ZtField_Flags_Def>
+  auto Def = ZtField_Flags_Def,
+  bool = Base::ReadOnly>
 struct ZtField_Flags : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_Flags<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.flags = [](const void *o) -> uint64_t {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.flags = [](void *, uint64_t) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1299,6 +1476,16 @@ struct ZtField_Flags : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_UInt<Base, Props, Def, false> :
+    public ZtField_UInt<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.flags = [](void *o, uint64_t v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1367,12 +1554,21 @@ template <
   typename Base, typename Props,
   auto Def = ZtField_Float_Def<typename Base::T>::deflt,
   auto Min = ZtField_Float_Def<typename Base::T>::minimum,
-  auto Max = ZtField_Float_Def<typename Base::T>::maximum>
+  auto Max = ZtField_Float_Def<typename Base::T>::maximum,
+  bool = Base::ReadOnly>
 struct ZtField_Float : public ZtField_<Base, Props> {
   using O = typename Base::O;
   using T = typename Base::T;
   using Type = ZtFieldType_Float<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.float_ = [](const void *o) -> double {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.float_ = [](void *, double) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1397,6 +1593,16 @@ struct ZtField_Float : public ZtField_<Base, Props> {
       }
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Float<Base, Props, Def, false> :
+    public ZtField_Float<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.float_ = [](void *o, double v) {
+      Base::set(*static_cast<O *>(o), v);
+    }};
   }
 };
 
@@ -1477,6 +1683,14 @@ struct ZtField_Fixed : public ZtField_<Base, Props> {
   using T = typename Base::T;
   using Type = ZtFieldType_Fixed<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.fixed = [](const void *o) -> ZuFixed {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.fixed = [](void *, ZuFixed) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1501,6 +1715,16 @@ struct ZtField_Fixed : public ZtField_<Base, Props> {
       }
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Fixed<Base, Props, Def, false> :
+    public ZtField_Fixed<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.fixed = [](void *o, ZuFixed v) {
+      Base::set(*static_cast<O *>(o), ZuMv(v));
+    }};
   }
 };
 
@@ -1581,6 +1805,14 @@ struct ZtField_Decimal : public ZtField_<Base, Props> {
   using T = typename Base::T;
   using Type = ZtFieldType_Decimal<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.decimal = [](const void *o) -> ZuDecimal {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.decimal = [](void *, ZuDecimal) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1605,6 +1837,16 @@ struct ZtField_Decimal : public ZtField_<Base, Props> {
       }
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Decimal<Base, Props, Def, false> :
+    public ZtField_Decimal<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.decimal = [](void *o, ZuDecimal v) {
+      Base::set(*static_cast<O *>(o), ZuMv(v));
+    }};
   }
 };
 
@@ -1670,6 +1912,14 @@ struct ZtField_Time : public ZtField_<Base, Props> {
   using T = typename Base::T;
   using Type = ZtFieldType_Time<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
+  static ZtVFieldGet getFn() {
+    return {.time = [](const void *o) -> ZmTime {
+      return Base::get(*static_cast<const O *>(o));
+    }};
+  }
+  static ZtVFieldSet setFn() {
+    return {.time = [](void *, ZmTime) { }};
+  }
   using Print_ = typename Type::Print;
   struct Print {
     const O &o;
@@ -1688,6 +1938,16 @@ struct ZtField_Time : public ZtField_<Base, Props> {
       if (ZuLikely(i == Deflt)) return static_cast<const void *>(&deflt_);
       return static_cast<const void *>(&null_);
     };
+  }
+};
+template <typename Base, typename Props, auto Def>
+struct ZtField_Time<Base, Props, Def, false> :
+    public ZtField_Time<Base, Props, Def, true> {
+  using O = typename Base::O;
+  static ZtVFieldSet setFn() {
+    return {.time = [](void *o, ZmTime v) {
+      Base::set(*static_cast<O *>(o), ZuMv(v));
+    }};
   }
 };
 
@@ -1780,49 +2040,23 @@ struct ZtFieldPrint : public ZuPrintDelegate {
   }
 };
 
-struct ZtVField {
+struct ZtVField : public ZtVFieldGet, public ZtVFieldSet {
   ZtVFieldType		*type;
   const char		*id;
   uint32_t		props;			// ZtVFieldProp
   uint64_t		keys;
 
   const void *		(*constant)(int);
-  void			(*getFn)(const void *, ZmFn<const void *>);
-  void			(*setFn)(void *, ZmFn<void *>);
 
   template <typename Field>
   ZtVField(Field) :
+      ZtVFieldGet{Field::getFn()},
+      ZtVFieldSet{Field::setFn()},
       type{Field::Type::vtype()},
       id{Field::id()},
       props{Field::vprops()},
       keys{Field::keys()},
-      constant{Field::constantFn()},
-      getFn{Field::getFn()},
-      setFn{Field::setFn()} { }
-
-  template <unsigned I, typename L>
-  void get(const void *o, L &&l) const {
-    using L_ = decltype(ZuFwd<L>(l));
-    struct Context {
-      ZtVFieldType *type;
-      L_ l_;
-    } context{this->type, ZuFwd<L>(l)};
-    getFn(o, {&context, [](Context *context, const void *p) {
-      context->type->template get<I>(p, ZuFwd<L_>(context->l_));
-    }});
-  }
-
-  template <unsigned I, typename U>
-  void set(void *o, U &&v) const {
-    using U_ = decltype(ZuFwd<U>(v));
-    struct Context {
-      ZtVFieldType *type;
-      U_ v_;
-    } context{this->type, ZuFwd<U>(v)};
-    setFn(o, {&context, [](Context *context, void *p) {
-      context->type->template set<I>(p, ZuFwd<U_>(context->v_));
-    }});
-  }
+      constant{Field::constantFn()} { }
 
   // need to de-conflict with print
   template <typename S> void print_(S &s) const {
@@ -1864,9 +2098,264 @@ struct ZtVFields_ {
   }
 };
 template <typename O, typename VField = ZtVField>
-inline ZuArray<const VField *> ZtVFields() {
+inline ZtVFieldArray ZtVFields() {
   return ZuTypeApply<
     ZtVFields_, typename ZuFieldList<O>::template Prepend<VField>>::fields();
 }
+
+// --- generic data transformation (ORM, etc.)
+
+// load from external representation
+struct Importer {
+  ZtArray<ZtFieldGet> fn;		// one fn for each field
+}
+struct Import {
+  const Importer	&importer;
+
+  template <unsigned I, int Code, typename T>
+  decltype(auto) get() const {
+    auto p = static_cast<const void *>(this);
+    if constexpr (Code != ZtFieldTypeCode::UDT)
+      return importer.fn[I].get<Code>(p);
+    else
+      return
+	static_cast<const T &>(*static_cast<const T *>(
+	      importer.fn[I].get<Code>(p)));
+  }
+};
+
+// save to external representation
+struct Exporter {
+  ZtArray<ZtFieldSet>	fn;		// one fn for each field
+};
+struct Export {
+  const Exporter	&exporter;
+
+  template <unsigned I, int Code, typename U>
+  void set(U &&v) {
+    auto p = static_cast<void *>(this);
+    return exporter.fn[I].set<Code>(p, ZuFwd<U>(v));
+  }
+};
+
+namespace ZtField {
+
+namespace TypeCode = ZtFieldTypeCode;
+namespace Prop = ZtFieldProp;
+
+template <typename O>
+struct Fielded_ {
+  using AllFields = ZuFieldList<O>;
+
+  template <typename U>
+  struct LoadFilter : public ZuBool<!U::ReadOnly> { };
+  using Loadfields = ZuTypeGrep<LoadFilter, AllFields>;
+
+  template <typename U>
+  struct UpdateFilter : public ZuTypeIn<Prop::Update, typename U::Props> { };
+  using UpdateFields = ZuTypeGrep<UpdateFilter, Loadfields>;
+
+  template <typename U> struct CtorFilter :
+      public ZuBool<(Prop::GetCtor<typename U::Props>{} >= 0)> { };
+  template <typename U>
+  struct CtorIndex : public Prop::GetCtor<typename U::Props> { };
+  using CtorFields =
+    ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, Loadfields>>;
+
+  template <typename U> struct InitFilter :
+      public ZuBool<(Prop::GetCtor<typename U::Props>{} < 0)> { };
+  using InitFields = ZuTypeGrep<InitFilter, Loadfields>;
+
+  template <typename O, typename Fields>
+  struct Save {
+    static void save(const O &o, const Export &export_) {
+      ZmAssert(export_.exporter.fn.length() == AllFields::N);
+      ZuTypeAll<Fields>::invoke([&o, &export_]<typename Field>() {
+	const auto &v = Field::get(o); // temporary lifetime-extension
+	export_.set<ZuTypeIndex<Field, AllFields>, Field::Type::Code>(v);
+      });
+    }
+  };
+  static Zt::Offset<FBType> save(const O &o, const Export &export_) {
+    return Save<O, LoadFields>::save(o, export_);
+  }
+  static Zt::Offset<FBType> saveUpdate(
+      const O &o, void *p, ZuArray<ZtVFieldSet> fn) {
+    return Save<O, UpdateFields>::save(o, export_);
+  }
+
+  template <typename ...Field>
+  struct Ctor {
+    static O ctor(const Import &import_) {
+      ZmAssert(import_.importer.fn.length() == AllFields::N);
+      return O{
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>()...
+      };
+    }
+    static void ctor(void *o, const Import &import_) {
+      ZmAssert(import_.importer.fn.length() == AllFields::N);
+      new (o) O{
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>()...
+      };
+    }
+  };
+  static O ctor(const Import &import_) {
+    ZmAssert(import_.importer.fn.length() == AllFields::N);
+    O o = ZuTypeApply<Ctor, CtorFields>::ctor(import_);
+    ZuTypeAll<InitFields>::invoke([&o, &import_]<typename Field>() {
+      Field::set(o,
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>());
+    });
+    return o;
+  }
+  static void ctor(void *o_, const Import &import_) {
+    ZmAssert(import_.importer.fn.length() == AllFields::N);
+    ZuTypeApply<Ctor, CtorFields>::ctor(o_, import_);
+    O &o = *static_cast<O *>(o_);
+    ZuTypeAll<InitFields>::invoke([&o, &import_]<typename Field>() {
+      Field::set(o,
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>());
+    });
+  }
+
+  template <typename ...Field>
+  struct Load__ : public O {
+    Load__() = default;
+    Load__(const Import &import_) : O{
+      import_.get<
+	ZuTypeIndex<Field, AllFields>,
+	Field::Type::Code,
+	typename Field::T>()...
+    } { }
+    template <typename ...Args>
+    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+  };
+  using Load_ = ZuTypeApply<Load__, CtorFields>;
+  struct Load : public Load_ {
+    Load() = default;
+    Load(const Import &import_) : Load_{p, fn} {
+      ZmAssert(import_.importer.fn.length() == AllFields::N);
+      ZuTypeAll<InitFields>::invoke([this, p, &fn]<typename Field>() {
+	Field::set(*this,
+	  import_.get<
+	    ZuTypeIndex<Field, AllFields>,
+	    Field::Type::Code,
+	    typename Field::T>());
+      });
+    }
+    template <typename ...Args>
+    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
+  };
+
+  static void load(O &o, const Import &import_) {
+    ZmAssert(import_.importer.fn.length() == AllFields::N);
+    ZuTypeAll<LoadFields>::invoke([&o, fbo]<typename Field>() {
+      Field::set(o,
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>());
+    });
+  }
+  static void update(O &o, const Import &import_) {
+    ZmAssert(import_.importer.fn.length() == AllFields::N);
+    ZuTypeAll<UpdateFields>::invoke([&o, fbo]<typename Field>() {
+      Field::set(o,
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>());
+    });
+  }
+
+  template <typename ...Field>
+  struct Key {
+    using Tuple = ZuTuple<typename Field::T...>;
+    static decltype(auto) tuple(const Import &import_) {
+      ZmAssert(import_.importer.fn.length() == AllFields::N);
+      return Tuple{
+	import_.get<
+	  ZuTypeIndex<Field, AllFields>,
+	  Field::Type::Code,
+	  typename Field::T>()...
+      };
+    }
+  };
+  template <typename ...Fields>
+  struct Key<ZuTypeList<Fields...>> : public Key<Fields...> { };
+
+  template <unsigned KeyID>
+  struct KeyFilter {
+    template <typename U> struct T : public ZuBool<U::keys() & (1<<KeyID)> { };
+  };
+  template <unsigned KeyID = 0>
+  static auto key(const Import &import_) {
+    using Fields = ZuTypeGrep<KeyFilter<KeyID>::template T, AllFields>;
+    return Key<Fields>::tuple(import_);
+  }
+};
+template <typename O>
+using Fielded = Fielded_<ZuFielded<O>>;
+
+template <typename O>
+inline auto save(const O &o, const Export &export_) {
+  return Fielded<O>::save(o, export_);
+}
+template <typename O>
+inline auto saveUpdate(const O &o, const Export &export_) {
+  return Fielded<O>::saveUpdate(o, export_);
+}
+
+template <typename O>
+inline O ctor(const Import &import_) {
+  return Fielded<O>::ctor(import_);
+}
+template <typename O>
+inline void ctor(void *o_, const Import &import_) {
+  Fielded<O>::ctor(o_, import_);
+}
+
+template <typename O> using Load = typename Fielded<O>::Load;
+
+template <typename O>
+inline void load(O &o, const Import &import_) {
+  Fielded<O>::load(o, import_);
+}
+template <typename O>
+inline void update(O &o, const Import &import_) {
+  Fielded<O>::update(o, import_);
+}
+
+template <typename O, unsigned KeyID = 0>
+inline auto key(const Import &import_) {
+  return Fielded<O>::template key<KeyID>(import_);
+}
+
+namespace Load {
+  template <typename O>
+  inline O object(const Import &import_) {
+    return Fielded<O>::ctor(import_);
+  }
+}
+namespace Save {
+  template <typename O>
+  inline auto object(const O &o, const Export &export_) {
+    return Fielded<O>::save(o, export_);
+  }
+}
+
+} // ZtField
 
 #endif /* ZtField_HPP */

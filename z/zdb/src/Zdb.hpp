@@ -767,6 +767,7 @@ private:
   const DBCf		*m_cf;
   DBHandler		m_handler;
   ZtString		m_path;
+  Module::DB		*m_module;
 
   // RN allocator
   ZmAtomic<RN>		m_nextRN = 0;
@@ -1011,7 +1012,8 @@ struct EnvCf {
 // close -> <- closed
 // final -> <- finalized
 
-class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
+class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env>, public ClientEnv {
+  // FIXME - ClientEnv virtual fns
   Env(const Env &);
   Env &operator =(const Env &);		// prevent mis-use
 

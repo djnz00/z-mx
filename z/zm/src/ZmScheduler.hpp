@@ -278,7 +278,8 @@ public:
 
   // del(timer) - cancel timer
 
-  template <typename L> void add(L l) {
+  template <typename L>
+  void add(L l) {
     Fn fn{l};
     add_(fn);
   }
@@ -333,17 +334,19 @@ public:
   template <typename L>
   void run(unsigned sid, L l) {
     ZmAssert(sid && sid <= m_params.nThreads());
-    Fn fn{l};
+    Fn fn{l}; // l is on-stack
     run_(&m_threads[sid - 1], fn);
   }
-  // run without calling wake() and any custom wakeFn
+
+  // enqueue for thread without waking it
   template <typename L>
   void push(unsigned sid, L l) {
     ZmAssert(sid && sid <= m_params.nThreads());
-    Fn fn{l};
+    Fn fn{l}; // l is on-stack
     push_(&m_threads[sid - 1], fn);
   }
 
+  // run and wake thread, unless already on-thread, in which case direct call
   template <typename L>
   void invoke(unsigned sid, L l) {
     ZmAssert(sid && sid <= m_params.nThreads());

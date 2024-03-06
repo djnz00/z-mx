@@ -184,8 +184,7 @@ public:
   }
   template <typename P0, typename P1>
   int cmp(const Pair_<P0, P1> &p) const {
-    int i;
-    if (i = ZuCmp<T0>::cmp(m_p0, p.template p<0>())) return i;
+    if (int i = ZuCmp<T0>::cmp(m_p0, p.template p<0>())) return i;
     return ZuCmp<T1>::cmp(m_p1, p.template p<1>());
   }
   template <typename L, typename R>
@@ -195,7 +194,7 @@ public:
   friend inline ZuIfT<ZuConversion<Pair_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
-  bool operator !() const { return !m_p0 || !m_p1; }
+  bool operator !() const { return !m_p0 && !m_p1; }
   ZuOpBool
 
   uint32_t hash() const {

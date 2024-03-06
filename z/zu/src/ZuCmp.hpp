@@ -235,17 +235,27 @@ struct ZuCmp_Primitive : public ZuCmp_Cannot<T> { };
 template <typename T> struct ZuCmp_Primitive<T, true, false> :
   public ZuCmp_Real<T, ZuTraits<T>::IsIntegral> { };
 
-// default comparison of non-primitive types - uses operators >, <, ==, !
+// default comparison of non-primitive types - uses operators <=>, >, <, ==, !
 
-template <typename> struct ZuCmp_Can_;
-template <> struct ZuCmp_Can_<int> { using T = void; }; 
+// test for <=>
 template <typename, typename, typename = void>
-struct ZuCmp_Can : public ZuFalse { };
+struct ZuCmp_Can_starship : public ZuFalse { };
 template <typename P1, typename P2>
-struct ZuCmp_Can<P1, P2, typename ZuCmp_Can_<
-    decltype(ZuDeclVal<const P1 &>().cmp(ZuDeclVal<const P2 &>()))>::T> :
-  public ZuTrue { };
+struct ZuCmp_Can_starship<P1, P2,
+  decltype((ZuDeclVal<const P1 &>() <=> ZuDeclVal<const P2 &>()), void())> :
+    public ZuTrue { };
 
+// test for cmp()
+template <typename> struct ZuCmp_Can_cmp_;
+template <> struct ZuCmp_Can_cmp_<int> { using T = void; }; 
+template <typename, typename, typename = void>
+struct ZuCmp_Can_cmp : public ZuFalse { };
+template <typename P1, typename P2>
+struct ZuCmp_Can_cmp<P1, P2, typename ZuCmp_Can_cmp_<
+  decltype(ZuDeclVal<const P1 &>().cmp(ZuDeclVal<const P2 &>()))>::T> :
+    public ZuTrue { };
+
+// test for copy-constructible default constructor
 template <typename T, typename = void>
 struct ZuCmp_NullFn {
   template <typename P> static bool null(const P &p) { return !p; }
@@ -256,44 +266,22 @@ struct ZuCmp_NullFn<T, decltype(T{ZuDeclVal<const T &>()}, void())> {
   template <typename P> static bool null(const P &p) { return !p; }
   static const T &null() { static T v; return v; }
 };
-template <typename T, bool Fwd, bool = ZuCmp_Can<T, T>{}>
-struct ZuCmp_NonPrimitive : public ZuCmp_NullFn<T> {
-  template <typename P1, typename P2, typename T_ = T>
-  static ZuIfT<ZuCmp_Can<P1, P2>{}, int>
+
+template <typename T> struct ZuCmp_NonPrimitive : public ZuCmp_NullFn<T> {
+  template <typename P1, typename P2>
+  static ZuIfT<ZuCmp_Can_starship<P1, P2>{}, int>
+  cmp(const P1 &p1, const P2 &p2) {
+    return p1 <=> p2;
+  }
+  template <typename P1, typename P2>
+  static ZuIfT<ZuCmp_Can_cmp<P1, P2>{} && !ZuCmp_Can_starship<P1, P2>{}, int>
   cmp(const P1 &p1, const P2 &p2) {
     return p1.cmp(p2);
   }
   template <typename P1, typename P2>
-  static ZuIfT<!ZuCmp_Can<P1, P2>{}, int>
+  static ZuIfT<!ZuCmp_Can_cmp<P1, P2>{} && !ZuCmp_Can_starship<P1, P2>{}, int>
   cmp(const P1 &p1, const P2 &p2) {
     return (p1 > p2) - (p1 < p2);
-  }
-  template <typename P1, typename P2>
-  static bool less(const P1 &p1, const P2 &p2) { return p1 < p2; }
-  template <typename P1, typename P2>
-  static bool equals(const P1 &p1, const P2 &p2) { return p1 == p2; }
-};
-template <typename P1, bool IsPrimitive> struct ZuCmp_NonPrimitive___ :
-    public ZuCmp_NonPrimitive<P1, false> { };
-template <typename P1>
-struct ZuCmp_NonPrimitive___<P1, true> : public ZuCmp_<P1> { };
-template <typename T, typename P1> struct ZuCmp_NonPrimitive__ :
-  public ZuCmp_NonPrimitive___<P1, ZuTraits<P1>::IsPrimitive> { };
-template <typename T> struct ZuCmp_NonPrimitive__<T, T> {
-  template <typename P2>
-  static int cmp(const T &t, const P2 &p2) { return t.cmp(p2); }
-};
-template <typename T, typename P1, bool Fwd>
-struct ZuCmp_NonPrimitive_ : public ZuCmp_NonPrimitive__<T, P1> { };
-template <typename T, typename P1> struct ZuCmp_NonPrimitive_<T, P1, false> {
-  template <typename P2>
-  static int cmp(const T &t, const P2 &p2) { return t.cmp(p2); }
-};
-template <typename T, bool Fwd>
-struct ZuCmp_NonPrimitive<T, Fwd, true> : public ZuCmp_NullFn<T> {
-  template <typename P1, typename P2>
-  static int cmp(const P1 &p1, const P2 &p2) {
-    return ZuCmp_NonPrimitive_<T, ZuDecay<P1>, Fwd>::cmp(p1, p2);
   }
   template <typename P1, typename P2>
   static bool less(const P1 &p1, const P2 &p2) { return p1 < p2; }
@@ -325,7 +313,7 @@ template <typename T> struct ZuCmp_PrimitivePointer<T, false> :
 template <typename T, bool IsPrimitive, bool IsPointer> struct ZuCmp_NonString;
 
 template <typename T> struct ZuCmp_NonString<T, false, false> :
-  public ZuCmp_NonPrimitive<T, true> { };
+  public ZuCmp_NonPrimitive<T> { };
 
 template <typename T> struct ZuCmp_NonString<T, false, true> :
   public ZuCmp_Pointer<T> { };

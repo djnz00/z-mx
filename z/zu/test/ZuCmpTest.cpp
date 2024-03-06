@@ -74,8 +74,8 @@ namespace T1 {
   using T = _::T;
 }
 
-ZuAssert(ZuHash_Can<T1::V>{});
-ZuAssert(ZuHash_Can<T1::T>{});
+ZuAssert((ZuIsExact<uint32_t, decltype(ZuHash<T1::V>::hash(ZuDeclVal<const T1::V &>()))>{}));
+ZuAssert((ZuIsExact<uint32_t, decltype(ZuHash<T1::T>::hash(ZuDeclVal<const T1::V &>()))>{}));
 
 namespace T2 {
   using I = int;
@@ -425,6 +425,12 @@ int main()
     CHECK(d == 42.0);
   }
 
+  {
+    using U = ZuUnion<void, int>;
+    U u;
+    std::cout << u.type() << '\n';
+  }
+
   // structured binding smoke tests
   {
     ZuArrayN<int, 3> foo = { 1, 2, 3 };
@@ -495,5 +501,18 @@ int main()
     CHECK(ZuCmp<unsigned>::cmp(b.type(), 1) == 0);
     CHECK(ZuCmp<bool>::cmp(a.v<bool>(), true) != 0);
     CHECK(ZuCmp<bool>::cmp(b.v<bool>(), true) == 0);
+  }
+
+  {
+    CHECK(bool{ZuHash_Can_hash<T1::V>{}});
+  }
+
+  {
+    struct A { int x = 42; };
+    struct B { static A a() { return A{}; } };
+    ZuTuple<const A &> t{B::a()};
+    ZuTuple<const A &> u(B::a());
+    CHECK(t.p<0>().x == 42);
+    CHECK(u.p<0>().x == 42);
   }
 }

@@ -19,7 +19,8 @@
 
 // ZmRingFn encapsulates a generic lambda payload, for use with ZmRing
 // ring buffers containing variable-sized messages; it optimizes for the
-// stateless case, while also handling stateful lambdas with captures
+// stateless case, while also handling stateful lambdas with captures;
+// ZmRingFn is move-only
 //
 // ZmRingFn(L &l) stores a pointer to an on-stack lambda instance together
 // with function pointers that invoke it, move it, allocate a copy of it
@@ -27,7 +28,7 @@
 // references the lambda instance on-stack without copying it
 //
 // in the fast path, no heap allocation or freeing is performed during
-// subsequent pushing of the lambda onto a ring, shifting it, and invoking it
+// pushing of the lambda onto a ring buffer, shifting it, and invoking it
 //
 // ZmRingFn move assignment ensures that the lambda becomes heap-allocated;
 // this extends its scope and enables deferred execution (timeouts, etc.) -
@@ -40,9 +41,9 @@
 // push() moves the lambda into a ring buffer together with its
 // invocation function
 //
-// invoke() invokes the lambda directly from the ring buffer pointer,
+// invoke() invokes the lambda directly in-ring from the ring buffer pointer,
 // destroys it and returns the size of the message so that a ring buffer
-// dequeue can complete correctly
+// dequeue can then complete correctly
 
 // ZmHeap is used for heap allocation
 
