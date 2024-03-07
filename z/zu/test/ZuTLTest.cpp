@@ -5,6 +5,7 @@
 
 #include <zlib/ZuAssert.hpp>
 #include <zlib/ZuUnroll.hpp>
+#include <zlib/ZuUnroll.hpp>
 
 #include <iostream>
 
@@ -32,7 +33,7 @@ struct X {
 int main(int argc, char **argv)
 {
   {
-    ZuTypeAll<Sorted>::invoke([]<typename T>() {
+    ZuUnroll::all<Sorted>([]<typename T>() {
       std::cout << T::I << ' ' << T::id() << '\n';
     });
     X x;
@@ -42,11 +43,11 @@ int main(int argc, char **argv)
     q = x;
   }
   {
-    ZuUnroll::all<4>([](auto i) { std::cout << i << '\n'; });
-    ZuAssert(ZuUnroll::all<4>(0, [](auto i, int j) {
+    ZuUnroll::all<ZuMkSeq<4>>([](auto i) { std::cout << i << '\n'; });
+    ZuAssert(ZuUnroll::all<ZuMkSeq<4>>(0, [](auto i, int j) {
       return j + 1;
     }) == 4);
-    auto j = ZuUnroll::all<4>(0, [](auto i, int j) {
+    auto j = ZuUnroll::all<ZuMkSeq<4>>(0, [](auto i, int j) {
       std::cout << i << '\n';
       return j + 1;
     });

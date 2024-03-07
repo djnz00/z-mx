@@ -307,13 +307,13 @@ struct SaveFields {
   using FBType = ZfbType<O>;
   static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
     Offset<void> offsets[OffsetFields::N];
-    ZuTypeAll<OffsetFields>::invoke(
+    ZuUnroll::all<OffsetFields>(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
 	  using OffsetIndex = ZuTypeIndex<Field, OffsetFields>;
 	  offsets[OffsetIndex{}] = Field::save(fbb_, o);
 	});
     Builder fbb{fbb_};
-    ZuTypeAll<Fields>::invoke(
+    ZuUnroll::all<Fields>(
 	[&fbb, &o, offsets = &offsets[0]]<typename Field>() {
 	  SaveField<O, OffsetFields, Field>::save(fbb, o, offsets);
 	});
@@ -326,7 +326,7 @@ struct SaveFields<O, Fields, OffsetFields, 0> {
   using FBType = ZfbType<O>;
   static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
     Builder fbb{fbb_};
-    ZuTypeAll<Fields>::invoke([&fbb, &o]<typename Field>() {
+    ZuUnroll::all<Fields>([&fbb, &o]<typename Field>() {
       Field::save(fbb, o);
     });
     return fbb.Finish();
@@ -375,7 +375,7 @@ struct Fielded_ {
   };
   static O ctor(const FBType *fbo) {
     O o = ZuTypeApply<Ctor, CtorFields>::ctor(fbo);
-    ZuTypeAll<InitFields>::invoke([&o, fbo]<typename Field>() {
+    ZuUnroll::all<InitFields>([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
     return o;
@@ -383,7 +383,7 @@ struct Fielded_ {
   static void ctor(void *o_, const FBType *fbo) {
     ZuTypeApply<Ctor, CtorFields>::ctor(o_, fbo);
     O &o = *static_cast<O *>(o_);
-    ZuTypeAll<InitFields>::invoke([&o, fbo]<typename Field>() {
+    ZuUnroll::all<InitFields>([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
   }
@@ -399,7 +399,7 @@ struct Fielded_ {
   struct Load : public Load_ {
     Load() = default;
     Load(const FBType *fbo) : Load_{fbo} {
-      ZuTypeAll<InitFields>::invoke([this, fbo]<typename Field>() {
+      ZuUnroll::all<InitFields>([this, fbo]<typename Field>() {
 	Field::load(*this, fbo);
       });
     }
@@ -408,12 +408,12 @@ struct Fielded_ {
   };
 
   static void load(O &o, const FBType *fbo) {
-    ZuTypeAll<LoadFields>::invoke([&o, fbo]<typename Field>() {
+    ZuUnroll::all<LoadFields>([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
   }
   static void update(O &o, const FBType *fbo) {
-    ZuTypeAll<UpdateFields>::invoke([&o, fbo]<typename Field>() {
+    ZuUnroll::all<UpdateFields>([&o, fbo]<typename Field>() {
       Field::load(o, fbo);
     });
   }

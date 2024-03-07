@@ -630,7 +630,7 @@ int main(int argc, char **argv)
     if (size <= 0) usage();
   }
 
-  if (!ZuUnroll::all<8>(true, [size](auto i, bool b) {
+  if (!ZuUnroll::all<ZuMkSeq<8>>(true, [size](auto i, bool b) {
     return b ? (b && Test<(i>>2) & 1, (i>>1) & 1, i & 1>::run(size)) : false;
   })) return 1;
 

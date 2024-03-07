@@ -695,7 +695,7 @@ struct Fielded_ {
   };
   static O ctor(const Cf_ *cf) {
     O o = ZuTypeApply<Ctor, CtorFields>::ctor(cf);
-    ZuTypeAll<InitFields>::invoke([&o, cf]<typename Field>() {
+    ZuUnroll::all<InitFields>([&o, cf]<typename Field>() {
       Field::set(o, cf->template getField<Field>());
     });
     return o;
@@ -703,7 +703,7 @@ struct Fielded_ {
   static void ctor(void *ptr, const Cf_ *cf) {
     ZuTypeApply<Ctor, CtorFields>::ctor(ptr, cf);
     O &o = *reinterpret_cast<O *>(ptr);
-    ZuTypeAll<InitFields>::invoke([&o, cf]<typename Field>() {
+    ZuUnroll::all<InitFields>([&o, cf]<typename Field>() {
       Field::set(o, cf->template getField<Field>());
     });
   }
@@ -719,7 +719,7 @@ struct Fielded_ {
   struct Load : public Load_ {
     Load() = default;
     Load(const Cf_ *cf) : Load_{cf} {
-      ZuTypeAll<InitFields>::invoke([this, cf]<typename Field>() {
+      ZuUnroll::all<InitFields>([this, cf]<typename Field>() {
 	Field::set(*this, cf->template getField<Field>());
       });
     }
@@ -728,12 +728,12 @@ struct Fielded_ {
   };
 
   static void load(O &o, const Cf_ *cf) {
-    ZuTypeAll<AllFields>::invoke([&o, cf]<typename Field>() {
+    ZuUnroll::all<AllFields>([&o, cf]<typename Field>() {
       Field::set(o, cf->template getField<Field>());
     });
   }
   static void update(O &o, const Cf_ *cf) {
-    ZuTypeAll<UpdateFields>::invoke([&o, cf]<typename Field>() {
+    ZuUnroll::all<UpdateFields>([&o, cf]<typename Field>() {
       Field::set(o, cf->template getField<Field>());
     });
   }

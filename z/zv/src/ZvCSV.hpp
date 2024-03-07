@@ -74,8 +74,7 @@ namespace ZvCSV_ {
       Row &row, const ZtVField *field, const T *object, const Fmt &fmt) {
     switch (field->type->code) {
       case ZtFieldTypeCode::String: {
-	field->get<ZtFieldTypeCode::String>(object,
-	    [&row](ZuString v) { quote_(row, v); });
+	quote_(row, field->get.fn<ZtFieldTypeCode::String>(object));
       } break;
       case ZtFieldTypeCode::UDT:
       case ZtFieldTypeCode::Enum:

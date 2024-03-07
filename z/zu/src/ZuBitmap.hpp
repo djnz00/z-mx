@@ -92,28 +92,36 @@ public:
 
   void flip() {
     if constexpr (Words <= Unroll)
-      ZuUnroll::all<Words>([this](auto i) { data[i] = ~data[i]; });
+      ZuUnroll::all<ZuMkSeq<Words>>([this](auto i) {
+	data[i] = ~data[i];
+      });
     else
       for (unsigned i = 0; i < Words; i++) data[i] = ~data[i];
   }
 
   ZuBitmap &operator |=(const ZuBitmap &b) {
     if constexpr (Words <= Unroll)
-      ZuUnroll::all<Words>([this, &b](auto i) { data[i] |= b.data[i]; });
+      ZuUnroll::all<ZuMkSeq<Words>>([this, &b](auto i) {
+	data[i] |= b.data[i];
+      });
     else
       for (unsigned i = 0; i < Words; i++) data[i] |= b.data[i];
     return *this;
   }
   ZuBitmap &operator &=(const ZuBitmap &b) {
     if constexpr (Words <= Unroll)
-      ZuUnroll::all<Words>([this, &b](auto i) { data[i] &= b.data[i]; });
+      ZuUnroll::all<ZuMkSeq<Words>>([this, &b](auto i) {
+	data[i] &= b.data[i];
+      });
     else
       for (unsigned i = 0; i < Words; i++) data[i] &= b.data[i];
     return *this;
   }
   ZuBitmap &operator ^=(const ZuBitmap &b) {
     if constexpr (Words <= Unroll)
-      ZuUnroll::all<Words>([this, &b](auto i) { data[i] ^= b.data[i]; });
+      ZuUnroll::all<ZuMkSeq<Words>>([this, &b](auto i) {
+	data[i] ^= b.data[i];
+      });
     else
       for (unsigned i = 0; i < Words; i++) data[i] ^= b.data[i];
     return *this;

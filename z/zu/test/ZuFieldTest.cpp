@@ -7,6 +7,7 @@
 
 #include <zlib/ZuField.hpp>
 #include <zlib/ZuPP.hpp>
+#include <zlib/ZuUnroll.hpp>
 
 namespace Foo {
   struct A {
@@ -44,11 +45,11 @@ int main()
   A a;
   ZuType<1, ZuFieldList<A>>::set(a, "bye");
   ZuType<2, ZuFieldList<A>>::set(a, 43.0);
-  ZuTypeAll<ZuFieldList<A>>::invoke([&a]<typename T>() mutable {
+  ZuUnroll::all<ZuFieldList<A>>([&a]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(a) << '\n';
   });
   B b;
-  ZuTypeAll<ZuFieldList<B>>::invoke([&b]<typename T>() mutable {
+  ZuUnroll::all<ZuFieldList<B>>([&b]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(b) << '\n';
   });
   std::cout << ZuFieldAxor<A>()(a).print() << '\n';

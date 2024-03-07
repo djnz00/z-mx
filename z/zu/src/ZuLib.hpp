@@ -567,30 +567,6 @@ struct ZuTypeApply_<Type, ZuTypeList<Args...>> :
 template <template <typename...> class Type, typename ...Args>
 using ZuTypeApply = typename ZuTypeApply_<Type, Args...>::T;
 
-// invoke lambda on all elements of typelist []<typename T>() { ...; }
-template <typename ...>
-struct ZuTypeAll {
-  template <typename L> static ZuInline void invoke(L) { }
-  template <typename L> static ZuInline void invoke_(L &) { }
-};
-template <typename T0>
-struct ZuTypeAll<T0> {
-  template <typename L> static ZuInline void invoke(L l) { invoke_(l); }
-  template <typename L> static ZuInline void invoke_(L &l) {
-    l.template operator ()<T0>();
-  }
-};
-template <typename T0, typename ...Args>
-struct ZuTypeAll<T0, Args...> {
-  template <typename L> static ZuInline void invoke(L l) { invoke_(l); }
-  template <typename L> static ZuInline void invoke_(L &l) {
-    l.template operator ()<T0>();
-    ZuTypeAll<Args...>::invoke_(l);
-  }
-};
-template <typename ...Args>
-struct ZuTypeAll<ZuTypeList<Args...>> : public ZuTypeAll<Args...> { };
-
 // compile-time numerical sequence
 template <unsigned ...> struct ZuSeq { };
 template <typename> struct ZuUnshiftSeq_;

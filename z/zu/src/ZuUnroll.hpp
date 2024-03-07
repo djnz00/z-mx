@@ -30,14 +30,15 @@
 #pragma once
 #endif
 
-// ZuUnroll::all<3>([](auto i) { foo<i>(); });
+// ZuUnroll::all<ZuMkSeq<3>>([](auto i) { foo<i>(); });
+// ZuUnroll::all<ZuTypeList<int, bool>>([]<template T>() { foo<T>(); });
 
 // gcc/clang at -O2 or better compiles to a fully unrolled sequence
 
 // the underlying trick is to use std::initializer_list<> to unpack
 // a parameter pack, where each expression in the list is evaluated with
-// a side effect that invokes the lambda, which in turn is
-// passed a constexpr index parameter
+// a side effect that invokes the lambda template operator () with a
+// constexpr index parameter
 
 #include <initializer_list>
 
@@ -45,15 +46,7 @@ namespace ZuUnroll {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
-template <typename R, typename Seq> struct All;
-template <unsigned ...I> struct All<void, ZuSeq<I...>> {
-  template <typename L>
-  constexpr static void fn(L l) {
-    std::initializer_list<int>{
-      (l(ZuUnsigned<I>{}), 0)...
-    };
-  }
-};
+template <typename, typename> struct All;
 
 template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   template <typename L>
@@ -73,18 +66,85 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
     return r;
   }
 };
+
+template <typename R, typename ...Args> struct All<R, ZuTypeList<Args...>> {
+  template <typename L>
+  constexpr static R fn(L l) {
+    R r;
+    std::initializer_list<int>{
+      ((r = l.template operator()<Args>()), 0)...
+    };
+    return r;
+  }
+  // map/reduce all()
+  template <typename L>
+  constexpr static R fn(R r, L l) {
+    std::initializer_list<int>{
+      ((r = l.template operator()<Args>(r)), 0)...
+    };
+    return r;
+  }
+};
+
+template <unsigned ...I> struct All<void, ZuSeq<I...>> {
+  template <typename L>
+  constexpr static void fn(L l) {
+    std::initializer_list<int>{
+      (l(ZuUnsigned<I>{}), 0)...
+    };
+  }
+};
+
+template <typename ...Args> struct All<void, ZuTypeList<Args...>> {
+  template <typename L>
+  constexpr static void fn(L l) {
+    std::initializer_list<int>{
+      (l.template operator()<Args>(), 0)...
+    };
+  }
+};
+
+template <> struct All<void, ZuSeq<>> {
+  template <typename L>
+  constexpr static void fn(L) { }
+};
+
+template <> struct All<void, ZuTypeList<>> {
+  template <typename L>
+  constexpr static void fn(L) { }
+};
+
+template <typename R> struct All<R, ZuSeq<>> {
+  template <typename L>
+  constexpr static R fn(L) { return {}; }
+};
+
+template <typename R> struct All<R, ZuTypeList<>> {
+  template <typename L>
+  constexpr static R fn(L) { return {}; }
+};
+
 #pragma GCC diagnostic pop
 
-template <unsigned N, typename L>
+template <typename, typename> struct Deduce;
+template <typename L> struct Deduce<ZuSeq<>, L> { using R = void; };
+template <unsigned ...I, typename L> struct Deduce<ZuSeq<I...>, L> {
+  using R = ZuDecay<decltype(ZuDeclVal<L>()(ZuUnsigned<0>{}))>;
+};
+template <typename L> struct Deduce<ZuTypeList<>, L> { using R = void; };
+template <typename ...Args, typename L> struct Deduce<ZuTypeList<Args...>, L> {
+  using R =
+    ZuDecay<decltype(ZuDeclVal<L>().template operator()<ZuType<0, Args...>>())>;
+};
+template <typename Args, typename L>
 constexpr decltype(auto) all(L l) {
-  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
-  return All<R, ZuMkSeq<N>>::fn(ZuMv(l));
+  return All<typename Deduce<Args, L>::R, Args>::fn(ZuMv(l));
 }
 
 // map/reduce all() - caller supplies initial value of accumulator
-template <unsigned N, typename L, typename R>
+template <typename Args, typename R, typename L>
 constexpr decltype(auto) all(R r, L l) {
-  return All<R, ZuMkSeq<N>>::fn(ZuMv(r), ZuMv(l));
+  return All<R, Args>::fn(ZuMv(r), ZuMv(l));
 }
 
 } // ZuUnroll
