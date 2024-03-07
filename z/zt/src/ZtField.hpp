@@ -380,7 +380,7 @@ struct ZtVFieldGet {
     const void *	(*udt)(const void *);		// UDT
     bool		(*bool_)(const void *);		// Bool
     int64_t		(*int_)(const void *);		// Int
-    uint64_t		(*uint_)(const void *);		// UInt
+    uint64_t		(*uint)(const void *);		// UInt
     int			(*enum_)(const void *);		// Enum
     uint64_t		(*flags)(const void *);		// Flags
     double		(*float_)(const void *);	// Float
@@ -411,7 +411,7 @@ struct ZtVFieldGet {
   }
   template <unsigned I>
   ZuIfT<I == ZtFieldTypeCode::UInt, uint64_t> get(const void *p) const {
-    return fn.uint_(p);
+    return fn.uint(p);
   }
   template <unsigned I>
   ZuIfT<I == ZtFieldTypeCode::Enum, int> get(const void *p) const {
@@ -447,7 +447,7 @@ struct ZtVFieldSet {
     void		(*udt)(void *, const void *);	// UDT
     void		(*bool_)(void *, bool);		// Bool
     void		(*int_)(void *, int64_t);	// Int
-    void		(*uint_)(void *, uint64_t);	// UInt
+    void		(*uint)(void *, uint64_t);	// UInt
     void		(*enum_)(void *, int);		// Enum
     void		(*flags)(void *, uint64_t);	// Flags
     void		(*float_)(void *, double);	// Float
@@ -478,7 +478,7 @@ struct ZtVFieldSet {
   }
   template <unsigned I, typename U>
   ZuIfT<I == ZtFieldTypeCode::UInt> set(void *p, U &&v) const {
-    fn.uint_(p, ZuFwd<U>(v));
+    fn.uint(p, ZuFwd<U>(v));
   }
   template <unsigned I, typename U>
   ZuIfT<I == ZtFieldTypeCode::Enum> set(void *p, U &&v) const {
@@ -1201,10 +1201,10 @@ struct ZtVFieldType_UInt : public ZtVFieldType {
     .code = ZtFieldTypeCode::UInt,
     .props = ZtVFieldProp::Value<Props>{},
     .info = {.null = nullptr},
-    .get = {.fn = {.uint_ = [](const void *ptr) -> uint64_t {
+    .get = {.fn = {.uint = [](const void *ptr) -> uint64_t {
       return *(static_cast<const T *>(ptr));
     }}},
-    .set = {.fn = {.uint_ = [](void *ptr, uint64_t v) {
+    .set = {.fn = {.uint = [](void *ptr, uint64_t v) {
       *(static_cast<T *>(ptr)) = v;
     }}},
     .print = [](const void *ptr, ZmStream &s, const ZtFieldFmt &fmt) {
@@ -1237,12 +1237,12 @@ struct ZtField_UInt : public ZtField_<Base, Props> {
   using Type = ZtFieldType_UInt<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtVFieldGet getFn() {
-    return {.fn = {.uint_ = [](const void *o) -> uint64_t {
+    return {.fn = {.uint = [](const void *o) -> uint64_t {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtVFieldSet setFn() {
-    return {.fn = {.uint_ = [](void *, uint64_t) { }}};
+    return {.fn = {.uint = [](void *, uint64_t) { }}};
   }
   using Print_ = typename Type::Print;
   struct Print {
@@ -1275,7 +1275,7 @@ struct ZtField_UInt<Base, Props, Def, Min, Max, false> :
     public ZtField_UInt<Base, Props, Def, Min, Max, true> {
   using O = typename Base::O;
   static ZtVFieldSet setFn() {
-    return {.fn = {.uint_ = [](void *o, uint64_t v) {
+    return {.fn = {.uint = [](void *o, uint64_t v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -2085,6 +2085,8 @@ using ZtVFieldArray = ZuArray<const ZtVField *>;
 template <typename VField, typename ...Fields>
 struct ZtVFields_ {
   static ZuArray<const VField *> fields() {
+    // FIXME - concurrent and/or repeated invocation, need a
+    // singleton constructor
     enum { N = sizeof...(Fields) };
     static const VField fields_[N] =
       // std::initializer_list<ZtVField>
@@ -2105,6 +2107,8 @@ inline ZtVFieldArray ZtVFields() {
 }
 
 // --- generic data transformation (ORM, etc.)
+
+namespace ZtField {
 
 // load from external representation
 struct Importer {
@@ -2139,8 +2143,6 @@ struct Export {
   }
 };
 
-namespace ZtField {
-
 namespace TypeCode = ZtFieldTypeCode;
 namespace Prop = ZtFieldProp;
 
@@ -2173,7 +2175,7 @@ struct Fielded_ {
       ZmAssert(export_.exporter.fn.length() == AllFields::N);
       ZuTypeAll<Fields>::invoke([&o, &export_]<typename Field>() {
 	const auto &v = Field::get(o); // temporary lifetime-extension
-	export_.set<ZuTypeIndex<Field, AllFields>, Field::Type::Code>(v);
+	export_.set<ZuTypeIndex<Field, AllFields>{}, Field::Type::Code>(v);
       });
     }
   };
@@ -2190,7 +2192,7 @@ struct Fielded_ {
       ZmAssert(import_.importer.fn.length() == AllFields::N);
       return O{
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>()...
       };
@@ -2199,7 +2201,7 @@ struct Fielded_ {
       ZmAssert(import_.importer.fn.length() == AllFields::N);
       new (o) O{
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>()...
       };
@@ -2211,7 +2213,7 @@ struct Fielded_ {
     ZuTypeAll<InitFields>::invoke([&o, &import_]<typename Field>() {
       Field::set(o,
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>());
     });
@@ -2224,7 +2226,7 @@ struct Fielded_ {
     ZuTypeAll<InitFields>::invoke([&o, &import_]<typename Field>() {
       Field::set(o,
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>());
     });
@@ -2235,7 +2237,7 @@ struct Fielded_ {
     Load__() = default;
     Load__(const Import &import_) : O{
       import_.get<
-	ZuTypeIndex<Field, AllFields>,
+	ZuTypeIndex<Field, AllFields>{},
 	Field::Type::Code,
 	typename Field::T>()...
     } { }
@@ -2250,7 +2252,7 @@ struct Fielded_ {
       ZuTypeAll<InitFields>::invoke([this, &import_]<typename Field>() {
 	Field::set(*this,
 	  import_.get<
-	    ZuTypeIndex<Field, AllFields>,
+	    ZuTypeIndex<Field, AllFields>{},
 	    Field::Type::Code,
 	    typename Field::T>());
       });
@@ -2264,7 +2266,7 @@ struct Fielded_ {
     ZuTypeAll<LoadFields>::invoke([&o, &import_]<typename Field>() {
       Field::set(o,
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>());
     });
@@ -2274,7 +2276,7 @@ struct Fielded_ {
     ZuTypeAll<UpdateFields>::invoke([&o, &import_]<typename Field>() {
       Field::set(o,
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>());
     });
@@ -2287,7 +2289,7 @@ struct Fielded_ {
       ZmAssert(import_.importer.fn.length() == AllFields::N);
       return Tuple{
 	import_.get<
-	  ZuTypeIndex<Field, AllFields>,
+	  ZuTypeIndex<Field, AllFields>{},
 	  Field::Type::Code,
 	  typename Field::T>()...
       };

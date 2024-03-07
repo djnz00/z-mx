@@ -38,6 +38,8 @@ struct Foo {
   ZuDecimal decimal;
   ZmTime time_;
   Nested nested;
+
+  friend ZtFieldPrint ZuPrintType(Foo *);
 };
 
 ZtFields(Foo,
@@ -83,6 +85,7 @@ int main()
       << MinMax<Field>{fmt}
       << (Field::Type::Code == ZtFieldTypeCode::Bytes ? "" : "\n");
   });
+  std::cout << '\n';
   ZtVFieldArray fields{ZtVFields<Foo>()};
   auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldTypeCode;
@@ -125,4 +128,26 @@ int main()
     }
     std::cout << '\n';
   }
+
+  ZtField::Importer i{ {
+    ZtVFieldGet{.fn = {.string = [](const void *) -> ZuString { return "foo bar"; }}},
+    ZtVFieldGet{.fn = {.bytes = [](const void *) -> ZuBytes { return {"yikes"}; }}},
+    ZtVFieldGet{.fn = {.string = [](const void *) -> ZuString { return "hello"; }}},
+    ZtVFieldGet{.fn = {.int_ = [](const void *) -> int64_t { return -42; }}},
+    ZtVFieldGet{.fn = {.int_ = [](const void *) -> int64_t { return 42; }}},
+    ZtVFieldGet{.fn = {.uint = [](const void *) -> uint64_t { return 43; }}},
+    ZtVFieldGet{.fn = {.enum_ = [](const void *) -> int { return -1; }}},
+    ZtVFieldGet{.fn = {.flags = [](const void *) -> uint64_t { return 0; }}},
+    ZtVFieldGet{.fn = {.float_ = [](const void *) -> double { return -0.42; }}},
+    ZtVFieldGet{.fn = {.float_ = [](const void *) -> double { return 0.42; }}},
+    ZtVFieldGet{.fn = {.fixed = [](const void *) -> ZuFixed { return {0.42, 2}; }}},
+    ZtVFieldGet{.fn = {.decimal = [](const void *) -> ZuDecimal { return 0.42; }}},
+    ZtVFieldGet{.fn = {.time = [](const void *) -> ZmTime { return ZmTimeNow(); }}},
+    ZtVFieldGet{.fn = {.udt = [](const void *) -> const void * {
+      static Nested n{42, 43};
+      return &n;
+    }}}
+  } };
+  ZtField::Import j{i};
+  std::cout << ZtField::ctor<Foo>(j) << '\n';
 }
