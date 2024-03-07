@@ -3,6 +3,8 @@
 
 #include <zlib/ZuID.hpp>
 
+#include <zlib/ZmDemangle.hpp>
+
 #include <zlib/ZtField.hpp>
 
 namespace Values {
@@ -90,10 +92,24 @@ int main()
     field.type->print(ptr, s_, fmt);
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {
-    std::cout << fields[i]->id << " deflt=";
-    print(std::cout, *fields[i], ZtVFieldConstant::Deflt);
+    std::cout << fields[i]->id;
+    auto type = fields[i]->type;
     using namespace ZtFieldTypeCode;
-    switch (fields[i]->type->code) {
+    using ZtFieldTypeCode::Flags;
+    switch (type->code) {
+      case Enum:
+	std::cout << " enum=" << type->info.enum_()->id();
+	break;
+      case Flags:
+	std::cout << " flags=" << type->info.flags()->id();
+	break;
+      case UDT:
+	std::cout << " udt=" << ZmDemangle{type->info.udt->name()};
+	break;
+    }
+    std::cout << " deflt=";
+    print(std::cout, *fields[i], ZtVFieldConstant::Deflt);
+    switch (type->code) {
       case Int:
       case UInt:
       case Float:

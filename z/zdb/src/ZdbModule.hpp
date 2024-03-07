@@ -83,10 +83,10 @@ struct DB {
   //   CassStatement	*statement;
   // }
   //
-  // // same for Importer, except with row
+  // // same for Importer, except with row instead of statement
   //
-  // 3 exporters (push, update, del)
   // 1 importer (get)
+  // 3 exporters (push, update, del)
 
   virtual void close() = 0;			// -> closed
 

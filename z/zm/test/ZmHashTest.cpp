@@ -133,7 +133,7 @@ struct I {
   I(const I &i) : m_i(i.m_i) { }
   I &operator =(const I &i)
     { if (this != &i) m_i = i.m_i; return *this; }
-  int hash() const { return m_i; }
+  uint32_t hash() const { return m_i; }
   int cmp(const I &i) const { return ZuCmp<int>::cmp(m_i, i.m_i); }
   bool operator !() const { return !m_i; }
 
@@ -143,7 +143,7 @@ struct I {
 inline bool operator ==(const I &l, const I &r) { return l.m_i == r.m_i; }
 
 struct J : public ZmObject {
-  static const ::I &IAccessor(const J *j) { return j->m_i; }
+  static const ::I &IAxor(const J *j) { return j->m_i; }
   J(int i) : m_i(i) { }
   J(const J &j) : m_i(j.m_i.m_i) { }
   J &operator =(const J &j) {
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));
 
   {
-    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAccessor> >;
+    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAxor> >;
     ZmRef<H> h_ = new H();
     H &h = *h_;
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(k)));
