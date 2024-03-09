@@ -80,8 +80,8 @@ public:
   Handle handle() { return m_handle; }
 
   unsigned flags() { return m_flags; }
-  void setFlags(int f) { Guard guard(m_lock); m_flags |= f; }
-  void clrFlags(int f) { Guard guard(m_lock); m_flags &= ~f; }
+  void setFlags(unsigned f) { Guard guard(m_lock); m_flags |= f; }
+  void clrFlags(unsigned f) { Guard guard(m_lock); m_flags &= ~f; }
 
   int init(Handle handle, unsigned flags, ZtString *e = 0) {
     Guard guard(m_lock);

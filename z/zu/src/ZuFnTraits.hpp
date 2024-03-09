@@ -126,17 +126,18 @@ template <typename L>
 struct ZuFnTraits<L, decltype(&L::operator(), void())> :
     public ZuFnTraits_1<&L::operator()> { };
 
-template <typename L, typename T = void>
-using ZuIsMutable =
-  ZuIfT<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsMutable, T>;
-template <typename L, typename T = void>
-using ZuNotMutable =
-  ZuIfT<ZuFnTraits<L>::IsCallable && !ZuFnTraits<L>::IsMutable, T>;
-template <typename L, typename T = void>
-using ZuIsStateless =
-  ZuIfT<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsStateless, T>;
-template <typename L, typename T = void>
-using ZuNotStateless =
-  ZuIfT<ZuFnTraits<L>::IsCallable && !ZuFnTraits<L>::IsStateless, T>;
+template <typename L> struct ZuIsMutableFn :
+    public ZuBool<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsMutable> { };
+template <typename L> struct ZuIsStatelessFn :
+    public ZuBool<ZuFnTraits<L>::IsCallable && ZuFnTraits<L>::IsStateless> { };
+
+template <typename L, typename R = void>
+using ZuMutableFn = ZuIfT<ZuIsMutableFn<L>{}, R>;
+template <typename L, typename R = void>
+using ZuNotMutableFn = ZuIfT<!ZuIsMutableFn<L>{}, R>;
+template <typename L, typename R = void>
+using ZuStatelessFn = ZuIfT<ZuIsStatelessFn<L>{}, R>;
+template <typename L, typename R = void>
+using ZuNotStatelessFn = ZuIfT<!ZuIsStatelessFn<L>{}, R>;
 
 #endif /* ZuFnTraits_HPP */

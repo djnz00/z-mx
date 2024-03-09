@@ -33,8 +33,6 @@
 #include <zlib/ZuInt.hpp>
 #include <zlib/ZuCmp.hpp>
 
-#include <zlib/zdb__fbs.h>
-
 namespace Zdb_ {
 
 // Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
@@ -46,120 +44,6 @@ using UN = uint64_t;
 using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ZuCmp<RN>::maximum(); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
-
-// -- message format - used for both file and network
-
-// custom header with an explicitly little-endian uint32 length
-#pragma pack(push, 1)
-struct Hdr {
-  ZuLittleEndian<uint32_t>	length;	// length of body
-
-  const uint8_t *data() const {
-    return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
-  }
-};
-#pragma pack(pop)
-
-// call following Finish() to push header and detach buffer
-template <typename Builder, typename Owner>
-inline auto saveHdr(Builder &fbb, Owner *owner) {
-  unsigned length = fbb.GetSize();
-  auto buf = fbb.buf();
-  buf->owner = owner;
-  auto ptr = buf->prepend(sizeof(Hdr));
-  if (ZuUnlikely(!ptr)) return decltype(buf){};
-  new (ptr) Hdr{length};
-  return buf;
-}
-template <typename Builder>
-inline auto saveHdr(Builder &fbb) {
-  return saveHdr(fbb, static_cast<void *>(nullptr));
-}
-// returns the total length of the message including the header,
-// INT_MAX if not enough bytes have been read yet, -1 if corrupt
-template <typename Buf>
-inline int loadHdr(const Buf *buf) {
-  if (ZuUnlikely(buf->length < sizeof(Hdr))) return INT_MAX;
-  auto hdr = buf->template ptr<Hdr>();
-  return sizeof(Hdr) + static_cast<uint32_t>(hdr->length);
-}
-// returns -1 if the header is invalid/corrupted, or lambda return
-template <typename Buf, typename Fn>
-inline int verifyHdr(ZmRef<Buf> buf, Fn fn) {
-  if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
-  auto hdr = buf->template ptr<Hdr>();
-  unsigned length = hdr->length;
-  if (length > (buf->length - sizeof(Hdr))) return -1;
-  int i = fn(hdr, ZuMv(buf));
-  if (i < 0) return i;
-  return sizeof(Hdr) + i;
-}
-// payload data containing a single whole message
-inline ZuArray<const uint8_t> msgData(const Hdr *hdr) {
-  if (ZuUnlikely(!hdr)) return {};
-  return {
-    reinterpret_cast<const uint8_t *>(hdr),
-    static_cast<unsigned>(sizeof(Hdr) + hdr->length)};
-}
-
-inline const fbs::Msg *msg(const Hdr *hdr) {
-  if (ZuUnlikely(!hdr)) return nullptr;
-  auto data = hdr->data();
-  if (ZuUnlikely((!Zfb::Verifier{data, hdr->length}.VerifyBuffer<fbs::Msg>())))
-    return nullptr;
-  return Zfb::GetRoot<fbs::Msg>(data);
-}
-inline const fbs::Msg *msg_(const Hdr *hdr) {
-  return Zfb::GetRoot<fbs::Msg>(hdr->data());
-}
-inline const fbs::Heartbeat *hb_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Heartbeat *>(msg->body());
-}
-inline const fbs::Heartbeat *hb(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  switch (static_cast<int>(msg->body_type())) {
-    default:
-      return nullptr;
-    case fbs::Body_HB:
-      return hb_(msg);
-  }
-}
-inline bool recovery(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return false;
-  return msg->body_type() == fbs::Body_Rec;
-}
-inline bool recovery_(const fbs::Msg *msg) {
-  return msg->body_type() == fbs::Body_Rec;
-}
-inline const fbs::Record *record_(const fbs::Msg *msg) {
-  return static_cast<const fbs::Record *>(msg->body());
-}
-inline const fbs::Record *record(const fbs::Msg *msg) {
-  if (ZuUnlikely(!msg)) return nullptr;
-  switch (static_cast<int>(msg->body_type())) {
-    default:
-      return nullptr;
-    case fbs::Body_Rep:
-    case fbs::Body_Rec:
-      return record_(msg);
-  }
-}
-template <typename T>
-inline const T *data(const fbs::Record *record) {
-  if (ZuUnlikely(!record)) return nullptr;
-  auto data = Zfb::Load::bytes(record->data());
-  if (ZuUnlikely(!data)) return nullptr;
-  if (ZuUnlikely((
-	!Zfb::Verifier{data.data(), data.length()}.VerifyBuffer<T>())))
-    return nullptr;
-  return Zfb::GetRoot<T>(data.data());
-}
-template <typename T>
-inline const T *data_(const fbs::Record *record) {
-  auto data = Zfb::Load::bytes(record->data());
-  if (ZuUnlikely(!data)) return nullptr;
-  return Zfb::GetRoot<T>(data.data());
-}
 
 } // Zdb_
 

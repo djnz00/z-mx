@@ -400,7 +400,7 @@ template <
 struct ZuPairAxor_Bind {
   static decltype(auto) get(const P &v) { return v.template p<I>(); }
   static decltype(auto) get(P &v) { return v.template p<I>(); }
-  static decltype(auto) get(P &&v) { return ZuMv(ZuMv(v).template p<I>()); }
+  static decltype(auto) get(P &&v) { return ZuMv(v).template p<I>(); }
 };
 template <typename P, unsigned I>
 struct ZuPairAxor_Bind<P, I, true> {

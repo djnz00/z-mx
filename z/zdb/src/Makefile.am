@@ -16,13 +16,12 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZdbLib.hpp \
-	ZdbTypes.hpp ZdbBuf.hpp ZdbMsg.hpp ZdbFile.hpp Zdb.hpp \
-	ZdbModule.hpp \
+	ZdbTypes.hpp ZdbBuf.hpp ZdbMsg.hpp ZdbStore.hpp Zdb.hpp
 	${FBS_H}
 #fbsdir = $(datarootdir)/${PACKAGE}/fbs
 #dist_fbs_DATA = fbs/telemetry.fbs
 lib_LTLIBRARIES = libZdb.la
-libZdb_la_SOURCES = ZdbLib.cpp ZdbFile.cpp Zdb.cpp
+libZdb_la_SOURCES = ZdbLib.cpp Zdb.cpp
 libZdb_la_LIBADD = \
 	$(top_builddir)/zv/src/libZv.la $(top_builddir)/zfb/src/libZfb.la \
 	$(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \

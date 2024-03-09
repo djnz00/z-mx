@@ -75,13 +75,36 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
       throw ZtString{} <<
 	"ZdbEnv thread misconfigured: " << config.thread;
 
-    if (!config.fileThread)
-      config.fileSID = config.sid;
-    else {
-      config.fileSID = mx->sid(config.fileThread);
-      if (invalidSID(config.fileSID))
+    {
+      ZiModule module_;
+      unsigned flags = 0;
+      auto path = config.storeCf->get<true>("module");
+      auto preload = config.storeCf->getBool("preload", false);
+      if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
 	throw ZtString{} <<
-	  "ZdbEnv fileThread misconfigured: " << config.fileThread;
+	  "failed to load \"" << path << "\": " << ZuMv(e);
+      ZdbStoreFn storeFn =
+	static_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
+      if (!storeFn) {
+	module_.unload();
+	// FIXME - really this should be throw ZuPair<ZeEvent, [](ZeLogBuf &buf) {
+	// buf << ... }
+	// ... which should be a ZeThrow macro
+	throw ZtString{} <<
+	  "failed to resolve \"" ZdbStoreFnSym "\" in \"" <<
+	  path << "\": " << ZuMv(e);
+      }
+      m_store = (*storeFn)();
+      auto result = m_store->init(
+	  config.storeCf,
+	  [](ZeEvent error, ZmFn<ZeLogBuf &> msg) {
+	    ZeLog::log(ZuMv(error), ZuMv(msg));
+	  });
+      if (result.contains<Event>()) {
+	const auto &error = result.v<Event>();
+	ZeLog::log(error.v<ZeEvent>(), error.v<LogMsg>());
+	// FIXME - failed
+      }
     }
 
     {
@@ -96,18 +119,13 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	    throw ZtString{} <<
 	      "Zdb " << dbCf.id << " thread misconfigured: " << dbCf.thread;
 	}
-	if (!dbCf.fileThread)
-	  dbCf.fileSID = config.fileSID;
-	else {
-	  dbCf.fileSID = mx->sid(dbCf.fileThread);
-	  if (invalidSID(dbCf.fileSID))
-	    throw ZtString{} <<
-	      "Zdb " << dbCf.id <<
-	      " fileThread misconfigured: " << dbCf.fileThread;
-	}
-	if (!dbCf.vacuumBatch) dbCf.vacuumBatch = config.vacuumBatch;
       }
     }
+
+    {
+      ZmRef<ZvCf> storeCf = cf->getCf<true>("store");
+      ZiModule module_;
+      ZiModule::Path name = storeCf->get("store", true);
 
     m_cf = ZuMv(config);
     m_mx = mx;
@@ -1372,18 +1390,26 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
   return fbb.Finish();
 }
 
-// load object from buffer
+// load object from buffer, bypassing cache
+ZmRef<AnyObject> DB::load_(const fbs::Record *record)
+{
+  int op = record->op();
+  if (op == Op::Delete) return nullptr;
+  ZmRef<AnyObject> object;
+  auto data = Zfb::Load::bytes(record->data());
+  if (auto fn = m_handler.loadFn)
+    object = fn(this, data.data(), data.length());
+  if (object) object->init(record->un(), record->rn());
+  return object;
+}
+
+// load object from buffer, updating cache
 ZmRef<AnyObject> DB::load(const fbs::Record *record)
 {
-  auto prevRN = record->prevRN();
-  auto seqLenOp = record->seqLenOp();
-  switch (SeqLenOp::op(seqLenOp)) {
-    case Op::Delete:
-    case Op::Purge:
-      return nullptr;
-  }
+  int op = record->op();
+  if (op == Op::Delete) return nullptr;
   ZmRef<AnyObject> object;
-  if (prevRN != nullRN()) object = m_objCache.del(prevRN);
+  object = m_objCache.del(record->rn());
   auto data = Zfb::Load::bytes(record->data());
   if (!object) {
     if (auto fn = m_handler.loadFn)
@@ -1392,7 +1418,7 @@ ZmRef<AnyObject> DB::load(const fbs::Record *record)
     if (auto fn = m_handler.updateFn)
       object = fn(object, data.data(), data.length());
   }
-  if (object) object->init(record->rn(), prevRN, seqLenOp);
+  if (object) object->init(record->un(), record->rn());
   return object;
 }
 

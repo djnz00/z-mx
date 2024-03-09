@@ -17,10 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// Z Database data store module interface
+// Z Database data store interface
 
-#ifndef ZdbModule_HPP
-#define ZdbModule_HPP
+#ifndef ZdbStore_HPP
+#define ZdbStore_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -32,41 +32,8 @@
 
 namespace Zdb_ {
 
-namespace Core {	// Zdb Core
-
-struct Env {
-  virtual void initialized() = 0;
-  virtual void initFailed() = 0;
-  virtual void finalized() = 0;
-
-  virtual void log(ZeEvent, ZtString) = 0;
-};
-
-struct Object {
-  void		*ptr;
-};
-
-struct DB {
-  virtual ZuID id() const = 0;
-
-  ZtVFieldArray fields() const = 0;	// used to construct imports/exports
-
-  virtual void opened(UN nextUN, RN nextRN) = 0;
-  virtual void openFailed() = 0;
-  virtual void closed() = 0;
-
-  virtual void recovered(RN, const ZtField::Import &) = 0;
-  virtual void retrieved(RN, const ZtField::Import &) = 0;
-  virtual void pushed(RN) = 0;
-  virtual void updated(RN) = 0;
-  virtual void deleted(RN) = 0;
-};
-
-} // Core
-
-namespace DS {		// Zdb Data Store
-
-struct DB {
+// back-end data store table
+struct Table {
   // importer {row, indices[]} -> value_get_*(row_get_column(), ...)
   // exporter {statement, indices[]} -> statement_bind_*()
   //
@@ -88,31 +55,54 @@ struct DB {
   // 1 importer (get)
   // 3 exporters (push, update, del)
 
-  virtual void close() = 0;			// -> closed
+  virtual void close(ZmFn<>) = 0;		// idempotent
 
-  virtual void get(RN) = 0;			// -> retrieved
+  using GetResult = ZuUnion<
+    const ZtField::Import &,			// succeeded
+    void,					// missing
+    ZeEvent>;					// error
+  using GetFn = ZmFn<RN, GetResult>;
+
+  virtual void get(RN, GetFn) = 0;
 
   using ExportFn = ZmFn<const ZtField::Export &>;
 
-  virtual void push(ExportFn) = 0;		// -> pushed
-  virtual void update(ExportFn) = 0;		// -> updated
-  virtual void del(ExportFn) = 0;		// -> deleted
+  using CommitResult = ZuUnion<void, ZeEvent>;
+  using CommitFn = ZmFn<UN, RN, CommitResult>;
+
+  // UN is idempotency key
+  virtual void push(UN, RN, ExportFn, CommitFn) = 0;	// idempotent
+  virtual void update(UN, RN, ExportFn, CommitFn) = 0;	// idempotent
+  virtual void del(UN, RN, CommitFn) = 0;		// idempotent
 }
 
-struct Env {
-  virtual void init(Core::Env *, ZvCf *cf) = 0;	// -> initialized | initFailed
-  virtual void final() = 0;			// -> finalized
+// back-end data store
+struct Store {
+  using LogFn = ZmFn<ZeEvent>;			// log function
 
-  virtual DB *open(Core::DB *, bool recover) = 0; // -> opened, recovered...
+  using Result = ZuUnion<void, ZeEvent>;
+  using ResultFn = ZmFn<Result>;
+
+  virtual Result init(			// initialize data store - idempotent
+      ZvCf *cf,
+      LogFn) = 0;
+
+  virtual void final(ZmFn<>) = 0;	// finalize data store - idempotent
+
+  using RecoverFn = ZmFn<RN, const ZtField::Import &>;	// recovered record
+
+  virtual Table *open(			// open table - idempotent
+      ZuID id,
+      ZtVFieldArray fields,
+      ResultFn,
+      RecoverFn) = 0;
 };
-
-} // DS
 
 } // Zdb_
 
 extern "C" {
-  typedef Zdb_::DS::Env *(*ZdbModuleFn)();	// entry point
+  typedef Zdb_::Store *(*ZdbStoreFn)();	// entry point
 }
-#define ZdbModuleFnSym	"Zdb_module"		// entry point symbol
+#define ZdbStoreFnSym	"ZdbStore"	// entry point symbol
 
-#endif /* ZdbModule_HPP */
+#endif /* ZdbDataStore_HPP */

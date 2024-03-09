@@ -65,8 +65,6 @@
 
 class ZeLog;
 
-using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
-
 namespace ZeSinkType {
   ZtEnumValues(ZeSinkType, File, Debug, System, Lambda);
 }
@@ -241,16 +239,18 @@ public:
   static void forked() { instance()->forked_(); }
 
   template <typename L>
-  static void log(ZeEvent e, L l) { instance()->log_(ZuMv(e), ZuMv(l)); }
+  static void log(ZeLambdaEvent<L> e) {
+    instance()->log_(ZuMv(e));
+  }
   template <typename L>
-  void log_(ZeEvent e, L l) {
+  void log_(ZeLambdaEvent<L> e) {
     if (static_cast<int>(e.severity) < m_level) return;
-    auto fn_ = [e = ZuMv(e), l = ZuMv(l)](ZeLog *this_) mutable {
+    auto fn_ = [e = ZuMv(e)](ZeLog *this_) mutable {
       auto sink = this_->sink_();
       auto &buf = this_->m_buf;
       buf.null();
       sink->pre(buf, e);
-      ZuMv(l)(buf);
+      e.l(buf);
       sink->post(buf, e);
     };
     Fn fn{fn_};
@@ -309,74 +309,29 @@ private:
 #pragma warning(pop)
 #endif
 
-namespace ZeLog_ {
-
-template <typename U> struct IsLiteral_ : public ZuBool<
-    ZuTraits<U>::IsArray &&
-    ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
-    ZuConversion<typename ZuTraits<U>::Elem, const char>::Same> { };
-template <typename U> struct IsLiteral : public IsLiteral_<ZuDecay<U>> { };
-template <typename U, typename R = void>
-using MatchLiteral = ZuIfT<IsLiteral<U>{}, R>;
-
-template <typename U> struct IsPrint_ : public ZuBool<
-    !IsLiteral<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
-template <typename U> struct IsPrint : public IsPrint_<ZuDecay<U>> { };
-template <typename U, typename R = void>
-using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
-
-template <typename U> struct IsOther_ :
-  public ZuBool<!IsLiteral<U>{} && !IsPrint<U>{}> { };
-template <typename U> struct IsOther : public IsOther_<ZuDecay<U>> { };
-template <typename U, typename R = void>
-using MatchOther = ZuIfT<IsOther<U>{}, R>;
-
-template <typename Msg>
-inline auto fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {
-  return ZuFwd<Msg>(msg);
-}
-template <typename Msg>
-inline auto fn(Msg &&msg, ZeLog_::MatchLiteral<Msg> *_ = nullptr) {
-  return [msg = static_cast<const char *>(msg)](ZeLogBuf &buf) mutable {
-    buf << msg;
-  };
-}
-template <typename Msg>
-inline auto fn(Msg &&msg, ZeLog_::MatchPrint<Msg> *_ = nullptr) {
-  return [msg = ZuFwd<Msg>(msg)](ZeLogBuf &buf) mutable {
-    buf << ZuMv(msg);
-  };
-}
-
-} // ZeLog_
-
-template <typename Msg>
-inline void ZeLOG__(ZeEvent e, Msg &&msg) {
-  ZeLog::log(ZuMv(e), ZeLog_::fn(ZuFwd<Msg>(msg)));
-}
-
-template <typename Msg>
-inline void ZeBackTrace__(ZeEvent e, Msg &&msg) {
+template <typename Event>
+inline void ZeBackTrace__(Event event_) {
   ZmBackTrace bt{1};
-  ZeLog::log(ZuMv(e),
-      [bt = ZuMv(bt), fn = ZeLog_::fn(ZuFwd<Msg>(msg))](auto &s) mutable {
-    ZuMv(fn)(s);
-    s << '\n' << ZuMv(bt);
-  });
+  ZeLog::log(ZeMkLambdaEvent__(
+      event_.severity, event_.fileName, event_.lineNumber, event_.function,
+      [bt = ZuMv(bt), msg = ZuMv(event_).msg](auto &s) mutable {
+	msg(s);
+	s << '\n' << ZuMv(bt);
+      }));
 }
 
 #ifndef ZDEBUG
 
 // filter out DEBUG messages in production builds
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeLOG__(ZeEVENT_(sev), msg) : void())
+  ((sev > Ze::Debug) ? ZeLog::log(ZeMkLambdaEvent_(sev, msg)) : void())
 #define ZeBackTrace_(sev, msg) \
-  do { if (sev > Ze::Debug) ZeBackTrace__(ZeEVENT_(sev), msg); } while (0)
+  ((sev > Ze::Debug) ? ZeBackTrace__(ZeMkLambdaEvent_(sev, msg)) : void())
 
 #else /* !ZEBUG */
 
-#define ZeLOG_(sev, msg) ZeLOG__(ZeEVENT_(sev), msg)
-#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeEVENT_(sev), msg)
+#define ZeLOG_(sev, msg) ZeLOG__(ZeMkLambdaEvent_(sev, msg))
+#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeMkLambdaEvent_(sev, msg))
 
 #endif /* !ZEBUG */
 

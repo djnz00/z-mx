@@ -120,7 +120,7 @@
   using T = ZuDecay<decltype(ZuDeclVal<const O &>().Get())>; \
   static decltype(auto) get(const O &o) { return o.Get(); } \
   static decltype(auto) get(O &o) { return o.Get(); } \
-  static decltype(auto) get(O &&o) { return ZuMv(ZuMv(o).Get()); }
+  static decltype(auto) get(O &&o) { return ZuMv(o).Get(); }
 #define ZuFieldAliasFn_(O, Set) \
   template <typename V> \
   static void set(O &o, V &&v) { o.Set(ZuFwd<V>(v)); }

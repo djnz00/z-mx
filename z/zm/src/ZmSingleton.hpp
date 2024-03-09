@@ -147,7 +147,7 @@ public:
 // ODR warning: do not use lambdas in headers outside of an inline function
 
 template <typename L>
-inline auto &ZmStatic(L l, ZuIsStateless<L> *_ = nullptr) {
+inline auto &ZmStatic(L l, ZuStatelessFn<L> *_ = nullptr) {
   using T = ZuDecay<decltype(*ZuFnTraits<L>::invoke())>;
   return *(ZmSingleton<T, true, ZuFnTraits<L>::fn()>::instance());
 }

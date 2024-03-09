@@ -298,7 +298,7 @@ public:
   template <unsigned I>
   Type<I> &p() & { return Base::template p<I>(); }
   template <unsigned I>
-  Type<I> &&p() && { return ZuMv(ZuMv(*this).Base::template p<I>()); }
+  Type<I> &&p() && { return ZuMv(*this).Base::template p<I>(); }
   template <unsigned I, typename P>
   Tuple_ &p(P &&p) {
     Base::template p<I>(ZuFwd<P>(p));
@@ -420,9 +420,7 @@ public:
   template <unsigned I>
   ZuIfT<!I, Type<I> &> p() & { return Base::template p<0>(); }
   template <unsigned I>
-  ZuIfT<!I, Type<I> &&> p() && {
-    return ZuMv(ZuMv(*this).Base::template p<0>());
-  }
+  ZuIfT<!I, Type<I> &&> p() && { return ZuMv(*this).Base::template p<0>(); }
   template <unsigned I, typename P>
   ZuIfT<!I, Tuple_ &> p(P &&p) {
     Base::template p<0>(ZuFwd<P>(p));
@@ -439,7 +437,7 @@ public:
   }
   template <unsigned I>
   ZuIfT<(I && I < N), Type<I> &&> p() && {
-    return ZuMv(ZuMv(ZuMv(*this).Base::template p<1>()).template p<I - 1>());
+    return ZuMv(*this).Base::template p<1>().template p<I - 1>();
   }
   template <unsigned I, typename P>
   ZuIfT<(I && I < N), Tuple_ &> p(P &&p) {
@@ -457,7 +455,7 @@ public:
   }
   template <typename T>
   decltype(auto) v() && {
-    return ZuMv(ZuMv(*this).template p<Index<T>{}>());
+    return ZuMv(*this).template p<Index<T>{}>();
   }
   template <typename T, typename P>
   decltype(auto) v(P &&p) {

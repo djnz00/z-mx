@@ -114,7 +114,7 @@ public:
   }
 
   template <typename L>
-  ZmRingFn_(L &l, ZuIsStateless<L> *_ = nullptr) :
+  ZmRingFn_(L &l, ZuStatelessFn<L> *_ = nullptr) :
       m_invokeFn{[](void *, Args... args) -> unsigned {
 	// no, this->x does not imply evaluating (*this).x; the reverse is true
 	try { (*reinterpret_cast<const L *>(0))(args...); } catch (...) { }
@@ -125,7 +125,7 @@ public:
       m_ptr{0} { }
 
   template <typename L>
-  ZmRingFn_(L &l, ZuNotStateless<L> *_ = nullptr) :
+  ZmRingFn_(L &l, ZuNotStatelessFn<L> *_ = nullptr) :
       m_invokeFn{[](void *ptr_, Args... args) -> unsigned {
 	auto ptr = static_cast<L *>(ptr_);
 	try { (*ptr)(args...); } catch (...) { }

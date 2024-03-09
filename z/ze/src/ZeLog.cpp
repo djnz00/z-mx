@@ -313,14 +313,14 @@ void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 {
 #ifndef _WIN32
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function);
 #else
   ZePlatform_EventLogger *logger = eventLogger();
   buf << logger->program << ' ' << ZuBoxed(e.tid) << " - ";
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function) << ' ' << *e;
 #endif
@@ -378,7 +378,7 @@ void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent &e)
     ZuBoxed(e.tid) << ' ' <<
     Ze::severity(e.severity) << ' ';
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function) << "() ";
 }
@@ -455,7 +455,7 @@ void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent &e)
     ZuBoxed(e.tid) << ' ' <<
     Ze::severity(e.severity) << ' ';
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function) << "() ";
 }
@@ -480,7 +480,7 @@ void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEvent &e)
     ZuBoxed(e.tid) << ' ' <<
     Ze::severity(e.severity) << ' ';
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::filename(e.filename) << "\":" <<
+    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
       ZuBoxed(e.lineNumber) << ' ';
   buf << Ze::function(e.function) << "() ";
 }

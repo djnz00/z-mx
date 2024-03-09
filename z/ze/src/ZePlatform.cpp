@@ -41,7 +41,7 @@ ZuString Ze::severity(unsigned i)
   return i > 4 ? ZuString("UNKNOWN", 7) : ZuString(name[i], namelen[i]);
 }
 
-ZuString Ze::filename(ZuString s)
+ZuString Ze::fileName(ZuString s)
 {
   ZtRegex::Captures c;
 #ifndef _WIN32

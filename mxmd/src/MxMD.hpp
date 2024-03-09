@@ -1838,12 +1838,12 @@ public:
   unsigned nShards() const { return m_shards.length(); }
   MxMDShard *shard(unsigned i) const { return m_shards[i]; }
   template <typename L>
-  ZuNotMutable<L> shard(unsigned i, L l) const {
+  ZuNotMutableFn<L> shard(unsigned i, L l) const {
     MxMDShard *shard = m_shards[i];
     m_scheduler->invoke(shard->tid(), [l = ZuMv(l), shard]() { l(shard); });
   }
   template <typename L>
-  ZuIsMutable<L> shard(unsigned i, L l) const {
+  ZuMutableFn<L> shard(unsigned i, L l) const {
     MxMDShard *shard = m_shards[i];
     m_scheduler->invoke(shard->tid(),
 	[l = ZuMv(l), shard]() mutable { l(shard); });

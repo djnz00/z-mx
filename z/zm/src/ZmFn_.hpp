@@ -552,40 +552,40 @@ friend struct LBoundInvoker_;
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
   struct LBoundInvoker_<O *, L, R, HeapID, Sharded, false> {
     template <typename L_>
-    static ZuNotMutable<L_, ZmFn> fn(O *o, L_ l) {
+    static ZuNotMutableFn<L_, ZmFn> fn(O *o, L_ l) {
       return Lambda<HeapID, Sharded>::fn([l = ZuMv(l), o](Args... args) {
 	l(o, ZuFwd<Args>(args)...); });
     }
     template <typename L_>
-    static ZuIsMutable<L_, ZmFn> fn(O *o, L_ l) {
+    static ZuMutableFn<L_, ZmFn> fn(O *o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o](Args... args) mutable {
 	    l(o, ZuFwd<Args>(args)...);
 	  });
     }
     template <typename L_>
-    static ZuNotMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
+    static ZuNotMutableFn<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
 	    l(o, ZuFwd<Args>(args)...);
 	  });
     }
     template <typename L_>
-    static ZuIsMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
+    static ZuMutableFn<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
 	    l(o, ZuFwd<Args>(args)...);
 	  });
     }
     template <typename L_>
-    static ZuNotMutable<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
+    static ZuNotMutableFn<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
 	    l(o, ZuFwd<Args>(args)...);
 	  });
     }
     template <typename L_>
-    static ZuIsMutable<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
+    static ZuMutableFn<L_, ZmFn> mvFn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
 	    l(o, ZuFwd<Args>(args)...);
@@ -632,14 +632,14 @@ friend struct LBoundInvoker_;
   template <typename O, typename L, typename R, auto HeapID, bool Sharded>
   struct LBoundInvoker_<ZmRef<O>, L, R, HeapID, Sharded, false> {
     template <typename L_>
-    static ZuNotMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
+    static ZuNotMutableFn<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) {
 	    l(o, ZuFwd<Args>(args)...);
 	  });
     }
     template <typename L_>
-    static ZuIsMutable<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
+    static ZuMutableFn<L_, ZmFn> fn(ZmRef<O> o, L_ l) {
       return Lambda<HeapID, Sharded>::fn(
 	  [l = ZuMv(l), o = ZuMv(o)](Args... args) mutable {
 	    l(o, ZuFwd<Args>(args)...);

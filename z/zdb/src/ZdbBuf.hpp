@@ -34,7 +34,7 @@
 
 namespace Zdb_ {
 
-// -- I/O buffer
+// --- I/O buffer
 
 inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 inline constexpr unsigned BuiltinSize() {

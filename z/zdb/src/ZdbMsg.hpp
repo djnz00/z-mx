@@ -30,13 +30,35 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZuByteSwap.hpp>
+#include <zlib/ZuArray.hpp>
+
+#include <zlib/ZmRef.hpp>
+
+#include <zlib/Zfb.hpp>
+
 #include <zlib/ZdbTypes.hpp>
+
+#include <zlib/zdb__fbs.h>
 
 namespace Zdb_ {
 
 namespace Op {
-  ZfbEnumValues(Op, New, Mod, Del);
+  ZfbEnumValues(Op, Push, Update, Delete);
 }
+
+// -- message format - used for both file and network
+
+// custom header with an explicitly little-endian uint32 length
+#pragma pack(push, 1)
+struct Hdr {
+  ZuLittleEndian<uint32_t>	length;	// length of body
+
+  const uint8_t *data() const {
+    return reinterpret_cast<const uint8_t *>(this) + sizeof(Hdr);
+  }
+};
+#pragma pack(pop)
 
 // call following Finish() to push header and detach buffer
 template <typename Builder, typename Owner>

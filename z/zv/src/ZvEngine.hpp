@@ -280,7 +280,7 @@ public:
 
   // generic O.S. error logging
   auto osError(const char *op, int result, ZeError e) {
-    return [id = m_id, op, result, e](const ZeEvent &, ZmStream &s) {
+    return [id = m_id, op, result, e](ZeLogBuf &s) {
       s << id << " - " << op << " - " << Zi::ioResult(result) << " - " << e;
     };
   }

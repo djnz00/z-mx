@@ -402,7 +402,7 @@ public:
 };
 
 template <typename L>
-auto ZmTLS(L l, ZuIsStateless<L> *_ = nullptr) {
+inline auto ZmTLS(L l, ZuStatelessFn<L> *_ = nullptr) {
   using T = ZuDecay<decltype(*ZuFnTraits<L>::invoke())>;
   return ZmSpecific<T, true, ZuFnTraits<L>::fn(l)>::instance();
 }

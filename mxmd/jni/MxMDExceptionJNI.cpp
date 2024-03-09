@@ -38,7 +38,7 @@ namespace MxMDExceptionJNI {
       "Ljava/time/Instant;"		// time
       "J"				// tid
       "Lcom/shardmx/mxmd/MxMDSeverity;"	// severity
-      "Ljava/lang/String;"		// filename
+      "Ljava/lang/String;"		// fileName
       "I"				// lineNumber
       "Ljava/lang/String;"		// function
       "Ljava/lang/String;"		// message
@@ -54,7 +54,7 @@ jobject MxMDExceptionJNI::ctor(JNIEnv *env, const ZeEvent *data)
       ZJNI::t2j(env, ZtDate{data->time()}),
       (jlong)data->tid(),
       MxMDSeverityJNI::ctor(env, data->severity()),
-      ZJNI::s2j(env, data->filename()),
+      ZJNI::s2j(env, data->fileName()),
       (jint)data->lineNumber(),
       ZJNI::s2j(env, data->function()),
       ZJNI::s2j(env, s));

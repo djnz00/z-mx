@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// platform primitives
+// error handling - platform primitives
 
 #ifndef ZePlatform_HPP
 #define ZePlatform_HPP
@@ -71,10 +71,12 @@
 
 #define ZeLog_BUFSIZ (32<<10)	// caps individual log message size to 32k
 
+// normalized severity levels
 namespace Ze {
   ZtEnumValues(Ze, Debug, Info, Warning, Error, Fatal);
 }
 
+// normalized OS error number
 namespace Ze {
 
 #ifndef _WIN32
@@ -97,6 +99,7 @@ ZeExtern const char *strerror(ErrNo e);
 
 }
 
+// OS error number wrapper
 class ZeError {
 public:
   using ErrNo = Ze::ErrNo;
@@ -139,35 +142,125 @@ inline ZeError Ze_LastError() { return ZeError{Ze::errNo()}; }
 inline ZeError Ze_LastSockError() { return ZeError{Ze::sockErrNo()}; }
 #define ZeLastSockError Ze_LastSockError()
 
-struct ZeEvent {
+// encapsulates time, thread ID, severity, file name, line number, function
+struct ZeEvent_ {
   using ThreadID = Zm::ThreadID;
 
   ZmTime	time;
   ThreadID	tid;
   int		severity;
-  const char	*filename;
+  const char	*fileName;
   int		lineNumber;
   const char	*function;
 
   ZeEvent(
       int severity_,
-      const char *filename_, int lineNumber_,
+      const char *fileName_, int lineNumber_,
       const char *function_) :
     time{ZmTime::Now}, tid{Zm::getTID()},
     severity{severity_},
-    filename{filename_}, lineNumber{lineNumber_},
+    fileName{fileName_}, lineNumber{lineNumber_},
     function{function_} { }
 };
+
+// log buffer
+using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
+
+// event with lambda message - [...](ZeLogBuf &buf) { buf << ... }
+template <typename L>
+struct ZeLambdaEvent : public ZeEvent_ {
+  L	l;
+
+  template <typename Msg_>
+  ZeLambdaEvent(
+      int severity_,
+      const char *fileName_, int lineNumber_,
+      const char *function_, Msg_ &&msg) :
+    ZeEvent_(severity_, fileName_, lineNumber_, function_),
+    l{ZuFwd<L>(l)} { }
+};
+template <typename L>
+ZeLambdaEvent(int, const char *, int, const char *, L) ->
+  ZeLambdaEvent<ZuDecay<L>>;
+
+// convert string/printable to lambda
+namespace ZeMsg_ {
+template <typename U> struct IsLiteral_ : public ZuBool<
+    ZuTraits<U>::IsArray &&
+    ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
+    ZuConversion<typename ZuTraits<U>::Elem, const char>::Same> { };
+template <typename U> struct IsLiteral : public IsLiteral_<ZuDecay<U>> { };
+template <typename U, typename R = void>
+using MatchLiteral = ZuIfT<IsLiteral<U>{}, R>;
+
+template <typename U> struct IsPrint_ : public ZuBool<
+    !IsLiteral<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
+template <typename U> struct IsPrint : public IsPrint_<ZuDecay<U>> { };
+template <typename U, typename R = void>
+using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
+
+template <typename U> struct IsOther_ :
+  public ZuBool<!IsLiteral<U>{} && !IsPrint<U>{}> { };
+template <typename U> struct IsOther : public IsOther_<ZuDecay<U>> { };
+template <typename U, typename R = void>
+using MatchOther = ZuIfT<IsOther<U>{}, R>;
+
+template <typename Msg>
+inline decltype(auto) fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {
+  return ZuFwd<Msg>(msg);
+}
+template <typename Msg>
+inline auto fn(Msg &&msg, ZeLog_::MatchLiteral<Msg> *_ = nullptr) {
+  return [msg = static_cast<const char *>(msg)](ZeLogBuf &s) mutable {
+    s << msg;
+  };
+}
+template <typename Msg>
+inline auto fn(Msg &&msg, ZeLog_::MatchPrint<Msg> *_ = nullptr) {
+  return [msg = ZuFwd<Msg>(msg)](ZeLogBuf &s) mutable {
+    s << ZuMv(msg);
+  };
+}
+} // ZeMsg_
+
+// make a lambda event
+template <typename Msg>
+auto ZeMkLambdaEvent__(
+    int severity_,
+    const char *fileName_, int lineNumber_,
+    const char *function_, Msg &&msg) {
+  return ZeLambdaEvent(
+      severity_, fileName_, lineNumber_, function_, ZeMsg_::fn(msg));
+}
+#define ZeMkLambdaEvent_(sev, msg) \
+  ZeMkLambdaEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)
+#define ZeMkLambdaEvent(sev, msg) ZeMkEvent_(Ze:: sev, msg)
+
+// non-polymorphic message
+using ZeMsgFn = ZmFn<ZeLogBuf &>;
+
+// non-polymorphic event
+using ZeEvent = ZeLambdaEvent<ZeMsgFn>;
+
+// make a non-polymorphic ZeEvent
+template <typename Msg>
+ZeEvent ZeMkEvent__(
+    int severity_,
+    const char *fileName_, int lineNumber_,
+    const char *function_, Msg &&msg) {
+  return ZeEvent(
+      severity_, fileName_, lineNumber_, function_, ZeMsg_::fn(msg));
+}
+#define ZeMkEvent_(sev, msg) \
+  ZeMkEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)
+#define ZeMkEvent(sev, msg) ZeMkEvent_(Ze:: sev, msg)
 
 namespace Ze {
 
 ZeExtern ZuString severity(unsigned i);
-ZeExtern ZuString filename(ZuString s);
+ZeExtern ZuString fileName(ZuString s);
 ZeExtern ZuString function(ZuString s);
 
 }
-
-#define ZeEVENT_(sev) ZeEvent{sev, __FILE__, __LINE__, ZuFnName}
-#define ZeEVENT(sev) ZeEVENT_(Ze:: sev)
 
 #endif /* ZePlatform_HPP */

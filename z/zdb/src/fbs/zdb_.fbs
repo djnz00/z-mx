@@ -14,9 +14,9 @@ table Heartbeat {
   env_state:EnvState;
 }
 enum Op:int8 {
-  New = 0,		// new
-  Mod,			// modify
-  Del			// delete
+  Push = 0,
+  Update,
+  Delete
 }
 table Record {
   db:Zfb.ID;		// DB ID
