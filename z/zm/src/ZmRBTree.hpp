@@ -820,7 +820,7 @@ public:
 
 // clean tree
 
-  void clean() { clean([](NodeMvRef) { }); }
+  void clean() { clean([](auto) { }); }
   template <typename L> void clean(L l) {
     Guard guard(m_lock);
     clean_(ZuMv(l));
@@ -828,7 +828,7 @@ public:
     m_count = 0;
   }
 private:
-  void clean_() { clean_([](NodeMvRef) { }); }
+  void clean_() { clean_([](auto) { }); }
   template <typename L> void clean_(L l) {
     Node *node = m_minimum, *next;
     if (!node) return;
@@ -847,7 +847,7 @@ private:
 	} else
 	  next->NodeExt::right(nullptr);
       }
-      l(nodeAcquire(node));
+      l(NodeMvRef{nodeAcquire(node)});
       node = next;
     } while (node);
   }

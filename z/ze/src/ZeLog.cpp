@@ -125,7 +125,7 @@ struct ZePlatform_EventLogger {
     DeregisterEventSource(handle);
   }
 
-  void report(const ZeEvent &e, const ZeLog::Buf &buf) {
+  void report(const ZeEvent_ &e, const ZeLog::Buf &buf) {
     wbuf.null();
     wbuf.length(ZuUTF<wchar_t, char>::cvt(
 	  ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
@@ -309,7 +309,7 @@ void ZeLog::age_()
   if (sink) sink->age();
 }
 
-void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent &e)
+void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
 {
 #ifndef _WIN32
   if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
@@ -326,7 +326,7 @@ void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent &e)
 #endif
 }
 
-void ZeSysSink::post(ZeLogBuf &buf, const ZeEvent &e)
+void ZeSysSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   buf << '\n';
 
@@ -370,7 +370,7 @@ ZeFileSink::~ZeFileSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent &e)
+void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   ZtDate d{e.time};
 
@@ -383,7 +383,7 @@ void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent &e)
   buf << Ze::function(e.function) << "() ";
 }
 
-void ZeFileSink::post(ZeLogBuf &buf, const ZeEvent &e)
+void ZeFileSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   buf << '\n';
 
@@ -447,7 +447,7 @@ ZeDebugSink::~ZeDebugSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent &e)
+void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   ZmTime d = e.time - m_started;
 
@@ -460,7 +460,7 @@ void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent &e)
   buf << Ze::function(e.function) << "() ";
 }
 
-void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent &e)
+void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   buf << '\n';
 
@@ -472,7 +472,7 @@ void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent &e)
   fflush(m_file);
 }
 
-void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEvent &e)
+void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEvent_ &e)
 {
   ZtDate d{e.time};
 

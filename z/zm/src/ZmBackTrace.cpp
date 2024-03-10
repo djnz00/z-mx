@@ -337,13 +337,10 @@ retry:
     }
 
   public:
-    void final(ZmBackTrace_Mgr *mgr) { final_(mgr->m_bfd); }
-
-  private:
-    void final_(BFD *&prev) {
-      if (next) next->final_(next);
-      prev = 0;
+    BFD *final() {
+      auto next_ = next;
       delete this;
+      return next_;
     }
 
     BFD			*next = nullptr;
@@ -567,7 +564,7 @@ ZmBackTrace_Mgr::~ZmBackTrace_Mgr()
     if (m_ntdll) FreeLibrary(m_ntdll);
 #endif
 #ifdef ZmBackTrace_BFD
-    if (m_bfd) m_bfd->final(this);
+    for (BFD *bfd = m_bfd; bfd; bfd = bfd->final());
 #endif
   }
 }

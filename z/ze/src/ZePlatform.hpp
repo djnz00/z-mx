@@ -153,7 +153,7 @@ struct ZeEvent_ {
   int		lineNumber;
   const char	*function;
 
-  ZeEvent(
+  ZeEvent_(
       int severity_,
       const char *fileName_, int lineNumber_,
       const char *function_) :
@@ -171,18 +171,19 @@ template <typename L>
 struct ZeLambdaEvent : public ZeEvent_ {
   L	l;
 
-  template <typename Msg_>
+  template <typename L_>
   ZeLambdaEvent(
       int severity_,
       const char *fileName_, int lineNumber_,
-      const char *function_, Msg_ &&msg) :
+      const char *function_, L_ &&l_) :
     ZeEvent_(severity_, fileName_, lineNumber_, function_),
-    l{ZuFwd<L>(l)} { }
+    l{ZuFwd<L_>(l_)} { }
 };
 template <typename L>
 ZeLambdaEvent(int, const char *, int, const char *, L) ->
   ZeLambdaEvent<ZuDecay<L>>;
 
+#include <zlib/ZmDemangle.hpp>
 // convert string/printable to lambda
 namespace ZeMsg_ {
 template <typename U> struct IsLiteral_ : public ZuBool<
@@ -194,29 +195,29 @@ template <typename U, typename R = void>
 using MatchLiteral = ZuIfT<IsLiteral<U>{}, R>;
 
 template <typename U> struct IsPrint_ : public ZuBool<
-    !IsLiteral<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
+    !IsLiteral_<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
 template <typename U> struct IsPrint : public IsPrint_<ZuDecay<U>> { };
 template <typename U, typename R = void>
 using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
 
 template <typename U> struct IsOther_ :
-  public ZuBool<!IsLiteral<U>{} && !IsPrint<U>{}> { };
+  public ZuBool<!IsLiteral_<U>{} && !IsPrint_<U>{}> { };
 template <typename U> struct IsOther : public IsOther_<ZuDecay<U>> { };
 template <typename U, typename R = void>
 using MatchOther = ZuIfT<IsOther<U>{}, R>;
 
 template <typename Msg>
-inline decltype(auto) fn(Msg &&msg, ZeLog_::MatchOther<Msg> *_ = nullptr) {
+inline decltype(auto) fn(Msg &&msg, MatchOther<Msg> *_ = nullptr) {
   return ZuFwd<Msg>(msg);
 }
 template <typename Msg>
-inline auto fn(Msg &&msg, ZeLog_::MatchLiteral<Msg> *_ = nullptr) {
+inline auto fn(Msg &&msg, MatchLiteral<Msg> *_ = nullptr) {
   return [msg = static_cast<const char *>(msg)](ZeLogBuf &s) mutable {
     s << msg;
   };
 }
 template <typename Msg>
-inline auto fn(Msg &&msg, ZeLog_::MatchPrint<Msg> *_ = nullptr) {
+inline auto fn(Msg &&msg, MatchPrint<Msg> *_ = nullptr) {
   return [msg = ZuFwd<Msg>(msg)](ZeLogBuf &s) mutable {
     s << ZuMv(msg);
   };
@@ -230,7 +231,8 @@ auto ZeMkLambdaEvent__(
     const char *fileName_, int lineNumber_,
     const char *function_, Msg &&msg) {
   return ZeLambdaEvent(
-      severity_, fileName_, lineNumber_, function_, ZeMsg_::fn(msg));
+      severity_, fileName_, lineNumber_, function_,
+      ZeMsg_::fn(ZuFwd<Msg>(msg)));
 }
 #define ZeMkLambdaEvent_(sev, msg) \
   ZeMkLambdaEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)
@@ -249,7 +251,8 @@ ZeEvent ZeMkEvent__(
     const char *fileName_, int lineNumber_,
     const char *function_, Msg &&msg) {
   return ZeEvent(
-      severity_, fileName_, lineNumber_, function_, ZeMsg_::fn(msg));
+      severity_, fileName_, lineNumber_, function_,
+      ZeMsg_::fn(ZuFwd<Msg>(msg)));
 }
 #define ZeMkEvent_(sev, msg) \
   ZeMkEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)

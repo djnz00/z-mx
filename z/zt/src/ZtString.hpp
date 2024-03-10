@@ -92,6 +92,8 @@ template <> struct ZtString__<char> {
   friend ZuPrintString ZuPrintType(ZtString__ *);
 };
 
+inline constexpr const char *ZtString_ID() { return "ZtString"; }
+
 template <typename Char_, auto HeapID_>
 class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<ZuStrip<Char_>> {
 public:
@@ -1354,8 +1356,6 @@ inline void ZtString_<Char, HeapID>::convert_(const S &s, ZtIconv *iconv)
   null_();
   iconv->convert(*this, s);
 }
-
-inline constexpr const char *ZtString_ID() { return "ZtString"; }
 
 #ifdef _MSC_VER
 ZtExplicit template class ZtAPI ZtString_<char, ZtString_ID>;

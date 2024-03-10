@@ -141,7 +141,9 @@ public:
 #ifdef ZmObject_DEBUG
       this
 #endif
-    ](auto node) { ZmDEREF(node->val()); });
+    ](auto node) {
+      ZmDEREF(node->val());
+    });
   }
 
   friend ZuUnsigned<ZmCleanup::HeapMgr> ZmCleanupLevel(ZmHeapMgr_ *);
