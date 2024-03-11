@@ -481,7 +481,7 @@ void MxMDCore::initCmds()
 	    message << args->get(ZuStringN<16>(i));
 	  }
 	  md->raise(ZeMkEvent(Info,
-	    ([message](const ZeEventInfo &, auto &s) {
+	    ([message](auto &s) {
 	      s << message;
 	    })));
 	  out << message << '\n';

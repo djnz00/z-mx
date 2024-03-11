@@ -622,8 +622,7 @@ void MxMDOBSide::delOrder_(
   const MxMDOrderData &orderData = order->data();
   if (!*orderData.price) {
     if (ZuUnlikely(!m_mktLevel)) {
-      m_orderBook->md()->raise(ZeMkEvent(
-	    Error, MxMDNoPxLevel("delOrder")));
+      m_orderBook->md()->raise(ZeMkEvent(Error, MxMDNoPxLevel("delOrder")));
       return;
     }
     m_mktLevel->updateDelta(transactTime, -orderData.qty, -1, 0);
@@ -1647,7 +1646,7 @@ ZmRef<MxMDOrderBook> MxMDLib::addOrderBook(
 {
   if (ZuUnlikely(!*key.venue)) {
     raise(ZeMkEvent(Error,
-      ([id = key.id](const ZeEventInfo &, auto &s) {
+      ([id = key.id](auto &s) {
 	s << "addOrderBook - null venueID for \"" << id << '"';
       })));
     return nullptr;
@@ -1665,8 +1664,7 @@ loop:
     ZmRef<MxMDVenue> venue = m_venues.findKey(key.venue);
     if (ZuUnlikely(!venue)) {
       raise(ZeMkEvent(Error,
-	([venueID = key.venue, id = key.id](
-	    const ZeEventInfo &, auto &s) {
+	([venueID = key.venue, id = key.id](auto &s) {
 	  s << "addOrderBook - no such venue for \""
 	    << id << "\" " << venueID;
 	})));

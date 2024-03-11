@@ -423,7 +423,7 @@ ZmRef<User> Mgr::login(int &failures,
   }
   if (!(user->flags & User::Enabled)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: disabled user \""
 	  << user->name << "\" attempted login"; }));
     }
@@ -432,7 +432,7 @@ ZmRef<User> Mgr::login(int &failures,
   }
   if (!(user->perms[Perm::Login])) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: user without login permission \""
 	  << user->name << "\" attempted login"; }));
     }
@@ -448,7 +448,7 @@ ZmRef<User> Mgr::login(int &failures,
     hmac.finish(verify.data());
     if (verify != user->hmac) {
       if (++user->failures < 3) {
-	ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+	ZeLOG(Warning, ([user](auto &s) {
 	  s << "authentication failure: user \""
 	    << user->name << "\" provided invalid password"; }));
       }
@@ -459,7 +459,7 @@ ZmRef<User> Mgr::login(int &failures,
   if (!Ztls::TOTP::verify(
 	user->secret.data(), user->secret.length(), totp, m_totpRange)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: user \""
 	  << user->name << "\" provided invalid OTP"; }));
     }
@@ -489,7 +489,7 @@ ZmRef<User> Mgr::access(int &failures,
   }
   if (!(user->flags & User::Enabled)) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: disabled user \""
 	  << user->name << "\" attempted login"; }));
     }
@@ -498,7 +498,7 @@ ZmRef<User> Mgr::access(int &failures,
   }
   if (!(user->perms[Perm::Access])) {
     if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: user without API access permission \""
 	  << user->name << "\" attempted access"; }));
     }
@@ -523,7 +523,7 @@ ZmRef<User> Mgr::access(int &failures,
     hmac_.finish(verify.data());
     if (verify != hmac) {
       if (++user->failures < 3) {
-	ZeLOG(Warning, ([user](const ZeEventInfo &, auto &s) {
+	ZeLOG(Warning, ([user](auto &s) {
 	  s << "authentication failure: user \""
 	    << user->name << "\" provided invalid API key HMAC"; }));
       }

@@ -247,14 +247,13 @@ protected:
 	case MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE: // remote verification failure
 	  break;
 	case MBEDTLS_ERR_X509_CERT_VERIFY_FAILED: {
-	  ZeLOG(Error, ([hostname = ZtString{impl()->server()}](
-		  const ZeEventInfo &, auto &s) {
+	  ZeLOG(Error, ([hostname = ZtString{impl()->server()}](auto &s) {
 	    s << "server \"" << hostname << "\": unable to verify X.509 cert";
 	  }));
 	  disconnect_(false);
 	} break;
 	default:
-	  ZeLOG(Error, ([n](const ZeEventInfo &, auto &s) {
+	  ZeLOG(Error, ([n](auto &s) {
 	    s << "mbedtls_ssl_handshake(): " << strerror_(n);
 	  }));
 	  disconnect_(false);
@@ -293,7 +292,7 @@ private:
 	case MBEDTLS_ERR_SSL_CONN_EOF:
 	  break;
 	default:
-	  ZeLOG(Error, ([n](const ZeEventInfo &, auto &s) {
+	  ZeLOG(Error, ([n](auto &s) {
 	    s << "mbedtls_ssl_read(): " << strerror_(n);
 	  }));
 	  disconnect_(false);
@@ -366,7 +365,7 @@ public:
 	  case MBEDTLS_ERR_SSL_WANT_WRITE:
 	    continue;
 	}
-	ZeLOG(Error, ([n](const ZeEventInfo &, auto &s) {
+	ZeLOG(Error, ([n](auto &s) {
 	  s << "mbedtls_ssl_write(): " << strerror_(n);
 	}));
 	disconnect_(false);
@@ -416,7 +415,7 @@ public:
     app()->mx()->del(&m_reconnTimer);
     if (notify) {
       int n = mbedtls_ssl_close_notify(&m_ssl);
-      if (n) ZeLOG(Warning, ([n](const ZeEventInfo &, auto &s) {
+      if (n) ZeLOG(Warning, ([n](auto &s) {
 	s << "mbedtls_ssl_close_notify(): " << strerror_(n);
       }));
     }
@@ -500,8 +499,7 @@ friend Base;
   void connect_() { // TLS thread
     ZiIP ip = m_server;
     if (!ip) {
-      ZeLOG(Error, ([server = ZtString{m_server}](
-	      const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([server = ZtString{m_server}](auto &s) {
 	s << '"' << server << "\": hostname lookup failure";
       }));
       impl()->connectFailed(true);
@@ -511,8 +509,7 @@ friend Base;
       int n;
       n = mbedtls_ssl_set_hostname(this->ssl(), m_server);
       if (n) {
-	ZeLOG(Error, ([server = ZtString{m_server}, n](
-		const ZeEventInfo &, auto &s) {
+	ZeLOG(Error, ([server = ZtString{m_server}, n](auto &s) {
 	  s << "mbedtls_ssl_set_hostname(\"" << server << "\"): " <<
 	    strerror_(n);
 	}));
@@ -537,7 +534,7 @@ private:
   void save_() {
     int n = mbedtls_ssl_get_session(this->ssl(), &m_session);
     if (n) {
-      ZeLOG(Error, ([n](const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([n](auto &s) {
 	s << "mbedtls_ssl_get_session(): " << strerror_(n);
       }));
       return;
@@ -549,7 +546,7 @@ private:
     if (!m_saved) return;
     int n = mbedtls_ssl_set_session(this->ssl(), &m_session);
     if (n) {
-      ZeLOG(Warning, ([n](const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([n](auto &s) {
 	s << "mbedtls_ssl_set_session(): " << strerror_(n);
       }));
       return;
@@ -564,7 +561,7 @@ private:
     uint32_t flags;
     if (flags = mbedtls_ssl_get_verify_result(this->ssl())) {
       ZeLOG(Error,
-	  ([hostname = m_server, flags](const ZeEventInfo &, auto &s) {
+	  ([hostname = m_server, flags](auto &s) {
 	s << "server \"" << hostname <<
 	  "\": X.509 cert verification failure: ";
 	static const char *errors[] = {
@@ -667,8 +664,7 @@ template <typename, typename> friend class SrvLink;
   bool init(ZiMultiplex *mx, ZuString thread, L l) {
     m_mx = mx;
     if (!(m_thread = m_mx->sid(thread))) {
-      ZeLOG(Error, ([thread = ZtString{thread}](
-	      const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([thread = ZtString{thread}](auto &s) {
 	s << "invalid Rx thread ID \"" << thread << '"';
       }));
       return false;
@@ -700,7 +696,7 @@ private:
       if (sev > Ze::Debug)
 #endif
       ZeLog::log(ZeEvent(sev, file, line, "",
-	  [message = ZtString{message}](const ZeEventInfo &, auto &s) {
+	  [message = ZtString{message}](auto &s) {
 	    s << message;
 	  }));
     }, nullptr);
@@ -750,7 +746,7 @@ protected:
       n = mbedtls_x509_crt_parse_file(&m_cacert, path);
     }
     if (n < 0) {
-      ZeLOG(Error, ([function, n](const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([function, n](auto &s) {
 	s << function << "(): " << strerror_(n);
       }));
       return false;
@@ -971,7 +967,7 @@ protected:
 
   void listening(const ZiListenInfo &info) { // default
     m_listening = true;
-    ZeLOG(Info, ([info](const ZeEventInfo &, auto &s) {
+    ZeLOG(Info, ([info](auto &s) {
       s << "listening(" << info.ip << ':' << info.port << ')';
     }));
   }
@@ -981,7 +977,7 @@ protected:
       app()->run([this]() { listen(); },
 	  ZmTimeNow(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
     else
-      ZeLOG(Error, ([transient](const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([transient](auto &s) {
 	s << "listen() failed " << (transient ? "(transient)" : "");
       }));
   }

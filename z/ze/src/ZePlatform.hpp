@@ -185,8 +185,16 @@ struct ZeEvent : public ZeEventInfo {
     ZeEventInfo(severity_, file_, line_, function_),
     l{ZuFwd<L_>(l_)} { }
 
-  template <typename S>
-  friend S &operator <<(S &s, const ZeEvent &e) { e.l(e, s); return s; }
+  template <typename S, typename L_ = L>
+  friend decltype(
+      ZuDeclVal<L_ &>()(ZuDeclVal<S &>()),
+      ZuDeclVal<S &>())
+  operator <<(S &s, const ZeEvent &e) { e.l(s); return s; }
+  template <typename S, typename L_ = L>
+  friend decltype(
+      ZuDeclVal<L_ &>()(ZuDeclVal<S &>(), ZuDeclVal<const ZeEventInfo &>()),
+      ZuDeclVal<S &>())
+  operator <<(S &s, const ZeEvent &e) { e.l(s, e); return s; }
 
   ZeEvent() = delete;
   ZeEvent(const ZeEvent &) = delete;
@@ -230,16 +238,11 @@ inline decltype(auto) fn(Msg &&msg, MatchOther<Msg> *_ = nullptr) {
 }
 template <typename Msg>
 inline auto fn(Msg &&msg, MatchLiteral<Msg> *_ = nullptr) {
-  return [msg = static_cast<const char *>(msg)](
-      const ZeEventInfo &, auto &s) mutable {
-    s << msg;
-  };
+  return [msg = static_cast<const char *>(msg)](auto &s) mutable { s << msg; };
 }
 template <typename Msg>
 inline auto fn(Msg &&msg, MatchPrint<Msg> *_ = nullptr) {
-  return [msg = ZuFwd<Msg>(msg)](const ZeEventInfo &, auto &s) mutable {
-    s << ZuMv(msg);
-  };
+  return [msg = ZuFwd<Msg>(msg)](auto &s) mutable { s << ZuMv(msg); };
 }
 } // ZeMsg_
 
@@ -261,7 +264,7 @@ auto ZeMkEvent__(
 using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
 
 // message as function delegate
-using ZeMsgFn = ZmFn<const ZeEventInfo &, ZeLogBuf &>;
+using ZeMsgFn = ZmFn<ZeLogBuf &, const ZeEventInfo &>;
 
 // non-polymorphic event
 template <> struct ZeEvent<ZeMsgFn> : public ZeEventInfo {
@@ -278,7 +281,7 @@ template <> struct ZeEvent<ZeMsgFn> : public ZeEventInfo {
     l{ZuFwd<L_>(l_)} { }
 
   template <typename S>
-  friend S &operator <<(S &s, const ZeEvent &e) { e.l(e, s); return s; }
+  friend S &operator <<(S &s, const ZeEvent &e) { e.l(s, e); return s; }
 
   ZeEvent() = delete;
   ZeEvent(const ZeEvent &) = delete;
@@ -287,17 +290,29 @@ template <> struct ZeEvent<ZeMsgFn> : public ZeEventInfo {
   ZeEvent(ZeEvent &&) = default;
   ZeEvent &operator =(ZeEvent &&) = default;
 
+  ~ZeEvent() = default;
+
   template <typename L_>
-  ZeEvent(ZeEvent<L> &&e) :
-      ZeEventInfo{static_cast<ZeEventInfo &&>(e)}, l{ZuMv(e.l)} { }
+  ZeEvent(ZeEvent<L_> &&e,
+      decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()),
+	void()) *_ = nullptr) :
+    ZeEventInfo{static_cast<ZeEventInfo &&>(e)},
+    l{[l_ = ZuMv(e.l)](auto &s, auto) { l_(s); }} { }
+  template <typename L_>
+  ZeEvent(ZeEvent<L_> &&e,
+      decltype(ZuDeclVal<L_ &>()(
+	  ZuDeclVal<ZeLogBuf &>(),
+	  ZuDeclVal<const ZeEventInfo &>()),
+	void()) *_ = nullptr) :
+    ZeEventInfo{static_cast<ZeEventInfo &&>(e)},
+    l{ZuMv(e.l)} { }
+
   template <typename L_>
   ZeEvent &operator =(ZeEvent<L> &&e) {
-    ZeEventInfo::operator =(static_cast<ZeEventInfo &&>(e));
-    l = ZuMv(e.l);
+    this->~ZeEvent();
+    new (this) ZeEvent{ZuMv(e)};
     return *this;
   }
-
-  ~ZeEvent() = default;
 };
 using ZeFnEvent = ZeEvent<ZeMsgFn>;
 

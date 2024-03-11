@@ -63,7 +63,7 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
 
 #define engineINFO(code) \
     appException(ZeMkEvent(Info, \
-      ([=](const ZeEventInfo &, auto &s) { s << code; })))
+      ([=](auto &s) { s << code; })))
 
 void MxMDSubscriber::final()
 {
@@ -88,10 +88,10 @@ ZmRef<MxAnyLink> MxMDSubscriber::createLink(MxID id)
 
 #define linkINFO(code) \
     engine()->appException(ZeMkEvent(Info, \
-      ([=, id = id()](const ZeEventInfo &, auto &s) { s << code; })))
+      ([=, id = id()](auto &s) { s << code; })))
 #define linkWARNING(code) \
     engine()->appException(ZeMkEvent(Warning, \
-      ([=, id = id()](const ZeEventInfo &, auto &s) { s << code; })))
+      ([=, id = id()](auto &s) { s << code; })))
 
 void MxMDSubLink::update(ZvCf *)
 {
@@ -115,8 +115,7 @@ void MxMDSubLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
     MxMDSubLink *link = tcp->link(); \
     MxMDSubscriber *engine = link->engine(); \
     engine->appException(ZeMkEvent(Error, \
-      ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEventInfo &, auto &s) { \
+      ([=, engineID = engine->id(), id = link->id()](auto &s) { \
 	  s << "MxMDSubscriber{" << engineID << ':' << id \
 	    << "} " << code; }))); \
     link->tcpError(tcp, io); \
@@ -127,8 +126,7 @@ void MxMDSubLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
     MxMDSubLink *link = udp->link(); \
     MxMDSubscriber *engine = link->engine(); \
     engine->appException(ZeMkEvent(Error, \
-      ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEventInfo &, auto &s) { \
+      ([=, engineID = engine->id(), id = link->id()](auto &s) { \
 	  s << "MxMDSubscriber{" << engineID << ':' << id \
 	    << "} " << code; }))); \
     link->udpError(udp, io); \
@@ -500,8 +498,7 @@ void MxMDSubLink::UDP::process(ZmRef<MxQMsg> msg, ZiIOContext &io)
     ZtHexDump msg_{"truncated UDP message",
       msg->ptr<Msg>()->ptr(), msg->length};
     m_link->engine()->appException(ZeMkEvent(Warning,
-      ([=, id = m_link->id(), msg_ = ZuMv(msg_)](
-	const ZeEventInfo &, auto &s) {
+      ([=, id = m_link->id(), msg_ = ZuMv(msg_)](auto &s) {
 	  s << "MxMDSubLink::UDP::process() link " << id << ' ' << msg_;
 	})));
   } else {

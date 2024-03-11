@@ -73,8 +73,8 @@ struct ZeSink : public ZmPolymorph {
 
   ZeSink(int type_) : type(type_) { }
 
-  virtual void pre(const ZeEventInfo &, ZeLogBuf &) = 0;
-  virtual void post(const ZeEventInfo &, ZeLogBuf &) = 0;
+  virtual void pre(ZeLogBuf &, const ZeEventInfo &) = 0;
+  virtual void post(ZeLogBuf &, const ZeEventInfo &) = 0;
   virtual void age() = 0;
 };
 
@@ -107,8 +107,8 @@ public:
 
   ~ZeFileSink();
 
-  void pre(const ZeEventInfo &, ZeLogBuf &);
-  void post(const ZeEventInfo &, ZeLogBuf &);
+  void pre(ZeLogBuf &, const ZeEventInfo &);
+  void post(ZeLogBuf &, const ZeEventInfo &);
   void age();
 
 private:
@@ -136,8 +136,8 @@ public:
 
   ~ZeDebugSink();
 
-  void pre(const ZeEventInfo &, ZeLogBuf &);
-  void post(const ZeEventInfo &, ZeLogBuf &);
+  void pre(ZeLogBuf &, const ZeEventInfo &);
+  void post(ZeLogBuf &, const ZeEventInfo &);
   void age() { } // unused
 
 private:
@@ -151,8 +151,8 @@ private:
 struct ZeAPI ZeSysSink : public ZeSink {
   ZeSysSink() : ZeSink{ZeSinkType::System} { }
 
-  void pre(const ZeEventInfo &, ZeLogBuf &);
-  void post(const ZeEventInfo &, ZeLogBuf &);
+  void pre(ZeLogBuf &, const ZeEventInfo &);
+  void post(ZeLogBuf &, const ZeEventInfo &);
   void age() { } // unused
 };
 
@@ -160,7 +160,7 @@ struct ZeAPI ZeLambdaSink_ : public ZeSink {
   ZeLambdaSink_(int tzOffset = 0) :
       ZeSink{ZeSinkType::Lambda}, m_dateFmt{tzOffset} { }
 
-  void pre(const ZeEventInfo &, ZeLogBuf &);
+  void pre(ZeLogBuf &, const ZeEventInfo &);
 
 private:
   ZtDateFmt::CSV	m_dateFmt;
@@ -172,7 +172,7 @@ struct ZeLambdaSink : public ZeLambdaSink_ {
   ZeLambdaSink(L l_, int tzOffset = 0) :
       ZeLambdaSink_{tzOffset}, l{ZuMv(l_)} { }
 
-  void post(const ZeEventInfo &e, ZeLogBuf &buf) { l(e, buf); }
+  void post(ZeLogBuf &buf, const ZeEventInfo &info) { l(buf, info); }
   void age() { } // unused
 };
 
@@ -249,9 +249,9 @@ public:
       auto sink = this_->sink_();
       auto &buf = this_->m_buf;
       buf.null();
-      sink->pre(e, buf);
+      sink->pre(buf, e);
       buf << e;
-      sink->post(e, buf);
+      sink->post(buf, e);
     };
     Fn fn{fn_};
     log__(fn);
@@ -309,14 +309,31 @@ private:
 #pragma warning(pop)
 #endif
 
-template <typename Event>
-inline void ZeBackTrace__(Event event_) {
+template <typename L>
+inline decltype(
+    ZuDeclVal<L &>()(ZuDeclVal<ZeLogBuf &>()),
+    void())
+ZeBackTrace__(ZeEvent<L> event_) {
   ZmBackTrace bt{1};
-  ZeLog::log(ZeMkEvent__(
+  ZeLog::log(ZeEvent(
       event_.severity, event_.file, event_.line, event_.function,
-      [bt = ZuMv(bt), l = ZuMv(event_).l](
-	  const ZeEventInfo &info, auto &s) mutable {
-	l(info, s);
+      [bt = ZuMv(bt), l = ZuMv(event_).l](auto &s) mutable {
+	l(s);
+	s << '\n' << ZuMv(bt);
+      }));
+}
+template <typename L>
+inline decltype(
+    ZuDeclVal<L &>()(
+      ZuDeclVal<ZeLogBuf &>(),
+      ZuDeclVal<const ZeEventInfo &>()),
+    void())
+ZeBackTrace__(ZeEvent<L> event_) {
+  ZmBackTrace bt{1};
+  ZeLog::log(ZeEvent(
+      event_.severity, event_.file, event_.line, event_.function,
+      [bt = ZuMv(bt), l = ZuMv(event_).l](auto &s, const auto &info) mutable {
+	l(s, info);
 	s << '\n' << ZuMv(bt);
       }));
 }

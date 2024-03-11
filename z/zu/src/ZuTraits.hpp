@@ -19,6 +19,9 @@
 
 // type traits
 
+// cv qualifiers are stripped:
+// ZuTraits<T> is equivalent to ZuTraits<ZuStrip<T>>
+
 // class UDT {
 //   ...
 //   int cmp(const UDT &t) { ... }
@@ -85,6 +88,7 @@ struct ZuTraits_POD<T, decltype(sizeof(T), void())> {
 };
 
 // default generic traits
+
 template <typename T> struct ZuBaseTraits {
   enum { IsComposite = ZuTraits_Composite<T>::Is }; // class/struct/union
   enum { IsEmpty = ZuTraits_Empty<T>::Is };
@@ -110,6 +114,7 @@ using ZuDefaultTraits = decltype(ZuTraitsType(ZuDeclVal<T *>()));
 
 template <typename T> struct ZuTraits : public ZuDefaultTraits<T> { };
 
+// strip cv
 template <typename T> struct ZuTraits<const T> : public ZuTraits<T> { };
 template <typename T> struct ZuTraits<volatile T> : public ZuTraits<T> { };
 template <typename T>
@@ -486,6 +491,7 @@ template <typename T, size_t N>
 struct ZuTraits<std::array<T, N> > :
     public ZuStdArrayTraits<std::array<T, N>, T, N> { };
 
+// pre-declare boost::basic_string_ref without pulling in all of Boost
 namespace boost {
   template <typename, typename> class basic_string_ref;
   template <typename, size_t> class array;
@@ -503,7 +509,6 @@ struct ZuTraits<boost::array<T, N> > :
 namespace std {
   template <typename> class initializer_list;
 }
-
 template <typename Elem_>
 struct ZuTraits<std::initializer_list<Elem_> > :
     public ZuBaseTraits<std::initializer_list<Elem_> > {

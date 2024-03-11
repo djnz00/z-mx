@@ -80,8 +80,7 @@ bool MxMDBroadcast::open_(Guard &guard)
     m_ring = 0;
     guard.unlock();
     m_core->raise(ZeMkEvent(Error,
-      ([name = MxTxtString(m_params.name()), e](
-	const ZeEventInfo &, auto &s) {
+      ([name = MxTxtString(m_params.name()), e](auto &s) {
 	  s << '"' << name
 	    << "\": failed to open IPC shared memory ring buffer: " << e;
 	})));
@@ -145,8 +144,7 @@ void *MxMDBroadcast::push(unsigned size)
   m_lock.unlock();
   if (ZuLikely(i == Zi::NotReady || i == Zi::EndOfFile)) return 0;
   m_core->raise(ZeMkEvent(Error,
-    ([name = MxTxtString(m_params.name())](
-	const ZeEventInfo &, auto &s) {
+    ([name = MxTxtString(m_params.name())](auto &s) {
       s << '"' << name
 	<< "\": IPC shared memory ring buffer overflow";
     })));

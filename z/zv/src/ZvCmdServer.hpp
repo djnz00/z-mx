@@ -322,8 +322,8 @@ friend TLS;
     m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 
     if (!loadUserDB())
-      throw ZtString{} << "failed to load \"" << m_userDBPath << '"';
-
+      throw ZeMkEvent(Fatal, [path = ZtString{m_userDBPath}](auto, auto &s) {
+	s << "failed to load \"" << path << '"'; });
     TelServer::init(mx, cf->getCf("telemetry"));
   }
 
@@ -380,15 +380,13 @@ private:
   bool loadUserDB() {
     ZeError e;
     if (m_userDB->load(m_userDBPath, &e) != Zi::OK) {
-      ZeLOG(Warning, ([userDBPath = m_userDBPath, e](
-	      const ZeEventInfo &, auto &s) {
+      ZeLOG(Warning, ([userDBPath = m_userDBPath, e](auto &s) {
 	s << "load(\"" << userDBPath << "\"): " << e;
       }));
       ZtString backup{m_userDBPath.length() + 3};
       backup << m_userDBPath << ".1";
       if (m_userDB->load(backup, &e) != Zi::OK) {
-	ZeLOG(Error, ([userDBPath = m_userDBPath, e](
-		const ZeEventInfo &, auto &s) {
+	ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
 	  s << "load(\"" << userDBPath << ".1\"): " << e;
 	}));
 	return false;
@@ -396,8 +394,7 @@ private:
     }
     m_cmdPerm = m_userDB->findPerm("ZCmd");
     if (m_cmdPerm < 0) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath](
-	      const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([userDBPath = m_userDBPath](auto &s) {
 	s << userDBPath << ": ZCmd permission missing";
       }));
       return false;
@@ -408,8 +405,7 @@ private:
   bool saveUserDB() {
     ZeError e;
     if (m_userDB->save(m_userDBPath, m_userDBMaxAge, &e) != Zi::OK) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath, e](
-	      const ZeEventInfo &, auto &s) {
+      ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
 	s << "save(\"" << userDBPath << "\"): " << e;
       }));
       return false;

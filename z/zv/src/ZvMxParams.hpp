@@ -127,20 +127,18 @@ struct ZvMxParams : public ZiMxParams {
 	    ZuString id = node->key;
 	    ZuBox<unsigned> tid = id;
 	    if (id != ZuStringN<12>{tid})
-	      throw ZtString{} << "bad thread ID \"" << id << '"';
+	      throw ZeMkEvent(Fatal, [id = ZtString{id}](auto, auto &s) {
+		s << "bad thread ID \"" << id << '"'; });
 	    ZmSchedParams::Thread &thread = sched.thread(tid);
 	    thread.isolated(threadCf->getInt(
 		  "isolated", thread.isolated(), 0, 1));
 	    if (ZuString s = threadCf->get("name")) thread.name(s);
 	    thread.stackSize(threadCf->getInt(
 		  "stackSize", thread.stackSize(), 0, INT_MAX));
-	    if (ZuString s = threadCf->get("priority")) {
-	      if (s == "RealTime") thread.priority(ZmThreadPriority::RealTime);
-	      else if (s == "High") thread.priority(ZmThreadPriority::High);
-	      else if (s == "Normal") thread.priority(ZmThreadPriority::Normal);
-	      else if (s == "Low") thread.priority(ZmThreadPriority::Low);
-	      else throw ZtString{} << "bad thread priority \"" << s << '"';
-	    }
+	    if (ZuString s = threadCf->get("priority"))
+	      thread.priority(
+		  ZvEnum::s2v<ZvTelemetry::ThreadPriority::Map, false>(
+		    "priority", s, ZmThreadPriority::Normal));
 	    thread.partition(threadCf->getInt(
 		  "partition", thread.partition(), 0, INT_MAX));
 	    if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);

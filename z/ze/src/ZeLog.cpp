@@ -125,7 +125,7 @@ struct ZePlatform_EventLogger {
     DeregisterEventSource(handle);
   }
 
-  void report(const ZeEventInfo &info, const ZeLog::Buf &buf) {
+  void report(const ZeLog::Buf &buf, const ZeEventInfo &info) {
     wbuf.null();
     wbuf.length(ZuUTF<wchar_t, char>::cvt(
 	  ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
@@ -309,7 +309,7 @@ void ZeLog::age_()
   if (sink) sink->age();
 }
 
-void ZeSysSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeSysSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
 #ifndef _WIN32
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
@@ -326,7 +326,7 @@ void ZeSysSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
 #endif
 }
 
-void ZeSysSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeSysSink::post(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   buf << '\n';
 
@@ -340,7 +340,7 @@ void ZeSysSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
   ::syslog(syslogger()->facility() | sysloglevel(info.severity),
       "%.*s", buf.length(), buf.data());
 #else
-  eventLogger()->report(e, buf);
+  eventLogger()->report(buf, e);
 #endif
 }
 
@@ -370,7 +370,7 @@ ZeFileSink::~ZeFileSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeFileSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeFileSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZtDate d{info.time};
 
@@ -383,7 +383,7 @@ void ZeFileSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
   buf << Ze::function(info.function) << "() ";
 }
 
-void ZeFileSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeFileSink::post(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   buf << '\n';
 
@@ -447,7 +447,7 @@ ZeDebugSink::~ZeDebugSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeDebugSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZmTime d = info.time - m_started;
 
@@ -460,7 +460,7 @@ void ZeDebugSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
   buf << Ze::function(info.function) << "() ";
 }
 
-void ZeDebugSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeDebugSink::post(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   buf << '\n';
 
@@ -472,7 +472,7 @@ void ZeDebugSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
   fflush(m_file);
 }
 
-void ZeLambdaSink_::pre(const ZeEventInfo &info, ZeLogBuf &buf)
+void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZtDate d{info.time};
 

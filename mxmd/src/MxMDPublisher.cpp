@@ -65,7 +65,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
 
 #define engineINFO(code) \
     appException(ZeMkLambdaEvent(Info, \
-      ([=](const ZeEventInfo &, auto &s) { s << code; })))
+      ([=](auto &s) { s << code; })))
 
 void MxMDPublisher::final()
 {
@@ -90,7 +90,7 @@ ZmRef<MxAnyLink> MxMDPublisher::createLink(MxID id)
 
 #define linkINFO(code) \
     engine()->appException(ZeMkLambdaEvent(Info, \
-      ([=, id = id()](const ZeEventInfo &, auto &s) { s << code; })))
+      ([=, id = id()](auto &s) { s << code; })))
 
 void MxMDPubLink::update(ZvCf *)
 {
@@ -114,8 +114,7 @@ void MxMDPubLink::reset(MxSeqNo, MxSeqNo txSeqNo)
     MxMDPubLink *link = tcp->link(); \
     MxMDPublisher *engine = link->engine(); \
     engine->appException(ZeMkLambdaEvent(Error, \
-      ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEventInfo &, auto &s) { \
+      ([=, engineID = engine->id(), id = link->id()](auto &s) { \
 	  s << "MxMDPublisher{" << engineID << ':' << id \
 	    << "} " << code; }))); \
     link->tcpError(tcp, io); \
@@ -126,8 +125,7 @@ void MxMDPubLink::reset(MxSeqNo, MxSeqNo txSeqNo)
     MxMDPubLink *link = udp->link(); \
     MxMDPublisher *engine = link->engine(); \
     engine->appException(ZeMkLambdaEvent(Error, \
-      ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEventInfo &, auto &s) { \
+      ([=, engineID = engine->id(), id = link->id()](auto &s) { \
 	  s << "MxMDPublisher{" << engineID << ':' << id \
 	    << "} " << code; }))); \
     link->udpError(udp, io); \
@@ -519,8 +517,7 @@ void MxMDPubLink::UDP::process(ZmRef<MxQMsg> msg, ZiIOContext &io)
     ZtHexDump msg_{"truncated UDP message",
       msg->ptr<Msg>()->ptr(), msg->length};
     m_link->engine()->appException(ZeMkLambdaEvent(Warning,
-      ([=, id = m_link->id(), msg_ = ZuMv(msg_)](
-	const ZeEventInfo &, auto &s) {
+      ([=, id = m_link->id(), msg_ = ZuMv(msg_)](auto &s) {
 	  s << "MxMDPubLink::UDP::process() link " << id << ' ' << msg_;
 	})));
   } else {
@@ -684,8 +681,7 @@ void MxMDPublisher::recv()
 	return true;
       });
       core()->raise(ZeMkLambdaEvent(Fatal,
-	    ([name = ZtString(m_ring->params().name())](
-		const ZeEventInfo &, auto &s) {
+	    ([name = ZtString(m_ring->params().name())](auto &s) {
 	      s << '"' << name << "\": "
 		"IPC shared memory ring buffer read error - "
 		"message too big / corrupt";
