@@ -622,7 +622,8 @@ void MxMDOBSide::delOrder_(
   const MxMDOrderData &orderData = order->data();
   if (!*orderData.price) {
     if (ZuUnlikely(!m_mktLevel)) {
-      m_orderBook->md()->raise(ZeEVENT(Error, MxMDNoPxLevel("delOrder")));
+      m_orderBook->md()->raise(ZeMkEvent(
+	    Error, MxMDNoPxLevel("delOrder")));
       return;
     }
     m_mktLevel->updateDelta(transactTime, -orderData.qty, -1, 0);
@@ -640,7 +641,8 @@ void MxMDOBSide::delOrder_(
   }
   pxLevel = static_cast<MxMDPxLevel *>(order->pxLevel());
   if (ZuUnlikely(!pxLevel)) {
-    m_orderBook->md()->raise(ZeEVENT(Error, MxMDNoPxLevel("delOrder")));
+    m_orderBook->md()->raise(ZeMkEvent(
+	  Error, MxMDNoPxLevel("delOrder")));
     return;
   }
   pxLevel->updateDelta(transactTime, -orderData.qty, -1, 0);
@@ -720,7 +722,8 @@ ZmRef<MxMDOrder> MxMDOrderBook::modifyOrder(
   else
     order = m_venueShard->findOrder(key(), side, orderID);
   if (ZuUnlikely(!order)) {
-    md()->raise(ZeEVENT(Error, MxMDOrderNotFound("modifyOrder", orderID)));
+    md()->raise(ZeMkEvent(
+	  Error, MxMDOrderNotFound("modifyOrder", orderID)));
     return 0;
   }
   modifyOrder_(order, transactTime, side, rank, price, qty, flags);
@@ -738,7 +741,8 @@ void MxMDVenue::modifyOrder(
   else
     order = findOrder(orderID);
   if (ZuUnlikely(!order)) {
-    md()->raise(ZeEVENT(Error, MxMDOrderNotFound("modifyOrder", orderID)));
+    md()->raise(ZeMkEvent(
+	  Error, MxMDOrderNotFound("modifyOrder", orderID)));
     return;
   }
   order->orderBook()->shard()->run(
@@ -791,7 +795,8 @@ ZmRef<MxMDOrder> MxMDOrderBook::reduceOrder(
 
   ZmRef<MxMDOrder> order = m_venueShard->findOrder(key(), side, orderID);
   if (ZuUnlikely(!order)) {
-    md()->raise(ZeEVENT(Error, MxMDOrderNotFound("reduceOrder", orderID)));
+    md()->raise(ZeMkEvent(
+	  Error, MxMDOrderNotFound("reduceOrder", orderID)));
     return 0;
   }
   if (ZuUnlikely(order->data().qty <= reduceQty))
@@ -806,7 +811,8 @@ void MxMDVenue::reduceOrder(
 {
   ZmRef<MxMDOrder> order = findOrder(orderID);
   if (ZuUnlikely(!order)) {
-    md()->raise(ZeEVENT(Error, MxMDOrderNotFound("reduceOrder", orderID)));
+    md()->raise(ZeMkEvent(
+	  Error, MxMDOrderNotFound("reduceOrder", orderID)));
     return;
   }
   if (ZuUnlikely(order->data().qty <= reduceQty)) delOrder(orderID);
@@ -1640,8 +1646,8 @@ ZmRef<MxMDOrderBook> MxMDLib::addOrderBook(
     MxDateTime transactTime)
 {
   if (ZuUnlikely(!*key.venue)) {
-    raise(ZeEVENT(Error,
-      ([id = key.id](const ZeEvent &, ZmStream &s) {
+    raise(ZeMkEvent(Error,
+      ([id = key.id](const ZeEventInfo &, auto &s) {
 	s << "addOrderBook - null venueID for \"" << id << '"';
       })));
     return nullptr;
@@ -1658,9 +1664,11 @@ loop:
     }
     ZmRef<MxMDVenue> venue = m_venues.findKey(key.venue);
     if (ZuUnlikely(!venue)) {
-      raise(ZeEVENT(Error,
-	([venueID = key.venue, id = key.id](const ZeEvent &, ZmStream &s) {
-	  s << "addOrderBook - no such venue for \"" << id << "\" " << venueID;
+      raise(ZeMkEvent(Error,
+	([venueID = key.venue, id = key.id](
+	    const ZeEventInfo &, auto &s) {
+	  s << "addOrderBook - no such venue for \""
+	    << id << "\" " << venueID;
 	})));
       return newOB;
     }

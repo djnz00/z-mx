@@ -1594,7 +1594,7 @@ int main(int argc, char **argv)
       .histLoad = history.loadFn()
     });
     if (cli.open()) {
-      ZeLog::sink(ZeLog::lambdaSink([&cli](ZeLogBuf &buf, const ZeEvent &) {
+      ZeLog::sink(ZeLog::lambdaSink([&cli](const ZeEventInfo &, ZeLogBuf &buf) {
 	buf << '\n';
 	cli.print([&buf]() { std::cout << buf << std::flush; });
       }));

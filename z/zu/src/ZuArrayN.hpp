@@ -39,7 +39,7 @@
 
 #include <zlib/ZuAssert.hpp>
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuArray.hpp>
 #include <zlib/ZuArrayFn.hpp>
 #include <zlib/ZuCmp.hpp>
@@ -86,7 +86,7 @@ template <> struct ZuArrayN_Char2<wchar_t> { using T = char; };
 
 template <typename T_, unsigned N_, typename Cmp_, typename ArrayN>
 class ZuArrayN_ : public ZuArrayN__<T_>, public ZuArrayFn<T_, Cmp_> {
-  ZuConversionFriend;
+  ZuInspectFriend;
 
   ZuArrayN_(const ZuArrayN_ &);
   ZuArrayN_ &operator =(const ZuArrayN_ &);
@@ -114,7 +114,7 @@ protected:
   // from char2 string (requires conversion)
   template <typename U, typename V = Char2>
   struct IsChar2String : public ZuBool<
-      !ZuConversion<ZuNull, V>::Same &&
+      !ZuInspect<ZuNull, V>::Same &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
       ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
@@ -124,17 +124,17 @@ protected:
   template <typename U, typename V = T> struct IsArray : public ZuBool<
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
-      !ZuConversion<U, V>::Same &&
+      !ZuInspect<U, V>::Same &&
       ZuTraits<U>::IsArray &&
-      ZuConversion<typename ZuTraits<U>::Elem, V>::Exists> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Exists> { };
   template <typename U, typename R = void>
   using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
   // from individual char2 (requires conversion, char->wchar_t only)
   template <typename U, typename V = Char2> struct IsChar2 :
-    public ZuBool<!ZuConversion<ZuNull, V>::Same &&
-      ZuConversion<U, V>::Same &&
-      !ZuConversion<U, wchar_t>::Same> { };
+    public ZuBool<!ZuInspect<ZuNull, V>::Same &&
+      ZuInspect<U, V>::Same &&
+      !ZuInspect<U, wchar_t>::Same> { };
   template <typename U, typename R = void>
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
@@ -158,7 +158,7 @@ protected:
 
   // from individual element
   template <typename U, typename V = T> struct IsElem : public ZuBool<
-      ZuConversion<U, V>::Same ||
+      ZuInspect<U, V>::Same ||
       (!IsString<U>{} &&
        !IsArray<U>{} &&
        !IsChar2String<U>{} &&
@@ -166,9 +166,23 @@ protected:
        !IsPDelegate<U>{} &&
        !IsPBuffer<U>{} &&
        !IsReal<U>{} &&
-       ZuConversion<U, V>::Exists)> { };
+       ZuInspect<U, V>::Exists)> { };
   template <typename U, typename R = void>
   using MatchElem = ZuIfT<IsElem<U>{}, R>;
+
+  // limit member operator <<() overload resolution to supported types
+  template <typename U>
+  struct IsStreamable : public ZuBool<
+      bool{IsString<U>{}} ||
+      bool{IsArray<U>{}} ||
+      bool{IsChar2String<U>{}} ||
+      bool{IsChar2<U>{}} ||
+      bool{IsPDelegate<U>{}} ||
+      bool{IsPBuffer<U>{}} ||
+      bool{IsReal<U>{}} ||
+      bool{IsElem<U>{}}> { };
+  template <typename U, typename R = void>
+  using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
   ~ZuArrayN_() { dtor(); }
 
@@ -289,8 +303,7 @@ protected:
       });
   }
 
-  template <typename S>
-  MatchChar2String<S> append_(S &&s) {
+  template <typename S> MatchChar2String<S> append_(S &&s) {
     if (m_length < N)
       data()[m_length = ZuUTF<T, Char2>::cvt(
 	  {data() + m_length, N - m_length}, s)] = 0;
@@ -302,12 +315,10 @@ protected:
 	  {data() + m_length, N - m_length}, {&c, 1})] = 0;
   }
 
-  template <typename P>
-  MatchPDelegate<P> append_(const P &p) {
+  template <typename P> MatchPDelegate<P> append_(const P &p) {
     ZuPrint<P>::print(*static_cast<ArrayN *>(this), p);
   }
-  template <typename P>
-  MatchPBuffer<P> append_(const P &p) {
+  template <typename P> MatchPBuffer<P> append_(const P &p) {
     unsigned length = ZuPrint<P>::length(p);
     if (m_length + length > N) return;
     m_length += ZuPrint<P>::print(
@@ -419,7 +430,7 @@ public:
 
 private:
   template <typename U> struct IsVoid :
-    public ZuBool<ZuConversion<void, U>::Same> { };
+    public ZuBool<ZuInspect<void, U>::Same> { };
   template <typename U, typename R = void>
   using MatchVoid = ZuIfT<IsVoid<U>{}, R>;
 
@@ -495,10 +506,10 @@ public:
     return cbuf().cmp(a);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuArrayN_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuArrayN_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuArrayN_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuArrayN_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
 // hash
@@ -535,16 +546,16 @@ public:
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
   template <typename U> struct IsCtorLength : public ZuBool<
-      ZuConversion<U, unsigned>::Same ||
-      ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same> { };
+      ZuInspect<U, unsigned>::Same ||
+      ZuInspect<U, int>::Same ||
+      ZuInspect<U, size_t>::Same> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
   // constructor arg
   template <typename U> struct IsCtorArg : public ZuBool<
       !IsCtorLength<U>{} &&
-      !ZuConversion<Base, U>::Base> { };
+      !ZuInspect<Base, U>::Base> { };
   template <typename U, typename R = void>
   using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
@@ -588,14 +599,12 @@ public:
     this->init(ZuFwd<A>(a));
     return *this;
   }
-  template <typename A>
-  ArrayN &operator +=(A &&a) {
-    this->append_(ZuFwd<A>(a));
-    return *this;
-  }
-  template <typename A>
-  ArrayN &operator <<(A &&a) {
-    this->append_(ZuFwd<A>(a));
+  template <typename U>
+  ArrayN &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
+  template <typename U>
+  Base::template MatchStreamable<U, ArrayN &>
+  operator <<(U &&v) {
+    this->append_(ZuFwd<U>(v));
     return *this;
   }
 

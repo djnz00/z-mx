@@ -32,7 +32,7 @@
 
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuObject.hpp>
 
 #include <zlib/ZmNoLock.hpp>
@@ -351,11 +351,11 @@ public:
 
 private:
   template <typename U, typename V = Key>
-  struct IsKey : public ZuBool<ZuConversion<U, V>::Exists> { };
+  struct IsKey : public ZuBool<ZuInspect<U, V>::Exists> { };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>{}, R>;
-  template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
-  struct IsData : public ZuBool<!IsKey<U>{} && ZuConversion<U, V>::Exists> { };
+  template <typename U, typename V = T, bool = ZuInspect<NodeBase, V>::Is>
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Exists> { };
   template <typename U, typename V>
   struct IsData<U, V, true> : public ZuFalse { };
   template <typename U, typename R = void>
@@ -508,9 +508,9 @@ public:
   NodeRef push(P0 &&p0, P1 &&p1) {
     return push(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  template <bool _ = !ZuInspect<NodeRef, Node *>::Same>
   ZuIfT<_> pushNode(const NodeRef &node_) { pushNode(node_.ptr()); }
-  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  template <bool _ = !ZuInspect<NodeRef, Node *>::Same>
   ZuIfT<_> pushNode(NodeRef &&node_) {
     Node *node = node_.release();
     Guard guard(m_lock);

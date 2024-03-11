@@ -5,7 +5,7 @@ AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 pkginclude_HEADERS = \
 	ZuArrayFn.hpp ZuArray.hpp ZuArrayN.hpp ZuAssert.hpp ZuBox.hpp \
 	ZuBitmap.hpp ZuBitfield.hpp ZuByteSwap.hpp ZuCmp.hpp ZuICmp.hpp \
-	ZuConversion.hpp ZuFnName.hpp ZuFmt.hpp ZuFP.hpp ZuHash.hpp ZuID.hpp \
+	ZuInspect.hpp ZuFnName.hpp ZuFmt.hpp ZuFP.hpp ZuHash.hpp ZuID.hpp \
 	ZuInt.hpp ZuFnTraits.hpp ZuLargest.hpp \
 	ZuLib.hpp ZuMvArray.hpp ZuNull.hpp \
 	ZuObjectTraits.hpp ZuObject.hpp ZuPolymorph.hpp ZuPP.hpp \

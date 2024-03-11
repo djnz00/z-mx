@@ -49,7 +49,7 @@ void Client::start()
 	  return (uintptr_t)(new Cxn(client, ci));
 	}),
       ZiFailFn(this, [](Client *client, bool transient) {
-	  client->error(ZeEVENT(Error,
+	  client->error(ZeMkLambdaEvent(Error,
 		([ip = client->m_ip, port = client->m_port](
 		    const ZeEvent &, ZmStream &s) {
 		  s << "MxTelemetry::Client{" <<
@@ -125,7 +125,7 @@ void Server::start()
 	  return (uintptr_t)(new Cxn(server, ci));
 	}),
       ZiFailFn(this, [](Server *server, bool transient) {
-	  server->error(ZeEVENT(Error,
+	  server->error(ZeMkLambdaEvent(Error,
 		([ip = server->m_ip, port = server->m_port](
 		    const ZeEvent &, ZmStream &s) {
 		  s << "MxTelemetry::Server{" <<

@@ -50,7 +50,7 @@
 #include <zlib/ZuInt.hpp>
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuStringFn.hpp>
@@ -99,7 +99,7 @@ class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<ZuStrip<Char_>> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
-  enum { IsWString = ZuConversion<Char, wchar_t>::Same };
+  enum { IsWString = ZuInspect<Char, wchar_t>::Same };
   enum { BuiltinSize_ = (ZtString_Builtin + sizeof(Char) - 1) / sizeof(Char) };
   enum { BuiltinU64 =
     (BuiltinSize_ * sizeof(Char) + sizeof(uintptr_t) - 1) / sizeof(uintptr_t) };
@@ -109,7 +109,7 @@ public:
 private:
   // from same type ZtString
   template <typename U, typename V = Char> struct IsZtString :
-    public ZuBool<ZuConversion<ZtString__<V>, U>::Base> { };
+    public ZuBool<ZuInspect<ZtString__<V>, U>::Base> { };
   template <typename U, typename R = void>
   using MatchZtString = ZuIfT<IsZtString<U>{}, R>;
 
@@ -117,7 +117,7 @@ private:
   template <typename U, typename V = Char> struct IsStrLiteral : public ZuBool<
       ZuTraits<U>::IsCString &&
       ZuTraits<U>::IsArray && ZuTraits<U>::IsPrimitive &&
-      ZuConversion<typename ZuTraits<U>::Elem, V>::Same> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
   using MatchStrLiteral = ZuIfT<IsStrLiteral<U>{}, R>;
 
@@ -196,11 +196,26 @@ private:
   template <typename U, typename R = void>
   using MatchChar = ZuIfT<IsChar<U>{}, R>;
 
+  // limit member operator <<() overload resolution to supported types
+  template <typename U> struct IsStreamable : public ZuBool<
+      bool{IsZtString<U>{}} ||
+      bool{IsAnyCString<U>{}} ||
+      bool{IsOtherString<U>{}} ||
+      bool{IsChar<U>{}} ||
+      bool{IsChar2String<U>{}} ||
+      bool{IsChar2<U>{}} ||
+      bool{IsPDelegate<U>{}} ||
+      bool{IsPBuffer<U>{}} ||
+      bool{IsReal<U>{}} ||
+      bool{IsPtr<U>{}}> { };
+  template <typename U, typename R = void>
+  using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
+
   // an unsigned|int|size_t parameter to the constructor is a buffer size
   template <typename U, typename V = Char> struct IsCtorSize : public ZuBool<
-      ZuConversion<U, unsigned>::Same ||
-      ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same> { };
+      ZuInspect<U, unsigned>::Same ||
+      ZuInspect<U, int>::Same ||
+      ZuInspect<U, size_t>::Same> { };
   template <typename U, typename R = void>
   using MatchCtorSize = ZuIfT<IsCtorSize<U>{}, R>;
 
@@ -443,7 +458,7 @@ private:
 
 public:
   template <typename S>
-  ZtString_(S &&s_, ZtIconv *iconv, ZuIsString<S> *_ = nullptr) {
+  ZtString_(S &&s_, ZtIconv *iconv, ZuMatchString<S> *_ = nullptr) {
     ZuArrayT<S> s(ZuFwd<S>(s_));
     convert_(s, iconv);
   }
@@ -869,10 +884,10 @@ public:
     return ZuCmp<ZtString_>::cmp(*this, s);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZtString_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZtString_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZtString_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZtString_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool equals(const Char *s, unsigned n) const {
@@ -942,10 +957,14 @@ private:
   }
 
 public:
-  template <typename S> ZtString_ &operator +=(const S &s)
-    { append_(s); return *this; }
-  template <typename S> ZtString_ &operator <<(const S &s)
-    { append_(s); return *this; }
+  template <typename U>
+  ZtString_ &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
+  template <typename U>
+  MatchStreamable<U, ZtString_ &>
+  operator <<(U &&v) {
+    append_(ZuFwd<U>(v));
+    return *this;
+  }
 
 private:
   template <typename S>
@@ -980,11 +999,9 @@ private:
   }
 
   template <typename S>
-  MatchChar2String<S> append_(const S &s)
-    { append_(ZtString_(s)); }
+  MatchChar2String<S> append_(const S &s) { append_(ZtString_(s)); }
   template <typename C>
-  MatchChar2<C> append_(C c)
-    { append_(ZtString_(c)); }
+  MatchChar2<C> append_(C c) { append_(ZtString_(c)); }
 
   template <typename P>
   MatchPDelegate<P> append_(const P &p) {

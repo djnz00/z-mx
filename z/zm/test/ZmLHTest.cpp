@@ -71,10 +71,10 @@ template <int N> struct String {
     return ZuCmp<String>::equals(*this, s);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<String, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<String, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<String, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<String, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   uint32_t hash() const { return ZuHash<String>::hash(*this); }

@@ -31,7 +31,7 @@
 #endif
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 // rules for using ZuRef
 
@@ -57,7 +57,7 @@ private:
 
   // matches ZuRef<U> where U is not T, but is in the same type hierarchy as T
   template <typename V> struct IsOtherRef_ :
-      public ZuBool<ZuConversion<T, V>::Base || ZuConversion<V, T>::Base> { };
+      public ZuBool<ZuInspect<T, V>::Base || ZuInspect<V, T>::Base> { };
   template <typename U> struct IsOtherRef :
       public IsOtherRef_<decltype(ZuRefType(ZuDeclVal<U *>()))> { };
   template <typename U, typename = void, bool = IsOtherRef<U>{}>
@@ -69,7 +69,7 @@ private:
 
   // matches ZuRef<U> where U is either T or in the same type hierarchy as T
   template <typename V> struct IsRef_ :
-      public ZuBool<ZuConversion<T, V>::Is || ZuConversion<V, T>::Is> { };
+      public ZuBool<ZuInspect<T, V>::Is || ZuInspect<V, T>::Is> { };
   template <typename U> struct IsRef :
       public IsRef_<decltype(ZuRefType(ZuDeclVal<U *>()))> { };
   template <typename U, typename = void, bool = IsRef<U>{}>
@@ -81,7 +81,7 @@ private:
 
   // matches U * where U is either T or in the same type hierarchy as T
   template <typename U> struct IsPtr :
-    public ZuBool<(ZuConversion<T, U>::Is || ZuConversion<U, T>::Is)> { };
+    public ZuBool<(ZuInspect<T, U>::Is || ZuInspect<U, T>::Is)> { };
   template <typename U, typename R = void>
   using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 

@@ -377,7 +377,7 @@ private:
       if (n = ZtREGEX("\s*>>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "a"))) {
-	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) {
+	  ZeLOG(Error, ([path, e = ZeLastError](const ZeEventInfo &, auto &s) {
 	    s << path << ": " << e;
 	  }));
 	  return -1;
@@ -386,7 +386,7 @@ private:
       } else if (n = ZtREGEX("\s*>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
 	if (!(ctx.file = fopen(path, "w"))) {
-	  ZeLOG(Error, ([path, e = ZeLastError](auto &s) {
+	  ZeLOG(Error, ([path, e = ZeLastError](const ZeEventInfo &, auto &s) {
 	    s << path << ": " << e;
 	  }));
 	  return -1;
@@ -453,7 +453,7 @@ private:
     auto ackType = ack->data_type();
     if ((int)ackType != ackType1 &&
 	ackType2 >= fbs::ReqAckData_MIN && (int)ackType != ackType2) {
-      ZeLOG(Error, ([ackType](auto &s) {
+      ZeLOG(Error, ([ackType](const ZeEventInfo &, auto &s) {
 	s << "mismatched ack from server: "
 	  << fbs::EnumNameReqAckData(ackType);
       }));
@@ -1474,7 +1474,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("zcmd");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::lambdaSink([](ZeLogBuf &buf, const ZeEvent &) {
+  ZeLog::sink(ZeLog::lambdaSink([](const ZeEventInfo &, ZeLogBuf &buf) {
     buf << '\n';
     std::cerr << buf << std::flush;
   }));
@@ -1546,9 +1546,9 @@ int main(int argc, char **argv)
       ZiMxParams()
 	.scheduler([](auto &s) {
 	  s.nThreads(4)
-	  .thread(1, [](auto &t) { t.isolated(1); })
-	  .thread(2, [](auto &t) { t.isolated(1); })
-	  .thread(3, [](auto &t) { t.isolated(1); }); })
+	    .thread(1, [](auto &t) { t.isolated(1); })
+	    .thread(2, [](auto &t) { t.isolated(1); })
+	    .thread(3, [](auto &t) { t.isolated(1); }); })
 	.rxThread(1).txThread(2));
 
   mx->start();

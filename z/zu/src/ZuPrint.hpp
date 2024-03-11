@@ -36,7 +36,7 @@
 #endif
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 struct ZuPrintable { };
 
@@ -123,7 +123,7 @@ template <typename Impl, typename S> struct ZuStdStream_ {
 
 #include <zlib/ZuStdString.hpp>
 
-template <typename S, bool = ZuConversion<std::ios_base, S>::Base>
+template <typename S, bool = ZuInspect<std::ios_base, S>::Base>
 struct ZuStdStream { enum { OK = 0 }; };
 template <typename S>
 struct ZuStdStream<S, true> : public ZuStdStream_<ZuStdStream<S, true>, S> {

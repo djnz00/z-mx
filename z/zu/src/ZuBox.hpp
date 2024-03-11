@@ -39,7 +39,7 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuInt.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuString.hpp>
 
@@ -55,14 +55,14 @@
 #endif
 
 template <typename T, typename Cmp> class ZuBox;
-template <typename> struct ZuIsBoxed_ : public ZuFalse { };
+template <typename> struct ZuIsBoxed : public ZuFalse { };
 template <typename T, typename Cmp>
-struct ZuIsBoxed_<ZuBox<T, Cmp>> : public ZuTrue { };
+struct ZuIsBoxed<ZuBox<T, Cmp>> : public ZuTrue { };
 
 template <typename U, typename R = void>
-using ZuIsBoxed = ZuIfT<ZuIsBoxed_<U>{}, R>;
+using ZuMatchBoxed = ZuIfT<ZuIsBoxed<U>{}, R>;
 template <typename U, typename R = void>
-using ZuNotBoxed = ZuIfT<!ZuIsBoxed_<U>{}, R>;
+using ZuNotBoxed = ZuIfT<!ZuIsBoxed<U>{}, R>;
 
 // compile-time formatting
 template <typename T, typename Fmt,
@@ -188,22 +188,22 @@ private:
 
 // SFINAE...
 template <typename U, typename T, typename R = void>
-using ZuBox_IsReal =
-  ZuIfT<!ZuIsBoxed_<U>{} && !ZuTraits<U>::IsString && (
+using ZuBox_MatchReal =
+  ZuIfT<!ZuIsBoxed<U>{} && !ZuTraits<U>::IsString && (
       ZuTraits<U>::IsReal ||
-      ZuConversion<U, T>::Exists ||
-      ZuConversion<U, int>::Exists), R>;
-template <typename Traits, typename T, bool IsPointer, bool IsArray>
-struct ZuBox_IsCharPtr_ { };
-template <typename Traits, typename T>
-struct ZuBox_IsCharPtr_<Traits, T, 1, 0> :
-    public ZuIfT_<ZuConversion<typename Traits::Elem, char>::Same, T> { };
-template <typename Traits, typename T>
-struct ZuBox_IsCharPtr_<Traits, T, 0, 1> :
-    public ZuIfT_<ZuConversion<typename Traits::Elem, char>::Same, T> { };
-template <typename S, typename T = void>
-using ZuBox_IsCharPtr =
-  typename ZuBox_IsCharPtr_<ZuTraits<S>, T,
+      ZuInspect<U, T>::Exists ||
+      ZuInspect<U, int>::Exists), R>;
+template <typename Traits, typename R, bool IsPointer, bool IsArray>
+struct ZuBox_MatchCharPtr_ { };
+template <typename Traits, typename R>
+struct ZuBox_MatchCharPtr_<Traits, R, true, false> :
+    public ZuIfT_<ZuInspect<typename Traits::Elem, char>::Same, R> { };
+template <typename Traits, typename R>
+struct ZuBox_MatchCharPtr_<Traits, R, false, true> :
+    public ZuIfT_<ZuInspect<typename Traits::Elem, char>::Same, R> { };
+template <typename S, typename R = void>
+using ZuBox_MatchCharPtr =
+  typename ZuBox_MatchCharPtr_<ZuTraits<S>, R,
     ZuTraits<S>::IsPointer,
     ZuTraits<S>::IsArray>::T;
 
@@ -237,15 +237,15 @@ public:
   ZuBox &operator =(const ZuBox &b) { m_val = b.m_val; return *this; }
 
   template <typename R>
-  ZuBox(R r, ZuBox_IsReal<R, T> *_ = nullptr) :
+  ZuBox(R r, ZuBox_MatchReal<R, T> *_ = nullptr) :
     m_val(r) { }
 
   template <typename B>
-  ZuBox(B b, ZuIsBoxed<B> *_ = nullptr) :
+  ZuBox(B b, ZuMatchBoxed<B> *_ = nullptr) :
     m_val(!*b ? static_cast<T>(Cmp::null()) : static_cast<T>(b.m_val)) { }
 
   template <typename S>
-  ZuBox(S &&s_, ZuIsCharString<S> *_ = nullptr) :
+  ZuBox(S &&s_, ZuMatchCharString<S> *_ = nullptr) :
       m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
@@ -253,7 +253,7 @@ public:
       m_val = val;
   }
   template <typename Fmt, typename S>
-  ZuBox(Fmt, S &&s_, ZuIsCharString<S> *_ = nullptr) :
+  ZuBox(Fmt, S &&s_, ZuMatchCharString<S> *_ = nullptr) :
       m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<Fmt>::T val = 0;
@@ -263,14 +263,14 @@ public:
 
   template <typename S>
   ZuBox(S s, unsigned len,
-      ZuBox_IsCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
+      ZuBox_MatchCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s, len)))
       m_val = val;
   }
   template <typename Fmt, typename S>
   ZuBox(Fmt, S s, unsigned len,
-      ZuBox_IsCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
+      ZuBox_MatchCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s, len)))
       m_val = val;
@@ -280,15 +280,15 @@ public:
 
 private:
   template <typename R>
-  ZuBox_IsReal<R, T> assign(R r) { m_val = r; }
+  ZuBox_MatchReal<R, T> assign(R r) { m_val = r; }
 
   template <typename B>
-  ZuIsBoxed<B> assign(const B &b) {
+  ZuMatchBoxed<B> assign(const B &b) {
     m_val = !*b ? (T)Cmp::null() : (T)b.m_val;
   }
 
   template <typename S>
-  ZuIsCharString<S> assign(S &&s_) {
+  ZuMatchCharString<S> assign(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     if (ZuUnlikely(!s || !Scan<>::scan(val, s.data(), s.length())))
@@ -302,7 +302,7 @@ public:
   ZuBox &operator =(T &&t) { assign(ZuFwd<T>(t)); return *this; }
 
   template <typename T>
-  static ZuIsFloatingPoint<T, bool> equals_(T t1, T t2) {
+  static ZuMatchFloatingPoint<T, bool> equals_(T t1, T t2) {
     if (Cmp::null(t2)) return Cmp::null(t1);
     if (Cmp::null(t1)) return false;
     return t1 == t2;
@@ -316,23 +316,23 @@ public:
   }
 
   template <typename Cmp__ = Cmp>
-  ZuIfT<!ZuConversion<Cmp__, ZuCmp0<T> >::Same, int>
+  ZuIfT<!ZuInspect<Cmp__, ZuCmp0<T> >::Same, int>
   cmp_(const ZuBox &b) const {
     if (Cmp::null(b.m_val)) return Cmp::null(m_val) ? 0 : 1;
     if (Cmp::null(m_val)) return -1;
     return Cmp::cmp(m_val, b.m_val);
   }
   template <typename Cmp__ = Cmp>
-  ZuIfT<ZuConversion<Cmp__, ZuCmp0<T> >::Same, int>
+  ZuIfT<ZuInspect<Cmp__, ZuCmp0<T> >::Same, int>
   cmp_(const ZuBox &b) const {
     return Cmp::cmp(m_val, b.m_val);
   }
   int cmp(const ZuBox &b) const { return cmp_<>(b.m_val); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuBox, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuBox, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuBox, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuBox, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_val; }
@@ -370,7 +370,7 @@ public:
   }
 
   template <typename Fmt = ZuFmt::Default, typename S>
-  ZuIsCharString<S, unsigned> scan(S &&s_) {
+  ZuMatchCharString<S, unsigned> scan(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     unsigned n = Scan<Fmt>::scan(val, s.data(), s.length());
@@ -382,7 +382,7 @@ public:
     return n;
   }
   template <typename Fmt = ZuFmt::Default, typename S>
-  ZuBox_IsCharPtr<S, unsigned> scan(S s, unsigned len) {
+  ZuBox_MatchCharPtr<S, unsigned> scan(S s, unsigned len) {
     typename Scan<Fmt>::T val = 0;
     unsigned n = Scan<Fmt>::scan(val, s, len);
     if (ZuUnlikely(!n)) {
@@ -536,9 +536,9 @@ using ZuBoxT = typename ZuBoxT_<U>::T;
 
 // ZuBoxed(t) - convenience function to cast primitives to boxed
 template <typename T>
-const ZuIsBoxed<T, T> &ZuBoxed(const T &t) { return t; }
+const ZuMatchBoxed<T, T> &ZuBoxed(const T &t) { return t; }
 template <typename T>
-ZuIsBoxed<T, T> &ZuBoxed(T &t) { return t; }
+ZuMatchBoxed<T, T> &ZuBoxed(T &t) { return t; }
 template <typename T>
 const ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(const T &t) {
   const ZuBox<T> *ZuMayAlias(t_) = reinterpret_cast<const ZuBox<T> *>(&t);

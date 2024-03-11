@@ -42,7 +42,7 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -136,7 +136,7 @@ public:
 
 template <typename T1, typename T2>
 struct ZuArrayFn_POD {
-  enum { Same = ZuConversion<T1, T2>::Same ||
+  enum { Same = ZuInspect<T1, T2>::Same ||
     (sizeof(T1) == sizeof(T2) &&
      ZuTraits<T1>::IsIntegral && ZuTraits<T1>::IsPrimitive &&
      ZuTraits<T2>::IsIntegral && ZuTraits<T2>::IsPrimitive) };

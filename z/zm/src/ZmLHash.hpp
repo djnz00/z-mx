@@ -697,11 +697,11 @@ private:
   }
 
   template <typename U, typename V = Key>
-  struct IsKey : public ZuBool<ZuConversion<U, V>::Exists> { };
+  struct IsKey : public ZuBool<ZuInspect<U, V>::Exists> { };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>{}, R>;
   template <typename U, typename V = T>
-  struct IsData : public ZuBool<!IsKey<U>{} && ZuConversion<U, V>::Exists> { };
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Exists> { };
   template <typename U, typename R = void>
   using MatchData = ZuIfT<IsData<U>{}, R>;
 

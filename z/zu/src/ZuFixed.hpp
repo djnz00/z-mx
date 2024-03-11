@@ -79,12 +79,12 @@ public:
   ZuFixed() = default;
 
   template <typename M>
-  constexpr ZuFixed(M m, unsigned e, ZuIsIntegral<M> *_ = nullptr) :
+  constexpr ZuFixed(M m, unsigned e, ZuMatchIntegral<M> *_ = nullptr) :
       m_mantissa{static_cast<int64_t>(m)},
       m_exponent{static_cast<uint8_t>(e)} { }
 
   template <typename V>
-  constexpr ZuFixed(V v, unsigned e, ZuIsFloatingPoint<V> *_ = nullptr) :
+  constexpr ZuFixed(V v, unsigned e, ZuMatchFloatingPoint<V> *_ = nullptr) :
     m_mantissa{static_cast<int64_t>(
 	static_cast<double>(v) * ZuDecimalFn::pow10_64(e))},
     m_exponent{static_cast<uint8_t>(e)} { }
@@ -159,10 +159,10 @@ public:
     return (i > j) - (i < j);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuFixed, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuFixed, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // ! is zero, unary * is !null
@@ -173,11 +173,11 @@ public:
 
   // scan from string
   template <typename S>
-  ZuFixed(const S &s, ZuIsString<S> *_ = nullptr) {
+  ZuFixed(const S &s, ZuMatchString<S> *_ = nullptr) {
     scan<false>(s, 0);
   }
   template <typename S>
-  ZuFixed(const S &s, unsigned e, ZuIsString<S> *_ = nullptr) {
+  ZuFixed(const S &s, unsigned e, ZuMatchString<S> *_ = nullptr) {
     scan<true>(s, e);
   }
 private:

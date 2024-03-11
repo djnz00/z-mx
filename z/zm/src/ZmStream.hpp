@@ -104,19 +104,19 @@ public:
 
 private:
   template <typename U, typename R = void>
-  using MatchChar = ZuIfT<ZuConversion<U, char>::Same, R>;
+  using MatchChar = ZuIfT<ZuInspect<U, char>::Same, R>;
 
   template <typename U, typename R = void>
   using MatchReal = ZuIfT<
     ZuTraits<U>::IsPrimitive &&
     ZuTraits<U>::IsReal &&
-    !ZuConversion<U, char>::Same, R>;
+    !ZuInspect<U, char>::Same, R>;
 
   template <typename U, typename R = void>
   using MatchString = ZuIfT<
     ZuTraits<U>::IsString &&
     !ZuTraits<U>::IsWString &&
-    !ZuConversion<ZuString, U>::Is, R>;
+    !ZuInspect<ZuString, U>::Is, R>;
 
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<ZuPrint<U>::Delegate, R>;

@@ -36,7 +36,7 @@
 #pragma once
 #endif
 
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuTraits.hpp>
 
 template <bool, bool, typename, typename, typename ...>
@@ -98,7 +98,7 @@ struct ZuFnMatch_<R, R, Args, Args> : public ZuTrue { };
 
 template <typename R_, typename L_, typename ...Args_>
 struct ZuFnTraits_2 : public ZuFnTraits_3<
-    ZuConversion<L_, R_ (*)(Args_...)>::Exists, ZuTraits<L_>::IsEmpty,
+    ZuInspect<L_, R_ (*)(Args_...)>::Exists, ZuTraits<L_>::IsEmpty,
     R_, L_, Args_...> {
   using R = R_;
   using L = L_;

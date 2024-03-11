@@ -77,7 +77,7 @@
 #include <stdlib.h>
 
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuFnTraits.hpp>
 

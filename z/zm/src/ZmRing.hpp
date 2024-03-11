@@ -612,12 +612,12 @@ private:
 
 public:
   constexpr static auto SizeAxor = NTP::SizeAxor;
-  enum { V = ZuConversion<void, T>::Same };
+  enum { V = ZuInspect<void, T>::Same };
   enum { MsgSize = DataMgr_::MsgSize };
 
   // MR requires a non-default SizeAxor
   ZuAssert((!MR ||
-	!ZuConversion<decltype(Defaults::SizeAxor), decltype(SizeAxor)>::Same));
+	!ZuInspect<decltype(Defaults::SizeAxor), decltype(SizeAxor)>::Same));
 
   enum { // open() flags
     Read	= 0x00000001,

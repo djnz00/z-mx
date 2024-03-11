@@ -117,7 +117,7 @@
 #include <zlib/ZuFixed.hpp>
 #include <zlib/ZuDecimal.hpp>
 #include <zlib/ZuUnroll.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuField.hpp>
 #include <zlib/ZuUnroll.hpp>
 
@@ -1766,7 +1766,7 @@ struct ZtVFieldType_Fixed : public ZtVFieldType {
     .scan = [](void *ptr, ZuString s, const ZtFieldFmt &fmt) {
       // preserve exponent
       unsigned exponent;
-      if constexpr (ZuConversion<T, ZuFixed>::Same)
+      if constexpr (ZuInspect<T, ZuFixed>::Same)
 	exponent = static_cast<T *>(ptr)->exponent();
       else
 	exponent = ZuFixed{*static_cast<T *>(ptr)}.exponent();

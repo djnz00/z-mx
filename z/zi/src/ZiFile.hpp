@@ -206,7 +206,7 @@ private:
   using MatchPBuffer =
     ZuIfT<ZuPrint<U>::Buffer && !ZuTraits<U>::IsString, R>;
 
-  template <typename S> ZuIsString<S> append_(S &&s_) {
+  template <typename S> ZuMatchString<S> append_(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     if (ZuUnlikely(!s)) return;
     ZeError e;

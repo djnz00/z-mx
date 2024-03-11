@@ -35,7 +35,7 @@
 
 #include <wchar.h>
 
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuInt.hpp>
 
 #ifdef _MSC_VER
@@ -43,20 +43,20 @@
 #endif
 
 template <typename U, typename W = wchar_t,
-  bool = ZuConversion<U, char>::Same ||
-	 ZuConversion<U, signed char>::Same ||
-	 ZuConversion<U, unsigned char>::Same ||
-	 ZuConversion<U, int8_t>::Same ||
-	 ZuConversion<U, uint8_t>::Same,
-  bool = ZuConversion<U, W>::Same ||
+  bool = ZuInspect<U, char>::Same ||
+	 ZuInspect<U, signed char>::Same ||
+	 ZuInspect<U, unsigned char>::Same ||
+	 ZuInspect<U, int8_t>::Same ||
+	 ZuInspect<U, uint8_t>::Same,
+  bool = ZuInspect<U, W>::Same ||
 	 (sizeof(W) == 2 && (
-	       ZuConversion<U, short>::Same ||
-	       ZuConversion<U, unsigned short>::Same ||
-	       ZuConversion<U, int16_t>::Same ||
-	       ZuConversion<U, uint16_t>::Same)) ||
+	       ZuInspect<U, short>::Same ||
+	       ZuInspect<U, unsigned short>::Same ||
+	       ZuInspect<U, int16_t>::Same ||
+	       ZuInspect<U, uint16_t>::Same)) ||
 	 (sizeof(W) == 4 && (
-	       ZuConversion<U, int32_t>::Same ||
-	       ZuConversion<U, uint32_t>::Same))>
+	       ZuInspect<U, int32_t>::Same ||
+	       ZuInspect<U, uint32_t>::Same))>
 struct ZuNormChar_ { using T = U; };
 
 template <typename U, typename W, bool _>
@@ -83,6 +83,6 @@ template <typename U>
 using ZuNormChar = typename ZuNormChar_<U>::T;
 
 template <typename U1, typename U2>
-struct ZuEquivChar : public ZuConversion<ZuNormChar<U1>, ZuNormChar<U2>> { };
+struct ZuEquivChar : public ZuInspect<ZuNormChar<U1>, ZuNormChar<U2>> { };
 
 #endif /* ZuEquivChar_HPP */

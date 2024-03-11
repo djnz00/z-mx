@@ -39,7 +39,7 @@
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuString.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 class ZmBitmap {
 public:
@@ -258,10 +258,10 @@ public:
       ((uint128_t)hwloc_bitmap_to_ith_ulong(m_map, 1) << 64U);
   }
   template <typename S>
-  ZmBitmap(const S &s, ZuIsCharString<S> *_ = nullptr) :
+  ZmBitmap(const S &s, ZuMatchCharString<S> *_ = nullptr) :
       m_map{hwloc_bitmap_alloc()} { scan(s); }
   template <typename S>
-  ZuIsCharString<S, ZmBitmap &> operator =(const S &s) {
+  ZuMatchCharString<S, ZmBitmap &> operator =(const S &s) {
     if (m_map) hwloc_bitmap_zero(m_map);
     scan(s);
     return *this;

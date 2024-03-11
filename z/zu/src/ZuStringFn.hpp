@@ -37,7 +37,7 @@
 
 #include <zlib/ZuAssert.hpp>
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)

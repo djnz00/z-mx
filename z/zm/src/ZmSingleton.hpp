@@ -48,7 +48,7 @@
 #endif
 
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuFnTraits.hpp>
 
 #include <zlib/ZmRef.hpp>

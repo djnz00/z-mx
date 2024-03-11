@@ -67,7 +67,7 @@ public:
   ZiIP &operator =(uint32_t n) { s_addr = htonl(n); return *this; }
 
   template <typename S>
-  ZiIP(S &&s, ZuIsString<S> *_ = nullptr) {
+  ZiIP(S &&s, ZuMatchString<S> *_ = nullptr) {
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress"
@@ -81,7 +81,7 @@ public:
     if (resolve(ZuFwd<S>(s), &e) != OK) throw e;
   }
   template <typename S>
-  ZuIsString<S, ZiIP &> &operator =(S &&s) {
+  ZuMatchString<S, ZiIP &> &operator =(S &&s) {
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress"
@@ -141,7 +141,7 @@ private:
 #endif
 public:
   template <typename S>
-  ZuIsString<S, int> resolve(S &&s, ZeError *e = 0) {
+  ZuMatchString<S, int> resolve(S &&s, ZeError *e = 0) {
     return resolve_(ZuString{ZuFwd<S>(s)}, e);
   }
   Hostname name(ZeError *e = 0);

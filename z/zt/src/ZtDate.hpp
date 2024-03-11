@@ -107,7 +107,7 @@
 
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuString.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuPrint.hpp>
@@ -460,8 +460,7 @@ public:
     ctor(year, month, day, hour, minute, sec, nsec);
     if (tz) offset_(year, month, day, hour, minute, sec, tz);
   }
-  ZtDate(
-      int hour, int minute, int sec, int nsec, const char *tz) { // WARNING
+  ZtDate(int hour, int minute, int sec, int nsec, const char *tz) { // WARNING
     ctor(hour, minute, sec, nsec);
     if (tz) {
       int year, month, day;
@@ -471,14 +470,14 @@ public:
   }
 
   // CSV format: YYYY/MM/DD HH:MM:SS with an optional timezone parameter
-  template <typename S>
-  ZtDate(const ZtDateScan::CSV &fmt, const S &s, ZuIsString<S> *__ = nullptr) {
+  template <typename S> ZtDate(
+      const ZtDateScan::CSV &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
     ctor(fmt, s);
   }
 
   // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
-  template <typename S>
-  ZtDate(const ZtDateScan::FIX &fmt, const S &s, ZuIsString<S> *__ = nullptr) {
+  template <typename S> ZtDate(
+      const ZtDateScan::FIX &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
     ctor(fmt, s);
   }
 
@@ -487,18 +486,18 @@ public:
   // timezone: "Z" (GMT), "+hhmm", "+hh:mm", "-hhmm", or "-hh:mm";
   // if a timezone is present in the string it overrides any tz
   // parameter passed in by the caller
-  template <typename S>
-  ZtDate(const ZtDateScan::ISO &fmt, const S &s, ZuIsString<S> *_ = nullptr) {
+  template <typename S> ZtDate(
+      const ZtDateScan::ISO &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
     ctor(fmt, s);
   }
   // default to ISO
   template <typename S>
-  ZtDate(const S &s, ZuIsString<S> *_ = nullptr) {
+  ZtDate(const S &s, ZuMatchString<S> *_ = nullptr) {
     ctor(ZtDateScan::ISO{}, s);
   }
 
-  template <typename S>
-  ZtDate(const ZtDateScan::Any &fmt, const S &s, ZuIsString<S> *_ = nullptr) {
+  template <typename S> ZtDate(
+      const ZtDateScan::Any &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
     ctor(fmt, s);
   }
 
@@ -948,9 +947,9 @@ public:
     return ZtDate{Julian, julian, sec, nsec};
   }
   template <typename T> ZuIfT<
-    ZuConversion<time_t, T>::Same ||
-    ZuConversion<long, T>::Same ||
-    ZuConversion<int, T>::Same, ZtDate> operator +(T sec_) const {
+    ZuInspect<time_t, T>::Same ||
+    ZuInspect<long, T>::Same ||
+    ZuInspect<int, T>::Same, ZtDate> operator +(T sec_) const {
     int julian, sec = sec_;
 
     if (sec < 0) {
@@ -1008,9 +1007,9 @@ public:
     return *this;
   }
   template <typename T> ZuIfT<
-    ZuConversion<time_t, T>::Same ||
-    ZuConversion<long, T>::Same ||
-    ZuConversion<int, T>::Same, ZtDate &> operator +=(T sec_) {
+    ZuInspect<time_t, T>::Same ||
+    ZuInspect<long, T>::Same ||
+    ZuInspect<int, T>::Same, ZtDate &> operator +=(T sec_) {
     int julian, sec = sec_;
 
     if (sec < 0) {
@@ -1041,9 +1040,9 @@ public:
     return ZtDate::operator +(-t);
   }
   template <typename T> ZuIfT<
-      ZuConversion<time_t, T>::Same ||
-      ZuConversion<long, T>::Same ||
-      ZuConversion<int, T>::Same, ZtDate> operator -(T sec_) {
+      ZuInspect<time_t, T>::Same ||
+      ZuInspect<long, T>::Same ||
+      ZuInspect<int, T>::Same, ZtDate> operator -(T sec_) {
     return ZtDate::operator +(-sec_);
   }
   template <typename T>
@@ -1051,9 +1050,9 @@ public:
     return ZtDate::operator +=(-t);
   }
   template <typename T> ZuIfT<
-    ZuConversion<time_t, T>::Same ||
-    ZuConversion<long, T>::Same ||
-    ZuConversion<int, T>::Same, ZtDate &> operator -=(T sec_) {
+    ZuInspect<time_t, T>::Same ||
+    ZuInspect<long, T>::Same ||
+    ZuInspect<int, T>::Same, ZtDate &> operator -=(T sec_) {
     return ZtDate::operator +=(-sec_);
   }
 

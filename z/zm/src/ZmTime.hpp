@@ -34,7 +34,7 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuBox.hpp>
 
@@ -71,10 +71,10 @@ public:
   constexpr ~ZmTime() { }
 
   template <typename T> struct IsInt : public ZuBool<
-      ZuConversion<int, T>::Same ||
-      ZuConversion<unsigned, T>::Same ||
-      ZuConversion<long, T>::Same ||
-      ZuConversion<time_t, T>::Same> { };
+      ZuInspect<int, T>::Same ||
+      ZuInspect<unsigned, T>::Same ||
+      ZuInspect<long, T>::Same ||
+      ZuInspect<time_t, T>::Same> { };
   template <typename T, typename R = void>
   using MatchInt = ZuIfT<IsInt<T>{}, R>;
 

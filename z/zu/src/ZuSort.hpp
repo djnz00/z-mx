@@ -273,7 +273,7 @@ typename ZuSearch_OK<unsigned,
   return (o + 2)<<1;
 }
 template <bool Match = true, typename T>
-inline ZuIsIntegral<T, unsigned>
+inline ZuMatchIntegral<T, unsigned>
 ZuInterSearch(T *data, unsigned n, T v) {
   return ZuInterSearch<Match>(data, n,
       [v](const T &w) { return ZuCmp<T>::delta(v, w); });

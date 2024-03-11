@@ -92,12 +92,12 @@ template <typename Lock> class ZmCondition : public ZmCondition_<Lock> {
 
 public:
   template <typename Lock_ = Lock>
-  ZmCondition(ZuIfT<ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
+  ZmCondition(ZuIfT<ZuInspect<ZmNoLock, Lock_>::Same> *_ = nullptr) :
     Base{} { }
   template <typename Lock_ = Lock>
   ZmCondition(
       Lock &lock,
-      ZuIfT<!ZuConversion<ZmNoLock, Lock_>::Same> *_ = nullptr) :
+      ZuIfT<!ZuInspect<ZmNoLock, Lock_>::Same> *_ = nullptr) :
     Base{lock} { }
   ~ZmCondition() { }
 

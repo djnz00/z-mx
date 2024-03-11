@@ -20,7 +20,7 @@
 
 void error(ZiConnection *, const char *op, int result, ZeError e)
 {
-  ZeLOG(Error, ([op, result, e](auto &s) {
+  ZeLOG(Error, ([op, result, e](const ZeEventInfo &, auto &s) {
     s << op << ' ' << Zi::ioResult(result) << ' ' << e;
   }));
 }

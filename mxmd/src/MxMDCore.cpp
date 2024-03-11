@@ -460,28 +460,32 @@ void MxMDCore::initCmds()
 
   m_cmdServer->addCmd(
       "logAge", "",
-      ZvCmdFn{this, [](MxMDCore *, void *, const ZvCf *args, ZtString &out) {
-	ZuBox<int> argc = args->get("#");
-	if (argc != 1) throw ZvCmdUsage();
-	out << "ageing log files...\n";
-	ZeLog::age();
-      }},
+      ZvCmdFn{this,
+	[](MxMDCore *, void *, const ZvCf *args, ZtString &out) {
+	  ZuBox<int> argc = args->get("#");
+	  if (argc != 1) throw ZvCmdUsage{};
+	  out << "ageing log files...\n";
+	  ZeLog::age();
+	}},
       "age log files",
       "usage: logAge\n");
   m_cmdServer->addCmd(
       "log", "",
-      ZvCmdFn{this, [](MxMDCore *md, void *, const ZvCf *args, ZtString &out) {
-	ZuBox<int> argc = args->get("#");
-	if (argc < 2) throw ZvCmdUsage();
-	ZtString message;
-	for (ZuBox<int> i = 1; i < argc; i++) {
-	  if (i > 1) message << ' ';
-	  message << args->get(ZuStringN<16>(i));
-	}
-	md->raise(ZeEVENT(Info,
-	  ([message](const ZeEvent &, ZmStream &s) { s << message; })));
-	out << message << '\n';
-      }},
+      ZvCmdFn{this,
+	[](MxMDCore *md, void *, const ZvCf *args, ZtString &out) {
+	  ZuBox<int> argc = args->get("#");
+	  if (argc < 2) throw ZvCmdUsage{};
+	  ZtString message;
+	  for (ZuBox<int> i = 1; i < argc; i++) {
+	    if (i > 1) message << ' ';
+	    message << args->get(ZuStringN<16>(i));
+	  }
+	  md->raise(ZeMkEvent(Info,
+	    ([message](const ZeEventInfo &, auto &s) {
+	      s << message;
+	    })));
+	  out << message << '\n';
+	}},
       "log informational message",
       "usage: log MESSAGE\n");
 }
@@ -491,25 +495,25 @@ void MxMDCore::start()
   Guard guard(m_stateLock);
 
   if (m_telemetry) {
-    raise(ZeEVENT(Info, "starting telemetry..."));
+    raise(ZeMkEvent(Info, "starting telemetry..."));
     m_telemetry->start();
   }
 
   if (m_cmdServer) {
-    raise(ZeEVENT(Info, "starting cmd server..."));
+    raise(ZeMkEvent(Info, "starting cmd server..."));
     m_cmdServer->start();
   }
 
   if (m_publisher) {
-    raise(ZeEVENT(Info, "starting publisher..."));
+    raise(ZeMkEvent(Info, "starting publisher..."));
     m_publisher->start();
   }
   if (m_subscriber) {
-    raise(ZeEVENT(Info, "starting subscriber..."));
+    raise(ZeMkEvent(Info, "starting subscriber..."));
     m_subscriber->start();
   }
 
-  raise(ZeEVENT(Info, "starting feeds..."));
+  raise(ZeMkEvent(Info, "starting feeds..."));
   allFeeds([](MxMDFeed *feed) { try { feed->start(); } catch (...) { } });
 }
 
@@ -517,11 +521,11 @@ void MxMDCore::stop()
 {
   Guard guard(m_stateLock);
 
-  raise(ZeEVENT(Info, "stopping feeds..."));
+  raise(ZeMkEvent(Info, "stopping feeds..."));
   allFeeds([](MxMDFeed *feed) { try { feed->stop(); } catch (...) { } });
 
   if (m_subscriber) {
-    raise(ZeEVENT(Info, "stopping subscriber..."));
+    raise(ZeMkEvent(Info, "stopping subscriber..."));
     m_subscriber->stop();
     // wait for stop() to complete
     thread_local ZmSemaphore sem;
@@ -529,7 +533,7 @@ void MxMDCore::stop()
     sem.wait();
   }
   if (m_publisher) {
-    raise(ZeEVENT(Info, "stopping publisher..."));
+    raise(ZeMkEvent(Info, "stopping publisher..."));
     m_publisher->stop();
     // wait for stop() to complete
     thread_local ZmSemaphore sem;
@@ -541,16 +545,16 @@ void MxMDCore::stop()
   stopRecording();
 
   if (m_cmdServer) {
-    raise(ZeEVENT(Info, "stopping command server..."));
+    raise(ZeMkEvent(Info, "stopping command server..."));
     m_cmdServer->stop();
   }
 
   if (m_telemetry) {
-    raise(ZeEVENT(Info, "stopping telemetry..."));
+    raise(ZeMkEvent(Info, "stopping telemetry..."));
     m_telemetry->stop();
   }
 
-  raise(ZeEVENT(Info, "stopping multiplexers..."));
+  raise(ZeMkEvent(Info, "stopping multiplexers..."));
   {
     auto i = m_mxTbl->readIterator();
     while (auto mx = i.iterateKey()) mx->stop(false);
@@ -564,19 +568,19 @@ void MxMDCore::final()
   {
     auto final_called = reinterpret_cast<ZmAtomic<unsigned> *>(&final_called_);
     if (final_called->cmpXch(0, 1)) {
-      raise(ZeEVENT(Fatal, "MxMDCore::final() called twice"));
+      raise(ZeMkEvent(Fatal, "MxMDCore::final() called twice"));
       return;
     }
   }
 
-  raise(ZeEVENT(Info, "finalizing cmd server..."));
+  raise(ZeMkEvent(Info, "finalizing cmd server..."));
 
   if (m_cmdServer) m_cmdServer->final();
 
-  raise(ZeEVENT(Info, "finalizing feeds..."));
+  raise(ZeMkEvent(Info, "finalizing feeds..."));
   allFeeds([](MxMDFeed *feed) { try { feed->final(); } catch (...) { } });
 
-  raise(ZeEVENT(Info, "finalizing telemetry..."));
+  raise(ZeMkEvent(Info, "finalizing telemetry..."));
   if (m_telemetry) m_telemetry->final();
 
   unsubscribe();
@@ -1227,7 +1231,7 @@ void MxMDCore::apply(const Hdr &hdr, bool filter)
     case Type::ResendReq:
       break;
     default:
-      raise(ZeEVENT(Error, "MxMDLib - unknown message type"));
+      raise(ZeMkEvent(Error, "MxMDLib - unknown message type"));
       break;
   }
 }

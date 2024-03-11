@@ -125,14 +125,14 @@ struct ZePlatform_EventLogger {
     DeregisterEventSource(handle);
   }
 
-  void report(const ZeEvent_ &e, const ZeLog::Buf &buf) {
+  void report(const ZeEventInfo &info, const ZeLog::Buf &buf) {
     wbuf.null();
     wbuf.length(ZuUTF<wchar_t, char>::cvt(
 	  ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
     const wchar_t *w = buf.data();
 
     ReportEvent(
-      handle, eventlogtype(e.severity), 0, 512, 0, 1, 0, &w, 0);
+      handle, eventlogtype(info.severity), 0, 512, 0, 1, 0, &w, 0);
   }
 
   friend ZuUnsigned<ZmCleanup::Platform>
@@ -309,24 +309,24 @@ void ZeLog::age_()
   if (sink) sink->age();
 }
 
-void ZeSysSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeSysSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
 {
 #ifndef _WIN32
-  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
-      ZuBoxed(e.lineNumber) << ' ';
-  buf << Ze::function(e.function);
+  if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
+    buf << '\"' << Ze::file(info.file) << "\":" <<
+      ZuBoxed(info.line) << ' ';
+  buf << Ze::function(info.function);
 #else
   ZePlatform_EventLogger *logger = eventLogger();
-  buf << logger->program << ' ' << ZuBoxed(e.tid) << " - ";
-  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
-      ZuBoxed(e.lineNumber) << ' ';
-  buf << Ze::function(e.function) << ' ' << *e;
+  buf << logger->program << ' ' << ZuBoxed(info.tid) << " - ";
+  if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
+    buf << '\"' << Ze::file(info.file) << "\":" <<
+      ZuBoxed(info.line) << ' ';
+  buf << Ze::function(info.function) << ' ' << *e;
 #endif
 }
 
-void ZeSysSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeSysSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
 {
   buf << '\n';
 
@@ -337,7 +337,7 @@ void ZeSysSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
   }
 
 #ifndef _WIN32
-  ::syslog(syslogger()->facility() | sysloglevel(e.severity),
+  ::syslog(syslogger()->facility() | sysloglevel(info.severity),
       "%.*s", buf.length(), buf.data());
 #else
   eventLogger()->report(e, buf);
@@ -370,20 +370,20 @@ ZeFileSink::~ZeFileSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeFileSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeFileSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
 {
-  ZtDate d{e.time};
+  ZtDate d{info.time};
 
   buf << d.print(m_dateFmt) << ' ' <<
-    ZuBoxed(e.tid) << ' ' <<
-    Ze::severity(e.severity) << ' ';
-  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
-      ZuBoxed(e.lineNumber) << ' ';
-  buf << Ze::function(e.function) << "() ";
+    ZuBoxed(info.tid) << ' ' <<
+    Ze::severity(info.severity) << ' ';
+  if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
+    buf << '\"' << Ze::file(info.file) << "\":" <<
+      ZuBoxed(info.line) << ' ';
+  buf << Ze::function(info.function) << "() ";
 }
 
-void ZeFileSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeFileSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
 {
   buf << '\n';
 
@@ -392,7 +392,7 @@ void ZeFileSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
   if (buf[len - 1] != '\n') buf[len - 1] = '\n';
 
   fwrite(buf.data(), 1, len, m_file);
-  if (e.severity > Ze::Debug) fflush(m_file);
+  if (info.severity > Ze::Debug) fflush(m_file);
 }
 
 void ZeFileSink::age()
@@ -447,20 +447,20 @@ ZeDebugSink::~ZeDebugSink()
   if (m_file) fclose(m_file);
 }
 
-void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeDebugSink::pre(const ZeEventInfo &info, ZeLogBuf &buf)
 {
-  ZmTime d = e.time - m_started;
+  ZmTime d = info.time - m_started;
 
   buf << '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
-    ZuBoxed(e.tid) << ' ' <<
-    Ze::severity(e.severity) << ' ';
-  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
-      ZuBoxed(e.lineNumber) << ' ';
-  buf << Ze::function(e.function) << "() ";
+    ZuBoxed(info.tid) << ' ' <<
+    Ze::severity(info.severity) << ' ';
+  if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
+    buf << '\"' << Ze::file(info.file) << "\":" <<
+      ZuBoxed(info.line) << ' ';
+  buf << Ze::function(info.function) << "() ";
 }
 
-void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeDebugSink::post(const ZeEventInfo &info, ZeLogBuf &buf)
 {
   buf << '\n';
 
@@ -472,17 +472,17 @@ void ZeDebugSink::post(ZeLogBuf &buf, const ZeEvent_ &e)
   fflush(m_file);
 }
 
-void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEvent_ &e)
+void ZeLambdaSink_::pre(const ZeEventInfo &info, ZeLogBuf &buf)
 {
-  ZtDate d{e.time};
+  ZtDate d{info.time};
 
   buf << d.print(m_dateFmt) << ' ' <<
-    ZuBoxed(e.tid) << ' ' <<
-    Ze::severity(e.severity) << ' ';
-  if (e.severity == Ze::Debug || e.severity == Ze::Fatal)
-    buf << '\"' << Ze::fileName(e.fileName) << "\":" <<
-      ZuBoxed(e.lineNumber) << ' ';
-  buf << Ze::function(e.function) << "() ";
+    ZuBoxed(info.tid) << ' ' <<
+    Ze::severity(info.severity) << ' ';
+  if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
+    buf << '\"' << Ze::file(info.file) << "\":" <<
+      ZuBoxed(info.line) << ' ';
+  buf << Ze::function(info.function) << "() ";
 }
 
 #ifdef _MSC_VER

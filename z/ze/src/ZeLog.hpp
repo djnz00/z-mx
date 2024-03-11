@@ -73,8 +73,8 @@ struct ZeSink : public ZmPolymorph {
 
   ZeSink(int type_) : type(type_) { }
 
-  virtual void pre(ZeLogBuf &, const ZeEvent_ &) = 0;
-  virtual void post(ZeLogBuf &, const ZeEvent_ &) = 0;
+  virtual void pre(const ZeEventInfo &, ZeLogBuf &) = 0;
+  virtual void post(const ZeEventInfo &, ZeLogBuf &) = 0;
   virtual void age() = 0;
 };
 
@@ -107,8 +107,8 @@ public:
 
   ~ZeFileSink();
 
-  void pre(ZeLogBuf &, const ZeEvent_ &);
-  void post(ZeLogBuf &, const ZeEvent_ &);
+  void pre(const ZeEventInfo &, ZeLogBuf &);
+  void post(const ZeEventInfo &, ZeLogBuf &);
   void age();
 
 private:
@@ -136,8 +136,8 @@ public:
 
   ~ZeDebugSink();
 
-  void pre(ZeLogBuf &, const ZeEvent_ &);
-  void post(ZeLogBuf &, const ZeEvent_ &);
+  void pre(const ZeEventInfo &, ZeLogBuf &);
+  void post(const ZeEventInfo &, ZeLogBuf &);
   void age() { } // unused
 
 private:
@@ -151,8 +151,8 @@ private:
 struct ZeAPI ZeSysSink : public ZeSink {
   ZeSysSink() : ZeSink{ZeSinkType::System} { }
 
-  void pre(ZeLogBuf &, const ZeEvent_ &);
-  void post(ZeLogBuf &, const ZeEvent_ &);
+  void pre(const ZeEventInfo &, ZeLogBuf &);
+  void post(const ZeEventInfo &, ZeLogBuf &);
   void age() { } // unused
 };
 
@@ -160,19 +160,19 @@ struct ZeAPI ZeLambdaSink_ : public ZeSink {
   ZeLambdaSink_(int tzOffset = 0) :
       ZeSink{ZeSinkType::Lambda}, m_dateFmt{tzOffset} { }
 
-  void pre(ZeLogBuf &buf, const ZeEvent_ &e);
+  void pre(const ZeEventInfo &, ZeLogBuf &);
 
 private:
   ZtDateFmt::CSV	m_dateFmt;
 };
-template <typename Fn>
+template <typename L>
 struct ZeLambdaSink : public ZeLambdaSink_ {
-  Fn	fn;
+  L	l;
 
-  ZeLambdaSink(Fn fn_, int tzOffset = 0) :
-      ZeLambdaSink_{tzOffset}, fn{ZuMv(fn_)} { }
+  ZeLambdaSink(L l_, int tzOffset = 0) :
+      ZeLambdaSink_{tzOffset}, l{ZuMv(l_)} { }
 
-  void post(ZeLogBuf &buf, const ZeEvent_ &e) { fn(buf, e); }
+  void post(const ZeEventInfo &e, ZeLogBuf &buf) { l(e, buf); }
   void age() { } // unused
 };
 
@@ -239,19 +239,19 @@ public:
   static void forked() { instance()->forked_(); }
 
   template <typename L>
-  static void log(ZeLambdaEvent<L> e) {
+  static void log(ZeEvent<L> e) {
     instance()->log_(ZuMv(e));
   }
   template <typename L>
-  void log_(ZeLambdaEvent<L> e) {
+  void log_(ZeEvent<L> e) {
     if (static_cast<int>(e.severity) < m_level) return;
     auto fn_ = [e = ZuMv(e)](ZeLog *this_) mutable {
       auto sink = this_->sink_();
       auto &buf = this_->m_buf;
       buf.null();
-      sink->pre(buf, e);
-      e.l(buf);
-      sink->post(buf, e);
+      sink->pre(e, buf);
+      buf << e;
+      sink->post(e, buf);
     };
     Fn fn{fn_};
     log__(fn);
@@ -312,10 +312,11 @@ private:
 template <typename Event>
 inline void ZeBackTrace__(Event event_) {
   ZmBackTrace bt{1};
-  ZeLog::log(ZeMkLambdaEvent__(
-      event_.severity, event_.fileName, event_.lineNumber, event_.function,
-      [bt = ZuMv(bt), l = ZuMv(event_).l](ZeLogBuf &s) mutable {
-	l(s);
+  ZeLog::log(ZeMkEvent__(
+      event_.severity, event_.file, event_.line, event_.function,
+      [bt = ZuMv(bt), l = ZuMv(event_).l](
+	  const ZeEventInfo &info, auto &s) mutable {
+	l(info, s);
 	s << '\n' << ZuMv(bt);
       }));
 }
@@ -324,14 +325,14 @@ inline void ZeBackTrace__(Event event_) {
 
 // filter out DEBUG messages in production builds
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeLog::log(ZeMkLambdaEvent_(sev, msg)) : void())
+  ((sev > Ze::Debug) ? ZeLog::log(ZeMkEvent_(sev, msg)) : void())
 #define ZeBackTrace_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeBackTrace__(ZeMkLambdaEvent_(sev, msg)) : void())
+  ((sev > Ze::Debug) ? ZeBackTrace__(ZeMkEvent_(sev, msg)) : void())
 
 #else /* !ZEBUG */
 
-#define ZeLOG_(sev, msg) ZeLog::log(ZeMkLambdaEvent_(sev, msg))
-#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeMkLambdaEvent_(sev, msg))
+#define ZeLOG_(sev, msg) ZeLog::log(ZeMkEvent_(sev, msg))
+#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeMkEvent_(sev, msg))
 
 #endif /* !ZEBUG */
 

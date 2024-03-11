@@ -33,7 +33,7 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #include <zlib/ZmNoLock.hpp>
 #include <zlib/ZmAtomic.hpp>
@@ -545,9 +545,9 @@ public:
   NodeRef add(P0 &&p0, P1 &&p1) {
     return add(ZuFwdPair(ZuFwd<P0>(p0), ZuFwd<P1>(p1)));
   }
-  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  template <bool _ = !ZuInspect<NodeRef, Node *>::Same>
   ZuIfT<_> addNode(const NodeRef &node_) { addNode(node_.ptr()); }
-  template <bool _ = !ZuConversion<NodeRef, Node *>::Same>
+  template <bool _ = !ZuInspect<NodeRef, Node *>::Same>
   ZuIfT<_> addNode(NodeRef &&node_) {
     Node *node = node_.release();
     uint32_t code = HashFn::hash(node->Node::key());
@@ -586,11 +586,11 @@ private:
 
 private:
   template <typename U, typename V = Key>
-  struct IsKey : public ZuBool<ZuConversion<U, V>::Exists> { };
+  struct IsKey : public ZuBool<ZuInspect<U, V>::Exists> { };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>{}, R>;
-  template <typename U, typename V = T, bool = ZuConversion<NodeBase, V>::Is>
-  struct IsData : public ZuBool<!IsKey<U>{} && ZuConversion<U, V>::Exists> { };
+  template <typename U, typename V = T, bool = ZuInspect<NodeBase, V>::Is>
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Exists> { };
   template <typename U, typename V>
   struct IsData<U, V, true> : public ZuFalse { };
   template <typename U, typename R = void>

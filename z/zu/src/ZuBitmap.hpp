@@ -76,6 +76,7 @@ public:
     ZuBitmap	&bitmap;
     unsigned	i;
     operator bool() const { return bitmap.get(i); }
+    ZuOpBool
     void set() { bitmap.set(i); }
     void clr() { bitmap.clr(i); }
     Bit &operator =(bool v) { v ? set() : clr(); return *this; }

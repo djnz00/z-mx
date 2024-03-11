@@ -38,7 +38,7 @@
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuPrint.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuFnTraits.hpp>
 
 #include <zlib/ZmPlatform.hpp>
@@ -237,7 +237,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuConversion<L, void (*)()>::Same> *_ = nullptr) :
+      ZuIfT<ZuInspect<L, void (*)()>::Same> *_ = nullptr) :
       m_callFn{[](void *fn) -> void * {
 	try { (*reinterpret_cast<L>(fn))(); } catch (...) { }
 	return nullptr;
@@ -254,7 +254,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuConversion<L, void *(*)()>::Same> *_ = nullptr) :
+      ZuIfT<ZuInspect<L, void *(*)()>::Same> *_ = nullptr) :
       m_callFn{[](void *fn) -> void * {
 	void *res = nullptr;
 	try {
@@ -275,7 +275,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
       ZuIfT<ZuFnTraits<L>::IsStateless &&
-	    ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
+	    ZuInspect<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *) -> void * {
 	// no, this->x does not imply evaluating (*this).x; the reverse is true
@@ -295,7 +295,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
       ZuIfT<!ZuFnTraits<L>::IsStateless &&
-	    ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
+	    ZuInspect<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *lambda_) -> void * {
 	if (ZuUnlikely(!lambda_)) return nullptr;
@@ -319,7 +319,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
       ZuIfT<ZuFnTraits<L>::IsStateless &&
-	    !ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
+	    !ZuInspect<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *) -> void * {
 	void *res = nullptr;
@@ -342,7 +342,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   template <typename L>
   ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
       ZuIfT<!ZuFnTraits<L>::IsStateless &&
-	    !ZuConversion<typename ZuFnTraits<L>::R, void>::Same>
+	    !ZuInspect<typename ZuFnTraits<L>::R, void>::Same>
 	    *_ = nullptr) :
       m_callFn{[](void *lambda_) -> void * {
 	if (ZuUnlikely(!lambda_)) return nullptr;

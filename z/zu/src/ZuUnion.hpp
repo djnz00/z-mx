@@ -56,7 +56,7 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuSwitch.hpp>
 #include <zlib/ZuPP.hpp>
 
@@ -238,18 +238,18 @@ public:
     return reinterpret_cast<Union *>(ptr)->new_<T>();
   }
 
-  template <typename T> ZuIfT<!ZuConversion<void, T>::Same, T *> init() {
+  template <typename T> ZuIfT<!ZuInspect<void, T>::Same, T *> init() {
     this->~Union();
     this->type_(Index<T>{});
     return reinterpret_cast<T *>(&m_u[0]);
   }
-  template <typename T> ZuIfT<ZuConversion<void, T>::Same> init() {
+  template <typename T> ZuIfT<ZuInspect<void, T>::Same> init() {
     this->~Union();
     this->type_(Index<T>{});
   }
 
 private:
-  template <typename V, bool = ZuConversion<Union, V>::Is> struct Fwd_Ctor_ {
+  template <typename V, bool = ZuInspect<Union, V>::Is> struct Fwd_Ctor_ {
     using T = Type<Index_<V>{}>;
     static void ctor(Union *this_, V &&v) {
       new (new_<T>(this_)) T{ZuMv(v)};
@@ -290,7 +290,7 @@ private:
       *(this_->init<T>()) = v;
     }
   };
-  template <typename V, bool = ZuConversion<Union, V>::Is>
+  template <typename V, bool = ZuInspect<Union, V>::Is>
   struct Fwd_Assign_ : public Fwd_Assign__<V> { };
   template <typename V> struct Fwd_Assign_<V, true> {
     static void assign(Union *this_, V &&v) {
@@ -354,10 +354,10 @@ public:
     });
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Union, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<Union, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Union, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<Union, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator *() const {

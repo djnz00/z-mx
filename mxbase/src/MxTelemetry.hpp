@@ -30,7 +30,7 @@
 #include <mxbase/MxBaseLib.hpp>
 #endif
 
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #include <zlib/ZmFn.hpp>
 
@@ -219,7 +219,7 @@ namespace MxTelemetry {
 
   template <typename Cxn, typename L> struct IOLambda_ {
     typedef void (*Fn)(Cxn *, ZmRef<Msg>, ZiIOContext &);
-    enum { OK = ZuConversion<L, Fn>::Exists };
+    enum { OK = ZuInspect<L, Fn>::Exists };
   };
   template <typename Cxn, typename L, bool = IOLambda_<Cxn, L>::OK>
   struct IOLambda;

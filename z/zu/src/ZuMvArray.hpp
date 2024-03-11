@@ -162,10 +162,10 @@ protected:
     return cbuf().cmp(a);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuMvArray, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuMvArray, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuMvArray, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuMvArray, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
 // hash

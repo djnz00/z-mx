@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("CmdTest");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::lambdaSink([](ZeLogBuf &buf, const ZeEvent &) {
+  ZeLog::sink(ZeLog::lambdaSink([](const ZeEventInfo &, ZeLogBuf &buf) {
     buf << '\n';
     std::cerr << buf << std::flush;
   }));

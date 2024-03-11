@@ -35,7 +35,7 @@
 #include <zlib/ZuNull.hpp>
 #include <zlib/ZuArrayFn.hpp>
 #include <zlib/ZuCmp.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #include <zlib/ZmAssert.hpp>
 #include <zlib/ZmGuard.hpp>

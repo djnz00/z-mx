@@ -33,7 +33,7 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuString.hpp>
 
@@ -44,11 +44,11 @@ template <typename T, typename P>
 struct ZuPair_Cvt_<T, P, 0> : public ZuFalse { };
 template <typename T, typename P>
 struct ZuPair_Cvt_<T, P, 1> : public ZuBool<
-  ZuConversion<typename T::T0, typename P::T0>::Exists &&
-  ZuConversion<typename T::T1, typename P::T1>::Exists> { };
+  ZuInspect<typename T::T0, typename P::T0>::Exists &&
+  ZuInspect<typename T::T1, typename P::T1>::Exists> { };
 template <typename T, typename P>
 struct ZuPair_Cvt : public
-  ZuPair_Cvt_<ZuDecay<T>, P, ZuConversion<ZuPair_, ZuDecay<T>>::Base> { };
+  ZuPair_Cvt_<ZuDecay<T>, P, ZuInspect<ZuPair_, ZuDecay<T>>::Base> { };
 
 // fwd-declare the traits
 namespace Zu_ {
@@ -171,9 +171,9 @@ public:
   Pair_(P0 &&p0, P1 &&p1,
       ZuIfT<
 	(!ZuTraits<T0>::IsReference ||
-	  ZuConversion<ZuDecay<U0>, ZuDecay<P0>>::Is) &&
+	  ZuInspect<ZuDecay<U0>, ZuDecay<P0>>::Is) &&
 	(!ZuTraits<T1>::IsReference ||
-	  ZuConversion<ZuDecay<U1>, ZuDecay<P1>>::Is)> *_ = nullptr) :
+	  ZuInspect<ZuDecay<U1>, ZuDecay<P1>>::Is)> *_ = nullptr) :
     m_p0{ZuFwd<P0>(p0)}, m_p1{ZuFwd<P1>(p1)} { }
 
   template <typename P0, typename P1>
@@ -188,10 +188,10 @@ public:
     return ZuCmp<T1>::cmp(m_p1, p.template p<1>());
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Pair_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<Pair_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Pair_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<Pair_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_p0 && !m_p1; }
@@ -238,51 +238,51 @@ public:
   }
 
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, const U0 &> v() const & {
+  ZuIfT<ZuInspect<T, T0>::Same, const U0 &> v() const & {
     return m_p0;
   }
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, U0 &> v() & {
+  ZuIfT<ZuInspect<T, T0>::Same, U0 &> v() & {
     return m_p0;
   }
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, U0 &&> v() && {
+  ZuIfT<ZuInspect<T, T0>::Same, U0 &&> v() && {
     return ZuMv(m_p0);
   }
   template <typename T, typename P>
-  ZuIfT<ZuConversion<T, T0>::Same, Pair_ &> v(P &&p) {
+  ZuIfT<ZuInspect<T, T0>::Same, Pair_ &> v(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
 
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, T0>::Same && ZuConversion<T, T1>::Same,
+      !ZuInspect<T, T0>::Same && ZuInspect<T, T1>::Same,
       const U1 &> v() const & {
     return m_p1;
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, T0>::Same && ZuConversion<T, T1>::Same,
+      !ZuInspect<T, T0>::Same && ZuInspect<T, T1>::Same,
       U1 &> v() & {
     return m_p1;
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, T0>::Same && ZuConversion<T, T1>::Same,
+      !ZuInspect<T, T0>::Same && ZuInspect<T, T1>::Same,
       U1 &&> v() && {
     return ZuMv(m_p1);
   }
   template <typename T, typename P>
   ZuIfT<
-      !ZuConversion<T, T0>::Same && ZuConversion<T, T1>::Same,
+      !ZuInspect<T, T0>::Same && ZuInspect<T, T1>::Same,
       Pair_ &> v(P &&p) {
     m_p1 = ZuFwd<P>(p);
     return *this;
   }
 
   using Print = ZuPair_Print<U0, U1,
-	ZuConversion<ZuPair_, U0>::Base, ZuConversion<ZuPair_, U1>::Base>;
+	ZuInspect<ZuPair_, U0>::Base, ZuInspect<ZuPair_, U1>::Base>;
   Print print() const {
     return Print{m_p0, m_p1, "|"};
   }

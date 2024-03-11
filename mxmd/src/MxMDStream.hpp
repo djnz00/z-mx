@@ -552,7 +552,7 @@ namespace MxMDStream {
   // ensure passed lambdas are stateless and match required signature
   template <typename Cxn, typename L> struct IOLambda_ {
     typedef void (*Fn)(Cxn *, ZmRef<MxQMsg>, ZiIOContext &);
-    enum { OK = ZuConversion<L, Fn>::Exists };
+    enum { OK = ZuInspect<L, Fn>::Exists };
   };
   template <typename Cxn, typename L, bool = IOLambda_<Cxn, L>::OK>
   struct IOLambda;

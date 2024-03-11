@@ -16,7 +16,7 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZdbLib.hpp \
-	ZdbTypes.hpp ZdbBuf.hpp ZdbMsg.hpp ZdbStore.hpp Zdb.hpp
+	ZdbTypes.hpp ZdbBuf.hpp ZdbMsg.hpp ZdbStore.hpp Zdb.hpp \
 	${FBS_H}
 #fbsdir = $(datarootdir)/${PACKAGE}/fbs
 #dist_fbs_DATA = fbs/telemetry.fbs

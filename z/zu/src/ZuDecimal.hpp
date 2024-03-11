@@ -87,15 +87,15 @@ struct ZuDecimal {
   constexpr ZuDecimal(Unscaled_ _, int128_t v) : value{v} { }
 
   template <typename V>
-  constexpr ZuDecimal(V v, ZuIsIntegral<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, ZuMatchIntegral<V> *_ = nullptr) :
       value(static_cast<int128_t>(v) * scale()) { }
 
   template <typename V>
-  constexpr ZuDecimal(V v, ZuIsFloatingPoint<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, ZuMatchFloatingPoint<V> *_ = nullptr) :
       value((long double)v * scale_fp()) { }
 
   template <typename V>
-  constexpr ZuDecimal(V v, unsigned exponent, ZuIsIntegral<V> *_ = nullptr) :
+  constexpr ZuDecimal(V v, unsigned exponent, ZuMatchIntegral<V> *_ = nullptr) :
       value(static_cast<int128_t>(v) * ZuDecimalFn::pow10_64(18 - exponent)) { }
 
   constexpr int128_t adjust(unsigned exponent) const {
@@ -349,7 +349,7 @@ public:
 
   // scan from string
   template <typename S>
-  ZuDecimal(const S &s_, ZuIsString<S> *_ = nullptr) {
+  ZuDecimal(const S &s_, ZuMatchString<S> *_ = nullptr) {
     ZuString s{s_};
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
@@ -402,10 +402,10 @@ public:
     return (value > v.value) - (value < v.value);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuDecimal, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuDecimal, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuDecimal, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuDecimal, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // ! is zero, unary * is !null

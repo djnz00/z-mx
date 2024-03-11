@@ -62,8 +62,8 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
 }
 
 #define engineINFO(code) \
-    appException(ZeEVENT(Info, \
-      ([=](const ZeEvent &, ZmStream &out) { out << code; })))
+    appException(ZeMkEvent(Info, \
+      ([=](const ZeEventInfo &, auto &s) { s << code; })))
 
 void MxMDSubscriber::final()
 {
@@ -87,11 +87,11 @@ ZmRef<MxAnyLink> MxMDSubscriber::createLink(MxID id)
 }
 
 #define linkINFO(code) \
-    engine()->appException(ZeEVENT(Info, \
-      ([=, id = id()](const ZeEvent &, ZmStream &out) { out << code; })))
+    engine()->appException(ZeMkEvent(Info, \
+      ([=, id = id()](const ZeEventInfo &, auto &s) { s << code; })))
 #define linkWARNING(code) \
-    engine()->appException(ZeEVENT(Warning, \
-      ([=, id = id()](const ZeEvent &, ZmStream &out) { out << code; })))
+    engine()->appException(ZeMkEvent(Warning, \
+      ([=, id = id()](const ZeEventInfo &, auto &s) { s << code; })))
 
 void MxMDSubLink::update(ZvCf *)
 {
@@ -114,11 +114,11 @@ void MxMDSubLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
   do { \
     MxMDSubLink *link = tcp->link(); \
     MxMDSubscriber *engine = link->engine(); \
-    engine->appException(ZeEVENT(Error, \
+    engine->appException(ZeMkEvent(Error, \
       ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEvent &, ZmStream &s) { \
-	  s << "MxMDSubscriber{" << engineID << ':' << id << \
-	  "} " << code; }))); \
+	const ZeEventInfo &, auto &s) { \
+	  s << "MxMDSubscriber{" << engineID << ':' << id \
+	    << "} " << code; }))); \
     link->tcpError(tcp, io); \
   } while (0)
 
@@ -126,11 +126,11 @@ void MxMDSubLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
   do { \
     MxMDSubLink *link = udp->link(); \
     MxMDSubscriber *engine = link->engine(); \
-    engine->appException(ZeEVENT(Error, \
+    engine->appException(ZeMkEvent(Error, \
       ([=, engineID = engine->id(), id = link->id()]( \
-	const ZeEvent &, ZmStream &s) { \
-	  s << "MxMDSubscriber{" << engineID << ':' << id << \
-	  "} " << code; }))); \
+	const ZeEventInfo &, auto &s) { \
+	  s << "MxMDSubscriber{" << engineID << ':' << id \
+	    << "} " << code; }))); \
     link->udpError(udp, io); \
   } while (0)
 
@@ -499,10 +499,10 @@ void MxMDSubLink::UDP::process(ZmRef<MxQMsg> msg, ZiIOContext &io)
   if (ZuUnlikely(hdr.scan(msg->length))) {
     ZtHexDump msg_{"truncated UDP message",
       msg->ptr<Msg>()->ptr(), msg->length};
-    m_link->engine()->appException(ZeEVENT(Warning,
+    m_link->engine()->appException(ZeMkEvent(Warning,
       ([=, id = m_link->id(), msg_ = ZuMv(msg_)](
-	const ZeEvent &, ZmStream &out) {
-	  out << "MxMDSubLink::UDP::process() link " << id << ' ' << msg_;
+	const ZeEventInfo &, auto &s) {
+	  s << "MxMDSubLink::UDP::process() link " << id << ' ' << msg_;
 	})));
   } else {
     msg->id.linkID = m_link->id();

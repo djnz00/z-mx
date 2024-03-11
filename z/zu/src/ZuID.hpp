@@ -33,7 +33,7 @@
 
 #include <zlib/ZuInt.hpp>
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuPrint.hpp>
@@ -57,17 +57,17 @@ public:
   ZuID &operator =(const ZuID &b) { m_val = b.m_val; return *this; }
 
   template <typename S>
-  ZuID(S &&s, ZuIsString<S> *_ = nullptr) {
+  ZuID(S &&s, ZuMatchString<S> *_ = nullptr) {
     init(ZuFwd<S>(s));
   }
   template <typename S>
-  ZuIsString<S, ZuID &> operator =(S &&s) {
+  ZuMatchString<S, ZuID &> operator =(S &&s) {
     init(ZuFwd<S>(s));
     return *this;
   }
 
   template <typename V> struct IsUInt64 : public ZuBool<
-    !ZuTraits<V>::IsString && ZuConversion<V, uint64_t>::Exists> { };
+    !ZuTraits<V>::IsString && ZuInspect<V, uint64_t>::Exists> { };
   template <typename V, typename R = void>
   using MatchUInt64 = ZuIfT<IsUInt64<V>{}, R>;
 
@@ -126,10 +126,10 @@ public:
     return (m_val > v.m_val) - (m_val < v.m_val);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuID, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<ZuID, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<ZuID, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<ZuID, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_val; }

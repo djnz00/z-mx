@@ -31,7 +31,7 @@
 #endif
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 // rules for using ZuPtr
 
@@ -48,14 +48,14 @@ public:
 private:
   // matches ZuPtr<U> where U is not T, but is in the same type hierarchy as T
   template <typename U> struct IsOtherPtr_ : public ZuBool<
-    (ZuConversion<T, typename U::T>::Base ||
-     ZuConversion<typename U::T, T>::Base)> { };
+    (ZuInspect<T, typename U::T>::Base ||
+     ZuInspect<typename U::T, T>::Base)> { };
   template <typename U, typename = void, bool = IsOtherPtr_<U>{}>
   struct MatchOtherPtr__ { };
   template <typename U, typename R>
   struct MatchOtherPtr__<U, R, true> { using T = R; };
   template <typename U> struct IsOtherPtr1 :
-    public ZuBool<ZuConversion<ZuPtr_, U>::Base> { };
+    public ZuBool<ZuInspect<ZuPtr_, U>::Base> { };
   template <typename U, typename = void, bool = IsOtherPtr1<U>{}>
   struct MatchOtherPtr_;
   template <typename U, typename R>
@@ -65,14 +65,14 @@ private:
 
   // matches ZuPtr<U> where U is either T or in the same type hierarchy as T
   template <typename U> struct IsZuPtr__ : public ZuBool<
-    (ZuConversion<T, typename U::T>::Is ||
-     ZuConversion<typename U::T, T>::Is)> { };
+    (ZuInspect<T, typename U::T>::Is ||
+     ZuInspect<typename U::T, T>::Is)> { };
   template <typename U, typename = void, bool = IsZuPtr__<U>{}>
   struct MatchZuPtr__ { };
   template <typename U, typename R>
   struct MatchZuPtr__<U, R, true> { using T = R; };
   template <typename U> struct IsZuPtr_ :
-    public ZuBool<ZuConversion<ZuPtr_, U>::Base> { };
+    public ZuBool<ZuInspect<ZuPtr_, U>::Base> { };
   template <typename U, typename = void, bool = IsZuPtr_<U>{}>
   struct MatchZuPtr_;
   template <typename U, typename R>
@@ -82,7 +82,7 @@ private:
 
   // matches U * where U is either T or in the same type hierarchy as T
   template <typename U> struct IsPtr :
-    public ZuBool<(ZuConversion<T, U>::Is || ZuConversion<U, T>::Is)> { };
+    public ZuBool<(ZuInspect<T, U>::Is || ZuInspect<U, T>::Is)> { };
   template <typename U, typename R = void>
   using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 

@@ -279,7 +279,7 @@ private:
   using MatchReal = ZuIfT<
     ZuTraits<U>::IsPrimitive &&
     ZuTraits<U>::IsReal &&
-    !ZuConversion<U, char>::Same, R>;
+    !ZuInspect<U, char>::Same, R>;
 
   template <typename U, typename R = void>
   using MatchPrint = ZuIfT<

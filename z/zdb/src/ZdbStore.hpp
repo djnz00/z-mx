@@ -60,14 +60,14 @@ struct Table {
   using GetResult = ZuUnion<
     const ZtField::Import &,			// succeeded
     void,					// missing
-    ZeEvent>;					// error
+    ZeFnEvent>;					// error
   using GetFn = ZmFn<RN, GetResult>;
 
   virtual void get(RN, GetFn) = 0;
 
   using ExportFn = ZmFn<const ZtField::Export &>;
 
-  using CommitResult = ZuUnion<void, ZeEvent>;
+  using CommitResult = ZuUnion<void, ZeFnEvent>;
   using CommitFn = ZmFn<UN, RN, CommitResult>;
 
   // UN is idempotency key
@@ -78,10 +78,9 @@ struct Table {
 
 // back-end data store
 struct Store {
-  using LogFn = ZmFn<ZeEvent>;			// log function
+  using LogFn = ZmFn<ZeFnEvent>;			// log function
 
-  using Result = ZuUnion<void, ZeEvent>;
-  using ResultFn = ZmFn<Result>;
+  using Result = ZuUnion<void, ZeFnEvent>;
 
   virtual Result init(			// initialize data store - idempotent
       ZvCf *cf,
@@ -89,13 +88,20 @@ struct Store {
 
   virtual void final(ZmFn<>) = 0;	// finalize data store - idempotent
 
+  struct OpenData {
+    Table	*table = nullptr;
+    UN		un = 0;
+    RN		rn = 0;
+  };
+  using OpenResult = ZuUnion<void, OpenData, ZeFnEvent>;
+  using OpenFn = ZmFn<OpenResult>;
+
   using RecoverFn = ZmFn<RN, const ZtField::Import &>;	// recovered record
 
-  virtual Table *open(			// open table - idempotent
+  virtual void open(			// open table - idempotent
       ZuID id,
       ZtVFieldArray fields,
-      ResultFn,
-      RecoverFn) = 0;
+      OpenFn, RecoverFn) = 0;
 };
 
 } // Zdb_

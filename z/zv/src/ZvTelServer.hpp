@@ -359,7 +359,8 @@ public:
 
   // alerts
 
-  void alert(ZmRef<ZeEvent> e) {
+  template <typename L>
+  void alert(ZeEvent<L> e) {
     invoke([this, e = ZuMv(e)]() mutable {
       alert_(ZuMv(e));
     });
@@ -408,10 +409,11 @@ private:
     }
   }
 
-  void alert_(ZmRef<ZeEvent> alert) {
+  template <typename L>
+  void alert_(ZeEvent<L> alert) {
     m_alertBuf.length(0);
-    m_alertBuf << *alert;
-    ZtDate date{alert->time};
+    m_alertBuf << alert;
+    ZtDate date{alert.time};
     unsigned yyyymmdd = date.yyyymmdd();
     unsigned seqNo = m_alertFile.alloc(m_alertPrefix, yyyymmdd);
     using namespace Zfb::Save;
@@ -419,8 +421,8 @@ private:
     m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	  fbs::TelData_Alert,
 	  fbs::CreateAlert(m_fbb,
-	    &date_, seqNo, alert->tid,
-	    static_cast<fbs::Severity>(alert->severity),
+	    &date_, seqNo, alert.tid,
+	    static_cast<fbs::Severity>(alert.severity),
 	    str(m_fbb, m_alertBuf)).Union()));
     ZmRef<IOBuf> buf = m_fbb.buf();
     m_alertFile.write(buf);

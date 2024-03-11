@@ -99,22 +99,22 @@ using MxRatio = MxUInt8;	// ratio numerator (orders w/ multiple legs)
 // functions that need to unambiguously specialize for the various Mx
 // vocabulary types
 template <typename T> struct MxIsChar :
-  public ZuBool<ZuConversion<char, T>::Same> { };
+  public ZuBool<ZuInspect<char, T>::Same> { };
 template <typename T, typename R = void>
 using MxMatchChar = ZuIfT<MxIsChar<T>{}, R>;
 
 template <typename T> struct MxIsBool :
-  public ZuBool<ZuConversion<bool, T>::Same || ZuConversion<MxBool, T>::Is> { };
+  public ZuBool<ZuInspect<bool, T>::Same || ZuInspect<MxBool, T>::Is> { };
 template <typename T, typename R = void>
 using MxMatchBool = ZuIfT<MxIsBool<T>{}, R>;
 
 template <typename T> struct MxIsEnum :
-  public ZuBool<ZuConversion<MxEnum, T>::Is> { };
+  public ZuBool<ZuInspect<MxEnum, T>::Is> { };
 template <typename T, typename R = void>
 using MxMatchEnum = ZuIfT<MxIsEnum<T>{}, R>;
 
 template <typename T> struct MxIsFlags :
-  public ZuBool<ZuConversion<MxFlags, T>::Is || ZuConversion<MxFlags64, T>::Is> { };
+  public ZuBool<ZuInspect<MxFlags, T>::Is || ZuInspect<MxFlags64, T>::Is> { };
 template <typename T, typename R = void>
 using MxMatchFlags = ZuIfT<MxIsFlags<T>{}, R>;
 
@@ -134,13 +134,13 @@ template <typename T, typename R = void>
 using MxMatchFloat = ZuIfT<MxIsFloat<T>{}, R>;
 
 template <typename T> struct MxIsString :
-  public ZuBool<ZuConversion<ZuStringN__, T>::Base && !ZuTraits<T>::IsWString
+  public ZuBool<ZuInspect<ZuStringN__, T>::Base && !ZuTraits<T>::IsWString
  > { };
 template <typename T, typename R = void>
 using MxMatchString = ZuIfT<MxIsString<T>{}, R>;
 
 template <typename T> struct MxIsTime :
-  public ZuBool<ZuConversion<MxDateTime, T>::Is> { };
+  public ZuBool<ZuInspect<MxDateTime, T>::Is> { };
 template <typename T, typename R = void>
 using MxMatchTime = ZuIfT<MxIsTime<T>{}, R>;
 

@@ -72,8 +72,8 @@ struct AppTypes : public MxTAppTypes<AppTypes> {
     }
     template <typename Update>
     ZuIfT<
-      !ZuConversion<AppAck, Update>::Is &&
-      !ZuConversion<AppExec, Update>::Is> update(const Update &) { }
+      !ZuInspect<AppAck, Update>::Is &&
+      !ZuInspect<AppExec, Update>::Is> update(const Update &) { }
   };
 
   struct AppAck : public AppMsgID {
@@ -99,30 +99,30 @@ struct AppTypes : public MxTAppTypes<AppTypes> {
   struct AppCancel : public AppRequest {
     template <typename U>
     ZuIfT<
-	ZuConversion<AppCancel, U>::Is> update(const U &u) {
+	ZuInspect<AppCancel, U>::Is> update(const U &u) {
       AppMsgID::updateClOrdID(u);
       AppRequest::update(u);
     }
     template <typename U>
     ZuIfT<
-	!ZuConversion<AppCancel, U>::Is> update(const U &u) {
+	!ZuInspect<AppCancel, U>::Is> update(const U &u) {
       AppRequest::update(u);
     }
   };
   struct AppModify : public AppRequest {
     template <typename U>
     ZuIfT<
-	ZuConversion<AppModify, U>::Is ||
-	ZuConversion<AppCancel, U>::Is ||
-	ZuConversion<AppCanceled, U>::Is> update(const U &u) {
+	ZuInspect<AppModify, U>::Is ||
+	ZuInspect<AppCancel, U>::Is ||
+	ZuInspect<AppCanceled, U>::Is> update(const U &u) {
       AppMsgID::updateClOrdID(u);
       AppRequest::update(u);
     }
     template <typename U>
     ZuIfT<
-	!ZuConversion<AppModify, U>::Is &&
-	!ZuConversion<AppCancel, U>::Is &&
-	!ZuConversion<AppCanceled, U>::Is> update(const U &u) {
+	!ZuInspect<AppModify, U>::Is &&
+	!ZuInspect<AppCancel, U>::Is &&
+	!ZuInspect<AppCanceled, U>::Is> update(const U &u) {
       AppRequest::update(u);
     }
   };
@@ -131,21 +131,21 @@ struct AppTypes : public MxTAppTypes<AppTypes> {
 
     template <typename U>
     ZuIfT<
-	ZuConversion<AppNewOrder, U>::Is ||
-	ZuConversion<AppModify, U>::Is ||
-	ZuConversion<AppModified, U>::Is ||
-	ZuConversion<AppCancel, U>::Is ||
-	ZuConversion<AppCanceled, U>::Is> update(const U &u) {
+	ZuInspect<AppNewOrder, U>::Is ||
+	ZuInspect<AppModify, U>::Is ||
+	ZuInspect<AppModified, U>::Is ||
+	ZuInspect<AppCancel, U>::Is ||
+	ZuInspect<AppCanceled, U>::Is> update(const U &u) {
       AppMsgID::updateClOrdID(u);
       AppRequest::update(u);
     }
     template <typename U>
     ZuIfT<
-	!ZuConversion<AppNewOrder, U>::Is &&
-	!ZuConversion<AppModify, U>::Is &&
-	!ZuConversion<AppModified, U>::Is &&
-	!ZuConversion<AppCancel, U>::Is &&
-	!ZuConversion<AppCanceled, U>::Is> update(const U &u) {
+	!ZuInspect<AppNewOrder, U>::Is &&
+	!ZuInspect<AppModify, U>::Is &&
+	!ZuInspect<AppModified, U>::Is &&
+	!ZuInspect<AppCancel, U>::Is &&
+	!ZuInspect<AppCanceled, U>::Is> update(const U &u) {
       AppRequest::update(u);
     }
 

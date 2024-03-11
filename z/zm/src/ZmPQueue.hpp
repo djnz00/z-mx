@@ -44,7 +44,7 @@
 #endif
 
 #include <zlib/ZuNull.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuBox.hpp>

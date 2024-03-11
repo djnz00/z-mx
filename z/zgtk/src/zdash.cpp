@@ -499,13 +499,13 @@ namespace GtkTree {
     }
     template <typename T>
     static ZuIfT<
-	ZuConversion<T, HeapParent>::Same ||
-	ZuConversion<T, HashTblParent>::Same ||
-	ZuConversion<T, ThreadParent>::Same ||
-	ZuConversion<T, MxParent>::Same ||
-	ZuConversion<T, QueueParent>::Same ||
-	ZuConversion<T, EngineParent>::Same ||
-	ZuConversion<T, ZdbEnv>::Same, App> *parent(void *ptr) {
+	ZuInspect<T, HeapParent>::Same ||
+	ZuInspect<T, HashTblParent>::Same ||
+	ZuInspect<T, ThreadParent>::Same ||
+	ZuInspect<T, MxParent>::Same ||
+	ZuInspect<T, QueueParent>::Same ||
+	ZuInspect<T, EngineParent>::Same ||
+	ZuInspect<T, ZdbEnv>::Same, App> *parent(void *ptr) {
       return static_cast<App *>(ptr);
     }
     template <typename T>
@@ -542,8 +542,8 @@ namespace GtkTree {
     }
     template <typename T>
     static ZuIfT<
-	ZuConversion<T, ZdbHostParent>::Same ||
-	ZuConversion<T, ZdbParent>::Same, ZdbEnv> *parent(void *ptr) {
+	ZuInspect<T, ZdbHostParent>::Same ||
+	ZuInspect<T, ZdbParent>::Same, ZdbEnv> *parent(void *ptr) {
       return static_cast<ZdbEnv *>(ptr);
     }
     template <typename T>
@@ -585,8 +585,8 @@ namespace GtkTree {
     };
     template <typename T, typename Key>
     static ZuIfT<
-      !ZuConversion<T, HashTbl>::Same &&
-      !ZuConversion<T, Queue>::Same,
+      !ZuInspect<T, HashTbl>::Same &&
+      !ZuInspect<T, Queue>::Same,
       KeyPrint<Key>> keyPrintType();
     // override addr for hash tables
     template <typename Key>
@@ -596,7 +596,7 @@ namespace GtkTree {
     };
     template <typename T, typename Key>
     static ZuIfT<
-      ZuConversion<T, HashTbl>::Same, HashTblKeyPrint<Key>>
+      ZuInspect<T, HashTbl>::Same, HashTblKeyPrint<Key>>
     keyPrintType();
     // override type for queues
     template <typename Key>
@@ -608,7 +608,7 @@ namespace GtkTree {
     };
     template <typename T, typename Key>
     static ZuIfT<
-      ZuConversion<T, Queue>::Same, QueueKeyPrint<Key>>
+      ZuInspect<T, Queue>::Same, QueueKeyPrint<Key>>
     keyPrintType();
 
     gint get_n_columns() { return NCols; }
@@ -1635,7 +1635,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("zcmd");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::lambdaSink([](ZeLogBuf &buf, const ZeEvent &) {
+  ZeLog::sink(ZeLog::lambdaSink([](const ZeEventInfo &, ZeLogBuf &buf) {
     buf << '\n';
     std::cerr << buf << std::flush;
   }));

@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <iostream>
 
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuUnion.hpp>
 #include <zlib/ZuTuple.hpp>
 #include <zlib/ZuTraits.hpp>
@@ -36,48 +36,48 @@ APtr_Print ZuPrintType(APtr *);
 
 int main()
 {
-  CHECK((ZuConversion<void, void>::Exists));
-  CHECK((ZuConversion<void, void>::Same));
-  CHECK((!ZuConversion<void, void>::Base));
-  CHECK((!ZuConversion<void, A>::Exists));
-  CHECK((!ZuConversion<void, A>::Same));
-  CHECK((!ZuConversion<void, A>::Base));
-  CHECK((!ZuConversion<A, void>::Exists));
-  CHECK((!ZuConversion<A, void>::Same));
-  CHECK((!ZuConversion<A, void>::Base));
-  CHECK((ZuConversion<void *, void *>::Exists));
-  CHECK((ZuConversion<void *, void *>::Same));
-  CHECK((!ZuConversion<void *, void *>::Base));
-  CHECK((ZuConversion<A *, void *>::Exists));
-  CHECK((!ZuConversion<A *, void *>::Same));
-  CHECK((!ZuConversion<A *, void *>::Base));
-  CHECK((!ZuConversion<void *, A *>::Exists));
-  CHECK((!ZuConversion<void *, A *>::Same));
-  CHECK((!ZuConversion<void *, A *>::Base));
-  CHECK((ZuConversion<A, A>::Exists));
-  CHECK((ZuConversion<A, A>::Same));
-  CHECK((!ZuConversion<A, A>::Base));
-  CHECK((!ZuConversion<A, B>::Exists));
-  CHECK((!ZuConversion<A, B>::Same));
-  CHECK((ZuConversion<A, B>::Base));
-  CHECK((ZuConversion<B, A>::Exists));
-  CHECK((!ZuConversion<B, A>::Same));
-  CHECK((!ZuConversion<B, A>::Base));
-  CHECK((!ZuConversion<A, C>::Exists));
-  CHECK((!ZuConversion<A, C>::Same));
-  CHECK((!ZuConversion<A, C>::Base));
-  CHECK((ZuConversion<C, A>::Exists));
-  CHECK((!ZuConversion<C, A>::Same));
-  CHECK((!ZuConversion<C, A>::Base));
-  CHECK((ZuConversion<A *, A *>::Exists));
-  CHECK((ZuConversion<A *, A *>::Same));
-  CHECK((!ZuConversion<A *, A *>::Base));
-  CHECK((!ZuConversion<A *, B *>::Exists));
-  CHECK((!ZuConversion<A *, B *>::Same));
-  CHECK((!ZuConversion<A *, B *>::Base));
-  CHECK((ZuConversion<B *, A *>::Exists));
-  CHECK((!ZuConversion<B *, A *>::Same));
-  CHECK((!ZuConversion<B *, A *>::Base));
+  CHECK((ZuInspect<void, void>::Exists));
+  CHECK((ZuInspect<void, void>::Same));
+  CHECK((!ZuInspect<void, void>::Base));
+  CHECK((!ZuInspect<void, A>::Exists));
+  CHECK((!ZuInspect<void, A>::Same));
+  CHECK((!ZuInspect<void, A>::Base));
+  CHECK((!ZuInspect<A, void>::Exists));
+  CHECK((!ZuInspect<A, void>::Same));
+  CHECK((!ZuInspect<A, void>::Base));
+  CHECK((ZuInspect<void *, void *>::Exists));
+  CHECK((ZuInspect<void *, void *>::Same));
+  CHECK((!ZuInspect<void *, void *>::Base));
+  CHECK((ZuInspect<A *, void *>::Exists));
+  CHECK((!ZuInspect<A *, void *>::Same));
+  CHECK((!ZuInspect<A *, void *>::Base));
+  CHECK((!ZuInspect<void *, A *>::Exists));
+  CHECK((!ZuInspect<void *, A *>::Same));
+  CHECK((!ZuInspect<void *, A *>::Base));
+  CHECK((ZuInspect<A, A>::Exists));
+  CHECK((ZuInspect<A, A>::Same));
+  CHECK((!ZuInspect<A, A>::Base));
+  CHECK((!ZuInspect<A, B>::Exists));
+  CHECK((!ZuInspect<A, B>::Same));
+  CHECK((ZuInspect<A, B>::Base));
+  CHECK((ZuInspect<B, A>::Exists));
+  CHECK((!ZuInspect<B, A>::Same));
+  CHECK((!ZuInspect<B, A>::Base));
+  CHECK((!ZuInspect<A, C>::Exists));
+  CHECK((!ZuInspect<A, C>::Same));
+  CHECK((!ZuInspect<A, C>::Base));
+  CHECK((ZuInspect<C, A>::Exists));
+  CHECK((!ZuInspect<C, A>::Same));
+  CHECK((!ZuInspect<C, A>::Base));
+  CHECK((ZuInspect<A *, A *>::Exists));
+  CHECK((ZuInspect<A *, A *>::Same));
+  CHECK((!ZuInspect<A *, A *>::Base));
+  CHECK((!ZuInspect<A *, B *>::Exists));
+  CHECK((!ZuInspect<A *, B *>::Same));
+  CHECK((!ZuInspect<A *, B *>::Base));
+  CHECK((ZuInspect<B *, A *>::Exists));
+  CHECK((!ZuInspect<B *, A *>::Same));
+  CHECK((!ZuInspect<B *, A *>::Base));
 
   CHECK(ZuTraits<int>::IsPOD);
   CHECK(ZuTraits<void *>::IsPOD);
@@ -92,8 +92,8 @@ int main()
 
   constexpr auto bar = foo();
   constexpr auto baz = []{ puts("Goodbye World"); };
-  CHECK((ZuConversion<decltype(foo()), decltype(bar)>::Same));
-  CHECK((!ZuConversion<decltype(foo()), decltype(baz)>::Same));
+  CHECK((ZuInspect<decltype(foo()), decltype(bar)>::Same));
+  CHECK((!ZuInspect<decltype(foo()), decltype(baz)>::Same));
 
   bar(); baz();
 

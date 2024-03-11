@@ -49,10 +49,10 @@ template <typename T, typename P>
 struct ZuTuple1_Cvt_<T, P, false> : public ZuFalse { };
 template <typename T, typename P>
 struct ZuTuple1_Cvt_<T, P, true> :
-  public ZuBool<ZuConversion<typename T::T0, typename P::T0>::Exists> { };
+  public ZuBool<ZuInspect<typename T::T0, typename P::T0>::Exists> { };
 template <typename T, typename P> struct ZuTuple1_Cvt :
   public ZuTuple1_Cvt_<ZuDeref<T>, P,
-    ZuConversion<ZuTuple1_, ZuDeref<T>>::Base> { };
+    ZuInspect<ZuTuple1_, ZuDeref<T>>::Base> { };
 
 template <typename U0> struct ZuTuple1_Print_ {
   const U0		&p0;
@@ -122,7 +122,7 @@ public:
   Tuple_(T &&v, ZuIfT<
       !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{} &&
 	(!ZuTraits<T0>::IsReference ||
-	  ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is)
+	  ZuInspect<ZuStrip<U0>, ZuDecay<T>>::Is)
       > *_ = nullptr) :
     m_p0{ZuFwd<T>(v)} { }
 
@@ -137,7 +137,7 @@ public:
   ZuIfT<
     !ZuTuple1_Cvt<ZuDecay<T>, Tuple_>{} &&
       (!ZuTraits<T0>::IsReference ||
-	ZuConversion<ZuStrip<U0>, ZuDecay<T>>::Is),
+	ZuInspect<ZuStrip<U0>, ZuDecay<T>>::Is),
     Tuple_ &>
   operator =(T &&v) {
     m_p0 = ZuFwd<T>(v);
@@ -149,7 +149,7 @@ public:
     return ZuCmp<T0>::equals(m_p0, p.template p<0>());
   }
   template <typename T>
-  ZuIfT<ZuConversion<ZuStrip<U0>, T>::Exists, bool>
+  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Exists, bool>
   equals(const T &v) const {
     return ZuCmp<T0>::equals(m_p0, v);
   }
@@ -158,15 +158,15 @@ public:
     return ZuCmp<T0>::cmp(m_p0, p.template p<0>());
   }
   template <typename T>
-  ZuIfT<ZuConversion<ZuStrip<U0>, T>::Exists, bool>
+  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Exists, bool>
   cmp(const T &v) const {
     return ZuCmp<T0>::equals(m_p0, v);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_p0; }
@@ -183,24 +183,24 @@ public:
   }
 
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, const U0 &> v() const & {
+  ZuIfT<ZuInspect<T, T0>::Same, const U0 &> v() const & {
     return m_p0;
   }
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, U0 &> v() & {
+  ZuIfT<ZuInspect<T, T0>::Same, U0 &> v() & {
     return m_p0;
   }
   template <typename T>
-  ZuIfT<ZuConversion<T, T0>::Same, U0 &&> v() && {
+  ZuIfT<ZuInspect<T, T0>::Same, U0 &&> v() && {
     return ZuMv(m_p0);
   }
   template <typename T, typename P>
-  ZuIfT<ZuConversion<T, T0>::Same, Tuple_ &> v(P &&p) {
+  ZuIfT<ZuInspect<T, T0>::Same, Tuple_ &> v(P &&p) {
     m_p0 = ZuFwd<P>(p);
     return *this;
   }
 
-  using Print = ZuTuple1_Print<U0, ZuConversion<ZuPair_, U0>::Base>;
+  using Print = ZuTuple1_Print<U0, ZuInspect<ZuPair_, U0>::Base>;
   Print print() const {
     return Print{m_p0, "|"};
   }
@@ -225,7 +225,7 @@ public:
   struct Traits : public ZuBaseTraits<Tuple_> {
     enum { IsPOD = ZuTraits<T0>::IsPOD };
   };
-  friend Traits ZuTraitsType(Tuple_ *);
+  friend Traits ZuTraitsType(Tuple_ *) { return {}; }
 
 private:
   T0		m_p0;
@@ -275,10 +275,10 @@ public:
     return ZuCmp<T1>::cmp(Base::template p<1>(), p.template p<1>());
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const {
@@ -397,10 +397,10 @@ public:
     return ZuCmp<T1>::cmp(Base::template p<1>(), p.template p<1>());
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<Tuple_, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<Tuple_, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   bool operator !() const {

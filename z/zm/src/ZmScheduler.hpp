@@ -379,7 +379,7 @@ private:
   template <typename O1, typename O2>
   struct IsObjectLambda__ : public ZuBool<
       ZuObjectTraits<O1>::IsObject && ZuObjectTraits<O2>::IsObject &&
-      (ZuConversion<O1, O2>::Is || ZuConversion<O2, O1>::Is)> { };
+      (ZuInspect<O1, O2>::Is || ZuInspect<O2, O1>::Is)> { };
   template <typename O, typename L, typename = void>
   struct IsObjectLambda_ : public ZuFalse { };
 #pragma GCC diagnostic push

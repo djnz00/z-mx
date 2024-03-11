@@ -85,7 +85,7 @@ bool FileMgr::open(
     try {
       if (!regex.m(fileName_)) continue;
     } catch (const ZtRegexError &e) {
-      ZeLOG(Error, ([e](auto &s) { s << e; }));
+      ZeLOG(Error, ([e](const ZeEventInfo &, auto &s) { s << e; }));
       continue;
     } catch (...) {
       continue;
@@ -145,9 +145,10 @@ retry:
   if (file->open(path, ZiFile::Create | ZiFile::GC,
 	0666, fileSize, &e) != Zi::OK) {
     if (retried) {
-      ZeLOG(Error, ([path, e](auto &s) { s <<
-	  "Zdf::FileMgr could not open or create \"" <<
-	  path << "\": " << e; }));
+      ZeLOG(Error, ([path, e](const ZeEventInfo &, auto &s) {
+	s << "Zdf::FileMgr could not open or create \""
+	  << path << "\": " << e;
+      }));
       return nullptr; 
     }
     ZiFile::Path dir = ZiFile::dirname(path);
@@ -166,9 +167,10 @@ void FileMgr::archiveFile(const FileID &fileID)
   name = ZiFile::append(m_dir, name);
   ZeError e;
   if (ZiFile::rename(name, coldName, &e) != Zi::OK) {
-    ZeLOG(Error, ([name, coldName, e](auto &s) { s <<
-	"Zdf::FileMgr could not rename \"" << name << "\" to \"" <<
-	coldName << "\": " << e; }));
+    ZeLOG(Error, ([name, coldName, e](const ZeEventInfo &, auto &s) {
+      s << "Zdf::FileMgr could not rename \"" << name << "\" to \""
+	<< coldName << "\": " << e;
+    }));
   }
 }
 
@@ -254,8 +256,8 @@ void FileMgr::purge(unsigned seriesID, unsigned blkIndex)
 }
 
 bool FileMgr::loadFile(
-    ZuString name_, Zfb::Load::LoadFn loadFn,
-    unsigned maxFileSize, ZeError *e)
+  ZuString name_, Zfb::Load::LoadFn loadFn,
+  unsigned maxFileSize, ZeError *e)
 {
   ZiFile::Path name{name_};
   name += ZiFile::Path{".df"};
@@ -272,23 +274,29 @@ bool FileMgr::saveFile(ZuString name_, Zfb::Builder &fbb, ZeError *e)
 }
 
 void FileMgr::fileRdError_(
-    const FileID &fileID, ZiFile::Offset off, int r, ZeError e)
+  const FileID &fileID, ZiFile::Offset off, int r, ZeError e)
 {
   if (r < 0) {
-    ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) { s <<
-	"Zdf::FileMgr pread() failed on \"" << name <<
-	"\" at offset " << ZuBoxed(off) <<  ": " << e; }));
+    ZeLOG(Error, ([name = fileName(fileID), off, e](
+	    const ZeEventInfo &, auto &s) {
+      s << "Zdf::FileMgr pread() failed on \"" << name
+	<< "\" at offset " << ZuBoxed(off) <<  ": " << e;
+    }));
   } else {
-    ZeLOG(Error, ([name = fileName(fileID), off](auto &s) { s <<
-	"Zdf::FileMgr pread() truncated on \"" << name <<
-	"\" at offset " << ZuBoxed(off); }));
+    ZeLOG(Error, ([name = fileName(fileID), off](
+	    const ZeEventInfo &, auto &s) {
+      s << "Zdf::FileMgr pread() truncated on \"" << name
+	<< "\" at offset " << ZuBoxed(off);
+    }));
   }
 }
 
 void FileMgr::fileWrError_(
-    const FileID &fileID, ZiFile::Offset off, ZeError e)
+  const FileID &fileID, ZiFile::Offset off, ZeError e)
 {
-  ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) { s <<
-      "Zdf::FileMgr pwrite() failed on \"" << name <<
-      "\" at offset " << ZuBoxed(off) <<  ": " << e; }));
+  ZeLOG(Error, ([name = fileName(fileID), off, e](
+	  const ZeEventInfo &, auto &s) {
+    s << "Zdf::FileMgr pwrite() failed on \"" << name
+      << "\" at offset " << ZuBoxed(off) <<  ": " << e;
+  }));
 }

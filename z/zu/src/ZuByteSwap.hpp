@@ -47,7 +47,7 @@
 #include <stddef.h>
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 
 #include <zlib/ZuInt.hpp>
 
@@ -196,14 +196,14 @@ private:
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, ZuByteSwap>::Is &&
-      ZuConversion<T, I>::Exists> set(const T &i) {
+      !ZuInspect<T, ZuByteSwap>::Is &&
+      ZuInspect<T, I>::Exists> set(const T &i) {
     m_i = B::bswap((I)i);
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, ZuByteSwap>::Is &&
-      !ZuConversion<T, I>::Exists &&
+      !ZuInspect<T, ZuByteSwap>::Is &&
+      !ZuInspect<T, I>::Exists &&
       sizeof(T) == sizeof(I)> set(const T &i) {
     const I *ZuMayAlias(i_) = reinterpret_cast<const I *>(&i);
     m_i = B::bswap(*i_);
@@ -214,14 +214,14 @@ private:
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, ZuByteSwap>::Is &&
-      ZuConversion<T, I>::Exists, T> get() const {
+      !ZuInspect<T, ZuByteSwap>::Is &&
+      ZuInspect<T, I>::Exists, T> get() const {
     return static_cast<T>(B::bswap(m_i));
   }
   template <typename T>
   ZuIfT<
-      !ZuConversion<T, ZuByteSwap>::Is &&
-      !ZuConversion<T, I>::Exists &&
+      !ZuInspect<T, ZuByteSwap>::Is &&
+      !ZuInspect<T, I>::Exists &&
       sizeof(T) == sizeof(I), T> get() const {
     I i = B::bswap(m_i);
     T *ZuMayAlias(i_) = reinterpret_cast<T *>(&i);

@@ -464,6 +464,8 @@ typedef AnyObject *(*LoadFn)(DB *, const uint8_t *, unsigned);
 typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save object into flatbuffer builder, return offset
 typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
+// FieldsFn() - inform fields
+typedef ZtVFieldArray (*FieldsFn)();
 // ImportFn(db, import) - import object from data store
 typedef AnyObject *(*ImportFn)(DB *, const ZtField::Import &);
 // ExportFn(export, ptr) - export object to data store
@@ -478,6 +480,7 @@ struct DBHandler {
   LoadFn	loadFn = nullptr;
   UpdateFn	updateFn = nullptr;
   SaveFn	saveFn = nullptr;
+  FieldsFn	fieldsFn = nullptr;
   ImportFn	importFn = nullptr;
   ExportFn	exportFn = nullptr;
   RecoverFn	recoverFn = nullptr;
@@ -509,6 +512,9 @@ struct DBHandler {
       },
       .saveFn = [](Zfb::Builder &fbb, const void *ptr) -> Zfb::Offset<void> {
 	return ZfbField::save<T>(fbb, *static_cast<const T *>(ptr)).Union();
+      },
+      .fieldsFn = []() -> ZtVFieldArray {
+	return ZtVFields<T>();
       },
       .importFn = [](DB *db, const ZtField::Import &import_) -> AnyObject * {
 	return new Object<T>{db, [&i](void *ptr) {
@@ -562,14 +568,14 @@ using DBCfs =
 
 // --- main DB class
 
-class ZdbAPI DB : public ZmPolymorph, public CoreDB {
+class ZdbAPI DB : public ZmPolymorph {
 friend File_;
 friend Cxn_;
 friend AnyObject_;
 friend Env;
 
 protected:
-  DB(Env *env, DBCf *cf, Table *table);
+  DB(Env *env, DBCf *cf);
 
 public:
   ~DB();
@@ -578,7 +584,7 @@ private:
   void init(DBHandler);
   void final();
 
-  bool open();
+  bool open(Table *table);
   void close();
 
 public:
@@ -591,7 +597,7 @@ public:
   // CoreDB methods
   ZuID id() const { return config().id; }
 
-  ZtVFieldArray fields() const;
+  ZtVFieldArray fields() const { return m_handler.fieldsFn(); }
 
   void opened(UN nextUN, RN nextRN);
   void openFailed();
@@ -1055,8 +1061,11 @@ public:
       DeleteFn deleteFn = nullptr) {
     return initDB_(id, DBHandler::bind<T>(recoverFn, deleteFn));
   }
+
 private:
   ZmRef<DB> initDB_(ZuID, DBHandler);
+
+  void opened(DB *, UN, RN);
 
 public:
   template <typename ...Args>

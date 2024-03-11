@@ -34,6 +34,8 @@
 
 namespace Zdb_ {
 
+class DB;
+
 // --- I/O buffer
 
 inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }

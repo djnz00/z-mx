@@ -53,29 +53,29 @@
 // exceptions
 
 auto MxMDOrderNotFound(const char *op, MxIDString id) {
-  return [op, id](const ZeEvent &, ZmStream &s) {
+  return [op, id](const ZeEventInfo &, auto &s) {
       s << "MxMD " << op << ": order " << id << " not found"; };
 }
 auto MxMDDuplicateOrderID(const char *op, MxIDString id) {
-  return [op, id](const ZeEvent &, ZmStream &s) {
+  return [op, id](const ZeEventInfo &, auto &s) {
       s << "MxMD " << op << ": order " << id << " already exists"; };
 }
 auto MxMDNoPxLevel(const char *op) {
-  return [op](const ZeEvent &, ZmStream &s) {
+  return [op](const ZeEventInfo &, auto &s) {
       s << "MxMD " << op << ": internal error - missing price level"; };
 }
 auto MxMDNoOrderBook(const char *op) {
-  return [op](const ZeEvent &, ZmStream &s) {
+  return [op](const ZeEventInfo &, auto &s) {
       s << "MxMD " << op << ": internal error - missing order book"; };
 }
 auto MxMDMissedUpdates(MxID venue, unsigned n) {
-  return [venue, n](const ZeEvent &, ZmStream &s) {
+  return [venue, n](const ZeEventInfo &, auto &s) {
       s << "MxMD: missed " << ZuBoxed(n) << " updates from " << venue; };
 }
 auto MxMDMissedOBUpdates(MxID venue, unsigned n, MxIDString id) {
-  return [venue, n, id](const ZeEvent &, ZmStream &s) {
-      s << "MxMD: missed " << ZuBoxed(n) << " updates from " << venue <<
-	" for " << id; };
+  return [venue, n, id](const ZeEventInfo &, auto &s) {
+      s << "MxMD: missed " << ZuBoxed(n) << " updates from " << venue
+	<< " for " << id; };
 }
 
 // generic venue-specific flags handling

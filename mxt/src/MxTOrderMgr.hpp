@@ -116,7 +116,7 @@ public:
 
   // emits ack message (Ordered/Modified/Canceled)
   template <typename Out>
-  ZuIsBase<Txn_, Out, bool> ack(Order *order, Out &out) {
+  ZuBase<Txn_, Out, bool> ack(Order *order, Out &out) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
     auto &cancel = order->cancel();
@@ -308,7 +308,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   newOrder(Order *order, In &in) {
     order->orderTxn = in.template data<NewOrder>();
     newOrderIn_<MxTEventState::Queued>(order);
@@ -333,7 +333,7 @@ private:
 
 public:
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   ordered(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -392,7 +392,7 @@ private:
 
 public:
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   reject(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -479,7 +479,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   modify(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -562,7 +562,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   modSimulated(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -678,7 +678,7 @@ private:
 
 public:
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   modified(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -744,7 +744,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   modReject(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -776,7 +776,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   modRejectCxl(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -836,7 +836,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   cancel(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -930,7 +930,7 @@ private:
 
 public:
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   canceled(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -1017,7 +1017,7 @@ public:
   }
 
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   cxlReject(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     // auto &modify = order->modify();
@@ -1061,7 +1061,7 @@ private:
 public:
   // apply fill to order
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   fill(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     auto &modify = order->modify();
@@ -1175,7 +1175,7 @@ applyFill:
 
   // closes the order
   template <typename In>
-  ZuIsBase<Txn_, In, uintptr_t>
+  ZuBase<Txn_, In, uintptr_t>
   closed(Order *order, In &in) {
     auto &newOrder = order->newOrder();
     order->execTxn = in.template data<Closed>();

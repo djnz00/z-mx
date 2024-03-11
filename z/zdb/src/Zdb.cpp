@@ -1546,25 +1546,39 @@ bool DB::write_(ZmRef<Buf> buf)
   return ok;
 }
 
-bool DB::open()
+// Env::open()
+// - iterates over DBs, calling open(store)
+// - each DB calls env->opened(un, rn) on success
+
+bool DB::open(Store *store)
 {
   ZmAssert(invoked());
 
   if (m_open) return true;
 
-  bool ok = false;
-  ZmBlock<>{}([this, &ok](auto wake) {
-    fileInvoke([this, &ok, wake = ZuMv(wake)]() {
-      ok = open_(); // FIXME - call env
+  Store::OpenResult result;
+  ZmBlock<>{}([this, &result](auto wake) {
+    Store::RecoverFn recoverFn;
+    if (m_handler.recoverFn)
+      recoverFn = [this](RN rn, const ZtField::Import &import_) {
+	ZmRef<AnyObject> o = m_handler.importFn(this, import_);
+	o->init(rn);
+	m_handler.recoverFn(o);
+      };
+    store->open(this, id(), fields(),
+	[&result, wake = ZuMv(wake)](Store::OpenResult result_) {
+      result = result_;
       wake();
-    });
+    }, recoverFn);
   });
-  if (!ok) return false;
+  if (!result.contains<Store::OpenData>()) return false;
+  const auto &data = result.v<Store::OpenData>();
+  m_table = data.table;
+  m_env->opened(this, data.un, data.rn);
 
   if (config().warmup) {
     if (auto fn = m_handler.ctorFn)
       run([this, fn]() { ZmRef<AnyObject>{fn(this)}; });
-    fileRun([this, rn = m_nextRN.load_()]() { warmup_(rn); }); // FIXME
   }
 
   m_open = true;
@@ -1578,6 +1592,7 @@ void DB::close()
   if (!m_open) return;
 
   ZmBlock<>{}([this](auto wake) {
+    m_table->close(
     fileInvoke([this, wake = ZuMv(wake)]() {
       close_(); // FIXME
       wake();

@@ -32,7 +32,7 @@
 
 #include <zlib/ZuNull.hpp>
 
-template <typename Base, typename Heap, bool = ZuConversion<Heap, Base>::Is>
+template <typename Base, typename Heap, bool = ZuInspect<Heap, Base>::Is>
 struct ZmNode__;
 template <typename Base, typename Heap>
 struct ZmNode__<Base, Heap, false> : public Heap, public Base {
@@ -88,7 +88,7 @@ template <
   typename Base,
   template <typename> class NodeFn,
   typename Heap,
-  bool = ZuConversion<Base, T>::Is>
+  bool = ZuInspect<Base, T>::Is>
 class ZmNode_;
 
 // node contains type

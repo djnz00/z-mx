@@ -27,7 +27,7 @@
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuPair.hpp>
 #include <zlib/ZuNull.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuAssert.hpp>
 
 #include <zlib/ZmGuard.hpp>

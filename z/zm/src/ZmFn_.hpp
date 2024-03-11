@@ -32,7 +32,7 @@
 
 #include <zlib/ZuTraits.hpp>
 #include <zlib/ZuFnTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuNull.hpp>
@@ -117,7 +117,7 @@ protected:
       m_object((uintptr_t)o) { }
   template <typename Invoker, typename O>
   ZmAnyFn(const Invoker &invoker, ZmRef<O> o,
-      ZuIsBase<ZmPolymorph, O, Pass> *_ = nullptr) :
+      ZuBase<ZmPolymorph, O, Pass> *_ = nullptr) :
 	m_invoker{reinterpret_cast<uintptr_t>(invoker)} {
     new (&m_object) ZmRef<O>(ZuMv(o));
     m_object = own(m_object);
@@ -204,7 +204,7 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   struct IsCallable : public ZuFalse { };
   template <typename T>
   struct IsCallable<T, decltype(&T::operator(), void())> : public ZuBool<
-      !ZuConversion<ZmAnyFn, T>::Is &&
+      !ZuInspect<ZmAnyFn, T>::Is &&
       IsCallable_<decltype(&T::operator())>{}> { };
   template <typename T, typename R = void>
   using MatchCallable = ZuIfT<IsCallable<T>{}, R>;
@@ -262,7 +262,7 @@ public:
   template <typename R, R (*Fn)(Args...)> struct Ptr<Fn> {
     static ZmFn fn() {
       return ZmFn{ZmFn::Pass{},
-	  &FnInvoker<ZuConversion<void, R>::Same, Fn>::invoke,
+	  &FnInvoker<ZuInspect<void, R>::Same, Fn>::invoke,
 	  static_cast<void *>(nullptr)};
     }
   };
@@ -273,16 +273,16 @@ public:
   struct Bound<Fn> {
     template <typename O> static ZmFn fn(O *o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<O *, ZuConversion<void, R>::Same, Fn>::invoke, o};
+	  &BoundInvoker<O *, ZuInspect<void, R>::Same, Fn>::invoke, o};
     }
     template <typename O> static ZmFn fn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<ZmRef<O>, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &BoundInvoker<ZmRef<O>, ZuInspect<void, R>::Same, Fn>::invoke,
 	  ZuMv(o)};
     }
     template <typename O> static ZmFn mvFn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<ZmRef<O>, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &BoundInvoker<ZmRef<O>, ZuInspect<void, R>::Same, Fn>::invoke,
 	  ZuMv(o)};
     }
   };
@@ -290,16 +290,16 @@ public:
   struct Bound<Fn> {
     static ZmFn fn(O *o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<O *, ZuConversion<void, R>::Same, Fn>::invoke, o};
+	  &BoundInvoker<O *, ZuInspect<void, R>::Same, Fn>::invoke, o};
     }
     static ZmFn fn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<ZmRef<O>, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &BoundInvoker<ZmRef<O>, ZuInspect<void, R>::Same, Fn>::invoke,
 	  ZuMv(o)};
     }
     static ZmFn mvFn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &BoundInvoker<ZmRef<O>, ZuConversion<void, R>::Same, Fn>::mvInvoke,
+	  &BoundInvoker<ZmRef<O>, ZuInspect<void, R>::Same, Fn>::mvInvoke,
 	  ZuMv(o)};
     }
   };
@@ -310,11 +310,11 @@ public:
   struct Member<Fn> {
     template <typename O> static ZmFn fn(O *o) {
       return ZmFn{ZmFn::Pass{},
-	  &MemberInvoker<O *, ZuConversion<void, R>::Same, Fn>::invoke, o};
+	  &MemberInvoker<O *, ZuInspect<void, R>::Same, Fn>::invoke, o};
     }
     template <typename O> static ZmFn fn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &MemberInvoker<O *, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &MemberInvoker<O *, ZuInspect<void, R>::Same, Fn>::invoke,
 	  ZuMv(o)};
     }
   };
@@ -322,12 +322,12 @@ public:
   struct Member<Fn> {
     template <typename O> static ZmFn fn(O *o) {
       return ZmFn{ZmFn::Pass{},
-	  &MemberInvoker<const O *, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &MemberInvoker<const O *, ZuInspect<void, R>::Same, Fn>::invoke,
 	  o};
     }
     template <typename O> static ZmFn fn(ZmRef<O> o) {
       return ZmFn{ZmFn::Pass{},
-	  &MemberInvoker<const O *, ZuConversion<void, R>::Same, Fn>::invoke,
+	  &MemberInvoker<const O *, ZuInspect<void, R>::Same, Fn>::invoke,
 	  ZuMv(o)};
     }
   };
@@ -486,7 +486,7 @@ private:
   };
   template <typename L, typename R, typename ...Args_>
   struct LambdaStateless : public ZuBool<
-      ZuConversion<L, typename LambdaStateless_<R, Args_...>::Fn>::Exists> { };
+      ZuInspect<L, typename LambdaStateless_<R, Args_...>::Fn>::Exists> { };
   template <
     typename L, typename R, auto HeapID, bool Sharded, bool, typename ...Args_>
   struct LambdaInvoker_;

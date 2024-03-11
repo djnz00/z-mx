@@ -43,8 +43,10 @@ template <typename U>
 struct ZuObjectTraits<U, void> {
   enum { IsObject = 0 };
 };
+template <typename U>
+using ZuIsObject = ZuBool<ZuObjectTraits<U>::IsObject>;
 template <typename U, typename R = void>
-using ZuIsObject = ZuIfT<ZuObjectTraits<U>::IsObject, R>;
+using ZuMatchObject = ZuIfT<ZuObjectTraits<U>::IsObject, R>;
 template <typename U, typename R = void>
 using ZuNotObject = ZuIfT<!ZuObjectTraits<U>::IsObject, R>;
 

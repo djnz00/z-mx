@@ -135,12 +135,12 @@ void MxMDReplayLink::reset(MxSeqNo, MxSeqNo)
 }
 
 #define fileERROR(path__, code) \
-  engine()->appException(ZeEVENT(Error, \
-    ([=, path = path__](const ZeEvent &, ZmStream &s) { \
+  engine()->appException(ZeMkEvent(Error, \
+    ([=, path = path__](const ZeEventInfo &, auto &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 #define fileINFO(path__, code) \
-  engine()->appException(ZeEVENT(Info, \
-    ([=, path = path__](const ZeEvent &, ZmStream &s) { \
+  engine()->appException(ZeMkEvent(Info, \
+    ([=, path = path__](const ZeEventInfo &, auto &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 
 void MxMDReplayLink::connect()

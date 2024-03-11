@@ -811,13 +811,13 @@ template <typename AppTypes> struct MxTTxnTypes : public AppTypes {
   public:
     template <typename Data_>
     Txn(const Data_ &data, ZuIfT<
-	ZuConversion<Data__, Data_>::Base &&
+	ZuInspect<Data__, Data_>::Base &&
 	sizeof(typename Data_::T) <= sizeof(Largest)> *_ = nullptr) {
       initData(data);
     }
     template <typename Data_>
     ZuIfT<
-      ZuConversion<Data__, Data_>::Base &&
+      ZuInspect<Data__, Data_>::Base &&
       sizeof(typename Data_::T) <= sizeof(Largest), Txn &>
     operator =(const Data_ &data) {
       initData(data);

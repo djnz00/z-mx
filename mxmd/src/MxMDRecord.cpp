@@ -132,11 +132,11 @@ void MxMDRecLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
 }
 
 #define fileERROR(path__, code) \
-  engine()->appException(ZeEVENT(Error, \
+  engine()->appException(ZeMkLambdaEvent(Error, \
     ([=, path = path__](const ZeEvent &, ZmStream &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 #define fileINFO(path__, code) \
-  engine()->appException(ZeEVENT(Info, \
+  engine()->appException(ZeMkLambdaEvent(Info, \
     ([=, path = path__](const ZeEvent &, ZmStream &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 
@@ -299,7 +299,7 @@ void MxMDRecLink::recv(Rx *rx)
       broadcast.close();
       { Guard guard(m_fileLock); m_file.close(); }
       disconnected();
-      core()->raise(ZeEVENT(Error,
+      core()->raise(ZeMkLambdaEvent(Error,
 	  ([name = ZtString(broadcast.params().name())](
 	      const ZeEvent &, ZmStream &s) {
 	    s << '"' << name << "\": "

@@ -410,7 +410,7 @@ template <> struct ZuTraits<void> : public ZuBaseTraits<void> {
 // SFINAE techniques...
 #define ZuTraits_SFINAE(Trait) \
 template <typename U, typename R = void> \
-using ZuIs##Trait = ZuIfT<ZuTraits<U>::Is##Trait, R>; \
+using ZuMatch##Trait = ZuIfT<ZuTraits<U>::Is##Trait, R>; \
 template <typename U, typename R = void> \
 using ZuNot##Trait = ZuIfT<!ZuTraits<U>::Is##Trait, R>;
 
@@ -438,7 +438,7 @@ ZuTraits_SFINAE(FloatingPoint)
 #undef ZuTraits_SFINAE
 
 template <typename U, typename R = void>
-using ZuIsCharString =
+using ZuMatchCharString =
   ZuIfT<ZuTraits<U>::IsString && !ZuTraits<U>::IsWString, R>;
 
 // STL / Boost interoperability

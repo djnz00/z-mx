@@ -42,7 +42,7 @@
 #include <stdio.h>
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuConversion.hpp>
+#include <zlib/ZuInspect.hpp>
 #include <zlib/ZuStringFn.hpp>
 #include <zlib/ZuString.hpp>
 #include <zlib/ZuPrint.hpp>
@@ -70,7 +70,7 @@ template <> struct ZuStringN_Char2<wchar_t> { using T = char; };
 
 template <typename Char_, unsigned N, typename StringN>
 class ZuStringN_ {
-  ZuConversionFriend;
+  ZuInspectFriend;
 
   ZuStringN_(const ZuStringN_ &);
   ZuStringN_ &operator =(const ZuStringN_ &);
@@ -82,7 +82,7 @@ public:
   using Char = Char_;
   using Char2 = typename ZuStringN_Char2<Char>::T;
 
-private:
+protected:
   // from any string with same char (including string literals)
   template <typename U, typename V = Char> struct IsString :
     public ZuBool<(ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
@@ -136,7 +136,20 @@ private:
   template <typename U, typename R = void>
   using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 
-protected:
+  // limit member operator <<() overload resolution to supported types
+  template <typename U>
+  struct IsStreamable : public ZuBool<
+      bool{IsString<U>{}} ||
+      bool{IsChar<U>{}} ||
+      bool{IsChar2String<U>{}} ||
+      bool{IsChar2<U>{}} ||
+      bool{IsPDelegate<U>{}} ||
+      bool{IsPBuffer<U>{}} ||
+      bool{IsReal<U>{}} ||
+      bool{IsPtr<U>{}}> { };
+  template <typename U, typename R = void>
+  using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
+
   ZuStringN_() : m_length(0) { data()[0] = 0; }
 
   using Nop_ = enum { Nop };
@@ -399,10 +412,10 @@ public:
     return ZuCmp<StringN>::cmp(*static_cast<const StringN *>(this), s);
   }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<StringN, L>::Is, bool>
+  friend inline ZuIfT<ZuInspect<StringN, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline ZuIfT<ZuConversion<StringN, L>::Is, int>
+  friend inline ZuIfT<ZuInspect<StringN, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   uint32_t hash() const {
@@ -446,16 +459,16 @@ public:
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
   template <typename U> struct IsCtorLength :
-    public ZuBool<ZuConversion<U, unsigned>::Same ||
-      ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same> { };
+    public ZuBool<ZuInspect<U, unsigned>::Same ||
+      ZuInspect<U, int>::Same ||
+      ZuInspect<U, size_t>::Same> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
   // constructor arg
   template <typename U> struct IsCtorArg :
     public ZuBool<!IsCtorLength<U>{} &&
-      !ZuConversion<Base, U>::Base> { };
+      !ZuInspect<Base, U>::Base> { };
   template <typename U, typename R = void>
   using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
@@ -487,11 +500,6 @@ public:
     this->init(s);
     return *this;
   }
-  ZuStringN &operator +=(const char *s_) {
-    ZuString s{s_};
-    this->append(s.data(), s.length());
-    return *this;
-  }
   ZuStringN &operator <<(const char *s_) {
     ZuString s{s_};
     this->append(s.data(), s.length());
@@ -512,14 +520,12 @@ public:
     this->init(ZuFwd<S>(s));
     return *this;
   }
-  template <typename S>
-  ZuStringN &operator +=(S &&s) {
-    this->append_(ZuFwd<S>(s));
-    return *this;
-  }
-  template <typename S>
-  ZuStringN &operator <<(S &&s) {
-    this->append_(ZuFwd<S>(s));
+  template <typename U>
+  ZuStringN &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
+  template <typename U>
+  Base::template MatchStreamable<U, ZuStringN &>
+  operator <<(U &&v) {
+    this->append_(ZuFwd<U>(v));
     return *this;
   }
 
@@ -551,16 +557,16 @@ public:
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
   template <typename U> struct IsCtorLength :
-    public ZuBool<ZuConversion<U, unsigned>::Same ||
-      ZuConversion<U, int>::Same ||
-      ZuConversion<U, size_t>::Same> { };
+    public ZuBool<ZuInspect<U, unsigned>::Same ||
+      ZuInspect<U, int>::Same ||
+      ZuInspect<U, size_t>::Same> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
   // constructor arg
   template <typename U> struct IsCtorArg :
     public ZuBool<!IsCtorLength<U>{} &&
-      !ZuConversion<Base, U>::Base> { };
+      !ZuInspect<Base, U>::Base> { };
   template <typename U, typename R = void>
   using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
@@ -593,11 +599,6 @@ public:
     this->init(s);
     return *this;
   }
-  ZuWStringN &operator +=(const wchar_t *s_) { // unoptimized
-    ZuWString s{s_};
-    this->append(s.data(), s.length());
-    return *this;
-  }
   ZuWStringN &operator <<(const wchar_t *s_) { // unoptimized
     ZuWString s{s_};
     this->append(s.data(), s.length());
@@ -618,15 +619,15 @@ public:
     this->init(ZuFwd<S>(s));
     return *this;
   }
-  template <typename S>
-  ZuWStringN &operator +=(S &&s) {
-    this->append_(ZuFwd<S>(s));
+  template <typename U>
+  Base::template MatchStreamable<U, ZuWStringN &>
+  operator <<(U &&v) {
+    this->append_(ZuFwd<U>(v));
     return *this;
   }
-  template <typename S>
-  ZuWStringN &operator <<(S &&s) {
-    this->append_(ZuFwd<S>(s));
-    return *this;
+  template <typename U>
+  ZuWStringN &operator +=(U &&v) {
+    return *this << ZuFwd<U>(v);
   }
 
   // length

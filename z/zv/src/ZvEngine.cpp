@@ -25,7 +25,7 @@ void ZvEngine::start_()
 {
   mgrAddEngine();
 
-  // appException(ZeEVENT(Info, "START"));
+  // appException(ZeMkEvent(Info, "START"));
 
   auto i = m_links.readIterator();
   while (ZmRef<ZvAnyLink> link = i.iterateVal())
@@ -33,7 +33,7 @@ void ZvEngine::start_()
 }
 void ZvEngine::stop_()
 {
-  // appException(ZeEVENT(Info, "STOP"));
+  // appException(ZeMkEvent(Info, "STOP"));
 
   auto i = m_links.readIterator();
   while (ZmRef<ZvAnyLink> link = i.iterateVal())
