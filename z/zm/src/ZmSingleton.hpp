@@ -49,7 +49,7 @@
 
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuInspect.hpp>
-#include <zlib/ZuFnTraits.hpp>
+#include <zlib/ZuInvoke.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmCleanup.hpp>
@@ -147,9 +147,9 @@ public:
 // ODR warning: do not use lambdas in headers outside of an inline function
 
 template <typename L>
-inline auto &ZmStatic(L l, ZuStatelessFn<L> *_ = nullptr) {
-  using T = ZuDecay<decltype(*ZuFnTraits<L>::invoke())>;
-  return *(ZmSingleton<T, true, ZuFnTraits<L>::fn()>::instance());
+inline auto &ZmStatic(L l, ZuStatelessLambda<L> *_ = nullptr) {
+  using T = ZuLambdaReturn<L>;
+  return *(ZmSingleton<T, true, ZuInvokeFn<L>()>::instance());
 }
 
 #endif /* ZmSingleton_HPP */

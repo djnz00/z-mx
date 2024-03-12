@@ -79,7 +79,7 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuInspect.hpp>
 #include <zlib/ZuPair.hpp>
-#include <zlib/ZuFnTraits.hpp>
+#include <zlib/ZuInvoke.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmObject.hpp>
@@ -402,9 +402,9 @@ public:
 };
 
 template <typename L>
-inline auto ZmTLS(L l, ZuStatelessFn<L> *_ = nullptr) {
-  using T = ZuDecay<decltype(*ZuFnTraits<L>::invoke())>;
-  return ZmSpecific<T, true, ZuFnTraits<L>::fn(l)>::instance();
+inline auto ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
+  using T = ZuLambdaReturn<L>;
+  return ZmSpecific<T, true, ZuInvokeFn<L>()>::instance();
 }
 
 #endif /* ZmSpecific_HPP */

@@ -35,9 +35,18 @@
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuNull.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmPolymorph.hpp>
+
+// Note: stateless lambdas are invoked using a placeholder this pointer
+// that is 0 - technically this is undefined behavior, but works widely
+// and elides capturing a this pointer that is redundant:
+//
+// reinterpret_cast<const L *>(0)->operator ()(...);
+//
+// Note: this->x does not imply evaluating (*this).x (the reverse is true)
 
 template <typename ...Args> class ZmFn;
 
@@ -360,58 +369,25 @@ public:
 
 private:
   // deduce return type of lambda
-  template <typename L, typename ArgList> struct Return_;
-  template <typename L>
-  struct Return_<L, ZuTypeList<>> {
-    using T = decltype(ZuDeclVal<L &>()());
-  };
-  template <typename L, typename ...Args_>
-  struct Return_<L, ZuTypeList<Args_...>> {
-    using T = decltype(std::declval<L &>()(std::declval<Args_>()...));
-  };
   template <typename L, typename ArgList>
-  using Return = typename Return_<L, ArgList>::T;
-  template <typename L, typename ArgList, typename = Return<L, ArgList>>
-  struct IsVoidRet_ : public ZuFalse { };
-  template <typename L, typename ArgList>
-  struct IsVoidRet_<L, ArgList, void> : public ZuTrue { };
+  using IsVoidRet_ = ZuLambdaTraits::IsVoidRet<L, ArgList>;
   template <typename L> using IsVoidRet = IsVoidRet_<L, ZuTypeList<Args...>>;
   template <typename O, typename L>
   using IsBoundVoidRet = IsVoidRet_<L, ZuTypeList<O, Args...>>;
 
   // deduce mutability of lambda
-  template <typename L, typename = void>
-  struct IsMutable_NoArgs : public ZuTrue { };
-  template <typename L>
-  struct IsMutable_NoArgs<L, decltype(ZuDeclVal<const L &>()(), void())> :
-      public ZuFalse { };
-  template <typename L, typename ArgList, typename = void>
-  struct IsMutable_Args : public ZuTrue { };
-  template <typename L, typename ...Args_>
-  struct IsMutable_Args<L, ZuTypeList<Args_...>,
-    decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args_>()...), void())> :
-      public ZuFalse { };
   template <typename L, typename ArgList>
-  struct IsMutable_ : public IsMutable_Args<L, ArgList> { };
-  template <typename L>
-  struct IsMutable_<L, ZuTypeList<>> : public IsMutable_NoArgs<L> { };
+  using IsMutable_ = ZuLambdaTraits::IsMutable<L, ArgList>;
   template <typename L>
   using IsMutable = IsMutable_<L, ZuTypeList<Args...>>;
   template <typename O, typename L>
   using IsBoundMutable = IsMutable_<L, ZuTypeList<O, Args...>>;
 
   // deduce statefulness of lambda
-  template <typename L, typename = void>
-  struct IsStateless : public ZuFalse { };
-  template <typename L, auto Fn, typename = void>
-  struct IsStateless_ : public ZuFalse { };
-  template <typename L, typename R, typename ...Args_, R (L::*Fn)(Args_...)>
-  struct IsStateless_<L, Fn,
-    decltype(static_cast<R (*)(Args_...)>(Fn), void())> :
-      public ZuTrue { };
   template <typename L>
-  struct IsStateless<L, decltype(&L::operator(), void())> :
-      public IsStateless_<L, &L::operator()> { };
+  using IsStateless = ZuIsStatelessLambda<L, ZuTypeList<Args...>>;
+  template <typename O, typename L>
+  using IsBoundStateless = ZuIsStatelessLambda<L, ZuTypeList<O, Args...>>;
 
   // pre-declare lambda invokers
   template <auto HeapID, bool Sharded, typename L,
@@ -421,17 +397,17 @@ private:
   struct LambdaInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<O *, L>{},
-    bool Stateless = IsStateless<L>{},
+    bool Stateless = IsBoundStateless<O *, L>{},
     bool Mutable = IsBoundMutable<O *, L>{}>
   struct LambdaPtrInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<ZmRef<O>, L>{},
-    bool Stateless = IsStateless<L>{},
+    bool Stateless = IsBoundStateless<ZmRef<O>, L>{},
     bool Mutable = IsBoundMutable<ZmRef<O>, L>{}>
   struct LambdaRefInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<ZmRef<O>, L>{},
-    bool Stateless = IsStateless<L>{},
+    bool Stateless = IsBoundStateless<ZmRef<O>, L>{},
     bool Mutable = IsBoundMutable<ZmRef<O>, L>{}>
   struct LambdaMvRefInvoker;
 
@@ -671,7 +647,6 @@ private:
   template <auto HeapID, bool Sharded, typename O, typename L>
   struct LambdaPtrInvoker<HeapID, Sharded, O, L, false, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
 	    ptr<O>(o), ZuFwd<Args>(args)...));
     }
@@ -683,7 +658,6 @@ private:
   template <auto HeapID, bool Sharded, typename O, typename L>
   struct LambdaPtrInvoker<HeapID, Sharded, O, L, true, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       reinterpret_cast<const L *>(0)->operator ()(
 	  ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
@@ -696,7 +670,6 @@ private:
   template <auto HeapID, bool Sharded, typename O, typename L>
   struct LambdaRefInvoker<HeapID, Sharded, O, L, false, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
 	    ptr<O>(o), ZuFwd<Args>(args)...));
     }
@@ -708,7 +681,6 @@ private:
   template <auto HeapID, bool Sharded, typename O, typename L>
   struct LambdaRefInvoker<HeapID, Sharded, O, L, true, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       reinterpret_cast<const L *>(0)->operator ()(
 	  ptr<O>(o), ZuFwd<Args>(args)...);
       return 0;
@@ -722,7 +694,6 @@ private:
   struct LambdaMvRefInvoker<HeapID, Sharded, O, L, false, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       o = disown(o);
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
 	    ZmRef<O>::acquire(ptr<O>(o)), ZuFwd<Args>(args)...));
     }
@@ -735,7 +706,6 @@ private:
   struct LambdaMvRefInvoker<HeapID, Sharded, O, L, true, true, false> {
     static uintptr_t invoke(uintptr_t &o, Args... args) {
       o = disown(o);
-      // no, this->x does not imply evaluating (*this).x; the reverse is true
       reinterpret_cast<const L *>(0)->operator ()(
 	  ZmRef<O>::acquire(ptr<O>(o)), ZuFwd<Args>(args)...);
       return 0;

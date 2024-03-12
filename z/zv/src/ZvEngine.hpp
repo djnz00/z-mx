@@ -30,7 +30,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuFnTraits.hpp>
+#include <zlib/ZuInvoke.hpp>
 
 #include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmFn.hpp>
@@ -628,21 +628,14 @@ public:
   template <typename L> void rxInvoke(L &&l) const
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
 
-  // ensure passed lambdas are stateless and match required signature
-  template <
-    typename L,
-    bool = typename ZuFnTraits<L>::template Match<void, Rx *>{}>
-  struct RcvdLambda;
   template <typename L>
-  struct RcvdLambda<L, true> : public ZuFnTraits<L> { };
-
-  template <typename L>
-  typename RcvdLambda<L>::R received(ZmRef<ZvIOMsg> msg, L) {
+  ZuStatelessLambda<L, ZuTypeList<Rx *>>
+  received(ZmRef<ZvIOMsg> msg, L) {
     msg->owner(rx());
     this->engine()->rxInvoke(ZuMv(msg), [](ZmRef<ZvIOMsg> msg) {
       Rx *rx = msg->owner<Rx *>();
       rx->received(ZuMv(msg));
-      RcvdLambda<L>::invoke(rx);
+      ZuInvoke<L, ZuTypeList<Rx *>>(rx);
     });
   }
   void received(ZmRef<ZvIOMsg> msg) {

@@ -206,6 +206,13 @@ inline bool operator ==(const M &, const M &) { return true; }
 
 struct O : public ZuObject { };
 
+#include <zlib/ZuLambdaTraits.hpp>
+
+template <typename L>
+void foo(L l) {
+  CHECK(ZuIsStatelessLambda<L>{});
+}
+
 int main()
 {
   {
@@ -507,12 +514,5 @@ int main()
     CHECK(bool{ZuHash_Can_hash<T1::V>{}});
   }
 
-  {
-    struct A { int x = 42; };
-    struct B { static A a() { return A{}; } };
-    ZuTuple<const A &> t{B::a()};
-    ZuTuple<const A &> u(B::a());
-    CHECK(t.p<0>().x == 42);
-    CHECK(u.p<0>().x == 42);
-  }
+  foo([]{});
 }

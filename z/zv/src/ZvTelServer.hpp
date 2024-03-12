@@ -28,7 +28,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuFnTraits.hpp>
+#include <zlib/ZuInvoke.hpp>
 
 #include <zlib/ZmFn.hpp>
 
@@ -460,7 +460,8 @@ private:
   };
 
   template <typename L>
-  void subscribe(WatchList &list, Watch *watch, unsigned interval, L) {
+  ZuStatelessLambda<L, ZuTypeList<Server *>>
+  subscribe(WatchList &list, Watch *watch, unsigned interval, L) {
     bool reschedule = false;
     if (!list.interval || interval < list.interval)
       if (list.interval != interval) {
@@ -468,18 +469,19 @@ private:
 	list.interval = interval;
       }
     list.push(watch);
-    if (reschedule) this->reschedule<L>(list);
+    if (reschedule) this->reschedule_<L>(list);
   }
   template <typename L>
-  void reschedule(WatchList &list, L) {
+  ZuStatelessLambda<L, ZuTypeList<Server *>>
+  reschedule(WatchList &list, L) {
     if (!list.interval) return;
-    this->reschedule<L>(list);
+    this->reschedule_<L>(list);
   }
   template <typename L>
-  void reschedule(WatchList &list) {
+  void reschedule_(WatchList &list) {
     run([list = &list]() {
-      ZuFnTraits<L>::invoke(list->server);
-      list->server->template reschedule<L>(*list);
+      ZuInvoke<L, ZuTypeList<Server *>>(list->server);
+      list->server->reschedule_<L>(*list);
     },
     ZmTimeNow(ZmTime{ZmTime::Nano,
       static_cast<int64_t>(list.interval) * 1000000}),

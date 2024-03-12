@@ -58,7 +58,7 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-#include <zlib/ZuFnTraits.hpp>
+#include <zlib/ZuInvoke.hpp>
 
 #include <zlib/ZmHeap.hpp>
 
@@ -118,10 +118,11 @@ public:
   }
 
   template <typename L>
-  ZmRingFn_(L &l, ZuStatelessFn<L> *_ = nullptr) :
+  ZmRingFn_(L &l, ZuStatelessLambda<L, ZuTypeList<Args...>> *_ = nullptr) :
       m_invokeFn{[](void *, Args... args) -> unsigned {
-	// no, this->x does not imply evaluating (*this).x; the reverse is true
-	try { (*reinterpret_cast<const L *>(0))(args...); } catch (...) { }
+	try {
+	  ZuInvoke<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
+	} catch (...) { }
 	return 0;
       }},
       m_moveFn{nullptr},
@@ -129,10 +130,10 @@ public:
       m_ptr{0} { }
 
   template <typename L>
-  ZmRingFn_(L &l, ZuNotStatelessFn<L> *_ = nullptr) :
+  ZmRingFn_(L &l, ZuNotStatelessLambda<L, ZuTypeList<Args...>> *_ = nullptr) :
       m_invokeFn{[](void *ptr_, Args... args) -> unsigned {
 	auto ptr = static_cast<L *>(ptr_);
-	try { (*ptr)(args...); } catch (...) { }
+	try { (*ptr)(ZuFwd<Args>(args)...); } catch (...) { }
 	ptr->~L();
 	return sizeof(L);
       }},
