@@ -66,7 +66,7 @@ void ZmObject_deref(const ZmObjectDebug *o, const void *referrer)
 
 #else
 
-void ZmObject_ref(const ZmObjectDebug *, const void *) { }
-void ZmObject_deref(const ZmObjectDebug *, const void *) { }
+// void ZmObject_ref(const ZmObjectDebug *, const void *) { }
+// void ZmObject_deref(const ZmObjectDebug *, const void *) { }
 
 #endif

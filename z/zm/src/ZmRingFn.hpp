@@ -58,6 +58,10 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
+#include <zlib/ZuFnTraits.hpp>
+
+#include <zlib/ZmHeap.hpp>
+
 // NTP (named template parameters):
 //
 // inline constexpr const char *HeapID() { return "HeapID"; }
