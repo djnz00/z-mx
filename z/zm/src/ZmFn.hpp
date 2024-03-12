@@ -71,10 +71,10 @@
 // heap caches for different sizes of lambda
 //
 // Stateless lambdas do not have any captures, i.e. [](...) { ... }
-// such lambdas should not have data members, and C++11 guarantees they
+// stateless lambdas should not have data members, and C++11 guarantees they
 // are convertible to a primitive function pointer; lambdas with captures
-// cannot be converted to a primitive function pointer; note that stateless
-// lambdas are implicitly const (not mutable)
+// cannot be converted to a function pointer; stateless lambdas are
+// implicitly const (not mutable)
 //
 // If the lambda has no captures, the lambda will not be instantiated or
 // heap allocated; both fn1 and fn2 below behave identically, but fn2 is

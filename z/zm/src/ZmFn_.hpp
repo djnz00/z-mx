@@ -339,7 +339,7 @@ public:
     }
   };
 
-  // lambdas
+  // lambda matching
   template <auto HeapID, bool Sharded> struct Lambda;
   template <typename L>
   static MatchCallable<L, ZmFn> fn(L &&l) {
@@ -359,6 +359,7 @@ public:
   }
 
 private:
+  // deduce return type of lambda
   template <typename L, typename ArgList> struct Return_;
   template <typename L>
   struct Return_<L, ZuTypeList<>> {
@@ -378,14 +379,18 @@ private:
   template <typename O, typename L>
   using IsBoundVoidRet = IsVoidRet_<L, ZuTypeList<O, Args...>>;
 
+  // deduce mutability of lambda
   template <typename L, typename = void>
   struct IsMutable_NoArgs : public ZuTrue { };
   template <typename L>
-  struct IsMutable_NoArgs<L, decltype(ZuDeclVal<const L &>()(), void())> : public ZuFalse { };
+  struct IsMutable_NoArgs<L, decltype(ZuDeclVal<const L &>()(), void())> :
+      public ZuFalse { };
   template <typename L, typename ArgList, typename = void>
   struct IsMutable_Args : public ZuTrue { };
   template <typename L, typename ...Args_>
-  struct IsMutable_Args<L, ZuTypeList<Args_...>, decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args_>()...), void())> : public ZuFalse { };
+  struct IsMutable_Args<L, ZuTypeList<Args_...>,
+    decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args_>()...), void())> :
+      public ZuFalse { };
   template <typename L, typename ArgList>
   struct IsMutable_ : public IsMutable_Args<L, ArgList> { };
   template <typename L>
@@ -395,16 +400,20 @@ private:
   template <typename O, typename L>
   using IsBoundMutable = IsMutable_<L, ZuTypeList<O, Args...>>;
 
+  // deduce statefulness of lambda
   template <typename L, typename = void>
   struct IsStateless : public ZuFalse { };
   template <typename L, auto Fn, typename = void>
   struct IsStateless_ : public ZuFalse { };
   template <typename L, typename R, typename ...Args_, R (L::*Fn)(Args_...)>
-  struct IsStateless_<L, Fn, decltype(static_cast<R (*)(Args_...)>(Fn), void())> : public ZuTrue { };
+  struct IsStateless_<L, Fn,
+    decltype(static_cast<R (*)(Args_...)>(Fn), void())> :
+      public ZuTrue { };
   template <typename L>
   struct IsStateless<L, decltype(&L::operator(), void())> :
       public IsStateless_<L, &L::operator()> { };
 
+  // pre-declare lambda invokers
   template <auto HeapID, bool Sharded, typename L,
     bool VoidRet = IsVoidRet<L>{},
     bool Stateless = IsStateless<L>{},
@@ -561,8 +570,6 @@ private:
       return 0;
     }
   };
-
-  // -- lambdas
 
   // stateless lambda
   template <auto HeapID, bool Sharded, typename L>
