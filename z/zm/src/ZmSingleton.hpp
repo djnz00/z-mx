@@ -148,7 +148,7 @@ public:
 
 template <typename L>
 inline auto &ZmStatic(L l, ZuStatelessLambda<L> *_ = nullptr) {
-  using T = ZuLambdaReturn<L>;
+  using T = ZuDecay<decltype(*ZuDeclVal<ZuLambdaReturn<L>>())>;
   return *(ZmSingleton<T, true, ZuInvokeFn<L>()>::instance());
 }
 

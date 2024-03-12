@@ -45,7 +45,7 @@ template <
 struct ZuInvokeFn_;
 template <typename L, typename ...Args>
 struct ZuInvokeFn_<L, ZuTypeList<Args...>, true> {
-  ZuLambdaReturn<L, ZuTypeList<Args...>> fn(Args &&... args) {
+  static ZuLambdaReturn<L, ZuTypeList<Args...>> fn(Args &&... args) {
     return (*reinterpret_cast<const L *>(0))(ZuFwd<Args>(args)...);
   }
 };

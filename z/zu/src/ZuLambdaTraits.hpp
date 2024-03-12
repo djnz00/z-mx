@@ -56,7 +56,7 @@ struct Return_<L, ZuTypeList<>> {
 };
 template <typename L, typename ...Args_>
 struct Return_<L, ZuTypeList<Args_...>> {
-  using T = decltype(std::declval<L &>()(std::declval<Args_>()...));
+  using T = decltype(ZuDeclVal<L &>()(ZuDeclVal<Args_>()...));
 };
 template <typename L, typename ArgList_ = ArgList<L>>
 using Return = typename Return_<L, ArgList_>::T;

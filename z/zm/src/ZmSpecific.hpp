@@ -403,7 +403,7 @@ public:
 
 template <typename L>
 inline auto ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
-  using T = ZuLambdaReturn<L>;
+  using T = ZuDecay<decltype(*ZuDeclVal<ZuLambdaReturn<L>>())>;
   return ZmSpecific<T, true, ZuInvokeFn<L>()>::instance();
 }
 
