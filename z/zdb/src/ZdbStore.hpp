@@ -30,7 +30,11 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZdbTypes.hpp>
+
 namespace Zdb_ {
+
+using Event = ZeVEvent;	// non-polymorphic ZeEvent
 
 // back-end data store table
 struct Table {
@@ -55,32 +59,42 @@ struct Table {
   // 1 importer (get)
   // 3 exporters (push, update, del)
 
-  virtual void close(ZmFn<>) = 0;		// idempotent
+  virtual void close(ZmFn<>) = 0;	// idempotent
 
+  using GetData = ZuTuple<UN, SN, VN, const ZtField::Import &>;
   using GetResult = ZuUnion<
-    const ZtField::Import &,			// succeeded
-    void,					// missing
-    ZeFnEvent>;					// error
-  using GetFn = ZmFn<RN, GetResult>;
+    GetData,				// succeeded
+    void,				// missing
+    Event>;				// error
+  using GetFn = ZmFn<DB *, RN, GetResult>;
 
   virtual void get(RN, GetFn) = 0;
 
-  using ExportFn = ZmFn<const ZtField::Export &>;
+  using RecoverData = ZuTuple<RN, SN, VN, const ZtField::Import &>;
+  using RecoverResult = ZuUnion<
+    RecoverData,			// succeeded
+    void,				// missing
+    Event>;				// error
+  using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
 
-  using CommitResult = ZuUnion<void, ZeFnEvent>;
-  using CommitFn = ZmFn<UN, RN, CommitResult>;
+  virtual void recover(UN, RecoverFn) = 0;
+
+  using ExportFn = ZmFn<DB *, RN, const ZtField::Export &>;
+
+  using CommitResult = ZuUnion<void, Event>;
+  using CommitFn = ZmFn<DB *, UN, RN, CommitResult>;
 
   // UN is idempotency key
-  virtual void push(UN, RN, ExportFn, CommitFn) = 0;	// idempotent
-  virtual void update(UN, RN, ExportFn, CommitFn) = 0;	// idempotent
-  virtual void del(UN, RN, CommitFn) = 0;		// idempotent
-}
+  virtual void push(RN, UN, SN, ExportFn, CommitFn) = 0;	// idempotent
+  virtual void update(RN, UN, SN, VN, ExportFn, CommitFn) = 0;	// idempotent
+  virtual void del(RN, UN, SN, VN, CommitFn) = 0;		// idempotent
+};
 
 // back-end data store
 struct Store {
-  using LogFn = ZmFn<ZeFnEvent>;			// log function
+  using LogFn = ZmFn<Event>;		// log function
 
-  using Result = ZuUnion<void, ZeFnEvent>;
+  using Result = ZuUnion<void, Event>;
 
   virtual Result init(			// initialize data store - idempotent
       ZvCf *cf,
@@ -90,18 +104,25 @@ struct Store {
 
   struct OpenData {
     Table	*table = nullptr;
-    UN		un = 0;
     RN		rn = 0;
+    UN		un = 0;
+    SN		sn = 0;
   };
-  using OpenResult = ZuUnion<void, OpenData, ZeFnEvent>;
+  using OpenResult = ZuUnion<
+    void,				// unset
+    OpenData,				// succeeded
+    Event>;				// error
   using OpenFn = ZmFn<OpenResult>;
 
-  using RecoverFn = ZmFn<RN, const ZtField::Import &>;	// recovered record
+  using ScanFn =
+    ZmFn<DB *, RN, UN, SN, VN, const ZtField::Import &>; // scanned record
 
   virtual void open(			// open table - idempotent
+      DB *,
       ZuID id,
       ZtVFieldArray fields,
-      OpenFn, RecoverFn) = 0;
+      OpenFn,
+      ScanFn) = 0;
 };
 
 } // Zdb_

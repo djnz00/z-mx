@@ -300,7 +300,7 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
     return *this;
   }
 };
-using ZeFnEvent = ZeEvent<ZeMsgFn>;
+using ZeVEvent = ZeEvent<ZeMsgFn>;
 
 template <typename L>
 ZeEvent(int, const char *, int, const char *, L) -> ZeEvent<ZuDecay<L>>;
@@ -358,17 +358,17 @@ auto ZeMkEvent__(
 
 // make a non-polymorphic ZeEvent
 template <typename Msg>
-ZeFnEvent ZeMkFnEvent__(
+ZeVEvent ZeMkVEvent__(
     int severity_,
     const char *file_, int line_,
     const char *function_, Msg &&msg) {
-  return ZeFnEvent(
+  return ZeVEvent(
       severity_, file_, line_, function_,
       ZeMsg_::fn(ZuFwd<Msg>(msg)));
 }
-#define ZeMkFnEvent_(sev, msg) \
-  ZeMkFnEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)
-#define ZeMkFnEvent(sev, msg) ZeMkFnEvent_(Ze:: sev, msg)
+#define ZeMkVEvent_(sev, msg) \
+  ZeMkVEvent__(sev, __FILE__, __LINE__, ZuFnName, msg)
+#define ZeMkVEvent(sev, msg) ZeMkVEvent_(Ze:: sev, msg)
 
 namespace Ze {
 

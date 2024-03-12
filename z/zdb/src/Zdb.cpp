@@ -72,8 +72,8 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 
     config.sid = mx->sid(config.thread);
     if (invalidSID(config.sid))
-      throw ZtString{} <<
-	"ZdbEnv thread misconfigured: " << config.thread;
+      throw ZeMkEvent(Fatal, [thread = config.thread](auto &s) {
+	s << "ZdbEnv thread misconfigured: " << config.thread; });
 
     {
       ZiModule module_;
@@ -81,30 +81,20 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
       auto path = config.storeCf->get<true>("module");
       auto preload = config.storeCf->getBool("preload", false);
       if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
-	throw ZtString{} <<
-	  "failed to load \"" << path << "\": " << ZuMv(e);
+	throw ZeMkEvent(Fatal, [path = ZtString{path}, e](auto &s) {
+	  s << "failed to load \"" << path << "\": " << e; });
       ZdbStoreFn storeFn =
 	static_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
       if (!storeFn) {
 	module_.unload();
-	// FIXME - really this should be throw ZuPair<ZeEvent, [](ZeLogBuf &buf) {
-	// buf << ... }
-	// ... which should be a ZeThrow macro
-	throw ZtString{} <<
-	  "failed to resolve \"" ZdbStoreFnSym "\" in \"" <<
-	  path << "\": " << ZuMv(e);
+	throw ZeMkEvent(Fatal, [path = ZtString{path}, e](auto &s) {
+	  s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
+	    << path << "\": " << e; });
       }
       m_store = (*storeFn)();
       auto result = m_store->init(
-	  config.storeCf,
-	  [](ZeEvent error, ZmFn<ZeLogBuf &> msg) {
-	    ZeLog::log(ZuMv(error), ZuMv(msg));
-	  });
-      if (result.contains<Event>()) {
-	const auto &error = result.v<Event>();
-	ZeLog::log(error.v<ZeEvent>(), error.v<LogMsg>());
-	// FIXME - failed
-      }
+	  config.storeCf, [](Event error) { ZeLog::log(ZuMv(error)); });
+      if (result.contains<Event>()) throw result.v<Event>();
     }
 
     {
@@ -116,16 +106,13 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	else {
 	  dbCf.sid = mx->sid(dbCf.thread);
 	  if (invalidSID(dbCf.sid))
-	    throw ZtString{} <<
-	      "Zdb " << dbCf.id << " thread misconfigured: " << dbCf.thread;
+	    throw ZeMkEvent(Fatal,
+		[id = dbCf.id, thread = dbCf.thread](auto &s) {
+		  s << "Zdb " << dbCf.id
+		    << " thread misconfigured: " << dbCf.thread; });
 	}
       }
     }
-
-    {
-      ZmRef<ZvCf> storeCf = cf->getCf<true>("store");
-      ZiModule module_;
-      ZiModule::Path name = storeCf->get("store", true);
 
     m_cf = ZuMv(config);
     m_mx = mx;
@@ -134,12 +121,12 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 
     return true;
   }))
-    throw ZtString{} << "ZdbEnv::init called out of order";
+    throw ZeMkEvent(Fatal, "ZdbEnv::init called out of order");
 }
 
 ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
 {
-  ZmRef<DB> db = nullptr;
+  ZmRef<DB> db;
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped,
 	[this, &db, id, handler = ZuMv(handler)]() {
     if (state() != HostState::Initialized) return false;
@@ -151,7 +138,7 @@ ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
     m_dbs.addNode(db);
     return true;
   }))
-    throw ZtString{} << "ZdbEnv::initDB called out of order";
+    throw ZeMkEvent(Fatal, "ZdbEnv::initDB called out of order");
   return db;
 }
 
@@ -163,7 +150,7 @@ void Env::final()
     m_handler = {};
     return true;
   }))
-    throw ZtString{} << "ZdbEnv::final called out of order";
+    throw ZeMkEvent(Fatal, "ZdbEnv::final called out of order");
 }
 
 void Env::wake()
@@ -956,34 +943,55 @@ void DB::recSend(ZmRef<Cxn> cxn, RN rn, RN endRN)
   ZmAssert(invoked());
 
   if (!cxn->up()) return;
-  if (auto buf = repBuf(rn)) {
+  if (auto buf = repBuf(rn))
     recSend_(ZuMv(cxn), rn, endRN, ZuMv(buf));
-    return;
-  }
-  fileRun([this, cxn = ZuMv(cxn), rn, endRN]() mutable {
-    recSendFile(ZuMv(cxn), rn, endRN);
-  });
+  else
+    recSendGet(ZuMv(cxn), rn, endRN);
 }
 
-void DB::recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN)
+void DB::recSendGet(ZmRef<Cxn> cxn, RN rn, RN endRN)
 {
-  ZmAssert(fileInvoked());
+  ZmAssert(invoked());
 
   if (!cxn->up()) return;
-  if (auto buf = read_(rn)) {	// FIXME - async, and from env
-    recSend_(ZuMv(cxn), rn, endRN, gapRN, ZuMv(buf));
-    return;
-  }
-  run([this, cxn, rn, endRN, gapRN]() mutable {
-    recSend(ZuMv(cxn), rn, endRN, gapRN);
+  m_table->get(rn,
+      [cxn = ZuMv(cxn), endRN](DB *db, RN rn, GetResult result) mutable {
+    if (ZuLikely(result.contains<const ZtField::Import &>())) {
+      if (ZmRef<AnyObject> o =
+	m_handler.importFn(this, result.v<const ZtField::Import &>())) {
+	o->init(rn);
+	run([this, cxn = ZuMv(cxn), rn, endRN, o = ZuMv(o)]() mutable {
+	  if (auto buf = o->replicate(fbs::Body_Rec))
+	    recSend_(ZuMv(cxn), rn, endRN, ZuMv(buf));
+	  else
+	    recNext(ZuMv(cxn), rn, endRN);
+	});
+      }
+      return;
+    }
+    if (ZuUnlikely(result.contains<Event>())) {
+      ZeLog::log(ZuMv(result).v<Event>());
+      ZeLOG(Error, [id = db->id(), rn](auto &s) {
+	s << "Zdb recovery of " << db->id() << '/' << rn << " failed";
+      });
+    }
+    run([this, cxn = ZuMv(cxn), rn, endRN]() mutable {
+      recNext(ZuMv(cxn), rn, endRN);
+    });
   });
 }
 
 void DB::recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf)
 {
   cxn->send(ZuMv(buf));
+  recNext(ZuMv(cxn), rn, endRN);
+}
+
+void DB::recNext(ZmRef<Cxn> cxn, RN rn, RN endRN)
   if (++rn < endRN)
-    run([this, cxn, rn, endRN]() mutable { recSend(ZuMv(cxn), rn, endRN); });
+    run([this, cxn = ZuMv(cxn), rn, endRN]() mutable {
+      recSend(ZuMv(cxn), rn, endRN);
+    });
   else
     m_env->invoke([env = m_env]() { env->recEnd(); });
 }
@@ -1011,11 +1019,11 @@ ZmRef<Buf> DB::repBuf(RN rn)
 	memcpy(ptr, repData.data(), repData.length());
     }
     auto id = Zfb::Save::id(config().id);
-    auto un = Zfb::Save::zdb_un(record->un());
     auto msg = fbs::CreateMsg(fbb, fbs::Body_Rec,
 	fbs::CreateRecord(fbb, &id,
-	  record->un(), record->rn(), record->prevRN(), record->opRN(),
-	  record->op(), record->state(), data).Union());
+	  record->un(), record->rn(),
+	  record->op(),
+	  record->state(), data).Union());
     fbb.Finish(msg);
     return saveHdr(fbb, this);
   }

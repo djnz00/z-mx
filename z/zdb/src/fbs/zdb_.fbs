@@ -2,10 +2,10 @@ include "types.fbs";
 namespace Zdb_.fbs;
 struct DBState {
   db:Zfb.ID;
-  rn:uint64;
+  un:uint64;
 }
 table EnvState {
-  un:uint64;
+  sn:Zfb.UInt128;
   dbs:[DBState];
 }
 table Heartbeat {
@@ -13,17 +13,13 @@ table Heartbeat {
   state:uint32;
   env_state:EnvState;
 }
-enum Op:int8 {
-  Push = 0,
-  Update,
-  Delete
-}
 table Record {
   db:Zfb.ID;		// DB ID
-  un:uint64;		// update number
   rn:uint64;		// record number
-  op:Op;		// operation code
-  data:[uint8];		// nested table data - null if Delete or Purge
+  un:uint64;		// update number - secondary key
+  sn:Zfb.UInt128;	// environment sequence number
+  vn:uint32;		// record version number
+  data:[uint8];		// nested table data - null if record is deleted
 }
 union Body {
   HB:Heartbeat,

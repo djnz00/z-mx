@@ -168,9 +168,9 @@ using Cxn = CxnList::Node;
 
 // --- DB environment state (key/value linear hash from DBID -> RN)
 
-using EnvState_ = ZmLHashKV<ZuID, RN, ZmLHashLocal<>>;
+using EnvState_ = ZmLHashKV<ZuID, UN, ZmLHashLocal<>>;
 struct EnvState : public EnvState_ {
-  UN		un;
+  SN		sn;
 
   EnvState() = delete;
 
@@ -178,27 +178,27 @@ struct EnvState : public EnvState_ {
 
   EnvState(const fbs::EnvState *envState) :
       EnvState_{ZmHashParams{envState->dbStates()->size()}},
-      un{Zfb::Load::zdb_un(envState->un())} {
+      sn{Zfb::Load::uint128(envState->sn())} {
     using namespace Zdb_;
     using namespace Zfb::Load;
     all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
-      add(id(&(dbState->db())), dbState->rn());
+      add(id(&(dbState->db())), dbState->un());
     });
   }
   void load(const fbs::EnvState *envState) {
     using namespace Zdb_;
     using namespace Zfb::Load;
-    un = zdb_un(envState->un());
+    sn = uint128(envState->sn());
     all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
-      update(id(&(dbState->db())), dbState->rn());
+      update(id(&(dbState->db())), dbState->un());
     });
   }
   Zfb::Offset<fbs::EnvState> save(Zfb::Builder &fbb) const {
     using namespace Zdb_;
     using namespace Zfb::Save;
-    auto un = zdb_un(un);
+    auto sn_ = uint128(sn);
     auto i = readIterator();
-    return fbs::CreateEnvState(fbb, &un, structVecIter<fbs::DBState>(
+    return fbs::CreateEnvState(fbb, &sn_, structVecIter<fbs::DBState>(
 	fbb, i.count(), [&i](fbs::DBState *ptr, unsigned) {
       if (auto state = i.iterate())
 	new (ptr)
@@ -208,29 +208,29 @@ struct EnvState : public EnvState_ {
     }));
   }
 
-  bool updateUN(UN un_) {
+  bool updateSN(SN sn_) {
+    if (sn < sn_) {
+      sn = sn_;
+      return true;
+    }
+    return false;
+  }
+  bool update(ZuID id, UN un_) {
+    auto state = find(id);
+    if (!state) {
+      add(id, un_);
+      return true;
+    }
+    auto &un = const_cast<T *>(state)->template p<1>();
     if (un < un_) {
       un = un_;
       return true;
     }
     return false;
   }
-  bool update(ZuID id, RN rn) {
-    auto state = find(id);
-    if (!state) {
-      add(id, rn);
-      return true;
-    }
-    auto &thisRN = const_cast<T *>(state)->template p<1>();
-    if (thisRN < rn) {
-      thisRN = rn;
-      return true;
-    }
-    return false;
-  }
   EnvState &operator |=(const EnvState &r) {
     if (ZuLikely(this != &r)) {
-      updateUN(r.un);
+      updateSN(r.sn);
       auto i = r.readIterator();
       while (auto rstate = i.iterate())
 	update(rstate->template p<0>(), rstate->template p<1>());
@@ -246,7 +246,7 @@ struct EnvState : public EnvState_ {
   }
 
   int cmp(const EnvState &r) const {
-    return (un > r.un) - (un < r.un);
+    return (sn > r.sn) - (sn < r.sn);
   }
 
   template <typename S> void print(S &) const;
@@ -254,15 +254,16 @@ struct EnvState : public EnvState_ {
 };
 template <typename S>
 inline void EnvState::print(S &s) const {
-  s << "{un=" << ZuBoxed(un) << ", dbs={";
+  s << "{sn=" << ZuBoxed(sn) << ", dbs={";
   unsigned n = count_();
   if (ZuLikely(n)) {
     unsigned j = 0;
     auto i = readIterator();
     while (auto state = i.iterate()) {
       if (j++) s << ',';
-      s << '{' << state->template p<0>() << ", " <<
-	ZuBoxed(state->template p<1>()) << '}';
+      s << '{'
+	<< state->template p<0>() << ", "
+	<< ZuBoxed(state->template p<1>()) << '}';
     }
   }
   s << "}}";
@@ -280,11 +281,12 @@ struct Record_Print {
     auto id = Zfb::Load::id(record->db());
     auto seqLenOp = record->seqLenOp();
     auto data = Zfb::Load::bytes(record->data());
-    s << "record{db=" << id <<
-      " un=" << Zfb::Load::zdb_un(record->un()) <<
-      " rn=" << record->rn() <<
-      " op=" << Op::name(record->op()) <<
-      ZtHexDump("}\n", data.data(), data.length());
+    s << "record{db=" << id
+      << " rn=" << record->rn()
+      << " un=" << record->un()
+      << " sn=" << ZuBoxed(Zfb::Load::uint128(record->sn()))
+      << " vn=" << record->vn() << "}";
+    if (data) s << ZtHexDump("\n", data.data(), data.length());
   }
   friend ZuPrintFn ZuPrintType(Record_Print *);
 };
@@ -293,9 +295,9 @@ struct HB_Print {
   const fbs::Heartbeat *hb = nullptr;
   template <typename S> void print(S &s) const {
     auto id = Zfb::Load::id(hb->host());
-    s << "heartbeat{host=" << id <<
-      " state=" << HostState::name(hb->state()) <<
-      " envState=" << EnvState{hb->envState()} << "}";
+    s << "heartbeat{host=" << id
+      << " state=" << HostState::name(hb->state())
+      << " envState=" << EnvState{hb->envState()} << "}";
   }
   friend ZuPrintFn ZuPrintType(HB_Print *);
 };
@@ -364,6 +366,9 @@ public:
 
   DB *db() const { return m_db; }
   RN rn() const { return m_rn; }
+  UN un() const { return m_un; }
+  SN sn() const { return m_sn; }
+  VN vn() const { return m_vn; }
   int state() const { return m_state; }
 
   ZmRef<Buf> replicate(int type);
@@ -385,8 +390,11 @@ public:
   void abort();
 
 private:
-  void init(RN rn) {
+  void init(RN rn, UN un, SN sn, VN vn) {
     m_rn = rn;
+    m_un = un;
+    m_sn = sn;
+    m_vn = vn;
     m_state = ObjState::Committed;
   }
 
@@ -404,6 +412,9 @@ private:
 
   DB		*m_db;
   RN		m_rn = nullRN();
+  UN		m_un = 0;
+  SN		m_sn = 0;
+  VN		m_vn = 0;
   int		m_state = ObjState::Undefined;
 };
 const char *Object_HeapID() { return "Zdb.Object"; }
@@ -594,20 +605,8 @@ public:
 
   static ZuID IDAxor(const DB &db) { return db.config().id; }
 
-  // CoreDB methods
   ZuID id() const { return config().id; }
-
   ZtVFieldArray fields() const { return m_handler.fieldsFn(); }
-
-  void opened(UN nextUN, RN nextRN);
-  void openFailed();
-  void closed();
-
-  void recovered(RN, const ZtField::Import &);
-  void retrieved(RN, const ZtField::Import &);
-  void pushed(RN);
-  void updated(RN);
-  void deleted(RN);
 
   template <typename ...Args>
   void run(Args &&... args) const {
@@ -753,8 +752,9 @@ private:
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
-  void recSendFile(ZmRef<Cxn> cxn, RN rn, RN endRN);
+  void recSendGet(ZmRef<Cxn> cxn, RN rn, RN endRN);
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
+  void recNext(ZmRef<Cxn> cxn, RN rn, RN endRN);
   ZmRef<Buf> repBuf(RN rn);
 
   // inbound replication

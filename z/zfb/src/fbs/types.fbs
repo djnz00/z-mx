@@ -2,6 +2,18 @@ namespace Zfb;
 table Bitmap {
   data:[uint32];
 }
+struct UInt128 { // uint128_t
+  h:uint64;
+  l:uint64;
+}
+struct Int128 { // int128_t
+  h:uint64;
+  l:uint64;
+}
+struct Fixed { // ZuFixed
+  mantissa:int64;
+  exponent:uint8;
+}
 struct Decimal { // ZuDecimal
   h:uint64;
   l:uint64;

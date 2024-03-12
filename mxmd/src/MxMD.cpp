@@ -1946,16 +1946,16 @@ MxUniKey MxMDLib::parseInstrument(ZvCf *args, unsigned index) const
   if (ZtString mat = args->get("mat")) {
     if (!ZtREGEX("^\d{8}$").m(mat))
       throw ZtString{} << "maturity \"" << mat << "\" invalid - "
-	"must be YYYYMMDD (DD is usually 00)";
+	"must be YYYYMMDD (DD is usually 00)"; // FIXME
     key.mat = mat;
     bool put = args->getBool("put");
     bool call = args->getBool("call");
     ZtString strike = args->get("strike");
     if (put && call)
-      throw ZtString{} << "put and call are mutually exclusive";
+      throw ZtString{} << "put and call are mutually exclusive"; // FIXME
     if (put || call) {
       if (!strike)
-	throw ZtString{} << "strike must be specified for options";
+	throw ZtString{} << "strike must be specified for options"; // FIXME
       key.putCall = put ? MxPutCall::PUT : MxPutCall::CALL;
       key.strike = strike;
     }

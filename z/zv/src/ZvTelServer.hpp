@@ -481,7 +481,7 @@ private:
   void reschedule_(WatchList &list) {
     run([list = &list]() {
       ZuInvoke<L, ZuTypeList<Server *>>(list->server);
-      list->server->reschedule_<L>(*list);
+      list->server->template reschedule_<L>(*list);
     },
     ZmTimeNow(ZmTime{ZmTime::Nano,
       static_cast<int64_t>(list.interval) * 1000000}),

@@ -950,11 +950,14 @@ public:
       ZeError e;
       if (m_telRing->open(
 	    ZiVRing::Read | ZiVRing::Write | ZiVRing::Create, &e) != Zi::OK)
-	throw ZtString{} << m_telRingParams.name() << ": " << e;
+	throw ZeMkEvent(Error,
+	    ([name = ZtString{m_telRingParams.name()}, e](auto &s) {
+	      s << name << ": " << e }));
       int r;
       if ((r = m_telRing->reset()) != Zi::OK)
-	throw ZtString{} << m_telRingParams.name() <<
-	  ": reset failed - " << Zi::ioResult(r);
+	throw ZeMkEvent(Error,
+	    ([name = ZtString{m_telRingParams.name()}, r](auto &s) {
+	      s << name << ": reset failed - " << Zi::ioResult(r) }));
     }
 
     m_role = cf->getEnum<ZvTelemetry::AppRole::Map>(

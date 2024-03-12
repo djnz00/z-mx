@@ -287,6 +287,27 @@ namespace Save {
     }));
   }
 
+  // uint128
+  inline auto uint128(const uint128_t &v) {
+    return UInt128{
+      static_cast<uint64_t>(v>>64),
+      static_cast<uint64_t>(v)};
+  }
+
+  // int128
+  inline auto int128(const int128_t &v) {
+    return Int128{
+      static_cast<uint64_t>(v>>64),
+      static_cast<uint64_t>(v)};
+  }
+
+  // fixed
+  inline auto fixed(const ZuFixed &v) {
+    return Fixed{
+      static_cast<int64_t>(v.mantissa()),
+      static_cast<uint8_t>(v.exponent())};
+  }
+
   // decimal
   inline auto decimal(const ZuDecimal &v) {
     return Decimal{
@@ -364,6 +385,21 @@ namespace Load {
       while (n--) hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
     }
     return m;
+  }
+
+  // uint128
+  inline uint128_t uint128(const UInt128 *v) {
+    return (static_cast<uint128_t>(v->h())<<64) | v->l();
+  }
+
+  // int128
+  inline int128_t int128(const Int128 *v) {
+    return (static_cast<int128_t>(v->h())<<64) | v->l();
+  }
+
+  // fixed
+  inline ZuFixed fixed(const Fixed *v) {
+    return ZuFixed{v->mantissa(), v->exponent()};
   }
 
   // decimal

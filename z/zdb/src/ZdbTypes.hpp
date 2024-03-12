@@ -35,15 +35,23 @@
 
 namespace Zdb_ {
 
-// Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
+class DB;			// opaque to data store modules
 
-// 64bit update number
-using UN = uint64_t;
+// Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
 
 // record number type and sentinel values
 using RN = uint64_t;		// RN is primary object key / ID
 inline constexpr uint64_t maxRN() { return ZuCmp<RN>::maximum(); }
 inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
+
+// update number - secondary key used for replication/recovery
+using UN = uint64_t;
+
+// environment sequence number
+using SN = uint128_t;
+
+// record version number
+using VN = uint32_t;
 
 } // Zdb_
 

@@ -60,7 +60,7 @@
 // ID		UDT		ZuID
 // Object	UDT		<Any>
 
-// Type extension - ZiIP support is added as follows:
+// Type extension example - ZiIP support is added as follows:
 //   (network/host byte-order swapping is intentionally elided since
 //   IP addresses are in network byte order both on the wire and in memory)
 //
@@ -226,8 +226,15 @@ using ZfbType = ZuDecay<decltype(*ZfbType_(ZuDeclVal<O *>()))>;
 #define ZfbFieldFlags ZfbFieldPrimitive
 #define ZfbFieldFloat_T Float
 #define ZfbFieldFloat ZfbFieldPrimitive
+#define ZfbFieldUInt128_T UInt128
+#define ZfbFieldUInt128(O, ...) \
+  ZfbFieldInline(O, __VA_ARGS__, uint128, uint128)
+#define ZfbFieldInt128_T Int128
+#define ZfbFieldInt128(O, ...) \
+  ZfbFieldInline(O, __VA_ARGS__, int128, int128)
 #define ZfbFieldFixed_T Fixed
-#define ZfbFieldFixed ZfbFieldPrimitive
+#define ZfbFieldFixed(O, ...) \
+  ZfbFieldInline(O, __VA_ARGS__, fixed, fixed)
 #define ZfbFieldDecimal_T Decimal
 #define ZfbFieldDecimal(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, decimal, decimal)
