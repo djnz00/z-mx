@@ -105,8 +105,7 @@ struct ZuFnTraits_2 : public ZuFnTraits_3<
   using Args = ZuTypeList<Args_...>;
   typedef R (*Fn)(Args_...);
   template <typename R__, typename ...Args__>
-  struct Match :
-      public ZuFnMatch_<R, R__, Args, ZuTypeList<Args__...>> { };
+  struct Match : public ZuFnMatch_<R, R__, Args, ZuTypeList<Args__...>> { };
 };
 
 template <auto> struct ZuFnTraits_1;

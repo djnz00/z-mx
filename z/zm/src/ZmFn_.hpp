@@ -31,7 +31,6 @@
 #endif
 
 #include <zlib/ZuTraits.hpp>
-#include <zlib/ZuFnTraits.hpp>
 #include <zlib/ZuInspect.hpp>
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuHash.hpp>
@@ -51,7 +50,9 @@ template <typename T> constexpr uintptr_t ZmFn_Cast(T *v) {
 
 // ZmFn base class
 class ZmAnyFn {
-  struct Pass { };
+  struct Pass {
+    Pass &operator =(const Pass &) = delete;
+  };
 
   // 64bit pointer-packing - uses bit 63
   constexpr static const uintptr_t Owned = (static_cast<uintptr_t>(1)<<63);
@@ -188,6 +189,11 @@ protected:
 inline constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
 template <typename ...Args> class ZmFn : public ZmAnyFn {
+  class Pass {
+    friend ZmFn;
+    Pass &operator =(const Pass &) = delete;
+  };
+
   typedef uintptr_t (*Invoker)(uintptr_t &, Args...);
   template <bool VoidRet, auto> struct FnInvoker;
   template <typename, bool VoidRet, auto> struct BoundInvoker;
@@ -196,19 +202,20 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <typename L, typename ArgList, typename = void>
   struct IsCallable_ : public ZuFalse { };
   template <typename L>
-  struct IsCallable_<L, ZuTypeList<>,
-    decltype(ZuDeclVal<L &>()(), void())> :
+  struct IsCallable_<L, ZuTypeList<>, decltype(ZuDeclVal<L &>()(), void())> :
       public ZuTrue { };
   template <typename L, typename ...Args_>
   struct IsCallable_<L, ZuTypeList<Args_...>,
-    decltype(ZuDeclVal<L &>()(ZuFwd<Args_>(ZuDeclVal<Args_>())...), void())> :
+    decltype(ZuDeclVal<L &>()(ZuDeclVal<Args_>()...), void())> :
       public ZuTrue { };
   template <typename L>
   using IsCallable = IsCallable_<L, ZuTypeList<Args...>>;
   template <typename L, typename R = void>
   using MatchCallable = ZuIfT<IsCallable<L>{}, R>;
   template <typename O, typename L>
-  using IsBoundCallable = IsCallable_<L, ZuTypeList<O, Args...>>;
+  struct IsBoundCallable : public IsCallable_<L, ZuTypeList<O, Args...>> { };
+  template <typename L>
+  struct IsBoundCallable<Pass, L> : public ZuFalse { };
   template <typename O, typename L, typename R = void>
   using MatchBoundCallable = ZuIfT<IsBoundCallable<O, L>{}, R>;
 
@@ -218,10 +225,6 @@ public:
   ZmFn(ZmFn &&fn) : ZmAnyFn{static_cast<ZmAnyFn &&>(fn)} { }
 
 private:
-  class Pass {
-    friend ZmFn;
-    Pass &operator =(const Pass &) = delete;
-  };
   template <typename ...Args_>
   ZmFn(Pass, Args_ &&...args) : ZmAnyFn(ZuFwd<Args_>(args)...) { }
 
@@ -363,7 +366,7 @@ private:
   };
   template <typename L, typename ...Args_>
   struct Return_<L, ZuTypeList<Args_...>> {
-    using T = decltype(ZuDeclVal<L &>()(ZuFwd<Args_>(ZuDeclVal<Args_>())...));
+    using T = decltype(std::declval<L &>()(std::declval<Args_>()...));
   };
   template <typename L, typename ArgList>
   using Return = typename Return_<L, ArgList>::T;
@@ -375,25 +378,52 @@ private:
   template <typename O, typename L>
   using IsBoundVoidRet = IsVoidRet_<L, ZuTypeList<O, Args...>>;
 
+  template <typename L, typename = void>
+  struct IsMutable_NoArgs : public ZuTrue { };
+  template <typename L>
+  struct IsMutable_NoArgs<L, decltype(ZuDeclVal<const L &>()(), void())> : public ZuFalse { };
+  template <typename L, typename ArgList, typename = void>
+  struct IsMutable_Args : public ZuTrue { };
+  template <typename L, typename ...Args_>
+  struct IsMutable_Args<L, ZuTypeList<Args_...>, decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args_>()...), void())> : public ZuFalse { };
+  template <typename L, typename ArgList>
+  struct IsMutable_ : public IsMutable_Args<L, ArgList> { };
+  template <typename L>
+  struct IsMutable_<L, ZuTypeList<>> : public IsMutable_NoArgs<L> { };
+  template <typename L>
+  using IsMutable = IsMutable_<L, ZuTypeList<Args...>>;
+  template <typename O, typename L>
+  using IsBoundMutable = IsMutable_<L, ZuTypeList<O, Args...>>;
+
+  template <typename L, typename = void>
+  struct IsStateless : public ZuFalse { };
+  template <typename L, auto Fn, typename = void>
+  struct IsStateless_ : public ZuFalse { };
+  template <typename L, typename R, typename ...Args_, R (L::*Fn)(Args_...)>
+  struct IsStateless_<L, Fn, decltype(static_cast<R (*)(Args_...)>(Fn), void())> : public ZuTrue { };
+  template <typename L>
+  struct IsStateless<L, decltype(&L::operator(), void())> :
+      public IsStateless_<L, &L::operator()> { };
+
   template <auto HeapID, bool Sharded, typename L,
     bool VoidRet = IsVoidRet<L>{},
-    bool Stateless = ZuIsStatelessFn<L>{},
-    bool Mutable = ZuIsMutableFn<L>{}>
+    bool Stateless = IsStateless<L>{},
+    bool Mutable = IsMutable<L>{}>
   struct LambdaInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<O *, L>{},
-    bool Stateless = ZuIsStatelessFn<L>{},
-    bool Mutable = ZuIsMutableFn<L>{}>
+    bool Stateless = IsStateless<L>{},
+    bool Mutable = IsBoundMutable<O *, L>{}>
   struct LambdaPtrInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<ZmRef<O>, L>{},
-    bool Stateless = ZuIsStatelessFn<L>{},
-    bool Mutable = ZuIsMutableFn<L>{}>
+    bool Stateless = IsStateless<L>{},
+    bool Mutable = IsBoundMutable<ZmRef<O>, L>{}>
   struct LambdaRefInvoker;
   template <auto HeapID, bool Sharded, typename O, typename L,
     bool VoidRet = IsBoundVoidRet<ZmRef<O>, L>{},
-    bool Stateless = ZuIsStatelessFn<L>{},
-    bool Mutable = ZuIsMutableFn<L>{}>
+    bool Stateless = IsStateless<L>{},
+    bool Mutable = IsBoundMutable<ZmRef<O>, L>{}>
   struct LambdaMvRefInvoker;
 
 public:
@@ -607,6 +637,16 @@ private:
       return Lambda<HeapID, Sharded>::fn(
 	  [o = ZuMv(o), l = ZuMv(l)](Args... args) mutable {
 	    l(o, ZuFwd<Args>(args)...);
+	  });
+    }
+  };
+  // stateful "one-shot" immutable lambda bound to moved ZmRef
+  template <auto HeapID, bool Sharded, typename O, typename L, bool VoidRet>
+  struct LambdaMvRefInvoker<HeapID, Sharded, O, L, VoidRet, false, false> {
+    static ZmFn fn(ZmRef<O> o, L l) {
+      return Lambda<HeapID, Sharded>::fn(
+	  [o = ZuMv(o), l = ZuMv(l)](Args... args) mutable {
+	    l(ZuMv(o), ZuFwd<Args>(args)...);
 	  });
     }
   };

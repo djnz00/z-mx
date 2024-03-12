@@ -200,7 +200,7 @@ struct ZeAnyEvent : public ZeEventInfo {
 
 // event enriched with lambda message - [...](auto &s) { s << ... }
 template <typename L>
-struct ZeEvent : public ZeAnyEvent {
+struct ZeEvent final : public ZeAnyEvent {
   mutable L	l;
 
   template <typename L_>
@@ -227,7 +227,7 @@ struct ZeEvent : public ZeAnyEvent {
 	ZuDeclVal<ZeLogBuf &>()),
       ZeMsgFn())
   fn_() {
-    return {[l_ = ZuMv(l)](auto &s, auto) { l_(s); }};
+    return {[l_ = ZuMv(l)](auto &s, const auto &) mutable { l_(s); }};
   }
   template <typename L_ = L>
   decltype(ZuDeclVal<L_ &>()(
@@ -251,7 +251,7 @@ struct ZeEvent : public ZeAnyEvent {
 
 // non-polymorphic event
 template <>
-struct ZeEvent<ZeMsgFn> : public ZeAnyEvent {
+struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
   using L = ZeMsgFn;
 
   mutable L	l;
@@ -276,21 +276,21 @@ struct ZeEvent<ZeMsgFn> : public ZeAnyEvent {
 
   ~ZeEvent() = default;
 
-  ZeMsgFn fn() { return ZuMv(l); }
+  ZeMsgFn fn() { return {ZuMv(l)}; }
 
   template <typename L_>
   ZeEvent(ZeEvent<L_> &&e,
       decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()),
 	void()) *_ = nullptr) :
-    ZeEventInfo{static_cast<ZeEventInfo &&>(e)},
-    l{[l_ = ZuMv(e.l)](auto &s, auto) { l_(s); }} { }
+    ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
+    l{[l_ = ZuMv(e.l)](auto &s, auto) mutable { l_(s); }} { }
   template <typename L_>
   ZeEvent(ZeEvent<L_> &&e,
       decltype(ZuDeclVal<L_ &>()(
 	  ZuDeclVal<ZeLogBuf &>(),
 	  ZuDeclVal<const ZeEventInfo &>()),
 	void()) *_ = nullptr) :
-    ZeEventInfo{static_cast<ZeEventInfo &&>(e)},
+    ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
     l{ZuMv(e.l)} { }
 
   template <typename L_>
@@ -303,8 +303,7 @@ struct ZeEvent<ZeMsgFn> : public ZeAnyEvent {
 using ZeFnEvent = ZeEvent<ZeMsgFn>;
 
 template <typename L>
-ZeEvent(int, const char *, int, const char *, L) ->
-  ZeEvent<ZuDecay<L>>;
+ZeEvent(int, const char *, int, const char *, L) -> ZeEvent<ZuDecay<L>>;
 
 #include <zlib/ZmDemangle.hpp>
 // convert string/printable to lambda
