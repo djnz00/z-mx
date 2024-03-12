@@ -116,7 +116,7 @@ public:
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
       ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename V = T> struct IsPtr : public ZuBool<
-      ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Exists> { };
+      ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
 
   template <typename U, typename R = void>
   using MatchStrLiteral = ZuIfT<IsStrLiteral<ZuDecay<U>>{}, R>; 
@@ -331,12 +331,12 @@ public:
   template <typename A>
   ZuArray(const A &a, ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Exists> *_ = nullptr)
+      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Converts> *_ = nullptr)
     { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&
-    ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Exists, ZuArray &>
+    ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Converts, ZuArray &>
   operator =(const A &a) { return *this; }
 
   ZuArray(const ZuNull *data, unsigned length) { }
@@ -354,11 +354,11 @@ public:
   template <typename A>
   ZuArray(const A &a, ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, void>::Exists> *_ = nullptr) { }
+      ZuInspect<typename ZuTraits<A>::Elem, void>::Converts> *_ = nullptr) { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&
-    ZuInspect<typename ZuTraits<A>::Elem, void>::Exists, ZuArray &>
+    ZuInspect<typename ZuTraits<A>::Elem, void>::Converts, ZuArray &>
   operator =(const A &a) { return *this; }
 
   ZuArray(const void *data, unsigned length) { }

@@ -165,7 +165,7 @@ private:
       !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
       ZuTraits<U>::IsArray &&
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Exists> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
@@ -184,7 +184,7 @@ private:
       !ZuInspect<U, V>::Same &&
       !ZuTraits<U>::IsString && ZuTraits<U>::IsArray &&
       !ZuInspect<typename ZuTraits<U>::Elem, V>::Same &&
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Exists> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchDiffArray = ZuIfT<IsDiffArray<U>{}, R>;
 
@@ -237,7 +237,7 @@ private:
        !IsPrint<U>{} &&
        !IsReal<U>{} &&
        !IsPtr<U>{} &&
-       ZuInspect<U, V>::Exists)> { };
+       ZuInspect<U, V>::Converts)> { };
   template <typename U, typename R = void>
   using MatchElem = ZuIfT<IsElem<U>{}, R>;
 
@@ -275,7 +275,7 @@ private:
       !IsReal<U>{} &&
       !IsPtr<U>{} &&
       !IsCtorSize<U>{} &&
-      ZuInspect<U, V>::Exists> { };
+      ZuInspect<U, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchCtorElem = ZuIfT<IsCtorElem<U>{}, R>;
 

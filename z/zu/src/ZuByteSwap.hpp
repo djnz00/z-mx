@@ -197,13 +197,13 @@ private:
   template <typename T>
   ZuIfT<
       !ZuInspect<T, ZuByteSwap>::Is &&
-      ZuInspect<T, I>::Exists> set(const T &i) {
+      ZuInspect<T, I>::Converts> set(const T &i) {
     m_i = B::bswap((I)i);
   }
   template <typename T>
   ZuIfT<
       !ZuInspect<T, ZuByteSwap>::Is &&
-      !ZuInspect<T, I>::Exists &&
+      !ZuInspect<T, I>::Converts &&
       sizeof(T) == sizeof(I)> set(const T &i) {
     const I *ZuMayAlias(i_) = reinterpret_cast<const I *>(&i);
     m_i = B::bswap(*i_);
@@ -215,13 +215,13 @@ private:
   template <typename T>
   ZuIfT<
       !ZuInspect<T, ZuByteSwap>::Is &&
-      ZuInspect<T, I>::Exists, T> get() const {
+      ZuInspect<T, I>::Converts, T> get() const {
     return static_cast<T>(B::bswap(m_i));
   }
   template <typename T>
   ZuIfT<
       !ZuInspect<T, ZuByteSwap>::Is &&
-      !ZuInspect<T, I>::Exists &&
+      !ZuInspect<T, I>::Converts &&
       sizeof(T) == sizeof(I), T> get() const {
     I i = B::bswap(m_i);
     T *ZuMayAlias(i_) = reinterpret_cast<T *>(&i);

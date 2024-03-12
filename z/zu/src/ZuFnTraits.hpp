@@ -98,7 +98,7 @@ struct ZuFnMatch_<R, R, Args, Args> : public ZuTrue { };
 
 template <typename R_, typename L_, typename ...Args_>
 struct ZuFnTraits_2 : public ZuFnTraits_3<
-    ZuInspect<L_, R_ (*)(Args_...)>::Exists, ZuTraits<L_>::IsEmpty,
+    ZuInspect<L_, R_ (*)(Args_...)>::Converts, ZuTraits<L_>::IsEmpty,
     R_, L_, Args_...> {
   using R = R_;
   using L = L_;

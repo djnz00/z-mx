@@ -191,8 +191,8 @@ template <typename U, typename T, typename R = void>
 using ZuBox_MatchReal =
   ZuIfT<!ZuIsBoxed<U>{} && !ZuTraits<U>::IsString && (
       ZuTraits<U>::IsReal ||
-      ZuInspect<U, T>::Exists ||
-      ZuInspect<U, int>::Exists), R>;
+      ZuInspect<U, T>::Converts ||
+      ZuInspect<U, int>::Converts), R>;
 template <typename Traits, typename R, bool IsPointer, bool IsArray>
 struct ZuBox_MatchCharPtr_ { };
 template <typename Traits, typename R>

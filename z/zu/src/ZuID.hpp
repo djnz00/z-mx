@@ -67,7 +67,7 @@ public:
   }
 
   template <typename V> struct IsUInt64 : public ZuBool<
-    !ZuTraits<V>::IsString && ZuInspect<V, uint64_t>::Exists> { };
+    !ZuTraits<V>::IsString && ZuInspect<V, uint64_t>::Converts> { };
   template <typename V, typename R = void>
   using MatchUInt64 = ZuIfT<IsUInt64<V>{}, R>;
 

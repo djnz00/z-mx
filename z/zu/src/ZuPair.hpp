@@ -44,8 +44,8 @@ template <typename T, typename P>
 struct ZuPair_Cvt_<T, P, 0> : public ZuFalse { };
 template <typename T, typename P>
 struct ZuPair_Cvt_<T, P, 1> : public ZuBool<
-  ZuInspect<typename T::T0, typename P::T0>::Exists &&
-  ZuInspect<typename T::T1, typename P::T1>::Exists> { };
+  ZuInspect<typename T::T0, typename P::T0>::Converts &&
+  ZuInspect<typename T::T1, typename P::T1>::Converts> { };
 template <typename T, typename P>
 struct ZuPair_Cvt : public
   ZuPair_Cvt_<ZuDecay<T>, P, ZuInspect<ZuPair_, ZuDecay<T>>::Base> { };

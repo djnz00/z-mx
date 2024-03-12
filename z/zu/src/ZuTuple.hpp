@@ -49,7 +49,7 @@ template <typename T, typename P>
 struct ZuTuple1_Cvt_<T, P, false> : public ZuFalse { };
 template <typename T, typename P>
 struct ZuTuple1_Cvt_<T, P, true> :
-  public ZuBool<ZuInspect<typename T::T0, typename P::T0>::Exists> { };
+  public ZuBool<ZuInspect<typename T::T0, typename P::T0>::Converts> { };
 template <typename T, typename P> struct ZuTuple1_Cvt :
   public ZuTuple1_Cvt_<ZuDeref<T>, P,
     ZuInspect<ZuTuple1_, ZuDeref<T>>::Base> { };
@@ -149,7 +149,7 @@ public:
     return ZuCmp<T0>::equals(m_p0, p.template p<0>());
   }
   template <typename T>
-  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Exists, bool>
+  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Converts, bool>
   equals(const T &v) const {
     return ZuCmp<T0>::equals(m_p0, v);
   }
@@ -158,7 +158,7 @@ public:
     return ZuCmp<T0>::cmp(m_p0, p.template p<0>());
   }
   template <typename T>
-  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Exists, bool>
+  ZuIfT<ZuInspect<ZuStrip<U0>, T>::Converts, bool>
   cmp(const T &v) const {
     return ZuCmp<T0>::equals(m_p0, v);
   }

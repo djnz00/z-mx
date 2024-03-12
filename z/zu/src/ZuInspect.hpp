@@ -56,7 +56,7 @@ private:
 public:
   ZuInspect__(); // keep gcc quiet
   enum {
-    Exists = sizeof(ZuInspect_test(ZuDeclVal<T1 &>())) == sizeof(Small),
+    Converts = sizeof(ZuInspect_test(ZuDeclVal<T1 &>())) == sizeof(Small),
     Same = 0
   };
 };
@@ -64,7 +64,7 @@ public:
 template <typename T1, typename T2> struct ZuInspect__ {
   enum {
     _ = sizeof(T1) == sizeof(T2), // ensure both types are complete
-    Exists =
+    Converts =
       std::is_constructible<T2, T1>::value ||
       std::is_convertible<T1, T2>::value,
     Same = 0
@@ -72,7 +72,7 @@ template <typename T1, typename T2> struct ZuInspect__ {
 };
 #endif
 template <typename T> struct ZuInspect__<T, T> {
-  enum { Exists = 1, Same = 1 };
+  enum { Converts = 1, Same = 1 };
 };
 #define ZuInspectFriend \
   template <typename, typename> friend struct ZuInspect__
@@ -100,20 +100,20 @@ template <typename T1, typename T2> struct ZuInspect_ {
   using U1 = typename ZuInspect_Array<T1>::T;
   using U2 = typename ZuInspect_Array<T2>::T;
   enum {
-    Exists = ZuInspect__<U1, U2>::Exists,
+    Converts = ZuInspect__<U1, U2>::Converts,
     Same = ZuInspect__<const volatile U1, const volatile U2>::Same,
-    Is = ZuInspect__<const volatile U2 *, const volatile U1 *>::Exists &&
+    Is = ZuInspect__<const volatile U2 *, const volatile U1 *>::Converts &&
       !ZuInspect__<const volatile U1 *, const volatile void *>::Same
   };
 };
 template <> struct ZuInspect_<void, void> {
-  enum { Exists = 1, Same = 1, Is = 1 };
+  enum { Converts = 1, Same = 1, Is = 1 };
 };
 template <typename T> struct ZuInspect_<void, T> {
-  enum { Exists = 0, Same = 0, Is = 0 };
+  enum { Converts = 0, Same = 0, Is = 0 };
 };
 template <typename T> struct ZuInspect_<T, void> {
-  enum { Exists = 0, Same = 0, Is = 0 };
+  enum { Converts = 0, Same = 0, Is = 0 };
 };
 
 template <typename T_> struct ZuInspect_Void { using T = T_; };
@@ -127,7 +127,7 @@ template <typename T1, typename T2> class ZuInspect {
 public:
   enum {
     Same = ZuInspect_<U1, U2>::Same,
-    Exists = ZuInspect_<U1, U2>::Exists,
+    Converts = ZuInspect_<U1, U2>::Converts,
     Is = ZuInspect_<U1, U2>::Is,
     Base = ZuInspect_<U1, U2>::Is && !ZuInspect_<U1, U2>::Same
   };
@@ -139,9 +139,9 @@ using ZuSame = ZuIfT<ZuInspect<T1, T2>::Same, R>;
 template <typename T1, typename T2, typename R = void>
 using ZuNotSame = ZuIfT<!ZuInspect<T1, T2>::Same, R>;
 template <typename T1, typename T2, typename R = void>
-using ZuConvertible = ZuIfT<ZuInspect<T1, T2>::Exists, R>;
+using ZuConvertible = ZuIfT<ZuInspect<T1, T2>::Converts, R>;
 template <typename T1, typename T2, typename R = void>
-using ZuNotConvertible = ZuIfT<!ZuInspect<T1, T2>::Exists, R>;
+using ZuNotConvertible = ZuIfT<!ZuInspect<T1, T2>::Converts, R>;
 template <typename T1, typename T2, typename R = void>
 using ZuBase = ZuIfT<ZuInspect<T1, T2>::Base, R>;
 template <typename T1, typename T2, typename R = void>

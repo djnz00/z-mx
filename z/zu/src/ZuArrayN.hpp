@@ -126,7 +126,7 @@ protected:
       !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
       ZuTraits<U>::IsArray &&
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Exists> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
@@ -166,7 +166,7 @@ protected:
        !IsPDelegate<U>{} &&
        !IsPBuffer<U>{} &&
        !IsReal<U>{} &&
-       ZuInspect<U, V>::Exists)> { };
+       ZuInspect<U, V>::Converts)> { };
   template <typename U, typename R = void>
   using MatchElem = ZuIfT<IsElem<U>{}, R>;
 

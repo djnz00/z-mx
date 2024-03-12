@@ -107,38 +107,49 @@
 #include <zlib/ZmFn_.hpp>
 #include <zlib/ZmHeap.hpp>
 
-// lambda wrapper object (heap-allocated)
-template <typename L, typename Heap>
-struct ZmLambda_ : public Heap, public ZmPolymorph, public L {
+// stateful lambda wrapper (heap-allocated)
+template <typename Heap, typename L, typename ArgList> struct ZmLambda_;
+template <typename Heap, typename L, typename ...Args>
+struct ZmLambda_<Heap, L, ZuTypeList<Args...>> :
+    public Heap, public ZmPolymorph, public L {
+  template <typename L_> ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
+  decltype(auto) invoke(Args... args) {
+    return L::operator ()(ZuFwd<Args>(args)...);
+  }
+  decltype(auto) cinvoke(Args... args) const {
+    return L::operator ()(ZuFwd<Args>(args)...);
+  }
   ZmLambda_() = delete;
   ZmLambda_(const ZmLambda_ &) = delete;
   ZmLambda_ &operator =(const ZmLambda_ &) = delete;
   ZmLambda_(ZmLambda_ &&) = delete;
   ZmLambda_ &operator =(ZmLambda_ &&) = delete;
-  template <typename L_> ZuInline ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
 };
-template <typename L, auto HeapID = ZmLambda_HeapID(), bool Sharded = false>
-using ZmLambda =
-  ZmLambda_<L, ZmHeap<HeapID, sizeof(ZmLambda_<L, ZuNull>), Sharded>>;
+template <auto HeapID, bool Sharded, typename L, typename ArgList>
+using ZmLambda = ZmLambda_<
+  ZmHeap<HeapID, sizeof(ZmLambda_<ZuNull, L, ArgList>), Sharded>,
+  L, ArgList>;
 
+// stateful immutable lambda
 template <typename ...Args>
-template <typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
+template <auto HeapID, bool Sharded, typename L, bool VoidRet>
 template <typename L_>
 ZmFn<Args...>
-ZmFn<Args...>::LambdaInvoker_<L, R, HeapID, Sharded, false, Args_...>::fn(
+ZmFn<Args...>::LambdaInvoker<HeapID, Sharded, L, VoidRet, false, false>::fn(
     L_ &&l) {
-  using O = ZmLambda<L, HeapID, Sharded>;
-  return Member<&L::operator ()>::fn(ZmRef<O>{new O{ZuFwd<L_>(l)}});
+  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, ZuTypeList<Args...>>;
+  return Member<&O::cinvoke>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
 }
 
+// stateful mutable lambda
 template <typename ...Args>
-template <typename L, typename R, auto HeapID, bool Sharded, typename ...Args_>
+template <auto HeapID, bool Sharded, typename L, bool VoidRet>
 template <typename L_>
 ZmFn<Args...>
-ZmFn<Args...>::LambdaInvoker_<const L, R, HeapID, Sharded, false, Args_...>::fn(
+ZmFn<Args...>::LambdaInvoker<HeapID, Sharded, L, VoidRet, false, true>::fn(
     L_ &&l) {
-  using O = ZmLambda<L, HeapID, Sharded>;
-  return Member<&L::operator ()>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
+  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, ZuTypeList<Args...>>;
+  return Member<&O::invoke>::fn(ZmRef<O>{new O{ZuFwd<L>(l)}});
 }
 
 #endif /* ZmFn_HPP */

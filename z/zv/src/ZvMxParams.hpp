@@ -127,7 +127,7 @@ struct ZvMxParams : public ZiMxParams {
 	    ZuString id = node->key;
 	    ZuBox<unsigned> tid = id;
 	    if (id != ZuStringN<12>{tid})
-	      throw ZeMkEvent(Fatal, [id = ZtString{id}](auto, auto &s) {
+	      throw ZeMkEvent(Fatal, [id = ZtString{id}](auto &s) {
 		s << "bad thread ID \"" << id << '"'; });
 	    ZmSchedParams::Thread &thread = sched.thread(tid);
 	    thread.isolated(threadCf->getInt(

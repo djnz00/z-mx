@@ -496,11 +496,11 @@ private:
   }
 
   template <typename U, typename V = Key>
-  struct IsKey : public ZuBool<ZuInspect<U, V>::Exists> { };
+  struct IsKey : public ZuBool<ZuInspect<U, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchKey = ZuIfT<IsKey<U>{}, R>;
   template <typename U, typename V = T, bool = ZuInspect<NodeBase, V>::Is>
-  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Exists> { };
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Converts> { };
   template <typename U, typename V>
   struct IsData<U, V, true> : public ZuFalse { };
   template <typename U, typename R = void>
