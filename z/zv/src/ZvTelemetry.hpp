@@ -386,9 +386,7 @@ ZfbFields(Engine, fbs::Engine,
 //   path, warmup,
 //   minRN, nextRN,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
-//   fileCacheSize, fileLoads, fileMisses
-//   indexBlkCacheSize, indexBlkLoads, indexBlkMisses,
-//   thread, fileThread
+//   thread
 struct Zdb {
   using Path = ZuStringN<124>;
   using Name = ZuStringN<28>;
@@ -396,26 +394,19 @@ struct Zdb {
   Path		path;
   Name		name;				// primary key
   ZmThreadName	thread;
-  ZmThreadName	fileThread;
   uint64_t	minRN = 0;			// dynamic
   uint64_t	nextRN = 0;			// dynamic
-  uint64_t	objCacheLoads = 0;		// dynamic (*)
-  uint64_t	objCacheMisses = 0;		// dynamic (*)
-  uint64_t	fileCacheLoads = 0;		// dynamic
-  uint64_t	fileCacheMisses = 0;		// dynamic
-  uint64_t	indexBlkCacheLoads = 0;		// dynamic
-  uint64_t	indexBlkCacheMisses = 0;	// dynamic
-  uint32_t	objCacheSize = 0;
-  uint32_t	fileCacheSize = 0;
-  uint32_t	indexBlkCacheSize = 0;
+  uint64_t	cacheLoads = 0;			// dynamic (*)
+  uint64_t	cacheMisses = 0;		// dynamic (*)
+  uint32_t	cacheSize = 0;
   int8_t	cacheMode = -1;			// ZdbCacheMode
   uint8_t	warmup = 0;
 
   int rag() const {
-    unsigned total = objCacheLoads + objCacheMisses;
+    unsigned total = cacheLoads + cacheMisses;
     if (!total) return RAG::Off;
-    if (objCacheMisses * 10 > (total<<3)) return RAG::Red;
-    if ((objCacheMisses<<1) > total) return RAG::Amber;
+    if (cacheMisses * 10 > (total<<3)) return RAG::Red;
+    if ((cacheMisses<<1) > total) return RAG::Amber;
     return RAG::Green;
   }
   void rag(int) { } // unused
@@ -426,20 +417,13 @@ ZfbFields(Zdb, fbs::Zdb,
     (((name), (0)), (String), (Ctor<3>)),
     (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor<15>)),
     (((path)), (String), (Ctor<2>)),
-    (((objCacheSize)), (Int), (Ctor<12>)),
-    (((fileCacheSize)), (Int), (Ctor<13>)),
-    (((indexBlkCacheSize)), (Int), (Ctor<14>)),
+    (((cacheSize)), (Int), (Ctor<12>)),
     (((warmup)), (Int), (Ctor<16>)),
     (((minRN)), (Int), (Ctor<4>, Update)),
     (((nextRN)), (Int), (Ctor<5>, Update, Series, Delta)),
-    (((objCacheLoads)), (Int), (Ctor<6>, Update, Series, Delta)),
-    (((objCacheMisses)), (Int), (Ctor<7>, Update, Series, Delta)),
-    (((fileCacheLoads)), (Int), (Ctor<8>, Update, Series, Delta)),
-    (((fileCacheMisses)), (Int), (Ctor<9>, Update, Series, Delta)),
-    (((indexBlkCacheLoads)), (Int), (Ctor<10>, Update, Series, Delta)),
-    (((indexBlkCacheMisses)), (Int), (Ctor<11>, Update, Series, Delta)),
+    (((cacheLoads)), (Int), (Ctor<6>, Update, Series, Delta)),
+    (((cacheMisses)), (Int), (Ctor<7>, Update, Series, Delta)),
     (((thread)), (String), (Ctor<0>)),
-    (((fileThread)), (String), (Ctor<1>)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:

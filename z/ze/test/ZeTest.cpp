@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 
   ZeLog::start();
 
-  ZeBackTrace(Error, "PREFIX");
+  ZeLOGBT(Error, "test backtrace");
 
   ZeLOG(Debug, "test Debug message");
   ZeLOG(Info, "test Info message");

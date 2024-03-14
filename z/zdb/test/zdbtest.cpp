@@ -162,10 +162,6 @@ void usage()
     "  -D, --del=N\t\t\t- delete first N sequences\n"
     "  -k, --skip=N\t\t\t- skip N RNs before first\n"
     "  -s, --stride=N\t\t- increment RNs by N with each operation\n"
-    "  -a, --append\t\t\t- append\n"
-    "  -c, --chain=N\t\t\t- append chains of N records\n"
-    "  -f, --dbs.orders.path=PATH\t\t- file path\n"
-    "  -p, --dbs.orders.preAlloc=N\t- number of records to pre-allocate\n"
     "  -h, --hostID=N\t\t- host ID\n"
     "  -H, --hashOut=FILE\t\t- hash table CSV output file\n"
     "  -d\t\t\t\t- enable debug logging\n"
@@ -200,10 +196,6 @@ int main(int argc, char **argv)
     { "del", "D", ZvOptValue },
     { "skip", "k", ZvOptValue, "0" },
     { "stride", "s", ZvOptValue, "1" },
-    { "append", "a", ZvOptFlag },
-    { "chain", "c", ZvOptValue, "0" },
-    { "dbs.orders.path", "f", ZvOptValue, "orders" },
-    { "dbs.orders.preAlloc", "p", ZvOptValue, "1" },
     { "hostID", "h", ZvOptValue, "0" },
     { "hashOut", "H", ZvOptValue },
     { "debug", "d", ZvOptFlag },
@@ -235,7 +227,6 @@ int main(int argc, char **argv)
 
   try {
     cf = inlineCf(
-      "fileThread 3\n"
       "hostID 1\n"
       "hosts {\n"
       "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"
@@ -252,8 +243,6 @@ int main(int argc, char **argv)
     del = cf->getInt("del", 1, INT_MAX, 0);
     skip = cf->getInt("skip", 0, INT_MAX, 0);
     stride = cf->getInt("stride", 1, INT_MAX, 1);
-    append = cf->getBool("append");
-    chain = cf->getInt("chain", 0, INT_MAX, 0);
     nThreads = cf->getInt<true>("1", 1, 1<<10);
     nOps = cf->getInt<true>("2", 0, 1<<20);
     hashOut = cf->get("hashOut");

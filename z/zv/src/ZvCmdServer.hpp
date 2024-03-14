@@ -322,8 +322,8 @@ friend TLS;
     m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 
     if (!loadUserDB())
-      throw ZeMkEvent(Fatal, [path = ZtString{m_userDBPath}](auto &s) {
-	s << "failed to load \"" << path << '"'; });
+      throw ZeEVENT(Fatal, ([path = ZtString{m_userDBPath}](auto &s) {
+	s << "failed to load \"" << path << '"'; }));
     TelServer::init(mx, cf->getCf("telemetry"));
   }
 

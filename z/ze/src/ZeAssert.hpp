@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// run-time assertion that falls back to ZeBackTrace in release code
+// run-time assertion that falls back to ZeLOGBT in release code
 
 // Usage: ZeAssert(assertion, (captures), msg, value);
 //
@@ -54,7 +54,7 @@
 
 #ifdef NDEBUG
 #define ZeAssert(x, c, m, r) \
-  do { if (ZuUnlikely(!(x))) { ZeBackTrace(Fatal, ([ZuPP_Strip(c)](auto &s) { \
+  do { if (ZuUnlikely(!(x))) { ZeLOGBT(Fatal, ([ZuPP_Strip(c)](auto &s) { \
     s << "\"" __FILE__ "\":" << __LINE__ << ' ' << ZuFnName << \
       " Assertion '" #x "' failed " << m; \
   })); return r; } } while (0)

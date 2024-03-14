@@ -41,14 +41,18 @@ class DB;			// opaque to data store modules
 
 // record number type and sentinel values
 using RN = uint64_t;		// RN is primary object key / ID
-inline constexpr uint64_t maxRN() { return ZuCmp<RN>::maximum(); }
-inline constexpr uint64_t nullRN() { return ZuCmp<RN>::null(); }
+inline constexpr RN maxRN() { return ZuCmp<RN>::maximum(); }
+inline constexpr RN nullRN() { return ZuCmp<RN>::null(); }
 
 // update number - secondary key used for replication/recovery
 using UN = uint64_t;
+inline constexpr UN maxUN() { return ZuCmp<UN>::maximum(); }
+inline constexpr UN nullUN() { return ZuCmp<UN>::null(); }
 
 // environment sequence number
 using SN = uint128_t;
+inline constexpr SN maxSN() { return ZuCmp<SN>::maximum(); }
+inline constexpr SN nullSN() { return ZuCmp<SN>::null(); }
 
 // record version number
 using VN = uint32_t;

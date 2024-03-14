@@ -43,10 +43,6 @@
 
 namespace Zdb_ {
 
-namespace Op {
-  ZfbEnumValues(Op, Push, Update, Delete);
-}
-
 // -- message format - used for both file and network
 
 // custom header with an explicitly little-endian uint32 length

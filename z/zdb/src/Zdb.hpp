@@ -351,6 +351,15 @@ namespace ObjState {
 // Committed > Delete	del
 // Delete > Deleted	put
 // Delete > Committed	abort
+//
+// event sequences:
+//
+// push,put
+// push,abort
+// update,put
+// update,abort
+// del,put
+// del,abort
 
 class ZdbAPI AnyObject_ : public ZmPolymorph {
   AnyObject_() = delete;
@@ -370,6 +379,7 @@ public:
   SN sn() const { return m_sn; }
   VN vn() const { return m_vn; }
   int state() const { return m_state; }
+  UN origUN() const { return m_origUN; }
 
   ZmRef<Buf> replicate(int type);
 
@@ -385,11 +395,11 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 public:
-  void put();
-  void del();
-  void abort();
+  void put() { m_db->put(this); }
+  void abort() { m_db->abort(this); }
 
 private:
+  // FIXME - move these into .cpp
   void init(RN rn, UN un, SN sn, VN vn) {
     m_rn = rn;
     m_un = un;
@@ -398,33 +408,98 @@ private:
     m_state = ObjState::Committed;
   }
 
-  bool push_() { m_state = ObjState::Push; }
-  bool update_() { m_state = ObjState::Update; }
-  bool del_() { m_state = ObjState::Delete; }
-  void commit_() {
-    using namespace Zdb_;
-    m_state = ObjState::Committed;
+  // push/update/del prospectively allocate a UN and RN, which can
+  // be accessed and used within the txn lambda (for indices, etc.)
+  // put commits the allocation with a cmpExch on the next*
+  // if the allocation commit fails, the commit fails (and can be retried)
+  // - this should never happen
+  // - no need for atomics on the next* (other than to share the value
+  //   with other threads?)
+  // - wrap lambda invocation within push/update/del in a try / catch / rethrow with abort
+  // - need
+  // commit?N(?n) to cmpExch(?n, ?n + 1)
+  // committed?N(?n) to return true if ?n < next?N
+
+  bool push_() {
+    if (m_state != ObjState::Undefined) return false;
+    m_state = ObjState::Push;
+    m_rn = m_db->nextRN();
+    m_un = m_db->nextUN();
+    return true;
   }
-  void abort_() {
-    m_state = m_state == ObjState::Push ?
-      ObjState::Undefined : ObjState::Committed;
+  bool update_() {
+    if (m_state != ObjState::Committed) return false;
+    m_state = ObjState::Update;
+    m_origUN = m_un;
+    m_un = m_db->nextUN();
+    return true;
+  }
+  bool del_() {
+    if (m_state != ObjState::Committed) return false;
+    m_state = ObjState::Delete;
+    m_origUN = m_un;
+    m_un = m_db->nextUN();
+    return true;
+  }
+  bool put_(SN sn) {
+    switch (m_state) {
+      default: return false;
+      case ObjState::Push:
+	if (ZuUnlikely(!m_db->allocRN(m_rn))) { abort_(); return false; }
+	break;
+      case ObjState::Update: break;
+      case ObjState::Delete: break;
+    }
+    if (ZuUnlikely(!m_db->allocUN(m_un))) { abort_(); return false; }
+    m_sn = m_db->env()->allocSN();
+    switch (m_state) {
+      case ObjState::Push:
+	m_state = ObjState::Committed;
+	break;
+      case ObjState::Update:
+	m_state = ObjState::Committed;
+	++m_vn;
+	break;
+      case ObjState::Delete:
+	m_state = ObjState::Deleted;
+	++m_vn;
+	break;
+    }
+    return true;
+  }
+  bool abort_() {
+    switch (m_state) {
+      default: return false;
+      case ObjState::Push:
+	m_state = ObjState::Undefined;
+	m_rn = nullRN();
+	m_un = nullUN();
+	break;
+      case ObjState::Update:
+      case ObjState::Delete:
+	m_state = ObjState::Committed;
+	m_un = m_origUN;
+	break;
+    }
+    return true;
   }
 
   DB		*m_db;
   RN		m_rn = nullRN();
-  UN		m_un = 0;
-  SN		m_sn = 0;
+  UN		m_un = nullUN();
+  SN		m_sn = nullSN();
   VN		m_vn = 0;
   int		m_state = ObjState::Undefined;
+  UN		m_origUN = nullUN();
 };
 const char *Object_HeapID() { return "Zdb.Object"; }
-using ObjCache =
+using Cache =
   ZmCache<AnyObject_,
     ZmCacheNode<AnyObject_,
       ZmCacheKey<AnyObject_::RNAxor,
 	ZmCacheLock<ZmPLock,
 	  ZmCacheHeapID<Object_HeapID>>>>>;
-using AnyObject = ObjCache::Node;
+using AnyObject = Cache::Node;
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
   return object->un();
 }
@@ -660,9 +735,9 @@ private:
       auto evict = [this](ZmRef<AnyObject> object) {
 	m_updCache->del(object-un());
       };
-      m_objCache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
+      m_cache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
     } else
-      m_objCache.find<UpdateLRU, false>(rn, ZuMv(l), ZuMv(load));
+      m_cache.find<UpdateLRU, false>(rn, ZuMv(l), ZuMv(load));
   }
 
 public:
@@ -690,28 +765,33 @@ public:
   // create placeholder record (null RN, in-memory, never persisted/replicated)
   ZmRef<AnyObject> placeholder();
 
+  // all transactions begin with a push(), update() or del(),
+  // and complete with a object->put() or object->abort():
+  // put() commits the operation
+  // abort() aborts it
+
 private:
-  ZmRef<AnyObject> push_(RN rn);
+  ZmRef<AnyObject> push_();
 public:
   // create new record
   template <typename L> void push(L l) {
-    ZmRef<AnyObject> object = push_(m_nextUN.load_());
+    ZmRef<AnyObject> object = push_();
     if (!object) { l(nullptr); return; }
     l(object);
     object->abort();
   }
+  // FIXME - idempotent on RN for push?
   // create new record (idempotent)
-  template <typename L> void push(RN rn, L l) {
-    RN nextUN = m_nextUN.load_();
-    if (ZuUnlikely(rn != nullRN() && nextUN > rn)) { l(nullptr); return; }
-    ZmRef<AnyObject> object = push_(nextUN);
-    if (!object) { l(nullptr); return; }
-    l(object);
-    object->abort();
+  template <typename L> void push(UN un, L l) {
+    if (un != nullUN()) {
+      RN nextUN = m_nextUN.load_();
+      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
+    }
+    push(ZuMv(l));
   }
 
 private:
-  bool update_(AnyObject *object, RN rn);
+  bool update_(AnyObject *object, UN un);
 public:
   // update record
   template <typename L> void update(ZmRef<AnyObject> object, L l) {
@@ -721,39 +801,65 @@ public:
   }
   // update record (idempotent) - returns true if update can proceed
   template <typename L> void update(ZmRef<AnyObject> object, UN un, L l) {
-    RN nextUN = m_nextUN.load_(); // FIXME
-    if (ZuUnlikely(rn != nullRN() && nextUN > rn)) { l(nullptr); return; }
-    if (!update_(object, nextUN)) { l(nullptr); return; }
-    l(object);
-    object->abort();
+    if (un != nullUN()) {
+      RN nextUN = m_nextUN.load_();
+      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
+    }
+    update(ZuMv(object), ZuMv(l));
   }
 
-  // update record (with prevRN, without object)
-  template <typename L> void update(RN prevRN, L l) {
-    getUpdate(prevRN, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+  // update record (with RN, without object)
+  template <typename L> void update(RN rn, L l) {
+    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
       if (ZuUnlikely(!object)) { l(nullptr); return; }
       update(ZuMv(object), ZuMv(l));
     });
   }
-  // update record (idempotent) (with prevRN, without object)
-  template <typename L> void update(RN prevRN, RN rn, L l) {
-    getUpdate(prevRN, [this, rn, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+  // update record (idempotent) (with RN, without object)
+  template <typename L> void update(RN rn, UN un, L l) {
+    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
       if (ZuUnlikely(!object)) { l(nullptr); return; }
-      update(ZuMv(object), rn, ZuMv(l));
+      update(ZuMv(object), un, ZuMv(l));
     });
   }
 
-  // all transactions begin with a push() or update(),
-  // and complete with a put(), del() or abort()
-  // put() and del() commit the respective operations
-  // abort() aborts the pending push() or update()
+private:
+  bool del_(AnyObject *object, UN un);
+public:
+  // del record
+  template <typename L> void del(ZmRef<AnyObject> object, L l) {
+    if (!del_(object, m_nextUN.load_())) { l(nullptr); return; }
+    l(object);
+    object->abort();
+  }
+  // del record (idempotent) - returns true if del can proceed
+  template <typename L> void del(ZmRef<AnyObject> object, UN un, L l) {
+    if (un != nullUN()) {
+      RN nextUN = m_nextUN.load_();
+      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
+    }
+    del(ZuMv(object), ZuMv(l));
+  }
+
+  // del record (with RN, without object)
+  template <typename L> void del(RN rn, L l) {
+    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+      if (ZuUnlikely(!object)) { l(nullptr); return; }
+      del(ZuMv(object), ZuMv(l));
+    });
+  }
+  // del record (idempotent) (with RN, without object)
+  template <typename L> void del(RN rn, UN un, L l) {
+    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
+      if (ZuUnlikely(!object)) { l(nullptr); return; }
+      del(ZuMv(object), un, ZuMv(l));
+    });
+  }
 
 private:
-  // commit push() or update() - causes replication / write
+  // commit push/update/delete - causes replication / write
   void put(ZmRef<AnyObject>);
-  // commit delete following push() or update()
-  void del(ZmRef<AnyObject>);
-  // abort push() or update()
+  // abort push/update/delete
   void abort(ZmRef<AnyObject>);
 
 private:
@@ -811,11 +917,19 @@ private:
   void recover(const fbs::Record *record);
 
   // RN
-  RN allocRN() { return m_nextRN++; }
+  bool allocRN(rn) {
+    if (ZuUnlikely(rn != m_nextRN)) return false;
+    ++m_nextRN;
+    return true;
+  }
   void recoveredRN(RN rn) { m_nextRN.minimum(rn + 1); }
 
   // UN
-  UN allocUN() { return m_nextUN++; }
+  bool allocUN(UN un) {
+    if (ZuUnlikely(un != m_nextUN)) return false;
+    ++m_nextUN;
+    return true;
+  }
   void recoveredUN(UN un) { m_nextUN.minimum(un + 1); }
 
   // immutable
@@ -825,11 +939,9 @@ private:
   DBHandler		m_handler;
   ZtString		m_path;
 
-  // RN allocator
-  ZmAtomic<RN>		m_nextRN = 0;
-
-  // UN allocator
-  ZmAtomic<UN>		m_nextUN = 0;
+  // DB thread exclusive - no need for atomics
+  RN			m_nextRN = 0;		 // RN allocator
+  UN			m_nextUN = 0;		 // UN allocator
 
   // open/closed state
   bool			m_open = false;		// DB thread
@@ -838,7 +950,7 @@ private:
   Table			*m_table = nullptr;	// DB thread
 
   // object cache
-  ObjCache		m_objCache;		// object cache indexed by RN
+  Cache			m_cache;		// object cache indexed by RN
   ZmRef<UpdCache>	m_updCache;		// '' indexed by UN
 
   // pending replications
@@ -1278,7 +1390,7 @@ private:
   ZmRef<Hosts>		m_hosts;
   HostIndex		m_hostIndex;
 
-  // SN allocator
+  // SN allocator - atomic
   ZmAtomic<SN>		m_nextSN = 0;
 
   // environment thread
@@ -1351,8 +1463,13 @@ using ZdbCtorFn = Zdb_::CtorFn;
 using ZdbLoadFn = Zdb_::LoadFn;
 using ZdbUpdateFn = Zdb_::UpdateFn;
 using ZdbSaveFn = Zdb_::SaveFn;
-// FIXME - other handler Fn types;
+using ZdbFieldsFn = Zdb_::FieldsFn;
+using ZdbImportFn = Zdb_::ImportFn;
+using ZdbExportFn = Zdb_::ExportFn;
+using ZdbSaveFn = Zdb_::SaveFn;
 using ZdbScanFn = Zdb_::ScanFn;
+using ZdbDeleteFn = Zdb_::DeleteFn;
+
 using ZdbHandler = Zdb_::DBHandler;
 
 using ZdbEnv = Zdb_::Env;

@@ -168,22 +168,13 @@ table Zdb {
   path:string;
   name:string;
   thread:string;
-  file_thread:string;
   min_r_n:uint64;
   next_r_n:uint64;
-  file_r_n:uint64;
-  obj_cache_loads:uint64;
-  obj_cache_misses:uint64;
-  file_cache_loads:uint64;
-  file_cache_misses:uint64;
-  index_blk_cache_loads:uint64;
-  index_blk_cache_misses:uint64;
-  obj_cache_size:uint32;
-  file_cache_size:uint32;
-  index_blk_cache_size:uint32;
+  cache_loads:uint64;
+  cache_misses:uint64;
+  cache_size:uint32;
   cache_mode:ZdbCacheMode;
   warmup:uint8;
-  compress:uint8;
 }
 enum ZdbHostState:int8 {
   Instantiated = 0,	// instantiated, init() not yet called

@@ -72,8 +72,8 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 
     config.sid = mx->sid(config.thread);
     if (invalidSID(config.sid))
-      throw ZeMkEvent(Fatal, [thread = config.thread](auto &s) {
-	s << "ZdbEnv thread misconfigured: " << config.thread; });
+      throw ZeEVENT(Fatal, ([thread = config.thread](auto &s) {
+	s << "ZdbEnv thread misconfigured: " << config.thread; }));
 
     {
       ZiModule module_;
@@ -81,15 +81,15 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
       auto path = config.storeCf->get<true>("module");
       auto preload = config.storeCf->getBool("preload", false);
       if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
-	throw ZeMkEvent(Fatal, [path = ZtString{path}, e](auto &s) {
-	  s << "failed to load \"" << path << "\": " << e; });
+	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
+	  s << "failed to load \"" << path << "\": " << e; }));
       ZdbStoreFn storeFn =
 	static_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
       if (!storeFn) {
 	module_.unload();
-	throw ZeMkEvent(Fatal, [path = ZtString{path}, e](auto &s) {
+	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
 	  s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
-	    << path << "\": " << e; });
+	    << path << "\": " << e; }));
       }
       m_store = (*storeFn)();
       auto result = m_store->init(
@@ -106,10 +106,10 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	else {
 	  dbCf.sid = mx->sid(dbCf.thread);
 	  if (invalidSID(dbCf.sid))
-	    throw ZeMkEvent(Fatal,
-		[id = dbCf.id, thread = dbCf.thread](auto &s) {
+	    throw ZeEVENT(Fatal,
+		([id = dbCf.id, thread = dbCf.thread](auto &s) {
 		  s << "Zdb " << dbCf.id
-		    << " thread misconfigured: " << dbCf.thread; });
+		    << " thread misconfigured: " << dbCf.thread; }));
 	}
       }
     }
@@ -121,7 +121,7 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 
     return true;
   }))
-    throw ZeMkEvent(Fatal, "ZdbEnv::init called out of order");
+    throw ZeEVENT(Fatal, "ZdbEnv::init called out of order");
 }
 
 ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
@@ -138,7 +138,7 @@ ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
     m_dbs.addNode(db);
     return true;
   }))
-    throw ZeMkEvent(Fatal, "ZdbEnv::initDB called out of order");
+    throw ZeEVENT(Fatal, "ZdbEnv::initDB called out of order");
   return db;
 }
 
@@ -150,7 +150,7 @@ void Env::final()
     m_handler = {};
     return true;
   }))
-    throw ZeMkEvent(Fatal, "ZdbEnv::final called out of order");
+    throw ZeEVENT(Fatal, "ZdbEnv::final called out of order");
 }
 
 void Env::wake()
@@ -496,15 +496,13 @@ Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
-  Zfb::Offset<String> thread, fileThread;
+  Zfb::Offset<String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
-    fileThread = str(fbb_, m_cf.fileThread);
   }
   ZvTelemetry::fbs::ZdbEnvBuilder fbb{fbb_};
   if (!update) {
     fbb.add_thread(thread);
-    fbb.add_fileThread(fileThread);
     { auto v = id(m_self->id()); fbb.add_self(&v); }
   }
   { auto v = id(m_leader ? m_leader->id() : ZuID{}); fbb.add_leader(&v); }
@@ -972,9 +970,9 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
     }
     if (ZuUnlikely(result.contains<Event>())) {
       ZeLogEvent(ZuMv(result).v<Event>());
-      ZeLOG(Error, [id = db->id(), un](auto &s) {
+      ZeLOG(Error, ([id = db->id(), un](auto &s) {
 	s << "Zdb recovery of " << db->id() << '/' << un << " failed";
-      });
+      }));
     }
     run([this, cxn = ZuMv(cxn), un, endUN]() mutable {
       recNext(ZuMv(cxn), un, endUN);
@@ -1353,42 +1351,26 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
-  Zfb::Offset<String> path, name, thread, fileThread;
+  Zfb::Offset<String> path, name, thread;
   if (!update) {
     path = str(fbb_, m_path);
     name = str(fbb_, config().id);
     thread = str(fbb_, config().thread);
-    fileThread = str(fbb_, config().fileThread);
   }
   ZvTelemetry::fbs::ZdbBuilder fbb{fbb_};
   if (!update) {
     fbb.add_path(path);
     fbb.add_name(name);
     fbb.add_thread(thread);
-    fbb.add_fileThread(fileThread);
   }
   fbb.add_minRN(m_minRN.load_());
   fbb.add_nextRN(m_nextRN.load_());
   {
-    ObjCache::Stats stats;
-    m_objCache.stats(stats);
-    fbb.add_objCacheLoads(stats.loads);
-    fbb.add_objCacheMisses(stats.misses);
-    if (!update) fbb.add_objCacheSize(stats.size);
-  }
-  {
-    FileCache::Stats stats;
-    m_files.stats(stats);
-    fbb.add_fileCacheLoads(stats.loads);
-    fbb.add_fileCacheMisses(stats.misses);
-    if (!update) fbb.add_fileCacheSize(stats.size);
-  }
-  {
-    IndexBlkCache::Stats stats;
-    m_indexBlks.stats(stats);
-    fbb.add_indexBlkCacheLoads(stats.loads);
-    fbb.add_indexBlkCacheMisses(stats.misses);
-    if (!update) fbb.add_indexBlkCacheSize(stats.size);
+    Cache::Stats stats;
+    m_cache.stats(stats);
+    fbb.add_cacheLoads(stats.loads);
+    fbb.add_cacheMisses(stats.misses);
+    if (!update) fbb.add_cacheSize(stats.size);
   }
   if (!update) {
     fbb.add_cacheMode(
@@ -1416,11 +1398,11 @@ ZmRef<AnyObject> DB::load(const fbs::Record *record)
 {
   auto data = Zfb::Load::bytes(record->data());
   if (!data) {
-    m_objCache.del(record->rn());
+    m_cache.del(record->rn());
     return nullptr;
   }
   ZmRef<AnyObject> object;
-  if (object = m_objCache.find(record->rn())) {
+  if (object = m_cache.find(record->rn())) {
     if (auto fn = m_handler.updateFn)
       object = fn(object, data.data(), data.length());
   } else {
@@ -1559,73 +1541,59 @@ ZmRef<AnyObject> DB::placeholder()
   return nullptr;
 }
 
-// FIXME from here
-ZmRef<AnyObject> DB::push_(RN rn)
+ZmRef<AnyObject> DB::push_();
 {
   auto fn = m_handler.ctorFn;
   if (ZuUnlikely(!fn)) return nullptr;
   ZmRef<AnyObject> object = fn(this);
   if (!object) return nullptr;
-  object->push_(rn);
+  if (!object->push_()) return nullptr;
   return object;
 }
 
-bool DB::update_(AnyObject *object, RN rn)
+bool DB::update_(AnyObject *object, UN un)
 {
-  if (ZuUnlikely(object->seqLen() == SeqLenOp::maxSeqLen())) return false;
-  if (!object->update_(rn)) return false;
+  if (!object->update_(un)) return false;
   return true;
 }
 
-// commits push() or update()
-void DB::put(ZmRef<AnyObject> object)
+// commits push/update/del
+bool DB::put(ZmRef<AnyObject> object)
 {
-  if (object->committed()) return;
-  UN prevUN = object->un();
-  object->commit_(m_env->allocUN(), Op::Put);
-  allocatedRN(object->rn());
-  if (object->seqLen() > 1)
-    m_deletes.add(rn,
-	DeleteOp{object->prevRN(),
-	  SeqLenOp::mk(object->seqLen() - 1, Op::Put)});
+  UN origUN = object->origUN();
+  int origState = object->state();
+  if (!object->put_()) return false;
   write(object->replicate(fbs::Body_Rep));
-  m_updCache->add(object->un(), object);
-  m_updCache->del(prevUN);
-}
-
-// commits delete following push() or update()
-void DB::del(ZmRef<AnyObject> object)
-{
-  if (ZuUnlikely(!object->seqLen())) {
-    object->abort_();
-    return;
+  switch (origState) {
+    case ObjState::Push:
+      m_cache.add(object);
+      m_updCache->add(object->un(), object);
+      break;
+    case ObjState::Update:
+      m_updCache->add(object->un(), object);
+      m_updCache->del(origUN);
+      break;
+    case ObjState::Delete:
+      m_cache.delNode(object);
+      m_updCache->del(origUN);
+      break;
   }
-  if (object->committed()) return;
-  m_objCache.delNode(object);
-  UN prevUN = object->un();
-  object->commit_(m_env->allocUN(), Op::Delete);
-  allocatedRN(object->rn());
-  m_deletes.add(rn, DeleteOp{rn, SeqLenOp::mk(object->seqLen(), Op::Delete)});
-  write(object->replicate(fbs::Body_Rep));
-  m_updCache->del(prevUN);
 }
 
 // aborts push() or update()
 void DB::abort(ZmRef<AnyObject> object)
 {
-  if (object->committed()) return;
-  object->abort_();
+  if (!object->abort_()) return;
+  // FIXME?
 }
 
-// ack UN
+// ack UN - FIXME?
 void DB::ack(UN un)
 {
   ZmAssert(invoked());
 
-  if (ZuUnlikely(rn <= m_minRN.load_())) return;
-  if (ZuUnlikely(rn > m_nextRN.load_())) rn = m_nextRN;
-  auto startRN = m_deletes.minimumKey(); // FIXME - call ZdbFile
-  if (startRN == nullRN() || rn < startRN) return;
+  if (ZuUnlikely(un <= m_minUN.load_())) return;
+  if (ZuUnlikely(un > m_nextUN.load_())) un = m_nextUN;
 }
 
 } // namespace Zdb_

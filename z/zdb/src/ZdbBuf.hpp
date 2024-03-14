@@ -35,6 +35,7 @@
 namespace Zdb_ {
 
 class DB;
+class Env;
 
 // --- I/O buffer
 

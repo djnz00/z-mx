@@ -193,6 +193,8 @@ friend ZmSingletonCtor<ZeLog>;
 public:
   friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
 
+  static ZeLog *instance();
+
   template <typename ...Args>
   static ZmRef<ZeSink> fileSink(Args &&... args) {
     return new ZeFileSink(ZuFwd<Args>(args)...);
@@ -259,8 +261,6 @@ public:
   static void age() { instance()->age_(); }
 
 private:
-  static ZeLog *instance();
-
   void init_();
   void init__();
   void init_(const char *program);
@@ -319,7 +319,7 @@ template <typename L>
 inline decltype(
     ZuDeclVal<L &>()(ZuDeclVal<ZeLogBuf &>()),
     void())
-ZeBackTrace__(ZeEvent<L> event_) {
+ZeBackTrace(ZeEvent<L> event_) {
   ZmBackTrace bt{1};
   ZeLogEvent(ZeEvent(
       event_.severity, event_.file, event_.line, event_.function,
@@ -334,7 +334,7 @@ inline decltype(
       ZuDeclVal<ZeLogBuf &>(),
       ZuDeclVal<const ZeEventInfo &>()),
     void())
-ZeBackTrace__(ZeEvent<L> event_) {
+ZeBackTrace(ZeEvent<L> event_) {
   ZmBackTrace bt{1};
   ZeLogEvent(ZeEvent(
       event_.severity, event_.file, event_.line, event_.function,
@@ -348,18 +348,18 @@ ZeBackTrace__(ZeEvent<L> event_) {
 
 // filter out DEBUG messages in production builds
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeLogEvent(ZeMkEvent_(sev, msg)) : void())
-#define ZeBackTrace_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeBackTrace__(ZeMkEvent_(sev, msg)) : void())
+  ((sev > Ze::Debug) ? ZeLogEvent(ZeEVENT_(sev, msg)) : void())
+#define ZeLOGBT_(sev, msg) \
+  ((sev > Ze::Debug) ? ZeBackTrace(ZeEVENT_(sev, msg)) : void())
 
 #else /* !ZEBUG */
 
-#define ZeLOG_(sev, msg) ZeLogEvent(ZeMkEvent_(sev, msg))
-#define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeMkEvent_(sev, msg))
+#define ZeLOG_(sev, msg) ZeLogEvent(ZeEVENT_(sev, msg))
+#define ZeLOGBT_(sev, msg) ZeBackTrace(ZeEVENT_(sev, msg))
 
 #endif /* !ZEBUG */
 
 #define ZeLOG(sev, msg) ZeLOG_(Ze:: sev, msg)
-#define ZeBackTrace(sev, msg) ZeBackTrace_(Ze:: sev, msg)
+#define ZeLOGBT(sev, msg) ZeLOGBT_(Ze:: sev, msg)
 
 #endif /* ZeLog_HPP */

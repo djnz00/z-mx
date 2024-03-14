@@ -35,7 +35,7 @@ public:
     open_(m_dbhost, "dbhost");
     write_(m_dbhost, "time,id,priority,state,voted,ip,port\n");
     open_(m_db, "db");
-    write_(m_db, "time,name,id,recSize,compress,cacheMode,cacheSize,path,fileSize,fileRecs,filesMax,preAlloc,minRN,nextRN,fileRN,cacheLoads,cacheMisses,fileLoads,fileMisses\n");
+    write_(m_db, "time,name,id,recSize,cacheMode,cacheSize,minRN,nextRN,cacheLoads,cacheMisses\n");
   }
 
 private:
@@ -219,21 +219,12 @@ private:
 	  << ',' << data.name
 	  << ',' << data.id
 	  << ',' << data.recSize
-	  << ',' << data.compress
 	  << ',' << ZdbCacheMode::name(data.cacheMode)
 	  << ',' << data.cacheSize
-	  << ',' << data.path
-	  << ',' << data.fileSize
-	  << ',' << data.fileRecs
-	  << ',' << data.filesMax
-	  << ',' << data.preAlloc
 	  << ',' << data.minRN
 	  << ',' << data.nextRN
-	  << ',' << data.fileRN
 	  << ',' << data.cacheLoads
-	  << ',' << data.cacheMisses
-	  << ',' << data.fileLoads
-	  << ',' << data.fileMisses << '\n');
+	  << ',' << data.cacheMisses << '\n');
       } break;
     }
   }
