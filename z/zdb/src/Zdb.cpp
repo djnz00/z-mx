@@ -1448,6 +1448,34 @@ void DB::repRecRcvd(ZmRef<Buf> buf)
   write(ZuMv(buf));
 }
 
+// low-level internal write to data store - l(DB *, RN, UN, bool ok)
+template <typename L>
+void DB::write_(ZmRef<Buf> buf, L l) {
+  auto record = record_(msg_(buf->hdr()));
+  auto object = load_(record);
+  auto commitFn = [buf = ZuMv(buf), l = ZuMv(l)](
+      DB *db, RN rn, UN un, CommitResult result) {
+    auto ptr = buf.ptr();
+    m_updBufs->del(VBuf_UNAxor(buf));
+    m_repBufs->delNode(ptr);
+    bool ok = true;
+    if (ZuUnlikely(result.contains<Event>())) {
+      ZeLogEvent(ZuMv(result).v<Event>());
+      ok = false;
+    }
+    invoke([l = ZuMv(l), db, rn, un, ok]() { l(db, rn, un, ok); });
+  };
+  if (!object)
+    m_table->del(record->rn(), record->un(), record->sn(), record->vn(),
+	commitFn);
+  else if (object->vn())
+    m_table->update(object->rn(), object->un(), object->sn(), object->vn(),
+	m_handler.exportFn, commitFn);
+  else
+    m_table->push(object->rn(), object->un(), object->sn(),
+	m_handler.exportFn, commitFn);
+}
+
 // outbound replication + persistency
 void DB::write(ZmRef<Buf> buf)
 {
@@ -1473,7 +1501,7 @@ void DB::write(ZmRef<Buf> buf)
 	env->invoke([buf = ZuMv(buf)]() mutable {
 	  auto db = buf->db();
 	  auto env = db->env();
-	  if (!env->replicate(ZuMv(buf))) { // standalone - ack disk write
+	  if (!env->replicate(ZuMv(buf))) { // standalone - ack write
 	    auto un = record_(msg_(buf->hdr()))->un();
 	    db->invoke([db, un]() { db->ack(un + 1); });
 	  }
@@ -1632,6 +1660,12 @@ ZmRef<AnyObject> DB::push_();
 bool DB::update_(AnyObject *object, UN un)
 {
   if (!object->update_(un)) return false;
+  return true;
+}
+
+bool DB::del_(AnyObject *object, UN un)
+{
+  if (!object->del_(un)) return false;
   return true;
 }
 

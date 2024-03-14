@@ -67,20 +67,13 @@
 
 // Atomic Operations (compare and exchange, etc.)
 // -----------------
-// non-Windows (gcc required) -
-//   gcc >= 4.3 - use sync builtins
-//   gcc <  4.3 - old-school inline assembler
-// Windows -
-//   gcc (MinGW or MinGW-w64) - old-school inline assembler
-//   Visual Studio - _Interlocked intrinsics
+// gcc or clang - use sync builtins
+// Visual Studio - old-school inline assembler
 #ifdef __GNUC__
-#if ZmAtomic_GccVersion >= 40300 && !defined _WIN32
 #define ZmAtomic_GccBuiltins32
+#if !defined(__i386__) || defined(__x86_64__)
 #define ZmAtomic_GccBuiltins64
 #define ZmAtomic_GccBuiltins128
-#if defined(__i386__) && !defined(__x86_64__)
-#undef ZmAtomic_GccBuiltins64
-#endif
 #endif
 #endif
 

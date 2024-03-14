@@ -711,10 +711,7 @@ public:
   // FIXME - idempotent on RN for push?
   // create new record (idempotent)
   template <typename L> void push(UN un, L l) {
-    if (un != nullUN()) {
-      RN nextUN = m_nextUN.load_();
-      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
-    }
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
     push(ZuMv(l));
   }
 
@@ -723,16 +720,13 @@ private:
 public:
   // update record
   template <typename L> void update(ZmRef<AnyObject> object, L l) {
-    if (!update_(object, m_nextUN.load_())) { l(nullptr); return; }
+    if (!update_(object, m_nextUN)) { l(nullptr); return; }
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
   template <typename L> void update(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN()) {
-      RN nextUN = m_nextUN.load_();
-      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
-    }
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
     update(ZuMv(object), ZuMv(l));
   }
 
@@ -756,16 +750,13 @@ private:
 public:
   // del record
   template <typename L> void del(ZmRef<AnyObject> object, L l) {
-    if (!del_(object, m_nextUN.load_())) { l(nullptr); return; }
+    if (!del_(object, m_nextUN)) { l(nullptr); return; }
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // del record (idempotent) - returns true if del can proceed
   template <typename L> void del(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN()) {
-      RN nextUN = m_nextUN.load_();
-      if (ZuUnlikely(nextUN > un)) { l(nullptr); return; }
-    }
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
     del(ZuMv(object), ZuMv(l));
   }
 
@@ -803,33 +794,9 @@ private:
 
   // outbound replication / write to data store
   void write(ZmRef<Buf> buf);
-  // low-level write to data store - l(DB *, RN, UN, bool ok)
+  // low-level internal write to data store - l(DB *, RN, UN, bool ok)
   template <typename L>
-  void write_(ZmRef<Buf> buf, L l) {
-    auto record = record_(msg_(buf->hdr()));
-    auto object = load_(record);
-    auto commitFn = [buf = ZuMv(buf), l = ZuMv(l)](
-	DB *db, RN rn, UN un, CommitResult result) {
-      auto ptr = buf.ptr();
-      m_updBufs->del(VBuf_UNAxor(buf));
-      m_repBufs->delNode(ptr);
-      bool ok = true;
-      if (ZuUnlikely(result.contains<Event>())) {
-	ZeLogEvent(ZuMv(result).v<Event>());
-	ok = false;
-      }
-      invoke([l = ZuMv(l), db, rn, un, ok]() { l(db, rn, un, ok); });
-    };
-    if (!object)
-      m_table->del(object->rn(), object->un(), object->sn(), object->vn(),
-	  commitFn);
-    else if (object->vn())
-      m_table->update(object->rn(), object->un(), object->sn(), object->vn(),
-	  m_handler.exportFn, commitFn);
-    else
-      m_table->push(object->rn(), object->un(), object->sn(),
-	  m_handler.exportFn, commitFn);
-  }
+  void write_(ZmRef<Buf> buf, L l);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -850,7 +817,9 @@ private:
     ++m_nextRN;
     return true;
   }
-  void recoveredRN(RN rn) { m_nextRN.minimum(rn + 1); }
+  void recoveredRN(RN rn) {
+    if (m_nextRN <= rn) m_nextRN = rn + 1;
+  }
 
   // UN
   bool allocUN(UN un) {
@@ -858,7 +827,9 @@ private:
     ++m_nextUN;
     return true;
   }
-  void recoveredUN(UN un) { m_nextUN.minimum(un + 1); }
+  void recoveredUN(UN un) {
+    if (m_nextUN <= un) m_nextUN = un + 1;
+  }
 
   // immutable
   Env			*m_env;
@@ -1063,7 +1034,6 @@ struct EnvCf {
 
   EnvCf() = default;
   EnvCf(const ZvCf *cf) {
-    path = cf->get<true>("path");
     thread = cf->get<true>("thread");
     storeCf = cf->getCf<true>("store");
     cf->getCf<true>("dbs")->all([this](ZvCfNode *node) {
@@ -1308,7 +1278,7 @@ private:
 
   // SN
   SN allocSN() { return m_nextSN++; }
-  void recoveredSN(SN un) { m_nextSN.minimum(sn + 1); }
+  void recoveredSN(SN sn) { m_nextSN.minimum(sn + 1); }
 
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
