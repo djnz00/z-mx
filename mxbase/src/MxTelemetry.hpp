@@ -300,7 +300,7 @@ namespace MxTelemetry {
 
     virtual void process(ZmRef<Msg> msg) = 0;
 
-    virtual void error(ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
+    virtual void error(ZeVEvent e) { ZeLogEvent(ZuMv(e)); }
 
   private:
     void connected(Cxn *, ZiIOContext &);
@@ -354,7 +354,7 @@ namespace MxTelemetry {
 
     virtual void run(Cxn *) = 0; // app should repeatedly call cxn->send(msg)
 
-    virtual void error(ZmRef<ZeEvent> e) { ZeLog::log(ZuMv(e)); }
+    virtual void error(ZeVEvent e) { ZeLogEvent(ZuMv(e)); }
 
   private:
     void run_();

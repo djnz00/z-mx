@@ -695,10 +695,8 @@ private:
 #ifndef ZDEBUG
       if (sev > Ze::Debug)
 #endif
-      ZeLog::log(ZeEvent(sev, file, line, "",
-	  [message = ZtString{message}](auto &s) {
-	    s << message;
-	  }));
+      ZeLogEvent(ZeEvent(sev, file, line, "",
+	  [message = ZtString{message}](auto &s) { s << message; }));
     }, nullptr);
     if (!Random::init()) {
       ZeLOG(Error, "mbedtls_ctr_drbg_seed() failed");

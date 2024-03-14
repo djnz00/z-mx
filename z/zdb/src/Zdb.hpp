@@ -425,6 +425,14 @@ using ObjCache =
 	ZmCacheLock<ZmPLock,
 	  ZmCacheHeapID<Object_HeapID>>>>>;
 using AnyObject = ObjCache::Node;
+inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
+  return object->un();
+}
+// temporarily there may be more than one UN referencing a cached object
+using UpdCache =
+  ZmHashKV<UN, ZmRef<AnyObject>,
+    ZmHashLock<ZmPLock,
+      ZmHashHeapID<Object_HeapID>>>;
 
 // --- DB type-specific object
 
@@ -481,8 +489,8 @@ typedef ZtVFieldArray (*FieldsFn)();
 typedef AnyObject *(*ImportFn)(DB *, const ZtField::Import &);
 // ExportFn(export, ptr) - export object to data store
 typedef void (*ExportFn)(ZtField::Export &, const void *);
-// RecoverFn(object) - object recovered
-typedef void (*RecoverFn)(AnyObject *);
+// ScanFn(object) - object scanned
+typedef void (*ScanFn)(AnyObject *);
 // DeleteFn(RN) - object deleted
 typedef void (*DeleteFn)(RN);
 
@@ -494,12 +502,12 @@ struct DBHandler {
   FieldsFn	fieldsFn = nullptr;
   ImportFn	importFn = nullptr;
   ExportFn	exportFn = nullptr;
-  RecoverFn	recoverFn = nullptr;
+  ScanFn	scanFn = nullptr;
   DeleteFn	deleteFn = nullptr;
 
   template <typename T>
   static DBHandler bind(
-      RecoverFn recoverFn_ = nullptr,
+      ScanFn scanFn_ = nullptr,
       DeleteFn deleteFn_ = nullptr) {
     return DBHandler{
       .ctorFn = [](DB *db) -> AnyObject * {
@@ -535,7 +543,7 @@ struct DBHandler {
       .exportFn = [](ZtField::Export &export_, const void *ptr) {
 	ZtField::save<T>(*static_cast<const T *>(ptr), export_);
       },
-      .recoverFn = ZuMv(recoverFn_),
+      .scanFn = ZuMv(scanFn_),
       .deleteFn = ZuMv(deleteFn_)
     };
   }
@@ -620,6 +628,7 @@ public:
 
 private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
+  ZmRef<Buf> findBufUN(UN un) { return {m_updBufs->findVal(un)}; }
 
   template <bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
@@ -627,27 +636,33 @@ private:
       l(nullptr);
       return;
     }
-    m_objCache.find<UpdateLRU, Evict>(
-	rn, ZuMv(l), [this]<typename L_>(RN rn, L_ l) {
+    auto load = [this]<typename L_>(RN rn, L_ l) {
       if (auto buf = findBuf(rn)) {
 	l(load_(record_(msg_(buf->template ptr<Hdr>()))));
 	return;
       }
-      m_table->get(rn, [this, l = ZuMv(l)](RN rn, GetResult r) mutable {
-	if (r.contains<const ZtField::Import &>()) {
-	  const auto &import_ = r.v<const ZtField::Import &>();
-	  ZmRef<AnyObject> o = m_handler.importFn(this, import_);
-	  if (o) o->init(rn);
-	  invoke([this, l = ZuMv(l), o = ZuMv(o)]() mutable { l(ZuMv(o)); });
+      m_table->get(rn, [l = ZuMv(l)](DB *db, RN rn, GetResult result) mutable {
+	if (ZuLikely(result.contains<GetData>())) {
+	  const auto &data = result.v<GetData>();
+	  ZmRef<AnyObject> object = db->m_handler.importFn(this, data.import_);
+	  if (object) object->init(rn, data.un, data.sn, data.vn);
+	  db->invoke([this, l = ZuMv(l), object = ZuMv(object)]() mutable {
+	    l(ZuMv(object));
+	  });
 	  return;
 	}
-	if (r.contains<ZuPair<ZeEvent, ZtString>>()) {
-	  auto &error = r.v<ZuPair<ZeEvent, ZtString>>();
-	  log(ZuMv(error).p<0>(), ZuMv(error).p<1>());
-	}
+	if (ZuUnlikely(result.contains<Event>()))
+	  ZeLogEvent(ZuMv(result).v<Event>());
 	invoke([this, l = ZuMv(l)]() mutable { l(nullptr); });
       });
-    });
+    };
+    if constexpr (Evict) {
+      auto evict = [this](ZmRef<AnyObject> object) {
+	m_updCache->del(object-un());
+      };
+      m_objCache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
+    } else
+      m_objCache.find<UpdateLRU, false>(rn, ZuMv(l), ZuMv(load));
   }
 
 public:
@@ -669,6 +684,8 @@ public:
 public:
   // next RN that will be allocated
   RN nextRN() const { return m_nextRN; }
+  // next UN that will be allocated
+  RN nextUN() const { return m_nextUN; }
 
   // create placeholder record (null RN, in-memory, never persisted/replicated)
   ZmRef<AnyObject> placeholder();
@@ -678,16 +695,16 @@ private:
 public:
   // create new record
   template <typename L> void push(L l) {
-    ZmRef<AnyObject> object = push_(m_nextRN.load_());
+    ZmRef<AnyObject> object = push_(m_nextUN.load_());
     if (!object) { l(nullptr); return; }
     l(object);
     object->abort();
   }
   // create new record (idempotent)
   template <typename L> void push(RN rn, L l) {
-    RN nextRN = m_nextRN.load_();
-    if (ZuUnlikely(rn != nullRN() && nextRN > rn)) { l(nullptr); return; }
-    ZmRef<AnyObject> object = push_(nextRN);
+    RN nextUN = m_nextUN.load_();
+    if (ZuUnlikely(rn != nullRN() && nextUN > rn)) { l(nullptr); return; }
+    ZmRef<AnyObject> object = push_(nextUN);
     if (!object) { l(nullptr); return; }
     l(object);
     object->abort();
@@ -698,15 +715,15 @@ private:
 public:
   // update record
   template <typename L> void update(ZmRef<AnyObject> object, L l) {
-    if (!update_(object, m_nextRN.load_())) { l(nullptr); return; }
+    if (!update_(object, m_nextUN.load_())) { l(nullptr); return; }
     l(object);
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
   template <typename L> void update(ZmRef<AnyObject> object, UN un, L l) {
-    RN nextRN = m_nextRN.load_(); // FIXME
-    if (ZuUnlikely(rn != nullRN() && nextRN > rn)) { l(nullptr); return; }
-    if (!update_(object, nextRN)) { l(nullptr); return; }
+    RN nextUN = m_nextUN.load_(); // FIXME
+    if (ZuUnlikely(rn != nullRN() && nextUN > rn)) { l(nullptr); return; }
+    if (!update_(object, nextUN)) { l(nullptr); return; }
     l(object);
     object->abort();
   }
@@ -750,25 +767,56 @@ private:
   // save object to buffer
   Zfb::Offset<void> save(Zfb::Builder &fbb, AnyObject_ *object);
 
+  // outbound replication / write to data store
+  void write(ZmRef<Buf> buf);
+  // low-level write to data store - l(DB *, RN, UN, bool ok)
+  template <typename L>
+  void write_(ZmRef<Buf> buf, L l) {
+    auto record = record_(msg_(buf->hdr()));
+    auto object = load_(record);
+    auto commitFn = [buf = ZuMv(buf), l = ZuMv(l)](
+	DB *db, RN rn, UN un, CommitResult result) {
+      auto ptr = buf.ptr();
+      m_updBufs->del(VBuf_UNAxor(buf));
+      m_repBufs->delNode(ptr);
+      bool ok = true;
+      if (ZuUnlikely(result.contains<Event>())) {
+	ZeLogEvent(ZuMv(result).v<Event>());
+	ok = false;
+      }
+      invoke([l = ZuMv(l), db, rn, un, ok]() { l(db, rn, un, ok); });
+    };
+    if (!object)
+      m_table->del(object->rn(), object->un(), object->sn(), object->vn(),
+	  commitFn);
+    else if (object->vn())
+      m_table->update(object->rn(), object->un(), object->sn(), object->vn(),
+	  m_handler.exportFn, commitFn);
+    else
+      m_table->push(object->rn(), object->un(), object->sn(),
+	  m_handler.exportFn, commitFn);
+  }
+
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
   void recSendGet(ZmRef<Cxn> cxn, RN rn, RN endRN);
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
   void recNext(ZmRef<Cxn> cxn, RN rn, RN endRN);
-  ZmRef<Buf> repBuf(RN rn);
+  ZmRef<Buf> repBuf(UN un);
 
   // inbound replication
   void repRecRcvd(ZmRef<Buf> buf);
-  void repGapRcvd(ZmRef<Buf> buf);
 
   // recovery - DB thread
-  void recovered(ZmRef<Buf>);
   void recover(const fbs::Record *record);
 
-  // RN allocator
-  void allocatedRN(RN rn) {
-    m_nextRN = rn + 1;
-  }
+  // RN
+  RN allocRN() { return m_nextRN++; }
+  void recoveredRN(RN rn) { m_nextRN.minimum(rn + 1); }
+
+  // UN
+  UN allocUN() { return m_nextUN++; }
+  void recoveredUN(UN un) { m_nextUN.minimum(un + 1); }
 
   // immutable
   Env			*m_env;
@@ -780,6 +828,9 @@ private:
   // RN allocator
   ZmAtomic<RN>		m_nextRN = 0;
 
+  // UN allocator
+  ZmAtomic<UN>		m_nextUN = 0;
+
   // open/closed state
   bool			m_open = false;		// DB thread
 
@@ -787,10 +838,12 @@ private:
   Table			*m_table = nullptr;	// DB thread
 
   // object cache
-  ObjCache		m_objCache;		// MT locked
+  ObjCache		m_objCache;		// object cache indexed by RN
+  ZmRef<UpdCache>	m_updCache;		// '' indexed by UN
 
   // pending replications
-  ZmRef<RepBufs>	m_repBufs;		// MT locked
+  ZmRef<RepBufs>	m_repBufs;		// buffers indexed by RN
+  ZmRef<UpdBufs>	m_updBufs;		// '' indexed by UN
 };
 
 inline void AnyObject_::put() { m_db->put(this); }
@@ -1057,15 +1110,15 @@ public:
   template <typename T>
   ZmRef<DB> initDB(
       ZuID id,
-      RecoverFn recoverFn = nullptr,
+      ScanFn scanFn = nullptr,
       DeleteFn deleteFn = nullptr) {
-    return initDB_(id, DBHandler::bind<T>(recoverFn, deleteFn));
+    return initDB_(id, DBHandler::bind<T>(scanFn, deleteFn));
   }
 
 private:
   ZmRef<DB> initDB_(ZuID, DBHandler);
 
-  void opened(DB *, UN, RN);
+  void opened(DB *, RN, UN, SN);
 
 public:
   template <typename ...Args>
@@ -1077,8 +1130,6 @@ public:
     m_mx->invoke(m_cf.sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_cf.sid); }
-
-  void checkpoint();
 
   const EnvCf &config() const { return m_cf; }
   ZiMultiplex *mx() const { return m_mx; }
@@ -1215,10 +1266,9 @@ private:
 
   bool isStandalone() const { return m_standalone; }
 
-  // UN
-  UN nextUN() const { return m_nextUN; }
-  UN allocUN() { return m_nextUN++; }
-  void recoveredUN(UN un) { m_nextUN.minimum(un + 1); }
+  // SN
+  SN allocSN() { return m_nextSN++; }
+  void recoveredSN(SN un) { m_nextSN.minimum(sn + 1); }
 
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
@@ -1228,8 +1278,8 @@ private:
   ZmRef<Hosts>		m_hosts;
   HostIndex		m_hostIndex;
 
-  // atomic update number
-  ZmAtomic<uint128_t>	m_nextUN = 0;
+  // SN allocator
+  ZmAtomic<SN>		m_nextSN = 0;
 
   // environment thread
   DBs			m_dbs;
@@ -1301,7 +1351,8 @@ using ZdbCtorFn = Zdb_::CtorFn;
 using ZdbLoadFn = Zdb_::LoadFn;
 using ZdbUpdateFn = Zdb_::UpdateFn;
 using ZdbSaveFn = Zdb_::SaveFn;
-using ZdbRecoverFn = Zdb_::RecoverFn;
+// FIXME - other handler Fn types;
+using ZdbScanFn = Zdb_::ScanFn;
 using ZdbHandler = Zdb_::DBHandler;
 
 using ZdbEnv = Zdb_::Env;

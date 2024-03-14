@@ -59,9 +59,16 @@ struct Table {
   // 1 importer (get)
   // 3 exporters (push, update, del)
 
-  virtual void close(ZmFn<>) = 0;	// idempotent
+  using CloseFn = ZmFn<DB *>;
 
-  using GetData = ZuTuple<UN, SN, VN, const ZtField::Import &>;
+  virtual void close(CloseFn) = 0;	// idempotent
+
+  struct GetData {
+    UN				un;
+    SN				sn;
+    VN				vn;
+    const ZtField::Import	&import_;
+  };
   using GetResult = ZuUnion<
     GetData,				// succeeded
     void,				// missing
@@ -70,7 +77,12 @@ struct Table {
 
   virtual void get(RN, GetFn) = 0;
 
-  using RecoverData = ZuTuple<RN, SN, VN, const ZtField::Import &>;
+  struct RecoverData {
+    RN				rn;
+    SN				sn;
+    VN				vn;
+    const ZtField::Import	&import_;
+  };
   using RecoverResult = ZuUnion<
     RecoverData,			// succeeded
     void,				// missing

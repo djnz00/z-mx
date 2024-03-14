@@ -37,12 +37,16 @@ namespace ZuLambdaTraits {
 template <typename L, auto Fn> struct ArgList__; // undefined
 template <
   typename L, typename R,
+  typename ...FnArgs, R (*Fn)(FnArgs...)>
+struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; }; // static
+template <
+  typename L, typename R,
   typename ...FnArgs, R (L::*Fn)(FnArgs...)>
-struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; };
+struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; }; // mutable
 template <
   typename L, typename R,
   typename ...FnArgs, R (L::*Fn)(FnArgs...) const>
-struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; };
+struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; }; // const
 template <typename L, typename = void> struct ArgList_; // undefined
 template <typename L> struct ArgList_<L, decltype(&L::operator(), void())> :
     public ArgList__<L, &L::operator()> { };
@@ -101,12 +105,17 @@ template <typename L, typename ArgList_, auto Fn>
 struct IsStateless_Fn : public ZuFalse { };
 template <
   typename L, typename ArgList_,
-  typename R, typename ...FnArgs, R (L::*Fn)(FnArgs...)>
+  typename R, typename ...FnArgs, R (*Fn)(FnArgs...)> // static
 struct IsStateless_Fn<L, ArgList_, Fn> :
     public IsStateless_Fn_<L, ArgList_, R, ZuTypeList<FnArgs...>> { };
 template <
   typename L, typename ArgList_,
-  typename R, typename ...FnArgs, R (L::*Fn)(FnArgs...) const>
+  typename R, typename ...FnArgs, R (L::*Fn)(FnArgs...)> // mutable
+struct IsStateless_Fn<L, ArgList_, Fn> :
+    public IsStateless_Fn_<L, ArgList_, R, ZuTypeList<FnArgs...>> { };
+template <
+  typename L, typename ArgList_,
+  typename R, typename ...FnArgs, R (L::*Fn)(FnArgs...) const> // const
 struct IsStateless_Fn<L, ArgList_, Fn> :
     public IsStateless_Fn_<L, ArgList_, R, ZuTypeList<FnArgs...>> { };
 template <typename L, typename R, typename ArgList_, typename = void>

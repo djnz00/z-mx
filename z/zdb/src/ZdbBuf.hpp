@@ -54,11 +54,11 @@ inline constexpr unsigned BuiltinSize() {
   return (((Overhead + CacheLineSize) & ~(CacheLineSize - 1))<<2) - Overhead;
 };
 using VBuf = ZiIOVBuf<BuiltinSize(), Buf_HeapID>; 
-RN VBuf_RNAxor(const VBuf &);
+RN Buf_RNAxor(const VBuf &);
 using RepBufs =
   ZmHash<VBuf,
     ZmHashNode<VBuf,
-      ZmHashKey<VBuf_RNAxor,
+      ZmHashKey<Buf_RNAxor,
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<Buf_HeapID>>>>>;
 class ZdbAPI Buf : public RepBufs::Node {
@@ -89,9 +89,18 @@ public:
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(Buf *);
 };
-inline RN VBuf_RNAxor(const VBuf &buf) {
+inline RN Buf_RNAxor(const VBuf &buf) {
   return record_(msg_(static_cast<const Buf &>(buf).hdr()))->rn();
 }
+inline UN Buf_UNAxor(const ZmRef<Buf> &buf) {
+  return record_(msg_(static_cast<const Buf *>(buf.ptr())->hdr()))->un();
+}
+using UpdBufs =
+  ZmHash<ZmRef<Buf>,
+    ZmHashKey<Buf_UNAxor,
+      ZmHashLock<ZmPLock,
+	ZmHashHeapID<Buf_HeapID>>>>;
+
 ZuAssert(!((sizeof(Buf)) & (Zm::CacheLineSize - 1)));
 using IOBuilder = Zfb::IOBuilder<Buf>;
 

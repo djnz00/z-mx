@@ -309,13 +309,19 @@ private:
 #pragma warning(pop)
 #endif
 
+// alias for ZeLog::log()
+template <typename L>
+inline void ZeLogEvent(ZeEvent<L> e) {
+  ZeLog::instance()->log_(ZuMv(e));
+}
+
 template <typename L>
 inline decltype(
     ZuDeclVal<L &>()(ZuDeclVal<ZeLogBuf &>()),
     void())
 ZeBackTrace__(ZeEvent<L> event_) {
   ZmBackTrace bt{1};
-  ZeLog::log(ZeEvent(
+  ZeLogEvent(ZeEvent(
       event_.severity, event_.file, event_.line, event_.function,
       [bt = ZuMv(bt), l = ZuMv(event_).l](auto &s) mutable {
 	l(s);
@@ -330,7 +336,7 @@ inline decltype(
     void())
 ZeBackTrace__(ZeEvent<L> event_) {
   ZmBackTrace bt{1};
-  ZeLog::log(ZeEvent(
+  ZeLogEvent(ZeEvent(
       event_.severity, event_.file, event_.line, event_.function,
       [bt = ZuMv(bt), l = ZuMv(event_).l](auto &s, const auto &info) mutable {
 	l(s, info);
@@ -342,13 +348,13 @@ ZeBackTrace__(ZeEvent<L> event_) {
 
 // filter out DEBUG messages in production builds
 #define ZeLOG_(sev, msg) \
-  ((sev > Ze::Debug) ? ZeLog::log(ZeMkEvent_(sev, msg)) : void())
+  ((sev > Ze::Debug) ? ZeLogEvent(ZeMkEvent_(sev, msg)) : void())
 #define ZeBackTrace_(sev, msg) \
   ((sev > Ze::Debug) ? ZeBackTrace__(ZeMkEvent_(sev, msg)) : void())
 
 #else /* !ZEBUG */
 
-#define ZeLOG_(sev, msg) ZeLog::log(ZeMkEvent_(sev, msg))
+#define ZeLOG_(sev, msg) ZeLogEvent(ZeMkEvent_(sev, msg))
 #define ZeBackTrace_(sev, msg) ZeBackTrace__(ZeMkEvent_(sev, msg))
 
 #endif /* !ZEBUG */
