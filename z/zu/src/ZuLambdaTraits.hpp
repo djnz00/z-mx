@@ -58,9 +58,9 @@ template <typename L>
 struct Return_<L, ZuTypeList<>> {
   using T = decltype(ZuDeclVal<L &>()());
 };
-template <typename L, typename ...Args_>
-struct Return_<L, ZuTypeList<Args_...>> {
-  using T = decltype(ZuDeclVal<L &>()(ZuDeclVal<Args_>()...));
+template <typename L, typename ...Args>
+struct Return_<L, ZuTypeList<Args...>> {
+  using T = decltype(ZuDeclVal<L &>()(ZuDeclVal<Args>()...));
 };
 template <typename L, typename ArgList_ = ArgList<L>>
 using Return = typename Return_<L, ArgList_>::T;
@@ -79,9 +79,9 @@ struct IsMutable_NoArgs<L, decltype(ZuDeclVal<const L &>()(), void())> :
     public ZuFalse { };
 template <typename L, typename ArgList_, typename = void>
 struct IsMutable_Args : public ZuTrue { };
-template <typename L, typename ...Args_>
-struct IsMutable_Args<L, ZuTypeList<Args_...>,
-  decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args_>()...), void())> :
+template <typename L, typename ...Args>
+struct IsMutable_Args<L, ZuTypeList<Args...>,
+  decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args>()...), void())> :
     public ZuFalse { };
 template <typename L, typename ArgList_ = ArgList<L>>
 struct IsMutable : public IsMutable_Args<L, ArgList_> { };
@@ -119,14 +119,32 @@ template <
 struct IsStateless_Fn<L, ArgList_, Fn> :
     public IsStateless_Fn_<L, ArgList_, R, ZuTypeList<FnArgs...>> { };
 template <typename L, typename R, typename ArgList_, typename = void>
-struct IsStateless_Generic : public ZuFalse { };
+struct IsStateless_Generic_ : public ZuFalse { };
 template <typename L, typename R, typename ...Args>
-struct IsStateless_Generic<L, R, ZuTypeList<Args...>,
+struct IsStateless_Generic_<L, R, ZuTypeList<Args...>,
   decltype(static_cast<R (*)(Args...)>(ZuDeclVal<const L &>()), void())> :
     public ZuTrue { };
+template <typename L, typename = void>
+struct IsStateless_Generic_NoArgs : public ZuFalse { };
+template <typename L>
+struct IsStateless_Generic_NoArgs<L, decltype(ZuDeclVal<L &>()(), void())> :
+    public IsStateless_Generic_<L, Return<L, ZuTypeList<>>, ZuTypeList<>> { };
+template <typename L, typename ArgList, typename = void>
+struct IsStateless_Generic_Args : public ZuFalse { };
+template <typename L, typename ...Args>
+struct IsStateless_Generic_Args<L, ZuTypeList<Args...>,
+  decltype(ZuDeclVal<L &>()(ZuDeclVal<Args>()...), void())> :
+    public IsStateless_Generic_<
+      L, Return<L, ZuTypeList<Args...>>, ZuTypeList<Args...>> { };
+template <typename L, typename ArgList> struct IsStateless_Generic;
+template <typename L>
+struct IsStateless_Generic<L, ZuTypeList<>> :
+    public IsStateless_Generic_NoArgs<L> { };
+template <typename L, typename ...Args>
+struct IsStateless_Generic<L, ZuTypeList<Args...>> :
+    public IsStateless_Generic_Args<L, ZuTypeList<Args...>> { };
 template <typename L, typename ArgList_ = ArgList<L>, typename = void>
-struct IsStateless :
-    public IsStateless_Generic<L, Return<L, ArgList_>, ArgList_> { };
+struct IsStateless : public IsStateless_Generic<L, ArgList_> { };
 template <typename L, typename ArgList_>
 struct IsStateless<L, ArgList_, decltype(&L::operator(), void())> :
     public IsStateless_Fn<L, ArgList_, &L::operator()> { };

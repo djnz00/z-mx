@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 	"writeThread 1\n");
     fileMgr.init(&sched, cf);
   }
-  DataFrame df{ZtVFields<Frame>(), "frame"};
+  DataFrame df{ZtMFields<Frame>(), "frame"};
   if (mode == Mem)
     df.init(&memMgr);
   else

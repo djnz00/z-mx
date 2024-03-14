@@ -23,7 +23,7 @@
 
 using namespace Zdf;
 
-DataFrame::DataFrame(ZtVFieldArray fields, ZuString name, bool timeIndex) :
+DataFrame::DataFrame(ZtMFieldArray fields, ZuString name, bool timeIndex) :
     m_name{name}
 {
   bool indexed = timeIndex;
@@ -32,7 +32,7 @@ DataFrame::DataFrame(ZtVFieldArray fields, ZuString name, bool timeIndex) :
   m_fields.size(n + timeIndex);
   for (unsigned i = 0; i < n; i++) {
     ZuPtr<Series> series = new Series();
-    if (!indexed && (fields[i]->props & ZtVFieldProp::Index)) {
+    if (!indexed && (fields[i]->props & ZtMFieldProp::Index)) {
       indexed = true;
       m_series.unshift(ZuMv(series));
       m_fields.unshift(fields[i]);
@@ -43,7 +43,7 @@ DataFrame::DataFrame(ZtVFieldArray fields, ZuString name, bool timeIndex) :
   }
   if (timeIndex) {
     m_series.unshift(ZuPtr<Series>{new Series()});
-    m_fields.unshift(static_cast<ZtVField *>(nullptr));
+    m_fields.unshift(static_cast<ZtMField *>(nullptr));
   }
 }
 

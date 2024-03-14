@@ -38,7 +38,7 @@ ZfbFields(Test, fbs::Test,
   (((bar)), (String), (Ctor<1>)),
   (((baz)), (Object), (Ctor<2>)));
 
-static auto vfields = ZtVFields<Test>();
+static auto vfields = ZtMFields<Test>();
 
 } // zfbtest
 

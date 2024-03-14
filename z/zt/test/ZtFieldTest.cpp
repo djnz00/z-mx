@@ -86,8 +86,8 @@ int main()
       << (Field::Type::Code == ZtFieldTypeCode::Bytes ? "" : "\n");
   });
   std::cout << '\n';
-  ZtVFieldArray fields{ZtVFields<Foo>()};
-  auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
+  ZtMFieldArray fields{ZtMFields<Foo>()};
+  auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
     using ZtFieldTypeCode::Flags;
     const void *ptr = field.constant(constant);
@@ -111,7 +111,7 @@ int main()
 	break;
     }
     std::cout << " deflt=";
-    print(std::cout, *fields[i], ZtVFieldConstant::Deflt);
+    print(std::cout, *fields[i], ZtMFieldConstant::Deflt);
     switch (type->code) {
       case Int:
       case UInt:
@@ -119,9 +119,9 @@ int main()
       case Fixed:
       case Decimal:
 	std::cout << " minimum=";
-	print(std::cout, *fields[i], ZtVFieldConstant::Minimum);
+	print(std::cout, *fields[i], ZtMFieldConstant::Minimum);
 	std::cout << " maximum=";
-	print(std::cout, *fields[i], ZtVFieldConstant::Maximum);
+	print(std::cout, *fields[i], ZtMFieldConstant::Maximum);
 	break;
       case Bytes:
 	continue;
@@ -129,21 +129,24 @@ int main()
     std::cout << '\n';
   }
 
+  // dummy importer
+  using CVP = const void *;
+  using CCP = const char *;
   ZtField::Importer i{ {
-    ZtVFieldGet{.fn_ = {.cstring = [](const void *) -> const char * { return "foo bar"; }}},
-    ZtVFieldGet{.fn_ = {.bytes = [](const void *) -> ZuBytes { return {"yikes"}; }}},
-    ZtVFieldGet{.fn_ = {.string = [](const void *) -> ZuString { return "hello"; }}},
-    ZtVFieldGet{.fn_ = {.int_ = [](const void *) -> int64_t { return -42; }}},
-    ZtVFieldGet{.fn_ = {.int_ = [](const void *) -> int64_t { return 42; }}},
-    ZtVFieldGet{.fn_ = {.uint = [](const void *) -> uint64_t { return 43; }}},
-    ZtVFieldGet{.fn_ = {.enum_ = [](const void *) -> int { return -1; }}},
-    ZtVFieldGet{.fn_ = {.flags = [](const void *) -> uint64_t { return 0; }}},
-    ZtVFieldGet{.fn_ = {.float_ = [](const void *) -> double { return -0.42; }}},
-    ZtVFieldGet{.fn_ = {.float_ = [](const void *) -> double { return 0.42; }}},
-    ZtVFieldGet{.fn_ = {.fixed = [](const void *) -> ZuFixed { return {0.42, 2}; }}},
-    ZtVFieldGet{.fn_ = {.decimal = [](const void *) -> ZuDecimal { return 0.42; }}},
-    ZtVFieldGet{.fn_ = {.time = [](const void *) -> ZmTime { return ZmTimeNow(); }}},
-    ZtVFieldGet{.fn_ = {.udt = [](const void *) -> const void * {
+    ZtMFieldGet{.fn_ = {.cstring = [](CVP) -> CCP { return "foo bar"; }}},
+    ZtMFieldGet{.fn_ = {.bytes = [](CVP) -> ZuBytes { return {"yikes"}; }}},
+    ZtMFieldGet{.fn_ = {.string = [](CVP) -> ZuString { return "hello"; }}},
+    ZtMFieldGet{.fn_ = {.int_ = [](CVP) -> int64_t { return -42; }}},
+    ZtMFieldGet{.fn_ = {.int_ = [](CVP) -> int64_t { return 42; }}},
+    ZtMFieldGet{.fn_ = {.uint = [](CVP) -> uint64_t { return 43; }}},
+    ZtMFieldGet{.fn_ = {.enum_ = [](CVP) -> int { return -1; }}},
+    ZtMFieldGet{.fn_ = {.flags = [](CVP) -> uint64_t { return 0; }}},
+    ZtMFieldGet{.fn_ = {.float_ = [](CVP) -> double { return -0.42; }}},
+    ZtMFieldGet{.fn_ = {.float_ = [](CVP) -> double { return 0.42; }}},
+    ZtMFieldGet{.fn_ = {.fixed = [](CVP) -> ZuFixed { return {0.42, 2}; }}},
+    ZtMFieldGet{.fn_ = {.decimal = [](CVP) -> ZuDecimal { return 0.42; }}},
+    ZtMFieldGet{.fn_ = {.time = [](CVP) -> ZmTime { return ZmTimeNow(); }}},
+    ZtMFieldGet{.fn_ = {.udt = [](CVP) -> CVP {
       static Nested n{42, 43};
       return &n;
     }}}

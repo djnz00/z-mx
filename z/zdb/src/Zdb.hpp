@@ -279,7 +279,6 @@ struct Record_Print {
   const fbs::Record *record = nullptr;
   template <typename S> void print(S &s) const {
     auto id = Zfb::Load::id(record->db());
-    auto seqLenOp = record->seqLenOp();
     auto data = Zfb::Load::bytes(record->data());
     s << "record{db=" << id
       << " rn=" << record->rn()
@@ -395,11 +394,10 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 public:
-  void put() { m_db->put(this); }
-  void abort() { m_db->abort(this); }
+  void put();
+  void abort();
 
 private:
-  // FIXME - move these into .cpp
   void init(RN rn, UN un, SN sn, VN vn) {
     m_rn = rn;
     m_un = un;
@@ -408,81 +406,11 @@ private:
     m_state = ObjState::Committed;
   }
 
-  // push/update/del prospectively allocate a UN and RN, which can
-  // be accessed and used within the txn lambda (for indices, etc.)
-  // put commits the allocation with a cmpExch on the next*
-  // if the allocation commit fails, the commit fails (and can be retried)
-  // - this should never happen
-  // - no need for atomics on the next* (other than to share the value
-  //   with other threads?)
-  // - wrap lambda invocation within push/update/del in a try / catch / rethrow with abort
-  // - need
-  // commit?N(?n) to cmpExch(?n, ?n + 1)
-  // committed?N(?n) to return true if ?n < next?N
-
-  bool push_() {
-    if (m_state != ObjState::Undefined) return false;
-    m_state = ObjState::Push;
-    m_rn = m_db->nextRN();
-    m_un = m_db->nextUN();
-    return true;
-  }
-  bool update_() {
-    if (m_state != ObjState::Committed) return false;
-    m_state = ObjState::Update;
-    m_origUN = m_un;
-    m_un = m_db->nextUN();
-    return true;
-  }
-  bool del_() {
-    if (m_state != ObjState::Committed) return false;
-    m_state = ObjState::Delete;
-    m_origUN = m_un;
-    m_un = m_db->nextUN();
-    return true;
-  }
-  bool put_(SN sn) {
-    switch (m_state) {
-      default: return false;
-      case ObjState::Push:
-	if (ZuUnlikely(!m_db->allocRN(m_rn))) { abort_(); return false; }
-	break;
-      case ObjState::Update: break;
-      case ObjState::Delete: break;
-    }
-    if (ZuUnlikely(!m_db->allocUN(m_un))) { abort_(); return false; }
-    m_sn = m_db->env()->allocSN();
-    switch (m_state) {
-      case ObjState::Push:
-	m_state = ObjState::Committed;
-	break;
-      case ObjState::Update:
-	m_state = ObjState::Committed;
-	++m_vn;
-	break;
-      case ObjState::Delete:
-	m_state = ObjState::Deleted;
-	++m_vn;
-	break;
-    }
-    return true;
-  }
-  bool abort_() {
-    switch (m_state) {
-      default: return false;
-      case ObjState::Push:
-	m_state = ObjState::Undefined;
-	m_rn = nullRN();
-	m_un = nullUN();
-	break;
-      case ObjState::Update:
-      case ObjState::Delete:
-	m_state = ObjState::Committed;
-	m_un = m_origUN;
-	break;
-    }
-    return true;
-  }
+  bool push_();
+  bool update_();
+  bool del_();
+  bool put_();
+  bool abort_();
 
   DB		*m_db;
   RN		m_rn = nullRN();
@@ -559,7 +487,7 @@ typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
 // SaveFn(fbb, ptr) - save object into flatbuffer builder, return offset
 typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
 // FieldsFn() - inform fields
-typedef ZtVFieldArray (*FieldsFn)();
+typedef ZtMFieldArray (*FieldsFn)();
 // ImportFn(db, import) - import object from data store
 typedef AnyObject *(*ImportFn)(DB *, const ZtField::Import &);
 // ExportFn(export, ptr) - export object to data store
@@ -607,12 +535,12 @@ struct DBHandler {
       .saveFn = [](Zfb::Builder &fbb, const void *ptr) -> Zfb::Offset<void> {
 	return ZfbField::save<T>(fbb, *static_cast<const T *>(ptr)).Union();
       },
-      .fieldsFn = []() -> ZtVFieldArray {
-	return ZtVFields<T>();
+      .fieldsFn = []() -> ZtMFieldArray {
+	return ZtMFields<T>();
       },
       .importFn = [](DB *db, const ZtField::Import &import_) -> AnyObject * {
-	return new Object<T>{db, [&i](void *ptr) {
-	  ZtField::ctor<T>(ptr, i);
+	return new Object<T>{db, [&import_](void *ptr) {
+	  ZtField::ctor<T>(ptr, import_);
 	}};
       },
       .exportFn = [](ZtField::Export &export_, const void *ptr) {
@@ -663,7 +591,6 @@ using DBCfs =
 // --- main DB class
 
 class ZdbAPI DB : public ZmPolymorph {
-friend File_;
 friend Cxn_;
 friend AnyObject_;
 friend Env;
@@ -689,7 +616,7 @@ public:
   static ZuID IDAxor(const DB &db) { return db.config().id; }
 
   ZuID id() const { return config().id; }
-  ZtVFieldArray fields() const { return m_handler.fieldsFn(); }
+  ZtMFieldArray fields() const { return m_handler.fieldsFn(); }
 
   template <typename ...Args>
   void run(Args &&... args) const {
@@ -707,7 +634,7 @@ private:
 
   template <bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
-    if (ZuUnlikely(rn >= m_nextRN.load_())) {
+    if (ZuUnlikely(rn >= m_nextRN)) {
       l(nullptr);
       return;
     }
@@ -716,24 +643,25 @@ private:
 	l(load_(record_(msg_(buf->template ptr<Hdr>()))));
 	return;
       }
+      using namespace Table_;
       m_table->get(rn, [l = ZuMv(l)](DB *db, RN rn, GetResult result) mutable {
 	if (ZuLikely(result.contains<GetData>())) {
 	  const auto &data = result.v<GetData>();
-	  ZmRef<AnyObject> object = db->m_handler.importFn(this, data.import_);
+	  ZmRef<AnyObject> object = db->m_handler.importFn(db, data.import_);
 	  if (object) object->init(rn, data.un, data.sn, data.vn);
-	  db->invoke([this, l = ZuMv(l), object = ZuMv(object)]() mutable {
+	  db->invoke([l = ZuMv(l), object = ZuMv(object)]() mutable {
 	    l(ZuMv(object));
 	  });
 	  return;
 	}
 	if (ZuUnlikely(result.contains<Event>()))
 	  ZeLogEvent(ZuMv(result).v<Event>());
-	invoke([this, l = ZuMv(l)]() mutable { l(nullptr); });
+	db->invoke([l = ZuMv(l)]() mutable { l(nullptr); });
       });
     };
     if constexpr (Evict) {
       auto evict = [this](ZmRef<AnyObject> object) {
-	m_updCache->del(object-un());
+	m_updCache->del(object->un());
       };
       m_cache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
     } else
@@ -777,7 +705,7 @@ public:
   template <typename L> void push(L l) {
     ZmRef<AnyObject> object = push_();
     if (!object) { l(nullptr); return; }
-    l(object);
+    try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // FIXME - idempotent on RN for push?
@@ -796,7 +724,7 @@ public:
   // update record
   template <typename L> void update(ZmRef<AnyObject> object, L l) {
     if (!update_(object, m_nextUN.load_())) { l(nullptr); return; }
-    l(object);
+    try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
@@ -829,7 +757,7 @@ public:
   // del record
   template <typename L> void del(ZmRef<AnyObject> object, L l) {
     if (!del_(object, m_nextUN.load_())) { l(nullptr); return; }
-    l(object);
+    try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // del record (idempotent) - returns true if del can proceed
@@ -917,7 +845,7 @@ private:
   void recover(const fbs::Record *record);
 
   // RN
-  bool allocRN(rn) {
+  bool allocRN(RN rn) {
     if (ZuUnlikely(rn != m_nextRN)) return false;
     ++m_nextRN;
     return true;
@@ -951,6 +879,7 @@ private:
 
   // object cache
   Cache			m_cache;		// object cache indexed by RN
+  // FIXME - updCache, updBufs - rethink naming
   ZmRef<UpdCache>	m_updCache;		// '' indexed by UN
 
   // pending replications
@@ -959,7 +888,6 @@ private:
 };
 
 inline void AnyObject_::put() { m_db->put(this); }
-inline void AnyObject_::del() { m_db->del(this); }
 inline void AnyObject_::abort() { m_db->abort(this); }
 
 // --- DB container

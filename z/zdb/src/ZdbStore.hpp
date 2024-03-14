@@ -34,114 +34,138 @@
 
 namespace Zdb_ {
 
-using Event = ZeVEvent;	// non-polymorphic ZeEvent
+// opaque to data store, corresponds to a data store table
+class DB;
 
-// back-end data store table
-struct Table {
-  // importer {row, indices[]} -> value_get_*(row_get_column(), ...)
-  // exporter {statement, indices[]} -> statement_bind_*()
-  //
-  // note that 
-  //
-  // struct Exporter : public ZtField::Exporter {
-  //   unsigned		indices[];	// VField index -> statement index
-  //   // probably have prepared statement in here as well
-  // };
-  // struct Export : public ZtField::Export {
-  //   const auto &exporter_() {
-  //     return static_cast<Exporter &>(exporter);
-  //   }
-  //   CassStatement	*statement;
-  // }
-  //
-  // // same for Importer, except with row instead of statement
-  //
-  // 1 importer (get)
-  // 3 exporters (push, update, del)
+// monomorphic ZeEvent
+using Event = ZeMEvent;
 
-  using CloseFn = ZmFn<DB *>;
+// back-end table namespace
+namespace Table_ {
 
+// get data
+struct GetData {
+  UN			un;
+  SN			sn;
+  VN			vn;
+  const ZtField::Import	&import_;
+};
+// get result
+using GetResult = ZuUnion<
+  GetData,		// succeeded
+  void,			// missing
+  Event>;		// error
+// get callback
+using GetFn = ZmFn<DB *, RN, GetResult>;
+
+// recovered data
+struct RecoverData {
+  RN			rn;
+  SN			sn;
+  VN			vn;
+  const ZtField::Import	&import_;
+};
+// recover result
+using RecoverResult = ZuUnion<
+  RecoverData,		// succeeded
+  void,			// missing
+  Event>;		// error
+// recover callback
+using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
+
+// data export callback
+using ExportFn = ZmFn<DB *, RN, const ZtField::Export &>;
+
+// commit result
+using CommitResult = ZuUnion<void, Event>;
+// commit callback
+using CommitFn = ZmFn<DB *, UN, RN, CommitResult>;
+
+// table close callback
+using CloseFn = ZmFn<DB *>;
+
+// back-end table interface
+struct Interface {
   virtual void close(CloseFn) = 0;	// idempotent
-
-  struct GetData {
-    UN				un;
-    SN				sn;
-    VN				vn;
-    const ZtField::Import	&import_;
-  };
-  using GetResult = ZuUnion<
-    GetData,				// succeeded
-    void,				// missing
-    Event>;				// error
-  using GetFn = ZmFn<DB *, RN, GetResult>;
 
   virtual void get(RN, GetFn) = 0;
 
-  struct RecoverData {
-    RN				rn;
-    SN				sn;
-    VN				vn;
-    const ZtField::Import	&import_;
-  };
-  using RecoverResult = ZuUnion<
-    RecoverData,			// succeeded
-    void,				// missing
-    Event>;				// error
-  using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
-
   virtual void recover(UN, RecoverFn) = 0;
-
-  using ExportFn = ZmFn<DB *, RN, const ZtField::Export &>;
-
-  using CommitResult = ZuUnion<void, Event>;
-  using CommitFn = ZmFn<DB *, UN, RN, CommitResult>;
 
   // UN is idempotency key
   virtual void push(RN, UN, SN, ExportFn, CommitFn) = 0;	// idempotent
   virtual void update(RN, UN, SN, VN, ExportFn, CommitFn) = 0;	// idempotent
   virtual void del(RN, UN, SN, VN, CommitFn) = 0;		// idempotent
 };
+} // Table_;
+using Table = Table_::Interface;
 
-// back-end data store
-struct Store {
-  using LogFn = ZmFn<Event>;		// log function
+// back-end data store namespace
+namespace Store_ {
 
-  using Result = ZuUnion<void, Event>;
+// log function
+using LogFn = ZmFn<Event>;
 
-  virtual Result init(			// initialize data store - idempotent
+// result of store init
+using InitResult = ZuUnion<void, Event>;
+
+// opened table data
+// - (*) un and sn may refer to trailing deletions
+// - a data store will need to maintain a "most recent deletes" (MRD)
+//   table, keyed on the DB ID, containing the UN and SN of the last
+//   delete applied to each table; an eventually consistent batch, saga or
+//   transaction is used to combine deletion from the data table with an
+//   upsert to the corresponding row in the MRD table; the MRD table is
+//   consulted on table open to ensure accurate "last UN" and "last SN"
+//   numbers are recovered and returned
+struct OpenData {
+  Table		*table = nullptr;
+  RN		rn = 0;			// last RN in table
+  UN		un = 0;			// last UN applied to table (*)
+  SN		sn = 0;			// last SN applied to table (*)
+};
+// result of table open
+using OpenResult = ZuUnion<
+  void,				// unset
+  OpenData,				// succeeded
+  Event>;				// error
+// table open callback
+using OpenFn = ZmFn<OpenResult>;
+
+// table scan data
+struct ScanData {
+  RN			rn;
+  UN			un;
+  SN			sn;
+  VN			vn;
+  const ZtField::Import	&import_;
+};
+// table scan callback (called from open)
+using ScanFn = ZmFn<ScanData>;
+
+// back-end data store interface
+struct Interface {
+  // init and final are synchronous / blocking
+  virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,
       LogFn) = 0;
-
-  virtual void final(ZmFn<>) = 0;	// finalize data store - idempotent
-
-  struct OpenData {
-    Table	*table = nullptr;
-    RN		rn = 0;
-    UN		un = 0;
-    SN		sn = 0;
-  };
-  using OpenResult = ZuUnion<
-    void,				// unset
-    OpenData,				// succeeded
-    Event>;				// error
-  using OpenFn = ZmFn<OpenResult>;
-
-  using ScanFn =
-    ZmFn<DB *, RN, UN, SN, VN, const ZtField::Import &>; // scanned record
+  virtual void final() = 0;		// finalize data store - idempotent
 
   virtual void open(			// open table - idempotent
       DB *,
       ZuID id,
-      ZtVFieldArray fields,
+      ZtMFieldArray fields,
       OpenFn,
       ScanFn) = 0;
 };
+} // Store_;
+using Store = Store_::Interface;
 
 } // Zdb_
 
 extern "C" {
-  typedef Zdb_::Store *(*ZdbStoreFn)();	// entry point
+  typedef Zdb_::Store *(*ZdbStoreFn)();	// module entry point
 }
-#define ZdbStoreFnSym	"ZdbStore"	// entry point symbol
+#define ZdbStoreFnSym	"ZdbStore"	// module symbol
 
 #endif /* ZdbDataStore_HPP */

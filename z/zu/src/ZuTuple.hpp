@@ -306,16 +306,20 @@ public:
   }
 
   template <typename T>
-  const Type<Index<T>{}> &v() const {
-    return p<Index<T>{}>();
+  const Type<Index<T>{}> &v() const & {
+    return this->template p<Index<T>{}>();
   }
   template <typename T>
-  Type<Index<T>{}> &v() {
-    return p<Index<T>{}>();
+  Type<Index<T>{}> &v() & {
+    return this->template p<Index<T>{}>();
+  }
+  template <typename T>
+  Type<Index<T>{}> &&v() && {
+    return ZuMv(*this).template p<Index<T>{}>();
   }
   template <typename T, typename P>
   Tuple_ &v(P &&p) {
-    return p<Index<T>{}>(ZuFwd<P>(p));
+    return this->template p<Index<T>{}>(ZuFwd<P>(p));
   }
 
   template <typename L>

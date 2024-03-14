@@ -142,6 +142,13 @@ ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
   return db;
 }
 
+void Env::opened(DB *db, RN rn, UN un, SN sn)
+{
+  db->recoveredRN(rn);
+  db->recoveredUN(un);
+  recoveredSN(sn);
+}
+
 void Env::final()
 {
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped, [this]() {
@@ -1539,6 +1546,77 @@ ZmRef<AnyObject> DB::placeholder()
 {
   if (auto fn = m_handler.ctorFn) return fn(this);
   return nullptr;
+}
+
+bool AnyObject_::push_()
+{
+  if (m_state != ObjState::Undefined) return false;
+  m_state = ObjState::Push;
+  m_rn = m_db->nextRN();
+  m_un = m_db->nextUN();
+  return true;
+}
+bool AnyObject_::update_()
+{
+  if (m_state != ObjState::Committed) return false;
+  m_state = ObjState::Update;
+  m_origUN = m_un;
+  m_un = m_db->nextUN();
+  return true;
+}
+bool AnyObject_::del_()
+{
+  if (m_state != ObjState::Committed) return false;
+  m_state = ObjState::Delete;
+  m_origUN = m_un;
+  m_un = m_db->nextUN();
+  return true;
+}
+
+bool AnyObject_::put_()
+{
+  switch (m_state) {
+    default: return false;
+    case ObjState::Push:
+      if (ZuUnlikely(!m_db->allocRN(m_rn))) { abort_(); return false; }
+      break;
+    case ObjState::Update: break;
+    case ObjState::Delete: break;
+  }
+  if (ZuUnlikely(!m_db->allocUN(m_un))) { abort_(); return false; }
+  m_sn = m_db->env()->allocSN();
+  switch (m_state) {
+    case ObjState::Push:
+      m_state = ObjState::Committed;
+      break;
+    case ObjState::Update:
+      m_state = ObjState::Committed;
+      ++m_vn;
+      break;
+    case ObjState::Delete:
+      m_state = ObjState::Deleted;
+      ++m_vn;
+      break;
+  }
+  return true;
+}
+
+bool AnyObject_::abort_()
+{
+  switch (m_state) {
+    default: return false;
+    case ObjState::Push:
+      m_state = ObjState::Undefined;
+      m_rn = nullRN();
+      m_un = nullUN();
+      break;
+    case ObjState::Update:
+    case ObjState::Delete:
+      m_state = ObjState::Committed;
+      m_un = m_origUN;
+      break;
+  }
+  return true;
 }
 
 ZmRef<AnyObject> DB::push_();

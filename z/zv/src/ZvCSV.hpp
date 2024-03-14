@@ -70,8 +70,7 @@ namespace ZvCSV_ {
     row << '"';
   }
   template <typename T, typename Fmt, typename Row>
-  void quote(
-      Row &row, const ZtVField *field, const T *object, const Fmt &fmt) {
+  void quote(Row &row, const ZtMField *field, const T *object, const Fmt &fmt) {
     switch (field->type->code) {
       case ZtFieldTypeCode::String: {
 	quote_(row, field->get.fn<ZtFieldTypeCode::String>(object));
@@ -112,8 +111,8 @@ template <typename T> class ZvCSV {
   ZvCSV &operator =(const ZvCSV &) = delete;
 
 public:
-  using Fields = ZtVFieldArray;
-  using Field = ZtVField;
+  using Fields = ZtMFieldArray;
+  using Field = ZtMField;
 
   using ColNames = ZtArray<ZuString>;
   using ColIndex = ZtArray<int>;
@@ -128,7 +127,7 @@ private:
 
 public:
   ZvCSV() {
-    m_fields = ZtVFields<T>();
+    m_fields = ZtMFields<T>();
     for (int i = 0, n = m_fields.length(); i < n; i++)
       m_columns.add(
 	  m_fields[i]->id, ZuPair<int, const Field *>{i, m_fields[i]});

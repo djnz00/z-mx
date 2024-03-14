@@ -6,7 +6,7 @@ struct DBState {
 }
 table EnvState {
   sn:Zfb.UInt128;
-  dbs:[DBState];
+  db_states:[DBState];
 }
 table Heartbeat {
   host:Zfb.ID;
