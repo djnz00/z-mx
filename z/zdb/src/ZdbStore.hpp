@@ -30,6 +30,13 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
+#include <zlib/ZuNull.hpp>
+#include <zlib/ZuUnion.hpp>
+
+#include <zlib/ZtField.hpp>
+
+#include <zlib/ZePlatform.hpp>
+
 #include <zlib/ZdbTypes.hpp>
 
 namespace Zdb_ {
@@ -37,8 +44,14 @@ namespace Zdb_ {
 // opaque to data store, corresponds to a data store table
 class DB;
 
+// empty type
+using Null = ZuNull;
+
 // monomorphic ZeEvent
 using Event = ZeMEvent;
+
+// ExportFn(ptr, export) - export object to data store
+typedef void (*ExportFn)(const void *, ZtField::Export &);
 
 // back-end table namespace
 namespace Table_ {
@@ -53,7 +66,7 @@ struct GetData {
 // get result
 using GetResult = ZuUnion<
   GetData,		// succeeded
-  void,			// missing
+  Null,			// missing
   Event>;		// error
 // get callback
 using GetFn = ZmFn<DB *, RN, GetResult>;
@@ -68,16 +81,13 @@ struct RecoverData {
 // recover result
 using RecoverResult = ZuUnion<
   RecoverData,		// succeeded
-  void,			// missing
+  Null,			// missing
   Event>;		// error
 // recover callback
 using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
 
-// data export callback
-using ExportFn = ZmFn<DB *, RN, const ZtField::Export &>;
-
 // commit result
-using CommitResult = ZuUnion<void, Event>;
+using CommitResult = ZuUnion<Null, Event>;
 // commit callback
 using CommitFn = ZmFn<DB *, UN, CommitResult>;
 
@@ -98,7 +108,7 @@ struct Interface {
   virtual void update(			// idempotent
       RN, UN, SN, VN, const void *object, ExportFn, CommitFn) = 0;
   virtual void del(			// idempotent
-      RN, UN, SN, VN, const void *object, CommitFn) = 0;
+      RN, UN, SN, VN, CommitFn) = 0;
 };
 } // Table_;
 using Table = Table_::Interface;
@@ -110,7 +120,7 @@ namespace Store_ {
 using LogFn = ZmFn<Event>;
 
 // result of store init
-using InitResult = ZuUnion<void, Event>;
+using InitResult = ZuUnion<Null, Event>;
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
@@ -129,9 +139,9 @@ struct OpenData {
 };
 // result of table open
 using OpenResult = ZuUnion<
-  void,				// unset
-  OpenData,				// succeeded
-  Event>;				// error
+  Null,				// unset
+  OpenData,			// succeeded
+  Event>;			// error
 // table open callback
 using OpenFn = ZmFn<OpenResult>;
 

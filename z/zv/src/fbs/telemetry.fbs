@@ -165,10 +165,8 @@ enum ZdbCacheMode:int8 {
   All
 }
 table Zdb {
-  path:string;
   name:string;
   thread:string;
-  min_r_n:uint64;
   next_r_n:uint64;
   cache_loads:uint64;
   cache_misses:uint64;

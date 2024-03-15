@@ -46,6 +46,8 @@
 // if leader and not replicating, then no host is a replica, so leader runs
 // as standalone until peers have recovered
 
+// FIXME - replace all ZmAssert with ZeAssert
+
 #include <zlib/Zdb.hpp>
 
 #include <zlib/ZtBitWindow.hpp>
@@ -93,7 +95,7 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	    << path << "\": " << e; }));
       }
       m_store = (*storeFn)();
-      auto result = m_store->init(
+      Store_::InitResult result = m_store->init(
 	  config.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
       if (result.contains<Event>()) throw ZuMv(result).v<Event>();
     }
@@ -504,6 +506,7 @@ Env::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
+
   Zfb::Offset<String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
@@ -539,6 +542,7 @@ Host::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
+
   ZvTelemetry::fbs::ZdbHostBuilder fbb{fbb_};
   if (!update) {
     { auto v = Zfb::Save::ip(config().ip); fbb.add_ip(&v); }
@@ -870,7 +874,6 @@ void Env::setNext(Host *host)
     repStart();
   } else {
     m_standalone = true;
-    // all([](DB *db) { return [db]() { db->ack(maxRN()); }; });
   }
 }
 
@@ -965,17 +968,18 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
   using namespace Table_;
 
   m_table->recover(un,
-      [cxn = ZuMv(cxn), endUN](DB *db, UN un, GetResult result) mutable {
+      [cxn = ZuMv(cxn), endUN](DB *db, UN un, RecoverResult result) mutable {
     if (ZuLikely(result.contains<RecoverData>())) {
       const auto &data = result.v<RecoverData>();
       if (ZmRef<AnyObject> object =
-	m_handler.importFn(this, data.import_)) {
+	db->m_handler.importFn(db, data.import_)) {
 	object->init(data.rn, un, data.sn, data.vn);
-	run([this, cxn = ZuMv(cxn), un, endUN, o = ZuMv(o)]() mutable {
+	db->run(
+	    [db, cxn = ZuMv(cxn), un, endUN, object = ZuMv(object)]() mutable {
 	  if (auto buf = object->replicate(fbs::Body_Recovery))
-	    recSend_(ZuMv(cxn), un, endUN, ZuMv(buf));
+	    db->recSend_(ZuMv(cxn), un, endUN, ZuMv(buf));
 	  else
-	    recNext(ZuMv(cxn), un, endUN);
+	    db->recNext(ZuMv(cxn), un, endUN);
 	});
       }
       return;
@@ -983,11 +987,11 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
     if (ZuUnlikely(result.contains<Event>())) {
       ZeLogEvent(ZuMv(result).v<Event>());
       ZeLOG(Error, ([id = db->id(), un](auto &s) {
-	s << "Zdb recovery of " << db->id() << '/' << un << " failed";
+	s << "Zdb recovery of " << id << '/' << un << " failed";
       }));
     }
-    run([this, cxn = ZuMv(cxn), un, endUN]() mutable {
-      recNext(ZuMv(cxn), un, endUN);
+    db->run([db, cxn = ZuMv(cxn), un, endUN]() mutable {
+      db->recNext(ZuMv(cxn), un, endUN);
     });
   });
 }
@@ -999,6 +1003,7 @@ void DB::recSend_(ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<Buf> buf)
 }
 
 void DB::recNext(ZmRef<Cxn> cxn, UN un, UN endUN)
+{
   if (++un < endUN)
     run([this, cxn = ZuMv(cxn), un, endUN]() mutable {
       recSend(ZuMv(cxn), un, endUN);
@@ -1030,13 +1035,13 @@ ZmRef<Buf> DB::repBuf(UN un)
 	memcpy(ptr, repData.data(), repData.length());
     }
     auto msg = fbs::CreateMsg(fbb, fbs::Body_Recovery,
-	fbs::CreateRecord(fbb, record->id(), record->rn(), record->un(),
+	fbs::CreateRecord(fbb, record->db(), record->rn(), record->un(),
 	  record->sn(), record->vn(), data).Union());
     fbb.Finish(msg);
     return saveHdr(fbb, this);
   }
   // recover from object cache (without falling through to reading from disk)
-  if (auto object = m_updCache.findval(un))
+  if (auto object = m_updCache->findVal(un))
     return object->replicate(fbs::Body_Recovery);
   return nullptr;
 }
@@ -1047,32 +1052,32 @@ void DB::repSendCommit(UN un)
   IOBuilder fbb;
   {
     auto id = Zfb::Save::id(config().id);
-    auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
+    auto msg = fbs::CreateMsg(fbb, fbs::Body_Commit,
 	fbs::CreateCommit(fbb, &id, un).Union());
     fbb.Finish(msg);
   }
-  m_env->replicate(saveHdr(fbb, db));
+  m_env->replicate(saveHdr(fbb, this));
 }
 
 // prepare replication data
 ZmRef<Buf> AnyObject_::replicate(int type)
 {
-  ZmAssert(committed());
+  ZmAssert(state() == ObjState::Committed || state() == ObjState::Deleted);
   ZmAssert(m_rn != nullRN());
 
   ZdbDEBUG(m_db->env(),
       ZtString{} << "AnyObject_::replicate(" << type << ')');
   IOBuilder fbb;
   Zfb::Offset<Zfb::Vector<uint8_t>> data;
-  if (op() != Op::Delete && this->ptr_())
+  if (state() != ObjState::Deleted && this->ptr_())
     data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
       return m_db->save(fbb, this);
     });
   {
     auto id = Zfb::Save::id(m_db->config().id);
+    auto sn = Zfb::Save::uint128(m_sn);
     auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
-	fbs::CreateRecord(fbb, &id,
-	  m_un, m_rn, m_prevRN, m_seqLenOp, data).Union());
+	fbs::CreateRecord(fbb, &id, m_rn, m_un, &sn, m_vn, data).Union());
     fbb.Finish(msg);
   }
   return saveHdr(fbb, m_db);
@@ -1215,17 +1220,6 @@ void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
     ++m_nPeers;
     vote(host);
   }
-
-  // trigger DB vacuuming
-  Zfb::Load::all(hb->envState(),
-      [this](unsigned, const fbs::DBState *dbState) {
-    auto id = Zfb::Load::id(&(dbState->db()));
-    RN rn = dbState->rn();
-#if 0
-    if (auto db = m_dbs.findPtr(id))
-      db->invoke([db, rn]() { db->ack(rn); });
-#endif
-  });
 }
 
 // check if new host should be our next in line
@@ -1300,7 +1294,7 @@ void Cxn_::hbSend()
 
   ZdbDEBUG(m_env, ZtString{} << "hbSend()"
       "  self[ID:" << self->id() << " S:" << m_env->state() <<
-      " UN:" << self->un() <<
+      " SN:" << self->envState().sn <<
       " N:" << self->envState().count_() << "] " << self->envState());
 }
 
@@ -1310,9 +1304,9 @@ void Env::envStateRefresh()
   ZmAssert(invoked());
 
   EnvState &envState = m_self->envState();
-  envState.updateUN(m_un);
+  envState.updateSN(m_nextSN);
   all_([&envState](DB *db) {
-    envState.update(db->config().id, db->nextRN());
+    envState.update(db->config().id, db->nextUN());
   });
 }
 
@@ -1328,9 +1322,10 @@ void Cxn_::repRecordRcvd(ZmRef<Buf> buf)
   if (ZuUnlikely(!db)) return;
   buf->owner = db;
   ZdbDEBUG(m_env, ZtString{} <<
-      "replicated(host=" << m_host->id() << ", " <<
+      "repRecordRcvd(host=" << m_host->id() << ", " <<
       Record_Print{record} << ')');
-  m_env->replicated(m_host, id, record->un(), record->sn());
+  m_env->replicated(
+      m_host, id, record->un(), Zfb::Load::uint128(record->sn()));
   db->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     db->repRecordRcvd(ZuMv(buf));
@@ -1347,13 +1342,10 @@ void Cxn_::repCommitRcvd(ZmRef<Buf> buf)
   auto id = Zfb::Load::id(commit->db());
   DB *db = m_env->db(id);
   if (ZuUnlikely(!db)) return;
-  buf->owner = db;
+  // buf->owner = db;
   ZdbDEBUG(m_env, ZtString{} <<
-      "repCommit(host=" << m_host->id() << ", " << commit->un() << ')');
-  db->invoke([buf = ZuMv(buf)]() mutable {
-    auto db = buf->db();
-    db->repCommitted(commit->un());
-  });
+      "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
+  db->invoke([db, un = commit->un()]() mutable { db->repCommitted(un); });
 }
 
 void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
@@ -1373,7 +1365,6 @@ void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
 
 DB::DB(Env *env, DBCf *cf) :
   m_env{env}, m_mx{env->mx()}, m_cf{cf},
-  m_path{ZiFile::append(env->config().path, cf->id)},
   m_updCache{new UpdCache{}},
   m_repBufs{new RepBufs{}},
   m_updBufs{new UpdBufs{}}
@@ -1401,20 +1392,18 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
+
   Zfb::Offset<String> path, name, thread;
   if (!update) {
-    path = str(fbb_, m_path);
     name = str(fbb_, config().id);
     thread = str(fbb_, config().thread);
   }
   ZvTelemetry::fbs::ZdbBuilder fbb{fbb_};
   if (!update) {
-    fbb.add_path(path);
     fbb.add_name(name);
     fbb.add_thread(thread);
   }
-  fbb.add_minRN(m_minRN.load_());
-  fbb.add_nextRN(m_nextRN.load_());
+  fbb.add_nextRN(m_nextRN);
   {
     Cache::Stats stats;
     m_cache.stats(stats);
@@ -1439,7 +1428,9 @@ ZmRef<AnyObject> DB::load_(const fbs::Record *record)
   if (auto fn = m_handler.loadFn)
     object = fn(this, data.data(), data.length());
   if (object)
-    object->init(record->rn(), record->un(), record->sn(), record->vn());
+    object->init(
+	record->rn(), record->un(),
+	Zfb::Load::uint128(record->sn()), record->vn());
   return object;
 }
 
@@ -1460,7 +1451,9 @@ ZmRef<AnyObject> DB::load(const fbs::Record *record)
       object = fn(this, data.data(), data.length());
   }
   if (object)
-    object->init(record->rn(), record->un(), record->sn(), record->vn());
+    object->init(
+	record->rn(), record->un(),
+	Zfb::Load::uint128(record->sn()), record->vn());
   return object;
 }
 
@@ -1496,14 +1489,14 @@ void DB::repCommitted(UN un)
 {
   ZmAssert(invoked());
 
-  if (auto buf = m_updBufs->del(un)) m_repBufs->delNode(buf.ptr());
+  if (auto buf = m_updBufs->delVal(un)) m_repBufs->delNode(buf.ptr());
   repSendCommit(un);
 }
 
 // process data store commit
-void DB::committed(UN un, const CommitResult &result)
+void DB::committed(UN un, Table_::CommitResult &result)
 {
-  if (auto buf = m_updBufs->del(un)) m_repBufs->delNode(buf.ptr());
+  if (auto buf = m_updBufs->delVal(un)) m_repBufs->delNode(buf.ptr());
   if (ZuUnlikely(result.contains<Event>())) {
     // FIXME - retry on failure? (would need to elide repBuf deletion)
     ZeLogEvent(ZuMv(result).v<Event>());
@@ -1517,20 +1510,23 @@ void DB::write_(ZmRef<Buf> buf) {
   auto record = record_(msg_(buf->hdr()));
   auto object = load_(record);
   const void *ptr = object ? object->ptr_() : nullptr;
+
+  using namespace Table_;
+
   auto commitFn = CommitFn{ZuMv(object),
       [](AnyObject *, DB *db, UN un, CommitResult result) {
-	db->invoke([db, un, result = ZuMv(result)]() {
+	db->invoke([db, un, result = ZuMv(result)]() mutable {
 	  db->committed(un, result);
 	});
       }};
+  auto sn = Zfb::Load::uint128(record->sn());
   if (!ptr)
-    m_table->del(record->rn(), record->un(), record->sn(), record->vn(),
-	ZuMv(commitFn));
+    m_table->del(record->rn(), record->un(), sn, record->vn(), ZuMv(commitFn));
   else if (record->vn())
-    m_table->update(record->rn(), record->un(), record->sn(), record->vn(),
+    m_table->update(record->rn(), record->un(), sn, record->vn(),
 	ptr, m_handler.exportFn, ZuMv(commitFn));
   else
-    m_table->push(record->rn(), record->un(), record->sn(),
+    m_table->push(record->rn(), record->un(), sn,
 	ptr, m_handler.exportFn, ZuMv(commitFn));
 }
 
@@ -1545,8 +1541,11 @@ void DB::write(ZmRef<Buf> buf)
   m_env->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     auto env = db->env();
-    env->replicate(buf);
-    if (m_env->active()) write_(ZuMv(buf));
+    if (env->active()) {
+      env->replicate(buf);
+      db->write_(ZuMv(buf));
+    } else
+      env->replicate(ZuMv(buf));
   });
 }
 
@@ -1559,24 +1558,26 @@ bool DB::open(Store *store)
 
   if (m_open) return true;
 
-  Store::OpenResult result;
-  ZmBlock<>{}([this, &result](auto wake) {
-    Store::ScanFn scanFn;
+  using namespace Store_;
+
+  OpenResult result;
+  ZmBlock<>{}([this, store, &result](auto wake) {
+    Store_::ScanFn scanFn;
     if (m_handler.scanFn)
       scanFn = [](
 	  DB *db, RN rn, UN un, SN sn, VN vn, const ZtField::Import &import_) {
-	auto object = db->m_handler.importFn(this, import_);
+	auto object = db->m_handler.importFn(db, import_);
 	object->init(rn, un, sn, vn);
 	db->m_handler.scanFn(object);
       };
     store->open(this, id(), fields(),
-	[&result, wake = ZuMv(wake)](Store::OpenResult result_) {
+	[&result, wake = ZuMv(wake)](OpenResult result_) {
       result = ZuMv(result_);
       wake();
     }, scanFn);
   });
-  if (!result.contains<Store::OpenData>()) return false;
-  const auto &data = result.v<Store::OpenData>();
+  if (!result.contains<OpenData>()) return false;
+  const auto &data = result.v<OpenData>();
   m_table = data.table;
   m_env->opened(this, data.rn, data.un, data.sn);
 
@@ -1609,28 +1610,28 @@ ZmRef<AnyObject> DB::placeholder()
   return nullptr;
 }
 
-bool AnyObject_::push_()
+bool AnyObject_::push_(RN rn, UN un)
 {
   if (m_state != ObjState::Undefined) return false;
   m_state = ObjState::Push;
-  m_rn = m_db->nextRN();
-  m_un = m_db->nextUN();
+  m_rn = rn;
+  m_un = un;
   return true;
 }
-bool AnyObject_::update_()
+bool AnyObject_::update_(UN un)
 {
   if (m_state != ObjState::Committed) return false;
   m_state = ObjState::Update;
   m_origUN = m_un;
-  m_un = m_db->nextUN();
+  m_un = un;
   return true;
 }
-bool AnyObject_::del_()
+bool AnyObject_::del_(UN un)
 {
   if (m_state != ObjState::Committed) return false;
   m_state = ObjState::Delete;
   m_origUN = m_un;
-  m_un = m_db->nextUN();
+  m_un = un;
   return true;
 }
 
@@ -1680,26 +1681,24 @@ bool AnyObject_::abort_()
   return true;
 }
 
-ZmRef<AnyObject> DB::push_();
+ZmRef<AnyObject> DB::push_(RN rn, UN un)
 {
   auto fn = m_handler.ctorFn;
   if (ZuUnlikely(!fn)) return nullptr;
   ZmRef<AnyObject> object = fn(this);
   if (!object) return nullptr;
-  if (!object->push_()) return nullptr;
+  if (!object->push_(rn, un)) return nullptr;
   return object;
 }
 
 bool DB::update_(AnyObject *object, UN un)
 {
-  if (!object->update_(un)) return false;
-  return true;
+  return object->update_(un);
 }
 
 bool DB::del_(AnyObject *object, UN un)
 {
-  if (!object->del_(un)) return false;
-  return true;
+  return object->del_(un);
 }
 
 // commits push/update/del
@@ -1723,13 +1722,13 @@ bool DB::put(ZmRef<AnyObject> object)
       m_updCache->del(origUN);
       break;
   }
+  return true;
 }
 
 // aborts push() or update()
-void DB::abort(ZmRef<AnyObject> object)
+bool DB::abort(ZmRef<AnyObject> object)
 {
-  if (!object->abort_()) return;
-  // FIXME?
+  return object->abort_();
 }
 
 } // namespace Zdb_

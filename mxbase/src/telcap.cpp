@@ -35,7 +35,7 @@ public:
     open_(m_dbhost, "dbhost");
     write_(m_dbhost, "time,id,priority,state,voted,ip,port\n");
     open_(m_db, "db");
-    write_(m_db, "time,name,id,recSize,cacheMode,cacheSize,minRN,nextRN,cacheLoads,cacheMisses\n");
+    write_(m_db, "time,name,id,recSize,cacheMode,cacheSize,nextRN,cacheLoads,cacheMisses\n");
   }
 
 private:
@@ -221,7 +221,6 @@ private:
 	  << ',' << data.recSize
 	  << ',' << ZdbCacheMode::name(data.cacheMode)
 	  << ',' << data.cacheSize
-	  << ',' << data.minRN
 	  << ',' << data.nextRN
 	  << ',' << data.cacheLoads
 	  << ',' << data.cacheMisses << '\n');

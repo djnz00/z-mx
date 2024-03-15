@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// null type
+// null type - somewhat equivalent to std::monostate
 
 #ifndef ZuNull_HPP
 #define ZuNull_HPP
@@ -32,7 +32,7 @@
 
 #include <zlib/ZuTraits.hpp>
 
-class ZuNull {
+struct ZuNull {
   struct Traits : public ZuBaseTraits<ZuNull> {
     enum { IsEmpty = 1 };
     enum { IsPOD = 1 };

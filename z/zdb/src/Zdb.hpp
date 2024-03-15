@@ -181,6 +181,7 @@ struct EnvState : public EnvState_ {
       sn{Zfb::Load::uint128(envState->sn())} {
     using namespace Zdb_;
     using namespace Zfb::Load;
+
     all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
       add(id(&(dbState->db())), dbState->un());
     });
@@ -188,6 +189,7 @@ struct EnvState : public EnvState_ {
   void load(const fbs::EnvState *envState) {
     using namespace Zdb_;
     using namespace Zfb::Load;
+
     sn = uint128(envState->sn());
     all(envState->dbStates(), [this](unsigned, const fbs::DBState *dbState) {
       update(id(&(dbState->db())), dbState->un());
@@ -196,6 +198,7 @@ struct EnvState : public EnvState_ {
   Zfb::Offset<fbs::EnvState> save(Zfb::Builder &fbb) const {
     using namespace Zdb_;
     using namespace Zfb::Save;
+
     auto sn_ = uint128(sn);
     auto i = readIterator();
     return fbs::CreateEnvState(fbb, &sn_, structVecIter<fbs::DBState>(
@@ -406,9 +409,9 @@ private:
     m_state = ObjState::Committed;
   }
 
-  bool push_();
-  bool update_();
-  bool del_();
+  bool push_(RN rn, UN un);
+  bool update_(UN un);
+  bool del_(UN un);
   bool put_();
   bool abort_();
 
@@ -490,8 +493,8 @@ typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
 typedef ZtMFieldArray (*FieldsFn)();
 // ImportFn(db, import) - import object from data store
 typedef AnyObject *(*ImportFn)(DB *, const ZtField::Import &);
-// ExportFn(export, ptr) - export object to data store
-typedef void (*ExportFn)(ZtField::Export &, const void *);
+// Note: ExportFn forms part of the Table interface and is in ZdbStore.hpp
+// ExportFn(ptr, export) - export object to data store
 // ScanFn(object) - object scanned
 typedef void (*ScanFn)(AnyObject *);
 // DeleteFn(RN) - object deleted
@@ -543,7 +546,7 @@ struct DBHandler {
 	  ZtField::ctor<T>(ptr, import_);
 	}};
       },
-      .exportFn = [](ZtField::Export &export_, const void *ptr) {
+      .exportFn = [](const void *ptr, ZtField::Export &export_) {
 	ZtField::save<T>(*static_cast<const T *>(ptr), export_);
       },
       .scanFn = ZuMv(scanFn_),
@@ -641,7 +644,9 @@ private:
 	l(load_(record_(msg_(buf->template ptr<Hdr>()))));
 	return;
       }
+
       using namespace Table_;
+
       m_table->get(rn, [l = ZuMv(l)](DB *db, RN rn, GetResult result) mutable {
 	if (ZuLikely(result.contains<GetData>())) {
 	  const auto &data = result.v<GetData>();
@@ -697,11 +702,11 @@ public:
   // abort() aborts it
 
 private:
-  ZmRef<AnyObject> push_();
+  ZmRef<AnyObject> push_(RN rn, UN un);
 public:
   // create new record
   template <typename L> void push(L l) {
-    ZmRef<AnyObject> object = push_();
+    ZmRef<AnyObject> object = push_(m_nextRN, m_nextUN);
     if (!object) { l(nullptr); return; }
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
@@ -775,9 +780,9 @@ public:
 
 private:
   // commit push/update/delete - causes replication / write
-  void put(ZmRef<AnyObject>);
+  bool put(ZmRef<AnyObject>);
   // abort push/update/delete
-  void abort(ZmRef<AnyObject>);
+  bool abort(ZmRef<AnyObject>);
 
 private:
   Zfb::Offset<ZvTelemetry::fbs::Zdb>
@@ -794,7 +799,7 @@ private:
   void write(ZmRef<Buf> buf);
   // low-level internal write to data store - l(DB *, RN, UN, bool ok)
   void write_(ZmRef<Buf> buf);
-  void write__(AnyObject *object, CommitFn commitFn);
+  void write__(AnyObject *object, Table_::CommitFn commitFn);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -802,6 +807,7 @@ private:
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
   void recNext(ZmRef<Cxn> cxn, RN rn, RN endRN);
   ZmRef<Buf> repBuf(UN un);
+  void committed(UN un, Table_::CommitResult &);
   void repSendCommit(UN un);
 
   // inbound replication
@@ -836,7 +842,6 @@ private:
   ZiMultiplex		*m_mx;
   const DBCf		*m_cf;
   DBHandler		m_handler;
-  ZtString		m_path;
 
   // DB thread exclusive - no need for atomics
   RN			m_nextRN = 0;		 // RN allocator

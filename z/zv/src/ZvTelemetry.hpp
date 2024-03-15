@@ -388,13 +388,10 @@ ZfbFields(Engine, fbs::Engine,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   thread
 struct Zdb {
-  using Path = ZuStringN<124>;
   using Name = ZuStringN<28>;
 
-  Path		path;
   Name		name;				// primary key
   ZmThreadName	thread;
-  uint64_t	minRN = 0;			// dynamic
   uint64_t	nextRN = 0;			// dynamic
   uint64_t	cacheLoads = 0;			// dynamic (*)
   uint64_t	cacheMisses = 0;		// dynamic (*)
@@ -416,10 +413,8 @@ struct Zdb {
 ZfbFields(Zdb, fbs::Zdb,
     (((name), (0)), (String), (Ctor<3>)),
     (((cacheMode)), (Enum, ZdbCacheMode::Map), (Ctor<15>)),
-    (((path)), (String), (Ctor<2>)),
     (((cacheSize)), (Int), (Ctor<12>)),
     (((warmup)), (Int), (Ctor<16>)),
-    (((minRN)), (Int), (Ctor<4>, Update)),
     (((nextRN)), (Int), (Ctor<5>, Update, Series, Delta)),
     (((cacheLoads)), (Int), (Ctor<6>, Update, Series, Delta)),
     (((cacheMisses)), (Int), (Ctor<7>, Update, Series, Delta)),

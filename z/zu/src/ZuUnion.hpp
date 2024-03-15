@@ -18,6 +18,7 @@
  */
 
 // generic discriminated union
+// - do not use with void (which cannot be a value), use ZuNull instead
 //
 // using U = ZuUnion<int, double>;
 // U u, v;
@@ -123,7 +124,7 @@ public:
   }
   static void dtor(void *p) { }
   static bool star(const void *p) {
-    return (bool)(*static_cast<const T *>(p));
+    return static_cast<bool>(*static_cast<const T *>(p));
   }
   static bool bang(const void *p) {
     return !(*static_cast<const T *>(p));
@@ -470,19 +471,28 @@ public:
   }
 
   template <typename L>
-  auto dispatch(L l) {
+  auto dispatch(L l) & {
     return ZuSwitch::dispatch<N>(
 	type(), [this, &l](auto i) mutable {
 	  return l(this->template p<i>());
 	});
   }
   template <typename L>
-  auto cdispatch(L l) const {
+  auto dispatch(L l) const & {
     return ZuSwitch::dispatch<N>(
 	type(), [this, &l](auto i) mutable {
 	  return l(this->template p<i>());
 	});
   }
+  template <typename L>
+  auto dispatch(L l) && {
+    return ZuSwitch::dispatch<N>(
+	type(), [this, &l](auto i) mutable {
+	  return l(ZuMv(*this).template p<i>());
+	});
+  }
+  template <typename L>
+  auto cdispatch(L l) const & { return dispatch(ZuMv(l)); }
 
   // traits
   using Traits = ZuUnion_Traits<ZuBaseTraits<Union>, Args...>;
