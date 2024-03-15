@@ -21,10 +21,15 @@ table Record {
   vn:uint32;		// record version number
   data:[uint8];		// nested table data - null if record is deleted
 }
+table Commit {
+  db:Zfb.ID;
+  un:uint64;
+}
 union Body {
-  HB:Heartbeat,
-  Rep:Record,
-  Rec:Record
+  Heatbeat:Heartbeat,
+  Replication:Record,
+  Recovery:Record,
+  Commit:Commit
 }
 table Msg {
   body:Body;

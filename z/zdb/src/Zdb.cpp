@@ -972,7 +972,7 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
 	m_handler.importFn(this, data.import_)) {
 	object->init(data.rn, un, data.sn, data.vn);
 	run([this, cxn = ZuMv(cxn), un, endUN, o = ZuMv(o)]() mutable {
-	  if (auto buf = object->replicate(fbs::Body_Rec))
+	  if (auto buf = object->replicate(fbs::Body_Recovery))
 	    recSend_(ZuMv(cxn), un, endUN, ZuMv(buf));
 	  else
 	    recNext(ZuMv(cxn), un, endUN);
@@ -1029,7 +1029,7 @@ ZmRef<Buf> DB::repBuf(UN un)
       if (!data.IsNull() && ptr)
 	memcpy(ptr, repData.data(), repData.length());
     }
-    auto msg = fbs::CreateMsg(fbb, fbs::Body_Rec,
+    auto msg = fbs::CreateMsg(fbb, fbs::Body_Recovery,
 	fbs::CreateRecord(fbb, record->id(), record->rn(), record->un(),
 	  record->sn(), record->vn(), data).Union());
     fbb.Finish(msg);
@@ -1037,8 +1037,21 @@ ZmRef<Buf> DB::repBuf(UN un)
   }
   // recover from object cache (without falling through to reading from disk)
   if (auto object = m_updCache.findval(un))
-    return object->replicate(fbs::Body_Rec);
+    return object->replicate(fbs::Body_Recovery);
   return nullptr;
+}
+
+// send commit to replica
+void DB::repSendCommit(UN un)
+{
+  IOBuilder fbb;
+  {
+    auto id = Zfb::Save::id(config().id);
+    auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
+	fbs::CreateCommit(fbb, &id, un).Union());
+    fbb.Finish(msg);
+  }
+  m_env->replicate(saveHdr(fbb, db));
 }
 
 // prepare replication data
@@ -1100,9 +1113,10 @@ int Cxn_::msgRead2(ZmRef<Buf> buf)
     auto length = static_cast<uint32_t>(hdr->length);
 
     switch (static_cast<int>(msg->body_type())) {
-      case fbs::Body_HB:
-      case fbs::Body_Rep:
-      case fbs::Body_Rec:
+      case fbs::Body_Heartbeat:
+      case fbs::Body_Replication:
+      case fbs::Body_Recovery:
+      case fbs::Body_Commit:
 	if (ZuLikely(buf->length))
 	  m_env->run([cxn = ZmMkRef(this), buf = ZuMv(buf)]() mutable {
 	    cxn->msgRead3(ZuMv(buf));
@@ -1126,12 +1140,15 @@ void Cxn_::msgRead3(ZmRef<Buf> buf)
   auto msg = Zdb_::msg(buf->hdr());
   if (!msg) return;
   switch (static_cast<int>(msg->body_type())) {
-    case fbs::Body_HB:
+    case fbs::Body_Heartbeat:
       hbRcvd(hb_(msg));
       break;
-    case fbs::Body_Rep:
-    case fbs::Body_Rec:
-      repRecRcvd(ZuMv(buf));
+    case fbs::Body_Replication:
+    case fbs::Body_Recovery:
+      repRecordRcvd(ZuMv(buf));
+      break;
+    case fbs::Body_Commit:
+      repCommitRcvd(ZuMv(buf));
       break;
   }
 }
@@ -1273,7 +1290,7 @@ void Cxn_::hbSend()
   {
     const auto &envState = self->envState();
     auto id = Zfb::Save::id(self->id());
-    auto msg = fbs::CreateMsg(fbb, fbs::Body_HB, 
+    auto msg = fbs::CreateMsg(fbb, fbs::Body_Heartbeat, 
 	fbs::CreateHeartbeat(fbb, &id,
 	  m_env->state(), envState.save(fbb)).Union());
     fbb.Finish(msg);
@@ -1300,7 +1317,7 @@ void Env::envStateRefresh()
 }
 
 // process received replicated record
-void Cxn_::repRecRcvd(ZmRef<Buf> buf)
+void Cxn_::repRecordRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(m_env->invoked());
 
@@ -1316,7 +1333,26 @@ void Cxn_::repRecRcvd(ZmRef<Buf> buf)
   m_env->replicated(m_host, id, record->un(), record->sn());
   db->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
-    db->repRecRcvd(ZuMv(buf));
+    db->repRecordRcvd(ZuMv(buf));
+  });
+}
+
+// process received replication commit
+void Cxn_::repCommitRcvd(ZmRef<Buf> buf)
+{
+  ZmAssert(m_env->invoked());
+
+  if (!m_host) return;
+  auto commit = commit_(msg_(buf->hdr()));
+  auto id = Zfb::Load::id(commit->db());
+  DB *db = m_env->db(id);
+  if (ZuUnlikely(!db)) return;
+  buf->owner = db;
+  ZdbDEBUG(m_env, ZtString{} <<
+      "repCommit(host=" << m_host->id() << ", " << commit->un() << ')');
+  db->invoke([buf = ZuMv(buf)]() mutable {
+    auto db = buf->db();
+    db->repCommitted(commit->un());
   });
 }
 
@@ -1447,7 +1483,7 @@ void DB::recover(const fbs::Record *record)
 }
 
 // process inbound replication - record
-void DB::repRecRcvd(ZmRef<Buf> buf)
+void DB::repRecordRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
@@ -1455,42 +1491,47 @@ void DB::repRecRcvd(ZmRef<Buf> buf)
   write(ZuMv(buf));
 }
 
-// low-level internal write to data store - l(DB *, RN, UN, bool ok)
-template <typename L>
-void DB::write_(ZmRef<Buf> buf, L l) {
-  // FIXME - if running as a secondary, elide this (it will conflict with
-  // the primary) 
-  //
-  // BUT we will need to modify replication:
-  // 1] primary sends a followup once the update is committed to the
-  //    data store
-  // 2] secondaries remove the update from the repBufs only when the
-  //    primary confirms the commit
-  // 3] when secondaries activate, they begin write_() on all pending repBufs
-  //
+// process inbound replication - committed
+void DB::repCommitted(UN un)
+{
+  ZmAssert(invoked());
+
+  if (auto buf = m_updBufs->del(un)) m_repBufs->delNode(buf.ptr());
+  repSendCommit(un);
+}
+
+// process data store commit
+void DB::committed(UN un, const CommitResult &result)
+{
+  if (auto buf = m_updBufs->del(un)) m_repBufs->delNode(buf.ptr());
+  if (ZuUnlikely(result.contains<Event>())) {
+    // FIXME - retry on failure? (would need to elide repBuf deletion)
+    ZeLogEvent(ZuMv(result).v<Event>());
+    return;
+  }
+  repSendCommit(un);
+}
+
+// low-level internal write to data store
+void DB::write_(ZmRef<Buf> buf) {
   auto record = record_(msg_(buf->hdr()));
   auto object = load_(record);
-  auto commitFn = [buf = ZuMv(buf), l = ZuMv(l)](
-      DB *db, RN rn, UN un, CommitResult result) {
-    auto ptr = buf.ptr();
-    m_updBufs->del(VBuf_UNAxor(buf)); // FIXME - this and the next line are run on inbound replication of commit confirm from the primary by the secondaries
-    m_repBufs->delNode(ptr);
-    bool ok = true;
-    if (ZuUnlikely(result.contains<Event>())) {
-      ZeLogEvent(ZuMv(result).v<Event>());
-      ok = false;
-    }
-    invoke([l = ZuMv(l), db, rn, un, ok]() { l(db, rn, un, ok); });
-  };
-  if (!object)
+  const void *ptr = object ? object->ptr_() : nullptr;
+  auto commitFn = CommitFn{ZuMv(object),
+      [](AnyObject *, DB *db, UN un, CommitResult result) {
+	db->invoke([db, un, result = ZuMv(result)]() {
+	  db->committed(un, result);
+	});
+      }};
+  if (!ptr)
     m_table->del(record->rn(), record->un(), record->sn(), record->vn(),
-	commitFn);
-  else if (object->vn())
-    m_table->update(object->rn(), object->un(), object->sn(), object->vn(),
-	m_handler.exportFn, commitFn);
+	ZuMv(commitFn));
+  else if (record->vn())
+    m_table->update(record->rn(), record->un(), record->sn(), record->vn(),
+	ptr, m_handler.exportFn, ZuMv(commitFn));
   else
-    m_table->push(object->rn(), object->un(), object->sn(),
-	m_handler.exportFn, commitFn);
+    m_table->push(record->rn(), record->un(), record->sn(),
+	ptr, m_handler.exportFn, ZuMv(commitFn));
 }
 
 // outbound replication + persistency
@@ -1501,40 +1542,15 @@ void DB::write(ZmRef<Buf> buf)
 
   m_repBufs->addNode(buf);
   m_updBufs->add(buf);
-  if (config().repMode) { // replicate then store (faster)
-    m_env->invoke([buf = ZuMv(buf)]() mutable {
-      auto db = buf->db();
-      auto env = db->env();
-      if (env->replicate(buf))
-	// replicated - peer will ack
-	write_(ZuMv(buf), [](DB *, RN, UN, bool){});
-      else
-	// standalone - ack on successful data store
-	write_(ZuMv(buf), [](DB *db, RN, UN un, bool) { /* db->ack(un + 1) */ });
-    });
-  } else { // store then replicate (slower but potentially more durable)
-    write_(buf, [](DB *db, RN rn, UN un, bool ok) {
-      if (ok)
-	env->invoke([buf = ZuMv(buf)]() mutable {
-	  auto db = buf->db();
-	  auto env = db->env();
-	  if (!env->replicate(ZuMv(buf))) { // standalone - ack write
-	    auto un = record_(msg_(buf->hdr()))->un();
-	    // db->invoke([db, un]() { db->ack(un + 1); });
-	  }
-	});
-      else
-	env->invoke([buf = ZuMv(buf)]() mutable {
-	  auto db = buf->db();
-	  auto env = db->env();
-	  env->replicate(ZuMv(buf)); // return value ignored
-	});
-    });
-  }
+  m_env->invoke([buf = ZuMv(buf)]() mutable {
+    auto db = buf->db();
+    auto env = db->env();
+    env->replicate(buf);
+    if (m_env->active()) write_(ZuMv(buf));
+  });
 }
 
-// Env::open()
-// - iterates over DBs, calling open(store)
+// Env::open() iterates over DBs, calling open(store)
 // - each DB calls env->opened(this, rn, un) on success
 
 bool DB::open(Store *store)
@@ -1692,7 +1708,7 @@ bool DB::put(ZmRef<AnyObject> object)
   UN origUN = object->origUN();
   int origState = object->state();
   if (!object->put_()) return false;
-  write(object->replicate(fbs::Body_Rep));
+  write(object->replicate(fbs::Body_Replication));
   switch (origState) {
     case ObjState::Push:
       m_cache.add(object);
@@ -1715,15 +1731,5 @@ void DB::abort(ZmRef<AnyObject> object)
   if (!object->abort_()) return;
   // FIXME?
 }
-
-#if 0
-// ack UN
-void DB::ack(UN un)
-{
-  ZmAssert(invoked());
-
-  if (ZuUnlikely(un > m_nextUN)) un = m_nextUN;
-}
-#endif
 
 } // namespace Zdb_

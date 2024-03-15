@@ -2246,20 +2246,20 @@ struct Importer {
 };
 struct Import {
   const Importer	&importer;
+  const void		*ptr;
 
   template <unsigned I, int Code, typename T>
   decltype(auto) get() const {
-    auto p = static_cast<const void *>(this);
     if constexpr (Code == ZtFieldTypeCode::UDT)
       return
 	static_cast<const T &>(*static_cast<const T *>(
-	      importer.get[I].fn<Code>(p)));
+	      importer.get[I].fn<Code>(ptr)));
     else if constexpr (Code == ZtFieldTypeCode::Int ||
 		       Code == ZtFieldTypeCode::UInt ||
 		       Code == ZtFieldTypeCode::Float)
-      return static_cast<T>(importer.get[I].fn<Code>(p));
+      return static_cast<T>(importer.get[I].fn<Code>(ptr));
     else
-      return importer.get[I].fn<Code>(p);
+      return importer.get[I].fn<Code>(ptr);
   }
 };
 
@@ -2269,11 +2269,11 @@ struct Exporter {
 };
 struct Export {
   const Exporter	&exporter;
+  void			*ptr;
 
   template <unsigned I, int Code, typename U>
   void set(U &&v) {
-    auto p = static_cast<void *>(this);
-    return exporter.set[I].fn<Code>(p, ZuFwd<U>(v));
+    return exporter.set[I].fn<Code>(ptr, ZuFwd<U>(v));
   }
 };
 

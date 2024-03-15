@@ -151,8 +151,8 @@ private:
   void hbTimeout();
   void hbSend();
 
-  void repRecRcvd(ZmRef<Buf>);
-  void repGapRcvd(ZmRef<Buf>);
+  void repRecordRcvd(ZmRef<Buf>);
+  void repCommitRcvd(ZmRef<Buf>);
 
   Env			*m_env;
   Host			*m_host;	// nullptr if not yet associated
@@ -564,7 +564,6 @@ struct DBCf {
   mutable unsigned	sid = 0;	// in-memory thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
   bool			warmup = false;	// warm-up back-end
-  uint8_t		repMode = 0;	// 0 - deferred, 1 - in put()
 
   DBCf() = default;
   DBCf(ZuString id_) : id{id_} { }
@@ -573,7 +572,6 @@ struct DBCf {
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
     warmup = cf->getBool("warmup");
-    repMode = cf->getBool("repMode");
   }
 
   static ZuID IDAxor(const DBCf &cf) { return cf.id; }
@@ -795,8 +793,8 @@ private:
   // outbound replication / write to data store
   void write(ZmRef<Buf> buf);
   // low-level internal write to data store - l(DB *, RN, UN, bool ok)
-  template <typename L>
-  void write_(ZmRef<Buf> buf, L l);
+  void write_(ZmRef<Buf> buf);
+  void write__(AnyObject *object, CommitFn commitFn);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -804,9 +802,11 @@ private:
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
   void recNext(ZmRef<Cxn> cxn, RN rn, RN endRN);
   ZmRef<Buf> repBuf(UN un);
+  void repSendCommit(UN un);
 
   // inbound replication
-  void repRecRcvd(ZmRef<Buf> buf);
+  void repRecordRcvd(ZmRef<Buf> buf);
+  void repCommitted(UN un);
 
   // recovery - DB thread
   void recover(const fbs::Record *record);
@@ -1060,26 +1060,6 @@ struct EnvCf {
 
 // --- main DB environment class
 
-// FIXME - FE<>BE API
-//
-// init -> <- initialized
-// open -> <- opened (success/failure - success includes next UN, next RN)
-//   // Note: next UN is used by Env, not DB
-//   // Note: we assume that no replication commences until all DBs are opened,
-//   // Note: open() is triggered by DB binding, 
-//   //   ensuring accurate recovery of last UN
-//   // Note: app may want a full table scan to populate in-memory indices
-//   //   or the cache (if caching mode is fully-cached) - BE will need to
-//   //   select *, using batching/paging, and populate app with recovered
-//   //   callbacks
-//   // Note: recovered callback is also used by inactive hosts to maintain
-//   //   app in-memory indices
-//   <- recovered
-// get (checks repBufs before requesting) -> <- gotten
-// push/update/del committed (DB::write) -> <- written (DB::write_ removes from repBufs)
-// close -> <- closed
-// final -> <- finalized
-
 class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
   Env(const Env &);
   Env &operator =(const Env &);		// prevent mis-use
@@ -1303,7 +1283,6 @@ private:
   Host			*m_leader = nullptr;	// == m_self if Active
   Host			*m_prev = nullptr;	// previous-ranked host
   Host			*m_next = nullptr;	// next-ranked host
-  ZmRef<Cxn>		m_nextCxn;		// replica peer's cxn
   unsigned		m_recovering = 0;	// recovering next-ranked host
   EnvState		m_recover{4};		// recovery state
   EnvState		m_recoverEnd{4};	// recovery end

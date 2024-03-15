@@ -151,5 +151,5 @@ int main()
       return &n;
     }}}
   } };
-  std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i}) << '\n';
+  std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i, nullptr}) << '\n';
 }

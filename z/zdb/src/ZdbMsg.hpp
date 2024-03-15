@@ -116,16 +116,16 @@ inline const fbs::Heartbeat *hb(const fbs::Msg *msg) {
   switch (static_cast<int>(msg->body_type())) {
     default:
       return nullptr;
-    case fbs::Body_HB:
+    case fbs::Body_Heartbeat:
       return hb_(msg);
   }
 }
 inline bool recovery(const fbs::Msg *msg) {
   if (ZuUnlikely(!msg)) return false;
-  return msg->body_type() == fbs::Body_Rec;
+  return msg->body_type() == fbs::Body_Recovery;
 }
 inline bool recovery_(const fbs::Msg *msg) {
-  return msg->body_type() == fbs::Body_Rec;
+  return msg->body_type() == fbs::Body_Recovery;
 }
 inline const fbs::Record *record_(const fbs::Msg *msg) {
   return static_cast<const fbs::Record *>(msg->body());
@@ -135,8 +135,8 @@ inline const fbs::Record *record(const fbs::Msg *msg) {
   switch (static_cast<int>(msg->body_type())) {
     default:
       return nullptr;
-    case fbs::Body_Rep:
-    case fbs::Body_Rec:
+    case fbs::Body_Replication:
+    case fbs::Body_Recovery:
       return record_(msg);
   }
 }
@@ -155,6 +155,18 @@ inline const T *data_(const fbs::Record *record) {
   auto data = Zfb::Load::bytes(record->data());
   if (ZuUnlikely(!data)) return nullptr;
   return Zfb::GetRoot<T>(data.data());
+}
+inline const fbs::Commit *commit_(const fbs::Msg *msg) {
+  return static_cast<const fbs::Commit *>(msg->body());
+}
+inline const fbs::Commit *commit(const fbs::Msg *msg) {
+  if (ZuUnlikely(!msg)) return nullptr;
+  switch (static_cast<int>(msg->body_type())) {
+    default:
+      return nullptr;
+    case fbs::Body_Commit:
+      return commit_(msg);
+  }
 }
 
 } // Zdb_

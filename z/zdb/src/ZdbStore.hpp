@@ -79,7 +79,7 @@ using ExportFn = ZmFn<DB *, RN, const ZtField::Export &>;
 // commit result
 using CommitResult = ZuUnion<void, Event>;
 // commit callback
-using CommitFn = ZmFn<DB *, UN, RN, CommitResult>;
+using CommitFn = ZmFn<DB *, UN, CommitResult>;
 
 // table close callback
 using CloseFn = ZmFn<DB *>;
@@ -93,9 +93,12 @@ struct Interface {
   virtual void recover(UN, RecoverFn) = 0;
 
   // UN is idempotency key
-  virtual void push(RN, UN, SN, ExportFn, CommitFn) = 0;	// idempotent
-  virtual void update(RN, UN, SN, VN, ExportFn, CommitFn) = 0;	// idempotent
-  virtual void del(RN, UN, SN, VN, CommitFn) = 0;		// idempotent
+  virtual void push(			// idempotent
+      RN, UN, SN, const void *object, ExportFn, CommitFn) = 0;
+  virtual void update(			// idempotent
+      RN, UN, SN, VN, const void *object, ExportFn, CommitFn) = 0;
+  virtual void del(			// idempotent
+      RN, UN, SN, VN, const void *object, CommitFn) = 0;
 };
 } // Table_;
 using Table = Table_::Interface;
