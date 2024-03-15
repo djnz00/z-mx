@@ -51,6 +51,7 @@
 #include <zlib/ZtBitWindow.hpp>
 
 #include <zlib/ZiDir.hpp>
+#include <zlib/ZiModule.hpp>
 
 #include <assert.h>
 #include <errno.h>
@@ -73,18 +74,18 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
     config.sid = mx->sid(config.thread);
     if (invalidSID(config.sid))
       throw ZeEVENT(Fatal, ([thread = config.thread](auto &s) {
-	s << "ZdbEnv thread misconfigured: " << config.thread; }));
+	s << "ZdbEnv thread misconfigured: " << thread; }));
 
     {
       ZiModule module_;
-      unsigned flags = 0;
       auto path = config.storeCf->get<true>("module");
       auto preload = config.storeCf->getBool("preload", false);
+      ZtString e; // dlerror() returns a string
       if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
 	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
 	  s << "failed to load \"" << path << "\": " << e; }));
       ZdbStoreFn storeFn =
-	static_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
+	reinterpret_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
       if (!storeFn) {
 	module_.unload();
 	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
@@ -94,7 +95,7 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
       m_store = (*storeFn)();
       auto result = m_store->init(
 	  config.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
-      if (result.contains<Event>()) throw result.v<Event>();
+      if (result.contains<Event>()) throw ZuMv(result).v<Event>();
     }
 
     {
@@ -108,8 +109,8 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	  if (invalidSID(dbCf.sid))
 	    throw ZeEVENT(Fatal,
 		([id = dbCf.id, thread = dbCf.thread](auto &s) {
-		  s << "Zdb " << dbCf.id
-		    << " thread misconfigured: " << dbCf.thread; }));
+		  s << "Zdb " << id
+		    << " thread misconfigured: " << thread; }));
 	}
       }
     }
@@ -210,7 +211,7 @@ void Env::start_()
   }
   {
     ZmAtomic<unsigned> ok = true;
-    allSync([&ok](DB *db) { return [&ok, db]() {
+    allSync([this, &ok](DB *db) { return [this, &ok, db]() {
       if (ZuLikely(ok.load_())) ok &= db->open(m_store);
     }; });
     if (!ok) {
@@ -869,7 +870,7 @@ void Env::setNext(Host *host)
     repStart();
   } else {
     m_standalone = true;
-    all_file([](DB *db) { return [db]() { db->ack(maxRN()); }; });
+    // all([](DB *db) { return [db]() { db->ack(maxRN()); }; });
   }
 }
 
@@ -947,7 +948,8 @@ void DB::recSend(ZmRef<Cxn> cxn, UN un, UN endUN)
 {
   ZmAssert(invoked());
 
-  if (!cxn->up()) retuun;
+  if (!cxn->up()) return;
+
   if (auto buf = repBuf(un))
     recSend_(ZuMv(cxn), un, endUN, ZuMv(buf));
   else
@@ -958,7 +960,10 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
 {
   ZmAssert(invoked());
 
-  if (!cxn->up()) retuun;
+  if (!cxn->up()) return;
+
+  using namespace Table_;
+
   m_table->recover(un,
       [cxn = ZuMv(cxn), endUN](DB *db, UN un, GetResult result) mutable {
     if (ZuLikely(result.contains<RecoverData>())) {
@@ -1199,8 +1204,10 @@ void Env::hbRcvd(Host *host, const fbs::Heartbeat *hb)
       [this](unsigned, const fbs::DBState *dbState) {
     auto id = Zfb::Load::id(&(dbState->db()));
     RN rn = dbState->rn();
+#if 0
     if (auto db = m_dbs.findPtr(id))
-      db->fileRun([db, rn]() { db->ack(rn); });
+      db->invoke([db, rn]() { db->ack(rn); });
+#endif
   });
 }
 
@@ -1306,19 +1313,19 @@ void Cxn_::repRecRcvd(ZmRef<Buf> buf)
   ZdbDEBUG(m_env, ZtString{} <<
       "replicated(host=" << m_host->id() << ", " <<
       Record_Print{record} << ')');
-  m_env->replicated(m_host, record->un() + 1, id, record->rn() + 1);
+  m_env->replicated(m_host, id, record->un(), record->sn());
   db->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     db->repRecRcvd(ZuMv(buf));
   });
 }
 
-void Env::replicated(Host *host, UN un, ZuID dbID, RN rn)
+void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
 {
   ZmAssert(invoked());
 
   bool updated =
-    host->envState().updateUN(un) || host->envState().update(dbID, rn);
+    host->envState().updateSN(sn + 1) || host->envState().update(dbID, un + 1);
   if ((active() || host == m_next) && !updated) return;
   if (!m_prev) {
     m_prev = host;
@@ -1451,12 +1458,22 @@ void DB::repRecRcvd(ZmRef<Buf> buf)
 // low-level internal write to data store - l(DB *, RN, UN, bool ok)
 template <typename L>
 void DB::write_(ZmRef<Buf> buf, L l) {
+  // FIXME - if running as a secondary, elide this (it will conflict with
+  // the primary) 
+  //
+  // BUT we will need to modify replication:
+  // 1] primary sends a followup once the update is committed to the
+  //    data store
+  // 2] secondaries remove the update from the repBufs only when the
+  //    primary confirms the commit
+  // 3] when secondaries activate, they begin write_() on all pending repBufs
+  //
   auto record = record_(msg_(buf->hdr()));
   auto object = load_(record);
   auto commitFn = [buf = ZuMv(buf), l = ZuMv(l)](
       DB *db, RN rn, UN un, CommitResult result) {
     auto ptr = buf.ptr();
-    m_updBufs->del(VBuf_UNAxor(buf));
+    m_updBufs->del(VBuf_UNAxor(buf)); // FIXME - this and the next line are run on inbound replication of commit confirm from the primary by the secondaries
     m_repBufs->delNode(ptr);
     bool ok = true;
     if (ZuUnlikely(result.contains<Event>())) {
@@ -1493,7 +1510,7 @@ void DB::write(ZmRef<Buf> buf)
 	write_(ZuMv(buf), [](DB *, RN, UN, bool){});
       else
 	// standalone - ack on successful data store
-	write_(ZuMv(buf), [](DB *db, RN, UN un, bool) { db->ack(un + 1) });
+	write_(ZuMv(buf), [](DB *db, RN, UN un, bool) { /* db->ack(un + 1) */ });
     });
   } else { // store then replicate (slower but potentially more durable)
     write_(buf, [](DB *db, RN rn, UN un, bool ok) {
@@ -1503,7 +1520,7 @@ void DB::write(ZmRef<Buf> buf)
 	  auto env = db->env();
 	  if (!env->replicate(ZuMv(buf))) { // standalone - ack write
 	    auto un = record_(msg_(buf->hdr()))->un();
-	    db->invoke([db, un]() { db->ack(un + 1); });
+	    // db->invoke([db, un]() { db->ack(un + 1); });
 	  }
 	});
       else
@@ -1699,13 +1716,14 @@ void DB::abort(ZmRef<AnyObject> object)
   // FIXME?
 }
 
-// ack UN - FIXME?
+#if 0
+// ack UN
 void DB::ack(UN un)
 {
   ZmAssert(invoked());
 
-  if (ZuUnlikely(un <= m_minUN.load_())) return;
-  if (ZuUnlikely(un > m_nextUN.load_())) un = m_nextUN;
+  if (ZuUnlikely(un > m_nextUN)) un = m_nextUN;
 }
+#endif
 
 } // namespace Zdb_

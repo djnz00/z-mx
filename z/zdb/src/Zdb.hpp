@@ -605,7 +605,7 @@ private:
   void init(DBHandler);
   void final();
 
-  bool open(Table *table);
+  bool open(Store *store);
   void close();
 
 public:
@@ -1272,7 +1272,7 @@ private:
   bool replicate(ZmRef<Buf> buf);
 
   // inbound replication
-  void replicated(Host *host, ZuID id, RN rn);
+  void replicated(Host *host, ZuID dbID, UN un, SN sn);
 
   bool isStandalone() const { return m_standalone; }
 
@@ -1282,6 +1282,7 @@ private:
 
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
+  Store			*m_store = nullptr;
 
   // mutable while stopped
   EnvHandler		m_handler;
