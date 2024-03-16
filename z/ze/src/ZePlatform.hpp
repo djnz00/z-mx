@@ -148,7 +148,7 @@ struct ZeEventInfo {
 
   ZmTime	time;
   ThreadID	tid;
-  int		severity;
+  int		severity;	// Ze:: Debug, Info, Warning, Error, Fatal
   const char	*file;
   int		line;
   const char	*function;

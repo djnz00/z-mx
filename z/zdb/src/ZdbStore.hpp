@@ -30,7 +30,6 @@
 #include <zlib/ZdbLib.hpp>
 #endif
 
-#include <zlib/ZuNull.hpp>
 #include <zlib/ZuUnion.hpp>
 
 #include <zlib/ZtField.hpp>
@@ -43,9 +42,6 @@ namespace Zdb_ {
 
 // opaque to data store, corresponds to a data store table
 class DB;
-
-// empty type
-using Null = ZuNull;
 
 // monomorphic ZeEvent
 using Event = ZeMEvent;
@@ -66,7 +62,7 @@ struct GetData {
 // get result
 using GetResult = ZuUnion<
   GetData,		// succeeded
-  Null,			// missing
+  void,			// missing
   Event>;		// error
 // get callback
 using GetFn = ZmFn<DB *, RN, GetResult>;
@@ -81,13 +77,13 @@ struct RecoverData {
 // recover result
 using RecoverResult = ZuUnion<
   RecoverData,		// succeeded
-  Null,			// missing
+  void,			// missing
   Event>;		// error
 // recover callback
 using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
 
 // commit result
-using CommitResult = ZuUnion<Null, Event>;
+using CommitResult = ZuUnion<void, Event>;
 // commit callback
 using CommitFn = ZmFn<DB *, UN, CommitResult>;
 
@@ -120,7 +116,7 @@ namespace Store_ {
 using LogFn = ZmFn<Event>;
 
 // result of store init
-using InitResult = ZuUnion<Null, Event>;
+using InitResult = ZuUnion<void, Event>;
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
@@ -139,7 +135,7 @@ struct OpenData {
 };
 // result of table open
 using OpenResult = ZuUnion<
-  Null,				// unset
+  void,				// unset
   OpenData,			// succeeded
   Event>;			// error
 // table open callback

@@ -433,7 +433,7 @@ int main()
   }
 
   {
-    using U = ZuUnion<ZuNull, int>;
+    using U = ZuUnion<void, int>;
     U u;
     std::cout << u.type() << '\n';
   }
@@ -503,10 +503,9 @@ int main()
   }
 
   {
-    ZuUnion<ZuNull, bool> a, b = true;
+    ZuUnion<void, bool> a, b = true;
     CHECK(ZuCmp<unsigned>::cmp(a.type(), 0) == 0);
     CHECK(ZuCmp<unsigned>::cmp(b.type(), 1) == 0);
-    CHECK(ZuCmp<bool>::cmp(a.v<bool>(), true) != 0);
     CHECK(ZuCmp<bool>::cmp(b.v<bool>(), true) == 0);
   }
 
@@ -525,7 +524,7 @@ int main()
       A(const A &) = delete;
       A &operator =(const A &) = delete;
     };
-    using U = ZuUnion<ZuNull, A>;
+    using U = ZuUnion<void, A>;
     struct B {
       static A foo(U u) { return ZuMv(u).v<A>(); }
     };

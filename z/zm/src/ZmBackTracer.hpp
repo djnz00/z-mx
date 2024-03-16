@@ -44,7 +44,7 @@ public:
 
 private:
   using Data = ZuTuple<ZmThreadID, ZmThreadName, ZmBackTrace>;
-  using Capture = ZuUnion<ZuNull, Data>;
+  using Capture = ZuUnion<void, Data>;
 
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
@@ -67,8 +67,8 @@ public:
     bool first = true;
     for (unsigned i = 0; i < N; i++) {
       unsigned j = (m_offset + (N - 1) - i) % N;
-      if (m_captures[j].type() == Capture::Index<Data>{}) {
-	const Data &data = m_captures[j].template p<0>();
+      if (m_captures[j].contains<Data>()) {
+	const auto &data = m_captures[j].template v<Data>();
 	if (!first) s << "---\n";
 	first = false;
 	s << data.template p<1>()
