@@ -17,9 +17,11 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// generic discriminated union
-// - unlike std::variant, doesn't throw exceptions
-// - relies on the caller to prevent undefined behavior
+// generic discriminated union with different trade-offs than std::variant
+// - supports void, primitive and pointer types in addition to composite types
+// - doesn't throw exceptions
+// - relies on the caller to prevent undefined behavior by checking the type
+//   before using it
 //
 // using U = ZuUnion<int, double>;
 // U u, v;
