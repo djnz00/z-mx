@@ -293,6 +293,8 @@ template <typename Int64> struct ZmAtomicOps<Int64, 8> {
 
 // 128bit atomic operations
 #ifdef ZmAtomic_GccBuiltins128
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Watomic-alignment"
 template <typename Int128> struct ZmAtomicOps<Int128, 16> {
   using S = int128_t;
   using U = uint128_t;
@@ -326,6 +328,7 @@ template <typename Int128> struct ZmAtomicOps<Int128, 16> {
     return __sync_val_compare_and_swap(ptr, cmp, value);
   }
 };
+#pragma GCC diagnostic pop
 #endif /* ZmAtomic_GccBuiltins128 */
 
 template <typename T> class ZmAtomic {

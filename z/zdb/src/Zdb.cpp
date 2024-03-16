@@ -1560,22 +1560,14 @@ bool DB::open(Store *store)
 
   using namespace Store_;
 
-  OpenResult result;
-  ZmBlock<>{}([this, store, &result](auto wake) {
-    Store_::ScanFn scanFn;
-    if (m_handler.scanFn)
-      scanFn = [](
-	  DB *db, RN rn, UN un, SN sn, VN vn, const ZtField::Import &import_) {
-	auto object = db->m_handler.importFn(db, import_);
-	object->init(rn, un, sn, vn);
-	db->m_handler.scanFn(object);
-      };
-    store->open(this, id(), fields(),
-	[&result, wake = ZuMv(wake)](OpenResult result_) {
-      result = ZuMv(result_);
-      wake();
-    }, scanFn);
-  });
+  Store_::ScanFn scanFn;
+  if (m_handler.scanFn)
+    scanFn = [](DB *db, ScanData data) {
+      auto object = db->m_handler.importFn(db, data.import_);
+      object->init(data.rn, data.un, data.sn, data.vn);
+      db->m_handler.scanFn(object);
+    };
+  OpenResult result = store->open(this, id(), fields(), scanFn);
   if (!result.contains<OpenData>()) return false;
   const auto &data = result.v<OpenData>();
   m_table = data.table;
@@ -1596,9 +1588,7 @@ void DB::close()
 
   if (!m_open) return;
 
-  ZmBlock<>{}([this](auto wake) {
-    m_table->close([wake = ZuMv(wake)]() { wake(); });
-  });
+  m_table->close();
 
   m_open = false;
   m_table = nullptr;

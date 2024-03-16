@@ -92,7 +92,7 @@ using CloseFn = ZmFn<DB *>;
 
 // back-end table interface
 struct Interface {
-  virtual void close(CloseFn) = 0;	// idempotent
+  virtual void close() = 0;	// idempotent, synchronous
 
   virtual void get(RN, GetFn) = 0;
 
@@ -138,8 +138,6 @@ using OpenResult = ZuUnion<
   void,				// unset
   OpenData,			// succeeded
   Event>;			// error
-// table open callback
-using OpenFn = ZmFn<OpenResult>;
 
 // table scan data
 struct ScanData {
@@ -150,7 +148,7 @@ struct ScanData {
   const ZtField::Import	&import_;
 };
 // table scan callback (called from open)
-using ScanFn = ZmFn<ScanData>;
+using ScanFn = ZmFn<DB *, ScanData>;
 
 // back-end data store interface
 struct Interface {
@@ -160,11 +158,11 @@ struct Interface {
       LogFn) = 0;
   virtual void final() = 0;		// finalize data store - idempotent
 
-  virtual void open(			// open table - idempotent
+  // if a ScanFn is supplied, table scan will complete before open returns
+  virtual OpenResult open(		// open table - idempotent, synchronous
       DB *,
       ZuID id,
       ZtMFieldArray fields,
-      OpenFn,
       ScanFn) = 0;
 };
 } // Store_;
