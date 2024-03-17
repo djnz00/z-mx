@@ -544,10 +544,10 @@ struct DBHandler {
 	  ZtField::ctor<T>(ptr, import_);
 	}};
       },
-      .exportFn = [](const void *ptr, ZtField::Export &export_) {
+      .exportFn = [](const void *ptr, const ZtField::Export &export_) {
 	ZtField::save<T>(*static_cast<const T *>(ptr), export_);
       },
-      .exportUpdateFn = [](const void *ptr, ZtField::Export &export_) {
+      .exportUpdateFn = [](const void *ptr, const ZtField::Export &export_) {
 	ZtField::saveUpdate<T>(*static_cast<const T *>(ptr), export_);
       },
       .scanFn = ZuMv(scanFn_),
@@ -1022,7 +1022,7 @@ typedef void (*DownFn)(Env *);
 struct EnvHandler {
   UpFn		upFn = [](Env *, Host *) { };
   DownFn	downFn = [](Env *) { };
-  StoreFn	storeFn = []() -> Store * { return nullptr; }; // local data store
+  StoreFn	storeFn = []() -> Store * { return nullptr; };
 };
 
 // --- DB environment configuration
@@ -1076,7 +1076,11 @@ class ZdbAPI Env : public ZmPolymorph, public ZmEngine<Env> {
   Env(const Env &);
   Env &operator =(const Env &);		// prevent mis-use
 
+public:
   using Engine = ZmEngine<Env>;
+
+  using Engine::start;
+  using Engine::stop;
 
 friend Engine;
 friend Cxn_;
@@ -1084,24 +1088,23 @@ friend AnyObject_;
 friend DB;
 friend Host;
 
-  using Engine::start;
-  using Engine::stop;
-
+private:
   using Lock = ZmLock;
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
+private:
   static const char *CxnHash_HeapID() { return "ZdbEnv.CxnHash"; }
   using CxnHash =
     ZmHash<ZmRef<Cxn>,
       ZmHashLock<ZmPLock,
 	  ZmHashHeapID<CxnHash_HeapID>>>;
 
+public:
 #ifdef ZdbRep_DEBUG
   bool debug() const { return m_cf.debug; }
 #endif
 
-public:
   Env() { }
   ~Env() { }
 

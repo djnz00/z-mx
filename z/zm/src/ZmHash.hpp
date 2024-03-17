@@ -180,6 +180,7 @@ struct ZmHash_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
+  enum { Final = 0 };
   static const char *HeapID() { return "ZmHash"; }
   constexpr static auto ID = HeapID;
   enum { Sharded = 0 };
@@ -235,6 +236,12 @@ struct ZmHashShadow : public NTP {
   constexpr static auto HeapID = ZmHeapDisable();
 };
 
+// ZmHashFinal - final nodes, cannot be derived from
+template <bool Final_, typename NTP = ZmHash_Defaults>
+struct ZmHashFinal : public NTP {
+  enum { Final = Final_ };
+};
+
 // ZmHashHeapID - the heap ID
 template <auto HeapID_, typename NTP = ZmHash_Defaults>
 struct ZmHashHeapID : public NTP {
@@ -277,6 +284,7 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
+  enum { Final = NTP::Final };
   constexpr static auto ID = NTP::ID;
   constexpr static auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
@@ -316,7 +324,8 @@ template <typename> friend class Iterator_;
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeExt_, HeapID, Sharded>;
+  using Node = ZmNode<
+    T, KeyAxor, ValAxor, NodeBase, NodeExt_, Final, HeapID, Sharded>;
   using NodeExt = NodeExt_<Node>;
   using NodeRef = typename NodeFn::template Ref<Node>;
   using NodeMvRef = typename NodeFn::template MvRef<Node>;

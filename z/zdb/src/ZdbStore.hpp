@@ -47,7 +47,7 @@ class DB;
 using Event = ZeMEvent;
 
 // ExportFn(ptr, export) - export object to data store
-typedef void (*ExportFn)(const void *, ZtField::Export &);
+typedef void (*ExportFn)(const void *, const ZtField::Export &);
 
 // back-end table namespace
 namespace Table_ {
@@ -76,8 +76,8 @@ struct RecoverData {
 };
 // recover result
 using RecoverResult = ZuUnion<
-  RecoverData,		// succeeded
   void,			// missing
+  RecoverData,		// succeeded
   Event>;		// error
 // recover callback
 using RecoverFn = ZmFn<DB *, UN, RecoverResult>;
@@ -120,13 +120,13 @@ using InitResult = ZuUnion<void, Event>;
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
-// - a data store will need to maintain a "most recent deletes" (MRD)
-//   table, keyed on the DB ID, containing the UN and SN of the last
-//   delete applied to each table; an eventually consistent batch, saga or
+// - any Zdb data store needs to maintain a "most recent deletes" (MRD)
+//   table, keyed on the DB ID, containing the UN and SN of the last delete
+//   applied to each data table; an eventually consistent batch, saga or
 //   transaction is used to combine deletion from the data table with an
-//   upsert to the corresponding row in the MRD table; the MRD table is
-//   consulted on table open to ensure accurate "last UN" and "last SN"
-//   numbers are recovered and returned
+//   upsert to the DB's row in the MRD table; the DB's MRD row is consulted
+//   on table open to ensure accurate "last UN" and "last SN" numbers are
+//   recovered and returned
 struct OpenData {
   Table		*table = nullptr;
   RN		rn = 0;			// last RN in table
@@ -161,7 +161,7 @@ struct Interface {
 
   // multiple calls to ScanFn may continue after open() returns,
   // concluding with a single call to OpenFn
-  virtual OpenResult open(		// open table - idempotent, async
+  virtual void open(			// open table - idempotent, async
       DB *,
       ZuID id,
       ZtMFieldArray fields,

@@ -186,7 +186,7 @@ struct ZeAnyEvent : public ZeEventInfo {
       const char *function_) :
     ZeEventInfo(severity_, file_, line_, function_) { }
 
-  virtual ZeMsgFn fn() = 0;
+  virtual ZeMsgFn fn() const = 0;
 
   ZeAnyEvent() = delete;
   ZeAnyEvent(const ZeAnyEvent &) = delete;
@@ -195,7 +195,16 @@ struct ZeAnyEvent : public ZeEventInfo {
   ZeAnyEvent(ZeAnyEvent &&) = default;
   ZeAnyEvent &operator =(ZeAnyEvent &&) = default;
 
+protected:
   ~ZeAnyEvent() = default;
+public:
+
+  template <typename S> void print(S &s) const {
+    ZeLogBuf buf;
+    fn()(buf, *this);
+    s << buf;
+  }
+  friend ZuPrintFn ZuPrintType(ZeAnyEvent *);
 };
 
 // event enriched with lambda message - [...](auto &s) { s << ... }
@@ -226,7 +235,7 @@ struct ZeEvent final : public ZeAnyEvent {
   decltype(ZuDeclVal<L_ &>()(
 	ZuDeclVal<ZeLogBuf &>()),
       ZeMsgFn())
-  fn_() {
+  fn_() const {
     return {[l_ = ZuMv(l)](auto &s, const auto &) mutable { l_(s); }};
   }
   template <typename L_ = L>
@@ -234,10 +243,10 @@ struct ZeEvent final : public ZeAnyEvent {
 	ZuDeclVal<ZeLogBuf &>(),
 	ZuDeclVal<const ZeEventInfo &>()),
       ZeMsgFn())
-  fn_() {
+  fn_() const {
     return {ZuMv(l)};
   }
-  ZeMsgFn fn() { return fn_(); }
+  ZeMsgFn fn() const { return fn_(); }
 
   ZeEvent() = delete;
   ZeEvent(const ZeEvent &) = delete;
@@ -276,7 +285,7 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
 
   ~ZeEvent() = default;
 
-  ZeMsgFn fn() { return {ZuMv(l)}; }
+  ZeMsgFn fn() const { return {ZuMv(l)}; }
 
   template <typename L_>
   ZeEvent(ZeEvent<L_> &&e,

@@ -86,8 +86,9 @@ template <
   auto KeyAxor,
   auto ValAxor,
   typename Base,
-  template <typename> class NodeFn,
+  template <typename> class NodeExt,
   typename Heap,
+  bool Final,
   bool = ZuInspect<Base, T>::Is>
 class ZmNode_;
 
@@ -97,44 +98,61 @@ template <
   auto KeyAxor_,
   auto ValAxor_,
   typename Base_,
-  template <typename> class NodeFn,
+  template <typename> class NodeExt,
   typename Heap>
-class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, false> :
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, false, false> :
     public ZmNode__<Base_, Heap>,
-    public NodeFn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, false>> {
-public:
-  using T = T_;
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
-  using U = ZuDecay<T>;
-
-  ZmNode_() = default;
-  ZmNode_(const ZmNode_ &) = default;
-  ZmNode_ &operator =(const ZmNode_ &) = default;
-  ZmNode_(ZmNode_ &&) = default;
-  ZmNode_ &operator =(ZmNode_ &&) = default;
-  template <typename ...Args>
-  ZmNode_(Args &&... args) : m_data{ZuFwd<Args>(args)...} { }
-  template <typename Arg>
-  ZmNode_ &operator =(Arg &&arg) {
-    m_data = ZuFwd<Arg>(arg);
-    return *this;
-  }
-
-  const auto &data() const & { return m_data; }
-  auto &data() & { return m_data; }
-  decltype(auto) data() && { return ZuMv(m_data); }
-
-  decltype(auto) key() const & { return KeyAxor(data()); }
-  decltype(auto) key() & { return KeyAxor(data()); }
-  decltype(auto) key() && { return KeyAxor(data()); }
-
-  decltype(auto) val() const & { return ValAxor(data()); }
-  decltype(auto) val() & { return ValAxor(data()); }
-  decltype(auto) val() && { return ValAxor(data()); }
-
-private:
+    public NodeExt<
+      ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, false, false>> {
+#define ZmNode_Impl_NotBase \
+public: \
+  using T = T_; \
+  constexpr static auto KeyAxor = KeyAxor_; \
+  constexpr static auto ValAxor = ValAxor_; \
+  using U = ZuDecay<T>; \
+ \
+  ZmNode_() = default; \
+  ZmNode_(const ZmNode_ &) = default; \
+  ZmNode_ &operator =(const ZmNode_ &) = default; \
+  ZmNode_(ZmNode_ &&) = default; \
+  ZmNode_ &operator =(ZmNode_ &&) = default; \
+  template <typename ...Args> \
+  ZmNode_(Args &&... args) : m_data{ZuFwd<Args>(args)...} { } \
+  template <typename Arg> \
+  ZmNode_ &operator =(Arg &&arg) { \
+    m_data = ZuFwd<Arg>(arg); \
+    return *this; \
+  } \
+ \
+  const auto &data() const & { return m_data; } \
+  auto &data() & { return m_data; } \
+  decltype(auto) data() && { return ZuMv(m_data); } \
+ \
+  decltype(auto) key() const & { return KeyAxor(data()); } \
+  decltype(auto) key() & { return KeyAxor(data()); } \
+  decltype(auto) key() && { return KeyAxor(data()); } \
+ \
+  decltype(auto) val() const & { return ValAxor(data()); } \
+  decltype(auto) val() & { return ValAxor(data()); } \
+  decltype(auto) val() && { return ValAxor(data()); } \
+ \
+private: \
   U	m_data;
+
+  ZmNode_Impl_NotBase
+};
+template <
+  typename T_,
+  auto KeyAxor_,
+  auto ValAxor_,
+  typename Base_,
+  template <typename> class NodeExt,
+  typename Heap>
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, true, false> final :
+    public ZmNode__<Base_, Heap>,
+    public NodeExt<
+      ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, true, false>> {
+  ZmNode_Impl_NotBase
 };
 
 // node derives from type
@@ -143,42 +161,59 @@ template <
   auto KeyAxor_,
   auto ValAxor_,
   typename Base_,
-  template <typename> class NodeFn,
+  template <typename> class NodeExt,
   typename Heap>
-class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, true> :
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, false, true> :
     public ZmNode__<ZuDecay<T_>, Heap>,
-    public NodeFn<ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeFn, Heap, true>> {
-  using Base = ZmNode__<ZuDecay<T_>, Heap>;
-
-public:
-  using T = T_;
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
-  using U = ZuDecay<T>;
-
-  ZmNode_() = default;
-  ZmNode_(const ZmNode_ &) = default;
-  ZmNode_ &operator =(const ZmNode_ &) = default;
-  ZmNode_(ZmNode_ &&) = default;
-  ZmNode_ &operator =(ZmNode_ &&) = default;
-  template <typename ...Args>
-  ZmNode_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
-  template <typename Arg>
-  ZmNode_ &operator =(Arg &&arg) {
-    return static_cast<ZmNode_ &>(Base::operator =(ZuFwd<Arg>(arg)));
-  }
-
-  decltype(auto) data() const & { return static_cast<const U &>(*this); }
-  decltype(auto) data() & { return static_cast<U &>(*this); }
-  decltype(auto) data() && { return static_cast<U &&>(*this); }
-
-  decltype(auto) key() const & { return KeyAxor(data()); }
-  decltype(auto) key() & { return KeyAxor(data()); }
-  decltype(auto) key() && { return KeyAxor(data()); }
-
-  decltype(auto) val() const & { return ValAxor(data()); }
-  decltype(auto) val() & { return ValAxor(data()); }
+    public NodeExt<
+      ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, false, true>> {
+#define ZmNode_Impl_IsBase \
+  using Base = ZmNode__<ZuDecay<T_>, Heap>; \
+ \
+public: \
+  using T = T_; \
+  constexpr static auto KeyAxor = KeyAxor_; \
+  constexpr static auto ValAxor = ValAxor_; \
+  using U = ZuDecay<T>; \
+ \
+  ZmNode_() = default; \
+  ZmNode_(const ZmNode_ &) = default; \
+  ZmNode_ &operator =(const ZmNode_ &) = default; \
+  ZmNode_(ZmNode_ &&) = default; \
+  ZmNode_ &operator =(ZmNode_ &&) = default; \
+  template <typename ...Args> \
+  ZmNode_(Args &&... args) : Base{ZuFwd<Args>(args)...} { } \
+  template <typename Arg> \
+  ZmNode_ &operator =(Arg &&arg) { \
+    return static_cast<ZmNode_ &>(Base::operator =(ZuFwd<Arg>(arg))); \
+  } \
+ \
+  decltype(auto) data() const & { return static_cast<const U &>(*this); } \
+  decltype(auto) data() & { return static_cast<U &>(*this); } \
+  decltype(auto) data() && { return static_cast<U &&>(*this); } \
+ \
+  decltype(auto) key() const & { return KeyAxor(data()); } \
+  decltype(auto) key() & { return KeyAxor(data()); } \
+  decltype(auto) key() && { return KeyAxor(data()); } \
+ \
+  decltype(auto) val() const & { return ValAxor(data()); } \
+  decltype(auto) val() & { return ValAxor(data()); } \
   decltype(auto) val() && { return ValAxor(data()); }
+
+  ZmNode_Impl_IsBase
+};
+template <
+  typename T_,
+  auto KeyAxor_,
+  auto ValAxor_,
+  typename Base_,
+  template <typename> class NodeExt,
+  typename Heap>
+class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, true, true> final :
+    public ZmNode__<ZuDecay<T_>, Heap>,
+    public NodeExt<
+      ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, true, true>> {
+  ZmNode_Impl_IsBase
 };
 
 template <
@@ -186,13 +221,14 @@ template <
   auto KeyAxor,
   auto ValAxor,
   typename Base,
-  template <typename> class NodeFn,
+  template <typename> class NodeExt,
+  bool Final,
   auto HeapID,
   bool Sharded>
 using ZmNode =
-  ZmNode_<T, KeyAxor, ValAxor, Base, NodeFn,
+  ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt,
     ZmHeap<HeapID,
-      sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, NodeFn, ZuNull>),
-      Sharded>>;
+      sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt, ZuNull, Final>),
+      Sharded>, Final>;
 
 #endif /* ZmNode_HPP */

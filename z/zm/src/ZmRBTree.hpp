@@ -57,6 +57,7 @@ struct ZmRBTree_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
+  enum { Final = 0 };
   static const char *HeapID() { return "ZmRBTree"; }
   enum { Sharded = 0 };
 };
@@ -115,6 +116,12 @@ template <bool Shadow_, typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeShadow : public NTP {
   enum { Shadow = Shadow_ };
   constexpr static auto HeapID = ZmHeapDisable();
+};
+
+// ZmRBTreeFinal - final nodes, cannot be derived from
+template <bool Final_, typename NTP = ZmRBTree_Defaults>
+struct ZmRBTreeFinal : public NTP {
+  enum { Final = Final_ };
 };
 
 // ZmRBTreeHeapID - the heap ID
@@ -254,6 +261,7 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
+  enum { Final = NTP::Final };
   constexpr static auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
@@ -349,7 +357,8 @@ private:
   };
 
 public:
-  using Node = ZmNode<T, KeyAxor, ValAxor, NodeBase, NodeExt_, HeapID, Sharded>;
+  using Node = ZmNode<
+    T, KeyAxor, ValAxor, NodeBase, NodeExt_, Final, HeapID, Sharded>;
   using NodeExt = NodeExt_<Node>;
   using NodeRef = typename NodeFn::template Ref<Node>;
   using NodeMvRef = typename NodeFn::template MvRef<Node>;

@@ -458,12 +458,12 @@ inline auto saveUpdate(Zfb::Builder &fbb, const O &o) {
 }
 
 template <typename O>
-inline ZfbType<O> *root(const uint8_t *data) {
+inline const ZfbType<O> *root(const uint8_t *data) {
   return Zfb::GetRoot<ZfbType<O>>(data);
 }
 
 template <typename O>
-inline ZfbType<O> *verify(const uint8_t *data, unsigned len) {
+inline const ZfbType<O> *verify(const uint8_t *data, unsigned len) {
   if (!Zfb::Verifier{data, len}.VerifyBuffer<ZfbType<O>>()) return nullptr;
   return root<O>(data);
 }

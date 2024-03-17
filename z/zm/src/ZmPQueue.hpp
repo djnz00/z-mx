@@ -131,6 +131,7 @@ struct ZmPQueue_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
+  enum { Final = 0 };
   static const char *HeapID() { return "ZmPQueue"; }
   enum { Sharded = 0 };
 };
@@ -172,6 +173,12 @@ struct ZmPQueueShadow : public NTP {
   constexpr static auto HeapID = ZmHeapDisable();
 };
 
+// ZmPQueueFinal - final nodes, cannot be derived from
+template <bool Final_, typename NTP = ZmPQueue_Defaults>
+struct ZmPQueueFinal : public NTP {
+  enum { Final = Final_ };
+};
+
 // ZmPQueueHeapID - the heap ID
 template <auto HeapID_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueHeapID : public NTP {
@@ -210,6 +217,7 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
+  enum { Final = NTP::Final };
   constexpr static auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
@@ -246,8 +254,8 @@ private:
   };
 
 public:
-  using Node =
-    ZmNode<Item, KeyAxor, ZuDefaultAxor(), NodeBase, NodeExt_, HeapID, Sharded>;
+  using Node = ZmNode<
+    Item, KeyAxor, ZuDefaultAxor(), NodeBase, NodeExt_, Final, HeapID, Sharded>;
   using NodeExt = NodeExt_<Node>;
   using NodeRef = typename NodeFn::template Ref<Node>;
   using NodePtr = Node *;

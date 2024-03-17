@@ -44,14 +44,14 @@ ZmRef<Zdb> orders;
 
 // mock row
 struct Row {
-  RN	rn;
-  UN	un;
-  SN	sn;
-  VN	vn;
-  Order	order;
+  ZdbRN		rn;
+  ZdbUN		un;
+  ZdbSN		sn;
+  ZdbVN		vn;
+  Order		order;
 
-  static auto RNAxor(const Record &r) { return r.rn; }
-  static auto UNAxor(const Record &r) { return r.un; }
+  static auto RNAxor(const Row &r) { return r.rn; }
+  static auto UNAxor(const Row &r) { return r.un; }
 };
 inline constexpr const char *Row_HeapID() { return "Row"; }
 using RowsUN =
@@ -67,154 +67,176 @@ using Rows =
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Row_HeapID>>>>>;
 
-ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work;
+// ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work;
 
 // mock table
 namespace MockTable {
+using namespace Zdb_;
 using namespace Zdb_::Table_;
 struct Table : public Interface {
   DB			*db;
+  ZuID			id;
   Rows			rows;
   RowsUN		rowsUN;
-  ZtField::Importer	importer = ZtField::importer<Foo>();
-  ZtField::Exporter	exporter = ZtField::exporter<Foo>();
+  ZtField::Importer	importer = ZtField::importer<Order>();
+  ZtField::Exporter	exporter = ZtField::exporter<Order>();
 
-  Table(DB *db_) : db{db_} { }
+  Table(DB *db_, ZuID id_) : db{db_}, id{id_} { }
+protected:
+  ~Table() = default;
+public:
 
   void close() { }
 
+  // LATER - defer/enqueue all work and callbacks
+  // LATER - test program will orchestrate work and callback dispatching
   void get(RN rn, GetFn getFn) {
-    work.push([rn, getFn = ZuMv(getFn)]() {
-      auto row = rows.find(rn);
-      if (row) {
-	exportFn(object, ZtField::Export{&row->order, exporter});
-	ZtField::Import import_{&row->order, importer};
-	GetData data{
-	  .un = row->un,
-	  .sn = row->sn,
-	  .vn = row->vn,
-	  .import_ = import_
-	};
-	// FIXME - getFn should also be deferred/enqueued
-	getFn(db, {ZuMv(data)});
-      } else {
-	getFn(db, {});
-      }
+    auto row = rows.find(rn);
+    if (row) {
+      ZtField::Import import_{importer, &row->order};
+      GetData data{
+	.un = row->un,
+	.sn = row->sn,
+	.vn = row->vn,
+	.import_ = import_
+      };
+      getFn(db, rn, GetResult{ZuMv(data)});
+    } else {
+      getFn(db, rn, GetResult{});
     }
   }
 
-  // FIXME - use work queue for all work
-  // FIXME - use a different work queue (callbacks?) for callbacks
-  // FIXME - test program will orchestrate work and callback dispatching
   void recover(UN un, RecoverFn recoverFn) {
     auto row = rowsUN.find(un);
     if (row) {
-      exportFn(object, ZtField::Export{&row->order, exporter});
-      ZtField::Import import_{&row->order, importer};
+      ZtField::Import import_{importer, &row->order};
       RecoverData data{
 	.rn = row->rn,
 	.sn = row->sn,
 	.vn = row->vn,
 	.import_ = import_
       };
-      recoverFn(db, {ZuMv(data)});
+      recoverFn(db, un, RecoverResult{ZuMv(data)});
     } else {
-      recoverFn(db, {});
+      recoverFn(db, un, RecoverResult{});
     }
   }
 
   void push(RN rn, UN un, SN sn,
       const void *object, ExportFn exportFn, CommitFn commitFn) {
     if (rowsUN.find(un)) {
-      commitFn(db, un, {});
+      commitFn(db, un, CommitResult{});
       return;
     }
     if (rows.find(rn)) {
-      commitFn(db, un,
-	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " conflicting RN"; }))});
+      commitFn(db, un, CommitResult{
+	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	  s << rn << " conflicting RN";
+	}))
+      });
       return;
     }
-    auto row = new Rows::Node{rn, un, sn, 0};
-    exportFn(object, ZtField::Export{&row->order, exporter});
+    auto row = new Rows::Node{rn, un, sn, VN{0}};
+    exportFn(object, ZtField::Export{exporter, &row->order});
     rows.addNode(row);
     rowsUN.addNode(row);
-    commitFn(db, un, {});
+    commitFn(db, un, CommitResult{});
   }
 
   void update(RN rn, UN un, SN sn, VN vn,
       const void *object, ExportFn exportFn, CommitFn commitFn) {
     if (rowsUN.find(un)) {
-      commitFn(db, un, {});
+      commitFn(db, un, CommitResult{});
       return;
     }
     auto row = rows.find(rn);
     if (row) {
       rowsUN.delNode(row);
-      exportFn(object, ZtField::Export{&row->order, exporter});
-      row.un = un;
-      row.sn = sn;
-      row.vn = vn;
+      exportFn(object, ZtField::Export{exporter, &row->order});
+      row->un = un;
+      row->sn = sn;
+      row->vn = vn;
       rowsUN.addNode(row);
-      commitFn(db, un, {});
+      commitFn(db, un, CommitResult{});
     } else {
-      commitFn(db, un,
-	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " missing RN"; }))});
+      commitFn(db, un, CommitResult{
+	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	  s << rn << " missing RN";
+	}))
+      });
     }
   }
   void del(RN rn, UN un, SN sn, VN vn, CommitFn commitFn) {
     if (rowsUN.find(un)) {
-      commitFn(db, un, {});
+      commitFn(db, un, CommitResult{});
       return;
     }
     auto row = rows.find(rn);
     if (row) {
       rowsUN.delNode(row);
       rows.delNode(row);
-      commitFn(db, un, {});
+      commitFn(db, un, CommitResult{});
     } else {
-      commitFn(db, un,
-	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " missing RN"; }))});
+      commitFn(db, un, CommitResult{
+	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	  s << rn << " missing RN";
+	}))
+      });
     }
   }
 };
 } // MockTable
 using Table = MockTable::Table;
+inline ZuID Table_IDAxor(const Table &table) { return table.id; }
+inline constexpr const char *Tables_HeapID() { return "Tables"; }
+using Tables =
+  ZmHash<Table,
+    ZmHashNode<Table,
+      ZmHashFinal<true,
+	ZmHashKey<Table_IDAxor,
+	  ZmHashLock<ZmPLock,
+	    ZmHashHeapID<Tables_HeapID>>>>>>;
 // mock data store
 namespace MockStore {
+using namespace Zdb_;
 using namespace Zdb_::Store_;
-struct Store : public Interface {
-  InitResult init(
-      ZvCf *cf,
-      LogFn) { return {}; /* FIXME */}
-  void final() { /* FIXME */}
+using Zdb_::Store_::ScanFn; // disambiguate
+struct Store : public Interface, public ZmPolymorph {
+  ZmRef<Tables>	tables;
 
-  OpenResult open(
-      DB *,
+  InitResult init(ZvCf *, LogFn) { tables = new Tables{}; return {}; }
+  void final() { tables->clean(); tables = nullptr; }
+
+  void open(
+      DB *db,
       ZuID id,
       ZtMFieldArray fields,
-      OpenFn,
-      ScanFn) { return {}; /* FIXME */}
+      OpenFn openFn,
+      ScanFn) {
+    Tables::Node *table = tables->find(id); 
+    if (table) {
+      openFn(db, OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	s << "table " << id << " already open";
+      }))});
+      return;
+    }
+    table = new Tables::Node{db, id};
+    tables->addNode(table);
+    openFn(db, OpenResult{OpenData{.table = table, .rn = 0, .un = 0, .sn = 0}});
+  }
 };
 } // MockStore
 using Store = MockStore::Store;
+using StoreInterface = MockStore::Interface;
 
 // environments and mock data stores
-ZmRef<ZdbEnv> env[2] = {};
-Store *store[2] = {};
-
-
+ZmRef<ZdbEnv> env;
+ZmRef<Store> store;
 
 ZmScheduler *appMx = 0;
 ZiMultiplex *dbMx = 0;
-unsigned del = 0;
-bool append = false;
-unsigned skip = 0;
-unsigned stride = 1;
-unsigned chain = 0;
-unsigned nThreads = 1;
-ZdbRN initRN;
-unsigned nOps = 0;
-ZmAtomic<unsigned> opCount = 0;
+
+ZmSemaphore done;
 
 void sigint()
 {
@@ -229,75 +251,22 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void initOrder(Order *order) {
+void initOrder(Order *order)
+{
   order->side = Side::Buy;
   order->symbol = "IBM";
   order->price = 100;
   order->quantity = 100;
 }
 
-void updateOrder(Order *order) {
-  ++order->price;
-}
-
-ZdbRN TestStep::run(ZdbRN rn) const
+void updateOrder(Order *order)
 {
-  using ObjRef = ZmRef<ZdbObject<Order>>;
-  ObjRef object;
-  for (unsigned i = 0; i < repeat; i++) {
-    if (push) {
-      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
-	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
-	  orders->push(rn,
-	      [&object, wake = ZuMv(wake)](ObjRef object_) mutable {
-	    if (!object_) { wake(false); return; }
-	    object = ZuMv(object_);
-	    initOrder(object->ptr());
-	    object->put();
-	    wake(true);
-	  });
-	});
-      })) return rn;
-      ++rn;
-    }
-    for (unsigned j = 0; j < append; j++) {
-      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
-	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
-	  orders->update(object, rn,
-	      [wake = ZuMv(wake)](ObjRef object) mutable {
-	    if (!object) { wake(false); return; }
-	    updateOrder(object->ptr());
-	    object->append();
-	    wake(true);
-	  });
-	});
-      })) return rn;
-      ++rn;
-    }
-    if (del) {
-      if (!ZmBlock<bool>{}([rn, &object](auto wake) mutable {
-	orders->invoke([rn, &object, wake = ZuMv(wake)]() mutable {
-	  orders->update(object, rn,
-	      [wake = ZuMv(wake)](ObjRef object) mutable {
-	    if (!object) { wake(false); return; }
-	    object->del();
-	    wake(true);
-	  });
-	});
-      })) return rn;
-      ++rn;
-    }
-  }
-  return rn;
+  ++order->price;
 }
 
 void active(ZdbEnv *, ZdbHost *) {
   puts("ACTIVE");
-  initRN = orders->nextRN();
-  for (unsigned i = 0; i < nThreads; i++) {
-    // FIXME
-    appMx->add(ZmFn<>::Ptr<&push>::fn());
-  }
+  // ...
 }
 
 void inactive(ZdbEnv *) {
@@ -307,34 +276,7 @@ void inactive(ZdbEnv *) {
 void usage()
 {
   static const char *help =
-    "usage: ZdbTest nThreads nOps [OPTION]...\n\n"
-    "Options:\n"
-    "  -D, --del=N\t\t\t- delete first N sequences\n"
-    "  -k, --skip=N\t\t\t- skip N RNs before first\n"
-    "  -s, --stride=N\t\t- increment RNs by N with each operation\n"
-    "  -h, --hostID=N\t\t- host ID\n"
-    "  -H, --hashOut=FILE\t\t- hash table CSV output file\n"
-    "  -d\t\t\t\t- enable debug logging\n"
-    "  --nAccepts=N\t\t\t- number of concurrent accepts to listen for\n"
-    "  --heartbeatFreq=N\t\t- heartbeat frequency in seconds\n"
-    "  --heartbeatTimeout=N\t\t- heartbeat timeout in seconds\n"
-    "  --reconnectFreq=N\t\t- reconnect frequency in seconds\n"
-    "  --electionTimeout=N\t\t- election timeout in seconds\n"
-    "  --hosts.1.priority=N\t\t- host 0 priority\n"
-    "  --hosts.1.IP=N\t\t- host 0 IP\n"
-    "  --hosts.1.port=N\t\t- host 0 port\n"
-    "  --hosts.1.up=CMD\t\t- host 0 up command\n"
-    "  --hosts.1.down=CMD\t\t- host 0 down command\n"
-    "  --hosts.2.priority=N\t\t- host 1 priority\n"
-    "  --hosts.2.IP=N\t\t- host 1 IP\n"
-    "  --hosts.2.port=N\t\t- host 1 port\n"
-    "  --hosts.2.up=CMD\t\t- host 1 up command\n"
-    "  --hosts.2.down=CMD\t\t- host 1 down command\n"
-    "  --hosts.3.priority=N\t\t- host 2 priority\n"
-    "  --hosts.3.IP=N\t\t- host 2 IP\n"
-    "  --hosts.3.port=N\t\t- host 2 port\n"
-    "  --hosts.3.up=CMD\t\t- host 2 up command\n"
-    "  --hosts.3.down=CMD\t\t- host 2 down command\n";
+    "usage: ZdbTest ...\n";
 
   std::cerr << help << std::flush;
   Zm::exit(1);
@@ -342,35 +284,7 @@ void usage()
 
 int main(int argc, char **argv)
 {
-  static ZvOpt opts[] = {
-    { "del", "D", ZvOptValue },
-    { "skip", "k", ZvOptValue, "0" },
-    { "stride", "s", ZvOptValue, "1" },
-    { "hostID", "h", ZvOptValue, "0" },
-    { "hashOut", "H", ZvOptValue },
-    { "debug", "d", ZvOptFlag },
-    { "hosts.1.priority", 0, ZvOptValue, "100" },
-    { "hosts.1.IP", 0, ZvOptValue, "127.0.0.1" },
-    { "hosts.1.port", 0, ZvOptValue, "9943" },
-    { "hosts.1.up", 0, ZvOptValue },
-    { "hosts.1.down", 0, ZvOptValue },
-    { "hosts.2.priority", 0, ZvOptValue },
-    { "hosts.2.IP", 0, ZvOptValue },
-    { "hosts.2.port", 0, ZvOptValue },
-    { "hosts.2.up", 0, ZvOptValue },
-    { "hosts.2.down", 0, ZvOptValue },
-    { "hosts.3.priority", 0, ZvOptValue },
-    { "hosts.3.IP", 0, ZvOptValue },
-    { "hosts.3.port", 0, ZvOptValue },
-    { "hosts.3.up", 0, ZvOptValue },
-    { "hosts.3.down", 0, ZvOptValue },
-    { "nAccepts", 0, ZvOptValue },
-    { "heartbeatFreq", 0, ZvOptValue },
-    { "heartbeatTimeout", 0, ZvOptValue },
-    { "reconnectFreq", 0, ZvOptValue },
-    { "electionTimeout", 0, ZvOptValue },
-    { 0 }
-  };
+  static ZvOpt opts[] = { { 0 } };
 
   ZmRef<ZvCf> cf;
   ZuString hashOut;
@@ -380,22 +294,13 @@ int main(int argc, char **argv)
       "hostID 1\n"
       "hosts {\n"
       "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"
-      "  2 { priority 75 IP 127.0.0.1 port 9944 }\n"
-      "  3 { priority 50 IP 127.0.0.1 port 9945 }\n"
       "}\n"
       "dbs {\n"
       "  orders { }\n"
       "}\n"
     );
 
-    if (cf->fromArgs(opts, argc, argv) != 3) usage();
-
-    del = cf->getInt("del", 1, INT_MAX, 0);
-    skip = cf->getInt("skip", 0, INT_MAX, 0);
-    stride = cf->getInt("stride", 1, INT_MAX, 1);
-    nThreads = cf->getInt<true>("1", 1, 1<<10);
-    nOps = cf->getInt<true>("2", 0, 1<<20);
-    hashOut = cf->get("hashOut");
+    if (cf->fromArgs(opts, argc, argv) != 1) usage();
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
@@ -419,7 +324,7 @@ int main(int argc, char **argv)
     ZeError e;
 
     {
-      appMx = new ZmScheduler(ZmSchedParams().nThreads(nThreads));
+      appMx = new ZmScheduler(ZmSchedParams().nThreads(1));
       dbMx = new ZiMultiplex(
 	  ZiMxParams()
 	    .scheduler([](auto &s) {
@@ -435,26 +340,25 @@ int main(int argc, char **argv)
     }
 
     appMx->start();
-    if (!dbMx->start()) throw ZtString("multiplexer start failed");
+    if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
+
+    store = new Store();
 
     ZmRef<ZdbEnv> env = new ZdbEnv();
 
-    env->init(ZdbEnvConfig(cf), dbMx, EnvHandler{
-      .upFn = &active, .downFn = &inactive});
+    env->init(ZdbEnvCf(cf), dbMx, ZdbEnvHandler{
+      .upFn = &active,
+      .downFn = &inactive,
+      .storeFn = []() -> StoreInterface * { return store.ptr(); }
+    });
 
-    orders = env->initDB<Order>("orders",
-	[](AnyObject *object) { },
-	[](ZdbRN rn) { });
+    orders = env->initDB<Order>("orders"); // might throw
 
-    if (!env->open()) throw ZtString{} << "Zdb open failed";
     env->start();
 
     done.wait();
 
-    env->checkpoint();
-
     env->stop();
-    env->close();
 
     appMx->stop();
     dbMx->stop();
@@ -469,8 +373,8 @@ int main(int argc, char **argv)
     std::cerr << e << '\n' << std::flush;
     ZeLog::stop();
     Zm::exit(1);
-  } catch (const ZtString &s) {
-    std::cerr << s << '\n' << std::flush;
+  } catch (const ZeAnyEvent &e) {
+    std::cerr << e << '\n' << std::flush;
     ZeLog::stop();
     Zm::exit(1);
   } catch (...) {
@@ -484,17 +388,7 @@ int main(int argc, char **argv)
 
   ZeLog::stop();
 
-  if (hashOut) {
-    FILE *f = fopen(hashOut, "w");
-    if (!f)
-      perror(hashOut);
-    else {
-      ZtString csv;
-      csv << ZmHashMgr::csv();
-      fwrite(csv.data(), 1, csv.length(), f);
-    }
-    fclose(f);
-  }
+  std::cout << ZmHashMgr::csv();
 
   return 0;
 }

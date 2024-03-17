@@ -521,7 +521,7 @@ public:
 
   // traits
   using Traits = ZuUnion_Traits<ZuBaseTraits<Union>, Args...>;
-  friend Traits ZuTraitsType(Union *);
+  friend Traits ZuTraitsType(Union *) { return {}; } // unused
 
 private:
   uint8_t	m_u[Size + 1];

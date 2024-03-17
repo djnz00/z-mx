@@ -160,6 +160,10 @@ void Env::final()
     if (state() != HostState::Instantiated) return false;
     all_([](DB *db) { db->final(); });
     m_handler = {};
+    if (m_store) {
+      m_store->final();
+      m_store = nullptr;
+    }
     return true;
   }))
     throw ZeEVENT(Fatal, "ZdbEnv::final called out of order");
