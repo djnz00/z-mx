@@ -24,8 +24,7 @@
 // ZuInspect<T1, T2>::Is	- ZuDecay<T1> is same or a base of ZuDecay<T2>
 // ZuInspect<T1, T2>::Base	- ZuDecay<T1> is a base of ZuDecay<T2>
 //
-// ZuInspect<T1, T2>::Same is equivalent to
-// ZuIsExact<ZuDecay<T1>, ZuDecay<T2>>{}
+// ZuInspect<T1, T2>::Same is equivalent to ZuIsExact<ZuDecay<T1>, ZuDecay<T2>>{}
 
 #ifndef ZuInspect_HPP
 #define ZuInspect_HPP

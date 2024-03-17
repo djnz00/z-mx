@@ -216,7 +216,7 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <typename L, typename ...Args_>
   struct IsCallable_<L, ZuTypeList<Args_...>,
     decltype(ZuDeclVal<L &>()(ZuDeclVal<Args_>()...), void())> :
-      public ZuTrue { };
+      public ZuBool<!ZuInspect<ZmAnyFn, L>::Is> { };
   template <typename L>
   using IsCallable = IsCallable_<L, ZuTypeList<Args...>>;
   template <typename L, typename R = void>

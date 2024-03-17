@@ -79,20 +79,22 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	s << "ZdbEnv thread misconfigured: " << thread; }));
 
     {
-      ZiModule module_;
-      auto path = config.storeCf->get<true>("module");
-      auto preload = config.storeCf->getBool("preload", false);
-      ZtString e; // dlerror() returns a string
-      if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
-	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
-	  s << "failed to load \"" << path << "\": " << e; }));
-      ZdbStoreFn storeFn =
-	reinterpret_cast<ZdbStoreFn>(module_.resolve(ZdbStoreFnSym, &e));
+      StoreFn storeFn = handler.storeFn;
       if (!storeFn) {
-	module_.unload();
-	throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
-	  s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
-	    << path << "\": " << e; }));
+	ZiModule module_;
+	auto path = config.storeCf->get<true>("module");
+	auto preload = config.storeCf->getBool("preload", false);
+	ZtString e; // dlerror() returns a string
+	if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
+	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
+	    s << "failed to load \"" << path << "\": " << e; }));
+	storeFn = reinterpret_cast<StoreFn>(module_.resolve(ZdbStoreFnSym, &e));
+	if (!storeFn) {
+	  module_.unload();
+	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
+	    s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
+	      << path << "\": " << e; }));
+	}
       }
       m_store = (*storeFn)();
       Store_::InitResult result = m_store->init(
@@ -213,9 +215,17 @@ void Env::start_()
   }
   {
     ZmAtomic<unsigned> ok = true;
-    allSync([this, &ok](DB *db) { return [this, &ok, db]() {
-      if (ZuLikely(ok.load_())) ok &= db->open(m_store);
-    }; });
+    auto i = m_dbs.readIterator();
+    ZmBlock<>{}(m_dbs.count_(), [this, &ok, &i](unsigned, auto wake) {
+      if (auto db = i.iterate())
+	db->invoke([this, db, &ok, wake = ZuMv(wake)]() mutable {
+	  db->open(m_store,
+	      [db, &ok, wake = ZuMv(wake)](Store_::OpenResult result) mutable {
+	    ok &= db->opened(ZuMv(result));
+	    wake();
+	  });
+	});
+    });
     if (!ok) {
       allSync([](DB *db) { return [db]() { db->close(); }; });
       started(false);
@@ -1041,7 +1051,7 @@ ZmRef<Buf> DB::repBuf(UN un)
     return saveHdr(fbb, this);
   }
   // recover from object cache (without falling through to reading from disk)
-  if (auto object = m_updCache->findVal(un))
+  if (auto object = m_cacheUN->findVal(un))
     return object->replicate(fbs::Body_Recovery);
   return nullptr;
 }
@@ -1365,9 +1375,9 @@ void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
 
 DB::DB(Env *env, DBCf *cf) :
   m_env{env}, m_mx{env->mx()}, m_cf{cf},
-  m_updCache{new UpdCache{}},
+  m_cacheUN{new CacheUN{}},
   m_repBufs{new RepBufs{}},
-  m_updBufs{new UpdBufs{}}
+  m_repBufsUN{new RepBufsUN{}}
 {
 }
 
@@ -1489,14 +1499,14 @@ void DB::repCommitted(UN un)
 {
   ZmAssert(invoked());
 
-  if (auto buf = m_updBufs->delVal(un)) m_repBufs->delNode(buf.ptr());
+  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   repSendCommit(un);
 }
 
 // process data store commit
 void DB::committed(UN un, Table_::CommitResult &result)
 {
-  if (auto buf = m_updBufs->delVal(un)) m_repBufs->delNode(buf.ptr());
+  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   if (ZuUnlikely(result.contains<Event>())) {
     // FIXME - retry on failure? (would need to elide repBuf deletion)
     ZeLogEvent(ZuMv(result).v<Event>());
@@ -1524,7 +1534,7 @@ void DB::write_(ZmRef<Buf> buf) {
     m_table->del(record->rn(), record->un(), sn, record->vn(), ZuMv(commitFn));
   else if (record->vn())
     m_table->update(record->rn(), record->un(), sn, record->vn(),
-	ptr, m_handler.exportFn, ZuMv(commitFn));
+	ptr, m_handler.exportUpdateFn, ZuMv(commitFn));
   else
     m_table->push(record->rn(), record->un(), sn,
 	ptr, m_handler.exportFn, ZuMv(commitFn));
@@ -1537,7 +1547,7 @@ void DB::write(ZmRef<Buf> buf)
   ZmAssert(buf->db() == this);
 
   m_repBufs->addNode(buf);
-  m_updBufs->add(buf);
+  m_repBufsUN->add(buf);
   m_env->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     auto env = db->env();
@@ -1552,11 +1562,12 @@ void DB::write(ZmRef<Buf> buf)
 // Env::open() iterates over DBs, calling open(store)
 // - each DB calls env->opened(this, rn, un) on success
 
-bool DB::open(Store *store)
+template <typename L>
+void DB::open(Store *store, L l)
 {
   ZmAssert(invoked());
 
-  if (m_open) return true;
+  if (m_open) return;
 
   using namespace Store_;
 
@@ -1567,8 +1578,26 @@ bool DB::open(Store *store)
       object->init(data.rn, data.un, data.sn, data.vn);
       db->m_handler.scanFn(object);
     };
-  OpenResult result = store->open(this, id(), fields(), scanFn);
-  if (!result.contains<OpenData>()) return false;
+  store->open(this, id(), fields(),
+      [l = ZuMv(l)](DB *db, OpenResult result) mutable {
+    db->invoke([l = ZuMv(l), result = ZuMv(result)]() mutable {
+      l(ZuMv(result));
+    });
+  }, scanFn);
+}
+
+bool DB::opened(Store_::OpenResult result)
+{
+  ZmAssert(invoked());
+  ZmAssert(!m_open);
+
+  using namespace Store_;
+
+  if (!result.contains<OpenData>()) {
+    if (result.contains<Event>())
+      ZeLogEvent(ZuMv(result).v<Event>());
+    return false;
+  }
   const auto &data = result.v<OpenData>();
   m_table = data.table;
   m_env->opened(this, data.rn, data.un, data.sn);
@@ -1701,15 +1730,15 @@ bool DB::put(ZmRef<AnyObject> object)
   switch (origState) {
     case ObjState::Push:
       m_cache.add(object);
-      m_updCache->add(object->un(), object);
+      m_cacheUN->add(object->un(), object);
       break;
     case ObjState::Update:
-      m_updCache->add(object->un(), object);
-      m_updCache->del(origUN);
+      m_cacheUN->add(object->un(), object);
+      m_cacheUN->del(origUN);
       break;
     case ObjState::Delete:
       m_cache.delNode(object);
-      m_updCache->del(origUN);
+      m_cacheUN->del(origUN);
       break;
   }
   return true;

@@ -130,7 +130,7 @@ void Globber::init(
 
   // capture leafname span within the quoted path
 
-  m_loff = 0;				// leafname offset in line
+  m_loff = begin;			// leafname offset in line
   m_lspan = {};				// leafname span in line
   int xqstate = QState::Unquoted;	// extant quoting state at leafname
 

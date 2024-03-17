@@ -129,27 +129,27 @@ int main()
     std::cout << '\n';
   }
 
-  // dummy importer
-  using CVP = const void *;
-  using CCP = const char *;
-  ZtField::Importer i{ {
-    ZtMFieldGet{.fn_ = {.cstring = [](CVP) -> CCP { return "foo bar"; }}},
-    ZtMFieldGet{.fn_ = {.bytes = [](CVP) -> ZuBytes { return {"yikes"}; }}},
-    ZtMFieldGet{.fn_ = {.string = [](CVP) -> ZuString { return "hello"; }}},
-    ZtMFieldGet{.fn_ = {.int_ = [](CVP) -> int64_t { return -42; }}},
-    ZtMFieldGet{.fn_ = {.int_ = [](CVP) -> int64_t { return 42; }}},
-    ZtMFieldGet{.fn_ = {.uint = [](CVP) -> uint64_t { return 43; }}},
-    ZtMFieldGet{.fn_ = {.enum_ = [](CVP) -> int { return -1; }}},
-    ZtMFieldGet{.fn_ = {.flags = [](CVP) -> uint64_t { return 0; }}},
-    ZtMFieldGet{.fn_ = {.float_ = [](CVP) -> double { return -0.42; }}},
-    ZtMFieldGet{.fn_ = {.float_ = [](CVP) -> double { return 0.42; }}},
-    ZtMFieldGet{.fn_ = {.fixed = [](CVP) -> ZuFixed { return {0.42, 2}; }}},
-    ZtMFieldGet{.fn_ = {.decimal = [](CVP) -> ZuDecimal { return 0.42; }}},
-    ZtMFieldGet{.fn_ = {.time = [](CVP) -> ZmTime { return ZmTimeNow(); }}},
-    ZtMFieldGet{.fn_ = {.udt = [](CVP) -> CVP {
-      static Nested n{42, 43};
-      return &n;
-    }}}
-  } };
-  std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i, nullptr}) << '\n';
+  auto i = ZtField::importer<Foo>();
+  auto x = ZtField::exporter<Foo>();
+  Foo data{
+    .string = "foo bar",
+    .bytes = "yikes",
+    .id = "hello",
+    .int_ = -42,
+    .int_ranged = 42,
+    .hex = 43,
+    .enum_ = -1,
+    .flags = 0,
+    .float_ = -0.42,
+    .float_ranged = 0.42,
+    .fixed = { 0.42, 2 },
+    .decimal = 0.42,
+    .time_ = ZmTimeNow(),
+    .nested = { 42, 43 }
+  };
+  std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i, &data}) << '\n';
+  Foo data2;
+  ZtField::Export x_{x, &data2};
+  ZtField::save<Foo>(data, x_);
+  std::cout << '\n' << data2 << '\n';
 }

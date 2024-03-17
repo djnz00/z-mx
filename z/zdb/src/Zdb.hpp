@@ -72,7 +72,7 @@
 #include <zlib/ZdbBuf.hpp>
 #include <zlib/ZdbStore.hpp>
 
-// Zdb is a clustered/replicated in-process/in-memory journal DB that
+// Zdb is a clustered/replicated in-process/in-memory DB that
 // includes leader election and failover. Zdb dynamically organizes
 // cluster hosts into a replication chain from the leader to the
 // lowest-priority follower. Replication is async. ZmEngine is used for
@@ -315,9 +315,6 @@ inline void Buf::print(S &s) const {
 
 // --- DB generic object
 
-// RN is allocated at construction
-// UN is allocated and assigned when committed
-
 namespace ObjState {
   ZtEnumValues(ObjState,
       Undefined = 0,
@@ -330,38 +327,38 @@ namespace ObjState {
 
 // possible state paths:
 //
-// Undefined, Push			push
-// Push, Committed			push committed
-// Push, Undefined			push aborted
-// Committed, Update, Committed		update committed or aborted
-// Committed, Delete, Deleted		delete committed
-// Committed, Delete, Committed		delete aborted
+// Undefined > Push			push
+// Push > Committed			push committed
+// Push > Undefined			push aborted
+// Committed > Update > Committed	update committed or aborted
+// Committed > Delete > Deleted		delete committed
+// Committed > Delete > Committed	delete aborted
 //
 // path forks:
 //
 // Push   > (Committed|Undefined)
 // Delete > (Deleted|Committed)
 //
-// events:
+// possible event sequences:
 //
-// Undefined > Push	push
-// Push > Committed	put
-// Push > Undefined	abort
-// Committed > Update	update
-// Update > Committed	put
-// Update > Committed	abort
-// Committed > Delete	del
-// Delete > Deleted	put
-// Delete > Committed	abort
+// push, put
+// push, abort
+// update, put
+// update, abort
+// del, put
+// del, abort
 //
-// event sequences:
+// events and state transitions:
 //
-// push,put
-// push,abort
-// update,put
-// update,abort
-// del,put
-// del,abort
+// push		Undefined > Push
+// put		Push > Committed
+// abort	Push > Undefined
+// update	Committed > Update
+// put		Update > Committed
+// abort	Update > Committed
+// del		Committed > Delete
+// put		Delete > Deleted
+// abort	Delete > Committed
 
 class ZdbAPI AnyObject_ : public ZmPolymorph {
   AnyObject_() = delete;
@@ -435,7 +432,7 @@ inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
   return object->un();
 }
 // temporarily there may be more than one UN referencing a cached object
-using UpdCache =
+using CacheUN =
   ZmHashKV<UN, ZmRef<AnyObject>,
     ZmHashLock<ZmPLock,
       ZmHashHeapID<Object_HeapID>>>;
@@ -508,6 +505,7 @@ struct DBHandler {
   FieldsFn	fieldsFn = nullptr;
   ImportFn	importFn = nullptr;
   ExportFn	exportFn = nullptr;
+  ExportFn	exportUpdateFn = nullptr;
   ScanFn	scanFn = nullptr;
   DeleteFn	deleteFn = nullptr;
 
@@ -548,6 +546,9 @@ struct DBHandler {
       },
       .exportFn = [](const void *ptr, ZtField::Export &export_) {
 	ZtField::save<T>(*static_cast<const T *>(ptr), export_);
+      },
+      .exportUpdateFn = [](const void *ptr, ZtField::Export &export_) {
+	ZtField::saveUpdate<T>(*static_cast<const T *>(ptr), export_);
       },
       .scanFn = ZuMv(scanFn_),
       .deleteFn = ZuMv(deleteFn_)
@@ -606,7 +607,9 @@ private:
   void init(DBHandler);
   void final();
 
-  bool open(Store *store);
+  template <typename L>
+  void open(Store *store, L l);
+  bool opened(Store_::OpenResult result);
   void close();
 
 public:
@@ -631,7 +634,7 @@ public:
 
 private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
-  ZmRef<Buf> findBufUN(UN un) { return {m_updBufs->findVal(un)}; }
+  ZmRef<Buf> findBufUN(UN un) { return {m_repBufsUN->findVal(un)}; }
 
   template <bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
@@ -664,7 +667,7 @@ private:
     };
     if constexpr (Evict) {
       auto evict = [this](ZmRef<AnyObject> object) {
-	m_updCache->del(object->un());
+	m_cacheUN->del(object->un());
       };
       m_cache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
     } else
@@ -711,9 +714,13 @@ public:
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
-  // FIXME - idempotent on RN for push?
-  // create new record (idempotent)
-  template <typename L> void push(UN un, L l) {
+  // create new record (idempotent with RN as key)
+  template <typename L> void pushRN(RN rn, L l) {
+    if (rn != nullRN() && ZuUnlikely(m_nextRN > rn)) { l(nullptr); return; }
+    push(ZuMv(l));
+  }
+  // create new record (idempotent with UN as key)
+  template <typename L> void pushUN(UN un, L l) {
     if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
     push(ZuMv(l));
   }
@@ -855,12 +862,11 @@ private:
 
   // object cache
   Cache			m_cache;		// object cache indexed by RN
-  // FIXME - updCache, updBufs - rethink naming
-  ZmRef<UpdCache>	m_updCache;		// '' indexed by UN
+  ZmRef<CacheUN>	m_cacheUN;		// '' indexed by UN
 
   // pending replications
   ZmRef<RepBufs>	m_repBufs;		// buffers indexed by RN
-  ZmRef<UpdBufs>	m_updBufs;		// '' indexed by UN
+  ZmRef<RepBufsUN>	m_repBufsUN;		// '' indexed by UN
 };
 
 inline void AnyObject_::put() { m_db->put(this); }
@@ -1016,6 +1022,7 @@ typedef void (*DownFn)(Env *);
 struct EnvHandler {
   UpFn		upFn = [](Env *, Host *) { };
   DownFn	downFn = [](Env *) { };
+  StoreFn	storeFn = []() -> Store * { return nullptr; }; // local data store
 };
 
 // --- DB environment configuration
@@ -1335,6 +1342,9 @@ inline void Env::print(S &s)
 // external API
 
 using ZdbRN = Zdb_::RN;
+using ZdbUN = Zdb_::UN;
+using ZdbSN = Zdb_::SN;
+using ZdbVN = Zdb_::VN;
 
 using ZdbAnyObject = Zdb_::AnyObject;
 template <typename T> using ZdbObject = Zdb_::Object<T>;

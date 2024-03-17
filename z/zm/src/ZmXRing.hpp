@@ -17,8 +17,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// simple fast dynamic ring buffer (supports FIFO and LIFO) for types with
-// a sentinel null value (defaults to ZuCmp<T>::null())
+// simple fast dynamic-sized ring buffer (supports FIFO and LIFO) for types
+// with a sentinel null value (defaults to ZuCmp<T>::null())
 
 #ifndef ZmXRing_HPP
 #define ZmXRing_HPP

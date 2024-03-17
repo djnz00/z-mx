@@ -96,7 +96,7 @@ inline RN Buf_RNAxor(const VBuf &buf) {
 inline UN Buf_UNAxor(const ZmRef<Buf> &buf) {
   return record_(msg_(static_cast<const Buf *>(buf.ptr())->hdr()))->un();
 }
-using UpdBufs =
+using RepBufsUN =
   ZmHash<ZmRef<Buf>,
     ZmHashKey<Buf_UNAxor,
       ZmHashLock<ZmPLock,

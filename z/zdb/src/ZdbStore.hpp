@@ -61,8 +61,8 @@ struct GetData {
 };
 // get result
 using GetResult = ZuUnion<
-  GetData,		// succeeded
   void,			// missing
+  GetData,		// succeeded
   Event>;		// error
 // get callback
 using GetFn = ZmFn<DB *, RN, GetResult>;
@@ -135,9 +135,10 @@ struct OpenData {
 };
 // result of table open
 using OpenResult = ZuUnion<
-  void,				// unset
   OpenData,			// succeeded
   Event>;			// error
+// open callback
+using OpenFn = ZmFn<DB *, OpenResult>;
 
 // table scan data
 struct ScanData {
@@ -158,20 +159,25 @@ struct Interface {
       LogFn) = 0;
   virtual void final() = 0;		// finalize data store - idempotent
 
-  // if a ScanFn is supplied, table scan will complete before open returns
-  virtual OpenResult open(		// open table - idempotent, synchronous
+  // multiple calls to ScanFn may continue after open() returns,
+  // concluding with a single call to OpenFn
+  virtual OpenResult open(		// open table - idempotent, async
       DB *,
       ZuID id,
       ZtMFieldArray fields,
+      OpenFn,
       ScanFn) = 0;
 };
 } // Store_;
 using Store = Store_::Interface;
 
+// module entry point
+typedef Store *(*StoreFn)();
+
 } // Zdb_
 
 extern "C" {
-  typedef Zdb_::Store *(*ZdbStoreFn)();	// module entry point
+  typedef Zdb_::StoreFn ZdbStoreFn;
 }
 #define ZdbStoreFnSym	"ZdbStore"	// module symbol
 

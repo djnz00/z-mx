@@ -18,6 +18,7 @@
 #include <zlib/ZuSort.hpp>
 #include <zlib/ZuObject.hpp>
 #include <zlib/ZuRef.hpp>
+#include <zlib/ZuID.hpp>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
@@ -540,5 +541,10 @@ int main()
     } catch (A &a) {
       CHECK(true);
     }
+  }
+  {
+    ZuID id = "foobar";
+    ZuString s(id);
+    CHECK(s == "foobar");
   }
 }

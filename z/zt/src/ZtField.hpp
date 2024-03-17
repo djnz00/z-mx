@@ -399,56 +399,56 @@ struct ZtMFieldGet {
     ZmTime		(*time)(const void *);		// Time
   } fn_;
 
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::CString, const char *> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::CString, const char *> fn(const void *p) const {
     return fn_.cstring(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::String, ZuString> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::String, ZuString> fn(const void *p) const {
     return fn_.string(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Bytes, ZuBytes> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Bytes, ZuBytes> fn(const void *p) const {
     return fn_.bytes(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::UDT, const void *> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::UDT, const void *> fn(const void *p) const {
     return fn_.udt(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Bool, bool> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Bool, bool> fn(const void *p) const {
     return fn_.bool_(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Int, int64_t> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Int, int64_t> fn(const void *p) const {
     return fn_.int_(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::UInt, uint64_t> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::UInt, uint64_t> fn(const void *p) const {
     return fn_.uint(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Enum, int> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Enum, int> fn(const void *p) const {
     return fn_.enum_(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Flags, uint64_t> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Flags, uint64_t> fn(const void *p) const {
     return fn_.flags(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Float, double> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Float, double> fn(const void *p) const {
     return fn_.float_(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Fixed, ZuFixed> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Fixed, ZuFixed> fn(const void *p) const {
     return fn_.fixed(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Decimal, ZuDecimal> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Decimal, ZuDecimal> fn(const void *p) const {
     return fn_.decimal(p);
   }
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::Time, ZmTime> fn(const void *p) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::Time, ZmTime> fn(const void *p) const {
     return fn_.time(p);
   }
 };
@@ -471,56 +471,56 @@ struct ZtMFieldSet {
     void		(*time)(void *, ZmTime);	// Time
   } fn_;
 
-  template <unsigned I>
-  ZuIfT<I == ZtFieldTypeCode::CString> fn(void *p, const char *v) const {
+  template <unsigned Code>
+  ZuIfT<Code == ZtFieldTypeCode::CString> fn(void *p, const char *v) const {
     fn_.cstring(p, v);
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::String> fn(void *p, U &&v) const {
-    fn_.string(p, ZuString{ZuFwd<U>(v)});
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::String> fn(void *p, U &&v) const {
+    fn_.string(p, ZuString(ZuFwd<U>(v)));	// not ZuString{}
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Bytes> fn(void *p, U &&v) const {
-    fn_.bytes(p, ZuBytes{ZuFwd<U>(v)});
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Bytes> fn(void *p, U &&v) const {
+    fn_.bytes(p, ZuBytes(ZuFwd<U>(v)));		// not ZuBytes{}
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::UDT> fn(void *p, const U &v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::UDT> fn(void *p, const U &v) const {
     fn_.udt(p, static_cast<const void *>(&v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Bool> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Bool> fn(void *p, U &&v) const {
     fn_.bool_(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Int> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Int> fn(void *p, U &&v) const {
     fn_.int_(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::UInt> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::UInt> fn(void *p, U &&v) const {
     fn_.uint(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Enum> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Enum> fn(void *p, U &&v) const {
     fn_.enum_(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Flags> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Flags> fn(void *p, U &&v) const {
     fn_.flags(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Float> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Float> fn(void *p, U &&v) const {
     fn_.float_(p, ZuFwd<U>(v));
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Fixed> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Fixed> fn(void *p, U &&v) const {
     fn_.fixed(p, ZuFixed{ZuFwd<U>(v)});
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Decimal> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Decimal> fn(void *p, U &&v) const {
     fn_.decimal(p, ZuDecimal{ZuFwd<U>(v)});
   }
-  template <unsigned I, typename U>
-  ZuIfT<I == ZtFieldTypeCode::Time> fn(void *p, U &&v) const {
+  template <unsigned Code, typename U>
+  ZuIfT<Code == ZtFieldTypeCode::Time> fn(void *p, U &&v) const {
     fn_.time(p, ZmTime{ZuFwd<U>(v)});
   }
 };
@@ -2272,7 +2272,7 @@ struct Export {
   void			*ptr;
 
   template <unsigned I, int Code, typename U>
-  void set(U &&v) {
+  void set(U &&v) const {
     return exporter.set[I].fn<Code>(ptr, ZuFwd<U>(v));
   }
 };
@@ -2303,9 +2303,29 @@ struct Fielded_ {
       public ZuBool<(Prop::GetCtor<typename U::Props>{} < 0)> { };
   using InitFields = ZuTypeGrep<InitFilter, LoadFields>;
 
+  template <typename ...Fields>
+  struct Exporter {
+    static auto fn() {
+      return ZtField::Exporter{ { Fields::setFn()... } };
+    }
+  };
+  template <typename ...Fields>
+  struct Exporter<ZuTypeList<Fields...>> : public Exporter<Fields...> { };
+  static auto exporter() { return Exporter<AllFields>::fn(); }
+
+  template <typename ...Fields>
+  struct Importer {
+    static auto fn() {
+      return ZtField::Importer{ { Fields::getFn()... } };
+    }
+  };
+  template <typename ...Fields>
+  struct Importer<ZuTypeList<Fields...>> : public Importer<Fields...> { };
+  static auto importer() { return Importer<AllFields>::fn(); }
+
   template <typename Fields>
   struct Save {
-    static void save(const O &o, Export &export_) {
+    static void save(const O &o, const Export &export_) {
       ZmAssert(export_.exporter.set.length() == AllFields::N);
       ZuUnroll::all<Fields>([&o, &export_]<typename Field>() {
 	const auto &v = Field::get(o); // temporary lifetime-extension
@@ -2313,10 +2333,10 @@ struct Fielded_ {
       });
     }
   };
-  static void save(const O &o, Export &export_) {
+  static void save(const O &o, const Export &export_) {
     Save<LoadFields>::save(o, export_);
   }
-  static void saveUpdate(const O &o, Export &export_) {
+  static void saveUpdate(const O &o, const Export &export_) {
     Save<UpdateFields>::save(o, export_);
   }
 
@@ -2445,12 +2465,15 @@ struct Fielded_ {
 template <typename O>
 using Fielded = Fielded_<ZuFielded<O>>;
 
+template <typename O> inline auto importer() { return Fielded<O>::importer(); }
+template <typename O> inline auto exporter() { return Fielded<O>::exporter(); }
+
 template <typename O>
-inline void save(const O &o, Export &export_) {
+inline void save(const O &o, const Export &export_) {
   Fielded<O>::save(o, export_);
 }
 template <typename O>
-inline void saveUpdate(const O &o, Export &export_) {
+inline void saveUpdate(const O &o, const Export &export_) {
   Fielded<O>::saveUpdate(o, export_);
 }
 

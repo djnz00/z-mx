@@ -35,24 +35,174 @@ struct Order {
 };
 
 ZfbFields(Order, fbs::Order,
-    (((side)), (Enum, Side::Map), (Ctor(0))),
-    (((symbol)), (String), (Ctor(1))),
-    (((price)), (Int), (Ctor(2))),
-    (((quantity)), (Int), (Ctor(3))));
+    (((side)), (Enum, Side::Map), (Ctor<0>)),
+    (((symbol)), (String), (Ctor<1>)),
+    (((price)), (Int), (Ctor<2>)),
+    (((quantity)), (Int), (Ctor<3>)));
 
 ZmRef<Zdb> orders;
 
-#if 0
-TestSeq(ZdbRN rn, TestLoop l0, l1, ...) // sequence of op loops
-  // rn += range.size(), ...
-  RN run(RN rn) { rn = l0.run(rn), rn = l1.run(rn), ... }
+// mock row
+struct Row {
+  RN	rn;
+  UN	un;
+  SN	sn;
+  VN	vn;
+  Order	order;
 
-TestPlan(unsigned n, TestSeq seq)
-  RN run(RN rn) { for (unsigned i = 0, i < n, i++) rn = seq.run(rn); }
+  static auto RNAxor(const Record &r) { return r.rn; }
+  static auto UNAxor(const Record &r) { return r.un; }
+};
+inline constexpr const char *Row_HeapID() { return "Row"; }
+using RowsUN =
+  ZmRBTree<Row,
+    ZmRBTreeNode<Row,
+      ZmRBTreeShadow<true,
+	ZmRBTreeKey<Row::UNAxor,
+	  ZmRBTreeUnique<true>>>>>;
+using Rows =
+  ZmRBTree<RowsUN::Node,
+    ZmRBTreeNode<RowsUN::Node,
+      ZmRBTreeKey<Row::RNAxor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeHeapID<Row_HeapID>>>>>;
 
-#endif
+ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work;
 
-ZmSemaphore done;
+// mock table
+namespace MockTable {
+using namespace Zdb_::Table_;
+struct Table : public Interface {
+  DB			*db;
+  Rows			rows;
+  RowsUN		rowsUN;
+  ZtField::Importer	importer = ZtField::importer<Foo>();
+  ZtField::Exporter	exporter = ZtField::exporter<Foo>();
+
+  Table(DB *db_) : db{db_} { }
+
+  void close() { }
+
+  void get(RN rn, GetFn getFn) {
+    work.push([rn, getFn = ZuMv(getFn)]() {
+      auto row = rows.find(rn);
+      if (row) {
+	exportFn(object, ZtField::Export{&row->order, exporter});
+	ZtField::Import import_{&row->order, importer};
+	GetData data{
+	  .un = row->un,
+	  .sn = row->sn,
+	  .vn = row->vn,
+	  .import_ = import_
+	};
+	// FIXME - getFn should also be deferred/enqueued
+	getFn(db, {ZuMv(data)});
+      } else {
+	getFn(db, {});
+      }
+    }
+  }
+
+  // FIXME - use work queue for all work
+  // FIXME - use a different work queue (callbacks?) for callbacks
+  // FIXME - test program will orchestrate work and callback dispatching
+  void recover(UN un, RecoverFn recoverFn) {
+    auto row = rowsUN.find(un);
+    if (row) {
+      exportFn(object, ZtField::Export{&row->order, exporter});
+      ZtField::Import import_{&row->order, importer};
+      RecoverData data{
+	.rn = row->rn,
+	.sn = row->sn,
+	.vn = row->vn,
+	.import_ = import_
+      };
+      recoverFn(db, {ZuMv(data)});
+    } else {
+      recoverFn(db, {});
+    }
+  }
+
+  void push(RN rn, UN un, SN sn,
+      const void *object, ExportFn exportFn, CommitFn commitFn) {
+    if (rowsUN.find(un)) {
+      commitFn(db, un, {});
+      return;
+    }
+    if (rows.find(rn)) {
+      commitFn(db, un,
+	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " conflicting RN"; }))});
+      return;
+    }
+    auto row = new Rows::Node{rn, un, sn, 0};
+    exportFn(object, ZtField::Export{&row->order, exporter});
+    rows.addNode(row);
+    rowsUN.addNode(row);
+    commitFn(db, un, {});
+  }
+
+  void update(RN rn, UN un, SN sn, VN vn,
+      const void *object, ExportFn exportFn, CommitFn commitFn) {
+    if (rowsUN.find(un)) {
+      commitFn(db, un, {});
+      return;
+    }
+    auto row = rows.find(rn);
+    if (row) {
+      rowsUN.delNode(row);
+      exportFn(object, ZtField::Export{&row->order, exporter});
+      row.un = un;
+      row.sn = sn;
+      row.vn = vn;
+      rowsUN.addNode(row);
+      commitFn(db, un, {});
+    } else {
+      commitFn(db, un,
+	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " missing RN"; }))});
+    }
+  }
+  void del(RN rn, UN un, SN sn, VN vn, CommitFn commitFn) {
+    if (rowsUN.find(un)) {
+      commitFn(db, un, {});
+      return;
+    }
+    auto row = rows.find(rn);
+    if (row) {
+      rowsUN.delNode(row);
+      rows.delNode(row);
+      commitFn(db, un, {});
+    } else {
+      commitFn(db, un,
+	  {ZeMEVENT(Error, ([rn](auto &s) { s << rn << " missing RN"; }))});
+    }
+  }
+};
+} // MockTable
+using Table = MockTable::Table;
+// mock data store
+namespace MockStore {
+using namespace Zdb_::Store_;
+struct Store : public Interface {
+  InitResult init(
+      ZvCf *cf,
+      LogFn) { return {}; /* FIXME */}
+  void final() { /* FIXME */}
+
+  OpenResult open(
+      DB *,
+      ZuID id,
+      ZtMFieldArray fields,
+      OpenFn,
+      ScanFn) { return {}; /* FIXME */}
+};
+} // MockStore
+using Store = MockStore::Store;
+
+// environments and mock data stores
+ZmRef<ZdbEnv> env[2] = {};
+Store *store[2] = {};
+
+
 
 ZmScheduler *appMx = 0;
 ZiMultiplex *dbMx = 0;
@@ -74,7 +224,7 @@ void sigint()
 
 ZmRef<ZvCf> inlineCf(ZuString s)
 {
-  ZmRef<ZvCf> cf = new ZvCf();
+  ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);
   return cf;
 }

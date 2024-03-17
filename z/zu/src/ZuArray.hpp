@@ -92,14 +92,22 @@ public:
   }
 
 public:
+#if 0
+  template <typename U, typename V = T, typename = void>
+  struct CanCast : public ZuFalse { };
+  template <typename U, typename V>
+  struct CanCast<U, V,
+    decltype(&U::operator ZuArray(), void())> : public ZuTrue { };
+#endif
   template <typename U, typename V = T>
   struct IsPrimitiveArray_ : public ZuBool<
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Same &&
       ZuTraits<U>::IsArray &&
-      ZuTraits<U>::IsPrimitive> { };
-  template <typename U> struct IsChar_ : public ZuBool<
-      ZuInspect<char, U>::Same ||
-      ZuInspect<wchar_t, U>::Same> { };
+      ZuTraits<U>::IsPrimitive &&
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Same> { };
+  template <typename U, typename V = T>
+  struct IsChar_ : public ZuBool<
+      (ZuInspect<char, U>::Same || ZuInspect<wchar_t, U>::Same) &&
+      ZuInspect<U, V>::Same> { };
   template <typename U>
   struct IsCharElem_ : public IsChar_<typename ZuTraits<U>::Elem> { };
   template <typename U> struct IsStrLiteral :
@@ -109,7 +117,7 @@ public:
   template <typename U> struct IsCString : public ZuBool<
       !IsPrimitiveArray_<U>{} &&
       ZuTraits<U>::IsPointer &&
-      IsCharElem_<U>{}> { };
+      bool{IsCharElem_<U>{}}> { };
   template <typename U, typename V = T> struct IsOtherArray : public ZuBool<
       !IsPrimitiveArray_<U>{} &&
       !IsCString<U>{} &&
