@@ -184,11 +184,13 @@ constexpr auto ZuInvokeFn(const L &l) {
   return static_cast<ZuInvokeFnT<L>>(l);
 }
 
-// Note: stateless lambdas invoked using a placeholder this pointer...
-// technically this is undefined behavior, but it elides preserving a
-// redundant this pointer
+// stateless lambdas are invoked using a placeholder this pointer...
+// technically undefined behavior, but it elides preserving the this pointer
 //
-// Note: this->x does not imply evaluating (*this).x - the reverse is true
+// this->x does not imply evaluating (*this).x (the reverse is true)
+//
+// C++23 static operator() would make all this redundant, but the ABI
+// changes wreak havoc
 
 template <typename L, typename ArgList = ZuArgList<L>, typename ...Args>
 auto ZuInvokeLambda(Args &&... args) {
@@ -196,8 +198,7 @@ auto ZuInvokeLambda(Args &&... args) {
   ZuAssert((ZuIsStatelessLambda<L, ArgList>{}));
   ZuAssert(sizeof(L) == sizeof(Empty));
   static Empty _;
-  return static_cast<L &&>(*reinterpret_cast<L *>(&_))->operator ()(
-      ZuFwd<Args>(args)...);
+  return reinterpret_cast<L *>(&_)->operator ()(ZuFwd<Args>(args)...);
 }
 
 template <typename L, typename ArgList = ZuArgList<L>, typename R = void>
