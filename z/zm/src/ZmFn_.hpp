@@ -40,14 +40,6 @@
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmPolymorph.hpp>
 
-// Note: stateless lambdas are invoked using a placeholder this pointer
-// that is 0 - technically this is undefined behavior, but works widely
-// and elides capturing a this pointer that is redundant:
-//
-// reinterpret_cast<const L *>(0)->operator ()(...);
-//
-// Note: this->x does not imply evaluating (*this).x (the reverse is true)
-
 template <typename ...Args> class ZmFn;
 
 template <typename T> constexpr uintptr_t ZmFn_Cast(T v) {
@@ -551,8 +543,8 @@ private:
   template <auto HeapID, bool Sharded, typename L>
   struct LambdaInvoker<HeapID, Sharded, L, false, true, false> {
     static uintptr_t invoke(uintptr_t, Args... args) {
-      return ZmFn_Cast(reinterpret_cast<const L *>(0)->operator ()(
-	    ZuFwd<Args>(args)...));
+      return ZmFn_Cast(
+	  ZuInvokeLambda<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...));
     }
     static ZmFn fn(L &&) {
       return {
@@ -564,7 +556,7 @@ private:
   template <auto HeapID, bool Sharded, typename L>
   struct LambdaInvoker<HeapID, Sharded, L, true, true, false> {
     static uintptr_t invoke(uintptr_t, Args... args) {
-      reinterpret_cast<const L *>(0)->operator ()(ZuFwd<Args>(args)...);
+      ZuInvokeLambda<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
       return 0;
     }
     static ZmFn fn(L &&) {

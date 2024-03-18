@@ -39,7 +39,7 @@
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuPrint.hpp>
 #include <zlib/ZuInspect.hpp>
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmBitmap.hpp>
@@ -277,7 +277,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
       ZuIfT<bool{ZuIsStatelessLambda<L>{}} &&
 	    bool{ZuIsVoidRetLambda<L>{}}> *_ = nullptr) :
       m_callFn{[](void *) -> void * {
-	try { ZuInvoke<L>(); } catch (...) { }
+	try { ZuInvokeLambda<L>(); } catch (...) { }
 	return nullptr;
       }},
       m_dtorFn{nullptr},
@@ -319,7 +319,7 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
 	    !ZuIsVoidRetLambda<L>{}> *_ = nullptr) :
       m_callFn{[](void *) -> void * {
 	void *res = nullptr;
-	try { res = static_cast<void *>(ZuInvoke<L>()); } catch (...) { }
+	try { res = static_cast<void *>(ZuInvokeLambda<L>()); } catch (...) { }
 	return res;
       }},
       m_dtorFn{nullptr},

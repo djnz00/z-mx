@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     });
     X x;
     // X y = x;
-    X z{x};
+    [[maybe_unused]] X z{x};
     X q;
     q = x;
   }

@@ -58,7 +58,7 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmHeap.hpp>
 
@@ -121,7 +121,7 @@ public:
   ZmRingFn_(L &l, ZuStatelessLambda<L, ZuTypeList<Args...>> *_ = nullptr) :
       m_invokeFn{[](void *, Args... args) -> unsigned {
 	try {
-	  ZuInvoke<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
+	  ZuInvokeLambda<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
 	} catch (...) { }
 	return 0;
       }},

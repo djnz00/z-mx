@@ -791,8 +791,8 @@ using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 // generic invocation
 // ZuInvoke<Fn>(this, args...) invokes one of:
 //   (this->*Fn)(args...)	// member function
-//   Fn(this, args...)		// bound function (passing this explicitly)
-//   Fn(args)			// unbound function (discarding this)
+//   Fn(this, args...)		// bound function/lambda (passing this)
+//   Fn(args)			// unbound function/lambda (discarding this)
 
 template <auto Fn, typename O, typename Args, typename = void>
 struct ZuInvoke_MemberFn_;

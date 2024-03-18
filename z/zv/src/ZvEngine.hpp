@@ -30,7 +30,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmRWLock.hpp>
 #include <zlib/ZmFn.hpp>
@@ -628,14 +628,13 @@ public:
   template <typename L> void rxInvoke(L &&l) const
     { this->engine()->rxInvoke(rx(), ZuFwd<L>(l)); }
 
-  template <typename L>
-  ZuStatelessLambda<L, ZuTypeList<Rx *>>
-  received(ZmRef<ZvIOMsg> msg, L) {
+  template <auto Rcvd>
+  void received(ZmRef<ZvIOMsg> msg) {
     msg->owner(rx());
     this->engine()->rxInvoke(ZuMv(msg), [](ZmRef<ZvIOMsg> msg) {
       Rx *rx = msg->owner<Rx *>();
       rx->received(ZuMv(msg));
-      ZuInvoke<L, ZuTypeList<Rx *>>(rx);
+      ZuInvoke<Rcvd, ZuTypeList<Rx *>>(rx);
     });
   }
   void received(ZmRef<ZvIOMsg> msg) {

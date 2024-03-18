@@ -34,13 +34,13 @@
 
 #include <gtk/gtk.h>
 
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 namespace ZGtk {
 
 template <typename L>
-inline constexpr auto callback(L l) { 
-  return G_CALLBACK(ZuInvokeFn<L>());
+inline constexpr auto callback(const L &l) {
+  return G_CALLBACK(ZuInvokeFn(l));
 }
 
 } // ZGtk

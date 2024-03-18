@@ -215,8 +215,12 @@ public:
   // synchronous recv from memory (e.g. TLS)
   // returns bytes consumed, -1 on error
   //
+  // int Hdr(const Buf *buf) // sync
+  //   >=0 - minimum size of body (may be 0)
+  //   -ve - disconnect immediately
+  //
   // int Body(const Buf *buf, unsigned len) // sync
-  //   0   - skip remaining data (defends against DOS)
+  //   0   - EOF, skip remaining data (defends against DOS)
   //   +ve - length of hdr+body (may be <= that returned by Hdr())
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>

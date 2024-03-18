@@ -260,8 +260,8 @@ public:
   // Fn(GtkTreeIter *iter)
   // - called once per row, n times
   template <
-    int Type, unsigned Button, unsigned Mask, unsigned State, typename Click>
-  void click(GtkTreeView *view, Click) {
+    int Type, unsigned Button, unsigned Mask, unsigned State, auto Click>
+  void click(GtkTreeView *view) {
     g_signal_connect(G_OBJECT(view), "button-press-event",
 	ZGtk::callback([](GtkWidget *widget,
 	    GdkEventButton *event, gpointer) -> gboolean {
@@ -393,7 +393,7 @@ public:
   // Fn(GtkTreeIter *iter)
   // - called once per row, n times
 private:
-  template <typename Drop>
+  template <auto Drop>
   bool drop_(GtkWidget *widget, GtkSelectionData *data) {
     if (gtk_selection_data_get_data_type(data) != rowsAtom()) return false;
     gint length;
@@ -412,8 +412,8 @@ private:
     return true;
   }
 public:
-  template <typename Drop>
-  void drop(GtkWidget *dest, Drop) {
+  template <auto Drop>
+  void drop(GtkWidget *dest) {
     gtk_drag_dest_set(dest,
 	GTK_DEST_DEFAULT_ALL,
 	TreeModel::rowsTargets(), TreeModel::nRowsTargets(),

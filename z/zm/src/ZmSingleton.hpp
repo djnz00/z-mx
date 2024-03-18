@@ -49,7 +49,7 @@
 
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuInspect.hpp>
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmRef.hpp>
 #include <zlib/ZmCleanup.hpp>
@@ -149,7 +149,7 @@ public:
 template <typename L>
 inline auto &ZmStatic(L l, ZuStatelessLambda<L> *_ = nullptr) {
   using T = ZuDecay<decltype(*ZuDeclVal<ZuLambdaReturn<L>>())>;
-  return *(ZmSingleton<T, true, ZuInvokeFn<L>()>::instance());
+  return *(ZmSingleton<T, true, ZuInvokeFn(l)>::instance());
 }
 
 #endif /* ZmSingleton_HPP */

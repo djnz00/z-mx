@@ -28,7 +28,7 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-#include <zlib/ZuInvoke.hpp>
+#include <zlib/ZuLambdaTraits.hpp>
 
 #include <zlib/ZmFn.hpp>
 
@@ -459,9 +459,8 @@ private:
     auto readIterator() const { return list.readIterator(); }
   };
 
-  template <typename L>
-  ZuStatelessLambda<L, ZuTypeList<Server *>>
-  subscribe(WatchList &list, Watch *watch, unsigned interval, L) {
+  template <auto Fn>
+  void subscribe(WatchList &list, Watch *watch, unsigned interval) {
     bool reschedule = false;
     if (!list.interval || interval < list.interval)
       if (list.interval != interval) {
@@ -469,19 +468,18 @@ private:
 	list.interval = interval;
       }
     list.push(watch);
-    if (reschedule) this->reschedule_<L>(list);
+    if (reschedule) this->reschedule_<Fn>(list);
   }
-  template <typename L>
-  ZuStatelessLambda<L, ZuTypeList<Server *>>
-  reschedule(WatchList &list, L) {
+  template <auto Fn>
+  void reschedule(WatchList &list) {
     if (!list.interval) return;
-    this->reschedule_<L>(list);
+    this->reschedule_<Fn>(list);
   }
-  template <typename L>
+  template <auto Fn>
   void reschedule_(WatchList &list) {
     run([list = &list]() {
-      ZuInvoke<L, ZuTypeList<Server *>>(list->server);
-      list->server->template reschedule_<L>(*list);
+      ZuInvoke<Fn>(list->server);
+      list->server->template reschedule_<Fn>(*list);
     },
     ZmTimeNow(ZmTime{ZmTime::Nano,
       static_cast<int64_t>(list.interval) * 1000000}),
@@ -564,8 +562,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->heapScan(); });
+      this->subscribe<[](Server *server) { server->heapScan(); }>(
+	  list, watch, req.interval);
     ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
       watch, [](Watch *watch, ZmHeapCache *heap) {
 	watch->link->app()->heapQuery_(watch, heap);
@@ -610,8 +608,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->hashScan(); });
+      this->subscribe<[](Server *server) { server->hashScan(); }>(
+	  list, watch, req.interval);
     ZmHashMgr::all(ZmFn<ZmAnyHash *>{
       watch, [](Watch *watch, ZmAnyHash *tbl) {
 	watch->link->app()->hashQuery_(watch, tbl);
@@ -656,8 +654,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->threadScan(); });
+      this->subscribe<[](Server *server) { server->threadScan(); }>(
+	  list, watch, req.interval);
     ZmSpecific<ZmThreadContext>::all([watch](ZmThreadContext *tc) {
       watch->link->app()->threadQuery_(watch, tc);
     });
@@ -700,8 +698,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->mxScan(); });
+      this->subscribe<[](Server *server) { server->mxScan(); }>(
+	  list, watch, req.interval);
     ZiMxMgr::all([watch](ZiMultiplex *mx) {
       watch->link->app()->mxQuery_(watch, mx);
     });
@@ -853,8 +851,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->queueScan(); });
+      this->subscribe<[](Server *server) { server->queueScan(); }>(
+	  list, watch, req.interval);
     auto i = m_queues.readIterator();
     while (auto node = i.iterate()) queueQuery_(watch, node->val());
     if (!req.interval) delete watch;
@@ -894,8 +892,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->engineScan(); });
+      this->subscribe<[](Server *server) { server->engineScan(); }>(
+	  list, watch, req.interval);
     {
       auto i = m_engines.readIterator();
       while (auto node = i.iterate()) engineQuery_(watch, node->val());
@@ -960,8 +958,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->dbEnvScan(); });
+      this->subscribe<[](Server *server) { server->dbEnvScan(); }>(
+	  list, watch, req.interval);
     dbEnvQuery_(watch);
     if (!req.interval) delete watch;
   }
@@ -1028,8 +1026,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->appScan(); });
+      this->subscribe<[](Server *server) { server->appScan(); }>(
+	  list, watch, req.interval);
     appQuery_(watch);
     if (!req.interval) delete watch;
   }
@@ -1065,8 +1063,8 @@ private:
     }
     auto watch = new Watch{req.link, req.filter};
     if (req.interval)
-      this->subscribe(list, watch, req.interval,
-	  [](Server *server) { server->alertScan(); });
+      this->subscribe<[](Server *server) { server->alertScan(); }>(
+	  list, watch, req.interval);
     alertQuery_(watch);
     if (!req.interval) delete watch;
   }
