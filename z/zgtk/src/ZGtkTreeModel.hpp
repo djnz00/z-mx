@@ -857,7 +857,7 @@ namespace TreeHierarchy {
 	  });
     }
     template <typename Child_> void add(Child_ *child) {
-      enum { I = Tuple::template Index<Child_>::I };
+      enum { I = typename Tuple::template Index<Child_>{} };
       unsigned n = m_rows.length();
       unsigned i;
       for (i = 0; i < n; i++) if (m_rows[i] > I) break;

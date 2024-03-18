@@ -50,7 +50,7 @@
 #include <zlib/ZuIOResult.hpp>
 
 namespace Zi {
-  using namespace Zu::IOResultNS;
+  using namespace Zu::IO;
 };
 
 #ifndef _WIN32

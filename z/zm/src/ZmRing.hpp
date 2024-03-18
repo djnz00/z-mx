@@ -128,6 +128,8 @@ struct ParamData {
   ZmBitmap	cpuset;
   unsigned	spin = 1000;
   unsigned	timeout = 1;	// milliseconds
+
+  inline const ParamData &data() { return *this; } // upcast
 };
 
 template <typename Derived, typename Data = ParamData>

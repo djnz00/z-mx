@@ -155,7 +155,7 @@ AC_SUBST(LZ4_LIBS)
 AC_SUBST(MBEDTLS_LIBS)
 AC_SUBST(FBS_LIBS)
 
-for i in zu zm zjni zt ze zi ztls zfb zv zdb zdf zrl zcmd zproxy zgtk; do (
+for i in zu zm zjni zt ze zi ztls zfb zv zdb zdb_scylla zdf zrl zcmd zproxy zgtk; do (
   cd $i/src
   if test ! -e AC_PACKAGE_NAME; then
     if test ".$mingw" != ".yes"; then

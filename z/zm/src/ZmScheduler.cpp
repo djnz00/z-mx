@@ -336,7 +336,7 @@ push:
   ZuStringN<120> s;
   s << "FATAL - Thread Dispatch Failure - push() failed: ";
   if (status <= 0)
-    s << Zu::IOResult(status);
+    s << Zu::IOResult{status};
   else
     s << ZuBoxed(status) << " bytes remaining";
   s << '\n';

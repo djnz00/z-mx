@@ -252,16 +252,19 @@ public:
 
   enum { Update = 0, Advance, Defer }; // mode
 
+  // sid is "slot ID" - array index of a specific thread in the pool [0,n)
+  //
   // add(fn) - immediate execution (asynchronous) on any worker thread
-  // run(tid, fn) - immediate execution (asynchronous) on a specific thread
-  // invoke(tid, fn) - immediate execution on a specific thread
+  // run(sid, fn) - immediate execution (asynchronous) on a specific thread
+  // push(sid, fn) - enqueue without waking a specific thread
+  // invoke(sid, fn) - immediate execution on a specific thread
   //   unlike run(), invoke() will execute synchronously if the caller is
   //   already running on the specified thread; returns true if synchronous
 
-  // run(tid, fn, timeout)
-  // run(tid, fn, timeout, mode)
-  // run(tid, fn, timeout, mode, timer) - deferred execution
-  //   tid == 0 - run on any worker thread
+  // run(sid, fn, timeout)
+  // run(sid, fn, timeout, mode)
+  // run(sid, fn, timeout, mode, timer) - deferred execution
+  //   sid == 0 - run on any worker thread
   //   mode:
   //     Update - (re)schedule regardless
   //     Advance - reschedule unless outstanding timeout is sooner

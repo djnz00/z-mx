@@ -30,7 +30,7 @@
 
 namespace Zu {
 
-namespace IOResultNS {
+namespace IO {
   enum { OK = 0, EndOfFile = -1, IOError = -2, NotReady = -3 };
 
   inline const char *ioResult(int i) {
@@ -49,8 +49,8 @@ namespace IOResultNS {
   };
 }
 
-using namespace IOResultNS;
+using namespace IO;
 
-}
+} // Zu
 
 #endif /* ZuIOResult_HPP */

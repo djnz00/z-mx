@@ -36,11 +36,11 @@
 
 #include <zlib/ZiMultiplex.hpp>
 #include <zlib/ZiModule.hpp>
-#include <zlib/ZiVRing.hpp>
+#include <zlib/ZiRing.hpp>
 
 #include <zlib/ZvCf.hpp>
 #include <zlib/ZvCSV.hpp>
-#include <zlib/ZvRingCf.hpp>
+#include <zlib/ZvRingParams.hpp>
 #include <zlib/ZvMxParams.hpp>
 #include <zlib/ZvUserDB.hpp>
 #include <zlib/ZvCmdClient.hpp>
@@ -89,19 +89,17 @@ namespace Telemetry {
       return static_cast<T *>(ptr_);
     }
   };
-  struct Watch_Accessor {
-    static auto get(const Watch &v) { return v.ptr_; }
-  };
-  struct Watch_HeapID {
-    constexpr static const char *id() { return "zdash.Telemetry.Watch"; }
-  };
+  static auto Watch_Axor(const Watch &v) { return v.ptr_; }
+  constexpr static const char *Watch_HeapID() {
+    return "zdash.Telemetry.Watch";
+  }
   template <typename T>
   using WatchList =
     ZmList<T,
-      ZmListKey<Watch_Accessor,
-	ZmListNodeDerive<true,
+      ZmListKey<Watch_Axor,
+	ZmListNode<T,
 	  ZmListHeapID<Watch_HeapID,
-	    ZmListLock<ZmNoLock> > > > >;
+	    ZmListLock<ZmNoLock>>>>>;
 
   // display - contains pointer to tree array
   struct Display_ : public Watch {
@@ -119,8 +117,9 @@ namespace Telemetry {
   using FBTypeList = ZuTypeMap<ZfbType, TypeList>;
 
   template <typename Data> struct Item__ {
-    using TelKey = ZuFieldKey<Data>;
-    static TelKey telKey(const Data &data) { return TelKey{data}; }
+    constexpr static auto Axor = ZuFieldAxor<Data>();
+    static auto telKey(const Data &data) { return Axor(data); }
+    using TelKey = ZuDecay<decltype(telKey(ZuDeclVal<const Data &>()))>;
     static int rag(const Data &data) { return data.rag(); }
   };
   template <> struct Item__<ZvTelemetry::App> {
@@ -201,29 +200,28 @@ namespace Telemetry {
     Zdf::DataFrame::Writer	dfWriter;
   };
 
-  struct ItemTree_HeapID {
-    constexpr static const char *id() { return "zdash.Telemetry.Tree"; }
-  };
+  constexpr static const char *ItemTree_HeapID() {
+    return "zdash.Telemetry.Tree";
+  }
   template <typename T>
-  struct KeyAccessor {
-    static auto get(const T &v) { return v.telKey(); }
-  };
+  static auto KeyAxor(const T &v) { return v.telKey(); }
   template <typename T>
   using ItemTree_ =
     ZmRBTree<Item_<T>,
-      ZmRBTreeKey<KeyAccessor<Item_<T>>,
-	ZmRBTreeObject<ZuNull,
-	  ZmRBTreeNodeDerive<true,
-	    ZmRBTreeUnique<true,
-	      ZmRBTreeLock<ZmNoLock,
-		ZmRBTreeHeapID<ItemTree_HeapID> > > > > > >;
+      ZmRBTreeNode<Item_<T>,
+	ZmRBTreeKey<KeyAxor<Item_<T>>,
+	  ZmRBTreeUnique<true,
+	    ZmRBTreeLock<ZmNoLock,
+	      ZmRBTreeHeapID<ItemTree_HeapID>>>>>>;
   template <typename T>
   class ItemTree : public ItemTree_<T> {
   public:
-    using Node = typename ItemTree_<T>::Node;
+    using Node = Item_<T>;
     template <typename FBType>
     Node *lookup(const FBType *fbo) const {
-      return this->find(ZfbField::key<T>(fbo));
+      auto node_ = this->find(ZfbField::key<T>(fbo));
+      if (!node_) return nullptr;
+      return &node_->data();
     }
   };
   template <typename T> class ItemSingleton {
@@ -840,20 +838,17 @@ public:
   SrvLink		*srvLink = nullptr;
   bool			connecting = false; // prevent overlapping connects
 };
-struct CliLink_KeyAccessor {
-  static CliLink_::Key get(const CliLink_ &link) { return link.key(); }
-};
-struct CliLink_HeapID {
-  constexpr static const char *id() { return "CliLink"; }
-};
+static CliLink_::Key CliLink_KeyAxor(const CliLink_ &link) {
+  return link.key();
+}
+constexpr static const char *CliLink_HeapID() { return "CliLink"; }
 using CliLinks =
   ZmRBTree<CliLink_,
-    ZmRBTreeKey<CliLink_KeyAccessor,
-      ZmRBTreeUnique<true,
-	ZmRBTreeObject<ZmPolymorph,
-	  ZmRBTreeNodeDerive<true,
-	    ZmRBTreeLock<ZmPLock,
-	      ZmRBTreeHeapID<CliLink_HeapID>>>>>>>;
+    ZmRBTreeNode<CliLink_,
+      ZmRBTreeKey<CliLink_KeyAxor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeLock<ZmPLock,
+	    ZmRBTreeHeapID<CliLink_HeapID>>>>>>;
 using CliLink = CliLinks::Node;
 
 class SrvLink : public ZvCmdSrvLink<App_Srv, SrvLink> {
@@ -886,48 +881,53 @@ public:
   using Server = ZvCmdServer<App_Srv, SrvLink>;
   using User = Server::User;
 
-  class TelRing : public ZiVRing {
+#pragma pack(push, 1)
+  struct Hdr {
+    uintptr_t	cliLink;
+    uint16_t	length;
+  };
+#pragma pack(pop)
+  static unsigned SizeAxor(const void *ptr) {
+    return reinterpret_cast<const Hdr *>(ptr)->length + sizeof(Hdr);
+  }
+  class TelRing : public ZiRing<ZmRingSizeAxor<SizeAxor>> {
     TelRing() = delete;
     TelRing(const TelRing &) = delete;
     TelRing &operator =(const TelRing &) = delete;
     TelRing(TelRing &&) = delete;
     TelRing &operator =(TelRing &&) = delete;
   public:
+    using Base = ZiRing<ZmRingSizeAxor<SizeAxor>>;
     ~TelRing() = default;
-    TelRing(ZiVRingParams params) :
-	ZiVRing{[](const void *ptr) -> unsigned {
-	  return *static_cast<const uint16_t *>(ptr) + sizeof(uintptr_t) + 2;
-	}, ZuMv(params)} { }
+    TelRing(ZiRingParams params) : Base{ZuMv(params)} { }
     bool push(CliLink_ *cliLink, ZuArray<const uint8_t> msg) {
       unsigned n = msg.length();
-      if (void *ptr = ZiVRing::push(n + sizeof(uintptr_t) + 2)) {
-	*static_cast<uintptr_t *>(ptr) = reinterpret_cast<uintptr_t>(cliLink);
-	ptr = static_cast<uint8_t *>(ptr) + sizeof(uintptr_t);
-	*static_cast<uint16_t *>(ptr) = n;
-	ptr = static_cast<uint8_t *>(ptr) + 2;
-	memcpy(static_cast<uint8_t *>(ptr), msg.data(), n);
-	push2();
+      if (void *ptr = Base::push(n + sizeof(Hdr))) {
+	new (ptr) Hdr{
+	  .cliLink = reinterpret_cast<uintptr_t>(cliLink),
+	  .length = static_cast<uint16_t>(n)
+	};
+	memcpy(static_cast<uint8_t *>(ptr) + sizeof(Hdr), msg.data(), n);
+	push2(n + sizeof(Hdr));
 	return true;
       }
       auto i = writeStatus();
       if (i < 0)
-	ZeLOG(Error, ([](auto &s) { s <<
-	    "ZiRing::push() failed - " << Zi::ioResult(i); }));
+	ZeLOG(Error, ([i](auto &s) {
+	  s << "ZiRing::push() failed - " << Zi::ioResult(i); }));
       else
-	ZeLOG(Error, ([](auto &s) { s <<
-	    "ZiRing::push() failed - writeStatus=" << i; }));
+	ZeLOG(Error, ([i](auto &s) {
+	  s << "ZiRing::push() failed - writeStatus=" << i; }));
       return false;
     }
     template <typename L>
     bool shift(L l) {
-      if (const void *ptr = ZiVRing::shift()) {
-	CliLink_ *cliLink =
-	  reinterpret_cast<CliLink_ *>(*static_cast<const uintptr_t *>(ptr));
-	ptr = static_cast<const uint8_t *>(ptr) + sizeof(uintptr_t);
-	unsigned n = *static_cast<const uint16_t *>(ptr);
-	ptr = static_cast<const uint8_t *>(ptr) + 2;
-	l(cliLink, ZuArray{static_cast<const uint8_t *>(ptr), n});
-	shift2();
+      if (const void *ptr = Base::shift()) {
+	auto hdr = reinterpret_cast<const Hdr *>(ptr);
+	CliLink_ *cliLink = reinterpret_cast<CliLink_ *>(hdr->cliLink);
+	unsigned n = hdr->length;
+	l(cliLink, ZuArray{static_cast<const uint8_t *>(ptr) + sizeof(Hdr), n});
+	shift2(n + sizeof(Hdr));
 	return true;
       }
       return false;
@@ -947,17 +947,15 @@ public:
     // 131072 is ~100mics at 1Gbit/s
     m_telRing = new TelRing{m_telRingParams};
     {
-      ZeError e;
-      if (m_telRing->open(
-	    ZiVRing::Read | ZiVRing::Write | ZiVRing::Create, &e) != Zi::OK)
+      if (m_telRing->open(TelRing::Read | TelRing::Write) != Zu::OK)
 	throw ZeEVENT(Error,
-	    ([name = ZtString{m_telRingParams.name()}, e](auto &s) {
-	      s << name << ": " << e }));
+	    ([name = m_telRingParams.data().name](auto &s) {
+	      s << name << ": open failed"; }));
       int r;
-      if ((r = m_telRing->reset()) != Zi::OK)
+      if ((r = m_telRing->reset()) != Zu::OK)
 	throw ZeEVENT(Error,
-	    ([name = ZtString{m_telRingParams.name()}, r](auto &s) {
-	      s << name << ": reset failed - " << Zi::ioResult(r) }));
+	    ([name = m_telRingParams.data().name, r](auto &s) {
+	      s << name << ": reset failed - " << Zu::ioResult(r); }));
     }
 
     m_role = cf->getEnum<ZvTelemetry::AppRole::Map>(
@@ -1227,7 +1225,7 @@ public:
 	auto cliLink =
 	  new CliLink{this, m_cliLinkID++,
 	    str(reqData->server()), reqData->port(), srvLink};
-	m_cliLinks.add(cliLink);
+	m_cliLinks.addNode(cliLink);
 	cliLink->srvLink = srvLink;
 	srvLink->cliLink = cliLink;
 	ackType = fbs::ReqAckData_MkLinkAck;
@@ -1259,7 +1257,7 @@ public:
 	cliLink->srvLink = srvLink;
 	srvLink->cliLink = cliLink;
 	auto loginReq = reqData->loginReq();
-	switch ((int)loginReq->data_type()) {
+	switch (static_cast<int>(loginReq->data_type())) {
 	  case ZvUserDB::fbs::LoginReqData_Login: {
 	    auto login =
 	      static_cast<const ZvUserDB::fbs::Login *>(loginReq->data());
@@ -1393,7 +1391,7 @@ private:
   template <typename FBType>
   ZuIsNot<ZvTelemetry::fbs::Alert, FBType>
   processTel3(CliLink_ *cliLink, const FBType *fbo) {
-    ZuUnsigned<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
+    ZuTypeIndex<FBType, Telemetry::FBTypeList> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
     using Item = TelItem<T>;
@@ -1412,7 +1410,7 @@ private:
     m_gtkModel->add(new GtkTree::App{item}, m_gtkModel->root());
   }
   AppItem *appItem(CliLink_ *cliLink) {
-    ZuUnsigned<ZuTypeIndex<ZvTelemetry::App, ZvTelemetry::TypeList>::I> i;
+    ZuTypeIndex<ZvTelemetry::App, ZvTelemetry::TypeList> i;
     auto &container = cliLink->telemetry.p<i>();
     auto item = container.lookup(
 	static_cast<const ZvTelemetry::fbs::App *>(nullptr));
@@ -1424,7 +1422,7 @@ private:
     return item;
   }
   ZdbEnvItem *zdbEnvItem(CliLink_ *cliLink) {
-    ZuUnsigned<ZuTypeIndex<ZvTelemetry::ZdbEnv, ZvTelemetry::TypeList>::I> i;
+    ZuTypeIndex<ZvTelemetry::ZdbEnv, ZvTelemetry::TypeList> i;
     auto &container = cliLink->telemetry.p<i>();
     auto item = container.lookup(
 	static_cast<const ZvTelemetry::fbs::ZdbEnv *>(nullptr));
@@ -1466,7 +1464,7 @@ private:
 	[](GtkTree::App *_) -> GtkTree::MxParent & { return _->mxs(); });
   }
   void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::Socket> *item) {
-    ZuUnsigned<ZuTypeIndex<ZvTelemetry::Mx, ZvTelemetry::TypeList>::I> i;
+    ZuTypeIndex<ZvTelemetry::Mx, ZvTelemetry::TypeList> i;
     auto &mxContainer = cliLink->telemetry.p<i>();
     auto mxItem = mxContainer.find(ZuFwdTuple(item->data.mxID));
     if (!mxItem) {
@@ -1490,7 +1488,7 @@ private:
 	});
   }
   void addGtkRow(CliLink_ *cliLink, TelItem<ZvTelemetry::Link> *item) {
-    ZuUnsigned<ZuTypeIndex<ZvTelemetry::Engine, ZvTelemetry::TypeList>::I> i;
+    ZuTypeIndex<ZvTelemetry::Engine, ZvTelemetry::TypeList> i;
     auto &engContainer = cliLink->telemetry.p<i>();
     auto engItem =
       engContainer.find(ZuFwdTuple(item->data.engineID));
@@ -1531,7 +1529,7 @@ private:
   template <typename FBType>
   ZuIs<ZvTelemetry::fbs::Alert, FBType>
   processTel3(CliLink_ *cliLink, const FBType *fbo) {
-    ZuUnsigned<ZuTypeIndex<FBType, Telemetry::FBTypeList>::I> i;
+    ZuTypeIndex<FBType, Telemetry::FBTypeList> i;
     using T = ZuType<i, Telemetry::TypeList>;
     auto &container = cliLink->telemetry.p<i>();
     processAlert(new (container.data.push()) ZfbField::Load<T>{fbo});

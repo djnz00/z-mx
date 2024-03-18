@@ -22,7 +22,7 @@
 // - single/multiple writers/producers - supports SWMR MWMR
 // - fixed- and variable-sized messages (types)
 // - broadcast - all readers receive all messages
-//   - for unicast, shard writes to multiple MWMR ring buffers
+// - for unicast, app should shard writes to multiple MWMR ring buffers
 //   - most applications require sharding to ensure correct sequencing,
 //     and sharding to multiple ring buffers is more performant than
 //     multiple readers contending on a single ring buffer and
@@ -54,6 +54,12 @@ using namespace ZmRing_;
 // ring buffer parameters
 
 struct ParamData : public ZmRing_::ParamData {
+  Zi::Path	name;
+  unsigned	killWait = 1;
+  bool		coredump = false;
+
+  inline const ParamData &data() { return *this; } // upcast
+
   using Base = ZmRing_::ParamData;
 
   ParamData() = default;
@@ -66,10 +72,6 @@ struct ParamData : public ZmRing_::ParamData {
       Base{ZuFwd<Args>(args)...}, name{ZuFwd<Arg0>(arg0)} { }
   ParamData &operator =(const ParamData &) = default;
   ParamData &operator =(ParamData &&) = default;
-
-  Zi::Path	name;
-  unsigned	killWait = 1;
-  bool		coredump = false;
 };
 
 template <typename Derived, typename Data = ParamData>

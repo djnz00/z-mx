@@ -352,12 +352,12 @@ template <auto, unsigned, bool> friend class ZmHeap__;
 template <auto ID_, unsigned Size_, bool Sharded_>
 class ZmHeap__ {
 public:
-  constexpr static auto ID = ID_;
+  constexpr static auto HeapID = ID_;
   enum { AllocSize = ZmHeapAllocSize<Size_>::N };
   enum { Sharded = Sharded_ };
 
 private:
-  using Cache = ZmHeapCacheT<ID, AllocSize, Sharded>;
+  using Cache = ZmHeapCacheT<HeapID, AllocSize, Sharded>;
 
 public:
   void *operator new(size_t) { return Cache::alloc(); }

@@ -35,17 +35,6 @@
 #include <zlib/ZvCf.hpp>
 
 struct ZvRingParams : public ZiRingParams {
-  ZvRingParams(const ZiRingParams &p) : ZiRingParams{p} { }
-  ZvRingParams &operator =(const ZiRingParams &p) {
-    ZiRingParams::operator =(p);
-    return *this;
-  }
-  ZvRingParams(ZiRingParams &&p) : ZiRingParams{ZuMv(p)} { }
-  ZvRingParams &operator =(ZiRingParams &&p) {
-    ZiRingParams::operator =(ZuMv(p));
-    return *this;
-  }
-
   ZvRingParams(const ZvCf *cf) { init(cf); }
   ZvRingParams(const ZvCf *cf, ZiRingParams deflt) :
       ZiRingParams{ZuMv(deflt)} { init(cf); }
@@ -59,6 +48,18 @@ struct ZvRingParams : public ZiRingParams {
     timeout(cf->getInt("timeout", 0, 3600, 1));
     killWait(cf->getInt("killWait", 0, 3600, 1));
     coredump(cf->getBool("coredump"));
+  }
+
+  ZvRingParams() = default;
+  ZvRingParams(const ZiRingParams &p) : ZiRingParams{p} { }
+  ZvRingParams &operator =(const ZiRingParams &p) {
+    ZiRingParams::operator =(p);
+    return *this;
+  }
+  ZvRingParams(ZiRingParams &&p) : ZiRingParams{ZuMv(p)} { }
+  ZvRingParams &operator =(ZiRingParams &&p) {
+    ZiRingParams::operator =(ZuMv(p));
+    return *this;
   }
 };
 

@@ -115,9 +115,9 @@ bool Blocker::open(bool head, const Params &params)
   m_sem = CreateSemaphore(0, 0, 0x7fffffff, path);
   if (m_sem == INVALID_HANDLE_VALUE) m_sem = 0;
   if (!m_sem) {
-    ZeLOG(Error, ([](auto &s) {
+    ZeLOG(Error, ([path, e = ZeLastError](auto &s) {
       s << "ZiRing::Blocker::open() CreateSemaphore("
-	<< path << ") failed: " << ZeLastError;
+	<< path << ") failed: " << e;
     }));
     return false;
   }

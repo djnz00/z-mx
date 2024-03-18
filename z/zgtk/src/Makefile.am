@@ -20,7 +20,7 @@ pkginclude_HEADERS = ZGtkLib.hpp \
 	ZGtkTreeModel.hpp
 #fbsdir = $(datarootdir)/${PACKAGE}/fbs
 #dist_fbs_DATA = ${FBS:%=fbs/%}
-lib_LTLIBRARIES = libZGtk.la libZDashCmd.la
+lib_LTLIBRARIES = libZGtk.la
 libZGtk_la_CPPFLAGS = $(AM_CPPFLAGS) -DZGTK_EXPORTS 
 libZGtk_la_LDFLAGS = @Z_SO_LDFLAGS@
 libZGtk_la_SOURCES = ZGtkLib.cpp ZGtkApp.cpp
@@ -30,16 +30,6 @@ libZGtk_la_LIBADD = $(top_builddir)/zv/src/libZv.la \
 	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@GTK_LIBS@ @FBS_LIBS@ @MBEDTLS_LIBS@ \
-	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-libZDashCmd_la_CPPFLAGS = $(AM_CPPFLAGS) -DZGTK_EXPORTS 
-libZDashCmd_la_LDFLAGS = @Z_SO_LDFLAGS@
-libZDashCmd_la_SOURCES = ZDashCmd.cpp
-libZDashCmd_la_LIBADD = $(top_builddir)/zv/src/libZv.la \
-	$(top_builddir)/ztls/src/libZtls.la \
-	$(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \
-	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
-	$(top_builddir)/zu/src/libZu.la \
-	@FBS_LIBS@ @MBEDTLS_LIBS@ \
 	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
 bin_PROGRAMS = zdash
 zdash_CPPFLAGS = $(AM_CPPFLAGS) \

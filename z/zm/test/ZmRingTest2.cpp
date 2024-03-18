@@ -192,7 +192,7 @@ private:
 template <typename Ring, typename Msg>
 bool App<Ring, Msg>::start(unsigned nThreads, ZmRingParams params)
 {
-  using namespace Zu::IOResultNS;
+  using namespace Zu::IO;
   m_ring.init(ZuMv(params));
   if (m_ring.open(0) != OK) return false;
   m_threads = new ZmRef<Thread>[m_nThreads = nThreads];
@@ -502,7 +502,7 @@ struct Test {
     if (!app()->start(2 + MR + MW, ZmRingParams{size}.spin(0).timeout(0)))
       return false;
 
-    using namespace Zu::IOResultNS;
+    using namespace Zu::IO;
 
     check(synchronous(0, Open(Ring::Read)) == OK);
     if constexpr (MR) check(synchronous(0 + MR, Open(Ring::Read)) == OK);
