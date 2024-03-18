@@ -249,6 +249,8 @@ void start()
 
     gtk_tree_view_column_set_reorderable(col, true);
 
+    gtk_tree_view_column_set_resizable(col, true);
+
     gtk_tree_view_append_column(GTK_TREE_VIEW(view), col);
   };
 

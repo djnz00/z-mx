@@ -109,7 +109,7 @@ public:
   enum Insn { ReadLock, WriteLock, Unlock };
 
   Work(Insn insn, int lock, bool try_, ZmTime timeout) :
-	m_insn(insn), m_lock(lock), m_try(try_), m_timeout(timeout) { }
+	m_insn{insn}, m_lock{lock}, m_try{try_}, m_timeout{timeout} { }
 
   int operator ()(int tid);
 
@@ -144,7 +144,7 @@ void Work::dump(int tid, const char *prePost, ZmTLock<int, int> &locks)
   ZmTime stamp = now - Global::started();
   auto s = locks.dump(m_lock);
 
-  if (m_timeout) {
+  if (*m_timeout) {
     ZmTime timeout = m_timeout - now;
     printf("%+14.3f %3d %s %10s %3d %s %+8.3f\n",
 	   stamp.dtime(), tid, prePost, insns[m_insn], m_lock,
@@ -168,7 +168,7 @@ int Work::operator ()(int tid)
 
   switch (m_insn) {
     case ReadLock:
-      if (m_timeout)
+      if (*m_timeout)
 	result = locks.timedReadLock(m_lock, tid, m_timeout);
       else if (m_try)
 	result = locks.tryReadLock(m_lock, tid);
@@ -176,7 +176,7 @@ int Work::operator ()(int tid)
 	result = locks.readLock(m_lock, tid);
       break;
     case WriteLock:
-      if (m_timeout)
+      if (*m_timeout)
 	result = locks.timedWriteLock(m_lock, tid, m_timeout);
       else if (m_try)
 	result = locks.tryWriteLock(m_lock, tid);
@@ -208,11 +208,11 @@ int result(int tid)
   return Global::thread(tid)->result();
 }
 
-#define ReadLock(l) new Work(Work::ReadLock, l, false, ZmTime())
-#define TryReadLock(l) new Work(Work::ReadLock, l, true, ZmTime());
+#define ReadLock(l) new Work(Work::ReadLock, l, false, ZmTime{})
+#define TryReadLock(l) new Work(Work::ReadLock, l, true, ZmTime{});
 #define TimedReadLock(l, t) new Work(Work::ReadLock, l, true, ZmTimeNow() + t);
-#define WriteLock(l) new Work(Work::WriteLock, l, false, ZmTime())
-#define TryWriteLock(l) new Work(Work::WriteLock, l, true, ZmTime());
+#define WriteLock(l) new Work(Work::WriteLock, l, false, ZmTime{})
+#define TryWriteLock(l) new Work(Work::WriteLock, l, true, ZmTime{});
 #define TimedWriteLock(l, t) new Work(Work::WriteLock, l, true, ZmTimeNow() + t);
 #define Unlock(l) new Work(Work::Unlock, l, false, ZmTime())
 

@@ -233,8 +233,8 @@ using StoreInterface = MockStore::Interface;
 ZmRef<ZdbEnv> env;
 ZmRef<Store> store;
 
-ZmScheduler *appMx = 0;
-ZiMultiplex *dbMx = 0;
+ZmScheduler *appMx = nullptr;
+ZiMultiplex *dbMx = nullptr;
 
 ZmSemaphore done;
 
@@ -279,6 +279,14 @@ void usage()
     "usage: ZdbTest ...\n";
 
   std::cerr << help << std::flush;
+  Zm::exit(1);
+}
+
+void gtfo()
+{
+  if (dbMx) dbMx->stop();
+  if (appMx) appMx->stop();
+  ZeLog::stop();
   Zm::exit(1);
 }
 
@@ -329,9 +337,9 @@ int main(int argc, char **argv)
 	  ZiMxParams()
 	    .scheduler([](auto &s) {
 	      s.nThreads(4)
-	      .thread(1, [](auto &t) { t.isolated(1); })
-	      .thread(2, [](auto &t) { t.isolated(1); })
-	      .thread(3, [](auto &t) { t.isolated(1); }); })
+	      .thread(1, [](auto &t) { t.isolated(true); })
+	      .thread(2, [](auto &t) { t.isolated(true); })
+	      .thread(3, [](auto &t) { t.isolated(true); }); })
 	    .rxThread(1).txThread(2)
 #ifdef ZiMultiplex_DEBUG
 	    .debug(cf->getBool("debug"))
@@ -367,20 +375,16 @@ int main(int argc, char **argv)
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
-    ZeLog::stop();
-    Zm::exit(1);
+    gtfo();
   } catch (const ZeError &e) {
     std::cerr << e << '\n' << std::flush;
-    ZeLog::stop();
-    Zm::exit(1);
+    gtfo();
   } catch (const ZeAnyEvent &e) {
     std::cerr << e << '\n' << std::flush;
-    ZeLog::stop();
-    Zm::exit(1);
+    gtfo();
   } catch (...) {
     std::cerr << "Unknown Exception\n" << std::flush;
-    ZeLog::stop();
-    Zm::exit(1);
+    gtfo();
   }
 
   if (appMx) delete appMx;

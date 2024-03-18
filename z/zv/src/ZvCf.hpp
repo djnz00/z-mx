@@ -420,8 +420,10 @@ public:
   // generic get()
   template <typename T, bool Required_ = false>
   const T &get_() const { // optionally required, no specified default value
-    if constexpr (Required_)
-      if (!data.contains<T>()) throw Required{owner, key};
+    if (!data.contains<T>()) {
+      if constexpr (Required_) throw Required{owner, key};
+      return ZuNullRef<T>();
+    }
     return data.v<T>();
   }
   template <typename T>

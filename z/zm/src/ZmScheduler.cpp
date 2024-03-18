@@ -112,8 +112,7 @@ bool ZmScheduler::stop()
 	return true;		// return success
       }
   }
-  bool b = ZmEngine::stop();
-  return b;
+  return ZmEngine::stop();
 }
 void ZmScheduler::wake()
 {
@@ -184,7 +183,7 @@ void ZmScheduler::timer()
 	if (Timer *first = m_schedule.minimum()) minimum = first->timeout;
       }
 
-      if (minimum)
+      if (*minimum)
 	m_pending.timedwait(minimum);
       else
 	m_pending.wait();

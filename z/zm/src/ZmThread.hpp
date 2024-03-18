@@ -205,8 +205,8 @@ protected:
   pid_t			m_tid = 0;
 #endif
   clockid_t		m_cid = 0;
-  mutable ZmTime	m_cpuLast;
-  mutable ZmTime	m_rtLast;
+  mutable ZmTime	m_cpuLast = 0;
+  mutable ZmTime	m_rtLast = 0;
 #else /* !_WIN32 */
   unsigned		m_tid = 0;
   HANDLE		m_handle = 0;

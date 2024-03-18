@@ -274,10 +274,15 @@ public:
     return l.cmp(r);
   }
 
-  constexpr bool operator !() const {
-    return ZuCmp<time_t>::null(tv_sec);
+  constexpr bool operator *() const {
+    return !ZuCmp<time_t>::null(tv_sec);
   }
-  ZuOpBool
+  constexpr bool operator !() const {
+    return !tv_sec && !tv_nsec;
+  }
+  constexpr operator bool() const {
+    return tv_sec || tv_nsec;
+  }
 
   time_t sec() const { return tv_sec; }
   time_t &sec() { return tv_sec; }

@@ -184,8 +184,8 @@ constexpr auto ZuInvokeFn(const L &l) {
   return static_cast<ZuInvokeFnT<L>>(l);
 }
 
-// stateless lambdas are invoked using a placeholder this pointer...
-// technically undefined behavior, but it elides preserving the this pointer
+// stateless lambdas invoked using a placeholder this...
+// technically undefined behavior, but it elides preserving this
 //
 // this->x does not imply evaluating (*this).x (the reverse is true)
 //

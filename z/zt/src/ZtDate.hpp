@@ -346,11 +346,11 @@ public:
   // ZmTime
 
   template <typename T>
-  ZtDate(const T &t, ZuSame<ZmTime, T> *_ = nullptr) {
+  ZtDate(const T &t, ZuExact<ZmTime, T> *_ = nullptr) {
     init(t.sec()), m_nsec = t.nsec();
   }
   template <typename T>
-  ZuSame<ZmTime, T, ZtDate &> operator =(const T &t) {
+  ZuExact<ZmTime, T, ZtDate &> operator =(const T &t) {
     init(t.sec());
     m_nsec = t.nsec();
     return *this;
@@ -359,11 +359,11 @@ public:
   // time_t
 
   template <typename T>
-  ZtDate(const T &t, ZuSame<time_t, T> *_ = nullptr) {
+  ZtDate(const T &t, ZuExact<time_t, T> *_ = nullptr) {
     init(t), m_nsec = 0;
   }
   template <typename T>
-  ZuSame<time_t, T, ZtDate &> operator =(const T &t) {
+  ZuExact<time_t, T, ZtDate &> operator =(const T &t) {
     init(t);
     m_nsec = 0;
     return *this;
@@ -372,16 +372,16 @@ public:
   // double
 
   template <typename T>
-  ZtDate(T d, ZuSame<double, T> *_ = nullptr) {
-    time_t t = (time_t)d;
+  ZtDate(T d, ZuExact<double, T> *_ = nullptr) {
+    time_t t = static_cast<time_t>(d);
     init(t);
-    m_nsec = (int)((d - (double)t) * (double)1000000000);
+    m_nsec = static_cast<int>((d - static_cast<double>(t)) * 1000000000.0);
   }
   template <typename T>
-  ZuSame<double, T, ZtDate &> operator =(T d) {
-    time_t t = (time_t)d;
+  ZuExact<double, T, ZtDate &> operator =(T d) {
+    time_t t = static_cast<time_t>(d);
     init(t);
-    m_nsec = (int)((d - (double)t) * (double)1000000000);
+    m_nsec = static_cast<int>((d - static_cast<double>(t)) * 1000000000.0);
     return *this;
   }
 
@@ -917,7 +917,7 @@ public:
   }
 
   template <typename T>
-  ZuSame<ZmTime, T, ZtDate> operator +(const T &t) const {
+  ZuExact<ZmTime, T, ZtDate> operator +(const T &t) const {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -973,7 +973,7 @@ public:
   }
 
   template <typename T>
-  ZuSame<ZmTime, T, ZtDate &> operator +=(const T &t) {
+  ZuExact<ZmTime, T, ZtDate &> operator +=(const T &t) {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -1036,7 +1036,7 @@ public:
   }
 
   template <typename T>
-  ZuSame<ZmTime, T, ZtDate> operator -(const T &t) const {
+  ZuExact<ZmTime, T, ZtDate> operator -(const T &t) const {
     return ZtDate::operator +(-t);
   }
   template <typename T> ZuIfT<
@@ -1046,7 +1046,7 @@ public:
     return ZtDate::operator +(-sec_);
   }
   template <typename T>
-  ZuSame<ZmTime, T, ZtDate &> operator -=(const T &t) {
+  ZuExact<ZmTime, T, ZtDate &> operator -=(const T &t) {
     return ZtDate::operator +=(-t);
   }
   template <typename T> ZuIfT<
