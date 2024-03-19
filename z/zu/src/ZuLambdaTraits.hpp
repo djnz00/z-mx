@@ -197,8 +197,8 @@ auto ZuInvokeLambda(Args &&... args) {
   struct Empty { };
   ZuAssert((ZuIsStatelessLambda<L, ArgList>{}));
   ZuAssert(sizeof(L) == sizeof(Empty));
-  static Empty _;
-  return reinterpret_cast<L *>(&_)->operator ()(ZuFwd<Args>(args)...);
+  // static Empty _;
+  return reinterpret_cast<L *>(0/*&_*/)->operator ()(ZuFwd<Args>(args)...);
 }
 
 template <typename L, typename ArgList = ZuArgList<L>, typename R = void>
