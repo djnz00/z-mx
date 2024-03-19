@@ -189,8 +189,7 @@ namespace Save {
     using namespace ZfbTree;
     return CreateKV(fbb, str(fbb, key), Value_NestedKVTree,
 	CreateNestedKVTree(fbb,
-	  nest(fbb, [...args = ZuFwd<Args>(args)]<typename Builder_>(
-	      Builder_ &fbb) mutable {
+	  nest(fbb, [...args = ZuFwd<Args>(args)](auto &fbb) mutable {
 	    return CreateKVTree(fbb, args...);
 	  })).Union());
   }

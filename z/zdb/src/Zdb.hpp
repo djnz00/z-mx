@@ -167,7 +167,7 @@ using Cxn = CxnList::Node;
 
 using EnvState_ = ZmLHashKV<ZuID, UN, ZmLHashLocal<>>;
 struct EnvState : public EnvState_ {
-  SN		sn;
+  SN		sn = 0;
 
   EnvState() = delete;
 
@@ -322,6 +322,8 @@ namespace ObjState {
       Deleted);
 }
 
+const char *Object_HeapID() { return "Zdb.Object"; }
+
 // possible state paths:
 //
 // Undefined > Push			push
@@ -417,13 +419,12 @@ private:
   int		m_state = ObjState::Undefined;
   UN		m_origUN = nullUN();
 };
-const char *Object_HeapID() { return "Zdb.Object"; }
 using Cache =
   ZmCache<AnyObject_,
     ZmCacheNode<AnyObject_,
       ZmCacheKey<AnyObject_::RNAxor,
 	ZmCacheLock<ZmPLock,
-	  ZmCacheHeapID<Object_HeapID>>>>>;
+	  ZmCacheHeapID<ZmHeapDisable()>>>>>;
 using AnyObject = Cache::Node;
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
   return object->un();
@@ -436,21 +437,21 @@ using CacheUN =
 
 // --- DB type-specific object
 
-template <typename T_>
-class Object : public AnyObject {
-  Object() = delete;
-  Object(const Object &) = delete;
-  Object &operator =(const Object &) = delete;
-  Object(Object &&) = delete;
-  Object &operator =(Object &&) = delete;
+template <typename T_, typename Heap>
+class Object_ : public Heap, public AnyObject {
+  Object_() = delete;
+  Object_(const Object_ &) = delete;
+  Object_ &operator =(const Object_ &) = delete;
+  Object_(Object_ &&) = delete;
+  Object_ &operator =(Object_ &&) = delete;
 
 public:
   using T = T_;
 
-  Object(DB *db_) : AnyObject{db_} { }
+  Object_(DB *db_) : AnyObject{db_} { }
 
   template <typename L>
-  Object(DB *db_, L l) : AnyObject{db_} {
+  Object_(DB *db_, L l) : AnyObject{db_} {
     l(static_cast<void *>(&m_data[0]));
   }
 
@@ -460,7 +461,7 @@ public:
   T *ptr() { return reinterpret_cast<T *>(&m_data[0]); }
   const T *ptr() const { return reinterpret_cast<const T *>(&m_data[0]); }
 
-  ~Object() { ptr()->~T(); }
+  ~Object_() { ptr()->~T(); }
 
   const T &data() const & { return *ptr(); }
   T &data() & { return *ptr(); }
@@ -474,6 +475,8 @@ public:
 private:
   uint8_t	m_data[sizeof(T)];
 };
+template <typename T>
+using Object = Object_<T, ZmHeap<Object_HeapID, sizeof(Object_<T, ZuNull>)>>;
 
 // --- DB application handler functions
 
@@ -637,6 +640,8 @@ private:
 
   template <bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
+    ZmAssert(invoked());
+
     if (ZuUnlikely(rn >= m_nextRN)) {
       l(nullptr);
       return;
@@ -708,6 +713,8 @@ private:
 public:
   // create new record
   template <typename T, typename L> void push(L l) {
+    ZmAssert(invoked());
+
     ZmRef<AnyObject> object = push_(m_nextRN, m_nextUN);
     if (!object) { l(static_cast<Object<T> *>(nullptr)); return; }
     try {
@@ -738,6 +745,8 @@ public:
   // update record
   template <typename T, typename L>
   void update(ZmRef<AnyObject> object, L l) {
+    ZmAssert(invoked());
+
     if (!update_(object, m_nextUN)) {
       l(static_cast<Object<T> *>(nullptr));
       return;
@@ -783,6 +792,8 @@ private:
 public:
   // del record
   template <typename L> void del(ZmRef<AnyObject> object, L l) {
+    ZmAssert(invoked());
+
     if (!del_(object, m_nextUN)) { l(nullptr); return; }
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();

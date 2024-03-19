@@ -452,7 +452,7 @@ private:
   void stop_();
   template <typename L>
   bool spawn(L l) {
-    m_thread = ZmThread{ZuMv(l), m_params.thread(0), 0};
+    m_thread = ZmThread{ZuMv(l), m_params.thread(0).detached(true), 0};
     return !!m_thread;
   }
   void wake();

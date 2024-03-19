@@ -340,7 +340,8 @@ namespace Save {
   template <typename L>
   inline Offset<Vector<uint8_t>> nest(Builder &fbb, L l) {
     auto o = fbb.GetSize();
-    fbb.Finish(l(fbb));
+    uoffset_t root = l(fbb).o;
+    fbb.PushElement(fbb.ReferTo(root));
     o = fbb.GetSize() - o;
     return {fbb.PushElement(o)};
   }

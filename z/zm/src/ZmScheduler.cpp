@@ -120,10 +120,7 @@ void ZmScheduler::wake()
 }
 void ZmScheduler::stop_()
 {
-  bool ok = stop__();
-  // clear m_thread before calling stopped(true), which might cause a restart
-  if (ok) m_thread = {};
-  stopped(ok);
+  stopped(stop__());
 }
 bool ZmScheduler::stop__()
 {
@@ -141,6 +138,7 @@ bool ZmScheduler::stop__()
       }
     }
   }
+  m_thread = {};
   return true;
 }
 bool ZmScheduler::reset()

@@ -58,6 +58,8 @@ template <template <typename> typename HashFn, typename NTP = ZmCache_Defaults>
 using ZmCacheHashFn = ZmHashFn<HashFn, NTP>;
 template <typename Lock, typename NTP = ZmCache_Defaults>
 using ZmCacheLock = ZmHashLock<Lock, NTP>;
+template <bool Shadow, typename NTP = ZmCache_Defaults>
+using ZmCacheShadow = ZmHashShadow<Shadow, NTP>;
 template <typename Node, typename NTP = ZmCache_Defaults>
 using ZmCacheNode = ZmHashNode<Node, NTP>;
 template <auto HeapID, typename NTP = ZmCache_Defaults>
@@ -282,11 +284,17 @@ private:
   ZuIfT<Evict_ && Evict, NodeMvRef> add_(NodeRef node) {
     Node *nodePtr = node;
     NodeMvRef evicted = nullptr;
-    if (m_hash->count_() >= m_size)
-      if (evicted = NodeMvRef{m_lru.shift()}) {
+    if (m_hash->count_() >= m_size) {
+      auto evicted_ = m_lru.shift();
+      if constexpr (ZuTraits<ZuDecay<decltype(evicted_)>>::IsPrimitive)
+	evicted = static_cast<NodeMvRef>(evicted_);
+      else
+	evicted = NodeMvRef{ZuMv(evicted_)};
+      if (evicted) {
 	++m_evictions;
 	m_hash->delNode(ZuMv(evicted));
       }
+    }
     m_hash->addNode(ZuMv(node));
     m_lru.pushNode(nodePtr);
     return evicted;
