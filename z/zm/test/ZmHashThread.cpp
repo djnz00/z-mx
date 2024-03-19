@@ -26,7 +26,7 @@
 
 struct Connection : public ZmObject { };
 
-using ConnHash = ZmHashKV<int, ZmRef<Connection> >;
+using ConnHash = ZmHashKV<int, ZmRef<Connection>, ZmHashLock<ZmPLock>>;
 
 bool running = true;
 
@@ -72,6 +72,10 @@ int main(int argc, char *argv[])
   ZmThread finder{[&prog]() { prog.finder(); }};
 
   sem.wait();
+
+  inserter.join();
+  remover.join();
+  finder.join();
 
   puts("Caught Ctrl-C\n");
 

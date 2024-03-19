@@ -200,11 +200,12 @@ template <typename ...Args> class ZmFn : public ZmAnyFn {
   template <typename, bool VoidRet, auto> struct BoundInvoker;
   template <typename, bool VoidRet, auto> struct MemberInvoker;
 
+public:
   template <typename L, typename ArgList, typename = void>
   struct IsCallable_ : public ZuFalse { };
   template <typename L>
   struct IsCallable_<L, ZuTypeList<>, decltype(ZuDeclVal<L &>()(), void())> :
-      public ZuTrue { };
+      public ZuBool<!ZuInspect<ZmAnyFn, L>::Is> { };
   template <typename L, typename ...Args_>
   struct IsCallable_<L, ZuTypeList<Args_...>,
     decltype(ZuDeclVal<L &>()(ZuDeclVal<Args_>()...), void())> :
