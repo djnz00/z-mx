@@ -255,7 +255,7 @@ void Env::start_()
   run([this]() { hbSend(); },
       m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
   run([this]() { holdElection(); },
-      ZmTimeNow((int)m_cf.electionTimeout), &m_electTimer);
+      ZmTimeNow(static_cast<int>(m_cf.electionTimeout)), &m_electTimer);
 
   listen();
 
@@ -916,9 +916,15 @@ void Env::setNext()
 	  m_self->cmp(host) >= 0 && (!next || host->cmp(next) > 0))
 	next = host;
 
-      ZdbDEBUG(this, ZtString{} <<
-	  " host=" << ZuPrintPtr{host} << '\n' <<
-	  " next=" << *next);
+      if (next) {
+	ZdbDEBUG(this, ZtString{} <<
+	    " host=" << ZuPrintPtr{host} << '\n' <<
+	    " next=" << *next);
+      } else {
+	ZdbDEBUG(this, ZtString{} <<
+	    " host=" << ZuPrintPtr{host} << '\n' <<
+	    " next=(null)");
+      }
     }
   }
 

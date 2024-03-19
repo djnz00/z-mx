@@ -291,9 +291,15 @@ inline bool scanBool(
     return deflt;
   }
   using Cmp = ZuICmp<ZuString>;
-  if (value == "1" || Cmp::equals(value, "y") || Cmp::equals(value, "yes"))
+  if (value == "1" ||
+      Cmp::equals(value, "y") ||
+      Cmp::equals(value, "yes") ||
+      Cmp::equals(value, "true"))
     return true;
-  if (value == "0" || Cmp::equals(value, "n") || Cmp::equals(value, "no"))
+  if (value == "0" ||
+      Cmp::equals(value, "n") ||
+      Cmp::equals(value, "no") ||
+      Cmp::equals(value, "false"))
     return false;
   throw BadBool{key, value};
 }

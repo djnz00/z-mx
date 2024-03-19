@@ -296,6 +296,7 @@ int main(int argc, char **argv)
       "dbs {\n"
       "  orders { }\n"
       "}\n"
+      "debug 1\n"
     );
 
     if (cf->fromArgs(opts, argc, argv) != 1) usage();
@@ -310,9 +311,9 @@ int main(int argc, char **argv)
     usage();
   }
 
-  ZeLog::init("ZdbTest");
+  ZeLog::init("zdbsmoketest");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::debugSink());
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
 
   ZmTrap::sigintFn(ZmFn<>::Ptr<&sigint>::fn());
