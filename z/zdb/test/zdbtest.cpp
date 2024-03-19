@@ -365,6 +365,12 @@ int main(int argc, char **argv)
 
     env->start();
 
+    orders->push<Order>([](auto *o) {
+      new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
+      o->put();
+      std::cout << o->rn();
+    });
+
     done.wait();
 
     env->stop();

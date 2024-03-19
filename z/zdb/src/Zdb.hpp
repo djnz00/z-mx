@@ -447,6 +447,8 @@ class Object : public AnyObject {
 public:
   using T = T_;
 
+  Object(DB *db_) : AnyObject{db_} { }
+
   template <typename L>
   Object(DB *db_, L l) : AnyObject{db_} {
     l(static_cast<void *>(&m_data[0]));
@@ -512,7 +514,7 @@ struct DBHandler {
       DeleteFn deleteFn_ = nullptr) {
     return DBHandler{
       .ctorFn = [](DB *db) -> AnyObject * {
-	return new Object<T>{db, [](void *ptr) { new (ptr) T{}; }};
+	return new Object<T>{db};
       },
       .loadFn = [](DB *db, const uint8_t *data, unsigned len) ->
 	  AnyObject * {
@@ -705,50 +707,74 @@ private:
   ZmRef<AnyObject> push_(RN rn, UN un);
 public:
   // create new record
-  template <typename L> void push(L l) {
+  template <typename T, typename L> void push(L l) {
     ZmRef<AnyObject> object = push_(m_nextRN, m_nextUN);
-    if (!object) { l(nullptr); return; }
-    try { l(object); } catch (...) { object->abort(); throw; }
+    if (!object) { l(static_cast<Object<T> *>(nullptr)); return; }
+    try {
+      l(static_cast<Object<T> *>(object.ptr()));
+    } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // create new record (idempotent with RN as key)
-  template <typename L> void pushRN(RN rn, L l) {
-    if (rn != nullRN() && ZuUnlikely(m_nextRN > rn)) { l(nullptr); return; }
-    push(ZuMv(l));
+  template <typename T, typename L> void pushRN(RN rn, L l) {
+    if (rn != nullRN() && ZuUnlikely(m_nextRN > rn)) {
+      l(static_cast<Object<T> *>(nullptr));
+      return;
+    }
+    push<T>(ZuMv(l));
   }
   // create new record (idempotent with UN as key)
-  template <typename L> void pushUN(UN un, L l) {
-    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
-    push(ZuMv(l));
+  template <typename T, typename L> void pushUN(UN un, L l) {
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) {
+      l(static_cast<Object<T> *>(nullptr));
+      return;
+    }
+    push<T>(ZuMv(l));
   }
 
 private:
   bool update_(AnyObject *object, UN un);
 public:
   // update record
-  template <typename L> void update(ZmRef<AnyObject> object, L l) {
-    if (!update_(object, m_nextUN)) { l(nullptr); return; }
-    try { l(object); } catch (...) { object->abort(); throw; }
+  template <typename T, typename L>
+  void update(ZmRef<AnyObject> object, L l) {
+    if (!update_(object, m_nextUN)) {
+      l(static_cast<Object<T> *>(nullptr));
+      return;
+    }
+    try {
+      l(static_cast<Object<T> *>(object));
+    } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
-  template <typename L> void update(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
-    update(ZuMv(object), ZuMv(l));
+  template <typename T, typename L>
+  void update(ZmRef<AnyObject> object, UN un, L l) {
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) {
+      l(static_cast<Object<T> *>(nullptr));
+      return;
+    }
+    update<T>(ZuMv(object), ZuMv(l));
   }
 
   // update record (with RN, without object)
-  template <typename L> void update(RN rn, L l) {
+  template <typename T, typename L> void update(RN rn, L l) {
     getUpdate(rn, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) { l(nullptr); return; }
-      update(ZuMv(object), ZuMv(l));
+      if (ZuUnlikely(!object)) {
+	l(static_cast<Object<T> *>(nullptr));
+	return;
+      }
+      update<T>(ZuMv(object), ZuMv(l));
     });
   }
   // update record (idempotent) (with RN, without object)
-  template <typename L> void update(RN rn, UN un, L l) {
+  template <typename T, typename L> void update(RN rn, UN un, L l) {
     getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) { l(nullptr); return; }
-      update(ZuMv(object), un, ZuMv(l));
+      if (ZuUnlikely(!object)) {
+	l(static_cast<Object<T> *>(nullptr));
+	return;
+      }
+      update<T>(ZuMv(object), un, ZuMv(l));
     });
   }
 
