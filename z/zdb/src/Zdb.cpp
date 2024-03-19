@@ -60,10 +60,14 @@
 
 namespace Zdb_ {
 
-void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
+void Env::init(
+    EnvCf config,
+    ZiMultiplex *mx,
+    EnvHandler handler,
+    Store *store)
 {
-  if (!ZmEngine<Env>::lock(
-	ZmEngineState::Stopped, [this, &config, mx, &handler]() mutable {
+  if (!ZmEngine<Env>::lock(ZmEngineState::Stopped,
+	[this, &config, mx, &handler, store]() mutable {
     if (state() != HostState::Instantiated) return false;
 
     auto invalidSID = [mx](unsigned sid) -> bool {
@@ -77,33 +81,6 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
     if (invalidSID(config.sid))
       throw ZeEVENT(Fatal, ([thread = config.thread](auto &s) {
 	s << "ZdbEnv thread misconfigured: " << thread; }));
-
-    {
-      StoreFn storeFn = handler.storeFn;
-      if (!storeFn) {
-	if (!config.storeCf)
-	  throw ZeEVENT(Fatal, ([](auto &s) {
-	    s << "no data store configured"; }));
-	ZiModule module_;
-	auto path = config.storeCf->get<true>("module");
-	auto preload = config.storeCf->getBool("preload", false);
-	ZtString e; // dlerror() returns a string
-	if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
-	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
-	    s << "failed to load \"" << path << "\": " << e; }));
-	storeFn = reinterpret_cast<StoreFn>(module_.resolve(ZdbStoreFnSym, &e));
-	if (!storeFn) {
-	  module_.unload();
-	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
-	    s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
-	      << path << "\": " << e; }));
-	}
-      }
-      m_store = (*storeFn)();
-      Store_::InitResult result = m_store->init(
-	  config.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
-      if (result.contains<Event>()) throw ZuMv(result).v<Event>();
-    }
 
     {
       auto i = config.dbCfs.readIterator();
@@ -122,27 +99,57 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
       }
     }
 
+    m_cf = ZuMv(config);
+    m_mx = mx;
+    m_handler = ZuMv(handler);
+    {
+      if (store)
+	m_store = store;
+      else {
+	if (!m_cf.storeCf)
+	  throw ZeEVENT(Fatal, ([](auto &s) {
+	    s << "no data store configured"; }));
+	ZiModule module_;
+	auto path = m_cf.storeCf->get<true>("module");
+	auto preload = m_cf.storeCf->getBool("preload", false);
+	ZtString e; // dlerror() returns a string
+	if (module_.load(path, preload ? ZiModule::Pre : 0, &e) < 0)
+	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
+	    s << "failed to load \"" << path << "\": " << e; }));
+	auto storeFn =
+	  reinterpret_cast<StoreFn>(module_.resolve(ZdbStoreFnSym, &e));
+	if (!storeFn) {
+	  module_.unload();
+	  throw ZeEVENT(Fatal, ([path = ZtString{path}, e](auto &s) {
+	    s << "failed to resolve \"" ZdbStoreFnSym "\" in \""
+	      << path << "\": " << e; }));
+	}
+	m_store = (*storeFn)();
+      }
+      if (!m_store)
+	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
+      Store_::InitResult result = m_store->init(
+	  m_cf.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
+      if (result.contains<Event>()) throw ZuMv(result).v<Event>();
+    }
+
     m_hostIndex.clean();
     m_hosts = new Hosts{};
     {
       unsigned dbCount = m_dbs.count_();
-      auto i = config.hostCfs.readIterator();
+      auto i = m_cf.hostCfs.readIterator();
       while (auto node = i.iterate()) {
 	auto host = new Hosts::Node{this, &(node->data()), dbCount};
 	m_hosts->addNode(host);
 	m_hostIndex.addNode(host);
       }
     }
-    m_self = m_hosts->findPtr(config.hostID);
+
+    m_self = m_hosts->findPtr(m_cf.hostID);
     if (!m_self)
-      throw ZeEVENT(Fatal, ([id = config.hostID](auto &s) {
+      throw ZeEVENT(Fatal, ([id = m_cf.hostID](auto &s) {
 	s << "Zdb own host ID " << id << " not in hosts table"; }));
     m_self->state(HostState::Initialized);
-
-    m_cf = ZuMv(config);
-    m_mx = mx;
-
-    m_handler = ZuMv(handler);
 
     return true;
   }))
@@ -1712,40 +1719,18 @@ ZmRef<AnyObject> DB::push_(RN rn, UN un)
 
 bool DB::update_(AnyObject *object, UN un)
 {
+  m_cacheUN->del(object->un());
   return object->update_(un);
 }
 
 bool DB::del_(AnyObject *object, UN un)
 {
+  m_cacheUN->del(object->un());
   return object->del_(un);
 }
 
-// commits push/update/del
-bool DB::put(ZmRef<AnyObject> object)
-{
-  UN origUN = object->origUN();
-  int origState = object->state();
-  if (!object->put_()) return false;
-  write(object->replicate(fbs::Body_Replication));
-  switch (origState) {
-    case ObjState::Push:
-      m_cache.add(object);
-      m_cacheUN->add(object->un(), object);
-      break;
-    case ObjState::Update:
-      m_cacheUN->add(object->un(), object);
-      m_cacheUN->del(origUN);
-      break;
-    case ObjState::Delete:
-      m_cache.delNode(object);
-      m_cacheUN->del(origUN);
-      break;
-  }
-  return true;
-}
-
 // aborts push() or update()
-bool DB::abort(ZmRef<AnyObject> object)
+bool DB::abort(AnyObject *object)
 {
   return object->abort_();
 }

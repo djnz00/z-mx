@@ -336,7 +336,7 @@ namespace Save {
   ZfbExtern int save(
       const Zi::Path &path, Builder &fbb, unsigned mode, ZeError *e);
 
-  // nest flatbuffer
+  // nest flatbuffer - l(Builder &fbb) must return Offset<RootType>
   template <typename L>
   inline Offset<Vector<uint8_t>> nest(Builder &fbb, L l) {
     auto o = fbb.GetSize();

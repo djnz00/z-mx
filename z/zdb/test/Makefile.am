@@ -22,5 +22,6 @@ LDADD = $(top_builddir)/zdb/src/libZdb.la \
 	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@FBS_LIBS@ @Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-noinst_PROGRAMS = zdbtest
-zdbtest_SOURCES = zdbtest.cpp
+noinst_PROGRAMS = zdbsmoketest zdbreptest
+zdbsmoketest_SOURCES = zdbsmoketest.cpp
+zdbreptest_SOURCES = zdbreptest.cpp

@@ -32,6 +32,8 @@ struct Order {
   ZuStringN<32>		symbol;
   int			price;
   int			quantity;
+
+  friend ZtFieldPrint ZuPrintType(Order *);
 };
 
 ZfbFields(Order, fbs::Order,
@@ -39,8 +41,6 @@ ZfbFields(Order, fbs::Order,
     (((symbol)), (String), (Ctor<1>)),
     (((price)), (Int), (Ctor<2>)),
     (((quantity)), (Int), (Ctor<3>)));
-
-ZmRef<Zdb> orders;
 
 // mock row
 struct Row {
@@ -230,9 +230,13 @@ using Store = MockStore::Store;
 using StoreInterface = MockStore::Interface;
 
 // environments and mock data stores
-ZmRef<ZdbEnv> env;
-ZmRef<Store> store;
+ZmRef<Store> store[2];
+ZmRef<ZdbEnv> env[2];
 
+// databases
+ZmRef<Zdb> orders[2];
+
+// app scheduler, Zdb multiplexer
 ZmScheduler *appMx = nullptr;
 ZiMultiplex *dbMx = nullptr;
 
@@ -251,26 +255,13 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void initOrder(Order *order)
-{
-  order->side = Side::Buy;
-  order->symbol = "IBM";
-  order->price = 100;
-  order->quantity = 100;
-}
-
-void updateOrder(Order *order)
-{
-  ++order->price;
-}
-
 void active(ZdbEnv *, ZdbHost *) {
-  puts("ACTIVE");
+  puts("ACTIVE"); // FIXME - print host
   // ...
 }
 
 void inactive(ZdbEnv *) {
-  puts("INACTIVE");
+  puts("INACTIVE"); // FIXME - print host
 }
 
 void usage()
@@ -300,9 +291,9 @@ int main(int argc, char **argv)
   try {
     cf = inlineCf(
       "thread 3\n"
-      "hostID 1\n"
       "hosts {\n"
-      "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"
+      "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
+      "  1 { priority  80 ip 127.0.0.1 port 9944 }\n"
       "}\n"
       "dbs {\n"
       "  orders { }\n"
@@ -351,36 +342,61 @@ int main(int argc, char **argv)
     appMx->start();
     if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
-    store = new Store();
+    {
+      ZdbEnvCf envCf{cf};
 
-    ZmRef<ZdbEnv> env = new ZdbEnv();
+      for (unsigned i = 0; i < 2; i++) {
+	store[i] = new Store();
+	env[i] = new ZdbEnv();
 
-    env->init(ZdbEnvCf(cf), dbMx, ZdbEnvHandler{
-      .upFn = &active,
-      .downFn = &inactive,
-      .storeFn = []() -> StoreInterface * { return store.ptr(); }
-    });
+	envCf.hostID = (ZuStringN<16>{} << i);
 
-    orders = env->initDB<Order>("orders"); // might throw
+	env[i]->init(ZuMv(envCf), dbMx, ZdbEnvHandler{
+	  .upFn = &active,
+	  .downFn = &inactive
+	}, store[i]);
 
-    env->start();
+	orders[i] = env[i]->initDB<Order>("orders"); // might throw
 
-    orders->run([]{
-      orders->push<Order>([](auto *o) {
+	env[i]->start();
+      }
+    }
+
+    ZdbRN rn;
+
+    orders[0]->run([&rn]{
+      orders[0]->push<Order>([&rn](ZdbObject<Order> *o) {
 	new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
 	o->put();
-	std::cout << o->rn();
+	rn = o->rn();
+	std::cout << "RN: " << rn << '\n';
       });
+    });
+
+    orders[0]->run([&rn]{
+      orders[0]->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
+	if (!o)
+	  std::cout << "(null)\n";
+	else
+	  std::cout << o->data() << '\n';
+      });
+      done.post();
     });
 
     done.wait();
 
-    env->stop();
+    for (unsigned i = 0; i < 2; i++)
+      env[i]->stop();
 
     appMx->stop();
     dbMx->stop();
 
-    env->final();
+    for (unsigned i = 0; i < 2; i++) {
+      orders[i] = {};
+      env[i]->final(); // calls Store::final()
+      env[i] = {};
+      store[i] = {};
+    }
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;

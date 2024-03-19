@@ -393,6 +393,7 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 public:
+  template <bool Cache = true>
   void put();
   void abort();
 
@@ -492,7 +493,7 @@ typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
 typedef ZtMFieldArray (*FieldsFn)();
 // ImportFn(db, import) - import object from data store
 typedef AnyObject *(*ImportFn)(DB *, const ZtField::Import &);
-// Note: ExportFn forms part of the Table interface and is in ZdbStore.hpp
+// Note: ExportFn forms part of the Table interface in ZdbStore.hpp
 // ExportFn(ptr, export) - export object to data store
 // ScanFn(object) - object scanned
 typedef void (*ScanFn)(AnyObject *);
@@ -638,7 +639,7 @@ private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
   ZmRef<Buf> findBufUN(UN un) { return {m_repBufsUN->findVal(un)}; }
 
-  template <bool UpdateLRU, bool Evict, typename L>
+  template <typename T, bool UpdateLRU, bool Evict, typename L>
   void get_(RN rn, L l) {
     ZmAssert(invoked());
 
@@ -648,7 +649,7 @@ private:
     }
     auto load = [this]<typename L_>(RN rn, L_ l) {
       if (auto buf = findBuf(rn)) {
-	l(load_(record_(msg_(buf->template ptr<Hdr>()))));
+	l(ZmRef<Object<T>>{load_(record_(msg_(buf->template ptr<Hdr>())))});
 	return;
       }
 
@@ -660,7 +661,7 @@ private:
 	  ZmRef<AnyObject> object = db->m_handler.importFn(db, data.import_);
 	  if (object) object->init(rn, data.un, data.sn, data.vn);
 	  db->invoke([l = ZuMv(l), object = ZuMv(object)]() mutable {
-	    l(ZuMv(object));
+	    l(ZmRef<Object<T>>{ZuMv(object)});
 	  });
 	  return;
 	}
@@ -679,19 +680,21 @@ private:
   }
 
 public:
-  template <typename L>
+  // get lambda - l(ZmRef<ZdbObject<T>>)
+
+  template <typename T, typename L>
   void get(RN rn, L l) {
     config().cacheMode == ZdbCacheMode::All ?
-      get_<true, false>(rn, ZuMv(l)) :
-      get_<true, true >(rn, ZuMv(l));
+      get_<T, true, false>(rn, ZuMv(l)) :
+      get_<T, true, true >(rn, ZuMv(l));
   }
 
   // get (RMU version) - do not update LRU (yet)
-  template <typename L>
+  template <typename T, typename L>
   void getUpdate(RN rn, L l) {
     config().cacheMode == ZdbCacheMode::All ?
-      get_<false, false>(rn, ZuMv(l)) :
-      get_<false, true >(rn, ZuMv(l));
+      get_<T, false, false>(rn, ZuMv(l)) :
+      get_<T, false, true >(rn, ZuMv(l));
   }
 
 public:
@@ -711,14 +714,16 @@ public:
 private:
   ZmRef<AnyObject> push_(RN rn, UN un);
 public:
+  // push lambda - l(const ZmRef<ZdbObject<T>> &)
+
   // create new record
   template <typename T, typename L> void push(L l) {
     ZmAssert(invoked());
 
-    ZmRef<AnyObject> object = push_(m_nextRN, m_nextUN);
-    if (!object) { l(static_cast<Object<T> *>(nullptr)); return; }
+    ZmRef<Object<T>> object = push_(m_nextRN, m_nextUN);
+    if (!object) { l(object); return; }
     try {
-      l(static_cast<Object<T> *>(object.ptr()));
+      l(object);
     } catch (...) { object->abort(); throw; }
     object->abort();
   }
@@ -742,25 +747,24 @@ public:
 private:
   bool update_(AnyObject *object, UN un);
 public:
+  // update lambda - l(const ZmRef<ZdbObject<T>> &)
+ 
   // update record
   template <typename T, typename L>
-  void update(ZmRef<AnyObject> object, L l) {
+  void update(ZmRef<Object<T>> object, L l) {
     ZmAssert(invoked());
 
-    if (!update_(object, m_nextUN)) {
-      l(static_cast<Object<T> *>(nullptr));
-      return;
-    }
+    if (!update_(object.ptr(), m_nextUN)) { l(ZmRef<Object<T>>{}); return; }
     try {
-      l(static_cast<Object<T> *>(object));
+      l(object);
     } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // update record (idempotent) - returns true if update can proceed
   template <typename T, typename L>
-  void update(ZmRef<AnyObject> object, UN un, L l) {
+  void update(ZmRef<Object<T>> object, UN un, L l) {
     if (un != nullUN() && ZuUnlikely(m_nextUN > un)) {
-      l(static_cast<Object<T> *>(nullptr));
+      l(ZmRef<Object<T>>{});
       return;
     }
     update<T>(ZuMv(object), ZuMv(l));
@@ -768,21 +772,15 @@ public:
 
   // update record (with RN, without object)
   template <typename T, typename L> void update(RN rn, L l) {
-    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) {
-	l(static_cast<Object<T> *>(nullptr));
-	return;
-      }
+    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+      if (ZuUnlikely(!object)) { l(object); return; }
       update<T>(ZuMv(object), ZuMv(l));
     });
   }
   // update record (idempotent) (with RN, without object)
   template <typename T, typename L> void update(RN rn, UN un, L l) {
-    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) {
-	l(static_cast<Object<T> *>(nullptr));
-	return;
-      }
+    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+      if (ZuUnlikely(!object)) { l(object); return; }
       update<T>(ZuMv(object), un, ZuMv(l));
     });
   }
@@ -790,40 +788,70 @@ public:
 private:
   bool del_(AnyObject *object, UN un);
 public:
+  // del lambda - l(const ZmRef<ZdbObject<T>> &)
+
   // del record
-  template <typename L> void del(ZmRef<AnyObject> object, L l) {
+  template <typename T, typename L>
+  void del(ZmRef<Object<T>> object, L l) {
     ZmAssert(invoked());
 
-    if (!del_(object, m_nextUN)) { l(nullptr); return; }
+    if (!del_(object.ptr(), m_nextUN)) { l(ZmRef<Object<T>>{}); return; }
     try { l(object); } catch (...) { object->abort(); throw; }
     object->abort();
   }
   // del record (idempotent) - returns true if del can proceed
-  template <typename L> void del(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) { l(nullptr); return; }
+  template <typename T, typename L>
+  void del(ZmRef<AnyObject> object, UN un, L l) {
+    if (un != nullUN() && ZuUnlikely(m_nextUN > un)) {
+      l(ZmRef<Object<T>>{});
+      return;
+    }
     del(ZuMv(object), ZuMv(l));
   }
 
   // del record (with RN, without object)
-  template <typename L> void del(RN rn, L l) {
-    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) { l(nullptr); return; }
+  template <typename T, typename L> void del(RN rn, L l) {
+    getUpdate(rn, [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+      if (ZuUnlikely(!object)) { l(object); return; }
       del(ZuMv(object), ZuMv(l));
     });
   }
   // del record (idempotent) (with RN, without object)
-  template <typename L> void del(RN rn, UN un, L l) {
-    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<AnyObject> object) mutable {
-      if (ZuUnlikely(!object)) { l(nullptr); return; }
+  template <typename T, typename L> void del(RN rn, UN un, L l) {
+    getUpdate(rn, [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+      if (ZuUnlikely(!object)) { l(object); return; }
       del(ZuMv(object), un, ZuMv(l));
     });
   }
 
 private:
-  // commit push/update/delete - causes replication / write
-  bool put(ZmRef<AnyObject>);
+  // commit push/update/delete - causes replication/write
+  template <bool Cache>
+  bool put(AnyObject *object) {
+    int origState = object->state();
+    if (!object->put_()) return false;
+    switch (origState) {
+      case ObjState::Push:
+	if constexpr (Cache) {
+	  m_cache.add(object);
+	  m_cacheUN->add(object->un(), object);
+	}
+	break;
+      case ObjState::Update:
+	if constexpr (Cache) {
+	  m_cacheUN->add(object->un(), object);
+	}
+	break;
+      case ObjState::Delete:
+	m_cache.delNode(object);
+	break;
+    }
+    write(object->replicate(fbs::Body_Replication));
+    return true;
+  }
+
   // abort push/update/delete
-  bool abort(ZmRef<AnyObject>);
+  bool abort(AnyObject *);
 
 private:
   Zfb::Offset<ZvTelemetry::fbs::Zdb>
@@ -838,9 +866,8 @@ private:
 
   // outbound replication / write to data store
   void write(ZmRef<Buf> buf);
-  // low-level internal write to data store - l(DB *, RN, UN, bool ok)
+  // low-level internal write to data store
   void write_(ZmRef<Buf> buf);
-  void write__(AnyObject *object, Table_::CommitFn commitFn);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -903,8 +930,13 @@ private:
   ZmRef<RepBufsUN>	m_repBufsUN;		// '' indexed by UN
 };
 
-inline void AnyObject_::put() { m_db->put(this); }
-inline void AnyObject_::abort() { m_db->abort(this); }
+template <bool Cache>
+inline void AnyObject_::put() {
+  m_db->put<Cache>(static_cast<AnyObject *>(this));
+}
+inline void AnyObject_::abort() {
+  m_db->abort(static_cast<AnyObject *>(this));
+}
 
 // --- DB container
 
@@ -927,9 +959,9 @@ struct HostCf {
   ZtString	down;
 
   HostCf(const ZtString &key, const ZvCf *cf) {
-    id = cf->get("id", true);
+    id = key;
     priority = cf->getInt<true>("priority", 0, 1<<30);
-    ip = cf->get("ip", true);
+    ip = cf->get<true>("ip");
     port = cf->getInt<true>("port", 1, (1<<16) - 1);
     up = cf->get("up");
     down = cf->get("down");
@@ -952,7 +984,7 @@ friend Cxn_;
 friend Env;
 
 protected:
-  Host(Env *env, const HostCf *config, unsigned dbCount);
+  Host(Env *env, const HostCf *cf, unsigned dbCount);
 
 public:
   const HostCf &config() const { return *m_cf; }
@@ -1056,7 +1088,6 @@ typedef void (*DownFn)(Env *);
 struct EnvHandler {
   UpFn		upFn = [](Env *, Host *) { };
   DownFn	downFn = [](Env *) { };
-  StoreFn	storeFn = []() -> Store * { return nullptr; };
 };
 
 // --- DB environment configuration
@@ -1090,7 +1121,7 @@ struct EnvCf {
       if (auto hostCf = node->getCf())
 	hostCfs.addNode(new HostCfs::Node{node->key, ZuMv(hostCf)});
     });
-    hostID = cf->get<true>("hostID");
+    hostID = cf->get("hostID"); // may be supplied separately
     nAccepts = cf->getInt("nAccepts", 1, 1<<10, 8);
     heartbeatFreq = cf->getInt("heartbeatFreq", 1, 3600, 1);
     heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, 4);
@@ -1143,7 +1174,11 @@ public:
   ~Env() { }
 
   // init() and final() throw ZtString on error
-  void init(EnvCf config, ZiMultiplex *mx, EnvHandler handler);
+  void init(
+      EnvCf config,
+      ZiMultiplex *mx,
+      EnvHandler handler,
+      Store *store = nullptr);
   void final();
 
   template <typename T>
