@@ -427,6 +427,9 @@ public:
       count += m_threads[i].ring.count_();
     return count;
   }
+  ZmThreadID tid(unsigned sid) const {
+    return m_threads[sid - 1].tid;
+  }
   const Ring &ring(unsigned sid) const {
     return m_threads[sid - 1].ring;
   }

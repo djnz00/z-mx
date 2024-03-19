@@ -81,6 +81,9 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
     {
       StoreFn storeFn = handler.storeFn;
       if (!storeFn) {
+	if (!config.storeCf)
+	  throw ZeEVENT(Fatal, ([](auto &s) {
+	    s << "no data store configured"; }));
 	ZiModule module_;
 	auto path = config.storeCf->get<true>("module");
 	auto preload = config.storeCf->getBool("preload", false);
@@ -118,6 +121,23 @@ void Env::init(EnvCf config, ZiMultiplex *mx, EnvHandler handler)
 	}
       }
     }
+
+    m_hostIndex.clean();
+    m_hosts = new Hosts{};
+    {
+      unsigned dbCount = m_dbs.count_();
+      auto i = config.hostCfs.readIterator();
+      while (auto node = i.iterate()) {
+	auto host = new Hosts::Node{this, &(node->data()), dbCount};
+	m_hosts->addNode(host);
+	m_hostIndex.addNode(host);
+      }
+    }
+    m_self = m_hosts->findPtr(config.hostID);
+    if (!m_self)
+      throw ZeEVENT(Fatal, ([id = config.hostID](auto &s) {
+	s << "Zdb own host ID " << id << " not in hosts table"; }));
+    m_self->state(HostState::Initialized);
 
     m_cf = ZuMv(config);
     m_mx = mx;
@@ -157,7 +177,7 @@ void Env::opened(DB *db, RN rn, UN un, SN sn)
 void Env::final()
 {
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped, [this]() {
-    if (state() != HostState::Instantiated) return false;
+    if (state() != HostState::Initialized) return false;
     all_([](DB *db) { db->final(); });
     m_handler = {};
     if (m_store) {
@@ -181,34 +201,12 @@ void Env::start_()
   using namespace HostState;
 
   if (state() != Initialized) {
-    ZeLOG(Fatal, "Env::start_() called out of order");
+    ZeLOG(Fatal, "Env::start_ called out of order");
     started(false);
     return;
   }
 
   ZeLOG(Info, "Zdb starting");
-
-  // initialize hosts, connections
-  // finalize connections, hosts
-  m_hostIndex.clean();
-  m_hosts = new Hosts{};
-  {
-    unsigned dbCount = m_dbs.count_();
-    auto i = m_cf.hostCfs.readIterator();
-    while (auto node = i.iterate()) {
-      auto host = new Hosts::Node{this, &(node->data()), dbCount};
-      m_hosts->addNode(host);
-      m_hostIndex.addNode(host);
-    }
-  }
-  m_self = m_hosts->findPtr(m_cf.hostID);
-  if (!m_self) {
-    ZeLOG(Fatal, (ZtString{} <<
-      "Zdb own host ID " << m_cf.hostID << " not in hosts table"));
-    started(false);
-    return;
-  }
-  m_self->state(Initialized);
 
   // open and recover all databases
   {
@@ -239,7 +237,6 @@ void Env::start_()
 
   // refresh db state vector, begin election
   envStateRefresh();
-  m_self->state(Stopped);
   repStop();
   m_self->state(Electing);
 
@@ -288,9 +285,7 @@ void Env::stop_1()
 {
   ZmAssert(invoked());
 
-  using namespace HostState;
-
-  state(Stopping);
+  state(HostState::Stopping);
   repStop();
   m_mx->del(&m_hbSendTimer);
   m_mx->del(&m_electTimer);
@@ -312,6 +307,8 @@ void Env::stop_2()
   ZmAssert(invoked());
 
   allSync([](DB *db) { return [db]() { db->close(); }; });
+
+  state(HostState::Initialized);
 
   stopped(true);
 }
@@ -428,7 +425,6 @@ badorder:
   switch (state()) {
     case Instantiated:
     case Initialized:
-    case Stopped:
     case Stopping:
       goto badorder;
     case Inactive:
@@ -1387,7 +1383,7 @@ DB::DB(Env *env, DBCf *cf) :
 
 DB::~DB()
 {
-  close();
+  // close(); // must be called while running
 }
 
 void DB::init(DBHandler handler)

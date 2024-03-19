@@ -181,9 +181,7 @@ enum ZdbHostState:int8 {
   Closing,		// close() in process
   Stopped,		// open() or stop() completed
   Electing,		// start() called, determining active/inactive
-  Activating,		// activating application
   Active,		// active (leader)
-  Deactivating,		// deactivating application
   Inactive,		// inactive (client)
   Stopping		// stop() in process
 }

@@ -365,6 +365,8 @@ void ZmScheduler::work()
 {
   Thread *thread = &m_threads[ZmThreadContext::self()->sid() - 1];
 
+  thread->tid = thread->thread.tid();
+
   m_threadInitFn();
 
   for (;;) {

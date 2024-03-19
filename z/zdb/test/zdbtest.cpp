@@ -299,6 +299,7 @@ int main(int argc, char **argv)
 
   try {
     cf = inlineCf(
+      "thread 3\n"
       "hostID 1\n"
       "hosts {\n"
       "  1 { priority 100 IP 127.0.0.1 port 9943 }\n"

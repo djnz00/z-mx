@@ -85,9 +85,6 @@
 //  ==========		============
 //  Instantiated	Stopped
 //  Initialized		Stopped
-//  Opening		Starting | StopPending
-//  Closing		Stopping | StartPending
-//  Stopped		Stopped
 //  Electing		!Stopped
 //  Active		!Stopped
 //  Inactive		!Stopped
@@ -1047,7 +1044,7 @@ struct EnvCf {
   EnvCf() = default;
   EnvCf(const ZvCf *cf) {
     thread = cf->get<true>("thread");
-    storeCf = cf->getCf<true>("store");
+    storeCf = cf->getCf("store");
     cf->getCf<true>("dbs")->all([this](ZvCfNode *node) {
       if (auto dbCf = node->getCf())
 	dbCfs.addNode(new DBCfs::Node{node->key, ZuMv(dbCf)});
@@ -1175,7 +1172,7 @@ public:
 
 private:
   template <typename L> void all_(L l) const {
-    ZmAssert(invoked());
+    // ZmAssert(invoked()); // called from final(), after stop()
 
     auto i = m_dbs.readIterator();
     while (auto db = i.iterate()) l(db);

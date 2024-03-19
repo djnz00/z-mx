@@ -153,7 +153,7 @@ public:
   struct Traits : public ZuTraits<T *> {
     enum { IsPrimitive = 0, IsPOD = 0 };
   };
-  friend Traits ZuTraitsType(ZuPtr *);
+  friend Traits ZuTraitsType(ZuPtr *) { return {}; } // unused
 
 protected:
   T		*m_object;
