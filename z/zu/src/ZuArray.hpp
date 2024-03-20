@@ -122,7 +122,7 @@ public:
       !IsPrimitiveArray_<U>{} &&
       !IsCString<U>{} &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
+      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename V = T> struct IsPtr : public ZuBool<
       ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
 
@@ -207,8 +207,8 @@ public:
 private:
   template <typename V = T>
   ZuIfT<
-      ZuEquivChar<V, char>::Same ||
-      ZuEquivChar<V, wchar_t>::Same, unsigned> length_() const {
+      bool{ZuEquivChar<V, char>{}} ||
+      bool{ZuEquivChar<V, wchar_t>{}}, unsigned> length_() const {
     using Char = ZuNormChar<V>;
     if (ZuUnlikely(m_length < 0))
       return const_cast<ZuArray *>(this)->m_length =
@@ -218,8 +218,8 @@ private:
   }
   template <typename V = T>
   ZuIfT<
-    !ZuEquivChar<V, char>::Same &&
-    !ZuEquivChar<V, wchar_t>::Same, unsigned> length_() const {
+    !bool{ZuEquivChar<V, char>{}} &&
+    !bool{ZuEquivChar<V, wchar_t>{}}, unsigned> length_() const {
     return m_length;
   }
 
@@ -382,9 +382,9 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
   enum {
     IsArray = 1, IsPrimitive = 0,
     IsString =
-      ZuEquivChar<char, Elem>::Same ||
-      ZuEquivChar<wchar_t, Elem>::Same,
-    IsWString = ZuEquivChar<wchar_t, Elem>::Same
+      bool{ZuEquivChar<char, Elem>{}} ||
+      bool{ZuEquivChar<wchar_t, Elem>{}},
+    IsWString = bool{ZuEquivChar<wchar_t, Elem>{}}
   };
   template <typename U = T>
   static ZuMutable<U, Elem *> data(U &a) { return a.data(); }

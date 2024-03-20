@@ -240,7 +240,7 @@ void ZmScheduler::schedule_(
   {
     SchedGuard schedGuard(m_schedLock);
 
-    if (ZuLikely(timer->timeout)) {
+    if (ZuLikely(*timer)) {
       switch (mode) {
 	case Advance:
 	  if (ZuUnlikely(timer->timeout <= timeout)) return;
@@ -277,7 +277,7 @@ bool ZmScheduler::del(Timer *timer)
 {
   SchedGuard schedGuard(m_schedLock);
 
-  if (!timer->timeout) return false;
+  if (!*timer) return false;
   bool found = !!m_schedule.delNode(timer);
   timer->timeout = ZmTime{};
   if (timer->transient) delete timer;

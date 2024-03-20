@@ -3,13 +3,17 @@
 
 #include <zlib/ZuLib.hpp>
 
-#include <stdio.h>
+#include <iostream>
 
 #include <zlib/ZmTime.hpp>
 
 void fail() { Zm::exit(1); }
 
-#define CHECK(x) ((x) ? (puts("OK  " #x), void()) : (puts("NOK " #x), fail()))
+void out(const char *s) {
+  std::cout << s << '\n' << std::flush;
+}
+
+#define CHECK(x) ((x) ? (out("OK  " #x), void()) : (out("NOK " #x), fail()))
 
 int main()
 {
@@ -20,4 +24,5 @@ int main()
   ZmTime t2 = 0;
   CHECK(*t2);
   CHECK(!t2);
+  std::cout << ZmTimeNow() << '\n';
 }

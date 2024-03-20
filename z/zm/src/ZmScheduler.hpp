@@ -217,7 +217,7 @@ private:
 
     Timer_(bool transient_) : transient{transient_} { }
 
-    ZuInline bool operator !() const { return !timeout; }
+    bool operator !() const { return !*timeout; }
     ZuOpBool
   };
   static const ZmTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }

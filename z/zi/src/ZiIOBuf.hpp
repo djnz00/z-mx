@@ -62,10 +62,10 @@ struct ZiAnyIOBuf : public ZmPolymorph {
   bool operator !() const { return !length; }
   ZuOpBool
 
-  ZiAnyIOBuf() = default;
   ZiAnyIOBuf(uint32_t size_, uint32_t length_) :
       size{size_}, length{length_} { }
 
+  ZiAnyIOBuf() = delete;
   ZiAnyIOBuf(const ZiAnyIOBuf &) = delete;
   ZiAnyIOBuf &operator =(const ZiAnyIOBuf &) = delete;
   ZiAnyIOBuf(ZiAnyIOBuf &&) = delete;
@@ -87,13 +87,14 @@ private:
 public:
   enum { Size = Size_ };
 
-  ZiIOVBuf() { }
-  ZiIOVBuf(void *owner_) : owner{owner_} { }
+  ZiIOVBuf() : ZiAnyIOBuf{Size_, 0} { }
+  ZiIOVBuf(void *owner_) : ZiAnyIOBuf{Size_, 0}, owner{owner_} { }
   ZiIOVBuf(void *owner_, uint32_t length) :
       ZiAnyIOBuf{Size_, length}, owner{owner_} { }
   ~ZiIOVBuf() { if (ZuUnlikely(jumbo)) vfree(jumbo); }
 
-  ZiIOVBuf(const ZiIOVBuf &buf) : owner{buf.owner} {
+  ZiIOVBuf(const ZiIOVBuf &buf) :
+      ZiAnyIOBuf{buf.size, buf.length}, owner{buf.owner} {
     if (auto data = alloc(buf.length)) {
       skip = buf.skip;
       memcpy(data + skip, buf.data() + skip, length = buf.length);

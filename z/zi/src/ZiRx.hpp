@@ -56,9 +56,9 @@ public:
 
   // asynchronous (queued) receive from ZiIOContext
   //
-  // int Body(const ZiIOContext &io, const Buf *buf, unsigned len) // sync
+  // int Body(const ZiIOContext &io, ZmRef<Buf> buf)
   //   0   - skip remaining data (defends against DOS)
-  //   +ve - length of hdr+body (may be <= that returned by Hdr())
+  //   +ve - buffer consumed
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
   void recv(ZiIOContext &io) {
@@ -70,11 +70,12 @@ public:
       io.length = 0;
 
       // scan header
+      buf->length = len;
       int frameLen = ZuInvoke<Hdr>(impl(buf), io, buf);
       if (ZuUnlikely(frameLen < 0)) return -1;
       if (len < static_cast<unsigned>(frameLen)) return 0;
       if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
-	ZeLOG(Error, "ZdbNet::recv TCP message too big / corrupt");
+	ZeLOG(Error, "ZiRx::recv TCP message too big / corrupt");
 	io.disconnect();
 	return 0;
       }
@@ -116,9 +117,9 @@ public:
 
   // synchronous receive from ZiIOContext
   //
-  // int Body(const ZiIOContext &io, ZmRef<Buf> buf) // async
+  // int Body(const ZiIOContext &io, Buf *buf, unsigned len)
   //   0   - skip remaining data (defends against DOS)
-  //   +ve - buffer consumed
+  //   +ve - length of hdr+body (may be <= that returned by Hdr())
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
   void recvSync(ZiIOContext &io) {
@@ -130,11 +131,12 @@ public:
       io.length = 0;
 
       // scan header
+      buf->length = len;
       int frameLen = ZuInvoke<Hdr>(impl(buf), io, buf);
       if (ZuUnlikely(frameLen < 0)) return -1;
       if (len < static_cast<unsigned>(frameLen)) return 0;
       if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
-	ZeLOG(Error, "ZdbNet::recv TCP message too big / corrupt");
+	ZeLOG(Error, "ZiRx::recv TCP message too big / corrupt");
 	io.disconnect();
 	return 0;
       }
@@ -167,7 +169,7 @@ public:
   // asynchronous recv from memory
   // returns bytes consumed, -1 on error
   //
-  // int Body(ZmRef<Buf> buf) // async
+  // int Body(ZmRef<Buf> buf)
   //   0   - skip remaining data (defends against DOS)
   //   +ve - buffer consumed
   //   -ve - disconnect immediately
@@ -215,11 +217,11 @@ public:
   // synchronous recv from memory (e.g. TLS)
   // returns bytes consumed, -1 on error
   //
-  // int Hdr(const Buf *buf) // sync
+  // int Hdr(const Buf *buf)
   //   >=0 - minimum size of body (may be 0)
   //   -ve - disconnect immediately
   //
-  // int Body(const Buf *buf, unsigned len) // sync
+  // int Body(const Buf *buf, unsigned len)
   //   0   - EOF, skip remaining data (defends against DOS)
   //   +ve - length of hdr+body (may be <= that returned by Hdr())
   //   -ve - disconnect immediately

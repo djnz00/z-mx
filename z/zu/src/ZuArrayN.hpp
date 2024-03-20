@@ -107,7 +107,7 @@ protected:
   // from some string with same char (including string literals)
   template <typename U, typename V = T> struct IsString : public ZuBool<
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
+      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchString = ZuIfT<IsString<U>{}, R>;
 
@@ -116,7 +116,7 @@ protected:
   struct IsChar2String : public ZuBool<
       !ZuInspect<ZuNull, V>::Same &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      ZuEquivChar<typename ZuTraits<U>::Elem, V>::Same> { };
+      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
@@ -140,17 +140,17 @@ protected:
 
   // from printable type (if this is a char array)
   template <typename U, typename V = T> struct IsPDelegate :
-    public ZuBool<ZuEquivChar<char, V>::Same && ZuPrint<U>::Delegate> { };
+    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
   template <typename U, typename V = T> struct IsPBuffer :
-    public ZuBool<ZuEquivChar<char, V>::Same && ZuPrint<U>::Buffer> { };
+    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char string)
   template <typename U, typename V = T> struct IsReal : public ZuBool<
-      ZuEquivChar<char, V>::Same && !ZuEquivChar<U, V>::Same &&
+      bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
@@ -640,9 +640,9 @@ public:
       IsArray = 1, IsPrimitive = 0,
       IsPOD = ZuTraits<T>::IsPOD,
       IsString =
-	ZuEquivChar<char, T>::Same ||
-	ZuEquivChar<wchar_t, T>::Same,
-      IsWString = ZuEquivChar<wchar_t, T>::Same
+	bool{ZuEquivChar<char, T>{}} ||
+	bool{ZuEquivChar<wchar_t, T>{}},
+      IsWString = bool{ZuEquivChar<wchar_t, T>{}}
     };
     template <typename U = ArrayN>
     static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }

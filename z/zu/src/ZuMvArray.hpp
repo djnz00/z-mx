@@ -179,9 +179,9 @@ protected:
     enum {
       IsArray = 1, IsPrimitive = 0, IsPOD = 0,
       IsString =
-	ZuEquivChar<char, T>::Same ||
-	ZuEquivChar<wchar_t, T>::Same,
-      IsWString = ZuEquivChar<wchar_t, T>::Same
+	bool{ZuEquivChar<char, T>{}} ||
+	bool{ZuEquivChar<wchar_t, T>{}},
+      IsWString = bool{ZuEquivChar<wchar_t, T>{}}
     };
     template <typename U = ZuMvArray>
     static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }

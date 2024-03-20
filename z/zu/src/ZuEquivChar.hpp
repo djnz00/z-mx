@@ -43,46 +43,32 @@
 #endif
 
 template <typename U, typename W = wchar_t,
-  bool = ZuInspect<U, char>::Same ||
-	 ZuInspect<U, signed char>::Same ||
-	 ZuInspect<U, unsigned char>::Same ||
-	 ZuInspect<U, int8_t>::Same ||
-	 ZuInspect<U, uint8_t>::Same,
-  bool = ZuInspect<U, W>::Same ||
+  bool = bool{ZuIsExact<U, char>{}} ||
+	 bool{ZuIsExact<U, signed char>{}} ||
+	 bool{ZuIsExact<U, unsigned char>{}} ||
+	 bool{ZuIsExact<U, int8_t>{}} ||
+	 bool{ZuIsExact<U, uint8_t>{}},
+  bool = bool{ZuIsExact<U, W>{}} ||
 	 (sizeof(W) == 2 && (
-	       ZuInspect<U, short>::Same ||
-	       ZuInspect<U, unsigned short>::Same ||
-	       ZuInspect<U, int16_t>::Same ||
-	       ZuInspect<U, uint16_t>::Same)) ||
+	       bool{ZuIsExact<U, short>{}} ||
+	       bool{ZuIsExact<U, unsigned short>{}} ||
+	       bool{ZuIsExact<U, int16_t>{}} ||
+	       bool{ZuIsExact<U, uint16_t>{}})) ||
 	 (sizeof(W) == 4 && (
-	       ZuInspect<U, int32_t>::Same ||
-	       ZuInspect<U, uint32_t>::Same))>
+	       bool{ZuIsExact<U, int32_t>{}} ||
+	       bool{ZuIsExact<U, uint32_t>{}}))>
 struct ZuNormChar_ { using T = U; };
 
 template <typename U, typename W, bool _>
 struct ZuNormChar_<U, W, 1, _> { using T = char; };
-template <typename U, typename W, bool _>
-struct ZuNormChar_<const U, W, 1, _> { using T = const char; };
-template <typename U, typename W, bool _>
-struct ZuNormChar_<volatile U, W, 1, _> { using T = volatile char; };
-template <typename U, typename W, bool _>
-struct ZuNormChar_<const volatile U, W, 1, _> {
-  using T = const volatile char;
-};
 
 template <typename U, typename W>
 struct ZuNormChar_<U, W, 0, 1> { using T = W; };
-template <typename U, typename W>
-struct ZuNormChar_<const U, W, 0, 1> { using T = const W; };
-template <typename U, typename W>
-struct ZuNormChar_<volatile U, W, 0, 1> { using T = volatile W; };
-template <typename U, typename W>
-struct ZuNormChar_<const volatile U, W, 0, 1> { using T = const volatile W; };
 
 template <typename U>
-using ZuNormChar = typename ZuNormChar_<U>::T;
+using ZuNormChar = typename ZuNormChar_<ZuDecay<U>>::T;
 
 template <typename U1, typename U2>
-struct ZuEquivChar : public ZuInspect<ZuNormChar<U1>, ZuNormChar<U2>> { };
+struct ZuEquivChar : public ZuIsExact<ZuNormChar<U1>, ZuNormChar<U2>> { };
 
 #endif /* ZuEquivChar_HPP */

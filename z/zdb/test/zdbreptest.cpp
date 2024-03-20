@@ -343,54 +343,60 @@ int main(int argc, char **argv)
     appMx->start();
     if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
-    {
+    ZmAtomic<unsigned> ok = 0;
+
+    for (unsigned i = 0; i < 2; i++) {
+      store[i] = new Store();
+      env[i] = new ZdbEnv();
+
       ZdbEnvCf envCf{cf};
 
-      for (unsigned i = 0; i < 2; i++) {
-	store[i] = new Store();
-	env[i] = new ZdbEnv();
+      envCf.hostID = (ZuStringN<16>{} << i);
 
-	envCf.hostID = (ZuStringN<16>{} << i);
+      env[i]->init(ZuMv(envCf), dbMx, ZdbEnvHandler{
+	.upFn = &active,
+	.downFn = &inactive
+      }, store[i]);
 
-	env[i]->init(ZuMv(envCf), dbMx, ZdbEnvHandler{
-	  .upFn = &active,
-	  .downFn = &inactive
-	}, store[i]);
+      orders[i] = env[i]->initDB<Order>("orders"); // might throw
 
-	orders[i] = env[i]->initDB<Order>("orders"); // might throw
-
-	env[i]->start();
-      }
+      env[i]->start([&ok](bool ok_) { if (ok_) ++ok; done.post(); });
     }
 
-    ZdbRN rn;
+    for (unsigned i = 0; i < 2; i++) done.wait();
 
-    orders[0]->run([&rn]{
-      orders[0]->push<Order>([&rn](ZdbObject<Order> *o) {
-	new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
-	o->put();
-	rn = o->rn();
-	std::cout << "RN: " << rn << '\n';
+    if (ok >= 2) {
+      ZdbRN rn;
+
+      orders[0]->run([&rn]{
+	orders[0]->push<Order>([&rn](ZdbObject<Order> *o) {
+	  new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
+	  o->put();
+	  rn = o->rn();
+	  std::cout << "RN: " << rn << '\n';
+	});
       });
-    });
 
-    orders[0]->run([&rn]{
-      orders[0]->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
-	if (!o)
-	  std::cout << "(null)\n";
-	else
-	  std::cout << o->data() << '\n';
+      orders[0]->run([&rn]{
+	orders[0]->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
+	  if (!o)
+	    std::cout << "(null)\n";
+	  else
+	    std::cout << o->data() << '\n';
+	});
+	done.post();
       });
-      done.post();
-    });
 
-    done.wait();
+      done.wait();
+    }
 
     for (unsigned i = 0; i < 2; i++)
       env[i]->stop();
 
     appMx->stop();
     dbMx->stop();
+
+    std::cout << ZmHashMgr::csv();
 
     for (unsigned i = 0; i < 2; i++) {
       orders[i] = {};
@@ -417,8 +423,6 @@ int main(int argc, char **argv)
   if (dbMx) delete dbMx;
 
   ZeLog::stop();
-
-  std::cout << ZmHashMgr::csv();
 
   return 0;
 }
