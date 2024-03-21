@@ -196,6 +196,8 @@ struct Thread : public Thread_ {
 
   friend ZtFieldPrint ZuPrintType(Thread *);
 };
+// FIXME - need to optionally enrich this with thread ring count and overCount
+// (i.e. scheduler queue length and DLQ length)
 ZfbFields(Thread, fbs::Thread,
     (((name)), (String), (Ctor<0>)),
     (((sid)), (Int), (Ctor<8>)),

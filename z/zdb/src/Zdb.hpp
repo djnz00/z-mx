@@ -95,7 +95,8 @@
 #endif
 
 #ifdef ZdbRep_DEBUG
-#define ZdbDEBUG(env, e) do { if ((env)->debug()) ZeLOG(Debug, (e)); } while (0)
+#define ZdbDEBUG(env, e) \
+  do { if ((env)->debug()) ZeLOG(Debug, (e)); } while (0)
 #else
 #define ZdbDEBUG(env, e) (void())
 #endif
@@ -638,45 +639,12 @@ private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
   ZmRef<Buf> findBufUN(UN un) { return {m_repBufsUN->findVal(un)}; }
 
+  // get falling through cache, replication buffers, back-end data store
   template <typename T, bool UpdateLRU, bool Evict, typename L>
-  void get_(RN rn, L l) {
-    ZmAssert(invoked());
-
-    if (ZuUnlikely(rn >= m_nextRN)) {
-      l(nullptr);
-      return;
-    }
-    auto load = [this]<typename L_>(RN rn, L_ l) {
-      if (auto buf = findBuf(rn)) {
-	l(ZmRef<Object<T>>{load_(record_(msg_(buf->template ptr<Hdr>())))});
-	return;
-      }
-
-      using namespace Table_;
-
-      m_table->get(rn, [l = ZuMv(l)](DB *db, RN rn, GetResult result) mutable {
-	if (ZuLikely(result.contains<GetData>())) {
-	  const auto &data = result.v<GetData>();
-	  ZmRef<AnyObject> object = db->m_handler.importFn(db, data.import_);
-	  if (object) object->init(rn, data.un, data.sn, data.vn);
-	  db->invoke([l = ZuMv(l), object = ZuMv(object)]() mutable {
-	    l(ZmRef<Object<T>>{ZuMv(object)});
-	  });
-	  return;
-	}
-	if (ZuUnlikely(result.contains<Event>()))
-	  ZeLogEvent(ZuMv(result).v<Event>());
-	db->invoke([l = ZuMv(l)]() mutable { l(nullptr); });
-      });
-    };
-    if constexpr (Evict) {
-      auto evict = [this](ZmRef<AnyObject> object) {
-	m_cacheUN->del(object->un());
-      };
-      m_cache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
-    } else
-      m_cache.find<UpdateLRU, false>(rn, ZuMv(l), ZuMv(load));
-  }
+  void get_(RN rn, L l);
+  // fallback get from back-end data store
+  template <typename T>
+  void get__(RN rn, ZmFn<ZmRef<Object<T>>>);
 
 public:
   // get lambda - l(ZmRef<ZdbObject<T>>)
@@ -846,10 +814,12 @@ private:
 
   // outbound replication / write to data store
   void write(ZmRef<Buf> buf);
-  // low-level internal write to data store
-  void write_(ZmRef<Buf> buf);
-  // process data store commit
+  // low-level write to data store
+  void commit(ZmRef<Buf> buf);
+  // data store committed
   void committed(UN un, Table_::CommitResult &);
+  // evict replication buffer
+  void evictRepBuf(UN un);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -861,7 +831,7 @@ private:
 
   // inbound replication
   void repRecordRcvd(ZmRef<Buf> buf);
-  void repCommitted(UN un);
+  void repCommitRcvd(UN un);
 
   // recovery - DB thread
   void recover(const fbs::Record *record);
@@ -1087,6 +1057,7 @@ struct EnvCf {
   unsigned			heartbeatTimeout = 0;
   unsigned			reconnectFreq = 0;
   unsigned			electionTimeout = 0;
+  unsigned			retryFreq = 0;
   ZmHashParams			cxnHash;
 #ifdef ZdbRep_DEBUG
   bool				debug = 0;
@@ -1110,6 +1081,7 @@ struct EnvCf {
     heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, 4);
     reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, 1);
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
+    retryFreq = cf->getInt("retryFreq", 1, 3600, 1);
 #ifdef ZdbRep_DEBUG
     debug = cf->getBool("debug");
 #endif
@@ -1392,6 +1364,57 @@ inline void Env::print(S &s)
       if (host->cmp(m_leader) > 0) m_leader = host;
     }
   }
+}
+
+template <typename T, bool UpdateLRU, bool Evict, typename L>
+inline void DB::get_(RN rn, L l) {
+  ZmAssert(invoked());
+
+  if (ZuUnlikely(rn >= m_nextRN)) {
+    l(nullptr);
+    return;
+  }
+  auto load = [this]<typename L_>(RN rn, L_ l) {
+    if (auto buf = findBuf(rn)) {
+      l(ZmRef<Object<T>>{load_(record_(msg_(buf->template ptr<Hdr>())))});
+      return;
+    }
+
+    return get__<T>(rn, ZuMv(l));
+  };
+  if constexpr (Evict) {
+    auto evict = [this](ZmRef<AnyObject> object) {
+      m_cacheUN->del(object->un());
+    };
+    m_cache.find<UpdateLRU>(rn, ZuMv(l), ZuMv(load), ZuMv(evict));
+  } else
+    m_cache.find<UpdateLRU, false>(rn, ZuMv(l), ZuMv(load));
+}
+
+template <typename T>
+inline void DB::get__(RN rn, ZmFn<ZmRef<Object<T>>> fn)
+{
+  using namespace Table_;
+
+  m_table->get(rn, [fn = ZuMv(fn)](DB *db, RN rn, GetResult result) mutable {
+    if (ZuLikely(result.contains<GetData>())) {
+      const auto &data = result.v<GetData>();
+      ZmRef<AnyObject> object = db->m_handler.importFn(db, data.import_);
+      if (object) object->init(rn, data.un, data.sn, data.vn);
+      db->invoke([fn = ZuMv(fn), object = ZuMv(object)]() mutable {
+	fn(ZmRef<Object<T>>{ZuMv(object)});
+      });
+      return;
+    }
+    if (ZuUnlikely(result.contains<Event>())) {
+      ZeLogEvent(ZuMv(result).v<Event>());
+      db->run([db, rn, fn = ZuMv(fn)]() mutable {
+	db->get__<T>(rn, ZuMv(fn));
+      }, ZmTimeNow(db->env()->config().retryFreq));
+      return;
+    }
+    db->invoke([fn = ZuMv(fn)]() mutable { fn(nullptr); });
+  });
 }
 
 } // Zdb_

@@ -38,9 +38,10 @@
 class ZmAPI ZmBackoff {
 public:
   ZmBackoff(
-      const ZmTime &minimum, const ZmTime &maximum,
+      ZmTime minimum, ZmTime maximum,
       double backoff, double random) :
-      m_min(minimum), m_max(maximum), m_backoff(backoff), m_random(random) { }
+    m_min(ZuMv(minimum)), m_max(ZuMv(maximum)),
+    m_backoff(backoff), m_random(random) { }
 
   ZmTime minimum() { return(m_min); }
   ZmTime maximum() { return(m_max); }

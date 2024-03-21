@@ -19,6 +19,8 @@
 
 // IO context
 
+// This design intentionally sacrifices encapsulation for performance
+
 #ifndef ZiIOContext_HPP
 #define ZiIOContext_HPP
 
@@ -38,8 +40,8 @@
 class ZiConnection;
 
 class ZiIOContext {
-  ZuInline static uint8_t *invalid_ptr() {
-    return reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(-1));
+  constexpr ZuInline static uintptr_t invalid_ptr() {
+    return static_cast<uintptr_t>(-1);
   }
 
 friend ZiConnection;
@@ -82,9 +84,11 @@ public:
   // complete send/receive and disconnect
   void disconnect() {
     fn = ZmAnyFn();
-    ptr = invalid_ptr();
+    ptr = reinterpret_cast<uint8_t *>(invalid_ptr());
   }
-  bool disconnected() const { return ptr == invalid_ptr(); }
+  bool disconnected() const {
+    return reinterpret_cast<uintptr_t>(ptr) == invalid_ptr();
+  }
 
   uintptr_t operator()();
 

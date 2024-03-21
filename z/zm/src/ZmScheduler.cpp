@@ -367,7 +367,7 @@ void ZmScheduler::work()
 
   m_threadInitFn();
 
-  for (;;) {
+  for (;;) { // Note: this is single-threaded, but overCount is SWMR
     if (ZuLikely(!thread->overCount.load_())) goto shift;
     if (Fn fn = thread->overRing.shift()) {
       unsigned size = fn.pushSize();

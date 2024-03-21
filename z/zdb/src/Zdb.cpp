@@ -580,8 +580,8 @@ void Host::connect()
 
   ZeLOG(Info,
       ([id = this->id(), ip = config().ip, port = config().port](auto &s) {
-	s << "Zdb connecting to host " << id <<
-	  " (" << ip << ':' << port << ')';
+	s << "Zdb connecting to host " << id
+	  << " (" << ip << ':' << port << ')';
       }));
 
   m_mx->connect(
@@ -599,8 +599,8 @@ void Host::connectFailed(bool transient)
 	ip = config().ip,
 	port = config().port,
 	retry](auto &s) {
-    s << "Zdb failed to connect to host " << id <<
-      " (" << ip << ':' << port << ')';
+    s << "Zdb failed to connect to host " << id
+      << " (" << ip << ':' << port << ')';
     if (retry) s << " - retrying...";
   }));
 }
@@ -1088,8 +1088,7 @@ ZmRef<Buf> AnyObject_::replicate(int type)
   ZmAssert(state() == ObjState::Committed || state() == ObjState::Deleted);
   ZmAssert(m_rn != nullRN());
 
-  ZdbDEBUG(m_db->env(),
-      ZtString{} << "AnyObject_::replicate(" << type << ')');
+  ZdbDEBUG(m_db->env(), ZtString{} << "AnyObject_::replicate(" << type << ')');
   IOBuilder fbb;
   Zfb::Offset<Zfb::Vector<uint8_t>> data;
   if (state() != ObjState::Deleted && this->ptr_())
@@ -1369,7 +1368,7 @@ void Cxn_::repCommitRcvd(ZmRef<Buf> buf)
   // buf->owner = db;
   ZdbDEBUG(m_env, ZtString{} <<
       "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
-  db->invoke([db, un = commit->un()]() mutable { db->repCommitted(un); });
+  db->invoke([db, un = commit->un()]() mutable { db->repCommitRcvd(un); });
 }
 
 void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
@@ -1497,12 +1496,12 @@ void DB::repRecordRcvd(ZmRef<Buf> buf)
 }
 
 // process inbound replication - committed
-void DB::repCommitted(UN un)
+void DB::repCommitRcvd(UN un)
 {
   ZmAssert(invoked());
 
-  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   repSendCommit(un);
+  evictRepBuf(un);
 }
 
 // recover record
@@ -1531,16 +1530,24 @@ void DB::write(ZmRef<Buf> buf)
   m_env->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     auto env = db->env();
-    if (!env->repStore() || env->active()) {
+    if (ZuLikely(env->active()) || !env->repStore()) {
+      // leader, or follower without replicated data store - will
+      // evict buf when write to data store is committed
       env->replicate(buf);
-      db->write_(ZuMv(buf));
-    } else
+      db->commit(ZuMv(buf));
+    } else {
+      // follower with replicated data store - will evict buf
+      // when leader subsequently sends commit, unless message is recovery
       env->replicate(ZuMv(buf));
+      auto msg = msg_(buf->hdr());
+      if (msg->body_type() == fbs::Body_Recovery)
+	db->invoke([db, un = record_(msg)->un()]() { db->evictRepBuf(un); });
+    }
   });
 }
 
 // low-level internal write to data store
-void DB::write_(ZmRef<Buf> buf)
+void DB::commit(ZmRef<Buf> buf)
 {
   auto msg = msg_(buf->hdr());
   bool recovery = msg->body_type() == fbs::Body_Recovery;
@@ -1582,17 +1589,24 @@ void DB::committed(UN un, Table_::CommitResult &result)
 {
   ZmAssert(invoked());
 
-  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   if (ZuUnlikely(result.contains<Event>())) {
-    // FIXME - retry on failure? (would need to elide repBuf deletion)
     ZeLogEvent(ZuMv(result).v<Event>());
+    run([this, un]() {
+      if (auto buf = findBufUN(un)) commit(ZuMv(buf));
+    }, ZmTimeNow(m_env->config().retryFreq));
     return;
   }
+  evictRepBuf(un);
+}
+
+// evict buffer from replication buffer queue
+void DB::evictRepBuf(UN un)
+{
+  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
 }
 
 // Env::open() iterates over DBs, calling open(store)
 // - each DB calls env->opened(this, rn, un) on success
-
 template <typename L>
 void DB::open(Store *store, L l)
 {
