@@ -110,9 +110,9 @@ int main()
     {
       static const char *argv[] = {
 	"",
-	"--key1=ok \"this is val1`\\",
-	"-AB", "ok ", "ok2`\\",
-	"--key5=# k51,k5`\\2,k` 53`,,k54` ,k55",
+	"--key1=ok \"this is val1\\\\\\",
+	"-AB", "ok ", "ok2\\\\\\",
+	"--key5=# k51,k5\\\\\\2,k\\ 53\\,,k54\\ ,k55",
 	"-C", "b",
 	"--key6.c=d}",
 	"--key4",
@@ -149,9 +149,9 @@ int main()
 
 	cf->fromCLI(opts,
 	  " "
-	  "--key1=\'ok \"this is val1`\\\' "
-	  "-AB \"ok \" ok2`\\ "
-	  "--key5=\"# k51,k5`\\2,k 53`,,k54 ,k55\" "
+	  "--key1='ok \"this is val1\\\\\' "
+	  "-AB \"ok \" ok2\\\\ "
+	  "--key5=\"# k51,k5\\\\\\2,k 53\\,,k54 ,k55\" "
 	  "-C b "
 	  "--key6.c=d} "
 	  "--key4 "

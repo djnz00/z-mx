@@ -480,7 +480,7 @@ public:
     // cf->set("mx:debug", "1");
     ZvCmdHost::init();
     m_mx = new Mx(cf->getCf("mx"));
-    m_verbose = cf->getInt("verbose", 0, 0, 1);
+    m_verbose = cf->getBool("verbose", 0);
     addCmd("proxy",
 	"tag { type scalar } "
 	"suspend { type flag } "
@@ -668,7 +668,7 @@ public:
       if (validateTag(tag))
         isTag = true;
       else
-        localPort = args->getInt("1", 1, 65535, true);
+        localPort = args->getInt<true>("1", 1, 65535);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -709,7 +709,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       side = args->getEnum<Side::Map>("2", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
@@ -761,7 +761,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       side = args->getEnum<Side::Map>("2", Side::Both);
     } catch (...) {
       throw ZvCmdUsage();
@@ -813,7 +813,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
     } catch (...) {
       throw ZvCmdUsage();
     }
@@ -857,7 +857,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       side = args->getEnum<Side::Map>("2", Side::Both);
       op = args->getEnum<IOOp::Map>("3", IOOp::Both);
     } catch (...) {
@@ -923,7 +923,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       side = args->getEnum<Side::Map>("2", Side::Both);
       op = args->getEnum<IOOp::Map>("3", IOOp::Both);
     } catch (...) {
@@ -986,7 +986,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       on = args->getBool("2", true);
       side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {
@@ -1041,7 +1041,7 @@ public:
       else if (args->get("1") == "all")
 	allProxies = true;
       else
-	srcPort = args->getInt("1", 1, 65535, true);
+	srcPort = args->getInt<true>("1", 1, 65535);
       on = args->getBool("2", true);
       side = args->getEnum<Side::Map>("3", Side::Both);
     } catch (...) {

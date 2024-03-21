@@ -77,7 +77,7 @@ struct ZvCxnOptions : public ZiCxnOptions {
     // Example: multicastGroups { 239.193.2.51 192.168.1.99 }
     if (multicast()) {
       if (ZuString s = cf->get("multicastInterface")) mif(s);
-      ttl(cf->getInt("multicastTTL", ttl(), 0, INT_MAX));
+      ttl(cf->getInt("multicastTTL", 0, INT_MAX, ttl()));
       if (ZmRef<ZvCf> groups = cf->getCf("multicastGroups")) {
 	groups->all([this](const ZvCfNode *node) {
 	  ZiIP addr{node->key}, mif{node->get<true>()};
@@ -107,19 +107,19 @@ struct ZvMxParams : public ZiMxParams {
 
       sched.id(id);
       sched.nThreads(
-	  cf->getInt("nThreads", sched.nThreads(), 1, 1024));
+	  cf->getInt("nThreads", 1, 1024, sched.nThreads()));
       sched.stackSize(
-	  cf->getInt("stackSize", sched.stackSize(), 16384, 2<<20));
+	  cf->getInt("stackSize", 16384, 2<<20, sched.stackSize()));
       sched.priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
 	    "priority", ZmThreadPriority::Normal));
-      sched.partition(cf->getInt("partition", 0, 0, ncpu - 1));
+      sched.partition(cf->getInt("partition", 0, ncpu - 1, 0));
       if (ZuString s = cf->get("quantum"))
 	sched.quantum((double)ZuBox<double>(s));
       sched.queueSize(
-	  cf->getInt("queueSize", sched.queueSize(), 8192, (1U<<30U)));
+	  cf->getInt("queueSize", 8192, (1U<<30U), sched.queueSize()));
       sched.ll(cf->getBool("ll", sched.ll()));
-      sched.spin(cf->getInt("spin", sched.spin(), 0, INT_MAX));
-      sched.timeout(cf->getInt("timeout", sched.timeout(), 0, 3600));
+      sched.spin(cf->getInt("spin", 0, INT_MAX, sched.spin()));
+      sched.timeout(cf->getInt("timeout", 0, 3600, sched.timeout()));
       sched.startTimer(cf->getBool("startTimer", sched.startTimer()));
       if (ZmRef<ZvCf> threadsCf = cf->getCf("threads")) {
 	threadsCf->all([&sched](ZvCfNode *node) {
@@ -130,17 +130,16 @@ struct ZvMxParams : public ZiMxParams {
 	      throw ZeEVENT(Fatal, ([id = ZtString{id}](auto &s) {
 		s << "bad thread ID \"" << id << '"'; }));
 	    ZmSchedParams::Thread &thread = sched.thread(tid);
-	    thread.isolated(threadCf->getInt(
-		  "isolated", thread.isolated(), 0, 1));
+	    thread.isolated(threadCf->getBool("isolated", thread.isolated()));
 	    if (ZuString s = threadCf->get("name")) thread.name(s);
 	    thread.stackSize(threadCf->getInt(
-		  "stackSize", thread.stackSize(), 0, INT_MAX));
+		  "stackSize", 0, INT_MAX, thread.stackSize()));
 	    if (ZuString s = threadCf->get("priority"))
 	      thread.priority(
 		  ZvEnum::s2v<ZvTelemetry::ThreadPriority::Map, false>(
 		    "priority", s, ZmThreadPriority::Normal));
 	    thread.partition(threadCf->getInt(
-		  "partition", thread.partition(), 0, INT_MAX));
+		  "partition", 0, INT_MAX, thread.partition()));
 	    if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
 	    thread.detached(threadCf->getBool("detached", thread.detached()));
 	  }
@@ -151,11 +150,11 @@ struct ZvMxParams : public ZiMxParams {
     if (ZuString s = cf->get("rxThread")) rxThread(scheduler().sid(s));
     if (ZuString s = cf->get("txThread")) txThread(scheduler().sid(s));
 #ifdef ZiMultiplex_EPoll
-    epollMaxFDs(cf->getInt("epollMaxFDs", epollMaxFDs(), 1, 100000));
-    epollQuantum(cf->getInt("epollQuantum", epollQuantum(), 1, 1024));
+    epollMaxFDs(cf->getInt("epollMaxFDs", 1, 100000, epollMaxFDs()));
+    epollQuantum(cf->getInt("epollQuantum", 1, 1024, epollQuantum()));
 #endif
-    rxBufSize(cf->getInt("rcvBufSize", rxBufSize(), 0, INT_MAX));
-    txBufSize(cf->getInt("sndBufSize", txBufSize(), 0, INT_MAX));
+    rxBufSize(cf->getInt("rcvBufSize", 0, INT_MAX, rxBufSize()));
+    txBufSize(cf->getInt("sndBufSize", 0, INT_MAX, txBufSize()));
 #ifdef ZiMultiplex_DEBUG
     trace(cf->getBool("trace", trace()));
     debug(cf->getBool("debug", debug()));

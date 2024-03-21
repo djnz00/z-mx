@@ -52,12 +52,12 @@ int Cf::fromCLI(const ZvOpt *opts, ZuString line)
 
 void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
 {
-  const auto &cliValue = ZtREGEX("\G[^\"'`#;\s]+");
+  const auto &cliValue = ZtREGEX("\G[^\"'\\#;\s]+");
   const auto &cliSglQuote = ZtREGEX("\G'");
-  const auto &cliSglQuotedValue = ZtREGEX("\G[^'`]+");
+  const auto &cliSglQuotedValue = ZtREGEX("\G[^'\\]+");
   const auto &cliDblQuote = ZtREGEX("\G\"");
-  const auto &cliDblQuotedValue = ZtREGEX("\G[^\"`]+");
-  const auto &cliQuoted = ZtREGEX("\G`.");	
+  const auto &cliDblQuotedValue = ZtREGEX("\G[^\"\\]+");
+  const auto &cliQuoted = ZtREGEX("\G\\.");	
   const auto &cliWhiteSpace = ZtREGEX("\G\s+");
   const auto &cliComment = ZtREGEX("\G#");
   const auto &cliSemicolon = ZtREGEX("\G;");
@@ -184,7 +184,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 	    if (n < l && args[n][0] != '-') {
 	      fromArg(
 		  longOpt, type,
-		  args[n].data() + (args[n][0] == '`' && args[n][1] == '-'));
+		  args[n].data() + (args[n][0] == '\\' && args[n][1] == '-'));
 	      n++;
 	    } else {
 	      fromArg(longOpt, type, deflt);
@@ -193,7 +193,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 	    if (n == l) throw Usage{args[0], shortOpt};
 	    fromArg(
 		longOpt, type,
-		args[n].data() + (args[n][0] == '`' && args[n][1] == '-'));
+		args[n].data() + (args[n][0] == '\\' && args[n][1] == '-'));
 	    n++;
 	  }
 	}
@@ -639,6 +639,8 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
       ZtRegex::Captures c;
       unsigned off = 0;
 
+      if (!node->data.contains<StrArray>())
+	new (node->data.init<StrArray>()) StrArray{};
       auto &values = node->data.v<StrArray>();
       values.clear();
 

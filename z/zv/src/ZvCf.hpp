@@ -609,6 +609,7 @@ public:
   template <typename T, typename P>
   void setElem_(unsigned i, P &&v) {
     using Elem = typename T::T;
+    if (!data.contains<T>()) new (data.init<T>()) T{};
     new (data.v<T>().set(i)) Elem{ZuFwd<P>(v)};
   }
   template <typename T, bool Required_ = false>
@@ -630,8 +631,8 @@ public:
   }
   template <typename T, typename L>
   const typename T::T &assureElem_(unsigned i, L l) {
-    if (!data.contains<T>() || i >= data.v<T>().length())
-      data.v<T>().set(i, l());
+    if (!data.contains<T>()) new (data.init<T>()) T{};
+    if (i >= data.v<T>().length()) data.v<T>().set(i, l());
     return data.v<T>().get(i);
   }
 

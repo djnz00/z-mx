@@ -59,10 +59,10 @@ struct ZvThreadParams : public ZmThreadParams {
     if (!cf) return;
 
     static unsigned ncpu = Zm::getncpu();
-    stackSize(cf->getInt("stackSize", stackSize(), 16384, 2<<20));
+    stackSize(cf->getInt("stackSize", 16384, 2<<20, stackSize()));
     priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
 	  "priority", ZmThreadPriority::Normal));
-    partition(cf->getInt("partition", 0, 0, ncpu - 1));
+    partition(cf->getInt("partition", 0, ncpu - 1, 0));
     cpuset(cf->get("cpuset"));
   }
 };
