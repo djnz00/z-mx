@@ -81,6 +81,14 @@ void Env::init(
     if (invalidSID(config.sid))
       throw ZeEVENT(Fatal, ([thread = config.thread](auto &s) {
 	s << "ZdbEnv thread misconfigured: " << thread; }));
+    if (!config.writeThread)
+      config.writeSID = config.sid;
+    else {
+      config.writeSID = mx->sid(config.writeThread);
+      if (invalidSID(config.writeSID))
+	throw ZeEVENT(Fatal, ([writeThread = config.writeThread](auto &s) {
+	  s << "ZdbEnv write thread misconfigured: " << writeThread; }));
+    }
 
     {
       auto i = config.dbCfs.readIterator();
@@ -95,6 +103,20 @@ void Env::init(
 		([id = dbCf.id, thread = dbCf.thread](auto &s) {
 		  s << "Zdb " << id
 		    << " thread misconfigured: " << thread; }));
+	}
+	if (!dbCf.writeThread) {
+	  if (dbCf.thread)
+	    dbCf.writeSID = dbCf.sid;
+	  else
+	    dbCf.writeSID = config.writeSID;
+	} else {
+	  dbCf.writeSID = mx->sid(dbCf.writeThread);
+	  if (invalidSID(dbCf.writeSID) ||
+	      (dbCf.sid != config.sid && dbCf.writeSID == config.sid))
+	    throw ZeEVENT(Fatal,
+		([id = dbCf.id, writeThread = dbCf.writeThread](auto &s) {
+		  s << "Zdb " << id
+		    << " write thread misconfigured: " << writeThread; }));
 	}
       }
     }
@@ -221,8 +243,8 @@ void Env::start_()
     auto i = m_dbs.readIterator();
     ZmBlock<>{}(m_dbs.count_(), [this, &ok, &i](unsigned, auto wake) {
       if (auto db = i.iterate())
-	db->invoke([this, db, &ok, wake = ZuMv(wake)]() mutable {
-	  db->open(m_store,
+	db->invoke([db = ZmMkRef(db), &ok, wake = ZuMv(wake)]() mutable {
+	  db->open(db->env()->m_store,
 	      [db, &ok, wake = ZuMv(wake)](Store_::OpenResult result) mutable {
 	    ok &= db->opened(ZuMv(result));
 	    wake();
@@ -486,23 +508,23 @@ void Env::down_()
 ZvTelemetry::ZdbEnvFn Env::telFn()
 {
   return ZvTelemetry::ZdbEnvFn{ZmMkRef(this), [](
-      Env *dbEnv,
+      Env *env,
       ZvTelemetry::BuildZdbEnvFn envFn,
       ZvTelemetry::BuildZdbHostFn hostFn,
       ZvTelemetry::BuildZdbFn dbFn,
       bool update) {
-    dbEnv->invoke([dbEnv,
+    env->invoke([env,
 	envFn = ZuMv(envFn),
 	hostFn = ZuMv(hostFn),
 	dbFn = ZuMv(dbFn), update]() {
       {
 	ZvTelemetry::IOBuilder fbb;
-	envFn(fbb, dbEnv->telemetry(fbb, update));
-	dbEnv->allHosts([&hostFn, &fbb, update](const Host *host) {
+	envFn(fbb, env->telemetry(fbb, update));
+	env->allHosts([&hostFn, &fbb, update](const Host *host) {
 	  hostFn(fbb, host->telemetry(fbb, update));
 	});
       }
-      dbEnv->all([dbFn = ZuMv(dbFn), update](const DB *db) {
+      env->all([dbFn = ZuMv(dbFn), update](const DB *db) {
 	return [dbFn, update, db]() {
 	  ZvTelemetry::IOBuilder fbb;
 	  dbFn(fbb, db->telemetry(fbb, update));
@@ -962,7 +984,7 @@ void Env::repStart()
 	  auto un = state->p<1>();
 	  auto endUN = endState->p<1>();
 	  if (endUN <= un) continue;
-	  db->run([db, cxn, un, endUN]() mutable {
+	  db->run([db = ZmMkRef(db), cxn, un, endUN]() mutable {
 	    db->recSend(ZuMv(cxn), un, endUN);
 	  });
 	}
@@ -972,6 +994,8 @@ void Env::repStart()
 
 void DB::recSend(ZmRef<Cxn> cxn, UN un, UN endUN)
 {
+  if (!m_open) return;
+
   ZmAssert(invoked());
 
   if (!cxn->up()) return;
@@ -1349,8 +1373,7 @@ void Cxn_::repRecordRcvd(ZmRef<Buf> buf)
       Record_Print{record} << ')');
   m_env->replicated(
       m_host, id, record->un(), Zfb::Load::uint128(record->sn()));
-  db->invoke([buf = ZuMv(buf)]() mutable {
-    auto db = buf->db();
+  db->invoke([db = ZmMkRef(db), buf = ZuMv(buf)]() mutable {
     db->repRecordRcvd(ZuMv(buf));
   });
 }
@@ -1368,7 +1391,9 @@ void Cxn_::repCommitRcvd(ZmRef<Buf> buf)
   // buf->owner = db;
   ZdbDEBUG(m_env, ZtString{} <<
       "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
-  db->invoke([db, un = commit->un()]() mutable { db->repCommitRcvd(un); });
+  db->invoke([db = ZmMkRef(db), un = commit->un()]() mutable {
+    db->repCommitRcvd(un);
+  });
 }
 
 void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
@@ -1489,6 +1514,8 @@ Zfb::Offset<void> DB::save(Zfb::Builder &fbb, AnyObject_ *object)
 // process inbound replication - record
 void DB::repRecordRcvd(ZmRef<Buf> buf)
 {
+  if (!m_open) return;
+
   ZmAssert(invoked());
 
   write(buf);
@@ -1498,6 +1525,8 @@ void DB::repRecordRcvd(ZmRef<Buf> buf)
 // process inbound replication - committed
 void DB::repCommitRcvd(UN un)
 {
+  if (!m_open) return;
+
   ZmAssert(invoked());
 
   repSendCommit(un);
@@ -1507,8 +1536,6 @@ void DB::repCommitRcvd(UN un)
 // recover record
 void DB::recover(const fbs::Record *record)
 {
-  ZmAssert(invoked());
-
   m_env->recoveredSN(Zfb::Load::uint128(record->sn()));
   recoveredRN(record->rn());
   recoveredUN(record->un());
@@ -1534,7 +1561,9 @@ void DB::write(ZmRef<Buf> buf)
       // leader, or follower without replicated data store - will
       // evict buf when write to data store is committed
       env->replicate(buf);
-      db->commit(ZuMv(buf));
+      db->writeRun([db = ZmMkRef(db), buf = ZuMv(buf)]() {
+	db->commit(ZuMv(buf));
+      });
     } else {
       // follower with replicated data store - will evict buf
       // when leader subsequently sends commit, unless message is recovery
@@ -1546,9 +1575,13 @@ void DB::write(ZmRef<Buf> buf)
   });
 }
 
-// low-level internal write to data store
+// low-level internal write to back-end data store
 void DB::commit(ZmRef<Buf> buf)
 {
+  if (ZuUnlikely(!m_open)) return; // DB is closing
+
+  ZmAssert(writeInvoked());
+
   auto msg = msg_(buf->hdr());
   bool recovery = msg->body_type() == fbs::Body_Recovery;
   auto record = record_(msg);
@@ -1592,7 +1625,11 @@ void DB::committed(UN un, Table_::CommitResult &result)
   if (ZuUnlikely(result.contains<Event>())) {
     ZeLogEvent(ZuMv(result).v<Event>());
     run([this, un]() {
-      if (auto buf = findBufUN(un)) commit(ZuMv(buf));
+      if (auto buf = findBufUN(un)) {
+	writeRun([db = ZmMkRef(this), buf = ZuMv(buf)]() {
+	  db->commit(ZuMv(buf));
+	});
+      }
     }, ZmTimeNow(m_env->config().retryFreq));
     return;
   }
@@ -1654,7 +1691,7 @@ bool DB::opened(Store_::OpenResult result)
       run([this, fn]() { ZmRef<AnyObject>{fn(this)}; });
   }
 
-  m_open = true;
+  m_open = 1;
   return true;
 }
 
@@ -1663,10 +1700,15 @@ void DB::close()
   ZmAssert(invoked());
 
   if (!m_open) return;
+  m_open = 0;
 
-  m_table->close();
+  ZmBlock<>{}([this](auto wake) {
+    writeInvoke([db = ZmMkRef(this), wake = ZuMv(wake)]() {
+      db->m_table->close();
+      wake();
+    });
+  });
 
-  m_open = false;
   m_table = nullptr;
 }
 
@@ -1772,6 +1814,8 @@ bool DB::del_(AnyObject *object, UN un)
   // commit push/update/delete - causes replication/write
 bool DB::put(AnyObject *object)
 {
+  ZmAssert(invoked());
+
   int origState = object->state();
   if (!object->put_()) return false;
   switch (origState) {
@@ -1796,6 +1840,8 @@ bool DB::put(AnyObject *object)
 // aborts push() or update()
 bool DB::abort(AnyObject *object)
 {
+  ZmAssert(invoked());
+
   return object->abort_();
 }
 

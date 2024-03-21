@@ -568,7 +568,9 @@ namespace ZdbCacheMode {
 struct DBCf {
   ZuID			id;
   ZmThreadName		thread;		// in-memory thread
+  ZmThreadName		writeThread;	// data store write thread
   mutable unsigned	sid = 0;	// in-memory thread slot ID
+  mutable unsigned	writeSID = 0;	// data store write thread slot ID
   int			cacheMode = ZdbCacheMode::Normal;
   bool			warmup = false;	// warm-up back-end
 
@@ -576,6 +578,7 @@ struct DBCf {
   DBCf(ZuString id_) : id{id_} { }
   DBCf(ZuString id_, const ZvCf *cf) : id{id_} {
     thread = cf->get("thread");
+    writeThread = cf->get("writeThread");
     cacheMode = cf->getEnum<ZdbCacheMode::Map>(
 	"cacheMode", ZdbCacheMode::Normal);
     warmup = cf->getBool("warmup");
@@ -625,6 +628,7 @@ public:
   ZuID id() const { return config().id; }
   ZtMFieldArray fields() const { return m_handler.fieldsFn(); }
 
+  // DB thread (may be shared)
   template <typename ...Args>
   void run(Args &&... args) const {
     m_mx->run(m_cf->sid, ZuFwd<Args>(args)...);
@@ -634,6 +638,17 @@ public:
     m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_cf->sid); }
+
+  // back-end data store write thread (may be shared)
+  template <typename ...Args>
+  void writeRun(Args &&... args) const {
+    m_mx->run(m_cf->writeSID, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args>
+  void writeInvoke(Args &&... args) const {
+    m_mx->invoke(m_cf->writeSID, ZuFwd<Args>(args)...);
+  }
+  bool writeInvoked() const { return m_mx->invoked(m_cf->writeSID); }
 
 private:
   ZmRef<Buf> findBuf(RN rn) { return {m_repBufs->find(rn)}; }
@@ -814,7 +829,7 @@ private:
 
   // outbound replication / write to data store
   void write(ZmRef<Buf> buf);
-  // low-level write to data store
+  // low-level write to data store - write thread
   void commit(ZmRef<Buf> buf);
   // data store committed
   void committed(UN un, Table_::CommitResult &);
@@ -869,7 +884,7 @@ private:
   UN			m_nextUN = 0;		 // UN allocator
 
   // open/closed state
-  bool			m_open = false;		// DB thread
+  ZmAtomic<unsigned>	m_open = 0;		// DB thread SWMR
 
   // back-end data store table
   Table			*m_table = nullptr;	// DB thread
@@ -1046,26 +1061,29 @@ struct EnvHandler {
 // --- DB environment configuration
 
 struct EnvCf {
-  ZmThreadName			thread;
-  mutable unsigned		sid = 0;
-  ZmRef<ZvCf>			storeCf;
-  DBCfs				dbCfs;
-  HostCfs			hostCfs;
-  ZuID				hostID;
-  unsigned			nAccepts = 0;
-  unsigned			heartbeatFreq = 0;
-  unsigned			heartbeatTimeout = 0;
-  unsigned			reconnectFreq = 0;
-  unsigned			electionTimeout = 0;
-  unsigned			retryFreq = 0;
-  ZmHashParams			cxnHash;
+  ZmThreadName		thread;
+  ZmThreadName		writeThread;
+  mutable unsigned	sid = 0;
+  mutable unsigned	writeSID = 0;
+  ZmRef<ZvCf>		storeCf;
+  DBCfs			dbCfs;
+  HostCfs		hostCfs;
+  ZuID			hostID;
+  unsigned		nAccepts = 0;
+  unsigned		heartbeatFreq = 0;
+  unsigned		heartbeatTimeout = 0;
+  unsigned		reconnectFreq = 0;
+  unsigned		electionTimeout = 0;
+  unsigned		retryFreq = 0;
+  ZmHashParams		cxnHash;
 #ifdef ZdbRep_DEBUG
-  bool				debug = 0;
+  bool			debug = 0;
 #endif
 
   EnvCf() = default;
   EnvCf(const ZvCf *cf) {
     thread = cf->get<true>("thread");
+    writeThread = cf->get("writeThread");
     storeCf = cf->getCf("store");
     cf->getCf<true>("dbs")->all([this](ZvCfNode *node) {
       if (auto dbCf = node->getCf())
