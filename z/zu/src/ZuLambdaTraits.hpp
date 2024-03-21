@@ -52,7 +52,7 @@ struct ArgList__<L, Fn> { using T = ZuTypeList<FnArgs...>; }; // const
 template <typename L, typename = void> struct ArgList_; // undefined
 template <typename L> struct ArgList_<L, decltype(&L::operator(), void())> :
     public ArgList__<L, &L::operator()> { };
-template <typename L> using ArgList = typename ArgList_<L>::T;
+template <typename L> using ArgList = typename ArgList_<ZuDecay<L>>::T;
 
 // deduce return type of lambda - Return<L, ArgList>
 template <typename L, typename ArgList_> struct Return_;
@@ -65,7 +65,7 @@ struct Return_<L, ZuTypeList<Args...>> {
   using T = decltype(ZuDeclVal<L &>()(ZuDeclVal<Args>()...));
 };
 template <typename L, typename ArgList_ = ArgList<L>>
-using Return = typename Return_<L, ArgList_>::T;
+using Return = typename Return_<ZuDecay<L>, ArgList_>::T;
 
 template <
   typename L, typename ArgList_ = ArgList<L>, typename = Return<L, ArgList_>>
@@ -86,9 +86,9 @@ struct IsMutable_Args<L, ZuTypeList<Args...>,
   decltype(ZuDeclVal<const L &>()(ZuDeclVal<Args>()...), void())> :
     public ZuFalse { };
 template <typename L, typename ArgList_ = ArgList<L>>
-struct IsMutable : public IsMutable_Args<L, ArgList_> { };
+struct IsMutable : public IsMutable_Args<ZuDecay<L>, ArgList_> { };
 template <typename L>
-struct IsMutable<L, ZuTypeList<>> : public IsMutable_NoArgs<L> { };
+struct IsMutable<L, ZuTypeList<>> : public IsMutable_NoArgs<ZuDecay<L>> { };
 
 // deduce statefulness of lambda - IsStateless<L, ArgList>
 template <typename ArgList_, typename FnArgList>
@@ -145,11 +145,13 @@ struct IsStateless_Generic<L, ZuTypeList<>> :
 template <typename L, typename ...Args>
 struct IsStateless_Generic<L, ZuTypeList<Args...>> :
     public IsStateless_Generic_Args<L, ZuTypeList<Args...>> { };
-template <typename L, typename ArgList_ = ArgList<L>, typename = void>
-struct IsStateless : public IsStateless_Generic<L, ArgList_> { };
+template <typename L, typename ArgList_, typename = void>
+struct IsStateless_ : public IsStateless_Generic<L, ArgList_> { };
 template <typename L, typename ArgList_>
-struct IsStateless<L, ArgList_, decltype(&L::operator(), void())> :
+struct IsStateless_<L, ArgList_, decltype(&L::operator(), void())> :
     public IsStateless_Fn<L, ArgList_, &L::operator()> { };
+template <typename L, typename ArgList_ = ArgList<L>>
+using IsStateless = IsStateless_<ZuDecay<L>, ArgList_>;
 
 // convert stateless lambda to plain function
 
@@ -162,7 +164,7 @@ template <
   typename L,
   typename ArgList_ = ArgList<L>,
   typename R = Return<L, ArgList_>>
-using InvokeFnT = typename InvokeFnT_<L, R, ArgList_>::T;
+using InvokeFnT = typename InvokeFnT_<ZuDecay<L>, R, ArgList_>::T;
 
 } // ZuLambdaTraits
 
@@ -192,8 +194,9 @@ constexpr auto ZuInvokeFn(const L &l) {
 // C++23 static operator() would make all this redundant, but the ABI
 // changes wreak havoc
 
-template <typename L, typename ArgList = ZuArgList<L>, typename ...Args>
+template <typename L_, typename ArgList = ZuArgList<L_>, typename ...Args>
 auto ZuInvokeLambda(Args &&... args) {
+  using L = ZuDecay<L_>;
   struct Empty { };
   ZuAssert((ZuIsStatelessLambda<L, ArgList>{}));
   ZuAssert(sizeof(L) == sizeof(Empty));

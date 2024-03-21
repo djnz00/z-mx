@@ -174,13 +174,6 @@ ZmRef<DB> Env::initDB_(ZuID id, DBHandler handler)
   return db;
 }
 
-void Env::opened(DB *db, RN rn, UN un, SN sn)
-{
-  db->recoveredRN(rn);
-  db->recoveredUN(un);
-  recoveredSN(sn);
-}
-
 void Env::final()
 {
   if (!ZmEngine<Env>::lock(ZmEngineState::Stopped, [this]() {
@@ -746,8 +739,8 @@ void Cxn_::hbTimeout()
   ZeLOG(Info,
       ([id = m_host ? m_host->id() : ZuID{"unknown"},
 	ip = info().remoteIP, port = info().remotePort](auto &s) {
-    s << "Zdb heartbeat timeout on host " <<
-      id << " (" << ip << ':' << port << ')';
+    s << "Zdb heartbeat timeout on host "
+      << id << " (" << ip << ':' << port << ')';
   }));
 
   disconnect();
@@ -758,8 +751,8 @@ void Cxn_::disconnected()
   ZeLOG(Info,
       ([id = m_host ? m_host->id() : ZuID{"unknown"},
 	ip = info().remoteIP, port = info().remotePort](auto &s) {
-    s << "Zdb disconnected from host " <<
-      id << " (" << ip << ':' << port << ')';
+    s << "Zdb disconnected from host "
+      << id << " (" << ip << ':' << port << ')';
   }));
 
   mx()->del(&m_hbTimer);
@@ -1375,8 +1368,8 @@ void Env::replicated(Host *host, ZuID dbID, UN un, SN sn)
 {
   ZmAssert(invoked());
 
-  bool updated =
-    host->envState().updateSN(sn + 1) || host->envState().update(dbID, un + 1);
+  bool updated = host->envState().updateSN(sn + 1);
+  updated = host->envState().update(dbID, un + 1) || updated;
   if ((active() || host == m_next) && !updated) return;
   if (!m_prev) {
     m_prev = host;
@@ -1486,25 +1479,13 @@ Zfb::Offset<void> DB::save(Zfb::Builder &fbb, AnyObject_ *object)
   return m_handler.saveFn(fbb, object->ptr_());
 }
 
-// recover record originating from inbound replication or data store recovery
-void DB::recover(const fbs::Record *record)
-{
-  ZmAssert(invoked());
-
-  if (auto object = load(record)) {
-    if (auto fn = m_handler.scanFn) fn(object);
-  } else {
-    if (auto fn = m_handler.deleteFn) fn(record->rn());
-  }
-}
-
 // process inbound replication - record
 void DB::repRecordRcvd(ZmRef<Buf> buf)
 {
   ZmAssert(invoked());
 
+  write(buf);
   recover(record_(msg_(buf->hdr())));
-  write(ZuMv(buf));
 }
 
 // process inbound replication - committed
@@ -1512,20 +1493,45 @@ void DB::repCommitted(UN un)
 {
   ZmAssert(invoked());
 
+  ZeLOG(Debug, ([id = m_env->self()->id(), un](auto &s) {
+    s << id << " REMOVING(REP) UN=" << un;
+  }));
   if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   repSendCommit(un);
 }
 
-// process data store commit
-void DB::committed(UN un, Table_::CommitResult &result)
+// recover record
+void DB::recover(const fbs::Record *record)
 {
-  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
-  if (ZuUnlikely(result.contains<Event>())) {
-    // FIXME - retry on failure? (would need to elide repBuf deletion)
-    ZeLogEvent(ZuMv(result).v<Event>());
-    return;
+  ZmAssert(invoked());
+
+  m_env->recoveredSN(Zfb::Load::uint128(record->sn()));
+  recoveredRN(record->rn());
+  recoveredUN(record->un());
+  if (auto object = load(record)) {
+    if (auto fn = m_handler.scanFn) fn(object);
+  } else {
+    if (auto fn = m_handler.deleteFn) fn(record->rn());
   }
-  repSendCommit(un);
+}
+
+// outbound replication + persistency
+void DB::write(ZmRef<Buf> buf)
+{
+  ZmAssert(invoked());
+  ZmAssert(buf->db() == this);
+
+  m_repBufs->addNode(buf);
+  m_repBufsUN->add(buf);
+  m_env->invoke([buf = ZuMv(buf)]() mutable {
+    auto db = buf->db();
+    auto env = db->env();
+    if (env->active()) {
+      env->replicate(buf);
+      db->write_(ZuMv(buf));
+    } else
+      env->replicate(ZuMv(buf));
+  });
 }
 
 // low-level internal write to data store
@@ -1553,23 +1559,18 @@ void DB::write_(ZmRef<Buf> buf) {
 	ptr, m_handler.exportFn, ZuMv(commitFn));
 }
 
-// outbound replication + persistency
-void DB::write(ZmRef<Buf> buf)
+// process data store commit
+void DB::committed(UN un, Table_::CommitResult &result)
 {
   ZmAssert(invoked());
-  ZmAssert(buf->db() == this);
 
-  m_repBufs->addNode(buf);
-  m_repBufsUN->add(buf);
-  m_env->invoke([buf = ZuMv(buf)]() mutable {
-    auto db = buf->db();
-    auto env = db->env();
-    if (env->active()) {
-      env->replicate(buf);
-      db->write_(ZuMv(buf));
-    } else
-      env->replicate(ZuMv(buf));
-  });
+  if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
+  if (ZuUnlikely(result.contains<Event>())) {
+    // FIXME - retry on failure? (would need to elide repBuf deletion)
+    ZeLogEvent(ZuMv(result).v<Event>());
+    return;
+  }
+  repSendCommit(un);
 }
 
 // Env::open() iterates over DBs, calling open(store)
@@ -1613,7 +1614,9 @@ bool DB::opened(Store_::OpenResult result)
   }
   const auto &data = result.v<OpenData>();
   m_table = data.table;
-  m_env->opened(this, data.rn, data.un, data.sn);
+  m_env->recoveredSN(data.sn);
+  recoveredRN(data.rn);
+  recoveredUN(data.un);
 
   if (config().warmup) {
     if (auto fn = m_handler.ctorFn)
@@ -1733,6 +1736,30 @@ bool DB::del_(AnyObject *object, UN un)
 {
   m_cacheUN->del(object->un());
   return object->del_(un);
+}
+
+  // commit push/update/delete - causes replication/write
+bool DB::put(AnyObject *object)
+{
+  int origState = object->state();
+  if (!object->put_()) return false;
+  switch (origState) {
+    case ObjState::Push:
+      if (m_writeCache) {
+	m_cache.add(object);
+	m_cacheUN->add(object->un(), object);
+      }
+      break;
+    case ObjState::Update:
+      if (m_writeCache)
+	m_cacheUN->add(object->un(), object);
+      break;
+    case ObjState::Delete:
+      m_cache.delNode(object);
+      break;
+  }
+  write(object->replicate(fbs::Body_Replication));
+  return true;
 }
 
 // aborts push() or update()

@@ -393,7 +393,6 @@ public:
   static RN RNAxor(const AnyObject_ &object) { return object.rn(); }
 
 public:
-  template <bool Cache = true>
   void put();
   void abort();
 
@@ -706,6 +705,9 @@ public:
   // create placeholder record (null RN, in-memory, never persisted/replicated)
   ZmRef<AnyObject> placeholder();
 
+  // enable/disable writing to cache (temporarily)
+  void writeCache(bool enabled) { m_writeCache = enabled; }
+
   // all transactions begin with a push(), update() or del(),
   // and complete with a object->put() or object->abort():
   // put() commits the operation
@@ -826,29 +828,7 @@ public:
 
 private:
   // commit push/update/delete - causes replication/write
-  template <bool Cache>
-  bool put(AnyObject *object) {
-    int origState = object->state();
-    if (!object->put_()) return false;
-    switch (origState) {
-      case ObjState::Push:
-	if constexpr (Cache) {
-	  m_cache.add(object);
-	  m_cacheUN->add(object->un(), object);
-	}
-	break;
-      case ObjState::Update:
-	if constexpr (Cache) {
-	  m_cacheUN->add(object->un(), object);
-	}
-	break;
-      case ObjState::Delete:
-	m_cache.delNode(object);
-	break;
-    }
-    write(object->replicate(fbs::Body_Replication));
-    return true;
-  }
+  bool put(AnyObject *object);
 
   // abort push/update/delete
   bool abort(AnyObject *);
@@ -868,6 +848,8 @@ private:
   void write(ZmRef<Buf> buf);
   // low-level internal write to data store
   void write_(ZmRef<Buf> buf);
+  // process data store commit
+  void committed(UN un, Table_::CommitResult &);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, RN rn, RN endRN);
@@ -875,7 +857,6 @@ private:
   void recSend_(ZmRef<Cxn> cxn, RN rn, RN endRN, ZmRef<Buf> buf);
   void recNext(ZmRef<Cxn> cxn, RN rn, RN endRN);
   ZmRef<Buf> repBuf(UN un);
-  void committed(UN un, Table_::CommitResult &);
   void repSendCommit(UN un);
 
   // inbound replication
@@ -892,6 +873,7 @@ private:
     return true;
   }
   void recoveredRN(RN rn) {
+    if (ZuUnlikely(rn == nullRN())) return;
     if (m_nextRN <= rn) m_nextRN = rn + 1;
   }
 
@@ -902,6 +884,7 @@ private:
     return true;
   }
   void recoveredUN(UN un) {
+    if (ZuUnlikely(un == nullUN())) return;
     if (m_nextUN <= un) m_nextUN = un + 1;
   }
 
@@ -922,6 +905,7 @@ private:
   Table			*m_table = nullptr;	// DB thread
 
   // object cache
+  bool			m_writeCache = true;
   Cache			m_cache;		// object cache indexed by RN
   ZmRef<CacheUN>	m_cacheUN;		// '' indexed by UN
 
@@ -930,9 +914,8 @@ private:
   ZmRef<RepBufsUN>	m_repBufsUN;		// '' indexed by UN
 };
 
-template <bool Cache>
 inline void AnyObject_::put() {
-  m_db->put<Cache>(static_cast<AnyObject *>(this));
+  m_db->put(static_cast<AnyObject *>(this));
 }
 inline void AnyObject_::abort() {
   m_db->abort(static_cast<AnyObject *>(this));
@@ -1223,13 +1206,8 @@ public:
   }
   bool active() const { return state() == HostState::Active; }
 
-private:
-  Host *self() const {
-    ZmAssert(invoked());
-    return m_self;
-  }
+  Host *self() const { return m_self; }
   template <typename L> void allHosts(L l) const {
-    ZmAssert(invoked());
     auto i = m_hosts->readIterator();
     while (auto node = i.iterate()) l(node);
   }
@@ -1342,7 +1320,10 @@ private:
 
   // SN
   SN allocSN() { return m_nextSN++; }
-  void recoveredSN(SN sn) { m_nextSN.minimum(sn + 1); }
+  void recoveredSN(SN sn) {
+    if (ZuUnlikely(sn == nullSN())) return;
+    m_nextSN.maximum(sn + 1);
+  }
 
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
@@ -1414,9 +1395,15 @@ inline void Env::print(S &s)
 // external API
 
 using ZdbRN = Zdb_::RN;
+#define ZdbNullRN Zdb_::nullRN
+#define ZdbMaxRN Zdb_::maxRN
 using ZdbUN = Zdb_::UN;
+#define ZdbNullUN Zdb_::nullUN
+#define ZdbMaxUN Zdb_::maxUN
 using ZdbSN = Zdb_::SN;
 using ZdbVN = Zdb_::VN;
+#define ZdbNullSN Zdb_::nullSN
+#define ZdbMaxSN Zdb_::maxSN
 
 using ZdbAnyObject = Zdb_::AnyObject;
 template <typename T> using ZdbObject = Zdb_::Object<T>;

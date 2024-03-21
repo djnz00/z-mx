@@ -67,6 +67,13 @@ using Rows =
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Row_HeapID>>>>>;
 
+ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work, callbacks;
+
+bool deferWork = false, deferCallbacks = false;
+
+void performWork() { while (auto fn = work.shift()) fn(); }
+void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
+
 // mock table
 namespace MockTable {
 using namespace Zdb_;
@@ -87,98 +94,168 @@ public:
   void close() { }
 
   void get(RN rn, GetFn getFn) {
-    auto row = rows.find(rn);
-    if (row) {
-      ZtField::Import import_{importer, &row->order};
-      GetData data{
-	.un = row->un,
-	.sn = row->sn,
-	.vn = row->vn,
-	.import_ = import_
-      };
-      getFn(db, rn, GetResult{ZuMv(data)});
-    } else {
-      getFn(db, rn, GetResult{});
-    }
+    auto work_ = [this, rn, getFn = ZuMv(getFn)]() mutable {
+      auto row = rows.find(rn);
+      if (row) {
+	ZtField::Import import_{importer, &row->order};
+	GetData data{
+	  .un = row->un,
+	  .sn = row->sn,
+	  .vn = row->vn,
+	  .import_ = import_
+	};
+	auto callback = [
+	  this, rn, getFn = ZuMv(getFn), result = GetResult{ZuMv(data)}
+	]() mutable {
+	  getFn(db, rn, ZuMv(result));
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      } else {
+	auto callback = [this, rn, getFn = ZuMv(getFn)]() mutable {
+	  getFn(db, rn, GetResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      }
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
   void recover(UN un, RecoverFn recoverFn) {
-    auto row = rowsUN.find(un);
-    if (row) {
-      ZtField::Import import_{importer, &row->order};
-      RecoverData data{
-	.rn = row->rn,
-	.sn = row->sn,
-	.vn = row->vn,
-	.import_ = import_
-      };
-      recoverFn(db, un, RecoverResult{ZuMv(data)});
-    } else {
-      recoverFn(db, un, RecoverResult{});
-    }
+    auto work_ = [this, un, recoverFn = ZuMv(recoverFn)]() mutable {
+      auto row = rowsUN.find(un);
+      if (row) {
+	ZtField::Import import_{importer, &row->order};
+	RecoverData data{
+	  .rn = row->rn,
+	  .sn = row->sn,
+	  .vn = row->vn,
+	  .import_ = import_
+	};
+	auto callback = [
+	  this, un, recoverFn = ZuMv(recoverFn),
+	  result = RecoverResult{ZuMv(data)}
+	]() mutable {
+	  recoverFn(db, un, ZuMv(result));
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      } else {
+	auto callback = [this, un, recoverFn = ZuMv(recoverFn)]() mutable {
+	  recoverFn(db, un, RecoverResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      }
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
   void push(RN rn, UN un, SN sn,
       const void *object, ExportFn exportFn, CommitFn commitFn) {
-    if (rowsUN.find(un)) {
-      commitFn(db, un, CommitResult{});
-      return;
-    }
-    if (rows.find(rn)) {
-      commitFn(db, un, CommitResult{
-	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
-	  s << rn << " conflicting RN";
-	}))
-      });
-      return;
-    }
-    auto row = new Rows::Node{rn, un, sn, VN{0}};
-    exportFn(object, ZtField::Export{exporter, &row->order});
-    rows.addNode(row);
-    rowsUN.addNode(row);
-    commitFn(db, un, CommitResult{});
+    auto work_ = [
+      this, rn, un, sn, object,
+      exportFn=ZuMv(exportFn),
+      commitFn=ZuMv(commitFn)
+    ]() mutable {
+      if (rowsUN.find(un)) {
+	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+	return;
+      }
+      if (rows.find(rn)) {
+	auto callback = [this, rn, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{
+	    ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	      s << rn << " conflicting RN";
+	    }))
+	  });
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+	return;
+      }
+      auto row = new Rows::Node{rn, un, sn, VN{0}};
+      exportFn(object, ZtField::Export{exporter, &row->order});
+      rows.addNode(row);
+      rowsUN.addNode(row);
+      auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	commitFn(db, un, CommitResult{});
+      };
+      deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
   void update(RN rn, UN un, SN sn, VN vn,
       const void *object, ExportFn exportFn, CommitFn commitFn) {
-    if (rowsUN.find(un)) {
-      commitFn(db, un, CommitResult{});
-      return;
-    }
-    auto row = rows.find(rn);
-    if (row) {
-      rowsUN.delNode(row);
-      exportFn(object, ZtField::Export{exporter, &row->order});
-      row->un = un;
-      row->sn = sn;
-      row->vn = vn;
-      rowsUN.addNode(row);
-      commitFn(db, un, CommitResult{});
-    } else {
-      commitFn(db, un, CommitResult{
-	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
-	  s << rn << " missing RN";
-	}))
-      });
-    }
+    auto work_ = [
+      this, rn, un, sn, vn, object,
+      exportFn=ZuMv(exportFn),
+      commitFn=ZuMv(commitFn)
+    ]() mutable {
+      if (rowsUN.find(un)) {
+	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+	return;
+      }
+      auto row = rows.find(rn);
+      if (row) {
+	rowsUN.delNode(row);
+	exportFn(object, ZtField::Export{exporter, &row->order});
+	row->un = un;
+	row->sn = sn;
+	row->vn = vn;
+	rowsUN.addNode(row);
+	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      } else {
+	auto callback = [this, rn, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{
+	    ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	      s << rn << " missing RN";
+	    }))
+	  });
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      }
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
   void del(RN rn, UN un, SN sn, VN vn, CommitFn commitFn) {
-    if (rowsUN.find(un)) {
-      commitFn(db, un, CommitResult{});
-      return;
-    }
-    auto row = rows.find(rn);
-    if (row) {
-      rowsUN.delNode(row);
-      rows.delNode(row);
-      commitFn(db, un, CommitResult{});
-    } else {
-      commitFn(db, un, CommitResult{
-	ZeMEVENT(Error, ([rn](auto &s, const auto &) {
-	  s << rn << " missing RN";
-	}))
-      });
-    }
+    auto work_ = [
+      this, rn, un, sn, vn,
+      commitFn=ZuMv(commitFn)
+    ]() mutable {
+      if (rowsUN.find(un)) {
+	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+	return;
+      }
+      auto row = rows.find(rn);
+      if (row) {
+	rowsUN.delNode(row);
+	rows.delNode(row);
+	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{});
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      } else {
+	auto callback = [this, rn, un, commitFn = ZuMv(commitFn)] {
+	  commitFn(db, un, CommitResult{
+	    ZeMEVENT(Error, ([rn](auto &s, const auto &) {
+	      s << rn << " missing RN";
+	    }))
+	  });
+	};
+	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      }
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
 };
 } // MockTable
@@ -288,7 +365,7 @@ int main(int argc, char **argv)
       "  1 { priority  80 ip 127.0.0.1 port 9944 }\n"
       "}\n"
       "dbs {\n"
-      "  orders { }\n"
+      "  orders { thread 4 }\n"
       "}\n"
       "debug 1\n"
     );
@@ -321,10 +398,11 @@ int main(int argc, char **argv)
       dbMx = new ZiMultiplex(
 	  ZiMxParams()
 	    .scheduler([](auto &s) {
-	      s.nThreads(4)
+	      s.nThreads(5)
 	      .thread(1, [](auto &t) { t.isolated(true); })
 	      .thread(2, [](auto &t) { t.isolated(true); })
-	      .thread(3, [](auto &t) { t.isolated(true); }); })
+	      .thread(3, [](auto &t) { t.isolated(true); })
+	      .thread(4, [](auto &t) { t.isolated(true); }); })
 	    .rxThread(1).txThread(2)
 #ifdef ZiMultiplex_DEBUG
 	    .debug(cf->getBool("debug"))
@@ -346,10 +424,11 @@ int main(int argc, char **argv)
       envCf.hostID = (ZuStringN<16>{} << i);
 
       env[i]->init(ZuMv(envCf), dbMx, ZdbEnvHandler{
-	.upFn = [](ZdbEnv *, ZdbHost *host) {
+	.upFn = [](ZdbEnv *env_, ZdbHost *host) {
 	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	    s << "ACTIVE (was " << id << ')';
 	  }));
+	  if (env_ == env[1]) done.post();
 	},
 	.downFn = [](ZdbEnv *) { ZeLOG(Info, "INACTIVE"); }
       }, store[i]);
@@ -364,6 +443,11 @@ int main(int argc, char **argv)
     if (ok >= 2) {
       ZdbRN rn;
 
+      orders[0]->writeCache(false);
+
+      deferWork = true;
+      deferCallbacks = true;
+
       orders[0]->run([&rn]{
 	orders[0]->push<Order>([&rn](ZdbObject<Order> *o) {
 	  new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
@@ -375,6 +459,32 @@ int main(int argc, char **argv)
 
       orders[0]->run([&rn]{
 	orders[0]->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
+	  if (!o)
+	    ZeLOG(Info, "get(): (null)");
+	  else
+	    ZeLOG(Info, ([o = ZuMv(o)](auto &s) {
+	      s << "get(): " << o->data();
+	    }));
+	});
+	done.post();
+      });
+
+      performWork(); deferWork = false;
+
+      performCallbacks(); deferCallbacks = false;
+
+      done.wait();
+
+      ZeLOG(Debug, "ENV 0 STOPPING");
+
+      env[0]->stop();
+
+      ZeLOG(Debug, "ENV 0 STOPPED");
+
+      done.wait(); // wait for env[1] to become active
+
+      orders[1]->run([&rn]{
+	orders[1]->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
 	  if (!o)
 	    ZeLOG(Info, "get(): (null)");
 	  else

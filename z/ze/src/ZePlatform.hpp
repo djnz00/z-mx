@@ -163,8 +163,9 @@ struct ZeEventInfo {
     function{function_} { }
 
   ZeEventInfo() = delete;
-  ZeEventInfo(const ZeEventInfo &) = delete;
-  ZeEventInfo &operator =(const ZeEventInfo &) = delete;
+
+  ZeEventInfo(const ZeEventInfo &) = default;
+  ZeEventInfo &operator =(const ZeEventInfo &) = default;
 
   ZeEventInfo(ZeEventInfo &&) = default;
   ZeEventInfo &operator =(ZeEventInfo &&) = default;
@@ -189,16 +190,17 @@ struct ZeAnyEvent : public ZeEventInfo {
   virtual ZeMsgFn fn() const = 0;
 
   ZeAnyEvent() = delete;
-  ZeAnyEvent(const ZeAnyEvent &) = delete;
-  ZeAnyEvent &operator =(const ZeAnyEvent &) = delete;
+
+  ZeAnyEvent(const ZeAnyEvent &) = default;
+  ZeAnyEvent &operator =(const ZeAnyEvent &) = default;
 
   ZeAnyEvent(ZeAnyEvent &&) = default;
   ZeAnyEvent &operator =(ZeAnyEvent &&) = default;
 
 protected:
   ~ZeAnyEvent() = default;
-public:
 
+public:
   template <typename S> void print(S &s) const {
     ZeLogBuf buf;
     fn()(buf, *this);
@@ -249,6 +251,7 @@ struct ZeEvent final : public ZeAnyEvent {
   ZeMsgFn fn() const { return fn_(); }
 
   ZeEvent() = delete;
+
   ZeEvent(const ZeEvent &) = delete;
   ZeEvent &operator =(const ZeEvent &) = delete;
 
@@ -286,6 +289,13 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
   ~ZeEvent() = default;
 
   ZeMsgFn fn() const { return {ZuMv(l)}; }
+
+  ZeEvent(const ZeAnyEvent &e) : ZeAnyEvent{e}, l{e.fn()} { };
+  ZeEvent &operator =(const ZeAnyEvent &e) {
+    this->~ZeEvent();
+    new (this) ZeEvent{e};
+    return *this;
+  }
 
   template <typename L_>
   ZeEvent(ZeEvent<L_> &&e,

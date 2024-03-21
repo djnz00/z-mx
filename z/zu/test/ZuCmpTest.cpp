@@ -547,4 +547,17 @@ int main()
     ZuString s(id);
     CHECK(s == "foobar");
   }
+  {
+    int x;
+    auto m = [x]() mutable { ++x; return x; };
+    auto c = [&x]() { return x; };
+    using M = ZuDecay<decltype(m)>;
+    using C = ZuDecay<decltype(c)>;
+    CHECK(ZuIsMutableLambda<M>{});
+    CHECK(ZuIsMutableLambda<M &>{});
+    CHECK(ZuIsMutableLambda<const M &>{});
+    CHECK(!ZuIsMutableLambda<C>{});
+    CHECK(!ZuIsMutableLambda<C &>{});
+    CHECK(!ZuIsMutableLambda<const C &>{});
+  }
 }

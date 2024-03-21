@@ -137,6 +137,8 @@ template <typename L_>
 ZmFn<Args...>
 ZmFn<Args...>::LambdaInvoker<HeapID, Sharded, L, VoidRet, false, false>::fn(
     L_ &&l) {
+  ZuAssert((!ZmFn<Args...>::IsMutable<L>{}));
+  ZuAssert((!ZmFn<Args...>::IsMutable<ZuDecay<L_>>{}));
   using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, ZuTypeList<Args...>>;
   return Member<&O::cinvoke>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
 }

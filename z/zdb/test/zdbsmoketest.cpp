@@ -67,8 +67,6 @@ using Rows =
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Row_HeapID>>>>>;
 
-// ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work;
-
 // mock table
 namespace MockTable {
 using namespace Zdb_;
@@ -211,7 +209,7 @@ struct Store : public Interface, public ZmPolymorph {
       ZtMFieldArray fields,
       OpenFn openFn,
       ScanFn) {
-    Tables::Node *table = tables->find(id); 
+    Tables::Node *table = tables->find(id);
     if (table) {
       openFn(db, OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
 	s << "table " << id << " already open";
@@ -220,7 +218,12 @@ struct Store : public Interface, public ZmPolymorph {
     }
     table = new Tables::Node{db, id};
     tables->addNode(table);
-    openFn(db, OpenResult{OpenData{.table = table, .rn = 0, .un = 0, .sn = 0}});
+    openFn(db, OpenResult{OpenData{
+      .table = table,
+      .rn = ZdbNullRN(),
+      .un = ZdbNullUN(),
+      .sn = ZdbNullSN()
+    }});
   }
 };
 } // MockStore
@@ -251,15 +254,6 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);
   return cf;
-}
-
-void active(ZdbEnv *, ZdbHost *) {
-  puts("ACTIVE");
-  // ...
-}
-
-void inactive(ZdbEnv *) {
-  puts("INACTIVE");
 }
 
 void usage()
@@ -345,8 +339,12 @@ int main(int argc, char **argv)
     env = new ZdbEnv();
 
     env->init(ZdbEnvCf(cf), dbMx, ZdbEnvHandler{
-      .upFn = &active,
-      .downFn = &inactive
+	.upFn = [](ZdbEnv *, ZdbHost *host) {
+	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
+	    s << "ACTIVE (was " << id << ')';
+	  }));
+	},
+	.downFn = [](ZdbEnv *) { ZeLOG(Info, "INACTIVE"); }
     }, store);
 
     orders = env->initDB<Order>("orders"); // might throw
@@ -360,16 +358,18 @@ int main(int argc, char **argv)
 	new (o->ptr()) Order{Side::Buy, "IBM", 100, 100};
 	o->put();
 	rn = o->rn();
-	std::cout << "RN: " << rn << '\n';
+	ZeLOG(Info, ([rn](auto &s) { s << "RN: " << rn; }));
       });
     });
 
     orders->run([&rn]{
       orders->get<Order>(rn, [](ZmRef<ZdbObject<Order>> o) {
 	if (!o)
-	  std::cout << "(null)\n";
+	  ZeLOG(Info, "get(): (null)");
 	else
-	  std::cout << o->data() << '\n';
+	  ZeLOG(Info, ([o = ZuMv(o)](auto &s) {
+	    s << "get(): " << o->data();
+	  }));
       });
       done.post();
     });
@@ -381,7 +381,7 @@ int main(int argc, char **argv)
     appMx->stop();
     dbMx->stop();
 
-    std::cout << ZmHashMgr::csv() << std::flush;
+    ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
     orders = {};
     env->final(); // calls Store::final()
@@ -389,16 +389,16 @@ int main(int argc, char **argv)
     store = {};
 
   } catch (const ZvError &e) {
-    std::cerr << e << '\n' << std::flush;
+    ZeLOG(Fatal, ZtString{e});
     gtfo();
   } catch (const ZeError &e) {
-    std::cerr << e << '\n' << std::flush;
+    ZeLOG(Fatal, ZtString{e});
     gtfo();
   } catch (const ZeAnyEvent &e) {
-    std::cerr << e << '\n' << std::flush;
+    ZeLogEvent(ZeMEvent{e});
     gtfo();
   } catch (...) {
-    std::cerr << "Unknown Exception\n" << std::flush;
+    ZeLOG(Fatal, "unknown exception");
     gtfo();
   }
 
