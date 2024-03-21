@@ -131,6 +131,7 @@ void Env::init(
       Store_::InitResult result = m_store->init(
 	  m_cf.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
       if (result.contains<Event>()) throw ZuMv(result).v<Event>();
+      m_repStore = result.v<Store_::InitData>().replicated;
     }
 
     m_hostIndex.clean();
@@ -942,9 +943,13 @@ void Env::repStart()
       " recovering=" << m_recovering <<
       " replicating=" << Host::replicating(m_next));
 
-  if (m_self->envState().cmp(m_next->envState()) < 0 || m_recovering) return;
+  if (m_self->envState().cmp(m_next->envState()) < 0 ||
+      m_recovering ||			// already recovering
+      m_repStore)			// back-end data store is replicated
+    return;
 
   // ZeLOG(Info, "repStart() initiating recovery");
+
   m_recover = m_next->envState();
   m_recoverEnd = m_self->envState();
   if (ZmRef<Cxn> cxn = m_next->cxn()) {
@@ -954,8 +959,10 @@ void Env::repStart()
       if (auto endState = m_recoverEnd.find(id))
 	if (auto db = m_dbs.findPtr(id)) {
 	  ++m_recovering;
-	  db->run([db, cxn,
-	      un = state->p<1>(), endUN = endState->p<1>()]() mutable {
+	  auto un = state->p<1>();
+	  auto endUN = endState->p<1>();
+	  if (endUN <= un) continue;
+	  db->run([db, cxn, un, endUN]() mutable {
 	    db->recSend(ZuMv(cxn), un, endUN);
 	  });
 	}
@@ -1332,6 +1339,7 @@ void Cxn_::repRecordRcvd(ZmRef<Buf> buf)
   ZmAssert(m_env->invoked());
 
   if (!m_host) return;
+  if (m_env->repStore()) return; // back-end data store is replicated
   auto record = record_(msg_(buf->hdr()));
   auto id = Zfb::Load::id(record->db());
   DB *db = m_env->db(id);
@@ -1493,9 +1501,6 @@ void DB::repCommitted(UN un)
 {
   ZmAssert(invoked());
 
-  ZeLOG(Debug, ([id = m_env->self()->id(), un](auto &s) {
-    s << id << " REMOVING(REP) UN=" << un;
-  }));
   if (auto buf = m_repBufsUN->delVal(un)) m_repBufs->delNode(buf.ptr());
   repSendCommit(un);
 }
@@ -1526,7 +1531,7 @@ void DB::write(ZmRef<Buf> buf)
   m_env->invoke([buf = ZuMv(buf)]() mutable {
     auto db = buf->db();
     auto env = db->env();
-    if (env->active()) {
+    if (!env->repStore() || env->active()) {
       env->replicate(buf);
       db->write_(ZuMv(buf));
     } else
@@ -1535,17 +1540,30 @@ void DB::write(ZmRef<Buf> buf)
 }
 
 // low-level internal write to data store
-void DB::write_(ZmRef<Buf> buf) {
-  auto record = record_(msg_(buf->hdr()));
+void DB::write_(ZmRef<Buf> buf)
+{
+  auto msg = msg_(buf->hdr());
+  bool recovery = msg->body_type() == fbs::Body_Recovery;
+  auto record = record_(msg);
   auto object = load_(record);
   const void *ptr = object ? object->ptr_() : nullptr;
 
   using namespace Table_;
 
-  auto commitFn = CommitFn{ZuMv(object),
+  CommitFn commitFn;
+  if (recovery)
+    commitFn = {ZuMv(object),
       [](AnyObject *, DB *db, UN un, CommitResult result) {
 	db->invoke([db, un, result = ZuMv(result)]() mutable {
 	  db->committed(un, result);
+	});
+      }};
+  else
+    commitFn = {ZuMv(object),
+      [](AnyObject *, DB *db, UN un, CommitResult result) {
+	db->invoke([db, un, result = ZuMv(result)]() mutable {
+	  db->committed(un, result);
+	  db->repSendCommit(un);
 	});
       }};
   auto sn = Zfb::Load::uint128(record->sn());
@@ -1570,7 +1588,6 @@ void DB::committed(UN un, Table_::CommitResult &result)
     ZeLogEvent(ZuMv(result).v<Event>());
     return;
   }
-  repSendCommit(un);
 }
 
 // Env::open() iterates over DBs, calling open(store)

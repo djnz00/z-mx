@@ -200,7 +200,10 @@ using Zdb_::Store_::ScanFn; // disambiguate
 struct Store : public Interface, public ZmPolymorph {
   ZmRef<Tables>	tables;
 
-  InitResult init(ZvCf *, LogFn) { tables = new Tables{}; return {}; }
+  InitResult init(ZvCf *, LogFn) {
+    tables = new Tables{};
+    return {InitData{ .replicated = false }};
+  }
   void final() { tables->clean(); tables = nullptr; }
 
   void open(

@@ -1325,9 +1325,13 @@ private:
     m_nextSN.maximum(sn + 1);
   }
 
+  // data store
+  bool repStore() const { return m_repStore; }
+
   EnvCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
   Store			*m_store = nullptr;
+  bool			m_repStore = false;	// replicated data store
 
   // mutable while stopped
   EnvHandler		m_handler;

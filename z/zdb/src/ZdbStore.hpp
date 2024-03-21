@@ -116,7 +116,12 @@ namespace Store_ {
 using LogFn = ZmFn<Event>;
 
 // result of store init
-using InitResult = ZuUnion<void, Event>;
+struct InitData {
+  bool		replicated = false;	// replicated data store?
+};
+using InitResult = ZuUnion<
+  InitData,			// succeeded
+  Event>;			// error
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
