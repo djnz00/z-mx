@@ -76,6 +76,8 @@ static void usage()
   Zm::exit(1);
 }
 
+void sigint();
+
 namespace ZDash {
 
 namespace Telemetry {
@@ -869,8 +871,6 @@ class App_Srv : public ZvCmdServer<App_Srv, SrvLink> {
 public:
   void telemetry(ZvTelemetry::App &data);
 };
-
-void sigint();
 
 class App :
     public ZmPolymorph,
