@@ -140,9 +140,6 @@ public:
     }
   };
   static FieldFmt &fmt() { return ZmTLS<FieldFmt, fmt>(); }
-  const FieldFmt &fmt() const {
-    return const_cast<ZvCSV *>(this)->fmt();
-  }
 
   ZuPair<int, const Field *> find(ZuString id) const {
     auto node = m_columns.find(id);

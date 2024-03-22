@@ -1230,7 +1230,7 @@ public:
     auto i = m_dbs.readIterator();
     ZmBlock<>{}(m_dbs.count_(), [&l, &i](unsigned, auto wake) {
       if (auto db = i.iterate())
-	db->invoke([l = l(db), wake = ZuMv(wake)]() { l(); wake(); });
+	db->invoke([l = l(db), wake = ZuMv(wake)]() mutable { l(); wake(); });
     });
   }
 

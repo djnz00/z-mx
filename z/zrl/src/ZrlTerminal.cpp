@@ -103,7 +103,7 @@ void VKeyMatch_print_byte(ZmStream &s, uint8_t byte)
 
 void VKeyMatch::print_(ZmStream &s) const
 {
-  unsigned level = VKeyMatch_printIndentLevel;
+  unsigned level = VKeyMatch_printIndentLevel();
   for (unsigned i = 0, n = m_bytes.length(); i < n; i++) {
     for (unsigned j = 0; j < level; j++) s << ' ';
     VKeyMatch_print_byte(s, m_bytes[i]);
@@ -332,10 +332,10 @@ bool Terminal::open_()
   m_bel = tigetstr("bel");
 
   if (m_ul) {
-    auto &this_ = ZmTLS<TerminalPtr>();
     m_underline << ' ';
+    ZmTLS<TerminalPtr>() = this;
     ::tputs(m_cub1, 1, [](int c) -> int {
-      this_->m_underline << static_cast<uint8_t>(c);
+      ZmTLS<TerminalPtr>()->m_underline << static_cast<uint8_t>(c);
       return 0;
     });
     m_underline << '_';
@@ -1239,10 +1239,9 @@ loop:
 #ifndef _WIN32
 void Terminal::tputs(const char *cap)
 {
-  auto &this_ = ZmTLS<TerminalPtr>();
-  this_ = this;
+  ZmTLS<TerminalPtr>() = this;
   ::tputs(cap, 1, [](int c) -> int {
-    this_->m_out << static_cast<char>(c);
+    ZmTLS<TerminalPtr>()->m_out << static_cast<char>(c);
     return 0;
   });
 }

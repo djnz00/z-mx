@@ -669,8 +669,8 @@ template <typename, typename> friend class SrvLink;
       }));
       return false;
     }
-    return ZmBlock<bool>{}([l = ZuMv(l)](auto wake) mutable {
-      invoke([l = ZuMv(l), wake = ZuMv(wake)]() mutable {
+    return ZmBlock<bool>{}([this, l = ZuMv(l)](auto wake) mutable {
+      invoke([this, l = ZuMv(l), wake = ZuMv(wake)]() mutable {
 	wake(init_(ZuMv(l)));
       });
     });

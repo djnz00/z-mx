@@ -225,10 +225,7 @@ public:
     deferWork ? work.push(ZuMv(work_)) : work_();
   }
   void del(RN rn, UN un, SN sn, VN vn, CommitFn commitFn) {
-    auto work_ = [
-      this, rn, un, sn, vn,
-      commitFn=ZuMv(commitFn)
-    ]() mutable {
+    auto work_ = [this, rn, un, commitFn=ZuMv(commitFn)]() mutable {
       if (rowsUN.find(un)) {
 	auto callback = [this, un, commitFn = ZuMv(commitFn)] {
 	  commitFn(db, un, CommitResult{});

@@ -241,7 +241,7 @@ void Env::start_()
   {
     ZmAtomic<unsigned> ok = true;
     auto i = m_dbs.readIterator();
-    ZmBlock<>{}(m_dbs.count_(), [this, &ok, &i](unsigned, auto wake) {
+    ZmBlock<>{}(m_dbs.count_(), [&ok, &i](unsigned, auto wake) {
       if (auto db = i.iterate())
 	db->invoke([db = ZmMkRef(db), &ok, wake = ZuMv(wake)]() mutable {
 	  db->open(db->env()->m_store,
@@ -1703,7 +1703,7 @@ void DB::close()
   m_open = 0;
 
   ZmBlock<>{}([this](auto wake) {
-    writeInvoke([db = ZmMkRef(this), wake = ZuMv(wake)]() {
+    writeInvoke([db = ZmMkRef(this), wake = ZuMv(wake)]() mutable {
       db->m_table->close();
       wake();
     });

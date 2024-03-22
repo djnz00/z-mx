@@ -294,6 +294,16 @@ int main(int argc, char **argv)
       "  orders { }\n"
       "}\n"
       "debug 1\n"
+      "dbMx {\n"
+      "  nThreads 4\n"
+      "  threads {\n"
+      "    1 { isolated true }\n"
+      "    2 { isolated true }\n"
+      "    3 { isolated true }\n"
+      "  }\n"
+      "  rxThread 1\n"
+      "  txThread 2\n"
+      "}\n"
     );
 
     if (cf->fromArgs(opts, argc, argv) != 1) usage();
@@ -313,27 +323,14 @@ int main(int argc, char **argv)
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
 
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&sigint>::fn());
+  ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   try {
     ZeError e;
 
-    {
-      appMx = new ZmScheduler(ZmSchedParams().nThreads(1));
-      dbMx = new ZiMultiplex(
-	  ZiMxParams()
-	    .scheduler([](auto &s) {
-	      s.nThreads(4)
-	      .thread(1, [](auto &t) { t.isolated(true); })
-	      .thread(2, [](auto &t) { t.isolated(true); })
-	      .thread(3, [](auto &t) { t.isolated(true); }); })
-	    .rxThread(1).txThread(2)
-#ifdef ZiMultiplex_DEBUG
-	    .debug(cf->getBool("debug"))
-#endif
-	    );
-    }
+    appMx = new ZmScheduler(ZmSchedParams().nThreads(1));
+    dbMx = new ZiMultiplex(ZvMxParams{"dbMx", cf->getCf<true>("dbMx")});
 
     appMx->start();
     if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
