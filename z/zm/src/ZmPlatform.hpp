@@ -100,9 +100,8 @@ inline ProcessID getPID() { return GetCurrentProcessId(); }
 // thread ID
 #if defined(linux) && defined(__x86_64__)
 ZuInline ThreadID getTID() {
-  // return __readgsdword(0x2d0);
   unsigned tid;
-  __asm__("mov %%fs:0x2d0, %0" : "=r" (tid)); // FIXME
+  __asm__("mov %%fs:0x2d0, %0" : "=r" (tid));
   return tid;
 }
 #endif
