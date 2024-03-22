@@ -1371,7 +1371,7 @@ private:
 	}
       }
     }
-    thread_local ZmSemaphore sem; // FIXME
+    auto &sem = ZmTLS<ZmSemaphore, &ZCmd::telcapCmd>();
     for (unsigned i = 0, n = ok.length(); i < n; i++) {
       using namespace Zfb::Save;
       auto seqNo = m_seqNo++;

@@ -196,7 +196,7 @@ struct Thread : public Thread_ {
 
   friend ZtFieldPrint ZuPrintType(Thread *);
 };
-// FIXME - need to optionally enrich this with thread ring count and overCount
+// LATER - need to optionally enrich this with thread ring count and overCount
 // (i.e. scheduler queue length and DLQ length)
 ZfbFields(Thread, fbs::Thread,
     (((name)), (String), (Ctor<0>)),
@@ -501,7 +501,7 @@ struct App {
   ZmIDString	id;
   ZmIDString	version;
   ZtDate	uptime;
-  // FIXME - need instanceID (i.e. hostID if Zdb) for clustered apps
+  // LATER - need instanceID (i.e. hostID if Zdb) for clustered apps
   int8_t	role = -1;
   int8_t	rag = -1;
 

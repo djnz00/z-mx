@@ -71,7 +71,7 @@ private:
   template <typename Message>
   void error(bool index, const Message &message) {
     struct Fmt : public ZtDateFmt::CSV { Fmt() { offset(timezone); } };
-    thread_local Fmt dateFmt; // FIXME
+    auto &dateFmt = ZmTLS<Fmt>();
     std::cerr << ZtDateNow().print(dateFmt) <<
       " FATAL " << m_path << (index ? ".idx" : "") <<
       ": " << message << '\n' << std::flush;

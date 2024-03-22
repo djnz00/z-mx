@@ -154,7 +154,7 @@ void deletedPxLevel(MxMDPxLevel *pxLevel, MxDateTime stamp)
 
 void timer(MxDateTime now, MxDateTime &next)
 {
-  thread_local ZtDateFmt::ISO fmt; // FIXME
+  auto &fmt = ZmTLS<ZtDateFmt::ISO, timer>();
   std::cout << "TIMER " << now.iso(fmt) << '\n' << std::flush;
   next = now + ZmTime(1);
 }
@@ -289,7 +289,7 @@ int startFeed(MxMDLib *md, MxMDFeed *feed)
       MxMDInstrHandle instr = md->instrument(instrKey, 0); // default to shard 0
 
       ZtString error;
-      thread_local ZmSemaphore sem; // FIXME
+      auto &sem = ZmTLS<ZmSemaphore, startFeed>();
       instr.invokeMv([&error, sem = &sem,
 	  instrKey, &refData, &tickSizeTbl, &lotSizes](
 	    MxMDShard *shard, ZmRef<MxMDInstrument> instr) {

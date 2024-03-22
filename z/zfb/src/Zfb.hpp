@@ -416,8 +416,9 @@ namespace Load {
 
   // IP address
   inline ZiIP ip(const IP *v) {
-    return ZiIP{in_addr{
-      .s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data())}};
+    struct in_addr addr;
+    addr.s_addr = *reinterpret_cast<const uint32_t *>(v->addr()->data());
+    return ZiIP{ZuMv(addr)};
   }
 
   // ZuID

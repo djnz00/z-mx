@@ -669,14 +669,11 @@ template <typename, typename> friend class SrvLink;
       }));
       return false;
     }
-    thread_local ZmSemaphore sem; // FIXME
-    bool ok;
-    invoke([&, l = ZuMv(l), sem = &sem]() mutable {
-      ok = init_(ZuMv(l));
-      sem->post();
+    return ZmBlock<bool>{}([l = ZuMv(l)](auto wake) mutable {
+      invoke([l = ZuMv(l), wake = ZuMv(wake)]() mutable {
+	wake(init_(ZuMv(l)));
+      });
     });
-    sem.wait();
-    return ok;
   }
 private:
   template <typename L>

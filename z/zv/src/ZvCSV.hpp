@@ -139,10 +139,7 @@ public:
       new (datePrint.init_csv()) ZtDateFmt::CSV{};
     }
   };
-  FieldFmt &fmt() {
-    thread_local FieldFmt fmt; // FIXME
-    return fmt;
-  }
+  static FieldFmt &fmt() { return ZmTLS<FieldFmt, fmt>(); }
   const FieldFmt &fmt() const {
     return const_cast<ZvCSV *>(this)->fmt();
   }

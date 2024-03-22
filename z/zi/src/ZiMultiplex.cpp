@@ -1973,7 +1973,7 @@ bool ZiMultiplex::start__()
 // the scheduler's control thread synchronously blocks on shutdown
 bool ZiMultiplex::stop__()
 {
-  thread_local ZmSemaphore stopping; // FIXME
+  auto &stopping = ZmTLS<ZmSemaphore, &ZiMultiplex::stop__>();
 
   m_stopping = &stopping;
 

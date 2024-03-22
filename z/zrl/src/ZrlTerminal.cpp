@@ -75,16 +75,19 @@ ZrlExtern void print_(int32_t vkey, ZmStream &s)
 }
 }
 
-thread_local unsigned VKeyMatch_printIndentLevel = 0; // FIXME
+unsigned &VKeyMatch_printIndentLevel() {
+  return ZmTLS<unsigned, VKeyMatch_printIndentLevel>();
+}
 
 void VKeyMatch::Action::print_(ZmStream &s) const
 {
   if (vkey != -VKey::Null) s << VKey::print(vkey);
   s << "\r\n";
   if (auto ptr = next.ptr<VKeyMatch>()) {
-    ++VKeyMatch_printIndentLevel;
+    auto &indentLevel = VKeyMatch_printIndentLevel();
+    ++indentLevel;
     s << *ptr;
-    --VKeyMatch_printIndentLevel;
+    --indentLevel;
   }
 }
 
@@ -158,16 +161,15 @@ void Terminal::open(ZmScheduler *sched, unsigned thread,
   });
 }
 
+using TerminalPtr = Terminal *;
+
 bool Terminal::isOpen() const // synchronous
 {
-  bool ok = false;
-  thread_local ZmSemaphore sem; // FIXME
-  invoke([this, sem = &sem, ok = &ok]() {
-    *ok = isOpen_();
-    sem->post();
+  return ZmBlock<bool>{}([this](auto wake) mutable {
+    invoke([this, wake = ZuMv(wake)]() mutable {
+      wake(isOpen_());
+    });
   });
-  sem.wait();
-  return ok;
 }
 
 bool Terminal::isOpen_() const
@@ -200,14 +202,11 @@ void Terminal::start(StartFn startFn, KeyFn keyFn) // async
 
 bool Terminal::running() const // synchronous
 {
-  bool ok = false;
-  thread_local ZmSemaphore sem; // FIXME
-  invoke([this, sem = &sem, ok = &ok]() {
-    *ok = m_running;
-    sem->post();
+  return ZmBlock<bool>{}([this](auto wake) mutable {
+    invoke([this, wake = ZuMv(wake)]() mutable {
+      wake(m_running);
+    });
   });
-  sem.wait();
-  return ok;
 }
 
 void Terminal::stop() // async
@@ -333,7 +332,7 @@ bool Terminal::open_()
   m_bel = tigetstr("bel");
 
   if (m_ul) {
-    thread_local Terminal *this_; // FIXME
+    auto &this_ = ZmTLS<TerminalPtr>();
     m_underline << ' ';
     ::tputs(m_cub1, 1, [](int c) -> int {
       this_->m_underline << static_cast<uint8_t>(c);
@@ -1240,7 +1239,7 @@ loop:
 #ifndef _WIN32
 void Terminal::tputs(const char *cap)
 {
-  thread_local Terminal *this_; // FIXME
+  auto &this_ = ZmTLS<TerminalPtr>();
   this_ = this;
   ::tputs(cap, 1, [](int c) -> int {
     this_->m_out << static_cast<char>(c);

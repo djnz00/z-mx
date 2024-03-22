@@ -680,9 +680,8 @@ void MxMDSubLink::status(ZtString &out)
     out << "Disconnected";
   }
   out << "\n  UDP Queue: ";
-  {
-    thread_local ZmSemaphore sem; // FIXME
-    rxInvoke([&out, sem = &sem](Rx *rx) {
+  ZmBlock<>{}([&out](auto wake) mutable {
+    rxInvoke([&out, wake = ZuMv(wake)](Rx *rx) {
       const MxQueue *queue = rx->rxQueue();
       MxQueue::Gap gap = queue->gap();
       out <<
@@ -690,10 +689,9 @@ void MxMDSubLink::status(ZtString &out)
 	"  gap: (" << gap.key() << ")," << gap.length() <<
 	"  length: " << queue->length() << 
 	"  count: " << queue->count();
-      sem->post();
+      wake();
     });
-    sem.wait();
-  }
+  });
   out << '\n';
 }
 

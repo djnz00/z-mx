@@ -668,20 +668,23 @@ void Binding::print_(ZmStream &s) const
   Map_printCmdSeq(cmds, s);
 }
 
-thread_local unsigned Map_printIndentLevel = 0; // FIXME
+unsigned &Map_printIndentLevel() {
+  return ZmTLS<unsigned, Map_printIndentLevel>();
+}
 
 void Map_printIndent(ZmStream &s)
 {
-  unsigned level = Map_printIndentLevel;
+  unsigned level = Map_printIndentLevel();
   for (unsigned i = 0; i < level; i++) s << "  ";
 }
 
 void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
 {
+  auto &indentLevel = Map_printIndentLevel();
   Map_printIndent(s); s << "mode " << ZuBoxed(i);
   if (mode.type != ModeType::Edit) s << ' ' << ModeType::name(mode.type);
   s << " {\r\n";
-  ++Map_printIndentLevel;
+  ++indentLevel;
   if (mode.bindings) {
     unsigned n = 0;
     for (auto i = mode.bindings->readIterator(); i.iterateVal(); ) ++n;
@@ -704,17 +707,18 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
       }
     }
   }
-  --Map_printIndentLevel;
+  --indentLevel;
   Map_printIndent(s); s << "}\r\n";
 }
 
 void Map_::print_(ZmStream &s) const
 {
+  auto &indentLevel = Map_printIndentLevel();
   Map_printIndent(s); s << "map " << id << " {\r\n";
-  ++Map_printIndentLevel;
+  ++indentLevel;
   for (unsigned i = 0, n = modes.length(); i < n; i++)
     Map_printMode(i, modes[i], s);
-  --Map_printIndentLevel;
+  --indentLevel;
   Map_printIndent(s); s << "}\r\n";
 }
 

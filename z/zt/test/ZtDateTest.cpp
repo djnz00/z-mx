@@ -13,8 +13,8 @@
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
-auto isoPrint(const ZtDate &d, int offset = 0) {
-  thread_local ZtDateFmt::ISO fmt; // FIXME
+ZtDatePrintISO isoPrint(const ZtDate &d, int offset = 0) {
+  auto &fmt = ZmTLS<ZtDateFmt::ISO, isoPrint>();
   fmt.offset(offset);
   return d.print(fmt);
 }

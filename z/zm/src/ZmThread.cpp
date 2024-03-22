@@ -85,11 +85,9 @@ struct HandleCloser : public ZmObject {
 #endif
 
 struct ZmThread_Main {
-  ZmThread_Main() { is(true); }
-  bool is(bool b = false) {
-    thread_local bool _ = b; // FIXME
-    return _;
-  }
+  static bool &is_() { return ZmTLS<bool, is_>(); }
+  ZmThread_Main() { is_() = true; }
+  bool is() { return is_(); }
 };
 static ZmThread_Main ZmThread_main;
 

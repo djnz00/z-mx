@@ -354,7 +354,8 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
 {
   Ring &ring = thread->ring();
   int result = 0;
-  thread_local void *ptr = nullptr; // FIXME
+  using VoidPtr = void *;
+  auto &ptr = ZmTLS<VoidPtr, &Work::operator()>();
 
   switch (m_insn) {
     case Open:

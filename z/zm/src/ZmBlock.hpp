@@ -39,8 +39,7 @@
 #include <zlib/ZmAlloc.hpp>
 
 namespace ZmBlock_ {
-  struct Sem : public ZmObject, public ZmSemaphore { };
-  inline auto sem() { return ZmSpecific<Sem>::instance(); }
+  inline ZmSemaphore &sem() { return ZmTLS<ZmSemaphore, sem>(); }
 }
 
 template <typename ...Args> struct ZmBlock {
@@ -48,25 +47,25 @@ template <typename ...Args> struct ZmBlock {
   template <typename L>
   R operator ()(L l) const {
     R r;
-    auto sem = ZmBlock_::sem();
-    l([sem, &r](Args... args) {
+    auto &sem = ZmBlock_::sem();
+    l([&sem, &r](Args... args) mutable {
       r = ZuMvTuple(args...);
-      sem->post();
+      sem.post();
     });
-    sem->wait();
+    sem.wait();
     return r;
   }
   template <typename L, typename Reduce>
   R operator ()(unsigned n, L l, Reduce reduce) const {
     auto r = ZmAlloc(R, n);
     if (!r) throw std::bad_alloc{};
-    auto sem = ZmBlock_::sem();
+    auto &sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++)
-      l(i, [sem, &r = r[i]](Args... args) {
+      l(i, [&sem, &r = r[i]](Args... args) mutable {
 	r = ZuMvTuple(args...);
-	sem->post();
+	sem.post();
       });
-    for (unsigned i = 0; i < n; i++) sem->wait();
+    for (unsigned i = 0; i < n; i++) sem.wait();
     for (unsigned i = 1; i < n; i++) reduce(r[0], r[i]);
     return r[0];
   }
@@ -76,25 +75,25 @@ template <typename Arg> struct ZmBlock<Arg> {
   template <typename L>
   R operator ()(L l) const {
     R r;
-    auto sem = ZmBlock_::sem();
-    l([sem, &r](Arg arg) {
+    auto &sem = ZmBlock_::sem();
+    l([&sem, &r](Arg arg) mutable {
       r = ZuMv(arg);
-      sem->post();
+      sem.post();
     });
-    sem->wait();
+    sem.wait();
     return r;
   }
   template <typename L, typename Reduce>
   R operator ()(unsigned n, L l, Reduce reduce) const {
     auto r = ZmAlloc(R, n);
     if (!r) throw std::bad_alloc{};
-    auto sem = ZmBlock_::sem();
+    auto &sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++)
-      l(i, [sem, &r = r[i]](Arg arg) {
+      l(i, [&sem, &r = r[i]](Arg arg) mutable {
 	r = ZuMv(arg);
-	sem->post();
+	sem.post();
       });
-    for (unsigned i = 0; i < n; i++) sem->wait();
+    for (unsigned i = 0; i < n; i++) sem.wait();
     for (unsigned i = 1; i < n; i++) reduce(r[0], r[i]);
     return r[0];
   }
@@ -102,16 +101,16 @@ template <typename Arg> struct ZmBlock<Arg> {
 template <> struct ZmBlock<> {
   template <typename L>
   void operator ()(L l) const {
-    auto sem = ZmBlock_::sem();
-    l([sem]() { sem->post(); });
-    sem->wait();
+    auto &sem = ZmBlock_::sem();
+    l([&sem]() mutable { sem.post(); });
+    sem.wait();
     return;
   }
   template <typename L>
   void operator ()(unsigned n, L l) const {
-    auto sem = ZmBlock_::sem();
-    for (unsigned i = 0; i < n; i++) l(i, [sem]() { sem->post(); });
-    for (unsigned i = 0; i < n; i++) sem->wait();
+    auto &sem = ZmBlock_::sem();
+    for (unsigned i = 0; i < n; i++) l(i, [&sem]() mutable { sem.post(); });
+    for (unsigned i = 0; i < n; i++) sem.wait();
     return;
   }
 };

@@ -133,6 +133,7 @@ private:
 #endif
 
 #include <zlib/ZmAssert.hpp>
+#include <zlib/ZmAtomic.hpp>
 
 class ZmPRWLock { // non-recursive
   ZmPRWLock(const ZmPRWLock &);
@@ -221,7 +222,7 @@ public:
 
 private:
   ZmAtomic<Zm::ThreadID>  	m_tid;
-  int			      		m_count;
+  int			      	m_count;
 };
 
 template <>

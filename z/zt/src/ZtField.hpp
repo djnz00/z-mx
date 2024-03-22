@@ -758,7 +758,7 @@ struct ZtField_String_Get {
     using O = typename Base::O;
     // field get() returns a temporary
     return {.fn_ = {.string = [](const void *o) -> ZuString {
-      thread_local ZtString v; // FIXME
+      auto &v = ZmTLS<ZtString, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return v;
     }}};
@@ -875,7 +875,7 @@ struct ZtField_Bytes_Get {
     using O = typename Base::O;
     // field get() returns a temporary
     return {.fn_ = {.bytes = [](const void *o) -> ZuBytes {
-      thread_local ZtBytes v; // FIXME
+      auto &v = ZmTLS<ZtBytes, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return v;
     }}};
@@ -1028,7 +1028,7 @@ struct ZtField_UDT_Get {
     using T = typename Base::T;
     // field get() returns a temporary
     return {.fn_ = {.udt = [](const void *o) -> const void * {
-      thread_local T v; // FIXME
+      auto &v = ZmTLS<T, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return static_cast<const void *>(&v);
     }}};
@@ -2152,14 +2152,14 @@ struct ZtField_Time<Base, Props, Def, false> :
 struct ZtFieldPrint : public ZuPrintDelegate {
   template <typename U> struct Print_Filter :
       public ZuBool<!ZuTypeIn<ZtFieldProp::Hidden, typename U::Props>{}> { };
+  static ZtFieldFmt &fmt() { return ZmTLS<ZtFieldFmt, fmt>(); }
   template <typename S, typename O>
   static void print(S &s, const O &o) {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<O>>;
-    thread_local ZtFieldFmt fmt; // FIXME
     s << '{';
-    ZuUnroll::all<FieldList>([&o, &s]<typename Field>() {
+    ZuUnroll::all<FieldList>([&s, &o]<typename Field>() {
       if constexpr (ZuTypeIndex<Field, FieldList>{}) s << ' ';
-      s << typename Field::Print{o, fmt};
+      s << typename Field::Print{o, fmt()};
     });
     s << '}';
   }

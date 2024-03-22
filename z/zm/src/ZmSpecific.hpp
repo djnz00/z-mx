@@ -49,14 +49,17 @@
 // ZmSpecific<T, false>::instance() can return null since T will not be
 // constructed on-demand - use ZmSpecific<T, false>::instance(new T(...))
 //
-// T must be ZuObject derived
+// void foo() { thread_local T v; ... }		// can be replaced with:
+// auto &v = *ZmSpecific<T>::instance();	// T instance shared globally, specific to thread
 //
-// thread_local T v; can be replaced with:
-// auto &v = *ZmSpecific<T>::instance();
-// auto &v = ZmTLS([]{ return new T(); });
+// ... or using ZmTLS, T does not need to be ZmObject derived:
 //
-// thread_local T v(args); can be replaced with:
-// auto &v = ZmTLS([]{ return new T(args...); });
+// auto &v = ZmTLS<T>();			// T instance shared globally, specific to thread
+// auto &v = ZmTLS<T, foo>();			// T instance specific to foo() and thread
+// auto &v = ZmTLS([]{ return T{}; });		// T instance specific to lambda and thread
+//
+// thread_local T v{args...}; can be replaced with:
+// auto &v = ZmTLS([]{ return T{args...}; });
 
 #ifndef ZmSpecific_HPP
 #define ZmSpecific_HPP
@@ -445,10 +448,25 @@ public:
   static void all(L l) { return global()->all_(ZuMv(l)); }
 };
 
+// pass a function as the second parameter to discriminate
+template <typename T, auto> struct ZmTLS_ : public ZmObject {
+  T v = {};
+  ZmTLS_() = default;
+  template <typename U> ZmTLS_(U &&v_) : v{ZuFwd<U>(v_)} { }
+};
+
+// lambdas are inherently discriminated
 template <typename L>
-inline auto ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
-  using T = ZuDecay<decltype(*ZuDeclVal<ZuLambdaReturn<L>>())>;
-  return ZmSpecific<T, true, ZuInvokeFn(l)>::instance();
+inline auto &ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
+  using T = ZuDecay<decltype(ZuDeclVal<ZuLambdaReturn<L>>())>;
+  using Object = ZmTLS_<T, &L::operator ()>;
+  auto m = []() { return new Object{ZuInvokeLambda<L>()}; };
+  return ZmSpecific<Object, true, ZuInvokeFn(m)>::instance()->v;
+}
+
+template <typename T, auto Anchor = nullptr>
+inline auto &ZmTLS() {
+  return ZmSpecific<ZmTLS_<T, Anchor>>::instance()->v;
 }
 
 #endif /* ZmSpecific_HPP */

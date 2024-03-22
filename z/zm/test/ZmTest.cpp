@@ -138,7 +138,7 @@ struct S : public ZmObject {
 
   static void tls() {
     for (int i = 0; i < 100000; i++) {
-      thread_local ZmRef<S> s = new S(); // FIXME
+      auto &s = ZmTLS([]() -> ZmRef<S> { return new S(); });
       s->foo();
       mb();
     }

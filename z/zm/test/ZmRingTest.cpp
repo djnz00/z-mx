@@ -2,6 +2,7 @@
 //  vi: noet ts=8 sw=2 cino=l1,g0,N-s,j1,U1,i4
 
 #include <zlib/ZuStringN.hpp>
+#include <zlib/ZuMvArray.hpp>
 
 #include <zlib/ZmRing.hpp>
 #include <zlib/ZmThread.hpp>
@@ -158,7 +159,7 @@ void App<Ring>::run()
     "  msgSize: " << ZuBoxed(sizeof(Msg)) << '\n';
 
   {
-    ZmThread r[readers], w[writers];
+    ZuMvArray<ZmThread> r{readers}, w{writers};
 
     for (unsigned i = 0; i < readers; i++)
       r[i] = ZmThread{[this, i]() { reader(i); }};
