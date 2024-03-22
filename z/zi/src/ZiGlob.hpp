@@ -55,7 +55,7 @@ class ZiAPI ZiGlob {
     Zi::Path	name;
     bool	isdir = false;
 
-    static const ZtString &NameAxor(const Entry &entry) { return entry.name; }
+    static const Zi::Path &NameAxor(const Entry &entry) { return entry.name; }
   };
   using Entries = ZmRBTree<Entry, ZmRBTreeKey<Entry::NameAxor>>;
   using Iterator = decltype(ZuDeclVal<const Entries &>().readIterator());

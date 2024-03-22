@@ -23,6 +23,7 @@
 
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmSingleton.hpp>
+#include <zlib/ZmTrap.hpp>
 
 #include <zlib/ZtArray.hpp>
 #include <zlib/ZtDate.hpp>
@@ -268,13 +269,13 @@ void ZeSysSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
     buf << '\"' << Ze::file(info.file) << "\":" <<
       ZuBoxed(info.line) << ' ';
-  buf << Ze::function(info.function);
+  buf << Ze::function(info.function) << ' ';
 #else
   buf << ZuBoxed(info.tid) << " - ";
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
     buf << '\"' << Ze::file(info.file) << "\":" <<
       ZuBoxed(info.line) << ' ';
-  buf << Ze::function(info.function) << ' ' << *e;
+  buf << Ze::function(info.function) << ' ';
 #endif
 }
 

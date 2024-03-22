@@ -73,7 +73,7 @@ ZtString MxMDRecord::stopRecording()
   if (ZuUnlikely(!m_link)) return ZtString();
   ZtString path = m_link->stopRecording();
   stop();
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   rxInvoke([sem = &sem]() { sem->post(); });
   sem.wait();
   return path;
@@ -82,7 +82,7 @@ ZtString MxMDRecord::stopRecording()
 bool MxMDRecLink::ok()
 {
   int state;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   engine()->rxInvoke([this, &state, sem = &sem]() {
     state = this->state();
     sem->post();
@@ -96,7 +96,7 @@ bool MxMDRecLink::record(ZtString path)
   Guard guard(m_lock);
   down();
   if (!path) return true;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   engine()->rxInvoke([this, path = ZuMv(path), sem = &sem]() mutable {
     m_path = ZuMv(path);
     sem->post();

@@ -132,7 +132,7 @@ using ZiVecLen = u_long;
 #define ZiVec_len(x) (x).len
 #endif
 inline void ZiVec_init(ZiVec &vec, void *ptr, size_t len) {
-  ZiVec_ptr(vec) = ptr;
+  ZiVec_ptr(vec) = static_cast<ZiVecPtr>(ptr);
   ZiVec_len(vec) = len;
 }
 

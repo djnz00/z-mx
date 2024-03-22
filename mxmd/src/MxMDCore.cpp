@@ -97,7 +97,7 @@ void MxMDCore::addInstrument_(ZuAnyPOD *pod)
   MxInstrKey key{data.id, data.venue, data.segment};
   MxMDInstrHandle instrHandle = instrument(key, data.shard);
 
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   instrHandle.invokeMv([key, refData = data.refData,
       transactTime = data.transactTime, sem = &sem](
 	MxMDShard *shard, ZmRef<MxMDInstrument> instr) {
@@ -527,7 +527,7 @@ void MxMDCore::stop()
     raise(ZeEVENT(Info, "stopping subscriber..."));
     m_subscriber->stop();
     // wait for stop() to complete
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     m_subscriber->rxInvoke([sem = &sem]() { sem->post(); });
     sem.wait();
   }
@@ -535,7 +535,7 @@ void MxMDCore::stop()
     raise(ZeEVENT(Info, "stopping publisher..."));
     m_publisher->stop();
     // wait for stop() to complete
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     m_publisher->rxInvoke([sem = &sem]() { sem->post(); });
     sem.wait();
   }

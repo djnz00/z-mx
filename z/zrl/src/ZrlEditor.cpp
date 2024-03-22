@@ -668,7 +668,7 @@ void Binding::print_(ZmStream &s) const
   Map_printCmdSeq(cmds, s);
 }
 
-thread_local unsigned Map_printIndentLevel = 0;
+thread_local unsigned Map_printIndentLevel = 0; // FIXME
 
 void Map_printIndent(ZmStream &s)
 {

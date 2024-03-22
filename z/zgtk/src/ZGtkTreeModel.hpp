@@ -340,7 +340,7 @@ public:
 	    reinterpret_cast<TreeModelDragData *>(
 		g_object_get_data(G_OBJECT(view), typeName()));
 	  if (!dragData) {
-	    thread_local TreeModelDragData dragData_;
+	    thread_local TreeModelDragData dragData_; // FIXME
 	    g_object_set_data(G_OBJECT(view), typeName(), &dragData_);
 	    dragData = &dragData_;
 	  }

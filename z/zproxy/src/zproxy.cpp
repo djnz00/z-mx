@@ -1518,6 +1518,10 @@ void Listener::status_(ZmStream &s) const
     s << '\n' << proxy->status();
 }
 
+ZmRef<App> app;
+
+void sigint() { if (app) app->post(); }
+
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
@@ -1549,7 +1553,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  ZmTrap::sigintFn(ZmFn<>::Member<&App::post>::fn(app));
+  ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   app->start();

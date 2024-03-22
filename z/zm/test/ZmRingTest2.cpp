@@ -37,7 +37,7 @@ private:
 
 #define ZmRing_FUNCTEST
 #include <zlib/ZmRing.hpp>
-#include "../src/ZmRing.cpp"
+// #include "../src/ZmRing.cpp"
 
 void fail()
 {
@@ -354,7 +354,7 @@ int Work<Ring, Msg>::operator ()(Thread *thread)
 {
   Ring &ring = thread->ring();
   int result = 0;
-  thread_local void *ptr = nullptr;
+  thread_local void *ptr = nullptr; // FIXME
 
   switch (m_insn) {
     case Open:

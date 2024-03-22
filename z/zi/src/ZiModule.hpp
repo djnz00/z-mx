@@ -66,7 +66,7 @@ public:
 #ifdef _WIN32
     static void clear() { }
     static ZtString last() {
-      return ZePlatform_::strerror(GetLastError());
+      return Ze::strerror(GetLastError());
     }
 #else
     static void clear() { dlerror(); }

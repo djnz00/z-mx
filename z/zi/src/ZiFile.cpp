@@ -87,14 +87,12 @@ private:
   static ZiFile_WindowsDrives *instance();
 
   using DriveLetters =
-    ZmRBTree<ZtWString,
-      ZmRBTreeVal<char,
-	ZmRBTreeLock<ZmNoLock> > >;
+    ZmRBTreeKV<ZtWString, char,
+      ZmRBTreeLock<ZmNoLock>>;
   using DriveBlkSizes =
-    ZmRBTree<char,
-      ZmRBTreeVal<int,
-	ZmRBTreeUnique<true,
-	  ZmRBTreeLock<ZmNoLock> > > >;
+    ZmRBTreeKV<char, unsigned,
+      ZmRBTreeUnique<true,
+	ZmRBTreeLock<ZmNoLock>>>;
 
   HMODULE		m_ntdll;
   PNtQueryObject	m_ntQueryObject;
@@ -144,7 +142,7 @@ void ZiFile_WindowsDrives::refresh()
   drive += L" :\\";
   ZtWString pathBuf(Zi::PathMax + 1);
   ZtWString path;
-  int dl;
+  char dl;
   do {
     dl = buf[i];
     if (islower(dl)) dl += 'A' - 'a';
@@ -164,10 +162,10 @@ void ZiFile_WindowsDrives::refresh()
 
 	  GetDiskFreeSpace(
 	      drive, &sectorsPerCluster, &bytesPerSector, &d2, &d3);
-	  m_driveBlkSizes.add(dl, sectorsPerCluster * bytesPerSector);
+	  m_driveBlkSizes.add(dl, static_cast<unsigned>(sectorsPerCluster * bytesPerSector));
 	}
       } else
-	m_driveBlkSizes.add(dl, 512);
+	m_driveBlkSizes.add(dl, 512U);
     }
     while (buf[i++] && i < len);
   } while (buf[i] && i < len);
@@ -451,12 +449,12 @@ retry:
 	  0, static_cast<DWORD>(m_mmapLength<<1), MEM_RESERVE, PAGE_NOACCESS);
       if (!m_addr) {
 	CloseHandle(m_mmapHandle);
-	m_mmapHandle = nullHandle();
+	m_mmapHandle = Zi::nullHandle();
 	goto error;
       }
       if (!VirtualFree(m_addr, 0, MEM_RELEASE)) {
 	CloseHandle(m_mmapHandle);
-	m_mmapHandle = nullHandle();
+	m_mmapHandle = Zi::nullHandle();
 	m_addr = nullptr;
 	goto error;
       }
@@ -480,7 +478,7 @@ retry:
       m_addr = MapViewOfFile(m_mmapHandle, accessFlags, 0, 0, 0);
       if (!m_addr) {
 	CloseHandle(m_mmapHandle);
-	m_mmapHandle = nullHandle();
+	m_mmapHandle = Zi::nullHandle();
 	goto error;
       }
     }
@@ -922,9 +920,8 @@ int ZiFile::truncate(Offset offset, ZeError *e)
 
   Ze::ErrNo errNo;
 
-retry:
-
 #ifndef _WIN32
+retry:
   int r = ftruncate(m_handle, offset);
   if (r < 0) {
     errNo = errno;

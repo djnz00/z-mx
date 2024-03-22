@@ -553,7 +553,7 @@ int main()
     CHECK(s == "foobar");
   }
   {
-    int x;
+    int x = 0;
     auto m = [x]() mutable { ++x; return x; };
     auto c = [&x]() { return x; };
     using M = ZuDecay<decltype(m)>;

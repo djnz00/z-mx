@@ -87,7 +87,7 @@ struct Feed : public MxMDFeed {
 	  md->instrument(instrKey, 0); // default to shard 0
 
 	ZtString error;
-	thread_local ZmSemaphore sem;
+	thread_local ZmSemaphore sem; // FIXME
 	instr.invokeMv([sem = &sem, &error,
 	    instrKey, &refData, &tickSizeTbl, &lotSizes](
 	      MxMDShard *shard, ZmRef<MxMDInstrument> instr) {

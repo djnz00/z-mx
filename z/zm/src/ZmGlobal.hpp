@@ -60,9 +60,9 @@ protected:
   ZmGlobal() :
     m_type(typeid(void)),
 #ifdef ZDEBUG
-    m_name(0),
+    m_name(nullptr),
 #endif
-    m_next(0) { }
+    m_next(nullptr) { }
 
 private:
   std::type_index	m_type;		// type index

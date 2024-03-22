@@ -69,7 +69,7 @@ ZtString MxMDReplay::stopReplaying()
   if (ZuUnlikely(!m_link)) return ZtString();
   ZtString path = m_link->stopReplaying();
   stop();
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   rxInvoke([sem = &sem]() { sem->post(); });
   sem.wait();
   return path;
@@ -84,7 +84,7 @@ ZmRef<MxAnyLink> MxMDReplay::createLink(MxID id)
 bool MxMDReplayLink::ok()
 {
   int state;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   engine()->rxInvoke([this, &state, sem = &sem]() {
     state = this->state();
     sem->post();
@@ -98,7 +98,7 @@ bool MxMDReplayLink::replay(ZtString path, MxDateTime begin, bool filter)
   Guard guard(m_lock);
   down();
   if (!path) return true;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   engine()->rxInvoke(
       [this, path = ZuMv(path), begin, filter, sem = &sem]() mutable {
     m_path = ZuMv(path);

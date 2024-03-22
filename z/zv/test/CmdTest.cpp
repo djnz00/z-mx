@@ -93,6 +93,10 @@ void usage()
   ::exit(1);
 }
 
+ZmRef<CmdTest> server;
+
+void sigint() { if (server) server->post(); }
+
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
@@ -123,7 +127,7 @@ int main(int argc, char **argv)
 
   ZmRef<CmdTest> server = new CmdTest{};
 
-  ZmTrap::sigintFn(ZmFn<>{server, [](CmdTest *server) { server->post(); }});
+  ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   mx->start();
@@ -170,7 +174,7 @@ int main(int argc, char **argv)
 
   ZeLog::stop();
 
-  ZmTrap::sigintFn(ZmFn<>{});
+  ZmTrap::sigintFn(nullptr);
 
   return 0;
 }

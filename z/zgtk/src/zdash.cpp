@@ -870,6 +870,8 @@ public:
   void telemetry(ZvTelemetry::App &data);
 };
 
+void sigint();
+
 class App :
     public ZmPolymorph,
     public App_Cli,
@@ -1006,7 +1008,7 @@ public:
 	  return static_cast<CliLink_ *>(link)->processDeflt(id, data, len);
 	});
 
-    ZmTrap::sigintFn(ZmFn<>{this, [](App *this_) { this_->post(); }});
+    ZmTrap::sigintFn(sigint);
     ZmTrap::trap();
 
     m_uptime.now();
@@ -1630,6 +1632,10 @@ inline int SrvLink::processDeflt(ZuID id, const uint8_t *data, unsigned len)
 
 } // namespace ZDash
 
+ZmRef<ZDash::App> app;
+
+void sigint() { if (app) app->post(); }
+
 int main(int argc, char **argv)
 {
   if (argc != 1) usage();
@@ -1654,7 +1660,7 @@ int main(int argc, char **argv)
 
   mx->start();
 
-  ZmRef<ZDash::App> app = new ZDash::App{};
+  app = new ZDash::App{};
 
   {
     ZmRef<ZvCf> cf = new ZvCf();
@@ -1690,5 +1696,5 @@ int main(int argc, char **argv)
 
   delete mx;
 
-  ZmTrap::sigintFn({});
+  ZmTrap::sigintFn(nullptr);
 }

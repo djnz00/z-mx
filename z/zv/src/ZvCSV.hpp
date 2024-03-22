@@ -140,7 +140,7 @@ public:
     }
   };
   FieldFmt &fmt() {
-    thread_local FieldFmt fmt;
+    thread_local FieldFmt fmt; // FIXME
     return fmt;
   }
   const FieldFmt &fmt() const {

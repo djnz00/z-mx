@@ -14,7 +14,6 @@ int main(int argc, char **argv)
     g.init(argv[i]);
     const auto &dirName = g.dirName();
     while (auto entry = g.iterate(true, false))
-      std::cout << dirName << '/' << entry->name <<
-	(entry->isdir ? "/\n" : "\n");
+      std::cout << (ZtString{} << dirName << '/' << entry->name << (entry->isdir ? "/\n" : "\n"));
   }
 }

@@ -104,7 +104,6 @@ Blocker::~Blocker() { close(); }
 bool Blocker::open(bool head, const Params &params)
 {
   if (m_sem) return true;
-  m_waiting = 0;
   Zi::Path path(params.name.length() + 21);
   path << L"Global\\" << params.name;
   if (head)
@@ -143,7 +142,6 @@ int Blocker::wait(
   }
   while (addr == val) {
     if (ZuUnlikely(!m_sem)) return Zu::IOError;
-    ++m_waiting;
     DWORD r = WaitForSingleObject(m_sem, timeout);
     switch (static_cast<int>(r)) {
       case WAIT_OBJECT_0:	return Zu::OK;

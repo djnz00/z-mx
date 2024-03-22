@@ -21,16 +21,15 @@
 // * deterministic destruction sequencing
 // * iteration over all instances
 //   (the iterating thread gains access to other threads' instances)
-// * instance consolidation
+// * instance consolidation on Windows with DLLs
 
-// ZmSpecific can be used in preference to thread_local where any of the
-// following problems need resolving:
+// ZmSpecific resolves the following problems:
 // * interdependence of thread-local instances where one type requires
 //   another to be reliably created before it and/or destroyed after it
 //   (destruction timing is not explictly controllable using thread_local)
-// * need to iterate over all thread-local instances from other threads
+// * needing to iterate over all thread-local instances from other threads
 //   for statistics gathering, telemetry or other purposes
-// * on Windows, DLLs do not share TLS, resulting in multiple conflicting
+// * Windows DLLs not sharing TLS, resulting in multiple conflicting
 //   instances of the same type within the same thread when multiple modules
 //   reference the declaration at compile-time
 
@@ -75,6 +74,7 @@
 #endif
 
 #include <stdlib.h>
+#include <typeinfo>
 
 #include <zlib/ZuCmp.hpp>
 #include <zlib/ZuInspect.hpp>
@@ -126,6 +126,41 @@ struct ZmAPI ZmSpecific_Object {
   ZmSpecific_Object	*modNext = nullptr;
 #endif
 };
+
+#ifndef _WIN32
+template <typename O = ZmSpecific_Object>
+struct ZmSpecific_Allocator {
+  pthread_key_t	key;
+
+  ZmSpecific_Allocator() {
+    pthread_key_create(&key, [](void *o) { delete static_cast<O *>(o); });
+  }
+  ~ZmSpecific_Allocator() { pthread_key_delete(key); }
+
+  bool set(const O *o) const {
+    return pthread_setspecific(key, static_cast<const void *>(o));
+  }
+  O *get() const {
+    return static_cast<O *>(pthread_getspecific(key));
+  }
+};
+#else
+// Windows uses deferred linked-list cleanup in ZmSpecific.cpp
+template <typename O = ZmSpecific_Object>
+struct ZmSpecific_Allocator {
+  DWORD	key;
+
+  ZmSpecific_Allocator() { key = TlsAlloc(); }
+  ~ZmSpecific_Allocator() { TlsFree(key); }
+
+  bool set(O *o) const {
+    return TlsSetValue(key, static_cast<void *>(o));
+  }
+  O *get() const {
+    return static_cast<O *>(TlsGetValue(key));
+  }
+};
+#endif
 
 class ZmAPI ZmSpecific_ {
   using Object = ZmSpecific_Object;
@@ -255,6 +290,12 @@ public:
 	}
   }
 
+protected:
+  using Allocator = ZmSpecific_Allocator<>;
+
+  ZuInline const Allocator &allocator() { return m_allocator; }
+
+  Allocator	m_allocator;
 
 private:
   unsigned	m_count = 0;
@@ -286,6 +327,10 @@ private:
 
   using Object = ZmSpecific_Object;
 
+  ZuInline static ZmSpecific *global() {
+    return ZmGlobal::global<ZmSpecific>();
+  }
+
 public:
   ZmSpecific() { }
   ~ZmSpecific() { }
@@ -298,9 +343,12 @@ private:
   using ZmSpecific_::get;
 #endif
 
-  static Object *local_() {
-    thread_local Object o;
-    return &o;
+  ZuInline Object *local_() {
+    Object *o = allocator().get();
+    if (ZuLikely(o)) return o;
+    o = new Object{};
+    allocator().set(o);
+    return o;
   }
 
   void dtor_(Object *o) {
@@ -318,9 +366,13 @@ private:
 
   static void dtor__(Object *o) { global()->dtor_(o); }
 
-  T *create_() {
+  template <bool Construct = Construct_>
+  ZuIfT<!Construct, T *> create_(Object *) {
+    return nullptr;
+  }
+  template <bool Construct = Construct_>
+  ZuIfT<Construct, T *> create_(Object *o) {
     T *ptr = nullptr;
-    Object *o = local_();
     ZmSpecific_lock();
     if (o->ptr) {
       ptr = static_cast<T *>(o->ptr);
@@ -328,7 +380,7 @@ private:
       return ptr;
     }
 #ifdef _WIN32
-    o->tid = Zm::getTID_();
+    o->tid = Zm::getTID();
 #endif
     ZmSpecific_unlock();
     ptr = CtorFn();
@@ -351,11 +403,17 @@ private:
     return ptr;
   }
 
+  T *instance_() {
+    Object *o = local_();
+    auto ptr = o->ptr;
+    if (ZuUnlikely(!ptr)) return create_(o);
+    return static_cast<T *>(ptr);
+  }
   T *instance_(T *ptr) {
     Object *o = local_();
     ZmSpecific_lock();
 #ifdef _WIN32
-    if (!o->ptr) o->tid = Zm::getTID_();
+    if (!o->ptr) o->tid = Zm::getTID();
 #endif
   retry:
     if (!o->ptr) {
@@ -375,23 +433,9 @@ private:
     return ptr;
   }
 
-  ZuInline static ZmSpecific *global() {
-    return ZmGlobal::global<ZmSpecific>();
-  }
-
 public:
-  template <bool Construct = Construct_>
-  static ZuIfT<Construct, T *> create() {
-    return global()->create_();
-  }
-  template <bool Construct = Construct_>
-  static ZuIfT<!Construct, T *> create() {
-    return nullptr;
-  }
-  static T *instance() {
-    ZmObject *ptr;
-    if (ZuLikely(ptr = local_()->ptr)) return static_cast<T *>(ptr);
-    return create();
+  ZuInline static T *instance() {
+    return global()->instance_();
   }
   static T *instance(T *ptr) {
     return global()->instance_(ptr);

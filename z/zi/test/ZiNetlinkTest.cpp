@@ -307,7 +307,7 @@ int main(int argc, char **argv)
   Mx mx(nThreads, nConnections, nConcurrent, maxRecv, nFragments, yield, debug,
 	epollMaxFDs, epollQuantum);
 
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
+  ZmTrap::sigintFn(Global::post);
   ZmTrap::trap();
 
   if (!mx.start()) {

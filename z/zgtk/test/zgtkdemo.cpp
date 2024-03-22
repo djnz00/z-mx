@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 
   app.detach([]{ });
 
-  ZmTrap::sigintFn(ZmFn<>{});
+  ZmTrap::sigintFn(nullptr);
 
   ZeLog::stop();
   return 0;

@@ -622,7 +622,10 @@ struct ZtMFieldType_CString<char *, Props> : public ZtMFieldType {
     .scan = [](void *ptr_, ZuString s, const ZtFieldFmt &fmt) {
       auto &ptr = *static_cast<T *>(ptr_);
       if (ptr) ::free(ptr);
-      ptr = s ? strndup(s.data(), s.length()) : static_cast<char *>(nullptr);
+      if (!s) { ptr = nullptr; return; }
+      auto n = s.length();
+      ptr = static_cast<char *>(::malloc(n + 1));
+      if (ptr) { memcpy(ptr, s.data(), n); ptr[n] = 0; }
     },
     .cmp = ZtFieldType_Cmp<T>::fn()
   } { }
@@ -755,7 +758,7 @@ struct ZtField_String_Get {
     using O = typename Base::O;
     // field get() returns a temporary
     return {.fn_ = {.string = [](const void *o) -> ZuString {
-      thread_local ZtString v;
+      thread_local ZtString v; // FIXME
       v = Base::get(*static_cast<const O *>(o));
       return v;
     }}};
@@ -872,7 +875,7 @@ struct ZtField_Bytes_Get {
     using O = typename Base::O;
     // field get() returns a temporary
     return {.fn_ = {.bytes = [](const void *o) -> ZuBytes {
-      thread_local ZtBytes v;
+      thread_local ZtBytes v; // FIXME
       v = Base::get(*static_cast<const O *>(o));
       return v;
     }}};
@@ -1025,7 +1028,7 @@ struct ZtField_UDT_Get {
     using T = typename Base::T;
     // field get() returns a temporary
     return {.fn_ = {.udt = [](const void *o) -> const void * {
-      thread_local T v;
+      thread_local T v; // FIXME
       v = Base::get(*static_cast<const O *>(o));
       return static_cast<const void *>(&v);
     }}};
@@ -2152,7 +2155,7 @@ struct ZtFieldPrint : public ZuPrintDelegate {
   template <typename S, typename O>
   static void print(S &s, const O &o) {
     using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<O>>;
-    thread_local ZtFieldFmt fmt;
+    thread_local ZtFieldFmt fmt; // FIXME
     s << '{';
     ZuUnroll::all<FieldList>([&o, &s]<typename Field>() {
       if constexpr (ZuTypeIndex<Field, FieldList>{}) s << ' ';

@@ -287,7 +287,7 @@ int main(int argc, const char *argv[])
   Mx mx(localIP, localPort, remoteIP, remotePort, connect, options,
       nMessages, ZuMv(params));
 
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
+  ZmTrap::sigintFn(Global::post);
   ZmTrap::trap();
 
   if (!mx.start()) Zm::exit(1);

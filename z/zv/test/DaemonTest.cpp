@@ -49,7 +49,7 @@ int main(int argc, char **argv)
   ZeLog::level(0);
   ZeLog::sink(ZeLog::debugSink());
 
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&sigint>::fn());
+  ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   try {

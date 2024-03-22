@@ -1231,7 +1231,7 @@ bool MxMDShard::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
 
 bool MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
 {
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
     bool v;
     m_shards[i]->invoke(
@@ -1247,7 +1247,7 @@ bool MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
 
 bool MxMDLib::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
 {
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
     bool v;
     m_shards[i]->invoke(
@@ -1352,7 +1352,7 @@ void MxMDLib::unsubscribe()
 
 void MxMDLib::sync()
 {
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   unsigned n = nShards();
   for (unsigned i = 0; i < n; i++)
     shardInvoke(i, &sem, [](ZmSemaphore *sem) { sem->post(); });
@@ -1962,7 +1962,7 @@ bool MxMDLib::lookupInstrument(
     const MxUniKey &key, bool instrRequired, ZmFn<MxMDInstrument *> fn) const
 {
   bool ok = true;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   instrInvoke(key, [instrRequired, sem = &sem, &ok, fn = ZuMv(fn)](
 	MxMDInstrument *instr) {
       if (instrRequired && ZuUnlikely(!instr))

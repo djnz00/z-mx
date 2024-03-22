@@ -1371,7 +1371,7 @@ private:
 	}
       }
     }
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     for (unsigned i = 0, n = ok.length(); i < n; i++) {
       using namespace Zfb::Save;
       auto seqNo = m_seqNo++;
@@ -1468,6 +1468,10 @@ inline int Link::processTelemetry(const uint8_t *data, unsigned len)
   return this->app()->processTelemetry(data, len);
 }
 
+ZmRef<ZCmd> client;
+
+void sigint() { if (client) client->done(); }
+
 int main(int argc, char **argv)
 {
   if (argc < 2) usage();
@@ -1553,9 +1557,9 @@ int main(int argc, char **argv)
 
   mx->start();
 
-  ZmRef<ZCmd> client = new ZCmd();
+  client = new ZCmd();
 
-  ZmTrap::sigintFn({client, [](ZCmd *client) { client->done(); }});
+  ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   {
@@ -1614,7 +1618,7 @@ int main(int argc, char **argv)
 
   delete mx;
 
-  ZmTrap::sigintFn(ZmFn<>{});
+  ZmTrap::sigintFn(nullptr);
 
   return 0;
 }

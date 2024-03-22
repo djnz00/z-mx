@@ -52,7 +52,7 @@ private:
   void process(ZmRef<MxTelemetry::Msg> msg) {
     using namespace MxTelemetry;
 
-    thread_local ZtDate::CSVFmt nowFmt;
+    thread_local ZtDate::CSVFmt nowFmt; // FIXME
 
     ZtDate now{ZtDate::Now};
 

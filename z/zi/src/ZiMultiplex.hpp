@@ -774,12 +774,12 @@ friend ZiConnection;
 
 #if ZiMultiplex__AcceptHeap
   // heap-allocated asynchronous accept, exclusively used by IOCP
+  constexpr static const char *Accept_HeapID() { return "ZiMultiplex.Accept"; }
   template <typename> class Accept_;
 template <typename> friend class Accept_;
   template <typename Heap> class Accept_ : public Heap {
   friend ZiMultiplex;
 
-    constexpr static const char *HeapID() { return "ZiMultiplex.Accept"; }
 
     Accept_(Listener *listener) : m_listener(listener), m_info{
 	  ZiCxnType::TCPIn,
@@ -804,11 +804,12 @@ template <typename> friend class Accept_;
     Zi_Overlapped	m_overlapped;
     char		m_buf[(sizeof(struct sockaddr_in) + 16) * 2];
   };
-  using Accept_Heap = ZmHeap<Accept_::HeapID, sizeof(Accept_<ZuNull>)>;
+  using Accept_Heap = ZmHeap<Accept_HeapID, sizeof(Accept_<ZuNull>)>;
   using Accept = Accept_<Accept_Heap>; 
 #endif
 
   // heap-allocated non-blocking / asynchronous connect
+  constexpr static const char *Connect_HeapID() { return "ZiMultiplex.Connect"; }
 #if ZiMultiplex__ConnectHash
   class Connect_ : public ZuObject
 #else
@@ -827,7 +828,6 @@ template <typename> friend class Connect_;
       return c.info().socket;
     }
 #endif
-    constexpr static const char *HeapID() { return "ZiMultiplex.Connect"; }
 
   protected:
     template <typename ...Args> Connect_(
@@ -868,10 +868,10 @@ template <typename> friend class Connect_;
     ZmHash<Connect_,
       ZmHashNode<Connect_,
 	ZmHashKey<Connect_::SocketAxor,
-	  ZmHashHeapID<Connect_::HeapID>>>>;
+	  ZmHashHeapID<Connect_HeapID>>>>;
   using Connect = ConnectHash::Node;
 #else
-  using ConnectHeap = ZmHeap<Connect_::HeapID, sizeof(Connect_<ZuNull>)>;
+  using ConnectHeap = ZmHeap<Connect_HeapID, sizeof(Connect_<ZuNull>)>;
   using Connect = Connect_<ConnectHeap>;
 #endif
 

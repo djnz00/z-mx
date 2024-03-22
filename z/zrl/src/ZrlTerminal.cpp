@@ -75,7 +75,7 @@ ZrlExtern void print_(int32_t vkey, ZmStream &s)
 }
 }
 
-thread_local unsigned VKeyMatch_printIndentLevel = 0;
+thread_local unsigned VKeyMatch_printIndentLevel = 0; // FIXME
 
 void VKeyMatch::Action::print_(ZmStream &s) const
 {
@@ -161,7 +161,7 @@ void Terminal::open(ZmScheduler *sched, unsigned thread,
 bool Terminal::isOpen() const // synchronous
 {
   bool ok = false;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   invoke([this, sem = &sem, ok = &ok]() {
     *ok = isOpen_();
     sem->post();
@@ -201,7 +201,7 @@ void Terminal::start(StartFn startFn, KeyFn keyFn) // async
 bool Terminal::running() const // synchronous
 {
   bool ok = false;
-  thread_local ZmSemaphore sem;
+  thread_local ZmSemaphore sem; // FIXME
   invoke([this, sem = &sem, ok = &ok]() {
     *ok = m_running;
     sem->post();
@@ -333,7 +333,7 @@ bool Terminal::open_()
   m_bel = tigetstr("bel");
 
   if (m_ul) {
-    thread_local Terminal *this_;
+    thread_local Terminal *this_; // FIXME
     m_underline << ' ';
     ::tputs(m_cub1, 1, [](int c) -> int {
       this_->m_underline << static_cast<uint8_t>(c);
@@ -1240,7 +1240,7 @@ loop:
 #ifndef _WIN32
 void Terminal::tputs(const char *cap)
 {
-  thread_local Terminal *this_;
+  thread_local Terminal *this_; // FIXME
   this_ = this;
   ::tputs(cap, 1, [](int c) -> int {
     this_->m_out << static_cast<char>(c);

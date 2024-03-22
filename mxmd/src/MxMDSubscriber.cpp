@@ -681,7 +681,7 @@ void MxMDSubLink::status(ZtString &out)
   }
   out << "\n  UDP Queue: ";
   {
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     rxInvoke([&out, sem = &sem](Rx *rx) {
       const MxQueue *queue = rx->rxQueue();
       MxQueue::Gap gap = queue->gap();

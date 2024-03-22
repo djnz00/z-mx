@@ -118,7 +118,7 @@ static jboolean helloWorld(JNIEnv *env, jobject obj, jstring text)
     std::cout << "ZtDate / Instant conversion ok\n" << std::flush;
   }
 
-  thread_local jfieldID fid = 0;
+  thread_local jfieldID fid = 0; // FIXME
   if (!fid) fid = env->GetFieldID(env->GetObjectClass(obj), "ptr", "J");
   if (void *ptr = ring->push()) {
     new (ptr) Msg(env, obj, text);

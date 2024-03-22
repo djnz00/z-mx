@@ -87,7 +87,7 @@ struct HandleCloser : public ZmObject {
 struct ZmThread_Main {
   ZmThread_Main() { is(true); }
   bool is(bool b = false) {
-    thread_local bool _ = b;
+    thread_local bool _ = b; // FIXME
     return _;
   }
 };
@@ -118,6 +118,17 @@ void ZmThreadContext_::init()
 #endif /* !_WIN32 */
 
 #ifndef _WIN32
+// NT_TIB structure locations:
+//
+// x86-32	__readfsdword(0x18)
+// x86-64	__readgsqword(0x30)
+// arm		(ULONG_PTR)_MoveFromCoprocessor(CP15_TPIDRURW)
+// arm64	__getReg(18)			// register x18
+// alpha	_rdteb()			// PAL instruction
+// ia64		_rdtebex()			// register r13
+// MIPS		((PCR *)0x7ffff000)->Teb
+// PowerPC	__gregister_get(13) 		// register r13
+
   void *addr;
   size_t size;
   pthread_attr_t attr;
@@ -129,7 +140,7 @@ void ZmThreadContext_::init()
   pthread_attr_destroy(&attr);
 #else /* !_WIN32 */
 #ifdef __x86_64__
-  auto tib = reinterpret_cast<const NT_TIB *>(__readgsdword(0x30));
+  auto tib = reinterpret_cast<const NT_TIB *>(__readgsqword(0x30));
 #else
   auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
 #endif

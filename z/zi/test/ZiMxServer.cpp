@@ -312,7 +312,7 @@ int main(int argc, char **argv)
   Mx mx(ip, port, nAccepts, options, nConnections, maxSend,
       reconnInterval, ZuMv(params));
 
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&Global::post>::fn());
+  ZmTrap::sigintFn(Global::post);
   ZmTrap::trap();
 
   if (!mx.start()) Zm::exit(1);

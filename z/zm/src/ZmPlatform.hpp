@@ -98,11 +98,17 @@ inline ProcessID getPID() { return GetCurrentProcessId(); }
 #endif
 
 // thread ID
-ZmExtern ThreadID getTID_();
-inline ThreadID getTID() {
-  thread_local ThreadID tid = getTID_();
+#if defined(linux) && defined(__x86_64__)
+ZuInline ThreadID getTID() {
+  // return __readgsdword(0x2d0);
+  unsigned tid;
+  __asm__("mov %%fs:0x2d0, %0" : "=r" (tid)); // FIXME
   return tid;
 }
+#endif
+#ifdef _WIN32
+ZuInline ThreadID getTID() { return GetCurrentThreadId(); }
+#endif
 
 // #cpus (number of cores)
 #ifdef _WIN32

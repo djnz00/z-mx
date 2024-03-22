@@ -171,7 +171,7 @@ void MxMDLibJNI::stop(JNIEnv *env, jobject)
   MxMDLib *md = md_;
   if (ZuUnlikely(!md)) return;
   {
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     unsigned i = 0, n = md->instrCount();
     md->allInstruments(
 	[env, &i, n, sem = &sem](MxMDInstrument *instr) {

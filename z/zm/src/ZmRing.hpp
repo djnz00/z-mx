@@ -420,7 +420,7 @@ private:
   bool nullHandle(Handle i) { return i < 0; }
 #else
   using Handle = HANDLE;
-  constexpr static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
+  static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
   bool nullHandle(Handle i) { return !i || i == INVALID_HANDLE_VALUE; }
 #endif
 

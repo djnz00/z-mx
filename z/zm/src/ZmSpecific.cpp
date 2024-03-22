@@ -45,45 +45,35 @@ ZmAPI void ZmSpecific_unlock()
 
 // Win32 voodoo to force TLS support in linked image
 extern "C" { extern DWORD _tls_used; }
-struct R {
-  R() : m_value(_tls_used) { };
-  volatile DWORD	m_value;
+struct Win32_Voodoo {
+  volatile DWORD value;
+  Win32_Voodoo() : value(_tls_used) { };
 };
 
 // use TLS API from within DLL to be safe on 2K and XP
-struct K {
-  K() { m_key = TlsAlloc(); }
-  ~K() { TlsFree(m_key); }
-
-  int set(void *value) const
-    { return TlsSetValue(m_key, value) ? 0 : -1; }
-  void *get() const
-    { return TlsGetValue(m_key); }
-
-  DWORD	m_key;
-};
+using Allocator = ZmSpecific_Allocator<>;
 
 // per-instance cleanup context
 using O = ZmSpecific_Object;
 
-struct C {
-  static K &head_() { static K key_; return key_; }
-  static K &tail_() { static K key_; return key_; }
-  static O *head() { return (O *)head_().get(); }
+struct Cleanup {
+  static Allocator &head_() { static Allocator a; return a; }
+  static Allocator &tail_() { static Allocator a; return a; }
+  static O *head() { return static_cast<O *>(head_().get()); }
   static void head(O *o) { head_().set(o); }
-  static O *tail() { return (O *)tail_().get(); }
+  static O *tail() { return static_cast<O *>(tail_().get()); }
   static void tail(O *o) { tail_().set(o); }
 
-  static R		m_ref;
+  static Win32_Voodoo	ref;
 };
 
-R C::m_ref;	// TLS reference
+Win32_Voodoo Cleanup::ref;	// TLS reference
 
 void ZmSpecific_cleanup()
 {
   for (;;) {
     ZmSpecific_lock();
-    O *o = C::head(); // LIFO
+    O *o = Cleanup::head(); // LIFO
     if (!o) { ZmSpecific_unlock(); return; }
     o->dtor(); // unlocks
   }
@@ -92,21 +82,21 @@ void ZmSpecific_cleanup()
 ZmAPI void ZmSpecific_cleanup_add(O *o)
 {
   o->modPrev = nullptr;
-  if (!(o->modNext = C::head()))
-    C::tail(o);
+  if (!(o->modNext = Cleanup::head()))
+    Cleanup::tail(o);
   else
     o->modNext->modPrev = o;
-  C::head(o);
+  Cleanup::head(o);
 }
 
 ZmAPI void ZmSpecific_cleanup_del(O *o)
 {
   if (!o->modPrev)
-    C::head(o->modNext);
+    Cleanup::head(o->modNext);
   else
     o->modPrev->modNext = o->modNext;
   if (!o->modNext)
-    C::tail(o->modPrev);
+    Cleanup::tail(o->modPrev);
   else
     o->modNext->modPrev = o->modPrev;
 }

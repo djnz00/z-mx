@@ -358,6 +358,10 @@ static void printHeapStats()
 }
 #endif
 
+ZmRef<App> app;
+
+void sigint() { if (app) app->post(); }
+
 int main(int argc, const char *argv[])
 {
   const char *cfPath = 0;
@@ -382,8 +386,6 @@ int main(int argc, const char *argv[])
   ZeLog::start();
 
   {
-    ZmRef<App> app;
-
     try {
 
       ZmRef<ZvCf> cf = new ZvCf();
@@ -406,14 +408,14 @@ int main(int argc, const char *argv[])
       goto error;
     }
 
-    ZmTrap::sigintFn(ZmFn<>::Member<&App::post>::fn(app));
+    ZmTrap::sigintFn(sigint);
     ZmTrap::trap();
 
     if (app->start() != Zi::OK) goto error;
 
     app->wait();
 
-    ZmTrap::sigintFn(ZmFn<>());
+    ZmTrap::sigintFn(nullptr);
 
     app->stop();
   }

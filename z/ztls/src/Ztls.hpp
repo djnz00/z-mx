@@ -669,7 +669,7 @@ template <typename, typename> friend class SrvLink;
       }));
       return false;
     }
-    thread_local ZmSemaphore sem;
+    thread_local ZmSemaphore sem; // FIXME
     bool ok;
     invoke([&, l = ZuMv(l), sem = &sem]() mutable {
       ok = init_(ZuMv(l));

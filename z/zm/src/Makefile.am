@@ -23,13 +23,8 @@ pkginclude_HEADERS = \
 lib_LTLIBRARIES = libZm.la
 libZm_la_SOURCES = \
 	ZmAssert.cpp ZmBackTrace.cpp ZmGlobal.cpp ZmHashMgr.cpp ZmHeap.cpp \
-	ZmLib.cpp ZmLock.cpp ZmObjectDebug.cpp ZmPlatform.cpp ZmRandom.cpp \
+	ZmLib.cpp ZmLock.cpp ZmObjectDebug.cpp ZmRandom.cpp \
 	ZmRing.cpp ZmScheduler.cpp \
 	ZmSingleton.cpp ZmSpecific.cpp \
 	ZmTime.cpp ZmThread.cpp ZmTrap.cpp
-libZm_la_LIBADD = $(top_builddir)/zu/src/libZu.la @Z_MT_LIBS@
-if MINGW
-libZm_la_LIBADD += -L/mingw64/lib/binutils -lbfd
-else
-libZm_la_LIBADD += -L/usr/local/lib -lbfd
-endif
+libZm_la_LIBADD = $(top_builddir)/zu/src/libZu.la @Z_MT_LIBS@ -lbfd -liberty
