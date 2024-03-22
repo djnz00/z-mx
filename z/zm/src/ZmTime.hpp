@@ -113,7 +113,7 @@ public:
     return *this;
   }
 #else
-  constexpr ZmTime(FILETIME f) {
+  ZmTime(FILETIME f) {
     int64_t *ZuMayAlias(f_) = reinterpret_cast<int64_t *>(&f);
     int64_t t = *f_;
     t -= ZmTime_FT_Epoch;

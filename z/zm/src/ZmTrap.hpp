@@ -58,7 +58,7 @@ public:
   static void log(ZuString s);
 #ifdef _WIN32
   static void winProgram(ZuString s);
-  static void winErrlog(int type, ZuString s);	// Windows error logging
+  static void winErrLog(int type, ZuString s);	// Windows error logging
 #endif
 };
 

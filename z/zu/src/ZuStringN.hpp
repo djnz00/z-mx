@@ -448,7 +448,6 @@ protected:
 template <unsigned N_>
 class ZuStringN : public ZuStringN_<char, N_, ZuStringN<N_>> {
   ZuAssert(N_ > 1);
-  ZuAssert(N_ < (1U<<16) - 1U);
 
 public:
   using Char = char;
@@ -546,7 +545,6 @@ private:
 template <unsigned N_>
 class ZuWStringN : public ZuStringN_<wchar_t, N_, ZuWStringN<N_>> {
   ZuAssert(N_ > 1);
-  ZuAssert(N_ < (1U<<15) - 1U);
 
 public:
   using Char = wchar_t;

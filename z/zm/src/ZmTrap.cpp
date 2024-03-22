@@ -80,7 +80,6 @@ void ZmTrap::trap()
 #endif
   }
 #else
-  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
   signal(SIGABRT, &ZmTrap_sigabrt);
   SetConsoleCtrlHandler(&ZmTrap_handler, TRUE);
 #ifdef ZDEBUG
@@ -106,10 +105,11 @@ void ZmTrap::log(ZuString s)
 // - GetStdHandle(STD_ERROR_HANDLE) causes unwanted console popups
 //   in non-console apps
 #ifdef _WIN32
+static ZmPLock ZmTrap_lock;
+
 enum { ProgramSize = 64 }; // program name length
 using Program = ZuStringN<ProgramSize>;
 static Program ZmTrap_program;
-static ZmPLock ZmTrap_lock;
 
 void ZmTrap::winProgram(ZuString s)
 {
@@ -124,7 +124,7 @@ void ZmTrap::winErrLog(int type, ZuString s)
   using WBuf = ZuWStringN<BufSize>;
   using Buf = ZuStringN<BufSize>;
 
-  static Name name;
+  static Program program;
   static WBuf wbuf;
   static Buf buf;
   static HANDLE handle = INVALID_HANDLE_VALUE;
@@ -135,18 +135,16 @@ void ZmTrap::winErrLog(int type, ZuString s)
     handle = RegisterEventSource(0, L"EventSystem");
 
   if (ZuUnlikely(!ZmTrap_program)) {
-    wbuf.null();
-    GetModuleFileName(0, wbuf.data(), BufSize);
-    wbuf.calcLength();
-    int i = wbuf.length();
-    while (i > 0) { if (wbuf[--i] == L'\\') break; }
+    buf.null();
+    GetModuleFileNameA(0, buf.data(), BufSize);
+    buf.calcLength();
+    int i = buf.length();
+    while (i > 0) { if (buf[--i] == '\\') break; }
     if (i) ++i;
-    ZuString wname = wbuf;
-    wname.offset(i);
-    if (wname.length() > 64) wname.offset(wname.length() - 64);
-    auto &name = ZmTrap_program;
-    name.length(ZuUTF<char, wchar_t>::cvt(
-	  ZuArray<char>{name.data(), name.size() - 1}, wname));
+    ZuString program_ = buf;
+    program_.offset(i);
+    if (program_.length() > 64) program_.offset(program_.length() - 64);
+    program = program_;
   }
 
   buf.null();
@@ -186,6 +184,9 @@ void ZmTrap_sigabrt(int)
   static ZuStringN<ZmBackTrace_BUFSIZ> buf;
   buf << "SIGABRT\n" << bt;
   ZmTrap::log(buf);
+#ifdef _WIN32
+  ::ExitProcess(3);
+#endif
 }
 
 // CTRL-C and disconnect/logout handling

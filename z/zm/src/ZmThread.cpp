@@ -128,7 +128,11 @@ void ZmThreadContext_::init()
   m_stackSize = size;
   pthread_attr_destroy(&attr);
 #else /* !_WIN32 */
+#ifdef __x86_64__
+  auto tib = reinterpret_cast<const NT_TIB *>(__readgsdword(0x30));
+#else
   auto tib = reinterpret_cast<const NT_TIB *>(__readfsdword(0x18));
+#endif
   m_stackAddr = tib->StackLimit;
   m_stackSize =
     reinterpret_cast<const uint8_t *>(tib->StackBase) -

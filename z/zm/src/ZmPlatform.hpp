@@ -106,10 +106,9 @@ inline ThreadID getTID() {
 
 // #cpus (number of cores)
 #ifdef _WIN32
-private:
 typedef BOOL (WINAPI *PIsWow64Process)(HANDLE, PBOOL);
 typedef void (WINAPI *PGetNativeSystemInfo)(LPSYSTEM_INFO);
-public:
+
 inline unsigned getncpu() {
   SYSTEM_INFO si;
   {

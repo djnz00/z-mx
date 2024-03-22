@@ -5,7 +5,8 @@
 
 #include <stdlib.h>
 #include <time.h>
-#include <stdio.h>
+
+#include <iostream>
 
 #include <zlib/ZuHash.hpp>
 #include <zlib/ZuCmp.hpp>
@@ -20,7 +21,11 @@
 #include <zlib/ZuRef.hpp>
 #include <zlib/ZuID.hpp>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) {
+  std::cout << s << '\n' << std::flush;
+}
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 #define TEST(t) \
   CHECK(ZuCmp<t>::cmp(1, 0) > 0), \

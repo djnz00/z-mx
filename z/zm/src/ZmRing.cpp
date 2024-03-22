@@ -121,7 +121,6 @@ Blocker::~Blocker() { close(); }
 bool Blocker::open(bool, const Params &)
 {
   if (m_sem) return true;
-  m_waiting = 0;
   m_sem = CreateSemaphore(0, 0, 0x7fffffff, 0);
   if (m_sem == INVALID_HANDLE_VALUE) m_sem = 0;
   return m_sem;
@@ -144,7 +143,6 @@ int Blocker::wait(
   }
   while (addr == val) {
     if (ZuUnlikely(!m_sem)) return Zu::IOError;
-    ++m_waiting;
     DWORD r = WaitForSingleObject(m_sem, timeout);
     switch (static_cast<int>(r)) {
       case WAIT_OBJECT_0:	return Zu::OK;
@@ -272,8 +270,8 @@ bool MirrorMem::open(unsigned size, const Params &params)
 #endif /* linux */
 
 #ifdef _WIN32
-  m_handle = 
-  CreateFileMapping(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, size, nullptr);
+  m_handle = CreateFileMapping(
+      INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, size, nullptr);
   if (nullHandle(m_handle)) {
     m_handle = nullHandle();
     return false;
@@ -293,12 +291,12 @@ retry:
     return false;
   }
   void *addr = MapViewOfFileEx(
-      m_handle, static_cast<DWORD>(accessFlags), 0, 0,
+      m_handle, FILE_MAP_WRITE, 0, 0,
       static_cast<DWORD>(size), m_addr);
   if (!addr) goto retry;
   if (addr != m_addr) { UnmapViewOfFile(addr); goto retry; }
   addr = MapViewOfFileEx(
-      m_handle, static_cast<DWORD>(accessFlags), 0, 0,
+      m_handle, FILE_MAP_WRITE, 0, 0,
       static_cast<DWORD>(size),
       static_cast<uint8_t *>(m_addr) + size);
   if (!addr) goto retry;

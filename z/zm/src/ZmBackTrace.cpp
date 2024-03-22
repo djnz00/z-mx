@@ -47,11 +47,7 @@
 
 #ifdef ZmBackTrace_BFD
 #define PACKAGE Zm
-#ifdef linux
 #include <bfd.h>
-#else
-#include <binutils/bfd.h>
-#endif
 #endif
 
 #ifdef _MSC_VER
@@ -139,6 +135,10 @@ public:
   friend ZuUnsigned<ZmCleanup::Final> ZmCleanupLevel(ZmBackTrace_Mgr *);
 
 private:
+#ifdef _WIN32
+  using NameBuf = ZuStringN<ZmBackTrace_BUFSIZ>;
+#endif
+
   void printFrame_info(ZmStream &s,
       uintptr_t addr, const char *module_, const char *symbol,
       ZuString file, unsigned line) {
@@ -386,13 +386,14 @@ retry:
 	name = dl_info.dli_fname;
 #endif
 #ifdef _WIN32
-	auto nameBuf = m_mgr->nameBuf();
+	NameBuf &nameBuf = m_mgr->nameBuf();
 	if (auto n = GetModuleFileNameA((HINSTANCE)base,
-	      nameBuf.data(), nameBuf.length() - 1))
-	  nameBuf.trunc(n);
-	else
+	      nameBuf.data(), nameBuf.size() - 1)) {
+	  nameBuf.length(n + 1);
+	  nameBuf[n] = 0;
+	  name = nameBuf.data();
+	} else
 	  goto notfound;
-	name = nameBuf.data();
 #endif
 	if (!name) goto notfound;
 	m_bfd = new BFD();
@@ -499,9 +500,7 @@ notfound:
   using Guard = ZmGuard<Lock>;
 
 #ifdef _WIN32
-  ZuArray<char> nameBuf() {
-    return {m_nameBuf, sizeof(m_nameBuf) / sizeof(m_nameBuf[0])};
-  }
+  NameBuf &nameBuf() { return m_nameBuf; }
 #endif
 
   void capture(unsigned skip, void **frames);
@@ -526,7 +525,7 @@ notfound:
   PSymFunctionTableAccess64	m_symFunctionTableAccess64 = nullptr;
   PSymGetModuleBase64		m_symGetModuleBase64 = nullptr;
   PRtlCaptureStackBackTrace	m_rtlCaptureStackBackTrace = nullptr;
-  char				m_nameBuf[ZmBackTrace_BUFSIZ] = {};
+  NameBuf			m_nameBuf;
 #endif
 
 #if defined(__GNUC__) || defined(linux)
@@ -757,11 +756,12 @@ bool ZmBackTrace_Mgr::printFrame_(ZmStream &s, void *addr)
 #endif
   }
 
-  auto nameBuf = this->nameBuf();
-  ZuString module;
+  NameBuf &nameBuf = this->nameBuf();
+  const char *module;
   if (auto n = GetModuleFileNameA(
-	  (HINSTANCE)si->ModBase, nameBuf.data(), nameBuf.length() - 1)) {
-    nameBuf.trunc(n);
+	  (HINSTANCE)si->ModBase, nameBuf.data(), nameBuf.size() - 1)) {
+    nameBuf.length(n + 1);
+    nameBuf[n] = 0;
     module = nameBuf;
   } else {
     module = "?";
