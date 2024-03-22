@@ -63,7 +63,7 @@ void stop() {
 
 int main(int argc, char *argv[])
 {
-  ZmTrap::sigintFn(ZmFn<>::Ptr<&stop>::fn());
+  ZmTrap::sigintFn(stop);
   ZmTrap::trap();
   TestObject prog;
 

@@ -84,8 +84,6 @@ static int sysloglevel(int i) {
 
 #else /* !_WIN32 */
 
-#define Ze_NTFS_MAX_PATH	32768	// MAX_PATH is 260 and deprecated
-
 static int eventlogtype(int i) {
   static const int types[] = {
     EVENTLOG_SUCCESS,		// Debug
@@ -97,51 +95,6 @@ static int eventlogtype(int i) {
   enum { N = sizeof(types) / sizeof(types[0]) };
 
   return (i < 0 || i >= N) ? EVENTLOG_WARNING_TYPE : types[i];
-}
-
-struct ZePlatform_EventLogger {
-  HANDLE			handle = INVALID_HANDLE_VALUE;
-  ZtString			program;
-  ZuWStringN<ZeLog_BUFSIZ / 2>	buf;
-
-  ZePlatform_EventLogger() {
-    handle = RegisterEventSource(0, L"EventSystem");
-
-    ZtWString path_;
-
-    path_.size(Ze_NTFS_MAX_PATH);
-    GetModuleFileName(0, path_.data(), Ze_NTFS_MAX_PATH);
-    path_.calcLength();
-
-    ZtString path(path_);
-
-    program = "Application";
-    try {
-      ZtRegex::Captures c;
-      if (ZtREGEX("[^\\]*$").m(path, c, 0)) program = c[1];
-    } catch (...) { }
-  }
-  ~ZePlatform_EventLogger() {
-    DeregisterEventSource(handle);
-  }
-
-  void report(const ZeLog::Buf &buf, const ZeEventInfo &info) {
-    wbuf.null();
-    wbuf.length(ZuUTF<wchar_t, char>::cvt(
-	  ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
-    const wchar_t *w = buf.data();
-
-    ReportEvent(
-      handle, eventlogtype(info.severity), 0, 512, 0, 1, 0, &w, 0);
-  }
-
-  friend ZuUnsigned<ZmCleanup::Platform>
-    ZmCleanupLevel(ZePlatform_EventLogger *);
-};
-
-static ZePlatform_EventLogger *eventLogger()
-{
-  return ZmSingleton<ZePlatform_EventLogger>::instance();
 }
 
 #endif /* !_WIN32 */
@@ -207,7 +160,7 @@ void ZeLog::init__(const char *program, const char *facility)
     }
   syslogger()->init(program, LOG_USER);
 #else
-  eventLogger()->program = program;
+  ZmTrap::winProgram(program);
 #endif
 }
 
@@ -317,8 +270,7 @@ void ZeSysSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
       ZuBoxed(info.line) << ' ';
   buf << Ze::function(info.function);
 #else
-  ZePlatform_EventLogger *logger = eventLogger();
-  buf << logger->program << ' ' << ZuBoxed(info.tid) << " - ";
+  buf << ZuBoxed(info.tid) << " - ";
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
     buf << '\"' << Ze::file(info.file) << "\":" <<
       ZuBoxed(info.line) << ' ';
@@ -340,7 +292,7 @@ void ZeSysSink::post(ZeLogBuf &buf, const ZeEventInfo &info)
   ::syslog(syslogger()->facility() | sysloglevel(info.severity),
       "%.*s", buf.length(), buf.data());
 #else
-  eventLogger()->report(buf, e);
+  ZmTrap::winErrLog(eventlogtype(info.severity), buf);
 #endif
 }
 

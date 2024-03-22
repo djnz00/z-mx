@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// SIGINT/SIGTERM/SIGSEGV trapping (and the Windows equivalent)
+// low-level last-ditch error logging and signal trapping
 
 #ifndef ZmTrap_HPP
 #define ZmTrap_HPP
@@ -30,37 +30,36 @@
 #include <zlib/ZmLib.hpp>
 #endif
 
-#include <zlib/ZmFn.hpp>
-#include <zlib/ZmCleanup.hpp>
-
-extern "C" {
-  ZmExtern void ZmTrap_sleep();
-}
-
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4251)
 #endif
 
+#include <ZuString.hpp>
+
 class ZmAPI ZmTrap {
 public:
-  static void trap() { instance()->trap_(); }
+  // trap signals (call once at start of main program)
 
-  static void sigintFn(ZmFn<> fn) { instance()->m_sigintFn = fn; }
-  static ZmFn<> sigintFn() { return instance()->m_sigintFn; }
+  static void trap();
 
-  static void sighupFn(ZmFn<> fn) { instance()->m_sighupFn = fn; }
-  static ZmFn<> sighupFn() { return instance()->m_sighupFn; }
+  // registering signal handlers is intentionally not MT-safe
 
-  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmTrap *);
+  typedef void (*Fn)();
 
-private:
-  static ZmTrap *instance();
+  static void sigintFn(Fn fn);
+  static Fn sigintFn();
 
-  void trap_();
+  static void sighupFn(Fn fn);
+  static Fn sighupFn();
 
-  ZmFn<>	m_sigintFn;
-  ZmFn<>	m_sighupFn;
+  // last-ditch error logging
+
+  static void log(ZuString s);
+#ifdef _WIN32
+  static void winProgram(ZuString s);
+  static void winErrlog(int type, ZuString s);	// Windows error logging
+#endif
 };
 
 #ifdef _MSC_VER

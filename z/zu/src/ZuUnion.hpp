@@ -17,11 +17,11 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// generic discriminated union with different trade-offs than std::variant
+// generic discriminated union; different design trade-offs than std::variant
 // - supports void, primitive and pointer types in addition to composite types
 // - doesn't throw exceptions
 // - relies on the caller to prevent undefined behavior by checking the type
-//   before using it
+//   before using it (asserts in debug builds)
 //
 // using U = ZuUnion<int, double>;
 // U u, v;
@@ -423,18 +423,21 @@ public:
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, const Type_<I> &> p() const & {
     using T = Type<I>;
+    assert(type() == I);
     const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_u);
     return *ptr;
   }
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Type_<I> &> p() & {
     using T = Type<I>;
+    assert(type() == I);
     T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
     return *ptr;
   }
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Type_<I> &&> p() && {
     using T = Type<I>;
+    assert(type() == I);
     T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
     return ZuMv(*ptr);
   }

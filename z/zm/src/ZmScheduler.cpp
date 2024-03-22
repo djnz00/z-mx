@@ -22,6 +22,7 @@
 #include <zlib/ZuBox.hpp>
 
 #include <zlib/ZmScheduler.hpp>
+#include <zlib/ZmTrap.hpp>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -336,12 +337,7 @@ push:
     s << Zu::IOResult{status};
   else
     s << ZuBoxed(status) << " bytes remaining";
-  s << '\n';
-#ifndef _WIN32
-  std::cerr << s << std::flush;
-#else
-  MessageBoxA(0, s, "Thread Dispatch Failure", MB_ICONEXCLAMATION);
-#endif
+  ZmTrap::log(s);
   return false;
 }
 

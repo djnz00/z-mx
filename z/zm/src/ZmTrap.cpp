@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// SIGINT/SIGTERM/SIGSEGV trapping (and the Windows equivalent)
+// low-level last-ditch error logging and signal trapping
 
 #include <zlib/ZmTrap.hpp>
 
@@ -27,33 +27,43 @@
 #include <zlib/ZuStringN.hpp>
 #include <zlib/ZuBox.hpp>
 
-#include <zlib/ZmAssert.hpp>
 #include <zlib/ZmBackTrace.hpp>
-#include <zlib/ZmSingleton.hpp>
 #include <zlib/ZmTime.hpp>
 
-ZmTrap *ZmTrap::instance()
-{
-  return ZmSingleton<ZmTrap>::instance();
-}
+static ZmTrap::Fn ZmTrap_sigintFn;
+static ZmTrap::Fn ZmTrap_sighupFn;
+
+// no need for MT safety
+void ZmTrap::sigintFn(Fn fn) { ZmTrap_sigintFn = fn; }
+ZmTrap::Fn ZmTrap::sigintFn() { return ZmTrap_sigintFn; }
+
+void ZmTrap::sighupFn(Fn fn) { ZmTrap_sighupFn = fn; }
+ZmTrap::Fn ZmTrap::sighupFn() { return ZmTrap_sighupFn; }
 
 extern "C" {
 #ifndef _WIN32
+  extern void ZmTrap_sigabrt(int);
   extern void ZmTrap_sigint(int);
   extern void ZmTrap_sighup(int);
   extern void ZmTrap_sigsegv(int, siginfo_t *, void *);
 #else
+  extern void __cdecl ZmTrap_sigabrt(int);
   extern BOOL WINAPI ZmTrap_handler(DWORD event);
   extern LONG NTAPI ZmTrap_exHandler(EXCEPTION_POINTERS *exInfo);
 #endif
 };
 
-void ZmTrap::trap_()
+// trap signals, etc.
+void ZmTrap::trap()
 {
 #ifndef _WIN32
   {
     struct sigaction s;
 
+    memset(&s, 0, sizeof(struct sigaction));
+    s.sa_handler = ZmTrap_sigabrt;
+    sigemptyset(&s.sa_mask);
+    sigaction(SIGABRT, &s, 0);
     memset(&s, 0, sizeof(struct sigaction));
     s.sa_handler = ZmTrap_sigint;
     sigemptyset(&s.sa_mask);
@@ -70,6 +80,8 @@ void ZmTrap::trap_()
 #endif
   }
 #else
+  _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  signal(SIGABRT, &ZmTrap_sigabrt);
   SetConsoleCtrlHandler(&ZmTrap_handler, TRUE);
 #ifdef ZDEBUG
   AddVectoredExceptionHandler(1, &ZmTrap_exHandler);
@@ -77,36 +89,125 @@ void ZmTrap::trap_()
 #endif
 }
 
+// last-resort logging of a fatal error
+void ZmTrap::log(ZuString s)
+{
+#ifndef _WIN32
+  ::write(2, s.data(), s.length());
+#else
+  ZmTrap::winErrLog(EVENTLOG_ERROR_TYPE, s);
+#endif
+}
+
+// Windows error logging
+// - used for last-ditch error logging under Windows
+// - MessageBoxA(0, s, "Title", MB_ICONEXCLAMATION)
+//   is inappropriate for server-side mission-critical software
+// - GetStdHandle(STD_ERROR_HANDLE) causes unwanted console popups
+//   in non-console apps
+#ifdef _WIN32
+enum { ProgramSize = 64 }; // program name length
+using Program = ZuStringN<ProgramSize>;
+static Program ZmTrap_program;
+static ZmPLock ZmTrap_lock;
+
+void ZmTrap::winProgram(ZuString s)
+{
+  ZmGuard<ZmPLock> guard(ZmTrap_lock);
+  ZmTrap_program = s;
+}
+
+void ZmTrap::winErrLog(int type, ZuString s)
+{
+  // NTFS max path length - MAX_PATH is 260 and deprecated
+  enum { BufSize = 32768 };
+  using WBuf = ZuWStringN<BufSize>;
+  using Buf = ZuStringN<BufSize>;
+
+  static Name name;
+  static WBuf wbuf;
+  static Buf buf;
+  static HANDLE handle = INVALID_HANDLE_VALUE;
+
+  ZmGuard<ZmPLock> guard(ZmTrap_lock);
+
+  if (ZuUnlikely(handle == INVALID_HANDLE_VALUE))
+    handle = RegisterEventSource(0, L"EventSystem");
+
+  if (ZuUnlikely(!ZmTrap_program)) {
+    wbuf.null();
+    GetModuleFileName(0, wbuf.data(), BufSize);
+    wbuf.calcLength();
+    int i = wbuf.length();
+    while (i > 0) { if (wbuf[--i] == L'\\') break; }
+    if (i) ++i;
+    ZuString wname = wbuf;
+    wname.offset(i);
+    if (wname.length() > 64) wname.offset(wname.length() - 64);
+    auto &name = ZmTrap_program;
+    name.length(ZuUTF<char, wchar_t>::cvt(
+	  ZuArray<char>{name.data(), name.size() - 1}, wname));
+  }
+
+  buf.null();
+  buf << ZmTrap_program << " - " << s;
+
+  wbuf.null();
+  wbuf.length(ZuUTF<wchar_t, char>::cvt(
+	ZuArray<wchar_t>{wbuf.data(), wbuf.size() - 1}, buf));
+  wbuf[wbuf.length() - (wbuf.length() == wbuf.size())] = 0;
+
+  const wchar_t *w = wbuf.data();
+  ReportEvent(handle, type, 0, 512, 0, 1, 0, &w, 0);
+}
+#endif
+
+// SIGABRT handling, primarily for assertion failures
+void ZmTrap_sigabrt(int)
+{
+  static ZmAtomic<uint32_t> recursed = 0;
+  if (recursed.cmpXch(1, 0)) return;
+#ifndef _WIN32
+  {
+    struct sigaction s;
+
+    memset(&s, 0, sizeof(struct sigaction));
+    s.sa_flags = 0;
+    s.sa_sigaction =
+      reinterpret_cast<void (*)(int, siginfo_t *, void *)>(SIG_DFL);
+    sigemptyset(&s.sa_mask);
+    sigaction(SIGSEGV, &s, 0);
+  }
+#else
+  signal(SIGABRT, SIG_DFL);
+#endif
+  ZmBackTrace bt;
+  bt.capture(1);
+  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  buf << "SIGABRT\n" << bt;
+  ZmTrap::log(buf);
+}
+
+// CTRL-C and disconnect/logout handling
 #ifndef _WIN32
 void ZmTrap_sigint(int)
 {
-  ZmFn<> sigintFn = ZmTrap::sigintFn();
-
-  if (sigintFn) sigintFn();
+  if (auto fn = ZmTrap_sigintFn) fn();
 }
 
 void ZmTrap_sighup(int)
 {
-  ZmFn<> sighupFn = ZmTrap::sighupFn();
-
-  if (sighupFn) sighupFn();
+  if (auto fn = ZmTrap_sighupFn) fn();
 }
 #else
 BOOL WINAPI ZmTrap_handler(DWORD event)
 {
-  ZmFn<> sigintFn = ZmTrap::sigintFn();
-
-  if (sigintFn) sigintFn();
+  if (auto fn = ZmTrap_sigintFn) fn();
   return TRUE;
 }
 #endif
 
-void ZmTrap_sleep()
-{
-  Zm::sleep(1);
-}
-
-#ifdef ZDEBUG
+// SEGV handling
 #ifndef _WIN32
 void ZmTrap_sigsegv(int s, siginfo_t *si, void *c)
 {
@@ -117,23 +218,16 @@ void ZmTrap_sigsegv(int s, siginfo_t *si, void *c)
 
     memset(&s, 0, sizeof(struct sigaction));
     s.sa_flags = 0;
-    s.sa_sigaction = (void (*)(int, siginfo_t *, void *))SIG_DFL;
+    s.sa_sigaction =
+      reinterpret_cast<void (*)(int, siginfo_t *, void *)>(SIG_DFL);
     sigemptyset(&s.sa_mask);
     sigaction(SIGSEGV, &s, 0);
   }
   ZmBackTrace bt;
   bt.capture(1);
-  write(2, "SIGSEGV @", 10);
-  {
-    ZuStringN<32> buf;
-    buf << "0x" << ZuBoxPtr(si->si_addr).hex() << '\n';
-    write(2, buf.data(), buf.length());
-  }
-  {
-    ZuStringN<ZmBackTrace_BUFSIZ> buf;
-    buf << bt;
-    write(2, buf.data(), buf.length());
-  }
+  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  buf << "SIGSEGV @0x" << ZuBoxPtr(si->si_addr).hex() << '\n' << bt;
+  ZmTrap::log(buf);
 }
 #else
 LONG NTAPI ZmTrap_exHandler(EXCEPTION_POINTERS *exInfo)
@@ -144,16 +238,9 @@ LONG NTAPI ZmTrap_exHandler(EXCEPTION_POINTERS *exInfo)
     return EXCEPTION_CONTINUE_SEARCH;
   ZmBackTrace bt;
   bt.capture(exInfo, 0);
-  HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-  DWORD r;
-  WriteConsoleA(h, "SIGSEGV\n", 8, &r, 0);
-  {
-    ZuStringN<32736> buf;
-    buf << bt;
-    WriteConsoleA(h, buf.data(), buf.length(), &r, 0);
-  }
-  WriteConsoleA(h, "\n", 1, &r, 0);
+  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  buf << "SIGSEGV\n" << bt;
+  ZmTrap::log(buf);
   return EXCEPTION_CONTINUE_SEARCH;
 }
 #endif
-#endif /* ZDEBUG */

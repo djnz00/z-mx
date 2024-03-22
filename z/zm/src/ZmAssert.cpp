@@ -19,30 +19,20 @@
 
 // assertions
 
+#include <stdio.h>
+#include <assert.h>
+
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuStringN.hpp>
 
 #include <zlib/ZmAssert.hpp>
-
 #include <zlib/ZmPlatform.hpp>
 #include <zlib/ZmTime.hpp>
-
-#include <stdio.h>
+#include <zlib/ZmTrap.hpp>
 
 #ifdef _WIN32
 #define snprintf _snprintf
 #endif
-
-// attaching debuggers can breakpoint on this function
-void ZmAssert_sleep()
-{
-  Zm::sleep(1);
-}
-
-void ZmAssert_failed()
-{
-  for (;;) ZmAssert_sleep();
-}
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -61,12 +51,8 @@ void ZmAssert_fail(
     buf << '"' << file << "\":" << line <<
       " Assertion '" << expr << "' failed.";
 
-#ifndef _WIN32
-  std::cerr << buf << std::flush;
-#else
-  MessageBoxA(0, buf, "Assertion Failure", MB_ICONEXCLAMATION);
-#endif
-  ZmAssert_failed();
+  ZmTrap::log(buf);
+  ::abort();
 }
 
 #ifdef _MSC_VER

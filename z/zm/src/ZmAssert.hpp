@@ -40,7 +40,6 @@ extern "C" {
   ZmExtern void ZmAssert_fail(
       const char *expr, const char *file, unsigned line, const char *fn);
   ZmExtern void ZmAssert_failed();
-  ZmExtern void ZmAssert_sleep();
 }
 
 #ifdef NDEBUG

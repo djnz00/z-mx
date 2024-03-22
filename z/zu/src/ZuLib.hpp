@@ -26,6 +26,8 @@
 #pragma once
 #endif
 
+#include <assert.h>
+
 #ifdef _WIN32
 
 #ifndef WINVER
