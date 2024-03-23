@@ -88,12 +88,14 @@ void ZmTrap::trap()
 #endif
 }
 
-// last-resort logging of a fatal error
+// last-ditch logging of a fatal error
 void ZmTrap::log(ZuString s)
 {
 #ifndef _WIN32
   ::write(2, s.data(), s.length());
 #else
+  unsigned n = s.length();
+  if (n && s[n - 1] == '\n') s.trunc(n - 1);
   ZmTrap::winErrLog(EVENTLOG_ERROR_TYPE, s);
 #endif
 }

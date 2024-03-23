@@ -46,10 +46,10 @@ void ZmAssert_fail(
 
   if (fn)
     buf << '"' << file << "\":" << line <<
-      ' ' << fn << " Assertion '" << expr << "' failed.";
+      ' ' << fn << " Assertion '" << expr << "' failed";
   else
     buf << '"' << file << "\":" << line <<
-      " Assertion '" << expr << "' failed.";
+      " Assertion '" << expr << "' failed";
 
   ZmTrap::log(buf);
   ::abort();

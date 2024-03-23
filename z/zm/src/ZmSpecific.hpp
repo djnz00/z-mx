@@ -18,10 +18,14 @@
  */
 
 // TLS with
+// * explicit scope control
 // * deterministic destruction sequencing
 // * iteration over all instances
 //   (the iterating thread gains access to other threads' instances)
-// * instance consolidation on Windows with DLLs
+// * guaranteed safe destruction on both Linux and Windows (mingw64)
+// * instance consolidation on Windows with multiple modules (DLLs),
+//   including DLLs delay-loaded via LoadLibrary()
+// * no false-positive memory leaks at exit
 
 // ZmSpecific resolves the following problems:
 // * interdependence of thread-local instances where one type requires
@@ -29,34 +33,34 @@
 //   (destruction timing is not explictly controllable using thread_local)
 // * needing to iterate over all thread-local instances from other threads
 //   for statistics gathering, telemetry or other purposes
-// * Windows DLLs not sharing TLS, resulting in multiple conflicting
+// * Windows DLL TLS complexity resulting in multiple conflicting
 //   instances of the same type within the same thread when multiple modules
 //   reference the declaration at compile-time
 
 // performance - normal run-time ZmSpecific::instance() calls are lock-free
-// and equivalent to thread_local with one additional pointer dereference;
-// object construction/destruction involves global lock acquisition and
-// updates to a type-specific linked list (for iteration), and a
-// module-specific linked list (for cleanup on Win32 only)
+// and equivalent to thread_local; object construction/destruction involves
+// global lock acquisition and updates to a type-specific linked list
+// (for iteration), and a module-specific linked list (for cleanup on
+// Win32 only)
 
-// ZmSpecific<T>::instance() returns T * pointer
+// ZmSpecific<T>::instance() returns T * pointer, unique per-thread per-T
 //
 // ZmSpecific<T>::all(ZmFn<T *> fn) calls fn for all instances of T
 //
-// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuUnsigned<N>
+// ZmCleanupLevel(ZuDeclVal<T *>()) returns ZuUnsigned<N>
 // where N determines order of destruction (per ZmCleanup enum)
 //
 // ZmSpecific<T, false>::instance() can return null since T will not be
 // constructed on-demand - use ZmSpecific<T, false>::instance(new T(...))
 //
-// void foo() { thread_local T v; ... }		// can be replaced with:
-// auto &v = *ZmSpecific<T>::instance();	// T instance shared globally, specific to thread
+// auto &v = *ZmSpecific<T>::instance();	// 
 //
 // ... or using ZmTLS, T does not need to be ZmObject derived:
 //
-// auto &v = ZmTLS<T>();			// T instance shared globally, specific to thread
-// auto &v = ZmTLS<T, foo>();			// T instance specific to foo() and thread
-// auto &v = ZmTLS([]{ return T{}; });		// T instance specific to lambda and thread
+// void foo() { thread_local T v; ... }	// can be replaced with:
+// auto &v = ZmTLS<T>();		// TLS T shared globally
+// auto &v = ZmTLS<T, foo>();		// TLS T scoped to foo()
+// auto &v = ZmTLS([]{ return T{}; });	// TLS T scoped to lambda
 //
 // thread_local T v{args...}; can be replaced with:
 // auto &v = ZmTLS([]{ return T{args...}; });
@@ -131,6 +135,7 @@ struct ZmAPI ZmSpecific_Object {
 };
 
 #ifndef _WIN32
+// pthreads uses built-in cleanup on thread exit
 template <typename O = ZmSpecific_Object>
 struct ZmSpecific_Allocator {
   pthread_key_t	key;
@@ -260,6 +265,8 @@ public:
 	objects[j] = o;
 
 #ifdef _WIN32
+    // on Windows, there may be multiple Object instances pointing to
+    // the same underlying T
     qsort(objects, n, sizeof(Object *),
 	[](const void *o1, const void *o2) -> int {
 	  return ZuCmp<Zm::ThreadID>::cmp(
@@ -448,14 +455,14 @@ public:
   static void all(L l) { return global()->all_(ZuMv(l)); }
 };
 
-// pass a function as the second parameter to discriminate
+// pass a function as the second parameter to limit scope
 template <typename T, auto> struct ZmTLS_ : public ZmObject {
   T v = {};
   ZmTLS_() = default;
   template <typename U> ZmTLS_(U &&v_) : v{ZuFwd<U>(v_)} { }
 };
 
-// lambdas are inherently discriminated
+// lambdas are inherently scoped to their declaration/definition
 template <typename L>
 inline auto &ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
   using T = ZuDecay<decltype(ZuDeclVal<ZuLambdaReturn<L>>())>;
@@ -464,9 +471,9 @@ inline auto &ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
   return ZmSpecific<Object, true, ZuInvokeFn(m)>::instance()->v;
 }
 
-template <typename T, auto Anchor = nullptr>
+template <typename T, auto Scope = nullptr>
 inline auto &ZmTLS() {
-  return ZmSpecific<ZmTLS_<T, Anchor>>::instance()->v;
+  return ZmSpecific<ZmTLS_<T, Scope>>::instance()->v;
 }
 
 #endif /* ZmSpecific_HPP */
