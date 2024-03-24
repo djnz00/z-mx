@@ -45,6 +45,7 @@
 
 #include <zlib/ZtArray.hpp>
 #include <zlib/ZtString.hpp>
+#include <zlib/ZtScanBool.hpp>
 #include <zlib/ZtField.hpp>
 
 #include <zlib/ZiFile.hpp>
@@ -290,18 +291,11 @@ inline bool scanBool(
     if constexpr (Required_) throw Required{cf, key};
     return deflt;
   }
-  using Cmp = ZuICmp<ZuString>;
-  if (value == "1" ||
-      Cmp::equals(value, "y") ||
-      Cmp::equals(value, "yes") ||
-      Cmp::equals(value, "true"))
-    return true;
-  if (value == "0" ||
-      Cmp::equals(value, "n") ||
-      Cmp::equals(value, "no") ||
-      Cmp::equals(value, "false"))
-    return false;
-  throw BadBool{key, value};
+  try {
+    return ZtScanBool<true>(value);
+  } catch (...) {
+    throw BadBool{key, value};
+  }
 }
 
 // scan generic scalar

@@ -6,7 +6,7 @@ AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 pkginclude_HEADERS = \
 	ZtArray.hpp ZtBitWindow.hpp ZtDate.hpp \
 	ZtEnum.hpp ZtIconv.hpp ZtLib.hpp ZtPlatform.hpp \
-	ZtRegex.hpp ZtString.hpp ZtWindow.hpp ZtField.hpp
+	ZtRegex.hpp ZtString.hpp ZtWindow.hpp ZtField.hpp ZtScanBool.hpp
 lib_LTLIBRARIES = libZt.la
 libZt_la_SOURCES = \
 	ZtDate.cpp ZtLib.cpp ZtRegex.cpp ZtString.cpp

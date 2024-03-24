@@ -24,7 +24,7 @@ struct Nested {
 ZtFields(Nested, (((i1)), (Int), (Ctor<0>)), (((i2)), (Int), (Ctor<1>)));
 
 struct Foo {
-  const char *string;
+  const char *string = nullptr;
   ZtArray<uint8_t> bytes;
   ZuID id;
   int int_;
@@ -90,9 +90,11 @@ int main()
   auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
     using ZtFieldTypeCode::Flags;
-    const void *ptr = field.constant(constant);
-    ZmStream s_{s};
-    field.type->print(ptr, s_, fmt);
+    auto i = ZtMField::cindex(constant);
+    ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,
+	[&s, i, &field, &fmt](auto Code) {
+      field.constant.print<Code>(s, i, &field, fmt);
+    });
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {
     std::cout << fields[i]->id;
@@ -107,7 +109,7 @@ int main()
 	std::cout << " flags=" << type->info.flags()->id();
 	break;
       case UDT:
-	std::cout << " udt=" << ZmDemangle{type->info.udt->name()};
+	std::cout << " udt=" << ZmDemangle{type->info.udt()->info->name()};
 	break;
     }
     std::cout << " deflt=";

@@ -54,6 +54,9 @@ class ZtIconv {
   ZtIconv(const ZtIconv &);
   ZtIconv &operator =(const ZtIconv &);		// prevent mis-use
 
+  // the required output buffer size is over-estimated using a multiplier
+  constexpr double factor() { return 1.1; }	// add 10%
+
   // different iconv libraries have inconsistent types for iconv()'s inbuf
   // parameter - insulate ourselves accordingly
   class IconvTraits {
@@ -97,8 +100,8 @@ public:
       if (ZuUnlikely(inLen >= inSize)) inLen = 0;
       double ratio = (double)(outSize - outLen) / (double)(inSize - inLen);
       if (ZuUnlikely(ratio < 1.0)) ratio = 1.0;
-      size_t newOutSize = (size_t)(ratio * 1.1 * (double)inSize);
-      size_t minOutSize = (size_t)((double)outSize * 1.1);
+      size_t newOutSize = (size_t)(ratio * factor() * (double)inSize);
+      size_t minOutSize = (size_t)((double)outSize * factor());
       if (ZuUnlikely(newOutSize < minOutSize)) newOutSize = minOutSize;
       newOutSize = ZtIconvFn<Out>::length(out, newOutSize);
       if (ZuUnlikely(newOutSize <= minOutSize)) {

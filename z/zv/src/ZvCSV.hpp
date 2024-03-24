@@ -60,7 +60,9 @@
 namespace ZvCSV_ {
   ZvExtern void split(ZuString row, ZtArray<ZtArray<char>> &a);
 
-  template <typename Row> void quote_(Row &row, ZuString s) {
+  // CSV string quoting
+  template <typename Row>
+  inline void quote__(Row &row, ZuString s) {
     row << '"';
     for (unsigned i = 0, n = s.length(); i < n; i++) {
       char c = s[i];
@@ -69,25 +71,53 @@ namespace ZvCSV_ {
     }
     row << '"';
   }
-  template <typename T, typename Fmt, typename Row>
-  void quote(Row &row, const ZtMField *field, const T *object, const Fmt &fmt) {
-    switch (field->type->code) {
-      case ZtFieldTypeCode::String: {
-	quote_(row, field->get.fn<ZtFieldTypeCode::String>(object));
-      } break;
-      case ZtFieldTypeCode::UDT:
-      case ZtFieldTypeCode::Enum:
-      case ZtFieldTypeCode::Flags: {
-	ZtString s_;
-	ZmStream s{s_};
-	field->type->print(object, s, fmt);
-	quote_(row, s_);
-      } break;
-      default: {
-	ZmStream s{row};
-	field->type->print(object, s, fmt);
-      } break;
-    }
+  // use built-in printing as-is
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code != ZtFieldTypeCode::CString &&
+	Code != ZtFieldTypeCode::String &&
+	Code != ZtFieldTypeCode::UDT &&
+	Code != ZtFieldTypeCode::Enum &&
+	Code != ZtFieldTypeCode::Flags>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldFmt &fmt) {
+    ZmStream s{row};
+    field->get.print<Code>(s, object, field, fmt);
+  }
+  // get strings without quoting, then quote for CSV
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::CString ||
+	Code == ZtFieldTypeCode::String>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldFmt &fmt) {
+    quote__(row, field->get.get<Code>(object));
+  }
+  // use the built-in print function, but quote for CSV
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::UDT ||
+	Code == ZtFieldTypeCode::Enum ||
+	Code == ZtFieldTypeCode::Flags>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldFmt &fmt) {
+    ZtString s;
+    field->get.print<Code>(s, object, field, fmt);
+    quote__(row, ZuMv(s));
+  }
+  // entry point for quoting values to be written
+  template <typename Row, typename T>
+  inline void quote(Row &row,
+      const T *object,
+      const ZtMField *field,
+      const ZtFieldFmt &fmt) {
+    ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
+	[&row, object, field, &fmt](auto Code) {
+      quote_<Code>(row, object, field, fmt);
+    });
   }
 }
 
@@ -182,13 +212,24 @@ private:
     unsigned m = colIndex.length();
     for (unsigned i = 0; i < m; i++) {
       int j;
-      if ((j = colIndex[i]) < 0 || j >= (int)n)
-        m_fields[i]->type->scan(object, ZuString{}, fmt);
+      if ((j = colIndex[i]) < 0 || j >= static_cast<int>(n)) {
+	auto field = m_fields[i];
+	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
+	    [object, field, &fmt](auto Code) {
+	  field->set.scan<Code>(object, ZuString{}, field, fmt);
+	});
+      }
     }
     for (unsigned i = 0; i < m; i++) {
       int j;
-      if ((j = colIndex[i]) >= 0 && j < (int)n)
-        m_fields[i]->type->scan(object, a[j], fmt);
+      if ((j = colIndex[i]) >= 0 && j < static_cast<int>(n)) {
+	ZuString s = a[j];
+	auto field = m_fields[i];
+	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
+	    [object, &s, field, &fmt](auto Code) {
+	  field->set.scan<Code>(object, s, field, fmt);
+	});
+      }
     }
   }
 
@@ -299,7 +340,7 @@ public:
       row->length(0);
       for (unsigned i = 0, n = colArray.length(); i < n; i++) {
 	if (ZuLikely(i)) *row << ',';
-	ZvCSV_::quote(*row, colArray[i], object, fmt);
+	ZvCSV_::quote(*row, object, colArray[i], fmt);
       }
       *row << '\n';
       fwrite(row->data(), 1, row->length(), file);
@@ -329,7 +370,7 @@ public:
       row->length(0);
       for (unsigned i = 0, n = colArray.length(); i < n; i++) {
 	if (ZuLikely(i)) *row << ',';
-	ZvCSV_::quote(*row, colArray[i], object, fmt);
+	ZvCSV_::quote(*row, object, colArray[i], fmt);
       }
       *row << '\n';
       data << *row;
