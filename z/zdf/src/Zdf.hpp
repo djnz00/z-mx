@@ -312,22 +312,22 @@ public:
 	if (i || field) {
 	  switch (field->type->code) {
 	    case Int:
-	      v = {field->get.fn<Int>(ptr), 0};
+	      v = {field->get.get<Int>(ptr), 0};
 	      break;
 	    case UInt:
-	      v = {field->get.fn<UInt>(ptr), 0};
+	      v = {field->get.get<UInt>(ptr), 0};
 	      break;
 	    case Enum:
-	      v = {field->get.fn<Enum>(ptr), 0};
+	      v = {field->get.get<Enum>(ptr), 0};
 	      break;
 	    case Fixed:
-	      v = field->get.fn<Fixed>(ptr);
+	      v = field->get.get<Fixed>(ptr);
 	      break;
 	    case Decimal:
-	      v = field->get.fn<Decimal>(ptr);
+	      v = field->get.get<Decimal>(ptr);
 	      break;
 	    case Time:
-	      v = m_df->nsecs(field->get.fn<Time>(ptr));
+	      v = m_df->nsecs(field->get.get<Time>(ptr));
 	      break;
 	    default:
 	      v = ZuFixed{0, 0};
