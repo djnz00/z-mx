@@ -152,7 +152,7 @@ void Env::init(
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
       Store_::InitResult result = m_store->init(
 	  m_cf.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
-      if (result.contains<Event>()) throw ZuMv(result).v<Event>();
+      if (result.is<Event>()) throw ZuMv(result).v<Event>();
       m_repStore = result.v<Store_::InitData>().replicated;
     }
 
@@ -1016,7 +1016,7 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
 
   m_table->recover(un,
       [cxn = ZuMv(cxn), endUN](DB *db, UN un, RecoverResult result) mutable {
-    if (ZuLikely(result.contains<RecoverData>())) {
+    if (ZuLikely(result.is<RecoverData>())) {
       const auto &data = result.v<RecoverData>();
       if (ZmRef<AnyObject> object =
 	db->m_handler.importFn(db, data.import_)) {
@@ -1031,7 +1031,7 @@ void DB::recSendGet(ZmRef<Cxn> cxn, UN un, UN endUN)
       }
       return;
     }
-    if (ZuUnlikely(result.contains<Event>())) {
+    if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).v<Event>());
       ZeLOG(Error, ([id = db->id(), un](auto &s) {
 	s << "Zdb recovery of " << id << '/' << un << " failed";
@@ -1474,7 +1474,7 @@ ZmRef<AnyObject> DB::load_(const fbs::Record *record)
   if (!data) return nullptr;
   ZmRef<AnyObject> object;
   if (auto fn = m_handler.loadFn)
-    object = fn(this, data.data(), data.length());
+    object = fn(this, data);
   if (object)
     object->init(
 	record->rn(), record->un(),
@@ -1492,11 +1492,9 @@ ZmRef<AnyObject> DB::load(const fbs::Record *record)
   }
   ZmRef<AnyObject> object;
   if (object = m_cache.find(record->rn())) {
-    if (auto fn = m_handler.updateFn)
-      object = fn(object, data.data(), data.length());
+    if (auto fn = m_handler.updateFn) object = fn(object, data);
   } else {
-    if (auto fn = m_handler.loadFn)
-      object = fn(this, data.data(), data.length());
+    if (auto fn = m_handler.loadFn) object = fn(this, data);
   }
   if (object)
     object->init(
@@ -1622,7 +1620,7 @@ void DB::committed(UN un, Table_::CommitResult &result)
 {
   ZmAssert(invoked());
 
-  if (ZuUnlikely(result.contains<Event>())) {
+  if (ZuUnlikely(result.is<Event>())) {
     ZeLogEvent(ZuMv(result).v<Event>());
     run([this, un]() {
       if (auto buf = findBufUN(un)) {
@@ -1675,8 +1673,8 @@ bool DB::opened(Store_::OpenResult result)
 
   using namespace Store_;
 
-  if (!result.contains<OpenData>()) {
-    if (result.contains<Event>())
+  if (!result.is<OpenData>()) {
+    if (result.is<Event>())
       ZeLogEvent(ZuMv(result).v<Event>());
     return false;
   }

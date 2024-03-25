@@ -272,9 +272,22 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
   ZeEvent(
       int severity_,
       const char *file_, int line_,
-      const char *function_, L_ &&l_) :
+      const char *function_, L_ l_,
+      decltype(
+	ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()), void()) *_ = nullptr) :
     ZeAnyEvent(severity_, file_, line_, function_),
-    l{ZuFwd<L_>(l_)} { }
+    l{[l_ = ZuMv(l_)](auto &s, const auto &) mutable { l_(s); }} { }
+  template <typename L_>
+  ZeEvent(
+      int severity_,
+      const char *file_, int line_,
+      const char *function_, L_ l_,
+      decltype(
+	ZuDeclVal<L_ &>()(
+	  ZuDeclVal<ZeLogBuf &>(), ZuDeclVal<const ZeEventInfo &>()),
+	void()) *_ = nullptr) :
+    ZeAnyEvent(severity_, file_, line_, function_),
+    l{ZuMv(l_)} { }
 
   template <typename S>
   friend S &operator <<(S &s, const ZeEvent &e) { e.l(s, e); return s; }

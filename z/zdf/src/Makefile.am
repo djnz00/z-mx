@@ -15,8 +15,9 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZdfLib.hpp \
-	ZdfCompress.hpp ZdfBuf.hpp ZdfMgr.hpp \
-	ZdfSeries.hpp ZdfMem.hpp ZdfFile.hpp Zdf.hpp ZdfStats.hpp \
+	ZdfTypes.hpp ZdfCompress.hpp ZdfBuf.hpp \
+	ZdfStore.hpp ZdfMockStore.hpp ZdfFileStore.hpp \
+	Zdf.hpp ZdfSeries.hpp ZdfStats.hpp \
 	${FBS_H} \
 	stats_tree.hpp
 #fbsdir = $(datarootdir)/${PACKAGE}/fbs
@@ -24,7 +25,7 @@ pkginclude_HEADERS = ZdfLib.hpp \
 lib_LTLIBRARIES = libZdf.la
 libZdf_la_LDFLAGS = @Z_SO_LDFLAGS@
 libZdf_la_SOURCES = ZdfLib.cpp \
-	ZdfBuf.cpp ZdfMgr.cpp ZdfMem.cpp ZdfFile.cpp Zdf.cpp
+	Zdf.cpp ZdfBuf.cpp ZdfStore.cpp ZdfMockStore.cpp ZdfFileStore.cpp
 libZdf_la_LIBADD = \
 	$(top_builddir)/zv/src/libZv.la \
 	$(top_builddir)/zfb/src/libZfb.la \

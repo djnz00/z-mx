@@ -19,7 +19,7 @@
 
 // Data Series File I/O
 
-#include <zlib/ZdfFile.hpp>
+#include <zlib/ZdfFileStore.hpp>
 
 #include <zlib/ZtRegex.hpp>
 
@@ -27,11 +27,11 @@
 
 #include <zlib/ZiDir.hpp>
 
-using namespace Zdf;
+using namespace ZdfFileStore;
 
-void FileMgr::init(ZmScheduler *sched, const ZvCf *cf)
+void FileStore_::init(ZmScheduler *sched, const ZvCf *cf)
 {
-  FileMgr::Config config{cf};
+  FileStore_::Config config{cf};
   BufMgr::init(config.maxBufs);
   m_sched = sched;
   m_dir = config.dir;
@@ -39,21 +39,21 @@ void FileMgr::init(ZmScheduler *sched, const ZvCf *cf)
   m_sid = sched->sid(config.thread);
   if (!m_sid || m_sid > sched->params().nThreads())
     throw ZtString{} <<
-      "Zdf::FileMgr thread misconfigured: " <<
+      "ZdfFileStore thread misconfigured: " <<
       config.thread;
   m_files = new FileHash{};
   m_maxFileSize = config.maxFileSize;
   m_maxOpenFiles = m_files->size();
 }
 
-void FileMgr::final()
+void FileStore_::final()
 {
   m_lru.clean();
   m_files->clean();
-  Mgr::final();
+  Store::final();
 }
 
-bool FileMgr::open(
+void FileStore_::open(
     unsigned seriesID, ZuString parent, ZuString name, OpenFn openFn)
 {
   ZiFile::Path path = ZiFile::append(m_dir, parent);
@@ -66,8 +66,12 @@ bool FileMgr::open(
   ZiDir dir;
   {
     ZeError e;
-    if (dir.open(path, &e) != Zi::OK)
-      return e.errNo() == ZiENOENT;
+    if (dir.open(path, &e) != Zi::OK) {
+      openFn(ZeMEVENT(Error, ([path, e](auto &s) {
+	s << "ZiDir::open(\"" << path << "\") failed: " << e;
+      })));
+      return;
+    }
   }
   ZiDir::Path fileName;
   unsigned minIndex = UINT_MAX;
@@ -95,11 +99,11 @@ bool FileMgr::open(
   }
   if (minIndex == UINT_MAX) minIndex = 0;
   m_series[seriesID].minFileIndex = minIndex;
-  openFn(minIndex * m_series[seriesID].fileBlks);
-  return true;
+  unsigned blkOffset = minIndex * m_series[seriesID].fileBlks;
+  openFn(OpenData{.blkOffset = blkOffset});
 }
 
-void FileMgr::close(unsigned seriesID)
+void FileStore_::close(unsigned seriesID, CloseFn closeFn)
 {
   auto i = m_lru.iterator();
   ZmRef<File> fileRef; // need to keep ref count +ve during loop iteration
@@ -109,9 +113,10 @@ void FileMgr::close(unsigned seriesID)
       fileRef = m_files->del(file->id); // see above comment
     }
   }
+  closeFn(CloseResult{});
 }
 
-ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
+ZmRef<File> FileStore_::getFile(const FileID &fileID, bool create)
 {
   ++m_fileLoads;
   ZmRef<File> file;
@@ -131,7 +136,7 @@ ZmRef<File> FileMgr::getFile(const FileID &fileID, bool create)
   return file;
 }
 
-ZmRef<File> FileMgr::openFile(const FileID &fileID, bool create)
+ZmRef<File> FileStore_::openFile(const FileID &fileID, bool create)
 {
   ZmRef<File> file = new File{fileID};
   unsigned fileSize = m_series[fileID.seriesID()].fileSize();
@@ -146,7 +151,7 @@ retry:
 	0666, fileSize, &e) != Zi::OK) {
     if (retried) {
       ZeLOG(Error, ([path, e](auto &s) {
-	s << "Zdf::FileMgr could not open or create \""
+	s << "ZdfFileStore could not open or create \""
 	  << path << "\": " << e;
       }));
       return nullptr; 
@@ -160,7 +165,7 @@ retry:
   return file;
 }
 
-void FileMgr::archiveFile(const FileID &fileID)
+void FileStore_::archiveFile(const FileID &fileID)
 {
   ZiFile::Path name = fileName(fileID);
   ZiFile::Path coldName = ZiFile::append(m_coldDir, name);
@@ -168,13 +173,13 @@ void FileMgr::archiveFile(const FileID &fileID)
   ZeError e;
   if (ZiFile::rename(name, coldName, &e) != Zi::OK) {
     ZeLOG(Error, ([name, coldName, e](auto &s) {
-      s << "Zdf::FileMgr could not rename \"" << name << "\" to \""
+      s << "ZdfFileStore could not rename \"" << name << "\" to \""
 	<< coldName << "\": " << e;
     }));
   }
 }
 
-bool FileMgr::loadHdr(unsigned seriesID, unsigned blkIndex, Hdr &hdr)
+bool FileStore_::loadHdr(unsigned seriesID, unsigned blkIndex, Hdr &hdr)
 {
   int r;
   ZeError e;
@@ -190,7 +195,7 @@ bool FileMgr::loadHdr(unsigned seriesID, unsigned blkIndex, Hdr &hdr)
   return true;
 }
 
-bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
+bool FileStore_::load(unsigned seriesID, unsigned blkIndex, void *buf)
 {
   int r;
   ZeError e;
@@ -206,22 +211,22 @@ bool FileMgr::load(unsigned seriesID, unsigned blkIndex, void *buf)
   return true;
 }
 
-void FileMgr::save(ZmRef<Buf> buf)
+void FileStore_::save(ZmRef<Buf> buf)
 {
   auto buf_ = buf.ptr();
   buf_->save([buf = ZuMv(buf)]() {
-    auto self = static_cast<FileMgr *>(buf->mgr);
-    self->run([buf = ZuMv(buf)]() mutable {
+    auto this_ = static_cast<FileStore *>(buf->mgr);
+    this_->run([buf = ZuMv(buf)]() mutable {
       auto buf_ = buf.ptr();
       buf_->save_([buf = ZuMv(buf)]() {
-	auto self = static_cast<FileMgr *>(buf->mgr);
-	self->save_(buf->seriesID, buf->blkIndex, buf->data());
+	auto this_ = static_cast<FileStore *>(buf->mgr);
+	this_->save_(buf->seriesID, buf->blkIndex, buf->data());
       });
     });
   });
 }
 
-void FileMgr::save_(unsigned seriesID, unsigned blkIndex, const void *buf)
+void FileStore_::save_(unsigned seriesID, unsigned blkIndex, const void *buf)
 {
   int r;
   ZeError e;
@@ -234,7 +239,7 @@ void FileMgr::save_(unsigned seriesID, unsigned blkIndex, const void *buf)
     fileWrError_(fileID, pos.offset(), e);
 }
 
-void FileMgr::purge(unsigned seriesID, unsigned blkIndex)
+void FileStore_::purge(unsigned seriesID, unsigned blkIndex)
 {
   BufMgr::purge(seriesID, blkIndex);
   FilePos pos = this->pos(seriesID, blkIndex);
@@ -255,45 +260,60 @@ void FileMgr::purge(unsigned seriesID, unsigned blkIndex)
   m_series[seriesID].minFileIndex = pos.index();
 }
 
-bool FileMgr::loadFile(
-  ZuString name_, Zfb::Load::LoadFn loadFn,
-  unsigned maxFileSize, ZeError *e)
+void FileStore_::loadDF(
+  ZuString name_, Zfb::Load::LoadFn fbLoadFn,
+  unsigned maxFileSize, LoadFn loadFn)
 {
   ZiFile::Path name{name_};
   name += ZiFile::Path{".df"};
   ZiFile::Path path = ZiFile::append(m_dir, name);
-  return Zfb::Load::load(path, ZuMv(loadFn), maxFileSize, e) == Zi::OK;
+  ZeError e;
+  if (Zfb::Load::load(path, ZuMv(fbLoadFn), maxFileSize, &e) != Zi::OK) {
+    if (e.errNo() == ZiENOENT)
+      loadFn(LoadResult{});
+    else
+      loadFn(LoadResult{ZeMEVENT(Error, ([path, e](auto &s) {
+	s << "Zfb::Load::load(\"" << path << "\") failed: " << e;
+      }))});
+  } else
+    loadFn(LoadResult{LoadData{}});
 }
 
-bool FileMgr::saveFile(ZuString name_, Zfb::Builder &fbb, ZeError *e)
+void FileStore_::saveDF(ZuString name_, Zfb::Builder &fbb, SaveFn saveFn)
 {
   ZiFile::Path name{name_};
   name += ZiFile::Path{".df"};
   ZiFile::Path path = ZiFile::append(m_dir, name);
-  return Zfb::Save::save(path, fbb, 0666, e) == Zi::OK;
+  ZeError e;
+  if (Zfb::Save::save(path, fbb, 0666, &e) != Zi::OK)
+    saveFn(SaveResult{ZeMEVENT(Error, ([path, e](auto &s) {
+      s << "Zfb::Save::save(\"" << path << "\") failed: " << e;
+    }))});
+  else
+    saveFn(SaveResult{});
 }
 
-void FileMgr::fileRdError_(
+void FileStore_::fileRdError_(
   const FileID &fileID, ZiFile::Offset off, int r, ZeError e)
 {
   if (r < 0) {
     ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) {
-      s << "Zdf::FileMgr pread() failed on \"" << name
+      s << "ZdfFileStore pread() failed on \"" << name
 	<< "\" at offset " << ZuBoxed(off) <<  ": " << e;
     }));
   } else {
     ZeLOG(Error, ([name = fileName(fileID), off](auto &s) {
-      s << "Zdf::FileMgr pread() truncated on \"" << name
+      s << "ZdfFileStore pread() truncated on \"" << name
 	<< "\" at offset " << ZuBoxed(off);
     }));
   }
 }
 
-void FileMgr::fileWrError_(
+void FileStore_::fileWrError_(
   const FileID &fileID, ZiFile::Offset off, ZeError e)
 {
   ZeLOG(Error, ([name = fileName(fileID), off, e](auto &s) {
-    s << "Zdf::FileMgr pwrite() failed on \"" << name
+    s << "ZdfFileStore pwrite() failed on \"" << name
       << "\" at offset " << ZuBoxed(off) <<  ": " << e;
   }));
 }

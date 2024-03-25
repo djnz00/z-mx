@@ -420,7 +420,7 @@ public:
   // generic get()
   template <typename T, bool Required_ = false>
   const T &get_() const { // optionally required, no specified default value
-    if (!data.contains<T>()) {
+    if (!data.is<T>()) {
       if constexpr (Required_) throw Required{owner, key};
       return ZuNullRef<T>();
     }
@@ -428,13 +428,13 @@ public:
   }
   template <typename T>
   T get_(T deflt) const { // not required, specified default value
-    if (!data.contains<T>()) return deflt;
+    if (!data.is<T>()) return deflt;
     return data.v<T>();
   }
   // generic assure() - sets to a specified default value if unset
   template <typename T, typename L>
   const T &assure_(L l) { // not required, set default if unset
-    if (!data.contains<T>()) data.v<T>(l());
+    if (!data.is<T>()) data.v<T>(l());
     return data.v<T>();
   }
 
@@ -603,12 +603,12 @@ public:
   template <typename T, typename P>
   void setElem_(unsigned i, P &&v) {
     using Elem = typename T::T;
-    if (!data.contains<T>()) new (data.init<T>()) T{};
+    if (!data.is<T>()) new (data.init<T>()) T{};
     new (data.v<T>().set(i)) Elem{ZuFwd<P>(v)};
   }
   template <typename T, bool Required_ = false>
   const typename T::T &getElem_(unsigned i) const {
-    if (!data.contains<T>()) {
+    if (!data.is<T>()) {
       if constexpr (Required_) throw Required{owner, key};
       return ZuNullRef<typename T::T>();
     }
@@ -618,14 +618,14 @@ public:
   }
   template <typename T>
   typename T::T getElem_(unsigned i, typename T::T deflt) const {
-    if (!data.contains<T>()) return deflt;
+    if (!data.is<T>()) return deflt;
     const auto &elems = data.v<T>();
     if (i >= elems.length()) return deflt;
     return elems.get(i);
   }
   template <typename T, typename L>
   const typename T::T &assureElem_(unsigned i, L l) {
-    if (!data.contains<T>()) new (data.init<T>()) T{};
+    if (!data.is<T>()) new (data.init<T>()) T{};
     if (i >= data.v<T>().length()) data.v<T>().set(i, l());
     return data.v<T>().get(i);
   }
@@ -856,12 +856,12 @@ private:
 
   template <bool Required_ = false>
   CfNode *getNode(ZuString fullKey) const {
-    auto [self, key] = getScope(fullKey);
-    if (!self) {
+    auto [this_, key] = getScope(fullKey);
+    if (!this_) {
       if constexpr (Required_) throw Required{this, fullKey};
       return nullptr;
     }
-    Node *node = self->m_tree.find(key);
+    Node *node = this_->m_tree.find(key);
     if (!node)
       if constexpr (Required_) throw Required{this, fullKey};
     return node;

@@ -37,7 +37,7 @@ int main(int argc, char **argv)
 #if 0
   for (int i = 0; i < 5; i++) {
     app.run([]{
-      std::cout << ZmThreadContext::self() << '\n' << std::flush;
+      std::cout << ZmSelf() << '\n' << std::flush;
     }, ZmTimeNow(i));
   }
   ::sleep(6);

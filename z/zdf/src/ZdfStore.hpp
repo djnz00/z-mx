@@ -19,8 +19,8 @@
 
 // Data Series Manager Interface
 
-#ifndef ZdfMgr_HPP
-#define ZdfMgr_HPP
+#ifndef ZdfStore_HPP
+#define ZdfStore_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -37,6 +37,7 @@
 
 #include <zlib/Zfb.hpp>
 
+#include <zlib/ZdfTypes.hpp>
 #include <zlib/ZdfBuf.hpp>
 
 // no need for CRTP or explicit jump tables
@@ -44,30 +45,79 @@
 
 namespace Zdf {
 
-using OpenFn = ZmFn<unsigned>;
-class ZdfAPI Mgr : public BufMgr {
+namespace Store_ {
+
+// open data
+struct OpenData {
+  unsigned	blkOffset;
+};
+// open result
+using OpenResult = ZuUnion<
+  void,			// uninitialized
+  OpenData,		// succeeded
+  Event>;		// error
+// open callback
+using OpenFn = ZmFn<OpenResult>;
+
+// close result
+using CloseResult = ZuUnion<
+  void,			// succeeded
+  Event>;		// error
+// close callback
+using CloseFn = ZmFn<CloseResult>;
+
+// load data
+struct LoadData { };	// intentionally empty
+// load result
+using LoadResult = ZuUnion<
+  void,			// missing
+  LoadData,		// succeeded
+  Event>;		// error
+// load callback
+using LoadFn = ZmFn<LoadResult>;
+
+// save result
+using SaveResult = ZuUnion<
+  void,			// succeeded
+  Event>;		// error
+// save callback
+using SaveFn = ZmFn<SaveResult>;
+
+class Interface : public BufMgr {
 public:
-  Mgr() = default;
-  ~Mgr();
+  ~Interface();
 
   virtual void init(ZmScheduler *, const ZvCf *) = 0;
-  virtual void final();
+  virtual void final(); // intentionally not pure virtual
 
-  virtual bool open(
+  // load/save data frame
+  virtual void loadDF(
+      ZuString name, Zfb::Load::LoadFn, unsigned maxFileSize, LoadFn) = 0;
+  virtual void saveDF(
+      ZuString name, Zfb::Builder &fbb, SaveFn) = 0;
+
+  // open/close series
+  virtual void open(
       unsigned seriesID, ZuString parent, ZuString name, OpenFn) = 0;
-  virtual void close(unsigned seriesID) = 0;
+  virtual void close(
+      unsigned seriesID, CloseFn) = 0;
 
+  // load/save buffers
   virtual bool loadHdr(unsigned seriesID, unsigned blkIndex, Hdr &hdr) = 0;
   virtual bool load(unsigned seriesID, unsigned blkIndex, void *buf) = 0;
   virtual void save(ZmRef<Buf>) = 0;
-
-  virtual bool loadFile(
-      ZuString name, Zfb::Load::LoadFn,
-      unsigned maxFileSize, ZeError *e = nullptr) = 0;
-  virtual bool saveFile(
-      ZuString name, Zfb::Builder &fbb, ZeError *e = nullptr) = 0;
 };
+} // Store_
+using Store = Store_::Interface;
+
+// module entry point
+typedef Store *(*StoreFn)();
 
 } // namespace Zdf
 
-#endif /* ZdfMgr_HPP */
+extern "C" {
+  typedef Zdf::StoreFn ZdfStoreFn;
+}
+#define ZdfStoreFnSym	"ZdfStore"	// module symbol
+
+#endif /* ZdfStore_HPP */

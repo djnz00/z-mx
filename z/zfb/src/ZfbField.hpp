@@ -463,9 +463,10 @@ inline const ZfbType<O> *root(const uint8_t *data) {
 }
 
 template <typename O>
-inline const ZfbType<O> *verify(const uint8_t *data, unsigned len) {
-  if (!Zfb::Verifier{data, len}.VerifyBuffer<ZfbType<O>>()) return nullptr;
-  return root<O>(data);
+inline const ZfbType<O> *verify(ZuBytes data) {
+  if (!Zfb::Verifier{&data[0], data.length()}.VerifyBuffer<ZfbType<O>>())
+    return nullptr;
+  return root<O>(&data[0]);
 }
 
 template <typename O>

@@ -545,7 +545,7 @@ Cf::getScope_(ZuString in, Cf::Defines *defines) const
   ZtRegex::Captures c;
   unsigned off = 0;
 
-  auto self = const_cast<Cf *>(this);
+  auto this_ = const_cast<Cf *>(this);
   ZtString key;
   int index = -1;
 
@@ -556,19 +556,19 @@ Cf::getScope_(ZuString in, Cf::Defines *defines) const
     index = index_;
     if (!matchDot().m(in, c, off)) break;
     off += c[1].length();
-    auto node = self->m_tree.find(key);
+    auto node = this_->m_tree.find(key);
     if (!node) goto null;
     if (index < 0) {
-      if (!node->CfNode::data.contains<ZmRef<Cf>>()) goto null;
-      self = node->get_<ZmRef<Cf>>();
+      if (!node->CfNode::data.is<ZmRef<Cf>>()) goto null;
+      this_ = node->get_<ZmRef<Cf>>();
     } else {
-      if (!node->CfNode::data.contains<CfArray>()) goto null;
-      self = node->get_<CfArray>().get(index);
+      if (!node->CfNode::data.is<CfArray>()) goto null;
+      this_ = node->get_<CfArray>().get(index);
     }
-    if (!self) goto null;
+    if (!this_) goto null;
   }
 
-  return {self, ZuMv(key), index, off};
+  return {this_, ZuMv(key), index, off};
 
 null:
   return {nullptr, ZtString{}, 0, 0U};
@@ -583,7 +583,7 @@ Cf::mkScope_(ZuString in, Cf::Defines *defines)
   ZtRegex::Captures c;
   unsigned off = 0;
 
-  Cf *self = this;
+  Cf *this_ = this;
   ZtString key;
   int index = -1;
 
@@ -594,35 +594,35 @@ Cf::mkScope_(ZuString in, Cf::Defines *defines)
     index = index_;
     if (!matchDot().m(in, c, off)) break;
     off += c[1].length();
-    auto node = self->m_tree.find(key);
-    if (!node) self->m_tree.addNode(node = new Cf::Node{self, key});
+    auto node = this_->m_tree.find(key);
+    if (!node) this_->m_tree.addNode(node = new Cf::Node{this_, key});
     if (index < 0) {
-      self = node->get_<ZmRef<Cf>>();
-      if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
+      this_ = node->get_<ZmRef<Cf>>();
+      if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
     } else {
-      self = node->getElem_<CfArray>(index);
-      if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+      this_ = node->getElem_<CfArray>(index);
+      if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
     }
   }
 
-  return {self, ZuMv(key), index, off};
+  return {this_, ZuMv(key), index, off};
 }
 
 template <unsigned Q>
 ZuTuple<Cf *, CfNode *, int, unsigned>
 Cf::mkNode_(ZuString in)
 {
-  auto [self, key, index, o] = mkScope_<Q>(in);
-  auto node = self->m_tree.find(key);
-  if (!node) self->m_tree.addNode(node = new Node{self, key});
-  return {self, ZuMv(node), index, o};
+  auto [this_, key, index, o] = mkScope_<Q>(in);
+  auto node = this_->m_tree.find(key);
+  if (!node) this_->m_tree.addNode(node = new Node{this_, key});
+  return {this_, ZuMv(node), index, o};
 }
 
 void Cf::fromArg(ZuString key, int type, ZuString in)
 {
   const auto &argComma = ZtREGEX("\G,");
 
-  auto [self, node, index, o] = mkNode_<Quoting::CLI>(key);
+  auto [this_, node, index, o] = mkNode_<Quoting::CLI>(key);
 
   switch (type) {
     case ZvOptFlag:
@@ -639,7 +639,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
       ZtRegex::Captures c;
       unsigned off = 0;
 
-      if (!node->data.contains<StrArray>())
+      if (!node->data.is<StrArray>())
 	new (node->data.init<StrArray>()) StrArray{};
       auto &values = node->data.v<StrArray>();
       values.clear();
@@ -690,7 +690,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
     CfArray_	= 0x000c,
   };
 
-  auto self = this;
+  auto this_ = this;
   unsigned state = Key;
   int index = -1;
   using State = ZuPair<unsigned, int>; // state, index
@@ -716,7 +716,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	  off += o;
 	  ZmRef<Cf> incCf = new Cf{};
 	  incCf->fromFile(file, defines);
-	  self->merge(incCf);
+	  this_->merge(incCf);
 	  continue;
 	}
 	if (c[2] == "%define") {
@@ -736,7 +736,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (fileEndScope.m(in, c, off)) {
 	if (!stack) goto syntax;
 	off += c[1].length();
-	self = self->node()->owner;
+	this_ = this_->node()->owner;
 	{
 	  auto [ state_, index_ ] = stack.pop();
 	  state = state_;
@@ -749,8 +749,8 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (!o) goto syntax;
       index = index_;
       off += o;
-      node = self->m_tree.find(key);
-      if (!node) self->m_tree.addNode(node = new Node{self, key});
+      node = this_->m_tree.find(key);
+      if (!node) this_->m_tree.addNode(node = new Node{this_, key});
       state = (state & ~KVMask) | Value;
       continue;
     }
@@ -781,11 +781,11 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
 	if (index < 0) {
-	  self = node->get_<ZmRef<Cf>>();
-	  if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
+	  this_ = node->get_<ZmRef<Cf>>();
+	  if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
 	} else {
-	  self = node->getElem_<CfArray>(index);
-	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+	  this_ = node->getElem_<CfArray>(index);
+	  if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
 	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
@@ -910,7 +910,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
     First	= 0x0010
   };
 
-  auto self = this;
+  auto this_ = this;
   unsigned state = First | Key;
   int index = -1;
   using State = ZuPair<unsigned, int>; // state, index
@@ -925,7 +925,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       if (envEndScope.m(in, c, off)) {
 	if (!stack) goto syntax;
 	off += c[1].length();
-	self = self->node()->owner;
+	this_ = this_->node()->owner;
 	{
 	  auto [ state_, index_ ] = stack.pop();
 	  state = state_;
@@ -945,8 +945,8 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       off += o;
       if (!envColon.m(in, c, off)) goto syntax;
       off += c[1].length();
-      node = self->m_tree.find(key);
-      if (!node) self->m_tree.addNode(node = new Node{self, key});
+      node = this_->m_tree.find(key);
+      if (!node) this_->m_tree.addNode(node = new Node{this_, key});
       state = (state & ~KVMask) | Value;
       continue;
     }
@@ -977,11 +977,11 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	if ((state & ArrayMask) == StrArray_) goto syntax;
 	off += c[1].length();
 	if (index < 0) {
-	  self = node->get_<ZmRef<Cf>>();
-	  if (!self) node->set_<ZmRef<Cf>>(self = new Cf{node});
+	  this_ = node->get_<ZmRef<Cf>>();
+	  if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
 	} else {
-	  self = node->getElem_<CfArray>(index);
-	  if (!self) node->setElem_<CfArray>(index, self = new Cf{node});
+	  this_ = node->getElem_<CfArray>(index);
+	  if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
 	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
@@ -1093,7 +1093,7 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
 	ZtString arg;
 	if (!ZtREGEX("^\d+$").m(node->CfNode::key))
 	  arg << "--" << prefix << node->CfNode::key << '=';
-	if (node->CfNode::data.contains<ZtString>())
+	if (node->CfNode::data.is<ZtString>())
 	  arg << quoteString<Quoting::CLI>(node->get_<ZtString>());
 	else
 	  node->CfNode::data.v<StrArray>().all(
@@ -1127,7 +1127,7 @@ void Cf::print(ZmStream &s, ZtString &indent) const
 	break;
       case Data::Index<ZtString>{}:
       case Data::Index<StrArray>{}: {
-	if (node->CfNode::data.contains<ZtString>())
+	if (node->CfNode::data.is<ZtString>())
 	  s << quoteString(node->get_<ZtString>());
 	else {
 	  s << '[';
@@ -1150,7 +1150,7 @@ void Cf::print(ZmStream &s, ZtString &indent) const
 	  indent.length_(indent.length() - 2);
 	  s << indent << '}';
 	};
-	if (node->CfNode::data.contains<ZmRef<Cf>>())
+	if (node->CfNode::data.is<ZmRef<Cf>>())
 	  output(node->get_<ZmRef<Cf>>(), s);
 	else
 	  node->CfNode::data.v<CfArray>().all(
@@ -1174,19 +1174,19 @@ void Cf::toFile_(ZiFile &file)
 
 ZuPair<Cf *, ZtString> Cf::getScope(ZuString fullKey) const
 {
-  auto [self, key, index, o] = getScope_<Quoting::Raw>(fullKey);
-  return {self, key};
+  auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
+  return {this_, key};
 }
 
 CfNode *Cf::mkNode(ZuString fullKey)
 {
-  auto [self, node, index, o] = mkNode_<Quoting::Raw>(fullKey);
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(fullKey);
   return node;
 }
 
 void Cf::set(ZuString key, ZtString value)
 {
-  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   if (index < 0)
     node->set_<ZtString>(ZuMv(value));
   else
@@ -1195,7 +1195,7 @@ void Cf::set(ZuString key, ZtString value)
 
 ZmRef<Cf> Cf::mkCf(ZuString key)
 {
-  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   ZmRef<Cf> cf = new Cf{node};
   if (index < 0)
     node->set_<ZmRef<Cf>>(cf);
@@ -1206,7 +1206,7 @@ ZmRef<Cf> Cf::mkCf(ZuString key)
 
 void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 {
-  auto [self, node, index, o] = mkNode_<Quoting::Raw>(key);
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   cf->m_node = node;
   if (index < 0)
     node->set_<ZmRef<Cf>>(ZuMv(cf));
@@ -1216,8 +1216,8 @@ void Cf::setCf(ZuString key, ZmRef<Cf> cf)
 
 void Cf::unset(ZuString fullKey)
 {
-  auto [self, key, index, o] = getScope_<Quoting::Raw>(fullKey);
-  if (self) self->m_tree.del(key);
+  auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
+  if (this_) this_->m_tree.del(key);
 }
 
 void Cf::clean()

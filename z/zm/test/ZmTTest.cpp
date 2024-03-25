@@ -34,8 +34,6 @@
 
 ZmAtomic<int> threads;
 
-#define self() (Zm::getTID())
-
 using TLock = ZmTLock<int, int>;
 
 struct TLockPtr {
@@ -76,7 +74,7 @@ void unlock(int &result, int id, int tid)
 
 void reader()
 {
-  int tid = self();
+  int tid = Zm::getTID();
   int locked[3];
   int i;
 
@@ -94,7 +92,7 @@ void reader()
 
 void writer()
 {
-  int tid = self();
+  int tid = Zm::getTID();
   int locked[3];
   int i;
 

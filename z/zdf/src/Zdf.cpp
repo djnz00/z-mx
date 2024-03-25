@@ -47,68 +47,240 @@ DataFrame::DataFrame(ZtMFieldArray fields, ZuString name, bool timeIndex) :
   }
 }
 
-void DataFrame::init(Mgr *mgr)
+void DataFrame::init(Store *store)
 {
-  m_mgr = mgr;
+  m_store = store;
   unsigned n = m_series.length();
-  for (unsigned i = 0; i < n; i++) m_series[i]->init(mgr);
+  for (unsigned i = 0; i < n; i++) m_series[i]->init(store);
 }
 
-bool DataFrame::open(ZeError *e_)
+void DataFrame::open(OpenFn openFn)
 {
-  if (ZuUnlikely(!m_mgr)) { if (e_) *e_ = ZiENOENT; return false; }
-  ZeError e;
-  if (load(&e)) goto open;
-  if (e.errNo() == ZiENOENT) {
-    m_epoch.now();
-    if (save(e_)) goto open;
+  if (ZuUnlikely(!m_store)) {
+    openFn(OpenResult{ZeMEVENT(Error, "no backing store configured")});
+    return;
   }
-  if (e_) *e_ = e;
-  return false;
-open:
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    if (m_pending) {
+      guard.unlock();
+      openFn(OpenResult{ZeMEVENT(Error, "overlapping open/close")});
+      return;
+    }
+
+    m_pending = 1;
+    m_error = {};
+    m_callback = Callback{ZuMv(openFn)};
+  }
+
+  load([this](Store_::LoadResult result) mutable {
+    if (result.is<Event>()) {			// load error
+      openFailed(OpenResult{ZuMv(result).v<Event>()});
+      return;
+    }
+    if (result.is<Store_::LoadData>()) {	// loaded
+      openSeries();
+      return;
+    }
+    // missing - save new data frame, starting now
+    m_epoch.now();
+    save([this](Store_::SaveResult result) mutable {
+      if (result.is<Event>()) {
+	openFailed(OpenResult{ZuMv(result).v<Event>()});
+	return;
+      }
+      openSeries();
+    });
+  });
+}
+
+void DataFrame::openSeries()
+{
   unsigned n = m_series.length();
-  if (ZuUnlikely(!n)) return false;
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    m_pending = n;
+  }
+
   for (unsigned i = 0; i < n; i++) {
     auto field = m_fields[i];
-    if (i || field)
-      m_series[i]->open(m_name, field->id);
-    else
-      m_series[i]->open(m_name, "_0");
+    OpenFn openFn_{this, [](DataFrame *this_, OpenResult result) {
+      this_->openedSeries(ZuMv(result));
+    }};
+    if (i || field) {
+      m_series[i]->open(m_name, field->id, ZuMv(openFn_));
+    } else {
+      m_series[i]->open(m_name, "_0", ZuMv(openFn_));
+    }
   }
-  return true;
 }
 
-bool DataFrame::close(ZeError *e)
+void DataFrame::openedSeries(OpenResult result)
 {
-  return save(e);
+  OpenFn openFn;
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    if (!m_pending) return; // should never happen
+
+    if (result.is<Event>()) {
+      if (!m_error) m_error = new Event{ZuMv(result).v<Event>()};
+    }
+
+    if (--m_pending) return;
+
+    if (m_error) {
+      result = OpenResult{ZuMv(*m_error)};
+      m_error = {};
+    }
+
+    openFn = ZuMv(m_callback).v<OpenFn>();
+    m_callback = Callback{};
+  }
+
+  openFn(ZuMv(result));
 }
 
-bool DataFrame::load(ZeError *e)
+void DataFrame::openFailed(OpenResult result)
+{
+  OpenFn openFn;
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    m_pending = 0;
+    m_error = {};
+    openFn = ZuMv(m_callback).v<OpenFn>();
+  }
+
+  openFn(ZuMv(result));
+}
+
+void DataFrame::close(CloseFn closeFn)
+{
+  if (ZuUnlikely(!m_store)) {
+    closeFn(CloseResult{ZeMEVENT(Error, "no backing store configured")});
+    return;
+  }
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    if (m_pending) {
+      guard.unlock();
+      closeFn(CloseResult{ZeMEVENT(Error, "overlapping open/close")});
+      return;
+    }
+
+    m_pending = 1;
+    m_error = {};
+    m_callback = Callback{ZuMv(closeFn)};
+  }
+
+  save([this](Store_::SaveResult result) mutable {
+    if (result.is<Event>()) {			// save error
+      closeFailed(CloseResult{ZuMv(result).v<Event>()});
+      return;
+    }
+    closeSeries();
+    return;
+  });
+}
+
+void DataFrame::closeSeries()
+{
+  unsigned n = m_series.length();
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    m_pending = n;
+  }
+
+  for (unsigned i = 0; i < n; i++) {
+    auto field = m_fields[i];
+    CloseFn closeFn_{this, [](DataFrame *this_, CloseResult result) {
+      this_->closedSeries(ZuMv(result));
+    }};
+    if (i || field) {
+      m_series[i]->close(ZuMv(closeFn_));
+    } else {
+      m_series[i]->close(ZuMv(closeFn_));
+    }
+  }
+}
+
+void DataFrame::closedSeries(CloseResult result)
+{
+  CloseFn closeFn;
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    if (!m_pending) return; // should never happen
+
+    if (result.is<Event>()) {
+      if (!m_error) m_error = new Event{ZuMv(result).v<Event>()};
+    }
+
+    if (--m_pending) return;
+
+    if (m_error) {
+      result = CloseResult{ZuMv(*m_error)};
+      m_error = {};
+    }
+
+    closeFn = ZuMv(m_callback).v<CloseFn>();
+    m_callback = Callback{};
+  }
+
+  closeFn(ZuMv(result));
+}
+
+void DataFrame::closeFailed(OpenResult result)
+{
+  CloseFn closeFn;
+
+  {
+    ZmGuard<ZmPLock> guard(m_lock);
+
+    m_pending = 0;
+    m_error = {};
+    closeFn = ZuMv(m_callback).v<CloseFn>();
+  }
+
+  closeFn(ZuMv(result));
+}
+
+void DataFrame::load(Store_::LoadFn loadFn)
 {
   using namespace Zfb::Load;
-  return m_mgr->loadFile(m_name,
-      LoadFn{this, [](DataFrame *this_, const uint8_t *buf, unsigned len) {
-	return this_->load_(buf, len);
-      }}, (1<<10) /* 1Kb */, e);
+  m_store->loadDF(m_name,
+      LoadFn{this, [](DataFrame *this_, ZuBytes data) {
+	return this_->load_(data);
+      }}, (1<<10) /* 1Kb */, ZuMv(loadFn));
 }
 
-bool DataFrame::load_(const uint8_t *buf, unsigned len)
+bool DataFrame::load_(ZuBytes data)
 {
   {
-    Zfb::Verifier verifier(buf, len);
+    Zfb::Verifier verifier(&data[0], data.length());
     if (!fbs::VerifyDataFrameBuffer(verifier)) return false;
   }
   using namespace Zfb::Load;
-  auto df = fbs::GetDataFrame(buf);
+  auto df = fbs::GetDataFrame(&data[0]);
   m_epoch = dateTime(df->epoch()).zmTime();
   return true;
 }
 
-bool DataFrame::save(ZeError *e)
+void DataFrame::save(Store_::SaveFn saveFn)
 {
   Zfb::Builder fbb;
   fbb.Finish(save_(fbb));
-  return m_mgr->saveFile(m_name, fbb, e);
+  m_store->saveDF(m_name, fbb, ZuMv(saveFn));
 }
 
 Zfb::Offset<fbs::DataFrame> DataFrame::save_(Zfb::Builder &fbb)

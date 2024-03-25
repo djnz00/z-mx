@@ -32,10 +32,10 @@
 
 struct TLS : public ZmObject {
   TLS() : m_ping(0) {
-    printf("TLS(0) [%d]\n", ZmThreadContext::self()->sid());
+    printf("TLS(0) [%d]\n", ZmSelf()->sid());
   }
   ~TLS() {
-    printf("~TLS(%u) [%d]\n", m_ping, ZmThreadContext::self()->sid());
+    printf("~TLS(%u) [%d]\n", m_ping, ZmSelf()->sid());
   }
   void ping() { ++m_ping; }
   unsigned	m_ping;

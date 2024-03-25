@@ -5,8 +5,8 @@
 
 #include <zlib/ZuStringN.hpp>
 
-#include <zlib/ZdfMem.hpp>
-#include <zlib/ZdfFile.hpp>
+#include <zlib/ZdfMockStore.hpp>
+#include <zlib/ZdfFileStore.hpp>
 #include <zlib/Zdf.hpp>
 #include <zlib/ZdfStats.hpp>
 
@@ -58,25 +58,30 @@ int main(int argc, char **argv)
   ZeLog::start();
   using namespace Zdf;
   using namespace ZdfCompress;
-  MemMgr memMgr;
-  if (mode == Mem) memMgr.init(nullptr, nullptr);
+  Zdf::MockStore mockStore;
+  if (mode == Mem) mockStore.init(nullptr, nullptr);
   ZmScheduler sched(ZmSchedParams().nThreads(2));
-  FileMgr fileMgr;
+  Zdf::FileStore fileStore;
   if (mode != Mem) {
     ZmRef<ZvCf> cf = new ZvCf{};
     cf->fromString(
 	"dir .\n"
 	"coldDir .\n"
 	"writeThread 1\n");
-    fileMgr.init(&sched, cf);
+    fileStore.init(&sched, cf);
   }
   DataFrame df{ZtMFields<Frame>(), "frame"};
   if (mode == Mem)
-    df.init(&memMgr);
+    df.init(&mockStore);
   else
-    df.init(&fileMgr);
+    df.init(&fileStore);
   sched.start();
-  df.open();
+  ZmBlock<>{}([&df](auto wake) {
+    df.open([wake = ZuMv(wake)](OpenResult) mutable {
+      // FIXME - open result
+      wake();
+    });
+  });
   Frame frame;
   if (mode == Mem || mode == Save) {
     auto writer = df.writer();
@@ -125,7 +130,12 @@ int main(int argc, char **argv)
     // for (auto k: w) std::cout << k.first << '\n';
     // std::cout << "stddev=" << w.std() << '\n';
   }
-  df.close();
+  ZmBlock<>{}([&df](auto wake) {
+    df.close([wake = ZuMv(wake)](CloseResult) mutable {
+      // FIXME - close result
+      wake();
+    });
+  });
   sched.stop();
   ZeLog::stop();
   std::cout << ZmHeapMgr::csv();

@@ -40,8 +40,10 @@
 
 #include <zlib/ZtField.hpp>
 
+#include <zlib/ZdfTypes.hpp>
 #include <zlib/ZdfCompress.hpp>
 #include <zlib/ZdfSeries.hpp>
+#include <zlib/ZdfStore.hpp>
 
 #include <zlib/dataframe_fbs.h>
 
@@ -280,11 +282,21 @@ public:
   const ZtString &name() const { return m_name; }
   const ZmTime &epoch() const { return m_epoch; }
 
-  void init(Mgr *mgr);
+  void init(Store *store);
 
-  bool open(ZeError *e = nullptr);
-  bool close(ZeError *e = nullptr);
+  void open(OpenFn fn);
+private:
+  void openSeries();
+  void openedSeries(OpenResult);
+  void openFailed(OpenResult);
+public:
+  void close(CloseFn fn);
+private:
+  void closeSeries();
+  void closedSeries(CloseResult);
+  void closeFailed(CloseResult);
 
+public:
   class ZdfAPI Writer {
     Writer(const Writer &) = delete;
     Writer &operator =(const Writer &) = delete;
@@ -311,27 +323,13 @@ public:
 	auto field = m_df->field(i);
 	if (i || field) {
 	  switch (field->type->code) {
-	    case Int:
-	      v = {field->get.get<Int>(ptr), 0};
-	      break;
-	    case UInt:
-	      v = {field->get.get<UInt>(ptr), 0};
-	      break;
-	    case Enum:
-	      v = {field->get.get<Enum>(ptr), 0};
-	      break;
-	    case Fixed:
-	      v = field->get.get<Fixed>(ptr);
-	      break;
-	    case Decimal:
-	      v = field->get.get<Decimal>(ptr);
-	      break;
-	    case Time:
-	      v = m_df->nsecs(field->get.get<Time>(ptr));
-	      break;
-	    default:
-	      v = ZuFixed{0, 0};
-	      break;
+	    case Int:     v = {field->get.get<Int>(ptr), 0}; break;
+	    case UInt:    v = {field->get.get<UInt>(ptr), 0}; break;
+	    case Enum:    v = {field->get.get<Enum>(ptr), 0}; break;
+	    case Fixed:   v = field->get.get<Fixed>(ptr); break;
+	    case Decimal: v = field->get.get<Decimal>(ptr); break;
+	    case Time:    v = m_df->nsecs(field->get.get<Time>(ptr)); break;
+	    default:      v = ZuFixed{0, 0}; break;
 	  }
 	} else
 	  v = m_df->nsecs(ZmTimeNow());
@@ -396,18 +394,24 @@ public:
   }
 
 private:
-  bool load(ZeError *e = nullptr);
-  bool load_(const uint8_t *buf, unsigned len);
+  void load(Store_::LoadFn fn);
+  bool load_(ZuBytes data);
 
-  bool save(ZeError *e = nullptr);
+  void save(Store_::SaveFn fn);
   Zfb::Offset<fbs::DataFrame> save_(Zfb::Builder &);
 
 private:
   ZtString			m_name;
   ZtArray<ZuPtr<Series>>	m_series;
   ZtArray<const ZtMField *>	m_fields;
-  Mgr				*m_mgr = nullptr;
+  Store				*m_store = nullptr;
   ZmTime			m_epoch;
+  // async open/close series context
+  using Callback = ZuUnion<void, OpenFn, CloseFn>;
+  ZmPLock			m_lock;
+    unsigned			  m_pending = 0;// number pending
+    ZuPtr<Event>		  m_error;	// first error encountered
+    Callback			  m_callback;	// completion callback
 };
 
 } // namespace Zdf

@@ -357,7 +357,7 @@ bool ZmScheduler::tryPush_(Thread *thread, Fn &fn)
 
 void ZmScheduler::work()
 {
-  Thread *thread = &m_threads[ZmThreadContext::self()->sid() - 1];
+  Thread *thread = &m_threads[ZmSelf()->sid() - 1];
 
   thread->tid = thread->thread.tid();
 

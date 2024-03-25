@@ -56,7 +56,7 @@ public:
     unsigned i = m_offset;
     m_offset = (i + 1) & 63;
     Data *data = new (m_captures[i].template init<Data>()) Data();
-    ZmThreadContext *self = ZmThreadContext::self();
+    ZmThreadContext *self = ZmSelf();
     data->p<0>() = self->tid();
     data->p<1>() = self->name();
     data->p<2>().capture(skip + 1);
@@ -67,7 +67,7 @@ public:
     bool first = true;
     for (unsigned i = 0; i < N; i++) {
       unsigned j = (m_offset + (N - 1) - i) % N;
-      if (m_captures[j].contains<Data>()) {
+      if (m_captures[j].is<Data>()) {
 	const auto &data = m_captures[j].template v<Data>();
 	if (!first) s << "---\n";
 	first = false;

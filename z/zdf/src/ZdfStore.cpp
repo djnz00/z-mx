@@ -19,12 +19,12 @@
 
 // Data Series Manager
 
-#include <zlib/ZdfMgr.hpp>
+#include <zlib/ZdfStore.hpp>
 
-using namespace Zdf;
+using namespace Zdf::Store_;
 
-// In-Memory default implementation, overridden by FileMgr
+// default implementation overridden by FileStore, MockStore, etc.
 
-Mgr::~Mgr() { final(); }
+Interface::~Interface() { final(); }
 
-void Mgr::final() { BufMgr::final(); }
+void Interface::final() { BufMgr::final(); }

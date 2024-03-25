@@ -244,7 +244,7 @@ public:
   bool bootstrap(
       ZtString user, ZtString role, ZtString &passwd, ZtString &secret);
 
-  bool load_(const uint8_t *buf, unsigned len);
+  bool load_(ZuBytes);
   Zfb::Offset<fbs::UserDB> save_(Zfb::Builder &) const;
 
   int load(const ZiFile::Path &path, ZeError *e = 0);

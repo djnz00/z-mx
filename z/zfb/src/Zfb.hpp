@@ -428,7 +428,7 @@ namespace Load {
   }
 
   // load file
-  using LoadFn = ZmFn<const uint8_t *, unsigned>;
+  using LoadFn = ZmFn<ZuBytes>;
   ZfbExtern int load(
       const Zi::Path &path, LoadFn, unsigned maxSize, ZeError *e);
 

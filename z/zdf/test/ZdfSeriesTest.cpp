@@ -7,7 +7,7 @@
 
 #include <zlib/ZdfCompress.hpp>
 #include <zlib/ZdfSeries.hpp>
-#include <zlib/ZdfMem.hpp>
+#include <zlib/ZdfMockStore.hpp>
 
 void print(const char *s) {
   std::cout << s << '\n' << std::flush;
@@ -26,11 +26,13 @@ int main()
 {
   using namespace Zdf;
   using namespace ZdfCompress;
-  Zdf::MemMgr mgr;
-  mgr.init(nullptr, nullptr);
-  Zdf::Series s;
-  s.init(&mgr);
-  s.open("test", "test");
+  MockStore store;
+  store.init(nullptr, nullptr);
+  Series s;
+  s.init(&store);
+  ZmBlock<>{}([&s](auto wake) {
+    s.open("test", "test", [wake = ZuMv(wake)](OpenResult) mutable { wake(); });
+  });
   {
     auto w = s.writer<DeltaEncoder<>>();
     CHECK(w.write(ZuFixed{42, 0}));
@@ -100,7 +102,9 @@ int main()
     }
     CHECK(!r.read(v));
   }
-  s.close();
+  ZmBlock<>{}([&s](auto wake) {
+    s.close([wake = ZuMv(wake)](CloseResult) mutable { wake(); });
+  });
   // s.final();
-  // mgr.final();
+  // store.final();
 }

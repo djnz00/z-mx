@@ -38,10 +38,8 @@ struct C {
   ZmRWLock	m_rwLock;
 };
 
-#define self() (Zm::getTID())
-
 struct T : public ZmObject {
-  T() : m_state(0), m_tid(self()) { }
+  T() : m_state(0), m_tid(Zm::getTID()) { }
 
   int		m_state;
   int		m_tid;
@@ -58,13 +56,13 @@ void reader(C *c)
 
 #if 0
     printf("%d Read Locked TID = %d, counter = %d\n",
-	   i, (int)self(), c->m_counter);
+	   i, static_cast<int>(Zm::getTID()), c->m_counter);
     if (i > 10) {
       ZmSpecific<T>::instance()->m_state = 3;
       ZmGuard<ZmRWLock> writeGuard(c->m_rwLock);
       ZmSpecific<T>::instance()->m_state = 4;
       printf("%d Upgrade Locked TID = %d, counter = %d -> %d\n",
-	     i, (int)self(), c->m_counter, c->m_counter + 1);
+	     i, static_cast<int>(Zm::getTID()), c->m_counter, c->m_counter + 1);
       c->m_counter++;
     }
     ZmSpecific<T>::instance()->m_state = 5;
@@ -82,7 +80,7 @@ void writer(C *c)
   ZmSpecific<T>::instance()->m_state = 8;
 
   printf("Write Locked TID = %d, counter = %d -> %d\n",
-	 (int)self(), c->m_counter, c->m_counter + 1);
+	 static_cast<int>(Zm::getTID()), c->m_counter, c->m_counter + 1);
   c->m_counter++;
   ZmSpecific<T>::instance()->m_state = 9;
 

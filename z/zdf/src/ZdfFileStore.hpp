@@ -19,8 +19,8 @@
 
 // Data Series File I/O
 
-#ifndef ZdfFile_HPP
-#define ZdfFile_HPP
+#ifndef ZdfFileStore_HPP
+#define ZdfFileStore_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -50,7 +50,15 @@
 #include <zlib/ZdfBuf.hpp>
 #include <zlib/ZdfSeries.hpp>
 
-namespace Zdf {
+namespace ZdfFileStore {
+using namespace Zdf;
+using namespace Zdf::Store_;
+
+using Zdf::Store_::OpenData;
+using Zdf::Store_::OpenResult;
+using Zdf::Store_::OpenFn;
+using Zdf::Store_::CloseResult;
+using Zdf::Store_::CloseFn;
 
 ZuDeclTuple(FileID, (unsigned, seriesID), (unsigned, index));
 ZuDeclTuple(FilePos, (unsigned, index), (unsigned, offset));
@@ -77,7 +85,7 @@ using FileHash =
 	ZmHashHeapID<File_HeapID>>>>;
 using File = typename FileHash::Node;
 
-class ZdfAPI FileMgr : public Mgr {
+class ZdfAPI FileStore_ : public Interface {
 private:
   struct Config {
     Config(const Config &) = delete;
@@ -108,9 +116,8 @@ public:
   const ZiFile::Path &dir() const { return m_dir; }
   const ZiFile::Path &coldDir() const { return m_coldDir; }
 
-  bool open(
-      unsigned seriesID, ZuString parent, ZuString name, OpenFn openFn);
-  void close(unsigned seriesID);
+  void open(unsigned seriesID, ZuString parent, ZuString name, OpenFn);
+  void close(unsigned seriesID, CloseFn);
 
 private:
   template <typename ...Args>
@@ -134,11 +141,8 @@ public:
   bool load(unsigned seriesID, unsigned blkIndex, void *buf);
   void save(ZmRef<Buf> buf);
 
-  bool loadFile(
-      ZuString name, Zfb::Load::LoadFn,
-      unsigned maxFileSize, ZeError *e = nullptr);
-  bool saveFile(
-      ZuString name, Zfb::Builder &fbb, ZeError *e = nullptr);
+  void loadDF(ZuString name, Zfb::Load::LoadFn, unsigned maxFileSize, LoadFn);
+  void saveDF(ZuString name, Zfb::Builder &, SaveFn);
 
 private:
   void save_(unsigned seriesID, unsigned blkIndex, const void *buf);
@@ -182,6 +186,10 @@ private:
   unsigned		m_fileMisses = 0;
 };
 
-} // namespace Zdf
+} // namespace ZdfFileStore
 
-#endif /* ZdfFile_HPP */
+namespace Zdf {
+  using FileStore = ZdfFileStore::FileStore_;
+}
+
+#endif /* ZdfFileStore_HPP */

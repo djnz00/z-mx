@@ -31,7 +31,7 @@
 // v = u;
 // if (v.type() == 0) { printf("%d\n", v.p<0>()); }
 // v.p<1>(42.0);
-// if (v.contains<double>()) { printf("%g\n", v.v<double>()); }
+// if (v.is<double>()) { printf("%g\n", v.v<double>()); }
 // u.~U();
 // *reinterpret_cast<int *>(&u) = 43; // *(u.ptr_<Index<int>::I>()) = ...
 // u.type_(U::Index<int>::I);
@@ -418,7 +418,7 @@ public:
   unsigned type() const { return m_u[Size]; }
 
   template <typename T>
-  bool contains() const { return type() == Index<T>{}; }
+  bool is() const { return type() == Index<T>{}; }
 
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, const Type_<I> &> p() const & {
@@ -622,14 +622,15 @@ constexpr const T &&get(const Union<Args...> &&p) {
 #define ZuUnion_FieldFn(N, args) \
   ZuPP_Defer(ZuUnion_FieldFn_)()(N, ZuPP_Strip(args))
 #define ZuUnion_FieldFn_() ZuUnion_FieldFn__
-#define ZuUnion_FieldFn__(N, type, fn) \
-  const auto &fn() const & { return this->template p<N>(); } \
-  auto &fn() & { return this->template p<N>(); } \
-  auto &&fn() && { return ZuMv(this->template p<N>()); } \
+#define ZuUnion_FieldFn__(I, type_, fn) \
+  auto is_##fn() const { return this->type() == I; } \
+  const auto &fn() const & { return this->template p<I>(); } \
+  auto &fn() & { return this->template p<I>(); } \
+  auto &&fn() && { return ZuMv(this->template p<I>()); } \
   template <typename P> \
-  auto &fn(P &&v) { this->template p<N>(ZuFwd<P>(v)); return *this; } \
-  auto ptr_##fn() { return this->template ptr<N>(); } \
-  auto init_##fn() { return this->template init<ZuPP_Strip(type)>(); }
+  auto &fn(P &&v) { this->template p<I>(ZuFwd<P>(v)); return *this; } \
+  auto ptr_##fn() { return this->template ptr<I>(); } \
+  auto init_##fn() { return this->template init<ZuPP_Strip(type_)>(); }
 
 #define ZuDeclUnion(Type, ...) \
 using Type##_ = \

@@ -484,9 +484,9 @@ using Object = Object_<T, ZmHeap<Object_HeapID, sizeof(Object_<T, ZuNull>)>>;
 // CtorFn(db) - construct new object
 typedef AnyObject *(*CtorFn)(DB *);
 // LoadFn(db, data, length) - reconstruct object from flatbuffer
-typedef AnyObject *(*LoadFn)(DB *, const uint8_t *, unsigned);
+typedef AnyObject *(*LoadFn)(DB *, ZuBytes);
 // UpdateFn(object, data, length) - update object from flatbuffer
-typedef AnyObject *(*UpdateFn)(AnyObject *, const uint8_t *, unsigned);
+typedef AnyObject *(*UpdateFn)(AnyObject *, ZuBytes);
 // SaveFn(fbb, ptr) - save object into flatbuffer builder, return offset
 typedef Zfb::Offset<void> (*SaveFn)(Zfb::Builder &, const void *);
 // FieldsFn() - inform fields
@@ -520,17 +520,17 @@ struct DBHandler {
       .ctorFn = [](DB *db) -> AnyObject * {
 	return new Object<T>{db};
       },
-      .loadFn = [](DB *db, const uint8_t *data, unsigned len) ->
+      .loadFn = [](DB *db, ZuBytes data) ->
 	  AnyObject * {
-	auto fbo = ZfbField::verify<T>(data, len);
+	auto fbo = ZfbField::verify<T>(data);
 	if (ZuUnlikely(!fbo)) return nullptr;
 	return new Object<T>{db, [fbo](void *ptr) {
 	  ZfbField::ctor<T>(ptr, fbo);
 	}};
       },
-      .updateFn = [](AnyObject *object, const uint8_t *data_, unsigned len) ->
+      .updateFn = [](AnyObject *object, ZuBytes data_) ->
 	  AnyObject * {
-	auto fbo = ZfbField::verify<T>(data_, len);
+	auto fbo = ZfbField::verify<T>(data_);
 	if (ZuUnlikely(!fbo)) return nullptr;
 	auto &data = static_cast<Object<T> *>(object)->data();
 	ZfbField::load<T>(data, fbo);
@@ -614,7 +614,7 @@ private:
   void final();
 
   template <typename L>
-  void open(Store *store, L l);
+  void open(Store *store, L l);	// l(OpenResult)
   bool opened(Store_::OpenResult result);
   void close();
 
@@ -1415,7 +1415,7 @@ inline void DB::get__(RN rn, ZmFn<ZmRef<Object<T>>> fn)
   using namespace Table_;
 
   m_table->get(rn, [fn = ZuMv(fn)](DB *db, RN rn, GetResult result) mutable {
-    if (ZuLikely(result.contains<GetData>())) {
+    if (ZuLikely(result.is<GetData>())) {
       const auto &data = result.v<GetData>();
       ZmRef<AnyObject> object = db->m_handler.importFn(db, data.import_);
       if (object) object->init(rn, data.un, data.sn, data.vn);
@@ -1424,7 +1424,7 @@ inline void DB::get__(RN rn, ZmFn<ZmRef<Object<T>>> fn)
       });
       return;
     }
-    if (ZuUnlikely(result.contains<Event>())) {
+    if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).v<Event>());
       db->run([db, rn, fn = ZuMv(fn)]() mutable {
 	db->get__<T>(rn, ZuMv(fn));

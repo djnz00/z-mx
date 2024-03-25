@@ -156,7 +156,7 @@ public:
   Ring &ring() { return m_ring; }
 
   void start() {
-    m_thread = ZmThread{[self = ZmMkRef(this)]() { (*self)(); }};
+    m_thread = ZmThread{[this_ = ZmMkRef(this)]() { (*this_)(); }};
   }
   int synchronous(Work *work) {
     m_work = work;

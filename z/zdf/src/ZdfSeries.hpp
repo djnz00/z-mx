@@ -18,7 +18,7 @@
  */
 
 // Data Series
-// - chunked
+// - chunked into blocks
 // - compressed (see ZdfCompress)
 // - indexable (if monotonically increasing, e.g. time series)
 // - support archiving of old data with purge()
@@ -43,8 +43,9 @@
 
 #include <zlib/ZtArray.hpp>
 
+#include <zlib/ZdfTypes.hpp>
 #include <zlib/ZdfBuf.hpp>
-#include <zlib/ZdfMgr.hpp>
+#include <zlib/ZdfStore.hpp>
 
 namespace Zdf {
 
@@ -240,38 +241,44 @@ public:
   Series() = default;
   ~Series() { final(); }
 
-  void init(Mgr *mgr) {
-    m_mgr = mgr;
-    m_seriesID = mgr->alloc(
+  void init(Store *store) {
+    m_store = store;
+    m_seriesID = store->alloc(
 	BufUnloadFn{this, [](Series *this_, BufLRUNode *node) {
 	  this_->unloadBuf(node);
 	}});
   }
   void final() {
-    if (m_mgr) m_mgr->free(m_seriesID);
+    if (m_store) m_store->free(m_seriesID);
     m_blks.null();
   }
 
-  Mgr *mgr() const { return m_mgr; }
+  Store *store() const { return m_store; }
   unsigned seriesID() const { return m_seriesID; }
 
 protected:
-  void open_(unsigned blkOffset = 0) {
+  void open_(unsigned blkOffset, OpenFn openFn) {
     m_blkOffset = blkOffset;
     Hdr hdr;
     for (unsigned i = 0; loadHdr(i + blkOffset, hdr); i++)
       new (Blk::new_<Hdr>(m_blks.push())) Hdr{hdr};
+    openFn(OpenResult{});
   }
 
 public:
-  bool open(ZuString parent, ZuString name) {
-    return m_mgr->open(m_seriesID, parent, name, OpenFn{
-      this, [](Series *this_, unsigned blkOffset) {
-	this_->open_(blkOffset);
-      }});
+  void open(ZuString parent, ZuString name, OpenFn openFn) {
+    m_store->open(m_seriesID, parent, name,
+	[this, openFn = ZuMv(openFn)](Store_::OpenResult result) {
+	  if (result.is<Store_::OpenData>()) {
+	    open_(result.v<Store_::OpenData>().blkOffset, ZuMv(openFn));
+	  } else if (result.is<Event>()) {
+	    openFn(OpenResult{ZuMv(result).v<Event>()});
+	  }
+	});
   }
-  void close() {
-    m_mgr->close(m_seriesID);
+  void close(CloseFn closeFn) {
+    // assumes CloseFn is same type as Store_::CloseFn
+    m_store->close(m_seriesID, ZuMv(closeFn));
   }
 
   // number of blocks
@@ -319,24 +326,24 @@ private:
     auto &blk = m_blks[blkIndex];
     ZmRef<Buf> buf;
     Buf *buf_;
-    if (ZuLikely(blk.contains<ZmRef<Buf>>())) {
+    if (ZuLikely(blk.is<ZmRef<Buf>>())) {
       buf_ = blk.v<ZmRef<Buf>>().ptr();
-      m_mgr->use(buf_);
+      m_store->use(buf_);
     } else {
-      if (ZuUnlikely(!blk.contains<Hdr>())) return nullptr;
-      m_mgr->shift(); // might call unloadBuf()
+      if (ZuUnlikely(!blk.is<Hdr>())) return nullptr;
+      m_store->shift(); // might call unloadBuf()
       buf = load(blkIndex + m_blkOffset);
       if (!buf) return nullptr;
       buf_ = buf.ptr();
       const_cast<Blk &>(blk).v<ZmRef<Buf>>(ZuMv(buf));
-      m_mgr->push(buf_);
+      m_store->push(buf_);
     }
     return buf_;
   }
 
   void unloadBuf(BufLRUNode *node) {
     auto &lruBlk = m_blks[node->blkIndex];
-    if (ZuLikely(lruBlk.contains<ZmRef<Buf>>())) {
+    if (ZuLikely(lruBlk.is<ZmRef<Buf>>())) {
       Hdr hdr = *(lruBlk.v<ZmRef<Buf>>()->hdr());
       lruBlk.v<Hdr>(hdr);
     }
@@ -493,11 +500,11 @@ private:
       blkIndex = 0;
       offset = 0;
     }
-    m_mgr->shift(); // might call unloadBuf()
-    buf = new Buf{m_mgr, m_seriesID, blkIndex};
+    m_store->shift(); // might call unloadBuf()
+    buf = new Buf{m_store, m_seriesID, blkIndex};
     new (Blk::new_<ZmRef<Buf>>(m_blks.push())) ZmRef<Buf>{buf};
     new (buf->hdr()) Hdr{offset, 0};
-    m_mgr->push(buf);
+    m_store->push(buf);
     {
       blkIndex = buf->blkIndex;
       const auto *hdr = buf->hdr();
@@ -507,34 +514,34 @@ private:
   }
 
   void purge_(unsigned blkIndex) {
-    m_mgr->purge(m_seriesID, m_blkOffset += blkIndex);
+    m_store->purge(m_seriesID, m_blkOffset += blkIndex);
     {
       unsigned n = m_blks.length();
       if (n > blkIndex) n = blkIndex;
       for (unsigned i = 0; i < n; i++) {
 	auto &blk = m_blks[i];
-	if (blk.contains<ZmRef<Buf>>())
-	  m_mgr->del(blk.v<ZmRef<Buf>>().ptr());
+	if (blk.is<ZmRef<Buf>>())
+	  m_store->del(blk.v<ZmRef<Buf>>().ptr());
       }
     }
     m_blks.splice(0, blkIndex);
   }
 
   bool loadHdr(unsigned i, Hdr &hdr) const {
-    return m_mgr->loadHdr(m_seriesID, i, hdr);
+    return m_store->loadHdr(m_seriesID, i, hdr);
   }
   ZmRef<Buf> load(unsigned i) const {
-    ZmRef<Buf> buf = new Buf{m_mgr, m_seriesID, i};
-    if (m_mgr->load(m_seriesID, i, buf->data()))
+    ZmRef<Buf> buf = new Buf{m_store, m_seriesID, i};
+    if (m_store->load(m_seriesID, i, buf->data()))
       return buf;
     return nullptr;
   }
   void save(ZmRef<Buf> buf) const {
-    return m_mgr->save(ZuMv(buf));
+    return m_store->save(ZuMv(buf));
   }
 
 private:
-  Mgr		*m_mgr = nullptr;
+  Store		*m_store = nullptr;
   ZtArray<Blk>	m_blks;
   unsigned	m_seriesID = 0;
   unsigned	m_blkOffset = 0;

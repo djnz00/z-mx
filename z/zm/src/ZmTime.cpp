@@ -196,25 +196,25 @@ private:
   uint64_t	m_cpuFreq;	// CPU frequency (TSC cycles per second)
 };
 
-void ZmTime_now_slow(const ZmTime_WinTimer *self, ZmTime &t)
+void ZmTime_now_slow(const ZmTime_WinTimer *this_, ZmTime &t)
 {
   uint64_t qpc;
   QueryPerformanceCounter((LARGE_INTEGER *)&qpc);
   qpc *= 1000U;
-  qpc -= self->m_qpcOffset;
-  uint64_t ft = qpc / self->m_qpc_ft;
-  qpc %= self->m_qpc_ft;
-  ft += self->m_ftOffset;
+  qpc -= this_->m_qpcOffset;
+  uint64_t ft = qpc / this_->m_qpc_ft;
+  qpc %= this_->m_qpc_ft;
+  ft += this_->m_ftOffset;
   t.tv_sec = ft / 10000000U;
   ft %= 10000000U;
-  t.tv_nsec = (qpc * self->m_ns_qpc) / 1000000U + ft * 100U;
+  t.tv_nsec = (qpc * this_->m_ns_qpc) / 1000000U + ft * 100U;
 }
 
-void ZmTime_now_fast(const ZmTime_WinTimer *self, ZmTime &t)
+void ZmTime_now_fast(const ZmTime_WinTimer *this_, ZmTime &t)
 {
   uint64_t qpc;
   QueryPerformanceCounter((LARGE_INTEGER *)&qpc);
-  qpc += self->m_ftOffset;
+  qpc += this_->m_ftOffset;
   t.tv_sec = qpc / 10000000U;
   qpc %= 10000000U;
   t.tv_nsec = qpc * 100U;

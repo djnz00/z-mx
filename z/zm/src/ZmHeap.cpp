@@ -209,7 +209,7 @@ private:
 
   ZmHeapCache *cache(
       const char *id, unsigned size, bool sharded, StatsFn statsFn) {
-    unsigned partition = ZmThreadContext::self()->partition();
+    unsigned partition = ZmSelf()->partition();
     ZmHeapCache *c = 0;
     auto hwloc = ZmTopology::hwloc();
     Guard guard(m_lock);

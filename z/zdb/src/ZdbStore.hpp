@@ -126,12 +126,12 @@ using InitResult = ZuUnion<
 // opened table data
 // - (*) un and sn may refer to trailing deletions
 // - any Zdb data store needs to maintain a "most recent deletes" (MRD)
-//   table, keyed on the DB ID, containing the UN and SN of the last delete
-//   applied to each data table; an eventually consistent batch, saga or
-//   transaction is used to combine deletion from the data table with an
-//   upsert to the DB's row in the MRD table; the DB's MRD row is consulted
-//   on table open to ensure accurate "last UN" and "last SN" numbers are
-//   recovered and returned
+//   internal table, with rows primary-keyed on the DB ID, containing
+//   the UN and SN of the last delete applied to each DB; an eventually
+//   consistent batch, saga or transaction is used to combine deletion
+//   from the table backing the DB with an upsert to the DB's row in the
+//   MRD table; the DB's MRD row is consulted on DB open to ensure accurate
+//   "last UN" and "last SN" numbers are recovered and returned
 struct OpenData {
   Table		*table = nullptr;
   RN		rn = 0;			// last RN in table
@@ -173,7 +173,7 @@ struct Interface {
       OpenFn,
       ScanFn) = 0;
 };
-} // Store_;
+} // Store_
 using Store = Store_::Interface;
 
 // module entry point

@@ -17,10 +17,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// Data Series In-Memory
+// Zdf vocabulary types
 
-#ifndef ZdfMem_HPP
-#define ZdfMem_HPP
+#ifndef ZdfTypes_HPP
+#define ZdfTypes_HPP
 
 #ifdef _MSC_VER
 #pragma once
@@ -30,32 +30,18 @@
 #include <zlib/ZdfLib.hpp>
 #endif
 
-#include <zlib/ZdfMgr.hpp>
+#include <zlib/ZePlatform.hpp>
 
 namespace Zdf {
 
-class ZdfAPI MemMgr : public Mgr {
-public:
-  void shift();
-  void push(BufLRUNode *);
-  void use(BufLRUNode *);
-  void del(BufLRUNode *);
-  void purge(unsigned, unsigned);
+using Event = ZeMEvent;				// monomorphic ZeEvent
 
-  void init(ZmScheduler *, const ZvCf *);
-  void final();
+using OpenResult = ZuUnion<void, Event>;	// open result
+using OpenFn = ZmFn<OpenResult>;		// open callback
 
-  bool open(unsigned, ZuString, ZuString, OpenFn openFn);
-  void close(unsigned);
-
-  bool loadHdr(unsigned, unsigned, Hdr &);
-  bool load(unsigned, unsigned, void *);
-  void save(ZmRef<Buf>);
-
-  bool loadFile(ZuString, Zfb::Load::LoadFn, unsigned, ZeError *e);
-  bool saveFile(ZuString, Zfb::Builder &, ZeError *e);
-};
+using CloseResult = ZuUnion<void, Event>;	// close result
+using CloseFn = ZmFn<CloseResult>;		// close callback
 
 } // namespace Zdf
 
-#endif /* ZdfMem_HPP */
+#endif /* ZdfTypes_HPP */

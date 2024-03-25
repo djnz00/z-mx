@@ -118,6 +118,7 @@ public:
   template <typename ...Args>
   Buf_(Args &&... args) : BufLRUNode{ZuFwd<Args>(args)...} { }
 
+  // cache pinning for asynchronous saves
   void pin() {
     PinGuard guard(m_pinLock);
     ++m_pinned;
@@ -132,7 +133,6 @@ public:
     l(m_pinned);
   }
 
-  // used for asynchronous saves
   template <typename L>
   void save(L l) {
     PinGuard guard(m_pinLock);
@@ -203,8 +203,8 @@ public:
   void init(unsigned maxBufs);
   void final();
 
-  unsigned alloc(BufUnloadFn unloadFn);
-  void free(unsigned seriesID);
+  unsigned alloc(BufUnloadFn unloadFn);	// registers series, allocates seriesID
+  void free(unsigned seriesID);		// frees buffers, unloadFn is not called
 
   virtual void shift() {
     if (m_lru.count_() >= m_maxBufs) {
@@ -229,7 +229,7 @@ public:
 
 private:
   BufLRU		m_lru;
-  ZtArray<BufUnloadFn>	m_unloadFn;	// allocates seriesID
+  ZtArray<BufUnloadFn>	m_unloadFn;	// callbacks for each series
   unsigned		m_maxBufs = 0;
 };
 

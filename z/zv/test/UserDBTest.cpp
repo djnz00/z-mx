@@ -62,9 +62,9 @@ int main()
 
     Mgr mgr(&rng, 12, 6, 30, 1<<20 /* 1Mb */);
 
-    std::cout << ZtHexDump("\n", iobuf->data(), iobuf->length);
+    std::cout << ZtHexDump{"\n", iobuf->data(), iobuf->length};
 
-    if (!mgr.load_(iobuf->data(), iobuf->length)) {
+    if (!mgr.load_(ZuBytes{iobuf->data(), iobuf->length})) {
       std::cerr << "LOAD FAILED - failed to verify\n" << std::flush;
       return 1;
     }

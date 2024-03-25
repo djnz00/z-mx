@@ -52,12 +52,12 @@
 #include <zlib/ZmBackTrace.hpp>
 
 #ifdef ZmRing_FUNCTEST
-#define ZmRing_bp(self, name) self->bp_##name.reached(#name)
+#define ZmRing_bp(this_, name) this_->bp_##name.reached(#name)
 #else
 #ifdef ZmRing_STRESSTEST
-#define ZmRing_bp(self, name) ZmPlatform::yield()
+#define ZmRing_bp(this_, name) ZmPlatform::yield()
 #else
-#define ZmRing_bp(self, name) (void())
+#define ZmRing_bp(this_, name) (void())
 #endif
 #endif
 
