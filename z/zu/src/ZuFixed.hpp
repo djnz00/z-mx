@@ -90,7 +90,7 @@ public:
     m_exponent{static_cast<uint8_t>(e)} { }
 
   // multiply: exponent of result is taken from the LHS
-  // a 128bit integer intermediary is used to avoid overflow
+  // a 128bit integer intermediate is used to avoid overflow
   ZuFixed operator *(const ZuFixed &v) const {
     int128_t i = mantissa();
     i *= v.mantissa();
@@ -100,7 +100,7 @@ public:
   }
 
   // divide: exponent of result is taken from the LHS
-  // a 128bit integer intermediary is used to avoid overflow
+  // a 128bit integer intermediate is used to avoid overflow
   ZuFixed operator /(const ZuFixed &v) const {
     int128_t i = mantissa();
     i *= ZuDecimalFn::pow10_64(exponent());
