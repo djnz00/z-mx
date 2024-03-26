@@ -90,10 +90,9 @@ int main()
   auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
     using ZtFieldTypeCode::Flags;
-    auto i = ZtMField::cindex(constant);
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,
-	[&s, i, &field, &fmt](auto Code) {
-      field.constant.print<Code>(s, i, &field, fmt);
+	[&s, constant, &field, &fmt](auto Code) {
+      field.constant.print<Code>(s, ZtMField::cget(constant), &field, fmt);
     });
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {

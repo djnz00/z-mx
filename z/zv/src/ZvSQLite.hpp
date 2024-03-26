@@ -28,7 +28,6 @@
 #include <zlib/ZvLib.hpp>
 #endif
 
-// FIXME - move this so Zdb comes first
 // FIXME -
 // WAL
 // exclusive mode
@@ -48,7 +47,7 @@ class ZvAPI DB {
   // FIXME - initialize(), config(), shutdown()
   // FIXME - some config options from ZvCf, others hard-coded
   // FIXME - single-threaded, scheduler, ZvCf thread selection
-  // FIXME - run, invoke (per other Mgr classes)
+  // FIXME - run, invoke (per other such classes)
 
 // FIXME - WAL auto-checkpoint configuration, etc.
 
@@ -80,11 +79,11 @@ public:
 // FIXME - use WAL (write ahead logging)
 //
 // FIXME - use custom functions to print/scan enums, flags, decimals
-// (convert fixed -> decimal to store)
+// (convert fixed -> decimal to store) (just like CSV)
 
-// FIXME - use ZtField run-time metadata to create tables + indices, bind, etc.
+// FIXME - use ZtMField to create tables + indices, bind, etc.
 //
-// FIXME - update uses of ZtFieldArray to provide Primary, Secondary, etc.
+// FIXME - update uses of ZtMFieldArray to provide Primary, Secondary, etc.
 // run-time metadata (in addition to Key, key() at compile time)
 
 #endif /* ZvSQLite_HPP */

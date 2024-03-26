@@ -93,7 +93,7 @@
 //   get	- ZtMFieldGet
 //   set	- ZtMFieldSet
 //   constant	- ZtMFieldGet for constants (default, minimum, maximum)
-//   cindex	- cast ZtMFieldConstant to ZtMFieldGet const void * parameter
+//   cget	- cast ZtMFieldConstant to const void * for ZtMFieldGet
 //
 // ZtMFieldGet provides:
 //   get<Code>(const void *o)
@@ -723,8 +723,8 @@ struct ZtMField {
       set{Field::setFn()},
       constant{Field::constantFn()} { }
 
-  // parameter to constant()
-  static const void *cindex(int c) {
+  // parameter to ZtMFieldGet::get()
+  static const void *cget(int c) {
     return reinterpret_cast<void *>(static_cast<uintptr_t>(c));
   }
 
