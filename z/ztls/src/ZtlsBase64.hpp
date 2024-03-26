@@ -36,32 +36,28 @@ namespace Ztls::Base64 {
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
-ZuInline unsigned encode(
-    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
+ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
   using base64 = cppcodec::base64_rfc4648;
   try {
-    return base64::encode(dst, dlen, src, slen);
+    return base64::encode(
+	reinterpret_cast<char *>(dst.data()), dst.length(),
+	src.data(), src.length());
   } catch (...) {
     return 0;
   }
-}
-ZuInline unsigned encode(ZuBytes dst, ZuBytes src) {
-  encode(dst.data(), dst.length(), src.data(), src.length());
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
-ZuInline unsigned decode(
-    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
+ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
   using base64 = cppcodec::base64_rfc4648;
   try {
-    return base64::decode(dst, dlen, src, slen);
+    return base64::decode(
+	dst.data(), dst.length(),
+	reinterpret_cast<const char *>(src.data()), src.length());
   } catch (...) {
     return 0;
   }
-}
-ZuInline unsigned decode(ZuBytes dst, ZuBytes src) {
-  decode(dst.data(), dst.length(), src.data(), src.length());
 }
 
 }

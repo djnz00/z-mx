@@ -17,9 +17,40 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// fast, lightweight string class
+// hex dumper
 
-#include <zlib/ZtString.hpp>
+#include <zlib/ZtHexDump.hpp>
 
-template class ZtString_<char, ZtString_ID>;
-template class ZtString_<wchar_t, ZtString_ID>;
+void ZtHexDump_::print(ZmStream &s) const
+{
+  if (ZuUnlikely(!m_data)) return;
+
+  s << '\n';
+
+  ZuStringN<64> hex;
+  ZuStringN<20> ascii;
+  ZuStringN<48> pad;
+  memset(pad.data(), ' ', 45);
+  pad.length(45);
+
+  unsigned offset, col;
+
+  for (offset = 0; offset < m_length; offset += 16) {
+    hex.null();
+    ascii.null();
+    using namespace ZuFmt;
+    hex << ZuBoxed(offset).fmt<Hex<0, Alt<Right<8>>>>() << "  ";
+    for (col = 0; col < 16; col++) {
+      if (offset + col >= m_length) {
+	hex << ZuString(pad.data(), 3 * (16 - col));
+	break;
+      }
+      ZuBox<uint8_t> byte = m_data[offset + col];
+      hex << byte.fmt<Hex<0, Right<2>>>() << ' ';
+      ascii << (((byte >= 0x20 && byte < 0x7f) || byte == '"') ?
+	  static_cast<char>(byte.val()) : '.');
+    }
+    hex << ' ';
+    s << hex << ascii << '\n';
+  }
+}

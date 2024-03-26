@@ -50,6 +50,7 @@
 
 #include <zlib/ZtString.hpp>
 #include <zlib/ZtEnum.hpp>
+#include <zlib/ZtHexDump.hpp>
 
 #include <zlib/ZePlatform.hpp>
 #include <zlib/ZeLog.hpp>

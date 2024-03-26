@@ -23,6 +23,8 @@
 
 #include <zlib/ZmAssert.hpp>
 
+#include <zlib/ZtHexDump.hpp>
+
 #include <zlib/ZeLog.hpp>
 
 #ifndef _WIN32

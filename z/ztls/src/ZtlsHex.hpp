@@ -36,24 +36,20 @@ namespace Ztls::Hex {
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return slen<<1; }
-ZuInline unsigned encode(
-    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
+ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
   using hex = cppcodec::hex_upper;
-  return hex::encode(dst, dlen, src, slen);
-}
-ZuInline unsigned encode(ZuBytes dst, ZuBytes src) {
-  encode(dst.data(), dst.length(), src.data(), src.length());
+  return hex::encode(
+      reinterpret_cast<char *>(dst.data()), dst.length(),
+      src.data(), src.length());
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return (slen + 1)>>1; }
-ZuInline unsigned decode(
-    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
+ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
   using hex = cppcodec::hex_upper;
-  return hex::decode(dst, dlen, src, slen);
-}
-ZuInline unsigned decode(ZuBytes dst, ZuBytes src) {
-  decode(dst.data(), dst.length(), src.data(), src.length());
+  return hex::decode(
+      dst.data(), dst.length(),
+      reinterpret_cast<const char *>(src.data()), src.length());
 }
 
 }

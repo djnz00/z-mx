@@ -248,9 +248,8 @@ friend Link;
       unsigned n = strlen(secret_);
       ZtArray<uint8_t> secret;
       secret.length(Ztls::Base32::declen(n));
-      secret.length(
-	  Ztls::Base32::decode(secret.data(), secret.length(), secret_, n));
-      if (secret) totp = Ztls::TOTP::calc(secret.data(), secret.length());
+      secret.length(Ztls::Base32::decode(secret, {secret_, n}));
+      if (secret) totp = Ztls::TOTP::calc(secret);
     } else
       totp = m_cli.getpass("totp: ", 6);
     if (!*totp) return;
@@ -607,13 +606,11 @@ private:
     auto hmac_ = bytes(user_->hmac());
     ZtString hmac;
     hmac.length(Ztls::Base64::enclen(hmac_.length()));
-    Ztls::Base64::encode(
-	hmac.data(), hmac.length(), hmac_.data(), hmac_.length());
+    Ztls::Base64::encode(hmac, hmac_);
     auto secret_ = bytes(user_->secret());
     ZtString secret;
     secret.length(Ztls::Base32::enclen(secret_.length()));
-    Ztls::Base32::encode(
-	secret.data(), secret.length(), secret_.data(), secret_.length());
+    Ztls::Base32::encode(secret, secret_);
     out << user_->id() << ' ' << str(user_->name()) << " roles=[";
     all(user_->roles(), [&out](unsigned i, auto role_) {
       if (i) out << ',';
@@ -1165,8 +1162,7 @@ private:
       auto secret_ = bytes(keyUpdAck->key()->secret());
       ZtString secret;
       secret.length(Ztls::Base64::enclen(secret_.length()));
-      Ztls::Base64::encode(
-	  secret.data(), secret.length(), secret_.data(), secret_.length());
+      Ztls::Base64::encode(secret, secret_);
       out << "id: " << str(keyUpdAck->key()->id())
 	<< "\nsecret: " << secret << '\n';
       executed(0, &ctx);

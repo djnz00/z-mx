@@ -11,6 +11,7 @@
 
 #include <zlib/ZtArray.hpp>
 #include <zlib/ZtRegex.hpp>
+#include <zlib/ZtHexDump.hpp>
 
 #include <zlib/ZeLog.hpp>
 

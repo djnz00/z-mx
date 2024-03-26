@@ -646,6 +646,7 @@ public:
     };
     template <typename U = ArrayN>
     static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }
+    static Elem *data(ArrayN &a) { return a.data(); }
     static const Elem *data(const ArrayN &a) { return a.data(); }
     static unsigned length(const ArrayN &a) { return a.length(); }
   };

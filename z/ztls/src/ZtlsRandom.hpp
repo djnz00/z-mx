@@ -50,8 +50,8 @@ public:
     return !n;
   }
 
-  bool random(uint8_t *data, unsigned len) {
-    int i = mbedtls_ctr_drbg_random(&m_ctr_drbg, data, len);
+  bool random(ZuArray<uint8_t> data) {
+    int i = mbedtls_ctr_drbg_random(&m_ctr_drbg, data.data(), data.length());
     return i >= 0;
   }
 

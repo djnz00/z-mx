@@ -7,6 +7,8 @@
 #include <zlib/ZuBox.hpp>
 #include <zlib/ZuByteSwap.hpp>
 
+#include <zlib/ZtHexDump.hpp>
+
 #include <zlib/Zfb.hpp>
 #include <zlib/ZfbKVTree.hpp>
 #include <zlib/ZfbField.hpp>

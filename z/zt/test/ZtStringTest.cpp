@@ -11,6 +11,7 @@
 #include <zlib/ZmList.hpp>
 
 #include <zlib/ZtString.hpp>
+#include <zlib/ZtHexDump.hpp>
 
 #include <string>
 #include <sstream>

@@ -38,9 +38,8 @@
 
 namespace Ztls::TOTP {
 
-ZtlsExtern unsigned calc(const uint8_t *data, unsigned len, int offset = 0);
-ZtlsExtern bool verify(
-    const uint8_t *data, unsigned len, unsigned code, unsigned range);
+ZtlsExtern unsigned calc(ZuBytes, int offset = 0);
+ZtlsExtern bool verify(ZuBytes, unsigned code, unsigned range);
 
 }
 

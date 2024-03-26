@@ -451,6 +451,7 @@ template <typename T, typename Char>
 struct ZuStdStringTraits_ : public ZuBaseTraits<T> {
   enum { IsString = 1 };
   using Elem = Char;
+  static Char *data(T &s) { return s.data(); }
   static const Char *data(const T &s) { return s.data(); }
   static unsigned length(const T &s) { return s.length(); }
 };
@@ -464,6 +465,7 @@ template <typename T, typename Elem_>
 struct ZuStdArrayTraits_ : public ZuBaseTraits<T> {
   using Elem = Elem_;
   enum { IsArray = 1 };
+  static Elem *data(T &a) { return a.data(); }
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.size(); }
 };

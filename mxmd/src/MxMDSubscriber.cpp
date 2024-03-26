@@ -23,6 +23,8 @@
 
 #include <mxmd/MxMDSubscriber.hpp>
 
+#include <zlib/ZtHexDump.hpp>
+
 void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
 {
   if (!cf->get("id")) cf->set("id", "subscrib");

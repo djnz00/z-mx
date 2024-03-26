@@ -1,3 +1,5 @@
+#include <zlib/ZtHexDump.hpp>
+
 #include <zlib/ZtlsRandom.hpp>
 
 #include <zlib/ZvUserDB.hpp>

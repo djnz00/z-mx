@@ -183,8 +183,7 @@ protected:
 	bool{ZuEquivChar<wchar_t, T>{}},
       IsWString = bool{ZuEquivChar<wchar_t, T>{}}
     };
-    template <typename U = ZuMvArray>
-    static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }
+    static T *data(ZuMvArray &a) { return a.data(); }
     static const T *data(const ZuMvArray &a) { return a.data(); }
     static unsigned length(const ZuMvArray &a) { return a.length(); }
   };

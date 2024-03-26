@@ -19,17 +19,14 @@ int main(int argc, char **argv)
 {
   ZtArray<uint8_t> secret;
   if (argc != 2) usage();
-  int n = strlen(argv[1]);
+  unsigned n = strlen(argv[1]);
   secret.length(Ztls::Base32::declen(n));
-  secret.length(
-      Ztls::Base32::decode(
-	secret.data(), secret.length(),
-	reinterpret_cast<const uint8_t *>(argv[1]), n));
+  secret.length(Ztls::Base32::decode(secret, ZuBytes{argv[1], n}));
   if (!secret) {
     std::cerr << "decode error\n" << std::flush;
     return 1;
   }
-  auto code = Ztls::TOTP::calc(secret.data(), secret.length());
+  auto code = Ztls::TOTP::calc(secret);
   std::cout << ZuBoxed(code).fmt<ZuFmt::Right<6>>() << '\n';
   return 0;
 }

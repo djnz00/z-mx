@@ -69,9 +69,7 @@ bool Mgr::bootstrap(
     ZmRef<User> user = userAdd_(
 	0, name, role, User::Immutable | User::Enabled | User::ChPass, passwd);
     secret.length(Ztls::Base32::enclen(user->secret.length()));
-    Ztls::Base32::encode(
-	secret.data(), secret.length(),
-	user->secret.data(), user->secret.length());
+    Ztls::Base32::encode(secret, user->secret);
     return true;
   }
   return false;
@@ -87,17 +85,16 @@ ZmRef<User> Mgr::userAdd_(
     unsigned passLen_ = Ztls::Base64::declen(m_passLen);
     if (passLen_ > passwd_.size()) passLen_ = passwd_.size();
     passwd_.length(passLen_);
-    m_rng->random(passwd_.data(), passLen_);
+    m_rng->random(passwd_);
     passwd.length(m_passLen);
-    Ztls::Base64::encode(
-	passwd.data(), passwd.length(), passwd_.data(), passwd_.length());
+    Ztls::Base64::encode(passwd, passwd_);
   }
   user->secret.length(user->secret.size());
-  m_rng->random(user->secret.data(), user->secret.length());
+  m_rng->random(user->secret);
   {
     Ztls::HMAC hmac(User::keyType());
-    hmac.start(user->secret.data(), user->secret.length());
-    hmac.update(passwd.data(), passwd.length());
+    hmac.start(user->secret);
+    hmac.update(passwd);
     user->hmac.length(user->hmac.size());
     hmac.finish(user->hmac.data());
   }
@@ -442,8 +439,8 @@ ZmRef<User> Mgr::login(int &failures,
   {
     Ztls::HMAC hmac(User::keyType());
     KeyData verify;
-    hmac.start(user->secret.data(), user->secret.length());
-    hmac.update(passwd.data(), passwd.length());
+    hmac.start(user->secret);
+    hmac.update(passwd);
     verify.length(verify.size());
     hmac.finish(verify.data());
     if (verify != user->hmac) {
@@ -456,8 +453,7 @@ ZmRef<User> Mgr::login(int &failures,
       return nullptr;
     }
   }
-  if (!Ztls::TOTP::verify(
-	user->secret.data(), user->secret.length(), totp, m_totpRange)) {
+  if (!Ztls::TOTP::verify(user->secret, totp, m_totpRange)) {
     if (++user->failures < 3) {
       ZeLOG(Warning, ([user](auto &s) {
 	s << "authentication failure: user \""
@@ -516,9 +512,9 @@ ZmRef<User> Mgr::access(int &failures,
   {
     Ztls::HMAC hmac_(Key::keyType());
     KeyData verify;
-    hmac_.start(key->secret.data(), key->secret.length());
-    hmac_.update(token.data(), token.length());
-    hmac_.update(&stamp, sizeof(int64_t));
+    hmac_.start(key->secret);
+    hmac_.update(token);
+    hmac_.update({reinterpret_cast<const uint8_t *>(&stamp), sizeof(int64_t)});
     verify.length(verify.size());
     hmac_.finish(verify.data());
     if (verify != hmac) {
@@ -549,8 +545,8 @@ Offset<fbs::UserAck> Mgr::chPass(
   ZuString newPass = Load::str(userChPass_->newpass());
   Ztls::HMAC hmac(User::keyType());
   KeyData verify;
-  hmac.start(user->secret.data(), user->secret.length());
-  hmac.update(oldPass.data(), oldPass.length());
+  hmac.start(user->secret);
+  hmac.update(oldPass);
   verify.length(verify.size());
   hmac.finish(verify.data());
   if (verify != user->hmac)
@@ -558,7 +554,7 @@ Offset<fbs::UserAck> Mgr::chPass(
   user->flags &= ~User::ChPass;
   m_modified = true;
   hmac.reset();
-  hmac.update(newPass.data(), newPass.length());
+  hmac.update(newPass);
   hmac.finish(user->hmac.data());
   return fbs::CreateUserAck(fbb, 1);
 }
@@ -620,15 +616,14 @@ Offset<fbs::UserPass> Mgr::resetPass(
     unsigned passLen_ = Ztls::Base64::declen(m_passLen);
     if (passLen_ > passwd_.size()) passLen_ = passwd_.size();
     passwd_.length(passLen_);
-    m_rng->random(passwd_.data(), passLen_);
+    m_rng->random(passwd_);
     passwd.length(m_passLen);
-    Ztls::Base64::encode(
-	passwd.data(), passwd.length(), passwd_.data(), passwd_.length());
+    Ztls::Base64::encode(passwd, passwd_);
   }
   {
     Ztls::HMAC hmac(User::keyType());
-    hmac.start(user->secret.data(), user->secret.length());
-    hmac.update(passwd.data(), passwd.length());
+    hmac.start(user->secret);
+    hmac.update(passwd);
     user->hmac.length(user->hmac.size());
     hmac.finish(user->hmac.data());
   }
@@ -906,14 +901,13 @@ Offset<fbs::KeyUpdAck> Mgr::keyAdd_(
   do {
     Key::IDData keyID_;
     keyID_.length(keyID_.size());
-    m_rng->random(keyID_.data(), keyID_.length());
+    m_rng->random(keyID_);
     keyID.length(Ztls::Base64::enclen(keyID_.length()));
-    Ztls::Base64::encode(
-	keyID.data(), keyID.length(), keyID_.data(), keyID_.length());
+    Ztls::Base64::encode(keyID, keyID_);
   } while (m_keys->findPtr(ZuFwdTuple(keyID)));
   ZmRef<Key> key = new Key{ZuMv(keyID), user->id, user->keyList};
   key->secret.length(key->secret.size());
-  m_rng->random(key->secret.data(), key->secret.length());
+  m_rng->random(key->secret);
   user->keyList = key;
   m_keys->addNode(key);
   return fbs::CreateKeyUpdAck(fbb, key->save(fbb), 1);

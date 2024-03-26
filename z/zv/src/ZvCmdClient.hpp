@@ -152,19 +152,19 @@ public:
   void access(KeyID &&keyID, ZuString secret_) {
     ZtArray<uint8_t> secret;
     secret.length(Ztls::Base64::declen(secret_.length()));
-    Ztls::Base64::decode(
-	secret.data(), secret.length(), secret_.data(), secret_.length());
+    Ztls::Base64::decode(secret, secret_);
     secret.length(32);
     ZvUserDB::KeyData token, hmac;
     token.length(token.size());
     hmac.length(hmac.size());
-    this->app()->random(token.data(), token.length());
+    this->app()->random(token);
     int64_t stamp = ZmTimeNow().sec();
     {
       Ztls::HMAC hmac_(ZvUserDB::Key::keyType());
-      hmac_.start(secret.data(), secret.length());
-      hmac_.update(token.data(), token.length());
-      hmac_.update(&stamp, sizeof(uint64_t));
+      hmac_.start(secret);
+      hmac_.update(token);
+      hmac_.update(
+	  {reinterpret_cast<const uint8_t *>(&stamp), sizeof(uint64_t)});
       hmac_.finish(hmac.data());
     }
     new (m_credentials.init<ZvCmd_Access>())

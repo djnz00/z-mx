@@ -10,6 +10,8 @@
 #include <zlib/ZmRandom.hpp>
 #include <zlib/ZmTrap.hpp>
 
+#include <zlib/ZtHexDump.hpp>
+
 #include <zlib/ZeLog.hpp>
 
 #include <zlib/ZiMultiplex.hpp>

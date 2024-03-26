@@ -23,13 +23,13 @@
 
 namespace Ztls::TOTP {
 
-ZtlsExtern unsigned calc(const uint8_t *data, unsigned len, int offset)
+ZtlsExtern unsigned calc(ZuBytes data, int offset)
 {
   ZuBigEndian<uint64_t> t = (ZmTimeNow().sec() / 30) + offset;
   HMAC hmac(MBEDTLS_MD_SHA1);
   uint8_t sha1[20];
-  hmac.start(data, len);
-  hmac.update(reinterpret_cast<const uint8_t *>(&t), 8);
+  hmac.start(data);
+  hmac.update({reinterpret_cast<const uint8_t *>(&t), 8});
   hmac.finish(sha1);
   ZuBigEndian<uint32_t> code_;
   {
@@ -41,11 +41,10 @@ ZtlsExtern unsigned calc(const uint8_t *data, unsigned len, int offset)
   return code % static_cast<uint32_t>(1000000);
 }
 
-ZtlsExtern bool verify(
-    const uint8_t *data, unsigned len, unsigned code, unsigned range)
+ZtlsExtern bool verify(ZuBytes data, unsigned code, unsigned range)
 {
   for (int i = -static_cast<int>(range); i <= static_cast<int>(range); i++)
-    if (code == calc(data, len, i)) return true;
+    if (code == calc(data, i)) return true;
   return false;
 }
 

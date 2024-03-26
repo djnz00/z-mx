@@ -386,8 +386,7 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
       bool{ZuEquivChar<wchar_t, Elem>{}},
     IsWString = bool{ZuEquivChar<wchar_t, Elem>{}}
   };
-  template <typename U = T>
-  static ZuMutable<U, Elem *> data(U &a) { return a.data(); }
+  static Elem *data(T &a) { return a.data(); }
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.length(); }
 };

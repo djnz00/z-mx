@@ -167,7 +167,14 @@ namespace Telemetry {
     ~Item_() {
       if (dataFrame) {
 	dfWriter.final();
-	dataFrame->close();
+	ZmBlock<>{}([this](auto wake) {
+	  dataFrame->close(
+	      [wake = ZuMv(wake)](Zdf::CloseResult result) mutable {
+	    if (result.is<Zdf::Event>())
+	      ZeLogEvent(ZuMv(result).v<Zdf::Event>());
+	    wake();
+	  });
+	});
 	dataFrame = nullptr;
       }
     }
@@ -183,10 +190,18 @@ namespace Telemetry {
     TelKey telKey() const { return Base::telKey(data); }
     int rag() const { return Base::rag(data); }
 
-    bool record(ZuString name, Zdf::Mgr *mgr, ZeError *e = nullptr) {
+    bool record(ZuString name, Zdf::Store *store, ZeError *e = nullptr) {
       dataFrame = new Zdf::DataFrame{Data::fields(), name, true};
-      dataFrame->init(mgr);
-      if (!dataFrame->open(e)) return false;
+      dataFrame->init(store);
+      if (!ZmBlock<bool>{}([this](auto wake) {
+	dataFrame->open([wake = ZuMv(wake)](Zdf::OpenResult result) mutable {
+	  if (result.is<Zdf::Event>()) {
+	    ZeLogEvent(ZuMv(result).v<Zdf::Event>());
+	    wake(false);
+	  }
+	  wake(true);
+	});
+      }));
       dfWriter = dataFrame->writer();
       return true;
     }

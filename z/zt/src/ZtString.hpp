@@ -1353,8 +1353,7 @@ public:
       IsCString = 1, IsString = 1,
       IsWString = bool{ZuEquivChar<wchar_t, Char>{}}
     };
-    template <typename U = ZtString_>
-    static ZuMutable<U, Char *> data(U &s) { return s.data(); }
+    static Char *data(ZtString_ &s) { return s.data(); }
     static const Char *data(const ZtString_ &s) { return s.data(); }
     static unsigned length(const ZtString_ &s) { return s.length(); }
   };
@@ -1446,126 +1445,6 @@ inline ZtWString ZtWJoin(const D &d, const std::initializer_list<E> &a) {
   ZtJoin(d, ZuArray<E>{a}, o);
   return o;
 }
-
-// hex dump
-
-// ZtHexDump_ is a low-level hex dumper that does NOT copy data
-template <typename T> struct ZtHexDump_Size { enum { N = sizeof(T) }; };
-template <> struct ZtHexDump_Size<void> { enum { N = 1 }; };
-class ZtAPI ZtHexDump_ {
-protected:
-  ZtHexDump_() = default;
-
-public:
-  template <typename T, typename Cmp>
-  ZtHexDump_(ZuArray<T, Cmp> data) :
-      m_data{reinterpret_cast<const uint8_t *>(data.data())},
-      m_length(data.length() * sizeof(T)) { }
-
-  template <typename T>
-  ZtHexDump_(const T *data, unsigned length) :
-      m_data{reinterpret_cast<const uint8_t *>(data)},
-      m_length{length * ZtHexDump_Size<T>::N} { }
-
-  ZtHexDump_(const ZtHexDump_ &d) : m_data{d.m_data}, m_length{d.m_length} { }
-  ZtHexDump_ &operator =(const ZtHexDump_ &d) {
-    if (ZuLikely(this != &d)) {
-      m_data = d.m_data;
-      m_length = d.m_length;
-    }
-    return *this;
-  }
-
-public:
-  void print(ZmStream &s) const;
-  struct Print : public ZuPrintDelegate {
-    template <typename S>
-    static void print(S &s_, const ZtHexDump_ &d) {
-      ZmStream s{s_};
-      d.print(s);
-    }
-    static void print(ZmStream &s, const ZtHexDump_ &d) {
-      d.print(s);
-    }
-  };
-  friend Print ZuPrintType(ZtHexDump_ *);
-
-protected:
-  const uint8_t	*m_data = nullptr;
-  unsigned	m_length = 0;
-};
-
-// copies of the prefix and the data are taken since ZtHexDump is mainly used
-// for troubleshooting / logging; ZeLog printing is deferred to a later time
-// by the logger, which runs in a different thread and stack; both the
-// prefix and the data need to reliably remain in scope
-inline constexpr const char *ZtHexDump_ID() { return "ZtHexDump"; }
-class ZtHexDump : private ZmVHeap<ZtHexDump_ID>, public ZtHexDump_ {
-  ZtHexDump() = delete;
-
-public:
-  template <typename T, typename Cmp>
-  ZtHexDump(ZuString prefix, ZuArray<T, Cmp> data) : m_prefix{prefix} {
-    m_length = data.length() * sizeof(T);
-    init_(reinterpret_cast<const uint8_t *>(data.data()));
-  }
-
-  template <typename T>
-  ZtHexDump(ZuString prefix, const T *data, unsigned length) :
-      m_prefix{prefix} {
-    m_length = length * ZtHexDump_Size<T>::N;
-    init_(reinterpret_cast<const uint8_t *>(data));
-  }
-
-  ~ZtHexDump() {
-    if (ZuLikely(m_data)) vfree(m_data);
-  }
-
-  ZtHexDump(ZtHexDump &&d) : m_prefix{ZuMv(d.m_prefix)} {
-    m_data = d.m_data;
-    m_length = d.m_length;
-    d.m_prefix = {};
-    d.m_data = nullptr;
-    d.m_length = 0;
-  }
-  ZtHexDump &operator =(ZtHexDump &&d) {
-    if (ZuLikely(this != &d)) {
-      m_prefix = ZuMv(d.m_prefix);
-      m_data = d.m_data;
-      m_length = d.m_length;
-      d.m_prefix = {};
-      d.m_data = nullptr;
-      d.m_length = 0;
-    }
-    return *this;
-  }
-  ZtHexDump(const ZtHexDump &) = delete;
-  ZtHexDump &operator =(const ZtHexDump &) = delete;
-
-private:
-  void init_(const uint8_t *data_) {
-    uint8_t *data;
-    if (ZuLikely(data = static_cast<uint8_t *>(valloc(m_length)))) {
-      memcpy(data, data_, m_length);
-      m_data = data;
-    } else {
-      m_data = nullptr;
-      m_length = 0;
-    }
-  }
-
-public:
-  struct Print : public ZuPrintDelegate {
-    template <typename S>
-    static void print(S &s, const ZtHexDump &d) {
-      s << d.m_prefix << static_cast<const ZtHexDump_ &>(d);
-    }
-  };
-  friend Print ZuPrintType(ZtHexDump *);
-
-private:
-  ZtString	m_prefix;
-};
 
 #ifdef _MSC_VER
 #pragma warning(pop)

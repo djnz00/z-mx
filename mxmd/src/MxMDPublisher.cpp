@@ -23,6 +23,8 @@
 
 #include <mxmd/MxMDPublisher.hpp>
 
+#include <zlib/ZtHexDump.hpp>
+
 void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
 {
   if (!cf->get("id")) cf->set("id", "publish");

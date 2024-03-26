@@ -136,6 +136,7 @@
 #include <zlib/ZtEnum.hpp>
 #include <zlib/ZtDate.hpp>
 #include <zlib/ZtString.hpp>
+#include <zlib/ZtHexDump.hpp>
 #include <zlib/ZtScanBool.hpp>
 
 namespace ZtFieldTypeCode {
