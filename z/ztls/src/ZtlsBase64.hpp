@@ -30,36 +30,40 @@
 
 #include <cppcodec/base64_rfc4648.hpp>
 
-namespace Ztls {
-namespace Base64 {
+namespace Ztls::Base64 {
 
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
 ZuInline unsigned encode(
-    char *dst, unsigned dlen, const void *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using base64 = cppcodec::base64_rfc4648;
   try {
-    return base64::encode(dst, dlen, (const uint8_t *)src, slen);
+    return base64::encode(dst, dlen, src, slen);
   } catch (...) {
     return 0;
   }
+}
+ZuInline unsigned encode(ZuBytes dst, ZuBytes src) {
+  encode(dst.data(), dst.length(), src.data(), src.length());
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
 ZuInline unsigned decode(
-    void *dst, unsigned dlen, const char *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using base64 = cppcodec::base64_rfc4648;
   try {
-    return base64::decode((uint8_t *)dst, dlen, src, slen);
+    return base64::decode(dst, dlen, src, slen);
   } catch (...) {
     return 0;
   }
 }
-
+ZuInline unsigned decode(ZuBytes dst, ZuBytes src) {
+  decode(dst.data(), dst.length(), src.data(), src.length());
 }
+
 }
 
 #endif /* ZtlsBase64_HPP */

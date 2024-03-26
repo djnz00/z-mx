@@ -30,28 +30,32 @@
 
 #include <cppcodec/hex_upper.hpp>
 
-namespace Ztls {
-namespace Hex {
+namespace Ztls::Hex {
 
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return slen<<1; }
 ZuInline unsigned encode(
-    char *dst, unsigned dlen, const void *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using hex = cppcodec::hex_upper;
-  return hex::encode(dst, dlen, (const uint8_t *)src, slen);
+  return hex::encode(dst, dlen, src, slen);
+}
+ZuInline unsigned encode(ZuBytes dst, ZuBytes src) {
+  encode(dst.data(), dst.length(), src.data(), src.length());
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return (slen + 1)>>1; }
 ZuInline unsigned decode(
-    void *dst, unsigned dlen, const char *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using hex = cppcodec::hex_upper;
-  return hex::decode((uint8_t *)dst, dlen, src, slen);
+  return hex::decode(dst, dlen, src, slen);
+}
+ZuInline unsigned decode(ZuBytes dst, ZuBytes src) {
+  decode(dst.data(), dst.length(), src.data(), src.length());
 }
 
-}
 }
 
 #endif /* ZtlsHex_HPP */

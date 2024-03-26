@@ -30,36 +30,42 @@
 
 #include <cppcodec/base32_rfc4648.hpp>
 
-namespace Ztls {
-namespace Base32 {
+namespace Ztls::Base32 {
 
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 4)/5)<<3; }
 ZuInline unsigned encode(
-    char *dst, unsigned dlen, const void *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using base32 = cppcodec::base32_rfc4648;
   try {
-    return base32::encode(dst, dlen, (const uint8_t *)src, slen);
+    return base32::encode(
+	reinterpret_cast<char *>(dst), dlen, src, slen);
   } catch (...) {
     return 0;
   }
+}
+ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
+  return encode(dst.data(), dst.length(), src.data(), src.length());
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 7)>>3)*5; }
 ZuInline unsigned decode(
-    void *dst, unsigned dlen, const char *src, unsigned slen) {
+    uint8_t *dst, unsigned dlen, const uint8_t *src, unsigned slen) {
   using base32 = cppcodec::base32_rfc4648;
   try {
-    return base32::decode((uint8_t *)dst, dlen, src, slen);
+    return base32::decode(
+	dst, dlen, reinterpret_cast<const char *>(src), slen);
   } catch (...) {
     return 0;
   }
 }
-
+ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
+  return decode(dst.data(), dst.length(), src.data(), src.length());
 }
+
 }
 
 #endif /* ZtlsBase32_HPP */

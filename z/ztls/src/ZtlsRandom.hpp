@@ -50,8 +50,7 @@ public:
     return !n;
   }
 
-  bool random(void *data_, unsigned len) {
-    auto data = static_cast<unsigned char *>(data_);
+  bool random(uint8_t *data, unsigned len) {
     int i = mbedtls_ctr_drbg_random(&m_ctr_drbg, data, len);
     return i >= 0;
   }

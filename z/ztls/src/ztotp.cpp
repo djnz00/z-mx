@@ -22,7 +22,9 @@ int main(int argc, char **argv)
   int n = strlen(argv[1]);
   secret.length(Ztls::Base32::declen(n));
   secret.length(
-      Ztls::Base32::decode(secret.data(), secret.length(), argv[1], n));
+      Ztls::Base32::decode(
+	secret.data(), secret.length(),
+	reinterpret_cast<const uint8_t *>(argv[1]), n));
   if (!secret) {
     std::cerr << "decode error\n" << std::flush;
     return 1;

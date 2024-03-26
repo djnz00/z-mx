@@ -61,9 +61,9 @@ namespace Ztls {
 
 // I/O Threads |                    TLS thread                   | App threads
 // ------------|-------------------------------------------------|------------
-//     I/O Rx -+> Rx input  -> Decryption -> Rx output -> App Rx |
+//     I/O Rx --> Rx input  -> Decryption -> Rx output -> App Rx |
 // ------------|                                                 |
-//     I/O Tx <+- Tx output <- Encryption <- Tx input           <+- App Tx
+//     I/O Tx <-- Tx output <- Encryption <- Tx input           <-- App Tx
 // ------------|-------------------------------------------------|------------
 
 using IOBuf = ZiIOBuf<>;
@@ -207,7 +207,7 @@ private:
   }
 
   // ssl bio f_recv function - TLS thread
-  static int rxIn_(void *link_, unsigned char *ptr, size_t len) {
+  static int rxIn_(void *link_, uint8_t *ptr, size_t len) {
     return static_cast<Link *>(link_)->rxIn(ptr, len);
   }
   int rxIn(void *ptr, size_t len) { // TLS thread
@@ -219,9 +219,9 @@ private:
     unsigned offset = m_rxInOffset;
     int avail = inBuf->length - offset;
     if (avail <= 0) return MBEDTLS_ERR_SSL_WANT_READ;
-    if (len > (size_t)avail) len = avail;
+    if (len > static_cast<size_t>(avail)) len = avail;
     memcpy(ptr, inBuf->data() + offset, len);
-    if (len == (size_t)avail) {
+    if (len == static_cast<size_t>(avail)) {
       m_rxInOffset = 0;
       m_rxRing[m_rxRingOffset++] = nullptr;
       if (!--m_rxRingCount || m_rxRingOffset >= RxRingSize)
@@ -273,7 +273,7 @@ protected:
 private:
   bool recv() { // TLS thread
     int n = mbedtls_ssl_read(&m_ssl,
-	(unsigned char *)(m_rxOutBuf + m_rxOutOffset),
+	static_cast<uint8_t *>(m_rxOutBuf + m_rxOutOffset),
 	MBEDTLS_SSL_IN_CONTENT_LEN - m_rxOutOffset);
 
     if (n <= 0) {
@@ -311,7 +311,7 @@ private:
 	return false;
       }
       if (!n) break;
-      if (n < (int)m_rxOutOffset)
+      if (n < static_cast<int>(m_rxOutOffset))
 	memmove(m_rxOutBuf, m_rxOutBuf + n, m_rxOutOffset -= n);
       else
 	m_rxOutOffset = 0;
@@ -377,7 +377,7 @@ public:
 
 private:
   // ssl bio f_send function - TLS thread
-  static int txOut_(void *link_, const unsigned char *data, size_t len) {
+  static int txOut_(void *link_, const uint8_t *data, size_t len) {
     return static_cast<Link *>(link_)->txOut(data, len);
   }
   int txOut(const uint8_t *data, size_t len) { // TLS thread
@@ -943,7 +943,7 @@ friend Base;
 	    app->listenFailed(transient);
 	  }),
 	  ZiConnectFn(app(), [](App *app, const ZiCxnInfo &ci) -> uintptr_t {
-	    return (uintptr_t)app->accepted(ci);
+	    return reinterpret_cast<uintptr_t>(app->accepted(ci));
 	  }),
 	  app()->localIP(), app()->localPort(),
 	  app()->nAccepts(), ZiCxnOptions());

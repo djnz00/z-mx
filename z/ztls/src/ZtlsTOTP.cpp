@@ -21,16 +21,15 @@
 
 #include <zlib/ZtlsTOTP.hpp>
 
-namespace Ztls {
-namespace TOTP {
+namespace Ztls::TOTP {
 
-ZtlsExtern unsigned calc(const void *data, unsigned len, int offset)
+ZtlsExtern unsigned calc(const uint8_t *data, unsigned len, int offset)
 {
   ZuBigEndian<uint64_t> t = (ZmTimeNow().sec() / 30) + offset;
   HMAC hmac(MBEDTLS_MD_SHA1);
   uint8_t sha1[20];
   hmac.start(data, len);
-  hmac.update(&t, 8);
+  hmac.update(reinterpret_cast<const uint8_t *>(&t), 8);
   hmac.finish(sha1);
   ZuBigEndian<uint32_t> code_;
   {
@@ -43,12 +42,11 @@ ZtlsExtern unsigned calc(const void *data, unsigned len, int offset)
 }
 
 ZtlsExtern bool verify(
-    const void *data, unsigned len, unsigned code, unsigned range)
+    const uint8_t *data, unsigned len, unsigned code, unsigned range)
 {
   for (int i = -static_cast<int>(range); i <= static_cast<int>(range); i++)
     if (code == calc(data, len, i)) return true;
   return false;
 }
 
-} // TOTP
-} // Ztls
+} // Ztls::TOTP

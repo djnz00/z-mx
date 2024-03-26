@@ -36,14 +36,12 @@
 
 #include <zlib/ZtlsHMAC.hpp>
 
-namespace Ztls {
-namespace TOTP {
+namespace Ztls::TOTP {
 
-ZtlsExtern unsigned calc(const void *data, unsigned len, int offset = 0);
+ZtlsExtern unsigned calc(const uint8_t *data, unsigned len, int offset = 0);
 ZtlsExtern bool verify(
-    const void *data, unsigned len, unsigned code, unsigned range);
+    const uint8_t *data, unsigned len, unsigned code, unsigned range);
 
-}
 }
 
 #endif /* ZtlsTOTP_HPP */
