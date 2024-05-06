@@ -43,8 +43,8 @@
 
 #include <utility>
 #include <iterator>
-#include <ext/pb_ds/assoc_container.hh>	// included with gcc
-#include <ext/pb_ds/tree_policy.hh>		// ''
+#include <ext/pb_ds/assoc_container.hpp>	// included with gcc
+#include <ext/pb_ds/tree_policy.hpp>		// ''
 
 // "multiset" order statistics tree supporting repeated values
 
