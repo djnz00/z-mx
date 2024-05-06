@@ -1,0 +1,36 @@
+include "types.fbs";
+namespace Zdb_.fbs;
+struct TableState {
+  table:Zfb.ID;
+  un:uint64;
+}
+table DBState {
+  sn:Zfb.UInt128;
+  table_states:[TableState];
+}
+table Heartbeat {
+  host:Zfb.ID;
+  state:uint32;
+  db_state:DBState;
+}
+table Record {
+  table:Zfb.ID;		// table ID
+  un:uint64;		// update number - secondary key
+  sn:Zfb.UInt128;	// environment sequence number
+  vn:int64;		// record version number - -ve if deleted
+  data:[uint8];		// nested row data - contains row keys if row is deleted
+}
+table Commit {
+  table:Zfb.ID;
+  un:uint64;
+}
+union Body {
+  Heartbeat:Heartbeat,
+  Replication:Record,
+  Recovery:Record,
+  Commit:Commit
+}
+table Msg {
+  body:Body;
+}
+root_type Msg;

@@ -1,0 +1,31 @@
+namespace ZvUserDB.fbs;
+table UserID {
+  id:uint64;
+}
+table User {
+  id:uint64 (key);
+  name:string;
+  hmac:[ubyte];		// HMAC-SHA256 of secret, password
+  secret:[ubyte];	// secret (random at user creation)
+  roles:[string];	// roles
+  flags:uint8;
+}
+table UserPass {	// ack for user add and reset
+  user:User;
+  passwd:string;	// plaintext new passwd (random)
+  ok:uint8;
+}
+table UserChPass {
+  oldpass:string;	// old password
+  newpass:string;	// new password
+}
+table UserAck {		// ack for change passwd and clear keys
+  ok:uint8;
+}
+table UserUpdAck {	// ack for user modify and delete
+  user:User;
+  ok:uint8;
+}
+table UserList {
+  list:[User];
+}

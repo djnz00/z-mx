@@ -1,0 +1,40 @@
+include "perm.fbs";
+include "role.fbs";
+include "user.fbs";
+include "key.fbs";
+namespace ZvUserDB.fbs;
+union ReqAckData {
+  ChPass:UserAck,
+  OwnKeyGet:KeyIDList,
+  OwnKeyAdd:KeyUpdAck,
+  OwnKeyClr:UserAck,
+  OwnKeyDel:UserAck,
+
+  UserGet:UserList,
+  UserAdd:UserPass,
+  ResetPass:UserPass,
+  UserMod:UserUpdAck,
+  UserDel:UserUpdAck,
+
+  RoleGet:RoleList,
+  RoleAdd:RoleUpdAck,
+  RoleMod:RoleUpdAck,
+  RoleDel:RoleUpdAck,
+
+  PermGet:PermList,
+  PermAdd:PermUpdAck,
+  PermMod:PermUpdAck,
+  PermDel:PermUpdAck,
+
+  KeyGet:KeyIDList,
+  KeyAdd:KeyUpdAck,
+  KeyClr:UserAck,
+  KeyDel:UserAck
+}
+table ReqAck {
+  seq_no:uint64;	// request ID (restarts at 0 with each session)
+  data:ReqAckData;
+  rej_code:uint32 = 0;
+  rej_text:string;
+}
+root_type ReqAck;

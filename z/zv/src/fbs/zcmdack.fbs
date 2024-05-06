@@ -1,0 +1,7 @@
+namespace ZvCmd.fbs;
+table ReqAck {
+  seq_no:uint32;
+  code:int32;
+  out:string;
+}
+root_type ReqAck;

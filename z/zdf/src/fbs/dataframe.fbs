@@ -1,0 +1,6 @@
+include "types.fbs";
+namespace Zdf.fbs;
+table DataFrame {
+  epoch:Zfb.DateTime;
+}
+root_type DataFrame;

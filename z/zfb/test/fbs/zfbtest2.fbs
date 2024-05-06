@@ -1,0 +1,12 @@
+include "types.fbs";
+namespace zfbtest2.fbs;
+table Object {
+  id:Zfb.ID;
+  price:int32;
+}
+table Test {
+  foo:int32;
+  bar:string;
+  baz:Object;
+}
+root_type Test;

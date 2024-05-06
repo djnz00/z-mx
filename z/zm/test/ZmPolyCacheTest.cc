@@ -1,0 +1,56 @@
+#include <zlib/ZuDemangle.hh>
+#include <zlib/ZuPrint.hh>
+
+#include <zlib/ZmPolyCache.hh>
+
+#include <iostream>
+
+struct Foo_ {
+  int i, j, k, l;
+
+  template <typename S> void print(S &s) const {
+    s << '{' << i << ',' << j << ',' << k << ',' << l << '}';
+  }
+  friend ZuPrintFn ZuPrintType(Foo_ *);
+};
+
+ZuFields(Foo_,
+    ((i), (0)),
+    ((j), (1, 2)),
+    ((k), (0, 1)),
+    ((l), (3)));
+
+using Cache = ZmPolyCache<Foo_>;
+using Foo = Cache::Node;
+
+int main()
+{
+  Cache cache;
+  cache.add(new Foo{1,2,3,4});
+  cache.add(new Foo{2,3,4,5});
+  cache.add(new Foo{3,4,5,6});
+  cache.add(new Foo{5,5,5,5});
+  {
+    auto x = cache.del<0>(ZuFwdTuple(1,3));
+    std::cout << ZuDemangle<decltype(x)>{} << '\n';
+    std::cout << ZuBoxPtr(static_cast<Foo *>(x)).hex() << '\n';
+    std::cout << *x << '\n';
+  }
+  {
+    std::cout << "iteration:\n";
+    cache.allSync([](auto node, auto wake) {
+      std::cout << *node << '\n';
+      wake();
+    });
+  }
+  {
+    auto x = cache.find<0>(ZuFwdTuple(2,4));
+    std::cout << "find<0>({2,4}): " << *x << '\n';
+    x = cache.find<1>(ZuFwdTuple(3,4));
+    std::cout << "find<1>({3,4}): " << *x << '\n';
+    x = cache.find<2>(ZuFwdTuple(3));
+    std::cout << "find<2>({3}): " << *x << '\n';
+    x = cache.find<3>(ZuFwdTuple(5));
+    std::cout << "find<3>({5}): " << *x << '\n';
+  }
+}

@@ -1,0 +1,20 @@
+namespace ZvUserDB.fbs;
+table RoleID {
+  name:string;
+}
+table Role {
+  name:string (key);
+  perms:[uint64];	// bitmap
+  apiperms:[uint64];	// API permissions
+  flags:uint8;
+}
+table RoleUpdAck {
+  role:Role;
+  ok:uint8;
+}
+table RoleAck {
+  ok:uint8;
+}
+table RoleList {
+  list:[Role];
+}

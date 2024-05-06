@@ -1,0 +1,2 @@
+id,enabled,shardID,tcpIP,tcpPort,tcpUsername,tcpPassword,udpIP,udpPort,resendIP,resendPort
+1,1,0,127.0.0.1,9700,foo,bar,127.0.0.1,9800,127.0.0.1,9801

@@ -1,0 +1,31 @@
+DLLs / shared objects
+---------------------
+
+Zu	- "Universal" - foundation (meta-programming, traits, etc.)
+Zm	- Multithreading - threads, locks, scheduler, concurrent collections
+Zt	- Vocabulary Types - dates/times, arrays, strings, serializers, etc.
+Ze	- Errors & Logging - errors & logging to file / syslog / event log
+Zi	- I/O - file I/O and socket I/O multiplexing
+Zv	- Service Frameworks - I/O framework, option parsing, config files
+Zdb	- Database - in-memory DB, using Zi for HA clustering/replication
+
+building libbfd shared object (Linux)
+-----------------------------
+git clone https://github.com/bminor/binutils-gdb.git
+cd binutils-gdb
+git checkout binutils-2_40
+./configure --enable-shared --enable-install-libbfd --with-pic --prefix=/usr/local
+make -j8 all-bfd
+sudo make install-bfd
+
+building libbfd DLL (Windows)
+-------------------
+./mingw_bfd_dll.sh
+
+building libck
+--------------
+git clone https://github.com/concurrencykit/ck.git
+cd ck
+./configure --prefix=/usr/local --enable-pointer-packing --use-cc-builtins --with-pic
+make -j8
+sudo make install

@@ -1,0 +1,18 @@
+namespace ZvUserDB.fbs;
+table PermID {
+  id:uint8;
+}
+table PermAdd {
+  name:string;
+}
+table Perm {
+  id:uint8 (key);	// index in bitmap
+  name:string;
+}
+table PermUpdAck {
+  perm:Perm;
+  ok:uint8;
+}
+table PermList {
+  list:[Perm];
+}

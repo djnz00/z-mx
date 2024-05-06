@@ -1,0 +1,8 @@
+METASOURCES = AUTO
+AM_CPPFLAGS = -I$(top_srcdir)/src \
+	@MXT_CPPFLAGS@ @MXBASE_CPPFLAGS@ @Z_CPPFLAGS@
+AM_CXXFLAGS = @Z_CXXFLAGS@
+AM_LDFLAGS = @MXT_LDFLAGS@ @MXBASE_LDFLAGS@ @Z_LDFLAGS@
+LDADD = $(top_builddir)/src/libMxT.la @MXBASE_LIBS@ @Z_LIBS@ @MXT_XLIBS@
+noinst_PROGRAMS = osmtest
+osmtest_SOURCES = osmtest.cc

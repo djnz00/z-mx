@@ -1,0 +1,47 @@
+include "types.fbs";
+namespace ZfbTree;
+table UInt8Vec { data:[uint8]; }
+struct Int32 { value:int32; }
+table Int32Vec { data:[int32]; }
+struct UInt32 { value:uint32; }
+table UInt32Vec { data:[uint32]; }
+struct Int64 { value:int64; }
+table Int64Vec { data:[int64]; }
+struct UInt64 { value:uint64; }
+table UInt64Vec { data:[uint64]; }
+struct Double { value:double; }
+table DoubleVec { data:[double]; }
+table StringVec { data:[string]; }
+table BitmapVec { data:[Zfb.Bitmap]; }
+table DecimalVec { data:[Zfb.Decimal]; }
+table DateTimeVec { data:[Zfb.DateTime]; }
+table IPVec { data:[Zfb.IP]; }
+table IDVec { data:[Zfb.ID]; }
+table NestedKVTree {
+  data:[uint8] (nested_flatbuffer: "Zfb.KVTree");
+}
+table NestedKVTreeVec { data:[NestedKVTree]; }
+union Value {
+  UInt8Vec,
+  Int32, Int32Vec,
+  UInt32, UInt32Vec,
+  Int64, Int64Vec,
+  UInt64, UInt64Vec,
+  Double, DoubleVec,
+  String:string, StringVec,
+  Bitmap:Zfb.Bitmap, BitmapVec,
+  Decimal:Zfb.Decimal, DecimalVec,
+  DateTime:Zfb.DateTime, DateTimeVec,
+  IP:Zfb.IP, IPVec,
+  ID:Zfb.ID, IDVec,
+  NestedKVTree, NestedKVTreeVec
+}
+namespace Zfb;
+table KV {
+  key:string;
+  value:ZfbTree.Value;
+}
+table KVTree {
+  items:[KV];
+}
+root_type KVTree;

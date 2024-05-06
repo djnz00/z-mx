@@ -1,0 +1,53 @@
+mx {
+  core {
+    nThreads 5
+    threads {
+      1 { name ioRx isolated 1 }
+      2 { name ioTx isolated 1 }
+      3 { name record isolated 1 }
+      4 { name shard0 isolated 1 }
+      5 { name misc }
+    }
+    rxThread ioRx
+    txThread ioTx
+  }
+  cmd { nThreads 4 threads { 3 { name cmd isolated 1 } } }
+}
+broadcast {
+  name RMD_sub1
+  size 131072
+}
+cmd {
+  mx cmd
+  thread cmd
+  localPort 19401
+  caPath mdtest.crt
+  certPath mdtest.crt
+  keyPath mdtest.key
+  userDB { path mdtest.userdb }
+}
+record {
+  rxThread record
+  snapThread misc
+}
+replay {
+  rxThread shard0
+}
+shards {
+  0 { thread shard0 }
+}
+subscriber {
+  maxQueueSize 1000
+  loginTimeout 1
+  timeout 3
+  reconnInterval 1
+  reReqInterval 1
+  reReqMaxGap 10
+  channels channels1.csv
+}
+telemetry {
+  mx cmd
+  ip 127.0.0.1
+  port 19301
+  freq 1000000
+}

@@ -1,0 +1,6 @@
+namespace ZvCmd.fbs;
+table Request {
+  seq_no:uint32;
+  cmd:[string];
+}
+root_type Request;
