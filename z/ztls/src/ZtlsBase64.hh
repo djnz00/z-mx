@@ -15,7 +15,7 @@
 
 #include <zlib/ZtlsLib.hh>
 
-#include <cppcodec/base64_rfc4648.hh>
+#include <cppcodec/base64_rfc4648.hpp>
 
 namespace Ztls::Base64 {
 

@@ -15,7 +15,7 @@
 
 #include <zlib/ZtlsLib.hh>
 
-#include <cppcodec/base32_rfc4648.hh>
+#include <cppcodec/base32_rfc4648.hpp>
 
 namespace Ztls::Base32 {
 

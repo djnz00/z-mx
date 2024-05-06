@@ -15,7 +15,7 @@
 
 #include <zlib/ZtlsLib.hh>
 
-#include <cppcodec/hex_upper.hh>
+#include <cppcodec/hex_upper.hpp>
 
 namespace Ztls::Hex {
 
