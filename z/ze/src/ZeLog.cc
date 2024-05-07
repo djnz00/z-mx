@@ -7,13 +7,13 @@
 // singleton logger
 
 #include <zlib/ZuBox.hh>
+#include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZmPlatform.hh>
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZtArray.hh>
-#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtRegex.hh>
 

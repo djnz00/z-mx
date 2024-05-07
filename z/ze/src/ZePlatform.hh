@@ -32,6 +32,7 @@
 #include <zlib/ZuFnName.hh>
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuPrint.hh>
+#include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmRef.hh>
@@ -40,7 +41,6 @@
 #include <zlib/ZmStream.hh>
 #include <zlib/ZmTime.hh>
 
-#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>
 
