@@ -13,7 +13,9 @@ pkginclude_HEADERS = \
 	ZuStringFn.hh ZuStringN.hh ZuTraits.hh ZuTuple.hh ZuUnion.hh \
 	ZuVersion.hh Zu_aton.hh Zu_ntoa.hh ZuDecimalFn.hh ZuUTF.hh \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
-	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh
+	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
+	zu_decimal.h
 lib_LTLIBRARIES = libZu.la
-libZu_la_SOURCES = ZuLib.cc ZuVersion.cc ZuUTF.cc ZuDateTime.cc
-#libZu_la_LIBADD = @Z_MT_LIBS@
+libZu_la_SOURCES = \
+	ZuLib.cc ZuVersion.cc ZuUTF.cc ZuDateTime.cc \
+	zu_decimal.cc

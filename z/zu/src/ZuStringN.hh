@@ -223,13 +223,13 @@ protected:
   MatchChar2String<S> append_(S &&s) {
     if (m_length < M)
       data()[m_length = ZuUTF<Char, Char2>::cvt(
-	  {data() + m_length, static_cast<unsigned>(M - m_length)}, s)] = 0;
+	  {data() + m_length, unsigned(M - m_length)}, s)] = 0;
   }
 
   template <typename C> MatchChar2<C> append_(C c) {
     if (m_length < M)
       data()[m_length += ZuUTF<Char, Char2>::cvt(
-	  {data() + m_length, static_cast<unsigned>(M - m_length)}, {&c, 1})] = 0;
+	  {data() + m_length, unsigned(M - m_length)}, {&c, 1})] = 0;
   }
 
   template <typename P>

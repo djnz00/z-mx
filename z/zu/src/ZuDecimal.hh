@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // 128bit decimal fixed point with 36 digits and constant 10^18 scaling, i.e.
-// 18 integer digits and 18 fractional digits (18 decimal places)
+// 18 integer digits and 18 fractional digits (i.e. 18 decimal places)
 
 #ifndef ZuDecimal_HH
 #define ZuDecimal_HH
@@ -459,16 +459,16 @@ public:
   friend ZuPrintFn ZuPrintType(ZuDecimal *);
 };
 template <typename Fmt> struct ZuDecimalFmt {
-  const ZuDecimal	&fixed;
+  const ZuDecimal	&decimal;
 
   template <typename S> void print(S &s) const {
-    if (ZuUnlikely(!*fixed)) { s << "nan"; return; }
+    if (ZuUnlikely(!*decimal)) { s << "nan"; return; }
     uint128_t iv, fv;
-    if (ZuUnlikely(fixed.value < 0)) {
+    if (ZuUnlikely(decimal.value < 0)) {
       s << '-';
-      iv = -fixed.value;
+      iv = -decimal.value;
     } else
-      iv = fixed.value;
+      iv = decimal.value;
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
     s << ZuBoxed(iv).fmt<Fmt>();

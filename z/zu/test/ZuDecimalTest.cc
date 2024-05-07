@@ -9,6 +9,7 @@
 #include <zlib/ZuStringN.hh>
 
 #include <zlib/ZuDecimal.hh>
+#include <zlib/zu_decimal.h>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
@@ -109,4 +110,24 @@ int main()
   CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("1")}) == "1"));
   CHECK(((ZuStringN<48>{} << ZuFixed{ZuDecimal(".000000000000000001")}) == "0.000000000000000001"));
   CHECK(((ZuStringN<48>{} << ZuFixed{ZuDecimal("999999999999999999")}) == "999999999999999999"));
+
+  {
+    zu_decimal v_, l_, r_;
+    auto &v = *reinterpret_cast<ZuDecimal *>(&v_);
+    zu_decimal_in(&v_, "42.01");
+    CHECK(((ZuStringN<40>{} << v) == "42.01"));
+    CHECK((!zu_decimal_cmp(&v_, &v_)));
+    zu_decimal_in(&l_, "42");
+    zu_decimal_in(&r_, "42.010000000000000001");
+    CHECK((zu_decimal_cmp(&l_, &v_) < 0));
+    CHECK((zu_decimal_cmp(&v_, &r_) < 0));
+    zu_decimal_add(&v_, &l_, &r_);
+    CHECK(((ZuStringN<40>{} << v) == "84.010000000000000001"));
+    zu_decimal_sub(&v_, &v_, &l_);
+    CHECK((!zu_decimal_cmp(&v_, &r_)));
+    zu_decimal_mul(&v_, &l_, &r_);
+    CHECK(((ZuStringN<40>{} << v) == "1764.420000000000000042"));
+    zu_decimal_div(&v_, &v_, &r_);
+    CHECK(((ZuStringN<40>{} << v) == "42"));
+  }
 }

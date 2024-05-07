@@ -68,10 +68,6 @@
 #define ZuImport_API __declspec(dllimport)
 #define ZuImport_Explicit extern
 
-#ifdef _MSC_VER
-#pragma warning(disable:4231 4503)
-#endif
-
 #ifdef ZU_EXPORTS
 #define ZuAPI ZuExport_API
 #define ZuExplicit ZuExport_Explicit
