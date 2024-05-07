@@ -20,7 +20,10 @@ zu_decimal *zu_decimal_in(zu_decimal *v, const char *s)
 }
 unsigned int zu_decimal_out_len(const zu_decimal *v)
 {
-  return 40; // actually 39
+  // we could attempt to use Zu_nprint::ulen here to minimize the
+  // output length, but doing so would require a 128bit division/modulo
+  // and two calls to ulen - judged unlikely to be worth it
+  return 40; // actually 39, round to 40
 }
 char *zu_decimal_out(char *s, const zu_decimal *v_)
 {
@@ -48,6 +51,12 @@ int zu_decimal_cmp(const zu_decimal *l_, const zu_decimal *r_)
   const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
   const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
   return l.cmp(r);
+}
+
+uint32_t zu_decimal_hash(const zu_decimal *v_)
+{
+  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  return v.hash();
 }
 
 zu_decimal *zu_decimal_add(

@@ -409,6 +409,11 @@ public:
     return bool(uint64_t(v>>64) | uint64_t(v));
   }
 
+  // hash
+  uint32_t hash() const {
+    return ZuHash<int128_t>::hash(value);
+  }
+
   operator int64_t() const {
     uint128_t scale_ = uint128_t(scale());
     return int64_t(value / scale_);

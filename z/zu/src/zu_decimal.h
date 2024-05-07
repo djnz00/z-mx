@@ -37,6 +37,9 @@ ZuExtern char *zu_decimal_out(char *s, const zu_decimal *v);
 /* 3-way comparison */
 ZuExtern int zu_decimal_cmp(const zu_decimal *l, const zu_decimal *r);
 
+/* hash */
+ZuExtern uint32_t zu_decimal_hash(const zu_decimal *v);
+
 /* add, subtract, multiply, divide */
 ZuExtern zu_decimal *zu_decimal_add(
     zu_decimal *v, const zu_decimal *l, const zu_decimal *r);

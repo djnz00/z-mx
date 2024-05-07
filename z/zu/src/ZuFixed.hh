@@ -157,6 +157,13 @@ public:
 
   bool operator *() const { return m_mantissa != null_(); }
 
+  // hash
+  uint32_t hash() const {
+    return
+      ZuHash<int64_t>::hash(m_mantissa) ^
+      ZuHash<uint8_t>::hash(m_exponent);
+  }
+
   // scan from string
   template <typename S>
   ZuFixed(const S &s, ZuMatchString<S> *_ = nullptr) {

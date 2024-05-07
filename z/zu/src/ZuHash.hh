@@ -58,11 +58,13 @@ struct ZuHash_GoldenPrime64 {
   }
 
 private:
+  // left here as a reference
   static const uint64_t m_goldenPrime = 0x9e37fffffffc0001ULL;
     // 2^63 + 2^61 - 2^57 + 2^54 - 2^51 - 2^18 + 1
 };
 
 struct ZuHash_GoldenPrime128 {
+  // this is identical to the 64bit version, except for the second shift;
   static uint128_t hash(uint128_t i) {
     uint128_t n = i;
 
@@ -167,13 +169,14 @@ struct ZuHash_Can_hash<T, typename ZuCmp_Can_hash_<
     public ZuTrue { };
 
 // test for hash_code() (STL cruft)
+template <typename> struct ZuCmp_Can_hash_code_;
+template <> struct ZuCmp_Can_hash_code_<std::size_t> { using T = void; }; 
 template <typename, typename = void>
 struct ZuHash_Can_hash_code : public ZuFalse { };
 template <typename T>
-struct ZuHash_Can_hash_code<T,
-    decltype(ZuDeclVal<const T &>().hash_code(), void())> :
-  public ZuIsExact<std::size_t, decltype(ZuDeclVal<const T &>().hash_code())> {
-};
+struct ZuHash_Can_hash_code<T, typename ZuCmp_Can_hash_code_<
+  decltype(ZuDeclVal<const T &>().hash_code())>::T> :
+    public ZuTrue { };
 
 template <typename T> struct ZuHash_NonPrimitive {
   template <typename U>
