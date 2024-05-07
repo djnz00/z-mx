@@ -33,8 +33,6 @@
 #include <process.h>
 #endif
 
-#include <stdarg.h>
-
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuStringN.hh>
 
