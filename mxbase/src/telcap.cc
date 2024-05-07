@@ -52,9 +52,9 @@ private:
   void process(ZmRef<MxTelemetry::Msg> msg) {
     using namespace MxTelemetry;
 
-    thread_local ZtDate::CSVFmt nowFmt; // FIXME
+    auto &fmt = ZmTLS<ZuDateTime::CSVFmt, process>();
 
-    ZtDate now{ZtDate::Now};
+    ZuDateTime now{Zm::now()};
 
     switch ((int)msg->hdr().type) {
       default:

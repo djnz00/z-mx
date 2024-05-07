@@ -13,7 +13,7 @@
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZtArray.hh>
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtRegex.hh>
 
@@ -312,7 +312,7 @@ ZeFileSink::~ZeFileSink()
 
 void ZeFileSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
-  ZtDate d{info.time};
+  ZuDateTime d{info.time};
 
   buf << d.print(m_dateFmt) << ' ' <<
     ZuBoxed(info.tid) << ' ' <<
@@ -414,7 +414,7 @@ void ZeDebugSink::post(ZeLogBuf &buf, const ZeEventInfo &info)
 
 void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
-  ZtDate d{info.time};
+  ZuDateTime d{info.time};
 
   buf << d.print(m_dateFmt) << ' ' <<
     ZuBoxed(info.tid) << ' ' <<

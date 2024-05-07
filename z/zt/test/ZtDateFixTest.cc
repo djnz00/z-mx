@@ -12,9 +12,10 @@
 #include <limits.h>
 #include <math.h>
 
-#include <zlib/ZmPlatform.hh>
+#include <zlib/ZuDateTime.hh>
 
-#include <zlib/ZtDate.hh>
+#include <zlib/ZmPlatform.hh>
+#include <zlib/ZmTime.hh>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
@@ -23,34 +24,34 @@ struct Null {
   friend ZuPrintFn ZuPrintType(Null *);
 };
 
-void test(ZtDate d1)
+void test(ZuDateTime d1)
 {
   ZuStringN<32> fix;
-  ZtDateFmt::FIX<-9, Null> fmt;
+  ZuDateTimeFmt::FIX<-9, Null> fmt;
   fix << d1.print(fmt);
   puts(fix);
-  ZtDate d2(ZtDateScan::FIX{}, fix);
+  ZuDateTime d2(ZuDateTimeScan::FIX{}, fix);
   puts(ZuStringN<32>() << d2.print(fmt));
   CHECK(d1 == d2);
 }
 
 int main(int argc, char **argv)
 {
-  test(ZtDate((time_t)0));
-  test(ZtDate(1, 1, 1));
-  test(ZtDateNow());
+  test(ZuDateTime{time_t(0)});
+  test(ZuDateTime{1, 1, 1});
+  test(ZuDateTime{Zm::now()});
 
-  if (argc < 2) { fputs("usage: ZtDateFixTest N\n", stderr); Zm::exit(1); }
+  if (argc < 2) { fputs("usage: ZuDateTimeFixTest N\n", stderr); Zm::exit(1); }
   unsigned n = atoi(argv[1]);
   {
-    ZtDateFmt::FIX<-9, Null> fmt;
+    ZuDateTimeFmt::FIX<-9, Null> fmt;
     ZuStringN<32> fix;
     ZuTime start, end;
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
-      ZtDate d1{ZtDate::Now};
+      ZuDateTime d1{Zm::now()};
       fix << d1.print(fmt);
-      ZtDate d2{ZtDateScan::FIX{}, fix};
+      ZuDateTime d2{ZuDateTimeScan::FIX{}, fix};
     }
     end = Zm::now();
     end -= start;
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
-      ZtDate d1{ZtDate::Now};
+      ZuDateTime d1{Zm::now()};
       fix << d1.print(fmt);
     }
     end = Zm::now();
@@ -69,7 +70,7 @@ int main(int argc, char **argv)
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
-      ZtDate d1{ZtDate::Now};
+      ZuDateTime d1{Zm::now()};
     }
     end = Zm::now();
     end -= start;

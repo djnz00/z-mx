@@ -1186,9 +1186,9 @@ int Terminal::write(ZeError *e_)
     if (!log) log = fopen("tty.log", "a");
     if (log) {
       static ZtString dump;
-      static ZtDateFmt::FIX<-9> fix;
+      static ZuDateTimeFmt::FIX<-9> fix;
       dump.clear();
-      dump << ZtDateNow().fix(fix);
+      dump << ZuDateTime{Zm::now()}.fix(fix);
       dump << ZtHexDump("", m_out.data(), m_out.length());
       fwrite(dump.data(), 1, dump.length(), log);
       fflush(log);

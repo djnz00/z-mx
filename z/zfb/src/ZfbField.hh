@@ -42,7 +42,7 @@
 // Fixed	Fixed		ZuFixed
 // Decimal	Decimal		ZuDecimal
 // Time		Time		ZuTime
-// DateTime	DateTime	ZtDate
+// DateTime	DateTime	ZuDateTime
 //
 // Int128	UDT		int128_t
 // UInt128	UDT		uint128_t

@@ -100,7 +100,7 @@ public:
   using PurgeLock = ZmLock;
   using PurgeGuard = ZmGuard<PurgeLock>;
 
-  ZtDate lastPurge() {
+  ZuDateTime lastPurge() {
     PurgeGuard guard(m_purgeLock);
     return m_lastPurge;
   }
@@ -132,7 +132,7 @@ private:
   ZmRef<ClosedDB>	m_closedDB;
 
   PurgeLock		m_purgeLock;
-    ZtDate		  m_lastPurge;
+    ZuDateTime		  m_lastPurge;
     ZdbRN		  m_purgeOrderRN = ZdbNullRN;
     ZdbRN		  m_purgeClosedRN = ZdbNullRN;
 };

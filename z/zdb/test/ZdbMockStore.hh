@@ -71,7 +71,7 @@ using Value_ = ZuUnion<
   ZuFixed,	// Zfb.Fixed
   ZuDecimal,	// Zfb.Decimal
   ZuTime,	// Zfb.Time
-  ZtDate,	// Zfb.DateTime
+  ZuDateTime,	// Zfb.DateTime
   int128_t,	// Zfb.UInt128
   uint128_t,	// Zfb.Int128
   ZiIP,		// Zfb.IP
@@ -174,7 +174,7 @@ FBField fbField(
 	  type = Value::Index<ZuTime>{};
 	  break;
 	case ZtFieldTypeCode::DateTime:
-	  type = Value::Index<ZtDate>{};
+	  type = Value::Index<ZuDateTime>{};
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
@@ -347,9 +347,9 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZtDate>{}>
+inline ZuIfT<Type == Value::Index<ZuDateTime>{}>
 loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) ZtDate{
+  new (ptr) ZuDateTime{
     Zfb::Load::dateTime(
       fbo->GetPointer<const Zfb::DateTime *>(field->offset()))
   };
@@ -622,7 +622,7 @@ saveValue_(
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZtDate>{}>
+inline ZuIfT<Type == Value::Index<ZuDateTime>{}>
 saveValue_(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)

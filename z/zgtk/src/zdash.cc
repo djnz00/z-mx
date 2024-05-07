@@ -1563,7 +1563,7 @@ private:
   FBB			m_fbb;
 
   int			m_role;	// ZvTelemetry::AppRole
-  ZtDate		m_uptime;
+  ZuDateTime		m_uptime;
   unsigned		m_tid = 0;
 
   ZvRingParams		m_telRingParams;

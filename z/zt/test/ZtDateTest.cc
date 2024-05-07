@@ -12,26 +12,32 @@
 #include <limits.h>
 #include <math.h>
 
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
+
+#include <zlib/ZmSpecific.hh>
+
+#include <zlib/ZtString.hh>
+#include <zlib/ZtTimeZone.hh>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
-ZtDatePrintISO isoPrint(const ZtDate &d, int offset = 0) {
-  auto &fmt = ZmTLS<ZtDateFmt::ISO, isoPrint>();
-  fmt.offset(offset);
+ZuDateTimePrintISO isoPrint(const ZuDateTime &d, int tzOffset = 0) {
+  auto &fmt = ZmTLS<ZuDateTimeFmt::ISO, isoPrint>();
+  fmt.tzOffset(tzOffset);
   return d.print(fmt);
 }
 
-ZuStringN<40> isoStr(const ZtDate &d, int offset = 0) {
-  return ZuStringN<40>{} << isoPrint(d, offset);
+ZuStringN<40> isoStr(const ZuDateTime &d, int tzOffset = 0) {
+  return ZuStringN<40>{} << isoPrint(d, tzOffset);
 }
 
 struct LocalDT {
-  LocalDT(const ZtDate &d) {
-    ZtDate l = d + d.offset();
+  LocalDT(const ZuDateTime &d) {
+    int tzOffset = Zt::tzOffset(d);
+    ZuDateTime l = d + tzOffset;
     l.ymd(m_Y, m_M, m_D);
     l.hmsn(m_h, m_m, m_s, m_n);
-    ZmAssert(d == ZtDate(m_Y, m_M, m_D, m_h, m_m, m_s, m_n, ""));
+    ZmAssert(d == ZuDateTime(m_Y, m_M, m_D, m_h, m_m, m_s, m_n) - tzOffset);
   }
   ZtString dump() {
     return ZtSprintf("Lcl %.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.6d",
@@ -41,10 +47,10 @@ struct LocalDT {
 };
 
 struct GMTDT {
-  GMTDT(const ZtDate &d) {
+  GMTDT(const ZuDateTime &d) {
     d.ymd(m_Y, m_M, m_D);
     d.hmsn(m_h, m_m, m_s, m_n);
-    ZmAssert(d == ZtDate(m_Y, m_M, m_D, m_h, m_m, m_s, m_n, 0));
+    ZmAssert(d == ZuDateTime(m_Y, m_M, m_D, m_h, m_m, m_s, m_n));
   }
   ZtString dump() {
     return ZtSprintf("GMT %.4d/%.2d/%.2d %.2d:%.2d:%.2d.%.6d",
@@ -53,9 +59,9 @@ struct GMTDT {
   int m_Y, m_M, m_D, m_h, m_m, m_s, m_n;
 };
 
-void weekDate(ZtDate d, int year, int weekChk, int wkDayChk)
+void weekDate(ZuDateTime d, int year, int weekChk, int wkDayChk)
 {
-  ZtDateFmt::ISO fmt;
+  ZuDateTimeFmt::ISO fmt;
   int week, wkDay;
   int days = d.days(year, 1, 1);
   d.ywd(year, days, week, wkDay);
@@ -65,9 +71,9 @@ void weekDate(ZtDate d, int year, int weekChk, int wkDayChk)
   CHECK(wkDay == wkDayChk);
 }
 
-void weekDateSun(ZtDate d, int year, int weekChk, int wkDayChk)
+void weekDateSun(ZuDateTime d, int year, int weekChk, int wkDayChk)
 {
-  ZtDateFmt::ISO fmt;
+  ZuDateTimeFmt::ISO fmt;
   int week, wkDay;
   int days = d.days(year, 1, 1);
   d.ywdSun(year, days, week, wkDay);
@@ -77,9 +83,9 @@ void weekDateSun(ZtDate d, int year, int weekChk, int wkDayChk)
   CHECK(wkDay == wkDayChk);
 }
 
-void weekDateISO(ZtDate d, int year, int yearChk, int weekChk, int wkDayChk)
+void weekDateISO(ZuDateTime d, int year, int yearChk, int weekChk, int wkDayChk)
 {
-  ZtDateFmt::ISO fmt;
+  ZuDateTimeFmt::ISO fmt;
   int yearISO, weekISO, wkDay;
   int days = d.days(year, 1, 1);
   d.ywdISO(year, days, yearISO, weekISO, wkDay);
@@ -91,7 +97,7 @@ void weekDateISO(ZtDate d, int year, int yearChk, int weekChk, int wkDayChk)
   CHECK(wkDay == wkDayChk);
 }
 
-void strftimeChk(ZtDate d, const char *format, const char *chk)
+void strftimeChk(ZuDateTime d, const char *format, const char *chk)
 {
   ZtString s; s << d.strftime(format);
   puts(s);
@@ -109,80 +115,80 @@ int main()
 
   Zt::tzset();
 
-  //ZtDate d(1998, 12, 31);
-  //ZtDate d(51179 + 2400000,0);
-  ZtDate d(1998, 12, 1, 10, 30, 0);
-  //ZtDate d(1998, 13, 0, 24, -1, 59);
-  //ZtDate d(1970, 1, 1, 9, 0, 0);
+  //ZuDateTime d(1998, 12, 31);
+  //ZuDateTime d(51179 + 2400000,0);
+  ZuDateTime d(1998, 12, 1, 10, 30, 0);
+  //ZuDateTime d(1998, 13, 0, 24, -1, 59);
+  //ZuDateTime d(1970, 1, 1, 9, 0, 0);
 
   int i;
   ZuStringN<32> s = isoStr(d);
 
   printf("GMT %s\n", s.data());
-  { ZtDate e(s); printf("GMT %s\n%s\n%s\n", isoStr(e).data(), LocalDT(e).dump().data(), GMTDT(e).dump().data()); }
+  { ZuDateTime e(s); printf("GMT %s\n%s\n%s\n", isoStr(e).data(), LocalDT(e).dump().data(), GMTDT(e).dump().data()); }
   for (i = 0; i < 3; i++) {
-    printf("%s %s\n", t[i], isoStr(d, d.offset(t[i])).data());
-    { ZtDate e(s); printf("%s %s\n\n", t[i], isoStr(e, e.offset(t[i])).data()); }
+    printf("%s %s\n", t[i], isoStr(d, Zt::tzOffset(d, t[i])).data());
+    { ZuDateTime e(s); printf("%s %s\n\n", t[i], isoStr(e, Zt::tzOffset(e, t[i])).data()); }
   }
-  printf("local %s\n", isoStr(d, d.offset()).data());
-  { ZtDate e(s); printf("local %s\n%s\n%s\n", isoStr(e, e.offset()).data(), LocalDT(e).dump().data(), GMTDT(e).dump().data()); }
+  printf("local %s\n", isoStr(d, Zt::tzOffset(d)).data());
+  { ZuDateTime e(s); printf("local %s\n%s\n%s\n", isoStr(e, Zt::tzOffset(e)).data(), LocalDT(e).dump().data(), GMTDT(e).dump().data()); }
 
   d -= ZuTime(180 * 86400, 999995000); // 180 days, .999995 seconds
 
   printf("GMT %s\n", isoStr(d).data());
-  { ZtDate e(s); printf("GMT %s\n\n", isoStr(e).data()); }
+  { ZuDateTime e(s); printf("GMT %s\n\n", isoStr(e).data()); }
   for (i = 0; i < 3; i++) {
-    printf("%s %s\n", t[i], isoStr(d, d.offset(t[i])).data());
-    { ZtDate e(s); printf("%s %s\n\n", t[i], isoStr(e, e.offset(t[i])).data()); }
+    printf("%s %s\n", t[i], isoStr(d, Zt::tzOffset(d, t[i])).data());
+    { ZuDateTime e(s); printf("%s %s\n\n", t[i], isoStr(e, Zt::tzOffset(e, t[i])).data()); }
   }
-  printf("local %s\n", isoStr(d, d.offset()).data());
-  { ZtDate e(s); printf("local %s\n\n", isoStr(e, e.offset()).data()); }
+  printf("local %s\n", isoStr(d, Zt::tzOffset(d)).data());
+  { ZuDateTime e(s); printf("local %s\n\n", isoStr(e, Zt::tzOffset(e)).data()); }
 
-  printf("local now %s\n", isoStr(ZtDate(ZtDate::Now), d.offset()).data());
+  printf("local now %s\n", isoStr(ZuDateTime{Zm::now()}, Zt::tzOffset(d)).data());
 
-  // ZtDate d(2050, 2, 3, 10, 0, 0, -timezone);
+  // ZuDateTime d(2050, 2, 3, 10, 0, 0, -timezone);
 
-  // ZtDate d_(1752, 9, 1, 12, 30, 0, -timezone);
+  // ZuDateTime d_(1752, 9, 1, 12, 30, 0, -timezone);
 
-  d = ZtDate(ZtDate::Julian, 0, 0, 0);
-  printf("ZtDate min: %s\n", isoStr(d).data());
-  d = ZtDate(d.time());
+  d = ZuDateTime(ZuDateTime::Julian, 0, 0, 0);
+  printf("ZuDateTime min: %s\n", isoStr(d).data());
+  d = ZuDateTime(d.time());
   printf("time_t min: %s\n", isoStr(d).data());
 
-  d = ZtDate(ZtDate::Julian, ZtDate_MaxJulian, 0, 0);
-  printf("ZtDate max: %s\n", isoStr(d).data());
-  d = ZtDate(d.time());
+  d = ZuDateTime(ZuDateTime::Julian, ZuDateTime_MaxJulian, 0, 0);
+  printf("ZuDateTime max: %s\n", isoStr(d).data());
+  d = ZuDateTime(d.time());
   printf("time_t max: %s\n", isoStr(d).data());
 
   {
     const char *s = "2011-04-07T10:30:00+0800";
-    d = ZtDate(ZuString(s));
+    d = ZuDateTime(ZuString(s));
     printf("%s = %s\n", s, isoStr(d).data());
   }
   {
     const char *s = "2011-04-07T10:30:00.0012345+08:00";
-    d = ZtDate(ZuString(s));
+    d = ZuDateTime(ZuString(s));
     printf("%s = %s\n", s, isoStr(d).data());
   }
 
   {
-    ZtDate d1(ZtDate::Now);
+    ZuDateTime d1{Zm::now()};
     Zm::sleep(.1);
-    ZtDate d2(ZtDate::Now);
+    ZuDateTime d2{Zm::now()};
     ZuTime t = d2 - d1;
 
     printf("\n1/10 sec delta time check: %.6f\n\n", t.dtime());
   }
 
   {
-    weekDate(ZtDate(ZtDate::YYYYMMDD, 20080106, ZtDate::HHMMSS, 0), 2008, 0, 7);
-    weekDate(ZtDate(ZtDate::YYYYMMDD, 20080107, ZtDate::HHMMSS, 0), 2008, 1, 1);
-    weekDateSun(ZtDate(ZtDate::YYYYMMDD, 20070106, ZtDate::HHMMSS, 0), 2007,
+    weekDate(ZuDateTime(ZuDateTime::YYYYMMDD, 20080106, ZuDateTime::HHMMSS, 0), 2008, 0, 7);
+    weekDate(ZuDateTime(ZuDateTime::YYYYMMDD, 20080107, ZuDateTime::HHMMSS, 0), 2008, 1, 1);
+    weekDateSun(ZuDateTime(ZuDateTime::YYYYMMDD, 20070106, ZuDateTime::HHMMSS, 0), 2007,
 		0, 7);
-    weekDateSun(ZtDate(ZtDate::YYYYMMDD, 20070107, ZtDate::HHMMSS, 0), 2007,
+    weekDateSun(ZuDateTime(ZuDateTime::YYYYMMDD, 20070107, ZuDateTime::HHMMSS, 0), 2007,
 		1, 1);
     {
-      ZtDate d(ZtDate::YYYYMMDD, 20071231, ZtDate::HHMMSS, 0);
+      ZuDateTime d(ZuDateTime::YYYYMMDD, 20071231, ZuDateTime::HHMMSS, 0);
       int year, month, day;
       d.ymd(year, month, day);
       CHECK(year == 2007);
@@ -190,22 +196,22 @@ int main()
       CHECK(day == 31);
       weekDateISO(d, year, 2007, 53, 1);
     }
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 20070101, ZtDate::HHMMSS, 0), 2007,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 20070101, ZuDateTime::HHMMSS, 0), 2007,
 	        2007, 1, 1);
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 20100103, ZtDate::HHMMSS, 0), 2010,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 20100103, ZuDateTime::HHMMSS, 0), 2010,
 	        2009, 53, 7);
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 20110102, ZtDate::HHMMSS, 0), 2011,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 20110102, ZuDateTime::HHMMSS, 0), 2011,
 	        2010, 52, 7);
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 17520902, ZtDate::HHMMSS, 0), 1752,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 17520902, ZuDateTime::HHMMSS, 0), 1752,
 	        1752, 36, 3);
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 17520914, ZtDate::HHMMSS, 0), 1752,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 17520914, ZuDateTime::HHMMSS, 0), 1752,
 	        1752, 36, 4);
-    weekDateISO(ZtDate(ZtDate::YYYYMMDD, 17521231, ZtDate::HHMMSS, 0), 1752,
+    weekDateISO(ZuDateTime(ZuDateTime::YYYYMMDD, 17521231, ZuDateTime::HHMMSS, 0), 1752,
 	        1752, 51, 7);
   }
 
   {
-    strftimeChk(ZtDate(ZtDate::YYYYMMDD, 17520902, ZtDate::HHMMSS, 143000),
+    strftimeChk(ZuDateTime(ZuDateTime::YYYYMMDD, 17520902, ZuDateTime::HHMMSS, 143000),
       "%a %A %b %B %C %d %e %g %G %H %I %j %m %M %p %P %S %u %V %Y",
       "Wed Wednesday Sep September 17 02  2 52 1752 "
       "14 02 246 09 30 PM pm 00 3 36 1752");
@@ -317,14 +323,14 @@ int main()
   for (i = 0; i < 35; i++) {
     int y,m,da,h,mi,se;
 
-    ZtDate d(j + i, s);
+    ZuDateTime d(j + i, s);
 
     puts(d.iso(-timezone));
 
     d.ymd(y, m, da, -timezone);
     d.hms(h, mi, se, -timezone);
 
-    ZtDate d2(y, m, da, h, mi, se, -timezone);
+    ZuDateTime d2(y, m, da, h, mi, se, -timezone);
 
     puts(ZuStringN<32>() << d2.iso(-timezone));
 
@@ -337,9 +343,9 @@ int main()
 #endif
 
 //   {
-//     ZtDate mabbit;
+//     ZuDateTime mabbit;
 //     mabbit = 20091204;
-//     ZtDate dmabbit(ZtDateNow());
+//     ZuDateTime dmabbit{Zm::now()};
 //     printf("Mabbit D Time: %f\n", dmabbit.dtime());
 //     printf("Mabbit Time: %d\n", mabbit.yyyymmdd());
 //   }

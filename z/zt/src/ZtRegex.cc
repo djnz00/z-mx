@@ -6,7 +6,7 @@
 
 // Perl compatible regular expressions (pcre)
 
-#define ZtRegex_CPP
+#define ZtRegex_CC
 
 #include <zlib/ZtRegex.hh>
 

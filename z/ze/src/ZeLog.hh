@@ -104,7 +104,7 @@ private:
 
   ZtString		m_path;
   unsigned		m_age = 8;
-  ZtDateFmt::CSV	m_dateFmt;
+  ZuDateTimeFmt::CSV	m_dateFmt;
 
   Lock			m_lock;
     FILE *		  m_file = nullptr;
@@ -150,7 +150,7 @@ struct ZeAPI ZeLambdaSink_ : public ZeSink {
   void pre(ZeLogBuf &, const ZeEventInfo &);
 
 private:
-  ZtDateFmt::CSV	m_dateFmt;
+  ZuDateTimeFmt::CSV	m_dateFmt;
 };
 template <typename L>
 struct ZeLambdaSink : public ZeLambdaSink_ {

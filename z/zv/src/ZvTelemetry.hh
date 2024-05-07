@@ -489,7 +489,7 @@ ZfbFields(DB,
 struct App {
   ZmIDString	id;
   ZmIDString	version;
-  ZtDate	uptime;
+  ZuDateTime	uptime;
   // LATER - need instanceID (i.e. hostID) for clustered apps
   int8_t	role = -1;
   int8_t	rag = -1;
@@ -506,7 +506,7 @@ ZfbFields(App,
 // display sequence:
 //   time, severity, tid, message
 struct Alert {
-  ZtDate	time;
+  ZuDateTime	time;
   uint32_t	seqNo = 0;
   uint32_t	tid = 0;
   int8_t	severity = -1;

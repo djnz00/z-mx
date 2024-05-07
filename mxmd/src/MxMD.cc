@@ -1314,7 +1314,7 @@ void MxMDLib::init_(void *cf_)
 
   // Assumption: DST transitions do not occur while market is open
   {
-    ZtDate now{ZtDate::Now};
+    ZuDateTime now{Zm::now()};
     ZuString timezone = cf->get("timezone"); // default to system tz
     now.sec() = 0, now.nsec() = 0; // midnight GMT (start of today)
     now += ZuTime((time_t)(now.offset(timezone) + 43200)); // midday local time

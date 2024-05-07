@@ -6,7 +6,7 @@ pkginclude_HEADERS = \
 	ZuArrayFn.hh ZuArray.hh ZuArrayN.hh ZuAssert.hh ZuBox.hh \
 	ZuBitmap.hh ZuBitfield.hh ZuByteSwap.hh ZuCmp.hh ZuICmp.hh \
 	ZuInspect.hh ZuFnName.hh ZuFmt.hh ZuFP.hh ZuHash.hh ZuID.hh \
-	ZuInt.hh ZuLargest.hh ZuDemangle.hh ZuTime.hh \
+	ZuInt.hh ZuLargest.hh ZuDemangle.hh ZuTime.hh ZuDateTime.hh \
 	ZuLib.hh ZuMvArray.hh ZuNull.hh ZuLambdaTraits.hh \
 	ZuObjectTraits.hh ZuObject.hh ZuPolymorph.hh ZuPP.hh \
 	ZuPrint.hh ZuRef.hh ZuStdString.hh ZuString.hh \
@@ -15,5 +15,5 @@ pkginclude_HEADERS = \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
 	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh
 lib_LTLIBRARIES = libZu.la
-libZu_la_SOURCES = ZuLib.cc ZuVersion.cc ZuUTF.cc
+libZu_la_SOURCES = ZuLib.cc ZuVersion.cc ZuUTF.cc ZuDateTime.cc
 libZu_la_LIBADD = @Z_MT_LIBS@

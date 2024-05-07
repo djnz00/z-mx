@@ -8,6 +8,7 @@
 #include <zlib/ZuPolymorph.hh>
 
 #include <zlib/ZmTrap.hh>
+#include <zlib/ZmTime.hh>
 
 #include <zlib/ZvCmdServer.hh>
 
@@ -21,7 +22,7 @@ struct Link : public ZvCmdSrvLink<CmdTest, Link> {
 class CmdTest : public ZmPolymorph, public ZvCmdServer<CmdTest, Link> {
 public:
   void init(ZiMultiplex *mx, const ZvCf *cf) {
-    m_uptime.now();
+    m_uptime = Zm::now();
     ZvCmdServer::init(mx, cf);
     addCmd("ackme", "", ZvCmdFn{
       [](ZvCmdContext *ctx) {
@@ -57,7 +58,7 @@ public:
   }
 
 private:
-  ZtDate	m_uptime;
+  ZuDateTime	m_uptime;
   ZmSemaphore	m_done;
 };
 

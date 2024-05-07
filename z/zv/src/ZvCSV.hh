@@ -32,7 +32,7 @@
 #include <zlib/ZmFn.hh>
 
 #include <zlib/ZtArray.hh>
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtRegex.hh>
 
@@ -151,8 +151,8 @@ public:
 
   struct FieldFmt : public ZtFieldFmt {
     FieldFmt() {
-      new (dateScan.new_csv()) ZtDateScan::CSV{};
-      new (datePrint.new_csv()) ZtDateFmt::CSV{};
+      new (dateScan.new_csv()) ZuDateTimeScan::CSV{};
+      new (datePrint.new_csv()) ZuDateTimeFmt::CSV{};
     }
   };
   static FieldFmt &fmt() { return ZmTLS<FieldFmt, fmt>(); }

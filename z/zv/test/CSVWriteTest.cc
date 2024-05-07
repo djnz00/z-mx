@@ -35,7 +35,7 @@ struct Row {
   double	baz;
   ZuFixedVal	bam_;
   int		snafu;
-  ZtDate	mabbit;
+  ZuDateTime	mabbit;
   int		flags;
 
   ZuFixed bam() const { return ZuFixed{bam_, 2}; }
@@ -77,7 +77,7 @@ int main()
 	case 5: row->snafu = 45; break;
 	default: row->snafu = 99; break;
       }
-      row->mabbit = ZtDateNow();
+      row->mabbit = ZuDateTime{Zm::now()};
       switch(i) {
 	case 1: row->flags = 0x10 | 0x08; break;
 	case 2: row->flags = 0x01 | 0x02; break;
@@ -87,7 +87,7 @@ int main()
 	default: row->flags = ZuCmp<int>::null(); break;
       }
       switch(i) {
-	case 1: row->mabbit = ZtDate(2010, 01, 22, 15, 22, 14); break;
+	case 1: row->mabbit = ZuDateTime(2010, 01, 22, 15, 22, 14); break;
 	default: break;
       }
       filtList.pushNode(node);

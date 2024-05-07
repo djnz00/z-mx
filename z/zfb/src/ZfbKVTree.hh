@@ -121,14 +121,14 @@ namespace Save {
   }
 
   template <typename Builder>
-  inline auto kvDateTime(Builder &fbb, ZuString key, const ZtDate &value) {
+  inline auto kvDateTime(Builder &fbb, ZuString key, const ZuDateTime &value) {
     using namespace ZfbTree;
     return CreateKV(fbb, str(fbb, key), Value::DateTime,
 	fbb.CreateStruct(dateTime(value)).Union());
   }
   // Example:
   // kvDateTimeVec(fbb, "dateTimes", 2, [] <template T> (T *ptr, unsigned i) {
-  //   new (ptr) DateTime{dateTime(ZtDate{2023, 2, i})};
+  //   new (ptr) DateTime{dateTime(ZuDateTime{2023, 2, i})};
   // }
   template <typename Builder, typename L>
   inline auto kvDateTimeVec(Builder &fbb, ZuString key, unsigned n, L l) {

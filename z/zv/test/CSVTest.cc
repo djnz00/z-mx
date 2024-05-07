@@ -41,7 +41,7 @@ struct Row {
   int		m_bool;
   double	m_float;
   int		m_enum;
-  ZtDate	m_time;
+  ZuDateTime	m_time;
   int		m_flags;
 };
 ZtFields(Row,

@@ -29,7 +29,7 @@
 #include <zlib/ZmBitmap.hh>
 #include <zlib/ZmAlloc.hh>
 
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZePlatform.hh>
 
@@ -285,7 +285,7 @@ namespace Save {
   }
 
   // date/time
-  inline DateTime dateTime(const ZtDate &v) {
+  inline DateTime dateTime(const ZuDateTime &v) {
     return {v.julian(), v.sec(), v.nsec()};
   }
 
@@ -400,7 +400,7 @@ namespace Load {
 
   // date/time
   inline auto dateTime(const DateTime *v) {
-    return ZtDate{ZtDate::Julian, v->julian(), v->sec(), v->nsec()};
+    return ZuDateTime{ZuDateTime::Julian, v->julian(), v->sec(), v->nsec()};
   }
 
   // int128

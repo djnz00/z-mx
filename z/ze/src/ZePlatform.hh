@@ -40,7 +40,7 @@
 #include <zlib/ZmStream.hh>
 #include <zlib/ZmTime.hh>
 
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>
 

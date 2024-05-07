@@ -23,12 +23,12 @@
 //   calendar; the default effective date is 14th September 1752
 //   when Britain and the American colonies adopted the Gregorian
 //   calendar by Act of Parliament (consistent with Unix cal); this
-//   can be changed by calling ZtDate::reformation(year, month, day)
+//   can be changed by calling ZuDateTime::reformation(year, month, day)
 
 // * UTC time is composed of atomic time seconds which are of fixed
 //   duration; leap seconds have been intermittently added to UTC time
 //   since 1972 to correct for perturbations in the Earth's rotation;
-//   ZtDate is based on POSIX time_t which is UT1 time, defined
+//   ZuDateTime is based on POSIX time_t which is UT1 time, defined
 //   directly in terms of the Earth's rotation and composed of
 //   seconds which have slightly variable duration; all POSIX times
 //   driven by typical computer clocks therefore require occasional
@@ -53,40 +53,32 @@
 
 // * conversion functions accept an arbitrary intraday offset in seconds
 //   for adjustment between GMT and another time zone; for local time
-//   caller should use the value returned by offset() which works for
-//   the entire date range supported by ZtDate and performs DST and
+//   caller should use the value returned by Zt::tzOffset() which works for
+//   the entire date range supported by ZuDateTime and performs DST and
 //   other adjustments according to the default timezone in effect or
 //   the timezone specified by the caller; timezone names are the same as
 //   the values that can be assigned to the TZ environment variable:
 //
-//     ZtDate date;		// date/time
+//     ZuDateTime date;		// date/time
 //
 //     date.now();
 //
-//     ZtDateFmt::ISO gmt;			// GMT/UTC
-//     ZtDateFmt::ISO local(date.offset());	// default local time (tzset())
-//     ZtDateFmt::ISO gb(date.offset("GB"));	// local time in UK
-//     ZtDateFmt::ISO est(date.offset("EST"));	// local time in New York
+//     ZuDateTimeFmt::ISO gmt;			// GMT/UTC
+//     ZuDateTimeFmt::ISO local(Zt::tzOffset());// default local time (tzset())
+//     ZuDateTimeFmt::ISO gb(Zt::tzOffset("GB"));// local time in UK
+//     ZuDateTimeFmt::ISO est(Zt::tzOffset("EST"));// local time in New York
 //
 //     std::cout << date.iso(gmt);	// print time in ISO8601 format
-//
-// * WARNING - functions with this annotation call tzset() if the tz argument
-//   is non-zero; these functions should not be called with a high frequency
-//   by high performance applications with a non-zero tz since they:
-//   - acquire and release a global lock, since tzset() is not thread-safe
-//   - are potentially time-consuming
-//   - may access and modify global environment variables
-//   - may access system configuration files and external timezone databases
 
-#ifndef ZtDate_HH
-#define ZtDate_HH
+#ifndef ZuDateTime_HH
+#define ZuDateTime_HH
 
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#ifndef ZtLib_HH
-#include <zlib/ZtLib.hh>
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
 #endif
 
 #include <time.h>
@@ -99,21 +91,16 @@
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
-
-#include <zlib/ZmLock.hh>
-#include <zlib/ZmGuard.hh>
 #include <zlib/ZuTime.hh>
-#include <zlib/ZmSpecific.hh>
+#include <zlib/ZuUnion.hh>
 
-#include <zlib/ZtString.hh>
+#define ZuDateTime_MaxJulian	(0x1fffffff - 68572)
 
-#define ZtDate_MaxJulian	(0x1fffffff - 68572)
+class ZuDateTime;
 
-class ZtDate;
-
-template <int size> class ZtDate_time_t;
-template <> class ZtDate_time_t<4> {
-friend ZtDate;
+template <int size> class ZuDateTime_time_t;
+template <> class ZuDateTime_time_t<4> {
+friend ZuDateTime;
 private:
   constexpr static int32_t minimum() { return -0x80000000; } 
   constexpr static int32_t maximum() { return 0x7fffffff; } 
@@ -135,26 +122,24 @@ public:
     return (julian - 2440588) * 86400 + second;
   }
 };
-template <> class ZtDate_time_t<8> {
+template <> class ZuDateTime_time_t<8> {
 public:
   constexpr static bool isMinimum(int64_t) { return false; }
   constexpr static bool isMaximum(int64_t) { return false; }
   static time_t time(int32_t julian, int second) {
     if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
-    return ((int64_t)julian - (int64_t)2440588) * (int64_t)86400 +
-      (int64_t)second;
+    return
+      (int64_t(julian) - int64_t(2440588)) * int64_t(86400) + int64_t(second);
   }
 };
 
 // compile-time date/time input formatting
-namespace ZtDateScan {
+namespace ZuDateTimeScan {
   struct CSV {
-    const char	*tzName = nullptr;	// optional timezone
     int		tzOffset = 0;
   };
   struct FIX { };
   struct ISO {
-    const char	*tzName = nullptr;	// optional timezone
     int		tzOffset = 0;
   };
 
@@ -165,155 +150,190 @@ namespace ZtDateScan {
 }
 
 // compile-time date/time output formatting
-namespace ZtDateFmt {
-  class CSV {
-  friend ::ZtDate;
-  public:
-    CSV(int offset = 0) : m_offset{offset} {
-      memcpy(m_yyyymmdd, "0001/01/01", 10);
-      memcpy(m_hhmmss, "00:00:00", 8);
-    }
+namespace ZuDateTimeFmt {
 
-    void offset(int o) { m_offset = o; }
-    int offset() const { return m_offset; }
-
-    void pad(char c) { m_pad = c; }
-    char pad() const { return m_pad; }
-
-  private:
-    int			m_offset;
-    char		m_pad = 0;
-
-    mutable int		m_julian = 0;
-    mutable int		m_sec = 0;
-    mutable char	m_yyyymmdd[10];
-    mutable char	m_hhmmss[8];
-  };
-
-  template <unsigned Width, char Trim> struct FIX_ {
-    template <typename S> static void frac_print(S &s, unsigned nsec) {
-      s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, Trim>());
-    }
-  };
-  template <unsigned Width> struct FIX_<Width, '\0'> {
-    template <typename S> static void frac_print(S &s, unsigned nsec) {
-      if (ZuLikely(nsec))
-	s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, '\0'>>();
-    }
-  };
-  template <char Trim> struct FIX_<0, Trim> {
-    template <typename S> static void frac_print(S &, unsigned) { }
-  };
-  template <int Exp_, class Null_ = ZuPrintNull>
-  class FIX :
-      public FIX_<(Exp_ < 0 ? -Exp_ : Exp_), (Exp_ < 0 ? '\0' : '0')> {
-  friend ::ZtDate;
-  public:
-    enum { Exp = Exp_ };
-    using Null = Null_;
-
-    ZuAssert(Exp >= -9 && Exp <= 9);
-
-    FIX() {
-      memcpy(m_yyyymmdd, "00010101", 8);
-      memcpy(m_hhmmss, "00:00:00", 8);
-    }
-
-  private:
-    mutable int		m_julian = 0;
-    mutable int		m_sec = 0;
-    mutable char	m_yyyymmdd[8];
-    mutable char	m_hhmmss[8];
-  };
-
-  class ISO {
-  friend ::ZtDate;
-  public:
-    ISO(int offset = 0) : m_offset{offset} {
-      memcpy(m_yyyymmdd, "0001-01-01", 10);
-      memcpy(m_hhmmss, "00:00:00", 8);
-    }
-
-    void offset(int o) { m_offset = o; }
-    int offset() const { return m_offset; }
-
-  private:
-    int			m_offset = 0;
-
-    mutable int		m_julian = 0;
-    mutable int		m_sec = 0;
-    mutable char	m_yyyymmdd[10];
-    mutable char	m_hhmmss[8];
-  };
-
-  struct Strftime {
-    const char		*format;
-    int			offset;
-  };
-
-  // run-time variable date/time formatting
-  struct FIXDeflt_Null : public ZuPrintable {
-    template <typename S> void print(S &) const { }
-  };
-  using FIXDeflt = FIX<-9, FIXDeflt_Null>;
-  ZuDeclUnion(Any,
-      (CSV, csv),
-      (FIXDeflt, fix),
-      (ISO, iso),
-      (Strftime, strftime));
-}
-
-struct ZtDatePrintCSV {
-  const ZtDate				&value;
-  const ZtDateFmt::CSV			&fmt;
-
-  template <typename S> void print(S &) const;
-  friend ZuPrintFn ZuPrintType(ZtDatePrintCSV *);
-};
-template <int Exp = -9, class Null = ZtDateFmt::FIXDeflt_Null>
-struct ZtDatePrintFIX {
-  const ZtDate				&value;
-  const ZtDateFmt::FIX<Exp, Null>	&fmt;
-
-  template <typename S> void print(S &) const;
-  friend ZuPrintFn ZuPrintType(ZtDatePrintFIX *);
-};
-struct ZtDatePrintISO {
-  const ZtDate				&value;
-  const ZtDateFmt::ISO			&fmt;
-
-  template <typename S> void print(S &) const;
-  friend ZuPrintFn ZuPrintType(ZtDatePrintISO *);
-};
-struct ZtDatePrintStrftime {
-  const ZtDate				&value;
-  ZtDateFmt::Strftime			fmt;
-
-  template <typename S> void print(S &) const;
-  void print(ZmStream &) const;
-  friend ZuPrintFn ZuPrintType(ZtDatePrintStrftime *);
-};
-struct ZtDatePrint {
-  const ZtDate				&value;
-  const ZtDateFmt::Any			&fmt;
-
-  template <typename S> void print(S &) const;
-  friend ZuPrintFn ZuPrintType(ZtDatePrint *);
-};
-
-class ZtAPI ZtDate {
-  using Native = ZtDate_time_t<sizeof(time_t)>;
-
+class CSV {
+friend ::ZuDateTime;
 public:
+  CSV(int tzOffset = 0) : m_tzOffset{tzOffset} {
+    memcpy(m_yyyymmdd, "0001/01/01", 10);
+    memcpy(m_hhmmss, "00:00:00", 8);
+  }
+
+  void tzOffset(int o) { m_tzOffset = o; }
+  int tzOffset() const { return m_tzOffset; }
+
+  void pad(char c) { m_pad = c; }
+  char pad() const { return m_pad; }
+
+private:
+  int		m_tzOffset;
+  char		m_pad = 0;
+
+  mutable int	m_julian = 0;
+  mutable int	m_sec = 0;
+  mutable char	m_yyyymmdd[10];
+  mutable char	m_hhmmss[8];
+};
+
+template <unsigned Width, char Trim> struct FIX_ {
+  template <typename S> static void frac_print(S &s, unsigned nsec) {
+    s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, Trim>());
+  }
+};
+template <unsigned Width> struct FIX_<Width, '\0'> {
+  template <typename S> static void frac_print(S &s, unsigned nsec) {
+    if (ZuLikely(nsec))
+      s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, '\0'>>();
+  }
+};
+template <char Trim> struct FIX_<0, Trim> {
+  template <typename S> static void frac_print(S &, unsigned) { }
+};
+template <int Exp_, class Null_ = ZuPrintNull>
+class FIX :
+    public FIX_<(Exp_ < 0 ? -Exp_ : Exp_), (Exp_ < 0 ? '\0' : '0')> {
+friend ::ZuDateTime;
+public:
+  enum { Exp = Exp_ };
+  using Null = Null_;
+
+  ZuAssert(Exp >= -9 && Exp <= 9);
+
+  FIX() {
+    memcpy(m_yyyymmdd, "00010101", 8);
+    memcpy(m_hhmmss, "00:00:00", 8);
+  }
+
+private:
+  mutable int	m_julian = 0;
+  mutable int	m_sec = 0;
+  mutable char	m_yyyymmdd[8];
+  mutable char	m_hhmmss[8];
+};
+
+class ISO {
+friend ::ZuDateTime;
+public:
+  ISO(int tzOffset = 0) : m_tzOffset{tzOffset} {
+    memcpy(m_yyyymmdd, "0001-01-01", 10);
+    memcpy(m_hhmmss, "00:00:00", 8);
+  }
+
+  void tzOffset(int o) { m_tzOffset = o; }
+  int tzOffset() const { return m_tzOffset; }
+
+private:
+  int		m_tzOffset = 0;
+
+  mutable int	m_julian = 0;
+  mutable int	m_sec = 0;
+  mutable char	m_yyyymmdd[10];
+  mutable char	m_hhmmss[8];
+};
+
+struct Strftime {
+  const char	*format;
+  int		tzOffset;
+};
+
+// run-time variable date/time formatting
+struct FIXDeflt_Null : public ZuPrintable {
+  template <typename S> void print(S &) const { }
+};
+using FIXDeflt = FIX<-9, FIXDeflt_Null>;
+ZuDeclUnion(Any,
+    (CSV, csv),
+    (FIXDeflt, fix),
+    (ISO, iso),
+    (Strftime, strftime));
+
+} // ZuDateTimeFmt
+
+struct ZuDateTimePrintCSV {
+  const ZuDateTime				&value;
+  const ZuDateTimeFmt::CSV			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZuDateTimePrintCSV *);
+};
+template <int Exp = -9, class Null = ZuDateTimeFmt::FIXDeflt_Null>
+struct ZuDateTimePrintFIX {
+  const ZuDateTime				&value;
+  const ZuDateTimeFmt::FIX<Exp, Null>	&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZuDateTimePrintFIX *);
+};
+struct ZuDateTimePrintISO {
+  const ZuDateTime				&value;
+  const ZuDateTimeFmt::ISO			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZuDateTimePrintISO *);
+};
+struct ZuDateTimePrintStrftime {
+  const ZuDateTime				&value;
+  ZuDateTimeFmt::Strftime			fmt;
+
+  template <typename Boxed>
+  static auto vfmt(ZuVFmt &fmt,
+      const Boxed &boxed, unsigned width, bool alt) {
+    if (alt)
+      fmt.reset();
+    else
+      fmt.right(width);
+    return boxed.vfmt(fmt);
+  }
+  template <typename Boxed>
+  static auto vfmt(ZuVFmt &fmt,
+      const Boxed &boxed, ZuBox<unsigned> width, int deflt, bool alt) {
+    if (alt)
+      fmt.reset();
+    else {
+      if (!*width) width = deflt;
+      fmt.right(width);
+    }
+    return boxed.vfmt(fmt);
+  }
+  template <typename Boxed>
+  static auto vfmt(ZuVFmt &fmt,
+      const Boxed &boxed, ZuBox<unsigned> width, int deflt, bool alt,
+      char pad) {
+    if (alt)
+      fmt.reset();
+    else {
+      if (!*width) width = deflt;
+      fmt.right(width, pad);
+    }
+    return boxed.vfmt(fmt);
+  }
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZuDateTimePrintStrftime *);
+};
+
+struct ZuDateTimePrint {
+  const ZuDateTime				&value;
+  const ZuDateTimeFmt::Any			&fmt;
+
+  template <typename S> void print(S &) const;
+  friend ZuPrintFn ZuPrintType(ZuDateTimePrint *);
+};
+
+class ZuAPI ZuDateTime {
+public:
+  using Native = ZuDateTime_time_t<sizeof(time_t)>;
+
   enum Now_ { Now };		// disambiguator
   enum Julian_ { Julian };	// ''
 
-  ZtDate() = default;
+  ZuDateTime() = default;
 
-  ZtDate(const ZtDate &date) :
+  ZuDateTime(const ZuDateTime &date) :
     m_julian{date.m_julian}, m_sec{date.m_sec}, m_nsec{date.m_nsec} { }
 
-  ZtDate &operator =(const ZtDate &date) {
+  ZuDateTime &operator =(const ZuDateTime &date) {
     if (ZuUnlikely(this == &date)) return *this;
     m_julian = date.m_julian;
     m_sec = date.m_sec;
@@ -321,23 +341,21 @@ public:
     return *this;
   }
 
-  void update(const ZtDate &date) {
+  void update(const ZuDateTime &date) {
     if (ZuUnlikely(this == &date) || !date) return;
     m_julian = date.m_julian;
     m_sec = date.m_sec;
     m_nsec = date.m_nsec;
   }
 
-  ZtDate(Now_ _) { now(); }
-
   // ZuTime
 
   template <typename T>
-  ZtDate(const T &t, ZuExact<ZuTime, T> *_ = nullptr) {
+  ZuDateTime(const T &t, ZuExact<ZuTime, T> *_ = nullptr) {
     init(t.sec()), m_nsec = t.nsec();
   }
   template <typename T>
-  ZuExact<ZuTime, T, ZtDate &> operator =(const T &t) {
+  ZuExact<ZuTime, T, ZuDateTime &> operator =(const T &t) {
     init(t.sec());
     m_nsec = t.nsec();
     return *this;
@@ -346,12 +364,12 @@ public:
   // time_t
 
   template <typename T>
-  ZtDate(const T &t, ZuExact<time_t, T> *_ = nullptr) {
+  ZuDateTime(const T &t, ZuExact<time_t, T> *_ = nullptr) {
     init(t);
     m_nsec = 0;
   }
   template <typename T>
-  ZuExact<time_t, T, ZtDate &> operator =(const T &t) {
+  ZuExact<time_t, T, ZuDateTime &> operator =(const T &t) {
     init(t);
     m_nsec = 0;
     return *this;
@@ -360,21 +378,21 @@ public:
   // double
 
   template <typename T>
-  ZtDate(T d, ZuExact<double, T> *_ = nullptr) {
+  ZuDateTime(T d, ZuExact<double, T> *_ = nullptr) {
     time_t t = time_t(d);
     init(t);
     m_nsec = int((d - double(t)) * 1000000000.0);
   }
   template <typename T>
-  ZuExact<double, T, ZtDate &> operator =(T d) {
-    // this->~ZtDate(); // POD
-    new (this) ZtDate{d};
+  ZuExact<double, T, ZuDateTime &> operator =(T d) {
+    // this->~ZuDateTime(); // POD
+    new (this) ZuDateTime{d};
     return *this;
   }
 
   // struct tm
 
-  ZtDate(const struct tm *tm_) {
+  ZuDateTime(const struct tm *tm_) {
     int year = tm_->tm_year + 1900, month = tm_->tm_mon + 1, day = tm_->tm_mday;
     int hour = tm_->tm_hour, minute = tm_->tm_min, sec = tm_->tm_sec;
     int nsec = 0;
@@ -382,109 +400,77 @@ public:
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate &operator =(const struct tm *tm_) {
-    // this->~ZtDate();
-    new (this) ZtDate(tm_);
+  ZuDateTime &operator =(const struct tm *tm_) {
+    // this->~ZuDateTime();
+    new (this) ZuDateTime(tm_);
     return *this;
   }
 
   // multiple parameter constructors
 
-  ZtDate(time_t t, int nsec) { init(t); m_nsec = nsec; }
+  ZuDateTime(time_t t, int nsec) { init(t); m_nsec = nsec; }
 
-  explicit ZtDate(Julian_ _, int julian, int sec, int nsec) :
+  explicit ZuDateTime(Julian_ _, int julian, int sec, int nsec) :
     m_julian(julian), m_sec(sec), m_nsec(nsec) { }
 
-  ZtDate(int year, int month, int day) {
+  ZuDateTime(int year, int month, int day) {
     normalize(year, month);
     ctor(year, month, day);
   }
-  ZtDate(int year, int month, int day, int hour, int minute, int sec) {
+  ZuDateTime(int year, int month, int day, int hour, int minute, int sec) {
     normalize(year, month);
     int nsec = 0;
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(
+  ZuDateTime(
       int year, int month, int day, int hour, int minute, int sec, int nsec) {
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(int hour, int minute, int sec, int nsec) {
-    ctor(hour, minute, sec, nsec);
-  }
 
-  // the tz parameter in the following ctors can be 0/nullptr for GMT, "" for
-  // the local timezone (as obtained by tzset()), or a specific timezone
-  // name - the passed in date/time is converted from the date/time
-  // in the specified timezone to the internal GMT representation
-
-  ZtDate(struct tm *tm_, const char *tz) { // WARNING
+  ZuDateTime(struct tm *tm_) {
     int year = tm_->tm_year + 1900, month = tm_->tm_mon + 1, day = tm_->tm_mday;
     int hour = tm_->tm_hour, minute = tm_->tm_min, sec = tm_->tm_sec;
     int nsec = 0;
 
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(int year, int month, int day, const char *tz) { // WARNING
-    normalize(year, month);
-    ctor(year, month, day);
-    if (tz) offset_(year, month, day, 0, 0, 0, tz);
-  }
-  ZtDate(
-      int year, int month, int day,
-      int hour, int minute, int sec, const char *tz) { // WARNING
-    normalize(year, month);
-    int nsec = 0;
-    normalize(day, hour, minute, sec, nsec);
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(
-      int year, int month, int day,
-      int hour, int minute, int sec, int nsec, const char *tz) { // WARNING
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(int hour, int minute, int sec, int nsec, const char *tz) { // WARNING
-    ctor(hour, minute, sec, nsec);
-    if (tz) {
-      int year, month, day;
-      ymd(year, month, day);
-      offset_(year, month, day, hour, minute, sec, tz);
-    }
   }
 
   // CSV format: YYYY/MM/DD HH:MM:SS with an optional timezone parameter
-  template <typename S> ZtDate(
-      const ZtDateScan::CSV &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S>
+  ZuDateTime(
+    const ZuDateTimeScan::CSV &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
+  {
     ctor(fmt, s);
   }
 
   // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
-  template <typename S> ZtDate(
-      const ZtDateScan::FIX &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S>
+  ZuDateTime(
+    const ZuDateTimeScan::FIX &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
+  {
     ctor(fmt, s);
   }
 
   // the ISO8601 ctor accepts the two standard ISO8601 date/time formats
   // "yyyy-mm-dd" and "yyyy-mm-ddThh:mm:ss[.n]Z", where Z is an optional
-  // timezone: "Z" (GMT), "+hhmm", "+hh:mm", "-hhmm", or "-hh:mm";
-  // if a timezone is present in the string it overrides any tz
-  // parameter passed in by the caller
-  template <typename S> ZtDate(
-      const ZtDateScan::ISO &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
+  // timezone: "Z" (GMT), "+hhmm", "+hh:mm", "-hhmm", or "-hh:mm"
+  template <typename S>
+  ZuDateTime(
+    const ZuDateTimeScan::ISO &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
+  {
     ctor(fmt, s);
   }
   // default to ISO
   template <typename S>
-  ZtDate(const S &s, ZuMatchString<S> *_ = nullptr) {
-    ctor(ZtDateScan::ISO{}, s);
+  ZuDateTime(const S &s, ZuMatchString<S> *_ = nullptr) {
+    ctor(ZuDateTimeScan::ISO{}, s);
   }
 
-  template <typename S> ZtDate(
-      const ZtDateScan::Any &fmt, const S &s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S> ZuDateTime(
+    const ZuDateTimeScan::Any &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
+  {
     ctor(fmt, s);
   }
 
@@ -495,7 +481,7 @@ public:
   enum HHMMSSmmm_ { HHMMSSmmm };
   enum HHMMSS_ { HHMMSS };
 
-  ZtDate(int year, int month, int day, HHMMSSmmm_, int time) {
+  ZuDateTime(int year, int month, int day, HHMMSSmmm_, int time) {
     int hour, minute, sec, nsec;
     hour = time / 10000000; minute = (time / 100000) % 100;
     sec = (time / 1000) % 100; nsec = (time % 1000) * 1000000;
@@ -503,14 +489,14 @@ public:
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(int year, int month, int day, HHMMSS_, int time) {
+  ZuDateTime(int year, int month, int day, HHMMSS_, int time) {
     int hour, minute, sec, nsec = 0;
     hour = time / 10000; minute = (time / 100) % 100; sec = time % 100;
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(YYYYMMDD_, int date, HHMMSSmmm_, int time) {
+  ZuDateTime(YYYYMMDD_, int date, HHMMSSmmm_, int time) {
     int year, month, day, hour, minute, sec, nsec;
     year = date / 10000; month = (date / 100) % 100; day = date % 100;
     hour = time / 10000000; minute = (time / 100000) % 100;
@@ -519,7 +505,7 @@ public:
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(YYYYMMDD_, int date, HHMMSS_, int time) {
+  ZuDateTime(YYYYMMDD_, int date, HHMMSS_, int time) {
     int year, month, day, hour, minute, sec, nsec = 0;
     year = date / 10000; month = (date / 100) % 100; day = date % 100;
     hour = time / 10000; minute = (time / 100) % 100; sec = time % 100;
@@ -527,7 +513,7 @@ public:
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(YYMMDD_, int date, HHMMSSmmm_, int time) {
+  ZuDateTime(YYMMDD_, int date, HHMMSSmmm_, int time) {
     int year, month, day, hour, minute, sec, nsec;
     year = date / 10000; month = (date / 100) % 100; day = date % 100;
     hour = time / 10000000; minute = (time / 100000) % 100;
@@ -537,7 +523,7 @@ public:
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
   }
-  ZtDate(YYMMDD_, int date, HHMMSS_, int time) {
+  ZuDateTime(YYMMDD_, int date, HHMMSS_, int time) {
     int year, month, day, hour, minute, sec, nsec = 0;
     year = date / 10000; month = (date / 100) % 100; day = date % 100;
     hour = time / 10000; minute = (time / 100) % 100; sec = time % 100;
@@ -545,50 +531,6 @@ public:
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
     ctor(year, month, day, hour, minute, sec, nsec);
-  }
-  ZtDate(
-      YYYYMMDD_, int date, HHMMSSmmm_, int time, const char *tz) { // WARNING
-    int year, month, day, hour, minute, sec, nsec;
-    year = date / 10000; month = (date / 100) % 100; day = date % 100;
-    hour = time / 10000000; minute = (time / 100000) % 100;
-    sec = (time / 1000) % 100; nsec = (time % 1000) * 1000000;
-    normalize(year, month);
-    normalize(day, hour, minute, sec, nsec);
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(
-      YYYYMMDD_, int date, HHMMSS_, int time, const char *tz) { // WARNING
-    int year, month, day, hour, minute, sec, nsec = 0;
-    year = date / 10000; month = (date / 100) % 100; day = date % 100;
-    hour = time / 10000; minute = (time / 100) % 100; sec = time % 100;
-    normalize(year, month);
-    normalize(day, hour, minute, sec, nsec);
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(
-      YYMMDD_, int date, HHMMSSmmm_, int time, const char *tz) { // WARNING
-    int year, month, day, hour, minute, sec, nsec;
-    year = date / 10000; month = (date / 100) % 100; day = date % 100;
-    hour = time / 10000000; minute = (time / 100000) % 100;
-    sec = (time / 1000) % 100; nsec = (time % 1000) * 1000000;
-    year += (year < 70) ? 2000 : 1900;
-    normalize(year, month);
-    normalize(day, hour, minute, sec, nsec);
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
-  }
-  ZtDate(
-      YYMMDD_, int date, HHMMSS_, int time, const char *tz) { // WARNING
-    int year, month, day, hour, minute, sec, nsec = 0;
-    year = date / 10000; month = (date / 100) % 100; day = date % 100;
-    hour = time / 10000; minute = (time / 100) % 100; sec = time % 100;
-    year += (year < 70) ? 2000 : 1900;
-    normalize(year, month);
-    normalize(day, hour, minute, sec, nsec);
-    ctor(year, month, day, hour, minute, sec, nsec);
-    if (tz) offset_(year, month, day, hour, minute, sec, tz);
   }
 
   int yyyymmdd() const {
@@ -666,7 +608,7 @@ public:
   int days(int year, int month, int day) const {
     return m_julian - julian(year, month, day);
   }
-  // days arg below should be the value of days(year, 1, 1, offset)
+  // days arg below should be the value of days(year, 1, 1)
   // week (0-53) wkDay (1-7) 1st Monday in year is 1st day of week 1
   void ywd(
       int year, int days, int &week, int &wkDay) const;
@@ -682,13 +624,13 @@ public:
   static ZuString monthShortName(int i); // 1-12
   static ZuString monthLongName(int i); // 1-12
 
-  auto print(const ZtDateFmt::CSV &fmt) const {
-    return ZtDatePrintCSV{*this, fmt};
+  auto print(const ZuDateTimeFmt::CSV &fmt) const {
+    return ZuDateTimePrintCSV{*this, fmt};
   }
   template <typename S_>
-  void csv_print(S_ &s, const ZtDateFmt::CSV &fmt) const {
+  void csv_print(S_ &s, const ZuDateTimeFmt::CSV &fmt) const {
     if (!*this) return;
-    ZtDate date = *this + fmt.m_offset;
+    ZuDateTime date = *this + fmt.m_tzOffset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
       fmt.m_julian = date.m_julian;
       int y, m, d;
@@ -730,11 +672,11 @@ public:
   }
 
   template <int Exp, class Null>
-  auto print(const ZtDateFmt::FIX<Exp, Null> &fmt) const {
-    return ZtDatePrintFIX<Exp, Null>{*this, fmt};
+  auto print(const ZuDateTimeFmt::FIX<Exp, Null> &fmt) const {
+    return ZuDateTimePrintFIX<Exp, Null>{*this, fmt};
   }
   template <typename S_, int Exp, class Null>
-  void fix_print(S_ &s, const ZtDateFmt::FIX<Exp, Null> &fmt) const {
+  void fix_print(S_ &s, const ZuDateTimeFmt::FIX<Exp, Null> &fmt) const {
     if (!*this) { s << Null{}; return; }
     if (ZuUnlikely(m_julian != fmt.m_julian)) {
       fmt.m_julian = m_julian;
@@ -768,13 +710,13 @@ public:
   }
 
   // iso() always generates a full date/time format parsable by the ctor
-  auto print(const ZtDateFmt::ISO &fmt) const {
-    return ZtDatePrintISO{*this, fmt};
+  auto print(const ZuDateTimeFmt::ISO &fmt) const {
+    return ZuDateTimePrintISO{*this, fmt};
   }
   template <typename S_>
-  void iso_print(S_ &s, const ZtDateFmt::ISO &fmt) const {
+  void iso_print(S_ &s, const ZuDateTimeFmt::ISO &fmt) const {
     if (!*this) return;
-    ZtDate date = *this + fmt.m_offset;
+    ZuDateTime date = *this + fmt.m_tzOffset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
       fmt.m_julian = date.m_julian;
       int y, m, d;
@@ -808,8 +750,8 @@ public:
       N = Zu_ntoa::Base10_print_frac_truncate(N, 9, buf);
       if (N) s << '.' << ZuString(buf, N);
     }
-    if (fmt.m_offset) {
-      int offset_ = (fmt.m_offset < 0) ? -fmt.m_offset : fmt.m_offset;
+    if (fmt.m_tzOffset) {
+      int offset_ = (fmt.m_tzOffset < 0) ? -fmt.m_tzOffset : fmt.m_tzOffset;
       int oH = offset_ / 3600, oM = (offset_ % 3600) / 60;
       char buf[5];
       buf[0] = oH / 10 + '0';
@@ -817,13 +759,13 @@ public:
       buf[2] = ':';
       buf[3] = oM / 10 + '0';
       buf[4] = oM % 10 + '0';
-      s << ((fmt.m_offset < 0) ? '-' : '+') << ZuString(buf, 5);
+      s << ((fmt.m_tzOffset < 0) ? '-' : '+') << ZuString(buf, 5);
     } else
       s << 'Z';
   }
 
   // this strftime(3) is neither system timezone- nor locale- dependent;
-  // timezone is specified by the (optional) offset parameter, output is
+  // timezone is specified by the (optional) tzOffset parameter, output is
   // equivalent to the C library strftime under the 'C' locale; it does
   // not call tzset() and is thread-safe; conforms to, variously:
   //   (C90) - ANSI C '90
@@ -876,23 +818,22 @@ public:
   //   %z (GNU) RFC 822 timezone offset
   //   %Z (C90) timezone
   //   %% (C90) percent sign
-  auto strftime(const char *format, int offset = 0) const {
-    return ZtDatePrintStrftime{*this, ZtDateFmt::Strftime{format, offset}};
+  auto strftime(const char *format, int tzOffset = 0) const {
+    return ZuDateTimePrintStrftime{
+      *this, ZuDateTimeFmt::Strftime{format, tzOffset}};
   }
 
   // run-time variable date/time formatting
-  auto print(const ZtDateFmt::Any &fmt) const {
-    return ZtDatePrint{*this, fmt};
+  auto print(const ZuDateTimeFmt::Any &fmt) const {
+    return ZuDateTimePrint{*this, fmt};
   }
-
-  int offset(const char *tz = 0) const; // WARNING
 
 // operators
 
-  // ZtDate is an absolute time, not a time interval, so the difference
-  // between two ZtDates is a ZuTime;
-  // for the same reason no operator +(ZtDate) is defined
-  ZuTime operator -(const ZtDate &date) const {
+  // ZuDateTime is an absolute time, not a time interval, so the difference
+  // between two ZuDateTimes is a ZuTime;
+  // for the same reason no operator +(ZuDateTime) is defined
+  ZuTime operator -(const ZuDateTime &date) const {
     int day = m_julian - date.m_julian;
     int sec = m_sec - date.m_sec;
     int nsec = m_nsec - date.m_nsec;
@@ -904,7 +845,7 @@ public:
   }
 
   template <typename T>
-  ZuExact<ZuTime, T, ZtDate> operator +(const T &t) const {
+  ZuExact<ZuTime, T, ZuDateTime> operator +(const T &t) const {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -931,12 +872,12 @@ public:
       }
     }
 
-    return ZtDate{Julian, julian, sec, nsec};
+    return ZuDateTime{Julian, julian, sec, nsec};
   }
   template <typename T> ZuIfT<
     ZuInspect<time_t, T>::Same ||
     ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZtDate> operator +(T sec_) const {
+    ZuInspect<int, T>::Same, ZuDateTime> operator +(T sec_) const {
     int julian, sec = sec_;
 
     if (sec < 0) {
@@ -956,11 +897,11 @@ public:
       if (sec >= 86400) sec -= 86400, ++julian;
     }
 
-    return ZtDate{Julian, julian, sec, m_nsec};
+    return ZuDateTime{Julian, julian, sec, m_nsec};
   }
 
   template <typename T>
-  ZuExact<ZuTime, T, ZtDate &> operator +=(const T &t) {
+  ZuExact<ZuTime, T, ZuDateTime &> operator +=(const T &t) {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -996,7 +937,7 @@ public:
   template <typename T> ZuIfT<
     ZuInspect<time_t, T>::Same ||
     ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZtDate &> operator +=(T sec_) {
+    ZuInspect<int, T>::Same, ZuDateTime &> operator +=(T sec_) {
     int julian, sec = sec_;
 
     if (sec < 0) {
@@ -1023,39 +964,39 @@ public:
   }
 
   template <typename T>
-  ZuExact<ZuTime, T, ZtDate> operator -(const T &t) const {
-    return ZtDate::operator +(-t);
+  ZuExact<ZuTime, T, ZuDateTime> operator -(const T &t) const {
+    return ZuDateTime::operator +(-t);
   }
   template <typename T> ZuIfT<
       ZuInspect<time_t, T>::Same ||
       ZuInspect<long, T>::Same ||
-      ZuInspect<int, T>::Same, ZtDate> operator -(T sec_) {
-    return ZtDate::operator +(-sec_);
+      ZuInspect<int, T>::Same, ZuDateTime> operator -(T sec_) {
+    return ZuDateTime::operator +(-sec_);
   }
   template <typename T>
-  ZuExact<ZuTime, T, ZtDate &> operator -=(const T &t) {
-    return ZtDate::operator +=(-t);
+  ZuExact<ZuTime, T, ZuDateTime &> operator -=(const T &t) {
+    return ZuDateTime::operator +=(-t);
   }
   template <typename T> ZuIfT<
     ZuInspect<time_t, T>::Same ||
     ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZtDate &> operator -=(T sec_) {
-    return ZtDate::operator +=(-sec_);
+    ZuInspect<int, T>::Same, ZuDateTime &> operator -=(T sec_) {
+    return ZuDateTime::operator +=(-sec_);
   }
 
-  bool equals(const ZtDate &date) const {
+  bool equals(const ZuDateTime &date) const {
     return m_julian == date.m_julian &&
       m_sec == date.m_sec && m_nsec == date.m_nsec;
   }
-  int cmp(const ZtDate &date) const {
+  int cmp(const ZuDateTime &date) const {
     if (int i = ZuCmp<int32_t>::cmp(m_julian, date.m_julian)) return i;
     if (int i = ZuCmp<int32_t>::cmp(m_sec, date.m_sec)) return i;
     return ZuCmp<int32_t>::cmp(m_nsec, date.m_nsec);
   }
-  friend inline bool operator ==(const ZtDate &l, const ZtDate &r) {
+  friend inline bool operator ==(const ZuDateTime &l, const ZuDateTime &r) {
     return l.equals(r);
   }
-  friend inline int operator <=>(const ZtDate &l, const ZtDate &r) {
+  friend inline int operator <=>(const ZuDateTime &l, const ZuDateTime &r) {
     return l.cmp(r);
   }
 
@@ -1066,13 +1007,6 @@ public:
 
 // utility functions
 
-  ZtDate &now() {
-    ZuTime t = Zm::now();
-    init(t.sec());
-    m_nsec = t.nsec();
-    return *this;
-  }
-
   uint32_t hash() const { return m_julian ^ m_sec ^ m_nsec; }
 
 private:
@@ -1081,21 +1015,12 @@ private:
     m_julian = julian(year, month, day);
     m_sec = 0, m_nsec = 0;
   }
-  void ctor(int year, int month, int day,
-		   int hour, int minute, int sec, int nsec) {
+  void ctor(
+    int year, int month, int day, int hour, int minute, int sec, int nsec)
+  {
     normalize(year, month);
     normalize(day, hour, minute, sec, nsec);
     m_julian = julian(year, month, day);
-    m_sec = second(hour, minute, sec);
-    m_nsec = nsec;
-  }
-  void ctor(int hour, int minute, int sec, int nsec) {
-    m_julian = (int32_t)((Zm::now().sec() / 86400) + 2440588);
-    {
-      int day = 0;
-      normalize(day, hour, minute, sec, nsec);
-      m_julian += day;
-    }
     m_sec = second(hour, minute, sec);
     m_nsec = nsec;
   }
@@ -1119,10 +1044,10 @@ private:
   }
 
 public:
-  void ctor(const ZtDateScan::CSV &, ZuString);
-  void ctor(const ZtDateScan::FIX &, ZuString);
-  void ctor(const ZtDateScan::ISO &, ZuString);
-  void ctor(const ZtDateScan::Any &, ZuString);
+  void ctor(const ZuDateTimeScan::CSV &, ZuString);
+  void ctor(const ZuDateTimeScan::FIX &, ZuString);
+  void ctor(const ZuDateTimeScan::ISO &, ZuString);
+  void ctor(const ZuDateTimeScan::Any &, ZuString);
 
   void normalize(unsigned &year, unsigned &month);
   void normalize(int &year, int &month);
@@ -1136,9 +1061,6 @@ public:
   static int second(int hour, int minute, int second) {
     return hour * 3600 + minute * 60 + second;
   }
-
-  void offset_(int year, int month, int day,
-	       int hour, int minute, int second, const char *tz);
 
   void init(time_t t) {
     if (ZuUnlikely(ZuCmp<time_t>::null(t))) {
@@ -1154,16 +1076,16 @@ public:
   // default printing (ISO8601 format)
   struct DefltPrint : public ZuPrintDelegate {
     template <typename S>
-    static void print(S &s, const ZtDate &v) {
-      auto &fmt = ZmTLS<ZtDateFmt::ISO, (int DefltPrint::*){}>();
+    static void print(S &s, const ZuDateTime &v) {
+      thread_local ZuDateTimeFmt::ISO fmt;
       s << v.print(fmt);
     }
   };
-  friend DefltPrint ZuPrintType(ZtDate *);
+  friend DefltPrint ZuPrintType(ZuDateTime *);
 
   // traits
-  struct Traits : public ZuBaseTraits<ZtDate> { enum { IsPOD = 1 }; };
-  friend Traits ZuTraitsType(ZtDate *);
+  struct Traits : public ZuBaseTraits<ZuDateTime> { enum { IsPOD = 1 }; };
+  friend Traits ZuTraitsType(ZuDateTime *);
 
 private:
   int32_t	m_julian = ZuCmp<int32_t>::null();	// julian day
@@ -1178,69 +1100,284 @@ private:
   static int		m_reformationDay;
 };
 
-inline ZtDate ZtDateNow() { return ZtDate{ZtDate::Now}; }
-
-struct ZtAPI ZtDate_strftime {
-  template <typename Boxed>
-  static auto vfmt(ZuVFmt &fmt,
-      const Boxed &boxed, unsigned width, bool alt) {
-    if (alt)
-      fmt.reset();
-    else
-      fmt.right(width);
-    return boxed.vfmt(fmt);
-  }
-  template <typename Boxed>
-  static auto vfmt(ZuVFmt &fmt,
-      const Boxed &boxed, ZuBox<unsigned> width, int deflt, bool alt) {
-    if (alt)
-      fmt.reset();
-    else {
-      if (!*width) width = deflt;
-      fmt.right(width);
-    }
-    return boxed.vfmt(fmt);
-  }
-  template <typename Boxed>
-  static auto vfmt(ZuVFmt &fmt,
-      const Boxed &boxed, ZuBox<unsigned> width, int deflt, bool alt,
-      char pad) {
-    if (alt)
-      fmt.reset();
-    else {
-      if (!*width) width = deflt;
-      fmt.right(width, pad);
-    }
-    return boxed.vfmt(fmt);
-  }
-
-  static void print_(ZmStream &, ZtDate, const char *format, int offset);
-};
-
 template <typename S>
-inline void ZtDatePrintCSV::print(S &s) const {
+inline void ZuDateTimePrintCSV::print(S &s) const {
   value.csv_print(s, fmt);
 }
 template <int Exp, class Null>
 template <typename S>
-inline void ZtDatePrintFIX<Exp, Null>::print(S &s) const {
+inline void ZuDateTimePrintFIX<Exp, Null>::print(S &s) const {
   value.fix_print(s, fmt);
 }
 template <typename S>
-inline void ZtDatePrintISO::print(S &s) const {
+inline void ZuDateTimePrintISO::print(S &s) const {
   value.iso_print(s, fmt);
 }
 template <typename S>
-inline void ZtDatePrintStrftime::print(S &s_) const {
-  ZmStream s{s_};
-  ZtDate_strftime::print_(s, value, fmt.format, fmt.offset);
-}
-inline void ZtDatePrintStrftime::print(ZmStream &s) const {
-  ZtDate_strftime::print_(s, value, fmt.format, fmt.offset);
+inline void ZuDateTimePrintStrftime::print(S &s) const 
+{
+  auto format = fmt.format;
+
+  if (!format || !*format) return;
+
+  ZuDateTime value = this->value + fmt.tzOffset;
+
+  ZuBox<int> year, month, day, hour, minute, second;
+  ZuBox<int> days, week, wkDay, hour12;
+  ZuBox<int> wkYearISO, weekISO, weekSun;
+  ZuBox<time_t> seconds;
+
+  // Conforming to, variously:
+  // (C90) - ANSI C '90
+  // (C99) - ANSI C '99
+  // (SU) - Single Unix Specification
+  // (MS) - Microsoft CRT
+  // (GNU) - glibc (not all glibc-specific extensions are supported)
+  // (TZ) - Arthur Olson's timezone library
+ 
+  ZuVFmt fmt_;
+
+  while (char c = *format++) {
+    if (c != '%') { s << c; continue; }
+    bool alt = false;
+    ZuBox<unsigned> width;
+fmtchar:
+    c = *format++;
+    switch (c) {
+      case '#': // (MS) alt. format
+      case 'E': // (SU) ''
+	alt = true;
+      case 'O': // (SU) alt. digits
+	goto fmtchar;
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9': // (GNU) field width specifier
+	format += width.scan(format);
+	goto fmtchar;
+      case 'a': // (C90) day of week - short name
+	if (!*wkDay) wkDay = value.julian() % 7 + 1;
+	s << ZuDateTime::dayShortName(wkDay);
+	break;
+      case 'A': // (C90) day of week - long name
+	if (!*wkDay) wkDay = value.julian() % 7 + 1;
+	s << ZuDateTime::dayLongName(wkDay);
+	break;
+      case 'b': // (C90) month - short name
+      case 'h': // (SU) '' 
+	if (!*month) value.ymd(year, month, day);
+	s << ZuDateTime::monthShortName(month);
+	break;
+      case 'B': // (C90) month - long name
+	if (!*month) value.ymd(year, month, day);
+	s << ZuDateTime::monthLongName(month);
+	break;
+      case 'c': // (C90) Unix asctime() / ctime() (%a %b %e %T %Y)
+	if (!*year) value.ymd(year, month, day);
+	if (!*hour) value.hms(hour, minute, second);
+	if (!*wkDay) wkDay = value.julian() % 7 + 1;
+	s << ZuDateTime::dayShortName(wkDay) << ' ' <<
+	  ZuDateTime::monthShortName(month) << ' ' <<
+	  vfmt(fmt_, day, 2, alt) << ' ' <<
+	  vfmt(fmt_, hour, 2, alt) << ':' <<
+	  vfmt(fmt_, minute, 2, alt) << ':' <<
+	  vfmt(fmt_, second, 2, alt) << ' ' <<
+	  vfmt(fmt_, year, 4, alt);
+	break;
+      case 'C': // (SU) century
+	if (!*year) value.ymd(year, month, day);
+	{
+	  ZuBox<int> century = year / 100;
+	  s << vfmt(fmt_, century, width, 2, alt);
+	}
+	break;
+      case 'd': // (C90) day of month
+	if (!*day) value.ymd(year, month, day);
+	s << vfmt(fmt_, day, width, 2, alt);
+	break;
+      case 'x': // (C90) %m/%d/%y
+      case 'D': // (SU) ''
+	if (!*year) value.ymd(year, month, day);
+	{
+	  ZuBox<int> year_ = year % 100;
+	  s << vfmt(fmt_, month, 2, alt) << '/' <<
+	    vfmt(fmt_, day, 2, alt) << '/' <<
+	    vfmt(fmt_, year_, 2, alt);
+	}
+	break;
+      case 'e': // (SU) day of month - space padded
+	if (!*year) value.ymd(year, month, day);
+	s << vfmt(fmt_, day, width, 2, alt, ' ');
+	break;
+      case 'F': // (C99) %Y-%m-%d per ISO 8601
+	if (!*year) value.ymd(year, month, day);
+	s << vfmt(fmt_, year, 4, alt) << '-' <<
+	  vfmt(fmt_, month, 2, alt) << '-' <<
+	  vfmt(fmt_, day, 2, alt);
+	break;
+      case 'g': // (TZ) ISO week t year (2 digits)
+      case 'G': // (TZ) '' (4 digits)
+	if (!*wkYearISO) {
+	  if (!*year) value.ymd(year, month, day);
+	  if (!*days) days = value.days(year, 1, 1);
+	  value.ywdISO(year, days, wkYearISO, weekISO, wkDay);
+	}
+	{
+	  ZuBox<int> wkYearISO_ = wkYearISO;
+	  if (c == 'g') wkYearISO_ %= 100;
+	  s << vfmt(fmt_, wkYearISO_, width, (c == 'g' ? 2 : 4), alt);
+	}
+	break;
+      case 'H': // (C90) hour (24hr)
+	if (!*hour) value.hms(hour, minute, second);
+	s << vfmt(fmt_, hour, width, 2, alt);
+	break;
+      case 'I': // (C90) hour (12hr)
+	if (!*hour12) {
+	  if (!*hour) value.hms(hour, minute, second);
+	  hour12 = hour % 12;
+	  if (!hour12) hour12 += 12;
+	}
+	s << vfmt(fmt_, hour12, width, 2, alt);
+	break;
+      case 'j': // (C90) day of year
+	if (!*year) value.ymd(year, month, day);
+	if (!*days) days = value.days(year, 1, 1);
+	{
+	  ZuBox<int> days_ = days + 1;
+	  s << vfmt(fmt_, days_, width, 3, alt);
+	}
+	break;
+      case 'm': // (C90) month
+	if (!*month) value.ymd(year, month, day);
+	s << vfmt(fmt_, month, width, 2, alt);
+	break;
+      case 'M': // (C90) minute
+	if (!*minute) value.hms(hour, minute, second);
+	s << vfmt(fmt_, minute, width, 2, alt);
+	break;
+      case 'n': // (SU) newline
+	s << '\n';
+	break;
+      case 'p': // (C90) AM/PM
+	if (!*hour) value.hms(hour, minute, second);
+	s << (hour >= 12 ? "PM" : "AM");
+	break;
+      case 'P': // (GNU) am/pm
+	if (!*hour) value.hms(hour, minute, second);
+	s << (hour >= 12 ? "pm" : "am");
+	break;
+      case 'r': // (SU) %I:%M:%S %p
+	if (!*hour) value.hms(hour, minute, second);
+	if (!*hour12) {
+	  hour12 = hour % 12;
+	  if (!hour12) hour12 += 12;
+	}
+	s << vfmt(fmt_, hour12, 2, alt) << ':' <<
+	  vfmt(fmt_, minute, 2, alt) << ':' <<
+	  vfmt(fmt_, second, 2, alt) << ' ' <<
+	  (hour >= 12 ? "PM" : "AM");
+	break;
+      case 'R': // (SU) %H:%M
+	if (!*hour) value.hms(hour, minute, second);
+	s << vfmt(fmt_, hour, 2, alt) << ':' <<
+	  vfmt(fmt_, minute, 2, alt);
+	break;
+      case 's': // (TZ) number of seconds since the Epoch
+	if (!*seconds) seconds = value.time();
+	if (!alt && *width)
+	  s << seconds.vfmt(ZuVFmt{}.right(width));
+	else
+	  s << seconds;
+	break;
+      case 'S': // (C90) second
+	if (!*second) value.hms(hour, minute, second);
+	s << vfmt(fmt_, second, width, 2, alt);
+	break;
+      case 't': // (SU) TAB
+	s << '\t';
+	break;
+      case 'X': // (C90) %H:%M:%S
+      case 'T': // (SU) ''
+	if (!*hour) value.hms(hour, minute, second);
+	s << vfmt(fmt_, hour, 2, alt) << ':' <<
+	  vfmt(fmt_, minute, 2, alt) << ':' <<
+	  vfmt(fmt_, second, 2, alt);
+	break;
+      case 'u': // (SU) week day as decimal (1-7), 1 is Monday (7 is Sunday)
+	if (!*wkDay) wkDay = value.julian() % 7 + 1;
+	s << vfmt(fmt_, wkDay, width, 1, alt);
+	break;
+      case 'U': // (C90) week (00-53), 1st Sunday in year is 1st day of week 1
+	if (!*weekSun) {
+	  if (!*year) value.ymd(year, month, day);
+	  if (!*days) days = value.days(year, 1, 1);
+	  {
+	    int wkDay_;
+	    value.ywdSun(year, days, weekSun, wkDay_);
+	  }
+	}
+	s << vfmt(fmt_, weekSun, width, 2, alt);
+	break;
+      case 'V': // (SU) week (01-53), per ISO week t
+	if (!*weekISO) {
+	  if (!*year) value.ymd(year, month, day);
+	  if (!*days) days = value.days(year, 1, 1);
+	  value.ywdISO(year, days, wkYearISO, weekISO, wkDay);
+	}
+	s << vfmt(fmt_, weekISO, width, 2, alt);
+	break;
+      case 'w': // (C90) week day as decimal, 0 is Sunday
+	if (!*wkDay) wkDay = value.julian() % 7 + 1;
+	{
+	  ZuBox<int> wkDay_ = wkDay;
+	  if (wkDay_ == 7) wkDay_ = 0;
+	  s << vfmt(fmt_, wkDay_, width, 1, alt);
+	}
+	break;
+      case 'W': // (C90) week (00-53), 1st Monday in year is 1st day of week 1
+	if (!*week) {
+	  if (!*year) value.ymd(year, month, day);
+	  if (!*days) days = value.days(year, 1, 1);
+	  value.ywd(year, days, week, wkDay);
+	}
+	s << vfmt(fmt_, week, width, 2, alt);
+	break;
+      case 'y': // (C90) year (2 digits)
+	if (!*year) value.ymd(year, month, day);
+	{
+	  ZuBox<int> year_ = year % 100;
+	  s << vfmt(fmt_, year_, width, 2, alt);
+	}
+	break;
+      case 'Y': // (C90) year (4 digits)
+	if (!*year) value.ymd(year, month, day);
+	s << vfmt(fmt_, year, width, 4, alt);
+	break;
+      case 'z': // (GNU) RFC 822 timezone tzOffset
+      case 'Z': // (C90) timezone
+	{
+	  ZuBox<int> tzOffset_ = fmt.tzOffset;
+	  if (tzOffset_ < 0) { s << '-'; tzOffset_ = -tzOffset_; }
+	  tzOffset_ = (tzOffset_ / 3600) * 100 + (tzOffset_ % 3600) / 60;
+	  s << tzOffset_;
+	}
+	break;
+      case '%':
+	s << '%';
+	break;
+    }
+  }
 }
 template <typename S>
-inline void ZtDatePrint::print(S &s) const {
-  using namespace ZtDateFmt;
+inline void ZuDateTimePrint::print(S &s) const {
+  using namespace ZuDateTimeFmt;
   switch (fmt.type()) {
     default:
     case Any::Index<CSV>{}:
@@ -1254,9 +1391,9 @@ inline void ZtDatePrint::print(S &s) const {
       break;
     case Any::Index<Strftime>{}: {
       const auto &strftime = fmt.strftime();
-      s << value.strftime(strftime.format, strftime.offset);
+      s << value.strftime(strftime.format, strftime.tzOffset);
     } break;
   }
 }
 
-#endif /* ZtDate_HH */
+#endif /* ZuDateTime_HH */

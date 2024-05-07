@@ -220,18 +220,18 @@ namespace MxBookingType {
 }
 
 struct MxTTimeFmt {
-  static ZtDateFmt::FIX<-9> &fix() {
-    return ZmTLS<ZtDateFmt::FIX<-9, Null>, fix>();
+  static ZuDateTimeFmt::FIX<-9> &fix() {
+    return ZmTLS<ZuDateTimeFmt::FIX<-9, Null>, fix>();
   }
-  static ZtDateFmt::CSV &csv() {
-    return ZmTLS<ZtDateFmt::CSV, csv>();
+  static ZuDateTimeFmt::CSV &csv() {
+    return ZmTLS<ZuDateTimeFmt::CSV, csv>();
   }
   // friend ZuPrintFn ZuPrintType(MxTTimeFmt::Null *);
 };
 
 struct MxTCSVTimeFmt {
-  static ZtDateFmt::CSV &fmt() {
-    return ZmTLS<ZtDateFmt::CSV, fmt>();
+  static ZuDateTimeFmt::CSV &fmt() {
+    return ZmTLS<ZuDateTimeFmt::CSV, fmt>();
   }
 };
 

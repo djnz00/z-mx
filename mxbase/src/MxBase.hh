@@ -30,7 +30,7 @@
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmStream.hh>
 
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>
 
@@ -58,8 +58,8 @@ using MxFloat = ZuBox<long double>;
 #else
 using MxFloat = ZuBox<double>;
 #endif
-using MxDateTime = ZtDate;
-#define MxNow ZtDateNow
+using MxDateTime = ZuDateTime;
+#define MxNow ZuDateTime{Zm::now()}
 using MxDeltaTime = ZuTime;
 using MxEnum = ZtEnum;
 using MxFlags = ZuBox0(uint32_t);
@@ -176,7 +176,7 @@ template <typename U> struct MxType_Char<U, true> { using T = MxChar; };
 template <typename U> struct MxType :
     public MxType_Char<U, MxIsChar<U>{}> { };
 
-#define MxDateTimeNow ZtDateNow
+#define MxDateTimeNow ZuDateTime{Zm::now()}
 
 // Note: MxString/ZuStringN overhead is 4 bytes
 

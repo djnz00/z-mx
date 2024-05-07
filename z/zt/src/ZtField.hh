@@ -41,7 +41,7 @@
 // Fixed	ZuFixed		[, default, min, max]
 // Decimal	ZuDecimal	[, default, min, max]
 // Time		ZuTime		[, default]
-// DateTime	ZtDate		[, default]
+// DateTime	ZuDateTime		[, default]
 // UDT		<UDT>		[, default]
 
 // Note: Regarding run-time introspection with monomorphic fields (ZtMField),
@@ -127,7 +127,7 @@
 #include <zlib/ZmSingleton.hh>
 
 #include <zlib/ZtEnum.hh>
-#include <zlib/ZtDate.hh>
+#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtHexDump.hh>
 #include <zlib/ZtScanBool.hh>
@@ -146,7 +146,7 @@ namespace ZtFieldTypeCode {
     Fixed,		// ZuFixed
     Decimal,		// ZuDecimal
     Time,		// ZuTime - POSIX timespec
-    DateTime,		// ZtDate - Julian date, intraday seconds, nanoseconds
+    DateTime,		// ZuDateTime - Julian date, intraday seconds, nanoseconds
     UDT			// generic udt type
   );
 }
@@ -204,8 +204,8 @@ namespace ZtFieldProp {
 // formatted field printing/scanning
 struct ZtFieldFmt {
   ZuVFmt		scalar;			// scalar format (print only)
-  ZtDateScan::Any	dateScan;		// date/time scan format
-  ZtDateFmt::Any	datePrint;		// date/time print format
+  ZuDateTimeScan::Any	dateScan;		// date/time scan format
+  ZuDateTimeFmt::Any	datePrint;		// date/time print format
   char			flagsDelim = '|';	// flags delimiter
 };
 
@@ -489,7 +489,7 @@ struct ZtMFieldGet {
     ZuFixed		(*fixed)(const void *, unsigned);	// Fixed
     ZuDecimal		(*decimal)(const void *, unsigned);	// Decimal
     ZuTime		(*time)(const void *, unsigned);	// Time
-    ZtDate		(*dateTime)(const void *, unsigned);	// DateTime
+    ZuDateTime		(*dateTime)(const void *, unsigned);	// DateTime
     const void *	(*udt)(const void *, unsigned);		// UDT
   } get_;
 
@@ -554,7 +554,7 @@ struct ZtMFieldGet {
     return get_.time(o, i);
   }
   template <unsigned Code>
-  ZuIfT<Code == ZtFieldTypeCode::DateTime, ZtDate>
+  ZuIfT<Code == ZtFieldTypeCode::DateTime, ZuDateTime>
   get(const void *o, unsigned i) const {
     return get_.dateTime(o, i);
   }
@@ -638,7 +638,7 @@ struct ZtMFieldSet {
     void		(*fixed)(void *, unsigned, ZuFixed);	// Fixed
     void		(*decimal)(void *, unsigned, ZuDecimal);// Decimal
     void		(*time)(void *, unsigned, ZuTime);	// Time
-    void		(*dateTime)(void *, unsigned, ZtDate);	// DateTime
+    void		(*dateTime)(void *, unsigned, ZuDateTime);	// DateTime
     void		(*udt)(void *, unsigned, const void *);	// UDT
   } set_;
 
@@ -700,7 +700,7 @@ struct ZtMFieldSet {
   template <unsigned Code, typename U>
   ZuIfT<Code == ZtFieldTypeCode::DateTime>
   set(void *o, unsigned i, U &&v) const {
-    set_.dateTime(o, i, ZtDate{ZuFwd<U>(v)});
+    set_.dateTime(o, i, ZuDateTime{ZuFwd<U>(v)});
   }
   template <unsigned Code, typename U>
   ZuIfT<Code == ZtFieldTypeCode::UDT>
@@ -925,14 +925,14 @@ template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Time> ZtMFieldGet::print(
   S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  ZtDate v{get_.time(o, i)};
+  ZuDateTime v{get_.time(o, i)};
   s << v.print(fmt.datePrint);
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime> ZtMFieldGet::print(
   S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  ZtDate v{get_.dateTime(o, i)};
+  ZuDateTime v{get_.dateTime(o, i)};
   s << v.print(fmt.datePrint);
 }
 template <unsigned Code, typename S>
@@ -1028,13 +1028,13 @@ template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Time> ZtMFieldSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  set_.time(o, i, ZtDate{fmt.dateScan, s}.zmTime());
+  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.zmTime());
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime> ZtMFieldSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  set_.dateTime(o, i, ZtDate{fmt.dateScan, s});
+  set_.dateTime(o, i, ZuDateTime{fmt.dateScan, s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::UDT> ZtMFieldSet::scan(
@@ -2023,7 +2023,7 @@ struct ZtFieldType_Time : public ZtFieldType_<Props_> {
     const ZtFieldFmt &fmt;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
-      ZtDate v{print.v};
+      ZuDateTime v{print.v};
       return s << v.print(print.fmt.datePrint);
     }
   };
@@ -2096,7 +2096,7 @@ struct ZtFieldType_DateTime : public ZtFieldType_<Props_> {
   using T = T_;
   using Props = Props_;
   struct Print {
-    ZtDate v;
+    ZuDateTime v;
     const ZtFieldFmt &fmt;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
@@ -2122,7 +2122,7 @@ ZtMFieldType *ZtFieldType_DateTime<T, Props>::vtype() {
   return ZmSingleton<ZtMFieldType_DateTime<T, Props>>::instance();
 }
 
-inline constexpr ZtDate ZtFieldType_DateTime_Def() { return {}; }
+inline constexpr ZuDateTime ZtFieldType_DateTime_Def() { return {}; }
 template <
   typename Base, typename Props,
   auto Def = ZtFieldType_DateTime_Def,
@@ -2135,17 +2135,17 @@ struct ZtField_DateTime : public ZtField_<Base, Props> {
   using Type = ZtFieldType_DateTime<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZtDate {
+    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZuDateTime {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.dateTime = [](void *, unsigned, ZtDate) { }}};
+    return {.set_ = {.dateTime = [](void *, unsigned, ZuDateTime) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZtDate {
+    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZuDateTime {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2158,7 +2158,7 @@ struct ZtField_DateTime<Base, Props, Def, false> :
     public ZtField_DateTime<Base, Props, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.dateTime = [](void *o, unsigned, ZtDate v) {
+    return {.set_ = {.dateTime = [](void *o, unsigned, ZuDateTime v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }

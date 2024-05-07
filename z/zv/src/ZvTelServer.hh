@@ -57,9 +57,9 @@ private:
   // do not call ZeLOG since that may well recurse back here, print to stderr
   template <typename Message>
   void error(bool index, const Message &message) {
-    struct Fmt : public ZtDateFmt::CSV { Fmt() { offset(timezone); } };
+    struct Fmt : public ZuDateTimeFmt::CSV { Fmt() { tzOffset(timezone); } };
     auto &dateFmt = ZmTLS<Fmt>();
-    std::cerr << ZtDateNow().print(dateFmt) <<
+    std::cerr << ZuDateTime{Zm::now()}.print(dateFmt) <<
       " FATAL " << m_path << (index ? ".idx" : "") <<
       ": " << message << '\n' << std::flush;
   }
@@ -400,7 +400,7 @@ private:
   void alert_(ZeEvent<L> alert) {
     m_alertBuf.length(0);
     m_alertBuf << alert;
-    ZtDate date{alert.time};
+    ZuDateTime date{alert.time};
     unsigned yyyymmdd = date.yyyymmdd();
     unsigned seqNo = m_alertFile.alloc(m_alertPrefix, yyyymmdd);
     using namespace Zfb::Save;
@@ -1064,7 +1064,7 @@ private:
       seqNo = c[3];
     }
     // ensure date is within range
-    unsigned now = ZtDateNow().yyyymmdd();
+    unsigned now = ZuDateTime{Zm::now()}.yyyymmdd();
     ZmRef<IOBuf> buf;
     if (!date)
       date = now;

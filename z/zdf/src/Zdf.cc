@@ -273,6 +273,6 @@ void DataFrame::save(Store_::SaveFn saveFn)
 Zfb::Offset<fbs::DataFrame> DataFrame::save_(Zfb::Builder &fbb)
 {
   using namespace Zfb::Save;
-  auto v = dateTime(ZtDate{m_epoch});
+  auto v = dateTime(ZuDateTime{m_epoch});
   return fbs::CreateDataFrame(fbb, &v);
 }

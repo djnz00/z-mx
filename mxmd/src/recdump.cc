@@ -326,7 +326,7 @@ class App {
   typedef ZmLHash<MxInstrKey> InstrIDHash;
 
 public:
-  App() : m_yyyymmdd(ZtDateNow().yyyymmdd()) {
+  App() : m_yyyymmdd(ZuDateTime{Zm::now()}.yyyymmdd()) {
     m_instrIDs = new InstrIDHash();
   }
 
@@ -343,8 +343,9 @@ public:
   void hhmmss(bool b) { m_hhmmss = b; }
   void yyyymmdd(unsigned n) { m_yyyymmdd = n; }
   void tz(const char *tz) {
-    ZtDate now(ZtDate::YYYYMMDD, m_yyyymmdd, ZtDate::HHMMSS, 120000, tz);
-    m_tzOffset = now.offset(tz);
+    ZuDateTime now(
+      ZuDateTime::YYYYMMDD, m_yyyymmdd, ZuDateTime::HHMMSS, 120000);
+    m_tzOffset = Zt::tzOffset(now, tz);
     m_isoFmt.offset(m_tzOffset);
   }
 
@@ -461,7 +462,7 @@ private:
   bool				m_verbose = 0;
   bool				m_raw = 0;
 
-  ZtDateFmt::ISO		m_isoFmt;
+  ZuDateTimeFmt::ISO		m_isoFmt;
 
   ZmRef<InstrIDHash>		m_instrIDs;
 
@@ -517,7 +518,7 @@ void App::read()
 
     if (m_verbose) {
       if (hdr.nsec) {
-	ZtDate stamp = m_lastTime + ZuTime(ZuTime::Nano, hdr.nsec);
+	ZuDateTime stamp = m_lastTime + ZuTime(ZuTime::Nano, hdr.nsec);
 	std::cout << "len: " << ZuBoxed(hdr.len).fmt(ZuFmt::Right<6>()) <<
 	  "  type: " << ZuBoxed(hdr.type).fmt(ZuFmt::Right<6>()) <<
 	  "  stamp: " << stamp.iso(m_isoFmt) << '\n';

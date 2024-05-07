@@ -172,7 +172,7 @@ void deletedPxLevel(MxMDPxLevel *pxLevel, MxDateTime stamp)
 
 void timer(MxDateTime now, MxDateTime &next)
 {
-  auto &fmt = ZmTLS<ZtDateFmt::ISO, timer>();
+  auto &fmt = ZmTLS<ZuDateTimeFmt::ISO, timer>();
   std::cout << "TIMER " << now.iso(fmt) << '\n'; fflush(stdout);
   next = now + ZuTime(1);
 }
