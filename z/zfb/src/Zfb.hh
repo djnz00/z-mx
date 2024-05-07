@@ -25,11 +25,10 @@
 #include <zlib/ZuID.hh>
 
 #include <zlib/ZuDecimal.hh>
+#include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZmBitmap.hh>
 #include <zlib/ZmAlloc.hh>
-
-#include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZePlatform.hh>
 
