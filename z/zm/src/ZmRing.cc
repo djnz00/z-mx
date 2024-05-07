@@ -21,7 +21,7 @@ void Blocker::close() { }
 #pragma pack(push, 1)
 struct Log {
   char op[8];
-  ZmTime stamp;
+  ZuTime stamp;
   int errno_;
   void *blocker;
   uint32_t *addr;
@@ -56,10 +56,10 @@ int Blocker::wait(
     const Params &params)
 {
   /* new (&logBuf[(logIndex++) & 1023])
-    Log{"wait", ZmTimeNow(), 0, this,
+    Log{"wait", Zm::now(), 0, this,
       reinterpret_cast<uint32_t *>(&addr), val}; */
   if (ZuUnlikely(params.timeout)) {
-    ZmTime out(ZmTime::Now, static_cast<int>(params.timeout));
+    ZuTime out = Zm::now(params.timeout);
     unsigned i = 0;
     do {
       if (ZuUnlikely(i >= params.spin)) {
@@ -68,7 +68,7 @@ int Blocker::wait(
 	      static_cast<int>(val), &out, 0, 0) < 0) {
 	  auto errno_ = errno;
 	  /* new (&logBuf[(logIndex++) & 1023])
-	    Log{"woke", ZmTimeNow(), errno_, this,
+	    Log{"woke", Zm::now(), errno_, this,
 	      reinterpret_cast<uint32_t *>(&addr), addr}; */
 	  if (errno_ == ETIMEDOUT) return Zu::NotReady;
 	  if (errno_ == EAGAIN) return Zu::OK;
@@ -84,7 +84,7 @@ int Blocker::wait(
 	syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
 	    FUTEX_WAIT | FUTEX_PRIVATE_FLAG, static_cast<int>(val), 0, 0, 0);
 	/* new (&logBuf[(logIndex++) & 1023])
-	  Log{"woke", ZmTimeNow(), errno, this,
+	  Log{"woke", Zm::now(), errno, this,
 	    reinterpret_cast<uint32_t *>(&addr), addr}; */
 	i = 0;
       } else
@@ -97,7 +97,7 @@ int Blocker::wait(
 void Blocker::wake(ZmAtomic<uint32_t> &addr)
 {
   /* new (&logBuf[(logIndex++) & 1023])
-    Log{"wake", ZmTimeNow(), 0, this,
+    Log{"wake", Zm::now(), 0, this,
       reinterpret_cast<uint32_t *>(&addr), addr.load_()}; */
   syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
       FUTEX_WAKE | FUTEX_PRIVATE_FLAG, INT_MAX, 0, 0, 0);

@@ -14,7 +14,7 @@
 
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmPlatform.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 
 #ifdef _WIN32

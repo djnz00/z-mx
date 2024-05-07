@@ -192,7 +192,7 @@ public:
 private:
   // Traffic Logging (logThread)
   /* Example usage:
-  app.log(id, MxTraffic([](const Msg *msg, ZmTime &stamp, ZuString &data) {
+  app.log(id, MxTraffic([](const Msg *msg, ZuTime &stamp, ZuString &data) {
     stamp = msg->stamp();
     data = msg->buf();
   }, msg)); */
@@ -321,7 +321,7 @@ private:
 
   ZmScheduler::Timer	m_timer;
   Lock			m_timerLock;
-    ZmTime		  m_timerNext;	// time of next timer event
+    ZuTime		  m_timerNext;	// time of next timer event
 };
 
 ZuInline MxMDCore *MxMDRecord::core() const

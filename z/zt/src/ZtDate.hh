@@ -102,7 +102,7 @@
 
 #include <zlib/ZmLock.hh>
 #include <zlib/ZmGuard.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmSpecific.hh>
 
 #include <zlib/ZtString.hh>
@@ -330,14 +330,14 @@ public:
 
   ZtDate(Now_ _) { now(); }
 
-  // ZmTime
+  // ZuTime
 
   template <typename T>
-  ZtDate(const T &t, ZuExact<ZmTime, T> *_ = nullptr) {
+  ZtDate(const T &t, ZuExact<ZuTime, T> *_ = nullptr) {
     init(t.sec()), m_nsec = t.nsec();
   }
   template <typename T>
-  ZuExact<ZmTime, T, ZtDate &> operator =(const T &t) {
+  ZuExact<ZuTime, T, ZtDate &> operator =(const T &t) {
     init(t.sec());
     m_nsec = t.nsec();
     return *this;
@@ -347,7 +347,8 @@ public:
 
   template <typename T>
   ZtDate(const T &t, ZuExact<time_t, T> *_ = nullptr) {
-    init(t), m_nsec = 0;
+    init(t);
+    m_nsec = 0;
   }
   template <typename T>
   ZuExact<time_t, T, ZtDate &> operator =(const T &t) {
@@ -360,15 +361,14 @@ public:
 
   template <typename T>
   ZtDate(T d, ZuExact<double, T> *_ = nullptr) {
-    time_t t = static_cast<time_t>(d);
+    time_t t = time_t(d);
     init(t);
-    m_nsec = static_cast<int>((d - static_cast<double>(t)) * 1000000000.0);
+    m_nsec = int((d - double(t)) * 1000000000.0);
   }
   template <typename T>
   ZuExact<double, T, ZtDate &> operator =(T d) {
-    time_t t = static_cast<time_t>(d);
-    init(t);
-    m_nsec = static_cast<int>((d - static_cast<double>(t)) * 1000000000.0);
+    // this->~ZtDate(); // POD
+    new (this) ZtDate{d};
     return *this;
   }
 
@@ -650,10 +650,10 @@ public:
     if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<double>::inf();
     return((double)t + (double)m_nsec / (double)1000000000);
   }
-  operator ZmTime() const { return this->zmTime(); }
-  ZmTime zmTime() const {
+  operator ZuTime() const { return this->zmTime(); }
+  ZuTime zmTime() const {
     if (ZuUnlikely(!*this)) return {};
-    return ZmTime{this->time(), m_nsec};
+    return ZuTime{this->time(), m_nsec};
   }
 
   struct tm *tm(struct tm *tm) const;
@@ -890,9 +890,9 @@ public:
 // operators
 
   // ZtDate is an absolute time, not a time interval, so the difference
-  // between two ZtDates is a ZmTime;
+  // between two ZtDates is a ZuTime;
   // for the same reason no operator +(ZtDate) is defined
-  ZmTime operator -(const ZtDate &date) const {
+  ZuTime operator -(const ZtDate &date) const {
     int day = m_julian - date.m_julian;
     int sec = m_sec - date.m_sec;
     int nsec = m_nsec - date.m_nsec;
@@ -900,11 +900,11 @@ public:
     if (nsec < 0) nsec += 1000000000, --sec;
     if (sec < 0) sec += 86400, --day;
 
-    return ZmTime(day * 86400 + sec, nsec);
+    return ZuTime(day * 86400 + sec, nsec);
   }
 
   template <typename T>
-  ZuExact<ZmTime, T, ZtDate> operator +(const T &t) const {
+  ZuExact<ZuTime, T, ZtDate> operator +(const T &t) const {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -960,7 +960,7 @@ public:
   }
 
   template <typename T>
-  ZuExact<ZmTime, T, ZtDate &> operator +=(const T &t) {
+  ZuExact<ZuTime, T, ZtDate &> operator +=(const T &t) {
     int julian, sec, nsec;
 
     sec = m_sec;
@@ -1023,7 +1023,7 @@ public:
   }
 
   template <typename T>
-  ZuExact<ZmTime, T, ZtDate> operator -(const T &t) const {
+  ZuExact<ZuTime, T, ZtDate> operator -(const T &t) const {
     return ZtDate::operator +(-t);
   }
   template <typename T> ZuIfT<
@@ -1033,7 +1033,7 @@ public:
     return ZtDate::operator +(-sec_);
   }
   template <typename T>
-  ZuExact<ZmTime, T, ZtDate &> operator -=(const T &t) {
+  ZuExact<ZuTime, T, ZtDate &> operator -=(const T &t) {
     return ZtDate::operator +=(-t);
   }
   template <typename T> ZuIfT<
@@ -1067,7 +1067,7 @@ public:
 // utility functions
 
   ZtDate &now() {
-    ZmTime t(ZmTime::Now);
+    ZuTime t = Zm::now();
     init(t.sec());
     m_nsec = t.nsec();
     return *this;
@@ -1090,7 +1090,7 @@ private:
     m_nsec = nsec;
   }
   void ctor(int hour, int minute, int sec, int nsec) {
-    m_julian = (int32_t)((ZmTime(ZmTime::Now).sec() / 86400) + 2440588);
+    m_julian = (int32_t)((Zm::now().sec() / 86400) + 2440588);
     {
       int day = 0;
       normalize(day, hour, minute, sec, nsec);

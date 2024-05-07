@@ -102,7 +102,7 @@ private:
   ZvRingParams		m_params;
   Lock			m_lock;
     MxSeqNo		  m_seqNo = 0;
-    ZmTime		  m_lastTime;
+    ZuTime		  m_lastTime;
     ZmScheduler::Timer	  m_hbTimer;
     unsigned		  m_openCount = 0;
     ZmRef<Ring>		  m_ring;

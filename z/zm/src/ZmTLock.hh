@@ -32,7 +32,7 @@
 #include <zlib/ZmLock.hh>
 #include <zlib/ZmCondition.hh>
 #include <zlib/ZmGuard.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmHash.hh>
@@ -279,7 +279,7 @@ public:
 
 private:
   template <typename ID_, typename TID_>
-  int readLock_(const ID_ &id, const TID_ &tid, int flags, ZmTime timeout) {
+  int readLock_(const ID_ &id, const TID_ &tid, int flags, ZuTime timeout) {
     LockRef lock;
     ThreadRef thread;
     Guard_ guard(m_lock);
@@ -341,7 +341,7 @@ fail:
   }
 
   template <typename ID_, typename TID_>
-  int writeLock_(const ID_ &id, const TID_ &tid, int flags, ZmTime timeout) {
+  int writeLock_(const ID_ &id, const TID_ &tid, int flags, ZuTime timeout) {
     LockRef lock;
     ThreadRef thread;
     Guard_ guard(m_lock);
@@ -491,20 +491,20 @@ unused:
 public:
   template <typename ID_, typename TID_>
   ZuInline int readLock(ID_ &&id, TID_ &&tid)
-    { return readLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), 0, ZmTime()); }
+    { return readLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), 0, ZuTime()); }
   template <typename ID_, typename TID_>
   ZuInline int tryReadLock(ID_ &&id, TID_ &&tid)
-    { return readLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Try, ZmTime()); }
+    { return readLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Try, ZuTime()); }
   template <typename ID_, typename TID_, typename T>
   ZuInline int timedReadLock(ID_ &&id, TID_ &&tid, T &&t)
     { return readLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Timed, ZuFwd<T>(t)); }
 
   template <typename ID_, typename TID_>
   ZuInline int writeLock(ID_ &&id, TID_ &&tid)
-    { return writeLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), 0, ZmTime()); }
+    { return writeLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), 0, ZuTime()); }
   template <typename ID_, typename TID_>
   ZuInline int tryWriteLock(ID_ &&id, TID_ &&tid)
-    { return writeLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Try, ZmTime()); }
+    { return writeLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Try, ZuTime()); }
   template <typename ID_, typename TID_, typename T>
   ZuInline int timedWriteLock(ID_ &&id, TID_ &&tid, T &&t)
     { return writeLock_(ZuFwd<ID_>(id), ZuFwd<TID_>(tid), Timed, ZuFwd<T>(t)); }

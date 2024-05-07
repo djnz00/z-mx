@@ -289,7 +289,7 @@ void MxMDPubLink::TCP::connected(ZiIOContext &io)
   m_link->engine()->rxRun(ZmFn<>{ZmMkRef(this), [](TCP *tcp) {
     if (tcp->state() != State::Login) return;
     tcpERROR(tcp, 0, "TCP login timeout");
-  }}, ZmTimeNow(m_link->loginTimeout()), &m_loginTimer);
+  }}, Zm::now(m_link->loginTimeout()), &m_loginTimer);
 }
 void MxMDPubLink::tcpConnected(MxMDPubLink::TCP *tcp)
 {
@@ -607,7 +607,7 @@ bool MxMDPublisher::attach()
   rxPush(ZmFn<>{this, [](MxMDPublisher *pub) { pub->recv(); }});
 
   txRun(ZmFn<>{this, [](MxMDPublisher *pub) { pub->ack(); }},
-      ZmTimeNow(ackInterval()), &m_ackTimer);
+      Zm::now(ackInterval()), &m_ackTimer);
 
   return true;
 }
@@ -761,7 +761,7 @@ void MxMDPublisher::ack()
       });
   mx()->run(txThread(), ZmFn<>{this, [](MxMDPublisher *pub) {
 	pub->ack();
-      }}, ZmTimeNow(ackInterval()), &m_ackTimer);
+      }}, Zm::now(ackInterval()), &m_ackTimer);
 }
 
 void MxMDPubLink::ack()

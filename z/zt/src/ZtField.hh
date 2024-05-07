@@ -40,7 +40,7 @@
 // Float	<FloatingPoint>	[, default, min, max]
 // Fixed	ZuFixed		[, default, min, max]
 // Decimal	ZuDecimal	[, default, min, max]
-// Time		ZmTime		[, default]
+// Time		ZuTime		[, default]
 // DateTime	ZtDate		[, default]
 // UDT		<UDT>		[, default]
 
@@ -123,7 +123,7 @@
 #include <zlib/ZuUnroll.hh>
 
 #include <zlib/ZmStream.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmSingleton.hh>
 
 #include <zlib/ZtEnum.hh>
@@ -145,7 +145,7 @@ namespace ZtFieldTypeCode {
     Float,		// floating point type
     Fixed,		// ZuFixed
     Decimal,		// ZuDecimal
-    Time,		// ZmTime - POSIX timespec
+    Time,		// ZuTime - POSIX timespec
     DateTime,		// ZtDate - Julian date, intraday seconds, nanoseconds
     UDT			// generic udt type
   );
@@ -488,7 +488,7 @@ struct ZtMFieldGet {
     double		(*float_)(const void *, unsigned);	// Float
     ZuFixed		(*fixed)(const void *, unsigned);	// Fixed
     ZuDecimal		(*decimal)(const void *, unsigned);	// Decimal
-    ZmTime		(*time)(const void *, unsigned);	// Time
+    ZuTime		(*time)(const void *, unsigned);	// Time
     ZtDate		(*dateTime)(const void *, unsigned);	// DateTime
     const void *	(*udt)(const void *, unsigned);		// UDT
   } get_;
@@ -549,7 +549,7 @@ struct ZtMFieldGet {
     return get_.decimal(o, i);
   }
   template <unsigned Code>
-  ZuIfT<Code == ZtFieldTypeCode::Time, ZmTime>
+  ZuIfT<Code == ZtFieldTypeCode::Time, ZuTime>
   get(const void *o, unsigned i) const {
     return get_.time(o, i);
   }
@@ -637,7 +637,7 @@ struct ZtMFieldSet {
     void		(*float_)(void *, unsigned, double);	// Float
     void		(*fixed)(void *, unsigned, ZuFixed);	// Fixed
     void		(*decimal)(void *, unsigned, ZuDecimal);// Decimal
-    void		(*time)(void *, unsigned, ZmTime);	// Time
+    void		(*time)(void *, unsigned, ZuTime);	// Time
     void		(*dateTime)(void *, unsigned, ZtDate);	// DateTime
     void		(*udt)(void *, unsigned, const void *);	// UDT
   } set_;
@@ -695,7 +695,7 @@ struct ZtMFieldSet {
   }
   template <unsigned Code, typename U>
   ZuIfT<Code == ZtFieldTypeCode::Time> set(void *o, unsigned i, U &&v) const {
-    set_.time(o, i, ZmTime{ZuFwd<U>(v)});
+    set_.time(o, i, ZuTime{ZuFwd<U>(v)});
   }
   template <unsigned Code, typename U>
   ZuIfT<Code == ZtFieldTypeCode::DateTime>
@@ -2019,7 +2019,7 @@ struct ZtFieldType_Time : public ZtFieldType_<Props_> {
   using T = T_;
   using Props = Props_;
   struct Print {
-    ZmTime v;
+    ZuTime v;
     const ZtFieldFmt &fmt;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
@@ -2046,7 +2046,7 @@ ZtMFieldType *ZtFieldType_Time<T, Props>::vtype() {
   return ZmSingleton<ZtMFieldType_Time<T, Props>>::instance();
 }
 
-inline constexpr ZmTime ZtFieldType_Time_Def() { return {}; }
+inline constexpr ZuTime ZtFieldType_Time_Def() { return {}; }
 template <
   typename Base, typename Props,
   auto Def = ZtFieldType_Time_Def,
@@ -2059,17 +2059,17 @@ struct ZtField_Time : public ZtField_<Base, Props> {
   using Type = ZtFieldType_Time<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.time = [](const void *o, unsigned) -> ZmTime {
+    return {.get_ = {.time = [](const void *o, unsigned) -> ZuTime {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.time = [](void *, unsigned, ZmTime) { }}};
+    return {.set_ = {.time = [](void *, unsigned, ZuTime) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.time = [](const void *o, unsigned) -> ZmTime {
+    return {.get_ = {.time = [](const void *o, unsigned) -> ZuTime {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2082,7 +2082,7 @@ struct ZtField_Time<Base, Props, Def, false> :
     public ZtField_Time<Base, Props, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.time = [](void *o, unsigned, ZmTime v) {
+    return {.set_ = {.time = [](void *o, unsigned, ZuTime v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }

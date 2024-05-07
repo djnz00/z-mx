@@ -16,7 +16,7 @@
 #include <zlib/ZmRWLock.hh>
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmSpecific.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 ZmAtomic<int> gc = 0;
 

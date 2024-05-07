@@ -175,9 +175,9 @@ struct O : public ZmObject {
 
 int main(int argc, char **argv)
 {
-  ZmTime overallStart, overallEnd;
+  ZuTime overallStart, overallEnd;
 
-  overallStart.now();
+  overallStart = Zm::now();
 
   if (argc > 1) hashTestSize = atoi(argv[1]);
 
@@ -396,16 +396,16 @@ int main(int argc, char **argv)
 
     puts("80 threads finished");
 
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < 1000000; j++) {
       sema->post();
       sema->wait();
     }
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("sem post/wait time: %d.%.3d / 1000000 = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
@@ -418,13 +418,13 @@ int main(int argc, char **argv)
 
     ZmPLock lock;
 
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < 1000000; j++) { lock.lock(); lock.unlock(); }
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("lock/unlock time: %d.%.3d / 1000000 = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
@@ -435,22 +435,22 @@ int main(int argc, char **argv)
 
     ZmRef<ZmObject> l = new ZmObject;
 
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < 1000000; j++) { l->ref(); mb(); }
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("ref time: %d.%.3d / 1000000 = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < 1000000; j++) { l->deref(); mb(); }
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("deref time: %d.%.3d / 1000000 = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
@@ -460,16 +460,16 @@ int main(int argc, char **argv)
   int t = n * 1000000;
 
   {
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++)
       r[j] = ZmThread{S::meyers};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
 
     printf("Meyers singleton time: %d.%.3d / %d = %.16f\n",
@@ -479,16 +479,16 @@ int main(int argc, char **argv)
   }
 
   {
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++)
       r[j] = ZmThread{S::singleton};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("ZmSingleton::instance() time: %d.%.3d / %d = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), t,
@@ -497,16 +497,16 @@ int main(int argc, char **argv)
   }
 
   {
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++)
       r[j] = ZmThread{S::specific};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("ZmSpecific::instance() time: %d.%.3d / %d = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), t,
@@ -515,16 +515,16 @@ int main(int argc, char **argv)
   }
 
   {
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++)
       r[j] = ZmThread{S::tls};
     for (j = 0; j < n; j++)
       r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("thread_local time: %d.%.3d / %d = %.16f\n",
 	(int)end.sec(), (int)(end.nsec() / 1000000), t,
@@ -533,7 +533,7 @@ int main(int argc, char **argv)
   }
 
 
-  overallEnd.now();
+  overallEnd = Zm::now();
   overallEnd -= overallStart;
   printf("overall time: %d.%.3d\n",
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));

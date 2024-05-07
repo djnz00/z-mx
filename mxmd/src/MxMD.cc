@@ -1317,7 +1317,7 @@ void MxMDLib::init_(void *cf_)
     ZtDate now{ZtDate::Now};
     ZuString timezone = cf->get("timezone"); // default to system tz
     now.sec() = 0, now.nsec() = 0; // midnight GMT (start of today)
-    now += ZmTime((time_t)(now.offset(timezone) + 43200)); // midday local time
+    now += ZuTime((time_t)(now.offset(timezone) + 43200)); // midday local time
     m_tzOffset = now.offset(timezone);
   }
 }

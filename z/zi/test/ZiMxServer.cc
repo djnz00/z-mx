@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmRandom.hh>
 #include <zlib/ZmTrap.hh>
 
@@ -34,7 +34,7 @@ const char Response[] =
 
 class Connection : public ZiConnection {
 public:
-  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZmTime now) :
+  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZuTime now) :
       ZiConnection(mx, ci), m_headerLen(0), m_acceptTime(now) { }
   ~Connection() { }
 
@@ -49,7 +49,7 @@ public:
     io.init(
       ZiIOFn::Member<&Connection::recvRequest>::fn(this),
       m_request.data(), m_request.size(), 0);
-    m_recvTime = ZmTimeNow();
+    m_recvTime = Zm::now();
     Global::timeInterval(0).add(m_recvTime - m_acceptTime);
   }
 
@@ -62,7 +62,7 @@ public:
       io.offset += io.length;
       if (incomplete) return;
     }
-    Global::timeInterval(1).add(ZmTimeNow() - m_recvTime);
+    Global::timeInterval(1).add(Zm::now() - m_recvTime);
     Global::rcvd(io.offset);
     io.complete();
     send(ZiIOFn::Member<&Connection::sendHeader>::fn(this));
@@ -87,7 +87,7 @@ public:
   void sendHeader(ZiIOContext &io) {
     //fwrite(m_request, 1, len, stdout); fflush(stdout);
     m_response.sprintf(Response, createContent());
-    m_sendTime = ZmTimeNow();
+    m_sendTime = Zm::now();
     io.init(ZiIOFn::Member<&Connection::sendContent>::fn(this),
 	m_response.data(), m_response.length(), 0);
   }
@@ -100,7 +100,7 @@ public:
   void sendComplete(ZiIOContext &io) {
     //{ printf("Content Length: %d\n", m_content.size()); fflush(stdout); }
     if ((io.offset += io.length) < io.size) return;
-    m_completedTime = ZmTimeNow();
+    m_completedTime = Zm::now();
     Global::timeInterval(2).add(m_completedTime - m_sendTime);
     Global::sent(io.size);
     io.disconnect();
@@ -111,10 +111,10 @@ private:
   ZtString		m_response;
   int			m_headerLen;
   ZtArray<char>		m_content;
-  ZmTime		m_acceptTime;
-  ZmTime		m_recvTime;
-  ZmTime		m_sendTime;
-  ZmTime		m_completedTime;
+  ZuTime		m_acceptTime;
+  ZuTime		m_recvTime;
+  ZuTime		m_sendTime;
+  ZuTime		m_completedTime;
 };
 
 class Mx : public ZiMultiplex {
@@ -131,7 +131,7 @@ public:
   ~Mx() { }
 
   ZiConnection *connected(const ZiCxnInfo &ci) {
-    return new Connection(this, ci, ZmTimeNow());
+    return new Connection(this, ci, Zm::now());
   }
 
   void disconnected(Connection *) {
@@ -146,7 +146,7 @@ public:
     if (transient && m_reconnInterval > 0) {
       std::cerr << "bind to " << m_ip << ':' << ZuBoxed(m_port) <<
 	" failed, retrying...\n" << std::flush;
-      add([this]() { listen(); }, ZmTimeNow(m_reconnInterval));
+      add([this]() { listen(); }, Zm::now(m_reconnInterval));
     } else {
       std::cerr << "listen failed\n" << std::flush;
       Global::post();

@@ -295,9 +295,9 @@ public:
 
   void ready() { // ready to send immediately
     Guard guard(m_lock);
-    ready_(ZmTime(0, 1));
+    ready_(ZuTime(0, 1));
   }
-  void ready(ZmTime next) { // ready to send at time next
+  void ready(ZuTime next) { // ready to send at time next
     Guard guard(m_lock);
     ready_(next);
   }
@@ -306,7 +306,7 @@ public:
     unready_();
   }
 protected:
-  void ready_(ZmTime next);
+  void ready_(ZuTime next);
   void unready_();
 
 private:
@@ -317,7 +317,7 @@ private:
   Lock			m_lock;
     Pools		  m_pools;
     unsigned		  m_poolOffset = 0;
-    ZmTime		  m_ready;
+    ZuTime		  m_ready;
 };
 
 template <class Impl, class Lock_ = ZmNoLock>
@@ -330,7 +330,7 @@ class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
 
   static const char *Queues_HeapID() { return "ZvIOQueueTxPool.Queues"; }
   using Queues =
-    ZmRBTreeKV<ZmTime, ZmRef<Tx>,
+    ZmRBTreeKV<ZuTime, ZmRef<Tx>,
       ZmRBTreeHeapID<Queues_HeapID>>;
 
 public:
@@ -362,7 +362,7 @@ public:
     return m_queues.minimumVal();
   }
 
-  void ready_(Tx *queue, ZmTime prev, ZmTime next) {
+  void ready_(Tx *queue, ZuTime prev, ZuTime next) {
     Guard guard(this->lock());
     typename Queues::Node *node = 0;
     if (!prev || !(node = m_queues.del(prev, queue))) {
@@ -381,7 +381,7 @@ public:
     Tx::ready_(m_queues.minimumKey());
   }
 
-  void unready_(Tx *queue, ZmTime prev) {
+  void unready_(Tx *queue, ZuTime prev) {
     Guard guard(this->lock());
     typename Queues::Node *node = 0;
     if (!prev || !(node = m_queues.del(prev, queue))) return;
@@ -393,7 +393,7 @@ public:
 };
 
 template <class Impl, class Lock_>
-void ZvIOQueueTx<Impl, Lock_>::ready_(ZmTime next)
+void ZvIOQueueTx<Impl, Lock_>::ready_(ZuTime next)
 {
   unsigned i, n = m_pools.length();
   unsigned o = (m_poolOffset = (m_poolOffset + 1) % n);
@@ -409,7 +409,7 @@ void ZvIOQueueTx<Impl, Lock_>::unready_()
   unsigned o = (m_poolOffset = (m_poolOffset + 1) % n);
   for (i = 0; i < n; i++)
     m_pools[(i + o) % n]->unready_(this, m_ready);
-  m_ready = ZmTime();
+  m_ready = ZuTime();
 }
 
 #endif /* ZvIOQueue_HH */

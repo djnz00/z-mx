@@ -33,7 +33,7 @@ class MxMDAPI MxMDTelemetry : public ZmPolymorph, public MxTelemetry::Server {
   typedef ZmReadGuard<Lock> ReadGuard;
 
 public:
-  MxMDTelemetry() : m_time{ZmTime::Now} { }
+  MxMDTelemetry() : m_time{ZuTime::Now} { }
 
   void init(MxMDCore *core, const ZvCf *cf);
   void final();
@@ -61,7 +61,7 @@ private:
     Engines	  m_engines;
     Queues	  m_queues;
     ZmRef<ZdbEnv> m_dbEnv = nullptr;
-  ZmTime	m_time;
+  ZuTime	m_time;
 };
 
 #endif /* MxMDTelemetry_HH */

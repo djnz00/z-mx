@@ -159,7 +159,7 @@ public:
     return *this;
   }
 
-  static ZmTime mtime(const Path &name, ZeError *e = nullptr);
+  static ZuTime mtime(const Path &name, ZeError *e = nullptr);
   static bool isdir(const Path &name, ZeError *e = nullptr);
 
   static int remove(const Path &name, ZeError *e = nullptr);

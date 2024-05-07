@@ -127,7 +127,7 @@ int main()
   printf("local %s\n", isoStr(d, d.offset()).data());
   { ZtDate e(s); printf("local %s\n%s\n%s\n", isoStr(e, e.offset()).data(), LocalDT(e).dump().data(), GMTDT(e).dump().data()); }
 
-  d -= ZmTime(180 * 86400, 999995000); // 180 days, .999995 seconds
+  d -= ZuTime(180 * 86400, 999995000); // 180 days, .999995 seconds
 
   printf("GMT %s\n", isoStr(d).data());
   { ZtDate e(s); printf("GMT %s\n\n", isoStr(e).data()); }
@@ -169,7 +169,7 @@ int main()
     ZtDate d1(ZtDate::Now);
     Zm::sleep(.1);
     ZtDate d2(ZtDate::Now);
-    ZmTime t = d2 - d1;
+    ZuTime t = d2 - d1;
 
     printf("\n1/10 sec delta time check: %.6f\n\n", t.dtime());
   }
@@ -212,26 +212,26 @@ int main()
   }
 
 #ifndef _WIN32
-  ZmTime t1, t1_;
+  ZuTime t1, t1_;
 #else
-  ZmTime o1, o2, t1, t1_, t2, t2_;
+  ZuTime o1, o2, t1, t1_, t2, t2_;
   double d1 = 0, d2 = 0, d3 = 0,
          d1sum = 0, d2sum = 0, d3sum = 0, d1vsum = 0, d2vsum = 0, d3vsum = 0,
          d1avg = 0, d2avg = 0, d3avg = 0, d1std = 0, d2std = 0, d3std = 0;
   FILETIME f;
 #endif
 
-  t1_.now();
-  for (i = 1; i <= 1000000; i++) t1.now();
-  t1_ = ZmTime(ZmTime::Now) - t1_;
+  t1_ = Zm::now();
+  for (i = 1; i <= 1000000; i++) t1 = Zm::now();
+  t1_ = Zm::now() - t1_;
   double intrinsic = t1_.dtime() / 1000000;
 
-  printf("\nZmTime intrinsic cost: %12.10f\n", intrinsic);
+  printf("\nZm::now() intrinsic cost: %12.10f\n", intrinsic);
 
 #ifdef _WIN32
   GetSystemTimeAsFileTime(&f);
   t2_ = f;
-  t1_.now();
+  t1_ = Zm::now();
 
   o2 = t2_;
   o1 = t1_;
@@ -239,7 +239,7 @@ int main()
   for (i = 1; i <= 5000000; i++) {
     GetSystemTimeAsFileTime(&f);
     t2 = f;
-    t1.now();
+    t1 = Zm::now();
     t1 -= intrinsic;
     d1 = (t1 - t1_).dtime();
     d2 = (t2 - t2_).dtime();
@@ -263,9 +263,9 @@ int main()
   d3std = sqrt(d3vsum / i - d3avg * d3avg);
 
   printf("\n"
-         "ZmTime cnt: % 10d avg: %12.10f std: %12.10f\n"
+         "ZuTime cnt: % 10d avg: %12.10f std: %12.10f\n"
          "GSTAFT cnt: % 10d avg: %12.10f std: %12.10f\n"
-         "ZmTime - GSTAFT skew   avg: %12.10f std: %12.10f\n",
+         "ZuTime - GSTAFT skew   avg: %12.10f std: %12.10f\n",
          i, d1avg, d1std,
          i, d2avg, d2std,
          d3avg, d3std);
@@ -273,7 +273,7 @@ int main()
   for (++i; i <= 10000000; i++) {
     GetSystemTimeAsFileTime(&f);
     t2 = f;
-    t1.now();
+    t1 = Zm::now();
     t1 -= intrinsic;
     d1 = (t1 - t1_).dtime();
     d2 = (t2 - t2_).dtime();
@@ -290,8 +290,8 @@ int main()
   --i;
 
   GetSystemTimeAsFileTime(&f);
-  o2 = ZmTime(f) - o2;
-  o1 = ZmTime(ZmTime::Now) - o1;
+  o2 = ZuTime(f) - o2;
+  o1 = Zm::now() - o1;
 
   d1avg = d1sum / i;
   d2avg = d2sum / i;
@@ -301,9 +301,9 @@ int main()
   d3std = sqrt(d3vsum / i - d3avg * d3avg);
 
   printf("\n"
-         "ZmTime cnt: % 10d act: %12.10f avg: %12.10f std: %12.10f\n"
+         "ZuTime cnt: % 10d act: %12.10f avg: %12.10f std: %12.10f\n"
          "GSTAFT cnt: % 10d act: %12.10f avg: %12.10f std: %12.10f\n"
-	 "ZmTime - GSTAFT skew                     avg: %12.10f std: %12.10f\n",
+	 "ZuTime - GSTAFT skew                     avg: %12.10f std: %12.10f\n",
          i, o1.dtime() / i, d1avg, d1std,
          i, o2.dtime() / i, d2avg, d2std,
          d3avg, d3std);

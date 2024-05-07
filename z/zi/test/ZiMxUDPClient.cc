@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZtArray.hh>
@@ -105,7 +105,7 @@ public:
 
   void failed(bool transient) {
     if (transient)
-      add([this]() { udp(); }, ZmTimeNow(1));
+      add([this]() { udp(); }, Zm::now(1));
     else
       Global::post();
   }

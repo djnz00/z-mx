@@ -17,7 +17,7 @@
 
 #include <zlib/ZmPQueue.hh>
 #include <zlib/ZmNoLock.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmHash.hh>
 
 using Msg_Data = ZuTuple<uint32_t, unsigned>;

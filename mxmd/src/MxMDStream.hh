@@ -48,7 +48,7 @@ struct App {
   void *push(unsigned size);
   // fill message header, return ptr to body
   void *out(void *ptr, unsigned length, unsigned type,
-      int shardID, ZmTime stamp);
+      int shardID, ZuTime stamp);
   // complete message push
   void push2();
 };

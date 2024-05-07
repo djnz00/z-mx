@@ -12,7 +12,7 @@ namespace Ztls::TOTP {
 
 ZtlsExtern unsigned calc(ZuBytes data, int offset)
 {
-  ZuBigEndian<uint64_t> t = (ZmTimeNow().sec() / 30) + offset;
+  ZuBigEndian<uint64_t> t = (Zm::now().sec() / 30) + offset;
   HMAC hmac(MBEDTLS_MD_SHA1);
   uint8_t sha1[20];
   hmac.start(data);

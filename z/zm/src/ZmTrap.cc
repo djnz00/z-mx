@@ -15,7 +15,7 @@
 #include <zlib/ZuBox.hh>
 
 #include <zlib/ZmBackTrace.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 static ZmTrap::Fn ZmTrap_sigintFn;
 static ZmTrap::Fn ZmTrap_sighupFn;

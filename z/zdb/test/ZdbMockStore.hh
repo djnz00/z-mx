@@ -70,7 +70,7 @@ using Value_ = ZuUnion<
   double,
   ZuFixed,	// Zfb.Fixed
   ZuDecimal,	// Zfb.Decimal
-  ZmTime,	// Zfb.Time
+  ZuTime,	// Zfb.Time
   ZtDate,	// Zfb.DateTime
   int128_t,	// Zfb.UInt128
   uint128_t,	// Zfb.Int128
@@ -171,7 +171,7 @@ FBField fbField(
 	  type = Value::Index<ZuDecimal>{};
 	  break;
 	case ZtFieldTypeCode::Time:
-	  type = Value::Index<ZmTime>{};
+	  type = Value::Index<ZuTime>{};
 	  break;
 	case ZtFieldTypeCode::DateTime:
 	  type = Value::Index<ZtDate>{};
@@ -339,9 +339,9 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZmTime>{}>
+inline ZuIfT<Type == Value::Index<ZuTime>{}>
 loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) ZmTime{
+  new (ptr) ZuTime{
     Zfb::Load::time(fbo->GetPointer<const Zfb::Time *>(field->offset()))
   };
 }
@@ -612,7 +612,7 @@ saveValue_(
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZmTime>{}>
+inline ZuIfT<Type == Value::Index<ZuTime>{}>
 saveValue_(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)

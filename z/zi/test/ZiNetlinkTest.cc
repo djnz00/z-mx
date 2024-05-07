@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmRandom.hh>
 #include <zlib/ZmTrap.hh>
 
@@ -36,7 +36,7 @@ class Message;
 
 class Connection : public ZiConnection {
 public:
-  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZmTime now) :
+  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZuTime now) :
     ZiConnection(mx, ci) { }
   ~Connection() { }
 
@@ -138,7 +138,7 @@ public:
       disconnected(0);
       return 0;
     }
-    return new Connection(this, ci, ZmTimeNow());
+    return new Connection(this, ci, Zm::now());
   }
 
   void disconnected(Connection *connection) {

@@ -14,7 +14,7 @@
 
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmHash.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmThread.hh>
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmSpecific.hh>

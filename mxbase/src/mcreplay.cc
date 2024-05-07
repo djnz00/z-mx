@@ -13,7 +13,7 @@
 
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmSemaphore.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 #include <zlib/ZmHash.hh>
 
@@ -159,7 +159,7 @@ private:
   ZmRef<Mx>	m_mx;		// multiplexer
 
   ZmRef<Cxns>	m_cxns;
-  ZmTime	m_prev;
+  ZuTime	m_prev;
 };
 
 template <typename Heap> class Msg_ : public Heap, public ZmPolymorph {
@@ -177,8 +177,8 @@ public:
   void send_(ZiIOContext &);
   void sent_(ZiIOContext &);
 
-  ZmTime stamp() const {
-    return ZmTime((time_t)m_hdr.sec, (int32_t)m_hdr.nsec);
+  ZuTime stamp() const {
+    return ZuTime((time_t)m_hdr.sec, (int32_t)m_hdr.nsec);
   }
 
 private:
@@ -224,7 +224,7 @@ void Dest::connectFailed(bool transient)
   if (transient)
     m_app->mx()->add(
 	ZmFn<>::Member<&Dest::connect>::fn(this),
-	ZmTimeNow(1));
+	Zm::now(1));
   else
     m_app->post();
 }
@@ -263,7 +263,7 @@ void App::read()
   ZuBox<double> delay;
 
   {
-    ZmTime next = msg->stamp();
+    ZuTime next = msg->stamp();
 
     if (next) {
       delay = !m_prev ? 0.0 : (next - m_prev).dtime() / m_speed;
@@ -277,7 +277,7 @@ void App::read()
   if (delay.feq(0))
     mx()->add(ZmFn<>::Member<&App::read>::fn(this));
   else
-    mx()->add(ZmFn<>::Member<&App::read>::fn(this), ZmTimeNow(delay));
+    mx()->add(ZmFn<>::Member<&App::read>::fn(this), Zm::now(delay));
 }
 
 template <typename Heap>

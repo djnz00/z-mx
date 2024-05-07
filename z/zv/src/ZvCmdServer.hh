@@ -226,7 +226,7 @@ private:
   void scheduleTimeout() {
     if (this->app()->timeout())
       this->app()->mx()->add([this]() { this->disconnect(); },
-	  ZmTimeNow(this->app()->timeout()), &m_timer);
+	  Zm::now(this->app()->timeout()), &m_timer);
   }
   void cancelTimeout() { this->app()->mx()->del(&m_timer); }
 
@@ -411,7 +411,7 @@ public:
     fbb.Finish(m_userDB->request(fbb, user, interactive, in));
     if (m_userDB->modified())
       this->run([this]() { saveUserDB(); },
-	  ZmTimeNow(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);
+	  Zm::now(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);
   }
   void processCmd(Link *link, User *user, bool interactive,
       const ZvCmd::fbs::Request *in) {

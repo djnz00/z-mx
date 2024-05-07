@@ -21,7 +21,7 @@
 
 #include <zlib/ZmPlatform.hh>
 #include <zlib/ZmAtomic.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmRingUtil.hh>
 
 #include <zlib/ZePlatform.hh>
@@ -93,8 +93,8 @@ public:
   int wake(unsigned index, ZmAtomic<uint32_t> &addr, unsigned n);
 #endif
 
-  static void getpinfo(uint32_t &pid, ZmTime &start);
-  static bool alive(uint32_t pid, ZmTime start);
+  static void getpinfo(uint32_t &pid, ZuTime &start);
+  static bool alive(uint32_t pid, ZuTime start);
   static bool kill(uint32_t pid, bool coredump);
 
 protected:

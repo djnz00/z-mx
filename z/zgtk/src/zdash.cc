@@ -971,12 +971,12 @@ public:
     {
       int64_t refreshRate =
 	cf->getInt64("gtkRefresh", 1, 60000, 1) * (int64_t)1000000;
-      m_refreshQuantum = ZmTime{ZmTime::Nano, refreshRate>>1};
+      m_refreshQuantum = ZuTime{ZuTime::Nano, refreshRate>>1};
       if (m_refreshQuantum < mx->params().quantum()) {
 	m_refreshQuantum = mx->params().quantum();
 	m_refreshRate = m_refreshQuantum + m_refreshQuantum;
       } else
-	m_refreshRate = ZmTime{ZmTime::Nano, refreshRate};
+	m_refreshRate = ZuTime{ZuTime::Nano, refreshRate};
     }
     unsigned gtkTID;
     {
@@ -1166,7 +1166,7 @@ public:
     if (m_telRing->push(cliLink, {data, len}))
       if (!m_telCount++)
 	gtkRun(ZmFn<>{this, [](App *this_) { this_->gtkRefresh(); }},
-	    ZmTimeNow() + m_refreshRate, ZmScheduler::Advance, &m_refreshTimer);
+	    Zm::now() + m_refreshRate, ZmScheduler::Advance, &m_refreshTimer);
     return len;
   }
 
@@ -1359,7 +1359,7 @@ private:
   void gtkRefresh() {
     // FIXME - freeze, save sort col, unset sort col
 
-    ZmTime deadline = ZmTimeNow() + m_refreshQuantum;
+    ZuTime deadline = Zm::now() + m_refreshQuantum;
     unsigned i = 0, n;
     while (m_telRing->shift([](
 	    CliLink_ *cliLink, const ZuArray<const uint8_t> &msg) {
@@ -1368,14 +1368,14 @@ private:
       do {
 	if (!(n = m_telCount.load_())) break;
       } while (m_telCount.cmpXch(n - 1, n) != n);
-      if (!(++i & 0xf) && ZmTimeNow() >= deadline) break;
+      if (!(++i & 0xf) && Zm::now() >= deadline) break;
     }
 
     // FIXME - restore sort col, thaw
 
     if (n)
       gtkRun(ZmFn<>{this, [](App *this_) { this_->gtkRefresh(); }},
-	  ZmTimeNow() + m_refreshRate, ZmScheduler::Defer, &m_refreshTimer);
+	  Zm::now() + m_refreshRate, ZmScheduler::Defer, &m_refreshTimer);
   }
   void processTel2(CliLink_ *cliLink, const ZuArray<const uint8_t> &msg_) {
     if (ZuUnlikely(!msg_)) {
@@ -1578,8 +1578,8 @@ private:
   GtkWindow		*m_mainWindow = nullptr;
   gulong		m_mainDestroy = 0;
 
-  ZmTime		m_refreshQuantum;
-  ZmTime		m_refreshRate;
+  ZuTime		m_refreshQuantum;
+  ZuTime		m_refreshRate;
   ZmScheduler::Timer	m_refreshTimer;
 
   GtkTree::View		m_gtkView;

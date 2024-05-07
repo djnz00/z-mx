@@ -145,7 +145,7 @@ public:
     token.length(token.size());
     hmac.length(hmac.size());
     this->app()->random(token);
-    int64_t stamp = ZmTimeNow().sec();
+    int64_t stamp = Zm::now().sec();
     {
       Ztls::HMAC hmac_(ZvUserDB::Key::keyType());
       hmac_.start(secret);
@@ -343,7 +343,7 @@ private:
     if (this->app()->timeout())
       this->app()->mx()->add([link = ZmMkRef(impl())]() {
 	link->disconnect();
-      }, ZmTimeNow(this->app()->timeout()), &m_timer);
+      }, Zm::now(this->app()->timeout()), &m_timer);
   }
   void cancelTimeout() {
     this->app()->mx()->del(&m_timer);

@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// time interval measurement
+// time interval statistics
 
 #ifndef ZmTimeInterval_HH
 #define ZmTimeInterval_HH
@@ -21,7 +21,7 @@
 #include <zlib/ZuPrint.hh>
 
 #include <zlib/ZmLock.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 #include <stdio.h>
 #include <limits.h>
@@ -37,7 +37,7 @@ class ZmTimeInterval {
 public:
   ZmTimeInterval() { }
 
-  void add(ZmTime t) {
+  void add(ZuTime t) {
     Guard guard(m_lock);
     if (t < m_min) m_min = t;
     if (t > m_max) m_max = t;
@@ -46,7 +46,7 @@ public:
   }
 
   template <typename S> void print(S &s) const {
-    ZmTime min, max, total;
+    ZuTime min, max, total;
     ZuBox<double> mean;
     ZuBox<unsigned> count;
 
@@ -60,11 +60,11 @@ public:
   }
 
   void stats(
-      ZmTime &min, ZmTime &max, ZmTime &total,
+      ZuTime &min, ZuTime &max, ZuTime &total,
       double &mean, unsigned &count) const {
     ReadGuard guard(m_lock);
     if (ZuUnlikely(!m_count)) {
-      min = ZmTime{}, max = ZmTime{}, total = ZmTime{},
+      min = ZuTime{}, max = ZuTime{}, total = ZuTime{},
       mean = 0.0, count = 0;
     } else {
       min = m_min, max = m_max, total = m_total,
@@ -75,9 +75,9 @@ public:
 
 private:
   Lock		m_lock;
-    ZmTime	  m_min{ZuCmp<time_t>::maximum(), 0};
-    ZmTime	  m_max{ZuCmp<time_t>::minimum(), 0};
-    ZmTime	  m_total{0, 0};
+    ZuTime	  m_min{ZuCmp<time_t>::maximum(), 0};
+    ZuTime	  m_max{ZuCmp<time_t>::minimum(), 0};
+    ZuTime	  m_total{0, 0};
     unsigned	  m_count = 0;
 };
 

@@ -386,7 +386,7 @@ void ZvAnyLink::reconnect(bool immediate)
 {
   int prev, next;
   bool reconnect = false, disconnect = false;
-  ZmTime reconnTime;
+  ZuTime reconnTime;
 
   // cancel reconnect
   mx()->del(&m_reconnTimer);
@@ -413,7 +413,7 @@ void ZvAnyLink::reconnect(bool immediate)
 
     if (reconnect) {
       m_reconnects.store_(m_reconnects.load_() + 1);
-      reconnTime.now(reconnInterval(m_reconnects.load_()));
+      reconnTime = Zm::now(reconnInterval(m_reconnects.load_()));
     }
   }
 

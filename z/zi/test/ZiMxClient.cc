@@ -11,7 +11,7 @@
 
 #include <zlib/ZtRegex.hh>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZtArray.hh>
@@ -33,7 +33,7 @@ const char Request[] =
 
 class Connection : public ZiConnection {
 public:
-  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZmTime now) :
+  Connection(ZiMultiplex *mx, const ZiCxnInfo &ci, ZuTime now) :
       ZiConnection(mx, ci), m_headerLen(0), m_connectTime(now) { }
   ~Connection() { }
 
@@ -50,7 +50,7 @@ public:
   }
 
   void sendRequest(ZiIOContext &io) {
-    m_sendTime = ZmTimeNow();
+    m_sendTime = Zm::now();
     Global::timeInterval(0).add(m_sendTime - m_connectTime);
     //fwrite(Request, 1, len, stdout); fflush(stdout);
     io.init(ZiIOFn::Member<&Connection::sendComplete>::fn(this),
@@ -58,7 +58,7 @@ public:
   }
   void sendComplete(ZiIOContext &io) {
     if ((io.offset += io.length) >= io.size) {
-      Global::timeInterval(1).add(ZmTimeNow() - m_sendTime);
+      Global::timeInterval(1).add(Zm::now() - m_sendTime);
       Global::sent(io.offset);
     }
   }
@@ -66,7 +66,7 @@ public:
 #include "HttpHeader.hh"
 
   void recvHeader(ZiIOContext &io) {
-    m_recvTime = ZmTimeNow();
+    m_recvTime = Zm::now();
     {
       bool incomplete = !httpHeaderEnd(io.ptr, io.offset, io.length);
       io.offset += io.length;
@@ -119,7 +119,7 @@ public:
       putchar('\n');
     }
 #endif
-    m_completedTime = ZmTimeNow();
+    m_completedTime = Zm::now();
     Global::timeInterval(2).add(m_completedTime - m_recvTime);
     Global::rcvd(n);
   }
@@ -128,10 +128,10 @@ private:
   ZtArray<char>	m_header;
   unsigned	m_headerLen;
   ZtArray<char>	m_content;
-  ZmTime	m_connectTime;
-  ZmTime	m_sendTime;
-  ZmTime	m_recvTime;
-  ZmTime	m_completedTime;
+  ZuTime	m_connectTime;
+  ZuTime	m_sendTime;
+  ZuTime	m_recvTime;
+  ZuTime	m_completedTime;
 };
 
 class Mx : public ZiMultiplex {
@@ -150,7 +150,7 @@ public:
   ~Mx() { }
 
   ZiConnection *connected(const ZiCxnInfo &ci) {
-    return new Connection(this, ci, ZmTimeNow());
+    return new Connection(this, ci, Zm::now());
   }
 
   void disconnected(Connection *connection) {
@@ -165,7 +165,7 @@ public:
     if (transient && m_reconnInterval > 0) {
       std::cerr << "connect to " << m_ip << ':' << ZuBoxed(m_port) <<
 	" failed, retrying...\n" << std::flush;
-      add([this]() { connect(); }, ZmTimeNow(m_reconnInterval));
+      add([this]() { connect(); }, Zm::now(m_reconnInterval));
     } else if (++m_nDisconnects >= m_nConnections) {
       std::cerr << "connect failed\n" << std::flush;
       Global::post();

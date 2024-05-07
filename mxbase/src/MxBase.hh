@@ -60,7 +60,7 @@ using MxFloat = ZuBox<double>;
 #endif
 using MxDateTime = ZtDate;
 #define MxNow ZtDateNow
-using MxDeltaTime = ZmTime;
+using MxDeltaTime = ZuTime;
 using MxEnum = ZtEnum;
 using MxFlags = ZuBox0(uint32_t);
 using MxFlags64 = ZuBox0(uint64_t);

@@ -24,8 +24,8 @@
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmSpecific.hh>
 #include <zlib/ZmTopology.hh>
-
 #include <zlib/ZmThread.hh>
+#include <zlib/ZmTime.hh>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -87,7 +87,7 @@ void ZmThreadContext_::init()
   m_tid = syscall(SYS_gettid);
 #endif
   pthread_getcpuclockid(m_pthread, &m_cid);
-  m_rtLast.now();
+  m_rtLast = Zm::now();
 #else /* !_WIN32 */
   m_tid = GetCurrentThreadId();
   DuplicateHandle(

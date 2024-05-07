@@ -1233,7 +1233,7 @@ ZmRef<MxMDVenue> MxMDCore::venue_(MxID id, MxEnum orderIDScope, MxFlags flags)
 
 void MxMDCore::startTimer(MxDateTime begin)
 {
-  ZmTime next = !begin ? ZmTimeNow() : begin.zmTime();
+  ZuTime next = !begin ? Zm::now() : begin.zmTime();
   {
     Guard guard(m_timerLock);
     m_timerNext = next;
@@ -1245,7 +1245,7 @@ void MxMDCore::stopTimer()
 {
   m_mx->del(&m_timer);
   Guard guard(m_timerLock);
-  m_timerNext = ZmTime();
+  m_timerNext = ZuTime();
 }
 
 void MxMDCore::timer()
@@ -1258,7 +1258,7 @@ void MxMDCore::timer()
   this->handler()->timer(now, next);
   {
     Guard guard(m_timerLock);
-    m_timerNext = !next ? ZmTime() : next.zmTime();
+    m_timerNext = !next ? ZuTime() : next.zmTime();
   }
   if (!next)
     m_mx->del(&m_timer);

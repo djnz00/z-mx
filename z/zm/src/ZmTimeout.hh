@@ -50,7 +50,7 @@ private:
     m_count = 0;
     m_interval = m_backoff.initial();
     m_scheduler->add(
-	[this]() { work(); }, ZmTimeNow() + m_interval, &m_timer);
+	[this]() { work(); }, Zm::now() + m_interval, &m_timer);
   }
 
 public:
@@ -77,7 +77,7 @@ public:
       if (m_retryFn) m_retryFn();
       m_interval = m_backoff.backoff(m_interval);
       m_scheduler->add(
-	  [this]() { work(); }, ZmTimeNow() + m_interval, &m_timer);
+	  [this]() { work(); }, Zm::now() + m_interval, &m_timer);
     } else {
       m_retryFn = ZmFn<>();
       m_finalFn();
@@ -93,7 +93,7 @@ private:
     ZmBackoff		m_backoff;
     int			m_maxCount;
     int			m_count;
-    ZmTime		m_interval;
+    ZuTime		m_interval;
     ZmScheduler::Timer	m_timer;
 };
 

@@ -468,7 +468,7 @@ private:
       ZuInvoke<Fn>(list->server);
       list->server->template reschedule_<Fn>(*list);
     },
-    ZmTimeNow(ZmTime{ZmTime::Nano,
+    Zm::now(ZuTime{ZuTime::Nano,
       static_cast<int64_t>(list.interval) * 1000000}),
     ZmScheduler::Advance, &list.timer);
   }

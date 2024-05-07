@@ -18,7 +18,7 @@
 #include <vector>
 #include <list>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmAllocator.hh>
 #include <zlib/ZmThread.hh>
@@ -96,11 +96,11 @@ int main(int argc, char **argv)
     fputs("ZmAlloc() failed\n", stderr);
     Zm::exit(1);
   }
-  ZmTime start(ZmTime::Now);
+  ZuTime start = Zm::now();
   for (int i = 0; i < nthr; i++)
     new (&threads[i]) ZmThread{doit, ZmThreadParams{}.partition(i), i};
   for (int i = 0; i < nthr; i++) threads[i].join();
-  ZmTime end(ZmTime::Now);
+  ZuTime end = Zm::now();
   end -= start;
   printf("%u.%09u\n", (unsigned)end.sec(), (unsigned)end.nsec());
   std::cout << ZmHeapMgr::csv();

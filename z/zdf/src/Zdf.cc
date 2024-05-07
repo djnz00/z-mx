@@ -71,7 +71,7 @@ void DataFrame::open(OpenFn openFn)
       return;
     }
     // missing - save new data frame, starting now
-    m_epoch.now();
+    m_epoch = Zm::now();
     save([this](Store_::SaveResult result) mutable {
       if (result.is<Event>()) {
 	openFailed(OpenResult{ZuMv(result).p<Event>()});

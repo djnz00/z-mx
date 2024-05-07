@@ -496,7 +496,7 @@ ZmRef<User> Mgr::access(int &failures,
     return nullptr;
   }
   {
-    int64_t delta = ZmTimeNow().sec() - stamp;
+    int64_t delta = Zm::now().sec() - stamp;
     if (delta < 0) delta = -delta;
     if (delta >= m_keyInterval) {
       failures = user->failures;

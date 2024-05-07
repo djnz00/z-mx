@@ -52,8 +52,6 @@
 
 using ZmIDString = ZuStringN<ZmIDStrSize>;
 
-class ZmTime;
-
 #ifdef __aarch64__	/* 64bit ARM */
 #define ZmCacheLineSize 128
 #else			/* everything other than 64bit ARM */
@@ -143,10 +141,8 @@ inline unsigned getncpu() {
 
 // sleep & yield
 #ifndef _WIN32
-ZmExtern void sleep(ZmTime timeout);
 ZuInline void yield() { sched_yield(); }
 #else
-ZmExtern void sleep(ZmTime timeout);
 ZuInline void yield() { ::Sleep(0); }
 #endif
 

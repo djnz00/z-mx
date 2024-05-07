@@ -70,14 +70,14 @@ class IOBuf : public ZmPolymorph {
 public:
   IOBuf(Connection *connection) :
     m_connection(connection), m_buf(BufSize) { }
-  IOBuf(Connection *connection, const ZmTime &stamp) :
+  IOBuf(Connection *connection, const ZuTime &stamp) :
     m_connection(connection), m_stamp(stamp), m_buf(BufSize) { }
 
   Connection *connection() const { return m_connection; }
   void connection(Connection *connection) { m_connection = connection; }
 
-  const ZmTime &stamp() const { return m_stamp; }
-  ZmTime &stamp() { return m_stamp; }
+  const ZuTime &stamp() const { return m_stamp; }
+  ZuTime &stamp() { return m_stamp; }
 
   const ZtArray<char> &buf() const { return m_buf; }
   ZtArray<char> &buf() { return m_buf; }
@@ -99,7 +99,7 @@ public:
 
 private:
   Connection	*m_connection;
-  ZmTime	m_stamp;
+  ZuTime	m_stamp;
   ZtArray<char>	m_buf;
 };
 
@@ -1146,7 +1146,7 @@ void IOBuf::recv_(ZiIOContext &io)
 void IOBuf::rcvd_(ZiIOContext &io)
 {
   m_buf.length(io.offset += io.length);
-  m_stamp = ZmTimeNow();
+  m_stamp = Zm::now();
   m_connection->recv_(this, io);
 }
 
@@ -1195,7 +1195,7 @@ void Connection::disconnected()
   if (m_peer && m_peer->up() && !(m_peer->m_flags & Hold)) {
     if (ZuBoxed(m_latency).fgt(0)) {
       // double the latency to avoid overtaking pending delayed sends
-      ZmTime next(ZmTime::Now, m_latency * 2.0);
+      ZuTime next = Zm::now(m_latency * 2.0);
       m_mx->add([peer = ZmMkRef(m_peer)]() { peer->disconnect(); }, next);
     } else
       m_peer->disconnect();
@@ -1214,7 +1214,7 @@ void Connection::recv(ZiIOContext *io)
 
   if (ZuUnlikely(ZuBoxed(m_delay).fgt(0))) {
     if (io) io->complete();
-    m_mx->add([this]() { recv(); }, ZmTime(ZmTime::Now, m_delay));
+    m_mx->add([this]() { recv(); }, Zm::now(m_delay));
     return;
   }
 
@@ -1252,8 +1252,8 @@ void Connection::send(ZmRef<IOBuf> ioBuf)
   if (m_sendPending) return;
 
   if (ZuBoxed(m_latency).fgt(0)) {
-    ZmTime now(ZmTime::Now);
-    ZmTime next = m_queue.tail()->stamp() + m_latency;
+    ZuTime now = Zm::now();
+    ZuTime next = m_queue.tail()->stamp() + m_latency;
     if (next > now) {
       m_sendPending = true;
       m_mx->add([this]() { delayedSend(); }, next);
@@ -1381,7 +1381,7 @@ void Proxy::failed2(bool transient)
 {
   if (transient) {
     m_mx->add([this]() { connect2(); },
-	ZmTimeNow((int)m_listener->reconnectFreq()));
+	Zm::now(m_listener->reconnectFreq()));
   } else {
     if (m_app->verbose()) { ZeLOG(Info, status()); }
     m_in->proxy(0);

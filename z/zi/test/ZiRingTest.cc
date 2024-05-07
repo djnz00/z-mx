@@ -8,6 +8,7 @@
 
 #include <zlib/ZmThread.hh>
 #include <zlib/ZmSpinLock.hh>
+#include <zlib/ZmTime.hh>
 #include <zlib/ZmTimeInterval.hh>
 
 #include <zlib/ZiRing.hh>
@@ -61,7 +62,7 @@ struct Params {
   unsigned			timeout = 1;
   unsigned			loop = 1;
   unsigned			count = 1;
-  ZmTime			interval;
+  ZuTime			interval;
   bool				slow = false;
   ZmBitmap			cpuset;
 };
@@ -85,7 +86,7 @@ private:
   void writer();
 
   Ring				ring;
-  ZmTime			start, end;
+  ZuTime			start, end;
   ZmTimeInterval<ZmSpinLock>	readTime, writeTime;
 };
 
@@ -135,7 +136,7 @@ int main(int argc, char **argv)
 	break;
       case 'i':
 	if (++i >= argc) usage();
-	params.interval = ZmTime(ZuBox<double>{argv[i]}.val());
+	params.interval = ZuTime(ZuBox<double>{argv[i]}.val());
 	break;
       case 'L':
 	params.ll = true;
@@ -245,27 +246,27 @@ template <typename Ring>
 void App<Ring>::reader()
 {
   std::cerr << "reader started\n";
-  if (!write) start.now();
+  if (!write) start = Zm::now();
   Ring reader{ring};
   if (reader.open(Ring::Read) != Zu::OK) {
     std::cerr << "reader open failed\n";
-    end.now();
+    end = Zm::now();
     return;
   }
   if (reader.attach() != Zu::OK) {
     std::cerr << "reader attach failed\n";
-    end.now();
+    end = Zm::now();
     return;
   }
   for (unsigned j = 0, n = count; j < n; j++) {
-    ZmTime readStart(ZmTime::Now);
+    ZuTime readStart = Zm::now();
     if (const Msg *msg = reader.shift()) {
       if (ZuUnlikely(!msg->ok())) {
 	std::cerr << "reader msg validation FAILED\n";
 	break;
       }
       reader.shift2();
-      ZmTime readEnd(ZmTime::Now);
+      ZuTime readEnd = Zm::now();
       readTime.add(readEnd -= readStart);
     } else {
       int k = reader.readStatus();
@@ -284,7 +285,7 @@ void App<Ring>::reader()
     }
     if (slow && !!interval) Zm::sleep(interval);
   }
-  end.now();
+  end = Zm::now();
   reader.detach();
   reader.close();
 }
@@ -294,15 +295,15 @@ void App<Ring>::writer()
 {
   unsigned failed = 0;
   std::cerr << "writer started\n";
-  start.now();
+  start = Zm::now();
   Ring writer{ring};
   if (writer.open(Ring::Write) != Zu::OK) {
     std::cerr << "writer open failed\n";
-    end.now();
+    end = Zm::now();
     return;
   }
   for (unsigned j = 0; j < count; j++) {
-    ZmTime writeStart(ZmTime::Now);
+    ZuTime writeStart = Zm::now();
     if (void *ptr = writer.push()) {
       // puts("push");
       // Msg *msg =
@@ -312,12 +313,12 @@ void App<Ring>::writer()
 	writer.push2(ptr);
       else
 	writer.push2();
-      ZmTime writeEnd(ZmTime::Now);
+      ZuTime writeEnd = Zm::now();
       writeTime.add(writeEnd -= writeStart);
     } else {
       int k = writer.writeStatus();
       if (k == Zu::EndOfFile) {
-	end.now();
+	end = Zm::now();
 	std::cerr << "writer EOF\n";
 	break;
       } else if (k == Zu::NotReady) {

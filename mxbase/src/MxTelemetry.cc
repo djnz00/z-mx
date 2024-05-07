@@ -140,7 +140,7 @@ void Server::scheduleRun()
 {
   m_mx->run(m_mx->txThread(),
       ZmFn<>{this, [](Server *server) { server->run_(); }},
-      ZmTimeNow((double)m_freq / 1000000), &m_timer);
+      Zm::now((double)m_freq / 1000000), &m_timer);
 }
 
 void Server::run_()

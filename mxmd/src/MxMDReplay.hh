@@ -17,7 +17,7 @@
 #include <mxmd/MxMDLib.hh>
 #endif
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmPLock.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmRef.hh>
@@ -83,11 +83,11 @@ public:
   void disconnect();
 
   // MxLink CRTP (unused)
-  ZmTime reconnInterval(unsigned) { return ZmTime{1}; }
+  ZuTime reconnInterval(unsigned) { return ZuTime{1}; }
 
   // MxLink Rx CRTP (unused)
   void process(MxQMsg *) { }
-  ZmTime reReqInterval() { return ZmTime{1}; }
+  ZuTime reReqInterval() { return ZuTime{1}; }
   void request(const MxQueue::Gap &prev, const MxQueue::Gap &now) { }
   void reRequest(const MxQueue::Gap &now) { }
 
@@ -122,8 +122,8 @@ private:
   ZtString		m_path;
   ZiFile		m_file;
   ZuRef<Msg>		m_msg;
-  ZmTime		m_lastTime;
-  ZmTime		m_nextTime;
+  ZuTime		m_lastTime;
+  ZuTime		m_nextTime;
   bool			m_filter = false;
   Version		m_version;
 };

@@ -41,7 +41,7 @@ namespace Zdf {
 // DataFrame df{Data::fields(), "d"};
 // ...
 // auto w = df.writer();
-// ZmTime time{ZmTime::Now};
+// ZuTime time{ZuTime::Now};
 // w.write(&d);
 // ...
 // AnyReader index, reader;
@@ -51,7 +51,7 @@ namespace Zdf {
 // ...
 // ZuFixed nsecs, value;
 // index.read(nsecs);
-// ZmTime then = df.time(nsecs);
+// ZuTime then = df.time(nsecs);
 // reader.read(value);
 
 // typedefs for (de)encoders
@@ -267,7 +267,7 @@ public:
   DataFrame(ZtMFields fields, ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
-  const ZmTime &epoch() const { return m_epoch; }
+  const ZuTime &epoch() const { return m_epoch; }
 
   void init(Store *store);
 
@@ -319,7 +319,7 @@ public:
 	    default:      v = ZuFixed{0, 0}; break;
 	  }
 	} else
-	  v = m_df->nsecs(ZmTimeNow());
+	  v = m_df->nsecs(Zm::now());
 	m_writers[i].write(v);
       }
     }
@@ -368,16 +368,15 @@ public:
 private:
   constexpr static const uint64_t pow10_9() { return 1000000000UL; }
 public:
-  ZuFixed nsecs(ZmTime t) {
+  ZuFixed nsecs(ZuTime t) {
     t -= m_epoch;
     return ZuFixed{
       static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9 };
   }
-  ZmTime time(const ZuFixed &v) {
+  ZuTime time(const ZuFixed &v) {
     uint64_t n = v.adjust(9);
     uint64_t p = pow10_9();
-    return ZmTime{static_cast<time_t>(n / p), static_cast<long>(n % p)} +
-      m_epoch;
+    return ZuTime{time_t(n / p), long(n % p)} + m_epoch;
   }
 
 private:
@@ -392,7 +391,7 @@ private:
   ZtArray<ZuPtr<Series>>	m_series;
   ZtArray<const ZtMField *>	m_fields;
   Store				*m_store = nullptr;
-  ZmTime			m_epoch;
+  ZuTime			m_epoch;
   // async open/close series context
   using Callback = ZuUnion<void, OpenFn, CloseFn>;
   ZmPLock			m_lock;

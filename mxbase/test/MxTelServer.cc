@@ -8,7 +8,7 @@ static ZmSemaphore sem;
 
 class App : public MxTelemetry::Server {
 public:
-  App() : m_time(ZmTime::Now) { }
+  App() : m_time(ZuTime::Now) { }
 
 private:
   void run(MxTelemetry::Server::Cxn *cxn) {
@@ -27,7 +27,7 @@ private:
     });
   }
 
-  ZmTime	m_time;
+  ZuTime	m_time;
 };
 
 int main()

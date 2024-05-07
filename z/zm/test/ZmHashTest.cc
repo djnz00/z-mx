@@ -143,9 +143,9 @@ struct J : public ZmObject {
 
 int main(int argc, char **argv)
 {
-  ZmTime overallStart, overallEnd;
+  ZuTime overallStart, overallEnd;
 
-  overallStart.now();
+  overallStart = Zm::now();
 
   if (argc > 1) hashTestSize = atoi(argv[1]);
 
@@ -161,15 +161,15 @@ int main(int argc, char **argv)
       hash2->count_(), hash2->bits(), hash2->cBits());
     printf("spawning %d threads...\n", n);
 
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++) r[j] = {[hash2]() { hashIt(hash2.ptr()); }};
 
     for (j = 0; j < n; j++) r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("hash time: %d.%.3d\n", (int)end.sec(), (int)(end.nsec() / 1000000));
 
@@ -185,15 +185,15 @@ int main(int argc, char **argv)
       hash2->count_(), hash2->bits(), hash2->cBits());
     printf("spawning %d threads...\n", n);
 
-    ZmTime start, end;
+    ZuTime start, end;
 
-    start.now();
+    start = Zm::now();
 
     for (j = 0; j < n; j++) r[j] = {[hash2]() { hashIt(hash2.ptr()); }};
 
     for (j = 0; j < n; j++) r[j].join(0);
 
-    end.now();
+    end = Zm::now();
     end -= start;
     printf("hash time: %d.%.3d\n", (int)end.sec(), (int)(end.nsec() / 1000000));
 
@@ -201,7 +201,7 @@ int main(int argc, char **argv)
     printf("hash count, bits: %d, %d\n", hash2->count_(), hash2->bits());
   }
 
-  overallEnd.now();
+  overallEnd = Zm::now();
   overallEnd -= overallStart;
   printf("overall time: %d.%.3d\n",
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));

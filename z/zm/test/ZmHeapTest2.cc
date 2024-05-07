@@ -6,7 +6,7 @@
 
 /* test program */
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmScheduler.hh>
 
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
   ZmScheduler sched_{ZuMv(params)};
   sched = &sched_;
   sched->start();
-  ZmTime start(ZmTime::Now);
+  ZuTime start = Zm::now();
   for (int j = 0; j < count; j++)
     for (int i = 0; i < nthr; i++)
       sched->run(i + 1, [i, j]() {
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
       });
   for (int k = 0, n = count * nthr; k < n; k++) sem.wait();
   sched->stop();
-  ZmTime end(ZmTime::Now);
+  ZuTime end = Zm::now();
   end -= start;
   printf("%u.%09u\n", (unsigned)end.sec(), (unsigned)end.nsec());
   std::cout << ZmHeapMgr::csv();

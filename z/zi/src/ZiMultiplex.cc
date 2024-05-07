@@ -2098,7 +2098,7 @@ void ZiMultiplex::rx()
 
 #if 0
 #ifdef ZiMultiplex_DEBUG
-    ZmTime now(ZmTime::Now);
+    ZuTime now = Zm::now();
 #endif
 #endif
 
@@ -2106,7 +2106,7 @@ void ZiMultiplex::rx()
 
 #if 0
 #ifdef ZiMultiplex_DEBUG
-    now = ZmTimeNow() - now;
+    now = Zm::now() - now;
     if (now.dtime() > .001) {
       ZeLOG(Info, ZtSprintf("slow epoll_wait(): %.6f", now.dtime()));
     }

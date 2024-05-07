@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 #include <zlib/ZmRBTree.hh>
 
@@ -46,7 +46,7 @@ public:
     }
   }
   void close() { m_file.close(); }
-  ZmTime read() {
+  ZuTime read() {
     ZeError e;
     int i;
     if ((i = m_file.read(&m_hdr, sizeof(MxMCapHdr), &e)) == Zi::IOError) {
@@ -55,7 +55,7 @@ public:
     }
     if (i == Zi::EndOfFile || (unsigned)i < sizeof(MxMCapHdr)) {
       close();
-      return ZmTime();
+      return ZuTime();
     }
     if (m_hdr.len > MsgSize) {
       ZeLOG(Error, ([](auto &s) { s << "message length >" << ZuBoxed(MsgSize) <<
@@ -68,9 +68,9 @@ public:
     }
     if (i == Zi::EndOfFile || (unsigned)i < m_hdr.len) {
       close();
-      return ZmTime();
+      return ZuTime();
     }
-    return ZmTime((time_t)m_hdr.sec, (int32_t)m_hdr.nsec);
+    return ZuTime((time_t)m_hdr.sec, (int32_t)m_hdr.nsec);
   }
   int write(ZiFile *out, ZeError *e) {
     int i;
@@ -86,7 +86,7 @@ private:
   char		m_buf[MsgSize];
 };
 
-typedef ZmRBTree<ZmTime,
+typedef ZmRBTree<ZuTime,
 	  ZmRBTreeVal<ZmRef<File>,
 	    ZmRBTreeLock<ZmNoLock> > > Files;
 
@@ -120,7 +120,7 @@ int main(int argc, const char *argv[])
     for (int i = 1, n = paths.length(); i < n; i++) {
       ZmRef<File> file = new File(paths[i]);
       file->open();
-      ZmTime t = file->read();
+      ZuTime t = file->read();
       if (t) files.add(t, file);
     }
   }
@@ -144,7 +144,7 @@ int main(int argc, const char *argv[])
       ZeLOG(Error, ([](auto &s) { s << '"' << outPath << "\": " << e; }));
       Zm::exit(1);
     }
-    ZmTime t = file->read();
+    ZuTime t = file->read();
     if (t)
       files.add(t, file);
     else

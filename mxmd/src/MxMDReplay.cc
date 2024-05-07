@@ -89,7 +89,7 @@ bool MxMDReplayLink::replay(ZtString path, MxDateTime begin, bool filter)
   engine()->rxInvoke(
       [this, path = ZuMv(path), begin, filter, sem = &sem]() mutable {
     m_path = ZuMv(path);
-    m_nextTime = !begin ? ZmTime() : begin.zmTime();
+    m_nextTime = !begin ? ZuTime() : begin.zmTime();
     m_filter = filter;
     sem->post();
   });
@@ -168,7 +168,7 @@ void MxMDReplayLink::connect()
 void MxMDReplayLink::disconnect()
 {
   m_file.close();
-  m_nextTime = ZmTime();
+  m_nextTime = ZuTime();
   m_filter = false;
   m_version = Version();
   m_msg = 0;
@@ -221,12 +221,12 @@ eof:
     m_lastTime = m_msg->as<HeartBeat>().stamp.zmTime();
   } else {
     if (hdr.nsec) {
-      ZmTime next(ZmTime::Nano, hdr.nsec);
+      ZuTime next(ZuTime::Nano, hdr.nsec);
       next += m_lastTime;
       while (m_nextTime && next > m_nextTime) {
 	MxDateTime nextTime;
 	core->handler()->timer(m_nextTime, nextTime);
-	m_nextTime = !nextTime ? ZmTime() : nextTime.zmTime();
+	m_nextTime = !nextTime ? ZuTime() : nextTime.zmTime();
       }
     }
 

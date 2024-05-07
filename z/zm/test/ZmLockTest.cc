@@ -21,7 +21,7 @@
 #include <zlib/ZmSpinLock.hh>
 #include <zlib/ZmSpecific.hh>
 #include <zlib/ZmThread.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 struct NoLock {
   ZuInline NoLock() { }
@@ -118,7 +118,7 @@ template <typename Lock> double main_(
 {
   Lock lock;
   auto c = static_cast<C<Lock> *>(ZuAlloca(nthreads * sizeof(C<Lock>)));
-  ZmTime begin(ZmTime::Now);
+  ZuTime begin = Zm::now();
   for (unsigned i = 0; i < nthreads; i++) {
     c[i].type = TypeCode<Lock>::N;
     c[i].id = i + 1;
@@ -127,7 +127,7 @@ template <typename Lock> double main_(
     pthread_create(&c[i].tid, 0, &run, (void *)&c[i]);
   }
   for (unsigned i = 0; i < nthreads; i++) pthread_join(c[i].tid, 0);
-  ZmTime end(ZmTime::Now); end -= begin;
+  ZuTime end = Zm::now(); end -= begin;
   double delay = (end.dtime() - baseline) / (double)nthreads;
   std::cout << name << ":\t" << ZuBoxed(delay * 10) << "\n";
   return delay;

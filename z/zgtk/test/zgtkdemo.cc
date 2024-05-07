@@ -38,7 +38,7 @@ int main(int argc, char **argv)
   for (int i = 0; i < 5; i++) {
     app.run([]{
       std::cout << ZmSelf() << '\n' << std::flush;
-    }, ZmTimeNow(i));
+    }, Zm::now(i));
   }
   ::sleep(6);
 #endif

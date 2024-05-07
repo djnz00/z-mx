@@ -21,7 +21,7 @@ class Thread;
 
 class Global {
 public:
-  Global() : m_started(ZmTime::Now), m_nThreads(0), m_threads(0),
+  Global() : m_started(ZuTime::Now), m_nThreads(0), m_threads(0),
 	     m_nLocks(0), m_locks(0) { }
   ~Global() {
     if (m_threads) delete [] m_threads;
@@ -35,7 +35,7 @@ public:
     { instance()->start_(nThreads, nLocks); }
   static void stop() { instance()->stop_(); }
 
-  static ZmTime &started() { return instance()->m_started; }
+  static ZuTime &started() { return instance()->m_started; }
 
   static Thread *thread(int i) { return instance()->m_threads[i]; }
   static ZmRWLock &lock(int i) { return instance()->m_locks[i]; }
@@ -43,7 +43,7 @@ public:
   static Global *instance();
 
 private:
-  ZmTime			m_started;
+  ZuTime			m_started;
   //ZmSemaphore			m_completed;
   int				m_nThreads;
   ZmRef<Thread>			*m_threads;
@@ -147,8 +147,8 @@ void Work::dump(int tid, const char *prePost, ZmRWLock &lock)
 {
   const char *insns[] = { "Lock", "Unlock", "ReadLock", "ReadUnlock" };
 
-  ZmTime now = ZmTimeNow();
-  ZmTime stamp = now - Global::started();
+  ZuTime now = Zm::now();
+  ZuTime stamp = now - Global::started();
 
   if (m_try)
     printf("%+14.3f %3d %s %10s %3d %s Try\n",

@@ -593,7 +593,7 @@ public:
     if (transient && reconnFreq > 0)
       this->app()->run(
 	  ZmFn<>{this, [](CliLink *link) { link->connect_(); }},
-	  ZmTimeNow(reconnFreq), ZmScheduler::Update, &m_reconnTimer);
+	  Zm::now(reconnFreq), ZmScheduler::Update, &m_reconnTimer);
     else
       ZeLOG(Error, "connect failed");
   }
@@ -956,7 +956,7 @@ protected:
     unsigned rebindFreq = app()->rebindFreq();
     if (transient && rebindFreq > 0)
       app()->run([this]() { listen(); },
-	  ZmTimeNow(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
+	  Zm::now(rebindFreq), ZmScheduler::Update, &m_rebindTimer);
     else
       ZeLOG(Error, ([transient](auto &s) {
 	s << "listen() failed " << (transient ? "(transient)" : "");

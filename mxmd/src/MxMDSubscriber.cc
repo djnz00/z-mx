@@ -306,7 +306,7 @@ void MxMDSubLink::TCP::sendLogin()
   mx()->rxRun(ZmFn<>{ZmMkRef(this), [](TCP *tcp) {
       if (tcp->state() != State::Login) return;
       tcpERROR(tcp, 0, "TCP login timeout");
-    }}, ZmTimeNow(m_link->loginTimeout()), &m_loginTimer);
+    }}, Zm::now(m_link->loginTimeout()), &m_loginTimer);
 }
 void MxMDSubLink::tcpLoginAck()
 {
@@ -572,7 +572,7 @@ void MxMDSubLink::process(MxQMsg *msg)
     return;
   }
 #if 0
-  ZmTime latency = ZmTimeNow() - (lastTime() + ZmTime(ZmTim::Nano, hdr.nsec));
+  ZuTime latency = Zm::now() - (lastTime() + ZuTime(ZmTim::Nano, hdr.nsec));
 #endif
   engine()->process(msg);
 }
@@ -588,7 +588,7 @@ void MxMDSubLink::hbStart()
   m_active = false;
   m_inactive = 0;
   engine()->rxRun(ZmFn<>{this, [](MxMDSubLink *link) { link->heartbeat(); }},
-      ZmTimeNow(1), &m_timer);
+      Zm::now(1), &m_timer);
 }
 
 void MxMDSubLink::heartbeat()
@@ -605,7 +605,7 @@ void MxMDSubLink::heartbeat()
     m_inactive = 0;
   }
   engine()->rxRun(ZmFn<>{this, [](MxMDSubLink *link) { link->heartbeat(); }},
-      ZmTimeNow(1), &m_timer);
+      Zm::now(1), &m_timer);
 }
 
 // commands
@@ -715,7 +715,7 @@ ZmRef<MxQMsg> MxMDSubLink::resend(MxSeqNo seqNo, unsigned count)
     m_resendGap = gap;
   }
   reRequest(gap);
-  if (m_resendSem.timedwait(ZmTimeNow() + engine()->reReqInterval()))
+  if (m_resendSem.timedwait(Zm::now() + engine()->reReqInterval()))
     return 0;
   ZmRef<MxQMsg> msg;
   {

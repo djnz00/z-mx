@@ -41,7 +41,7 @@
 // Float	Float		<FloatingPoint>
 // Fixed	Fixed		ZuFixed
 // Decimal	Decimal		ZuDecimal
-// Time		Time		ZmTime
+// Time		Time		ZuTime
 // DateTime	DateTime	ZtDate
 //
 // Int128	UDT		int128_t

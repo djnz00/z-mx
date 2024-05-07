@@ -17,7 +17,7 @@
 #include <mxmd/MxMDLib.hh>
 #endif
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmPLock.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmRef.hh>
@@ -45,8 +45,8 @@ public:
 
   ZuInline ZiIP interface_() const { return m_interface; }
   ZuInline unsigned maxQueueSize() const { return m_maxQueueSize; }
-  ZuInline ZmTime loginTimeout() const { return ZmTime(m_loginTimeout); }
-  ZuInline ZmTime ackInterval() const { return ZmTime(m_ackInterval); }
+  ZuInline ZuTime loginTimeout() const { return ZuTime(m_loginTimeout); }
+  ZuInline ZuTime ackInterval() const { return ZuTime(m_ackInterval); }
   ZuInline unsigned reReqMaxGap() const { return m_reReqMaxGap; }
   ZuInline unsigned nAccepts() const { return m_nAccepts; }
   ZuInline unsigned ttl() const { return m_ttl; }
@@ -221,7 +221,7 @@ public:
     return engine()->core();
   }
 
-  ZuInline ZmTime loginTimeout() const { return engine()->loginTimeout(); }
+  ZuInline ZuTime loginTimeout() const { return engine()->loginTimeout(); }
 
   // MxAnyLink virtual
   void update(ZvCf *);
@@ -231,11 +231,11 @@ public:
   void disconnect();		// Rx
 
   // MxLink CRTP (unused)
-  ZmTime reconnInterval(unsigned) { return ZmTime{1}; }
+  ZuTime reconnInterval(unsigned) { return ZuTime{1}; }
 
   // MxLink Rx CRTP (unused)
   void process(MxQMsg *) { }
-  ZmTime reReqInterval() { return ZmTime{1}; }
+  ZuTime reReqInterval() { return ZuTime{1}; }
   void request(const MxQueue::Gap &prev, const MxQueue::Gap &now) { }
   void reRequest(const MxQueue::Gap &now) { }
 

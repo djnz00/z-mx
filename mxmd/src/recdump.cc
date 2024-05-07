@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stddef.h>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZeLog.hh>
@@ -471,7 +471,7 @@ private:
   ZtString			m_outPath;
   ZiFile			m_outFile;
 
-  ZmTime			m_lastTime;
+  ZuTime			m_lastTime;
 
   ZuRef<CSVWriter<MxMDVenueCSV> >	m_venueCSV;
   ZuRef<CSVWriter<MxMDTickSizeCSV> >	m_tickSizeCSV;
@@ -517,7 +517,7 @@ void App::read()
 
     if (m_verbose) {
       if (hdr.nsec) {
-	ZtDate stamp = m_lastTime + ZmTime(ZmTime::Nano, hdr.nsec);
+	ZtDate stamp = m_lastTime + ZuTime(ZuTime::Nano, hdr.nsec);
 	std::cout << "len: " << ZuBoxed(hdr.len).fmt(ZuFmt::Right<6>()) <<
 	  "  type: " << ZuBoxed(hdr.type).fmt(ZuFmt::Right<6>()) <<
 	  "  stamp: " << stamp.iso(m_isoFmt) << '\n';

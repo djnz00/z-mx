@@ -39,7 +39,7 @@ struct Foo {
   double float_ranged;
   ZuFixed fixed;
   ZuDecimal decimal;
-  ZmTime time_;
+  ZuTime time_;
   Nested nested;
 
   friend ZtFieldPrint ZuPrintType(Foo *);
@@ -148,7 +148,7 @@ int main()
     .float_ranged = 0.42,
     .fixed = { 0.42, 2 },
     .decimal = 0.42,
-    .time_ = ZmTimeNow(),
+    .time_ = Zm::now(),
     .nested = { 42, 43 }
   };
   std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i, &data}) << '\n';

@@ -8,6 +8,8 @@
 
 #include <zlib/ZiRing.hh>
 
+#include <zlib/ZmTime.hh>
+
 #include <zlib/ZeLog.hh>
 
 #ifdef linux
@@ -35,7 +37,7 @@ int Blocker::wait(
   if (addr.cmpXch(val | Waiting32(), val) != val) return Zu::OK;
   val |= Waiting32();
   if (ZuUnlikely(params.timeout)) {
-    ZmTime out(ZmTime::Now, static_cast<int>(params.timeout));
+    ZuTime out = Zm::now(params.timeout);
     unsigned i = 0;
     do {
       if (ZuUnlikely(i >= params.spin)) {
@@ -238,31 +240,31 @@ bool MirrorMem::open(unsigned size, const Params &params)
 
 void MirrorMem::close() { m_file.close(); }
 
-void RingExt_::getpinfo(uint32_t &pid, ZmTime &start)
+void RingExt_::getpinfo(uint32_t &pid, ZuTime &start)
 {
 #ifdef linux
   pid = getpid();
   ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
-  start = (::stat(path, &s) < 0) ? ZmTime{} : ZmTime{s.st_ctim};
+  start = (::stat(path, &s) < 0) ? ZuTime{} : ZuTime{s.st_ctim};
 #endif
 #ifdef _WIN32
   pid = GetCurrentProcessId();
   FILETIME creation, exit, kernel, user;
   start = !GetProcessTimes(
       GetCurrentProcess(), &creation, &exit, &kernel, &user) ?
-    ZmTime{} : ZmTime{creation};
+    ZuTime{} : ZuTime{creation};
 #endif
 }
 
-bool RingExt_::alive(uint32_t pid, ZmTime start)
+bool RingExt_::alive(uint32_t pid, ZuTime start)
 {
   if (!pid) return false;
 #ifdef linux
   ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
   if (::stat(path, &s) < 0) return false;
-  return !start || ZmTime{s.st_ctim} == start;
+  return !start || ZuTime{s.st_ctim} == start;
 #endif
 #ifdef _WIN32
   HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, FALSE, pid);
@@ -272,7 +274,7 @@ bool RingExt_::alive(uint32_t pid, ZmTime start)
   FILETIME creation, exit, kernel, user;
   if (!GetProcessTimes(h, &creation, &exit, &kernel, &user))
     { CloseHandle(h); return false; }
-  return !start || ZmTime{creation} == start;
+  return !start || ZuTime{creation} == start;
   CloseHandle(h);
 #endif
 }

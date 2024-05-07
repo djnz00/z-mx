@@ -18,7 +18,7 @@
 #endif
 
 #include <zlib/ZmPlatform.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmSpecific.hh>
@@ -106,7 +106,7 @@ public:
     thread->sem.wait();
     lock_();
   }
-  int timedWait(ZmTime timeout) {
+  int timedWait(ZuTime timeout) {
     Wait wait{this->wait_()};
     Thread *thread = ZmSpecific<Thread>::instance();
     thread->next = nullptr;

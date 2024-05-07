@@ -26,13 +26,13 @@ int ZiRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
   if (addr.cmpXch(val | Waiting, val) != val) return Zi::OK;
   val |= Waiting;
   if (ZuUnlikely(m_params->timeout())) {
-    ZmTime out(ZmTime::Now, static_cast<int>(m_params->timeout()));
+    ZuTime out = Zm::now(int(m_params->timeout()));
     unsigned i = 0, n = m_params->spin();
     do {
       if (ZuUnlikely(i >= n)) {
 	if (syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
 	      FUTEX_WAIT_BITSET | FUTEX_CLOCK_REALTIME,
-	      static_cast<int>(val), &out, 0, FUTEX_BITSET_MATCH_ANY) < 0) {
+	      int(val), &out, 0, FUTEX_BITSET_MATCH_ANY) < 0) {
 	  if (errno == ETIMEDOUT) return Zi::NotReady;
 	  if (errno == EAGAIN) return Zi::OK;
 	}
@@ -45,7 +45,7 @@ int ZiRingUtil::wait(ZmAtomic<uint32_t> &addr, uint32_t val)
     do {
       if (ZuUnlikely(i >= n)) {
 	syscall(SYS_futex, reinterpret_cast<volatile int *>(&addr),
-	    FUTEX_WAIT, static_cast<int>(val), 0, 0, 0);
+	    FUTEX_WAIT, int(val), 0, 0, 0);
 	i = 0;
       } else
 	++i;
@@ -124,31 +124,31 @@ int ZiRingUtil::wake(unsigned index, ZmAtomic<uint32_t> &addr, unsigned n)
 
 #endif /* _WIN32 */
 
-void ZiRingUtil::getpinfo(uint32_t &pid, ZmTime &start)
+void ZiRingUtil::getpinfo(uint32_t &pid, ZuTime &start)
 {
 #ifdef linux
   pid = getpid();
   ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
-  start = (::stat(path, &s) < 0) ? ZmTime() : ZmTime(s.st_ctim);
+  start = (::stat(path, &s) < 0) ? ZuTime() : ZuTime(s.st_ctim);
 #endif
 #ifdef _WIN32
   pid = GetCurrentProcessId();
   FILETIME creation, exit, kernel, user;
   start = !GetProcessTimes(
       GetCurrentProcess(), &creation, &exit, &kernel, &user) ?
-    ZmTime{} : ZmTime{creation};
+    ZuTime{} : ZuTime{creation};
 #endif
 }
 
-bool ZiRingUtil::alive(uint32_t pid, ZmTime start)
+bool ZiRingUtil::alive(uint32_t pid, ZuTime start)
 {
   if (!pid) return false;
 #ifdef linux
   ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
   if (::stat(path, &s) < 0) return false;
-  return !start || ZmTime{s.st_ctim} == start;
+  return !start || ZuTime{s.st_ctim} == start;
 #endif
 #ifdef _WIN32
   HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, FALSE, pid);
@@ -158,7 +158,7 @@ bool ZiRingUtil::alive(uint32_t pid, ZmTime start)
   FILETIME creation, exit, kernel, user;
   if (!GetProcessTimes(h, &creation, &exit, &kernel, &user))
     { CloseHandle(h); return false; }
-  return !start || ZmTime{creation} == start;
+  return !start || ZuTime{creation} == start;
   CloseHandle(h);
 #endif
 }
@@ -172,7 +172,7 @@ bool ZiRingUtil::kill(uint32_t pid, bool coredump)
 #ifdef _WIN32
   HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
   if (!h || h == INVALID_HANDLE_VALUE) return false;
-  bool ok = TerminateProcess(h, static_cast<unsigned>(-1)) == TRUE;
+  bool ok = TerminateProcess(h, unsigned(-1)) == TRUE;
   CloseHandle(h);
   return ok;
 #endif

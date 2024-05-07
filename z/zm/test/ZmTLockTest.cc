@@ -16,12 +16,13 @@
 #include <zlib/ZmFn.hh>
 #include <zlib/ZmThread.hh>
 #include <zlib/ZmSemaphore.hh>
+#include <zlib/ZmTime.hh>
 
 class Thread;
 
 class Global {
 public:
-  Global() : m_started(ZmTime::Now), m_nThreads(0), m_threads(0) { }
+  Global() : m_started{Zm::now()} { }
   ~Global() { if (m_threads) delete [] m_threads; }
 
   void start_(int nThreads, int nLocks);
@@ -31,7 +32,7 @@ public:
     { instance()->start_(nThreads, nLocks); }
   static void stop() { instance()->stop_(); }
 
-  static ZmTime &started() { return instance()->m_started; }
+  static ZuTime &started() { return instance()->m_started; }
 
   static Thread *thread(int i) { return instance()->m_threads[i]; }
   static ZmTLock<int, int> &locks() { return instance()->m_locks; }
@@ -39,10 +40,10 @@ public:
   static Global *instance();
 
 private:
-  ZmTime			m_started;
+  ZuTime			m_started;
   ZmSemaphore			m_completed;
-  int				m_nThreads;
-  ZmRef<Thread>			*m_threads;
+  int				m_nThreads = 0;
+  ZmRef<Thread>			*m_threads = nullptr;
   ZmTLock<int, int>		m_locks;
 };
 
@@ -111,7 +112,7 @@ class Work : public ZmObject {
 public:
   enum Insn { ReadLock, WriteLock, Unlock };
 
-  Work(Insn insn, int lock, bool try_, ZmTime timeout) :
+  Work(Insn insn, int lock, bool try_, ZuTime timeout) :
 	m_insn{insn}, m_lock{lock}, m_try{try_}, m_timeout{timeout} { }
 
   int operator ()(int tid);
@@ -122,7 +123,7 @@ private:
   Insn		m_insn;
   int		m_lock;
   bool		m_try;
-  ZmTime	m_timeout;
+  ZuTime	m_timeout;
 };
 
 void Thread::operator()()
@@ -143,12 +144,12 @@ void Work::dump(int tid, const char *prePost, ZmTLock<int, int> &locks)
 {
   const char *insns[] = { "ReadLock", "WriteLock", "Unlock" };
 
-  ZmTime now = ZmTimeNow();
-  ZmTime stamp = now - Global::started();
+  ZuTime now = Zm::now();
+  ZuTime stamp = now - Global::started();
   auto s = locks.dump(m_lock);
 
   if (*m_timeout) {
-    ZmTime timeout = m_timeout - now;
+    ZuTime timeout = m_timeout - now;
     printf("%+14.3f %3d %s %10s %3d %s %+8.3f\n",
 	   stamp.dtime(), tid, prePost, insns[m_insn], m_lock,
 	   s.data(), timeout.dtime());
@@ -211,13 +212,13 @@ int result(int tid)
   return Global::thread(tid)->result();
 }
 
-#define ReadLock(l) new Work(Work::ReadLock, l, false, ZmTime{})
-#define TryReadLock(l) new Work(Work::ReadLock, l, true, ZmTime{});
-#define TimedReadLock(l, t) new Work(Work::ReadLock, l, true, ZmTimeNow() + t);
-#define WriteLock(l) new Work(Work::WriteLock, l, false, ZmTime{})
-#define TryWriteLock(l) new Work(Work::WriteLock, l, true, ZmTime{});
-#define TimedWriteLock(l, t) new Work(Work::WriteLock, l, true, ZmTimeNow() + t);
-#define Unlock(l) new Work(Work::Unlock, l, false, ZmTime())
+#define ReadLock(l) new Work(Work::ReadLock, l, false, ZuTime{})
+#define TryReadLock(l) new Work(Work::ReadLock, l, true, ZuTime{});
+#define TimedReadLock(l, t) new Work(Work::ReadLock, l, true, Zm::now(t));
+#define WriteLock(l) new Work(Work::WriteLock, l, false, ZuTime{})
+#define TryWriteLock(l) new Work(Work::WriteLock, l, true, ZuTime{});
+#define TimedWriteLock(l, t) new Work(Work::WriteLock, l, true, Zm::now(t));
+#define Unlock(l) new Work(Work::Unlock, l, false, ZuTime())
 
 struct ZmTLock_Test {
   static ZmTLock<int, int>::LockRef lock(int id) {
@@ -227,11 +228,11 @@ struct ZmTLock_Test {
   }
   static void waitForPendingUpgraders(int id, int n) {
     ZmTLock<int, int>::LockRef l = lock(id);
-    if (l) while (l->m_upgradeCount < n) Zm::sleep(ZmTime(0.001));
+    if (l) while (l->m_upgradeCount < n) Zm::sleep(ZuTime(0.001));
   }
   static void waitForPendingWriters(int id, int n) {
     ZmTLock<int, int>::LockRef l = lock(id);
-    if (l) while (l->m_writeCount < n) Zm::sleep(ZmTime(0.001));
+    if (l) while (l->m_writeCount < n) Zm::sleep(ZuTime(0.001));
   }
 };
 

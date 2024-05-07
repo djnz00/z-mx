@@ -43,7 +43,7 @@
 #include <zlib/ZmXRing.hh>
 #include <zlib/ZmRBTree.hh>
 #include <zlib/ZmThread.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmFn.hh>
 #include <zlib/ZmEngine.hh>
 
@@ -83,7 +83,7 @@ struct ZmAPI ZmSchedParams {
   ZmSchedParams &&stackSize(unsigned v) { m_stackSize = v; return ZuMv(*this); }
   ZmSchedParams &&priority(unsigned v) { m_priority = v; return ZuMv(*this); }
   ZmSchedParams &&partition(unsigned v) { m_partition = v; return ZuMv(*this); }
-  ZmSchedParams &&quantum(ZmTime v) { m_quantum = v; return ZuMv(*this); }
+  ZmSchedParams &&quantum(ZuTime v) { m_quantum = v; return ZuMv(*this); }
 
   ZmSchedParams &&queueSize(unsigned v) { m_queueSize = v; return ZuMv(*this); }
   ZmSchedParams &&ll(bool v) { m_ll = v; return ZuMv(*this); }
@@ -104,7 +104,7 @@ struct ZmAPI ZmSchedParams {
   unsigned stackSize() const { return m_stackSize; }
   int priority() const { return m_priority; }
   int partition() const { return m_partition; }
-  const ZmTime &quantum() const { return m_quantum; }
+  const ZuTime &quantum() const { return m_quantum; }
 
   unsigned queueSize() const { return m_queueSize; }
   bool ll() const { return m_ll; }
@@ -130,7 +130,7 @@ private:
   unsigned	m_stackSize = 0;
   int		m_priority = -1;
   int		m_partition = -1;
-  ZmTime	m_quantum{ZmTime::Nano, 1000}; // 1us
+  ZuTime	m_quantum{ZuTime::Nano, 1000}; // 1us
 
   unsigned	m_queueSize = 131072;
   unsigned	m_spin = 1000;
@@ -199,7 +199,7 @@ private:
   struct Timer_ {
     Fn		fn;
     unsigned	sid = 0;
-    ZmTime	timeout;
+    ZuTime	timeout;
     bool	transient = false;
 
     Timer_() { }
@@ -214,7 +214,7 @@ private:
     bool operator !() const { return !*timeout; }
     ZuOpBool
   };
-  static const ZmTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }
+  static const ZuTime &Timer_TimeoutAxor(const Timer_ &t) { return t.timeout; }
   static const char *ScheduleTree_HeapID() {
     return "ZmScheduler.ScheduleTree";
   }
@@ -282,40 +282,40 @@ public:
   }
 
   template <typename L>
-  void add(L l, ZmTime timeout) {
+  void add(L l, ZuTime timeout) {
     Fn fn{l};
     schedule_(0, fn, timeout, Update, nullptr);
   }
   template <typename L>
-  void add(L l, ZmTime timeout, Timer *timer) {
+  void add(L l, ZuTime timeout, Timer *timer) {
     Fn fn{l};
     schedule_(0, fn, timeout, Update, timer);
   }
   template <typename L>
-  void add(L l, ZmTime timeout, int mode, Timer *timer) {
+  void add(L l, ZuTime timeout, int mode, Timer *timer) {
     Fn fn{l};
     schedule_(0, fn, timeout, mode, timer);
   }
 
   template <typename L>
-  void run(unsigned sid, L l, ZmTime timeout) {
+  void run(unsigned sid, L l, ZuTime timeout) {
     Fn fn{l};
     schedule_(sid, fn, timeout, Update, nullptr);
   }
   template <typename L>
-  void run(unsigned sid, L l, ZmTime timeout, Timer *timer) {
+  void run(unsigned sid, L l, ZuTime timeout, Timer *timer) {
     Fn fn{l};
     schedule_(sid, fn, timeout, Update, timer);
   }
 
   template <typename L>
-  void run(unsigned sid, L l, ZmTime timeout, int mode, Timer *timer) {
+  void run(unsigned sid, L l, ZuTime timeout, int mode, Timer *timer) {
     Fn fn{l};
     schedule_(sid, fn, timeout, mode, timer);
   }
 
 private:
-  void schedule_(unsigned sid, Fn &, ZmTime timeout, int mode, Timer *);
+  void schedule_(unsigned sid, Fn &, ZuTime timeout, int mode, Timer *);
 
 public:
   bool del(Timer *);		// cancel job - returns true if found

@@ -4,32 +4,28 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// high resolution timer
+// high resolution timer, which is challenging on Windows
 
 #include <zlib/ZmTime.hh>
-#include <zlib/ZmAtomic.hh>
-#include <zlib/ZmLock.hh>
-#include <zlib/ZmTime.hh>
-#include <zlib/ZmThread.hh>
-#include <zlib/ZmSingleton.hh>
+#include <zlib/ZmPLock.hh>
 
 #ifdef _WIN32
 
 #include <intrin.h>
 
-class ZmTime_WinTimer;
+class Zm_WinTimer;
 
-typedef void (*NowFn)(const ZmTime_WinTimer *, ZmTime &);
-void ZmTime_now_fast(const ZmTime_WinTimer *, ZmTime &);
-void ZmTime_now_slow(const ZmTime_WinTimer *, ZmTime &);
-static NowFn ZmTime_nowFn = ZmTime_now_slow;
+typedef ZuTime (*NowFn)(const Zm_WinTimer *);
+ZuTime Zm_now_fast(const Zm_WinTimer *);
+ZuTime Zm_now_slow(const Zm_WinTimer *);
+static NowFn Zm_nowFn = Zm_now_slow;
 
-class ZmTime_WinTimer {
-friend void ZmTime_now_fast(const ZmTime_WinTimer *, ZmTime &);
-friend void ZmTime_now_slow(const ZmTime_WinTimer *, ZmTime &);
+class Zm_WinTimer {
+friend ZuTime Zm_now_fast(const Zm_WinTimer *);
+friend ZuTime Zm_now_slow(const Zm_WinTimer *);
 
 public:
-  ZmTime_WinTimer() { calibrate(); }
+  Zm_WinTimer() { calibrate(); }
 
   long double cpuFreq() const { return m_cpuFreq; }
 
@@ -99,7 +95,7 @@ private:
 
     // adjust FT start to Unix epoch (FT epoch is Jan 1 1601)
  
-    ftStart -= ZmTime_FT_Epoch;
+    ftStart -= Zm_FT_Epoch;
 
     // calculate QPC/FT and nsec/QPC ratios
  
@@ -118,7 +114,7 @@ private:
 
     // divert to faster implementation if QPC frequency == FT frequency
 
-    if (m_qpc_ft == 1000) ZmTime_nowFn = ZmTime_now_fast;
+    if (m_qpc_ft == 1000) Zm_nowFn = Zm_now_fast;
 
     // obtain CPU TSC frequency, preferring CPUID to elapsed TSC
  
@@ -147,6 +143,10 @@ fallback:
       __cpuid((int *)cpuid, 0x15);
       unsigned crystal_khz = (cpuid[2] + 500) / 1000;
       if (!crystal_khz) {
+	// ApolloLake, GeminiLake, CannonLake (and subsequent chipsets)
+	// return crystal_khz directly via CPUID.0x15; SkyLake and KabyLake
+	// and variants erroneously return 0, despite supporting CPUID.0x15,
+	// so these are handled explicitly:
 	switch (model) {
 	  case 0x4e: // INTEL_FAM6_SKYLAKE_MOBILE
 	  case 0x5e: // INTEL_FAM6_SKYLAKE_DESKTOP
@@ -183,8 +183,9 @@ private:
   uint64_t	m_cpuFreq;	// CPU frequency (TSC cycles per second)
 };
 
-void ZmTime_now_slow(const ZmTime_WinTimer *this_, ZmTime &t)
+ZuTime Zm_now_slow(const Zm_WinTimer *this_)
 {
+  ZuTime t;
   uint64_t qpc;
   QueryPerformanceCounter((LARGE_INTEGER *)&qpc);
   qpc *= 1000U;
@@ -195,27 +196,29 @@ void ZmTime_now_slow(const ZmTime_WinTimer *this_, ZmTime &t)
   t.tv_sec = ft / 10000000U;
   ft %= 10000000U;
   t.tv_nsec = (qpc * this_->m_ns_qpc) / 1000000U + ft * 100U;
+  return t;
 }
 
-void ZmTime_now_fast(const ZmTime_WinTimer *this_, ZmTime &t)
+ZuTime Zm_now_fast(const Zm_WinTimer *this_)
 {
+  ZuTime t;
   uint64_t qpc;
   QueryPerformanceCounter((LARGE_INTEGER *)&qpc);
   qpc += this_->m_ftOffset;
   t.tv_sec = qpc / 10000000U;
   qpc %= 10000000U;
   t.tv_nsec = qpc * 100U;
+  return t;
 }
 
-static ZmTime_WinTimer ZmTime_winTimer;
+static Zm_WinTimer Zm_winTimer;
 
-ZmTime &ZmTime::now() {
-  (*ZmTime_nowFn)(&ZmTime_winTimer, *this);
-  return *this;
+ZuTime Zm::now() {
+  return (*Zm_nowFn)(&Zm_winTimer);
 }
 
-uint64_t ZmTime::cpuFreq() {
-  return ZmTime_winTimer.cpuFreq();
+uint64_t Zm::cpuFreq() {
+  return Zm_winTimer.cpuFreq();
 }
 
 #endif /* !_WIN32 */
@@ -223,8 +226,8 @@ uint64_t ZmTime::cpuFreq() {
 // sleep()
 
 #ifndef _WIN32
-void Zm::sleep(ZmTime timeout) {
-  ZmTime remaining;
+void Zm::sleep(ZuTime timeout) {
+  ZuTime remaining;
 
   while (nanosleep(&timeout, &remaining)) {
     if (errno != EINTR) break;
@@ -232,7 +235,7 @@ void Zm::sleep(ZmTime timeout) {
   }
 }
 #else
-void Zm::sleep(ZmTime timeout) {
+void Zm::sleep(ZuTime timeout) {
   Sleep(timeout.millisecs());
 }
 #endif

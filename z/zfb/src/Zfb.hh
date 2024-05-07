@@ -280,7 +280,7 @@ namespace Save {
   }
 
   // time
-  inline Time time(const ZmTime &v) {
+  inline Time time(const ZuTime &v) {
     return {v.sec(), int32_t(v.nsec())};
   }
 
@@ -395,7 +395,7 @@ namespace Load {
 
   // time
   inline auto time(const Time *v) {
-    return ZmTime{static_cast<time_t>(v->sec()), static_cast<long>(v->nsec())};
+    return ZuTime{time_t(v->sec()), long(v->nsec())};
   }
 
   // date/time
@@ -405,12 +405,12 @@ namespace Load {
 
   // int128
   inline int128_t int128(const Int128 *v) {
-    return (static_cast<int128_t>(v->h())<<64) | v->l();
+    return (int128_t(v->h())<<64) | v->l();
   }
 
   // uint128
   inline uint128_t uint128(const UInt128 *v) {
-    return (static_cast<uint128_t>(v->h())<<64) | v->l();
+    return (uint128_t(v->h())<<64) | v->l();
   }
 
   // bitmap

@@ -17,7 +17,7 @@
 #include <mxmd/MxMDLib.hh>
 #endif
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmPLock.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmRef.hh>
@@ -46,10 +46,10 @@ public:
   ZuInline ZiIP interface_() const { return m_interface; }
   ZuInline bool filter() const { return m_filter; }
   ZuInline unsigned maxQueueSize() const { return m_maxQueueSize; }
-  ZuInline ZmTime loginTimeout() const { return ZmTime(m_loginTimeout); }
-  ZuInline ZmTime timeout() const { return ZmTime(m_timeout); }
-  ZuInline ZmTime reconnInterval() const { return ZmTime(m_reconnInterval); }
-  ZuInline ZmTime reReqInterval() const { return ZmTime(m_reReqInterval); }
+  ZuInline ZuTime loginTimeout() const { return ZuTime(m_loginTimeout); }
+  ZuInline ZuTime timeout() const { return ZuTime(m_timeout); }
+  ZuInline ZuTime reconnInterval() const { return ZuTime(m_reconnInterval); }
+  ZuInline ZuTime reReqInterval() const { return ZuTime(m_reReqInterval); }
   ZuInline unsigned reReqMaxGap() const { return m_reReqMaxGap; }
 
   void updateLinks(ZuString channels); // update from CSV
@@ -190,11 +190,11 @@ public:
   void disconnect();		// Rx - calls disconnect_1()
 
   // MxLink CTRP
-  ZmTime reconnInterval(unsigned) { return engine()->reconnInterval(); }
+  ZuTime reconnInterval(unsigned) { return engine()->reconnInterval(); }
 
   // MxLink Rx CRTP
   void process(MxQMsg *);
-  ZmTime reReqInterval() { return engine()->reReqInterval(); }
+  ZuTime reReqInterval() { return engine()->reReqInterval(); }
   void request(const MxQueue::Gap &prev, const MxQueue::Gap &now);
   void reRequest(const MxQueue::Gap &now);
 
@@ -240,16 +240,16 @@ private:
   void rxQueueTooBig(uint32_t count, uint32_t max);
 
   // failover
-  ZuInline ZmTime loginTimeout() { return engine()->loginTimeout(); }
-  ZuInline ZmTime timeout() { return engine()->timeout(); }
+  ZuInline ZuTime loginTimeout() { return engine()->loginTimeout(); }
+  ZuInline ZuTime timeout() { return engine()->timeout(); }
 
   ZuInline void active() { m_active = true; }
   void hbStart();
   void heartbeat();
 
 public:
-  ZmTime lastTime() const { return m_lastTime; }
-  void lastTime(ZmTime t) { m_lastTime = t; }
+  ZuTime lastTime() const { return m_lastTime; }
+  void lastTime(ZuTime t) { m_lastTime = t; }
 
 private:
   const MxMDChannel	*m_channel = 0;
@@ -258,7 +258,7 @@ private:
   ZmScheduler::Timer	m_timer;
   bool			m_active = false;
   unsigned		m_inactive = 0;
-  ZmTime		m_lastTime;
+  ZuTime		m_lastTime;
 
   ZiSockAddr		m_udpResendAddr;
 

@@ -30,7 +30,7 @@ struct TLS : public ZmObject {
 
 class Job : public ZmPolymorph {
 public:
-  Job(const char *message, ZmTime timeout) :
+  Job(const char *message, ZuTime timeout) :
 	m_message(message), m_timeout(timeout) { }
   ~Job() {
     printf("~Job() %p ~%s [%d]\n",
@@ -45,11 +45,11 @@ public:
     return 0;
   }
 
-  ZmTime timeout() { return m_timeout; }
+  ZuTime timeout() { return m_timeout; }
 
 private:
   const char	*m_message;
-  ZmTime	m_timeout;
+  ZuTime	m_timeout;
 };
 
 class Timer : public ZmObject, public ZmTimeout {
@@ -57,7 +57,7 @@ public:
   Timer(ZmScheduler *s, const ZmBackoff &t) : ZmTimeout(s, t, -1) { }
 
   void retry() {
-    ZmTime now = ZmTimeNow();
+    ZuTime now = Zm::now();
 
     printf("%d %ld\n", (int)now.sec(), (long)now.nsec());
   }
@@ -159,17 +159,17 @@ int main(int argc, char **argv)
   ZmScheduler::Timer timers[10];
 
   s.start();
-  ZmTime t(ZmTime::Now);
+  ZuTime t = Zm::now();
   int i;
 
   for (i = 0; i < 10; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
     char *buf = (char *)malloc(32);
     sprintf(buf, "Goodbye World %d", j);
-    // jobs[j - 1] = new Job(buf, t + ZmTime(((double)j) / 10.0));
+    // jobs[j - 1] = new Job(buf, t + ZuTime(((double)j) / 10.0));
     // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
     // s.add(&timers[j - 1], fns[j - 1], jobs[j - 1]->timeout());
-    ZmTime out = t + ZmTime(((double)j) / 10.0);
+    ZuTime out = t + ZuTime(((double)j) / 10.0);
     s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
     printf("Hello World %d\n", j);
@@ -194,10 +194,10 @@ int main(int argc, char **argv)
     // timers[j - 1] = 0;
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
-    Zm::sleep(ZmTime(.1));
+    Zm::sleep(ZuTime(.1));
   }
 
-  Zm::sleep(ZmTime(.6));
+  Zm::sleep(ZuTime(.6));
 
   puts("threads:");
   std::cout << ZmThread::csv() << '\n';
@@ -206,15 +206,15 @@ int main(int argc, char **argv)
 
   s.start();
 
-  t.now();
+  t = Zm::now();
 
   for (i = 0; i < 10; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
     char *buf = (char *)malloc(32);
     sprintf(buf, "Goodbye World %d", j);
-    // jobs[j - 1] = new Job(buf, t + ZmTime(((double)j) / 10.0));
+    // jobs[j - 1] = new Job(buf, t + ZuTime(((double)j) / 10.0));
     // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
-    ZmTime out = t + ZmTime(((double)j) / 10.0);
+    ZuTime out = t + ZuTime(((double)j) / 10.0);
     s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
     printf("Hello World %d\n", j);
@@ -237,17 +237,17 @@ int main(int argc, char **argv)
     // timers[j - 1] = 0;
     // fns[j - 1] = ZmFn<>();
     // jobs[j - 1] = 0;
-    Zm::sleep(ZmTime(.1));
+    Zm::sleep(ZuTime(.1));
   }
 
-  Zm::sleep(ZmTime(.6));
+  Zm::sleep(ZuTime(.6));
 
   puts("threads:");
   std::cout << ZmThread::csv() << '\n';
 
   s.stop();
 
-  ZmBackoff o(ZmTime(.25), ZmTime(5), 1.25, .25);
+  ZmBackoff o(ZuTime(.25), ZuTime(5), 1.25, .25);
 
   s.start();
 
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
   r->retry();
   r->start(ZmFn<>::Member<&Timer::retry>::fn(r.ptr()));
 
-  Zm::sleep(ZmTime(8));
+  Zm::sleep(ZuTime(8));
 
   r->stop();
 

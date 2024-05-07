@@ -84,7 +84,7 @@ private:
   HMODULE		m_ntdll;
   PNtQueryObject	m_ntQueryObject;
   ZmLock		m_lock;
-  ZmTime		m_lastRefresh;
+  ZuTime		m_lastRefresh;
   DriveLetters		m_driveLetters;
   DriveBlkSizes		m_driveBlkSizes;
 };
@@ -111,7 +111,7 @@ ZiFile_WindowsDrives::~ZiFile_WindowsDrives()
 
 void ZiFile_WindowsDrives::refresh()
 {
-  ZmTime now(ZmTime::Now);
+  ZuTime now = Zm::now();
 
   if ((now - m_lastRefresh).sec() < 1) return;
 
@@ -980,12 +980,12 @@ error:
   return Zi::IOError;
 }
 
-ZmTime ZiFile::mtime(const Path &name, ZeError *e)
+ZuTime ZiFile::mtime(const Path &name, ZeError *e)
 {
 #ifndef _WIN32
   struct stat s;
   if (::stat(name, &s) < 0) goto error;
-  return ZmTime{s.st_mtime};
+  return ZuTime{s.st_mtime};
 #else
   Handle h;
   FILETIME mtime;
@@ -993,12 +993,12 @@ ZmTime ZiFile::mtime(const Path &name, ZeError *e)
   if (h == INVALID_HANDLE_VALUE) goto error;
   if (!GetFileTime(h, 0, 0, &mtime)) { CloseHandle(h); goto error; }
   CloseHandle(h);
-  return ZmTime{mtime};
+  return ZuTime{mtime};
 #endif
 
 error:
   if (e) *e = ZeLastError;
-  return ZmTime{};
+  return ZuTime{};
 }
 
 bool ZiFile::isdir(const Path &name, ZeError *e)

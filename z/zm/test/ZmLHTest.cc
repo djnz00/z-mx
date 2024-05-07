@@ -302,7 +302,7 @@ template <typename H, template <typename> class A> void perfTest()
 
 int main(int argc, char **argv)
 {
-  ZmTime start, end;
+  ZuTime start, end;
 
   funcTest<Hash, HashAdapter>();
   funcTest<LHash, LHashAdapter>();
@@ -312,16 +312,16 @@ int main(int argc, char **argv)
 
   printf("perfTestSize=%d concurrency=%d\n", perfTestSize, concurrency);
 
-  start.now();
+  start = Zm::now();
   for (int i = 0; i < 10; i++) perfTest<PerfHash, HashAdapter>();
-  end.now();
+  end = Zm::now();
   end -= start;
   printf("ZmHash time: %d.%.3d\n",
     (int)end.sec(), (int)(end.nsec() / 1000000));
 
-  start.now();
+  start = Zm::now();
   for (int i = 0; i < 10; i++) perfTest<PerfLHash, LHashAdapter>();
-  end.now();
+  end = Zm::now();
   end -= start;
   printf("ZmLHash time: %d.%.3d\n",
     (int)end.sec(), (int)(end.nsec() / 1000000));

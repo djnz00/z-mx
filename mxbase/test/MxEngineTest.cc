@@ -59,8 +59,8 @@ public:
   void up() { ZeLOG(Info, "UP"); }
   void down() { ZeLOG(Info, "DOWN"); }
 
-  ZmTime reconnInterval() { return ZmTime(m_reconnInterval); }
-  ZmTime reReqInterval() { return ZmTime(m_reReqInterval); }
+  ZuTime reconnInterval() { return ZuTime(m_reconnInterval); }
+  ZuTime reReqInterval() { return ZuTime(m_reReqInterval); }
 
   int action() const { return m_action; }
   void action(int v) { m_action = v; }
@@ -96,7 +96,7 @@ public:
   }
 
   // MxLink CTRP
-  ZmTime reconnInterval(unsigned) { return engine()->reconnInterval(); }
+  ZuTime reconnInterval(unsigned) { return engine()->reconnInterval(); }
 
   // MxAnyLink virtual
   void update(const ZvCf *cf) { }
@@ -127,7 +127,7 @@ public:
 
   // MxLink Rx CRTP
   void process(MxQMsg *msg) { }
-  ZmTime reReqInterval() { return engine()->reReqInterval(); }
+  ZuTime reReqInterval() { return engine()->reReqInterval(); }
   void request(const MxQueue::Gap &prev, const MxQueue::Gap &now) { }
   void reRequest(const MxQueue::Gap &now) { }
 

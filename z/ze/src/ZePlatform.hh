@@ -38,6 +38,7 @@
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmStream.hh>
+#include <zlib/ZmTime.hh>
 
 #include <zlib/ZtDate.hh>
 #include <zlib/ZtString.hh>
@@ -133,7 +134,7 @@ inline ZeError Ze_LastSockError() { return ZeError{Ze::sockErrNo()}; }
 struct ZeEventInfo {
   using ThreadID = Zm::ThreadID;
 
-  ZmTime	time;
+  ZuTime	time;
   ThreadID	tid;
   int		severity;	// Ze:: Debug, Info, Warning, Error, Fatal
   const char	*file;
@@ -144,7 +145,7 @@ struct ZeEventInfo {
       int severity_,
       const char *file_, int line_,
       const char *function_) :
-    time{ZmTime::Now}, tid{Zm::getTID()},
+    time{Zm::now()}, tid{Zm::getTID()},
     severity{severity_},
     file{file_}, line{line_},
     function{function_} { }

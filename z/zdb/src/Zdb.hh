@@ -1748,7 +1748,7 @@ private:
   int			m_nPeers = 0;	// # up to date peers
 					// # votes received (Electing)
 					// # pending disconnects (Stopping)
-  ZmTime		m_hbSendTime;
+  ZuTime		m_hbSendTime;
 
   bool			m_standalone = false;
 
@@ -1859,7 +1859,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, KeyID>> context)
 	dlq.unshift(ZuMv(context)); // unshift, not push
 	table->run([table]() {
 	  table->template retryRetrieve_<KeyID>();
-	}, ZmTimeNow(table->db()->config().retryFreq));
+	}, Zm::now(table->db()->config().retryFreq));
 	return;
       }
       if (ZuLikely(result.is<RowData>())) {

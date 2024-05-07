@@ -37,7 +37,7 @@
 #include <zlib/ZmCleanup.hh>
 #include <zlib/ZmSemaphore.hh>
 #include <zlib/ZmThread.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmRing.hh>
 #include <zlib/ZmRingFn.hh>
 
@@ -116,10 +116,10 @@ class ZeAPI ZeDebugSink : public ZeSink {
 
 public:
   ZeDebugSink() : ZeSink{ZeSinkType::Debug},
-    m_started{ZmTime::Now} { init(); }
+    m_started{Zm::now()} { init(); }
   ZeDebugSink(const ZeSinkOptions &options) :
       ZeSink{ZeSinkType::Debug},
-      m_path{options.path()}, m_started{ZmTime::Now} { init(); }
+      m_path{options.path()}, m_started{Zm::now()} { init(); }
 
   ~ZeDebugSink();
 
@@ -132,7 +132,7 @@ private:
 
   ZtString	m_path;
   FILE *	m_file = nullptr;
-  ZmTime	m_started;
+  ZuTime	m_started;
 };
 
 struct ZeAPI ZeSysSink : public ZeSink {

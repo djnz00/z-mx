@@ -17,7 +17,7 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmRandom.hh>
 
 // ZmBackoff(minimum, maximum, backoff multiplier, random offset)
@@ -25,32 +25,32 @@
 class ZmAPI ZmBackoff {
 public:
   ZmBackoff(
-      ZmTime minimum, ZmTime maximum,
+      ZuTime minimum, ZuTime maximum,
       double backoff, double random) :
     m_min(ZuMv(minimum)), m_max(ZuMv(maximum)),
     m_backoff(backoff), m_random(random) { }
 
-  ZmTime minimum() { return(m_min); }
-  ZmTime maximum() { return(m_max); }
+  ZuTime minimum() { return(m_min); }
+  ZuTime maximum() { return(m_max); }
 
-  ZmTime initial() {
+  ZuTime initial() {
     double d = m_min.dtime();
     if (m_random) d += ZmRand::rand(m_random);
-    return ZmTime(d);
+    return ZuTime(d);
   }
 
-  ZmTime backoff(const ZmTime &interval) {
+  ZuTime backoff(const ZuTime &interval) {
     if (interval >= m_max) return m_max;
     double d = interval.dtime();
     d *= m_backoff;
     if (m_random) d += ZmRand::rand(m_random);
     if (d >= m_max.dtime()) d = m_max.dtime();
-    return ZmTime(d);
+    return ZuTime(d);
   }
 
 private:
-  const ZmTime	m_min;
-  const ZmTime	m_max;
+  const ZuTime	m_min;
+  const ZuTime	m_max;
   const double	m_backoff;
   const double	m_random;
 };

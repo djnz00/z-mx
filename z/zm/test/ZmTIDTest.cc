@@ -1,5 +1,5 @@
 #include <zlib/ZmPlatform.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 #include <iostream>
 

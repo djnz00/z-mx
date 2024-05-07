@@ -258,9 +258,9 @@ void DB::start_()
   }
 
   run([this]() { hbSend(); },
-      m_hbSendTime = ZmTimeNow(), &m_hbSendTimer);
+      m_hbSendTime = Zm::now(), &m_hbSendTimer);
   run([this]() { holdElection(); },
-      ZmTimeNow(int(m_cf.electionTimeout)), &m_electTimer);
+      Zm::now(int(m_cf.electionTimeout)), &m_electTimer);
 
   listen();
 
@@ -360,7 +360,7 @@ void DB::listening(const ZiListenInfo &)
 void DB::listenFailed(bool transient)
 {
   bool retry = transient && running();
-  if (retry) run([this]() { listen(); }, ZmTimeNow((int)m_cf.reconnectFreq));
+  if (retry) run([this]() { listen(); }, Zm::now((int)m_cf.reconnectFreq));
   ZeLOG(Warning, ([ip = m_self->ip(), port = m_self->port(), retry](auto &s) {
     s << "Zdb listen failed on (" << ip << ':' << port << ')';
     if (retry) s << " - retrying...";
@@ -666,7 +666,7 @@ void Cxn_::connected(ZiIOContext &io)
   });
 
   m_db->run([self = ZmMkRef(this)]() { self->hbTimeout(); },
-      ZmTimeNow(int(m_db->config().heartbeatTimeout)),
+      Zm::now(int(m_db->config().heartbeatTimeout)),
       ZmScheduler::Defer, &m_hbTimer);
 
   msgRead(io);
@@ -739,7 +739,7 @@ void Host::associate(Cxn *cxn)
 void Host::reconnect()
 {
   m_db->run([this]() { connect(); },
-      ZmTimeNow(int(m_db->config().reconnectFreq)),
+      Zm::now(int(m_db->config().reconnectFreq)),
       ZmScheduler::Defer, &m_connectTimer);
 }
 
@@ -1159,7 +1159,7 @@ int Cxn_::msgRead2(ZmRef<AnyBuf> buf)
     }
 
     m_db->run([this]() { hbTimeout(); },
-	ZmTimeNow(int(m_db->config().heartbeatTimeout)),
+	Zm::now(int(m_db->config().heartbeatTimeout)),
 	ZmScheduler::Defer, &m_hbTimer);
 
     return length;
@@ -1532,7 +1532,7 @@ void AnyTable::store_(ZmRef<const AnyBuf> buf)
 	s << "Zdb store of " << id << '/' << un << " failed";
       }));
       m_storeDLQ.unshift(ZuMv(buf)); // unshift, not push
-      run([this]() { retryStore_(); }, ZmTimeNow(db()->config().retryFreq));
+      run([this]() { retryStore_(); }, Zm::now(db()->config().retryFreq));
       return;
     }
     {

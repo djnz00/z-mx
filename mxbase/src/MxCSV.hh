@@ -81,7 +81,7 @@ public:
   void parse_(MxDateTime *t, ZuString b) {
     new (t) MxDateTime(
 	MxDateTime::YYYYMMDD, m_yyyymmdd, MxDateTime::HHMMSS, MxUInt(b));
-    *t -= ZmTime(m_tzOffset);
+    *t -= ZuTime(m_tzOffset);
   }
   void place_(ZtArray<char> &b, const MxDateTime *t) {
     MxDateTime l = *t + m_tzOffset;

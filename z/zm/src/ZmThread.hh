@@ -144,10 +144,10 @@ public:
 #endif
   clockid_t cid() const { return m_cid; }
   double cpuUsage() const {
-    ZmTime cpuLast = m_cpuLast;
-    ZmTime rtLast = m_rtLast;
+    ZuTime cpuLast = m_cpuLast;
+    ZuTime rtLast = m_rtLast;
     clock_gettime(m_cid, &m_cpuLast);
-    m_rtLast.now();
+    m_rtLast = Zm::now();
     if (ZuUnlikely(!cpuLast || !rtLast)) return 0.0;
     double cpuDelta = (m_cpuLast - cpuLast).dtime();
     double rtDelta = (m_rtLast - rtLast).dtime();
@@ -196,8 +196,8 @@ protected:
   pid_t			m_tid = 0;
 #endif
   clockid_t		m_cid = 0;
-  mutable ZmTime	m_cpuLast = 0;
-  mutable ZmTime	m_rtLast = 0;
+  mutable ZuTime	m_cpuLast = 0;
+  mutable ZuTime	m_rtLast = 0;
 #else /* !_WIN32 */
   unsigned		m_tid = 0;
   HANDLE		m_handle = 0;

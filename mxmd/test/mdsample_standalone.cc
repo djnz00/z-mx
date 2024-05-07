@@ -156,7 +156,7 @@ void timer(MxDateTime now, MxDateTime &next)
 {
   auto &fmt = ZmTLS<ZtDateFmt::ISO, timer>();
   std::cout << "TIMER " << now.iso(fmt) << '\n' << std::flush;
-  next = now + ZmTime(1);
+  next = now + ZuTime(1);
 }
 
 void loaded(MxMDVenue *venue)
@@ -422,7 +422,7 @@ void publish()
       }
 
     // wait one second between ticks
-    } while (sem.timedwait(ZmTimeNow(1)) < 0);
+    } while (sem.timedwait(Zm::now(1)) < 0);
 
   } catch (const ZtString &s) {
     ZeLOG(Error, s);

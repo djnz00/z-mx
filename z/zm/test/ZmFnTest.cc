@@ -367,9 +367,9 @@ int main()
     double baseline;
     {
       Derived d(i);
-      ZmTime begin(ZmTime::Now);
+      ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) d.foo();
-      ZmTime end(ZmTime::Now); end -= begin;
+      ZuTime end = Zm::now(); end -= begin;
       baseline = end.dtime();
       puts(ZuStringN<80>{} <<
 	  "direct call:\t" << ZuBoxed(baseline).fmt<ZuFmt::FP<9>>() <<
@@ -378,9 +378,9 @@ int main()
     {
       Derived d(i);
       ZmFn<> bar = ZmFn<>::Member<&Base::foo>::fn(&d);
-      ZmTime begin(ZmTime::Now);
+      ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) bar();
-      ZmTime end(ZmTime::Now); end -= begin;
+      ZuTime end = Zm::now(); end -= begin;
       puts(ZuStringN<80>{} << "castFn:\t\t" <<
 	  ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
 	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
@@ -388,9 +388,9 @@ int main()
     {
       Derived d(i);
       ZmFn<> baz = ZmFn<>(&d, [](Derived *d_) { d_->foo(); });
-      ZmTime begin(ZmTime::Now);
+      ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
-      ZmTime end(ZmTime::Now); end -= begin;
+      ZuTime end = Zm::now(); end -= begin;
       puts(ZuStringN<80>{} << "fast lambdaFn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
@@ -398,9 +398,9 @@ int main()
     {
       Derived d(i);
       ZmFn<> baz = ZmFn<>([&d]() { d.foo(); });
-      ZmTime begin(ZmTime::Now);
+      ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
-      ZmTime end(ZmTime::Now); end -= begin;
+      ZuTime end = Zm::now(); end -= begin;
       puts(ZuStringN<80>{} << "slow lambdaFn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
@@ -408,9 +408,9 @@ int main()
     {
       Derived d(i);
       Base *b = &d;
-      ZmTime begin(ZmTime::Now);
+      ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) b->bar();
-      ZmTime end(ZmTime::Now); end -= begin;
+      ZuTime end = Zm::now(); end -= begin;
       puts(ZuStringN<80>{} << "virtual fn:\t" <<
 	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");

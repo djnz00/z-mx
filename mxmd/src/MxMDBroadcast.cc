@@ -113,7 +113,7 @@ void MxMDBroadcast::heartbeat_()
   }
   m_lastTime.now();
   m_core->mx()->add(ZmFn<>::Member<&MxMDBroadcast::heartbeat>::fn(this),
-      m_lastTime + ZmTime{(time_t)1, 0}, &m_hbTimer);
+      m_lastTime + ZuTime{(time_t)1, 0}, &m_hbTimer);
 }
 
 void MxMDBroadcast::eof()
@@ -141,7 +141,7 @@ void *MxMDBroadcast::push(unsigned size)
 void *MxMDBroadcast::out(
     void *ptr, unsigned length, unsigned type, int shardID)
 {
-  ZmTime delta = ZmTimeNow() - m_lastTime;
+  ZuTime delta = Zm::now() - m_lastTime;
   uint32_t nsec = delta.sec() * 1000000000 + delta.nsec();
   Hdr *hdr = new (ptr) Hdr{
       (uint64_t)m_seqNo++, nsec,

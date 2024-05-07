@@ -23,6 +23,7 @@
 #include <zlib/ZmFn.hh>
 #include <zlib/ZmPolymorph.hh>
 #include <zlib/ZmEngine.hh>
+#include <zlib/ZmTime.hh>
 
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvIOQueue.hh>
@@ -125,7 +126,7 @@ protected:
   void reconnecting();	// transition direct from Up to Connecting
   void reconnect(bool immediate);
 
-  virtual ZmTime reconnInterval(unsigned) { return ZmTime{1}; }
+  virtual ZuTime reconnInterval(unsigned) { return ZuTime{1}; }
 
 private:
   void up_(bool enable);
@@ -455,7 +456,7 @@ public:
 // CRTP - implementation must conform to the following interface:
 #if 0
 struct TxPoolImpl : public ZvTxPool<TxPoolImpl> {
-  ZmTime reconnInterval(unsigned reconnects); // optional - defaults to 1sec
+  ZuTime reconnInterval(unsigned reconnects); // optional - defaults to 1sec
 };
 #endif
 
@@ -515,11 +516,11 @@ private:
 // (Note: can be derived from TxPoolImpl above)
 #if 0
 struct Link : public ZvLink<Link> {
-  ZmTime reconnInterval(unsigned reconnects); // optional - defaults to 1sec
+  ZuTime reconnInterval(unsigned reconnects); // optional - defaults to 1sec
 
   // Rx
   void process(ZvIOMsg *);
-  ZmTime reReqInterval(); // resend request interval
+  ZuTime reReqInterval(); // resend request interval
   void request(const ZvIOQueue::Gap &prev, const ZvIOQueue::Gap &now);
   void reRequest(const ZvIOQueue::Gap &now);
 
@@ -576,10 +577,10 @@ public:
     scheduleReRequest_(guard);
   }
   void scheduleReRequest_(RRGuard &guard) {
-    ZmTime interval = impl()->reReqInterval();
+    ZuTime interval = impl()->reReqInterval();
     if (!interval) return;
-    m_rrTime.now();
-    ZmTime rrTime = (m_rrTime += interval);
+    m_rrTime = Zm::now();
+    ZuTime rrTime = (m_rrTime += interval);
     guard.unlock();
     rxRun([](Rx *rx) { rx->reRequest(); }, rrTime, &m_rrTimer);
   }
@@ -587,7 +588,7 @@ public:
     this->mx()->del(&m_rrTimer);
     {
       RRGuard guard(m_rrLock);
-      m_rrTime = ZmTime();
+      m_rrTime = ZuTime();
     }
   }
 
@@ -679,7 +680,7 @@ private:
   ZmScheduler::Timer	m_rrTimer;
 
   RRLock		m_rrLock;
-    ZmTime		  m_rrTime;
+    ZuTime		  m_rrTime;
 };
 
 #endif /* ZvEngine_HH */

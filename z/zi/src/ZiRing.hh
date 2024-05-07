@@ -155,12 +155,12 @@ struct Ctrl<true> : public ZmRing_::Ctrl<true> {
   ZmAtomic<uint32_t>		openSize; // opened size
   uint32_t			pad_6;
   uint32_t			rdrPID[MaxRdrs];
-  ZmTime			rdrTime[MaxRdrs];
+  ZuTime			rdrTime[MaxRdrs];
 };
 template <>
 struct Ctrl<false> : public Ctrl<true> {
   ZmAtomic<uint32_t>		writerPID;
-  ZmTime			writerTime;
+  ZuTime			writerTime;
 };
 
 template <typename CtrlMem_, typename Ctrl_, bool MW>
@@ -186,13 +186,13 @@ protected:
     { return ctrl()->openSize; }
   ZuInline uint32_t *rdrPID() { return ctrl()->rdrPID; }
   ZuInline const uint32_t *rdrPID() const { return ctrl()->rdrPID; }
-  ZuInline ZmTime *rdrTime() { return ctrl()->rdrTime; }
-  ZuInline const ZmTime *rdrTime() const { return ctrl()->rdrTime; }
+  ZuInline ZuTime *rdrTime() { return ctrl()->rdrTime; }
+  ZuInline const ZuTime *rdrTime() const { return ctrl()->rdrTime; }
 
   ZuInline ZmAtomic<uint32_t> &writerPID();		// unused
   ZuInline const ZmAtomic<uint32_t> &writerPID() const;	// ''
-  ZuInline ZmTime &writerTime();			// ''
-  ZuInline const ZmTime &writerTime() const;		// ''
+  ZuInline ZuTime &writerTime();			// ''
+  ZuInline const ZuTime &writerTime() const;		// ''
 };
 template <typename CtrlMem_, typename Ctrl_>
 class CtrlMgr_<CtrlMem_, Ctrl_, false> :
@@ -214,8 +214,8 @@ protected:
   ZuInline ZmAtomic<uint32_t> &writerPID() { return ctrl()->writerPID; }
   ZuInline const ZmAtomic<uint32_t> &writerPID() const
     { return ctrl()->writerPID; }
-  ZuInline ZmTime &writerTime() { return ctrl()->writerTime; }
-  ZuInline const ZmTime &writerTime() const { return ctrl()->writerTime; }
+  ZuInline ZuTime &writerTime() { return ctrl()->writerTime; }
+  ZuInline const ZuTime &writerTime() const { return ctrl()->writerTime; }
 };
 template <typename CtrlMem, bool MW>
 using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl<MW>, MW>;
@@ -261,8 +261,8 @@ private:
 // ring extensions base class for shared memory IPC
 class ZiAPI RingExt_ {
 public:
-  static void getpinfo(uint32_t &pid, ZmTime &start);
-  static bool alive(uint32_t pid, ZmTime start);
+  static void getpinfo(uint32_t &pid, ZuTime &start);
+  static bool alive(uint32_t pid, ZuTime start);
   static bool kill(uint32_t pid, bool coredump);
 };
 
@@ -334,7 +334,7 @@ inline bool RingExt<Ring, MW, MR>::open_()
   if constexpr (!MW)
     if (ring()->flags() & Ring::Write) {
       uint32_t pid;
-      ZmTime start;
+      ZuTime start;
       getpinfo(pid, start);
       uint32_t oldPID = ring()->writerPID().load_();
       if (alive(oldPID, ring()->writerTime()) ||
@@ -353,7 +353,7 @@ inline void RingExt<Ring, MW, MR>::close_()
 {
   if constexpr (!MW)
     if (ring()->flags() & Ring::Write) {
-      ring()->writerTime() = ZmTime{}; // writerPID store is a release
+      ring()->writerTime() = ZuTime{}; // subsequent writerPID store releases
       ring()->writerPID() = 0;
     }
 
@@ -468,7 +468,7 @@ inline unsigned RingExt<Ring, MW, MR>::kill()
   for (unsigned id = 0; id < MaxRdrs; id++)
     if (hdr & (1ULL<<id))
       kill(rdrPID[id], params.coredump);
-  Zm::sleep(ZmTime{static_cast<time_t>(params.killWait)});
+  Zm::sleep(ZuTime{time_t(params.killWait)});
   return gc();
 }
 
@@ -482,7 +482,7 @@ template <typename Ring, bool MW, bool MR>
 inline void RingExt<Ring, MW, MR>::detached(unsigned id)
 {
   (ring()->rdrPID())[id] = 0;
-  (ring()->rdrTime())[id] = ZmTime{};
+  (ring()->rdrTime())[id] = ZuTime{};
 }
 
 } // ZiRing_

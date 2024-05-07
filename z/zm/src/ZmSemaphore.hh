@@ -18,7 +18,7 @@
 #endif
 
 #include <zlib/ZmPlatform.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 class
 #ifndef _WIN32
@@ -42,7 +42,7 @@ public:
     do { r = sem_wait(&m_sem); } while (r < 0 && errno == EINTR);
   }
   ZuInline int trywait() { return sem_trywait(&m_sem); }
-  ZuInline int timedwait(ZmTime timeout) {
+  ZuInline int timedwait(ZuTime timeout) {
     do {
       if (!sem_timedwait(&m_sem, &timeout)) return 0;
     } while (errno == EINTR);
@@ -61,8 +61,8 @@ public:
     }
     return -1;
   }
-  ZuInline int timedwait(ZmTime timeout) {
-    timeout -= ZmTimeNow();
+  ZuInline int timedwait(ZuTime timeout) {
+    timeout -= Zm::now();
     int m = timeout.millisecs();
     if (m <= 0) return -1;
     if (WaitForSingleObject(m_sem, m) == WAIT_OBJECT_0) return 0;

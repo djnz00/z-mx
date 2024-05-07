@@ -161,7 +161,7 @@ void ZmScheduler::timer()
     if (stopped()) return;
 
     {
-      ZmTime minimum;
+      ZuTime minimum;
 
       {
 	SchedGuard schedGuard(m_schedLock);
@@ -177,7 +177,7 @@ void ZmScheduler::timer()
 
     if (stopped()) return;
 
-    ZmTime now(ZmTime::Now);
+    ZuTime now = Zm::now();
     now += m_params.quantum();
 
     {
@@ -197,7 +197,7 @@ void ZmScheduler::timer()
 	  Zm::sleep(m_params.quantum());
 	  return;
 	}
-	timer->timeout = ZmTime{};
+	timer->timeout = ZuTime{};
 	if (timer->transient) delete timer;
       }
     }
@@ -217,7 +217,7 @@ bool ZmScheduler::timerAdd(Fn &fn)
 }
 
 void ZmScheduler::schedule_(
-    unsigned sid, Fn &fn, ZmTime timeout, int mode, Timer *timer)
+    unsigned sid, Fn &fn, ZuTime timeout, int mode, Timer *timer)
 {
   ZmAssert(sid <= m_params.nThreads());
 
@@ -238,10 +238,10 @@ void ZmScheduler::schedule_(
 	  break;
       }
       m_schedule.delNode(timer);
-      timer->timeout = ZmTime{};
+      timer->timeout = ZuTime{};
     }
 
-    if (ZuUnlikely(timeout <= ZmTimeNow())) {
+    if (ZuUnlikely(timeout <= Zm::now())) {
       if (ZuLikely(sid)) {
 	if (ZuLikely(tryRun_(&m_threads[sid - 1], fn))) return;
       } else {
@@ -267,7 +267,7 @@ bool ZmScheduler::del(Timer *timer)
 
   if (!*timer) return false;
   bool found = !!m_schedule.delNode(timer);
-  timer->timeout = ZmTime{};
+  timer->timeout = ZuTime{};
   if (timer->transient) delete timer;
   return found;
 }

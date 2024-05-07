@@ -45,33 +45,33 @@ int main(int argc, char **argv)
   {
     ZtDateFmt::FIX<-9, Null> fmt;
     ZuStringN<32> fix;
-    ZmTime start, end;
-    start.now();
+    ZuTime start, end;
+    start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
       ZtDate d1{ZtDate::Now};
       fix << d1.print(fmt);
       ZtDate d2{ZtDateScan::FIX{}, fix};
     }
-    end.now();
+    end = Zm::now();
     end -= start;
     double d1 = end.dtime() / (double)n;
     printf("time per cycle 1: %.9f\n", d1);
 
-    start.now();
+    start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
       ZtDate d1{ZtDate::Now};
       fix << d1.print(fmt);
     }
-    end.now();
+    end = Zm::now();
     end -= start;
     double d2 = end.dtime() / (double)n;
     printf("time per cycle 2: %.9f\n", d2);
 
-    start.now();
+    start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
       ZtDate d1{ZtDate::Now};
     }
-    end.now();
+    end = Zm::now();
     end -= start;
     double d3 = end.dtime() / (double)n;
     printf("time per cycle 3: %.9f\n", d3);

@@ -16,7 +16,7 @@
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmSemaphore.hh>
 #include <zlib/ZmTimeInterval.hh>
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZmTrap.hh>
 
 #include <zlib/ZeLog.hh>
@@ -202,7 +202,7 @@ void Source::connectFailed(bool transient)
 {
   if (transient) m_app->mx()->add(
       ZmFn<>::Member<&Source::connect>::fn(ZmMkRef(this)),
-      ZmTimeNow((int)m_app->reconnectFreq()));
+      Zm::now((int)m_app->reconnectFreq()));
 }
 
 Connection::Connection(Source *source, const ZiCxnInfo &ci) :
@@ -238,7 +238,7 @@ void Msg_<Heap>::recv(ZiIOContext &io)
 template <typename Heap>
 void Msg_<Heap>::rcvd(ZiIOContext &io)
 {
-  ZmTime now{ZmTime::Now};
+  ZuTime now{ZuTime::Now};
   m_hdr.len = io.offset + io.length;
   m_hdr.group = m_cxn->group().id;
   m_hdr.sec = now.sec();

@@ -199,7 +199,7 @@ public:
     }
     // was not successful, so use time now instead
 #endif
-    seed(ZmTime(ZmTime::Now).hash());
+    seed(Zm::now().hash());
   }
   void seed(uint32_t oneSeed) {
     // seed the generator with a simple uint32_t
@@ -379,5 +379,5 @@ public:
 
 // ZmRandom
 //	- Reformatting/renaming
-//	- Use ZmTime for seeding
+//	- Use ZuTime for seeding
 //	- Removed save/load/streaming methods

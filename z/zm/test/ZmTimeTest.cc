@@ -8,6 +8,7 @@
 
 #include <iostream>
 
+#include <zlib/ZmPlatform.hh>
 #include <zlib/ZmTime.hh>
 
 void fail() { Zm::exit(1); }
@@ -20,12 +21,12 @@ void out(const char *s) {
 
 int main()
 {
-  ZmTime t;
+  ZuTime t;
   CHECK(!*t);
   CHECK(!!t);
   CHECK(t);
-  ZmTime t2 = 0;
+  ZuTime t2 = 0;
   CHECK(*t2);
   CHECK(!t2);
-  std::cout << ZmTimeNow() << '\n';
+  std::cout << Zm::now() << '\n';
 }

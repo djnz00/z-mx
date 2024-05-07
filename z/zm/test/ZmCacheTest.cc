@@ -9,6 +9,7 @@
 #include <zlib/ZuLib.hh>
 
 #include <zlib/ZmCache.hh>
+#include <zlib/ZmTime.hh>
 #include <zlib/ZmRBTree.hh>
 
 struct Z {
@@ -70,7 +71,7 @@ int main(int argc, char **argv)
   unsigned batchSize = 100;
   unsigned nThreads = 2;
   unsigned nLoops = 2;
-  ZmTime overallStart, overallEnd;
+  ZuTime overallStart, overallEnd;
 
   if (argc > 1) cacheSize = batchSize = atoi(argv[1]);
   if (argc > 2) batchSize = atoi(argv[2]);
@@ -81,7 +82,7 @@ int main(int argc, char **argv)
 
   std::cout << "spawning "  << nThreads << " threads...\n";
 
-  overallStart.now();
+  overallStart = Zm::now();
 
   ZCache cache{ZmHashParams{cacheSize}};
   ZTree tree;

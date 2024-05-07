@@ -19,7 +19,7 @@
 
 #include <zlib/ZuByteSwap.hh>
 
-#include <zlib/ZmTime.hh>
+#include <zlib/ZuTime.hh>
 
 #include <zlib/ZtlsHMAC.hh>
 

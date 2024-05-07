@@ -389,7 +389,7 @@ ZeDebugSink::~ZeDebugSink()
 
 void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
-  ZmTime d = info.time - m_started;
+  ZuTime d = info.time - m_started;
 
   buf << '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
     ZuBoxed(info.tid) << ' ' <<
