@@ -17,29 +17,15 @@
 #include <zlib/ZtLib.hh>
 #endif
 
-#include <locale.h>
-#include <string.h>
-#include <wchar.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
-
-#ifndef _WIN32
-#include <sys/types.h>
-#endif
-
-#include <zlib/ZuInt.hh>
 
 namespace Zt {
 
-// environment and timezone manipulation
+// environment manipulation
 #ifndef _WIN32
-inline int putenv(const char *s) { return ::putenv((char *)s); }
-inline void tzset(void) { ::tzset(); }
+inline int putenv(const char *s) { return ::putenv(const_cast<char *>(s)); }
 #else
-inline int putenv(const char *s) { return ::_putenv((char *)s); }
-inline void tzset(void) { ::_tzset(); }
+inline int putenv(const char *s) { return ::_putenv(const_cast<char *>(s)); }
 #endif
 
 } // namespace Zt

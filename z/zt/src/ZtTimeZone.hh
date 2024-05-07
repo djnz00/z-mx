@@ -5,12 +5,15 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // tzOffset() calls tzset() if the tz argument is non-null
-// - this should not be called with high frequency by high-performance
-//   applications with a non-null tz since:
-// - it acquires/releases a global lock, since tzset() is not thread-safe
+// - it sets and reverts the TZ environment variable as necessary
+// - it acquires and releases a global lock to ensure serialization
+//   (tzset() is not thread-safe in any case)
+// - it should not be called with high frequency by high-performance
+//   applications with a non-null tz since
 // - it is potentially time-consuming
-// - it may access and temporarily modify global environment variables
-// - tzset() may in turn access system configuration files and/or external
+// - it is single-threaded
+// - it accesses and temporarily modifies global environment variables
+// - tzset() probably accesses system configuration files and/or external
 //   timezone databases
 
 #ifndef ZtTimeZone_HH
@@ -27,6 +30,13 @@
 #include <zlib/ZuDateTime.hh>
 
 namespace Zt {
+
+// timezone manipulation
+#ifndef _WIN32
+inline void tzset(void) { ::tzset(); }
+#else
+inline void tzset(void) { ::_tzset(); }
+#endif
 
 ZtExtern int tzOffset(const ZuDateTime &value, const char *tz = nullptr);
 
