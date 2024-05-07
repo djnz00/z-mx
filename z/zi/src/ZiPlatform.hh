@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// platform primitives
+// platform-specific I/O primitives
 
 #ifndef ZiPlatform_HH
 #define ZiPlatform_HH
