@@ -2,7 +2,7 @@
 //  vi: noet ts=8 sw=2 cino=+0,(s,l1,m1,g0,N-s,j1,U1,W2,i2
 
 // (c) Copyright 2024 Psi Labs
-// This code is licensed under the MIT license (see LICENSE for details)
+// This code is licensed by the MIT license (see LICENSE for details)
 
 // 128bit decimal fixed point with 36 digits and constant 10^18 scaling, i.e.
 // 18 integer digits and 18 fractional digits (18 decimal places)
