@@ -273,7 +273,7 @@ namespace Zu_ntoa {
       if (ZuUnlikely(n <= 1)) return;
       buf[n] = c;
     }
-    // perversely, the below implementation, while more elegant, runs slower
+    // perversely the more elegant implementation below runs slower
     // (left in place as a reference)
 #if 0
     unsigned d;
@@ -298,7 +298,7 @@ namespace Zu_ntoa {
       if (ZuUnlikely(n <= 1)) return 1;
       buf[n] = 0;
     }
-    // perversely, the below implementation, while more elegant, runs slower
+    // perversely the more elegant implementation below runs slower
     // (left in place as a reference)
 #if 0
     unsigned d;

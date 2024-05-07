@@ -21,10 +21,9 @@
 //   s << ZuFixed{...}			// print (default)
 //   s << ZuFixed{...}.fmt(ZuFmt...)	// print (compile-time formatted)
 //   s << ZuFixed{...}.vfmt(ZuVFmt...)	// print (variable run-time formatted)
-//   s << ZuFixed(x, 2)			// s << "42.42"
+//   s << ZuFixed(x, 2)				// s << "42.42"
 //   x = 4200042;				// 42000.42
 //   s << ZuFixed(x, 2).fmt(ZuFmt::Comma<>())	// s << "42,000.42"
-
 
 #ifndef ZuFixed_HH
 #define ZuFixed_HH
@@ -47,12 +46,12 @@
 
 // ZuFixedVal value range is +/- 10^18
 
-#define ZuFixedMin (static_cast<int64_t>(-999999999999999999LL))
-#define ZuFixedMax (static_cast<int64_t>(999999999999999999LL))
+#define ZuFixedMin (int64_t(-999999999999999999LL))
+#define ZuFixedMax (int64_t(999999999999999999LL))
 // ZuFixedReset is the distinct sentinel value used to reset values to null
-#define ZuFixedReset (static_cast<int64_t>(-1000000000000000000LL))
+#define ZuFixedReset (int64_t(-1000000000000000000LL))
 // ZuFixedNull is the null sentinel value
-#define ZuFixedNull (static_cast<int64_t>(-0x8000000000000000LL))
+#define ZuFixedNull (int64_t(-0x8000000000000000LL))
 
 using ZuFixedVal = ZuBoxN(int64_t, ZuFixedNull); // mantissa numerator
 using ZuFixedExp = ZuBox0(uint8_t); // exponent (precision in decimal places)
@@ -68,14 +67,13 @@ public:
 
   template <typename M>
   constexpr ZuFixed(M m, unsigned e, ZuMatchIntegral<M> *_ = nullptr) :
-      m_mantissa{static_cast<int64_t>(m)},
-      m_exponent{static_cast<uint8_t>(e)} { }
+      m_mantissa{int64_t(m)},
+      m_exponent{uint8_t(e)} { }
 
   template <typename V>
   constexpr ZuFixed(V v, unsigned e, ZuMatchFloatingPoint<V> *_ = nullptr) :
-    m_mantissa{static_cast<int64_t>(
-	static_cast<double>(v) * ZuDecimalFn::pow10_64(e))},
-    m_exponent{static_cast<uint8_t>(e)} { }
+    m_mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(e))},
+    m_exponent{uint8_t(e)} { }
 
   // multiply: exponent of result is taken from the LHS
   // a 128bit integer intermediate is used to avoid overflow

@@ -31,6 +31,8 @@ template <typename Fmt> struct ZuDecimalFmt;	// internal
 class ZuDecimalVFmt;				// ''
 
 struct ZuDecimal {
+  using long_double = long double;
+
   template <unsigned N> using Pow10 = ZuDecimalFn::Pow10<N>;
 
   constexpr static const int128_t minimum() {
@@ -43,7 +45,7 @@ struct ZuDecimal {
     return -Pow10<36U>{};
   }
   constexpr static const int128_t null() {
-    return static_cast<int128_t>(1)<<127;
+    return int128_t(1)<<127;
   }
   constexpr static const uint64_t scale() { // 10^18
     return Pow10<18U>{};
@@ -75,15 +77,15 @@ struct ZuDecimal {
 
   template <typename V>
   constexpr ZuDecimal(V v, ZuMatchIntegral<V> *_ = nullptr) :
-      value(static_cast<int128_t>(v) * scale()) { }
+      value(int128_t(v) * scale()) { }
 
   template <typename V>
   constexpr ZuDecimal(V v, ZuMatchFloatingPoint<V> *_ = nullptr) :
-      value((long double)v * scale_fp()) { }
+      value(long_double(v) * scale_fp()) { }
 
   template <typename V>
   constexpr ZuDecimal(V v, unsigned exponent, ZuMatchIntegral<V> *_ = nullptr) :
-      value(static_cast<int128_t>(v) * ZuDecimalFn::pow10_64(18 - exponent)) { }
+      value(int128_t(v) * ZuDecimalFn::pow10_64(18 - exponent)) { }
 
   constexpr int128_t adjust(unsigned exponent) const {
     if (ZuUnlikely(exponent == 18)) return value;
@@ -115,15 +117,15 @@ struct ZuDecimal {
   static void mul128by128(
       uint128_t u, uint128_t v,
       uint128_t &h, uint128_t &l) {
-    uint128_t u1 = static_cast<uint64_t>(u);
-    uint128_t v1 = static_cast<uint64_t>(v);
+    uint128_t u1 = uint64_t(u);
+    uint128_t v1 = uint64_t(v);
     uint128_t t = (u1 * v1);
-    uint128_t w3 = static_cast<uint64_t>(t);
+    uint128_t w3 = uint64_t(t);
     uint128_t k = (t>>64);
 
     u >>= 64;
     t = (u * v1) + k;
-    k = static_cast<uint64_t>(t);
+    k = uint64_t(t);
     uint128_t w1 = (t>>64);
 
     v >>= 64;
@@ -139,16 +141,16 @@ struct ZuDecimal {
   static void mul128scale(
       uint128_t u,
       uint128_t &h, uint128_t &l) {
-    uint128_t u1 = static_cast<uint64_t>(u);
+    uint128_t u1 = uint64_t(u);
     const uint128_t v1 = scale();
     uint128_t t = (u1 * v1);
-    uint128_t w3 = static_cast<uint64_t>(t);
+    uint128_t w3 = uint64_t(t);
     uint128_t k = (t>>64);
 
     u >>= 64;
 
     t = u * v1 + k;
-    k = static_cast<uint64_t>(t);
+    k = uint64_t(t);
 
     h = (t>>64) + (k>>64);
     l = (k<<64) + w3;
@@ -165,11 +167,11 @@ struct ZuDecimal {
     if (!v)
       s = 0;
     else if (v < b)
-      s = __builtin_clzll(static_cast<uint64_t>(v)) + 64;
+      s = __builtin_clzll(uint64_t(v)) + 64;
     else
-      s = __builtin_clzll(static_cast<uint64_t>(v>>64));
+      s = __builtin_clzll(uint64_t(v>>64));
     v <<= s;
-    vn0 = static_cast<uint64_t>(v);
+    vn0 = uint64_t(v);
     vn1 = v>>64;
 
     if (s > 0) {
@@ -181,7 +183,7 @@ struct ZuDecimal {
     }
 
     un1 = un10>>64;
-    un0 = static_cast<uint64_t>(un10);
+    un0 = uint64_t(un10);
 
     q1 = un128 / vn1;
     rhat = un128 % vn1;
@@ -231,14 +233,14 @@ struct ZuDecimal {
 
     uint128_t un1, un0, vn1, vn0, q1, q0, un128, un21, un10, rhat, left, right;
 
-    vn0 = static_cast<uint64_t>(v);
+    vn0 = uint64_t(v);
     vn1 = v>>64;
 
     un128 = (u1<<68) | (u0>>60);
     un10 = u0<<68;
 
     un1 = un10>>64;
-    un0 = static_cast<uint64_t>(un10);
+    un0 = uint64_t(un10);
 
     q1 = un128 / vn1;
     rhat = un128 % vn1;
@@ -295,7 +297,7 @@ struct ZuDecimal {
 
     u = div256scale(h, l);
 
-    if (negative) return -static_cast<int128_t>(u);
+    if (negative) return -int128_t(u);
     return u;
   }
 
@@ -312,7 +314,7 @@ struct ZuDecimal {
 
     div256by128(h, l, v, u);
 
-    if (negative) return -static_cast<int128_t>(u);
+    if (negative) return -int128_t(u);
     return u;
   }
 
@@ -380,7 +382,7 @@ public:
   // convert to floating point
   long double fp() {
     if (ZuUnlikely(value == null())) return ZuFP<long double>::nan();
-    return static_cast<long double>(value) / scale_fp();
+    return long_double(value) / scale_fp();
   }
 
   // comparisons
@@ -408,20 +410,20 @@ public:
   }
 
   operator int64_t() const {
-    uint128_t scale_ = static_cast<uint128_t>(scale());
+    uint128_t scale_ = uint128_t(scale());
     return int64_t(value / scale_);
   }
   uint64_t frac_() const {
-    uint128_t scale_ = static_cast<uint128_t>(scale());
+    uint128_t scale_ = uint128_t(scale());
     uint128_t value_ = value < 0 ? -value : value;
     return value_ % scale_;
   }
   int64_t round() const {
-    uint128_t scale_ = static_cast<uint128_t>(scale());
-    auto int_ = static_cast<int64_t>(value / scale_);
+    uint128_t scale_ = uint128_t(scale());
+    auto int_ = int64_t(value / scale_);
     return value < 0 ?
-  int_ - ((static_cast<uint128_t>(-value) % scale_) > 500000000000000000ULL) :
-  int_ + ((static_cast<uint128_t>( value) % scale_) > 500000000000000000ULL);
+  int_ - ((uint128_t(-value) % scale_) > 500000000000000000ULL) :
+  int_ + ((uint128_t( value) % scale_) > 500000000000000000ULL);
   }
 
   unsigned exponent() const {
