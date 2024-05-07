@@ -16,4 +16,4 @@ pkginclude_HEADERS = \
 	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh
 lib_LTLIBRARIES = libZu.la
 libZu_la_SOURCES = ZuLib.cc ZuVersion.cc ZuUTF.cc ZuDateTime.cc
-libZu_la_LIBADD = @Z_MT_LIBS@
+#libZu_la_LIBADD = @Z_MT_LIBS@

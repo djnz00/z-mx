@@ -175,7 +175,6 @@ AC_CONFIG_FILES([Makefile \
 	zv/Makefile zv/src/Makefile zv/test/Makefile \
 	zdb/Makefile zdb/src/Makefile zdb/test/Makefile \
 	zdb_pq/Makefile zdb_pq/src/Makefile zdb_pq/test/Makefile \
-	zdb_pq/ext/Makefile \
 	zdf/Makefile zdf/src/Makefile zdf/test/Makefile \
 	zrl/Makefile zrl/src/Makefile zrl/test/Makefile \
 	zcmd/Makefile zcmd/src/Makefile \
