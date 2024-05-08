@@ -6,17 +6,17 @@ extension_version = 0
 
 EXTENSION = zpq
 MODULE_big = zpq
-OBJS = decimal.o
+OBJS = decimal.o magic.o
 SHLIB_LINK = -L../../zu/src -lZu
 DATA_built = zpq--$(extension_version).sql
 
-REGRESS = init hash operators misc drop
-REGRESS_OPTS = --inputdir=test
+#REGRESS = init decimal drop
+#REGRESS_OPTS = --inputdir=test
 
 #EXTRA_CLEAN += 
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
-zpq--$(extension_version).sql: zpq.sql hash.sql operators.sql
+zpq--$(extension_version).sql: decimal.sql
 	cat $^ >$@

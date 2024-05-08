@@ -59,6 +59,14 @@ uint32_t zu_decimal_hash(const zu_decimal *v_)
   return v.hash();
 }
 
+zu_decimal *zu_decimal_neg(zu_decimal *v_, const zu_decimal *p_)
+{
+  const auto &p = *reinterpret_cast<const ZuDecimal *>(p_);
+  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
+  v = -p;
+  return v_;
+}
+
 zu_decimal *zu_decimal_add(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
