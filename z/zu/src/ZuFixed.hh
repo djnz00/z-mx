@@ -173,12 +173,16 @@ public:
   ZuFixed(const S &s, unsigned e, ZuMatchString<S> *_ = nullptr) {
     scan<true>(s, e);
   }
-private:
+
   template <bool Exponent>
-  void scan(ZuString s, unsigned e) {
+  unsigned scan(ZuString s, unsigned e) {
+    auto start = s.data();
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
-	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) goto null;
+	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) {
+      null();
+      return 3;
+    }
     if constexpr (Exponent) if (e > 18) e = 18;
     {
       bool negative = s[0] == '-';
@@ -191,7 +195,8 @@ private:
       uint64_t iv = 0, fv = 0;
       unsigned n = s.length();
       if (ZuUnlikely(s[0] == '.')) {
-	if (ZuUnlikely(n == 1)) goto zero;
+	s.offset(1);
+	if (ZuUnlikely(!s)) goto zero;
 	if constexpr (!Exponent) e = n - 1;
 	goto frac;
       }
@@ -201,9 +206,11 @@ private:
       s.offset(n);
       if constexpr (!Exponent) e = 18 - n;
       if ((n = s.length()) > 1 && s[0] == '.') {
+	s.offset(1);
   frac:
 	if (--n > e) n = e;
-	n = Zu_atou(fv, &s[1], n);
+	n = Zu_atou(fv, &s[0], n);
+	s.offset(n);
 	if (fv && e > n)
 	  fv *= ZuDecimalFn::pow10_64(e - n);
       }
@@ -211,13 +218,13 @@ private:
       if (ZuUnlikely(negative)) m = -m;
       init(m, e);
     }
-    return;
-  null:
-    null();
-    return;
+    return s.data() - start;
   zero:
     init(0, e);
-    return;
+    return s.data() - start;
+  null:
+    null();
+    return 0;
   }
 
 public:

@@ -8,9 +8,19 @@ CREATE FUNCTION zdecimal_out(zdecimal) RETURNS cstring
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/zpq', 'zdecimal_out';
 
+CREATE FUNCTION zdecimal_recv(internal) RETURNS zdecimal
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_recv';
+
+CREATE FUNCTION zdecimal_send(zdecimal) RETURNS bytea
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_send';
+
 CREATE TYPE zdecimal (
   INPUT = zdecimal_in,
   OUTPUT = zdecimal_out,
+  RECEIVE = zdecimal_recv,
+  SEND = zdecimal_send,
   INTERNALLENGTH = 16,
   PASSEDBYVALUE,
   ALIGNMENT = double
@@ -216,16 +226,16 @@ CREATE FUNCTION zdecimal_sum(zdecimal, zdecimal) RETURNS zdecimal
 
 CREATE AGGREGATE sum(zdecimal) (SFUNC = zdecimal_sum, STYPE = zdecimal);
 
-CREATE FUNCTION zdecimal_accum(_zdecimal, zdecimal) RETURNS _zdecimal
+CREATE FUNCTION zdecimal_acc(internal, zdecimal) RETURNS internal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_accum';
+  AS '$libdir/zpq', 'zdecimal_acc';
 
-CREATE FUNCTION zdecimal_avg(_zdecimal) RETURNS zdecimal
+CREATE FUNCTION zdecimal_avg(internal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/zpq', 'zdecimal_avg';
 
 CREATE AGGREGATE avg(zdecimal) (
-  SFUNC = zdecimal_accum,
+  SFUNC = zdecimal_acc,
   STYPE = internal,
   FINALFUNC = zdecimal_avg
 );

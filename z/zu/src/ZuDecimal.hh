@@ -336,13 +336,19 @@ public:
     return *this;
   }
 
-  // scan from string
   template <typename S>
-  ZuDecimal(const S &s_, ZuMatchString<S> *_ = nullptr) {
-    ZuString s{s_};
+  ZuDecimal(const S &s, ZuMatchString<S> *_ = nullptr) {
+    scan(s);
+  }
+
+  unsigned scan(ZuString s) {
+    auto start = s.data();
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
-	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) goto null;
+	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) {
+      value = null();
+      return 3;
+    }
     {
       bool negative = s[0] == '-';
       if (ZuUnlikely(negative)) {
@@ -351,12 +357,13 @@ public:
       }
       while (s[0] == '0') {
 	s.offset(1);
-	if (!s) { value = 0; return; }
+	if (!s) goto zero;
       }
       uint64_t iv = 0, fv = 0;
       unsigned n = s.length();
       if (ZuUnlikely(s[0] == '.')) {
-	if (ZuUnlikely(n == 1)) { value = 0; return; }
+	s.offset(1);
+	if (ZuUnlikely(!s)) goto zero;
 	goto frac;
       }
       n = Zu_atou(iv, s.data(), n);
@@ -364,19 +371,24 @@ public:
       if (ZuUnlikely(n > 18)) goto null; // overflow
       s.offset(n);
       if ((n = s.length()) > 1 && s[0] == '.') {
+	s.offset(1);
   frac:
 	if (--n > 18) n = 18;
-	n = Zu_atou(fv, &s[1], n);
+	n = Zu_atou(fv, &s[0], n);
+	s.offset(n);
 	if (fv && n < 18)
 	  fv *= ZuDecimalFn::pow10_64(18 - n);
       }
-      value = ((uint128_t)iv) * scale() + fv;
+      value = uint128_t(iv) * scale() + fv;
       if (ZuUnlikely(negative)) value = -value;
     }
-    return;
+    return s.data() - start;
+  zero:
+    value = 0;
+    return s.data() - start;
   null:
     value = null();
-    return;
+    return 0;
   }
 
   // convert to floating point
@@ -427,8 +439,8 @@ public:
     uint128_t scale_ = uint128_t(scale());
     auto int_ = int64_t(value / scale_);
     return value < 0 ?
-  int_ - ((uint128_t(-value) % scale_) > 500000000000000000ULL) :
-  int_ + ((uint128_t( value) % scale_) > 500000000000000000ULL);
+      int_ - ((uint128_t(-value) % scale_) > 500000000000000000ULL) :
+      int_ + ((uint128_t( value) % scale_) > 500000000000000000ULL);
   }
 
   unsigned exponent() const {

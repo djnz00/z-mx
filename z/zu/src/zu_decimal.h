@@ -21,18 +21,27 @@
 extern "C" {
 #endif
 
+typedef __int128_t int128_t;
+typedef __uint128_t uint128_t;
+
 typedef struct {
   int128_t	value;
 } zu_decimal;
 
-/* parse string, returns v */
-ZuExtern zu_decimal *zu_decimal_in(zu_decimal *v, const char *s);
-
+/* parse string, returns #bytes scanned, 0 on invalid input */
+ZuExtern unsigned int zu_decimal_in(zu_decimal *v, const char *s);
 /* returns output length including null terminator */
 ZuExtern unsigned int zu_decimal_out_len(const zu_decimal *v);
-
 /* output to string, returns end pointer to null terminator */
 ZuExtern char *zu_decimal_out(char *s, const zu_decimal *v);
+
+/* convert to/from integer */
+ZuExtern int64_t zu_decimal_to_int(const zu_decimal *v);
+ZuExtern void zu_decimal_from_int(zu_decimal *v, int64_t i);
+
+/* convert to/from double */
+ZuExtern double zu_decimal_to_double(const zu_decimal *v);
+ZuExtern void zu_decimal_from_double(zu_decimal *v, double d);
 
 /* 3-way comparison */
 ZuExtern int zu_decimal_cmp(const zu_decimal *l, const zu_decimal *r);
