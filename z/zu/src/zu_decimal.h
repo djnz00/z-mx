@@ -25,6 +25,7 @@ typedef __int128_t int128_t;
 typedef __uint128_t uint128_t;
 
 #define zu_decimal_scale() ((int128_t)1000000000000000000ULL)
+#define zu_decimal_null() (((int128_t)1)<<127)
 
 typedef struct {
   int128_t	value;

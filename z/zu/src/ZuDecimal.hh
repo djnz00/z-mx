@@ -72,8 +72,12 @@ struct ZuDecimal {
       value(int128_t(v) * scale()) { }
 
   template <typename V>
-  constexpr ZuDecimal(V v, ZuMatchFloatingPoint<V> *_ = nullptr) :
-      value(long_double(v) * scale_fp()) { }
+  constexpr ZuDecimal(V v, ZuMatchFloatingPoint<V> *_ = nullptr) {
+    if (ZuUnlikely(ZuFP<V>::nan(v) || ZuFP<V>::inf(v) || ZuFP<V>::inf(-v)))
+      value = null();
+    else
+      value = long_double(v) * scale_fp();
+  }
 
   template <typename V>
   constexpr ZuDecimal(V v, unsigned exponent, ZuMatchIntegral<V> *_ = nullptr) :
@@ -84,21 +88,36 @@ struct ZuDecimal {
     return value / ZuDecimalFn::pow10_64(18 - exponent);
   }
 
-  constexpr ZuDecimal operator -() { return ZuDecimal{Unscaled, -value}; }
+  constexpr ZuDecimal operator -() {
+    if (ZuUnlikely(value == null())) return ZuDecimal{Unscaled, null()};
+    return ZuDecimal{Unscaled, -value};
+  }
 
   constexpr ZuDecimal operator +(const ZuDecimal &v) const {
+    if (ZuUnlikely(value == null() || v.value == null()))
+      return ZuDecimal{Unscaled, null()};
     return ZuDecimal{Unscaled, value + v.value};
   }
   constexpr ZuDecimal &operator +=(const ZuDecimal &v) {
-    value += v.value;
+    if (ZuUnlikely(value == null())) return *this;
+    if (ZuUnlikely(v.value == null()))
+      value = null();
+    else
+      value += v.value;
     return *this;
   }
 
   constexpr ZuDecimal operator -(const ZuDecimal &v) const {
+    if (ZuUnlikely(value == null() || v.value == null()))
+      return ZuDecimal{Unscaled, null()};
     return ZuDecimal{Unscaled, value - v.value};
   }
   constexpr ZuDecimal &operator -=(const ZuDecimal &v) {
-    value -= v.value;
+    if (ZuUnlikely(value == null())) return *this;
+    if (ZuUnlikely(v.value == null()))
+      value = null();
+    else
+      value -= v.value;
     return *this;
   }
 
@@ -312,19 +331,31 @@ struct ZuDecimal {
 
 public:
   ZuDecimal operator *(const ZuDecimal &v) const {
+    if (ZuUnlikely(value == null() || v.value == null()))
+      return ZuDecimal{Unscaled, null()};
     return ZuDecimal{Unscaled, mul(value, v.value)};
   }
 
   ZuDecimal &operator *=(const ZuDecimal &v) {
-    value = mul(value, v.value);
+    if (ZuUnlikely(value == null())) return *this;
+    if (ZuUnlikely(v.value == null()))
+      value = null();
+    else
+      value = mul(value, v.value);
     return *this;
   }
 
   ZuDecimal operator /(const ZuDecimal &v) const {
+    if (ZuUnlikely(value == null() || v.value == null() || !v.value))
+      return ZuDecimal{Unscaled, null()};
     return ZuDecimal{Unscaled, div(value, v.value)};
   }
   ZuDecimal &operator /=(const ZuDecimal &v) {
-    value = div(value, v.value);
+    if (ZuUnlikely(value == null())) return *this;
+    if (ZuUnlikely(v.value == null() || !v.value))
+      value = null();
+    else
+      value = div(value, v.value);
     return *this;
   }
 
@@ -384,12 +415,12 @@ public:
   }
 
   // convert to floating point
-  long double fp() {
+  long double fp() const {
     if (ZuUnlikely(value == null())) return ZuFP<long double>::nan();
     return long_double(value) / scale_fp();
   }
 
-  // comparisons
+  // comparisons (note that null() is more negative than minimum())
   constexpr int cmp(const ZuDecimal &v) const {
     return (value > v.value) - (value < v.value);
   }
@@ -419,6 +450,7 @@ public:
   }
 
   operator int64_t() const {
+    if (ZuUnlikely(value == null())) return ZuCmp<int64_t>::null();
     uint128_t scale_ = uint128_t(scale());
     return int64_t(value / scale_);
   }
@@ -428,6 +460,7 @@ public:
     return value_ % scale_;
   }
   int64_t round() const {
+    if (ZuUnlikely(value == null())) return ZuCmp<int64_t>::null();
     uint128_t scale_ = uint128_t(scale());
     auto int_ = int64_t(value / scale_);
     return value < 0 ?

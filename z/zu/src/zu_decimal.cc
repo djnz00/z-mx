@@ -48,6 +48,17 @@ char *zu_decimal_out(char *s, const zu_decimal *v_)
   return s;
 }
 
+zu_decimal *zu_decimal_init(zu_decimal *v)
+{
+  v->value = ZuDecimal::null();
+  return v;
+}
+
+bool zu_decimal_is_null(const zu_decimal *v)
+{
+  return v->value == ZuDecimal::null();
+}
+
 int64_t zu_decimal_to_int(const zu_decimal *v_)
 {
   const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
@@ -62,7 +73,7 @@ zu_decimal *zu_decimal_from_int(zu_decimal *v_, int64_t i)
 double zu_decimal_to_double(const zu_decimal *v_)
 {
   const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
-  return double(v);
+  return v.fp();
 }
 
 zu_decimal *zu_decimal_from_double(zu_decimal *v_, double d)
