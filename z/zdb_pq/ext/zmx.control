@@ -1,0 +1,4 @@
+comment = 'Z-Mx framework types'
+default_version = 0
+module_pathname = '$libdir/zmx'
+relocatable = true
