@@ -35,8 +35,10 @@ Datum zdecimal_in(PG_FUNCTION_ARGS) {
 
   /* postgres uses NaN; meanwhile ZuDecimal intentionally omits
    * positive/negative infinity */
-  if (unlikely(s[0] == 'N' && s[1] == 'a' && s[2] == 'N' && s[3] == '\0'))
-    s = "nan";
+  if (unlikely(s[0] == 'N' && s[1] == 'a' && s[2] == 'N' && s[3] == '\0')) {
+    v->value = zu_decimal_null();
+    PG_RETURN_POINTER(v);
+  }
 
   /* postgres numeric supports inputs like 0x, 0o, 0b for hex/octal/binary,
    * this would be mis-use of the type, we intentionally omit that here */
@@ -70,9 +72,33 @@ Datum zdecimal_out(PG_FUNCTION_ARGS) {
   PG_RETURN_CSTRING(s);
 }
 
+PG_FUNCTION_INFO_V1(zdecimal_recv);
+Datum zdecimal_recv(PG_FUNCTION_ARGS) {
+  StringInfo buf = (StringInfo)PG_GETARG_POINTER(0);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  pq_copymsgbytes(buf, (char *)v, 16);
+  v->value = pg_bswap128(v->value);
+  PG_RETURN_POINTER(v);
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_send);
+Datum zdecimal_send(PG_FUNCTION_ARGS) {
+  const zu_decimal *v = (const zu_decimal *)PG_GETARG_POINTER(0);
+  uint128_t value = v->value;
+  StringInfoData buf;
+  pq_begintypsend(&buf);
+  enlargeStringInfo(&buf, 16);
+  Assert(buf.len + 16 <= buf.maxlen);
+  value = pg_bswap128(value);
+  memcpy((char *)(buf.data + buf.len), &value, 16);
+  buf.len += 16;
+  PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+}
+
 PG_FUNCTION_INFO_V1(zdecimal_to_int4);
 Datum zdecimal_to_int4(PG_FUNCTION_ARGS) {
   const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  if (p->value == zu_decimal_null()) PG_RETURN_NULL();
   PG_RETURN_INT32((int32)zu_decimal_to_int(p));
 }
 
@@ -86,6 +112,7 @@ Datum zdecimal_from_int4(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(zdecimal_to_int8);
 Datum zdecimal_to_int8(PG_FUNCTION_ARGS) {
   const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  if (p->value == zu_decimal_null()) PG_RETURN_NULL();
   PG_RETURN_INT64(zu_decimal_to_int(p));
 }
 
@@ -120,29 +147,6 @@ Datum zdecimal_from_float8(PG_FUNCTION_ARGS) {
   float8 d = PG_GETARG_FLOAT8(0);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   PG_RETURN_POINTER(zu_decimal_from_double(v, d));
-}
-
-PG_FUNCTION_INFO_V1(zdecimal_recv);
-Datum zdecimal_recv(PG_FUNCTION_ARGS) {
-  StringInfo buf = (StringInfo)PG_GETARG_POINTER(0);
-  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  pq_copymsgbytes(buf, (char *)v, 16);
-  v->value = pg_bswap128(v->value);
-  PG_RETURN_POINTER(v);
-}
-
-PG_FUNCTION_INFO_V1(zdecimal_send);
-Datum zdecimal_send(PG_FUNCTION_ARGS) {
-  const zu_decimal *v = (const zu_decimal *)PG_GETARG_POINTER(0);
-  uint128_t value = v->value;
-  StringInfoData buf;
-  pq_begintypsend(&buf);
-  enlargeStringInfo(&buf, 16);
-  Assert(buf.len + 16 <= buf.maxlen);
-  value = pg_bswap128(value);
-  memcpy((char *)(buf.data + buf.len), &value, 16);
-  buf.len += 16;
-  PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_round);
@@ -290,7 +294,7 @@ Datum zdecimal_sum(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(zdecimal_acc);
 Datum zdecimal_acc(PG_FUNCTION_ARGS) {
   ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
-  zu_decimal **state;
+  zu_decimal *state;
   const zu_decimal *v;
 
   if (ARR_NDIM(array) != 1 ||
@@ -300,11 +304,11 @@ Datum zdecimal_acc(PG_FUNCTION_ARGS) {
     PG_RETURN_ARRAYTYPE_P(array);
   }
 
-  state = (zu_decimal **)ARR_DATA_PTR(array);
+  state = (zu_decimal *)ARR_DATA_PTR(array);
   v = (const zu_decimal *)PG_GETARG_POINTER(1);
 
-  zu_decimal_add(state[0], state[0], v);
-  state[1]->value += zu_decimal_scale();
+  zu_decimal_add(&state[0], &state[0], v);
+  state[1].value += zu_decimal_scale();
 
   PG_RETURN_ARRAYTYPE_P(array);
 }
@@ -312,7 +316,7 @@ Datum zdecimal_acc(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(zdecimal_avg);
 Datum zdecimal_avg(PG_FUNCTION_ARGS) {
   ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
-  const zu_decimal **state;
+  const zu_decimal *state;
   zu_decimal *v;
 
   if (ARR_NDIM(array) != 1 || ARR_DIMS(array)[0] != 2 || ARR_HASNULL(array)) {
@@ -320,10 +324,10 @@ Datum zdecimal_avg(PG_FUNCTION_ARGS) {
     PG_RETURN_NULL();
   }
 
-  state = (const zu_decimal **)ARR_DATA_PTR(array);
+  state = (const zu_decimal *)ARR_DATA_PTR(array);
 
-  if (!state[1]->value) PG_RETURN_NULL();
+  if (unlikely(!state[1].value)) PG_RETURN_NULL();
 
   v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  PG_RETURN_POINTER(zu_decimal_div(v, state[0], state[1]));
+  PG_RETURN_POINTER(zu_decimal_div(v, &state[0], &state[1]));
 }

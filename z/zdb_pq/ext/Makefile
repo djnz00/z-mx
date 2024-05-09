@@ -6,12 +6,12 @@ extension_version = 0
 
 EXTENSION = zpq
 MODULE_big = zpq
-OBJS = decimal.o magic.o
+OBJS = zdecimal.o magic.o
 #PG_CPPFLAGS =
 SHLIB_LINK = -lZu
 DATA_built = zpq--$(extension_version).sql
 
-#REGRESS = init decimal drop
+#REGRESS = init zdecimal drop
 #REGRESS_OPTS = --inputdir=test
 
 #EXTRA_CLEAN += 
@@ -19,5 +19,5 @@ DATA_built = zpq--$(extension_version).sql
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
-zpq--$(extension_version).sql: decimal.sql
+zpq--$(extension_version).sql: zdecimal.sql
 	cat $^ >$@
