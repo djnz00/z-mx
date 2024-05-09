@@ -22,19 +22,60 @@ CREATE TYPE zdecimal (
   RECEIVE = zdecimal_recv,
   SEND = zdecimal_send,
   INTERNALLENGTH = 16,
-  PASSEDBYVALUE,
   ALIGNMENT = double
 );
 
-CREATE CAST (integer AS zdecimal) WITH INOUT AS ASSIGNMENT;
-CREATE CAST (double precision AS zdecimal) WITH INOUT AS ASSIGNMENT;
-CREATE CAST (numeric AS zdecimal) WITH INOUT AS ASSIGNMENT;
-CREATE CAST (real AS zdecimal) WITH INOUT AS ASSIGNMENT;
+CREATE FUNCTION zdecimal_to_int4(zdecimal) RETURNS integer
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_to_int4';
 
-CREATE CAST (zdecimal AS integer) WITH INOUT AS IMPLICIT;
-CREATE CAST (zdecimal AS double precision) WITH INOUT AS IMPLICIT;
+CREATE FUNCTION zdecimal_from_int4(integer) RETURNS zdecimal
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_from_int4';
+
+CREATE FUNCTION zdecimal_to_int8(zdecimal) RETURNS int8
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_to_int8';
+
+CREATE FUNCTION zdecimal_from_int8(int8) RETURNS zdecimal
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_from_int8';
+
+CREATE FUNCTION zdecimal_to_float4(zdecimal) RETURNS real
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_to_float4';
+
+CREATE FUNCTION zdecimal_from_float4(real) RETURNS zdecimal
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_from_float4';
+
+CREATE FUNCTION zdecimal_to_float8(zdecimal) RETURNS double precision
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_to_float8';
+
+CREATE FUNCTION zdecimal_from_float8(double precision) RETURNS zdecimal
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/zpq', 'zdecimal_from_float8';
+
+CREATE CAST (integer AS zdecimal)
+  WITH FUNCTION zdecimal_from_int4 AS ASSIGNMENT;
+CREATE CAST (int8 AS zdecimal)
+  WITH FUNCTION zdecimal_from_int8 AS ASSIGNMENT;
+CREATE CAST (real AS zdecimal)
+  WITH FUNCTION zdecimal_from_float4 AS ASSIGNMENT;
+CREATE CAST (double precision AS zdecimal)
+  WITH FUNCTION zdecimal_from_float8 AS ASSIGNMENT;
+CREATE CAST (numeric AS zdecimal) WITH INOUT AS ASSIGNMENT;
+
+CREATE CAST (zdecimal AS integer)
+  WITH FUNCTION zdecimal_to_int4 AS IMPLICIT;
+CREATE CAST (zdecimal AS int8)
+  WITH FUNCTION zdecimal_to_int8 AS IMPLICIT;
+CREATE CAST (zdecimal AS real)
+  WITH FUNCTION zdecimal_to_float4 AS IMPLICIT;
+CREATE CAST (zdecimal AS double precision)
+  WITH FUNCTION zdecimal_to_float8 AS IMPLICIT;
 CREATE CAST (zdecimal AS numeric) WITH INOUT AS IMPLICIT;
-CREATE CAST (zdecimal AS real) WITH INOUT AS IMPLICIT;
 
 CREATE FUNCTION zdecimal_neg(zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
@@ -226,16 +267,17 @@ CREATE FUNCTION zdecimal_sum(zdecimal, zdecimal) RETURNS zdecimal
 
 CREATE AGGREGATE sum(zdecimal) (SFUNC = zdecimal_sum, STYPE = zdecimal);
 
-CREATE FUNCTION zdecimal_acc(internal, zdecimal) RETURNS internal
+CREATE FUNCTION zdecimal_acc(zdecimal[], zdecimal) RETURNS zdecimal[]
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/zpq', 'zdecimal_acc';
 
-CREATE FUNCTION zdecimal_avg(internal) RETURNS zdecimal
+CREATE FUNCTION zdecimal_avg(zdecimal[]) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/zpq', 'zdecimal_avg';
 
 CREATE AGGREGATE avg(zdecimal) (
   SFUNC = zdecimal_acc,
-  STYPE = internal,
-  FINALFUNC = zdecimal_avg
+  STYPE = zdecimal[],
+  FINALFUNC = zdecimal_avg,
+  INITCOND = '{0,0}'
 );

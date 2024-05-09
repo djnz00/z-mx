@@ -1,6 +1,7 @@
 #include <postgres.h>
 #include <fmgr.h>
 #include <libpq/pqformat.h>
+#include <utils/array.h>
 #include <utils/sortsupport.h>
 #include <port/pg_bswap.h>
 
@@ -46,7 +47,7 @@ Datum zdecimal_in(PG_FUNCTION_ARGS) {
    * null-termination, this prevents incrementally parsing values within
    * a containing string without copying or overwriting the data with
    * null terminators, but we'll play along, sigh */
-  if (likely(n)) while (unlikely(__isspace(s[n]))) ++n;
+  if (likely(n)) while (unlikely(isspace__(s[n]))) ++n;
   if (!n || s[n])
     ereport(
       ERROR,
@@ -69,6 +70,58 @@ Datum zdecimal_out(PG_FUNCTION_ARGS) {
   PG_RETURN_CSTRING(s);
 }
 
+PG_FUNCTION_INFO_V1(zdecimal_to_int4);
+Datum zdecimal_to_int4(PG_FUNCTION_ARGS) {
+  const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  PG_RETURN_INT32((int32)zu_decimal_to_int(p));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_from_int4);
+Datum zdecimal_from_int4(PG_FUNCTION_ARGS) {
+  int32 i = PG_GETARG_INT32(0);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_decimal_from_int(v, i));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_to_int8);
+Datum zdecimal_to_int8(PG_FUNCTION_ARGS) {
+  const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  PG_RETURN_INT64(zu_decimal_to_int(p));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_from_int8);
+Datum zdecimal_from_int8(PG_FUNCTION_ARGS) {
+  int64 i = PG_GETARG_INT64(0);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_decimal_from_int(v, i));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_to_float4);
+Datum zdecimal_to_float4(PG_FUNCTION_ARGS) {
+  const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  PG_RETURN_FLOAT4((float4)zu_decimal_to_double(p));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_from_float4);
+Datum zdecimal_from_float4(PG_FUNCTION_ARGS) {
+  float4 f = PG_GETARG_FLOAT4(0);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_decimal_from_double(v, (double)f));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_to_float8);
+Datum zdecimal_to_float8(PG_FUNCTION_ARGS) {
+  const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  PG_RETURN_FLOAT8(zu_decimal_to_double(p));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_from_float8);
+Datum zdecimal_from_float8(PG_FUNCTION_ARGS) {
+  float8 d = PG_GETARG_FLOAT8(0);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_decimal_from_double(v, d));
+}
+
 PG_FUNCTION_INFO_V1(zdecimal_recv);
 Datum zdecimal_recv(PG_FUNCTION_ARGS) {
   StringInfo buf = (StringInfo)PG_GETARG_POINTER(0);
@@ -85,7 +138,7 @@ Datum zdecimal_send(PG_FUNCTION_ARGS) {
   StringInfoData buf;
   pq_begintypsend(&buf);
   enlargeStringInfo(&buf, 16);
-  Assert(buf->len + 16 <= buf->maxlen);
+  Assert(buf.len + 16 <= buf.maxlen);
   value = pg_bswap128(value);
   memcpy((char *)(buf.data + buf.len), &value, 16);
   buf.len += 16;
@@ -234,60 +287,43 @@ Datum zdecimal_sum(PG_FUNCTION_ARGS) {
   }
 }
 
-typedef struct {
-  zu_decimal	sum;
-  uint64_t	count;
-} zdecimal_agg_state;
-
-static zdecimal_agg_state *
-zdecimal_agg_state_new(FunctionCallInfo fcinfo, const zu_decimal *v) {
-  zdecimal_agg_state *state;
-  MemoryContext agg_context;
-  MemoryContext old_context;
-
-  if (!AggCheckCallContext(fcinfo, &agg_context))
-    elog(ERROR, "aggregate function called in non-aggregate context");
-
-  old_context = MemoryContextSwitchTo(agg_context);
-
-  state = (zdecimal_agg_state *)palloc(sizeof(zdecimal_agg_state));
-  state->sum.value = v->value;
-  state->count = 1;
-
-  MemoryContextSwitchTo(old_context);
-  return state;
-}
-
 PG_FUNCTION_INFO_V1(zdecimal_acc);
 Datum zdecimal_acc(PG_FUNCTION_ARGS) {
-  zdecimal_agg_state *state =
-    PG_ARGISNULL(0) ? NULL : (zdecimal_agg_state *)PG_GETARG_POINTER(0);
+  ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
+  zu_decimal **state;
+  const zu_decimal *v;
 
-  if (likely(!PG_ARGISNULL(1))) {
-    const zu_decimal *v = (const zu_decimal *)PG_GETARG_POINTER(1);
-
-    if (unlikely(state == NULL)) {
-      state = zdecimal_agg_state_new(fcinfo, v);
-    } else {
-      zu_decimal_add(&state->sum, &state->sum, v);
-      ++state->count;
-    }
+  if (ARR_NDIM(array) != 1 ||
+      ARR_DIMS(array)[0] != 2 ||
+      ARR_HASNULL(array)) {
+    elog(ERROR, "zdecimal_acc expected 2-element zdecimal array");
+    PG_RETURN_ARRAYTYPE_P(array);
   }
 
-  PG_RETURN_POINTER(state);
+  state = (zu_decimal **)ARR_DATA_PTR(array);
+  v = (const zu_decimal *)PG_GETARG_POINTER(1);
+
+  zu_decimal_add(state[0], state[0], v);
+  state[1]->value += zu_decimal_scale();
+
+  PG_RETURN_ARRAYTYPE_P(array);
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_avg);
 Datum zdecimal_avg(PG_FUNCTION_ARGS) {
-  zdecimal_agg_state *state =
-    PG_ARGISNULL(0) ? NULL : (zdecimal_agg_state *)PG_GETARG_POINTER(0);
+  ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
+  const zu_decimal **state;
+  zu_decimal *v;
 
-  if (state == NULL || state->count == 0) PG_RETURN_NULL();
-
-  {
-    zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-    zu_decimal count;
-    zu_decimal_from_int(&count, state->count);
-    PG_RETURN_POINTER(zu_decimal_div(v, &state->sum, &count));
+  if (ARR_NDIM(array) != 1 || ARR_DIMS(array)[0] != 2 || ARR_HASNULL(array)) {
+    elog(ERROR, "zdecimal_avg expected 2-element zdecimal array");
+    PG_RETURN_NULL();
   }
+
+  state = (const zu_decimal **)ARR_DATA_PTR(array);
+
+  if (!state[1]->value) PG_RETURN_NULL();
+
+  v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_decimal_div(v, state[0], state[1]));
 }

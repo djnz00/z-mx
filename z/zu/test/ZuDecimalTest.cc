@@ -130,4 +130,8 @@ int main()
     zu_decimal_div(&v_, &v_, &r_);
     CHECK(((ZuStringN<40>{} << v) == "42"));
   }
+  {
+    ZuDecimal d;
+    CHECK(d.scan("0") == 1);
+  }
 }

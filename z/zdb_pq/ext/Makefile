@@ -7,8 +7,8 @@ extension_version = 0
 EXTENSION = zpq
 MODULE_big = zpq
 OBJS = decimal.o magic.o
-PG_CPPFLAGS = -I../../zu/src
-SHLIB_LINK = -L../../zu/src/.libs -lZu
+#PG_CPPFLAGS =
+SHLIB_LINK = -lZu
 DATA_built = zpq--$(extension_version).sql
 
 #REGRESS = init decimal drop

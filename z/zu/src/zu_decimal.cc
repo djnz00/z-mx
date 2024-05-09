@@ -54,9 +54,9 @@ int64_t zu_decimal_to_int(const zu_decimal *v_)
   return int64_t(v);
 }
 
-void zu_decimal_from_int(zu_decimal *v_, int64_t i)
+zu_decimal *zu_decimal_from_int(zu_decimal *v_, int64_t i)
 {
-  new (v_) ZuDecimal{i};
+  return reinterpret_cast<zu_decimal *>(new (v_) ZuDecimal{i});
 }
 
 double zu_decimal_to_double(const zu_decimal *v_)
@@ -65,9 +65,9 @@ double zu_decimal_to_double(const zu_decimal *v_)
   return double(v);
 }
 
-void zu_decimal_from_double(zu_decimal *v_, double d)
+zu_decimal *zu_decimal_from_double(zu_decimal *v_, double d)
 {
-  new (v_) ZuDecimal{d};
+  return reinterpret_cast<zu_decimal *>(new (v_) ZuDecimal{d});
 }
 
 int64_t zu_decimal_round(const zu_decimal *v_)

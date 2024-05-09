@@ -334,7 +334,7 @@ public:
   }
 
   unsigned scan(ZuString s) {
-    auto start = s.data();
+    unsigned int m = 0;
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
 	  s[0] == 'n' && s[1] == 'a' && s[2] == 'n')) {
@@ -344,40 +344,40 @@ public:
     {
       bool negative = s[0] == '-';
       if (ZuUnlikely(negative)) {
-	s.offset(1);
+	s.offset(1), ++m;
 	if (ZuUnlikely(!s)) goto null;
       }
       while (s[0] == '0') {
-	s.offset(1);
+	s.offset(1), ++m;
 	if (!s) goto zero;
       }
       uint64_t iv = 0, fv = 0;
       unsigned n = s.length();
       if (ZuUnlikely(s[0] == '.')) {
-	s.offset(1);
-	if (ZuUnlikely(!s)) goto zero;
+	++m;
+	if (ZuUnlikely(n == 1)) goto zero;
 	goto frac;
       }
       n = Zu_atou(iv, s.data(), n);
       if (ZuUnlikely(!n)) goto null;
       if (ZuUnlikely(n > 18)) goto null; // overflow
-      s.offset(n);
+      s.offset(n), m += n;
       if ((n = s.length()) > 1 && s[0] == '.') {
-	s.offset(1);
+	++m;
   frac:
 	if (--n > 18) n = 18;
-	n = Zu_atou(fv, &s[0], n);
-	s.offset(n);
+	n = Zu_atou(fv, &s[1], n);
+	m += n;
 	if (fv && n < 18)
 	  fv *= ZuDecimalFn::pow10_64(18 - n);
       }
       value = uint128_t(iv) * scale() + fv;
       if (ZuUnlikely(negative)) value = -value;
     }
-    return s.data() - start;
+    return m;
   zero:
     value = 0;
-    return s.data() - start;
+    return m;
   null:
     value = null();
     return 0;
