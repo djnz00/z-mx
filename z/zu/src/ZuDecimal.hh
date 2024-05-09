@@ -35,22 +35,14 @@ struct ZuDecimal {
 
   template <unsigned N> using Pow10 = ZuDecimalFn::Pow10<N>;
 
-  constexpr static const int128_t minimum() {
-    return -Pow10<36U>{} + 1;
-  }
-  constexpr static const int128_t maximum() {
-    return Pow10<36U>{} - 1;
-  }
-  constexpr static const int128_t reset() {
-    return -Pow10<36U>{};
-  }
-  constexpr static const int128_t null() {
-    return int128_t(1)<<127;
-  }
-  constexpr static const uint64_t scale() { // 10^18
-    return Pow10<18U>{};
-  }
-  constexpr static const long double scale_fp() { // 10^18
+  // null() is the sentinel value equivalent to NaN
+
+  constexpr static const int128_t minimum() { return -Pow10<36U>{} + 1; }
+  constexpr static const int128_t maximum() { return Pow10<36U>{} - 1; }
+  constexpr static const int128_t reset()   { return -Pow10<36U>{}; }
+  constexpr static const int128_t null()    { return int128_t(1)<<127; }
+  constexpr static const uint64_t scale()   { return Pow10<18U>{}; } // 10^18
+  constexpr static const long double scale_fp() { // 10^18 as long double
     return 1000000000000000000.0L;
   }
 
@@ -439,8 +431,8 @@ public:
     uint128_t scale_ = uint128_t(scale());
     auto int_ = int64_t(value / scale_);
     return value < 0 ?
-      int_ - ((uint128_t(-value) % scale_) > 500000000000000000ULL) :
-      int_ + ((uint128_t( value) % scale_) > 500000000000000000ULL);
+      int_ - ((uint128_t(-value) % scale_) >= 500000000000000000ULL) :
+      int_ + ((uint128_t( value) % scale_) >= 500000000000000000ULL);
   }
 
   unsigned exponent() const {

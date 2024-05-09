@@ -36,8 +36,9 @@ ZuExtern unsigned int zu_decimal_out_len(const zu_decimal *v);
 ZuExtern char *zu_decimal_out(char *s, const zu_decimal *v);
 
 /* convert to/from integer */
-ZuExtern int64_t zu_decimal_to_int(const zu_decimal *v);
+ZuExtern int64_t zu_decimal_to_int(const zu_decimal *v); /* truncates */
 ZuExtern void zu_decimal_from_int(zu_decimal *v, int64_t i);
+ZuExtern int64_t zu_decimal_round(const zu_decimal *v); /* rounds */
 
 /* convert to/from double */
 ZuExtern double zu_decimal_to_double(const zu_decimal *v);

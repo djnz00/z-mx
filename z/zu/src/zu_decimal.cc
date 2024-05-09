@@ -70,6 +70,12 @@ void zu_decimal_from_double(zu_decimal *v_, double d)
   new (v_) ZuDecimal{d};
 }
 
+int64_t zu_decimal_round(const zu_decimal *v_)
+{
+  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  return v.round();
+}
+
 int zu_decimal_cmp(const zu_decimal *l_, const zu_decimal *r_)
 {
   const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
