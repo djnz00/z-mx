@@ -22,17 +22,38 @@ inline static uint128_t pg_bswap128(uint128_t i) {
 #endif /* WORDS_BIGENDIAN */
 #endif /* pg_bswap128 */
 
+inline static bool isspace__(char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
 PG_FUNCTION_INFO_V1(zdecimal_in);
 Datum zdecimal_in(PG_FUNCTION_ARGS) {
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   const char *s = PG_GETARG_CSTRING(0);
-  unsigned int n = zu_decimal_in(v, s);
+  unsigned int n;
+
+  /* postgres uses NaN; meanwhile ZuDecimal intentionally omits
+   * positive/negative infinity */
+  if (unlikely(s[0] == 'N' && s[1] == 'a' && s[2] == 'N' && s[3] == '\0'))
+    s = "nan";
+
+  /* postgres numeric supports inputs like 0x, 0o, 0b for hex/octal/binary,
+   * this would be mis-use of the type, we intentionally omit that here */
+  n = zu_decimal_in(v, s);
+
+  /* SQL requires trailing spaces to be ignored while erroring out on other
+   * "trailing junk"; together with postgres reliance on C string
+   * null-termination, this prevents incrementally parsing values within
+   * a containing string without copying or overwriting the data with
+   * null terminators, but we'll play along, sigh */
+  if (likely(n)) while (unlikely(__isspace(s[n]))) ++n;
   if (!n || s[n])
     ereport(
       ERROR,
       (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
        errmsg("invalid input syntax for zdecimal: \"%s\"", s))
     );
+
   PG_RETURN_POINTER(v);
 }
 
@@ -42,6 +63,9 @@ Datum zdecimal_out(PG_FUNCTION_ARGS) {
   unsigned int n = zu_decimal_out_len(v);
   char *s = palloc(n);
   zu_decimal_out(s, v);
+  /* postgres uses NaN */
+  if (s[0] == 'n' && s[1] == 'a' && s[2] == 'n' && s[3] == '\0')
+    s[0] = 'N', s[2] = 'N';
   PG_RETURN_CSTRING(s);
 }
 
@@ -66,6 +90,12 @@ Datum zdecimal_send(PG_FUNCTION_ARGS) {
   memcpy((char *)(buf.data + buf.len), &value, 16);
   buf.len += 16;
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+}
+
+PG_FUNCTION_INFO_V1(zdecimal_round);
+Datum zdecimal_round(PG_FUNCTION_ARGS) {
+  const zu_decimal *p = (const zu_decimal *)PG_GETARG_POINTER(0);
+  PG_RETURN_INT64(zu_decimal_round(p));
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_neg);
