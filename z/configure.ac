@@ -21,9 +21,11 @@ AS_IF([test ".$PERL" = ".no"], [
 ])
 
 # concurrency kit
-AX_PATH_LIB_CK(, [AC_MSG_ERROR([libck required])])
-CPPFLAGS="$CK_CPPFLAGS $CPPFLAGS"
-LDFLAGS="$CK_LDFLAGS $LDFLAGS"
+PKG_CHECK_MODULES([CK], [ck >= 0.6], [], [dnl
+  AC_MSG_ERROR([libck required])
+])
+AC_SUBST(CK_LIBS)
+CPPFLAGS="$CK_CFLAGS $CPPFLAGS"
 
 # hwloc
 PKG_CHECK_MODULES([HWLOC], [hwloc >= 2], [], [dnl
