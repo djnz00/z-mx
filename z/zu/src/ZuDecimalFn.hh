@@ -65,8 +65,7 @@ namespace ZuDecimalFn {
     if (ZuLikely(i < 20U))
       v = pow10_64(i);
     else
-      v = static_cast<uint128_t>(pow10_64(i - 19U)) *
-	  static_cast<uint128_t>(10000000000000000000ULL);
+      v = uint128_t(pow10_64(i - 19U)) * uint128_t(10000000000000000000ULL);
     return v;
   }
 

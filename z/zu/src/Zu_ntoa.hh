@@ -160,8 +160,15 @@ namespace Zu_ntoa {
       unsigned l;
       if (ZuLikely(v < f))
 	l = Log10<8>::log(v);
-      else
-	l = Log10<8>::log(v / f) + 19U;
+      else {
+	v /= f;
+	if (ZuLikely(v < f))
+	  l = Log10<8>::log(v) + 19U;
+	else {
+	  v /= f;
+	  l = Log10<4>::log(v) + 38U;
+	}
+      }
       return l;
     }
   };
