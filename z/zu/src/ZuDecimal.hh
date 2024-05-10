@@ -96,28 +96,38 @@ struct ZuDecimal {
   constexpr ZuDecimal operator +(const ZuDecimal &v) const {
     if (ZuUnlikely(value == null() || v.value == null()))
       return ZuDecimal{Unscaled, null()};
-    return ZuDecimal{Unscaled, value + v.value};
+    int128_t result;
+    if (__builtin_add_overflow(value, v.value, &result) ||
+	result > maximum() || result < minimum())
+      return ZuDecimal{Unscaled, null()};
+    return ZuDecimal{Unscaled, result};
   }
   constexpr ZuDecimal &operator +=(const ZuDecimal &v) {
     if (ZuUnlikely(value == null())) return *this;
     if (ZuUnlikely(v.value == null()))
       value = null();
-    else
-      value += v.value;
+    else if (__builtin_add_overflow(value, v.value, &value) ||
+	value > maximum() || value < minimum())
+      value = null();
     return *this;
   }
 
   constexpr ZuDecimal operator -(const ZuDecimal &v) const {
     if (ZuUnlikely(value == null() || v.value == null()))
       return ZuDecimal{Unscaled, null()};
-    return ZuDecimal{Unscaled, value - v.value};
+    int128_t result;
+    if (__builtin_sub_overflow(value, v.value, &result) ||
+	result > maximum() || result < minimum())
+      return ZuDecimal{Unscaled, null()};
+    return ZuDecimal{Unscaled, result};
   }
   constexpr ZuDecimal &operator -=(const ZuDecimal &v) {
     if (ZuUnlikely(value == null())) return *this;
     if (ZuUnlikely(v.value == null()))
       value = null();
-    else
-      value -= v.value;
+    else if (__builtin_sub_overflow(value, v.value, &value) ||
+	value > maximum() || value < minimum())
+      value = null();
     return *this;
   }
 
@@ -308,6 +318,8 @@ struct ZuDecimal {
 
     u = div256scale(h, l);
 
+    if (u > maximum()) return null(); // overflow
+
     if (negative) return -int128_t(u);
     return u;
   }
@@ -323,7 +335,11 @@ struct ZuDecimal {
 
     mul128scale(u, h, l);
 
+    if (h >= v) return null(); // overflow
+
     div256by128(h, l, v, u);
+
+    if (u > maximum()) return null(); // overflow
 
     if (negative) return -int128_t(u);
     return u;

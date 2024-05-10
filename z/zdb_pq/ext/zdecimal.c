@@ -167,7 +167,13 @@ Datum zdecimal_add(PG_FUNCTION_ARGS) {
   const zu_decimal *l = (const zu_decimal *)PG_GETARG_POINTER(0);
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  PG_RETURN_POINTER(zu_decimal_add(v, l, r));
+  zu_decimal_add(v, l, r);
+  if (l->value() != zu_decimal_null() &&
+      r->value() != zu_decimal_null() &&
+      v->value == zu_decimal_null())
+    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+	  errmsg("value out of range: overflow")));
+  PG_RETURN_POINTER(v);
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_sub);
@@ -175,7 +181,13 @@ Datum zdecimal_sub(PG_FUNCTION_ARGS) {
   const zu_decimal *l = (const zu_decimal *)PG_GETARG_POINTER(0);
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  PG_RETURN_POINTER(zu_decimal_sub(v, l, r));
+  zu_decimal_sub(v, l, r);
+  if (l->value() != zu_decimal_null() &&
+      r->value() != zu_decimal_null() &&
+      v->value == zu_decimal_null())
+    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+	  errmsg("value out of range: overflow")));
+  PG_RETURN_POINTER(v);
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_mul);
@@ -183,7 +195,13 @@ Datum zdecimal_mul(PG_FUNCTION_ARGS) {
   const zu_decimal *l = (const zu_decimal *)PG_GETARG_POINTER(0);
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  PG_RETURN_POINTER(zu_decimal_mul(v, l, r));
+  zu_decimal_mul(v, l, r);
+  if (l->value() != zu_decimal_null() &&
+      r->value() != zu_decimal_null() &&
+      v->value == zu_decimal_null())
+    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+	  errmsg("value out of range: overflow")));
+  PG_RETURN_POINTER(v);
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_div);
@@ -191,7 +209,13 @@ Datum zdecimal_div(PG_FUNCTION_ARGS) {
   const zu_decimal *l = (const zu_decimal *)PG_GETARG_POINTER(0);
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
-  PG_RETURN_POINTER(zu_decimal_div(v, l, r));
+  zu_decimal_div(v, l, r);
+  if (l->value() != zu_decimal_null() &&
+      r->value() != zu_decimal_null() &&
+      v->value == zu_decimal_null())
+    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+	  errmsg("value out of range: overflow")));
+  PG_RETURN_POINTER(v);
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_lt);
@@ -287,7 +311,12 @@ Datum zdecimal_sum(PG_FUNCTION_ARGS) {
   {
     zu_decimal *l = (zu_decimal *)PG_GETARG_POINTER(0);
     const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
-    PG_RETURN_POINTER(zu_decimal_add(l, l, r));
+	if (AggCheckCallContext(fcinfo, NULL)) {
+	  PG_RETURN_POINTER(zu_decimal_add(l, l, r));
+	} else {
+	  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+	  PG_RETURN_POINTER(zu_decimal_add(v, l, r));
+	}
   }
 }
 

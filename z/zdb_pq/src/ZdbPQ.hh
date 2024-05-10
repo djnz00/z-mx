@@ -39,12 +39,12 @@ namespace ZdbPQ {
 // Double	float8
 // String	text
 //
-// Fixed	z_decimal (**)
-// Decimal	z_decimal (**)
+// Fixed	zdecimal (**)
+// Decimal	zdecimal (**)
 // Time		timestamp
 // Date		timestamp
-// int128_t	z_int128 (**)
-// uint128_t	z_uint128 (**)
+// int128_t	int128 (*)
+// uint128_t	uint128 (*)
 // ZiIP		inet
 // ZuID		char[8]
 

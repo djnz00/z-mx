@@ -1,0 +1,4 @@
+comment = 'Z decimal type'
+default_version = 0
+module_pathname = '$libdir/zdecimal'
+relocatable = true
