@@ -293,16 +293,21 @@ Datum zdecimal_sum(PG_FUNCTION_ARGS) {
 
 PG_FUNCTION_INFO_V1(zdecimal_acc);
 Datum zdecimal_acc(PG_FUNCTION_ARGS) {
-  ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
+  ArrayType *array = AggCheckCallContext(fcinfo, NULL) ?
+    PG_GETARG_ARRAYTYPE_P(0) :
+    PG_GETARG_ARRAYTYPE_P_COPY(0);
   zu_decimal *state;
   const zu_decimal *v;
 
   if (ARR_NDIM(array) != 1 ||
       ARR_DIMS(array)[0] != 2 ||
-      ARR_HASNULL(array)) {
+      ARR_HASNULL(array) ||
+      ARR_SIZE(array) != ARR_OVERHEAD_NONULLS(1) + sizeof(zu_decimal) * 2) {
     elog(ERROR, "zdecimal_acc expected 2-element zdecimal array");
     PG_RETURN_ARRAYTYPE_P(array);
   }
+
+  if (PG_ARGISNULL(1)) PG_RETURN_ARRAYTYPE_P(array);
 
   state = (zu_decimal *)ARR_DATA_PTR(array);
   v = (const zu_decimal *)PG_GETARG_POINTER(1);
@@ -315,11 +320,16 @@ Datum zdecimal_acc(PG_FUNCTION_ARGS) {
 
 PG_FUNCTION_INFO_V1(zdecimal_avg);
 Datum zdecimal_avg(PG_FUNCTION_ARGS) {
-  ArrayType *array = PG_GETARG_ARRAYTYPE_P(0);
+  ArrayType *array = AggCheckCallContext(fcinfo, NULL) ?
+    PG_GETARG_ARRAYTYPE_P(0) :
+    PG_GETARG_ARRAYTYPE_P_COPY(0);
   const zu_decimal *state;
   zu_decimal *v;
 
-  if (ARR_NDIM(array) != 1 || ARR_DIMS(array)[0] != 2 || ARR_HASNULL(array)) {
+  if (ARR_NDIM(array) != 1 ||
+      ARR_DIMS(array)[0] != 2 ||
+      ARR_HASNULL(array) ||
+      ARR_SIZE(array) != ARR_OVERHEAD_NONULLS(1) + sizeof(zu_decimal) * 2) {
     elog(ERROR, "zdecimal_avg expected 2-element zdecimal array");
     PG_RETURN_NULL();
   }

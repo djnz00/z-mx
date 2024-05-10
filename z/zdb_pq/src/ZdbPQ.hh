@@ -41,8 +41,8 @@ namespace ZdbPQ {
 //
 // Fixed	z_decimal (**)
 // Decimal	z_decimal (**)
-// Time		z_time (**)
-// Date		z_date_time (**)
+// Time		timestamp
+// Date		timestamp
 // int128_t	z_int128 (**)
 // uint128_t	z_uint128 (**)
 // ZiIP		inet
