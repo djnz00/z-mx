@@ -134,4 +134,9 @@ int main()
     ZuDecimal d;
     CHECK(d.scan("0") == 1);
   }
+  {
+    ZuDecimal d;
+    ZuDecimal e = -d;
+    CHECK(!*e);
+  }
 }

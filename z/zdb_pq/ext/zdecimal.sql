@@ -2,19 +2,19 @@ CREATE TYPE zdecimal;
 
 CREATE FUNCTION zdecimal_in(cstring) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_in';
+  AS '$libdir/zdecimal', 'zdecimal_in';
 
 CREATE FUNCTION zdecimal_out(zdecimal) RETURNS cstring
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_out';
+  AS '$libdir/zdecimal', 'zdecimal_out';
 
 CREATE FUNCTION zdecimal_recv(internal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_recv';
+  AS '$libdir/zdecimal', 'zdecimal_recv';
 
 CREATE FUNCTION zdecimal_send(zdecimal) RETURNS bytea
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_send';
+  AS '$libdir/zdecimal', 'zdecimal_send';
 
 CREATE TYPE zdecimal (
   INPUT = zdecimal_in,
@@ -27,35 +27,35 @@ CREATE TYPE zdecimal (
 
 CREATE FUNCTION zdecimal_to_int4(zdecimal) RETURNS integer
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_to_int4';
+  AS '$libdir/zdecimal', 'zdecimal_to_int4';
 
 CREATE FUNCTION zdecimal_from_int4(integer) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_from_int4';
+  AS '$libdir/zdecimal', 'zdecimal_from_int4';
 
 CREATE FUNCTION zdecimal_to_int8(zdecimal) RETURNS int8
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_to_int8';
+  AS '$libdir/zdecimal', 'zdecimal_to_int8';
 
 CREATE FUNCTION zdecimal_from_int8(int8) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_from_int8';
+  AS '$libdir/zdecimal', 'zdecimal_from_int8';
 
 CREATE FUNCTION zdecimal_to_float4(zdecimal) RETURNS real
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_to_float4';
+  AS '$libdir/zdecimal', 'zdecimal_to_float4';
 
 CREATE FUNCTION zdecimal_from_float4(real) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_from_float4';
+  AS '$libdir/zdecimal', 'zdecimal_from_float4';
 
 CREATE FUNCTION zdecimal_to_float8(zdecimal) RETURNS double precision
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_to_float8';
+  AS '$libdir/zdecimal', 'zdecimal_to_float8';
 
 CREATE FUNCTION zdecimal_from_float8(double precision) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_from_float8';
+  AS '$libdir/zdecimal', 'zdecimal_from_float8';
 
 CREATE CAST (integer AS zdecimal)
   WITH FUNCTION zdecimal_from_int4 AS ASSIGNMENT;
@@ -79,7 +79,7 @@ CREATE CAST (zdecimal AS numeric) WITH INOUT AS IMPLICIT;
 
 CREATE FUNCTION zdecimal_neg(zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_neg';
+  AS '$libdir/zdecimal', 'zdecimal_neg';
 
 CREATE OPERATOR - (
   PROCEDURE = zdecimal_neg,
@@ -88,7 +88,7 @@ CREATE OPERATOR - (
 
 CREATE FUNCTION zdecimal_add(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_add';
+  AS '$libdir/zdecimal', 'zdecimal_add';
 
 CREATE OPERATOR + (
   LEFTARG = zdecimal,
@@ -99,7 +99,7 @@ CREATE OPERATOR + (
 
 CREATE FUNCTION zdecimal_sub(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_sub';
+  AS '$libdir/zdecimal', 'zdecimal_sub';
 
 CREATE OPERATOR - (
   LEFTARG = zdecimal,
@@ -109,7 +109,7 @@ CREATE OPERATOR - (
 
 CREATE FUNCTION zdecimal_mul(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_mul';
+  AS '$libdir/zdecimal', 'zdecimal_mul';
 
 CREATE OPERATOR * (
   LEFTARG = zdecimal,
@@ -120,7 +120,7 @@ CREATE OPERATOR * (
 
 CREATE FUNCTION zdecimal_div(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_div';
+  AS '$libdir/zdecimal', 'zdecimal_div';
 
 CREATE OPERATOR / (
   LEFTARG = zdecimal,
@@ -130,7 +130,7 @@ CREATE OPERATOR / (
 
 CREATE FUNCTION zdecimal_lt(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_lt';
+  AS '$libdir/zdecimal', 'zdecimal_lt';
 
 CREATE OPERATOR < (
   LEFTARG = zdecimal,
@@ -144,7 +144,7 @@ CREATE OPERATOR < (
 
 CREATE FUNCTION zdecimal_le(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_le';
+  AS '$libdir/zdecimal', 'zdecimal_le';
 
 CREATE OPERATOR <= (
   LEFTARG = zdecimal,
@@ -158,7 +158,7 @@ CREATE OPERATOR <= (
 
 CREATE FUNCTION zdecimal_eq(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_eq';
+  AS '$libdir/zdecimal', 'zdecimal_eq';
 
 CREATE OPERATOR = (
   LEFTARG = zdecimal,
@@ -174,7 +174,7 @@ CREATE OPERATOR = (
 
 CREATE FUNCTION zdecimal_ne(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_ne';
+  AS '$libdir/zdecimal', 'zdecimal_ne';
 
 CREATE OPERATOR <> (
   LEFTARG = zdecimal,
@@ -188,7 +188,7 @@ CREATE OPERATOR <> (
 
 CREATE FUNCTION zdecimal_ge(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_ge';
+  AS '$libdir/zdecimal', 'zdecimal_ge';
 
 CREATE OPERATOR >= (
   LEFTARG = zdecimal,
@@ -202,7 +202,7 @@ CREATE OPERATOR >= (
 
 CREATE FUNCTION zdecimal_gt(zdecimal, zdecimal) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_gt';
+  AS '$libdir/zdecimal', 'zdecimal_gt';
 
 CREATE OPERATOR > (
   LEFTARG = zdecimal,
@@ -216,11 +216,11 @@ CREATE OPERATOR > (
 
 CREATE FUNCTION zdecimal_cmp(zdecimal, zdecimal) RETURNS integer
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_cmp';
+  AS '$libdir/zdecimal', 'zdecimal_cmp';
 
 CREATE FUNCTION zdecimal_sort(internal) RETURNS void
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_sort';
+  AS '$libdir/zdecimal', 'zdecimal_sort';
 
 CREATE OPERATOR CLASS zdecimal_ops
   DEFAULT FOR TYPE zdecimal USING btree AS
@@ -234,7 +234,7 @@ CREATE OPERATOR CLASS zdecimal_ops
 
 CREATE FUNCTION zdecimal_hash(zdecimal) RETURNS int4
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_hash';
+  AS '$libdir/zdecimal', 'zdecimal_hash';
 
 CREATE OPERATOR CLASS zdecimal_ops
   DEFAULT FOR TYPE zdecimal USING hash AS
@@ -243,7 +243,7 @@ CREATE OPERATOR CLASS zdecimal_ops
 
 CREATE FUNCTION zdecimal_smaller(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_smaller';
+  AS '$libdir/zdecimal', 'zdecimal_smaller';
 
 CREATE AGGREGATE min(zdecimal) (
   SFUNC = zdecimal_smaller,
@@ -253,7 +253,7 @@ CREATE AGGREGATE min(zdecimal) (
 
 CREATE FUNCTION zdecimal_larger(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_larger';
+  AS '$libdir/zdecimal', 'zdecimal_larger';
 
 CREATE AGGREGATE max(zdecimal) (
   SFUNC = zdecimal_larger,
@@ -263,17 +263,17 @@ CREATE AGGREGATE max(zdecimal) (
 
 CREATE FUNCTION zdecimal_sum(zdecimal, zdecimal) RETURNS zdecimal
   IMMUTABLE LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_sum';
+  AS '$libdir/zdecimal', 'zdecimal_sum';
 
 CREATE AGGREGATE sum(zdecimal) (SFUNC = zdecimal_sum, STYPE = zdecimal);
 
 CREATE FUNCTION zdecimal_acc(zdecimal[], zdecimal) RETURNS zdecimal[]
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_acc';
+  AS '$libdir/zdecimal', 'zdecimal_acc';
 
 CREATE FUNCTION zdecimal_avg(zdecimal[]) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
-  AS '$libdir/zpq', 'zdecimal_avg';
+  AS '$libdir/zdecimal', 'zdecimal_avg';
 
 CREATE AGGREGATE avg(zdecimal) (
   SFUNC = zdecimal_acc,

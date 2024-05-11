@@ -12,12 +12,12 @@
 
 #include <zlib/zu_decimal.h>
 
-ZuAssert(sizeof(zu_decimal) == sizeof(ZuDecimal));
-
 unsigned int zu_decimal_in(zu_decimal *v_, const char *s)
 {
-  auto v = new (v_) ZuDecimal{};
-  return v->scan(s);
+  ZuDecimal v;
+  auto n = v.scan(s);
+  v_->value = v.value;
+  return n;
 }
 unsigned int zu_decimal_out_len(const zu_decimal *v)
 {
@@ -29,7 +29,7 @@ unsigned int zu_decimal_out_len(const zu_decimal *v)
 
 char *zu_decimal_out(char *s, const zu_decimal *v_)
 {
-  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
   if (ZuUnlikely(!*v)) { strcpy(s, "nan"); return s + 3; }
   uint128_t iv, fv;
   if (v.value < 0) {
@@ -48,111 +48,92 @@ char *zu_decimal_out(char *s, const zu_decimal *v_)
   return s;
 }
 
-zu_decimal *zu_decimal_init(zu_decimal *v)
-{
-  v->value = ZuDecimal::null();
-  return v;
-}
-
-bool zu_decimal_is_null(const zu_decimal *v)
-{
-  return v->value == ZuDecimal::null();
-}
-
 int64_t zu_decimal_to_int(const zu_decimal *v_)
 {
-  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
   return int64_t(v);
 }
 
 zu_decimal *zu_decimal_from_int(zu_decimal *v_, int64_t i)
 {
-  return reinterpret_cast<zu_decimal *>(new (v_) ZuDecimal{i});
+  ZuDecimal v{i};
+  v_->value = v.value;
+  return v_;
 }
 
 double zu_decimal_to_double(const zu_decimal *v_)
 {
-  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
   return v.fp();
 }
 
 zu_decimal *zu_decimal_from_double(zu_decimal *v_, double d)
 {
-  return reinterpret_cast<zu_decimal *>(new (v_) ZuDecimal{d});
+  ZuDecimal v{d};
+  v_->value = v.value;
+  return v_;
 }
 
 int64_t zu_decimal_round(const zu_decimal *v_)
 {
-  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
   return v.round();
 }
 
 int zu_decimal_cmp(const zu_decimal *l_, const zu_decimal *r_)
 {
-  const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
+  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
+  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
   return l.cmp(r);
 }
 
 uint32_t zu_decimal_hash(const zu_decimal *v_)
 {
-  const auto &v = *reinterpret_cast<const ZuDecimal *>(v_);
+  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
   return v.hash();
 }
 
 zu_decimal *zu_decimal_neg(zu_decimal *v_, const zu_decimal *p_)
 {
-  const auto &p = *reinterpret_cast<const ZuDecimal *>(p_);
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
-  v = -p;
+  ZuDecimal p{ZuDecimal::Unscaled, p_->value};
+  ZuDecimal v = -p;
+  v_->value = v.value;
   return v_;
 }
 
 zu_decimal *zu_decimal_add(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
-  if (v_ == l_)
-    v += r;
-  else
-    v = l + r;
+  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
+  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal v = l + r;
+  v_->value = v.value;
   return v_;
 }
 zu_decimal *zu_decimal_sub(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
-  if (v_ == l_)
-    v -= r;
-  else
-    v = l - r;
+  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
+  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal v = l - r;
+  v_->value = v.value;
   return v_;
 }
 zu_decimal *zu_decimal_mul(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
-  if (v_ == l_)
-    v *= r;
-  else
-    v = l * r;
+  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
+  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal v = l * r;
+  v_->value = v.value;
   return v_;
 }
 zu_decimal *zu_decimal_div(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  const auto &l = *reinterpret_cast<const ZuDecimal *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
-  if (v_ == l_)
-    v /= r;
-  else
-    v = l / r;
+  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
+  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal v = l / r;
+  v_->value = v.value;
   return v_;
 }

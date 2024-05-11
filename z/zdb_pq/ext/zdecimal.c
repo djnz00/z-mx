@@ -41,7 +41,7 @@ Datum zdecimal_in(PG_FUNCTION_ARGS) {
   }
 
   /* postgres numeric supports inputs like 0x, 0o, 0b for hex/octal/binary,
-   * this would be mis-use of the type, we intentionally omit that here */
+   * this would be mis-use of the type, intentionally omitted here */
   n = zu_decimal_in(v, s);
 
   /* SQL requires trailing spaces to be ignored while erroring out on other
@@ -168,8 +168,8 @@ Datum zdecimal_add(PG_FUNCTION_ARGS) {
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   zu_decimal_add(v, l, r);
-  if (l->value() != zu_decimal_null() &&
-      r->value() != zu_decimal_null() &&
+  if (l->value != zu_decimal_null() &&
+      r->value != zu_decimal_null() &&
       v->value == zu_decimal_null())
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
@@ -182,8 +182,8 @@ Datum zdecimal_sub(PG_FUNCTION_ARGS) {
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   zu_decimal_sub(v, l, r);
-  if (l->value() != zu_decimal_null() &&
-      r->value() != zu_decimal_null() &&
+  if (l->value != zu_decimal_null() &&
+      r->value != zu_decimal_null() &&
       v->value == zu_decimal_null())
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
@@ -196,8 +196,8 @@ Datum zdecimal_mul(PG_FUNCTION_ARGS) {
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   zu_decimal_mul(v, l, r);
-  if (l->value() != zu_decimal_null() &&
-      r->value() != zu_decimal_null() &&
+  if (l->value != zu_decimal_null() &&
+      r->value != zu_decimal_null() &&
       v->value == zu_decimal_null())
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
@@ -210,8 +210,8 @@ Datum zdecimal_div(PG_FUNCTION_ARGS) {
   const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
   zu_decimal_div(v, l, r);
-  if (l->value() != zu_decimal_null() &&
-      r->value() != zu_decimal_null() &&
+  if (l->value != zu_decimal_null() &&
+      r->value != zu_decimal_null() &&
       v->value == zu_decimal_null())
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));

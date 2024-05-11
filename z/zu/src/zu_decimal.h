@@ -27,9 +27,12 @@ typedef __uint128_t uint128_t;
 #define zu_decimal_scale() ((int128_t)1000000000000000000ULL)
 #define zu_decimal_null() (((int128_t)1)<<127)
 
+/* force gcc not to assume 16-byte alignment */
+#pragma pack(push, 8)
 typedef struct {
   int128_t	value;
 } zu_decimal;
+#pragma pack(pop)
 
 /* parse string, returns #bytes scanned, 0 on invalid input */
 ZuExtern unsigned int zu_decimal_in(zu_decimal *v, const char *s);

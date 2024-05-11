@@ -88,7 +88,7 @@ struct ZuDecimal {
     return value / ZuDecimalFn::pow10_64(18 - exponent);
   }
 
-  constexpr ZuDecimal operator -() {
+  constexpr ZuDecimal operator -() const {
     if (ZuUnlikely(value == null())) return ZuDecimal{Unscaled, null()};
     return ZuDecimal{Unscaled, -value};
   }
