@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// 128bit decimal fixed point with 36 digits and constant 10^18 scaling, i.e.
+// 128bit decimal fixed point with 36 digits and constant 10^18 scaling
 // 18 integer digits and 18 fractional digits (i.e. 18 decimal places)
 
 #ifndef ZuDecimal_HH
@@ -132,7 +132,8 @@ struct ZuDecimal {
   }
 
   // mul and div functions based on reference code (BSD licensed) at:
-  // https://www.codeproject.com/Tips/618570/UInt-Multiplication-Squaring 
+  // https://www.codeproject.com/Tips/618570/UInt-Multiplication-Squaring
+  // in turn based on Hacker's Delight
 
   // h:l = u * v
   static void mul128by128(

@@ -139,4 +139,10 @@ int main()
     ZuDecimal e = -d;
     CHECK(!*e);
   }
+  {
+    ZuDecimal d{"100000000000000000"};
+    ZuDecimal e{"-0.1"};
+    d /= e; // overflow
+    CHECK(!*d);
+  }
 }
