@@ -515,9 +515,9 @@ SELECT CAST('42.01'::zdecimal AS int8);
 (1 row)
 
 SELECT CAST('-42.01'::zdecimal AS int8);
-        int8         
----------------------
- 8240973594166534333
+ int8 
+------
+  -42
 (1 row)
 
 SELECT CAST('42.01'::zdecimal AS double precision);

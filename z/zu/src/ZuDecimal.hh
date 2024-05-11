@@ -468,7 +468,11 @@ public:
   operator int64_t() const {
     if (ZuUnlikely(value == null())) return ZuCmp<int64_t>::null();
     uint128_t scale_ = uint128_t(scale());
-    return int64_t(value / scale_);
+    if (value < 0) {
+      auto i = (-value) / scale_;
+      return -int64_t(i);
+    } else
+      return int64_t(value / scale_);
   }
   uint64_t frac_() const {
     uint128_t scale_ = uint128_t(scale());
