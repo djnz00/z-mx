@@ -265,7 +265,7 @@ void ZuDateTime::normalize(
   }
 }
 
-void ZuDateTime::ctor(const ZuDateTimeScan::CSV &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::CSV &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -297,7 +297,7 @@ void ZuDateTime::ctor(const ZuDateTimeScan::CSV &fmt, ZuString s)
       m_sec = 0;
       m_nsec = 0;
       if (ZuUnlikely(fmt.tzOffset)) *this += fmt.tzOffset;
-      return;
+      return ptr - s.data();
     }
 
     if (ZuUnlikely(end - ptr < 8)) goto invalid;
@@ -331,14 +331,15 @@ void ZuDateTime::ctor(const ZuDateTimeScan::CSV &fmt, ZuString s)
     m_nsec = nsec;
 
     if (ZuUnlikely(fmt.tzOffset)) *this += fmt.tzOffset;
-    return;
+    return ptr - s.data();
   }
 
 invalid:
   m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
+  return 0;
 }
 
-void ZuDateTime::ctor(const ZuDateTimeScan::FIX &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::FIX &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -390,14 +391,15 @@ void ZuDateTime::ctor(const ZuDateTimeScan::FIX &fmt, ZuString s)
     m_sec = second(hour, minute, sec);
     m_nsec = nsec;
 
-    return;
+    return ptr - s.data();
   }
 
 invalid:
   m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
+  return 0;
 }
 
-void ZuDateTime::ctor(const ZuDateTimeScan::ISO &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuString s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -429,7 +431,7 @@ void ZuDateTime::ctor(const ZuDateTimeScan::ISO &fmt, ZuString s)
       m_sec = 0;
       m_nsec = 0;
       if (ZuUnlikely(fmt.tzOffset)) *this += fmt.tzOffset;
-      return;
+      return ptr - s.data();
     }
 
     if (ZuUnlikely(end - ptr < 8)) goto invalid;
@@ -464,10 +466,10 @@ void ZuDateTime::ctor(const ZuDateTimeScan::ISO &fmt, ZuString s)
 
     if (ptr >= end) {
       if (ZuUnlikely(fmt.tzOffset)) *this += fmt.tzOffset;
-      return;
+      return ptr - s.data();
     }
 
-    if ((c = *ptr++) == 'Z') return;
+    if ((c = *ptr++) == 'Z') return ptr - s.data();
 
     int offset;
 
@@ -501,16 +503,17 @@ void ZuDateTime::ctor(const ZuDateTimeScan::ISO &fmt, ZuString s)
       offset = (offsetHours * 60 + offsetMinutes) * 60;
 
     *this += offset;
-    return;
+    return ptr - s.data();
   }
 
 invalid:
   m_julian = ZuCmp<int32_t>::null(), m_sec = 0, m_nsec = 0;
+  return 0;
 }
 
-void ZuDateTime::ctor(const ZuDateTimeScan::Any &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::Any &fmt, ZuString s)
 {
-  fmt.cdispatch([this, s]<typename Fmt>(auto, Fmt &&fmt) {
-    ctor(ZuFwd<Fmt>(fmt), s);
+  return fmt.cdispatch([this, s]<typename Fmt>(auto, Fmt &&fmt) {
+    return scan(ZuFwd<Fmt>(fmt), s);
   });
 }

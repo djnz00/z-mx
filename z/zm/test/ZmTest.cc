@@ -407,8 +407,9 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("sem post/wait time: %d.%.3d / 1000000 = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
+    printf("sem post/wait time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
 
     delete sema;
   }
@@ -426,8 +427,9 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("lock/unlock time: %d.%.3d / 1000000 = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
+    printf("lock/unlock time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
   }
 
   {
@@ -443,8 +445,9 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("ref time: %d.%.3d / 1000000 = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
+    printf("ref time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
 
     start = Zm::now();
 
@@ -452,12 +455,12 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("deref time: %d.%.3d / 1000000 = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), end.dtime() / 1000000.0);
+    printf("deref time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
   }
 
   int n = Zm::getncpu();
-  int t = n * 1000000;
 
   {
     ZuTime start, end;
@@ -472,9 +475,9 @@ int main(int argc, char **argv)
     end = Zm::now();
     end -= start;
 
-    printf("Meyers singleton time: %d.%.3d / %d = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), t,
-	end.dtime() / (double)t);
+    printf("Meyers singleton time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
     printf("S() called %u times\n", S::m_j); S::m_j = 0;
   }
 
@@ -490,9 +493,9 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("ZmSingleton::instance() time: %d.%.3d / %d = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), t,
-	end.dtime() / (double)t);
+    printf("ZmSingleton::instance() time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
     printf("S() called %u times\n", S::m_j); S::m_j = 0;
   }
 
@@ -508,9 +511,9 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("ZmSpecific::instance() time: %d.%.3d / %d = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), t,
-	end.dtime() / (double)t);
+    printf("ZmSpecific::instance() time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
     printf("S() called %u times\n", S::m_j); S::m_j = 0;
   }
 
@@ -526,17 +529,17 @@ int main(int argc, char **argv)
 
     end = Zm::now();
     end -= start;
-    printf("thread_local time: %d.%.3d / %d = %.16f\n",
-	(int)end.sec(), (int)(end.nsec() / 1000000), t,
-	end.dtime() / (double)t);
+    printf("thread_local time: %s / 1000000 = %s\n",
+      (ZuStringN<32>{} << end.interval()).data(),
+      (ZuStringN<32>{} << (end / 1000000.0L).interval()).data());
     printf("S() called %u times\n", S::m_j); S::m_j = 0;
   }
 
 
   overallEnd = Zm::now();
   overallEnd -= overallStart;
-  printf("overall time: %d.%.3d\n",
-    (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));
+  printf("overall time: %s\n",
+    (ZuStringN<32>{} << overallEnd.interval()).data());
 
   {
     W w;

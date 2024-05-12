@@ -259,7 +259,7 @@ bool DataFrame::load_(ZuBytes data)
   }
   using namespace Zfb::Load;
   auto df = fbs::GetDataFrame(&data[0]);
-  m_epoch = dateTime(df->epoch()).zmTime();
+  m_epoch = dateTime(df->epoch()).zuTime();
   return true;
 }
 

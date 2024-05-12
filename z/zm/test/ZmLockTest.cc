@@ -113,8 +113,8 @@ template <> struct TypeCode<FAS> { enum { N = Type::FAS }; };
 template <> struct TypeCode<Ticket> { enum { N = Type::Ticket }; };
 #endif
 
-template <typename Lock> double main_(
-    const char *name, unsigned nthreads, unsigned count, double baseline)
+template <typename Lock>
+void main_(const char *name, unsigned nthreads, unsigned count)
 {
   Lock lock;
   auto c = static_cast<C<Lock> *>(ZuAlloca(nthreads * sizeof(C<Lock>)));
@@ -128,9 +128,7 @@ template <typename Lock> double main_(
   }
   for (unsigned i = 0; i < nthreads; i++) pthread_join(c[i].tid, 0);
   ZuTime end = Zm::now(); end -= begin;
-  double delay = (end.dtime() - baseline) / (double)nthreads;
-  std::cout << name << ":\t" << ZuBoxed(delay * 10) << "\n";
-  return delay;
+  std::cout << name << ":\t" << end.interval() << "\n";
 }
 
 int main(int argc, char **argv)
@@ -139,12 +137,12 @@ int main(int argc, char **argv)
   int nthreads = atoi(argv[1]);
   int count = (argc > 2 ? atoi(argv[2]) : 100000000);
   if (nthreads <= 0 || count <= 0) usage();
-  double baseline = main_<NoLock>("NoLock", nthreads, count, 0);
-  main_<ZmPLock>("ZmPLock", nthreads, count, baseline);
+  main_<NoLock>("NoLock", nthreads, count);
+  main_<ZmPLock>("ZmPLock", nthreads, count);
 #ifndef _WIN32
-  main_<PThread>("PThread", nthreads, count, baseline);
-  main_<FAS>("FAS", nthreads, count, baseline);
-  main_<Ticket>("Ticket", nthreads, count, baseline);
+  main_<PThread>("PThread", nthreads, count);
+  main_<FAS>("FAS", nthreads, count);
+  main_<Ticket>("Ticket", nthreads, count);
 #endif
   Zm::exit(0);
 }

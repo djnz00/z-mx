@@ -47,28 +47,28 @@ public:
 
   template <typename S> void print(S &s) const {
     ZuTime min, max, total;
-    ZuBox<double> mean;
+    ZuBox<long double> mean;
     ZuBox<unsigned> count;
 
     stats(min, max, total, mean, count);
 
-    s << "min=" << ZuBoxed(min.dtime()).fmt<ZuFmt::FP<9, '0'>>()
-      << " max=" << ZuBoxed(max.dtime()).fmt<ZuFmt::FP<9, '0'>>()
-      << " total=" << ZuBoxed(total.dtime()).fmt<ZuFmt::FP<9, '0'>>()
+    s << "min=" << min.interval()
+      << " max=" << max.interval()
+      << " total=" << total.interval()
       << " mean=" << mean.fmt<ZuFmt::FP<9, '0'>>()
       << " count=" << count;
   }
 
   void stats(
       ZuTime &min, ZuTime &max, ZuTime &total,
-      double &mean, unsigned &count) const {
+      long double &mean, unsigned &count) const {
     ReadGuard guard(m_lock);
     if (ZuUnlikely(!m_count)) {
       min = ZuTime{}, max = ZuTime{}, total = ZuTime{},
       mean = 0.0, count = 0;
     } else {
       min = m_min, max = m_max, total = m_total,
-      mean = m_total.dtime() / m_count, count = m_count;
+      mean = m_total.as_ldouble() / m_count, count = m_count;
     }
   }
   friend ZuPrintFn ZuPrintType(ZmTimeInterval *);

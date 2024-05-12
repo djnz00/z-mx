@@ -19,34 +19,41 @@
 
 #include <zlib/ZdbStore.hh>
 
-namespace ZdbPQ {
-
-// (*)  Postgres uint extension https://github.com/petere/pguint
+// (*)  Postgres uint extension https://github.com/djnz00/pguint
 // (**) Z Postgres extension
 //
-// flatbuffers	pg_type.typname
+// C++		flatbuffers	pg_type.typname	pg send/receive format
 //
-// Bool		bool
-// Byte		int1 (*)
-// UByte	uint1 (*)
-// Short	int2
-// UShort	uint2 (*)
-// Int		int4
-// UInt		uint4 (*)
-// Long		int8
-// ULong	uint8 (*)
-// Float	float4
-// Double	float8
-// String	text
+// bool		Bool		bool		uint8_t BE
+// int8_t	Byte		int1 (*)	int8_t BE
+// uint8_t	UByte		uint1 (*)	uint8_t BE
+// int16_t	Short		int2		int16_t BE
+// uint16_t	UShort		uint2 (*)	uint16_t BE
+// int32_t	Int		int4		int16_t BE
+// uint32_t	UInt		uint4 (*)	uint32_t BE
+// int64_t	Long		int8		int64_t BE
+// uint64_t	ULong		uint8 (*)	uint64_t BE
+// float	Float		float4		float | int32_t BE
+// double	Double		float8		double | int64_t BE
+// <string>	String		text		uint32_t len, null-term. data
+// 						(len might not be byteswapped?)
 //
-// Fixed	zdecimal (**)
-// Decimal	zdecimal (**)
-// Time		timestamp
-// Date		timestamp
-// int128_t	int128 (*)
-// uint128_t	uint128 (*)
-// ZiIP		inet
-// ZuID		char[8]
+// ZuFixed	Zfb.Fixed	zdecimal (**)	int128_t BE
+// ZuDecimal	Zfb.Decimal	zdecimal (**)	int128_t BE
+// ZuTime	Zfb.Time	timestamp	int64_t BE in microseconds
+// 						epoch is 2000/1/1 00:00:00
+// ZuDateTime	Zfb.DateTime	timestamp	''
+// int128_t	Zfb.Int128	int16 (*)	int128_t BE
+// uint128_t	Zfb.UInt128	uint16 (*)	uint128_t BE
+// ZiIP		Zfb.IP		inet		4 header bytes {
+// 						  family(AF_INET=2),
+// 						  bits(32),
+// 						  is_cidr(false),
+// 						  len(4)
+// 						}, uint32_t BE address
+// ZuID		Zfb.ID		text		see above
+
+namespace ZdbPQ {
 
 }
 

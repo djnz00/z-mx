@@ -4,14 +4,14 @@ PG_CONFIG = pg_config
 
 extension_version = 0
 
-EXTENSION = zdecimal
-MODULE_big = zdecimal
-OBJS = zdecimal.o magic.o
+EXTENSION = libz
+MODULE_big = libz
+OBJS = zdecimal.o ztime.o magic.o
 #PG_CPPFLAGS =
 SHLIB_LINK = -lZu
-DATA_built = zdecimal--$(extension_version).sql
+DATA_built = libz--$(extension_version).sql
 
-REGRESS = init zdecimal drop
+REGRESS = init zdecimal ztime drop
 REGRESS_OPTS = --inputdir=test
 
 #EXTRA_CLEAN += 
@@ -19,5 +19,5 @@ REGRESS_OPTS = --inputdir=test
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
-zdecimal--$(extension_version).sql: zdecimal.sql
+libz--$(extension_version).sql: zdecimal.sql ztime.sql
 	cat $^ >$@

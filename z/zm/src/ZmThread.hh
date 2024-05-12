@@ -149,8 +149,8 @@ public:
     clock_gettime(m_cid, &m_cpuLast);
     m_rtLast = Zm::now();
     if (ZuUnlikely(!cpuLast || !rtLast)) return 0.0;
-    double cpuDelta = (m_cpuLast - cpuLast).dtime();
-    double rtDelta = (m_rtLast - rtLast).dtime();
+    auto cpuDelta = (m_cpuLast - cpuLast).as_ldouble();
+    auto rtDelta = (m_rtLast - rtLast).as_ldouble();
     return cpuDelta / rtDelta;
   }
   int32_t sysPriority() const {

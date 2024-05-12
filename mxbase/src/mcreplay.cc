@@ -266,7 +266,7 @@ void App::read()
     ZuTime next = msg->stamp();
 
     if (next) {
-      delay = !m_prev ? 0.0 : (next - m_prev).dtime() / m_speed;
+      delay = !m_prev ? 0.0 : (next - m_prev).as_ldouble() / m_speed;
       m_prev = next;
     } else
       delay = 0;

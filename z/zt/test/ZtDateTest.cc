@@ -177,7 +177,8 @@ int main()
     ZuDateTime d2{Zm::now()};
     ZuTime t = d2 - d1;
 
-    printf("\n1/10 sec delta time check: %.6f\n\n", t.dtime());
+    printf("\n1/10 sec delta time check: %s\n\n",
+      (ZuStringN<32>{} << t.interval()).data());
   }
 
   {
@@ -222,17 +223,18 @@ int main()
 #else
   ZuTime o1, o2, t1, t1_, t2, t2_;
   double d1 = 0, d2 = 0, d3 = 0,
-         d1sum = 0, d2sum = 0, d3sum = 0, d1vsum = 0, d2vsum = 0, d3vsum = 0,
-         d1avg = 0, d2avg = 0, d3avg = 0, d1std = 0, d2std = 0, d3std = 0;
+       d1sum = 0, d2sum = 0, d3sum = 0, d1vsum = 0, d2vsum = 0, d3vsum = 0,
+       d1avg = 0, d2avg = 0, d3avg = 0, d1std = 0, d2std = 0, d3std = 0;
   FILETIME f;
 #endif
 
   t1_ = Zm::now();
   for (i = 1; i <= 1000000; i++) t1 = Zm::now();
   t1_ = Zm::now() - t1_;
-  double intrinsic = t1_.dtime() / 1000000;
+  auto intrinsic = t1_ / (long double)1000000;
 
-  printf("\nZm::now() intrinsic cost: %12.10f\n", intrinsic);
+  printf("\nZm::now() intrinsic cost: %s\n",
+      (ZuStringN<32>{} << intrinsic.interval()).data());
 
 #ifdef _WIN32
   GetSystemTimeAsFileTime(&f);
@@ -247,9 +249,9 @@ int main()
     t2 = f;
     t1 = Zm::now();
     t1 -= intrinsic;
-    d1 = (t1 - t1_).dtime();
-    d2 = (t2 - t2_).dtime();
-    d3 = (t1 - t2).dtime();
+    d1 = (t1 - t1_).as_ldouble();
+    d2 = (t2 - t2_).as_ldouble();
+    d3 = (t1 - t2).as_ldouble();
     d1sum += d1;
     d2sum += d2;
     d3sum += d3;
@@ -281,9 +283,9 @@ int main()
     t2 = f;
     t1 = Zm::now();
     t1 -= intrinsic;
-    d1 = (t1 - t1_).dtime();
-    d2 = (t2 - t2_).dtime();
-    d3 = (t1 - t2).dtime();
+    d1 = (t1 - t1_).as_ldouble();
+    d2 = (t2 - t2_).as_ldouble();
+    d3 = (t1 - t2).as_ldouble();
     d1sum += d1;
     d2sum += d2;
     d3sum += d3;
@@ -310,8 +312,8 @@ int main()
          "ZuTime cnt: % 10d act: %12.10f avg: %12.10f std: %12.10f\n"
          "GSTAFT cnt: % 10d act: %12.10f avg: %12.10f std: %12.10f\n"
 	 "ZuTime - GSTAFT skew                     avg: %12.10f std: %12.10f\n",
-         i, o1.dtime() / i, d1avg, d1std,
-         i, o2.dtime() / i, d2avg, d2std,
+         i, double(o1.as_ldouble() / i), d1avg, d1std,
+         i, double(o2.as_ldouble() / i), d2avg, d2std,
          d3avg, d3std);
 #endif
 

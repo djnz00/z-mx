@@ -150,15 +150,18 @@ void Work::dump(int tid, const char *prePost, ZmTLock<int, int> &locks)
 
   if (*m_timeout) {
     ZuTime timeout = m_timeout - now;
-    printf("%+14.3f %3d %s %10s %3d %s %+8.3f\n",
-	   stamp.dtime(), tid, prePost, insns[m_insn], m_lock,
-	   s.data(), timeout.dtime());
+    printf("%s %3d %s %10s %3d %s %s\n",
+           (ZuStringN<32>{} << stamp.interval()).data(),
+	   tid, prePost, insns[m_insn], m_lock, s.data(),
+           (ZuStringN<32>{} << timeout.interval()).data());
   } else if (m_try)
-    printf("%+14.3f %3d %s %10s %3d %s Try\n",
-	   stamp.dtime(), tid, prePost, insns[m_insn], m_lock, s.data());
+    printf("%s %3d %s %10s %3d %s Try\n",
+           (ZuStringN<32>{} << stamp.interval()).data(),
+	   tid, prePost, insns[m_insn], m_lock, s.data());
   else
-    printf("%+14.3f %3d %s %10s %3d %s\n",
-	   stamp.dtime(), tid, prePost, insns[m_insn], m_lock, s.data());
+    printf("%s %3d %s %10s %3d %s\n",
+           (ZuStringN<32>{} << stamp.interval()).data(),
+	   tid, prePost, insns[m_insn], m_lock, s.data());
 
   fflush(stdout);
 }

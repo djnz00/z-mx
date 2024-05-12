@@ -391,7 +391,7 @@ void ZeDebugSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZuTime d = info.time - m_started;
 
-  buf << '+' << ZuBoxed(d.dtime()).fmt<ZuFmt::FP<9>>() << ' ' <<
+  buf << '+' << d.interval() << ' ' <<
     ZuBoxed(info.tid) << ' ' <<
     Ze::severity(info.severity) << ' ';
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)

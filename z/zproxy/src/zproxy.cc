@@ -198,10 +198,10 @@ public:
   void trace(bool on) { on ? (m_flags |= Trace) : (m_flags &= ~Trace); }
   void drop(bool on) { on ? (m_flags |= Drop) : (m_flags &= ~Drop); }
 
-  void latency(double n) { m_latency = n; }
+  void latency(ZmTime n) { m_latency = n; }
   void frag(uint32_t n) { m_frag = n; }
   void pack(uint32_t n) { m_pack = n; }
-  void delay(double n) { m_delay = n; }
+  void delay(ZmTime n) { m_delay = n; }
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(Connection *);
@@ -214,10 +214,10 @@ private:
     IOQueue		  m_queue;
     bool		  m_sendPending;
   uint32_t		m_flags;
-  double		m_latency;
+  ZmTime		m_latency;
   uint32_t		m_frag;
   uint32_t		m_pack;
-  double		m_delay;
+  ZmTime		m_delay;
 };
 
 class Proxy : public ZmPolymorph {
@@ -1172,10 +1172,10 @@ void IOBuf::sent_(ZiIOContext &io)
 Connection::Connection(Proxy *proxy, uint32_t flags,
     double latency, uint32_t frag, uint32_t pack, double delay,
     const ZiCxnInfo &ci) :
-  ZiConnection(proxy->mx(), ci),
-  m_mx(proxy->mx()), m_proxy(proxy), m_peer(nullptr),
-  m_flags(flags), m_latency(latency),
-  m_frag(frag), m_pack(pack), m_delay(delay)
+  ZiConnection{proxy->mx(), ci},
+  m_mx{proxy->mx()}, m_proxy{proxy}, m_peer{nullptr},
+  m_flags{flags}, m_latency{latency},
+  m_frag{frag}, m_pack{pack}, m_delay{delay}
 {
 }
 
@@ -1193,9 +1193,9 @@ void Connection::connected_()
 void Connection::disconnected()
 {
   if (m_peer && m_peer->up() && !(m_peer->m_flags & Hold)) {
-    if (ZuBoxed(m_latency).fgt(0)) {
+    if (m_latency) {
       // double the latency to avoid overtaking pending delayed sends
-      ZuTime next = Zm::now(m_latency * 2.0);
+      ZuTime next = Zm::now(m_latency * 2.0L);
       m_mx->add([peer = ZmMkRef(m_peer)]() { peer->disconnect(); }, next);
     } else
       m_peer->disconnect();
@@ -1212,7 +1212,7 @@ void Connection::recv(ZiIOContext *io)
     return;
   }
 
-  if (ZuUnlikely(ZuBoxed(m_delay).fgt(0))) {
+  if (ZuUnlikely(m_delay)) {
     if (io) io->complete();
     m_mx->add([this]() { recv(); }, Zm::now(m_delay));
     return;
@@ -1251,7 +1251,7 @@ void Connection::send(ZmRef<IOBuf> ioBuf)
 
   if (m_sendPending) return;
 
-  if (ZuBoxed(m_latency).fgt(0)) {
+  if (m_latency) {
     ZuTime now = Zm::now();
     ZuTime next = m_queue.tail()->stamp() + m_latency;
     if (next > now) {

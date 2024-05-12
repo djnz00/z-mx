@@ -2107,8 +2107,8 @@ void ZiMultiplex::rx()
 #if 0
 #ifdef ZiMultiplex_DEBUG
     now = Zm::now() - now;
-    if (now.dtime() > .001) {
-      ZeLOG(Info, ZtSprintf("slow epoll_wait(): %.6f", now.dtime()));
+    if (now.microsecs() > 1000) {
+      ZeLOG(Info, ZtSprintf("slow epoll_wait(): %lu us", now.microsecs()));
     }
 #endif
 #endif

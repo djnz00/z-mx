@@ -442,7 +442,7 @@ public:
   ZuDateTime(
     const ZuDateTimeScan::CSV &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
   {
-    ctor(fmt, s);
+    scan(fmt, s);
   }
 
   // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
@@ -450,7 +450,7 @@ public:
   ZuDateTime(
     const ZuDateTimeScan::FIX &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
   {
-    ctor(fmt, s);
+    scan(fmt, s);
   }
 
   // the ISO8601 ctor accepts the two standard ISO8601 date/time formats
@@ -460,18 +460,18 @@ public:
   ZuDateTime(
     const ZuDateTimeScan::ISO &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
   {
-    ctor(fmt, s);
+    scan(fmt, s);
   }
   // default to ISO
   template <typename S>
   ZuDateTime(const S &s, ZuMatchString<S> *_ = nullptr) {
-    ctor(ZuDateTimeScan::ISO{}, s);
+    scan(ZuDateTimeScan::ISO{}, s);
   }
 
   template <typename S> ZuDateTime(
     const ZuDateTimeScan::Any &fmt, const S &s, ZuMatchString<S> *_ = nullptr)
   {
-    ctor(fmt, s);
+    scan(fmt, s);
   }
 
   // common integral forms
@@ -592,8 +592,8 @@ public:
     if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<double>::inf();
     return((double)t + (double)m_nsec / (double)1000000000);
   }
-  operator ZuTime() const { return this->zmTime(); }
-  ZuTime zmTime() const {
+  operator ZuTime() const { return this->zuTime(); }
+  ZuTime zuTime() const {
     if (ZuUnlikely(!*this)) return {};
     return ZuTime{this->time(), m_nsec};
   }
@@ -1044,10 +1044,10 @@ private:
   }
 
 public:
-  void ctor(const ZuDateTimeScan::CSV &, ZuString);
-  void ctor(const ZuDateTimeScan::FIX &, ZuString);
-  void ctor(const ZuDateTimeScan::ISO &, ZuString);
-  void ctor(const ZuDateTimeScan::Any &, ZuString);
+  unsigned scan(const ZuDateTimeScan::CSV &, ZuString);
+  unsigned scan(const ZuDateTimeScan::FIX &, ZuString);
+  unsigned scan(const ZuDateTimeScan::ISO &, ZuString);
+  unsigned scan(const ZuDateTimeScan::Any &, ZuString);
 
   void normalize(unsigned &year, unsigned &month);
   void normalize(int &year, int &month);

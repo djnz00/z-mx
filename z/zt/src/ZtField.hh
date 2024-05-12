@@ -1028,7 +1028,7 @@ template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Time> ZtMFieldSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.zmTime());
+  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.zuTime());
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime> ZtMFieldSet::scan(

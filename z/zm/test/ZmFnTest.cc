@@ -364,15 +364,12 @@ int main()
   }
   {
     ZmAtomic<uint64_t> i;
-    double baseline;
     {
       Derived d(i);
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) d.foo();
       ZuTime end = Zm::now(); end -= begin;
-      baseline = end.dtime();
-      puts(ZuStringN<80>{} <<
-	  "direct call:\t" << ZuBoxed(baseline).fmt<ZuFmt::FP<9>>() <<
+      puts(ZuStringN<80>{} << "direct call:\t" << end.interval() <<
 	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -381,8 +378,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) bar();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "castFn:\t\t" <<
-	  ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
+      puts(ZuStringN<80>{} << "castFn:\t\t" << end.interval() <<
 	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -391,8 +387,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "fast lambdaFn:\t" <<
-	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
+      puts(ZuStringN<80>{} << "fast lambdaFn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -401,8 +396,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "slow lambdaFn:\t" <<
-	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
+      puts(ZuStringN<80>{} << "slow lambdaFn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -411,8 +405,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) b->bar();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "virtual fn:\t" <<
-	ZuBoxed(end.dtime() - baseline).fmt<ZuFmt::FP<9>>() <<
+      puts(ZuStringN<80>{} << "virtual fn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
   }

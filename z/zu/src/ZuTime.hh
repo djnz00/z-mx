@@ -40,7 +40,9 @@ struct timespec {
 #endif
 #endif
 
-class ZuTime : public timespec {
+class ZuAPI ZuTime : public timespec {
+  using ldouble = long double;
+
 public:
   enum Nano_ { Nano };		// ''
 
@@ -68,10 +70,10 @@ public:
   constexpr ZuTime(T v, MatchInt<T> *_ = nullptr) : timespec{v, 0} { }
   constexpr ZuTime(time_t t, long n) : timespec{t, n} { }
 
-  constexpr ZuTime(double d) :
-    timespec{time_t(d), long((d - double(time_t(d))) * 1000000000)} { }
+  constexpr ZuTime(ldouble d) :
+    timespec{time_t(d), long((d - ldouble(time_t(d))) * 1000000000)} { }
 
-  constexpr ZuTime(Nano_, int64_t nano) : 
+  constexpr ZuTime(Nano_, int128_t nano) :
     timespec{time_t(nano / 1000000000), long(nano % 1000000000)} { }
 
 #ifndef _WIN32
@@ -99,28 +101,20 @@ public:
   }
 #endif
 
-  constexpr time_t time() const { return(tv_sec); }
-  constexpr operator time_t() const { return(tv_sec); }
-  constexpr double dtime() const {
-    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
-    return (double)tv_sec + (double)tv_nsec / (double)1000000000;
-  }
-  constexpr int32_t millisecs() const {
-    return (int32_t)(tv_sec * 1000 + tv_nsec / 1000000);
-  }
-  constexpr int32_t microsecs() const {
-    return (int32_t)(tv_sec * 1000000 + tv_nsec / 1000);
-  }
-  constexpr int64_t nanosecs() const {
-    return (int64_t)tv_sec * 1000000000 + (int64_t)tv_nsec;
-  }
+  template <typename S>
+  ZuTime(const S &s, ZuMatchString<S> *_ = nullptr) { scan(s); }
 
+  constexpr time_t as_time_t() const { return(tv_sec); }
+  constexpr ldouble as_ldouble() const {
+    if (ZuUnlikely(!*this)) return ZuCmp<ldouble>::null();
+    return ldouble(tv_sec) + ldouble(tv_nsec) / 1000000000;
+  }
 #ifndef _WIN32
-  operator timeval() const {
+  timeval as_timeval() const {
     return timeval{tv_sec, tv_nsec / 1000};
   }
 #else
-  operator FILETIME() const {
+  FILETIME as_FILETIME() const {
     FILETIME f;
     int64_t *ZuMayAlias(f_) = reinterpret_cast<int64_t *>(&f);
     *f_ = (int64_t)tv_sec * 10000000 + tv_nsec / 100 + ZuTime_FT_Epoch;
@@ -128,14 +122,24 @@ public:
   }
 #endif
 
+  constexpr int64_t millisecs() const {
+    return int64_t(tv_sec) * 1000 + tv_nsec / 1000000;
+  }
+  constexpr int64_t microsecs() const {
+    return int64_t(tv_sec) * 1000000 + tv_nsec / 1000;
+  }
+  constexpr int128_t nanosecs() const {
+    return int128_t(tv_sec) * 1000000000 + tv_nsec;
+  }
+
   constexpr ZuTime &operator =(time_t t) {
     tv_sec = t;
     tv_nsec = 0;
     return *this;
   }
-  constexpr ZuTime &operator =(double d) {
-    tv_sec = (time_t)d;
-    tv_nsec = (long)((d - (double)tv_sec) * (double)1000000000);
+  constexpr ZuTime &operator =(ldouble d) {
+    tv_sec = d;
+    tv_nsec = (d - ldouble(tv_sec)) * 1000000000;
     return *this;
   }
 
@@ -157,7 +161,7 @@ public:
   constexpr MatchInt<T, ZuTime> operator +(T v) const {
     return ZuTime{tv_sec + v, tv_nsec};
   }
-  constexpr ZuTime operator +(double d) const {
+  constexpr ZuTime operator +(ldouble d) const {
     return ZuTime::operator +(ZuTime{d});
   }
   constexpr ZuTime operator +(const ZuTime &t_) const {
@@ -170,7 +174,7 @@ public:
     tv_sec += v;
     return *this;
   }
-  constexpr ZuTime &operator +=(double d) {
+  constexpr ZuTime &operator +=(ldouble d) {
     return ZuTime::operator +=(ZuTime{d});
   }
   constexpr ZuTime &operator +=(const ZuTime &t_) {
@@ -182,7 +186,7 @@ public:
   constexpr MatchInt<T, ZuTime> operator -(T v) const {
     return ZuTime{tv_sec - v, tv_nsec};
   }
-  constexpr ZuTime operator -(double d) const {
+  constexpr ZuTime operator -(ldouble d) const {
     return ZuTime::operator -(ZuTime{d});
   }
   constexpr ZuTime operator -(const ZuTime &t_) const {
@@ -195,7 +199,7 @@ public:
     tv_sec -= v;
     return *this;
   }
-  constexpr ZuTime &operator -=(double d) {
+  constexpr ZuTime &operator -=(ldouble d) {
     return ZuTime::operator -=(ZuTime{d});
   }
   constexpr ZuTime &operator -=(const ZuTime &t_) {
@@ -204,17 +208,17 @@ public:
     return *this;
   }
 
-  constexpr ZuTime operator *(double d) {
-    return ZuTime{dtime() * d};
+  constexpr ZuTime operator *(ldouble d) {
+    return ZuTime{as_ldouble() * d};
   }
-  constexpr ZuTime &operator *=(double d) {
-    return operator =(dtime() * d);
+  constexpr ZuTime &operator *=(ldouble d) {
+    return operator =(as_ldouble() * d);
   }
-  constexpr ZuTime operator /(double d) {
-    return ZuTime{dtime() / d};
+  constexpr ZuTime operator /(ldouble d) {
+    return ZuTime{as_ldouble() / d};
   }
-  constexpr ZuTime &operator /=(double d) {
-    return operator =(dtime() / d);
+  constexpr ZuTime &operator /=(ldouble d) {
+    return operator =(as_ldouble() / d);
   }
 
   constexpr bool equals(const ZuTime &t) const {
@@ -250,12 +254,13 @@ public:
     return ZuHash<time_t>::hash(tv_sec) ^ ZuHash<long>::hash(tv_nsec);
   }
 
-  struct Traits : public ZuBaseTraits<ZuTime> { enum { IsPOD = 1 }; };
-  friend Traits ZuTraitsType(ZuTime *);
+  // CSV format scan/print
+  unsigned scan(ZuString);
 
-  template <typename S> void print(S &s) const {
-    if (!*this) return;
-    int year, month, day, hour, minute, sec;
+  void ymdhmsn(
+    int &year, int &month, int &day,
+    int &hour, int &minute, int &sec, int &nsec) const
+  {
     {
       int julian;
       int i, j, l, n;
@@ -276,6 +281,14 @@ public:
       hour = sec / 3600, sec %= 3600,
       minute = sec / 60, sec %= 60;
     }
+    nsec = tv_nsec;
+  }
+
+  template <typename S> void print(S &s) const {
+    if (!**this) return;
+    int year, month, day, hour, minute, sec, nsec;
+    ymdhmsn(year, month, day, hour, minute, sec, nsec);
+    if (year < 0) { s << '-'; year = -year; }
     s <<
       ZuBoxed(year).fmt<ZuFmt::Right<4>>() << '/' <<
       ZuBoxed(month).fmt<ZuFmt::Right<2>>() << '/' <<
@@ -283,7 +296,7 @@ public:
       ZuBoxed(hour).fmt<ZuFmt::Right<2>>() << ':' <<
       ZuBoxed(minute).fmt<ZuFmt::Right<2>>() << ':' <<
       ZuBoxed(sec).fmt<ZuFmt::Right<2>>() << '.' <<
-      ZuBoxed(tv_nsec).fmt<ZuFmt::Frac<9>>();
+      ZuBoxed(nsec).fmt<ZuFmt::Frac<9>>();
   }
   friend ZuPrintFn ZuPrintType(ZuTime *);
 
@@ -298,6 +311,10 @@ public:
     friend ZuPrintFn ZuPrintType(Interval *);
   };
   Interval interval() const { return {*this}; }
+
+  // traits
+  struct Traits : public ZuBaseTraits<ZuTime> { enum { IsPOD = 1 }; };
+  friend Traits ZuTraitsType(ZuTime *);
 };
 
 #endif /* ZuTime_HH */

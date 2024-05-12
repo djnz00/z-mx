@@ -185,12 +185,9 @@ void App<Ring>::run()
 
   {
     ZuStringN<80> s;
-    s << "total time: " <<
-      ZuBoxed(start.sec()) << '.' <<
-	ZuBoxed(start.nsec()).fmt<ZuFmt::Frac<9>>() <<
-      "  avg time: " <<
-      ZuBoxed((start.dtime() / static_cast<double>(count)) * 1000000.0) <<
-      " usec\n";
+    using ldouble = long double;
+    s << "total time: " << start.interval()
+      << "  avg time: " << (start / ldouble(count)).interval() << '\n';
     std::cerr << s;
   }
   {
