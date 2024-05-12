@@ -376,7 +376,7 @@ public:
   ZuTime time(const ZuFixed &v) {
     uint64_t n = v.adjust(9);
     uint64_t p = pow10_9();
-    return ZuTime{time_t(n / p), long(n % p)} + m_epoch;
+    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
   }
 
 private:

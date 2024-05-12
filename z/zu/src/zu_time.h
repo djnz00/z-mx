@@ -22,22 +22,29 @@ extern "C" {
 #endif
 
 /*
- * prevent compiler from relying on 16-byte alignment
- * - this is a carbon copy of POSIX struct timespec
+ * carbon copy of POSIX struct timespec, padded out to 16 bytes
  */
-#pragma pack(push, 8)
 typedef struct {
-  time_t	tv_sec;
-  long		tv_nsec;
+  int64_t	tv_sec;
+  uint32_t	tv_nsec;
+  uint32_t	_;	// pad to 16 bytes
 } zu_time;
-#pragma pack(pop)
 
 /* parse string, returns #bytes scanned, 0 on invalid input */
-ZuExtern unsigned int zu_time_in(zu_time *v, const char *s);
+ZuExtern unsigned int zu_time_in_csv(zu_time *v, const char *s);
+ZuExtern unsigned int zu_time_in_iso(zu_time *v, const char *s);
+ZuExtern unsigned int zu_time_in_fix(zu_time *v, const char *s);
+ZuExtern unsigned int zu_time_in_interval(zu_time *v, const char *s);
 /* returns output length including null terminator */
-ZuExtern unsigned int zu_time_out_len(const zu_time *v);
+ZuExtern unsigned int zu_time_out_csv_len(const zu_time *v);
+ZuExtern unsigned int zu_time_out_iso_len(const zu_time *v);
+ZuExtern unsigned int zu_time_out_fix_len(const zu_time *v);
+ZuExtern unsigned int zu_time_out_interval_len(const zu_time *v);
 /* output to string, returns end pointer to null terminator */
-ZuExtern char *zu_time_out(char *s, const zu_time *v);
+ZuExtern char *zu_time_out_csv(char *s, const zu_time *v);
+ZuExtern char *zu_time_out_iso(char *s, const zu_time *v);
+ZuExtern char *zu_time_out_fix(char *s, const zu_time *v);
+ZuExtern char *zu_time_out_interval(char *s, const zu_time *v);
 
 /* convert to/from int128 */
 ZuExtern __int128_t zu_time_to_int(const zu_time *v); /* truncates */

@@ -41,7 +41,7 @@
 // Fixed	ZuFixed		[, default, min, max]
 // Decimal	ZuDecimal	[, default, min, max]
 // Time		ZuTime		[, default]
-// DateTime	ZuDateTime		[, default]
+// DateTime	ZuDateTime	[, default]
 // UDT		<UDT>		[, default]
 
 // Note: Regarding run-time introspection with monomorphic fields (ZtMField),
@@ -146,7 +146,7 @@ namespace ZtFieldTypeCode {
     Fixed,		// ZuFixed
     Decimal,		// ZuDecimal
     Time,		// ZuTime - POSIX timespec
-    DateTime,		// ZuDateTime - Julian date, intraday seconds, nanoseconds
+    DateTime,		// ZuDateTime - Julian date, seconds, nanoseconds
     UDT			// generic udt type
   );
 }

@@ -34,43 +34,44 @@ class
 
 public:
 #ifndef _WIN32
-  ZuInline ZmSemaphore() { sem_init(&m_sem, 0, 0); }
-  ZuInline ~ZmSemaphore() { sem_destroy(&m_sem); }
+  ZmSemaphore() { sem_init(&m_sem, 0, 0); }
+  ~ZmSemaphore() { sem_destroy(&m_sem); }
 
-  ZuInline void wait() {
+  void wait() {
     int r;
     do { r = sem_wait(&m_sem); } while (r < 0 && errno == EINTR);
   }
-  ZuInline int trywait() { return sem_trywait(&m_sem); }
-  ZuInline int timedwait(ZuTime timeout) {
+  int trywait() { return sem_trywait(&m_sem); }
+  int timedwait(ZuTime timeout) {
+    timespec timeout_{timeout.sec(), timeout.nsec()};
     do {
-      if (!sem_timedwait(&m_sem, &timeout)) return 0;
+      if (!sem_timedwait(&m_sem, &timeout_)) return 0;
     } while (errno == EINTR);
     return -1;
   }
-  ZuInline void post() { sem_post(&m_sem); }
+  void post() { sem_post(&m_sem); }
 #else
-  ZuInline ZmSemaphore() { m_sem = CreateSemaphore(0, 0, 0x7fffffff, 0); }
-  ZuInline ~ZmSemaphore() { CloseHandle(m_sem); }
+  ZmSemaphore() { m_sem = CreateSemaphore(0, 0, 0x7fffffff, 0); }
+  ~ZmSemaphore() { CloseHandle(m_sem); }
 
-  ZuInline void wait() { WaitForSingleObject(m_sem, INFINITE); }
-  ZuInline int trywait() {
+  void wait() { WaitForSingleObject(m_sem, INFINITE); }
+  int trywait() {
     switch (WaitForSingleObject(m_sem, 0)) {
       case WAIT_OBJECT_0: return 0;
       case WAIT_TIMEOUT:  return -1;
     }
     return -1;
   }
-  ZuInline int timedwait(ZuTime timeout) {
+  int timedwait(ZuTime timeout) {
     timeout -= Zm::now();
     int m = timeout.millisecs();
     if (m <= 0) return -1;
     if (WaitForSingleObject(m_sem, m) == WAIT_OBJECT_0) return 0;
     return -1;
   }
-  ZuInline void post() { ReleaseSemaphore(m_sem, 1, 0); }
+  void post() { ReleaseSemaphore(m_sem, 1, 0); }
 #endif
-  ZuInline void reset() {
+  void reset() {
     this->~ZmSemaphore();
     new (this) ZmSemaphore();
   }

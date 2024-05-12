@@ -130,7 +130,7 @@ private:
   unsigned	m_stackSize = 0;
   int		m_priority = -1;
   int		m_partition = -1;
-  ZuTime	m_quantum{ZuTime::Nano, 1000}; // 1us
+  ZuTime	m_quantum{ZuTime::Nano{1000}}; // 1us
 
   unsigned	m_queueSize = 131072;
   unsigned	m_spin = 1000;

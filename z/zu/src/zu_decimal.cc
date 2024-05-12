@@ -7,6 +7,7 @@
 // ZuDecimal - C API
 
 #include <zlib/ZuDecimal.hh>
+#include <zlib/ZuStream.hh>
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/Zu_ntoa.hh>
 
@@ -19,33 +20,17 @@ unsigned int zu_decimal_in(zu_decimal *v_, const char *s)
   v_->value = v.value;
   return n;
 }
-unsigned int zu_decimal_out_len(const zu_decimal *v)
+unsigned int zu_decimal_out_len(const zu_decimal *)
 {
-  // we could attempt to use Zu_nprint::ulen here to minimize the
-  // output length, but doing so would require a 128bit division/modulo
-  // and two calls to ulen - judged unlikely to be worth it
-  return 40; // actually 39, round to 40
+  return 40;
 }
 
-char *zu_decimal_out(char *s, const zu_decimal *v_)
+char *zu_decimal_out(char *s_, const zu_decimal *v_)
 {
   ZuDecimal v{ZuDecimal::Unscaled, v_->value};
-  if (ZuUnlikely(!*v)) { strcpy(s, "nan"); return s + 3; }
-  uint128_t iv, fv;
-  if (v.value < 0) {
-    *s++ = '-';
-    iv = -v.value;
-  } else
-    iv = v.value;
-  fv = iv % ZuDecimal::scale();
-  iv /= ZuDecimal::scale();
-  s += Zu_nprint<>::utoa(iv, s);
-  if (fv) {
-    *s++ = '.';
-    s += Zu_nprint<ZuFmt::Frac<18>>::utoa(fv, s);
-  }
-  *s = 0;
-  return s;
+  ZuStream s{s_, 40U};
+  s << v;
+  return s.data();
 }
 
 int64_t zu_decimal_to_int(const zu_decimal *v_)

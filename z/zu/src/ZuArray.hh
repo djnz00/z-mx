@@ -78,7 +78,8 @@ public:
     return *this;
   }
 
-public:
+protected:
+  // from string literal
   template <typename U, typename V = T>
   struct IsPrimitiveArray_ : public ZuBool<
       ZuTraits<U>::IsArray &&
@@ -90,14 +91,28 @@ public:
       ZuInspect<U, V>::Same> { };
   template <typename U>
   struct IsCharElem_ : public IsChar_<typename ZuTraits<U>::Elem> { };
-  template <typename U> struct IsStrLiteral :
-    public ZuBool<IsPrimitiveArray_<U>{} && IsCharElem_<U>{}> { };
+  template <typename U, typename V = T>
+  struct IsStrLiteral : public ZuBool<
+      IsCharElem_<U>{} &&
+      ZuIsExact<U, const V (&)[sizeof(U) / sizeof(V)]>{}> { };
+  template <typename U, typename R = void>
+  using MatchStrLiteral = ZuIfT<IsStrLiteral<U>{}, R>; 
+
+  // from array of primitive types
   template <typename U> struct IsPrimitiveArray :
     public ZuBool<IsPrimitiveArray_<U>{} && !IsCharElem_<U>{}> { };
+  template <typename U, typename R = void>
+  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<ZuDecay<U>>{}, R>; 
+
+  // from C string (as a pointer, not a primitive array or literal)
   template <typename U> struct IsCString : public ZuBool<
-      !IsPrimitiveArray_<U>{} &&
-      ZuTraits<U>::IsPointer &&
-      bool{IsCharElem_<U>{}}> { };
+      !IsStrLiteral<U>{} &&
+      IsCharElem_<U>{} &&
+      ZuTraits<U>::IsCString> { };
+  template <typename U, typename R = void>
+  using MatchCString = ZuIfT<IsCString<U>{}, R>; 
+
+  // from other array (non-primitive, not a C string pointer)
   template <typename U, typename V = T> struct IsOtherArray : public ZuBool<
       !IsPrimitiveArray_<U>{} &&
       !IsCString<U>{} &&
@@ -105,22 +120,17 @@ public:
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename V = T> struct IsPtr : public ZuBool<
       ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
-
-  template <typename U, typename R = void>
-  using MatchStrLiteral = ZuIfT<IsStrLiteral<ZuDecay<U>>{}, R>; 
-  template <typename U, typename R = void>
-  using MatchPrimitiveArray = ZuIfT<IsPrimitiveArray<ZuDecay<U>>{}, R>; 
-  template <typename U, typename R = void>
-  using MatchCString = ZuIfT<IsCString<ZuDecay<U>>{}, R>; 
   template <typename U, typename R = void>
   using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>{}, R>; 
+
+  // from pointer
   template <typename U, typename R = void>
   using MatchPtr = ZuIfT<IsPtr<ZuDecay<U>>{}, R>; 
 
 public:
   // compile-time length from string literal (null-terminated)
   template <typename A>
-  ZuArray(const A &a, MatchStrLiteral<A> *_ = nullptr) :
+  ZuArray(A &&a, MatchStrLiteral<A> *_ = nullptr) :
     m_data(&a[0]),
     m_length((ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
       (sizeof(a) / sizeof(a[0])) - 1U) { }
@@ -146,8 +156,8 @@ public:
 
   // length from deferred strlen
   template <typename A>
-  ZuArray(const A &a, MatchCString<A> *_ = nullptr) :
-	m_data(reinterpret_cast<T *>(a)), m_length(!a ? 0 : -1) { }
+  ZuArray(A &&a, MatchCString<A> *_ = nullptr) :
+      m_data(a), m_length(!a ? 0 : -1) { }
   template <typename A>
   MatchCString<A, ZuArray &> operator =(A &&a) {
     m_data = a;

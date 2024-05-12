@@ -19,6 +19,8 @@
 #include <zlib/ZuLib.hh>
 #endif
 
+#include <time.h>
+
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
@@ -26,29 +28,19 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 
-#include <time.h>
-
 #ifdef _WIN32
 #define ZuTime_FT_Epoch	0x019db1ded53e8000ULL	// 00:00:00 Jan 1 1970
-
-#ifndef _TIMESPEC_DEFINED
-#define _TIMESPEC_DEFINED
-struct timespec {
-  time_t  tv_sec;
-  long    tv_nsec;
-};
-#endif
 #endif
 
-class ZuAPI ZuTime : public timespec {
+class ZuAPI ZuTime {
   using ldouble = long double;
 
 public:
-  enum Nano_ { Nano };		// ''
+  struct Nano { int128_t v; };
 
-  constexpr ZuTime() : timespec{ZuCmp<time_t>::null(), 0} { }
+  constexpr ZuTime() = default;
 
-  constexpr ZuTime(const ZuTime &t) : timespec{t.tv_sec, t.tv_nsec} { }
+  constexpr ZuTime(const ZuTime &t) : tv_sec{t.tv_sec}, tv_nsec{t.tv_nsec} { }
   constexpr ZuTime &operator =(const ZuTime &t) {
     if (this == &t) return *this;
     tv_sec = t.tv_sec, tv_nsec = t.tv_nsec;
@@ -59,30 +51,43 @@ public:
 
   template <typename T, typename U = ZuStrip<T>>
   struct IsInt : public ZuBool<
-      ZuIsExact<int, U>{} ||
-      ZuIsExact<unsigned, U>{} ||
-      ZuIsExact<long, U>{} ||
+      ZuIsExact<int32_t, U>{} ||
+      ZuIsExact<uint32_t, U>{} ||
+      ZuIsExact<int64_t, U>{} ||
+      ZuIsExact<uint64_t, U>{} ||
       ZuIsExact<time_t, U>{}> { };
   template <typename T, typename R = void>
   using MatchInt = ZuIfT<IsInt<T>{}, R>;
 
-  template <typename T>
-  constexpr ZuTime(T v, MatchInt<T> *_ = nullptr) : timespec{v, 0} { }
-  constexpr ZuTime(time_t t, long n) : timespec{t, n} { }
+  template <typename T, typename = MatchInt<T>>
+  constexpr ZuTime(T v) : tv_sec{v}, tv_nsec{0} { }
+  constexpr ZuTime(int64_t t, int32_t n) : tv_sec{t}, tv_nsec{n} { }
 
-  constexpr ZuTime(ldouble d) :
-    timespec{time_t(d), long((d - ldouble(time_t(d))) * 1000000000)} { }
+  constexpr ZuTime(ldouble d) {
+    if (ZuCmp<ldouble>::null(d) ||
+	d >= ldouble(ZuCmp<int64_t>::maximum()) ||
+	d <= ldouble(ZuCmp<int64_t>::minimum())) {
+      tv_sec = ZuCmp<int64_t>::null();
+      tv_nsec = 0;
+    } else {
+      tv_sec = d;
+      tv_nsec = (d - ldouble(int64_t(d))) * 1000000000;
+    }
+  }
 
-  constexpr ZuTime(Nano_, int128_t nano) :
-    timespec{time_t(nano / 1000000000), long(nano % 1000000000)} { }
+  constexpr ZuTime(Nano nano) :
+    tv_sec{int64_t(nano.v / 1000000000)},
+    tv_nsec{int32_t(nano.v % 1000000000)} { }
 
 #ifndef _WIN32
-  constexpr ZuTime(const timespec &t) : timespec{t.tv_sec, t.tv_nsec} { }
+  constexpr ZuTime(const timespec &t) :
+    tv_sec{int64_t(t.tv_sec)}, tv_nsec{int32_t(t.tv_nsec)} { }
   ZuTime &operator =(const timespec &t) {
     new (this) ZuTime{t};
     return *this;
   }
-  constexpr ZuTime(const timeval &t) : timespec{t.tv_sec, t.tv_usec * 1000} { }
+  constexpr ZuTime(const timeval &t) :
+    tv_sec{int64_t(t.tv_sec)}, tv_nsec{int32_t(t.tv_usec) * 1000} { }
   ZuTime &operator =(const timeval &t) {
     new (this) ZuTime{t};
     return *this;
@@ -93,7 +98,7 @@ public:
     int64_t t = *f_;
     t -= ZuTime_FT_Epoch;
     tv_sec = t / 10000000;
-    tv_nsec = (int32_t)((t % 10000000) * 100);
+    tv_nsec = (t % 10000000) * 100;
   }
   ZuTime &operator =(FILETIME t) {
     new (this) ZuTime{t};
@@ -104,7 +109,7 @@ public:
   template <typename S>
   ZuTime(const S &s, ZuMatchString<S> *_ = nullptr) { scan(s); }
 
-  constexpr time_t as_time_t() const { return(tv_sec); }
+  constexpr int64_t as_time_t() const { return(tv_sec); }
   constexpr ldouble as_ldouble() const {
     if (ZuUnlikely(!*this)) return ZuCmp<ldouble>::null();
     return ldouble(tv_sec) + ldouble(tv_nsec) / 1000000000;
@@ -132,7 +137,7 @@ public:
     return int128_t(tv_sec) * 1000000000 + tv_nsec;
   }
 
-  constexpr ZuTime &operator =(time_t t) {
+  constexpr ZuTime &operator =(int64_t t) {
     tv_sec = t;
     tv_nsec = 0;
     return *this;
@@ -154,57 +159,77 @@ public:
   }
 
   constexpr ZuTime operator -() const {
-    return ZuTime{-tv_sec - 1, 1000000000L - tv_nsec};
+    return ZuTime{-tv_sec - 1, int32_t(1000000000) - tv_nsec};
   }
 
   template <typename T>
   constexpr MatchInt<T, ZuTime> operator +(T v) const {
-    return ZuTime{tv_sec + v, tv_nsec};
+    return ZuTime::operator +(ZuTime{v, 0});
   }
   constexpr ZuTime operator +(ldouble d) const {
     return ZuTime::operator +(ZuTime{d});
   }
   constexpr ZuTime operator +(const ZuTime &t_) const {
-    ZuTime t{tv_sec + t_.tv_sec, tv_nsec + t_.tv_nsec};
+    int64_t sec;
+    int32_t nsec;
+    if (!**this || !*t_ ||
+	__builtin_add_overflow(tv_sec, t_.tv_sec, &sec) ||
+	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &nsec))
+      return ZuTime{};
+    ZuTime t{sec, nsec};
     t.normalize();
     return t;
   }
   template <typename T>
   constexpr MatchInt<T, ZuTime &> operator +=(T v) {
-    tv_sec += v;
-    return *this;
+    return ZuTime::operator +=(ZuTime{v, 0});
   }
   constexpr ZuTime &operator +=(ldouble d) {
     return ZuTime::operator +=(ZuTime{d});
   }
   constexpr ZuTime &operator +=(const ZuTime &t_) {
-    tv_sec += t_.tv_sec, tv_nsec += t_.tv_nsec;
-    normalize();
+    if (!**this || !*t_ ||
+	__builtin_add_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
+	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)) {
+      tv_sec = ZuCmp<int64_t>::null();
+      tv_nsec = 0;
+    } else
+      normalize();
     return *this;
   }
   template <typename T>
   constexpr MatchInt<T, ZuTime> operator -(T v) const {
-    return ZuTime{tv_sec - v, tv_nsec};
+    return ZuTime::operator -(ZuTime{v, 0});
   }
   constexpr ZuTime operator -(ldouble d) const {
     return ZuTime::operator -(ZuTime{d});
   }
   constexpr ZuTime operator -(const ZuTime &t_) const {
-    ZuTime t{tv_sec - t_.tv_sec, tv_nsec - t_.tv_nsec};
+    int64_t sec;
+    int32_t nsec;
+    if (!**this || !*t_ ||
+	__builtin_sub_overflow(tv_sec, t_.tv_sec, &sec) ||
+	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &nsec))
+      return ZuTime{};
+    ZuTime t{sec, nsec};
     t.normalize();
     return t;
   }
   template <typename T>
   constexpr MatchInt<T, ZuTime &> operator -=(T v) {
-    tv_sec -= v;
-    return *this;
+    return ZuTime::operator -=(ZuTime{v, 0});
   }
   constexpr ZuTime &operator -=(ldouble d) {
     return ZuTime::operator -=(ZuTime{d});
   }
   constexpr ZuTime &operator -=(const ZuTime &t_) {
-    tv_sec -= t_.tv_sec, tv_nsec -= t_.tv_nsec;
-    normalize();
+    if (!**this || !*t_ ||
+	__builtin_sub_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
+	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)) {
+      tv_sec = ZuCmp<int64_t>::null();
+      tv_nsec = 0;
+    } else
+      normalize();
     return *this;
   }
 
@@ -225,8 +250,9 @@ public:
     return tv_sec == t.tv_sec && tv_nsec == t.tv_nsec;
   }
   constexpr int cmp(const ZuTime &t) const {
-    if (int i = ZuCmp<time_t>::cmp(tv_sec, t.tv_sec)) return i;
-    return ZuCmp<long>::cmp(tv_nsec, t.tv_nsec);
+    // note that ZuCmp<int64_t>::null() is the most negative value
+    if (int i = ZuCmp<int64_t>::cmp(tv_sec, t.tv_sec)) return i;
+    return ZuCmp<int32_t>::cmp(tv_nsec, t.tv_nsec);
   }
   friend inline constexpr bool operator ==(const ZuTime &l, const ZuTime &r) {
     return l.equals(r);
@@ -236,7 +262,7 @@ public:
   }
 
   constexpr bool operator *() const {
-    return !ZuCmp<time_t>::null(tv_sec);
+    return !ZuCmp<int64_t>::null(tv_sec);
   }
   constexpr bool operator !() const {
     return !tv_sec && !tv_nsec;
@@ -245,13 +271,13 @@ public:
     return tv_sec || tv_nsec;
   }
 
-  time_t sec() const { return tv_sec; }
-  time_t &sec() { return tv_sec; }
-  long nsec() const { return tv_nsec; }
-  long &nsec() { return tv_nsec; }
+  int64_t sec() const { return tv_sec; }
+  int64_t &sec() { return tv_sec; }
+  int32_t nsec() const { return tv_nsec; }
+  int32_t &nsec() { return tv_nsec; }
 
   uint32_t hash() const {
-    return ZuHash<time_t>::hash(tv_sec) ^ ZuHash<long>::hash(tv_nsec);
+    return ZuHash<int64_t>::hash(tv_sec) ^ ZuHash<int32_t>::hash(tv_nsec);
   }
 
   // CSV format scan/print
@@ -315,6 +341,11 @@ public:
   // traits
   struct Traits : public ZuBaseTraits<ZuTime> { enum { IsPOD = 1 }; };
   friend Traits ZuTraitsType(ZuTime *);
+
+private:
+  int64_t	tv_sec = ZuCmp<int64_t>::null();
+  int32_t	tv_nsec = 0;
+  uint32_t	_;	// pad to 16 bytes
 };
 
 #endif /* ZuTime_HH */

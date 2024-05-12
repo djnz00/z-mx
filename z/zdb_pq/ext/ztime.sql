@@ -21,7 +21,7 @@ CREATE TYPE ztime (
   OUTPUT = ztime_out,
   RECEIVE = ztime_recv,
   SEND = ztime_send,
-  INTERNALLENGTH = 12,
+  INTERNALLENGTH = 16,
   ALIGNMENT = double
 );
 

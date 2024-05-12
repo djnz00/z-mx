@@ -227,11 +227,12 @@ uint64_t Zm::cpuFreq() {
 
 #ifndef _WIN32
 void Zm::sleep(ZuTime timeout) {
-  ZuTime remaining;
+  timespec timeout_{timeout.sec(), timeout.nsec()};
+  timespec remaining;
 
-  while (nanosleep(&timeout, &remaining)) {
+  while (nanosleep(&timeout_, &remaining)) {
     if (errno != EINTR) break;
-    timeout = remaining;
+    timeout_ = remaining;
   }
 }
 #else

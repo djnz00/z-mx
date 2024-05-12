@@ -101,10 +101,9 @@ private:
   using MatchZtString = ZuIfT<IsZtString<U>{}, R>;
 
   // from string literal with same char
-  template <typename U, typename V = Char> struct IsStrLiteral : public ZuBool<
-      ZuTraits<U>::IsCString &&
-      ZuTraits<U>::IsArray && ZuTraits<U>::IsPrimitive &&
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Same> { };
+  template <typename U, typename V = Char>
+  struct IsStrLiteral : public
+      ZuIsExact<U, const V (&)[sizeof(U) / sizeof(V)]> { };
   template <typename U, typename R = void>
   using MatchStrLiteral = ZuIfT<IsStrLiteral<U>{}, R>;
 
@@ -117,8 +116,9 @@ private:
   using MatchAnyCString = ZuIfT<IsAnyCString<U>{}, R>;
 
   // from some other C string with same char (other than a string literal)
-  template <typename U, typename V = Char> struct IsCString : public ZuBool<
-      !IsStrLiteral<U>{} && IsAnyCString<U>{}> { };
+  template <typename U, typename V = Char>
+  struct IsCString : public
+      ZuBool<!IsStrLiteral<U>{} && IsAnyCString<U>{}> { };
   template <typename U, typename R = void>
   using MatchCString = ZuIfT<IsCString<U>{}, R>;
 

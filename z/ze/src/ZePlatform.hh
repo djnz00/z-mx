@@ -328,16 +328,14 @@ ZeEvent(int, const char *, int, const char *, L) -> ZeEvent<ZuDecay<L>>;
 // convert string/printable to lambda
 namespace ZeMsg_ {
 template <typename U> struct IsLiteral_ : public ZuBool<
-    ZuTraits<U>::IsArray &&
-    ZuTraits<U>::IsPrimitive && ZuTraits<U>::IsCString &&
-    ZuInspect<typename ZuTraits<U>::Elem, const char>::Same> { };
-template <typename U> struct IsLiteral : public IsLiteral_<ZuDecay<U>> { };
+    ZuIsExact<U, const char (&)[sizeof(U)]>{}> { };
+template <typename U> struct IsLiteral : public IsLiteral_<U> { };
 template <typename U, typename R = void>
 using MatchLiteral = ZuIfT<IsLiteral<U>{}, R>;
 
 template <typename U> struct IsPrint_ : public ZuBool<
     !IsLiteral_<U>{} && (ZuTraits<U>::IsString || ZuPrint<U>::OK)> { };
-template <typename U> struct IsPrint : public IsPrint_<ZuDecay<U>> { };
+template <typename U> struct IsPrint : public IsPrint_<U> { };
 template <typename U, typename R = void>
 using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
 

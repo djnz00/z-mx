@@ -185,12 +185,12 @@ int main() {
 
   // ZuDateTime d_(1752, 9, 1, 12, 30, 0, -timezone);
 
-  d = ZuDateTime(ZuDateTime::Julian, 0, 0, 0);
+  d = ZuDateTime(ZuDateTime::Julian{0}, 0, 0);
   printf("ZuDateTime min: %s\n", isoStr(d).data());
   d = ZuDateTime(d.as_time_t());
   printf("time_t min: %s\n", isoStr(d).data());
 
-  d = ZuDateTime(ZuDateTime::Julian, ZuDateTime_MaxJulian, 0, 0);
+  d = ZuDateTime(ZuDateTime::Julian{ZuDateTime_MaxJulian}, 0, 0);
   printf("ZuDateTime max: %s\n", isoStr(d).data());
   d = ZuDateTime(d.as_time_t());
   printf("time_t max: %s\n", isoStr(d).data());

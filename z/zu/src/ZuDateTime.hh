@@ -181,7 +181,7 @@ private:
 
 template <unsigned Width, char Trim> struct FIX_ {
   template <typename S> static void frac_print(S &s, unsigned nsec) {
-    s << '.' << ZuBoxed(nsec).fmt(ZuFmt::Frac<Width, Trim>());
+    s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, Trim>>();
   }
 };
 template <unsigned Width> struct FIX_<Width, '\0'> {
@@ -193,15 +193,15 @@ template <unsigned Width> struct FIX_<Width, '\0'> {
 template <char Trim> struct FIX_<0, Trim> {
   template <typename S> static void frac_print(S &, unsigned) { }
 };
-template <int Exp_, class Null_ = ZuPrintNull>
+template <int NDP_, class Null_ = ZuPrintNull>
 class FIX :
-    public FIX_<(Exp_ < 0 ? -Exp_ : Exp_), (Exp_ < 0 ? '\0' : '0')> {
+    public FIX_<(NDP_ < 0 ? -NDP_ : NDP_), (NDP_ < 0 ? '\0' : '0')> {
 friend ::ZuDateTime;
 public:
-  enum { Exp = Exp_ };
+  enum { NDP = NDP_ };
   using Null = Null_;
 
-  ZuAssert(Exp >= -9 && Exp <= 9);
+  ZuAssert(NDP >= -9 && NDP <= 9);
 
   FIX() {
     memcpy(m_yyyymmdd, "00010101", 8);
@@ -264,10 +264,10 @@ struct ZuDateTimePrintCSV {
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrintCSV *);
 };
-template <int Exp = -9, class Null = ZuDateTimeFmt::FIXDeflt_Null>
+template <int NDP = -9, class Null = ZuDateTimeFmt::FIXDeflt_Null>
 struct ZuDateTimePrintFIX {
   const ZuDateTime				&value;
-  const ZuDateTimeFmt::FIX<Exp, Null>	&fmt;
+  const ZuDateTimeFmt::FIX<NDP, Null>	&fmt;
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrintFIX *);
@@ -334,8 +334,7 @@ class ZuAPI ZuDateTime {
 public:
   using Native = ZuDateTime_time_t<sizeof(time_t)>;
 
-  enum Now_ { Now };		// disambiguator
-  enum Julian_ { Julian };	// ''
+  struct Julian { int v; };
 
   ZuDateTime() = default;
 
@@ -419,8 +418,8 @@ public:
 
   ZuDateTime(time_t t, int nsec) { init(t); m_nsec = nsec; }
 
-  explicit ZuDateTime(Julian_ _, int julian, int sec, int nsec) :
-    m_julian(julian), m_sec(sec), m_nsec(nsec) { }
+  explicit ZuDateTime(Julian julian, int sec, int nsec) :
+    m_julian(julian.v), m_sec(sec), m_nsec(nsec) { }
 
   ZuDateTime(int year, int month, int day) {
     normalize(year, month);
@@ -642,8 +641,8 @@ public:
       fmt.m_julian = date.m_julian;
       int y, m, d;
       date.ymd(y, m, d);
+      if (ZuUnlikely(y < -9998 || y > 9999)) return;
       if (ZuUnlikely(y < 1)) { s << '-'; y = 1 - y; }
-      else if (ZuUnlikely(y > 9999)) y = 9999;
       fmt.m_yyyymmdd[0] = y / 1000 + '0';
       fmt.m_yyyymmdd[1] = (y / 100) % 10 + '0';
       fmt.m_yyyymmdd[2] = (y / 10) % 10 + '0';
@@ -653,7 +652,7 @@ public:
       fmt.m_yyyymmdd[8] = d / 10 + '0';
       fmt.m_yyyymmdd[9] = d % 10 + '0';
     }
-    s << ZuString(fmt.m_yyyymmdd, 10) << ' ';
+    s << ZuString{fmt.m_yyyymmdd, 10} << ' ';
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
@@ -665,32 +664,31 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString(fmt.m_hhmmss, 8);
+    s << ZuString{fmt.m_hhmmss, 8};
     if (unsigned N = date.m_nsec) {
       char buf[9];
       if (fmt.m_pad) {
 	Zu_ntoa::Base10_print_frac(N, 9, fmt.m_pad, buf);
-	s << '.' << ZuString(buf, 9);
+	s << '.' << ZuString{buf, 9};
       } else {
 	if (N = Zu_ntoa::Base10_print_frac_truncate(N, 9, buf))
-	  s << '.' << ZuString(buf, N);
+	  s << '.' << ZuString{buf, N};
       }
     }
   }
 
-  template <int Exp, class Null>
-  auto print(const ZuDateTimeFmt::FIX<Exp, Null> &fmt) const {
-    return ZuDateTimePrintFIX<Exp, Null>{*this, fmt};
+  template <int NDP, class Null>
+  auto print(const ZuDateTimeFmt::FIX<NDP, Null> &fmt) const {
+    return ZuDateTimePrintFIX<NDP, Null>{*this, fmt};
   }
-  template <typename S_, int Exp, class Null>
-  void fix_print(S_ &s, const ZuDateTimeFmt::FIX<Exp, Null> &fmt) const {
+  template <typename S_, int NDP, class Null>
+  void fix_print(S_ &s, const ZuDateTimeFmt::FIX<NDP, Null> &fmt) const {
     if (!*this) { s << Null{}; return; }
     if (ZuUnlikely(m_julian != fmt.m_julian)) {
       fmt.m_julian = m_julian;
       int y, m, d;
       ymd(y, m, d);
-      if (ZuUnlikely(y < 1)) y = 1;
-      else if (ZuUnlikely(y > 9999)) y = 9999;
+      if (ZuUnlikely(y < 1 || y > 9999)) { s << Null{}; return; }
       fmt.m_yyyymmdd[0] = y / 1000 + '0';
       fmt.m_yyyymmdd[1] = (y / 100) % 10 + '0';
       fmt.m_yyyymmdd[2] = (y / 10) % 10 + '0';
@@ -700,7 +698,7 @@ public:
       fmt.m_yyyymmdd[6] = d / 10 + '0';
       fmt.m_yyyymmdd[7] = d % 10 + '0';
     }
-    s << ZuString(fmt.m_yyyymmdd, 8) << '-';
+    s << ZuString{fmt.m_yyyymmdd, 8} << '-';
     if (ZuUnlikely(m_sec != fmt.m_sec)) {
       fmt.m_sec = m_sec;
       int H, M, S;
@@ -712,7 +710,7 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString(fmt.m_hhmmss, 8);
+    s << ZuString{fmt.m_hhmmss, 8};
     fmt.frac_print(s, m_nsec);
   }
 
@@ -728,8 +726,8 @@ public:
       fmt.m_julian = date.m_julian;
       int y, m, d;
       date.ymd(y, m, d);
+      if (ZuUnlikely(y < -9998 || y > 9999)) return;
       if (ZuUnlikely(y < 1)) { s << '-'; y = 1 - y; }
-      else if (ZuUnlikely(y > 9999)) y = 9999;
       fmt.m_yyyymmdd[0] = y / 1000 + '0';
       fmt.m_yyyymmdd[1] = (y / 100) % 10 + '0';
       fmt.m_yyyymmdd[2] = (y / 10) % 10 + '0';
@@ -739,7 +737,7 @@ public:
       fmt.m_yyyymmdd[8] = d / 10 + '0';
       fmt.m_yyyymmdd[9] = d % 10 + '0';
     }
-    s << ZuString(fmt.m_yyyymmdd, 10) << 'T';
+    s << ZuString{fmt.m_yyyymmdd, 10} << 'T';
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
@@ -751,11 +749,11 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString(fmt.m_hhmmss, 8);
+    s << ZuString{fmt.m_hhmmss, 8};
     if (unsigned N = date.m_nsec) {
       char buf[9];
       N = Zu_ntoa::Base10_print_frac_truncate(N, 9, buf);
-      if (N) s << '.' << ZuString(buf, N);
+      if (N) s << '.' << ZuString{buf, N};
     }
     if (fmt.m_tzOffset) {
       int offset_ = (fmt.m_tzOffset < 0) ? -fmt.m_tzOffset : fmt.m_tzOffset;
@@ -766,7 +764,7 @@ public:
       buf[2] = ':';
       buf[3] = oM / 10 + '0';
       buf[4] = oM % 10 + '0';
-      s << ((fmt.m_tzOffset < 0) ? '-' : '+') << ZuString(buf, 5);
+      s << ((fmt.m_tzOffset < 0) ? '-' : '+') << ZuString{buf, 5};
     } else
       s << 'Z';
   }
@@ -879,7 +877,7 @@ public:
       }
     }
 
-    return ZuDateTime{Julian, julian, sec, nsec};
+    return ZuDateTime{Julian{julian}, sec, nsec};
   }
   template <typename T> ZuIfT<
     ZuInspect<time_t, T>::Same ||
@@ -904,7 +902,7 @@ public:
       if (sec >= 86400) sec -= 86400, ++julian;
     }
 
-    return ZuDateTime{Julian, julian, sec, m_nsec};
+    return ZuDateTime{Julian{julian}, sec, m_nsec};
   }
 
   template <typename T>
@@ -991,14 +989,14 @@ public:
     return ZuDateTime::operator +=(-sec_);
   }
 
-  bool equals(const ZuDateTime &date) const {
-    return m_julian == date.m_julian &&
-      m_sec == date.m_sec && m_nsec == date.m_nsec;
+  bool equals(const ZuDateTime &v) const {
+    return m_julian == v.m_julian && m_sec == v.m_sec && m_nsec == v.m_nsec;
   }
-  int cmp(const ZuDateTime &date) const {
-    if (int i = ZuCmp<int32_t>::cmp(m_julian, date.m_julian)) return i;
-    if (int i = ZuCmp<int32_t>::cmp(m_sec, date.m_sec)) return i;
-    return ZuCmp<int32_t>::cmp(m_nsec, date.m_nsec);
+  int cmp(const ZuDateTime &v) const {
+    // note that ZuCmp<int32_t>::null() is the most negative value
+    if (int i = ZuCmp<int32_t>::cmp(m_julian, v.m_julian)) return i;
+    if (int i = ZuCmp<int32_t>::cmp(m_sec, v.m_sec)) return i;
+    return ZuCmp<int32_t>::cmp(m_nsec, v.m_nsec);
   }
   friend inline bool operator ==(const ZuDateTime &l, const ZuDateTime &r) {
     return l.equals(r);
@@ -1008,7 +1006,7 @@ public:
   }
 
   constexpr bool operator !() const {
-    return m_julian == ZuCmp<int32_t>::null();
+    return ZuCmp<int32_t>::null(m_julian);
   }
   ZuOpBool
 
@@ -1111,9 +1109,9 @@ template <typename S>
 inline void ZuDateTimePrintCSV::print(S &s) const {
   value.csv_print(s, fmt);
 }
-template <int Exp, class Null>
+template <int NDP, class Null>
 template <typename S>
-inline void ZuDateTimePrintFIX<Exp, Null>::print(S &s) const {
+inline void ZuDateTimePrintFIX<NDP, Null>::print(S &s) const {
   value.fix_print(s, fmt);
 }
 template <typename S>

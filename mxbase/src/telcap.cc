@@ -52,7 +52,7 @@ private:
   void process(ZmRef<MxTelemetry::Msg> msg) {
     using namespace MxTelemetry;
 
-    auto &fmt = ZmTLS<ZuDateTime::CSVFmt, process>();
+    auto &nowFmt = ZmTLS<ZuDateTime::CSVFmt, process>();
 
     ZuDateTime now{Zm::now()};
 

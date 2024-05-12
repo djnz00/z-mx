@@ -23,9 +23,9 @@ namespace Zm {
 
 #ifndef _WIN32
 inline ZuTime now() {
-  ZuTime t;
+  timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return t;
+  return ZuTime{t};
 }
 #else
 ZmExtern ZuTime now();

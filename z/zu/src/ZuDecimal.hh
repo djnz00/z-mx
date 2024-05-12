@@ -534,8 +534,8 @@ template <typename Fmt> struct ZuDecimalFmt {
       iv = decimal.value;
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
-    s << ZuBoxed(iv).fmt<Fmt>();
-    if (fv) s << '.' << ZuBoxed(fv).fmt<ZuFmt::Frac<18>>();
+    s << ZuBoxed(uint64_t(iv)).fmt<Fmt>();
+    if (fv) s << '.' << ZuBoxed(uint64_t(fv)).fmt<ZuFmt::Frac<18>>();
   }
 
   friend ZuPrintFn ZuPrintType(ZuDecimalFmt *);

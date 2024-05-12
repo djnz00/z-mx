@@ -11,35 +11,27 @@ inline static bool isspace__(char c) {
   return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 
+inline static bool isdigit__(char c) {
+  return c >= '0' && c <= '9';
+}
+
 PG_FUNCTION_INFO_V1(ztime_in);
 Datum ztime_in(PG_FUNCTION_ARGS) {
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   const char *s = PG_GETARG_CSTRING(0);
-  unsigned int n;
-
-  /* postgres uses NaN; meanwhile ZuDecimal intentionally omits
-   * positive/negative infinity */
-  if (unlikely(s[0] == 'N' && s[1] == 'a' && s[2] == 'N' && s[3] == '\0')) {
-    v->value = zu_time_null();
-    PG_RETURN_POINTER(v);
-  }
-
-  /* postgres numeric supports inputs like 0x, 0o, 0b for hex/octal/binary,
-   * this would be mis-use of the type, intentionally omitted here */
-  n = zu_time_in(v, s);
+  unsigned int n = zu_time_in(v, s);
 
   /* SQL requires trailing spaces to be ignored while erroring out on other
-   * "trailing junk"; together with postgres reliance on C string
-   * null-termination, this prevents incrementally parsing values within
-   * a containing string without copying or overwriting the data with
-   * null terminators, but we'll play along, sigh */
+   * "trailing junk" */
   if (likely(n)) while (unlikely(isspace__(s[n]))) ++n;
-  if (!n || s[n])
+  if (!n || s[n]) {
+invalid:
     ereport(
       ERROR,
       (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
        errmsg("invalid input syntax for ztime: \"%s\"", s))
     );
+  }
 
   PG_RETURN_POINTER(v);
 }
@@ -50,9 +42,6 @@ Datum ztime_out(PG_FUNCTION_ARGS) {
   unsigned int n = zu_time_out_len(v);
   char *s = palloc(n);
   zu_time_out(s, v);
-  /* postgres uses NaN */
-  if (s[0] == 'n' && s[1] == 'a' && s[2] == 'n' && s[3] == '\0')
-    s[0] = 'N', s[2] = 'N';
   PG_RETURN_CSTRING(s);
 }
 
@@ -60,83 +49,62 @@ PG_FUNCTION_INFO_V1(ztime_recv);
 Datum ztime_recv(PG_FUNCTION_ARGS) {
   StringInfo buf = (StringInfo)PG_GETARG_POINTER(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  pq_copymsgbytes(buf, (char *)v, 16);
-  v->value = pg_bswap128(v->value);
+  pq_copymsgbytes(buf, (char *)v, sizeof(zu_time));
+  if (likely(sizeof(time_t) == 8))
+	v->tv_sec = pg_bswap64(v->tv_sec);
+  else
+	v->tv_sec = pg_bswap32(v->tv_sec);
+  v->tv_nsec = pg_bswap32(v->tv_nsec);
   PG_RETURN_POINTER(v);
 }
 
 PG_FUNCTION_INFO_V1(ztime_send);
 Datum ztime_send(PG_FUNCTION_ARGS) {
-  const zu_time *v = (const zu_time *)PG_GETARG_POINTER(0);
-  uint128_t value = v->value;
+  const zu_time *v_ = (const zu_time *)PG_GETARG_POINTER(0);
+  zu_time v = *v_;
   StringInfoData buf;
   pq_begintypsend(&buf);
-  enlargeStringInfo(&buf, 16);
-  Assert(buf.len + 16 <= buf.maxlen);
-  value = pg_bswap128(value);
-  memcpy((char *)(buf.data + buf.len), &value, 16);
-  buf.len += 16;
+  enlargeStringInfo(&buf, sizeof(zu_time));
+  Assert(buf.len + sizeof(zu_time) <= buf.maxlen);
+  if (likely(sizeof(time_t) == 8))
+	v.tv_sec = pg_bswap64(v.tv_sec);
+  else
+	v.tv_sec = pg_bswap32(v.tv_sec);
+  v.tv_nsec = pg_bswap32(v.tv_nsec);
+  memcpy((char *)(buf.data + buf.len), &v, sizeof(zu_time));
+  buf.len += sizeof(zu_time);
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
-}
-
-PG_FUNCTION_INFO_V1(ztime_to_int4);
-Datum ztime_to_int4(PG_FUNCTION_ARGS) {
-  const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  if (p->value == zu_time_null()) PG_RETURN_NULL();
-  PG_RETURN_INT32((int32)zu_time_to_int(p));
-}
-
-PG_FUNCTION_INFO_V1(ztime_from_int4);
-Datum ztime_from_int4(PG_FUNCTION_ARGS) {
-  int32 i = PG_GETARG_INT32(0);
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_from_int(v, i));
 }
 
 PG_FUNCTION_INFO_V1(ztime_to_int8);
 Datum ztime_to_int8(PG_FUNCTION_ARGS) {
   const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  if (p->value == zu_time_null()) PG_RETURN_NULL();
-  PG_RETURN_INT64(zu_time_to_int(p));
+  if (zu_time_null(p)) PG_RETURN_NULL();
+  __int128_t i = zu_time_to_int(p);
+  i /= 1000;
+  if (i >= (((__int128_t)1)<<64)) PG_RETURN_NULL();
+  PG_RETURN_INT64((uint64)i);
 }
 
 PG_FUNCTION_INFO_V1(ztime_from_int8);
 Datum ztime_from_int8(PG_FUNCTION_ARGS) {
-  int64 i = PG_GETARG_INT64(0);
+  __int128_t i = PG_GETARG_INT64(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
+  i *= 1000;
   PG_RETURN_POINTER(zu_time_from_int(v, i));
-}
-
-PG_FUNCTION_INFO_V1(ztime_to_float4);
-Datum ztime_to_float4(PG_FUNCTION_ARGS) {
-  const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  PG_RETURN_FLOAT4((float4)zu_time_to_double(p));
-}
-
-PG_FUNCTION_INFO_V1(ztime_from_float4);
-Datum ztime_from_float4(PG_FUNCTION_ARGS) {
-  float4 f = PG_GETARG_FLOAT4(0);
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_from_double(v, (double)f));
 }
 
 PG_FUNCTION_INFO_V1(ztime_to_float8);
 Datum ztime_to_float8(PG_FUNCTION_ARGS) {
   const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  PG_RETURN_FLOAT8(zu_time_to_double(p));
+  PG_RETURN_FLOAT8(zu_time_to_ldouble(p));
 }
 
 PG_FUNCTION_INFO_V1(ztime_from_float8);
 Datum ztime_from_float8(PG_FUNCTION_ARGS) {
   float8 d = PG_GETARG_FLOAT8(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_from_double(v, d));
-}
-
-PG_FUNCTION_INFO_V1(ztime_round);
-Datum ztime_round(PG_FUNCTION_ARGS) {
-  const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  PG_RETURN_INT64(zu_time_round(p));
+  PG_RETURN_POINTER(zu_time_from_ldouble(v, d));
 }
 
 PG_FUNCTION_INFO_V1(ztime_neg);
@@ -152,9 +120,7 @@ Datum ztime_add(PG_FUNCTION_ARGS) {
   const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_add(v, l, r);
-  if (l->value != zu_time_null() &&
-      r->value != zu_time_null() &&
-      v->value == zu_time_null())
+  if (!zu_time_null(l) && !zu_time_null(r) && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -166,9 +132,7 @@ Datum ztime_sub(PG_FUNCTION_ARGS) {
   const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_sub(v, l, r);
-  if (l->value != zu_time_null() &&
-      r->value != zu_time_null() &&
-      v->value == zu_time_null())
+  if (!zu_time_null(l) && !zu_time_null(r) && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -177,12 +141,10 @@ Datum ztime_sub(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(ztime_mul);
 Datum ztime_mul(PG_FUNCTION_ARGS) {
   const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
+  float8 r = PG_GETARG_FLOAT8(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_mul(v, l, r);
-  if (l->value != zu_time_null() &&
-      r->value != zu_time_null() &&
-      v->value == zu_time_null())
+  if (!zu_time_null(l) && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -191,12 +153,10 @@ Datum ztime_mul(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(ztime_div);
 Datum ztime_div(PG_FUNCTION_ARGS) {
   const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
+  float8 r = PG_GETARG_FLOAT8(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_div(v, l, r);
-  if (l->value != zu_time_null() &&
-      r->value != zu_time_null() &&
-      v->value == zu_time_null())
+  if (!zu_time_null(l) && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -326,7 +286,7 @@ Datum ztime_acc(PG_FUNCTION_ARGS) {
   v = (const zu_time *)PG_GETARG_POINTER(1);
 
   zu_time_add(&state[0], &state[0], v);
-  state[1].value += zu_time_scale();
+  ++state[1].tv_sec;
 
   PG_RETURN_ARRAYTYPE_P(array);
 }
@@ -349,8 +309,8 @@ Datum ztime_avg(PG_FUNCTION_ARGS) {
 
   state = (const zu_time *)ARR_DATA_PTR(array);
 
-  if (unlikely(!state[1].value)) PG_RETURN_NULL();
+  if (unlikely(!state[1].tv_sec)) PG_RETURN_NULL();
 
   v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_div(v, &state[0], &state[1]));
+  PG_RETURN_POINTER(zu_time_div(v, &state[0], state[1].tv_sec));
 }

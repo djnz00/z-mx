@@ -146,7 +146,9 @@ public:
   double cpuUsage() const {
     ZuTime cpuLast = m_cpuLast;
     ZuTime rtLast = m_rtLast;
-    clock_gettime(m_cid, &m_cpuLast);
+    timespec cpuLast_;
+    clock_gettime(m_cid, &cpuLast_);
+    m_cpuLast = ZuTime{cpuLast_};
     m_rtLast = Zm::now();
     if (ZuUnlikely(!cpuLast || !rtLast)) return 0.0;
     auto cpuDelta = (m_cpuLast - cpuLast).as_ldouble();

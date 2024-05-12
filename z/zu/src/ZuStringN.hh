@@ -508,6 +508,8 @@ public:
   }
   template <typename U>
   ZuStringN &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
+
+  // stream
   template <typename U>
   Base::template MatchStreamable<U, ZuStringN &>
   operator <<(U &&v) {

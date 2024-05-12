@@ -127,6 +127,10 @@ int main()
     CHECK((!zu_decimal_cmp(&v_, &r_)));
     zu_decimal_mul(&v_, &l_, &r_);
     CHECK(((ZuStringN<40>{} << v) == "1764.420000000000000042"));
+    char buf[40];
+    zu_decimal_out(buf, &v_);
+    std::cout << buf << '\n';
+    CHECK(ZuString{buf} == "1764.420000000000000042");
     zu_decimal_div(&v_, &v_, &r_);
     CHECK(((ZuStringN<40>{} << v) == "42"));
   }

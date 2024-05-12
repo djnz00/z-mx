@@ -50,7 +50,7 @@ ZtFields(Row,
     (((bool, Alias, m_bool)), (Bool), (Ctor<2>)),
     (((float, Alias, m_float)), (Float), (Ctor<3>, NDP<2>)),
     (((enum, Alias, m_enum)), (Enum, Enums::Map), (Ctor<4>)),
-    (((time, Alias, m_time)), (Time), (Ctor<5>)),
+    (((time, Alias, m_time)), (DateTime), (Ctor<5>)),
     (((flags, Alias, m_flags)), (Flags, DaFlags::Map), (Ctor<6>)));
 
 using CSVWrite = ZmList<Row>;

@@ -394,12 +394,12 @@ namespace Load {
 
   // time
   inline auto time(const Time *v) {
-    return ZuTime{time_t(v->sec()), long(v->nsec())};
+    return ZuTime{int64_t(v->sec()), int32_t(v->nsec())};
   }
 
   // date/time
   inline auto dateTime(const DateTime *v) {
-    return ZuDateTime{ZuDateTime::Julian, v->julian(), v->sec(), v->nsec()};
+    return ZuDateTime{ZuDateTime::Julian{v->julian()}, v->sec(), v->nsec()};
   }
 
   // int128
