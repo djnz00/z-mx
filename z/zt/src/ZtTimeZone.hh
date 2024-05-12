@@ -38,7 +38,7 @@ inline void tzset(void) { ::tzset(); }
 inline void tzset(void) { ::_tzset(); }
 #endif
 
-ZtExtern int tzOffset(const ZuDateTime &value, const char *tz = nullptr);
+ZtExtern int tzOffset(ZuDateTime value, const char *tz = nullptr);
 
 } // Zt
 

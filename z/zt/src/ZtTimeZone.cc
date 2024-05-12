@@ -6,6 +6,8 @@
 
 #include <time.h>
 
+#include <zlib/ZuTuple.hh>
+
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmPLock.hh>
@@ -59,39 +61,51 @@ Zt_TzGuard::~Zt_TzGuard()
   }
 }
 
-int Zt::tzOffset(const ZuDateTime &value, const char *tz)
+int Zt::tzOffset(ZuDateTime value, const char *tz)
 {
   using Native = ZuDateTime::Native;
 
-  int year, month, day, hour, minute, second;
-  value.ymd(year, month, day);
-  value.hms(hour, minute, second);
+  // 2-pass algorithm
+  auto calc = [](const ZuDateTime &value) -> ZuTuple<int, bool> {
+    int year, month, day, hour, minute, second;
+
+    value.ymd(year, month, day);
+    value.hms(hour, minute, second);
+
+    if (year < 1900) return {int(-timezone), false};
+
+    struct tm tm_ {
+      .tm_sec = second,
+      .tm_min = minute,
+      .tm_hour = hour,
+      .tm_mday = day,
+      .tm_mon = month - 1,
+      .tm_year = year - 1900,
+      .tm_isdst = -1
+    };
+
+    time_t t = mktime(&tm_);
+
+    if (ZuUnlikely(t == (time_t)-1 && tm_.tm_isdst < 0)) // mktime() error
+      return {int(-timezone), false};
+
+    if (ZuUnlikely(Native::isMinimum(t) || Native::isMaximum(t))) // paranoia
+      return {int(-timezone), false};
+
+    time_t t_ = value.as_time_t();
+
+    if (ZuUnlikely(
+	ZuCmp<time_t>::null(t_) ||
+	Native::isMinimum(t_) ||
+	Native::isMaximum(t_)))
+      return {int(-timezone), false};
+
+    return {int(t_ - t), tm_.tm_isdst > 0};
+  };
 
   Zt_TzGuard tzGuard(tz);
 
-  if (year < 1900) return -timezone;
-
-  struct tm tm_ {
-    .tm_sec = second,
-    .tm_min = minute,
-    .tm_hour = hour,
-    .tm_mday = day,
-    .tm_mon = month - 1,
-    .tm_year = year - 1900,
-    .tm_isdst = -1
-  };
-
-  time_t t = mktime(&tm_);
-
-  if (ZuUnlikely(Native::isMinimum(t) || Native::isMaximum(t)))
-    return -timezone;
-
-  time_t t_ = Native::time(
-    ZuDateTime::julian(tm_.tm_year + 1900, tm_.tm_mon + 1, tm_.tm_mday),
-    ZuDateTime::second(tm_.tm_hour, tm_.tm_min, tm_.tm_sec));
-
-  if (ZuUnlikely(Native::isMinimum(t_) || Native::isMaximum(t_)))
-    return -timezone;
-
-  return int(t_ - t);
+  auto [offset, dst] = calc(value);	// 1st pass - offset from local -> GMT
+  value += offset - (dst ? 3600 : 0);	// adjust GMT to local (no DST)
+  return calc(value).p<0>();		// 2nd pass (including DST)
 }

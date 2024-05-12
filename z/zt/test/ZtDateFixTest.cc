@@ -55,9 +55,9 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d1 = end;
+    ZuTime d1 = end / (long double)n;
     printf("time per cycle 1: %s\n",
-      (ZuStringN<32>{} << (end / (long double)n).interval()).data());
+      (ZuStringN<32>{} << d1.interval()).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -66,9 +66,9 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d2 = end;
+    ZuTime d2 = end / (long double)n;
     printf("time per cycle 2: %s\n",
-      (ZuStringN<32>{} << (end / (long double)n).interval()).data());
+      (ZuStringN<32>{} << d2.interval()).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -76,9 +76,9 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d3 = end;
+    ZuTime d3 = end / (long double)n;
     printf("time per cycle 3: %s\n",
-      (ZuStringN<32>{} << (end / (long double)n).interval()).data());
+      (ZuStringN<32>{} << d3.interval()).data());
 
     printf("time per FIX format print: %s\n",
       (ZuStringN<32>{} << (d2 - d3).interval()).data());

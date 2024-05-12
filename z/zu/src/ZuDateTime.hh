@@ -107,7 +107,7 @@ private:
 public:
   static bool isMinimum(int32_t t) { return t == minimum(); }
   static bool isMaximum(int32_t t) { return t == maximum(); }
-  static time_t time(int32_t julian, int second) {
+  static time_t as_time_t(int32_t julian, int second) {
     if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
     if (julian < 2415732) {
       return minimum();
@@ -126,10 +126,9 @@ template <> class ZuDateTime_time_t<8> {
 public:
   constexpr static bool isMinimum(int64_t) { return false; }
   constexpr static bool isMaximum(int64_t) { return false; }
-  static time_t time(int32_t julian, int second) {
+  static time_t as_time_t(int32_t julian, int second) {
     if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
-    return
-      (int64_t(julian) - int64_t(2440588)) * int64_t(86400) + int64_t(second);
+    return (int64_t(julian) - 2440588) * 86400 + second;
   }
 };
 
@@ -155,23 +154,27 @@ namespace ZuDateTimeFmt {
 class CSV {
 friend ::ZuDateTime;
 public:
-  CSV(int tzOffset = 0) : m_tzOffset{tzOffset} {
-    memcpy(m_yyyymmdd, "0001/01/01", 10);
-    memcpy(m_hhmmss, "00:00:00", 8);
-  }
+  CSV(int tzOffset = 0) : m_tzOffset{tzOffset} { reset(); }
 
-  void tzOffset(int o) { m_tzOffset = o; }
+  void tzOffset(int o) { if (m_tzOffset != o) { m_tzOffset = o; reset(); } }
   int tzOffset() const { return m_tzOffset; }
 
   void pad(char c) { m_pad = c; }
   char pad() const { return m_pad; }
 
 private:
+  void reset() {
+    m_julian = 0;
+    m_sec = 0;
+    memcpy(m_yyyymmdd, "0001/01/01", 10);
+    memcpy(m_hhmmss, "00:00:00", 8);
+  }
+
   int		m_tzOffset;
   char		m_pad = 0;
 
-  mutable int	m_julian = 0;
-  mutable int	m_sec = 0;
+  mutable int	m_julian;
+  mutable int	m_sec;
   mutable char	m_yyyymmdd[10];
   mutable char	m_hhmmss[8];
 };
@@ -215,19 +218,23 @@ private:
 class ISO {
 friend ::ZuDateTime;
 public:
-  ISO(int tzOffset = 0) : m_tzOffset{tzOffset} {
+  ISO(int tzOffset = 0) : m_tzOffset{tzOffset} { reset(); }
+
+  void tzOffset(int o) { if (m_tzOffset != o) { m_tzOffset = o; reset(); } }
+  int tzOffset() const { return m_tzOffset; }
+
+private:
+  void reset() {
+    m_julian = 0;
+    m_sec = 0;
     memcpy(m_yyyymmdd, "0001-01-01", 10);
     memcpy(m_hhmmss, "00:00:00", 8);
   }
 
-  void tzOffset(int o) { m_tzOffset = o; }
-  int tzOffset() const { return m_tzOffset; }
-
-private:
   int		m_tzOffset = 0;
 
-  mutable int	m_julian = 0;
-  mutable int	m_sec = 0;
+  mutable int	m_julian;
+  mutable int	m_sec;
   mutable char	m_yyyymmdd[10];
   mutable char	m_hhmmss[8];
 };
@@ -322,6 +329,8 @@ struct ZuDateTimePrint {
 };
 
 class ZuAPI ZuDateTime {
+  using ldouble = long double;
+
 public:
   using Native = ZuDateTime_time_t<sizeof(time_t)>;
 
@@ -578,24 +587,22 @@ public:
 
 // conversions
 
-  // time(), dtime() and zmTime() can result in an out of range conversion
-  // to time_t
+  // as_time_t(), as_ldouble() and as_zuTime() can result in an out of
+  // range conversion to time_t
 
-  operator time_t() const { return this->time(); }
-  time_t time() const {
-    return (time_t)Native::time(m_julian, m_sec);
+  time_t as_time_t() const {
+    return time_t(Native::as_time_t(m_julian, m_sec));
   }
-  double dtime() const {
-    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
-    time_t t = Native::time(m_julian, m_sec);
-    if (ZuUnlikely(Native::isMinimum(t))) return -ZuCmp<double>::inf();
-    if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<double>::inf();
-    return((double)t + (double)m_nsec / (double)1000000000);
+  ldouble as_ldouble() const {
+    if (ZuUnlikely(!*this)) return ZuCmp<ldouble>::null();
+    time_t t = Native::as_time_t(m_julian, m_sec);
+    if (ZuUnlikely(Native::isMinimum(t))) return -ZuCmp<ldouble>::inf();
+    if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<ldouble>::inf();
+    return (ldouble(t) + m_nsec) / 1000000000;
   }
-  operator ZuTime() const { return this->zuTime(); }
-  ZuTime zuTime() const {
+  ZuTime as_zuTime() const {
     if (ZuUnlikely(!*this)) return {};
-    return ZuTime{this->time(), m_nsec};
+    return ZuTime{this->as_time_t(), m_nsec};
   }
 
   struct tm *tm(struct tm *tm) const;
@@ -650,7 +657,7 @@ public:
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
-      hms(H, M, S);
+      date.hms(H, M, S);
       fmt.m_hhmmss[0] = H / 10 + '0';
       fmt.m_hhmmss[1] = H % 10 + '0';
       fmt.m_hhmmss[3] = M / 10 + '0';
@@ -736,7 +743,7 @@ public:
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
-      hms(H, M, S);
+      date.hms(H, M, S);
       fmt.m_hhmmss[0] = H / 10 + '0';
       fmt.m_hhmmss[1] = H % 10 + '0';
       fmt.m_hhmmss[3] = M / 10 + '0';
@@ -1290,7 +1297,7 @@ fmtchar:
 	  vfmt(fmt_, minute, 2, alt);
 	break;
       case 's': // (TZ) number of seconds since the Epoch
-	if (!*seconds) seconds = value.time();
+	if (!*seconds) seconds = value.as_time_t();
 	if (!alt && *width)
 	  s << seconds.vfmt(ZuVFmt{}.right(width));
 	else

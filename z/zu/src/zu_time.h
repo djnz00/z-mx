@@ -25,7 +25,6 @@ extern "C" {
  * prevent compiler from relying on 16-byte alignment
  * - this is a carbon copy of POSIX struct timespec
  */
-  
 #pragma pack(push, 8)
 typedef struct {
   time_t	tv_sec;
