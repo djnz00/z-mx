@@ -86,12 +86,10 @@ Datum ztime_send(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(ztime_to_int8);
 Datum ztime_to_int8(PG_FUNCTION_ARGS) {
   const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  zu_decimal d, m;
+  zu_decimal d;
   int64_t i;
   if (zu_time_null(p)) PG_RETURN_NULL();
   zu_time_to_decimal(&d, p);
-  zu_decimal_from_int(&m, 1000);
-  zu_decimal_mul(&d, &d, &m);
   i = zu_decimal_to_int(&d);
   PG_RETURN_INT64(i);
 }
@@ -100,10 +98,8 @@ PG_FUNCTION_INFO_V1(ztime_from_int8);
 Datum ztime_from_int8(PG_FUNCTION_ARGS) {
   int64_t i = PG_GETARG_INT64(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  zu_decimal d, m;
+  zu_decimal d;
   zu_decimal_from_int(&d, i);
-  zu_decimal_from_int(&m, 1000);
-  zu_decimal_div(&d, &d, &m);
   PG_RETURN_POINTER(zu_time_from_decimal(v, &d));
 }
 
