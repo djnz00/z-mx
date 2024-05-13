@@ -63,8 +63,6 @@ Zt_TzGuard::~Zt_TzGuard()
 
 int Zt::tzOffset(ZuDateTime value, const char *tz)
 {
-  using Native = ZuDateTime::Native;
-
   // 2-pass algorithm
   auto calc = [](const ZuDateTime &value) -> ZuTuple<int, bool> {
     int year, month, day, hour, minute, second;
@@ -89,15 +87,9 @@ int Zt::tzOffset(ZuDateTime value, const char *tz)
     if (ZuUnlikely(t == (time_t)-1 && tm_.tm_isdst < 0)) // mktime() error
       return {int(-timezone), false};
 
-    if (ZuUnlikely(Native::isMinimum(t) || Native::isMaximum(t))) // paranoia
-      return {int(-timezone), false};
-
     time_t t_ = value.as_time_t();
 
-    if (ZuUnlikely(
-	ZuCmp<time_t>::null(t_) ||
-	Native::isMinimum(t_) ||
-	Native::isMaximum(t_)))
+    if (ZuUnlikely(ZuCmp<time_t>::null(t_)))
       return {int(-timezone), false};
 
     return {int(t_ - t), tm_.tm_isdst > 0};

@@ -68,7 +68,7 @@ public:
       mean = 0.0, count = 0;
     } else {
       min = m_min, max = m_max, total = m_total,
-      mean = m_total.as_ldouble() / m_count, count = m_count;
+      mean = m_total.as_fp() / m_count, count = m_count;
     }
   }
   friend ZuPrintFn ZuPrintType(ZmTimeInterval *);

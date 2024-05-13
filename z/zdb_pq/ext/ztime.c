@@ -15,35 +15,42 @@ inline static bool isdigit__(char c) {
   return c >= '0' && c <= '9';
 }
 
-PG_FUNCTION_INFO_V1(ztime_in);
-Datum ztime_in(PG_FUNCTION_ARGS) {
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  const char *s = PG_GETARG_CSTRING(0);
-  unsigned int n = zu_time_in(v, s);
-
-  /* SQL requires trailing spaces to be ignored while erroring out on other
-   * "trailing junk" */
-  if (likely(n)) while (unlikely(isspace__(s[n]))) ++n;
-  if (!n || s[n]) {
-invalid:
-    ereport(
-      ERROR,
-      (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-       errmsg("invalid input syntax for ztime: \"%s\"", s))
-    );
+#define ztime_in_fn(fmt) \
+  PG_FUNCTION_INFO_V1(ztime_in_##fmt); \
+  Datum ztime_in_##fmt(PG_FUNCTION_ARGS) { \
+	zu_time *v = (zu_time *)palloc(sizeof(zu_time)); \
+	const char *s = PG_GETARG_CSTRING(0); \
+	unsigned int n = zu_time_in_##fmt(v, s); \
+   \
+	if (likely(n)) while (unlikely(isspace__(s[n]))) ++n; \
+	if (!n || s[n]) { \
+	  ereport( \
+		ERROR, \
+		(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION), \
+		 errmsg("invalid input syntax for ztime: \"%s\"", s)) \
+	  ); \
+	} \
+   \
+	PG_RETURN_POINTER(v); \
   }
 
-  PG_RETURN_POINTER(v);
+ztime_in_fn(csv)
+ztime_in_fn(iso)
+ztime_in_fn(fix)
+
+#define ztime_out_fn(fmt) \
+PG_FUNCTION_INFO_V1(ztime_out_##fmt); \
+Datum ztime_out_##fmt(PG_FUNCTION_ARGS) { \
+  const zu_time *v = (const zu_time *)PG_GETARG_POINTER(0); \
+  unsigned int n = zu_time_out_##fmt##_len(v); \
+  char *s = palloc(n); \
+  zu_time_out_##fmt(s, v); \
+  PG_RETURN_CSTRING(s); \
 }
 
-PG_FUNCTION_INFO_V1(ztime_out);
-Datum ztime_out(PG_FUNCTION_ARGS) {
-  const zu_time *v = (const zu_time *)PG_GETARG_POINTER(0);
-  unsigned int n = zu_time_out_len(v);
-  char *s = palloc(n);
-  zu_time_out(s, v);
-  PG_RETURN_CSTRING(s);
-}
+ztime_out_fn(csv)
+ztime_out_fn(iso)
+ztime_out_fn(fix)
 
 PG_FUNCTION_INFO_V1(ztime_recv);
 Datum ztime_recv(PG_FUNCTION_ARGS) {
@@ -79,48 +86,48 @@ Datum ztime_send(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(ztime_to_int8);
 Datum ztime_to_int8(PG_FUNCTION_ARGS) {
   const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
+  zu_decimal d, m;
+  int64_t i;
   if (zu_time_null(p)) PG_RETURN_NULL();
-  __int128_t i = zu_time_to_int(p);
-  i /= 1000;
-  if (i >= (((__int128_t)1)<<64)) PG_RETURN_NULL();
-  PG_RETURN_INT64((uint64)i);
+  zu_time_to_decimal(&d, p);
+  zu_decimal_from_int(&m, 1000);
+  zu_decimal_mul(&d, &d, &m);
+  i = zu_decimal_to_int(&d);
+  PG_RETURN_INT64(i);
 }
 
 PG_FUNCTION_INFO_V1(ztime_from_int8);
 Datum ztime_from_int8(PG_FUNCTION_ARGS) {
-  __int128_t i = PG_GETARG_INT64(0);
+  int64_t i = PG_GETARG_INT64(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  i *= 1000;
-  PG_RETURN_POINTER(zu_time_from_int(v, i));
+  zu_decimal d, m;
+  zu_decimal_from_int(&d, i);
+  zu_decimal_from_int(&m, 1000);
+  zu_decimal_div(&d, &d, &m);
+  PG_RETURN_POINTER(zu_time_from_decimal(v, &d));
 }
 
-PG_FUNCTION_INFO_V1(ztime_to_float8);
-Datum ztime_to_float8(PG_FUNCTION_ARGS) {
+PG_FUNCTION_INFO_V1(ztime_to_decimal);
+Datum ztime_to_decimal(PG_FUNCTION_ARGS) {
   const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  PG_RETURN_FLOAT8(zu_time_to_ldouble(p));
+  zu_decimal *d = (zu_decimal *)palloc(sizeof(zu_decimal));
+  PG_RETURN_POINTER(zu_time_to_decimal(d, p));
 }
 
-PG_FUNCTION_INFO_V1(ztime_from_float8);
-Datum ztime_from_float8(PG_FUNCTION_ARGS) {
-  float8 d = PG_GETARG_FLOAT8(0);
+PG_FUNCTION_INFO_V1(ztime_from_decimal);
+Datum ztime_from_decimal(PG_FUNCTION_ARGS) {
+  const zu_decimal *d = (const zu_decimal *)PG_GETARG_POINTER(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_from_ldouble(v, d));
-}
-
-PG_FUNCTION_INFO_V1(ztime_neg);
-Datum ztime_neg(PG_FUNCTION_ARGS) {
-  const zu_time *p = (const zu_time *)PG_GETARG_POINTER(0);
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_neg(v, p));
+  PG_RETURN_POINTER(zu_time_from_decimal(v, d));
 }
 
 PG_FUNCTION_INFO_V1(ztime_add);
 Datum ztime_add(PG_FUNCTION_ARGS) {
   const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
+  const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_add(v, l, r);
-  if (!zu_time_null(l) && !zu_time_null(r) && zu_time_null(v))
+  if (!zu_time_null(l) && r->value != zu_decimal_null() && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -129,34 +136,22 @@ Datum ztime_add(PG_FUNCTION_ARGS) {
 PG_FUNCTION_INFO_V1(ztime_sub);
 Datum ztime_sub(PG_FUNCTION_ARGS) {
   const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
+  const zu_decimal *r = (const zu_decimal *)PG_GETARG_POINTER(1);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
   zu_time_sub(v, l, r);
-  if (!zu_time_null(l) && !zu_time_null(r) && zu_time_null(v))
+  if (!zu_time_null(l) && r->value != zu_decimal_null() && zu_time_null(v))
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
 }
 
-PG_FUNCTION_INFO_V1(ztime_mul);
-Datum ztime_mul(PG_FUNCTION_ARGS) {
+PG_FUNCTION_INFO_V1(ztime_delta);
+Datum ztime_delta(PG_FUNCTION_ARGS) {
   const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  float8 r = PG_GETARG_FLOAT8(1);
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  zu_time_mul(v, l, r);
-  if (!zu_time_null(l) && zu_time_null(v))
-    ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-	  errmsg("value out of range: overflow")));
-  PG_RETURN_POINTER(v);
-}
-
-PG_FUNCTION_INFO_V1(ztime_div);
-Datum ztime_div(PG_FUNCTION_ARGS) {
-  const zu_time *l = (const zu_time *)PG_GETARG_POINTER(0);
-  float8 r = PG_GETARG_FLOAT8(1);
-  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  zu_time_div(v, l, r);
-  if (!zu_time_null(l) && zu_time_null(v))
+  const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
+  zu_decimal *v = (zu_decimal *)palloc(sizeof(zu_decimal));
+  zu_time_delta(v, l, r);
+  if (!zu_time_null(l) && !zu_time_null(r) && v->value == zu_decimal_null())
     ereport(ERROR, (errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 	  errmsg("value out of range: overflow")));
   PG_RETURN_POINTER(v);
@@ -243,74 +238,4 @@ Datum ztime_larger(PG_FUNCTION_ARGS) {
   const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
   int i = zu_time_cmp(l, r);
   PG_RETURN_POINTER(i > 0 ? l : r);
-}
-
-PG_FUNCTION_INFO_V1(ztime_sum);
-Datum ztime_sum(PG_FUNCTION_ARGS) {
-  if (unlikely(PG_ARGISNULL(0))) {
-    if (unlikely(PG_ARGISNULL(1))) PG_RETURN_NULL();
-    PG_RETURN_POINTER(PG_GETARG_POINTER(1));
-  }
-  if (unlikely(PG_ARGISNULL(1))) PG_RETURN_POINTER(PG_GETARG_POINTER(0));
-  {
-    zu_time *l = (zu_time *)PG_GETARG_POINTER(0);
-    const zu_time *r = (const zu_time *)PG_GETARG_POINTER(1);
-	if (AggCheckCallContext(fcinfo, NULL)) {
-	  PG_RETURN_POINTER(zu_time_add(l, l, r));
-	} else {
-	  zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-	  PG_RETURN_POINTER(zu_time_add(v, l, r));
-	}
-  }
-}
-
-PG_FUNCTION_INFO_V1(ztime_acc);
-Datum ztime_acc(PG_FUNCTION_ARGS) {
-  ArrayType *array = AggCheckCallContext(fcinfo, NULL) ?
-    PG_GETARG_ARRAYTYPE_P(0) :
-    PG_GETARG_ARRAYTYPE_P_COPY(0);
-  zu_time *state;
-  const zu_time *v;
-
-  if (ARR_NDIM(array) != 1 ||
-      ARR_DIMS(array)[0] != 2 ||
-      ARR_HASNULL(array) ||
-      ARR_SIZE(array) != ARR_OVERHEAD_NONULLS(1) + sizeof(zu_time) * 2) {
-    elog(ERROR, "ztime_acc expected 2-element ztime array");
-    PG_RETURN_ARRAYTYPE_P(array);
-  }
-
-  if (PG_ARGISNULL(1)) PG_RETURN_ARRAYTYPE_P(array);
-
-  state = (zu_time *)ARR_DATA_PTR(array);
-  v = (const zu_time *)PG_GETARG_POINTER(1);
-
-  zu_time_add(&state[0], &state[0], v);
-  ++state[1].tv_sec;
-
-  PG_RETURN_ARRAYTYPE_P(array);
-}
-
-PG_FUNCTION_INFO_V1(ztime_avg);
-Datum ztime_avg(PG_FUNCTION_ARGS) {
-  ArrayType *array = AggCheckCallContext(fcinfo, NULL) ?
-    PG_GETARG_ARRAYTYPE_P(0) :
-    PG_GETARG_ARRAYTYPE_P_COPY(0);
-  const zu_time *state;
-  zu_time *v;
-
-  if (ARR_NDIM(array) != 1 ||
-      ARR_DIMS(array)[0] != 2 ||
-      ARR_HASNULL(array) ||
-      ARR_SIZE(array) != ARR_OVERHEAD_NONULLS(1) + sizeof(zu_time) * 2) {
-    elog(ERROR, "ztime_avg expected 2-element ztime array");
-    PG_RETURN_NULL();
-  }
-
-  state = (const zu_time *)ARR_DATA_PTR(array);
-
-  if (unlikely(!state[1].tv_sec)) PG_RETURN_NULL();
-
-  v = (zu_time *)palloc(sizeof(zu_time));
-  PG_RETURN_POINTER(zu_time_div(v, &state[0], state[1].tv_sec));
 }

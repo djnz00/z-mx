@@ -292,11 +292,11 @@ int main() {
   t1_ = Zm::now();
   for (i = 1; i <= 1000000; i++) t1 = Zm::now();
   t1_ = Zm::now() - t1_;
-  auto intrinsic = t1_ / (long double)1000000;
+  auto intrinsic = t1_.as_decimal() / 1000000;
 
   printf(
     "\nZm::now() intrinsic cost: %s\n",
-    (ZuStringN<32>{} << intrinsic.interval()).data()
+    (ZuStringN<32>{} << intrinsic).data()
   );
 
 #ifdef _WIN32

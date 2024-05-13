@@ -7,8 +7,8 @@ extension_version = 0
 EXTENSION = libz
 MODULE_big = libz
 OBJS = zdecimal.o ztime.o magic.o
-#PG_CPPFLAGS =
-SHLIB_LINK = -lZu
+PG_CPPFLAGS = -I../../zu/src
+SHLIB_LINK = -L../../zu/src/.libs -lZu
 DATA_built = libz--$(extension_version).sql
 
 REGRESS = init zdecimal ztime drop

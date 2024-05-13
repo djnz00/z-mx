@@ -27,7 +27,7 @@ unsigned int zu_decimal_out_len(const zu_decimal *)
 
 char *zu_decimal_out(char *s_, const zu_decimal *v_)
 {
-  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
+  ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
   ZuStream s{s_, 40U};
   s << v;
   return s.data();
@@ -35,8 +35,8 @@ char *zu_decimal_out(char *s_, const zu_decimal *v_)
 
 int64_t zu_decimal_to_int(const zu_decimal *v_)
 {
-  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
-  return int64_t(v);
+  ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
+  return v.floor();
 }
 
 zu_decimal *zu_decimal_from_int(zu_decimal *v_, int64_t i)
@@ -48,8 +48,8 @@ zu_decimal *zu_decimal_from_int(zu_decimal *v_, int64_t i)
 
 double zu_decimal_to_double(const zu_decimal *v_)
 {
-  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
-  return v.fp();
+  ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
+  return v.as_fp();
 }
 
 zu_decimal *zu_decimal_from_double(zu_decimal *v_, double d)
@@ -61,26 +61,26 @@ zu_decimal *zu_decimal_from_double(zu_decimal *v_, double d)
 
 int64_t zu_decimal_round(const zu_decimal *v_)
 {
-  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
+  ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
   return v.round();
 }
 
 int zu_decimal_cmp(const zu_decimal *l_, const zu_decimal *r_)
 {
-  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
-  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal l{ZuDecimal::Unscaled{l_->value}};
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   return l.cmp(r);
 }
 
 uint32_t zu_decimal_hash(const zu_decimal *v_)
 {
-  ZuDecimal v{ZuDecimal::Unscaled, v_->value};
+  ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
   return v.hash();
 }
 
 zu_decimal *zu_decimal_neg(zu_decimal *v_, const zu_decimal *p_)
 {
-  ZuDecimal p{ZuDecimal::Unscaled, p_->value};
+  ZuDecimal p{ZuDecimal::Unscaled{p_->value}};
   ZuDecimal v = -p;
   v_->value = v.value;
   return v_;
@@ -89,8 +89,8 @@ zu_decimal *zu_decimal_neg(zu_decimal *v_, const zu_decimal *p_)
 zu_decimal *zu_decimal_add(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
-  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal l{ZuDecimal::Unscaled{l_->value}};
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   ZuDecimal v = l + r;
   v_->value = v.value;
   return v_;
@@ -98,8 +98,8 @@ zu_decimal *zu_decimal_add(
 zu_decimal *zu_decimal_sub(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
-  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal l{ZuDecimal::Unscaled{l_->value}};
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   ZuDecimal v = l - r;
   v_->value = v.value;
   return v_;
@@ -107,8 +107,8 @@ zu_decimal *zu_decimal_sub(
 zu_decimal *zu_decimal_mul(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
-  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal l{ZuDecimal::Unscaled{l_->value}};
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   ZuDecimal v = l * r;
   v_->value = v.value;
   return v_;
@@ -116,8 +116,8 @@ zu_decimal *zu_decimal_mul(
 zu_decimal *zu_decimal_div(
     zu_decimal *v_, const zu_decimal *l_, const zu_decimal *r_)
 {
-  ZuDecimal l{ZuDecimal::Unscaled, l_->value};
-  ZuDecimal r{ZuDecimal::Unscaled, r_->value};
+  ZuDecimal l{ZuDecimal::Unscaled{l_->value}};
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   ZuDecimal v = l / r;
   v_->value = v.value;
   return v_;

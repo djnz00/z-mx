@@ -185,9 +185,8 @@ void App<Ring>::run()
 
   {
     ZuStringN<80> s;
-    using ldouble = long double;
     s << "total time: " << start.interval()
-      << "  avg time: " << (start / ldouble(count)).interval() << '\n';
+      << "  avg time: " << (start.as_decimal() / ZuDecimal{count}) << '\n';
     std::cerr << s;
   }
   {

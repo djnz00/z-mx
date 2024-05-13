@@ -34,18 +34,19 @@ public:
   ZuTime maximum() { return(m_max); }
 
   ZuTime initial() {
-    auto d = m_min.as_ldouble();
+    double d = m_min.as_fp();
     if (m_random) d += ZmRand::rand(m_random);
-    return ZuTime(d);
+    return ZuTime{d};
   }
 
   ZuTime backoff(const ZuTime &interval) {
     if (interval >= m_max) return m_max;
-    auto d = interval.as_ldouble();
+    double d = interval.as_fp();
     d *= m_backoff;
     if (m_random) d += ZmRand::rand(m_random);
-    if (d >= m_max.as_ldouble()) d = m_max.as_ldouble();
-    return ZuTime(d);
+    auto max = m_max.as_fp();
+    if (d >= max) d = max;
+    return ZuTime{d};
   }
 
 private:

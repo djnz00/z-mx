@@ -145,7 +145,7 @@ namespace ZtFieldTypeCode {
     Float,		// floating point type
     Fixed,		// ZuFixed
     Decimal,		// ZuDecimal
-    Time,		// ZuTime - POSIX timespec
+    Time,		// ZuTime
     DateTime,		// ZuDateTime - Julian date, seconds, nanoseconds
     UDT			// generic udt type
   );
@@ -1028,7 +1028,7 @@ template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Time> ZtMFieldSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldFmt &fmt
 ) const {
-  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.as_zuTime());
+  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.as_time());
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime> ZtMFieldSet::scan(
@@ -1960,10 +1960,10 @@ struct ZtField_Decimal_Def {
     return ZuCmp<ZuDecimal>::null();
   }
   constexpr static ZuDecimal minimum() {
-    return {ZuDecimal::Unscaled, ZuDecimal::minimum()};
+    return {ZuDecimal::Unscaled{ZuDecimal::minimum()}};
   }
   constexpr static ZuDecimal maximum() {
-    return {ZuDecimal::Unscaled, ZuDecimal::maximum()};
+    return {ZuDecimal::Unscaled{ZuDecimal::maximum()}};
   }
 };
 template <

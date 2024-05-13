@@ -155,16 +155,18 @@ AM_CONDITIONAL([GTK], [test ".$with_gtk" = ".yes"])
 CPPFLAGS=`echo $CPPFLAGS | perl -pe 's/-I(@<:@^ \n@:>@+)(@<:@ \n@:>@)/$I{$1}++ ? "" : "-I${1}${2}"/ge;'`
 LDFLAGS=`echo $LDFLAGS | perl -pe 's|/[^/]+/\.\./|/|g; s/-L(@<:@^ \n@:>@+)(@<:@ \n@:>@)/$L{$1}++ ? "" : "-L${1}${2}"/ge; s/(-Wl,-R,|-R)(@<:@^ \n@:>@+)(@<:@ \n@:>@)/$R{$2}++ ? "" : "${1}${2}${3}"/ge'`
 
-for i in zu zm zt ze zi ztls zfb zv zdb zdb_pq zdf zrl zcmd zproxy zgtk; do (
-  cd $i/src
-  if test ! -e AC_PACKAGE_NAME; then
-    if test ".$mingw" != ".yes"; then
-      ln -s . AC_PACKAGE_NAME
-    else
-      env MSYS2_ARG_CONV_EXCL="*" cmd /c mklink /d AC_PACKAGE_NAME .
-    fi
-  fi
-); done
+for i in zu zm zt ze zi ztls zfb zv zdb zdb_pq zdf zrl zcmd zproxy zgtk; do {
+  for j in src ext; do {
+    if test -d $i/$j -a ! -e $i/$j/AC_PACKAGE_NAME; then (
+      cd $i/$j;
+      if test ".$mingw" != ".yes"; then
+	ln -s . AC_PACKAGE_NAME
+      else
+	env MSYS2_ARG_CONV_EXCL="*" cmd /c mklink /d AC_PACKAGE_NAME .
+      fi
+    ); fi
+  }; done
+}; done
 
 AC_CONFIG_FILES([Makefile \
 	zu/Makefile zu/src/Makefile zu/test/Makefile \

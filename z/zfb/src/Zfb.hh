@@ -388,8 +388,8 @@ namespace Load {
 
   // decimal
   inline ZuDecimal decimal(const Decimal *v) {
-    return ZuDecimal{ZuDecimal::Unscaled,
-      (static_cast<int128_t>(v->h())<<64) | v->l()};
+    return ZuDecimal{ZuDecimal::Unscaled{
+      (static_cast<int128_t>(v->h())<<64) | v->l()}};
   }
 
   // time

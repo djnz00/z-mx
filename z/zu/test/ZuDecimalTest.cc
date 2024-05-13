@@ -16,39 +16,39 @@
 int main()
 {
   // check basic string scan
-  CHECK((double)(ZuDecimal{"0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"."}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{".0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"0."}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"0.0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"-0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"-."}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"-.0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"-0."}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"-0.0"}.fp()) == 0.0);
-  CHECK((double)(ZuDecimal{"1000.42"}.fp()) == 1000.42);
-  CHECK((double)(ZuDecimal{"-1000.42"}.fp()) == -1000.42);
+  CHECK((double)(ZuDecimal{"0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"."}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{".0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"0."}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"0.0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"-0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"-."}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"-.0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"-0."}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"-0.0"}.as_fp()) == 0.0);
+  CHECK((double)(ZuDecimal{"1000.42"}.as_fp()) == 1000.42);
+  CHECK((double)(ZuDecimal{"-1000.42"}.as_fp()) == -1000.42);
   // check basic value scanning
   {
     auto v = ZuDecimal{"1000.42"};
     CHECK((ZuStringN<44>() << v.value) == "1000420000000000000000");
-    CHECK((double)(v.fp()) == 1000.42);
+    CHECK((double)(v.as_fp()) == 1000.42);
     v = ZuDecimal{"-1000.4200000000000000001"};
     CHECK((ZuStringN<44>() << v.value) == "-1000420000000000000000");
-    CHECK((double)(v.fp()) == -1000.42);
+    CHECK((double)(v.as_fp()) == -1000.42);
   }
   // check leading/trailing zeros
-  CHECK((double)(ZuDecimal{"001"}.fp()) == 1.0);
-  CHECK((double)(ZuDecimal{"1.000"}.fp()) == 1.0);
-  CHECK((double)(ZuDecimal{"001.000"}.fp()) == 1.0);
-  CHECK((double)(ZuDecimal{"00.100100100"}.fp()) == .1001001);
-  CHECK((double)(ZuDecimal{"0.10010010"}.fp()) == .1001001);
-  CHECK((double)(ZuDecimal{".1001001"}.fp()) == .1001001);
+  CHECK((double)(ZuDecimal{"001"}.as_fp()) == 1.0);
+  CHECK((double)(ZuDecimal{"1.000"}.as_fp()) == 1.0);
+  CHECK((double)(ZuDecimal{"001.000"}.as_fp()) == 1.0);
+  CHECK((double)(ZuDecimal{"00.100100100"}.as_fp()) == .1001001);
+  CHECK((double)(ZuDecimal{"0.10010010"}.as_fp()) == .1001001);
+  CHECK((double)(ZuDecimal{".1001001"}.as_fp()) == .1001001);
   {
     // check basic multiply
-    double v = (ZuDecimal{"1000.42"} * ZuDecimal{2.5}).fp();
+    double v = (ZuDecimal{"1000.42"} * ZuDecimal{2.5}).as_fp();
     CHECK(v == 2501.05);
-    v = (ZuDecimal{"-1000.42"} * ZuDecimal{2.5}).fp();
+    v = (ZuDecimal{"-1000.42"} * ZuDecimal{2.5}).as_fp();
     CHECK(v == -2501.05);
   }
   {
@@ -58,7 +58,7 @@ int main()
     CHECK(!*ZuBoxed(v));
     f = 10;
     v = (f * f).value;
-    CHECK((double)(ZuDecimal{ZuDecimal::Unscaled, v}.fp()) == 100.0);
+    CHECK((double)(ZuDecimal{ZuDecimal::Unscaled{v}}.as_fp()) == 100.0);
   }
   {
     // check underflow multiply
@@ -69,7 +69,7 @@ int main()
     ZuDecimal g{".00000000000000001"};
     CHECK((int)g.value == 10);
     v = (g * ZuDecimal{".1"}).value;
-    CHECK((ZuDecimal{ZuDecimal::Unscaled, v}.fp() == .000000000000000001L));
+    CHECK((ZuDecimal{ZuDecimal::Unscaled{v}}.as_fp() == .000000000000000001L));
     v = (g * ZuDecimal{".01"}).value;
     CHECK(!(int)v);
   }
@@ -129,7 +129,6 @@ int main()
     CHECK(((ZuStringN<40>{} << v) == "1764.420000000000000042"));
     char buf[40];
     zu_decimal_out(buf, &v_);
-    std::cout << buf << '\n';
     CHECK(ZuString{buf} == "1764.420000000000000042");
     zu_decimal_div(&v_, &v_, &r_);
     CHECK(((ZuStringN<40>{} << v) == "42"));

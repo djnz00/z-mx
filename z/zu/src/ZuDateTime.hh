@@ -98,40 +98,6 @@
 
 class ZuDateTime;
 
-template <int size> class ZuDateTime_time_t;
-template <> class ZuDateTime_time_t<4> {
-friend ZuDateTime;
-private:
-  constexpr static int32_t minimum() { return -0x80000000; } 
-  constexpr static int32_t maximum() { return 0x7fffffff; } 
-public:
-  static bool isMinimum(int32_t t) { return t == minimum(); }
-  static bool isMaximum(int32_t t) { return t == maximum(); }
-  static time_t as_time_t(int32_t julian, int second) {
-    if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
-    if (julian < 2415732) {
-      return minimum();
-    } else if (julian == 2415732) {
-      if (second < 74752) {
-	return minimum();
-      }
-      julian++, second -= 86400;
-    } else if (julian > 2465443 || (julian == 2465443 && second > 11647)) {
-      return maximum();
-    }
-    return (julian - 2440588) * 86400 + second;
-  }
-};
-template <> class ZuDateTime_time_t<8> {
-public:
-  constexpr static bool isMinimum(int64_t) { return false; }
-  constexpr static bool isMaximum(int64_t) { return false; }
-  static time_t as_time_t(int32_t julian, int second) {
-    if (ZuCmp<int32_t>::null(julian)) return ZuCmp<time_t>::null();
-    return (int64_t(julian) - 2440588) * 86400 + second;
-  }
-};
-
 // compile-time date/time input formatting
 namespace ZuDateTimeScan {
   struct CSV {
@@ -329,11 +295,7 @@ struct ZuDateTimePrint {
 };
 
 class ZuAPI ZuDateTime {
-  using ldouble = long double;
-
 public:
-  using Native = ZuDateTime_time_t<sizeof(time_t)>;
-
   struct Julian { int v; };
 
   ZuDateTime() = default;
@@ -380,21 +342,6 @@ public:
   ZuExact<time_t, T, ZuDateTime &> operator =(const T &t) {
     init(t);
     m_nsec = 0;
-    return *this;
-  }
-
-  // double
-
-  template <typename T>
-  ZuDateTime(T d, ZuExact<double, T> *_ = nullptr) {
-    time_t t = time_t(d);
-    init(t);
-    m_nsec = int((d - double(t)) * 1000000000.0);
-  }
-  template <typename T>
-  ZuExact<double, T, ZuDateTime &> operator =(T d) {
-    // this->~ZuDateTime(); // POD
-    new (this) ZuDateTime{d};
     return *this;
   }
 
@@ -586,20 +533,18 @@ public:
 
 // conversions
 
-  // as_time_t(), as_ldouble() and as_zuTime() can result in an out of
-  // range conversion to time_t
+  // as_time_t() and as_time() can result in out of range conversion to null
 
-  time_t as_time_t() const {
-    return time_t(Native::as_time_t(m_julian, m_sec));
+  constexpr int64_t as_time_t() const {
+    int64_t v;
+    if (!*this ||
+	__builtin_sub_overflow(int64_t(m_julian), 2440588, &v) ||
+	__builtin_mul_overflow(v, 86400, &v) ||
+	__builtin_add_overflow(v, m_sec, &v))
+      return ZuCmp<int64_t>::null();
+    return v;
   }
-  ldouble as_ldouble() const {
-    if (ZuUnlikely(!*this)) return ZuCmp<ldouble>::null();
-    time_t t = Native::as_time_t(m_julian, m_sec);
-    if (ZuUnlikely(Native::isMinimum(t))) return -ZuCmp<ldouble>::inf();
-    if (ZuUnlikely(Native::isMaximum(t))) return ZuCmp<ldouble>::inf();
-    return (ldouble(t) + m_nsec) / 1000000000;
-  }
-  ZuTime as_zuTime() const {
+  constexpr ZuTime as_time() const {
     if (ZuUnlikely(!*this)) return {};
     return ZuTime{this->as_time_t(), m_nsec};
   }

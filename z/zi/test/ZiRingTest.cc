@@ -225,12 +225,10 @@ void App<Ring>::run()
 
   if (start && end) {
     start = end - start;
-    ZuStringN<80> s;
-    s << "total time: " << start.interval() <<
-      "  avg time: " <<
-      ZuBoxed((start.as_ldouble() / static_cast<double>(count)) * 1000000.0L) <<
-      " usec\n";
-    std::cerr << s;
+    std::cerr << (ZuStringN<80>{}
+      << "total time: " << start.interval()
+      << "  avg time: " << ((start.as_decimal() / count) * 1000000)
+      << " usec\n");
   }
   {
     ZuStringN<256> s;

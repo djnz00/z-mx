@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // nanosecond precision time class
-// - essentially a C++ wrapper for POSIX timespec
+// - essentially a C++ equivalent of POSIX timespec
 // - no attempt is made to disambiguate a time interval from an absolute time
 
 #ifndef ZuTime_HH
@@ -27,6 +27,7 @@
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
+#include <zlib/ZuDecimal.hh>
 
 #ifdef _WIN32
 #define ZuTime_FT_Epoch	0x019db1ded53e8000ULL	// 00:00:00 Jan 1 1970
@@ -61,19 +62,25 @@ public:
 
   template <typename T, typename = MatchInt<T>>
   constexpr ZuTime(T v) : tv_sec{v}, tv_nsec{0} { }
-  constexpr ZuTime(int64_t t, int32_t n) : tv_sec{t}, tv_nsec{n} { }
-
-  constexpr ZuTime(ldouble d) {
-    if (ZuCmp<ldouble>::null(d) ||
-	d >= ldouble(ZuCmp<int64_t>::maximum()) ||
-	d <= ldouble(ZuCmp<int64_t>::minimum())) {
-      tv_sec = ZuCmp<int64_t>::null();
-      tv_nsec = 0;
+  constexpr ZuTime(ldouble v) {
+    if (ZuCmp<ldouble>::null(v) ||
+	v >= ldouble(ZuCmp<int64_t>::maximum()) ||
+	v <= ldouble(ZuCmp<int64_t>::minimum())) {
+      null();
     } else {
-      tv_sec = d;
-      tv_nsec = (d - ldouble(int64_t(d))) * 1000000000;
+      tv_sec = v;
+      tv_nsec = (v - ldouble(tv_sec)) * 1000000000;
     }
   }
+  constexpr ZuTime(ZuDecimal v) {
+    if (!*v) {
+      null();
+    } else {
+      tv_sec = v.floor();
+      tv_nsec = v.frac() / 1000000000;
+    }
+  }
+  constexpr ZuTime(int64_t t, int32_t n) : tv_sec{t}, tv_nsec{n} { }
 
   constexpr ZuTime(Nano nano) :
     tv_sec{int64_t(nano.v / 1000000000)},
@@ -109,10 +116,20 @@ public:
   template <typename S>
   ZuTime(const S &s, ZuMatchString<S> *_ = nullptr) { scan(s); }
 
+  void null() {
+    tv_sec = ZuCmp<int64_t>::null();
+    tv_nsec = 0;
+  }
+
   constexpr int64_t as_time_t() const { return(tv_sec); }
-  constexpr ldouble as_ldouble() const {
-    if (ZuUnlikely(!*this)) return ZuCmp<ldouble>::null();
-    return ldouble(tv_sec) + ldouble(tv_nsec) / 1000000000;
+  constexpr ldouble as_fp() const {
+    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
+    return (ldouble(tv_sec) * 1000000000 + tv_nsec) / 1000000000;
+  }
+  constexpr ZuDecimal as_decimal() const {
+    if (ZuUnlikely(!*this)) return {};
+    return ZuDecimal{ZuDecimal::Unscaled{
+      (int128_t(tv_sec) * 1000000000 + tv_nsec) * 1000000000}};
   }
 #ifndef _WIN32
   timeval as_timeval() const {
@@ -142,18 +159,23 @@ public:
     tv_nsec = 0;
     return *this;
   }
-  constexpr ZuTime &operator =(ldouble d) {
-    tv_sec = d;
-    tv_nsec = (d - ldouble(tv_sec)) * 1000000000;
+  constexpr ZuTime &operator =(ZuDecimal d) {
+    tv_sec = d.floor();
+    tv_nsec = d.frac() / 1000000000;
     return *this;
   }
 
   constexpr void normalize() {
-    if (tv_nsec >= 1000000000) tv_nsec -= 1000000000, ++tv_sec;
-    else {
-      if (tv_nsec < 0) {
-	tv_nsec += 1000000000, --tv_sec;
-	if (ZuUnlikely(tv_nsec < 0)) tv_nsec += 1000000000, --tv_sec;
+    if (tv_nsec >= 1000000000) {
+      tv_nsec -= 1000000000;
+      if (__builtin_add_overflow(tv_sec, 1, &tv_sec)) null();
+    } else if (tv_nsec < 0) {
+      tv_nsec += 1000000000;
+      if (__builtin_sub_overflow(tv_sec, 1, &tv_sec))
+	null();
+      else if (ZuUnlikely(tv_nsec < 0)) {
+	tv_nsec += 1000000000;
+	if (__builtin_sub_overflow(tv_sec, 1, &tv_sec)) null();
       }
     }
   }
@@ -166,7 +188,7 @@ public:
   constexpr MatchInt<T, ZuTime> operator +(T v) const {
     return ZuTime::operator +(ZuTime{v, 0});
   }
-  constexpr ZuTime operator +(ldouble d) const {
+  constexpr ZuTime operator +(ZuDecimal d) const {
     return ZuTime::operator +(ZuTime{d});
   }
   constexpr ZuTime operator +(const ZuTime &t_) const {
@@ -184,16 +206,15 @@ public:
   constexpr MatchInt<T, ZuTime &> operator +=(T v) {
     return ZuTime::operator +=(ZuTime{v, 0});
   }
-  constexpr ZuTime &operator +=(ldouble d) {
+  constexpr ZuTime &operator +=(ZuDecimal d) {
     return ZuTime::operator +=(ZuTime{d});
   }
   constexpr ZuTime &operator +=(const ZuTime &t_) {
     if (!**this || !*t_ ||
 	__builtin_add_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)) {
-      tv_sec = ZuCmp<int64_t>::null();
-      tv_nsec = 0;
-    } else
+	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec))
+      null();
+    else
       normalize();
     return *this;
   }
@@ -201,7 +222,7 @@ public:
   constexpr MatchInt<T, ZuTime> operator -(T v) const {
     return ZuTime::operator -(ZuTime{v, 0});
   }
-  constexpr ZuTime operator -(ldouble d) const {
+  constexpr ZuTime operator -(ZuDecimal d) const {
     return ZuTime::operator -(ZuTime{d});
   }
   constexpr ZuTime operator -(const ZuTime &t_) const {
@@ -219,31 +240,30 @@ public:
   constexpr MatchInt<T, ZuTime &> operator -=(T v) {
     return ZuTime::operator -=(ZuTime{v, 0});
   }
-  constexpr ZuTime &operator -=(ldouble d) {
+  constexpr ZuTime &operator -=(ZuDecimal d) {
     return ZuTime::operator -=(ZuTime{d});
   }
   constexpr ZuTime &operator -=(const ZuTime &t_) {
     if (!**this || !*t_ ||
 	__builtin_sub_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)) {
-      tv_sec = ZuCmp<int64_t>::null();
-      tv_nsec = 0;
-    } else
+	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec))
+      null();
+    else
       normalize();
     return *this;
   }
 
-  constexpr ZuTime operator *(ldouble d) {
-    return ZuTime{as_ldouble() * d};
+  constexpr ZuTime operator *(ZuDecimal d) {
+    return ZuTime{as_decimal() * d};
   }
-  constexpr ZuTime &operator *=(ldouble d) {
-    return operator =(as_ldouble() * d);
+  constexpr ZuTime &operator *=(ZuDecimal d) {
+    return operator =(as_decimal() * d);
   }
-  constexpr ZuTime operator /(ldouble d) {
-    return ZuTime{as_ldouble() / d};
+  constexpr ZuTime operator /(ZuDecimal d) {
+    return ZuTime{as_decimal() / d};
   }
-  constexpr ZuTime &operator /=(ldouble d) {
-    return operator =(as_ldouble() / d);
+  constexpr ZuTime &operator /=(ZuDecimal d) {
+    return operator =(as_decimal() / d);
   }
 
   constexpr bool equals(const ZuTime &t) const {
@@ -345,7 +365,7 @@ public:
 private:
   int64_t	tv_sec = ZuCmp<int64_t>::null();
   int32_t	tv_nsec = 0;
-  uint32_t	_;	// pad to 16 bytes
+  uint32_t	_ = 0;	// pad to 16 bytes
 };
 
 #endif /* ZuTime_HH */

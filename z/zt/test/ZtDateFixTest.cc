@@ -40,6 +40,7 @@ int main(int argc, char **argv)
   test(ZuDateTime{time_t(0)});
   test(ZuDateTime{1, 1, 1});
   test(ZuDateTime{Zm::now()});
+  test(ZuDateTime{ZuTime{ZuDecimal{"0.01"}}});
 
   if (argc < 2) { fputs("usage: ZuDateTimeFixTest N\n", stderr); Zm::exit(1); }
   unsigned n = atoi(argv[1]);
@@ -55,9 +56,8 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d1 = end / (long double)n;
-    printf("time per cycle 1: %s\n",
-      (ZuStringN<32>{} << d1.interval()).data());
+    ZuDecimal d1 = end.as_decimal() / n;
+    printf("time per cycle 1: %s\n", (ZuStringN<32>{} << d1).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -66,9 +66,8 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d2 = end / (long double)n;
-    printf("time per cycle 2: %s\n",
-      (ZuStringN<32>{} << d2.interval()).data());
+    ZuDecimal d2 = end.as_decimal() / n;
+    printf("time per cycle 2: %s\n", (ZuStringN<32>{} << d2).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -76,13 +75,12 @@ int main(int argc, char **argv)
     }
     end = Zm::now();
     end -= start;
-    ZuTime d3 = end / (long double)n;
-    printf("time per cycle 3: %s\n",
-      (ZuStringN<32>{} << d3.interval()).data());
+    ZuDecimal d3 = end.as_decimal() / n;
+    printf("time per cycle 3: %s\n", (ZuStringN<32>{} << d3).data());
 
     printf("time per FIX format print: %s\n",
-      (ZuStringN<32>{} << (d2 - d3).interval()).data());
+      (ZuStringN<32>{} << (d2 - d3)).data());
     printf("time per FIX format scan: %s\n",
-      (ZuStringN<32>{} << (d1 - d2).interval()).data());
+      (ZuStringN<32>{} << (d1 - d2)).data());
   }
 }
