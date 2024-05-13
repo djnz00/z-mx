@@ -78,6 +78,10 @@ public:
     } else {
       tv_sec = v.floor();
       tv_nsec = v.frac() / 1000000000;
+      if (ZuUnlikely(v < 0 && tv_nsec)) {
+	--tv_sec;
+	tv_nsec = 1000000000 - tv_nsec;
+      }
     }
   }
   constexpr ZuTime(int64_t t, int32_t n) : tv_sec{t}, tv_nsec{n} { }
@@ -123,11 +127,11 @@ public:
 
   constexpr int64_t as_time_t() const { return(tv_sec); }
   constexpr ldouble as_fp() const {
-    if (ZuUnlikely(!*this)) return ZuCmp<double>::null();
+    if (ZuUnlikely(!**this)) return ZuCmp<double>::null();
     return (ldouble(tv_sec) * 1000000000 + tv_nsec) / 1000000000;
   }
   constexpr ZuDecimal as_decimal() const {
-    if (ZuUnlikely(!*this)) return {};
+    if (ZuUnlikely(!**this)) return {};
     return ZuDecimal{ZuDecimal::Unscaled{
       (int128_t(tv_sec) * 1000000000 + tv_nsec) * 1000000000}};
   }
@@ -274,12 +278,37 @@ public:
     if (int i = ZuCmp<int64_t>::cmp(tv_sec, t.tv_sec)) return i;
     return ZuCmp<int32_t>::cmp(tv_nsec, t.tv_nsec);
   }
-  friend inline constexpr bool operator ==(const ZuTime &l, const ZuTime &r) {
-    return l.equals(r);
-  }
-  friend inline constexpr int operator <=>(const ZuTime &l, const ZuTime &r) {
-    return l.cmp(r);
-  }
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    bool(ZuIsExact<ZuTime, R>{}), bool>
+  operator ==(const L &l, const R &r) { return l.equals(r); }
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    bool(ZuIsExact<ZuTime, R>{}), bool>
+  operator <(const L &l, const R &r) { return l.cmp(r) < 0; }
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    bool(ZuIsExact<ZuTime, R>{}), bool>
+  operator <=>(const L &l, const R &r) { return l.cmp(r); }
+
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    !ZuIsExact<ZuTime, R>{}, bool>
+  operator ==(const L &l, const R &r) { return l.equals(ZuTime{r}); }
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    !ZuIsExact<ZuTime, R>{}, bool>
+  operator <(const L &l, const R &r) { return l.cmp(ZuTime{r}) < 0; }
+  template <typename L, typename R>
+  friend inline constexpr ZuIfT<
+    bool(ZuIsExact<ZuTime, L>{}) &&
+    !ZuIsExact<ZuTime, R>{}, bool>
+  operator <=>(const L &l, const R &r) { return l.cmp(ZuTime{r}); }
 
   constexpr bool operator *() const {
     return !ZuCmp<int64_t>::null(tv_sec);

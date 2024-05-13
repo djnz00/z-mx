@@ -1,107 +1,74 @@
 SELECT CAST(0::zdecimal AS ztime);
 SELECT CAST(-1::zdecimal AS ztime);
 SELECT CAST(0::zdecimal AS ztime) - 1::zdecimal;
+SELECT CAST(0::int8 AS ztime);
+SELECT CAST(-1::int8 AS ztime);
+SELECT CAST(0::int8 AS ztime) - 1::zdecimal;
 SELECT CAST(- CAST('0048/08/09 10:30:42'::ztime AS zdecimal) AS ztime);
 SELECT ''::ztime;
 SELECT 'x'::ztime;
 SELECT '1969/11/01 21:19:54.01 x'::ztime;
 
--- SELECT ztime_sum(NULL::ztime, NULL::ztime);
--- SELECT ztime_sum(NULL::ztime, 1::ztime);
--- SELECT ztime_sum(2::ztime, NULL::ztime);
--- SELECT ztime_sum(2::ztime, 1::ztime);
+CREATE TABLE test_ztime (x ztime);
+CREATE UNIQUE INDEX test_ztime1_x_key ON test_ztime USING btree (x);
+INSERT INTO test_ztime VALUES (CAST(-1::zdecimal as ztime)), (CAST(0::zdecimal as ztime)), (CAST(1::zdecimal as ztime)), (CAST(2::zdecimal as ztime)), (CAST(3::zdecimal as ztime)), (CAST(4::zdecimal as ztime)), (CAST(5::zdecimal as ztime)), (CAST(null::zdecimal as ztime));
 
--- SELECT sum(val::ztime) FROM (SELECT NULL::ztime WHERE false) _ (val);
--- SELECT sum(val::ztime) FROM (VALUES (1), (null), (2), (5)) _ (val);
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
 
--- SELECT avg(val::ztime) FROM (SELECT NULL::ztime WHERE false) _ (val);
--- SELECT avg(val::ztime) FROM (VALUES (1), (null), (2), (5), (6)) _ (val);
--- SELECT avg(val::ztime) FROM (VALUES (999999999999999999.999999999999999999), (-999999999999999999.999999999999999999)) _ (val);
+EXPLAIN (COSTS OFF) SELECT * FROM test_ztime WHERE x = CAST(3::zdecimal as ztime);
+SELECT * FROM test_ztime WHERE x = CAST(3::zdecimal as ztime);
 
--- CREATE TABLE test_ztime (x ztime);
--- CREATE UNIQUE INDEX test_ztime1_x_key ON test_ztime USING btree (x);
--- INSERT INTO test_ztime VALUES (-1), (0), (1), (2), (3), (4), (5), (null);
+DROP TABLE test_ztime;
 
--- SET enable_seqscan = off;
--- SET enable_bitmapscan = off;
+RESET enable_seqscan;
+RESET enable_bitmapscan;
 
--- EXPLAIN (COSTS OFF) SELECT * FROM test_ztime WHERE x = 3::ztime;
--- SELECT * FROM test_ztime WHERE x = 3::ztime;
+SELECT CAST(1::zdecimal as ztime) < CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) < CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) < CAST(4::zdecimal as ztime);
+SELECT CAST(1::zdecimal as ztime) <= CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) <= CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) <= CAST(4::zdecimal as ztime);
+SELECT CAST(1::zdecimal as ztime) = CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) = CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) = CAST(4::zdecimal as ztime);
+SELECT CAST(1::zdecimal as ztime) <> CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) <> CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) <> CAST(4::zdecimal as ztime);
+SELECT CAST(1::zdecimal as ztime) >= CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) >= CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) >= CAST(4::zdecimal as ztime);
+SELECT CAST(1::zdecimal as ztime) > CAST(1::zdecimal as ztime);
+SELECT CAST(5::zdecimal as ztime) > CAST(2::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) > CAST(4::zdecimal as ztime);
 
--- EXPLAIN (COSTS OFF) SELECT * FROM test_ztime WHERE x = 3::ztime;
--- SELECT * FROM test_ztime WHERE x = 3::ztime;
+SELECT ztime_cmp(CAST(1::zdecimal as ztime), CAST(1::zdecimal as ztime));
+SELECT ztime_cmp(CAST(5::zdecimal as ztime), CAST(2::zdecimal as ztime));
+SELECT ztime_cmp(CAST(3::zdecimal as ztime), CAST(4::zdecimal as ztime));
+SELECT pg_typeof(CAST(1::zdecimal as ztime) + 1::zdecimal);
+SELECT CAST(1::zdecimal as ztime) + 1::zdecimal;
+SELECT CAST(3::zdecimal as ztime) + 4::zdecimal;
+SELECT CAST(5::zdecimal as ztime) + 2::zdecimal;
+SELECT CAST(3::zdecimal as ztime) + '-4'::zdecimal;
+SELECT CAST(5::zdecimal as ztime) + '-2'::zdecimal;
+SELECT pg_typeof(CAST(1::zdecimal as ztime) - CAST(1::zdecimal as ztime));
+SELECT pg_typeof(CAST(1::zdecimal as ztime) - 1::zdecimal);
+SELECT CAST(1::zdecimal as ztime) - CAST(1::zdecimal as ztime);
+SELECT CAST(3::zdecimal as ztime) - 4::zdecimal;
+SELECT CAST(5::zdecimal as ztime) - 2::zdecimal;
+SELECT CAST(3::zdecimal as ztime) - '-4'::zdecimal;
+SELECT CAST(5::zdecimal as ztime) - '-2'::zdecimal;
 
--- DROP TABLE test_ztime;
+SELECT CAST(CAST('42.01'::zdecimal AS ztime) as int8);
+SELECT CAST(CAST('-42.01'::zdecimal AS ztime) as int8);
 
--- RESET enable_seqscan;
--- RESET enable_bitmapscan;
+SELECT ztime_out_csv(CAST(0::int8 AS ztime));
+SELECT ztime_out_iso(CAST(0::int8 AS ztime));
+SELECT ztime_out_fix(CAST(0::int8 AS ztime));
 
--- SELECT '1'::ztime < '1'::ztime;
--- SELECT '5'::ztime < '2'::ztime;
--- SELECT '3'::ztime < '4'::ztime;
--- SELECT '1'::ztime <= '1'::ztime;
--- SELECT '5'::ztime <= '2'::ztime;
--- SELECT '3'::ztime <= '4'::ztime;
--- SELECT '1'::ztime = '1'::ztime;
--- SELECT '5'::ztime = '2'::ztime;
--- SELECT '3'::ztime = '4'::ztime;
--- SELECT '1'::ztime <> '1'::ztime;
--- SELECT '5'::ztime <> '2'::ztime;
--- SELECT '3'::ztime <> '4'::ztime;
--- SELECT '1'::ztime >= '1'::ztime;
--- SELECT '5'::ztime >= '2'::ztime;
--- SELECT '3'::ztime >= '4'::ztime;
--- SELECT '1'::ztime > '1'::ztime;
--- SELECT '5'::ztime > '2'::ztime;
--- SELECT '3'::ztime > '4'::ztime;
+SELECT ztime_in_csv(ztime_out_csv(CAST('1.01'::zdecimal AS ztime)));
+SELECT ztime_in_iso(ztime_out_iso(CAST('-1.01'::zdecimal AS ztime)));
+SELECT ztime_in_fix(ztime_out_fix(CAST('42.42'::zdecimal AS ztime)));
 
--- SELECT ztime_cmp('1'::ztime, '1'::ztime);
--- SELECT ztime_cmp('5'::ztime, '2'::ztime);
--- SELECT ztime_cmp('3'::ztime, '4'::ztime);
--- SELECT pg_typeof('1'::ztime + '1'::ztime);
--- SELECT '1'::ztime + '1'::ztime;
--- SELECT '3'::ztime + '4'::ztime;
--- SELECT '5'::ztime + '2'::ztime;
--- SELECT '-3'::ztime + '4'::ztime;
--- SELECT '-5'::ztime + '2'::ztime;
--- SELECT '3'::ztime + '-4'::ztime;
--- SELECT '5'::ztime + '-2'::ztime;
--- SELECT '127'::ztime + '127'::ztime;
--- SELECT pg_typeof('1'::ztime - '1'::ztime);
--- SELECT '1'::ztime - '1'::ztime;
--- SELECT '3'::ztime - '4'::ztime;
--- SELECT '5'::ztime - '2'::ztime;
--- SELECT '-3'::ztime - '4'::ztime;
--- SELECT '-5'::ztime - '2'::ztime;
--- SELECT '3'::ztime - '-4'::ztime;
--- SELECT '5'::ztime - '-2'::ztime;
--- SELECT pg_typeof('1'::ztime * '1'::ztime);
--- SELECT '1'::ztime * '1'::ztime;
--- SELECT '3'::ztime * '4'::ztime;
--- SELECT '5'::ztime * '2'::ztime;
--- SELECT '-3'::ztime * '4'::ztime;
--- SELECT '-5'::ztime * '2'::ztime;
--- SELECT '3'::ztime * '-4'::ztime;
--- SELECT '5'::ztime * '-2'::ztime;
--- SELECT '127'::ztime * '127'::ztime;
--- SELECT pg_typeof('1'::ztime / '1'::ztime);
--- SELECT '1'::ztime / '1'::ztime;
--- SELECT '3'::ztime / '4'::ztime;
--- SELECT '5'::ztime / '2'::ztime;
--- SELECT '-3'::ztime / '4'::ztime;
--- SELECT '-5'::ztime / '2'::ztime;
--- SELECT '3'::ztime / '-4'::ztime;
--- SELECT '5'::ztime / '-2'::ztime;
--- SELECT '5'::ztime / '0'::ztime;
-
--- SELECT CAST('42.01'::ztime AS int8);
--- SELECT CAST('-42.01'::ztime AS int8);
-
--- SELECT CAST('42.01'::ztime AS double precision);
--- SELECT CAST('-42.01'::ztime AS double precision);
-
--- SELECT CAST('42.01'::ztime AS numeric);
--- SELECT CAST('-42.01'::ztime AS numeric);
-
--- SELECT ztime_hash(42.01);
--- SELECT ztime_hash(42.01::ztime);
+SELECT ztime_hash(CAST(1::zdecimal as ztime));
