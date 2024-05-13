@@ -69,6 +69,16 @@ namespace ZuDecimalFn {
     return v;
   }
 
+  template <unsigned Size>
+  ZuInline ZuIfT<Size <= 4, const uint32_t>
+  pow10(unsigned v) { return pow10_32(v); }
+  template <unsigned Size>
+  ZuInline ZuIfT<Size == 8, const uint64_t>
+  pow10(unsigned v) { return pow10_64(v); }
+  template <unsigned Size>
+  ZuInline ZuIfT<Size == 16, const uint128_t>
+  pow10(unsigned v) { return pow10_128(v); }
+
   template <unsigned I> struct Pow10 { };
   template <> struct Pow10<0U> : public ZuConstant<unsigned, 1U> { };
   template <> struct Pow10<1U> : public ZuConstant<unsigned, 10U> { };

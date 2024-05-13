@@ -971,12 +971,12 @@ public:
     {
       int64_t refreshRate =
 	cf->getInt64("gtkRefresh", 1, 60000, 1) * (int64_t)1000000;
-      m_refreshQuantum = ZuTime{ZuTime::Nano, refreshRate>>1};
+      m_refreshQuantum = ZuTime{ZuTime::Nano{refreshRate>>1}};
       if (m_refreshQuantum < mx->params().quantum()) {
 	m_refreshQuantum = mx->params().quantum();
 	m_refreshRate = m_refreshQuantum + m_refreshQuantum;
       } else
-	m_refreshRate = ZuTime{ZuTime::Nano, refreshRate};
+	m_refreshRate = ZuTime{ZuTime::Nano{refreshRate}};
     }
     unsigned gtkTID;
     {
@@ -1013,7 +1013,7 @@ public:
     ZmTrap::sigintFn(sigint);
     ZmTrap::trap();
 
-    m_uptime.now();
+    m_uptime = Zm::now();
 
     i18n(
 	cf->get("i18n_domain", "zdash"),

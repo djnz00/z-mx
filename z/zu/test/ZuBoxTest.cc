@@ -25,22 +25,14 @@ template <typename V>
 void fail(unsigned line, const char *s, const V &v)
 {
   std::cerr << "FAIL: " << line << ':' << s << " v=" << v << '\n';
-#ifndef _WIN32
-  ::_exit(1);
-#else
-  ::ExitProcess(1);
-#endif
+  assert(false);
 }
 
 template <typename V1, typename V2>
 void fail2(unsigned line, const char *s, const V1 &v1, const V2 &v2)
 {
   std::cerr << "FAIL: " << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n';
-#ifndef _WIN32
-  ::_exit(1);
-#else
-  ::ExitProcess(1);
-#endif
+  assert(false);
 }
 
 #define CHECK(x, v) ((x) ? (void()) : fail(__LINE__, #x, v))
@@ -82,7 +74,7 @@ template <class Fmt, class Boxed> struct VFmt<Fmt, Boxed, ZuFmt::Just::Right> {
 template <class Fmt, class Boxed> struct VFmt<Fmt, Boxed, ZuFmt::Just::Frac> {
   static ZuVFmt _() {
     ZuVFmt fmt;
-    fmt.frac(Fmt::NDP_, Fmt::Trim_);
+    fmt.frac(Fmt::Width_, Fmt::NDP_, Fmt::Trim_);
     VFmt_<Fmt, Boxed>::_(fmt);
     return fmt;
   }
@@ -224,7 +216,7 @@ int main()
   test<signed char, ZuFmt::Default>("signed char", -42, "-42");
   test<signed char, ZuFmt::Right<5> >("signed char", -42, "-0042");
   test<signed char, ZuFmt::Left<5, '_'> >("signed char", -42, "-42__");
-  test<signed char, ZuFmt::Frac<5> >("signed char", 42, "00042");
+  test<signed char, ZuFmt::Frac<5, 5> >("signed char", 42, "00042");
 
   test<unsigned short, ZuFmt::Default>("unsigned short", 42, "42");
   test<unsigned short, ZuFmt::Right<3> >("unsigned short", 42, "042");
@@ -238,10 +230,10 @@ int main()
   test<short, ZuFmt::Default>("short", -42, "-42");
   test<short, ZuFmt::Right<5> >("short", -42, "-0042");
   test<short, ZuFmt::Left<5, '_'> >("short", -42, "-42__");
-  test<short, ZuFmt::Frac<5> >("short", 42, "00042");
-  test<short, ZuFmt::Frac<5> >("short", 420, "0042");
-  test<short, ZuFmt::Frac<5, '0'> >("short", 420, "00420");
-  test<short, ZuFmt::Frac<5, '_'> >("short", 420, "0042_");
+  test<short, ZuFmt::Frac<5, 5> >("short", 42, "00042");
+  test<short, ZuFmt::Frac<5, 5> >("short", 420, "0042");
+  test<short, ZuFmt::Frac<5, 5, '0'> >("short", 420, "00420");
+  test<short, ZuFmt::Frac<5, 5, '_'> >("short", 420, "0042_");
 
   test<unsigned int, ZuFmt::Default>("unsigned int", 42, "42");
   test<unsigned int, ZuFmt::Right<3> >("unsigned int", 42, "042");
@@ -253,10 +245,10 @@ int main()
   test<int, ZuFmt::Default>("int", -42, "-42");
   test<int, ZuFmt::Right<5> >("int", -42, "-0042");
   test<int, ZuFmt::Left<5, '_'> >("int", -42, "-42__");
-  test<int, ZuFmt::Frac<5> >("int", 42, "00042");
-  test<int, ZuFmt::Frac<5> >("int", 420, "0042");
-  test<int, ZuFmt::Frac<5, '0'> >("int", 420, "00420");
-  test<int, ZuFmt::Frac<5, '_'> >("int", 420, "0042_");
+  test<int, ZuFmt::Frac<5, 5> >("int", 42, "00042");
+  test<int, ZuFmt::Frac<5, 5> >("int", 420, "0042");
+  test<int, ZuFmt::Frac<5, 5, '0'> >("int", 420, "00420");
+  test<int, ZuFmt::Frac<5, 5, '_'> >("int", 420, "0042_");
   test<int, ZuFmt::Right<12, '_', ZuFmt::Comma<','> > >(
       "int", -1420420, "__-1,420,420");
 
@@ -270,10 +262,10 @@ int main()
   test<long, ZuFmt::Default>("long", -42, "-42");
   test<long, ZuFmt::Right<5> >("long", -42, "-0042");
   test<long, ZuFmt::Left<5, '_'> >("long", -42, "-42__");
-  test<long, ZuFmt::Frac<5> >("long", 42, "00042");
-  test<long, ZuFmt::Frac<5> >("long", 420, "0042");
-  test<long, ZuFmt::Frac<5, '0'> >("long", 420, "00420");
-  test<long, ZuFmt::Frac<5, '_'> >("long", 420, "0042_");
+  test<long, ZuFmt::Frac<5, 5> >("long", 42, "00042");
+  test<long, ZuFmt::Frac<5, 5> >("long", 420, "0042");
+  test<long, ZuFmt::Frac<5, 5, '0'> >("long", 420, "00420");
+  test<long, ZuFmt::Frac<5, 5, '_'> >("long", 420, "0042_");
   test<long, ZuFmt::Right<12, '_', ZuFmt::Comma<','> > >(
       "long", -1420420, "__-1,420,420");
 
@@ -287,15 +279,15 @@ int main()
   test<long long, ZuFmt::Default>("long long", -42, "-42");
   test<long long, ZuFmt::Right<5> >("long long", -42, "-0042");
   test<long long, ZuFmt::Left<5, '_'> >("long long", -42, "-42__");
-  test<long long, ZuFmt::Frac<5> >("long long", 42, "00042");
-  test<long long, ZuFmt::Frac<5> >("long long", 420, "0042");
-  test<long long, ZuFmt::Frac<5, '0'> >("long long", 420, "00420");
-  test<long long, ZuFmt::Frac<5, '_'> >("long long", 420, "0042_");
+  test<long long, ZuFmt::Frac<5, 5> >("long long", 42, "00042");
+  test<long long, ZuFmt::Frac<5, 5> >("long long", 420, "0042");
+  test<long long, ZuFmt::Frac<5, 5, '0'> >("long long", 420, "00420");
+  test<long long, ZuFmt::Frac<5, 5, '_'> >("long long", 420, "0042_");
   test<long long, ZuFmt::Right<22, '_', ZuFmt::Comma<','> > >(
       "long long", -14242012345678, "___-14,242,012,345,678");
   test<long long, ZuFmt::Left<22, '_', ZuFmt::Comma<','> > >(
       "long long", -14242012345678, "-14,242,012,345,678___");
-  test<long long, ZuFmt::Frac<19, '_'> >(
+  test<long long, ZuFmt::Frac<19, 19, '_'> >(
       "long long", 14242012345000, "0000014242012345___");
 
   {
@@ -506,7 +498,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "itoa: " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
 
     {
@@ -530,7 +523,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<int>::fmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
 
     {
@@ -555,7 +549,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<int>::vfmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
 
     {
@@ -580,7 +575,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "sprintf(\"%f\"): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
 
     {
@@ -606,7 +602,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<double>::fmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
 
     {
@@ -631,7 +628,8 @@ int main()
 	end.tv_sec -= start.tv_sec;
       }
       std::cout << "ZuBox<double>::vfmt(): " <<
-	ZuBoxed(end.tv_sec) << '.' << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9>>() << '\n';
+	ZuBoxed(end.tv_sec) << '.'
+	  << ZuBoxed(end.tv_nsec).fmt<ZuFmt::Frac<9, 9>>() << '\n';
     }
   }
 }

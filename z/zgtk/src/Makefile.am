@@ -6,7 +6,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	@Z_CPPFLAGS@
 AM_CFLAGS = @GTK_CFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@ @GTK_CFLAGS@
-AM_LDFLAGS = @Z_LDFLAGS@ @GTK_LDFLAGS@
+AM_LDFLAGS = @Z_LDFLAGS@
 FBS = request.fbs reqack.fbs link.fbs version.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs

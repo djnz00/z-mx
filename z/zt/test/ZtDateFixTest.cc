@@ -24,10 +24,11 @@ struct Null {
   friend ZuPrintFn ZuPrintType(Null *);
 };
 
+template <int NDP>
 void test(ZuDateTime d1)
 {
   ZuStringN<32> fix;
-  ZuDateTimeFmt::FIX<-9, Null> fmt;
+  ZuDateTimeFmt::FIX<NDP, Null> fmt;
   fix << d1.print(fmt);
   puts(fix);
   ZuDateTime d2(ZuDateTimeScan::FIX{}, fix);
@@ -37,10 +38,10 @@ void test(ZuDateTime d1)
 
 int main(int argc, char **argv)
 {
-  test(ZuDateTime{time_t(0)});
-  test(ZuDateTime{1, 1, 1});
-  test(ZuDateTime{Zm::now()});
-  test(ZuDateTime{ZuTime{ZuDecimal{"0.01"}}});
+  test<0>(ZuDateTime{time_t(0)});
+  test<0>(ZuDateTime{1, 1, 1});
+  test<-9>(ZuDateTime{Zm::now()});
+  test<-3>(ZuDateTime{ZuTime{ZuDecimal{"0.01"}}});
 
   if (argc < 2) { fputs("usage: ZuDateTimeFixTest N\n", stderr); Zm::exit(1); }
   unsigned n = atoi(argv[1]);

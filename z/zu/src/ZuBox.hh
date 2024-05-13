@@ -57,22 +57,16 @@ template <typename T, typename Fmt,
   bool FloatingPoint = Signed && ZuTraits<T>::IsFloatingPoint>
 struct ZuBox_Print;
 template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 0, 0> {
-  static unsigned length(T v)
-    { return Zu_nprint<Fmt>::ulen(v); }
-  static unsigned print(T v, char *buf)
-    { return Zu_nprint<Fmt>::utoa(v, buf); }
+  static unsigned length(T v) { return Zu_nprint<Fmt>::ulen(v); }
+  static unsigned print(T v, char *buf) { return Zu_nprint<Fmt>::utoa(v, buf); }
 };
 template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 1, 0> {
-  static unsigned length(T v)
-    { return Zu_nprint<Fmt>::ilen(v); }
-  static unsigned print(T v, char *buf)
-    { return Zu_nprint<Fmt>::itoa(v, buf); }
+  static unsigned length(T v) { return Zu_nprint<Fmt>::ilen(v); }
+  static unsigned print(T v, char *buf) { return Zu_nprint<Fmt>::itoa(v, buf); }
 };
 template <typename T, typename Fmt> struct ZuBox_Print<T, Fmt, 1, 1> {
-  static unsigned length(T v)
-    { return Zu_nprint<Fmt>::flen(v); }
-  static unsigned print(T v, char *buf)
-    { return Zu_nprint<Fmt>::ftoa(v, buf); }
+  static unsigned length(T v) { return Zu_nprint<Fmt>::flen(v); }
+  static unsigned print(T v, char *buf) { return Zu_nprint<Fmt>::ftoa(v, buf); }
 };
 
 // variable run-time formatting

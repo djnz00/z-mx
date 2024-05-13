@@ -255,7 +255,8 @@ template <typename Fmt> struct ZuFixed_Fmt {
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).template fmt<Fmt>();
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(value.exponent());
+    auto e = value.exponent();
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(e, e);
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_Fmt *);
 };
@@ -284,7 +285,8 @@ struct ZuFixed_VFmt : public ZuVFmtWrapper<ZuFixed_VFmt> {
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).vfmt(this->fmt);
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(value.exponent());
+    auto e = value.exponent();
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(e, e);
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_VFmt *);
 };

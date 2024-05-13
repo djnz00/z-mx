@@ -33,7 +33,7 @@ namespace ZuFmt {
     enum { Comma_ = 0 };		// Comma character (Decimal only)
     enum { Width_ = 0 };		// Maximum length (Left/Right/Frac)
     enum { Pad_ = 0 };			// Padding character (Left/Right)
-    enum { NDP_ = -MaxNDP };		// Decimal places (FP)
+    enum { NDP_ = -MaxNDP };		// Decimal places (FP/Frac)
     enum { Trim_ = 0 };			// Trim character (FP/Frac)
     enum { Negative_ = 0 };		// Negative
   };
@@ -52,10 +52,11 @@ namespace ZuFmt {
     enum { Pad_ = Pad };
   };
   // NTP - justify a fixed-point value within a fixed-width field
-  template <unsigned NDP, char Trim = '\0', class NTP = Default>
+  template <unsigned Width, unsigned NDP, char Trim = '\0', class NTP = Default>
   struct Frac : public NTP {
     enum { Justification_ = Just::Frac };
-    enum { NDP_ = (int)NDP > MaxNDP ? MaxNDP : (int)NDP };
+    enum { Width_ = Width };
+    enum { NDP_ = int(NDP) > MaxNDP ? MaxNDP : int(NDP) };
     enum { Trim_ = Trim };
   };
   // NTP - specify hexadecimal
@@ -124,9 +125,10 @@ struct ZuVFmt {
     m_pad = pad;
     return *this;
   }
-  ZuVFmt &frac(unsigned ndp, char trim = '\0') {
+  ZuVFmt &frac(unsigned width, unsigned ndp, char trim = '\0') {
     using namespace ZuFmt;
     m_justification = Just::Frac;
+    m_width = width;
     m_ndp = ZuUnlikely(ndp > MaxNDP) ? MaxNDP : ndp;
     m_trim = trim;
     return *this;
@@ -207,8 +209,8 @@ template <typename Impl> struct ZuVFmtWrapper {
     fmt.right(width, pad);
     return *impl();
   }
-  Impl &frac(unsigned ndp, char trim = '\0') {
-    fmt.frac(ndp, trim);
+  Impl &frac(unsigned width, unsigned ndp, char trim = '\0') {
+    fmt.frac(width, ndp, trim);
     return *impl();
   }
   Impl &hex() { fmt.hex(); return *impl(); }

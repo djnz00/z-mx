@@ -90,6 +90,24 @@ namespace Zu_ntoa {
   template <typename T, typename R = void>
   using Is64Bit = ZuIfT<(sizeof(T) <= 8) && ZuTraits<T>::IsIntegral, R>;
 
+  // unsigned integers - maximum log10 for each size of integer
+  template <unsigned Size> struct Log10_MaxLog;
+  template <> struct Log10_MaxLog<1U> { enum { N = 3 }; };
+  template <> struct Log10_MaxLog<2U> { enum { N = 5 }; };
+  template <> struct Log10_MaxLog<4U> { enum { N = 10 }; };
+  template <> struct Log10_MaxLog<8U> { enum { N = 20 }; };
+  template <> struct Log10_MaxLog<16U> { enum { N = 39 }; };
+
+  // unsigned integers - maximum log16 for each size of integer
+  template <unsigned Size>
+  struct Log16_MaxLog { enum { N = (Size<<1U) }; };
+
+  // generic calculation of maximum logN of a printed integer type
+  template <unsigned Size, bool Hex>
+  struct LogN_MaxLog : public Log10_MaxLog<Size> { };
+  template <unsigned Size>
+  struct LogN_MaxLog<Size, 1> : public Log16_MaxLog<Size> { };
+
   // return log10(v) using binary clz, with a floor of 1 decimal digit
   template <unsigned Size> struct Log10;
   template <> struct Log10<1> {
@@ -236,7 +254,7 @@ namespace Zu_ntoa {
   template <typename T>
   inline Is64Bit<T> Base10_print(T v_, unsigned n, char *buf) {
     uint64_t v = v_;
-    do { buf[--n] = (v % 10) + '0'; v /= 10; } while (ZuLikely(n));
+    while (ZuLikely(n)) { buf[--n] = (v % 10) + '0'; v /= 10; }
   }
   template <typename T>
   inline Is128Bit<T> Base10_print(T v_, unsigned n, char *buf) {
@@ -244,18 +262,20 @@ namespace Zu_ntoa {
     if (ZuLikely(v < 10000000000000000000ULL))
       Base10_print((uint64_t)v, n, buf);
     else
-      do { buf[--n] = (v % 10) + '0'; v /= 10; } while (ZuLikely(n));
+      while (ZuLikely(n)) { buf[--n] = (v % 10) + '0'; v /= 10; }
   }
   template <typename T>
   inline Is64Bit<T> Base10_print_comma(
       T v_, unsigned n, char *buf, char comma) {
+    if (ZuUnlikely(!n)) return;
     uint64_t v = v_;
     unsigned c = 3;
-    for (;;) {
-      buf[--n] = (v % 10) + '0'; v /= 10;
-      if (ZuUnlikely(!n)) break;
-      if (ZuUnlikely(!--c)) { buf[--n] = comma; c = 3; }
-    }
+    if (ZuLikely(n))
+      for (;;) {
+	buf[--n] = (v % 10) + '0'; v /= 10;
+	if (ZuUnlikely(!n)) break;
+	if (ZuUnlikely(!--c)) { buf[--n] = comma; c = 3; }
+      }
   }
   template <typename T>
   inline Is128Bit<T> Base10_print_comma(
@@ -265,21 +285,25 @@ namespace Zu_ntoa {
       Base10_print_comma((uint64_t)v, n, buf, comma);
     else {
       unsigned c = 3;
-      for (;;) {
-	buf[--n] = (v % 10) + '0'; v /= 10;
-	if (ZuUnlikely(!n)) break;
-	if (ZuUnlikely(!--c)) { buf[--n] = comma; c = 3; }
-      }
+      if (ZuLikely(n))
+	for (;;) {
+	  buf[--n] = (v % 10) + '0'; v /= 10;
+	  if (ZuUnlikely(!n)) break;
+	  if (ZuUnlikely(!--c)) { buf[--n] = comma; c = 3; }
+	}
     }
   }
+  template <typename T>
   inline void Base10_print_frac(
-      uint64_t v, unsigned n, char c, char *buf) {
+      T v, unsigned m, unsigned n, char c, char *buf) {
+    if (ZuUnlikely(n < m)) v /= ZuDecimalFn::pow10<sizeof(T)>(m - n);
     Base10_print(v, n, buf);
-    for (;;) {
-      if (buf[--n] != '0') return;
-      if (ZuUnlikely(n <= 1)) return;
-      buf[n] = c;
-    }
+    if (ZuLikely(n))
+      for (;;) {
+	if (buf[--n] != '0') return;
+	if (ZuUnlikely(n <= 1)) return;
+	buf[n] = c;
+      }
     // perversely the more elegant implementation below runs slower
     // (left in place as a reference)
 #if 0
@@ -297,9 +321,12 @@ namespace Zu_ntoa {
     }
 #endif
   }
+  template <typename T>
   inline unsigned Base10_print_frac_truncate(
-      uint64_t v, unsigned n, char *buf) {
+      T v, unsigned m, unsigned n, char *buf) {
+    if (ZuUnlikely(n < m)) v /= ZuDecimalFn::pow10<sizeof(T)>(m - n);
     Base10_print(v, n, buf);
+    if (ZuUnlikely(!n)) return 0;
     for (;;) {
       if (buf[--n] != '0') return n + 1;
       if (ZuUnlikely(n <= 1)) return 1;
@@ -381,7 +408,7 @@ namespace Zu_ntoa {
   template <typename T>
   Is64Bit<T> Base16_print(T v_, unsigned n, char *buf) {
     uint64_t v = v_;
-    do { buf[--n] = hexDigit<0>(v & 0xf); v >>= 4U; } while (ZuLikely(n));
+    while (ZuLikely(n)) { buf[--n] = hexDigit<0>(v & 0xf); v >>= 4U; }
   }
   template <typename T>
   Is128Bit<T> Base16_print(T v_, unsigned n, char *buf) {
@@ -389,13 +416,13 @@ namespace Zu_ntoa {
     if (ZuLikely(!(v>>64U)))
       Base16_print((uint64_t)v, n, buf);
     else
-      do { buf[--n] = hexDigit<0>(v & 0xf); v >>= 4U; } while (ZuLikely(n));
+      while (ZuLikely(n)) { buf[--n] = hexDigit<0>(v & 0xf); v >>= 4U; }
   }
   template <typename T>
   Is64Bit<T> Base16_print_upper(
       T v_, unsigned n, char *buf) {
     uint64_t v = v_;
-    do { buf[--n] = hexDigit<1>(v & 0xf); v >>= 4U; } while (ZuLikely(n));
+    while (ZuLikely(n)) { buf[--n] = hexDigit<1>(v & 0xf); v >>= 4U; }
   }
   template <typename T>
   Is128Bit<T> Base16_print_upper(
@@ -404,7 +431,7 @@ namespace Zu_ntoa {
     if (ZuLikely(!(v>>64U)))
       Base16_print_upper((uint64_t)v, n, buf);
     else
-      do { buf[--n] = hexDigit<1>(v & 0xf); v >>= 4U; } while (ZuLikely(n));
+      while (ZuLikely(n)) { buf[--n] = hexDigit<1>(v & 0xf); v >>= 4U; }
   }
   template <bool Upper> struct Base16 {
     template <typename T>
@@ -433,24 +460,6 @@ namespace Zu_ntoa {
       Base16<Upper>::print(v, n - 2, buf);
     }
   };
-
-  // unsigned integers - maximum log10 for each size of integer
-  template <unsigned Size> struct Log10_MaxLog;
-  template <> struct Log10_MaxLog<1U> { enum { N = 3 }; };
-  template <> struct Log10_MaxLog<2U> { enum { N = 5 }; };
-  template <> struct Log10_MaxLog<4U> { enum { N = 10 }; };
-  template <> struct Log10_MaxLog<8U> { enum { N = 20 }; };
-  template <> struct Log10_MaxLog<16U> { enum { N = 39 }; };
-
-  // unsigned integers - maximum log16 for each size of integer
-  template <unsigned Size>
-  struct Log16_MaxLog { enum { N = (Size<<1U) }; };
-
-  // generic calculation of maximum logN of a printed integer type
-  template <unsigned Size, bool Hex>
-  struct LogN_MaxLog : public Log10_MaxLog<Size> { };
-  template <unsigned Size>
-  struct LogN_MaxLog<Size, 1> : public Log16_MaxLog<Size> { };
 
   // length of a printed value given a run-time log (i.e. the number of digits)
   template <bool Hex, char Comma, bool Alt> struct Len;
@@ -669,8 +678,7 @@ namespace Zu_ntoa {
     if (!f || !fv) return negative + i;
     buf += i;
     *buf++ = '.';
-    return negative + i + 1 +
-      Base10_print_frac_truncate(fv, f, buf);
+    return negative + i + 1 + Base10_print_frac_truncate(fv, f, f, buf);
   }
   template <typename T>
   static unsigned ftoa_fixed(T v, unsigned f, char *buf) {
@@ -736,9 +744,8 @@ namespace Zu_ntoa {
 	return negative + i + 1 + f;
       }
       if constexpr (!Trim)
-	return negative + i + 1 +
-	  Base10_print_frac_truncate(fv, f, buf);
-      Base10_print_frac(fv, f, Trim, buf);
+	return negative + i + 1 + Base10_print_frac_truncate(fv, f, f, buf);
+      Base10_print_frac(fv, f, f, Trim, buf);
       return negative + i + 1 + f;
     }
   };
@@ -830,36 +837,36 @@ template <unsigned NDP> struct Zu_nprint_frac_ {
   template <typename T>
   constexpr static unsigned ilen(T) { return NDP; }
 };
-template <unsigned NDP, char Trim>
+template <unsigned Width, unsigned NDP, char Trim>
 struct Zu_nprint_frac : public Zu_nprint_frac_<NDP> {
   template <typename T>
   static unsigned utoa(T v, char *buf) {
-    Zu_ntoa::Base10_print_frac(v, NDP, Trim, buf);
+    Zu_ntoa::Base10_print_frac(v, Width, NDP, Trim, buf);
     return NDP;
   }
   template <typename T>
   static unsigned itoa(T v_, char *buf) {
     typename Zu_ntoa::Unsigned<T> v = v_;
     if (ZuUnlikely(v_ < 0)) v = ~v + 1;
-    Zu_ntoa::Base10_print_frac(v, NDP, Trim, buf);
+    Zu_ntoa::Base10_print_frac(v, Width, NDP, Trim, buf);
     return NDP;
   }
 };
-template <unsigned NDP>
-struct Zu_nprint_frac<NDP, '\0'> : public Zu_nprint_frac_<NDP> {
+template <unsigned Width, unsigned NDP>
+struct Zu_nprint_frac<Width, NDP, '\0'> : public Zu_nprint_frac_<NDP> {
   template <typename T>
   static unsigned utoa(T v, char *buf) {
-    return Zu_ntoa::Base10_print_frac_truncate(v, NDP, buf);
+    return Zu_ntoa::Base10_print_frac_truncate(v, Width, NDP, buf);
   }
   template <typename T>
   static unsigned itoa(T v_, char *buf) {
     typename Zu_ntoa::Unsigned<T> v = v_;
     if (ZuUnlikely(v_ < 0)) v = ~v + 1;
-    return Zu_ntoa::Base10_print_frac_truncate(v, NDP, buf);
+    return Zu_ntoa::Base10_print_frac_truncate(v, Width, NDP, buf);
   }
 };
-template <unsigned NDP>
-struct Zu_nprint_frac<NDP, '0'> : public Zu_nprint_frac_<NDP> {
+template <unsigned Width, unsigned NDP>
+struct Zu_nprint_frac<Width, NDP, '0'> : public Zu_nprint_frac_<NDP> {
   template <typename T>
   static unsigned utoa(T v, char *buf) {
     Zu_ntoa::Base10_print(v, NDP, buf);
@@ -874,7 +881,8 @@ struct Zu_nprint_frac<NDP, '0'> : public Zu_nprint_frac_<NDP> {
   }
 };
 template <class Fmt>
-struct Zu_nprint<Fmt, 1> : public Zu_nprint_frac<Fmt::NDP_, Fmt::Trim_> { };
+struct Zu_nprint<Fmt, true> :
+  public Zu_nprint_frac<Fmt::Width_, Fmt::NDP_, Fmt::Trim_> { };
 
 template <typename T>
 ZuInline constexpr unsigned Zu_ulen() { return Zu_nprint<>::ulen<T>(); }
@@ -961,16 +969,17 @@ struct Zu_vprint {
   static unsigned utoa(const ZuVFmt &fmt, T v, char *buf) {
     if (ZuUnlikely(fmt.hex())) return utoa_hex(fmt, v, buf);
     if (ZuUnlikely(fmt.justification() == ZuFmt::Just::Frac)) {
-      unsigned w = fmt.ndp();
+      unsigned w = fmt.width();
+      unsigned n = fmt.ndp();
       char trim = fmt.trim();
       if (ZuLikely(!trim))
-	return Zu_ntoa::Base10_print_frac_truncate(v, w, buf);
+	return Zu_ntoa::Base10_print_frac_truncate(v, w, n, buf);
       if (ZuUnlikely(trim == '0')) {
-	Zu_ntoa::Base10_print(v, w, buf);
-	return w;
+	Zu_ntoa::Base10_print(v, n, buf);
+	return n;
       }
-      Zu_ntoa::Base10_print_frac(v, w, trim, buf);
-      return w;
+      Zu_ntoa::Base10_print_frac(v, w, n, trim, buf);
+      return n;
     }
     unsigned n = Zu_ntoa::Log10<sizeof(T)>::log(v);
     char comma = fmt.comma();
@@ -1063,18 +1072,19 @@ struct Zu_vprint {
   static unsigned itoa(const ZuVFmt &fmt, T v_, char *buf) {
     if (ZuUnlikely(fmt.hex())) return itoa_hex(fmt, v_, buf);
     if (ZuUnlikely(fmt.justification() == ZuFmt::Just::Frac)) {
-      unsigned w = fmt.ndp();
+      unsigned w = fmt.width();
+      unsigned n = fmt.ndp();
       typename Zu_ntoa::Unsigned<T> v = v_;
       if (ZuUnlikely(v_ < 0)) v = ~v + 1;
       char trim = fmt.trim();
       if (ZuLikely(!trim))
-	return Zu_ntoa::Base10_print_frac_truncate(v, w, buf);
+	return Zu_ntoa::Base10_print_frac_truncate(v, w, n, buf);
       if (ZuUnlikely(trim == '0')) {
-	Zu_ntoa::Base10_print(v, w, buf);
-	return w;
+	Zu_ntoa::Base10_print(v, n, buf);
+	return n;
       }
-      Zu_ntoa::Base10_print_frac(v, w, trim, buf);
-      return w;
+      Zu_ntoa::Base10_print_frac(v, w, n, trim, buf);
+      return n;
     }
     bool m = v_ < 0;
     typename Zu_ntoa::Unsigned<T> v = v_;
@@ -1169,8 +1179,8 @@ struct Zu_vprint {
     char trim = fmt.trim();
     if (!trim)
       return negative + i + 1 +
-	Zu_ntoa::Base10_print_frac_truncate(fv, f, buf);
-    Zu_ntoa::Base10_print_frac(fv, f, trim, buf);
+	Zu_ntoa::Base10_print_frac_truncate(fv, f, f, buf);
+    Zu_ntoa::Base10_print_frac(fv, f, f, trim, buf);
     return negative + i + 1 + f;
   }
 };

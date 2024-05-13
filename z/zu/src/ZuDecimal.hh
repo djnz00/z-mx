@@ -134,7 +134,7 @@ struct ZuDecimal {
 
   // mul and div functions based on reference code (BSD licensed) at:
   // https://www.codeproject.com/Tips/618570/UInt-Multiplication-Squaring
-  // in turn based on Hacker's Delight
+  // (which in turn is based on Hacker's Delight)
 
   // h:l = u * v
   static void mul128by128(
@@ -540,7 +540,7 @@ template <typename Fmt> struct ZuDecimalFmt {
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
     s << ZuBoxed(uint64_t(iv)).fmt<Fmt>();
-    if (fv) s << '.' << ZuBoxed(uint64_t(fv)).fmt<ZuFmt::Frac<18>>();
+    if (fv) s << '.' << ZuBoxed(uint64_t(fv)).fmt<ZuFmt::Frac<18, 18>>();
   }
 
   friend ZuPrintFn ZuPrintType(ZuDecimalFmt *);
@@ -571,7 +571,7 @@ public:
     fv = iv % ZuDecimal::scale();
     iv /= ZuDecimal::scale();
     s << ZuBoxed(iv).vfmt(fmt);
-    if (fv) s << '.' << ZuBoxed(fv).fmt<ZuFmt::Frac<18>>();
+    if (fv) s << '.' << ZuBoxed(fv).fmt<ZuFmt::Frac<18, 18>>();
   }
 
   friend ZuPrintFn ZuPrintType(ZuDecimalVFmt *);

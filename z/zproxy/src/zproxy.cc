@@ -198,10 +198,10 @@ public:
   void trace(bool on) { on ? (m_flags |= Trace) : (m_flags &= ~Trace); }
   void drop(bool on) { on ? (m_flags |= Drop) : (m_flags &= ~Drop); }
 
-  void latency(ZmTime n) { m_latency = n; }
+  void latency(ZuTime n) { m_latency = n; }
   void frag(uint32_t n) { m_frag = n; }
   void pack(uint32_t n) { m_pack = n; }
-  void delay(ZmTime n) { m_delay = n; }
+  void delay(ZuTime n) { m_delay = n; }
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(Connection *);
@@ -214,10 +214,10 @@ private:
     IOQueue		  m_queue;
     bool		  m_sendPending;
   uint32_t		m_flags;
-  ZmTime		m_latency;
+  ZuTime		m_latency;
   uint32_t		m_frag;
   uint32_t		m_pack;
-  ZmTime		m_delay;
+  ZuTime		m_delay;
 };
 
 class Proxy : public ZmPolymorph {
@@ -1195,7 +1195,7 @@ void Connection::disconnected()
   if (m_peer && m_peer->up() && !(m_peer->m_flags & Hold)) {
     if (m_latency) {
       // double the latency to avoid overtaking pending delayed sends
-      ZuTime next = Zm::now(m_latency * 2.0L);
+      ZuTime next = Zm::now(m_latency * ZuDecimal{2});
       m_mx->add([peer = ZmMkRef(m_peer)]() { peer->disconnect(); }, next);
     } else
       m_peer->disconnect();

@@ -342,7 +342,7 @@ public:
       ZuBoxed(hour).fmt<ZuFmt::Right<2>>() << ':' <<
       ZuBoxed(minute).fmt<ZuFmt::Right<2>>() << ':' <<
       ZuBoxed(sec).fmt<ZuFmt::Right<2>>() << '.' <<
-      ZuBoxed(nsec).fmt<ZuFmt::Frac<9>>();
+      ZuBoxed(nsec).fmt<ZuFmt::Frac<9, 9>>();
   }
   friend ZuPrintFn ZuPrintType(ZuTime *);
 
@@ -352,7 +352,7 @@ public:
     template <typename S> void print(S &s) const {
       if (!time) return;
       s << ZuBoxed(time.tv_sec) << '.' <<
-	ZuBoxed(time.tv_nsec).fmt<ZuFmt::Frac<9>>();
+	ZuBoxed(time.tv_nsec).fmt<ZuFmt::Frac<9, 9>>();
     }
     friend ZuPrintFn ZuPrintType(Interval *);
   };

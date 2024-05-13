@@ -145,15 +145,15 @@ private:
   mutable char	m_hhmmss[8];
 };
 
-template <unsigned Width, char Trim> struct FIX_ {
+template <unsigned NDP, char Trim> struct FIX_ {
   template <typename S> static void frac_print(S &s, unsigned nsec) {
-    s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, Trim>>();
+    s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<9, NDP, Trim>>();
   }
 };
-template <unsigned Width> struct FIX_<Width, '\0'> {
+template <unsigned NDP> struct FIX_<NDP, '\0'> {
   template <typename S> static void frac_print(S &s, unsigned nsec) {
     if (ZuLikely(nsec))
-      s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<Width, '\0'>>();
+      s << '.' << ZuBoxed(nsec).fmt<ZuFmt::Frac<9, NDP, '\0'>>();
   }
 };
 template <char Trim> struct FIX_<0, Trim> {
@@ -613,10 +613,11 @@ public:
     if (unsigned N = date.m_nsec) {
       char buf[9];
       if (fmt.m_pad) {
-	Zu_ntoa::Base10_print_frac(N, 9, fmt.m_pad, buf);
+	Zu_ntoa::Base10_print_frac(N, 9, 9, fmt.m_pad, buf);
 	s << '.' << ZuString{buf, 9};
       } else {
-	if (N = Zu_ntoa::Base10_print_frac_truncate(N, 9, buf))
+	N = Zu_ntoa::Base10_print_frac_truncate(N, 9, 9, buf);
+	if (N > 1 || buf[0] != '0')
 	  s << '.' << ZuString{buf, N};
       }
     }
@@ -697,8 +698,9 @@ public:
     s << ZuString{fmt.m_hhmmss, 8};
     if (unsigned N = date.m_nsec) {
       char buf[9];
-      N = Zu_ntoa::Base10_print_frac_truncate(N, 9, buf);
-      if (N) s << '.' << ZuString{buf, N};
+      N = Zu_ntoa::Base10_print_frac_truncate(N, 9, 9, buf);
+      if (N > 1 || buf[0] != '0')
+	s << '.' << ZuString{buf, N};
     }
     if (fmt.m_tzOffset) {
       int offset_ = (fmt.m_tzOffset < 0) ? -fmt.m_tzOffset : fmt.m_tzOffset;
@@ -988,7 +990,7 @@ private:
   // parse nanoseconds
   template <typename T, typename S>
   static unsigned scanFrac(T &v, S &s) {
-    unsigned i = v.scan(ZuFmt::Frac<9>(), s);
+    unsigned i = v.scan(ZuFmt::Frac<9, 9>(), s);
     if (ZuLikely(i > 0)) s.offset(i);
     return i;
   }

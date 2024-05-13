@@ -6,7 +6,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	@Z_CPPFLAGS@
 AM_CFLAGS = @GTK_CFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@ @GTK_CFLAGS@
-AM_LDFLAGS = @Z_LDFLAGS@ @GTK_LDFLAGS@
+AM_LDFLAGS = @Z_LDFLAGS@
 LDADD = $(top_builddir)/zgtk/src/libZGtk.la \
 	$(top_builddir)/zv/src/libZv.la \
 	$(top_builddir)/zfb/src/libZfb.la $(top_builddir)/ztls/src/libZtls.la \
