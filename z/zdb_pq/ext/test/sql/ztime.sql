@@ -1,6 +1,7 @@
-SELECT - '0048/08/09 10:30:42'::ztime;
-SELECT - ztime_in_interval('0');
-SELECT - ''::ztime;
+SELECT CAST(0::zdecimal AS ztime);
+SELECT CAST(-1::zdecimal AS ztime);
+SELECT CAST(0::zdecimal AS ztime) - 1::zdecimal;
+SELECT CAST(- CAST('0048/08/09 10:30:42'::ztime AS zdecimal) AS ztime);
 SELECT ''::ztime;
 SELECT 'x'::ztime;
 SELECT '1969/11/01 21:19:54.01 x'::ztime;

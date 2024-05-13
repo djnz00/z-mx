@@ -1,1 +1,1 @@
-CREATE EXTENSION zdecimal;
+CREATE EXTENSION libz;
