@@ -72,7 +72,7 @@ public:
       tv_nsec = (v - ldouble(tv_sec)) * 1000000000;
     }
   }
-  constexpr ZuTime(ZuDecimal v) {
+  constexpr ZuTime(const ZuDecimal &v) {
     if (!*v) {
       null();
     } else {
@@ -159,7 +159,7 @@ public:
     tv_nsec = 0;
     return *this;
   }
-  constexpr ZuTime &operator =(ZuDecimal d) {
+  constexpr ZuTime &operator =(const ZuDecimal &d) {
     tv_sec = d.floor();
     tv_nsec = d.frac() / 1000000000;
     return *this;
@@ -188,15 +188,15 @@ public:
   constexpr MatchInt<T, ZuTime> operator +(T v) const {
     return ZuTime::operator +(ZuTime{v, 0});
   }
-  constexpr ZuTime operator +(ZuDecimal d) const {
+  constexpr ZuTime operator +(const ZuDecimal &d) const {
     return ZuTime::operator +(ZuTime{d});
   }
   constexpr ZuTime operator +(const ZuTime &t_) const {
     int64_t sec;
     int32_t nsec;
-    if (!**this || !*t_ ||
+    if (ZuUnlikely(!**this || !*t_ ||
 	__builtin_add_overflow(tv_sec, t_.tv_sec, &sec) ||
-	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &nsec))
+	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &nsec)))
       return ZuTime{};
     ZuTime t{sec, nsec};
     t.normalize();
@@ -206,13 +206,13 @@ public:
   constexpr MatchInt<T, ZuTime &> operator +=(T v) {
     return ZuTime::operator +=(ZuTime{v, 0});
   }
-  constexpr ZuTime &operator +=(ZuDecimal d) {
+  constexpr ZuTime &operator +=(const ZuDecimal &d) {
     return ZuTime::operator +=(ZuTime{d});
   }
   constexpr ZuTime &operator +=(const ZuTime &t_) {
-    if (!**this || !*t_ ||
+    if (ZuUnlikely(!**this || !*t_ ||
 	__builtin_add_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec))
+	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)))
       null();
     else
       normalize();
@@ -222,15 +222,15 @@ public:
   constexpr MatchInt<T, ZuTime> operator -(T v) const {
     return ZuTime::operator -(ZuTime{v, 0});
   }
-  constexpr ZuTime operator -(ZuDecimal d) const {
+  constexpr ZuTime operator -(const ZuDecimal &d) const {
     return ZuTime::operator -(ZuTime{d});
   }
   constexpr ZuTime operator -(const ZuTime &t_) const {
     int64_t sec;
     int32_t nsec;
-    if (!**this || !*t_ ||
+    if (ZuUnlikely(!**this || !*t_ ||
 	__builtin_sub_overflow(tv_sec, t_.tv_sec, &sec) ||
-	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &nsec))
+	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &nsec)))
       return ZuTime{};
     ZuTime t{sec, nsec};
     t.normalize();
@@ -240,29 +240,29 @@ public:
   constexpr MatchInt<T, ZuTime &> operator -=(T v) {
     return ZuTime::operator -=(ZuTime{v, 0});
   }
-  constexpr ZuTime &operator -=(ZuDecimal d) {
+  constexpr ZuTime &operator -=(const ZuDecimal &d) {
     return ZuTime::operator -=(ZuTime{d});
   }
   constexpr ZuTime &operator -=(const ZuTime &t_) {
-    if (!**this || !*t_ ||
+    if (ZuUnlikely(!**this || !*t_ ||
 	__builtin_sub_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec))
+	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)))
       null();
     else
       normalize();
     return *this;
   }
 
-  constexpr ZuTime operator *(ZuDecimal d) {
+  constexpr ZuTime operator *(const ZuDecimal &d) {
     return ZuTime{as_decimal() * d};
   }
-  constexpr ZuTime &operator *=(ZuDecimal d) {
+  constexpr ZuTime &operator *=(const ZuDecimal &d) {
     return operator =(as_decimal() * d);
   }
-  constexpr ZuTime operator /(ZuDecimal d) {
+  constexpr ZuTime operator /(const ZuDecimal &d) {
     return ZuTime{as_decimal() / d};
   }
-  constexpr ZuTime &operator /=(ZuDecimal d) {
+  constexpr ZuTime &operator /=(const ZuDecimal &d) {
     return operator =(as_decimal() / d);
   }
 
@@ -331,7 +331,7 @@ public:
   }
 
   template <typename S> void print(S &s) const {
-    if (!**this) return;
+    if (ZuUnlikely(!**this)) return;
     int year, month, day, hour, minute, sec, nsec;
     ymdhmsn(year, month, day, hour, minute, sec, nsec);
     if (year < 0) { s << '-'; year = -year; }

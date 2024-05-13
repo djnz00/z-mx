@@ -67,7 +67,7 @@ void weekDate(ZuDateTime d, int year, int weekChk, int wkDayChk) {
   ZuDateTimeFmt::ISO fmt;
   int week, wkDay;
   int days = d.days(year, 1, 1);
-  d.ywd(year, days, week, wkDay);
+  d.ywd(days, week, wkDay);
   printf(
     "%s: %d+%d %d+%d.%dW %d %d\n",
     isoStr(d).data(), year, days, year, days / 7, days % 7, week, wkDay
@@ -80,7 +80,7 @@ void weekDateSun(ZuDateTime d, int year, int weekChk, int wkDayChk) {
   ZuDateTimeFmt::ISO fmt;
   int week, wkDay;
   int days = d.days(year, 1, 1);
-  d.ywdSun(year, days, week, wkDay);
+  d.ywdSun(days, week, wkDay);
   printf(
     "%s: %d+%d %d+%d.%dW %d %d\n",
     isoStr(d).data(), year, days, year, days / 7, days % 7, week, wkDay

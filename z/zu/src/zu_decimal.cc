@@ -28,8 +28,9 @@ unsigned int zu_decimal_out_len(const zu_decimal *)
 char *zu_decimal_out(char *s_, const zu_decimal *v_)
 {
   ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
-  ZuStream s{s_, 40U};
+  ZuStream s{s_, 39U};
   s << v;
+  *s.data() = 0;
   return s.data();
 }
 

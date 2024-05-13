@@ -118,13 +118,12 @@ protected:
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
   void append(const Char *s, unsigned length) {
-    if (this->length() <= length) {
-      if (this->length() <= 1) return;
-      length = this->length() - 1;
+    if (this->length() < length) {
+      if (!this->length()) return;
+      length = this->length();
     }
     if (s && length) memcpy(this->data(), s, length * sizeof(Char));
     this->offset(length);
-    *(this->data()) = 0;
   }
 
   template <typename S> MatchString<S> append_(S &&s_) {
@@ -133,26 +132,23 @@ protected:
   }
 
   template <typename C> MatchChar<C> append_(C c) {
-    if (this->length() <= 1) return;
+    if (!this->length()) return;
     Char *s = this->data();
-    *s++ = c, *s = 0;
+    *s++ = c;
     this->offset(1);
   }
 
   template <typename S>
   MatchChar2String<S> append_(S &&s) {
-    if (this->length() <= 1) return;
-    unsigned n;
-    this->data()[n = ZuUTF<Char, Char2>::cvt(
-      {this->data(), this->length() - 1}, s)] = 0;
+    if (!this->length()) return;
+    unsigned n = ZuUTF<Char, Char2>::cvt({this->data(), this->length()}, s);
     this->offset(n);
   }
 
   template <typename C> MatchChar2<C> append_(C c) {
-    if (this->length() <= 1) return;
-    unsigned n;
-    this->data()[n = ZuUTF<Char, Char2>::cvt(
-      {this->data(), this->length() - 1}, {&c, 1})] = 0;
+    if (!this->length()) return;
+    unsigned n = ZuUTF<Char, Char2>::cvt(
+      {this->data(), this->length()}, {&c, 1});
     this->offset(n);
   }
 
@@ -163,10 +159,8 @@ protected:
   template <typename P>
   MatchPBuffer<P> append_(const P &p) {
     unsigned length = ZuPrint<P>::length(p);
-    if (this->length() <= length + 1) return;
-    unsigned n;
-    this->data()[n = ZuPrint<P>::print(
-      this->data(), this->length() - 1, p)] = 0;
+    if (this->length() < length) return;
+    unsigned n = ZuPrint<P>::print(this->data(), this->length(), p);
     this->offset(n);
   }
 

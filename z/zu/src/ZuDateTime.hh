@@ -224,30 +224,30 @@ ZuDeclUnion(Any,
 } // ZuDateTimeFmt
 
 struct ZuDateTimePrintCSV {
-  const ZuDateTime				&value;
-  const ZuDateTimeFmt::CSV			&fmt;
+  const ZuDateTime			&value;
+  const ZuDateTimeFmt::CSV		&fmt;
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrintCSV *);
 };
 template <int NDP = -9, class Null = ZuDateTimeFmt::FIXDeflt_Null>
 struct ZuDateTimePrintFIX {
-  const ZuDateTime				&value;
+  const ZuDateTime			&value;
   const ZuDateTimeFmt::FIX<NDP, Null>	&fmt;
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrintFIX *);
 };
 struct ZuDateTimePrintISO {
-  const ZuDateTime				&value;
-  const ZuDateTimeFmt::ISO			&fmt;
+  const ZuDateTime			&value;
+  const ZuDateTimeFmt::ISO		&fmt;
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrintISO *);
 };
 struct ZuDateTimePrintStrftime {
-  const ZuDateTime				&value;
-  ZuDateTimeFmt::Strftime			fmt;
+  const ZuDateTime			&value;
+  ZuDateTimeFmt::Strftime		fmt;
 
   template <typename Boxed>
   static auto vfmt(ZuVFmt &fmt,
@@ -287,8 +287,8 @@ struct ZuDateTimePrintStrftime {
 };
 
 struct ZuDateTimePrint {
-  const ZuDateTime				&value;
-  const ZuDateTimeFmt::Any			&fmt;
+  const ZuDateTime			&value;
+  const ZuDateTimeFmt::Any		&fmt;
 
   template <typename S> void print(S &) const;
   friend ZuPrintFn ZuPrintType(ZuDateTimePrint *);
@@ -296,7 +296,7 @@ struct ZuDateTimePrint {
 
 class ZuAPI ZuDateTime {
 public:
-  struct Julian { int v; };
+  struct Julian { int32_t v; };
 
   ZuDateTime() = default;
 
@@ -331,16 +331,23 @@ public:
     return *this;
   }
 
-  // time_t
+  // integral / time_t
 
+  template <typename T, typename U = ZuStrip<T>>
+  struct IsInt : public ZuBool<
+      ZuIsExact<int32_t, U>{} ||
+      ZuIsExact<uint32_t, U>{} ||
+      ZuIsExact<int64_t, U>{} ||
+      ZuIsExact<uint64_t, U>{} ||
+      ZuIsExact<time_t, U>{}> { };
+  template <typename T, typename R = void>
+  using MatchInt = ZuIfT<IsInt<T>{}, R>;
+
+  template <typename T, typename = MatchInt<T>>
+  ZuDateTime(T v) { init(v); m_nsec = 0; }
   template <typename T>
-  ZuDateTime(const T &t, ZuExact<time_t, T> *_ = nullptr) {
-    init(t);
-    m_nsec = 0;
-  }
-  template <typename T>
-  ZuExact<time_t, T, ZuDateTime &> operator =(const T &t) {
-    init(t);
+  MatchInt<T, ZuDateTime &> operator =(T v) {
+    init(v);
     m_nsec = 0;
     return *this;
   }
@@ -363,7 +370,8 @@ public:
 
   // multiple parameter constructors
 
-  ZuDateTime(time_t t, int nsec) { init(t); m_nsec = nsec; }
+  template <typename T, typename = MatchInt<T>>
+  ZuDateTime(T v, int nsec) { init(v); m_nsec = nsec; }
 
   explicit ZuDateTime(Julian julian, int sec, int nsec) :
     m_julian(julian.v), m_sec(sec), m_nsec(nsec) { }
@@ -488,7 +496,9 @@ public:
     ctor(year, month, day, hour, minute, sec, nsec);
   }
 
+  // these functions return -1 if null
   int yyyymmdd() const {
+    if (ZuUnlikely(!*this)) return -1;
     int year, month, day;
     ymd(year, month, day);
     year *= 10000;
@@ -496,6 +506,7 @@ public:
     return year - month * 100 - day;
   }
   int yymmdd() const {
+    if (ZuUnlikely(!*this)) return -1;
     int year, month, day;
     ymd(year, month, day);
     year = (year % 100) * 10000;
@@ -503,11 +514,13 @@ public:
     return year - month * 100 - day;
   }
   int hhmmssmmm() const {
+    if (ZuUnlikely(!*this)) return -1;
     int hour, minute, sec, nsec;
     hmsn(hour, minute, sec, nsec);
     return hour * 10000000 + minute * 100000 + sec * 1000 + nsec / 1000000;
   }
   int hhmmss() const {
+    if (ZuUnlikely(!*this)) return -1;
     int hour, minute, sec;
     hms(hour, minute, sec);
     return hour * 10000 + minute * 100 + sec;
@@ -537,10 +550,10 @@ public:
 
   constexpr int64_t as_time_t() const {
     int64_t v;
-    if (!*this ||
+    if (ZuUnlikely(!*this ||
 	__builtin_sub_overflow(int64_t(m_julian), 2440588, &v) ||
 	__builtin_mul_overflow(v, 86400, &v) ||
-	__builtin_add_overflow(v, m_sec, &v))
+	__builtin_add_overflow(v, m_sec, &v)))
       return ZuCmp<int64_t>::null();
     return v;
   }
@@ -561,14 +574,11 @@ public:
   }
   // days arg below should be the value of days(year, 1, 1)
   // week (0-53) wkDay (1-7) 1st Monday in year is 1st day of week 1
-  void ywd(
-      int year, int days, int &week, int &wkDay) const;
+  void ywd(int days, int &week, int &wkDay) const;
   // week (0-53) wkDay (1-7) 1st Sunday in year is 1st day of week 1
-  void ywdSun(
-      int year, int days, int &week, int &wkDay) const;
+  void ywdSun(int days, int &week, int &wkDay) const;
   // week (1-53) wkDay (1-7) 1st Thursday in year is 4th day of week 1
-  void ywdISO(
-      int year, int days, int &wkYear, int &week, int &wkDay) const;
+  void ywdISO(int year, int days, int &wkYear, int &week, int &wkDay) const;
 
   static ZuString dayShortName(int i); // 1-7
   static ZuString dayLongName(int i); // 1-7
@@ -580,7 +590,7 @@ public:
   }
   template <typename S_>
   void csv_print(S_ &s, const ZuDateTimeFmt::CSV &fmt) const {
-    if (!*this) return;
+    if (ZuUnlikely(!*this)) return;
     ZuDateTime date = *this + fmt.m_tzOffset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
       fmt.m_julian = date.m_julian;
@@ -629,7 +639,7 @@ public:
   }
   template <typename S_, int NDP, class Null>
   void fix_print(S_ &s, const ZuDateTimeFmt::FIX<NDP, Null> &fmt) const {
-    if (!*this) { s << Null{}; return; }
+    if (ZuUnlikely(!*this)) { s << Null{}; return; }
     if (ZuUnlikely(m_julian != fmt.m_julian)) {
       fmt.m_julian = m_julian;
       int y, m, d;
@@ -666,7 +676,7 @@ public:
   }
   template <typename S_>
   void iso_print(S_ &s, const ZuDateTimeFmt::ISO &fmt) const {
-    if (!*this) return;
+    if (ZuUnlikely(!*this)) return;
     ZuDateTime date = *this + fmt.m_tzOffset;
     if (ZuUnlikely(date.m_julian != fmt.m_julian)) {
       fmt.m_julian = date.m_julian;
@@ -782,103 +792,118 @@ public:
 
 // operators
 
+  void null() {
+    m_julian = ZuCmp<int32_t>::null();
+    m_sec = 0;
+  }
+
   // ZuDateTime is an absolute time, not a time interval, so the difference
   // between two ZuDateTimes is a ZuTime;
   // for the same reason no operator +(ZuDateTime) is defined
+
   ZuTime operator -(const ZuDateTime &date) const {
-    int day = m_julian - date.m_julian;
-    int sec = m_sec - date.m_sec;
-    int nsec = m_nsec - date.m_nsec;
+    int64_t day = int64_t(m_julian) - date.m_julian;
+    int64_t sec = int64_t(m_sec) - date.m_sec;
+    int64_t nsec = int64_t(m_nsec) - date.m_nsec;
 
     if (nsec < 0) nsec += 1000000000, --sec;
     if (sec < 0) sec += 86400, --day;
 
-    return ZuTime(day * 86400 + sec, nsec);
+    if (ZuUnlikely(__builtin_mul_overflow(day, 86400, &day) ||
+	__builtin_add_overflow(day, sec, &sec))) return {};
+
+    return ZuTime{sec, int32_t(nsec)};
   }
 
   template <typename T>
   ZuExact<ZuTime, T, ZuDateTime> operator +(const T &t) const {
-    int julian, sec, nsec;
+    int64_t julian, sec, nsec;
 
     sec = m_sec;
-    nsec = m_nsec + t.nsec();
+    nsec = int64_t(m_nsec) + t.nsec();
     if (nsec < 0)
       nsec += 1000000000, --sec;
     else if (nsec >= 1000000000)
       nsec -= 1000000000, ++sec;
 
     {
-      int sec_ = t.sec();
+      int64_t sec_ = t.sec();
 
       if (sec_ < 0) {
         sec_ = -sec_;
-	julian = m_julian - sec_ / 86400;
+	julian = int64_t(m_julian) - sec_ / 86400;
 	sec -= sec_ % 86400;
 
 	if (sec < 0) sec += 86400, --julian;
       } else {
-	julian = m_julian + sec_ / 86400;
+	julian = int64_t(m_julian) + sec_ / 86400;
 	sec += sec_ % 86400;
 
 	if (sec >= 86400) sec -= 86400, ++julian;
       }
     }
 
-    return ZuDateTime{Julian{julian}, sec, nsec};
+    if (julian != int32_t(julian)) return {}; // overflow
+
+    return ZuDateTime{Julian{int32_t(julian)}, int32_t(sec), int32_t(nsec)};
   }
-  template <typename T> ZuIfT<
-    ZuInspect<time_t, T>::Same ||
-    ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZuDateTime> operator +(T sec_) const {
-    int julian, sec = sec_;
+  template <typename T>
+  MatchInt<T, ZuDateTime> operator +(T sec_) const {
+    int64_t julian, sec = sec_;
 
     if (sec < 0) {
       sec = -sec;
       if (ZuLikely(sec < 86400))
-	julian = m_julian, sec = m_sec - sec;
+	julian = m_julian, sec = int64_t(m_sec) - sec;
       else
-	julian = m_julian - (int)(sec / 86400), sec = m_sec - sec % 86400;
+	julian = int64_t(m_julian) - sec / 86400,
+	sec = int64_t(m_sec) - sec % 86400;
 
       if (sec < 0) sec += 86400, --julian;
     } else {
       if (ZuLikely(sec < 86400))
-	julian = m_julian, sec = m_sec + sec;
+	julian = m_julian, sec = int64_t(m_sec) + sec;
       else
-	julian = m_julian + (int)(sec / 86400), sec = m_sec + sec % 86400;
+	julian = int64_t(m_julian) + sec / 86400,
+	sec = int64_t(m_sec) + sec % 86400;
 
       if (sec >= 86400) sec -= 86400, ++julian;
     }
 
-    return ZuDateTime{Julian{julian}, sec, m_nsec};
+    if (julian != int32_t(julian)) return {}; // overflow
+
+    return ZuDateTime{Julian{int32_t(julian)}, int32_t(sec), m_nsec};
   }
 
   template <typename T>
   ZuExact<ZuTime, T, ZuDateTime &> operator +=(const T &t) {
-    int julian, sec, nsec;
+    int64_t julian, sec, nsec;
 
     sec = m_sec;
-    nsec = m_nsec + t.nsec();
+    nsec = int64_t(m_nsec) + t.nsec();
     if (nsec < 0)
       nsec += 1000000000, --sec;
     else if (nsec >= 1000000000)
       nsec -= 1000000000, ++sec;
 
     {
-      int sec_ = t.sec();
+      int64_t sec_ = t.sec();
 
       if (sec_ < 0) {
         sec_ = -sec_;
-	julian = m_julian - sec_ / 86400;
+	julian = int64_t(m_julian) - sec_ / 86400;
 	sec -= sec_ % 86400;
 
 	if (sec < 0) sec += 86400, --julian;
       } else {
-	julian = m_julian + sec_ / 86400;
+	julian = int64_t(m_julian) + sec_ / 86400;
 	sec += sec_ % 86400;
 
 	if (sec >= 86400) sec -= 86400, ++julian;
       }
     }
+
+    if (julian != int32_t(julian)) { null(); return *this; } // overflow
 
     m_julian = julian;
     m_sec = sec;
@@ -886,28 +911,30 @@ public:
 
     return *this;
   }
-  template <typename T> ZuIfT<
-    ZuInspect<time_t, T>::Same ||
-    ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZuDateTime &> operator +=(T sec_) {
-    int julian, sec = sec_;
+  template <typename T>
+  MatchInt<T, ZuDateTime &> operator +=(T sec_) {
+    int64_t julian, sec = sec_;
 
     if (sec < 0) {
       sec = -sec;
       if (ZuLikely(sec < 86400))
-	julian = m_julian, sec = m_sec - sec;
+	julian = int64_t(m_julian), sec = int64_t(m_sec) - sec;
       else
-	julian = m_julian - (int)(sec / 86400), sec = m_sec - sec % 86400;
+	julian = int64_t(m_julian) - sec / 86400,
+	sec = int64_t(m_sec) - sec % 86400;
 
       if (sec < 0) sec += 86400, --julian;
     } else {
       if (ZuLikely(sec < 86400))
-	julian = m_julian, sec = m_sec + sec;
+	julian = int64_t(m_julian), sec = int64_t(m_sec) + sec;
       else
-	julian = m_julian + (int)(sec / 86400), sec = m_sec + sec % 86400;
+	julian = int64_t(m_julian) + sec / 86400,
+        sec = int64_t(m_sec) + sec % 86400;
 
       if (sec >= 86400) sec -= 86400, ++julian;
     }
+
+    if (julian != int32_t(julian)) { null(); return *this; } // overflow
 
     m_julian = julian;
     m_sec = sec;
@@ -919,20 +946,16 @@ public:
   ZuExact<ZuTime, T, ZuDateTime> operator -(const T &t) const {
     return ZuDateTime::operator +(-t);
   }
-  template <typename T> ZuIfT<
-      ZuInspect<time_t, T>::Same ||
-      ZuInspect<long, T>::Same ||
-      ZuInspect<int, T>::Same, ZuDateTime> operator -(T sec_) {
+  template <typename T>
+  MatchInt<T, ZuDateTime> operator -(T sec_) const {
     return ZuDateTime::operator +(-sec_);
   }
   template <typename T>
   ZuExact<ZuTime, T, ZuDateTime &> operator -=(const T &t) {
     return ZuDateTime::operator +=(-t);
   }
-  template <typename T> ZuIfT<
-    ZuInspect<time_t, T>::Same ||
-    ZuInspect<long, T>::Same ||
-    ZuInspect<int, T>::Same, ZuDateTime &> operator -=(T sec_) {
+  template <typename T>
+  MatchInt<T, ZuDateTime &> operator -=(T sec_) {
     return ZuDateTime::operator +=(-sec_);
   }
 
@@ -1014,15 +1037,28 @@ public:
     return hour * 3600 + minute * 60 + second;
   }
 
-  void init(time_t t) {
+  void init(int64_t t) {
     if (ZuUnlikely(ZuCmp<time_t>::null(t))) {
-      m_julian = ZuCmp<int32_t>::null();
-      m_sec = 0;
+      null();
     } else {
-      m_julian = static_cast<int32_t>((t / 86400) + 2440588);
-      m_sec = static_cast<int32_t>(t % 86400);
+      if (ZuLikely(t >= 0)) {
+	int64_t j = t / 86400 + 2440588;
+	if (j >= int64_t(1U<<31)) goto overflow;
+	m_julian = j;
+	m_sec = t % 86400;
+      } else {
+	if (__builtin_sub_overflow(t, 86399, &t)) goto overflow;
+	int64_t j = t / 86400 + 2440588;
+	if (j < -int64_t(1U<<31)) goto overflow;
+	m_julian = j;
+	t = 86399 - (-t % 86400);
+	m_sec = t;
+      }
     }
     m_nsec = 0;
+    return;
+  overflow:
+    null();
   }
 
   // default printing (ISO8601 format)
@@ -1272,7 +1308,7 @@ fmtchar:
 	  if (!*days) days = value.days(year, 1, 1);
 	  {
 	    int wkDay_;
-	    value.ywdSun(year, days, weekSun, wkDay_);
+	    value.ywdSun(days, weekSun, wkDay_);
 	  }
 	}
 	s << vfmt(fmt_, weekSun, width, 2, alt);
@@ -1297,7 +1333,7 @@ fmtchar:
 	if (!*week) {
 	  if (!*year) value.ymd(year, month, day);
 	  if (!*days) days = value.days(year, 1, 1);
-	  value.ywd(year, days, week, wkDay);
+	  value.ywd(days, week, wkDay);
 	}
 	s << vfmt(fmt_, week, width, 2, alt);
 	break;

@@ -16,11 +16,13 @@ int ZuDateTime::m_reformationJulian = 2361222;
 
 void ZuDateTime::reformation(int year, int month, int day)
 {
+  ZuDateTime r(year, month, day);
+
+  if (ZuUnlikely(!r)) return; // overflow
+
   m_reformationJulian = 0;
 
   m_reformationYear = 0, m_reformationMonth = 0, m_reformationDay = 0;
-
-  ZuDateTime r(year, month, day);
 
   m_reformationJulian = r.m_julian;
 
@@ -41,6 +43,7 @@ struct tm *ZuDateTime::tm(struct tm *tm_) const
 
 void ZuDateTime::ymd(int &year, int &month, int &day) const
 {
+  if (ZuUnlikely(!*this)) { year = month = day = -1; return; }
   if (ZuLikely(m_julian >= m_reformationJulian)) {
     int i, j, l, n;
 
@@ -72,6 +75,8 @@ void ZuDateTime::ymd(int &year, int &month, int &day) const
 
 void ZuDateTime::hms(int &hour, int &minute, int &sec) const
 {
+  if (ZuUnlikely(!*this)) { hour = minute = sec = -1; return; }
+
   int sec_ = m_sec;
 
   hour = sec_ / 3600, sec_ %= 3600,
@@ -80,14 +85,16 @@ void ZuDateTime::hms(int &hour, int &minute, int &sec) const
 
 void ZuDateTime::hmsn(int &hour, int &minute, int &sec, int &nsec) const
 {
+  if (ZuUnlikely(!*this)) { hour = minute = sec = nsec = -1; return; }
   hms(hour, minute, sec);
   nsec = m_nsec;
 }
 
 // week (0-53) wkDay (1-7)
 // 1st Monday in year is 1st day of week 1
-void ZuDateTime::ywd(int year, int days, int &week, int &wkDay) const
+void ZuDateTime::ywd(int days, int &week, int &wkDay) const
 {
+  if (ZuUnlikely(!*this)) { wkDay = -1; return; }
   int wkDay_ = m_julian % 7;
   if (wkDay_ < 0) wkDay_ += 7;
   wkDay = wkDay_ + 1;
@@ -96,8 +103,9 @@ void ZuDateTime::ywd(int year, int days, int &week, int &wkDay) const
 
 // week (0-53) wkDay (1-7)
 // 1st Sunday in year is 1st day of week 1
-void ZuDateTime::ywdSun(int year, int days, int &week, int &wkDay) const
+void ZuDateTime::ywdSun(int days, int &week, int &wkDay) const
 {
+  if (ZuUnlikely(!*this)) { week = wkDay = -1; return; }
   int wkDay_ = (m_julian + 1) % 7;
   if (wkDay_ < 0) wkDay_ += 7;
   wkDay = wkDay_ + 1;
@@ -109,6 +117,7 @@ void ZuDateTime::ywdSun(int year, int days, int &week, int &wkDay) const
 void ZuDateTime::ywdISO(
     int year, int days, int &wkYear, int &week, int &wkDay) const
 {
+  if (ZuUnlikely(!*this)) { wkYear = week = wkDay = -1; return; }
   int wkDay_ = m_julian % 7;
   if (wkDay_ < 0) wkDay_ += 7;
   wkDay = wkDay_ + 1;

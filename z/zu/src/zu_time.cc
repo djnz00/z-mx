@@ -60,8 +60,9 @@ char *zu_time_out_csv(char *s_, const zu_time *v_)
   thread_local ZuDateTimeFmt::CSV fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
-  ZuStream s{s_, 32U};
+  ZuStream s{s_, 31U};
   s << d.print(fmt);
+  *s.data() = 0;
   return s.data();
 }
 
@@ -74,8 +75,9 @@ char *zu_time_out_iso(char *s_, const zu_time *v_)
   thread_local ZuDateTimeFmt::ISO fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
-  ZuStream s{s_, 40U};
+  ZuStream s{s_, 39U};
   s << d.print(fmt);
+  *s.data() = 0;
   return s.data();
 }
 
@@ -88,22 +90,23 @@ char *zu_time_out_fix(char *s_, const zu_time *v_)
   thread_local ZuDateTimeFmt::FIX<-3> fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
-  ZuStream s{s_, 32U};
+  ZuStream s{s_, 31U};
   s << d.print(fmt);
+  *s.data() = 0;
   return s.data();
 }
 
 zu_decimal *zu_time_to_decimal(zu_decimal *d_, const zu_time *v_)
 {
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
-  auto &d = *reinterpret_cast<ZuDecimal *>(d_);
-  d = v.as_decimal();
+  ZuDecimal d = v.as_decimal();
+  d_->value = d.value;
   return d_;
 }
 
 zu_time *zu_time_from_decimal(zu_time *v_, const zu_decimal *d_)
 {
-  const auto &d = *reinterpret_cast<const ZuDecimal *>(d_);
+  ZuDecimal d{ZuDecimal::Unscaled{d_->value}};
   new (v_) ZuTime{d};
   return v_;
 }
@@ -126,7 +129,7 @@ zu_time *zu_time_add(
 {
   auto &v = *reinterpret_cast<ZuTime *>(v_);
   const auto &l = *reinterpret_cast<const ZuTime *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   v = l + r;
   return v_;
 }
@@ -135,16 +138,16 @@ zu_time *zu_time_sub(
 {
   auto &v = *reinterpret_cast<ZuTime *>(v_);
   const auto &l = *reinterpret_cast<const ZuTime *>(l_);
-  const auto &r = *reinterpret_cast<const ZuDecimal *>(r_);
+  ZuDecimal r{ZuDecimal::Unscaled{r_->value}};
   v = l - r;
   return v_;
 }
 zu_decimal *zu_time_delta(
     zu_decimal *v_, const zu_time *l_, const zu_time *r_)
 {
-  auto &v = *reinterpret_cast<ZuDecimal *>(v_);
   const auto &l = *reinterpret_cast<const ZuTime *>(l_);
   const auto &r = *reinterpret_cast<const ZuTime *>(r_);
-  v = (l - r).as_decimal();
+  ZuDecimal v = (l - r).as_decimal();
+  v_->value = v.value;
   return v_;
 }

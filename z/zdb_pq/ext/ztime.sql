@@ -88,7 +88,7 @@ CREATE OPERATOR - (
   PROCEDURE = ztime_sub
 );
 
-CREATE FUNCTION ztime_delta(ztime, ztime) RETURNS ztime
+CREATE FUNCTION ztime_delta(ztime, ztime) RETURNS zdecimal
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/libz', 'ztime_delta';
 
