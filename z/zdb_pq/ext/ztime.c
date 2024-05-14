@@ -56,12 +56,10 @@ PG_FUNCTION_INFO_V1(ztime_recv);
 Datum ztime_recv(PG_FUNCTION_ARGS) {
   StringInfo buf = (StringInfo)PG_GETARG_POINTER(0);
   zu_time *v = (zu_time *)palloc(sizeof(zu_time));
-  pq_copymsgbytes(buf, (char *)v, sizeof(zu_time));
-  if (likely(sizeof(time_t) == 8))
-	v->tv_sec = pg_bswap64(v->tv_sec);
-  else
-	v->tv_sec = pg_bswap32(v->tv_sec);
+  pq_copymsgbytes(buf, (char *)v, 12);
+  v->tv_sec = pg_bswap64(v->tv_sec);
   v->tv_nsec = pg_bswap32(v->tv_nsec);
+  v->_ = 0;
   PG_RETURN_POINTER(v);
 }
 
@@ -71,15 +69,12 @@ Datum ztime_send(PG_FUNCTION_ARGS) {
   zu_time v = *v_;
   StringInfoData buf;
   pq_begintypsend(&buf);
-  enlargeStringInfo(&buf, sizeof(zu_time));
-  Assert(buf.len + sizeof(zu_time) <= buf.maxlen);
-  if (likely(sizeof(time_t) == 8))
-	v.tv_sec = pg_bswap64(v.tv_sec);
-  else
-	v.tv_sec = pg_bswap32(v.tv_sec);
+  enlargeStringInfo(&buf, 12);
+  Assert(buf.len + 12 <= buf.maxlen);
+  v.tv_sec = pg_bswap64(v.tv_sec);
   v.tv_nsec = pg_bswap32(v.tv_nsec);
-  memcpy((char *)(buf.data + buf.len), &v, sizeof(zu_time));
-  buf.len += sizeof(zu_time);
+  memcpy((char *)(buf.data + buf.len), &v, 12);
+  buf.len += 12;
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
