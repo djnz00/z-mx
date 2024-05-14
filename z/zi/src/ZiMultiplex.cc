@@ -1130,7 +1130,7 @@ bool ZiMultiplex::epollRecv(ZiConnection *cxn, int s, uint32_t events)
   struct epoll_event ev;
   memset(&ev, 0, sizeof(struct epoll_event));
   ev.events = events | EPOLLOUT | EPOLLET;
-  ev.data.u64 = (uintptr_t)cxn;
+  ev.data.u64 = reinterpret_cast<uintptr_t>(cxn);
   if (epoll_ctl(m_epollFD, EPOLL_CTL_MOD, s, &ev) < 0) {
     Error("epoll_ctl(EPOLL_CTL_MOD)", Zi::IOError, ZeLastError);
     return false;
@@ -1629,7 +1629,7 @@ bool ZiMultiplex::cxnAdd(ZiConnection *cxn, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
-    ev.data.u64 = (uintptr_t)cxn;
+    ev.data.u64 = reinterpret_cast<uintptr_t>(cxn);
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_cxns->del(s);
@@ -1661,7 +1661,7 @@ bool ZiMultiplex::listenerAdd(Listener *listener, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN | EPOLLET;
-    ev.data.u64 = ((uintptr_t)listener) | 1;
+    ev.data.u64 = reinterpret_cast<uintptr_t>(listener) | 1;
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_listeners->del(s);
@@ -1693,7 +1693,7 @@ bool ZiMultiplex::connectAdd(Connect *request, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLOUT;
-    ev.data.u64 = ((uintptr_t)request) | 2;
+    ev.data.u64 = reinterpret_cast<uintptr_t>(request) | 2;
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_connects->del(s);
@@ -2137,7 +2137,7 @@ void ZiMultiplex::rx()
 	if (ZuLikely(v == 3)) { wake = readWake(); continue; }
 
 	if (ZuLikely((v & 3) == 1)) {
-	  Listener *listener = (Listener *)(v & ~(uintptr_t)3);
+	  Listener *listener = (Listener *)(v & ~static_cast<uintptr_t>(3));
 	  if (ZuLikely(!(events & EPOLLERR))) {
 	    accept(listener);
 	    continue;
@@ -2154,7 +2154,7 @@ void ZiMultiplex::rx()
 	}
 	  
 	if (ZuLikely((v & 3) == 2)) {
-	  ZmRef<Connect> request = (Connect *)(v & ~(uintptr_t)3);
+	  ZmRef<Connect> request = (Connect *)(v & ~static_cast<uintptr_t>(3));
 	  if (ZuLikely(!(events & EPOLLERR))) {
 	    connect(request);
 	    continue;
