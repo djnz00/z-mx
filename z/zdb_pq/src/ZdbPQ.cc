@@ -6,6 +6,10 @@
 
 #include <zlib/ZdbPQ.hh>
 
+#include <zlib/ZtCase.hh>
+
+#include <zlib/ZeLog.hh>
+
 // #include <postgresql/server/catalog/pg_type_d.h>
 
 namespace ZdbPQ { namespace PQStore {
@@ -30,14 +34,14 @@ InitResult Store::init(ZvCf *cf, LogFn) {
   m_conn = PQconnectdb("test"/* connection */);
 
   if (!m_conn || PQstatus(m_conn) != CONNECTION_OK) {
-    ZeLOG(Error, ([error = ZtString{PQerrorMessage(m_conn)}](auto &s) {
-      s << "PQconnectdb() failed: " << error;
-    }));
+    ZtString error = PQerrorMessage(m_conn);
     if (m_conn) {
       PQfinish(m_conn);
       m_conn = nullptr;
     }
-    return;
+    return {ZeMEVENT(Error, ([error = ZuMv(error)](auto &s) {
+      s << "PQconnectdb() failed: " << error;
+    }))};
   }
 
   {
@@ -92,6 +96,93 @@ void Store::open(
 
 namespace PQStoreTbl {
 
+// resolve Value union discriminator from field metadata
+FBField fbField(
+  const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_,
+  const ZtMField *field,
+  const ZtString &id)
+{
+  // resolve flatbuffers reflection data for field
+  const reflection::Field *fbField = fbFields_->LookupByKey(id);
+  if (!fbField) return {nullptr, 0};
+  unsigned type = 0;
+  auto ftype = field->type;
+  switch (fbField->type()->base_type()) {
+    case reflection::String:
+      if (ftype->code == ZtFieldTypeCode::CString ||
+	  ftype->code == ZtFieldTypeCode::String)
+	type = Type::String;
+      break;
+    case reflection::Bool:
+      if (ftype->code == ZtFieldTypeCode::Bool)
+	type = Type::Bool;
+      break;
+    case reflection::Byte:
+    case reflection::Short:
+    case reflection::Int:
+    case reflection::Long:
+      if (ftype->code == ZtFieldTypeCode::Int) {
+	type = Type::Int64;
+      } else if (ftype->code == ZtFieldTypeCode::Enum) {
+	type = Type::Enum;
+      }
+      break;
+    case reflection::UByte:
+    case reflection::UShort:
+    case reflection::UInt:
+    case reflection::ULong:
+      if (ftype->code == ZtFieldTypeCode::UInt) {
+	type = Type::UInt64;
+      } else if (ftype->code == ZtFieldTypeCode::Flags) {
+	type = Type::Flags;
+      }
+      break;
+    case reflection::Float:
+    case reflection::Double:
+      if (ftype->code == ZtFieldTypeCode::Float)
+	type = Type::Float;
+      break;
+    case reflection::Obj: {
+      switch (ftype->code) {
+	case ZtFieldTypeCode::Fixed:
+	  type = Type::Fixed;
+	  break;
+	case ZtFieldTypeCode::Decimal:
+	  type = Type::Decimal;
+	  break;
+	case ZtFieldTypeCode::Time:
+	  type = Type::Time;
+	  break;
+	case ZtFieldTypeCode::DateTime:
+	  type = Type::DateTime;
+	  break;
+	case ZtFieldTypeCode::UDT: {
+	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
+	  if (ftindex == std::type_index{typeid(int128_t)}) {
+	    type = Type::Int128;
+	    break;
+	  }
+	  if (ftindex == std::type_index{typeid(uint128_t)}) {
+	    type = Type::UInt128;
+	    break;
+	  }
+	  if (ftindex == std::type_index{typeid(ZiIP)}) {
+	    type = Type::IP;
+	    break;
+	  }
+	  if (ftindex == std::type_index{typeid(ZuID)}) {
+	    type = Type::ID;
+	    break;
+	  }
+	}
+      }
+    } break;
+    default:
+      break;
+  }
+  return {fbField, type};
+}
+
 StoreTbl::StoreTbl(
   ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
   const reflection::Schema *schema) :
@@ -145,5 +236,7 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) { }
 void StoreTbl::recover(UN un, RowFn rowFn) { }
 
 void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn) { }
+
+} // PQStoreTbl 
 
 } // ZdbPQ

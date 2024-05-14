@@ -19,45 +19,55 @@
 
 #include <zlib/ZdbStore.hh>
 
-// (*)  Postgres uint extension https://github.com/djnz00/pguint
-// (**) libz Postgres extension
-//
-// C++		flatbuffers	pg_type.typname	pg send/receive format
-//
-// bool		Bool		bool		uint8_t BE
-// int8_t	Byte		int1 (*)	int8_t BE
-// uint8_t	UByte		uint1 (*)	uint8_t BE
-// int16_t	Short		int2		int16_t BE
-// uint16_t	UShort		uint2 (*)	uint16_t BE
-// int32_t	Int		int4		int16_t BE
-// uint32_t	UInt		uint4 (*)	uint32_t BE
-// int64_t	Long		int8		int64_t BE
-// uint64_t	ULong		uint8 (*)	uint64_t BE
-// float	Float		float4		float | int32_t BE
-// double	Double		float8		double | int64_t BE
-// <string>	String		text		uint32_t len, null-term. data
-// 						(len might not be byteswapped?)
-//
-// ZuFixed	Zfb.Fixed	zdecimal (**)	int128_t BE
-// ZuDecimal	Zfb.Decimal	zdecimal (**)	int128_t BE
-// ZuTime	Zfb.Time	ztime		int64_t BE, int32_t BE
-// ZuDateTime	Zfb.DateTime	ztime		''
-// int128_t	Zfb.Int128	int16 (*)	int128_t BE
-// uint128_t	Zfb.UInt128	uint16 (*)	uint128_t BE
-// ZiIP		Zfb.IP		inet		4 header bytes {
-// 						  family(AF_INET=2),
-// 						  bits(32),
-// 						  is_cidr(false),
-// 						  len(4)
-// 						}, uint32_t BE address
-// ZuID		Zfb.ID		text		see above
-
 namespace ZdbPQ {
+
+namespace Type {
+
+ZtEnumValues(Type,
+  Void = 0,
+	    // C++        flatbuffers     PG SQL        PG send/recv
+	    // ---        -----------     ------        ------------
+  String,   // ZuString   String          text          raw data
+  Bytes,    // ZuBytes    Vector<uint8_t> bytea         raw data
+  Bool,     // bool       Bool            bool          uint8_t
+  Int64,    // int64_t    Long            int8     (*)  int64_t BE
+  UInt64,   // uint64_t   ULong           uint8    (*)  uint64_t BE
+  Enum,     // int        Byte            int1          int8_t
+  Flags,    // uint64_t   ULong           uint8    (*)  uint64_t BE
+  Float,    // double     Double          float8        double | int64_t BE
+  Fixed,    // ZuFixed    Zfb.Fixed       zdecimal (**) int128_t BE
+  Decimal,  // ZuDecimal  Zfb.Decimal     zdecimal (**) int128_t BE
+  Time,     // ZuTime     Zfb.Time        ztime    (**) int64_t BE, int32_t BE
+  DateTime, // ZuDateTime Zfb.DateTime    ztime    (**) int64_t BE, int32_t BE
+  Int128,   // int128_t   Zfb.Int128      int16    (**) int128_t BE
+  UInt128,  // uint128_t  Zfb.UInt128     uint16   (**) uint128_t BE
+  IP,       // ZiIP       Zfb.IP          inet          (***)
+  ID);      // ZuID       Zfb.ID          text          raw data
+
+} // Type
+
+// (*)   Postgres uint extension https://github.com/djnz00/pguint
+// (**)  libz Postgres extension
+// (***) Postgres IP format is 4 header bytes { 
+//         family(AF_INET=2),
+//         bits(32),
+//         is_cidr(false),
+//         len(4)
+//       } followed by uint32_t BE address
 
 namespace PQStoreTbl {
 
 using namespace Zdb_;
 using namespace Zdb_::StoreTbl_;
+
+// --- flatbuffer field arrays
+
+struct FBField {
+  const reflection::Field	*field;
+  unsigned			type;	// Value union discriminator
+};
+using FBFields = ZtArray<FBField>;
+using FBKeyFields = ZtArray<FBFields>;
 
 class StoreTbl : public Interface {
 public:
@@ -69,20 +79,20 @@ protected:
   ~StoreTbl();
 
 public:
-  void open() { }
-  void close() { }
+  void open();
+  void close();
 
-  void warmup() { }
+  void warmup();
 
-  void drop() { }
+  void drop();
 
-  void maxima(MaxFn maxFn) { }
+  void maxima(MaxFn maxFn);
 
-  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) { }
+  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn);
 
-  void recover(UN un, RowFn rowFn) { }
+  void recover(UN un, RowFn rowFn);
 
-  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn) { }
+  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn);
 
 private:
   ZuID			m_id;

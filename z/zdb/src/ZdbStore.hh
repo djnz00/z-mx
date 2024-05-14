@@ -25,6 +25,8 @@
 
 #include <zlib/ZePlatform.hh>
 
+#include <zlib/ZvCf.hh>
+
 #include <zlib/ZdbBuf.hh>
 #include <zlib/ZdbMsg.hh>
 #include <zlib/ZdbTypes.hh>
