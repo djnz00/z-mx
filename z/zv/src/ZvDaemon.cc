@@ -21,36 +21,41 @@
 #pragma warning(disable:4996)
 #endif
 
-int ZvDaemon::init(const char *username, const char *password, int umask,
-    bool daemonize, const char *pidFile)
+int ZvDaemon::init(
+  const char *username, const char *password,
+  int umask, bool daemonize, const char *pidFile)
 {
 #ifndef _WIN32
 
-// set uid/gid
+  // set uid/gid
 
   if (username) {
     struct passwd *p = getpwnam(username);
 
     if (!p) {
-      ZeLOG(Error, ZtSprintf("getpwnam(\"%s\") failed", username));
+      ZeLOG(Error, ([e = username](auto &s) {
+	s << "getpwnam(\"" << e << "\") failed";
+      }));
     } else {
       setregid(p->pw_gid, p->pw_gid);
       setreuid(p->pw_uid, p->pw_uid);
     }
   }
 
-// set umask
+  // set umask
 
   if (umask >= 0) ::umask(umask);
 
-// daemon-ize
+  // daemon-ize
 
   if (daemonize) {
     close(0);
 
     switch (fork()) {
     case -1:
-      ZeLOG(Fatal, ZtSprintf("fork() failed: %s", ZeLastError.message()));
+      ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	s << "fork() failed: " << e.message() << "";
+      }));
       return Error;
       break;
     case 0:
@@ -66,12 +71,11 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 #else
 
   if (username || daemonize) {
-
     // on Windows, re-invoke the same program unless ZvDaemon is set
     bool daemon = false;
 
     // get path to current program
-	ZtWString path((const wchar_t *)0, Zi::PathMax);
+    ZtWString path((const wchar_t *)0, Zi::PathMax);
     GetModuleFileName(0, path.data(), path.size());
     path.calcLength();
     path.truncate();
@@ -106,31 +110,35 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 
       if (!username) {
 	// re-invoke same program
-	if (!CreateProcess(path, commandLine, 0, 0, TRUE,
-			   flags, 0, 0, &si, &pi)) {
-	  ZeLOG(Fatal, ZtSprintf(
-		"CreateProcess failed: %s", ZeLastError.message()));
+	if (!CreateProcess(
+	      path, commandLine, 0, 0, TRUE, flags, 0, 0, &si, &pi)) {
+	  ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	    s << "CreateProcess failed: " << e.message();
+	  }));
 	  return Error;
 	}
       } else {
 	// re-invoke same program as impersonated user
 	HANDLE user;
-	if (!LogonUser(ZtWString(username), 0, ZtWString(password),
-		       LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT,
-		       &user)) {
-	  ZeLOG(Fatal, ZtSprintf(
-		"LogonUser failed: %s", ZeLastError.message()));
+	if (!LogonUser(
+	      ZtWString(username), 0, ZtWString(password),
+	      LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, &user
+	    )) {
+	  ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	    s << "LogonUser failed: " << e.message();
+	  }));
 	  return Error;
 	}
 
 	HANDLE token;
-	if (!DuplicateTokenEx(user,
-			  TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY,
-			      0, SecurityImpersonation, TokenPrimary,
-			      &token)) {
+	if (!DuplicateTokenEx(
+	      user, TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY, 0,
+	      SecurityImpersonation, TokenPrimary, &token
+	    )) {
 	  CloseHandle(user);
-	  ZeLOG(Fatal, ZtSprintf(
-		"DuplicateTokenEx failed: %s", ZeLastError.message()));
+	  ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	    s << "DuplicateTokenEx failed: " << e.message();
+	  }));
 	  return Error;
 	}
 
@@ -138,8 +146,9 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 
 	if (!ImpersonateLoggedOnUser(token)) {
 	  CloseHandle(token);
-	  ZeLOG(Fatal, ZtSprintf(
-		"ImpersonateLoggedOnUser failed: %s", ZeLastError.message()));
+	  ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	    s << "ImpersonateLoggedOnUser failed: ", e.message();
+	  }));
 	  return Error;
 	}
 
@@ -156,12 +165,15 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 
 	si.lpDesktop = (wchar_t *)L"Winsta0\\Default";
 
-	if (!CreateProcessAsUser(token, path, GetCommandLine(), &sa, 0, TRUE,
-				 flags, 0, 0, &si, &pi)) {
+	if (!CreateProcessAsUser(
+	      token, path, GetCommandLine(), &sa, 0, TRUE, flags, 0, 0, &si,
+	      &pi
+	    )) {
 	  RevertToSelf();
 	  CloseHandle(token);
-	  ZeLOG(Fatal, ZtSprintf(
-		"CreateProcessAsUser failed: %s", ZeLastError.message()));
+	  ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
+	    s << "CreateProcessAsUser failed: " << e.message();
+	  }));
 	  return Error;
 	}
 
@@ -178,17 +190,19 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 
 #endif /* !_WIN32 */
 
-// create / check PID file
+  // create / check PID file
 
   if (pidFile) {
     ZiFile file;
     ZeError e;
     ZtString buf;
 
-    if (file.open(pidFile, ZiFile::Create | ZiFile::Exclusive | ZiFile::GC,
-		  0644, &e) != Zi::OK) {
+    if (file.open(pidFile,
+	ZiFile::Create | ZiFile::Exclusive | ZiFile::GC, 0644, &e) != Zi::OK) {
       if (file.open(pidFile, ZiFile::GC, 0, &e) != Zi::OK) {
-	ZeLOG(Error, ZtSprintf("open(%s): %s", pidFile, e.message()));
+	ZeLOG(Error, ([f = ZtString{pidFile}, e](auto &s) {
+	  s << "open(" << f << "): " << e.message();
+	}));
 	return Error;
       }
 
@@ -197,7 +211,9 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
       int n;
 
       if ((n = file.read(buf.data(), 15, &e)) < 0) {
-	ZeLOG(Error, ZtSprintf("read(%s): %s", pidFile, e.message()));
+	ZeLOG(Error, ([f = ZtString{pidFile}, e](auto &s) {
+	  s << "read(" << f << "): " << e.message();
+	}));
 	return Error;
       }
 
@@ -210,7 +226,9 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 	int i = kill(pid, 0);
 
 	if (i >= 0 || (i < 0 && errno == EPERM)) {
-	  ZeLOG(Error, ZtSprintf("PID %d still running", pid));
+	  ZeLOG(Error, ([pid](auto &s) {
+	    s << "PID " << pid << " still running";
+	  }));
 	  return Running;
 	}
 #else
@@ -218,7 +236,9 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
 
 	if (h) {
 	  CloseHandle(h);
-	  ZeLOG(Error, ZtSprintf("PID %d still running", pid));
+	  ZeLOG(Error, ([pid](auto &s) {
+	    s << "PID " << pid << " still running";
+	  }));
 	  return Running;
 	}
 #endif
@@ -230,7 +250,9 @@ int ZvDaemon::init(const char *username, const char *password, int umask,
     buf = ZuBox<int>(Zm::getPID());
 
     if (file.write(buf.data(), buf.length(), &e) != Zi::OK) {
-      ZeLOG(Error, ZtSprintf("write(%s): %s", pidFile, e.message()));
+      ZeLOG(Error, ([f = ZtString{pidFile}, e](auto &s) {
+	s << "write(" << f << "): " << e.message();
+      }));
       return Error;
     }
   }
