@@ -268,7 +268,7 @@ namespace Save {
   inline auto fixed(const ZuFixed &v) {
     return Fixed{
       static_cast<int64_t>(v.mantissa()),
-      static_cast<uint8_t>(v.exponent())};
+      static_cast<uint8_t>(v.ndp())};
   }
 
   // decimal
@@ -383,7 +383,7 @@ namespace Load {
 
   // fixed
   inline ZuFixed fixed(const Fixed *v) {
-    return ZuFixed{v->mantissa(), v->exponent()};
+    return ZuFixed{v->mantissa(), v->ndp()};
   }
 
   // decimal

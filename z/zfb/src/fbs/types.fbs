@@ -12,7 +12,7 @@ struct Int128 { // int128_t
 }
 struct Fixed { // ZuFixed
   mantissa:int64;
-  exponent:uint8;
+  ndp:uint8;
 }
 struct Decimal { // ZuDecimal
   h:uint64;
