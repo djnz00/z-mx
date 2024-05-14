@@ -196,9 +196,7 @@ private:
     m_i = B::bswap(*i_);
   }
   template <typename T>
-  ZuIs<T, ZuByteSwap, T> get() const {
-    return *this;
-  }
+  ZuIs<T, ZuByteSwap, T> get() const { return *this; }
   template <typename T>
   ZuIfT<
       !ZuInspect<T, ZuByteSwap>::Is &&
