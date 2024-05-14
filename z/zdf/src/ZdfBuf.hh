@@ -34,7 +34,7 @@ struct Hdr {
   using Int64 = ZuLittleEndian<int64_t>;
 
   UInt64	offset_ = 0;
-  UInt64	cle_ = 0;	// count/length/exponent
+  UInt64	cle_ = 0;	// count/length/ndp
   Int64		last = 0;	// last value in buffer
 
 private:
@@ -44,8 +44,8 @@ private:
 public:
   constexpr static uint64_t lengthMax() { return countMask(); }
 private:
-  constexpr static uint64_t expMask() { return 0x1fULL; }
-  constexpr static unsigned expShift() { return 56U; }
+  constexpr static uint64_t ndpMask() { return 0x1fULL; }
+  constexpr static unsigned ndpShift() { return 56U; }
 
   uint64_t cle() const { return cle_; }
 
@@ -56,12 +56,12 @@ public:
   unsigned count() const { return cle() & countMask(); }
   // length of this buffer in bytes
   unsigned length() const { return (cle()>>lengthShift()) & lengthMask(); }
-  // negative decimal exponent of values in this buffer
-  unsigned exponent() const { return cle()>>expShift(); }
+  // ndp of values in this buffer
+  unsigned ndp() const { return cle()>>ndpShift(); }
 
   void offset(uint64_t v) { offset_ = v; }
-  void cle(uint64_t count, uint64_t length, uint64_t exponent) {
-    cle_ = count | (length<<lengthShift()) | (exponent<<expShift());
+  void cle(uint64_t count, uint64_t length, uint64_t ndp) {
+    cle_ = count | (length<<lengthShift()) | (ndp<<ndpShift());
   }
 };
 #pragma pack(pop)
@@ -159,10 +159,10 @@ public:
     return Writer{start, end};
   }
   template <typename Writer>
-  void sync(const Writer &writer, unsigned exponent, int64_t last) {
+  void sync(const Writer &writer, unsigned ndp, int64_t last) {
     auto hdr = this->hdr();
     auto start = data() + sizeof(Hdr);
-    hdr->cle(writer.count(), writer.pos() - start, exponent);
+    hdr->cle(writer.count(), writer.pos() - start, ndp);
     hdr->last = last;
   }
 

@@ -43,7 +43,7 @@ public:
 
   Reader() { }
   Reader(const Reader &r) :
-      m_series(r.m_series), m_buf(r.m_buf), m_exponent(r.m_exponent),
+      m_series(r.m_series), m_buf(r.m_buf), m_ndp(r.m_ndp),
       m_decoder(r.m_decoder) { }
   Reader &operator =(const Reader &r) {
     if (ZuLikely(this != &r)) {
@@ -53,7 +53,7 @@ public:
     return *this;
   }
   Reader(Reader &&r) :
-      m_series(r.m_series), m_buf(ZuMv(r.m_buf)), m_exponent(r.m_exponent),
+      m_series(r.m_series), m_buf(ZuMv(r.m_buf)), m_ndp(r.m_ndp),
       m_decoder(ZuMv(r.m_decoder)) { }
   Reader &operator =(Reader &&r) {
     if (ZuLikely(this != &r)) {
@@ -68,7 +68,7 @@ private:
   Reader(const Series *s, ZmRef<Buf> buf, Decoder r) :
       m_series(s), m_buf(ZuMv(buf)), m_decoder(ZuMv(r)) {
     if (ZuUnlikely(!*this)) return;
-    m_exponent = m_buf->hdr()->exponent();
+    m_ndp = m_buf->hdr()->ndp();
   }
 
 public:
@@ -83,14 +83,14 @@ public:
     if (ZuUnlikely(!*this)) return;
     m_decoder =
       m_series->template seekFwd<Decoder>(m_buf, offset);
-    m_exponent = m_buf->hdr()->exponent();
+    m_ndp = m_buf->hdr()->ndp();
   }
   // seek reverse to offset
   void seekRev(uint64_t offset) {
     if (ZuUnlikely(!*this)) return;
     m_decoder =
       m_series->template seekFwd<Decoder>(m_buf, offset);
-    m_exponent = m_buf->hdr()->exponent();
+    m_ndp = m_buf->hdr()->ndp();
   }
 
   // series must be monotonically increasing to use find*() (e.g. time series)
@@ -106,14 +106,14 @@ public:
     if (ZuUnlikely(!*this)) return;
     m_decoder =
       m_series->template findFwd<Decoder>(m_buf, value);
-    m_exponent = m_buf->hdr()->exponent();
+    m_ndp = m_buf->hdr()->ndp();
   }
   // seek backwards to >= value
   void findRev(const ZuFixed &value) {
     if (ZuUnlikely(!*this)) return;
     m_decoder =
       m_series->template findRev<Decoder>(m_buf, value);
-    m_exponent = m_buf->hdr()->exponent();
+    m_ndp = m_buf->hdr()->ndp();
   }
 
   // read single value
@@ -124,9 +124,9 @@ public:
       m_decoder = m_series->template nextDecoder<Decoder>(m_buf);
       if (ZuUnlikely(!m_decoder || !m_decoder.read(mantissa)))
 	return false;
-      m_exponent = m_buf->hdr()->exponent();
+      m_ndp = m_buf->hdr()->ndp();
     }
-    value = {mantissa, m_exponent};
+    value = {mantissa, m_ndp};
     return true;
   }
 
@@ -146,7 +146,7 @@ public:
 private:
   const Series	*m_series = nullptr;
   ZmRef<Buf>	m_buf;
-  unsigned	m_exponent = 0;
+  unsigned	m_ndp = 0;
   Decoder	m_decoder;
 };
 
@@ -164,11 +164,11 @@ public:
   Writer(Writer &&w) :
       m_series(w.m_series),
       m_buf(ZuMv(w.m_buf)),
-      m_exponent(w.m_exponent),
+      m_ndp(w.m_ndp),
       m_encoder(ZuMv(w.m_encoder)) {
     w.m_series = nullptr;
     w.m_buf = nullptr;
-    // w.m_exponent = 0;
+    // w.m_ndp = 0;
   }
   Writer &operator =(Writer &&w) {
     if (ZuLikely(this != &w)) {
@@ -183,7 +183,7 @@ public:
   }
 
   void sync() {
-    if (ZuLikely(m_buf)) m_buf->sync(m_encoder, m_exponent, m_encoder.last());
+    if (ZuLikely(m_buf)) m_buf->sync(m_encoder, m_ndp, m_encoder.last());
   }
 
   void save() {
@@ -196,10 +196,10 @@ public:
       m_encoder = m_series->template encoder<Encoder>(m_buf);
       if (ZuUnlikely(!m_buf)) return false;
       m_buf->pin();
-      m_exponent = value.exponent();
+      m_ndp = value.ndp();
       eob = false;
     } else {
-      eob = value.exponent() != m_exponent;
+      eob = value.ndp() != m_ndp;
     }
     if (eob || !m_encoder.write(value.mantissa())) {
       sync();
@@ -207,7 +207,7 @@ public:
       m_encoder = m_series->template nextEncoder<Encoder>(m_buf);
       if (ZuUnlikely(!m_buf)) return false;
       m_buf->pin();
-      m_exponent = value.exponent();
+      m_ndp = value.ndp();
       if (ZuUnlikely(!m_encoder.write(value.mantissa()))) return false;
     }
     return true;
@@ -216,7 +216,7 @@ public:
 private:
   Series	*m_series = nullptr;
   ZmRef<Buf>	m_buf;
-  unsigned	m_exponent = 0;
+  unsigned	m_ndp = 0;
   Encoder	m_encoder;
 };
 
@@ -362,7 +362,7 @@ private:
     {
       auto reader = buf->reader<Decoder>();
       bool found = reader.search(
-	  [mantissa = value_.adjust(buf->hdr()->exponent())](
+	  [mantissa = value_.adjust(buf->hdr()->ndp())](
 	    int64_t skip, unsigned count) -> unsigned {
 	      return skip < mantissa ? count : 0;
 	    });
@@ -392,10 +392,10 @@ private:
       if (!buf) return -1;
       auto reader = buf->template reader<Decoder>();
       auto hdr = buf->hdr();
-      ZuFixed value_{static_cast<int64_t>(0), hdr->exponent()};
+      ZuFixed value_{static_cast<int64_t>(0), hdr->ndp()};
       ZuFixedVal mantissa;
       if (!reader.read(mantissa)) return -1;
-      mantissa = value_.adjust(value.exponent());
+      mantissa = value_.adjust(value.ndp());
       if (value.mantissa() < mantissa) {
 	int64_t delta = mantissa - value.mantissa();
 	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))
@@ -403,7 +403,7 @@ private:
 	return -static_cast<int>(delta);
       }
       value_.mantissa(hdr->last);
-      mantissa = value_.adjust(value.exponent());
+      mantissa = value_.adjust(value.ndp());
       if (value.mantissa() > mantissa) {
 	int64_t delta = value.mantissa() - mantissa;
 	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))

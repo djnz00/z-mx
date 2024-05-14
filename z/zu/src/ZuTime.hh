@@ -291,7 +291,7 @@ public:
   template <typename L, typename R>
   friend inline constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
-    bool(ZuIsExact<ZuTime, R>{}), bool>
+    bool(ZuIsExact<ZuTime, R>{}), int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   template <typename L, typename R>
@@ -307,7 +307,7 @@ public:
   template <typename L, typename R>
   friend inline constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
-    !ZuIsExact<ZuTime, R>{}, bool>
+    !ZuIsExact<ZuTime, R>{}, int>
   operator <=>(const L &l, const R &r) { return l.cmp(ZuTime{r}); }
 
   constexpr bool operator *() const {

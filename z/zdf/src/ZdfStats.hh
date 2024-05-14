@@ -48,7 +48,7 @@ public:
   ~Stats() = default;
 
   double fp(ZuFixedVal v) const {
-    return ZuFixed{v, m_exponent}.fp();
+    return ZuFixed{v, m_ndp}.fp();
   }
 
   unsigned count() const { return m_count; }
@@ -66,10 +66,10 @@ public:
   // the n-1 formula intended for statistical sampling - this
   // implementation performs a running calculation on an entire series
   double std() const { return sqrt(var()); }
-  unsigned exponent() const { return m_exponent; }
+  unsigned ndp() const { return m_ndp; }
 
-  void exponent(unsigned newExp) {
-    auto exp = m_exponent;
+  void ndp(unsigned newExp) {
+    auto exp = m_ndp;
     if (ZuUnlikely(newExp != exp)) {
       if (m_count) {
 	if (newExp > exp) {
@@ -84,14 +84,14 @@ public:
 	  m_var /= (m_ * m_);
 	}
       }
-      m_exponent = newExp;
+      m_ndp = newExp;
       auto m = double(ZuDecimalFn::pow10_64(newExp));
       m_varMul = m * m;
     }
   }
 
   void add(const ZuFixed &v) {
-    exponent(v.exponent());
+    ndp(v.ndp());
     add_(v.mantissa());
   }
 protected:
@@ -104,14 +104,14 @@ protected:
       auto mean = double(m_total += v_) / (n + 1.0);
       auto v = double(v_);
       m_var += (v - prev) * (v - mean);
-	// ZuFixed{fp(m_var) + (v - prev) * (v - mean), m_exponent}.mantissa();
+	// ZuFixed{fp(m_var) + (v - prev) * (v - mean), m_ndp}.mantissa();
     }
     ++m_count;
   }
 
 public:
   void del(const ZuFixed &v) {
-    del_(v.adjust(m_exponent));
+    del_(v.adjust(m_ndp));
   }
 protected:
   void del_(ZuFixedVal v_) {
@@ -128,7 +128,7 @@ protected:
       auto mean = double(m_total -= v_) / (n - 1.0);
       auto v = double(v_);
       m_var -= (v - prev) * (v - mean);
-	// ZuFixed{fp(m_var) - (v - prev) * (v - mean), m_exponent}.mantissa();
+	// ZuFixed{fp(m_var) - (v - prev) * (v - mean), m_ndp}.mantissa();
     }
     --m_count;
   }
@@ -143,7 +143,7 @@ private:
   unsigned	m_count = 0;
   ZuFixedVal	m_total = 0;
   double	m_var = 0.0;	// accumulated variance
-  unsigned	m_exponent = 0;
+  unsigned	m_ndp = 0;
   double	m_varMul = 1.0;
 };
 
@@ -180,9 +180,9 @@ public:
   StatsTree &operator =(StatsTree &&) = default;
   ~StatsTree() = default;
 
-  unsigned exponent() { return Stats::exponent(); }
-  void exponent(unsigned newExp) {
-    auto exp = exponent();
+  unsigned ndp() { return Stats::ndp(); }
+  void ndp(unsigned newExp) {
+    auto exp = ndp();
     if (ZuUnlikely(newExp != exp)) {
       if (count()) {
 	if (newExp > exp)
@@ -190,7 +190,7 @@ public:
 	else
 	  shiftRight(ZuDecimalFn::pow10_64(exp - newExp));
       }
-      Stats::exponent(newExp);
+      Stats::ndp(newExp);
     }
   }
 
@@ -204,12 +204,12 @@ public:
   }
 
   void add(const ZuFixed &v_) {
-    exponent(v_.exponent());
+    ndp(v_.ndp());
     auto v = v_.mantissa();
     add_(v);
   }
   void del(const ZuFixed &v_) {
-    auto v = v_.adjust(exponent());
+    auto v = v_.adjust(ndp());
     auto iter = m_tree.find(v);
     if (iter != end()) del_(iter);
   }

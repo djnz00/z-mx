@@ -81,12 +81,12 @@ struct ZuDecimal {
   }
 
   template <typename V>
-  constexpr ZuDecimal(V v, unsigned exponent, ZuMatchIntegral<V> *_ = nullptr) :
-      value(int128_t(v) * ZuDecimalFn::pow10_64(18 - exponent)) { }
+  constexpr ZuDecimal(V v, unsigned ndp, ZuMatchIntegral<V> *_ = nullptr) :
+      value(int128_t(v) * ZuDecimalFn::pow10_64(18 - ndp)) { }
 
-  constexpr int128_t adjust(unsigned exponent) const {
-    if (ZuUnlikely(exponent == 18)) return value;
-    return value / ZuDecimalFn::pow10_64(18 - exponent);
+  constexpr int128_t adjust(unsigned ndp) const {
+    if (ZuUnlikely(ndp == 18)) return value;
+    return value / ZuDecimalFn::pow10_64(18 - ndp);
   }
 
   constexpr ZuDecimal operator -() const {
@@ -455,7 +455,7 @@ public:
   template <typename L, typename R>
   friend inline constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
-    bool(ZuIsExact<ZuDecimal, R>{}), bool>
+    bool(ZuIsExact<ZuDecimal, R>{}), int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   template <typename L, typename R>
@@ -471,7 +471,7 @@ public:
   template <typename L, typename R>
   friend inline constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
-    !ZuIsExact<ZuDecimal, R>{}, bool>
+    !ZuIsExact<ZuDecimal, R>{}, int>
   operator <=>(const L &l, const R &r) { return l.cmp(ZuDecimal{r}); }
 
   // ! is zero, unary * is !null
@@ -516,7 +516,7 @@ public:
     }
   }
 
-  unsigned exponent() const {
+  unsigned ndp() const {
     auto frac = this->frac();
     if (ZuLikely(!frac)) return 0;
     unsigned exp = 18;
@@ -530,7 +530,7 @@ public:
   }
 
   operator ZuFixed() {
-    auto e = exponent();
+    auto e = ndp();
     return {value / ZuDecimalFn::pow10_128(18 - e), e};
   }
 

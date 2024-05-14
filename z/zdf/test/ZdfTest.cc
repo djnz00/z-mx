@@ -102,13 +102,13 @@ int main(int argc, char **argv)
     ZuFixed v;
     CHECK(reader.read(v));
     CHECK(v.mantissa() == 20 * 42);
-    CHECK(v.exponent() == 9);
+    CHECK(v.ndp() == 9);
     index.findFwd(ZuFixed{200, 0});
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekFwd(index.offset());
     CHECK(reader.read(v));
     CHECK(v.mantissa() == 200 * 42);
-    CHECK(v.exponent() == 9);
+    CHECK(v.ndp() == 9);
     index.findRev(ZuFixed{100, 0});
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekRev(index.offset());
