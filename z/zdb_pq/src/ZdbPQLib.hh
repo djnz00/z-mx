@@ -17,7 +17,7 @@
 
 #ifdef _WIN32
 
-#ifdef ZDB_SCYLLA_EXPORTS
+#ifdef ZDB_PQ_EXPORTS
 #define ZdbPQAPI ZuExport_API
 #define ZdbPQExplicit ZuExport_Explicit
 #else

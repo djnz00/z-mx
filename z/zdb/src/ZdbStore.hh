@@ -21,6 +21,8 @@
 
 #include <zlib/ZuUnion.hh>
 
+#include <zlib/ZmPolymorph.hh>
+
 #include <zlib/ZtField.hh>
 
 #include <zlib/ZePlatform.hh>
@@ -122,7 +124,7 @@ using OpenResult = ZuUnion<
 using OpenFn = ZmFn<OpenResult>;
 
 // backing data store interface
-struct Interface {
+struct Interface : public ZmPolymorph {
   // init and final are synchronous / blocking
   virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,

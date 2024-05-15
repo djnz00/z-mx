@@ -1158,7 +1158,7 @@ using StoreTbls =
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
 
-class Store : public Interface, public ZmPolymorph {
+class Store : public Interface {
 public:
   InitResult init(ZvCf *, LogFn) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};

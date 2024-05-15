@@ -13,5 +13,6 @@ LDADD = $(top_builddir)/zdb/src/libZdb.la \
 	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@FBS_LIBS@ @Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-noinst_PROGRAMS = #zdbtest
-#zdbtest_SOURCES = zdbtest.cc
+noinst_PROGRAMS = zdbpqtest
+zdbpqtest_CXXFLAGS = ${AM_CXXFLAGS} -I../../zdb/test
+zdbpqtest_SOURCES = zdbpqtest.cc

@@ -114,7 +114,7 @@ using namespace Zdb_::Store_;
 
 using StoreTbl = PQStoreTbl::StoreTbl;
 
-class Store : public Interface, public ZmPolymorph {
+class Store : public Interface {
 public:
   InitResult init(ZvCf *cf, LogFn);
   void final();
@@ -135,8 +135,8 @@ public:
       OpenFn openFn);
 
 private:
-  PGconn	*m_conn;
-  int		m_socket;
+  PGconn	*m_conn = nullptr;
+  int		m_socket = -1;
 #ifndef _WIN32
   int		m_epollFD = -1;
   int		m_wakeFD = -1, m_wakeFD2 = -1;		// wake pipe
@@ -151,5 +151,9 @@ private:
 using Store = PQStore::Store;
 
 } // ZdbPQ
+
+extern "C" {
+  ZdbPQExtern Zdb_::Store *ZdbStore();
+}
 
 #endif /* ZdbPQ_HH */

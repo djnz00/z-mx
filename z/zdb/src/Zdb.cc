@@ -49,10 +49,10 @@ void DB::init(
     DBCf config,
     ZiMultiplex *mx,
     DBHandler handler,
-    Store *store)
+    ZmRef<Store> store)
 {
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped,
-	[this, &config, mx, &handler, store]() mutable {
+	[this, &config, mx, &handler, store = ZuMv(store)]() mutable {
     if (state() != HostState::Instantiated) return false;
 
     auto invalidSID = [mx](unsigned sid) -> bool {
@@ -111,7 +111,7 @@ void DB::init(
     m_handler = ZuMv(handler);
     {
       if (store)
-	m_store = store;
+	m_store = ZuMv(store);
       else {
 	if (!m_cf.storeCf)
 	  throw ZeEVENT(Fatal, ([](auto &s) {

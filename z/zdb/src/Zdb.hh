@@ -1550,7 +1550,7 @@ public:
       DBCf config,
       ZiMultiplex *mx,
       DBHandler handler,
-      Store *store = nullptr);
+      ZmRef<Store> store = {});
   void final();
 
   template <typename T>
@@ -1720,7 +1720,7 @@ private:
 
   DBCf			m_cf;
   ZiMultiplex		*m_mx = nullptr;
-  Store			*m_store = nullptr;
+  ZmRef<Store>		m_store;
   bool			m_repStore = false;	// replicated data store
 
   // mutable while stopped

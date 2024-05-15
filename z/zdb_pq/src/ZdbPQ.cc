@@ -29,9 +29,9 @@ struct RxInt128 { ZuBigEndian<int128_t> i; };
 #pragma pack(pop)
 
 InitResult Store::init(ZvCf *cf, LogFn) {
-  // auto connection = cf->get<true>("connection");
+  const auto &connection = cf->get<true>("connection");
 
-  m_conn = PQconnectdb("test"/* connection */);
+  m_conn = PQconnectdb(connection);
 
   if (!m_conn || PQstatus(m_conn) != CONNECTION_OK) {
     ZtString error = PQerrorMessage(m_conn);
@@ -39,24 +39,29 @@ InitResult Store::init(ZvCf *cf, LogFn) {
       PQfinish(m_conn);
       m_conn = nullptr;
     }
-    return {ZeMEVENT(Error, ([error = ZuMv(error)](auto &s) {
+    return {ZeMEVENT(Error, ([error = ZuMv(error)](auto &s, const auto &) {
       s << "PQconnectdb() failed: " << error;
     }))};
   }
+
+  m_socket = PQsocket(m_conn);
 
   {
     Oid paramTypes[1] = { 25 };	// TEXTOID
     const char *paramValues[1] = { "bool" };
     int paramLengths[1] = { 4 };
     int paramFormats[1] = { 1 };
-    PGresult *res = PQexecParams(m_conn,
-      "SELECT oid FROM pg_type WHERE typname = $1::text",
+    const char *query = "SELECT oid FROM pg_type WHERE typname = $1::text";
+    PGresult *res = PQexecParams(m_conn, query,
       1, paramTypes, paramValues, paramLengths, paramFormats, 1);
     if (PQresultStatus(res) != PGRES_TUPLES_OK) {
       // failed
       PQclear(res);
       PQfinish(m_conn);
       m_conn = nullptr;
+      return {ZeMEVENT(Error, ([query](auto &s, const auto &) {
+	s << "Store::init() \"" << query << "\" failed\n";
+      }))};
     }
     assert(PQnfields(res) == 1); // columns
     assert(PQntuples(res) == 1); // rows
@@ -79,7 +84,11 @@ InitResult Store::init(ZvCf *cf, LogFn) {
 
 void Store::final()
 {
-  if (m_conn) PQfinish(m_conn);
+  if (m_conn) {
+    PQfinish(m_conn);
+    m_conn = nullptr;
+  }
+  m_socket = -1;
 }
 
 void Store::open(
@@ -90,6 +99,9 @@ void Store::open(
   MaxFn maxFn,
   OpenFn openFn)
 {
+  openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+    s << "open(" << id << ") failed";
+  }))});
 }
 
 } // PQStore
@@ -240,3 +252,8 @@ void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn) { }
 } // PQStoreTbl 
 
 } // ZdbPQ
+
+Zdb_::Store *ZdbStore()
+{
+  return new ZdbPQ::Store{};
+}
