@@ -10,7 +10,7 @@ noinst_PROGRAMS = \
 	ZuInspectTest ZuHashTest ZuCmpTest ZuBoxTest \
 	ZuArrayTest ZuPairTest ZuIDTest ZuUTFTest ZuBitmapTest \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
-	ZuAxorTest ZuPtrTest ZuTimeTest #ZuDateTimeTest
+	ZuAxorTest ZuPtrTest ZuTimeTest ZuEndianTest #ZuDateTimeTest
 ZuInspectTest_SOURCES = ZuInspectTest.cc
 ZuHashTest_SOURCES = ZuHashTest.cc Analyze.hh
 ZuCmpTest_SOURCES = ZuCmpTest.cc
@@ -29,3 +29,4 @@ ZuAxorTest_SOURCES = ZuAxorTest.cc
 ZuPtrTest_SOURCES = ZuPtrTest.cc
 ZuTimeTest_SOURCES = ZuTimeTest.cc
 #ZuDateTimeTest_SOURCES = ZuDateTimeTest.cc
+ZuEndianTest_SOURCES = ZuEndianTest.cc

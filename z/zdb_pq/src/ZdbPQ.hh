@@ -55,6 +55,33 @@ ZtEnumValues(Type,
 //         len(4)
 //       } followed by uint32_t BE address
 
+struct Type {
+  uint32_t		oid;
+  unsigned		size;
+  ZtFieldTypeCode	code;
+};
+
+#if Zu_BIGENDIAN
+#else
+#endif
+
+using Param_ = ZuUnion<
+  void,
+  ZuString,
+  ZuBytes,
+  bool,
+  ZuBigEndian<int64_t>,
+  ZuBigEndian<uint64_t>,
+  int8_t,
+  ZuBigEndian<uint64_t>,
+  ZuBigEndian<double>,
+  Zu
+
+struct Field {
+  Type			*type;
+  ZtMField		*field;
+};
+
 namespace PQStoreTbl {
 
 using namespace Zdb_;
