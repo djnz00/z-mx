@@ -386,8 +386,6 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
 template <typename T>
 using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;
 
-using ZuBytes = ZuArray<const uint8_t>;
-
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

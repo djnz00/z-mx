@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// universal string span
+// universal byte span
 
-#ifndef ZuString_HH
-#define ZuString_HH
+#ifndef ZuBytes_HH
+#define ZuBytes_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
@@ -19,7 +19,6 @@
 
 #include <zlib/ZuArray.hh>
 
-using ZuString = ZuArray<const char>;
-using ZuWString = ZuArray<const wchar_t>;
+using ZuBytes = ZuArray<const uint8_t>;
 
-#endif /* ZuString_HH */
+#endif /* ZuBytes_HH */

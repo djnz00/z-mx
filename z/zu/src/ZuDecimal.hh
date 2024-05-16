@@ -84,6 +84,10 @@ struct ZuDecimal {
   constexpr ZuDecimal(V v, unsigned ndp, ZuMatchIntegral<V> *_ = nullptr) :
       value(int128_t(v) * ZuDecimalFn::pow10_64(18 - ndp)) { }
 
+  template <typename V>
+  constexpr ZuDecimal(const V &v, ZuExact<ZuFixed, V> *_ = nullptr) :
+      value(int128_t(v.mantissa()) * ZuDecimalFn::pow10_64(18 - v.ndp())) { }
+
   constexpr int128_t adjust(unsigned ndp) const {
     if (ZuUnlikely(ndp == 18)) return value;
     return value / ZuDecimalFn::pow10_64(18 - ndp);
