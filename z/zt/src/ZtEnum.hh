@@ -26,7 +26,6 @@
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmLHash.hh>
-#include <zlib/ZmNoLock.hh>
 
 using ZtEnum = ZuBox_1(int8_t);
 
@@ -63,12 +62,10 @@ using ZtEnum = ZuBox_1(int8_t);
   private: \
     using V2S = \
       ZmLHashKV<ZtEnum, ZuString, \
-	ZmLHashStatic<Bits, \
-	  ZmLHashLock<ZmNoLock> > >; \
+	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
     using S2V = \
       ZmLHashKV<ZuString, ZtEnum, \
-	ZmLHashStatic<Bits, \
-	  ZmLHashLock<ZmNoLock> > >; \
+	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
   protected: \
     void init(const char *s, int v, ...) { \
       if (ZuUnlikely(!s)) return; \
@@ -79,25 +76,25 @@ using ZtEnum = ZuBox_1(int8_t);
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, ZtEnum v) { m_s2v->add(s, v); m_v2s->add(v, s); } \
+    void add(ZuString s, ZtEnum v) { m_s2v.add(s, v); m_v2s.add(v, s); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \
   private: \
-    ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
-    ZuString v2s_(ZtEnum v) const { return m_v2s->findVal(v); } \
+    ZtEnum s2v_(ZuString s) const { return m_s2v.findVal(s); } \
+    ZuString v2s_(ZtEnum v) const { return m_v2s.findVal(v); } \
     template <typename L> void all_(L l) const { \
-      auto i = m_s2v->readIterator(); \
+      auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
 	l(kv->template p<0>(), kv->template p<1>()); \
       } \
     } \
   public: \
-    Map_() { m_s2v = new S2V{}; m_v2s = new V2S{}; } \
+    Map_() = default; \
     static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
     static ZuString v2s(ZtEnum v) { return instance()->v2s_(v); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
-    ZmRef<S2V>	m_s2v; \
-    ZmRef<V2S>	m_v2s; \
+    S2V	m_s2v; \
+    V2S	m_v2s; \
   }
 #define ZtEnumValues(ID, ...) \
   ZtEnumValues_(__VA_ARGS__); \

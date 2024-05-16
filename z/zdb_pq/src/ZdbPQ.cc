@@ -10,23 +10,75 @@
 
 #include <zlib/ZeLog.hh>
 
-// #include <postgresql/server/catalog/pg_type_d.h>
-
-namespace ZdbPQ { namespace PQStore {
+namespace ZdbPQ {
 
 #pragma pack(push, 1)
-struct RxBool { uint8_t i; };
-struct RxUInt8 { uint8_t i; };
-struct RxInt8 { int8_t i; };
-struct RxUInt16 { ZuBigEndian<uint16_t> i; };
-struct RxInt16 { ZuBigEndian<int16_t> i; };
-struct RxUInt32 { ZuBigEndian<uint32_t> i; };
-struct RxInt32 { ZuBigEndian<int32_t> i; };
-struct RxUInt64 { ZuBigEndian<uint64_t> i; };
-struct RxInt64 { ZuBigEndian<int64_t> i; };
-struct RxUInt128 { ZuBigEndian<uint128_t> i; };
-struct RxInt128 { ZuBigEndian<int128_t> i; };
+struct UInt32 { ZuBigEndian<uint32_t> i; };
 #pragma pack(pop)
+
+void OIDs::init(PGconn *conn) {
+  static const char *names[Value::N - 1] = {
+    "text",
+    "bytea",
+    "bool",
+    "int8",
+    "uint8",
+    "int1",
+    "uint8",
+    "float8",
+    "zdecimal",
+    "zdecimal",
+    "ztime",
+    "ztime",
+    "int16",
+    "uint16",
+    "inet",
+    "text"
+  };
+
+  for (unsigned i = 1; i < Value::N; i++) {
+    auto name = names[i - 1];
+    auto oid = this->oid(name);
+    if (oid < 0) oid = resolve(conn, name);
+    m_map.add(name, int8_t(i));
+    m_values[i - 1] = oid;
+  }
+}
+
+uint32_t OIDs::resolve(PGconn *conn, const char *name) {
+  Oid paramTypes[1] = { 25 };	// TEXTOID
+  const char *paramValues[1] = { name };
+  int paramLengths[1] = { int(strlen(name)) };
+  int paramFormats[1] = { 1 };
+  const char *query = "SELECT oid FROM pg_type WHERE typname = $1::text";
+  PGresult *res = PQexecParams(conn, query,
+    1, paramTypes, paramValues, paramLengths, paramFormats, 1);
+  if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+    // failed
+    PQclear(res);
+    throw ZeMEVENT(Error, ([query, name](auto &s, const auto &) {
+      s << "Store::init() \"" << query << "\" $1=\""
+	<< name << "\" failed\n";
+    }));
+  }
+  if (ZuUnlikely(
+      PQnfields(res) != 1 ||
+      PQntuples(res) != 1 ||
+      PQgetlength(res, 0, 0) != 4))
+    throw ZeMEVENT(Error, ([query, name](auto &s, const auto &) {
+      s << "Store::init() \"" << query << "\" $1=\""
+	<< name << "\" returned invalid result\n";
+    }));
+  uint32_t oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, 0, 0))->i;
+#if 0
+  ZeLOG(Debug, ([name, oid](auto &s) {
+    s << "OID::resolve(\"" << name << "\")=" << oid;
+  }));
+#endif
+  return oid;
+}
+
+namespace PQStore {
 
 InitResult Store::init(ZvCf *cf, LogFn) {
   const auto &connection = cf->get<true>("connection");
@@ -44,40 +96,21 @@ InitResult Store::init(ZvCf *cf, LogFn) {
     }))};
   }
 
+  try {
+    m_oids.init(m_conn);
+  } catch (const ZeMEvent &e) {
+    return {ZuMv(const_cast<ZeMEvent &>(e))};
+  }
+
   m_socket = PQsocket(m_conn);
 
-  {
-    Oid paramTypes[1] = { 25 };	// TEXTOID
-    const char *paramValues[1] = { "bool" };
-    int paramLengths[1] = { 4 };
-    int paramFormats[1] = { 1 };
-    const char *query = "SELECT oid FROM pg_type WHERE typname = $1::text";
-    PGresult *res = PQexecParams(m_conn, query,
-      1, paramTypes, paramValues, paramLengths, paramFormats, 1);
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-      // failed
-      PQclear(res);
-      PQfinish(m_conn);
-      m_conn = nullptr;
-      return {ZeMEVENT(Error, ([query](auto &s, const auto &) {
-	s << "Store::init() \"" << query << "\" failed\n";
-      }))};
-    }
-    assert(PQnfields(res) == 1); // columns
-    assert(PQntuples(res) == 1); // rows
-    assert(PQgetlength(res, 0, 0) == 4);
-    uint32_t oid = reinterpret_cast<RxUInt32 *>(PQgetvalue(res, 0, 0))->i;
-    ZeLOG(Debug, ([oid](auto &s) { s << "oid=" << oid; }));
+  if (PQsetnonblocking(m_conn, 1) != 0) {
+    // FIXME - failed
   }
 
-#if 0
-  if (PQsetnonblocking(m_conn, 1) != 0) {
-    // failed
-  }
   if (PQenterPipelineMode(m_conn) != 1) {
-    // failed
+    // FIXME - failed
   }
-#endif
 
   return {InitData{.replicated = true}};
 }
@@ -123,20 +156,20 @@ FBField fbField(
     case reflection::String:
       if (ftype->code == ZtFieldTypeCode::CString ||
 	  ftype->code == ZtFieldTypeCode::String)
-	type = Type::String;
+	type = Value::Index<String>{};
       break;
     case reflection::Bool:
       if (ftype->code == ZtFieldTypeCode::Bool)
-	type = Type::Bool;
+	type = Value::Index<Bool>{};
       break;
     case reflection::Byte:
     case reflection::Short:
     case reflection::Int:
     case reflection::Long:
       if (ftype->code == ZtFieldTypeCode::Int) {
-	type = Type::Int64;
+	type = Value::Index<Int64>{};
       } else if (ftype->code == ZtFieldTypeCode::Enum) {
-	type = Type::Enum;
+	type = Value::Index<Enum>{};
       }
       break;
     case reflection::UByte:
@@ -144,46 +177,46 @@ FBField fbField(
     case reflection::UInt:
     case reflection::ULong:
       if (ftype->code == ZtFieldTypeCode::UInt) {
-	type = Type::UInt64;
+	type = Value::Index<UInt64>{};
       } else if (ftype->code == ZtFieldTypeCode::Flags) {
-	type = Type::Flags;
+	type = Value::Index<Flags>{};
       }
       break;
     case reflection::Float:
     case reflection::Double:
       if (ftype->code == ZtFieldTypeCode::Float)
-	type = Type::Float;
+	type = Value::Index<Float>{};
       break;
     case reflection::Obj: {
       switch (ftype->code) {
 	case ZtFieldTypeCode::Fixed:
-	  type = Type::Fixed;
+	  type = Value::Index<Fixed>{};
 	  break;
 	case ZtFieldTypeCode::Decimal:
-	  type = Type::Decimal;
+	  type = Value::Index<Decimal>{};
 	  break;
 	case ZtFieldTypeCode::Time:
-	  type = Type::Time;
+	  type = Value::Index<Time>{};
 	  break;
 	case ZtFieldTypeCode::DateTime:
-	  type = Type::DateTime;
+	  type = Value::Index<DateTime>{};
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
 	  if (ftindex == std::type_index{typeid(int128_t)}) {
-	    type = Type::Int128;
+	    type = Value::Index<Int128>{};
 	    break;
 	  }
 	  if (ftindex == std::type_index{typeid(uint128_t)}) {
-	    type = Type::UInt128;
+	    type = Value::Index<UInt128>{};
 	    break;
 	  }
 	  if (ftindex == std::type_index{typeid(ZiIP)}) {
-	    type = Type::IP;
+	    type = Value::Index<IP>{};
 	    break;
 	  }
 	  if (ftindex == std::type_index{typeid(ZuID)}) {
-	    type = Type::ID;
+	    type = Value::Index<ID>{};
 	    break;
 	  }
 	}

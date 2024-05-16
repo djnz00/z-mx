@@ -15,6 +15,8 @@
 
 #include <zlib/ZtlsLib.hh>
 
+#include <zlib/ZuBytes.hh>
+
 #include <mbedtls/md.h>
 
 namespace Ztls {

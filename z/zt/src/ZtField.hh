@@ -111,17 +111,19 @@
 
 #include <typeinfo>
 
-#include <zlib/ZuPrint.hh>
-#include <zlib/ZuBox.hh>
 #include <zlib/ZuArray.hh>
-#include <zlib/ZuString.hh>
-#include <zlib/ZuFixed.hh>
-#include <zlib/ZuDecimal.hh>
 #include <zlib/ZuUnroll.hh>
 #include <zlib/ZuInspect.hh>
-#include <zlib/ZuField.hh>
-#include <zlib/ZuUnroll.hh>
+#include <zlib/ZuString.hh>
+#include <zlib/ZuBytes.hh>
+#include <zlib/ZuInt.hh>
+#include <zlib/ZuDecimal.hh>
+#include <zlib/ZuFixed.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZuDateTime.hh>
+#include <zlib/ZuPrint.hh>
+#include <zlib/ZuBox.hh>
+#include <zlib/ZuField.hh>
 
 #include <zlib/ZmStream.hh>
 #include <zlib/ZuTime.hh>

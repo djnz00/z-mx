@@ -24,8 +24,14 @@
 
 #include <zlib/ZuID.hh>
 
+#include <zlib/ZuString.hh>
+#include <zlib/ZuBytes.hh>
+#include <zlib/ZuInt.hh>
 #include <zlib/ZuDecimal.hh>
+#include <zlib/ZuFixed.hh>
+#include <zlib/ZuTime.hh>
 #include <zlib/ZuDateTime.hh>
+#include <zlib/ZuID.hh>
 
 #include <zlib/ZmBitmap.hh>
 #include <zlib/ZmAlloc.hh>
