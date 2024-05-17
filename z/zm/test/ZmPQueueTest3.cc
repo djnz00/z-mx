@@ -20,6 +20,13 @@
 #include <zlib/ZuTime.hh>
 #include <zlib/ZmHash.hh>
 
+inline void out(bool ok, const char *s) {
+  std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
+  ZmAssert(ok);
+}
+
+#define CHECK(x) (out((x), #x))
+
 using Msg_Data = ZuTuple<uint32_t, unsigned>;
 struct Msg_ : public ZuObject, public Msg_Data {
   using Msg_Data::Msg_Data;
@@ -185,34 +192,34 @@ int main(int argc, char **argv)
   msg = new App::Msg(App::Gap(1, 1));
   a.send(msg);
   while (a.runSend());
-  assert(a.checkSent(msg));
+  CHECK(a.checkSent(msg));
   a.resend(App::Gap(1, 1));
   while (a.runResend());
-  assert(a.checkResent(msg));
+  CHECK(a.checkResent(msg));
   a.ackd(2);
   while (a.runArchive());
-  assert(a.checkArchived(msg));
+  CHECK(a.checkArchived(msg));
   a.resend(App::Gap(1, 1));
   while (a.runResend());
-  assert(a.checkResent(msg));
+  CHECK(a.checkResent(msg));
 
   // load, send, resend, ack, resend test with gap
   msg = new App::Msg(App::Gap(3, 1));
   a.send(msg);
   while (a.runSend());
-  assert(a.checkSentGap(App::Gap(2, 1)));
-  assert(a.checkSent(msg));
+  CHECK(a.checkSentGap(App::Gap(2, 1)));
+  CHECK(a.checkSent(msg));
   a.resend(App::Gap(2, 2));
   while (a.runResend());
-  assert(a.checkResentGap(App::Gap(2, 1)));
-  assert(a.checkResent(msg));
+  CHECK(a.checkResentGap(App::Gap(2, 1)));
+  CHECK(a.checkResent(msg));
   a.ackd(4);
   while (a.runArchive());
-  assert(a.checkArchived(msg));
+  CHECK(a.checkArchived(msg));
   a.resend(App::Gap(2, 2));
   while (a.runResend());
-  assert(a.checkResentGap(App::Gap(2, 1)));
-  assert(a.checkResent(msg));
+  CHECK(a.checkResentGap(App::Gap(2, 1)));
+  CHECK(a.checkResent(msg));
  
   // load, send, resend, ack, resend test with
   // misaligned partially overlapping resend requests, including gaps
@@ -220,24 +227,24 @@ int main(int argc, char **argv)
   msg = new App::Msg(App::Gap(3, 3));
   a.send(msg);
   while (a.runSend());
-  assert(a.checkSentGap(App::Gap(1, 2)));
-  assert(a.checkSent(msg));
+  CHECK(a.checkSentGap(App::Gap(1, 2)));
+  CHECK(a.checkSent(msg));
   msg2 = new App::Msg(App::Gap(8, 3));
   a.send(msg2);
   while (a.runSend());
-  assert(a.checkSentGap(App::Gap(6, 2)));
-  assert(a.checkSent(msg2));
+  CHECK(a.checkSentGap(App::Gap(6, 2)));
+  CHECK(a.checkSent(msg2));
   a.resend(App::Gap(4, 5));
   while (a.runResend());
-  assert(a.checkResentGap(App::Gap(6, 2)));
-  assert(a.checkResent(msg2));
+  CHECK(a.checkResentGap(App::Gap(6, 2)));
+  CHECK(a.checkResent(msg2));
   a.ackd(4);
   while (a.runArchive());
-  assert(a.checkArchived(msg));
+  CHECK(a.checkArchived(msg));
   a.resend(App::Gap(4, 5));
   while (a.runResend());
-  assert(a.checkResentGap(App::Gap(6, 2)));
-  assert(a.checkResent(msg2));
+  CHECK(a.checkResentGap(App::Gap(6, 2)));
+  CHECK(a.checkResent(msg2));
 
   // resend request spanning unsent data
   a.txReset(1);
@@ -247,13 +254,13 @@ int main(int argc, char **argv)
   a.send(msg2);
   a.resend(App::Gap(1, 12));
   a.runResend();
-  assert(a.checkResentGap(App::Gap(1, 2)));
-  assert(a.checkResent(msg));
+  CHECK(a.checkResentGap(App::Gap(1, 2)));
+  CHECK(a.checkResent(msg));
   a.runResend();
-  assert(a.checkResentGap(App::Gap(6, 2)));
-  assert(a.checkResent(msg2));
+  CHECK(a.checkResentGap(App::Gap(6, 2)));
+  CHECK(a.checkResent(msg2));
   a.runResend();
-  assert(a.checkResentGap(App::Gap(11, 2)));
+  CHECK(a.checkResentGap(App::Gap(11, 2)));
 
   std::cout << ZmHeapMgr::csv();
 }

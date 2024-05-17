@@ -981,7 +981,7 @@ public:
     unsigned gtkTID;
     {
       unsigned nThreads = mx->params().nThreads();
-      m_tid = cf->getInt<true>("thread", 1, nThreads);
+      m_sid = cf->getInt<true>("thread", 1, nThreads);
       gtkTID = cf->getInt<true>("gtkThread", 1, nThreads);
     }
 
@@ -1564,7 +1564,7 @@ private:
 
   int			m_role;	// ZvTelemetry::AppRole
   ZuDateTime		m_uptime;
-  unsigned		m_tid = 0;
+  unsigned		m_sid = 0;
 
   ZvRingParams		m_telRingParams;
   ZuPtr<TelRing>	m_telRing;

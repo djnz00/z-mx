@@ -135,8 +135,7 @@ void DB::init(
       }
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
-      Store_::InitResult result = m_store->init(
-	  m_cf.storeCf, [](Event error) { ZeLogEvent(ZuMv(error)); });
+      Store_::InitResult result = m_store->init(m_cf.storeCf, m_mx, m_cf.sid);
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<Store_::InitData>().replicated;
     }
@@ -1396,7 +1395,7 @@ void DB::replicated(Host *host, ZuID dbID, UN un, SN sn)
 }
 
 AnyTable::AnyTable(DB *db, TableCf *cf) :
-  m_db{db}, m_mx{db->mx()}, m_cf{cf},
+  m_db{db}, m_cf{cf}, m_mx{db->mx()},
   m_storeDLQ{
     ZmXRingParams{}.initial(StoreDLQ_BlkSize).increment(StoreDLQ_BlkSize)},
   m_cacheUN{new CacheUN{}},

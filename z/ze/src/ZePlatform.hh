@@ -135,11 +135,13 @@ struct ZeEventInfo {
   using ThreadID = Zm::ThreadID;
 
   ZuTime	time;
-  ThreadID	tid;
-  int		severity;	// Ze:: Debug, Info, Warning, Error, Fatal
-  const char	*file;
-  int		line;
-  const char	*function;
+  ThreadID	tid = 0;
+  int		severity = -1;	// Ze:: Debug, Info, Warning, Error, Fatal
+  const char	*file = nullptr;
+  int		line = -1;
+  const char	*function = nullptr;
+
+  ZeEventInfo() = default;
 
   ZeEventInfo(
       int severity_,
@@ -150,8 +152,6 @@ struct ZeEventInfo {
     file{file_}, line{line_},
     function{function_} { }
 
-  ZeEventInfo() = delete;
-
   ZeEventInfo(const ZeEventInfo &) = default;
   ZeEventInfo &operator =(const ZeEventInfo &) = default;
 
@@ -159,6 +159,9 @@ struct ZeEventInfo {
   ZeEventInfo &operator =(ZeEventInfo &&) = default;
 
   ~ZeEventInfo() = default;
+
+  bool operator !() const { return !*time; }
+  ZuOpBool
 };
 
 // log buffer
@@ -177,7 +180,7 @@ struct ZeAnyEvent : public ZeEventInfo {
 
   virtual ZeMsgFn fn() const = 0;
 
-  ZeAnyEvent() = delete;
+  ZeAnyEvent() = default;
 
   ZeAnyEvent(const ZeAnyEvent &) = default;
   ZeAnyEvent &operator =(const ZeAnyEvent &) = default;
@@ -280,7 +283,8 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
   template <typename S>
   friend S &operator <<(S &s, const ZeEvent &e) { e.l(s, e); return s; }
 
-  ZeEvent() = delete;
+  ZeEvent() = default;
+
   ZeEvent(const ZeEvent &) = delete;
   ZeEvent &operator =(const ZeEvent &) = delete;
 

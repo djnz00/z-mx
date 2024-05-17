@@ -770,6 +770,12 @@ using namespace Zdb_::Store_;
 
 using StoreTbl = PQStoreTbl::StoreTbl;
 
+struct Max {
+  StoreTbl		*tbl;
+  unsigned		keyID;
+  MaxFn			maxFn;
+};
+
 struct Find {
   StoreTbl		*tbl;
   unsigned		keyID;
@@ -791,20 +797,12 @@ struct Write {
 
 using Query = ZuUnion<Find, Recover, Write>;
 
-// FIXME from here
 using Queue = ZmList<Query>;
 
 class Store : public Interface {
 public:
-  InitResult init(ZvCf *cf, LogFn);
+  InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
   void final();
-
-  // queue of pending queries
-  // PQ socket, wakeup
-  // storeTbls can add requests
-  // responses are dispatched back to storeTbls
-  // requests include completion lambdas, relevant state
-  // start with a simple single connection, add failover later
 
   void open(
       ZuID id,
@@ -815,15 +813,35 @@ public:
       OpenFn openFn);
 
 private:
+  void init_();
+  void final_();
+  void close_fds();
+
+  void wake();
+  void wake_();
+  void run_();
+
+  void read();
+  void parse(PGresult *);
+
+  void write();
+
+  ZvCf		*m_cf = nullptr;
+  ZiMultiplex	*m_mx = nullptr;
+  unsigned	m_sid = ZuCmp<unsigned>::null();
+
   PGconn	*m_conn = nullptr;
   int		m_socket = -1;
 #ifndef _WIN32
   int		m_epollFD = -1;
   int		m_wakeFD = -1, m_wakeFD2 = -1;		// wake pipe
 #else
-  HANDLE	m_connEvent = INVALID_HANDLE_VALUE;	// connection event
   HANDLE	m_wakeEvent = INVALID_HANDLE_VALUE;	// wake event
+  HANDLE	m_connEvent = INVALID_HANDLE_VALUE;	// connection event
 #endif
+  Event		m_error;				// init/final error
+
+  Queue		m_queue;
 
   OIDs		m_oids;
 };

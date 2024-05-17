@@ -31,7 +31,8 @@ void fail(unsigned line, const char *s, const V &v)
 template <typename V1, typename V2>
 void fail2(unsigned line, const char *s, const V1 &v1, const V2 &v2)
 {
-  std::cerr << "FAIL: " << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n';
+  std::cerr << "FAIL: "
+    << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n';
   assert(false);
 }
 

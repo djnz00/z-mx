@@ -13,6 +13,10 @@
 #pragma once
 #endif
 
+#include <glib.h>
+
+#include <gtk/gtk.h>
+
 #include <zlib/ZuLib.hh>
 
 #ifdef _WIN32

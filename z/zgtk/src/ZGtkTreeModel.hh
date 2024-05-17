@@ -19,15 +19,10 @@
 
 #include <typeinfo>
 
-#include <glib.h>
-
-#include <gtk/gtk.h>
-
 #include <zlib/ZuSort.hh>
 
 #include <zlib/ZmPLock.hh>
 
-#include <zlib/ZGtkApp.hh>
 #include <zlib/ZGtkValue.hh>
 
 namespace ZGtk {

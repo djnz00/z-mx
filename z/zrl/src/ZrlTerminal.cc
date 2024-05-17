@@ -330,7 +330,7 @@ bool Terminal::open_()
 
 #else /* !_Win32 */
 
-  m_wake = CreateEvent(nullptr, TRUE, FALSE, L"Local\\ZrlTerminal");
+  m_wake = CreateEvent(nullptr, true, false, L"Local\\ZrlTerminal");
   if (m_wake == NULL || m_wake == INVALID_HANDLE_VALUE) {
     m_wake = INVALID_HANDLE_VALUE;
     m_errorFn(ZrlError("CreateEvent", Zi::IOError, ZeLastError));
@@ -668,11 +668,20 @@ void Terminal::close_fds()
 #else /* !_WIN32 */
 
   // close wakeup event
-  if (m_wake != INVALID_HANDLE_VALUE) CloseHandle(m_wake);
+  if (m_wake != INVALID_HANDLE_VALUE) {
+    CloseHandle(m_wake);
+    m_wake = INVALID_HANDLE_VALUE;
+  }
 
   // close console
-  if (m_conin != INVALID_HANDLE_VALUE) CloseHandle(m_conin);
-  if (m_conout != INVALID_HANDLE_VALUE) CloseHandle(m_conout);
+  if (m_conin != INVALID_HANDLE_VALUE) {
+    CloseHandle(m_conin);
+    m_conin = INVALID_HANDLE_VALUE;
+  }
+  if (m_conout != INVALID_HANDLE_VALUE) {
+    CloseHandle(m_conout);
+    m_conout = INVALID_HANDLE_VALUE;
+  }
 
 #endif /* !_WIN32 */
 }

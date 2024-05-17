@@ -32,12 +32,12 @@ void App::i18n(ZtString domain, ZtString dataDir)
   m_dataDir = ZuMv(dataDir);
 }
 
-void App::attach(ZmScheduler *sched, unsigned tid)
+void App::attach(ZmScheduler *sched, unsigned sid)
 {
   m_sched = sched;
-  m_tid = tid;
+  m_sid = sid;
 
-  m_sched->run(m_tid, [this]() { attach_(); });
+  m_sched->run(m_sid, [this]() { attach_(); });
 }
 
 void App::attach_()
@@ -71,14 +71,14 @@ void App::attach_()
   m_source = g_source_new(&funcs, sizeof(GSource));
   g_source_attach(m_source, nullptr);
 
-  m_sched->wakeFn(m_tid, ZmFn{this, [](App *app) { app->wake(); }});
-  m_sched->push(m_tid, []{ run_(); });
+  m_sched->wakeFn(m_sid, ZmFn{this, [](App *app) { app->wake(); }});
+  m_sched->push(m_sid, []{ run_(); });
 }
 
 void App::detach(ZmFn<> fn)
 {
-  m_sched->wakeFn(m_tid, ZmFn{});
-  m_sched->push(m_tid, [this, fn = ZuMv(fn)]() mutable { detach_(ZuMv(fn)); });
+  m_sched->wakeFn(m_sid, ZmFn{});
+  m_sched->push(m_sid, [this, fn = ZuMv(fn)]() mutable { detach_(ZuMv(fn)); });
   wake_();
 }
 
@@ -94,7 +94,7 @@ void App::detach_(ZmFn<> fn)
 
 void App::wake()
 {
-  m_sched->push(m_tid, []{ run_(); });
+  m_sched->push(m_sid, []{ run_(); });
   wake_();
 }
 

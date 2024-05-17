@@ -446,8 +446,8 @@ public:
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Type_<I> &> p() & {
     using T = Type<I>;
-    assert(type() == I);
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
+      assert(type() == I);
+      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
     return *ptr;
   }
   template <unsigned I>

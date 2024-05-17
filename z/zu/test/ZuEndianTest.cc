@@ -13,13 +13,12 @@
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/ZuStringN.hh>
 
-template <bool OK>
-inline bool out(const char *s) {
-  std::cout << (OK ? "OK  " : "NOK ") << s << '\n' << std::flush;
-  return OK;
+inline void out(bool ok, const char *s) {
+  std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
+  assert(ok);
 }
 
-#define CHECK(x) assert((x) ? out<true>(#x) : out<false>(#x))
+#define CHECK(x) (out((x), #x))
 
 template <typename T>
 void test(T v)

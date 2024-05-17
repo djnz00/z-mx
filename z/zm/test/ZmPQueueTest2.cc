@@ -23,6 +23,13 @@
 #include <zlib/ZmNoLock.hh>
 #include <zlib/ZmList.hh>
 
+inline void out(bool ok, const char *s) {
+  std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
+  ZmAssert(ok);
+}
+
+#define CHECK(x) (out((x), #x))
+
 using Msg_Data = ZuTuple<uint32_t, unsigned>;
 struct Msg_ : public ZmObject, public Msg_Data {
   using Msg_Data::Msg_Data;
@@ -191,19 +198,19 @@ int main()
   send(a, 4, 3); // should be head- and tail-clipped
 
   send(a, 15, 0);
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
   send(a, 15, 0);
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
   send(a, 15, 1);
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
   send(a, 17, 1);
   send(a, 17, 0);
   send(a, 18, 0);
   send(a, 19, 1);
   send(a, 21, 3);
-  assert(a.rxQueue()->tail() == 24);
+  CHECK(a.rxQueue()->tail() == 24);
   send(a, 27, 0);
-  assert(a.rxQueue()->tail() == 27);
+  CHECK(a.rxQueue()->tail() == 27);
   send(a, 14, 8); // should overwrite 15,17,19 and be clipped by 21
 
   send(a, 28, 1);
@@ -211,7 +218,7 @@ int main()
   send(a, 27, 0);
   send(a, 28, 0);
   send(a, 29, 0);
-  assert(a.rxQueue()->tail() == 30);
+  CHECK(a.rxQueue()->tail() == 30);
   send(a, 24, 10); // should overwrite 27,3
 
   a.reset(1);
@@ -224,25 +231,25 @@ int main()
   send(a, 8, 2);
   send(a, 10, 1);
   send(a, 11, 3);
-  assert(a.rxQueue()->tail() == 14);
+  CHECK(a.rxQueue()->tail() == 14);
 
   a.stopQueuing(12);
 
   send(a, 15, 1);
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
 
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(14, 1)));
   send(a, 14, 1);
 
   a.reset(1);
   a.startQueuing();
   send(a, 4, 1);
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(1, 3)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(1, 3)));
   a.stopQueuing(2);
   while (a.runDequeue());
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(2, 2)));
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(2, 2)));
   a.respond(0, 0);
   while (a.runDequeue());
-  assert(a.rxQueue()->gap().equals(ZuFwdTuple(0, 0)));
-  assert(a.rxQueue()->head() == 5 && a.rxQueue()->tail() == 5);
+  CHECK(a.rxQueue()->gap().equals(ZuFwdTuple(0, 0)));
+  CHECK(a.rxQueue()->head() == 5 && a.rxQueue()->tail() == 5);
 }

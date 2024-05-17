@@ -1160,7 +1160,7 @@ using StoreTbls =
 
 class Store : public Interface {
 public:
-  InitResult init(ZvCf *, LogFn) {
+  InitResult init(ZvCf *, ZiMultiplex *, unsigned) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
     return {InitData{.replicated = false}};
   }

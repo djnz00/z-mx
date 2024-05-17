@@ -27,6 +27,8 @@
 
 #include <zlib/ZePlatform.hh>
 
+#include <zlib/ZiMultiplex.hh>
+
 #include <zlib/ZvCf.hh>
 
 #include <zlib/ZdbBuf.hh>
@@ -90,9 +92,6 @@ using StoreTbl = StoreTbl_::Interface;
 // backing data store namespace
 namespace Store_ {
 
-// log function
-using LogFn = ZmFn<Event>;
-
 // result of store init
 struct InitData {
   bool		replicated = false;	// replicated data store?
@@ -128,7 +127,8 @@ struct Interface : public ZmPolymorph {
   // init and final are synchronous / blocking
   virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,
-      LogFn) = 0;
+      ZiMultiplex *mx,
+      unsigned sid) = 0;		//  scheduler slot ID for callbacks
   virtual void final() = 0;		// finalize data store - idempotent
 
   // multiple calls to MaxFn may continue after open() returns,

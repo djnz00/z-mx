@@ -485,7 +485,7 @@ void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
   cxn->connected();
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d UDP CONNECTED to %s:%u",
-	(int)s, inet_ntoa(remoteIP), (unsigned)remotePort));
+	(int)s, inet_ntoa(remoteIP), unsigned(remotePort)));
 
 #ifdef ZiMultiplex_IOCP
   cxn->recv();
@@ -579,7 +579,7 @@ void ZiMultiplex::connect_(ZiConnectFn fn, ZiFailFn failFn,
   }
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d CONNECTING to %s:%u", (int)s,
-	inet_ntoa(remoteIP), (unsigned)remotePort));
+	inet_ntoa(remoteIP), unsigned(remotePort)));
 
   ZiSockAddr remote(remoteIP, remotePort);
 
@@ -725,7 +725,7 @@ void ZiMultiplex::executedConnect(ZiConnectFn fn, const ZiCxnInfo &ci)
   cxn->connected();
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d TCP CONNECTED to %s:%u",
-	(int)ci.socket, inet_ntoa(ci.remoteIP), (unsigned)ci.remotePort));
+	(int)ci.socket, inet_ntoa(ci.remoteIP), unsigned(ci.remotePort)));
 }
 
 void ZiConnection::telemetry(ZiCxnTelemetry &data) const
@@ -1028,7 +1028,7 @@ retry:
   }
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d ACCEPTING from %s:%u", s,
-	inet_ntoa(remote.ip()), (unsigned)ntohs(remote.port())));
+	inet_ntoa(remote.ip()), unsigned(ntohs(remote.port()))));
 
   executedConnect(listener->acceptFn(), ZiCxnInfo {
       ZiCxnType::TCPIn, s, listener->info().options,
@@ -2121,7 +2121,7 @@ void ZiMultiplex::rx()
     }
 
     if (ZuLikely(r)) {
-      for (unsigned i = 0; i < (unsigned)r; i++) {
+      for (unsigned i = 0; i < unsigned(r); i++) {
 	uint32_t events = ev[i].events;
 	uintptr_t v = ev[i].data.u64;
 

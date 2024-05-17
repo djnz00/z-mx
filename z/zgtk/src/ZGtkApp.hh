@@ -17,10 +17,6 @@
 #include <zlib/ZGtkLib.hh>
 #endif
 
-#include <glib.h>
-
-#include <gtk/gtk.h>
-
 #include <zlib/ZuString.hh>
 
 #include <zlib/ZmScheduler.hh>
@@ -35,19 +31,19 @@ public:
   // e.g. "gimp20", "/usr/share" - initialize locale, libintl (gettext)
   void i18n(ZtString domain, ZtString dataDir);
 
-  void attach(ZmScheduler *sched, unsigned tid); // calls ZmTrap::trap()
+  void attach(ZmScheduler *sched, unsigned sid); // calls ZmTrap::trap()
   ZuInline void detach() { detach(ZmFn<>{}); }
   void detach(ZmFn<>);
 
   ZuInline ZmScheduler *sched() const { return m_sched; }
-  ZuInline unsigned tid() const { return m_tid; }
+  ZuInline unsigned sid() const { return m_sid; }
 
   template <typename ...Args>
   ZuInline void run(Args &&... args)
-    { m_sched->run(m_tid, ZuFwd<Args>(args)...); }
+    { m_sched->run(m_sid, ZuFwd<Args>(args)...); }
   template <typename ...Args>
   ZuInline void invoke(Args &&... args)
-    { m_sched->invoke(m_tid, ZuFwd<Args>(args)...); }
+    { m_sched->invoke(m_sid, ZuFwd<Args>(args)...); }
 
 private:
   void attach_();	// runs on Gtk thread
@@ -60,7 +56,7 @@ private:
 private:
   GSource		*m_source = nullptr;
   ZmScheduler		*m_sched = nullptr;
-  unsigned		m_tid = 0;
+  unsigned		m_sid = 0;
   ZtString		m_domain;	// libintl domain
   ZtString		m_dataDir;	// libintl data directory
 };

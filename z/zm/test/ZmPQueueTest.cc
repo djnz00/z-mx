@@ -18,6 +18,13 @@
 #include <zlib/ZmPQueue.hh>
 #include <zlib/ZmNoLock.hh>
 
+inline void out(bool ok, const char *s) {
+  std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
+  ZmAssert(ok);
+}
+
+#define CHECK(x) (out((x), #x))
+
 using Msg_Data = ZuTuple<uint32_t, unsigned>;
 struct Msg : public ZuObject, public Msg_Data {
   using Msg_Data::Msg_Data;
@@ -87,7 +94,7 @@ int main()
   enqueue(q, 4, 3); // should be head- and tail-clipped, trigger dequeue
 
   enqueue(q, 15, 1);
-  assert(q.gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(q.gap().equals(ZuFwdTuple(14, 1)));
   enqueue(q, 17, 1);
   enqueue(q, 19, 1);
   enqueue(q, 21, 3);
@@ -109,8 +116,8 @@ int main()
 
   head(q, 12); // should leave 12+2 in place
   enqueue(q, 15, 1);
-  assert(q.gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(q.gap().equals(ZuFwdTuple(14, 1)));
   dequeue(q);
-  assert(q.gap().equals(ZuFwdTuple(14, 1)));
+  CHECK(q.gap().equals(ZuFwdTuple(14, 1)));
   enqueue(q, 14, 1);
 }

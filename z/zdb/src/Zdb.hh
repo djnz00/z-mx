@@ -662,8 +662,8 @@ private:
 
   // immutable
   DB			*m_db;
-  ZiMultiplex		*m_mx;
   const TableCf		*m_cf;
+  ZiMultiplex		*m_mx;
 
   // DB thread exclusive - no need for atomics
   UN			m_nextUN = 0;		// UN allocator
