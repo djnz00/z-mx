@@ -225,6 +225,8 @@ void DB::start_()
 
   ZeLOG(Info, "Zdb starting");
 
+  m_store->start();
+
   // open and recover all tables
   {
     ZmAtomic<unsigned> ok = true;
@@ -320,6 +322,8 @@ void DB::stop_2()
   allSync([](AnyTable *table) { return [table]() { table->close(); }; });
 
   state(HostState::Initialized);
+
+  m_store->stop();
 
   stopped(true);
 }

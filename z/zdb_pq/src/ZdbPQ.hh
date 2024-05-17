@@ -804,6 +804,9 @@ public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
   void final();
 
+  void start();
+  void stop();
+
   void open(
       ZuID id,
       ZtMFields fields,
@@ -813,8 +816,8 @@ public:
       OpenFn openFn);
 
 private:
-  void init_();
-  void final_();
+  void start_();
+  void stop_();
   void close_fds();
 
   void wake();
@@ -828,7 +831,8 @@ private:
 
   ZvCf		*m_cf = nullptr;
   ZiMultiplex	*m_mx = nullptr;
-  unsigned	m_sid = ZuCmp<unsigned>::null();
+  unsigned	m_zdbSID = ZuCmp<unsigned>::null();
+  unsigned	m_pqSID = ZuCmp<unsigned>::null();
 
   PGconn	*m_conn = nullptr;
   int		m_socket = -1;
@@ -839,7 +843,6 @@ private:
   HANDLE	m_wakeEvent = INVALID_HANDLE_VALUE;	// wake event
   HANDLE	m_connEvent = INVALID_HANDLE_VALUE;	// connection event
 #endif
-  Event		m_error;				// init/final error
 
   Queue		m_queue;
 

@@ -93,6 +93,8 @@ namespace PQStore {
 InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid) {
   m_cf = cf;
   m_mx = mx;
+  m_zdbSID = sid;
+
   try {
     const ZtString &tid = cf->get<true>("thread");
     auto sid = m_mx->sid(tid);
@@ -104,7 +106,7 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid) {
 	s << "Store::init() failed: invalid thread configuration \""
 	  << tid << "\"";
       }))};
-    m_sid = sid;
+    m_pqSID = sid;
   } catch (const ZvError &e_) {
     ZtString e;
     e << e_;
@@ -113,20 +115,11 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid) {
     }))};
   }
 
-  ZmBlock<>{}([this](auto done) {
-    m_mx->run(m_sid, [this, done = ZuMv(done)]() mutable {
-      init_();
-      done();
-    });
-  });
-
-  if (m_error) {
-    Event e = ZuMv(m_error);
-    m_error = Event{};
-    return {ZuMv(e)};
-  }
-
   return {InitData{.replicated = true}};
+}
+
+void Store::final()
+{
 }
 
 void Store::close_fds()
@@ -168,7 +161,18 @@ void Store::close_fds()
   }
 }
 
-void Store::init_()
+void Store::start()
+{
+  m_mx->wakeFn(m_pqSID, ZmFn{this, [](Store *store) { store->wake(); }});
+  ZmBlock<>{}([this](auto done) {
+    m_mx->push(m_pqSID, [this, done = ZuMv(done)]() mutable {
+      start_();
+      done();
+    });
+  });
+}
+
+void Store::start_()
 {
   const auto &connection = m_cf->get<true>("connection");
 
@@ -176,7 +180,7 @@ void Store::init_()
 
   if (!m_conn || PQstatus(m_conn) != CONNECTION_OK) {
     ZtString error = PQerrorMessage(m_conn);
-    m_error = ZeMEVENT(Fatal, ([error = ZuMv(error)](auto &s, const auto &) {
+    ZeLOG(Fatal, ([error = ZuMv(error)](auto &s) {
       s << "PQconnectdb() failed: " << error;
     }));
     close_fds();
@@ -186,7 +190,7 @@ void Store::init_()
   try {
     m_oids.init(m_conn);
   } catch (const ZeMEvent &e) {
-    m_error = ZuMv(const_cast<ZeMEvent &>(e));
+    ZeLogEvent(ZuMv(const_cast<ZeMEvent &>(e)));
     close_fds();
     return;
   }
@@ -195,7 +199,7 @@ void Store::init_()
 
   if (PQsetnonblocking(m_conn, 1) != 0) {
     ZtString e = PQerrorMessage(m_conn);
-    m_error = ZeMEVENT(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
       s << "PQsetnonblocking() failed: " << e;
     }));
     close_fds();
@@ -204,7 +208,7 @@ void Store::init_()
 
   if (PQenterPipelineMode(m_conn) != 1) {
     ZtString e = PQerrorMessage(m_conn);
-    m_error = ZeMEVENT(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
       s << "PQenterPipelineMode() failed: " << e;
     }));
     close_fds();
@@ -215,21 +219,21 @@ void Store::init_()
 
   // set up I/O multiplexer (epoll)
   if ((m_epollFD = epoll_create(2)) < 0) {
-    m_error = ZeMEVENT(Fatal, ([e = ZeLastError](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
       s << "epoll_create() failed: " << e;
     }));
     close_fds();
     return;
   }
   if (pipe(&m_wakeFD) < 0) {
-    m_error = ZeMEVENT(Fatal, ([e = errno](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = errno](auto &s) {
       s << "pipe() failed: " << e;
     }));
     close_fds();
     return;
   }
   if (fcntl(m_wakeFD, F_SETFL, O_NONBLOCK) < 0) {
-    m_error = ZeMEVENT(Fatal, ([e = errno](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = errno](auto &s) {
       s << "fcntl(F_SETFL, O_NONBLOCK) failed: " << e;
     }));
     close_fds();
@@ -241,7 +245,7 @@ void Store::init_()
     ev.events = EPOLLIN;
     ev.data.u64 = 0;
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, m_wakeFD, &ev) < 0) {
-      m_error = ZeMEVENT(Fatal, ([e = errno](auto &s, const auto &) {
+      ZeLOG(Fatal, ([e = errno](auto &s) {
 	s << "epoll_ctl(EPOLL_CTL_ADD) failed: " << e;
       }));
       close_fds();
@@ -252,7 +256,7 @@ void Store::init_()
   {
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
-    ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
+    ev.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR | EPOLLET;
     ev.data.u64 = 1;
     epoll_ctl(m_epollFD, EPOLL_CTL_ADD, m_socket, &ev);
   }
@@ -261,7 +265,7 @@ void Store::init_()
 
   m_wakeEvent = CreateEvent(nullptr, true, false, L"Local\\ZdbPQ");
   if (m_wakeEvent == NULL || m_wakeEvent == INVALID_HANDLE_VALUE) {
-    m_error = ZeMEVENT(Fatal, ([e = ZeLastError](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
       s << "CreateEvent() failed: " << e;
     }));
     close_fds();
@@ -270,7 +274,7 @@ void Store::init_()
 
   m_connEvent = WSACreateEvent();
   if (m_connEvent == NULL || m_connEvent == INVALID_HANDLE_VALUE) {
-    m_error = ZeMEVENT(Fatal, ([e = ZeLastError](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
       s << "CreateEvent() failed: " << e;
     }));
     close_fds();
@@ -278,7 +282,7 @@ void Store::init_()
   }
   if (WSAEventSelect(m_socket, m_connEvent,
       FD_READ | FD_WRITE | FD_OOB | FD_CLOSE)) {
-    m_error = ZeMEVENT(Fatal, ([e = WSAGetLastError()](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = WSAGetLastError()](auto &s) {
       s << "WSAEventSelect() failed: " << e;
     }));
     close_fds();
@@ -286,37 +290,28 @@ void Store::init_()
   }
 
 #endif
-
-  m_mx->wakeFn(m_sid, ZmFn{this, [](Store *store) { store->wake(); }});
-  m_mx->push(m_sid, [this]() { run_(); });
 }
 
-void Store::final()
+void Store::stop()
 {
   ZmBlock<>{}([this](auto done) {
-    m_mx->wakeFn(m_sid, ZmFn{});
-    m_mx->push(m_sid, [this, done = ZuMv(done)]() mutable {
-      final_();
+    m_mx->wakeFn(m_pqSID, ZmFn{});
+    m_mx->push(m_pqSID, [this, done = ZuMv(done)]() mutable {
+      stop_();
       done();
     });
     wake_();
   });
-
-  if (m_error) {
-    Event e = ZuMv(m_error);
-    m_error = Event{};
-    ZeLogEvent(ZuMv(e));
-  }
 }
 
-void Store::final_()
+void Store::stop_()
 {
   close_fds();
 }
 
 void Store::wake()
 {
-  m_mx->push(m_sid, [this]{ run_(); });
+  m_mx->push(m_pqSID, [this]{ run_(); });
   wake_();
 }
 
@@ -344,7 +339,36 @@ void Store::run_()
 {
   for (;;) {
 
-#ifdef _WIN32
+#ifndef _WIN32
+
+    epoll_event ev[8];
+    int r = epoll_wait(m_epollFD, ev, 8, -1); // max events is 8
+    if (r < 0) {
+      ZeLOG(Fatal, ([e = errno](auto &s) {
+	s << "epoll_wait() failed: " << e;
+      }));
+      return;
+    }
+    for (unsigned i = 0; i < unsigned(r); i++) {
+      uint32_t events = ev[i].events;
+      auto v = ev[i].data.u64; // ID
+      if (ZuLikely(!v)) {
+	char c;
+	int r = ::read(m_wakeFD, &c, 1);
+	if (r >= 1) return;
+	if (r < 0) {
+	  ZeError e{errno};
+	  if (e.errNo() != EINTR && e.errNo() != EAGAIN) return;
+	}
+	continue;
+      }
+      if (events & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+	read();
+      if (events & EPOLLOUT)
+	write();
+    }
+
+#else
 
     HANDLE handles[2] = { m_wakeEvent, m_connEvent };
     DWORD event = WaitForMultipleObjectsEx(2, handles, false, INFINITE, false);
@@ -354,7 +378,10 @@ void Store::run_()
       }));
       return;
     }
-    if (event == WAIT_OBJECT_0) return;
+    if (event == WAIT_OBJECT_0) {
+      ResetEvent(m_wakeEvent);
+      return;
+    }
     if (event == WAIT_OBJECT_0 + 1) {
       WSANETWORKEVENTS events;
       auto i = WSAEnumNetworkEvents(m_socket, m_connEvent, &events);
@@ -370,38 +397,19 @@ void Store::run_()
 	write();
     }
 
-#else
-
-    epoll_event ev[8];
-    int r = epoll_wait(m_epollFD, ev, 8, -1); // max events is 8
-    if (r < 0) {
-      ZeLOG(Fatal, ([e = errno](auto &s) {
-	s << "epoll_wait() failed: " << e;
-      }));
-      return;
-    }
-    for (unsigned i = 0; i < unsigned(r); i++) {
-      uint32_t events = ev[i].events;
-      auto v = ev[i].data.u64; // ID
-      if (!v) return;
-      if (events & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR))
-	read();
-      if (events & EPOLLOUT)
-	write();
-    }
-
 #endif
 
   }
 }
 
 void Store::read() {
+  ZeLOG(Debug, ([](auto &s) { }));
   bool consumed;
   do {
     consumed = false;
     if (!PQconsumeInput(m_conn)) {
       ZtString e = PQerrorMessage(m_conn);
-      ZeLOG(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
+      ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
 	s << "PQconsumeInput() failed: " << e;
       }));
       return;
@@ -464,9 +472,10 @@ if (!PQsendPrepare(PGconn *conn,
 // been received
 
 void Store::write() {
+  ZeLOG(Debug, ([](auto &s) { }));
   if (PQflush(m_conn) < 0) {
     ZtString e = PQerrorMessage(m_conn);
-    ZeLOG(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
+    ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
       s << "PQflush() failed: " << e;
     }));
     return;
@@ -503,7 +512,7 @@ void Store::open(
   MaxFn maxFn,
   OpenFn openFn)
 {
-  openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+  openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s) {
     s << "open(" << id << ") failed";
   }))});
 }

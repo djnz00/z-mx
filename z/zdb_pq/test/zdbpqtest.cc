@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 
   try {
     cf = inlineCf(
-      "thread 3\n"
+      "thread zdb\n"
       "hostID 0\n"
       "hosts {\n"
       "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
@@ -77,6 +77,7 @@ int main(int argc, char **argv)
       "store {\n"
       "  module ../src/.libs/libZdbPQ.so\n"
       "  connection \"dbname=test host=/tmp\"\n"
+      "  thread zdb_pq\n"
       "}\n"
       "tables {\n"
       "  orders { }\n"
@@ -85,12 +86,13 @@ int main(int argc, char **argv)
       "dbMx {\n"
       "  nThreads 4\n"
       "  threads {\n"
-      "    1 { isolated true }\n"
-      "    2 { isolated true }\n"
-      "    3 { isolated true }\n"
+      "    1 { name rx isolated true }\n"
+      "    2 { name tx isolated true }\n"
+      "    3 { name zdb isolated true }\n"
+      "    4 { name zdb_pq isolated true }\n"
       "  }\n"
-      "  rxThread 1\n"
-      "  txThread 2\n"
+      "  rxThread rx\n"
+      "  txThread tx\n"
       "}\n"
     );
 
