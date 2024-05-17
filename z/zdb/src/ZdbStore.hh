@@ -92,12 +92,17 @@ using StoreTbl = StoreTbl_::Interface;
 // backing data store namespace
 namespace Store_ {
 
-// result of store init
+// result of store init()
 struct InitData {
   bool		replicated = false;	// replicated data store?
 };
 using InitResult = ZuUnion<
   InitData,			// succeeded
+  Event>;			// error
+
+// result of store start()
+using StartResult = ZuUnion<
+  void,				// succeeded
   Event>;			// error
 
 // opened table data
@@ -131,7 +136,7 @@ struct Interface : public ZmPolymorph {
       unsigned sid) = 0;		//  scheduler slot ID for callbacks
   virtual void final() = 0;		// finalize data store - idempotent
 
-  virtual void start() { }
+  virtual StartResult start() { return {}; }
   virtual void stop() { }
 
   // multiple calls to MaxFn may continue after open() returns,

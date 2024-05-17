@@ -161,7 +161,7 @@ void Store::close_fds()
   }
 }
 
-void Store::start()
+StartResult Store::start()
 {
   m_mx->wakeFn(m_pqSID, ZmFn{this, [](Store *store) { store->wake(); }});
   ZmBlock<>{}([this](auto done) {
@@ -170,6 +170,9 @@ void Store::start()
       done();
     });
   });
+  if (ZuUnlikely(!m_conn))
+    return {ZeMEVENT(Fatal, "PostgreSQL start() failed")};
+  return {};
 }
 
 void Store::start_()

@@ -804,7 +804,7 @@ public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
   void final();
 
-  void start();
+  StartResult start();
   void stop();
 
   void open(

@@ -225,7 +225,18 @@ void DB::start_()
 
   ZeLOG(Info, "Zdb starting");
 
-  m_store->start();
+  // start backing data store
+  {
+    auto result = m_store->start();
+    if (ZuUnlikely(result.is<Event>())) {
+      ZeLogEvent(ZuMv(result).p<Event>());
+      ZeLOG(Fatal, ([](auto &s) {
+	s << "Zdb data store start failed";
+      }));
+      started(false);
+      return;
+    }
+  }
 
   // open and recover all tables
   {
