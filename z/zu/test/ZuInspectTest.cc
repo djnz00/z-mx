@@ -112,4 +112,10 @@ int main()
     CHECK((ZuIsExact<const int &, decltype(foo(ZuDeclVal<const int &>()))>{}));
     CHECK((!ZuIsExact<int &, const int &>{}));
   }
+
+  {
+    CHECK(!(ZuInspect<int, unsigned>::Constructs));
+    CHECK(!(ZuInspect<unsigned, int>::Constructs));
+    CHECK((ZuInspect<short, int>::Constructs));
+  }
 }
