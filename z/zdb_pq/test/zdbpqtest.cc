@@ -80,7 +80,7 @@ int main(int argc, char **argv)
       "  thread zdb_pq\n"
       "}\n"
       "tables {\n"
-      "  orders { }\n"
+      "  order { }\n"
       "}\n"
       "debug 1\n"
       "dbMx {\n"
@@ -136,7 +136,7 @@ int main(int argc, char **argv)
 	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
     });
 
-    orders = db->initTable<Order>("orders"); // might throw
+    orders = db->initTable<Order>("order"); // might throw
 
     db->start();
 

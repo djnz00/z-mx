@@ -60,20 +60,21 @@ using namespace Zdb_;
 // (*)   Postgres uint extension https://github.com/djnz00/pguint
 // (**)  libz Postgres extension
 
-// --- flatbuffer field arrays
+// --- extended field information
 
-struct FBField {
-  const reflection::Field	*field;
-  unsigned			type;	// Value union discriminator
+struct XField {
+  ZtString			id_;		// snake case field ID
+  const reflection::Field	*field;		// flatbuffers reflection field
+  unsigned			type;		// Value union discriminator
 };
-using FBFields = ZtArray<FBField>;
-using FBKeyFields = ZtArray<FBFields>;
+using XFields = ZtArray<XField>;
+using XKeyFields = ZtArray<XFields>;
 
 // --- value union (postgres binary send/receive format)
 
+using String = ZuString;
+using Bytes = ZuBytes;
 #pragma pack(push, 1)
-struct String { ZuString data; };
-struct Bytes { ZuBytes data; };
 struct Bool { uint8_t v; };
 struct Int64 { ZuBigEndian<int64_t> v; };
 struct UInt64 { ZuBigEndian<uint64_t> v; };
@@ -136,6 +137,48 @@ struct Value : public Value_ {
   template <typename L> void invoke(L l) const {
     invoke(ZuMv(l), this->type());
   }
+
+  // Postgres binary format accessors - data<I>(), length<I>()
+
+  // void - return {nullptr, 0}
+  template <unsigned I, typename T = Value_::Type<I>>
+  static ZuExact<void, T, const char *>
+  data() { return nullptr; }
+  template <unsigned I, typename T = Value_::Type<I>>
+  static ZuExact<void, T, unsigned>
+  length() { return 0; }
+
+  // String - return raw string data
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<String, T, const char *>
+  data() const { return p<String>().data(); }
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<String, T, unsigned>
+  length() const { return p<String>().length(); }
+
+  // Bytes - return raw byte data
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<Bytes, T, const char *>
+  data() const {
+    return reinterpret_cast<const char *>(p<Bytes>().data());
+  }
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<Bytes, T, unsigned>
+  length() const { return p<Bytes>().length(); }
+
+  // All other types - return bigendian packed struct
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<
+    !ZuIsExact<void, T>{} &&
+    !ZuIsExact<String, T>{} &&
+    !ZuIsExact<Bytes, T>{}, const char *>
+  data() const { return reinterpret_cast<const char *>(this); }
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<
+    !ZuIsExact<void, T>{} &&
+    !ZuIsExact<String, T>{} &&
+    !ZuIsExact<Bytes, T>{}, unsigned>
+  length() const { return sizeof(T); }
 
   template <typename S>
   void print(S &s) const {
@@ -330,14 +373,14 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 }
 
 inline void loadValue(
-  Value *value, const FBField &fbField, const Zfb::Table *fbo)
+  Value *value, const XField &xField, const Zfb::Table *fbo)
 {
-  if (ZuUnlikely(!fbField.type))
+  if (ZuUnlikely(!xField.type))
     new (value) Value{};
   else
-    Value::invoke([value, field = fbField.field, fbo](auto I) {
+    Value::invoke([value, field = xField.field, fbo](auto I) {
       loadValue_<I>(value->new_<I, true>(), field, fbo);
-    }, fbField.type);
+    }, xField.type);
 }
 
 // --- save value to flatbuffer
@@ -357,14 +400,14 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<String>{}>
 saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 {
-  offsets.push(Zfb::Save::str(fbb, value.p<Type>().data).Union());
+  offsets.push(Zfb::Save::str(fbb, value.p<Type>()).Union());
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Bytes>{}>
 saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 {
-  offsets.push(Zfb::Save::bytes(fbb, value.p<Type>().data).Union());
+  offsets.push(Zfb::Save::bytes(fbb, value.p<Type>()).Union());
 }
 
 template <unsigned Type>
@@ -375,11 +418,11 @@ saveOffset_(Zfb::Builder &, Offsets &, const Value &) { }
 
 inline void saveOffset(
   Zfb::Builder &fbb, Offsets &offsets,
-  const FBField &fbField, const Value &value)
+  const XField &xField, const Value &value)
 {
   Value::invoke([&fbb, &offsets, &value](auto I) {
     saveOffset_<I>(fbb, offsets, value);
-  }, fbField.type);
+  }, xField.type);
 }
 
 template <unsigned Type>
@@ -621,11 +664,11 @@ saveValue_(
 
 inline void saveValue(
   Zfb::Builder &fbb, const Offsets &offsets,
-  const FBField &fbField, const Value &value)
+  const XField &xField, const Value &value)
 {
-  Value::invoke([&fbb, &offsets, field = fbField.field, &value](auto I) {
+  Value::invoke([&fbb, &offsets, field = xField.field, &value](auto I) {
     saveValue_<I>(fbb, offsets, field, value);
-  }, fbField.type);
+  }, xField.type);
 }
 
 // --- data tuple
@@ -636,37 +679,37 @@ using Tuple = ZtArray<Value>;
 template <typename Filter>
 Tuple loadTuple(
   const ZtMFields &fields,
-  const FBFields &fbFields,
+  const XFields &xFields,
   const Zfb::Table *fbo, Filter filter)
 {
   unsigned n = fields.length();
-  ZmAssert(n == fbFields.length());
+  ZmAssert(n == xFields.length());
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
     if (filter(fields[i]))
       new (tuple.push()) Value{};
     else
-      loadValue(static_cast<Value *>(tuple.push()), fbFields[i], fbo);
+      loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
   return tuple;
 }
 Tuple loadTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *) {
     return false;
   });
 }
 Tuple loadUpdTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *field) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
     return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
   });
 }
 Tuple loadDelTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *field) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
     return (field->keys & 1);
   });
 }
@@ -674,17 +717,17 @@ Tuple loadDelTuple(
 Offset saveTuple(
   Zfb::Builder &fbb,
   const ZtMFields &fields,
-  const FBFields &fbFields,
+  const XFields &xFields,
   const Tuple &tuple)
 {
   unsigned n = fields.length();
-  ZmAssert(n == fbFields.length());
+  ZmAssert(n == xFields.length());
   Offsets offsets{ZmAlloc(Offset, n)};
   for (unsigned i = 0; i < n; i++)
-    saveOffset(fbb, offsets, fbFields[i], tuple[i]);
+    saveOffset(fbb, offsets, xFields[i], tuple[i]);
   auto start = fbb.StartTable();
   for (unsigned i = 0; i < n; i++)
-    saveValue(fbb, offsets, fbFields[i], tuple[i]);
+    saveValue(fbb, offsets, xFields[i], tuple[i]);
   auto end = fbb.EndTable(start);
   return Offset{end};
 }
@@ -692,18 +735,24 @@ Offset saveTuple(
 // --- postgres OIDs, type names
 
 class OIDs {
-  using Map = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
   using Values = ZuArrayN<unsigned, Value::N - 1>;
+  using OIDs_ = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
+  using Names = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
 
 public:
   void init(PGconn *);
 
-  int oid(unsigned i) {
+  int oid(unsigned i) const {
     if (i < 1 || i >= Value::N) return -1;
     return m_values[i - 1];
   }
-  int oid(ZuString name) {
-    int8_t i = m_map.findVal(name);
+  int type(unsigned oid) const {
+    int8_t i = m_oids.findVal(oid);
+    if (ZuCmp<int8_t>::null(i) || i < 1 || i >= Value::N) return -1;
+    return i;
+  }
+  int oid(ZuString name) const {
+    int8_t i = m_names.findVal(name);
     if (ZuCmp<int8_t>::null(i) || i < 1 || i >= Value::N) return -1;
     return m_values[i - 1];
   }
@@ -711,14 +760,12 @@ public:
 private:
   unsigned resolve(PGconn *conn, ZuString name);
 
-  Map		m_map;
   Values	m_values;
+  OIDs_		m_oids;
+  Names		m_names;
 };
 
 namespace Work {
-
-struct Foo {
-};
 
 struct Stop {
   ZmFn<>		stopped;
@@ -816,7 +863,7 @@ struct TblItem {
   Query		query;
 };
 
-using Item = ZuUnion<Foo, Stop, MkMRD, TblItem>;
+using Item = ZuUnion<Stop, MkMRD, TblItem>;
 
 using Queue = ZmList<Item>;
 
@@ -840,6 +887,8 @@ ZtEnumValues(OpenState,
 }
 
 class StoreTbl : public Zdb_::StoreTbl {
+  using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
+
 public:
   StoreTbl(
     Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
@@ -854,13 +903,13 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
-  bool getTable(PGconn *);
+  bool getTable();
   void getTable2(PGresult *);
+
   void opened();
+  void openFailed(ZeMEvent);
 
   void warmup();
-
-  void drop();
 
   void maxima(MaxFn maxFn);
 
@@ -873,15 +922,17 @@ public:
 private:
   Store			*m_store = nullptr;
   ZuID			m_id;
+  ZtString		m_id_;		// snake case
   ZtMFields		m_fields;
   ZtMKeyFields		m_keyFields;
-  FBFields		m_fbFields;
-  FBKeyFields		m_fbKeyFields;
+  XFields		m_xFields;
+  XKeyFields		m_xKeyFields;
+  FieldMap		m_fieldMap;
 
   ZmRef<AnyBuf>		m_maxBuf;
 
   int			m_openState = 0;
-  int			m_openKeyID = -1;// sub-state
+  int			m_openSubState = -1;// #fields validated, keyID, etc.
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
 };
@@ -922,6 +973,11 @@ public:
     m_mx->invoke(m_zdbSID, ZuFwd<Args>(args)...);
   }
 
+  const OIDs &oids() const { return m_oids; }
+
+  bool sendQuery(const ZtString &query, const Tuple &params);
+  bool sendPrepared(const ZtString &query, const Tuple &params);
+
 private:
   void start_();
   void stop_(ZmFn<>);
@@ -932,10 +988,10 @@ private:
   void wake_();
   void run_();
 
-  void read();
-  void parse(Work::Queue::Node *, PGresult *);
+  void recv();
+  void rcvd(Work::Queue::Node *, PGresult *);
 
-  void write();
+  void send();
 
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
@@ -955,7 +1011,7 @@ private:
 #endif
 
   Work::Queue		m_queue;	// not yet sent
-  Work::Queue		m_pending;	// sent, awaiting response
+  Work::Queue		m_sent;		// sent, awaiting response
 
   OIDs			m_oids;
 };

@@ -104,17 +104,17 @@ struct Value : public Value_ {
   friend ZuPrintFn ZuPrintType(Value *);
 };
 
-// --- flatbuffer field arrays
+// --- extended field information
 
-struct FBField {
+struct XField {
   const reflection::Field	*field;
   unsigned			type;	// Value union discriminator
 };
-using FBFields = ZtArray<FBField>;
-using FBKeyFields = ZtArray<FBFields>;
+using XFields = ZtArray<XField>;
+using XKeyFields = ZtArray<XFields>;
 
 // resolve Value union discriminator from field metadata
-FBField fbField(
+XField xField(
   const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_,
   const ZtMField *field,
   const ZtString &id)
@@ -383,14 +383,14 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 }
 
 inline void loadValue(
-  Value *value, const FBField &fbField, const Zfb::Table *fbo)
+  Value *value, const XField &xField, const Zfb::Table *fbo)
 {
-  if (ZuUnlikely(!fbField.type))
+  if (ZuUnlikely(!xField.type))
     new (value) Value{};
   else
-    Value::invoke([value, field = fbField.field, fbo](auto I) {
+    Value::invoke([value, field = xField.field, fbo](auto I) {
       loadValue_<I>(value->new_<I, true>(), field, fbo);
-    }, fbField.type);
+    }, xField.type);
 }
 
 // --- save value to flatbuffer
@@ -428,11 +428,11 @@ saveOffset_(Zfb::Builder &, Offsets &, const Value &) { }
 
 inline void saveOffset(
   Zfb::Builder &fbb, Offsets &offsets,
-  const FBField &fbField, const Value &value)
+  const XField &xField, const Value &value)
 {
   Value::invoke([&fbb, &offsets, &value](auto I) {
     saveOffset_<I>(fbb, offsets, value);
-  }, fbField.type);
+  }, xField.type);
 }
 
 template <unsigned Type>
@@ -670,11 +670,11 @@ saveValue_(
 
 inline void saveValue(
   Zfb::Builder &fbb, const Offsets &offsets,
-  const FBField &fbField, const Value &value)
+  const XField &xField, const Value &value)
 {
-  Value::invoke([&fbb, &offsets, field = fbField.field, &value](auto I) {
+  Value::invoke([&fbb, &offsets, field = xField.field, &value](auto I) {
     saveValue_<I>(fbb, offsets, field, value);
-  }, fbField.type);
+  }, xField.type);
 }
 
 // --- data tuple
@@ -685,37 +685,37 @@ using Tuple = ZtArray<Value>;
 template <typename Filter>
 Tuple loadTuple(
   const ZtMFields &fields,
-  const FBFields &fbFields,
+  const XFields &xFields,
   const Zfb::Table *fbo, Filter filter)
 {
   unsigned n = fields.length();
-  ZmAssert(n == fbFields.length());
+  ZmAssert(n == xFields.length());
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
     if (filter(fields[i]))
       new (tuple.push()) Value{};
     else
-      loadValue(static_cast<Value *>(tuple.push()), fbFields[i], fbo);
+      loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
   return tuple;
 }
 Tuple loadTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *) {
     return false;
   });
 }
 Tuple loadUpdTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *field) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
     return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
   });
 }
 Tuple loadDelTuple(
-  const ZtMFields &fields, const FBFields &fbFields, const Zfb::Table *fbo)
+  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, fbFields, fbo, [](const ZtMField *field) {
+  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
     return (field->keys & 1);
   });
 }
@@ -723,17 +723,17 @@ Tuple loadDelTuple(
 Offset saveTuple(
   Zfb::Builder &fbb,
   const ZtMFields &fields,
-  const FBFields &fbFields,
+  const XFields &xFields,
   const Tuple &tuple)
 {
   unsigned n = fields.length();
-  ZmAssert(n == fbFields.length());
+  ZmAssert(n == xFields.length());
   Offsets offsets{ZmAlloc(Offset, n)};
   for (unsigned i = 0; i < n; i++)
-    saveOffset(fbb, offsets, fbFields[i], tuple[i]);
+    saveOffset(fbb, offsets, xFields[i], tuple[i]);
   auto start = fbb.StartTable();
   for (unsigned i = 0; i < n; i++)
-    saveValue(fbb, offsets, fbFields[i], tuple[i]);
+    saveValue(fbb, offsets, xFields[i], tuple[i]);
   auto end = fbb.EndTable(start);
   return Offset{end};
 }
@@ -818,24 +818,22 @@ public:
     const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_ =
       rootTbl->fields();
     unsigned n = m_fields.length();
-    m_fbFields.size(n);
+    m_xFields.size(n);
     for (unsigned i = 0; i < n; i++)
-      ZtCase::camelSnake(
-	m_fields[i]->id,
+      ZtCase::camelSnake(m_fields[i]->id,
 	[this, fbFields_, i](const ZtString &id) {
-	m_fbFields.push(fbField(fbFields_, m_fields[i], id));
-      });
+	  m_xFields.push(xField(fbFields_, m_fields[i], id));
+	});
     n = m_keyFields.length();
-    m_fbKeyFields.size(n);
+    m_xKeyFields.size(n);
     for (unsigned i = 0; i < n; i++) {
       unsigned m = m_keyFields[i].length();
-      new (m_fbKeyFields.push()) FBFields{m};
+      new (m_xKeyFields.push()) XFields{m};
       for (unsigned j = 0; j < m; j++)
-	ZtCase::camelSnake(
-	  m_keyFields[i][j]->id,
+	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {
-	  m_fbKeyFields[i].push(fbField(fbFields_, m_keyFields[i][j], id));
-	});
+	    m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
+	  });
     }
     m_maxBuf = new AnyBuf{};
   }
@@ -860,11 +858,11 @@ private:
     auto fbo = Zfb::GetAnyRoot(data.data());
     Tuple tuple;
     if (!record->vn())
-      tuple = loadTuple(m_fields, m_fbFields, fbo);
+      tuple = loadTuple(m_fields, m_xFields, fbo);
     else if (record->vn() > 0)
-      tuple = loadUpdTuple(m_fields, m_fbFields, fbo);
+      tuple = loadUpdTuple(m_fields, m_xFields, fbo);
     else
-      tuple = loadDelTuple(m_fields, m_fbFields, fbo);
+      tuple = loadDelTuple(m_fields, m_xFields, fbo);
     return new MockRow{record->un(), sn, record->vn(), ZuMv(tuple)};
   }
 
@@ -873,7 +871,7 @@ private:
     ZmAssert(m_maxBuf->refCount() == 1);
     IOBuilder fbb;
     fbb.buf(m_maxBuf);
-    fbb.Finish(saveTuple(fbb, m_fields, m_fbFields, row->data));
+    fbb.Finish(saveTuple(fbb, m_fields, m_xFields, row->data));
     return fbb.buf();
   }
 
@@ -882,7 +880,7 @@ private:
   ZmRef<AnyBuf> saveRow(const ZmRef<const MockRow> &row) {
     IOBuilder fbb;
     auto data = Zfb::Save::nest(fbb, [this, &row](Zfb::Builder &fbb) {
-      return saveTuple(fbb, m_fields, m_fbFields, row->data);
+      return saveTuple(fbb, m_fields, m_xFields, row->data);
     });
     {
       auto id = Zfb::Save::id(this->id());
@@ -901,12 +899,6 @@ public:
   void close(CloseFn fn) { m_opened = false; fn(); }
 
   void warmup() { }
-
-  void drop() {
-    m_indexUN.clean();
-    unsigned n = m_keyFields.length();
-    for (unsigned i = 0; i < n; i++) m_indices[i].clean();
-  }
 
   void maxima(MaxFn maxFn) {
     unsigned n = m_keyFields.length();
@@ -940,11 +932,11 @@ public:
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
     ZmAssert(keyID < m_keyFields.length());
-    ZmAssert(keyID < m_fbKeyFields.length());
+    ZmAssert(keyID < m_xKeyFields.length());
     auto work_ =
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       auto tuple = loadTuple(
-	m_keyFields[keyID], m_fbKeyFields[keyID], Zfb::GetAnyRoot(buf->data())
+	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data())
       );
       ZmRef<const MockRow> row = m_indices[keyID].findVal(tuple);
       if (row) {
@@ -1125,8 +1117,8 @@ private:
   ZuID			m_id;
   ZtMFields		m_fields;
   ZtMKeyFields		m_keyFields;
-  FBFields		m_fbFields;
-  FBKeyFields		m_fbKeyFields;
+  XFields		m_xFields;
+  XKeyFields		m_xKeyFields;
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
   UN			m_maxUN = ZdbNullUN();
