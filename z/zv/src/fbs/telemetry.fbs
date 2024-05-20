@@ -167,7 +167,6 @@ enum CacheMode:int8 {
 table DBTable {
   name:string;
   thread:string;
-  write_thread:string;
   count:uint64;
   cache_loads:uint64;
   cache_misses:uint64;
@@ -178,9 +177,6 @@ table DBTable {
 enum DBHostState:int8 {
   Instantiated = 0,	// instantiated, init() not yet called
   Initialized,		// init() or close() completed
-  Opening,		// open() in process
-  Closing,		// close() in process
-  Stopped,		// open() or stop() completed
   Electing,		// start() called, determining active/inactive
   Active,		// active (leader)
   Inactive,		// inactive (client)
@@ -196,7 +192,6 @@ table DBHost {
 }
 table DB {
   thread:string;
-  write_thread:string;
   self:Zfb.ID;
   leader:Zfb.ID;
   prev:Zfb.ID;

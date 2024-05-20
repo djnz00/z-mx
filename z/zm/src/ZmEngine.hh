@@ -65,7 +65,10 @@ public:
   template <typename L>
   bool lock(int state, L l) {
     Guard guard(m_lock);
-    if (m_state != state) return false;
+    if (m_state != state) {
+      std::cerr << (ZuStringN<120>{} << "ZmEngine::lock() m_state=" << int(m_state) << " state=" << state << '\n') << std::flush;
+      return false;
+    }
     return l();
   }
 

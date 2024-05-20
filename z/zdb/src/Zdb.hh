@@ -466,9 +466,7 @@ namespace CacheMode {
 struct TableCf {
   ZuID			id;
   ZmThreadName		thread;		// in-memory thread
-  ZmThreadName		writeThread;	// data store write thread
   mutable unsigned	sid = 0;	// in-memory thread slot ID
-  mutable unsigned	writeSID = 0;	// data store write thread slot ID
   int			cacheMode = CacheMode::Normal;
   bool			warmup = false;	// warm-up caches, backing store
 
@@ -476,7 +474,6 @@ struct TableCf {
   TableCf(ZuString id_) : id{id_} { }
   TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
     thread = cf->get("thread");
-    writeThread = cf->get("writeThread");
     cacheMode = cf->getEnum<CacheMode::Map>(
 	"cacheMode", CacheMode::Normal);
     warmup = cf->getBool("warmup");
@@ -511,10 +508,9 @@ public:
   ~AnyTable();
 
 private:
-  template <typename L>
-  void open(Store *store, L l);	// l(OpenResult)
-  bool opened(Store_::OpenResult);
-  void close();
+  template <typename L> void open(L l);		// l(OpenResult)
+  bool opened(OpenResult);
+  template <typename L> void close(L l);	// l()
 
 public:
   DB *db() const { return m_db; }
@@ -535,17 +531,6 @@ public:
     m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_cf->sid); }
-
-  // backing data store write thread (may be shared)
-  template <typename ...Args>
-  void writeRun(Args &&... args) const {
-    m_mx->run(m_cf->writeSID, ZuFwd<Args>(args)...);
-  }
-  template <typename ...Args>
-  void writeInvoke(Args &&... args) const {
-    m_mx->invoke(m_cf->writeSID, ZuFwd<Args>(args)...);
-  }
-  bool writeInvoked() const { return m_mx->invoked(m_cf->writeSID); }
 
   // record count - SWMR
   uint64_t count() const { return m_count.load_(); }
@@ -1463,7 +1448,6 @@ struct DBCf {
   ZmThreadName		thread;
   ZmThreadName		writeThread;
   mutable unsigned	sid = 0;
-  mutable unsigned	writeSID = 0;
   ZmRef<ZvCf>		storeCf;
   TableCfs		tableCfs;
   HostCfs		hostCfs;
@@ -1599,7 +1583,9 @@ public:
     while (auto node = i.iterate()) l(node);
   }
 
-public:
+  // backing data store
+  Store *store() const { return m_store; }
+
   // find table
   ZmRef<AnyTable> table(ZuID id) {
     ZmAssert(invoked());
@@ -1607,37 +1593,15 @@ public:
     return m_tables.findVal(id);
   }
 
-private:
-  template <typename L> void all_(L l) const {
-    // ZmAssert(invoked()); // called from final(), after stop()
+  using AllFn = ZmFn<AnyTable *, ZmFn<bool>>;
+  using AllDoneFn = ZmFn<DB *, bool>;
 
-    auto i = m_tables.readIterator();
-    while (auto table = i.iterateVal()) l(table);
-  }
-public:
-  template <typename L> void all(L l) const {
-    ZmAssert(invoked());
-
-    auto i = m_tables.readIterator();
-    while (auto table = i.iterateVal())
-      table->invoke([l = l(table)]() { l(); });
-  }
-  template <typename L> void allSync(L l) const {
-    ZmAssert(invoked());
-
-    auto i = m_tables.readIterator();
-    ZmBlock<>{}(m_tables.count_(), [&l, &i](unsigned, auto wake) {
-      if (auto table = i.iterateVal())
-	table->invoke([l = l(table), wake = ZuMv(wake)]() mutable {
-	  l(); wake();
-	});
-    });
-  }
+  bool all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
+  void allDone(bool ok);
 
   Zfb::Offset<ZvTelemetry::fbs::DB>
   telemetry(ZvTelemetry::IOBuilder &, bool update) const;
 
-public:
   ZvTelemetry::DBFn telFn();
 
   // debug printing
@@ -1645,6 +1609,11 @@ public:
   friend ZuPrintFn ZuPrintType(DB *);
 
 private:
+  template <typename L> void all_(L l) const {
+    auto i = m_tables.readIterator();
+    while (auto table = i.iterateVal()) l(table);
+  }
+
   // ZmEngine implementation
   void start_();
   void stop_();
@@ -1656,8 +1625,10 @@ private:
   }
   void wake();
 
+  void start_1();
   void stop_1();
   void stop_2();
+  void stop_3();
 
   // leader election and activation/deactivation
   void holdElection();		// elect new leader
@@ -1734,8 +1705,10 @@ private:
   // DB thread
   Tables		m_tables;
   CxnList		m_cxns;
-
-  ZmSemaphore		*m_stopping = nullptr;
+  AllFn			m_allFn;		// all() iteration context
+  AllDoneFn		m_allDoneFn;		// ''
+  unsigned		m_allCount = 0;		// remaining count
+  unsigned		m_allNotOK = 0;		// remaining not OK
 
   bool			m_appActive =false;
   Host			*m_self = nullptr;
@@ -1871,7 +1844,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, KeyID>> context)
       } else
 	table->invoke([fn = ZuMv(context->fn)]() mutable { fn(nullptr); });
       if (dlq.count_())
-	table->writeRun([table]() {
+	table->run([table]() {
 	  table->template retryRetrieve_<KeyID>();
 	});
     });

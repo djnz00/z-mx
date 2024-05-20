@@ -24,17 +24,14 @@
 
 namespace zdbtest {
 
+using namespace Zdb_;
+
 ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work, callbacks;
 
 bool deferWork = false, deferCallbacks = false;
 
 void performWork() { while (auto fn = work.shift()) fn(); }
 void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
-
-namespace MockStoreTbl {
-
-using namespace Zdb_;
-using namespace Zdb_::StoreTbl_;
 
 // --- value union
 
@@ -807,7 +804,7 @@ using Index =
 
 // --- mock storeTbl
 
-class StoreTbl : public Interface {
+class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
     ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
@@ -901,7 +898,7 @@ private:
 
 public:
   void open() { m_opened = true; }
-  void close() { m_opened = false; }
+  void close(CloseFn fn) { m_opened = false; fn(); }
 
   void warmup() { }
 
@@ -1138,16 +1135,7 @@ private:
   ZmRef<AnyBuf>		m_maxBuf;
 };
 
-} // MockStoreTbl
-
 // --- mock data store
-
-namespace MockStore {
-
-using namespace Zdb_;
-using namespace Zdb_::Store_;
-
-using StoreTbl = MockStoreTbl::StoreTbl;
 
 inline ZuID StoreTbl_IDAxor(const StoreTbl &storeTbl) { return storeTbl.id(); }
 inline constexpr const char *StoreTbls_HeapID() { return "StoreTbls"; }
@@ -1158,7 +1146,7 @@ using StoreTbls =
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
 
-class Store : public Interface {
+class Store : public Zdb_::Store {
 public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
@@ -1206,10 +1194,6 @@ private:
   ZmRef<StoreTbls>	m_storeTbls;
   bool			m_preserve = false;
 };
-
-} // MockStore
-
-using Store = MockStore::Store;
 
 } // zdbtest
 

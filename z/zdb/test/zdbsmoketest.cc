@@ -20,7 +20,7 @@
 using namespace zdbtest;
 
 // mock data store
-ZmRef<Store> store;
+ZmRef<zdbtest::Store> store;
 
 // database
 ZmRef<Zdb> db;
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     appMx->start();
     if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
-    store = new Store();
+    store = new zdbtest::Store();
     db = new Zdb();
 
     db->init(ZdbCf(cf), dbMx, ZdbHandler{

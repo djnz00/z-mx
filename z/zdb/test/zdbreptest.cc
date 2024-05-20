@@ -20,7 +20,7 @@
 using namespace zdbtest;
 
 // mock data stores
-ZmRef<Store> store[2];
+ZmRef<zdbtest::Store> store[2];
 
 // databases
 ZmRef<Zdb> db[2];
@@ -126,7 +126,7 @@ int main(int argc, char **argv)
     ZmAtomic<unsigned> ok = 0;
 
     for (unsigned i = 0; i < 2; i++) {
-      store[i] = new Store();
+      store[i] = new zdbtest::Store();
       db[i] = new Zdb();
 
       ZdbCf dbCf{cf};
@@ -200,8 +200,10 @@ int main(int argc, char **argv)
       done.wait();
     }
 
-    for (unsigned i = 0; i < 2; i++)
+    for (unsigned i = 0; i < 2; i++) {
+      ZeLOG(Debug, ([i](auto &s) { s << "STOP " << i; }));
       db[i]->stop();
+    }
 
     appMx->stop();
     dbMx->stop();

@@ -55,10 +55,10 @@ void OIDs::init(PGconn *conn) {
   }
 }
 
-uint32_t OIDs::resolve(PGconn *conn, const char *name) {
+unsigned OIDs::resolve(PGconn *conn, ZuString name) {
   Oid paramTypes[1] = { 25 };	// TEXTOID
-  const char *paramValues[1] = { name };
-  int paramLengths[1] = { int(strlen(name)) };
+  const char *paramValues[1] = { name.data() };
+  int paramLengths[1] = { int(name.length()) };
   int paramFormats[1] = { 1 };
   const char *query = "SELECT oid FROM pg_type WHERE typname = $1::text";
   PGresult *res = PQexecParams(conn, query,
@@ -79,16 +79,12 @@ uint32_t OIDs::resolve(PGconn *conn, const char *name) {
       s << "Store::init() \"" << query << "\" $1=\""
 	<< name << "\" returned invalid result\n";
     }));
-  uint32_t oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, 0, 0))->i;
-#if 0
+  unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, 0, 0))->i;
   ZeLOG(Debug, ([name, oid](auto &s) {
     s << "OID::resolve(\"" << name << "\")=" << oid;
   }));
-#endif
   return oid;
 }
-
-namespace PQStore {
 
 InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid) {
   m_cf = cf;
@@ -115,11 +111,15 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid) {
     }))};
   }
 
+  if (!m_storeTbls) m_storeTbls = new StoreTbls{};
+
   return {InitData{.replicated = true}};
 }
 
 void Store::final()
 {
+  m_storeTbls->clean();
+  m_storeTbls = nullptr;
 }
 
 void Store::close_fds()
@@ -130,8 +130,8 @@ void Store::close_fds()
   if (m_epollFD >= 0) {
     if (m_wakeFD >= 0)
       epoll_ctl(m_epollFD, EPOLL_CTL_DEL, m_wakeFD, 0);
-    if (m_socket >= 0)
-      epoll_ctl(m_epollFD, EPOLL_CTL_DEL, m_socket, 0);
+    if (m_connFD >= 0)
+      epoll_ctl(m_epollFD, EPOLL_CTL_DEL, m_connFD, 0);
     ::close(m_epollFD);
     m_epollFD = -1;
   }
@@ -141,9 +141,9 @@ void Store::close_fds()
 #else /* !_WIN32 */
 
   // close wakeup event
-  if (m_wakeEvent != INVALID_HANDLE_VALUE) {
-    CloseHandle(m_wakeEvent);
-    m_wakeEvent = INVALID_HANDLE_VALUE;
+  if (m_wakeSem != INVALID_HANDLE_VALUE) {
+    CloseHandle(m_wakeSem);
+    m_wakeSem = INVALID_HANDLE_VALUE;
   }
   // close connection event
   if (m_connEvent != INVALID_HANDLE_VALUE) {
@@ -157,17 +157,21 @@ void Store::close_fds()
   if (m_conn) {
     PQfinish(m_conn);
     m_conn = nullptr;
-    m_socket = -1;
+    m_connFD = -1;
   }
 }
 
 StartResult Store::start()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
   m_mx->wakeFn(m_pqSID, ZmFn{this, [](Store *store) { store->wake(); }});
   ZmBlock<>{}([this](auto done) {
+    ZeLOG(Debug, ([](auto &s) { s << "pushing start_(), run_()"; }));
     m_mx->push(m_pqSID, [this, done = ZuMv(done)]() mutable {
+      ZeLOG(Debug, ([](auto &s) { s << "inner"; }));
       start_();
       done();
+      run_();
     });
   });
   if (ZuUnlikely(!m_conn))
@@ -177,6 +181,8 @@ StartResult Store::start()
 
 void Store::start_()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
+
   const auto &connection = m_cf->get<true>("connection");
 
   m_conn = PQconnectdb(connection);
@@ -198,7 +204,7 @@ void Store::start_()
     return;
   }
 
-  m_socket = PQsocket(m_conn);
+  m_connFD = PQsocket(m_conn);
 
   if (PQsetnonblocking(m_conn, 1) != 0) {
     ZtString e = PQerrorMessage(m_conn);
@@ -256,18 +262,19 @@ void Store::start_()
     }
   }
 
+  ZeLOG(Debug, ([this](auto &s) { s << "epoll_ctl(EPOLL_CTL_ADD) connFD=" << m_connFD; }));
   {
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR | EPOLLET;
     ev.data.u64 = 1;
-    epoll_ctl(m_epollFD, EPOLL_CTL_ADD, m_socket, &ev);
+    epoll_ctl(m_epollFD, EPOLL_CTL_ADD, m_connFD, &ev);
   }
 
 #else
 
-  m_wakeEvent = CreateEvent(nullptr, true, false, L"Local\\ZdbPQ");
-  if (m_wakeEvent == NULL || m_wakeEvent == INVALID_HANDLE_VALUE) {
+  m_wakeSem = CreateSemaphore(nullptr, 0, 0x7fffffff, nullptr); }
+  if (m_wakeSem == NULL || m_wakeSem == INVALID_HANDLE_VALUE) {
     ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
       s << "CreateEvent() failed: " << e;
     }));
@@ -283,7 +290,7 @@ void Store::start_()
     close_fds();
     return;
   }
-  if (WSAEventSelect(m_socket, m_connEvent,
+  if (WSAEventSelect(m_connFD, m_connEvent,
       FD_READ | FD_WRITE | FD_OOB | FD_CLOSE)) {
     ZeLOG(Fatal, ([e = WSAGetLastError()](auto &s) {
       s << "WSAEventSelect() failed: " << e;
@@ -297,29 +304,46 @@ void Store::start_()
 
 void Store::stop()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
   ZmBlock<>{}([this](auto done) {
-    m_mx->wakeFn(m_pqSID, ZmFn{});
-    m_mx->push(m_pqSID, [this, done = ZuMv(done)]() mutable {
-      stop_();
+    enqueue(Work::Foo{});
+    enqueue(Work::Foo{});
+    enqueue(Work::Foo{});
+    enqueue(Work::Stop{ZmFn{[done = ZuMv(done)]() mutable {
       done();
-    });
-    wake_();
+    }}});
   });
 }
 
-void Store::stop_()
+void Store::stop_(ZmFn<> stopped)	// called after dequeuing Stop
 {
+  ZeLOG(Debug, ([](auto &s) { }));
+  m_mx->wakeFn(m_pqSID, ZmFn{});
+  ZeLOG(Debug, ([](auto &s) { s << "pushing stop_1()"; }));
+  m_mx->push(m_pqSID, [this, stopped = ZuMv(stopped)]() mutable {
+    stop_1();
+    stopped();
+  });
+  wake_();
+}
+
+void Store::stop_1()
+{
+  ZeLOG(Debug, ([](auto &s) { }));
   close_fds();
 }
 
 void Store::wake()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
+  ZeLOG(Debug, ([](auto &s) { s << "pushing run_()"; }));
   m_mx->push(m_pqSID, [this]{ run_(); });
   wake_();
 }
 
 void Store::wake_()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
 #ifndef _WIN32
   char c = 0;
   while (::write(m_wakeFD2, &c, 1) < 0) {
@@ -330,9 +354,9 @@ void Store::wake_()
     }
   }
 #else /* !_WIN32 */
-  if (!SetEvent(m_wake)) {
+  if (!ReleaseSemaphore(m_wakeSem, 1, 0)) {
     ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
-      s << "SetEvent() failed: " << e;
+      s << "ReleaseSemaphore() failed: " << e;
     }));
   }
 #endif /* !_WIN32 */
@@ -340,12 +364,17 @@ void Store::wake_()
 
 void Store::run_()
 {
+  ZeLOG(Debug, ([](auto &s) { }));
+  write();
+
   for (;;) {
 
 #ifndef _WIN32
 
     epoll_event ev[8];
+    ZeLOG(Debug, ([](auto &s) { s << "epoll_wait()..."; }));
     int r = epoll_wait(m_epollFD, ev, 8, -1); // max events is 8
+    ZeLOG(Debug, ([r](auto &s) { s << "epoll_wait(): " << r; }));
     if (r < 0) {
       ZeLOG(Fatal, ([e = errno](auto &s) {
 	s << "epoll_wait() failed: " << e;
@@ -355,6 +384,7 @@ void Store::run_()
     for (unsigned i = 0; i < unsigned(r); i++) {
       uint32_t events = ev[i].events;
       auto v = ev[i].data.u64; // ID
+      ZeLOG(Debug, ([events, v](auto &s) { s << "epoll_wait() events=" << events << " v=" << v << " EPOLLIN=" << ZuBoxed(EPOLLIN).hex() << " EPOLLOUT=" << ZuBoxed(EPOLLOUT).hex(); }));
       if (ZuLikely(!v)) {
 	char c;
 	int r = ::read(m_wakeFD, &c, 1);
@@ -373,7 +403,7 @@ void Store::run_()
 
 #else
 
-    HANDLE handles[2] = { m_wakeEvent, m_connEvent };
+    HANDLE handles[2] = { m_wakeSem, m_connEvent };
     DWORD event = WaitForMultipleObjectsEx(2, handles, false, INFINITE, false);
     if (event == WAIT_FAILED) {
       ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
@@ -382,12 +412,17 @@ void Store::run_()
       return;
     }
     if (event == WAIT_OBJECT_0) {
-      ResetEvent(m_wakeEvent);
+      // FIXME WFMO should have decremented the semaphore, but test this,
+      // we may need to:
+      // switch (WaitForSingleObject(m_wakeSem, 0)) {
+      //   case WAIT_OBJECT_0: return;
+      //   case WAIT_TIMEOUT:  break;
+      // }
       return;
     }
     if (event == WAIT_OBJECT_0 + 1) {
       WSANETWORKEVENTS events;
-      auto i = WSAEnumNetworkEvents(m_socket, m_connEvent, &events);
+      auto i = WSAEnumNetworkEvents(m_connFD, m_connEvent, &events);
       if (i != 0) {
 	ZeLOG(Fatal, ([e = WSAGetLastError()](auto &s) {
 	  s << "WSAEnumNetworkEvents() failed: " << e;
@@ -421,15 +456,18 @@ void Store::read() {
       PGresult *res = PQgetResult(m_conn);
       if (!res) break;
       consumed = true;
+      auto pending = m_pending.headNode();
+      ZmAssert(pending);
       do {
 	switch (PQresultStatus(res)) { // ExecStatusType
 	  case PGRES_COMMAND_OK: // query succeeded - no tuples
+	    parse(pending, nullptr);
 	    break;
 	  case PGRES_TUPLES_OK: // query succeeded - N tuples
-	    parse(res);
+	    parse(pending, res);
 	    break;
 	  case PGRES_SINGLE_TUPLE: // query succeeded - 1 of N tuples
-	    parse(res);
+	    parse(pending, res);
 	    break;
 	  case PGRES_NONFATAL_ERROR: // notice / warning
 	    break;
@@ -441,12 +479,23 @@ void Store::read() {
 	PQclear(res);
 	res = PQgetResult(m_conn);
       } while (res);
-      // FIXME res is null - dequeue next pending request and onto next one
+      m_pending.shift();
     }
   } while (consumed);
 }
 
-void Store::parse(PGresult *res) {
+void Store::parse(Work::Queue::Node *work, PGresult *res)
+{
+  switch (work->data().type()) {
+    case Work::Item::Index<Work::TblItem>{}: {
+      const auto &tblItem = work->data().p<Work::TblItem>();
+      switch (tblItem.query.type()) {
+	case Work::Query::Index<Work::GetTable>{}:
+	  tblItem.tbl->getTable2(res);
+	  break;
+      }
+    } break;
+  }
 #if 0
   for (i = 0; i < PQntuples(res); i++) {
     j = 0; /* field number, also returned from PQfnumber(res, "id") */
@@ -476,6 +525,42 @@ if (!PQsendPrepare(PGconn *conn,
 
 void Store::write() {
   ZeLOG(Debug, ([](auto &s) { }));
+
+  bool flush = false;
+
+  while (auto work = m_queue.shift()) {
+    switch (work->data().type()) {
+      case Work::Item::Index<Work::Foo>{}:
+	ZeLOG(Debug, "Foo!");
+	break;
+      case Work::Item::Index<Work::Stop>{}:
+	stop_(ZuMv(ZuMv(work->data()).p<Work::Stop>()).stopped);
+	break;
+      case Work::Item::Index<Work::TblItem>{}: {
+	flush = true;
+	const auto &tblItem = work->data().p<Work::TblItem>();
+	switch (tblItem.query.type()) {
+	  case Work::Query::Index<Work::GetTable>{}:
+	    if (tblItem.tbl->getTable(m_conn))
+	      m_pending.pushNode(ZuMv(work).release());
+	    else
+	      m_queue.unshiftNode(ZuMv(work).release());
+	    break;
+	}
+      } break;
+    }
+    if (flush) break;
+  }
+
+  if (flush) {
+    if (PQsendFlushRequest(m_conn) != 1) {
+      ZtString e = PQerrorMessage(m_conn);
+      ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
+	s << "PQsendFlushRequest() failed: " << e;
+      }));
+      return;
+    }
+  }
   if (PQflush(m_conn) < 0) {
     ZtString e = PQerrorMessage(m_conn);
     ZeLOG(Fatal, ([e = ZuMv(e)](auto &s) {
@@ -515,14 +600,26 @@ void Store::open(
   MaxFn maxFn,
   OpenFn openFn)
 {
+  ZeLOG(Debug, ([](auto &s) { }));
+#if 0
   openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s) {
     s << "open(" << id << ") failed";
   }))});
+#endif
+  auto storeTbl =
+    new StoreTbls::Node{this, id, ZuMv(fields), ZuMv(keyFields), schema};
+  m_storeTbls->addNode(storeTbl);
+  storeTbl->open(ZuMv(maxFn), ZuMv(openFn));
 }
 
-} // PQStore
-
-namespace PQStoreTbl {
+void Store::enqueue(Work::Item item)
+{
+  ZeLOG(Debug, ([](auto &s) { }));
+  m_mx->run(m_pqSID, [this, item = ZuMv(item)]() mutable {
+    ZeLOG(Debug, ([](auto &s) { s << "inner"; }));
+    m_queue.push(ZuMv(item));
+  });
+}
 
 // resolve Value union discriminator from field metadata
 static FBField fbField(
@@ -612,9 +709,9 @@ static FBField fbField(
 }
 
 StoreTbl::StoreTbl(
-  ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+  Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
   const reflection::Schema *schema) :
-  m_id{id},
+  m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)}
 {
   const reflection::Object *rootTbl = schema->root_table();
@@ -650,8 +747,88 @@ StoreTbl::~StoreTbl()
 // need to figure out prepared statements,
 // prepared result processing, etc.
 
-void StoreTbl::open() { }
-void StoreTbl::close() { }
+void StoreTbl::open(MaxFn maxFn, OpenFn openFn) {
+  ZeLOG(Debug, ([](auto &s) { }));
+  m_maxFn = ZuMv(maxFn);
+  m_openFn = ZuMv(openFn);
+ 
+  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::GetTable{}}}});
+  // opened();
+}
+
+  // max - one for each maxima
+  // find - one for each keyID
+  // recover - one
+  // insert into X values (...)
+  // update  ...
+  // delete where ...
+  // FIXME - storeTbl->open(...);
+  // maxFn and openFn calls will be deferred / async
+  //
+  // call storeTbl->open(ZuMv(openFn));
+  //
+
+bool StoreTbl::getTable(PGconn *conn)
+{
+#if 1
+  ZeLOG(Debug, ([](auto &s) { }));
+  Oid paramTypes[1] = { 25 };	// TEXTOID
+  const char *paramValues[1] = { m_id.data() };
+  int paramLengths[1] = { int(m_id.length()) };
+  int paramFormats[1] = { 1 };
+  const char *query =
+    "SELECT a.attname AS name, a.atttypid AS oid "
+    "FROM pg_catalog.pg_attribute a "
+    "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
+    "JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid "
+    "WHERE c.relname = $1::text "
+      "AND n.nspname = 'public' "
+      "AND a.attnum > 0 "
+      "AND NOT a.attisdropped";
+  int r = PQsendQueryParams(conn, query,
+    1, paramTypes, paramValues, paramLengths, paramFormats, 1);
+  ZeLOG(Debug, ([r](auto &s) { s << "PQsendQueryParams(): " << r; }));
+  return r == 1;
+#else
+  m_store->zdbRun([this]() { opened(); });
+  return true;
+#endif
+}
+
+void StoreTbl::getTable2(PGresult *res)
+{
+  ZeLOG(Debug, ([res](auto &s) { s << ZuBoxPtr(res).hex(); }));
+  if (ZuUnlikely(!res)) return;
+  for (unsigned i = 0; i < PQntuples(res); i++) {
+    const char *id = PQgetvalue(res, i, 0);
+    unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
+    ZeLOG(Debug, ([id = ZtString{id}, oid](auto &s) {
+      s << "id=" << id << " oid=" << oid;
+    }));
+  }
+  m_store->zdbRun([this]() { opened(); });
+}
+
+void StoreTbl::opened()
+{
+  ZeLOG(Debug, ([](auto &s) { }));
+  m_openFn(OpenResult{OpenData{
+    .storeTbl = this,
+    .count = 0,
+    .un = 0,
+    .sn = 0
+  }});
+  m_maxFn = MaxFn{};
+  m_openFn = OpenFn{};
+}
+
+void StoreTbl::close(CloseFn fn)
+{
+  // FIXME
+  // - no need to deal with close() during open()
+  // - Zdb ensures that does not occur
+  fn();
+}
 
 void StoreTbl::warmup() { }
 
@@ -664,8 +841,6 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) { }
 void StoreTbl::recover(UN un, RowFn rowFn) { }
 
 void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn) { }
-
-} // PQStoreTbl 
 
 } // ZdbPQ
 

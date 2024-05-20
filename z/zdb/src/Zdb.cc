@@ -66,14 +66,6 @@ void DB::init(
     if (invalidSID(config.sid))
       throw ZeEVENT(Fatal, ([thread = config.thread](auto &s) {
 	s << "ZdbDB thread misconfigured: " << thread; }));
-    if (!config.writeThread)
-      config.writeSID = config.sid;
-    else {
-      config.writeSID = mx->sid(config.writeThread);
-      if (invalidSID(config.writeSID))
-	throw ZeEVENT(Fatal, ([writeThread = config.writeThread](auto &s) {
-	  s << "ZdbDB write thread misconfigured: " << writeThread; }));
-    }
 
     {
       auto i = config.tableCfs.readIterator();
@@ -88,20 +80,6 @@ void DB::init(
 		([id = tableCf.id, thread = tableCf.thread](auto &s) {
 		  s << "Zdb " << id
 		    << " thread misconfigured: " << thread; }));
-	}
-	if (!tableCf.writeThread) {
-	  if (tableCf.thread)
-	    tableCf.writeSID = tableCf.sid;
-	  else
-	    tableCf.writeSID = config.writeSID;
-	} else {
-	  tableCf.writeSID = mx->sid(tableCf.writeThread);
-	  if (invalidSID(tableCf.writeSID) ||
-	      (tableCf.sid != config.sid && tableCf.writeSID == config.sid))
-	    throw ZeEVENT(Fatal,
-		([id = tableCf.id, writeThread = tableCf.writeThread](auto &s) {
-		  s << "Zdb " << id
-		    << " write thread misconfigured: " << writeThread; }));
 	}
       }
     }
@@ -135,9 +113,9 @@ void DB::init(
       }
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
-      Store_::InitResult result = m_store->init(m_cf.storeCf, m_mx, m_cf.sid);
+      InitResult result = m_store->init(m_cf.storeCf, m_mx, m_cf.sid);
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
-      m_repStore = result.p<Store_::InitData>().replicated;
+      m_repStore = result.p<InitData>().replicated;
     }
 
     m_hostIndex.clean();
@@ -182,6 +160,10 @@ ZmRef<AnyTable> DB::initTable_(ZuID id, ZmFn<DB *, TableCf *> ctorFn)
 
 void DB::final()
 {
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped, [this]() {
     if (state() != HostState::Initialized) return false;
     // reset recovery
@@ -213,6 +195,10 @@ void DB::wake()
 
 void DB::start_()
 {
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
   ZmAssert(invoked());
 
   using namespace HostState;
@@ -239,25 +225,22 @@ void DB::start_()
   }
 
   // open and recover all tables
-  {
-    ZmAtomic<unsigned> ok = true;
-    auto i = m_tables.readIterator();
-    ZmBlock<>{}(m_tables.count_(), [&ok, &i](unsigned, auto wake) mutable {
-      if (auto table = i.iterateVal())
-	table->invoke([table, &ok, wake = ZuMv(wake)]() mutable {
-	  table->open(table->db()->m_store,
-	    [table, &ok, wake = ZuMv(wake)](Store_::OpenResult result) mutable {
-	      ok &= table->opened(ZuMv(result));
-	      wake();
-	    });
-	  });
-    });
-    if (!ok) {
-      allSync([](AnyTable *table) { return [table]() { table->close(); }; });
-      started(false);
-      return;
-    }
-  }
+  all([](AnyTable *table, ZmFn<bool> done) {
+    table->open([done = ZuMv(done)](bool ok) mutable { done(ok); });
+  }, [](DB *db, bool ok) {
+    ok ? db->start_1() : db->started(false);
+  });
+}
+
+void DB::start_1()
+{
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
+  ZmAssert(invoked());
+
+  using namespace HostState;
 
   // refresh table state vector, begin election
   dbStateRefresh();
@@ -284,6 +267,10 @@ void DB::start_()
 
 void DB::stop_()
 {
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
   ZmAssert(invoked());
 
   using namespace HostState;
@@ -292,7 +279,7 @@ void DB::stop_()
     case Active:
     case Inactive:
       break;
-    case Electing:	// holdElection will resume stop_() at completion
+    case Electing:	// holdElection will resume stop_1() at completion
       return;
     default:
       ZeLOG(Fatal, "DB::stop_ called out of order");
@@ -307,9 +294,25 @@ void DB::stop_()
 
 void DB::stop_1()
 {
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
   ZmAssert(invoked());
 
-  state(HostState::Stopping);
+  // re-check state, stop_1() is resumed via holdElection()
+
+  using namespace HostState;
+
+  switch (state()) {
+    case Active:
+    case Inactive:
+      break;
+    default:
+      return;
+  }
+
+  state(Stopping);
   repStop();
   m_mx->del(&m_hbSendTimer);
   m_mx->del(&m_electTimer);
@@ -328,9 +331,27 @@ void DB::stop_1()
 
 void DB::stop_2()
 {
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
   ZmAssert(invoked());
 
-  allSync([](AnyTable *table) { return [table]() { table->close(); }; });
+  // close all tables
+  all([](AnyTable *table, ZmFn<bool> done) {
+    table->close([done = ZuMv(done)]() mutable { done(true); });
+  }, [](DB *db, bool) {
+    db->stop_3();
+  });
+}
+
+void DB::stop_3()
+{
+  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  }));
+
+  ZmAssert(invoked());
 
   state(HostState::Initialized);
 
@@ -508,6 +529,39 @@ void DB::down_()
   m_handler.downFn(this);
 }
 
+bool DB::all(AllFn fn, AllDoneFn doneFn)
+{
+  ZmAssert(invoked());
+
+  if (ZuUnlikely(m_allCount)) return false;
+  m_allFn = ZuMv(fn);
+  m_allDoneFn = ZuMv(doneFn);
+  auto i = m_tables.readIterator();
+  m_allCount = m_allNotOK = m_tables.count_();
+  while (auto table = i.iterateVal().ptr())
+    table->invoke([table]() {
+      auto db = table->db();
+      db->m_allFn(table, ZmFn<bool>{db, [](DB *db, bool ok) {
+	db->invoke([db, ok]() { db->allDone(ok); });
+      }});
+    });
+  return true;
+}
+
+void DB::allDone(bool ok)
+{
+  ZmAssert(invoked());
+
+  if (ZuUnlikely(!m_allCount)) return;
+  if (ok) --m_allNotOK;
+  if (!--m_allCount) {
+    m_allDoneFn(this, !m_allNotOK);
+    m_allFn = AllFn{};
+    m_allDoneFn = AllDoneFn{};
+    m_allCount = m_allNotOK = 0;
+  }
+}
+
 ZvTelemetry::DBFn DB::telFn()
 {
   return ZvTelemetry::DBFn{ZmMkRef(this), [](
@@ -527,11 +581,11 @@ ZvTelemetry::DBFn DB::telFn()
 	  hostFn(fbb, host->telemetry(fbb, update));
 	});
       }
-      db->all([tableFn = ZuMv(tableFn), update](const AnyTable *table) {
-	return [tableFn, update, table]() {
-	  ZvTelemetry::IOBuilder fbb;
-	  tableFn(fbb, table->telemetry(fbb, update));
-	};
+      db->all([tableFn = ZuMv(tableFn), update](
+	  AnyTable *table, ZmFn<bool> done) {
+	ZvTelemetry::IOBuilder fbb;
+	tableFn(fbb, table->telemetry(fbb, update));
+	done(true);
       });
     });
   }};
@@ -543,15 +597,13 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
   using namespace Zfb;
   using namespace Zfb::Save;
 
-  Zfb::Offset<String> thread, writeThread;
+  Zfb::Offset<String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
-    writeThread = str(fbb_, m_cf.writeThread);
   }
   ZvTelemetry::fbs::DBBuilder fbb{fbb_};
   if (!update) {
     fbb.add_thread(thread);
-    fbb.add_thread(writeThread);
     { auto v = id(m_self->id()); fbb.add_self(&v); }
   }
   { auto v = id(m_leader ? m_leader->id() : ZuID{}); fbb.add_leader(&v); }
@@ -1010,8 +1062,6 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, UN un, UN endUN) {
     return;
   }
 
-  using namespace StoreTbl_;
-
   m_storeTbl->recover(un,
     [this, cxn = ZuMv(cxn), un, endUN](RowResult result) mutable {
     if (ZuLikely(result.is<RowData>())) {
@@ -1430,17 +1480,15 @@ AnyTable::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
   using namespace Zfb;
   using namespace Zfb::Save;
 
-  Zfb::Offset<String> path, name, thread, writeThread;
+  Zfb::Offset<String> path, name, thread;
   if (!update) {
     name = str(fbb_, config().id);
     thread = str(fbb_, config().thread);
-    writeThread = str(fbb_, config().writeThread);
   }
   ZvTelemetry::fbs::DBTableBuilder fbb{fbb_};
   if (!update) {
     fbb.add_name(name);
     fbb.add_thread(thread);
-    fbb.add_writeThread(writeThread);
   }
   fbb.add_count(m_count.load_());
   {
@@ -1500,7 +1548,7 @@ void AnyTable::write(ZmRef<const AnyBuf> buf)
       // leader, or follower without replicated data store - will
       // evict buf when write to data store is committed
       db->replicate(buf);
-      writeRun([this, buf = ZuMv(buf)]() mutable { store(ZuMv(buf)); });
+      run([this, buf = ZuMv(buf)]() mutable { store(ZuMv(buf)); });
     } else {
       // follower with replicated data store - will evict buf
       // when leader subsequently sends commit, unless message is recovery
@@ -1518,7 +1566,7 @@ void AnyTable::store(ZmRef<const AnyBuf> buf)
 {
   if (ZuUnlikely(!m_open)) return; // table is closing
 
-  ZmAssert(writeInvoked());
+  ZmAssert(invoked());
 
   // DLQ draining in progress - just push onto the queue
   if (m_storeDLQ.count_()) {
@@ -1535,7 +1583,6 @@ void AnyTable::retryStore_()
 }
 void AnyTable::store_(ZmRef<const AnyBuf> buf)
 {
-  using namespace StoreTbl_;
   using namespace Zfb::Load;
 
   CommitFn commitFn = [this](ZmRef<const AnyBuf> buf, CommitResult result) {
@@ -1557,7 +1604,7 @@ void AnyTable::store_(ZmRef<const AnyBuf> buf)
 	if (!recovery) commitSend(un);
       });
     }
-    if (m_storeDLQ.count_()) writeRun([this]() { retryStore_(); });
+    if (m_storeDLQ.count_()) run([this]() { retryStore_(); });
   };
 
   m_storeTbl->write(ZuMv(buf), ZuMv(commitFn));
@@ -1578,17 +1625,24 @@ void AnyTable::evictBuf(UN un)
 }
 
 // DB::open() iterates over tables, calling open()
-// - each store table open calls table->opened(Store_::OpenResult) on success
+// - each store table open calls table->opened(OpenResult) on success
 template <typename L>
-void AnyTable::open(Store *store, L l)
+void AnyTable::open(L l)
 {
+  ZeLOG(Debug,
+    ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
+      s << hostID << " m_open=" << open;
+    }));
+
   ZmAssert(invoked());
+  ZmAssert(!m_open);
 
-  if (m_open) return;
+  if (m_open) {
+    l(true);
+    return;
+  }
 
-  using namespace Store_;
-
-  store->open(
+  db()->store()->open(
     id(), objFields(), objKeyFields(), objSchema(),
     {this, [](AnyTable *table, MaxData data) {
       table->invoke([table, data = ZuMv(data)]() mutable {
@@ -1596,18 +1650,23 @@ void AnyTable::open(Store *store, L l)
       });
     }},
     [this, l = ZuMv(l)](OpenResult result) mutable {
-      invoke([l = ZuMv(l), result = ZuMv(result)]() mutable {
-	l(ZuMv(result));
+      invoke([this, l = ZuMv(l), result = ZuMv(result)]() mutable {
+	l(opened(ZuMv(result)));
       });
     });
 }
 
-bool AnyTable::opened(Store_::OpenResult result)
+bool AnyTable::opened(OpenResult result)
 {
+  ZeLOG(Debug,
+    ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
+      s << hostID << " m_open=" << open;
+    }));
+
   ZmAssert(invoked());
   ZmAssert(!m_open);
 
-  using namespace Store_;
+  if (m_open) return true;
 
   if (!result.is<OpenData>()) {
     if (result.is<Event>())
@@ -1626,21 +1685,36 @@ bool AnyTable::opened(Store_::OpenResult result)
   return true;
 }
 
-void AnyTable::close()
+template <typename L>
+void AnyTable::close(L l)
 {
+  ZeLOG(Debug,
+    ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
+      s << hostID << " m_open=" << open;
+    }));
+
   ZmAssert(invoked());
 
-  if (!m_open) return;
-  m_open = 0;
+  // ensure idempotence
 
-  ZmBlock<>{}([this](auto wake) {
-    writeInvoke([this, wake = ZuMv(wake)]() mutable {
-      m_storeTbl->close();
-      wake();
+  if (!m_open) {
+    l();
+    return;
+  }
+
+  if (!m_storeTbl) {
+    l();
+    m_open = 0;
+    return;
+  }
+
+  m_storeTbl->close([this, l = ZuMv(l)]() mutable {
+    invoke([this, l = ZuMv(l)]() mutable {
+      m_storeTbl = nullptr;
+      l();
+      m_open = 0;
     });
   });
-
-  m_storeTbl = nullptr;
 }
 
 bool AnyObject::insert_(UN un)

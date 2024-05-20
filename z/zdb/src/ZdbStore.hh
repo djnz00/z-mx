@@ -37,60 +37,11 @@
 
 namespace Zdb_ {
 
+class Store;
+class StoreTbl;
+
 // monomorphic ZeEvent
 using Event = ZeMEvent;
-
-// row data
-struct RowData {
-  ZmRef<const AnyBuf>	buf;	// replication message
-};
-// row result
-using RowResult = ZuUnion<
-  void,			// missing
-  RowData,		// succeeded
-  Event>;		// error
-
-// row callback
-using RowFn = ZmFn<RowResult>;
-
-// max data (returned by maxima() for all series keys)
-struct MaxData {
-  unsigned		keyID;
-  ZmRef<const AnyBuf>	buf;	// key data, no replication message header
-};
-// max callback
-using MaxFn = ZmFn<MaxData>;	// must process buf contents synchronously
-
-// commit result
-using CommitResult = ZuUnion<void, Event>;
-// commit callback
-using CommitFn = ZmFn<ZmRef<const AnyBuf>, CommitResult>;
-
-// table close callback
-using CloseFn = ZmFn<>;
-
-// backing data store table namespace
-namespace StoreTbl_ {
-
-// backing table interface
-struct Interface {
-  virtual void close() = 0;	// idempotent, synchronous
-
-  virtual void warmup() = 0;
-
-  // buf contains key data, no replication message header
-  virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;
-
-  virtual void recover(UN, RowFn) = 0;
-
-  // buf contains replication message, UN is idempotency key
-  virtual void write(ZmRef<const AnyBuf>, CommitFn) = 0;	// idempotent
-};
-} // StoreTbl_;
-using StoreTbl = StoreTbl_::Interface;
-
-// backing data store namespace
-namespace Store_ {
 
 // result of store init()
 struct InitData {
@@ -127,8 +78,54 @@ using OpenResult = ZuUnion<
 // open callback
 using OpenFn = ZmFn<OpenResult>;
 
+// table close callback
+using CloseFn = ZmFn<>;
+
+// max data (returned by maxima() for all series keys)
+struct MaxData {
+  unsigned		keyID;
+  ZmRef<const AnyBuf>	buf;	// key data, no replication message header
+};
+// max callback
+using MaxFn = ZmFn<MaxData>;	// must process buf contents synchronously
+
+// row data
+struct RowData {
+  ZmRef<const AnyBuf>	buf;	// replication message
+};
+// row result
+using RowResult = ZuUnion<
+  void,			// missing
+  RowData,		// succeeded
+  Event>;		// error
+
+// row callback
+using RowFn = ZmFn<RowResult>;
+
+// commit result
+using CommitResult = ZuUnion<void, Event>;
+// commit callback
+using CommitFn = ZmFn<ZmRef<const AnyBuf>, CommitResult>;
+
+// backing table interface
+class StoreTbl {
+public:
+  virtual void close(CloseFn) = 0;	// idempotent
+
+  virtual void warmup() = 0;
+
+  // buf contains key data, no replication message header
+  virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;
+
+  virtual void recover(UN, RowFn) = 0;
+
+  // buf contains replication message, UN is idempotency key
+  virtual void write(ZmRef<const AnyBuf>, CommitFn) = 0;	// idempotent
+};
+
 // backing data store interface
-struct Interface : public ZmPolymorph {
+class Store : public ZmPolymorph {
+public:
   // init and final are synchronous / blocking
   virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,
@@ -149,8 +146,6 @@ struct Interface : public ZmPolymorph {
       MaxFn,				// maxima callback
       OpenFn) = 0;			// open result callback
 };
-} // Store_
-using Store = Store_::Interface;
 
 // module entry point
 typedef Store *(*StoreFn)();

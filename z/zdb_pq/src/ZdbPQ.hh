@@ -33,6 +33,11 @@
 
 namespace ZdbPQ {
 
+class Store;
+class StoreTbl;
+
+using namespace Zdb_;
+
 // Value    C++        flatbuffers     PG SQL        PG send/recv
 // -----    ---        -----------     ------        ------------
 // String   ZuString   String          text          raw data
@@ -688,55 +693,170 @@ Offset saveTuple(
 
 class OIDs {
   using Map = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
-  using Values = ZuArrayN<uint32_t, Value::N - 1>;
+  using Values = ZuArrayN<unsigned, Value::N - 1>;
 
 public:
   void init(PGconn *);
 
-  int32_t oid(unsigned i) {
+  int oid(unsigned i) {
     if (i < 1 || i >= Value::N) return -1;
     return m_values[i - 1];
   }
-  int32_t oid(ZuString name) {
+  int oid(ZuString name) {
     int8_t i = m_map.findVal(name);
     if (ZuCmp<int8_t>::null(i) || i < 1 || i >= Value::N) return -1;
     return m_values[i - 1];
   }
 
 private:
-  uint32_t resolve(PGconn *conn, const char *name);
+  unsigned resolve(PGconn *conn, ZuString name);
 
   Map		m_map;
   Values	m_values;
 };
 
-struct Type {
-  uint32_t		oid;
-  unsigned		size;
+namespace Work {
+
+struct Foo {
 };
 
-struct Field {
-  Type			*type;
-  ZtMField		*field;
+struct Stop {
+  ZmFn<>		stopped;
 };
 
-namespace PQStoreTbl {
+// DB start sequence
+// - MkMRD - create table if not exist
 
-using namespace Zdb_;
-using namespace Zdb_::StoreTbl_;
+// table open sequence
+// - GetTable - check field IDs and OIDs match, if not then bail
+// - [MkTable] - create table if missing
+// - MkIndex - for each key
+//   - idempotent "create index if not exist"
+//   - series indices might be different than regular indices
+// - PrepFind for each key
+// - PrepRecover
+// - PrepIns
+// - PrepUpd
+// - PrepDel
+// - Open - get count, max(UN), max(SN)
+// - MRD - get UN, SN
+// - Max - for each series key
+//   ... finally we're in business
+//
+// GetTable query:
+/*
+SELECT a.attname AS name, a.atttypid AS oid
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE c.relname = 'foo'
+  AND n.nspname = 'public'
+  AND a.attnum > 0
+  AND NOT a.attisdropped
+ORDER BY a.attnum;
+ name |  oid
+------+--------
+ a    | 343471
+ */
 
-class StoreTbl : public Interface {
+struct MkMRD { };			// create _mrd table if not exists
+
+struct GetTable { };			// validate table (if it exists)
+
+struct MkTable { };			// create table (if it did not exist)
+
+struct MkIndex {			// create index if not exists
+  unsigned		keyID;		// {tableID}_{keyID}
+};
+
+struct PrepFind {			// {tableID}_find_{keyID} 
+  unsigned		keyID;
+};
+
+struct PrepRecover { };			// {tableID}_recover
+
+struct PrepInsert { };			// {tableID}_insert
+
+struct PrepUpdate { };			// {tableID}_update
+
+struct PrepDelete { };			// {tableID}_delete
+
+struct Open { };
+
+struct MRD { };
+
+struct Max {				// {tableID}_max
+  unsigned		keyID;
+};
+
+struct Find {
+  unsigned		keyID;
+  ZmRef<const AnyBuf>	buf;
+  RowFn			rowFn;
+};
+
+struct Recover {
+  UN			un;
+  RowFn			rowFn;
+};
+
+struct Write {
+  ZmRef<const AnyBuf>	buf;
+  CommitFn		commitFn;
+};
+
+using Query = ZuUnion<
+  GetTable, MkTable, MkIndex,
+  PrepFind, PrepRecover, PrepInsert, PrepUpdate, PrepDelete,
+  Open, MRD, Max,
+  Find, Recover, Write>;
+
+struct TblItem {
+  StoreTbl	*tbl;	
+  Query		query;
+};
+
+using Item = ZuUnion<Foo, Stop, MkMRD, TblItem>;
+
+using Queue = ZmList<Item>;
+
+} // Work
+
+namespace OpenState {
+ZtEnumValues(OpenState,
+  PreOpen = 0,
+  GetTable,	// validate table columns for consistency
+  MkTable,	// skipped if table pre-exists and is consistent
+  MkIndex,	// idempotent make indices for all keys
+  PrepFind,	// prepare find for all keys
+  PrepRecover,	// prepare recover query
+  PrepInsert,	// prepare insert query
+  PrepUpdate,	// prepare update query
+  PrepDelete,	// prepare delete query
+  Open,		// query count, max UN, max SN from main table
+  MRD,		// query max UN, max SN from _mrd table
+  Max,		// query maxima for series keys
+  Opened);	// open complete
+}
+
+class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
-    ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+    Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
     const reflection::Schema *schema);
+
+  auto id() const { return m_id; }
 
 protected:
   ~StoreTbl();
 
 public:
-  void open();
-  void close();
+  void open(MaxFn, OpenFn);
+  void close(CloseFn);
+
+  bool getTable(PGconn *);
+  void getTable2(PGresult *);
+  void opened();
 
   void warmup();
 
@@ -751,55 +871,33 @@ public:
   void write(ZmRef<const AnyBuf> buf, CommitFn commitFn);
 
 private:
+  Store			*m_store = nullptr;
   ZuID			m_id;
   ZtMFields		m_fields;
   ZtMKeyFields		m_keyFields;
   FBFields		m_fbFields;
   FBKeyFields		m_fbKeyFields;
-  ZmRef<AnyBuf>		m_maxBuf;
-};
 
-} // PQStoreTbl
+  ZmRef<AnyBuf>		m_maxBuf;
+
+  int			m_openState = 0;
+  int			m_openKeyID = -1;// sub-state
+  MaxFn			m_maxFn;	// maxima callback
+  OpenFn		m_openFn;	// open callback
+};
 
 // --- mock data store
 
-namespace PQStore {
+inline ZuID StoreTbl_IDAxor(const StoreTbl &storeTbl) { return storeTbl.id(); }
+inline constexpr const char *StoreTbls_HeapID() { return "StoreTbls"; }
+using StoreTbls =
+  ZmHash<StoreTbl,
+    ZmHashNode<StoreTbl,
+      ZmHashKey<StoreTbl_IDAxor,
+	ZmHashLock<ZmPLock,
+	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
 
-using namespace Zdb_;
-using namespace Zdb_::Store_;
-
-using StoreTbl = PQStoreTbl::StoreTbl;
-
-struct Max {
-  StoreTbl		*tbl;
-  unsigned		keyID;
-  MaxFn			maxFn;
-};
-
-struct Find {
-  StoreTbl		*tbl;
-  unsigned		keyID;
-  ZmRef<const AnyBuf>	buf;
-  RowFn			rowFn;
-};
-
-struct Recover {
-  StoreTbl		*tbl;
-  UN			un;
-  RowFn			rowFn;
-};
-
-struct Write {
-  StoreTbl		*tbl;
-  ZmRef<const AnyBuf>	buf;
-  CommitFn		commitFn;
-};
-
-using Query = ZuUnion<Find, Recover, Write>;
-
-using Queue = ZmList<Query>;
-
-class Store : public Interface {
+class Store : public Zdb_::Store {
 public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
   void final();
@@ -808,16 +906,26 @@ public:
   void stop();
 
   void open(
-      ZuID id,
-      ZtMFields fields,
-      ZtMKeyFields keyFields,
-      const reflection::Schema *schema,
-      MaxFn maxFn,
-      OpenFn openFn);
+    ZuID id,
+    ZtMFields fields,
+    ZtMKeyFields keyFields,
+    const reflection::Schema *schema,
+    MaxFn maxFn,
+    OpenFn openFn);
+
+  void enqueue(Work::Item item);
+
+  template <typename ...Args> void zdbRun(Args &&... args) {
+    m_mx->run(m_zdbSID, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args> void zdbInvoke(Args &&... args) {
+    m_mx->invoke(m_zdbSID, ZuFwd<Args>(args)...);
+  }
 
 private:
   void start_();
-  void stop_();
+  void stop_(ZmFn<>);
+  void stop_1();
   void close_fds();
 
   void wake();
@@ -825,33 +933,32 @@ private:
   void run_();
 
   void read();
-  void parse(PGresult *);
+  void parse(Work::Queue::Node *, PGresult *);
 
   void write();
 
-  ZvCf		*m_cf = nullptr;
-  ZiMultiplex	*m_mx = nullptr;
-  unsigned	m_zdbSID = ZuCmp<unsigned>::null();
-  unsigned	m_pqSID = ZuCmp<unsigned>::null();
+  ZvCf			*m_cf = nullptr;
+  ZiMultiplex		*m_mx = nullptr;
+  unsigned		m_zdbSID = ZuCmp<unsigned>::null();
+  unsigned		m_pqSID = ZuCmp<unsigned>::null();
 
-  PGconn	*m_conn = nullptr;
-  int		m_socket = -1;
+  ZmRef<StoreTbls>	m_storeTbls;
+
+  PGconn		*m_conn = nullptr;
+  int			m_connFD = -1;
 #ifndef _WIN32
-  int		m_epollFD = -1;
-  int		m_wakeFD = -1, m_wakeFD2 = -1;		// wake pipe
+  int			m_epollFD = -1;
+  int			m_wakeFD = -1, m_wakeFD2 = -1;
 #else
-  HANDLE	m_wakeEvent = INVALID_HANDLE_VALUE;	// wake event
-  HANDLE	m_connEvent = INVALID_HANDLE_VALUE;	// connection event
+  HANDLE		m_wakeSem = INVALID_HANDLE_VALUE;
+  HANDLE		m_connEvent = INVALID_HANDLE_VALUE;
 #endif
 
-  Queue		m_queue;
+  Work::Queue		m_queue;	// not yet sent
+  Work::Queue		m_pending;	// sent, awaiting response
 
-  OIDs		m_oids;
+  OIDs			m_oids;
 };
-
-} // PQStore
-
-using Store = PQStore::Store;
 
 } // ZdbPQ
 

@@ -93,7 +93,7 @@ namespace DBHostState {
     using namespace RAG;
     if (i < 0 || i >= N) return Off;
     static const int values[N] = {
-      Off, Amber, Amber, Amber, Red, Amber, Green, Amber, Amber
+      Off, Amber, Amber, Green, Amber, Amber
     };
     return values[i];
   }
@@ -378,7 +378,6 @@ struct DBTable {
 
   Name		name;				// primary key
   ZmThreadName	thread;
-  ZmThreadName	writeThread;
   uint64_t	count = 0;			// dynamic
   uint64_t	cacheLoads = 0;			// dynamic (*)
   uint64_t	cacheMisses = 0;		// dynamic (*)
@@ -406,7 +405,6 @@ ZfbFields(DBTable,
     (((cacheLoads)), (UInt), (Ctor<4>, Update, Series, Delta)),
     (((cacheMisses)), (UInt), (Ctor<5>, Update, Series, Delta)),
     (((thread)), (String), (Ctor<1>)),
-    (((writeThread)), (String), (Ctor<2>)),
     (((rag, RdFn)), (Enum, RAG::Map), (Series)));
 
 // display sequence:
@@ -436,11 +434,10 @@ ZfbFields(DBHost,
 // display sequence: 
 //   self, leader, prev, next, state, active, recovering, replicating,
 //   nDBs, nHosts, nPeers, nCxns,
-//   thread, writeThread,
+//   thread,
 //   heartbeatFreq, heartbeatTimeout, reconnectFreq, electionTimeout
 struct DB {
   ZmThreadName	thread;
-  ZmThreadName	writeThread;
   ZuID		self;			// primary key - host ID 
   ZuID		leader;			// host ID
   ZuID		prev;			// ''
@@ -477,7 +474,6 @@ ZfbFields(DB,
     (((nPeers)), (UInt), (Ctor<13>)),
     (((nCxns)), (UInt), (Ctor<6>, Update, Series)),
     (((thread)), (String), (Ctor<0>)),
-    (((writeThread)), (String), (Ctor<1>)),
     (((heartbeatFreq)), (UInt), (Ctor<7>)),
     (((heartbeatTimeout)), (UInt), (Ctor<8>)),
     (((reconnectFreq)), (UInt), (Ctor<9>)),

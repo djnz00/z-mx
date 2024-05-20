@@ -539,7 +539,7 @@ public:
     else
       m_tail->NodeExt::next = nullptr;
 
-    NodeRef ret = node;
+    NodeMvRef ret = node;
 
     nodeDeref(node);
     --m_count;
@@ -603,7 +603,7 @@ public:
     else
       m_head->NodeExt::prev = nullptr;
 
-    NodeRef ret = node;
+    NodeMvRef ret = node;
 
     nodeDeref(node);
     --m_count;

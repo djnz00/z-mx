@@ -51,7 +51,7 @@ public:
   }
   void post() { sem_post(&m_sem); }
 #else
-  ZmSemaphore() { m_sem = CreateSemaphore(0, 0, 0x7fffffff, 0); }
+  ZmSemaphore() { m_sem = CreateSemaphore(nullptr, 0, 0x7fffffff, nullptr); }
   ~ZmSemaphore() { CloseHandle(m_sem); }
 
   void wait() { WaitForSingleObject(m_sem, INFINITE); }
