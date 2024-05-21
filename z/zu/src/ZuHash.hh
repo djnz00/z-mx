@@ -34,6 +34,7 @@
 
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInt.hh>
+#include <zlib/ZuCmp.hh>
 
 template <typename T, bool = ZuTraits<T>::IsString> struct ZuHash_;
 
@@ -106,18 +107,40 @@ struct ZuHash_FNV_ {
 struct ZuHash_FNV : public ZuHash_FNV_ {
   using Value = ZuHash_FNV_::Value;
 
-  static uint32_t hash(const unsigned char *p, int n) {
+  static uint32_t hash(const uint8_t *p, int n) {
     Value v = initial_();
     while (--n >= 0) v = hash_(v, *p++);
-    return (uint32_t)v;
+    return uint32_t(v);
   }
 };
 
 // hashing of floats, doubles and long doubles
 
-template <typename T> struct ZuHash_Floating {
-  static uint32_t hash(T t) {
-    return ZuHash_FNV::hash((const unsigned char *)&t, sizeof(T));
+template <typename T> struct ZuHash_Floating;
+template <> struct ZuHash_Floating<float> {
+  static uint32_t hash(float v) {
+    if (v == 0) return 0; // signed zero ambiguity
+    if (ZuCmp<float>::null(v)) return uint32_t(1)<<31; // NaN ambiguity
+    double d = v;
+    return ZuHash_FNV::hash(
+      reinterpret_cast<const uint8_t *>(&d), sizeof(double));
+  }
+};
+template <> struct ZuHash_Floating<double> {
+  static uint32_t hash(double v) {
+    if (v == 0) return 0; // signed zero ambiguity
+    if (ZuCmp<double>::null(v)) return uint32_t(1)<<31; // NaN ambiguity
+    return ZuHash_FNV::hash(
+      reinterpret_cast<const uint8_t *>(&v), sizeof(double));
+  }
+};
+template <> struct ZuHash_Floating<long double> {
+  static uint32_t hash(long double v) {
+    if (v == 0) return 0; // signed zero ambiguity
+    if (ZuCmp<long double>::null(v)) return uint32_t(1)<<31; // NaN ambiguity
+    double d = v;
+    return ZuHash_FNV::hash(
+      reinterpret_cast<const uint8_t *>(&d), sizeof(double));
   }
 };
 
@@ -125,19 +148,19 @@ template <typename T> struct ZuHash_Floating {
 
 template <typename T, int Size> struct ZuHash_Integral {
   static uint32_t hash(const T &t) {
-    return ZuHash_GoldenPrime32::hash((uint32_t)t);
+    return ZuHash_GoldenPrime32::hash(uint32_t(t));
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 8> {
   static uint32_t hash(const T &t) {
-    return (uint32_t)ZuHash_GoldenPrime64::hash(t);
+    return uint32_t(ZuHash_GoldenPrime64::hash(t));
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 16> {
   static uint32_t hash(const T &t) {
-    return (uint32_t)ZuHash_GoldenPrime128::hash(t);
+    return uint32_t(ZuHash_GoldenPrime128::hash(t));
   }
 };
 
@@ -196,8 +219,8 @@ template <typename T, int Size> struct ZuHash_Pointer;
 #pragma warning(disable:4311)
 #endif
 template <typename T> struct ZuHash_Pointer<T, 4> {
-  static uint32_t hash(T t) {
-    return ZuHash_GoldenPrime32::hash((uint32_t)t);
+  static uint32_t hash(T v) {
+    return ZuHash_GoldenPrime32::hash(uint32_t(v));
   }
 };
 #ifdef _MSC_VER
@@ -205,8 +228,8 @@ template <typename T> struct ZuHash_Pointer<T, 4> {
 #endif
 
 template <typename T> struct ZuHash_Pointer<T, 8> {
-  static uint32_t hash(T t) {
-    return (uint32_t)ZuHash_GoldenPrime64::hash((uint64_t)t);
+  static uint32_t hash(T v) {
+    return uint32_t(ZuHash_GoldenPrime64::hash(uint64_t(v)));
   }
 };
 
@@ -245,20 +268,21 @@ template <typename T> struct ZuHash_NonString<T, true, true> :
 
 template <typename T> struct ZuStringHash;
 template <> struct ZuStringHash<char> {
-  static uint32_t hash(const char *data, size_t len) {
-    uint32_t hash = (uint32_t)len;
+  static uint32_t hash(const char *data_, size_t len) {
+    auto data = reinterpret_cast<const uint8_t *>(data_);
+    uint32_t hash = len;
 
     if (len <= 0 || !data) return 0;
 
     // main loop
     while (len>>2) {
 #ifdef ZuStringHash_Misaligned16BitLoadOK
-      hash += *(uint16_t *)data;
-      hash = (hash<<16) ^ (*((uint16_t *)data + 1)<<11) ^ hash;
+      hash += reinterpret_cast<const uint16_t *>(data)[0];
+      hash =
+	(hash<<16) ^ (reinterpret_cast<const uint16_t *>(data)[1]<<11) ^ hash;
 #else
-      hash += *(uint8_t *)data + (*((uint8_t *)data + 1)<<8);
-      hash = (hash<<16) ^
-	((*((uint8_t *)data + 2) + (*((uint8_t *)data + 3)<<8))<<11) ^ hash;
+      hash += data[0] + (data[1]<<8);
+      hash = (hash<<16) ^ ((data[2] + (data[3]<<8))<<11) ^ hash;
 #endif
       hash += hash>>11;
       data += 4, len -= 4;
@@ -268,25 +292,25 @@ template <> struct ZuStringHash<char> {
     switch (len & 3) {
       case 3:
 #ifdef ZuStringHash_Misaligned16BitLoadOK
-	hash += *(uint16_t *)data;
+	hash += reinterpret_cast<const uint16_t *>(data)[0];
 #else
-	hash += *(uint8_t *)data + (*((uint8_t *)data + 1)<<8);
+	hash += data[0] + (data[1]<<8);
 #endif
 	hash ^= hash<<16;
-	hash ^= *((uint8_t *)data + 2)<<18;
+	hash ^= data[2]<<18;
 	hash += hash>>11;
 	break;
       case 2:
 #ifdef ZuStringHash_Misaligned16BitLoadOK
-	hash += *(uint16_t *)data;
+	hash += reinterpret_cast<const uint16_t *>(data)[0];
 #else
-	hash += *(uint8_t *)data + (*((uint8_t *)data + 1)<<8);
+	hash += data[0] + (data[1]<<8);
 #endif
 	hash ^= hash<<11;
 	hash += hash>>17;
 	break;
       case 1:
-	hash += *data;
+	hash += data[0];
 	hash ^= hash<<10;
 	hash += hash>>1;
     }
@@ -305,22 +329,23 @@ template <> struct ZuStringHash<char> {
 };
 template <int WCharSize> struct ZuWStringHash;
 template <> struct ZuWStringHash<2> {
-  static uint32_t hash(const wchar_t *data, size_t len) {
-    uint32_t hash = (uint32_t)len;
+  static uint32_t hash(const wchar_t *data_, size_t len) {
+    auto data = reinterpret_cast<const uint16_t *>(data_);
+    uint32_t hash = len;
 
     if (len <= 0 || !data) return 0;
 
     // main loop
     while (len>>1) {
-      hash += *(uint16_t *)data;
-      hash = (hash<<16) ^ (*((uint16_t *)data + 1)<<11) ^ hash;
+      hash += data[0];
+      hash = (hash<<16) ^ (data[1]<<11) ^ hash;
       hash += hash>>11;
       data += 2, len -= 2;
     }
 
     // handle end case
     if (len & 1) {
-      hash += *(uint16_t *)data;
+      hash += data[0];
       hash ^= hash<<11;
       hash += hash>>17;
     }
@@ -338,15 +363,16 @@ template <> struct ZuWStringHash<2> {
   }
 };
 template <> struct ZuWStringHash<4> {
-  static uint32_t hash(const wchar_t *data, size_t len) {
-    uint32_t hash = (uint32_t)len;
+  static uint32_t hash(const wchar_t *data_, size_t len) {
+    auto data = reinterpret_cast<const uint16_t *>(data_);
+    uint32_t hash = len;
 
     if (len <= 0 || !data) return 0;
 
     // main loop
     while (len) {
-      hash += *(uint16_t *)data;
-      hash = (hash<<16) ^ (*((uint16_t *)data + 1)<<11) ^ hash;
+      hash += data[0];
+      hash = (hash<<16) ^ (data[1]<<11) ^ hash;
       hash += hash>>11;
       data++, len--;
     }
