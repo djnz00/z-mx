@@ -208,6 +208,9 @@ bool Store::start_()
     close_fds();
     return false;
   }
+  
+  // FIXME - pipelined OID resolution (move above block down into pipeline mode)
+  // FIXME - idempotent MRD create table
 
   m_connFD = PQsocket(m_conn);
 
@@ -515,13 +518,6 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
       }
     } break;
   }
-#if 0
-  for (i = 0; i < PQntuples(res); i++) {
-    j = 0; /* field number, also returned from PQfnumber(res, "id") */
-    char *ptr = PQgetvalue(res, i, j);
-    /* decode data */
-  }
-#endif
 }
 
 void Store::failed(Work::Queue::Node *work, ZeMEvent e)
@@ -539,17 +535,6 @@ void Store::failed(Work::Queue::Node *work, ZeMEvent e)
     } break;
   }
 }
-
-#if 0
-// prepare statement
-if (!PQsendPrepare(PGconn *conn,
-  const char *stmtID,
-  const char *query,
-  int nParams,
-  const Oid *paramTypes)) {	// Oid is unsigned int
-  // failed
-}
-#endif
 
 // send() is called after every enqueue to prevent starvation:
 // wake(), enqueue(), dequeue(), send() (possible pushback), epoll_wait / WFMO
@@ -772,9 +757,6 @@ StoreTbl::~StoreTbl()
 {
 }
 
-// need to figure out prepared statements,
-// prepared result processing, etc.
-
 void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
 {
   ZeLOG(Debug, ([](auto &s) { }));
@@ -782,18 +764,6 @@ void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
   m_openFn = ZuMv(openFn);
   mkTable();
 }
-
-  // max - one for each maxima
-  // find - one for each keyID
-  // recover - one
-  // insert into X values (...)
-  // update  ...
-  // delete where ...
-  // FIXME - storeTbl->open(...);
-  // maxFn and openFn calls are deferred / async
-  //
-  // call storeTbl->open(ZuMv(openFn));
-  //
 
 template <int State, bool MultiRow>
 int Store::sendQuery(const ZtString &query, const Tuple &params)
@@ -869,14 +839,6 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
       }));
   return State;
 }
-
-
-// FIXME - consider pipelined OID resolution - this would now be quite
-// straightforward
-
-// FIXME - returned PGresult decoding via Value, note that OID returns
-// are not supported by Value (32bit unsigned) - uses UInt32 defined
-// at top of this file
 
 void StoreTbl::open_()
 {
