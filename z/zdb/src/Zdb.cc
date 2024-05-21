@@ -1673,6 +1673,7 @@ bool AnyTable::opened(OpenResult result)
       ZeLogEvent(ZuMv(result).p<Event>());
     return false;
   }
+
   const auto &data = result.p<OpenData>();
   m_storeTbl = data.storeTbl;
   m_count = data.count;

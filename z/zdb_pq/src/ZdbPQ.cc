@@ -50,24 +50,23 @@ void OIDs::init(PGconn *conn)
   for (unsigned i = 1; i < Value::N; i++) {
     auto name = names[i - 1];
     auto oid = this->oid(name);
-    if (oid < 0) oid = resolve(conn, name);
-    m_values[i - 1] = oid;
-    m_oids.add(unsigned(oid), int8_t(i));
+    if (ZuCmp<unsigned>::null(oid)) oid = resolve(conn, name);
+    m_oids[i - 1] = oid;
+    m_types.add(unsigned(oid), int8_t(i));
     m_names.add(name, int8_t(i));
   }
 }
 
 unsigned OIDs::resolve(PGconn *conn, ZuString name)
 {
-  Oid paramTypes[1] = { 25 };	// TEXTOID
+  Oid paramTypes[1] = { 25 }; // TEXTOID
   const char *paramValues[1] = { name.data() };
   int paramLengths[1] = { int(name.length()) };
   int paramFormats[1] = { 1 };
   const char *query = "SELECT oid FROM pg_type WHERE typname = $1::text";
   PGresult *res = PQexecParams(conn, query,
     1, paramTypes, paramValues, paramLengths, paramFormats, 1);
-  if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-    // failed
+  if (PQresultStatus(res) != PGRES_TUPLES_OK) { // failed
     PQclear(res);
     throw ZeMEVENT(Fatal, ([query, name](auto &s, const auto &) {
       s << "Store::init() \"" << query << "\" $1=\""
@@ -82,11 +81,7 @@ unsigned OIDs::resolve(PGconn *conn, ZuString name)
       s << "Store::init() \"" << query << "\" $1=\""
 	<< name << "\" returned invalid result\n";
     }));
-  unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, 0, 0))->i;
-  ZeLOG(Debug, ([name, oid](auto &s) {
-    s << "OID::resolve(\"" << name << "\")=" << oid;
-  }));
-  return oid;
+  return reinterpret_cast<UInt32 *>(PQgetvalue(res, 0, 0))->i;
 }
 
 InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
@@ -508,7 +503,7 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
       const auto &tblItem = work->data().p<Work::TblItem>();
       switch (tblItem.query.type()) {
 	case Work::Query::Index<Work::GetTable>{}:
-	  tblItem.tbl->getTable2(res);
+	  tblItem.tbl->getTable_rcvd(res);
 	  break;
       }
     } break;
@@ -557,7 +552,7 @@ void Store::send()
 	const auto &tblItem = work->data().p<Work::TblItem>();
 	switch (tblItem.query.type()) {
 	  case Work::Query::Index<Work::GetTable>{}:
-	    if (tblItem.tbl->getTable())
+	    if (tblItem.tbl->getTable_send())
 	      m_sent.pushNode(ZuMv(work).release());
 	    else
 	      m_queue.unshiftNode(ZuMv(work).release());
@@ -771,9 +766,7 @@ void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
   ZeLOG(Debug, ([](auto &s) { }));
   m_maxFn = ZuMv(maxFn);
   m_openFn = ZuMv(openFn);
- 
-  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::GetTable{}}}});
-  // opened();
+  getTable();
 }
 
   // max - one for each maxima
@@ -839,7 +832,14 @@ bool Store::sendPrepared(const ZtString &query, const Tuple &params)
   return true;
 }
 
-bool StoreTbl::getTable()
+void StoreTbl::getTable()
+{
+  m_openState = OpenState::GetTable;
+  m_openSubState = 0;
+  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::GetTable{}}}});
+}
+
+bool StoreTbl::getTable_send()
 {
   ZeLOG(Debug, ([](auto &s) { }));
   Tuple params = { Value{String(m_id_)} };
@@ -862,21 +862,21 @@ bool StoreTbl::getTable()
 // are not supported by Value (32bit unsigned) - uses UInt32 defined
 // at top of this file
 
-void StoreTbl::getTable2(PGresult *res)
+void StoreTbl::getTable_rcvd(PGresult *res)
 {
   if (ZuUnlikely(!res)) {
     if (!m_openSubState) {
       // FIXME - advance to MkTable
-      m_store->zdbRun([this]() { opened(); });
+      opened();
     } else if (m_openSubState < m_fields.length()) {
       // FIXME - inconsistent schema
       auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
 	s << "inconsistent schema for table " << id;
       }));
-      m_store->zdbRun([this, e = ZuMv(e)]() mutable { openFailed(ZuMv(e)); });
+      openFailed(ZuMv(e));
     } else {
       // FIXME - skip MkTable, advance to MkIndex
-      m_store->zdbRun([this]() { opened(); });
+      opened();
     }
     return;
   }
@@ -884,23 +884,21 @@ void StoreTbl::getTable2(PGresult *res)
   for (unsigned i = 0; i < n; i++) {
     const char *id = PQgetvalue(res, i, 0);
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
-    // FIXME - oid->type lookup is incorrect (returning 16 for text instead of 0)
-    // FIXME - snake case lookup is incorrect (order_id not found)
     auto field = m_fieldMap.findVal(id);
-    auto type = m_store->oids().type(oid);
+    bool match = false;
+    if (!ZuCmp<unsigned>::null(field))
+      match = m_store->oids().match(oid, m_xFields[field].type);
     auto &oss = m_openSubState;
-    if (oss >= 0 &&
-	!ZuCmp<unsigned>::null(field) && type >= 0 &&
-        m_xFields[field].type == type)
+    if (oss >= 0 && match)
       ++oss;
     else {
       if (oss > 0) oss = -oss;
       --oss;
     }
-    ZeLOG(Debug, ([id = ZtString{id}, oid, field, type, oss](auto &s) {
+    ZeLOG(Debug, ([id = ZtString{id}, oid, field, match, oss](auto &s) {
       int field_ = ZuCmp<unsigned>::null(field) ? -1 : int(field);
       s << "id=" << id << " oid=" << oid
-	<< " field=" << field_ << " type=" << type
+	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openSubState=" << oss;
     }));
   }
@@ -910,23 +908,39 @@ void StoreTbl::opened()
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  m_openFn(OpenResult{OpenData{
-    .storeTbl = this,
-    .count = 0,
-    .un = 0,
-    .sn = 0
-  }});
+  m_openState = OpenState::Opened;
+  m_openSubState = -1;
+
+  auto openFn = ZuMv(m_openFn);
+
   m_maxFn = MaxFn{};
   m_openFn = OpenFn{};
+
+  m_store->zdbRun([this, openFn = ZuMv(openFn)]() {
+    openFn(OpenResult{OpenData{
+      .storeTbl = this,
+      .count = 0,
+      .un = 0,
+      .sn = 0
+    }});
+  });
 }
 
 void StoreTbl::openFailed(Event e)
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  m_openFn(OpenResult{ZuMv(e)});
+  m_openState = OpenState::Failed;
+  m_openSubState = -1;
+
+  auto openFn = ZuMv(m_openFn);
+
   m_maxFn = MaxFn{};
   m_openFn = OpenFn{};
+
+  m_store->zdbRun([this, e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
+    openFn(OpenResult{ZuMv(e)});
+  });
 }
 
 void StoreTbl::close(CloseFn fn)

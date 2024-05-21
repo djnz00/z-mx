@@ -735,33 +735,36 @@ Offset saveTuple(
 // --- postgres OIDs, type names
 
 class OIDs {
-  using Values = ZuArrayN<unsigned, Value::N - 1>;
-  using OIDs_ = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
+  using OIDs_ = ZuArrayN<unsigned, Value::N - 1>;
+  using Types = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
   using Names = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
 
 public:
   void init(PGconn *);
 
-  int oid(unsigned i) const {
-    if (i < 1 || i >= Value::N) return -1;
-    return m_values[i - 1];
+  unsigned oid(unsigned i) const {
+    if (i < 1 || i >= Value::N) return ZuCmp<unsigned>::null();
+    return m_oids[i - 1];
   }
-  int type(unsigned oid) const {
-    int8_t i = m_oids.findVal(oid);
-    if (ZuCmp<int8_t>::null(i) || i < 1 || i >= Value::N) return -1;
-    return i;
+  bool match(unsigned oid, unsigned type) const {
+    auto i = m_types.readIterator(oid);
+    while (auto kv = i.iterate())
+      if (kv->p<1>() == type) return true;
+    return false;
   }
-  int oid(ZuString name) const {
+  unsigned oid(ZuString name) const {
     int8_t i = m_names.findVal(name);
-    if (ZuCmp<int8_t>::null(i) || i < 1 || i >= Value::N) return -1;
-    return m_values[i - 1];
+    if (ZuCmp<int8_t>::null(i))
+      return ZuCmp<unsigned>::null();
+    ZmAssert(i >= 1 && i < Value::N);
+    return m_oids[i - 1];
   }
 
 private:
   unsigned resolve(PGconn *conn, ZuString name);
 
-  Values	m_values;
   OIDs_		m_oids;
+  Types		m_types;
   Names		m_names;
 };
 
@@ -883,7 +886,8 @@ ZtEnumValues(OpenState,
   Open,		// query count, max UN, max SN from main table
   MRD,		// query max UN, max SN from _mrd table
   Max,		// query maxima for series keys
-  Opened);	// open complete
+  Opened,	// open complete
+  Failed);	// open failed
 }
 
 class StoreTbl : public Zdb_::StoreTbl {
@@ -894,6 +898,7 @@ public:
     Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
     const reflection::Schema *schema);
 
+  Store *store() const { return m_store; }
   auto id() const { return m_id; }
 
 protected:
@@ -903,8 +908,9 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
-  bool getTable();
-  void getTable2(PGresult *);
+  void getTable();
+  bool getTable_send();
+  void getTable_rcvd(PGresult *);
 
   void opened();
   void openFailed(ZeMEvent);
