@@ -39,13 +39,13 @@ struct Order {
 
 ZfbFields(Order,
   (((symbol), (0)), (String), (Ctor<0>)),
-  (((orderID), (0)), (UInt), (Ctor<1>)),
+  (((orderID), (0)), (UInt), (Ctor<1>, Update)),
   (((link), (1, 2)), (String), (Ctor<2>)),
-  (((clOrdID), (1)), (String), (Ctor<3>)),
-  (((seqNo), (2)), (UInt), (Ctor<4>, Series, Index)),
+  (((clOrdID), (1)), (String), (Ctor<3>, Update)),
+  (((seqNo), (2)), (UInt), (Ctor<4>, Series, Index, Update)),
   (((side)), (Enum, Side::Map), (Ctor<5>)),
-  (((price)), (Int), (Ctor<6>)),
-  (((quantity)), (Int), (Ctor<7>)));
+  (((price)), (Int), (Ctor<6>, Update)),
+  (((quantity)), (Int), (Ctor<7>, Update)));
 
 ZfbRoot(Order);	// bind Order to flatbuffer schema
 

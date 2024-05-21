@@ -825,12 +825,11 @@ ZtEnumValues(OpenState,
   PreOpen = 0,
   MkTable,	// idempotent create table
   MkIndices,	// idempotent create indices for all keys
-  PrepFind,	// prepare find for all keys
-  PrepRecover,	// prepare recover query
+  PrepFind,	// prepare recover and find for all keys
   PrepInsert,	// prepare insert query
   PrepUpdate,	// prepare update query
   PrepDelete,	// prepare delete query
-  Open,		// query count, max UN, max SN from main table
+  MaxUN,	// query count, max UN, max SN from main table
   MRD,		// query max UN, max SN from _mrd table
   Max,		// query maxima for series keys
   Opened,	// open complete
@@ -895,6 +894,22 @@ public:
   void mkIndices();
   int mkIndices_send();
   void mkIndices_rcvd(PGresult *);
+
+  void prepFind();
+  int prepFind_send();
+  void prepFind_rcvd(PGresult *);
+
+  void prepInsert();
+  int prepInsert_send();
+  void prepInsert_rcvd(PGresult *);
+
+  void prepUpdate();
+  int prepUpdate_send();
+  void prepUpdate_rcvd(PGresult *);
+
+  void prepDelete();
+  int prepDelete_send();
+  void prepDelete_rcvd(PGresult *);
 
   void warmup();
 
@@ -969,10 +984,12 @@ public:
 
   const OIDs &oids() const { return m_oids; }
 
-  template <int State>
+  template <int State, bool MultiRow>
   int sendQuery(const ZtString &query, const Tuple &params);
-  template <int State>
-  int sendPrepared(const ZtString &query, const Tuple &params);
+  int sendPrepare(
+    const ZtString &query, const ZtString &id, ZuArray<unsigned> oids);
+  template <int State, bool MultiRow>
+  int sendPrepared(const ZtString &id, const Tuple &params);
 
 private:
   bool start_();

@@ -17,6 +17,7 @@
 #include <zlib/ZdbPQ.hh>
 
 #include <zlib/ZtCase.hh>
+#include <zlib/ZtJoin.hh>
 
 #include <zlib/ZeLog.hh>
 
@@ -794,7 +795,7 @@ void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
   // call storeTbl->open(ZuMv(openFn));
   //
 
-template <int State>
+template <int State, bool MultiRow>
 int Store::sendQuery(const ZtString &query, const Tuple &params)
 {
   auto n = params.length();
@@ -815,18 +816,32 @@ int Store::sendQuery(const ZtString &query, const Tuple &params)
   ZeLOG(Debug, ([query = ZtString{query}, n](auto &s) {
     s << "\"" << query << "\", n=" << n;
   }));
-  int r = PQsendQueryParams(m_conn, query.data(),
+  int r = PQsendQueryParams(
+    m_conn, query.data(),
     n, paramTypes, paramValues, paramLengths, paramFormats, 1);
   if (r != 1) return SendState::Unsent;
-  if (PQsetSingleRowMode(m_conn) != 1)
-    ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
-      s << "PQsetSingleRowMode() failed: " << e;
-    }));
+  if constexpr (MultiRow)
+    if (PQsetSingleRowMode(m_conn) != 1)
+      ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
+	s << "PQsetSingleRowMode() failed: " << e;
+      }));
   return State;
 }
 
-template <int State>
-int Store::sendPrepared(const ZtString &query, const Tuple &params)
+int Store::sendPrepare(
+  const ZtString &id, const ZtString &query, ZuArray<Oid> oids)
+{
+  ZeLOG(Debug, ([id = ZtString{id}, query = ZtString{query}](auto &s) {
+    s << "\"" << id << "\", \"" << query << "\"";
+  }));
+  int r = PQsendPrepare(
+    m_conn, id.data(), query.data(), oids.length(), oids.data());
+  if (r != 1) return SendState::Unsent;
+  return SendState::Sync;
+}
+
+template <int State, bool MultiRow>
+int Store::sendPrepared(const ZtString &id, const Tuple &params)
 {
   auto n = params.length();
   auto paramValues = ZmAlloc(const char *, n);
@@ -840,16 +855,18 @@ int Store::sendPrepared(const ZtString &query, const Tuple &params)
       });
     paramFormats[i] = 1;
   }
-  ZeLOG(Debug, ([query = ZtString{query}, n](auto &s) {
-    s << "\"" << query << "\", n=" << n;
+  ZeLOG(Debug, ([id = ZtString{id}, n](auto &s) {
+    s << "\"" << id << "\", n=" << n;
   }));
-  int r = PQsendQueryPrepared(m_conn, query.data(),
+  int r = PQsendQueryPrepared(
+    m_conn, id.data(),
     n, paramValues, paramLengths, paramFormats, 1);
   if (r != 1) return SendState::Unsent;
-  if (PQsetSingleRowMode(m_conn) != 1)
-    ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
-      s << "PQsetSingleRowMode() failed: " << e;
-    }));
+  if constexpr (MultiRow)
+    if (PQsetSingleRowMode(m_conn) != 1)
+      ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
+	s << "PQsetSingleRowMode() failed: " << e;
+      }));
   return State;
 }
 
@@ -871,6 +888,10 @@ int StoreTbl::open_send()
   switch (m_openState) {
     case OpenState::MkTable:	return mkTable_send();
     case OpenState::MkIndices:	return mkIndices_send();
+    case OpenState::PrepFind:	return prepFind_send();
+    case OpenState::PrepInsert:	return prepInsert_send();
+    case OpenState::PrepUpdate:	return prepUpdate_send();
+    case OpenState::PrepDelete:	return prepDelete_send();
   }
   return false;
 }
@@ -880,6 +901,10 @@ void StoreTbl::open_rcvd(PGresult *res)
   switch (m_openState) {
     case OpenState::MkTable:	mkTable_rcvd(res); break;
     case OpenState::MkIndices:	mkIndices_rcvd(res); break;
+    case OpenState::PrepFind:	prepFind_rcvd(res); break;
+    case OpenState::PrepInsert:	prepInsert_rcvd(res); break;
+    case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
+    case OpenState::PrepDelete:	prepDelete_rcvd(res); break;
   }
 }
 
@@ -933,7 +958,7 @@ int StoreTbl::mkTable_send()
   ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
   if (!OpenSubState::create(m_openSubState)) {
     Tuple params = { Value{String(m_id_)} };
-    return m_store->sendQuery<SendState::Flush>(
+    return m_store->sendQuery<SendState::Flush, true>(
       "SELECT a.attname AS name, a.atttypid AS oid "
       "FROM pg_catalog.pg_attribute a "
       "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
@@ -945,13 +970,13 @@ int StoreTbl::mkTable_send()
   } else {
     ZtString query;
     query << "CREATE TABLE \"" << m_id_ << "\" (\"un\" uint8, \"sn\" uint16";
-    unsigned n = m_fields.length();
+    unsigned n = m_xFields.length();
     for (unsigned i = 0; i < n; i++) {
       query << ", \"" << m_xFields[i].id_ << "\" "
 	<< m_store->oids().name(m_xFields[i].type);
     }
     query << ")";
-    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+    return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
   }
 }
 void StoreTbl::mkTable_rcvd(PGresult *res)
@@ -963,7 +988,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 
   if (!res) {
     if (!OpenSubState::failed(m_openSubState) &&
-	OpenSubState::field(m_openSubState) == m_fields.length()) {
+	OpenSubState::field(m_openSubState) == m_xFields.length()) {
       // table exists, all fields ok, proceed to indices
       mkIndices();
     } else if (!OpenSubState::failed(m_openSubState) &&
@@ -1028,7 +1053,7 @@ int StoreTbl::mkIndices_send()
   name << m_id_ << '_' << key;
   if (!OpenSubState::create(m_openSubState)) {
     Tuple params = { Value{String(name)} };
-    return m_store->sendQuery<SendState::Flush>(
+    return m_store->sendQuery<SendState::Flush, true>(
       "SELECT a.attname AS name, a.atttypid AS oid "
       "FROM pg_class t "
       "JOIN pg_index i ON t.oid = i.indrelid "
@@ -1047,16 +1072,15 @@ int StoreTbl::mkIndices_send()
     if (!key) {
       query << "\"un\")";
     } else {
-      const auto &fields = m_keyFields[key - 1];
-      const auto &xFields = m_xKeyFields[key - 1];
-      unsigned n = fields.length();
+      const auto &xKeyFields = m_xKeyFields[key - 1];
+      unsigned n = xKeyFields.length();
       for (unsigned i = 0; i < n; i++) {
 	if (i) query << ", ";
-	query << '"' << xFields[i].id_ << '"';
+	query << '"' << xKeyFields[i].id_ << '"';
       }
       query << ")";
     }
-    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+    return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
   }
 }
 void StoreTbl::mkIndices_rcvd(PGresult *res)
@@ -1064,8 +1088,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   auto nextKey = [this]() {
     m_openSubState = OpenSubState::incKey(m_openSubState);
     if (OpenSubState::key(m_openSubState) > m_keyFields.length())
-      // prepFind();
-      opened();
+      prepFind();
     else
       open_();
   };
@@ -1110,9 +1133,9 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
       matchID = "un";
       type = Value::Index<UInt64>{};
     } else {
-      const auto &xFields = m_xKeyFields[key - 1];
-      matchID = xFields[field].id_;
-      type = xFields[field].type;
+      const auto &xKeyFields = m_xKeyFields[key - 1];
+      matchID = xKeyFields[field].id_;
+      type = xKeyFields[field].type;
     }
     m_openSubState = OpenSubState::incField(m_openSubState);
     bool match = m_store->oids().match(oid, type) && id == matchID;
@@ -1126,6 +1149,164 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openSubState=" << ZuBoxed(oss).hex();
     }));
+  }
+}
+
+void StoreTbl::prepFind()
+{
+  m_openState = OpenState::PrepFind;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::prepFind_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  unsigned key = OpenSubState::key(m_openSubState);
+  ZtString id(m_id_.length() + 24);
+  id << m_id_ << "_find_" << key;
+  ZtString query;
+  query << "SELECT \"un\"";
+  unsigned n = m_xFields.length();
+  for (unsigned i = 0; i < n; i++) {
+    query << ", \"" << m_xFields[i].id_ << '"';
+  }
+  query << " FROM \"" << m_id_ << "\" WHERE ";
+  ZtArray<Oid> oids;
+  if (!key) {
+    query << "\"un\"=$1::uint8";
+    oids.push(store()->oids().oid(Value::Index<UInt64>{}));
+  } else {
+    const auto &xKeyFields = m_xKeyFields[key - 1];
+    n = xKeyFields.length();
+    oids.size(n);
+    for (unsigned i = 0; i < n; i++) {
+      auto type = xKeyFields[i].type;
+      if (i) query << " AND ";
+      query << '"' << xKeyFields[i].id_
+	<< "\"=$" << (i + 1) << "::" << store()->oids().name(type);
+      oids.push(store()->oids().oid(type));
+    }
+  }
+  return m_store->sendPrepare(id, query, oids);
+}
+void StoreTbl::prepFind_rcvd(PGresult *res)
+{
+  if (!res) {
+    m_openSubState = OpenSubState::incKey(m_openSubState);
+    if (OpenSubState::key(m_openSubState) > m_keyFields.length())
+      prepInsert();
+    else
+      open_();
+  }
+}
+
+void StoreTbl::prepInsert()
+{
+  m_openState = OpenState::PrepInsert;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::prepInsert_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  ZtString id(m_id_.length() + 8);
+  id << m_id_ << "_insert";
+  ZtString query;
+  query << "INSERT INTO \"" << m_id_ << "\" (\"un\"";
+  unsigned n = m_xFields.length();
+  for (unsigned i = 0; i < n; i++) {
+    query << ", \"" << m_xFields[i].id_ << '"';
+  }
+  query << ") VALUES ($1::uint8";
+  ZtArray<Oid> oids(n + 1);
+  oids.push(store()->oids().oid(Value::Index<UInt64>{}));
+  for (unsigned i = 0; i < n; i++) {
+    auto type = m_xFields[i].type;
+    query << ", $" << (i + 1) << "::" << store()->oids().name(type);
+    oids.push(store()->oids().oid(type));
+  }
+  query << ')';
+  return m_store->sendPrepare(id, query, oids);
+}
+void StoreTbl::prepInsert_rcvd(PGresult *res)
+{
+  if (!res) prepUpdate();
+}
+
+void StoreTbl::prepUpdate()
+{
+  m_openState = OpenState::PrepUpdate;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::prepUpdate_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  ZtString id(m_id_.length() + 8);
+  id << m_id_ << "_update";
+  ZtString query;
+  unsigned n = m_xFields.length();
+  const auto &keyFields = m_keyFields[0];
+  ZtArray<Oid> oids(n + keyFields.length());
+  query << "UPDATE \"" << m_id_ << "\" SET \"un\"=$1::uint8";
+  oids.push(store()->oids().oid(Value::Index<UInt64>{}));
+  unsigned j = 1;
+  for (unsigned i = 0; i < n; i++) {
+    if (!(m_fields[i]->props & ZtMFieldProp::Update)) continue;
+    auto type = m_xFields[i].type;
+    query << ", \"" << m_xFields[i].id_
+      << "\"=$" << j << "::" << store()->oids().name(type);
+    oids.push(store()->oids().oid(type));
+    j++;
+  }
+  query << " WHERE ";
+  const auto &xKeyFields = m_xKeyFields[0];
+  n = xKeyFields.length();
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xKeyFields[i].type;
+    if (i) query << " AND ";
+    query << '"' << xKeyFields[i].id_
+      << "\"=$" << j << "::" << store()->oids().name(type);
+    oids.push(store()->oids().oid(type));
+    j++;
+  }
+  return m_store->sendPrepare(id, query, oids);
+}
+void StoreTbl::prepUpdate_rcvd(PGresult *res)
+{
+  if (!res) prepDelete();
+}
+
+void StoreTbl::prepDelete()
+{
+  m_openState = OpenState::PrepDelete;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::prepDelete_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  ZtString id(m_id_.length() + 8);
+  id << m_id_ << "_delete";
+  ZtString query;
+  const auto &xKeyFields = m_xKeyFields[0];
+  unsigned n = xKeyFields.length();
+  ZtArray<Oid> oids(n);
+  query << "DELETE FROM \"" << m_id_ << "\" WHERE ";
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xKeyFields[i].type;
+    if (i) query << " AND ";
+    query << '"' << xKeyFields[i].id_
+      << "\"=$" << (i + 1) << "::" << store()->oids().name(type);
+    oids.push(store()->oids().oid(type));
+  }
+  return m_store->sendPrepare(id, query, oids);
+}
+void StoreTbl::prepDelete_rcvd(PGresult *res)
+{
+  if (!res) {
+    // maxUN();
+    opened();
   }
 }
 
