@@ -892,6 +892,7 @@ int StoreTbl::open_send()
     case OpenState::PrepInsert:	return prepInsert_send();
     case OpenState::PrepUpdate:	return prepUpdate_send();
     case OpenState::PrepDelete:	return prepDelete_send();
+    case OpenState::MaxUN:	return maxUN_send();
   }
   return false;
 }
@@ -905,6 +906,7 @@ void StoreTbl::open_rcvd(PGresult *res)
     case OpenState::PrepInsert:	prepInsert_rcvd(res); break;
     case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
     case OpenState::PrepDelete:	prepDelete_rcvd(res); break;
+    case OpenState::MaxUN:	maxUN_rcvd(res); break;
   }
 }
 
@@ -1304,9 +1306,41 @@ int StoreTbl::prepDelete_send()
 }
 void StoreTbl::prepDelete_rcvd(PGresult *res)
 {
+  if (!res) maxUN();
+}
+
+void StoreTbl::maxUN()
+{
+  m_openState = OpenState::MaxUN;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::maxUN_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  ZtString query;
+  query << "SELECT \"un\", \"sn\" FROM \"" << m_id_
+    << "\" WHERE \"un\"=(SELECT MAX(\"un\") FROM \"" << m_id_ << "\")";
+  return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+}
+void StoreTbl::maxUN_rcvd(PGresult *res)
+{
   if (!res) {
-    // maxUN();
+    // mrd();
     opened();
+  }
+
+  unsigned n = PQntuples(res);
+  for (unsigned i = 0; i < n; i++) {
+    auto un = uint64_t(
+      reinterpret_cast<const UInt64 *>(PQgetvalue(res, i, 0))->v);
+    auto sn = uint128_t(
+      reinterpret_cast<const UInt128 *>(PQgetvalue(res, i, 1))->v);
+    ZeLOG(Debug, ([un, sn](auto &s) {
+      s << "un=" << un << " sn=" << ZuBoxed(sn);
+    }));
+    if (un > m_maxUN) m_maxUN = un;
+    if (sn > m_maxSN) m_maxSN = sn;
   }
 }
 

@@ -911,6 +911,10 @@ public:
   int prepDelete_send();
   void prepDelete_rcvd(PGresult *);
 
+  void maxUN();
+  int maxUN_send();
+  void maxUN_rcvd(PGresult *);
+
   void warmup();
 
   void maxima(MaxFn maxFn);
@@ -930,6 +934,9 @@ private:
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
   FieldMap		m_fieldMap;
+
+  UN			m_maxUN;
+  SN			m_maxSN;
 
   ZmRef<AnyBuf>		m_maxBuf;
 
