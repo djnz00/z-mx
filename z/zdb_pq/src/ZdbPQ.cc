@@ -944,12 +944,10 @@ int StoreTbl::mkTable_send()
 	"AND NOT a.attisdropped", params);
   } else {
     ZtString query;
-    query << "CREATE TABLE \"" << m_id_ << "\" (";
-    // FIXME - UN, SN
+    query << "CREATE TABLE \"" << m_id_ << "\" (\"un\" uint8, \"sn\" uint16";
     unsigned n = m_fields.length();
     for (unsigned i = 0; i < n; i++) {
-      if (i) query << ", ";
-      query << '"' << m_xFields[i].id_ << "\" "
+      query << ", \"" << m_xFields[i].id_ << "\" "
 	<< m_store->oids().name(m_xFields[i].type);
     }
     query << ")";
@@ -984,15 +982,25 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
   }
   unsigned n = PQntuples(res);
   for (unsigned i = 0; i < n; i++) {
-    const char *id = PQgetvalue(res, i, 0);
+    const char *id_ = PQgetvalue(res, i, 0);
+    ZuString id{id_};
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
-    // FIXME - UN, SN
-    auto field = m_fieldMap.findVal(id);
-    bool match = false;
-    if (!ZuCmp<unsigned>::null(field)) {
-      m_openSubState = OpenSubState::incField(m_openSubState);
-      match = m_store->oids().match(oid, m_xFields[field].type);
+    unsigned field = ZuCmp<unsigned>::null();
+    unsigned type = ZuCmp<unsigned>::null();
+    if (id == "un") {
+      type = Value::Index<UInt64>{};
+    } else if (id == "sn") {
+      type = Value::Index<UInt128>{};
+    } else {
+      field = m_fieldMap.findVal(id);
+      if (!ZuCmp<unsigned>::null(field)) {
+	m_openSubState = OpenSubState::incField(m_openSubState);
+	type = m_xFields[field].type;
+      }
     }
+    bool match = false;
+    if (!ZuCmp<unsigned>::null(type))
+      match = m_store->oids().match(oid, type);
     if (!OpenSubState::failed(m_openSubState) && !match)
       m_openSubState = OpenSubState::setFailed(m_openSubState);
     ZeLOG(Debug, ([
@@ -1008,10 +1016,6 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 
 void StoreTbl::mkIndices()
 {
-  if (!m_keyFields.length()) { // FIXME - will never be true due to UN index
-    opened();
-    return;
-  }
   m_openState = OpenState::MkIndices;
   m_openSubState = OpenSubState::reset();
   open_();
@@ -1038,16 +1042,20 @@ int StoreTbl::mkIndices_send()
       "ORDER BY array_position(i.indkey, a.attnum)", params);
   } else {
     ZtString query;
-    const auto &fields = m_keyFields[key];
-    const auto &xFields = m_xKeyFields[key];
-    unsigned n = fields.length();
     // LATER we could consider using hash indices for non-series
     query << "CREATE INDEX \"" << name << "\" ON \"" << m_id_ << "\" (";
-    for (unsigned i = 0; i < n; i++) {
-      if (i) query << ", ";
-      query << '"' << xFields[i].id_ << '"';
+    if (!key) {
+      query << "\"un\")";
+    } else {
+      const auto &fields = m_keyFields[key - 1];
+      const auto &xFields = m_xKeyFields[key - 1];
+      unsigned n = fields.length();
+      for (unsigned i = 0; i < n; i++) {
+	if (i) query << ", ";
+	query << '"' << xFields[i].id_ << '"';
+      }
+      query << ")";
     }
-    query << ")";
     return m_store->sendQuery<SendState::Sync>(query, Tuple{});
   }
 }
@@ -1055,8 +1063,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 {
   auto nextKey = [this]() {
     m_openSubState = OpenSubState::incKey(m_openSubState);
-    // FIXME - add 1 for UN index
-    if (OpenSubState::key(m_openSubState) >= m_keyFields.length())
+    if (OpenSubState::key(m_openSubState) > m_keyFields.length())
       // prepFind();
       opened();
     else
@@ -1069,9 +1076,10 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   }
 
   if (!res) {
-    const auto &fields = m_keyFields[OpenSubState::key(m_openSubState)];
+    auto key = OpenSubState::key(m_openSubState);
+    unsigned nFields = key ? m_keyFields[key - 1].length() : 1;
     if (!OpenSubState::failed(m_openSubState) &&
-	OpenSubState::field(m_openSubState) == fields.length()) {
+	OpenSubState::field(m_openSubState) == nFields) {
       // index exists, all fields ok, proceed to next index
       nextKey();
     } else if (!OpenSubState::failed(m_openSubState) &&
@@ -1091,15 +1099,23 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 
   unsigned n = PQntuples(res);
   for (unsigned i = 0; i < n; i++) {
-    const char *id = PQgetvalue(res, i, 0);
+    const char *id_ = PQgetvalue(res, i, 0);
+    ZuString id{id_};
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
-    // FIXME - handle UN index specially
     auto key = OpenSubState::key(m_openSubState);
-    // const auto &fields = m_keyFields[key];
-    const auto &xFields = m_xKeyFields[key];
-    auto field = OpenSubState::field(m_openSubState);
+    unsigned field = OpenSubState::field(m_openSubState);
+    unsigned type;
+    ZuString matchID;
+    if (!key) {	// UN index
+      matchID = "un";
+      type = Value::Index<UInt64>{};
+    } else {
+      const auto &xFields = m_xKeyFields[key - 1];
+      matchID = xFields[field].id_;
+      type = xFields[field].type;
+    }
     m_openSubState = OpenSubState::incField(m_openSubState);
-    bool match = m_store->oids().match(oid, xFields[field].type);
+    bool match = m_store->oids().match(oid, type) && id == matchID;
     if (!OpenSubState::failed(m_openSubState) && !match)
       m_openSubState = OpenSubState::setFailed(m_openSubState);
     ZeLOG(Debug, ([
