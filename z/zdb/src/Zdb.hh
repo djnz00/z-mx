@@ -1626,6 +1626,7 @@ private:
   void wake();
 
   void start_1();
+  void start_2();
   void stop_1();
   void stop_2();
   void stop_3();

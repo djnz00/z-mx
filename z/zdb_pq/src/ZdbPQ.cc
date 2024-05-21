@@ -161,22 +161,20 @@ void Store::close_fds()
   }
 }
 
-StartResult Store::start()
+void Store::start(StartFn fn)
 {
   ZeLOG(Debug, ([](auto &s) { }));
   m_mx->wakeFn(m_pqSID, ZmFn{this, [](Store *store) { store->wake(); }});
-  ZmBlock<>{}([this](auto done) {
-    ZeLOG(Debug, ([](auto &s) { s << "pushing start_(), run_()"; }));
-    m_mx->push(m_pqSID, [this, done = ZuMv(done)]() mutable {
-      ZeLOG(Debug, ([](auto &s) { s << "inner"; }));
-      start_();
-      done();
-      run_();
-    });
+  m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
+    if (!start_()) {
+      zdbRun([fn = ZuMv(fn)]() {
+	fn(StartResult{ZeMEVENT(Fatal, "PostgreSQL start() failed")});
+      });
+      return;
+    }
+    zdbRun([fn = ZuMv(fn)]() { fn(StartResult{}); });
+    run_();
   });
-  if (ZuUnlikely(!m_conn))
-    return {ZeMEVENT(Fatal, "PostgreSQL start() failed")};
-  return {};
 }
 
 static ZtString connError(PGconn *conn)
@@ -186,7 +184,7 @@ static ZtString connError(PGconn *conn)
   return error;
 }
 
-void Store::start_()
+bool Store::start_()
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
@@ -199,7 +197,7 @@ void Store::start_()
       s << "PQconnectdb() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
 
   try {
@@ -207,7 +205,7 @@ void Store::start_()
   } catch (const ZeMEvent &e) {
     ZeLogEvent(ZuMv(const_cast<ZeMEvent &>(e)));
     close_fds();
-    return;
+    return false;
   }
 
   m_connFD = PQsocket(m_conn);
@@ -217,7 +215,7 @@ void Store::start_()
       s << "PQsetnonblocking() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
 
   if (PQenterPipelineMode(m_conn) != 1) {
@@ -225,7 +223,7 @@ void Store::start_()
       s << "PQenterPipelineMode() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
 
 #ifndef _WIN32
@@ -236,21 +234,21 @@ void Store::start_()
       s << "epoll_create() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
   if (pipe(&m_wakeFD) < 0) {
     ZeLOG(Fatal, ([e = errno](auto &s) {
       s << "pipe() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
   if (fcntl(m_wakeFD, F_SETFL, O_NONBLOCK) < 0) {
     ZeLOG(Fatal, ([e = errno](auto &s) {
       s << "fcntl(F_SETFL, O_NONBLOCK) failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
   {
     struct epoll_event ev;
@@ -262,11 +260,14 @@ void Store::start_()
 	s << "epoll_ctl(EPOLL_CTL_ADD) failed: " << e;
       }));
       close_fds();
-      return;
+      return false;
     }
   }
 
-  ZeLOG(Debug, ([this](auto &s) { s << "epoll_ctl(EPOLL_CTL_ADD) connFD=" << m_connFD; }));
+  ZeLOG(Debug, ([this](auto &s) {
+    s << "epoll_ctl(EPOLL_CTL_ADD) connFD=" << m_connFD;
+  }));
+
   {
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
@@ -277,13 +278,13 @@ void Store::start_()
 
 #else
 
-  m_wakeSem = CreateSemaphore(nullptr, 0, 0x7fffffff, nullptr); }
+  m_wakeSem = CreateSemaphore(nullptr, 0, 0x7fffffff, nullptr);
   if (m_wakeSem == NULL || m_wakeSem == INVALID_HANDLE_VALUE) {
     ZeLOG(Fatal, ([e = ZeLastError](auto &s) {
       s << "CreateEvent() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
 
   m_connEvent = WSACreateEvent();
@@ -292,7 +293,7 @@ void Store::start_()
       s << "CreateEvent() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
   if (WSAEventSelect(m_connFD, m_connEvent,
       FD_READ | FD_WRITE | FD_OOB | FD_CLOSE)) {
@@ -300,30 +301,28 @@ void Store::start_()
       s << "WSAEventSelect() failed: " << e;
     }));
     close_fds();
-    return;
+    return false;
   }
 
 #endif
+
+  return true;
 }
 
-void Store::stop()
+void Store::stop(StopFn fn)
 {
   ZeLOG(Debug, ([](auto &s) { }));
-  ZmBlock<>{}([this](auto done) {
-    enqueue(Work::Stop{ZmFn{[done = ZuMv(done)]() mutable {
-      done();
-    }}});
-  });
+  enqueue(Work::Stop{ZuMv(fn)});
 }
 
-void Store::stop_(ZmFn<> stopped)	// called after dequeuing Stop
+void Store::stop_(StopFn fn)	// called after dequeuing Stop
 {
   ZeLOG(Debug, ([](auto &s) { }));
   m_mx->wakeFn(m_pqSID, ZmFn{});
   ZeLOG(Debug, ([](auto &s) { s << "pushing stop_1()"; }));
-  m_mx->push(m_pqSID, [this, stopped = ZuMv(stopped)]() mutable {
+  m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
     stop_1();
-    stopped();
+    zdbRun([fn = ZuMv(fn)]() { fn(StopResult{}); });
   });
   wake_();
 }
@@ -533,8 +532,8 @@ if (!PQsendPrepare(PGconn *conn,
 }
 #endif
 
-// Note: send() is called after every enqueue to ensure no starvation:
-// wake() -> enqueue() -> dequeue() -> send() (possible pushback) -> epoll_wait / WFMO
+// send() is called after every enqueue to prevent starvation:
+// wake(), enqueue(), dequeue(), send() (possible pushback), epoll_wait / WFMO
 
 // to match results to requests, each result is matched to the head request
 // on the sent request list, which is removed when the last tuple has
@@ -568,7 +567,7 @@ void Store::send()
     if (sendState != SendState::Unsent) break;
   }
 
-  // flush or sync as required by query
+  // server-side flush or sync as required by the last sent query
   switch (sendState) {
     case SendState::Flush:
       if (PQsendFlushRequest(m_conn) != 1) {
@@ -588,6 +587,7 @@ void Store::send()
       break;
   }
 
+  // client-side flush unless already performed by PQpipelineSync()
   if (sendState != SendState::Sync) {
     // ... PQflush() regardless, to ensure client-side send buffer drainage
     // and correct signalling of write-readiness via epoll or WFMO
@@ -598,28 +598,6 @@ void Store::send()
       return;
     }
   }
-
-#if 0
-  // dequeue query, make tuple, send it with query
-  const char *paramValues[N];
-  int paramLengths[N];
-  int paramFormats[N];
-  paramValues[0] = ptr; // pointer to binary representation
-  paramLengths[0] = sizeof(T);
-  paramFormats[0] = 1; // binary
-  if (PQsendQueryPrepared(conn,
-	id,	// server-side ID (name) for previously prepared statement
-	nParams,
-	paramValues,
-	paramLengths,
-	paramFormats,
-	1	// binary
-      ) == 1) {
-    // sent - enqueue on sent requests
-  } else {
-    // error is ok in non-blocking mode, push it back onto the queue for retry
-  }
-#endif
 }
 
 void Store::open(
@@ -645,7 +623,7 @@ void Store::open(
 void Store::enqueue(Work::Item item)
 {
   ZeLOG(Debug, ([](auto &s) { }));
-  m_mx->run(m_pqSID, [this, item = ZuMv(item)]() mutable {
+  pqRun([this, item = ZuMv(item)]() mutable {
     ZeLOG(Debug, ([](auto &s) { s << "inner"; }));
     m_queue.push(ZuMv(item));
   });

@@ -804,7 +804,7 @@ struct Write {
 using Query = ZuUnion<Open, Find, Recover, Write>;
 
 struct Stop {
-  ZmFn<>		stopped;
+  StopFn		stopped;
 };
 
 struct MkMRD { };			// create _mrd table if not exists
@@ -914,8 +914,8 @@ public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
   void final();
 
-  StartResult start();
-  void stop();
+  void start(StartFn);
+  void stop(StopFn);
 
   void open(
     ZuID id,
@@ -926,6 +926,13 @@ public:
     OpenFn openFn);
 
   void enqueue(Work::Item item);
+
+  template <typename ...Args> void pqRun(Args &&... args) {
+    m_mx->run(m_pqSID, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args> void pqInvoke(Args &&... args) {
+    m_mx->invoke(m_pqSID, ZuFwd<Args>(args)...);
+  }
 
   template <typename ...Args> void zdbRun(Args &&... args) {
     m_mx->run(m_zdbSID, ZuFwd<Args>(args)...);
@@ -942,8 +949,8 @@ public:
   int sendPrepared(const ZtString &query, const Tuple &params);
 
 private:
-  void start_();
-  void stop_(ZmFn<>);
+  bool start_();
+  void stop_(StopFn);
   void stop_1();
   void close_fds();
 

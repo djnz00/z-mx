@@ -212,8 +212,7 @@ void DB::start_()
   ZeLOG(Info, "Zdb starting");
 
   // start backing data store
-  {
-    auto result = m_store->start();
+  m_store->start([this](StartResult result) {
     if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).p<Event>());
       ZeLOG(Fatal, ([](auto &s) {
@@ -222,17 +221,21 @@ void DB::start_()
       started(false);
       return;
     }
-  }
-
-  // open and recover all tables
-  all([](AnyTable *table, ZmFn<bool> done) {
-    table->open([done = ZuMv(done)](bool ok) mutable { done(ok); });
-  }, [](DB *db, bool ok) {
-    ok ? db->start_1() : db->started(false);
+    start_1();
   });
 }
 
 void DB::start_1()
+{
+  // open and recover all tables
+  all([](AnyTable *table, ZmFn<bool> done) {
+    table->open([done = ZuMv(done)](bool ok) mutable { done(ok); });
+  }, [](DB *db, bool ok) {
+    ok ? db->start_2() : db->started(false);
+  });
+}
+
+void DB::start_2()
 {
   ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
@@ -355,9 +358,15 @@ void DB::stop_3()
 
   state(HostState::Initialized);
 
-  m_store->stop();
-
-  stopped(true);
+  m_store->stop([this](StopResult result) {
+    if (ZuUnlikely(result.is<Event>())) {
+      ZeLogEvent(ZuMv(result).p<Event>());
+      ZeLOG(Fatal, ([](auto &s) {
+	s << "Zdb data store stop failed";
+      }));
+    }
+    stopped(true);
+  });
 }
 
 bool DB::disconnectAll()

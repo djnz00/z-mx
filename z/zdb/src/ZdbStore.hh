@@ -51,10 +51,15 @@ using InitResult = ZuUnion<
   InitData,			// succeeded
   Event>;			// error
 
-// result of store start()
-using StartResult = ZuUnion<
-  void,				// succeeded
-  Event>;			// error
+// start result
+using StartResult = ZuUnion<void, Event>;
+// start callback
+using StartFn = ZmFn<StartResult>;
+
+// stop result
+using StopResult = ZuUnion<void, Event>;
+// stop callback
+using StopFn = ZmFn<StopResult>;
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
@@ -133,8 +138,8 @@ public:
       unsigned sid) = 0;		//  scheduler slot ID for callbacks
   virtual void final() = 0;		// finalize data store - idempotent
 
-  virtual StartResult start() { return {}; }
-  virtual void stop() { }
+  virtual void start(StartFn fn) { fn(StartResult{}); }
+  virtual void stop(StopFn fn) { fn(StopResult{}); }
 
   // multiple calls to MaxFn may continue after open() returns,
   // concluding with a single call to OpenFn
