@@ -470,14 +470,16 @@ void Store::recv()
 	      rcvd(pending, res);
 	      break;
 	    case PGRES_NONFATAL_ERROR: // notice / warning
-	      ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
-		s << "PQgetResult() query: " << e;
-	      }));
+	      failed(pending, ZeMEVENT(Error,
+		  ([e = connError(m_conn)](auto &s, const auto &) {
+		    s << "PQgetResult() query: " << e;
+		  })));
 	      break;
 	    case PGRES_FATAL_ERROR: // query failed
-	      ZeLOG(Fatal, ([e = connError(m_conn)](auto &s) {
-		s << "PQgetResult() query: " << e;
-	      }));
+	      failed(pending, ZeMEVENT(Fatal,
+		  ([e = connError(m_conn)](auto &s, const auto &) {
+		    s << "PQgetResult() query: " << e;
+		  })));
 	      break;
 	    default: // ignore everything else
 	      break;
@@ -519,6 +521,22 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
     /* decode data */
   }
 #endif
+}
+
+void Store::failed(Work::Queue::Node *work, ZeMEvent e)
+{
+  ZeLOG(Debug, ([](auto &s) { }));
+
+  switch (work->data().type()) {
+    case Work::Item::Index<Work::TblItem>{}: {
+      const auto &tblItem = work->data().p<Work::TblItem>();
+      switch (tblItem.query.type()) {
+	case Work::Query::Index<Work::Open>{}:
+	  tblItem.tbl->open_failed(ZuMv(e));
+	  break;
+      }
+    } break;
+  }
 }
 
 #if 0
@@ -761,7 +779,7 @@ void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
   ZeLOG(Debug, ([](auto &s) { }));
   m_maxFn = ZuMv(maxFn);
   m_openFn = ZuMv(openFn);
-  getTable();
+  mkTable();
 }
 
   // max - one for each maxima
@@ -843,11 +861,16 @@ int Store::sendPrepared(const ZtString &query, const Tuple &params)
 // are not supported by Value (32bit unsigned) - uses UInt32 defined
 // at top of this file
 
+void StoreTbl::open_()
+{
+  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::Open{}}}});
+}
+
 int StoreTbl::open_send()
 {
   switch (m_openState) {
-    case OpenState::GetTable:	return getTable_send();
     case OpenState::MkTable:	return mkTable_send();
+    case OpenState::MkIndices:	return mkIndices_send();
   }
   return false;
 }
@@ -855,99 +878,26 @@ int StoreTbl::open_send()
 void StoreTbl::open_rcvd(PGresult *res)
 {
   switch (m_openState) {
-    case OpenState::GetTable:	getTable_rcvd(res); break;
     case OpenState::MkTable:	mkTable_rcvd(res); break;
+    case OpenState::MkIndices:	mkIndices_rcvd(res); break;
   }
 }
 
-void StoreTbl::getTable()
-{
-  m_openState = OpenState::GetTable;
-  m_openSubState = 0;
-  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::Open{}}}});
-}
-int StoreTbl::getTable_send()
+void StoreTbl::open_failed(Event e)
 {
   ZeLOG(Debug, ([](auto &s) { }));
-  Tuple params = { Value{String(m_id_)} };
-  m_openSubState = 0;
-  return m_store->sendQuery<SendState::Flush>(
-    "SELECT a.attname AS name, a.atttypid AS oid "
-    "FROM pg_catalog.pg_attribute a "
-    "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
-    "JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid "
-    "WHERE c.relname = $1::text "
-      "AND n.nspname = 'public' "
-      "AND a.attnum > 0 "
-      "AND NOT a.attisdropped", params);
-}
-void StoreTbl::getTable_rcvd(PGresult *res)
-{
-  if (ZuUnlikely(!res)) {
-    if (!m_openSubState) {
-      mkTable();
-    } else if (m_openSubState < m_fields.length()) {
-      auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
-	s << "inconsistent schema for table " << id;
-      }));
-      openFailed(ZuMv(e));
-    } else {
-      // mkIndices(0)
-      opened();
-    }
-    return;
-  }
-  unsigned n = PQntuples(res);
-  for (unsigned i = 0; i < n; i++) {
-    const char *id = PQgetvalue(res, i, 0);
-    unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
-    auto field = m_fieldMap.findVal(id);
-    bool match = false;
-    if (!ZuCmp<unsigned>::null(field))
-      match = m_store->oids().match(oid, m_xFields[field].type);
-    auto &oss = m_openSubState;
-    if (oss >= 0 && match)
-      ++oss;
-    else {
-      if (oss > 0) oss = -oss;
-      --oss;
-    }
-    ZeLOG(Debug, ([id = ZtString{id}, oid, field, match, oss](auto &s) {
-      int field_ = ZuCmp<unsigned>::null(field) ? -1 : int(field);
-      s << "id=" << id << " oid=" << oid
-	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
-	<< " openSubState=" << oss;
-    }));
-  }
-}
 
-void StoreTbl::mkTable()
-{
-  m_openState = OpenState::MkTable;
-  m_openSubState = 0;
-  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::Open{}}}});
-}
-int StoreTbl::mkTable_send()
-{
-  ZeLOG(Debug, ([](auto &s) { }));
-  m_openSubState = 0;
-  ZtString query;
-  query << "CREATE TABLE \"" << m_id_ << "\" (";
-  unsigned n = m_fields.length();
-  for (unsigned i = 0; i < n; i++) {
-    if (i) query << ", ";
-    query << '"' << m_xFields[i].id_ << "\" "
-      << m_store->oids().name(m_xFields[i].type);
-  }
-  query << ")";
-  return m_store->sendQuery<SendState::Sync>(query, Tuple{});
-}
-void StoreTbl::mkTable_rcvd(PGresult *res)
-{
-  if (!res) {
-    // mkIndices(0)
-    opened();
-  }
+  m_openState = OpenState::Failed;
+  m_openSubState = -1;
+
+  auto openFn = ZuMv(m_openFn);
+
+  m_maxFn = MaxFn{};
+  m_openFn = OpenFn{};
+
+  m_store->zdbRun([e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
+    openFn(OpenResult{ZuMv(e)});
+  });
 }
 
 void StoreTbl::opened()
@@ -972,28 +922,212 @@ void StoreTbl::opened()
   });
 }
 
-void StoreTbl::openFailed(Event e)
+void StoreTbl::mkTable()
 {
-  ZeLOG(Debug, ([](auto &s) { }));
-
-  m_openState = OpenState::Failed;
-  m_openSubState = -1;
-
-  auto openFn = ZuMv(m_openFn);
-
-  m_maxFn = MaxFn{};
-  m_openFn = OpenFn{};
-
-  m_store->zdbRun([e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
-    openFn(OpenResult{ZuMv(e)});
-  });
+  m_openState = OpenState::MkTable;
+  m_openSubState = OpenSubState::reset();
+  open_();
 }
+int StoreTbl::mkTable_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  if (!OpenSubState::create(m_openSubState)) {
+    Tuple params = { Value{String(m_id_)} };
+    return m_store->sendQuery<SendState::Flush>(
+      "SELECT a.attname AS name, a.atttypid AS oid "
+      "FROM pg_catalog.pg_attribute a "
+      "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
+      "JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid "
+      "WHERE c.relname = $1::text "
+	"AND n.nspname = 'public' "
+	"AND a.attnum > 0 "
+	"AND NOT a.attisdropped", params);
+  } else {
+    ZtString query;
+    query << "CREATE TABLE \"" << m_id_ << "\" (";
+    // FIXME - UN, SN
+    unsigned n = m_fields.length();
+    for (unsigned i = 0; i < n; i++) {
+      if (i) query << ", ";
+      query << '"' << m_xFields[i].id_ << "\" "
+	<< m_store->oids().name(m_xFields[i].type);
+    }
+    query << ")";
+    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+  }
+}
+void StoreTbl::mkTable_rcvd(PGresult *res)
+{
+  if (OpenSubState::create(m_openSubState)) {
+    if (!res) mkIndices();
+    return;
+  }
+
+  if (!res) {
+    if (!OpenSubState::failed(m_openSubState) &&
+	OpenSubState::field(m_openSubState) == m_fields.length()) {
+      // table exists, all fields ok, proceed to indices
+      mkIndices();
+    } else if (!OpenSubState::failed(m_openSubState) &&
+	!OpenSubState::field(m_openSubState)) {
+      // table does not exist, create it
+      m_openSubState = OpenSubState::setCreate(m_openSubState);
+      open_();
+    } else {
+      // table exists but not all fields matched
+      auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
+	s << "inconsistent schema for table " << id;
+      }));
+      open_failed(ZuMv(e));
+    }
+    return;
+  }
+  unsigned n = PQntuples(res);
+  for (unsigned i = 0; i < n; i++) {
+    const char *id = PQgetvalue(res, i, 0);
+    unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
+    // FIXME - UN, SN
+    auto field = m_fieldMap.findVal(id);
+    bool match = false;
+    if (!ZuCmp<unsigned>::null(field)) {
+      m_openSubState = OpenSubState::incField(m_openSubState);
+      match = m_store->oids().match(oid, m_xFields[field].type);
+    }
+    if (!OpenSubState::failed(m_openSubState) && !match)
+      m_openSubState = OpenSubState::setFailed(m_openSubState);
+    ZeLOG(Debug, ([
+      id = ZtString{id}, oid, field, match, oss = m_openSubState
+    ](auto &s) {
+      int field_ = ZuCmp<unsigned>::null(field) ? -1 : int(field);
+      s << "id=" << id << " oid=" << oid
+	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
+	<< " openSubState=" << ZuBoxed(oss).hex();
+    }));
+  }
+}
+
+void StoreTbl::mkIndices()
+{
+  if (!m_keyFields.length()) { // FIXME - will never be true due to UN index
+    opened();
+    return;
+  }
+  m_openState = OpenState::MkIndices;
+  m_openSubState = OpenSubState::reset();
+  open_();
+}
+int StoreTbl::mkIndices_send()
+{
+  ZeLOG(Debug, ([v = m_openSubState](auto &s) { s << ZuBoxed(v).hex(); }));
+  unsigned key = OpenSubState::key(m_openSubState);
+  ZtString name(m_id_.length() + 16);
+  name << m_id_ << '_' << key;
+  if (!OpenSubState::create(m_openSubState)) {
+    Tuple params = { Value{String(name)} };
+    return m_store->sendQuery<SendState::Flush>(
+      "SELECT a.attname AS name, a.atttypid AS oid "
+      "FROM pg_class t "
+      "JOIN pg_index i ON t.oid = i.indrelid "
+      "JOIN pg_class d ON d.oid = i.indexrelid "
+      "JOIN pg_namespace n ON n.oid = t.relnamespace "
+      "JOIN pg_attribute a ON a.attrelid = t.oid "
+      "WHERE d.relname = $1::text "
+	"AND n.nspname = 'public' "
+	"AND a.attnum = ANY(i.indkey) "
+	"AND NOT a.attisdropped "
+      "ORDER BY array_position(i.indkey, a.attnum)", params);
+  } else {
+    ZtString query;
+    const auto &fields = m_keyFields[key];
+    const auto &xFields = m_xKeyFields[key];
+    unsigned n = fields.length();
+    // LATER we could consider using hash indices for non-series
+    query << "CREATE INDEX \"" << name << "\" ON \"" << m_id_ << "\" (";
+    for (unsigned i = 0; i < n; i++) {
+      if (i) query << ", ";
+      query << '"' << xFields[i].id_ << '"';
+    }
+    query << ")";
+    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+  }
+}
+void StoreTbl::mkIndices_rcvd(PGresult *res)
+{
+  auto nextKey = [this]() {
+    m_openSubState = OpenSubState::incKey(m_openSubState);
+    // FIXME - add 1 for UN index
+    if (OpenSubState::key(m_openSubState) >= m_keyFields.length())
+      // prepFind();
+      opened();
+    else
+      open_();
+  };
+
+  if (OpenSubState::create(m_openSubState)) {
+    if (!res) nextKey();
+    return;
+  }
+
+  if (!res) {
+    const auto &fields = m_keyFields[OpenSubState::key(m_openSubState)];
+    if (!OpenSubState::failed(m_openSubState) &&
+	OpenSubState::field(m_openSubState) == fields.length()) {
+      // index exists, all fields ok, proceed to next index
+      nextKey();
+    } else if (!OpenSubState::failed(m_openSubState) &&
+	!OpenSubState::field(m_openSubState)) {
+      // index does not exist, create it
+      m_openSubState = OpenSubState::setCreate(m_openSubState);
+      open_();
+    } else {
+      // index exists but not all fields matched
+      auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
+	s << "inconsistent schema for table " << id;
+      }));
+      open_failed(ZuMv(e));
+    }
+    return;
+  }
+
+  unsigned n = PQntuples(res);
+  for (unsigned i = 0; i < n; i++) {
+    const char *id = PQgetvalue(res, i, 0);
+    unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->i;
+    // FIXME - handle UN index specially
+    auto key = OpenSubState::key(m_openSubState);
+    // const auto &fields = m_keyFields[key];
+    const auto &xFields = m_xKeyFields[key];
+    auto field = OpenSubState::field(m_openSubState);
+    m_openSubState = OpenSubState::incField(m_openSubState);
+    bool match = m_store->oids().match(oid, xFields[field].type);
+    if (!OpenSubState::failed(m_openSubState) && !match)
+      m_openSubState = OpenSubState::setFailed(m_openSubState);
+    ZeLOG(Debug, ([
+      id = ZtString{id}, oid, field, match, oss = m_openSubState
+    ](auto &s) {
+      int field_ = ZuCmp<unsigned>::null(field) ? -1 : int(field);
+      s << "id=" << id << " oid=" << oid
+	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
+	<< " openSubState=" << ZuBoxed(oss).hex();
+    }));
+  }
+}
+
+// FIXME - sample maxima query:
+/*
+SET enable_seqscan = off;
+
+-- Your SELECT query
+SELECT link, MAX(seqNo) AS max_seqNo
+FROM your_table_name
+GROUP BY link;
+
+-- Restore the original setting
+RESET enable_seqscan;
+*/
 
 void StoreTbl::close(CloseFn fn)
 {
-  // FIXME
-  // - no need to deal with close() during open()
-  // - Zdb ensures that does not occur
   fn();
 }
 

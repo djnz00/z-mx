@@ -823,9 +823,8 @@ using Queue = ZmList<Item>;
 namespace OpenState {
 ZtEnumValues(OpenState,
   PreOpen = 0,
-  GetTable,	// validate table columns for consistency
-  MkTable,	// skipped if table pre-exists and is consistent
-  MkIndices,	// idempotent make indices for all keys (series and regular)
+  MkTable,	// idempotent create table
+  MkIndices,	// idempotent create indices for all keys
   PrepFind,	// prepare find for all keys
   PrepRecover,	// prepare recover query
   PrepInsert,	// prepare insert query
@@ -836,6 +835,33 @@ ZtEnumValues(OpenState,
   Max,		// query maxima for series keys
   Opened,	// open complete
   Failed);	// open failed
+}
+
+namespace OpenSubState {	// consistent encoding of open sub-states
+  enum {
+    Create	= 0x8000,	// used by MkTable, MkIndices
+    Failed	= 0x4000,	// used by all
+    FieldMask	= 0x3fff,	// used by MkTable, MkIndices
+    KeyShift	= 16
+  };
+
+  constexpr uint32_t reset() { return 0; }
+
+  constexpr bool create(uint32_t v) { return v & Create; }
+  constexpr bool failed(uint32_t v) { return v & Failed; }
+  constexpr unsigned field(uint32_t v) { return v & FieldMask; }
+  constexpr unsigned key(uint32_t v) { return v>>KeyShift; }
+
+  constexpr uint32_t setCreate(uint32_t v) { return v |= Create; }
+  constexpr uint32_t clrCreate(uint32_t v) { return v &= ~Create; }
+
+  constexpr uint32_t setFailed(uint32_t v) { return v |= Failed; }
+  constexpr uint32_t clrFailed(uint32_t v) { return v &= ~Failed; }
+
+  constexpr uint32_t incField(uint32_t v) { return v + 1; }
+  constexpr uint32_t incKey(uint32_t v) {
+    return (v + (1<<KeyShift)) & ~(Create | Failed | FieldMask);
+  }
 }
 
 class StoreTbl : public Zdb_::StoreTbl {
@@ -856,19 +882,19 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
+  void open_();
   int open_send();
   void open_rcvd(PGresult *);
-
-  void getTable();
-  int getTable_send();
-  void getTable_rcvd(PGresult *);
+  void open_failed(ZeMEvent);
+  void opened();
 
   void mkTable();
   int mkTable_send();
   void mkTable_rcvd(PGresult *);
 
-  void opened();
-  void openFailed(ZeMEvent);
+  void mkIndices();
+  int mkIndices_send();
+  void mkIndices_rcvd(PGresult *);
 
   void warmup();
 
@@ -893,7 +919,7 @@ private:
   ZmRef<AnyBuf>		m_maxBuf;
 
   int			m_openState = 0;
-  int			m_openSubState = -1;// #fields validated, keyID, etc.
+  uint32_t		m_openSubState = 0;// see OpenSubState
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
 };
@@ -960,6 +986,7 @@ private:
 
   void recv();
   void rcvd(Work::Queue::Node *, PGresult *);
+  void failed(Work::Queue::Node *, ZeMEvent);
 
   void send();
 
