@@ -737,11 +737,15 @@ Offset saveTuple(
 class OIDs {
   using OIDs_ = ZuArrayN<unsigned, Value::N - 1>;
   using Types = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
-  using Names = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
+  using Lookup = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
 
 public:
   void init(PGconn *);
 
+  const char *name(unsigned i) const {
+    if (i < 1 || i >= Value::N) return nullptr;
+    return m_names[i - 1];
+  }
   unsigned oid(unsigned i) const {
     if (i < 1 || i >= Value::N) return ZuCmp<unsigned>::null();
     return m_oids[i - 1];
@@ -753,7 +757,7 @@ public:
     return false;
   }
   unsigned oid(ZuString name) const {
-    int8_t i = m_names.findVal(name);
+    int8_t i = m_lookup.findVal(name);
     if (ZuCmp<int8_t>::null(i))
       return ZuCmp<unsigned>::null();
     ZmAssert(i >= 1 && i < Value::N);
@@ -763,81 +767,23 @@ public:
 private:
   unsigned resolve(PGconn *conn, ZuString name);
 
+  const char	**m_names = nullptr;
   OIDs_		m_oids;
   Types		m_types;
-  Names		m_names;
+  Lookup	m_lookup;
 };
+
+namespace SendState {
+  ZtEnumValues(SendState,
+    Unsent = 0,	// unsent
+    Sent,	// sent, no server-side flush or sync needed
+    Flush,	// sent, PQsendFlushRequest() needed
+    Sync);	// sent, PQpipelineSync() needed
+}
 
 namespace Work {
 
-struct Stop {
-  ZmFn<>		stopped;
-};
-
-// DB start sequence
-// - MkMRD - create table if not exist
-
-// table open sequence
-// - GetTable - check field IDs and OIDs match, if not then bail
-// - [MkTable] - create table if missing
-// - MkIndex - for each key
-//   - idempotent "create index if not exist"
-//   - series indices might be different than regular indices
-// - PrepFind for each key
-// - PrepRecover
-// - PrepIns
-// - PrepUpd
-// - PrepDel
-// - Open - get count, max(UN), max(SN)
-// - MRD - get UN, SN
-// - Max - for each series key
-//   ... finally we're in business
-//
-// GetTable query:
-/*
-SELECT a.attname AS name, a.atttypid AS oid
-FROM pg_catalog.pg_attribute a
-JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
-JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE c.relname = 'foo'
-  AND n.nspname = 'public'
-  AND a.attnum > 0
-  AND NOT a.attisdropped
-ORDER BY a.attnum;
- name |  oid
-------+--------
- a    | 343471
- */
-
-struct MkMRD { };			// create _mrd table if not exists
-
-struct GetTable { };			// validate table (if it exists)
-
-struct MkTable { };			// create table (if it did not exist)
-
-struct MkIndex {			// create index if not exists
-  unsigned		keyID;		// {tableID}_{keyID}
-};
-
-struct PrepFind {			// {tableID}_find_{keyID} 
-  unsigned		keyID;
-};
-
-struct PrepRecover { };			// {tableID}_recover
-
-struct PrepInsert { };			// {tableID}_insert
-
-struct PrepUpdate { };			// {tableID}_update
-
-struct PrepDelete { };			// {tableID}_delete
-
-struct Open { };
-
-struct MRD { };
-
-struct Max {				// {tableID}_max
-  unsigned		keyID;
-};
+struct Open { };			// open table
 
 struct Find {
   unsigned		keyID;
@@ -855,11 +801,13 @@ struct Write {
   CommitFn		commitFn;
 };
 
-using Query = ZuUnion<
-  GetTable, MkTable, MkIndex,
-  PrepFind, PrepRecover, PrepInsert, PrepUpdate, PrepDelete,
-  Open, MRD, Max,
-  Find, Recover, Write>;
+using Query = ZuUnion<Open, Find, Recover, Write>;
+
+struct Stop {
+  ZmFn<>		stopped;
+};
+
+struct MkMRD { };			// create _mrd table if not exists
 
 struct TblItem {
   StoreTbl	*tbl;	
@@ -877,7 +825,7 @@ ZtEnumValues(OpenState,
   PreOpen = 0,
   GetTable,	// validate table columns for consistency
   MkTable,	// skipped if table pre-exists and is consistent
-  MkIndex,	// idempotent make indices for all keys
+  MkIndices,	// idempotent make indices for all keys (series and regular)
   PrepFind,	// prepare find for all keys
   PrepRecover,	// prepare recover query
   PrepInsert,	// prepare insert query
@@ -908,9 +856,16 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
+  int open_send();
+  void open_rcvd(PGresult *);
+
   void getTable();
-  bool getTable_send();
+  int getTable_send();
   void getTable_rcvd(PGresult *);
+
+  void mkTable();
+  int mkTable_send();
+  void mkTable_rcvd(PGresult *);
 
   void opened();
   void openFailed(ZeMEvent);
@@ -981,8 +936,10 @@ public:
 
   const OIDs &oids() const { return m_oids; }
 
-  bool sendQuery(const ZtString &query, const Tuple &params);
-  bool sendPrepared(const ZtString &query, const Tuple &params);
+  template <int State>
+  int sendQuery(const ZtString &query, const Tuple &params);
+  template <int State>
+  int sendPrepared(const ZtString &query, const Tuple &params);
 
 private:
   void start_();

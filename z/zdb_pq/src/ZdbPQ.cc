@@ -47,13 +47,14 @@ void OIDs::init(PGconn *conn)
     "text"
   };
 
+  m_names = names;
   for (unsigned i = 1; i < Value::N; i++) {
     auto name = names[i - 1];
     auto oid = this->oid(name);
     if (ZuCmp<unsigned>::null(oid)) oid = resolve(conn, name);
     m_oids[i - 1] = oid;
     m_types.add(unsigned(oid), int8_t(i));
-    m_names.add(name, int8_t(i));
+    m_lookup.add(name, int8_t(i));
   }
 }
 
@@ -498,12 +499,16 @@ void Store::recv()
 
 void Store::rcvd(Work::Queue::Node *work, PGresult *res)
 {
+  ZeLOG(Debug, ([res, n = (res ? int(PQntuples(res)) : 0)](auto &s) {
+    s << "res=" << ZuBoxPtr(res).hex() << " n=" << n;
+  }));
+
   switch (work->data().type()) {
     case Work::Item::Index<Work::TblItem>{}: {
       const auto &tblItem = work->data().p<Work::TblItem>();
       switch (tblItem.query.type()) {
-	case Work::Query::Index<Work::GetTable>{}:
-	  tblItem.tbl->getTable_rcvd(res);
+	case Work::Query::Index<Work::Open>{}:
+	  tblItem.tbl->open_rcvd(res);
 	  break;
       }
     } break;
@@ -539,47 +544,59 @@ void Store::send()
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  bool sent = false;
+  int sendState = SendState::Unsent;
 
-  // queue items are non-query work such as Stop, or a single query to be sent
+  // queue items are non-query work such as Stop, or a query to be sent
   while (auto work = m_queue.shift()) {
     switch (work->data().type()) {
       case Work::Item::Index<Work::Stop>{}:
 	stop_(ZuMv(ZuMv(work->data()).p<Work::Stop>()).stopped);
 	break;
       case Work::Item::Index<Work::TblItem>{}: {
-	sent = true;
 	const auto &tblItem = work->data().p<Work::TblItem>();
 	switch (tblItem.query.type()) {
-	  case Work::Query::Index<Work::GetTable>{}:
-	    if (tblItem.tbl->getTable_send())
-	      m_sent.pushNode(ZuMv(work).release());
-	    else
-	      m_queue.unshiftNode(ZuMv(work).release());
+	  case Work::Query::Index<Work::Open>{}:
+	    sendState = tblItem.tbl->open_send();
 	    break;
 	}
+	if (sendState != SendState::Unsent)
+	  m_sent.pushNode(ZuMv(work).release());
+	else
+	  m_queue.unshiftNode(ZuMv(work).release());
       } break;
     }
-    if (sent) break;
+    if (sendState != SendState::Unsent) break;
   }
 
-  // if a query has been sent, follow it up with a server-side flush request
-  if (sent) {
-    if (PQsendFlushRequest(m_conn) != 1) {
+  // flush or sync as required by query
+  switch (sendState) {
+    case SendState::Flush:
+      if (PQsendFlushRequest(m_conn) != 1) {
+	ZeLOG(Fatal, ([e = connError(m_conn)](auto &s) {
+	  s << "PQsendFlushRequest() failed: " << e;
+	}));
+	return;
+      }
+      break;
+    case SendState::Sync:
+      if (PQpipelineSync(m_conn) != 1) {
+	ZeLOG(Fatal, ([e = connError(m_conn)](auto &s) {
+	  s << "PQsendFlushRequest() failed: " << e;
+	}));
+	return;
+      }
+      break;
+  }
+
+  if (sendState != SendState::Sync) {
+    // ... PQflush() regardless, to ensure client-side send buffer drainage
+    // and correct signalling of write-readiness via epoll or WFMO
+    if (PQflush(m_conn) < 0) {
       ZeLOG(Fatal, ([e = connError(m_conn)](auto &s) {
-	s << "PQsendFlushRequest() failed: " << e;
+	s << "PQflush() failed: " << e;
       }));
       return;
     }
-  }
-
-  // ... PQflush() regardless, to ensure client-side send buffer drainage
-  // and correct signalling of write-readiness via epoll or WFMO
-  if (PQflush(m_conn) < 0) {
-    ZeLOG(Fatal, ([e = connError(m_conn)](auto &s) {
-      s << "PQflush() failed: " << e;
-    }));
-    return;
   }
 
 #if 0
@@ -781,7 +798,8 @@ void StoreTbl::open(MaxFn maxFn, OpenFn openFn)
   // call storeTbl->open(ZuMv(openFn));
   //
 
-bool Store::sendQuery(const ZtString &query, const Tuple &params)
+template <int State>
+int Store::sendQuery(const ZtString &query, const Tuple &params)
 {
   auto n = params.length();
   auto paramTypes = ZmAlloc(Oid, n);
@@ -798,17 +816,21 @@ bool Store::sendQuery(const ZtString &query, const Tuple &params)
       });
     paramFormats[i] = 1;
   }
+  ZeLOG(Debug, ([query = ZtString{query}, n](auto &s) {
+    s << "\"" << query << "\", n=" << n;
+  }));
   int r = PQsendQueryParams(m_conn, query.data(),
     n, paramTypes, paramValues, paramLengths, paramFormats, 1);
-  if (r != 1) return false;
+  if (r != 1) return SendState::Unsent;
   if (PQsetSingleRowMode(m_conn) != 1)
     ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
       s << "PQsetSingleRowMode() failed: " << e;
     }));
-  return true;
+  return State;
 }
 
-bool Store::sendPrepared(const ZtString &query, const Tuple &params)
+template <int State>
+int Store::sendPrepared(const ZtString &query, const Tuple &params)
 {
   auto n = params.length();
   auto paramValues = ZmAlloc(const char *, n);
@@ -822,29 +844,56 @@ bool Store::sendPrepared(const ZtString &query, const Tuple &params)
       });
     paramFormats[i] = 1;
   }
+  ZeLOG(Debug, ([query = ZtString{query}, n](auto &s) {
+    s << "\"" << query << "\", n=" << n;
+  }));
   int r = PQsendQueryPrepared(m_conn, query.data(),
     n, paramValues, paramLengths, paramFormats, 1);
-  if (r != 1) return false;
+  if (r != 1) return SendState::Unsent;
   if (PQsetSingleRowMode(m_conn) != 1)
     ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
       s << "PQsetSingleRowMode() failed: " << e;
     }));
-  return true;
+  return State;
+}
+
+
+// FIXME - consider pipelined OID resolution - this would now be quite
+// straightforward
+
+// FIXME - returned PGresult decoding via Value, note that OID returns
+// are not supported by Value (32bit unsigned) - uses UInt32 defined
+// at top of this file
+
+int StoreTbl::open_send()
+{
+  switch (m_openState) {
+    case OpenState::GetTable:	return getTable_send();
+    case OpenState::MkTable:	return mkTable_send();
+  }
+  return false;
+}
+
+void StoreTbl::open_rcvd(PGresult *res)
+{
+  switch (m_openState) {
+    case OpenState::GetTable:	getTable_rcvd(res); break;
+    case OpenState::MkTable:	mkTable_rcvd(res); break;
+  }
 }
 
 void StoreTbl::getTable()
 {
   m_openState = OpenState::GetTable;
   m_openSubState = 0;
-  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::GetTable{}}}});
+  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::Open{}}}});
 }
-
-bool StoreTbl::getTable_send()
+int StoreTbl::getTable_send()
 {
   ZeLOG(Debug, ([](auto &s) { }));
   Tuple params = { Value{String(m_id_)} };
   m_openSubState = 0;
-  return m_store->sendQuery(
+  return m_store->sendQuery<SendState::Flush>(
     "SELECT a.attname AS name, a.atttypid AS oid "
     "FROM pg_catalog.pg_attribute a "
     "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
@@ -854,28 +903,18 @@ bool StoreTbl::getTable_send()
       "AND a.attnum > 0 "
       "AND NOT a.attisdropped", params);
 }
-
-// FIXME - consider pipelined OID resolution - this would now be quite
-// straightforward
-
-// FIXME - returned PGresult decoding via Value, note that OID returns
-// are not supported by Value (32bit unsigned) - uses UInt32 defined
-// at top of this file
-
 void StoreTbl::getTable_rcvd(PGresult *res)
 {
   if (ZuUnlikely(!res)) {
     if (!m_openSubState) {
-      // FIXME - advance to MkTable
-      opened();
+      mkTable();
     } else if (m_openSubState < m_fields.length()) {
-      // FIXME - inconsistent schema
       auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
 	s << "inconsistent schema for table " << id;
       }));
       openFailed(ZuMv(e));
     } else {
-      // FIXME - skip MkTable, advance to MkIndex
+      // mkIndices(0)
       opened();
     }
     return;
@@ -901,6 +940,35 @@ void StoreTbl::getTable_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openSubState=" << oss;
     }));
+  }
+}
+
+void StoreTbl::mkTable()
+{
+  m_openState = OpenState::MkTable;
+  m_openSubState = 0;
+  m_store->enqueue(Work::Item{Work::TblItem{this, {Work::Open{}}}});
+}
+int StoreTbl::mkTable_send()
+{
+  ZeLOG(Debug, ([](auto &s) { }));
+  m_openSubState = 0;
+  ZtString query;
+  query << "CREATE TABLE \"" << m_id_ << "\" (";
+  unsigned n = m_fields.length();
+  for (unsigned i = 0; i < n; i++) {
+    if (i) query << ", ";
+    query << '"' << m_xFields[i].id_ << "\" "
+      << m_store->oids().name(m_xFields[i].type);
+  }
+  query << ")";
+  return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+}
+void StoreTbl::mkTable_rcvd(PGresult *res)
+{
+  if (!res) {
+    // mkIndices(0)
+    opened();
   }
 }
 
@@ -938,7 +1006,7 @@ void StoreTbl::openFailed(Event e)
   m_maxFn = MaxFn{};
   m_openFn = OpenFn{};
 
-  m_store->zdbRun([this, e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
+  m_store->zdbRun([e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
     openFn(OpenResult{ZuMv(e)});
   });
 }
