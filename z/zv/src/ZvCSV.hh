@@ -115,7 +115,7 @@ public:
     m_fileName(fileName), m_error(e) { }
 
   void print_(ZmStream &s) const {
-    s << "\"" << m_fileName << "\" " << m_error;
+    s << '"' << m_fileName << "\" " << m_error;
   }
 
 private:

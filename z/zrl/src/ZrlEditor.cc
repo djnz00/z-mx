@@ -784,7 +784,7 @@ bool Editor::loadMap(ZuString file, bool select)
     return false;
   }
   if (!map->modes.length()) {
-    m_loadError = ZtString{} << "\"" << file << "\": mode 0 not defined";
+    m_loadError = ZtString{} << '"' << file << "\": mode 0 not defined";
     return false;
   }
   if (select) m_map = map.ptr();
