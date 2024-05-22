@@ -850,7 +850,7 @@ private:
   enum {
     Create	= 0x8000,	// used by MkMRD
     Failed	= 0x4000,	// used by all
-    TypeMask	= 0x3fff,	// used by GetOIDs
+    IterMask	= 0x3fff,	// used by all
     PhaseShift	= 16
   };
 
@@ -859,12 +859,12 @@ public:
 
   constexpr bool create() const { return v & Create; }
   constexpr bool failed() const { return v & Failed; }
-  constexpr unsigned type() const { return v & TypeMask; }
+  constexpr unsigned iter() const { return v & IterMask; }
   constexpr unsigned phase() const { return v>>PhaseShift; }
 
   constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
-  constexpr void incType() {
-    ZmAssert(type() < TypeMask);
+  constexpr void incIter() {
+    ZmAssert(iter() < IterMask);
     ++v;
   }
 
@@ -1102,8 +1102,8 @@ private:
   void getOIDs_rcvd(PGresult *);
 
   void mkMRD();
-  // int mkMRD_send();
-  // void mkMRD_rcvd(PGresult *);
+  int mkMRD_send();
+  void mkMRD_rcvd(PGresult *);
 
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;

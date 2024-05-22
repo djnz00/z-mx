@@ -578,7 +578,7 @@ int Store::start_send()
 {
   switch (m_startState.phase()) {
     case StartState::GetOIDs:	return getOIDs_send();
-    // case StartState::MkMRD:	return mkMRD_send();
+    case StartState::MkMRD:	return mkMRD_send();
   }
   return SendState::Unsent;
 }
@@ -587,7 +587,7 @@ void Store::start_rcvd(PGresult *res)
 {
   switch (m_startState.phase()) {
     case StartState::GetOIDs:	getOIDs_rcvd(res); break;
-    // case StartState::MkMRD:	mkMRD_rcvd(res); break;
+    case StartState::MkMRD:	mkMRD_rcvd(res); break;
   }
 }
 
@@ -634,14 +634,14 @@ int Store::getOIDs_send()
 {
   ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  unsigned type = m_startState.type() + 1;
+  unsigned type = m_startState.iter() + 1;
 skip:
   auto name = m_oids.name(type);
   {
     auto oid = m_oids.oid(name);
     if (!ZuCmp<unsigned>::null(oid)) {
       if (type != Value::Index<String>{}) m_oids.init(type, oid);
-      m_startState.incType();
+      m_startState.incIter();
       if (++type >= Value::N) {
 	// all OIDs resolved
 	mkMRD();
@@ -657,7 +657,7 @@ skip:
 }
 void Store::getOIDs_rcvd(PGresult *res)
 {
-  unsigned type = m_startState.type() + 1;
+  unsigned type = m_startState.iter() + 1;
 
   ZeLOG(Debug, ([type](auto &s) { s << "type=" << type; }));
 
@@ -674,7 +674,7 @@ void Store::getOIDs_rcvd(PGresult *res)
       mkMRD();
     } else {
       // resolve next OID
-      m_startState.incType();
+      m_startState.incIter();
       start_enqueue();
     }
     return;
@@ -697,7 +697,41 @@ void Store::getOIDs_rcvd(PGresult *res)
   m_oids.init(type, oid);
 }
 
-void Store::mkMRD() { started(); }
+void Store::mkMRD()
+{
+  m_startState.phase(StartState::MkMRD);
+  start_enqueue();
+}
+int Store::mkMRD_send()
+{
+  ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
+  const char *query;
+  if (!m_startState.iter()) {
+    query =
+      "CREATE TABLE IF NOT EXISTS "
+	"\"mrd_\" (\"tbl\" text, \"un\" uint8, \"sn\" uint16)";
+  } else {
+    query =
+      "CREATE INDEX IF NOT EXISTS "
+	"\"mrd_tbl_\" ON \"mrd_\" (\"tbl\")";
+  }
+
+  return sendQuery<SendState::Sync, false>(query, Tuple{});
+}
+void Store::mkMRD_rcvd(PGresult *res)
+{
+  ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  if (!res) {
+    m_startState.incIter();
+    if (m_startState.iter() <= 1)
+      start_enqueue();
+    else
+      started();
+  }
+}
 
 void Store::open(
   ZuID id,
@@ -1048,6 +1082,8 @@ int StoreTbl::mkTable_send()
 }
 void StoreTbl::mkTable_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (m_openState.create()) {
     if (!res) mkIndices();
     return;
@@ -1151,6 +1187,8 @@ int StoreTbl::mkIndices_send()
 }
 void StoreTbl::mkIndices_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   auto nextKey = [this]() {
     m_openState.incKey();
     if (m_openState.key() > m_keyFields.length())
@@ -1255,6 +1293,8 @@ int StoreTbl::prepFind_send()
 }
 void StoreTbl::prepFind_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (!res) {
     m_openState.incKey();
     if (m_openState.key() > m_keyFields.length())
@@ -1294,6 +1334,8 @@ int StoreTbl::prepInsert_send()
 }
 void StoreTbl::prepInsert_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (!res) prepUpdate();
 }
 
@@ -1338,6 +1380,8 @@ int StoreTbl::prepUpdate_send()
 }
 void StoreTbl::prepUpdate_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (!res) prepDelete();
 }
 
@@ -1368,6 +1412,8 @@ int StoreTbl::prepDelete_send()
 }
 void StoreTbl::prepDelete_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (!res) maxUN();
 }
 
@@ -1387,6 +1433,8 @@ int StoreTbl::maxUN_send()
 }
 void StoreTbl::maxUN_rcvd(PGresult *res)
 {
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
   if (!res) {
     // mrd();
     opened();
