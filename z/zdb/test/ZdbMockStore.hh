@@ -956,15 +956,14 @@ public:
     auto work_ =
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       auto tuple = loadTuple(
-	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data())
-      );
+	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data()));
       ZmRef<const MockRow> row = m_indices[keyID].findVal(tuple);
       if (row) {
 	RowData data{.buf = saveRow<false>(row).constRef()};
 	auto callback =
-	[rowFn = ZuMv(rowFn), result = RowResult{ZuMv(data)}]() mutable {
-	  rowFn(ZuMv(result));
-	};
+	  [rowFn = ZuMv(rowFn), result = RowResult{ZuMv(data)}]() mutable {
+	    rowFn(ZuMv(result));
+	  };
 	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
       } else {
 	auto callback = [rowFn = ZuMv(rowFn)]() mutable {
