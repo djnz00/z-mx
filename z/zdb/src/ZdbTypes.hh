@@ -22,6 +22,10 @@
 
 namespace Zdb_ {
 
+// various upper limits
+constexpr unsigned maxFields() { return 0x3fff; }
+constexpr unsigned maxKeys() { return 0xfff; }
+
 // Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
 
 // update number - secondary key used for replication/recovery

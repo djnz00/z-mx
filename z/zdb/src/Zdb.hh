@@ -828,6 +828,9 @@ public:
   using KeyIDs = ZuFieldKeyIDs<T>;
   template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
 
+  ZuAssert(Fields::N < maxFields());
+  ZuAssert(KeyIDs::N < maxKeys());
+
   Table(DB *db, TableCf *cf) : AnyTable{db, cf} {
     ZuUnroll::all<KeyIDs>([this](auto KeyID) {
       m_findDLQs.template p<KeyID>(new FindDLQ<KeyID>{
