@@ -740,7 +740,7 @@ class OIDs {
   using Lookup = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<4, ZmLHashLocal<>>>;
 
 public:
-  void init(PGconn *);
+  OIDs();
 
   const char *name(unsigned i) const {
     if (i < 1 || i >= Value::N) return nullptr;
@@ -758,10 +758,16 @@ public:
   }
   unsigned oid(ZuString name) const {
     int8_t i = m_lookup.findVal(name);
-    if (ZuCmp<int8_t>::null(i))
-      return ZuCmp<unsigned>::null();
+    if (ZuCmp<int8_t>::null(i)) return ZuCmp<unsigned>::null();
     ZmAssert(i >= 1 && i < Value::N);
     return m_oids[i - 1];
+  }
+
+  void init(int8_t i, unsigned oid) {
+    ZmAssert(i >= 1 && i < Value::N);
+    m_oids[i - 1] = oid;
+    m_types.add(unsigned(oid), i);
+    m_lookup.add(m_names[i - 1], i);	// only add resolved names to lookup
   }
 
 private:
@@ -776,6 +782,7 @@ private:
 namespace SendState {
   ZtEnumValues(SendState,
     Unsent = 0,	// unsent
+    Again,	// send attempted, need to retry
     Sent,	// sent, no server-side flush or sync needed
     Flush,	// sent, PQsendFlushRequest() needed
     Sync);	// sent, PQpipelineSync() needed
@@ -803,65 +810,137 @@ struct Write {
 
 using Query = ZuUnion<Open, Find, Recover, Write>;
 
+struct Start { };			// start data store
+
 struct Stop {
   StopFn		stopped;
 };
 
-struct MkMRD { };			// create _mrd table if not exists
-
-struct TblItem {
+struct TblItem { // FIXME - rename
   StoreTbl	*tbl;	
   Query		query;
 };
 
-using Item = ZuUnion<Stop, MkMRD, TblItem>;
+using Item = ZuUnion<Start, Stop, TblItem>;
 
 using Queue = ZmList<Item>;
 
 } // Work
 
-namespace OpenState {
-ZtEnumValues(OpenState,
-  PreOpen = 0,
-  MkTable,	// idempotent create table
-  MkIndices,	// idempotent create indices for all keys
-  PrepFind,	// prepare recover and find for all keys
-  PrepInsert,	// prepare insert query
-  PrepUpdate,	// prepare update query
-  PrepDelete,	// prepare delete query
-  MaxUN,	// query count, max UN, max SN from main table
-  MRD,		// query max UN, max SN from _mrd table
-  Max,		// query maxima for series keys
-  Opened,	// open complete
-  Failed);	// open failed
-}
+// start state for the data store
+// - start is a heavy lift, involving several distinct phases
+// - care is taken to alert and error out on schema inconsistencies
+// - ... while automatically creating new tables and indices as needed
+// - OIDs for all vocabulary types are retrieved and populated
+// - MRD table is idempotently created
+class StartState {
+public:
+  uint32_t v = 0;	// public for printing/logging
 
-namespace OpenSubState {	// consistent encoding of open sub-states
+  // phases
+  enum {
+    PreStart = 0,
+    GetOIDs,	// retrieve OIDs
+    MkMRD,	// idempotent create MRD table
+    Started	// start complete (possibly failed)
+  };
+
+private:
+  // flags and masks
+  enum {
+    Create	= 0x8000,	// used by MkMRD
+    Failed	= 0x4000,	// used by all
+    TypeMask	= 0x3fff,	// used by GetOIDs
+    PhaseShift	= 16
+  };
+
+public:
+  constexpr void reset() { v = 0; }
+
+  constexpr bool create() const { return v & Create; }
+  constexpr bool failed() const { return v & Failed; }
+  constexpr unsigned type() const { return v & TypeMask; }
+  constexpr unsigned phase() const { return v>>PhaseShift; }
+
+  constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
+  constexpr void incType() {
+    ZmAssert(type() < TypeMask);
+    ++v;
+  }
+
+  constexpr void setCreate() { v |= Create; }
+  constexpr void clrCreate() { v &= ~Create; }
+
+  constexpr void setFailed() { v |= Failed; }
+  constexpr void clrFailed() { v &= ~Failed; }
+};
+
+// open state for a table
+// - table open is a heavy lift, involving several distinct phases
+// - some phases iterate over individual keys and fields
+// - care is taken to alert and error out on schema inconsistencies
+// - ... while automatically creating new tables and indices as needed
+// - recover, find, insert, update and delete statements are prepared
+// - max UN, SN are recovered
+// - any series maxima are recovered
+class OpenState {
+public:
+  uint32_t v = 0;	// public for printing/logging
+
+  // phases
+  enum {
+    PreOpen = 0,
+    MkTable,	// idempotent create table
+    MkIndices,	// idempotent create indices for all keys
+    PrepFind,	// prepare recover and find for all keys
+    PrepInsert,	// prepare insert query
+    PrepUpdate,	// prepare update query
+    PrepDelete,	// prepare delete query
+    MaxUN,	// query count, max UN, max SN from main table
+    MRD,	// query max UN, max SN from _mrd table
+    Max,	// query maxima for series keys
+    Opened	// open complete (possibly failed)
+  };
+
+private:
+  // flags and masks
   enum {
     Create	= 0x8000,	// used by MkTable, MkIndices
     Failed	= 0x4000,	// used by all
     FieldMask	= 0x3fff,	// used by MkTable, MkIndices
-    KeyShift	= 16
+    KeyShift	= 16,
+    KeyMask	= 0xfff,	// up to 4K keys
+    PhaseShift	= 28		// up to 16 phases
   };
 
-  constexpr uint32_t reset() { return 0; }
+  ZuAssert(FieldMask >= Zdb_::maxFields());
+  ZuAssert(KeyMask >= Zdb_::maxKeys());
 
-  constexpr bool create(uint32_t v) { return v & Create; }
-  constexpr bool failed(uint32_t v) { return v & Failed; }
-  constexpr unsigned field(uint32_t v) { return v & FieldMask; }
-  constexpr unsigned key(uint32_t v) { return v>>KeyShift; }
+public:
+  constexpr void reset() { v = 0; }
 
-  constexpr uint32_t setCreate(uint32_t v) { return v |= Create; }
-  constexpr uint32_t clrCreate(uint32_t v) { return v &= ~Create; }
+  constexpr bool create() const { return v & Create; }
+  constexpr bool failed() const { return v & Failed; }
+  constexpr unsigned field() const { return v & FieldMask; }
+  constexpr unsigned key() const { return (v>>KeyShift) & KeyMask; }
+  constexpr unsigned phase() const { return v>>PhaseShift; }
 
-  constexpr uint32_t setFailed(uint32_t v) { return v |= Failed; }
-  constexpr uint32_t clrFailed(uint32_t v) { return v &= ~Failed; }
-
-  constexpr uint32_t incField(uint32_t v) { return v + 1; }
-  constexpr uint32_t incKey(uint32_t v) {
-    return (v + (1<<KeyShift)) & ~(Create | Failed | FieldMask);
+  constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
+  constexpr void incKey() {
+    ZmAssert(key() < KeyMask);
+    v = (v + (1<<KeyShift)) & ~(Create | Failed | FieldMask);
   }
-}
+  constexpr void incField() {
+    ZmAssert(field() < FieldMask);
+    ++v;
+  }
+
+  constexpr void setCreate() { v |= Create; }
+  constexpr void clrCreate() { v &= ~Create; }
+
+  constexpr void setFailed() { v |= Failed; }
+  constexpr void clrFailed() { v &= ~Failed; }
+};
 
 class StoreTbl : public Zdb_::StoreTbl {
   using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
@@ -881,7 +960,7 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
-  void open_();
+  void open_enqueue();
   int open_send();
   void open_rcvd(PGresult *);
   void open_failed(ZeMEvent);
@@ -940,8 +1019,7 @@ private:
 
   ZmRef<AnyBuf>		m_maxBuf;
 
-  int			m_openState = 0;
-  uint32_t		m_openSubState = 0;// see OpenSubState
+  OpenState		m_openState;
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
 };
@@ -1002,7 +1080,6 @@ private:
   bool start_();
   void stop_(StopFn);
   void stop_1();
-  void close_fds();
 
   void wake();
   void wake_();
@@ -1013,6 +1090,20 @@ private:
   void failed(Work::Queue::Node *, ZeMEvent);
 
   void send();
+
+  void start_enqueue();
+  int start_send();
+  void start_rcvd(PGresult *);
+  void start_failed(ZeMEvent);
+  void started();
+
+  void getOIDs();
+  int getOIDs_send();
+  void getOIDs_rcvd(PGresult *);
+
+  void mkMRD();
+  // int mkMRD_send();
+  // void mkMRD_rcvd(PGresult *);
 
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
@@ -1035,6 +1126,9 @@ private:
   Work::Queue		m_sent;		// sent, awaiting response
 
   OIDs			m_oids;
+
+  StartState		m_startState;
+  StartFn		m_startFn;
 };
 
 } // ZdbPQ
