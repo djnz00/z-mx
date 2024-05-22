@@ -841,7 +841,8 @@ public:
   enum {
     PreStart = 0,
     GetOIDs,	// retrieve OIDs
-    MkMRD,	// idempotent create MRD table
+    MkTblMRD,	// idempotent create MRD table
+    MkIdxMRD,	// idempotent create MRD index
     Started	// start complete (possibly failed)
   };
 
@@ -850,7 +851,7 @@ private:
   enum {
     Create	= 0x8000,	// used by MkMRD
     Failed	= 0x4000,	// used by all
-    IterMask	= 0x3fff,	// used by all
+    TypeMask	= 0x3fff,	// used by GetOIDs
     PhaseShift	= 16
   };
 
@@ -859,12 +860,12 @@ public:
 
   constexpr bool create() const { return v & Create; }
   constexpr bool failed() const { return v & Failed; }
-  constexpr unsigned iter() const { return v & IterMask; }
+  constexpr unsigned type() const { return v & TypeMask; }
   constexpr unsigned phase() const { return v>>PhaseShift; }
 
   constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
-  constexpr void incIter() {
-    ZmAssert(iter() < IterMask);
+  constexpr void incType() {
+    ZmAssert(type() < TypeMask);
     ++v;
   }
 
@@ -896,7 +897,8 @@ public:
     PrepInsert,	// prepare insert query
     PrepUpdate,	// prepare update query
     PrepDelete,	// prepare delete query
-    MaxUN,	// query count, max UN, max SN from main table
+    Count,	// query count
+    MaxUN,	// query max UN, max SN from main table
     MRD,	// query max UN, max SN from _mrd table
     Max,	// query maxima for series keys
     Opened	// open complete (possibly failed)
@@ -990,6 +992,10 @@ public:
   int prepDelete_send();
   void prepDelete_rcvd(PGresult *);
 
+  void count();
+  int count_send();
+  void count_rcvd(PGresult *);
+
   void maxUN();
   int maxUN_send();
   void maxUN_rcvd(PGresult *);
@@ -1014,14 +1020,15 @@ private:
   XKeyFields		m_xKeyFields;
   FieldMap		m_fieldMap;
 
-  UN			m_maxUN;
-  SN			m_maxSN;
-
   ZmRef<AnyBuf>		m_maxBuf;
 
   OpenState		m_openState;
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
+
+  uint64_t		m_count = 0;
+  UN			m_maxUN = 0;
+  SN			m_maxSN = 0;
 };
 
 // --- mock data store
@@ -1101,9 +1108,13 @@ private:
   int getOIDs_send();
   void getOIDs_rcvd(PGresult *);
 
-  void mkMRD();
-  int mkMRD_send();
-  void mkMRD_rcvd(PGresult *);
+  void mkTblMRD();
+  int mkTblMRD_send();
+  void mkTblMRD_rcvd(PGresult *);
+
+  void mkIdxMRD();
+  int mkIdxMRD_send();
+  void mkIdxMRD_rcvd(PGresult *);
 
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
