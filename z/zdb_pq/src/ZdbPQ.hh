@@ -138,15 +138,51 @@ struct Value : public Value_ {
     invoke(ZuMv(l), this->type());
   }
 
+  // Postgres binary format loaders
+
+  // void
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<void, T, bool>
+  load(const char *, unsigned) { type_(I); return true; }
+
+  // String - zero-copy - relies on the PGresult remaining in scope
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<String, T, bool>
+  load(const char *data, unsigned length) {
+    new (new_<I, true>()) String{data, length};
+    return true;
+  }
+
+  // Bytes - zero-copy - relies on the PGresult remaining in scope
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuExact<Bytes, T, bool>
+  load(const char *data, unsigned length) {
+    new (new_<I, true>())
+      Bytes{reinterpret_cast<const uint8_t *>(data), length};
+    return true;
+  }
+
+  // All other types - copied
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<
+    !ZuIsExact<void, T>{} &&
+    !ZuIsExact<String, T>{} &&
+    !ZuIsExact<Bytes, T>{}, bool>
+  load(const char *data, unsigned length) {
+    if (length != sizeof(T)) return false;
+    memcpy(new_<I, true>(), data, length);
+    return true;
+  }
+
   // Postgres binary format accessors - data<I>(), length<I>()
 
   // void - return {nullptr, 0}
   template <unsigned I, typename T = Value_::Type<I>>
-  static ZuExact<void, T, const char *>
-  data() { return nullptr; }
+  ZuExact<void, T, const char *>
+  data() const { return nullptr; }
   template <unsigned I, typename T = Value_::Type<I>>
-  static ZuExact<void, T, unsigned>
-  length() { return 0; }
+  ZuExact<void, T, unsigned>
+  length() const { return 0; }
 
   // String - return raw string data
   template <unsigned I, typename T = Value_::Type<I>>
@@ -680,15 +716,13 @@ template <typename Filter>
 Tuple loadTuple(
   const ZtMFields &fields,
   const XFields &xFields,
-  const Zfb::Table *fbo, Filter filter)
+  const Zfb::Table *fbo,
+  Filter filter)
 {
   unsigned n = fields.length();
-  ZmAssert(n == xFields.length());
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
-    if (filter(fields[i]))
-      new (tuple.push()) Value{};
-    else
+    if (!filter(fields[i]))
       loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
   return tuple;
 }
@@ -714,14 +748,14 @@ Tuple loadDelTuple(
   });
 }
 
+// save tuple to flatbuffer
 Offset saveTuple(
   Zfb::Builder &fbb,
-  const ZtMFields &fields,
   const XFields &xFields,
-  const Tuple &tuple)
+  ZuArray<const Value> tuple)
 {
-  unsigned n = fields.length();
-  ZmAssert(n == xFields.length());
+  unsigned n = xFields.length();
+  ZmAssert(tuple.length() == n);
   Offsets offsets{ZmAlloc(Offset, n)};
   for (unsigned i = 0; i < n; i++)
     saveOffset(fbb, offsets, xFields[i], tuple[i]);
@@ -841,6 +875,7 @@ public:
   enum {
     PreStart = 0,
     GetOIDs,	// retrieve OIDs
+    MkSchema,	// idempotent create schema
     MkTblMRD,	// idempotent create MRD table
     MkIdxMRD,	// idempotent create MRD index
     Started	// start complete (possibly failed)
@@ -900,7 +935,7 @@ public:
     Count,	// query count
     MaxUN,	// query max UN, max SN from main table
     MRD,	// query max UN, max SN from _mrd table
-    Max,	// query maxima for series keys
+    Maxima,	// query maxima for series keys
     Opened	// open complete (possibly failed)
   };
 
@@ -924,12 +959,12 @@ public:
   constexpr bool create() const { return v & Create; }
   constexpr bool failed() const { return v & Failed; }
   constexpr unsigned field() const { return v & FieldMask; }
-  constexpr unsigned key() const { return (v>>KeyShift) & KeyMask; }
+  constexpr unsigned keyID() const { return (v>>KeyShift) & KeyMask; }
   constexpr unsigned phase() const { return v>>PhaseShift; }
 
   constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
   constexpr void incKey() {
-    ZmAssert(key() < KeyMask);
+    ZmAssert(keyID() < KeyMask);
     v = (v + (1<<KeyShift)) & ~(Create | Failed | FieldMask);
   }
   constexpr void incField() {
@@ -945,7 +980,7 @@ public:
 };
 
 class StoreTbl : public Zdb_::StoreTbl {
-  using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
+friend Store;
 
 public:
   StoreTbl(
@@ -962,12 +997,25 @@ public:
   void open(MaxFn, OpenFn);
   void close(CloseFn);
 
+  void warmup();
+
+  void maxima(MaxFn maxFn);
+
+  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn);
+
+  void recover(UN un, RowFn rowFn);
+
+  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn);
+
+private:
+  // open orchestration
   void open_enqueue();
   int open_send();
   void open_rcvd(PGresult *);
   void open_failed(ZeMEvent);
   void opened();
 
+  // open phases
   void mkTable();
   int mkTable_send();
   void mkTable_rcvd(PGresult *);
@@ -1000,17 +1048,18 @@ public:
   int maxUN_send();
   void maxUN_rcvd(PGresult *);
 
-  void warmup();
+  void mrd();
+  int mrd_send();
+  void mrd_rcvd(PGresult *);
 
-  void maxima(MaxFn maxFn);
-
-  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn);
-
-  void recover(UN un, RowFn rowFn);
-
-  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn);
+  void maxima_();
+  int maxima_send();
+  void maxima_rcvd(PGresult *);
+  ZmRef<AnyBuf> maxima_save(ZuArray<const Value> tuple, unsigned keyID);
 
 private:
+  using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
+
   Store			*m_store = nullptr;
   ZuID			m_id;
   ZtString		m_id_;		// snake case
@@ -1098,15 +1147,21 @@ private:
 
   void send();
 
+  // start orchestration
   void start_enqueue();
   int start_send();
   void start_rcvd(PGresult *);
   void start_failed(ZeMEvent);
   void started();
 
+  // start phases
   void getOIDs();
   int getOIDs_send();
   void getOIDs_rcvd(PGresult *);
+
+  void mkSchema();
+  int mkSchema_send();
+  void mkSchema_rcvd(PGresult *);
 
   void mkTblMRD();
   int mkTblMRD_send();
@@ -1116,6 +1171,7 @@ private:
   int mkIdxMRD_send();
   void mkIdxMRD_rcvd(PGresult *);
 
+private:
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
   unsigned		m_zdbSID = ZuCmp<unsigned>::null();

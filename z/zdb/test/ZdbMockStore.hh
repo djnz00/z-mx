@@ -681,6 +681,10 @@ inline void saveValue(
 
 using Tuple = ZtArray<Value>;
 
+// loadTuple() and saveTuple() rely on tuples being a full row
+// of values, i.e. tuples.length() == fields.length() == xFields.length()
+// (individual elements of the tuple can be null values)
+
 // load tuple from flatbuffer
 template <typename Filter>
 Tuple loadTuple(
@@ -689,7 +693,6 @@ Tuple loadTuple(
   const Zfb::Table *fbo, Filter filter)
 {
   unsigned n = fields.length();
-  ZmAssert(n == xFields.length());
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
     if (filter(fields[i]))
@@ -720,22 +723,36 @@ Tuple loadDelTuple(
   });
 }
 
+template <typename Filter>
 Offset saveTuple(
   Zfb::Builder &fbb,
   const ZtMFields &fields,
   const XFields &xFields,
-  const Tuple &tuple)
+  ZuArray<const Value> tuple,
+  Filter filter)
 {
   unsigned n = fields.length();
-  ZmAssert(n == xFields.length());
+  ZmAssert(n == tuple.length());
   Offsets offsets{ZmAlloc(Offset, n)};
   for (unsigned i = 0; i < n; i++)
-    saveOffset(fbb, offsets, xFields[i], tuple[i]);
+    if (!filter(fields[i]))
+      saveOffset(fbb, offsets, xFields[i], tuple[i]);
   auto start = fbb.StartTable();
   for (unsigned i = 0; i < n; i++)
-    saveValue(fbb, offsets, xFields[i], tuple[i]);
+    if (!filter(fields[i]))
+      saveValue(fbb, offsets, xFields[i], tuple[i]);
   auto end = fbb.EndTable(start);
   return Offset{end};
+}
+Offset saveTuple(
+  Zfb::Builder &fbb,
+  const ZtMFields &fields,
+  const XFields &xFields,
+  ZuArray<const Value> tuple)
+{
+  return saveTuple(fbb, fields, xFields, tuple, [](const ZtMField *) {
+    return false;
+  });
 }
 
 // update tuple
@@ -867,11 +884,14 @@ private:
   }
 
   // save a row for maxima
-  ZmRef<AnyBuf> saveMax(const ZmRef<const MockRow> &row) {
+  ZmRef<AnyBuf> saveMax(const ZmRef<const MockRow> &row, unsigned keyID) {
     ZmAssert(m_maxBuf->refCount() == 1);
     IOBuilder fbb;
     fbb.buf(m_maxBuf);
-    fbb.Finish(saveTuple(fbb, m_fields, m_xFields, row->data));
+    fbb.Finish(saveTuple(fbb, m_fields, m_xFields, row->data,
+	[keyID](const ZtMField *field) {
+	  return !(field->keys & (1<<keyID));
+	}));
     return fbb.buf();
   }
 
@@ -917,14 +937,15 @@ public:
 	Tuple key = maximum->key();
 	ZmAssert(key.length() == keyFields.length());
 	ZmRef<const MockRow> maxRow = maximum->val();
-	MaxData maxData{.keyID = i, .buf = saveMax(maxRow).constRef()};
+	MaxData maxData{
+	  .keyID = i,
+	  .buf = saveMax(maxRow, i).constRef()
+	};
 	maxFn(ZuMv(maxData));
 	unsigned m = keyFields.length();
 	for (unsigned j = 0; j < m; j++)
 	  if (keyFields[j]->props & ZtMFieldProp::Series) key[j] = Value{};
-	maximum = m_indices[i].find<ZmRBTreeGreaterEqual>(key);
-	ZmAssert(maximum);
-	maximum = m_indices[i].prev(maximum);
+	maximum = m_indices[i].find<ZmRBTreeLess>(key);
       }
     }
   }
@@ -932,7 +953,6 @@ public:
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
     ZmAssert(keyID < m_keyFields.length());
-    ZmAssert(keyID < m_xKeyFields.length());
     auto work_ =
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       auto tuple = loadTuple(

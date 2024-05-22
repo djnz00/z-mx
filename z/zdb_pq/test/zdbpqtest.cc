@@ -140,6 +140,13 @@ int main(int argc, char **argv)
 
     db->start();
 
+    orders->run([]{
+      auto max = orders->maximum<2>(ZuFwdTuple("FIX0"));
+      ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	s << "maximum(FIX0): " << max;
+      }));
+    });
+
     db->stop(); // closes all tables
 
     appMx->stop();

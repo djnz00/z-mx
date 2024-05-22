@@ -578,6 +578,7 @@ int Store::start_send()
 {
   switch (m_startState.phase()) {
     case StartState::GetOIDs:	return getOIDs_send();
+    case StartState::MkSchema:	return mkSchema_send();
     case StartState::MkTblMRD:	return mkTblMRD_send();
     case StartState::MkIdxMRD:	return mkIdxMRD_send();
   }
@@ -588,6 +589,7 @@ void Store::start_rcvd(PGresult *res)
 {
   switch (m_startState.phase()) {
     case StartState::GetOIDs:	getOIDs_rcvd(res); break;
+    case StartState::MkSchema:	mkSchema_rcvd(res); break;
     case StartState::MkTblMRD:	mkTblMRD_rcvd(res); break;
     case StartState::MkIdxMRD:	mkIdxMRD_rcvd(res); break;
   }
@@ -637,6 +639,7 @@ int Store::getOIDs_send()
   ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   unsigned type = m_startState.type() + 1;
+  // skip re-querying previously resolved OIDs
 skip:
   auto name = m_oids.name(type);
   {
@@ -646,7 +649,7 @@ skip:
       m_startState.incType();
       if (++type >= Value::N) {
 	// all OIDs resolved
-	mkTblMRD();
+	mkSchema();
 	return SendState::Unsent;
       }
       goto skip;
@@ -673,7 +676,7 @@ void Store::getOIDs_rcvd(PGresult *res)
       start_failed(ZuMv(e));
     } else if (type >= Value::N) {
       // all OIDs resolved
-      mkTblMRD();
+      mkSchema();
     } else {
       // resolve next OID
       m_startState.incType();
@@ -699,6 +702,25 @@ void Store::getOIDs_rcvd(PGresult *res)
   m_oids.init(type, oid);
 }
 
+void Store::mkSchema()
+{
+  m_startState.phase(StartState::MkSchema);
+  start_enqueue();
+}
+int Store::mkSchema_send()
+{
+  ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  return sendQuery<SendState::Sync, false>(
+    "CREATE SCHEMA IF NOT EXISTS \"zdb\"", Tuple{});
+}
+void Store::mkSchema_rcvd(PGresult *res)
+{
+  ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  if (!res) mkTblMRD();
+}
+
 void Store::mkTblMRD()
 {
   m_startState.phase(StartState::MkTblMRD);
@@ -711,7 +733,7 @@ int Store::mkTblMRD_send()
   // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
   return sendQuery<SendState::Sync, false>(
     "CREATE TABLE IF NOT EXISTS "
-      "\"mrd_\" (\"tbl\" text, \"un\" uint8, \"sn\" uint16)", Tuple{});
+      "\"zdb.mrd\" (\"tbl\" text, \"un\" uint8, \"sn\" uint16)", Tuple{});
 }
 void Store::mkTblMRD_rcvd(PGresult *res)
 {
@@ -732,7 +754,7 @@ int Store::mkIdxMRD_send()
   // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
   return sendQuery<SendState::Sync, false>(
     "CREATE INDEX IF NOT EXISTS "
-      "\"mrd_tbl_\" ON \"mrd_\" (\"tbl\")", Tuple{});
+      "\"zdb.mrd_0\" ON \"zdb.mrd\" (\"tbl\")", Tuple{});
 }
 void Store::mkIdxMRD_rcvd(PGresult *res)
 {
@@ -1002,6 +1024,8 @@ int StoreTbl::open_send()
     case OpenState::PrepDelete:	return prepDelete_send();
     case OpenState::Count:	return count_send();
     case OpenState::MaxUN:	return maxUN_send();
+    case OpenState::MRD:	return mrd_send();
+    case OpenState::Maxima:	return maxima_send();
   }
   return SendState::Unsent;
 }
@@ -1017,6 +1041,8 @@ void StoreTbl::open_rcvd(PGresult *res)
     case OpenState::PrepDelete:	prepDelete_rcvd(res); break;
     case OpenState::Count:	count_rcvd(res); break;
     case OpenState::MaxUN:	maxUN_rcvd(res); break;
+    case OpenState::MRD:	mrd_rcvd(res); break;
+    case OpenState::Maxima:	maxima_rcvd(res); break;
   }
 }
 
@@ -1118,9 +1144,17 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
   }
 
   unsigned n = PQntuples(res);
+  if (n && (PQnfields(res) != 2)) {
+    m_openState.setFailed();
+    return;
+  }
   for (unsigned i = 0; i < n; i++) {
     const char *id_ = PQgetvalue(res, i, 0);
     ZuString id{id_};
+    if (PQgetlength(res, i, 1) != 4) {
+      m_openState.setFailed();
+      return;
+    }
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->v;
     unsigned field = ZuCmp<unsigned>::null();
     unsigned type = ZuCmp<unsigned>::null();
@@ -1138,8 +1172,6 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     bool match = false;
     if (!ZuCmp<unsigned>::null(type))
       match = m_store->oids().match(oid, type);
-    if (!m_openState.failed() && !match)
-      m_openState.setFailed();
     ZeLOG(Debug, ([
       id = ZtString{id}, oid, field, match, state = m_openState.v
     ](auto &s) {
@@ -1148,6 +1180,10 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openState=" << ZuBoxed(state).hex();
     }));
+    if (!m_openState.failed() && !match) {
+      m_openState.setFailed();
+      return;
+    }
   }
 }
 
@@ -1160,9 +1196,9 @@ int StoreTbl::mkIndices_send()
 {
   ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  unsigned key = m_openState.key();
+  unsigned keyID = m_openState.keyID();
   ZtString name(m_id_.length() + 16);
-  name << m_id_ << '_' << key;
+  name << m_id_ << '_' << keyID;
   if (!m_openState.create()) {
     Tuple params = { Value{String(name)} };
     return m_store->sendQuery<SendState::Flush, true>(
@@ -1181,14 +1217,16 @@ int StoreTbl::mkIndices_send()
     ZtString query;
     // LATER we could consider using hash indices for non-series
     query << "CREATE INDEX \"" << name << "\" ON \"" << m_id_ << "\" (";
-    if (!key) {
+    if (!keyID) {
       query << "\"un\")";
     } else {
-      const auto &xKeyFields = m_xKeyFields[key - 1];
+      const auto &keyFields = m_keyFields[keyID - 1];
+      const auto &xKeyFields = m_xKeyFields[keyID - 1];
       unsigned n = xKeyFields.length();
       for (unsigned i = 0; i < n; i++) {
 	if (i) query << ", ";
 	query << '"' << xKeyFields[i].id_ << '"';
+	if (keyFields[i]->props & ZtMFieldProp::Series) query << " DESC";
       }
       query << ")";
     }
@@ -1201,7 +1239,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 
   auto nextKey = [this]() {
     m_openState.incKey();
-    if (m_openState.key() > m_keyFields.length())
+    if (m_openState.keyID() > m_keyFields.length())
       prepFind();
     else
       open_enqueue();
@@ -1213,7 +1251,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   }
 
   if (!res) {
-    auto key = m_openState.key();
+    auto key = m_openState.keyID();
     unsigned nFields = key ? m_xKeyFields[key - 1].length() : 1;
     if (!m_openState.failed() && m_openState.field() >= nFields) {
       // index exists, all fields ok, proceed to next index
@@ -1224,35 +1262,40 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
       open_enqueue();
     } else {
       // index exists but not all fields matched
-      auto e = ZeMEVENT(Fatal, ([id = this->m_id_](auto &s, const auto &) {
+      open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
 	s << "inconsistent schema for table " << id;
-      }));
-      open_failed(ZuMv(e));
+      })));
     }
     return;
   }
 
   unsigned n = PQntuples(res);
+  if (n && (PQnfields(res) != 2)) {
+    m_openState.setFailed();
+    return;
+  }
   for (unsigned i = 0; i < n; i++) {
     const char *id_ = PQgetvalue(res, i, 0);
     ZuString id{id_};
+    if (PQgetlength(res, i, 1) != sizeof(UInt32)) {
+      m_openState.setFailed();
+      return;
+    }
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->v;
-    auto key = m_openState.key();
+    auto keyID = m_openState.keyID();
     unsigned field = m_openState.field();
     unsigned type;
     ZuString matchID;
-    if (!key) {	// UN index
+    if (!keyID) {	// UN index
       matchID = "un";
       type = Value::Index<UInt64>{};
     } else {
-      const auto &xKeyFields = m_xKeyFields[key - 1];
+      const auto &xKeyFields = m_xKeyFields[keyID - 1];
       matchID = xKeyFields[field].id_;
       type = xKeyFields[field].type;
     }
     m_openState.incField();
     bool match = m_store->oids().match(oid, type) && id == matchID;
-    if (!m_openState.failed() && !match)
-      m_openState.setFailed();
     ZeLOG(Debug, ([
       id = ZtString{id}, oid, field, match, state = m_openState.v
     ](auto &s) {
@@ -1261,6 +1304,10 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openState=" << ZuBoxed(state).hex();
     }));
+    if (!m_openState.failed() && !match) {
+      m_openState.setFailed();
+      return;
+    }
   }
 }
 
@@ -1273,9 +1320,9 @@ int StoreTbl::prepFind_send()
 {
   ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  unsigned key = m_openState.key();
+  unsigned keyID = m_openState.keyID();
   ZtString id(m_id_.length() + 24);
-  id << m_id_ << "_find_" << key;
+  id << m_id_ << "_find_" << keyID;
   ZtString query;
   query << "SELECT \"un\"";
   unsigned n = m_xFields.length();
@@ -1284,11 +1331,11 @@ int StoreTbl::prepFind_send()
   }
   query << " FROM \"" << m_id_ << "\" WHERE ";
   ZtArray<Oid> oids;
-  if (!key) {
+  if (!keyID) {
     query << "\"un\"=$1::uint8";
     oids.push(store()->oids().oid(Value::Index<UInt64>{}));
   } else {
-    const auto &xKeyFields = m_xKeyFields[key - 1];
+    const auto &xKeyFields = m_xKeyFields[keyID - 1];
     n = xKeyFields.length();
     oids.size(n);
     for (unsigned i = 0; i < n; i++) {
@@ -1307,7 +1354,7 @@ void StoreTbl::prepFind_rcvd(PGresult *res)
 
   if (!res) {
     m_openState.incKey();
-    if (m_openState.key() > m_keyFields.length())
+    if (m_openState.keyID() > m_keyFields.length())
       prepInsert();
     else
       open_enqueue();
@@ -1444,16 +1491,15 @@ void StoreTbl::count_rcvd(PGresult *res)
 {
   ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) {
-    maxUN();
-    return;
-  }
+  if (!res) { maxUN(); return; }
 
   if (PQntuples(res) != 1 ||
       PQnfields(res) != 1 ||
-      PQgetlength(res, 0, 0) != 8) {
+      PQgetlength(res, 0, 0) != sizeof(UInt64)) {
     // invalid query result
-    m_openState.setFailed();
+    open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+      s << "inconsistent count() result for table " << id;
+    })));
     return;
   }
 
@@ -1478,14 +1524,13 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
 {
   ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) {
-    // mrd();
-    opened();
-    return;
-  }
+  if (!res) { mrd(); return; }
 
   unsigned n = PQntuples(res);
+  if (n && (PQnfields(res) != 2)) goto inconsistent;
   for (unsigned i = 0; i < n; i++) {
+    if (PQgetlength(res, i, 0) != sizeof(UInt64) ||
+	PQgetlength(res, i, 1) != sizeof(UInt128)) goto inconsistent;
     auto un = uint64_t(
       reinterpret_cast<const UInt64 *>(PQgetvalue(res, i, 0))->v);
     auto sn = uint128_t(
@@ -1496,24 +1541,174 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
     if (un > m_maxUN) m_maxUN = un;
     if (sn > m_maxSN) m_maxSN = sn;
   }
+  return;
+
+inconsistent:
+  open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    s << "inconsistent MAX(un) result for table " << id;
+  })));
 }
 
-// FIXME - mrd is a basic select, similar to count
+void StoreTbl::mrd()
+{
+  m_openState.phase(OpenState::MRD);
+  open_enqueue();
+}
+int StoreTbl::mrd_send()
+{
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-// FIXME - max_send, etc. mimic mkIndices in that it iterates over keys
-// performing queries
-// FIXME - sample maxima query:
-/*
-SET enable_seqscan = off;
+  Tuple params = { Value{String(m_id_)} };
+  return m_store->sendQuery<SendState::Sync, false>(
+    "SELECT \"un\", \"sn\" FROM \"zdb.mrd\" WHERE \"tbl\"=$1::text", params);
+}
+void StoreTbl::mrd_rcvd(PGresult *res)
+{
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
--- Your SELECT query
-SELECT link, MAX(seqNo) AS max_seqNo
-FROM your_table_name
-GROUP BY link;
+  if (!res) { maxima_(); return; }
 
--- Restore the original setting
-RESET enable_seqscan;
-*/
+  unsigned n = PQntuples(res);
+  if (n && (PQnfields(res) != 2)) goto inconsistent;
+  for (unsigned i = 0; i < n; i++) {
+    if (PQgetlength(res, i, 0) != sizeof(UInt64) ||
+	PQgetlength(res, i, 1) != sizeof(UInt128)) goto inconsistent;
+    auto un = uint64_t(
+      reinterpret_cast<const UInt64 *>(PQgetvalue(res, i, 0))->v);
+    auto sn = uint128_t(
+      reinterpret_cast<const UInt128 *>(PQgetvalue(res, i, 1))->v);
+    ZeLOG(Debug, ([un, sn](auto &s) {
+      s << "un=" << un << " sn=" << ZuBoxed(sn);
+    }));
+    if (un > m_maxUN) m_maxUN = un;
+    if (sn > m_maxSN) m_maxSN = sn;
+  }
+  return;
+
+inconsistent:
+  open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    s << "inconsistent SELECT FROM zdb.mrd result for table " << id;
+  })));
+}
+
+void StoreTbl::maxima_()
+{
+  m_openState.phase(OpenState::Maxima);
+  open_enqueue();
+}
+int StoreTbl::maxima_send()
+{
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  unsigned keyID = m_openState.keyID();
+skip:
+  const auto &keyFields = m_keyFields[keyID];
+  const auto &xKeyFields = m_xKeyFields[keyID];
+  unsigned n = keyFields.length();
+
+  // check if series key
+  bool isSeries = false;
+  for (unsigned i = 0; i < n; i++)
+    if (keyFields[i]->props & ZtMFieldProp::Series) {
+      isSeries = true;
+      break;
+    }
+
+  // skip querying non-series keys
+  if (!isSeries) {
+    m_openState.incKey();
+    keyID = m_openState.keyID();
+    if (keyID >= m_keyFields.length()) {
+      // all maxima queried
+      opened();
+      return SendState::Unsent;
+    }
+    goto skip;
+  }
+
+  ZtString query;
+  query << "SELECT DISTINCT ON (";
+  bool first = true;
+  for (unsigned i = 0; i < n; i++) {
+    if (!(keyFields[i]->props & ZtMFieldProp::Series)) {
+      if (!first) { query << ", "; first = false; }
+      query << '"' << xKeyFields[i].id_ << '"';
+    }
+  }
+  query << ") ";
+  for (unsigned i = 0; i < n; i++) {
+    if (i) query << ", ";
+    query << '"' << xKeyFields[i].id_ << '"';
+  }
+  query << " FROM \"" << m_id_ << "\" ORDER BY ";
+  for (unsigned i = 0; i < n; i++) {
+    if (i) query << ", ";
+    query << '"' << xKeyFields[i].id_ << '"';
+    if (keyFields[i]->props & ZtMFieldProp::Series)
+      query << " DESC";
+  }
+  return m_store->sendQuery<SendState::Flush, true>(query, Tuple{});
+}
+void StoreTbl::maxima_rcvd(PGresult *res)
+{
+  ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  if (!res) {
+    m_openState.incKey();
+    if (m_openState.keyID() >= m_keyFields.length())
+      opened();
+    else
+      open_enqueue();
+    return;
+  }
+
+  unsigned nr = PQntuples(res);
+  if (!nr) return;
+
+  unsigned keyID = m_openState.keyID();
+  const auto &keyFields = m_keyFields[keyID];
+  const auto &xKeyFields = m_xKeyFields[keyID];
+  unsigned nc = keyFields.length();
+
+  // tuple is POD, no need to run destructors when going out of scope
+  auto tuple = ZmAlloc(Value, nc);
+
+  if (PQnfields(res) != nc) goto inconsistent;
+  for (unsigned i = 0; i < nr; i++) {
+    for (unsigned j = 0; j < nc; j++)
+      if (!ZuSwitch::dispatch<Value::N>(xKeyFields[j].type,
+	  [&tuple, res, i, j](auto K) {
+	    return
+	      tuple[j].load<K>(PQgetvalue(res, i, j), PQgetlength(res, i, j));
+	  }))
+	goto inconsistent;
+    auto buf =
+      maxima_save(ZuArray<const Value>(&tuple[0], nc), keyID).constRef();
+    // res can go out of scope now - everything is saved in buf
+    MaxData maxData {
+      .keyID = keyID,
+      .buf = ZuMv(buf)
+    };
+    m_store->zdbRun([maxFn = m_maxFn, maxData = ZuMv(maxData)]() mutable {
+      maxFn(ZuMv(maxData));
+    });
+  }
+  return;
+
+inconsistent:
+  open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    s << "inconsistent maxima() result for table " << id;
+  })));
+}
+ZmRef<AnyBuf> StoreTbl::maxima_save(
+  ZuArray<const Value> tuple, unsigned keyID)
+{
+  ZmAssert(m_maxBuf->refCount() == 1);
+  IOBuilder fbb;
+  fbb.buf(m_maxBuf);
+  fbb.Finish(saveTuple(fbb, m_xKeyFields[keyID], tuple));
+  return fbb.buf();
+}
 
 void StoreTbl::close(CloseFn fn)
 {
