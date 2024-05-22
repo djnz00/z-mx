@@ -925,7 +925,7 @@ public:
 
   // phases
   enum {
-    PreOpen = 0,
+    Closed = 0,
     MkTable,	// idempotent create table
     MkIndices,	// idempotent create indices for all keys
     PrepFind,	// prepare recover and find for all keys
@@ -999,8 +999,6 @@ public:
 
   void warmup();
 
-  void maxima(MaxFn maxFn);
-
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn);
 
   void recover(UN un, RowFn rowFn);
@@ -1052,10 +1050,28 @@ private:
   int mrd_send();
   void mrd_rcvd(PGresult *);
 
-  void maxima_();
+  void maxima();
   int maxima_send();
   void maxima_rcvd(PGresult *);
   ZmRef<AnyBuf> maxima_save(ZuArray<const Value> tuple, unsigned keyID);
+
+  // principal queries
+  int find_send(Work::Find &);
+  void find_rcvd(Work::Find &, PGresult *);
+  template <bool Recovery>
+  void find_rcvd_(RowFn &, PGresult *);
+  template <bool Recovery>
+  ZmRef<AnyBuf> find_save(ZuArray<const Value> tuple);
+  void find_failed(Work::Find &, ZeMEvent);
+  void find_failed_(RowFn, ZeMEvent);
+
+  int recover_send(Work::Recover &);
+  void recover_rcvd(Work::Recover &, PGresult *);
+  void recover_failed(Work::Recover &, ZeMEvent);
+
+  int write_send(Work::Write &);
+  void write_rcvd(Work::Write &, PGresult *);
+  void write_failed(Work::Write &, ZeMEvent);
 
 private:
   using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
@@ -1069,15 +1085,13 @@ private:
   XKeyFields		m_xKeyFields;
   FieldMap		m_fieldMap;
 
-  ZmRef<AnyBuf>		m_maxBuf;
-
   OpenState		m_openState;
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
-
-  uint64_t		m_count = 0;
-  UN			m_maxUN = 0;
-  SN			m_maxSN = 0;
+  ZmRef<AnyBuf>		m_maxBuf;	// used by maxima_save()
+  uint64_t		m_count = 0;	// as of open()
+  UN			m_maxUN = 0;	// ''
+  SN			m_maxSN = 0;	// ''
 };
 
 // --- mock data store
