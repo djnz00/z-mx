@@ -96,6 +96,7 @@ void Store::start(StartFn fn)
   m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
     m_startState.reset();
     m_startFn = ZuMv(fn);
+    m_stopFn = StopFn{};
     if (!start_()) {
       start_failed(ZeMEVENT(Fatal, "PostgreSQL start() failed"));
       return;
@@ -228,17 +229,28 @@ void Store::stop(StopFn fn)
 
 void Store::stop_(StopFn fn)	// called after dequeuing Stop
 {
-  ZeLOG(Debug, ([](auto &s) { s << "pushing stop_1()"; }));
+  ZeLOG(Debug, ([](auto &s) { }));
+
+  m_stopFn = ZuMv(fn);
+
+  if (!m_sent.count_()) { stop_1(); return; }
+}
+
+void Store::stop_1()
+{
+  ZeLOG(Debug, ([](auto &s) { s << "pushing stop_2()"; }));
 
   m_mx->wakeFn(m_pqSID, ZmFn{});
-  m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
-    stop_1();
-    zdbRun([fn = ZuMv(fn)]() { fn(StopResult{}); });
+  m_mx->push(m_pqSID, [this]() mutable {
+    stop_2();
+    StopFn stopFn = ZuMv(m_stopFn);
+    m_stopFn = StopFn{};
+    zdbRun([stopFn = ZuMv(stopFn)]() { stopFn(StopResult{}); });
   });
   wake_();
 }
 
-void Store::stop_1()
+void Store::stop_2()
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
@@ -404,6 +416,8 @@ void Store::recv()
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
+  bool stop = false;
+
   bool consumed;
   do {
     consumed = false;
@@ -450,10 +464,13 @@ void Store::recv()
 	if (auto pending = m_sent.headNode()) {
 	  rcvd(pending, nullptr);
 	  m_sent.shift();
+	  stop = !!m_stopFn && !m_sent.count_();
 	}
       }
     }
   } while (consumed);
+
+  if (stop) stop_1();
 }
 
 void Store::rcvd(Work::Queue::Node *work, PGresult *res)
@@ -632,7 +649,7 @@ void Store::start_failed(ZeMEvent e)
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  stop_1();
+  stop_2();
 
   m_startState.phase(StartState::Started);
   m_startState.setFailed();
@@ -765,8 +782,10 @@ int Store::mkTblMRD_send()
 
   // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
   return sendQuery<SendState::Sync, false>(
-    "CREATE TABLE IF NOT EXISTS "
-      "\"zdb.mrd\" (\"tbl\" text PRIMARY KEY, \"_un\" uint8, \"_sn\" uint16)",
+    "CREATE TABLE IF NOT EXISTS \"zdb.mrd\" ("
+      "\"tbl\" text PRIMARY KEY NOT NULL, "
+      "\"_un\" uint8 NOT NULL, "
+      "\"_sn\" uint16 NOT NULL)",
     Tuple{});
 }
 void Store::mkTblMRD_rcvd(PGresult *res)
@@ -1125,12 +1144,14 @@ int StoreTbl::mkTable_send()
 	"AND NOT a.attisdropped", params);
   } else {
     ZtString query;
-    query << "CREATE TABLE \"" << m_id_
-      << "\" (\"_un\" uint8 PRIMARY KEY, \"_sn\" uint16, \"_vn\" uint8";
+    query << "CREATE TABLE \"" << m_id_ << "\" ("
+      "\"_un\" uint8 PRIMARY KEY NOT NULL, "
+      "\"_sn\" uint16 NOT NULL, "
+      "\"_vn\" uint8 NOT NULL";
     unsigned n = m_xFields.length();
     for (unsigned i = 0; i < n; i++) {
       query << ", \"" << m_xFields[i].id_ << "\" "
-	<< m_store->oids().name(m_xFields[i].type);
+	<< m_store->oids().name(m_xFields[i].type) << " NOT NULL";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
@@ -1392,13 +1413,15 @@ int StoreTbl::prepInsert_send()
   ZtString id(m_id_.length() + 8);
   id << m_id_ << "_insert";
   ZtString query;
-  query << "INSERT INTO \"" << m_id_ << "\" (\"_un\", \"_sn\", \"_vn\"";
   unsigned n = m_xFields.length();
+  ZtArray<Oid> oids(n + 3);
+  query << "INSERT INTO \"" << m_id_ << "\" (\"_un\", \"_sn\", \"_vn\"";
   for (unsigned i = 0; i < n; i++) {
     query << ", \"" << m_xFields[i].id_ << '"';
   }
   query << ") VALUES ($1::uint8, $2::uint16, $3::uint8";
-  ZtArray<Oid> oids(n + 1);
+  oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
+  oids.push(m_store->oids().oid(Value::Index<UInt128>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   for (unsigned i = 0; i < n; i++) {
     auto type = m_xFields[i].type;
@@ -1429,9 +1452,11 @@ int StoreTbl::prepUpdate_send()
   ZtString query;
   unsigned n = m_xFields.length();
   const auto &keyFields = m_keyFields[0];
-  ZtArray<Oid> oids(n + keyFields.length());
+  ZtArray<Oid> oids(n + 3 + keyFields.length());
   query << "UPDATE \"" << m_id_
     << "\" SET \"_un\"=$1::uint8, \"_sn\"=$2::uint16, \"_vn\"=$3::uint8";
+  oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
+  oids.push(m_store->oids().oid(Value::Index<UInt128>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   unsigned j = 4;
   for (unsigned i = 0; i < n; i++) {
@@ -1585,8 +1610,8 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
     ZeLOG(Debug, ([un, sn](auto &s) {
       s << "un=" << un << " sn=" << ZuBoxed(sn);
     }));
-    if (un > m_maxUN) m_maxUN = un;
-    if (sn > m_maxSN) m_maxSN = sn;
+    if (m_maxUN == ZdbNullUN() || un > m_maxUN) m_maxUN = un;
+    if (m_maxSN == ZdbNullSN() || sn > m_maxSN) m_maxSN = sn;
   }
   return;
 
@@ -1755,6 +1780,7 @@ void StoreTbl::maxima_rcvd(PGresult *res)
     auto buf =
       maxima_save(ZuArray<const Value>(&tuple[0], nc), keyID).constRef();
     // res can go out of scope now - everything is saved in buf
+    ZeLOG(Debug, ([](auto &s) { s << "calling maxFn"; }));
     MaxData maxData{
       .keyID = keyID,
       .buf = ZuMv(buf)
@@ -1796,6 +1822,9 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn)
 
   using namespace Work;
 
+  if (ZuUnlikely(m_store->stopping())) {
+    // FIXME
+  }
   m_store->enqueue(TblItem{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
 }
 int StoreTbl::find_send(Work::Find &find)
@@ -1818,12 +1847,20 @@ int StoreTbl::find_send(Work::Find &find)
 }
 void StoreTbl::find_rcvd(Work::Find &find, PGresult *res)
 {
-  find_rcvd_<false>(find.rowFn, res);
+  if (!find.rowFn) return; // find failed
+
+  find_rcvd_<false>(find.rowFn, find.found, res);
 }
 template <bool Recovery>
-void StoreTbl::find_rcvd_(RowFn &rowFn, PGresult *res)
+void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 {
-  if (!res) return;
+  if (!res) {
+    if (!found)
+      m_store->zdbRun([rowFn = ZuMv(rowFn)]() mutable {
+	rowFn(RowResult{});
+      });
+    return;
+  }
 
   unsigned nr = PQntuples(res);
   if (!nr) return;
@@ -1852,11 +1889,18 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, PGresult *res)
     }
     auto buf =
       find_save<Recovery>(ZuArray<const Value>(&tuple[0], nc)).constRef();
+    if (found) {
+      ZeLOG(Error, ([id = m_id_](auto &s) {
+	s << "multiple records found with same key in table " << id;
+      }));
+      return;
+    }
     // res can go out of scope now - everything is saved in buf
     RowResult result{RowData{.buf = ZuMv(buf)}};
     m_store->zdbRun([rowFn, result = ZuMv(result)]() mutable {
       rowFn(ZuMv(result));
     });
+    found = true;
   }
   return;
 
@@ -1913,6 +1957,9 @@ void StoreTbl::recover(UN un, RowFn rowFn)
 {
   using namespace Work;
 
+  if (ZuUnlikely(m_store->stopping())) {
+    // FIXME
+  }
   m_store->enqueue(TblItem{this, Query{Recover{un, ZuMv(rowFn)}}});
 }
 int StoreTbl::recover_send(Work::Recover &recover)
@@ -1924,7 +1971,9 @@ int StoreTbl::recover_send(Work::Recover &recover)
 }
 void StoreTbl::recover_rcvd(Work::Recover &recover, PGresult *res)
 {
-  find_rcvd_<true>(recover.rowFn, res);
+  if (!recover.rowFn) return; // recover failed
+
+  find_rcvd_<true>(recover.rowFn, recover.found, res);
 }
 void StoreTbl::recover_failed(Work::Recover &recover, ZeMEvent e)
 {
@@ -1933,12 +1982,23 @@ void StoreTbl::recover_failed(Work::Recover &recover, ZeMEvent e)
 
 void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn)
 {
+  ZeLOG(Debug, ([buf = buf.ptr()](auto &s) {
+    s << "buf=" << ZuBoxPtr(buf).hex();
+  }));
+
   using namespace Work;
 
+  if (ZuUnlikely(m_store->stopping())) {
+    // FIXME
+  }
   m_store->enqueue(TblItem{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
 }
 int StoreTbl::write_send(Work::Write &write)
 {
+  ZeLOG(Debug, ([buf = write.buf.ptr()](auto &s) {
+    s << "buf=" << ZuBoxPtr(buf).hex();
+  }));
+
   auto record = record_(msg_(write.buf->hdr()));
   auto un =record->un(); 
   if (m_maxUN != ZdbNullUN() && un <= m_maxUN)
@@ -1979,7 +2039,14 @@ int StoreTbl::write_send(Work::Write &write)
 }
 void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
 {
+  ZeLOG(Debug, ([buf = write.buf.ptr(), res](auto &s) {
+    s << "buf=" << ZuBoxPtr(buf).hex() << " res=" << ZuBoxPtr(res).hex();
+  }));
+
   if (res) return;
+
+  if (!write.buf) return; // write failed
+
   auto record = record_(msg_(write.buf->hdr()));
   if (record->vn() < 0 && !write.mrd) {
     using namespace Work;
@@ -1996,6 +2063,8 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
 }
 void StoreTbl::write_failed(Work::Write &write, ZeMEvent e)
 {
+  ZeLOG(Debug, ([e = ZuMv(e)](auto &s) { s << e; }));
+
   CommitResult result{ZuMv(e)};
   m_store->zdbRun([
     buf = ZuMv(write.buf),

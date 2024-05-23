@@ -830,11 +830,13 @@ struct Find {
   unsigned		keyID;
   ZmRef<const AnyBuf>	buf;
   RowFn			rowFn;
+  bool			found = false;
 };
 
 struct Recover {
   UN			un;
   RowFn			rowFn;
+  bool			found = false;
 };
 
 struct Write {
@@ -1069,7 +1071,7 @@ private:
   int find_send(Work::Find &);
   void find_rcvd(Work::Find &, PGresult *);
   template <bool Recovery>
-  void find_rcvd_(RowFn &, PGresult *);
+  void find_rcvd_(RowFn &, bool &found, PGresult *);
   template <bool Recovery>
   ZmRef<AnyBuf> find_save(ZuArray<const Value> tuple);
   void find_failed(Work::Find &, ZeMEvent);
@@ -1132,6 +1134,7 @@ public:
     MaxFn maxFn,
     OpenFn openFn);
 
+  bool stopping() const { return !!m_stopFn; }
   void enqueue(Work::Item item);
 
   template <typename ...Args> void pqRun(Args &&... args) {
@@ -1161,6 +1164,7 @@ private:
   bool start_();
   void stop_(StopFn);
   void stop_1();
+  void stop_2();
 
   void wake();
   void wake_();
@@ -1221,6 +1225,7 @@ private:
 
   StartState		m_startState;
   StartFn		m_startFn;
+  StopFn		m_stopFn;
 };
 
 } // ZdbPQ

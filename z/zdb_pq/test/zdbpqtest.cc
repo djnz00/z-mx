@@ -140,12 +140,89 @@ int main(int argc, char **argv)
 
     db->start();
 
-    orders->run([]{
+    ZuNBox<uint64_t> seqNo;
+
+    orders->run([&seqNo]{
       auto max = orders->maximum<2>(ZuFwdTuple("FIX0"));
       ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	s << "maximum(FIX0): " << max;
       }));
+      seqNo = max.p<0>();
+      done.post();
     });
+
+    done.wait();
+
+    ZuNBox<uint64_t> id;
+
+    if (*seqNo) {
+      orders->run([seqNo, &id]{
+	orders->find<2>(ZuFwdTuple("FIX0", seqNo),
+	  [seqNo, &id](ZmRef<ZdbObject<Order>> o) {
+	    if (!o) {
+	      id = {};
+	      ZeLOG(Info, ([seqNo](auto &s) {
+		s << "find(FIX0, " << seqNo << "): (null)";
+	      }));
+	    } else {
+	      id = o->data().orderID;
+	      ZeLOG(Info, ([seqNo, o = ZuMv(o)](auto &s) {
+		s << "find(FIX0, " << seqNo << "): " << o->data();
+	      }));
+	    }
+	    done.post();
+	  });
+      });
+
+      done.wait();
+
+      ++seqNo;
+    } else
+      seqNo = 0;
+
+    if (*id)
+      ++id;
+    else
+      id = 0;
+
+    orders->run([&id, &seqNo]{
+      orders->insert([&id, &seqNo](ZdbObject<Order> *o) {
+	new (o->ptr())
+	  Order{"IBM", id, "FIX0", "order0", seqNo, Side::Buy, 100, 100};
+	o->commit();
+	id = o->data().orderID;
+	seqNo = o->data().seqNo;
+	ZeLOG(Info, ([id, seqNo](auto &s) {
+	  s << "orderID=" << id << " seqNo=" << seqNo;
+	}));
+	done.post();
+      });
+    });
+
+    done.wait();
+
+    orders->run([&id]{
+      orders->find<0>(ZuFwdTuple("IBM", id),
+	[&id](ZmRef<ZdbObject<Order>> o) {
+	  if (!o)
+	    ZeLOG(Info, ([id](auto &s) {
+	      s << "find(IBM, " << id << "): (null)";
+	    }));
+	  else
+	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
+	      s << "find(IBM, " << id << "): " << o->data();
+	    }));
+	  done.post();
+	});
+      done.wait();
+      auto max = orders->maximum<2>(ZuFwdTuple("FIX0"));
+      ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	s << "maximum(FIX0): " << max;
+      }));
+      done.post();
+    });
+
+    done.wait();
 
     db->stop(); // closes all tables
 

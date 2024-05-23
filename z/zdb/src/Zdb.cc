@@ -1667,10 +1667,12 @@ void AnyTable::open(L l)
 
 bool AnyTable::opened(OpenResult result)
 {
-  ZeLOG(Debug,
-    ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
-      s << hostID << " m_open=" << open;
-    }));
+  ZeLOG(Debug, ([
+    hostID = db()->config().hostID,
+    open = unsigned(m_open)
+  ](auto &s) {
+    s << hostID << " m_open=" << open;
+  }));
 
   ZmAssert(invoked());
   ZmAssert(!m_open);
