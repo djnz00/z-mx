@@ -59,7 +59,9 @@ void split(ZuString row, ZtArray<ZtArray<char>> &values)
       next = -1;
 
     if (simple) {
-      new (values.push()) ZtArray<char>(row.data() + start, end - start);
+      // relies on caller ensuring that values scope does not exceed row scope
+      new (values.push())
+	ZtArray<char>(row.data() + start, end - start, end - start, false);
     } else {
       ZtArray<char> value;
       value.size(end - start);

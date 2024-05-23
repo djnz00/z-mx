@@ -156,7 +156,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
     if (argShort.m(args[i], c)) {
       int m = c[2].length();
       for (j = 0; j < m; j++) {
-	ZtString shortOpt(ZtString::Copy, c[2].data() + j, 1);
+	ZtString shortOpt(c[2].data() + j, 1);
 	ZtString longOpt;
 	if (!options ||
 	    !(longOpt = options->get(shortOpt)) ||
