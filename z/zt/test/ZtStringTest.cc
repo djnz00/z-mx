@@ -15,7 +15,6 @@
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuStringN.hh>
 
-#include <zlib/ZmAlloc.hh>
 #include <zlib/ZmList.hh>
 
 #include <zlib/ZtString.hh>

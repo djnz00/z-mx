@@ -7,7 +7,7 @@
 // heap-allocated dynamic array class
 // * explicitly contiguous
 // * lightweight, lean, fast
-// * uses ZmVHeap
+// * uses ZmVHeap when not shadowing memory managed elsewhere
 // * provides direct read/write access to the buffer
 // * zero-copy and deep-copy
 // * ZtArray<T> where T is a byte is heavily overloaded as a string
@@ -101,8 +101,7 @@ public:
 
   using Ops = ZuArrayFn<T, Cmp>;
 
-  enum Copy_ { Copy };
-  enum Move_ { Move };
+  struct Move { };
 
 private:
   using Char = T;
@@ -288,9 +287,8 @@ public:
 
   template <typename A> ZtArray(A &&a) { ctor(ZuFwd<A>(a)); }
 
-  template <typename A> ZtArray(Copy_ _, const A &a) { copy_(a); }
-  template <typename A> ZtArray(Move_ _, A &a_) {
-    ZuArrayT<A> a{a_};
+  template <typename A> ZtArray(Move, A &a_) {
+    ZuArray<const typename ZuTraits<A>::Elem> a{a_};
     move__(a.data(), a.length());
   }
 
@@ -353,7 +351,7 @@ private:
   };
   template <typename A_> struct Fwd_Array {
     using A = ZuDecay<A_>;
-    using Elem = typename ZuArrayT<A>::Elem;
+    using Elem = typename ZuTraits<A>::Elem;
 
     static void ctor_(ZtArray *this_, const A &a_) {
       ZuArray<const Elem> a(a_);
@@ -457,7 +455,7 @@ public:
     copy__(a.m_data, a.length());
   }
   template <typename A> MatchArray<A> copy(A &&a_) {
-    ZuArrayT<A> a{a_};
+    ZuArray<const typename ZuTraits<A>::Elem> a{a_};
     copy__(a.data(), a.length());
   }
 
@@ -564,7 +562,7 @@ private:
   }
   template <typename A>
   MatchSameArray<A> shadow(A &&a_) {
-    ZuArrayT<A> a(a_);
+    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
     free_();
     shadow_(a.data(), a.length());
   }
@@ -572,7 +570,7 @@ private:
 public:
   template <typename S>
   ZtArray(S &&s_, ZtIconv *iconv, ZuMatchString<S> *_ = nullptr) {
-    ZuArrayT<S> s(s_);
+    ZuArray<const typename ZuTraits<S>::Elem> s{s_};
     convert_(s, iconv);
   }
   ZtArray(const Char *data, unsigned length, ZtIconv *iconv) {
@@ -592,19 +590,11 @@ public:
   }
   explicit ZtArray(const T *data, unsigned length) {
     if (!length) { null_(); return; }
-    shadow_(data, length);
-  }
-  explicit ZtArray(Copy_ _, const T *data, unsigned length) {
-    if (!length) { null_(); return; }
     copy__(data, length);
   }
-  explicit ZtArray(Move_ _, T *data, unsigned length) {
+  explicit ZtArray(Move, T *data, unsigned length) {
     if (!length) { null_(); return; }
     move__(data, length);
-  }
-  explicit ZtArray(const T *data, unsigned length, unsigned size) {
-    if (!size) { null_(); return; }
-    own_(data, length, size, true);
   }
   explicit ZtArray(
       const T *data, unsigned length, unsigned size, bool vallocd) {
@@ -639,14 +629,6 @@ public:
     alloc_(size, length);
     if (initItems) this->initItems(m_data, length);
   }
-  void init(const T *data, unsigned length) {
-    free_();
-    init_(data, length);
-  }
-  void init_(const T *data, unsigned length) {
-    if (!length) { null_(); return; }
-    shadow_(data, length);
-  }
   void copy(const T *data, unsigned length) {
     uint32_t oldLength = 0;
     T *oldData = free_1(oldLength);
@@ -666,14 +648,6 @@ public:
   void move_(T *data, unsigned length) {
     if (!length) { null_(); return; }
     move__(data, length);
-  }
-  void init(const T *data, unsigned length, unsigned size) {
-    free_();
-    init_(data, length, size);
-  }
-  void init_(const T *data, unsigned length, unsigned size) {
-    if (!size) { null_(); return; }
-    own_(data, length, size, true);
   }
   void init(
       const T *data, unsigned length, unsigned size, bool vallocd) {
@@ -842,14 +816,12 @@ public:
   static void free(const T *ptr) { vfree(ptr); }
 
 // reset to null array
-
   void null() {
     free_();
     null_();
   }
 
 // reset without freeing
-
   void clear() {
     if (!owned()) { null_(); return; }
     if constexpr (!ZuTraits<T>::IsPrimitive)
@@ -859,7 +831,6 @@ public:
   }
 
 // set length
-
   void length(unsigned length) {
     if (!owned() || length > size()) size(length);
     if constexpr (!ZuTraits<T>::IsPrimitive) {
@@ -886,14 +857,12 @@ public:
   }
 
 // ensure size
-
   T *ensure(unsigned z) {
     if (ZuLikely(z <= size())) return m_data;
     return size(z);
   }
 
 // set size
-
   T *size(unsigned z) {
     if (!z) { null(); return 0; }
     if (owned() && z == size()) return m_data;
@@ -913,7 +882,6 @@ public:
   }
 
 // set element i, extending array as needed
-
   void *set(unsigned i) {
     unsigned n = length();
     if (ZuLikely(i < n)) {
@@ -952,20 +920,13 @@ public:
   }
 
 // hash()
-
   uint32_t hash() const { return Ops::hash(m_data, length()); }
 
 // buffer access
-
-  auto buf() {
-    return ZuArray{data(), size()};
-  }
-  auto cbuf() const {
-    return ZuArray{data(), length()};
-  }
+  auto buf() { return ZuArray{data(), size()}; }
+  auto cbuf() const { return ZuArray{data(), length()}; }
 
 // comparison
-
   bool operator !() const { return !length(); }
   ZuOpBool
 
@@ -976,12 +937,12 @@ public:
   }
   template <typename A>
   MatchArray<A, bool> equals(A &&a_) const {
-    ZuArrayT<A> a(ZuFwd<A>(a_));
+    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
     return equals(a.data(), a.length());
   }
   template <typename S>
   MatchAnyString<S, bool> equals(S &&s_) const {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
+    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     return equals(reinterpret_cast<const T *>(s.data()), s.length());
   }
   template <typename S>
@@ -1003,12 +964,12 @@ public:
   }
   template <typename A>
   MatchArray<A, int> cmp(A &&a_) const {
-    ZuArrayT<A> a(ZuFwd<A>(a_));
+    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
     return cmp(a.data(), a.length());
   }
   template <typename S>
   MatchAnyString<S, int> cmp(S &&s_) const {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
+    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     return cmp(s.data(), s.length());
   }
   template <typename S>
@@ -1047,21 +1008,27 @@ private:
   }
 
   template <typename S>
-  MatchAnyString<S, ZtArray> add(S &&s_) const
-    { ZuArrayT<S> s(ZuFwd<S>(s_)); return add(s.data(), s.length()); }
+  MatchAnyString<S, ZtArray> add(S &&s_) const {
+    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    return add(s.data(), s.length());
+  }
   template <typename S>
-  MatchChar2String<S, ZtArray> add(S &&s) const
-    { return add(ZtArray(ZuFwd<S>(s))); }
+  MatchChar2String<S, ZtArray> add(S &&s) const {
+    return add(ZtArray(ZuFwd<S>(s)));
+  }
   template <typename C>
-  MatchChar2<C, ZtArray> add(C c) const
-    { return add(ZtArray(c)); }
+  MatchChar2<C, ZtArray> add(C c) const {
+    return add(ZtArray(c));
+  }
 
   template <typename P>
-  MatchPDelegate<P, ZtArray> add(P &&p) const
-    { return add(ZtArray(ZuFwd<P>(p))); }
+  MatchPDelegate<P, ZtArray> add(P &&p) const {
+    return add(ZtArray(ZuFwd<P>(p)));
+  }
   template <typename P>
-  MatchPBuffer<P, ZtArray> add(P &&p) const
-    { return add(ZtArray(ZuFwd<P>(p))); }
+  MatchPBuffer<P, ZtArray> add(P &&p) const {
+    return add(ZtArray(ZuFwd<P>(p)));
+  }
 
   template <typename R>
   MatchElem<R, ZtArray> add(R &&r) const {
@@ -1116,7 +1083,7 @@ private:
   }
 
   template <typename S> MatchAnyString<S> append_(S &&s_) {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
+    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     splice_cp_(0, length(), 0, s.data(), s.length());
   }
 
@@ -1191,7 +1158,7 @@ private:
   template <typename S>
   MatchAnyString<S> splice_(
       ZtArray *removed, int offset, int length, const S &s_) {
-    ZuArrayT<S> s(s_);
+    ZuArray<const typename ZuTraits<S>::Elem> s{s_};
     splice_cp_(removed, offset, length, s.data(), s.length());
   }
 

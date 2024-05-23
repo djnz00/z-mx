@@ -17,6 +17,8 @@
 #include <zlib/ZtLib.hh>
 #endif
 
+#include <zlib/ZmAlloc.hh>
+
 #include <zlib/ZtString.hh>
 
 namespace ZtCase {
@@ -48,7 +50,6 @@ inline void snakeCamel(ZuString s, L l) {
   unsigned m = n - o;
   unsigned z = m + 1;
   auto buf = ZmAlloc(char, z);
-  ZtString r{&buf[0], m, z, false};
   buf[m] = 0;
   underscore = false;
   unsigned j = 0;
@@ -71,7 +72,7 @@ inline void snakeCamel(ZuString s, L l) {
   }
   if (underscore) buf[j++] = '_';
   ZmAssert(j == m);
-  l(r);
+  l(ZtString{&buf[0], m, z, false});
 }
 
 // lambda(const ZtString &s)
@@ -86,7 +87,6 @@ inline void camelSnake(ZuString s, L l) {
   unsigned m = n + o;
   unsigned z = m + 1;
   auto buf = ZmAlloc(char, z);
-  ZtString r{&buf[0], m, z, false};
   buf[m] = 0;
   unsigned j = 0;
   for (unsigned i = 0; i < n; i++) {
@@ -98,7 +98,7 @@ inline void camelSnake(ZuString s, L l) {
       buf[j++] = c;
   }
   ZmAssert(j == m);
-  l(r);
+  l(ZtString{&buf[0], m, z, false});
 }
 
 }

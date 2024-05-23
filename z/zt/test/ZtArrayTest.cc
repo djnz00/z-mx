@@ -80,7 +80,7 @@ int main()
   {
     E e[8];
     ZtArray<E> a;
-    a = ZtArray<E>(e, 8);
+    a = ZtArray<E>{e, 8, 8, false};
     ZtArray<E> b;
 
     validate(a, 8);

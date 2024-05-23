@@ -4,14 +4,14 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// use ZuStringN<> for fixed-size strings without heap overhead
+// use ZuStringN<> for fixed-size strings by value without heap overhead
 //
 // ZtString is a heap-allocated C string class (null-terminated)
 //
 // * fast, lightweight
 // * explicitly contiguous
 // * provides direct read/write access to the buffer
-// * short-circuits heap allocation for small strings below a built-in size
+// * no heap allocation for small strings below a built-in size
 // * supports both zero-copy and deep-copy
 // * very thin layer on ANSI C string functions
 // * no C library locale or character set overhead (except when requested)
@@ -278,9 +278,6 @@ private:
   }
 
 public:
-  enum Copy_ { Copy };
-  template <typename S> ZtString_(Copy_ _, const S &s) { copy(s); }
-
   void copy(const ZtString_ &s) {
     copy_(s.data_(), s.length());
   }
@@ -446,7 +443,7 @@ private:
 public:
   template <typename S>
   ZtString_(S &&s_, ZtIconv *iconv, ZuMatchString<S> *_ = nullptr) {
-    ZuArrayT<S> s(ZuFwd<S>(s_));
+    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     convert_(s, iconv);
   }
   ZtString_(const Char *data, unsigned length, ZtIconv *iconv) {
@@ -465,15 +462,7 @@ public:
   }
   explicit ZtString_(const Char *data, unsigned length) {
     if (!length) { null_(); return; }
-    init_(data, length);
-  }
-  explicit ZtString_(Copy_ _, const Char *data, unsigned length) {
-    if (!length) { null_(); return; }
     copy_(data, length);
-  }
-  explicit ZtString_(Char *data, unsigned length, unsigned size) {
-    if (!size) { null_(); return; }
-    own_(data, length, size, 1);
   }
   explicit ZtString_(
       Char *data, unsigned length, unsigned size, bool vallocd) {
@@ -484,7 +473,6 @@ public:
   ~ZtString_() { free_(); }
 
 // re-initializers
-
   void init() { free_(); init_(); }
   void init_() { null_(); }
 
@@ -505,32 +493,13 @@ public:
     alloc_(size, length);
   }
   void init(const Char *data, unsigned length) {
-    free_();
+    Char *oldData = free_1();
     init_(data, length);
+    free_2(oldData);
   }
   void init_(const Char *data, unsigned length) {
     if (!length) { null_(); return; }
-    if (data[length])
-      copy_(data, length);
-    else
-      shadow_(data, length);
-  }
-  void init(Copy_ _, const Char *data, unsigned length) {
-    Char *oldData = free_1();
-    init_(_, data, length);
-    free_2(oldData);
-  }
-  void init_(Copy_ _, const Char *data, unsigned length) {
-    if (!length) { null_(); return; }
     copy_(data, length);
-  }
-  void init(const Char *data, unsigned length, unsigned size) {
-    free_();
-    init_(data, length, size);
-  }
-  void init_(const Char *data, unsigned length, unsigned size) {
-    if (!size) { null_(); return; }
-    own_(data, length, size, true);
   }
   void init(
       const Char *data, unsigned length, unsigned size, bool vallocd) {
@@ -544,7 +513,6 @@ public:
   }
 
 // internal initializers / finalizer
-
 private:
   using ZmVHeap<HeapID>::valloc;
   using ZmVHeap<HeapID>::vfree;
@@ -630,11 +598,9 @@ private:
 
 public:
 // truncation (to minimum size)
-
   void truncate() { size(length() + 1); }
 
 // array / ptr operators
-
   Char &operator [](unsigned i) { return data_()[i]; }
   Char operator [](unsigned i) const { return data_()[i]; }
 
@@ -642,7 +608,6 @@ public:
   operator const Char *() const { return null__() ? nullptr : data_(); }
 
 // accessors
-
   using iterator = Char *;
   using const_iterator = const Char *;
   const Char *begin() const {
@@ -750,14 +715,12 @@ public:
   static void free(const Char *ptr) { vfree(ptr); }
 
 // reset to null string
-
   void null() {
     free_();
     null_();
   }
 
 // reset without freeing
-
   void clear() {
     if (!null__()) {
       if (!owned()) { null_(); return; }
@@ -766,7 +729,6 @@ public:
   }
 
 // set length
-
   void length(unsigned n) {
     if (!owned() || n >= size_()) size(n + 1);
     length_(n);
@@ -782,7 +744,6 @@ public:
   }
 
 // set size
-
   Char *ensure(unsigned z) {
     if (ZuLikely(owned() && z <= size_())) return data_();
     return size(z);
@@ -816,7 +777,6 @@ public:
   }
 
 // common prefix
-
   template <typename S>
   MatchZtString<S, ZuArray<const Char>> prefix(const S &s) {
     if (this == &s) return ZuArray<const Char>{data_(), length() + 1};
@@ -846,20 +806,13 @@ public:
 
 public:
 // hash()
-
   uint32_t hash() const { return ZuHash<ZtString_>::hash(*this); }
 
 // buffer access
-
-  auto buf() {
-    return ZuArray{data(), size() - 1};
-  }
-  auto cbuf() const {
-    return ZuArray{data(), length()};
-  }
+  auto buf() { return ZuArray{data(), size() - 1}; }
+  auto cbuf() const { return ZuArray{data(), length()}; }
 
 // comparison
-
   bool operator !() const { return !length(); }
 
   template <typename S>
@@ -938,7 +891,7 @@ private:
     if (n) memcpy(newData, data_(), n * sizeof(Char));
     if (length) memcpy(newData + n, data, length * sizeof(Char));
     newData[o] = 0;
-    return ZtString_(newData, o, o + 1);
+    return ZtString_{newData, o, o + 1, true};
   }
 
 public:
@@ -1161,7 +1114,7 @@ private:
     if (l > 0 && (!owned() || l >= static_cast<int>(z))) {
       z = grow_(z, l + 1);
       Char *oldData = data_();
-      if (removed) removed->init(Copy, oldData + offset, length);
+      if (removed) removed->init(oldData + offset, length);
       Char *newData;
       if (z <= BuiltinSize)
 	newData = reinterpret_cast<Char *>(m_data);
@@ -1192,7 +1145,7 @@ private:
     }
 
     Char *data = data_();
-    if (removed) removed->init(Copy, data + offset, length);
+    if (removed) removed->init(data + offset, length);
     if (l > 0) {
       if (static_cast<int>(rlength) != length &&
 	  offset + length < static_cast<int>(n))
