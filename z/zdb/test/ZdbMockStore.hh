@@ -1002,7 +1002,7 @@ public:
     [this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
       // idempotence check
       auto un = record_(msg_(buf->hdr()))->un();
-      if (m_indexUN.find(un)) {
+      if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
 	auto callback = [buf = ZuMv(buf), commitFn = ZuMv(commitFn)] {
 	  commitFn(ZuMv(buf), CommitResult{});
 	};
@@ -1140,10 +1140,12 @@ private:
   XKeyFields		m_xKeyFields;
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
-  UN			m_maxUN = ZdbNullUN();
-  SN			m_maxSN = ZdbNullSN();
+
   bool			m_opened = false;
   ZmRef<AnyBuf>		m_maxBuf;
+
+  UN			m_maxUN = ZdbNullUN();
+  SN			m_maxSN = ZdbNullSN();
 };
 
 // --- mock data store

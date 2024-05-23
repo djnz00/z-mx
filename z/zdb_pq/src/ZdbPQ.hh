@@ -714,38 +714,38 @@ using Tuple = ZtArray<Value>;
 // load tuple from flatbuffer
 template <typename Filter>
 Tuple loadTuple(
+  Tuple tuple,
   const ZtMFields &fields,
   const XFields &xFields,
   const Zfb::Table *fbo,
   Filter filter)
 {
   unsigned n = fields.length();
-  Tuple tuple(n); // not {}
+  tuple.ensure(tuple.length() + n);
   for (unsigned i = 0; i < n; i++)
     if (!filter(fields[i]))
       loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
   return tuple;
 }
-Tuple loadTuple(
+Tuple loadTuple(Tuple tuple,
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *) {
-    return false;
-  });
+  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
+    [](const ZtMField *) { return false; });
 }
-Tuple loadUpdTuple(
+Tuple loadUpdTuple(Tuple tuple,
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
-    return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
-  });
+  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
+    [](const ZtMField *field) {
+      return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
+    });
 }
-Tuple loadDelTuple(
+Tuple loadDelTuple(Tuple tuple,
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
-    return (field->keys & 1);
-  });
+  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
+    [](const ZtMField *field) { return (field->keys & 1); });
 }
 
 // save tuple to flatbuffer
@@ -840,6 +840,7 @@ struct Recover {
 struct Write {
   ZmRef<const AnyBuf>	buf;
   CommitFn		commitFn;
+  bool			mrd = false;	// used by delete only
 };
 
 using Query = ZuUnion<Open, Find, Recover, Write>;
@@ -877,7 +878,6 @@ public:
     GetOIDs,	// retrieve OIDs
     MkSchema,	// idempotent create schema
     MkTblMRD,	// idempotent create MRD table
-    MkIdxMRD,	// idempotent create MRD index
     Started	// start complete (possibly failed)
   };
 
@@ -932,9 +932,11 @@ public:
     PrepInsert,	// prepare insert query
     PrepUpdate,	// prepare update query
     PrepDelete,	// prepare delete query
+    PrepMRD,	// prepare MRD update
     Count,	// query count
     MaxUN,	// query max UN, max SN from main table
-    MRD,	// query max UN, max SN from _mrd table
+    EnsureMRD,	// ensure MRD table has row for this table
+    MRD,	// query max UN, max SN from mrd table
     Maxima,	// query maxima for series keys
     Opened	// open complete (possibly failed)
   };
@@ -1038,6 +1040,10 @@ private:
   int prepDelete_send();
   void prepDelete_rcvd(PGresult *);
 
+  void prepMRD();
+  int prepMRD_send();
+  void prepMRD_rcvd(PGresult *);
+
   void count();
   int count_send();
   void count_rcvd(PGresult *);
@@ -1045,6 +1051,10 @@ private:
   void maxUN();
   int maxUN_send();
   void maxUN_rcvd(PGresult *);
+
+  void ensureMRD();
+  int ensureMRD_send();
+  void ensureMRD_rcvd(PGresult *);
 
   void mrd();
   int mrd_send();
@@ -1089,9 +1099,10 @@ private:
   MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
   ZmRef<AnyBuf>		m_maxBuf;	// used by maxima_save()
-  uint64_t		m_count = 0;	// as of open()
-  UN			m_maxUN = 0;	// ''
-  SN			m_maxSN = 0;	// ''
+
+  uint64_t		m_count = 0;
+  UN			m_maxUN = ZdbNullUN();
+  SN			m_maxSN = ZdbNullSN();
 };
 
 // --- mock data store
