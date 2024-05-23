@@ -8,8 +8,6 @@
 // unlike std::array, prioritizes run-time optimization over compile-time
 // unlike std::span, prioritizes expressiveness over readability and
 //   intrusive integration with ZuHash/ZuCmp
-//
-// ZuArrayT<T> is a short cut for ZuArray<const typename ZuTraits<T>::Elem>
 
 #ifndef ZuArray_HH
 #define ZuArray_HH
@@ -382,9 +380,6 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.length(); }
 };
-
-template <typename T>
-using ZuArrayT = ZuArray<const typename ZuTraits<T>::Elem>;
 
 #ifdef _MSC_VER
 #pragma warning(pop)

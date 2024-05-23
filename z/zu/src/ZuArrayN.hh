@@ -529,7 +529,8 @@ public:
   enum { N = N_ };
   using Cmp = Cmp_;
   using Base = ZuArrayN_<T, N, Cmp, ArrayN>;
-  enum Move_ { Move };
+
+  struct Move { };
 
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
@@ -607,7 +608,7 @@ public:
     ZuConvertible<A, T> *_ = nullptr) : Base(Base::Nop) {
     this->init(a, length);
   }
-  ArrayN(Move_ _, T *a, unsigned length) : Base(Base::Nop) {
+  ArrayN(Move, T *a, unsigned length) : Base(Base::Nop) {
     this->init_mv(a, length);
   }
 

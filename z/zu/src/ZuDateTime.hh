@@ -60,9 +60,7 @@
 //   the values that can be assigned to the TZ environment variable:
 //
 //     ZuDateTime date;		// date/time
-//
-//     date.now();
-//
+//     date = Zm::now();
 //     ZuDateTimeFmt::ISO gmt;			// GMT/UTC
 //     ZuDateTimeFmt::ISO local(Zt::tzOffset());// default local time (tzset())
 //     ZuDateTimeFmt::ISO gb(Zt::tzOffset("GB"));// local time in UK
