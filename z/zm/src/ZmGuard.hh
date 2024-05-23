@@ -28,16 +28,16 @@ template <class Lock> class ZmGuard : private ZmLockTraits<Lock> {
   using Traits = ZmLockTraits<Lock>;
 
 public:
-  enum Try_ { Try };	// disambiguator
+  struct Try { };	// disambiguator
 
   ZmGuard() : m_lock{nullptr} { }
 
   ZmGuard(Lock &l) : m_lock(&l) { this->lock(l); }
 
-  explicit ZmGuard(Lock &l, Try_ _) : m_lock(&l) {
+  explicit ZmGuard(Lock &l, Try) : m_lock(&l) {
     if (this->trylock(l)) m_lock = nullptr;
   }
-  explicit ZmGuard(Lock &l, Try_ _, int &r) : m_lock(&l) {
+  explicit ZmGuard(Lock &l, Try, int &r) : m_lock(&l) {
     if (r = this->trylock(l)) m_lock = nullptr;
   }
 
@@ -75,17 +75,17 @@ template <class Lock> class ZmReadGuard : private ZmLockTraits<Lock> {
   using Traits = ZmLockTraits<Lock>;
 
 public:
-  enum Try_ { Try };	// disambiguator
+  struct Try { };
 
   ZmReadGuard(const Lock &l) :
     m_lock(&(const_cast<Lock &>(l))) {
     this->readlock(const_cast<Lock &>(l));
   }
-  explicit ZmReadGuard(const Lock &l, Try_ _) :
+  explicit ZmReadGuard(const Lock &l, Try) :
       m_lock(&(const_cast<Lock &>(l))) {
     if (this->tryreadlock(const_cast<Lock &>(l))) m_lock = nullptr;
   }
-  explicit ZmReadGuard(const Lock &l, Try_ _, int &r) :
+  explicit ZmReadGuard(const Lock &l, Try, int &r) :
       m_lock(&(const_cast<Lock &>(l))) {
     if (r = this->tryreadlock(const_cast<Lock &>(l))) m_lock = nullptr;
   }
