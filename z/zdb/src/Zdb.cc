@@ -1775,7 +1775,7 @@ bool AnyObject::commit_()
     case ObjState::Delete:
       m_state = ObjState::Deleted;
       m_origUN = nullUN();
-      ++m_vn;
+      m_vn = -m_vn - 1;
       break;
   }
   return true;

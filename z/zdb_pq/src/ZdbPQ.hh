@@ -843,9 +843,7 @@ using Query = ZuUnion<Open, Find, Recover, Write>;
 
 struct Start { };			// start data store
 
-struct Stop {
-  StopFn		stopped;
-};
+struct Stop { };
 
 struct TblItem { // FIXME - rename
   StoreTbl	*tbl;	
@@ -1128,7 +1126,8 @@ public:
     MaxFn maxFn,
     OpenFn openFn);
 
-  bool stopping() const { return !!m_stopFn; }
+  bool stopping() const { return m_stopFn; }
+
   void enqueue(Work::Item item);
 
   template <typename ...Args> void pqRun(Args &&... args) {
@@ -1156,7 +1155,7 @@ public:
 
 private:
   bool start_();
-  void stop_(StopFn);
+  void stop_();
   void stop_1();
   void stop_2();
 

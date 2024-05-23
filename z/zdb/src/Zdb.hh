@@ -409,7 +409,7 @@ public:
   T &&data() && { return ZuMv(*ptr()); }
 
   void commit();
-  void abort();
+  bool abort();
 
   // transform original fields, overriding get/set
   using Fields_ = ZuFieldList<T>;
@@ -1083,11 +1083,11 @@ public:
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// undo buffer
     auto nBufs = 0;
     auto abort = [&object, &bufs, &nBufs]() {
+      if (!object->abort()) return;
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
 	bufs[i].~ZmRef<Buf<T>>();
       }
-      object->abort();
     };
     ZuUnroll::all<KeyIDs>([this, &object, &bufs, &nBufs](auto KeyID) {
       auto key = ZuFieldKey<KeyID>(object->data());
@@ -1159,12 +1159,12 @@ public:
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// "undo" buffer
     auto nBufs = 0;
     auto abort = [this, &object, &cached, &bufs, &nBufs]() {
+      if (!object->abort()) return;
       if (cached) m_cache.add(object);
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
-	bufs[i]->~ZmRef<Buf<T>>();
+	bufs[i].~ZmRef<Buf<T>>();
       }
-      object->abort();
     };
     ZuUnroll::all<KeyIDs>([this, &object, &bufs, &nBufs](auto KeyID) {
       auto key = ZuFieldKey<KeyID>(object->data());
@@ -1196,19 +1196,21 @@ public:
   // find and delete record (with key, without object)
   template <unsigned KeyID, typename L>
   void findDel(const Key<KeyID> &key, L l) {
-    findUpd_(key, [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
-      if (ZuUnlikely(!object)) { l(object); return; }
-      del(ZuMv(object), ZuMv(l));
-    });
+    findUpd_<KeyID>(key,
+      [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+	if (ZuUnlikely(!object)) { l(object); return; }
+	del(ZuMv(object), ZuMv(l));
+      });
   }
 
   // find and delete record (idempotent) (with key, without object)
   template <unsigned KeyID, typename L>
   void findDel(const Key<KeyID> &key, UN un, L l) {
-    findUpd_(key, [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
-      if (ZuUnlikely(!object)) { l(object); return; }
-      del(ZuMv(object), un, ZuMv(l));
-    });
+    findUpd_<KeyID>(key,
+      [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+	if (ZuUnlikely(!object)) { l(object); return; }
+	del(ZuMv(object), un, ZuMv(l));
+      });
   }
 
 private:
@@ -1290,8 +1292,8 @@ inline void Object_<T>::commit() {
   this->table()->commit(static_cast<AnyObject *>(this));
 }
 template <typename T>
-inline void Object_<T>::abort() {
-  this->table()->abort(static_cast<AnyObject *>(this));
+inline bool Object_<T>::abort() {
+  return this->table()->abort(static_cast<AnyObject *>(this));
 }
 
 // --- table container

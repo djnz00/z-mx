@@ -230,6 +230,15 @@ int main(int argc, char **argv)
       orders->run([id = id - 1]{
 	orders->findUpd<0, ZuSeq<1>>(ZuFwdTuple("IBM", id),
 	  [id](ZmRef<ZdbObject<Order>> o) {
+	    if (!o) {
+	      ZeLOG(Info, ([id](auto &s) {
+		s << "findUpd(IBM, " << id << "): (null)";
+	      }));
+	      return;
+	    }
+	    ZeLOG(Info, ([id, data = o->data()](auto &s) {
+	      s << "findUpd(IBM, " << id << "): " << data;
+	    }));
 	    ZuStringN<32> clOrdID;
 	    clOrdID << "order" << id << "_1";
 	    o->data().price = o->data().price + 42;
@@ -237,6 +246,27 @@ int main(int argc, char **argv)
 	    o->commit();
 	  });
 	done.post();
+      });
+
+      done.wait();
+    }
+
+    if (id > 3) {
+      orders->run([id = id - 3]{
+	orders->findDel<0>(ZuFwdTuple("IBM", id),
+	  [id](ZmRef<ZdbObject<Order>> o) {
+	    if (!o) {
+	      ZeLOG(Info, ([id](auto &s) {
+		s << "findDel(IBM, " << id << "): (null)";
+	      }));
+	      return;
+	    }
+	    ZeLOG(Info, ([id, o](auto &s) {
+	      s << "findDel(IBM, " << id << "): " << o->data();
+	    }));
+	    o->commit();
+	    done.post();
+	  });
       });
 
       done.wait();

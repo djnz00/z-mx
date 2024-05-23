@@ -226,14 +226,14 @@ void Store::stop(StopFn fn)
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  enqueue(Work::Stop{ZuMv(fn)});
+  m_stopFn = ZuMv(fn);	// inhibits further application requests
+
+  pqRun([this]() mutable { enqueue(Work::Stop{}); });
 }
 
-void Store::stop_(StopFn fn)	// called after dequeuing Stop
+void Store::stop_()	// called after dequeuing Stop
 {
   ZeLOG(Debug, ([](auto &s) { }));
-
-  m_stopFn = ZuMv(fn);
 
   if (!m_sent.count_()) { stop_1(); return; }
 }
@@ -466,7 +466,7 @@ void Store::recv()
 	if (auto pending = m_sent.headNode()) {
 	  rcvd(pending, nullptr);
 	  m_sent.shift();
-	  stop = !!m_stopFn && !m_sent.count_();
+	  stop = stopping() && !m_queue.count_() && !m_sent.count_();
 	}
       }
     }
@@ -559,7 +559,7 @@ void Store::send()
 	sendState = start_send();
 	break;
       case Item::Index<Stop>{}:
-	stop_(ZuMv(ZuMv(work->data()).p<Stop>()).stopped);
+	stop_();
 	break;
       case Item::Index<TblItem>{}: {
 	auto &tblItem = work->data().p<TblItem>();
@@ -811,6 +811,9 @@ void Store::open(
     this, id, fields = ZuMv(fields), keyFields = ZuMv(keyFields),
     schema, maxFn = ZuMv(maxFn), openFn = ZuMv(openFn)
   ]() mutable {
+    if (stopping()) {
+      // FIXME - fail
+    }
     auto storeTbl =
       new StoreTbls::Node{this, id, ZuMv(fields), ZuMv(keyFields), schema};
     m_storeTbls->addNode(storeTbl);
@@ -822,11 +825,8 @@ void Store::enqueue(Work::Item item)
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  pqRun([this, item = ZuMv(item)]() mutable {
-    ZeLOG(Debug, ([](auto &s) { s << "inner"; }));
-
-    m_queue.push(ZuMv(item));
-  });
+  m_queue.push(ZuMv(item));
+  wake();
 }
 
 // resolve Value union discriminator from field metadata
@@ -1045,7 +1045,6 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
 void StoreTbl::open_enqueue()
 {
   using namespace Work;
-
   m_store->enqueue(Item{TblItem{this, {Open{}}}});
 }
 
@@ -1149,7 +1148,7 @@ int StoreTbl::mkTable_send()
     query << "CREATE TABLE \"" << m_id_ << "\" ("
       "\"_un\" uint8 PRIMARY KEY NOT NULL, "
       "\"_sn\" uint16 NOT NULL, "
-      "\"_vn\" uint8 NOT NULL";
+      "\"_vn\" int8 NOT NULL";
     unsigned n = m_xFields.length();
     for (unsigned i = 0; i < n; i++) {
       query << ", \"" << m_xFields[i].id_ << "\" "
@@ -1208,7 +1207,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     } else if (id == "_sn") {
       type = Value::Index<UInt128>{};
     } else if (id == "_vn") {
-      type = Value::Index<UInt64>{};
+      type = Value::Index<Int64>{};
     } else {
       field = m_fieldMap.findVal(id);
       if (!ZuCmp<unsigned>::null(field)) {
@@ -1424,7 +1423,7 @@ int StoreTbl::prepInsert_send()
   query << ") VALUES ($1::uint8, $2::uint16, $3::uint8";
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt128>{}));
-  oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
+  oids.push(m_store->oids().oid(Value::Index<Int64>{}));
   for (unsigned i = 0; i < n; i++) {
     auto type = m_xFields[i].type;
     query << ", $" << (i + 4) << "::" << m_store->oids().name(type);
@@ -1456,7 +1455,7 @@ int StoreTbl::prepUpdate_send()
   const auto &keyFields = m_keyFields[0];
   ZtArray<Oid> oids(n + 3 + keyFields.length());
   query << "UPDATE \"" << m_id_
-    << "\" SET \"_un\"=$1::uint8, \"_sn\"=$2::uint16, \"_vn\"=$3::uint8";
+    << "\" SET \"_un\"=$1::uint8, \"_sn\"=$2::uint16, \"_vn\"=$3::int8";
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt128>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
@@ -1824,10 +1823,14 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn)
 
   using namespace Work;
 
-  if (ZuUnlikely(m_store->stopping())) {
-    // FIXME
-  }
-  m_store->enqueue(TblItem{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
+  m_store->pqRun(
+    [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
+      if (m_store->stopping()) {
+	// FIXME - fail
+      }
+      m_store->enqueue(
+	TblItem{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
+    });
 }
 int StoreTbl::find_send(Work::Find &find)
 {
@@ -1879,7 +1882,7 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
       switch (int(j)) {
 	case 0: type = Value::Index<UInt64>{}; break;	// UN
 	case 1: type = Value::Index<UInt128>{}; break;	// SN
-	case 2: type = Value::Index<UInt64>{}; break;	// VN
+	case 2: type = Value::Index<Int64>{}; break;	// VN
 	default: type = m_xFields[j - 3].type; break;
       }
       if (!ZuSwitch::dispatch<Value::N>(type,
@@ -1930,7 +1933,7 @@ ZmRef<AnyBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
     auto id = Zfb::Save::id(this->id());
     UN un = tuple[0].p<UInt64>().v;
     SN sn = tuple[1].p<UInt128>().v;
-    VN vn = tuple[2].p<UInt64>().v;
+    VN vn = tuple[2].p<Int64>().v;
     auto sn_ = Zfb::Save::uint128(sn);
     auto msg = fbs::CreateMsg(
       fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
@@ -1959,10 +1962,12 @@ void StoreTbl::recover(UN un, RowFn rowFn)
 {
   using namespace Work;
 
-  if (ZuUnlikely(m_store->stopping())) {
-    // FIXME
-  }
-  m_store->enqueue(TblItem{this, Query{Recover{un, ZuMv(rowFn)}}});
+  m_store->pqRun([this, un, rowFn = ZuMv(rowFn)]() mutable {
+    if (m_store->stopping()) {
+      // FIXME - fail
+    }
+    m_store->enqueue(TblItem{this, Query{Recover{un, ZuMv(rowFn)}}});
+  });
 }
 int StoreTbl::recover_send(Work::Recover &recover)
 {
@@ -1990,10 +1995,12 @@ void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn)
 
   using namespace Work;
 
-  if (ZuUnlikely(m_store->stopping())) {
-    // FIXME
-  }
-  m_store->enqueue(TblItem{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
+  m_store->pqRun([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
+    if (m_store->stopping()) {
+      // FIXME - fail
+    }
+    m_store->enqueue(TblItem{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
+  });
 }
 int StoreTbl::write_send(Work::Write &write)
 {
@@ -2003,11 +2010,19 @@ int StoreTbl::write_send(Work::Write &write)
 
   auto record = record_(msg_(write.buf->hdr()));
   auto un =record->un(); 
-  if (m_maxUN != ZdbNullUN() && un <= m_maxUN)
-    return SendState::Unsent;
   auto sn = Zfb::Load::uint128(record->sn());
-  m_maxUN = un;
-  m_maxSN = sn;
+
+  if (!write.mrd) {
+    if (m_maxUN != ZdbNullUN() && un <= m_maxUN)
+      return SendState::Unsent;
+    m_maxUN = un;
+    m_maxSN = sn;
+  }
+
+  ZeLOG(Debug, ([un, sn, vn = record->vn()](auto &s) {
+    s << "UN=" << un << " SN=" << ZuBoxed(sn) << " VN=" << vn;
+  }));
+
   auto data = Zfb::Load::bytes(record->data());
   auto fbo = Zfb::GetAnyRoot(data.data());
   auto nParams = 3 + m_fields.length();
@@ -2052,6 +2067,9 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
 
   auto record = record_(msg_(write.buf->hdr()));
   if (record->vn() < 0 && !write.mrd) {
+    ZeLOG(Debug, ([vn = record->vn(), mrd = write.mrd](auto &s) {
+      s << "VN=" << vn << " mrd=" << mrd;
+    }));
     using namespace Work;
     m_store->enqueue(TblItem{this, Query{Write{
       ZuMv(write.buf), ZuMv(write.commitFn), true}}});
