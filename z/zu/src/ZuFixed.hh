@@ -60,8 +60,6 @@ template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal
 
 class ZuFixed {
-  constexpr static int64_t null_() { return ZuCmp<int64_t>::null(); }
-
 public:
   ZuFixed() = default;
 
@@ -148,6 +146,9 @@ public:
   friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
+  friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, bool>
+  operator <(const L &l, const R &r) { return l.cmp(r) < 0; }
+  template <typename L, typename R>
   friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
@@ -155,7 +156,7 @@ public:
   bool operator !() const { return !mantissa(); }
   ZuOpBool
 
-  bool operator *() const { return m_mantissa != null_(); }
+  bool operator *() const { return m_mantissa != ZuFixedNull; }
 
   // hash
   uint32_t hash() const {
@@ -297,5 +298,18 @@ template <typename VFmt>
 inline ZuFixed_VFmt ZuFixed::vfmt(VFmt &&fmt) const {
   return ZuFixed_VFmt{*this, ZuFwd<VFmt>(fmt)};
 }
+
+template <> struct ZuCmp<ZuFixed> {
+  template <typename L, typename R>
+  constexpr static int cmp(const L &l, const R &r) { return l.cmp(r); }
+  template <typename L, typename R>
+  constexpr static bool equals(const L &l, const R &r) { return l == r; }
+  template <typename L, typename R>
+  constexpr static bool less(const L &l, const R &r) { return l < r; }
+  constexpr static bool null(const ZuFixed &v) { return !*v; }
+  constexpr static ZuFixed null() { return {}; }
+  constexpr static ZuFixed minimum() { return {ZuFixedMin, 0}; }
+  constexpr static ZuFixed maximum() { return {ZuFixedMax, 0}; }
+};
 
 #endif /* ZuFixed_HH */

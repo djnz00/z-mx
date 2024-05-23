@@ -24,16 +24,16 @@
 template <typename V>
 void fail(unsigned line, const char *s, const V &v)
 {
-  std::cerr << "FAIL: " << line << ':' << s << " v=" << v << '\n';
-  assert(false);
+  std::cerr << "FAIL: " << line << ':' << s << " v=" << v << '\n' << std::flush;
+  abort();
 }
 
 template <typename V1, typename V2>
 void fail2(unsigned line, const char *s, const V1 &v1, const V2 &v2)
 {
   std::cerr << "FAIL: "
-    << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n';
-  assert(false);
+    << line << ':' << s << " v1=" << v1 << " v2=" << v2 << '\n' << std::flush;
+  abort();
 }
 
 #define CHECK(x, v) ((x) ? (void()) : fail(__LINE__, #x, v))
@@ -465,14 +465,33 @@ int main()
 
   {
     int x = 42;
-    std::cout << "Hex (4, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<4> >>() << '\n';
-    std::cout << "Hex (3, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<3> >>() << '\n';
-    std::cout << "Hex (2, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<2> >>() << '\n';
-    std::cout << "Hex (1, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<1> >>() << '\n';
-    std::cout << "Hex (-1, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<1> >>() << '\n';
-    std::cout << "Hex (-2, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<2> >>() << '\n';
-    std::cout << "Hex (-3, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<3> >>() << '\n';
-    std::cout << "Hex (-4, uppercase, int) 42: " << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<4> >>() << '\n';
+    std::cout << "Hex (4, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<4> >>() << '\n';
+    std::cout << "Hex (3, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<3> >>() << '\n';
+    std::cout << "Hex (2, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<2> >>() << '\n';
+    std::cout << "Hex (1, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Right<1> >>() << '\n';
+    std::cout << "Hex (-1, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<1> >>() << '\n';
+    std::cout << "Hex (-2, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<2> >>() << '\n';
+    std::cout << "Hex (-3, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<3> >>() << '\n';
+    std::cout << "Hex (-4, uppercase, int) 42: "
+      << ZuBoxed(x).fmt<ZuFmt::Hex<1, ZuFmt::Left<4> >>() << '\n';
+  }
+
+  {
+    ZuStringN<64> s;
+    ZuNBox<uint64_t> v;
+    ZuBox<uint64_t> w;
+    s << v;
+    CHECK(!s, v);
+    s << w;
+    std::cout << s << '\n';
+    CHECK(!!s, w);
   }
 
   {

@@ -614,7 +614,6 @@ inline ZuDecimalVFmt ZuDecimal::vfmt(VFmt &&fmt) const {
   return ZuDecimalVFmt{*this, ZuFwd<VFmt>(fmt)};
 }
 
-// ZuCmp has to be specialized since null() is otherwise !t (instead of !*t)
 template <> struct ZuCmp<ZuDecimal> {
   template <typename L, typename R>
   constexpr static int cmp(const L &l, const R &r) { return l.cmp(r); }
@@ -624,6 +623,12 @@ template <> struct ZuCmp<ZuDecimal> {
   constexpr static bool less(const L &l, const R &r) { return l < r; }
   constexpr static bool null(const ZuDecimal &v) { return !*v; }
   constexpr static ZuDecimal null() { return {}; }
+  constexpr static ZuDecimal minimum() {
+    return {ZuDecimal::Unscaled{ZuDecimal::minimum()}};
+  }
+  constexpr static ZuDecimal maximum() {
+    return {ZuDecimal::Unscaled{ZuDecimal::maximum()}};
+  }
 };
 
 #endif /* ZuDecimal_HH */

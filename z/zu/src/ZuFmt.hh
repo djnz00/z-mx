@@ -93,6 +93,7 @@ namespace ZuFmt {
 };
 
 // run-time variable formatting
+#pragma pack(push, 1)
 struct ZuVFmt {
   ZuVFmt() :
     m_justification(ZuFmt::Just::None),
@@ -181,7 +182,6 @@ struct ZuVFmt {
   char trim() const { return m_trim; }
 
 private:
-#pragma pack(push, 1)
   int8_t	m_justification;
   uint8_t	m_hex:1,
   		m_upper:1,
@@ -191,8 +191,8 @@ private:
   int8_t	m_pad;
   int8_t	m_ndp;
   char		m_trim;
-#pragma pack(pop)
 };
+#pragma pack(pop)
 
 template <typename Impl> struct ZuVFmtWrapper {
   ZuVFmt	fmt;
