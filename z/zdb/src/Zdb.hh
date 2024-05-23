@@ -1085,7 +1085,7 @@ public:
     auto abort = [&object, &bufs, &nBufs]() {
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
-	bufs[i]->~ZmRef<Buf<T>>();
+	bufs[i].~ZmRef<Buf<T>>();
       }
       object->abort();
     };
@@ -1122,7 +1122,7 @@ public:
   // find and update record (with key, without object)
   template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
   void findUpd(Key<KeyID> key, L l) {
-    findUpd_(ZuMv(key),
+    findUpd_<KeyID>(ZuMv(key),
 	[this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	  if (ZuUnlikely(!object)) { l(object); return; }
 	  update<KeyIDs_>(ZuMv(object), ZuMv(l));
@@ -1131,7 +1131,7 @@ public:
   // find and update record (idempotent) (with key, without object)
   template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
   void findUpd(Key<KeyID> key, UN un, L l) {
-    findUpd_(ZuMv(key),
+    findUpd_<KeyID>(ZuMv(key),
 	[this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	  if (ZuUnlikely(!object)) { l(object); return; }
 	  update<KeyIDs_>(ZuMv(object), un, ZuMv(l));

@@ -704,23 +704,22 @@ Tuple loadTuple(
 Tuple loadTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *) {
-    return false;
-  });
+  return loadTuple(fields, xFields, fbo,
+    [](const ZtMField *) { return false; });
 }
 Tuple loadUpdTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
-    return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
-  });
+  return loadTuple(fields, xFields, fbo,
+    [](const ZtMField *field) {
+      return !(field->props & ZtMFieldProp::Update) && !(field->keys & 1);
+    });
 }
 Tuple loadDelTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo, [](const ZtMField *field) {
-    return (field->keys & 1);
-  });
+  return loadTuple(fields, xFields, fbo,
+    [](const ZtMField *field) { return !(field->keys & 1); });
 }
 
 template <typename Filter>
@@ -761,7 +760,7 @@ void updTuple(const ZtMFields &fields, Tuple &data, Tuple &&update) {
   ZmAssert(data.length() == update.length());
   unsigned n = data.length();
   for (unsigned i = 0; i < n; i++)
-    if (fields[i]->type->props & ZtMFieldProp::Update) {
+    if (fields[i]->props & ZtMFieldProp::Update) {
       ZmAssert(update[i].type());
       data[i] = ZuMv(update[i]);
     }

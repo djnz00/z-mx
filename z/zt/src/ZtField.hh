@@ -69,7 +69,7 @@
 // 
 // ZtMFieldType provides:
 //   code	- ZtFieldTypeCode
-//   props	- ZtMFieldProp
+//   props	- ZtMFieldProp properties bitfield
 //   info	- enum / flags / UDT metadata
 //
 // ZtMField{ZtField{}} instantiates ZtMField from ZtField

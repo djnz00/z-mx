@@ -79,6 +79,8 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
 
   if (!m_storeTbls) m_storeTbls = new StoreTbls{};
 
+  // FIXME - replicated (or not) should be configurable, permitting
+  // use of Zdb as replication mechanism between 2 PG databases
   return {InitData{.replicated = true}};
 }
 
@@ -2027,9 +2029,10 @@ int StoreTbl::write_send(Work::Write &write)
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
     params = loadUpdTuple(params, m_fields, m_xFields, fbo);
+    params = loadTuple(params, m_keyFields[0], m_xKeyFields[0], fbo);
   } else if (!write.mrd) {
     id << m_id_ << "_delete";
-    params = loadDelTuple(params, m_fields, m_xFields, fbo);
+    params = loadTuple(params, m_keyFields[0], m_xKeyFields[0], fbo);
   } else {
     id << m_id_ << "_mrd";
     new (params.push()) Value{UInt64{un}};

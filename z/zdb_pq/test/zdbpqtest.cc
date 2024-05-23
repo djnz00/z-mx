@@ -187,8 +187,10 @@ int main(int argc, char **argv)
 
     orders->run([&id, &seqNo]{
       orders->insert([&id, &seqNo](ZdbObject<Order> *o) {
+	ZuStringN<32> clOrdID;
+	clOrdID << "order" << id;
 	new (o->ptr())
-	  Order{"IBM", id, "FIX0", "order0", seqNo, Side::Buy, 100, 100};
+	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, 100, 100};
 	o->commit();
 	id = o->data().orderID;
 	seqNo = o->data().seqNo;
@@ -223,6 +225,22 @@ int main(int argc, char **argv)
     });
 
     done.wait();
+
+    if (id > 0) {
+      orders->run([id = id - 1]{
+	orders->findUpd<0, ZuSeq<1>>(ZuFwdTuple("IBM", id),
+	  [id](ZmRef<ZdbObject<Order>> o) {
+	    ZuStringN<32> clOrdID;
+	    clOrdID << "order" << id << "_1";
+	    o->data().price = o->data().price + 42;
+	    o->data().clOrdID = clOrdID;
+	    o->commit();
+	  });
+	done.post();
+      });
+
+      done.wait();
+    }
 
     db->stop(); // closes all tables
 

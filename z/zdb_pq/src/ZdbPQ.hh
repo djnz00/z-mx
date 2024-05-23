@@ -738,14 +738,8 @@ Tuple loadUpdTuple(Tuple tuple,
 {
   return loadTuple(ZuMv(tuple), fields, xFields, fbo,
     [](const ZtMField *field) {
-      return (field->type->props & ZtMFieldProp::Update) || (field->keys & 1);
+      return !(field->props & ZtMFieldProp::Update);
     });
-}
-Tuple loadDelTuple(Tuple tuple,
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
-{
-  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
-    [](const ZtMField *field) { return (field->keys & 1); });
 }
 
 // save tuple to flatbuffer
