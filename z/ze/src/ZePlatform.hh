@@ -280,9 +280,6 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
     ZeAnyEvent(severity_, file_, line_, function_),
     l{ZuMv(l_)} { }
 
-  template <typename S>
-  friend S &operator <<(S &s, const ZeEvent &e) { e.l(s, e); return s; }
-
   ZeEvent() = default;
 
   ZeEvent(const ZeEvent &) = delete;
