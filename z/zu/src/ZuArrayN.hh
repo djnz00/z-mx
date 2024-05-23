@@ -58,8 +58,9 @@ template <> struct ZuArrayN___<char> {
 template <typename T>
 struct ZuArrayN__ : public ZuArrayN___<ZuStrip<T>> {
 protected:
-  using Nop_ = enum { Nop };
-  ZuArrayN__(Nop_ _) { }
+  struct Nop { };
+
+  ZuArrayN__(Nop) { }
 
   ZuArrayN__() : m_length{0} { }
 
@@ -89,7 +90,7 @@ public:
   using Char2 = typename ZuArrayN_Char2<T>::T;
   using Cmp = Cmp_;
 
-  enum Nop_ { Nop };
+  using Nop = Base::Nop;
 
 protected:
   // from some string with same char (including string literals)
@@ -176,7 +177,7 @@ protected:
 
   ZuArrayN_() { }
 
-  ZuArrayN_(Nop_ _) : Base(Base::Nop) { }
+  ZuArrayN_(Nop) : Base{Nop{}} { }
 
   ZuArrayN_(unsigned length, bool initItems) : Base(length) {
     if (m_length > N) m_length = N;
@@ -530,6 +531,8 @@ public:
   using Cmp = Cmp_;
   using Base = ZuArrayN_<T, N, Cmp, ArrayN>;
 
+  using Nop = Base::Nop;
+
   struct Move { };
 
 private:
@@ -551,7 +554,7 @@ private:
 public:
   ArrayN() { }
 
-  ArrayN(const ArrayN &a) : Base(Base::Nop) {
+  ArrayN(const ArrayN &a) : Base{Nop{}} {
     this->init(a.data(), a.length());
   }
   ArrayN &operator =(const ArrayN &a) {
@@ -562,7 +565,7 @@ public:
     return *this;
   }
 
-  ArrayN(ArrayN &&a) : Base(Base::Nop) {
+  ArrayN(ArrayN &&a) : Base{Nop{}} {
     this->init_mv(a.data(), a.length());
   }
   ArrayN &operator =(ArrayN &&a) {
@@ -573,13 +576,13 @@ public:
     return *this;
   }
 
-  ArrayN(std::initializer_list<T> a) : Base(Base::Nop) {
+  ArrayN(std::initializer_list<T> a) : Base{Nop{}} {
     this->init(a.begin(), a.size());
   }
 
   // miscellaneous types handled by base class
   template <typename A>
-  ArrayN(A &&a, MatchCtorArg<A> *_ = nullptr) : Base(Base::Nop) {
+  ArrayN(A &&a, MatchCtorArg<A> *_ = nullptr) : Base{Nop{}} {
     this->init(ZuFwd<A>(a));
   }
   template <typename A>
@@ -605,10 +608,10 @@ public:
   // arrays as ptr, length
   template <typename A>
   ArrayN(const A *a, unsigned length,
-    ZuConvertible<A, T> *_ = nullptr) : Base(Base::Nop) {
+    ZuConvertible<A, T> *_ = nullptr) : Base{Nop{}} {
     this->init(a, length);
   }
-  ArrayN(Move, T *a, unsigned length) : Base(Base::Nop) {
+  ArrayN(Move, T *a, unsigned length) : Base{Nop{}} {
     this->init_mv(a, length);
   }
 

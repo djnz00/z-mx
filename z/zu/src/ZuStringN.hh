@@ -69,6 +69,8 @@ public:
   using Char = Char_;
   using Char2 = typename ZuStringN_Char2<Char>::T;
 
+  struct Nop { };
+
 protected:
   // from any string with same char (including string literals)
   template <typename U, typename V = Char> struct IsString :
@@ -139,8 +141,7 @@ protected:
 
   ZuStringN_() : m_length(0) { data()[0] = 0; }
 
-  using Nop_ = enum { Nop };
-  ZuStringN_(Nop_ _) { }
+  ZuStringN_(Nop) { }
 
   ZuStringN_(unsigned length) : m_length(length) {
     if (m_length >= N) m_length = M;
@@ -442,6 +443,8 @@ public:
   using Base = ZuStringN_<char, N_, ZuStringN<N_>>;
   enum { N = N_ };
 
+  using Nop = Base::Nop;
+
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
   template <typename U> struct IsCtorLength :
@@ -461,7 +464,7 @@ private:
 public:
   ZuStringN() { }
 
-  ZuStringN(const ZuStringN &s) : Base{Base::Nop} {
+  ZuStringN(const ZuStringN &s) : Base{Nop{}} {
     this->init(s.data(), s.length());
   }
   ZuStringN &operator =(const ZuStringN &s) {
@@ -476,10 +479,10 @@ public:
   }
 
   // C string types
-  ZuStringN(const char *s) : Base{Base::Nop} {
+  ZuStringN(const char *s) : Base{Nop{}} {
     this->init(s);
   }
-  ZuStringN(const char *s, unsigned length) : Base{Base::Nop} {
+  ZuStringN(const char *s, unsigned length) : Base{Nop{}} {
     this->init(s, length);
   }
   ZuStringN &operator =(const char *s) {
@@ -498,7 +501,7 @@ public:
 
   // miscellaneous types handled by base class
   template <typename S>
-  ZuStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Base::Nop} {
+  ZuStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -541,6 +544,8 @@ public:
   using Base = ZuStringN_<wchar_t, N_, ZuWStringN<N_>>;
   enum { N = N_ };
 
+  using Nop = Base::Nop;
+
 private:
   // an unsigned|int|size_t parameter to the constructor is a buffer length
   template <typename U> struct IsCtorLength :
@@ -560,7 +565,7 @@ private:
 public:
   ZuWStringN() { }
 
-  ZuWStringN(const ZuWStringN &s) : Base{Base::Nop} {
+  ZuWStringN(const ZuWStringN &s) : Base{Nop{}} {
     this->init(s.data(), s.length());
   }
   ZuWStringN &operator =(const ZuWStringN &s) {
@@ -576,10 +581,10 @@ public:
   }
 
   // C string types
-  ZuWStringN(const wchar_t *s) : Base{Base::Nop} {
+  ZuWStringN(const wchar_t *s) : Base{Nop{}} {
     this->init(s);
   }
-  ZuWStringN(const wchar_t *s, unsigned length) : Base{Base::Nop} {
+  ZuWStringN(const wchar_t *s, unsigned length) : Base{Nop{}} {
     this->init(s, length);
   }
   ZuWStringN &operator =(const wchar_t *s) {
@@ -598,7 +603,7 @@ public:
 
   // miscellaneous types handled by base class
   template <typename S>
-  ZuWStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Base::Nop} {
+  ZuWStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
