@@ -567,7 +567,9 @@ public:
   unsigned length() const { return Print<>::length(m_val); }
   unsigned print(char *buf) const { return Print<>::print(m_val, buf); }
 
-  // Note: the caller is required to check for null, BY DESIGN
+  // ZuBox operators intentionally behave identically to those
+  // on the underlying primitive type - there is no explicit
+  // handling of sentinel nulls, NaNs, infinities, overflow etc.
 
   ZuBox operator -() { return -m_val; }
 
@@ -626,8 +628,17 @@ public:
     return *this;
   }
 
+  // infinity (positive)
   static ZuBox inf() { return ZuBox{Cmp::inf()}; }
+
+  // the decimal epsilon functions below are intended for use with
+  // other systems that use floating point to process decimal values -
+  // use ZuDecimal and/or ZuFixed in preference to ZuBox<double>
+
+  // decimal epsilon of floating point type
   ZuBox epsilon() const { return ZuBox{Cmp::epsilon(m_val)}; }
+
+  // floating point equality using decimal epsilon
   bool feq(T r) const {
     if (Cmp::null(m_val)) return Cmp::null(r);
     if (Cmp::null(r)) return false;
@@ -646,6 +657,8 @@ public:
     if (val > r) return val - r < Cmp::epsilon(val);
     return r - val < Cmp::epsilon(r);
   }
+
+  // floating point comparison using decimal epsilon
   bool fne(T r) const { return !feq(r); }
   bool fge(T r) const {
     if (Cmp::null(m_val)) return Cmp::null(r);
@@ -696,31 +709,23 @@ struct ZuCmp<ZuBox<T_, NTP>> : public ZuCmp<T_> {
   static const T &null() { static const T v; return v; }
 };
 
-// ZuBoxT<T> is T if T is already boxed, ZuBox<T> otherwise
-template <typename U>
-struct ZuBoxT_ { using T = ZuBox<U>; };
-template <typename U, typename NTP>
-struct ZuBoxT_<ZuBox<U, NTP>> { using T = ZuBox<U, NTP>; };
-template <typename U>
-using ZuBoxT = typename ZuBoxT_<U>::T;
-
-// ZuBoxed(t) - convenience function to cast primitives to boxed
+// ZuBoxed(v) - convenience function to cast primitives to boxed
 template <typename T>
-const ZuMatchBoxed<T, T> &ZuBoxed(const T &t) { return t; }
+const ZuMatchBoxed<T, T> &ZuBoxed(const T &v) { return v; }
 template <typename T>
-ZuMatchBoxed<T, T> &ZuBoxed(T &t) { return t; }
+ZuMatchBoxed<T, T> &ZuBoxed(T &v) { return v; }
 template <typename T>
-const ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(const T &t) {
-  const ZuBox<T> *ZuMayAlias(t_) = reinterpret_cast<const ZuBox<T> *>(&t);
-  return *t_;
+const ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(const T &v) {
+  const ZuBox<T> *ZuMayAlias(v_) = reinterpret_cast<const ZuBox<T> *>(&v);
+  return *v_;
 }
 template <typename T>
-ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(T &t) {
-  ZuBox<T> *ZuMayAlias(t_) = reinterpret_cast<ZuBox<T> *>(&t);
-  return *t_;
+ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(T &v) {
+  ZuBox<T> *ZuMayAlias(v_) = reinterpret_cast<ZuBox<T> *>(&v);
+  return *v_;
 }
 
-// ZuBoxPtr(t) - convenience function to box pointers as uintptr_t
+// ZuBoxPtr(x) - convenience function to box pointers as uintptr_t
 #define ZuBoxPtr(x) \
   (ZuBox<uintptr_t, ZuBoxCmp<ZuCmp0>>{reinterpret_cast<uintptr_t>(x)})
 
@@ -730,6 +735,22 @@ using ZuNBox = ZuBox<T, ZuBoxNullString<ZuBox_NullString(), NTP>>;
 #define ZuNBox0(T) ZuNBox<T, ZuBoxCmp<ZuCmp0>>
 #define ZuNBox_1(T) ZuNBox<T, ZuBoxCmp<ZuCmp_1>>
 #define ZuNBoxN(T, N) ZuNBox<T, ZuBoxCmp<ZuBox_CmpN<N>::template Cmp>>
+
+// ZuNBoxed(v) - ZuNBox equivalent of ZuBoxed
+template <typename T>
+const ZuMatchBoxed<T, T> &ZuNBoxed(const T &v) { return v; }
+template <typename T>
+ZuMatchBoxed<T, T> &ZuNBoxed(T &v) { return v; }
+template <typename T>
+const ZuNotBoxed<T, ZuNBox<T>> &ZuNBoxed(const T &v) {
+  const ZuNBox<T> *ZuMayAlias(v_) = reinterpret_cast<const ZuNBox<T> *>(&v);
+  return *v_;
+}
+template <typename T>
+ZuNotBoxed<T, ZuNBox<T>> &ZuNBoxed(T &v) {
+  ZuNBox<T> *ZuMayAlias(v_) = reinterpret_cast<ZuNBox<T> *>(&v);
+  return *v_;
+}
 
 #ifdef _MSC_VER
 #pragma warning(pop)
