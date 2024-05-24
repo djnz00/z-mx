@@ -841,14 +841,14 @@ struct Start { };			// start data store
 
 struct Stop { };
 
-struct TblItem { // FIXME - rename
+struct TblTask {
   StoreTbl	*tbl;	
   Query		query;
 };
 
-using Item = ZuUnion<Start, Stop, TblItem>;
+using Task = ZuUnion<Start, Stop, TblTask>;
 
-using Queue = ZmList<Item>;
+using Queue = ZmList<Task>;
 
 } // Work
 
@@ -1124,7 +1124,7 @@ public:
 
   bool stopping() const { return m_stopFn; }
 
-  void enqueue(Work::Item item);
+  void enqueue(Work::Task task);
 
   template <typename ...Args> void pqRun(Args &&... args) {
     m_mx->run(m_pqSID, ZuFwd<Args>(args)...);

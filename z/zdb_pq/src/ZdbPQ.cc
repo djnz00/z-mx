@@ -485,23 +485,23 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
   using namespace Work;
 
   switch (work->data().type()) {
-    case Item::Index<Start>{}:
+    case Task::Index<Start>{}:
       start_rcvd(res);
       break;
-    case Item::Index<TblItem>{}: {
-      auto &tblItem = work->data().p<TblItem>();
-      switch (tblItem.query.type()) {
+    case Task::Index<TblTask>{}: {
+      auto &tblTask = work->data().p<TblTask>();
+      switch (tblTask.query.type()) {
 	case Query::Index<Open>{}:
-	  tblItem.tbl->open_rcvd(res);
+	  tblTask.tbl->open_rcvd(res);
 	  break;
 	case Query::Index<Find>{}:
-	  tblItem.tbl->find_rcvd(tblItem.query.p<Find>(), res);
+	  tblTask.tbl->find_rcvd(tblTask.query.p<Find>(), res);
 	  break;
 	case Query::Index<Recover>{}:
-	  tblItem.tbl->recover_rcvd(tblItem.query.p<Recover>(), res);
+	  tblTask.tbl->recover_rcvd(tblTask.query.p<Recover>(), res);
 	  break;
 	case Query::Index<Write>{}:
-	  tblItem.tbl->write_rcvd(tblItem.query.p<Write>(), res);
+	  tblTask.tbl->write_rcvd(tblTask.query.p<Write>(), res);
 	  break;
       }
     } break;
@@ -515,23 +515,23 @@ void Store::failed(Work::Queue::Node *work, ZeMEvent e)
   using namespace Work;
 
   switch (work->data().type()) {
-    case Item::Index<Start>{}:
+    case Task::Index<Start>{}:
       start_failed(ZuMv(e));
       break;
-    case Item::Index<TblItem>{}: {
-      auto &tblItem = work->data().p<TblItem>();
-      switch (tblItem.query.type()) {
+    case Task::Index<TblTask>{}: {
+      auto &tblTask = work->data().p<TblTask>();
+      switch (tblTask.query.type()) {
 	case Query::Index<Open>{}:
-	  tblItem.tbl->open_failed(ZuMv(e));
+	  tblTask.tbl->open_failed(ZuMv(e));
 	  break;
 	case Query::Index<Find>{}:
-	  tblItem.tbl->find_failed(tblItem.query.p<Find>(), ZuMv(e));
+	  tblTask.tbl->find_failed(tblTask.query.p<Find>(), ZuMv(e));
 	  break;
 	case Query::Index<Recover>{}:
-	  tblItem.tbl->recover_failed(tblItem.query.p<Recover>(), ZuMv(e));
+	  tblTask.tbl->recover_failed(tblTask.query.p<Recover>(), ZuMv(e));
 	  break;
 	case Query::Index<Write>{}:
-	  tblItem.tbl->write_failed(tblItem.query.p<Write>(), ZuMv(e));
+	  tblTask.tbl->write_failed(tblTask.query.p<Write>(), ZuMv(e));
 	  break;
       }
     } break;
@@ -553,29 +553,29 @@ void Store::send()
 
   using namespace Work;
 
-  // queue items are non-query work such as Stop, or a query to be sent
+  // the queue includes queries and non-query tasks such as Start, Stop
   while (auto work = m_queue.shift()) {
     switch (work->data().type()) {
-      case Item::Index<Start>{}:
+      case Task::Index<Start>{}:
 	sendState = start_send();
 	break;
-      case Item::Index<Stop>{}:
+      case Task::Index<Stop>{}:
 	stop_();
 	break;
-      case Item::Index<TblItem>{}: {
-	auto &tblItem = work->data().p<TblItem>();
-	switch (tblItem.query.type()) {
+      case Task::Index<TblTask>{}: {
+	auto &tblTask = work->data().p<TblTask>();
+	switch (tblTask.query.type()) {
 	  case Query::Index<Open>{}:
-	    sendState = tblItem.tbl->open_send();
+	    sendState = tblTask.tbl->open_send();
 	    break;
 	  case Query::Index<Find>{}:
-	    sendState = tblItem.tbl->find_send(tblItem.query.p<Find>());
+	    sendState = tblTask.tbl->find_send(tblTask.query.p<Find>());
 	    break;
 	  case Query::Index<Recover>{}:
-	    sendState = tblItem.tbl->recover_send(tblItem.query.p<Recover>());
+	    sendState = tblTask.tbl->recover_send(tblTask.query.p<Recover>());
 	    break;
 	  case Query::Index<Write>{}:
-	    sendState = tblItem.tbl->write_send(tblItem.query.p<Write>());
+	    sendState = tblTask.tbl->write_send(tblTask.query.p<Write>());
 	    break;
 	}
       } break;
@@ -626,7 +626,7 @@ void Store::start_enqueue()
 {
   using namespace Work;
 
-  enqueue(Item{Start{}});
+  enqueue(Task{Start{}});
 }
 
 int Store::start_send()
@@ -813,7 +813,12 @@ void Store::open(
     schema, maxFn = ZuMv(maxFn), openFn = ZuMv(openFn)
   ]() mutable {
     if (stopping()) {
-      // FIXME - fail
+      zdbRun([id, openFn = ZuMv(openFn)]() mutable {
+	openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	  s << "open(" << id << ") failed - DB shutdown in progress";
+	}))});
+      });
+      return;
     }
     auto storeTbl =
       new StoreTbls::Node{this, id, ZuMv(fields), ZuMv(keyFields), schema};
@@ -822,11 +827,11 @@ void Store::open(
   });
 }
 
-void Store::enqueue(Work::Item item)
+void Store::enqueue(Work::Task task)
 {
   ZeLOG(Debug, ([](auto &s) { }));
 
-  m_queue.push(ZuMv(item));
+  m_queue.push(ZuMv(task));
   wake();
 }
 
@@ -1046,7 +1051,7 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
 void StoreTbl::open_enqueue()
 {
   using namespace Work;
-  m_store->enqueue(Item{TblItem{this, {Open{}}}});
+  m_store->enqueue(Task{TblTask{this, {Open{}}}});
 }
 
 int StoreTbl::open_send()
@@ -1827,10 +1832,15 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn)
   m_store->pqRun(
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       if (m_store->stopping()) {
-	// FIXME - fail
+	store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
+	  rowFn(RowResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	    s << "find(" << id << ") failed - DB shutdown in progress";
+	  }))});
+	});
+	return;
       }
       m_store->enqueue(
-	TblItem{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
+	TblTask{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
     });
 }
 int StoreTbl::find_send(Work::Find &find)
@@ -1965,9 +1975,14 @@ void StoreTbl::recover(UN un, RowFn rowFn)
 
   m_store->pqRun([this, un, rowFn = ZuMv(rowFn)]() mutable {
     if (m_store->stopping()) {
-      // FIXME - fail
+      store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
+	rowFn(RowResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	  s << "recover(" << id << ") failed - DB shutdown in progress";
+	}))});
+      });
+      return;
     }
-    m_store->enqueue(TblItem{this, Query{Recover{un, ZuMv(rowFn)}}});
+    m_store->enqueue(TblTask{this, Query{Recover{un, ZuMv(rowFn)}}});
   });
 }
 int StoreTbl::recover_send(Work::Recover &recover)
@@ -1998,9 +2013,19 @@ void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn)
 
   m_store->pqRun([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
     if (m_store->stopping()) {
-      // FIXME - fail
+      store()->zdbRun([
+	id = m_id,
+	buf = ZuMv(buf),
+	commitFn = ZuMv(commitFn)
+      ]() mutable {
+	commitFn(ZuMv(buf), CommitResult{
+	  ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	    s << "write(" << id << ") failed - DB shutdown in progress";
+	  }))});
+      });
+      return;
     }
-    m_store->enqueue(TblItem{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
+    m_store->enqueue(TblTask{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
   });
 }
 int StoreTbl::write_send(Work::Write &write)
@@ -2072,7 +2097,7 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
       s << "VN=" << vn << " mrd=" << mrd;
     }));
     using namespace Work;
-    m_store->enqueue(TblItem{this, Query{Write{
+    m_store->enqueue(TblTask{this, Query{Write{
       ZuMv(write.buf), ZuMv(write.commitFn), true}}});
   } else {
     m_store->zdbRun([
