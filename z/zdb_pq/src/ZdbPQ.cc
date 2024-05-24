@@ -57,6 +57,8 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
   m_mx = mx;
   m_zdbSID = sid;
 
+  bool replicated;
+
   try {
     const ZtString &tid = cf->get<true>("thread");
     auto sid = m_mx->sid(tid);
@@ -69,19 +71,18 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
 	  << tid << '"';
       }))};
     m_pqSID = sid;
+    replicated = cf->getBool("replicated", false);
   } catch (const ZvError &e_) {
     ZtString e;
     e << e_;
     return {ZeMEVENT(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
-      s << "Store::init() failed: invalid thread configuration: " << e;
+      s << "Store::init() failed: invalid configuration: " << e;
     }))};
   }
 
   if (!m_storeTbls) m_storeTbls = new StoreTbls{};
 
-  // FIXME - replicated (or not) should be configurable, permitting
-  // use of Zdb as replication mechanism between 2 PG databases
-  return {InitData{.replicated = true}};
+  return {InitData{.replicated = replicated}};
 }
 
 void Store::final()
