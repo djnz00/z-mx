@@ -16,6 +16,7 @@
 #endif
 
 #include <zlib/ZuAssert.hh>
+#include <zlib/ZuTL.hh>
 
 #ifdef _MSC_VER
 #pragma once

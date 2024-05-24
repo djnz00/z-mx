@@ -20,6 +20,7 @@
 
 #include <zlib/ZuSwitch.hh>
 
+#include <zlib/ZmAssert.hh>
 #include <zlib/ZmHeap.hh>
 
 template <auto ID, bool Sharded> class ZmVHeap;

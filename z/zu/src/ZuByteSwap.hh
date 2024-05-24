@@ -180,7 +180,7 @@ private:
       !ZuIsExact<P, T>{} && !ZuIsExact<P, U>{} &&
       ZuTraits<P>::IsIntegral>
   set(P p) {
-    m_i = ZuIntrin::bswap(p);
+    m_i = ZuIntrin::bswap(I(p));
   }
   template <typename P>
   ZuIfT<

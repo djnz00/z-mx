@@ -17,6 +17,8 @@
 #include <zlib/ZiLib.hh>
 #endif
 
+#include <zlib/ZuInvoke.hh>
+
 #include <zlib/ZmRef.hh>
 
 #include <zlib/ZiIOContext.hh>

@@ -75,6 +75,7 @@
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuTuple.hh>
+#include <zlib/ZuDeduce.hh>
 #include <zlib/ZuLambdaTraits.hh>
 
 #include <zlib/ZmRef.hh>
