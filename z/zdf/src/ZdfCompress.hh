@@ -12,8 +12,8 @@
 // * efficient random-access (seeking) and interpolation searching
 // * absolute, delta (first derivative), and delta-of-delta (second derivative)
 
-#ifndef ZdfRW_HH
-#define ZdfRW_HH
+#ifndef ZdfCompress_HH
+#define ZdfCompress_HH
 
 #ifndef ZdfLib_HH
 #include <zlib/ZdfLib.hh>
@@ -447,4 +447,4 @@ private:
 
 } // namespace ZdfCompress
 
-#endif /* ZdfRW_HH */
+#endif /* ZdfCompress_HH */
