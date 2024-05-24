@@ -9,10 +9,6 @@
 #ifndef ZGtkCallback_HH
 #define ZGtkCallback_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZGtkLib_HH
 #include <zlib/ZGtkLib.hh>
 #endif

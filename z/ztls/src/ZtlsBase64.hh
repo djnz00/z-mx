@@ -9,10 +9,6 @@
 #ifndef ZtlsBase64_HH
 #define ZtlsBase64_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZtlsLib.hh>
 
 #include <cppcodec/base64_rfc4648.hpp>

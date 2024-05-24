@@ -26,10 +26,6 @@
 #ifndef ZmSingleton_HH
 #define ZmSingleton_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

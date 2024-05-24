@@ -19,10 +19,6 @@
 #include <zlib/ZdfLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/ZuIntrin.hh>

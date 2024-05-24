@@ -9,10 +9,6 @@
 #ifndef MxMCapHdr_HH
 #define MxMCapHdr_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDLib_HH
 #include <mxbase/MxBaseLib.hh>
 #endif

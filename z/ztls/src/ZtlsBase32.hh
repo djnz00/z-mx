@@ -9,10 +9,6 @@
 #ifndef ZtlsBase32_HH
 #define ZtlsBase32_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZtlsLib.hh>
 
 #include <zlib/ZuBytes.hh>

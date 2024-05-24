@@ -9,10 +9,6 @@
 #ifndef ZrlGlobber_HH
 #define ZrlGlobber_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZrlLib_HH
 #include <zlib/ZrlLib.hh>
 #endif

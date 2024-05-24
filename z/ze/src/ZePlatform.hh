@@ -9,10 +9,6 @@
 #ifndef ZePlatform_HH
 #define ZePlatform_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZeLib_HH
 #include <zlib/ZeLib.hh>
 #endif

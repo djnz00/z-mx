@@ -7,10 +7,6 @@
 #ifndef ZdbPQ_HH
 #define ZdbPQ_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZdbLib_HH
 #include <zlib/ZdbPQLib.hh>
 #endif

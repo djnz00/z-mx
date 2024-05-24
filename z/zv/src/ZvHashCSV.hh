@@ -9,10 +9,6 @@
 #ifndef ZvHashCSV_HH
 #define ZvHashCSV_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
 #endif

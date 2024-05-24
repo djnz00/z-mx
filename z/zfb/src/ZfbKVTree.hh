@@ -9,10 +9,6 @@
 #ifndef ZfbKVTree_HH
 #define ZfbKVTree_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZfbLib_HH
 #include <zlib/ZfbLib.hh>
 #endif

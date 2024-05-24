@@ -4,10 +4,6 @@
 #ifndef ZiNetlinkMsg_HH
 #define ZiNetlinkMsg_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <stdint.h>
 
 #include <zi_netlink.h>

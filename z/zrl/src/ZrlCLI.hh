@@ -26,10 +26,6 @@
 #ifndef ZrlCLI_HH
 #define ZrlCLI_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZrlLib_HH
 #include <zlib/ZrlLib.hh>
 #endif

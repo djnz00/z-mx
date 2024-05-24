@@ -9,10 +9,6 @@
 #ifndef ZiPlatform_HH
 #define ZiPlatform_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZiLib_HH
 #include <zlib/ZiLib.hh>
 #endif

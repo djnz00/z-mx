@@ -9,10 +9,6 @@
 #ifndef ZGtkLib_HH
 #define ZGtkLib_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <glib.h>
 
 #include <gtk/gtk.h>

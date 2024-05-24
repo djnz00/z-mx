@@ -25,10 +25,6 @@
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuInt.hh>
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 template <typename U, typename W = wchar_t,
   bool = bool{ZuIsExact<U, char>{}} ||
 	 bool{ZuIsExact<U, signed char>{}} ||

@@ -22,10 +22,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 namespace ZuInspect_ {
 
 struct Convertible_ {

@@ -9,10 +9,6 @@
 #ifndef ZdbTypes_HH
 #define ZdbTypes_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZdbLib_HH
 #include <zlib/ZdbLib.hh>
 #endif

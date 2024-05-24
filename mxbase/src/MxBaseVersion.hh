@@ -9,10 +9,6 @@
 #ifndef MxBaseVersion_HH
 #define MxBaseVersion_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxBaseExtern
 #ifdef _WIN32
 #ifdef MXBASE_EXPORTS

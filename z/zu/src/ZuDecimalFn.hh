@@ -13,10 +13,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 namespace ZuDecimalFn {
   ZuInline const unsigned pow10_32(unsigned i) {
     constexpr static unsigned pow10[] = {

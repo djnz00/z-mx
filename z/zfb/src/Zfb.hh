@@ -9,10 +9,6 @@
 #ifndef Zfb_HH
 #define Zfb_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZfbLib_HH
 #include <zlib/ZfbLib.hh>
 #endif

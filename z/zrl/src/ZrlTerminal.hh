@@ -9,10 +9,6 @@
 #ifndef ZrlTerminal_HH
 #define ZrlTerminal_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZrlLib_HH
 #include <zlib/ZrlLib.hh>
 #endif

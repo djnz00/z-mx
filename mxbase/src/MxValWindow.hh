@@ -9,10 +9,6 @@
 #ifndef MxValWindow_HH
 #define MxValWindow_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxBaseLib_HH
 #include <mxbase/MxBaseLib.hh>
 #endif

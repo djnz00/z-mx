@@ -13,10 +13,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 // main template
 template <typename ...Ts> struct ZuTypeList {
   enum { N = sizeof...(Ts) };

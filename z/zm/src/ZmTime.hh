@@ -9,10 +9,6 @@
 #ifndef ZmTime_HH
 #define ZmTime_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

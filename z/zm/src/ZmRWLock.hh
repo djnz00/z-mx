@@ -9,10 +9,6 @@
 #ifndef ZmRWLock_HH
 #define ZmRWLock_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

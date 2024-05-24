@@ -26,10 +26,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <math.h>
 
 #include <zlib/ZuTraits.hh>

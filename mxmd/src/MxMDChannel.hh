@@ -9,10 +9,6 @@
 #ifndef MxMDChannel_HH
 #define MxMDChannel_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDLib_HH
 #include <mxmd/MxMDLib.hh>
 #endif

@@ -13,10 +13,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZuArray.hh>
 
 using ZuString = ZuArray<const char>;

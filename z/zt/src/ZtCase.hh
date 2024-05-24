@@ -9,10 +9,6 @@
 #ifndef ZtCase_HH
 #define ZtCase_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZtLib_HH
 #include <zlib/ZtLib.hh>
 #endif

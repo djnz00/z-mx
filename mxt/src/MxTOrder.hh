@@ -18,10 +18,6 @@
 #ifndef MxTOrder_HH
 #define MxTOrder_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxTLib_HH
 #include <mxt/MxTLib.hh>
 #endif

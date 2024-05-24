@@ -33,10 +33,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <utility>
 
 #include <zlib/ZuCmp.hh>

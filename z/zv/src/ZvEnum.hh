@@ -9,10 +9,6 @@
 #ifndef ZvEnum_HH
 #define ZvEnum_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
 #endif

@@ -9,10 +9,6 @@
 #ifndef zu_decimal_H
 #define zu_decimal_H
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef zu_lib_H
 #include <zlib/zu_lib.h>
 #endif

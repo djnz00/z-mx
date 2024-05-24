@@ -9,10 +9,6 @@
 #ifndef MxBaseLib_HH
 #define MxBaseLib_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZuLib.hh>
 
 #ifdef _WIN32

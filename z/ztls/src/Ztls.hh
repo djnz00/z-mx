@@ -9,10 +9,6 @@
 #ifndef Ztls_HH
 #define Ztls_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZtlsLib.hh>
 
 #include <mbedtls/ssl.h>

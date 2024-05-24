@@ -9,10 +9,6 @@
 #ifndef ZmLib_HH
 #define ZmLib_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZuLib.hh>
 
 #ifdef _WIN32

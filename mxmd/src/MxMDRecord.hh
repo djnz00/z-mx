@@ -9,10 +9,6 @@
 #ifndef MxMDRecord_HH
 #define MxMDRecord_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDLib_HH
 #include <mxmd/MxMDLib.hh>
 #endif

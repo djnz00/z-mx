@@ -9,10 +9,6 @@
 #ifndef MxMDVersion_HH
 #define MxMDVersion_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDExtern
 #ifdef _WIN32
 #ifdef MXMD_EXPORTS

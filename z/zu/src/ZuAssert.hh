@@ -13,10 +13,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 template <bool> struct ZuAssertion_FAILED;
 template <> struct ZuAssertion_FAILED<true> { };
 

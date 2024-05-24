@@ -14,10 +14,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuIntrin.hh>
 #include <zlib/ZuCmp.hh>

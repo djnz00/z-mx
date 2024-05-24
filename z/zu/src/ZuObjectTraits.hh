@@ -9,10 +9,6 @@
 #ifndef ZuObjectTraits_HH
 #define ZuObjectTraits_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
 #endif

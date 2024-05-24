@@ -23,10 +23,6 @@
 #ifndef ZiIOBuf_HH
 #define ZiIOBuf_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZiLib_HH
 #include <zlib/ZiLib.hh>
 #endif

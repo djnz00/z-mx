@@ -17,10 +17,6 @@
 #ifndef ZmHeap_HH
 #define ZmHeap_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

@@ -9,10 +9,6 @@
 #ifndef ZvRingParams_HH
 #define ZvRingParams_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
 #endif

@@ -9,10 +9,6 @@
 #ifndef MxMDReplay_HH
 #define MxMDReplay_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDLib_HH
 #include <mxmd/MxMDLib.hh>
 #endif

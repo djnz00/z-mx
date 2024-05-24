@@ -9,10 +9,6 @@
 #ifndef MxTelemetry_HH
 #define MxTelemetry_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxBaseLib_HH
 #include <mxbase/MxBaseLib.hh>
 #endif

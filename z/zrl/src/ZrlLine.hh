@@ -13,10 +13,6 @@
 #ifndef ZrlLine_HH
 #define ZrlLine_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZrlLib_HH
 #include <zlib/ZrlLib.hh>
 #endif

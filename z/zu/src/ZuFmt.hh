@@ -13,10 +13,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 // compile-time formatting
 namespace ZuFmt {
   enum { MaxWidth = 54 };

@@ -9,10 +9,6 @@
 #ifndef MxRxDB_HH
 #define MxRxDB_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxBaseLib_HH
 #include <mxbase/MxBaseLib.hh>
 #endif

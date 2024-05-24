@@ -9,10 +9,6 @@
 #ifndef ZtEnum_HH
 #define ZtEnum_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZtLib_HH
 #include <zlib/ZtLib.hh>
 #endif

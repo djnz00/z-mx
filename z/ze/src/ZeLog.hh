@@ -20,10 +20,6 @@
 #ifndef ZeLog_HH
 #define ZeLog_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZeLib_HH
 #include <zlib/ZeLib.hh>
 #endif

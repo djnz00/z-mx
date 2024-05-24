@@ -9,10 +9,6 @@
 #ifndef ZuRef_HH
 #define ZuRef_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
 #endif

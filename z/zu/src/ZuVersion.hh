@@ -9,10 +9,6 @@
 #ifndef ZuVersion_HH
 #define ZuVersion_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZuExtern
 #ifdef _WIN32
 #ifdef ZU_EXPORTS

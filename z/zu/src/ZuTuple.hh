@@ -41,10 +41,6 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <type_traits>
 
 #include <zlib/ZuString.hh>

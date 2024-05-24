@@ -11,10 +11,6 @@
 #ifndef Zdb_HH
 #define Zdb_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZdbLib_HH
 #include <zlib/ZdbLib.hh>
 #endif

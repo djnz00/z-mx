@@ -9,10 +9,6 @@
 #ifndef ZtlsHex_HH
 #define ZtlsHex_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <zlib/ZtlsLib.hh>
 
 #include <cppcodec/hex_upper.hpp>

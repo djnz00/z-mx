@@ -25,10 +25,6 @@
 #ifndef ZeAssert_HH
 #define ZeAssert_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZeLib_HH
 #include <zlib/ZeLib.hh>
 #endif

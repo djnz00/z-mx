@@ -9,10 +9,6 @@
 #ifndef ZmBackTracer_HH
 #define ZmBackTracer_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

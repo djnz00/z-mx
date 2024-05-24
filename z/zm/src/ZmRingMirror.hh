@@ -9,10 +9,6 @@
 #ifndef ZmRingMirror_HH
 #define ZmRingMirror_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
 #endif

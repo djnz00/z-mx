@@ -9,10 +9,6 @@
 #ifndef MxMDPublisher_HH
 #define MxMDPublisher_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxMDLib_HH
 #include <mxmd/MxMDLib.hh>
 #endif

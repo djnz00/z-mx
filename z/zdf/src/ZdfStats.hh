@@ -12,10 +12,6 @@
 #ifndef ZdfStats_HH
 #define ZdfStats_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZdfLib_HH
 #include <zlib/ZdfLib.hh>
 #endif

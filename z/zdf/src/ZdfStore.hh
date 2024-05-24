@@ -9,10 +9,6 @@
 #ifndef ZdfStore_HH
 #define ZdfStore_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZdfLib_HH
 #include <zlib/ZdfLib.hh>
 #endif

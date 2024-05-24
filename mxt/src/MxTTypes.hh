@@ -9,10 +9,6 @@
 #ifndef MxTTypes_HH
 #define MxTTypes_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxTLib_HH
 #include <mxt/MxTLib.hh>
 #endif

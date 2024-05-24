@@ -27,10 +27,6 @@
 #ifndef ZuByteSwap_HH
 #define ZuByteSwap_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <stddef.h>
 
 #include <zlib/ZuTraits.hh>

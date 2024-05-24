@@ -9,10 +9,6 @@
 #ifndef zu_lib_H
 #define zu_lib_H
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #include <assert.h>
 
 #ifdef _WIN32

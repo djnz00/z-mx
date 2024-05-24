@@ -9,10 +9,6 @@
 #ifndef MxTVersion_HH
 #define MxTVersion_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef MxTExtern
 #ifdef _WIN32
 #ifdef MXT_EXPORTS

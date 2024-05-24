@@ -9,10 +9,6 @@
 #ifndef ZiDir_HH
 #define ZiDir_HH
 
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 #ifndef ZiLib_HH
 #include <zlib/ZiLib.hh>
 #endif
