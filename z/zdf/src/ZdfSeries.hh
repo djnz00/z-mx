@@ -89,7 +89,7 @@ public:
     m_ndp = m_buf->hdr()->ndp();
   }
 
-  // series must be monotonically increasing to use find*() (e.g. time series)
+  // series must monotonically increase to use find*() (e.g. time series)
 
   // start reading from >= value
   static Reader find(const Series *s, const ZuFixed &value) {

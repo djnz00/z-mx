@@ -8,6 +8,24 @@
 // * primary key is required to be immutable
 // * secondary keys can be mutated
 
+// Zdb is a clustered/replicated in-process/in-memory DB that
+// includes leader election and failover. Zdb dynamically organizes
+// cluster hosts into a replication chain from the leader to the
+// lowest-priority follower. Replication is async. ZmEngine is used for
+// start/stop state management. Zdb applications are stateful back-end
+// services that defer to Zdb for activation/deactivation.
+// Restart/recovery is from backing data store, then from the cluster
+// leader (if the local host itself is not elected leader).
+
+//  host state		engine state
+//  ==========		============
+//  Instantiated	Stopped
+//  Initialized		Stopped
+//  Electing		!Stopped
+//  Active		!Stopped
+//  Inactive		!Stopped
+//  Stopping		Stopping | StartPending
+
 #ifndef Zdb_HH
 #define Zdb_HH
 
@@ -57,24 +75,6 @@
 #include <zlib/ZdbBuf.hh>
 #include <zlib/ZdbMsg.hh>
 #include <zlib/ZdbStore.hh>
-
-// Zdb is a clustered/replicated in-process/in-memory DB that
-// includes leader election and failover. Zdb dynamically organizes
-// cluster hosts into a replication chain from the leader to the
-// lowest-priority follower. Replication is async. ZmEngine is used for
-// start/stop state management. Zdb applications are stateful backing
-// services that defer to Zdb for activation/deactivation.
-// Restart/recovery is from backing data store, then from the cluster
-// leader (if the local host is not itself elected leader).
-
-//  host state		engine state
-//  ==========		============
-//  Instantiated	Stopped
-//  Initialized		Stopped
-//  Electing		!Stopped
-//  Active		!Stopped
-//  Inactive		!Stopped
-//  Stopping		Stopping | StartPending
 
 #if defined(ZDEBUG) && !defined(ZdbRep_DEBUG)
 #define ZdbRep_DEBUG
@@ -283,7 +283,7 @@ const char *Object_HeapID() { return "Zdb.Object"; }
 //
 // path forks:
 //
-// Insert   > (Committed|Undefined)
+// Insert > (Committed|Undefined)
 // Delete > (Deleted|Committed)
 //
 // possible event sequences:

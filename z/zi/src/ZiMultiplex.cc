@@ -1180,7 +1180,7 @@ void ZiConnection::recv()
     unsigned l = ((m_rxContext.offset + 8)>>1) + 1;
     if (len > l) len = l;
   }
-  {
+  if (m_mx->debug()) {
     unsigned long n;
     DWORD o;
     if (!WSAIoctl(m_info.socket, FIONREAD, 0, 0,
@@ -1241,10 +1241,12 @@ void ZiConnection::recv()
     unsigned l = ((m_rxContext.offset + 8)>>1) + 1;
     if (len > l) len = l;
   }
-  ioctl(m_info.socket, FIONREAD, &n);
-  ZiDEBUG(m_mx, ZtSprintf(
-	"FD: % 3d recv(%u) size: %u offset: %u buffered: %u",
-	(int)m_info.socket, len, m_rxContext.size, m_rxContext.offset, n));
+  if (m_mx->debug()) {
+    ioctl(m_info.socket, FIONREAD, &n);
+    ZiDEBUG(m_mx, ZtSprintf(
+	  "FD: % 3d recv(%u) size: %u offset: %u buffered: %u",
+	  (int)m_info.socket, len, m_rxContext.size, m_rxContext.offset, n));
+  }
 #endif
 
 retry:
@@ -1433,7 +1435,7 @@ retry:
 
 retry:
   ZiDEBUG(m_mx, ZtHexDump(ZtSprintf(
-	  "FD: % 3d send(%u) size: %u offset: %u",
+	"FD: % 3d send(%u) size: %u offset: %u",
 	(int)m_info.socket, len, m_txContext.size, m_txContext.offset),
 	buf, len));
 

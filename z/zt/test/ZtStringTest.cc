@@ -183,27 +183,29 @@ int main()
   {
     ZtString s(256);
 
-    s = static_cast<int>(42);
+    using ldouble = long double;
+
+    s = int(42);
     s += ' ';
-    s += static_cast<unsigned int>(42);
+    s += unsigned int(42);
     s += ' ';
-    s += static_cast<int16_t>(42);
+    s += int16_t(42);
     s += ' ';
-    s += static_cast<uint16_t>(42);
+    s += uint16_t(42);
     s += ' ';
-    s += static_cast<int32_t>(42);
+    s += int32_t(42);
     s += ' ';
-    s += static_cast<uint32_t>(42);
+    s += uint32_t(42);
     s += ' ';
-    s += static_cast<int64_t>(42);
+    s += int64_t(42);
     s += ' ';
-    s += static_cast<uint64_t>(42);
+    s += uint64_t(42);
     s += ' ';
-    s += static_cast<float>(42);
+    s += float(42);
     s += ' ';
-    s += static_cast<double>(42);
+    s += double(42);
     s += ' ';
-    s += static_cast<long double>(42);
+    s += ldouble(42);
     s += ' ';
     s += "Hello";
     s += ' ';

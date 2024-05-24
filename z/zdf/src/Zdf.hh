@@ -6,6 +6,24 @@
 
 // Data Frame
 
+// Data d;
+// ...
+// DataFrame df{Data::fields(), "d"};
+// ...
+// auto w = df.writer();
+// ZuTime time{ZuTime::Now};
+// w.write(&d);
+// ...
+// AnyReader index, reader;
+// ...
+// df.find(index, 0, df.nsecs(time));	// index time to offset
+// df.seek(reader, N, index.offset());	// seek reader to offset
+// ...
+// ZuFixed nsecs, value;
+// index.read(nsecs);
+// ZuTime then = df.time(nsecs);
+// reader.read(value);
+
 #ifndef Zdf_HH
 #define Zdf_HH
 
@@ -31,24 +49,6 @@
 #include <zlib/dataframe_fbs.h>
 
 namespace Zdf {
-
-// Data d;
-// ...
-// DataFrame df{Data::fields(), "d"};
-// ...
-// auto w = df.writer();
-// ZuTime time{ZuTime::Now};
-// w.write(&d);
-// ...
-// AnyReader index, reader;
-// ...
-// df.find(index, 0, df.nsecs(time));	// index time to offset
-// df.seek(reader, N, index.offset());	// seek reader to offset
-// ...
-// ZuFixed nsecs, value;
-// index.read(nsecs);
-// ZuTime then = df.time(nsecs);
-// reader.read(value);
 
 // typedefs for (de)encoders
 using AbsDecoder = ZdfCompress::Decoder;
@@ -108,7 +108,7 @@ public:
       init_<AbsReader>(s, offset);
   }
 
-  // series must be monotonically increasing
+  // series must monotonically increase
 
   void find(const Series *s, unsigned props, const ZuFixed &value) {
     if (props & ZtMFieldProp::Delta)

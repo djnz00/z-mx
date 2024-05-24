@@ -39,7 +39,7 @@
 #include <zlib/ZiIOContext.hh>
 
 #if defined(ZDEBUG) && !defined(ZiMultiplex_DEBUG)
-#define ZiMultiplex_DEBUG	// enable testing / debugging
+// #define ZiMultiplex_DEBUG	// enable testing / debugging
 #endif
 
 #ifdef ZiMultiplex_DEBUG
@@ -930,19 +930,6 @@ public:
   void frag(bool b) { m_frag = b; }
   bool yield() const { return m_yield; }
   void yield(bool b) { m_yield = b; }
-#else
-  void debugWarning(const char *fn) {
-    ZeLOG(Warning, ZtSprintf("ZiMultiplex::%s(true) called while "
-	  "ZiMultiplex_DEBUG undefined", fn));
-  }
-  bool trace() const { return false; }
-  void trace(bool b) { if (b) debugWarning("debug"); }
-  bool debug() const { return false; }
-  void debug(bool b) { if (b) debugWarning("debug"); }
-  bool frag() const { return false; }
-  void frag(bool b) { if (b) debugWarning("frag"); }
-  bool yield() const { return false; }
-  void yield(bool b) { if (b) debugWarning("yield"); }
 #endif
 
 #ifdef ZiMultiplex_EPoll
