@@ -28,6 +28,7 @@
 #endif
 
 #include <zlib/ZuInt.hh>
+#include <zlib/ZuIntrin.hh>
 
 // floating point support for all IEEE 754 sizes
 // - number of decimal places in each type's mantissa

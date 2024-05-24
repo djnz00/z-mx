@@ -22,6 +22,7 @@
 #include <time.h>
 
 #include <zlib/ZuInt.hh>
+#include <zlib/ZuIntrin.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>

@@ -282,36 +282,6 @@ template <auto B> using ZuBool = ZuConstant<bool, static_cast<bool>(B)>;
 using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
 using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
 
-// function signature deduction
-
-// ZuDeduce<decltype(&L::operator())>::
-// ZuDeduce<decltype(&fn)>::
-//   O		- object type (undefined for a plain function)
-//   R		- return value
-//   Args	- argument typelist
-
-template <typename> struct ZuDeduce;
-template <typename O_, typename R_, typename ...Args_>
-struct ZuDeduce<R_ (O_::*)(Args_...) const> {
-  enum { Member = 1 };
-  using O = O_;
-  using R = R_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <typename O_, typename R_, typename ...Args_>
-struct ZuDeduce<R_ (O_::*)(Args_...)> {
-  enum { Member = 1 };
-  using O = O_;
-  using R = R_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <typename R_, typename ...Args_>
-struct ZuDeduce<R_ (*)(Args_...)> {
-  enum { Member = 0 };
-  using R = R_;
-  using Args = ZuTypeList<Args_...>;
-};
-
 // alternative for std::declval
 template <typename U> struct ZuDeclVal__ { using T = U; };
 template <typename T> auto ZuDeclVal_(int) -> typename ZuDeclVal__<T&&>::T;
@@ -440,60 +410,6 @@ struct ZuNotExact_<U1, U2, R, true> { using T = R; };
 template <typename U1, typename U2, typename R = void>
 using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 
-// generic invocation
-// ZuInvoke<Fn>(this, args...) invokes one of:
-//   (this->*Fn)(args...)	// member function
-//   Fn(this, args...)		// bound function/lambda (passing this)
-//   Fn(args)			// unbound function/lambda (discarding this)
-
-template <auto Fn, typename O, typename Ts, typename = void>
-struct ZuInvoke_MemberFn_;
-template <auto Fn, typename O, typename ...Ts>
-struct ZuInvoke_MemberFn_<
-    Fn, O, ZuTypeList<Ts...>,
-    decltype((ZuDeclVal<O *>()->*Fn)(ZuDeclVal<Ts>()...), void())> {
-  using T = decltype((ZuDeclVal<O *>()->*Fn)(ZuDeclVal<Ts>()...));
-};
-template <auto Fn, typename O, typename ...Ts>
-using ZuInvoke_MemberFn =
-  typename ZuInvoke_MemberFn_<Fn, O, ZuTypeList<Ts...>>::T;
-template <auto Fn, typename O, typename ...Ts>
-auto ZuInvoke(O *ptr, Ts &&... args) -> ZuInvoke_MemberFn<Fn, O, Ts...> {
-  return (ptr->*Fn)(ZuFwd<Ts>(args)...);
-}
-
-template <auto Fn, typename O, typename Ts, typename = void>
-struct ZuInvoke_BoundFn_;
-template <auto Fn, typename O, typename ...Ts>
-struct ZuInvoke_BoundFn_<
-    Fn, O, ZuTypeList<Ts...>,
-    decltype(Fn(ZuDeclVal<O *>(), ZuDeclVal<Ts>()...), void())> {
-  using T = decltype(Fn(ZuDeclVal<O *>(), ZuDeclVal<Ts>()...));
-};
-template <auto Fn, typename O, typename ...Ts>
-using ZuInvoke_BoundFn =
-  typename ZuInvoke_BoundFn_<Fn, O, ZuTypeList<Ts...>>::T;
-template <auto Fn, typename O, typename ...Ts>
-auto ZuInvoke(O *ptr, Ts &&... args) -> ZuInvoke_BoundFn<Fn, O, Ts...> {
-  return Fn(ptr, ZuFwd<Ts>(args)...);
-}
-
-template <auto Fn, typename O, typename Ts, typename = void>
-struct ZuInvoke_UnboundFn_;
-template <auto Fn, typename O, typename ...Ts>
-struct ZuInvoke_UnboundFn_<
-    Fn, O, ZuTypeList<Ts...>,
-    decltype(Fn(ZuDeclVal<Ts>()...), void())> {
-  using T = decltype(Fn(ZuDeclVal<Ts>()...));
-};
-template <auto Fn, typename O, typename ...Ts>
-using ZuInvoke_UnboundFn =
-  typename ZuInvoke_UnboundFn_<Fn, O, ZuTypeList<Ts...>>::T;
-template <auto Fn, typename O, typename ...Ts>
-auto ZuInvoke(O *, Ts &&... args) -> ZuInvoke_UnboundFn<Fn, O, Ts...> {
-  return Fn(ZuFwd<Ts>(args)...);
-}
-
 // alloca() alias
 
 #ifdef _MSC_VER
@@ -504,5 +420,10 @@ auto ZuInvoke(O *, Ts &&... args) -> ZuInvoke_UnboundFn<Fn, O, Ts...> {
 #endif
 #define ZuAlloca(n) alloca(n)
 #endif
+
+// default accessor (pass-through)
+inline constexpr auto ZuDefaultAxor() {
+  return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
+}
 
 #endif /* ZuLib_HH */

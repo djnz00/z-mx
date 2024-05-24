@@ -6,20 +6,10 @@
 
 // compile-time switch
 
-#ifndef ZuSwitch_HH
-#define ZuSwitch_HH
-
-#ifndef ZuLib_HH
-#include <zlib/ZuLib.hh>
-#endif
-
-#ifdef _MSC_VER
-#pragma once
-#endif
-
 // template <unsigned I> ZuIfT<I == 0> foo() { puts("0"); }
 // template <unsigned I> ZuIfT<I == 1> foo() { puts("1"); }
 // template <unsigned I> ZuIfT<I == 2> foo() { puts("2"); }
+
 // unsigned i = ...;
 // ZuSwitch::dispatch<3>(i, [](auto I) { foo<I>(); });
 // ZuSwitch::dispatch<3>(i, [](auto I) { foo<I>(); }, []{ puts("default"); });
@@ -33,6 +23,15 @@
 // composes the switch statement, each item in it becomes a case, and the
 // lambda can invoke code that is specialized by the constexpr index, where
 // each specialization is the code body of the corresponding case
+
+#ifndef ZuSwitch_HH
+#define ZuSwitch_HH
+
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
+#endif
+
+#include <zlib/ZuSeq.hh>
 
 #include <initializer_list>
 

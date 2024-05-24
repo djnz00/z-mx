@@ -167,12 +167,12 @@ template <typename T, ZuIfT<sizeof(T) == 16, int> = 0>
 ZuInline T bswap(T v) { return T(Zu_bswap128(v)); }
 
 // integer overflow
-template <typename T>
-ZuInline bool add(T l, T r, T *o) { return Zu_add(l, r, o); }
-template <typename T>
-ZuInline bool sub(T l, T r, T *o) { return Zu_sub(l, r, o); }
-template <typename T>
-ZuInline bool mul(T l, T r, T *o) { return Zu_mul(l, r, o); }
+template <typename L, typename R, typename O>
+ZuInline bool add(L l, R r, O *o) { return Zu_add(l, r, o); }
+template <typename L, typename R, typename O>
+ZuInline bool sub(L l, R r, O *o) { return Zu_sub(l, r, o); }
+template <typename L, typename R, typename O>
+ZuInline bool mul(L l, R r, O *o) { return Zu_mul(l, r, o); }
 
 // NaN generators
 template <typename T, ZuExact<float, T, int> = 0>

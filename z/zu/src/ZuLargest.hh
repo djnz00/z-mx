@@ -19,7 +19,7 @@
 #pragma once
 #endif
 
-#include <zlib/ZuNull.hh>
+#include <zlib/ZuTL.hh>
 
 template <typename ...Ts> struct ZuLargest_;
 template <typename T0> struct ZuLargest_<T0> {
@@ -27,7 +27,8 @@ template <typename T0> struct ZuLargest_<T0> {
 };
 template <typename T0, typename ...Ts> struct ZuLargest_<T0, Ts...> {
   using T =
-    ZuIf<(sizeof(T0) > sizeof(typename ZuLargest_<Ts...>::T)),
+    ZuIf<(unsigned(ZuSize<T0>{}) >
+	  unsigned(ZuSize<typename ZuLargest_<Ts...>::T>{})),
       T0, typename ZuLargest_<Ts...>::T>;
 };
 template <typename ...Ts>

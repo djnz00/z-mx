@@ -19,6 +19,7 @@
 #endif
 
 #include <zlib/ZuInt.hh>
+#include <zlib/ZuIntrin.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuDecimalFn.hh>
 #include <zlib/ZuTraits.hh>

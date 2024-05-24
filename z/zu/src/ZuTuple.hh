@@ -50,6 +50,7 @@
 #include <zlib/ZuString.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuPrint.hh>
+#include <zlib/ZuInspectTL.hh>
 #include <zlib/ZuSwitch.hh>
 #include <zlib/ZuUnroll.hh>
 #include <zlib/ZuPP.hh>

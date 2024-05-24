@@ -26,11 +26,6 @@
 #pragma once
 #endif
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4244 4800)
-#endif
-
 namespace ZuInspect_ {
 
 struct Convertible_ {
@@ -167,45 +162,5 @@ template <typename T1, typename T2, typename R = void>
 using ZuIs = ZuIfT<ZuInspect<T1, T2>::Is, R>;
 template <typename T1, typename T2, typename R = void>
 using ZuIsNot = ZuIfT<!ZuInspect<T1, T2>::Is, R>;
-
-// type list convertibility
-template <typename Ts, typename Us> // true if Ts converts to Us
-struct ZuTLConverts : public ZuFalse { };
-template <typename, typename, unsigned, bool>
-struct ZuTLConverts_ : public ZuFalse { };
-template <>
-struct ZuTLConverts_<ZuTypeList<>, ZuTypeList<>, 0, true> : public ZuTrue { };
-template <typename T0, typename ...Ts, typename U0, typename ...Us, unsigned N>
-struct ZuTLConverts_<ZuTypeList<T0, Ts...>, ZuTypeList<U0, Us...>, N, true> :
-  public ZuTLConverts_<
-    ZuTypeList<Ts...>, ZuTypeList<Us...>, N - 1,
-    ZuInspect<T0, U0>::Converts> { };
-template <typename ...Ts, typename ...Us>
-struct ZuTLConverts<ZuTypeList<Ts...>, ZuTypeList<Us...>> :
-  public ZuTLConverts_<
-    ZuTypeList<Ts...>, ZuTypeList<Us...>,
-    sizeof...(Us), sizeof...(Ts) == sizeof...(Us)> { };
-
-// type list constructibility
-template <typename Ts, typename Us> // true if Us can be constructed from Ts
-struct ZuTLConstructs : public ZuFalse { };
-template <typename, typename, unsigned, bool>
-struct ZuTLConstructs_ : public ZuFalse { };
-template <>
-struct ZuTLConstructs_<ZuTypeList<>, ZuTypeList<>, 0, true> : public ZuTrue { };
-template <typename T0, typename ...Ts, typename U0, typename ...Us, unsigned N>
-struct ZuTLConstructs_<ZuTypeList<T0, Ts...>, ZuTypeList<U0, Us...>, N, true> :
-  public ZuTLConstructs_<
-    ZuTypeList<Ts...>, ZuTypeList<Us...>, N - 1,
-    ZuInspect<T0, U0>::Constructs> { };
-template <typename ...Ts, typename ...Us>
-struct ZuTLConstructs<ZuTypeList<Ts...>, ZuTypeList<Us...>> :
-  public ZuTLConstructs_<
-    ZuTypeList<Ts...>, ZuTypeList<Us...>,
-    sizeof...(Us), sizeof...(Ts) == sizeof...(Us)> { };
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif /* ZuInspect_HH */

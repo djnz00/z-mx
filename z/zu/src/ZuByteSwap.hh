@@ -46,15 +46,19 @@ template <typename T_, class Cmp> struct ZuByteSwap_Unbox<ZuBox<T_, Cmp>> {
   using T = T_;
 };
 
+template <unsigned> struct ZuByteSwap_UInt;
+template <> struct ZuByteSwap_UInt<2> { using T = uint16_t; };
+template <> struct ZuByteSwap_UInt<4> { using T = uint32_t; };
+template <> struct ZuByteSwap_UInt<8> { using T = uint64_t; };
+template <> struct ZuByteSwap_UInt<16> { using T = uint128_t; };
+
 #pragma pack(push, 1)
 
 template <typename T_> class ZuByteSwap {
-  using B = ZuByteSwap_<sizeof(T_)>;
-
 public:
   using T = T_;
   using U = typename ZuByteSwap_Unbox<T>::T;
-  using I = typename B::T;
+  using I = typename ZuByteSwap_UInt<sizeof(T)>::T;
 
   ZuByteSwap() { m_i = 0; }
   ZuByteSwap(const ZuByteSwap &i) { m_i = i.m_i; }

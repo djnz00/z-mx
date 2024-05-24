@@ -75,11 +75,6 @@ template <unsigned I, unsigned J, unsigned ...Seq>
 struct ZuMax<ZuSeq<I, J, Seq...>> :
     public ZuMax<ZuSeq<((I > J) ? I : J), Seq...>> { };
 
-// default accessor (pass-through)
-inline constexpr auto ZuDefaultAxor() {
-  return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
-}
-
 // ZuSeqCall<Axor, N>(value, lambda)
 // invokes lambda(Axor.operator ()<I>(value), ...) for I in [0,N)
 template <auto Axor, typename Seq, typename T> struct ZuSeqCall_;
