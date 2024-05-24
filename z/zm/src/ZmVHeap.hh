@@ -31,7 +31,7 @@ template <auto, bool> friend class ZmVHeap;
 inline unsigned ZmGrow(unsigned o, unsigned n)
 {
   if (ZuUnlikely(o >= n)) return o;
-  unsigned i = n <= 1 ? 0 : 64 - __builtin_clzll(n - 1);
+  unsigned i = n <= 1 ? 0 : 64 - ZuIntrin::clz(n - 1);
   if (ZuUnlikely(i >= 17)) return ((n + 0xffffU) & ~0xffffU);
   return ZuSwitch::dispatch<17>(i, [](auto I) {
     return static_cast<unsigned>(ZmHeapAllocSize<(1<<I)>::N);
@@ -47,8 +47,9 @@ class ZmVHeap {
 
 public:
   static void *valloc(size_t n) {
+    ZmAssert(n < UINT_MAX);
     n += sizeof(uintptr_t);
-    unsigned i = 64 - __builtin_clzll(n);
+    unsigned i = 64 - ZuIntrin::clz(n);
     // if this is a giant allocation, just fallback to malloc/free
     if (ZuUnlikely(i >= 17)) {
       uintptr_t *ptr = static_cast<uintptr_t *>(::malloc(n));

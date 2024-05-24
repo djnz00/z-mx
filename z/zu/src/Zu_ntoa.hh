@@ -134,7 +134,7 @@ namespace Zu_ntoa {
       if (ZuUnlikely(!v))
 	l = 1U;
       else {
-	unsigned n = clz10[__builtin_clz(v)];
+	unsigned n = clz10[ZuIntrin::clz(v)];
 	if (ZuLikely(!(n & 1U)))
 	  l = n>>1U;
 	else {
@@ -161,7 +161,7 @@ namespace Zu_ntoa {
       if (ZuUnlikely(!v))
 	l = 1U;
       else {
-	unsigned n = clz10[__builtin_clzll(v)];
+	unsigned n = clz10[ZuIntrin::clz(v)];
 	if (ZuLikely(!(n & 1U)))
 	  l = n>>1U;
 	else {
@@ -212,7 +212,7 @@ namespace Zu_ntoa {
       digits = (digits>>1U) + (digits & 1U);
       unsigned l;
       if (ZuLikely(v)) {
-	unsigned f = 64U - __builtin_clzll(v);
+	unsigned f = 64U - ZuIntrin::clz(v);
 	unsigned i = clz10[f - 1];
 	i = (i>>1U) +
 	  ((ZuUnlikely(i & 1U)) && (v >= ZuDecimalFn::pow10_64(i>>1U)));
@@ -372,13 +372,13 @@ namespace Zu_ntoa {
   };
   template <> struct Log16<4> {
     ZuInline static unsigned log(uint32_t v) {
-      return ZuUnlikely(!v) ? 1U : (35U - __builtin_clz(v))>>2;
+      return ZuUnlikely(!v) ? 1U : (35U - ZuIntrin::clz(v))>>2;
     }
   };
   template <> struct Log16<2> : public Log16<4> { };
   template <> struct Log16<8> {
     ZuInline static unsigned log(uint64_t v) {
-      return ZuUnlikely(!v) ? 1U : (67U - __builtin_clzll(v))>>2;
+      return ZuUnlikely(!v) ? 1U : (67U - ZuIntrin::clz(v))>>2;
     }
   };
   template <> struct Log16<16> {

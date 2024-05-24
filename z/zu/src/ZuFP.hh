@@ -116,7 +116,7 @@ struct ZuFP<T, 4U> : public ZuFP_<ZuFP<T, 4U>, T> { // 23+8
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return __builtin_nanf("0"); }
+  ZuInline constexpr static T nan() { return ZuIntrin::nan<float>(); }
   ZuInline constexpr static bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
@@ -138,7 +138,7 @@ struct ZuFP<T, 8U> : public ZuFP_<ZuFP<T, 8U>, T> { // 52+11
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return __builtin_nan("0"); }
+  ZuInline constexpr static T nan() { return ZuIntrin::nan<double>(); }
   ZuInline constexpr static bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
@@ -181,7 +181,7 @@ struct ZuFP<T, 12U> : public ZuFP_64<ZuFP<T, 12U>, T> { // 64+15 (12 bytes)
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return __builtin_nanl("0"); }
+  ZuInline constexpr static T nan() { return ZuIntrin::nan<long double>(); }
   ZuInline constexpr static bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
@@ -195,7 +195,7 @@ struct ZuFP<T, 16U> : public ZuFP_64<ZuFP<T, 16U>, T> { // 64+15 (16 bytes)
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return __builtin_nanl("0"); }
+  ZuInline constexpr static T nan() { return ZuIntrin::nan<long double>(); }
   ZuInline constexpr static bool nan(T v) {
     return isnan(static_cast<double>(v));
   }

@@ -17,7 +17,7 @@ template <typename Heap> struct S_ : public Heap {
   ~S_() { m_i = -1; }
   void doit() {
     if (verbose) { printf("hello world %d\n", m_i); fflush(stdout); }
-    if (m_i < 0) __builtin_trap();
+    if (m_i < 0) abort();
   }
   int m_i;
 };

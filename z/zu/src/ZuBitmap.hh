@@ -177,13 +177,13 @@ public:
   int first() const {
     for (unsigned i = 0; i < Words; i++)
       if (uint64_t w = data[i])
-	return (i<<Shift) + __builtin_ctzll(w);
+	return (i<<Shift) + ZuIntrin::ctz(w);
     return -1;
   }
   int last() const {
     for (int i = Words; --i >= 0; )
       if (uint64_t w = data[i])
-	return (i<<Shift) + (63 - __builtin_clzll(w));
+	return (i<<Shift) + (63 - ZuIntrin::clz(w));
     return -1;
   }
   int next(int i) const {

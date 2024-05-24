@@ -23,8 +23,9 @@
 #pragma once
 #endif
 
-#include <ZuInt.hh>
-#include <ZuByteSwap.hh>
+#include <zlib/ZuInt.hh>
+#include <zlib/ZuByteSwap.hh>
+#include <zlib/ZuIntrin.hh>
 
 namespace ZdfCompress {
 
@@ -279,7 +280,7 @@ public:
     unsigned negative = value_ < 0;
     int64_t value = value_;
     if (negative) value = ~value;
-    unsigned n = !value ? 0 : 64 - __builtin_clzll(value);
+    unsigned n = !value ? 0 : 64 - ZuIntrin::clz(value);
     n = (n + 1) / 7;
     if (n >= 6) n = 8;
     if (m_pos + n >= m_end) return false;

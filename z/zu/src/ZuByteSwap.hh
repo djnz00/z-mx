@@ -35,48 +35,8 @@
 
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInspect.hh>
-
 #include <zlib/ZuInt.hh>
-
-// use optimized compiler built-ins
-#ifdef __GNUC__
-#define Zu_bswap16(x) __builtin_bswap16(x)
-#define Zu_bswap32(x) __builtin_bswap32(x)
-#define Zu_bswap64(x) __builtin_bswap64(x)
-#ifndef __llvm__
-#define Zu_bswap128(x) __builtin_bswap128(x)
-#else
-inline uint128_t Zu_bswap128(const uint128_t &i) {
-  return (static_cast<uint128_t>(__builtin_bswap64(i))<<64) |
-    static_cast<uint128_t>(__builtin_bswap64(i>>64));
-}
-#endif
-#endif
-#if 0
-#if defined(_MSC_VER) && !defined(_DEBUG)
-#include <stdlib.h>
-#define Zu_bswap16(x) _byteswap_ushort(x)
-#define Zu_bswap32(x) _byteswap_ulong(x)
-#define Zu_bswap64(x) _byteswap_uint64(x)
-#else
-inline uint16_t Zu_bswap16(const uint16_t &i) {
-  return
-    (i << 8) | (i >> 8);
-}
-inline uint32_t Zu_bswap32(const uint32_t &i) {
-  return
-    (i << 24) | ((i & 0xff00UL) << 8) |
-    ((i >> 8) & 0xff00UL) | (i >> 24);
-}
-inline uint64_t Zu_bswap64(const uint64_t &i) {
-  return
-    (i << 56) | ((i & 0xff00ULL) << 40) |
-    ((i & 0xff0000ULL) << 24) | ((i & 0xff000000ULL) << 8) |
-    ((i >> 8) & 0xff000000ULL) | ((i >> 24) & 0xff0000ULL) |
-    ((i >> 40) & 0xff00ULL) | (i >> 56);
-}
-#endif
-#endif
+#include <zlib/ZuIntrin.hh>
 
 template <typename T, class Cmp> class ZuBox;
 template <typename T_> struct ZuByteSwap_Unbox {
@@ -88,28 +48,7 @@ template <typename T_, class Cmp> struct ZuByteSwap_Unbox<ZuBox<T_, Cmp>> {
 
 #pragma pack(push, 1)
 
-template <int N> struct ZuByteSwap_;
-template <> struct ZuByteSwap_<1> {
-  using T = char;
-  ZuInline static T bswap(const T &i) { return i; }
-};
-template <> struct ZuByteSwap_<2> {
-  using T = uint16_t;
-  ZuInline static T bswap(const T &i) { return Zu_bswap16(i); }
-};
-template <> struct ZuByteSwap_<4> {
-  using T = uint32_t;
-  ZuInline static T bswap(const T &i) { return Zu_bswap32(i); }
-};
-template <> struct ZuByteSwap_<8> {
-  using T = uint64_t;
-  ZuInline static T bswap(const T &i) { return Zu_bswap64(i); }
-};
-template <> struct ZuByteSwap_<16> {
-  using T = uint128_t;
-  ZuInline static T bswap(const T &i) { return Zu_bswap128(i); }
-};
-template <typename T_> class ZuByteSwap : public ZuByteSwap_<sizeof(T_)> {
+template <typename T_> class ZuByteSwap {
   using B = ZuByteSwap_<sizeof(T_)>;
 
 public:
@@ -222,11 +161,11 @@ private:
   ZuIfT<bool(ZuIsExact<P, T>{}) || bool(ZuIsExact<P, U>{})> set(const P &p) {
     I i = 0;
     *reinterpret_cast<U *>(&i) = p;
-    m_i = B::bswap(i);
+    m_i = ZuIntrin::bswap(i);
   }
   template <typename P>
   ZuIfT<bool(ZuIsExact<P, T>{}) || bool(ZuIsExact<P, U>{}), P> get() const {
-    I i = B::bswap(m_i);
+    I i = ZuIntrin::bswap(m_i);
     return *reinterpret_cast<const U *>(&i);
   }
 
@@ -237,7 +176,7 @@ private:
       !ZuIsExact<P, T>{} && !ZuIsExact<P, U>{} &&
       ZuTraits<P>::IsIntegral>
   set(P p) {
-    m_i = B::bswap(p);
+    m_i = ZuIntrin::bswap(p);
   }
   template <typename P>
   ZuIfT<
@@ -245,7 +184,7 @@ private:
       !ZuIsExact<P, T>{} && !ZuIsExact<P, U>{} &&
       ZuTraits<P>::IsIntegral>
   get() const {
-    return B::bswap(m_i);
+    return ZuIntrin::bswap(m_i);
   }
 
   // P is non-integral and converts (but is not the same as U)
@@ -258,7 +197,7 @@ private:
   set(P p) {
     I i = 0;
     *reinterpret_cast<U *>(&i) = p;
-    m_i = B::bswap(i);
+    m_i = ZuIntrin::bswap(i);
   }
   template <typename P>
   ZuIfT<
@@ -267,7 +206,7 @@ private:
       !ZuTraits<P>::IsIntegral &&
       ZuInspect<U, P>::Converts, P>
   get() const {
-    I i = B::bswap(m_i);
+    I i = ZuIntrin::bswap(m_i);
     return *reinterpret_cast<const U *>(&i);
   }
 

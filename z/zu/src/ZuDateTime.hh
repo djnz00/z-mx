@@ -549,9 +549,9 @@ public:
   constexpr int64_t as_time_t() const {
     int64_t v;
     if (ZuUnlikely(!*this ||
-	__builtin_sub_overflow(int64_t(m_julian), 2440588, &v) ||
-	__builtin_mul_overflow(v, 86400, &v) ||
-	__builtin_add_overflow(v, m_sec, &v)))
+	ZuIntrin::sub(int64_t(m_julian), 2440588, &v) ||
+	ZuIntrin::mul(v, 86400, &v) ||
+	ZuIntrin::add(v, m_sec, &v)))
       return ZuCmp<int64_t>::null();
     return v;
   }
@@ -807,8 +807,8 @@ public:
     if (nsec < 0) nsec += 1000000000, --sec;
     if (sec < 0) sec += 86400, --day;
 
-    if (ZuUnlikely(__builtin_mul_overflow(day, 86400, &day) ||
-	__builtin_add_overflow(day, sec, &sec))) return {};
+    if (ZuUnlikely(ZuIntrin::mul(day, 86400, &day) ||
+	ZuIntrin::add(day, sec, &sec))) return {};
 
     return ZuTime{sec, int32_t(nsec)};
   }
@@ -1045,7 +1045,7 @@ public:
 	m_julian = j;
 	m_sec = t % 86400;
       } else {
-	if (__builtin_sub_overflow(t, 86399, &t)) goto overflow;
+	if (ZuIntrin::sub(t, 86399, &t)) goto overflow;
 	int64_t j = t / 86400 + 2440588;
 	if (j < -int64_t(1U<<31)) goto overflow;
 	m_julian = j;

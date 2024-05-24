@@ -77,11 +77,6 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInt.hh>
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4800)
-#endif
-
 template <typename T, bool = ZuTraits<T>::IsString> struct ZuCmp_;
 
 // intentionally undefined template
@@ -662,9 +657,5 @@ struct ZuNullRef_<T, Cmp, const T &> {
 };
 template <typename T, typename Cmp = ZuCmp<T>>
 ZuInline const T &ZuNullRef() noexcept { return ZuNullRef_<T, Cmp>::null(); }
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif /* ZuCmp_HH */

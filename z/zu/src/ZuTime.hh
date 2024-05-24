@@ -172,14 +172,14 @@ public:
   constexpr void normalize() {
     if (tv_nsec >= 1000000000) {
       tv_nsec -= 1000000000;
-      if (__builtin_add_overflow(tv_sec, 1, &tv_sec)) null();
+      if (ZuIntrin::add(tv_sec, 1, &tv_sec)) null();
     } else if (tv_nsec < 0) {
       tv_nsec += 1000000000;
-      if (__builtin_sub_overflow(tv_sec, 1, &tv_sec))
+      if (ZuIntrin::sub(tv_sec, 1, &tv_sec))
 	null();
       else if (ZuUnlikely(tv_nsec < 0)) {
 	tv_nsec += 1000000000;
-	if (__builtin_sub_overflow(tv_sec, 1, &tv_sec)) null();
+	if (ZuIntrin::sub(tv_sec, 1, &tv_sec)) null();
       }
     }
   }
@@ -199,8 +199,8 @@ public:
     int64_t sec;
     int32_t nsec;
     if (ZuUnlikely(!**this || !*t_ ||
-	__builtin_add_overflow(tv_sec, t_.tv_sec, &sec) ||
-	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &nsec)))
+	ZuIntrin::add(tv_sec, t_.tv_sec, &sec) ||
+	ZuIntrin::add(tv_nsec, t_.tv_nsec, &nsec)))
       return ZuTime{};
     ZuTime t{sec, nsec};
     t.normalize();
@@ -215,8 +215,8 @@ public:
   }
   constexpr ZuTime &operator +=(const ZuTime &t_) {
     if (ZuUnlikely(!**this || !*t_ ||
-	__builtin_add_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_add_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)))
+	ZuIntrin::add(tv_sec, t_.tv_sec, &tv_sec) ||
+	ZuIntrin::add(tv_nsec, t_.tv_nsec, &tv_nsec)))
       null();
     else
       normalize();
@@ -233,8 +233,8 @@ public:
     int64_t sec;
     int32_t nsec;
     if (ZuUnlikely(!**this || !*t_ ||
-	__builtin_sub_overflow(tv_sec, t_.tv_sec, &sec) ||
-	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &nsec)))
+	ZuIntrin::sub(tv_sec, t_.tv_sec, &sec) ||
+	ZuIntrin::sub(tv_nsec, t_.tv_nsec, &nsec)))
       return ZuTime{};
     ZuTime t{sec, nsec};
     t.normalize();
@@ -249,8 +249,8 @@ public:
   }
   constexpr ZuTime &operator -=(const ZuTime &t_) {
     if (ZuUnlikely(!**this || !*t_ ||
-	__builtin_sub_overflow(tv_sec, t_.tv_sec, &tv_sec) ||
-	__builtin_sub_overflow(tv_nsec, t_.tv_nsec, &tv_nsec)))
+	ZuIntrin::sub(tv_sec, t_.tv_sec, &tv_sec) ||
+	ZuIntrin::sub(tv_nsec, t_.tv_nsec, &tv_nsec)))
       null();
     else
       normalize();

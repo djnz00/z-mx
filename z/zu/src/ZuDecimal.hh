@@ -102,7 +102,7 @@ struct ZuDecimal {
     if (ZuUnlikely(value == null() || v.value == null()))
       return ZuDecimal{Unscaled{null()}};
     int128_t result;
-    if (__builtin_add_overflow(value, v.value, &result) ||
+    if (ZuIntrin::add(value, v.value, &result) ||
 	result > maximum() || result < minimum())
       return ZuDecimal{Unscaled{null()}};
     return ZuDecimal{Unscaled{result}};
@@ -111,7 +111,7 @@ struct ZuDecimal {
     if (ZuUnlikely(value == null())) return *this;
     if (ZuUnlikely(v.value == null()))
       value = null();
-    else if (__builtin_add_overflow(value, v.value, &value) ||
+    else if (ZuIntrin::add(value, v.value, &value) ||
 	value > maximum() || value < minimum())
       value = null();
     return *this;
@@ -121,7 +121,7 @@ struct ZuDecimal {
     if (ZuUnlikely(value == null() || v.value == null()))
       return ZuDecimal{Unscaled{null()}};
     int128_t result;
-    if (__builtin_sub_overflow(value, v.value, &result) ||
+    if (ZuIntrin::sub(value, v.value, &result) ||
 	result > maximum() || result < minimum())
       return ZuDecimal{Unscaled{null()}};
     return ZuDecimal{Unscaled{result}};
@@ -130,7 +130,7 @@ struct ZuDecimal {
     if (ZuUnlikely(value == null())) return *this;
     if (ZuUnlikely(v.value == null()))
       value = null();
-    else if (__builtin_sub_overflow(value, v.value, &value) ||
+    else if (ZuIntrin::sub(value, v.value, &value) ||
 	value > maximum() || value < minimum())
       value = null();
     return *this;
@@ -194,9 +194,9 @@ struct ZuDecimal {
     if (!v)
       s = 0;
     else if (v < b)
-      s = __builtin_clzll(uint64_t(v)) + 64;
+      s = ZuIntrin::clz(uint64_t(v)) + 64;
     else
-      s = __builtin_clzll(uint64_t(v>>64));
+      s = ZuIntrin::clz(uint64_t(v>>64));
     v <<= s;
     vn0 = uint64_t(v);
     vn1 = v>>64;
