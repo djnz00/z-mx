@@ -32,8 +32,7 @@ lib_LTLIBRARIES = libZv.la
 libZv_la_CPPFLAGS = $(AM_CPPFLAGS) -DZV_EXPORTS 
 libZv_la_LDFLAGS = @Z_SO_LDFLAGS@
 libZv_la_SOURCES = ZvLib.cc \
-	ZvCf.cc ZvCSV.cc ZvDaemon.cc ZvUserDB.cc ZvEngine.cc \
-	ZvCmdHost.cc ZvCmdDispatcher.cc
+	ZvCf.cc ZvCSV.cc ZvDaemon.cc ZvEngine.cc
 #ZvTelServer is header-only, no need to link in Ztls
 libZv_la_LIBADD = $(top_builddir)/zfb/src/libZfb.la \
 	$(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \

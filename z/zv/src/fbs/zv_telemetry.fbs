@@ -1,4 +1,4 @@
-include "types.fbs";
+include "zfb_types.fbs";
 namespace ZvTelemetry.fbs;
 enum RAG:int8 {
   Off = 0,
