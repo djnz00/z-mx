@@ -47,7 +47,9 @@
 #endif
 
 #include <zlib/ZuTraits.hh>
+#include <zlib/ZuTL.hh>
 #include <zlib/ZuLargest.hh>
+#include <zlib/ZuMostAligned.hh>
 #include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
@@ -545,7 +547,11 @@ public:
 
 private:
   uint8_t	m_u[Size + 1];
-};
+}
+#ifdef __GNUC__
+  __attribute__ ((aligned(alignof(ZuMostAligned<Ts...>))))
+#endif
+;
 
 } // namespace Zu_
 

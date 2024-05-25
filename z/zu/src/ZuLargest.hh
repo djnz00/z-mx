@@ -6,7 +6,8 @@
 
 // compile-time determination of maximum sizeof()
 //
-// ZuLargest<T1, T2> evaluates to whichever of T1 or T2 is largest
+// ZuLargest<Ts...> evaluates to the largest T,
+// returning the first listed in the event of a tie
 
 #ifndef ZuLargest_HH
 #define ZuLargest_HH
@@ -18,12 +19,14 @@
 #include <zlib/ZuTL.hh>
 
 template <typename ...Ts> struct ZuLargest_;
-template <typename T0> struct ZuLargest_<T0> {
+template <typename T0>
+struct ZuLargest_<T0> {
   using T = T0;
 };
-template <typename T0, typename ...Ts> struct ZuLargest_<T0, Ts...> {
+template <typename T0, typename ...Ts>
+struct ZuLargest_<T0, Ts...> {
   using T =
-    ZuIf<(unsigned(ZuSize<T0>{}) >
+    ZuIf<(unsigned(ZuSize<T0>{}) >=
 	  unsigned(ZuSize<typename ZuLargest_<Ts...>::T>{})),
       T0, typename ZuLargest_<Ts...>::T>;
 };

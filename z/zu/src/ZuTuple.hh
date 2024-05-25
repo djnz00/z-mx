@@ -45,6 +45,8 @@
 
 #include <zlib/ZuString.hh>
 #include <zlib/ZuTraits.hh>
+#include <zlib/ZuTL.hh>
+#include <zlib/ZuLargest.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuInspectTL.hh>
 #include <zlib/ZuSwitch.hh>
