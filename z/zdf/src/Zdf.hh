@@ -244,7 +244,7 @@ private:
 };
 
 // Zdf data-frames are comprised of series fields that do not form part of
-// the primary or secondary keys for the object - the Index property
+// a primary or secondary key for the object - the Index property
 // determines which series fields are used to index the series
 template <typename Field>
 struct FieldFilter :
@@ -253,10 +253,10 @@ struct FieldFilter :
       bool(ZuIsExact<typename Field::Keys, ZuSeq<>>{})> { };
 
 template <typename T>
-auto fields() {
-  using Fields = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
-  return ZtMFields_<Fields>();
-}
+using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
+
+template <typename T>
+auto fields() { return ZtMFieldList_<FieldList<T>>(); }
 
 class ZdfAPI Mgr {
 public:

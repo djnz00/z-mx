@@ -1,7 +1,7 @@
-include "perm.fbs";
-include "role.fbs";
-include "user.fbs";
-include "key.fbs";
+include "zum_perm.fbs";
+include "zum_role.fbs";
+include "zum_user.fbs";
+include "zum_key.fbs";
 namespace ZvUserDB.fbs;
 union ReqData {
   ChPass:UserChPass,

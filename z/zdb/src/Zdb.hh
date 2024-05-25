@@ -379,16 +379,16 @@ using CacheUN =
 // --- typed object
 
 // Zdf data-frames are comprised of series fields that do not form part of
-// the primary or secondary keys for the object - Zdb skips Zdf fields
+// a primary or secondary key for the object - Zdb skips Zdf fields
 // and does not persist them
 template <typename Field>
 struct FieldFilter :
     public ZuBool<
-      bool(ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{}) &&
+      !ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{} ||
       !ZuIsExact<typename Field::Keys, ZuSeq<>>{}> { };
 
 template <typename T>
-using DBFieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
+using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
 
 template <typename T> class Table;
 
@@ -430,7 +430,7 @@ public:
   bool abort();
 
   // transform original fields, overriding get/set
-  using Fields_ = DBFieldList<T>;
+  using Fields_ = FieldList<T>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -460,7 +460,11 @@ public:
 
 private:
   uint8_t	m_data[sizeof(T)];
-};
+}
+#ifdef __GNUC__
+  __attribute__ ((aligned(alignof(T_))))
+#endif
+;
 
 // typed object cache
 template <typename T>
@@ -709,7 +713,7 @@ struct Buf_ : public ZmPolymorph {
   }
 
   // transform original fields, overriding get/set
-  using Fields_ = DBFieldList<FB>;
+  using Fields_ = FieldList<FB>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -842,7 +846,7 @@ friend Object_<T>;
   using Maxima = ZuTypeApply<ZuTuple, ZuTypeMap<SeriesMaxRef, SeriesKeys>>;
 
 public:
-  using Fields = DBFieldList<T>;
+  using Fields = FieldList<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
   template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
 
@@ -909,7 +913,7 @@ private:
     if (record->vn() < 0) return {}; // deleted
     auto data = bytes(record->data());
     if (ZuUnlikely(!data)) return {}; // should never happen
-    auto fbo =ZfbField::root<T>(&data[0]);
+    auto fbo = ZfbField::root<T>(&data[0]);
     if (ZuUnlikely(!fbo)) return {}; // should never happen
     ZmRef<Object<T>> object = new Object<T>{this, [fbo](void *ptr) {
       ZfbField::ctor<T>(ptr, fbo);

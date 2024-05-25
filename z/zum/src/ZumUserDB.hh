@@ -6,22 +6,6 @@
 
 // server-side RBAC user DB with MFA, API keys, etc.
 
-// LATER
-//
-// write-through in-memory full-cache of perms, roles
-// write-through in-memory partial-cache of users, keys
-//
-// generally - ZmHash -> ZmCache
-// ensure ZmCache has a no-evict option for perms, roles
-// write ZmCache load, save functions going via module interface
-// define back-end store interface
-// open does table-scan of perms, roles to load cache
-// cache load/save is synchronous blocking write to back-end store
-// - perf is less important than immediate consistency here
-// ... that's it
-//
-// - restore sqlite3 to build
-// - complete ZvSQLite
 // - make ZtField definitions for user, role, perm, key
 
 #ifndef ZvUserDB_HH
@@ -54,10 +38,10 @@
 
 #include <zlib/ZfbField.hh>
 
-#include <zlib/zv_userdb_fbs.h>
-#include <zlib/zv_loginreq_fbs.h>
-#include <zlib/zv_userdbreq_fbs.h>
-#include <zlib/zv_userdback_fbs.h>
+#include <zlib/zum_userdb_fbs.h>
+#include <zlib/zum_loginreq_fbs.h>
+#include <zlib/zum_userdbreq_fbs.h>
+#include <zlib/zum_userdback_fbs.h>
 
 namespace ZvUserDB {
 

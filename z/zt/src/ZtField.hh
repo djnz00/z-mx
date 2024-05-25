@@ -2449,16 +2449,16 @@ struct ZtFieldPrint : public ZuPrintDelegate {
 using ZtMFields = ZuArray<const ZtMField *>;
 
 template <typename MField, typename ...Fields>
-struct ZtMFieldList_ {
+struct ZtMFieldFactory {
   enum { N = sizeof...(Fields) };
 
   ZtMFields	fields;
 
-  static ZtMFieldList_ *instance() {
-    return ZmSingleton<ZtMFieldList_>::instance();
+  static ZtMFieldFactory *instance() {
+    return ZmSingleton<ZtMFieldFactory>::instance();
   }
 
-  ZtMFieldList_() {
+  ZtMFieldFactory() {
     static const MField fields_[N] =
       // std::initializer_list<ZtMField>
     {
@@ -2471,11 +2471,15 @@ struct ZtMFieldList_ {
     fields = {&ptr_[0], N};
   }
 };
+template <typename Fields, typename MField = ZtMField>
+inline ZtMFields ZtMFieldList_() {
+  using Factory = ZuTypeApply<
+    ZtMFieldFactory, typename Fields::template Unshift<MField>>;
+  return Factory::instance()->fields;
+}
 template <typename O, typename MField = ZtMField>
 inline ZtMFields ZtMFieldList() {
-  using Factory = ZuTypeApply<
-    ZtMFieldList_, typename ZuFieldList<O>::template Unshift<MField>>;
-  return Factory::instance()->fields;
+  return ZtMFieldList_<ZuFieldList<O>, MField>();
 }
 
 // run-time keys

@@ -1733,7 +1733,7 @@ skip:
   bool first = true;
   for (unsigned i = 0; i < n; i++) {
     if (!(keyFields[i]->props & ZtMFieldProp::Series)) {
-      if (!first) { query << ", "; first = false; }
+      if (!first) query << ", "; else first = false;
       query << '"' << xKeyFields[i].id_ << '"';
     }
   }
@@ -1742,6 +1742,7 @@ skip:
     if (i) query << ", ";
     query << '"' << xKeyFields[i].id_ << '"';
   }
+  // Note: any WHERE clause would be before ORDER BY
   query << " FROM \"" << m_id_ << "\" ORDER BY ";
   for (unsigned i = 0; i < n; i++) {
     if (i) query << ", ";

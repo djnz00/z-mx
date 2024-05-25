@@ -1,3 +1,4 @@
+include "zfb_types.fbs";
 namespace ZvUserDB.fbs;
 table UserID {
   id:uint64;
