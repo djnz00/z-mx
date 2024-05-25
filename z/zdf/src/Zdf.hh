@@ -37,16 +37,17 @@
 #include <zlib/ZtArray.hh>
 #include <zlib/ZtString.hh>
 
-#include <zlib/Zfb.hh>
-
 #include <zlib/ZtField.hh>
+
+#include <zlib/Zfb.hh>
+#include <zlib/ZfbField.hh>
+
+#include <zlib/Zdb.hh>
 
 #include <zlib/ZdfTypes.hh>
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
 #include <zlib/ZdfStore.hh>
-
-#include <zlib/dataframe_fbs.h>
 
 namespace Zdf {
 
@@ -242,14 +243,32 @@ private:
   SyncFn	m_syncFn = nullptr;
 };
 
-template <typename Field> struct FieldFilter :
-    public ZuTypeIn<ZtFieldProp::Series, typename Field::Props> { };
+// Zdf data-frames are comprised of series fields that do not form part of
+// the primary or secondary keys for the object - the Index property
+// determines which series fields are used to index the series
+template <typename Field>
+struct FieldFilter :
+    public ZuBool<
+      bool(ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{}) &&
+      bool(ZuIsExact<typename Field::Keys, ZuSeq<>>{})> { };
 
 template <typename T>
 auto fields() {
   using Fields = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
   return ZtMFields_<Fields>();
 }
+
+class ZdfAPI Mgr {
+public:
+  void init(ZmRef<Zdb> db, ZuString prefix);
+
+private:
+  ZmRef<Zdb>		m_db;
+  ZmRef<ZdbAnyTable>	m_dataFrame;
+  ZmRef<ZdbAnyTable>	m_series;
+  ZmRef<ZdbAnyTable>	m_hdr;
+  ZmRef<ZdbAnyTable>	m_blk;
+};
 
 class ZdfAPI DataFrame {
   DataFrame() = delete;
@@ -260,12 +279,11 @@ class ZdfAPI DataFrame {
 public:
   ~DataFrame() = default;
 
-  DataFrame(ZtMFields fields, ZuString name, bool timeIndex = false);
+  DataFrame(
+    Mgr *mgr, const ZtMFields &fields, ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
   const ZuTime &epoch() const { return m_epoch; }
-
-  void init(Store *store);
 
   void open(OpenFn fn);
 private:
@@ -383,10 +401,12 @@ private:
   Zfb::Offset<fbs::DataFrame> save_(Zfb::Builder &);
 
 private:
+  Mgr				*m_mgr = nullptr;
   ZtString			m_name;
   ZtArray<ZuPtr<Series>>	m_series;
   ZtArray<const ZtMField *>	m_fields;
-  Store				*m_store = nullptr;
+  ZmRef<ZdbTable<Hdr>>		m_hdrTable;
+  ZmRef<ZdbTable<Blk>>		m_blkTable;
   ZuTime			m_epoch;
   // async open/close series context
   using Callback = ZuUnion<void, OpenFn, CloseFn>;

@@ -48,7 +48,7 @@ using ZmPolyHashSharded = ZmHashSharded<Sharded, NTP>;
 
 // reverse sort of key IDs
 template <typename KeyID>
-using ZmPolyHash_KeyIDIndex = ZuInt<-static_cast<int>(KeyID{})>;
+using ZmPolyHash_KeyIDIndex = ZuInt<-int(KeyID{})>;
 template <typename KeyIDs>
 using ZmPolyHash_SortKeyIDs =
   ZuTypeSort<ZmPolyHash_KeyIDIndex, ZuSeqTL<KeyIDs>>;

@@ -36,15 +36,15 @@
 #include <zlib/ZvTelemetry.hh>
 #include <zlib/ZvCmdDispatcher.hh>
 
-#include <zlib/loginreq_fbs.h>
-#include <zlib/loginack_fbs.h>
-#include <zlib/userdbreq_fbs.h>
-#include <zlib/userdback_fbs.h>
-#include <zlib/zcmdreq_fbs.h>
-#include <zlib/zcmdack_fbs.h>
-#include <zlib/telemetry_fbs.h>
-#include <zlib/telreq_fbs.h>
-#include <zlib/telack_fbs.h>
+#include <zlib/zv_loginreq_fbs.h>
+#include <zlib/zv_loginack_fbs.h>
+#include <zlib/zv_userdbreq_fbs.h>
+#include <zlib/zv_userdback_fbs.h>
+#include <zlib/zv_zcmdreq_fbs.h>
+#include <zlib/zv_zcmdack_fbs.h>
+#include <zlib/zv_telemetry_fbs.h>
+#include <zlib/zv_telreq_fbs.h>
+#include <zlib/zv_telack_fbs.h>
 
 #include <zlib/ZvCmdNet.hh>
 

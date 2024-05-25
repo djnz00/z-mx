@@ -14,8 +14,8 @@
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
-#include <zlib/telemetry_fbs.h>
-#include <zlib/telreq_fbs.h>
+#include <zlib/zv_telemetry_fbs.h>
+#include <zlib/zv_telreq_fbs.h>
 
 namespace ZvTelemetry {
 

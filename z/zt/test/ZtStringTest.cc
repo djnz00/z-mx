@@ -183,11 +183,12 @@ int main()
   {
     ZtString s(256);
 
+    using uint = unsigned int;
     using ldouble = long double;
 
     s = int(42);
     s += ' ';
-    s += unsigned int(42);
+    s += uint(42);
     s += ' ';
     s += int16_t(42);
     s += ' ';

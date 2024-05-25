@@ -4,9 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Z Database
-// * primary key is required to be immutable
-// * secondary keys can be mutated
+// Z database
 
 // Zdb is a clustered/replicated in-process/in-memory DB that
 // includes leader election and failover. Zdb dynamically organizes
@@ -16,6 +14,18 @@
 // services that defer to Zdb for activation/deactivation.
 // Restart/recovery is from backing data store, then from the cluster
 // leader (if the local host itself is not elected leader).
+
+// Principal features:
+// * Plug-in backing data store (mocked for unit-testing)
+//   - Currently Postgres
+// * In-memory write-through object cache
+//   - Deferred async writes
+//   - In-memory write buffer queue
+// * Async replication independent of backing store
+//   (can be disabled for replicated backing stores)
+// * Primary and multiple secondary unique in-memory and on-disk indices
+// * Find (select), insert, update, delete operations
+// * Grouped MAX() queries for guaranteed delivery applications
 
 //  host state		engine state
 //  ==========		============
@@ -87,7 +97,7 @@
 #define ZdbDEBUG(db, e) (void())
 #endif
 
-#include <zlib/telemetry_fbs.h>
+#include <zlib/zv_telemetry_fbs.h>
 
 namespace Zdb_ {
 
@@ -368,6 +378,18 @@ using CacheUN =
 
 // --- typed object
 
+// Zdf data-frames are comprised of series fields that do not form part of
+// the primary or secondary keys for the object - Zdb skips Zdf fields
+// and does not persist them
+template <typename Field>
+struct FieldFilter :
+    public ZuBool<
+      bool(ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{}) &&
+      !ZuIsExact<typename Field::Keys, ZuSeq<>>{}> { };
+
+template <typename T>
+using DBFieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
+
 template <typename T> class Table;
 
 template <typename T_>
@@ -408,7 +430,7 @@ public:
   bool abort();
 
   // transform original fields, overriding get/set
-  using Fields_ = ZuFieldList<T>;
+  using Fields_ = DBFieldList<T>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -687,7 +709,7 @@ struct Buf_ : public ZmPolymorph {
   }
 
   // transform original fields, overriding get/set
-  using Fields_ = ZuFieldList<FB>;
+  using Fields_ = DBFieldList<FB>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -820,7 +842,7 @@ friend Object_<T>;
   using Maxima = ZuTypeApply<ZuTuple, ZuTypeMap<SeriesMaxRef, SeriesKeys>>;
 
 public:
-  using Fields = ZuFieldList<T>;
+  using Fields = DBFieldList<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
   template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
 
@@ -1598,7 +1620,14 @@ public:
   using AllDoneFn = ZmFn<DB *, bool>;
 
   bool all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
+
+private:
   void allDone(bool ok);
+
+  template <typename L> void all_(L l) const {
+    auto i = m_tables.readIterator();
+    while (auto table = i.iterateVal()) l(table);
+  }
 
   Zfb::Offset<ZvTelemetry::fbs::DB>
   telemetry(ZvTelemetry::IOBuilder &, bool update) const;
@@ -1608,12 +1637,6 @@ public:
   // debug printing
   template <typename S> void print(S &);
   friend ZuPrintFn ZuPrintType(DB *);
-
-private:
-  template <typename L> void all_(L l) const {
-    auto i = m_tables.readIterator();
-    while (auto table = i.iterateVal()) l(table);
-  }
 
   // ZmEngine implementation
   void start_();

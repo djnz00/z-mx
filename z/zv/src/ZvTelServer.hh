@@ -25,8 +25,8 @@
 #include <zlib/ZvEngine.hh>
 #include <zlib/ZvCmdNet.hh>
 
-#include <zlib/telreq_fbs.h>
-#include <zlib/telack_fbs.h>
+#include <zlib/zv_telreq_fbs.h>
+#include <zlib/zv_telack_fbs.h>
 
 namespace ZvTelemetry {
 

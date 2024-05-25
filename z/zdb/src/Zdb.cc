@@ -160,9 +160,9 @@ ZmRef<AnyTable> DB::initTable_(ZuID id, ZmFn<DB *, TableCf *> ctorFn)
 
 void DB::final()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped, [this]() {
     if (state() != HostState::Initialized) return false;
@@ -195,9 +195,9 @@ void DB::wake()
 
 void DB::start_()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -237,9 +237,9 @@ void DB::start_1()
 
 void DB::start_2()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -270,9 +270,9 @@ void DB::start_2()
 
 void DB::stop_()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -297,9 +297,9 @@ void DB::stop_()
 
 void DB::stop_1()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -334,9 +334,9 @@ void DB::stop_1()
 
 void DB::stop_2()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -350,9 +350,9 @@ void DB::stop_2()
 
 void DB::stop_3()
 {
-  ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  }));
+  })); */
 
   ZmAssert(invoked());
 
@@ -1638,10 +1638,10 @@ void AnyTable::evictBuf(UN un)
 template <typename L>
 void AnyTable::open(L l)
 {
-  ZeLOG(Debug,
+  /* ZeLOG(Debug,
     ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
       s << hostID << " m_open=" << open;
-    }));
+    })); */
 
   ZmAssert(invoked());
   ZmAssert(!m_open);
@@ -1667,12 +1667,12 @@ void AnyTable::open(L l)
 
 bool AnyTable::opened(OpenResult result)
 {
-  ZeLOG(Debug, ([
+  /* ZeLOG(Debug, ([
     hostID = db()->config().hostID,
     open = unsigned(m_open)
   ](auto &s) {
     s << hostID << " m_open=" << open;
-  }));
+  })); */
 
   ZmAssert(invoked());
   ZmAssert(!m_open);
@@ -1700,10 +1700,10 @@ bool AnyTable::opened(OpenResult result)
 template <typename L>
 void AnyTable::close(L l)
 {
-  ZeLOG(Debug,
+  /* ZeLOG(Debug,
     ([hostID = db()->config().hostID, open = unsigned(m_open)](auto &s) {
       s << hostID << " m_open=" << open;
-    }));
+    })); */
 
   ZmAssert(invoked());
 

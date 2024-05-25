@@ -54,10 +54,10 @@
 
 #include <zlib/ZfbField.hh>
 
-#include <zlib/userdb_fbs.h>
-#include <zlib/loginreq_fbs.h>
-#include <zlib/userdbreq_fbs.h>
-#include <zlib/userdback_fbs.h>
+#include <zlib/zv_userdb_fbs.h>
+#include <zlib/zv_loginreq_fbs.h>
+#include <zlib/zv_userdbreq_fbs.h>
+#include <zlib/zv_userdback_fbs.h>
 
 namespace ZvUserDB {
 

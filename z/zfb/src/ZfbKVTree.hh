@@ -15,7 +15,7 @@
 
 #include <zlib/Zfb.hh>
 
-#include <zlib/kvtree_fbs.h>
+#include <zlib/zfb_kvtree_fbs.h>
 
 namespace Zfb {
 

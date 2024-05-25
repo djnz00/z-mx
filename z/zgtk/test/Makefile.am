@@ -17,5 +17,7 @@ LDADD = $(top_builddir)/zgtk/src/libZGtk.la \
 	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
 #noinst_PROGRAMS = zgtkdemo
 bin_PROGRAMS = zgtkdemo
-#zgtkdemo_LDFLAGS = -Wl,--subsystem,windows
+if MINGW
+zgtkdemo_LDFLAGS = ${AM_LDFLAGS} -mwindows
+endif
 zgtkdemo_SOURCES = zgtkdemo.cc
