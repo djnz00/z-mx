@@ -172,8 +172,8 @@ struct Key {
   uint64_t	userID;
 };
 ZfbFields(Key,
-    (((id, Rd), (0)), (String)),
-    (((secret)), (Bytes), (Update)),
+    (((id, Rd), (Keys<0>)), (String)),
+    (((secret), (Update)), (Bytes)),
     (((userID, Rd)), (UInt)));
 }
 using Key__ = ZfbField::Load<_::Key>;

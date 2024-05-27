@@ -36,12 +36,12 @@ struct Test {
 };
 
 ZfbFields(Object,
-  (((id)), (ID), (Ctor<0>)),
-  (((price)), (Int), (Ctor<1>)));
+  (((id), (Ctor<0>)), (ID)),
+  (((price), (Ctor<1>)), (Int)));
 ZfbFields(Test,
-  (((foo)), (Int), (Ctor<0>)),
-  (((bar)), (String), (Ctor<1>)),
-  (((baz)), (Object), (Ctor<2>)));
+  (((foo), (Ctor<0>)), (Int)),
+  (((bar), (Ctor<1>)), (String)),
+  (((baz), (Ctor<2>)), (Object)));
 ZfbRoot(Test);
 
 static auto vfields = ZtMFieldList<Test>();

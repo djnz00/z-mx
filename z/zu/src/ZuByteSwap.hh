@@ -160,13 +160,15 @@ private:
   template <typename P>
   ZuIfT<bool(ZuIsExact<P, T>{}) || bool(ZuIsExact<P, U>{})> set(const P &p) {
     I i = 0;
-    *reinterpret_cast<U *>(&i) = p;
+    U *ZuMayAlias(ptr) = reinterpret_cast<U *>(&i);
+    *ptr = p;
     m_i = ZuIntrin::bswap(i);
   }
   template <typename P>
   ZuIfT<bool(ZuIsExact<P, T>{}) || bool(ZuIsExact<P, U>{}), P> get() const {
     I i = ZuIntrin::bswap(m_i);
-    return *reinterpret_cast<const U *>(&i);
+    const U *ZuMayAlias(ptr) = reinterpret_cast<const U *>(&i);
+    return *ptr;
   }
 
   // P is integral (but not the same)

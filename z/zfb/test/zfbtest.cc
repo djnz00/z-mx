@@ -35,8 +35,8 @@ struct Test {
 };
 
 ZfbFields(Test,
-  (((foo)), (Int), (Ctor<0>)),
-  (((bar)), (String), (Ctor<1>)),
+  (((foo), (Ctor<0>)), (Int)),
+  (((bar), (Ctor<1>)), (String)),
   (((kvTree, Lambda,
     ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
       using namespace Zfb::Save;
@@ -57,7 +57,7 @@ ZfbFields(Test,
 	  value_as_UInt8Vec()->data());
       test.zero = const_cast<uint8_t *>(data.data());
       test.n = data.length();
-    }))), (KVTree), (Synthetic)));
+    })), (Synthetic)), (KVTree)));
 ZfbRoot(Test);
 
 } // zfbtest

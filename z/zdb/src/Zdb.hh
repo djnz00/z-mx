@@ -384,8 +384,8 @@ using CacheUN =
 template <typename Field>
 struct FieldFilter :
     public ZuBool<
-      !ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{} ||
-      !ZuIsExact<typename Field::Keys, ZuSeq<>>{}> { };
+      !ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{} ||
+      !ZuIsExact<ZuFieldProp::GetKeys<typename Field::Props>, ZuSeq<>>{}> { };
 
 template <typename T>
 using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
@@ -774,11 +774,11 @@ using Find = Find_<T, KeyID, Find_Heap<T, KeyID>>;
 // series index keys for a type
 // - filter fields that are data series
 template <typename Field>
-using IsSeries = ZuTypeIn<ZtFieldProp::Series, typename Field::Props>;
+using IsSeries = ZuTypeIn<ZuFieldProp::Series, typename Field::Props>;
 // - filter fields that are not series, i.e. are grouping fields
 template <typename Field>
 using NotSeries =
-  ZuBool<!ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{}>;
+  ZuBool<!ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{}>;
 // - extract grouping fields from fields comprising a key
 template <typename Key>
 using GroupFields = ZuTypeGrep<NotSeries, ZuFieldList<Key>>;
@@ -892,7 +892,7 @@ private:
   template <unsigned KeyID, typename GroupKey_ = GroupKey<KeyID>>
   Zfb::Offset<void> saveGroupKey(
       Zfb::Builder &fbb, const GroupKey_ &key) const {
-    return Zfb_::SaveFieldsFn<GroupKey_, GroupFields<GroupKey_>>::save(
+    return ZfbField::SaveFieldsFn<GroupKey_, GroupFields<GroupKey_>>::save(
       fbb, key).Union();
   }
   // load maxima from backing data store during open

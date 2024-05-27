@@ -2539,7 +2539,8 @@ struct Fielded_ {
   template <typename U>
   struct UpdFilter :
       public ZuBool<
-	ZuTypeIn<Prop::Update, typename U::Props>{} || (U::keys() & 1)> { };
+	bool(ZuTypeIn<Prop::Update, typename U::Props>{}) ||
+	bool(ZuFieldProp::Key<typename U::Props, 0>{})> { };
   using UpdFields = ZuTypeGrep<UpdFilter, LoadFields>;
 
   // delete fields - primary key fields

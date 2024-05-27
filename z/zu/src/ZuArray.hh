@@ -156,9 +156,18 @@ public:
   }
 
   // length from deferred strlen
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress"
+#pragma GCC diagnostic ignored "-Wnonnull"
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
+#endif
   template <typename A>
   ZuArray(A &&a, MatchCString<A> *_ = nullptr) :
       m_data(a), m_length(!a ? 0 : -1) { }
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic pop
+#endif
   template <typename A>
   MatchCString<A, ZuArray &> operator =(A &&a) {
     m_data = a;

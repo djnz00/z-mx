@@ -113,7 +113,8 @@ int main()
 
   {
     zu_decimal v_, l_, r_;
-    auto &v = *reinterpret_cast<ZuDecimal *>(&v_);
+    ZuDecimal *ZuMayAlias(ptr) = reinterpret_cast<ZuDecimal *>(&v_);
+    auto &v = *ptr;
     zu_decimal_in(&v_, "42.01");
     CHECK(((ZuStringN<40>{} << v) == "42.01"));
     CHECK((!zu_decimal_cmp(&v_, &v_)));

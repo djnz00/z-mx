@@ -45,13 +45,13 @@ struct Row {
   int		m_flags;
 };
 ZtFields(Row,
-    (((string, Alias, m_string)), (String), (Ctor<0>)),
-    (((int, Alias, m_int)), (Int), (Ctor<1>)),
-    (((bool, Alias, m_bool)), (Bool), (Ctor<2>)),
-    (((float, Alias, m_float)), (Float), (Ctor<3>, NDP<2>)),
-    (((enum, Alias, m_enum)), (Enum, Enums::Map), (Ctor<4>)),
-    (((time, Alias, m_time)), (DateTime), (Ctor<5>)),
-    (((flags, Alias, m_flags)), (Flags, DaFlags::Map), (Ctor<6>)));
+    (((string, Alias, m_string), (Ctor<0>)), (String)),
+    (((int, Alias, m_int), (Ctor<1>)), (Int)),
+    (((bool, Alias, m_bool), (Ctor<2>)), (Bool)),
+    (((float, Alias, m_float), (Ctor<3>, NDP<2>)), (Float)),
+    (((enum, Alias, m_enum), (Ctor<4>)), (Enum, Enums::Map)),
+    (((time, Alias, m_time), (Ctor<5>)), (DateTime)),
+    (((flags, Alias, m_flags), (Ctor<6>)), (Flags, DaFlags::Map)));
 
 using CSVWrite = ZmList<Row>;
 

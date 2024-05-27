@@ -39,14 +39,14 @@ struct Order {
 };
 
 ZfbFields(Order,
-  (((symbol), (0)), (String), (Ctor<0>)),
-  (((orderID), (0)), (UInt), (Ctor<1>)),
-  (((link), (1, 2)), (String), (Ctor<2>)),
-  (((clOrdID), (1)), (String), (Ctor<3>)),
-  (((seqNo), (2)), (UInt), (Ctor<4>, Series, Index)),
-  (((side)), (Enum, Side::Map), (Ctor<5>)),
-  (((price)), (Int), (Ctor<6>)),
-  (((quantity)), (Int), (Ctor<7>)));
+  (((symbol), (Keys<0>, Ctor<0>)), (String)),
+  (((orderID), (Keys<0>, Ctor<1>)), (UInt)),
+  (((link), ((Keys<1, 2>), Ctor<2>)), (String)),
+  (((clOrdID), (Keys<1>, Ctor<3>)), (String)),
+  (((seqNo), (Keys<2>, Ctor<4>, Series, Index)), (UInt)),
+  (((side), (Ctor<5>)), (Enum, Side::Map)),
+  (((price), (Ctor<6>)), (Int)),
+  (((quantity), (Ctor<7>)), (Int)));
 
 }
 

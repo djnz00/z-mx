@@ -42,14 +42,14 @@ struct Row {
   void bam(ZuFixed v) { bam_ = v.adjust(2); }
 };
 ZtFields(Row,
-    (((foo)), (String), (Ctor<0>)),
-    (((bar)), (Bool), (Ctor<1>)),
-    (((bah)), (Int), (Ctor<2>)),
-    (((baz)), (Float), (Ctor<3>, NDP<2>)),
-    (((bam, Fn)), (Fixed), (Ctor<4>, NDP<2>)),
-    (((snafu)), (Int), (Ctor<5>)),
-    (((mabbit)), (DateTime), (Ctor<6>)),
-    (((flags)), (Flags, DaFlags::Map), (Ctor<7>)));
+    (((foo), (Ctor<0>)), (String)),
+    (((bar), (Ctor<1>)), (Bool)),
+    (((bah), (Ctor<2>)), (Int)),
+    (((baz), (Ctor<3>, NDP<2>)), (Float)),
+    (((bam, Fn), (Ctor<4>, NDP<2>)), (Fixed)),
+    (((snafu), (Ctor<5>)), (Int)),
+    (((mabbit), (Ctor<6>)), (DateTime)),
+    (((flags), (Ctor<7>)), (Flags, DaFlags::Map)));
 
 using CSVWrite = ZmList<Row, ZmListNode<ZuObject>>;
 

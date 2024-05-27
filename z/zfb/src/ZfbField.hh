@@ -17,12 +17,12 @@
 
 // Syntax
 // ------
-// (((Accessor)[, (Keys...)]), (Type[, Args...])[, (Props...)])
+// (((Accessor)[, (Props...)]), (Type[, Args...]))
 // 
-// Example: (((id, Rd), (0)), (String), (Ctor(0)))
+// Example: (((id, Rd), (Ctor<0>, Keys<0>)), (String))
 
 // macro DSL syntax is identical to that for ZtField, with the Type
-// extended to specify an extensible flatbuffers<->C++ mapping
+// extended to specify an extensible flatbuffers <-> C++ mapping
 
 // ZfbField	ZtField		C++ Type
 // --------	-------		--------
@@ -106,7 +106,7 @@ using ZfbSchema = decltype(ZfbSchema_(ZuDeclVal<ZfbCore<O> *>()));
 namespace ZfbField {
 
 namespace TypeCode = ZtFieldTypeCode;
-namespace Prop = ZtFieldProp;
+namespace Prop = ZuFieldProp;
 
 template <typename T> using Offset = Zfb::Offset<T>;
 
@@ -502,15 +502,14 @@ namespace Save {
 #define ZfbFieldObject(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, object, object<typename Base::T>)
 
-#define ZfbField_Decl__(O, ID, Base, TypeName, Type, ...) \
+#define ZfbField_Decl__(O, ID, Base, TypeName, Type) \
   ZuPP_Defer(ZtField_Decl_)(O, Base, \
-      (ZfbField##TypeName##_T ZuPP_Nest(ZtField_TypeArgs(Type))) \
-      __VA_OPT__(,) __VA_ARGS__) \
+      (ZfbField##TypeName##_T ZuPP_Nest(ZtField_TypeArgs(Type)))) \
   ZuPP_Defer(ZfbField##TypeName)(O, ID, ZuPP_Nest(ZtFieldTypeName(O, ID)))
-#define ZfbField_Decl_(O, Base, Type, ...) \
+#define ZfbField_Decl_(O, Base, Type) \
   ZuPP_Defer(ZfbField_Decl__)(O, \
       ZuPP_Nest(ZtField_BaseID(Base)), Base, \
-      ZuPP_Nest(ZtField_TypeName(Type)), Type __VA_OPT__(,) __VA_ARGS__)
+      ZuPP_Nest(ZtField_TypeName(Type)), Type)
 #define ZfbField_Decl(O, Args) ZuPP_Defer(ZfbField_Decl_)(O, ZuPP_Strip(Args))
 
 #define ZfbField_Type_(O, Base, ...) \
