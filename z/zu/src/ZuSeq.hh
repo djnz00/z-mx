@@ -34,6 +34,42 @@ template <unsigned N> struct ZuMkSeq_ {
 };
 template <unsigned N> using ZuMkSeq = typename ZuMkSeq_<N>::T;
 
+// convert ZuSeq to a uint64_t bitmap
+template <typename> struct ZuSeqBitmap_;
+template <>
+struct ZuSeqBitmap_<ZuSeq<>> {
+  static constexpr uint64_t bits() { return 0; }
+};
+template <unsigned I>
+struct ZuSeqBitmap_<ZuSeq<I>> {
+  static constexpr uint64_t bits() { return uint64_t(1)<<I; }
+};
+template <unsigned I, unsigned ...Seq>
+struct ZuSeqBitmap_<ZuSeq<I, Seq...>> {
+  static constexpr uint64_t bits() {
+    return (uint64_t(1)<<I) | ZuSeqBitmap_<ZuSeq<Seq...>>::bits();
+  }
+};
+template <typename Seq>
+constexpr uint64_t ZuSeqBitmap() { return ZuSeqBitmap_<Seq>::bits(); }
+// ... and back again
+template <typename, unsigned Bit, uint64_t V, bool = (V & (uint64_t(1)<<Bit))>
+struct ZuBitmapSeq_;
+template <typename Seq, unsigned Bit>
+struct ZuBitmapSeq_<Seq, Bit, uint64_t(0), false> { using T = Seq; };
+template <typename Seq, unsigned Bit, uint64_t V>
+struct ZuBitmapSeq_<Seq, Bit, V, false> {
+  using T = typename ZuBitmapSeq_<
+    Seq, Bit + 1, V & ~(uint64_t(1)<<Bit)>::T;
+};
+template <unsigned ...Seq, unsigned Bit, uint64_t V>
+struct ZuBitmapSeq_<ZuSeq<Seq...>, Bit, V, true> {
+  using T = typename ZuBitmapSeq_<
+    ZuSeq<Seq..., Bit>, Bit + 1, V & ~(uint64_t(1)<<Bit)>::T;
+};
+template <typename Seq, uint64_t V>
+using ZuBitmapSeq = typename ZuBitmapSeq_<Seq, 0, V>::T;
+
 // convert ZuSeq to typelist
 template <typename> struct ZuSeqTL_;
 template <> struct ZuSeqTL_<ZuSeq<>> { using T = ZuTypeList<>; };

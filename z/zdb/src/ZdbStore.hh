@@ -83,12 +83,12 @@ using OpenFn = ZmFn<OpenResult>;
 using CloseFn = ZmFn<>;
 
 // max data (returned by maxima() for all series keys)
-struct MaxData {
+struct KeyData {
   unsigned		keyID;
   ZmRef<const AnyBuf>	buf;	// key data, no replication message header
 };
 // max callback
-using MaxFn = ZmFn<MaxData>;	// must process buf contents synchronously
+using KeyFn = ZmFn<KeyData>;	// must process buf contents synchronously
 
 // row data
 struct RowData {
@@ -137,14 +137,14 @@ public:
   virtual void start(StartFn fn) { fn(StartResult{}); }
   virtual void stop(StopFn fn) { fn(StopResult{}); }
 
-  // multiple calls to MaxFn may continue after open() returns,
+  // multiple calls to KeyFn may continue after open() returns,
   // concluding with a single call to OpenFn
   virtual void open(			// open table - idempotent, async
       ZuID id,				// name of table
       ZtMFields fields,			// fields
       ZtMKeyFields keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
-      MaxFn,				// maxima callback
+      KeyFn,				// maxima callback
       OpenFn) = 0;			// open result callback
 };
 

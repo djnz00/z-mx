@@ -248,6 +248,7 @@ struct Fielded_ : public ZtField::Fielded_<O_> {
 
   template <typename Base>
   struct Adapted : public Base {
+    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;

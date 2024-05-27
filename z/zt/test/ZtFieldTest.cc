@@ -24,7 +24,9 @@ struct Nested {
   friend ZtFieldPrint ZuPrintType(Nested *);
 };
 
-ZtFields(Nested, (((i1)), (Int), (Ctor<0>)), (((i2)), (Int), (Ctor<1>)));
+ZtFields(Nested,
+  (((i1), (Ctor<0>)), (Int)),
+  (((i2), (Ctor<1>)), (Int)));
 
 struct Foo {
   const char *string = nullptr;
@@ -46,20 +48,20 @@ struct Foo {
 };
 
 ZtFields(Foo,
-    (((string, Rd)), (CString, "hello \"world\""), (Ctor<0>, Quote)),
-    (((bytes)), (Bytes, ZuBytes{"bytes"}), (Ctor<1>)),
-    (((id)), (String, "goodbye"), (Ctor<2>)),
-    (((int_)), (Int), (Ctor<3>)),
-    (((int_ranged)), (Int, 42, 0, 100), (Ctor<4>)),
-    (((hex)), (UInt, 0xdeadbeef), (Ctor<5>, Hex)),
-    (((enum_)), (Enum, Values::Map, Values::Normal), (Ctor<6>)),
-    (((flags)), (Flags, Flags::Map, Flags::Bit1), (Ctor<7>)),
-    (((float_)), (Float), (Ctor<8>)),
-    (((float_ranged)), (Float, 0.42, 0.0, 1), (Ctor<9>)),
-    (((fixed)), (Fixed), (Ctor<10>)),
-    (((decimal)), (Decimal), (Ctor<11>)),
-    (((time_)), (Time), (Ctor<12>)),
-    (((nested)), (UDT), (Ctor<13>)));
+    (((string, Rd), (Ctor<0>, Quote)), (CString, "hello \"world\"")),
+    (((bytes), (Ctor<1>)), (Bytes, ZuBytes{"bytes"})),
+    (((id), (Ctor<2>)), (String, "goodbye")),
+    (((int_), (Ctor<3>)), (Int)),
+    (((int_ranged), (Ctor<4>)), (Int, 42, 0, 100)),
+    (((hex), (Ctor<5>, Hex)), (UInt, 0xdeadbeef)),
+    (((enum_), (Ctor<6>)), (Enum, Values::Map, Values::Normal)),
+    (((flags), (Ctor<7>)), (Flags, Flags::Map, Flags::Bit1)),
+    (((float_), (Ctor<8>)), (Float)),
+    (((float_ranged), (Ctor<9>)), (Float, 0.42, 0.0, 1)),
+    (((fixed), (Ctor<10>)), (Fixed)),
+    (((decimal), (Ctor<11>)), (Decimal)),
+    (((time_), (Ctor<12>)), (Time)),
+    (((nested), (Ctor<13>)), (UDT)));
 
 template <typename T, typename = void>
 struct MinMax {

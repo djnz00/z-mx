@@ -349,7 +349,7 @@ struct ZuDecimal {
   }
 
 public:
-  ZuDecimal operator *(const ZuDecimal &v) const {
+  constexpr ZuDecimal operator *(const ZuDecimal &v) const {
     if (ZuUnlikely(value == null() || v.value == null()))
       return ZuDecimal{Unscaled{null()}};
     return ZuDecimal{Unscaled{mul(value, v.value)}};
@@ -364,7 +364,7 @@ public:
     return *this;
   }
 
-  ZuDecimal operator /(const ZuDecimal &v) const {
+  constexpr ZuDecimal operator /(const ZuDecimal &v) const {
     if (ZuUnlikely(value == null() || v.value == null() || !v.value))
       return ZuDecimal{Unscaled{null()}};
     return ZuDecimal{Unscaled{div(value, v.value)}};

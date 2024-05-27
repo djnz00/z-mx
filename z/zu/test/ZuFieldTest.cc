@@ -27,11 +27,11 @@ namespace Foo {
   };
 
   ZuFields(A,
-      ((i), (0)),
-      ((j, Fn), (1)),
+      ((i), (Keys<0>)),
+      ((j, Fn), (Keys<1>)),
       ((k, Lambda,
 	([](const A &a) { return a.k; }),
-	([](A &a, double v) { a.k = v; })), (1)));
+	([](A &a, double v) { a.k = v; })), (Keys<1>)));
 
   struct B {
     int i = 42;
@@ -41,8 +41,8 @@ namespace Foo {
   };
 
   ZuFields(B,
-      ((i, Rd), (0)),
-      ((j, RdFn), (0)),
+      ((i, Rd), (Keys<0>)),
+      ((j, RdFn), (Keys<0>)),
       ((k, LambdaRd, ([](const B &b) { return b.k; }))));
 }
 

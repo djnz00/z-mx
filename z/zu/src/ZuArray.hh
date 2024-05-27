@@ -64,6 +64,10 @@ public:
     return *this;
   }
 
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winit-list-lifetime"
+#endif
   ZuArray(std::initializer_list<T> a) :
     m_data(const_cast<T *>(a.begin())), m_length(a.size()) { }
   ZuArray &operator =(std::initializer_list<T> a) {
@@ -71,6 +75,9 @@ public:
     m_length = a.size();
     return *this;
   }
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic pop
+#endif
 
 protected:
   // from string literal

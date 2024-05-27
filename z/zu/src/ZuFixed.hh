@@ -152,7 +152,7 @@ public:
   bool operator !() const { return !mantissa(); }
   ZuOpBool
 
-  bool operator *() const { return m_mantissa != ZuFixedNull; }
+  constexpr bool operator *() const { return m_mantissa != ZuFixedNull; }
 
   // hash
   uint32_t hash() const {

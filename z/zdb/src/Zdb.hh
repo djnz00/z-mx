@@ -433,6 +433,7 @@ public:
   using Fields_ = FieldList<T>;
   template <typename Base>
   struct Adapted : public Base {
+    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;
@@ -579,7 +580,7 @@ protected:
   // -- implemented by Table<T>
 
   // update maxima on open
-  virtual void loadMaxima(MaxData) = 0;
+  virtual void loadKey(KeyData) = 0;
 
   // warmup
   virtual void warmup() = 0;
@@ -716,6 +717,7 @@ struct Buf_ : public ZmPolymorph {
   using Fields_ = FieldList<FB>;
   template <typename Base>
   struct Adapted : public Base {
+    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;
@@ -887,8 +889,14 @@ private:
   ZuIfT<!IsSeriesKey<Key<KeyID>>{}>
   updateMaxima_(const O &) { }
 
+  template <unsigned KeyID, typename GroupKey_ = GroupKey<KeyID>>
+  Zfb::Offset<void> saveGroupKey(
+      Zfb::Builder &fbb, const GroupKey_ &key) const {
+    return Zfb_::SaveFieldsFn<GroupKey_, GroupFields<GroupKey_>>::save(
+      fbb, key).Union();
+  }
   // load maxima from backing data store during open
-  void loadMaxima(MaxData data) {
+  void loadKey(KeyData data) {
     ZuSwitch::dispatch<KeyIDs::N>(data.keyID,
       [this, &data](auto KeyID) mutable {
 	auto fbo = ZfbField::root<T>(data.buf->data());

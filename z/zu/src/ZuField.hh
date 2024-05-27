@@ -18,7 +18,7 @@
 //
 // Field Syntax
 // ------------
-// ((Accessor)[, (Keys...)])
+// ((Accessor)[, (Props...)])
 //
 // Accessor			Description
 // --------			-----------
@@ -33,9 +33,22 @@
 // ID, Lambda, Get, Set		lambda accessor
 // ID, LambdaRd, Get		read-only lambda accessor
 //
-// if specified, Keys is a parenthesized list of key IDs 0..63, allocated
-// from 0, e.g. (0, 1) - by convention, 0 is the primary key and 1+ are
-// secondary keys
+// if specified, Props is a parenthesized list of extensible properties.
+//
+// Properties defined by Zu include:
+//
+// Ctor<N> - this field is the Nth parameter to the object constructor
+//
+// Keys<KeyID, ...> - key IDs 0..63, e.g. <0, 1>
+//
+// Note: by convention, 0 is the primary key and 1+ are secondary keys
+//
+// Note: if a property includes multiple arguments, as is the case for a
+// field that forms part of multiple keys, then the property must be
+// wrapped in parentheses for the C pre-processor, e.g.:
+//
+// ((id), (Ctor<0>, Keys<0>))		// no need for additional parentheses
+// ((id), (Ctor<0>, (Keys<0, 1>)))	// needs additional parentheses
 
 // ZuField API:
 //   O		- type of containing object
@@ -62,26 +75,172 @@
 #include <zlib/ZuTuple.hh>
 #include <zlib/ZuUnion.hh>
 
+// sentinel pseudo key IDs
+
+namespace ZuFieldKeyID {
+  enum {
+    All = -1,		// all fields, including non-key fields
+    AllKeys = -2	// all key fields (i.e. a union of all keys)
+  };
+};
+
+// compile-time field property list - a typelist of individual properties:
+// - each type is declared in the ZuFieldProp namespace
+// - additional properties can be injected into the ZuFieldProp namespace
+//   by higher layers (ZtField, ZfbField, etc.)
+namespace ZuFieldProp {
+  // constructor parameter index
+  template <unsigned I> struct Ctor { };
+
+  // key IDs
+  template <unsigned ...KeyIDs> struct Keys { };
+
+  // use ZuTypeIn<Property, Props> for boolean properties
+  //
+  // use HasValue<Type, Property, Props> and GetValue<Type, Property, Props>
+  // for scalar properties like Ctor (see HasCtor and GetCtor below)
+  //
+  // use HasSeq<Property, Props> and GetSeq<Property, Props> for
+  // template properties like Keys (see GetKeys below)
+ 
+  template <typename T, template <T> class Prop>
+  struct GrepValue_ {
+    template <typename> struct Is : public ZuFalse { };
+    template <unsigned I> struct Is<Prop<I>> : public ZuTrue { };
+    template <typename Props> using Apply = ZuTypeGrep<Is, Props>;
+  };
+  template <typename T, template <T> class Prop, typename Props>
+  using GrepValue = GrepValue_<T, Prop>::template Apply<Props>;
+
+  template <template <typename> class Prop>
+  struct GrepType_ {
+    template <typename> struct Is : public ZuFalse { };
+    template <typename T> struct Is<Prop<T>> : public ZuTrue { };
+    template <typename Props> using Apply = ZuTypeGrep<Is, Props>;
+  };
+  template <template <typename> class Prop, typename Props>
+  using GrepType = GrepType_<Prop>::template Apply<Props>;
+
+  template <template <unsigned ...> class Prop>
+  struct GrepSeq_ {
+    template <typename> struct Is : public ZuFalse { };
+    template <unsigned ...Seq> struct Is<Prop<Seq...>> : public ZuTrue { };
+    template <typename Props> using Apply = ZuTypeGrep<Is, Props>;
+  };
+  template <template <unsigned ...> class Prop, typename Props>
+  using GrepSeq = GrepSeq_<Prop>::template Apply<Props>;
+
+  template <
+    typename U,
+    template <U> class Prop,
+    typename Props,
+    typename Filtered = GrepValue<U, Prop, Props>,
+    unsigned N = Filtered::N>
+  struct Value_ {
+    enum { Exists = 0 };
+  };
+  template <typename U, template <U> class Prop, typename>
+  struct Value__;
+  template <typename U, template <U> class Prop, U I>
+  struct Value__<U, Prop, Prop<I>> { using T = ZuConstant<U, I>; };
+  template <
+    typename U,
+    template <U> class Prop,
+    typename Props,
+    typename Filtered>
+  struct Value_<U, Prop, Props, Filtered, 1> {
+    enum { Exists = 1 };
+    using T = typename Value__<U, Prop, ZuType<0, Filtered>>::T;
+  };
+
+  template <typename U, template <U> class Prop, typename Props>
+  using HasValue = ZuBool<Value_<U, Prop, Props>::Exists>;
+  template <typename U, template <U> class Prop, typename Props>
+  using GetValue = typename Value_<U, Prop, Props>::T;
+
+  template <
+    template <typename> class Prop,
+    typename Props,
+    typename Filtered = GrepType<Prop, Props>,
+    unsigned N = Filtered::N>
+  struct Type_ {
+    enum { Exists = 0 };
+  };
+  template <
+    template <typename> class Prop,
+    typename Props,
+    typename Filtered>
+  struct Type_<Prop, Props, Filtered, 1> {
+    enum { Exists = 1 };
+    using T = ZuType<0, Filtered>;
+  };
+
+  template <template <typename> class Prop, typename Props>
+  using HasType = ZuBool<Type_<Prop, Props>::Exists>;
+  template <template <typename> class Prop, typename Props>
+  using GetType = typename Type_<Prop, Props>::T;
+
+  template <
+    template <unsigned ...> class Prop,
+    typename Props,
+    typename Filtered = GrepSeq<Prop, Props>,
+    unsigned N = Filtered::N>
+  struct Seq_ {
+    enum { Exists = 0 };
+    using T = ZuSeq<>;
+  };
+  template <template <unsigned ...> class Prop, typename>
+  struct Seq__;
+  template <template <unsigned ...> class Prop, unsigned ...Seq>
+  struct Seq__<Prop, Prop<Seq...>> { using T = ZuSeq<Seq...>; };
+  template <
+    template <unsigned ...> class Prop,
+    typename Props,
+    typename Filtered>
+  struct Seq_<Prop, Props, Filtered, 1> {
+    enum { Exists = 1 };
+    using T = typename Seq__<Prop, ZuType<0, Filtered>>::T;
+  };
+
+  template <template <unsigned ...> class Prop, typename Props>
+  using HasSeq = ZuBool<Seq_<Prop, Props>::Exists>;
+  template <template <unsigned ...> class Prop, typename Props>
+  using GetSeq = typename Seq_<Prop, Props>::T;
+
+  template <typename Props>
+  using HasCtor = HasValue<unsigned, Ctor, Props>;
+  template <typename Props>
+  using GetCtor = GetValue<unsigned, Ctor, Props>;
+
+  template <typename Props>
+  using GetKeys = GetSeq<Keys, Props>;
+
+  template <typename Props, int KeyID>
+  struct Key :
+    public ZuTypeIn<ZuUnsigned<unsigned(KeyID)>, ZuSeqTL<GetKeys<Props>>> { };
+  template <typename Props>
+  struct Key<Props, ZuFieldKeyID::All> : public ZuTrue { };
+  template <typename Props>
+  struct Key<Props, ZuFieldKeyID::AllKeys> :
+    public ZuBool<GetKeys<Props>::N> { };
+}
+
 #define ZuFieldTypeName(O, ID) ZuField_##O##_##ID
 
-#define ZuField_Keys__(Key) (static_cast<uint64_t>(1)<<Key) |
-#define ZuField_Keys_(...) (ZuPP_Map(ZuField_Keys__, __VA_ARGS__) 0)
-#define ZuField_Keys(Args) ZuPP_Defer(ZuField_Keys_)Args
-
-#define ZuField_KeySeq_(...) ZuSeq<__VA_ARGS__>
-#define ZuField_KeySeq(Args) ZuPP_Defer(ZuField_KeySeq_)Args
+#define ZuField_Prop_(Prop) ZuFieldProp:: ZuPP_Strip(Prop)
+#define ZuField_Props_(...) \
+  ZuTypeList<ZuPP_Nest(ZuPP_MapComma(ZuField_Prop_, __VA_ARGS__))>
+#define ZuField_Props(Args) ZuPP_Defer(ZuField_Props_)Args
 
 #define ZuField_ID(O_, ID) \
   using O = O_; \
   constexpr static const char *id() { return #ID; }
 #define ZuField_1(O, ID) \
   ZuField_ID(O, ID) \
-  constexpr static uint64_t keys() { return 0; } \
-  using Keys = ZuSeq<>;
-#define ZuField_2(O, ID, Keys_) \
+  using Props = ZuTypeList<>;
+#define ZuField_2(O, ID, Props_) \
   ZuField_ID(O, ID) \
-  constexpr static uint64_t keys() { return ZuField_Keys(Keys_); } \
-  using Keys = ZuField_KeySeq(Keys_);
+  using Props = ZuField_Props(Props_);
 #define ZuField_N(O, _0, _1, Fn, ...) Fn
 #define ZuField__(O, ...) \
   ZuField_N(O, __VA_ARGS__, \
@@ -257,6 +416,15 @@ struct ZuFieldTuple_ : public Tuple {
     using Adapt = Adapted<Override<Orig>>;
     using O = Tuple;
     enum { I = ZuTypeIndex<Base, ZuTypeMap<ZuFieldOrig, Fields_>>{} };
+  private:
+    template <typename>
+    struct CtorFilter : public ZuTrue { };
+    template <unsigned J>
+    struct CtorFilter<ZuFieldProp::Ctor<J>> : public ZuFalse { };
+  public:
+    using Props =
+      ZuTypeGrep<CtorFilter, typename Orig::Props>::template Unshift<
+	ZuFieldProp::Ctor<I>>;
     static decltype(auto) get(const O &o) { return o.template p<I>(); }
     static decltype(auto) get(O &o) { return o.template p<I>(); }
     static decltype(auto) get(O &&o) { return ZuMv(o).template p<I>(); }
@@ -332,37 +500,18 @@ inline decltype(auto) ZuFieldExtract(P &&o) {
   return ZuFieldTuple_Bind<O, Fields>::get(ZuFwd<P>(o));
 }
 
-// sentinel pseudo key IDs
-
-namespace ZuFieldKeyID {
-  enum {
-    All = -1,		// all fields, including non-key fields
-    AllKeys = -2	// all key fields (i.e. a union of all keys)
-  };
-};
-
 // key fields, given key ID (see ZuFieldKeyID for sentinel values)
 
-template <unsigned KeyID>
+template <int KeyID>
 struct ZuFieldKey_ {
   template <typename U>
-  struct Filter : public ZuBool<U::keys() & (1<<KeyID)> { };
+  struct Filter : public ZuFieldProp::Key<typename U::Props, KeyID> { };
 };
-template <typename U>
-struct ZuFieldKeyAll_ : public ZuBool<U::keys()> { };
 template <typename O, int KeyID>
 struct ZuKeyFields_ {
   using T = ZuTypeGrep<
-    ZuFieldKey_<static_cast<unsigned>(KeyID)>::template Filter,
+    ZuFieldKey_<KeyID>::template Filter,
     ZuFieldList<O>>;
-};
-template <typename O>
-struct ZuKeyFields_<O, ZuFieldKeyID::All> {
-  using T = ZuFieldList<O>;
-};
-template <typename O>
-struct ZuKeyFields_<O, ZuFieldKeyID::AllKeys> {
-  using T = ZuTypeGrep<ZuFieldKeyAll_, ZuFieldList<O>>;
 };
 template <typename O, int KeyID = 0>
 using ZuKeyFields = typename ZuKeyFields_<O, KeyID>::T;
@@ -403,11 +552,14 @@ struct ZuFieldKeyT_ {
 template <typename O, int KeyID = 0>
 using ZuFieldKeyT = typename ZuFieldKeyT_<ZuFielded<O>, KeyID>::T;
 
-// all key IDs for a type, as a ZuSeq<>
+// all potential key IDs for a type, as a ZuSeq<>
 
 template <typename ...Fields>
 struct ZuFieldKeyIDs_ {
-  using T = ZuMkSeq<ZuMax<ZuSeq<ZuMax<typename Fields::Keys>{}...>>{} + 1>;
+  // iterate over all fields; get the max key for each; max those results
+  // to get an overall max; generate a sequence from 0 to that max inclusive
+  using T = ZuMkSeq<ZuMax<ZuSeq<ZuMax<
+    ZuFieldProp::GetKeys<typename Fields::Props>>{}...>>{} + 1>;
 };
 template <typename ...Fields>
 struct ZuFieldKeyIDs_<ZuTypeList<Fields...>> :

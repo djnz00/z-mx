@@ -15,10 +15,10 @@ struct Foo_ {
 };
 
 ZuFields(Foo_,
-    ((i), (0)),
-    ((j), (1, 2)),
-    ((k), (0, 1)),
-    ((l), (3)));
+    ((i), (Keys<0>)),
+    ((j), ((Keys<1, 2>))),
+    ((k), ((Keys<0, 1>))),
+    ((l), (Keys<3>)));
 
 using Hash = ZmPolyHash<Foo_>;
 using Foo = Hash::Node;
