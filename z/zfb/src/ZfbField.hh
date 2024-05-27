@@ -248,13 +248,20 @@ struct Fielded_ : public ZtField::Fielded_<O_> {
 
   template <typename Base>
   struct Adapted : public Base {
-    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;
     using O = FBType;
     enum { ReadOnly = true };
     enum { I = ZuTypeIndex<Orig, ZuTypeMap<ZuFieldOrig, AllFields>>{} };
+    // remove any Ctor property
+  private:
+    template <typename>
+    struct CtorFilter : public ZuTrue { };
+    template <unsigned J>
+    struct CtorFilter<ZuFieldProp::Ctor<J>> : public ZuFalse { };
+  public:
+    using Props = ZuTypeGrep<CtorFilter, typename Orig::Props>;
     using Field = ZuType<I, AllFields>;
     static decltype(auto) get(const O &o) { return Field::load_(&o); }
     template <typename U> static void set(O &, U &&v);

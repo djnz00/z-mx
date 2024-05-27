@@ -1653,11 +1653,6 @@ void AnyTable::open(L l)
 
   db()->store()->open(
     id(), objFields(), objKeyFields(), objSchema(),
-    {this, [](AnyTable *table, MaxData data) {
-      table->invoke([table, data = ZuMv(data)]() mutable {
-	table->loadMaxima(ZuMv(data));
-      });
-    }},
     [this, l = ZuMv(l)](OpenResult result) mutable {
       invoke([this, l = ZuMv(l), result = ZuMv(result)]() mutable {
 	l(opened(ZuMv(result)));

@@ -433,7 +433,6 @@ public:
   using Fields_ = FieldList<T>;
   template <typename Base>
   struct Adapted : public Base {
-    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;
@@ -451,6 +450,14 @@ public:
     template <typename U> static void set(O &o, U &&v) {
       return Orig::set(o.data(), ZuFwd<U>(v));
     }
+    // remove any Ctor property
+  private:
+    template <typename>
+    struct CtorFilter : public ZuTrue { };
+    template <unsigned J>
+    struct CtorFilter<ZuFieldProp::Ctor<J>> : public ZuFalse { };
+  public:
+    using Props = ZuTypeGrep<CtorFilter, typename Orig::Props>;
   };
   template <typename Field>
   using Map = typename Field::template Adapt<Adapted>;
@@ -578,9 +585,6 @@ public:
 
 protected:
   // -- implemented by Table<T>
-
-  // update maxima on open
-  virtual void loadKey(KeyData) = 0;
 
   // warmup
   virtual void warmup() = 0;
@@ -717,7 +721,6 @@ struct Buf_ : public ZmPolymorph {
   using Fields_ = FieldList<FB>;
   template <typename Base>
   struct Adapted : public Base {
-    // FIXME - disable Ctor
     using Orig = Base;
     template <template <typename> typename Override>
     using Adapt = Adapted<Override<Orig>>;
@@ -751,25 +754,45 @@ struct Buf : public BufCache<T>::Node {
   using Base::Base;
 };
 
+// backing data store all() context
+template <typename T, typename Key> struct All__ {
+  using Result = ZuUnion<void, Key>;
+
+  ZmFn<Result>	fn;
+};
+inline constexpr const char *All_HeapID() { return "Zdb.All"; }
+template <typename T, typename Key, typename Heap>
+struct All_ :
+  public Heap, public ZmPolymorph, public All__<T, Key>
+{
+  using Base = All__<T, Key>;
+  using Base::Base;
+  template <typename ...Args>
+  All_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+};
+template <typename T, typename Key>
+using All_Heap = ZmHeap<All_HeapID, sizeof(All_<T, Key, ZuNull>)>;
+template <typename T, typename Key>
+using All = All_<T, Key, All_Heap<T, Key>>;
+
 // backing data store find() context (retried on failure)
-template <typename T, unsigned KeyID> struct Find__ {
+template <typename T, typename Key> struct Find__ {
   Table<T>			*table;
-  ZuFieldKeyT<T, KeyID>		key;
+  Key				key;
   ZmFn<ZmRef<Object<T>>>	fn;
 };
 inline constexpr const char *Find_HeapID() { return "Zdb.Find"; }
-template <typename T, unsigned KeyID_, typename Heap>
-struct Find_ : public Heap, public ZmPolymorph, public Find__<T, KeyID_> {
-  enum { KeyID = KeyID_ };
-  using Base = Find__<T, KeyID>;
+template <typename T, typename Key, typename Heap>
+struct Find_ : public Heap, public ZmPolymorph, public Find__<T, Key> {
+  using Base = Find__<T, Key>;
   using Base::Base;
   template <typename ...Args>
   Find_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 };
-template <typename T, unsigned KeyID>
-using Find_Heap = ZmHeap<Find_HeapID, sizeof(Find_<T, KeyID, ZuNull>)>;
-template <typename T, unsigned KeyID>
-using Find = Find_<T, KeyID, Find_Heap<T, KeyID>>;
+template <typename T, typename Key>
+using Find_Heap = ZmHeap<Find_HeapID, sizeof(Find_<T, Key, ZuNull>)>;
+template <typename T, typename Key>
+using Find = Find_<T, Key, Find_Heap<T, Key>>;
 
 // series index keys for a type
 // - filter fields that are data series
@@ -791,14 +814,6 @@ using SeriesFields = ZuTypeGrep<IsSeries, ZuFieldList<Key>>;
 // - tuple type for series fields
 template <typename Key>
 using SeriesKeyT = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, SeriesFields<Key>>;
-// - individual hash table mapping grouping key -> max series key
-inline constexpr const char *Maxima_HeapID() { return "Zdb.Maxima"; }
-template <typename Key>
-using SeriesMax =
-  ZmHashKV<GroupKeyT<Key>, SeriesKeyT<Key>, ZmHashHeapID<Maxima_HeapID>>;
-// - reference to hash table (hash tables must be ref-counted)
-template <typename Key>
-using SeriesMaxRef = ZmRef<SeriesMax<Key>>;
 // - filter keys that have 1 or more series fields
 template <typename Key>
 using IsSeriesKey = ZuBool<SeriesFields<Key>::N>;
@@ -825,13 +840,22 @@ friend DB;
 friend Cxn_;
 friend Object_<T>;
 
-  // need one find DLQ for each KeyID
-  template <unsigned KeyID>
-  using FindDLQ = ZmXRing<ZmRef<Find<T, KeyID>>>;
-  template <typename KeyID>
-  using FindDLQPtr = ZuPtr<FindDLQ<KeyID{}>>;
-  using FindDLQs =
-    ZuTypeApply<ZuTuple, ZuTypeMap<FindDLQPtr, ZuSeqTL<ZuFieldKeyIDs<T>>>>;
+public:
+  using Fields = FieldList<T>;
+  using Keys = ZuFieldKeys<T>;
+  using KeyIDs = ZuFieldKeyIDs<T>;
+  template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
+
+  ZuAssert(Fields::N < maxFields());
+  ZuAssert(KeyIDs::N < maxKeys());
+
+private:
+  // need one find DLQ for each Key
+  template <typename Key>
+  using FindDLQ = ZmXRing<ZmRef<Find<T, Key>>>;
+  template <typename Key>
+  using FindDLQPtr = ZuPtr<FindDLQ<Key>>;
+  using FindDLQs = ZuTypeApply<ZuTuple, ZuTypeMap<FindDLQPtr, ZuFieldKeys<T>>>;
 
   // - grep keys containing series fields for a type T
   using SeriesKeys = ZuTypeGrep<IsSeriesKey, ZuFieldKeys<T>>;
@@ -844,76 +868,18 @@ friend Object_<T>;
   // - series key for a KeyID
   template <unsigned KeyID>
   using SeriesKey = SeriesKeyT<ZuFieldKeyT<T, KeyID>>;
-  // - tuple of hash table references
-  using Maxima = ZuTypeApply<ZuTuple, ZuTypeMap<SeriesMaxRef, SeriesKeys>>;
 
 public:
-  using Fields = FieldList<T>;
-  using KeyIDs = ZuFieldKeyIDs<T>;
-  template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
-
-  ZuAssert(Fields::N < maxFields());
-  ZuAssert(KeyIDs::N < maxKeys());
-
   Table(DB *db, TableCf *cf) : AnyTable{db, cf} {
     ZuUnroll::all<KeyIDs>([this](auto KeyID) {
-      m_findDLQs.template p<KeyID>(new FindDLQ<KeyID>{
-	ZmXRingParams{}.initial(FindDLQ_BlkSize).increment(FindDLQ_BlkSize)});
+      m_findDLQs.template p<ZuTypeIndex<Key<KeyID>, Keys>{}>(
+	new FindDLQ<Key<KeyID>>{
+	  ZmXRingParams{}.initial(FindDLQ_BlkSize).increment(FindDLQ_BlkSize)});
     });
-    ZuUnroll::all<SeriesKeys>([this]<typename Key>() {
-      using SeriesKeyID = ZuTypeIndex<Key, SeriesKeys>;
-      m_maxima.template p<SeriesKeyID{}>() = new SeriesMax<Key>{};
-    });
-    m_keyBuf = new AnyBuf{};
   }
   ~Table() = default;
 
 private:
-  // update maxima for specific key
-  template <unsigned KeyID, typename O>
-  ZuIfT<IsSeriesKey<Key<KeyID>>{}>
-  updateMaxima_(const O &o) {
-    using Key_ = Key<KeyID>;
-    auto group = GroupKeyExtract<KeyID>(o);
-    auto series = SeriesKeyExtract<KeyID>(o);
-    using SeriesKeyID = ZuTypeIndex<Key_, SeriesKeys>;
-    auto &hash = *(m_maxima.template p<SeriesKeyID{}>());
-    if (auto node = hash.find(group)) {
-      auto &series_ = node->val();
-      if (series > series_) series_ = ZuMv(series);
-    } else {
-      hash.add(ZuMv(group), ZuMv(series));
-    }
-  }
-  template <unsigned KeyID, typename O>
-  ZuIfT<!IsSeriesKey<Key<KeyID>>{}>
-  updateMaxima_(const O &) { }
-
-  template <unsigned KeyID, typename GroupKey_ = GroupKey<KeyID>>
-  Zfb::Offset<void> saveGroupKey(
-      Zfb::Builder &fbb, const GroupKey_ &key) const {
-    return ZfbField::SaveFieldsFn<GroupKey_, GroupFields<GroupKey_>>::save(
-      fbb, key).Union();
-  }
-  // load maxima from backing data store during open
-  void loadKey(KeyData data) {
-    ZuSwitch::dispatch<KeyIDs::N>(data.keyID,
-      [this, &data](auto KeyID) mutable {
-	auto fbo = ZfbField::root<T>(data.buf->data());
-	using Key_ = Key<KeyID>;
-	auto key = ZfbField::ctor<Key_>(fbo);
-	this->updateMaxima_<KeyID>(key);
-      });
-  }
-
-  // update maxima on insert (object) or replication (flatbuffer)
-  template <typename O>
-  void updateMaxima(const O &o) {
-    ZuUnroll::all<SeriesKeys>([this, &o]<typename Key>() {
-      this->updateMaxima_<ZuTypeIndex<Key, ZuFieldKeys<T>>{}>(o);
-    });
-  }
-
   // objLoad(fbo) - construct object from flatbuffer (trusted source)
   ZmRef<Object<T>> objLoad(const AnyBuf *buf) {
     using namespace Zfb::Load;
@@ -954,10 +920,8 @@ private:
 	}
       }
     });
-    // maintain maxima and cache consistency
-    if (!record->vn()) {
-      updateMaxima(*fbo);
-    } else if (record->vn() > 0) {
+    // maintain cache consistency
+    if (record->vn() > 0) {
       // primary key is immutable
       if constexpr (KeyIDs::N > 1)
 	if (ZmRef<Object<T>> object = m_cache.find(ZuFieldKey<0>(*fbo))) {
@@ -966,7 +930,6 @@ private:
 	      ZfbField::update(object->data(), fbo);
 	    });
 	}
-      updateMaxima(*fbo);
     } else {
       m_cache.template del<0>(ZuFieldKey<0>(*fbo));
     }
@@ -1001,7 +964,7 @@ private:
       if (!typedBuf->stale) return {typedBuf->buf, true};
       found = true;
     }
-    return {nullptr, found};
+    return {ZmRef<const AnyBuf>{}, found};
   }
 
   // find, falling through object cache, buffer cache, backing data store
@@ -1010,7 +973,7 @@ private:
   // find from backing data store (retried on failure)
   template <unsigned KeyID> void retrieve(Key<KeyID>, ZmFn<ZmRef<Object<T>>>);
   template <unsigned KeyID> void retryRetrieve_();
-  template <unsigned KeyID> void retrieve_(ZmRef<Find<T, KeyID>> context);
+  template <unsigned KeyID> void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
   // buffer cache
   void cacheBuf_(ZmRef<const AnyBuf> buf) {
@@ -1049,19 +1012,16 @@ public:
     return new Object<T>{this, [](void *ptr) { new (ptr) T{}; }};
   }
 
+  // iterate over keys
+  template <unsigned KeyID, typename L>
+  void all(GroupKey<KeyID> groupKey, unsigned limit, L l);
+
   // find lambda - l(ZmRef<ZdbObject<T>>)
   template <unsigned KeyID, typename L>
   void find(Key<KeyID> key, L l) {
     config().cacheMode == CacheMode::All ?
       find_<KeyID, true, false>(ZuMv(key), ZuMv(l)) :
       find_<KeyID, true, true >(ZuMv(key), ZuMv(l));
-  }
-
-  // obtain maximum series value for a grouping key (returns node)
-  template <unsigned KeyID>
-  auto maximum(const GroupKey<KeyID> &group) {
-    using SeriesKeyID = ZuTypeIndex<Key<KeyID>, SeriesKeys>;
-    return m_maxima.template p<SeriesKeyID{}>()->findVal(group);
   }
 
 private: // RMU version used by findUpd() and findDel()
@@ -1133,7 +1093,6 @@ public:
     });
     try {
       m_cache.template update<KeyIDs_>(object, ZuMv(l));
-      // maxima are updated in commit();
     } catch (...) { abort(); throw; }
     abort();
   }
@@ -1256,13 +1215,11 @@ private:
 	  m_cache.add(object);
 	  cacheUN(object->un(), object);
 	}
-	updateMaxima(static_cast<Object<T> *>(object)->data());
 	incCount();
 	break;
       case ObjState::Update:
 	if (writeCache())
 	  cacheUN(object->un(), object);
-	updateMaxima(static_cast<Object<T> *>(object)->data());
 	break;
       case ObjState::Delete:
 	m_cache.delNode(static_cast<Object<T> *>(object));
@@ -1306,12 +1263,6 @@ private:
 
   // pending replications
   BufCache<T>			m_bufCache;
-
-  // series maxima
-  Maxima			m_maxima;
-
-  // find key buffer (re-used)
-  ZmRef<AnyBuf>			m_keyBuf;
 
   // find DLQs
   FindDLQs			m_findDLQs;	// find() dead letter queues
@@ -1795,6 +1746,37 @@ inline void DB::print(S &s)
 }
 
 template <typename T>
+template <unsigned KeyID, typename L>
+inline void Table<T>::all(GroupKey<KeyID> groupKey, unsigned limit, L l) {
+  using GroupKey_ = GroupKey<KeyID>;
+  using Key_ = Key<KeyID>;
+  using Context = All<T, Key_>;
+
+  ZmAssert(invoked());
+
+  auto context = ZmMkRef(new Context{ZuMv(l)});
+
+  IOBuilder fbb;
+  fbb.Finish(
+    ZfbField::SaveFieldsFn<GroupKey_, ZuFieldList<GroupKey_>>::save(
+      fbb, groupKey).Union());
+  auto keyBuf = fbb.buf();
+
+  auto keyFn = KeyFn::mvFn(ZuMv(context),
+    [](ZmRef<Context> context, KeyResult result) {
+      if (ZuUnlikely(!result.is<KeyData>())) { // end of results
+	context->fn(typename Context::Result{});
+	return;
+      }
+      auto fbo = ZfbField::root<T>(result.p<KeyData>().buf->data());
+      auto key = ZfbField::ctor<Key_>(fbo);
+      context->fn(typename Context::Result{ZuMv(key)});
+    });
+
+  storeTbl()->all(KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(keyFn));
+}
+
+template <typename T>
 template <unsigned KeyID, bool UpdateLRU, bool Evict, typename L>
 inline void Table<T>::find_(Key<KeyID> key, L l) {
   ZmAssert(invoked());
@@ -1824,12 +1806,14 @@ inline void Table<T>::find_(Key<KeyID> key, L l) {
 
 template <typename T>
 template <unsigned KeyID>
-inline void Table<T>::retrieve(
-  Key<KeyID> key, ZmFn<ZmRef<Object<T>>> fn)
+inline void Table<T>::retrieve(Key<KeyID> key, ZmFn<ZmRef<Object<T>>> fn)
 {
+  using Key_ = Key<KeyID>;
+  using Context = Find<T, Key_>;
+
   ZmAssert(invoked());
 
-  auto context = ZmMkRef(new Find<T, KeyID>{this, ZuMv(key), ZuMv(fn)});
+  auto context = ZmMkRef(new Context{this, ZuMv(key), ZuMv(fn)});
 
   // DLQ draining in progress - just push onto the queue
   auto &dlq = *(m_findDLQs.template p<KeyID>());
@@ -1851,17 +1835,17 @@ void Table<T>::retryRetrieve_()
 }
 template <typename T>
 template <unsigned KeyID>
-inline void Table<T>::retrieve_(ZmRef<Find<T, KeyID>> context)
+inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 {
-  ZmAssert(m_keyBuf->refCount() == 1);
+  using Key_ = Key<KeyID>;
+  using Context = Find<T, Key_>;
 
   IOBuilder fbb;
-  fbb.buf(m_keyBuf);
   fbb.Finish(ZfbField::save(fbb, context->key));
   auto keyBuf = fbb.buf();
 
   auto rowFn = RowFn::mvFn(ZuMv(context),
-    [](ZmRef<Find<T, KeyID>> context, RowResult result) {
+    [](ZmRef<Context> context, RowResult result) {
       auto table = context->table;
       auto &dlq = *(table->m_findDLQs.template p<KeyID>());
       if (ZuUnlikely(result.is<Event>())) {

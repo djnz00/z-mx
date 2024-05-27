@@ -685,41 +685,63 @@ using Tuple = ZtArray<Value>;
 // of values, i.e. tuples.length() == fields.length() == xFields.length()
 // (individual elements of the tuple can be null values)
 
+// load group key from flatbuffer
+Tuple loadGroupKey(
+  const ZtMFields &keyFields,
+  const XFields &xKeyFields,
+  const Zfb::Table *fbo)
+{
+  unsigned m = keyFields.length();
+  unsigned n;
+  bool isSeries = false;
+  for (n = 0; n < m; n++) {
+    if (keyFields[n]->props & ZtMFieldProp::Series) {
+      isSeries = true;
+      break;
+    }
+  }
+  if (ZuUnlikely(!isSeries)) return Tuple{}; // should never happen
+  Tuple tuple(n); // not {}
+  for (unsigned i = 0; i < n; i++)
+    loadValue(static_cast<Value *>(tuple.push()), xKeyFields[i], fbo);
+  return tuple;
+}
 // load tuple from flatbuffer
 template <typename Filter>
 Tuple loadTuple(
   const ZtMFields &fields,
   const XFields &xFields,
-  const Zfb::Table *fbo, Filter filter)
+  const Zfb::Table *fbo,
+  Filter filter)
 {
   unsigned n = fields.length();
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
     if (filter(fields[i]))
-      new (tuple.push()) Value{};
-    else
       loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
+    else
+      new (tuple.push()) Value{};
   return tuple;
 }
 Tuple loadTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple(fields, xFields, fbo,
-    [](const ZtMField *) { return false; });
+    [](const ZtMField *) { return true; });
 }
 Tuple loadUpdTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple(fields, xFields, fbo,
-    [](const ZtMField *field) {
-      return !(field->props & ZtMFieldProp::Update) && !(field->keys & 1);
+    [](const ZtMField *field) -> bool {
+      return bool(field->props & ZtMFieldProp::Update) || (field->keys & 1);
     });
 }
 Tuple loadDelTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple(fields, xFields, fbo,
-    [](const ZtMField *field) { return !(field->keys & 1); });
+    [](const ZtMField *field) -> bool { return (field->keys & 1); });
 }
 
 template <typename Filter>
@@ -734,11 +756,11 @@ Offset saveTuple(
   ZmAssert(n == tuple.length());
   Offsets offsets{ZmAlloc(Offset, n)};
   for (unsigned i = 0; i < n; i++)
-    if (!filter(fields[i]))
+    if (filter(fields[i]))
       saveOffset(fbb, offsets, xFields[i], tuple[i]);
   auto start = fbb.StartTable();
   for (unsigned i = 0; i < n; i++)
-    if (!filter(fields[i]))
+    if (filter(fields[i]))
       saveValue(fbb, offsets, xFields[i], tuple[i]);
   auto end = fbb.EndTable(start);
   return Offset{end};
@@ -750,7 +772,7 @@ Offset saveTuple(
   ZuArray<const Value> tuple)
 {
   return saveTuple(fbb, fields, xFields, tuple, [](const ZtMField *) {
-    return false;
+    return true;
   });
 }
 
@@ -812,11 +834,23 @@ struct MockRow : public IndexUN::Node {
 };
 
 // key indices
+// - override the default comparator to provide a mock RDBMS descending index
+template <typename T> struct TupleCmp {
+  static int cmp(const T &l, const T &r) {
+    unsigned ln = l.length();
+    unsigned rn = r.length();
+    unsigned n = ln < rn ? ln : rn;
+    for (unsigned i = 0; i < n; i++)
+      if (int j = l[i].cmp(r[i])) return j;
+    return rn - ln; // treat missing trailing values as infinitely large
+  }
+};
 inline constexpr const char *MockRowIndex_HeapID() { return "MockRowIndex"; }
 using Index =
   ZmRBTreeKV<Tuple, ZmRef<const MockRow>,
-    ZmRBTreeUnique<true,
-      ZmRBTreeHeapID<MockRowIndex_HeapID>>>;
+    ZmRBTreeCmp<TupleCmp,
+      ZmRBTreeUnique<true,
+	ZmRBTreeHeapID<MockRowIndex_HeapID>>>>;
 
 // --- mock storeTbl
 
@@ -851,7 +885,6 @@ public:
 	    m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
 	  });
     }
-    m_maxBuf = new AnyBuf{};
   }
 
   auto id() const { return m_id; }
@@ -882,18 +915,6 @@ private:
     return new MockRow{record->un(), sn, record->vn(), ZuMv(tuple)};
   }
 
-  // save a row for maxima
-  ZmRef<AnyBuf> saveMax(const ZmRef<const MockRow> &row, unsigned keyID) {
-    ZmAssert(m_maxBuf->refCount() == 1);
-    IOBuilder fbb;
-    fbb.buf(m_maxBuf);
-    fbb.Finish(saveTuple(fbb, m_fields, m_xFields, row->data,
-	[keyID](const ZtMField *field) {
-	  return !(field->keys & (1<<keyID));
-	}));
-    return fbb.buf();
-  }
-
   // save a row to a buffer as a replication/recovery message
   template <bool Recovery>
   ZmRef<AnyBuf> saveRow(const ZmRef<const MockRow> &row) {
@@ -919,44 +940,47 @@ public:
 
   void warmup() { }
 
-  void maxima(MaxFn maxFn) {
-    unsigned n = m_keyFields.length();
-    for (unsigned i = 0; i < n; i++) {
-      const auto &keyFields = m_keyFields[i];
-      {
-	unsigned m = keyFields.length();
-	bool isSeries = false;
-	for (unsigned j = 0; j < m; j++) {
-	  if (keyFields[j]->props & ZtMFieldProp::Series) isSeries = true;
-	}
-	if (!isSeries) continue;
-      }
-      auto maximum = m_indices[i].maximum();
-      while (maximum) {
-	Tuple key = maximum->key();
-	ZmAssert(key.length() == keyFields.length());
-	ZmRef<const MockRow> maxRow = maximum->val();
-	MaxData maxData{
-	  .keyID = i,
-	  .buf = saveMax(maxRow, i).constRef()
-	};
-	maxFn(ZuMv(maxData));
-	unsigned m = keyFields.length();
-	for (unsigned j = 0; j < m; j++)
-	  if (keyFields[j]->props & ZtMFieldProp::Series) key[j] = Value{};
-	maximum = m_indices[i].find<ZmRBTreeLess>(key);
-      }
+  void all(
+    unsigned keyID, ZmRef<const AnyBuf> buf, unsigned limit, KeyFn keyFn)
+  {
+    const auto &keyFields = m_keyFields[keyID];
+    const auto &xKeyFields = m_xKeyFields[keyID];
+
+    auto groupKey = loadGroupKey(
+      keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
+    ZeLOG(Debug, ([groupKey](auto &s) {
+      s << "groupKey={" << ZtJoin(groupKey, ", ") << '}';
+    }));
+    if (ZuUnlikely(!groupKey.length())) {
+      keyFn(KeyResult{});
+      return; // should never happen
     }
+
+    const auto &index = m_indices[keyID];
+    auto row = index.find<ZmRBTreeGreater>(groupKey);
+    row = row ? index.prev(row) : index.maximum();
+    unsigned i = 0;
+    while (row && row->key() >= groupKey && i++ < limit) {
+      auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
+      IOBuilder fbb;
+      fbb.Finish(saveTuple(fbb, keyFields, xKeyFields, key));
+      KeyData keyData{
+	.keyID = keyID,
+	.buf = fbb.buf().constRef()
+      };
+      keyFn(KeyResult{ZuMv(keyData)});
+      row = index.prev(row);
+    }
+    keyFn(KeyResult{});
   }
 
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
-    ZmAssert(keyID < m_keyFields.length());
     auto work_ =
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
-      auto tuple = loadTuple(
+      auto key = loadTuple(
 	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data()));
-      ZmRef<const MockRow> row = m_indices[keyID].findVal(tuple);
+      ZmRef<const MockRow> row = m_indices[keyID].findVal(key);
       if (row) {
 	RowData data{.buf = saveRow<false>(row).constRef()};
 	auto callback =
@@ -1062,7 +1086,7 @@ public:
       for (unsigned i = 1; i < n; i++) {
 	auto key = extractKey(m_fields, m_keyFields, i, row->data);
 	ZmAssert(key.length() == m_keyFields[i].length());
-	new (&origKeys[i - 1]) Tuple{ZuMv(key)};
+	new (&origKeys[i - 1]) Tuple(ZuMv(key)); // not Tuple{}
       }
       // remove from UN index
       m_indexUN.delNode(row);
@@ -1141,7 +1165,6 @@ private:
   ZtArray<Index>	m_indices;
 
   bool			m_opened = false;
-  ZmRef<AnyBuf>		m_maxBuf;
 
   UN			m_maxUN = ZdbNullUN();
   SN			m_maxSN = ZdbNullSN();
@@ -1178,7 +1201,6 @@ public:
       ZtMFields fields,
       ZtMKeyFields keyFields,
       const reflection::Schema *schema,
-      MaxFn maxFn,
       OpenFn openFn) {
     StoreTbls::Node *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {
@@ -1193,7 +1215,6 @@ public:
       m_storeTbls->addNode(storeTbl);
     }
     storeTbl->open();
-    if (maxFn) storeTbl->maxima(maxFn);
     openFn(OpenResult{OpenData{
       .storeTbl = storeTbl,
       .count = storeTbl->count(),

@@ -82,13 +82,23 @@ using OpenFn = ZmFn<OpenResult>;
 // table close callback
 using CloseFn = ZmFn<>;
 
-// max data (returned by maxima() for all series keys)
+// count data (returned by count)
+struct CountData {
+  unsigned		keyID;
+  uint64_t		count;
+};
+// count callback
+using CountFn = ZmFn<CountData>;
+
+// key data
 struct KeyData {
   unsigned		keyID;
   ZmRef<const AnyBuf>	buf;	// key data, no replication message header
 };
-// max callback
-using KeyFn = ZmFn<KeyData>;	// must process buf contents synchronously
+// key result
+using KeyResult = ZuUnion<void, KeyData>;
+// key callback
+using KeyFn = ZmFn<KeyResult>;	// app must process buf contents synchronously
 
 // row data
 struct RowData {
@@ -116,6 +126,10 @@ public:
   virtual void warmup() = 0;
 
   // buf contains key data, no replication message header
+  virtual void all(
+    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, KeyFn) = 0;
+
+  // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;
 
   virtual void recover(UN, RowFn) = 0;
@@ -137,14 +151,11 @@ public:
   virtual void start(StartFn fn) { fn(StartResult{}); }
   virtual void stop(StopFn fn) { fn(StopResult{}); }
 
-  // multiple calls to KeyFn may continue after open() returns,
-  // concluding with a single call to OpenFn
   virtual void open(			// open table - idempotent, async
       ZuID id,				// name of table
       ZtMFields fields,			// fields
       ZtMKeyFields keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
-      KeyFn,				// maxima callback
       OpenFn) = 0;			// open result callback
 };
 

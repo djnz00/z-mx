@@ -416,6 +416,7 @@ struct ZuFieldTuple_ : public Tuple {
     using Adapt = Adapted<Override<Orig>>;
     using O = Tuple;
     enum { I = ZuTypeIndex<Base, ZuTypeMap<ZuFieldOrig, Fields_>>{} };
+    // substitute Ctor property for the tuple
   private:
     template <typename>
     struct CtorFilter : public ZuTrue { };

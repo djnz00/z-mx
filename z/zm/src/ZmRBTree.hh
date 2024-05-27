@@ -1110,7 +1110,7 @@ private:
   }
 
 public:
-  Node *next(Node *node) {
+  Node *next(Node *node) const {
     Node *next;
 
     if constexpr (!Unique) {
@@ -1139,7 +1139,7 @@ public:
     return next;
   }
 
-  Node *prev(Node *node) {
+  Node *prev(Node *node) const {
     Node *prev;
 
     if constexpr (!Unique) {

@@ -190,10 +190,19 @@ int main(int argc, char **argv)
 	    done_.post();
 	  });
 	done_.wait();
-	auto max = orders[0]->maximum<2>(ZuFwdTuple("FIX0"));
-	ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	  s << "maximum(FIX0): " << max;
-	}));
+	orders[0]->all<2>(ZuFwdTuple("FIX0"), 1, [](auto max) {
+	  using Key = ZuFieldKeyT<Order, 2>;
+	  if (max.template is<Key>())
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "maximum(FIX0): " << max.template p<Key>();
+	    }));
+	  else
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "maximum(FIX0): EOR";
+	    }));
+	  done_.post();
+	});
+	done_.wait();
 	done.post();
       });
 
