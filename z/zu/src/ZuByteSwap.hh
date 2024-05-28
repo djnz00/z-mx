@@ -198,7 +198,8 @@ private:
       ZuInspect<P, U>::Converts>
   set(P p) {
     I i = 0;
-    *reinterpret_cast<U *>(&i) = p;
+    U *ZuMayAlias(ptr) = reinterpret_cast<U *>(&i);
+    *ptr = p;
     m_i = ZuIntrin::bswap(i);
   }
   template <typename P>
