@@ -7,8 +7,8 @@
 // hex dump
 //
 // ZuBytes b{ptr, length};
-// std::cout << ZtHexDump_{b} << std::flush;
-// std::cout << ZtHexDump{b} << std::flush;
+// std::cout << ZtHexDump_{"b", b} << std::flush;
+// std::cout << ZtHexDump{"b", b} << std::flush;
 //
 // ZtHexDump_ is a low-level hex dumper by reference that does NOT copy
 // prefix or data
