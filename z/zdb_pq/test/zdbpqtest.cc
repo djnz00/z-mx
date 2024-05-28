@@ -146,7 +146,7 @@ int main(int argc, char **argv)
       orders->glob<2>(ZuFwdTuple("FIX0"), 0, 1, [&seqNo](auto max) {
 	using Key = ZuFieldKeyT<Order, 2>;
 	if (max.template is<Key>()) {
-	  seqNo = max.template p<Key>().template p<0>();
+	  seqNo = max.template p<Key>().template p<1>();
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): " << max.template p<Key>();
 	  }));

@@ -1873,9 +1873,9 @@ void StoreTbl::glob_rcvd(Work::Glob &glob, PGresult *res)
   unsigned nr = PQntuples(res);
   if (!nr) return;
 
-  unsigned keyID = m_openState.keyID();
-  const auto &keyFields = m_keyFields[glob.keyID];
-  const auto &xKeyFields = m_xKeyFields[glob.keyID];
+  unsigned keyID = glob.keyID;
+  const auto &keyFields = m_keyFields[keyID];
+  const auto &xKeyFields = m_xKeyFields[keyID];
   unsigned nc = keyFields.length();
 
   // tuple is POD, no need to run destructors when going out of scope
@@ -1893,7 +1893,6 @@ void StoreTbl::glob_rcvd(Work::Glob &glob, PGresult *res)
     auto buf =
       glob_save(ZuArray<const Value>(&tuple[0], nc), keyID).constRef();
     // res can go out of scope now - everything is saved in buf
-    // ZeLOG(Debug, ([](auto &s) { s << "calling maxFn"; }));
     KeyResult result{KeyData{
       .keyID = keyID,
       .buf = ZuMv(buf)
