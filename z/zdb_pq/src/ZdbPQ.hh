@@ -158,7 +158,11 @@ struct Value : public Value_ {
     return true;
   }
 
-  // All other types - copied
+  // All other types - memcpy
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
   template <unsigned I, typename T = Value_::Type<I>>
   ZuIfT<
     !ZuIsExact<void, T>{} &&
@@ -169,6 +173,9 @@ struct Value : public Value_ {
     memcpy(new_<I, true>(), data, length);
     return true;
   }
+#if defined(__GNUC__) && !defined(__llvm__)
+#pragma GCC diagnostic pop
+#endif
 
   // Postgres binary format accessors - data<I>(), length<I>()
 
@@ -708,15 +715,27 @@ inline void saveValue(
 using Tuple = ZtArray<Value>;
 
 // load tuple from flatbuffer
-template <typename Filter>
-Tuple loadTuple(
+Tuple loadTuple_(
   Tuple tuple,
   const ZtMFields &fields,
   const XFields &xFields,
+  unsigned n,
+  const Zfb::Table *fbo)
+{
+  tuple.ensure(tuple.length() + n);
+  for (unsigned i = 0; i < n; i++)
+    loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
+  return tuple;
+}
+template <typename Filter>
+Tuple loadTuple_(
+  Tuple tuple,
+  const ZtMFields &fields,
+  const XFields &xFields,
+  unsigned n,
   const Zfb::Table *fbo,
   Filter filter)
 {
-  unsigned n = fields.length();
   tuple.ensure(tuple.length() + n);
   for (unsigned i = 0; i < n; i++)
     if (!filter(fields[i]))
@@ -726,13 +745,15 @@ Tuple loadTuple(
 Tuple loadTuple(Tuple tuple,
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
+  return loadTuple_(
+    ZuMv(tuple), fields, xFields, fields.length(), fbo,
     [](const ZtMField *) { return false; });
 }
 Tuple loadUpdTuple(Tuple tuple,
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(ZuMv(tuple), fields, xFields, fbo,
+  return loadTuple_(
+    ZuMv(tuple), fields, xFields, fields.length(), fbo,
     [](const ZtMField *field) {
       return !(field->props & ZtMFieldProp::Update);
     });
@@ -814,7 +835,15 @@ namespace SendState {
 
 namespace Work {
 
-struct Open { };			// open table
+struct Open { };	// open table
+
+struct Glob {
+  unsigned		keyID;
+  ZmRef<const AnyBuf>	buf;
+  unsigned		offset;
+  unsigned		limit;
+  KeyFn			keyFn;
+};
 
 struct Find {
   unsigned		keyID;
@@ -835,14 +864,14 @@ struct Write {
   bool			mrd = false;	// used by delete only
 };
 
-using Query = ZuUnion<Open, Find, Recover, Write>;
+using Query = ZuUnion<Open, Glob, Find, Recover, Write>;
 
 struct Start { };			// start data store
 
 struct Stop { };
 
 struct TblTask {
-  StoreTbl	*tbl;	
+  StoreTbl	*tbl;
   Query		query;
 };
 
@@ -908,7 +937,6 @@ public:
 // - ... while automatically creating new tables and indices as needed
 // - recover, find, insert, update and delete statements are prepared
 // - max UN, SN are recovered
-// - any series maxima are recovered
 class OpenState {
 public:
   uint32_t v = 0;	// public for printing/logging
@@ -918,6 +946,7 @@ public:
     Closed = 0,
     MkTable,	// idempotent create table
     MkIndices,	// idempotent create indices for all keys
+    PrepGlob,	// prepare glob for all keys
     PrepFind,	// prepare recover and find for all keys
     PrepInsert,	// prepare insert query
     PrepUpdate,	// prepare update query
@@ -927,7 +956,6 @@ public:
     MaxUN,	// query max UN, max SN from main table
     EnsureMRD,	// ensure MRD table has row for this table
     MRD,	// query max UN, max SN from mrd table
-    Maxima,	// query maxima for series keys
     Opened	// open complete (possibly failed)
   };
 
@@ -986,16 +1014,18 @@ protected:
   ~StoreTbl();
 
 public:
-  void open(MaxFn, OpenFn);
+  void open(OpenFn);
   void close(CloseFn);
 
   void warmup();
 
-  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn);
+  void glob(unsigned keyID, ZmRef<const AnyBuf>, unsigned o, unsigned n, KeyFn);
 
-  void recover(UN un, RowFn rowFn);
+  void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn);
 
-  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn);
+  void recover(UN, RowFn);
+
+  void write(ZmRef<const AnyBuf>, CommitFn);
 
 private:
   // open orchestration
@@ -1013,6 +1043,10 @@ private:
   void mkIndices();
   int mkIndices_send();
   void mkIndices_rcvd(PGresult *);
+
+  void prepGlob();
+  int prepGlob_send();
+  void prepGlob_rcvd(PGresult *);
 
   void prepFind();
   int prepFind_send();
@@ -1050,12 +1084,12 @@ private:
   int mrd_send();
   void mrd_rcvd(PGresult *);
 
-  void maxima();
-  int maxima_send();
-  void maxima_rcvd(PGresult *);
-  ZmRef<AnyBuf> maxima_save(ZuArray<const Value> tuple, unsigned keyID);
-
   // principal queries
+  int glob_send(Work::Glob &);
+  void glob_rcvd(Work::Glob &, PGresult *);
+  ZmRef<AnyBuf> glob_save(ZuArray<const Value> tuple, unsigned keyID);
+  void glob_failed(Work::Glob &, ZeMEvent);
+
   int find_send(Work::Find &);
   void find_rcvd(Work::Find &, PGresult *);
   template <bool Recovery>
@@ -1083,12 +1117,11 @@ private:
   ZtMKeyFields		m_keyFields;
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
+  ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
   FieldMap		m_fieldMap;
 
   OpenState		m_openState;
-  MaxFn			m_maxFn;	// maxima callback
   OpenFn		m_openFn;	// open callback
-  ZmRef<AnyBuf>		m_maxBuf;	// used by maxima_save()
 
   uint64_t		m_count = 0;
   UN			m_maxUN = ZdbNullUN();
@@ -1119,7 +1152,6 @@ public:
     ZtMFields fields,
     ZtMKeyFields keyFields,
     const reflection::Schema *schema,
-    MaxFn maxFn,
     OpenFn openFn);
 
   bool stopping() const { return m_stopFn; }
@@ -1207,6 +1239,8 @@ private:
   HANDLE		m_connEvent = INVALID_HANDLE_VALUE;
 #endif
 
+  // FIXME - later - telemetry for queue lengths
+  // FIXME - later - test transient send failure, pushback, resend
   Work::Queue		m_queue;	// not yet sent
   Work::Queue		m_sent;		// sent, awaiting response
 

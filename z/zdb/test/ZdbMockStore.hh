@@ -685,36 +685,26 @@ using Tuple = ZtArray<Value>;
 // of values, i.e. tuples.length() == fields.length() == xFields.length()
 // (individual elements of the tuple can be null values)
 
-// load group key from flatbuffer
-Tuple loadGroupKey(
-  const ZtMFields &keyFields,
-  const XFields &xKeyFields,
-  const Zfb::Table *fbo)
-{
-  unsigned m = keyFields.length();
-  unsigned n;
-  bool isSeries = false;
-  for (n = 0; n < m; n++) {
-    if (keyFields[n]->props & ZtMFieldProp::Series) {
-      isSeries = true;
-      break;
-    }
-  }
-  if (ZuUnlikely(!isSeries)) return Tuple{}; // should never happen
-  Tuple tuple(n); // not {}
-  for (unsigned i = 0; i < n; i++)
-    loadValue(static_cast<Value *>(tuple.push()), xKeyFields[i], fbo);
-  return tuple;
-}
 // load tuple from flatbuffer
-template <typename Filter>
-Tuple loadTuple(
+Tuple loadTuple_(
   const ZtMFields &fields,
   const XFields &xFields,
+  unsigned n,
+  const Zfb::Table *fbo)
+{
+  Tuple tuple(n); // not {}
+  for (unsigned i = 0; i < n; i++)
+    loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
+  return tuple;
+}
+template <typename Filter>
+Tuple loadTuple_(
+  const ZtMFields &fields,
+  const XFields &xFields,
+  unsigned n,
   const Zfb::Table *fbo,
   Filter filter)
 {
-  unsigned n = fields.length();
   Tuple tuple(n); // not {}
   for (unsigned i = 0; i < n; i++)
     if (filter(fields[i]))
@@ -726,13 +716,12 @@ Tuple loadTuple(
 Tuple loadTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo,
-    [](const ZtMField *) { return true; });
+  return loadTuple_(fields, xFields, fields.length(), fbo);
 }
 Tuple loadUpdTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo,
+  return loadTuple_(fields, xFields, fields.length(), fbo,
     [](const ZtMField *field) -> bool {
       return bool(field->props & ZtMFieldProp::Update) || (field->keys & 1);
     });
@@ -740,7 +729,7 @@ Tuple loadUpdTuple(
 Tuple loadDelTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple(fields, xFields, fbo,
+  return loadTuple_(fields, xFields, fields.length(), fbo,
     [](const ZtMField *field) -> bool { return (field->keys & 1); });
 }
 
@@ -876,14 +865,20 @@ public:
 	});
     n = m_keyFields.length();
     m_xKeyFields.size(n);
+    m_keySeries.length(n);
     for (unsigned i = 0; i < n; i++) {
       unsigned m = m_keyFields[i].length();
       new (m_xKeyFields.push()) XFields{m};
-      for (unsigned j = 0; j < m; j++)
+      m_keySeries[i] = -1;
+      for (unsigned j = 0; j < m; j++) {
+	if (m_keySeries[i] < 0 &&
+	    m_keyFields[i][j]->props & ZtMFieldProp::Series)
+	  m_keySeries[i] = j;
 	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {
 	    m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
 	  });
+      }
     }
   }
 
@@ -940,27 +935,33 @@ public:
 
   void warmup() { }
 
-  void all(
-    unsigned keyID, ZmRef<const AnyBuf> buf, unsigned limit, KeyFn keyFn)
+  void glob(
+    unsigned keyID, ZmRef<const AnyBuf> buf,
+    unsigned o, unsigned n, KeyFn keyFn)
   {
+    int k = m_keySeries[keyID];
+
+    if (k < 0) { // not a series key
+      keyFn(KeyResult{});
+      return;
+    }
+
     const auto &keyFields = m_keyFields[keyID];
     const auto &xKeyFields = m_xKeyFields[keyID];
 
-    auto groupKey = loadGroupKey(
-      keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
+    auto groupKey = loadTuple_(
+      keyFields, xKeyFields, k, Zfb::GetAnyRoot(buf->data()));
     ZeLOG(Debug, ([groupKey](auto &s) {
       s << "groupKey={" << ZtJoin(groupKey, ", ") << '}';
     }));
-    if (ZuUnlikely(!groupKey.length())) {
-      keyFn(KeyResult{});
-      return; // should never happen
-    }
 
     const auto &index = m_indices[keyID];
     auto row = index.find<ZmRBTreeGreater>(groupKey);
     row = row ? index.prev(row) : index.maximum();
     unsigned i = 0;
-    while (row && row->key() >= groupKey && i++ < limit) {
+    while (i++ < o && row && row->key() >= groupKey) row = index.prev(row);
+    i = 0;
+    while (row && row->key() >= groupKey && i++ < n) {
       auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
       IOBuilder fbb;
       fbb.Finish(saveTuple(fbb, keyFields, xKeyFields, key));
@@ -1161,6 +1162,7 @@ private:
   ZtMKeyFields		m_keyFields;
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
+  ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
 

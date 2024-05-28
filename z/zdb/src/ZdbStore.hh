@@ -96,7 +96,10 @@ struct KeyData {
   ZmRef<const AnyBuf>	buf;	// key data, no replication message header
 };
 // key result
-using KeyResult = ZuUnion<void, KeyData>;
+using KeyResult = ZuUnion<
+  void,			// end of results
+  KeyData,		// matching key
+  Event>;		// error
 // key callback
 using KeyFn = ZmFn<KeyResult>;	// app must process buf contents synchronously
 
@@ -126,8 +129,8 @@ public:
   virtual void warmup() = 0;
 
   // buf contains key data, no replication message header
-  virtual void all(
-    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, KeyFn) = 0;
+  virtual void glob(
+    unsigned keyID, ZmRef<const AnyBuf>, unsigned o, unsigned n, KeyFn) = 0;
 
   // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;

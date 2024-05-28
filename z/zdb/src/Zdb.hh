@@ -754,26 +754,26 @@ struct Buf : public BufCache<T>::Node {
   using Base::Base;
 };
 
-// backing data store all() context
-template <typename T, typename Key> struct All__ {
+// backing data store glob() context
+template <typename T, typename Key> struct Glob__ {
   using Result = ZuUnion<void, Key>;
 
   ZmFn<Result>	fn;
 };
-inline constexpr const char *All_HeapID() { return "Zdb.All"; }
+inline constexpr const char *Glob_HeapID() { return "Zdb.Glob"; }
 template <typename T, typename Key, typename Heap>
-struct All_ :
-  public Heap, public ZmPolymorph, public All__<T, Key>
+struct Glob_ :
+  public Heap, public ZmPolymorph, public Glob__<T, Key>
 {
-  using Base = All__<T, Key>;
+  using Base = Glob__<T, Key>;
   using Base::Base;
   template <typename ...Args>
-  All_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  Glob_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename T, typename Key>
-using All_Heap = ZmHeap<All_HeapID, sizeof(All_<T, Key, ZuNull>)>;
+using Glob_Heap = ZmHeap<Glob_HeapID, sizeof(Glob_<T, Key, ZuNull>)>;
 template <typename T, typename Key>
-using All = All_<T, Key, All_Heap<T, Key>>;
+using Glob = Glob_<T, Key, Glob_Heap<T, Key>>;
 
 // backing data store find() context (retried on failure)
 template <typename T, typename Key> struct Find__ {
@@ -1012,9 +1012,9 @@ public:
     return new Object<T>{this, [](void *ptr) { new (ptr) T{}; }};
   }
 
-  // iterate over keys
+  // iterate over keys (o is offset, n is limit)
   template <unsigned KeyID, typename L>
-  void all(GroupKey<KeyID> groupKey, unsigned limit, L l);
+  void glob(GroupKey<KeyID> groupKey, unsigned o, unsigned n, L l);
 
   // find lambda - l(ZmRef<ZdbObject<T>>)
   template <unsigned KeyID, typename L>
@@ -1747,10 +1747,12 @@ inline void DB::print(S &s)
 
 template <typename T>
 template <unsigned KeyID, typename L>
-inline void Table<T>::all(GroupKey<KeyID> groupKey, unsigned limit, L l) {
+inline void Table<T>::glob(
+  GroupKey<KeyID> groupKey, unsigned o, unsigned n, L l)
+{
   using GroupKey_ = GroupKey<KeyID>;
   using Key_ = Key<KeyID>;
-  using Context = All<T, Key_>;
+  using Context = Glob<T, Key_>;
 
   ZmAssert(invoked());
 
@@ -1764,6 +1766,11 @@ inline void Table<T>::all(GroupKey<KeyID> groupKey, unsigned limit, L l) {
 
   auto keyFn = KeyFn::mvFn(ZuMv(context),
     [](ZmRef<Context> context, KeyResult result) {
+      if (ZuUnlikely(result.is<Event>())) { // error
+	ZeLogEvent(ZuMv(result).p<Event>());
+	context->fn(typename Context::Result{});
+	return;
+      }
       if (ZuUnlikely(!result.is<KeyData>())) { // end of results
 	context->fn(typename Context::Result{});
 	return;
@@ -1773,7 +1780,7 @@ inline void Table<T>::all(GroupKey<KeyID> groupKey, unsigned limit, L l) {
       context->fn(typename Context::Result{ZuMv(key)});
     });
 
-  storeTbl()->all(KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(keyFn));
+  storeTbl()->glob(KeyID, ZuMv(keyBuf).constRef(), o, n, ZuMv(keyFn));
 }
 
 template <typename T>
