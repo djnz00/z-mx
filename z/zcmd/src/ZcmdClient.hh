@@ -134,8 +134,8 @@ public:
   template <typename KeyID>
   void access(KeyID &&keyID, ZuString secret_) {
     ZtArray<uint8_t> secret;
-    secret.length(Ztls::Base64::declen(secret_.length()));
-    Ztls::Base64::decode(secret, secret_);
+    secret.length(ZuBase64::declen(secret_.length()));
+    ZuBase64::decode(secret, secret_);
     secret.length(32);
     ZvUserDB::KeyData token, hmac;
     token.length(token.size());

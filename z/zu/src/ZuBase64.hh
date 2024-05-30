@@ -4,27 +4,37 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// cppcodec C++ wrapper - Base 32 encode/decode
+// cppcodec C++ wrapper - Base 64 encode/decode
 
-#ifndef ZtlsBase32_HH
-#define ZtlsBase32_HH
+#ifndef ZuBase64_HH
+#define ZuBase64_HH
 
-#include <zlib/ZtlsLib.hh>
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
+#endif
 
 #include <zlib/ZuBytes.hh>
 
-#include <cppcodec/base32_rfc4648.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 
-namespace Ztls::Base32 {
+namespace ZuBase64 {
+
+ZuInline constexpr bool is(char c) {
+  return
+    (c >= 'A' && c <= 'Z') ||
+    (c >= 'a' && c <= 'z') ||
+    (c >= '0' && c <= '9') ||
+    c == '+' || c == '/' || c == '=';
+}
 
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
-ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 4)/5)<<3; }
+ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
 ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
-  using base32 = cppcodec::base32_rfc4648;
+  using base64 = cppcodec::base64_rfc4648;
   try {
-    return base32::encode(
+    return base64::encode(
 	reinterpret_cast<char *>(dst.data()), dst.length(),
 	src.data(), src.length());
   } catch (...) {
@@ -33,11 +43,11 @@ ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
 }
 
 // does not null-terminate dst
-ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 7)>>3)*5; }
+ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
 ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
-  using base32 = cppcodec::base32_rfc4648;
+  using base64 = cppcodec::base64_rfc4648;
   try {
-    return base32::decode(
+    return base64::decode(
 	dst.data(), dst.length(),
 	reinterpret_cast<const char *>(src.data()), src.length());
   } catch (...) {
@@ -47,4 +57,4 @@ ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
 
 }
 
-#endif /* ZtlsBase32_HH */
+#endif /* ZuBase64_HH */

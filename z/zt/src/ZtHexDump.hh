@@ -7,8 +7,8 @@
 // hex dump
 //
 // ZuBytes b{ptr, length};
-// std::cout << ZtHexDump_{"b", b} << std::flush;
-// std::cout << ZtHexDump{"b", b} << std::flush;
+// std::cout << ZtHexDump_{b} << std::flush;		// b not copied
+// std::cout << ZtHexDump{"b", b} << std::flush;	// b is copied
 //
 // ZtHexDump_ is a low-level hex dumper by reference that does NOT copy
 // prefix or data
@@ -16,7 +16,7 @@
 // ZtHexDump takes a copy of the prefix and data - this is used for
 // troubleshooting / logging; ZeLog printing is deferred to a later time
 // by the logger, which runs in a different thread and stack; both the
-// prefix and the data need to reliably remain in scope until dumped
+// prefix and the data need to reliably remain in scope until logged
 
 #ifndef ZtHexDump_HH
 #define ZtHexDump_HH

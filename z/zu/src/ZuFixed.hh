@@ -164,14 +164,14 @@ public:
   // scan from string
   template <typename S>
   ZuFixed(const S &s, ZuMatchString<S> *_ = nullptr) {
-    scan<false>(s, 0);
+    scan(s);
   }
   template <typename S>
   ZuFixed(const S &s, unsigned e, ZuMatchString<S> *_ = nullptr) {
-    scan<true>(s, e);
+    scan(s, e);
   }
 
-  template <bool Exponent>
+  template <bool NDP = true>
   unsigned scan(ZuString s, unsigned e) {
     unsigned int m = 0;
     if (ZuUnlikely(!s)) goto null;
@@ -180,7 +180,7 @@ public:
       null();
       return 3;
     }
-    if constexpr (Exponent) if (e > 18) e = 18;
+    if constexpr (NDP) if (e > 18) e = 18;
     {
       bool negative = s[0] == '-';
       if (ZuUnlikely(negative)) {
@@ -196,14 +196,14 @@ public:
       if (ZuUnlikely(s[0] == '.')) {
 	++m;
 	if (ZuUnlikely(n == 1)) goto zero;
-	if constexpr (!Exponent) e = n - 1;
+	if constexpr (!NDP) e = n - 1;
 	goto frac;
       }
       n = Zu_atou(iv, s.data(), n);
       if (ZuUnlikely(!n)) goto null;
       if (ZuUnlikely(n > (18 - e))) goto null; // overflow
       s.offset(n), m += n;
-      if constexpr (!Exponent) e = 18 - n;
+      if constexpr (!NDP) e = 18 - n;
       if ((n = s.length()) > 1 && s[0] == '.') {
 	++m;
   frac:
@@ -225,13 +225,22 @@ public:
     null();
     return 0;
   }
+  unsigned scan(ZuString s) { return scan<false>(s, 0); }
 
 public:
   // printing
   template <typename S> void print(S &s) const;
   friend ZuPrintFn ZuPrintType(ZuFixed *);
 
-  template <typename Fmt> ZuFixed_Fmt<Fmt> fmt(Fmt) const;
+  template <typename Fmt> ZuFixed_Fmt<Fmt> fmt() const;
+  template <bool Upper = false, typename Fmt = ZuFmt::Default>
+  ZuFixed_Fmt<ZuFmt::Hex<Upper, Fmt>> hex() const;
+  template <
+    int NDP = -ZuFmt::Default::NDP_,
+    char Trim = '\0',
+    typename Fmt = ZuFmt::Default>
+  ZuFixed_Fmt<ZuFmt::FP<NDP, Trim, Fmt>> fp() const;
+
   ZuFixed_VFmt vfmt() const;
   template <typename VFmt>
   ZuFixed_VFmt vfmt(VFmt &&) const;
@@ -258,11 +267,22 @@ template <typename Fmt> struct ZuFixed_Fmt {
   friend ZuPrintFn ZuPrintType(ZuFixed_Fmt *);
 };
 template <class Fmt>
-ZuFixed_Fmt<Fmt> ZuFixed::fmt(Fmt) const
+inline ZuFixed_Fmt<Fmt> ZuFixed::fmt() const
 {
   return ZuFixed_Fmt<Fmt>{*this};
 }
-template <typename S> inline void ZuFixed::print(S &s) const
+template <bool Upper, typename Fmt>
+inline ZuFixed_Fmt<ZuFmt::Hex<Upper, Fmt>> ZuFixed::hex() const
+{
+  return ZuFixed_Fmt<ZuFmt::Hex<Upper, Fmt>>{*this};
+}
+template <int NDP, char Trim, typename Fmt>
+inline ZuFixed_Fmt<ZuFmt::FP<NDP, Trim, Fmt>> ZuFixed::fp() const
+{
+  return ZuFixed_Fmt<ZuFmt::FP<NDP, Trim, Fmt>>{*this};
+}
+template <typename S>
+inline void ZuFixed::print(S &s) const
 {
   s << ZuFixed_Fmt<ZuFmt::Default>{*this};
 }

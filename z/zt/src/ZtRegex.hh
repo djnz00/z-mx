@@ -158,7 +158,7 @@ private:
   unsigned	m_captureCount;
 };
 
-// we quote the pattern using the pre-processor to avoid having to double
+// quote the pattern using the pre-processor to avoid having to double
 // backslash the RE, then strip the leading/trailing double-quotes
 
 #define ZtREGEX(pattern_, ...) ZmStatic([]{ \

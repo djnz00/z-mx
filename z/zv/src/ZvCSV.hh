@@ -64,7 +64,7 @@ namespace ZvCSV_ {
 	Code != ZtFieldTypeCode::Flags>
   quote_(
       Row &row, const T *object, unsigned i,
-      const ZtMField *field, const ZtFieldFmt &fmt) {
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
     ZmStream s{row};
     field->get.print<Code>(s, object, i, field, fmt);
   }
@@ -75,7 +75,7 @@ namespace ZvCSV_ {
 	Code == ZtFieldTypeCode::String>
   quote_(
       Row &row, const T *object, unsigned i,
-      const ZtMField *field, const ZtFieldFmt &fmt) {
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
     quote__(row, field->get.get<Code>(object, i));
   }
   // use the built-in print function, but quote for CSV
@@ -86,7 +86,7 @@ namespace ZvCSV_ {
 	Code == ZtFieldTypeCode::Flags>
   quote_(
       Row &row, const T *object, unsigned i,
-      const ZtMField *field, const ZtFieldFmt &fmt) {
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
     ZtString s;
     field->get.print<Code>(s, object, i, field, fmt);
     quote__(row, ZuMv(s));
@@ -96,7 +96,7 @@ namespace ZvCSV_ {
   inline void quote(Row &row,
       const T *object, unsigned i,
       const ZtMField *field,
-      const ZtFieldFmt &fmt) {
+      const ZtFieldVFmt &fmt) {
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
 	[&row, object, i, field, &fmt](auto Code) {
       quote_<Code>(row, object, i, field, fmt);
@@ -145,7 +145,7 @@ public:
       m_columns.add(m_fields[i]->id, Column{i, m_fields[i]});
   }
 
-  struct FieldFmt : public ZtFieldFmt {
+  struct FieldFmt : public ZtFieldVFmt {
     FieldFmt() {
       new (dateScan.new_csv()) ZuDateTimeScan::CSV{};
       new (datePrint.new_csv()) ZuDateTimeFmt::CSV{};
@@ -187,7 +187,7 @@ private:
 
   void scan(
       const ColIndex &colIndex, ZuString row,
-      const ZtFieldFmt &fmt, T *object) const {
+      const ZtFieldVFmt &fmt, T *object) const {
     ZtArray<ZtArray<char>> a;
     ZvCSV_::split(row, a);
     unsigned n = a.length();

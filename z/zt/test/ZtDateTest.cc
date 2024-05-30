@@ -24,7 +24,7 @@
 ZuDateTimePrintISO isoPrint(const ZuDateTime &d, int tzOffset = 0) {
   auto &fmt = ZmTLS<ZuDateTimeFmt::ISO, isoPrint>();
   fmt.tzOffset(tzOffset);
-  return d.print(fmt);
+  return d.fmt(fmt);
 }
 
 ZuStringN<40> isoStr(const ZuDateTime &d, int tzOffset = 0) {
@@ -272,9 +272,9 @@ int main() {
     auto winterOff = Zt::tzOffset(winter, "GB");
     auto summerOff = Zt::tzOffset(summer, "GB");
     fmt.tzOffset(winterOff);
-    ZtString winterUK; winterUK << winter.print(fmt);
+    ZtString winterUK; winterUK << winter.fmt(fmt);
     fmt.tzOffset(summerOff);
-    ZtString summerUK; summerUK << summer.print(fmt);
+    ZtString summerUK; summerUK << summer.fmt(fmt);
     CHECK(summerUK == "2007/07/07 01:00:00");
     CHECK(winterUK == "2007/01/07 00:00:00");
   }

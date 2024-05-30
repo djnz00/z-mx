@@ -4,7 +4,7 @@
 
 #include <zlib/ZtArray.hh>
 
-#include <zlib/ZtlsBase32.hh>
+#include <zlib/ZuBase32.hh>
 #include <zlib/ZtlsTOTP.hh>
 
 static void usage() {
@@ -20,8 +20,8 @@ int main(int argc, char **argv)
   ZtArray<uint8_t> secret;
   if (argc != 2) usage();
   unsigned n = strlen(argv[1]);
-  secret.length(Ztls::Base32::declen(n));
-  secret.length(Ztls::Base32::decode(secret, ZuBytes{argv[1], n}));
+  secret.length(ZuBase32::declen(n));
+  secret.length(ZuBase32::decode(secret, ZuBytes{argv[1], n}));
   if (!secret) {
     std::cerr << "decode error\n" << std::flush;
     return 1;

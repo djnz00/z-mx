@@ -16,4 +16,7 @@
 using int128_t = __int128_t;
 using uint128_t = __uint128_t;
 
+template <int128_t I> using ZuInt128 = ZuConstant<int128_t, I>;
+template <uint128_t I> using ZuUInt128 = ZuConstant<uint128_t, I>;
+
 #endif /* ZuInt_HH */

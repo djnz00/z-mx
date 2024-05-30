@@ -6,14 +6,24 @@
 
 // cppcodec C++ wrapper - Hex (uppercase) encode/decode
 
-#ifndef ZtlsHex_HH
-#define ZtlsHex_HH
+#ifndef ZuHex_HH
+#define ZuHex_HH
 
-#include <zlib/ZtlsLib.hh>
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
+#endif
+
+#include <zlib/ZuBytes.hh>
 
 #include <cppcodec/hex_upper.hpp>
 
-namespace Ztls::Hex {
+namespace ZuHex {
+
+ZuInline constexpr bool is(char c) {
+  return
+    (c >= 'A' && c <= 'F') ||
+    (c >= '0' && c <= '9');
+}
 
 // both encode and decode return count of bytes written
 
@@ -37,4 +47,4 @@ ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
 
 }
 
-#endif /* ZtlsHex_HH */
+#endif /* ZuHex_HH */

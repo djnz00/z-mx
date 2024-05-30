@@ -10,7 +10,7 @@
 
 #include <zlib/ZeLog.hh>
 
-#include <zlib/ZtlsBase32.hh>
+#include <zlib/ZuBase32.hh>
 #include <zlib/ZtlsTOTP.hh>
 
 namespace ZvUserDB {
@@ -58,8 +58,8 @@ bool Mgr::bootstrap(
   if (!m_users->count_()) {
     ZmRef<User> user = userAdd_(
 	0, name, role, User::Immutable | User::Enabled | User::ChPass, passwd);
-    secret.length(Ztls::Base32::enclen(user->secret.length()));
-    Ztls::Base32::encode(secret, user->secret);
+    secret.length(ZuBase32::enclen(user->secret.length()));
+    ZuBase32::encode(secret, user->secret);
     return true;
   }
   return false;
@@ -72,12 +72,12 @@ ZmRef<User> Mgr::userAdd_(
   ZmRef<User> user = new User(id, name, flags);
   {
     KeyData passwd_;
-    unsigned passLen_ = Ztls::Base64::declen(m_passLen);
+    unsigned passLen_ = ZuBase64::declen(m_passLen);
     if (passLen_ > passwd_.size()) passLen_ = passwd_.size();
     passwd_.length(passLen_);
     m_rng->random(passwd_);
     passwd.length(m_passLen);
-    Ztls::Base64::encode(passwd, passwd_);
+    ZuBase64::encode(passwd, passwd_);
   }
   user->secret.length(user->secret.size());
   m_rng->random(user->secret);
@@ -607,12 +607,12 @@ Offset<fbs::UserPass> Mgr::resetPass(
   ZtString passwd;
   {
     KeyData passwd_;
-    unsigned passLen_ = Ztls::Base64::declen(m_passLen);
+    unsigned passLen_ = ZuBase64::declen(m_passLen);
     if (passLen_ > passwd_.size()) passLen_ = passwd_.size();
     passwd_.length(passLen_);
     m_rng->random(passwd_);
     passwd.length(m_passLen);
-    Ztls::Base64::encode(passwd, passwd_);
+    ZuBase64::encode(passwd, passwd_);
   }
   {
     Ztls::HMAC hmac(User::keyType());
@@ -896,8 +896,8 @@ Offset<fbs::KeyUpdAck> Mgr::keyAdd_(
     Key::IDData keyID_;
     keyID_.length(keyID_.size());
     m_rng->random(keyID_);
-    keyID.length(Ztls::Base64::enclen(keyID_.length()));
-    Ztls::Base64::encode(keyID, keyID_);
+    keyID.length(ZuBase64::enclen(keyID_.length()));
+    ZuBase64::encode(keyID, keyID_);
   } while (m_keys->findPtr(ZuFwdTuple(keyID)));
   ZmRef<Key> key = new Key{ZuMv(keyID), user->id, user->keyList};
   key->secret.length(key->secret.size());

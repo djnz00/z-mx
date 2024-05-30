@@ -6,9 +6,9 @@ table KeyIDList {
   list:[string];
 }
 table Key {
+  user_i_d:uint64;
   id:string (key);	// 16 byte API key ID, base64 encoded
   secret:[ubyte];	// 32 byte HMAC-SHA256 API secret
-  user_i_d:uint64;
 }
 table KeyUpdAck {
   key:Key;

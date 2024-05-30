@@ -537,7 +537,15 @@ public:
 
   template <typename S> void print(S &s) const;
 
-  template <typename Fmt> ZuDecimalFmt<Fmt> fmt(Fmt) const;
+  template <typename Fmt> ZuDecimalFmt<Fmt> fmt() const;
+  template <bool Upper = false, typename Fmt = ZuFmt::Default>
+  ZuDecimalFmt<ZuFmt::Hex<Upper, Fmt>> hex() const;
+  template <
+    int NDP = -ZuFmt::Default::NDP_,
+    char Trim = '\0',
+    typename Fmt = ZuFmt::Default>
+  ZuDecimalFmt<ZuFmt::FP<NDP, Trim, Fmt>> fp() const;
+
   ZuDecimalVFmt vfmt() const;
   template <typename VFmt>
   ZuDecimalVFmt vfmt(VFmt &&) const;
@@ -568,9 +576,20 @@ template <typename Fmt> struct ZuDecimalFmt {
 
   friend ZuPrintFn ZuPrintType(ZuDecimalFmt *);
 };
-template <class Fmt> inline ZuDecimalFmt<Fmt> ZuDecimal::fmt(Fmt) const
+template <class Fmt>
+inline ZuDecimalFmt<Fmt> ZuDecimal::fmt() const
 {
   return ZuDecimalFmt<Fmt>{*this};
+}
+template <bool Upper, typename Fmt>
+inline ZuDecimalFmt<ZuFmt::Hex<Upper, Fmt>> ZuDecimal::hex() const
+{
+  return ZuDecimalFmt<ZuFmt::Hex<Upper, Fmt>>{*this};
+}
+template <int NDP, char Trim, typename Fmt>
+inline ZuDecimalFmt<ZuFmt::FP<NDP, Trim, Fmt>> ZuDecimal::fp() const
+{
+  return ZuDecimalFmt<ZuFmt::FP<NDP, Trim, Fmt>>{*this};
 }
 template <typename S> inline void ZuDecimal::print(S &s) const
 {

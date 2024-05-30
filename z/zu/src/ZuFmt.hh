@@ -18,9 +18,11 @@ namespace ZuFmt {
   enum { MaxWidth = 54 };
   enum { MaxNDP = 19 };
 
-  // NTP (named template parameters)
   struct Just { enum { None = 0, Left, Right, Frac }; };
-  // NTP defaults
+
+  // NTP (named template parameters)
+
+  // default formatting - directly used as ZuFmt::Default
   struct Default {
     enum { Justification_ = Just::None };
     enum { Hex_ = 0 };			// Hexadecimal
@@ -34,21 +36,22 @@ namespace ZuFmt {
     enum { Negative_ = 0 };		// Negative
   };
   // NTP - left-justify within a fixed-width field
-  template <unsigned Width, char Pad = '\0', class NTP = Default>
+  template <unsigned Width, char Pad = '\0', typename NTP = Default>
   struct Left : public NTP {
     enum { Justification_ = Just::Left };
     enum { Width_ = Width > MaxWidth ? MaxWidth : Width };
     enum { Pad_ = Pad };
   };
   // NTP - right-justify within a fixed-width field
-  template <unsigned Width, char Pad = '0', class NTP = Default>
+  template <unsigned Width, char Pad = '0', typename NTP = Default>
   struct Right : public NTP {
     enum { Justification_ = Just::Right };
     enum { Width_ = (int)Width > MaxWidth ? MaxWidth : (int)Width };
     enum { Pad_ = Pad };
   };
   // NTP - justify a fixed-point value within a fixed-width field
-  template <unsigned Width, unsigned NDP, char Trim = '\0', class NTP = Default>
+  template <
+    unsigned Width, unsigned NDP, char Trim = '\0', typename NTP = Default>
   struct Frac : public NTP {
     enum { Justification_ = Just::Frac };
     enum { Width_ = Width };
@@ -56,32 +59,32 @@ namespace ZuFmt {
     enum { Trim_ = Trim };
   };
   // NTP - specify hexadecimal
-  template <bool Upper = 0, class NTP = Default>
+  template <bool Upper = 0, typename NTP = Default>
   struct Hex : public NTP {
     enum { Hex_ = 1 };
     enum { Upper_ = Upper };
   };
-  template <bool Enable, bool Upper = 0, class NTP = Default>
+  template <bool Enable, bool Upper = 0, typename NTP = Default>
   struct HexEnable : public NTP {
     enum { Hex_ = Enable };
     enum { Upper_ = Upper };
   };
   // NTP - specify thousands comma character (decimal only, default is none)
-  template <char Char = ',', class NTP = Default>
+  template <char Char = ',', typename NTP = Default>
   struct Comma : public NTP {
     enum { Comma_ = Char };
   };
   // NTP - specify 'alternative' format
-  template <class NTP = Default>
+  template <typename NTP = Default>
   struct Alt : public NTP {
     enum { Alt_ = 1 };
   };
-  template <bool Enable = 1, class NTP = Default>
+  template <bool Enable = 1, typename NTP = Default>
   struct AltEnable : public NTP {
     enum { Alt_ = Enable };
   };
   // NTP - floating point format (optionally specifying #DP and padding)
-  template <int NDP = -MaxNDP, char Trim = '\0', class NTP = Default>
+  template <int NDP = -MaxNDP, char Trim = '\0', typename NTP = Default>
   struct FP : public NTP {
     enum { NDP_ = NDP < -MaxNDP ? -MaxNDP : NDP > MaxNDP ? MaxNDP : NDP };
     enum { Trim_ = Trim };
@@ -92,11 +95,19 @@ namespace ZuFmt {
 #pragma pack(push, 1)
 struct ZuVFmt {
   ZuVFmt() :
-    m_justification(ZuFmt::Just::None),
-    m_hex(0), m_upper(0), m_alt(0),
-    m_comma('\0'),
-    m_width(0), m_pad(-1),
-    m_ndp(-ZuFmt::MaxNDP), m_trim('\0') { }
+    m_justification{ZuFmt::Just::None},
+    m_hex{0}, m_upper{0}, m_alt{0},
+    m_comma{'\0'},
+    m_width{0}, m_pad{-1},
+    m_ndp{-ZuFmt::MaxNDP}, m_trim{'\0'} { }
+
+  template <typename Fmt>
+  ZuVFmt(Fmt) :
+    m_justification{Fmt::Justification_},
+    m_hex{Fmt::Hex_}, m_upper{Fmt::Upper_}, m_alt{Fmt::Alt_},
+    m_comma{Fmt::Comma_},
+    m_width{Fmt::Width_}, m_pad{Fmt::Pad_},
+    m_ndp{Fmt::NDP_}, m_trim{Fmt::Trim_} { }
 
   // initializers
   ZuVFmt &reset() {

@@ -23,7 +23,7 @@ extern "C" {
 typedef struct {
   int64_t	tv_sec;
   uint32_t	tv_nsec;
-  uint32_t	_;	// pad to 16 bytes
+  uint32_t	_;	/* pad to 16 bytes */
 } zu_time;
 
 /* initialize new zu_time */

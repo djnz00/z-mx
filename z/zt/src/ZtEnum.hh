@@ -109,7 +109,7 @@ using ZtEnum = ZuBox_1(int8_t);
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   private: \
     template <typename S, typename Flags_> \
-    unsigned print_(S &s, Flags_ v, char delim = '|') const { \
+    unsigned print_(S &s, Flags_ v, ZuString delim = "|") const { \
       if (!v) return 0; \
       bool first = true; \
       unsigned n = 0; \
@@ -127,7 +127,7 @@ using ZtEnum = ZuBox_1(int8_t);
       return n; \
     } \
     template <typename Flags_> \
-    Flags_ scan_(ZuString s, char delim) const { \
+    Flags_ scan_(ZuString s, ZuString delim) const { \
       if (!s) return 0; \
       Flags_ v = 0; \
       bool end = false; \
@@ -137,47 +137,57 @@ using ZtEnum = ZuBox_1(int8_t);
       Flags_ mask = 1; \
       do { \
 	for (next = cstr; \
-	    ++len <= s.length() && (c = *next) != 0 && c != delim; \
-	    clen++, next++); \
+	    len < s.length() && (c = *next) != 0; \
+	    clen++, len++, next++) { \
+	  unsigned n = delim.length(); \
+	  if (!n || (len + n < s.length() && c == delim[0])) { \
+	    bool delimited = true; \
+	    for (unsigned i = 1; i < n; i++) \
+	      if (next[i] != delim[i]) { delimited = false; break; } \
+	    if (delimited) { \
+	      len += n; \
+	      next += n; \
+	      break; \
+	    } \
+	  } \
+	} \
 	if (len > s.length() || c == 0) end = true; \
 	ZtEnum i = this->s2v(ZuString(cstr, clen)); \
 	if (ZuUnlikely(!*i)) return 0; \
 	v |= (mask<<static_cast<unsigned>(i)); \
-	cstr = ++next; \
+	cstr = next; \
 	clen = 0; \
       } while (!end); \
       return v; \
     } \
   public: \
     template <typename Flags_> \
-    static Flags_ scan(ZuString s, char delim = '|') { \
+    static Flags_ scan(ZuString s, ZuString delim = "|") { \
       return instance()->template scan_<Flags_>(s, delim); \
     } \
     template <typename Flags_> \
     struct Print : public ZuPrintable { \
-      Print(Flags_ v_, char delim_ = '|') : v(v_), delim(delim_) { } \
+      Print(Flags_ v_, ZuString delim_ = "|") : v(v_), delim{delim_} { } \
       template <typename S> void print(S &s) const { \
 	ZmSingleton<Map>::instance()->print_(s, v, delim); \
       } \
       const Flags_	v; \
-      char		delim; \
+      ZuString		delim; \
     }; \
     template <typename Flags_> \
-    static Print<Flags_> print(Flags_ v, char delim = '|') { \
+    static Print<Flags_> print(Flags_ v, ZuString delim = "|") { \
       return Print<Flags_>{v, delim}; \
     } \
   };
 
 #define ZtEnumFlag_(V) V##_
 #define ZtEnumFlagLookup_(V) #V, V##_
-#define ZtEnumFlagValue_(V) V = (1<<V##_)
+#define ZtEnumFlagValue_(V) \
+  inline static constexpr uint128_t V() { return (uint128_t(1)<<V##_); }
 
 #define ZtEnumFlags_(ID, ...) \
   ZtEnumValues_(ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \
-  enum { \
-    ZuPP_Eval(ZuPP_MapComma(ZtEnumFlagValue_, __VA_ARGS__)), \
-    Mask = (1<<N) - 1 \
-  }
+  ZuPP_Eval(ZuPP_Map(ZtEnumFlagValue_, __VA_ARGS__)) \
 
 #define ZtEnumFlags(ID, ...) \
   ZtEnumFlags_(ID, __VA_ARGS__); \

@@ -43,7 +43,46 @@
 #include <zlib/zum_userdbreq_fbs.h>
 #include <zlib/zum_userdback_fbs.h>
 
+enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
+using KeyData = ZuArrayN<uint8_t, KeySize>;
+
 namespace ZvUserDB {
+
+struct Key {
+  uint64_t		userID;
+  ZuStringN<16>		id;
+  KeyData		secret;
+};
+ZfbFields(Key,
+  (((userID), (Keys<0>, Ctor<0>)), (UInt)),
+  (((id), (Keys<0>, Ctor<1>, Series)), (String)),
+  (((secret), (Ctor<2>, Update)), (Bytes)));
+
+struct Perm {
+  uint8_t		id;
+  ZtString		name;
+};
+ZfbFields(Perm,
+  (((id), (Keys<0>, Ctor<0>, Series)), (UInt)),
+  (((name), (Ctor<1>, Update)), (String)));
+
+struct Role {
+  ZtString		name;
+  uint128_t		perms;
+  uint128_t		apiperms;
+};
+ZfbFields(Role,
+  (((name), (Keys<0>, Ctor<0>)), (String)),
+  (((perms), (Ctor<1>)), (UInt))
+  (((apiperms), (Ctor<2>)), (UInt)));
+
+struct User {
+  uint64_t		id;
+  ZtString		name;
+  KeyData		hmac;
+  KeyData		secret;
+  Roles			
+};
 
 using Bitmap = ZuBitmap<256>;
 
@@ -92,8 +131,6 @@ ZmRef<Role> loadRole(const fbs::Role *role_) {
   return role;
 }
 
-enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
-using KeyData = ZuArrayN<uint8_t, KeySize>;
 
 struct Key_;
 struct User__ : public ZuObject {

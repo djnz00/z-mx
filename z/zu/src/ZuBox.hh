@@ -543,7 +543,7 @@ public:
     unsigned n = Scan<Fmt>::scan(val, s.data(), s.length());
     if (ZuUnlikely(!n)) {
       m_val = Cmp::null();
-      return 0U;
+      return 0;
     }
     m_val = val;
     return n;
@@ -554,7 +554,7 @@ public:
     unsigned n = Scan<Fmt>::scan(val, s, len);
     if (ZuUnlikely(!n)) {
       m_val = Cmp::null();
-      return 0U;
+      return 0;
     }
     m_val = val;
     return n;

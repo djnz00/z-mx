@@ -23,8 +23,8 @@
 #include <zlib/ZvCmdHost.hh>
 #include <zlib/ZvUserDB.hh>
 
-#include <zlib/ZtlsBase32.hh>
-#include <zlib/ZtlsBase64.hh>
+#include <zlib/ZuBase32.hh>
+#include <zlib/ZuBase64.hh>
 #include <zlib/ZtlsTOTP.hh>
 
 #include <zlib/ZrlCLI.hh>
@@ -234,8 +234,8 @@ friend Link;
     if (auto secret_ = ::getenv("ZCMD_TOTP_SECRET")) {
       unsigned n = strlen(secret_);
       ZtArray<uint8_t> secret;
-      secret.length(Ztls::Base32::declen(n));
-      secret.length(Ztls::Base32::decode(secret, {secret_, n}));
+      secret.length(ZuBase32::declen(n));
+      secret.length(ZuBase32::decode(secret, {secret_, n}));
       if (secret) totp = Ztls::TOTP::calc(secret);
     } else
       totp = m_cli.getpass("totp: ", 6);
@@ -592,12 +592,12 @@ private:
     using namespace Zfb::Load;
     auto hmac_ = bytes(user_->hmac());
     ZtString hmac;
-    hmac.length(Ztls::Base64::enclen(hmac_.length()));
-    Ztls::Base64::encode(hmac, hmac_);
+    hmac.length(ZuBase64::enclen(hmac_.length()));
+    ZuBase64::encode(hmac, hmac_);
     auto secret_ = bytes(user_->secret());
     ZtString secret;
-    secret.length(Ztls::Base32::enclen(secret_.length()));
-    Ztls::Base32::encode(secret, secret_);
+    secret.length(ZuBase32::enclen(secret_.length()));
+    ZuBase32::encode(secret, secret_);
     out << user_->id() << ' ' << str(user_->name()) << " roles=[";
     all(user_->roles(), [&out](unsigned i, auto role_) {
       if (i) out << ',';
@@ -1150,8 +1150,8 @@ private:
       }
       auto secret_ = bytes(keyUpdAck->key()->secret());
       ZtString secret;
-      secret.length(Ztls::Base64::enclen(secret_.length()));
-      Ztls::Base64::encode(secret, secret_);
+      secret.length(ZuBase64::enclen(secret_.length()));
+      ZuBase64::encode(secret, secret_);
       out << "id: " << str(keyUpdAck->key()->id())
 	<< "\nsecret: " << secret << '\n';
       executed(0, &ctx);

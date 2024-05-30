@@ -4,25 +4,36 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// cppcodec C++ wrapper - Base 64 encode/decode
+// cppcodec C++ wrapper - Base 32 encode/decode
 
-#ifndef ZtlsBase64_HH
-#define ZtlsBase64_HH
+#ifndef ZuBase32_HH
+#define ZuBase32_HH
 
-#include <zlib/ZtlsLib.hh>
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
+#endif
 
-#include <cppcodec/base64_rfc4648.hpp>
+#include <zlib/ZuBytes.hh>
 
-namespace Ztls::Base64 {
+#include <cppcodec/base32_rfc4648.hpp>
+
+namespace ZuBase32 {
+
+ZuInline constexpr bool is(char c) {
+  return
+    (c >= 'A' && c <= 'Z') ||
+    (c >= '2' && c <= '7') ||
+    c == '=';
+}
 
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
-ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
+ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 4)/5)<<3; }
 ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
-  using base64 = cppcodec::base64_rfc4648;
+  using base32 = cppcodec::base32_rfc4648;
   try {
-    return base64::encode(
+    return base32::encode(
 	reinterpret_cast<char *>(dst.data()), dst.length(),
 	src.data(), src.length());
   } catch (...) {
@@ -31,11 +42,11 @@ ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
 }
 
 // does not null-terminate dst
-ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
+ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 7)>>3)*5; }
 ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
-  using base64 = cppcodec::base64_rfc4648;
+  using base32 = cppcodec::base32_rfc4648;
   try {
-    return base64::decode(
+    return base32::decode(
 	dst.data(), dst.length(),
 	reinterpret_cast<const char *>(src.data()), src.length());
   } catch (...) {
@@ -45,4 +56,4 @@ ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
 
 }
 
-#endif /* ZtlsBase64_HH */
+#endif /* ZuBase32_HH */

@@ -36,7 +36,7 @@ struct Foo {
   int int_ranged;
   unsigned hex;
   int enum_;
-  uint64_t flags;
+  uint128_t flags;
   double float_;
   double float_ranged;
   ZuFixed fixed;
@@ -48,14 +48,14 @@ struct Foo {
 };
 
 ZtFields(Foo,
-    (((string, Rd), (Ctor<0>, Quote)), (CString, "hello \"world\"")),
+    (((string, Rd), (Ctor<0>)), (CString, "hello \"world\"")),
     (((bytes), (Ctor<1>)), (Bytes, ZuBytes{"bytes"})),
     (((id), (Ctor<2>)), (String, "goodbye")),
     (((int_), (Ctor<3>)), (Int)),
     (((int_ranged), (Ctor<4>)), (Int, 42, 0, 100)),
     (((hex), (Ctor<5>, Hex)), (UInt, 0xdeadbeef)),
     (((enum_), (Ctor<6>)), (Enum, Values::Map, Values::Normal)),
-    (((flags), (Ctor<7>)), (Flags, Flags::Map, Flags::Bit1)),
+    (((flags), (Ctor<7>)), (Flags, Flags::Map, Flags::Bit1())),
     (((float_), (Ctor<8>)), (Float)),
     (((float_ranged), (Ctor<9>)), (Float, 0.42, 0.0, 1)),
     (((fixed), (Ctor<10>)), (Fixed)),
@@ -65,17 +65,15 @@ ZtFields(Foo,
 
 template <typename T, typename = void>
 struct MinMax {
-  const ZtFieldFmt &fmt; // unused
   template <typename S>
   friend S &operator <<(S &s, const MinMax &) { return s; }
 };
 template <typename T>
 struct MinMax<T, decltype(T::minimum(), void())> {
-  const ZtFieldFmt &fmt;
   template <typename S>
   friend S &operator <<(S &s, const MinMax &m) {
-    s << " minimum=" << typename T::Print_{T::minimum(), m.fmt}
-      << " maximum=" << typename T::Print_{T::maximum(), m.fmt};
+    s << " minimum=" << typename T::Print_<>{T::minimum()}
+      << " maximum=" << typename T::Print_<>{T::maximum()};
     return s;
   }
 };
@@ -83,14 +81,14 @@ struct MinMax<T, decltype(T::minimum(), void())> {
 int main()
 {
   using Fields = ZuFieldList<Foo>;
-  ZtFieldFmt fmt;
-  ZuUnroll::all<Fields>([&fmt]<typename Field>() {
+  ZuUnroll::all<Fields>([]<typename Field>() {
     std::cout << Field::id()
-      << " deflt=" << typename Field::Type::Print{Field::deflt(), fmt}
-      << MinMax<Field>{fmt}
+      << " deflt=" << typename Field::Type::Print<>{Field::deflt()}
+      << MinMax<Field>{}
       << (Field::Type::Code == ZtFieldTypeCode::Bytes ? "" : "\n");
   });
   std::cout << '\n';
+  ZtFieldVFmt fmt;
   ZtMFields fields{ZtMFieldList<Foo>()};
   auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
@@ -134,28 +132,4 @@ int main()
     }
     std::cout << '\n';
   }
-
-  auto i = ZtField::importer<Foo>();
-  auto x = ZtField::exporter<Foo>();
-  Foo data{
-    .string = "foo bar",
-    .bytes = "yikes",
-    .id = "hello",
-    .int_ = -42,
-    .int_ranged = 42,
-    .hex = 43,
-    .enum_ = -1,
-    .flags = 0,
-    .float_ = -0.42,
-    .float_ranged = 0.42,
-    .fixed = { 0.42, 2 },
-    .decimal = 0.42,
-    .time_ = Zm::now(),
-    .nested = { 42, 43 }
-  };
-  std::cout << '\n' << ZtField::ctor<Foo>(ZtField::Import{i, &data}) << '\n';
-  Foo data2;
-  ZtField::Export x_{x, &data2};
-  ZtField::save<Foo>(data, x_);
-  std::cout << '\n' << data2 << '\n';
 }

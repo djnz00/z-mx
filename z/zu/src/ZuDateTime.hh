@@ -579,7 +579,7 @@ public:
   static ZuString monthShortName(int i); // 1-12
   static ZuString monthLongName(int i); // 1-12
 
-  auto print(const ZuDateTimeFmt::CSV &fmt) const {
+  auto fmt(const ZuDateTimeFmt::CSV &fmt) const {
     return ZuDateTimePrintCSV{*this, fmt};
   }
   template <typename S_>
@@ -628,7 +628,7 @@ public:
   }
 
   template <int NDP, class Null>
-  auto print(const ZuDateTimeFmt::FIX<NDP, Null> &fmt) const {
+  auto fmt(const ZuDateTimeFmt::FIX<NDP, Null> &fmt) const {
     return ZuDateTimePrintFIX<NDP, Null>{*this, fmt};
   }
   template <typename S_, int NDP, class Null>
@@ -665,7 +665,7 @@ public:
   }
 
   // iso() always generates a full date/time format parsable by the ctor
-  auto print(const ZuDateTimeFmt::ISO &fmt) const {
+  auto fmt(const ZuDateTimeFmt::ISO &fmt) const {
     return ZuDateTimePrintISO{*this, fmt};
   }
   template <typename S_>
@@ -780,7 +780,7 @@ public:
   }
 
   // run-time variable date/time formatting
-  auto print(const ZuDateTimeFmt::Any &fmt) const {
+  auto fmt(const ZuDateTimeFmt::Any &fmt) const {
     return ZuDateTimePrint{*this, fmt};
   }
 
@@ -1060,7 +1060,7 @@ public:
     template <typename S>
     static void print(S &s, const ZuDateTime &v) {
       thread_local ZuDateTimeFmt::ISO fmt;
-      s << v.print(fmt);
+      s << v.fmt(fmt);
     }
   };
   friend DefltPrint ZuPrintType(ZuDateTime *);
@@ -1363,13 +1363,13 @@ inline void ZuDateTimePrint::print(S &s) const {
   switch (fmt.type()) {
     default:
     case Any::Index<CSV>{}:
-      s << value.print(fmt.csv());
+      s << value.fmt(fmt.csv());
       break;
     case Any::Index<FIXDeflt>{}:
-      s << value.print(fmt.fix());
+      s << value.fmt(fmt.fix());
       break;
     case Any::Index<ISO>{}:
-      s << value.print(fmt.iso());
+      s << value.fmt(fmt.iso());
       break;
     case Any::Index<Strftime>{}: {
       const auto &strftime = fmt.strftime();

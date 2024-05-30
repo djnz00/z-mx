@@ -119,7 +119,8 @@ protected:
       !IsCString<U>{} &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
-  template <typename U, typename V = T> struct IsPtr : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsPtr : public ZuBool<
       ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
   template <typename U, typename R = void>
   using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>{}, R>; 

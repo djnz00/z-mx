@@ -29,10 +29,10 @@ void test(ZuDateTime d1)
 {
   ZuStringN<32> fix;
   ZuDateTimeFmt::FIX<NDP, Null> fmt;
-  fix << d1.print(fmt);
+  fix << d1.fmt(fmt);
   puts(fix);
   ZuDateTime d2(ZuDateTimeScan::FIX{}, fix);
-  puts(ZuStringN<32>() << d2.print(fmt));
+  puts(ZuStringN<32>() << d2.fmt(fmt));
   CHECK(d1 == d2);
 }
 
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
       ZuDateTime d1{Zm::now()};
-      fix << d1.print(fmt);
+      fix << d1.fmt(fmt);
       ZuDateTime d2{ZuDateTimeScan::FIX{}, fix};
     }
     end = Zm::now();
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
       ZuDateTime d1{Zm::now()};
-      fix << d1.print(fmt);
+      fix << d1.fmt(fmt);
     }
     end = Zm::now();
     end -= start;
