@@ -25,8 +25,8 @@ struct Nested {
 };
 
 ZtFields(Nested,
-  (((i1), (Ctor<0>)), (Int)),
-  (((i2), (Ctor<1>)), (Int)));
+  (((i1), (Ctor<0>)), (Int32)),
+  (((i2), (Ctor<1>)), (Int32)));
 
 struct Foo {
   const char *string = nullptr;
@@ -51,9 +51,9 @@ ZtFields(Foo,
     (((string, Rd), (Ctor<0>)), (CString, "hello \"world\"")),
     (((bytes), (Ctor<1>)), (Bytes, ZuBytes{"bytes"})),
     (((id), (Ctor<2>)), (String, "goodbye")),
-    (((int_), (Ctor<3>)), (Int)),
-    (((int_ranged), (Ctor<4>)), (Int, 42, 0, 100)),
-    (((hex), (Ctor<5>, Hex)), (UInt, 0xdeadbeef)),
+    (((int_), (Ctor<3>)), (Int32)),
+    (((int_ranged), (Ctor<4>)), (Int32, 42, 0, 100)),
+    (((hex), (Ctor<5>, Hex)), (UInt32, 0xdeadbeef)),
     (((enum_), (Ctor<6>)), (Enum, Values::Map, Values::Normal)),
     (((flags), (Ctor<7>)), (Flags, Flags::Map, Flags::Bit1())),
     (((float_), (Ctor<8>)), (Float)),
@@ -117,8 +117,8 @@ int main()
     std::cout << " deflt=";
     print(std::cout, *fields[i], ZtMFieldConstant::Deflt);
     switch (type->code) {
-      case Int:
-      case UInt:
+      case Int32:
+      case UInt32:
       case Float:
       case Fixed:
       case Decimal:

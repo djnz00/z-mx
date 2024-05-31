@@ -154,7 +154,7 @@ using ZtEnum = ZuBox_1(int8_t);
 	if (len > s.length() || c == 0) end = true; \
 	ZtEnum i = this->s2v(ZuString(cstr, clen)); \
 	if (ZuUnlikely(!*i)) return 0; \
-	v |= (mask<<static_cast<unsigned>(i)); \
+	v |= (mask<<unsigned(i)); \
 	cstr = next; \
 	clen = 0; \
       } while (!end); \
