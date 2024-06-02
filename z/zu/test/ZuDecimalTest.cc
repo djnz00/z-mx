@@ -80,7 +80,7 @@ int main()
   // check formatted printing
   {
     ZuStringN<60> s;
-    s << ZuDecimal{"42000.42"}.fmt(ZuFmt::Comma<>());
+    s << ZuDecimal{"42000.42"}.fmt<ZuFmt::Comma<>>();
     CHECK(s == "42,000.42");
   }
   CHECK((ZuDecimal{".000000000000000001"}.ndp() == 18));

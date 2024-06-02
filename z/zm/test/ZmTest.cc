@@ -23,7 +23,7 @@
 #include <zlib/ZmThread.hh>
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmSpecific.hh>
-#include <zlib/ZmStream.hh>
+#include <zlib/ZuMStream.hh>
 
 #define mb() __asm__ __volatile__("":::"memory")
 

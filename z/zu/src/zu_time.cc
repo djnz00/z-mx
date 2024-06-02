@@ -61,7 +61,7 @@ char *zu_time_out_csv(char *s_, const zu_time *v_)
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
   ZuStream s{s_, 31U};
-  s << d.print(fmt);
+  s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();
 }
@@ -76,7 +76,7 @@ char *zu_time_out_iso(char *s_, const zu_time *v_)
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
   ZuStream s{s_, 39U};
-  s << d.print(fmt);
+  s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();
 }
@@ -91,7 +91,7 @@ char *zu_time_out_fix(char *s_, const zu_time *v_)
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
   ZuDateTime d{v};
   ZuStream s{s_, 31U};
-  s << d.print(fmt);
+  s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();
 }

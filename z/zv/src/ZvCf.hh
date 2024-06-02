@@ -81,7 +81,7 @@ public:
 
   const ZtString &key() const { return m_key; }
 
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_key << "\" missing at:\n" << m_bt;
   }
 
@@ -95,7 +95,7 @@ class BadBool : public ZvError {
 public:
   BadBool(ZtString key, ZtString value) :
       m_key{ZuMv(key)}, m_value{ZuMv(value)} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_key << "\": invalid bool value \"" << m_value << '"';
   }
 
@@ -117,7 +117,7 @@ public:
   T value() const { return m_value; }
 
 protected:
-  void print__(ZmStream &s, ZuString msg) const {
+  void print__(ZuMStream &s, ZuString msg) const {
     s << '"' << m_key << "\" " << msg << ' ' <<
       "min(" << m_minimum << ") <= " << m_value <<
       " <= max(" << m_maximum << ")";
@@ -136,7 +136,7 @@ class Range : public Range_<T> {
 public:
   Range(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     Base::print__(s, "out of range");
   }
 };
@@ -147,7 +147,7 @@ class NElems : public Range_<unsigned> {
 public:
   NElems(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     Base::print__(s, "invalid number of values");
   }
 };
@@ -157,7 +157,7 @@ class Usage : public ZvError {
 public:
   Usage(ZuString cmd, ZuString option) :
     m_cmd(cmd), m_option(option) { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_cmd << "\": invalid option \"" << m_option << '"';
   }
 
@@ -171,7 +171,7 @@ class Syntax : public ZvError {
 public:
   Syntax(unsigned line, char ch, ZuString fileName) :
     m_line(line), m_ch(ch), m_fileName(fileName) { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     if (m_fileName)
       s << '"' << m_fileName << "\":" << ZuBoxed(m_line) << " syntax error";
     else
@@ -197,7 +197,7 @@ public:
   FileOpenError(ZuString fileName, ZeError e) :
     m_fileName{fileName}, m_err{e} { }
 
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_fileName << "\" " << m_err;
   }
 
@@ -210,7 +210,7 @@ private:
 class File2Big : public ZvError {
 public:
   File2Big(ZuString fileName) : m_fileName{fileName} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_fileName << " file too big";
   };
 private:
@@ -221,7 +221,7 @@ private:
 class EnvSyntax : public ZvError {
 public:
   EnvSyntax(unsigned pos, char ch) : m_pos{pos}, m_ch{ch} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << "syntax error at position " << ZuBoxed(m_pos) << " near '";
     if (m_ch >= 0x20 && m_ch < 0x7f)
       s << m_ch;
@@ -241,7 +241,7 @@ public:
   template <typename Define, typename FileName>
   BadDefine(Define &&define, FileName &&fileName) :
     m_define{ZuFwd<Define>(define)}, m_fileName{ZuFwd<FileName>(fileName)} { }
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     if (m_fileName) s << '"' << m_fileName << "\": ";
     s << "bad %%define \"" << m_define << '"';
   }
@@ -779,14 +779,14 @@ public:
   void toArgs(int &argc, char **&argv) const;
   static void freeArgs(int argc, char **argv);
 
-  void print(ZmStream &s, ZtString &indent) const;
+  void print(ZuMStream &s, ZtString &indent) const;
 
   template <typename S> void print(S &s_) const {
-    ZmStream s{s_};
+    ZuMStream s{s_};
     ZtString indent;
     print(s, indent);
   }
-  void print(ZmStream &s) const {
+  void print(ZuMStream &s) const {
     ZtString indent;
     print(s, indent);
   }

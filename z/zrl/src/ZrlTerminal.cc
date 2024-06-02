@@ -31,7 +31,7 @@ using ErrorStr = ZuStringN<120>;
   Zrl::ErrorStr() << op << ' ' << Zi::ioResult(result) << ' ' << error
 
 namespace VKey {
-ZrlExtern void print_(int32_t vkey, ZmStream &s)
+ZrlExtern void print_(int32_t vkey, ZuMStream &s)
 {
   ZuStringN<60> out;
   if (vkey < 0) {
@@ -66,7 +66,7 @@ unsigned &VKeyMatch_printIndentLevel() {
   return ZmTLS<unsigned, VKeyMatch_printIndentLevel>();
 }
 
-void VKeyMatch::Action::print_(ZmStream &s) const
+void VKeyMatch::Action::print_(ZuMStream &s) const
 {
   if (vkey != -VKey::Null) s << VKey::print(vkey);
   s << "\r\n";
@@ -78,7 +78,7 @@ void VKeyMatch::Action::print_(ZmStream &s) const
   }
 }
 
-void VKeyMatch_print_byte(ZmStream &s, uint8_t byte)
+void VKeyMatch_print_byte(ZuMStream &s, uint8_t byte)
 {
   if (byte < 0x20)
     s << '^' << static_cast<char>('@' + byte);
@@ -88,7 +88,7 @@ void VKeyMatch_print_byte(ZmStream &s, uint8_t byte)
     s << static_cast<char>(byte);
 }
 
-void VKeyMatch::print_(ZmStream &s) const
+void VKeyMatch::print_(ZuMStream &s) const
 {
   unsigned level = VKeyMatch_printIndentLevel();
   for (unsigned i = 0, n = m_bytes.length(); i < n; i++) {
@@ -2044,7 +2044,7 @@ int32_t Terminal::literal(int32_t vkey) const
   return vkey;
 }
 
-void Terminal::dumpVKeys_(ZmStream &s) const
+void Terminal::dumpVKeys_(ZuMStream &s) const
 {
   if (m_vkeyMatch) s << *m_vkeyMatch;
 }

@@ -19,7 +19,7 @@
 namespace Zrl {
 
 namespace Op {
-ZrlExtern void print_(uint32_t op, ZmStream &s)
+ZrlExtern void print_(uint32_t op, ZuMStream &s)
 {
   int op_ = op & Mask;
   switch (op_) {
@@ -460,7 +460,7 @@ int VKey_parse(int32_t &vkey_, ZuString s, int off)
 }
 } // anon namespace
 
-void Cmd::print_(ZmStream &s) const
+void Cmd::print_(ZuMStream &s) const
 {
   s << Op::print(op());
   auto arg = this->arg();
@@ -638,7 +638,7 @@ int Map_::parse(ZuString s, int off)
   return off;
 }
 
-void Map_printCmdSeq(const CmdSeq &cmds, ZmStream &s)
+void Map_printCmdSeq(const CmdSeq &cmds, ZuMStream &s)
 {
   if (!cmds)
     s << "{}";
@@ -649,7 +649,7 @@ void Map_printCmdSeq(const CmdSeq &cmds, ZmStream &s)
   }
 }
 
-void Binding::print_(ZmStream &s) const
+void Binding::print_(ZuMStream &s) const
 {
   s << VKey::print(vkey) << ' ';
   Map_printCmdSeq(cmds, s);
@@ -659,13 +659,13 @@ unsigned &Map_printIndentLevel() {
   return ZmTLS<unsigned, Map_printIndentLevel>();
 }
 
-void Map_printIndent(ZmStream &s)
+void Map_printIndent(ZuMStream &s)
 {
   unsigned level = Map_printIndentLevel();
   for (unsigned i = 0; i < level; i++) s << "  ";
 }
 
-void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
+void Map_printMode(unsigned i, const Mode &mode, ZuMStream &s)
 {
   auto &indentLevel = Map_printIndentLevel();
   Map_printIndent(s); s << "mode " << ZuBoxed(i);
@@ -698,7 +698,7 @@ void Map_printMode(unsigned i, const Mode &mode, ZmStream &s)
   Map_printIndent(s); s << "}\r\n";
 }
 
-void Map_::print_(ZmStream &s) const
+void Map_::print_(ZuMStream &s) const
 {
   auto &indentLevel = Map_printIndentLevel();
   Map_printIndent(s); s << "map " << id << " {\r\n";
@@ -709,7 +709,7 @@ void Map_::print_(ZmStream &s) const
   Map_printIndent(s); s << "}\r\n";
 }
 
-void Editor::dumpMaps_(ZmStream &s) const
+void Editor::dumpMaps_(ZuMStream &s) const
 {
   auto i = m_maps.readIterator();
   while (auto map = i.iterate()) s << *map;

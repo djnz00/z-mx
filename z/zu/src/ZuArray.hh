@@ -268,7 +268,7 @@ private:
   int cmp_(const ZuArray &v) const {
     int l = length();
     int n = v.length();
-    if (int i = Ops::cmp(data(), v.data(), l > n ? n : l)) return i;
+    if (int i = Ops::cmp(data(), v.data(), l < n ? l : n)) return i;
     return ZuCmp<int>::cmp(l, n);
   }
 public:

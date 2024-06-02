@@ -17,7 +17,7 @@ pkginclude_HEADERS = \
 	ZmRef.hh ZmRing.hh ZmRingFn.hh \
 	ZmScheduler.hh ZmSemaphore.hh ZmShard.hh \
 	ZmSingleton.hh ZmSpecific.hh ZmSpinLock.hh ZmStack.hh \
-	ZmStream.hh ZmTLock.hh ZmThread.hh ZmTime.hh \
+	ZmTLock.hh ZmThread.hh ZmTime.hh \
 	ZmTimeInterval.hh ZmTimeout.hh ZmTopology.hh ZmTrap.hh \
 	ZmEngine.hh ZmCache.hh ZmCacheStats.hh ZmDemangle.hh \
 	ZmPolyHash.hh ZmPolyCache.hh

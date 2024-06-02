@@ -21,18 +21,18 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuStringN.hh>
 
-#include <zlib/ZmStream.hh>
+#include <zlib/ZuMStream.hh>
 
-ZmExtern void ZmBackTrace_print(ZmStream &s, const ZmBackTrace &bt);
+ZmExtern void ZmBackTrace_print(ZuMStream &s, const ZmBackTrace &bt);
 
 // generic printing
 struct ZmBackTrace_Print : public ZuPrintDelegate {
   template <typename S>
   static void print(S &s_, const ZmBackTrace &bt) {
-    ZmStream s{s_};
+    ZuMStream s{s_};
     ZmBackTrace_print(s, bt);
   }
-  static void print(ZmStream &s, const ZmBackTrace &bt) {
+  static void print(ZuMStream &s, const ZmBackTrace &bt) {
     ZmBackTrace_print(s, bt);
   }
 };

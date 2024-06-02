@@ -44,11 +44,6 @@
 #include <zlib/ZtPlatform.hh>
 #include <zlib/ZtIconv.hh>
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4800 4348)
-#endif
-
 // uses NTP (named template parameters):
 //
 // ZtArray<ZtString,			// array of ZtStrings
@@ -1532,9 +1527,5 @@ inline void ZtArray<T, NTP>::convert_(const S &s, ZtIconv *iconv) {
 }
 
 using ZtBytes = ZtArray<uint8_t>;
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif /* ZtArray_HH */

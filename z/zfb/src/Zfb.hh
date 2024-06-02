@@ -104,6 +104,53 @@ private:
   ZmRef<IOBuf>	m_buf;
 };
 
+// FIXME - need Load and Save:
+//
+// cstringVec
+// stringVec
+// bytesVec
+// int8Vec
+// uint8Vec
+// int16Vec
+// uint16Vec
+// int32Vec
+// uint32Vec
+// int64Vec
+// uint64Vec
+// int128Vec
+// uint128Vec
+// floatVec
+// fixedVec
+// decimalVec
+// timeVec
+// dateTimeVec
+
+
+// see bytes() for a primitive array example
+// see bitmap() for a nested example:
+
+  template <typename Builder>
+  inline auto cstringVec(Builder &fbb, ZuArray<const char *> a) {
+    return vectorIter<String>(fbb, a.length(),
+      [&a](Builder &fbb, unsigned i) mutable {
+	return str(fbb, a[i]);
+      });
+  }
+
+  inline ZuArray<const char *> cstringVec(
+
+  // bitmap
+  inline ZmBitmap bitmap(const Vector<uint64_t> *v) {
+    if (!v) return ZmBitmap{};
+    ZmBitmap m;
+    if (unsigned n = v->size()) {
+      --n;
+      hwloc_bitmap_from_ith_ulong(m, n, (*v)[n]);
+      while (n--) hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
+    }
+    return m;
+  }
+
 namespace Save {
   // compile-time-recursive vector push
   template <typename T, typename I>
@@ -154,7 +201,7 @@ namespace Save {
   // of offsets. flatbuffers offsets are always unsigned and positive,
   // and the vector must therefore be lower in memory than the referenced
   // entities. Since flatbuffers are written downwards in memory, the
-  // vector must be written following the entities, and the offsets
+  // vector must be written following the entities, so the offsets must be
   // collected in a temporary buffer while they are being written.
 
   // inline creation of a vector of offsets
@@ -249,8 +296,8 @@ namespace Save {
   // iterated creation of a vector of strings
   template <typename Builder, typename L>
   inline auto strVecIter(Builder &fbb, unsigned n, L l) {
-    return vectorIter<String>(fbb, n, [l = ZuMv(l)](Builder &fbb, unsigned i)
-      mutable {
+    return vectorIter<String>(fbb, n,
+      [l = ZuMv(l)](Builder &fbb, unsigned i) mutable {
 	return str(fbb, l(i));
       });
   }

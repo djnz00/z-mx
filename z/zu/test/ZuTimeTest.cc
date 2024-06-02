@@ -27,10 +27,10 @@ inline void out(const char *s) {
 int main()
 {
   ZuDateTimeFmt::CSV fmt;
-  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{1}}}.print(fmt)) == "1970/01/01 00:00:01");
-  std::cout << (ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{-1}}}.print(fmt)) << '\n';
-  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{-1}}}.print(fmt)) == "1969/12/31 23:59:59");
-  std::cout << (ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{"-1.01"}}}.print(fmt)) << '\n';
-  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{"-1.01"}}}.print(fmt)) == "1969/12/31 23:59:58.99");
+  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{1}}}.fmt(fmt)) == "1970/01/01 00:00:01");
+  std::cout << (ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{-1}}}.fmt(fmt)) << '\n';
+  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{-1}}}.fmt(fmt)) == "1969/12/31 23:59:59");
+  std::cout << (ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{"-1.01"}}}.fmt(fmt)) << '\n';
+  CHECK((ZuStringN<48>{} << ZuDateTime{ZuTime{ZuDecimal{"-1.01"}}}.fmt(fmt)) == "1969/12/31 23:59:58.99");
   CHECK((ZuTime{ZuDecimal{1}} - ZuTime{ZuDecimal{1}}).as_decimal() == ZuDecimal{0});
 }

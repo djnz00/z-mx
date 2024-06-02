@@ -13,9 +13,10 @@
 
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuBox.hh>
-
-#include <zlib/ZmBackTrace.hh>
 #include <zlib/ZuTime.hh>
+
+#include <zlib/ZmAtomic.hh>
+#include <zlib/ZmBackTrace.hh>
 
 static ZmTrap::Fn ZmTrap_sigintFn;
 static ZmTrap::Fn ZmTrap_sighupFn;

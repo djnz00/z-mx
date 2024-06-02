@@ -30,8 +30,8 @@
 // String	String		<String>
 // Bytes	Bytes		<uint8_t[]>
 // Bool		Bool		<Integral>
-// Int		Int		<Integral>
-// Hex		Hex		<Integral>
+// Int<N>	Int<N>		<Integral>
+// UInt<N>	UInt<N>		<Integral>
 // Enum, Map	Enum, Map	<Integral>
 // Flags, Map	Flags, Map	<Integral>
 // Float	Float		<FloatingPoint>
@@ -40,8 +40,6 @@
 // Time		Time		ZuTime
 // DateTime	DateTime	ZuDateTime
 //
-// Int128	UDT		int128_t
-// UInt128	UDT		uint128_t
 // Bitmap	UDT		ZmBitmap
 // IP		UDT		ZiIP
 // ID		UDT		ZuID
@@ -472,10 +470,28 @@ namespace Save {
 #define ZfbFieldBytes(O, ID, Base) ZfbFieldNested(O, ID, Base, bytes, bytes)
 #define ZfbFieldBool_T Bool
 #define ZfbFieldBool ZfbFieldPrimitive
-#define ZfbFieldInt_T Int
-#define ZfbFieldInt ZfbFieldPrimitive
-#define ZfbFieldUInt_T UInt
-#define ZfbFieldUInt ZfbFieldPrimitive
+#define ZfbFieldInt8_T Int8
+#define ZfbFieldInt8 ZfbFieldPrimitive
+#define ZfbFieldUInt8_T UInt8
+#define ZfbFieldUInt8 ZfbFieldPrimitive
+#define ZfbFieldInt16_T Int16
+#define ZfbFieldInt16 ZfbFieldPrimitive
+#define ZfbFieldUInt16_T UInt16
+#define ZfbFieldUInt16 ZfbFieldPrimitive
+#define ZfbFieldInt32_T Int32
+#define ZfbFieldInt32 ZfbFieldPrimitive
+#define ZfbFieldUInt32_T UInt32
+#define ZfbFieldUInt32 ZfbFieldPrimitive
+#define ZfbFieldInt64_T Int64
+#define ZfbFieldInt64 ZfbFieldPrimitive
+#define ZfbFieldUInt64_T UInt64
+#define ZfbFieldUInt64 ZfbFieldPrimitive
+#define ZfbFieldInt128_T Int128
+#define ZfbFieldInt128(O, ...) \
+  ZfbFieldInline(O, __VA_ARGS__, int128, int128)
+#define ZfbFieldUInt128_T UInt128
+#define ZfbFieldUInt128(O, ...) \
+  ZfbFieldInline(O, __VA_ARGS__, uint128, uint128)
 #define ZfbFieldEnum_T Enum
 #define ZfbFieldEnum ZfbFieldPrimitive
 #define ZfbFieldFlags_T Flags
@@ -493,12 +509,62 @@ namespace Save {
 #define ZfbFieldDateTime_T DateTime
 #define ZfbFieldDateTime(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, dateTime, dateTime)
-#define ZfbFieldInt128_T UDT
-#define ZfbFieldInt128(O, ...) \
-  ZfbFieldInline(O, __VA_ARGS__, int128, int128)
-#define ZfbFieldUInt128_T UDT
-#define ZfbFieldUInt128(O, ...) \
-  ZfbFieldInline(O, __VA_ARGS__, uint128, uint128)
+
+#define ZfbFieldCStringVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, cstringVec, cstringVec)
+#define ZfbFieldCStringVec_T CStringVec
+#define ZfbFieldStringVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, stringVec, stringVec)
+#define ZfbFieldStringVec_T StringVec
+#define ZfbFieldBytesVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, bytesVec, bytesVec)
+#define ZfbFieldBytesVec_T BytesVec
+#define ZfbFieldInt8Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, int8Vec, int8Vec)
+#define ZfbFieldInt8Vec_T Int8Vec
+#define ZfbFieldUInt8Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, uint8Vec, uint8Vec)
+#define ZfbFieldUInt8Vec_T UInt8Vec
+#define ZfbFieldInt16Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, int16Vec, int16Vec)
+#define ZfbFieldInt16Vec_T Int16Vec
+#define ZfbFieldUInt16Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, uint16Vec, uint16Vec)
+#define ZfbFieldUInt16Vec_T UInt16Vec
+#define ZfbFieldInt32Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, int32Vec, int32Vec)
+#define ZfbFieldInt32Vec_T Int32Vec
+#define ZfbFieldUInt32Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, uint32Vec, uint32Vec)
+#define ZfbFieldUInt32Vec_T UInt32Vec
+#define ZfbFieldInt64Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, int64Vec, int64Vec)
+#define ZfbFieldInt64Vec_T Int64Vec
+#define ZfbFieldUInt64Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, uint64Vec, uint64Vec)
+#define ZfbFieldUInt64Vec_T UInt64Vec
+#define ZfbFieldInt128Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, int128Vec, int128Vec)
+#define ZfbFieldInt128Vec_T Int128Vec
+#define ZfbFieldUInt128Vec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, uint128Vec, uint128Vec)
+#define ZfbFieldUInt128Vec_T UInt128Vec
+#define ZfbFieldFloatVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, floatVec, floatVec)
+#define ZfbFieldFloatVec_T FloatVec
+#define ZfbFieldFixedVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, fixedVec, fixedVec)
+#define ZfbFieldFixedVec_T FixedVec
+#define ZfbFieldDecimalVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, decimalVec, decimalVec)
+#define ZfbFieldDecimalVec_T DecimalVec
+#define ZfbFieldTimeVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, timeVec, timeVec)
+#define ZfbFieldTimeVec_T TimeVec
+#define ZfbFieldDateTimeVec(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, dateTimeVec, dateTimeVec)
+#define ZfbFieldDateTimeVec_T DateTimeVec
+
 #define ZfbFieldBitmap_T UDT
 #define ZfbFieldBitmap(O, ...) ZfbFieldNested(O, __VA_ARGS__, bitmap, bitmap)
 #define ZfbFieldIP_T UDT

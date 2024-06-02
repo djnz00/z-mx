@@ -120,11 +120,11 @@ void MxMDRecLink::reset(MxSeqNo rxSeqNo, MxSeqNo)
 
 #define fileERROR(path__, code) \
   engine()->appException(ZeMkLambdaEvent(Error, \
-    ([=, path = path__](const ZeEvent &, ZmStream &s) { \
+    ([=, path = path__](const ZeEvent &, ZuMStream &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 #define fileINFO(path__, code) \
   engine()->appException(ZeMkLambdaEvent(Info, \
-    ([=, path = path__](const ZeEvent &, ZmStream &s) { \
+    ([=, path = path__](const ZeEvent &, ZuMStream &s) { \
       s << "MxMD \"" << path << "\": " << code; })))
 
 void MxMDRecLink::connect()
@@ -288,7 +288,7 @@ void MxMDRecLink::recv(Rx *rx)
       disconnected();
       core()->raise(ZeMkLambdaEvent(Error,
 	  ([name = ZtString(broadcast.params().name())](
-	      const ZeEvent &, ZmStream &s) {
+	      const ZeEvent &, ZuMStream &s) {
 	    s << '"' << name << "\": "
 	    "IPC shared memory ring buffer read error - "
 	    "message too big / corrupt";

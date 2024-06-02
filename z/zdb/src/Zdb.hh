@@ -604,9 +604,9 @@ protected:
   virtual const reflection::Schema *objSchema() const = 0;
 
   // objPrint(stream, ptr) - print object
-  virtual void objPrint(ZmStream &, const void *) const = 0;
+  virtual void objPrint(ZuMStream &, const void *) const = 0;
   // objPrintFB(stream, data) - print flatbuffer
-  virtual void objPrintFB(ZmStream &, ZuBytes) const = 0;
+  virtual void objPrintFB(ZuMStream &, ZuBytes) const = 0;
 
   // buffer cache
   virtual void cacheBuf_(ZmRef<const AnyBuf>) = 0;
@@ -945,11 +945,11 @@ private:
   }
 
   // objPrint(stream, ptr) - print object
-  void objPrint(ZmStream &s, const void *ptr) const {
+  void objPrint(ZuMStream &s, const void *ptr) const {
     ZtFieldPrint::print(s, *static_cast<const T *>(ptr));
   }
   // objPrintFB(stream, data) - print flatbuffer
-  void objPrintFB(ZmStream &s, ZuBytes data) const {
+  void objPrintFB(ZuMStream &s, ZuBytes data) const {
     auto fbo = ZfbField::verify<T>(data);
     if (!fbo) return;
     s << *fbo;
@@ -1912,7 +1912,7 @@ struct Record_Print {
     if (data) {
       s << " data=";
       if (table) {
-	ZmStream s_{s};
+	ZuMStream s_{s};
 	table->objPrintFB(s_, data);
       } else {
 	s << "{...}";
@@ -1960,7 +1960,7 @@ void AnyObject::print(S &s) const {
   if (m_origUN != nullUN()) s << " origUN=" << m_origUN;
   s << " data={";
   {
-    ZmStream s_{s};
+    ZuMStream s_{s};
     m_table->objPrint(s_, ptr_());
   }
   s << "}}";

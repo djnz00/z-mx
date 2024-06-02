@@ -85,7 +85,7 @@ private:
 
 #define linkINFO(code) \
     engine()->appException(ZeEVENT(Info, \
-      ([=, id = id()](const ZeEvent &, ZmStream &out) { out << code; })))
+      ([=, id = id()](const ZeEvent &, ZuMStream &out) { out << code; })))
 
 class Link : public MxLink<Link> {
 public:

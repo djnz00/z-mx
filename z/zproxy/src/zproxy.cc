@@ -244,9 +244,9 @@ public:
   void disconnected(Connection *connection);
 
 private:
-  void status_(ZmStream &) const;
+  void status_(ZuMStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZmStream s{s_};
+    ZuMStream s{s_};
     status_(s);
   }
 public:
@@ -326,9 +326,9 @@ public:
   }
 
 private:
-  void status_(ZmStream &) const;
+  void status_(ZuMStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZmStream s{s_};
+    ZuMStream s{s_};
     status_(s);
   }
 public:
@@ -1412,7 +1412,7 @@ void Proxy::disconnected(Connection *connection)
   }
 }
 
-void Proxy::status_(ZmStream &s) const
+void Proxy::status_(ZuMStream &s) const
 {
   if (ZmRef<Connection> cxn = m_in) {
     s << *cxn;
@@ -1498,7 +1498,7 @@ ZiConnection *Listener::accepted(const ZiCxnInfo &ci)
       m_cxnLatency, m_cxnFrag, m_cxnPack, m_cxnDelay, ci);
 }
 
-void Listener::status_(ZmStream &s) const
+void Listener::status_(ZuMStream &s) const
 {
   s << *this;
   auto i = m_proxies->readIterator();

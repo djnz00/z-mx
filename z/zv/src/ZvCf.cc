@@ -1104,7 +1104,7 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
     }
 }
 
-void Cf::print(ZmStream &s, ZtString &indent) const
+void Cf::print(ZuMStream &s, ZtString &indent) const
 {
   auto i = m_tree.readIterator();
   while (auto node = i.iterate()) {
@@ -1129,7 +1129,7 @@ void Cf::print(ZmStream &s, ZtString &indent) const
       } break;
       case Data::Index<ZmRef<Cf>>{}:
       case Data::Index<CfArray>{}: {
-	auto output = [&indent](Cf *cf, ZmStream &s) mutable {
+	auto output = [&indent](Cf *cf, ZuMStream &s) mutable {
 	  if (!cf || !cf->count()) { s << "{}"; return; }
 	  s << "{\n";
 	  indent.append("  ", 2);

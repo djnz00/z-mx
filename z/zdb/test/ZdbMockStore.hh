@@ -831,7 +831,8 @@ template <typename T> struct TupleCmp {
     unsigned n = ln < rn ? ln : rn;
     for (unsigned i = 0; i < n; i++)
       if (int j = l[i].cmp(r[i])) return j;
-    return rn - ln; // treat missing trailing values as infinitely large
+    // treat missing trailing values as infinitely large
+    return ZuCmp<int>::cmp(rn, ln);
   }
 };
 inline constexpr const char *MockRowIndex_HeapID() { return "MockRowIndex"; }

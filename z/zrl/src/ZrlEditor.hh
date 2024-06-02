@@ -172,12 +172,12 @@ namespace Op { // line editor operation codes
     Past	= 0x8000	// move past end
   };
 
-  ZrlExtern void print_(uint32_t, ZmStream &);
+  ZrlExtern void print_(uint32_t, ZuMStream &);
   struct Print {
     uint32_t op;
     template <typename S>
-    void print(S &s_) const { ZmStream s{s_}; print_(op, s); }
-    void print(ZmStream &s) const { print_(op, s); }
+    void print(S &s_) const { ZuMStream s{s_}; print_(op, s); }
+    void print(ZuMStream &s) const { print_(op, s); }
     friend ZuPrintFn ZuPrintType(Print *);
   };
   inline Print print(uint32_t op) { return {op}; }
@@ -218,9 +218,9 @@ public:
 
   int parse(ZuString, int off);
 
-  void print_(ZmStream &) const;
-  template <typename S> void print(S &s_) const { ZmStream s{s_}; print_(s); }
-  void print(ZmStream &s) const { print_(s); }
+  void print_(ZuMStream &) const;
+  template <typename S> void print(S &s_) const { ZuMStream s{s_}; print_(s); }
+  void print(ZuMStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(Cmd *);
 
 private:
@@ -238,9 +238,9 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
   static auto KeyAxor(const Binding *b) { return b->vkey; }
   static auto ValAxor(const Binding *b) { return b; }
 
-  void print_(ZmStream &) const;
-  template <typename S> void print(S &s_) const { ZmStream s{s_}; print_(s); }
-  void print(ZmStream &s) const { print_(s); }
+  void print_(ZuMStream &) const;
+  template <typename S> void print(S &s_) const { ZuMStream s{s_}; print_(s); }
+  void print(ZuMStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(Binding *);
 };
 
@@ -278,9 +278,9 @@ struct ZrlAPI Map_ {
   void bind(unsigned mode, int32_t vkey, CmdSeq cmds);
   void reset(); // reset all modes and key bindings
 
-  void print_(ZmStream &) const;
-  template <typename S> void print(S &s_) const { ZmStream s{s_}; print_(s); }
-  void print(ZmStream &s) const { print_(s); }
+  void print_(ZuMStream &) const;
+  template <typename S> void print(S &s_) const { ZuMStream s{s_}; print_(s); }
+  void print(ZuMStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(Map_ *);
 
 private:
@@ -575,12 +575,12 @@ public:
 
   // dump key bindings
   Terminal::DumpVKeys dumpVKeys() const { return {m_tty}; }
-  void dumpMaps_(ZmStream &) const;
+  void dumpMaps_(ZuMStream &) const;
   struct DumpMaps {
     const Editor &editor;
     template <typename S>
-    void print(S &s_) const { ZmStream s{s_}; editor.dumpMaps_(s); }
-    void print(ZmStream &s) const { editor.dumpMaps_(s); }
+    void print(S &s_) const { ZuMStream s{s_}; editor.dumpMaps_(s); }
+    void print(ZuMStream &s) const { editor.dumpMaps_(s); }
     friend ZuPrintFn ZuPrintType(DumpMaps *);
   };
   DumpMaps dumpMaps() const { return {*this}; }

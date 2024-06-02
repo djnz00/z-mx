@@ -15,7 +15,7 @@
 #include <zlib/ZmGlobal.hh>
 
 #ifdef ZDEBUG
-#include <zlib/ZmStream.hh>
+#include <zlib/ZuMStream.hh>
 #endif
 
 // statically-initialized spinlock to guard initial singleton registration
@@ -95,7 +95,7 @@ retry:
 }
 
 #ifdef ZDEBUG
-void ZmGlobal::dump(ZmStream &s)
+void ZmGlobal::dump(ZuMStream &s)
 {
   lock();
   for (unsigned i = 0; i < ZmCleanup::N; i++)

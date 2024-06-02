@@ -15,6 +15,7 @@ pkginclude_HEADERS = \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
 	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
 	ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
+	ZuMStream.hh ZuMArray.hh \
 	zu_lib.h zu_decimal.h zu_time.h
 lib_LTLIBRARIES = libZu.la
 libZu_la_SOURCES = \

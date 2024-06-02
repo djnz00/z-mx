@@ -27,23 +27,35 @@
 //   value of "default" that is also the containing object's zeroth
 //   constructor parameter
 //
-// ZtField Type	C/C++ Type	ZtField Args
-// ------------	----------	------------
-// CString	char *		[, default]
-// String	<String>	[, default]
-// Bytes	<uint8_t[]>	[, default]
-// Bool		<Integral>	[, default]
-// Int		<Integral>	[, default, min, max]
-// UInt		<Integral>	[, default, min, max]
-// Enum, Map	<Integral>	[, default]
-// Flags, Map	<Integral>	[, default]
-// Float	<FloatingPoint>	[, default, min, max]
-// Fixed	ZuFixed		[, default, min, max]
-// Decimal	ZuDecimal	[, default, min, max]
-// Time		ZuTime		[, default]
-// DateTime	ZuDateTime	[, default]
-// UDT		<UDT>		[, default]
-
+// ZtField Type  C/C++ Type      ZtField Args
+// ------------  ----------      ------------
+// CString       char *          [, default]
+// String        <String>        [, default]
+// Bytes         <uint8_t[]>     [, default]
+// Bool          <Integral>      [, default]
+// Int<Size>     <Integral>      [, default, min, max]
+// UInt<Size>    <Integral>      [, default, min, max]
+// Enum, Map     <Integral>      [, default]
+// Flags, Map    <Integral>      [, default]
+// Float         <FloatingPoint> [, default, min, max]
+// Fixed         ZuFixed         [, default, min, max]
+// Decimal       ZuDecimal       [, default, min, max]
+// Time          ZuTime          [, default]
+// DateTime      ZuDateTime      [, default]
+// UDT           <UDT>           [, default]
+//
+// *Vec          ZuArray<T>      [, default]
+// CStringVec
+// StringVec
+// BytesVec
+// Int<Size>Vec
+// UInt<Size>Vec
+// FloatVec
+// FixedVec
+// DecimalVec
+// TimeVec
+// DateTimeVec
+// 
 // Note: ZtMField provides run-time introspection via a monomorphic type -
 // virtual polymorphism and RTTI are intentionally avoided:
 // 1] if ZtMField were virtually polymorphic, passing it to dynamically
@@ -121,9 +133,10 @@
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuBase64.hh>
 #include <zlib/ZuField.hh>
+#include <zlib/ZuMArray.hh>
 
 #include <zlib/ZmAlloc.hh>
-#include <zlib/ZmStream.hh>
+#include <zlib/ZuMStream.hh>
 #include <zlib/ZuTime.hh>
 #include <zlib/ZmSingleton.hh>
 
@@ -401,14 +414,14 @@ struct ZtMFieldEnum_ : public ZtMFieldEnum {
 // ZtMFieldFlags encapsulates introspected flags metadata
 struct ZtMFieldFlags {
   const char	*(*id)();
-  void		(*print)(uint128_t, ZmStream &, const ZtFieldVFmt &);
+  void		(*print)(uint128_t, ZuMStream &, const ZtFieldVFmt &);
   uint128_t	(*scan)(ZuString, const ZtFieldVFmt &);
 };
 template <typename Map>
 struct ZtMFieldFlags_ : public ZtMFieldFlags {
   ZtMFieldFlags_() : ZtMFieldFlags{
     .id = []() -> const char * { return Map::id(); },
-    .print = [](uint128_t v, ZmStream &s, const ZtFieldVFmt &fmt) -> void {
+    .print = [](uint128_t v, ZuMStream &s, const ZtFieldVFmt &fmt) -> void {
       s << Map::print(v, fmt.flagsDelim);
     },
     .scan = [](ZuString s, const ZtFieldVFmt &fmt) -> uint128_t {
@@ -421,7 +434,7 @@ struct ZtMFieldFlags_ : public ZtMFieldFlags {
   }
 };
 
-typedef void (*ZtMFieldPrint)(const void *, ZmStream &, const ZtFieldVFmt &);
+typedef void (*ZtMFieldPrint)(const void *, ZuMStream &, const ZtFieldVFmt &);
 typedef void (*ZtMFieldScan)(
   void (*)(void *, unsigned, const void *), void *, unsigned,
   ZuString, const ZtFieldVFmt &);
@@ -505,24 +518,24 @@ namespace Scan {
     ZuString delim, ZuString suffix);
 } // Scan
 
-using CStringVec = ZuArray<const char *>;
-using StringVec = ZuArray<ZuString>;
-using BytesVec = ZuArray<ZuBytes>;
-using Int8Vec = ZuArray<int8_t>;
-using UInt8Vec = ZuArray<uint8_t>;
-using Int16Vec = ZuArray<int16_t>;
-using UInt16Vec = ZuArray<uint16_t>;
-using Int32Vec = ZuArray<int32_t>;
-using UInt32Vec = ZuArray<uint32_t>;
-using Int64Vec = ZuArray<int64_t>;
-using UInt64Vec = ZuArray<uint64_t>;
-using Int128Vec = ZuArray<int128_t>;
-using UInt128Vec = ZuArray<uint128_t>;
-using FloatVec = ZuArray<double>;
-using FixedVec = ZuArray<ZuFixed>;
-using DecimalVec = ZuArray<ZuDecimal>;
-using TimeVec = ZuArray<ZuTime>;
-using DateTimeVec = ZuArray<ZuDateTime>;
+using CStringVec = ZuMArray<const char *>;
+using StringVec = ZuMArray<ZuString>;
+using BytesVec = ZuMArray<ZuBytes>;
+using Int8Vec = ZuMArray<int8_t>;
+using UInt8Vec = ZuMArray<uint8_t>;
+using Int16Vec = ZuMArray<int16_t>;
+using UInt16Vec = ZuMArray<uint16_t>;
+using Int32Vec = ZuMArray<int32_t>;
+using UInt32Vec = ZuMArray<uint32_t>;
+using Int64Vec = ZuMArray<int64_t>;
+using UInt64Vec = ZuMArray<uint64_t>;
+using Int128Vec = ZuMArray<int128_t>;
+using UInt128Vec = ZuMArray<uint128_t>;
+using FloatVec = ZuMArray<double>;
+using FixedVec = ZuMArray<ZuFixed>;
+using DecimalVec = ZuMArray<ZuDecimal>;
+using TimeVec = ZuMArray<ZuTime>;
+using DateTimeVec = ZuMArray<ZuDateTime>;
 
 // monomorphic field get/print
 struct MGet {
@@ -953,7 +966,7 @@ MGet::print(
   S &s_, const void *o, unsigned i, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  ZmStream s{s_};
+  ZuMStream s{s_};
   field->type->info.flags()->print(get_.flags(o, i), s, fmt);
 }
 template <unsigned Code, typename S>
@@ -1017,7 +1030,7 @@ MGet::print(
   S &s_, const void *o, unsigned i, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  ZmStream s{s_};
+  ZuMStream s{s_};
   field->type->info.udt()->print(get_.udt(o, i), s, fmt);
 }
 
@@ -1150,12 +1163,12 @@ MGet::print(
   FixedVec vec{get_.fixedVec(o, i)};
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
-    vec.all([&s, &fmt, ndp, &first](const auto &v) {
+    vec.all([&s, &fmt, ndp, &first](const ZuFixed &v) {
       if (!first) s << fmt.vecDelim; else first = false;
       s << v.vfmt(fmt.scalar).fp(ndp);
     });
   else
-    vec.all([&s, &first, &fmt](const auto &v) {
+    vec.all([&s, &first, &fmt](const ZuFixed &v) {
       if (!first) s << fmt.vecDelim; else first = false;
       s << v.vfmt(fmt.scalar);
     });
@@ -1172,12 +1185,12 @@ MGet::print(
   DecimalVec vec{get_.decimalVec(o, i)};
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
-    vec.all([&s, &fmt, ndp, &first](const auto &v) {
+    vec.all([&s, &fmt, ndp, &first](const ZuDecimal &v) {
       if (!first) s << fmt.vecDelim; else first = false;
       s << v.vfmt(fmt.scalar).fp(ndp);
     });
   else
-    vec.all([&s, &first, &fmt](const auto &v) {
+    vec.all([&s, &first, &fmt](const ZuDecimal &v) {
       if (!first) s << fmt.vecDelim; else first = false;
       s << v.vfmt(fmt.scalar);
     });
@@ -1192,7 +1205,8 @@ MGet::print(
   s << fmt.vecPrefix;
   bool first = true;
   TimeVec vec{get_.timeVec(o, i)};
-  vec.all([&s, &fmt, &first](ZuDateTime v) {
+  vec.all([&s, &fmt, &first](const ZuTime &v_) {
+    ZuDateTime v{v_};
     if (!first) s << fmt.vecDelim; else first = false;
     s << v.fmt(fmt.datePrint);
   });
@@ -1207,7 +1221,7 @@ MGet::print(
   s << fmt.vecPrefix;
   bool first = true;
   DateTimeVec vec{get_.dateTimeVec(o, i)};
-  vec.all([&s, &fmt, &first](const auto &v) {
+  vec.all([&s, &fmt, &first](const ZuDateTime &v) {
     if (!first) s << fmt.vecDelim; else first = false;
     s << v.fmt(fmt.datePrint);
   });
@@ -2646,14 +2660,14 @@ struct ZtFieldType<ZtFieldTypeCode::UDT, T, void, Props> :
 template <typename T, typename = void>
 struct ZtMFieldType_UDT_Print {
   static auto printFn() {
-    return [](const void *, ZmStream &, const ZtFieldVFmt &) { };
+    return [](const void *, ZuMStream &, const ZtFieldVFmt &) { };
   }
 };
 template <typename T>
 struct ZtMFieldType_UDT_Print<T,
-  decltype((ZuDeclVal<ZmStream &>() << ZuDeclVal<const T &>()), void())> {
+  decltype((ZuDeclVal<ZuMStream &>() << ZuDeclVal<const T &>()), void())> {
   static auto printFn() {
-    return [](const void *v, ZmStream &s, const ZtFieldVFmt &) {
+    return [](const void *v, ZuMStream &s, const ZtFieldVFmt &) {
       s << *reinterpret_cast<const T *>(v);
     };
   }
@@ -2848,6 +2862,7 @@ struct ZtField_CStringVec : public ZtField<Base> {
   using Adapt = ZtField_CStringVec<Override<Base>>;
   using O = typename Base::O;
   using T = typename Base::T;
+  using Elem = typename ZuTraits<T>::Elem;
   using Props = typename Base::Props;
   using Type = ZtFieldType_CStringVec<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   using CStringVec = ZtField_::CStringVec;

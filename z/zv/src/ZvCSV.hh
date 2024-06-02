@@ -65,7 +65,7 @@ namespace ZvCSV_ {
   quote_(
       Row &row, const T *object, unsigned i,
       const ZtMField *field, const ZtFieldVFmt &fmt) {
-    ZmStream s{row};
+    ZuMStream s{row};
     field->get.print<Code>(s, object, i, field, fmt);
   }
   // get strings without quoting, then quote for CSV
@@ -110,7 +110,7 @@ public:
   ZvCSV_FileIOError(const FileName &fileName, ZeError e) :
     m_fileName(fileName), m_error(e) { }
 
-  void print_(ZmStream &s) const {
+  void print_(ZuMStream &s) const {
     s << '"' << m_fileName << "\" " << m_error;
   }
 

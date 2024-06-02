@@ -27,7 +27,7 @@ extern "C" {
 }
 
 #ifdef ZDEBUG
-class ZmStream;
+class ZuMStream;
 #endif
 
 class ZmAPI ZmGlobal {
@@ -57,7 +57,7 @@ private:
   static ZmGlobal *add(
       std::type_index type, unsigned level, ZmGlobal *(*ctor)());
 #ifdef ZDEBUG
-  static void dump(ZmStream &);
+  static void dump(ZuMStream &);
 #endif
 
   template <typename T> struct Ctor {
