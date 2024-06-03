@@ -314,7 +314,7 @@ void ZeFileSink::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZuDateTime d{info.time};
 
-  buf << d.print(m_dateFmt) << ' ' <<
+  buf << d.fmt(m_dateFmt) << ' ' <<
     ZuBoxed(info.tid) << ' ' <<
     Ze::severity(info.severity) << ' ';
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)
@@ -416,7 +416,7 @@ void ZeLambdaSink_::pre(ZeLogBuf &buf, const ZeEventInfo &info)
 {
   ZuDateTime d{info.time};
 
-  buf << d.print(m_dateFmt) << ' ' <<
+  buf << d.fmt(m_dateFmt) << ' ' <<
     ZuBoxed(info.tid) << ' ' <<
     Ze::severity(info.severity) << ' ';
   if (info.severity == Ze::Debug || info.severity == Ze::Fatal)

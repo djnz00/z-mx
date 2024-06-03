@@ -19,24 +19,38 @@
 
 #include <zlib/ZuFmt.hh>
 
-template <typename T> class ZuMArray {
+template <typename T_, typename R_ = T_> class ZuMArray {
 public:
+  using T = T_;
+  using R = R_;
+
   template <typename Array, typename Elem_ = typename ZuTraits<Array>::Elem>
   ZuMArray(Array &array) :
     m_ptr{&array},
     m_length{ZuTraits<Array>::length(array)},
-    m_getFn{[](const void *ptr, unsigned i) -> const T & {
+    m_getFn{[](const void *ptr, unsigned i) -> R {
       return (*static_cast<const Array *>(ptr))[i];
     }},
     m_setFn{[](void *ptr, unsigned i, T elem) {
       (*static_cast<Array *>(ptr))[i] = Elem_(ZuMv(elem));
     }} { }
 
+  template <typename Array, typename GetFn>
+  ZuMArray(Array &array, unsigned length, GetFn getFn) :
+    m_ptr{&array},
+    m_length{length},
+    m_getFn{getFn} { }
+
+  template <typename Array, typename GetFn, typename SetFn>
+  ZuMArray(Array &array, unsigned length, GetFn getFn, SetFn setFn) :
+    m_ptr{&array},
+    m_length{length},
+    m_getFn{getFn},
+    m_setFn{setFn} { }
+
   class Elem;
 friend Elem;
   class Elem {
-    using CRef = const T &;
-
   public:
     Elem() = delete;
     Elem(ZuMArray &array, unsigned i) : m_array{array}, m_i{i} { }
@@ -45,7 +59,7 @@ friend Elem;
     Elem(Elem &&) = default;
     Elem &operator =(Elem &&) = default;
 
-    operator CRef() const {
+    operator R() const {
       return (*m_array.m_getFn)(m_array.m_ptr, m_i);
     }
     Elem &operator =(T v) {
@@ -53,14 +67,14 @@ friend Elem;
       return *this;
     };
 
-    bool equals(const Elem &r) const { return CRef(*this) == CRef(r); }
-    int cmp(const Elem &r) const { return ZuCmp<T>::cmp(CRef(*this), CRef(r)); }
+    bool equals(const Elem &r) const { return R(*this) == R(r); }
+    int cmp(const Elem &r) const { return ZuCmp<T>::cmp(R(*this), R(r)); }
     friend inline bool
     operator ==(const Elem &l, const Elem &r) { return l.equals(r); }
     friend inline int
     operator <=>(const Elem &l, const Elem &r) { return l.cmp(r); }
 
-    bool operator !() const { return !CRef(*this); }
+    bool operator !() const { return !R(*this); }
     ZuOpBool;
 
   private:
@@ -96,9 +110,8 @@ friend Elem;
     unsigned l = length();
     unsigned n = r.length();
     if (l != n) return false;
-    using CRef = const T &;
     for (unsigned i = 0; i < n; i++)
-      if (CRef((*this)[i]) != CRef(r[i])) return false;
+      if (R((*this)[i]) != R(r[i])) return false;
     return true;
   }
   int cmp(const ZuMArray &r) const {
@@ -106,9 +119,8 @@ friend Elem;
     unsigned ln = m_length;
     unsigned rn = r.m_length;
     unsigned n = ln < rn ? ln : rn;
-    using CRef = const T &;
     for (unsigned i = 0; i < n; i++)
-      if (int j = ZuCmp<T>::cmp(CRef((*this)[i]), CRef(r[i]))) return j;
+      if (int j = ZuCmp<T>::cmp(R((*this)[i]), R(r[i]))) return j;
     return ZuCmp<int>::cmp(ln, rn);
   }
   friend inline bool
@@ -158,7 +170,7 @@ friend Elem;
   iterator end() { return Iterator{m_length}; }
 
 private:
-  typedef const T &(*GetFn)(const void *, unsigned);
+  typedef R (*GetFn)(const void *, unsigned);
   typedef void (*SetFn)(void *, unsigned, T);
 
   void		*m_ptr = nullptr;

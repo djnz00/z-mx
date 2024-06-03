@@ -35,7 +35,7 @@ struct Test {
 };
 
 ZfbFields(Test,
-  (((foo), (Ctor<0>)), (Int)),
+  (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String)),
   (((kvTree, Lambda,
     ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {

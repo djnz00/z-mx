@@ -104,53 +104,6 @@ private:
   ZmRef<IOBuf>	m_buf;
 };
 
-// FIXME - need Load and Save:
-//
-// cstringVec
-// stringVec
-// bytesVec
-// int8Vec
-// uint8Vec
-// int16Vec
-// uint16Vec
-// int32Vec
-// uint32Vec
-// int64Vec
-// uint64Vec
-// int128Vec
-// uint128Vec
-// floatVec
-// fixedVec
-// decimalVec
-// timeVec
-// dateTimeVec
-
-
-// see bytes() for a primitive array example
-// see bitmap() for a nested example:
-
-  template <typename Builder>
-  inline auto cstringVec(Builder &fbb, ZuArray<const char *> a) {
-    return vectorIter<String>(fbb, a.length(),
-      [&a](Builder &fbb, unsigned i) mutable {
-	return str(fbb, a[i]);
-      });
-  }
-
-  inline ZuArray<const char *> cstringVec(
-
-  // bitmap
-  inline ZmBitmap bitmap(const Vector<uint64_t> *v) {
-    if (!v) return ZmBitmap{};
-    ZmBitmap m;
-    if (unsigned n = v->size()) {
-      --n;
-      hwloc_bitmap_from_ith_ulong(m, n, (*v)[n]);
-      while (n--) hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
-    }
-    return m;
-  }
-
 namespace Save {
   // compile-time-recursive vector push
   template <typename T, typename I>
@@ -279,7 +232,7 @@ namespace Save {
     auto o = fbb.CreateString(s.data(), s.length());
     return o;
   }
-  // fixed-width string -> flatbuffers::span<const uint8_t>
+  // fixed-width string -> span<const uint8_t>
   template <unsigned N>
   inline auto strN(ZuString s) -> span<const uint8_t, N> {
     return {span<const uint8_t, N>{
@@ -411,13 +364,13 @@ namespace Load {
   }
 
   // inline zero-copy conversion of a FB string to a ZuString
-  inline ZuString str(const flatbuffers::String *s) {
+  inline ZuString str(const String *s) {
     if (!s) return {};
     return {reinterpret_cast<const char *>(s->Data()), s->size()};
   }
   // inline zero-copy conversion of a fixed-width FB string to a ZuString
   template <unsigned N>
-  inline ZuString strN(const flatbuffers::Array<uint8_t, N> *s) {
+  inline ZuString strN(const Array<uint8_t, N> *s) {
     if (!s) return {};
     auto data = reinterpret_cast<const char *>(s->Data());
     if (data[N-1]) return {data, N};

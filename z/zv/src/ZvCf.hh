@@ -659,15 +659,13 @@ struct Handler_ {
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>
-  struct CtorFilter :
-      public ZuBool<(ZuFieldProp::GetCtor<typename U::Props>{} >= 0)> { };
+  using CtorFilter = ZuFieldProp::HasCtor<typename U::Props>;
   template <typename U>
-  struct CtorIndex : public ZuFieldProp::GetCtor<typename U::Props> { };
+  using CtorIndex = ZuFieldProp::GetCtor<typename U::Props>;
   using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
 
   template <typename U>
-  struct InitFilter :
-      public ZuBool<(ZuFieldProp::GetCtor<typename U::Props>{} < 0)> { };
+  using InitFilter = ZuBool<!ZuFieldProp::HasCtor<typename U::Props>{}>;
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
   template <typename ...Fields>

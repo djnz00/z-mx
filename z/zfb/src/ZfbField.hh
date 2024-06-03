@@ -167,16 +167,43 @@ struct SaveFieldsFn<O, Fields, OffsetFields, 0> {
 };
 
 template <typename O_>
-struct Fielded_ : public ZtField::Fielded_<O_> {
+struct Fielded_ {
   using O = O_;
-  using Base = ZtField::Fielded_<O>;
-  using typename Base::AllFields;
-  using typename Base::LoadFields;
-  using typename Base::CtorFields;
-  using typename Base::InitFields;
-  using typename Base::SaveFields;
-  using typename Base::UpdFields;
-  using typename Base::DelFields;
+
+  using AllFields = ZuFieldList<O>;
+
+  // load fields are all the mutable fields
+  template <typename U>
+  struct LoadFilter : public ZuBool<!U::ReadOnly> { };
+  using LoadFields = ZuTypeGrep<LoadFilter, AllFields>;
+
+  // ctor fields - fields passed to the constructor
+  template <typename U>
+  using CtorFilter = Prop::HasCtor<typename U::Props>;
+  template <typename U>
+  using CtorIndex = Prop::GetCtor<typename U::Props>;
+  using CtorFields = ZuTypeSort<CtorIndex, ZuTypeGrep<CtorFilter, AllFields>>;
+
+  // init fields - fields set post-constructor
+  template <typename U>
+  using InitFilter = ZuBool<!Prop::HasCtor<typename U::Props>{}>;
+  using InitFields = ZuTypeGrep<InitFilter, LoadFields>;
+
+  // save fields - all the ctor and init fields
+  template <typename U>
+  using SaveFilter =
+    ZuBool<bool(Prop::HasCtor<typename U::Props>{}) || !U::ReadOnly>;
+  using SaveFields = ZuTypeGrep<SaveFilter, AllFields>;
+
+  // update fields - mutable fields and primary key fields
+  template <typename U>
+  using UpdFilter = ZuBool<
+    bool(ZuTypeIn<Prop::Update, typename U::Props>{}) ||
+    bool(ZuFieldProp::Key<typename U::Props, 0>{})>;
+  using UpdFields = ZuTypeGrep<UpdFilter, LoadFields>;
+
+  // delete fields - primary key fields
+  using DelFields = ZuKeyFields<O, 0>;
 
   using FBType = ZfbType<O>;
 
@@ -322,18 +349,226 @@ using Fields = typename Fielded<O>::FBFields;
 } // ZfbField
 
 namespace Zfb {
-namespace Load {
-  template <typename O>
-  inline O object(const ZfbType<O> *fbo) {
-    return ZfbField::ctor<O>(fbo);
-  }
-}
+
 namespace Save {
+
   template <typename Builder, typename O>
   inline auto object(Builder &fbb, const O &o) {
     return ZfbField::save(fbb, o);
   }
+
+  template <typename Builder>
+  inline auto cstringVec(Builder &fbb, ZuMArray<const char *> a) {
+    using CString = const char *;
+    return vectorIter<String>(fbb, a.length(),
+      [&a](Builder &fbb, unsigned i) mutable {
+	return str(fbb, CString(a[i]));
+      });
+  }
+  template <typename Builder>
+  inline auto stringVec(Builder &fbb, ZuMArray<ZuString> a) {
+    return vectorIter<String>(fbb, a.length(),
+      [&a](Builder &fbb, unsigned i) mutable {
+	return str(fbb, ZuString(a[i]));
+      });
+  }
+  template <typename Builder>
+  inline auto bytesVec(Builder &fbb, ZuMArray<ZuBytes> a) {
+    return vectorIter<Vector<uint8_t>>(fbb, a.length(),
+      [&a](Builder &fbb, unsigned i) mutable {
+	return bytes(fbb, ZuBytes(a[i]));
+      });
+  }
+
+#define ZfbField_SaveInt(width) \
+  template <typename Builder> \
+  inline auto int##width##Vec( \
+    Builder &fbb, ZuMArray<int##width##_t> a) \
+  { \
+    return pvectorIter<int##width##_t>(fbb, a.length(), \
+      [&a](Builder &fbb, unsigned i) mutable { \
+	return int##width##_t(a[i]); \
+      }); \
+  } \
+  template <typename Builder> \
+  inline auto uint##width##Vec( \
+    Builder &fbb, ZuMArray<uint##width##_t> a) \
+  { \
+    return pvectorIter<uint##width##_t>(fbb, a.length(), \
+      [&a](Builder &fbb, unsigned i) mutable { \
+	return uint##width##_t(a[i]); \
+      }); \
+  }
+  ZfbField_SaveInt(8)
+  ZfbField_SaveInt(16)
+  ZfbField_SaveInt(32)
+  ZfbField_SaveInt(64)
+
+  template <typename Builder>
+  inline auto int128Vec(Builder &fbb, ZuMArray<int128_t> a) {
+    return structVecIter<Int128>(fbb, a.length(),
+      [&a](Int128 *ptr, unsigned i) mutable {
+	new (ptr) Int128{int128(int128_t(a[i]))};
+      });
+  }
+  template <typename Builder>
+  inline auto uint128Vec(Builder &fbb, ZuMArray<uint128_t> a) {
+    return structVecIter<UInt128>(fbb, a.length(),
+      [&a](UInt128 *ptr, unsigned i) mutable {
+	new (ptr) UInt128{uint128(uint128_t(a[i]))};
+      });
+  }
+  template <typename Builder>
+  inline auto floatVec(Builder &fbb, ZuMArray<double> a) {
+    return pvectorIter<double>(fbb, a.length(),
+      [&a](Builder &fbb, unsigned i) mutable { return double(a[i]); });
+  }
+  template <typename Builder>
+  inline auto fixedVec(Builder &fbb, ZuMArray<ZuFixed> a) {
+    return structVecIter<Fixed>(fbb, a.length(),
+      [&a](Fixed *ptr, unsigned i) mutable {
+	new (ptr) Fixed{fixed(ZuFixed(a[i]))};
+      });
+  }
+  template <typename Builder>
+  inline auto decimalVec(Builder &fbb, ZuMArray<ZuDecimal> a) {
+    return structVecIter<Decimal>(fbb, a.length(),
+      [&a](Decimal *ptr, unsigned i) mutable {
+	new (ptr) Decimal{decimal(ZuDecimal(a[i]))};
+      });
+  }
+  template <typename Builder>
+  inline auto timeVec(Builder &fbb, ZuMArray<ZuTime> a) {
+    return structVecIter<Time>(fbb, a.length(),
+      [&a](Time *ptr, unsigned i) mutable {
+	new (ptr) Time{time(ZuTime(a[i]))};
+      });
+  }
+  template <typename Builder>
+  inline auto dateTimeVec(Builder &fbb, ZuMArray<ZuDateTime> a) {
+    return structVecIter<DateTime>(fbb, a.length(),
+      [&a](DateTime *ptr, unsigned i) mutable {
+	new (ptr) DateTime{dateTime(ZuDateTime(a[i]))};
+      });
+  }
 }
+
+namespace Load {
+
+  template <typename O>
+  inline O object(const ZfbType<O> *fbo) {
+    return ZfbField::ctor<O>(fbo);
+  }
+
+  inline const ZuMArray<const char *>
+  cstringVec(const Vector<Offset<String>> *v) {
+    using Vec = Vector<Offset<String>>;
+    return ZuMArray<const char *>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return reinterpret_cast<const char *>(
+	  static_cast<const Vec *>(v_)->Get(i)->Data());
+      });
+  }
+  inline const ZuMArray<ZuString>
+  stringVec(const Vector<Offset<String>> *v) {
+    using Vec = Vector<Offset<String>>;
+    return ZuMArray<ZuString>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return str(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+  inline const ZuMArray<ZuBytes>
+  bytesVec(const Vector<Offset<Vector<uint8_t>>> *v) {
+    using Vec = Vector<Offset<Vector<uint8_t>>>;
+    return ZuMArray<ZuBytes>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return bytes(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+
+#define ZfbField_LoadInt(width) \
+  inline const ZuMArray<int##width##_t> \
+  int##width##Vec(const Vector<int##width##_t> *v) { \
+    using Vec = Vector<int##width##_t>; \
+    return ZuMArray<int##width##_t>(*const_cast<Vec *>(v), v->size(), \
+      [](const void *v_, unsigned i) -> int##width##_t { \
+	return static_cast<const Vec *>(v_)->Get(i); \
+      }); \
+  } \
+  inline const ZuMArray<uint##width##_t> \
+  uint##width##Vec(const Vector<uint##width##_t> *v) { \
+    using Vec = Vector<uint##width##_t>; \
+    return ZuMArray<uint##width##_t>(*const_cast<Vec *>(v), v->size(), \
+      [](const void *v_, unsigned i) -> uint##width##_t { \
+	return static_cast<const Vec *>(v_)->Get(i); \
+      }); \
+  }
+
+  ZfbField_LoadInt(8)
+  ZfbField_LoadInt(16)
+  ZfbField_LoadInt(32)
+  ZfbField_LoadInt(64)
+  
+  inline const ZuMArray<int128_t>
+  int128Vec(const Vector<const Int128 *> *v) {
+    using Vec = Vector<const Int128 *>;
+    return ZuMArray<int128_t>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return int128_t(int128(static_cast<const Vec *>(v_)->Get(i)));
+      });
+  }
+  inline const ZuMArray<uint128_t>
+  uint128Vec(const Vector<const UInt128 *> *v) {
+    using Vec = Vector<const UInt128 *>;
+    return ZuMArray<uint128_t>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return uint128_t(uint128(static_cast<const Vec *>(v_)->Get(i)));
+      });
+  }
+
+  inline const ZuMArray<double>
+  floatVec(const Vector<double> *v) {
+    using Vec = Vector<double>;
+    return ZuMArray<double>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return static_cast<const Vec *>(v_)->Get(i);
+      });
+  }
+
+  inline const ZuMArray<ZuFixed>
+  fixedVec(const Vector<const Fixed *> *v) {
+    using Vec = Vector<const Fixed *>;
+    return ZuMArray<ZuFixed>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return fixed(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+  inline const ZuMArray<ZuDecimal>
+  decimalVec(const Vector<const Decimal *> *v) {
+    using Vec = Vector<const Decimal *>;
+    return ZuMArray<ZuDecimal>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return decimal(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+  inline const ZuMArray<ZuTime>
+  timeVec(const Vector<const Time *> *v) {
+    using Vec = Vector<const Time *>;
+    return ZuMArray<ZuTime>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return time(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+  inline const ZuMArray<ZuDateTime>
+  dateTimeVec(const Vector<const DateTime *> *v) {
+    using Vec = Vector<const DateTime *>;
+    return ZuMArray<ZuDateTime>(*const_cast<Vec *>(v), v->size(),
+      [](const void *v_, unsigned i) {
+	return dateTime(static_cast<const Vec *>(v_)->Get(i));
+      });
+  }
+}
+
 } // Zfb
 
 #define ZfbFieldTypeName(O, ID) ZfbField_##O##_##ID

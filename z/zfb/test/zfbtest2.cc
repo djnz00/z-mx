@@ -37,9 +37,9 @@ struct Test {
 
 ZfbFields(Object,
   (((id), (Ctor<0>)), (ID)),
-  (((price), (Ctor<1>)), (Int)));
+  (((price), (Ctor<1>)), (Int32)));
 ZfbFields(Test,
-  (((foo), (Ctor<0>)), (Int)),
+  (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String)),
   (((baz), (Ctor<2>)), (Object)));
 ZfbRoot(Test);
