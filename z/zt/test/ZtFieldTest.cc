@@ -15,7 +15,7 @@ namespace Values {
 }
 
 namespace Flags {
-  ZtEnumFlags(Flags, Bit0, Bit1, Bit2);
+  ZtEnumFlags(Flags, uint8_t, Bit0, Bit1, Bit2);
 }
 
 struct Nested {

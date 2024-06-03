@@ -124,16 +124,16 @@ struct Heap : public Heap_ {
 };
 ZfbFields(Heap,
     (((id), (Keys<0>, Ctor<0>)), (String)),
-    (((size), (Keys<0>, Ctor<6>)), (UInt)),
-    (((alignment), (Ctor<9>)), (UInt)),
-    (((partition), (Keys<0>, Ctor<7>)), (UInt)),
+    (((size), (Keys<0>, Ctor<6>)), (UInt32)),
+    (((alignment), (Ctor<9>)), (UInt8)),
+    (((partition), (Keys<0>, Ctor<7>)), (UInt16)),
     (((sharded), (Ctor<8>)), (Bool)),
-    (((cacheSize), (Ctor<1>)), (UInt)),
+    (((cacheSize), (Ctor<1>)), (UInt64)),
     (((cpuset), (Ctor<2>)), (Bitmap)),
-    (((cacheAllocs), (Ctor<3>, Update, Series, Delta)), (UInt)),
-    (((heapAllocs), (Ctor<4>, Update, Series, Delta)), (UInt)),
-    (((frees), (Ctor<5>, Update, Series, Delta)), (UInt)),
-    (((allocated, RdFn), (Series)), (UInt)),
+    (((cacheAllocs), (Ctor<3>, Update, Series, Delta)), (UInt64)),
+    (((heapAllocs), (Ctor<4>, Update, Series, Delta)), (UInt64)),
+    (((frees), (Ctor<5>, Update, Series, Delta)), (UInt64)),
+    (((allocated, RdFn), (Synthetic, Series)), (UInt64)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 using HashTbl_ = ZmHashTelemetry;
@@ -153,15 +153,15 @@ struct HashTbl : public HashTbl_ {
 };
 ZfbFields(HashTbl,
     (((id), (Keys<0>, Ctor<0>)), (String)),
-    (((addr), (Keys<0>, Ctor<1>, Hex)), (UInt)),
+    (((addr), (Keys<0>, Ctor<1>, Hex)), (UInt64)),
     (((linear), (Ctor<9>)), (Bool)),
-    (((bits), (Ctor<7>)), (UInt)),
-    (((cBits), (Ctor<8>)), (UInt)),
+    (((bits), (Ctor<7>)), (UInt8)),
+    (((cBits), (Ctor<8>)), (UInt8)),
     (((loadFactor), (Ctor<2>)), (Float)),
-    (((nodeSize), (Ctor<4>)), (UInt)),
-    (((count), (Ctor<5>, Update, Series)), (UInt)),
+    (((nodeSize), (Ctor<5>)), (UInt32)),
+    (((count), (Ctor<4>, Update, Series)), (UInt64)),
     (((effLoadFactor), (Ctor<3>, Update, Series, NDP<2>)), (Float)),
-    (((resized), (Ctor<6>)), (UInt)),
+    (((resized), (Ctor<6>)), (UInt32)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 using Thread_ = ZmThreadTelemetry;
@@ -183,16 +183,16 @@ struct Thread : public Thread_ {
 // (i.e. scheduler queue length and DLQ length)
 ZfbFields(Thread,
     (((name), (Ctor<0>)), (String)),
-    (((sid), (Ctor<8>)), (Int)),
-    (((tid), (Keys<0>, Ctor<1>)), (UInt)),
+    (((sid), (Ctor<8>)), (UInt16)),
+    (((tid), (Keys<0>, Ctor<1>)), (UInt64)),
     (((cpuUsage), (Ctor<4>, Update, Series, NDP<2>)), (Float)),
-    (((allocStack), (Ctor<5>, Update, Series)), (UInt)),
-    (((allocHeap), (Ctor<6>, Update, Series)), (UInt)),
+    (((allocStack), (Ctor<5>, Update, Series)), (UInt64)),
+    (((allocHeap), (Ctor<6>, Update, Series)), (UInt64)),
     (((cpuset), (Ctor<3>)), (Bitmap)),
     (((priority), (Ctor<10>)), (Enum, ThreadPriority::Map)),
-    (((sysPriority), (Ctor<7>)), (Int)),
-    (((stackSize), (Ctor<2>)), (UInt)),
-    (((partition), (Ctor<9>)), (UInt)),
+    (((sysPriority), (Ctor<7>)), (Int32)),
+    (((stackSize), (Ctor<2>)), (UInt64)),
+    (((partition), (Ctor<9>)), (UInt16)),
     (((main), (Ctor<11>)), (Bool)),
     (((detached), (Ctor<12>)), (Bool)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
@@ -211,18 +211,18 @@ struct Mx : public Mx_ {
 ZfbFields(Mx,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((state), (Ctor<10>, Update, Series)), (Enum, EngineState::Map)),
-    (((nThreads), (Ctor<13>)), (UInt)),
-    (((rxThread), (Ctor<7>)), (UInt)),
-    (((txThread), (Ctor<8>)), (UInt)),
-    (((priority), (Ctor<12>)), (UInt)),
-    (((stackSize), (Ctor<1>)), (UInt)),
-    (((partition), (Ctor<9>)), (UInt)),
-    (((rxBufSize), (Ctor<5>)), (UInt)),
-    (((txBufSize), (Ctor<6>)), (UInt)),
-    (((queueSize), (Ctor<2>)), (UInt)),
+    (((nThreads), (Ctor<13>)), (UInt8)),
+    (((rxThread), (Ctor<7>)), (UInt16)),
+    (((txThread), (Ctor<8>)), (UInt16)),
+    (((priority), (Ctor<12>)), (UInt8)),
+    (((stackSize), (Ctor<1>)), (UInt32)),
+    (((partition), (Ctor<9>)), (UInt16)),
+    (((rxBufSize), (Ctor<5>)), (UInt32)),
+    (((txBufSize), (Ctor<6>)), (UInt32)),
+    (((queueSize), (Ctor<2>)), (UInt32)),
     (((ll), (Ctor<11>)), (Bool)),
-    (((spin), (Ctor<3>)), (UInt)),
-    (((timeout), (Ctor<4>)), (UInt)),
+    (((spin), (Ctor<3>)), (UInt32)),
+    (((timeout), (Ctor<4>)), (UInt32)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 using Socket_ = ZiCxnTelemetry;
@@ -246,19 +246,19 @@ ZfbFields(Socket,
     (((mxID), (Ctor<0>)), (String)),
     (((type), (Ctor<15>)), (Enum, SocketType::Map)),
     (((remoteIP), (Ctor<11>)), (IP)),
-    (((remotePort), (Ctor<13>)), (UInt)),
+    (((remotePort), (Ctor<13>)), (UInt16)),
     (((localIP), (Ctor<10>)), (IP)),
-    (((localPort), (Ctor<12>)), (UInt)),
-    (((socket), (Keys<0>, Ctor<1>)), (UInt)),
+    (((localPort), (Ctor<12>)), (UInt16)),
+    (((socket), (Keys<0>, Ctor<1>)), (UInt64)),
     (((flags), (Ctor<14>)), (Flags, ZiCxnFlags::Map)),
     (((mreqAddr), (Ctor<6>)), (IP)),
     (((mreqIf), (Ctor<7>)), (IP)),
     (((mif), (Ctor<8>)), (IP)),
-    (((ttl), (Ctor<9>)), (UInt)),
-    (((rxBufSize), (Ctor<2>)), (UInt)),
-    (((rxBufLen), (Ctor<3>, Update, Series)), (UInt)),
-    (((txBufSize), (Ctor<4>)), (UInt)),
-    (((txBufLen), (Ctor<5>, Update, Series)), (UInt)),
+    (((ttl), (Ctor<9>)), (UInt32)),
+    (((rxBufSize), (Ctor<2>)), (UInt32)),
+    (((rxBufLen), (Ctor<3>, Update, Series)), (UInt32)),
+    (((txBufSize), (Ctor<4>)), (UInt32)),
+    (((txBufLen), (Ctor<5>, Update, Series)), (UInt32)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence:
@@ -290,14 +290,14 @@ struct Queue {
 ZfbFields(Queue,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((type), (Keys<0>, Ctor<9>)), (Enum, QueueType::Map)),
-    (((size), (Ctor<7>)), (UInt)),
-    (((full), (Ctor<8>, Update, Series, Delta)), (UInt)),
-    (((count), (Ctor<2>, Update, Series)), (UInt)),
-    (((seqNo), (Ctor<1>)), (UInt)),
-    (((inCount), (Ctor<3>, Update, Series, Delta)), (UInt)),
-    (((inBytes), (Ctor<4>, Update, Series, Delta)), (UInt)),
-    (((outCount), (Ctor<5>, Update, Series, Delta)), (UInt)),
-    (((outBytes), (Ctor<6>, Update, Series, Delta)), (UInt)),
+    (((size), (Ctor<7>)), (UInt32)),
+    (((full), (Ctor<8>, Update, Series, Delta)), (UInt32)),
+    (((count), (Ctor<2>, Update, Series)), (UInt64)),
+    (((seqNo), (Ctor<1>)), (UInt64)),
+    (((inCount), (Ctor<3>, Update, Series, Delta)), (UInt64)),
+    (((inBytes), (Ctor<4>, Update, Series, Delta)), (UInt64)),
+    (((outCount), (Ctor<5>, Update, Series, Delta)), (UInt64)),
+    (((outBytes), (Ctor<6>, Update, Series, Delta)), (UInt64)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence:
@@ -319,9 +319,9 @@ ZfbFields(Link,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((engineID), (Ctor<1>)), (String)),
     (((state), (Ctor<5>, Update, Series)), (Enum, LinkState::Map)),
-    (((reconnects), (Ctor<4>, Update, Series, Delta)), (UInt)),
-    (((rxSeqNo), (Ctor<2>, Update, Series, Delta)), (UInt)),
-    (((txSeqNo), (Ctor<3>, Update, Series, Delta)), (UInt)),
+    (((reconnects), (Ctor<4>, Update, Series, Delta)), (UInt32)),
+    (((rxSeqNo), (Ctor<2>, Update, Series, Delta)), (UInt64)),
+    (((txSeqNo), (Ctor<3>, Update, Series, Delta)), (UInt64)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence:
@@ -351,16 +351,16 @@ ZfbFields(Engine,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((type), (Ctor<1>)), (String)),
     (((state), (Ctor<12>, Update, Series)), (Enum, EngineState::Map)),
-    (((nLinks), (Ctor<9>)), (UInt)),
-    (((up), (Ctor<6>, Update, Series)), (UInt)),
-    (((down), (Ctor<3>, Update, Series)), (UInt)),
-    (((disabled), (Ctor<4>, Update, Series)), (UInt)),
-    (((transient), (Ctor<5>, Update, Series)), (UInt)),
-    (((reconn), (Ctor<7>, Update, Series)), (UInt)),
-    (((failed), (Ctor<8>, Update, Series)), (UInt)),
+    (((nLinks), (Ctor<9>)), (UInt16)),
+    (((up), (Ctor<6>, Update, Series)), (UInt16)),
+    (((down), (Ctor<3>, Update, Series)), (UInt16)),
+    (((disabled), (Ctor<4>, Update, Series)), (UInt16)),
+    (((transient), (Ctor<5>, Update, Series)), (UInt16)),
+    (((reconn), (Ctor<7>, Update, Series)), (UInt16)),
+    (((failed), (Ctor<8>, Update, Series)), (UInt16)),
     (((mxID), (Ctor<2>)), (String)),
-    (((rxThread), (Ctor<10>)), (UInt)),
-    (((txThread), (Ctor<11>)), (UInt)),
+    (((rxThread), (Ctor<10>)), (UInt16)),
+    (((txThread), (Ctor<11>)), (UInt16)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence: 
@@ -379,7 +379,7 @@ struct DBTable {
   uint64_t	cacheMisses = 0;		// dynamic (*)
   uint32_t	cacheSize = 0;
   int8_t	cacheMode = -1;			// CacheMode
-  uint8_t	warmup = 0;
+  bool		warmup = 0;
 
   int rag() const {
     unsigned total = cacheLoads + cacheMisses;
@@ -395,11 +395,11 @@ struct DBTable {
 ZfbFields(DBTable,
     (((name), (Keys<0>, Ctor<0>)), (String)),
     (((cacheMode), (Ctor<7>)), (Enum, CacheMode::Map)),
-    (((cacheSize), (Ctor<6>)), (UInt)),
-    (((warmup), (Ctor<8>)), (UInt)),
-    (((count), (Ctor<3>, Update, Series, Delta)), (UInt)),
-    (((cacheLoads), (Ctor<4>, Update, Series, Delta)), (UInt)),
-    (((cacheMisses), (Ctor<5>, Update, Series, Delta)), (UInt)),
+    (((cacheSize), (Ctor<6>)), (UInt64)),
+    (((warmup), (Ctor<8>)), (Bool)),
+    (((count), (Ctor<3>, Update, Series, Delta)), (UInt64)),
+    (((cacheLoads), (Ctor<4>, Update, Series, Delta)), (UInt64)),
+    (((cacheMisses), (Ctor<5>, Update, Series, Delta)), (UInt64)),
     (((thread), (Ctor<1>)), (String)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
@@ -421,10 +421,10 @@ struct DBHost {
 ZfbFields(DBHost,
     (((ip), (Ctor<0>)), (IP)),
     (((id), (Keys<0>, Ctor<1>)), (ID)),
-    (((priority), (Ctor<2>)), (UInt)),
+    (((priority), (Ctor<2>)), (UInt32)),
     (((state), (Ctor<4>, Update, Series)), (Enum, DBHostState::Map)),
     (((voted), (Ctor<5>, Update, Series)), (Bool)),
-    (((port), (Ctor<3>)), (UInt)),
+    (((port), (Ctor<3>)), (UInt16)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence: 
@@ -462,18 +462,18 @@ ZfbFields(DB,
     (((prev), (Ctor<4>, Update)), (ID)),
     (((next), (Ctor<5>, Update)), (ID)),
     (((state), (Ctor<14>, Update, Series)), (Enum, DBHostState::Map)),
-    (((active), (Ctor<15>, Update)), (UInt)),
-    (((recovering), (Ctor<16>, Update)), (UInt)),
-    (((replicating), (Ctor<17>, Update)), (UInt)),
-    (((nTables), (Ctor<11>)), (UInt)),
-    (((nHosts), (Ctor<12>)), (UInt)),
-    (((nPeers), (Ctor<13>)), (UInt)),
-    (((nCxns), (Ctor<6>, Update, Series)), (UInt)),
+    (((active), (Ctor<15>, Update)), (UInt8)),
+    (((recovering), (Ctor<16>, Update)), (UInt8)),
+    (((replicating), (Ctor<17>, Update)), (UInt8)),
+    (((nTables), (Ctor<11>)), (UInt16)),
+    (((nHosts), (Ctor<12>)), (UInt8)),
+    (((nPeers), (Ctor<13>)), (UInt8)),
+    (((nCxns), (Ctor<6>, Update, Series)), (UInt32)),
     (((thread), (Ctor<0>)), (String)),
-    (((heartbeatFreq), (Ctor<7>)), (UInt)),
-    (((heartbeatTimeout), (Ctor<8>)), (UInt)),
-    (((reconnectFreq), (Ctor<9>)), (UInt)),
-    (((electionTimeout), (Ctor<10>)), (UInt)),
+    (((heartbeatFreq), (Ctor<7>)), (UInt32)),
+    (((heartbeatTimeout), (Ctor<8>)), (UInt32)),
+    (((reconnectFreq), (Ctor<9>)), (UInt32)),
+    (((electionTimeout), (Ctor<10>)), (UInt32)),
     (((rag, RdFn), (Series)), (Enum, RAG::Map)));
 
 // display sequence:
@@ -499,8 +499,8 @@ ZfbFields(App,
 //   time, severity, tid, message
 struct Alert {
   ZuDateTime	time;
-  uint32_t	seqNo = 0;
-  uint32_t	tid = 0;
+  uint64_t	seqNo = 0;
+  uint64_t	tid = 0;
   int8_t	severity = -1;
   ZtString	message;
 
@@ -508,8 +508,8 @@ struct Alert {
 };
 ZfbFields(Alert,
     (((time), (Ctor<0>)), (DateTime)),
-    (((seqNo), (Ctor<1>)), (UInt)),
-    (((tid), (Ctor<2>)), (UInt)),
+    (((seqNo), (Ctor<1>)), (UInt64)),
+    (((tid), (Ctor<2>)), (UInt64)),
     (((severity), (Ctor<3>)), (Enum, Severity::Map)),
     (((message), (Ctor<4>)), (String)));
 

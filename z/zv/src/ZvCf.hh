@@ -325,25 +325,16 @@ inline ZtEnum scanEnum(
     return ZvEnum::s2v<Map, false>(key, value, deflt);
 }
 
-// scan generic flags
+// scan flags
 template <typename Map, typename Flags, bool Required_ = false>
-inline Flags scanFlags_(
+inline Flags scanFlags(
     const Cf *cf, ZuString key, ZuString value, Flags deflt = 0)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
     return deflt;
   }
-  return ZvEnum::scan<Map, Flags>(key, value, deflt);
-}
-// forwarding functions for uint32_t and uint64_t flags
-template <typename Map, bool Required_ = false, typename ...Args>
-inline auto scanFlags(Args &&... args) {
-  return scanFlags_<Map, uint32_t, Required_>(ZuFwd<Args>(args)...);
-}
-template <typename Map, bool Required_ = false, typename ...Args>
-inline auto scanFlags64(Args &&... args) {
-  return scanFlags_<Map, uint64_t, Required_>(ZuFwd<Args>(args)...);
+  return ZvEnum::scan<Map, Flags>(key, value);
 }
 
 namespace Quoting { // quoting types
@@ -516,44 +507,22 @@ public:
 	owner, key, assure([deflt]() { return Map::v2s(deflt); }), deflt);
   }
 
-  // get/assure flags (generic)
+  // get/assure flags
   template <typename Map, typename T, bool Required_ = false>
-  T getFlags_() const {
-    return scanFlags_<Map, T, Required_>(
+  T getFlags() const {
+    return scanFlags<Map, T, Required_>(
 	owner, key, get<Required_>(), 0);
   }
   template <typename Map, typename T>
-  T getFlags_(T deflt) const {
-    return scanFlags_<Map, T>(owner, key, get(), deflt);
+  T getFlags(T deflt) const {
+    return scanFlags<Map, T>(owner, key, get(), deflt);
   }
   template <typename Map, typename T>
-  T assureFlags_(T deflt) {
+  T assureFlags(T deflt) {
     using Print = typename Map::Print;
-    return scanFlags_<Map, T>(
+    return scanFlags<Map, T>(
 	owner, key,
 	assure([deflt]() { return ZtString{} << Print{deflt}; }), deflt);
-  }
-
-  // forwarding functions for uint32_t flags
-  template <typename Map, bool Required_ = false> uint32_t getFlags() const {
-    return getFlags_<Map, uint32_t, Required_>();
-  }
-  template <typename Map> uint32_t getFlags(uint32_t deflt) const {
-    return getFlags_<Map, uint32_t>(deflt);
-  }
-  template <typename Map> uint32_t assureFlags(uint32_t deflt) {
-    return assureFlags_<Map, uint32_t>(deflt);
-  }
-
-  // forwarding functions for uint64_t flags
-  template <typename Map, bool Required_ = false> uint64_t getFlags64() const {
-    return getFlags_<Map, uint64_t, Required_>();
-  }
-  template <typename Map> uint64_t getFlags64(uint64_t deflt) const {
-    return getFlags_<Map, uint64_t>(deflt);
-  }
-  template <typename Map> uint64_t assureFlags64(uint64_t deflt) {
-    return assureFlags_<Map, uint64_t>(deflt);
   }
 
   // generic iterate over array
@@ -1041,49 +1010,21 @@ public:
 
   // generic get/assure for flags
   template <typename Map, typename T, bool Required_ = false>
-  T getFlags_(ZuString key) const {
+  T getFlags(ZuString key) const {
     if (auto node = getNode<Required_>(key))
-      return node->template getFlags_<Map, T, Required_>();
+      return node->template getFlags<Map, T, Required_>();
     if constexpr (Required_) throw Required{this, key};
     return 0;
   }
   template <typename Map, typename T>
-  T getFlags_(ZuString key, T deflt) const {
+  T getFlags(ZuString key, T deflt) const {
     if (auto node = getNode(key))
-      return node->template getFlags_<Map, T>(deflt);
+      return node->template getFlags<Map, T>(deflt);
     return deflt;
   }
   template <typename Map, typename T>
-  T assureFlags_(ZuString key, T deflt) {
-    return mkNode(key)->template assureFlags_<Map, T>(deflt);
-  }
-
-  // get/assure shorthand forwarding functions for uint32_t flags
-  template <typename Map, bool Required_ = false>
-  uint32_t getFlags(ZuString key) const {
-    return getFlags_<Map, uint32_t, Required_>(key);
-  }
-  template <typename Map>
-  uint32_t getFlags(ZuString key, uint32_t deflt) const {
-    return getFlags_<Map, uint32_t>(key, deflt);
-  }
-  template <typename Map>
-  uint32_t assureFlags(ZuString key, uint32_t deflt) {
-    return assureFlags_<Map, uint32_t>(key, deflt);
-  }
-
-  // get/assure shorthand forwarding functions for uint64_t flags
-  template <typename Map, bool Required_ = false>
-  uint64_t getFlags64(ZuString key) const {
-    return getFlags_<Map, uint64_t, Required_>(key);
-  }
-  template <typename Map>
-  uint64_t getFlags64(ZuString key, uint64_t deflt) const {
-    return getFlags_<Map, uint64_t>(key, deflt);
-  }
-  template <typename Map>
-  uint64_t assureFlags64(ZuString key, uint64_t deflt) {
-    return assureFlags_<Map, uint64_t>(key, deflt);
+  T assureFlags(ZuString key, T deflt) {
+    return mkNode(key)->template assureFlags<Map, T>(deflt);
   }
 
   // ZtField integration - get individual field
@@ -1116,8 +1057,16 @@ public:
 	Field::id(), Field::deflt());
   }
   template <typename Field>
-  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Int ||
-	Field::Type::Code == ZtFieldTypeCode::UInt ||
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Int8 ||
+	Field::Type::Code == ZtFieldTypeCode::UInt8 ||
+	Field::Type::Code == ZtFieldTypeCode::Int16 ||
+	Field::Type::Code == ZtFieldTypeCode::UInt16 ||
+	Field::Type::Code == ZtFieldTypeCode::Int32 ||
+	Field::Type::Code == ZtFieldTypeCode::UInt32 ||
+	Field::Type::Code == ZtFieldTypeCode::Int64 ||
+	Field::Type::Code == ZtFieldTypeCode::UInt64 ||
+	Field::Type::Code == ZtFieldTypeCode::Int128 ||
+	Field::Type::Code == ZtFieldTypeCode::UInt128 ||
 	Field::Type::Code == ZtFieldTypeCode::Float ||
 	Field::Type::Code == ZtFieldTypeCode::Fixed ||
 	Field::Type::Code == ZtFieldTypeCode::Decimal, typename Field::T>

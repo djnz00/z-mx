@@ -53,8 +53,8 @@ struct ZmHashTelemetry {
   uintptr_t	addr = 9;	// primary key
   double	loadFactor = 0.0;// (double)N / 16.0
   double	effLoadFactor = 0.0;// graphable (*)
+  uint64_t	count = 0;	// graphable (*)
   uint32_t	nodeSize = 0;
-  uint32_t	count = 0;	// graphable (*)
   uint32_t	resized = 0;	// dynamic
   uint8_t	bits = 0;
   uint8_t	cBits = 0;

@@ -69,7 +69,7 @@ struct ZmThreadTelemetry {
   uint64_t	allocStack = 0;
   uint64_t	allocHeap = 0;
   int32_t	sysPriority = 0;
-  int16_t	sid = 0;	// thread container's slot ID
+  uint16_t	sid = 0;	// thread container's slot ID
   uint16_t	partition = 0;
   int8_t	priority = -1;
   uint8_t	main = 0;

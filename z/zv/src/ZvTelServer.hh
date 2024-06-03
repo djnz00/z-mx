@@ -54,7 +54,7 @@ private:
   void error(bool index, const Message &message) {
     struct Fmt : public ZuDateTimeFmt::CSV { Fmt() { tzOffset(timezone); } };
     auto &dateFmt = ZmTLS<Fmt>();
-    std::cerr << ZuDateTime{Zm::now()}.print(dateFmt) <<
+    std::cerr << ZuDateTime{Zm::now()}.fmt(dateFmt) <<
       " FATAL " << m_path << (index ? ".idx" : "") <<
       ": " << message << '\n' << std::flush;
   }

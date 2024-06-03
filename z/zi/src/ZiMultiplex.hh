@@ -161,7 +161,7 @@ public:
 
 // protocol/socket options
 namespace ZiCxnFlags {
-  ZtEnumFlags_(ZiCxnFlags,
+  ZtEnumFlags_(ZiCxnFlags, uint8_t,
     UDP,		// U - create UDP socket (default TCP)
     Multicast,          // M - combine with U for multicast server socket
     LoopBack,		// L - combine with M and U for multicast loopback
@@ -180,53 +180,11 @@ class ZiCxnOptions {
 #endif
 
 public:
-  ZiCxnOptions() : m_flags(0), m_ttl(0) { } // Default is TCP
-
-  ZiCxnOptions(const ZiCxnOptions &o) :
-      m_flags(o.m_flags),
-      m_mreqs(o.m_mreqs),
-      m_mif(o.m_mif),
-      m_ttl(o.m_ttl)
-#ifdef ZiMultiplex_Netlink
-      , m_familyName(o.m_familyName)
-#endif
-      { }
-
-  ZiCxnOptions(ZiCxnOptions &&o) :
-      m_flags(ZuMv(o.m_flags)),
-      m_mreqs(ZuMv(o.m_mreqs)),
-      m_mif(ZuMv(o.m_mif)),
-      m_ttl(ZuMv(o.m_ttl))
-#ifdef ZiMultiplex_Netlink
-      , m_familyName(ZuMv(o.m_familyName))
-#endif
-      { }
-
-  ZiCxnOptions &operator =(const ZiCxnOptions &o) {
-    if (ZuLikely(this != &o)) {
-      m_flags = o.m_flags;
-      m_mreqs = o.m_mreqs;
-      m_mif = o.m_mif;
-      m_ttl = o.m_ttl;
-#ifdef ZiMultiplex_Netlink
-      m_familyName = o.m_familyName;
-#endif
-    }
-    return *this;
-  }
-
-  ZiCxnOptions &operator =(ZiCxnOptions &&o) {
-    if (ZuLikely(this != &o)) {
-      m_flags = ZuMv(o.m_flags);
-      m_mreqs = ZuMv(o.m_mreqs);
-      m_mif = ZuMv(o.m_mif);
-      m_ttl = ZuMv(o.m_ttl);
-#ifdef ZiMultiplex_Netlink
-      m_familyName = ZuMv(o.m_familyName);
-#endif
-    }
-    return *this;
-  }
+  ZiCxnOptions() = default;
+  ZiCxnOptions(const ZiCxnOptions &) = default;
+  ZiCxnOptions &operator =(const ZiCxnOptions &) = default;
+  ZiCxnOptions(ZiCxnOptions &&) = default;
+  ZiCxnOptions &operator =(ZiCxnOptions &&) = default;
 
   uint32_t flags() const { return m_flags; }
   ZiCxnOptions &flags(uint32_t flags) {
@@ -371,22 +329,22 @@ public:
   friend ZuPrintFn ZuPrintType(ZiCxnOptions *);
 
 private:
-  uint32_t		m_flags;
   MReqs			m_mreqs;
   ZiIP			m_mif;
-  unsigned		m_ttl;
+  unsigned		m_ttl = 0;
 #ifdef ZiMultiplex_Netlink
   FamilyName		m_familyName; // Generic Netlink Family Name
 #endif
+  ZiCxnFlags::T		m_flags = 0;
 };
 
 // listener info (socket, accept queue size, local IP/port, options)
 struct ZiListenInfo {
   Zi::Socket	socket;
-  unsigned		nAccepts = 0;
-  ZiIP			ip;
-  uint16_t		port = 0;
-  ZiCxnOptions		options;
+  unsigned	nAccepts = 0;
+  ZiIP		ip;
+  uint16_t	port = 0;
+  ZiCxnOptions	options;
 
   template <typename S> void print(S &s) const {
     s << "socket=" << ZuBoxed(socket) <<

@@ -92,14 +92,14 @@ inline void InvalidT<Map>::print_(ZuMStream &s) const
 
 template <typename Map, typename S, typename Flags>
 inline unsigned print(
-    ZuString key, S &s, const Flags &v, char delim = '|')
+    ZuString key, S &s, const Flags &v, const char *delim = "|")
 {
   if (!v) return 0;
   return Map::print(s, v, delim);
 }
 
 template <typename Map, typename Flags>
-inline Flags scan(ZuString key, ZuString s, char delim = '|')
+inline Flags scan(ZuString key, ZuString s, const char *delim = "|")
 {
   if (!s) return 0;
   if (Flags v = Map::template scan<Flags>(s, delim)) return v;

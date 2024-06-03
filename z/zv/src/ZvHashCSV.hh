@@ -25,16 +25,16 @@ namespace ZvHashCSV {
 
 struct Data {
   ZmIDString	id;
-  unsigned	bits;
   double	loadFactor;
-  unsigned	cBits;
+  uint8_t	bits;
+  uint8_t	cBits;
 };
 
 ZtFields(Data,
     (((id)), (String), (Ctor(0))),
-    (((bits)), (Int), (Ctor(1))),
-    (((loadFactor)), (Int), (Ctor(2))),
-    (((cBits)), (Int), (Ctor(3))));
+    (((bits)), (UInt8), (Ctor(2))),
+    (((loadFactor)), (Float), (Ctor(1))),
+    (((cBits)), (UInt8), (Ctor(3))));
 
 class CSV : public ZvCSV<Data> {
 public:

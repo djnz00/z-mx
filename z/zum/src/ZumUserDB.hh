@@ -54,7 +54,7 @@ struct Key {
   KeyData		secret;
 };
 ZfbFields(Key,
-  (((userID), (Keys<0>, Ctor<0>)), (UInt)),
+  (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
   (((id), (Keys<0>, Ctor<1>, Series)), (String)),
   (((secret), (Ctor<2>, Update)), (Bytes)));
 
@@ -63,7 +63,7 @@ struct Perm {
   ZtString		name;
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>, Series)), (UInt)),
+  (((id), (Keys<0>, Ctor<0>, Series)), (UInt8)),
   (((name), (Ctor<1>, Update)), (String)));
 
 struct Role {
@@ -73,8 +73,8 @@ struct Role {
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
-  (((perms), (Ctor<1>)), (UInt))
-  (((apiperms), (Ctor<2>)), (UInt)));
+  (((perms), (Ctor<1>)), (UInt128))
+  (((apiperms), (Ctor<2>)), (UInt128)));
 
 struct User {
   uint64_t		id;
@@ -211,7 +211,7 @@ struct Key {
 ZfbFields(Key,
     (((id, Rd), (Keys<0>)), (String)),
     (((secret), (Update)), (Bytes)),
-    (((userID, Rd)), (UInt)));
+    (((userID, Rd)), (UInt64)));
 }
 using Key__ = ZfbField::Load<_::Key>;
 struct Key_ : public ZuObject, public Key__ {

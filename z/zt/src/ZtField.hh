@@ -293,7 +293,7 @@ template <> struct ZtFieldType_Props<ZuFieldProp::Hex> : public ZuTrue { };
 
 // ZtMFieldProp bitfield encapsulates introspected ZtField properties
 namespace ZtMFieldProp {
-  ZtEnumFlags(ZtMFieldProp,
+  ZtEnumFlags(ZtMFieldProp, uint16_t,
     Ctor,
     Synthetic,
     Update,
@@ -306,38 +306,40 @@ namespace ZtMFieldProp {
     Delta2,
     NDP);
 
+  template <T I> using Constant = ZuConstant<T, I>;
+
   // Value<Prop>::N - return bitfield for individual property
-  template <typename> struct Value : public ZuUnsigned<0> { };	// default
+  template <typename> struct Value : public Constant<0> { };	// default
 
   template <unsigned I>
-  struct Value<ZuUnsigned<I>> : public ZuUnsigned<I> { };
+  struct Value<Constant<I>> : public Constant<I> { };
 
   namespace _ = ZuFieldProp;
 
   template <unsigned I>
-  struct Value<_::Ctor<I>>               : public ZuUInt128<Ctor()> { };
-  template <> struct Value<_::Synthetic> : public ZuUInt128<Synthetic()> { };
-  template <> struct Value<_::Update>    : public ZuUInt128<Update()> { };
-  template <> struct Value<_::Hidden>    : public ZuUInt128<Hidden()> { };
-  template <> struct Value<_::Hex>       : public ZuUInt128<Hex()> { };
-  template <> struct Value<_::Required>  : public ZuUInt128<Required()> { };
-  template <> struct Value<_::Series>    : public ZuUInt128<Series()> { };
-  template <> struct Value<_::Index>     : public ZuUInt128<Index()> { };
-  template <> struct Value<_::Delta>     : public ZuUInt128<Delta()> { };
-  template <> struct Value<_::Delta2>    : public ZuUInt128<Delta2()> { };
+  struct Value<_::Ctor<I>>               : public Constant<Ctor()> { };
+  template <> struct Value<_::Synthetic> : public Constant<Synthetic()> { };
+  template <> struct Value<_::Update>    : public Constant<Update()> { };
+  template <> struct Value<_::Hidden>    : public Constant<Hidden()> { };
+  template <> struct Value<_::Hex>       : public Constant<Hex()> { };
+  template <> struct Value<_::Required>  : public Constant<Required()> { };
+  template <> struct Value<_::Series>    : public Constant<Series()> { };
+  template <> struct Value<_::Index>     : public Constant<Index()> { };
+  template <> struct Value<_::Delta>     : public Constant<Delta()> { };
+  template <> struct Value<_::Delta2>    : public Constant<Delta2()> { };
   template <int8_t I>
-  struct Value<_::NDP<I>>                : public ZuUInt128<NDP()> { };
+  struct Value<_::NDP<I>>                : public Constant<NDP()> { };
 
   // Value<List>::N - return bitfield for property list
   template <typename ...> struct Or_;
   template <> struct Or_<> {
-    using T = ZuUnsigned<0>;
+    using T = Constant<0>;
   };
   template <typename U> struct Or_<U> {
     using T = Value<U>;
   };
   template <typename L, typename R> struct Or_<L, R> {
-    using T = ZuUnsigned<unsigned(Value<L>{}) | unsigned(Value<R>{})>;
+    using T = Constant<unsigned(Value<L>{}) | unsigned(Value<R>{})>;
   };
   template <typename ...Props> using Or = typename Or_<Props...>::T;
   template <typename ...Props>
@@ -349,7 +351,7 @@ namespace ZtMFieldProp {
 // - args are the Map used with Enum and Flags
 template <typename Props>
 struct ZtFieldType_ {
-  constexpr static uint64_t mprops() {
+  constexpr static ZtMFieldProp::T mprops() {
     return ZtMFieldProp::Value<Props>{};
   }
 };
@@ -1241,8 +1243,8 @@ MSet::scan(
   }
   unsigned n = s.length() + 1;
   auto buf_ = ZmAlloc(char, n);
-  ZuString buf{&buf_[0], n};
-  buf_[Scan::string(buf, s)] = 0;
+  ZuArray<char> buf{&buf_[0], n};
+  buf[Scan::string(buf, s)] = 0;
   set_.cstring(o, i, &buf[0]);
 }
 template <unsigned Code>
@@ -1256,7 +1258,7 @@ MSet::scan(
   }
   unsigned n = s.length();
   auto buf_ = ZmAlloc(char, n);
-  ZuString buf{&buf_[0], n};
+  ZuArray<char> buf{&buf_[0], n};
   buf.trunc(Scan::string(buf, s));
   set_.string(o, i, buf);
 }
@@ -1376,17 +1378,15 @@ namespace VecScan {
   // this is intentionally a 1-pass scan that does NOT validate the suffix;
   // lambda(ZuString &s) should advance s with s.offset()
   template <typename L>
-  inline unsigned scan(ZuString &s,
-    ZuString vecPrefix, ZuString vecDelim, ZuString vecSuffix, L l)
-  {
+  inline unsigned scan(ZuString &s, const ZtFieldVFmt &fmt, L l) {
     auto begin = &s[0];
     skip(s);
-    if (!match(s, vecPrefix)) return 0;
+    if (!match(s, fmt.vecPrefix)) return 0;
     skip(s);
     while (l(s)) {
       skip(s);
-      if (!match(s, vecDelim)) {
-	match(s, vecSuffix);
+      if (!match(s, fmt.vecDelim)) {
+	match(s, fmt.vecSuffix);
 	break;
       }
     }
@@ -1400,7 +1400,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::CStringVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m + 1);
     ZuArray<char> buf{&buf_[0], m + 1};
@@ -1418,7 +1418,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::StringVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m);
     ZuArray<char> buf{&buf_[0], m};
@@ -1436,7 +1436,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::BytesVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
     unsigned n = 0;
     auto m = s.length();
     while (n < m && ZuBase64::is(s[n])) n++;
@@ -1459,7 +1459,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::Int##width##Vec> \
 MSet::scan( \
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, [this, o, i](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) { \
     ZuBox<int##width##_t> v; \
     unsigned n = v.scan(s); \
     if (n) { \
@@ -1475,7 +1475,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::UInt##width##Vec> \
 MSet::scan( \
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, [this, o, i](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) { \
     ZuBox<uint##width##_t> v; \
     unsigned n = v.scan(s); \
     if (n) { \
@@ -1497,7 +1497,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::FloatVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
     ZuBox<double> v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1513,7 +1513,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::FixedVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
     ZuFixed v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1529,7 +1529,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::DecimalVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
     ZuDecimal v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1545,7 +1545,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::TimeVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {
@@ -1561,7 +1561,7 @@ inline ZuIfT<Code == ZtFieldTypeCode::DateTimeVec>
 MSet::scan(
   void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {

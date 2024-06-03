@@ -182,15 +182,18 @@ using ZtEnum = ZuBox_1(int8_t);
 
 #define ZtEnumFlag_(V) V##_
 #define ZtEnumFlagLookup_(V) #V, V##_
-#define ZtEnumFlagValue_(V) \
-  inline static constexpr uint128_t V() { return (uint128_t(1)<<V##_); }
+#define ZtEnumFlagValue_(Type, V) \
+  inline static constexpr Type V() { \
+    return (Type(1)<<V##_); \
+  }
 
-#define ZtEnumFlags_(ID, ...) \
+#define ZtEnumFlags_(ID, Type, ...) \
+  using T = Type; \
   ZtEnumValues_(ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \
-  ZuPP_Eval(ZuPP_Map(ZtEnumFlagValue_, __VA_ARGS__)) \
+  ZuPP_Eval(ZuPP_MapArg(ZtEnumFlagValue_, Type, __VA_ARGS__)) \
 
-#define ZtEnumFlags(ID, ...) \
-  ZtEnumFlags_(ID, __VA_ARGS__); \
+#define ZtEnumFlags(ID, Type, ...) \
+  ZtEnumFlags_(ID, Type, __VA_ARGS__); \
   ZtEnumFlagsMap(ID, Map, \
       ZuPP_Eval(ZuPP_MapComma(ZtEnumFlagLookup_, __VA_ARGS__)))
 

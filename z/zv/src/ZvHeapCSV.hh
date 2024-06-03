@@ -24,18 +24,18 @@ namespace ZvHeapCSV {
 
 struct Data {
   ZmIDString	id;
-  unsigned	partition;
-  unsigned	alignment;
   uint64_t	cacheSize;
+  uint16_t	partition;
+  uint8_t	alignment;
   ZmBitmap	cpuset;
 };
 
 ZtFields(Data,
-    (((id)), (String), (Ctor(0))),
-    (((partition)), (Int), (Ctor(1))),
-    (((alignment)), (Int), (Ctor(2))),
-    (((cacheSize)), (Int), (Ctor(3))),
-    (((cpuset)), (String), (Ctor(4))));
+    (((id), (Ctor<0>)), (String)),
+    (((partition), (Ctor<2>)), (UInt16)),
+    (((alignment), (Ctor<3>)), (UInt8)),
+    (((cacheSize), (Ctor<1>)), (UInt64)),
+    (((cpuset), (Ctor<4>)), (String)));
 
 class CSV : public ZvCSV<Data> {
 public:

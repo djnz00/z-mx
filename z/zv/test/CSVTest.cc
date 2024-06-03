@@ -32,7 +32,7 @@ namespace Enums {
 }
 
 namespace DaFlags {
-  ZtEnumFlags(DaFlags, Flag1, Flag2, P, SUP);
+  ZtEnumFlags(DaFlags, uint32_t, Flag1, Flag2, P, SUP);
 }
 
 struct Row {
@@ -46,7 +46,7 @@ struct Row {
 };
 ZtFields(Row,
     (((string, Alias, m_string), (Ctor<0>)), (String)),
-    (((int, Alias, m_int), (Ctor<1>)), (Int)),
+    (((int, Alias, m_int), (Ctor<1>)), (Int32)),
     (((bool, Alias, m_bool), (Ctor<2>)), (Bool)),
     (((float, Alias, m_float), (Ctor<3>, NDP<2>)), (Float)),
     (((enum, Alias, m_enum), (Ctor<4>)), (Enum, Enums::Map)),

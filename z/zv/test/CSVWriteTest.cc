@@ -25,7 +25,7 @@ namespace Snafus {
 }
 
 namespace DaFlags {
-  ZtEnumFlags(DaFlags, S, A, P, SUP, HI);
+  ZtEnumFlags(DaFlags, uint32_t, S, A, P, SUP, HI);
 }
 
 struct Row {
@@ -44,10 +44,10 @@ struct Row {
 ZtFields(Row,
     (((foo), (Ctor<0>)), (String)),
     (((bar), (Ctor<1>)), (Bool)),
-    (((bah), (Ctor<2>)), (Int)),
+    (((bah), (Ctor<2>)), (Int32)),
     (((baz), (Ctor<3>, NDP<2>)), (Float)),
     (((bam, Fn), (Ctor<4>, NDP<2>)), (Fixed)),
-    (((snafu), (Ctor<5>)), (Int)),
+    (((snafu), (Ctor<5>)), (Int32)),
     (((mabbit), (Ctor<6>)), (DateTime)),
     (((flags), (Ctor<7>)), (Flags, DaFlags::Map)));
 
