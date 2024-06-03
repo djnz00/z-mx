@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // object introspection / reflection
-// * layered on ZuField
+// * extending ZuField
 // * compile-time (ZtField*) and run-time (ZtMField*)
 // * print/scan (CSV, etc.)
 // * ORM
@@ -23,7 +23,7 @@
 // (((Accessor)[, (Props...)]), (Type[, Args...]))
 //
 // Example: (((id, Rd), (Keys<0>, Ctor<0>)), (String, "default"))
-// Meaning: This is a read-only string field named "id" with a default
+// Meaning: Read-only string field named "id" with a default
 //   value of "default" that is also the containing object's zeroth
 //   constructor parameter
 //
@@ -1089,8 +1089,8 @@ MGet::print( \
   const ZtFieldVFmt &fmt \
 ) const { \
   s << fmt.vecPrefix; \
-  bool first = true; \
   Int##width##Vec vec{get_.int##width##Vec(o, i)}; \
+  bool first = true; \
   if (field->props & ZtMFieldProp::Hex()) \
     vec.all([&s, &fmt, &first](ZuBox<int##width##_t> v) { \
       if (!first) s << fmt.vecDelim; else first = false; \
@@ -1110,8 +1110,8 @@ MGet::print( \
   const ZtFieldVFmt &fmt \
 ) const { \
   s << fmt.vecPrefix; \
-  bool first = true; \
   UInt##width##Vec vec{get_.uint##width##Vec(o, i)}; \
+  bool first = true; \
   if (field->props & ZtMFieldProp::Hex()) \
     vec.all([&s, &fmt, &first](ZuBox<uint##width##_t> v) { \
       if (!first) s << fmt.vecDelim; else first = false; \
@@ -1181,9 +1181,9 @@ MGet::print(
   const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
-  bool first = true;
   DecimalVec vec{get_.decimalVec(o, i)};
   auto ndp = field->ndp;
+  bool first = true;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
     vec.all([&s, &fmt, ndp, &first](const ZuDecimal &v) {
       if (!first) s << fmt.vecDelim; else first = false;
@@ -1402,8 +1402,8 @@ MSet::scan(
 ) const {
   VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
     auto m = s.length();
-    auto buf_ = ZmAlloc(uint8_t, m + 1);
-    ZuArray<uint8_t> buf{&buf_[0], m + 1};
+    auto buf_ = ZmAlloc(char, m + 1);
+    ZuArray<char> buf{&buf_[0], m + 1};
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf[n] = 0;
@@ -1420,12 +1420,12 @@ MSet::scan(
 ) const {
   VecScan::scan(s, [this, o, i, &fmt](ZuString &s) {
     auto m = s.length();
-    auto buf_ = ZmAlloc(uint8_t, m);
-    ZuArray<uint8_t> buf{&buf_[0], m};
+    auto buf_ = ZmAlloc(char, m);
+    ZuArray<char> buf{&buf_[0], m};
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf.trunc(n);
-      set_.string(o, i, buf);
+      set_.string(o, i, ZuString{&buf[0], buf.length()});
       return true;
     }
     return false;
@@ -1445,7 +1445,7 @@ MSet::scan(
       auto buf_ = ZmAlloc(uint8_t, n);
       ZuArray<uint8_t> buf{&buf_[0], n};
       buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
-      set_.bytes(o, i, buf);
+      set_.bytes(o, i, ZuBytes{&buf[0], buf.length()});
       s.offset(m);
       return true;
     }
