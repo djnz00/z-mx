@@ -114,6 +114,11 @@ namespace ZuDateTimeFmt {
 class CSV {
 friend ::ZuDateTime;
 public:
+  CSV(const CSV &) = default;
+  CSV &operator =(const CSV &) = default;
+  CSV(CSV &&) = default;
+  CSV &operator =(CSV &&) = default;
+
   CSV(int tzOffset = 0) : m_tzOffset{tzOffset} { reset(); }
 
   void tzOffset(int o) { if (m_tzOffset != o) { m_tzOffset = o; reset(); } }
@@ -168,6 +173,11 @@ public:
     memcpy(m_hhmmss, "00:00:00", 8);
   }
 
+  FIX(const FIX &) = default;
+  FIX &operator =(const FIX &) = default;
+  FIX(FIX &&) = default;
+  FIX &operator =(FIX &&) = default;
+
 private:
   mutable int	m_julian = 0;
   mutable int	m_sec = 0;
@@ -179,6 +189,11 @@ class ISO {
 friend ::ZuDateTime;
 public:
   ISO(int tzOffset = 0) : m_tzOffset{tzOffset} { reset(); }
+
+  ISO(const ISO &) = default;
+  ISO &operator =(const ISO &) = default;
+  ISO(ISO &&) = default;
+  ISO &operator =(ISO &&) = default;
 
   void tzOffset(int o) { if (m_tzOffset != o) { m_tzOffset = o; reset(); } }
   int tzOffset() const { return m_tzOffset; }

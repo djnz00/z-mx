@@ -37,46 +37,103 @@
 // generic traits (overridden by specializations)
 
 template <typename T, typename = void>
-struct ZuTraits_Composite {
-  enum { Is = 0 };
-};
+struct ZuTraits_Composite : public ZuFalse { };
 template <typename T>
-struct ZuTraits_Composite<T, decltype((int T::*){}, void())> {
-  enum { Is = 1 };
-};
+struct ZuTraits_Composite<T, decltype((int T::*){}, void())> :
+  public ZuTrue { };
 
 template <typename T, typename = void>
-class ZuTraits_Empty {
-public:
-  enum { Is = 0 };
-};
+struct ZuTraits_Empty : public ZuFalse { };
 template <typename T>
-struct ZuTraits_Empty<T, decltype(sizeof(T), (int T::*){}, void())> {
-  enum { Is = __is_empty(T) };
-};
+struct ZuTraits_Empty<T, decltype(sizeof(T), (int T::*){}, void())> :
+  public ZuBool<__is_empty(T)> { };
 
-template <typename T> struct ZuTraits_Enum {
-  enum { Is = __is_enum(T) };
-}; 
-template <typename T, typename = void> struct ZuTraits_POD {
-  enum { Is = !ZuTraits_Composite<T>::Is };
-};
 template <typename T>
-struct ZuTraits_POD<T, decltype(sizeof(T), void())> {
+struct ZuTraits_Enum : public ZuBool<__is_enum(T)> { };
+
+template <typename T, typename = void>
+struct ZuTraits_POD : public ZuBool<!ZuTraits_Composite<T>{}> { };
+template <typename T>
+struct ZuTraits_POD<T, decltype(sizeof(T), void())> :
 #ifdef _MSC_VER
-  enum { Is = __is_pod(T) };
+  public ZuBool<__is_pod(T)>
 #else
-  enum { Is = __is_standard_layout(T) && __is_trivial(T) };
+  public ZuBool<__is_standard_layout(T) && __is_trivial(T)>
 #endif
+{ };
+
+// an "array" in Z is, specifically and intentionally, a contiguous
+// in-memory array, i.e. the original unadulterated meaning of the term;
+// this definition excludes iterable non-contiguous containers
+
+template <typename Iterator>
+struct ZuTraits_Array___ : public ZuFalse { };
+template <typename Elem>
+struct ZuTraits_Array___<Elem *> : public ZuTrue { };
+template <typename U, typename = void>
+struct ZuTraits_Array__ : public ZuFalse { };
+template <typename U>
+struct ZuTraits_Array__<U, decltype(
+  ZuDeclVal<const U &>().end() - ZuDeclVal<const U &>().begin(), void())> :
+    public ZuTraits_Array___<decltype(ZuDeclVal<const U &>().begin())> { };
+template <typename U, bool = ZuTraits_Composite<U>{}>
+struct ZuTraits_Array_ : public ZuFalse { };
+template <typename U>
+struct ZuTraits_Array_<U, true> : public ZuTraits_Array__<U> { };
+template <typename U, typename = void>
+struct ZuTraits_Array : public ZuFalse { };
+template <typename U>
+struct ZuTraits_Array<U, decltype(ZuDeclVal<const ZuDecay<U> &>()[0], void())> :
+  public ZuTraits_Array_<ZuDecay<U>> { };
+
+// Elem is defined for any type that defines operator [] (not just arrays)
+
+template <typename U, typename = void>
+struct ZuTraits_Elem_ { using T = void; };
+template <typename U>
+struct ZuTraits_Elem_<U, decltype(ZuDeclVal<const U &>()[0], void())> {
+  using T = ZuDecay<decltype(ZuDeclVal<const U &>()[0])>;
 };
+template <typename U>
+using ZuTraits_Elem = typename ZuTraits_Elem_<ZuDecay<U>>::T;
 
 // default generic traits
 
-template <typename T> struct ZuBaseTraits {
-  enum { IsComposite = ZuTraits_Composite<T>::Is }; // class/struct/union
-  enum { IsEmpty = ZuTraits_Empty<T>::Is };
-  enum { IsEnum = ZuTraits_Enum<T>::Is };
-  enum { IsPOD = ZuTraits_POD<T>::Is };
+template <typename T, typename = void>
+struct ZuBaseTraits_Array_ {
+  using Elem = ZuDecay<decltype(ZuDeclVal<const ZuDecay<T> &>()[0])>;
+  template <typename U = T>
+  static ZuMutable<U, Elem *> data(U &a) { return &a[0]; }
+  static const Elem *data(const T &a) { return &a[0]; }
+  static unsigned length(const T &a) { return sizeof(a) / sizeof(a[0]); }
+};
+template <typename T>
+struct ZuBaseTraits_Array_<T, decltype(
+  ZuDeclVal<const ZuDecay<T> &>().end() -
+  ZuDeclVal<const ZuDecay<T> &>().begin(), void())>
+{
+  using Iterator = decltype(ZuDeclVal<ZuDecay<T> &>().begin());
+  using Elem = ZuDecay<decltype(*(ZuDeclVal<const Iterator &>()))>;
+  template <typename U = T>
+  static ZuMutable<U, Iterator> data(U &a) { return a.begin(); }
+  static auto data(const T &a) { return a.begin(); }
+  static unsigned length(const T &a) { return a.end() - a.begin(); }
+};
+template <typename U, bool = ZuTraits_Array<U>{}>
+struct ZuBaseTraits_Array {
+  enum { IsArray = 0 };
+  using Elem = ZuTraits_Elem<U>;
+};
+template <typename U>
+struct ZuBaseTraits_Array<U, true> : public ZuBaseTraits_Array_<U> {
+  enum { IsArray = 1 };
+};
+
+template <typename T> struct ZuBaseTraits : public ZuBaseTraits_Array<T> {
+  enum { IsComposite = ZuTraits_Composite<T>{} }; // class/struct/union
+  enum { IsEmpty = ZuTraits_Empty<T>{} };
+  enum { IsEnum = ZuTraits_Enum<T>{} };
+  enum { IsPOD = ZuTraits_POD<T>{} };
   enum {
     IsReference	= 0,		IsRValueRef	= 0,
     IsPointer	= 0,
@@ -85,10 +142,8 @@ template <typename T> struct ZuBaseTraits {
     IsSigned	= IsEnum,
     IsIntegral	= IsEnum,	IsFloatingPoint	= 0,
     IsString	= 0,		IsCString	= 0,	IsWString	= 0,
-    IsVoid	= 0,		IsBool		= 0,	IsArray		= 0
+    IsVoid	= 0,		IsBool		= 0
   };
-
-  using Elem = void;
 };
 
 void ZuTraitsType(...);
@@ -220,7 +275,7 @@ struct ZuTraits<const volatile T *> :
 // primitive arrays
 
 template <typename T, typename Elem_>
-struct ZuTraits_Array : public ZuBaseTraits<T> {
+struct ZuTraits_PArray : public ZuBaseTraits<T> {
   using Elem = Elem_;
   enum {
     IsPrimitive = 1, // the array is primitive, the element might not be
@@ -228,44 +283,44 @@ struct ZuTraits_Array : public ZuBaseTraits<T> {
     IsArray = 1
   };
   template <typename U = T>
-  static typename ZuMutable<U, Elem *>::T data(U &a) { return &a[0]; }
+  static ZuMutable<U, Elem *> data(U &a) { return &a[0]; }
   static const Elem *data(const T &a) { return &a[0]; }
   static unsigned length(const T &a) { return sizeof(a) / sizeof(a[0]); }
 };
 
 template <typename T>
-struct ZuTraits<T []> : public ZuTraits_Array<T [], T> { };
+struct ZuTraits<T []> : public ZuTraits_PArray<T [], T> { };
 template <typename T>
-struct ZuTraits<const T []> : public ZuTraits_Array<const T [], const T> { };
+struct ZuTraits<const T []> : public ZuTraits_PArray<const T [], const T> { };
 template <typename T>
 struct ZuTraits<volatile T []> :
-  public ZuTraits_Array<volatile T [], volatile T> { };
+  public ZuTraits_PArray<volatile T [], volatile T> { };
 template <typename T>
 struct ZuTraits<const volatile T []> :
-  public ZuTraits_Array<const volatile T [], const volatile T> { };
+  public ZuTraits_PArray<const volatile T [], const volatile T> { };
 
 template <typename T, int N>
-struct ZuTraits<T [N]> : public ZuTraits_Array<T [N], T> { };
+struct ZuTraits<T [N]> : public ZuTraits_PArray<T [N], T> { };
 template <typename T, int N>
-struct ZuTraits<const T [N]> : public ZuTraits_Array<const T [N], const T> { };
+struct ZuTraits<const T [N]> : public ZuTraits_PArray<const T [N], const T> { };
 template <typename T, int N>
 struct ZuTraits<volatile T [N]> :
-  public ZuTraits_Array<volatile T [N], volatile T> { };
+  public ZuTraits_PArray<volatile T [N], volatile T> { };
 template <typename T, int N>
 struct ZuTraits<const volatile T [N]> :
-  public ZuTraits_Array<const volatile T [N], const volatile T> { };
+  public ZuTraits_PArray<const volatile T [N], const volatile T> { };
 
 template <typename T, int N>
-struct ZuTraits<T (&)[N]> : public ZuTraits_Array<T [N], T> { };
+struct ZuTraits<T (&)[N]> : public ZuTraits_PArray<T [N], T> { };
 template <typename T, int N>
 struct ZuTraits<const T (&)[N]> :
-  public ZuTraits_Array<const T [N], const T> { };
+  public ZuTraits_PArray<const T [N], const T> { };
 template <typename T, int N>
 struct ZuTraits<volatile T (&)[N]> :
-  public ZuTraits_Array<volatile T [N], volatile T> { };
+  public ZuTraits_PArray<volatile T [N], volatile T> { };
 template <typename T, int N>
 struct ZuTraits<const volatile T (&)[N]> :
-  public ZuTraits_Array<const volatile T [N], const volatile T> { };
+  public ZuTraits_PArray<const volatile T [N], const volatile T> { };
 
 // strings
 
@@ -283,52 +338,53 @@ template <> struct ZuTraits<volatile char *> :
   public ZuTraits_CString<ZuTraits_Pointer<volatile char *, volatile char> > { };
 template <> struct ZuTraits<const volatile char *> :
   public ZuTraits_CString<ZuTraits_Pointer<
-      const volatile char *, const volatile char> > { };
+    const volatile char *, const volatile char> > { };
 
 #ifndef _MSC_VER
 template <> struct ZuTraits<char []> :
-  public ZuTraits_CString<ZuTraits_Array<char [], char> > { };
+  public ZuTraits_CString<ZuTraits_PArray<char [], char>> { };
 template <>
 struct ZuTraits<const char []> :
-  public ZuTraits_CString<ZuTraits_Array<const char [], const char> > { };
+  public ZuTraits_CString<ZuTraits_PArray<const char [], const char>> { };
 template <>
 struct ZuTraits<volatile char []> :
-  public ZuTraits_CString<ZuTraits_Array<volatile char [], volatile char> > { };
+  public ZuTraits_CString<ZuTraits_PArray<
+    volatile char [], volatile char>> { };
 template <>
 struct ZuTraits<const volatile char []> :
-  public ZuTraits_CString<ZuTraits_Array<
-      const volatile char [], const volatile char> > { };
+  public ZuTraits_CString<ZuTraits_PArray<
+    const volatile char [], const volatile char>> { };
 #endif
 
 template <int N>
 struct ZuTraits<char[N]> :
-  public ZuTraits_CString<ZuTraits_Array<char[N], char>> { };
+  public ZuTraits_CString<ZuTraits_PArray<char[N], char>> { };
 template <int N>
 struct ZuTraits<const char[N]> :
-  public ZuTraits_CString<ZuTraits_Array<const char[N], const char>> { };
+  public ZuTraits_CString<ZuTraits_PArray<const char[N], const char>> { };
 template <int N>
 struct ZuTraits<volatile char[N]> :
-  public ZuTraits_CString<ZuTraits_Array<volatile char[N], volatile char>> {
+  public ZuTraits_CString<ZuTraits_PArray<volatile char[N], volatile char>> {
 };
 template <int N>
 struct ZuTraits<const volatile char[N]> :
   public ZuTraits_CString<
-    ZuTraits_Array<const volatile char[N], const volatile char>> { };
+    ZuTraits_PArray<const volatile char[N], const volatile char>> { };
 
 template <int N>
 struct ZuTraits<char (&)[N]> :
-  public ZuTraits_CString<ZuTraits_Array<char[N], char>> { };
+  public ZuTraits_CString<ZuTraits_PArray<char[N], char>> { };
 template <int N>
 struct ZuTraits<const char (&)[N]> :
-  public ZuTraits_CString<ZuTraits_Array<const char[N], const char>> { };
+  public ZuTraits_CString<ZuTraits_PArray<const char[N], const char>> { };
 template <int N>
 struct ZuTraits<volatile char (&)[N]> :
-  public ZuTraits_CString<ZuTraits_Array<volatile char[N], volatile char>> {
+  public ZuTraits_CString<ZuTraits_PArray<volatile char[N], volatile char>> {
 };
 template <int N>
 struct ZuTraits<const volatile char (&)[N]> :
   public ZuTraits_CString<
-    ZuTraits_Array<const volatile char[N], const volatile char>> { };
+    ZuTraits_PArray<const volatile char[N], const volatile char>> { };
 template <class Base> struct ZuTraits_WString : public Base {
   enum { IsCString = 1, IsString = 1, IsWString = 1 };
   ZuInline static const wchar_t *data(const wchar_t *s) { return s; }
@@ -351,49 +407,49 @@ template <> struct ZuTraits<const volatile wchar_t *> :
 
 #ifndef _MSC_VER
 template <> struct ZuTraits<wchar_t []> :
-  public ZuTraits_WString<ZuTraits_Array<wchar_t [], wchar_t> > { };
+  public ZuTraits_WString<ZuTraits_PArray<wchar_t [], wchar_t> > { };
 template <>
 struct ZuTraits<const wchar_t []> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const wchar_t [], const wchar_t> > { };
 template <>
 struct ZuTraits<volatile wchar_t []> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       volatile wchar_t [], volatile wchar_t> > { };
 template <>
 struct ZuTraits<const volatile wchar_t []> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const volatile wchar_t [], const volatile wchar_t> > { };
 #endif
 
 template <int N> struct ZuTraits<wchar_t [N]> :
-  public ZuTraits_WString<ZuTraits_Array<wchar_t [N], wchar_t> > { };
+  public ZuTraits_WString<ZuTraits_PArray<wchar_t [N], wchar_t> > { };
 template <int N>
 struct ZuTraits<const wchar_t [N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const wchar_t [N], const wchar_t> > { };
 template <int N>
 struct ZuTraits<volatile wchar_t [N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       volatile wchar_t [N], volatile wchar_t> > { };
 template <int N>
 struct ZuTraits<const volatile wchar_t [N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const volatile wchar_t [N], const volatile wchar_t> > { };
 
 template <int N> struct ZuTraits<wchar_t (&)[N]> :
-  public ZuTraits_WString<ZuTraits_Array<wchar_t [N], wchar_t> > { };
+  public ZuTraits_WString<ZuTraits_PArray<wchar_t [N], wchar_t> > { };
 template <int N>
 struct ZuTraits<const wchar_t (&)[N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const wchar_t [N], const wchar_t> > { };
 template <int N>
 struct ZuTraits<volatile wchar_t (&)[N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       volatile wchar_t [N], volatile wchar_t> > { };
 template <int N>
 struct ZuTraits<const volatile wchar_t (&)[N]> :
-  public ZuTraits_WString<ZuTraits_Array<
+  public ZuTraits_WString<ZuTraits_PArray<
       const volatile wchar_t [N], const volatile wchar_t> > { };
 
 // void

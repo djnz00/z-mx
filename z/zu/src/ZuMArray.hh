@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// monomorphic meta-array type
+// monomorphic meta-array
 // * encapsulates any arbitrary array type into a known type that
 //   can be used in compiled library code interfaces
 
@@ -19,7 +19,43 @@
 
 #include <zlib/ZuFmt.hh>
 
-template <typename T_, typename R_ = T_> class ZuMArray {
+namespace ZuMArray_ {
+// STL cruft
+template <typename Array_, typename Elem_>
+class Iterator {
+public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = Elem_;
+  using difference_type = ptrdiff_t;
+  using pointer = Elem_ *;
+  using reference = Elem_ &;
+
+  Iterator() = delete;
+  Iterator(Array_ &array, unsigned i) : m_array{array}, m_i{i} { }
+
+  Elem_ operator *() const { return m_array[m_i]; }
+
+  Iterator &operator++() { ++m_i; return *this; }
+  Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
+  Iterator &operator--() { --m_i; return *this; }
+  Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
+
+  bool operator ==(const Iterator &r) const { return m_i == r.m_i; }
+
+  friend ptrdiff_t operator -(const Iterator &l, const Iterator &r) {
+    return ptrdiff_t(l.m_i) - ptrdiff_t(r.m_i);
+  }
+
+private:
+  Array_	&m_array;
+  unsigned	m_i;
+};
+} // ZuMArray_
+template <typename Array, typename Elem>
+using ZuMArray_Iterator = ZuMArray_::Iterator<Array, Elem>;
+
+template <typename T_, typename R_ = T_>
+class ZuMArray {
 public:
   using T = T_;
   using R = R_;
@@ -133,41 +169,14 @@ friend Elem;
   bool operator !() const { return !m_length; }
   ZuOpBool
 
-// STL cruft
-  template <typename Array_, typename Elem_>
-  class Iterator {
-  public:
-    using iterator_category = std::bidirectional_iterator_tag;
-    using value_type = Elem_;
-    using difference_type = std::ptrdiff_t;
-    using pointer = Elem_ *;
-    using reference = Elem_ &;
-
-    Iterator() = delete;
-    Iterator(ZuMArray &array, unsigned i) : m_array{array}, m_i{i} { }
-
-    Elem_ operator *() const { return m_array[m_i]; }
-
-    Iterator &operator++() { ++m_i; return *this; }
-    Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
-    Iterator &operator--() { --m_i; return *this; }
-    Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
-
-    bool operator ==(const Iterator &r) const { return m_i == r.m_i; }
-
-  private:
-    Array_	&m_array;
-    unsigned	m_i;
-  };
-
-  using iterator = Iterator<ZuMArray, Elem>;
-  using const_iterator = Iterator<const ZuMArray, const Elem>;
-  const_iterator begin() const { return Iterator{0}; }
-  const_iterator end() const { return Iterator{m_length}; }
-  const_iterator cbegin() const { return Iterator{0}; }
-  const_iterator cend() const { return Iterator{m_length}; }
-  iterator begin() { return Iterator{0}; }
-  iterator end() { return Iterator{m_length}; }
+  using iterator = ZuMArray_Iterator<ZuMArray, Elem>;
+  using const_iterator = ZuMArray_Iterator<const ZuMArray, const Elem>;
+  const_iterator begin() const { return const_iterator{*this, 0}; }
+  const_iterator end() const { return const_iterator{*this, m_length}; }
+  const_iterator cbegin() const { return const_iterator{*this, 0}; }
+  const_iterator cend() const { return const_iterator{*this, m_length}; }
+  iterator begin() { return iterator{*this, 0}; }
+  iterator end() { return iterator{*this, m_length}; }
 
 private:
   typedef R (*GetFn)(const void *, unsigned);

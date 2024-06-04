@@ -218,15 +218,15 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01");
-      if (cf->getDbl("j", .1, 100, .42) != .42)
+      if (cf->getDouble("j", .1, 100, .42) != .42)
 	ZeLOG(Error, "getDbl() default failed");
       try {
-	cf->getDbl<true>("j", .1, 100);
+	cf->getDouble<true>("j", .1, 100);
 	ZeLOG(Error, "getDbl() required failed");
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getDbl("i", .1, 100, .42);
+      cf->getDouble("i", .1, 100, .42);
       ZeLOG(Error, "getDbl() range failed");
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';

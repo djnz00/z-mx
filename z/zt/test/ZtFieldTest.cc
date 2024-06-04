@@ -95,7 +95,7 @@ int main()
     using ZtFieldTypeCode::Flags;
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,
 	[&s, constant, &field, &fmt](auto Code) {
-      field.constant.print<Code>(s, ZtMField::cget(constant), 0, &field, fmt);
+      field.constant.print<Code>(s, ZtMField::cget(constant), &field, fmt);
     });
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {

@@ -109,6 +109,11 @@ struct ZuVFmt {
     m_width{Fmt::Width_}, m_pad{Fmt::Pad_},
     m_ndp{Fmt::NDP_}, m_trim{Fmt::Trim_} { }
 
+  ZuVFmt(const ZuVFmt &) = default;
+  ZuVFmt &operator =(const ZuVFmt &) = default;
+  ZuVFmt(ZuVFmt &&) = default;
+  ZuVFmt &operator =(ZuVFmt &&) = default;
+
   // initializers
   ZuVFmt &reset() {
     using namespace ZuFmt;

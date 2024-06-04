@@ -19,6 +19,7 @@
 
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuICmp.hh>
+#include <zlib/ZuBase64.hh>
 
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmRef.hh>
@@ -259,8 +260,8 @@ using namespace ZvCfError;
 template <typename T, bool = ZuTraits<T>::IsPrimitive> struct Scan_;
 template <typename T_>
 struct Scan_<T_, true> { using T = ZuBox<T_>; };
-template <typename T_>
-struct Scan_<ZuBox<T_>, false> { using T = ZuBox<T_>; };
+template <typename T_, typename Cmp>
+struct Scan_<ZuBox<T_, Cmp>, false> { using T = ZuBox<T_>; };
 template <> struct Scan_<ZuFixed, false> { using T = ZuFixed; };
 template <> struct Scan_<ZuDecimal, false> { using T = ZuDecimal; };
 template <typename T> using Scan = typename Scan_<T>::T;
@@ -977,14 +978,14 @@ public:
 
   // get/assure shorthand forwarding functions for double
   template <bool Required_ = false>
-  double getDbl(ZuString key, double minimum, double maximum) const {
+  double getDouble(ZuString key, double minimum, double maximum) const {
     return getScalar<double, Required_>(key, minimum, maximum);
   }
-  double getDbl(
+  double getDouble(
       ZuString key, double minimum, double maximum, double deflt) const {
     return getScalar<double>(key, minimum, maximum, deflt);
   }
-  double assureDbl(
+  double assureDouble(
       ZuString key, double minimum, double maximum, double deflt) {
     return assureScalar<double>(key, minimum, maximum, deflt);
   }
@@ -1029,6 +1030,12 @@ public:
 
   // ZtField integration - get individual field
   template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::CString, typename Field::T>
+  getField() {
+    return get<ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
+	Field::id(), Field::deflt()).data();
+  }
+  template <typename Field>
   ZuIfT<Field::Type::Code == ZtFieldTypeCode::String, typename Field::T>
   getField() {
     return get<ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
@@ -1037,12 +1044,17 @@ public:
   template <typename Field>
   ZuIfT<Field::Type::Code == ZtFieldTypeCode::Bytes, typename Field::T>
   getField() {
-    return get<ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
+    auto s = get<ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
+    auto n = ZuBase64::declen(s.length());
+    ZtArray<uint8_t> buf(n);
+    buf.length(ZuBase64::decode(buf, ZuBytes{s}));
+    return buf;
   }
   template <typename Field>
   ZuIfT<Field::Type::Code == ZtFieldTypeCode::UDT ||
-	Field::Type::Code == ZtFieldTypeCode::Time, typename Field::T>
+	Field::Type::Code == ZtFieldTypeCode::Time ||
+	Field::Type::Code == ZtFieldTypeCode::DateTime, typename Field::T>
   getField() {
     using T = typename Field::T;
     auto s = get<ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
@@ -1071,16 +1083,17 @@ public:
 	Field::Type::Code == ZtFieldTypeCode::Fixed ||
 	Field::Type::Code == ZtFieldTypeCode::Decimal, typename Field::T>
   getField() {
-    return getScalar<typename Field::T,
-	   ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
-	Field::id(), Field::deflt(), Field::minimum(), Field::maximum());
+    return getScalar<
+      typename Field::T,
+      ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
+	Field::id(), Field::minimum(), Field::maximum(), Field::deflt());
   }
   template <typename Field>
   ZuIfT<Field::Type::Code == ZtFieldTypeCode::Enum, typename Field::T>
   getField() {
     using Map = typename Field::Map;
-    return getEnum<Map,
-	   ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
+    return getEnum<
+      Map, ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
   }
   template <typename Field>
@@ -1088,9 +1101,98 @@ public:
   getField() {
     using Map = typename Field::Map;
     using T = typename Field::T;
-    return getFlags_<Map, T,
-	   ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
+    return getFlags<
+      Map, T, ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::deflt());
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::CStringVec, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    CfNode *node = getNode(Field::id());
+    if (!node || !node->data.is<StrArray>()) return {};
+    const auto &elems = node->data.p<StrArray>();
+    return T(ZuMArray<typename ZuTraits<T>::Elem>(
+      elems, elems.length(),
+      [](const void *ptr, unsigned i) {
+	const auto &elems = *reinterpret_cast<const StrArray *>(ptr);
+	return elems[i].data();
+      }));
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::StringVec, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    CfNode *node = getNode(Field::id());
+    if (!node || !node->data.is<StrArray>()) return {};
+    const auto &elems = node->data.p<StrArray>();
+    return T(ZuMArray<typename ZuTraits<T>::Elem>(
+      elems, elems.length(),
+      [](const void *ptr, unsigned i) {
+	const auto &elems = *reinterpret_cast<const StrArray *>(ptr);
+	return elems[i];
+      }));
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::BytesVec, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    CfNode *node = getNode(Field::id());
+    if (!node || !node->data.is<StrArray>()) return {};
+    const auto &elems = node->data.p<StrArray>();
+    return T(ZuMArray<typename ZuTraits<T>::Elem>(
+      elems, elems.length(),
+      [](const void *ptr, unsigned i) {
+	const auto &elems = *reinterpret_cast<const StrArray *>(ptr);
+	const auto &s = elems[i];
+	auto n = ZuBase64::declen(s.length());
+	ZtArray<uint8_t> buf(n);
+	buf.length(ZuBase64::decode(buf, ZuBytes{s}));
+	return buf;
+      }));
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Int8Vec ||
+	Field::Type::Code == ZtFieldTypeCode::UInt8Vec ||
+	Field::Type::Code == ZtFieldTypeCode::Int16Vec ||
+	Field::Type::Code == ZtFieldTypeCode::UInt16Vec ||
+	Field::Type::Code == ZtFieldTypeCode::Int32Vec ||
+	Field::Type::Code == ZtFieldTypeCode::UInt32Vec ||
+	Field::Type::Code == ZtFieldTypeCode::Int64Vec ||
+	Field::Type::Code == ZtFieldTypeCode::UInt64Vec ||
+	Field::Type::Code == ZtFieldTypeCode::Int128Vec ||
+	Field::Type::Code == ZtFieldTypeCode::UInt128Vec ||
+	Field::Type::Code == ZtFieldTypeCode::FloatVec ||
+	Field::Type::Code == ZtFieldTypeCode::FixedVec ||
+	Field::Type::Code == ZtFieldTypeCode::DecimalVec, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    CfNode *node = getNode(Field::id());
+    if (!node || !node->data.is<StrArray>()) return {};
+    const auto &elems = node->data.p<StrArray>();
+    using Elem = typename ZuTraits<T>::Elem;
+    return T(ZuMArray<Elem>(
+      elems, elems.length(),
+      [](const void *ptr, unsigned i) {
+	const auto &elems = *reinterpret_cast<const StrArray *>(ptr);
+	return Scan<Elem>{elems[i]};
+      }));
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::TimeVec ||
+	Field::Type::Code == ZtFieldTypeCode::DateTimeVec, typename Field::T>
+  getField() {
+    using T = typename Field::T;
+    CfNode *node = getNode(Field::id());
+    if (!node || !node->data.is<StrArray>()) return {};
+    const auto &elems = node->data.p<StrArray>();
+    using Elem = typename ZuTraits<T>::Elem;
+    return T(ZuMArray<Elem>(
+      elems, elems.length(),
+      [](const void *ptr, unsigned i) {
+	const auto &elems = *reinterpret_cast<const StrArray *>(ptr);
+	return Elem{elems[i]};
+      }));
   }
 
   // ZtField integration - construct fielded object

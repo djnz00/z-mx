@@ -275,6 +275,11 @@ struct ZtFieldVFmt {
     vecDelim{Fmt::VecDelim()},
     vecSuffix{Fmt::VecSuffix()} { }
 
+  ZtFieldVFmt(const ZtFieldVFmt &) = default;
+  ZtFieldVFmt &operator =(const ZtFieldVFmt &) = default;
+  ZtFieldVFmt(ZtFieldVFmt &&) = default;
+  ZtFieldVFmt &operator =(ZtFieldVFmt &&) = default;
+
   ZuVFmt		scalar;			// scalar format (print only)
   ZuDateTimeScan::Any	dateScan;		// date/time scan format
   ZuDateTimeFmt::Any	datePrint;		// date/time print format
@@ -438,8 +443,7 @@ struct ZtMFieldFlags_ : public ZtMFieldFlags {
 
 typedef void (*ZtMFieldPrint)(const void *, ZuMStream &, const ZtFieldVFmt &);
 typedef void (*ZtMFieldScan)(
-  void (*)(void *, unsigned, const void *), void *, unsigned,
-  ZuString, const ZtFieldVFmt &);
+  void (*)(void *, const void *), void *, ZuString, const ZtFieldVFmt &);
 
 // ZtMFieldUDT encapsulates introspected UDT metadata
 struct ZtMFieldUDT {
@@ -545,55 +549,53 @@ struct MGet {
   union {
     void		*null;
 
-    const char *	(*cstring)(const void *, unsigned);	// CString
-    ZuString		(*string)(const void *, unsigned);	// String
-    ZuBytes		(*bytes)(const void *, unsigned);	// Bytes
-    bool		(*bool_)(const void *, unsigned);	// Bool
-    int8_t		(*int8)(const void *, unsigned);	// Int8
-    uint8_t		(*uint8)(const void *, unsigned);	// UInt8
-    int16_t		(*int16)(const void *, unsigned);	// Int16
-    uint16_t		(*uint16)(const void *, unsigned);	// UInt16
-    int32_t		(*int32)(const void *, unsigned);	// Int32
-    uint32_t		(*uint32)(const void *, unsigned);	// UInt32
-    int64_t		(*int64)(const void *, unsigned);	// Int64
-    uint64_t		(*uint64)(const void *, unsigned);	// UInt64
-    int128_t		(*int128)(const void *, unsigned);	// Int128
-    uint128_t		(*uint128)(const void *, unsigned);	// UInt128
-    int			(*enum_)(const void *, unsigned);	// Enum
-    uint128_t		(*flags)(const void *, unsigned);	// Flags
-    double		(*float_)(const void *, unsigned);	// Float
-    ZuFixed		(*fixed)(const void *, unsigned);	// Fixed
-    ZuDecimal		(*decimal)(const void *, unsigned);	// Decimal
-    ZuTime		(*time)(const void *, unsigned);	// Time
-    ZuDateTime		(*dateTime)(const void *, unsigned);	// DateTime
-    const void *	(*udt)(const void *, unsigned);		// UDT
+    const char *	(*cstring)(const void *);	// CString
+    ZuString		(*string)(const void *);	// String
+    ZuBytes		(*bytes)(const void *);		// Bytes
+    bool		(*bool_)(const void *);		// Bool
+    int8_t		(*int8)(const void *);		// Int8
+    uint8_t		(*uint8)(const void *);		// UInt8
+    int16_t		(*int16)(const void *);		// Int16
+    uint16_t		(*uint16)(const void *);	// UInt16
+    int32_t		(*int32)(const void *);		// Int32
+    uint32_t		(*uint32)(const void *);	// UInt32
+    int64_t		(*int64)(const void *);		// Int64
+    uint64_t		(*uint64)(const void *);	// UInt64
+    int128_t		(*int128)(const void *);	// Int128
+    uint128_t		(*uint128)(const void *);	// UInt128
+    int			(*enum_)(const void *);		// Enum
+    uint128_t		(*flags)(const void *);		// Flags
+    double		(*float_)(const void *);	// Float
+    ZuFixed		(*fixed)(const void *);		// Fixed
+    ZuDecimal		(*decimal)(const void *);	// Decimal
+    ZuTime		(*time)(const void *);		// Time
+    ZuDateTime		(*dateTime)(const void *);	// DateTime
+    const void *	(*udt)(const void *);		// UDT
 
-    CStringVec		(*cstringVec)(const void *, unsigned);
-    StringVec		(*stringVec)(const void *, unsigned);
-    BytesVec		(*bytesVec)(const void *, unsigned);
-    Int8Vec		(*int8Vec)(const void *, unsigned);
-    UInt8Vec		(*uint8Vec)(const void *, unsigned);
-    Int16Vec		(*int16Vec)(const void *, unsigned);
-    UInt16Vec		(*uint16Vec)(const void *, unsigned);
-    Int32Vec		(*int32Vec)(const void *, unsigned);
-    UInt32Vec		(*uint32Vec)(const void *, unsigned);
-    Int64Vec		(*int64Vec)(const void *, unsigned);
-    UInt64Vec		(*uint64Vec)(const void *, unsigned);
-    Int128Vec		(*int128Vec)(const void *, unsigned);
-    UInt128Vec		(*uint128Vec)(const void *, unsigned);
-    FloatVec		(*floatVec)(const void *, unsigned);
-    FixedVec		(*fixedVec)(const void *, unsigned);
-    DecimalVec		(*decimalVec)(const void *, unsigned);
-    TimeVec		(*timeVec)(const void *, unsigned);
-    DateTimeVec		(*dateTimeVec)(const void *, unsigned);
+    CStringVec		(*cstringVec)(const void *);
+    StringVec		(*stringVec)(const void *);
+    BytesVec		(*bytesVec)(const void *);
+    Int8Vec		(*int8Vec)(const void *);
+    UInt8Vec		(*uint8Vec)(const void *);
+    Int16Vec		(*int16Vec)(const void *);
+    UInt16Vec		(*uint16Vec)(const void *);
+    Int32Vec		(*int32Vec)(const void *);
+    UInt32Vec		(*uint32Vec)(const void *);
+    Int64Vec		(*int64Vec)(const void *);
+    UInt64Vec		(*uint64Vec)(const void *);
+    Int128Vec		(*int128Vec)(const void *);
+    UInt128Vec		(*uint128Vec)(const void *);
+    FloatVec		(*floatVec)(const void *);
+    FixedVec		(*fixedVec)(const void *);
+    DecimalVec		(*decimalVec)(const void *);
+    TimeVec		(*timeVec)(const void *);
+    DateTimeVec		(*dateTimeVec)(const void *);
   } get_;
 
 #define ZtMField_GetFn(code, type, fn) \
   template <unsigned Code> \
   ZuIfT<Code == ZtFieldTypeCode::code, type> \
-  get(const void *o, unsigned i) const { \
-    return get_.fn(o, i); \
-  }
+  get(const void *o) const { return get_.fn(o); }
 
   ZtMField_GetFn(CString, const char *, cstring)
   ZtMField_GetFn(String, ZuString, string)
@@ -639,8 +641,7 @@ struct MGet {
 #define ZtMField_PrintFn(Code_) \
   template <unsigned Code, typename S> \
   ZuIfT<Code == ZtFieldTypeCode::Code_> \
-  print(S &, const void *, unsigned, const ZtMField *, const ZtFieldVFmt &) \
-    const;
+  print(S &, const void *, const ZtMField *, const ZtFieldVFmt &) const;
 
   ZtMField_PrintFn(CString)
   ZtMField_PrintFn(String)
@@ -689,55 +690,53 @@ struct MSet {
   union {
     void	*null;
 
-    void	(*cstring)(void *, unsigned, const char *);	// CString
-    void	(*string)(void *, unsigned, ZuString);		// String
-    void	(*bytes)(void *, unsigned, ZuBytes);		// Bytes
-    void	(*bool_)(void *, unsigned, bool);		// Bool
-    void	(*int8)(void *, unsigned, int8_t);		// Int8
-    void	(*uint8)(void *, unsigned, uint8_t);		// UInt8
-    void	(*int16)(void *, unsigned, int16_t);		// Int16
-    void	(*uint16)(void *, unsigned, uint16_t)	;	// UInt16
-    void	(*int32)(void *, unsigned, int32_t);		// Int32
-    void	(*uint32)(void *, unsigned, uint32_t);		// UInt32
-    void	(*int64)(void *, unsigned, int64_t);		// Int64
-    void	(*uint64)(void *, unsigned, uint64_t);		// UInt64
-    void	(*int128)(void *, unsigned, int128_t);		// Int128
-    void	(*uint128)(void *, unsigned, uint128_t);	// UInt128
-    void	(*enum_)(void *, unsigned, int);		// Enum
-    void	(*flags)(void *, unsigned, uint128_t);		// Flags
-    void	(*float_)(void *, unsigned, double);		// Float
-    void	(*fixed)(void *, unsigned, ZuFixed);		// Fixed
-    void	(*decimal)(void *, unsigned, ZuDecimal);	// Decimal
-    void	(*time)(void *, unsigned, ZuTime);		// Time
-    void	(*dateTime)(void *, unsigned, ZuDateTime);	// DateTime
-    void	(*udt)(void *, unsigned, const void *);		// UDT
+    void	(*cstring)(void *, const char *);	// CString
+    void	(*string)(void *, ZuString);		// String
+    void	(*bytes)(void *, ZuBytes);		// Bytes
+    void	(*bool_)(void *, bool);			// Bool
+    void	(*int8)(void *, int8_t);		// Int8
+    void	(*uint8)(void *, uint8_t);		// UInt8
+    void	(*int16)(void *, int16_t);		// Int16
+    void	(*uint16)(void *, uint16_t);		// UInt16
+    void	(*int32)(void *, int32_t);		// Int32
+    void	(*uint32)(void *, uint32_t);		// UInt32
+    void	(*int64)(void *, int64_t);		// Int64
+    void	(*uint64)(void *, uint64_t);		// UInt64
+    void	(*int128)(void *, int128_t);		// Int128
+    void	(*uint128)(void *, uint128_t);		// UInt128
+    void	(*enum_)(void *, int);			// Enum
+    void	(*flags)(void *, uint128_t);		// Flags
+    void	(*float_)(void *, double);		// Float
+    void	(*fixed)(void *, ZuFixed);		// Fixed
+    void	(*decimal)(void *, ZuDecimal);		// Decimal
+    void	(*time)(void *, ZuTime);		// Time
+    void	(*dateTime)(void *, ZuDateTime);	// DateTime
+    void	(*udt)(void *, const void *);		// UDT
 
-    void	(*cstringVec)(void *, unsigned, CStringVec);
-    void	(*stringVec)(void *, unsigned, StringVec);
-    void	(*bytesVec)(void *, unsigned, BytesVec);
-    void	(*int8Vec)(void *, unsigned, Int8Vec);
-    void	(*uint8Vec)(void *, unsigned, UInt8Vec);
-    void	(*int16Vec)(void *, unsigned, Int16Vec);
-    void	(*uint16Vec)(void *, unsigned, UInt16Vec);
-    void	(*int32Vec)(void *, unsigned, Int32Vec);
-    void	(*uint32Vec)(void *, unsigned, UInt32Vec);
-    void	(*int64Vec)(void *, unsigned, Int64Vec);
-    void	(*uint64Vec)(void *, unsigned, UInt64Vec);
-    void	(*int128Vec)(void *, unsigned, Int128Vec);
-    void	(*uint128Vec)(void *, unsigned, UInt128Vec);
-    void	(*floatVec)(void *, unsigned, FloatVec);
-    void	(*fixedVec)(void *, unsigned, FixedVec);
-    void	(*decimalVec)(void *, unsigned, DecimalVec);
-    void	(*timeVec)(void *, unsigned, TimeVec);
-    void	(*dateTimeVec)(void *, unsigned, DateTimeVec);
+    void	(*cstringVec)(void *, CStringVec);
+    void	(*stringVec)(void *, StringVec);
+    void	(*bytesVec)(void *, BytesVec);
+    void	(*int8Vec)(void *, Int8Vec);
+    void	(*uint8Vec)(void *, UInt8Vec);
+    void	(*int16Vec)(void *, Int16Vec);
+    void	(*uint16Vec)(void *, UInt16Vec);
+    void	(*int32Vec)(void *, Int32Vec);
+    void	(*uint32Vec)(void *, UInt32Vec);
+    void	(*int64Vec)(void *, Int64Vec);
+    void	(*uint64Vec)(void *, UInt64Vec);
+    void	(*int128Vec)(void *, Int128Vec);
+    void	(*uint128Vec)(void *, UInt128Vec);
+    void	(*floatVec)(void *, FloatVec);
+    void	(*fixedVec)(void *, FixedVec);
+    void	(*decimalVec)(void *, DecimalVec);
+    void	(*timeVec)(void *, TimeVec);
+    void	(*dateTimeVec)(void *, DateTimeVec);
   } set_;
 
 #define ZtMField_SetFn(code, type, fn) \
   template <unsigned Code> \
   ZuIfT<Code == ZtFieldTypeCode::code> \
-  set(void *o, unsigned i, type v) const { \
-    set_.fn(o, i, v); \
-  }
+  set(void *o, type v) const { set_.fn(o, v); }
 
   ZtMField_SetFn(CString, const char *, cstring)
   ZtMField_SetFn(String, ZuString, string)
@@ -783,8 +782,7 @@ struct MSet {
 #define ZtMField_ScanFn(code) \
   template <unsigned Code> \
   ZuIfT<Code == ZtFieldTypeCode::code> \
-  scan(void *, unsigned, ZuString, const ZtMField *, const ZtFieldVFmt &) \
-    const;
+  scan(void *, ZuString, const ZtMField *, const ZtFieldVFmt &) const;
 
   ZtMField_ScanFn(CString)
   ZtMField_ScanFn(String)
@@ -889,49 +887,49 @@ namespace ZtField_ {
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::CString>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
+  S &s, const void *o, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  auto v = get_.cstring(o, i);
+  auto v = get_.cstring(o);
   s << Print::CString{v};
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::String>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
+  S &s, const void *o, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  auto v = get_.string(o, i);
+  auto v = get_.string(o);
   s << Print::String{v};
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Bytes>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  ZuBytes v = get_.bytes(o, i);
+  ZuBytes v = get_.bytes(o);
   auto n = ZuBase64::enclen(v.length());
   auto buf_ = ZmAlloc(uint8_t, n);
   ZuArray<uint8_t> buf{&buf_[0], n};
   buf.trunc(ZuBase64::encode(buf, v));
-  s << buf;
+  s << ZuString{buf};
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Bool>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  s << (get_.bool_(o, i) ? '1' : '0');
+  s << (get_.bool_(o) ? '1' : '0');
 }
 
 #define ZtMField_printInt(width) \
 template <unsigned Code, typename S> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width> \
 MGet::print( \
-  S &s, const void *o, unsigned i, const ZtMField *field, \
+  S &s, const void *o, const ZtMField *field, \
   const ZtFieldVFmt &fmt \
 ) const { \
-  ZuBox<int##width##_t> v = get_.int##width(o, i); \
+  ZuBox<int##width##_t> v = get_.int##width(o); \
   if (field->props & ZtMFieldProp::Hex()) \
     s << v.vfmt(fmt.scalar).hex(); \
   else \
@@ -940,10 +938,10 @@ MGet::print( \
 template <unsigned Code, typename S> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width> \
 MGet::print( \
-  S &s, const void *o, unsigned i, const ZtMField *field, \
+  S &s, const void *o, const ZtMField *field, \
   const ZtFieldVFmt &fmt \
 ) const { \
-  ZuBox<uint##width##_t> v = get_.uint##width(o, i); \
+  ZuBox<uint##width##_t> v = get_.uint##width(o); \
   if (field->props & ZtMFieldProp::Hex()) \
     s << v.vfmt(fmt.scalar).hex(); \
   else \
@@ -958,26 +956,24 @@ ZtMField_printInt(128)
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Enum>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field, const ZtFieldVFmt &
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &
 ) const {
-  s << field->type->info.enum_()->v2s(get_.enum_(o, i));
+  s << field->type->info.enum_()->v2s(get_.enum_(o));
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Flags>
 MGet::print(
-  S &s_, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s_, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   ZuMStream s{s_};
-  field->type->info.flags()->print(get_.flags(o, i), s, fmt);
+  field->type->info.flags()->print(get_.flags(o), s, fmt);
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Float>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
-  ZuBox<double> v = get_.float_(o, i);
+  ZuBox<double> v = get_.float_(o);
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
     s << v.vfmt(fmt.scalar).fp(ndp);
@@ -987,10 +983,9 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Fixed>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
-  ZuFixed v = get_.fixed(o, i);
+  ZuFixed v = get_.fixed(o);
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
     s << v.vfmt(fmt.scalar).fp(ndp);
@@ -1000,10 +995,9 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Decimal>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
-  ZuDecimal v = get_.decimal(o, i);
+  ZuDecimal v = get_.decimal(o);
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
     s << v.vfmt(fmt.scalar).fp(ndp);
@@ -1013,37 +1007,36 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Time>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  ZuDateTime v{get_.time(o, i)};
+  ZuDateTime v{get_.time(o)};
   s << v.fmt(fmt.datePrint);
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  ZuDateTime v{get_.dateTime(o, i)};
+  ZuDateTime v{get_.dateTime(o)};
   s << v.fmt(fmt.datePrint);
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::UDT>
 MGet::print(
-  S &s_, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s_, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   ZuMStream s{s_};
-  field->type->info.udt()->print(get_.udt(o, i), s, fmt);
+  field->type->info.udt()->print(get_.udt(o), s, fmt);
 }
 
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::CStringVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  CStringVec vec{get_.cstringVec(o, i)};
+  CStringVec vec{get_.cstringVec(o)};
   vec.all([&s, &first, &fmt](const char *v) {
     if (!first) s << fmt.vecDelim; else first = false;
     s << Print::CString{v};
@@ -1053,11 +1046,11 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::StringVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  StringVec vec{get_.stringVec(o, i)};
+  StringVec vec{get_.stringVec(o)};
   vec.all([&s, &first, &fmt](ZuString v) {
     if (!first) s << fmt.vecDelim; else first = false;
     s << Print::String{v};
@@ -1067,18 +1060,18 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::BytesVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *, const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  BytesVec vec{get_.bytesVec(o, i)};
+  BytesVec vec{get_.bytesVec(o)};
   vec.all([&s, &fmt, &first](ZuBytes v) {
     if (!first) s << fmt.vecDelim; else first = false;
     auto n = ZuBase64::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
     ZuArray<uint8_t> buf{&buf_[0], n};
     buf.trunc(ZuBase64::encode(buf, v));
-    s << buf;
+    s << ZuString{buf};
   });
   s << fmt.vecSuffix;
 }
@@ -1087,11 +1080,10 @@ MGet::print(
 template <unsigned Code, typename S> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width##Vec> \
 MGet::print( \
-  S &s, const void *o, unsigned i, const ZtMField *field, \
-  const ZtFieldVFmt &fmt \
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt \
 ) const { \
   s << fmt.vecPrefix; \
-  Int##width##Vec vec{get_.int##width##Vec(o, i)}; \
+  Int##width##Vec vec{get_.int##width##Vec(o)}; \
   bool first = true; \
   if (field->props & ZtMFieldProp::Hex()) \
     vec.all([&s, &fmt, &first](ZuBox<int##width##_t> v) { \
@@ -1108,11 +1100,10 @@ MGet::print( \
 template <unsigned Code, typename S> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width##Vec> \
 MGet::print( \
-  S &s, const void *o, unsigned i, const ZtMField *field, \
-  const ZtFieldVFmt &fmt \
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt \
 ) const { \
   s << fmt.vecPrefix; \
-  UInt##width##Vec vec{get_.uint##width##Vec(o, i)}; \
+  UInt##width##Vec vec{get_.uint##width##Vec(o)}; \
   bool first = true; \
   if (field->props & ZtMFieldProp::Hex()) \
     vec.all([&s, &fmt, &first](ZuBox<uint##width##_t> v) { \
@@ -1135,11 +1126,10 @@ ZtMField_printIntVec(128)
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::FloatVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
-  FloatVec vec{get_.floatVec(o, i)};
+  FloatVec vec{get_.floatVec(o)};
   auto ndp = field->ndp;
   bool first = true;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
@@ -1157,12 +1147,11 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::FixedVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  FixedVec vec{get_.fixedVec(o, i)};
+  FixedVec vec{get_.fixedVec(o)};
   auto ndp = field->ndp;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
     vec.all([&s, &fmt, ndp, &first](const ZuFixed &v) {
@@ -1179,11 +1168,10 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::DecimalVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
-  DecimalVec vec{get_.decimalVec(o, i)};
+  DecimalVec vec{get_.decimalVec(o)};
   auto ndp = field->ndp;
   bool first = true;
   if (!ZuCmp<decltype(ndp)>::null(ndp))
@@ -1201,12 +1189,11 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::TimeVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  TimeVec vec{get_.timeVec(o, i)};
+  TimeVec vec{get_.timeVec(o)};
   vec.all([&s, &fmt, &first](const ZuTime &v_) {
     ZuDateTime v{v_};
     if (!first) s << fmt.vecDelim; else first = false;
@@ -1217,12 +1204,11 @@ MGet::print(
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTimeVec>
 MGet::print(
-  S &s, const void *o, unsigned i, const ZtMField *field,
-  const ZtFieldVFmt &fmt
+  S &s, const void *o, const ZtMField *field, const ZtFieldVFmt &fmt
 ) const {
   s << fmt.vecPrefix;
   bool first = true;
-  DateTimeVec vec{get_.dateTimeVec(o, i)};
+  DateTimeVec vec{get_.dateTimeVec(o)};
   vec.all([&s, &fmt, &first](const ZuDateTime &v) {
     if (!first) s << fmt.vecDelim; else first = false;
     s << v.fmt(fmt.datePrint);
@@ -1235,66 +1221,66 @@ MGet::print(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::CString>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
   if (!s) {
-    set_.cstring(o, i, nullptr);
+    set_.cstring(o, nullptr);
     return;
   }
   unsigned n = s.length() + 1;
   auto buf_ = ZmAlloc(char, n);
   ZuArray<char> buf{&buf_[0], n};
   buf[Scan::string(buf, s)] = 0;
-  set_.cstring(o, i, &buf[0]);
+  set_.cstring(o, &buf[0]);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::String>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
   if (!s) {
-    set_.string(o, i, s);
+    set_.string(o, s);
     return;
   }
   unsigned n = s.length();
   auto buf_ = ZmAlloc(char, n);
   ZuArray<char> buf{&buf_[0], n};
   buf.trunc(Scan::string(buf, s));
-  set_.string(o, i, buf);
+  set_.string(o, buf);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Bytes>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
   auto n = ZuBase64::declen(s.length());
   auto buf_ = ZmAlloc(uint8_t, n);
   ZuArray<uint8_t> buf{&buf_[0], n};
   buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
-  set_.bytes(o, i, buf);
+  set_.bytes(o, buf);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Bool>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  set_.bool_(o, i, ZtScanBool(s));
+  set_.bool_(o, ZtScanBool(s));
 }
 
 #define ZtMField_scanInt(width) \
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width> \
 MSet::scan( \
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt & \
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt & \
 ) const { \
-  set_.int##width(o, i, ZuBox<int##width##_t>{s}); \
+  set_.int##width(o, ZuBox<int##width##_t>{s}); \
 } \
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width> \
 MSet::scan( \
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt & \
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt & \
 ) const { \
-  set_.uint##width(o, i, ZuBox<uint##width##_t>{s}); \
+  set_.uint##width(o, ZuBox<uint##width##_t>{s}); \
 }
 ZtMField_scanInt(8)
 ZtMField_scanInt(16)
@@ -1305,60 +1291,60 @@ ZtMField_scanInt(128)
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Enum>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *field, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *field, const ZtFieldVFmt &
 ) const {
-  set_.enum_(o, i, field->type->info.enum_()->s2v(s));
+  set_.enum_(o, field->type->info.enum_()->s2v(s));
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Flags>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *field,
+  void *o, ZuString s, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  set_.flags(o, i, field->type->info.flags()->scan(s, fmt));
+  set_.flags(o, field->type->info.flags()->scan(s, fmt));
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Float>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  set_.float_(o, i, ZuBox<double>{s});
+  set_.float_(o, ZuBox<double>{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Fixed>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  set_.fixed(o, i, ZuFixed{s});
+  set_.fixed(o, ZuFixed{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Decimal>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &
 ) const {
-  set_.decimal(o, i, ZuDecimal{s});
+  set_.decimal(o, ZuDecimal{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Time>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  set_.time(o, i, ZuDateTime{fmt.dateScan, s}.as_time());
+  set_.time(o, ZuDateTime{fmt.dateScan, s}.as_time());
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  set_.dateTime(o, i, ZuDateTime{fmt.dateScan, s});
+  set_.dateTime(o, ZuDateTime{fmt.dateScan, s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::UDT>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *field,
+  void *o, ZuString s, const ZtMField *field,
   const ZtFieldVFmt &fmt
 ) const {
-  field->type->info.udt()->scan(field->set.set_.udt, o, i, s, fmt);
+  field->type->info.udt()->scan(field->set.set_.udt, o, s, fmt);
 }
 
 namespace VecScan {
@@ -1398,16 +1384,16 @@ namespace VecScan {
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::CStringVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m + 1);
     ZuArray<char> buf{&buf_[0], m + 1};
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf[n] = 0;
-      set_.cstring(o, i, &buf[0]);
+      set_.cstring(o, &buf[0]);
       return true;
     }
     return false;
@@ -1416,16 +1402,16 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::StringVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m);
     ZuArray<char> buf{&buf_[0], m};
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf.trunc(n);
-      set_.string(o, i, ZuString{&buf[0], buf.length()});
+      set_.string(o, ZuString{&buf[0], buf.length()});
       return true;
     }
     return false;
@@ -1434,9 +1420,9 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::BytesVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuString &s) {
     unsigned n = 0;
     auto m = s.length();
     while (n < m && ZuBase64::is(s[n])) n++;
@@ -1445,7 +1431,7 @@ MSet::scan(
       auto buf_ = ZmAlloc(uint8_t, n);
       ZuArray<uint8_t> buf{&buf_[0], n};
       buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
-      set_.bytes(o, i, ZuBytes{&buf[0], buf.length()});
+      set_.bytes(o, ZuBytes{&buf[0], buf.length()});
       s.offset(m);
       return true;
     }
@@ -1457,13 +1443,13 @@ MSet::scan(
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width##Vec> \
 MSet::scan( \
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o](ZuString &s) { \
     ZuBox<int##width##_t> v; \
     unsigned n = v.scan(s); \
     if (n) { \
-      set_.int##width(o, i, v); \
+      set_.int##width(o, v); \
       s.offset(n); \
       return true; \
     } \
@@ -1473,13 +1459,13 @@ MSet::scan( \
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width##Vec> \
 MSet::scan( \
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o](ZuString &s) { \
     ZuBox<uint##width##_t> v; \
     unsigned n = v.scan(s); \
     if (n) { \
-      set_.uint##width(o, i, v); \
+      set_.uint##width(o, v); \
       s.offset(n); \
       return true; \
     } \
@@ -1495,13 +1481,13 @@ ZtMField_scanIntVec(128)
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::FloatVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuString &s) {
     ZuBox<double> v;
     unsigned n = v.scan(s);
     if (n) {
-      set_.float_(o, i, v);
+      set_.float_(o, v);
       s.offset(n);
       return true;
     }
@@ -1511,13 +1497,13 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::FixedVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuString &s) {
     ZuFixed v;
     unsigned n = v.scan(s);
     if (n) {
-      set_.fixed(o, i, v);
+      set_.fixed(o, v);
       s.offset(n);
       return true;
     }
@@ -1527,13 +1513,13 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DecimalVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuString &s) {
     ZuDecimal v;
     unsigned n = v.scan(s);
     if (n) {
-      set_.decimal(o, i, v);
+      set_.decimal(o, v);
       s.offset(n);
       return true;
     }
@@ -1543,13 +1529,13 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::TimeVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {
-      set_.time(o, i, v.as_time());
+      set_.time(o, v.as_time());
       s.offset(n);
       return true;
     }
@@ -1559,13 +1545,13 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTimeVec>
 MSet::scan(
-  void *o, unsigned i, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
+  void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, i, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {
-      set_.dateTime(o, i, ZuMv(v));
+      set_.dateTime(o, ZuMv(v));
       s.offset(n);
       return true;
     }
@@ -1636,17 +1622,17 @@ struct ZtField_CString : public ZtField<Base> {
     ZtFieldType_CString<char *, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.cstring = [](const void *o, unsigned) -> const char * {
+    return {.get_ = {.cstring = [](const void *o) -> const char * {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.cstring = [](void *, unsigned, const char *) { }}};
+    return {.set_ = {.cstring = [](void *, const char *) { }}};
   }
   static const char *deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.cstring = [](const void *o, unsigned) -> const char * {
+    return {.get_ = {.cstring = [](const void *o) -> const char * {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt: return Def();
 	default:    return nullptr;
@@ -1702,7 +1688,7 @@ struct ZtField_String_Get {
   static ZtMFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a temporary
-    return {.get_ = {.string = [](const void *o, unsigned) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuString {
       auto &v = ZmTLS<ZtString, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return v;
@@ -1715,7 +1701,7 @@ struct ZtField_String_Get<Base,
   static ZtMFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a crvalue
-    return {.get_ = {.string = [](const void *o, unsigned) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuString {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
@@ -1740,7 +1726,7 @@ struct ZtField_String :
   static ZuString deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.string = [](const void *o, unsigned) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuString {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt: return Def();
 	default:    return {};
@@ -1753,7 +1739,7 @@ struct ZtField_String<Base, Def, false> :
     public ZtField_String<Base, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.string = [](void *o, unsigned, ZuString s) {
+    return {.set_ = {.string = [](void *o, ZuString s) {
       Base::set(*static_cast<O *>(o), s);
     }}};
   }
@@ -1774,7 +1760,7 @@ struct ZtFieldType_Bytes : public ZtFieldType_<Props_> {
       auto buf_ = ZmAlloc(uint8_t, n);
       ZuArray<uint8_t> buf{&buf_[0], n};
       buf.trunc(ZuBase64::encode(buf, print.v));
-      return s << buf;
+      return s << ZuString{buf};
     }
   };
   inline static ZtMFieldType *mtype();
@@ -1802,7 +1788,7 @@ struct ZtField_Bytes_Get {
   static ZtMFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a temporary
-    return {.get_ = {.bytes = [](const void *o, unsigned) -> ZuBytes {
+    return {.get_ = {.bytes = [](const void *o) -> ZuBytes {
       auto &v = ZmTLS<ZtBytes, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return v;
@@ -1815,7 +1801,7 @@ struct ZtField_Bytes_Get<Base,
   static ZtMFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a crvalue
-    return {.get_ = {.bytes = [](const void *o, unsigned) -> ZuBytes {
+    return {.get_ = {.bytes = [](const void *o) -> ZuBytes {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
@@ -1840,7 +1826,7 @@ struct ZtField_Bytes :
   static ZuBytes deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.bytes = [](const void *o, unsigned) -> ZuBytes {
+    return {.get_ = {.bytes = [](const void *o) -> ZuBytes {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt: return Def();
 	default:    return {};
@@ -1853,7 +1839,7 @@ struct ZtField_Bytes<Base, Def, false> :
     public ZtField_Bytes<Base, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.bytes = [](void *o, unsigned, ZuBytes v) {
+    return {.set_ = {.bytes = [](void *o, ZuBytes v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -1906,7 +1892,7 @@ struct ZtField_Bool : public ZtField<Base> {
   using Type = ZtFieldType_Bool<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.bool_ = [](const void *o, unsigned) -> bool {
+    return {.get_ = {.bool_ = [](const void *o) -> bool {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
@@ -1916,7 +1902,7 @@ struct ZtField_Bool : public ZtField<Base> {
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.bool_ = [](const void *o, unsigned) -> bool {
+    return {.get_ = {.bool_ = [](const void *o) -> bool {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	case Minimum: return false;
@@ -1931,7 +1917,7 @@ struct ZtField_Bool<Base, Def, false> :
     public ZtField_Bool<Base, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.bool_ = [](void *o, unsigned, bool v) {
+    return {.set_ = {.bool_ = [](void *o, bool v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -1995,17 +1981,17 @@ struct ZtField_##Code_ : public ZtField<Base> { \
   using Type = ZtFieldType_##Code_<T, ZuTypeGrep<ZtFieldType_Props, Props>>; \
   enum { Code = Type::Code }; \
   static ZtMFieldGet getFn() { \
-    return {.get_ = {.Type_= [](const void *o, unsigned) -> Type_##_t { \
+    return {.get_ = {.Type_= [](const void *o) -> Type_##_t { \
       return Base::get(*static_cast<const O *>(o)); \
     }}}; \
   } \
   static ZtMFieldSet setFn() { \
-    return {.set_ = {.Type_= [](void *, unsigned, Type_##_t) { }}}; \
+    return {.set_ = {.Type_= [](void *, Type_##_t) { }}}; \
   } \
   constexpr static auto deflt() { return Def(); } \
   static ZtMFieldGet constantFn() { \
     using namespace ZtMFieldConstant; \
-    return {.get_ = {.Type_= [](const void *o, unsigned) -> Type_##_t { \
+    return {.get_ = {.Type_= [](const void *o) -> Type_##_t { \
       switch (int(reinterpret_cast<uintptr_t>(o))) { \
 	case Deflt:   return Def(); \
 	case Minimum: return Min(); \
@@ -2021,7 +2007,7 @@ struct ZtField_##Code_<Base, Def, Min, Max, false> : \
   using O = typename Base::O; \
   using T = typename Base::T; \
   static ZtMFieldSet setFn() { \
-    return {.set_ = {.Type_= [](void *o, unsigned, Type_##_t v) { \
+    return {.set_ = {.Type_= [](void *o, Type_##_t v) { \
       Base::set(*static_cast<O *>(o), v); \
     }}}; \
   } \
@@ -2089,17 +2075,17 @@ struct ZtField_Enum : public ZtField<Base> {
   using Type = ZtFieldType_Enum<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.enum_ = [](const void *o, unsigned) -> int {
+    return {.get_ = {.enum_ = [](const void *o) -> int {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.enum_ = [](void *, unsigned, int) { }}};
+    return {.set_ = {.enum_ = [](void *, int) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.enum_ = [](const void *o, unsigned) -> int {
+    return {.get_ = {.enum_ = [](const void *o) -> int {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return -1;
@@ -2112,7 +2098,7 @@ struct ZtField_Enum<Base, Map, Def, false> :
     public ZtField_Enum<Base, Map, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.enum_ = [](void *o, unsigned, int v) {
+    return {.set_ = {.enum_ = [](void *o, int v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -2168,17 +2154,17 @@ struct ZtField_Flags : public ZtField<Base> {
   using Type = ZtFieldType_Flags<T, Map, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.flags = [](const void *o, unsigned) -> uint128_t {
+    return {.get_ = {.flags = [](const void *o) -> uint128_t {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.flags = [](void *, unsigned, uint64_t) { }}};
+    return {.set_ = {.flags = [](void *, uint64_t) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.flags = [](const void *o, unsigned) -> uint128_t {
+    return {.get_ = {.flags = [](const void *o) -> uint128_t {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return 0;
@@ -2192,7 +2178,7 @@ struct ZtField_Flags<Base, Map, Def, false> :
   using O = typename Base::O;
   using T = typename Base::T;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.flags = [](void *o, unsigned, uint128_t v) {
+    return {.set_ = {.flags = [](void *o, uint128_t v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -2256,17 +2242,17 @@ struct ZtField_Float : public ZtField<Base> {
   using Type = ZtFieldType_Float<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.float_ = [](const void *o, unsigned) -> double {
+    return {.get_ = {.float_ = [](const void *o) -> double {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.float_ = [](void *, unsigned, double) { }}};
+    return {.set_ = {.float_ = [](void *, double) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.float_ = [](const void *o, unsigned) -> double {
+    return {.get_ = {.float_ = [](const void *o) -> double {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	case Minimum: return Min();
@@ -2282,7 +2268,7 @@ struct ZtField_Float<Base, Def, Min, Max, false> :
   using O = typename Base::O;
   using T = typename Base::T;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.float_ = [](void *o, unsigned, double v) {
+    return {.set_ = {.float_ = [](void *o, double v) {
       Base::set(*static_cast<O *>(o), v);
     }}};
   }
@@ -2345,17 +2331,17 @@ struct ZtField_Fixed : public ZtField<Base> {
   using Type = ZtFieldType_Fixed<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.fixed = [](const void *o, unsigned) -> ZuFixed {
+    return {.get_ = {.fixed = [](const void *o) -> ZuFixed {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.fixed = [](void *, unsigned, ZuFixed) { }}};
+    return {.set_ = {.fixed = [](void *, ZuFixed) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.fixed = [](const void *o, unsigned) -> ZuFixed {
+    return {.get_ = {.fixed = [](const void *o) -> ZuFixed {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	case Minimum: return Min();
@@ -2371,7 +2357,7 @@ struct ZtField_Fixed<Base, Def, Min, Max, false> :
   using O = typename Base::O;
   using T = typename Base::T;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.fixed = [](void *o, unsigned, ZuFixed v) {
+    return {.set_ = {.fixed = [](void *o, ZuFixed v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -2440,17 +2426,17 @@ struct ZtField_Decimal : public ZtField<Base> {
   using Type = ZtFieldType_Decimal<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.decimal = [](const void *o, unsigned) -> ZuDecimal {
+    return {.get_ = {.decimal = [](const void *o) -> ZuDecimal {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.decimal = [](void *, unsigned, ZuDecimal) { }}};
+    return {.set_ = {.decimal = [](void *, ZuDecimal) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.decimal = [](const void *o, unsigned) -> ZuDecimal {
+    return {.get_ = {.decimal = [](const void *o) -> ZuDecimal {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	case Minimum: return Min();
@@ -2465,7 +2451,7 @@ struct ZtField_Decimal<Base, Def, Min, Max, false> :
     public ZtField_Decimal<Base, Def, Min, Max, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.decimal = [](void *o, unsigned, ZuDecimal v) {
+    return {.set_ = {.decimal = [](void *o, ZuDecimal v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -2505,10 +2491,10 @@ ZtMFieldType *ZtFieldType_Time<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_Time<T, Props>>::instance();
 }
 
-inline constexpr ZuTime ZtFieldType_Time_Def() { return {}; }
+inline constexpr ZuTime ZtField_Time_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_Time_Def,
+  auto Def = ZtField_Time_Def,
   bool = Base::ReadOnly>
 struct ZtField_Time : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -2519,17 +2505,17 @@ struct ZtField_Time : public ZtField<Base> {
   using Type = ZtFieldType_Time<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.time = [](const void *o, unsigned) -> ZuTime {
+    return {.get_ = {.time = [](const void *o) -> ZuTime {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.time = [](void *, unsigned, ZuTime) { }}};
+    return {.set_ = {.time = [](void *, ZuTime) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.time = [](const void *o, unsigned) -> ZuTime {
+    return {.get_ = {.time = [](const void *o) -> ZuTime {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2542,7 +2528,7 @@ struct ZtField_Time<Base, Def, false> :
     public ZtField_Time<Base, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.time = [](void *o, unsigned, ZuTime v) {
+    return {.set_ = {.time = [](void *o, ZuTime v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -2581,10 +2567,10 @@ ZtMFieldType *ZtFieldType_DateTime<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_DateTime<T, Props>>::instance();
 }
 
-inline constexpr ZuDateTime ZtFieldType_DateTime_Def() { return {}; }
+inline constexpr ZuDateTime ZtField_DateTime_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_DateTime_Def,
+  auto Def = ZtField_DateTime_Def,
   bool = Base::ReadOnly>
 struct ZtField_DateTime : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -2595,17 +2581,17 @@ struct ZtField_DateTime : public ZtField<Base> {
   using Type = ZtFieldType_DateTime<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZuDateTime {
+    return {.get_ = {.dateTime = [](const void *o) -> ZuDateTime {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.dateTime = [](void *, unsigned, ZuDateTime) { }}};
+    return {.set_ = {.dateTime = [](void *, ZuDateTime) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.dateTime = [](const void *o, unsigned) -> ZuDateTime {
+    return {.get_ = {.dateTime = [](const void *o) -> ZuDateTime {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2618,7 +2604,7 @@ struct ZtField_DateTime<Base, Def, false> :
     public ZtField_DateTime<Base, Def, true> {
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.dateTime = [](void *o, unsigned, ZuDateTime v) {
+    return {.set_ = {.dateTime = [](void *o, ZuDateTime v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -2676,7 +2662,7 @@ template <typename T, typename = void>
 struct ZtMFieldType_UDT_Scan {
   static auto scanFn() {
     return [](
-      void (*)(void *, unsigned, const void *), void *, unsigned,
+      void (*)(void *, const void *), void *,
       ZuString, const ZtFieldVFmt &) { };
   }
 };
@@ -2686,11 +2672,11 @@ struct ZtMFieldType_UDT_Scan<
 > {
   static auto scanFn() {
     return [](
-      void (*set)(void *, unsigned, const void *), void *o, unsigned i,
+      void (*set)(void *, const void *), void *o,
       ZuString s, const ZtFieldVFmt &
     ) {
       T v{s};
-      set(o, i, reinterpret_cast<const void *>(&v));
+      set(o, reinterpret_cast<const void *>(&v));
     };
   }
 };
@@ -2737,7 +2723,7 @@ template <typename, auto, typename = void>
 struct ZtField_UDT_Constant {
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.udt = [](const void *o, unsigned) -> const void * {
+    return {.get_ = {.udt = [](const void *o) -> const void * {
       return nullptr;
     }}};
   }
@@ -2748,7 +2734,7 @@ struct ZtField_UDT_Constant<Base, Def,
   static ZtMFieldGet constantFn() {
     using T = typename Base::T;
     using namespace ZtMFieldConstant;
-    return {.get_ = {.udt = [](const void *o, unsigned) -> const void * {
+    return {.get_ = {.udt = [](const void *o) -> const void * {
       static T deflt_{Def()};
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt: return static_cast<const void *>(&deflt_);
@@ -2763,7 +2749,7 @@ struct ZtField_UDT_Get {
     using O = typename Base::O;
     using T = typename Base::T;
     // field get() returns a temporary
-    return {.get_ = {.udt = [](const void *o, unsigned) -> const void * {
+    return {.get_ = {.udt = [](const void *o) -> const void * {
       auto &v = ZmTLS<T, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return static_cast<const void *>(&v);
@@ -2776,7 +2762,7 @@ struct ZtField_UDT_Get<Base,
   static ZtMFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a crvalue
-    return {.get_ = {.udt = [](const void *o, unsigned) -> const void * {
+    return {.get_ = {.udt = [](const void *o) -> const void * {
       return static_cast<const void *>(&Base::get(*static_cast<const O *>(o)));
     }}};
   }
@@ -2807,7 +2793,7 @@ struct ZtField_UDT<Base, Def, false> :
   using O = typename Base::O;
   using T = typename Base::T;
   static ZtMFieldSet setFn() {
-    return {.set_ = {.udt = [](void *o, unsigned, const void *p) {
+    return {.set_ = {.udt = [](void *o, const void *p) {
       Base::set(*static_cast<O *>(o), *static_cast<const T *>(p));
     }}};
   }
@@ -2852,10 +2838,10 @@ ZtMFieldType *ZtFieldType_CStringVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_CStringVec<T, Props>>::instance();
 }
 
-inline ZtField_::CStringVec ZtFieldType_CStringVec_Def() { return {}; }
+inline ZtField_::CStringVec ZtField_CStringVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_CStringVec_Def,
+  auto Def = ZtField_CStringVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_CStringVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -2868,17 +2854,17 @@ struct ZtField_CStringVec : public ZtField<Base> {
   using CStringVec = ZtField_::CStringVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.cstringVec = [](const void *o, unsigned) -> CStringVec {
+    return {.get_ = {.cstringVec = [](const void *o) -> CStringVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
-    return {.set_ = {.cstringVec = [](void *, unsigned, CStringVec) { }}};
+    return {.set_ = {.cstringVec = [](void *, CStringVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.cstringVec = [](const void *o, unsigned) -> CStringVec {
+    return {.get_ = {.cstringVec = [](const void *o) -> CStringVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2892,7 +2878,7 @@ struct ZtField_CStringVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.cstringVec = [](void *o, unsigned, CStringVec v) {
+    return {.set_ = {.cstringVec = [](void *o, CStringVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -2937,10 +2923,10 @@ ZtMFieldType *ZtFieldType_StringVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_StringVec<T, Props>>::instance();
 }
 
-inline ZtField_::StringVec ZtFieldType_StringVec_Def() { return {}; }
+inline ZtField_::StringVec ZtField_StringVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_StringVec_Def,
+  auto Def = ZtField_StringVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_StringVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -2952,18 +2938,18 @@ struct ZtField_StringVec : public ZtField<Base> {
   using StringVec = ZtField_::StringVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.stringVec = [](const void *o, unsigned) -> StringVec {
+    return {.get_ = {.stringVec = [](const void *o) -> StringVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.stringVec = [](void *, unsigned, StringVec) { }}};
+    return {.set_ = {.stringVec = [](void *, StringVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.stringVec = [](const void *o, unsigned) -> StringVec {
+    return {.get_ = {.stringVec = [](const void *o) -> StringVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -2977,7 +2963,7 @@ struct ZtField_StringVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.stringVec = [](void *o, unsigned, StringVec v) {
+    return {.set_ = {.stringVec = [](void *o, StringVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3002,7 +2988,7 @@ struct ZtFieldType_BytesVec : public ZtFieldType_<Props_> {
 	auto buf_ = ZmAlloc(uint8_t, n);
 	ZuArray<uint8_t> buf{&buf_[0], n};
 	buf.trunc(ZuBase64::encode(buf, v));
-	s << buf;
+	s << ZuString{buf};
       });
       return s << Fmt::VecSuffix();
     }
@@ -3026,10 +3012,10 @@ ZtMFieldType *ZtFieldType_BytesVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_BytesVec<T, Props>>::instance();
 }
 
-inline ZtField_::BytesVec ZtFieldType_BytesVec_Def() { return {}; }
+inline ZtField_::BytesVec ZtField_BytesVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_BytesVec_Def,
+  auto Def = ZtField_BytesVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_BytesVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3041,18 +3027,18 @@ struct ZtField_BytesVec : public ZtField<Base> {
   using BytesVec = ZtField_::BytesVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.bytesVec = [](const void *o, unsigned) -> BytesVec {
+    return {.get_ = {.bytesVec = [](const void *o) -> BytesVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.bytesVec = [](void *, unsigned, BytesVec) { }}};
+    return {.set_ = {.bytesVec = [](void *, BytesVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.bytesVec = [](const void *o, unsigned) -> BytesVec {
+    return {.get_ = {.bytesVec = [](const void *o) -> BytesVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3066,7 +3052,7 @@ struct ZtField_BytesVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.bytesVec = [](void *o, unsigned, BytesVec v) {
+    return {.set_ = {.bytesVec = [](void *o, BytesVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3128,18 +3114,18 @@ struct ZtField_##Code_##Vec : public ZtField<Base> { \
   using Code_##Vec = ZtField_::Code_##Vec; \
   enum { Code = Type::Code }; \
   static ZtMFieldGet getFn() { \
-    return {.get_ = {.Type_##Vec = [](const void *o, unsigned) -> Code_##Vec { \
+    return {.get_ = {.Type_##Vec = [](const void *o) -> Code_##Vec { \
       return Base::get(*static_cast<const O *>(o)); \
     }}}; \
   } \
   static ZtMFieldSet setFn() { \
     using namespace ZtField_; \
-    return {.set_ = {.Type_##Vec = [](void *, unsigned, Code_##Vec) { }}}; \
+    return {.set_ = {.Type_##Vec = [](void *, Code_##Vec) { }}}; \
   } \
   constexpr static auto deflt() { return Def(); } \
   static ZtMFieldGet constantFn() { \
     using namespace ZtMFieldConstant; \
-    return {.get_ = {.Type_##Vec = [](const void *o, unsigned) -> Code_##Vec { \
+    return {.get_ = {.Type_##Vec = [](const void *o) -> Code_##Vec { \
       switch (int(reinterpret_cast<uintptr_t>(o))) { \
 	case Deflt:   return Def(); \
 	default:      return {}; \
@@ -3153,7 +3139,7 @@ struct ZtField_##Code_##Vec<Base, Def, false> : \
   using O = typename Base::O; \
   static ZtMFieldSet setFn() { \
     using namespace ZtField_; \
-    return {.set_ = {.Type_##Vec = [](void *o, unsigned, Code_##Vec v) { \
+    return {.set_ = {.Type_##Vec = [](void *o, Code_##Vec v) { \
       Base::set(*static_cast<O *>(o), ZuMv(v)); \
     }}}; \
   } \
@@ -3209,10 +3195,10 @@ ZtMFieldType *ZtFieldType_FloatVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_FloatVec<T, Props>>::instance();
 }
 
-inline ZtField_::FloatVec ZtFieldType_FloatVec_Def() { return {}; }
+inline ZtField_::FloatVec ZtField_FloatVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_FloatVec_Def,
+  auto Def = ZtField_FloatVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_FloatVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3224,18 +3210,18 @@ struct ZtField_FloatVec : public ZtField<Base> {
   using FloatVec = ZtField_::FloatVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.floatVec = [](const void *o, unsigned) -> FloatVec {
+    return {.get_ = {.floatVec = [](const void *o) -> FloatVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.floatVec = [](void *, unsigned, FloatVec) { }}};
+    return {.set_ = {.floatVec = [](void *, FloatVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.floatVec = [](const void *o, unsigned) -> FloatVec {
+    return {.get_ = {.floatVec = [](const void *o) -> FloatVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3249,7 +3235,7 @@ struct ZtField_FloatVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.floatVec = [](void *o, unsigned, FloatVec v) {
+    return {.set_ = {.floatVec = [](void *o, FloatVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3294,10 +3280,10 @@ ZtMFieldType *ZtFieldType_FixedVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_FixedVec<T, Props>>::instance();
 }
 
-inline ZtField_::FixedVec ZtFieldType_FixedVec_Def() { return {}; }
+inline ZtField_::FixedVec ZtField_FixedVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_FixedVec_Def,
+  auto Def = ZtField_FixedVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_FixedVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3309,18 +3295,18 @@ struct ZtField_FixedVec : public ZtField<Base> {
   using FixedVec = ZtField_::FixedVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.fixedVec = [](const void *o, unsigned) -> FixedVec {
+    return {.get_ = {.fixedVec = [](const void *o) -> FixedVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.fixedVec = [](void *, unsigned, FixedVec) { }}};
+    return {.set_ = {.fixedVec = [](void *, FixedVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.fixedVec = [](const void *o, unsigned) -> FixedVec {
+    return {.get_ = {.fixedVec = [](const void *o) -> FixedVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3334,7 +3320,7 @@ struct ZtField_FixedVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.fixedVec = [](void *o, unsigned, FixedVec v) {
+    return {.set_ = {.fixedVec = [](void *o, FixedVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3379,10 +3365,10 @@ ZtMFieldType *ZtFieldType_DecimalVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_DecimalVec<T, Props>>::instance();
 }
 
-inline ZtField_::DecimalVec ZtFieldType_DecimalVec_Def() { return {}; }
+inline ZtField_::DecimalVec ZtField_DecimalVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_DecimalVec_Def,
+  auto Def = ZtField_DecimalVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_DecimalVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3394,18 +3380,18 @@ struct ZtField_DecimalVec : public ZtField<Base> {
   using DecimalVec = ZtField_::DecimalVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.decimalVec = [](const void *o, unsigned) -> DecimalVec {
+    return {.get_ = {.decimalVec = [](const void *o) -> DecimalVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.decimalVec = [](void *, unsigned, DecimalVec) { }}};
+    return {.set_ = {.decimalVec = [](void *, DecimalVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.decimalVec = [](const void *o, unsigned) -> DecimalVec {
+    return {.get_ = {.decimalVec = [](const void *o) -> DecimalVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3419,7 +3405,7 @@ struct ZtField_DecimalVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.decimalVec = [](void *o, unsigned, DecimalVec v) {
+    return {.set_ = {.decimalVec = [](void *o, DecimalVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3464,10 +3450,10 @@ ZtMFieldType *ZtFieldType_TimeVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_TimeVec<T, Props>>::instance();
 }
 
-inline ZtField_::TimeVec ZtFieldType_TimeVec_Def() { return {}; }
+inline ZtField_::TimeVec ZtField_TimeVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_TimeVec_Def,
+  auto Def = ZtField_TimeVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_TimeVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3479,18 +3465,18 @@ struct ZtField_TimeVec : public ZtField<Base> {
   using TimeVec = ZtField_::TimeVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.timeVec = [](const void *o, unsigned) -> TimeVec {
+    return {.get_ = {.timeVec = [](const void *o) -> TimeVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.timeVec = [](void *, unsigned, TimeVec) { }}};
+    return {.set_ = {.timeVec = [](void *, TimeVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.timeVec = [](const void *o, unsigned) -> TimeVec {
+    return {.get_ = {.timeVec = [](const void *o) -> TimeVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3504,7 +3490,7 @@ struct ZtField_TimeVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.timeVec = [](void *o, unsigned, TimeVec v) {
+    return {.set_ = {.timeVec = [](void *o, TimeVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }
@@ -3549,10 +3535,10 @@ ZtMFieldType *ZtFieldType_DateTimeVec<T, Props>::mtype() {
   return ZmSingleton<ZtMFieldType_DateTimeVec<T, Props>>::instance();
 }
 
-inline ZtField_::DateTimeVec ZtFieldType_DateTimeVec_Def() { return {}; }
+inline ZtField_::DateTimeVec ZtField_DateTimeVec_Def() { return {}; }
 template <
   typename Base,
-  auto Def = ZtFieldType_DateTimeVec_Def,
+  auto Def = ZtField_DateTimeVec_Def,
   bool = Base::ReadOnly>
 struct ZtField_DateTimeVec : public ZtField<Base> {
   template <template <typename> typename Override>
@@ -3564,18 +3550,18 @@ struct ZtField_DateTimeVec : public ZtField<Base> {
   using DateTimeVec = ZtField_::DateTimeVec;
   enum { Code = Type::Code };
   static ZtMFieldGet getFn() {
-    return {.get_ = {.dateTimeVec = [](const void *o, unsigned) -> DateTimeVec {
+    return {.get_ = {.dateTimeVec = [](const void *o) -> DateTimeVec {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.dateTimeVec = [](void *, unsigned, DateTimeVec) { }}};
+    return {.set_ = {.dateTimeVec = [](void *, DateTimeVec) { }}};
   }
   constexpr static auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
-    return {.get_ = {.dateTimeVec = [](const void *o, unsigned) -> DateTimeVec {
+    return {.get_ = {.dateTimeVec = [](const void *o) -> DateTimeVec {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt:   return Def();
 	default:      return {};
@@ -3589,7 +3575,7 @@ struct ZtField_DateTimeVec<Base, Def, false> :
   using O = typename Base::O;
   static ZtMFieldSet setFn() {
     using namespace ZtField_;
-    return {.set_ = {.dateTimeVec = [](void *o, unsigned, DateTimeVec v) {
+    return {.set_ = {.dateTimeVec = [](void *o, DateTimeVec v) {
       Base::set(*static_cast<O *>(o), ZuMv(v));
     }}};
   }

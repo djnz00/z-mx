@@ -20,15 +20,14 @@
 
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuString.hh>
-
-#include <zlib/ZuRef.hh>
+#include <zlib/ZuDateTime.hh>
+#include <zlib/ZuBase64.hh>
 
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmRBTree.hh>
 #include <zlib/ZmFn.hh>
 
 #include <zlib/ZtArray.hh>
-#include <zlib/ZuDateTime.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtRegex.hh>
 
@@ -57,16 +56,54 @@ namespace ZvCSV_ {
   // use built-in printing as-is
   template <unsigned Code, typename Row, typename T>
   inline
-  ZuIfT<Code != ZtFieldTypeCode::CString &&
-	Code != ZtFieldTypeCode::String &&
-	Code != ZtFieldTypeCode::UDT &&
-	Code != ZtFieldTypeCode::Enum &&
-	Code != ZtFieldTypeCode::Flags>
+  ZuIfT<Code == ZtFieldTypeCode::Bool ||
+	Code == ZtFieldTypeCode::Int8 ||
+	Code == ZtFieldTypeCode::UInt8 ||
+	Code == ZtFieldTypeCode::Int16 ||
+	Code == ZtFieldTypeCode::UInt16 ||
+	Code == ZtFieldTypeCode::Int32 ||
+	Code == ZtFieldTypeCode::UInt32 ||
+	Code == ZtFieldTypeCode::Int64 ||
+	Code == ZtFieldTypeCode::UInt64 ||
+	Code == ZtFieldTypeCode::Int128 ||
+	Code == ZtFieldTypeCode::UInt128 ||
+	Code == ZtFieldTypeCode::Float ||
+	Code == ZtFieldTypeCode::Fixed ||
+	Code == ZtFieldTypeCode::Time ||
+	Code == ZtFieldTypeCode::DateTime ||
+	Code == ZtFieldTypeCode::Decimal>
   quote_(
-      Row &row, const T *object, unsigned i,
+      Row &row, const T *object,
       const ZtMField *field, const ZtFieldVFmt &fmt) {
     ZuMStream s{row};
-    field->get.print<Code>(s, object, i, field, fmt);
+    field->get.print<Code>(s, object, field, fmt);
+  }
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::Int8Vec ||
+	Code == ZtFieldTypeCode::UInt8Vec ||
+	Code == ZtFieldTypeCode::Int16Vec ||
+	Code == ZtFieldTypeCode::UInt16Vec ||
+	Code == ZtFieldTypeCode::Int32Vec ||
+	Code == ZtFieldTypeCode::UInt32Vec ||
+	Code == ZtFieldTypeCode::Int64Vec ||
+	Code == ZtFieldTypeCode::UInt64Vec ||
+	Code == ZtFieldTypeCode::Int128Vec ||
+	Code == ZtFieldTypeCode::UInt128Vec ||
+	Code == ZtFieldTypeCode::FloatVec ||
+	Code == ZtFieldTypeCode::FixedVec ||
+	Code == ZtFieldTypeCode::DecimalVec ||
+	Code == ZtFieldTypeCode::TimeVec ||
+	Code == ZtFieldTypeCode::DateTimeVec>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldVFmt &fmt_) {
+    ZtFieldVFmt fmt{fmt_};
+    fmt.vecPrefix = "={";
+    fmt.vecDelim = ";";
+    fmt.vecSuffix = "}";
+    ZuMStream s{row};
+    field->get.print<Code>(s, object, field, fmt);
   }
   // get strings without quoting, then quote for CSV
   template <unsigned Code, typename Row, typename T>
@@ -74,32 +111,102 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::CString ||
 	Code == ZtFieldTypeCode::String>
   quote_(
-      Row &row, const T *object, unsigned i,
+      Row &row, const T *object,
       const ZtMField *field, const ZtFieldVFmt &fmt) {
-    quote__(row, field->get.get<Code>(object, i));
+    quote__(row, field->get.get<Code>(object));
   }
-  // use the built-in print function, but quote for CSV
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::CStringVec>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
+    auto array = field->get.get<Code>(object);
+    using Elem = const char *;
+    unsigned n = array.length();
+    row << "={";
+    for (unsigned i = 0; i < n; i++) {
+      if (i) row << ';';
+      quote__(row, Elem(array[i]));
+    }
+    row << '}';
+  }
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::StringVec>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
+    auto array = field->get.get<Code>(object);
+    using Elem = ZuString;
+    unsigned n = array.length();
+    row << "={";
+    for (unsigned i = 0; i < n; i++) {
+      if (i) row << ';';
+      quote__(row, Elem(array[i]));
+    }
+    row << '}';
+  }
+  // base64 encode raw bytes (no quoting needed)
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::Bytes>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
+    auto v = field->get.get<Code>(object);
+    auto n = ZuBase64::enclen(v.length());
+    auto buf_ = ZmAlloc(uint8_t, n);
+    ZuArray<uint8_t> buf{&buf_[0], n};
+    buf.trunc(ZuBase64::encode(buf, v));
+    row << ZuString{buf};
+  }
+  template <unsigned Code, typename Row, typename T>
+  inline
+  ZuIfT<Code == ZtFieldTypeCode::BytesVec>
+  quote_(
+      Row &row, const T *object,
+      const ZtMField *field, const ZtFieldVFmt &fmt) {
+    auto array = field->get.get<Code>(object);
+    using Elem = ZuBytes;
+    unsigned n = array.length();
+    row << "={";
+    for (unsigned i = 0; i < n; i++) {
+      if (i) row << ';';
+      auto v = Elem(array[i]);
+      auto n = ZuBase64::enclen(v.length());
+      auto buf_ = ZmAlloc(uint8_t, n);
+      ZuArray<uint8_t> buf{&buf_[0], n};
+      buf.trunc(ZuBase64::encode(buf, v));
+      row << ZuString{buf};
+    }
+    row << '}';
+  }
+  // use the built-in print function, then quote for CSV
   template <unsigned Code, typename Row, typename T>
   inline
   ZuIfT<Code == ZtFieldTypeCode::UDT ||
 	Code == ZtFieldTypeCode::Enum ||
 	Code == ZtFieldTypeCode::Flags>
   quote_(
-      Row &row, const T *object, unsigned i,
+      Row &row, const T *object,
       const ZtMField *field, const ZtFieldVFmt &fmt) {
     ZtString s;
-    field->get.print<Code>(s, object, i, field, fmt);
+    field->get.print<Code>(s, object, field, fmt);
     quote__(row, ZuMv(s));
   }
+
   // entry point for quoting values to be written
   template <typename Row, typename T>
-  inline void quote(Row &row,
-      const T *object, unsigned i,
-      const ZtMField *field,
-      const ZtFieldVFmt &fmt) {
+  inline void quote(
+    Row &row,
+    const T *object,
+    const ZtMField *field,
+    const ZtFieldVFmt &fmt)
+  {
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
-	[&row, object, i, field, &fmt](auto Code) {
-      quote_<Code>(row, object, i, field, fmt);
+	[&row, object, field, &fmt](auto Code) {
+      quote_<Code>(row, object, field, fmt);
     });
   }
 }
@@ -198,7 +305,7 @@ private:
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
 	    [object, i, field, &fmt](auto Code) {
-	  field->set.scan<Code>(object, i, ZuString{}, field, fmt);
+	  field->set.scan<Code>(object, ZuString{}, field, fmt);
 	});
       }
     }
@@ -209,7 +316,7 @@ private:
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
 	    [object, i, &s, field, &fmt](auto Code) {
-	  field->set.scan<Code>(object, i, s, field, fmt);
+	  field->set.scan<Code>(object, s, field, fmt);
 	});
       }
     }
@@ -323,8 +430,7 @@ public:
       row->length(0);
       for (unsigned i = 0, n = colArray.length(); i < n; i++) {
 	if (ZuLikely(i)) *row << ',';
-	ZvCSV_::quote(
-	  *row, object, colArray[i].p<0>(), colArray[i].p<1>(), fmt);
+	ZvCSV_::quote(*row, object, colArray[i].p<1>(), fmt);
       }
       *row << '\n';
       fwrite(row->data(), 1, row->length(), file);

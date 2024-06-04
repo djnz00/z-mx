@@ -114,18 +114,19 @@ protected:
   using MatchCString = ZuIfT<IsCString<U>{}, R>; 
 
   // from other array (non-primitive, not a C string pointer)
-  template <typename U, typename V = T> struct IsOtherArray : public ZuBool<
-      !IsPrimitiveArray_<U>{} &&
-      !IsCString<U>{} &&
-      (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename V = T>
-  struct IsPtr : public ZuBool<
-      ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
+  struct IsOtherArray : public ZuBool<
+    !IsPrimitiveArray_<U>{} &&
+    !IsCString<U>{} &&
+    (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
+    bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>{}, R>; 
 
   // from pointer
+  template <typename U, typename V = T>
+  struct IsPtr : public ZuBool<
+      ZuInspect<ZuNormChar<U> *, ZuNormChar<V> *>::Converts> { };
   template <typename U, typename R = void>
   using MatchPtr = ZuIfT<IsPtr<ZuDecay<U>>{}, R>; 
 
@@ -187,7 +188,6 @@ public:
     m_length = !m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a));
     return *this;
   }
-
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push

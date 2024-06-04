@@ -90,7 +90,8 @@ public:
 
 protected:
   // from some string with same char (including string literals)
-  template <typename U, typename V = T> struct IsString : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsString : public ZuBool<
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
@@ -106,7 +107,8 @@ protected:
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from any array type with convertible element type (not a string)
-  template <typename U, typename V = T> struct IsArray : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsArray : public ZuBool<
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
@@ -115,8 +117,27 @@ protected:
   template <typename U, typename R = void>
   using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
+  // from any STL iterable with convertible element type (not array or string)
+  template <typename U, typename = void>
+  struct IsIterable_ : public ZuFalse { };
+  template <typename U>
+  struct IsIterable_<U, decltype(
+    ZuDeclVal<const U &>().end() - ZuDeclVal<const U &>().begin(), void())> :
+      public ZuTrue { };
+  template <typename U, typename V = T>
+  struct IsIterable : public ZuBool<
+      !IsString<U>{} &&
+      !IsChar2String<U>{} &&
+      !ZuInspect<U, V>::Same &&
+      !ZuTraits<U>::IsArray &&
+      bool(IsIterable_<ZuDecay<U>>{}) &&
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
+  template <typename U, typename R = void>
+  using MatchIterable = ZuIfT<IsIterable<U>{}, R>;
+
   // from individual char2 (requires conversion, char->wchar_t only)
-  template <typename U, typename V = Char2> struct IsChar2 :
+  template <typename U, typename V = Char2>
+  struct IsChar2 :
     public ZuBool<!ZuInspect<ZuNull, V>::Same &&
       ZuInspect<U, V>::Same &&
       !ZuInspect<U, wchar_t>::Same> { };
@@ -124,17 +145,20 @@ protected:
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
-  template <typename U, typename V = T> struct IsPDelegate :
+  template <typename U, typename V = T>
+  struct IsPDelegate :
     public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
-  template <typename U, typename V = T> struct IsPBuffer :
+  template <typename U, typename V = T>
+  struct IsPBuffer :
     public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char string)
-  template <typename U, typename V = T> struct IsReal : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsReal : public ZuBool<
       bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
@@ -142,7 +166,8 @@ protected:
   using MatchReal = ZuIfT<IsReal<U>{}, R>;
 
   // from individual element
-  template <typename U, typename V = T> struct IsElem : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsElem : public ZuBool<
       ZuInspect<U, V>::Same ||
       (!IsString<U>{} &&
        !IsArray<U>{} &&
@@ -224,6 +249,14 @@ protected:
       });
   }
 
+  template <typename A> MatchIterable<A> init(const A &a) {
+    auto i = a.begin();
+    unsigned n = a.end() - i;
+    if (n > N) n = N;
+    for (unsigned j = 0; j < n; j++)
+      this->initItem(push(), *i++);
+  }
+
   template <typename S> MatchChar2String<S> init(S &&s) {
     data()[m_length = ZuUTF<T, Char2>::cvt({data(), N}, s)] = 0;
   }
@@ -286,6 +319,13 @@ protected:
 	ZuArray<const Elem> a(a_);
 	this->append_(a.data(), a.length());
       });
+  }
+
+  template <typename A> MatchIterable<A> append_(const A &a) {
+    auto i = a.begin();
+    unsigned n = a.end() - i;
+    if (n > N - m_length) n = N - m_length;
+    for (unsigned j = 0; j < n; j++) new (push()) T(*i++);
   }
 
   template <typename S> MatchChar2String<S> append_(S &&s) {

@@ -7,7 +7,7 @@
 // fast generic array operations
 
 // ZuArrayFn<T> provides fast array operations used
-// by many other templates and classes
+// by other templates and classes
 
 #ifndef ZuArrayFn_HH
 #define ZuArrayFn_HH

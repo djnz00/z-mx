@@ -98,7 +98,8 @@ private:
   using Char = T;
   using Char2 = typename ZtArray_Char2<T>::T;
 
-  template <typename U, typename V = T> struct IsZtArray : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsZtArray : public ZuBool<
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}} &&
       ZuInspect<ZtArray_<typename ZuTraits<U>::Elem>, U>::Base> { };
   template <typename U, typename R = void>
@@ -113,7 +114,8 @@ private:
   using MatchStrLiteral = ZuIfT<IsStrLiteral<U>{}, R>;
 
   // from some other string with equivalent char (including string literals)
-  template <typename U, typename V = Char> struct IsAnyString : public ZuBool<
+  template <typename U, typename V = Char>
+  struct IsAnyString : public ZuBool<
       !IsZtArray<U>{} &&
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
@@ -121,8 +123,8 @@ private:
   using MatchAnyString = ZuIfT<IsAnyString<U>{}, R>;
 
   // from some other string with equivalent char (other than a string literal)
-  template <typename U, typename V = Char> struct IsString :
-    public ZuBool<!IsStrLiteral<U>{} && IsAnyString<U>{}> { };
+  template <typename U, typename V = Char>
+  struct IsString : public ZuBool<!IsStrLiteral<U>{} && IsAnyString<U>{}> { };
   template <typename U, typename R = void>
   using MatchString = ZuIfT<IsString<U>{}, R>;
 
@@ -136,7 +138,8 @@ private:
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from another array type with convertible element type (not a string)
-  template <typename U, typename V = T> struct IsArray : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsArray : public ZuBool<
       !IsZtArray<U>{} &&
       !IsAnyString<U>{} &&
       !IsChar2String<U>{} &&
@@ -147,26 +150,52 @@ private:
   using MatchArray = ZuIfT<IsArray<U>{}, R>;
 
   // from another array type with same element type (not a string)
-  template <typename U, typename V = T> struct IsSameArray : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsSameArray : public ZuBool<
       !IsZtArray<U>{} &&
+      !IsAnyString<U>{} &&
+      !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
-      !ZuTraits<U>::IsString && ZuTraits<U>::IsArray &&
+      ZuTraits<U>::IsArray &&
       ZuInspect<typename ZuTraits<U>::Elem, V>::Same> { };
   template <typename U, typename R = void>
   using MatchSameArray = ZuIfT<IsSameArray<U>{}, R>;
 
   // from another array type with convertible element type (not a string)
-  template <typename U, typename V = T> struct IsDiffArray : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsDiffArray : public ZuBool<
       !IsZtArray<U>{} &&
+      !IsAnyString<U>{} &&
+      !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
-      !ZuTraits<U>::IsString && ZuTraits<U>::IsArray &&
+      ZuTraits<U>::IsArray &&
       !ZuInspect<typename ZuTraits<U>::Elem, V>::Same &&
       ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
   using MatchDiffArray = ZuIfT<IsDiffArray<U>{}, R>;
 
+  // from any STL iterable with convertible element type (not array or string)
+  template <typename U, typename = void>
+  struct IsIterable_ : public ZuFalse { };
+  template <typename U>
+  struct IsIterable_<U, decltype(
+    ZuDeclVal<const U &>().end() - ZuDeclVal<const U &>().begin(), void())> :
+      public ZuTrue { };
+  template <typename U, typename V = T>
+  struct IsIterable : public ZuBool<
+      !IsZtArray<U>{} &&
+      !IsAnyString<U>{} &&
+      !IsChar2String<U>{} &&
+      !ZuInspect<U, V>::Same &&
+      !ZuTraits<U>::IsArray &&
+      bool(IsIterable_<ZuDecay<U>>{}) &&
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
+  template <typename U, typename R = void>
+  using MatchIterable = ZuIfT<IsIterable<U>{}, R>;
+
   // from individual char2 (requires conversion)
-  template <typename U, typename V = Char2> struct IsChar2 : public ZuBool<
+  template <typename U, typename V = Char2>
+  struct IsChar2 : public ZuBool<
       !ZuIsExact<ZuNull, V>{} &&
       bool{ZuEquivChar<U, V>{}} &&
       !ZuEquivChar<U, wchar_t>{}> { };
@@ -174,7 +203,8 @@ private:
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
-  template <typename U, typename V = Char> struct IsPrint : public ZuBool<
+  template <typename U, typename V = Char>
+  struct IsPrint : public ZuBool<
       bool{ZuEquivChar<char, V>{}} &&
       ZuPrint<U>::OK &&
       !ZuPrint<U>::String> { };
@@ -190,7 +220,8 @@ private:
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char array)
-  template <typename U, typename V = T> struct IsReal : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsReal : public ZuBool<
       bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
@@ -198,7 +229,8 @@ private:
   using MatchReal = ZuIfT<IsReal<U>{}, R>;
 
   // from primitive pointer (not an array, string, or otherwise printable)
-  template <typename U, typename V = Char> struct IsPtr : public ZuBool<
+  template <typename U, typename V = Char>
+  struct IsPtr : public ZuBool<
       bool{ZuEquivChar<char, V>{}} &&
       ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString> { };
@@ -206,7 +238,8 @@ private:
   using MatchPtr = ZuIfT<IsPtr<U>{}, R>;
 
   // from individual element
-  template <typename U, typename V = T> struct IsElem : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsElem : public ZuBool<
       ZuInspect<U, V>::Same ||
       (!IsZtArray<U>{} &&
        !IsString<U>{} &&
@@ -220,7 +253,8 @@ private:
   using MatchElem = ZuIfT<IsElem<U>{}, R>;
 
   // limit member operator <<() overload resolution to supported types
-  template <typename U> struct IsStreamable : public ZuBool<
+  template <typename U>
+  struct IsStreamable : public ZuBool<
       bool{IsZtArray<U>{}} ||
       bool{IsArray<U>{}} ||
       bool{IsAnyString<U>{}} ||
@@ -235,7 +269,8 @@ private:
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
   // an unsigned|int|size_t parameter to the constructor is a buffer size
-  template <typename U, typename V = T> struct IsCtorSize : public ZuBool<
+  template <typename U, typename V = T>
+  struct IsCtorSize : public ZuBool<
       ZuInspect<U, unsigned>::Same ||
       ZuInspect<U, int>::Same ||
       ZuInspect<U, size_t>::Same> { };
@@ -393,6 +428,13 @@ private:
   MatchZtArray<A> ctor(A &&a) { Fwd_ZtArray<A>::ctor_(this, ZuFwd<A>(a)); }
   template <typename A>
   MatchArray<A> ctor(A &&a) { Fwd_Array<A>::ctor_(this, ZuFwd<A>(a)); }
+  template <typename A>
+  MatchIterable<A> ctor(const A &a) {
+    auto i = a.begin();
+    unsigned n = a.end() - i;
+    this->size(n);
+    for (unsigned j = 0; j < n; j++) this->initItem(push(), *i++);
+  }
 
   template <typename S>
   MatchStrLiteral<S> ctor(S &&s_) {
@@ -1071,6 +1113,14 @@ private:
   template <typename A>
   MatchArray<A> append_(A &&a) {
     Fwd_Array<A>::splice_(this, 0, length(), 0, ZuFwd<A>(a));
+  }
+  template <typename A>
+  MatchIterable<A> append_(const A &a) {
+    auto i = a.begin();
+    unsigned n = a.end() - i;
+    this->ensure(length() + n);
+    for (unsigned j = 0; j < n; j++)
+      this->initItem(push(), *i++);
   }
 
   template <typename S> MatchAnyString<S> append_(S &&s_) {
