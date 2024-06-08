@@ -65,7 +65,7 @@ public:
   ZuIfT<ZuTraits<Out>::IsString && ZuTraits<In>::IsString, int>
   convert(Out &out, const In &in) {
     if (ZuUnlikely(m_cd == (iconv_t)-1)) return -1;
-    const char *inBuf = (const char *)ZuTraits<In>::data(in);
+    auto inBuf = reinterpret_cast<const char *>(ZuTraits<In>::data(in));
     size_t inSize =
       ZuTraits<In>::length(in) * sizeof(typename ZuTraits<In>::Elem);
     if (ZuUnlikely(!inSize)) {

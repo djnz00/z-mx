@@ -62,72 +62,59 @@ struct ZuTraits_POD<T, decltype(sizeof(T), void())> :
 #endif
 { };
 
-// an "array" in Z is, specifically and intentionally, a contiguous
-// in-memory array, i.e. the original unadulterated meaning of the term;
-// this definition excludes iterable non-contiguous containers
-
-template <typename Iterator>
-struct ZuTraits_Array___ : public ZuFalse { };
-template <typename Elem>
-struct ZuTraits_Array___<Elem *> : public ZuTrue { };
+// an iterable array with a non-pointer as an iterator is not a span
+template <typename, typename Iterator>
+struct ZuBaseTraits_Array___ {
+  enum { IsSpan = 0 };
+  using Elem = ZuDecay<decltype(*ZuDeclVal<const Iterator &>())>;
+};
+// an iterable array with a pointer as an iterator is a span
+template <typename U, typename Elem_>
+struct ZuBaseTraits_Array___<U, Elem_ *> {
+  enum { IsSpan = 1 };
+  using Elem = ZuDecay<Elem_>;
+  static auto data(U &v) { return &v[0]; }
+  static auto data(const U &v) { return &v[0]; }
+};
+// non-iterable types are discriminated as non-arrays
 template <typename U, typename = void>
-struct ZuTraits_Array__ : public ZuFalse { };
+struct ZuBaseTraits_Array__ {
+  enum { IsArray = 0, IsSpan = 0 };
+  using Elem = void;
+};
+// STL iterable arrays
 template <typename U>
-struct ZuTraits_Array__<U, decltype(
+struct ZuBaseTraits_Array__<U, decltype(
   ZuDeclVal<const U &>().end() - ZuDeclVal<const U &>().begin(), void())> :
-    public ZuTraits_Array___<decltype(ZuDeclVal<const U &>().begin())> { };
+    public ZuBaseTraits_Array___<U, decltype(ZuDeclVal<const U &>().begin())> {
+  enum { IsArray = 1 };
+  using Elem = ZuDecay<decltype(*(ZuDeclVal<const U &>().begin()))>;
+  static unsigned length(const U &v) { return v.end() - v.begin(); }
+};
+// non-composite arrays are primitive arrays, handled explicitly below
 template <typename U, bool = ZuTraits_Composite<U>{}>
-struct ZuTraits_Array_ : public ZuFalse { };
-template <typename U>
-struct ZuTraits_Array_<U, true> : public ZuTraits_Array__<U> { };
-template <typename U, typename = void>
-struct ZuTraits_Array : public ZuFalse { };
-template <typename U>
-struct ZuTraits_Array<U, decltype(ZuDeclVal<const ZuDecay<U> &>()[0], void())> :
-  public ZuTraits_Array_<ZuDecay<U>> { };
-
-// Elem is defined for any type that defines operator [] (not just arrays)
-
-template <typename U, typename = void>
-struct ZuTraits_Elem_ { using T = void; };
-template <typename U>
-struct ZuTraits_Elem_<U, decltype(ZuDeclVal<const U &>()[0], void())> {
-  using T = ZuDecay<decltype(ZuDeclVal<const U &>()[0])>;
+struct ZuBaseTraits_Array_ { };
+// pointers are not arrays (for the purposes of traits)
+template <typename Elem_>
+struct ZuBaseTraits_Array_<Elem_ *, false> {
+  enum { IsArray = 0, IsSpan = 0 };
+  using Elem = ZuDecay<Elem_>;
 };
 template <typename U>
-using ZuTraits_Elem = typename ZuTraits_Elem_<ZuDecay<U>>::T;
+struct ZuBaseTraits_Array_<U, true> : public ZuBaseTraits_Array__<U> { };
+// type that cannot perform an array operation
+template <typename U, typename = void>
+struct ZuBaseTraits_Array {
+  enum { IsArray = 0, IsSpan = 0 };
+  using Elem = void;
+};
+// test for array operator
+template <typename U>
+struct ZuBaseTraits_Array<U,
+  decltype(ZuDeclVal<const ZuDecay<U> &>()[0], void())> :
+    public ZuBaseTraits_Array_<ZuDecay<U>> { };
 
 // default generic traits
-
-template <typename T, typename = void>
-struct ZuBaseTraits_Array_ {
-  using Elem = ZuDecay<decltype(ZuDeclVal<const ZuDecay<T> &>()[0])>;
-  template <typename U = T>
-  static ZuMutable<U, Elem *> data(U &a) { return &a[0]; }
-  static const Elem *data(const T &a) { return &a[0]; }
-  static unsigned length(const T &a) { return sizeof(a) / sizeof(a[0]); }
-};
-template <typename T>
-struct ZuBaseTraits_Array_<T, decltype(
-  ZuDeclVal<const ZuDecay<T> &>().end() -
-  ZuDeclVal<const ZuDecay<T> &>().begin(), void())>
-{
-  using Iterator = decltype(ZuDeclVal<ZuDecay<T> &>().begin());
-  using Elem = ZuDecay<decltype(*(ZuDeclVal<const Iterator &>()))>;
-  template <typename U = T>
-  static ZuMutable<U, Iterator> data(U &a) { return a.begin(); }
-  static auto data(const T &a) { return a.begin(); }
-  static unsigned length(const T &a) { return a.end() - a.begin(); }
-};
-template <typename U, bool = ZuTraits_Array<U>{}>
-struct ZuBaseTraits_Array {
-  enum { IsArray = 0 };
-  using Elem = ZuTraits_Elem<U>;
-};
-template <typename U>
-struct ZuBaseTraits_Array<U, true> : public ZuBaseTraits_Array_<U> {
-  enum { IsArray = 1 };
-};
 
 template <typename T> struct ZuBaseTraits : public ZuBaseTraits_Array<T> {
   enum { IsComposite = ZuTraits_Composite<T>{} }; // class/struct/union
@@ -280,7 +267,7 @@ struct ZuTraits_PArray : public ZuBaseTraits<T> {
   enum {
     IsPrimitive = 1, // the array is primitive, the element might not be
     IsPOD = ZuTraits<Elem>::IsPOD,
-    IsArray = 1
+    IsArray = 1, IsSpan = 1
   };
   template <typename U = T>
   static ZuMutable<U, Elem *> data(U &a) { return &a[0]; }

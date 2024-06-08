@@ -509,6 +509,20 @@ namespace Print {
       return s << '"';
     }
   };
+
+  // bytes printing (base64)
+  struct Bytes {
+    ZuBytes v;
+    template <typename S>
+    friend S &operator <<(S &s, const Bytes &print) {
+      const auto &v = print.v;
+      auto n = ZuBase64::enclen(v.length());
+      auto buf_ = ZmAlloc(uint8_t, n);
+      ZuArray<uint8_t> buf{&buf_[0], n};
+      buf.trunc(ZuBase64::encode(buf, v));
+      return s << ZuString{buf};
+    }
+  };
 } // Print
 
 // string and string vector element scanning
@@ -1067,11 +1081,7 @@ MGet::print(
   BytesVec vec{get_.bytesVec(o)};
   vec.all([&s, &fmt, &first](ZuBytes v) {
     if (!first) s << fmt.vecDelim; else first = false;
-    auto n = ZuBase64::enclen(v.length());
-    auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf{&buf_[0], n};
-    buf.trunc(ZuBase64::encode(buf, v));
-    s << ZuString{buf};
+    s << Print::Bytes{v};
   });
   s << fmt.vecSuffix;
 }
@@ -1752,17 +1762,8 @@ struct ZtFieldType_Bytes : public ZtFieldType_<Props_> {
   enum { Code = ZtFieldTypeCode::Bytes };
   using T = T_;
   using Props = Props_;
-  template <typename = ZtFieldFmt::Default> struct Print {
-    ZuBytes v;
-    template <typename S>
-    friend S &operator <<(S &s, const Print &print) {
-      auto n = ZuBase64::enclen(print.v.length());
-      auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf{&buf_[0], n};
-      buf.trunc(ZuBase64::encode(buf, print.v));
-      return s << ZuString{buf};
-    }
-  };
+  template <typename = ZtFieldFmt::Default>
+  using Print = ZtField_::Print::Bytes;
   inline static ZtMFieldType *mtype();
 };
 template <typename T, typename Props>
@@ -2984,11 +2985,7 @@ struct ZtFieldType_BytesVec : public ZtFieldType_<Props_> {
       bool first = true;
       print.vec.all([&s, &first](ZuBytes v) {
 	if (!first) s << Fmt::VecDelim(); else first = false;
-	auto n = ZuBase64::enclen(v.length());
-	auto buf_ = ZmAlloc(uint8_t, n);
-	ZuArray<uint8_t> buf{&buf_[0], n};
-	buf.trunc(ZuBase64::encode(buf, v));
-	s << ZuString{buf};
+	s << ZtField_::Print::Bytes{v};
       });
       return s << Fmt::VecSuffix();
     }

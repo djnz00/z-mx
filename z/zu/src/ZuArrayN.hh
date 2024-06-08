@@ -92,7 +92,7 @@ protected:
   // from some string with same char (including string literals)
   template <typename U, typename V = T>
   struct IsString : public ZuBool<
-      (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
+      (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchString = ZuIfT<IsString<U>{}, R>;
@@ -101,21 +101,21 @@ protected:
   template <typename U, typename V = Char2>
   struct IsChar2String : public ZuBool<
       !ZuInspect<ZuNull, V>::Same &&
-      (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
+      (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
       bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from any array type with convertible element type (not a string)
   template <typename U, typename V = T>
-  struct IsArray : public ZuBool<
+  struct IsSpan : public ZuBool<
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
-      ZuTraits<U>::IsArray &&
+      ZuTraits<U>::IsSpan &&
       ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
-  using MatchArray = ZuIfT<IsArray<U>{}, R>;
+  using MatchArray = ZuIfT<IsSpan<U>{}, R>;
 
   // from any STL iterable with convertible element type (not array or string)
   template <typename U, typename = void>
@@ -129,9 +129,9 @@ protected:
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
       !ZuInspect<U, V>::Same &&
-      !ZuTraits<U>::IsArray &&
+      !ZuTraits<U>::IsSpan &&
       bool(IsIterable_<ZuDecay<U>>{}) &&
-      ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
+      ZuInspect<typename ZuTraits<U>::Elem, V>::Constructs> { };
   template <typename U, typename R = void>
   using MatchIterable = ZuIfT<IsIterable<U>{}, R>;
 
@@ -170,7 +170,7 @@ protected:
   struct IsElem : public ZuBool<
       ZuInspect<U, V>::Same ||
       (!IsString<U>{} &&
-       !IsArray<U>{} &&
+       !ZuTraits<U>::IsArray &&
        !IsChar2String<U>{} &&
        !IsChar2<U>{} &&
        !IsPDelegate<U>{} &&
@@ -184,7 +184,8 @@ protected:
   template <typename U>
   struct IsStreamable : public ZuBool<
       bool{IsString<U>{}} ||
-      bool{IsArray<U>{}} ||
+      bool{IsSpan<U>{}} ||
+      bool{IsIterable<U>{}} ||
       bool{IsChar2String<U>{}} ||
       bool{IsChar2<U>{}} ||
       bool{IsPDelegate<U>{}} ||
@@ -665,7 +666,7 @@ public:
   struct Traits : public ZuBaseTraits<ArrayN> {
     using Elem = T;
     enum {
-      IsArray = 1, IsPrimitive = 0,
+      IsArray = 1, IsSpan = 1, IsPrimitive = 0,
       IsPOD = ZuTraits<T>::IsPOD,
       IsString =
 	bool{ZuIsExact<char, ZuDecay<T>>{}} ||

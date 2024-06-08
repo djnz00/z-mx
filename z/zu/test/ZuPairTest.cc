@@ -7,14 +7,17 @@
 #include <zlib/ZuLib.hh>
 
 #include <stdlib.h>
-#include <stdio.h>
+
+#include <iostream>
 
 #include <zlib/ZuTuple.hh>
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuBox.hh>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 using VPair = ZuTuple<int, int>;
 using RVPair = ZuTuple<const int &, const int &>;

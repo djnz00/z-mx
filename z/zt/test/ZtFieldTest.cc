@@ -43,6 +43,7 @@ struct Foo {
   ZuDecimal decimal;
   ZuTime time_;
   Nested nested;
+  ZtArray<ZtArray<uint8_t>> bytesVec;
 
   friend ZtFieldPrint ZuPrintType(Foo *);
 };
@@ -61,7 +62,8 @@ ZtFields(Foo,
     (((fixed), (Ctor<10>)), (Fixed)),
     (((decimal), (Ctor<11>)), (Decimal)),
     (((time_), (Ctor<12>)), (Time)),
-    (((nested), (Ctor<13>)), (UDT)));
+    (((nested), (Ctor<13>)), (UDT)),
+    (((bytesVec), (Ctor<14>)), (BytesVec)));
 
 template <typename T, typename = void>
 struct MinMax {
@@ -131,5 +133,10 @@ int main()
 	continue;
     }
     std::cout << '\n';
+  }
+  {
+    Foo foo;
+    foo.bytesVec = { "xxx", "yyyy", "zzzzz" };
+    std::cout << foo << '\n';
   }
 }

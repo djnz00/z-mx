@@ -11,6 +11,9 @@
 #include <stdlib.h>
 
 #include <zlib/ZuArrayN.hh>
+#include <zlib/ZuMArray.hh>
+#include <zlib/ZuBytes.hh>
+#include <zlib/ZuDemangle.hh>
 
 class I {
 public:
@@ -32,33 +35,43 @@ private:
   int	m_i;
 };
 
-void test_(bool b, const char *s)
-{
-  printf("%s: %s\n", b ? " OK" : "NOK", s);
-}
+inline void out(const char *s) { std::cout << s << '\n'; }
 
-#define test(x) test_((x), #x)
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 template <typename A>
 void testSplice(A &a, int offset, int length, int check1, int check2)
 {
   A a_;
   a.splice(offset, length, a_);
-  test((!a.length() && !check1) || (int)a[0] == check1);
+  CHECK((!a.length() && !check1) || (int)a[0] == check1);
   if (check2 < 0)
-    test(!a_.length());
+    CHECK(!a_.length());
   else
-    test((!a.length() && !check2) || (int)a_[0] == check2);
+    CHECK((!a.length() && !check2) || (int)a_[0] == check2);
 }
+
+template <typename U, typename = void>
+struct IsIterable_ : public ZuFalse { };
+template <typename U>
+struct IsIterable_<U, decltype(
+  ZuDeclVal<const U &>().end() - ZuDeclVal<const U &>().begin(), void())> :
+    public ZuTrue { };
+template <typename U, typename V>
+struct IsIterable : public ZuBool<
+    !ZuInspect<U, V>::Same &&
+    !ZuTraits<U>::IsSpan &&
+    bool(IsIterable_<ZuDecay<U>>{}) &&
+    ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
 
 int main()
 {
   {
     ZuArrayN<I, 1> a;
     a << I(42);
-    test((int)a[0] == 42);
+    CHECK((int)a[0] == 42);
     a << I(43);
-    test((int)a[0] == 42);
+    CHECK((int)a[0] == 42);
     testSplice(a, 0, 1, 0, 42);
     a << I(42);
     testSplice(a, 1, 1, 42, -1);
@@ -67,9 +80,9 @@ int main()
   {
     ZuArrayN<I, 2> a;
     a << I(42);
-    test((int)a[0] == 42);
+    CHECK((int)a[0] == 42);
     a << I(43);
-    test((int)a[1] == 43);
+    CHECK((int)a[1] == 43);
     testSplice(a, 0, 1, 43, 42);
     a << I(42);
     testSplice(a, 1, 1, 43, 42);
@@ -81,11 +94,22 @@ int main()
     a << I(43);
     a << I(44);
     a << I(45);
-    test((int)a[0] == 42);
-    test((int)a[2] == 44);
+    CHECK((int)a[0] == 42);
+    CHECK((int)a[2] == 44);
     testSplice(a, 0, 2, 44, 42);
     a << I(45);
     testSplice(a, 1, 1, 44, 45);
     testSplice(a, -2, 4, 0, 44);
+  }
+
+  {
+    ZuMArray<ZuBytes> a;
+    CHECK(ZuTraits<decltype(a)>::IsArray);
+    CHECK(!ZuTraits<decltype(a)>::IsSpan);
+    CHECK(IsIterable_<decltype(a)>{});
+    std::cout << ZuDemangle<decltype(a)>{} << '\n';
+    std::cout << ZuDemangle<typename ZuTraits<decltype(a)>::Elem>{} << '\n';
+    CHECK((IsIterable<decltype(a), ZuArray<const uint8_t>>{}));
+    CHECK((ZuInspect<typename ZuTraits<decltype(a)>::Elem, ZuArray<const uint8_t>>::Constructs));
   }
 }

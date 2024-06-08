@@ -12,7 +12,7 @@
 #define ZuMArray_HH
 
 #ifndef ZtLib_HH
-#include <zlib/ZtLib.hh>
+#include <zlib/ZuLib.hh>
 #endif
 
 #include <iterator>
@@ -59,6 +59,14 @@ class ZuMArray {
 public:
   using T = T_;
   using R = R_;
+
+  template <typename Array>
+  ZuMArray(const Array &array) :
+    m_ptr{const_cast<Array *>(&array)},
+    m_length{ZuTraits<Array>::length(array)},
+    m_getFn{[](const void *ptr, unsigned i) -> R {
+      return (*static_cast<const Array *>(ptr))[i];
+    }} { }
 
   template <typename Array, typename Elem_ = typename ZuTraits<Array>::Elem>
   ZuMArray(Array &array) :
@@ -112,6 +120,9 @@ friend Elem;
 
     bool operator !() const { return !R(*this); }
     ZuOpBool;
+
+    struct Traits : public ZuTraits<R> { enum { IsPrimitive = 0, IsPOD = 0 }; };
+    friend Traits ZuTraitsType(Elem *);
 
   private:
     ZuMArray	&m_array;
