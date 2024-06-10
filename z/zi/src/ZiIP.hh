@@ -49,8 +49,8 @@ public:
   ZiIP(uint32_t n) { s_addr = htonl(n); }
   ZiIP &operator =(uint32_t n) { s_addr = htonl(n); return *this; }
 
-  template <typename S>
-  ZiIP(S &&s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZiIP(S &&s) {
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress"

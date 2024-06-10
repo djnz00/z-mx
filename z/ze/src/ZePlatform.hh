@@ -255,24 +255,24 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
 
   mutable L	l;
 
-  template <typename L_>
+  template <
+    typename L_,
+    decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()), int()) = 0>
   ZeEvent(
       int severity_,
       const char *file_, int line_,
-      const char *function_, L_ l_,
-      decltype(
-	ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()), void()) *_ = nullptr) :
+      const char *function_, L_ l_) :
     ZeAnyEvent(severity_, file_, line_, function_),
     l{[l_ = ZuMv(l_)](auto &s, const auto &) mutable { l_(s); }} { }
-  template <typename L_>
+  template <
+    typename L_,
+    decltype(ZuDeclVal<L_ &>()(
+	ZuDeclVal<ZeLogBuf &>(),
+	ZuDeclVal<const ZeEventInfo &>()), int()) = 0>
   ZeEvent(
       int severity_,
       const char *file_, int line_,
-      const char *function_, L_ l_,
-      decltype(
-	ZuDeclVal<L_ &>()(
-	  ZuDeclVal<ZeLogBuf &>(), ZuDeclVal<const ZeEventInfo &>()),
-	void()) *_ = nullptr) :
+      const char *function_, L_ l_) :
     ZeAnyEvent(severity_, file_, line_, function_),
     l{ZuMv(l_)} { }
 
@@ -295,20 +295,20 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
     return *this;
   }
 
-  template <typename L_>
-  ZeEvent(ZeEvent<L_> &&e,
-      decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()),
-	void()) *_ = nullptr) :
-    ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
-    l{[l_ = ZuMv(e.l)](auto &s, auto) mutable { l_(s); }} { }
-  template <typename L_>
-  ZeEvent(ZeEvent<L_> &&e,
-      decltype(ZuDeclVal<L_ &>()(
-	  ZuDeclVal<ZeLogBuf &>(),
-	  ZuDeclVal<const ZeEventInfo &>()),
-	void()) *_ = nullptr) :
-    ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
-    l{ZuMv(e.l)} { }
+  template <
+    typename L_,
+    decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZeLogBuf &>()), int()) = 0>
+  ZeEvent(ZeEvent<L_> &&e) :
+      ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
+      l{[l_ = ZuMv(e.l)](auto &s, auto) mutable { l_(s); }} { }
+  template <
+    typename L_,
+    decltype(ZuDeclVal<L_ &>()(
+	ZuDeclVal<ZeLogBuf &>(),
+	ZuDeclVal<const ZeEventInfo &>()), int()) = 0>
+  ZeEvent(ZeEvent<L_> &&e) :
+      ZeAnyEvent{static_cast<ZeAnyEvent &&>(e)},
+      l{ZuMv(e.l)} { }
 
   template <typename L_>
   ZeEvent &operator =(ZeEvent<L> &&e) {
@@ -342,16 +342,16 @@ template <typename U> struct IsOther : public IsOther_<ZuDecay<U>> { };
 template <typename U, typename R = void>
 using MatchOther = ZuIfT<IsOther<U>{}, R>;
 
-template <typename Msg>
-inline decltype(auto) fn(Msg &&msg, MatchOther<Msg> *_ = nullptr) {
+template <typename Msg, decltype(MatchOther<Msg>{}, int()) = 0>
+inline decltype(auto) fn(Msg &&msg) {
   return ZuFwd<Msg>(msg);
 }
-template <typename Msg>
-inline auto fn(Msg &&msg, MatchLiteral<Msg> *_ = nullptr) {
+template <typename Msg, decltype(MatchLiteral<Msg>{}, int()) = 0>
+inline auto fn(Msg &&msg) {
   return [msg = static_cast<const char *>(msg)](auto &s) mutable { s << msg; };
 }
-template <typename Msg>
-inline auto fn(Msg &&msg, MatchPrint<Msg> *_ = nullptr) {
+template <typename Msg, decltype(MatchPrint<Msg>{}, int()) = 0>
+inline auto fn(Msg &&msg) {
   return [msg = ZuFwd<Msg>(msg)](auto &s) mutable { s << ZuMv(msg); };
 }
 } // ZeMsg_

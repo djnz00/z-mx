@@ -74,14 +74,14 @@ template <typename Lock> class ZmCondition : public ZmCondition_<Lock> {
   };
 
 public:
-  template <typename Lock_ = Lock>
-  ZmCondition(ZuIfT<ZuInspect<ZmNoLock, Lock_>::Same> *_ = nullptr) :
-    Base{} { }
-  template <typename Lock_ = Lock>
-  ZmCondition(
-      Lock &lock,
-      ZuIfT<!ZuInspect<ZmNoLock, Lock_>::Same> *_ = nullptr) :
-    Base{lock} { }
+  template <
+    typename Lock_ = Lock,
+    decltype(ZuExact<ZmNoLock, Lock_>{}, int()) = 0>
+  ZmCondition() : Base{} { }
+  template <
+    typename Lock_ = Lock,
+    decltype(ZuNotExact<ZmNoLock, Lock_>{}, int()) = 0>
+  ZmCondition(Lock &lock) : Base{lock} { }
   ~ZmCondition() { }
 
   void wait() {

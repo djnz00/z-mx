@@ -120,11 +120,9 @@ struct Value : public Value_ {
 
   // invoke() skips void
   template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuIfT<!ZuIsExact<void, T>{}>
-  invoke_(L l) { l(ZuUnsigned<I>{}); }
+  static ZuNotExact<void, T> invoke_(L l) { l(ZuUnsigned<I>{}); }
   template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuIfT<ZuIsExact<void, T>{}>
-  invoke_(L l) { }
+  static ZuExact<void, T> invoke_(L l) { }
   template <typename L> static void invoke(L l, unsigned i) {
     ZuSwitch::dispatch<Value_::N>(i, [l = ZuMv(l)](auto I) mutable {
       invoke_<I>(ZuMv(l));

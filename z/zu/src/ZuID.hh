@@ -39,8 +39,8 @@ public:
   constexpr ZuID(const ZuID &b) : m_val{b.m_val} { }
   constexpr ZuID &operator =(const ZuID &b) { m_val = b.m_val; return *this; }
 
-  template <typename S>
-  ZuID(S &&s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZuID(S &&s) {
     init(ZuFwd<S>(s));
   }
   template <typename S>

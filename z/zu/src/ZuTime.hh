@@ -114,8 +114,8 @@ public:
   }
 #endif
 
-  template <typename S>
-  ZuTime(const S &s, ZuMatchString<S> *_ = nullptr) { scan(s); }
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZuTime(const S &s) { scan(s); }
 
   void null() {
     tv_sec = ZuCmp<int64_t>::null();

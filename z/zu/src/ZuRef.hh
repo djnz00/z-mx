@@ -75,10 +75,10 @@ public:
   ZuRef(ZuRef &&r) noexcept : m_object{r.m_object} {
     r.m_object = 0;
   }
-  template <typename R>
-  ZuRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
-    m_object{
-      static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))} {
+  template <typename R, decltype(MatchOtherRef<ZuDeref<R>>{}, int()) = 0>
+  ZuRef(R &&r) noexcept :
+    m_object{static_cast<T *>(const_cast<ZuDeref<R> *>(r.m_object))}
+  {
     ZuBind<R>::mvcp(ZuFwd<R>(r),
 	[](auto &&r) { r.m_object = 0; },
 	[this](const auto &) { if (T *o = m_object) o->ref(); });
@@ -86,9 +86,8 @@ public:
   ZuRef(T *o) : m_object{o} {
     if (o) o->ref();
   }
-  template <typename O>
-  ZuRef(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object{static_cast<T *>(o)} {
+  template <typename O, decltype(MatchPtr<O>{}, int()) = 0>
+  ZuRef(O *o) : m_object{static_cast<T *>(o)} {
     if (o) o->ref();
   }
   ~ZuRef() {

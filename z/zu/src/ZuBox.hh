@@ -403,41 +403,40 @@ public:
   ZuBox(const ZuBox &b) : m_val(b.m_val) { }
   ZuBox &operator =(const ZuBox &b) { m_val = b.m_val; return *this; }
 
-  template <typename R>
-  ZuBox(R r, ZuBox_MatchReal<R, T> *_ = nullptr) :
-    m_val(r) { }
+  template <typename R, decltype(ZuBox_MatchReal<R, T>{}, int()) = 0>
+  ZuBox(R r) : m_val(r) { }
 
-  template <typename B>
-  ZuBox(B b, ZuMatchBoxed<B> *_ = nullptr) :
+  template <typename B, decltype(ZuMatchBoxed<B>{}, int()) = 0>
+  ZuBox(B b) :
     m_val(!*b ? static_cast<T>(Cmp::null()) : static_cast<T>(b.m_val)) { }
 
-  template <typename S>
-  ZuBox(S &&s_, ZuMatchCharString<S> *_ = nullptr) :
-      m_val(Cmp::null()) {
+  template <typename S, decltype(ZuMatchCharString<S>{}, int()) = 0>
+  ZuBox(S &&s_) : m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s.data(), s.length())))
       m_val = val;
   }
-  template <typename Fmt, typename S>
-  ZuBox(Fmt, S &&s_, ZuMatchCharString<S> *_ = nullptr) :
-      m_val(Cmp::null()) {
+  template <
+    typename Fmt, typename S,
+    decltype(ZuMatchCharString<S>{}, int()) = 0>
+  ZuBox(Fmt, S &&s_) : m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s.data(), s.length())))
       m_val = val;
   }
 
-  template <typename S>
-  ZuBox(S s, unsigned len,
-      ZuBox_MatchCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
+  template <typename S, decltype(ZuBox_MatchCharPtr<S>{}, int()) = 0>
+  ZuBox(S s, unsigned len) : m_val(Cmp::null()) {
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s, len)))
       m_val = val;
   }
-  template <typename Fmt, typename S>
-  ZuBox(Fmt, S s, unsigned len,
-      ZuBox_MatchCharPtr<S> *_ = nullptr) : m_val(Cmp::null()) {
+  template <
+    typename Fmt, typename S,
+    decltype(ZuBox_MatchCharPtr<S>{}, int()) = 0>
+  ZuBox(Fmt, S s, unsigned len) : m_val(Cmp::null()) {
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s, len)))
       m_val = val;

@@ -100,8 +100,10 @@ public:
     return *this;
   }
 
-  template <typename L>
-  ZmRingFn_(L &l, ZuStatelessLambda<L, ZuTypeList<Args...>> *_ = nullptr) :
+  template <
+    typename L,
+    decltype(ZuStatelessLambda<L, ZuTypeList<Args...>>{}, int()) = 0>
+  ZmRingFn_(L &l) : 
       m_invokeFn{[](void *, Args... args) -> unsigned {
 	try {
 	  ZuInvokeLambda<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
@@ -112,8 +114,10 @@ public:
       m_allocFn{[](uintptr_t) -> uintptr_t { return 0; }},
       m_ptr{0} { }
 
-  template <typename L>
-  ZmRingFn_(L &l, ZuNotStatelessLambda<L, ZuTypeList<Args...>> *_ = nullptr) :
+  template <
+    typename L,
+    decltype(ZuNotStatelessLambda<L, ZuTypeList<Args...>>{}, int()) = 0>
+  ZmRingFn_(L &l) :
       m_invokeFn{[](void *ptr_, Args... args) -> unsigned {
 	auto ptr = static_cast<L *>(ptr_);
 	try { (*ptr)(ZuFwd<Args>(args)...); } catch (...) { }

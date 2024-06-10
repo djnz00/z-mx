@@ -496,8 +496,8 @@ public:
   }
 
   // miscellaneous types handled by base class
-  template <typename S>
-  ZuStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Nop{}} {
+  template <typename S, decltype(MatchCtorArg<S>{}, int()) = 0>
+  ZuStringN(S &&s) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -517,8 +517,8 @@ public:
   }
 
   // length
-  template <typename L>
-  ZuStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base{l} { }
+  template <typename L, decltype(MatchCtorLength<L>{}, int()) = 0>
+  ZuStringN(L l) : Base{l} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuStringN *);
@@ -598,8 +598,8 @@ public:
   }
 
   // miscellaneous types handled by base class
-  template <typename S>
-  ZuWStringN(S &&s, MatchCtorArg<S> *_ = nullptr) : Base{Nop{}} {
+  template <typename S, decltype(MatchCtorArg<S>{}, int()) = 0>
+  ZuWStringN(S &&s) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
@@ -619,8 +619,8 @@ public:
   }
 
   // length
-  template <typename L>
-  ZuWStringN(L l, MatchCtorLength<L> *_ = nullptr) : Base{l} { }
+  template <typename L, decltype(MatchCtorLength<L>{}, int()) = 0>
+  ZuWStringN(L l) : Base{l} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuWStringN *);

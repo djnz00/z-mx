@@ -618,8 +618,8 @@ public:
   }
 
   // miscellaneous types handled by base class
-  template <typename A>
-  ArrayN(A &&a, MatchCtorArg<A> *_ = nullptr) : Base{Nop{}} {
+  template <typename A, decltype(MatchCtorArg<A>{}, int()) = 0>
+  ArrayN(A &&a) : Base{Nop{}} {
     this->init(ZuFwd<A>(a));
   }
   template <typename A>
@@ -638,14 +638,13 @@ public:
   }
 
   // length
-  template <typename L>
-  ArrayN(L l, bool initItems = !ZuTraits<T>::IsPrimitive,
-      MatchCtorLength<L> *_ = nullptr) : Base(l, initItems) { }
+  template <typename L, decltype(MatchCtorLength<L>{}, int()) = 0>
+  ArrayN(L l, bool initItems = !ZuTraits<T>::IsPrimitive) :
+    Base(l, initItems) { }
 
   // arrays as ptr, length
-  template <typename A>
-  ArrayN(const A *a, unsigned length,
-    ZuConvertible<A, T> *_ = nullptr) : Base{Nop{}} {
+  template <typename A, decltype(ZuConvertible<A, T>{}, int()) = 0>
+  ArrayN(const A *a, unsigned length) : Base{Nop{}} {
     this->init(a, length);
   }
   ArrayN(Move, T *a, unsigned length) : Base{Nop{}} {

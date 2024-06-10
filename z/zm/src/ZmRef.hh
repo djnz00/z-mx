@@ -129,9 +129,8 @@ public:
     if (T *o = m_object) ZmMVREF(o, &r, this);
 #endif
   }
-  template <typename R>
-  ZmRef(R &&r, MatchOtherRef<ZuDeref<R>> *_ = nullptr) noexcept :
-      m_object{
+  template <typename R, decltype(MatchOtherRef<ZuDeref<R>>{}, int()) = 0>
+  ZmRef(R &&r) : m_object{
 	static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))} {
     ZuBind<R>::mvcp(ZuFwd<R>(r),
 #ifndef ZmObject_DEBUG
@@ -147,9 +146,8 @@ public:
   ZmRef(T *o) : m_object{o} {
     if (o) ZmREF(o);
   }
-  template <typename O>
-  ZmRef(O *o, MatchPtr<O> *_ = nullptr) :
-      m_object{static_cast<T *>(o)} {
+  template <typename O, decltype(MatchPtr<O>{}, int()) = 0>
+  ZmRef(O *o) : m_object{static_cast<T *>(o)} {
     if (o) ZmREF(o);
   }
   ~ZmRef() {

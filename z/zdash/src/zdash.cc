@@ -558,6 +558,7 @@ namespace GtkTree {
     }
 
     // key printing
+    // FIXME - should be able to use ZuTuple for this
     template <typename Impl, typename Key>
     class KeyPrint_ {
       auto impl() const { return static_cast<const Impl *>(this); }

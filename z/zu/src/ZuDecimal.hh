@@ -65,24 +65,23 @@ struct ZuDecimal {
 
   constexpr ZuDecimal(Unscaled unscaled) : value{unscaled.v} { }
 
-  template <typename V>
-  constexpr ZuDecimal(V v, ZuMatchIntegral<V> *_ = nullptr) :
-      value(int128_t(v) * scale()) { }
+  template <typename V, decltype(ZuMatchIntegral<V>{}, int()) = 0>
+  constexpr ZuDecimal(V v) : value(int128_t(v) * scale()) { }
 
-  template <typename V>
-  constexpr ZuDecimal(V v, ZuMatchFloatingPoint<V> *_ = nullptr) {
+  template <typename V, decltype(ZuMatchFloatingPoint<V>{}, int()) = 0>
+  constexpr ZuDecimal(V v) {
     if (ZuUnlikely(ZuFP<V>::nan(v) || ZuFP<V>::inf(v) || ZuFP<V>::inf(-v)))
       value = null();
     else
       value = ldouble(v) * scale_fp();
   }
 
-  template <typename V>
-  constexpr ZuDecimal(V v, unsigned ndp, ZuMatchIntegral<V> *_ = nullptr) :
+  template <typename V, decltype(ZuMatchIntegral<V>{}, int()) = 0>
+  constexpr ZuDecimal(V v, unsigned ndp) :
       value(int128_t(v) * ZuDecimalFn::pow10_64(18 - ndp)) { }
 
-  template <typename V>
-  constexpr ZuDecimal(const V &v, ZuExact<ZuFixed, V> *_ = nullptr) :
+  template <typename V, decltype(ZuExact<ZuFixed, V>{}, int()) = 0>
+  constexpr ZuDecimal(const V &v) :
       value(int128_t(v.mantissa()) * ZuDecimalFn::pow10_64(18 - v.ndp())) { }
 
   constexpr int128_t adjust(unsigned ndp) const {
@@ -378,8 +377,8 @@ public:
     return *this;
   }
 
-  template <typename S>
-  ZuDecimal(const S &s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZuDecimal(const S &s) { 
     scan(s);
   }
 

@@ -449,8 +449,8 @@ template <typename T, auto> struct ZmTLS_ : public ZmObject {
 };
 
 // lambdas are inherently scoped to their declaration/definition
-template <typename L>
-inline auto &ZmTLS(L l, ZuStatelessLambda<L> *_ = nullptr) {
+template <typename L, decltype(ZuStatelessLambda<L>{}, int()) = 0>
+inline auto &ZmTLS(L l) {
   using T = ZuDecay<decltype(ZuDeclVal<ZuLambdaReturn<L>>())>;
   using Object = ZmTLS_<T, &L::operator ()>;
   auto m = []() { return new Object{ZuInvokeLambda<L>()}; };

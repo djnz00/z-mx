@@ -28,6 +28,7 @@ using namespace Zfb;
 struct Test {
   int foo = 42;
   ZtString bar;
+  ZtArray<ZtString> baz;
   uint8_t *zero;
   unsigned n;
 
@@ -37,6 +38,7 @@ struct Test {
 ZfbFields(Test,
   (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String)),
+  (((baz), (Ctor<2>)), (StringVec)),
   (((kvTree, Lambda,
     ([](const Test &test) { return KVTreeGet{[&test]<typename B>(B &b) {
       using namespace Zfb::Save;
@@ -76,7 +78,7 @@ void build(IOBuilder &fbb, unsigned n)
   using namespace Zfb;
   ZmRef<IOBuf> buf;
   {
-    zfbtest::Test test{42, "Hello"};
+    zfbtest::Test test{42, "Hello", {"hello", "world", "42"}};
     test.zero = reinterpret_cast<uint8_t *>(::malloc(n));
     test.n = n;
     memset(test.zero, 0, test.n);

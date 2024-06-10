@@ -109,52 +109,47 @@ namespace Prop = ZuFieldProp;
 template <typename T> using Offset = Zfb::Offset<T>;
 
 template <typename Field>
-struct HasOffset : public ZuBool<
-    Field::Type::Code == TypeCode::CString ||
-    Field::Type::Code == TypeCode::String ||
-    Field::Type::Code == TypeCode::Bytes ||
-    (Field::Type::Code == TypeCode::UDT && !Field::Inline)> { };
+struct IsNested : public ZuBool<!Field::Inline> { };
 template <
-  typename O, typename OffsetFields, typename Field,
-  bool = HasOffset<Field>{}>
-  // could use ZuTypeIn<>, but OffsetFields is built using HasOffset<>
+  typename O, typename NestedFields, typename Field,
+  bool = IsNested<Field>{}>
 struct SaveFieldFn {
   template <typename Builder>
   static void save(Builder &fbb, const O &o, const Offset<void> *) {
     Field::save(fbb, o);
   }
 };
-template <typename O, typename OffsetFields, typename Field>
-struct SaveFieldFn<O, OffsetFields, Field, true> {
+template <typename O, typename NestedFields, typename Field>
+struct SaveFieldFn<O, NestedFields, Field, true> {
   template <typename Builder>
   static void save(Builder &fbb, const O &, const Offset<void> *offsets) {
-    using OffsetIndex = ZuTypeIndex<Field, OffsetFields>;
+    using OffsetIndex = ZuTypeIndex<Field, NestedFields>;
     Field::save(fbb, offsets[OffsetIndex{}]);
   }
 };
 template <typename O, typename Fields,
-  typename OffsetFields = ZuTypeGrep<HasOffset, Fields>,
-  unsigned = OffsetFields::N>
+  typename NestedFields = ZuTypeGrep<IsNested, Fields>,
+  unsigned = NestedFields::N>
 struct SaveFieldsFn {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
-    Offset<void> offsets[OffsetFields::N];
-    ZuUnroll::all<OffsetFields>(
+    Offset<void> offsets[NestedFields::N];
+    ZuUnroll::all<NestedFields>(
 	[&fbb_, &o, offsets = &offsets[0]]<typename Field>() {
-	  using OffsetIndex = ZuTypeIndex<Field, OffsetFields>;
+	  using OffsetIndex = ZuTypeIndex<Field, NestedFields>;
 	  offsets[OffsetIndex{}] = Field::save(fbb_, o);
 	});
     Builder fbb{fbb_};
     ZuUnroll::all<Fields>(
 	[&fbb, &o, offsets = &offsets[0]]<typename Field>() {
-	  SaveFieldFn<O, OffsetFields, Field>::save(fbb, o, offsets);
+	  SaveFieldFn<O, NestedFields, Field>::save(fbb, o, offsets);
 	});
     return fbb.Finish();
   }
 };
-template <typename O, typename Fields, typename OffsetFields>
-struct SaveFieldsFn<O, Fields, OffsetFields, 0> {
+template <typename O, typename Fields, typename NestedFields>
+struct SaveFieldsFn<O, Fields, NestedFields, 0> {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {

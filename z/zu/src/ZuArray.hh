@@ -132,8 +132,8 @@ protected:
 
 public:
   // compile-time length from string literal (null-terminated)
-  template <typename A>
-  ZuArray(A &&a, MatchStrLiteral<A> *_ = nullptr) :
+  template <typename A, decltype(MatchStrLiteral<A>{}, int()) = 0>
+  ZuArray(A &&a) :
     m_data(&a[0]),
     m_length((ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
       (sizeof(a) / sizeof(a[0])) - 1U) { }
@@ -146,8 +146,8 @@ public:
   }
 
   // compile-time length from primitive array
-  template <typename A>
-  ZuArray(const A &a, MatchPrimitiveArray<A> *_ = nullptr) :
+  template <typename A, decltype(MatchPrimitiveArray<A>{}, int()) = 0>
+  ZuArray(const A &a) :
     m_data(&a[0]),
     m_length(sizeof(a) / sizeof(a[0])) { }
   template <typename A>
@@ -164,9 +164,9 @@ public:
 #pragma GCC diagnostic ignored "-Wnonnull"
 #pragma GCC diagnostic ignored "-Wnonnull-compare"
 #endif
-  template <typename A>
-  ZuArray(A &&a, MatchCString<A> *_ = nullptr) :
-      m_data(a), m_length(!a ? 0 : -1) { }
+  template <typename A, decltype(MatchCString<A>{}, int()) = 0>
+  ZuArray(A &&a) :
+    m_data(a), m_length(!a ? 0 : -1) { }
 #if defined(__GNUC__) && !defined(__llvm__)
 #pragma GCC diagnostic pop
 #endif
@@ -178,8 +178,8 @@ public:
   }
 
   // length from passed type
-  template <typename A>
-  ZuArray(A &&a, MatchOtherArray<A> *_ = nullptr) :
+  template <typename A, decltype(MatchOtherArray<A>{}, int()) = 0>
+  ZuArray(A &&a) :
       m_data{reinterpret_cast<T *>(ZuTraits<A>::data(a))},
       m_length{!m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a))} { }
   template <typename A>
@@ -193,9 +193,9 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
-  template <typename V>
-  ZuArray(V *data, unsigned length, MatchPtr<V> *_ = nullptr) :
-      m_data{reinterpret_cast<T *>(data)}, m_length{length} { }
+  template <typename V, decltype(MatchPtr<V>{}, int()) = 0>
+  ZuArray(V *data, unsigned length) :
+    m_data{reinterpret_cast<T *>(data)}, m_length{length} { }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -339,11 +339,10 @@ public:
   ZuArray(const ZuArray &a) { }
   ZuArray &operator =(const ZuArray &a) { return *this; }
 
-  template <typename A>
-  ZuArray(const A &a, ZuIfT<
+  template <typename A, decltype(ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Constructs> *_ = nullptr)
-    { }
+      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Constructs>{}, int()) = 0>
+  ZuArray(const A &a) { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&
@@ -362,10 +361,10 @@ public:
   ZuArray(const ZuArray &a) { }
   ZuArray &operator =(const ZuArray &a) { return *this; }
 
-  template <typename A>
-  ZuArray(const A &a, ZuIfT<
+  template <typename A, decltype(ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, void>::Constructs> *_ = nullptr) { }
+      ZuInspect<typename ZuTraits<A>::Elem, void>::Constructs>{}, int()) = 0>
+  ZuArray(const A &a) { }
   template <typename A>
   ZuIfT<
     ZuTraits<A>::IsArray &&

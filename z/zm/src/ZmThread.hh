@@ -226,124 +226,140 @@ class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
   ZmThreadContext() // only called via self() for unmanaged threads
     { init(); }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuInspect<L, void (*)()>::Same> *_ = nullptr) :
-      m_callFn{[](void *fn) -> void * {
-	try { (*reinterpret_cast<L>(fn))(); } catch (...) { }
-	return nullptr;
-      }},
-      m_dtorFn{nullptr},
-      m_lambda{reinterpret_cast<void *>(l)},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+  template <
+    typename L,
+    decltype(ZuIfT<ZuInspect<L, void (*)()>::Same>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *fn) -> void * {
+      try { (*reinterpret_cast<L>(fn))(); } catch (...) { }
+      return nullptr;
+    }},
+    m_dtorFn{nullptr},
+    m_lambda{reinterpret_cast<void *>(l)},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<ZuInspect<L, void *(*)()>::Same> *_ = nullptr) :
-      m_callFn{[](void *fn) -> void * {
-	void *res = nullptr;
-	try {
-	  res = reinterpret_cast<void *>((*reinterpret_cast<L>(fn))());
-	} catch (...) { }
-	return res;
-      }},
-      m_dtorFn{nullptr},
-      m_lambda{reinterpret_cast<void *>(l)},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+  template <
+    typename L,
+    decltype(ZuIfT<ZuInspect<L, void *(*)()>::Same>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *fn) -> void * {
+      void *res = nullptr;
+      try {
+	res = reinterpret_cast<void *>((*reinterpret_cast<L>(fn))());
+      } catch (...) { }
+      return res;
+    }},
+    m_dtorFn{nullptr},
+    m_lambda{reinterpret_cast<void *>(l)},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
+  template <
+    typename L,
+    decltype(
       ZuIfT<bool{ZuIsStatelessLambda<L>{}} &&
-	    bool{ZuIsVoidRetLambda<L>{}}> *_ = nullptr) :
-      m_callFn{[](void *) -> void * {
-	try { ZuInvokeLambda<L>(); } catch (...) { }
-	return nullptr;
-      }},
-      m_dtorFn{nullptr},
-      m_lambda{nullptr},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+      bool{ZuIsVoidRetLambda<L>{}}>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *) -> void * {
+      try { ZuInvokeLambda<L>(); } catch (...) { }
+      return nullptr;
+    }},
+    m_dtorFn{nullptr},
+    m_lambda{nullptr},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<!ZuIsStatelessLambda<L>{} &&
-	    bool{ZuIsVoidRetLambda<L>{}}> *_ = nullptr) :
-      m_callFn{[](void *lambda_) -> void * {
-	if (ZuUnlikely(!lambda_)) return nullptr;
-	auto lambda = reinterpret_cast<L *>(lambda_);
-	try { (*lambda)(); } catch (...) { }
-	delete lambda;
-	return nullptr;
-      }},
-      m_dtorFn{[](void *lambda) {
-	delete reinterpret_cast<L *>(lambda);
-      }},
-      m_lambda{new L{ZuMv(l)}},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+  template <
+    typename L,
+    decltype(ZuIfT<
+      !ZuIsStatelessLambda<L>{} &&
+      bool{ZuIsVoidRetLambda<L>{}}>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *lambda_) -> void * {
+      if (ZuUnlikely(!lambda_)) return nullptr;
+      auto lambda = reinterpret_cast<L *>(lambda_);
+      try { (*lambda)(); } catch (...) { }
+      delete lambda;
+      return nullptr;
+    }},
+    m_dtorFn{[](void *lambda) {
+      delete reinterpret_cast<L *>(lambda);
+    }},
+    m_lambda{new L{ZuMv(l)}},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<bool{ZuIsStatelessLambda<L>{}} &&
-	    !ZuIsVoidRetLambda<L>{}> *_ = nullptr) :
-      m_callFn{[](void *) -> void * {
-	void *res = nullptr;
-	try { res = static_cast<void *>(ZuInvokeLambda<L>()); } catch (...) { }
-	return res;
-      }},
-      m_dtorFn{nullptr},
-      m_lambda{nullptr},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+  template <
+    typename L,
+    decltype(ZuIfT<
+      bool{ZuIsStatelessLambda<L>{}} &&
+      !ZuIsVoidRetLambda<L>{}>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *) -> void * {
+      void *res = nullptr;
+      try { res = static_cast<void *>(ZuInvokeLambda<L>()); } catch (...) { }
+      return res;
+    }},
+    m_dtorFn{nullptr},
+    m_lambda{nullptr},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 
-  template <typename L>
-  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1,
-      ZuIfT<!ZuIsStatelessLambda<L>{} &&
-	    !ZuIsVoidRetLambda<L>{}> *_ = nullptr) :
-      m_callFn{[](void *lambda_) -> void * {
-	if (ZuUnlikely(!lambda_)) return nullptr;
-	auto lambda = reinterpret_cast<L *>(lambda_);
-	void *res = nullptr;
-	try { res = static_cast<void *>((*lambda)()); } catch (...) { }
-	delete lambda;
-	return res;
-      }},
-      m_dtorFn{[](void *lambda) {
-	delete reinterpret_cast<L *>(lambda);
-      }},
-      m_lambda{new L{ZuMv(l)}},
-      m_name{params.name()}, m_sid{sid},
-      m_priority{params.priority()},
-      m_partition{params.partition()},
-      m_cpuset{params.cpuset()},
-      m_detached{params.detached()} {
+  template <
+    typename L,
+    decltype(ZuIfT<
+      !ZuIsStatelessLambda<L>{} &&
+      !ZuIsVoidRetLambda<L>{}>{}, int()) = 0>
+  ZmThreadContext(L l, const ZmThreadParams &params, int sid = -1) :
+    m_callFn{[](void *lambda_) -> void * {
+      if (ZuUnlikely(!lambda_)) return nullptr;
+      auto lambda = reinterpret_cast<L *>(lambda_);
+      void *res = nullptr;
+      try { res = static_cast<void *>((*lambda)()); } catch (...) { }
+      delete lambda;
+      return res;
+    }},
+    m_dtorFn{[](void *lambda) {
+      delete reinterpret_cast<L *>(lambda);
+    }},
+    m_lambda{new L{ZuMv(l)}},
+    m_name{params.name()}, m_sid{sid},
+    m_priority{params.priority()},
+    m_partition{params.partition()},
+    m_cpuset{params.cpuset()},
+    m_detached{params.detached()}
+  {
     m_stackSize = params.stackSize();
   }
 

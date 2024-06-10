@@ -59,13 +59,12 @@ class ZuFixed {
 public:
   ZuFixed() = default;
 
-  template <typename M>
-  constexpr ZuFixed(M m, unsigned e, ZuMatchIntegral<M> *_ = nullptr) :
-      m_mantissa{int64_t(m)},
-      m_ndp{uint8_t(e)} { }
+  template <typename M, decltype(ZuMatchIntegral<M>{}, int()) = 0>
+  constexpr ZuFixed(M m, unsigned e) :
+    m_mantissa{int64_t(m)}, m_ndp{uint8_t(e)} { }
 
-  template <typename V>
-  constexpr ZuFixed(V v, unsigned e, ZuMatchFloatingPoint<V> *_ = nullptr) :
+  template <typename V, decltype(ZuMatchFloatingPoint<V>{}, int()) = 0>
+  constexpr ZuFixed(V v, unsigned e) :
     m_mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(e))},
     m_ndp{uint8_t(e)} { }
 
@@ -162,12 +161,12 @@ public:
   }
 
   // scan from string
-  template <typename S>
-  ZuFixed(const S &s, ZuMatchString<S> *_ = nullptr) {
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZuFixed(const S &s) {
     scan(s);
   }
-  template <typename S>
-  ZuFixed(const S &s, unsigned e, ZuMatchString<S> *_ = nullptr) {
+  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  ZuFixed(const S &s, unsigned e) {
     scan(s, e);
   }
 
