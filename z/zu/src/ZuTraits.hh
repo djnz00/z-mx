@@ -313,8 +313,8 @@ struct ZuTraits<const volatile T (&)[N]> :
 
 template <class Base> struct ZuTraits_CString : public Base {
   enum { IsCString = 1, IsString = 1 };
-  ZuInline static const char *data(const char *s) { return s; }
-  ZuInline static unsigned length(const char *s) { return s ? strlen(s) : 0; }
+  static const char *data(const char *s) { return s; }
+  static unsigned length(const char *s) { return s ? strlen(s) : 0; }
 };
 
 template <> struct ZuTraits<char *> :
@@ -374,10 +374,8 @@ struct ZuTraits<const volatile char (&)[N]> :
     ZuTraits_PArray<const volatile char[N], const volatile char>> { };
 template <class Base> struct ZuTraits_WString : public Base {
   enum { IsCString = 1, IsString = 1, IsWString = 1 };
-  ZuInline static const wchar_t *data(const wchar_t *s) { return s; }
-  ZuInline static unsigned length(const wchar_t *s) {
-    return s ? wcslen(s) : 0;
-  }
+  static const wchar_t *data(const wchar_t *s) { return s; }
+  static unsigned length(const wchar_t *s) { return s ? wcslen(s) : 0; }
 };
 
 template <> struct ZuTraits<wchar_t *> :
@@ -452,26 +450,25 @@ using ZuMatch##Trait = ZuIfT<ZuTraits<U>::Is##Trait, R>; \
 template <typename U, typename R = void> \
 using ZuNot##Trait = ZuIfT<!ZuTraits<U>::Is##Trait, R>;
 
+ZuTraits_SFINAE(Array)
+ZuTraits_SFINAE(Span)
 ZuTraits_SFINAE(Composite)
 ZuTraits_SFINAE(Empty)
 ZuTraits_SFINAE(Enum)
 ZuTraits_SFINAE(POD)
+ZuTraits_SFINAE(Reference)
+ZuTraits_SFINAE(RValueRef)
+ZuTraits_SFINAE(Pointer)
 ZuTraits_SFINAE(Primitive)
 ZuTraits_SFINAE(Real)
-ZuTraits_SFINAE(Integral)
 ZuTraits_SFINAE(Signed)
-ZuTraits_SFINAE(CString)
-ZuTraits_SFINAE(Pointer)
-ZuTraits_SFINAE(Reference)
-ZuTraits_SFINAE(WString)
-ZuTraits_SFINAE(Array)
-ZuTraits_SFINAE(PrimitiveArray)
-ZuTraits_SFINAE(Void)
-ZuTraits_SFINAE(Hashable)
-ZuTraits_SFINAE(Comparable)
-ZuTraits_SFINAE(Bool)
-ZuTraits_SFINAE(String)
+ZuTraits_SFINAE(Integral)
 ZuTraits_SFINAE(FloatingPoint)
+ZuTraits_SFINAE(String)
+ZuTraits_SFINAE(CString)
+ZuTraits_SFINAE(WString)
+ZuTraits_SFINAE(Void)
+ZuTraits_SFINAE(Bool)
 
 #undef ZuTraits_SFINAE
 
@@ -484,7 +481,8 @@ template <typename T, typename Char>
 struct ZuStdStringTraits_ : public ZuBaseTraits<T> {
   enum { IsString = 1 };
   using Elem = Char;
-  static Char *data(T &s) { return s.data(); }
+  template <typename U = T>
+  static ZuMutable<U, Char *> data(T &s) { return s.data(); }
   static const Char *data(const T &s) { return s.data(); }
   static unsigned length(const T &s) { return s.length(); }
 };
@@ -498,7 +496,8 @@ template <typename T, typename Elem_>
 struct ZuStdArrayTraits_ : public ZuBaseTraits<T> {
   using Elem = Elem_;
   enum { IsArray = 1 };
-  static Elem *data(T &a) { return a.data(); }
+  template <typename U = T>
+  static ZuMutable<U, Elem *> data(T &a) { return a.data(); }
   static const Elem *data(const T &a) { return a.data(); }
   static unsigned length(const T &a) { return a.size(); }
 };
@@ -548,8 +547,10 @@ template <typename Elem_>
 struct ZuTraits<std::initializer_list<Elem_> > :
     public ZuBaseTraits<std::initializer_list<Elem_> > {
   enum { IsArray = 1 };
-  using T = std::initializer_list<Elem_>;
   using Elem = Elem_;
+private:
+  using T = std::initializer_list<Elem_>;
+public:
   static const Elem *data(const T &a) { return a.begin(); }
   static unsigned length(const T &a) { return a.size(); }
 };

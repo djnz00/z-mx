@@ -28,7 +28,7 @@
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuArrayFn.hh>
-#include <zlib/ZuEquivChar.hh>
+#include <zlib/ZuEquiv.hh>
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -42,6 +42,8 @@ template <> struct ZuArray_<char> {
 
 template <typename T_, typename Cmp_ = ZuCmp<T_>>
 class ZuArray : public ZuArray_<ZuStrip<T_>> {
+template <typename, typename> friend class ZuArray;
+
 public:
   using T = T_;
   using Cmp = Cmp_;
@@ -113,13 +115,22 @@ protected:
   template <typename U, typename R = void>
   using MatchCString = ZuIfT<IsCString<U>{}, R>; 
 
+  // from equivalent ZuArray
+  template <typename U, typename V = T>
+  struct IsZuArray : public ZuBool<
+    bool(ZuIsExact<ZuArray<typename ZuTraits<U>::Elem>, U>{}) &&
+    bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
+  template <typename U, typename R = void>
+  using MatchZuArray = ZuIfT<IsZuArray<ZuDecay<U>>{}, R>; 
+
   // from other array (non-primitive, not a C string pointer)
   template <typename U, typename V = T>
   struct IsOtherArray : public ZuBool<
+    !ZuIsExact<ZuArray<typename ZuTraits<U>::Elem>, U>{} &&
     !IsPrimitiveArray_<U>{} &&
     !IsCString<U>{} &&
     (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
-    bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+    bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchOtherArray = ZuIfT<IsOtherArray<ZuDecay<U>>{}, R>; 
 
@@ -132,7 +143,7 @@ protected:
 
 public:
   // compile-time length from string literal (null-terminated)
-  template <typename A, decltype(MatchStrLiteral<A>{}, int()) = 0>
+  template <typename A, decltype(MatchStrLiteral<A>(), int()) = 0>
   ZuArray(A &&a) :
     m_data(&a[0]),
     m_length((ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
@@ -146,7 +157,7 @@ public:
   }
 
   // compile-time length from primitive array
-  template <typename A, decltype(MatchPrimitiveArray<A>{}, int()) = 0>
+  template <typename A, decltype(MatchPrimitiveArray<A>(), int()) = 0>
   ZuArray(const A &a) :
     m_data(&a[0]),
     m_length(sizeof(a) / sizeof(a[0])) { }
@@ -164,7 +175,7 @@ public:
 #pragma GCC diagnostic ignored "-Wnonnull"
 #pragma GCC diagnostic ignored "-Wnonnull-compare"
 #endif
-  template <typename A, decltype(MatchCString<A>{}, int()) = 0>
+  template <typename A, decltype(MatchCString<A>(), int()) = 0>
   ZuArray(A &&a) :
     m_data(a), m_length(!a ? 0 : -1) { }
 #if defined(__GNUC__) && !defined(__llvm__)
@@ -177,8 +188,20 @@ public:
     return *this;
   }
 
-  // length from passed type
-  template <typename A, decltype(MatchOtherArray<A>{}, int()) = 0>
+  // from equivalent ZuArray
+  template <typename A, decltype(MatchZuArray<A>(), int()) = 0>
+  ZuArray(A &&a) :
+      m_data{reinterpret_cast<T *>(a.m_data)},
+      m_length{a.m_length} { }
+  template <typename A>
+  MatchZuArray<A, ZuArray &> operator =(A &&a) {
+    m_data = reinterpret_cast<T *>(a.m_data);
+    m_length = a.m_length;
+    return *this;
+  }
+
+  // from other array
+  template <typename A, decltype(MatchOtherArray<A>(), int()) = 0>
   ZuArray(A &&a) :
       m_data{reinterpret_cast<T *>(ZuTraits<A>::data(a))},
       m_length{!m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a))} { }
@@ -193,7 +216,7 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
-  template <typename V, decltype(MatchPtr<V>{}, int()) = 0>
+  template <typename V, decltype(MatchPtr<V>(), int()) = 0>
   ZuArray(V *data, unsigned length) :
     m_data{reinterpret_cast<T *>(data)}, m_length{length} { }
 #ifdef __GNUC__
@@ -208,8 +231,8 @@ public:
 private:
   template <typename V = T>
   ZuIfT<
-      bool{ZuEquivChar<V, char>{}} ||
-      bool{ZuEquivChar<V, wchar_t>{}}, unsigned> length_() const {
+      bool{ZuEquiv<V, char>{}} ||
+      bool{ZuEquiv<V, wchar_t>{}}, unsigned> length_() const {
     using Char = ZuNormChar<V>;
     if (ZuUnlikely(m_length < 0))
       return const_cast<ZuArray *>(this)->m_length =
@@ -219,8 +242,8 @@ private:
   }
   template <typename V = T>
   ZuIfT<
-    !bool{ZuEquivChar<V, char>{}} &&
-    !bool{ZuEquivChar<V, wchar_t>{}}, unsigned> length_() const {
+    !bool{ZuEquiv<V, char>{}} &&
+    !bool{ZuEquiv<V, wchar_t>{}}, unsigned> length_() const {
     return m_length;
   }
 
@@ -341,7 +364,7 @@ public:
 
   template <typename A, decltype(ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Constructs>{}, int()) = 0>
+      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Constructs>(), int()) = 0>
   ZuArray(const A &a) { }
   template <typename A>
   ZuIfT<
@@ -363,7 +386,7 @@ public:
 
   template <typename A, decltype(ZuIfT<
       ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, void>::Constructs>{}, int()) = 0>
+      ZuInspect<typename ZuTraits<A>::Elem, void>::Constructs>(), int()) = 0>
   ZuArray(const A &a) { }
   template <typename A>
   ZuIfT<
@@ -378,9 +401,11 @@ template <typename T, typename N>
 ZuArray(T *data, N length) -> ZuArray<T>;
 
 template <typename Elem_>
-struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
+struct ZuTraits<ZuArray<Elem_>> : public ZuBaseTraits<ZuArray<Elem_>> {
   using Elem = Elem_;
-  using T = ZuArray<Elem>;
+private:
+  using Array = ZuArray<Elem>;
+public:
   enum {
     IsArray = 1, IsPrimitive = 0,
     IsString =
@@ -388,9 +413,9 @@ struct ZuTraits<ZuArray<Elem_> > : public ZuBaseTraits<ZuArray<Elem_> > {
       bool{ZuIsExact<wchar_t, ZuDecay<Elem>>{}},
     IsWString = bool{ZuIsExact<wchar_t, ZuDecay<Elem>>{}}
   };
-  static Elem *data(T &a) { return a.data(); }
-  static const Elem *data(const T &a) { return a.data(); }
-  static unsigned length(const T &a) { return a.length(); }
+  static Elem *data(Array &a) { return a.data(); }
+  static const Elem *data(const Array &a) { return a.data(); }
+  static unsigned length(const Array &a) { return a.length(); }
 };
 
 #ifdef _MSC_VER

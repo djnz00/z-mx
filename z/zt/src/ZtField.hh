@@ -3700,7 +3700,7 @@ struct ZtField_DateTimeVec<Base, Def, false> :
 template <typename Field>
 struct ZtFieldPrint_ {
   using O = typename Field::O;
-  using Print = typename Field::Type::Print<ZtFieldFmt::Default>;
+  using Print = typename Field::Type::template Print<ZtFieldFmt::Default>;
   const O &o;
   template <typename S>
   friend S &operator <<(S &s, const ZtFieldPrint_ &print) {

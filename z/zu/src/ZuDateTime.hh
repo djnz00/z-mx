@@ -329,7 +329,7 @@ public:
 
   // ZuTime
 
-  template <typename T, decltype(ZuExact<ZuTime, T>{}, int()) = 0>
+  template <typename T, decltype(ZuExact<ZuTime, T>(), int()) = 0>
   ZuDateTime(const T &t) {
     init(t.sec()), m_nsec = t.nsec();
   }
@@ -410,13 +410,13 @@ public:
   }
 
   // CSV format: YYYY/MM/DD HH:MM:SS with an optional timezone parameter
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuDateTime(const ZuDateTimeScan::CSV &fmt, const S &s) {
     scan(fmt, s);
   }
 
   // FIX format: YYYYMMDD-HH:MM:SS.nnnnnnnnn
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuDateTime(const ZuDateTimeScan::FIX &fmt, const S &s) {
     scan(fmt, s);
   }
@@ -424,17 +424,17 @@ public:
   // the ISO8601 ctor accepts the two standard ISO8601 date/time formats
   // "yyyy-mm-dd" and "yyyy-mm-ddThh:mm:ss[.n]Z", where Z is an optional
   // timezone: "Z" (GMT), "+hhmm", "+hh:mm", "-hhmm", or "-hh:mm"
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuDateTime(const ZuDateTimeScan::ISO &fmt, const S &s) {
     scan(fmt, s);
   }
   // default to ISO
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuDateTime(const S &s) {
     scan(ZuDateTimeScan::ISO{}, s);
   }
 
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuDateTime(const ZuDateTimeScan::Any &fmt, const S &s) {
     scan(fmt, s);
   }

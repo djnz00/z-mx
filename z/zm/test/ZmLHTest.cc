@@ -71,8 +71,7 @@ template <int N> struct String {
   struct Traits : public ZuBaseTraits<String> {
     using Elem = char;
     enum { IsPOD = 1, IsCString = 1, IsString = 1 };
-    template <typename U = String>
-    static ZuMutable<U, char *> data(U &s) { return s.data(); }
+    static char *data(String<N> &s) { return s.data(); }
     static const char *data(const String<N> &s) { return s.data(); }
     static unsigned length(const String<N> &s) { return s.length(); }
   };
@@ -83,8 +82,8 @@ template <int N> struct String {
 
 using S = String<16>;
 
-using Hash = ZmHashKV<S, int, ZmHashLock<ZmNoLock> >;
-using LHash = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock> >;
+using Hash = ZmHashKV<S, int, ZmHashLock<ZmNoLock>>;
+using LHash = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock>>;
 
 template <typename H>
 struct HashAdapter {

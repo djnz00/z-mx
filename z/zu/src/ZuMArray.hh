@@ -50,9 +50,34 @@ private:
   Array_	&m_array;
   unsigned	m_i;
 };
+
+template <typename Elem_>
+struct ElemTraits : public ZuTraits<typename Elem_::R> {
+  enum { IsPrimitive = 0, IsPOD = 0 };
+private:
+  using T = typename Elem_::T;
+  using R = typename Elem_::R;
+public:
+  using Elem = typename ZuTraits<R>::Elem;
+  template <typename U = R>
+  static ZuIfT<ZuTraits<U>::IsSpan && !ZuIsConst<U>{}, Elem *>
+  data(Elem_ &v) {
+    return ZuTraits<U>::data(v.get());
+  }
+  template <typename U = R>
+  static ZuMatchSpan<U, const Elem *> data(const Elem_ &v) {
+    return ZuTraits<U>::data(v.get());
+  }
+  template <typename U = R>
+  static ZuMatchArray<U, unsigned> length(const Elem_ &v) {
+    return ZuTraits<U>::length(v.get());
+  }
+};
 } // ZuMArray_
 template <typename Array, typename Elem>
 using ZuMArray_Iterator = ZuMArray_::Iterator<Array, Elem>;
+template <typename Elem>
+using ZuMArray_ElemTraits = ZuMArray_::ElemTraits<Elem>;
 
 template <typename T_, typename R_ = T_>
 class ZuMArray {
@@ -79,14 +104,14 @@ public:
       (*static_cast<Array *>(ptr))[i] = Elem_(ZuMv(elem));
     }} { }
 
-  template <typename Array, typename GetFn>
-  ZuMArray(Array &array, unsigned length, GetFn getFn) :
+  template <typename Array, typename GetFn_>
+  ZuMArray(Array &array, unsigned length, GetFn_ getFn) :
     m_ptr{&array},
     m_length{length},
     m_getFn{getFn} { }
 
-  template <typename Array, typename GetFn, typename SetFn>
-  ZuMArray(Array &array, unsigned length, GetFn getFn, SetFn setFn) :
+  template <typename Array, typename GetFn_, typename SetFn>
+  ZuMArray(Array &array, unsigned length, GetFn_ getFn, SetFn setFn) :
     m_ptr{&array},
     m_length{length},
     m_getFn{getFn},
@@ -96,6 +121,9 @@ public:
 friend Elem;
   class Elem {
   public:
+    using T = T_;
+    using R = R_;
+
     Elem() = delete;
     Elem(ZuMArray &array, unsigned i) : m_array{array}, m_i{i} { }
     Elem(const Elem &) = default;
@@ -103,9 +131,8 @@ friend Elem;
     Elem(Elem &&) = default;
     Elem &operator =(Elem &&) = default;
 
-    operator R() const {
-      return (*m_array.m_getFn)(m_array.m_ptr, m_i);
-    }
+    operator R() const { return (*m_array.m_getFn)(m_array.m_ptr, m_i); }
+
     Elem &operator =(T v) {
       (*m_array.m_setFn)(m_array.m_ptr, m_i, ZuMv(v));
       return *this;
@@ -119,10 +146,10 @@ friend Elem;
     operator <=>(const Elem &l, const Elem &r) { return l.cmp(r); }
 
     bool operator !() const { return !R(*this); }
-    ZuOpBool;
 
-    struct Traits : public ZuTraits<R> { enum { IsPrimitive = 0, IsPOD = 0 }; };
-    friend Traits ZuTraitsType(Elem *);
+    R get() const { return (*m_array.m_getFn)(m_array.m_ptr, m_i); }
+
+    friend ZuMArray_ElemTraits<Elem> ZuTraitsType(Elem *);
 
   private:
     ZuMArray	&m_array;

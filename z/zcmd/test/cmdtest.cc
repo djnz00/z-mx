@@ -85,8 +85,6 @@ ZmRef<CmdTest> server;
 
 void sigint() { if (server) server->post(); }
 
-#include <zlib/ZmDemangle.hh>
-
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {

@@ -22,7 +22,7 @@
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuUTF.hh>
-#include <zlib/ZuEquivChar.hh>
+#include <zlib/ZuEquiv.hh>
 #include <zlib/ZuArray.hh>
 
 template <typename T_> struct ZuStream_Char2;
@@ -49,43 +49,43 @@ protected:
   // from any string with same char (including string literals)
   template <typename U, typename V = Char> struct IsString :
     public ZuBool<(ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchString = ZuIfT<IsString<U>{}, R>;
 
   // from individual char
   template <typename U, typename V = Char> struct IsChar :
-    public ZuEquivChar<U, V> { };
+    public ZuEquiv<U, V> { };
   template <typename U, typename R = void>
   using MatchChar = ZuIfT<IsChar<U>{}, R>;
 
   // from char2 string (requires conversion)
   template <typename U, typename V = Char2> struct IsChar2String :
     public ZuBool<(ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from individual char2 (requires conversion, char->wchar_t only)
   template <typename U, typename V = Char2> struct IsChar2 :
-    public ZuBool<bool{ZuEquivChar<U, V>{}} &&
-      !bool{ZuEquivChar<U, wchar_t>{}}> { };
+    public ZuBool<bool{ZuEquiv<U, V>{}} &&
+      !bool{ZuEquiv<U, wchar_t>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
   template <typename U, typename V = Char> struct IsPDelegate :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Delegate> { };
+    public ZuBool<bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
   template <typename U, typename V = Char> struct IsPBuffer :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Buffer> { };
+    public ZuBool<bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char string)
   template <typename U, typename V = Char> struct IsReal :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
+    public ZuBool<bool{ZuEquiv<char, V>{}} && !bool{ZuEquiv<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
@@ -93,7 +93,7 @@ protected:
 
   // from primitive pointer (not an array, string, or otherwise printable)
   template <typename U, typename V = Char> struct IsPtr :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} &&
+    public ZuBool<bool{ZuEquiv<char, V>{}} &&
       ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString> { };
   template <typename U, typename R = void>

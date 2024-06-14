@@ -93,7 +93,7 @@ protected:
   template <typename U, typename V = T>
   struct IsString : public ZuBool<
       (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchString = ZuIfT<IsString<U>{}, R>;
 
@@ -102,7 +102,7 @@ protected:
   struct IsChar2String : public ZuBool<
       !ZuInspect<ZuNull, V>::Same &&
       (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
@@ -147,19 +147,19 @@ protected:
   // from printable type (if this is a char array)
   template <typename U, typename V = T>
   struct IsPDelegate :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Delegate> { };
+    public ZuBool<bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
   template <typename U, typename V = T>
   struct IsPBuffer :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Buffer> { };
+    public ZuBool<bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from real primitive types other than chars (if this is a char string)
   template <typename U, typename V = T>
   struct IsReal : public ZuBool<
-      bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
+      bool{ZuEquiv<char, V>{}} && !bool{ZuEquiv<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
@@ -618,7 +618,7 @@ public:
   }
 
   // miscellaneous types handled by base class
-  template <typename A, decltype(MatchCtorArg<A>{}, int()) = 0>
+  template <typename A, decltype(MatchCtorArg<A>(), int()) = 0>
   ArrayN(A &&a) : Base{Nop{}} {
     this->init(ZuFwd<A>(a));
   }
@@ -638,12 +638,12 @@ public:
   }
 
   // length
-  template <typename L, decltype(MatchCtorLength<L>{}, int()) = 0>
+  template <typename L, decltype(MatchCtorLength<L>(), int()) = 0>
   ArrayN(L l, bool initItems = !ZuTraits<T>::IsPrimitive) :
     Base(l, initItems) { }
 
   // arrays as ptr, length
-  template <typename A, decltype(ZuConvertible<A, T>{}, int()) = 0>
+  template <typename A, decltype(ZuConvertible<A, T>(), int()) = 0>
   ArrayN(const A *a, unsigned length) : Base{Nop{}} {
     this->init(a, length);
   }
@@ -672,8 +672,6 @@ public:
 	bool{ZuIsExact<wchar_t, ZuDecay<T>>{}},
       IsWString = bool{ZuIsExact<wchar_t, ZuDecay<T>>{}}
     };
-    template <typename U = ArrayN>
-    static typename ZuMutable<U, T *>::T data(U &a) { return a.data(); }
     static Elem *data(ArrayN &a) { return a.data(); }
     static const Elem *data(const ArrayN &a) { return a.data(); }
     static unsigned length(const ArrayN &a) { return a.length(); }

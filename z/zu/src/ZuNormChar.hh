@@ -13,8 +13,8 @@
 //
 // 16bit types are left as-is if wchar_t is not 16bit
 
-#ifndef ZuEquivChar_HH
-#define ZuEquivChar_HH
+#ifndef ZuNormChar_HH
+#define ZuNormChar_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
@@ -22,7 +22,6 @@
 
 #include <wchar.h>
 
-#include <zlib/ZuInspect.hh>
 #include <zlib/ZuInt.hh>
 
 template <typename U, typename W = wchar_t,
@@ -51,7 +50,4 @@ struct ZuNormChar_<U, W, 0, 1> { using T = W; };
 template <typename U>
 using ZuNormChar = typename ZuNormChar_<ZuDecay<U>>::T;
 
-template <typename U1, typename U2>
-struct ZuEquivChar : public ZuIsExact<ZuNormChar<U1>, ZuNormChar<U2>> { };
-
-#endif /* ZuEquivChar_HH */
+#endif /* ZuNormChar_HH */

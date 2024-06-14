@@ -40,7 +40,7 @@
 #include <zlib/ZuUTF.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuEquivChar.hh>
+#include <zlib/ZuEquiv.hh>
 
 #include <zlib/ZuMStream.hh>
 #include <zlib/ZmVHeap.hh>
@@ -107,7 +107,7 @@ private:
   template <typename U, typename V = Char> struct IsAnyCString : public ZuBool<
       !IsZtString<U>{} &&
       ZuTraits<U>::IsCString &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchAnyCString = ZuIfT<IsAnyCString<U>{}, R>;
 
@@ -123,7 +123,7 @@ private:
   struct IsOtherString : public ZuBool<
       !IsZtString<U>{} &&
       ZuTraits<U>::IsString && !ZuTraits<U>::IsCString &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchOtherString = ZuIfT<IsOtherString<U>{}, R>;
 
@@ -131,35 +131,35 @@ private:
   template <typename U, typename V = Char2>
   struct IsChar2String : public ZuBool<
       (ZuTraits<U>::IsArray || ZuTraits<U>::IsString) &&
-      bool{ZuEquivChar<typename ZuTraits<U>::Elem, V>{}}> { };
+      bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2String = ZuIfT<IsChar2String<U>{}, R>;
 
   // from individual char2 (requires conversion, char->wchar_t only)
   template <typename U, typename V = Char2> struct IsChar2 : public ZuBool<
-      bool{ZuEquivChar<U, V>{}} &&
-      !bool{ZuEquivChar<U, wchar_t>{}}> { };
+      bool{ZuEquiv<U, V>{}} &&
+      !bool{ZuEquiv<U, wchar_t>{}}> { };
   template <typename U, typename R = void>
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
   // from printable type (if this is a char array)
   template <typename U, typename V = Char> struct IsPrint : public ZuBool<
-      bool{ZuEquivChar<char, V>{}} &&
+      bool{ZuEquiv<char, V>{}} &&
       ZuPrint<U>::OK && !ZuPrint<U>::String> { };
   template <typename U, typename R = void>
   using MatchPrint = ZuIfT<IsPrint<U>{}, R>;
   template <typename U, typename V = Char> struct IsPDelegate : public ZuBool<
-      bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Delegate> { };
+      bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Delegate> { };
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<IsPDelegate<U>{}, R>;
   template <typename U, typename V = Char> struct IsPBuffer :
-    public ZuBool<bool{ZuEquivChar<char, V>{}} && ZuPrint<U>::Buffer> { };
+    public ZuBool<bool{ZuEquiv<char, V>{}} && ZuPrint<U>::Buffer> { };
   template <typename U, typename R = void>
   using MatchPBuffer = ZuIfT<IsPBuffer<U>{}, R>;
 
   // from any other real and primitive type (integers, floating point, etc.)
   template <typename U, typename V = Char> struct IsReal : public ZuBool<
-      bool{ZuEquivChar<char, V>{}} && !bool{ZuEquivChar<U, V>{}} &&
+      bool{ZuEquiv<char, V>{}} && !bool{ZuEquiv<U, V>{}} &&
       ZuTraits<U>::IsReal && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray> { };
   template <typename U, typename R = void>
@@ -167,7 +167,7 @@ private:
 
   // from primitive pointer (not an array, string, or otherwise printable)
   template <typename U, typename V = Char> struct IsPtr : public ZuBool<
-      bool{ZuEquivChar<char, V>{}} &&
+      bool{ZuEquiv<char, V>{}} &&
       ZuTraits<U>::IsPointer && ZuTraits<U>::IsPrimitive &&
       !ZuTraits<U>::IsArray && !ZuTraits<U>::IsString> { };
   template <typename U, typename R = void>
@@ -175,7 +175,7 @@ private:
 
   // from individual char
   template <typename U, typename V = Char> struct IsChar :
-    public ZuBool<bool{ZuEquivChar<U, V>{}}> { };
+    public ZuBool<bool{ZuEquiv<U, V>{}}> { };
   template <typename U, typename R = void>
   using MatchChar = ZuIfT<IsChar<U>{}, R>;
 
@@ -437,7 +437,7 @@ private:
   }
 
 public:
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZtString_(S &&s_, ZtIconv *iconv) {
     ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     convert_(s, iconv);
@@ -1285,7 +1285,7 @@ public:
     using Elem = Char;
     enum {
       IsCString = 1, IsString = 1,
-      IsWString = bool{ZuEquivChar<wchar_t, Char>{}}
+      IsWString = bool{ZuEquiv<wchar_t, Char>{}}
     };
     static Char *data(ZtString_ &s) { return s.data(); }
     static const Char *data(const ZtString_ &s) { return s.data(); }

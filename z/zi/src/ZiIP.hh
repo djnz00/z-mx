@@ -49,7 +49,7 @@ public:
   ZiIP(uint32_t n) { s_addr = htonl(n); }
   ZiIP &operator =(uint32_t n) { s_addr = htonl(n); return *this; }
 
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZiIP(S &&s) {
 #ifdef __GNUC__
 #pragma GCC diagnostic push

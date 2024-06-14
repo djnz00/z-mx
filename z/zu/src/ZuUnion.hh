@@ -295,7 +295,7 @@ private:
   struct Fwd_Ctor : public Fwd_Ctor_<ZuDecay<V>> { };
 
 public:
-  template <typename V, decltype(ZuIfT<!ZuUnion_IsVoid<V>{}>{}, int()) = 0>
+  template <typename V, decltype(ZuIfT<!ZuUnion_IsVoid<V>{}>(), int()) = 0>
   Union(V &&v) {
     Fwd_Ctor<V>::ctor(this, ZuFwd<V>(v));
   }

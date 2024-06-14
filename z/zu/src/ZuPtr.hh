@@ -71,14 +71,14 @@ public:
   ZuPtr(ZuPtr &&r) : m_object{r.m_object} {
     r.m_object = nullptr;
   }
-  template <typename R, decltype(MatchOtherPtr<ZuDeref<R>>{}, int()) = 0>
+  template <typename R, decltype(MatchOtherPtr<ZuDeref<R>>(), int()) = 0>
   ZuPtr(R &&r) :
     m_object{static_cast<T *>(const_cast<typename ZuDeref<R>::T *>(r.m_object))}
   {
     ZuBind<R>::mv(ZuFwd<R>(r), [](auto &&r) { r.m_object = nullptr; });
   }
   ZuPtr(T *o) : m_object{o} { }
-  template <typename O, decltype(MatchPtr<O>{}, int()) = 0>
+  template <typename O, decltype(MatchPtr<O>(), int()) = 0>
   ZuPtr(O *o) : m_object{static_cast<T *>(o)} { }
   ~ZuPtr() { if (T *o = m_object) delete o; }
 

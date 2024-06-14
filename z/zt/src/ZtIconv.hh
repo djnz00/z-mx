@@ -22,14 +22,16 @@
 // specialize ZtIconvFn for any output buffer type
 template <class Out> struct ZtIconvFn {
   enum { N = sizeof(typename ZuTraits<Out>::Elem) };
-  // set length of buffer in bytes, retaining/copying previous data if resized
+  // set length of buffer in bytes, retaining/copying previous data if resized,
   // returning actual length obtained (which can be less than requested)
-  ZuInline static size_t length(Out &buf, size_t n) {
+  static size_t length(Out &buf, size_t n) {
     buf.length((n + N - 1) / N);
     return buf.length() * N;
   }
   // return modifiable pointer to buffer data
-  ZuInline static char *data(Out &buf) { return (char *)buf.data(); }
+  static char *data(Out &buf) {
+    return reinterpret_cast<char *>(buf.data());
+  }
 };
 
 class ZtIconv {

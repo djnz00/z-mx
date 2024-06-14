@@ -304,6 +304,9 @@ public:
   struct Traits : public ZuBaseTraits<ZiIOVBuf> {
     using Elem = char;
     enum { IsCString = 0, IsString = 1, IsWString = 0 };
+    static char *data(ZiIOVBuf &buf) {
+      return reinterpret_cast<char *>(buf.data());
+    }
     static const char *data(const ZiIOVBuf &buf) {
       return reinterpret_cast<const char *>(buf.data());
     }

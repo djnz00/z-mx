@@ -403,14 +403,14 @@ public:
   ZuBox(const ZuBox &b) : m_val(b.m_val) { }
   ZuBox &operator =(const ZuBox &b) { m_val = b.m_val; return *this; }
 
-  template <typename R, decltype(ZuBox_MatchReal<R, T>{}, int()) = 0>
+  template <typename R, decltype(ZuBox_MatchReal<R, T>(), int()) = 0>
   ZuBox(R r) : m_val(r) { }
 
-  template <typename B, decltype(ZuMatchBoxed<B>{}, int()) = 0>
+  template <typename B, decltype(ZuMatchBoxed<B>(), int()) = 0>
   ZuBox(B b) :
     m_val(!*b ? static_cast<T>(Cmp::null()) : static_cast<T>(b.m_val)) { }
 
-  template <typename S, decltype(ZuMatchCharString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchCharString<S>(), int()) = 0>
   ZuBox(S &&s_) : m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
@@ -419,7 +419,7 @@ public:
   }
   template <
     typename Fmt, typename S,
-    decltype(ZuMatchCharString<S>{}, int()) = 0>
+    decltype(ZuMatchCharString<S>(), int()) = 0>
   ZuBox(Fmt, S &&s_) : m_val(Cmp::null()) {
     ZuString s(ZuFwd<S>(s_));
     typename Scan<Fmt>::T val = 0;
@@ -427,7 +427,7 @@ public:
       m_val = val;
   }
 
-  template <typename S, decltype(ZuBox_MatchCharPtr<S>{}, int()) = 0>
+  template <typename S, decltype(ZuBox_MatchCharPtr<S>(), int()) = 0>
   ZuBox(S s, unsigned len) : m_val(Cmp::null()) {
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s, len)))
@@ -435,7 +435,7 @@ public:
   }
   template <
     typename Fmt, typename S,
-    decltype(ZuBox_MatchCharPtr<S>{}, int()) = 0>
+    decltype(ZuBox_MatchCharPtr<S>(), int()) = 0>
   ZuBox(Fmt, S s, unsigned len) : m_val(Cmp::null()) {
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s, len)))

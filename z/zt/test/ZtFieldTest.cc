@@ -74,8 +74,8 @@ template <typename T>
 struct MinMax<T, decltype(T::minimum(), void())> {
   template <typename S>
   friend S &operator <<(S &s, const MinMax &m) {
-    s << " minimum=" << typename T::Print_<>{T::minimum()}
-      << " maximum=" << typename T::Print_<>{T::maximum()};
+    s << " minimum=" << typename T::template Print_<>{T::minimum()}
+      << " maximum=" << typename T::template Print_<>{T::maximum()};
     return s;
   }
 };
@@ -85,7 +85,7 @@ int main()
   using Fields = ZuFieldList<Foo>;
   ZuUnroll::all<Fields>([]<typename Field>() {
     std::cout << Field::id()
-      << " deflt=" << typename Field::Type::Print<>{Field::deflt()}
+      << " deflt=" << typename Field::Type::template Print<>{Field::deflt()}
       << MinMax<Field>{}
       << (Field::Type::Code == ZtFieldTypeCode::Bytes ? "" : "\n");
   });

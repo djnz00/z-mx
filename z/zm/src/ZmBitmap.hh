@@ -244,7 +244,7 @@ public:
     return (uint128_t)hwloc_bitmap_to_ith_ulong(m_map, 0) |
       ((uint128_t)hwloc_bitmap_to_ith_ulong(m_map, 1) << 64U);
   }
-  template <typename S, decltype(ZuMatchCharString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchCharString<S>(), int()) = 0>
   ZmBitmap(const S &s) : m_map{hwloc_bitmap_alloc()} { scan(s); }
   template <typename S>
   ZuMatchCharString<S, ZmBitmap &> operator =(const S &s) {

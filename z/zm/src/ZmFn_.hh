@@ -102,7 +102,7 @@ protected:
       m_object((uintptr_t)o) { }
   template <
     typename Invoker, typename O, 
-    decltype(ZuBase<ZmPolymorph, O, Pass>{}, int()) = 0>
+    decltype(ZuBase<ZmPolymorph, O, Pass>(), int()) = 0>
   ZmAnyFn(const Invoker &invoker, ZmRef<O> o) :
       m_invoker{reinterpret_cast<uintptr_t>(invoker)} {
     new (&m_object) ZmRef<O>(ZuMv(o));
@@ -216,11 +216,11 @@ private:
 
 public:
   // syntactic sugar for lambdas
-  template <typename L, decltype(MatchCallable<L>{}, int()) = 0>
+  template <typename L, decltype(MatchCallable<L>(), int()) = 0>
   ZmFn(L &&l) : ZmAnyFn{fn(ZuFwd<L>(l))} { }
   template <
     typename O, typename L,
-    decltype(MatchBoundCallable<ZuDeref<O>, L>{}, int()) = 0>
+    decltype(MatchBoundCallable<ZuDeref<O>, L>(), int()) = 0>
   ZmFn(O &&o, L &&l) :
       ZmAnyFn{fn(ZuFwd<O>(o), ZuFwd<L>(l))} { }
 

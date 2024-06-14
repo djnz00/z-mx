@@ -59,11 +59,11 @@ class ZuFixed {
 public:
   ZuFixed() = default;
 
-  template <typename M, decltype(ZuMatchIntegral<M>{}, int()) = 0>
+  template <typename M, decltype(ZuMatchIntegral<M>(), int()) = 0>
   constexpr ZuFixed(M m, unsigned e) :
     m_mantissa{int64_t(m)}, m_ndp{uint8_t(e)} { }
 
-  template <typename V, decltype(ZuMatchFloatingPoint<V>{}, int()) = 0>
+  template <typename V, decltype(ZuMatchFloatingPoint<V>(), int()) = 0>
   constexpr ZuFixed(V v, unsigned e) :
     m_mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(e))},
     m_ndp{uint8_t(e)} { }
@@ -161,11 +161,11 @@ public:
   }
 
   // scan from string
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuFixed(const S &s) {
     scan(s);
   }
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuFixed(const S &s, unsigned e) {
     scan(s, e);
   }
@@ -227,6 +227,12 @@ public:
   unsigned scan(ZuString s) { return scan<false>(s, 0); }
 
 public:
+  // traits
+  struct Traits : public ZuBaseTraits<ZuFixed> {
+    enum { IsReal = 1, IsSigned = 1 };
+  };
+  friend Traits ZuTraitsType(ZuFixed *);
+
   // printing
   template <typename S> void print(S &s) const;
   friend ZuPrintFn ZuPrintType(ZuFixed *);

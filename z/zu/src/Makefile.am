@@ -13,7 +13,7 @@ pkginclude_HEADERS = \
 	ZuStringFn.hh ZuStringN.hh ZuTraits.hh ZuTuple.hh ZuUnion.hh \
 	ZuVersion.hh Zu_aton.hh Zu_ntoa.hh ZuDecimalFn.hh ZuUTF.hh \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
-	ZuEquivChar.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
+	ZuNormChar.hh ZuEquiv.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
 	ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
 	ZuMStream.hh ZuMArray.hh \
 	zu_lib.h zu_decimal.h zu_time.h

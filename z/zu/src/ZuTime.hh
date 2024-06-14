@@ -114,7 +114,7 @@ public:
   }
 #endif
 
-  template <typename S, decltype(ZuMatchString<S>{}, int()) = 0>
+  template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZuTime(const S &s) { scan(s); }
 
   void null() {
