@@ -189,11 +189,12 @@ namespace Save {
 
   // iterated creation of a vector of structs
   template <typename T, typename Builder, typename L>
-  inline Offset<Vector<const T *>> structVecIter(Builder &fbb, unsigned n, L l) {
+  inline Offset<Vector<const T *>>
+  structVecIter(Builder &fbb, unsigned n, L l) {
     return fbb.template CreateVectorOfStructs<T>(n,
-	[l = ZuMv(l)](size_t i, T *ptr, void *) {
-      l(ptr, i);
-    }, static_cast<void *>(nullptr));
+      [l = ZuMv(l)](size_t i, T *ptr, void *) {
+	l(ptr, i);
+      }, static_cast<void *>(nullptr));
   }
 
   // inline creation of a vector of keyed offsets

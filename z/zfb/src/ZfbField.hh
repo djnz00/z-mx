@@ -375,7 +375,7 @@ namespace Save {
       });
   }
 
-#define ZfbField_SaveInt(width) \
+#define ZfbField_SaveIntVec(width) \
   template <typename Builder> \
   inline auto int##width##Vec( \
     Builder &fbb, ZtField_::Int##width##Vec a) \
@@ -394,10 +394,10 @@ namespace Save {
 	return uint##width##_t(a[i]); \
       }); \
   }
-  ZfbField_SaveInt(8)
-  ZfbField_SaveInt(16)
-  ZfbField_SaveInt(32)
-  ZfbField_SaveInt(64)
+  ZfbField_SaveIntVec(8)
+  ZfbField_SaveIntVec(16)
+  ZfbField_SaveIntVec(32)
+  ZfbField_SaveIntVec(64)
 
   template <typename Builder>
   inline auto int128Vec(Builder &fbb, ZtField_::Int128Vec a) {
@@ -481,7 +481,7 @@ namespace Load {
       });
   }
 
-#define ZfbField_LoadInt(width) \
+#define ZfbField_LoadIntVec(width) \
   inline const ZtField_::Int##width##Vec \
   int##width##Vec(const Vector<int##width##_t> *v) { \
     using Vec = Vector<int##width##_t>; \
@@ -499,10 +499,10 @@ namespace Load {
       }); \
   }
 
-  ZfbField_LoadInt(8)
-  ZfbField_LoadInt(16)
-  ZfbField_LoadInt(32)
-  ZfbField_LoadInt(64)
+  ZfbField_LoadIntVec(8)
+  ZfbField_LoadIntVec(16)
+  ZfbField_LoadIntVec(32)
+  ZfbField_LoadIntVec(64)
   
   inline const ZtField_::Int128Vec
   int128Vec(const Vector<const Int128 *> *v) {

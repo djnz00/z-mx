@@ -13,7 +13,7 @@
 //
 // in release mode, ZeBackTrace is called with a Fatal severity level;
 // the log event lambda uses captures to append msg to the log, and the
-// calling function will return with value
+// calling function will return with a default value
 
 // Example:
 //

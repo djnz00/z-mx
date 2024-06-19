@@ -30,22 +30,46 @@ struct UInt32 { ZuBigEndian<uint32_t> v; };
 OIDs::OIDs()
 {
   static const char *names[Value::N - 1] = {
-    "text",
-    "bytea",
-    "bool",
-    "int8",
-    "uint8",
-    "int1",
-    "uint8",
-    "float8",
-    "zdecimal",
-    "zdecimal",
-    "ztime",
-    "ztime",
-    "int16",
-    "uint16",
-    "inet",
-    "text"
+    "text",	// String
+    "bytea",	// Bytes
+    "bool",	// Bool
+    "int1",	// Int8
+    "uint1",	// UInt8
+    "int2",	// Int16
+    "uint2",	// UInt16
+    "int4",	// Int32
+    "uint4",	// UInt32
+    "int8",	// Int64
+    "uint8",	// UInt64
+    "int1",	// Enum
+    "uint16",	// Flags
+    "float8",	// Float
+    "zdecimal",	// Fixed
+    "zdecimal",	// Decimal
+    "ztime",	// Time
+    "ztime",	// DateTime
+    "int16",	// Int128
+    "uint16",	// UInt128
+    "inet",	// IP
+    "text",	// ID
+
+    "_text",	// StringVec
+    "_bytea",	// BytesVec
+    "_int1",	// Int8Vec
+    "_uint1",	// UInt8Vec
+    "_int2",	// Int16Vec
+    "_uint2",	// UInt16Vec
+    "_int4",	// Int32Vec
+    "_uint4",	// UInt32Vec
+    "_int8",	// Int64Vec
+    "_uint8",	// UInt64Vec
+    "_int16",	// Int128Vec
+    "_uint16",	// UInt128Vec
+    "_float8",	// FloatVec
+    "_zdecimal",// FixedVec
+    "_zdecimal",// DecimalVec
+    "_ztime",	// TimeVec
+    "_ztime"	// DateTimeVec
   };
 
   m_names = names;
@@ -943,10 +967,22 @@ StoreTbl::StoreTbl(
     rootTbl->fields();
   unsigned n = m_fields.length();
   m_xFields.size(n);
+  {
+    unsigned j = 0;
+    for (unsigned i = 0; i < n; i++)
+      if (m_fields[i]->props & ZtMFieldProp::Update) j++;
+    j += m_keyFields[0].length();
+    m_updFields.size(j);
+    m_xUpdFields.size(j);
+  }
   for (unsigned i = 0; i < n; i++)
     ZtCase::camelSnake(m_fields[i]->id,
       [this, fbFields_, i](const ZtString &id_) {
 	m_xFields.push(xField(fbFields_, m_fields[i], id_));
+	if (m_fields[i]->props & ZtMFieldProp::Update) {
+	  m_updFields.push(m_fields[i]);
+	  m_xUpdFields.push(xField(fbFields_, m_fields[i], id_));
+	}
 	m_fieldMap.add(id_, i);
       });
   n = m_keyFields.length();
@@ -963,6 +999,10 @@ StoreTbl::StoreTbl(
       ZtCase::camelSnake(m_keyFields[i][j]->id,
 	[this, fbFields_, i, j](const ZtString &id_) {
 	  m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id_));
+	  if (!i) {
+	    m_updFields.push(m_keyFields[i][j]);
+	    m_xUpdFields.push(xField(fbFields_, m_keyFields[i][j], id_));
+	  }
 	});
     }
   }
@@ -1826,6 +1866,39 @@ void StoreTbl::glob(
     }}});
   });
 }
+
+// reduce heap allocations with ZmAlloc()
+
+#define IDAlloc(appendSize) \
+  auto idSize = m_id_.length() + appendSize; \
+  auto id_ = ZmAlloc(char, idSize); \
+  ZtString id(&id_[0], 0, idSize, false);
+
+#define ParamAlloc(nParams) \
+  auto params_ = ZmAlloc(Value, nParams); \
+  Tuple params(&params_[0], 0, nParams, false)
+
+#define VecAlloc(nParams, xfields) \
+  unsigned nVecs = 0; \
+  for (unsigned i = 0; i < nParams; i++) \
+    if (isVec(xfields[i].type)) nVecs++; \
+  auto vecBufParts_ = ZmAlloc(VecBufPart, nVecs); \
+  ZtArray<VecBufPart> vecBufParts(&vecBufParts_[0], 0, nVecs, false); \
+  unsigned vecBufSize = 0; \
+  if (nVecs > 0) { \
+    auto fbo = Zfb::GetAnyRoot(glob.buf->data()); \
+    for (unsigned i = 0; i < nParams; i++) { \
+      if (!isVec(xfields[i].type)) continue; \
+      auto field = xfields[i].field; \
+      unsigned size = ZuSwitch::dispatch<Value::N>(xfields[i].type, \
+	  [field, fbo](auto Type) { return vecBufSize<Type>(field, fbo); }); \
+      vecBufParts.push(VecBufPart{vecBufSize, size}); \
+      vecBufSize += size; \
+    } \
+  } \
+  auto vecBuf_ = ZmAlloc(uint8_t, vecBufSize); \
+  ZtArray<uint8_t> vecBuf(&vecBuf_[0], 0, vecBufSize, false)
+
 int StoreTbl::glob_send(Work::Glob &glob)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
@@ -1840,20 +1913,15 @@ int StoreTbl::glob_send(Work::Glob &glob)
     });
     return SendState::Unsent;
   }
-  nParams += 2; // for offset, limit
-  auto idSize = m_id_.length() + 24;
-  // reduce heap allocations with ZmAlloc()
-  auto params_ = ZmAlloc(Value, nParams);
-  auto id_ = ZmAlloc(char, idSize);
-  Tuple params(&params_[0], 0, nParams, false);
-  ZtString id(&id_[0], 0, idSize, false);
-  if (nParams > 2)
-    params = loadTuple_(
-      params,
-      keyFields,
-      xKeyFields,
-      nParams - 2,
-      Zfb::GetAnyRoot(glob.buf->data()));
+
+  IDAlloc(24);
+  nParams += 2; // + 2 for offset, limit
+  ParamAlloc(nParams);
+  nParams -= 2;
+  VecAlloc(nParams, xKeyFields);
+
+  if (nParams > 0)
+    loadTuple(params, vecBuf, vecBufParts, keyFields, xKeyFields, fbo);
   new (params.push()) Value{UInt64{glob.offset}};
   new (params.push()) Value{UInt64{glob.limit}};
   id << m_id_ << "_glob_" << glob.keyID;
@@ -1951,17 +2019,13 @@ int StoreTbl::find_send(Work::Find &find)
   const auto &keyFields = m_keyFields[find.keyID];
   const auto &xKeyFields = m_xKeyFields[find.keyID];
   auto nParams = keyFields.length();
-  auto idSize = m_id_.length() + 24;
-  // reduce heap allocations with ZmAlloc()
-  auto params_ = ZmAlloc(Value, nParams);
-  auto id_ = ZmAlloc(char, idSize);
-  Tuple params(&params_[0], 0, nParams, false);
-  ZtString id(&id_[0], 0, idSize, false);
-  params = loadTuple_(
-    params,
-    keyFields,
-    xKeyFields,
-    nParams,
+
+  IDAlloc(24);
+  ParamAlloc(nParams);
+  VecAlloc(nParams, xKeyFields);
+
+  loadTuple(
+    params, vecBuf, vecBufParts, keyFields, xKeyFields, nParams,
     Zfb::GetAnyRoot(find.buf->data()));
   id << m_id_ << "_find_" << find.keyID;
   return m_store->sendPrepared<SendState::Flush, true>(id, params);
@@ -2156,35 +2220,48 @@ int StoreTbl::write_send(Work::Write &write)
 
   auto data = Zfb::Load::bytes(record->data());
   auto fbo = Zfb::GetAnyRoot(data.data());
-  auto nParams = 3 + m_fields.length();
-  auto idSize = m_id_.length() + 8;
-  // reduce heap allocations with ZmAlloc()
-  auto params_ = ZmAlloc(Value, nParams);
-  auto id_ = ZmAlloc(char, idSize);
-  Tuple params(&params_[0], 0, nParams, false);
-  ZtString id(&id_[0], 0, idSize, false);
   if (!record->vn()) {
+    auto nParams = m_fields.length() + 3; // +3 for un, sn, vn
+    IDAlloc(8);
+    ParamAlloc(nParams);
+    nParams -= 3;
+    VecAlloc(nParams, m_xFields);
     id << m_id_ << "_insert";
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
-    params = loadTuple(params, m_fields, m_xFields, fbo);
+    loadTuple(
+      params, vecBuf, vecBufParts, m_fields, m_xFields, fbo);
   } else if (record->vn() > 0) {
+    auto nParams = m_updFields.length() + 3; // +3 for un, sn, vn
+    IDAlloc(8);
+    ParamAlloc(nParams);
+    nParams -= 3;
+    VecAlloc(nParams, m_xUpdFields);
     id << m_id_ << "_update";
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
-    params = loadUpdTuple(params, m_fields, m_xFields, fbo);
-    params = loadTuple(params, m_keyFields[0], m_xKeyFields[0], fbo);
+    loadTuple(
+      params, vecBuf, vecBufParts, m_updFields, m_xUpdFields, fbo);
+    return m_store->sendPrepared<SendState::Sync, false>(id, params);
   } else if (!write.mrd) {
+    auto nParams = m_keyFields[0].length();
+    IDAlloc(8);
+    ParamAlloc(nParams);
+    VecAlloc(nParams, m_xKeyFields[0]);
     id << m_id_ << "_delete";
-    params = loadTuple(params, m_keyFields[0], m_xKeyFields[0], fbo);
+    loadTuple(
+      params, vecBuf, vecBufParts, m_keyFields[0], m_xKeyFields[0], fbo);
+    return m_store->sendPrepared<SendState::Sync, false>(id, params);
   } else {
     id << m_id_ << "_mrd";
+    IDAlloc(8);
+    ParamAlloc(2);
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
+    return m_store->sendPrepared<SendState::Sync, false>(id, params);
   }
-  return m_store->sendPrepared<SendState::Sync, false>(id, params);
 }
 void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
 {

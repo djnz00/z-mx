@@ -5,8 +5,8 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // monomorphic meta-array
-// * encapsulates any arbitrary array type into a known type that
-//   can be used in compiled library code interfaces
+// * encapsulates arbitrary array types into a single type that
+//   can be used in compiled code interfaces
 
 #ifndef ZuMArray_HH
 #define ZuMArray_HH
@@ -32,6 +32,10 @@ public:
 
   Iterator() = delete;
   Iterator(Array_ &array, unsigned i) : m_array{array}, m_i{i} { }
+  Iterator(const Iterator &) = default;
+  Iterator &operator =(const Iterator &) = default;
+  Iterator(Iterator &&) = default;
+  Iterator &operator =(Iterator &&) = default;
 
   Elem_ operator *() const { return m_array[m_i]; }
 
@@ -40,7 +44,9 @@ public:
   Iterator &operator--() { --m_i; return *this; }
   Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
 
-  bool operator ==(const Iterator &r) const { return m_i == r.m_i; }
+  bool operator ==(const Iterator &r) const {
+    return &m_array == &r.m_array && m_i == r.m_i;
+  }
 
   friend ptrdiff_t operator -(const Iterator &l, const Iterator &r) {
     return ptrdiff_t(l.m_i) - ptrdiff_t(r.m_i);

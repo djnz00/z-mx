@@ -23,6 +23,8 @@
 #include <zlib/ZuDateTime.hh>
 #include <zlib/ZuID.hh>
 
+#include <zlib/ZeAssert.hh>
+
 #include <zlib/ZiIP.hh>
 
 #include <zlib/ZdbStore.hh>
@@ -34,24 +36,40 @@ class StoreTbl;
 
 using namespace Zdb_;
 
-// Value    C++        flatbuffers     PG SQL        PG send/recv
-// -----    ---        -----------     ------        ------------
-// String   ZuString   String          text          raw data
-// Bytes    ZuBytes    Vector<uint8_t> bytea         raw data
-// Bool     bool       Bool            bool          uint8_t
-// Int64    int64_t    Long            int8     (*)  int64_t BE
-// UInt64   uint64_t   ULong           uint8    (*)  uint64_t BE
-// Enum     int        Byte            int1          int8_t
-// Flags    uint64_t   ULong           uint8    (*)  uint64_t BE
-// Float    double     Double          float8        double BE
-// Fixed    ZuFixed    Zfb.Fixed       zdecimal (**) int128_t BE
-// Decimal  ZuDecimal  Zfb.Decimal     zdecimal (**) int128_t BE
-// Time     ZuTime     Zfb.Time        ztime    (**) int64_t BE, int32_t BE
-// DateTime ZuDateTime Zfb.DateTime    ztime    (**) int64_t BE, int32_t BE
-// Int128   int128_t   Zfb.Int128      int16    (**) int128_t BE
-// UInt128  uint128_t  Zfb.UInt128     uint16   (**) uint128_t BE
-// IP       ZiIP       Zfb.IP          inet          IPHdr, ZuIP
-// ID       ZuID       Zfb.ID          text          raw data
+// Value     C++        flatbuffers     PG SQL        PG send/recv
+// -----     ---        -----------     ------        ------------
+// String    ZuString   string          text          raw data
+// Bytes     ZuBytes    [uint8_t]       bytea         raw data
+// Bool      bool       bool            bool          uint8_t
+// Int8      int8_t     int8            int1     (*)  int8_t
+// UInt8     uint8_t    uint8           uint1    (*)  uint8_t
+// Int16     int16_t    int16           int2     (*)  int16_t BE
+// UInt16    uint16_t   uint16          uint2    (*)  uint16_t BE
+// Int32     int32_t    int32           int4          int32_t BE
+// UInt32    uint32_t   uint32          uint4    (*)  uint32_t BE
+// Int64     int64_t    int64           int8          int64_t BE
+// UInt64    uint64_t   uint64          uint8    (*)  uint64_t BE
+// Enum      int        int8            int1     (*)  int8_t
+// Flags     uint64_t   uint64          uint8    (*)  uint64_t BE
+// Float     double     double          float8        double BE
+// Fixed     ZuFixed    Zfb.Fixed       zdecimal (**) int128_t BE
+// Decimal   ZuDecimal  Zfb.Decimal     zdecimal (**) int128_t BE
+// Time      ZuTime     Zfb.Time        ztime    (**) int64_t BE, int32_t BE
+// DateTime  ZuDateTime Zfb.DateTime    ztime    (**) int64_t BE, int32_t BE
+// Int128    int128_t   Zfb.Int128      int16    (**) int128_t BE
+// UInt128   uint128_t  Zfb.UInt128     uint16   (**) uint128_t BE
+// IP        ZiIP       Zfb.IP          inet          IPHdr, ZuIP
+// ID        ZuID       Zfb.ID          text          raw data
+//
+// <Type>Vec            [<Type>]        type[]        array (see below)
+
+// Postgres array binary format:
+// int32_t BE	number of dimensions
+// int32_t BE	flags (0 for no nulls, 1 for possible nulls)
+// int32_t BE	oid (OID of elements)
+// [{int32_t BE length, int32_t BE lower bound}...] dimensions (lb is 0-based)
+// [{int32_t BE length, data...}...] elements (-1 length for null)
+// Note that elements are appended without padding/alignment
 
 // (*)   Postgres uint extension https://github.com/djnz00/pguint
 // (**)  libz Postgres extension
@@ -68,14 +86,76 @@ using XKeyFields = ZtArray<XFields>;
 
 // --- value union (postgres binary send/receive format)
 
+#pragma pack(push, 1)
+// 1-dimensional postgres array - binary send/receive format
+struct VecHdr {
+  ZuBigEndian<int32_t>	ndim;	// = 1
+  ZuBigEndian<int32_t>	flags;	// = 0
+  ZuBigEndian<int32_t>	oid;	// OID of elements
+  ZuBigEndian<int32_t>	length;	// = N
+  ZuBigEndian<int32_t>	lbound;	// = 1 (SQL, sigh)
+};
+struct VecElem {
+  ZuBigEndian<int32_t>	length;	// size of element
+};
+#pragma pack(pop)
+inline unsigned vecSize(unsigned n, unsigned size) {
+  return sizeof(VecHdr) + n * (sizeof(VecElem) + size);
+}
+template <typename L>
+inline unsigned vecVarSize(unsigned n, L l) {
+  unsigned size = 0;
+  for (unsigned i = 0; i < n; i++) size += l(i);
+  return sizeof(VecHdr) + n * sizeof(VecElem) + size;
+}
+inline void vecInit(ZuArray<uint8_t> &buf, unsigned oid, unsigned n) {
+  new (buf.data()) VecHdr{1, 0, int32_t(oid), int32_t(n), 1};
+  buf.offset(sizeof(VecHdr));
+}
+template <typename L>
+inline void vecAppend(ZuArray<uint8_t> &buf, unsigned length, L l) {
+  new (buf.data()) VecElem{length};
+  buf.offset(sizeof(VecElem));
+  l(buf.data(), length);
+  buf.offset(length);
+}
+inline const VecHdr *vecHdr(ZuArray<const uint8_t> &buf) {
+  auto hdr = reinterpret_cast<const VecHdr *>(buf.data());
+  buf.offset(sizeof(VecHdr));
+  return hdr;
+}
+inline bool validateVecHdr(const VecHdr *hdr)
+{
+  ZeAssert(int32_t(hdr->ndim) == 1,
+    (i = int32_t(hdr->ndim)), "ndim=" << i, false);
+  ZeAssert(int32_t(hdr->lbound) == 1,
+    (i = int32_t(hdr->lbound)), "lbound=" << i, false);
+  return true;
+}
+template <typename L>
+inline auto vecElem(ZuArray<const uint8_t> &buf, L l) {
+  auto elem = reinterpret_cast<const VecElem *>(buf.data());
+  unsigned length = elem->length;
+  buf.offset(sizeof(VecElem));
+  auto ptr = buf.data();
+  buf.offset(length);
+  return l(ptr, length);
+}
+
 using String = ZuString;
 using Bytes = ZuBytes;
 #pragma pack(push, 1)
 struct Bool { uint8_t v; };
+struct Int8 { int8_t v; };
+struct UInt8 { uint8_t v; };
+struct Int16 { ZuBigEndian<int16_t> v; };
+struct UInt16 { ZuBigEndian<uint16_t> v; };
+struct Int32 { ZuBigEndian<int32_t> v; };
+struct UInt32 { ZuBigEndian<uint32_t> v; };
 struct Int64 { ZuBigEndian<int64_t> v; };
 struct UInt64 { ZuBigEndian<uint64_t> v; };
 struct Enum { int8_t v; };
-struct Flags { ZuBigEndian<uint64_t> v; };
+struct Flags { ZuBigEndian<uint128_t> v; };
 struct Float { ZuBigEndian<double> v; };
 struct Fixed { ZuBigEndian<int128_t> v; };
 struct Decimal { ZuBigEndian<int128_t> v; };
@@ -92,12 +172,36 @@ struct IPHdr {
 struct IP { IPHdr hdr; ZiIP addr; };
 struct ID { ZuID id; };
 #pragma pack(pop)
+// these must all be distinct types
+struct StringVec { ZuBytes v; };
+struct BytesVec { ZuBytes v; };
+struct Int8Vec { ZuBytes v; };
+struct UInt8Vec { ZuBytes v; };
+struct Int16Vec { ZuBytes v; };
+struct UInt16Vec { ZuBytes v; };
+struct Int32Vec { ZuBytes v; };
+struct UInt32Vec { ZuBytes v; };
+struct Int64Vec { ZuBytes v; };
+struct UInt64Vec { ZuBytes v; };
+struct Int128Vec { ZuBytes v; };
+struct UInt128Vec { ZuBytes v; };
+struct FloatVec { ZuBytes v; };
+struct FixedVec { ZuBytes v; };
+struct DecimalVec { ZuBytes v; };
+struct TimeVec { ZuBytes v; };
+struct DateTimeVec { ZuBytes v; };
 
 using Value_ = ZuUnion<
   void,
   String,
   Bytes,
   Bool,
+  Int8,
+  UInt8,
+  Int16,
+  UInt16,
+  Int32,
+  UInt32,
   Int64,
   UInt64,
   Enum,
@@ -110,27 +214,48 @@ using Value_ = ZuUnion<
   Int128,
   UInt128,
   IP,
-  ID>;
+  ID,
+
+  // all types after this are vectors, see isVec() below
+  StringVec,
+  BytesVec,
+  Int8Vec,
+  UInt8Vec,
+  Int16Vec,
+  UInt16Vec,
+  Int32Vec,
+  UInt32Vec,
+  Int64Vec,
+  UInt64Vec,
+  Int128Vec,
+  UInt128Vec,
+  FloatVec,
+  FixedVec,
+  DecimalVec,
+  TimeVec,
+  DateTimeVec>;
+
+enum { VecBase = Value_::Index<StringVec>{}; }
+
+inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
+
+template <typename L>
+inline auto dispatch(unsigned type, L l) {
+  return ZuSwitch::dispatch<VecBase>(type, ZuMv(l));
+}
+template <typename L>
+inline auto dispatchVec(unsigned type, L l) {
+  return ZuSwitch::dispatch<Value::N - VecBase>(
+    type - VecBase, [l = ZuMv(l)](auto I) mutable {
+      l(ZuUnsigned<I + VecBase>{});
+    });
+}
 
 struct Value : public Value_ {
   using Value_::Value_;
   using Value_::operator =;
   template <typename ...Args>
   Value(Args &&...args) : Value_{ZuFwd<Args>(args)...} { }
-
-  // invoke() skips void
-  template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuNotExact<void, T> invoke_(L l) { l(ZuUnsigned<I>{}); }
-  template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuExact<void, T> invoke_(L l) { }
-  template <typename L> static void invoke(L l, unsigned i) {
-    ZuSwitch::dispatch<Value_::N>(i, [l = ZuMv(l)](auto I) mutable {
-      invoke_<I>(ZuMv(l));
-    });
-  }
-  template <typename L> void invoke(L l) const {
-    invoke(ZuMv(l), this->type());
-  }
 
   // Postgres binary format loaders
 
@@ -143,7 +268,7 @@ struct Value : public Value_ {
   template <unsigned I, typename T = Value_::Type<I>>
   ZuExact<String, T, bool>
   load(const char *data, unsigned length) {
-    new (new_<I, true>()) String{data, length};
+    new (new_<I, true>()) T{data, length};
     return true;
   }
 
@@ -151,8 +276,15 @@ struct Value : public Value_ {
   template <unsigned I, typename T = Value_::Type<I>>
   ZuExact<Bytes, T, bool>
   load(const char *data, unsigned length) {
-    new (new_<I, true>())
-      Bytes{reinterpret_cast<const uint8_t *>(data), length};
+    new (new_<I, true>()) T{reinterpret_cast<const uint8_t *>(data), length};
+    return true;
+  }
+
+  // Vectors - zero-copy - relies on the PGresult remaining in scope
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<isVec(I), bool>
+  load(const char *data, unsigned length) {
+    new (new_<I, true>()) T{{reinterpret_cast<const uint8_t *>(data), length}};
     return true;
   }
 
@@ -165,7 +297,8 @@ struct Value : public Value_ {
   ZuIfT<
     !ZuIsExact<void, T>{} &&
     !ZuIsExact<String, T>{} &&
-    !ZuIsExact<Bytes, T>{}, bool>
+    !ZuIsExact<Bytes, T>{} &&
+    !isVec(I), bool>
   load(const char *data, unsigned length) {
     if (length != sizeof(T)) return false;
     memcpy(new_<I, true>(), data, length);
@@ -191,7 +324,7 @@ struct Value : public Value_ {
   data() const { return p<String>().data(); }
   template <unsigned I, typename T = Value_::Type<I>>
   ZuExact<String, T, unsigned>
-  length() const { return p<String>().length(); }
+  length() const { return p<T>().length(); }
 
   // Bytes - return raw byte data
   template <unsigned I, typename T = Value_::Type<I>>
@@ -201,20 +334,32 @@ struct Value : public Value_ {
   }
   template <unsigned I, typename T = Value_::Type<I>>
   ZuExact<Bytes, T, unsigned>
-  length() const { return p<Bytes>().length(); }
+  length() const { return p<T>().length(); }
+
+  // Vec - return raw byte data
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<isVec(I), const char *> data() const {
+    return reinterpret_cast<const char *>(p<T>().v.data());
+  }
+  template <unsigned I, typename T = Value_::Type<I>>
+  ZuIfT<isVec(I), unsigned> length() const {
+    return p<T>().v.length();
+  }
 
   // All other types - return bigendian packed struct
   template <unsigned I, typename T = Value_::Type<I>>
   ZuIfT<
     !ZuIsExact<void, T>{} &&
     !ZuIsExact<String, T>{} &&
-    !ZuIsExact<Bytes, T>{}, const char *>
+    !ZuIsExact<Bytes, T>{} &&
+    !isVec(I), const char *>
   data() const { return reinterpret_cast<const char *>(this); }
   template <unsigned I, typename T = Value_::Type<I>>
   ZuIfT<
     !ZuIsExact<void, T>{} &&
     !ZuIsExact<String, T>{} &&
-    !ZuIsExact<Bytes, T>{}, unsigned>
+    !ZuIsExact<Bytes, T>{} &&
+    !isVec(I), unsigned>
   length() const { return sizeof(T); }
 
   template <typename S>
@@ -225,554 +370,89 @@ struct Value : public Value_ {
   friend ZuPrintFn ZuPrintType(Value *);
 };
 
-// --- load value from flatbuffer
+// --- vector buffer sizes
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<String>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) String{Zfb::Load::str(Zfb::GetFieldS(*fbo, *field))};
-}
+inline ZuIfT<!isVec(Type), unsigned>
+vecBufSize(const reflection::Field *, const Zfb::Table *) { return 0; }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Bytes>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Bytes{Zfb::Load::bytes(Zfb::GetFieldV<uint8_t>(*fbo, *field))};
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Bool>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Bool{Zfb::GetFieldI<bool>(*fbo, *field)};
+inline ZuIfT<Type == Value::Index<StringVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  auto v = GetFieldV<Offset<String>>(*fbo, *field);
+  return vecVarSize(v->size(), [fbo, &v](unsigned i) -> unsigned {
+    return fbo->GetPointer<const String *>(v->Get(i))->size();
+  });
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Int64>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      new (ptr) Int64{Zfb::GetFieldI<uint8_t>(*fbo, *field)};
-      break;
-    case reflection::Byte:
-      new (ptr) Int64{Zfb::GetFieldI<int8_t>(*fbo, *field)};
-      break;
-    case reflection::Short:
-      new (ptr) Int64{Zfb::GetFieldI<int16_t>(*fbo, *field)};
-      break;
-    case reflection::Int:
-      new (ptr) Int64{Zfb::GetFieldI<int32_t>(*fbo, *field)};
-      break;
-    case reflection::Long:
-      new (ptr) Int64{Zfb::GetFieldI<int64_t>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
+inline ZuIfT<Type == Value::Index<BytesVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  auto v = GetFieldV<Offset<Vector<uint8_t>>>(*fbo, *field);
+  return vecVarSize(v->size(), [fbo, &v](unsigned i) -> unsigned {
+    return fbo->GetPointer<const Vector<uint8_t> *>(v->Get(i))->size();
+  });
+}
+
+#define ZdbPQ_IntVecBufSize(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) { \
+  using namespace Zfb; \
+  return vecSize( \
+    GetFieldV<int##width##_t>(*fbo, *field)->size(), sizeof(Int##width)); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) { \
+  using namespace Zfb; \
+  return vecSize( \
+    GetFieldV<uint##width##_t>(*fbo, *field)->size(), sizeof(UInt##width)); \
+}
+
+ZdbPQ_IntVecBufSize(8)
+ZdbPQ_IntVecBufSize(16)
+ZdbPQ_IntVecBufSize(32)
+ZdbPQ_IntVecBufSize(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<FloatVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  return vecSize(GetFieldV<double>(*fbo, *field)->size(), sizeof(Float));
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<UInt64>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      new (ptr) UInt64{Zfb::GetFieldI<uint8_t>(*fbo, *field)};
-      break;
-    case reflection::UByte:
-      new (ptr) UInt64{Zfb::GetFieldI<uint8_t>(*fbo, *field)};
-      break;
-    case reflection::UShort:
-      new (ptr) UInt64{Zfb::GetFieldI<uint16_t>(*fbo, *field)};
-      break;
-    case reflection::UInt:
-      new (ptr) UInt64{Zfb::GetFieldI<uint32_t>(*fbo, *field)};
-      break;
-    case reflection::ULong:
-      new (ptr) UInt64{Zfb::GetFieldI<uint64_t>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
+inline ZuIfT<Type == Value::Index<FixedVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  return vecSize(GetFieldV<Zfb::Fixed>(*fbo, *field)->size(), sizeof(Fixed));
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      new (ptr) Enum{int8_t(Zfb::GetFieldI<uint8_t>(*fbo, *field))};
-      break;
-    case reflection::Byte:
-      new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
-      break;
-    case reflection::Short:
-      new (ptr) Enum{int8_t(Zfb::GetFieldI<int16_t>(*fbo, *field))};
-      break;
-    case reflection::Int:
-      new (ptr) Enum{int8_t(Zfb::GetFieldI<int32_t>(*fbo, *field))};
-      break;
-    case reflection::Long:
-      new (ptr) Enum{int8_t(Zfb::GetFieldI<int64_t>(*fbo, *field))};
-      break;
-    default:
-      break;
-  }
+inline ZuIfT<Type == Value::Index<DecimalVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  return vecSize(
+    GetFieldV<Zfb::Decimal>(*fbo, *field)->size(), sizeof(Decimal));
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::ULong:
-      new (ptr) Flags{Zfb::GetFieldI<uint64_t>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
+inline ZuIfT<Type == Value::Index<TimeVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  return vecSize(
+    GetFieldV<Zfb::Time>(*fbo, *field)->size(), sizeof(Time));
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Float>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Float:
-      new (ptr) Float{Zfb::GetFieldF<float>(*fbo, *field)};
-      break;
-    case reflection::Double:
-      new (ptr) Float{Zfb::GetFieldF<double>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Fixed>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  ZuDecimal d =
-    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset()));
-  new (ptr) Fixed{d.value};
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Decimal>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  ZuDecimal d =
-    Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()));
-  new (ptr) Decimal{d.value};
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Time>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  auto t = fbo->GetPointer<const Zfb::Time *>(field->offset());
-  new (ptr) Time{ t->sec(), t->nsec() };
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<DateTime>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  ZuTime t =
-    Zfb::Load::dateTime(
-      fbo->GetPointer<const Zfb::DateTime *>(field->offset())).as_time();
-  new (ptr) ZuDateTime{ t.sec(), t.nsec() };
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Int128>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Int128{
-    Zfb::Load::int128(fbo->GetPointer<const Zfb::Int128 *>(field->offset()))
-  };
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<UInt128>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) UInt128{
-    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
-  };
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<IP>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) IP{
-    IPHdr{},
-    Zfb::Load::ip(fbo->GetPointer<const Zfb::IP *>(field->offset()))
-  };
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ID>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) ID{
-    Zfb::Load::id(fbo->GetPointer<const Zfb::ID *>(field->offset()))
-  };
-}
-
-inline void loadValue(
-  Value *value, const XField &xField, const Zfb::Table *fbo)
-{
-  if (ZuUnlikely(!xField.type))
-    new (value) Value{};
-  else
-    Value::invoke([value, field = xField.field, fbo](auto I) {
-      loadValue_<I>(value->new_<I, true>(), field, fbo);
-    }, xField.type);
-}
-
-// --- save value to flatbuffer
-
-using Offset = Zfb::Offset<void>;
-
-struct Offsets {
-  ZmAlloc_<Offset>	data;
-  unsigned		in = 0;
-  mutable unsigned	out = 0;
-
-  void push(Offset o) { data[in++] = o; }
-  Offset shift() const { return data[out++]; }
-};
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<String>{}>
-saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
-{
-  offsets.push(Zfb::Save::str(fbb, value.p<Type>()).Union());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Bytes>{}>
-saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
-{
-  offsets.push(Zfb::Save::bytes(fbb, value.p<Type>()).Union());
-}
-
-template <unsigned Type>
-inline ZuIfT<
-  Type != Value::Index<String>{} &&
-  Type != Value::Index<Bytes>{}>
-saveOffset_(Zfb::Builder &, Offsets &, const Value &) { }
-
-inline void saveOffset(
-  Zfb::Builder &fbb, Offsets &offsets,
-  const XField &xField, const Value &value)
-{
-  Value::invoke([&fbb, &offsets, &value](auto I) {
-    saveOffset_<I>(fbb, offsets, value);
-  }, xField.type);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<String>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &offsets,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddOffset(field->offset(), offsets.shift());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Bytes>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &offsets,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddOffset(field->offset(), offsets.shift());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Bool>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddElement<uint8_t>(
-    field->offset(), value.p<Type>().v, field->default_integer());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Int64>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      fbb.AddElement<uint8_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Byte:
-      fbb.AddElement<int8_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Short:
-      fbb.AddElement<int16_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Int:
-      fbb.AddElement<int32_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Long:
-      fbb.AddElement<int64_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<UInt64>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-    case reflection::UByte:
-      fbb.AddElement<uint8_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::UShort:
-      fbb.AddElement<uint16_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::UInt:
-      fbb.AddElement<uint32_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::ULong:
-      fbb.AddElement<uint64_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Byte:
-      fbb.AddElement<int8_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Short:
-      fbb.AddElement<int16_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Int:
-      fbb.AddElement<int32_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    case reflection::Long:
-      fbb.AddElement<int64_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::ULong:
-      fbb.AddElement<uint64_t>(
-	field->offset(), value.p<Type>().v, field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Float>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Float:
-      fbb.AddElement<float>(
-	field->offset(), value.p<Type>().v, field->default_real());
-      break;
-    case reflection::Double:
-      fbb.AddElement<double>(
-	field->offset(), value.p<Type>().v, field->default_real());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Fixed>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::fixed(
-    ZuFixed{ZuDecimal{ZuDecimal::Unscaled{value.p<Type>().v}}});
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Decimal>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::decimal(
-    ZuDecimal{ZuDecimal::Unscaled{value.p<Type>().v}});
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Time>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  const auto &v_ = value.p<Type>();
-  auto v = Zfb::Save::time(ZuTime{v_.sec, v_.nsec});
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<DateTime>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  const auto &v_ = value.p<Type>();
-  auto v = Zfb::Save::dateTime(ZuDateTime{ZuTime{v_.sec, v_.nsec}});
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Int128>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::int128(value.p<Type>().v);
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<UInt128>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::uint128(value.p<Type>().v);
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<IP>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::ip(value.p<Type>().addr);
-  fbb.AddStruct(field->offset(), &v);
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ID>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::id(value.p<Type>().id);
-  fbb.AddStruct(field->offset(), &v);
-}
-
-inline void saveValue(
-  Zfb::Builder &fbb, const Offsets &offsets,
-  const XField &xField, const Value &value)
-{
-  Value::invoke([&fbb, &offsets, field = xField.field, &value](auto I) {
-    saveValue_<I>(fbb, offsets, field, value);
-  }, xField.type);
-}
-
-// --- data tuple
-
-using Tuple = ZtArray<Value>;
-
-// load tuple from flatbuffer
-Tuple loadTuple_(
-  Tuple tuple,
-  const ZtMFields &fields,
-  const XFields &xFields,
-  unsigned n,
-  const Zfb::Table *fbo)
-{
-  tuple.ensure(tuple.length() + n);
-  for (unsigned i = 0; i < n; i++)
-    loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
-  return tuple;
-}
-template <typename Filter>
-Tuple loadTuple_(
-  Tuple tuple,
-  const ZtMFields &fields,
-  const XFields &xFields,
-  unsigned n,
-  const Zfb::Table *fbo,
-  Filter filter)
-{
-  tuple.ensure(tuple.length() + n);
-  for (unsigned i = 0; i < n; i++)
-    if (!filter(fields[i]))
-      loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
-  return tuple;
-}
-Tuple loadTuple(Tuple tuple,
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
-{
-  return loadTuple_(
-    ZuMv(tuple), fields, xFields, fields.length(), fbo,
-    [](const ZtMField *) { return false; });
-}
-Tuple loadUpdTuple(Tuple tuple,
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
-{
-  return loadTuple_(
-    ZuMv(tuple), fields, xFields, fields.length(), fbo,
-    [](const ZtMField *field) {
-      return !(field->props & ZtMFieldProp::Update);
-    });
-}
-
-// save tuple to flatbuffer
-Offset saveTuple(
-  Zfb::Builder &fbb,
-  const XFields &xFields,
-  ZuArray<const Value> tuple)
-{
-  unsigned n = xFields.length();
-  ZmAssert(tuple.length() == n);
-  Offsets offsets{ZmAlloc(Offset, n)};
-  for (unsigned i = 0; i < n; i++)
-    saveOffset(fbb, offsets, xFields[i], tuple[i]);
-  auto start = fbb.StartTable();
-  for (unsigned i = 0; i < n; i++)
-    saveValue(fbb, offsets, xFields[i], tuple[i]);
-  auto end = fbb.EndTable(start);
-  return Offset{end};
+inline ZuIfT<Type == Value::Index<DateTimeVec>{}>
+vecBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
+  using namespace Zfb;
+  return vecSize(
+    GetFieldV<Zfb::DateTime>(*fbo, *field)->size(), sizeof(DateTime));
 }
 
 // --- postgres OIDs, type names
@@ -821,6 +501,866 @@ private:
   Types		m_types;
   Lookup	m_lookup;
 };
+
+// --- load value from flatbuffer for sending to postgres
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<void>{}>
+loadValue(void *, const reflection::Field *, const Zfb::Table *) { }
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<String>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) String{Zfb::Load::str(Zfb::GetFieldS(*fbo, *field))};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Bytes>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Bytes{Zfb::Load::bytes(Zfb::GetFieldV<uint8_t>(*fbo, *field))};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Bool>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Bool{Zfb::GetFieldI<bool>(*fbo, *field)};
+}
+
+#define ZdbPQ_LoadInt(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  new (ptr) Int##width{Zfb::GetFieldI<int##width##_t>(*fbo, *field)}; \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  new (ptr) UInt##width{Zfb::GetFieldI<uint##width##_t>(*fbo, *field)}; \
+}
+
+ZdbPQ_LoadInt(8)
+ZdbPQ_LoadInt(16)
+ZdbPQ_LoadInt(32)
+ZdbPQ_LoadInt(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Enum>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Flags>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Flags{
+    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
+  };
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Float>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Float{Zfb::GetFieldF<double>(*fbo, *field)};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Fixed>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  ZuDecimal d =
+    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset()));
+  new (ptr) Fixed{d.value};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Decimal>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  ZuDecimal d =
+    Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()));
+  new (ptr) Decimal{d.value};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Time>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto t = fbo->GetPointer<const Zfb::Time *>(field->offset());
+  new (ptr) Time{t->sec(), t->nsec()};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DateTime>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto t =
+    Zfb::Load::dateTime(
+      fbo->GetPointer<const Zfb::DateTime *>(field->offset())).as_time();
+  new (ptr) ZuDateTime{t.sec(), t.nsec()};
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Int128{
+    Zfb::Load::int128(fbo->GetPointer<const Zfb::Int128 *>(field->offset()))
+  };
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) UInt128{
+    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
+  };
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<IP>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) IP{
+    IPHdr{},
+    Zfb::Load::ip(fbo->GetPointer<const Zfb::IP *>(field->offset()))
+  };
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ID>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) ID{
+    Zfb::Load::id(fbo->GetPointer<const Zfb::ID *>(field->offset()))
+  };
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<StringVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) StringVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Offset<String>>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<String>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto s = fbo->GetPointer<const String *>(v->Get(i));
+    vecAppend(vecBuf, s->size(), [s](uint8_t *ptr, unsigned size) {
+      memcpy(ptr, s->Data(), size);
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<BytesVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) BytesVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Offset<Vector<uint8_t>>>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Bytes>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto b = fbo->GetPointer<const Vector<uint8_t> *>(v->Get(i));
+    vecAppend(vecBuf, b->size(), [b](uint8_t *ptr, unsigned size) {
+      memcpy(ptr, b->Data(), size);
+    });
+  }
+}
+
+#define ZdbPQ_LoadIntVec(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
+loadVecValue( \
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart, \
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo) \
+{ \
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>()); \
+  new (ptr) Int##width##Vec{ZuBytes(vecBuf)}; \
+  auto v = GetFieldV<int##width##_t>(*fbo, *field); \
+  unsigned n = v->size(); \
+  vecInit(vecBuf, oids.oid(Value::Index<Int##width>{}), n); \
+  for (unsigned i = 0; i < n; i++) { \
+    auto e = v->Get(i); \
+    vecAppend(vecBuf, sizeof(Int##width), [e](uint8_t *ptr, unsigned) { \
+      new (ptr) Int##width{e}; \
+    }); \
+  } \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
+loadVecValue( \
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart, \
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo) \
+{ \
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>()); \
+  new (ptr) UInt##width##Vec{ZuBytes(vecBuf)}; \
+  auto v = GetFieldV<uint##width##_t>(*fbo, *field); \
+  unsigned n = v->size(); \
+  vecInit(vecBuf, oids.oid(Value::Index<UInt##width>{}), n); \
+  for (unsigned i = 0; i < n; i++) { \
+    auto e = v->Get(i); \
+    vecAppend(vecBuf, sizeof(UInt##width), [e](uint8_t *ptr, unsigned) { \
+      new (ptr) UInt##width{e}; \
+    }); \
+  } \
+}
+
+ZdbPQ_LoadIntVec(8)
+ZdbPQ_LoadIntVec(16)
+ZdbPQ_LoadIntVec(32)
+ZdbPQ_LoadIntVec(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128Vec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) Int128Vec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::Int128>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Int128>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(Int128), [e](uint8_t *ptr, unsigned) {
+      new (ptr) Int128{Zfb::Load::int128(e)};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128Vec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) UInt128Vec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::UInt128>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<UInt128>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(UInt128), [e](uint8_t *ptr, unsigned) {
+      new (ptr) UInt128{Zfb::Load::uint128(e)};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<FloatVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) FloatVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<double>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Float>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(double), [e](uint8_t *ptr, unsigned) {
+      new (ptr) Float{e};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<FixedVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) FixedVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::Fixed>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Fixed>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(Fixed), [e](uint8_t *ptr, unsigned) {
+      new (ptr) Fixed{ZuDecimal{Zfb::Load::fixed(e)}.value};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DecimalVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) DecimalVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::Decimal>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Decimal>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(Decimal), [e](uint8_t *ptr, unsigned) {
+      new (ptr) Decimal{Zfb::Load::decimal(e).value};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<TimeVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) TimeVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::Time>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<Time>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(Time), [e](uint8_t *ptr, unsigned) {
+      new (ptr) Time{e->sec(), e->nsec()};
+    });
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DateTimeVec>{}>
+loadVecValue(
+  void *ptr, VecBuf &vecBuf_, const VecBufPart &vecBufPart,
+  const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
+{
+  ZuArray<uint8_t> vecBuf(&vecBuf_[vecBufPart.p<0>()], vecBufPart.p<1>());
+  new (ptr) DateTimeVec{ZuBytes(vecBuf)};
+  auto v = GetFieldV<Zfb::DateTime>(*fbo, *field);
+  unsigned n = v->size();
+  vecInit(vecBuf, oids.oid(Value::Index<DateTime>{}), n);
+  for (unsigned i = 0; i < n; i++) {
+    auto e = v->Get(i);
+    vecAppend(vecBuf, sizeof(DateTime), [e](uint8_t *ptr, unsigned) {
+      auto t = Zfb::Load::dateTime(e).as_time();
+      new (ptr) DateTime{t.sec(), t.nsec()};
+    });
+  }
+}
+
+// --- save value to flatbuffer
+
+using Offset = Zfb::Offset<void>;
+
+struct Offsets {
+  ZmAlloc_<Offset>	data;
+  unsigned		in = 0;
+  mutable unsigned	out = 0;
+
+  void push(Offset o) { data[in++] = o; }
+  Offset shift() const { return data[out++]; }
+};
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<String>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  offsets.push(Zfb::Save::str(fbb, value.p<Type>()).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Bytes>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  offsets.push(Zfb::Save::bytes(fbb, value.p<Type>()).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<StringVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<StringVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(
+    Zfb::Save::strVecIter(fbb, n, [&vecBuf](unsigned) {
+      return vecElem(vecBuf, [](const uint8_t *ptr, unsigned length) {
+	return ZuString{ptr, length};
+      });
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<BytesVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<BytesVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(Zfb::Save::vectorIter<Zfb::Vector<uint8_t>>(fbb, n,
+    [&vecBuf](Zfb::Builder &fbb, unsigned) {
+      return Zfb::Save::bytes(fbb,
+	vecElem(vecBuf, [](const uint8_t *ptr, unsigned length) {
+	  return ZuBytes{ptr, length};
+	}));
+    }).Union());
+}
+
+#define ZdbPQ_SaveIntVec(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value) \
+{ \
+  ZuArray<const uint8_t> vecBuf = value.p<Int##width##Vec>().v; \
+  auto hdr = vecHdr(vecBuf); \
+  if (!validateVecHdr(hdr)) return; \
+  unsigned n = int32_t(hdr->length); \
+  offsets.push(pvectorIter(fbb, n, [&vecBuf](unsigned) { \
+    return vecElem(vecBuf, [](const uint8_t *ptr, unsigned) { \
+      return int##width##_t(*reinterpret_cast<const Int##width *>(ptr)->v); \
+    }); \
+  }).Union()); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value) \
+{ \
+  ZuArray<const uint8_t> vecBuf = value.p<UInt##width##Vec>().v; \
+  auto hdr = vecHdr(vecBuf); \
+  if (!validateVecHdr(hdr)) return; \
+  unsigned n = int32_t(hdr->length); \
+  offsets.push(pvectorIter(fbb, n, [&vecBuf](unsigned) { \
+    return vecElem(vecBuf, [](const uint8_t *ptr, unsigned) { \
+      return uint##width##_t(*reinterpret_cast<const UInt##width *>(ptr)->v); \
+    }); \
+  }).Union()); \
+}
+
+ZdbPQ_SaveIntVec(8)
+ZdbPQ_SaveIntVec(16)
+ZdbPQ_SaveIntVec(32)
+ZdbPQ_SaveIntVec(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128Vec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<Int128Vec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::Int128>(fbb, n, [&vecBuf](Zfb::Int128 *ptr, unsigned) {
+    *ptr = Zfb::Save::int128(vecElem(vecBuf, [](const uint8_t *ptr, unsigned) {
+      return int128_t(*reinterpret_cast<const Int128 *>(ptr)->v);
+    }));
+  }).Union());
+}
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128Vec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<UInt128Vec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::UInt128>(fbb, n, [&vecBuf](Zfb::UInt128 *ptr, unsigned) {
+    *ptr = Zfb::Save::uint128(vecElem(vecBuf, [](const uint8_t *ptr, unsigned) {
+      return uint128_t(*reinterpret_cast<const UInt128 *>(ptr)->v);
+    }));
+  }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<FloatVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<FloatVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(pvectorIter(fbb, n, [&vecBuf](unsigned) {
+    return vecElem(vecBuf, [](const uint8_t *ptr, unsigned) {
+      return double(*reinterpret_cast<const Float *>(ptr)->v);
+    });
+  }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<FixedVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<FixedVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::Fixed>(fbb, n,
+    [&vecBuf](Zfb::Fixed *ptr, unsigned) {
+      *ptr = Zfb::Save::fixed(vecElem(vecBuf,
+	[](const uint8_t *ptr, unsigned) {
+	  return ZuFixed{ZuDecimal{ZuDecimal::Unscaled{
+	    *reinterpret_cast<const Fixed *>(ptr)->v
+	  }}};
+	}));
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DecimalVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<DecimalVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::Decimal>(fbb, n,
+    [&vecBuf](Zfb::Decimal *ptr, unsigned) {
+      *ptr = Zfb::Save::decimal(vecElem(vecBuf,
+	[](const uint8_t *ptr, unsigned) {
+	  return ZuDecimal{ZuDecimal::Unscaled{
+	    *reinterpret_cast<const Decimal *>(ptr)->v
+	  }};
+	}));
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<TimeVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<TimeVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::Time>(fbb, n,
+    [&vecBuf](Zfb::Time *ptr, unsigned) {
+      *ptr = Zfb::Save::time(vecElem(vecBuf,
+	[](const uint8_t *ptr, unsigned) {
+	  auto t = reinterpret_cast<const Time *>(ptr);
+	  return ZuTime{t->sec, t->nsec};
+	}));
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DateTimeVec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  ZuArray<const uint8_t> vecBuf = value.p<DateTimeVec>().v;
+  auto hdr = vecHdr(vecBuf);
+  if (!validateVecHdr(hdr)) return;
+  unsigned n = int32_t(hdr->length);
+  offsets.push(structVecIter<Zfb::DateTime>(fbb, n,
+    [&vecBuf](Zfb::DateTime *ptr, unsigned) {
+      *ptr = Zfb::Save::dateTime(vecElem(vecBuf,
+	[](const uint8_t *ptr, unsigned) {
+	  auto t = reinterpret_cast<const DateTime *>(ptr);
+	  return ZuDateTime{ZuTime{t->sec, t->nsec}};
+	}));
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<
+  Type != Value::Index<String>{} &&
+  Type != Value::Index<Bytes>{} &&
+  !isVec(Type)>
+saveOffset(Zfb::Builder &, Offsets &, const Value &) { }
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Bool>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  fbb.AddElement<uint8_t>(
+    field->offset(), value.p<Type>().v, field->default_integer());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int64>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  switch (field->type()->base_type()) {
+    case reflection::Bool:
+      fbb.AddElement<uint8_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Byte:
+      fbb.AddElement<int8_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Short:
+      fbb.AddElement<int16_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Int:
+      fbb.AddElement<int32_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Long:
+      fbb.AddElement<int64_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    default:
+      break;
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt64>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  switch (field->type()->base_type()) {
+    case reflection::Bool:
+    case reflection::UByte:
+      fbb.AddElement<uint8_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::UShort:
+      fbb.AddElement<uint16_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::UInt:
+      fbb.AddElement<uint32_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::ULong:
+      fbb.AddElement<uint64_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    default:
+      break;
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Enum>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  switch (field->type()->base_type()) {
+    case reflection::Byte:
+      fbb.AddElement<int8_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Short:
+      fbb.AddElement<int16_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Int:
+      fbb.AddElement<int32_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    case reflection::Long:
+      fbb.AddElement<int64_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    default:
+      break;
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Flags>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  switch (field->type()->base_type()) {
+    case reflection::ULong:
+      fbb.AddElement<uint64_t>(
+	field->offset(), value.p<Type>().v, field->default_integer());
+      break;
+    default:
+      break;
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Float>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  switch (field->type()->base_type()) {
+    case reflection::Float:
+      fbb.AddElement<float>(
+	field->offset(), value.p<Type>().v, field->default_real());
+      break;
+    case reflection::Double:
+      fbb.AddElement<double>(
+	field->offset(), value.p<Type>().v, field->default_real());
+      break;
+    default:
+      break;
+  }
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Fixed>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::fixed(
+    ZuFixed{ZuDecimal{ZuDecimal::Unscaled{value.p<Type>().v}}});
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Decimal>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::decimal(
+    ZuDecimal{ZuDecimal::Unscaled{value.p<Type>().v}});
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Time>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  const auto &v_ = value.p<Type>();
+  auto v = Zfb::Save::time(ZuTime{v_.sec, v_.nsec});
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<DateTime>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  const auto &v_ = value.p<Type>();
+  auto v = Zfb::Save::dateTime(ZuDateTime{ZuTime{v_.sec, v_.nsec}});
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::int128(value.p<Type>().v);
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::uint128(value.p<Type>().v);
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<IP>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::ip(value.p<Type>().addr);
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ID>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  auto v = Zfb::Save::id(value.p<Type>().id);
+  fbb.AddStruct(field->offset(), &v);
+}
+
+template <unsigned Type>
+inline ZuIfT<
+  Type == Value::Index<String>{} ||
+  Type == Value::Index<Bytes>{} ||
+  isVec(Type)>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &offsets,
+  const reflection::Field *field, const Value &value)
+{
+  fbb.AddOffset(field->offset(), offsets.shift());
+}
+
+// --- data tuple
+
+using Tuple = ZtArray<Value>;
+using VecBuf = ZtArray<uint8_t>;
+using VecBufPart = ZuTuple<unsigned, unsigned>;	// offset, length
+using VecBufParts = ZtArray<VecBufPart>;
+
+// load tuple from flatbuffer
+void loadTuple(
+  Tuple &tuple,
+  VecBuf &vecBuf,
+  VecBufParts &vecBufParts,
+  const OIDs &oids,
+  const ZtMFields &fields,
+  const XFields &xFields,
+  const Zfb::Table *fbo)
+{
+  unsigned n = fields.length();
+  unsigned j = 0;
+  for (unsigned i = 0; i < n; i++) {
+    auto value = static_cast<Value *>(tuple.push());
+    auto type = xFields[i].type;
+    if (!isVec(type))
+      dispatch(type, [value, field = xFields[i].field, fbo](auto I) {
+	loadValue<I>(value->new_<I, true>(), field, fbo);
+      });
+    else {
+      auto &vecBufPart = vecBufParts[j++];
+      dispatchVec(type, [
+	value, &vecBuf, &vecBufPart, &oids, field = xFields[i].field, fbo
+      ](auto I) {
+	loadVecValue<I>(
+	  value->new_<I, true>(), vecBuf, vecBufPart, oids, field, fbo);
+      });
+    }
+  }
+}
+
+// save tuple to flatbuffer
+Offset saveTuple(
+  Zfb::Builder &fbb,
+  const XFields &xFields,
+  ZuArray<const Value> tuple)
+{
+  unsigned n = xFields.length();
+  ZmAssert(tuple.length() == n);
+  Offsets offsets{ZmAlloc(Offset, n)};
+  auto start = fbb.StartTable();
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xFields[i].type;
+    const auto &value = tuple[i];
+    ZuSwitch::dispatch<Value::N>(type,
+      [&fbb, &offsets, &value](auto I) {
+	saveOffset<I>(fbb, offsets, value);
+      });
+  }
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xFields[i].type;
+    const auto &value = tuple[i];
+    ZuSwitch::dispatch<Value::N>(type,
+      [&fbb, &offsets, field = xFields[i].field, &value](auto I) {
+	saveValue<I>(fbb, offsets, field, value);
+      });
+  }
+  auto end = fbb.EndTable(start);
+  return Offset{end};
+}
 
 namespace SendState {
   ZtEnumValues(SendState,
@@ -1111,9 +1651,11 @@ private:
   Store			*m_store = nullptr;
   ZuID			m_id;
   ZtString		m_id_;		// snake case
-  ZtMFields		m_fields;
-  ZtMKeyFields		m_keyFields;
+  ZtMFields		m_fields;	// all fields
+  ZtMFields		m_updFields;	// update fields
+  ZtMKeyFields		m_keyFields;	// fields for each key
   XFields		m_xFields;
+  XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
   ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
   FieldMap		m_fieldMap;

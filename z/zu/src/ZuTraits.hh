@@ -4,10 +4,42 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// type traits
+// type traits and array type normalization
 
 // cv qualifiers are stripped:
 // ZuTraits<T> is equivalent to ZuTraits<ZuStrip<T>>
+//
+// Trait		Description
+// -----		-----------
+// IsArray		array
+// IsSpan		span (contiguous in memory) (implies IsArray)
+//
+// IsComposite		class/struct/union
+// IsEmpty		empty composite type
+// IsEnum		enum
+// IsPOD		plain ole' data
+//
+// IsReference		reference
+// IsRValueRef		rvalue reference
+// IsPointer		pointer
+// IsPrimitive		primitive
+// IsReal		real (integer, floating point, fixed point, etc.)
+// IsSigned		signed
+// IsIntegral		integer
+// IsFloatingPoint	floating point
+//
+// IsString		string (possibly wide)
+// IsCString		C string (i.e. null-terminated)
+// IsWString		wide string (using wchar_t)
+// IsVoid		is void (convenience trait for ZuIsExact<void, T>{})
+// IsBool		is bool (convenience trait for ZuIsExact<bool, T>{})
+// 
+// Array Type Normalization
+// ------------------------
+// Elem				type of element, if IsArray (void if not)
+// Elem *data(T &)		pointer to start of array data, if IsSpan
+// const Elem *data(const T &)	const pointer to start of array data, if IsSpan
+// length(const T &)		length of array, if IsArray
 
 // class UDT {
 //   ...
@@ -117,7 +149,7 @@ struct ZuBaseTraits_Array<U,
 // default generic traits
 
 template <typename T> struct ZuBaseTraits : public ZuBaseTraits_Array<T> {
-  enum { IsComposite = ZuTraits_Composite<T>{} }; // class/struct/union
+  enum { IsComposite = ZuTraits_Composite<T>{} };
   enum { IsEmpty = ZuTraits_Empty<T>{} };
   enum { IsEnum = ZuTraits_Enum<T>{} };
   enum { IsPOD = ZuTraits_POD<T>{} };

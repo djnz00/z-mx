@@ -282,7 +282,7 @@ ZtEnumValues(ObjState,
 
 const char *Object_HeapID() { return "Zdb.Object"; }
 
-// possible state paths:
+// possible object state paths:
 //
 // Undefined > Insert			insert
 // Insert > Committed			insert committed

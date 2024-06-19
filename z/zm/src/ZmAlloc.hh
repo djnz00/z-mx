@@ -7,6 +7,8 @@
 // safe alloca() smart pointer that stack allocates if requested size
 // is less than 50% of the remaining stack space, falling back to RAII heap
 //
+// WARNING: ZmAlloc(T, N) is a macro that evaluates N multiple times
+//
 // {
 //   auto x = ZmAlloc(uint8_t, 1024);
 //   uint8_t *ptr = &x[0];
@@ -73,8 +75,8 @@ struct ZmAlloc_ {
 };
 
 #define ZmAlloc(T, n) \
-  ZmAlloc_<T>{static_cast<T *>( \
-      (((ZmStackAvail()>>1) < (n * sizeof(T))) ? \
-	::malloc(n * sizeof(T)) : ZuAlloca(n * sizeof(T))))}
+  ZmAlloc_<T>{static_cast<T *>(!(n) ? nullptr : \
+      (((ZmStackAvail()>>1) < ((n) * sizeof(T))) ? \
+	::malloc((n) * sizeof(T)) : ZuAlloca((n) * sizeof(T))))}
 
 #endif /* ZmAlloc_HH */
