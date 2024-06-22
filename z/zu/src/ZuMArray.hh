@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // monomorphic meta-array
-// * encapsulates arbitrary array types into a single type that
+// * encapsulates arbitrary array types into a single realized type that
 //   can be used in compiled code interfaces
 
 #ifndef ZuMArray_HH
@@ -20,15 +20,17 @@
 #include <zlib/ZuFmt.hh>
 
 namespace ZuMArray_ {
-// STL cruft
+
 template <typename Array_, typename Elem_>
 class Iterator {
 public:
+  using Array = Array_;
+  using Elem = Elem_;
   using iterator_category = std::bidirectional_iterator_tag;
-  using value_type = Elem_;
+  using value_type = Elem;
   using difference_type = ptrdiff_t;
-  using pointer = Elem_ *;
-  using reference = Elem_ &;
+  using pointer = Elem *;
+  using reference = Elem &;
 
   Iterator() = delete;
   Iterator(Array_ &array, unsigned i) : m_array{array}, m_i{i} { }
@@ -37,7 +39,7 @@ public:
   Iterator(Iterator &&) = default;
   Iterator &operator =(Iterator &&) = default;
 
-  Elem_ operator *() const { return m_array[m_i]; }
+  Elem operator *() const;
 
   Iterator &operator++() { ++m_i; return *this; }
   Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
@@ -53,125 +55,121 @@ public:
   }
 
 private:
-  Array_	&m_array;
+  Array		&m_array;
   unsigned	m_i;
 };
 
-template <typename Elem_>
-struct ElemTraits : public ZuTraits<typename Elem_::R> {
+template <typename Wrapper, typename Under>
+struct WrapTraits : public ZuTraits<Under> {
   enum { IsPrimitive = 0, IsPOD = 0 };
-private:
-  using T = typename Elem_::T;
-  using R = typename Elem_::R;
-public:
-  using Elem = typename ZuTraits<R>::Elem;
-  template <typename U = R>
+  using Elem = typename ZuTraits<Under>::Elem;
+  template <typename U = Under>
   static ZuIfT<ZuTraits<U>::IsSpan && !ZuIsConst<U>{}, Elem *>
-  data(Elem_ &v) {
+  data(Wrapper &v) {
     return ZuTraits<U>::data(v.get());
   }
-  template <typename U = R>
-  static ZuMatchSpan<U, const Elem *> data(const Elem_ &v) {
+  template <typename U = Under>
+  static ZuMatchSpan<U, const Elem *> data(const Wrapper &v) {
     return ZuTraits<U>::data(v.get());
   }
-  template <typename U = R>
-  static ZuMatchArray<U, unsigned> length(const Elem_ &v) {
+  template <typename U = Under>
+  static ZuMatchArray<U, unsigned> length(const Wrapper &v) {
     return ZuTraits<U>::length(v.get());
   }
 };
-} // ZuMArray_
-template <typename Array, typename Elem>
-using ZuMArray_Iterator = ZuMArray_::Iterator<Array, Elem>;
-template <typename Elem>
-using ZuMArray_ElemTraits = ZuMArray_::ElemTraits<Elem>;
+
+template <typename Array_>
+class Elem {
+public:
+  using Array = Array_;
+  using T = typename Array::T;
+  using R = typename Array::R;
+
+  Elem() = delete;
+  Elem(Array &array, unsigned i) : m_array{array}, m_i{i} { }
+  Elem(const Elem &) = default;
+  Elem &operator =(const Elem &) = default;
+  Elem(Elem &&) = default;
+  Elem &operator =(Elem &&) = default;
+
+  R get() const;
+
+  operator R() const { return get(); }
+
+  Elem &operator =(T v);
+
+  bool equals(const Elem &r) const { return get() == r.get(); }
+  int cmp(const Elem &r) const { return ZuCmp<T>::cmp(get(), r.get()); }
+  friend inline bool
+  operator ==(const Elem &l, const Elem &r) { return l.equals(r); }
+  friend inline int
+  operator <=>(const Elem &l, const Elem &r) { return l.cmp(r); }
+
+  bool operator !() const { return !get(); }
+
+  // traits
+  using Traits = WrapTraits<Elem, R>;
+  friend Traits ZuTraitsType(Elem *);
+
+  // underlying type
+  friend R ZuUnderType(Elem *);
+
+private:
+  Array		&m_array;
+  unsigned	m_i;
+};
 
 template <typename T_, typename R_ = T_>
-class ZuMArray {
+class Array {
 public:
   using T = T_;
   using R = R_;
+  using Elem = ZuMArray_::Elem<Array>;
 
-  template <typename Array>
-  ZuMArray(const Array &array) :
-    m_ptr{const_cast<Array *>(&array)},
-    m_length{ZuTraits<Array>::length(array)},
+friend Elem;
+
+  template <typename Array_>
+  Array(const Array_ &array) :
+    m_ptr{const_cast<Array_ *>(&array)},
+    m_length{ZuTraits<Array_>::length(array)},
     m_getFn{[](const void *ptr, unsigned i) -> R {
-      return (*static_cast<const Array *>(ptr))[i];
+      return (*static_cast<const Array_ *>(ptr))[i];
     }} { }
 
-  template <typename Array, typename Elem_ = typename ZuTraits<Array>::Elem>
-  ZuMArray(Array &array) :
+  template <typename Array_, typename Elem_ = typename ZuTraits<Array_>::Elem>
+  Array(Array_ &array) :
     m_ptr{&array},
-    m_length{ZuTraits<Array>::length(array)},
+    m_length{ZuTraits<Array_>::length(array)},
     m_getFn{[](const void *ptr, unsigned i) -> R {
-      return (*static_cast<const Array *>(ptr))[i];
+      return (*static_cast<const Array_ *>(ptr))[i];
     }},
     m_setFn{[](void *ptr, unsigned i, T elem) {
-      (*static_cast<Array *>(ptr))[i] = Elem_(ZuMv(elem));
+      (*static_cast<Array_ *>(ptr))[i] = Elem_(ZuMv(elem));
     }} { }
 
-  template <typename Array, typename GetFn_>
-  ZuMArray(Array &array, unsigned length, GetFn_ getFn) :
+  template <typename Array_, typename GetFn_>
+  Array(Array_ &array, unsigned length, GetFn_ getFn) :
     m_ptr{&array},
     m_length{length},
     m_getFn{getFn} { }
 
-  template <typename Array, typename GetFn_, typename SetFn>
-  ZuMArray(Array &array, unsigned length, GetFn_ getFn, SetFn setFn) :
+  template <typename Array_, typename GetFn_, typename SetFn_>
+  Array(Array_ &array, unsigned length, GetFn_ getFn, SetFn_ setFn) :
     m_ptr{&array},
     m_length{length},
     m_getFn{getFn},
     m_setFn{setFn} { }
 
-  class Elem;
-friend Elem;
-  class Elem {
-  public:
-    using T = T_;
-    using R = R_;
-
-    Elem() = delete;
-    Elem(ZuMArray &array, unsigned i) : m_array{array}, m_i{i} { }
-    Elem(const Elem &) = default;
-    Elem &operator =(const Elem &) = default;
-    Elem(Elem &&) = default;
-    Elem &operator =(Elem &&) = default;
-
-    operator R() const { return (*m_array.m_getFn)(m_array.m_ptr, m_i); }
-
-    Elem &operator =(T v) {
-      (*m_array.m_setFn)(m_array.m_ptr, m_i, ZuMv(v));
-      return *this;
-    };
-
-    bool equals(const Elem &r) const { return R(*this) == R(r); }
-    int cmp(const Elem &r) const { return ZuCmp<T>::cmp(R(*this), R(r)); }
-    friend inline bool
-    operator ==(const Elem &l, const Elem &r) { return l.equals(r); }
-    friend inline int
-    operator <=>(const Elem &l, const Elem &r) { return l.cmp(r); }
-
-    bool operator !() const { return !R(*this); }
-
-    R get() const { return (*m_array.m_getFn)(m_array.m_ptr, m_i); }
-
-    friend ZuMArray_ElemTraits<Elem> ZuTraitsType(Elem *);
-
-  private:
-    ZuMArray	&m_array;
-    unsigned	m_i;
-  };
-
-  ZuMArray() = default;
-  ZuMArray(const ZuMArray &) = default;
-  ZuMArray &operator =(const ZuMArray &) = default;
-  ZuMArray(ZuMArray &&s) = default;
-  ZuMArray &operator =(ZuMArray &&s) = default;
+  Array() = default;
+  Array(const Array &) = default;
+  Array &operator =(const Array &) = default;
+  Array(Array &&s) = default;
+  Array &operator =(Array &&s) = default;
 
   unsigned length() const { return m_length; }
 
   const Elem operator[](unsigned i) const {
-    return Elem{const_cast<ZuMArray &>(*this), i};
+    return Elem{const_cast<Array &>(*this), i};
   }
   Elem operator[](unsigned i) { return Elem{*this, i}; }
 
@@ -185,7 +183,7 @@ friend Elem;
     for (unsigned i = 0, n = m_length; i < n; i++) l((*this)[i]);
   }
 
-  bool equals(const ZuMArray &r) const {
+  bool equals(const Array &r) const {
     if (this == &r) return true;
     unsigned l = length();
     unsigned n = r.length();
@@ -194,7 +192,7 @@ friend Elem;
       if (R((*this)[i]) != R(r[i])) return false;
     return true;
   }
-  int cmp(const ZuMArray &r) const {
+  int cmp(const Array &r) const {
     if (this == &r) return 0;
     unsigned ln = m_length;
     unsigned rn = r.m_length;
@@ -204,17 +202,17 @@ friend Elem;
     return ZuCmp<int>::cmp(ln, rn);
   }
   friend inline bool
-  operator ==(const ZuMArray &l, const ZuMArray &r) { return l.equals(r); }
+  operator ==(const Array &l, const Array &r) { return l.equals(r); }
   friend inline bool
-  operator <(const ZuMArray &l, const ZuMArray &r) { return l.cmp(r) < 0; }
+  operator <(const Array &l, const Array &r) { return l.cmp(r) < 0; }
   friend inline int
-  operator <=>(const ZuMArray &l, const ZuMArray &r) { return l.cmp(r); }
+  operator <=>(const Array &l, const Array &r) { return l.cmp(r); }
 
   bool operator !() const { return !m_length; }
   ZuOpBool
 
-  using iterator = ZuMArray_Iterator<ZuMArray, Elem>;
-  using const_iterator = ZuMArray_Iterator<const ZuMArray, const Elem>;
+  using iterator = Iterator<Array, Elem>;
+  using const_iterator = Iterator<const Array, const Elem>;
   const_iterator begin() const { return const_iterator{*this, 0}; }
   const_iterator end() const { return const_iterator{*this, m_length}; }
   const_iterator cbegin() const { return const_iterator{*this, 0}; }
@@ -231,5 +229,26 @@ private:
   GetFn		m_getFn = nullptr;
   SetFn		m_setFn = nullptr;
 };
+
+template <typename Array, typename Elem>
+inline Elem Iterator<Array, Elem>::operator *() const {
+  return m_array[m_i];
+}
+
+template <typename Array>
+inline typename Elem<Array>::R Elem<Array>::get() const {
+  return (*m_array.m_getFn)(m_array.m_ptr, m_i);
+}
+
+template <typename Array>
+inline Elem<Array> &Elem<Array>::operator =(typename Elem<Array>::T v) {
+  (*m_array.m_setFn)(m_array.m_ptr, m_i, ZuMv(v));
+  return *this;
+}
+
+} // ZuMArray_
+
+template <typename T, typename R = T>
+using ZuMArray = ZuMArray_::Array<T, R>;
 
 #endif /* ZuMArray_HH */

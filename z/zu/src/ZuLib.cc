@@ -4,13 +4,13 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Universal Library
+// Z U-Layer Library
 
 #include <zlib/ZuLib.hh>
 
 #include "../../version.h"
 
-ZuExtern const char ZuLib[] = "@(#) Zero Copy Universal Library v" Z_VERNAME;
+ZuExtern const char ZuLib[] = "@(#) Z U-Layer Library v" Z_VERNAME;
 
 #ifdef _MSC_VER
 #pragma warning(disable:4996)

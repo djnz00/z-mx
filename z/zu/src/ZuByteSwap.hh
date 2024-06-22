@@ -34,14 +34,6 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuIntrin.hh>
 
-template <typename T, class Cmp> class ZuBox;
-template <typename T_> struct ZuByteSwap_Unbox {
-  using T = T_;
-};
-template <typename T_, class Cmp> struct ZuByteSwap_Unbox<ZuBox<T_, Cmp>> {
-  using T = T_;
-};
-
 template <unsigned> struct ZuByteSwap_UInt;
 template <> struct ZuByteSwap_UInt<2> { using T = uint16_t; };
 template <> struct ZuByteSwap_UInt<4> { using T = uint32_t; };
@@ -53,7 +45,7 @@ template <> struct ZuByteSwap_UInt<16> { using T = uint128_t; };
 template <typename T_> class ZuByteSwap {
 public:
   using T = T_;
-  using U = typename ZuByteSwap_Unbox<T>::T;
+  using U = ZuUnder<T>;
   using I = typename ZuByteSwap_UInt<sizeof(T)>::T;
 
   ZuByteSwap() { m_i = 0; }
@@ -216,6 +208,9 @@ private:
   // traits
   struct Traits : public ZuTraits<I> { enum { IsPrimitive = 0 }; };
   friend Traits ZuTraitsType(ZuByteSwap *);
+
+  // underlying
+  friend U ZuUnderType(ZuByteSwap *);
 
 private:
   I	m_i;

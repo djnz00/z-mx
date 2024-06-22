@@ -347,13 +347,6 @@ using ZuBox_MatchCharPtr =
     ZuTraits<S>::IsPointer,
     ZuTraits<S>::IsArray>::T;
 
-template <typename U>
-struct ZuUnbox_ { using T = U; };
-template <typename U, typename Cmp>
-struct ZuUnbox_<ZuBox<U, Cmp> > { using T = U; };
-template <typename U>
-using ZuUnbox = typename ZuUnbox_<U>::T;
-
 // NTP (named template parameters):
 
 // NTP defaults
@@ -381,7 +374,7 @@ template <typename, typename> friend class ZuBoxFmt;
 template <typename> friend class ZuBoxVFmt;
 
 public:
-  using T = ZuUnbox<T_>;
+  using T = ZuUnder<T_>;
   using Cmp = typename NTP::template CmpT<T>;
   constexpr static auto NullString = NTP::NullString;
 
@@ -681,6 +674,9 @@ public:
 
   // printing
   friend ZuBoxPrint<ZuBox> ZuPrintType(ZuBox *);
+
+  // underlying
+  friend T ZuUnderType(ZuBox *);
 
 private:
   T	m_val;

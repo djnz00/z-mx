@@ -418,8 +418,28 @@ using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 #endif
 
 // default accessor (pass-through)
+
 inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
+
+// generic underlying type access for wrapper types with a cast operator
+// (used with ZuBox, ZuBigEndian, etc.)
+
+struct ZuUnder_AsIs { };
+ZuUnder_AsIs ZuUnderType(...);
+template <typename U, typename V = decltype(ZuUnderType(ZuDeclVal<U *>()))>
+struct ZuUnder_ {
+  using T = V;
+};
+template <typename U>
+struct ZuUnder_<U, ZuUnder_AsIs> {
+  using T = U;
+};
+template <typename U>
+using ZuUnder = typename ZuUnder_<ZuDecay<U>>::T;
+
+template <typename U>
+auto ZuUnderlying(U &&v) { return ZuUnder<U>(ZuFwd<U>(v)); }
 
 #endif /* ZuLib_HH */
