@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy DataFrame Library
+// Z DataFrame Library
 
 #include <zlib/ZdfLib.hh>
 
 #include "../../version.h"
 
-ZdfExtern const char ZdfLib[] = "@(#) Zero Copy DataFrame Library v" Z_VERNAME;
+ZdfExtern const char ZdfLib[] = "@(#) Z DataFrame Library v" Z_VERNAME;

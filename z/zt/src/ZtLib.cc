@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Type Library
+// Z Type Library
 
 #include <zlib/ZtLib.hh>
 
 #include "../../version.h"
 
-ZtExtern const char ZtLib[] = "@(#) Zero Copy Type Library v" Z_VERNAME;
+ZtExtern const char ZtLib[] = "@(#) Z Type Library v" Z_VERNAME;

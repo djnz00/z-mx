@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zdb library main header
+// Z DB library main header
 
 #ifndef ZdbLib_HH
 #define ZdbLib_HH

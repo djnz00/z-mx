@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// flatbuffers integration
+// Z flatbuffers Library
 
 #ifndef ZfbLib_HH
 #define ZfbLib_HH

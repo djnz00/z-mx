@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy I/O Library
+// Z I/O Library
 
 #include <zlib/ZiLib.hh>
 
 #include "../../version.h"
 
-ZiExtern const char ZiLib[] = "@(#) Zero Copy I/O Library v" Z_VERNAME;
+ZiExtern const char ZiLib[] = "@(#) Z I/O Library v" Z_VERNAME;

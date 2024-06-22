@@ -455,7 +455,7 @@ struct ZtMFieldUDT {
 // ZtMFieldType encapsulates introspected type metadata
 struct ZtMFieldType {
   int			code;		// ZtFieldTypeCode
-  uint32_t		props;		// ZtMFieldProp
+  ZtMFieldProp::T	props;		// ZtMFieldProp
 
   union {
     void		*null;
@@ -849,7 +849,7 @@ using ZtMFieldSet = ZtField_::MSet;
 struct ZtMField {
   ZtMFieldType		*type;
   const char		*id;
-  uint128_t		props;			// ZtMFieldProp
+  ZtMFieldProp::T	props;
   uint64_t		keys;
   uint16_t		ctor;
   int8_t		ndp;

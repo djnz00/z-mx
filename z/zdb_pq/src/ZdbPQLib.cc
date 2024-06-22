@@ -4,11 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Postgres data store module
+// Zdb Postgres library
 
 #include <zlib/ZdbPQLib.hh>
 
 #include "../../version.h"
 
-ZdbPQExtern const char ZdbPQLib[] =
-  "@(#) Zero Copy Zdb Postgres Library v" Z_VERNAME;
+ZdbPQExtern const char ZdbPQLib[] = "@(#) Zdb Postgres Library v" Z_VERNAME;

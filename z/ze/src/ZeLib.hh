@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Ze library main header
+// Z Error library main header
 
 #ifndef ZeLib_HH
 #define ZeLib_HH

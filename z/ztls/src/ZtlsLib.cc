@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// mbedtls C++ wrapper
+// Z TLS Library - mbedtls C++ wrapper
 
 #include <zlib/ZtlsLib.hh>
 
 #include "../../version.h"
 
-ZtlsExtern const char ZtlsLib[] = "@(#) Zero Copy TLS Library v" Z_VERNAME;
+ZtlsExtern const char ZtlsLib[] = "@(#) Z TLS Library v" Z_VERNAME;

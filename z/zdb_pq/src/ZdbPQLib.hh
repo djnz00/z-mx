@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zdb Postgres backing data store library main header
+// Zdb Postgres library main header
 
 #ifndef ZdbPQLib_HH
 #define ZdbPQLib_HH

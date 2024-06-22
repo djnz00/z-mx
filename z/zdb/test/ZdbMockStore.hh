@@ -35,24 +35,43 @@ void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
 
 // --- value union
 
-// a distinct int type for Enum
-struct Enum : public ZuBox<int> {
-  using Base = ZuBox<int>;
+// a distinct int8_t type for Enum
+struct Enum : public ZuBox<int8_t> {
+  using Base = ZuBox<int8_t>;
   using Base::Base;
   using Base::operator =;
   template <typename ...Args>
   Enum(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 
-// a distinct uint64_t type for Flags
-struct Flags : public ZuBox<uint64_t> {
-  using Base = ZuBox<uint64_t>;
+// a distinct uint128_t type for Flags
+struct Flags : public ZuBox<uint128_t> {
+  using Base = ZuBox<uint128_t>;
   using Base::Base;
   using Base::operator =;
   template <typename ...Args>
-  Flags(Args &&...args) :
-      Base{ZuFwd<Args>(args)...} { }
+  Flags(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
+
+// a distinct ZtArray<uint8_t> type (distinct from ZtBytes)
+struct UInt8Vec : public ZtArray<uint8_t> {
+  using Base = ZtArray<uint8_t>;
+  using Base::Base;
+  using Base::operator =;
+  template <typename ...Args>
+  UInt8Vec(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+};
+
+// alias types for consistent naming with UInt8Vec
+using Int8Vec = ZtArray<int8_t>;
+using Int16Vec = ZtArray<int16_t>;
+using UInt16Vec = ZtArray<uint16_t>;
+using Int32Vec = ZtArray<int32_t>;
+using UInt32Vec = ZtArray<uint32_t>;
+using Int64Vec = ZtArray<int64_t>;
+using UInt64Vec = ZtArray<uint64_t>;
+using Int128Vec = ZtArray<int128_t>;
+using UInt128Vec = ZtArray<uint128_t>;
 
 // all supported types
 using Value_ = ZuUnion<
@@ -60,6 +79,12 @@ using Value_ = ZuUnion<
   ZtString,	// String
   ZtBytes,	// Vector<uint8_t>
   bool,
+  int8_t,
+  uint8_t,
+  int16_t,
+  uint16_t,
+  int32_t,
+  uint32_t,
   int64_t,
   uint64_t,
   Enum,		// int
@@ -72,7 +97,30 @@ using Value_ = ZuUnion<
   int128_t,	// Zfb.UInt128
   uint128_t,	// Zfb.Int128
   ZiIP,		// Zfb.IP
-  ZuID>;	// Zfb.ID
+  ZuID,		// Zfb.ID
+
+  // all types after this are vectors, see isVec() below
+  ZtArray<ZtString>,
+  ZtArray<ZtBytes>,
+  Int8Vec,
+  UInt8Vec,
+  Int16Vec,
+  UInt16Vec,
+  Int32Vec,
+  UInt32Vec,
+  Int64Vec,
+  UInt64Vec,
+  Int128Vec,
+  UInt128Vec,
+  ZtArray<double>,
+  ZtArray<ZuFixed>,
+  ZtArray<ZuDecimal>,
+  ZtArray<ZuTime>,
+  ZtArray<ZuDateTime>>;
+
+enum { VecBase = Value_::Index<ZtArray<ZtString>>{} };
+
+inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
 
 struct Value : public Value_ {
   using Value_::Value_;
@@ -80,25 +128,138 @@ struct Value : public Value_ {
   template <typename ...Args>
   Value(Args &&...args) : Value_{ZuFwd<Args>(args)...} { }
 
-  // invoke() skips void
-  template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuNotExact<void, T> invoke_(L l) { l(ZuUnsigned<I>{}); }
-  template <unsigned I, typename L, typename T = Value_::Type<I>>
-  static ZuExact<void, T> invoke_(L l) { }
-  template <typename L> static void invoke(L l, unsigned i) {
-    ZuSwitch::dispatch<Value_::N>(i, [l = ZuMv(l)](auto I) mutable {
-      invoke_<I>(ZuMv(l));
-    });
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<void>{}>
+  print_(S &s) const { }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZtString>{}>
+  print_(S &s) const { s << ZtField_::Print::String{p<I>()}; }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZtBytes>{}>
+  print_(S &s) const { s << ZtField_::Print::Bytes{p<I>()}; }
+
+  template <unsigned I, typename S>
+  ZuIfT<
+    I == Value_::Index<bool>{} ||
+    I == Value_::Index<int8_t>{} ||
+    I == Value_::Index<uint8_t>{} ||
+    I == Value_::Index<int16_t>{} ||
+    I == Value_::Index<uint16_t>{} ||
+    I == Value_::Index<int32_t>{} ||
+    I == Value_::Index<uint32_t>{} ||
+    I == Value_::Index<int64_t>{} ||
+    I == Value_::Index<uint64_t>{} ||
+    I == Value_::Index<int128_t>{} ||
+    I == Value_::Index<uint128_t>{} ||
+    I == Value_::Index<Enum>{} ||
+    I == Value_::Index<double>{}>
+  print_(S &s) const { s << ZuBoxed(p<I>()); }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<Flags>{}>
+  print_(S &s) const { s << p<I>().hex(); }
+
+  template <unsigned I, typename S>
+  ZuIfT<
+    I == Value_::Index<ZuFixed>{} ||
+    I == Value_::Index<ZuDecimal>{} ||
+    I == Value_::Index<ZuTime>{} ||
+    I == Value_::Index<ZiIP>{} ||
+    I == Value_::Index<ZuID>{}>
+  print_(S &s) const { s << p<I>(); }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZuDateTime>{}>
+  print_(S &s) const {
+    auto &fmt = ZmTLS<ZuDateTimeFmt::CSV, (int Value_::*){}>();
+    s << p<I>().fmt(fmt);
   }
-  template <typename L> void invoke(L l) const {
-    invoke(ZuMv(l), this->type());
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZtArray<ZtString>>{}>
+  print_(S &s) const {
+    s << '[';
+    bool first = true;
+    p<I>().all([&s, &first](const ZtString &v) {
+      if (!first) s << ','; else first = false;
+      s << ZtField_::Print::String{v};
+    });
+    s << ']';
+  }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZtArray<ZtBytes>>{}>
+  print_(S &s) const {
+    s << '[';
+    bool first = true;
+    p<I>().all([&s, &first](const ZtBytes &v) {
+      if (!first) s << ','; else first = false;
+      s << ZtField_::Print::Bytes{v};
+    });
+    s << ']';
+  }
+
+  template <unsigned I, typename S>
+  ZuIfT<
+    I == Value_::Index<ZtArray<int8_t>>{} ||
+    I == Value_::Index<UInt8Vec>{} ||
+    I == Value_::Index<ZtArray<int16_t>>{} ||
+    I == Value_::Index<ZtArray<uint16_t>>{} ||
+    I == Value_::Index<ZtArray<int32_t>>{} ||
+    I == Value_::Index<ZtArray<uint32_t>>{} ||
+    I == Value_::Index<ZtArray<int64_t>>{} ||
+    I == Value_::Index<ZtArray<uint64_t>>{} ||
+    I == Value_::Index<ZtArray<int128_t>>{} ||
+    I == Value_::Index<ZtArray<uint128_t>>{} ||
+    I == Value_::Index<ZtArray<double>>{}>
+  print_(S &s) const {
+    using Elem = typename ZuTraits<Type<I>>::Elem;
+    s << '[';
+    bool first = true;
+    p<I>().all([&s, &first](const Elem &v) {
+      if (!first) s << ','; else first = false;
+      s << ZuBoxed(v);
+    });
+    s << ']';
+  }
+
+  template <unsigned I, typename S>
+  ZuIfT<
+    I == Value_::Index<ZtArray<ZuFixed>>{} ||
+    I == Value_::Index<ZtArray<ZuDecimal>>{} ||
+    I == Value_::Index<ZtArray<ZuTime>>{}>
+  print_(S &s) const {
+    using Elem = typename ZuTraits<Type<I>>::Elem;
+    s << '[';
+    bool first = true;
+    p<I>().all([&s, &first](const Elem &v) {
+      if (!first) s << ','; else first = false;
+      s << v;
+    });
+    s << ']';
+  }
+
+  template <unsigned I, typename S>
+  ZuIfT<I == Value_::Index<ZtArray<ZuDateTime>>{}>
+  print_(S &s) const {
+    s << '[';
+    bool first = true;
+    p<I>().all([&s, &first](const ZuDateTime &v) {
+      auto &fmt = ZmTLS<ZuDateTimeFmt::CSV, (int Value_::*){}>();
+      if (!first) s << ','; else first = false;
+      s << v.fmt(fmt);
+    });
+    s << ']';
   }
 
   template <typename S>
   void print(S &s) const {
-    invoke([this, &s](auto i) { s << this->p<i>(); });
+    ZuSwitch::dispatch<Value_::N>(this->type(), [this, &s](auto I) {
+      this->print_<I>(s);
+    });
   }
-
   friend ZuPrintFn ZuPrintType(Value *);
 };
 
@@ -111,7 +272,7 @@ struct XField {
 using XFields = ZtArray<XField>;
 using XKeyFields = ZtArray<XFields>;
 
-// resolve Value union discriminator from field metadata
+// resolve Value union discriminator from flatbuffers reflection data
 XField xField(
   const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_,
   const ZtMField *field,
@@ -133,32 +294,55 @@ XField xField(
 	type = Value::Index<bool>{};
       break;
     case reflection::Byte:
-    case reflection::Short:
-    case reflection::Int:
-    case reflection::Long:
-      if (ftype->code == ZtFieldTypeCode::Int) {
-	type = Value::Index<int64_t>{};
+      if (ftype->code == ZtFieldTypeCode::Int8) {
+	type = Value::Index<int8_t>{};
       } else if (ftype->code == ZtFieldTypeCode::Enum) {
 	type = Value::Index<Enum>{};
       }
       break;
     case reflection::UByte:
-    case reflection::UShort:
-    case reflection::UInt:
-    case reflection::ULong:
-      if (ftype->code == ZtFieldTypeCode::UInt) {
-	type = Value::Index<uint64_t>{};
-      } else if (ftype->code == ZtFieldTypeCode::Flags) {
-	type = Value::Index<Flags>{};
-      }
+      if (ftype->code == ZtFieldTypeCode::UInt8)
+	type = Value::Index<uint8_t>{};
       break;
-    case reflection::Float:
+    case reflection::Short:
+      if (ftype->code == ZtFieldTypeCode::Int16)
+	type = Value::Index<int16_t>{};
+      break;
+    case reflection::UShort:
+      if (ftype->code == ZtFieldTypeCode::UInt16)
+	type = Value::Index<uint16_t>{};
+      break;
+    case reflection::Int:
+      if (ftype->code == ZtFieldTypeCode::Int32)
+	type = Value::Index<int32_t>{};
+      break;
+    case reflection::UInt:
+      if (ftype->code == ZtFieldTypeCode::UInt32)
+	type = Value::Index<uint32_t>{};
+      break;
+    case reflection::Long:
+      if (ftype->code == ZtFieldTypeCode::Int64)
+	type = Value::Index<int64_t>{};
+      break;
+    case reflection::ULong:
+      if (ftype->code == ZtFieldTypeCode::UInt64)
+	type = Value::Index<uint64_t>{};
+      break;
     case reflection::Double:
       if (ftype->code == ZtFieldTypeCode::Float)
 	type = Value::Index<double>{};
       break;
     case reflection::Obj: {
       switch (ftype->code) {
+	case ZtFieldTypeCode::Int128:
+	  type = Value::Index<int128_t>{};
+	  break;
+	case ZtFieldTypeCode::UInt128:
+	  type = Value::Index<uint128_t>{};
+	  break;
+	case ZtFieldTypeCode::Flags:
+	  type = Value::Index<Flags>{};
+	  break;
 	case ZtFieldTypeCode::Fixed:
 	  type = Value::Index<ZuFixed>{};
 	  break;
@@ -173,14 +357,6 @@ XField xField(
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
-	  if (ftindex == std::type_index{typeid(int128_t)}) {
-	    type = Value::Index<int128_t>{};
-	    break;
-	  }
-	  if (ftindex == std::type_index{typeid(uint128_t)}) {
-	    type = Value::Index<uint128_t>{};
-	    break;
-	  }
 	  if (ftindex == std::type_index{typeid(ZiIP)}) {
 	    type = Value::Index<ZiIP>{};
 	    break;
@@ -192,6 +368,80 @@ XField xField(
 	}
       }
     } break;
+    case reflection::Vector:
+      switch (fbField->type()->element()) {
+	default: break;
+	case reflection::String:
+	  if (ftype->code == ZtFieldTypeCode::StringVec)
+	    type = Value::Index<ZtArray<ZtString>>{};
+	  break;
+	case reflection::Vector:
+	  // FIXME - check this
+	  if (ftype->code == ZtFieldTypeCode::BytesVec)
+	    type = Value::Index<ZtArray<ZtBytes>>{};
+	  break;
+	case reflection::Byte:
+	  if (ftype->code == ZtFieldTypeCode::Int8Vec)
+	    type = Value::Index<ZtArray<int8_t>>{};
+	  break;
+	case reflection::UByte:
+	  if (ftype->code == ZtFieldTypeCode::Bytes)
+	    type = Value::Index<ZtBytes>{};
+	  else if (ftype->code == ZtFieldTypeCode::UInt8Vec)
+	    type = Value::Index<UInt8Vec>{};
+	  break;
+	case reflection::Short:
+	  if (ftype->code == ZtFieldTypeCode::Int16Vec)
+	    type = Value::Index<ZtArray<int16_t>>{};
+	  break;
+	case reflection::UShort:
+	  if (ftype->code == ZtFieldTypeCode::UInt16Vec)
+	    type = Value::Index<ZtArray<uint16_t>>{};
+	  break;
+	case reflection::Int:
+	  if (ftype->code == ZtFieldTypeCode::Int32Vec)
+	    type = Value::Index<ZtArray<int32_t>>{};
+	  break;
+	case reflection::UInt:
+	  if (ftype->code == ZtFieldTypeCode::UInt32Vec)
+	    type = Value::Index<ZtArray<uint32_t>>{};
+	  break;
+	case reflection::Long:
+	  if (ftype->code == ZtFieldTypeCode::Int64Vec)
+	    type = Value::Index<ZtArray<int64_t>>{};
+	  break;
+	case reflection::ULong:
+	  if (ftype->code == ZtFieldTypeCode::UInt64Vec)
+	    type = Value::Index<ZtArray<uint64_t>>{};
+	  break;
+	case reflection::Double:
+	  if (ftype->code == ZtFieldTypeCode::FloatVec)
+	    type = Value::Index<ZtArray<double>>{};
+	  break;
+	case reflection::Obj:
+	  switch (ftype->code) {
+	    case ZtFieldTypeCode::Int128Vec:
+	      type = Value::Index<ZtArray<int128_t>>{};
+	      break;
+	    case ZtFieldTypeCode::UInt128Vec:
+	      type = Value::Index<ZtArray<uint128_t>>{};
+	      break;
+	    case ZtFieldTypeCode::FixedVec:
+	      type = Value::Index<ZtArray<ZuFixed>>{};
+	      break;
+	    case ZtFieldTypeCode::DecimalVec:
+	      type = Value::Index<ZtArray<ZuDecimal>>{};
+	      break;
+	    case ZtFieldTypeCode::TimeVec:
+	      type = Value::Index<ZtArray<ZuTime>>{};
+	      break;
+	    case ZtFieldTypeCode::DateTimeVec:
+	      type = Value::Index<ZtArray<ZuDateTime>>{};
+	      break;
+	  }
+	  break;
+      }
+      break;
     default:
       break;
   }
@@ -201,125 +451,69 @@ XField xField(
 // --- load value from flatbuffer
 
 template <unsigned Type>
+inline ZuIfT<Type == Value::Index<void>{}>
+loadValue(void *, const reflection::Field *, const Zfb::Table *) { }
+
+template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtString>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZtString{Zfb::Load::str(Zfb::GetFieldS(*fbo, *field))};
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtBytes>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZtBytes{Zfb::Load::bytes(Zfb::GetFieldV<uint8_t>(*fbo, *field))};
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<bool>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   *static_cast<bool *>(ptr) = Zfb::GetFieldI<bool>(*fbo, *field);
 }
 
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<int64_t>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      *static_cast<int64_t *>(ptr) = Zfb::GetFieldI<uint8_t>(*fbo, *field);
-      break;
-    case reflection::Byte:
-      *static_cast<int64_t *>(ptr) = Zfb::GetFieldI<int8_t>(*fbo, *field);
-      break;
-    case reflection::Short:
-      *static_cast<int64_t *>(ptr) = Zfb::GetFieldI<int16_t>(*fbo, *field);
-      break;
-    case reflection::Int:
-      *static_cast<int64_t *>(ptr) = Zfb::GetFieldI<int32_t>(*fbo, *field);
-      break;
-    case reflection::Long:
-      *static_cast<int64_t *>(ptr) = Zfb::GetFieldI<int64_t>(*fbo, *field);
-      break;
-    default:
-      break;
-  }
+#define zdbtest_LoadInt(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<int##width##_t>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  *static_cast<int##width##_t *>(ptr) = \
+    Zfb::GetFieldI<int##width##_t>(*fbo, *field); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<uint##width##_t>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  *static_cast<uint##width##_t *>(ptr) = \
+  Zfb::GetFieldI<uint##width##_t>(*fbo, *field); \
 }
 
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<uint64_t>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      *static_cast<uint64_t *>(ptr) = Zfb::GetFieldI<uint8_t>(*fbo, *field);
-      break;
-    case reflection::UByte:
-      *static_cast<uint64_t *>(ptr) = Zfb::GetFieldI<uint8_t>(*fbo, *field);
-      break;
-    case reflection::UShort:
-      *static_cast<uint64_t *>(ptr) = Zfb::GetFieldI<uint16_t>(*fbo, *field);
-      break;
-    case reflection::UInt:
-      *static_cast<uint64_t *>(ptr) = Zfb::GetFieldI<uint32_t>(*fbo, *field);
-      break;
-    case reflection::ULong:
-      *static_cast<uint64_t *>(ptr) = Zfb::GetFieldI<uint64_t>(*fbo, *field);
-      break;
-    default:
-      break;
-  }
-}
+zdbtest_LoadInt(8)
+zdbtest_LoadInt(16)
+zdbtest_LoadInt(32)
+zdbtest_LoadInt(64)
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Enum>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      new (ptr) Enum{Zfb::GetFieldI<uint8_t>(*fbo, *field)};
-      break;
-    case reflection::Byte:
-      new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
-      break;
-    case reflection::Short:
-      new (ptr) Enum{Zfb::GetFieldI<int16_t>(*fbo, *field)};
-      break;
-    case reflection::Int:
-      new (ptr) Enum{Zfb::GetFieldI<int32_t>(*fbo, *field)};
-      break;
-    case reflection::Long:
-      new (ptr) Enum{Zfb::GetFieldI<int64_t>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Flags>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::ULong:
-      new (ptr) Flags{Zfb::GetFieldI<uint64_t>(*fbo, *field)};
-      break;
-    default:
-      break;
-  }
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) Flags{
+    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
+  };
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<double>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  switch (field->type()->base_type()) {
-    case reflection::Float:
-      *static_cast<double *>(ptr) = Zfb::GetFieldF<float>(*fbo, *field);
-      break;
-    case reflection::Double:
-      *static_cast<double *>(ptr) = Zfb::GetFieldF<double>(*fbo, *field);
-      break;
-    default:
-      break;
-  }
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  *static_cast<double *>(ptr) = Zfb::GetFieldF<double>(*fbo, *field);
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuFixed>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuFixed{
     Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset()))
   };
@@ -327,7 +521,7 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuDecimal>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuDecimal{
     Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()))
   };
@@ -335,7 +529,7 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuTime>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuTime{
     Zfb::Load::time(fbo->GetPointer<const Zfb::Time *>(field->offset()))
   };
@@ -343,7 +537,7 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuDateTime>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuDateTime{
     Zfb::Load::dateTime(
       fbo->GetPointer<const Zfb::DateTime *>(field->offset()))
@@ -352,21 +546,21 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<int128_t>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   *static_cast<int128_t *>(ptr) =
     Zfb::Load::int128(fbo->GetPointer<const Zfb::Int128 *>(field->offset()));
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<uint128_t>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   *static_cast<uint128_t *>(ptr) =
     Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()));
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZiIP>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZiIP{
     Zfb::Load::ip(fbo->GetPointer<const Zfb::IP *>(field->offset()))
   };
@@ -374,21 +568,122 @@ loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuID>{}>
-loadValue_(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuID{
     Zfb::Load::id(fbo->GetPointer<const Zfb::ID *>(field->offset()))
   };
 }
 
-inline void loadValue(
-  Value *value, const XField &xField, const Zfb::Table *fbo)
-{
-  if (ZuUnlikely(!xField.type))
-    new (value) Value{};
-  else
-    Value::invoke([value, field = xField.field, fbo](auto I) {
-      loadValue_<I>(value->new_<I, true>(), field, fbo);
-    }, xField.type);
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZtString>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::String>>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZtString>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::str(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZtBytes>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::Vector<uint8_t>>>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZtBytes>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::bytes(v->Get(i)));
+}
+
+#define zdbtest_LoadIntVec(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  auto v = Zfb::GetFieldV<int##width##_t>(*fbo, *field); \
+  unsigned n = v->size(); \
+  auto array = new (ptr) Int##width##Vec(n); \
+  for (unsigned i = 0; i < n; i++) array->push(v->Get(i)); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
+  auto v = Zfb::GetFieldV<uint##width##_t>(*fbo, *field); \
+  unsigned n = v->size(); \
+  auto array = new (ptr) UInt##width##Vec(n); \
+  for (unsigned i = 0; i < n; i++) array->push(v->Get(i)); \
+}
+
+zdbtest_LoadIntVec(8)
+zdbtest_LoadIntVec(16)
+zdbtest_LoadIntVec(32)
+zdbtest_LoadIntVec(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128Vec>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Int128 *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) Int128Vec(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::int128(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128Vec>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::UInt128 *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) UInt128Vec(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::uint128(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<double>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<double>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<double>(n);
+  for (unsigned i = 0; i < n; i++) array->push(v->Get(i));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuFixed>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Fixed *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZuFixed>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::fixed(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuDecimal>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Decimal *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZuDecimal>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::decimal(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuTime>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::Time *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZuTime>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::time(v->Get(i)));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuDateTime>>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  auto v = Zfb::GetFieldV<Zfb::DateTime *>(*fbo, *field);
+  unsigned n = v->size();
+  auto array = new (ptr) ZtArray<ZuDateTime>(n);
+  for (unsigned i = 0; i < n; i++)
+    array->push(Zfb::Load::dateTime(v->Get(i)));
 }
 
 // --- save value to flatbuffer
@@ -406,45 +701,168 @@ struct Offsets {
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtString>{}>
-saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 {
   offsets.push(Zfb::Save::str(fbb, value.p<Type>()).Union());
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtBytes>{}>
-saveOffset_(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 {
   offsets.push(Zfb::Save::bytes(fbb, value.p<Type>()).Union());
 }
 
 template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZtString>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZtString>>();
+  unsigned n = array.length();
+  offsets.push(
+    Zfb::Save::strVecIter(fbb, n, [&array](unsigned i) {
+      return array[i];
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZtBytes>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZtBytes>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::vectorIter<Zfb::Vector<uint8_t>>(fbb, n,
+    [&array](Zfb::Builder &fbb, unsigned i) {
+      return Zfb::Save::bytes(fbb, array[i]);
+    }).Union());
+}
+
+#define ZdbPQ_SaveIntVec(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value) \
+{ \
+  const auto &array = value.p<Int##width##Vec>(); \
+  unsigned n = array.length(); \
+  offsets.push(Zfb::Save::pvectorIter<int##width##_t>( \
+      fbb, n, [&array](unsigned i) { return array[i]; }).Union()); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value) \
+{ \
+  const auto &array = value.p<UInt##width##Vec>(); \
+  unsigned n = array.length(); \
+  offsets.push(Zfb::Save::pvectorIter<uint##width##_t>( \
+      fbb, n, [&array](unsigned i) { return array[i]; }).Union()); \
+}
+
+ZdbPQ_SaveIntVec(8)
+ZdbPQ_SaveIntVec(16)
+ZdbPQ_SaveIntVec(32)
+ZdbPQ_SaveIntVec(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Int128Vec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<Int128Vec>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::Int128>(fbb, n,
+    [&array](Zfb::Int128 *ptr, unsigned i) {
+      *ptr = Zfb::Save::int128(array[i]);
+    }).Union());
+}
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<UInt128Vec>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<UInt128Vec>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::UInt128>(fbb, n,
+    [&array](Zfb::UInt128 *ptr, unsigned i) {
+      *ptr = Zfb::Save::uint128(array[i]);
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<double>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<double>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::pvectorIter<double>(fbb, n, [&array](unsigned i) {
+    return array[i];
+  }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuFixed>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZuFixed>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::Fixed>(fbb, n,
+    [&array](Zfb::Fixed *ptr, unsigned i) {
+      *ptr = Zfb::Save::fixed(array[i]);
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuDecimal>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZuDecimal>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::Decimal>(fbb, n,
+    [&array](Zfb::Decimal *ptr, unsigned i) {
+      *ptr = Zfb::Save::decimal(array[i]);
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuTime>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZuTime>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::Time>(fbb, n,
+    [&array](Zfb::Time *ptr, unsigned i) {
+      *ptr = Zfb::Save::time(array[i]);
+    }).Union());
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtArray<ZuDateTime>>{}>
+saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  const auto &array = value.p<ZtArray<ZuDateTime>>();
+  unsigned n = array.length();
+  offsets.push(Zfb::Save::structVecIter<Zfb::DateTime>(fbb, n,
+    [&array](Zfb::DateTime *ptr, unsigned i) {
+      *ptr = Zfb::Save::dateTime(array[i]);
+    }).Union());
+}
+
+template <unsigned Type>
 inline ZuIfT<
   Type != Value::Index<ZtString>{} &&
-  Type != Value::Index<ZtBytes>{}>
-saveOffset_(Zfb::Builder &, Offsets &, const Value &) { }
-
-inline void saveOffset(
-  Zfb::Builder &fbb, Offsets &offsets,
-  const XField &xField, const Value &value)
-{
-  Value::invoke([&fbb, &offsets, &value](auto I) {
-    saveOffset_<I>(fbb, offsets, value);
-  }, xField.type);
-}
+  Type != Value::Index<ZtBytes>{} &&
+  !isVec(Type)>
+saveOffset(Zfb::Builder &, Offsets &, const Value &) { }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZtString>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &offsets,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddOffset(field->offset(), offsets.shift());
-}
+inline ZuIfT<Type == Value::Index<void>{}>
+saveValue(
+  Zfb::Builder &, const Offsets &,
+  const reflection::Field *, const Value &) { }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<ZtBytes>{}>
-saveValue_(
+inline ZuIfT<
+  Type == Value::Index<ZtString>{} ||
+  Type == Value::Index<ZtBytes>{} ||
+  isVec(Type)>
+saveValue(
   Zfb::Builder &fbb, const Offsets &offsets,
   const reflection::Field *field, const Value &value)
 {
@@ -453,142 +871,72 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<bool>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
-  fbb.AddElement<uint8_t>(
+  fbb.AddElement<bool>(
+    field->offset(), value.p<Type>(), field->default_integer());
+}
+
+#define zdbtest_SaveInt(width) \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<int##width##_t>{}> \
+saveValue( \
+  Zfb::Builder &fbb, const Offsets &, \
+  const reflection::Field *field, const Value &value) \
+{ \
+  fbb.AddElement<int##width##_t>( \
+    field->offset(), value.p<Type>(), field->default_integer()); \
+} \
+template <unsigned Type> \
+inline ZuIfT<Type == Value::Index<uint##width##_t>{}> \
+saveValue( \
+  Zfb::Builder &fbb, const Offsets &, \
+  const reflection::Field *field, const Value &value) \
+{ \
+  fbb.AddElement<uint##width##_t>( \
+    field->offset(), value.p<Type>(), field->default_integer()); \
+}
+
+zdbtest_SaveInt(8)
+zdbtest_SaveInt(16)
+zdbtest_SaveInt(32)
+zdbtest_SaveInt(64)
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<Enum>{}>
+saveValue(
+  Zfb::Builder &fbb, const Offsets &,
+  const reflection::Field *field, const Value &value)
+{
+  fbb.AddElement<int8_t>(
     field->offset(), value.p<Type>(), field->default_integer());
 }
 
 template <unsigned Type>
-inline ZuIfT<Type == Value::Index<int64_t>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-      fbb.AddElement<uint8_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Byte:
-      fbb.AddElement<int8_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Short:
-      fbb.AddElement<int16_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Int:
-      fbb.AddElement<int32_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Long:
-      fbb.AddElement<int64_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<uint64_t>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Bool:
-    case reflection::UByte:
-      fbb.AddElement<uint8_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::UShort:
-      fbb.AddElement<uint16_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::UInt:
-      fbb.AddElement<uint32_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::ULong:
-      fbb.AddElement<uint64_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-saveValue_(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  switch (field->type()->base_type()) {
-    case reflection::Byte:
-      fbb.AddElement<int8_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Short:
-      fbb.AddElement<int16_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Int:
-      fbb.AddElement<int32_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    case reflection::Long:
-      fbb.AddElement<int64_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    default:
-      break;
-  }
-}
-
-template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Flags>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
-  switch (field->type()->base_type()) {
-    case reflection::ULong:
-      fbb.AddElement<uint64_t>(
-	field->offset(), value.p<Type>(), field->default_integer());
-      break;
-    default:
-      break;
-  }
+  auto v = Zfb::Save::uint128(value.p<Type>());
+  fbb.AddStruct(field->offset(), &v);
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<double>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
-  switch (field->type()->base_type()) {
-    case reflection::Float:
-      fbb.AddElement<float>(
-	field->offset(), value.p<Type>(), field->default_real());
-      break;
-    case reflection::Double:
-      fbb.AddElement<double>(
-	field->offset(), value.p<Type>(), field->default_real());
-      break;
-    default:
-      break;
-  }
+  fbb.AddElement<double>(
+    field->offset(), value.p<Type>(), field->default_real());
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuFixed>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -598,7 +946,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuDecimal>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -608,7 +956,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuTime>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -618,7 +966,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuDateTime>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -628,7 +976,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<int128_t>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -638,7 +986,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<uint128_t>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -648,7 +996,7 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZiIP>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
@@ -658,21 +1006,12 @@ saveValue_(
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuID>{}>
-saveValue_(
+saveValue(
   Zfb::Builder &fbb, const Offsets &,
   const reflection::Field *field, const Value &value)
 {
   auto v = Zfb::Save::id(value.p<Type>());
   fbb.AddStruct(field->offset(), &v);
-}
-
-inline void saveValue(
-  Zfb::Builder &fbb, const Offsets &offsets,
-  const XField &xField, const Value &value)
-{
-  Value::invoke([&fbb, &offsets, field = xField.field, &value](auto I) {
-    saveValue_<I>(fbb, offsets, field, value);
-  }, xField.type);
 }
 
 // --- data tuple
@@ -684,83 +1023,85 @@ using Tuple = ZtArray<Value>;
 // (individual elements of the tuple can be null values)
 
 // load tuple from flatbuffer
-Tuple loadTuple_(
-  const ZtMFields &fields,
-  const XFields &xFields,
-  unsigned n,
-  const Zfb::Table *fbo)
-{
-  Tuple tuple(n); // not {}
-  for (unsigned i = 0; i < n; i++)
-    loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
-  return tuple;
-}
+// - when called from glob(), nParams is < fields.length()
 template <typename Filter>
 Tuple loadTuple_(
+  unsigned nParams,
   const ZtMFields &fields,
   const XFields &xFields,
-  unsigned n,
   const Zfb::Table *fbo,
   Filter filter)
 {
-  Tuple tuple(n); // not {}
-  for (unsigned i = 0; i < n; i++)
-    if (filter(fields[i]))
-      loadValue(static_cast<Value *>(tuple.push()), xFields[i], fbo);
-    else
+  Tuple tuple(nParams); // not {}
+  for (unsigned i = 0; i < nParams; i++)
+    if (filter(fields[i])) {
+      auto value = static_cast<Value *>(tuple.push());
+      auto type = xFields[i].type;
+      ZuSwitch::dispatch<Value::N>(type,
+	[value, field = xFields[i].field, fbo](auto I) {
+	  loadValue<I>(value->new_<I, true>(), field, fbo);
+	});
+    } else
       new (tuple.push()) Value{};
   return tuple;
+}
+Tuple loadTuple_(
+  unsigned nParams,
+  const ZtMFields &fields,
+  const XFields &xFields,
+  const Zfb::Table *fbo)
+{
+  return loadTuple_(nParams, fields, xFields, fbo,
+    [](const ZtMField *) { return true; });
 }
 Tuple loadTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple_(fields, xFields, fields.length(), fbo);
+  return loadTuple_(fields.length(), fields, xFields, fbo);
 }
 Tuple loadUpdTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple_(fields, xFields, fields.length(), fbo,
+  return loadTuple_(fields.length(), fields, xFields, fbo,
     [](const ZtMField *field) -> bool {
-      return bool(field->props & ZtMFieldProp::Update) || (field->keys & 1);
+      return bool(field->props & ZtMFieldProp::Update()) || (field->keys & 1);
     });
 }
 Tuple loadDelTuple(
   const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
-  return loadTuple_(fields, xFields, fields.length(), fbo,
+  return loadTuple_(fields.length(), fields, xFields, fbo,
     [](const ZtMField *field) -> bool { return (field->keys & 1); });
 }
 
-template <typename Filter>
+// save tuple to flatbuffer
 Offset saveTuple(
   Zfb::Builder &fbb,
-  const ZtMFields &fields,
-  const XFields &xFields,
-  ZuArray<const Value> tuple,
-  Filter filter)
-{
-  unsigned n = fields.length();
-  ZmAssert(n == tuple.length());
-  Offsets offsets{ZmAlloc(Offset, n)};
-  for (unsigned i = 0; i < n; i++)
-    if (filter(fields[i]))
-      saveOffset(fbb, offsets, xFields[i], tuple[i]);
-  auto start = fbb.StartTable();
-  for (unsigned i = 0; i < n; i++)
-    if (filter(fields[i]))
-      saveValue(fbb, offsets, xFields[i], tuple[i]);
-  auto end = fbb.EndTable(start);
-  return Offset{end};
-}
-Offset saveTuple(
-  Zfb::Builder &fbb,
-  const ZtMFields &fields,
   const XFields &xFields,
   ZuArray<const Value> tuple)
 {
-  return saveTuple(fbb, fields, xFields, tuple, [](const ZtMField *) {
-    return true;
-  });
+  unsigned n = xFields.length();
+  ZmAssert(tuple.length() == n);
+  Offsets offsets{ZmAlloc(Offset, n)};
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xFields[i].type;
+    const auto &value = tuple[i];
+    ZuSwitch::dispatch<Value::N>(type,
+      [&fbb, &offsets, &value](auto I) {
+	saveOffset<I>(fbb, offsets, value);
+      });
+  }
+  auto start = fbb.StartTable();
+  for (unsigned i = 0; i < n; i++) {
+    auto type = xFields[i].type;
+    const auto &value = tuple[i];
+    ZuSwitch::dispatch<Value::N>(type,
+      [&fbb, &offsets, field = xFields[i].field, &value](auto I) {
+	saveValue<I>(fbb, offsets, field, value);
+      });
+  }
+  auto end = fbb.EndTable(start);
+  return Offset{end};
 }
 
 // update tuple
@@ -769,7 +1110,7 @@ void updTuple(const ZtMFields &fields, Tuple &data, Tuple &&update) {
   ZmAssert(data.length() == update.length());
   unsigned n = data.length();
   for (unsigned i = 0; i < n; i++)
-    if (fields[i]->props & ZtMFieldProp::Update) {
+    if (fields[i]->props & ZtMFieldProp::Update()) {
       ZmAssert(update[i].type());
       data[i] = ZuMv(update[i]);
     }
@@ -857,10 +1198,25 @@ public:
       rootTbl->fields();
     unsigned n = m_fields.length();
     m_xFields.size(n);
+#if 0
+    {
+      unsigned j = 0;
+      for (unsigned i = 0; i < n; i++)
+	if (m_fields[i]->props & ZtMFieldProp::Update()) j++;
+      m_updFields.size(j);
+      m_xUpdFields.size(j);
+    }
+#endif
     for (unsigned i = 0; i < n; i++)
       ZtCase::camelSnake(m_fields[i]->id,
 	[this, fbFields_, i](const ZtString &id) {
 	  m_xFields.push(xField(fbFields_, m_fields[i], id));
+#if 0
+	  if (m_fields[i]->props & ZtMFieldProp::Update()) {
+	    m_updFields.push(m_fields[i]);
+	    m_xUpdFields.push(xField(fbFields_, m_fields[i], id));
+	  }
+#endif
 	});
     n = m_keyFields.length();
     m_xKeyFields.size(n);
@@ -871,7 +1227,7 @@ public:
       m_keySeries[i] = -1;
       for (unsigned j = 0; j < m; j++) {
 	if (m_keySeries[i] < 0 &&
-	    m_keyFields[i][j]->props & ZtMFieldProp::Series)
+	    m_keyFields[i][j]->props & ZtMFieldProp::Series())
 	  m_keySeries[i] = j;
 	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {
@@ -914,7 +1270,7 @@ private:
   ZmRef<AnyBuf> saveRow(const ZmRef<const MockRow> &row) {
     IOBuilder fbb;
     auto data = Zfb::Save::nest(fbb, [this, &row](Zfb::Builder &fbb) {
-      return saveTuple(fbb, m_fields, m_xFields, row->data);
+      return saveTuple(fbb, m_xFields, row->data);
     });
     {
       auto id = Zfb::Save::id(this->id());
@@ -938,46 +1294,53 @@ public:
     unsigned keyID, ZmRef<const AnyBuf> buf,
     unsigned o, unsigned n, KeyFn keyFn)
   {
-    int k = m_keySeries[keyID];
+    ZmAssert(keyID < m_indices.length());
+    auto work_ = [
+      this, keyID, buf = ZuMv(buf), o, n, keyFn = ZuMv(keyFn)
+    ]() mutable {
+      int nParams = m_keySeries[keyID];
 
-    if (k < 0) { // not a series key
+      if (nParams < 0) { // not a series key
+	keyFn(KeyResult{});
+	return;
+      }
+
+      const auto &keyFields = m_keyFields[keyID];
+      const auto &xKeyFields = m_xKeyFields[keyID];
+
+      auto groupKey = loadTuple_(
+	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
+      ZeLOG(Debug, ([groupKey](auto &s) {
+	s << "groupKey={" << ZtJoin(groupKey, ", ") << '}';
+      }));
+
+      const auto &index = m_indices[keyID];
+      auto row = index.find<ZmRBTreeGreater>(groupKey);
+      row = row ? index.prev(row) : index.maximum();
+      unsigned i = 0;
+      while (i++ < o && row && row->key() >= groupKey) row = index.prev(row);
+      i = 0;
+      while (row && row->key() >= groupKey && i++ < n) {
+	auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
+	IOBuilder fbb;
+	fbb.Finish(saveTuple(fbb, xKeyFields, key));
+	KeyData keyData{
+	  .keyID = keyID,
+	  .buf = fbb.buf().constRef()
+	};
+	keyFn(KeyResult{ZuMv(keyData)});
+	row = index.prev(row);
+      }
       keyFn(KeyResult{});
-      return;
-    }
-
-    const auto &keyFields = m_keyFields[keyID];
-    const auto &xKeyFields = m_xKeyFields[keyID];
-
-    auto groupKey = loadTuple_(
-      keyFields, xKeyFields, k, Zfb::GetAnyRoot(buf->data()));
-    ZeLOG(Debug, ([groupKey](auto &s) {
-      s << "groupKey={" << ZtJoin(groupKey, ", ") << '}';
-    }));
-
-    const auto &index = m_indices[keyID];
-    auto row = index.find<ZmRBTreeGreater>(groupKey);
-    row = row ? index.prev(row) : index.maximum();
-    unsigned i = 0;
-    while (i++ < o && row && row->key() >= groupKey) row = index.prev(row);
-    i = 0;
-    while (row && row->key() >= groupKey && i++ < n) {
-      auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
-      IOBuilder fbb;
-      fbb.Finish(saveTuple(fbb, keyFields, xKeyFields, key));
-      KeyData keyData{
-	.keyID = keyID,
-	.buf = fbb.buf().constRef()
-      };
-      keyFn(KeyResult{ZuMv(keyData)});
-      row = index.prev(row);
-    }
-    keyFn(KeyResult{});
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
-    auto work_ =
-    [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
+    auto work_ = [
+      this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)
+    ]() mutable {
       auto key = loadTuple(
 	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data()));
       ZmRef<const MockRow> row = m_indices[keyID].findVal(key);
@@ -1021,8 +1384,9 @@ public:
   }
 
   void write(ZmRef<const AnyBuf> buf, CommitFn commitFn) {
-    auto work_ =
-    [this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
+    auto work_ = [
+      this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)
+    ]() mutable {
       // idempotence check
       auto un = record_(msg_(buf->hdr()))->un();
       if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
@@ -1158,8 +1522,10 @@ public:
 private:
   ZuID			m_id;
   ZtMFields		m_fields;
+  // ZtMFields		m_updFields;
   ZtMKeyFields		m_keyFields;
   XFields		m_xFields;
+  // XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
   ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
   IndexUN		m_indexUN;

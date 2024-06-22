@@ -4,11 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Command Line Interface Library
+// Z Command Line Library
 
 #include <zlib/ZrlLib.hh>
 
 #include "../../version.h"
 
-ZrlExtern const char ZrlLib[] =
-  "@(#) Zero Copy Command Line Interface Library v" Z_VERNAME;
+ZrlExtern const char ZrlLib[] = "@(#) Z Command Line Library v" Z_VERNAME;

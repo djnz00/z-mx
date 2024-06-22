@@ -304,7 +304,7 @@ private:
       if ((j = colIndex[i]) < 0 || j >= static_cast<int>(n)) {
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
-	    [object, i, field, &fmt](auto Code) {
+	    [object, field, &fmt](auto Code) {
 	  field->set.scan<Code>(object, ZuString{}, field, fmt);
 	});
       }
@@ -315,7 +315,7 @@ private:
 	ZuString s = a[j];
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
-	    [object, i, &s, field, &fmt](auto Code) {
+	    [object, &s, field, &fmt](auto Code) {
 	  field->set.scan<Code>(object, s, field, fmt);
 	});
       }

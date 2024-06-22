@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy DB Library
+// Z DB Library
 
 #include <zlib/ZdbLib.hh>
 
 #include "../../version.h"
 
-ZdbExtern const char ZdbLib[] = "@(#) Zero Copy DB Library v" Z_VERNAME;
+ZdbExtern const char ZdbLib[] = "@(#) Z DB Library v" Z_VERNAME;

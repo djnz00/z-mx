@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Gtk integration
+// Z Gtk integration
 
 #ifndef ZGtkLib_HH
 #define ZGtkLib_HH

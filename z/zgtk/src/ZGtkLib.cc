@@ -4,11 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Gtk integration
+// Z Gtk Library
 
 #include <zlib/ZGtkLib.hh>
 
 #include "../../version.h"
 
-ZGtkExtern const char ZGtkLib[] =
-  "@(#) Zero Copy Gtk Library v" Z_VERNAME;
+ZGtkExtern const char ZGtkLib[] = "@(#) Z Gtk Library v" Z_VERNAME;

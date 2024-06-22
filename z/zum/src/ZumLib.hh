@@ -4,30 +4,30 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zv library main header
+// Z User Management library main header
 
-#ifndef ZvLib_HH
-#define ZvLib_HH
+#ifndef ZumLib_HH
+#define ZumLib_HH
 
 #include <zlib/ZuLib.hh>
 
 #ifdef _WIN32
 
 #ifdef ZV_EXPORTS
-#define ZvAPI ZuExport_API
-#define ZvExplicit ZuExport_Explicit
+#define ZumAPI ZuExport_API
+#define ZumExplicit ZuExport_Explicit
 #else
-#define ZvAPI ZuImport_API
-#define ZvExplicit ZuImport_Explicit
+#define ZumAPI ZuImport_API
+#define ZumExplicit ZuImport_Explicit
 #endif
-#define ZvExtern extern ZvAPI
+#define ZumExtern extern ZumAPI
 
 #else
 
-#define ZvAPI
-#define ZvExplicit
-#define ZvExtern extern
+#define ZumAPI
+#define ZumExplicit
+#define ZumExtern extern
 
 #endif
 
-#endif /* ZvLib_HH */
+#endif /* ZumLib_HH */

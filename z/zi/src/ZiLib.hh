@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zi library main header
+// Z I/O library main header
 
 #ifndef ZiLib_HH
 #define ZiLib_HH

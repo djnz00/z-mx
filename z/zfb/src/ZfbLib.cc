@@ -4,11 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// flatbuffers integration
+// Z flatbuffers Library
 
 #include <zlib/ZfbLib.hh>
 
 #include "../../version.h"
 
-ZfbExtern const char ZfbLib[] =
-  "@(#) Zero Copy flatbuffers Library v" Z_VERNAME;
+ZfbExtern const char ZfbLib[] = "@(#) Z flatbuffers Library v" Z_VERNAME;

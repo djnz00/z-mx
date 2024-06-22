@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Error Library
+// Z Error Library
 
 #include <zlib/ZeLib.hh>
 
 #include "../../version.h"
 
-ZeExtern const char ZeLib[] = "@(#) Zero Copy Error Library v" Z_VERNAME;
+ZeExtern const char ZeLib[] = "@(#) Z Error Library v" Z_VERNAME;

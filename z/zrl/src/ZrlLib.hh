@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zrl library main header
+// Z Command Line library main header
 
 #ifndef ZrlLib_HH
 #define ZrlLib_HH

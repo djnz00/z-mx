@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zt library main header
+// Z Type library main header
 
 #ifndef ZtLib_HH
 #define ZtLib_HH

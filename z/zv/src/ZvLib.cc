@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy V-Layer Library
+// Z V-Layer Library
 
 #include <zlib/ZvLib.hh>
 
 #include "../../version.h"
 
-ZvExtern const char ZvLib[] = "@(#) Zero Copy V-Layer Library v" Z_VERNAME;
+ZvExtern const char ZvLib[] = "@(#) Z V-Layer Library v" Z_VERNAME;

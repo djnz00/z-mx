@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 
     orders = db->initTable<Order>("order"); // might throw
 
-    db->start();
+    if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
 
     ZuNBox<uint64_t> seqNo;
 

@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zm library main header
+// Z Multithreading library main header
 
 #ifndef ZmLib_HH
 #define ZmLib_HH

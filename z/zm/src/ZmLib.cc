@@ -4,14 +4,13 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Zero Copy Multithreading Library
+// Z Multithreading Library
 
 #include <zlib/ZmLib.hh>
 
 #include "../../version.h"
 
-ZmExtern const char ZmLib[] = "@(#) Zero Copy Multithreading Library v"
-  Z_VERNAME;
+ZmExtern const char ZmLib[] = "@(#) Z Multithreading Library v" Z_VERNAME;
 
 // force DLL inclusion of ZmBackoff and ZmTimeout
 
