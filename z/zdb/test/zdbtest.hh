@@ -31,8 +31,8 @@ struct Order {
   ZuStringN<32>		clOrdID;
   ZuNBox<uint64_t>	seqNo;
   int			side;
-  int			price;
-  int			quantity;
+  ZtArray<int>		prices;
+  ZtArray<int>		quantities;
 
   friend ZtFieldPrint ZuPrintType(Order *);
 };
@@ -44,8 +44,8 @@ ZfbFields(Order,
   (((clOrdID), (Keys<1>, Ctor<3>, Update)), (String)),
   (((seqNo), (Keys<2>, Ctor<4>, Series, Index, Update)), (UInt64)),
   (((side), (Ctor<5>)), (Enum, Side::Map)),
-  (((price), (Ctor<6>, Update)), (Int32)),
-  (((quantity), (Ctor<7>, Update)), (Int32)));
+  (((prices), (Ctor<6>, Update)), (Int32Vec)),
+  (((quantities), (Ctor<7>, Update)), (Int32Vec)));
 
 ZfbRoot(Order);	// bind Order to flatbuffer schema
 

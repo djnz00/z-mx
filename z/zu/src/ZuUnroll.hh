@@ -16,8 +16,8 @@
 // a side effect that invokes the lambda template operator () with a
 // constexpr index parameter
 //
-// ... note that the old trick of a "swallow" function prevents return
-// value map/reduction
+// ... note that the old trick of a "swallow" function precludes return
+// value map/reduction, so it is not used here
 
 #ifndef ZuUnroll_HH
 #define ZuUnroll_HH

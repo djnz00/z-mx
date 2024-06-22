@@ -11,7 +11,7 @@ table Order {
   cl_ord_i_d:string;
   seq_no:uint64;
   side:Side;
-  price:int32;
-  quantity:int32;
+  prices:[int32];
+  quantities:[int32];
 }
 root_type Order;

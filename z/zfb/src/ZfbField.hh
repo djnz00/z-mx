@@ -381,18 +381,14 @@ namespace Save {
     Builder &fbb, ZtField_::Int##width##Vec a) \
   { \
     return pvectorIter<int##width##_t>(fbb, a.length(), \
-      [&a](Builder &fbb, unsigned i) mutable { \
-	return int##width##_t(a[i]); \
-      }); \
+      [&a](unsigned i) mutable { return int##width##_t(a[i]); }); \
   } \
   template <typename Builder> \
   inline auto uint##width##Vec( \
     Builder &fbb, ZtField_::UInt##width##Vec a) \
   { \
     return pvectorIter<uint##width##_t>(fbb, a.length(), \
-      [&a](Builder &fbb, unsigned i) mutable { \
-	return uint##width##_t(a[i]); \
-      }); \
+      [&a](unsigned i) mutable { return uint##width##_t(a[i]); }); \
   }
   ZfbField_SaveIntVec(8)
   ZfbField_SaveIntVec(16)
@@ -416,7 +412,7 @@ namespace Save {
   template <typename Builder>
   inline auto floatVec(Builder &fbb, ZtField_::FloatVec a) {
     return pvectorIter<double>(fbb, a.length(),
-      [&a](Builder &fbb, unsigned i) mutable { return double(a[i]); });
+      [&a](unsigned i) mutable { return double(a[i]); });
   }
   template <typename Builder>
   inline auto fixedVec(Builder &fbb, ZtField_::FixedVec a) {

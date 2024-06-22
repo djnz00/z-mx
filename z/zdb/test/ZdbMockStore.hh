@@ -1198,25 +1198,10 @@ public:
       rootTbl->fields();
     unsigned n = m_fields.length();
     m_xFields.size(n);
-#if 0
-    {
-      unsigned j = 0;
-      for (unsigned i = 0; i < n; i++)
-	if (m_fields[i]->props & ZtMFieldProp::Update()) j++;
-      m_updFields.size(j);
-      m_xUpdFields.size(j);
-    }
-#endif
     for (unsigned i = 0; i < n; i++)
       ZtCase::camelSnake(m_fields[i]->id,
 	[this, fbFields_, i](const ZtString &id) {
 	  m_xFields.push(xField(fbFields_, m_fields[i], id));
-#if 0
-	  if (m_fields[i]->props & ZtMFieldProp::Update()) {
-	    m_updFields.push(m_fields[i]);
-	    m_xUpdFields.push(xField(fbFields_, m_fields[i], id));
-	  }
-#endif
 	});
     n = m_keyFields.length();
     m_xKeyFields.size(n);

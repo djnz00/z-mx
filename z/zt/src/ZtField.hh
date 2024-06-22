@@ -311,29 +311,32 @@ namespace ZtMFieldProp {
     Delta2,
     NDP);
 
-  template <T I> using Constant = ZuConstant<T, I>;
+  using V = T;
 
-  // Value<Prop>::N - return bitfield for individual property
-  template <typename> struct Value : public Constant<0> { };	// default
+  template <V I> using Constant = ZuConstant<V, I>;
 
-  template <unsigned I>
-  struct Value<Constant<I>> : public Constant<I> { };
+  template <typename> struct Value_ { using T = Constant<0>; }; // default
+
+  template <auto I>
+  struct Value_<Constant<I>> { using T = Constant<I>; }; // passthru
+
+  template <typename U> using Value = typename Value_<U>::T;
 
   namespace _ = ZuFieldProp;
 
-  template <unsigned I>
-  struct Value<_::Ctor<I>>               : public Constant<Ctor()> { };
-  template <> struct Value<_::Synthetic> : public Constant<Synthetic()> { };
-  template <> struct Value<_::Update>    : public Constant<Update()> { };
-  template <> struct Value<_::Hidden>    : public Constant<Hidden()> { };
-  template <> struct Value<_::Hex>       : public Constant<Hex()> { };
-  template <> struct Value<_::Required>  : public Constant<Required()> { };
-  template <> struct Value<_::Series>    : public Constant<Series()> { };
-  template <> struct Value<_::Index>     : public Constant<Index()> { };
-  template <> struct Value<_::Delta>     : public Constant<Delta()> { };
-  template <> struct Value<_::Delta2>    : public Constant<Delta2()> { };
-  template <int8_t I>
-  struct Value<_::NDP<I>>                : public Constant<NDP()> { };
+  template <auto I>
+  struct Value_<_::Ctor<I>>               { using T = Constant<Ctor()>; };
+  template <> struct Value_<_::Synthetic> { using T = Constant<Synthetic()>; };
+  template <> struct Value_<_::Update>    { using T = Constant<Update()>; };
+  template <> struct Value_<_::Hidden>    { using T = Constant<Hidden()>; };
+  template <> struct Value_<_::Hex>       { using T = Constant<Hex()>; };
+  template <> struct Value_<_::Required>  { using T = Constant<Required()>; };
+  template <> struct Value_<_::Series>    { using T = Constant<Series()>; };
+  template <> struct Value_<_::Index>     { using T = Constant<Index()>; };
+  template <> struct Value_<_::Delta>     { using T = Constant<Delta()>; };
+  template <> struct Value_<_::Delta2>    { using T = Constant<Delta2()>; };
+  template <auto I>
+  struct Value_<_::NDP<I>>                { using T = Constant<NDP()>; };
 
   // Value<List>::N - return bitfield for property list
   template <typename ...> struct Or_;
@@ -344,12 +347,14 @@ namespace ZtMFieldProp {
     using T = Value<U>;
   };
   template <typename L, typename R> struct Or_<L, R> {
-    using T = Constant<unsigned(Value<L>{}) | unsigned(Value<R>{})>;
+    using T = Constant<V(Value<L>{}) | V(Value<R>{})>;
   };
   template <typename ...Props> using Or = typename Or_<Props...>::T;
+
   template <typename ...Props>
-  struct Value<ZuTypeList<Props...>> :
-      public ZuTypeReduce<Or, ZuTypeList<Props...>> { };
+  struct Value_<ZuTypeList<Props...>> {
+    using T = ZuTypeReduce<Or, ZuTypeList<Props...>>;
+  };
 }
 
 // type is keyed on type-code, underlying type, type properties, type args
@@ -1579,7 +1584,7 @@ struct ZtField : public Base_ {
   using O = typename Base::O;
   using T = typename Base::T;
   using Props = typename Base::Props;
-  constexpr static uint64_t mprops() {
+  constexpr static ZtMFieldProp::T mprops() {
     return ZtMFieldProp::Value<Props>{};
   }
 };

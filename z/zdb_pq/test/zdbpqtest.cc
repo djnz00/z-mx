@@ -78,6 +78,7 @@ int main(int argc, char **argv)
       "  module ../src/.libs/libZdbPQ.so\n"
       "  connection \"dbname=test host=/tmp\"\n"
       "  thread zdb_pq\n"
+      "  replicated true\n"
       "}\n"
       "tables {\n"
       "  order { }\n"
@@ -128,12 +129,12 @@ int main(int argc, char **argv)
     db = new Zdb();
 
     db->init(ZdbCf(cf), dbMx, ZdbHandler{
-	.upFn = [](Zdb *, ZdbHost *host) {
-	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
-	    s << "ACTIVE (was " << id << ')';
-	  }));
-	},
-	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+      .upFn = [](Zdb *, ZdbHost *host) {
+	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
+	  s << "ACTIVE (was " << id << ')';
+	}));
+      },
+      .downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
     });
 
     orders = db->initTable<Order>("order"); // might throw
