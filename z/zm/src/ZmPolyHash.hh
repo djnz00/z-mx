@@ -144,7 +144,7 @@ public:
   unsigned count_() const { return m_hashes.template p<0>()->count_(); }
 
   void add(NodeRef node) {
-    ZuUnroll::all<ZuTypeRev<ZuTypeRight<1, KeyIDs>>>(
+    ZuUnroll::all<ZuTypeRev<ZuTypeTail<1, KeyIDs>>>(
 	[this, &node]<typename KeyID>() mutable {
       m_hashes.template p<KeyID{}>()->addNode(node);
     });
@@ -208,7 +208,7 @@ public:
     return nullptr;
   }
   NodeMvRef delNode(Node *node) {
-    ZuUnroll::all<ZuTypeRev<ZuTypeRight<1, KeyIDs>>>(
+    ZuUnroll::all<ZuTypeRev<ZuTypeTail<1, KeyIDs>>>(
 	[this, node]<typename KeyID>() mutable {
       m_hashes.template p<KeyID{}>()->delNode(node);
     });

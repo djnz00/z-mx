@@ -192,50 +192,50 @@ template <template <typename...> class Reduce, typename ...Ts>
 using ZuTypeReduce = typename ZuTypeReduce_<Reduce, Ts...>::T;
 
 // split typelist left, 0..N-1
-template <unsigned N, typename ...Ts> struct ZuTypeLeft__;
+template <unsigned N, typename ...Ts> struct ZuTypeHead__;
 template <unsigned N, typename T0, typename ...Ts>
-struct ZuTypeLeft__<N, T0, Ts...> {
-  using T = typename ZuTypeLeft__<N - 1, Ts...>::T::template Unshift<T0>;
+struct ZuTypeHead__<N, T0, Ts...> {
+  using T = typename ZuTypeHead__<N - 1, Ts...>::T::template Unshift<T0>;
 };
 template <typename T0, typename ...Ts>
-struct ZuTypeLeft__<0, T0, Ts...> {
+struct ZuTypeHead__<0, T0, Ts...> {
   using T = ZuTypeList<>;
 };
 template <typename ...Ts>
-struct ZuTypeLeft__<0, Ts...> {
+struct ZuTypeHead__<0, Ts...> {
   using T = ZuTypeList<>;
 };
 template <unsigned N, typename ...Ts>
-struct ZuTypeLeft_ :
-    public ZuTypeLeft__<N, Ts...> { };
+struct ZuTypeHead_ :
+    public ZuTypeHead__<N, Ts...> { };
 template <unsigned N, typename ...Ts>
-struct ZuTypeLeft_<N, ZuTypeList<Ts...>> :
-    public ZuTypeLeft__<N, Ts...> { };
+struct ZuTypeHead_<N, ZuTypeList<Ts...>> :
+    public ZuTypeHead__<N, Ts...> { };
 template <unsigned N, typename ...Ts>
-using ZuTypeLeft = typename ZuTypeLeft_<N, Ts...>::T;
+using ZuTypeHead = typename ZuTypeHead_<N, Ts...>::T;
 
 // split typelist right, N..
-template <unsigned N, typename ...Ts> struct ZuTypeRight__;
+template <unsigned N, typename ...Ts> struct ZuTypeTail__;
 template <unsigned N, typename T0, typename ...Ts>
-struct ZuTypeRight__<N, T0, Ts...> {
-  using T = typename ZuTypeRight__<N - 1, Ts...>::T;
+struct ZuTypeTail__<N, T0, Ts...> {
+  using T = typename ZuTypeTail__<N - 1, Ts...>::T;
 };
 template <typename T0, typename ...Ts>
-struct ZuTypeRight__<0, T0, Ts...> {
+struct ZuTypeTail__<0, T0, Ts...> {
   using T = ZuTypeList<T0, Ts...>;
 };
 template <typename ...Ts>
-struct ZuTypeRight__<0, Ts...> {
+struct ZuTypeTail__<0, Ts...> {
   using T = ZuTypeList<Ts...>;
 };
 template <unsigned N, typename ...Ts>
-struct ZuTypeRight_ :
-    public ZuTypeRight__<N, Ts...> { };
+struct ZuTypeTail_ :
+    public ZuTypeTail__<N, Ts...> { };
 template <unsigned N, typename ...Ts>
-struct ZuTypeRight_<N, ZuTypeList<Ts...>> :
-    public ZuTypeRight__<N, Ts...> { };
+struct ZuTypeTail_<N, ZuTypeList<Ts...>> :
+    public ZuTypeTail__<N, Ts...> { };
 template <unsigned N, typename ...Ts>
-using ZuTypeRight = typename ZuTypeRight_<N, Ts...>::T;
+using ZuTypeTail = typename ZuTypeTail_<N, Ts...>::T;
 
 // compile-time merge-sort typelist using Index<T>{}
 template <template <typename> class Index, typename Left, typename Right>
@@ -293,8 +293,8 @@ template <template <typename> class Index, typename ...Ts>
 struct ZuTypeSort_ {
   enum { N = sizeof...(Ts) };
   using T = ZuTypeMerge<Index,
-    typename ZuTypeSort_<Index, ZuTypeLeft<(N>>1), Ts...>>::T,
-    typename ZuTypeSort_<Index, ZuTypeRight<(N>>1), Ts...>>::T
+    typename ZuTypeSort_<Index, ZuTypeHead<(N>>1), Ts...>>::T,
+    typename ZuTypeSort_<Index, ZuTypeTail<(N>>1), Ts...>>::T
   >;
 };
 template <template <typename> class Index, typename T0>

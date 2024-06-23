@@ -1747,7 +1747,7 @@ private:
   XFields		m_xFields;
   XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
-  ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
+  ZtArray<int>		m_keyGroup;	// length of grouping key, -1 if none
   FieldMap		m_fieldMap;
 
   OpenState		m_openState;

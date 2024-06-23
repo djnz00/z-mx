@@ -1140,15 +1140,15 @@ public:
 	});
     n = m_keyFields.length();
     m_xKeyFields.size(n);
-    m_keySeries.length(n);
+    m_keyGroup.length(n);
     for (unsigned i = 0; i < n; i++) {
       unsigned m = m_keyFields[i].length();
       new (m_xKeyFields.push()) XFields{m};
-      m_keySeries[i] = -1;
+      m_keyGroup[i] = -1;
       for (unsigned j = 0; j < m; j++) {
-	if (m_keySeries[i] < 0 &&
-	    m_keyFields[i][j]->props & ZtMFieldProp::Series())
-	  m_keySeries[i] = j;
+	if (m_keyGroup[i] < 0 &&
+	    m_keyFields[i][j]->props & ZtMFieldProp::Grouped())
+	  m_keyGroup[i] = j;
 	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {
 	    m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
@@ -1218,9 +1218,9 @@ public:
     auto work_ = [
       this, keyID, buf = ZuMv(buf), o, n, keyFn = ZuMv(keyFn)
     ]() mutable {
-      int nParams = m_keySeries[keyID];
+      int nParams = m_keyGroup[keyID];
 
-      if (nParams < 0) { // not a series key
+      if (nParams < 0) { // not a grouped key
 	keyFn(KeyResult{});
 	return;
       }
@@ -1447,7 +1447,7 @@ private:
   XFields		m_xFields;
   // XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
-  ZtArray<int>		m_keySeries;	// offset of series in key, -1 if none
+  ZtArray<int>		m_keyGroup;	// length of grouping key, -1 if none
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
 

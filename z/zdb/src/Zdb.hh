@@ -383,9 +383,7 @@ using CacheUN =
 // and does not persist them
 template <typename Field>
 struct FieldFilter :
-    public ZuBool<
-      !ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{} ||
-      !ZuIsExact<ZuFieldProp::GetKeys<typename Field::Props>, ZuSeq<>>{}> { };
+    public ZuBool<!ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{}> { };
 
 template <typename T>
 using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
@@ -795,40 +793,40 @@ template <typename T, typename Key>
 using Find = Find_<T, Key, Find_Heap<T, Key>>;
 
 // series index keys for a type
-// - filter fields that are data series
+// - filter fields that are grouped
 template <typename Field>
-using IsSeries = ZuTypeIn<ZuFieldProp::Series, typename Field::Props>;
-// - filter fields that are not series, i.e. are grouping fields
+using IsGrouped = ZuTypeIn<ZuFieldProp::Grouped, typename Field::Props>;
+// - filter fields that are not grouped, i.e. are grouping fields
 template <typename Field>
-using NotSeries =
-  ZuBool<!ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{}>;
+using NotGrouped =
+  ZuBool<!ZuTypeIn<ZuFieldProp::Grouped, typename Field::Props>{}>;
 // - extract grouping fields from fields comprising a key
 template <typename Key>
-using GroupFields = ZuTypeGrep<NotSeries, ZuFieldList<Key>>;
+using GroupFields = ZuTypeGrep<NotGrouped, ZuFieldList<Key>>;
 // - tuple type for grouping fields
 template <typename Key>
 using GroupKeyT = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, GroupFields<Key>>;
 // - extract series fields from fields comprising a key
 template <typename Key>
-using SeriesFields = ZuTypeGrep<IsSeries, ZuFieldList<Key>>;
+using GroupedFields = ZuTypeGrep<IsGrouped, ZuFieldList<Key>>;
 // - tuple type for series fields
 template <typename Key>
-using SeriesKeyT = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, SeriesFields<Key>>;
+using GroupedKeyT = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, GroupedFields<Key>>;
 // - filter keys that have 1 or more series fields
 template <typename Key>
-using IsSeriesKey = ZuBool<SeriesFields<Key>::N>;
+using IsGroupedKey = ZuBool<GroupedFields<Key>::N>;
 // - extract series key
 template <unsigned KeyID, typename P>
-inline decltype(auto) SeriesKeyExtract(P &&o) {
+inline decltype(auto) GroupedKeyExtract(P &&o) {
   using T = ZuFielded<P>;
-  using Fields = ZuTypeGrep<IsSeries, ZuKeyFields<T, KeyID>>;
+  using Fields = ZuTypeGrep<IsGrouped, ZuKeyFields<T, KeyID>>;
   return ZuFieldExtract<Fields>(ZuFwd<P>(o));
 }
 // - extract grouping key
 template <unsigned KeyID, typename P>
 inline decltype(auto) GroupKeyExtract(P &&o) {
   using T = ZuFielded<P>;
-  using Fields = ZuTypeGrep<NotSeries, ZuKeyFields<T, KeyID>>;
+  using Fields = ZuTypeGrep<NotGrouped, ZuKeyFields<T, KeyID>>;
   return ZuFieldExtract<Fields>(ZuFwd<P>(o));
 }
 
@@ -857,17 +855,17 @@ private:
   using FindDLQPtr = ZuPtr<FindDLQ<Key>>;
   using FindDLQs = ZuTypeApply<ZuTuple, ZuTypeMap<FindDLQPtr, ZuFieldKeys<T>>>;
 
-  // - grep keys containing series fields for a type T
-  using SeriesKeys = ZuTypeGrep<IsSeriesKey, ZuFieldKeys<T>>;
-  // - map KeyID (index of all keys) to SeriesKeyID (index of series keys)
+  // - grep keys containing grouped fields for a type T
+  using GroupedKeys = ZuTypeGrep<IsGroupedKey, ZuFieldKeys<T>>;
+  // - map KeyID (index of all keys) to GroupedKeyID (index of grouped keys)
   template <unsigned KeyID>
-  using SeriesKeyID = ZuTypeIndex<ZuFieldKeyT<T, KeyID>, SeriesKeys>;
+  using GroupedKeyID = ZuTypeIndex<ZuFieldKeyT<T, KeyID>, GroupedKeys>;
   // - grouping key for a KeyID
   template <unsigned KeyID>
   using GroupKey = GroupKeyT<ZuFieldKeyT<T, KeyID>>;
-  // - series key for a KeyID
+  // - grouped key for a KeyID
   template <unsigned KeyID>
-  using SeriesKey = SeriesKeyT<ZuFieldKeyT<T, KeyID>>;
+  using GroupedKey = GroupedKeyT<ZuFieldKeyT<T, KeyID>>;
 
 public:
   Table(DB *db, TableCf *cf) : AnyTable{db, cf} {
@@ -925,7 +923,7 @@ private:
       // primary key is immutable
       if constexpr (KeyIDs::N > 1)
 	if (ZmRef<Object<T>> object = m_cache.find(ZuFieldKey<0>(*fbo))) {
-	  m_cache.template update<ZuTypeRight<1, KeyIDs>>(ZuMv(object),
+	  m_cache.template update<ZuTypeTail<1, KeyIDs>>(ZuMv(object),
 	    [fbo](const ZmRef<Object<T>> &object) {
 	      ZfbField::update(object->data(), fbo);
 	    });
@@ -1012,7 +1010,7 @@ public:
     return new Object<T>{this, [](void *ptr) { new (ptr) T{}; }};
   }
 
-  // iterate over keys (o is offset, n is limit)
+  // iterate over group (o is offset, n is limit)
   template <unsigned KeyID, typename L>
   void glob(GroupKey<KeyID> groupKey, unsigned o, unsigned n, L l);
 
@@ -1096,7 +1094,7 @@ public:
     } catch (...) { abort(); throw; }
     abort();
   }
-  // update object (idempotent) - returns true if update can proceed
+  // update object (idempotent) - calls l(null) to skip
   template <typename KeyIDs_ = ZuSeq<>, typename L>
   void update(ZmRef<Object<T>> object, UN un, L l) {
     ZmAssert(invoked());

@@ -540,8 +540,8 @@ public:
       (sizeof...(Vs) + 1 <= N) &&
       (sizeof...(Vs) > 0 || !IsConAnyTuple<V0>{}), int> = 0>
   Tuple(V0 &&v0, Vs &&... v) : Base{
-    ZuTypeLeft<sizeof...(Vs) + 1, Elems>{},
-    ZuTypeRight<sizeof...(Vs) + 1, Elems>{},
+    ZuTypeHead<sizeof...(Vs) + 1, Elems>{},
+    ZuTypeTail<sizeof...(Vs) + 1, Elems>{},
     ZuFwd<V0>(v0), ZuFwd<Vs>(v)...} { }
 
   template <typename V>

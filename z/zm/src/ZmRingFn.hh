@@ -221,7 +221,7 @@ struct ZmRingFn_MapArgs {
 	ZuTypeApply<ZmRingFn_,
 	  typename Args::template Unshift<ZmRingFn_Defaults>>,
 	ZuTypeApply<ZmRingFn_,
-	  typename ZuTypeLeft<N - 1, Args>::template Unshift<
+	  typename ZuTypeHead<N - 1, Args>::template Unshift<
 	    ZuType<N - 1, Args>>>>>;
 };
 

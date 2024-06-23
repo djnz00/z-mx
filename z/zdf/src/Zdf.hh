@@ -243,14 +243,9 @@ private:
   SyncFn	m_syncFn = nullptr;
 };
 
-// Zdf data-frames are comprised of series fields that do not form part of
-// a primary or secondary key for the object - the Index property
-// determines which series fields are used to index the series
+// Zdf data-frames are comprised of series fields
 template <typename Field>
-struct FieldFilter :
-    public ZuBool<
-      bool(ZuTypeIn<ZtFieldProp::Series, typename Field::Props>{}) &&
-      bool(ZuIsExact<typename Field::Keys, ZuSeq<>>{})> { };
+using FieldFilter = ZuTypeIn<ZtFieldProp::Series, typename Field::Props>;
 
 template <typename T>
 using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;

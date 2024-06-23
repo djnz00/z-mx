@@ -43,10 +43,13 @@
 #include <zlib/zum_userdbreq_fbs.h>
 #include <zlib/zum_userdback_fbs.h>
 
+namespace ZvUserDB {
+
+constexpr static mbedtls_md_type_t keyType() {
+  return MBEDTLS_MD_SHA256;
+}
 enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
 using KeyData = ZuArrayN<uint8_t, KeySize>;
-
-namespace ZvUserDB {
 
 struct Key {
   uint64_t		userID;
@@ -55,7 +58,7 @@ struct Key {
 };
 ZfbFields(Key,
   (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
-  (((id), (Keys<0>, Ctor<1>, Series)), (String)),
+  (((id), (Keys<0>, Ctor<1>, Grouped)), (String)),
   (((secret), (Ctor<2>, Update)), (Bytes)));
 
 struct Perm {
@@ -63,138 +66,67 @@ struct Perm {
   ZtString		name;
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>, Series)), (UInt8)),
+  (((id), (Keys<0>, Ctor<0>, Grouped)), (UInt8)),
   (((name), (Ctor<1>, Update)), (String)));
 
 namespace RoleFlags {
-  ZtEnumFlags(RoleFlags, uint8_t,
-    Immutable);
+  ZtEnumFlags(RoleFlags, uint8_t, Immutable);
 }
 
 struct Role {
   ZtString		name;
   uint128_t		perms;
   uint128_t		apiperms;
-  uint8_t		flags;	// RoleFlags
+  uint8_t		flags;		// RoleFlags
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
   (((perms), (Ctor<1>)), (UInt128)),
   (((apiperms), (Ctor<2>)), (UInt128)),
-  (((flags), (Ctor<3>)), (UInt8)));
+  (((flags), (Ctor<3>, Flags<RoleFlags::Map>)), (UInt8)));
+
+namespace UserFlags {
+  ZtEnumFlags(UserFlags, uint8_t,
+    Immutable,
+    Enabled,
+    ChPass);		// user must change password
+}
 
 struct User {
   uint64_t		id;
   ZtString		name;
   KeyData		hmac;
   KeyData		secret;
-  Roles			
+  ZtArray<ZtString>	roles;
+  uint8_t		flags = 0;	// UserFlags
+
+};
+ZfbFields(User,
+  (((id), (Keys<0>, Ctor<0>)), (UInt64)),
+  (((name), (Keys<1>, Ctor<1>)), (String)),
+  (((hmac), (Ctor<2>)), (Bytes)),
+  (((secret), (Ctor<3>)), (Bytes)),
+  (((roles), (Ctor<4>)), (StringVec)),
+  (((flags), (Ctor<5>, Flags<UserFlags::Map>)), (uint8_t, 0)));
+
+struct Session_ {
+  User		user;
+  unsigned	failures = 0;
+  uint128_t	perms;		// effective permissions
+  uint128_t	apiperms;	// effective API permissions
+
+  static auto NameAxor(const Session &session) { return session.user.name; }
 };
 
-using Bitmap = ZuBitmap<256>;
+inline constexpr const char *Session_HeapID() { return "ZumUserDB.Session"; }
+using SessionHash =
+  ZmHash<Session_,
+    ZmHashNode<Session_,
+      ZmHashKey<Session_::NameAxor,
+	ZmHashHeapID<Session_HeapID>>>>;
+using Session = SessionHash::Node;
 
-struct Role_ : public ZuObject {
-public:
-  using Flags = uint8_t;
-  enum {
-    Immutable =	0x01
-  };
-
-  Role_(ZuString name_, Flags flags_) :
-      name(name_), flags(flags_) { }
-  Role_(ZuString name_, Flags flags_,
-	const Bitmap &perms_, const Bitmap &apiperms_) :
-      name(name_), perms(perms_), apiperms(apiperms_), flags(flags_) { }
-
-  ZtString		name;
-  Bitmap		perms;
-  Bitmap		apiperms;
-  Flags			flags;
-
-  Zfb::Offset<fbs::Role> save(Zfb::Builder &fbb) const {
-    using namespace Zfb::Save;
-    return fbs::CreateRole(fbb, str(fbb, name),
-	fbb.CreateVector(perms.data, Bitmap::Words),
-	fbb.CreateVector(apiperms.data, Bitmap::Words));
-  }
-
-  static const ZtString &NameAxor(const Role_ &r) { return r.name; }
-};
-using RoleTree =
-  ZmRBTree<Role_,
-    ZmRBTreeNode<Role_,
-      ZmRBTreeKey<Role_::NameAxor,
-	ZmRBTreeUnique<true>>>>;
-using Role = RoleTree::Node;
-ZmRef<Role> loadRole(const fbs::Role *role_) {
-  using namespace Zfb::Load;
-  ZmRef<Role> role = new Role(str(role_->name()), role_->flags());
-  all(role_->perms(), [role](unsigned i, uint64_t v) {
-    if (i < Bitmap::Words) role->perms.data[i] = v;
-  });
-  all(role_->apiperms(), [role](unsigned i, uint64_t v) {
-    if (i < Bitmap::Words) role->apiperms.data[i] = v;
-  });
-  return role;
-}
-
-
-struct Key_;
-struct User__ : public ZuObject {
-  using Flags = uint8_t;
-  enum {
-    Immutable =	0x01,
-    Enabled =	0x02,
-    ChPass =	0x04	// user must change password
-  };
-
-  User__(uint64_t id_, ZuString name_, Flags flags_) :
-      id(id_), name(name_), flags(flags_) { }
-
-  constexpr static mbedtls_md_type_t keyType() {
-    return MBEDTLS_MD_SHA256;
-  }
-
-  uint64_t		id;
-  unsigned		failures = 0;
-  ZtString		name;
-  KeyData		hmac;		// HMAC-SHA256 of secret, password
-  KeyData		secret;		// secret (random at user creation)
-  ZtArray<Role *>	roles;
-  Key_			*keyList = nullptr; // head of list of keys
-  Bitmap		perms;		// permissions
-  Bitmap		apiperms;	// API permissions
-  Flags			flags;
-
-  Zfb::Offset<fbs::User> save(Zfb::Builder &fbb) const {
-    using namespace Zfb::Save;
-    return fbs::CreateUser(fbb, id,
-	str(fbb, name), bytes(fbb, hmac), bytes(fbb, secret),
-	strVecIter(fbb, roles.length(), [this](unsigned k) {
-	  return roles[k]->name;
-	}), flags);
-  }
-
-  static auto IDAxor(const User__ &u) { return u.id; }
-};
-inline constexpr const char *UserIDHashID() { return "ZvUserDB.UserIDs"; }
-using UserIDHash =
-  ZmHash<User__,
-    ZmHashNode<User__,
-      ZmHashKey<User__::IDAxor,
-	ZmHashHeapID<ZmHeapDisable(),
-	  ZmHashID<UserIDHashID>>>>>;
-using User_ = UserIDHash::Node;
-inline constexpr const char *UserNameHashID() { return "ZvUserDB.UserNames"; }
-inline const ZtString &User_NameAxor(const User_ &u) { return u.name; }
-using UserNameHash =
-  ZmHash<User_,
-    ZmHashNode<User_,
-      ZmHashKey<User_NameAxor,
-	ZmHashHeapID<UserNameHashID>>>>;
-using User = UserNameHash::Node;
-template <typename Roles>
-ZmRef<User> loadUser(const Roles &roles, const fbs::User *user_) {
+ZmRef<Session> initSession(
   using namespace Zfb::Load;
   ZmRef<User> user = new User(user_->id(), str(user_->name()), user_->flags());
   user->hmac = bytes(user_->hmac());

@@ -1069,15 +1069,15 @@ StoreTbl::StoreTbl(
       });
   n = m_keyFields.length();
   m_xKeyFields.size(n);
-  m_keySeries.length(n);
+  m_keyGroup.length(n);
   for (unsigned i = 0; i < n; i++) {
     unsigned m = m_keyFields[i].length();
     new (m_xKeyFields.push()) XFields{m};
-    m_keySeries[i] = -1;
+    keyGroup[i] = -1;
     for (unsigned j = 0; j < m; j++) {
-      if (m_keySeries[i] < 0 &&
-	  m_keyFields[i][j]->props & ZtMFieldProp::Series())
-	m_keySeries[i] = j;
+      if (keyGroup[i] < 0 &&
+	  m_keyFields[i][j]->props & ZtMFieldProp::Grouped())
+	keyGroup[i] = j;
       ZtCase::camelSnake(m_keyFields[i][j]->id,
 	[this, fbFields_, i, j](const ZtString &id) {
 	  m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
@@ -1416,7 +1416,7 @@ int StoreTbl::mkIndices_send()
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtMFieldProp::Series()) query << " DESC";
+      if (keyFields[i]->props & ZtMFieldProp::Grouped()) query << " DESC";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
@@ -1507,7 +1507,7 @@ int StoreTbl::prepGlob_send()
   unsigned keyID = m_openState.keyID();
 
 skip:
-  int k = m_keySeries[keyID];
+  int k = keyGroup[keyID];
 
   // skip non-series keys
   if (k < 0) {
@@ -1934,7 +1934,7 @@ void StoreTbl::glob(
 {
   ZmAssert(keyID < m_keyFields.length());
 
-  if (m_keySeries[keyID] < 0) { // not a series key
+  if (keyGroup[keyID] < 0) { // not a series key
     keyFn(KeyResult{});
     return;
   }
@@ -1995,7 +1995,7 @@ int StoreTbl::glob_send(Work::Glob &glob)
 
   const auto &keyFields = m_keyFields[glob.keyID];
   const auto &xKeyFields = m_xKeyFields[glob.keyID];
-  auto nParams = m_keySeries[glob.keyID];
+  auto nParams = keyGroup[glob.keyID];
   ZmAssert(nParams >= 0);
   if (ZuUnlikely(nParams < 0)) { // should never happen
     m_store->zdbRun([keyFn = ZuMv(glob.keyFn)]() mutable {

@@ -65,13 +65,13 @@ int main(int argc, char **argv)
   }
   {
     std::cout << "--- 1 2 3\n";
-    ZuUnroll::all<ZuTypeRight<1, ZuSeqTL<ZuMkSeq<4>>>>([]<typename I>() {
+    ZuUnroll::all<ZuTypeTail<1, ZuSeqTL<ZuMkSeq<4>>>>([]<typename I>() {
       std::cout << I{} << '\n';
     });
   }
   {
     std::cout << "--- 0 1 2\n";
-    ZuUnroll::all<ZuTypeLeft<3, ZuSeqTL<ZuMkSeq<4>>>>([]<typename I>() {
+    ZuUnroll::all<ZuTypeHead<3, ZuSeqTL<ZuMkSeq<4>>>>([]<typename I>() {
       std::cout << I{} << '\n';
     });
   }

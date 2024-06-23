@@ -196,8 +196,8 @@ namespace ZuFieldProp {
   struct Hidden { };		// do not print
   struct Hex { };		// print hex value
   struct Required { };		// required - do not default
+  struct Grouped { };		// grouped part of a key
   struct Series { };		// data series column
-  struct Index { };		// - index (e.g. time, nonce, offset, seq#)
   struct Delta { };		// - first derivative
   struct Delta2 { };		// - second derivative
 
@@ -317,8 +317,8 @@ namespace ZtMFieldProp {
     Hidden,
     Hex,
     Required,
+    Grouped,
     Series,
-    Index,
     Delta,
     Delta2,
     Enum,
@@ -345,8 +345,8 @@ namespace ZtMFieldProp {
   template <> struct Value_<_::Hidden>    { using T = Constant<Hidden()>; };
   template <> struct Value_<_::Hex>       { using T = Constant<Hex()>; };
   template <> struct Value_<_::Required>  { using T = Constant<Required()>; };
+  template <> struct Value_<_::Grouped>   { using T = Constant<Grouped()>; };
   template <> struct Value_<_::Series>    { using T = Constant<Series()>; };
-  template <> struct Value_<_::Index>     { using T = Constant<Index()>; };
   template <> struct Value_<_::Delta>     { using T = Constant<Delta()>; };
   template <> struct Value_<_::Delta2>    { using T = Constant<Delta2()>; };
   template <typename Map>
