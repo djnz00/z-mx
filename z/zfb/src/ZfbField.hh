@@ -191,7 +191,7 @@ struct Fielded_ {
   // update fields - mutable fields and primary key fields
   template <typename U>
   using UpdFilter = ZuBool<
-    bool(ZuTypeIn<Prop::Update, typename U::Props>{}) ||
+    bool(ZuTypeIn<Prop::Mutable, typename U::Props>{}) ||
     bool(ZuFieldProp::Key<typename U::Props, 0>{})>;
   using UpdFields = ZuTypeGrep<UpdFilter, LoadFields>;
 

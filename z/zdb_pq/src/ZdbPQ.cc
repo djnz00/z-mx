@@ -1052,7 +1052,7 @@ StoreTbl::StoreTbl(
   {
     unsigned j = 0;
     for (unsigned i = 0; i < n; i++)
-      if (m_fields[i]->props & ZtMFieldProp::Update()) j++;
+      if (m_fields[i]->props & ZtMFieldProp::Mutable()) j++;
     j += m_keyFields[0].length();
     m_updFields.size(j);
     m_xUpdFields.size(j);
@@ -1061,7 +1061,7 @@ StoreTbl::StoreTbl(
     ZtCase::camelSnake(m_fields[i]->id,
       [this, fbFields_, i](const ZtString &id) {
 	m_xFields.push(xField(fbFields_, m_fields[i], id));
-	if (m_fields[i]->props & ZtMFieldProp::Update()) {
+	if (m_fields[i]->props & ZtMFieldProp::Mutable()) {
 	  m_updFields.push(m_fields[i]);
 	  m_xUpdFields.push(xField(fbFields_, m_fields[i], id));
 	}
@@ -1690,7 +1690,7 @@ int StoreTbl::prepUpdate_send()
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   unsigned j = 4;
   for (unsigned i = 0; i < n; i++) {
-    if (!(m_fields[i]->props & ZtMFieldProp::Update())) continue;
+    if (!(m_fields[i]->props & ZtMFieldProp::Mutable())) continue;
     auto type = m_xFields[i].type;
     query << ", \"" << m_xFields[i].id_
       << "\"=$" << j << "::" << m_store->oids().name(type);

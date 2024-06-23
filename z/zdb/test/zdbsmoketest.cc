@@ -176,8 +176,7 @@ int main(int argc, char **argv)
 	    }));
 	  else
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
-	      s << "find(IBM, " << id << "): " << o->data()
-	        << " refCount=" << o->refCount();
+	      s << "find(IBM, " << id << "): " << o->data();
 	    }));
 	  done_.post();
 	});

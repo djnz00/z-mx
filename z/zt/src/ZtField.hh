@@ -192,7 +192,7 @@ namespace ZtFieldTypeCode {
 // extended compile-time field property list (see ZuFieldProp)
 namespace ZuFieldProp {
   struct Synthetic { };		// synthetic (implies read-only)
-  struct Update { };		// include in updates
+  struct Mutable { };		// include in updates
   struct Hidden { };		// do not print
   struct Hex { };		// print hex value
   struct Required { };		// required - do not default
@@ -314,7 +314,7 @@ namespace ZtMFieldProp {
   ZtEnumFlags(ZtMFieldProp, uint16_t,
     Ctor,
     Synthetic,
-    Update,
+    Mutable,
     Hidden,
     Hex,
     Required,
@@ -343,7 +343,7 @@ namespace ZtMFieldProp {
   template <auto I>
   struct Value_<_::Ctor<I>>               { using T = Constant<Ctor()>; };
   template <> struct Value_<_::Synthetic> { using T = Constant<Synthetic()>; };
-  template <> struct Value_<_::Update>    { using T = Constant<Update()>; };
+  template <> struct Value_<_::Mutable>   { using T = Constant<Mutable()>; };
   template <> struct Value_<_::Hidden>    { using T = Constant<Hidden()>; };
   template <> struct Value_<_::Hex>       { using T = Constant<Hex()>; };
   template <> struct Value_<_::Required>  { using T = Constant<Required()>; };

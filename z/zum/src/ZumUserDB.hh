@@ -6,8 +6,6 @@
 
 // server-side RBAC user DB with MFA, API keys, etc.
 
-// - make ZtField definitions for user, role, perm, key
-
 #ifndef ZvUserDB_HH
 #define ZvUserDB_HH
 
@@ -59,7 +57,7 @@ struct Key {
 ZfbFields(Key,
   (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
   (((id), (Keys<0>, Ctor<1>, Grouped)), (String)),
-  (((secret), (Ctor<2>, Update)), (Bytes)));
+  (((secret), (Ctor<2>, Mutable)), (Bytes)));
 
 struct Perm {
   uint8_t		id;
@@ -67,7 +65,7 @@ struct Perm {
 };
 ZfbFields(Perm,
   (((id), (Keys<0>, Ctor<0>, Grouped)), (UInt8)),
-  (((name), (Ctor<1>, Update)), (String)));
+  (((name), (Ctor<1>, Mutable)), (String)));
 
 namespace RoleFlags {
   ZtEnumFlags(RoleFlags, uint8_t, Immutable);
@@ -81,8 +79,8 @@ struct Role {
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
-  (((perms), (Ctor<1>)), (UInt128)),
-  (((apiperms), (Ctor<2>)), (UInt128)),
+  (((perms), (Ctor<1>, Mutable)), (UInt128)),
+  (((apiperms), (Ctor<2>, Mutable)), (UInt128)),
   (((flags), (Ctor<3>, Flags<RoleFlags::Map>)), (UInt8)));
 
 namespace UserFlags {
@@ -99,23 +97,24 @@ struct User {
   KeyData		secret;
   ZtArray<ZtString>	roles;
   uint8_t		flags = 0;	// UserFlags
-
 };
 ZfbFields(User,
   (((id), (Keys<0>, Ctor<0>)), (UInt64)),
-  (((name), (Keys<1>, Ctor<1>)), (String)),
-  (((hmac), (Ctor<2>)), (Bytes)),
-  (((secret), (Ctor<3>)), (Bytes)),
-  (((roles), (Ctor<4>)), (StringVec)),
-  (((flags), (Ctor<5>, Flags<UserFlags::Map>)), (uint8_t, 0)));
+  (((name), (Keys<1>, Ctor<1>, Mutable)), (String)),
+  (((hmac), (Ctor<2>, Mutable)), (Bytes)),
+  (((secret), (Ctor<3>, Mutable)), (Bytes)),
+  (((roles), (Ctor<4>, Mutable)), (StringVec)),
+  (((flags), (Ctor<5>, Mutable, Flags<UserFlags::Map>)), (uint8_t, 0)));
 
 struct Session_ {
-  User		user;
-  unsigned	failures = 0;
-  uint128_t	perms;		// effective permissions
-  uint128_t	apiperms;	// effective API permissions
+  ZmRef<ZdbObject<User>>	user;
+  unsigned			failures = 0;
+  uint128_t			perms;		// effective permissions
+  uint128_t			apiperms;	// effective API permissions
 
-  static auto NameAxor(const Session &session) { return session.user.name; }
+  static auto NameAxor(const Session &session) {
+    return session.user->data().name;
+  }
 };
 
 inline constexpr const char *Session_HeapID() { return "ZumUserDB.Session"; }
@@ -140,45 +139,6 @@ ZmRef<Session> initSession(
   });
   return user;
 }
-
-namespace _ {
-struct Key {
-  ZtString	id;
-  KeyData	secret;
-  uint64_t	userID;
-};
-ZfbFields(Key,
-    (((id, Rd), (Keys<0>)), (String)),
-    (((secret), (Update)), (Bytes)),
-    (((userID, Rd)), (UInt64)));
-}
-using Key__ = ZfbField::Load<_::Key>;
-struct Key_ : public ZuObject, public Key__ {
-  Key_() = delete;
-  Key_(const fbs::Key *key_, Key_ *next_) :
-      Key__{key_}, next{next_} { }
-  Key_(ZuString id_, uint64_t userID_, Key_ *next_) :
-      Key__{id_, KeyData{}, userID_}, next{next_} { }
-
-  using IDData = ZuArrayN<uint8_t, 16>;
-  constexpr static const mbedtls_md_type_t keyType() {
-    return MBEDTLS_MD_SHA256;
-  }
-
-  Key_		*next;	// next in per-user list
-
-  Zfb::Offset<fbs::Key> save(Zfb::Builder &fbb) const {
-    using namespace Zfb::Save;
-    return fbs::CreateKey(fbb, str(fbb, id), bytes(fbb, secret), userID);
-  }
-};
-inline constexpr const char *KeyHashID() { return "ZvUserDB.Keys"; }
-using KeyHash =
-  ZmHash<Key_,
-    ZmHashNode<Key_,
-      ZmHashKey<ZuFieldAxor<Key_, 0>(),
-	  ZmHashHeapID<KeyHashID>>>>;
-using Key = KeyHash::Node;
 
 class ZvAPI Mgr {
 public:
@@ -391,7 +351,9 @@ private:
   unsigned		m_keyInterval;
   unsigned		m_maxSize;
 
+  // FIXME - thread-bound, not MT contended
   mutable Lock		m_lock;
+  // FIXME
     mutable bool	  m_modified = false;	// cleared by save()
     ZmRef<PermNames>	  m_permNames;
     unsigned		  m_permIndex[Perm::N];

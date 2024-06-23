@@ -999,7 +999,7 @@ Tuple loadUpdTuple(
 {
   return loadTuple_(fields.length(), fields, xFields, fbo,
     [](const ZtMField *field) -> bool {
-      return bool(field->props & ZtMFieldProp::Update()) || (field->keys & 1);
+      return bool(field->props & ZtMFieldProp::Mutable()) || (field->keys & 1);
     });
 }
 Tuple loadDelTuple(

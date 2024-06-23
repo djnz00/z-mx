@@ -625,7 +625,7 @@ struct Handler_ {
   using AllFields = ZuTypeGrep<AllFilter, FieldList>;
 
   template <typename U> struct UpdateFilter :
-      public ZuTypeIn<ZuFieldProp::Update, typename U::Props> { };
+      public ZuTypeIn<ZuFieldProp::Mutable, typename U::Props> { };
   using UpdateFields = ZuTypeGrep<UpdateFilter, AllFields>;
 
   template <typename U>

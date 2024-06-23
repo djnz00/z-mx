@@ -336,6 +336,7 @@ public:
   VN vn() const { return m_vn; }
   int state() const { return m_state; }
   UN origUN() const { return m_origUN; }
+  bool evicted() const { return m_evicted; }
 
   ZmRef<const AnyBuf> replicate(int type);
 
@@ -359,12 +360,15 @@ private:
   bool commit_();
   bool abort_();
 
+  void evicted(bool v) { m_evicted = v; }
+
   AnyTable	*m_table;
   UN		m_un = nullUN();
   SN		m_sn = nullSN();
   VN		m_vn = 0;
   int		m_state = ObjState::Undefined;
   UN		m_origUN = nullUN();
+  bool		m_evicted = false;
 };
 
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
@@ -1147,7 +1151,7 @@ public:
     auto nBufs = 0;
     auto abort = [this, &object, &cached, &bufs, &nBufs]() {
       if (!object->abort()) return;
-      if (cached) m_cache.add(object);
+      if (cached) { object->evicted(false); m_cache.add(object); }
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
 	bufs[i].~ZmRef<Buf<T>>();
@@ -1165,7 +1169,8 @@ public:
       }
     });
     try {
-      cached = m_cache.delNode(object);
+      if (cached = m_cache.delNode(object))
+	object->evicted(true);
       l(object);
     } catch (...) { abort(); throw; }
     abort();
@@ -1220,7 +1225,8 @@ private:
 	  cacheUN(object->un(), object);
 	break;
       case ObjState::Delete:
-	m_cache.delNode(static_cast<Object<T> *>(object));
+	if (m_cache.delNode(static_cast<Object<T> *>(object)))
+	  object->evicted(true);
 	decCount();
 	break;
     }
@@ -1801,6 +1807,7 @@ inline void Table<T>::find_(Key<KeyID> key, L l) {
   if constexpr (Evict) {
     auto evict = [this](ZmRef<AnyObject> object) {
       evictUN(object->un());
+      object->evicted(true);
     };
     m_cache.template find<KeyID, UpdateLRU>(
 	ZuMv(key), ZuMv(l), ZuMv(load), ZuMv(evict));
