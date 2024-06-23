@@ -66,15 +66,22 @@ ZfbFields(Perm,
   (((id), (Keys<0>, Ctor<0>, Series)), (UInt8)),
   (((name), (Ctor<1>, Update)), (String)));
 
+namespace RoleFlags {
+  ZtEnumFlags(RoleFlags, uint8_t,
+    Immutable);
+}
+
 struct Role {
   ZtString		name;
   uint128_t		perms;
   uint128_t		apiperms;
+  uint8_t		flags;	// RoleFlags
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
-  (((perms), (Ctor<1>)), (UInt128))
-  (((apiperms), (Ctor<2>)), (UInt128)));
+  (((perms), (Ctor<1>)), (UInt128)),
+  (((apiperms), (Ctor<2>)), (UInt128)),
+  (((flags), (Ctor<3>)), (UInt8)));
 
 struct User {
   uint64_t		id;

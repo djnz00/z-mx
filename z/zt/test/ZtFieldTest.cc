@@ -31,14 +31,14 @@ ZtFields(Nested,
 struct Foo {
   const char *string = nullptr;
   ZtArray<uint8_t> bytes;
-  ZuID id;
-  int int_;
-  int int_ranged;
-  unsigned hex;
-  int enum_;
-  uint128_t flags;
-  double float_;
-  double float_ranged;
+  ZuID id = "goodbye";
+  int int_ = 0;
+  int int_ranged = 42;
+  unsigned hex = 0xdeadbeef;
+  int enum_ = Values::Normal;
+  uint128_t flags = Flags::Bit1();
+  double float_ = ZuCmp<double>::null();
+  double float_ranged = 0.42;
   ZuFixed fixed;
   ZuDecimal decimal;
   ZuTime time_;
@@ -55,8 +55,8 @@ ZtFields(Foo,
     (((int_), (Ctor<3>)), (Int32)),
     (((int_ranged), (Ctor<4>)), (Int32, 42, 0, 100)),
     (((hex), (Ctor<5>, Hex)), (UInt32, 0xdeadbeef)),
-    (((enum_), (Ctor<6>)), (Enum, Values::Map, Values::Normal)),
-    (((flags), (Ctor<7>)), (Flags, Flags::Map, Flags::Bit1())),
+    (((enum_), (Ctor<6>, Enum<Values::Map>)), (Int32, Values::Normal)),
+    (((flags), (Ctor<7>, Flags<Flags::Map>)), (UInt128, Flags::Bit1())),
     (((float_), (Ctor<8>)), (Float)),
     (((float_ranged), (Ctor<9>)), (Float, 0.42, 0.0, 1)),
     (((fixed), (Ctor<10>)), (Fixed)),
@@ -83,6 +83,7 @@ struct MinMax<T, decltype(T::minimum(), void())> {
 int main()
 {
   using Fields = ZuFieldList<Foo>;
+
   ZuUnroll::all<Fields>([]<typename Field>() {
     std::cout << Field::id()
       << " deflt=" << typename Field::Type::template Print<>{Field::deflt()}
@@ -94,7 +95,6 @@ int main()
   ZtMFields fields{ZtMFieldList<Foo>()};
   auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
-    using ZtFieldTypeCode::Flags;
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,
 	[&s, constant, &field, &fmt](auto Code) {
       field.constant.print<Code>(s, ZtMField::cget(constant), &field, fmt);
@@ -103,21 +103,16 @@ int main()
   for (unsigned i = 0, n = fields.length(); i < n; i++) {
     std::cout << fields[i]->id;
     auto type = fields[i]->type;
-    using namespace ZtFieldTypeCode;
-    using ZtFieldTypeCode::Flags;
-    switch (type->code) {
-      case Enum:
-	std::cout << " enum=" << type->info.enum_()->id();
-	break;
-      case Flags:
-	std::cout << " flags=" << type->info.flags()->id();
-	break;
-      case UDT:
-	std::cout << " udt=" << ZmDemangle{type->info.udt()->info->name()};
-	break;
+    if (type->code == ZtFieldTypeCode::UDT) {
+      std::cout << " udt=" << ZmDemangle{type->info.udt()->info->name()};
+    } else if (type->props & ZtMFieldProp::Enum()) {
+      std::cout << " enum=" << type->info.enum_()->id();
+    } else if (type->props & ZtMFieldProp::Flags()) {
+      std::cout << " flags=" << type->info.flags()->id();
     }
     std::cout << " deflt=";
     print(std::cout, *fields[i], ZtMFieldConstant::Deflt);
+    using namespace ZtFieldTypeCode;
     switch (type->code) {
       case Int32:
       case UInt32:

@@ -35,24 +35,6 @@ void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
 
 // --- value union
 
-// a distinct int8_t type for Enum
-struct Enum : public ZuBox<int8_t> {
-  using Base = ZuBox<int8_t>;
-  using Base::Base;
-  using Base::operator =;
-  template <typename ...Args>
-  Enum(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
-};
-
-// a distinct uint128_t type for Flags
-struct Flags : public ZuBox<uint128_t> {
-  using Base = ZuBox<uint128_t>;
-  using Base::Base;
-  using Base::operator =;
-  template <typename ...Args>
-  Flags(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
-};
-
 // a distinct ZtArray<uint8_t> type (distinct from ZtBytes)
 struct UInt8Vec : public ZtArray<uint8_t> {
   using Base = ZtArray<uint8_t>;
@@ -87,8 +69,6 @@ using Value_ = ZuUnion<
   uint32_t,
   int64_t,
   uint64_t,
-  Enum,		// int
-  Flags,	// uint64_t
   double,
   ZuFixed,	// Zfb.Fixed
   ZuDecimal,	// Zfb.Decimal
@@ -153,13 +133,8 @@ struct Value : public Value_ {
     I == Value_::Index<uint64_t>{} ||
     I == Value_::Index<int128_t>{} ||
     I == Value_::Index<uint128_t>{} ||
-    I == Value_::Index<Enum>{} ||
     I == Value_::Index<double>{}>
   print_(S &s) const { s << ZuBoxed(p<I>()); }
-
-  template <unsigned I, typename S>
-  ZuIfT<I == Value_::Index<Flags>{}>
-  print_(S &s) const { s << p<I>().hex(); }
 
   template <unsigned I, typename S>
   ZuIfT<
@@ -294,11 +269,8 @@ XField xField(
 	type = Value::Index<bool>{};
       break;
     case reflection::Byte:
-      if (ftype->code == ZtFieldTypeCode::Int8) {
+      if (ftype->code == ZtFieldTypeCode::Int8)
 	type = Value::Index<int8_t>{};
-      } else if (ftype->code == ZtFieldTypeCode::Enum) {
-	type = Value::Index<Enum>{};
-      }
       break;
     case reflection::UByte:
       if (ftype->code == ZtFieldTypeCode::UInt8)
@@ -339,9 +311,6 @@ XField xField(
 	  break;
 	case ZtFieldTypeCode::UInt128:
 	  type = Value::Index<uint128_t>{};
-	  break;
-	case ZtFieldTypeCode::Flags:
-	  type = Value::Index<Flags>{};
 	  break;
 	case ZtFieldTypeCode::Fixed:
 	  type = Value::Index<ZuFixed>{};
@@ -490,20 +459,6 @@ zdbtest_LoadInt(8)
 zdbtest_LoadInt(16)
 zdbtest_LoadInt(32)
 zdbtest_LoadInt(64)
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Flags{
-    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
-  };
-}
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<double>{}>
@@ -903,26 +858,6 @@ zdbtest_SaveInt(8)
 zdbtest_SaveInt(16)
 zdbtest_SaveInt(32)
 zdbtest_SaveInt(64)
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-saveValue(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddElement<int8_t>(
-    field->offset(), value.p<Type>(), field->default_integer());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-saveValue(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::uint128(value.p<Type>());
-  fbb.AddStruct(field->offset(), &v);
-}
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<double>{}>

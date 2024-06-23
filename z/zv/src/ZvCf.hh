@@ -1078,8 +1078,29 @@ public:
 	Field::Type::Code == ZtFieldTypeCode::Int64 ||
 	Field::Type::Code == ZtFieldTypeCode::UInt64 ||
 	Field::Type::Code == ZtFieldTypeCode::Int128 ||
-	Field::Type::Code == ZtFieldTypeCode::UInt128 ||
-	Field::Type::Code == ZtFieldTypeCode::Float ||
+	Field::Type::Code == ZtFieldTypeCode::UInt128, typename Field::T>
+  getField() {
+    using Props = typename Field::Props;
+    if constexpr (ZuFieldProp::HasEnum<Props>{}) {
+      using Map = ZuFieldProp::GetEnum<Props>;
+      return getEnum<
+	Map, ZuTypeIn<ZuFieldProp::Required, Props>{}>(
+	  Field::id(), Field::deflt());
+    } else if constexpr (ZuFieldProp::HasFlags<Props>{}) {
+      using Map = ZuFieldProp::GetFlags<Props>;
+      using T = typename Field::T;
+      return getFlags<
+	Map, T, ZuTypeIn<ZuFieldProp::Required, Props>{}>(
+	  Field::id(), Field::deflt());
+    } else {
+      return getScalar<
+	typename Field::T,
+	ZuTypeIn<ZuFieldProp::Required, Props>{}>(
+	  Field::id(), Field::minimum(), Field::maximum(), Field::deflt());
+    }
+  }
+  template <typename Field>
+  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Float ||
 	Field::Type::Code == ZtFieldTypeCode::Fixed ||
 	Field::Type::Code == ZtFieldTypeCode::Decimal, typename Field::T>
   getField() {
@@ -1087,23 +1108,6 @@ public:
       typename Field::T,
       ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
 	Field::id(), Field::minimum(), Field::maximum(), Field::deflt());
-  }
-  template <typename Field>
-  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Enum, typename Field::T>
-  getField() {
-    using Map = typename Field::Map;
-    return getEnum<
-      Map, ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
-	Field::id(), Field::deflt());
-  }
-  template <typename Field>
-  ZuIfT<Field::Type::Code == ZtFieldTypeCode::Flags, typename Field::T>
-  getField() {
-    using Map = typename Field::Map;
-    using T = typename Field::T;
-    return getFlags<
-      Map, T, ZuTypeIn<ZuFieldProp::Required, typename Field::Props>{}>(
-	Field::id(), Field::deflt());
   }
   template <typename Field>
   ZuIfT<Field::Type::Code == ZtFieldTypeCode::CStringVec, typename Field::T>

@@ -185,9 +185,7 @@ namespace ZvCSV_ {
   // use the built-in print function, then quote for CSV
   template <unsigned Code, typename Row, typename T>
   inline
-  ZuIfT<Code == ZtFieldTypeCode::UDT ||
-	Code == ZtFieldTypeCode::Enum ||
-	Code == ZtFieldTypeCode::Flags>
+  ZuIfT<Code == ZtFieldTypeCode::UDT>
   quote_(
       Row &row, const T *object,
       const ZtMField *field, const ZtFieldVFmt &fmt) {

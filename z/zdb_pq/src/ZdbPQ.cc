@@ -37,8 +37,6 @@ OIDs::OIDs()
     "uint4",	// UInt32
     "int8",	// Int64
     "uint8",	// UInt64
-    "int1",	// Enum
-    "uint16",	// Flags
     "float8",	// Float
     "zdecimal",	// Fixed
     "zdecimal",	// Decimal
@@ -890,11 +888,8 @@ static XField xField(
 	type = Value::Index<Bool>{};
       break;
     case reflection::Byte:
-      if (ftype->code == ZtFieldTypeCode::Int8) {
+      if (ftype->code == ZtFieldTypeCode::Int8)
 	type = Value::Index<Int8>{};
-      } else if (ftype->code == ZtFieldTypeCode::Enum) {
-	type = Value::Index<Enum>{};
-      }
       break;
     case reflection::UByte:
       if (ftype->code == ZtFieldTypeCode::UInt8)
@@ -935,9 +930,6 @@ static XField xField(
 	  break;
 	case ZtFieldTypeCode::UInt128:
 	  type = Value::Index<UInt128>{};
-	  break;
-	case ZtFieldTypeCode::Flags:
-	  type = Value::Index<Flags>{};
 	  break;
 	case ZtFieldTypeCode::Fixed:
 	  type = Value::Index<Fixed>{};
@@ -1323,16 +1315,17 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
       open_enqueue();
     } else {
       // table exists but not all fields matched
+      auto i = m_openState.field();
       auto e = ZeMEVENT(Fatal, ([
 	id = this->m_id_,
 	failed = m_openState.failed(),
-	field = m_openState.field(),
+	i, field = m_fields[i],
 	nFields = m_xFields.length()
       ](auto &s, const auto &) {
 	s << "inconsistent schema for table " << id
-	  << " failed=" << unsigned(failed)
-	  << " field=" << field
-	  << " nFields=" << nFields;
+	  << " field[" << i << "]={id=" << field->id
+	  << " type=" << ZtFieldTypeCode::name(field->type->code)
+	  << "} nFields=" << nFields;
       }));
       open_failed(ZuMv(e));
     }

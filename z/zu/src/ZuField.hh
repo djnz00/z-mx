@@ -95,12 +95,12 @@ namespace ZuFieldProp {
   // key IDs
   template <unsigned ...KeyIDs> struct Keys { };
 
-  // use ZuTypeIn<Property, Props> for boolean properties
+  // use ZuTypeIn<Props, Property> for boolean properties
   //
-  // use HasValue<Type, Property, Props> and GetValue<Type, Property, Props>
+  // use HasValue<Props, Type, Property> and GetValue<Props, Type, Property>
   // for scalar properties like Ctor (see HasCtor and GetCtor below)
   //
-  // use HasSeq<Property, Props> and GetSeq<Property, Props> for
+  // use HasSeq<Props, Property> and GetSeq<Props, Property> for
   // template properties like Keys (see GetKeys below)
  
   template <typename T, template <T> class Prop>
@@ -109,7 +109,7 @@ namespace ZuFieldProp {
     template <unsigned I> struct Is<Prop<I>> : public ZuTrue { };
     template <typename Props> using Apply = ZuTypeGrep<Is, Props>;
   };
-  template <typename T, template <T> class Prop, typename Props>
+  template <typename Props, typename T, template <T> class Prop>
   using GrepValue = GrepValue_<T, Prop>::template Apply<Props>;
 
   template <template <typename> class Prop>
@@ -118,7 +118,7 @@ namespace ZuFieldProp {
     template <typename T> struct Is<Prop<T>> : public ZuTrue { };
     template <typename Props> using Apply = ZuTypeGrep<Is, Props>;
   };
-  template <template <typename> class Prop, typename Props>
+  template <typename Props, template <typename> class Prop>
   using GrepType = GrepType_<Prop>::template Apply<Props>;
 
   template <template <unsigned ...> class Prop>
@@ -131,10 +131,10 @@ namespace ZuFieldProp {
   using GrepSeq = GrepSeq_<Prop>::template Apply<Props>;
 
   template <
+    typename Props,
     typename U,
     template <U> class Prop,
-    typename Props,
-    typename Filtered = GrepValue<U, Prop, Props>,
+    typename Filtered = GrepValue<Props, U, Prop>,
     unsigned N = Filtered::N>
   struct Value_ {
     enum { Exists = 0 };
@@ -144,76 +144,76 @@ namespace ZuFieldProp {
   template <typename U, template <U> class Prop, U I>
   struct Value__<U, Prop, Prop<I>> { using T = ZuConstant<U, I>; };
   template <
+    typename Props,
     typename U,
     template <U> class Prop,
-    typename Props,
     typename Filtered>
-  struct Value_<U, Prop, Props, Filtered, 1> {
+  struct Value_<Props, U, Prop, Filtered, 1> {
     enum { Exists = 1 };
     using T = typename Value__<U, Prop, ZuType<0, Filtered>>::T;
   };
 
-  template <typename U, template <U> class Prop, typename Props>
-  using HasValue = ZuBool<Value_<U, Prop, Props>::Exists>;
-  template <typename U, template <U> class Prop, typename Props>
-  using GetValue = typename Value_<U, Prop, Props>::T;
+  template <typename Props, typename U, template <U> class Prop>
+  using HasValue = ZuBool<Value_<Props, U, Prop>::Exists>;
+  template <typename Props, typename U, template <U> class Prop>
+  using GetValue = typename Value_<Props, U, Prop>::T;
 
   template <
-    template <typename> class Prop,
     typename Props,
-    typename Filtered = GrepType<Prop, Props>,
+    template <typename> class Prop,
+    typename Filtered = GrepType<Props, Prop>,
     unsigned N = Filtered::N>
   struct Type_ {
     enum { Exists = 0 };
   };
   template <
-    template <typename> class Prop,
     typename Props,
+    template <typename> class Prop,
     typename Filtered>
-  struct Type_<Prop, Props, Filtered, 1> {
+  struct Type_<Props, Prop, Filtered, 1> {
     enum { Exists = 1 };
-    using T = ZuType<0, Filtered>;
+    using T = typename ZuType<0, Filtered>::T;
   };
 
-  template <template <typename> class Prop, typename Props>
-  using HasType = ZuBool<Type_<Prop, Props>::Exists>;
-  template <template <typename> class Prop, typename Props>
-  using GetType = typename Type_<Prop, Props>::T;
+  template <typename Props, template <typename> class Prop>
+  using HasType = ZuBool<Type_<Props, Prop>::Exists>;
+  template <typename Props, template <typename> class Prop>
+  using GetType = typename Type_<Props, Prop>::T;
 
   template <
-    template <unsigned ...> class Prop,
     typename Props,
+    template <unsigned ...> class Prop,
     typename Filtered = GrepSeq<Prop, Props>,
     unsigned N = Filtered::N>
   struct Seq_ {
     enum { Exists = 0 };
     using T = ZuSeq<>;
   };
-  template <template <unsigned ...> class Prop, typename>
+  template <template <unsigned ...> class, typename>
   struct Seq__;
   template <template <unsigned ...> class Prop, unsigned ...Seq>
   struct Seq__<Prop, Prop<Seq...>> { using T = ZuSeq<Seq...>; };
   template <
-    template <unsigned ...> class Prop,
     typename Props,
+    template <unsigned ...> class Prop,
     typename Filtered>
-  struct Seq_<Prop, Props, Filtered, 1> {
+  struct Seq_<Props, Prop, Filtered, 1> {
     enum { Exists = 1 };
     using T = typename Seq__<Prop, ZuType<0, Filtered>>::T;
   };
 
-  template <template <unsigned ...> class Prop, typename Props>
-  using HasSeq = ZuBool<Seq_<Prop, Props>::Exists>;
-  template <template <unsigned ...> class Prop, typename Props>
-  using GetSeq = typename Seq_<Prop, Props>::T;
+  template <typename Props, template <unsigned ...> class Prop>
+  using HasSeq = ZuBool<Seq_<Props, Prop>::Exists>;
+  template <typename Props, template <unsigned ...> class Prop>
+  using GetSeq = typename Seq_<Props, Prop>::T;
 
   template <typename Props>
-  using HasCtor = HasValue<unsigned, Ctor, Props>;
+  using HasCtor = HasValue<Props, unsigned, Ctor>;
   template <typename Props>
-  using GetCtor = GetValue<unsigned, Ctor, Props>;
+  using GetCtor = GetValue<Props, unsigned, Ctor>;
 
   template <typename Props>
-  using GetKeys = GetSeq<Keys, Props>;
+  using GetKeys = GetSeq<Props, Keys>;
 
   template <typename Props, int KeyID>
   struct Key :

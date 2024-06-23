@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 	ZuStringN<32> clOrdID;
 	clOrdID << "order" << id;
 	new (o->ptr())
-	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, 100, 100};
+	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, {100}, {100}};
 	o->commit();
 	id = o->data().orderID;
 	seqNo = o->data().seqNo;
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
 	    }));
 	    ZuStringN<32> clOrdID;
 	    clOrdID << "order" << id << "_1";
-	    o->data().price = o->data().price + 42;
+	    o->data().prices[0] = o->data().prices[0] + 42;
 	    o->data().clOrdID = clOrdID;
 	    o->commit();
 	  });

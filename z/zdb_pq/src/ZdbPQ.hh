@@ -49,8 +49,6 @@ using namespace Zdb_;
 // UInt32    uint32_t   uint32          uint4    (*)  uint32_t BE
 // Int64     int64_t    int64           int8          int64_t BE
 // UInt64    uint64_t   uint64          uint8    (*)  uint64_t BE
-// Enum      int        int8            int1     (*)  int8_t
-// Flags     uint64_t   uint64          uint8    (*)  uint64_t BE
 // Float     double     double          float8        double BE
 // Fixed     ZuFixed    Zfb.Fixed       zdecimal (**) int128_t BE
 // Decimal   ZuDecimal  Zfb.Decimal     zdecimal (**) int128_t BE
@@ -161,8 +159,6 @@ struct Int32 { ZuBigEndian<int32_t> v; };
 struct UInt32 { ZuBigEndian<uint32_t> v; };
 struct Int64 { ZuBigEndian<int64_t> v; };
 struct UInt64 { ZuBigEndian<uint64_t> v; };
-struct Enum { int8_t v; };
-struct Flags { ZuBigEndian<uint128_t> v; };
 struct Float { ZuBigEndian<double> v; };
 struct Fixed { ZuBigEndian<int128_t> v; };
 struct Decimal { ZuBigEndian<int128_t> v; };
@@ -231,8 +227,6 @@ using Value_ = ZuUnion<
   UInt32,
   Int64,
   UInt64,
-  Enum,
-  Flags,
   Float,
   Fixed,
   Decimal,
@@ -415,13 +409,8 @@ struct Value : public Value_ {
     I == Value_::Index<UInt64>{} ||
     I == Value_::Index<Int128>{} ||
     I == Value_::Index<UInt128>{} ||
-    I == Value_::Index<Enum>{} ||
     I == Value_::Index<Float>{}>
   print_(S &s) const { s << ZuBoxed(ZuUnderlying(p<I>().v)); }
-
-  template <unsigned I, typename S>
-  ZuIfT<I == Value_::Index<Flags>{}>
-  print_(S &s) const { s << ZuBoxed(ZuUnderlying(p<I>().v)).hex(); }
 
   template <unsigned I, typename S>
   ZuIfT<
@@ -737,20 +726,6 @@ ZdbPQ_LoadInt(8)
 ZdbPQ_LoadInt(16)
 ZdbPQ_LoadInt(32)
 ZdbPQ_LoadInt(64)
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Enum{Zfb::GetFieldI<int8_t>(*fbo, *field)};
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  new (ptr) Flags{
-    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
-  };
-}
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Float>{}>
@@ -1315,26 +1290,6 @@ ZdbPQ_SaveInt(8)
 ZdbPQ_SaveInt(16)
 ZdbPQ_SaveInt(32)
 ZdbPQ_SaveInt(64)
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Enum>{}>
-saveValue(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  fbb.AddElement<int8_t>(
-    field->offset(), value.p<Type>().v, field->default_integer());
-}
-
-template <unsigned Type>
-inline ZuIfT<Type == Value::Index<Flags>{}>
-saveValue(
-  Zfb::Builder &fbb, const Offsets &,
-  const reflection::Field *field, const Value &value)
-{
-  auto v = Zfb::Save::uint128(value.p<Type>().v);
-  fbb.AddStruct(field->offset(), &v);
-}
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Float>{}>

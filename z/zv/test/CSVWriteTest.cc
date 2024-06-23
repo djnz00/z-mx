@@ -49,7 +49,7 @@ ZtFields(Row,
     (((bam, Fn), (Ctor<4>, NDP<2>)), (Fixed)),
     (((snafu), (Ctor<5>)), (Int32)),
     (((mabbit), (Ctor<6>)), (DateTime)),
-    (((flags), (Ctor<7>)), (Flags, DaFlags::Map)));
+    (((flags), (Ctor<7>, Flags<DaFlags::Map>)), (Int32)));
 
 using CSVWrite = ZmList<Row, ZmListNode<ZuObject>>;
 

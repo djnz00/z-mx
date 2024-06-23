@@ -32,8 +32,6 @@
 // Bool		Bool		<Integral>
 // Int<N>	Int<N>		<Integral>
 // UInt<N>	UInt<N>		<Integral>
-// Enum, Map	Enum, Map	<Integral>
-// Flags, Map	Flags, Map	<Integral>
 // Float	Float		<FloatingPoint>
 // Fixed	Fixed		ZuFixed
 // Decimal	Decimal		ZuDecimal
@@ -718,10 +716,6 @@ namespace Load {
 #define ZfbFieldUInt128_T UInt128
 #define ZfbFieldUInt128(O, ...) \
   ZfbFieldInline(O, __VA_ARGS__, uint128, uint128)
-#define ZfbFieldEnum_T Enum
-#define ZfbFieldEnum ZfbFieldPrimitive
-#define ZfbFieldFlags_T Flags
-#define ZfbFieldFlags ZfbFieldPrimitive
 #define ZfbFieldFloat_T Float
 #define ZfbFieldFloat ZfbFieldPrimitive
 #define ZfbFieldFixed_T Fixed

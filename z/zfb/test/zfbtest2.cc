@@ -44,7 +44,7 @@ ZfbFields(Test,
   (((baz), (Ctor<2>)), (Object)));
 ZfbRoot(Test);
 
-static auto vfields = ZtMFieldList<Test>();
+static auto mfields = ZtMFieldList<Test>();
 
 } // zfbtest
 
@@ -91,6 +91,6 @@ int main(int argc, char **argv)
   build<true>(fbb, n);
   build<true>(fbb, n);
 
-  for (auto field : zfbtest2::vfields)
+  for (auto field : zfbtest2::mfields)
     std::cout << *field << '\n';
 }
