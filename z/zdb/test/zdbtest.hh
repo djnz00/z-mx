@@ -42,7 +42,7 @@ ZfbFields(Order,
   (((orderID), (Keys<0>, Ctor<1>, Update)), (UInt64)),
   (((link), ((Keys<1, 2>), Ctor<2>)), (String)),
   (((clOrdID), (Keys<1>, Ctor<3>, Update)), (String)),
-  (((seqNo), (Keys<2>, Ctor<4>, Grouped, Series, Update)), (UInt64)),
+  (((seqNo), (Keys<2>, Ctor<4>, Grouped, Update)), (UInt64)),
   (((side), (Ctor<5>, Enum<Side::Map>)), (Int8)),
   (((prices), (Ctor<6>, Update)), (Int32Vec)),
   (((quantities), (Ctor<7>, Update)), (Int32Vec)));
