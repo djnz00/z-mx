@@ -25,7 +25,7 @@ DataFrame::DataFrame(
   m_fields.size(n + timeIndex);
   for (unsigned i = 0; i < n; i++) {
     ZuPtr<Series> series = new Series();
-    if (!indexed && (fields[i]->keys)) {
+    if (!indexed && (fields[i]->props & ZtMFieldProp::Index)) {
       indexed = true;
       m_series.unshift(ZuMv(series));
       m_fields.unshift(fields[i]);
