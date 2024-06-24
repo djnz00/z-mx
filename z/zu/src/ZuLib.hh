@@ -423,6 +423,24 @@ inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
 
+// self-referential lambdas
+
+template <typename L>
+struct ZuLambda {
+  L lambda;
+  constexpr decltype(auto) operator ()() && { return lambda(ZuMv(*this)); }
+  template <typename ...Args>
+  constexpr decltype(auto) operator ()(Args &&...args) && {
+    return lambda(ZuMv(*this), ZuFwd<Args>(args)...);
+  }
+  constexpr decltype(auto) operator ()() const & { return lambda(*this); }
+  template <typename ...Args>
+  constexpr decltype(auto) operator ()(Args &&...args) const & {
+    return lambda(*this, ZuFwd<Args>(args)...);
+  }
+};
+template <typename L> ZuLambda(L) -> ZuLambda<L>;
+
 // generic underlying type access for wrapper types with a cast operator
 // (used with ZuBox, ZuBigEndian, etc.)
 

@@ -125,19 +125,54 @@ using SessionHash =
 	ZmHashHeapID<Session_HeapID>>>>;
 using Session = SessionHash::Node;
 
-ZmRef<Session> initSession(
-  using namespace Zfb::Load;
-  ZmRef<User> user = new User(user_->id(), str(user_->name()), user_->flags());
-  user->hmac = bytes(user_->hmac());
-  user->secret = bytes(user_->secret());
-  all(user_->roles(), [&roles, &user](unsigned, auto roleName) {
-    if (auto role = roles.findPtr(str(roleName))) {
-      user->roles.push(role);
-      user->perms |= role->perms;
-      user->apiperms |= role->apiperms;
-    }
+template <typename L>
+void findRole(ZmRef<ZdbTable<Role>> roleTbl, ZtString role, L l)
+{
+  auto roleTbl_ = roleTbl.ptr();
+  roleTbl_->run([roleTbl = ZuMv(roleTbl), role = ZuMv(role), l = ZuMv(l)]() {
+    roleTbl->find<0>(ZuFwdTuple(role),
+      [l = ZuMv(l)](ZmRef<ZdbObject<Role>> role) mutable { l(ZuMv(role)); });
   });
-  return user;
+}
+
+template <typename L>
+void initSession(
+  ZmRef<ZdbTable<User>> userTbl,
+  ZmRef<ZdbTable<Role>> roleTbl,
+  ZtString userName,
+  L l)
+{
+  userTbl->run([
+    userTbl = ZuMv(userTbl),
+    roleTbl = ZuMv(roleTbl),
+    userName = ZuMv(userName),
+    l = ZuMv(l)
+  ]() mutable {
+    userTbl->find<1>(ZuFwdTuple(userName), [
+      roleTbl = ZuMv(roleTbl),
+      l = ZuMv(l)
+    ](ZmRef<ZdbObject<User>> user) mutable {
+      if (!user) { l(nullptr); return; }
+      ZmRef<Session> session = new Session(ZuMv(user));
+      if (!user.data().roles) { l(ZuMv(session)); return; }
+      roleTbl->find<0>(
+	ZuFwdTuple(session->user.data().roles[0]),
+	ZuLambda{[
+	  roleTbl = ZuMv(roleTbl),
+	  session = ZuMv(session),
+	  i = 0U,
+	  l = ZuMv(l)
+	](auto &&self, ZmRef<ZdbObject<Role>> role) mutable {
+	  session->perms |= role->data().perms;
+	  session->apiperms |= role->data().apiperms;
+	  if (++i < session->user->data().roles.length())
+	    roleTbl->find<0>(
+	      ZuFwdTuple(session->user.data().roles[i]), ZuMv(self));
+	  else
+	    l(ZuMv(session));
+	}});
+    });
+  });
 }
 
 class ZvAPI Mgr {
