@@ -1045,7 +1045,7 @@ void updTuple(const ZtMFields &fields, Tuple &data, Tuple &&update) {
   ZmAssert(data.length() == update.length());
   unsigned n = data.length();
   for (unsigned i = 0; i < n; i++)
-    if (fields[i]->props & ZtMFieldProp::Update()) {
+    if (fields[i]->props & ZtMFieldProp::Mutable()) {
       ZmAssert(update[i].type());
       data[i] = ZuMv(update[i]);
     }

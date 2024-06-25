@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
     }, store);
 
-    orders = db->initTable<Order>("orders"); // might throw
+    orders = db->initTable<Order>("order"); // might throw
 
     db->start();
 

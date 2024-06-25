@@ -56,7 +56,7 @@ ZfbExtern int Zfb::Load::load(
     return Zi::IOError;
   }
   f.close();
-  if (!fn(ZuBytes{data, static_cast<unsigned>(len)})) {
+  if (!fn(ZuBytes{data, unsigned(len)})) {
     ::free(data);
     if (e) *e = ZiEINVAL;
     return Zi::IOError;

@@ -1408,7 +1408,7 @@ int StoreTbl::mkIndices_send()
       "ORDER BY array_position(i.indkey, a.attnum)", params);
   } else {
     ZtString query;
-    // LATER we could consider using hash indices for non-series
+    // LATER consider using hash indices for non-series
     query << "CREATE INDEX \"" << name << "\" ON \"" << m_id_ << "\" (";
     const auto &keyFields = m_keyFields[keyID];
     const auto &xKeyFields = m_xKeyFields[keyID];

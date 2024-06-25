@@ -760,7 +760,7 @@ struct Buf : public BufCache<T>::Node {
 template <typename T, typename Key> struct Glob__ {
   using Result = ZuUnion<void, Key>;
 
-  ZmFn<Result>	fn;
+  ZmFn<void(Result)>	fn;
 };
 inline constexpr const char *Glob_HeapID() { return "Zdb.Glob"; }
 template <typename T, typename Key, typename Heap>
@@ -781,7 +781,7 @@ using Glob = Glob_<T, Key, Glob_Heap<T, Key>>;
 template <typename T, typename Key> struct Find__ {
   Table<T>			*table;
   Key				key;
-  ZmFn<ZmRef<Object<T>>>	fn;
+  ZmFn<void(ZmRef<Object<T>>)>	fn;
 };
 inline constexpr const char *Find_HeapID() { return "Zdb.Find"; }
 template <typename T, typename Key, typename Heap>
@@ -973,7 +973,7 @@ private:
   template <unsigned KeyID, bool UpdateLRU, bool Evict, typename L>
   void find_(Key<KeyID>, L l);
   // find from backing data store (retried on failure)
-  template <unsigned KeyID> void retrieve(Key<KeyID>, ZmFn<ZmRef<Object<T>>>);
+  template <unsigned KeyID> void retrieve(Key<KeyID>, ZmFn<void(ZmRef<Object<T>>)>);
   template <unsigned KeyID> void retryRetrieve_();
   template <unsigned KeyID> void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
@@ -1005,6 +1005,7 @@ private:
     cacheBuf(buf); evictBuf(0);
     // warmup backing data store
     storeTbl()->warmup();
+    // FIXME - if fully cached, perform table scan and load cache
   }
 
 public:
@@ -1536,7 +1537,7 @@ public:
   }
 
 private:
-  ZmRef<AnyTable> initTable_(ZuID, ZmFn<DB *, TableCf *> ctorFn);
+  ZmRef<AnyTable> initTable_(ZuID, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn);
 
 public:
   template <typename ...Args>
@@ -1583,8 +1584,8 @@ public:
     return m_tables.findVal(id);
   }
 
-  using AllFn = ZmFn<AnyTable *, ZmFn<bool>>;
-  using AllDoneFn = ZmFn<DB *, bool>;
+  using AllFn = ZmFn<void(AnyTable *, ZmFn<void(bool)>)>;
+  using AllDoneFn = ZmFn<void(DB *, bool)>;
 
   bool all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
 
@@ -1818,7 +1819,7 @@ inline void Table<T>::find_(Key<KeyID> key, L l) {
 
 template <typename T>
 template <unsigned KeyID>
-inline void Table<T>::retrieve(Key<KeyID> key, ZmFn<ZmRef<Object<T>>> fn)
+inline void Table<T>::retrieve(Key<KeyID> key, ZmFn<void(ZmRef<Object<T>>)> fn)
 {
   using Key_ = Key<KeyID>;
   using Context = Find<T, Key_>;

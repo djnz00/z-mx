@@ -380,7 +380,9 @@ private:
 	    io.init(ZiIOFn{io.fn.mvObject<IOBuf>(),
 	      [](IOBuf *buf, ZiIOContext &io) {
 		io.offset += io.length;
+		return true;
 	      }}, buf->data_, buf->length, 0);
+	    return true;
 	  }});
       });
       offset += n;
@@ -503,9 +505,10 @@ friend Base;
     this->load_(); // load any session saved from a previous connection
 
     this->app()->mx()->connect(
-	ZiConnectFn{impl(), [](Impl *impl, const ZiCxnInfo &ci) -> uintptr_t {
-	  return (uintptr_t)(new Cxn(impl, ci));
-	}},
+	ZiConnectFn{impl(),
+	  [](Impl *impl, const ZiCxnInfo &ci) -> ZiConnection * {
+	    return new Cxn(impl, ci);
+	  }},
 	ZiFailFn{impl(), [](Impl *impl, bool transient) {
 	  impl->connectFailed(transient);
 	}},
@@ -924,8 +927,8 @@ friend Base;
 	  ZiFailFn(app(), [](App *app, bool transient) {
 	    app->listenFailed(transient);
 	  }),
-	  ZiConnectFn(app(), [](App *app, const ZiCxnInfo &ci) -> uintptr_t {
-	    return reinterpret_cast<uintptr_t>(app->accepted(ci));
+	  ZiConnectFn(app(), [](App *app, const ZiCxnInfo &ci) -> ZiConnection * {
+	    return app->accepted(ci);
 	  }),
 	  app()->localIP(), app()->localPort(),
 	  app()->nAccepts(), ZiCxnOptions());

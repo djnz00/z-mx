@@ -47,18 +47,20 @@ public:
 
   void connected(ZiIOContext &io) { recvEcho(io); }
 
-  void recvEcho(ZiIOContext &io) {
+  bool recvEcho(ZiIOContext &io) {
     m_msg.size(128);
     io.init(ZiIOFn::Member<&Connection::recvComplete>::fn(this),
 	m_msg.data(), m_msg.size(), 0);
+    return true;
   }
-  void recvComplete(ZiIOContext &);
+  bool recvComplete(ZiIOContext &);
 
-  void sendEcho(ZiIOContext &io) {
+  bool sendEcho(ZiIOContext &io) {
     io.init(ZiIOFn::Member<&Connection::sendComplete>::fn(this),
 	m_msg.data(), m_msg.length(), 0, m_echo);
+    return true;
   }
-  void sendComplete(ZiIOContext &io);
+  bool sendComplete(ZiIOContext &io);
 
 private:
   unsigned	m_counter;
@@ -113,26 +115,27 @@ private:
   unsigned	m_nMessages;
 };
 
-void Connection::recvComplete(ZiIOContext &io)
+bool Connection::recvComplete(ZiIOContext &io)
 {
   m_msg.length(io.offset + io.length);
 
   std::cout << ZtHexDump(
       ZtString{} << io.addr.ip() << ':' << ZuBoxed(io.addr.port()) << ' ' <<
-      ZuString(m_msg.data(), io.length), m_msg.data(), io.length);
-  fflush(stdout);
+      ZuString(m_msg.data(), io.length), m_msg.data(), io.length) << std::flush;
 
   m_echo = !m_dest ? io.addr : m_dest;
   send(ZiIOFn::Member<&Connection::sendEcho>::fn(this));
+  return true;
 }
 
-void Connection::sendComplete(ZiIOContext &io)
+bool Connection::sendComplete(ZiIOContext &io)
 {
   int nMessages = mx()->nMessages();
   if (nMessages >= 0 && ++m_counter >= (unsigned)nMessages)
     io.disconnect();
   else
     io.complete();
+  return true;
 }
 
 void usage()

@@ -472,7 +472,7 @@ void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
 
   ZmRef<ZiConnection> cxn;
 
-  cxn = (ZiConnection *)fn(ZiCxnInfo {
+  cxn = fn(ZiCxnInfo {
       ZiCxnType::UDP, s, options, localIP, localPort, remoteIP, remotePort });
 
   if (!cxn) {
@@ -770,12 +770,12 @@ void ZiConnection::telemetry(ZiCxnTelemetry &data) const
   data.type = m_info.type;
 }
 
-void ZiMultiplex::allCxns(ZmFn<ZiConnection *> fn)
+void ZiMultiplex::allCxns(ZmFn<void(ZiConnection *)> fn)
 {
   rxInvoke([this, fn = ZuMv(fn)]() mutable { allCxns_(ZuMv(fn)); });
 }
 
-void ZiMultiplex::allCxns_(ZmFn<ZiConnection *> fn)
+void ZiMultiplex::allCxns_(ZmFn<void(ZiConnection *)> fn)
 {
   auto i = m_cxns->readIterator();
   while (ZmRef<ZiConnection> cxn = i.iterateVal())
@@ -1366,7 +1366,7 @@ void ZiConnection::executedRecv(unsigned n)
 
   m_rxRequests++, m_rxBytes += n;
   m_rxContext.length = n;
-  while (m_rxContext());
+  while (!m_rxContext());
 }
 
 void ZiConnection::send(ZiIOFn fn)
@@ -1524,7 +1524,7 @@ void ZiConnection::executedSend(unsigned n)
   m_txRequests++, m_txBytes += n;
 
   m_txContext.length = n;
-  while (m_txContext());
+  while (!m_txContext());
 }
 
 bool ZiMultiplex::initSocket(Socket s, const ZiCxnOptions &options)

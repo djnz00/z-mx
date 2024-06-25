@@ -49,28 +49,30 @@ public:
     send(ZiIOFn::Member<&Connection::sendRequest>::fn(this));
   }
 
-  void sendRequest(ZiIOContext &io) {
+  bool sendRequest(ZiIOContext &io) {
     m_sendTime = Zm::now();
     Global::timeInterval(0).add(m_sendTime - m_connectTime);
     //fwrite(Request, 1, len, stdout); fflush(stdout);
     io.init(ZiIOFn::Member<&Connection::sendComplete>::fn(this),
 	(void *)Request, strlen(Request), 0);
+    return true;
   }
-  void sendComplete(ZiIOContext &io) {
+  bool sendComplete(ZiIOContext &io) {
     if ((io.offset += io.length) >= io.size) {
       Global::timeInterval(1).add(Zm::now() - m_sendTime);
       Global::sent(io.offset);
     }
+    return true;
   }
 
 #include "HttpHeader.hh"
 
-  void recvHeader(ZiIOContext &io) {
+  bool recvHeader(ZiIOContext &io) {
     m_recvTime = Zm::now();
     {
       bool incomplete = !httpHeaderEnd(io.ptr, io.offset, io.length);
       io.offset += io.length;
-      if (incomplete) return;
+      if (incomplete) return true; // completed reading the available data
     }
     {
       ZtRegex::Captures c(3);
@@ -83,7 +85,7 @@ public:
       if (i < 2) {
 	ZeLOG(Error, "could not parse Content-Length");
 	io.disconnect();
-	return;
+	return true;
       }
       //{ printf("Content-Length: %d\n", contentLength); fflush(stdout); }
       m_content.size(ZuBox<unsigned>(c[2]));
@@ -94,19 +96,21 @@ public:
       if ((io.offset - m_headerLen) >= m_content.size()) {
 	contentRcvd(io.offset);
 	io.disconnect();
-	return;
+	return true;
       }
     }
     io.init(
       ZiIOFn::Member<&Connection::recvContent>::fn(this),
       m_content.data(), m_content.size(), io.offset - m_headerLen);
+    return true;
   }
 
-  void recvContent(ZiIOContext &io) {
+  bool recvContent(ZiIOContext &io) {
     if ((io.offset += io.length) >= io.size) {
       contentRcvd(io.offset);
       io.disconnect();
     }
+    return true;
   }
 
   // process HTTP content

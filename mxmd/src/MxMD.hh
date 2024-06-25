@@ -458,7 +458,7 @@ struct MxMDOrders3_HeapID {
 };
 
 // order, oldPxNDP, oldQtyNDP, pxNDP, qtyNDP
-using MxMDOrderNDPFn = ZmFn<MxMDOrder *, MxNDP, MxNDP, MxNDP, MxNDP>;
+using MxMDOrderNDPFn = ZmFn<void(MxMDOrder *, MxNDP, MxNDP, MxNDP, MxNDP)>;
 
 // price levels
 
@@ -567,7 +567,7 @@ struct MxMDL2Flags : public MxMDFlags<MxMDL2Flags> {
 };
 
 // order, time stamp
-typedef ZmFn<MxMDOrder *, MxDateTime> MxMDOrderFn;
+typedef ZmFn<void(MxMDOrder *, MxDateTime)> MxMDOrderFn;
 
 class MxMDPxLevel_ : public ZmObject {
   MxMDPxLevel_(const MxMDPxLevel_ &) = delete;
@@ -660,28 +660,28 @@ typedef MxMDPxLevels::Node MxMDPxLevel;
 
 // event handlers (callbacks)
 
-typedef ZmFn<MxMDLib *> MxMDLibFn;
-typedef ZmFn<const MxMDLib *, ZmRef<ZeEvent> > MxMDExceptionFn;
-typedef ZmFn<MxMDFeed *> MxMDFeedFn;
-typedef ZmFn<MxMDVenue *> MxMDVenueFn;
+typedef ZmFn<void(MxMDLib *)> MxMDLibFn;
+typedef ZmFn<void(const MxMDLib *, ZmRef<ZeEvent> )> MxMDExceptionFn;
+typedef ZmFn<void(MxMDFeed *)> MxMDFeedFn;
+typedef ZmFn<void(MxMDVenue *)> MxMDVenueFn;
 
-typedef ZmFn<MxMDTickSizeTbl *> MxMDTickSizeTblFn;
-typedef ZmFn<MxMDTickSizeTbl *, const MxMDTickSize &> MxMDTickSizeFn;
+typedef ZmFn<void(MxMDTickSizeTbl *)> MxMDTickSizeTblFn;
+typedef ZmFn<void(MxMDTickSizeTbl *, const MxMDTickSize &)> MxMDTickSizeFn;
 
 // venue, segment data
-typedef ZmFn<MxMDVenue *, MxMDSegment> MxMDTradingSessionFn;
+typedef ZmFn<void(MxMDVenue *, MxMDSegment)> MxMDTradingSessionFn;
 
-typedef ZmFn<MxMDInstrument *, MxDateTime> MxMDInstrumentFn;
-typedef ZmFn<MxMDOrderBook *, MxDateTime> MxMDOrderBookFn;
+typedef ZmFn<void(MxMDInstrument *, MxDateTime)> MxMDInstrumentFn;
+typedef ZmFn<void(MxMDOrderBook *, MxDateTime)> MxMDOrderBookFn;
 
 // order book, data
-typedef ZmFn<MxMDOrderBook *, const MxMDL1Data &> MxMDLevel1Fn;
+typedef ZmFn<void(MxMDOrderBook *, const MxMDL1Data &)> MxMDLevel1Fn;
 // price level, time stamp
-typedef ZmFn<MxMDPxLevel *, MxDateTime> MxMDPxLevelFn;
+typedef ZmFn<void(MxMDPxLevel *, MxDateTime)> MxMDPxLevelFn;
 // trade, time stamp
-typedef ZmFn<MxMDTrade *, MxDateTime> MxMDTradeFn;
+typedef ZmFn<void(MxMDTrade *, MxDateTime)> MxMDTradeFn;
 // time stamp, next time stamp
-typedef ZmFn<MxDateTime, MxDateTime &> MxMDTimerFn;
+typedef ZmFn<void(MxDateTime, MxDateTime &)> MxMDTimerFn;
 
 struct MxMDLibHandler : public ZmObject {
 #define MxMDLibHandler_Fn(Type, member) \
@@ -1250,11 +1250,11 @@ friend MxMDInstrument;
 public:
   MxMDInstrument *future(const MxFutKey &key) const
     { return m_futures.findVal(key); }
-  bool allFutures(ZmFn<MxMDInstrument *>) const;
+  bool allFutures(ZmFn<void(MxMDInstrument *)>) const;
 
   MxMDInstrument *option(const MxOptKey &key) const
     { return m_options.findVal(key); }
-  bool allOptions(ZmFn<MxMDInstrument *>) const;
+  bool allOptions(ZmFn<void(MxMDInstrument *)>) const;
 
 private:
   void add(MxMDInstrument *);
@@ -1590,9 +1590,9 @@ public:
   ZmRef<MxMDTickSizeTbl> tickSizeTbl(ZuString id) const {
     return m_tickSizeTbls.findKey(id);
   }
-  bool allTickSizeTbls(ZmFn<MxMDTickSizeTbl *>) const;
+  bool allTickSizeTbls(ZmFn<void(MxMDTickSizeTbl *)>) const;
 
-  bool allSegments(ZmFn<const MxMDSegment &>) const;
+  bool allSegments(ZmFn<void(const MxMDSegment &)>) const;
 
   MxMDSegment tradingSession(MxID segmentID = MxID()) const {
     SegmentsReadGuard guard(m_segmentsLock);
@@ -1604,12 +1604,12 @@ public:
 
   void modifyOrder(ZuString orderID, MxDateTime transactTime,
       MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags,
-      ZmFn<MxMDOrder *> fn = ZmFn<MxMDOrder *>());
+      ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>());
   void reduceOrder(ZuString orderID,
       MxDateTime transactTime, MxValue reduceQty,
-      ZmFn<MxMDOrder *> fn = ZmFn<MxMDOrder *>()); // qty -= reduceQty
+      ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>()); // qty -= reduceQty
   void cancelOrder(ZuString orderID, MxDateTime transactTime,
-      ZmFn<MxMDOrder *> fn = ZmFn<MxMDOrder *>());
+      ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>());
 
 private:
   ZmRef<MxMDTickSizeTbl> addTickSizeTbl_(ZuString id, MxNDP pxNDP);
@@ -1726,7 +1726,7 @@ public:
   ZmRef<MxMDInstrument> instrument(const MxInstrKey &key) const {
     return m_instruments->findKey(key);
   }
-  bool allInstruments(ZmFn<MxMDInstrument *>) const;
+  bool allInstruments(ZmFn<void(MxMDInstrument *)>) const;
   ZmRef<MxMDInstrument> addInstrument(ZmRef<MxMDInstrument> instr,
       const MxInstrKey &key, const MxMDInstrRefData &refData,
       MxDateTime transactTime);
@@ -1734,7 +1734,7 @@ public:
   ZmRef<MxMDOrderBook> orderBook(const MxInstrKey &key) const {
     return m_orderBooks->findKey(key);
   }
-  bool allOrderBooks(ZmFn<MxMDOrderBook *>) const;
+  bool allOrderBooks(ZmFn<void(MxMDOrderBook *)>) const;
 
 private:
   void addInstrument(MxMDInstrument *instrument) {
@@ -1788,13 +1788,13 @@ protected:
 
   void init_(void *);
 
-  static MxMDLib *init(ZuString cf, ZmFn<ZmScheduler *> schedInitFn);
+  static MxMDLib *init(ZuString cf, ZmFn<void(ZmScheduler *)> schedInitFn);
 
 public:
   static MxMDLib *instance();
 
   static MxMDLib *init(ZuString cf) {
-    return init(cf, ZmFn<ZmScheduler *>());
+    return init(cf, ZmFn<void(ZmScheduler *)>());
   }
 
   virtual void start() = 0;
@@ -1872,11 +1872,11 @@ public:
 
   MxUniKey parseInstrument(ZvCf *args, unsigned index) const;
   bool lookupInstrument(
-      const MxUniKey &key, bool instrRequired, ZmFn<MxMDInstrument *> fn) const;
+      const MxUniKey &key, bool instrRequired, ZmFn<void(MxMDInstrument *)> fn) const;
   MxUniKey parseOrderBook(ZvCf *args, unsigned index) const;
   bool lookupOrderBook(
       const MxUniKey &key, bool instrRequired, bool obRequired,
-      ZmFn<MxMDInstrument *, MxMDOrderBook *> fn) const;
+      ZmFn<void(MxMDInstrument *, MxMDOrderBook *)> fn) const;
 
   // CLI time format (using local timezone)
   typedef ZuBoxFmt<ZuBox<unsigned>, ZuFmt::Right<6> > TimeFmt;
@@ -2122,7 +2122,7 @@ public:
 	instrInvoke(MxInstrKey{key.id, key.venue, key.segment}, ZuMv(l));
     }
   }
-  bool allInstruments(ZmFn<MxMDInstrument *>) const;
+  bool allInstruments(ZmFn<void(MxMDInstrument *)>) const;
   unsigned instrCount() const { return m_allInstruments->count_(); }
 
   MxMDOBHandle orderBook(const MxInstrKey &key) const {
@@ -2164,17 +2164,17 @@ public:
 	  l(instr->orderBook(key.venue, key.segment));
       });
   }
-  bool allOrderBooks(ZmFn<MxMDOrderBook *>) const;
+  bool allOrderBooks(ZmFn<void(MxMDOrderBook *)>) const;
 
   ZmRef<MxMDFeed> feed(MxID id) const {
     return m_feeds.findKey(id);
   }
-  bool allFeeds(ZmFn<MxMDFeed *>) const;
+  bool allFeeds(ZmFn<void(MxMDFeed *)>) const;
 
   ZmRef<MxMDVenue> venue(MxID id) const {
     return m_venues.findKey(id);
   }
-  bool allVenues(ZmFn<MxMDVenue *>) const;
+  bool allVenues(ZmFn<void(MxMDVenue *)>) const;
 
   template <typename T = uintptr_t>
   T libData() const { return (T)m_libData.load_(); }

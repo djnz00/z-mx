@@ -160,13 +160,13 @@ private:
 
 class ZrlAPI Terminal {
 public:
-  using ErrorFn = ZmFn<ZuString>;
+  using ErrorFn = ZmFn<void(ZuString)>;
 
-  using OpenFn = ZmFn<bool>;	// (ok)
+  using OpenFn = ZmFn<void(bool)>;	// (ok)
   using CloseFn = ZmFn<>;
 
   using StartFn = ZmFn<>;
-  using KeyFn = ZmFn<int32_t>;	// return true to stop reading 
+  using KeyFn = ZmFn<void(int32_t)>;	// return true to stop reading 
 
   void init(unsigned vkeyInterval) {
     m_vkeyInterval = vkeyInterval; // milliseconds

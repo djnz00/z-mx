@@ -54,8 +54,7 @@ public:
   using Link = typename Base::Link;
   using User = typename Base::User;
 
-  using AppFn = ZmFn<
-    MxMDCmdServer *, Link *, User *, bool, unsigned, ZuArray<const uint8_t>>;
+  using AppFn = ZmFn<void(MxMDCmdServer *, Link *, User *, bool, unsigned, ZuArray<const uint8_t>)>;
 
   void final() { m_appFn = {}; Base::final(); }
 

@@ -80,7 +80,7 @@ public:
   using NodeMvRef = typename PolyHash::NodeMvRef;
 
 private:
-  using FindFn = ZmFn<Node *>;
+  using FindFn = ZmFn<void(Node *)>;
   using FindFnList = ZmList<FindFn>;
   // key IDs as a type list
   using KeyIDs = ZuSeqTL<ZuFieldKeyIDs<T>>;

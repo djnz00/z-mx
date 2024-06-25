@@ -46,7 +46,7 @@ struct ZvCmdContext {
 };
 
 // command handler (context)
-using ZvCmdFn = ZmFn<ZvCmdContext *>;
+using ZvCmdFn = ZmFn<void(ZvCmdContext *)>;
 // can be thrown by command function
 struct ZvCmdUsage { };
 

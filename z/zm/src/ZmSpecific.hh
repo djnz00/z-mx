@@ -33,7 +33,7 @@
 
 // ZmSpecific<T>::instance() returns T * pointer, unique per-thread per-T
 //
-// ZmSpecific<T>::all(ZmFn<T *> fn) calls fn for all instances of T
+// ZmSpecific<T>::all(ZmFn<void(T *)> fn) calls fn for all instances of T
 //
 // ZmCleanupLevel(ZuDeclVal<T *>()) returns ZuUnsigned<N>
 // where N determines order of destruction (per ZmCleanup enum)

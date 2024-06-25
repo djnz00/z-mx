@@ -52,19 +52,20 @@ public:
     io.init(ZiIOFn::Member<&Connection::recvComplete>::fn(this),
 	m_msg.data(), m_msg.size(), 0);
   }
-  void recvComplete(ZiIOContext &);
+  bool recvComplete(ZiIOContext &);
 
   void sendEcho() {
     send(ZiIOFn::Member<&Connection::sendEcho_>::fn(this));
   }
-  void sendEcho_(ZiIOContext &io) {
+  bool sendEcho_(ZiIOContext &io) {
     unsigned i = index();
     unsigned len = strlen(Messages[i]);
     io.init(
 	ZiIOFn::Member<&Connection::sendComplete>::fn(this),
 	(void *)Messages[i], len, 0, m_dest);
+    return true;
   }
-  void sendComplete(ZiIOContext &io) { io.complete(); }
+  bool sendComplete(ZiIOContext &io) { io.complete(); return true; }
 
   unsigned index() {
     return m_counter % (sizeof(Messages) / sizeof(Messages[0]));
@@ -290,18 +291,18 @@ int main(int argc, const char *argv[])
   return 0;
 }
 
-void Connection::recvComplete(ZiIOContext &io)
+bool Connection::recvComplete(ZiIOContext &io)
 {
   if (io.length < io.size) {
     ZeLOG(Error, "recvEcho - short packet");
     io.disconnect();
-    return;
+    return true;
   }
 
   if (io.length != strlen(Messages[index()])) {
     ZeLOG(Error, "recvEcho - bad packet size");
     io.disconnect();
-    return;
+    return true;
   }
 
   std::cout << ZtHexDump(
@@ -313,9 +314,10 @@ void Connection::recvComplete(ZiIOContext &io)
   unsigned nMessages = mx()->nMessages();
   if (++m_counter >= nMessages) {
     io.disconnect();
-    return;
+    return true;
   }
 
   recvEcho(io);
   sendEcho();
+  return true;
 }

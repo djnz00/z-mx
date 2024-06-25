@@ -179,7 +179,7 @@ private:
 inline constexpr const char *Buf_HeapID() { return "ZdfSeries.Buf"; }
 using Buf = Buf_<ZmHeap<Buf_HeapID, sizeof(Buf_<ZuNull>)>>;
 
-using BufUnloadFn = ZmFn<Buf *>;
+using BufUnloadFn = ZmFn<void(Buf *)>;
 
 class ZdfAPI BufMgr {
 public:

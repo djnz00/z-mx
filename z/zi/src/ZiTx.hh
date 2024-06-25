@@ -36,12 +36,14 @@ public:
       [](const Buf *buf, ZiIOContext &io) {
 	io.init(ZiIOFn{io.fn.mvObject<const Buf>(),
 	  [](const Buf *buf, ZiIOContext &io) {
-	    if (ZuUnlikely((io.offset += io.length) < io.size)) return;
+	    if (ZuUnlikely((io.offset += io.length) < io.size)) return true;
 	    auto buf_ = io.fn.mvObject<const Buf>();
 	    io.complete();
 	    auto impl_ = impl(buf_);
 	    impl_->sent(ZuMv(buf_));
+	    return true;
 	  }}, buf->data(), buf->length, 0);
+	return true;
       }});
   }
 };

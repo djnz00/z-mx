@@ -49,11 +49,11 @@
 #include <zlib/ZvCmdNet.hh>
 
 // userDB response
-using ZvCmdUserDBAckFn = ZmFn<const ZvUserDB::fbs::ReqAck *>;
+using ZvCmdUserDBAckFn = ZmFn<void(const ZvUserDB::fbs::ReqAck *)>;
 // command response
-using ZvCmdAckFn = ZmFn<const ZvCmd::fbs::ReqAck *>;
+using ZvCmdAckFn = ZmFn<void(const ZvCmd::fbs::ReqAck *)>;
 // telemetry response
-using ZvCmdTelAckFn = ZmFn<const ZvTelemetry::fbs::ReqAck *>;
+using ZvCmdTelAckFn = ZmFn<void(const ZvTelemetry::fbs::ReqAck *)>;
 
 struct ZvCmd_Login {
   ZtString		user;

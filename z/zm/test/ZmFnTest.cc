@@ -161,21 +161,21 @@ int main()
   {
     //ZmRef<ZmFn<> > fa = ZmFn<>::fn(A(42));
     //ZmRef<ZmFn<> > fb = ZmFn<>::fn(B(43));
-    ZmFn<> fc = ZmFn<>::Ptr<&C>::fn();
-    ZmFn<> fd = ZmFn<>::Ptr<&D>::fn();
+    auto fc = ZmFn<int()>::Ptr<&C>::fn();
+    auto fd = ZmFn<>::Ptr<&D>::fn();
     //ZmRef<ZmFn<> > fe1 = ZmFn<>::fn<&E::foo>(E(45));
     //ZmRef<ZmFn<> > fe2 = ZmFn<>::fn<&E::bar>(E(46));
-    ZmFn<> fe3 = ZmFn<>::Ptr<&E::bah>::fn();
+    auto fe3 = ZmFn<>::Ptr<&E::bah>::fn();
     int i = 47;
-    ZmFn<> ff = ZmFn<>::Bound<&F>::fn(&i);
+    auto ff = ZmFn<int()>::Bound<&F>::fn(&i);
 
     //printf("fa(A(42)) returned %d\n", (int)(int64_t)((*fa)()));
     //printf("fb(B(43)) returned %d\n", (int)(int64_t)((*fb)()));
-    printf("fc(C) returned %d\n", (int)(int64_t)(fc()));
-    printf("fd(D) returned %d\n", (int)(int64_t)(fd()));
+    printf("fc(C) returned %d\n", int(fc()));
+    fd();
     //printf("fe1(E(45)) returned %d\n", (int)(int64_t)((*fe1)()));
     //printf("fe2(E(46)) returned %d\n", (int)(int64_t)((*fe2)()));
-    printf("fe3(E::bah) returned %d\n", (int)(int64_t)(fe3()));
+    fe3();
     printf("ff(47) returned %d\n", (int)(int64_t)(ff()));
 
     A *a = new A(47);
@@ -184,13 +184,13 @@ int main()
     ZmRef<E> e2 = new E_(50);
     // const E *e2c = e2;
 
-    ZmFn<> fap = ZmFn<>::Member<&A::operator()>::fn(a);
-    ZmFn<> fbp = ZmFn<>::Member<&B::operator()>::fn(b);
+    auto fap = ZmFn<>::Member<&A::operator()>::fn(a);
+    auto fbp = ZmFn<int()>::Member<&B::operator()>::fn(b);
     // ZmFn<> fe1p = ZmFn<>::Member<&E::foo>::fn(e1.ptr());
     // ZmFn<> fe2p = ZmFn<>::Member<&E::bar>::fn(ZmMkRef(e2c));
 
-    printf("fap(new A(47)) returned %d\n", (int)(int64_t)(fap()));
-    printf("fbp(new B(48)) returned %d\n", (int)(int64_t)(fbp()));
+    fap();
+    printf("fbp(new B(48)) returned %d\n", int(fbp()));
     // printf("fe1p(new E(49)) returned %d\n", (int)(int64_t)(fe1p()));
     // printf("fe2p(new E(50)) returned %d\n", (int)(int64_t)(fe2p()));
 
@@ -198,24 +198,24 @@ int main()
     delete b;
   }
   {
-    //ZmRef<ZmFn<int> > fa = ZmFn<int>::fn(A1(42));
-    //ZmRef<ZmFn<int> > fb = ZmFn<int>::fn(B1(43));
-    ZmFn<int> fc = ZmFn<int>::Ptr<&C1>::fn();
-    ZmFn<int> fd = ZmFn<int>::Ptr<&D1>::fn();
-    //ZmRef<ZmFn<int> > fe1 = ZmFn<int>::fn<&E1::foo>(E1(45));
-    //ZmRef<ZmFn<int> > fe2 = ZmFn<int>::fn<&E1::bar>(E1(46));
-    ZmFn<int> fe3 = ZmFn<int>::Ptr<&E1::bah>::fn();
+    //ZmRef<ZmFn<void(int)> > fa = ZmFn<void(int)>::fn(A1(42));
+    //ZmRef<ZmFn<void(int)> > fb = ZmFn<void(int)>::fn(B1(43));
+    auto fc = ZmFn<int(int)>::Ptr<&C1>::fn();
+    auto fd = ZmFn<void(int)>::Ptr<&D1>::fn();
+    //ZmRef<ZmFn<void(int)> > fe1 = ZmFn<void(int)>::fn<&E1::foo>(E1(45));
+    //ZmRef<ZmFn<void(int)> > fe2 = ZmFn<void(int)>::fn<&E1::bar>(E1(46));
+    auto fe3 = ZmFn<void(int)>::Ptr<&E1::bah>::fn();
     int i = 47;
-    ZmFn<int> ff = ZmFn<int>::Bound<&F1>::fn(&i);
+    auto ff = ZmFn<int(int)>::Bound<&F1>::fn(&i);
 
     //printf("fa(A1(42)) returned %d\n", (int)(int64_t)((*fa)(-42)));
     //printf("fb(B1(43)) returned %d\n", (int)(int64_t)((*fb)(-42)));
-    printf("fc(C1) returned %d\n", (int)(int64_t)(fc(-42)));
-    printf("fd(D1) returned %d\n", (int)(int64_t)(fd(-42)));
+    printf("fc(C1) returned %d\n", int(fc(-42)));
+    fd(-42);
     //printf("fe1(E1(45)) returned %d\n", (int)(int64_t)((*fe1)(-42)));
     //printf("fe2(E1(46)) returned %d\n", (int)(int64_t)((*fe2)(-42)));
-    printf("fe3(E1::bah) returned %d\n", (int)(int64_t)(fe3(-42)));
-    printf("ff(47) returned %d\n", (int)(int64_t)(ff(-42)));
+    fe3(-42);
+    printf("ff(47) returned %d\n", int(ff(-42)));
 
     A1 *a = new A1(47);
     B1 *b = new B1(48);
@@ -223,15 +223,15 @@ int main()
     E1 *e2 = new E1(50);
     const E1 *e2c = e2;
 
-    ZmFn<int> fap = ZmFn<int>::Member<&A1::operator()>::fn(a);
-    ZmFn<int> fbp = ZmFn<int>::Member<&B1::operator()>::fn(b);
-    ZmFn<int> fe1p = ZmFn<int>::Member<&E1::foo>::fn(e1);
-    ZmFn<int> fe2p = ZmFn<int>::Member<&E1::bar>::fn(e2c);
+    auto fap = ZmFn<void(int)>::Member<&A1::operator()>::fn(a);
+    auto fbp = ZmFn<int(int)>::Member<&B1::operator()>::fn(b);
+    auto fe1p = ZmFn<void(int)>::Member<&E1::foo>::fn(e1);
+    auto fe2p = ZmFn<int(int)>::Member<&E1::bar>::fn(e2c);
 
-    printf("fap(new A1(47)) returned %d\n", (int)(int64_t)(fap(-42)));
-    printf("fbp(new B1(48)) returned %d\n", (int)(int64_t)(fbp(-42)));
-    printf("fe1p(new E1(49)) returned %d\n", (int)(int64_t)(fe1p(-42)));
-    printf("fe2p(new E1(50)) returned %d\n", (int)(int64_t)(fe2p(-42)));
+    fap(-42);
+    printf("fbp(new B1(48)) returned %d\n", int(fbp(-42)));
+    fe1p(-42);
+    printf("fe2p(new E1(50)) returned %d\n", int(fe2p(-42)));
 
     delete a;
     delete b;
@@ -239,24 +239,24 @@ int main()
     delete e2;
   }
   {
-    //ZmRef<ZmFn<int, int> > fa = ZmFn<int, int>::fn(A2(42));
-    //ZmRef<ZmFn<int, int> > fb = ZmFn<int, int>::fn(B2(43));
-    ZmFn<int, int> fc = ZmFn<int, int>::Ptr<&C2>::fn();
-    ZmFn<int, int> fd = ZmFn<int, int>::Ptr<&D2>::fn();
-    //ZmRef<ZmFn<int, int> > fe1 = ZmFn<int, int>::fn<&E2::foo>(E2(45));
-    //ZmRef<ZmFn<int, int> > fe2 = ZmFn<int, int>::fn<&E2::bar>(E2(46));
-    ZmFn<int, int> fe3 = ZmFn<int, int>::Ptr<&E2::bah>::fn();
+    //ZmRef<ZmFn<void(int, int)> > fa = ZmFn<void(int, int)>::fn(A2(42));
+    //ZmRef<ZmFn<void(int, int)> > fb = ZmFn<void(int, int)>::fn(B2(43));
+    auto fc = ZmFn<int(int, int)>::Ptr<&C2>::fn();
+    auto fd = ZmFn<void(int, int)>::Ptr<&D2>::fn();
+    //ZmRef<ZmFn<void(int, int)> > fe1 = ZmFn<void(int, int)>::fn<&E2::foo>(E2(45));
+    //ZmRef<ZmFn<void(int, int)> > fe2 = ZmFn<void(int, int)>::fn<&E2::bar>(E2(46));
+    auto fe3 = ZmFn<void(int, int)>::Ptr<&E2::bah>::fn();
     int i = 47;
-    ZmFn<int, int> ff = ZmFn<int, int>::Bound<&F2>::fn(&i);
+    auto ff = ZmFn<int(int, int)>::Bound<&F2>::fn(&i);
 
     //printf("fa(A2(42)) returned %d\n", (int)(int64_t)((*fa)(-42, -43)));
     //printf("fb(B2(43)) returned %d\n", (int)(int64_t)((*fb)(-42, -43)));
-    printf("fc(C2) returned %d\n", (int)(int64_t)(fc(-42, -43)));
-    printf("fd(D2) returned %d\n", (int)(int64_t)(fd(-42, -43)));
+    printf("fc(C2) returned %d\n", int(fc(-42, -43)));
+    fd(-42, -43);
     //printf("fe1(E2(45)) returned %d\n", (int)(int64_t)((*fe1)(-42, -43)));
     //printf("fe2(E2(46)) returned %d\n", (int)(int64_t)((*fe2)(-42, -43)));
-    printf("fe3(E2::bah) returned %d\n", (int)(int64_t)(fe3(-42, -43)));
-    printf("ff(47) returned %d\n", (int)(int64_t)(ff(-42, -43)));
+    fe3(-42, -43);
+    printf("ff(47) returned %d\n", int(ff(-42, -43)));
 
     A2 *a = new A2(47);
     B2 *b = new B2(48);
@@ -264,24 +264,24 @@ int main()
     ZmRef<E2> e2 = new E2(50);
     const E2 *e2c = e2;
 
-    ZmFn<int, int> fap = ZmFn<int, int>::Member<&A2::operator()>::fn(a);
-    ZmFn<int, int> fbp = ZmFn<int, int>::Member<&B2::operator()>::fn(b);
+    auto fap = ZmFn<void(int, int)>::Member<&A2::operator()>::fn(a);
+    auto fbp = ZmFn<int(int, int)>::Member<&B2::operator()>::fn(b);
 
-    printf("fap(new A2(47)) returned %d\n", (int)(int64_t)(fap(-42, -43)));
-    printf("fbp(new B2(48)) returned %d\n", (int)(int64_t)(fbp(-42, -43)));
+    fap(-42, -43);
+    printf("fbp(new B2(48)) returned %d\n", int(fbp(-42, -43)));
 
     CHECK(e1->refCount() == 1);
     CHECK(e2->refCount() == 1);
 
     {
-      ZmFn<int, int> fe1p(ZmFn<int, int>::Member<&E2::foo>::fn(e1.ptr()));
-      ZmFn<int, int> fe2p(ZmFn<int, int>::Member<&E2::bar>::fn(ZmMkRef(e2c)));
+      auto fe1p(ZmFn<void(int, int)>::Member<&E2::foo>::fn(e1.ptr()));
+      auto fe2p(ZmFn<int(int, int)>::Member<&E2::bar>::fn(ZmMkRef(e2c)));
 
       CHECK(e1->refCount() == 1);
       CHECK(e2->refCount() == 2);
 
-      printf("fe1p(new E2(49)) returned %d\n", (int)(int64_t)(fe1p(-42, -43)));
-      printf("fe2p(new E2(50)) returned %d\n", (int)(int64_t)(fe2p(-42, -43)));
+      fe1p(-42, -43);
+      printf("fe2p(new E2(50)) returned %d\n", int(fe2p(-42, -43)));
     }
 
     CHECK(e1->refCount() == 1);
@@ -292,7 +292,7 @@ int main()
   }
   {
     ZmRef<E3> e3 = new E3();
-    using TestFn = ZmFn<int, int>;
+    using TestFn = ZmFn<void(int, int)>;
     TestFn test = TestFn::Member<&E3::foo<1> >::fn(e3);
   }
   {
@@ -309,22 +309,22 @@ int main()
 #endif
     }
     {
-      ZmFn<> foo = ZmFn<>([]{ puts("Hello World"); return 42; });
-      printf("foo() %d (should be 42)\n", (int)foo());
+      auto foo = ZmFn<int()>([]{ puts("Hello World"); return 42; });
+      printf("foo() %d (should be 42)\n", foo());
     }
     ZmRef<E3> e3 = new E3();
-    ZmFn<> bar = ZmFn<>::fn([e3]() { e3->foo<1>(1, 1); });
-    ZmFn<> baz = ZmFn<>(e3, [](E3 *e3) { e3->foo<1>(1, 1); });
+    auto bar = ZmFn<>::fn([e3]() { e3->foo<1>(1, 1); });
+    auto baz = ZmFn<>(e3, [](E3 *e3) { e3->foo<1>(1, 1); });
     bar();
     baz();
   }
   {
     ZmRef<E_> e = new E_(42);
-    ZmFn<> foo = ZmFn<>(e.ptr(), [](E_ *e) { e->foo(); });
+    auto foo = ZmFn<>(e.ptr(), [](E_ *e) { e->foo(); });
     CHECK(e->refCount() == 1);
     foo();
     const char *s = "Hello World";
-    ZmFn<> foo2 = ZmFn<>(e, [s](E_ *e) { puts(s); e->bar(); });
+    auto foo2 = ZmFn<>(e, [s](E_ *e) { puts(s); e->bar(); });
     CHECK(e->refCount() == 2);
     foo2();
   }
@@ -332,19 +332,19 @@ int main()
     X v;
     X &vr = v;
     foo(vr);
-    ZmFn<X &> bar = ZmFn<X &>::Ptr<&foo>::fn();
+    auto bar = ZmFn<void(X &)>::Ptr<&foo>::fn();
     bar(vr);
     foo(v);
   }
   {
-    ZmFn<MoveOnly> fn{[](MoveOnly m) { printf("%d\n", m.i); } };
+    ZmFn<void(MoveOnly)> fn{[](MoveOnly m) { printf("%d\n", m.i); } };
     fn(MoveOnly());
     MoveOnly m;
     fn(ZuMv(m));
   }
   {
     ZmRef<E_> e = new E_(42);
-    ZmFn<ZmAnyFn *> fn{ZuMv(e), [](E_ *, ZmAnyFn *fn) {
+    ZmFn<void(ZmAnyFn *)> fn{ZuMv(e), [](E_ *, ZmAnyFn *fn) {
 	ZmRef<E_> e = fn->mvObject<E_>();
 	CHECK(e->refCount() == 1);
       }};
@@ -358,7 +358,7 @@ int main()
     fn();
   }
   {
-    ZmFn<> fn{[]{ return -42; }};
+    ZmFn<int()> fn{[]{ return -42; }};
     short x = fn();
     CHECK(x == -42);
   }

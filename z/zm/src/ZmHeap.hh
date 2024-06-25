@@ -222,7 +222,7 @@ template <auto, unsigned, bool> friend class ZmHeapCacheT;
       m_stream <<
 	"ID,size,partition,sharded,alignment,cacheSize,cpuset,"
 	"cacheAllocs,heapAllocs,frees\n";
-      ZmHeapMgr::all(ZmFn<ZmHeapCache *>::Member<&CSV_::print_>::fn(this));
+      ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>::Member<&CSV_::print_>::fn(this));
     }
     void print_(ZmHeapCache *cache) {
       ZmHeapTelemetry data;
@@ -248,7 +248,7 @@ public:
   static void init(
       const char *id, unsigned partition, const ZmHeapConfig &config);
 
-  static void all(ZmFn<ZmHeapCache *> fn);
+  static void all(ZmFn<void(ZmHeapCache *)> fn);
 
   struct CSV {
     template <typename S> void print(S &s) const {

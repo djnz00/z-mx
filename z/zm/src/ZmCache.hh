@@ -88,7 +88,7 @@ public:
   using NodeMvRef = typename Hash::NodeMvRef;
 
 private:
-  using FindFn = ZmFn<Node *>;
+  using FindFn = ZmFn<void(Node *)>;
   using FindFnList = ZmList<FindFn>;
   using LoadHash = ZmHashKV<Key, FindFnList, ZmHashHeapID<HeapID>>;
 

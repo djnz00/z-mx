@@ -55,7 +55,7 @@ private:
 
   static const char *HeapID() { return "ZmEngine"; };
   using CtrlFnRing =
-    ZmXRing<ZmFn<bool>, ZmXRingHeapID<HeapID>>;
+    ZmXRing<ZmFn<void(bool)>, ZmXRingHeapID<HeapID>>;
 
 public:
   template <typename L>
@@ -68,8 +68,8 @@ public:
     return l();
   }
 
-  void start(ZmFn<bool>);	// async
-  void stop(ZmFn<bool>);
+  void start(ZmFn<void(bool)>);	// async
+  void stop(ZmFn<void(bool)>);
 
   bool start();			// sync
   bool stop();
@@ -104,7 +104,7 @@ private:
 };
 
 template <typename Impl>
-inline void ZmEngine<Impl>::start(ZmFn<bool> startFn)
+inline void ZmEngine<Impl>::start(ZmFn<void(bool)> startFn)
 {
   using namespace ZmEngineState;
   bool ok;
@@ -184,7 +184,7 @@ inline void ZmEngine<Impl>::started(bool ok)
 }
 
 template <typename Impl>
-inline void ZmEngine<Impl>::stop(ZmFn<bool> stopFn)
+inline void ZmEngine<Impl>::stop(ZmFn<void(bool)> stopFn)
 {
   using namespace ZmEngineState;
 

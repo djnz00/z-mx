@@ -141,7 +141,8 @@ void DB::init(
     throw ZeEVENT(Fatal, "ZdbDB::init called out of order");
 }
 
-ZmRef<AnyTable> DB::initTable_(ZuID id, ZmFn<DB *, TableCf *> ctorFn)
+ZmRef<AnyTable> DB::initTable_(
+  ZuID id, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn)
 {
   ZmRef<AnyTable> table;
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped,
@@ -150,7 +151,7 @@ ZmRef<AnyTable> DB::initTable_(ZuID id, ZmFn<DB *, TableCf *> ctorFn)
     auto cf = m_cf.tableCfs.find(id);
     if (!cf) m_cf.tableCfs.addNode(cf = new TableCfs::Node{id});
     if (m_tables.findVal(id)) return false;
-    table = reinterpret_cast<AnyTable *>(ctorFn(this, &(cf->val())));
+    table = ctorFn(this, &(cf->val()));
     m_tables.add(table);
     return true;
   }))
@@ -228,7 +229,7 @@ void DB::start_()
 void DB::start_1()
 {
   // open and recover all tables
-  all([](AnyTable *table, ZmFn<bool> done) {
+  all([](AnyTable *table, ZmFn<void(bool)> done) {
     table->open([done = ZuMv(done)](bool ok) mutable { done(ok); });
   }, [](DB *db, bool ok) {
     ok ? db->start_2() : db->started(false);
@@ -341,7 +342,7 @@ void DB::stop_2()
   ZmAssert(invoked());
 
   // close all tables
-  all([](AnyTable *table, ZmFn<bool> done) {
+  all([](AnyTable *table, ZmFn<void(bool)> done) {
     table->close([done = ZuMv(done)]() mutable { done(true); });
   }, [](DB *db, bool) {
     db->stop_3();
@@ -550,7 +551,7 @@ bool DB::all(AllFn fn, AllDoneFn doneFn)
   while (auto table = i.iterateVal().ptr())
     table->invoke([table]() {
       auto db = table->db();
-      db->m_allFn(table, ZmFn<bool>{db, [](DB *db, bool ok) {
+      db->m_allFn(table, ZmFn<void(bool)>{db, [](DB *db, bool ok) {
 	db->invoke([db, ok]() { db->allDone(ok); });
       }});
     });
@@ -591,7 +592,7 @@ ZvTelemetry::DBFn DB::telFn()
 	});
       }
       db->all([tableFn = ZuMv(tableFn), update](
-	  AnyTable *table, ZmFn<bool> done) {
+	  AnyTable *table, ZmFn<void(bool)> done) {
 	ZvTelemetry::IOBuilder fbb;
 	tableFn(fbb, table->telemetry(fbb, update));
 	done(true);

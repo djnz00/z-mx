@@ -14,10 +14,10 @@ private:
   void run(MxTelemetry::Server::Cxn *cxn) {
     using namespace MxTelemetry;
 
-    ZmHeapMgr::all(ZmFn<ZmHeapCache *>{cxn,
+    ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>{cxn,
 	[](Cxn *cxn, ZmHeapCache *h) { cxn->transmit(heap(h)); }});
 
-    ZmHashMgr::all(ZmFn<ZmAnyHash *>{
+    ZmHashMgr::all(ZmFn<void(ZmAnyHash *)>{
 	cxn, [](Cxn *cxn, ZmAnyHash *h) {
 	  cxn->transmit(hashTbl(h));
 	}});

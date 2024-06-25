@@ -50,12 +50,12 @@ using InitResult = ZuUnion<
 // start result
 using StartResult = ZuUnion<void, Event>;
 // start callback
-using StartFn = ZmFn<StartResult>;
+using StartFn = ZmFn<void(StartResult)>;
 
 // stop result
 using StopResult = ZuUnion<void, Event>;
 // stop callback
-using StopFn = ZmFn<StopResult>;
+using StopFn = ZmFn<void(StopResult)>;
 
 // opened table data
 // - (*) un and sn may refer to trailing deletions
@@ -77,7 +77,7 @@ using OpenResult = ZuUnion<
   OpenData,			// succeeded
   Event>;			// error
 // open callback
-using OpenFn = ZmFn<OpenResult>;
+using OpenFn = ZmFn<void(OpenResult)>;
 
 // table close callback
 using CloseFn = ZmFn<>;
@@ -88,7 +88,7 @@ struct CountData {
   uint64_t		count;
 };
 // count callback
-using CountFn = ZmFn<CountData>;
+using CountFn = ZmFn<void(CountData)>;
 
 // key data
 struct KeyData {
@@ -101,7 +101,7 @@ using KeyResult = ZuUnion<
   KeyData,		// matching key
   Event>;		// error
 // key callback
-using KeyFn = ZmFn<KeyResult>;	// app must process buf contents synchronously
+using KeyFn = ZmFn<void(KeyResult)>;	// app must process buf contents synchronously
 
 // row data
 struct RowData {
@@ -114,12 +114,12 @@ using RowResult = ZuUnion<
   Event>;		// error
 
 // row callback
-using RowFn = ZmFn<RowResult>;
+using RowFn = ZmFn<void(RowResult)>;
 
 // commit result
 using CommitResult = ZuUnion<void, Event>;
 // commit callback
-using CommitFn = ZmFn<ZmRef<const AnyBuf>, CommitResult>;
+using CommitFn = ZmFn<void(ZmRef<const AnyBuf>, CommitResult)>;
 
 // backing table interface
 class StoreTbl {

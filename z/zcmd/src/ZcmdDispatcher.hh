@@ -24,8 +24,8 @@
 
 class ZvAPI ZvCmdDispatcher {
 public:
-  using Fn = ZmFn<void *, const uint8_t *, unsigned>;
-  using DefltFn = ZmFn<void *, ZuID, const uint8_t *, unsigned>;
+  using Fn = ZmFn<void(void *, const uint8_t *, unsigned)>;
+  using DefltFn = ZmFn<void(void *, ZuID, const uint8_t *, unsigned)>;
 
   void init();
   void final();

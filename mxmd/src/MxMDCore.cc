@@ -147,7 +147,7 @@ void MxMDCore::addOrderBook_(ZuAnyPOD *pod)
 
 static unsigned init_called_ = 0;
 
-MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<ZmScheduler *> schedInitFn)
+MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<void(ZmScheduler *)> schedInitFn)
 {
   auto init_called = reinterpret_cast<ZmAtomic<unsigned> *>(&init_called_);
   if (init_called->cmpXch(1, 0)) {
@@ -724,7 +724,7 @@ void MxMDCore::instrument_(void *, const ZvCf *args, ZtString &out)
 static void writeTickSizes(
     const MxMDLib *md, MxMDTickSizeCSV &csv, ZvCSVWriteFn fn, MxID venueID)
 {
-  ZmFn<MxMDVenue *> venueFn{[&csv, &fn](MxMDVenue *venue) {
+  ZmFn<void(MxMDVenue *)> venueFn{[&csv, &fn](MxMDVenue *venue) {
     return venue->allTickSizeTbls(
 	[&csv, &fn, venue](MxMDTickSizeTbl *tbl) {
       return tbl->allTickSizes(

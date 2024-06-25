@@ -566,7 +566,7 @@ public:
   }
 
   // start/stop
-  using StartFn = ZmFn<Editor &>;
+  using StartFn = ZmFn<void(Editor &)>;
   void start(StartFn = {});
   void stop();
   bool running() const;

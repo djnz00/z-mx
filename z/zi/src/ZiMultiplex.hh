@@ -86,7 +86,7 @@ struct ZiCxnInfo;
 #endif
 
 // transient
-using ZiFailFn = ZmFn<bool>;
+using ZiFailFn = ZmFn<void(bool)>;
 
 // multicast subscription request (IGMP Report)
 class ZiMReq : public ip_mreq {
@@ -416,14 +416,14 @@ struct ZiCxnTelemetry {
   int8_t	type = -1;	// ZiCxnType
 };
 
-using ZiListenFn = ZmFn<const ZiListenInfo &>;
-using ZiConnectFn = ZmFn<const ZiCxnInfo &>;
+using ZiListenFn = ZmFn<void(const ZiListenInfo &)>;
+using ZiConnectFn = ZmFn<ZiConnection *(const ZiCxnInfo &)>;
 
 #ifdef ZiMultiplex_IOCP
 // overlapped I/O structure for a single request (Windows IOCP) - internal
 class Zi_Overlapped {
 public:
-  using Executed = ZmFn<int, unsigned, ZeError>;
+  using Executed = ZmFn<void(int, unsigned, ZeError)>;
 
   Zi_Overlapped() { }
   ~Zi_Overlapped() { }
@@ -827,8 +827,8 @@ public:
   ZiMultiplex(ZiMxParams mxParams = ZiMxParams{});
   ~ZiMultiplex();
 
-  void allCxns(ZmFn<ZiConnection *> fn);
-  void allCxns_(ZmFn<ZiConnection *> fn);			// Rx thread
+  void allCxns(ZmFn<void(ZiConnection *)> fn);
+  void allCxns_(ZmFn<void(ZiConnection *)> fn);			// Rx thread
 
   void listen(
       ZiListenFn listenFn, ZiFailFn failFn, ZiConnectFn acceptFn,

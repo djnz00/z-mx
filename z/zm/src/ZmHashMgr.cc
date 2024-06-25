@@ -75,7 +75,7 @@ private:
 
   using Tables = ZmHashMgr_Tables;
 
-  void all(ZmFn<ZmAnyHash *> fn) {
+  void all(ZmFn<void(ZmAnyHash *)> fn) {
     ZmRef<ZmAnyHash> tbl;
     {
       ZmGuard<ZmPLock> guard(m_lock);
@@ -103,7 +103,7 @@ void ZmHashMgr::init(ZuString id, const ZmHashParams &params)
   ZmHashMgr_::instance()->init(id, params);
 }
 
-void ZmHashMgr::all(ZmFn<ZmAnyHash *> fn)
+void ZmHashMgr::all(ZmFn<void(ZmAnyHash *)> fn)
 {
   ZmHashMgr_::instance()->all(fn);
 }

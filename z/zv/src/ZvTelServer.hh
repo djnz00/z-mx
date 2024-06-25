@@ -34,11 +34,11 @@ using QueueFn = ZvEngineMgr::QueueFn;
 using IOBuf = Ztls::IOBuf;
 using IOBuilder = Zfb::IOBuilder<IOBuf>;
 
-using BuildDBFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>;
-using BuildDBHostFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::DBHost>>;
-using BuildDBTableFn = ZmFn<IOBuilder &, Zfb::Offset<fbs::DBTable>>;
+using BuildDBFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>;
+using BuildDBHostFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>;
+using BuildDBTableFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>;
 // DBFn(buildDB, buildHost, buildTable, update)
-using DBFn = ZmFn<BuildDBFn, BuildDBHostFn, BuildDBTableFn, bool>;
+using DBFn = ZmFn<void(BuildDBFn, BuildDBHostFn, BuildDBTableFn, bool)>;
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -545,7 +545,7 @@ private:
     if (req.interval)
       this->subscribe<[](Server *server) { server->heapScan(); }>(
 	  list, watch, req.interval);
-    ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
+    ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>{
       watch, [](Watch *watch, ZmHeapCache *heap) {
 	watch->link->app()->heapQuery_(watch, heap);
       }});
@@ -562,7 +562,7 @@ private:
 
   void heapScan() {
     if (!m_watchLists[ReqType::Heap].list.count_()) return;
-    ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
+    ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>{
       this, [](Server *server, ZmHeapCache *heap) {
 	server->heapScan(heap);
       }});
@@ -591,7 +591,7 @@ private:
     if (req.interval)
       this->subscribe<[](Server *server) { server->hashScan(); }>(
 	  list, watch, req.interval);
-    ZmHashMgr::all(ZmFn<ZmAnyHash *>{
+    ZmHashMgr::all(ZmFn<void(ZmAnyHash *)>{
       watch, [](Watch *watch, ZmAnyHash *tbl) {
 	watch->link->app()->hashQuery_(watch, tbl);
       }});
@@ -608,7 +608,7 @@ private:
 
   void hashScan() {
     if (!m_watchLists[ReqType::HashTbl].list.count_()) return;
-    ZmHashMgr::all(ZmFn<ZmAnyHash *>{
+    ZmHashMgr::all(ZmFn<void(ZmAnyHash *)>{
       this, [](Server *server, ZmAnyHash *tbl) {
 	server->hashScan(tbl);
       }});
@@ -947,19 +947,19 @@ private:
     if (!m_dbFn) return;
     // these callbacks can execute async
     m_dbFn(
-      ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>{ZmMkRef(watch->link),
+      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>{ZmMkRef(watch->link),
 	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DB> offset) {
 	  fbb.Finish(fbs::CreateTelemetry(fbb,
 		fbs::TelData::DB, offset.Union()));
 	  link->sendTelemetry(fbb);
 	}},
-      ZmFn<IOBuilder &, Zfb::Offset<fbs::DBHost>>{ZmMkRef(watch->link),
+      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>{ZmMkRef(watch->link),
 	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBHost> offset) {
 	  fbb.Finish(fbs::CreateTelemetry(fbb,
 		fbs::TelData::DBHost, offset.Union()));
 	  link->sendTelemetry(fbb);
 	}},
-      ZmFn<IOBuilder &, Zfb::Offset<fbs::DBTable>>{ZmMkRef(watch->link),
+      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>{ZmMkRef(watch->link),
 	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBTable> offset) {
 	  fbb.Finish(fbs::CreateTelemetry(fbb,
 		fbs::TelData::DBTable, offset.Union()));
@@ -974,19 +974,19 @@ private:
     while (auto watch = i.iterate()) {
       // these callbacks can execute async
       m_dbFn(
-	ZmFn<IOBuilder &, Zfb::Offset<fbs::DB>>{ZmMkRef(watch->link),
+	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>{ZmMkRef(watch->link),
 	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DB> offset) {
 	    fbb.Finish(fbs::CreateTelemetry(fbb,
 		  fbs::TelData::DB, offset.Union()));
 	    link->sendTelemetry(fbb);
 	  }},
-	ZmFn<IOBuilder &, Zfb::Offset<fbs::DBHost>>{ZmMkRef(watch->link),
+	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>{ZmMkRef(watch->link),
 	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBHost> offset) {
 	    fbb.Finish(fbs::CreateTelemetry(fbb,
 		  fbs::TelData::DBHost, offset.Union()));
 	    link->sendTelemetry(fbb);
 	  }},
-	ZmFn<IOBuilder &, Zfb::Offset<fbs::DBTable>>{ZmMkRef(watch->link),
+	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>{ZmMkRef(watch->link),
 	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBTable> offset) {
 	    fbb.Finish(fbs::CreateTelemetry(fbb,
 		  fbs::TelData::DBTable, offset.Union()));

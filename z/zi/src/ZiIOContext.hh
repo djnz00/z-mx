@@ -71,7 +71,7 @@ public:
     return reinterpret_cast<uintptr_t>(ptr) == invalid_ptr();
   }
 
-  uintptr_t operator()();
+  bool operator()();	// return true if complete
 
   ZiConnection	*cxn = nullptr;	// connection - set by ZiMultiplex
   ZmAnyFn	fn;		// callback - set by app (clear to complete I/O)
@@ -81,7 +81,7 @@ public:
   unsigned	length = 0;	// length - set by ZiMultiplex
   ZiSockAddr	addr;		// set by app (send) / ZiMultiplex (recv)
 };
-using ZiIOFn = ZmFn<ZiIOContext &>;
-inline uintptr_t ZiIOContext::operator ()() { return fn.as<ZiIOFn>()(*this); }
+using ZiIOFn = ZmFn<bool(ZiIOContext &)>;
+inline bool ZiIOContext::operator ()() { return fn.as<ZiIOFn>()(*this); }
 
 #endif /* ZiIOContext_HH */

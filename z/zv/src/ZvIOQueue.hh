@@ -257,7 +257,7 @@ public:
   }
 
   // unload all messages from queue
-  void unload(ZmFn<ZvIOMsg *> fn) {
+  void unload(ZmFn<void(ZvIOMsg *)> fn) {
     while (ZmRef<ZvIOMsg> msg = m_queue->shift()) {
       impl()->unloaded_(msg);
       msg->unload();

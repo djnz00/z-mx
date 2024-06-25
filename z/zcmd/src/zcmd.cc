@@ -56,7 +56,7 @@ static void usage()
 
 class TelCap {
 public:
-  using Fn = ZmFn<const void *>;
+  using Fn = ZmFn<void(const void *)>;
 
   TelCap() { }
   TelCap(Fn fn) : m_fn{ZuMv(fn)} { }

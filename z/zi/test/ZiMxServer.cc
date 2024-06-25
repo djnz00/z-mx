@@ -56,16 +56,17 @@ public:
 #include "HttpHeader.hh"
 
   // read HTTP request
-  void recvRequest(ZiIOContext &io) {
+  bool recvRequest(ZiIOContext &io) {
     {
       bool incomplete = !httpHeaderEnd(io.ptr, io.offset, io.length);
       io.offset += io.length;
-      if (incomplete) return;
+      if (incomplete) return true;
     }
     Global::timeInterval(1).add(Zm::now() - m_recvTime);
     Global::rcvd(io.offset);
     io.complete();
     send(ZiIOFn::Member<&Connection::sendHeader>::fn(this));
+    return true;
   }
 
   // create random-length content (normally distributed, mean 16K + 8K)
@@ -84,26 +85,29 @@ public:
   }
 
   // send HTTP header
-  void sendHeader(ZiIOContext &io) {
+  bool sendHeader(ZiIOContext &io) {
     //fwrite(m_request, 1, len, stdout); fflush(stdout);
     m_response.sprintf(Response, createContent());
     m_sendTime = Zm::now();
     io.init(ZiIOFn::Member<&Connection::sendContent>::fn(this),
 	m_response.data(), m_response.length(), 0);
+    return true;
   }
   // send HTTP content
-  void sendContent(ZiIOContext &io) {
-    if ((io.offset += io.length) < io.size) return;
+  bool sendContent(ZiIOContext &io) {
+    if ((io.offset += io.length) < io.size) return true;
     io.init(ZiIOFn::Member<&Connection::sendComplete>::fn(this),
 	m_content.data(), m_content.length(), 0);
+    return true;
   }
-  void sendComplete(ZiIOContext &io) {
+  bool sendComplete(ZiIOContext &io) {
     //{ printf("Content Length: %d\n", m_content.size()); fflush(stdout); }
-    if ((io.offset += io.length) < io.size) return;
+    if ((io.offset += io.length) < io.size) return true;
     m_completedTime = Zm::now();
     Global::timeInterval(2).add(m_completedTime - m_sendTime);
     Global::sent(io.size);
     io.disconnect();
+    return true;
   }
 
 private:

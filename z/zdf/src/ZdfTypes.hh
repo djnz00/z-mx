@@ -20,10 +20,10 @@ namespace Zdf {
 using Event = ZeMEvent;				// monomorphic ZeEvent
 
 using OpenResult = ZuUnion<void, Event>;	// open result
-using OpenFn = ZmFn<OpenResult>;		// open callback
+using OpenFn = ZmFn<void(OpenResult)>;		// open callback
 
 using CloseResult = ZuUnion<void, Event>;	// close result
-using CloseFn = ZmFn<CloseResult>;		// close callback
+using CloseFn = ZmFn<void(CloseResult)>;		// close callback
 
 } // namespace Zdf
 

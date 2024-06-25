@@ -33,7 +33,7 @@ public:
     m_scheduler(scheduler), m_backoff(backoff),
     m_maxCount(maxCount), m_count(0) { }
 
-  void start(ZmFn<> retryFn, ZmFn<> finalFn = ZmFn<>()) {
+  void start(ZmFn<> retryFn, ZmFn<> finalFn = {}) {
     ZmGuard<ZmLock> guard(m_lock);
 
     m_retryFn = retryFn;

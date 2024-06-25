@@ -40,14 +40,14 @@ using OpenResult = ZuUnion<
   OpenData,		// succeeded
   Event>;		// error
 // open callback
-using OpenFn = ZmFn<OpenResult>;
+using OpenFn = ZmFn<void(OpenResult)>;
 
 // close result
 using CloseResult = ZuUnion<
   void,			// succeeded
   Event>;		// error
 // close callback
-using CloseFn = ZmFn<CloseResult>;
+using CloseFn = ZmFn<void(CloseResult)>;
 
 // load data
 struct LoadData { };	// intentionally empty
@@ -57,14 +57,14 @@ using LoadResult = ZuUnion<
   LoadData,		// succeeded
   Event>;		// error
 // load callback
-using LoadFn = ZmFn<LoadResult>;
+using LoadFn = ZmFn<void(LoadResult)>;
 
 // save result
 using SaveResult = ZuUnion<
   void,			// succeeded
   Event>;		// error
 // save callback
-using SaveFn = ZmFn<SaveResult>;
+using SaveFn = ZmFn<void(SaveResult)>;
 
 class Interface : public BufMgr {
 public:

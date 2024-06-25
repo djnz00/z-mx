@@ -717,7 +717,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::modifyOrder(
 void MxMDVenue::modifyOrder(
   ZuString orderID, MxDateTime transactTime,
   MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags,
-  ZmFn<MxMDOrder *> fn)
+  ZmFn<void(MxMDOrder *)> fn)
 {
   ZmRef<MxMDOrder> order;
   if (ZuUnlikely(!qty))
@@ -789,7 +789,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::reduceOrder(
 
 void MxMDVenue::reduceOrder(
   ZuString orderID, MxDateTime transactTime,
-  MxValue reduceQty, ZmFn<MxMDOrder *> fn)
+  MxValue reduceQty, ZmFn<void(MxMDOrder *)> fn)
 {
   ZmRef<MxMDOrder> order = findOrder(orderID);
   if (ZuUnlikely(!order)) {
@@ -854,7 +854,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::cancelOrder(
 
 void MxMDVenue::cancelOrder(
   ZuString orderID, MxDateTime transactTime,
-  ZmFn<MxMDOrder *> fn)
+  ZmFn<void(MxMDOrder *)> fn)
 {
   ZmRef<MxMDOrder> order = delOrder(orderID);
   if (ZuUnlikely(!order)) return;
@@ -1126,7 +1126,7 @@ MxMDVenue::MxMDVenue(MxMDLib *md, MxMDFeed *feed, MxID id,
     m_shards[i] = new MxMDVenueShard(this, md->shard_(i));
 }
 
-bool MxMDVenue::allTickSizeTbls(ZmFn<MxMDTickSizeTbl *> fn) const
+bool MxMDVenue::allTickSizeTbls(ZmFn<void(MxMDTickSizeTbl *)> fn) const
 {
   auto i = m_tickSizeTbls.readIterator();
   while (ZmRef<MxMDTickSizeTbl> tbl = i.iterateKey())
@@ -1146,7 +1146,7 @@ ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl(ZuString id, MxNDP pxNDP)
   return md()->addTickSizeTbl(this, id, pxNDP);
 }
 
-bool MxMDVenue::allSegments(ZmFn<const MxMDSegment &> fn) const
+bool MxMDVenue::allSegments(ZmFn<void(const MxMDSegment &)> fn) const
 {
   auto i = m_segments->readIterator();
   while (const MxMDSegment &segment = i.iterateKey())
@@ -1200,7 +1200,7 @@ ZmRef<MxMDInstrument> MxMDShard::addInstrument(
   return md()->addInstrument(this, ZuMv(instr), key, refData, transactTime);
 }
 
-bool MxMDShard::allInstruments(ZmFn<MxMDInstrument *> fn) const
+bool MxMDShard::allInstruments(ZmFn<void(MxMDInstrument *)> fn) const
 {
   auto i = m_instruments->readIterator();
   while (MxMDInstrument *instrument = i.iterateKey())
@@ -1208,7 +1208,7 @@ bool MxMDShard::allInstruments(ZmFn<MxMDInstrument *> fn) const
   return true;
 }
 
-bool MxMDShard::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
+bool MxMDShard::allOrderBooks(ZmFn<void(MxMDOrderBook *)> fn) const
 {
   auto i = m_orderBooks->readIterator();
   while (MxMDOrderBook *ob = i.iterateKey())
@@ -1216,7 +1216,7 @@ bool MxMDShard::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
   return true;
 }
 
-bool MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
+bool MxMDLib::allInstruments(ZmFn<void(MxMDInstrument *)> fn) const
 {
   thread_local ZmSemaphore sem; // FIXME
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
@@ -1232,7 +1232,7 @@ bool MxMDLib::allInstruments(ZmFn<MxMDInstrument *> fn) const
   return true;
 }
 
-bool MxMDLib::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
+bool MxMDLib::allOrderBooks(ZmFn<void(MxMDOrderBook *)> fn) const
 {
   thread_local ZmSemaphore sem; // FIXME
   for (unsigned i = 0, n = m_shards.length(); i < n; i++) {
@@ -1248,7 +1248,7 @@ bool MxMDLib::allOrderBooks(ZmFn<MxMDOrderBook *> fn) const
   return true;
 }
 
-bool MxMDLib::allFeeds(ZmFn<MxMDFeed *> fn) const
+bool MxMDLib::allFeeds(ZmFn<void(MxMDFeed *)> fn) const
 {
   auto i = m_feeds.readIterator();
   while (const ZmRef<MxMDFeed> &feed = i.iterateKey())
@@ -1256,7 +1256,7 @@ bool MxMDLib::allFeeds(ZmFn<MxMDFeed *> fn) const
   return true;
 }
 
-bool MxMDLib::allVenues(ZmFn<MxMDVenue *> fn) const
+bool MxMDLib::allVenues(ZmFn<void(MxMDVenue *)> fn) const
 {
   auto i = m_venues.readIterator();
   while (const ZmRef<MxMDVenue> venue = i.iterateKey())
@@ -1605,7 +1605,7 @@ void MxMDDerivatives::del(MxMDInstrument *instrument)
     m_futures.delVal(MxFutKey(refData.mat));
 }
 
-bool MxMDDerivatives::allFutures(ZmFn<MxMDInstrument *> fn) const
+bool MxMDDerivatives::allFutures(ZmFn<void(MxMDInstrument *)> fn) const
 {
   auto i = m_futures.readIterator();
   while (MxMDInstrument *future = i.iterateVal())
@@ -1613,7 +1613,7 @@ bool MxMDDerivatives::allFutures(ZmFn<MxMDInstrument *> fn) const
   return true;
 }
 
-bool MxMDDerivatives::allOptions(ZmFn<MxMDInstrument *> fn) const
+bool MxMDDerivatives::allOptions(ZmFn<void(MxMDInstrument *)> fn) const
 {
   auto i = m_options.readIterator();
   while (MxMDInstrument *option = i.iterateVal())
@@ -1946,7 +1946,7 @@ MxUniKey MxMDLib::parseInstrument(ZvCf *args, unsigned index) const
 }
 
 bool MxMDLib::lookupInstrument(
-    const MxUniKey &key, bool instrRequired, ZmFn<MxMDInstrument *> fn) const
+    const MxUniKey &key, bool instrRequired, ZmFn<void(MxMDInstrument *)> fn) const
 {
   bool ok = true;
   thread_local ZmSemaphore sem; // FIXME
@@ -1975,7 +1975,7 @@ MxUniKey MxMDLib::parseOrderBook(ZvCf *args, unsigned index) const
 bool MxMDLib::lookupOrderBook(
     const MxUniKey &key,
     bool instrRequired, bool obRequired,
-    ZmFn<MxMDInstrument *, MxMDOrderBook *> fn) const
+    ZmFn<void(MxMDInstrument *, MxMDOrderBook *)> fn) const
 {
   return lookupInstrument(key, instrRequired || obRequired,
       [key = key, obRequired, fn = ZuMv(fn)](MxMDInstrument *instr) -> bool {

@@ -148,7 +148,7 @@ int main(int argc, char **argv)
 	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
       }, store[i]);
 
-      orders[i] = db[i]->initTable<Order>("orders"); // might throw
+      orders[i] = db[i]->initTable<Order>("order"); // might throw
 
       db[i]->start([&ok](bool ok_) { if (ok_) ++ok; done.post(); });
     }

@@ -169,7 +169,7 @@ struct ZvAPI ZvEngineApp {
 //    involving it can remain enqueued or in progress on any of the threads
 
 struct ZvEngineMgr {
-  using QueueFn = ZmFn<ZvTelemetry::Queue &>;
+  using QueueFn = ZmFn<void(ZvTelemetry::Queue &)>;
 
   // Engine Management
   virtual void addEngine(ZvEngine *) { }

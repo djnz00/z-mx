@@ -33,13 +33,13 @@ void MxMDTelemetry::run(MxTelemetry::Server::Cxn *cxn)
   using namespace MxTelemetry;
 
   // heaps
-  ZmHeapMgr::all(ZmFn<ZmHeapCache *>{
+  ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>{
       cxn, [](Cxn *cxn, ZmHeapCache *h) {
 	cxn->transmit(heap(h));
       }});
 
   // hash tables
-  ZmHashMgr::all(ZmFn<ZmAnyHash *>{
+  ZmHashMgr::all(ZmFn<void(ZmAnyHash *)>{
       cxn, [](Cxn *cxn, ZmAnyHash *h) {
 	cxn->transmit(hashTbl(h));
       }});
@@ -50,7 +50,7 @@ void MxMDTelemetry::run(MxTelemetry::Server::Cxn *cxn)
   });
 
   // mutiplexers, thread queues, sockets
-  m_core->allMx(ZmFn<MxMultiplex *>{
+  m_core->allMx(ZmFn<void(MxMultiplex *)>{
       cxn, [](Cxn *cxn, MxMultiplex *mx) {
 	cxn->transmit(multiplexer(mx));
 	{

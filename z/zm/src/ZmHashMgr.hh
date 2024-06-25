@@ -116,7 +116,7 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
 public:
   static void init(ZuString id, const ZmHashParams &params);
 
-  static void all(ZmFn<ZmAnyHash *> fn);
+  static void all(ZmFn<void(ZmAnyHash *)> fn);
 
   struct CSV;
 friend CSV;
@@ -124,7 +124,7 @@ friend CSV;
     template <typename S> ZuInline void print(S &s) const {
       ZmHashMgr::CSV_<S> csv(s);
       ZmHashMgr::all(
-	  ZmFn<ZmAnyHash *>::Member<&ZmHashMgr::CSV_<S>::print>::fn(&csv));
+	  ZmFn<void(ZmAnyHash *)>::Member<&ZmHashMgr::CSV_<S>::print>::fn(&csv));
     }
     friend ZuPrintFn ZuPrintType(CSV *);
   };

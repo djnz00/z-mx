@@ -29,12 +29,13 @@
 #include <zlib/ZiFile.hh>
 
 #include <zlib/Zfb.hh>
+#include <zlib/ZfbField.hh>
+
+#include <zlib/Zdb.hh>
 
 #include <zlib/ZtlsBase64.hh>
 #include <zlib/ZtlsHMAC.hh>
 #include <zlib/ZtlsRandom.hh>
-
-#include <zlib/ZfbField.hh>
 
 #include <zlib/zum_userdb_fbs.h>
 #include <zlib/zum_loginreq_fbs.h>
@@ -53,15 +54,19 @@ struct Key {
   uint64_t		userID;
   ZuStringN<16>		id;
   KeyData		secret;
+
+  friend ZtFieldPrint ZuPrintType(Key *);
 };
 ZfbFields(Key,
   (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
   (((id), (Keys<0>, Ctor<1>, Grouped)), (String)),
-  (((secret), (Ctor<2>, Mutable)), (Bytes)));
+  (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
 struct Perm {
   uint8_t		id;
   ZtString		name;
+
+  friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
   (((id), (Keys<0>, Ctor<0>, Grouped)), (UInt8)),
@@ -76,6 +81,8 @@ struct Role {
   uint128_t		perms;
   uint128_t		apiperms;
   uint8_t		flags;		// RoleFlags
+
+  friend ZtFieldPrint ZuPrintType(Role *);
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
@@ -97,16 +104,18 @@ struct User {
   KeyData		secret;
   ZtArray<ZtString>	roles;
   uint8_t		flags = 0;	// UserFlags
+
+  friend ZtFieldPrint ZuPrintType(User *);
 };
 ZfbFields(User,
   (((id), (Keys<0>, Ctor<0>)), (UInt64)),
   (((name), (Keys<1>, Ctor<1>, Mutable)), (String)),
   (((hmac), (Ctor<2>, Mutable)), (Bytes)),
-  (((secret), (Ctor<3>, Mutable)), (Bytes)),
+  (((secret), (Ctor<3>, Mutable, Hidden)), (Bytes)),
   (((roles), (Ctor<4>, Mutable)), (StringVec)),
   (((flags), (Ctor<5>, Mutable, Flags<UserFlags::Map>)), (uint8_t, 0)));
 
-struct Session_ {
+struct Session_ : public ZmPolymorph {
   ZmRef<ZdbObject<User>>	user;
   unsigned			failures = 0;
   uint128_t			perms;		// effective permissions
@@ -118,62 +127,12 @@ struct Session_ {
 };
 
 inline constexpr const char *Session_HeapID() { return "ZumUserDB.Session"; }
-using SessionHash =
+using Sessions =
   ZmHash<Session_,
     ZmHashNode<Session_,
       ZmHashKey<Session_::NameAxor,
 	ZmHashHeapID<Session_HeapID>>>>;
-using Session = SessionHash::Node;
-
-template <typename L>
-void findRole(ZmRef<ZdbTable<Role>> roleTbl, ZtString role, L l)
-{
-  auto roleTbl_ = roleTbl.ptr();
-  roleTbl_->run([roleTbl = ZuMv(roleTbl), role = ZuMv(role), l = ZuMv(l)]() {
-    roleTbl->find<0>(ZuFwdTuple(role),
-      [l = ZuMv(l)](ZmRef<ZdbObject<Role>> role) mutable { l(ZuMv(role)); });
-  });
-}
-
-template <typename L>
-void initSession(
-  ZmRef<ZdbTable<User>> userTbl,
-  ZmRef<ZdbTable<Role>> roleTbl,
-  ZtString userName,
-  L l)
-{
-  userTbl->run([
-    userTbl = ZuMv(userTbl),
-    roleTbl = ZuMv(roleTbl),
-    userName = ZuMv(userName),
-    l = ZuMv(l)
-  ]() mutable {
-    userTbl->find<1>(ZuFwdTuple(userName), [
-      roleTbl = ZuMv(roleTbl),
-      l = ZuMv(l)
-    ](ZmRef<ZdbObject<User>> user) mutable {
-      if (!user) { l(nullptr); return; }
-      ZmRef<Session> session = new Session(ZuMv(user));
-      if (!user.data().roles) { l(ZuMv(session)); return; }
-      roleTbl->find<0>(
-	ZuFwdTuple(session->user.data().roles[0]),
-	ZuLambda{[
-	  roleTbl = ZuMv(roleTbl),
-	  session = ZuMv(session),
-	  i = 0U,
-	  l = ZuMv(l)
-	](auto &&self, ZmRef<ZdbObject<Role>> role) mutable {
-	  session->perms |= role->data().perms;
-	  session->apiperms |= role->data().apiperms;
-	  if (++i < session->user->data().roles.length())
-	    roleTbl->find<0>(
-	      ZuFwdTuple(session->user.data().roles[i]), ZuMv(self));
-	  else
-	    l(ZuMv(session));
-	}});
-    });
-  });
-}
+using Session = Sessions::Node;
 
 class ZvAPI Mgr {
 public:
@@ -191,73 +150,42 @@ public:
       Offset = N_ - (int(fbs::ReqData::NONE) + 1)
     };
     enum {
-      N = Perm::Offset + (int(fbs::ReqData::MAX) + 1)
+      N = Offset + (int(fbs::ReqData::MAX) + 1)
     };
   };
 
   Mgr(Ztls::Random *rng, unsigned passLen, unsigned totpRange,
-      unsigned keyInterval, unsigned maxSize);
+      unsigned keyInterval);
   ~Mgr();
 
   // one-time initialization (idempotent)
-  bool bootstrap(
-      ZtString user, ZtString role, ZtString &passwd, ZtString &secret);
-
-  bool load_(ZuBytes);
-  Zfb::Offset<fbs::UserDB> save_(Zfb::Builder &) const;
-
-  int load(const ZiFile::Path &path, ZeError *e = 0);
-  int save(const ZiFile::Path &path, unsigned maxAge = 8, ZeError *e = 0);
-
-  bool modified() const;
-
-  ZtString perm(unsigned i) {
-    ReadGuard guard(m_lock);
-    if (ZuUnlikely(i >= Bitmap::Bits)) return ZtString();
-    return m_perms[i];
-  }
-  int findPerm(ZuString s) { // returns -1 if not found
-    ReadGuard guard(m_lock);
-    return findPerm_(s);
-  }
-private:
-  enum { N = Bitmap::Bits };
-  ZuAssert(N <= 1024);
-  enum { PermBits =
-    N <= 2 ? 1 : N <= 4 ? 2 : N <= 8 ? 3 : N <= 16 ? 4 : N <= 32 ? 5 :
-    N <= 64 ? 6 : N <= 128 ? 7 : N <= 256 ? 8 : N <= 512 ? 9 : 10
-  };
-  using PermNames =
-    ZmLHashKV<ZuString, ZuBox_1(int),
-      ZmLHashStatic<PermBits,
-	ZmLHashLock<ZmNoLock> > >;
-
-  int findPerm_(ZuString s) { return m_permNames->findVal(s); }
-
-public:
+  // - lambda(ZtString passwd, ZtString secret)
+  // import flatbuffers types
   template <typename T> using Offset = Zfb::Offset<T>;
   template <typename T> using Vector = Zfb::Vector<T>;
 
   // request, user, interactive
-  int loginReq(const fbs::LoginReq *, ZmRef<User> &, bool &interactive);
+  int loginReq(const fbs::LoginReq *, ZmRef<Session> &, bool &interactive);
 
   Offset<fbs::ReqAck> request(Zfb::Builder &,
-      User *, bool interactive, const fbs::Request *);
+      Session *, bool interactive, const fbs::Request *);
 
 private:
+  // session initialization
+  void initSession(ZtString userName, ZmFn<void(ZmRef<Session>)> fn);
+  // FIXME - these need to be async
   // interactive login
-  ZmRef<User> login(int &failures,
-      ZuString user, ZuString passwd, unsigned totp);
+  ZmRef<Session> login(
+    int &failures, ZuString user, ZuString passwd, unsigned totp);
   // API access
-  ZmRef<User> access(int &failures,
-      ZuString keyID,
-      ZuArray<const uint8_t> token,
-      int64_t stamp,
-      ZuArray<const uint8_t> hmac);
+  ZmRef<Session> access(
+    int &failures, ZuString keyID,
+    ZuArray<const uint8_t> token, int64_t stamp,
+    ZuArray<const uint8_t> hmac);
 
 public:
   // ok(user, interactive, perm)
-  bool ok(User *user, bool interactive, unsigned perm) const {
+  bool ok(Session *session, bool interactive, unsigned perm) const {
     if ((user->flags & User::ChPass) && interactive &&
 	perm != m_permIndex[Perm::Offset + int(fbs::ReqData::ChPass)])
       return false;
@@ -267,7 +195,7 @@ public:
 private:
   // change password
   Offset<fbs::UserAck> chPass(
-      Zfb::Builder &, User *user, const fbs::UserChPass *chPass);
+      Zfb::Builder &, Session *session, const fbs::UserChPass *chPass);
 
   // query users
   Offset<Vector<Offset<fbs::User>>> userGet(
@@ -313,32 +241,32 @@ private:
 
   // query API keys for user
   Offset<Vector<Offset<Zfb::String>>> ownKeyGet(
-      Zfb::Builder &, const User *user, const fbs::UserID *userID);
+      Zfb::Builder &, const Session *session, const fbs::UserID *userID);
   Offset<Vector<Offset<Zfb::String>>> keyGet(
       Zfb::Builder &, const fbs::UserID *userID);
   Offset<Vector<Offset<Zfb::String>>> keyGet_(
-      Zfb::Builder &, const User *user);
+      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
   // add API key for user
   Offset<fbs::KeyUpdAck> ownKeyAdd(
-      Zfb::Builder &, User *user, const fbs::UserID *userID);
+      Zfb::Builder &, const Session *session, const fbs::UserID *userID);
   Offset<fbs::KeyUpdAck> keyAdd(
       Zfb::Builder &, const fbs::UserID *userID);
   Offset<fbs::KeyUpdAck> keyAdd_(
-      Zfb::Builder &, User *user);
+      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
   // clear all API keys for user
   Offset<fbs::UserAck> ownKeyClr(
-      Zfb::Builder &, User *user, const fbs::UserID *id);
+      Zfb::Builder &, const Session *session, const fbs::UserID *id);
   Offset<fbs::UserAck> keyClr(
       Zfb::Builder &, const fbs::UserID *id);
   Offset<fbs::UserAck> keyClr_(
-      Zfb::Builder &, User *user);
+      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
   // delete API key
   Offset<fbs::UserAck> ownKeyDel(
-      Zfb::Builder &, User *user, const fbs::KeyID *id);
+      Zfb::Builder &, const Session *session, const fbs::KeyID *id);
   Offset<fbs::UserAck> keyDel(
       Zfb::Builder &, const fbs::KeyID *id);
   Offset<fbs::UserAck> keyDel_(
-      Zfb::Builder &, User *user, ZuString id);
+      Zfb::Builder &, ZmRef<ZdbObject<User>> user, ZuString id);
 
   void permAdd_() { }
   template <typename Arg0, typename ...Args>
@@ -369,9 +297,9 @@ public:
     roleAdd_(ZuFwd<Args>(args)...);
   }
 private:
-  ZmRef<User> userAdd_(
-      uint64_t id, ZuString name, ZuString role, User::Flags flags,
-      ZtString &passwd);
+  void userAdd_(
+    User *user, uint64_t id, ZuString name, ZuString role, User::Flags flags,
+    ZtString &passwd);
 public:
   template <typename ...Args>
   ZmRef<User> userAdd(Args &&... args) {
@@ -386,18 +314,12 @@ private:
   unsigned		m_keyInterval;
   unsigned		m_maxSize;
 
-  // FIXME - thread-bound, not MT contended
-  mutable Lock		m_lock;
-  // FIXME
-    mutable bool	  m_modified = false;	// cleared by save()
-    ZmRef<PermNames>	  m_permNames;
-    unsigned		  m_permIndex[Perm::N];
-    RoleTree		  m_roles; // name -> permissions
-    ZmRef<UserIDHash>	  m_users;
-    ZmRef<UserNameHash>	  m_userNames;
-    ZmRef<KeyHash>	  m_keys;
-    unsigned		  m_nPerms = 0;
-    ZtString		  m_perms[Bitmap::Bits]; // indexed by permission ID
+  ZmRef<ZdbTable<User>>	m_userTbl;
+  ZmRef<ZdbTable<Role>>	m_roleTbl;
+  ZmRef<ZdbTable<Key>>	m_keyTbl;
+  ZmRef<ZdbTable<Perm>>	m_permTbl;
+
+  ZmRef<Sessions>	m_sessions;
 };
 
 }

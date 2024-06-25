@@ -113,26 +113,26 @@ using ZmLambda = ZmLambda_<
   L, ArgList>;
 
 // stateful immutable lambda
-template <typename ...Args>
-template <auto HeapID, bool Sharded, typename L, bool VoidRet>
+template <typename R_, typename ...Args_>
+template <auto HeapID, bool Sharded, typename L>
 template <typename L_>
-ZmFn<Args...>
-ZmFn<Args...>::LambdaInvoker<HeapID, Sharded, L, VoidRet, false, false>::fn(
-    L_ &&l) {
-  ZuAssert((!ZmFn<Args...>::IsMutable<L>{}));
-  ZuAssert((!ZmFn<Args...>::IsMutable<ZuDecay<L_>>{}));
-  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, ZuTypeList<Args...>>;
+ZmFn<R_(Args_...)>
+ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, false>::fn(L_ &&l) {
+  ZuAssert((!IsMutable<L>{}));
+  ZuAssert((!IsMutable<ZuDecay<L_>>{}));
+  // ZuAssert((!(typename ZmFn<R(Args...)>::template IsMutable<L>){}));
+  // ZuAssert((!(typename ZmFn<R(Args...)>::template IsMutable<ZuDecay<L_>>){}));
+  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
   return Member<&O::cinvoke>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
 }
 
 // stateful mutable lambda
-template <typename ...Args>
-template <auto HeapID, bool Sharded, typename L, bool VoidRet>
+template <typename R_, typename ...Args_>
+template <auto HeapID, bool Sharded, typename L>
 template <typename L_>
-ZmFn<Args...>
-ZmFn<Args...>::LambdaInvoker<HeapID, Sharded, L, VoidRet, false, true>::fn(
-    L_ &&l) {
-  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, ZuTypeList<Args...>>;
+ZmFn<R_(Args_...)>
+ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, true>::fn(L_ &&l) {
+  using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
   return Member<&O::invoke>::fn(ZmRef<O>{new O{ZuFwd<L>(l)}});
 }
 

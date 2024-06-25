@@ -164,7 +164,7 @@ struct ZeEventInfo {
 using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
 
 // message as function delegate
-using ZeMsgFn = ZmFn<ZeLogBuf &, const ZeEventInfo &>;
+using ZeMsgFn = ZmFn<void(ZeLogBuf &, const ZeEventInfo &)>;
 
 // event base class
 struct ZeAnyEvent : public ZeEventInfo {
