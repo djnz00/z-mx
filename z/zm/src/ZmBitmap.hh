@@ -179,6 +179,10 @@ public:
     return *this;
   }
 
+  void set(unsigned begin, int end) {
+    hwloc_bitmap_set_range(m_map, begin, end);
+  }
+
   ZmBitmap &zero() {
     lazy();
     hwloc_bitmap_zero(m_map);
@@ -252,6 +256,8 @@ public:
     scan(s);
     return *this;
   }
+  // hwloc_bitmap can represent an infinitely set or cleared bitmap
+  // - this is subtly different than ZuBitmap, so re-use is not attempted
   unsigned scan(ZuString s) {
     lazy();
     const char *data = s.data();
@@ -272,12 +278,12 @@ public:
 	}
       } else
 	end = begin;
-      hwloc_bitmap_set_range(m_map, begin, end);
+      set(begin, end);
     }
     return offset;
   }
   template <typename S> void print(S &s) const {
-    if (!m_map || hwloc_bitmap_iszero(m_map)) return;
+    if (!*this) return;
     ZmBitmap tmp = *this;
     ZuBox<int> begin = hwloc_bitmap_first(m_map);
     bool first = true;

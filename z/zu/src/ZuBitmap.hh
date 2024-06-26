@@ -79,8 +79,61 @@ private:
   unsigned	m_i;
 };
 
+template <typename Bitmap_>
+struct PrintScan {
+  using Bitmap = Bitmap_;
+
+  Bitmap *impl() { return static_cast<Bitmap *>(this); }
+  const Bitmap *impl() const { return static_cast<const Bitmap *>(this); }
+
+  unsigned scan(ZuString s) {
+    const char *data = s.data();
+    unsigned length = s.length(), offset = 0;
+    if (!length) return 0;
+    ZuBox<int> begin, end;
+    int j;
+    while (offset < length) {
+      if (data[offset] == ',') { ++offset; continue; }
+      if ((j = begin.scan(data + offset, length - offset)) <= 0) break;
+      offset += j;
+      if (offset < length && data[offset] == '-') {
+	if ((j = end.scan(data + offset + 1, length - offset - 1)) > 0) {
+	  ++end;
+	  offset += j + 1;
+	} else {
+	  end = impl()->length();
+	  ++offset;
+	}
+      } else
+	end = begin + 1;
+      impl()->set(begin, end);
+    }
+    return offset;
+  }
+  template <typename S> void print(S &s) const {
+    if (!*impl()) return;
+    ZuBox<int> begin = impl()->first();
+    bool first = true;
+    while (begin >= 0) {
+      if (!first)
+	s << ',';
+      else
+	first = false;
+      ZuBox<int> end = begin, next;
+      while ((next = impl()->next(end)) == end + 1) end = next;
+      if (end == begin)
+	s << begin;
+      else if (end == impl()->length() - 1)
+	s << begin << '-';
+      else
+	s << begin << '-' << end;
+      begin = next;
+    }
+  }
+};
+
 template <unsigned Bits_>
-class Bitmap {
+class Bitmap : public PrintScan<Bitmap> {
 public:
   using Bit = ZuBitmap_::Bit<Bitmap>;
 
@@ -101,6 +154,8 @@ public:
   Bitmap &operator =(Bitmap &&b) = default;
 
   Bitmap(ZuString s) { zero(); scan(s); }
+
+  constexpr static unsigned length() { return Bits; }
 
   Bitmap &zero() { memset(data, 0, Bytes); return *this; }
   Bitmap &fill() { memset(data, 0xff, Bytes); return *this; }
@@ -248,51 +303,6 @@ public:
       if (--i < 0) return -1;
     } while (!get(i));
     return i;
-  }
-
-  unsigned scan(ZuString s) {
-    const char *data = s.data();
-    unsigned length = s.length(), offset = 0;
-    if (!length) return 0;
-    ZuBox<int> begin, end;
-    int j;
-    while (offset < length) {
-      if (data[offset] == ',') { ++offset; continue; }
-      if ((j = begin.scan(data + offset, length - offset)) <= 0) break;
-      offset += j;
-      if (offset < length && data[offset] == '-') {
-	if ((j = end.scan(data + offset + 1, length - offset - 1)) > 0) {
-	  ++end;
-	  offset += j + 1;
-	} else {
-	  end = Bits;
-	  ++offset;
-	}
-      } else
-	end = begin + 1;
-      set(begin, end);
-    }
-    return offset;
-  }
-  template <typename S> void print(S &s) const {
-    if (!*this) return;
-    ZuBox<int> begin = first();
-    bool first = true;
-    while (begin >= 0) {
-      if (!first)
-	s << ',';
-      else
-	first = false;
-      ZuBox<int> end = begin, next;
-      while ((next = this->next(end)) == end + 1) end = next;
-      if (end == begin)
-	s << begin;
-      else if (end == Bits - 1)
-	s << begin << '-';
-      else
-	s << begin << '-' << end;
-      begin = next;
-    }
   }
 
   friend ZuPrintFn ZuPrintType(Bitmap *);

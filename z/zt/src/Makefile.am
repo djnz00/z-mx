@@ -7,7 +7,8 @@ pkginclude_HEADERS = \
 	ZtArray.hh ZtBitWindow.hh \
 	ZtEnum.hh ZtIconv.hh ZtLib.hh ZtPlatform.hh \
 	ZtRegex.hh ZtString.hh ZtHexDump.hh \
-	ZtWindow.hh ZtField.hh ZtScanBool.hh ZtJoin.hh ZtCase.hh ZtTimeZone.hh
+	ZtWindow.hh ZtBitmap.hh \
+	ZtField.hh ZtScanBool.hh ZtJoin.hh ZtCase.hh ZtTimeZone.hh
 lib_LTLIBRARIES = libZt.la
 libZt_la_SOURCES = \
 	ZtLib.cc ZtRegex.cc ZtString.cc ZtHexDump.cc ZtTimeZone.cc ZtField.cc
