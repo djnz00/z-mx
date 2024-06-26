@@ -41,13 +41,13 @@ Datum zdecimal_in(PG_FUNCTION_ARGS) {
   }
 
   /* postgres numeric supports inputs like 0x, 0o, 0b for hex/octal/binary,
-   * this would be mis-use of the type, intentionally omitted here */
+   * this would be a mis-use of the type, intentionally omitted here */
   n = zu_decimal_in(v, s);
 
   /* SQL requires trailing spaces to be ignored while erroring out on other
    * "trailing junk"; together with postgres reliance on C string
    * null-termination, this prevents incrementally parsing values within
-   * a containing string without copying or overwriting the data with
+   * a containing string without copying the string or mutating it with
    * null terminators, but we'll play along, sigh */
   if (likely(n)) while (unlikely(isspace__(s[n]))) ++n;
   if (!n || s[n])
@@ -66,7 +66,7 @@ Datum zdecimal_out(PG_FUNCTION_ARGS) {
   unsigned int n = zu_decimal_out_len(v);
   char *s = palloc(n);
   zu_decimal_out(s, v);
-  /* postgres uses NaN */
+  /* postgres uses NaN - change nan to NaN */
   if (s[0] == 'n' && s[1] == 'a' && s[2] == 'n' && s[3] == '\0')
     s[0] = 'N', s[2] = 'N';
   PG_RETURN_CSTRING(s);
