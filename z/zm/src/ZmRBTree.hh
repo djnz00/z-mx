@@ -35,8 +35,8 @@
 
 // NTP defaults
 struct ZmRBTree_Defaults {
-  constexpr static auto KeyAxor = ZuDefaultAxor();
-  constexpr static auto ValAxor = ZuDefaultAxor();
+  static constexpr auto KeyAxor = ZuDefaultAxor();
+  static constexpr auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   enum { Unique = 0 };
@@ -50,7 +50,7 @@ struct ZmRBTree_Defaults {
 // ZmRBTreeKey - key accessor
 template <auto KeyAxor_, typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeKey : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
 };
 
 // ZmRBTreeKeyVal - key and optional value accessors
@@ -58,8 +58,8 @@ template <
   auto KeyAxor_, auto ValAxor_,
   typename NTP = ZmRBTree_Defaults>
 struct ZmRBTreeKeyVal : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
+  static constexpr auto ValAxor = ValAxor_;
 };
 
 // ZmRBTreeCmp - the comparator
@@ -102,7 +102,7 @@ struct ZmRBTreeShadow;
 template <typename NTP>
 struct ZmRBTreeShadow<true, NTP> : public NTP {
   enum { Shadow = true };
-  constexpr static auto HeapID = ZmHeapDisable();
+  static constexpr auto HeapID = ZmHeapDisable();
 };
 template <typename NTP>
 struct ZmRBTreeShadow<false, NTP> : public NTP {
@@ -112,7 +112,7 @@ struct ZmRBTreeShadow<false, NTP> : public NTP {
 // ZmRBTreeHeapID - the heap ID
 template <auto HeapID_, class NTP = ZmRBTree_Defaults>
 struct ZmRBTreeHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 };
 
 // ZmRBTreeSharded - heap is sharded
@@ -145,10 +145,10 @@ struct ZmRBTree_NodeExt :
       ZmRBTree_NodeExt_Unique<Node>,
       ZmRBTree_NodeExt_Dup<Node>> {
   // 64bit pointer-packing - uses bit 63
-  constexpr static uintptr_t Black() {
+  static constexpr uintptr_t Black() {
     return uintptr_t(1)<<63;
   }
-  constexpr static uintptr_t Black(bool b) {
+  static constexpr uintptr_t Black(bool b) {
     return uintptr_t(b)<<63;
   }
 
@@ -313,8 +313,8 @@ class ZmRBTree : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
 
 public:
   using T = T_;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
-  constexpr static auto ValAxor = NTP::ValAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto ValAxor = NTP::ValAxor;
   using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
   using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuRDecay<KeyRet>;
@@ -325,7 +325,7 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
 private:
@@ -512,7 +512,7 @@ private:
     int cmp(Node *node) const {
       return Cmp::cmp(node->Node::key(), key);
     }
-    constexpr static bool equals(Node *) { return true; }
+    static constexpr bool equals(Node *) { return true; }
   };
   template <typename P>
   struct MatchDataFn {

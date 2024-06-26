@@ -25,11 +25,11 @@ struct ZuNull {
 
 template <typename T> struct ZuCmp;
 template <> struct ZuCmp<ZuNull> {
-  constexpr static int cmp(ZuNull, ZuNull) { return 0; }
-  constexpr static bool less(ZuNull, ZuNull) { return false; }
-  constexpr static bool equals(ZuNull, ZuNull) { return true; }
-  constexpr static bool null(ZuNull) { return true; }
-  constexpr static ZuNull null() { return {}; }
+  static constexpr int cmp(ZuNull, ZuNull) { return 0; }
+  static constexpr bool less(ZuNull, ZuNull) { return false; }
+  static constexpr bool equals(ZuNull, ZuNull) { return true; }
+  static constexpr bool null(ZuNull) { return true; }
+  static constexpr ZuNull null() { return {}; }
 };
 
 #endif /* ZuNull_HH */

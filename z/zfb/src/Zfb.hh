@@ -486,7 +486,7 @@ namespace Load {
       } \
     } \
   public: \
-    constexpr static const char *id() { return #Enum; } \
+    static constexpr const char *id() { return #Enum; } \
     using FBEnum = fbs::Enum; \
     Map_() { m_s2v = new S2V(); } \
     static T *instance() { return ZmSingleton<T>::instance(); } \

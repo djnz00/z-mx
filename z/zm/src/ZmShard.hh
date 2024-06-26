@@ -57,15 +57,15 @@ public:
 
 private:
   // 64bit pointer-packing - uses bit 63
-  constexpr static const uintptr_t Owned = (static_cast<uintptr_t>(1)<<63);
+  static constexpr const uintptr_t Owned = (static_cast<uintptr_t>(1)<<63);
 
-  constexpr static bool owned(uintptr_t o) { return o & Owned; }
-  constexpr static uintptr_t own(uintptr_t o) { return o | Owned; }
+  static constexpr bool owned(uintptr_t o) { return o & Owned; }
+  static constexpr uintptr_t own(uintptr_t o) { return o | Owned; }
   template <typename O>
-  constexpr static uintptr_t own(O *o) {
+  static constexpr uintptr_t own(O *o) {
     return own(reinterpret_cast<uintptr_t>(o));
   }
-  constexpr static uintptr_t disown(uintptr_t o) { return o & ~Owned; }
+  static constexpr uintptr_t disown(uintptr_t o) { return o & ~Owned; }
   template <typename O = T>
   static O *ptr(uintptr_t o) {
     return reinterpret_cast<O *>(o & ~Owned);

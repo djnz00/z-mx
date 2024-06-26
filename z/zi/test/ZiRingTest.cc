@@ -39,7 +39,7 @@ void usage()
 }
 
 struct Msg {
-  constexpr static uintptr_t magic() { return 0x8040201080402010ULL; }
+  static constexpr uintptr_t magic() { return 0x8040201080402010ULL; }
   Msg() :
       m_p{reinterpret_cast<uintptr_t>(this)},
       m_q{m_p ^ magic()} { }

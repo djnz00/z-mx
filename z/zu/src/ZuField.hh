@@ -234,7 +234,7 @@ namespace ZuFieldProp {
 
 #define ZuField_ID(O_, ID) \
   using O = O_; \
-  constexpr static const char *id() { return #ID; }
+  static constexpr const char *id() { return #ID; }
 #define ZuField_1(O, ID) \
   ZuField_ID(O, ID) \
   using Props = ZuTypeList<>;

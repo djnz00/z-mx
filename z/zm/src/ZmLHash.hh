@@ -43,8 +43,8 @@
 
 // NTP defaults
 struct ZmLHash_Defaults {
-  constexpr static auto KeyAxor = ZuDefaultAxor();
-  constexpr static auto ValAxor = ZuDefaultAxor();
+  static constexpr auto KeyAxor = ZuDefaultAxor();
+  static constexpr auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
@@ -57,14 +57,14 @@ struct ZmLHash_Defaults {
 // ZmLHashKey - key accessor
 template <auto KeyAxor_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashKey : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
 };
 
 // ZmLHashKeyVal - key and optional value accessors
 template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashKeyVal : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
+  static constexpr auto ValAxor = ValAxor_;
 };
 
 // ZmLHashCmp - the comparator
@@ -94,7 +94,7 @@ struct ZmLHashLock : public NTP {
 // ZmLHashID - the hash ID
 template <auto ID_, typename NTP = ZmLHash_Defaults>
 struct ZmLHashID : public NTP {
-  constexpr static auto ID = ID_;
+  static constexpr auto ID = ID_;
 };
 
 // ZmLHashStatic<Bits> - static/non-resizable vs dynamic/resizable allocation
@@ -281,8 +281,8 @@ protected:
 template <typename Hash, typename T, typename NTP, unsigned Static>
 class ZmLHash_ : public ZmLHash__<NTP> {
   using Base = ZmLHash__<NTP>;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
-  constexpr static auto ValAxor = NTP::ValAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto ValAxor = NTP::ValAxor;
   using Key = ZuRDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
   using Val = ZuRDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
@@ -292,7 +292,7 @@ class ZmLHash_ : public ZmLHash__<NTP> {
   using Ops = ZmLHash_Ops<Node>;
 
 public:
-  constexpr static unsigned bits() { return Static; }
+  static constexpr unsigned bits() { return Static; }
 
 protected:
   ZmLHash_(const ZmHashParams &params) : Base(params) { }
@@ -300,7 +300,7 @@ protected:
   void init() { Ops::initItems(m_table, 1U<<Static); }
   void final() { Ops::destroyItems(m_table, 1U<<Static); }
   void resize() { }
-  constexpr static unsigned resized() { return 0; }
+  static constexpr unsigned resized() { return 0; }
 
   Node		m_table[1U<<Static];
 };
@@ -309,8 +309,8 @@ protected:
 template <class Hash, typename T, typename NTP>
 class ZmLHash_<Hash, T, NTP, 0> : public ZmLHash__<NTP> {
   using Base = ZmLHash__<NTP>;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
-  constexpr static auto ValAxor = NTP::ValAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto ValAxor = NTP::ValAxor;
   using Key = ZuRDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
   using Val = ZuRDecay<decltype(ValAxor(ZuDeclVal<const T &>()))>;
   using Cmp = typename NTP::template CmpT<Key>;
@@ -371,8 +371,8 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
 
 public:
   using T = T_;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
-  constexpr static auto ValAxor = NTP::ValAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto ValAxor = NTP::ValAxor;
   using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
   using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuRDecay<KeyRet>;
@@ -381,7 +381,7 @@ public:
   using ValCmp = typename NTP::template ValCmpT<Val>;
   using HashFn = typename NTP::template HashFnT<Key>;
   using Lock = typename NTP::Lock;
-  constexpr static auto ID = NTP::ID;
+  static constexpr auto ID = NTP::ID;
   enum { Static = NTP::Static };
 
   using LockTraits = ZmLockTraits<Lock>;

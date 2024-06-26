@@ -269,7 +269,7 @@ public:
   Char *data() { return reinterpret_cast<Char *>(&this[1]); }
   const Char *data() const { return reinterpret_cast<const Char *>(&this[1]); }
   unsigned length() const { return m_length; }
-  constexpr static unsigned size() { return N; }
+  static constexpr unsigned size() { return N; }
 
 // chomp(), trim(), strip()
 

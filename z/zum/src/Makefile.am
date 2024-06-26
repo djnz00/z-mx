@@ -11,7 +11,6 @@ FBS = \
 	zum_perm.fbs \
 	zum_role.fbs \
 	zum_user.fbs \
-	zum_userdb.fbs \
 	zum_loginack.fbs \
 	zum_loginreq.fbs \
 	zum_userdbreq.fbs \

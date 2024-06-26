@@ -166,7 +166,7 @@ public:
   using CloseFn = ZmFn<>;
 
   using StartFn = ZmFn<>;
-  using KeyFn = ZmFn<void(int32_t)>;	// return true to stop reading 
+  using KeyFn = ZmFn<bool(int32_t)>;	// return true to stop reading 
 
   void init(unsigned vkeyInterval) {
     m_vkeyInterval = vkeyInterval; // milliseconds
@@ -246,8 +246,8 @@ private:
   bool utf8_in() const { return (m_otermios.c_iflag & IUTF8); }
   bool utf8_out() const { return (m_otermios.c_cflag & CSIZE) == CS8; }
 #else
-  constexpr static bool utf8_in() { return true; }
-  constexpr static bool utf8_out() { return true; }
+  static constexpr bool utf8_in() { return true; }
+  static constexpr bool utf8_out() { return true; }
 #endif
 
   // low-level input

@@ -23,7 +23,7 @@ ZuString Ze::severity(unsigned i)
   static const char * const name[] = {
     "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
   };
-  constexpr static unsigned namelen[] = { 5, 4, 7, 5, 5 };
+  static constexpr unsigned namelen[] = { 5, 4, 7, 5, 5 };
 
   return i > 4 ? ZuString("UNKNOWN", 7) : ZuString(name[i], namelen[i]);
 }
@@ -49,7 +49,7 @@ ZuString Ze::function(ZuString s)
 
 #ifdef _WIN32
 
-constexpr static struct {
+static constexpr struct {
   Ze::ErrNo	code;
   const char	*msg;
 } ZePlatform_WSAErrors_[] = {

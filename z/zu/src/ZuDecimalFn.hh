@@ -15,7 +15,7 @@
 
 namespace ZuDecimalFn {
   ZuInline const unsigned pow10_32(unsigned i) {
-    constexpr static unsigned pow10[] = {
+    static constexpr unsigned pow10[] = {
       1U,
       10U,
       100U,
@@ -31,7 +31,7 @@ namespace ZuDecimalFn {
   }
 
   ZuInline const uint64_t pow10_64(unsigned i) {
-    constexpr static uint64_t pow10[] = {
+    static constexpr uint64_t pow10[] = {
       1ULL,
       10ULL,
       100ULL,

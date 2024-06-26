@@ -6,14 +6,14 @@
 
 // server-side user DB with MFA, API keys, etc.
 
-#include <zlib/ZvUserDB.hh>
+#include <zlib/ZumUserDB.hh>
 
 #include <zlib/ZeLog.hh>
 
 #include <zlib/ZuBase32.hh>
 #include <zlib/ZtlsTOTP.hh>
 
-namespace ZvUserDB {
+namespace ZumUserDB {
 
 Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
     unsigned totpRange, unsigned keyInterval) :
@@ -32,14 +32,29 @@ Mgr::~Mgr()
 
 void Mgr::init(Zdb *db)
 {
-  // FIXME - ensure permTbl is fully cached
   m_userTbl = db->initTable<User>("user");
   m_roleTbl = db->initTable<Role>("role");
   m_keyTbl = db->initTable<Key>("key");
   m_permTbl = db->initTable<Perm>("perm");
 }
 
-bool Mgr::bootstrap(
+void Mgr::final()
+{
+  m_userTbl = nullptr;
+  m_roleTbl = nullptr;
+  m_keyTbl = nullptr;
+  m_permTbl = nullptr;
+}
+
+void Mgr::open(ZmFn<> fn)
+{
+  m_permTbl->run([this]() {
+    uint64_t permID = 0;
+    m_permTbl->find<0>(ZuFwdTuple(i), ZuLambda{
+  });
+}
+
+void Mgr::bootstrap(
   ZtString userName, ZtString roleName, ZmFn<void(ZtString, ZtString)> fn)
 {
   // initialize permission
@@ -51,8 +66,7 @@ bool Mgr::bootstrap(
     else if (i == 1)
       name = "UserDB.Access";
     else
-      name = ZtString{"UserDB."} + fbs::EnumNamesReqData()[
-	unsigned(fbs::ReqData::NONE) + i - 1];
+      name = ZtString{"UserDB."} + fbs::EnumNamesReqData()[i - Perm::Offset];
     new (perm->ptr()) Perm{i, name};
     perm->commit();
   };
@@ -134,7 +148,8 @@ bool Mgr::bootstrap(
 }
 
 void Mgr::userAdd_(
-  User *user, uint64_t id, ZtString name, ZtString role, User::Flags flags,
+  User *user,
+  uint64_t id, ZtString name, ZtString role, UserFlags::T flags,
   ZtString &passwd)
 {
   new (user) User{.id = id, .name = ZuMv(name), .flags = flags};
@@ -156,48 +171,40 @@ void Mgr::userAdd_(
     user->hmac.length(user->hmac.size());
     hmac.finish(user->hmac.data());
   }
-  if (role)
-    if (auto node = m_roles.find(role)) {
-      user->roles.push(node);
-      user->perms = node->perms;
-    }
+  if (role) user->roles.push(ZuMv(role));
 }
 
 // Note: Login perm name is UserDB.Login
 // Note: Access perm name is UserDB.Access
 
-int Mgr::loginReq(
-  const fbs::LoginReq *loginReq_, ZmRef<User> &user, bool &interactive)
+void Mgr::loginReq(const fbs::LoginReq *, ZmFn<void(ZmRef<Session>)> fn)
 {
   using namespace Zfb::Load;
-  int failures;
   switch (loginReq_->data_type()) {
     case fbs::LoginReqData::Access: {
       auto access = static_cast<const fbs::Access *>(loginReq_->data());
-      user = this->access(failures,
-	  str(access->keyID()),
-	  bytes(access->token()),
-	  access->stamp(),
-	  bytes(access->hmac()));
-      interactive = false;
+      this->access(
+	str(access->keyID()),
+	bytes(access->token()),
+	access->stamp(),
+	bytes(access->hmac()),
+	ZuMv(fn));
     } break;
     case fbs::LoginReqData::Login: {
       auto login = static_cast<const fbs::Login *>(loginReq_->data());
-      user = this->login(failures,
-	  str(login->user()), str(login->passwd()), login->totp());
-      interactive = true;
+      this->login(
+	str(login->user()), str(login->passwd()), login->totp(),
+	ZuMv(fn));
     } break;
     default:
-      failures = -1;
-      user = nullptr;
+      fn(nullptr);
       break;
   }
-  return failures;
 }
 
-// FIXME - needs to be async
-Zfb::Offset<fbs::ReqAck> Mgr::request(Zfb::Builder &fbb,
-    Session *session, bool interactive, const fbs::Request *request_)
+void Mgr::request(
+  Session *session, const fbs::Request *request_,
+  ZmFn<void(ZmRef<ZiAnyIOBuf>)> fn)
 {
   uint64_t seqNo = request_->seqNo();
   const void *reqData = request_->data();
@@ -394,7 +401,7 @@ void Mgr::initSession(ZtString userName, ZmFn<void(ZmRef<Session>)> fn)
   });
 }
 
-// FIXME
+// FIXME - call fn(session) to complete
 ZmRef<User> Mgr::login(
   int &failures, ZuString name, ZuString passwd, unsigned totp)
 {
@@ -453,19 +460,20 @@ ZmRef<User> Mgr::login(
 }
 
 ZmRef<User> Mgr::access(
-  int &failures, ZuString keyID, ZuArray<const uint8_t> token, int64_t stamp,
-  ZuArray<const uint8_t> hmac)
+  ZuString keyID, ZuArray<const uint8_t> token, int64_t stamp,
+  ZuArray<const uint8_t> hmac, ZmFn<void(ZmRef<Session>)> fn)
 {
-  ReadGuard guard(m_lock);
   Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
   if (!key) {
     failures = -1;
-    return nullptr;
+    fn(nullptr);
+    return;
   }
   ZmRef<User> user = m_users->find(key->userID);
   if (!user) {
     failures = -1;
-    return nullptr;
+    fn(nullptr);
+    return;
   }
   if (!(user->flags & User::Enabled)) {
     if (++user->failures < 3) {
@@ -474,7 +482,8 @@ ZmRef<User> Mgr::access(
 	  << user->name << "\" attempted login"; }));
     }
     failures = user->failures;
-    return nullptr;
+    fn(nullptr);
+    return;
   }
   if (!(user->perms[Perm::Access])) {
     if (++user->failures < 3) {
@@ -483,14 +492,16 @@ ZmRef<User> Mgr::access(
 	  << user->name << "\" attempted access"; }));
     }
     failures = user->failures;
-    return nullptr;
+    fn(nullptr);
+    return;
   }
   {
     int64_t delta = Zm::now().sec() - stamp;
     if (delta < 0) delta = -delta;
     if (delta >= m_keyInterval) {
       failures = user->failures;
-      return nullptr;
+      fn(nullptr);
+      return;
     }
   }
   {
@@ -508,11 +519,12 @@ ZmRef<User> Mgr::access(
 	    << user->name << "\" provided invalid API key HMAC"; }));
       }
       failures = user->failures;
-      return nullptr;
+      fn(nullptr);
+      return;
     }
   }
   failures = 0;
-  return user;
+  fn(ZuMv(session));
 }
 
 template <typename T> using Offset = Zfb::Offset<T>;
@@ -571,6 +583,7 @@ Offset<fbs::UserPass> Mgr::userAdd(Zfb::Builder &fbb, const fbs::User *user_)
   m_modified = true;
   ZtString passwd;
   ZmRef<User> user = userAdd_(
+      user,
       user_->id(), Load::str(user_->name()), ZuString(),
       user_->flags() | User::ChPass, passwd);
   Load::all(user_->roles(), [this, &user](unsigned, auto roleName) {
@@ -979,4 +992,4 @@ Offset<fbs::UserAck> Mgr::keyDel_(
   return fbs::CreateUserAck(fbb, 1);
 }
 
-} // namespace ZvUserDB
+} // namespace ZumUserDB

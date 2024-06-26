@@ -1726,8 +1726,8 @@ void Terminal::del_(unsigned n)
 
 // encodes a glyph mark as a byte offset and display position into 64bits
 class GlyphMark {
-  constexpr static unsigned shift() { return 16; }
-  constexpr static unsigned mask() { return ((1<<shift()) - 1); }
+  static constexpr unsigned shift() { return 16; }
+  static constexpr unsigned mask() { return ((1<<shift()) - 1); }
 
 public:
   GlyphMark() = default;

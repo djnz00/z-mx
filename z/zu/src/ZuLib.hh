@@ -227,19 +227,19 @@ template <typename T_> struct ZuBind {
   using T = ZuDecay<T_>;
 
   template <typename Mv, typename Cp>
-  constexpr static auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
+  static constexpr auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
   template <typename Mv, typename Cp>
-  constexpr static auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
+  static constexpr auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
 
   // undefined - ensures that parameter is movable at compile time
   template <typename Mv>
   static void mv(const T &v, Mv); // undefined
 
   template <typename Mv>
-  constexpr static auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
+  static constexpr auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
 
   template <typename Cp>
-  constexpr static auto cp(const T &v, Cp cp_) { return cp_(v); }
+  static constexpr auto cp(const T &v, Cp cp_) { return cp_(v); }
 
   // undefined - ensures that parameter is not movable at compile time
   template <typename Cp>

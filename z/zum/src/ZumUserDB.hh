@@ -6,27 +6,18 @@
 
 // server-side RBAC user DB with MFA, API keys, etc.
 
-#ifndef ZvUserDB_HH
-#define ZvUserDB_HH
+#ifndef ZumUserDB_HH
+#define ZumUserDB_HH
 
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
 #endif
 
-#include <zlib/ZuBitmap.hh>
-#include <zlib/ZuObject.hh>
-// #include <zlib/ZuPolymorph.hh>
-#include <zlib/ZuRef.hh>
 #include <zlib/ZuArrayN.hh>
 
 #include <zlib/ZmHash.hh>
-#include <zlib/ZmLHash.hh>
-#include <zlib/ZmRBTree.hh>
-#include <zlib/ZmRWLock.hh>
 
 #include <zlib/ZtString.hh>
-
-#include <zlib/ZiFile.hh>
 
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
@@ -42,9 +33,9 @@
 #include <zlib/zum_userdbreq_fbs.h>
 #include <zlib/zum_userdback_fbs.h>
 
-namespace ZvUserDB {
+namespace ZumUserDB {
 
-constexpr static mbedtls_md_type_t keyType() {
+static constexpr mbedtls_md_type_t keyType() {
   return MBEDTLS_MD_SHA256;
 }
 enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
@@ -62,6 +53,21 @@ ZfbFields(Key,
   (((id), (Keys<0>, Ctor<1>, Grouped)), (String)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
+// FIXME - need to rethink perms a bit
+// 1] perms can be extended by various apps all of which use userDB
+// 2] perms are initially created/referenced by name (by the apps),
+//    but they can cache the numerical id, and use it to verify against
+//    the perms bitmap in the session themselves
+// 3] userDB should not rely on bootstrap creating the perms in a
+//    certain order - since the request types may evolve subsequently;
+//    instead iterate over the request types and resolve the perm#,
+//    storing it in-memory in permIndex, which translates a reqtype
+//    to an actual perm ID that can be used to check against the perms bitmap
+//
+// ... so:
+//
+// 1] need open, which scans all the perms for all the request types
+//    following table open and builds the permIndex
 struct Perm {
   uint8_t		id;
   ZtString		name;
@@ -119,7 +125,7 @@ struct Session_ : public ZmPolymorph {
   ZmRef<ZdbObject<User>>	user;
   unsigned			failures = 0;
   uint128_t			perms;		// effective permissions
-  uint128_t			apiperms;	// effective API permissions
+  bool				interactive;
 
   static auto NameAxor(const Session &session) {
     return session.user->data().name;
@@ -136,27 +142,14 @@ using Session = Sessions::Node;
 
 class ZvAPI Mgr {
 public:
-  using Lock = ZmRWLock;
-  using Guard = ZmGuard<Lock>;
-  using ReadGuard = ZmReadGuard<Lock>;
-
-  struct Perm {
-    enum {
-      Login = 0,
-      Access,
-      N_
-    };
-    enum {
-      Offset = N_ - (int(fbs::ReqData::NONE) + 1)
-    };
-    enum {
-      N = Offset + (int(fbs::ReqData::MAX) + 1)
-    };
-  };
-
   Mgr(Ztls::Random *rng, unsigned passLen, unsigned totpRange,
       unsigned keyInterval);
   ~Mgr();
+
+  void init(Zdb *db);
+  void final();
+
+  void open(ZmFn<bool> fn);
 
   // one-time initialization (idempotent)
   // - lambda(ZtString passwd, ZtString secret)
@@ -164,35 +157,36 @@ public:
   template <typename T> using Offset = Zfb::Offset<T>;
   template <typename T> using Vector = Zfb::Vector<T>;
 
-  // request, user, interactive
-  int loginReq(const fbs::LoginReq *, ZmRef<Session> &, bool &interactive);
+  void loginReq(const fbs::LoginReq *, ZmFn<void(ZmRef<Session>)>);
 
-  Offset<fbs::ReqAck> request(Zfb::Builder &,
-      Session *, bool interactive, const fbs::Request *);
+  void request(
+    Session *, const fbs::Request *, ZmFn<void(ZmRef<ZiAnyIOBuf>)>);
 
 private:
   // session initialization
-  void initSession(ZtString userName, ZmFn<void(ZmRef<Session>)> fn);
-  // FIXME - these need to be async
+  void initSession(ZtString userName, ZmFn<void(ZmRef<Session>)>);
   // interactive login
-  ZmRef<Session> login(
-    int &failures, ZuString user, ZuString passwd, unsigned totp);
+  void login(
+    ZuString user, ZuString passwd, unsigned totp,
+    ZmFn<void(ZmRef<Session>)>);
   // API access
-  ZmRef<Session> access(
-    int &failures, ZuString keyID,
-    ZuArray<const uint8_t> token, int64_t stamp,
-    ZuArray<const uint8_t> hmac);
+  void access(
+    ZuString keyID,
+    ZuArray<const uint8_t> token, int64_t stamp, ZuArray<const uint8_t> hmac,
+    ZmFn<void(ZmRef<Session>)>);
 
 public:
   // ok(user, interactive, perm)
-  bool ok(Session *session, bool interactive, unsigned perm) const {
-    if ((user->flags & User::ChPass) && interactive &&
-	perm != m_permIndex[Perm::Offset + int(fbs::ReqData::ChPass)])
+  bool ok(Session *session, unsigned perm) const {
+    if ((session->user->data().flags & User::ChPass) &&
+	session->interactive &&
+	perm != Perm::Offset + int(fbs::ReqData::ChPass))
       return false;
-    return interactive ? user->perms[perm] : user->apiperms[perm];
+    return session->perms & (uint128_t(1)<<perm);
   }
 
 private:
+  // FIXME from here
   // change password
   Offset<fbs::UserAck> chPass(
       Zfb::Builder &, Session *session, const fbs::UserChPass *chPass);
@@ -324,4 +318,4 @@ private:
 
 }
 
-#endif /* ZvUserDB_HH */
+#endif /* ZumUserDB_HH */

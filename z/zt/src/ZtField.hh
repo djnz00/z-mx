@@ -244,27 +244,27 @@ namespace ZtFieldFmt {
   // NTP - date/time scan format
   template <auto Scan, typename NTP = Default>
   struct DateScan : public NTP {
-    constexpr static auto DateScan_ = Scan;
+    static constexpr auto DateScan_ = Scan;
   };
 
   // NTP - date/time print format
   template <auto Print, typename NTP = Default>
   struct DatePrint : public NTP {
-    constexpr static auto DatePrint_ = Print;
+    static constexpr auto DatePrint_ = Print;
   };
 
   // NTP - flags formatting
   template <auto Delim, typename NTP = Default>
   struct Flags : public NTP {
-    constexpr static auto FlagsDelim = Delim;
+    static constexpr auto FlagsDelim = Delim;
   };
 
   // NTP - vector formatting (none of these should have leading white space)
   template <auto Prefix, auto Delim, auto Suffix, typename NTP = Default>
   struct Vec : public NTP {
-    constexpr static auto VecPrefix = Prefix;
-    constexpr static auto VecDelim = Delim;
-    constexpr static auto VecSuffix = Suffix;
+    static constexpr auto VecPrefix = Prefix;
+    static constexpr auto VecDelim = Delim;
+    static constexpr auto VecSuffix = Suffix;
   };
 }
 
@@ -381,7 +381,7 @@ namespace ZtMFieldProp {
 // type is keyed on type-code, underlying type, type properties
 template <typename Props>
 struct ZtFieldType_ {
-  constexpr static ZtMFieldProp::T mprops() {
+  static constexpr ZtMFieldProp::T mprops() {
     return ZtMFieldProp::Value<Props>{};
   }
 };
@@ -552,7 +552,7 @@ namespace Print {
 
 // string and string vector element scanning
 namespace Scan {
-  constexpr static bool isspace__(char c) {
+  static constexpr bool isspace__(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
   }
 
@@ -1624,7 +1624,7 @@ struct ZtField : public Base_ {
   using O = typename Base::O;
   using T = typename Base::T;
   using Props = typename Base::Props;
-  constexpr static ZtMFieldProp::T mprops() {
+  static constexpr ZtMFieldProp::T mprops() {
     return ZtMFieldProp::Value<Props>{};
   }
 };
@@ -1945,7 +1945,7 @@ struct ZtField_Bool : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.bool_ = [](void *, bool) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.bool_ = [](const void *o) -> bool {
@@ -2043,9 +2043,9 @@ ZtMFieldType *ZtFieldType_##Code_<T, Props>::mtype() { \
  \
 template <typename T> \
 struct ZtFieldType_##Code_##_Def { \
-  constexpr static auto deflt() { return ZuCmp<T>::null(); } \
-  constexpr static auto minimum() { return ZuCmp<T>::minimum(); } \
-  constexpr static auto maximum() { return ZuCmp<T>::maximum(); } \
+  static constexpr auto deflt() { return ZuCmp<T>::null(); } \
+  static constexpr auto minimum() { return ZuCmp<T>::minimum(); } \
+  static constexpr auto maximum() { return ZuCmp<T>::maximum(); } \
 }; \
 template < \
   typename Base, \
@@ -2069,7 +2069,7 @@ struct ZtField_##Code_ : public ZtField<Base> { \
   static ZtMFieldSet setFn() { \
     return {.set_ = {.Type_= [](void *, Type_##_t) { }}}; \
   } \
-  constexpr static auto deflt() { return Def(); } \
+  static constexpr auto deflt() { return Def(); } \
   static ZtMFieldGet constantFn() { \
     using namespace ZtMFieldConstant; \
     return {.get_ = {.Type_= [](const void *o) -> Type_##_t { \
@@ -2144,9 +2144,9 @@ ZtMFieldType *ZtFieldType_Float<T, Props>::mtype() {
 
 template <typename T>
 struct ZtField_Float_Def {
-  constexpr static auto deflt() { return ZuCmp<T>::null(); }
-  constexpr static auto minimum() { return -ZuFP<T>::inf(); }
-  constexpr static auto maximum() { return ZuFP<T>::inf(); }
+  static constexpr auto deflt() { return ZuCmp<T>::null(); }
+  static constexpr auto minimum() { return -ZuFP<T>::inf(); }
+  static constexpr auto maximum() { return ZuFP<T>::inf(); }
 };
 template <
   typename Base,
@@ -2170,7 +2170,7 @@ struct ZtField_Float : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.float_ = [](void *, double) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.float_ = [](const void *o) -> double {
@@ -2233,9 +2233,9 @@ ZtMFieldType *ZtFieldType_Fixed<T, Props>::mtype() {
 }
 
 struct ZtField_Fixed_Def {
-  constexpr static ZuFixed deflt() { return {}; }
-  constexpr static ZuFixed minimum() { return {ZuFixedMin, 0}; }
-  constexpr static ZuFixed maximum() { return {ZuFixedMax, 0}; }
+  static constexpr ZuFixed deflt() { return {}; }
+  static constexpr ZuFixed minimum() { return {ZuFixedMin, 0}; }
+  static constexpr ZuFixed maximum() { return {ZuFixedMax, 0}; }
 };
 template <
   typename Base,
@@ -2259,7 +2259,7 @@ struct ZtField_Fixed : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.fixed = [](void *, ZuFixed) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.fixed = [](const void *o) -> ZuFixed {
@@ -2322,13 +2322,13 @@ ZtMFieldType *ZtFieldType_Decimal<T, Props>::mtype() {
 }
 
 struct ZtField_Decimal_Def {
-  constexpr static ZuDecimal deflt() {
+  static constexpr ZuDecimal deflt() {
     return ZuCmp<ZuDecimal>::null();
   }
-  constexpr static ZuDecimal minimum() {
+  static constexpr ZuDecimal minimum() {
     return {ZuDecimal::Unscaled{ZuDecimal::minimum()}};
   }
-  constexpr static ZuDecimal maximum() {
+  static constexpr ZuDecimal maximum() {
     return {ZuDecimal::Unscaled{ZuDecimal::maximum()}};
   }
 };
@@ -2354,7 +2354,7 @@ struct ZtField_Decimal : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.decimal = [](void *, ZuDecimal) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.decimal = [](const void *o) -> ZuDecimal {
@@ -2433,7 +2433,7 @@ struct ZtField_Time : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.time = [](void *, ZuTime) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.time = [](const void *o) -> ZuTime {
@@ -2509,7 +2509,7 @@ struct ZtField_DateTime : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.dateTime = [](void *, ZuDateTime) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.dateTime = [](const void *o) -> ZuDateTime {
@@ -2623,11 +2623,11 @@ ZtMFieldType *ZtFieldType_UDT<T, Props>::mtype() {
 
 template <typename T, typename = void>
 struct ZtField_UDT_Def {
-  constexpr static void value() { }
+  static constexpr void value() { }
 };
 template <typename T>
 struct ZtField_UDT_Def<T, decltype(T{}, void())> {
-  constexpr static T value() { return {}; }
+  static constexpr T value() { return {}; }
 };
 template <typename T, typename = void>
 struct ZtField_UDT_Null {
@@ -2782,7 +2782,7 @@ struct ZtField_CStringVec : public ZtField<Base> {
   static ZtMFieldSet setFn() {
     return {.set_ = {.cstringVec = [](void *, CStringVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.cstringVec = [](const void *o) -> CStringVec {
@@ -2867,7 +2867,7 @@ struct ZtField_StringVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.stringVec = [](void *, StringVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.stringVec = [](const void *o) -> StringVec {
@@ -2952,7 +2952,7 @@ struct ZtField_BytesVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.bytesVec = [](void *, BytesVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.bytesVec = [](const void *o) -> BytesVec {
@@ -3070,7 +3070,7 @@ struct ZtField_##Code_##Vec : public ZtField<Base> { \
     using namespace ZtField_; \
     return {.set_ = {.Type_##Vec = [](void *, Code_##Vec) { }}}; \
   } \
-  constexpr static auto deflt() { return Def(); } \
+  static constexpr auto deflt() { return Def(); } \
   static ZtMFieldGet constantFn() { \
     using namespace ZtMFieldConstant; \
     return {.get_ = {.Type_##Vec = [](const void *o) -> Code_##Vec { \
@@ -3166,7 +3166,7 @@ struct ZtField_FloatVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.floatVec = [](void *, FloatVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.floatVec = [](const void *o) -> FloatVec {
@@ -3251,7 +3251,7 @@ struct ZtField_FixedVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.fixedVec = [](void *, FixedVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.fixedVec = [](const void *o) -> FixedVec {
@@ -3336,7 +3336,7 @@ struct ZtField_DecimalVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.decimalVec = [](void *, DecimalVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.decimalVec = [](const void *o) -> DecimalVec {
@@ -3421,7 +3421,7 @@ struct ZtField_TimeVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.timeVec = [](void *, TimeVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.timeVec = [](const void *o) -> TimeVec {
@@ -3506,7 +3506,7 @@ struct ZtField_DateTimeVec : public ZtField<Base> {
     using namespace ZtField_;
     return {.set_ = {.dateTimeVec = [](void *, DateTimeVec) { }}};
   }
-  constexpr static auto deflt() { return Def(); }
+  static constexpr auto deflt() { return Def(); }
   static ZtMFieldGet constantFn() {
     using namespace ZtMFieldConstant;
     return {.get_ = {.dateTimeVec = [](const void *o) -> DateTimeVec {

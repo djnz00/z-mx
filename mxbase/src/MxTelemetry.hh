@@ -145,7 +145,7 @@ namespace MxTelemetry {
 namespace MxTelemetry {
 
   struct Msg_HeapID {
-    constexpr static const char *id() { return "MxTelemetry.Msg"; }
+    static constexpr const char *id() { return "MxTelemetry.Msg"; }
   };
 
   template <typename Heap>

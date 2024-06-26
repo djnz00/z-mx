@@ -63,7 +63,7 @@ public:
     if (!atom) atom = gdk_atom_intern_static_string(typeName());
     return atom;
   }
-  constexpr static gint nRowsTargets() { return 1; }
+  static constexpr gint nRowsTargets() { return 1; }
   static const GtkTargetEntry *rowsTargets() {
     static GtkTargetEntry rowsTargets_[] = {
       { (gchar *)nullptr, GTK_TARGET_SAME_APP, 0 }
@@ -726,8 +726,8 @@ namespace TreeHierarchy {
   public:
     Leaf() = default;
     ~Leaf() = default;
-    constexpr static bool hasChild() { return false; }
-    constexpr static unsigned nChildren() { return 0; }
+    static constexpr bool hasChild() { return false; }
+    static constexpr unsigned nChildren() { return 0; }
     template <typename L>
     bool child(gint, L &&l) const { return false; }
     template <typename L>
@@ -752,7 +752,7 @@ namespace TreeHierarchy {
     Parent() = default;
     ~Parent() { for (auto &&child: m_rows) delete child; }
 
-    constexpr static bool hasChild() { return true; }
+    static constexpr bool hasChild() { return true; }
     constexpr unsigned nChildren() const { return m_rows.length(); }
     template <typename L>
     bool child(gint i, L &&l) const {
@@ -816,7 +816,7 @@ namespace TreeHierarchy {
   public:
     Branch() = default;
     ~Branch() = default;
-    constexpr static bool hasChild() { return true; }
+    static constexpr bool hasChild() { return true; }
     constexpr unsigned nChildren() const { return m_rows.length(); }
     template <typename L>
     bool child(gint i, L &&l) const {

@@ -58,7 +58,7 @@ inline constexpr auto Defaults_SizeAxor() {
 }
 struct Defaults {
   using T = void;					// variable-sized
-  constexpr static auto SizeAxor = Defaults_SizeAxor();
+  static constexpr auto SizeAxor = Defaults_SizeAxor();
   enum { MW = 0 };
   enum { MR = 0 };
 };
@@ -68,25 +68,25 @@ struct Defaults {
 // fixed-size message type
 template <typename T>
 struct ZmRingT_SizeAxor {
-  constexpr static auto Fn() {
+  static constexpr auto Fn() {
     return [](const void *) { return sizeof(T); };
   }
 };
 template <typename T_, typename NTP = ZmRing_::Defaults>
 struct ZmRingT : public NTP {
   using T = T_;
-  constexpr static auto SizeAxor = ZmRingT_SizeAxor<T>::Fn();
+  static constexpr auto SizeAxor = ZmRingT_SizeAxor<T>::Fn();
 };
 template <typename NTP>
 struct ZmRingT<ZuNull, NTP> : public NTP {
   using T = void;
-  constexpr static auto SizeAxor = ZmRing_::Defaults_SizeAxor();
+  static constexpr auto SizeAxor = ZmRing_::Defaults_SizeAxor();
 };
 
 // variable-sized message type
 template <auto SizeAxor_, typename NTP = ZmRing_::Defaults>
 struct ZmRingSizeAxor : public NTP {
-  constexpr static auto SizeAxor = SizeAxor_;
+  static constexpr auto SizeAxor = SizeAxor_;
 };
 
 // multiple writers (producers)
@@ -346,12 +346,12 @@ template <typename CtrlMem, bool MR>
 using CtrlMgr = CtrlMgr_<CtrlMem, Ctrl<MR>, MR>;
 
 template <bool MW, bool MR> struct AlignFn {
-  constexpr static unsigned align(unsigned n) {
+  static constexpr unsigned align(unsigned n) {
     return (((n) + 8 + 15) & ~15);
   }
 };
 template <> struct AlignFn<false, false> {
-  constexpr static unsigned align(unsigned n) {
+  static constexpr unsigned align(unsigned n) {
     return (((n) + 15) & ~15);
   }
 };
@@ -399,7 +399,7 @@ public:
 private:
 #ifndef _WIN32
   using Handle = int;
-  constexpr static Handle nullHandle() { return -1; }
+  static constexpr Handle nullHandle() { return -1; }
   bool nullHandle(Handle i) { return i < 0; }
 #else
   using Handle = HANDLE;
@@ -457,7 +457,7 @@ protected:
   DataMgr() = default;
   DataMgr(const DataMgr &ring) : Base{ring} { }
 
-  constexpr static unsigned alignSize(unsigned n) {
+  static constexpr unsigned alignSize(unsigned n) {
     return ((n + (MsgSize<<1) - 1) / MsgSize) * MsgSize;
   }
 };
@@ -510,7 +510,7 @@ protected:
   bool open_() { return true; }		// ''
   void close_() { }			// ''
 
-  constexpr static unsigned gc() { return 0; } // ''
+  static constexpr unsigned gc() { return 0; } // ''
 
   void rdrID(int);			// ''
 
@@ -548,7 +548,7 @@ protected:
   bool open_();
   void close_();
 
-  constexpr static unsigned gc() { return 0; } // unused
+  static constexpr unsigned gc() { return 0; } // unused
 
   void rdrID(int v) { m_rdrID = v; }
 
@@ -596,7 +596,7 @@ private:
   using AlignFn = ZmRing_::AlignFn<MW, MR>;
 
 public:
-  constexpr static auto SizeAxor = NTP::SizeAxor;
+  static constexpr auto SizeAxor = NTP::SizeAxor;
   enum { V = ZuInspect<void, T>::Same };
   enum { MsgSize = DataMgr_::MsgSize };
 
@@ -649,7 +649,7 @@ public:
   uint32_t flags() const { return m_flags; }
 
   unsigned size() const { return m_size; }
-  constexpr static unsigned ctrlSize() { return sizeof(Ctrl); }
+  static constexpr unsigned ctrlSize() { return sizeof(Ctrl); }
 
   // how many times push() was delayed by this ring buffer being full
   unsigned full() const { return m_full; }

@@ -68,10 +68,10 @@ template <
 class ZmPQueueDefaultFn {
 public:
   // KeyAxor is the accessor for the key (sequence number)
-  constexpr static auto KeyAxor = KeyAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
 
   // LenAxor is the accessor for the length
-  constexpr static auto LenAxor = LenAxor_;
+  static constexpr auto LenAxor = LenAxor_;
 
   // Key is the type of the sequence number returned by KeyAxor()
   using Key = ZuRDecay<decltype(KeyAxor(ZuDeclVal<const Item &>()))>;
@@ -150,7 +150,7 @@ struct ZmPQueueShadow;
 template <typename NTP>
 struct ZmPQueueShadow<true, NTP> : public NTP {
   enum { Shadow = true };
-  constexpr static auto HeapID = ZmHeapDisable();
+  static constexpr auto HeapID = ZmHeapDisable();
 };
 template <typename NTP>
 struct ZmPQueueShadow<false, NTP> : public NTP {
@@ -160,7 +160,7 @@ struct ZmPQueueShadow<false, NTP> : public NTP {
 // ZmPQueueHeapID - the heap ID
 template <auto HeapID_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 };
 
 // ZmPQueueSharded - sharded heap
@@ -211,12 +211,12 @@ public:
   enum { Bits = NTP::Bits };
   enum { Levels = NTP::Levels };
   using Fn = typename NTP::template ZmPQueueFnT<Item>;
-  constexpr static auto KeyAxor = Fn::KeyAxor;
+  static constexpr auto KeyAxor = Fn::KeyAxor;
   using Key = typename Fn::Key;
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
   ZuDeclTuple(Gap,

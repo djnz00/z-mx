@@ -21,39 +21,39 @@
 
 template <unsigned Width> struct ZuBitfield_;
 template <> struct ZuBitfield_<1> {
-  constexpr static unsigned word(unsigned i) { return i>>6; }
-  constexpr static unsigned shift(unsigned i) { return i & 0x3f; }
-  constexpr static uint64_t mask() { return 1; }
+  static constexpr unsigned word(unsigned i) { return i>>6; }
+  static constexpr unsigned shift(unsigned i) { return i & 0x3f; }
+  static constexpr uint64_t mask() { return 1; }
 };
 template <> struct ZuBitfield_<2> {
-  constexpr static unsigned word(unsigned i) { return i>>5; }
-  constexpr static unsigned shift(unsigned i) { return (i & 0x1f)<<1; }
-  constexpr static uint64_t mask() { return 3; }
+  static constexpr unsigned word(unsigned i) { return i>>5; }
+  static constexpr unsigned shift(unsigned i) { return (i & 0x1f)<<1; }
+  static constexpr uint64_t mask() { return 3; }
 };
 template <> struct ZuBitfield_<4> {
-  constexpr static unsigned word(unsigned i) { return i>>4; }
-  constexpr static unsigned shift(unsigned i) { return (i & 0xf)<<2; }
-  constexpr static uint64_t mask() { return 0xf; }
+  static constexpr unsigned word(unsigned i) { return i>>4; }
+  static constexpr unsigned shift(unsigned i) { return (i & 0xf)<<2; }
+  static constexpr uint64_t mask() { return 0xf; }
 };
 template <> struct ZuBitfield_<8> {
-  constexpr static unsigned word(unsigned i) { return i>>3; }
-  constexpr static unsigned shift(unsigned i) { return (i & 7)<<3; }
-  constexpr static uint64_t mask() { return 0xff; }
+  static constexpr unsigned word(unsigned i) { return i>>3; }
+  static constexpr unsigned shift(unsigned i) { return (i & 7)<<3; }
+  static constexpr uint64_t mask() { return 0xff; }
 };
 template <> struct ZuBitfield_<16> {
-  constexpr static unsigned word(unsigned i) { return i>>2; }
-  constexpr static unsigned shift(unsigned i) { return (i & 3)<<4; }
-  constexpr static uint64_t mask() { return 0xffff; }
+  static constexpr unsigned word(unsigned i) { return i>>2; }
+  static constexpr unsigned shift(unsigned i) { return (i & 3)<<4; }
+  static constexpr uint64_t mask() { return 0xffff; }
 };
 template <> struct ZuBitfield_<32> {
-  constexpr static unsigned word(unsigned i) { return i>>1; }
-  constexpr static unsigned shift(unsigned i) { return (i & 1)<<5; }
-  constexpr static uint64_t mask() { return 0xffffffffULL; }
+  static constexpr unsigned word(unsigned i) { return i>>1; }
+  static constexpr unsigned shift(unsigned i) { return (i & 1)<<5; }
+  static constexpr uint64_t mask() { return 0xffffffffULL; }
 };
 template <> struct ZuBitfield_<64> {
-  constexpr static unsigned word(unsigned i) { return i; }
-  constexpr static unsigned shift(unsigned i) { return 0; }
-  constexpr static uint64_t mask() { return ~static_cast<uint64_t>(0); }
+  static constexpr unsigned word(unsigned i) { return i; }
+  static constexpr unsigned shift(unsigned i) { return 0; }
+  static constexpr uint64_t mask() { return ~static_cast<uint64_t>(0); }
 };
 
 template <unsigned N, unsigned Width>

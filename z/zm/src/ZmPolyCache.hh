@@ -27,7 +27,7 @@
 // NTP defaults
 struct ZmPolyCache_Defaults : public ZmPolyHash_Defaults {
   static const char *HeapID() { return "ZmPolyCache"; }
-  constexpr static auto ID = HeapID;
+  static constexpr auto ID = HeapID;
   enum { Evict = 1 };
 };
 
@@ -72,8 +72,8 @@ private:
       ZmPolyHashLock<ZmNoLock, NTP>>; // overrides NTP::Lock
 
 public:
-  constexpr static auto ID = PolyHash::ID;
-  constexpr static auto HeapID = PolyHash::HeapID;
+  static constexpr auto ID = PolyHash::ID;
+  static constexpr auto HeapID = PolyHash::HeapID;
 
   using Node = typename PolyHash::Node;
   using NodeRef = typename PolyHash::NodeRef;
@@ -322,7 +322,7 @@ private:
   struct NodeRefFn<Node *> {
     using NodeRef = Node *;
     static void ctor(NodeRef *ptr, NodeRef ref) { *ptr = ref; }
-    constexpr static void dtor(NodeRef &) { }
+    static constexpr void dtor(NodeRef &) { }
   };
   template <bool Sync, typename L>
   void all__(L l, NodeRef *buf, unsigned n) {

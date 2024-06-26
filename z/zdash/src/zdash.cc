@@ -79,7 +79,7 @@ namespace Telemetry {
     }
   };
   static auto Watch_Axor(const Watch &v) { return v.ptr_; }
-  constexpr static const char *Watch_HeapID() {
+  static constexpr const char *Watch_HeapID() {
     return "zdash.Telemetry.Watch";
   }
   template <typename T>
@@ -106,7 +106,7 @@ namespace Telemetry {
   using FBTypeList = ZuTypeMap<ZfbType, TypeList>;
 
   template <typename Data> struct Item__ {
-    constexpr static auto Axor = ZuFieldAxor<Data>();
+    static constexpr auto Axor = ZuFieldAxor<Data>();
     static decltype(auto) telKey(const Data &data) { return Axor(data); }
     using TelKey = ZuRDecay<decltype(telKey(ZuDeclVal<const Data &>()))>;
     static int rag(const Data &data) { return data.rag(); }
@@ -204,7 +204,7 @@ namespace Telemetry {
     Zdf::DataFrame::Writer	dfWriter;
   };
 
-  constexpr static const char *ItemTree_HeapID() {
+  static constexpr const char *ItemTree_HeapID() {
     return "zdash.Telemetry.Tree";
   }
   template <typename T>
@@ -846,7 +846,7 @@ public:
 static CliLink_::Key CliLink_KeyAxor(const CliLink_ &link) {
   return link.key();
 }
-constexpr static const char *CliLink_HeapID() { return "CliLink"; }
+static constexpr const char *CliLink_HeapID() { return "CliLink"; }
 using CliLinks =
   ZmRBTree<CliLink_,
     ZmRBTreeNode<CliLink_,

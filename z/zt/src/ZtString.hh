@@ -87,7 +87,7 @@ public:
   enum { BuiltinUPtr =
     (BuiltinSize_ * sizeof(Char) + sizeof(uintptr_t) - 1) / sizeof(uintptr_t) };
   enum { BuiltinSize = (BuiltinUPtr * sizeof(uintptr_t)) / sizeof(Char) };
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 
 private:
   // from same type ZtString

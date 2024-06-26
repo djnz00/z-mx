@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// type equivalence, using ZuNormChar for character types
+// type equivalence, normalizing character types with ZuNormChar
 
 #ifndef ZuEquiv_HH
 #define ZuEquiv_HH

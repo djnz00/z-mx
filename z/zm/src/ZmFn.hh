@@ -15,8 +15,7 @@
 //   ZmFn increments the reference-count of the referenced object during its
 //   lifetime, ensuring that it does not go out of scope before the ZmFn does
 // * falls back to heap allocation for larger capture packs
-// * no attempt is made to match return types
-// * return types must either be void or be statically convertible to uintptr_t
+// * ZmFn<> is shorthand for ZmFn<void()>
 
 // usage:
 //
@@ -48,8 +47,8 @@
 // I *i;
 // ZmThread t(ZmFn<>::Bound<&baz>::fn(i));	// Note: pointer to I
 //
-// using Fn = ZmFn<Params>;
-// void foo(Fn fn);
+// using Fn = ZmFn<R(Params)>;
+// R foo(Fn fn);
 // foo(Fn([this, ...](params) { ... }));
 //
 // Note: The lambda closure objects are managed by a ZmHeap, but the size
@@ -60,7 +59,7 @@
 // stateless lambdas should not have data members, and C++11 guarantees they
 // are convertible to a primitive function pointer; lambdas with captures
 // cannot be converted to a function pointer; stateless lambdas are
-// implicitly const (not mutable)
+// implicitly const (immutable)
 //
 // if the lambda has no captures, the lambda will not be instantiated or
 // heap allocated; both fn1 and fn2 below behave identically, but fn2 is

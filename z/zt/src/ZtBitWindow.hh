@@ -38,9 +38,10 @@ template <> struct ZtBitWindow_<16> { enum { OK = 1, Pow2 = 1, Shift =  4 }; };
 template <> struct ZtBitWindow_<32> { enum { OK = 1, Pow2 = 1, Shift =  5 }; };
 template <> struct ZtBitWindow_<64> { enum { OK = 1, Pow2 = 1, Shift =  6 }; };
 
-template <unsigned Bits = 1,
-	 bool = ZtBitWindow_<Bits>::OK,
-	 bool = ZtBitWindow_<Bits>::Pow2>
+template <
+  unsigned Bits = 1,
+  bool = ZtBitWindow_<Bits>::OK,
+  bool = ZtBitWindow_<Bits>::Pow2>
 class ZtBitWindow;
 
 inline const char *ZtBitWindow_ID() { return "ZtBitWindow"; }
@@ -55,7 +56,7 @@ public:
 
 private:
   enum { Shift = ZtBitWindow_<Bits>::Shift };
-  constexpr static const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
+  static constexpr const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
   enum { IndexShift = (6 - Shift) };
   enum { IndexMask = (1<<IndexShift) - 1 };
 
@@ -284,7 +285,7 @@ public:
   enum { Bits = Bits_ };
 
 private:
-  constexpr static const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
+  static constexpr const uint64_t Mask = (static_cast<uint64_t>(1)<<Bits) - 1;
   enum { IndexMul = ZtBitWindow_<Bits>::Mul };
 
 public:

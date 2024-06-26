@@ -352,7 +352,7 @@ using ZuBox_MatchCharPtr =
 // NTP defaults
 struct ZuBox_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
-  constexpr static auto NullString = ZuBox_NullAsIs();
+  static constexpr auto NullString = ZuBox_NullAsIs();
 };
 
 // ZuBoxCmp - the comparator
@@ -364,7 +364,7 @@ struct ZuBoxCmp : public NTP {
 // ZuBoxNullString - printing/scanning of sentinel null value
 template <auto NullString_, typename NTP = ZuBox_Defaults>
 struct ZuBoxNullString : public NTP {
-  constexpr static auto NullString = NullString_;
+  static constexpr auto NullString = NullString_;
 };
 
 template <typename T_, typename NTP = ZuBox_Defaults>
@@ -376,7 +376,7 @@ template <typename> friend class ZuBoxVFmt;
 public:
   using T = ZuUnder<T_>;
   using Cmp = typename NTP::template CmpT<T>;
-  constexpr static auto NullString = NTP::NullString;
+  static constexpr auto NullString = NTP::NullString;
 
   static T null() { return Cmp::null(); }
   static bool isNull(T v) { return Cmp::null(v); }

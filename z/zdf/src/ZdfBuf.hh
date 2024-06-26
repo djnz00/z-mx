@@ -34,14 +34,14 @@ struct Hdr {
   Int64		last = 0;	// last value in buffer
 
 private:
-  constexpr static uint64_t countMask() { return 0xfffffffULL; }
-  constexpr static uint64_t lengthMask() { return countMask(); }
-  constexpr static unsigned lengthShift() { return 28U; }
+  static constexpr uint64_t countMask() { return 0xfffffffULL; }
+  static constexpr uint64_t lengthMask() { return countMask(); }
+  static constexpr unsigned lengthShift() { return 28U; }
 public:
-  constexpr static uint64_t lengthMax() { return countMask(); }
+  static constexpr uint64_t lengthMax() { return countMask(); }
 private:
-  constexpr static uint64_t ndpMask() { return 0x1fULL; }
-  constexpr static unsigned ndpShift() { return 56U; }
+  static constexpr uint64_t ndpMask() { return 0x1fULL; }
+  static constexpr unsigned ndpShift() { return 56U; }
 
   uint64_t cle() const { return cle_; }
 
@@ -78,7 +78,7 @@ struct BufLRUNode_ {
   unsigned	blkIndex;
 };
 struct BufLRU_HeapID {
-  constexpr static const char *id() { return "ZdfSeries.BufLRU"; }
+  static constexpr const char *id() { return "ZdfSeries.BufLRU"; }
 };
 using BufLRU =
   ZmList<BufLRUNode_,

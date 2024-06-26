@@ -508,6 +508,26 @@ template <typename U, typename R = void>
 using ZuMatchCharString =
   ZuIfT<ZuTraits<U>::IsString && !ZuTraits<U>::IsWString, R>;
 
+// derived traits for wrapper types
+template <typename Wrapper, typename Under>
+struct ZuWrapTraits : public ZuTraits<Under> {
+  enum { IsPrimitive = 0, IsPOD = 0 };
+  using Elem = typename ZuTraits<Under>::Elem;
+  template <typename U = Under>
+  static ZuIfT<ZuTraits<U>::IsSpan && !ZuIsConst<U>{}, Elem *>
+  data(Wrapper &v) {
+    return ZuTraits<U>::data(v.get());
+  }
+  template <typename U = Under>
+  static ZuMatchSpan<U, const Elem *> data(const Wrapper &v) {
+    return ZuTraits<U>::data(v.get());
+  }
+  template <typename U = Under>
+  static ZuMatchArray<U, unsigned> length(const Wrapper &v) {
+    return ZuTraits<U>::length(v.get());
+  }
+};
+
 // STL / Boost interoperability
 template <typename T, typename Char>
 struct ZuStdStringTraits_ : public ZuBaseTraits<T> {

@@ -13,15 +13,15 @@
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 
 struct Defaults {
-  constexpr static auto Fn = ZuDefaultAxor();
+  static constexpr auto Fn = ZuDefaultAxor();
 };
 template <auto Fn_>
 struct Axor : public Defaults {
-  constexpr static auto Fn = Fn_;
+  static constexpr auto Fn = Fn_;
 };
 template <typename NTP = Defaults>
 struct Foo {
-  constexpr static auto Fn = NTP::Fn;
+  static constexpr auto Fn = NTP::Fn;
   template <typename T>
   static void doit(T &&v) {
     auto x = Fn(ZuFwd<T>(v));

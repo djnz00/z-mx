@@ -23,8 +23,6 @@
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmLHash.hh>
 
-using ZtEnum = ZuBox_1(int8_t);
-
 // ZtEnum class declaration macros
 //   Note: use in this order: Values; Map; Flags;...
 
@@ -41,7 +39,7 @@ using ZtEnum = ZuBox_1(int8_t);
     return names_.p<0>()[i]; \
   } \
   struct Map : public Map_<Map> { \
-    constexpr static const char *id() { return #ID; } \
+    static constexpr const char *id() { return #ID; } \
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
   template <typename S> inline ZtEnum lookup(const S &s) { \
@@ -92,20 +90,21 @@ using ZtEnum = ZuBox_1(int8_t);
     S2V	m_s2v; \
     V2S	m_v2s; \
   }
-#define ZtEnumValues(ID, ...) \
+#define ZtEnumValues(ID, Type, ...) \
+  using T = Type; \
   ZtEnumValues_(__VA_ARGS__); \
   ZtEnumNames_(ID, ZuPP_Eval(ZuPP_MapComma(ZuPP_Q, __VA_ARGS__)))
 
 #define ZtEnumMap(ID, Map, ...) \
   struct Map : public Map_<Map> { \
-    constexpr static const char *id() { return #ID; } \
+    static constexpr const char *id() { return #ID; } \
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   }
 
 #define ZtEnumFlagsMap(ID, Map, ...) \
   class Map : public Map_<Map> { \
   public: \
-    constexpr static const char *id() { return #ID; } \
+    static constexpr const char *id() { return #ID; } \
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   private: \
     template <typename S, typename Flags_> \

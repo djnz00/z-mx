@@ -27,7 +27,7 @@ struct ZCmp {
   static bool less(const Z *z1, const Z *z2) { return z1->v < z2->v; }
   static bool equals(const Z *z1, const Z *z2) { return z1->v == z2->v; }
   static bool null(const Z *z) { return !z; }
-  constexpr static const Z *null() { return nullptr; }
+  static constexpr const Z *null() { return nullptr; }
 };
 
 using ZCache = ZmCacheKV<unsigned, Z, ZmCacheLock<ZmPLock>>;

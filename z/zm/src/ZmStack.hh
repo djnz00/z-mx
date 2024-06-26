@@ -52,7 +52,7 @@ private:
 
 // NTP defaults
 struct ZmStack_Defaults {
-  constexpr static auto KeyAxor = ZuDefaultAxor();
+  static constexpr auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
@@ -64,7 +64,7 @@ struct ZmStack_Defaults {
 // ZmStackKey - key accessor
 template <auto KeyAxor_, typename NTP = ZmStack_Defaults>
 struct ZmStackKey : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
 };
 
 // ZmStackCmp - the comparator
@@ -89,7 +89,7 @@ struct ZmStackLock : public NTP {
 // ZmStackHeapID - the heap ID
 template <auto HeapID_, typename NTP = ZmStack_Defaults>
 struct ZmStackHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 };
 
 // ZmStackSharded - sharded heap
@@ -134,13 +134,13 @@ friend ZmStack_Unlocked<ZmStack>;
 
 public:
   using T = T_;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
   using Key = ZuRDecay<decltype(KeyAxor(ZuDeclVal<const T &>()))>;
   using Ops = typename NTP::template OpsT<T>;
   using Cmp = typename NTP::template CmpT<T>;
   using KeyCmp = typename NTP::template KeyCmpT<T>;
   using Lock = typename NTP::Lock;
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
   using Guard = ZmGuard<Lock>;

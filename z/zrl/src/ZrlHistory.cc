@@ -17,7 +17,7 @@ void History::save(unsigned i, ZuArray<const uint8_t> s)
 
 bool History::load(unsigned i, HistFn fn) const
 {
-  if (auto s_ = val(i)) {
+  if (auto s_ = ptr(i)) {
     fn(*s_);
     return true;
   }

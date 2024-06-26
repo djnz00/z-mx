@@ -38,7 +38,7 @@ template <typename, typename> struct All;
 
 template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   template <typename L>
-  constexpr static R fn(L l) {
+  static constexpr R fn(L l) {
     R r;
     std::initializer_list<int>{
       ((r = l(ZuUnsigned<I>{})), 0)...
@@ -47,7 +47,7 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   }
   // map/reduce all()
   template <typename L>
-  constexpr static R fn(R r, L l) {
+  static constexpr R fn(R r, L l) {
     std::initializer_list<int>{
       ((r = l(ZuUnsigned<I>{}, r)), 0)...
     };
@@ -57,7 +57,7 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
 
 template <typename R, typename ...Ts> struct All<R, ZuTypeList<Ts...>> {
   template <typename L>
-  constexpr static R fn(L l) {
+  static constexpr R fn(L l) {
     R r;
     std::initializer_list<int>{
       ((r = l.template operator()<Ts>()), 0)...
@@ -66,7 +66,7 @@ template <typename R, typename ...Ts> struct All<R, ZuTypeList<Ts...>> {
   }
   // map/reduce all()
   template <typename L>
-  constexpr static R fn(R r, L l) {
+  static constexpr R fn(R r, L l) {
     std::initializer_list<int>{
       ((r = l.template operator()<Ts>(r)), 0)...
     };
@@ -76,7 +76,7 @@ template <typename R, typename ...Ts> struct All<R, ZuTypeList<Ts...>> {
 
 template <unsigned ...I> struct All<void, ZuSeq<I...>> {
   template <typename L>
-  constexpr static void fn(L l) {
+  static constexpr void fn(L l) {
     std::initializer_list<int>{
       (l(ZuUnsigned<I>{}), 0)...
     };
@@ -85,7 +85,7 @@ template <unsigned ...I> struct All<void, ZuSeq<I...>> {
 
 template <typename ...Ts> struct All<void, ZuTypeList<Ts...>> {
   template <typename L>
-  constexpr static void fn(L l) {
+  static constexpr void fn(L l) {
     std::initializer_list<int>{
       (l.template operator()<Ts>(), 0)...
     };
@@ -94,22 +94,22 @@ template <typename ...Ts> struct All<void, ZuTypeList<Ts...>> {
 
 template <> struct All<void, ZuSeq<>> {
   template <typename L>
-  constexpr static void fn(L) { }
+  static constexpr void fn(L) { }
 };
 
 template <> struct All<void, ZuTypeList<>> {
   template <typename L>
-  constexpr static void fn(L) { }
+  static constexpr void fn(L) { }
 };
 
 template <typename R> struct All<R, ZuSeq<>> {
   template <typename L>
-  constexpr static R fn(L) { return {}; }
+  static constexpr R fn(L) { return {}; }
 };
 
 template <typename R> struct All<R, ZuTypeList<>> {
   template <typename L>
-  constexpr static R fn(L) { return {}; }
+  static constexpr R fn(L) { return {}; }
 };
 
 #pragma GCC diagnostic pop

@@ -188,7 +188,7 @@ class ZrlAPI Cmd {
   enum Internal_ { Internal }; // disambiguator
 
 public:
-  constexpr static int16_t nullArg() { return -0x8000; }
+  static constexpr int16_t nullArg() { return -0x8000; }
   static bool nullArg(int16_t arg) { return arg == nullArg(); }
 
   Cmd() = default;

@@ -60,7 +60,7 @@ struct ZmRingFn_Defaults {
 // ZmRingFnHeapID - the heap ID
 template <auto HeapID_, typename NTP = ZmRingFn_Defaults>
 struct ZmRingFnHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 };
 
 // ZmRingFnSharded - sharded heap
@@ -73,13 +73,13 @@ struct ZmRingFnSharded : public NTP {
 template <typename NTP = ZmRingFn_Defaults, typename ...Args>
 class ZmRingFn_ {
   // 64bit pointer packing - uses bit 63 to indicate on-heap
-  constexpr static uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
+  static constexpr uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
 
   typedef unsigned (*InvokeFn)(void *ptr, Args...);
   typedef void (*MoveFn)(void *dst, void *src, bool onHeap);
   typedef uintptr_t (*AllocFn)(uintptr_t ptr);
 
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
 public:
@@ -212,8 +212,8 @@ private:
 template <typename Args, unsigned N = Args::N>
 struct ZmRingFn_MapArgs {
   // distinguish NTP from function signature
-  constexpr static ZuFalse match(...);
-  constexpr static ZuTrue match(ZmRingFn_Defaults *);
+  static constexpr ZuFalse match(...);
+  static constexpr ZuTrue match(ZmRingFn_Defaults *);
 
   using T =
     ZuIf<!N, ZmRingFn_<ZmRingFn_Defaults>,

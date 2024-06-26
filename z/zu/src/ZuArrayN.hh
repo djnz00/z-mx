@@ -369,7 +369,7 @@ public:
 
 // accessors
 
-  constexpr static unsigned size() { return N; }
+  static constexpr unsigned size() { return N; }
   unsigned length() const { return m_length; }
 
 // iteration

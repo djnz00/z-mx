@@ -101,7 +101,8 @@ using KeyResult = ZuUnion<
   KeyData,		// matching key
   Event>;		// error
 // key callback
-using KeyFn = ZmFn<void(KeyResult)>;	// app must process buf contents synchronously
+// - app must process buf contents synchronously
+using KeyFn = ZmFn<void(KeyResult)>;
 
 // row data
 struct RowData {

@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// simple fixed-size bitmap
+// fixed-size bitmap
 
 #ifndef ZuBitmap_HH
 #define ZuBitmap_HH
@@ -14,14 +14,76 @@
 #endif
 
 #include <zlib/ZuInt.hh>
+#include <zlib/ZuIterator.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuString.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuUnroll.hh>
 
-template <unsigned Bits_> class ZuBitmap {
+namespace ZuBitmap_ {
+
+template <typename Bitmap_, typename Bit_>
+class Iterator : public ZuIterator<Bitmap_, Bit_> {
+  using Base = ZuIterator<Bitmap_, Bit_>;
 public:
+  using Bitmap = Bitmap_;
+  using Bit = Bit_;
+  using Base::Base;
+  using Base::operator =;
+
+  Bit operator *() const;
+};
+
+template <typename Bitmap_>
+class Bit {
+public:
+  using Bitmap = Bitmap_;
+
+  Bit() = delete;
+  Bit(Bitmap &bitmap, unsigned i) : m_bitmap{bitmap}, m_i{i} { }
+  Bit(const Bit &) = default;
+  Bit &operator =(const Bit &) = default;
+  Bit(Bit &&) = default;
+  Bit &operator =(Bit &&) = default;
+
+  bool get() const;
+  void set();
+  void clr();
+
+  operator bool() const { return get(); }
+
+  Bit &operator =(bool v) { v ? set() : clr(); return *this; }
+
+  bool equals(const Bit &r) const { return get() == r.get(); }
+  int cmp(const Bit &r) const { return ZuCmp<bool>::cmp(get(), r.get()); }
+  friend inline bool
+  operator ==(const Bit &l, const Bit &r) { return l.equals(r); }
+  friend inline int
+  operator <=>(const Bit &l, const Bit &r) { return l.cmp(r); }
+
+  bool operator !() const { return !get(); }
+
+  // traits
+  struct Traits : public ZuTraits<bool> {
+    enum { IsPrimitive = 0, IsPOD = 0 };
+    using Elem = Bit;
+  };
+  friend Traits ZuTraitsType(Bit *);
+
+  // underlying type
+  friend bool ZuUnderType(Bit *);
+
+private:
+  Bitmap	&m_bitmap;
+  unsigned	m_i;
+};
+
+template <unsigned Bits_>
+class Bitmap {
+public:
+  using Bit = ZuBitmap_::Bit<Bitmap>;
+
   enum { Bits = ((Bits_ + 63) & ~63) };
   enum { Bytes = (Bits>>3) };
   enum { Shift = 6 };
@@ -29,43 +91,34 @@ public:
   enum { Words = (Bits>>Shift) };
   enum { Unroll = 8 };	// unroll small loops where N <= Unroll
 
-  ZuBitmap() { zero(); }
-  ZuBitmap(const ZuBitmap &b) { memcpy(data, b.data, Bytes); }
-  ZuBitmap &operator =(const ZuBitmap &b) {
+  Bitmap() { zero(); }
+  Bitmap(const Bitmap &b) { memcpy(data, b.data, Bytes); }
+  Bitmap &operator =(const Bitmap &b) {
     if (ZuLikely(this != &b)) memcpy(data, b.data, Bytes);
     return *this;
   }
-  ZuBitmap(ZuBitmap &&b) = default;
-  ZuBitmap &operator =(ZuBitmap &&b) = default;
+  Bitmap(Bitmap &&b) = default;
+  Bitmap &operator =(Bitmap &&b) = default;
 
-  ZuBitmap(ZuString s) { zero(); scan(s); }
+  Bitmap(ZuString s) { zero(); scan(s); }
 
-  ZuBitmap &zero() { memset(data, 0, Bytes); return *this; }
-  ZuBitmap &fill() { memset(data, 0xff, Bytes); return *this; }
+  Bitmap &zero() { memset(data, 0, Bytes); return *this; }
+  Bitmap &fill() { memset(data, 0xff, Bytes); return *this; }
 
   bool get(unsigned i) const {
     return data[i>>Shift] & (static_cast<uint64_t>(1)<<(i & Mask));
   }
-  ZuBitmap &set(unsigned i) {
+  Bitmap &set(unsigned i) {
     data[i>>Shift] |= (static_cast<uint64_t>(1)<<(i & Mask));
     return *this;
   }
-  ZuBitmap &clr(unsigned i) {
+  Bitmap &clr(unsigned i) {
     data[i>>Shift] &= ~(static_cast<uint64_t>(1)<<(i & Mask));
     return *this;
   }
 
-  struct Bit {
-    ZuBitmap	&bitmap;
-    unsigned	i;
-    operator bool() const { return bitmap.get(i); }
-    ZuOpBool
-    void set() { bitmap.set(i); }
-    void clr() { bitmap.clr(i); }
-    Bit &operator =(bool v) { v ? set() : clr(); return *this; }
-  };
   const Bit operator [](unsigned i) const {
-    return {*const_cast<ZuBitmap *>(this), i};
+    return {const_cast<Bitmap &>(*this), i};
   }
   Bit operator [](unsigned i) { return {*this, i}; }
 
@@ -83,7 +136,7 @@ public:
       for (unsigned i = 0; i < Words; i++) data[i] = ~data[i];
   }
 
-  ZuBitmap &operator |=(const ZuBitmap &b) {
+  Bitmap &operator |=(const Bitmap &b) {
     if constexpr (Words <= Unroll)
       ZuUnroll::all<Words>([this, &b](auto i) {
 	data[i] |= b.data[i];
@@ -92,7 +145,7 @@ public:
       for (unsigned i = 0; i < Words; i++) data[i] |= b.data[i];
     return *this;
   }
-  ZuBitmap &operator &=(const ZuBitmap &b) {
+  Bitmap &operator &=(const Bitmap &b) {
     if constexpr (Words <= Unroll)
       ZuUnroll::all<Words>([this, &b](auto i) {
 	data[i] &= b.data[i];
@@ -101,7 +154,7 @@ public:
       for (unsigned i = 0; i < Words; i++) data[i] &= b.data[i];
     return *this;
   }
-  ZuBitmap &operator ^=(const ZuBitmap &b) {
+  Bitmap &operator ^=(const Bitmap &b) {
     if constexpr (Words <= Unroll)
       ZuUnroll::all<Words>([this, &b](auto i) {
 	data[i] ^= b.data[i];
@@ -242,9 +295,36 @@ public:
     }
   }
 
-  friend ZuPrintFn ZuPrintType(ZuBitmap *);
+  friend ZuPrintFn ZuPrintType(Bitmap *);
+
+  using iterator = Iterator<Bitmap, Bit>;
+  using const_iterator = Iterator<const Bitmap, const Bit>;
+  const_iterator begin() const { return const_iterator{*this, 0}; }
+  const_iterator end() const { return const_iterator{*this, Bits}; }
+  const_iterator cbegin() const { return const_iterator{*this, 0}; }
+  const_iterator cend() const { return const_iterator{*this, Bits}; }
+  iterator begin() { return iterator{*this, 0}; }
+  iterator end() { return iterator{*this, Bits}; }
 
   uint64_t	data[Words];
 };
+
+template <typename Bitmap, typename Bit>
+inline Bit Iterator<Bitmap, Bit>::operator *() const {
+  return m_bitmap[m_i];
+}
+
+template <typename Bitmap>
+inline bool Bit<Bitmap>::get() const { return m_bitmap.get(m_i); }
+
+template <typename Bitmap>
+inline void Bit<Bitmap>::set() { m_bitmap.set(m_i); }
+
+template <typename Bitmap>
+inline void Bit<Bitmap>::clr() { m_bitmap.clr(m_i); }
+
+} // ZuBitmap_
+
+template <unsigned Bits> using ZuBitmap = ZuBitmap_::Bitmap<Bits>;
 
 #endif /* ZuBitmap_HH */

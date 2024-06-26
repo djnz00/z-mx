@@ -28,7 +28,7 @@ class ZmHeapLookup {
   using ReadGuard = ZmGuard<Lock>;
 
 public:
-  constexpr static unsigned hashSize() { return 8; }
+  static constexpr unsigned hashSize() { return 8; }
 
   using Hash = ZmLHashKV<uintptr_t, ZmHeapCache *, ZmLHashLocal<>>;
 

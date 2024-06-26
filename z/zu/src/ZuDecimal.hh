@@ -34,12 +34,12 @@ struct ZuDecimal {
 
   // null() is the sentinel value equivalent to NaN
 
-  constexpr static const int128_t minimum() { return -Pow10<36U>{} + 1; }
-  constexpr static const int128_t maximum() { return Pow10<36U>{} - 1; }
-  constexpr static const int128_t reset()   { return -Pow10<36U>{}; }
-  constexpr static const int128_t null()    { return int128_t(1)<<127; }
-  constexpr static const uint64_t scale()   { return Pow10<18U>{}; } // 10^18
-  constexpr static const ldouble scale_fp() { // 10^18 as long double
+  static constexpr const int128_t minimum() { return -Pow10<36U>{} + 1; }
+  static constexpr const int128_t maximum() { return Pow10<36U>{} - 1; }
+  static constexpr const int128_t reset()   { return -Pow10<36U>{}; }
+  static constexpr const int128_t null()    { return int128_t(1)<<127; }
+  static constexpr const uint64_t scale()   { return Pow10<18U>{}; } // 10^18
+  static constexpr const ldouble scale_fp() { // 10^18 as long double
     return 1000000000000000000.0L;
   }
 
@@ -633,17 +633,17 @@ inline ZuDecimalVFmt ZuDecimal::vfmt(VFmt &&fmt) const {
 
 template <> struct ZuCmp<ZuDecimal> {
   template <typename L, typename R>
-  constexpr static int cmp(const L &l, const R &r) { return l.cmp(r); }
+  static constexpr int cmp(const L &l, const R &r) { return l.cmp(r); }
   template <typename L, typename R>
-  constexpr static bool equals(const L &l, const R &r) { return l == r; }
+  static constexpr bool equals(const L &l, const R &r) { return l == r; }
   template <typename L, typename R>
-  constexpr static bool less(const L &l, const R &r) { return l < r; }
-  constexpr static bool null(const ZuDecimal &v) { return !*v; }
-  constexpr static ZuDecimal null() { return {}; }
-  constexpr static ZuDecimal minimum() {
+  static constexpr bool less(const L &l, const R &r) { return l < r; }
+  static constexpr bool null(const ZuDecimal &v) { return !*v; }
+  static constexpr ZuDecimal null() { return {}; }
+  static constexpr ZuDecimal minimum() {
     return {ZuDecimal::Unscaled{ZuDecimal::minimum()}};
   }
-  constexpr static ZuDecimal maximum() {
+  static constexpr ZuDecimal maximum() {
     return {ZuDecimal::Unscaled{ZuDecimal::maximum()}};
   }
 };

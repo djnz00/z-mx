@@ -104,14 +104,14 @@ public:
   bool isspace_(unsigned off) const { return isspace__(m_data[off]); }
 
 private:
-  constexpr static bool isword__(char c) {
+  static constexpr bool isword__(char c) {
     return
       (c >= '0' && c <= '9') ||
       (c >= 'a' && c <= 'z') ||
       (c >= 'A' && c <= 'Z') ||
       c == '_';
   }
-  constexpr static bool isspace__(char c) {
+  static constexpr bool isspace__(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
   }
   template <typename L>

@@ -179,7 +179,7 @@ struct ZuAPI ZuUTF32 {
     return 1;
   }
 
-  constexpr static unsigned out(uint32_t) { return 1; }
+  static constexpr unsigned out(uint32_t) { return 1; }
 
   static unsigned out(uint32_t *s, unsigned n, uint32_t u) {
     if (ZuUnlikely(n < 1)) return 0;
@@ -199,8 +199,8 @@ template <> struct ZuUTF_<4> { using T = ZuUTF32; };
 
 // encodes an input length, an output length and a display width into 64bits
 class ZuUTFSpan {
-  constexpr static unsigned shift() { return 21; }
-  constexpr static unsigned mask() { return ((1<<shift()) - 1); }
+  static constexpr unsigned shift() { return 21; }
+  static constexpr unsigned mask() { return ((1<<shift()) - 1); }
 
 public:
   ZuUTFSpan() = default;

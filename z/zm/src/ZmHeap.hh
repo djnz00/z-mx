@@ -342,7 +342,7 @@ template <auto, unsigned, bool> friend class ZmHeap__;
 template <auto ID_, unsigned Size_, bool Sharded_>
 class ZmHeap__ {
 public:
-  constexpr static auto HeapID = ID_;
+  static constexpr auto HeapID = ID_;
   enum { AllocSize = ZmHeapAllocSize<Size_>::N };
   enum { Sharded = Sharded_ };
 

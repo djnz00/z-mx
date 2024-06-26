@@ -61,8 +61,8 @@ class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, false> :
     public NodeExt {
 public:
   using T = T_;
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
+  static constexpr auto ValAxor = ValAxor_;
   using U = ZuDecay<T>;
 
   ZmNode_() = default;
@@ -110,8 +110,8 @@ class ZmNode_<T_, KeyAxor_, ValAxor_, Base_, NodeExt, Heap, true> :
 
 public:
   using T = T_;
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
+  static constexpr auto ValAxor = ValAxor_;
   using U = ZuDecay<T>;
 
   using Base::Base;

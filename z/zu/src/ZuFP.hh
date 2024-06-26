@@ -73,8 +73,8 @@ template <> struct ZuFP__<long double> {
 
 // CRTP mixin
 template <class FP, typename T> struct ZuFP_ : public ZuFP__<T> {
-  ZuInline constexpr static T inf() { return static_cast<T>(INFINITY); }
-  ZuInline constexpr static bool inf(T v) { return v == inf(); }
+  ZuInline static constexpr T inf() { return static_cast<T>(INFINITY); }
+  ZuInline static constexpr bool inf(T v) { return v == inf(); }
   ZuInline static T epsilon(T v) {
     if (ZuUnlikely(FP::nan(v))) return v;
     if (ZuUnlikely(FP::inf(v))) return v;
@@ -92,7 +92,7 @@ struct ZuFP<T, 2U> : public ZuFP_<ZuFP<T, 2U>, T> { // 10+5
     const T *ZuMayAlias(i_) = reinterpret_cast<const T *>(&i);
     return *i_;
   }
-  ZuInline constexpr static bool nan(T v) {
+  ZuInline static constexpr bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
   ZuInline static T epsilon_(T v) {
@@ -113,8 +113,8 @@ struct ZuFP<T, 4U> : public ZuFP_<ZuFP<T, 4U>, T> { // 23+8
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return ZuIntrin::nan<float>(); }
-  ZuInline constexpr static bool nan(T v) {
+  ZuInline static constexpr T nan() { return ZuIntrin::nan<float>(); }
+  ZuInline static constexpr bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
   ZuInline static T epsilon_(T v) {
@@ -135,8 +135,8 @@ struct ZuFP<T, 8U> : public ZuFP_<ZuFP<T, 8U>, T> { // 52+11
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return ZuIntrin::nan<double>(); }
-  ZuInline constexpr static bool nan(T v) {
+  ZuInline static constexpr T nan() { return ZuIntrin::nan<double>(); }
+  ZuInline static constexpr bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
   ZuInline static T epsilon_(T v) {
@@ -178,8 +178,8 @@ struct ZuFP<T, 12U> : public ZuFP_64<ZuFP<T, 12U>, T> { // 64+15 (12 bytes)
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return ZuIntrin::nan<long double>(); }
-  ZuInline constexpr static bool nan(T v) {
+  ZuInline static constexpr T nan() { return ZuIntrin::nan<long double>(); }
+  ZuInline static constexpr bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
 };
@@ -192,8 +192,8 @@ struct ZuFP<T, 16U> : public ZuFP_64<ZuFP<T, 16U>, T> { // 64+15 (16 bytes)
     return *i_;
   }
 #endif
-  ZuInline constexpr static T nan() { return ZuIntrin::nan<long double>(); }
-  ZuInline constexpr static bool nan(T v) {
+  ZuInline static constexpr T nan() { return ZuIntrin::nan<long double>(); }
+  ZuInline static constexpr bool nan(T v) {
     return isnan(static_cast<double>(v));
   }
 };

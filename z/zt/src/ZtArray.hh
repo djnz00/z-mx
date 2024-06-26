@@ -64,7 +64,7 @@ struct ZtArrayCmp : public NTP {
 // ZtArrayHeapID - the heap ID
 template <auto HeapID_, typename NTP = ZtArray_Defaults>
 struct ZtArrayHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
 };
 
 template <typename T, typename NTP> class ZtArray;
@@ -88,7 +88,7 @@ class ZtArray :
 public:
   using T = T_;
   using Cmp = typename NTP::template CmpT<T>;
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto HeapID = NTP::HeapID;
 
   using Ops = ZuArrayFn<T, Cmp>;
 

@@ -1729,7 +1729,7 @@ bool Editor::cmdUndo(Cmd, int32_t vkey)
   bool first = true;
   bool append = !commandMode();
   do {
-    if (auto undoOp = m_context.undo.val(--m_context.undoIndex)) {
+    if (auto undoOp = m_context.undo.ptr(--m_context.undoIndex)) {
       if (!first && undoOp->last) {
 	++m_context.undoIndex;
 	break;
@@ -1755,7 +1755,7 @@ bool Editor::cmdRedo(Cmd cmd, int32_t vkey)
   if (m_context.undoIndex < 0) return cmdRedraw(cmd, vkey);
   bool append = !commandMode();
   do {
-    if (auto undoOp = m_context.undo.val(m_context.undoIndex++)) {
+    if (auto undoOp = m_context.undo.ptr(m_context.undoIndex++)) {
       m_tty.mv(m_tty.line().byte(undoOp->spliceOff).mapping());
       splice_(undoOp->spliceOff,
 	  ZuUTF<uint32_t, uint8_t>::span(undoOp->oldData),
@@ -1771,7 +1771,7 @@ bool Editor::cmdRedo(Cmd cmd, int32_t vkey)
     m_context.undoPos = -1;
   } else {
     unsigned pos;
-    if (auto undoOp = m_context.undo.val(m_context.undoIndex))
+    if (auto undoOp = m_context.undo.ptr(m_context.undoIndex))
       pos = undoOp->oldPos;
     else
       pos = m_tty.pos();
@@ -1801,14 +1801,14 @@ bool Editor::cmdRepeat(Cmd cmd, int32_t vkey)
   unsigned i = m_context.undoNext;
   bool last = false;
   do {
-    if (auto undoOp = m_context.undo.val(--i))
+    if (auto undoOp = m_context.undo.ptr(--i))
       last = undoOp->last;
     else
       last = true;
   } while (!last && i > 0);
   last = false;
   do {
-    if (auto undoOp = m_context.undo.val(i)) {
+    if (auto undoOp = m_context.undo.ptr(i)) {
       last = undoOp->last;
       splice(m_tty.line().position(m_tty.pos()).mapping(),
 	  ZuUTF<uint32_t, uint8_t>::span(undoOp->oldData),

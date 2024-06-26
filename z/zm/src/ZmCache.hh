@@ -25,7 +25,7 @@
 // NTP defaults
 struct ZmCache_Defaults : public ZmHash_Defaults {
   static const char *HeapID() { return "ZmCache"; }
-  constexpr static auto ID = HeapID;
+  static constexpr auto ID = HeapID;
   enum { Evict = 1 };
 };
 
@@ -80,8 +80,8 @@ private:
 
 public:
   using Key = typename Hash::Key;
-  constexpr static auto ID = Hash::ID;
-  constexpr static auto HeapID = Hash::HeapID;
+  static constexpr auto ID = Hash::ID;
+  static constexpr auto HeapID = Hash::HeapID;
 
   using Node = typename Hash::Node;
   using NodeRef = typename Hash::NodeRef;
@@ -313,7 +313,7 @@ private:
   struct NodeRefFn<Node *> {
     using NodeRef = Node *;
     static void ctor(NodeRef *ptr, NodeRef ref) { *ptr = ref; }
-    constexpr static void dtor(NodeRef &) { }
+    static constexpr void dtor(NodeRef &) { }
   };
   template <bool Delete, bool Sync, typename L>
   void all__(L l, NodeRef *buf, unsigned n) {

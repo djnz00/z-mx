@@ -34,32 +34,39 @@ using CloseFn = ZmFn<>;
 
 using PromptFn = ZmFn<void(ZtArray<uint8_t> &)>;
 
-using EnterFn = ZmFn<void(ZuString)>;
+using EnterFn = ZmFn<bool(ZuString)>;
 using EndFn = ZmFn<>;
-using SigFn = ZmFn<void(int)>;
+using SigFn = ZmFn<bool(int)>;
 
-using CompSpliceFn = ZmFn<void(unsigned, // off     - byte offset
-  ZuUTFSpan, // span    - UTF8 span to be replaced
-  ZuArray<const uint8_t>, // replace - replacement data
+using CompSpliceFn = ZmFn<void(	// splice completion
+  unsigned,			// off     - byte offset
+  ZuUTFSpan,			// span    - UTF8 span to be replaced
+  ZuArray<const uint8_t>,	// replace - replacement data
   ZuUTFSpan)>;			// rspan   - UTF8 span of replacement
-using CompIterFn = ZmFn<void(ZuArray<const uint8_t>, // data    - completion data
+
+using CompIterFn = ZmFn<void(	// iterate completion
+  ZuArray<const uint8_t>,	// data    - completion data
   ZuUTFSpan)>;			// span    - UTF8 span of completion
 
-using CompInitFn = ZmFn<void(// initialize completion
-  ZuArray<const uint8_t>, // data    - line data (entire line)
-  unsigned, // cursor  - byte offset of cursor
+using CompInitFn = ZmFn<void(	// initialize completion
+  ZuArray<const uint8_t>,	// data    - line data (entire line)
+  unsigned,			// cursor  - byte offset of cursor
   CompSpliceFn)>;		// splice  - line splice function
-using CompStartFn = ZmFn<>;		// re-start iteration
-using CompSubstFn = ZmFn<void(// substitute next/prev completion
-  CompSpliceFn, // splice  - line splice function
+
+using CompStartFn = ZmFn<>;	// re-start iteration
+
+using CompSubstFn = ZmFn<bool(	// substitute next/prev completion
+  CompSpliceFn,			// splice  - line splice function
   bool)>;			// next    - true for next, false for previous
-using CompNextFn = ZmFn<void(CompIterFn)>;	// iterate next completion
+
+using CompNextFn = ZmFn<bool(CompIterFn)>; // iterate next completion
+
 using CompFinalFn = ZmFn<>;		// finalize completion
 
 using HistFn = ZmFn<void(ZuArray<const uint8_t>)>;
 
 using HistSaveFn = ZmFn<void(unsigned, ZuArray<const uint8_t>)>;
-using HistLoadFn = ZmFn<void(unsigned, HistFn)>;
+using HistLoadFn = ZmFn<bool(unsigned, HistFn)>;
 
 struct App {
   ErrorFn	error;		// I/O error

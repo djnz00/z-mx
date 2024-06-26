@@ -120,7 +120,7 @@ namespace Zu_ntoa {
   };
   template <> struct Log10<4> {
     static unsigned log(unsigned v) {
-      constexpr static uint8_t clz10[] = {
+      static constexpr uint8_t clz10[] = {
 	20, 20, 19, 18, 18, 17, 16, 16, 15, 14,
 	14, 14, 13, 12, 12, 11, 10, 10,  9,  8,
 	 8,  8,  7,  6,  6,  5,  4,  4,  3,  2,
@@ -144,7 +144,7 @@ namespace Zu_ntoa {
   template <> struct Log10<2> : public Log10<4> { };
   template <> struct Log10<8> {
     static unsigned log(uint64_t v) {
-      constexpr static uint8_t clz10[] = {
+      static constexpr uint8_t clz10[] = {
 	39, 38, 38, 38, 37, 36, 36, 35, 34, 34,
 	33, 32, 32, 32, 31, 30, 30, 29, 28, 28,
 	27, 26, 26, 26, 25, 24, 24, 23, 22, 22,
@@ -195,7 +195,7 @@ namespace Zu_ntoa {
   struct Log10FP {
     template <unsigned Bits>
     static unsigned log(uint64_t v) {
-      constexpr static uint8_t clz10[] = {
+      static constexpr uint8_t clz10[] = {
 	 2,  2,  2,  3,  4,  4,  5,  6,  6,  7,
 	 8,  8,  8,  9, 10, 10, 11, 12, 12, 13,
 	14, 14, 14, 15, 16, 16, 17, 18, 18, 19,
@@ -391,13 +391,13 @@ namespace Zu_ntoa {
   // hexadecimal handling for each log16 0..16
   template <bool Upper>
   ZuInline static ZuIfT<Upper, char> hexDigit(unsigned v) {
-    constexpr static const char digits[] = "0123456789ABCDEF";
+    static constexpr const char digits[] = "0123456789ABCDEF";
     return digits[v];
     // return v < 10 ? v + '0' : v - 10 + 'A';
   }
   template <bool Upper>
   ZuInline static ZuIfT<!Upper, char> hexDigit(unsigned v) {
-    constexpr static const char digits[] = "0123456789abcdef";
+    static constexpr const char digits[] = "0123456789abcdef";
     return digits[v];
     // return v < 10 ? v + '0' : v - 10 + 'a';
   }
@@ -461,20 +461,20 @@ namespace Zu_ntoa {
   template <bool Hex, char Comma, bool Alt> struct Len;
   template <bool Alt>
   struct Len<0, '\0', Alt> {
-    ZuInline constexpr static unsigned len(unsigned n) { return n; }
+    ZuInline static constexpr unsigned len(unsigned n) { return n; }
   };
   template <char Comma, bool Alt>
   struct Len<0, Comma, Alt> {
-    ZuInline constexpr static unsigned len(unsigned n)
+    ZuInline static constexpr unsigned len(unsigned n)
       { return n + ((n - 1U)/3U); }
   };
   template <char Comma>
   struct Len<1, Comma, 0> {
-    ZuInline constexpr static unsigned len(unsigned n) { return n; }
+    ZuInline static constexpr unsigned len(unsigned n) { return n; }
   };
   template <char Comma>
   struct Len<1, Comma, 1> {
-    ZuInline constexpr static unsigned len(unsigned n) { return 2 + n; }
+    ZuInline static constexpr unsigned len(unsigned n) { return 2 + n; }
   };
 
   // length of a printed value given a compile-time log (including padding)
@@ -522,10 +522,10 @@ namespace Zu_ntoa {
 
   template <unsigned Width, bool Truncate> struct Print_LeftLen;
   template <unsigned Width> struct Print_LeftLen<Width, 0> {
-    ZuInline constexpr static unsigned len(unsigned) { return Width; }
+    ZuInline static constexpr unsigned len(unsigned) { return Width; }
   };
   template <unsigned Width> struct Print_LeftLen<Width, 1> {
-    ZuInline constexpr static unsigned len(unsigned n) { return n; }
+    ZuInline static constexpr unsigned len(unsigned n) { return n; }
   };
   template <bool Hex, char Comma, bool Upper, bool Alt,
     char Pad, unsigned Width, bool Negative>
@@ -781,9 +781,9 @@ struct Zu_nprint {
   using Log = Zu_ntoa::LogN<Fmt::Hex_, sizeof(T)>;
 
   template <typename T>
-  constexpr static unsigned ulen() { return MaxLen<0, T>::N; }
+  static constexpr unsigned ulen() { return MaxLen<0, T>::N; }
   template <typename T>
-  constexpr static unsigned ulen(T) { return MaxLen<0, T>::N; }
+  static constexpr unsigned ulen(T) { return MaxLen<0, T>::N; }
   template <typename T>
   static unsigned utoa(T v_, char *buf) {
     typename Zu_ntoa::Unsigned<T> v = v_;
@@ -791,9 +791,9 @@ struct Zu_nprint {
   }
 
   template <typename T>
-  constexpr static unsigned ilen() { return MaxLen<1, T>::N; }
+  static constexpr unsigned ilen() { return MaxLen<1, T>::N; }
   template <typename T>
-  constexpr static unsigned ilen(T) { return MaxLen<1, T>::N; }
+  static constexpr unsigned ilen(T) { return MaxLen<1, T>::N; }
   template <typename T>
   static unsigned itoa(T v_, char *buf) {
     unsigned n;
@@ -811,11 +811,11 @@ struct Zu_nprint {
 
   // 20 integer digits with commas, with negative and .0, gives 26+3 = 29
   template <typename T>
-  constexpr static unsigned flen() {
+  static constexpr unsigned flen() {
     return 29U + (Fmt::Trim_ ? (Fmt::NDP_ > 1 ? (Fmt::NDP_ - 1) : 0) : 0);
   }
   template <typename T>
-  constexpr static unsigned flen(T) {
+  static constexpr unsigned flen(T) {
     return flen<T>();
   }
   template <typename T>
@@ -825,13 +825,13 @@ struct Zu_nprint {
 };
 template <unsigned NDP> struct Zu_nprint_frac_ {
   template <typename T>
-  constexpr static unsigned ulen() { return NDP; }
+  static constexpr unsigned ulen() { return NDP; }
   template <typename T>
-  constexpr static unsigned ulen(T) { return NDP; }
+  static constexpr unsigned ulen(T) { return NDP; }
   template <typename T>
-  constexpr static unsigned ilen() { return NDP; }
+  static constexpr unsigned ilen() { return NDP; }
   template <typename T>
-  constexpr static unsigned ilen(T) { return NDP; }
+  static constexpr unsigned ilen(T) { return NDP; }
 };
 template <unsigned Width, unsigned NDP, char Trim>
 struct Zu_nprint_frac : public Zu_nprint_frac_<NDP> {

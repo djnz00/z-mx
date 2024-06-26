@@ -131,7 +131,7 @@ protected:
 
 public:
   unsigned bits() const { return m_bits; }
-  constexpr static unsigned cBits() { return 0; }
+  static constexpr unsigned cBits() { return 0; }
 
 protected:
   void bits(unsigned u) { m_bits = u; }
@@ -160,8 +160,8 @@ private:
 
 // NTP defaults
 struct ZmHash_Defaults {
-  constexpr static auto KeyAxor = ZuDefaultAxor();
-  constexpr static auto ValAxor = ZuDefaultAxor();
+  static constexpr auto KeyAxor = ZuDefaultAxor();
+  static constexpr auto ValAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
@@ -169,21 +169,21 @@ struct ZmHash_Defaults {
   using Node = ZuNull;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmHash"; }
-  constexpr static auto ID = HeapID;
+  static constexpr auto ID = HeapID;
   enum { Sharded = 0 };
 };
 
 // ZmHashKey - key accessor
 template <auto KeyAxor_, typename NTP = ZmHash_Defaults>
 struct ZmHashKey : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
 };
 
 // ZmHashKeyVal - key and optional value accessors
 template <auto KeyAxor_, auto ValAxor_, typename NTP = ZmHash_Defaults>
 struct ZmHashKeyVal : public NTP {
-  constexpr static auto KeyAxor = KeyAxor_;
-  constexpr static auto ValAxor = ValAxor_;
+  static constexpr auto KeyAxor = KeyAxor_;
+  static constexpr auto ValAxor = ValAxor_;
 };
 
 // ZmHashCmp - the comparator
@@ -220,24 +220,24 @@ struct ZmHashNode : public NTP {
 template <bool Shadow_, typename NTP = ZmHash_Defaults>
 struct ZmHashShadow : public NTP {
   enum { Shadow = Shadow_ };
-  constexpr static auto HeapID = ZmHeapDisable();
+  static constexpr auto HeapID = ZmHeapDisable();
 };
 
 // ZmHashHeapID - the heap ID
 template <auto HeapID_, typename NTP = ZmHash_Defaults>
 struct ZmHashHeapID : public NTP {
-  constexpr static auto HeapID = HeapID_;
-  constexpr static auto ID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
+  static constexpr auto ID = HeapID_;
 };
 template <typename NTP>
 struct ZmHashHeapID<ZmHeapDisable(), NTP> : public NTP {
-  constexpr static auto HeapID = ZmHeapDisable();
+  static constexpr auto HeapID = ZmHeapDisable();
 };
 
 // ZmHashID - the hash ID (if the heap ID is shared)
 template <auto ID_, typename NTP = ZmHash_Defaults>
 struct ZmHashID : public NTP {
-  constexpr static auto ID = ID_;
+  static constexpr auto ID = ID_;
 };
 
 // ZmHashSharded - sharded heap
@@ -259,8 +259,8 @@ class ZmHash :
     public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
 public:
   using T = T_;
-  constexpr static auto KeyAxor = NTP::KeyAxor;
-  constexpr static auto ValAxor = NTP::ValAxor;
+  static constexpr auto KeyAxor = NTP::KeyAxor;
+  static constexpr auto ValAxor = NTP::ValAxor;
   using KeyRet = decltype(KeyAxor(ZuDeclVal<const T &>()));
   using ValRet = decltype(ValAxor(ZuDeclVal<const T &>()));
   using Key = ZuRDecay<KeyRet>;
@@ -271,8 +271,8 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
-  constexpr static auto ID = NTP::ID;
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto ID = NTP::ID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
 private:

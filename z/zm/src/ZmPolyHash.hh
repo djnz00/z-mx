@@ -30,7 +30,7 @@ struct ZmPolyHash_Defaults {
   using Lock = ZmNoLock;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmPolyHash"; }
-  constexpr static auto ID = HeapID;
+  static constexpr auto ID = HeapID;
   enum { Sharded = 0 };
 };
 
@@ -59,8 +59,8 @@ public:
   using T = T_;
   using Lock = typename NTP::Lock;
   enum { Shadow = NTP::Shadow };
-  constexpr static auto ID = NTP::ID;
-  constexpr static auto HeapID = NTP::HeapID;
+  static constexpr auto ID = NTP::ID;
+  static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
 private:

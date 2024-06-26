@@ -48,7 +48,6 @@
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuInt.hh>
-#include <zlib/ZuBitmap.hh>
 
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmRef.hh>

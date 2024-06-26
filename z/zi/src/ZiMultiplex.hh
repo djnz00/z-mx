@@ -715,7 +715,7 @@ friend ZiConnection;
 
 #if ZiMultiplex__AcceptHeap
   // heap-allocated asynchronous accept, exclusively used by IOCP
-  constexpr static const char *Accept_HeapID() { return "ZiMultiplex.Accept"; }
+  static constexpr const char *Accept_HeapID() { return "ZiMultiplex.Accept"; }
   template <typename> class Accept_;
 template <typename> friend class Accept_;
   template <typename Heap> class Accept_ : public Heap {
@@ -750,7 +750,7 @@ template <typename> friend class Accept_;
 #endif
 
   // heap-allocated non-blocking / asynchronous connect
-  constexpr static const char *Connect_HeapID() { return "ZiMultiplex.Connect"; }
+  static constexpr const char *Connect_HeapID() { return "ZiMultiplex.Connect"; }
 #if ZiMultiplex__ConnectHash
   class Connect_ : public ZuObject
 #else

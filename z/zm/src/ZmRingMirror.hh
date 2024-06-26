@@ -34,10 +34,10 @@ public:
 private:
 #ifndef _WIN32
   using Handle = int;
-  constexpr static Handle nullHandle() { return -1; }
+  static constexpr Handle nullHandle() { return -1; }
 #else
   using Handle = HANDLE;
-  constexpr static Handle nullHandle() { return INVALID_HANDLE_VALUE; }
+  static constexpr Handle nullHandle() { return INVALID_HANDLE_VALUE; }
 #endif
 
   Handle		m_handle = nullHandle();

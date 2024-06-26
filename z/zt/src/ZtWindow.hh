@@ -13,57 +13,88 @@
 #include <zlib/ZtLib.hh>
 #endif
 
+#include <zlib/ZuIterator.hh>
+
 #include <zlib/ZtArray.hh>
 
-template <typename T_> struct ZtWindow {
+namespace ZtWindow_ {
+
+template <typename Window_, typename Elem_>
+class Iterator : public ZuIterator<Window_, Elem_> {
+  using Base = ZuIterator<Window_, Elem_>;
+public:
+  using Window = Window_;
+  using Base::Base;
+  using Base::operator =;
+
+  Elem operator *() const;
+};
+
+template <typename Window_>
+class Elem {
+public:
+  using Window = Window_;
+  using T = typename Window::T;
+
+  Elem() = delete;
+  Elem(Window &window, unsigned i) : m_window{window}, m_i{i} { }
+  Elem(const Elem &) = default;
+  Elem &operator =(const Elem &) = default;
+  Elem(Elem &&) = default;
+  Elem &operator =(Elem &&) = default;
+
+  const T &get() const;
+
+  operator const T &() const { return get(); }
+
+  void set(T v);
+
+  Elem &operator =(T v);
+
+  bool equals(const Elem &r) const { return get() == r.get(); }
+  int cmp(const Elem &r) const { return ZuCmp<T>::cmp(get(), r.get()); }
+  friend inline bool
+  operator ==(const Elem &l, const Elem &r) { return l.equals(r); }
+  friend inline int
+  operator <=>(const Elem &l, const Elem &r) { return l.cmp(r); }
+
+  bool operator !() const { return !get(); }
+
+  // traits
+  using Traits = ZuWrapTraits<Elem, T>;
+  friend Traits ZuTraitsType(Elem *);
+
+  // underlying type
+  friend T ZuUnderType(Elem *);
+
+private:
+  Window	&m_window;
+  unsigned	m_i;
+};
+
+template <typename T_>
+struct Window {
 public:
   using T = T_;
+  using Elem = ZtWindow_::Elem<Window>;
 
-  ZtWindow() = default;
-  ZtWindow(const ZtWindow &) = default;
-  ZtWindow &operator =(const ZtWindow &) = default;
-  ZtWindow(ZtWindow &&) = default;
-  ZtWindow &operator =(ZtWindow &&) = default;
+  Window() = default;
+  Window(const Window &) = default;
+  Window &operator =(const Window &) = default;
+  Window(Window &&) = default;
+  Window &operator =(Window &&) = default;
 
-  ZtWindow(unsigned max) : m_max{max} { }
+  Window(unsigned max) : m_max{max} { }
 
   void clear() {
     m_offset = 0;
     m_data = {};
   }
 
-  class ElemRO {
-  public:
-    ElemRO(const ZtWindow &window, int index) :
-	m_window{window}, m_index{index} { }
-
-    operator const T *() const {
-      if (ZuUnlikely(m_index < 0)) return nullptr;
-      return m_window.val(m_index);
-    }
-    T *operator ->() const {
-      if (ZuUnlikely(m_index < 0)) return nullptr;
-      return m_window.val(m_index);
-    }
-
-  protected:
-    const ZtWindow	&m_window;
-    int			m_index;
-  };
-  class Elem : public ElemRO {
-    using ElemRO::m_window;
-    using ElemRO::m_index;
-  public:
-    Elem(const ZtWindow &window, unsigned index) : ElemRO{window, index} { }
-
-    Elem &operator =(T v) {
-      if (ZuUnlikely(m_index < 0)) return *this;
-      const_cast<ZtWindow &>(m_window).set(m_index, ZuMv(v));
-      return *this;
-    }
-  };
-  ElemRO operator [](unsigned i) const { return {this, i}; }
-  Elem operator [](unsigned i) { return {this, i}; }
+  const Elem operator [](unsigned i) const {
+    return {const_cast<Window &>(*this), i};
+  }
+  Elem operator [](unsigned i) { return {*this, i}; }
 
   void set(unsigned i, T v) {
     if (i < m_offset) return;
@@ -89,12 +120,25 @@ public:
     m_data[j] = ZuMv(v);
   }
 
-  void clr(int i) { if ((i = index(i)) >= 0) m_data[i] = {}; }
+  void clr(unsigned i) { if ((i = index(i)) >= 0) m_data[i] = {}; }
 
-  const T *val(int i) const {
+  const T *ptr(unsigned i) const {
     if ((i = index(i)) < 0 || !m_data[i]) return nullptr;
     return &m_data[i];
   }
+
+  using iterator = Iterator<Window, Elem>;
+  using const_iterator = Iterator<const Window, const Elem>;
+  const_iterator begin() const { return const_iterator{*this, m_offset}; }
+  const_iterator end() const {
+    return const_iterator{*this, m_offset + m_max};
+  }
+  const_iterator cbegin() const { return const_iterator{*this, m_offset}; }
+  const_iterator cend() const {
+    return const_iterator{*this, m_offset + m_max};
+  }
+  iterator begin() { return iterator{*this, 0}; }
+  iterator end() { return iterator{*this, m_offset + m_max}; }
 
 private:
   int index(unsigned i) const {
@@ -108,5 +152,25 @@ private:
   unsigned	m_offset = 0;
   unsigned	m_max = 100;
 };
+
+template <typename Window, typename Elem>
+inline Elem Iterator<Window, Elem>::operator *() const {
+  return m_window[m_i];
+}
+
+template <typename Window>
+inline const typename Elem<Window>::T &Elem<Window>::get() const {
+  if (auto ptr = m_window.ptr(m_i)) return *ptr;
+  return ZuNullRef<T>();
+}
+
+template <typename Window>
+inline void Elem<Window>::set(T v) {
+  m_window.set(m_i, ZuMv(v));
+}
+
+} // ZtWindow_
+
+template <typename T> using ZtWindow = ZtWindow_::Window<T>;
 
 #endif /* ZtWindow_HH */

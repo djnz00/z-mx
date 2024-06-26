@@ -322,15 +322,15 @@ inline ZuFixed_VFmt ZuFixed::vfmt(VFmt &&fmt) const {
 
 template <> struct ZuCmp<ZuFixed> {
   template <typename L, typename R>
-  constexpr static int cmp(const L &l, const R &r) { return l.cmp(r); }
+  static constexpr int cmp(const L &l, const R &r) { return l.cmp(r); }
   template <typename L, typename R>
-  constexpr static bool equals(const L &l, const R &r) { return l == r; }
+  static constexpr bool equals(const L &l, const R &r) { return l == r; }
   template <typename L, typename R>
-  constexpr static bool less(const L &l, const R &r) { return l < r; }
-  constexpr static bool null(const ZuFixed &v) { return !*v; }
-  constexpr static ZuFixed null() { return {}; }
-  constexpr static ZuFixed minimum() { return {ZuFixedMin, 0}; }
-  constexpr static ZuFixed maximum() { return {ZuFixedMax, 0}; }
+  static constexpr bool less(const L &l, const R &r) { return l < r; }
+  static constexpr bool null(const ZuFixed &v) { return !*v; }
+  static constexpr ZuFixed null() { return {}; }
+  static constexpr ZuFixed minimum() { return {ZuFixedMin, 0}; }
+  static constexpr ZuFixed maximum() { return {ZuFixedMax, 0}; }
 };
 
 #endif /* ZuFixed_HH */

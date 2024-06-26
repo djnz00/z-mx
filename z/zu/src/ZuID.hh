@@ -145,13 +145,13 @@ private:
 // override ZuCmp to prevent default string-based comparison
 template <> struct ZuCmp<ZuID> {
   template <typename L, typename R>
-  constexpr static int cmp(const L &l, const R &r) { return l.cmp(r); }
+  static constexpr int cmp(const L &l, const R &r) { return l.cmp(r); }
   template <typename L, typename R>
-  constexpr static bool equals(const L &l, const R &r) { return l == r; }
+  static constexpr bool equals(const L &l, const R &r) { return l == r; }
   template <typename L, typename R>
-  constexpr static bool less(const L &l, const R &r) { return l < r; }
-  constexpr static bool null(ZuID id) { return !id; }
-  constexpr static ZuID null() { return {}; }
+  static constexpr bool less(const L &l, const R &r) { return l < r; }
+  static constexpr bool null(ZuID id) { return !id; }
+  static constexpr ZuID null() { return {}; }
 };
 
 #endif /* ZuID_HH */

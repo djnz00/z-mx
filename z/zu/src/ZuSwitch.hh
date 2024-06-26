@@ -42,7 +42,7 @@ namespace ZuSwitch {
 template <typename R, typename Seq> struct Dispatch;
 template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
   template <typename L>
-  constexpr static void fn(unsigned i, L l) {
+  static constexpr void fn(unsigned i, L l) {
     std::initializer_list<int>{
       (i == I ? l(ZuUnsigned<I>{}), 0 : 0)...
     };
@@ -50,7 +50,7 @@ template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
 };
 template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
   template <typename L>
-  constexpr static R fn(unsigned i, L l) {
+  static constexpr R fn(unsigned i, L l) {
     R r = {};
     std::initializer_list<int>{
       (i == I ? (r = l(ZuUnsigned<I>{})), 0 : 0)...

@@ -18,64 +18,19 @@
 #include <iterator>
 
 #include <zlib/ZuFmt.hh>
+#include <zlib/ZuIterator.hh>
 
 namespace ZuMArray_ {
 
 template <typename Array_, typename Elem_>
-class Iterator {
+class Iterator : public ZuIterator<Array_, Elem_> {
+  using Base = ZuIterator<Array_, Elem_>;
 public:
   using Array = Array_;
-  using Elem = Elem_;
-  using iterator_category = std::bidirectional_iterator_tag;
-  using value_type = Elem;
-  using difference_type = ptrdiff_t;
-  using pointer = Elem *;
-  using reference = Elem &;
-
-  Iterator() = delete;
-  Iterator(Array_ &array, unsigned i) : m_array{array}, m_i{i} { }
-  Iterator(const Iterator &) = default;
-  Iterator &operator =(const Iterator &) = default;
-  Iterator(Iterator &&) = default;
-  Iterator &operator =(Iterator &&) = default;
+  using Base::Base;
+  using Base::operator =;
 
   Elem operator *() const;
-
-  Iterator &operator++() { ++m_i; return *this; }
-  Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
-  Iterator &operator--() { --m_i; return *this; }
-  Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
-
-  bool operator ==(const Iterator &r) const {
-    return &m_array == &r.m_array && m_i == r.m_i;
-  }
-
-  friend ptrdiff_t operator -(const Iterator &l, const Iterator &r) {
-    return ptrdiff_t(l.m_i) - ptrdiff_t(r.m_i);
-  }
-
-private:
-  Array		&m_array;
-  unsigned	m_i;
-};
-
-template <typename Wrapper, typename Under>
-struct WrapTraits : public ZuTraits<Under> {
-  enum { IsPrimitive = 0, IsPOD = 0 };
-  using Elem = typename ZuTraits<Under>::Elem;
-  template <typename U = Under>
-  static ZuIfT<ZuTraits<U>::IsSpan && !ZuIsConst<U>{}, Elem *>
-  data(Wrapper &v) {
-    return ZuTraits<U>::data(v.get());
-  }
-  template <typename U = Under>
-  static ZuMatchSpan<U, const Elem *> data(const Wrapper &v) {
-    return ZuTraits<U>::data(v.get());
-  }
-  template <typename U = Under>
-  static ZuMatchArray<U, unsigned> length(const Wrapper &v) {
-    return ZuTraits<U>::length(v.get());
-  }
 };
 
 template <typename Array_>
@@ -108,7 +63,7 @@ public:
   bool operator !() const { return !get(); }
 
   // traits
-  using Traits = WrapTraits<Elem, R>;
+  using Traits = ZuWrapTraits<Elem, R>;
   friend Traits ZuTraitsType(Elem *);
 
   // underlying type
@@ -169,9 +124,9 @@ friend Elem;
   unsigned length() const { return m_length; }
 
   const Elem operator[](unsigned i) const {
-    return Elem{const_cast<Array &>(*this), i};
+    return {const_cast<Array &>(*this), i};
   }
-  Elem operator[](unsigned i) { return Elem{*this, i}; }
+  Elem operator[](unsigned i) { return {*this, i}; }
 
 // iteration - all() is const by default, all<true>() is mutable
   template <bool Mutable = false, typename L>
