@@ -57,7 +57,7 @@
 
 // normalized severity levels
 namespace Ze {
-  ZtEnumValues(Ze, Debug, Info, Warning, Error, Fatal);
+  ZtEnumValues(Ze, int8_t, Debug, Info, Warning, Error, Fatal);
 }
 
 // normalized OS error number

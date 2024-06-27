@@ -451,6 +451,7 @@ namespace Load {
 
 #define ZfbEnum_Value(Enum, Value) Value = int(fbs::Enum::Value),
 #define ZfbEnumValues(Enum, ...) \
+  using T = ZuUnder<fbs::Enum>; \
   enum _ { Invalid = -1, \
     ZuPP_Eval(ZuPP_MapArg(ZfbEnum_Value, Enum, \
 	  __VA_ARGS__ __VA_OPT__(,) MIN, MAX)) \
@@ -460,10 +461,10 @@ namespace Load {
     N <= 2 ? 1 : N <= 4 ? 2 : N <= 8 ? 3 : N <= 16 ? 4 : N <= 32 ? 5 : \
     N <= 64 ? 6 : N <= 128 ? 7 : N <= 256 ? 8 : N <= 512 ? 9 : 10 \
   }; \
-  template <typename T> struct Map_ : public ZuObject { \
+  template <typename Impl> struct Map_ : public ZuObject { \
   private: \
     using S2V = \
-      ZmLHashKV<ZuString, ZtEnum, \
+      ZmLHashKV<ZuString, T, \
 	ZmLHashStatic<Bits, \
 	  ZmLHashLock<ZmNoLock> > >; \
   protected: \
@@ -476,9 +477,9 @@ namespace Load {
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, ZtEnum v) { m_s2v->add(s, v); } \
+    void add(ZuString s, T v) { m_s2v->add(s, v); } \
   private: \
-    ZtEnum s2v_(ZuString s) const { return m_s2v->findVal(s); } \
+    T s2v_(ZuString s) const { return m_s2v->findVal(s); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v->readIterator(); \
       while (auto kv = i.iterate()) { \
@@ -489,11 +490,11 @@ namespace Load {
     static constexpr const char *id() { return #Enum; } \
     using FBEnum = fbs::Enum; \
     Map_() { m_s2v = new S2V(); } \
-    static T *instance() { return ZmSingleton<T>::instance(); } \
+    static Impl *instance() { return ZmSingleton<Impl>::instance(); } \
     static ZuString v2s(int v) { \
       return fbs::EnumName##Enum(static_cast<FBEnum>(v)); \
     } \
-    static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
+    static T s2v(ZuString s) { return instance()->s2v_(s); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     ZmRef<S2V>	m_s2v; \
@@ -504,7 +505,7 @@ namespace Load {
   struct Map : public Map_<Map> { \
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
-  template <typename S> ZtEnum lookup(const S &s) { \
+  template <typename S> T lookup(const S &s) { \
     return Map::s2v(s); \
   }
 #define ZfbEnumMatch_Assert(Namespace, Value) \

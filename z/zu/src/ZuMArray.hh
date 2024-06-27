@@ -23,12 +23,15 @@
 namespace ZuMArray_ {
 
 template <typename Array_, typename Elem_>
-class Iterator : public ZuIterator<Array_, Elem_> {
-  using Base = ZuIterator<Array_, Elem_>;
+class Iterator : public ZuIterator<Iterator<Array_, Elem_>, Array_, Elem_> {
+  using Base = ZuIterator<Iterator<Array_, Elem_>, Array_, Elem_>;
 public:
   using Array = Array_;
+  using Elem = Elem_;
   using Base::Base;
   using Base::operator =;
+  using Base::container;
+  using Base::i;
 
   Elem operator *() const;
 };
@@ -41,7 +44,7 @@ public:
   using R = typename Array::R;
 
   Elem() = delete;
-  Elem(Array &array, unsigned i) : m_array{array}, m_i{i} { }
+  Elem(Array &array_, unsigned i_) : array{array_}, i{i_} { }
   Elem(const Elem &) = default;
   Elem &operator =(const Elem &) = default;
   Elem(Elem &&) = default;
@@ -70,8 +73,8 @@ public:
   friend R ZuUnderType(Elem *);
 
 private:
-  Array		&m_array;
-  unsigned	m_i;
+  Array		&array;
+  unsigned	i;
 };
 
 template <typename T_, typename R_ = T_>
@@ -187,17 +190,17 @@ private:
 
 template <typename Array, typename Elem>
 inline Elem Iterator<Array, Elem>::operator *() const {
-  return m_array[m_i];
+  return container[i];
 }
 
 template <typename Array>
 inline typename Elem<Array>::R Elem<Array>::get() const {
-  return (*m_array.m_getFn)(m_array.m_ptr, m_i);
+  return (*array.m_getFn)(array.m_ptr, i);
 }
 
 template <typename Array>
 inline Elem<Array> &Elem<Array>::operator =(typename Elem<Array>::T v) {
-  (*m_array.m_setFn)(m_array.m_ptr, m_i, ZuMv(v));
+  (*array.m_setFn)(array.m_ptr, i, ZuMv(v));
   return *this;
 }
 

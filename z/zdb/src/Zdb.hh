@@ -270,7 +270,7 @@ namespace HostState {
 // --- generic object
 
 namespace ObjState {
-ZtEnumValues(ObjState,
+ZtEnumValues(ObjState, int8_t,
     Undefined = 0,
     Insert,
     Update,

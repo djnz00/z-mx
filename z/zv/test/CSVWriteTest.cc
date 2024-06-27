@@ -17,7 +17,7 @@
 #include <zlib/ZvCSV.hh>
 
 namespace Snafus {
-  ZtEnumValues_(
+  ZtEnumValues_(int8_t,
       Sasha = 1, Grey = 42, Girlfriend = 43, Experience = 44, TigerWoods = 45);
   ZtEnumMap(Snafus, Map,
       "sasha", 1, "grey", 42, "girlfriend", 43, "experience", 44,

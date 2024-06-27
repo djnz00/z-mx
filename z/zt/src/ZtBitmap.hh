@@ -30,7 +30,7 @@ class Bitmap : public ZuBitmap_::PrintScan<Bitmap> {
 public:
   using Bit = ZuBitmap_::Bit<Bitmap>; // re-use Bit from ZuBitmap
 
-  static constexpr unsigned bits(n) { return (n + 63) & ~63; }
+  static constexpr unsigned bits(unsigned n) { return (n + 63) & ~63; }
   static constexpr unsigned bytes(unsigned n) { return n>>3; }
   enum { Shift = 6 };
   static constexpr unsigned words(unsigned n) { return n>>Shift; }
@@ -198,8 +198,8 @@ public:
 
   friend ZuPrintFn ZuPrintType(Bitmap *);
 
-  using iterator = Iterator<Bitmap, Bit>;
-  using const_iterator = Iterator<const Bitmap, const Bit>;
+  using iterator = ZuBitmap_::Iterator<Bitmap, Bit>;
+  using const_iterator = ZuBitmap_::Iterator<const Bitmap, const Bit>;
   const_iterator begin() const { return const_iterator{*this, 0}; }
   const_iterator end() const { return const_iterator{*this, length()}; }
   const_iterator cbegin() const { return const_iterator{*this, 0}; }
@@ -210,14 +210,8 @@ public:
   ZtArray<uint64_t>	data;
 };
 
-template <typename Bitmap, typename Bit>
-inline Bit Iterator<Bitmap, Bit>::operator *() const {
-  return m_bitmap[m_i];
-}
-
 } // ZtBitmap_
 
 using ZtBitmap = ZtBitmap_::Bitmap;
 
 #endif /* ZtBitmap_HH */
-

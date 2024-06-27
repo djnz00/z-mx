@@ -40,7 +40,7 @@ static const char *testdata =
 "key7 { foo { bah 1 } } key8 C${FAT}n\n";
 
 namespace Values {
-  ZtEnumValues(Values, High, Low, Normal);
+  ZtEnumValues(Values, int8_t, High, Low, Normal);
 }
 
 int main()

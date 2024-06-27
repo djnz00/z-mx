@@ -45,25 +45,21 @@ public:
   void print_(ZuMStream &s) const;
 };
 
-template <typename Map, bool Throw = true>
-inline ZuIfT<Throw, ZtEnum>
-s2v(ZuString key, ZuString s)
-{
+template <typename Map, bool Throw = true, decltype(ZuIfT<Throw>(), int()) = 0>
+inline auto s2v(ZuString key, ZuString s) {
   auto v = Map::s2v(s);
-  if (ZuLikely(*v)) return v;
+  if (ZuLikely(v != decltype(v)(-1))) return v;
   throw InvalidT<Map>{key, s};
 }
-template <typename Map, bool Throw = true>
-inline ZuIfT<!Throw, ZtEnum>
-s2v(ZuString key, ZuString s, int deflt = -1)
-{
+template <typename Map, bool Throw = true, decltype(ZuIfT<!Throw>(), int()) = 0>
+inline auto s2v(ZuString key, ZuString s, int deflt = -1) {
   auto v = Map::s2v(s);
-  if (ZuLikely(*v)) return v;
-  return deflt;
+  if (ZuLikely(v != decltype(v)(-1))) return v;
+  return decltype(v)(deflt);
 }
 
-template <typename Map>
-inline const char *v2s(ZuString key, ZtEnum v)
+template <typename Map, typename V>
+inline const char *v2s(ZuString key, V v)
 {
   const char *s = Map::v2s(v);
   if (ZuLikely(s)) return s;
@@ -76,7 +72,7 @@ inline void errorMessage(ZuMStream &s, Key &&key, Value &&value)
   s << ZuFwd<Key>(key) << ": \"" << ZuFwd<Value>(value) <<
     "\" did not match { ";
   bool first = true;
-  Map::all([&s, &first](ZuString s_, ZtEnum v) {
+  Map::all([&s, &first](ZuString s_, auto v) {
     if (ZuLikely(!first)) s << ", ";
     first = false;
     s << s_ << "=" << v;

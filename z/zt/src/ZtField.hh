@@ -144,7 +144,7 @@
 #include <zlib/ZtScanBool.hh>
 
 namespace ZtFieldTypeCode {
-  ZtEnumValues(ZtFieldTypeCode,
+  ZtEnumValues(ZtFieldTypeCode, int8_t,
     CString,		// C UTF-8 string (raw pointer), heap-allocated
     String,		// C++ contiguous UTF-8 string
     Bytes,		// byte array

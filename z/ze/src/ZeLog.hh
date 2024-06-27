@@ -49,7 +49,7 @@
 class ZeLog;
 
 namespace ZeSinkType {
-  ZtEnumValues(ZeSinkType, File, Debug, System, Lambda);
+  ZtEnumValues(ZeSinkType, int8_t, File, Debug, System, Lambda);
 }
 struct ZeSink : public ZmPolymorph {
   int	type;	// ZeSinkType

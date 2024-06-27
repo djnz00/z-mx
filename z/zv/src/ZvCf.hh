@@ -58,7 +58,8 @@ extern "C" {
 #endif
 
 namespace ZvOptTypes {
-  ZtEnumValues_(Flag = ZvOptFlag, Value = ZvOptValue, Array = ZvOptArray);
+  ZtEnumValues_(int8_t,
+    Flag = ZvOptFlag, Value = ZvOptValue, Array = ZvOptArray);
   ZtEnumMap(ZvOptTypes, Map, "flag", Flag, "value", Value, "array", Array);
 }
 
@@ -313,8 +314,8 @@ inline auto scanDbl(Args &&... args) {
 
 // scan enum
 template <typename Map, bool Required_ = false>
-inline ZtEnum scanEnum(
-    const Cf *cf, ZuString key, ZuString value, ZtEnum deflt = {})
+inline int scanEnum(
+    const Cf *cf, ZuString key, ZuString value, int deflt = -1)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -495,15 +496,15 @@ public:
 
   // get/assure enum
   template <typename Map, bool Required_ = false>
-  ZtEnum getEnum() const {
-    return scanEnum<Map, Required_>(owner, key, get<Required_>(), {});
+  int getEnum() const {
+    return scanEnum<Map, Required_>(owner, key, get<Required_>(), -1);
   }
   template <typename Map>
-  ZtEnum getEnum(ZtEnum deflt) const {
+  int getEnum(int deflt) const {
     return scanEnum<Map>(owner, key, get(), deflt);
   }
   template <typename Map>
-  ZtEnum assureEnum(ZtEnum deflt) {
+  int assureEnum(int deflt) {
     return scanEnum<Map>(
 	owner, key, assure([deflt]() { return Map::v2s(deflt); }), deflt);
   }
@@ -992,20 +993,20 @@ public:
 
   // get/assure for enum
   template <typename Map, bool Required_ = false>
-  ZtEnum getEnum(ZuString key) const {
+  int getEnum(ZuString key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getEnum<Map, Required_>();
     if constexpr (Required_) throw Required{this, key};
-    return {};
+    return -1;
   }
   template <typename Map>
-  ZtEnum getEnum(ZuString key, ZtEnum deflt) const {
+  int getEnum(ZuString key, int deflt) const {
     if (auto node = getNode(key))
       return node->template getEnum<Map>(deflt);
     return deflt;
   }
   template <typename Map>
-  ZtEnum assureEnum(ZuString key, ZtEnum deflt) {
+  int assureEnum(ZuString key, int deflt) {
     return mkNode(key)->template assureEnum<Map>(deflt);
   }
 

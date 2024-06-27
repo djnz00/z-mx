@@ -55,7 +55,7 @@ inline bool interactive() { return isatty(fileno(stdin)); }
 
 // a virtual key is UTF32 if positive, otherwise -ve the VKey enum value
 namespace VKey {
-  ZtEnumValues(Zrl.VKey,
+  ZtEnumValues(Zrl.VKey, int32_t,
     // terminal driver events and control keys (from termios)
     _,			// unused - overlaps with ^@ when negated
 

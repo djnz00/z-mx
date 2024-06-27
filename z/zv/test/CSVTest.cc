@@ -26,7 +26,7 @@ static const char *testdata =
   "-->\",\"<--,3,N,3.1415926,\"experience\"\"\",,Flag1,,,\n";
 
 namespace Enums {
-  ZtEnumValues_(Sasha = 1, Grey, Girlfriend = 43, Experience, __);
+  ZtEnumValues_(int8_t, Sasha = 1, Grey, Girlfriend = 43, Experience, __);
   ZtEnumMap(Enums, Map,
       "sasha", 1, "grey", 42, "\"girlfriend", 43, "experience\"", 44, "", 45);
 }

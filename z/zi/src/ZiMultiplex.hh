@@ -357,11 +357,11 @@ struct ZiListenInfo {
 
 // cxn information (direction, socket, local & remote IP/port, options)
 namespace ZiCxnType {
-  ZtEnumValues(ZiCxnType, TCPIn, TCPOut, UDP);
+  ZtEnumValues(ZiCxnType, int8_t, TCPIn, TCPOut, UDP);
 }
 
 struct ZiCxnInfo { // pure aggregate, no ctor
-  ZtEnum		type;		// ZiCxnType
+  int			type = -1;	// ZiCxnType
   Zi::Socket		socket;
   ZiCxnOptions 		options;
   ZiIP			localIP;
@@ -373,7 +373,7 @@ struct ZiCxnInfo { // pure aggregate, no ctor
   uint32_t		portID = 0; // only valid when familyID is valid
 #endif
 
-  bool operator !() const { return !*type; }
+  bool operator !() const { return type != ZiCxnType::T(-1); }
   ZuOpBool
 
   template <typename S> void print(S &s) const {

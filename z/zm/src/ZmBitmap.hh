@@ -27,16 +27,63 @@
 #include <zlib/ZuTuple.hh>
 #include <zlib/ZuString.hh>
 #include <zlib/ZuInspect.hh>
+#include <zlib/ZuBitmap.hh>
 
-class ZmBitmap {
+namespace ZmBitmap_ {
+
+// subtly different than ZuIterator, due to end() being infinite
+// - i is signed with -1 being a sentinel value signifying that
+template <typename Bitmap_, typename Bit_>
+class Iterator {
 public:
-  ZmBitmap() : m_map{static_cast<hwloc_bitmap_t>(nullptr)} { }
-  ZmBitmap(const ZmBitmap &b) :
+  using Bitmap = Bitmap_;
+  using Bit = Bit_;
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = Bit;
+  using difference_type = ptrdiff_t;
+  using pointer = Bit *;
+  using reference = Bit &;
+
+  Iterator() = delete;
+  Iterator(Bitmap &bitmap_, int i) : bitmap{bitmap_}, i{i} { }
+  Iterator(const Iterator &) = default;
+  Iterator &operator =(const Iterator &) = default;
+  Iterator(Iterator &&) = default;
+  Iterator &operator =(Iterator &&) = default;
+
+  bool operator *() const;
+
+  Iterator &operator++() { ++i; return *this; }
+  Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
+  Iterator &operator--() { --i; return *this; }
+  Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
+
+  bool operator ==(const Iterator &r) const {
+    return &bitmap == &r.bitmap && i == r.i;
+  }
+
+  friend ptrdiff_t operator -(const Iterator &l, const Iterator &r) {
+    if (l.i < 0) return r.i < 0 ? 0 : PTRDIFF_MAX;
+    if (r.i < 0) return PTRDIFF_MIN;
+    return ptrdiff_t(l.i) - ptrdiff_t(r.i);
+  }
+
+protected:
+  Bitmap	&bitmap;
+  int		i;
+};
+
+class Bitmap {
+public:
+  using Bit = ZuBitmap_::Bit<Bitmap>; // re-use Bit from ZuBitmap
+
+  Bitmap() : m_map{static_cast<hwloc_bitmap_t>(nullptr)} { }
+  Bitmap(const Bitmap &b) :
     m_map{b.m_map ?
       hwloc_bitmap_dup(b.m_map) :
       static_cast<hwloc_bitmap_t>(nullptr)} { }
-  ZmBitmap(ZmBitmap &&b) : m_map{b.m_map} { b.m_map = 0; }
-  ZmBitmap &operator =(const ZmBitmap &b) {
+  Bitmap(Bitmap &&b) : m_map{b.m_map} { b.m_map = 0; }
+  Bitmap &operator =(const Bitmap &b) {
     if (this == &b) return *this;
     if (!b.m_map) {
       if (m_map) hwloc_bitmap_free(m_map);
@@ -47,17 +94,17 @@ public:
     hwloc_bitmap_copy(m_map, b.m_map);
     return *this;
   }
-  ZmBitmap &operator =(ZmBitmap &&b) {
+  Bitmap &operator =(Bitmap &&b) {
     m_map = b.m_map;
     b.m_map = 0;
     return *this;
   }
-  ~ZmBitmap() { if (m_map) hwloc_bitmap_free(m_map); }
+  ~Bitmap() { if (m_map) hwloc_bitmap_free(m_map); }
 
 private:
   void lazy() const {
     if (ZuUnlikely(!m_map))
-      const_cast<ZmBitmap *>(this)->m_map = hwloc_bitmap_alloc();
+      const_cast<Bitmap *>(this)->m_map = hwloc_bitmap_alloc();
   }
 
 public:
@@ -65,115 +112,100 @@ public:
     if (!m_map) return false;
     return hwloc_bitmap_isset(m_map, i);
   }
-  ZmBitmap &set(unsigned i) {
+  Bitmap &set(unsigned i) {
     lazy();
     hwloc_bitmap_set(m_map, i);
     return *this;
   }
-  ZmBitmap &clr(unsigned i) {
+  Bitmap &clr(unsigned i) {
     lazy();
     hwloc_bitmap_clr(m_map, i);
     return *this;
   }
 
-  struct Bit {
-    ZmBitmap	&bitmap;
-    unsigned	i;
-    operator bool() const { return bitmap.get(i); }
-    ZuOpBool
-    void set() { bitmap.set(i); }
-    void clr() { bitmap.clr(i); }
-    Bit &operator =(bool v) { v ? set() : clr(); return *this; }
-    int iterate() {
-      if (i >= 0) i = bitmap.next(i);
-      return i;
-    }
-  };
   const Bit operator [](unsigned i) const {
-    return {*const_cast<ZmBitmap *>(this), i};
+    return {*const_cast<Bitmap *>(this), i};
   }
-  Bit operator [](unsigned i) {
-    return {*this, i};
-  }
+  Bit operator [](unsigned i) { return {*this, i}; }
 
-  bool equals(const ZmBitmap &b) const {
+  bool equals(const Bitmap &b) const {
     if (this == &b || m_map == b.m_map) return true;
     if (!m_map || !b.m_map) return false;
     return hwloc_bitmap_isequal(m_map, b.m_map);
   }
-  int cmp(const ZmBitmap &b) const {
+  int cmp(const Bitmap &b) const {
     if (this == &b || m_map == b.m_map) return 0;
     if (!m_map) return -1;
     if (!b.m_map) return 1;
     return hwloc_bitmap_compare(m_map, b.m_map);
   }
-  friend inline bool operator ==(const ZmBitmap &l, const ZmBitmap &r) {
+  friend inline bool operator ==(const Bitmap &l, const Bitmap &r) {
     return l.equals(r);
   }
-  friend inline int operator <=>(const ZmBitmap &l, const ZmBitmap &r) {
+  friend inline int operator <=>(const Bitmap &l, const Bitmap &r) {
     return l.cmp(r);
   }
 
   using Range = ZuTuple<unsigned, unsigned>;
 
   template <typename T>
-  ZuSame<Range, T, ZmBitmap &> set(const T &v) {
+  ZuSame<Range, T, Bitmap &> set(const T &v) {
     lazy();
     hwloc_bitmap_set_range(m_map, v.p1(), v.p2());
     return *this;
   }
   template <typename T>
-  ZuSame<Range, T, ZmBitmap &> clr(const T &v) {
+  ZuSame<Range, T, Bitmap &> clr(const T &v) {
     lazy();
     hwloc_bitmap_clr_range(m_map, v.p1(), v.p2());
     return *this;
   }
 
-  bool operator &&(const ZmBitmap &b) const {
+  bool operator &&(const Bitmap &b) const {
     if (!m_map) return !b.m_map;
     return hwloc_bitmap_isincluded(b.m_map, m_map);
   }
-  bool operator ||(const ZmBitmap &b) const {
+  bool operator ||(const Bitmap &b) const {
     if (!m_map) return false;
     return hwloc_bitmap_intersects(b.m_map, m_map);
   }
 
-  ZmBitmap operator |(const ZmBitmap &b) const {
+  Bitmap operator |(const Bitmap &b) const {
     lazy(); b.lazy();
-    ZmBitmap r;
+    Bitmap r;
     hwloc_bitmap_or(r.m_map, m_map, b.m_map);
     return r;
   }
-  ZmBitmap operator &(const ZmBitmap &b) const {
+  Bitmap operator &(const Bitmap &b) const {
     lazy(); b.lazy();
-    ZmBitmap r;
+    Bitmap r;
     hwloc_bitmap_and(r.m_map, m_map, b.m_map);
     return r;
   }
-  ZmBitmap operator ^(const ZmBitmap &b) const {
+  Bitmap operator ^(const Bitmap &b) const {
     lazy(); b.lazy();
-    ZmBitmap r;
+    Bitmap r;
     hwloc_bitmap_xor(r.m_map, m_map, b.m_map);
     return r;
   }
-  ZmBitmap operator ~() const {
+  Bitmap operator ~() const {
     lazy();
-    ZmBitmap r;
+    Bitmap r;
     hwloc_bitmap_not(r.m_map, m_map);
     return r;
   }
 
-  ZmBitmap &operator |=(const ZmBitmap &b) {
+  Bitmap &operator |=(const Bitmap &b) {
     lazy(); b.lazy();
     hwloc_bitmap_or(m_map, m_map, b.m_map);
     return *this;
   }
-  ZmBitmap &operator &=(const ZmBitmap &b) {
+  Bitmap &operator &=(const Bitmap &b) {
     lazy(); b.lazy();
     hwloc_bitmap_and(m_map, m_map, b.m_map);
     return *this;
   }
-  ZmBitmap &operator ^=(const ZmBitmap &b) {
+  Bitmap &operator ^=(const Bitmap &b) {
     lazy(); b.lazy();
     hwloc_bitmap_xor(m_map, m_map, b.m_map);
     return *this;
@@ -183,12 +215,12 @@ public:
     hwloc_bitmap_set_range(m_map, begin, end);
   }
 
-  ZmBitmap &zero() {
+  Bitmap &zero() {
     lazy();
     hwloc_bitmap_zero(m_map);
     return *this;
   }
-  ZmBitmap &fill() {
+  Bitmap &fill() {
     lazy();
     hwloc_bitmap_fill(m_map);
     return *this;
@@ -215,31 +247,23 @@ public:
     return !m_map ? 0 : hwloc_bitmap_weight(m_map);
   }
 
-  using Iterator = Bit;
-  const Iterator iterator() const {
-    return Iterator{*const_cast<ZmBitmap *>(this), 0};
-  }
-  Iterator iterator() {
-    return Iterator{*this, 0};
-  }
-
   // hwloc_bitmap_t is a pointer
   operator hwloc_bitmap_t() {
     lazy();
     return m_map;
   }
   operator const hwloc_bitmap_t() const {
-    return const_cast<ZmBitmap *>(this)->operator hwloc_bitmap_t();
+    return const_cast<Bitmap *>(this)->operator hwloc_bitmap_t();
   }
 
-  ZmBitmap(uint64_t v) : m_map{hwloc_bitmap_alloc()} {
+  Bitmap(uint64_t v) : m_map{hwloc_bitmap_alloc()} {
     hwloc_bitmap_from_ulong(m_map, v);
   }
   uint64_t uint64() const {
     if (ZuLikely(!m_map)) return 0;
     return hwloc_bitmap_to_ulong(m_map);
   }
-  ZmBitmap(uint128_t v) : m_map{hwloc_bitmap_alloc()} {
+  Bitmap(uint128_t v) : m_map{hwloc_bitmap_alloc()} {
     hwloc_bitmap_from_ith_ulong(m_map, 0, (uint64_t)v);
     hwloc_bitmap_from_ith_ulong(m_map, 1, (uint64_t)(v >> 64U));
   }
@@ -249,9 +273,9 @@ public:
       ((uint128_t)hwloc_bitmap_to_ith_ulong(m_map, 1) << 64U);
   }
   template <typename S, decltype(ZuMatchCharString<S>(), int()) = 0>
-  ZmBitmap(const S &s) : m_map{hwloc_bitmap_alloc()} { scan(s); }
+  Bitmap(const S &s) : m_map{hwloc_bitmap_alloc()} { scan(s); }
   template <typename S>
-  ZuMatchCharString<S, ZmBitmap &> operator =(const S &s) {
+  ZuMatchCharString<S, Bitmap &> operator =(const S &s) {
     if (m_map) hwloc_bitmap_zero(m_map);
     scan(s);
     return *this;
@@ -284,7 +308,7 @@ public:
   }
   template <typename S> void print(S &s) const {
     if (!*this) return;
-    ZmBitmap tmp = *this;
+    Bitmap tmp = *this;
     ZuBox<int> begin = hwloc_bitmap_first(m_map);
     bool first = true;
     while (begin >= 0) {
@@ -304,14 +328,32 @@ public:
     }
   }
 
-  struct Traits : public ZuBaseTraits<ZmBitmap> { enum { IsComparable = 1 }; };
-  friend Traits ZuTraitsType(ZmBitmap *);
+  struct Traits : public ZuBaseTraits<Bitmap> { enum { IsComparable = 1 }; };
+  friend Traits ZuTraitsType(Bitmap *);
 
-  friend ZuPrintFn ZuPrintType(ZmBitmap *);
+  friend ZuPrintFn ZuPrintType(Bitmap *);
+
+  using iterator = Iterator<Bitmap, Bit>;
+  using const_iterator = Iterator<const Bitmap, const Bit>;
+  const_iterator begin() const { return const_iterator{*this, 0}; }
+  const_iterator end() const { return const_iterator{*this, -1}; }
+  const_iterator cbegin() const { return const_iterator{*this, 0}; }
+  const_iterator cend() const { return const_iterator{*this, -1}; }
+  iterator begin() { return iterator{*this, 0}; }
+  iterator end() { return iterator{*this, -1}; }
 
 private:
   hwloc_bitmap_t	m_map;
 };
+
+template <typename Bitmap, typename Bit>
+inline bool Iterator<Bitmap, Bit>::operator *() const {
+  return bitmap[i];
+}
+
+} // ZmBitmap_
+
+using ZmBitmap = ZmBitmap_::Bitmap;
 
 #ifdef _MSC_VER
 #pragma warning(pop)

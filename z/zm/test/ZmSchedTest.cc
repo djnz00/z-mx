@@ -147,10 +147,11 @@ int main(int argc, char **argv)
   }
 
   {
-    auto i = isolation.iterator();
-    int tid;
-    while ((tid = i.iterate()) >= 0)
+    int tid = isolation.first();
+    do {
       params.thread(tid).isolated(true);
+      tid = isolation.next(tid);
+    } while (tid >= 0);
   }
 
   ZmScheduler s{ZuMv(params)};

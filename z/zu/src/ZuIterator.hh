@@ -13,52 +13,61 @@
 #include <zlib/ZuLib.hh>
 #endif
 
+#include <iterator>
+
 // template <typename Array_, typename Elem_>
-// class Iterator : public ZuIterator<Array_, Elem_> {
-//   using Base = ZuIterator<Array_, Elem_>;
+// class Iterator : public ZuIterator<Iterator<Array_, Elem_>, Array_, Elem_> {
+//   using Base = ZuIterator<Iterator<Array_, Elem_>, Array_, Elem_>;
 // public:
 //   using Array = Array_;
 //   using Base::Base;
 //   using Base::operator =;
+//   using Base::container;
+//   using Base::i;
 // 
 //   Elem operator *() const;
 // };
 
-template <typename Container_, typename Elem_>
+template <typename Impl_, typename Container_, typename Elem_>
 class ZuIterator {
 public:
+  using Impl = Impl_;
   using Container = Container_;
   using Elem = Elem_;
+
+  Impl *impl() { return static_cast<Impl *>(this); }
+  const Impl *impl() const { return static_cast<const Impl *>(this); }
+
   using iterator_category = std::bidirectional_iterator_tag;
   using value_type = Elem;
   using difference_type = ptrdiff_t;
   using pointer = Elem *;
   using reference = Elem &;
 
-  Iterator() = delete;
-  Iterator(Container_ &container, unsigned i) :
-      m_container{container}, m_i{i} { }
-  Iterator(const Iterator &) = default;
-  Iterator &operator =(const Iterator &) = default;
-  Iterator(Iterator &&) = default;
-  Iterator &operator =(Iterator &&) = default;
+  ZuIterator() = delete;
+  ZuIterator(Container &container_, unsigned i) :
+      container{container_}, i{i} { }
+  ZuIterator(const ZuIterator &) = default;
+  ZuIterator &operator =(const ZuIterator &) = default;
+  ZuIterator(ZuIterator &&) = default;
+  ZuIterator &operator =(ZuIterator &&) = default;
 
-  Iterator &operator++() { ++m_i; return *this; }
-  Iterator operator++(int) { Iterator _ = *this; ++(*this); return _; }
-  Iterator &operator--() { --m_i; return *this; }
-  Iterator operator--(int) { Iterator _ = *this; --(*this); return _; }
+  Impl &operator++() { ++i; return *impl(); }
+  Impl operator++(int) { Impl _ = *impl(); ++(*impl()); return _; }
+  Impl &operator--() { --i; return *impl(); }
+  Impl operator--(int) { Impl _ = *impl(); --(*impl()); return _; }
 
-  bool operator ==(const Iterator &r) const {
-    return &m_container == &r.m_container && m_i == r.m_i;
+  bool operator ==(const ZuIterator &r) const {
+    return &container == &r.container && i == r.i;
   }
 
-  friend ptrdiff_t operator -(const Iterator &l, const Iterator &r) {
-    return ptrdiff_t(l.m_i) - ptrdiff_t(r.m_i);
+  friend ptrdiff_t operator -(const ZuIterator &l, const ZuIterator &r) {
+    return ptrdiff_t(l.i) - ptrdiff_t(r.i);
   }
 
-private:
-  Container	&m_container;
-  unsigned	m_i;
+protected:
+  Container	&container;
+  unsigned	i;
 };
 
 #endif /* ZuIterator_HH */

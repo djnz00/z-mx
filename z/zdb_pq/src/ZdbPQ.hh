@@ -1452,7 +1452,7 @@ Offset saveTuple(
 }
 
 namespace SendState {
-  ZtEnumValues(SendState,
+  ZtEnumValues(SendState, int8_t,
     Unsent = 0,	// unsent
     Again,	// send attempted, need to retry
     Sent,	// sent, no server-side flush or sync needed

@@ -24,15 +24,17 @@
 namespace ZuBitmap_ {
 
 template <typename Bitmap_, typename Bit_>
-class Iterator : public ZuIterator<Bitmap_, Bit_> {
-  using Base = ZuIterator<Bitmap_, Bit_>;
+class Iterator : public ZuIterator<Iterator<Bitmap_, Bit_>, Bitmap_, Bit_> {
+  using Base = ZuIterator<Iterator<Bitmap_, Bit_>, Bitmap_, Bit_>;
 public:
   using Bitmap = Bitmap_;
   using Bit = Bit_;
   using Base::Base;
   using Base::operator =;
+  using Base::container;
+  using Base::i;
 
-  Bit operator *() const;
+  Bit operator *() const { return container[i]; }
 };
 
 template <typename Bitmap_>
@@ -41,7 +43,7 @@ public:
   using Bitmap = Bitmap_;
 
   Bit() = delete;
-  Bit(Bitmap &bitmap, unsigned i) : m_bitmap{bitmap}, m_i{i} { }
+  Bit(Bitmap &bitmap_, unsigned i_) : bitmap{bitmap_}, i{i_} { }
   Bit(const Bit &) = default;
   Bit &operator =(const Bit &) = default;
   Bit(Bit &&) = default;
@@ -75,8 +77,8 @@ public:
   friend bool ZuUnderType(Bit *);
 
 private:
-  Bitmap	&m_bitmap;
-  unsigned	m_i;
+  Bitmap	&bitmap;
+  unsigned	i;
 };
 
 template <typename Bitmap_>
@@ -133,9 +135,11 @@ struct PrintScan {
 };
 
 template <unsigned Bits_>
-class Bitmap : public PrintScan<Bitmap> {
+class Bitmap : public PrintScan<Bitmap<Bits_>> {
 public:
   using Bit = ZuBitmap_::Bit<Bitmap>;
+  using PrintScan<Bitmap>::scan;
+  using PrintScan<Bitmap>::print;
 
   enum { Bits = ((Bits_ + 63) & ~63) };
   enum { Bytes = (Bits>>3) };
@@ -319,19 +323,14 @@ public:
   uint64_t	data[Words];
 };
 
-template <typename Bitmap, typename Bit>
-inline Bit Iterator<Bitmap, Bit>::operator *() const {
-  return m_bitmap[m_i];
-}
+template <typename Bitmap>
+inline bool Bit<Bitmap>::get() const { return bitmap.get(i); }
 
 template <typename Bitmap>
-inline bool Bit<Bitmap>::get() const { return m_bitmap.get(m_i); }
+inline void Bit<Bitmap>::set() { bitmap.set(i); }
 
 template <typename Bitmap>
-inline void Bit<Bitmap>::set() { m_bitmap.set(m_i); }
-
-template <typename Bitmap>
-inline void Bit<Bitmap>::clr() { m_bitmap.clr(m_i); }
+inline void Bit<Bitmap>::clr() { bitmap.clr(i); }
 
 } // ZuBitmap_
 

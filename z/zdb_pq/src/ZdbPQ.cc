@@ -261,7 +261,7 @@ void Store::stop_1()
 {
   // ZeLOG(Debug, ([](auto &s) { s << "pushing stop_2()"; }));
 
-  m_mx->wakeFn(m_pqSID, ZmFn{});
+  m_mx->wakeFn(m_pqSID, ZmFn<>{});
   m_mx->push(m_pqSID, [this]() mutable {
     stop_2();
     StopFn stopFn = ZuMv(m_stopFn);

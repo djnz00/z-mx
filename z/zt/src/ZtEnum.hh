@@ -42,23 +42,24 @@
     static constexpr const char *id() { return #ID; } \
     Map() { for (unsigned i = 0; i < N; i++) this->add(name(i), i); } \
   }; \
-  template <typename S> inline ZtEnum lookup(const S &s) { \
+  template <typename S> inline T lookup(const S &s) { \
     return Map::s2v(s); \
   }
-#define ZtEnumValues_(...) \
+#define ZtEnumValues_(Type, ...) \
+  using T = Type; \
   enum { Invalid = -1, __VA_ARGS__, N }; \
   ZuAssert(N <= 1024); \
   enum { Bits = \
     N <= 2 ? 1 : N <= 4 ? 2 : N <= 8 ? 3 : N <= 16 ? 4 : N <= 32 ? 5 : \
     N <= 64 ? 6 : N <= 128 ? 7 : N <= 256 ? 8 : N <= 512 ? 9 : 10 \
   }; \
-  template <typename T> struct Map_ : public ZuObject { \
+  template <typename Impl> struct Map_ : public ZuObject { \
   private: \
     using V2S = \
-      ZmLHashKV<ZtEnum, ZuString, \
+      ZmLHashKV<T, ZuString, \
 	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
     using S2V = \
-      ZmLHashKV<ZuString, ZtEnum, \
+      ZmLHashKV<ZuString, T, \
 	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
   protected: \
     void init(const char *s, int v, ...) { \
@@ -70,11 +71,11 @@
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, ZtEnum v) { m_s2v.add(s, v); m_v2s.add(v, s); } \
-    static T *instance() { return ZmSingleton<T>::instance(); } \
+    void add(ZuString s, T v) { m_s2v.add(s, v); m_v2s.add(v, s); } \
+    static Impl *instance() { return ZmSingleton<Impl>::instance(); } \
   private: \
-    ZtEnum s2v_(ZuString s) const { return m_s2v.findVal(s); } \
-    ZuString v2s_(ZtEnum v) const { return m_v2s.findVal(v); } \
+    T s2v_(ZuString s) const { return m_s2v.findVal(s); } \
+    ZuString v2s_(T v) const { return m_v2s.findVal(v); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
@@ -83,16 +84,15 @@
     } \
   public: \
     Map_() = default; \
-    static ZtEnum s2v(ZuString s) { return instance()->s2v_(s); } \
-    static ZuString v2s(ZtEnum v) { return instance()->v2s_(v); } \
+    static T s2v(ZuString s) { return instance()->s2v_(s); } \
+    static ZuString v2s(T v) { return instance()->v2s_(v); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     S2V	m_s2v; \
     V2S	m_v2s; \
   }
 #define ZtEnumValues(ID, Type, ...) \
-  using T = Type; \
-  ZtEnumValues_(__VA_ARGS__); \
+  ZtEnumValues_(Type, __VA_ARGS__); \
   ZtEnumNames_(ID, ZuPP_Eval(ZuPP_MapComma(ZuPP_Q, __VA_ARGS__)))
 
 #define ZtEnumMap(ID, Map, ...) \
@@ -151,8 +151,8 @@
 	  } \
 	} \
 	if (len > s.length() || c == 0) end = true; \
-	ZtEnum i = this->s2v(ZuString(cstr, clen)); \
-	if (ZuUnlikely(!*i)) return 0; \
+	T i = this->s2v(ZuString(cstr, clen)); \
+	if (ZuUnlikely(i == T(-1))) return 0; \
 	v |= (mask<<unsigned(i)); \
 	cstr = next; \
 	clen = 0; \
@@ -187,8 +187,7 @@
   }
 
 #define ZtEnumFlags_(ID, Type, ...) \
-  using T = Type; \
-  ZtEnumValues_(ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \
+  ZtEnumValues_(Type, ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \
   ZuPP_Eval(ZuPP_MapArg(ZtEnumFlagValue_, Type, __VA_ARGS__)) \
 
 #define ZtEnumFlags(ID, Type, ...) \

@@ -11,7 +11,7 @@
 #include <zlib/ZtField.hh>
 
 namespace Values {
-  ZtEnumValues(Values, High, Low, Normal);
+  ZtEnumValues(Values, int8_t, High, Low, Normal);
 }
 
 namespace Flags {

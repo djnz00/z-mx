@@ -34,7 +34,7 @@
 namespace Zrl {
 
 namespace Op { // line editor operation codes
-  ZtEnumValues(Zrl.Op,
+  ZtEnumValues(Zrl.Op, int8_t,
     Null,		// sentinel
 
     Nop,		// no-operation
@@ -253,7 +253,7 @@ struct Bindings : public Bindings_ {
 };
 
 namespace ModeType {
-  ZtEnumValues_(Edit, Command, Base);
+  ZtEnumValues_(int8_t, Edit, Command, Base);
   ZtEnumNames_(ModeType, "edit", "command", "base");
 }
 

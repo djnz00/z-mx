@@ -20,12 +20,14 @@
 namespace ZtWindow_ {
 
 template <typename Window_, typename Elem_>
-class Iterator : public ZuIterator<Window_, Elem_> {
-  using Base = ZuIterator<Window_, Elem_>;
+class Iterator : public ZuIterator<Iterator<Window_, Elem_>, Window_, Elem_> {
+  using Base = ZuIterator<Iterator<Window_, Elem_>, Window_, Elem_>;
 public:
   using Window = Window_;
   using Base::Base;
   using Base::operator =;
+  using Base::container;
+  using Base::i;
 
   Elem operator *() const;
 };
@@ -155,7 +157,7 @@ private:
 
 template <typename Window, typename Elem>
 inline Elem Iterator<Window, Elem>::operator *() const {
-  return m_window[m_i];
+  return container[i];
 }
 
 template <typename Window>

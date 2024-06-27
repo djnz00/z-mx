@@ -442,8 +442,16 @@ struct ZuLambda {
 template <typename L> ZuLambda(L) -> ZuLambda<L>;
 
 // generic underlying type access for wrapper types with a cast operator
-// (used with ZuBox, ZuBigEndian, etc.)
+// (used with ZuBox, ZuBigEndian, C++ enum classes, etc.)
 
+template <typename U, bool = __is_enum(U)>
+struct ZuUnder__ {
+  using T = U;
+};
+template <typename U>
+struct ZuUnder__<U, true> {
+  using T = __underlying_type(U);
+};
 struct ZuUnder_AsIs { };
 ZuUnder_AsIs ZuUnderType(...);
 template <typename U, typename V = decltype(ZuUnderType(ZuDeclVal<U *>()))>
@@ -452,7 +460,7 @@ struct ZuUnder_ {
 };
 template <typename U>
 struct ZuUnder_<U, ZuUnder_AsIs> {
-  using T = U;
+  using T = typename ZuUnder__<U>::T;
 };
 template <typename U>
 using ZuUnder = typename ZuUnder_<ZuDecay<U>>::T;
