@@ -25,6 +25,10 @@ CREATE TYPE zbitmap (
   ALIGNMENT = double
 );
 
+CREATE FUNCTION zbitmap_length(zbitmap) RETURNS uint4
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/libz', 'zbitmap_length';
+
 CREATE FUNCTION zbitmap_get(zbitmap, uint4) RETURNS boolean
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/libz', 'zbitmap_get';

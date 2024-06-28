@@ -49,7 +49,7 @@ Datum zbitmap_in(PG_FUNCTION_ARGS) {
    * a containing string without copying the string or mutating it with
    * null terminators, but we'll play along, sigh */
   if (likely(n)) while (unlikely(isspace__(s[n]))) ++n;
-  if (!n || s[n])
+  if (!v || s[n])
     ereport(
       ERROR,
       (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
@@ -100,40 +100,46 @@ Datum zbitmap_send(PG_FUNCTION_ARGS) {
   PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
+PG_FUNCTION_INFO_V1(zbitmap_length);
+Datum zbitmap_length(PG_FUNCTION_ARGS) {
+  const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
+  PG_RETURN_INT32(zu_bitmap_length(v));
+}
+
 PG_FUNCTION_INFO_V1(zbitmap_get);
 Datum zbitmap_get(PG_FUNCTION_ARGS) {
   const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
-  int32 i = PG_GETARG_INT32(1);
+  unsigned i = PG_GETARG_INT32(1);
   PG_RETURN_BOOL(zu_bitmap_get(v, i));
 }
 
 PG_FUNCTION_INFO_V1(zbitmap_set);
 Datum zbitmap_set(PG_FUNCTION_ARGS) {
   zu_bitmap *v = (zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
-  int32 i = PG_GETARG_INT32(1);
-  PG_RETURN_POINTER(DATAVAR(zu_bitmap_set(v, i)));
+  unsigned i = PG_GETARG_INT32(1);
+  PG_RETURN_POINTER(DATAVAR(zu_bitmap_set(&allocator, v, i)));
 }
 
 PG_FUNCTION_INFO_V1(zbitmap_clr);
 Datum zbitmap_clr(PG_FUNCTION_ARGS) {
   zu_bitmap *v = (zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
-  int32 i = PG_GETARG_INT32(1);
+  unsigned i = PG_GETARG_INT32(1);
   PG_RETURN_POINTER(DATAVAR(zu_bitmap_clr(v, i)));
 }
 
 PG_FUNCTION_INFO_V1(zbitmap_set_range);
 Datum zbitmap_set_range(PG_FUNCTION_ARGS) {
   zu_bitmap *v = (zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
-  int32 begin = PG_GETARG_INT32(1);
-  int32 end = PG_GETARG_INT32(2);
-  PG_RETURN_POINTER(DATAVAR(zu_bitmap_set_range(v, begin, end)));
+  unsigned begin = PG_GETARG_INT32(1);
+  unsigned end = PG_GETARG_INT32(2);
+  PG_RETURN_POINTER(DATAVAR(zu_bitmap_set_range(&allocator, v, begin, end)));
 }
 
 PG_FUNCTION_INFO_V1(zbitmap_clr_range);
 Datum zbitmap_clr_range(PG_FUNCTION_ARGS) {
   zu_bitmap *v = (zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
-  int32 begin = PG_GETARG_INT32(1);
-  int32 end = PG_GETARG_INT32(2);
+  unsigned begin = PG_GETARG_INT32(1);
+  unsigned end = PG_GETARG_INT32(2);
   PG_RETURN_POINTER(DATAVAR(zu_bitmap_clr_range(v, begin, end)));
 }
 

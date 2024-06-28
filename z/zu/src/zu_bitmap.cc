@@ -106,11 +106,34 @@ zu_bitmap *zu_bitmap_copy(
   return v_;
 }
 
+zu_bitmap *zu_bitmap_resize(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, unsigned n)
+{
+  auto &v = *reinterpret_cast<Bitmap *>(v_);
+  auto l = (n + 63)>>BitShift;
+  auto o = v.zu_bitmap::length;
+  if (o == l) return v_;
+  if (o > l) { v.zu_bitmap::length = l; return v_; }
+  auto w_ = zu_bitmap_new_(allocator, n);
+  if (!w_) { zu_bitmap_delete(allocator, v_); return nullptr; }
+  auto &w = *reinterpret_cast<Bitmap *>(w_);
+  memcpy(&w.data[0], &v.data[0], o<<(BitShift - ByteShift));
+  memset(&w.data[o], 0, (l - o)<<(BitShift - ByteShift));
+  zu_bitmap_delete(allocator, v_);
+  return w_;
+}
+
+unsigned zu_bitmap_length(const zu_bitmap *v_)
+{
+  const auto &v = *reinterpret_cast<const Bitmap *>(v_);
+  return v.length();
+}
+
 unsigned zu_bitmap_in(
   const zu_bitmap_allocator *allocator, zu_bitmap **v_, const char *s_)
 {
   ZuString s{s_};
-  auto n = Bitmap::scanLast(s) + 1;
+  unsigned n = 1U + Bitmap::scanLast(s);
   if (!(*v_ = zu_bitmap_new(allocator, n))) return 0;
   auto &v = *reinterpret_cast<Bitmap *>(*v_);
   return v.scan(s);
@@ -143,23 +166,6 @@ uint64_t zu_bitmap_get_word(const zu_bitmap *v_, unsigned i)
   return v.data[i];
 }
 
-zu_bitmap *zu_bitmap_set_wlength(
-  const zu_bitmap_allocator *allocator, zu_bitmap *v_, unsigned n)
-{
-  auto &v = *reinterpret_cast<Bitmap *>(v_);
-  auto l = (n + 63)>>BitShift;
-  auto o = v.zu_bitmap::length;
-  if (o == l) return v_;
-  if (o > l) { v.zu_bitmap::length = l; return v_; }
-  auto w_ = zu_bitmap_new_(allocator, n);
-  if (!w_) { zu_bitmap_delete(allocator, v_); return nullptr; }
-  auto &w = *reinterpret_cast<Bitmap *>(w_);
-  memcpy(&w.data[0], &v.data[0], o<<(BitShift - ByteShift));
-  memset(&w.data[o], 0, (l - o)<<(BitShift - ByteShift));
-  zu_bitmap_delete(allocator, v_);
-  return w_;
-}
-
 void zu_bitmap_set_word(zu_bitmap *v_, unsigned i, uint64_t w)
 {
   auto &v = *reinterpret_cast<Bitmap *>(v_);
@@ -184,10 +190,15 @@ bool zu_bitmap_get(const zu_bitmap *v_, unsigned i)
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.get(i);
 }
-zu_bitmap *zu_bitmap_set(zu_bitmap *v_, unsigned i)
+zu_bitmap *zu_bitmap_set(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, unsigned i)
 {
-  auto &v = *reinterpret_cast<Bitmap *>(v_);
-  v.set(i);
+  auto v = reinterpret_cast<Bitmap *>(v_);
+  if (i >= v->length()) {
+    v_ = zu_bitmap_resize(allocator, v_, i + 1);
+    v = reinterpret_cast<Bitmap *>(v_);
+  }
+  v->set(i);
   return v_;
 }
 zu_bitmap *zu_bitmap_clr(zu_bitmap *v_, unsigned i)
@@ -197,10 +208,16 @@ zu_bitmap *zu_bitmap_clr(zu_bitmap *v_, unsigned i)
   return v_;
 }
 
-zu_bitmap *zu_bitmap_set_range(zu_bitmap *v_, unsigned begin, unsigned end)
+zu_bitmap *zu_bitmap_set_range(
+  const zu_bitmap_allocator *allocator,
+  zu_bitmap *v_, unsigned begin, unsigned end)
 {
-  auto &v = *reinterpret_cast<Bitmap *>(v_);
-  v.set(begin, end);
+  auto v = reinterpret_cast<Bitmap *>(v_);
+  if (end > v->length()) {
+    v_ = zu_bitmap_resize(allocator, v_, end);
+    v = reinterpret_cast<Bitmap *>(v_);
+  }
+  v->set(begin, end);
   return v_;
 }
 
@@ -260,7 +277,7 @@ zu_bitmap *zu_bitmap_or(
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
+      v_ = zu_bitmap_resize(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v |= p;
   return v_;
@@ -273,7 +290,7 @@ zu_bitmap *zu_bitmap_and(
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
+      v_ = zu_bitmap_resize(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v &= p;
   return v_;
@@ -286,7 +303,7 @@ zu_bitmap *zu_bitmap_xor(
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
+      v_ = zu_bitmap_resize(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v ^= p;
   return v_;

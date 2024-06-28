@@ -89,11 +89,10 @@ struct PrintScan {
   auto impl() const { return static_cast<const Bitmap *>(this); }
   auto impl() { return static_cast<Bitmap *>(this); }
 
-  static unsigned scanLast(ZuString s) {
+  static int scanLast(ZuString s) {
     const char *data = s.data();
     unsigned length = s.length(), offset = 0;
-    if (!length) return 0;
-    unsigned last = 0;
+    int last = -1;
     ZuBox<unsigned> begin, end;
     int j;
     while (offset < length) {
@@ -110,7 +109,7 @@ struct PrintScan {
 	}
       } else
 	end = begin + 1;
-      if (end > last) last = end;
+      if (int(end.val()) > last) last = end;
     }
     return last;
   }
@@ -211,7 +210,7 @@ public:
   template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
   Bitmap_(unsigned n) : Data{n} { }
   template <typename _ = Data, decltype(ZuIfT<!_::Fixed>(), int()) = 0>
-  Bitmap_(ZuString s) : Data{this->scanLast(s) + 1} {
+  Bitmap_(ZuString s) : Data{1U + this->scanLast(s)} {
     this->scan(s);
   }
   template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
