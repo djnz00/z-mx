@@ -142,14 +142,15 @@ struct PrintScan {
     using Log = Zu_ntoa::Log10<4>;
     if (!*impl()) return 0;
     unsigned len = 0;
-    int begin = impl()->first();
+    int begin = impl()->first(), end;
     bool first = true;
     while (begin >= 0) {
       if (!first)
 	++len;
       else
 	first = false;
-      int end = begin, next;
+      end = begin;
+      int next;
       while ((next = impl()->next(end)) == end + 1) end = next;
       if (end == begin)
 	len += Log::log(begin);
@@ -159,26 +160,26 @@ struct PrintScan {
 	len += Log::log(begin) + 1 + Log::log(end);
       begin = next;
     }
-    len = (len - Log::log(begin)) + Zu_ntoa::Log10_MaxLog<4>::N;
+    len = (len - Log::log(end)) + Zu_ntoa::Log10_MaxLog<4>::N;
     return len;
   }
   template <typename S> void print(S &s) const {
     if (!*impl()) return;
-    ZuBox<int> begin = impl()->first();
+    int begin = impl()->first();
     bool first = true;
     while (begin >= 0) {
       if (!first)
 	s << ',';
       else
 	first = false;
-      ZuBox<int> end = begin, next;
+      int end = begin, next;
       while ((next = impl()->next(end)) == end + 1) end = next;
       if (end == begin)
-	s << begin;
+	s << ZuBox<unsigned>{begin};
       else if (end == impl()->length() - 1)
-	s << begin << '-';
+	s << ZuBox<unsigned>{begin} << '-';
       else
-	s << begin << '-' << end;
+	s << ZuBox<unsigned>{begin} << '-' << ZuBox<unsigned>{end};
       begin = next;
     }
   }
@@ -207,13 +208,13 @@ public:
   Bitmap_ &operator =(Bitmap_ &&) = default;
   ~Bitmap_() = default;
 
-  template <typename _ = Data, decltype(ZuIfT<!_::Fixed>(), int()) = 0>
+  template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
   Bitmap_(unsigned n) : Data{n} { }
   template <typename _ = Data, decltype(ZuIfT<!_::Fixed>(), int()) = 0>
   Bitmap_(ZuString s) : Data{this->scanLast(s) + 1} {
     this->scan(s);
   }
-  template <typename _ = Data, decltype(ZuIfT<!_::Fixed>(), int()) = 0>
+  template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
   Bitmap_(ZuString s, unsigned n) : Data{n} {
     this->scan(s);
   }
@@ -265,9 +266,9 @@ public:
     return *this;
   }
 
-  void set(unsigned begin, unsigned end) {
-    if (end >= length()) end = length() - 1;
-    if (begin >= end) return;
+  Bitmap_ &set(unsigned begin, unsigned end) {
+    if (end > length()) end = length();
+    if (begin >= end) return *this;
     {
       unsigned i = (begin>>BitShift);
       uint64_t mask = ~static_cast<uint64_t>(0);
@@ -291,10 +292,11 @@ public:
       uint64_t mask = (~static_cast<uint64_t>(0))>>(63 - (end - begin));
       data[begin>>BitShift] |= mask;
     }
+    return *this;
   }
-  void clr(unsigned begin, unsigned end) {
-    if (end >= length()) end = length() - 1;
-    if (begin >= end) return;
+  Bitmap_ &clr(unsigned begin, unsigned end) {
+    if (end > length()) end = length();
+    if (begin >= end) return *this;
     {
       unsigned i = (begin>>BitShift);
       uint64_t mask = ~static_cast<uint64_t>(0);
@@ -318,6 +320,7 @@ public:
       uint64_t mask = (~static_cast<uint64_t>(0))>>(63 - (end - begin));
       data[begin>>BitShift] &= ~mask;
     }
+    return *this;
   }
 
 // buffer access
@@ -411,7 +414,7 @@ struct Data {
 private:
   void copy(const Data &b) { memcpy(&data[0], &b.data[0], sizeof(data)); }
 
-protected:
+public:
   Data() { memset(&data[0], 0, sizeof(data)); }
   Data(const Data &b) { copy(b); }
   Data &operator =(const Data &b) { copy(b); }
@@ -422,7 +425,6 @@ protected:
    * - ZuBitmap<N> always has the same length */
   static constexpr unsigned combine(const Data &) { return Words; }
 
-public:
   uint64_t	data[Words];
 };
 

@@ -32,7 +32,7 @@ struct Data {
   enum { BitShift = 6 };
   enum { ByteShift = 3 };
 
-protected:
+public:
   Data() = default;
   Data(const Data &b) = default;
   Data &operator =(const Data &b) = default;
@@ -58,7 +58,6 @@ protected:
     return r;
   }
 
-public:
   unsigned length() const {
     return data.length()<<BitShift;
   }

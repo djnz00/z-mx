@@ -13,17 +13,6 @@
 
 #include <zlib/zu_bitmap.h>
 
-static zu_bitmap_alloc_fn allocFn;
-static zu_bitmap_free_fn freeFn;
-
-void zu_bitmap_init(
-  zu_bitmap_alloc_fn allocFn_,
-  zu_bitmap_free_fn freeFn_)
-{
-  allocFn = allocFn_;
-  freeFn = freeFn_;
-}
-
 #define BitShift 6
 #define ByteShift 3
 
@@ -40,8 +29,8 @@ private:
     memcpy(&data[0], &b.data[0], n<<(BitShift - ByteShift));
   }
 
-protected:
-  Data() { }
+public:
+  Data(unsigned n) { zu_bitmap::length = (n + 63)>>BitShift; }
   Data(const Data &b) { copy(b); }
   Data &operator =(const Data &b) { copy(b); return *this; }
   Data(Data &&b) { copy(b); }
@@ -55,7 +44,6 @@ protected:
     return (l < r) ? l : r;
   }
 
-public:
   unsigned length() const {
     return zu_bitmap::length<<BitShift;
   }
@@ -70,58 +58,60 @@ struct Bitmap : public ZuBitmap_::Bitmap_<Data> {
 };
 #pragma pack(pop)
 
-static zu_bitmap *zu_bitmap_new_(unsigned n)
+zu_bitmap *zu_bitmap_new_(
+  const zu_bitmap_allocator *allocator, unsigned n)
 {
   n = (n + 63) & ~63;
-  zu_bitmap *v_;
-  if (!(v_ = static_cast<zu_bitmap *>(
-	allocFn(sizeof(uint64_t) + (n>>ByteShift))))) return nullptr;
-  v_->length = n>>BitShift;
-  new (v_) Bitmap{};
+  zu_bitmap *v_ = static_cast<zu_bitmap *>(
+    allocator->alloc(sizeof(uint64_t) + (n>>ByteShift)));
+  if (!v_) return nullptr;
+  new (v_) Bitmap{n};
   return v_;
 }
 
-zu_bitmap *zu_bitmap_new(unsigned n)
+zu_bitmap *zu_bitmap_new(const zu_bitmap_allocator *allocator, unsigned n)
 {
   zu_bitmap *v_;
-  if (!(v_ = zu_bitmap_new_(n))) return nullptr;
+  if (!(v_ = zu_bitmap_new_(allocator, n))) return nullptr;
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   memset(&v.data[0], 0, v.zu_bitmap::length<<(BitShift - ByteShift));
   return v_;
 }
 
-zu_bitmap *zu_bitmap_new_fill(unsigned n)
+zu_bitmap *zu_bitmap_new_fill(const zu_bitmap_allocator *allocator, unsigned n)
 {
   zu_bitmap *v_;
-  if (!(v_ = zu_bitmap_new_(n))) return nullptr;
+  if (!(v_ = zu_bitmap_new_(allocator, n))) return nullptr;
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   memset(&v.data[0], 0xff, v.zu_bitmap::length<<(BitShift - ByteShift));
   return v_;
 }
 
-void zu_bitmap_delete(zu_bitmap *v_)
+void zu_bitmap_delete(const zu_bitmap_allocator *allocator, zu_bitmap *v_)
 {
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   v.~Bitmap();
-  freeFn(v_);
+  allocator->free(v_);
 }
 
-zu_bitmap *zu_bitmap_copy(const zu_bitmap *p_)
+zu_bitmap *zu_bitmap_copy(
+  const zu_bitmap_allocator *allocator, const zu_bitmap *p_)
 {
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   auto n = p.length();
   zu_bitmap *v_;
-  if (!(v_ = zu_bitmap_new_(n))) return nullptr;
+  if (!(v_ = zu_bitmap_new_(allocator, n))) return nullptr;
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   memcpy(&v.data[0], &p.data[0], n<<(BitShift - ByteShift));
   return v_;
 }
 
-unsigned zu_bitmap_in(zu_bitmap **v_, const char *s_)
+unsigned zu_bitmap_in(
+  const zu_bitmap_allocator *allocator, zu_bitmap **v_, const char *s_)
 {
   ZuString s{s_};
   auto n = Bitmap::scanLast(s) + 1;
-  if (!(*v_ = zu_bitmap_new_(n))) return 0;
+  if (!(*v_ = zu_bitmap_new(allocator, n))) return 0;
   auto &v = *reinterpret_cast<Bitmap *>(*v_);
   return v.scan(s);
 }
@@ -153,19 +143,20 @@ uint64_t zu_bitmap_get_word(const zu_bitmap *v_, unsigned i)
   return v.data[i];
 }
 
-zu_bitmap *zu_bitmap_set_wlength(zu_bitmap *v_, unsigned n)
+zu_bitmap *zu_bitmap_set_wlength(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, unsigned n)
 {
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   auto l = (n + 63)>>BitShift;
   auto o = v.zu_bitmap::length;
   if (o == l) return v_;
   if (o > l) { v.zu_bitmap::length = l; return v_; }
-  auto w_ = zu_bitmap_new_(n);
-  if (!w_) { zu_bitmap_delete(v_); return nullptr; }
+  auto w_ = zu_bitmap_new_(allocator, n);
+  if (!w_) { zu_bitmap_delete(allocator, v_); return nullptr; }
   auto &w = *reinterpret_cast<Bitmap *>(w_);
   memcpy(&w.data[0], &v.data[0], o<<(BitShift - ByteShift));
   memset(&w.data[o], 0, (l - o)<<(BitShift - ByteShift));
-  zu_bitmap_delete(v_);
+  zu_bitmap_delete(allocator, v_);
   return w_;
 }
 
@@ -193,15 +184,31 @@ bool zu_bitmap_get(const zu_bitmap *v_, unsigned i)
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.get(i);
 }
-void zu_bitmap_set(zu_bitmap *v_, unsigned i)
+zu_bitmap *zu_bitmap_set(zu_bitmap *v_, unsigned i)
 {
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   v.set(i);
+  return v_;
 }
-void zu_bitmap_clr(zu_bitmap *v_, unsigned i)
+zu_bitmap *zu_bitmap_clr(zu_bitmap *v_, unsigned i)
 {
   auto &v = *reinterpret_cast<Bitmap *>(v_);
   v.clr(i);
+  return v_;
+}
+
+zu_bitmap *zu_bitmap_set_range(zu_bitmap *v_, unsigned begin, unsigned end)
+{
+  auto &v = *reinterpret_cast<Bitmap *>(v_);
+  v.set(begin, end);
+  return v_;
+}
+
+zu_bitmap *zu_bitmap_clr_range(zu_bitmap *v_, unsigned begin, unsigned end)
+{
+  auto &v = *reinterpret_cast<Bitmap *>(v_);
+  v.clr(begin, end);
+  return v_;
 }
 
 unsigned zu_bitmap_first(const zu_bitmap *v_)
@@ -246,37 +253,40 @@ zu_bitmap *zu_bitmap_flip(zu_bitmap *v_)
   return v_;
 }
 
-zu_bitmap *zu_bitmap_or(zu_bitmap *v_, const zu_bitmap *p_)
+zu_bitmap *zu_bitmap_or(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, const zu_bitmap *p_)
 {
   auto v = reinterpret_cast<Bitmap *>(v_);
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(v_, p.length()));
+      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v |= p;
   return v_;
 }
 
-zu_bitmap *zu_bitmap_and(zu_bitmap *v_, const zu_bitmap *p_)
+zu_bitmap *zu_bitmap_and(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, const zu_bitmap *p_)
 {
   auto v = reinterpret_cast<Bitmap *>(v_);
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(v_, p.length()));
+      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v &= p;
   return v_;
 }
 
-zu_bitmap *zu_bitmap_xor(zu_bitmap *v_, const zu_bitmap *p_)
+zu_bitmap *zu_bitmap_xor(
+  const zu_bitmap_allocator *allocator, zu_bitmap *v_, const zu_bitmap *p_)
 {
   auto v = reinterpret_cast<Bitmap *>(v_);
   const auto &p = *reinterpret_cast<const Bitmap *>(p_);
   if (v->length() < p.length())
     v = reinterpret_cast<Bitmap *>(
-      v_ = zu_bitmap_set_wlength(v_, p.length()));
+      v_ = zu_bitmap_set_wlength(allocator, v_, p.length()));
   if (!v) return nullptr;
   *v ^= p;
   return v_;

@@ -29,24 +29,28 @@ typedef struct {
 typedef void *(*zu_bitmap_alloc_fn)(unsigned size); // size in bytes
 typedef void (*zu_bitmap_free_fn)(void *);
 
-/* register allocate/free functions */
-ZuExtern void zu_bitmap_init(
-  zu_bitmap_alloc_fn,
-  zu_bitmap_free_fn);
+/* allocator */
+typedef struct {
+  zu_bitmap_alloc_fn	alloc;
+  zu_bitmap_free_fn	free;
+} zu_bitmap_allocator;
 
 /* new, delete */
-ZuExtern zu_bitmap *zu_bitmap_new(unsigned n);
-ZuExtern zu_bitmap *zu_bitmap_new_fill(unsigned n);
-ZuExtern void zu_bitmap_delete(zu_bitmap *v);
+ZuExtern zu_bitmap *zu_bitmap_new_(const zu_bitmap_allocator *, unsigned n);
+ZuExtern zu_bitmap *zu_bitmap_new(const zu_bitmap_allocator *, unsigned n);
+ZuExtern zu_bitmap *zu_bitmap_new_fill(const zu_bitmap_allocator *, unsigned n);
+ZuExtern void zu_bitmap_delete(const zu_bitmap_allocator *, zu_bitmap *v);
 
 /* copy */
-ZuExtern zu_bitmap *zu_bitmap_copy(const zu_bitmap *p);
+ZuExtern zu_bitmap *zu_bitmap_copy(
+  const zu_bitmap_allocator *, const zu_bitmap *p);
 
 /* get length (in bits) */
 ZuExtern unsigned zu_bitmap_get_length(const zu_bitmap *v);
 
 /* parse string, returns #bytes scanned, 0 on invalid input */
-ZuExtern unsigned zu_bitmap_in(zu_bitmap **v, const char *s);
+ZuExtern unsigned zu_bitmap_in(
+  const zu_bitmap_allocator *, zu_bitmap **v, const char *s);
 /* returns output length including null terminator */
 ZuExtern unsigned zu_bitmap_out_len(const zu_bitmap *v);
 /* output to string, returns end pointer to null terminator */
@@ -57,7 +61,8 @@ ZuExtern unsigned zu_bitmap_get_wlength(const zu_bitmap *v);
 ZuExtern uint64_t zu_bitmap_get_word(const zu_bitmap *v, unsigned i);
 
 /* set underlying array */
-ZuExtern zu_bitmap *zu_bitmap_set_wlength(zu_bitmap *v, unsigned n);
+ZuExtern zu_bitmap *zu_bitmap_set_wlength(
+  const zu_bitmap_allocator *, zu_bitmap *v, unsigned n);
 ZuExtern void zu_bitmap_set_word(zu_bitmap *v, unsigned i, uint64_t w);
 
 /* 3-way comparison */
@@ -68,8 +73,14 @@ ZuExtern uint32_t zu_bitmap_hash(const zu_bitmap *v);
 
 /* basic single-bit functions (get, set, clr) */
 ZuExtern bool zu_bitmap_get(const zu_bitmap *v, unsigned i);
-ZuExtern void zu_bitmap_set(zu_bitmap *v, unsigned i);
-ZuExtern void zu_bitmap_clr(zu_bitmap *v, unsigned i);
+ZuExtern zu_bitmap *zu_bitmap_set(zu_bitmap *v, unsigned i);
+ZuExtern zu_bitmap *zu_bitmap_clr(zu_bitmap *v, unsigned i);
+
+/* bit-range set/clear */
+ZuExtern zu_bitmap *zu_bitmap_set_range(
+  zu_bitmap *v, unsigned begin, unsigned end);
+ZuExtern zu_bitmap *zu_bitmap_clr_range(
+  zu_bitmap *v, unsigned begin, unsigned end);
 
 /* first, last, next, prev */
 ZuExtern unsigned zu_bitmap_first(const zu_bitmap *v);
@@ -83,9 +94,12 @@ ZuExtern zu_bitmap *zu_bitmap_fill(zu_bitmap *v);
 ZuExtern zu_bitmap *zu_bitmap_flip(zu_bitmap *v);
 
 /* or, and, xor */
-ZuExtern zu_bitmap *zu_bitmap_or(zu_bitmap *v, const zu_bitmap *p);
-ZuExtern zu_bitmap *zu_bitmap_and(zu_bitmap *v, const zu_bitmap *p);
-ZuExtern zu_bitmap *zu_bitmap_xor(zu_bitmap *v, const zu_bitmap *p);
+ZuExtern zu_bitmap *zu_bitmap_or(
+  const zu_bitmap_allocator *, zu_bitmap *v, const zu_bitmap *p);
+ZuExtern zu_bitmap *zu_bitmap_and(
+  const zu_bitmap_allocator *, zu_bitmap *v, const zu_bitmap *p);
+ZuExtern zu_bitmap *zu_bitmap_xor(
+  const zu_bitmap_allocator *, zu_bitmap *v, const zu_bitmap *p);
 
 #ifdef __cplusplus
 }
