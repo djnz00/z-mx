@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// ring buffer intra-process mirrored memory region
+// ring buffer - intra-process mirrored memory region
 
 #include <zlib/ZmRingMirror.hh>
 

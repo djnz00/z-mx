@@ -55,12 +55,13 @@ unsigned int zu_time_out_csv_len(const zu_time *v_)
 {
   return 32;
 }
-char *zu_time_out_csv(char *s_, const zu_time *v_)
+char *zu_time_out_csv(char *s_, unsigned n, const zu_time *v_)
 {
   thread_local ZuDateTimeFmt::CSV fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
+  if (ZuUnlikely(!n)) return nullptr; // should never happen
   ZuDateTime d{v};
-  ZuStream s{s_, 31U};
+  ZuStream s{s_, n - 1};
   s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();
@@ -70,12 +71,13 @@ unsigned int zu_time_out_iso_len(const zu_time *v_)
 {
   return 40;
 }
-char *zu_time_out_iso(char *s_, const zu_time *v_)
+char *zu_time_out_iso(char *s_, unsigned n, const zu_time *v_)
 {
   thread_local ZuDateTimeFmt::ISO fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
+  if (ZuUnlikely(!n)) return nullptr; // should never happen
   ZuDateTime d{v};
-  ZuStream s{s_, 39U};
+  ZuStream s{s_, n - 1};
   s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();
@@ -85,12 +87,13 @@ unsigned int zu_time_out_fix_len(const zu_time *v_)
 {
   return 32;
 }
-char *zu_time_out_fix(char *s_, const zu_time *v_)
+char *zu_time_out_fix(char *s_, unsigned n, const zu_time *v_)
 {
   thread_local ZuDateTimeFmt::FIX<-3> fmt;
   const auto &v = *reinterpret_cast<const ZuTime *>(v_);
+  if (ZuUnlikely(!n)) return nullptr; // should never happen
   ZuDateTime d{v};
-  ZuStream s{s_, 31U};
+  ZuStream s{s_, n - 1};
   s << d.fmt(fmt);
   *s.data() = 0;
   return s.data();

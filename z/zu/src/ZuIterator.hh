@@ -35,8 +35,8 @@ public:
   using Container = Container_;
   using Elem = Elem_;
 
-  Impl *impl() { return static_cast<Impl *>(this); }
-  const Impl *impl() const { return static_cast<const Impl *>(this); }
+  auto impl() const { return static_cast<const Impl *>(this); }
+  auto impl() { return static_cast<Impl *>(this); }
 
   using iterator_category = std::bidirectional_iterator_tag;
   using value_type = Elem;

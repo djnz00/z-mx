@@ -24,6 +24,7 @@ class Iterator : public ZuIterator<Iterator<Window_, Elem_>, Window_, Elem_> {
   using Base = ZuIterator<Iterator<Window_, Elem_>, Window_, Elem_>;
 public:
   using Window = Window_;
+  using Elem = Elem_;
   using Base::Base;
   using Base::operator =;
   using Base::container;

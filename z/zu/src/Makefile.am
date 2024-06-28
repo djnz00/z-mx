@@ -16,8 +16,8 @@ pkginclude_HEADERS = \
 	ZuNormChar.hh ZuEquiv.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
 	ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
 	ZuMStream.hh ZuMArray.hh ZuIterator.hh \
-	zu_lib.h zu_decimal.h zu_time.h
+	zu_lib.h zu_decimal.h zu_time.h zu_bitmap.h
 lib_LTLIBRARIES = libZu.la
 libZu_la_SOURCES = \
 	ZuLib.cc ZuVersion.cc ZuUTF.cc ZuTime.cc ZuDateTime.cc \
-	zu_decimal.cc zu_time.cc
+	zu_decimal.cc zu_time.cc zu_bitmap.cc

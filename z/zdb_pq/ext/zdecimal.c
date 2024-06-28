@@ -65,7 +65,7 @@ Datum zdecimal_out(PG_FUNCTION_ARGS) {
   const zu_decimal *v = (const zu_decimal *)PG_GETARG_POINTER(0);
   unsigned int n = zu_decimal_out_len(v);
   char *s = palloc(n);
-  zu_decimal_out(s, v);
+  zu_decimal_out(s, n, v);
   /* postgres uses NaN - change nan to NaN */
   if (s[0] == 'n' && s[1] == 'a' && s[2] == 'n' && s[3] == '\0')
     s[0] = 'N', s[2] = 'N';

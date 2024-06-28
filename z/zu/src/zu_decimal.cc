@@ -25,10 +25,11 @@ unsigned int zu_decimal_out_len(const zu_decimal *)
   return 40;
 }
 
-char *zu_decimal_out(char *s_, const zu_decimal *v_)
+char *zu_decimal_out(char *s_, unsigned n, const zu_decimal *v_)
 {
   ZuDecimal v{ZuDecimal::Unscaled{v_->value}};
-  ZuStream s{s_, 39U};
+  if (ZuUnlikely(!n)) return nullptr; // should never happen
+  ZuStream s{s_, n - 1};
   s << v;
   *s.data() = 0;
   return s.data();

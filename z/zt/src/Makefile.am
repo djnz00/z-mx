@@ -11,7 +11,8 @@ pkginclude_HEADERS = \
 	ZtField.hh ZtScanBool.hh ZtJoin.hh ZtCase.hh ZtTimeZone.hh
 lib_LTLIBRARIES = libZt.la
 libZt_la_SOURCES = \
-	ZtLib.cc ZtRegex.cc ZtString.cc ZtHexDump.cc ZtTimeZone.cc ZtField.cc
+	ZtLib.cc ZtRegex.cc ZtString.cc ZtHexDump.cc ZtTimeZone.cc \
+	ZtField.cc
 libZt_la_LIBADD = $(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@Z_ZT_LIBS@ @Z_MT_LIBS@

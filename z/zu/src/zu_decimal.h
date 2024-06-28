@@ -35,7 +35,7 @@ ZuExtern unsigned int zu_decimal_in(zu_decimal *v, const char *s);
 /* returns output length including null terminator */
 ZuExtern unsigned int zu_decimal_out_len(const zu_decimal *v);
 /* output to string, returns end pointer to null terminator */
-ZuExtern char *zu_decimal_out(char *s, const zu_decimal *v);
+ZuExtern char *zu_decimal_out(char *s, unsigned n, const zu_decimal *v);
 
 /* convert to/from integer */
 ZuExtern int64_t zu_decimal_to_int(const zu_decimal *v); /* truncates */

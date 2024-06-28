@@ -41,9 +41,9 @@ ZuExtern unsigned int zu_time_out_csv_len(const zu_time *v);
 ZuExtern unsigned int zu_time_out_iso_len(const zu_time *v);
 ZuExtern unsigned int zu_time_out_fix_len(const zu_time *v);
 /* output to string, returns end pointer to null terminator */
-ZuExtern char *zu_time_out_csv(char *s, const zu_time *v);
-ZuExtern char *zu_time_out_iso(char *s, const zu_time *v);
-ZuExtern char *zu_time_out_fix(char *s, const zu_time *v);
+ZuExtern char *zu_time_out_csv(char *s, unsigned n, const zu_time *v);
+ZuExtern char *zu_time_out_iso(char *s, unsigned n, const zu_time *v);
+ZuExtern char *zu_time_out_fix(char *s, unsigned n, const zu_time *v);
 
 /* convert to/from zu_decimal */
 ZuExtern zu_decimal *zu_time_to_decimal(zu_decimal *d, const zu_time *v);

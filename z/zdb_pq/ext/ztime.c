@@ -44,7 +44,7 @@ Datum ztime_out_##fmt(PG_FUNCTION_ARGS) { \
   const zu_time *v = (const zu_time *)PG_GETARG_POINTER(0); \
   unsigned int n = zu_time_out_##fmt##_len(v); \
   char *s = palloc(n); \
-  zu_time_out_##fmt(s, v); \
+  zu_time_out_##fmt(s, n, v); \
   PG_RETURN_CSTRING(s); \
 }
 
