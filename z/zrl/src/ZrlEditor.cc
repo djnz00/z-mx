@@ -1021,7 +1021,7 @@ bool Editor::cmdEnter(Cmd, int32_t)
   m_tty.crnl_();
   m_tty.write();
   const auto &data = m_tty.line().data();
-  ZuArray<const uint8_t> s{data.data(), data.length()};
+  ZuArray<const uint8_t> s(data.data(), data.length());
   s.offset(m_context.startPos);
   if (s) m_app.histSave(m_context.histSaveOff++, s);
 

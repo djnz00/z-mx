@@ -9,7 +9,7 @@ enum RAG:int8 {
 table Heap {			// == ZmHeapTelemetry
   id:string;
   cache_size:uint64;
-  cpuset:[uint64];
+  cpuset:Zfb.Bitmap;
   cache_allocs:uint64;
   heap_allocs:uint64;
   frees:uint64;
@@ -40,7 +40,7 @@ table Thread {			// == ZmThreadTelemetry
   name:string;
   tid:uint64;
   stack_size:uint64;
-  cpuset:[uint64];
+  cpuset:Zfb.Bitmap;
   cpu_usage:double;
   alloc_stack:uint64;
   alloc_heap:uint64;

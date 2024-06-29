@@ -228,22 +228,22 @@ zu_bitmap *zu_bitmap_clr_range(zu_bitmap *v_, unsigned begin, unsigned end)
   return v_;
 }
 
-unsigned zu_bitmap_first(const zu_bitmap *v_)
+int zu_bitmap_first(const zu_bitmap *v_)
 {
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.first();
 }
-unsigned zu_bitmap_last(const zu_bitmap *v_)
+int zu_bitmap_last(const zu_bitmap *v_)
 {
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.last();
 }
-unsigned zu_bitmap_next(const zu_bitmap *v_, unsigned i)
+int zu_bitmap_next(const zu_bitmap *v_, int i)
 {
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.next(i);
 }
-unsigned zu_bitmap_prev(const zu_bitmap *v_, unsigned i)
+int zu_bitmap_prev(const zu_bitmap *v_, int i)
 {
   const auto &v = *reinterpret_cast<const Bitmap *>(v_);
   return v.prev(i);

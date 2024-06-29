@@ -1,6 +1,6 @@
 namespace Zfb;
-table Bitmap { // ZmBitmap
-  data:[uint32];
+table Bitmap { // ZuBitmap / ZmBitmap / ZtBitmap
+  data:[uint64];
 }
 struct UInt128 { // uint128_t
   h:uint64;

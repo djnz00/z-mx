@@ -324,8 +324,8 @@ public:
 
 // buffer access
 
-  auto buf() { return ZuArray{data, length()>>BitShift}; }
-  auto cbuf() const { return ZuArray{data, length()>>BitShift}; }
+  auto buf() { return ZuArray{&data[0], length()>>BitShift}; }
+  auto cbuf() const { return ZuArray{&data[0], length()>>BitShift}; }
 
 // comparison
 

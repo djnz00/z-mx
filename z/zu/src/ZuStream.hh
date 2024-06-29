@@ -123,7 +123,7 @@ protected:
   }
 
   template <typename S> MatchString<S> append_(S &&s_) {
-    ZuArray<const Char> s{s_};
+    ZuArray<const Char> s(s_);
     append(s.data(), s.length());
   }
 

@@ -142,7 +142,7 @@ void ZmTrap::winErrLog(int type, ZuString s)
 
   wbuf.null();
   wbuf.length(ZuUTF<wchar_t, char>::cvt(
-	ZuArray<wchar_t>{wbuf.data(), wbuf.size() - 1}, buf));
+	ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
   wbuf[wbuf.length() - (wbuf.length() == wbuf.size())] = 0;
 
   const wchar_t *w = wbuf.data();

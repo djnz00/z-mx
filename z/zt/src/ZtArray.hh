@@ -301,7 +301,7 @@ public:
   template <typename A> ZtArray(A &&a) { ctor(ZuFwd<A>(a)); }
 
   template <typename A> ZtArray(Move, A &a_) {
-    ZuArray<const typename ZuTraits<A>::Elem> a{a_};
+    ZuArray<const typename ZuTraits<A>::Elem> a(a_);
     move__(a.data(), a.length());
   }
 
@@ -441,7 +441,7 @@ private:
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(m_data, o), s));
   }
   template <typename C> MatchChar2<C> ctor(C c) {
-    ZuArray<const Char2> s{&c, 1};
+    ZuArray<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (!o) { null_(); return; }
     alloc_(o, 0);
@@ -478,7 +478,7 @@ public:
     copy__(a.m_data, a.length());
   }
   template <typename A> MatchSpan<A> copy(A &&a_) {
-    ZuArray<const typename ZuTraits<A>::Elem> a{a_};
+    ZuArray<const typename ZuTraits<A>::Elem> a(a_);
     copy__(a.data(), a.length());
   }
   template <typename A> MatchIterable<A> copy(const A &a) {
@@ -554,7 +554,7 @@ private:
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(m_data, o), s));
   }
   template <typename C> MatchChar2<C> assign(C c) {
-    ZuArray<const Char2> s{&c, 1};
+    ZuArray<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (!o) { null(); return; }
     if (!owned() || size() < o) size(o);
@@ -599,7 +599,7 @@ private:
   }
   template <typename A>
   MatchSameSpan<A> shadow(A &&a_) {
-    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
+    ZuArray<const typename ZuTraits<A>::Elem> a(ZuFwd<A>(a_));
     free_();
     shadow_(a.data(), a.length());
   }
@@ -607,7 +607,7 @@ private:
 public:
   template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZtArray(S &&s_, ZtIconv *iconv) {
-    ZuArray<const typename ZuTraits<S>::Elem> s{s_};
+    ZuArray<const typename ZuTraits<S>::Elem> s(s_);
     convert_(s, iconv);
   }
   ZtArray(const Char *data, unsigned length, ZtIconv *iconv) {
@@ -974,12 +974,12 @@ public:
   }
   template <typename A>
   MatchSpan<A, bool> equals(A &&a_) const {
-    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
+    ZuArray<const typename ZuTraits<A>::Elem> a(ZuFwd<A>(a_));
     return equals(a.data(), a.length());
   }
   template <typename S>
   MatchAnyString<S, bool> equals(S &&s_) const {
-    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    ZuArray<const typename ZuTraits<S>::Elem> s(ZuFwd<S>(s_));
     return equals(reinterpret_cast<const T *>(s.data()), s.length());
   }
   template <typename S>
@@ -1001,12 +1001,12 @@ public:
   }
   template <typename A>
   MatchSpan<A, int> cmp(A &&a_) const {
-    ZuArray<const typename ZuTraits<A>::Elem> a{ZuFwd<A>(a_)};
+    ZuArray<const typename ZuTraits<A>::Elem> a(ZuFwd<A>(a_));
     return cmp(a.data(), a.length());
   }
   template <typename S>
   MatchAnyString<S, int> cmp(S &&s_) const {
-    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    ZuArray<const typename ZuTraits<S>::Elem> s(ZuFwd<S>(s_));
     return cmp(s.data(), s.length());
   }
   template <typename S>
@@ -1046,7 +1046,7 @@ private:
 
   template <typename S>
   MatchAnyString<S, ZtArray> add(S &&s_) const {
-    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    ZuArray<const typename ZuTraits<S>::Elem> s(ZuFwd<S>(s_));
     return add(s.data(), s.length());
   }
   template <typename S>
@@ -1128,7 +1128,7 @@ private:
   }
 
   template <typename S> MatchAnyString<S> append_(S &&s_) {
-    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    ZuArray<const typename ZuTraits<S>::Elem> s(ZuFwd<S>(s_));
     splice_cp_(0, length(), 0, s.data(), s.length());
   }
 
@@ -1203,7 +1203,7 @@ private:
   template <typename S>
   MatchAnyString<S> splice_(
       ZtArray *removed, int offset, int length, const S &s_) {
-    ZuArray<const typename ZuTraits<S>::Elem> s{s_};
+    ZuArray<const typename ZuTraits<S>::Elem> s(s_);
     splice_cp_(removed, offset, length, s.data(), s.length());
   }
 

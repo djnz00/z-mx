@@ -1357,7 +1357,7 @@ void Terminal::clrBreak_(unsigned n)
 void Terminal::out_(ZuString data)
 {
   unsigned begin = m_out.length();
-  m_out << ZuArray<const uint8_t>{data};
+  m_out << ZuArray<const uint8_t>(data);
   unsigned end = m_out.length();
   for (unsigned off = begin; off < end; ) {
     unsigned n;
@@ -1376,7 +1376,7 @@ void Terminal::out_(ZuString data)
 	    w <<= 1;
 	  }
 	} else
-	  m_out.splice(off, n, ZuArray<const uint8_t>{"__", w});
+	  m_out.splice(off, n, ZuArray<const uint8_t>("__", w));
 	off += w; end += w; end -= n;
       } else
 #endif

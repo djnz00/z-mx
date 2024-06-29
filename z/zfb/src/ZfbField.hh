@@ -38,7 +38,7 @@
 // Time		Time		ZuTime
 // DateTime	DateTime	ZuDateTime
 //
-// Bitmap	UDT		ZmBitmap
+// Bitmap	UDT		ZuBitmap<Bits> | ZmBitmap | ZtBitmap
 // IP		UDT		ZiIP
 // ID		UDT		ZuID
 // Object	UDT		<Any>
@@ -786,7 +786,8 @@ namespace Load {
 #define ZfbFieldDateTimeVec_T DateTimeVec
 
 #define ZfbFieldBitmap_T UDT
-#define ZfbFieldBitmap(O, ...) ZfbFieldNested(O, __VA_ARGS__, bitmap, bitmap)
+#define ZfbFieldBitmap(O, ...) \
+  ZfbFieldNested(O, __VA_ARGS__, bitmap, bitmap<typename Base::T>)
 #define ZfbFieldIP_T UDT
 #define ZfbFieldIP(O, ...) ZfbFieldInline(O, __VA_ARGS__, ip, ip)
 #define ZfbFieldID_T UDT

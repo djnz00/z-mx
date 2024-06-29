@@ -543,7 +543,7 @@ namespace Print {
       const auto &v = print.v;
       auto n = ZuBase64::enclen(v.length());
       auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf{&buf_[0], n};
+      ZuArray<uint8_t> buf(&buf_[0], n);
       buf.trunc(ZuBase64::encode(buf, v));
       return s << ZuString{buf};
     }
@@ -941,7 +941,7 @@ MGet::print(
   ZuBytes v = get_.bytes(o);
   auto n = ZuBase64::enclen(v.length());
   auto buf_ = ZmAlloc(uint8_t, n);
-  ZuArray<uint8_t> buf{&buf_[0], n};
+  ZuArray<uint8_t> buf(&buf_[0], n);
   buf.trunc(ZuBase64::encode(buf, v));
   s << ZuString{buf};
 }
@@ -1242,7 +1242,7 @@ MSet::scan(
   }
   unsigned n = s.length() + 1;
   auto buf_ = ZmAlloc(char, n);
-  ZuArray<char> buf{&buf_[0], n};
+  ZuArray<char> buf(&buf_[0], n);
   buf[Scan::string(buf, s)] = 0;
   set_.cstring(o, &buf[0]);
 }
@@ -1257,7 +1257,7 @@ MSet::scan(
   }
   unsigned n = s.length();
   auto buf_ = ZmAlloc(char, n);
-  ZuArray<char> buf{&buf_[0], n};
+  ZuArray<char> buf(&buf_[0], n);
   buf.trunc(Scan::string(buf, s));
   set_.string(o, buf);
 }
@@ -1268,7 +1268,7 @@ MSet::scan(
 ) const {
   auto n = ZuBase64::declen(s.length());
   auto buf_ = ZmAlloc(uint8_t, n);
-  ZuArray<uint8_t> buf{&buf_[0], n};
+  ZuArray<uint8_t> buf(&buf_[0], n);
   buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
   set_.bytes(o, buf);
 }
@@ -1400,7 +1400,7 @@ MSet::scan(
   VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m + 1);
-    ZuArray<char> buf{&buf_[0], m + 1};
+    ZuArray<char> buf(&buf_[0], m + 1);
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf[n] = 0;
@@ -1418,7 +1418,7 @@ MSet::scan(
   VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m);
-    ZuArray<char> buf{&buf_[0], m};
+    ZuArray<char> buf(&buf_[0], m);
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf.trunc(n);
@@ -1440,7 +1440,7 @@ MSet::scan(
     n = ZuBase64::declen(m = n);
     if (n) {
       auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf{&buf_[0], n};
+      ZuArray<uint8_t> buf(&buf_[0], n);
       buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
       set_.bytes(o, ZuBytes{&buf[0], buf.length()});
       s.offset(m);

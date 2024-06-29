@@ -143,6 +143,32 @@ Datum zbitmap_clr_range(PG_FUNCTION_ARGS) {
   PG_RETURN_POINTER(DATAVAR(zu_bitmap_clr_range(v, begin, end)));
 }
 
+PG_FUNCTION_INFO_V1(zbitmap_first);
+Datum zbitmap_first(PG_FUNCTION_ARGS) {
+  const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
+  PG_RETURN_INT32(zu_bitmap_first(v));
+}
+
+PG_FUNCTION_INFO_V1(zbitmap_last);
+Datum zbitmap_last(PG_FUNCTION_ARGS) {
+  const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
+  PG_RETURN_INT32(zu_bitmap_last(v));
+}
+
+PG_FUNCTION_INFO_V1(zbitmap_next);
+Datum zbitmap_next(PG_FUNCTION_ARGS) {
+  const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
+  int i = PG_GETARG_INT32(1);
+  PG_RETURN_INT32(zu_bitmap_next(v, i));
+}
+
+PG_FUNCTION_INFO_V1(zbitmap_prev);
+Datum zbitmap_prev(PG_FUNCTION_ARGS) {
+  const zu_bitmap *v = (const zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));
+  int i = PG_GETARG_INT32(1);
+  PG_RETURN_INT32(zu_bitmap_prev(v, i));
+}
+
 PG_FUNCTION_INFO_V1(zbitmap_flip);
 Datum zbitmap_flip(PG_FUNCTION_ARGS) {
   zu_bitmap *v = (zu_bitmap *)VARDATA(PG_GETARG_POINTER(0));

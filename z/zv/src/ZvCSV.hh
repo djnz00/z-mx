@@ -157,7 +157,7 @@ namespace ZvCSV_ {
     auto v = field->get.get<Code>(object);
     auto n = ZuBase64::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf{&buf_[0], n};
+    ZuArray<uint8_t> buf(&buf_[0], n);
     buf.trunc(ZuBase64::encode(buf, v));
     row << ZuString{buf};
   }
@@ -176,7 +176,7 @@ namespace ZvCSV_ {
       auto v = Elem(array[i]);
       auto n = ZuBase64::enclen(v.length());
       auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf{&buf_[0], n};
+      ZuArray<uint8_t> buf(&buf_[0], n);
       buf.trunc(ZuBase64::encode(buf, v));
       row << ZuString{buf};
     }

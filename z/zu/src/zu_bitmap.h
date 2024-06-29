@@ -86,10 +86,10 @@ ZuExtern zu_bitmap *zu_bitmap_clr_range(
   zu_bitmap *v, unsigned begin, unsigned end);
 
 /* first, last, next, prev */
-ZuExtern unsigned zu_bitmap_first(const zu_bitmap *v);
-ZuExtern unsigned zu_bitmap_last(const zu_bitmap *v);
-ZuExtern unsigned zu_bitmap_next(const zu_bitmap *v, unsigned i);
-ZuExtern unsigned zu_bitmap_prev(const zu_bitmap *v, unsigned i);
+ZuExtern int zu_bitmap_first(const zu_bitmap *v);
+ZuExtern int zu_bitmap_last(const zu_bitmap *v);
+ZuExtern int zu_bitmap_next(const zu_bitmap *v, int i);
+ZuExtern int zu_bitmap_prev(const zu_bitmap *v, int i);
 
 /* zero, fill, flip */
 ZuExtern zu_bitmap *zu_bitmap_zero(zu_bitmap *v);

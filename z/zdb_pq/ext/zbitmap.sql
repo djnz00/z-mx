@@ -49,6 +49,22 @@ CREATE FUNCTION zbitmap_clr_range(INOUT zbitmap, uint4, uint4) RETURNS zbitmap
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/libz', 'zbitmap_clr_range';
 
+CREATE FUNCTION zbitmap_first(zbitmap) RETURNS int4
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/libz', 'zbitmap_first';
+
+CREATE FUNCTION zbitmap_last(zbitmap) RETURNS int4
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/libz', 'zbitmap_last';
+
+CREATE FUNCTION zbitmap_next(zbitmap, int4) RETURNS int4
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/libz', 'zbitmap_next';
+
+CREATE FUNCTION zbitmap_prev(zbitmap, int4) RETURNS int4
+  IMMUTABLE STRICT LANGUAGE C
+  AS '$libdir/libz', 'zbitmap_prev';
+
 CREATE FUNCTION zbitmap_flip(INOUT zbitmap) RETURNS zbitmap
   IMMUTABLE STRICT LANGUAGE C
   AS '$libdir/libz', 'zbitmap_flip';

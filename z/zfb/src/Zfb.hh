@@ -32,6 +32,8 @@
 #include <zlib/ZmBitmap.hh>
 #include <zlib/ZmAlloc.hh>
 
+#include <zlib/ZtBitmap.hh>
+
 #include <zlib/ZePlatform.hh>
 
 #include <zlib/ZiPlatform.hh>
@@ -306,13 +308,27 @@ namespace Save {
   }
 
   // bitmap
+  template <typename Builder, unsigned Bits>
+  inline Offset<Bitmap> bitmap(Builder &fbb, const ZuBitmap<Bits> &v) {
+    unsigned n = Bits>>6;
+    return CreateBitmap(fbb, pvectorIter<uint64_t>(fbb, n, [&v](unsigned i) {
+      return v.data[i];
+    }));
+  }
   template <typename Builder>
   inline Offset<Bitmap> bitmap(Builder &fbb, const ZmBitmap &v) {
     int n = v.last();
     if (ZuUnlikely(n <= 0)) return {};
-    n = (n + 0x3f)>>6;
-    return CreateBitmap(fbb, pvectorIter<uint32_t>(fbb, n, [&v](unsigned i) {
+    n = (n + 0x40)>>6;
+    return CreateBitmap(fbb, pvectorIter<uint64_t>(fbb, n, [&v](unsigned i) {
       return hwloc_bitmap_to_ith_ulong(v, i);
+    }));
+  }
+  template <typename Builder>
+  inline Offset<Bitmap> bitmap(Builder &fbb, const ZtBitmap &v) {
+    unsigned n = v.data.length();
+    return CreateBitmap(fbb, pvectorIter<uint64_t>(fbb, n, [&v](unsigned i) {
+      return v.data[i];
     }));
   }
 
@@ -416,15 +432,43 @@ namespace Load {
   }
 
   // bitmap
-  inline ZmBitmap bitmap(const Vector<uint64_t> *v) {
-    if (!v) return ZmBitmap{};
-    ZmBitmap m;
-    if (unsigned n = v->size()) {
+  template <typename T> struct IsZuBitmap : public ZuFalse { };
+  template <unsigned Bits>
+  struct IsZuBitmap<ZuBitmap<Bits>> : public ZuTrue { };
+  template <typename T, typename R = void>
+  using MatchZuBitmap = ZuIfT<IsZuBitmap<T>{}, R>;
+  template <typename T, decltype(MatchZuBitmap<T>(), int()) = 0>
+  inline T bitmap(const Bitmap *bitmap) {
+    if (!bitmap || !bitmap->data()) return T{};
+    auto vec = bitmap->data();
+    unsigned n = vec->size();
+    T b;
+    if (n > T::Words) n = T::Words;
+    for (unsigned i = 0; i < n; i++) b.data[i] = vec->Get(i);
+    return b;
+  }
+  template <typename T, decltype(ZuExact<ZmBitmap, T>(), int()) = 0>
+  inline T bitmap(const Bitmap *bitmap) {
+    if (!bitmap || !bitmap->data()) return T{};
+    auto vec = bitmap->data();
+    unsigned n = vec->size();
+    T b;
+    if (n) {
       --n;
-      hwloc_bitmap_from_ith_ulong(m, n, (*v)[n]);
-      while (n--) hwloc_bitmap_set_ith_ulong(m, n, (*v)[n]);
+      hwloc_bitmap_from_ith_ulong(b, n, vec->Get(n));
+      while (n--) hwloc_bitmap_set_ith_ulong(b, n, vec->Get(n));
     }
-    return m;
+    return b;
+  }
+  template <typename T, decltype(ZuExact<ZtBitmap, T>(), int()) = 0>
+  inline T bitmap(const Bitmap *bitmap) {
+    if (!bitmap || !bitmap->data()) return T{};
+    auto vec = bitmap->data();
+    unsigned n = vec->size();
+    T b;
+    b.data.length(n); // avoid unnecessary zero-fill
+    for (unsigned i = 0; i < n; i++) b.data[i] = vec->Get(i);
+    return b;
   }
 
   // IP address

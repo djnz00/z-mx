@@ -76,6 +76,7 @@ using Value_ = ZuUnion<
   ZuDateTime,	// Zfb.DateTime
   int128_t,	// Zfb.UInt128
   uint128_t,	// Zfb.Int128
+  ZtBitmap,	// Zfb.Bitmap
   ZiIP,		// Zfb.IP
   ZuID,		// Zfb.ID
 
@@ -141,6 +142,7 @@ struct Value : public Value_ {
     I == Value_::Index<ZuFixed>{} ||
     I == Value_::Index<ZuDecimal>{} ||
     I == Value_::Index<ZuTime>{} ||
+    I == Value_::Index<ZtBitmap>{} ||
     I == Value_::Index<ZiIP>{} ||
     I == Value_::Index<ZuID>{}>
   print_(S &s) const { s << p<I>(); }
@@ -326,6 +328,10 @@ XField xField(
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
+	  if (ftindex == std::type_index{typeid(ZtBitmap)}) {
+	    type = Value::Index<ZtBitmap>{};
+	    break;
+	  }
 	  if (ftindex == std::type_index{typeid(ZiIP)}) {
 	    type = Value::Index<ZiIP>{};
 	    break;
@@ -511,6 +517,15 @@ inline ZuIfT<Type == Value::Index<uint128_t>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   *static_cast<uint128_t *>(ptr) =
     Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()));
+}
+
+template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtBitmap>{}>
+loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
+  new (ptr) ZtBitmap{
+    Zfb::Load::bitmap<ZtBitmap>(
+      fbo->GetPointer<const Zfb::Bitmap *>(field->offset()))
+  };
 }
 
 template <unsigned Type>
@@ -800,9 +815,18 @@ saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 }
 
 template <unsigned Type>
+inline ZuIfT<Type == Value::Index<ZtBitmap>{}>
+saveOffset(
+  Zfb::Builder &fbb, Offsets &offsets, const Value &value)
+{
+  offsets.push(Zfb::Save::bitmap(fbb, value.p<Type>()).Union());
+}
+
+template <unsigned Type>
 inline ZuIfT<
   Type != Value::Index<ZtString>{} &&
   Type != Value::Index<ZtBytes>{} &&
+  Type != Value::Index<ZtBitmap>{} &&
   !isVec(Type)>
 saveOffset(Zfb::Builder &, Offsets &, const Value &) { }
 
@@ -816,6 +840,7 @@ template <unsigned Type>
 inline ZuIfT<
   Type == Value::Index<ZtString>{} ||
   Type == Value::Index<ZtBytes>{} ||
+  Type == Value::Index<ZtBitmap>{} ||
   isVec(Type)>
 saveValue(
   Zfb::Builder &fbb, const Offsets &offsets,

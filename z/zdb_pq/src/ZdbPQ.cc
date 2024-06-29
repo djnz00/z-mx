@@ -1969,25 +1969,25 @@ void StoreTbl::glob(
   auto params_ = ZmAlloc(Value, nParams); \
   Tuple params(&params_[0], 0, nParams, false)
 
-#define VecAlloc(nParams, xfields, fbo) \
-  unsigned nVecs = 0; \
+#define VarAlloc(nParams, xfields, fbo) \
+  unsigned nVars = 0; \
   for (unsigned i = 0; i < nParams; i++) \
-    if (isVec(xfields[i].type)) nVecs++; \
-  auto vecBufParts_ = ZmAlloc(VecBufPart, nVecs); \
-  ZtArray<VecBufPart> vecBufParts(&vecBufParts_[0], 0, nVecs, false); \
-  unsigned vecBufSize_ = 0; \
-  if (nVecs > 0) { \
+    if (isVar(xfields[i].type)) nVars++; \
+  auto varBufParts_ = ZmAlloc(VarBufPart, nVars); \
+  ZtArray<VarBufPart> varBufParts(&varBufParts_[0], 0, nVars, false); \
+  unsigned varBufSize_ = 0; \
+  if (nVars > 0) { \
     for (unsigned i = 0; i < nParams; i++) { \
-      if (!isVec(xfields[i].type)) continue; \
+      if (!isVar(xfields[i].type)) continue; \
       auto field = xfields[i].field; \
       unsigned size = ZuSwitch::dispatch<Value::N>(xfields[i].type, \
-	  [field, fbo](auto Type) { return vecBufSize<Type>(field, fbo); }); \
-      vecBufParts.push(VecBufPart{vecBufSize_, size}); \
-      vecBufSize_ += size; \
+	  [field, fbo](auto Type) { return varBufSize<Type>(field, fbo); }); \
+      varBufParts.push(VarBufPart{varBufSize_, size}); \
+      varBufSize_ += size; \
     } \
   } \
-  auto vecBuf_ = ZmAlloc(uint8_t, vecBufSize_); \
-  ZtArray<uint8_t> vecBuf(&vecBuf_[0], 0, vecBufSize_, false)
+  auto varBuf_ = ZmAlloc(uint8_t, varBufSize_); \
+  ZtArray<uint8_t> varBuf(&varBuf_[0], 0, varBufSize_, false)
 
 int StoreTbl::glob_send(Work::Glob &glob)
 {
@@ -2010,11 +2010,11 @@ int StoreTbl::glob_send(Work::Glob &glob)
   nParams += 2; // + 2 for offset, limit
   ParamAlloc(nParams);
   nParams -= 2;
-  VecAlloc(nParams, xKeyFields, fbo);
+  VarAlloc(nParams, xKeyFields, fbo);
 
   if (nParams > 0)
     loadTuple(
-      params, vecBuf, vecBufParts,
+      params, varBuf, varBufParts,
       m_store->oids(), nParams, keyFields, xKeyFields, fbo);
   new (params.push()) Value{UInt64{glob.offset}};
   new (params.push()) Value{UInt64{glob.limit}};
@@ -2117,10 +2117,10 @@ int StoreTbl::find_send(Work::Find &find)
 
   IDAlloc(24);
   ParamAlloc(nParams);
-  VecAlloc(nParams, xKeyFields, fbo);
+  VarAlloc(nParams, xKeyFields, fbo);
 
   loadTuple(
-    params, vecBuf, vecBufParts,
+    params, varBuf, varBufParts,
     m_store->oids(), nParams, keyFields, xKeyFields, fbo);
   id << m_id_ << "_find_" << find.keyID;
   return m_store->sendPrepared<SendState::Flush, true>(id, params);
@@ -2319,13 +2319,13 @@ int StoreTbl::write_send(Work::Write &write)
     IDAlloc(8);
     ParamAlloc(nParams);
     nParams -= 3;
-    VecAlloc(nParams, m_xFields, fbo);
+    VarAlloc(nParams, m_xFields, fbo);
     id << m_id_ << "_insert";
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
     loadTuple(
-      params, vecBuf, vecBufParts,
+      params, varBuf, varBufParts,
       m_store->oids(), nParams, m_fields, m_xFields, fbo);
     return m_store->sendPrepared<SendState::Sync, false>(id, params);
   } else if (record->vn() > 0) { // update
@@ -2333,23 +2333,23 @@ int StoreTbl::write_send(Work::Write &write)
     IDAlloc(8);
     ParamAlloc(nParams);
     nParams -= 3;
-    VecAlloc(nParams, m_xUpdFields, fbo);
+    VarAlloc(nParams, m_xUpdFields, fbo);
     id << m_id_ << "_update";
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
     loadTuple(
-      params, vecBuf, vecBufParts,
+      params, varBuf, varBufParts,
       m_store->oids(), nParams, m_updFields, m_xUpdFields, fbo);
     return m_store->sendPrepared<SendState::Sync, false>(id, params);
   } else if (!write.mrd) { // delete
     auto nParams = m_keyFields[0].length();
     IDAlloc(8);
     ParamAlloc(nParams);
-    VecAlloc(nParams, m_xKeyFields[0], fbo);
+    VarAlloc(nParams, m_xKeyFields[0], fbo);
     id << m_id_ << "_delete";
     loadTuple(
-      params, vecBuf, vecBufParts,
+      params, varBuf, varBufParts,
       m_store->oids(), nParams, m_keyFields[0], m_xKeyFields[0], fbo);
     return m_store->sendPrepared<SendState::Sync, false>(id, params);
   } else { // delete - MRD

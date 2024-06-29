@@ -250,7 +250,7 @@ private:
   }
 
   template <typename C> MatchChar2<C> ctor(C c) {
-    ZuArray<const Char2> s{&c, 1};
+    ZuArray<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (!o) { null_(); return; }
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(alloc_(o + 1, 0), o), s));
@@ -303,7 +303,7 @@ public:
   }
 	  
   template <typename C> MatchChar2<C> copy(C c) {
-    ZuArray<const Char2> s{&c, 1};
+    ZuArray<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (ZuUnlikely(!o)) { length_(0); return; }
     unsigned z = size();
@@ -378,7 +378,7 @@ private:
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(data, o), s));
   }
   template <typename C> MatchChar2<C> assign(C c) {
-    ZuArray<const Char2> s{&c, 1};
+    ZuArray<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     unsigned z = size();
     if (ZuUnlikely(!o)) { length_(0); return; }

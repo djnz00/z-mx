@@ -167,7 +167,7 @@ void Globber::init(
 	xqstate = qstate;
       }
     }
-    path << ZuArray<const uint8_t>{&data[off], n};
+    path << ZuArray<const uint8_t>(&data[off], n);
     off += n;
   }
   {
@@ -211,7 +211,7 @@ void Globber::init(
     unsigned n = ZuUTF8::in(&path[off], path.length() - off, c);
     if (!n) break;
     if (quoteFn(c)) { replace << '\\'; ++rspan; ++m_lspan; }
-    replace << ZuArray<const uint8_t>{&path[off], n};
+    replace << ZuArray<const uint8_t>(&path[off], n);
     {
       ZuUTFSpan span{n, 1, ZuUTF32::width(c)};
       rspan += span;
@@ -279,7 +279,7 @@ skip:
     unsigned n = ZuUTF8::in(&leaf[off], leaf.length() - off, c);
     if (!n) break;
     if (quoteFn(c)) { replace << '\\'; ++rspan; }
-    replace << ZuArray<const uint8_t>{&leaf[off], n};
+    replace << ZuArray<const uint8_t>(&leaf[off], n);
     rspan += ZuUTFSpan{n, 1, ZuUTF32::width(c)};
     off += n;
   }
