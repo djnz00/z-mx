@@ -420,6 +420,10 @@ void DB::stopListening()
 
 void DB::holdElection()
 {
+  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+    s << hostID << " state=" << HostState::name(state);
+  })); */
+
   ZmAssert(invoked());
 
   bool won, appActive;

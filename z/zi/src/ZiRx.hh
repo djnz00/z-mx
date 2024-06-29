@@ -50,19 +50,22 @@ public:
     ZmRef<Buf> buf = new Buf{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
-    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) -> uintptr_t {
+    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
       unsigned len = io.offset += io.length;
       io.length = 0;
 
       // scan header
       buf->length = len;
       int frameLen = ZuInvoke<Hdr>(impl(buf), io, buf);
-      if (ZuUnlikely(frameLen < 0)) return -1;
-      if (len < static_cast<unsigned>(frameLen)) return 0;
+      if (ZuUnlikely(frameLen < 0)) {
+	io.disconnect();
+	return true;
+      }
+      if (len < static_cast<unsigned>(frameLen)) return true;
       if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
 	ZeLOG(Error, "ZiRx::recv TCP message too big / corrupt");
 	io.disconnect();
-	return 0;
+	return true;
       }
 
       // due to queuing, cannot recycle rx msg buffer for the next message
@@ -81,8 +84,11 @@ public:
 
       // process body
       frameLen = ZuInvoke<Body>(impl(buf), io, io.fn.mvObject<Buf>());
-      if (ZuUnlikely(frameLen < 0)) return 0;
-      if (!frameLen) return len;
+      if (ZuUnlikely(frameLen < 0)) {
+	io.disconnect();
+	return true;
+      }
+      if (!frameLen) return true;
 
       // no trailing data - allocate blank next message
       if (!next) {
@@ -96,7 +102,7 @@ public:
       io.offset = 0;
       io.length = nextLen;
       io.fn.object(ZuMv(next));
-      return nextLen;
+      return false;
     }}, ptr, size, 0);
   }
 
@@ -111,25 +117,31 @@ public:
     ZmRef<Buf> buf = new Buf{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
-    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) -> uintptr_t {
+    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
       unsigned len = io.offset += io.length;
       io.length = 0;
 
       // scan header
       buf->length = len;
       int frameLen = ZuInvoke<Hdr>(impl(buf), io, buf);
-      if (ZuUnlikely(frameLen < 0)) return -1;
-      if (len < static_cast<unsigned>(frameLen)) return 0;
+      if (ZuUnlikely(frameLen < 0)) {
+	io.disconnect();
+	return true;
+      }
+      if (len < static_cast<unsigned>(frameLen)) return true;
       if (ZuUnlikely(static_cast<unsigned>(frameLen) > buf->size)) {
 	ZeLOG(Error, "ZiRx::recv TCP message too big / corrupt");
 	io.disconnect();
-	return 0;
+	return true;
       }
 
       // process body
       frameLen = ZuInvoke<Body>(impl(buf), io, buf, frameLen);
-      if (ZuUnlikely(frameLen < 0)) return 0;
-      if (!frameLen) return len;
+      if (ZuUnlikely(frameLen < 0)) {
+	io.disconnect();
+	return true;
+      }
+      if (!frameLen) return true;
 
       // calculate length of trailing data
       unsigned nextLen = len - frameLen;
@@ -140,7 +152,7 @@ public:
       // set up I/O context for next message
       io.offset = 0;
       io.length = buf->length = nextLen;
-      return nextLen;
+      return false;
     }}, ptr, size, 0);
   }
 

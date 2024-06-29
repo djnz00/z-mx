@@ -103,9 +103,9 @@ protected:
 private:
   void connected_(Cxn *cxn, ZiIOContext &io) {
     m_rxBuf = new IOBuf{this, 0U};
-    io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) -> uintptr_t {
+    io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) {
       link->rx(io);
-      return 0;
+      return true;
     }}, m_rxBuf->data_, IOBuf::Size, 0);
     ZmRef<Impl> impl{this};
     this->app()->run([impl = ZuMv(impl), cxn = ZmMkRef(cxn)]() {
