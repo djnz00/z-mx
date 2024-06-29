@@ -796,9 +796,12 @@ namespace Load {
 #define ZfbFieldObject(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, object, object<typename Base::T>)
 
+#define ZfbField_TypeArgs_(Name, ...) __VA_OPT__(, __VA_ARGS__)
+#define ZfbField_TypeArgs(Type) ZuPP_Defer(ZfbField_TypeArgs_)Type
+
 #define ZfbField_Decl__(O, ID, Base, TypeName, Type) \
   ZuPP_Defer(ZtField_Decl_)(O, Base, \
-      (ZfbField##TypeName##_T ZuPP_Nest(ZtField_TypeArgs(Type)))) \
+      (ZfbField##TypeName##_T ZuPP_Nest(ZfbField_TypeArgs(Type)))) \
   ZuPP_Defer(ZfbField##TypeName)(O, ID, ZuPP_Nest(ZtFieldTypeName(O, ID)))
 #define ZfbField_Decl_(O, Base, Type) \
   ZuPP_Defer(ZfbField_Decl__)(O, \

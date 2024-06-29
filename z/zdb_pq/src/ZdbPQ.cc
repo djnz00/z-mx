@@ -44,6 +44,7 @@ OIDs::OIDs()
     "ztime",	// DateTime
     "int16",	// Int128
     "uint16",	// UInt128
+    "zbitmap",	// Bitmap
     "inet",	// IP
     "text",	// ID
 
@@ -725,6 +726,15 @@ int Store::getOIDs_send()
   // skip re-querying previously resolved OIDs
 skip:
   auto name = m_oids.name(type);
+  if (!name) {
+    auto e = ZeMEVENT(Fatal,
+      ([type](auto &s, const auto &) {
+	s << "OID name for type index " << type
+	  << " is null - check static names[] array in OIDs constructor";
+      }));
+    start_failed(true, ZuMv(e));
+    return SendState::Unsent;
+  }
   {
     auto oid = m_oids.oid(name);
     if (!ZuCmp<unsigned>::null(oid)) {
@@ -945,6 +955,12 @@ static XField xField(
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
+	  // FIXME - need to match ZuBitmap<> somehow
+	  if (ftindex == std::type_index{typeid(ZmBitmap)} ||
+	      ftindex == std::type_index{typeid(ZtBitmap)}) {
+	    type = Value::Index<Bitmap>{};
+	    break;
+	  }
 	  if (ftindex == std::type_index{typeid(ZiIP)}) {
 	    type = Value::Index<IP>{};
 	    break;

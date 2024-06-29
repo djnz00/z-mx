@@ -3,6 +3,7 @@ namespace zfbtest2.fbs;
 table Object {
   id:Zfb.ID;
   price:int32;
+  flags:Zfb.Bitmap;
 }
 table Test {
   foo:int32;

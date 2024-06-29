@@ -47,7 +47,7 @@ ZfbFields(Order,
   (((side), (Ctor<5>, Enum<Side::Map>)), (Int8)),
   (((prices), (Ctor<6>, Mutable)), (Int32Vec)),
   (((quantities), (Ctor<7>, Mutable)), (Int32Vec)),
-  (((flags), (Ctor<8>, Mutable)), (Bitmap)));
+  (((flags), (Ctor<8>, Mutable)), (Bitmap, ZtBitmap{"4,8,16-42"})));
 
 ZfbRoot(Order);	// bind Order to flatbuffer schema
 

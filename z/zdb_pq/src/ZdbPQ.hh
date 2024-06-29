@@ -261,9 +261,17 @@ using Value_ = ZuUnion<
 
 enum { VecBase = Value_::Index<StringVec>{} };
 
+// isVec() - is a vector/array
 inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
+// isVar() - is variable-length
 inline constexpr bool isVar(unsigned i) {
-  // Bytes and String are excluded because they are zero-copied
+  // * Bytes and String are excluded because they can be zero-copied
+  //   - PG -> flatbuffers - the PGresult remains in scope
+  //   - flatbuffers -> PG - the flatbuffer remains in scope
+  // * Bitmap needs copying and byte-swapping (sigh)
+  // * All vectors/arrays need copying and transforming into PG binary format
+  //   when transforming from flatbuffers to PG (they are zero-copy in
+  //   the other direction)
   return i == Value_::Index<Bitmap>{} || isVec(i);
 }
 
@@ -1947,6 +1955,7 @@ private:
 
 } // ZdbPQ
 
+// main data store driver entry point
 extern "C" {
   ZdbPQExtern Zdb_::Store *ZdbStore();
 }

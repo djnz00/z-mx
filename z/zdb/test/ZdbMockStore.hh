@@ -328,7 +328,9 @@ XField xField(
 	  break;
 	case ZtFieldTypeCode::UDT: {
 	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
-	  if (ftindex == std::type_index{typeid(ZtBitmap)}) {
+	  // FIXME - need to match ZuBitmap<> somehow
+	  if (ftindex == std::type_index{typeid(ZmBitmap)} ||
+	      ftindex == std::type_index{typeid(ZtBitmap)}) {
 	    type = Value::Index<ZtBitmap>{};
 	    break;
 	  }

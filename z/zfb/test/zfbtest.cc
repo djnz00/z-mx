@@ -36,7 +36,7 @@ struct Test {
 
 ZfbFields(Test,
   (((foo), (Ctor<0>)), (Int32)),
-  (((bar), (Ctor<1>)), (String)),
+  (((bar), (Ctor<1>)), (String, "bar")),
   (((baz), (Ctor<2>)), (StringVec)));
 
 ZfbRoot(Test);

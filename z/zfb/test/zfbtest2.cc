@@ -24,6 +24,7 @@ using namespace Zfb;
 struct Object {
   ZuID id;
   int price;
+  ZuBitmap<100> flags;
 
   friend ZtFieldPrint ZuPrintType(Object *);
 };
@@ -37,7 +38,8 @@ struct Test {
 
 ZfbFields(Object,
   (((id), (Ctor<0>)), (ID)),
-  (((price), (Ctor<1>)), (Int32)));
+  (((price), (Ctor<1>)), (Int32)),
+  (((flags), (Ctor<2>)), (Bitmap, ZuBitmap<100>{"42"})));
 ZfbFields(Test,
   (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String)),

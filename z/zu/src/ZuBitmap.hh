@@ -416,9 +416,9 @@ private:
 public:
   Data() { memset(&data[0], 0, sizeof(data)); }
   Data(const Data &b) { copy(b); }
-  Data &operator =(const Data &b) { copy(b); }
+  Data &operator =(const Data &b) { copy(b); return *this; }
   Data(Data &&b) { copy(b); }
-  Data &operator =(Data &&b) { copy(b); }
+  Data &operator =(Data &&b) { copy(b); return *this; }
 
   /* return length resulting from combining this with another instance
    * - ZuBitmap<N> always has the same length */

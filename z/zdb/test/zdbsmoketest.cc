@@ -147,6 +147,11 @@ int main(int argc, char **argv)
       orders->insert([&id](ZdbObject<Order> *o) {
 	new (o->ptr())
 	  Order{"IBM", 0, "FIX0", "order0", 0, Side::Buy, {100}, {100}};
+	// o->data().flags = ZuType<8, ZuFieldList<Order>>::deflt();
+	// LATER - think about simplifying this, potentially using
+	// ZuField() and renaming the existing ZuField() macros which
+	// are only used internally
+	o->data().flags = ZuFields_::ZtFieldTypeName(Order, flags)::deflt();
 	o->commit();
 	id = o->data().orderID;
 	ZeLOG(Info, ([id](auto &s) { s << "orderID=" << id; }));
