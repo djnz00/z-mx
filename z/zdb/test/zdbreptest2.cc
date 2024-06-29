@@ -82,7 +82,7 @@ int main(int argc, char **argv)
       "  1 { priority  80 ip 127.0.0.1 port 9944 }\n"
       "}\n"
       "tables {\n"
-      "  orders { thread 4 writeThread 5 }\n"
+      "  order { thread 4 writeThread 5 }\n"
       "}\n"
       "debug 1\n"
       "dbMx {\n"

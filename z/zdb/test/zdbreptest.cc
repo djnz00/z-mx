@@ -79,7 +79,7 @@ int main(int argc, char **argv)
       "  1 { priority  80 ip 127.0.0.1 port 9944 }\n"
       "}\n"
       "tables {\n"
-      "  orders { }\n"
+      "  order { }\n"
       "}\n"
       "debug 1\n"
       "dbMx {\n"

@@ -33,6 +33,7 @@ struct Order {
   int8_t		side;
   ZtArray<int>		prices;
   ZtArray<int>		quantities;
+  ZtBitmap		flags;
 
   friend ZtFieldPrint ZuPrintType(Order *);
 };
@@ -45,7 +46,8 @@ ZfbFields(Order,
   (((seqNo), (Keys<2>, Ctor<4>, Grouped, Mutable)), (UInt64)),
   (((side), (Ctor<5>, Enum<Side::Map>)), (Int8)),
   (((prices), (Ctor<6>, Mutable)), (Int32Vec)),
-  (((quantities), (Ctor<7>, Mutable)), (Int32Vec)));
+  (((quantities), (Ctor<7>, Mutable)), (Int32Vec)),
+  (((flags), (Ctor<8>, Mutable)), (Bitmap)));
 
 ZfbRoot(Order);	// bind Order to flatbuffer schema
 

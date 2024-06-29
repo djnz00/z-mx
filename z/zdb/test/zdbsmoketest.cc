@@ -79,7 +79,7 @@ int main(int argc, char **argv)
       "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
       "}\n"
       "tables {\n"
-      "  orders { }\n"
+      "  order { }\n"
       "}\n"
       "debug 1\n"
       "dbMx {\n"
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
 	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
     }, store);
 
-    orders = db->initTable<Order>("orders"); // might throw
+    orders = db->initTable<Order>("order"); // might throw
 
     db->start();
 

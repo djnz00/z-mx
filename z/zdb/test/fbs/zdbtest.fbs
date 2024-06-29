@@ -13,5 +13,6 @@ table Order {
   side:Side;
   prices:[int32];
   quantities:[int32];
+  flags:Zfb.Bitmap;
 }
 root_type Order;
