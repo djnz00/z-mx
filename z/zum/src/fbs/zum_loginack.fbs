@@ -1,4 +1,4 @@
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 table LoginAck {
   id:uint64;
   name:string;

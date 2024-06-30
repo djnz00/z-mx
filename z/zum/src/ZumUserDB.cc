@@ -46,113 +46,177 @@ void Mgr::final()
   m_permTbl = nullptr;
 }
 
-void Mgr::open(ZmFn<> fn)
+// return permission name for permID
+inline ZtString permName(unsigned permID)
 {
-  m_permTbl->run([this]() {
-    uint64_t permID = 0;
-    m_permTbl->find<0>(ZuFwdTuple(i), ZuLambda{
-  });
+  ZtString s{"UserDB."};
+  auto loginReqEnd = unsigned(fbs::LoginReqData::MAX);
+  if (i < loginReqEnd) return s << fbs::EnumNamesLoginReqData()[i + 1];
+  return s << fbs::EnumNamesReqData()[(i - loginReqEnd) + 1];
 }
 
-void Mgr::bootstrap(
-  ZtString userName, ZtString roleName, ZmFn<void(ZtString, ZtString)> fn)
+// initiate open sequence
+void Mgr::open(OpenFn fn)
 {
-  // initialize permission
-  static auto initPerm = [](ZdbObject<Perm> *perm, unsigned i) {
-    if (ZuUnlikely(!perm)) return;
-    ZtString name;
-    if (i == 0)
-      name = "UserDB.Login";
-    else if (i == 1)
-      name = "UserDB.Access";
+  // save context
+  new (m_context.new_<Open>()) Open{ZuMv(fn);};
+
+  m_perlTbl->run([this]() { open_recoverNextPermID(); });
+}
+// recover nextPermID
+void Mgr::open_recoverNextPermID()
+{
+  m_permTbl->glob<0>(ZuTuple<>{}, 0, 1, [this](auto max) {
+    using Key = ZuFieldKeyT<Perm, 0>;
+    if (max.template is<Key>())
+      m_nextPermID = max.template p<Key>().template p<0>() + 1;
     else
-      name = ZtString{"UserDB."} + fbs::EnumNamesReqData()[i - Perm::Offset];
-    new (perm->ptr()) Perm{i, name};
-    perm->commit();
-  };
-
-  // initialize role
-  static auto initRole = [](ZdbObject<Role> *role, ZtString name) {
-    if (ZuUnlikely(!role)) return;
-    new (role->ptr()) Role{
-      ZuMv(name), RoleFlags::Immutable, ~uint128_t(0), ~uint128_t(0)};
-    role->commit();
-  };
-
-  // args is a shorthand for subsequent move-capture
-  struct {
-    ZtString userName;
-    ZtString roleName;
-    Fn fn;
-  } args{ZuMv(userName), ZuMv(roleName), ZuMv(fn)};
-
-  // initialize user
-  static auto initUser = []<typename Args>(
-    ZdbObject<User> *user, Args args)
-  {
-    ZtString secret;
-    ZtString passwd;
-    userAdd_(user->ptr(), 0, ZuMv(args.userName), ZuMv(args.roleName),
-      User::Immutable | User::Enabled | User::ChPass, passwd);
-    secret.length(ZuBase32::enclen(user->data().secret.length()));
-    ZuBase32::encode(secret, user->data().secret);
-    user->commit();
-    args.fn(ZuMv(passwd), ZuMv(secret));
-  };
-
-  // first, idempotently insert perms
-  m_permTbl->run([this, args = ZuMv(args)]() mutable {
-    m_permTbl->find<0>(ZuFwdTuple(0), ZuLambda{[
-      this, args = ZuMv(args), i = 0U
-    ](auto &&self, ZmRef<ZdbObject<Perm>> perm) mutable {
-      if (!perm)
-	m_permTbl->insert(
-	  [this, i](ZdbObject<Perm> *perm) { initPerm(perm, i); });
-      if (++i <= unsigned(fbs::ReqData::MAX) + 2) {
-	m_permTbl->run([self = ZuMv(self)]() mutable {
-	  m_permTbl->find<0>(ZuFwdTuple(i), ZuMv(self));
-	});
-	return;
-      }
-      // second, idempotently insert role
-      m_roleTbl->run([this, args = ZuMv(args)]() mutable {
-	m_roleTbl->find<0>(ZuFwdTuple(roleName), [
-	  this, args = ZuMv(args)
-	](ZmRef<ZdbObject<Role>> role) mutable {
-	  if (!role)
-	    m_roleTbl->insert([
-	      roleName = args.roleName
-	    ](ZdbObject<Role> *role) mutable {
-	      initRole(role, ZuMv(roleName));
-	    });
-	  // third, idempotently insert user
-	  m_userTbl->run([this, args = ZuMv(args)]() mutable {
-	    m_userTbl->find<1>(ZuFwdTuple(args.userName), [
-	      this, args = ZuMv(args)
-	    ](ZmRef<ZdbObject<User>> user) mutable {
-	      if (!user) {
-		m_userTbl->insert([
-		  this, args = ZuMv(args)
-		](ZdbObject<User> *user) mutable {
-		  initUser(user, ZuMv(args));
-		});
-		return;
-	      }
-	      args.fn(user->data().passwd, user->data().secret);
-	    });
-	  });
-	});
-      });
-    }});
+      m_nextPermID = 0;
+    m_perlTbl->run([this]() { open_findPerm(); })
   });
 }
-
-void Mgr::userAdd_(
-  User *user,
-  uint64_t id, ZtString name, ZtString role, UserFlags::T flags,
-  ZtString &passwd)
+// find permission and update m_perms[]
+void Mgr::open_findPerm()
 {
-  new (user) User{.id = id, .name = ZuMv(name), .flags = flags};
+  auto &context = m_context.p<Bootstrap>();
+  m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
+    this
+  ](ZmRef<ZdbObject<Perm>> perm) {
+    auto &context = m_context.p<Bootstrap>();
+    if (!perm) {
+      ZeLOG(Fatal, ([permID = context.permID](auto &s) {
+	s << "missing permission " << permName(permID);
+      }));
+      opened(false);
+    } else {
+      m_perms[context.permID] = perm->data().id;
+      if (++context.permID < nPerms())
+	m_permTbl->run([this]() mutable { open_findPerm(); });
+      else
+	opened(true);
+    }
+  });
+}
+// inform app of open result
+void Mgr::opened(bool ok)
+{
+  auto fn = ZuMv(m_context.p<Open>().fn);
+  m_context = {};
+  fn(ok);
+}
+
+// initiate bootstrap
+void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
+{
+  // save context
+  new (m_context.new_<Bootstrap>()) Bootstrap{
+    ZuMv(userName),
+    ZuMv(roleName),
+    ZuMv(fn)
+  };
+
+  m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
+}
+// idempotent insert permission
+void Mgr::bootstrap_findAddPerm()
+{
+  auto &context = m_context.p<Bootstrap>();
+  m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
+    this
+  ](ZmRef<ZdbObject<Perm>> perm) mutable {
+    if (!perm)
+      m_permTbl->insert([this](ZdbObject<Perm> *perm) {
+	if (!perm) { bootstrapped(BootstrapResult{false}); return; }
+	auto &context = m_context.p<Bootstrap>();
+	initPerm(perm, context.permID);
+	bootstrap_nextPerm();
+      });
+    else
+      bootstrap_nextPerm();
+  });
+}
+// iterate to next permission
+void Mgr::bootstrap_nextPerm()
+{
+  auto &context = m_context.p<Bootstrap>();
+  if (++context.permID < nPerms())
+    m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
+  else 
+    m_roleTbl->run([this]() mutable { bootstrap_findAddRole(); });
+}
+// idempotent insert role
+void Mgr::bootstrap_findAddRole()
+{
+  auto &context = m_context.p<Bootstrap>();
+  m_roleTbl->find<0>(ZuFwdTuple(context.roleName), [
+    this
+  ](ZmRef<ZdbObject<Role>> role) mutable {
+    if (!role)
+      m_roleTbl->insert([this](ZdbObject<Role> *role) mutable {
+	if (!role) { bootstrapped(BootstrapResult{false}); return; }
+	auto &context = m_context.p<Bootstrap>();
+	initRole(role, context.roleName);
+	bootstrap_findAddUser();
+      });
+    else
+      m_userTbl->run([this]() mutable { bootstrap_findAddUser(); });
+  });
+}
+// idempotent insert admin user
+void Mgr::bootstrap_findAddUser()
+{
+  auto &context = m_context.p<Bootstrap>();
+  m_userTbl->find<1>(ZuFwdTuple(context.userName), [
+    this
+  ](ZmRef<ZdbObject<User>> user) mutable {
+    if (!user)
+      m_userTbl->insert([this](ZdbObject<User> *user) mutable {
+	if (!user) { bootstrapped(BootstrapResult{false}); return; }
+	ZtString secret;
+	auto &context = m_context.p<Bootstrap>();
+	initUser(user, 0,
+	  ZuMv(context.userName), ZuMv(context.roleName),
+	  User::Immutable | User::Enabled | User::ChPass);
+	secret.length(ZuBase32::enclen(user->data().secret.length()));
+	ZuBase32::encode(secret, user->data().secret);
+	bootstrapped(BootstrapResult{BootstrapData{
+	  user->data().passwd, secret}});
+      });
+    else
+      bootstrapped(BootstrapResult{true});
+  });
+}
+// inform app of bootstrap result
+void Mgr::bootstrapped(BootstrapResult result)
+{
+  auto fn = ZuMv(m_context.p<Bootstrap>().fn);
+  m_context = {};
+  fn(ZuMv(result));
+}
+
+// initialize permission
+void Mgr::initPerm(ZdbObject<Perm> *perm, unsigned i)
+{
+  new (perm->ptr()) Perm{m_perms[i] = m_nextPermID++, permName(i)};
+  perm->commit();
+}
+
+// initialize role
+void Mgr::initRole(ZdbObject<Role> *role, ZtString name)
+{
+  ZtBitmap perms;
+  for (unsigned i = 0, n = nPerms(); i < n; i++) perms.set(m_perms[i]);
+  new (role->ptr()) Role{ZuMv(name), RoleFlags::Immutable, perms, perms};
+  role->commit();
+};
+
+// initialize user
+void Mgr::initUser(
+  ZdbObject<User> *user_,
+  uint64_t id, ZtString name, ZtString role, UserFlags::T flags)
+{
+  auto user =
+    new (user_->ptr()) User{.id = id, .name = ZuMv(name), .flags = flags};
   {
     KeyData passwd_;
     unsigned passLen_ = ZuBase64::declen(m_passLen);
@@ -172,11 +236,67 @@ void Mgr::userAdd_(
     hmac.finish(user->hmac.data());
   }
   if (role) user->roles.push(ZuMv(role));
+  user_->commit();
 }
 
-// Note: Login perm name is UserDB.Login
-// Note: Access perm name is UserDB.Access
+// start a new session (a user is logging in)
+void Mgr::sessionStart(ZtString userName, bool interactive, SessionFn fn)
+{
+  ZuPtr<SessionStart> context =
+    new SessionStart{ZuMv(userName), interactive, ZuMv(fn)};
+  m_userTbl->run([this, context = ZuMv(context)]() mutable {
+    sessionStart_findUser(ZuMv(context));
+  });
+}
+// find and load the user
+void Mgr::sessionStart_findUser(ZuPtr<SessionStart> context)
+{
+  m_userTbl->find<1>(ZuFwdTuple(userName), [
+    this, context = ZuMv(context)
+  ](ZmRef<ZdbObject<User>> user) mutable {
+    if (!user) { sessionStarted(ZuMv(context), false); return; }
+    context->session = new Session{ZuMv(user), context->interactive};
+    if (!user.data().roles)
+      sessionStarted(ZuMv(context), true);
+    else
+      roleTbl->run([this, context = ZuMv(context)]() mutable {
+	sessionStart_findRole(ZuMv(context));
+      });
+  });
+}
+// find and load the user's roles and permissions
+void Mgr::sessionStart_findRole(ZuPtr<SessionStart> context)
+{
+  const auto &role = context->session->user.data().roles[context->roleIndex];
+  m_roleTbl->find<0>(ZuFwdTuple(role), [
+    this, context = ZuMv(context)
+  ](ZmRef<ZdbObject<Role>> role) mutable {
+    if (!role) { sessionStarted(ZuMv(context), false); return; }
+    if (context->interactive)
+      context->session->perms |= role->data().perms;
+    else
+      context->session->perms |= role->data().apiperms;
+    if (++context->roleIndex < context->session->user->data().roles.length())
+      m_roleTbl->run([this, context = ZuMv(context)]() {
+	sessionStart_findRole(ZuMv(context));
+      });
+    else
+      sessionStarted(ZuMv(context), true);
+  });
+}
+// inform app (session remains unauthenticated at this point)
+void Mgr::sessionStarted(ZuPtr<SessionStart> context, bool ok)
+{
+  SessionFn fn = ZuMv(context->fn);
+  ZmRef<Session> session = ZuMv(context->session);
+  context = nullptr;
+  if (!ok)
+    fn(nullptr);
+  else
+    fn(ZuMv(session));
+}
 
+// login request
 void Mgr::loginReq(const fbs::LoginReq *, ZmFn<void(ZmRef<Session>)> fn)
 {
   using namespace Zfb::Load;
@@ -211,28 +331,11 @@ void Mgr::request(
   fbs::ReqAckData ackType = fbs::ReqAckData::NONE;
   Offset<void> ackData = 0;
 
-  int reqType = int(request_->data_type());
+  unsigned reqType = unsigned(request_->data_type());
 
   {
     ReadGuard guard(m_lock);
-    auto perm = m_permIndex[int(Perm::Offset) + reqType];
-    if (ZuUnlikely(perm < 0)) {
-      ZtString permName;
-      permName << "UserDB." << fbs::EnumNamesReqData()[reqType];
-      perm = m_permIndex[int(Perm::Offset) + reqType] = findPerm_(permName);
-      guard.unlock();
-      if (ZuUnlikely(perm < 0)) {
-	using namespace Zfb::Save;
-	auto text_ = str(fbb, ZtString{} <<
-	    "permission denied (\"" << permName << "\" missing)\n");
-	fbs::ReqAckBuilder fbb_(fbb);
-	fbb_.add_seqNo(seqNo);
-	fbb_.add_rejCode(__LINE__);
-	fbb_.add_rejText(text_);
-	return fbb_.Finish();
-      }
-    }
-    guard.unlock();
+    auto perm = m_perms[reqPerm(reqType)];
     if (ZuUnlikely(!ok(user, interactive, perm))) {
       using namespace Zfb::Save;
       ZtString text = "permission denied";
@@ -370,93 +473,71 @@ void Mgr::request(
   return fbb_.Finish();
 }
 
-void Mgr::initSession(ZtString userName, ZmFn<void(ZmRef<Session>)> fn)
-{
-  m_userTbl->run([this, userName = ZuMv(userName), fn = ZuMv(fn)]() mutable {
-    // first, find the user
-    m_userTbl->find<1>(ZuFwdTuple(userName), [
-      this, fn = ZuMv(fn)
-    ](ZmRef<ZdbObject<User>> user) mutable {
-      if (!user) { l(nullptr); return; } // no such user
-      ZmRef<Session> session = new Session(ZuMv(user));
-      if (!user.data().roles) { l(ZuMv(session)); return; } // no roles
-      // second, iterate over the roles, adding the permissions
-      m_roleTbl->find<0>(ZuFwdTuple(session->user.data().roles[0]), ZuLambda{[
-	this, session = ZuMv(session), i = 0U, fn = ZuMv(fn)
-      ](auto &&self, ZmRef<ZdbObject<Role>> role) mutable {
-	session->perms |= role->data().perms;
-	session->apiperms |= role->data().apiperms;
-	if (++i >= session->user->data().roles.length()) {
-	  // all roles processed, session initialized
-	  fn(ZuMv(session));
-	  return;
-	}
-	// proceed to next role
-	m_roleTbl->run([self = ZuMv(self)]() mutable {
-	  m_roleTbl->find<0>(
-	    ZuFwdTuple(session->user.data().roles[i]), ZuMv(self));
-	});
-      }});
-    });
-  });
-}
-
-// FIXME - call fn(session) to complete
 ZmRef<User> Mgr::login(
-  int &failures, ZuString name, ZuString passwd, unsigned totp)
+  ZuString name, ZuString passwd, unsigned totp, SessionFn fn)
 {
-  Guard guard(m_lock);
-  ZmRef<User> user = m_userNames->find(name);
-  if (!user) {
-    failures = -1;
-    return nullptr;
-  }
-  if (!(user->flags & User::Enabled)) {
-    if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](auto &s) {
-	s << "authentication failure: disabled user \""
-	  << user->name << "\" attempted login"; }));
+  sessionStart(name, true, [this](ZmRef<Session> session) {
+    if (!session) { fn(nullptr); return; }
+    const auto &user = session->user->data();
+    if (!user.flags & UserFlags::Enabled()) {
+      if (++user.failures < 3) {
+	ZeLOG(Warning, ([user](auto &s) {
+	  s << "authentication failure: disabled user \""
+	    << user->name << "\" attempted login"; }));
+      }
+      // FIXME - move into different function and re-use below
+      m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
+	ZmRef<ZdbObject<User>> user = session->user;
+	m_userTbl->update(ZuMv(user), [
+	  this, fn = ZuMv(fn)
+	](ZdbObject<User> *user) {
+	  if (user) user->commit();
+	  fn(nullptr);
+	});
+      });
+      return;
     }
-    failures = user->failures;
-    return nullptr;
-  }
-  if (!(user->perms[Perm::Login])) {
-    if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](auto &s) {
-	s << "authentication failure: user without login permission \""
-	  << user->name << "\" attempted login"; }));
-    }
-    failures = user->failures;
-    return nullptr;
-  }
-  {
-    Ztls::HMAC hmac(User::keyType());
-    KeyData verify;
-    hmac.start(user->secret);
-    hmac.update(passwd);
-    verify.length(verify.size());
-    hmac.finish(verify.data());
-    if (verify != user->hmac) {
+    // FIXME from here
+    if (!(user->perms[Perm::Login])) {
       if (++user->failures < 3) {
 	ZeLOG(Warning, ([user](auto &s) {
-	  s << "authentication failure: user \""
-	    << user->name << "\" provided invalid password"; }));
+	  s << "authentication failure: user without login permission \""
+	    << user->name << "\" attempted login"; }));
       }
       failures = user->failures;
       return nullptr;
     }
-  }
-  if (!Ztls::TOTP::verify(user->secret, totp, m_totpRange)) {
-    if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](auto &s) {
-	s << "authentication failure: user \""
-	  << user->name << "\" provided invalid OTP"; }));
+    {
+      Ztls::HMAC hmac(User::keyType());
+      KeyData verify;
+      hmac.start(user->secret);
+      hmac.update(passwd);
+      verify.length(verify.size());
+      hmac.finish(verify.data());
+      if (verify != user->hmac) {
+	if (++user->failures < 3) {
+	  ZeLOG(Warning, ([user](auto &s) {
+	    s << "authentication failure: user \""
+	      << user->name << "\" provided invalid password"; }));
+	}
+	failures = user->failures;
+	return nullptr;
+      }
     }
-    failures = user->failures;
-    return nullptr;
-  }
-  failures = 0;
-  return user;
+    if (!Ztls::TOTP::verify(user->secret, totp, m_totpRange)) {
+      if (++user->failures < 3) {
+	ZeLOG(Warning, ([user](auto &s) {
+	  s << "authentication failure: user \""
+	    << user->name << "\" provided invalid OTP"; }));
+      }
+      failures = user->failures;
+      return nullptr;
+    }
+    failures = 0;
+    return user;
+  });
+}
+{
 }
 
 ZmRef<User> Mgr::access(

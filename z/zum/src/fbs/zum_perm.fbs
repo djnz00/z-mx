@@ -1,4 +1,4 @@
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 table PermID {
   id:uint8;
 }

@@ -1061,7 +1061,7 @@ public:
     insert(ZuMv(l));
   }
 
-  // update lambda - l(const ZmRef<ZdbObject<T>> &)
+  // update lambda - l(ZdbObject<T> *)
  
   // update object
   template <typename KeyIDs_ = ZuSeq<>, typename L>
@@ -1069,7 +1069,7 @@ public:
     ZmAssert(invoked());
 
     if (!update_(object.ptr(), nextUN())) {
-      l(ZmRef<Object<T>>{});
+      l(nullptr);
       return;
     }
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// undo buffer

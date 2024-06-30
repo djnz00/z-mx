@@ -1,4 +1,4 @@
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 table Access {
   key_i_d:string;
   token:[ubyte];

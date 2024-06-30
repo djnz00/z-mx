@@ -1,12 +1,12 @@
 include "zfb_types.fbs";
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 table RoleID {
   name:string;
 }
 table Role {
   name:string (key);
-  perms:Zfb.UInt128;	// bitmap
-  apiperms:Zfb.UInt128;	// API permissions
+  perms:Zfb.Bitmap;	// bitmap
+  apiperms:Zfb.Bitmap;	// API permissions
   flags:uint8;
 }
 table RoleUpdAck {

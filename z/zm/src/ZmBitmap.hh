@@ -32,7 +32,7 @@
 namespace ZmBitmap_ {
 
 // subtly different than ZuIterator, due to end() being infinite
-// - i is signed with -1 being a sentinel value signifying that
+// - i is signed and -1 is the sentinel value for infinite
 template <typename Bitmap_, typename Bit_>
 class Iterator {
 public:
@@ -70,7 +70,7 @@ public:
 
 protected:
   Bitmap	&bitmap;
-  int		i;
+  int		i;		// -1 means infinite
 };
 
 class Bitmap {

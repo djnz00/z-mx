@@ -55,6 +55,7 @@ public:
   void clr();
 
   operator bool() const { return get(); }
+  bool operator !() const { return !get(); }
 
   Bit &operator =(bool v) { v ? set() : clr(); return *this; }
 
@@ -64,8 +65,6 @@ public:
   operator ==(const Bit &l, const Bit &r) { return l.equals(r); }
   friend inline int
   operator <=>(const Bit &l, const Bit &r) { return l.cmp(r); }
-
-  bool operator !() const { return !get(); }
 
   // traits
   struct Traits : public ZuTraits<bool> {

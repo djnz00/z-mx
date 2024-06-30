@@ -1631,12 +1631,13 @@ public:
 };
 
 // open state for a table
-// - table open is a heavy lift, involving several distinct phases
+// - table open is a heavy lift, involving multiple distinct phases
 // - some phases iterate over individual keys and fields
 // - care is taken to alert and error out on schema inconsistencies
 // - ... while automatically creating new tables and indices as needed
 // - recover, find, insert, update and delete statements are prepared
 // - max UN, SN are recovered
+// - explicit state management is used, encapsulated with OpenState
 class OpenState {
 public:
   uint32_t v = 0;	// public for printing/logging

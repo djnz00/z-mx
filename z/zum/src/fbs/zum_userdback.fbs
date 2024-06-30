@@ -2,7 +2,7 @@ include "zum_perm.fbs";
 include "zum_role.fbs";
 include "zum_user.fbs";
 include "zum_key.fbs";
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 union ReqAckData {
   ChPass:UserAck,
   OwnKeyGet:KeyIDList,

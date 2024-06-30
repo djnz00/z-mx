@@ -1,5 +1,5 @@
 include "zfb_types.fbs";
-namespace ZvUserDB.fbs;
+namespace Zum.fbs;
 table UserID {
   id:uint64;
 }
