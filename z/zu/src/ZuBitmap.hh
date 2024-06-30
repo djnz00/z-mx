@@ -229,8 +229,13 @@ public:
     return data[i>>BitShift] & (uint64_t(1)<<(i & Mask));
   }
   Bitmap_ &set(unsigned i) {
-    if (ZuLikely(i < length()))
-      data[i>>BitShift] |= (uint64_t(1)<<(i & Mask));
+    if (ZuLikely(i >= length())) {
+      if constexpr (Data::Fixed)
+	return *this;
+      else
+	length(i + 1);
+    }
+    data[i>>BitShift] |= (uint64_t(1)<<(i & Mask));
     return *this;
   }
   Bitmap_ &clr(unsigned i) {
@@ -266,8 +271,15 @@ public:
   }
 
   Bitmap_ &set(unsigned begin, unsigned end) {
-    if (end > length()) end = length();
-    if (begin >= end) return *this;
+    if (ZuLikely(end > length())) {
+      if constexpr (Data::Fixed) {
+	end = length();
+	if (begin >= end) return *this;
+      } else
+	length(end);
+    } else {
+      if (begin >= end) return *this;
+    }
     {
       unsigned i = (begin>>BitShift);
       uint64_t mask = ~static_cast<uint64_t>(0);
