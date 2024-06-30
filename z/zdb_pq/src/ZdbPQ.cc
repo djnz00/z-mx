@@ -16,6 +16,8 @@
 
 #include <zlib/ZdbPQ.hh>
 
+#include <zlib/ZmDemangle.hh>
+
 #include <zlib/ZtCase.hh>
 #include <zlib/ZtJoin.hh>
 
@@ -359,12 +361,15 @@ void Store::run_()
 
     // ZeLOG(Debug, ([](auto &s) { s << "epoll_wait()..."; }));
 
+again:
     int r = epoll_wait(m_epollFD, ev, 8, -1); // max events is 8
 
     // ZeLOG(Debug, ([r](auto &s) { s << "epoll_wait(): " << r; }));
 
     if (r < 0) {
-      ZeLOG(Fatal, ([e = errno](auto &s) {
+      auto e = errno;
+      if (e == EINTR || e == EAGAIN) goto again;
+      ZeLOG(Fatal, ([e](auto &s) {
 	s << "epoll_wait() failed: " << e;
       }));
       return;
@@ -954,18 +959,16 @@ static XField xField(
 	  type = Value::Index<DateTime>{};
 	  break;
 	case ZtFieldTypeCode::UDT: {
-	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
-	  // FIXME - need to match ZuBitmap<> somehow
-	  if (ftindex == std::type_index{typeid(ZmBitmap)} ||
-	      ftindex == std::type_index{typeid(ZtBitmap)}) {
+	  ZuID typeID = ftype->info.udt()->id;
+	  if (typeID == ZuID("Bitmap")) {
 	    type = Value::Index<Bitmap>{};
 	    break;
 	  }
-	  if (ftindex == std::type_index{typeid(ZiIP)}) {
+	  if (typeID == ZuID("IP")) {
 	    type = Value::Index<IP>{};
 	    break;
 	  }
-	  if (ftindex == std::type_index{typeid(ZuID)}) {
+	  if (typeID == ZuID("ID")) {
 	    type = Value::Index<ID>{};
 	    break;
 	  }
@@ -1338,10 +1341,16 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 	i, field = m_fields[i],
 	nFields = m_xFields.length()
       ](auto &s, const auto &) {
+	auto ftype = field->type;
 	s << "inconsistent schema for table " << id
 	  << " field[" << i << "]={id=" << field->id
-	  << " type=" << ZtFieldTypeCode::name(field->type->code)
-	  << "} nFields=" << nFields;
+	  << " typeCode=" << ZtFieldTypeCode::name(field->type->code);
+	if (ftype->code == ZtFieldTypeCode::UDT) {
+	  auto udtInfo = ftype->info.udt();
+	  s << " typeID=" << udtInfo->id
+	    << " typeName=" << ZmDemangle{udtInfo->info->name()};
+	}
+	s << "} nFields=" << nFields;
       }));
       open_failed(ZuMv(e));
     }
@@ -2003,7 +2012,7 @@ void StoreTbl::glob(
     } \
   } \
   auto varBuf_ = ZmAlloc(uint8_t, varBufSize_); \
-  ZtArray<uint8_t> varBuf(&varBuf_[0], 0, varBufSize_, false)
+  ZtArray<uint8_t> varBuf(&varBuf_[0], varBufSize_, varBufSize_, false)
 
 int StoreTbl::glob_send(Work::Glob &glob)
 {

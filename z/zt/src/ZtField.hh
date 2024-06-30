@@ -54,14 +54,14 @@
 // TimeVec
 // DateTimeVec
 // 
-// Note: ZtMField provides run-time introspection via a monomorphic type -
+// ZtMField provides run-time introspection via a monomorphic type -
 // virtual polymorphism and RTTI are intentionally avoided:
-// 1] if ZtMField were virtually polymorphic, passing it to dynamically
-//    loaded libraries (e.g. data store adapters performing serdes) would
-//    entail a far more complex type hierarchy with diamond-shaped
-//    inheritance, use of dynamic_cast, etc.
-// 2] ZtMField (and derived classes) benefit from being POD
-// 3] very little syntactic benefit would be obtained
+// - if ZtMField were virtually polymorphic, passing it to dynamically
+//   loaded libraries (e.g. data store adapters performing serdes) would
+//   entail a far more complex type hierarchy with diamond-shaped
+//   inheritance, use of dynamic_cast, etc.
+// - ZtMField (and derived classes) benefit from being POD
+// - very little syntactic benefit would be obtained
 
 // ZuField<O> is extended to provide:
 //   Type	- ZtFieldType<...>
@@ -132,6 +132,7 @@
 #include <zlib/ZuBase64.hh>
 #include <zlib/ZuField.hh>
 #include <zlib/ZuMArray.hh>
+#include <zlib/ZuID.hh>
 
 #include <zlib/ZmAlloc.hh>
 #include <zlib/ZuMStream.hh>
@@ -470,8 +471,11 @@ typedef void (*ZtMFieldPrint)(const void *, ZuMStream &, const ZtFieldVFmt &);
 typedef void (*ZtMFieldScan)(
   void (*)(void *, const void *), void *, ZuString, const ZtFieldVFmt &);
 
+inline ZuID ZtMFieldTypeID(...) { return {}; }	// default
+
 // ZtMFieldUDT encapsulates introspected UDT metadata
 struct ZtMFieldUDT {
+  ZuID			id;	// ZtMFieldTypeID(T *);
   const std::type_info	*info;
   ZtMFieldPrint		print;
   ZtMFieldScan		scan;
@@ -2608,6 +2612,7 @@ struct ZtMFieldType_UDT : public ZtMFieldType {
     .props = ZtMFieldProp::Value<Props>{},
     .info = {.udt = []() -> ZtMFieldUDT * {
       static ZtMFieldUDT info{
+	.id = ZtMFieldTypeID(static_cast<T *>(nullptr)),
 	.info = &typeid(T),
 	.print = ZtMFieldType_UDT_Print<T>::printFn(),
 	.scan = ZtMFieldType_UDT_Scan<T>::scanFn()

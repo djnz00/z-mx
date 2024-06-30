@@ -199,6 +199,8 @@ int main(int argc, char **argv)
 	clOrdID << "order" << id;
 	new (o->ptr())
 	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, {100}, {100}};
+	o->data().flags.set(42);
+	ZeLOG(Debug, ([o = ZmRef{o}](auto &s) { s << o->data(); }));
 	o->commit();
 	id = o->data().orderID;
 	seqNo = o->data().seqNo;

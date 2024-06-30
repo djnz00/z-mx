@@ -68,6 +68,7 @@
 //   }
 //   #define ZfbFieldIP_T UDT
 //   #define ZfbFieldIP(O, ...) ZfbFieldInline(O, __VA_ARGS__, ip, ip)
+//   inline ZuID ZtMFieldTypeID(ZiIP *) { return "IP"; }
 
 #include <zlib/Zfb.hh>
 
@@ -788,10 +789,22 @@ namespace Load {
 #define ZfbFieldBitmap_T UDT
 #define ZfbFieldBitmap(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, bitmap, bitmap<typename Base::T>)
+namespace ZuBitmap_ {
+  template <unsigned Bits>
+  inline ZuID ZtMFieldTypeID(Bitmap<Bits> *) { return "Bitmap"; }
+}
+namespace ZmBitmap_ {
+  inline ZuID ZtMFieldTypeID(Bitmap *) { return "Bitmap"; }
+}
+namespace ZtBitmap_ {
+  inline ZuID ZtMFieldTypeID(Bitmap *) { return "Bitmap"; }
+}
 #define ZfbFieldIP_T UDT
 #define ZfbFieldIP(O, ...) ZfbFieldInline(O, __VA_ARGS__, ip, ip)
+inline ZuID ZtMFieldTypeID(ZiIP *) { return "IP"; }
 #define ZfbFieldID_T UDT
 #define ZfbFieldID(O, ...) ZfbFieldInline(O, __VA_ARGS__, id, id)
+inline ZuID ZtMFieldTypeID(ZuID *) { return "ID"; }
 #define ZfbFieldObject_T UDT
 #define ZfbFieldObject(O, ...) \
   ZfbFieldNested(O, __VA_ARGS__, object, object<typename Base::T>)

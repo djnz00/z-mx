@@ -327,18 +327,16 @@ XField xField(
 	  type = Value::Index<ZuDateTime>{};
 	  break;
 	case ZtFieldTypeCode::UDT: {
-	  auto ftindex = std::type_index{*(ftype->info.udt()->info)};
-	  // FIXME - need to match ZuBitmap<> somehow
-	  if (ftindex == std::type_index{typeid(ZmBitmap)} ||
-	      ftindex == std::type_index{typeid(ZtBitmap)}) {
+	  ZuID typeID = ftype->info.udt()->id;
+	  if (typeID == ZuID("Bitmap")) {
 	    type = Value::Index<ZtBitmap>{};
 	    break;
 	  }
-	  if (ftindex == std::type_index{typeid(ZiIP)}) {
+	  if (typeID == ZuID("IP")) {
 	    type = Value::Index<ZiIP>{};
 	    break;
 	  }
-	  if (ftindex == std::type_index{typeid(ZuID)}) {
+	  if (typeID == ZuID("ID")) {
 	    type = Value::Index<ZuID>{};
 	    break;
 	  }

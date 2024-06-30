@@ -841,6 +841,7 @@ loadValue(
   const OIDs &, const reflection::Field *field, const Zfb::Table *fbo)
 {
   ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  new (ptr) Bitmap{ZuBytes(varBuf)};
   using Word = ZuBigEndian<uint64_t>;
   ZuArray<Word> data(
     reinterpret_cast<Word *>(&varBuf[0]),
@@ -1475,7 +1476,7 @@ void loadTuple(
   for (unsigned i = 0; i < nParams; i++) {
     auto value = static_cast<Value *>(tuple.push());
     auto type = xFields[i].type;
-    if (!isVar(i))
+    if (!isVar(type))
       ZuSwitch::dispatch<Value_::N>(type, [
 	value, field = xFields[i].field, fbo
       ](auto I) {
