@@ -40,17 +40,19 @@ static constexpr mbedtls_md_type_t keyType() {
 }
 enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
 using KeyData = ZuArrayN<uint8_t, KeySize>;
+enum { KeyIDSize = 16 };
+using KeyIDData = ZuArrayN<uint8_t, KeyIDSize>;
 
 struct Key {
   uint64_t		userID;
-  ZuStringN<16>		id;
+  KeyIDData		id;
   KeyData		secret;
 
   friend ZtFieldPrint ZuPrintType(Key *);
 };
 ZfbFields(Key,
   (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
-  (((id), (Keys<0>, Ctor<1>, Grouped)), (String)),
+  (((id), (Keys<0, 1>, Ctor<1>, Grouped<0>)), (String)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
 struct Perm {
@@ -60,7 +62,7 @@ struct Perm {
   friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>, Grouped)), (UInt32)),
+  (((id), (Keys<0>, Ctor<0>, Grouped<0>)), (UInt32)),
   (((name), (Ctor<1>, Mutable)), (String)));
 
 namespace RoleFlags {
@@ -157,6 +159,9 @@ public:
     ZtString secret;
   };
   using BootstrapResult = ZuUnion<bool, BootstrapData>;
+  static bool bootstrapOK(const BootstrapResult &result) {
+    return !result.is<bool>() || result.p<bool>();
+  }
   using BootstrapFn = ZmFn<void(BootstrapResult)>;
   void bootstrap(BootstrapFn fn);
 private:
@@ -210,12 +215,11 @@ private:
 
   // interactive login
   void login(
-    ZuString user, ZuString passwd, unsigned totp,
-    SessionFn);
+    ZtString user, ZtString passwd, unsigned totp, SessionFn);
   // API access
   void access(
-    ZuString keyID,
-    ZuArray<const uint8_t> token, int64_t stamp, ZuArray<const uint8_t> hmac,
+    ZtString keyID,
+    ZtArray<const uint8_t> token, int64_t stamp, ZtArray<const uint8_t> hmac,
     SessionFn);
 
 public:
@@ -328,9 +332,9 @@ private:
   uint32_t		m_nextPermID = 0;
   uint32_t		m_perms[nPerms()];
 
-  using Context = ZuUnion<void, Open, Bootstrap>;
+  using State = ZuUnion<bool, Open, Bootstrap>;
 
-  Context		m_context;
+  State			m_state;
 
   ZmRef<Sessions>	m_sessions;
 };

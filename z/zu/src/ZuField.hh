@@ -212,9 +212,11 @@ namespace ZuFieldProp {
   template <typename Props>
   using GetCtor = GetValue<Props, unsigned, Ctor>;
 
+  // get key IDs
   template <typename Props>
   using GetKeys = GetSeq<Props, Keys>;
 
+  // Key<Props, KeyID> - is this field a part of key KeyID?
   template <typename Props, int KeyID>
   struct Key :
     public ZuTypeIn<ZuUnsigned<unsigned(KeyID)>, ZuSeqTL<GetKeys<Props>>> { };

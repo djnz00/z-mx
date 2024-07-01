@@ -1095,7 +1095,7 @@ StoreTbl::StoreTbl(
     m_keyGroup[i] = -1;
     for (unsigned j = 0; j < m; j++) {
       if (m_keyGroup[i] < 0 &&
-	  m_keyFields[i][j]->props & ZtMFieldProp::Grouped())
+	  (m_keyFields[i][j]->grouped & (uint64_t(1)<<i)))
 	m_keyGroup[i] = j;
       ZtCase::camelSnake(m_keyFields[i][j]->id,
 	[this, fbFields_, i, j](const ZtString &id) {
@@ -1441,7 +1441,7 @@ int StoreTbl::mkIndices_send()
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtMFieldProp::Grouped()) query << " DESC";
+      if (keyFields[i]->grouped & (uint64_t(1)<<i)) query << " DESC";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});

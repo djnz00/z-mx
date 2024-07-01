@@ -58,8 +58,11 @@ inline ZtString permName(unsigned permID)
 // initiate open sequence
 void Mgr::open(OpenFn fn)
 {
+  // check for overlapping open/bootstrap or already opened
+  if (!m_state.is<bool>() || m_state.p<bool>()) { fn(false); return; }
+
   // save context
-  new (m_context.new_<Open>()) Open{ZuMv(fn);};
+  new (m_state.new_<Open>()) Open{ZuMv(fn);};
 
   m_perlTbl->run([this]() { open_recoverNextPermID(); });
 }
@@ -78,11 +81,11 @@ void Mgr::open_recoverNextPermID()
 // find permission and update m_perms[]
 void Mgr::open_findPerm()
 {
-  auto &context = m_context.p<Bootstrap>();
+  auto &context = m_state.p<Bootstrap>();
   m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
     this
   ](ZmRef<ZdbObject<Perm>> perm) {
-    auto &context = m_context.p<Bootstrap>();
+    auto &context = m_state.p<Bootstrap>();
     if (!perm) {
       ZeLOG(Fatal, ([permID = context.permID](auto &s) {
 	s << "missing permission " << permName(permID);
@@ -100,16 +103,19 @@ void Mgr::open_findPerm()
 // inform app of open result
 void Mgr::opened(bool ok)
 {
-  auto fn = ZuMv(m_context.p<Open>().fn);
-  m_context = {};
+  auto fn = ZuMv(m_state.p<Open>().fn);
+  m_state = ok;
   fn(ok);
 }
 
 // initiate bootstrap
 void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
 {
+  // check for overlapping open/bootstrap or already opened
+  if (!m_state.is<bool>() || m_state.p<bool>()) { fn(false); return; }
+
   // save context
-  new (m_context.new_<Bootstrap>()) Bootstrap{
+  new (m_state.new_<Bootstrap>()) Bootstrap{
     ZuMv(userName),
     ZuMv(roleName),
     ZuMv(fn)
@@ -120,14 +126,14 @@ void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
 // idempotent insert permission
 void Mgr::bootstrap_findAddPerm()
 {
-  auto &context = m_context.p<Bootstrap>();
+  auto &context = m_state.p<Bootstrap>();
   m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
     this
   ](ZmRef<ZdbObject<Perm>> perm) mutable {
     if (!perm)
       m_permTbl->insert([this](ZdbObject<Perm> *perm) {
 	if (!perm) { bootstrapped(BootstrapResult{false}); return; }
-	auto &context = m_context.p<Bootstrap>();
+	auto &context = m_state.p<Bootstrap>();
 	initPerm(perm, context.permID);
 	bootstrap_nextPerm();
       });
@@ -138,7 +144,7 @@ void Mgr::bootstrap_findAddPerm()
 // iterate to next permission
 void Mgr::bootstrap_nextPerm()
 {
-  auto &context = m_context.p<Bootstrap>();
+  auto &context = m_state.p<Bootstrap>();
   if (++context.permID < nPerms())
     m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
   else 
@@ -147,14 +153,14 @@ void Mgr::bootstrap_nextPerm()
 // idempotent insert role
 void Mgr::bootstrap_findAddRole()
 {
-  auto &context = m_context.p<Bootstrap>();
+  auto &context = m_state.p<Bootstrap>();
   m_roleTbl->find<0>(ZuFwdTuple(context.roleName), [
     this
   ](ZmRef<ZdbObject<Role>> role) mutable {
     if (!role)
       m_roleTbl->insert([this](ZdbObject<Role> *role) mutable {
 	if (!role) { bootstrapped(BootstrapResult{false}); return; }
-	auto &context = m_context.p<Bootstrap>();
+	auto &context = m_state.p<Bootstrap>();
 	initRole(role, context.roleName);
 	bootstrap_findAddUser();
       });
@@ -165,7 +171,7 @@ void Mgr::bootstrap_findAddRole()
 // idempotent insert admin user
 void Mgr::bootstrap_findAddUser()
 {
-  auto &context = m_context.p<Bootstrap>();
+  auto &context = m_state.p<Bootstrap>();
   m_userTbl->find<1>(ZuFwdTuple(context.userName), [
     this
   ](ZmRef<ZdbObject<User>> user) mutable {
@@ -173,7 +179,7 @@ void Mgr::bootstrap_findAddUser()
       m_userTbl->insert([this](ZdbObject<User> *user) mutable {
 	if (!user) { bootstrapped(BootstrapResult{false}); return; }
 	ZtString secret;
-	auto &context = m_context.p<Bootstrap>();
+	auto &context = m_state.p<Bootstrap>();
 	initUser(user, 0,
 	  ZuMv(context.userName), ZuMv(context.roleName),
 	  User::Immutable | User::Enabled | User::ChPass);
@@ -189,8 +195,8 @@ void Mgr::bootstrap_findAddUser()
 // inform app of bootstrap result
 void Mgr::bootstrapped(BootstrapResult result)
 {
-  auto fn = ZuMv(m_context.p<Bootstrap>().fn);
-  m_context = {};
+  auto fn = ZuMv(m_state.p<Bootstrap>().fn);
+  m_state = bookstrapOK(result);
   fn(ZuMv(result));
 }
 
@@ -473,139 +479,158 @@ void Mgr::request(
   return fbb_.Finish();
 }
 
-ZmRef<User> Mgr::login(
-  ZuString name, ZuString passwd, unsigned totp, SessionFn fn)
+void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
 {
-  sessionStart(name, true, [this](ZmRef<Session> session) {
+  m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
+    ZmRef<ZdbObject<User>> user = session->user;
+    m_userTbl->update(ZuMv(user), [
+      this, fn = ZuMv(fn)
+    ](ZdbObject<User> *user) {
+      if (user) user->commit();
+      fn(nullptr);
+    });
+  });
+}
+
+ZmRef<User> Mgr::login(
+  ZuString name, ZtString passwd, unsigned totp, SessionFn fn)
+{
+  sessionStart(name, true, [
+    this, passwd = ZuMv(passwd), totp, fn = ZuMv(fn)
+  ](ZmRef<Session> session) {
     if (!session) { fn(nullptr); return; }
     const auto &user = session->user->data();
     if (!user.flags & UserFlags::Enabled()) {
       if (++user.failures < 3) {
-	ZeLOG(Warning, ([user](auto &s) {
+	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: disabled user \""
-	    << user->name << "\" attempted login"; }));
+	    << name << "\" attempted login"; }));
       }
-      // FIXME - move into different function and re-use below
-      m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
+      loginFailed(ZuMv(session), ZuMv(fn));
+      return;
+    }
+    if (!(user.perms[m_perms[unsigned(fbs::LoginReqData::Login)]])) {
+      if (++user.failures < 3) {
+	ZeLOG(Warning, ([name = user.name](auto &s) {
+	  s << "authentication failure: user without login permission \""
+	    << name << "\" attempted login"; }));
+      }
+      loginFailed(ZuMv(session), ZuMv(fn));
+      return;
+    }
+    {
+      Ztls::HMAC hmac(User::keyType());
+      KeyData verify;
+      hmac.start(user.secret);
+      hmac.update(passwd);
+      verify.length(verify.size());
+      hmac.finish(verify.data());
+      if (verify != user.hmac) {
+	if (++user.failures < 3) {
+	  ZeLOG(Warning, ([name = user.name](auto &s) {
+	    s << "authentication failure: user \""
+	      << name << "\" provided invalid password"; }));
+	}
+	loginFailed(ZuMv(session), ZuMv(fn));
+	return;
+      }
+    }
+    if (!Ztls::TOTP::verify(user.secret, totp, m_totpRange)) {
+      if (++user.failures < 3) {
+	ZeLOG(Warning, ([name = user.name](auto &s) {
+	  s << "authentication failure: user \""
+	    << name << "\" provided invalid OTP"; }));
+      }
+      loginFailed(ZuMv(session), ZuMv(fn));
+      return;
+    }
+    if (user.failures) {
+      user.failures = 0;
+      m_userTbl->run([this, fn = ZuMv(fn), session = ZuMv(session)]() mutable {
 	ZmRef<ZdbObject<User>> user = session->user;
 	m_userTbl->update(ZuMv(user), [
 	  this, fn = ZuMv(fn)
 	](ZdbObject<User> *user) {
 	  if (user) user->commit();
-	  fn(nullptr);
+	  fn(ZuMv(session));
 	});
       });
-      return;
-    }
-    // FIXME from here
-    if (!(user->perms[Perm::Login])) {
-      if (++user->failures < 3) {
-	ZeLOG(Warning, ([user](auto &s) {
-	  s << "authentication failure: user without login permission \""
-	    << user->name << "\" attempted login"; }));
-      }
-      failures = user->failures;
-      return nullptr;
-    }
-    {
-      Ztls::HMAC hmac(User::keyType());
-      KeyData verify;
-      hmac.start(user->secret);
-      hmac.update(passwd);
-      verify.length(verify.size());
-      hmac.finish(verify.data());
-      if (verify != user->hmac) {
-	if (++user->failures < 3) {
-	  ZeLOG(Warning, ([user](auto &s) {
-	    s << "authentication failure: user \""
-	      << user->name << "\" provided invalid password"; }));
-	}
-	failures = user->failures;
-	return nullptr;
-      }
-    }
-    if (!Ztls::TOTP::verify(user->secret, totp, m_totpRange)) {
-      if (++user->failures < 3) {
-	ZeLOG(Warning, ([user](auto &s) {
-	  s << "authentication failure: user \""
-	    << user->name << "\" provided invalid OTP"; }));
-      }
-      failures = user->failures;
-      return nullptr;
-    }
-    failures = 0;
-    return user;
+    } else
+      fn(ZuMv(session));
   });
-}
-{
 }
 
 ZmRef<User> Mgr::access(
-  ZuString keyID, ZuArray<const uint8_t> token, int64_t stamp,
-  ZuArray<const uint8_t> hmac, ZmFn<void(ZmRef<Session>)> fn)
+  ZtString keyID, ZtArray<uint8_t> token, int64_t stamp,
+  ZtArray<uint8_t> hmac, SessionFn fn)
 {
-  Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
-  if (!key) {
-    failures = -1;
-    fn(nullptr);
-    return;
-  }
-  ZmRef<User> user = m_users->find(key->userID);
-  if (!user) {
-    failures = -1;
-    fn(nullptr);
-    return;
-  }
-  if (!(user->flags & User::Enabled)) {
-    if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](auto &s) {
-	s << "authentication failure: disabled user \""
-	  << user->name << "\" attempted login"; }));
-    }
-    failures = user->failures;
-    fn(nullptr);
-    return;
-  }
-  if (!(user->perms[Perm::Access])) {
-    if (++user->failures < 3) {
-      ZeLOG(Warning, ([user](auto &s) {
-	s << "authentication failure: user without API access permission \""
-	  << user->name << "\" attempted access"; }));
-    }
-    failures = user->failures;
-    fn(nullptr);
-    return;
-  }
-  {
-    int64_t delta = Zm::now().sec() - stamp;
-    if (delta < 0) delta = -delta;
-    if (delta >= m_keyInterval) {
-      failures = user->failures;
+  sessionStart(name, false, [
+    this, keyID = ZuMv(keyID), token = ZuMv(token), stamp, hmac = ZuMv(hmac)
+  ](ZmRef<Session> session) {
+    m_keyTbl->find<0>(ZuFwdTuple(
+    // FIXME from here
+    Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
+    if (!key) {
+      failures = -1;
       fn(nullptr);
       return;
     }
-  }
-  {
-    Ztls::HMAC hmac_(Key::keyType());
-    KeyData verify;
-    hmac_.start(key->secret);
-    hmac_.update(token);
-    hmac_.update({reinterpret_cast<const uint8_t *>(&stamp), sizeof(int64_t)});
-    verify.length(verify.size());
-    hmac_.finish(verify.data());
-    if (verify != hmac) {
+    ZmRef<User> user = m_users->find(key->userID);
+    if (!user) {
+      failures = -1;
+      fn(nullptr);
+      return;
+    }
+    if (!(user->flags & User::Enabled)) {
       if (++user->failures < 3) {
 	ZeLOG(Warning, ([user](auto &s) {
-	  s << "authentication failure: user \""
-	    << user->name << "\" provided invalid API key HMAC"; }));
+	  s << "authentication failure: disabled user \""
+	    << user->name << "\" attempted login"; }));
       }
       failures = user->failures;
       fn(nullptr);
       return;
     }
-  }
-  failures = 0;
-  fn(ZuMv(session));
+    if (!(user->perms[Perm::Access])) {
+      if (++user->failures < 3) {
+	ZeLOG(Warning, ([user](auto &s) {
+	  s << "authentication failure: user without API access permission \""
+	    << user->name << "\" attempted access"; }));
+      }
+      failures = user->failures;
+      fn(nullptr);
+      return;
+    }
+    {
+      int64_t delta = Zm::now().sec() - stamp;
+      if (delta < 0) delta = -delta;
+      if (delta >= m_keyInterval) {
+	failures = user->failures;
+	fn(nullptr);
+	return;
+      }
+    }
+    {
+      Ztls::HMAC hmac_(Key::keyType());
+      KeyData verify;
+      hmac_.start(key->secret);
+      hmac_.update(token);
+      hmac_.update({reinterpret_cast<const uint8_t *>(&stamp), sizeof(int64_t)});
+      verify.length(verify.size());
+      hmac_.finish(verify.data());
+      if (verify != hmac) {
+	if (++user->failures < 3) {
+	  ZeLOG(Warning, ([user](auto &s) {
+	    s << "authentication failure: user \""
+	      << user->name << "\" provided invalid API key HMAC"; }));
+	}
+	failures = user->failures;
+	fn(nullptr);
+	return;
+      }
+    }
+    failures = 0;
+    fn(ZuMv(session));
 }
 
 template <typename T> using Offset = Zfb::Offset<T>;

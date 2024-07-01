@@ -1086,7 +1086,7 @@ Tuple extractKey(
   Tuple key(keyFields[keyID].length()); // not {}
   unsigned m = fields.length();
   for (unsigned j = 0; j < m; j++)
-    if (fields[j]->keys & (1<<keyID)) key.push(data[j]);
+    if (fields[j]->keys & (uint64_t(1)<<keyID)) key.push(data[j]);
   ZmAssert(key.length() == key.size());
   return key;
 }
@@ -1172,7 +1172,7 @@ public:
       m_keyGroup[i] = -1;
       for (unsigned j = 0; j < m; j++) {
 	if (m_keyGroup[i] < 0 &&
-	    m_keyFields[i][j]->props & ZtMFieldProp::Grouped())
+	    (m_keyFields[i][j]->grouped & (uint64_t(1)<<i)))
 	  m_keyGroup[i] = j;
 	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {

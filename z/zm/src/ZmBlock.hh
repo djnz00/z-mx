@@ -32,7 +32,7 @@ template <typename ...Args> struct ZmBlock {
     R r;
     auto &sem = ZmBlock_::sem();
     l([&sem, &r](Args... args) mutable {
-      r = ZuMvTuple(args...);
+      r = ZuMvTuple(ZuMv(args)...);
       sem.post();
     });
     sem.wait();
@@ -45,7 +45,7 @@ template <typename ...Args> struct ZmBlock {
     auto &sem = ZmBlock_::sem();
     for (unsigned i = 0; i < n; i++)
       l(i, [&sem, &r = r[i]](Args... args) mutable {
-	r = ZuMvTuple(args...);
+	r = ZuMvTuple(ZuMv(args)...);
 	sem.post();
       });
     for (unsigned i = 0; i < n; i++) sem.wait();
