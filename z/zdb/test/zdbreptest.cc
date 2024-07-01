@@ -153,19 +153,22 @@ int main(int argc, char **argv)
       uint64_t id;
 
       orders[0]->run([&id]{
-	orders[0]->insert([&id](const ZmRef<ZdbObject<Order>> &o) {
+	orders[0]->insert([&id](ZdbObject<Order> *o) {
+	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 0, "FIX0", "order0", 0, Side::Buy, {100}, {100}};
 	  o->commit();
 	  id = o->data().orderID;
 	  ZeLOG(Info, ([id](auto &s) { s << "orderID=" << id; }));
 	});
-	orders[0]->insert([](const ZmRef<ZdbObject<Order>> &o) {
+	orders[0]->insert([](ZdbObject<Order> *o) {
+	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 1, "FIX0", "order1", 2, Side::Buy, {100}, {100}};
 	  o->commit();
 	});
-	orders[0]->insert([](const ZmRef<ZdbObject<Order>> &o) {
+	orders[0]->insert([](ZdbObject<Order> *o) {
+	  if (ZuUnlikely(!o)) { done.post(); return; }
 	  new (o->ptr())
 	    Order{"IBM", 2, "FIX0", "order2", 4, Side::Buy, {100}, {100}};
 	  o->commit();

@@ -8,26 +8,25 @@
 
 #include <zlib/ZuLib.hh>
 
-#include <stdio.h>
 #include <stdlib.h>
 
-#include <zlib/ZuTraits.hh>
-#include <zlib/ZuHash.hh>
+#include <iostream>
 
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmHash.hh>
 #include <zlib/ZmList.hh>
-#include <zlib/ZmTime.hh>
-#include <zlib/ZmSemaphore.hh>
-#include <zlib/ZmThread.hh>
-#include <zlib/ZmSingleton.hh>
-#include <zlib/ZmSpecific.hh>
-#include <zlib/ZuMStream.hh>
 
-#define mb() __asm__ __volatile__("":::"memory")
+void fail() { Zm::exit(1); }
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+void out(bool ok, ZuString check, ZuString diag) {
+  std::cout
+    << (ok ? "OK  " : "NOK ") << check << ' ' << diag
+    << '\n' << std::flush;
+}
+
+#define CHECK_(x) out((x), #x, "")
+#define CHECK(x, y) out((x), #x, y)
 
 struct X : public ZmObject {
   X() : x(0) { }
@@ -37,7 +36,7 @@ struct X : public ZmObject {
   unsigned x;
 };
 
-void X::helloWorld() { puts("hello world"); }
+void X::helloWorld() { std::cout << "hello world\n" << std::flush; }
 
 struct Y : public X {
   virtual void helloWorld();
@@ -59,101 +58,13 @@ using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
 using ZList2 = ZmList<ZuStringN<20>, ZmListNode<ZuStringN<20>>>;
 
-void Y::helloWorld() { puts("hello world [Y]"); }
+void Y::helloWorld() { std::cout << "hello world [Y]\n" << std::flush; }
 
 ZmRef<X> foo(X *xPtr) { return(xPtr); }
 
-int hashTestSize = 1000;
-
-void hashIt(ZHash *h) {
-  ZmRef<Z> z = new Z;
-  int j;
-
-  for (j = 0; j < hashTestSize; j++)
-    h->add(j, z);
-  for (j = 0; j < hashTestSize; j++)
-    h->del(j);
-  for (j = 0; j < hashTestSize; j++) {
-    h->add(j, z);
-    h->del(j);
-  }
-}
-
-void semPost(ZmSemaphore *sema) {
-  int i;
-
-  ZmSpecific<X>::instance()->inc();
-  for (i = 0; i < 10; i++) sema->post();
-}
-
-void semWait(ZmSemaphore *sema) {
-  int i;
-
-  ZmSpecific<X>::instance()->inc();
-  for (i = 0; i < 10; i++) sema->wait();
-}
-
-struct S : public ZmObject {
-  S() { m_i = 0; m_j++; }
-
-  void foo() { m_i++; }
-
-  static void meyers() {
-    for (int i = 0; i < 100000; i++) {
-      static ZmRef<S> s_ = new S();
-      S *s = s_;
-      s->foo();
-      mb();
-    }
-  }
-
-  static void singleton() {
-    for (int i = 0; i < 100000; i++) {
-      S *s = ZmSingleton<S>::instance();
-      s->foo();
-      mb();
-    }
-  }
-
-  static void specific() {
-    for (int i = 0; i < 100000; i++) {
-      S *s = ZmSpecific<S>::instance();
-      s->foo();
-      mb();
-    }
-  }
-
-  static void tls() {
-    for (int i = 0; i < 100000; i++) {
-      auto &s = ZmTLS([]() -> ZmRef<S> { return new S(); });
-      s->foo();
-      mb();
-    }
-  }
-
-  int			m_i;
-  static unsigned	m_j;
-};
-
-unsigned S::m_j = 0;
-
-struct W {
-  void fn(const char *prefix, const ZmThreadContext *c) {
-    const ZmThreadName &s = c->name();
-    if (!s)
-      printf("%s: %d\n", prefix, (int)c->tid());
-    else
-      printf("%s: %.*s\n", prefix, s.length(), s.data());
-  }
-  void fn1(const ZmThreadContext *c) { fn("list1", c); }
-  void fn2(const ZmThreadContext *c) { fn("list2", c); }
-  void post() { m_sem.post(); }
-  void wait() { m_sem.wait(); }
-  ZmSemaphore				m_sem;
-};
-
 struct O : public ZmObject {
   O() : referenced(0), dereferenced(0) { }
+  ~O() { std::cout << "~O()\n" << std::flush; }
 #ifdef ZmObject_DEBUG
   void ref(const void *referrer = 0) const {
     ++referenced;
@@ -175,48 +86,42 @@ struct O : public ZmObject {
 
 int main(int argc, char **argv)
 {
-  ZuTime overallStart, overallEnd;
-
-  overallStart = Zm::now();
-
-  if (argc > 1) hashTestSize = atoi(argv[1]);
-
   ZmRef<X> x = new X;
 
   {
     ZmRef<X> nullPtr;
     ZmRef<X> nullPtr_;
 
-    if (!nullPtr) puts("null test 1 ok");
+    CHECK(!nullPtr, "null test 1");
 
     nullPtr = x;
-    if (nullPtr) puts("null test 2 ok");
+    CHECK(nullPtr, "null test 2");
 
     nullPtr = 0;
-    if (!nullPtr) puts("null test 3 ok");
+    CHECK(!nullPtr, "null test 3");
 
     nullPtr_ = x;
-    if (nullPtr_) puts("null test 5 ok");
+    CHECK(nullPtr_, "null test 5");
 
     nullPtr_ = nullPtr;
-    if (!nullPtr_) puts("null test 6 ok");
+    CHECK(!nullPtr_, "null test 6");
 
     nullPtr = x;
-    if (nullPtr) puts("null test 7 ok");
+    CHECK(nullPtr, "null test 7");
 
     nullPtr = nullPtr_;
-    if (!nullPtr) puts("null test 8 ok");
+    CHECK(!nullPtr, "null test 8");
 
     nullPtr_ = (X *)0;
-    if (!nullPtr_) puts("null test 9 ok");
+    CHECK(!nullPtr_, "null test 9");
   }
 
   {
     ZmRef<X> xPtr = foo(x);
     ZmRef<X> xPtr_ = foo(x);
 
-    if ((X *)xPtr == &(*xPtr)) puts("cast test 1 ok");
-    if ((X *)xPtr_ == &(*xPtr_)) puts("cast test 2 ok");
+    CHECK((X *)xPtr == &(*xPtr), "cast test 1");
+    CHECK((X *)xPtr_ == &(*xPtr_), "cast test 2");
   }
 
   {
@@ -230,8 +135,8 @@ int main(int argc, char **argv)
 
     xPtr = x;
 
-    if (xPtr == xPtr2) puts("equality test 1 ok");
-    if (xPtr == (ZmRef<X>)xPtr2) puts("equality test 2 ok");
+    CHECK(xPtr == xPtr2, "equality test 1");
+    CHECK(xPtr == (ZmRef<X>)xPtr2, "equality test 2");
 
     xPtr->helloWorld();
 
@@ -264,8 +169,7 @@ int main(int argc, char **argv)
   {
     ZHash::Iterator i(*hash);
 
-    if ((Z *)i.iterate()->val() != (Z *)z)
-      puts("collection test failed");
+    CHECK((Z *)i.iterate()->val() == (Z *)z, "collection test");
   }
 
   {
@@ -284,14 +188,14 @@ int main(int argc, char **argv)
     list1.add(z);
     list2.add(z);
     z = list1.shiftVal();
-    if (z->m_z != 1234) puts("list1 test 1 failed");
+    CHECK(z->m_z == 1234, "list1 test 1");
     z = list2.shiftVal();
-    if (z->m_z != 1234) puts("list2 test 1 failed");
+    CHECK(z->m_z == 1234, "list2 test 1");
     list.del(z);
     z = list1.shiftVal();
-    if (z->m_z != 1234) puts("list1 test 2 failed");
+    CHECK(z->m_z == 1234, "list1 test 2");
     z = list2.shiftVal();
-    if (z->m_z != 1234) puts("list2 test 2 failed");
+    CHECK(z->m_z == 1234, "list2 test 2");
 
     ZList list3;
     ZmRef<Z> z2 = new Z, z3 = new Z;
@@ -308,50 +212,51 @@ int main(int argc, char **argv)
     list2.add(z3);
     list3.add(z3);
 #ifdef ZmRef_DEBUG
-    printf("z: "); z->debug();
-    printf("z2: "); z2->debug();
-    printf("z3: "); z3->debug();
+    std::cout << "z: "; z->debug();
+    std::cout << "z2: "; z2->debug();
+    std::cout << "z3: "; z3->debug();
+    std::cout << std::flush;
 #endif
     z = list1.shiftVal();
-    if (z->m_z != 1234) puts("list1 test 3 failed");
+    CHECK(z->m_z == 1234, "list1 test 3");
     z = list2.popVal();
-    if (z->m_z != 3456) puts("list2 test 3 failed");
+    CHECK(z->m_z == 3456, "list2 test 3");
     z = list1.shiftVal();
-    if (z->m_z != 2345) puts("list1 test 4 failed");
+    CHECK(z->m_z == 2345, "list1 test 4");
     z = list2.popVal();
-    if (z->m_z != 2345) puts("list2 test 4 failed");
+    CHECK(z->m_z == 2345, "list2 test 4");
     z = list1.shiftVal();
-    if (z->m_z != 3456) puts("list1 test 5 failed");
+    CHECK(z->m_z == 3456, "list1 test 5");
     z = list2.popVal();
-    if (z->m_z != 1234) puts("list2 test 5 failed");
+    CHECK(z->m_z == 1234, "list2 test 5");
 
-    puts("list3 iteration 1");
+    std::cout << "list3 iteration 1\n" << std::flush;
     {
       ZList::Iterator iter(list3);
 
       while (z = iter.iterateVal())
-	printf("%d\n", z->m_z);
+	std::cout << "" << z->m_z << "\n" << std::flush;
     }
 
-    puts("list3 iteration 2");
+    std::cout << "list3 iteration 2\n" << std::flush;
     {
       ZList::Iterator iter(list3);
 
       while (z = iter.iterateVal())
-	printf("%d\n", z->m_z);
+	std::cout << "" << z->m_z << "\n" << std::flush;
     }
 
-    puts("list3 iteration 3");
+    std::cout << "list3 iteration 3\n" << std::flush;
     {
       ZList::Iterator iter(list3);
 
       while (z = iter.iterateVal())
-	printf("%d\n", z->m_z);
+	std::cout << "" << z->m_z << "\n" << std::flush;
     }
 
-    puts("list tests 1 ok");
+    std::cout << "list tests 1 ok\n" << std::flush;
 
-    printf("list2 count: %u\n", list2.count_());
+    std::cout << "list2 count: " << list2.count_() << "\n" << std::flush;
   }
 
   {
@@ -363,195 +268,9 @@ int main(int argc, char **argv)
       ZList2::Iterator iter(list);
       ZList2::NodeRef z;
 
-      while (z = iter.iterate()) puts(*z);
+      while (z = iter.iterate())
+	std::cout << z->data() << '\n' << std::flush;
     }
-  }
-
-  ZmThread r[80];
-  int j;
-
-  {
-    ZmSemaphore *sema = new ZmSemaphore;
-
-    puts("spawning 80 threads...");
-
-    for (j = 0; j < 80; j++)
-      r[j] = ZmThread{[sema]() { semPost(sema); }};
-
-    for (j = 0; j < 80; j++) sema->wait();
-
-    for (j = 0; j < 80; j++) r[j].join(0);
-
-    puts("80 threads finished");
-
-    puts("spawning 80 threads...");
-
-    for (j = 0; j < 40; j++)
-      r[j] = ZmThread{[sema]() { semWait(sema); }};
-
-    for (j = 40; j < 80; j++)
-      r[j] = ZmThread{[sema]() { semPost(sema); }};
-
-    for (j = 0; j < 80; j++) r[j].join(0);
-
-    puts("80 threads finished");
-
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < 1000000; j++) {
-      sema->post();
-      sema->wait();
-    }
-
-    end = Zm::now();
-    end -= start;
-    printf("sem post/wait time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-
-    delete sema;
-  }
-
-  {
-    puts("starting ZmPLock lock/unlock time test");
-
-    ZmPLock lock;
-
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < 1000000; j++) { lock.lock(); lock.unlock(); }
-
-    end = Zm::now();
-    end -= start;
-    printf("lock/unlock time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-  }
-
-  {
-    puts("starting ref/deref time test");
-
-    ZmRef<ZmObject> l = new ZmObject;
-
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < 1000000; j++) { l->ref(); mb(); }
-
-    end = Zm::now();
-    end -= start;
-    printf("ref time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-
-    start = Zm::now();
-
-    for (j = 0; j < 1000000; j++) { l->deref(); mb(); }
-
-    end = Zm::now();
-    end -= start;
-    printf("deref time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-  }
-
-  int n = Zm::getncpu();
-
-  {
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread{S::meyers};
-    for (j = 0; j < n; j++)
-      r[j].join(0);
-
-    end = Zm::now();
-    end -= start;
-
-    printf("Meyers singleton time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-    printf("S() called %u times\n", S::m_j); S::m_j = 0;
-  }
-
-  {
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread{S::singleton};
-    for (j = 0; j < n; j++)
-      r[j].join(0);
-
-    end = Zm::now();
-    end -= start;
-    printf("ZmSingleton::instance() time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-    printf("S() called %u times\n", S::m_j); S::m_j = 0;
-  }
-
-  {
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread{S::specific};
-    for (j = 0; j < n; j++)
-      r[j].join(0);
-
-    end = Zm::now();
-    end -= start;
-    printf("ZmSpecific::instance() time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-    printf("S() called %u times\n", S::m_j); S::m_j = 0;
-  }
-
-  {
-    ZuTime start, end;
-
-    start = Zm::now();
-
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread{S::tls};
-    for (j = 0; j < n; j++)
-      r[j].join(0);
-
-    end = Zm::now();
-    end -= start;
-    printf("thread_local time: %s / 1000000 = %s\n",
-      (ZuStringN<32>{} << end.interval()).data(),
-      (ZuStringN<32>{} << (end.as_decimal() / ZuDecimal{1000000})).data());
-    printf("S() called %u times\n", S::m_j); S::m_j = 0;
-  }
-
-
-  overallEnd = Zm::now();
-  overallEnd -= overallStart;
-  printf("overall time: %s\n",
-    (ZuStringN<32>{} << overallEnd.interval()).data());
-
-  {
-    W w;
-    for (j = 0; j < n; j++)
-      r[j] = ZmThread{[w = &w]() { w->wait(); }};
-    Zm::sleep(1);
-    ZmSpecific<ZmThreadContext>::all(
-	[&w](const ZmThreadContext *tc) { w.fn1(tc); });
-    for (j = 0; j < n; j++) w.post();
-    for (j = 0; j < n; j++) r[j].join(0);
-    ZmSpecific<ZmThreadContext>::all(
-	[&w](const ZmThreadContext *tc) { w.fn2(tc); });
   }
 
   {
@@ -559,12 +278,24 @@ int main(int argc, char **argv)
     {
       ZmRef<O> o = new O();
 
-      CHECK(o->referenced == 1 && !o->dereferenced);
+      CHECK_(o->referenced == 1 && !o->dereferenced);
       p = o;
     }
-    CHECK(p->referenced == 2 && p->dereferenced == 1);
+    CHECK_(p->referenced == 2 && p->dereferenced == 1);
     ZmRef<O> q = ZuMv(p);
-    CHECK(!p);
-    CHECK(q->referenced == 2 && q->dereferenced == 1);
+    CHECK_(!p);
+    CHECK_(q->referenced == 2 && q->dereferenced == 1);
+  }
+
+  {
+    ZmRef<O> p = new O();
+    CHECK_(p->referenced == 1 && !p->dereferenced);
+    static auto fn = [](O *o) {
+      CHECK_(o->referenced == 1);
+      ZmRef<O> p = o;
+      CHECK_(o->referenced == 2);
+    };
+    fn(p);
+    CHECK_(p->referenced == 2 && p->dereferenced == 1);
   }
 }

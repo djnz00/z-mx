@@ -246,52 +246,90 @@ void Mgr::initUser(
 }
 
 // start a new session (a user is logging in)
-void Mgr::sessionStart(ZtString userName, bool interactive, SessionFn fn)
+void Mgr::sessionLoad_login(ZtString userName, SessionFn fn)
 {
-  ZuPtr<SessionStart> context =
-    new SessionStart{ZuMv(userName), interactive, ZuMv(fn)};
+  ZuPtr<SessionLoad> context =
+    new SessionLoad{ZuMv(userName), ZuMv(fn)};
   m_userTbl->run([this, context = ZuMv(context)]() mutable {
-    sessionStart_findUser(ZuMv(context));
+    sessionLoad_findUser(ZuMv(context));
+  });
+}
+// start a new session (using an API key)
+void Mgr::sessionLoad_access(KeyIDData keyID, SessionFn fn)
+{
+  ZuPtr<SessionLoad> context = new SessionLoad{ZuMv(keyID), ZuMv(fn)};
+  m_userTbl->run([this, context = ZuMv(context)]() mutable {
+    sessionLoad_findKey(ZuMv(context));
   });
 }
 // find and load the user
-void Mgr::sessionStart_findUser(ZuPtr<SessionStart> context)
+void Mgr::sessionLoad_findUser(ZuPtr<SessionLoad> context)
 {
-  m_userTbl->find<1>(ZuFwdTuple(userName), [
+  m_userTbl->find<1>(ZuFwdTuple(context->cred.p<ZtString>()), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> user) mutable {
-    if (!user) { sessionStarted(ZuMv(context), false); return; }
-    context->session = new Session{ZuMv(user), context->interactive};
+    if (!user) { sessionLoaded(ZuMv(context), false); return; }
+    context->session = new Session{ZuMv(user), true};
     if (!user.data().roles)
-      sessionStarted(ZuMv(context), true);
+      sessionLoaded(ZuMv(context), true);
     else
       roleTbl->run([this, context = ZuMv(context)]() mutable {
-	sessionStart_findRole(ZuMv(context));
+	sessionLoad_findRole(ZuMv(context));
+      });
+  });
+}
+// find and load the key
+void Mgr::sessionLoad_findKey(ZuPtr<SessionLoad> context)
+{
+  m_keyTbl->find<1>(ZuFwdTuple(context->cred.p<KeyIDData>()), [
+    this, context = ZuMv(context)
+  ](ZmRef<ZdbObject<Key>> key) mutable {
+    if (!key) { sessionLoaded(ZuMv(context), false); return; }
+    // FIXME - need to stash key
+    context->userID = key->data().userID;
+    userTbl->run([this, context = ZuMv(context)]() mutable {
+      sessionLoad_findUserID(ZuMv(context));
+    });
+  });
+}
+// find and load the user using userID
+void Mgr::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
+{
+  m_userTbl->find<0>(ZuFwdTuple(context->userID), [
+    this, context = ZuMv(context)
+  ](ZmRef<ZdbObject<User>> user) mutable {
+    if (!user) { sessionLoaded(ZuMv(context), false); return; }
+    context->session = new Session{ZuMv(user), false};
+    if (!user.data().roles)
+      sessionLoaded(ZuMv(context), true);
+    else
+      roleTbl->run([this, context = ZuMv(context)]() mutable {
+	sessionLoad_findRole(ZuMv(context));
       });
   });
 }
 // find and load the user's roles and permissions
-void Mgr::sessionStart_findRole(ZuPtr<SessionStart> context)
+void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
 {
   const auto &role = context->session->user.data().roles[context->roleIndex];
   m_roleTbl->find<0>(ZuFwdTuple(role), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Role>> role) mutable {
-    if (!role) { sessionStarted(ZuMv(context), false); return; }
+    if (!role) { sessionLoaded(ZuMv(context), false); return; }
     if (context->interactive)
       context->session->perms |= role->data().perms;
     else
       context->session->perms |= role->data().apiperms;
     if (++context->roleIndex < context->session->user->data().roles.length())
       m_roleTbl->run([this, context = ZuMv(context)]() {
-	sessionStart_findRole(ZuMv(context));
+	sessionLoad_findRole(ZuMv(context));
       });
     else
-      sessionStarted(ZuMv(context), true);
+      sessionLoaded(ZuMv(context), true);
   });
 }
 // inform app (session remains unauthenticated at this point)
-void Mgr::sessionStarted(ZuPtr<SessionStart> context, bool ok)
+void Mgr::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
 {
   SessionFn fn = ZuMv(context->fn);
   ZmRef<Session> session = ZuMv(context->session);
@@ -495,7 +533,7 @@ void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
 ZmRef<User> Mgr::login(
   ZuString name, ZtString passwd, unsigned totp, SessionFn fn)
 {
-  sessionStart(name, true, [
+  sessionLoad_login(name, true, [
     this, passwd = ZuMv(passwd), totp, fn = ZuMv(fn)
   ](ZmRef<Session> session) {
     if (!session) { fn(nullptr); return; }
@@ -561,31 +599,19 @@ ZmRef<User> Mgr::login(
 }
 
 ZmRef<User> Mgr::access(
-  ZtString keyID, ZtArray<uint8_t> token, int64_t stamp,
+  KeyIDData keyID, ZtArray<uint8_t> token, int64_t stamp,
   ZtArray<uint8_t> hmac, SessionFn fn)
 {
-  sessionStart(name, false, [
+  sessionLoad_access(keyID, false, [
     this, keyID = ZuMv(keyID), token = ZuMv(token), stamp, hmac = ZuMv(hmac)
   ](ZmRef<Session> session) {
-    m_keyTbl->find<0>(ZuFwdTuple(
-    // FIXME from here
-    Key *key = m_keys->findPtr(ZuFwdTuple(keyID));
-    if (!key) {
-      failures = -1;
-      fn(nullptr);
-      return;
-    }
-    ZmRef<User> user = m_users->find(key->userID);
-    if (!user) {
-      failures = -1;
-      fn(nullptr);
-      return;
-    }
-    if (!(user->flags & User::Enabled)) {
+    if (!session) { fn(nullptr); return; }
+    const auto &user = session->user->data();
+    if (!(user.flags & UserFlags::Enabled)) {
       if (++user->failures < 3) {
-	ZeLOG(Warning, ([user](auto &s) {
+	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: disabled user \""
-	    << user->name << "\" attempted login"; }));
+	    << name << "\" attempted API key access"; }));
       }
       failures = user->failures;
       fn(nullptr);

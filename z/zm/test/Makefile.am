@@ -16,7 +16,7 @@ TESTPROGS = ZmFnTest ZmHeapTest ZmHeapTest2 ZmRBTest ZmRWTest \
 	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread ZmPQueueTest \
 	ZmPQueueTest2 ZmPQueueTest3 ZmRingTest ZmRingTest2 \
 	ZmLockTest ZmTIDTest ZmAllocTest ZmCacheTest ZmDemangleTest \
-	ZmTimeTest ZmAssertTest ZmPolyHashTest ZmPolyCacheTest
+	ZmTimeTest ZmAssertTest ZmPolyHashTest ZmPolyCacheTest ZmBench
 if MINGW
 bin_PROGRAMS = ZmBTTest
 noinst_PROGRAMS = ${TESTPROGS}
@@ -54,3 +54,4 @@ ZmTimeTest_SOURCES = ZmTimeTest.cc
 ZmAssertTest_SOURCES = ZmAssertTest.cc
 ZmPolyHashTest_SOURCES = ZmPolyHashTest.cc
 ZmPolyCacheTest_SOURCES = ZmPolyCacheTest.cc
+ZmBench_SOURCES = ZmBench.cc

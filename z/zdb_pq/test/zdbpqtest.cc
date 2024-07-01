@@ -194,7 +194,8 @@ int main(int argc, char **argv)
       id = 0;
 
     orders->run([&id, &seqNo]{
-      orders->insert([&id, &seqNo](const ZmRef<ZdbObject<Order>> &o) {
+      orders->insert([&id, &seqNo](ZdbObject<Order> *o) {
+	if (ZuUnlikely(!o)) { done.post(); return; }
 	ZuStringN<32> clOrdID;
 	clOrdID << "order" << id;
 	new (o->ptr())

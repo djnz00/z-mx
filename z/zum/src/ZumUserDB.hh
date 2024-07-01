@@ -43,8 +43,10 @@ using KeyData = ZuArrayN<uint8_t, KeySize>;
 enum { KeyIDSize = 16 };
 using KeyIDData = ZuArrayN<uint8_t, KeyIDSize>;
 
+using UserID = uint64_t;
+
 struct Key {
-  uint64_t		userID;
+  UserID		userID;
   KeyIDData		id;
   KeyData		secret;
 
@@ -91,7 +93,7 @@ namespace UserFlags {
 }
 
 struct User {
-  uint64_t		id;
+  UserID		id;
   ZtString		name;
   KeyData		hmac;
   KeyData		secret;
@@ -113,7 +115,7 @@ ZfbFields(User,
 struct Session_ : public ZmPolymorph {
   Mgr				*mgr = nullptr;
   ZmRef<ZdbObject<User>>	user;
-  unsigned			failures = 0;
+  ZmRef<ZdbObject<Key>>		key;		// if API key access
   ZtBitmap			perms;		// effective permissions
   bool				interactive;
 
@@ -198,20 +200,26 @@ private:
   // initialize user
   void initUser(
     ZdbObject<User> *,
-    uint64_t id, ZtString name, ZtString role, UserFlags::T flags);
+    UserID id, ZtString name, ZtString role, UserFlags::T flags);
 
   // start new session
-  struct SessionStart {
-    ZtString		userName;
-    bool		interactive;
+  struct SessionLoad {
+    using Cred = ZuUnion<ZtString, KeyIDData>;	// username or API key ID
+
+    Cred		cred;
     SessionFn		fn;
+    ZmRef<ZdbObject<Key>> key; // FIXME?
+    UserID		userID;
     ZmRef<Session>	session;
     unsigned		roleIndex = 0;
   };
-  void sessionStart(ZtString userName, SessionFn);
-  void sessionStart_findUser(ZuPtr<SessionStart> context);
-  void sessionStart_findRole(ZuPtr<SessionStart> context);
-  void sessionStarted(ZuPtr<SessionStart> context, bool ok);
+  void sessionLoad_login(ZtString userName, SessionFn);
+  void sessionLoad_access(KeyIDData keyID, SessionFn);
+  void sessionLoad_findUser(ZuPtr<SessionLoad> context);
+  void sessionLoad_findKey(ZuPtr<SessionLoad> context);
+  void sessionLoad_findUserID(ZuPtr<SessionLoad> context);
+  void sessionLoad_findRole(ZuPtr<SessionLoad> context);
+  void sessionLoaded(ZuPtr<SessionLoad> context, bool ok);
 
   // interactive login
   void login(

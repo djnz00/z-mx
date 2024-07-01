@@ -1022,7 +1022,7 @@ private: // RMU version used by findUpd() and findDel()
   }
 
 public:
-  // init lambda - l(const ZmRef<ZdbObject<T>> &)
+  // init lambda - l(ZdbObject<T> *)
 
   // create new object
   template <typename L>
@@ -1030,7 +1030,7 @@ public:
     ZmAssert(invoked());
 
     ZmRef<Object<T>> object = insert_(nextUN());
-    if (!object) { l(object); return; }
+    if (!object) { l(nullptr); return; }
     try {
       l(object);
     } catch (...) { object->abort(); throw; }
@@ -1091,7 +1091,7 @@ public:
     ZmAssert(invoked());
 
     if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
-      l(ZmRef<Object<T>>{});
+      l(nullptr);
       return;
     }
     update<KeyIDs_>(ZuMv(object), ZuMv(l));
@@ -1116,7 +1116,7 @@ public:
 	});
   }
 
-  // delete lambda(const ZmRef<ZdbObject<T>> &)
+  // delete lambda - l(ZdbObject<T> *)
 
   // delete record
   template <typename L>
@@ -1124,7 +1124,7 @@ public:
     ZmAssert(invoked());
 
     if (!del_(object.ptr(), nextUN())) {
-      l(ZmRef<Object<T>>{});
+      l(nullptr);
       return;
     }
     // all object keys are being invalidated, need to:
@@ -1166,7 +1166,7 @@ public:
   template <typename L>
   void del(ZmRef<AnyObject> object, UN un, L l) {
     if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
-      l(ZmRef<Object<T>>{});
+      l(nullptr);
       return;
     }
     del(ZuMv(object), ZuMv(l));
@@ -1231,8 +1231,8 @@ private:
   // low-level insert - calls ctor, AnyObject::insert_()
   ZmRef<Object<T>> insert_(UN un) {
     ZmRef<Object<T>> object = new Object<T>{this};
-    if (!object) return nullptr;
-    if (!object->insert_(un)) return nullptr;
+    if (ZuUnlikely(!object)) return nullptr;
+    if (ZuUnlikely(!object->insert_(un))) return nullptr;
     return object;
   }
 
@@ -1786,7 +1786,7 @@ inline void Table<T>::find_(Key<KeyID> key, L l) {
       return;
     }
     if (found) {
-      l(ZmRef<Object<T>>{});
+      l(nullptr);
       return;
     }
     retrieve<KeyID>(key, ZuMv(l));
