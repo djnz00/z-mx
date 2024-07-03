@@ -53,8 +53,8 @@ struct Key {
   friend ZtFieldPrint ZuPrintType(Key *);
 };
 ZfbFields(Key,
-  (((userID), (Keys<0>, Ctor<0>)), (UInt64)),
-  (((id), (Keys<0, 1>, Ctor<1>, Grouped<0>)), (String)),
+  (((userID), (Keys<0>, Group<0>, Ctor<0>)), (UInt64)),
+  (((id), (Keys<0, 1>, Ctor<1>)), (String)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
 struct Perm {
@@ -64,7 +64,7 @@ struct Perm {
   friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>, Grouped<0>)), (UInt32)),
+  (((id), (Keys<0>, Ctor<0>)), (UInt32)),
   (((name), (Ctor<1>, Mutable)), (String)));
 
 namespace RoleFlags {
@@ -113,11 +113,11 @@ ZfbFields(User,
   (((flags), (Ctor<6>, Mutable, Flags<UserFlags::Map>)), (UInt8, 0)));
 
 struct Session_ : public ZmPolymorph {
-  Mgr				*mgr = nullptr;
-  ZmRef<ZdbObject<User>>	user;
-  ZmRef<ZdbObject<Key>>		key;		// if API key access
-  ZtBitmap			perms;		// effective permissions
-  bool				interactive;
+  Mgr			*mgr = nullptr;
+  ZdbObjRef<User>	user;
+  ZdbObjRef<Key>	key;		// if API key access
+  ZtBitmap		perms;		// effective permissions
+  bool			interactive;
 
   static auto NameAxor(const Session &session) {
     return session.user->data().name;
@@ -131,7 +131,12 @@ using Sessions =
       ZmHashKey<Session_::NameAxor,
 	ZmHashHeapID<Session_HeapID>>>>;
 using Session = Sessions::Node;
+
+// session start callback - nullptr if login/access failed
 using SessionFn = ZmFn<void(ZmRef<Session>)>;
+
+// request response callback
+using ResponseFn = ZmFn<ZmFn<void(Zfb::Builder &)>>;
 
 class ZvAPI Mgr {
 public:
@@ -208,8 +213,7 @@ private:
 
     Cred		cred;
     SessionFn		fn;
-    ZmRef<ZdbObject<Key>> key; // FIXME?
-    UserID		userID;
+    ZdbObjRef<Key>	key;	// null unless non-interactive
     ZmRef<Session>	session;
     unsigned		roleIndex = 0;
   };
@@ -230,92 +234,98 @@ private:
     ZtArray<const uint8_t> token, int64_t stamp, ZtArray<const uint8_t> hmac,
     SessionFn);
 
+  void reject(
+    uint64_t seqNo, unsigned rejCode, ZuString text, ResponseFn fn);
+  void respond(
+    Zfb::Builder &fbb, uint64_t seqNo,
+    fbs::ReqAckData ackType, Offset<void> ackData);
+
 public:
   // ok(user, interactive, perm)
-  bool ok(Session *session, unsigned perm) const {
-    if ((session->user->data().flags & User::ChPass) &&
-	session->interactive &&
-	perm != Perm::Offset + int(fbs::ReqData::ChPass))
+  bool ok(Session *session, unsigned permID) const {
+    if ((session->user->data().flags & UserFlags::ChPass()) &&
+	!session->key && perm != reqPerm(fbs::ReqData::ChPass))
       return false;
-    return session->perms & (uint128_t(1)<<perm);
+    return session->perms[permID];
   }
 
 private:
-  // FIXME from here
   // change password
-  Offset<fbs::UserAck> chPass(
-      Zfb::Builder &, Session *session, const fbs::UserChPass *chPass);
+  void chPass(
+    Session *session, uint64_t seqNo,
+    const fbs::UserChPass *chPass, ResponseFn);
 
   // query users
-  Offset<Vector<Offset<fbs::User>>> userGet(
-      Zfb::Builder &, const fbs::UserID *id);
+  void userGet(
+    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
   // add a new user
-  Offset<fbs::UserPass> userAdd(
-      Zfb::Builder &, const fbs::User *user);
+  void userAdd(
+    Session *session, uint64_t seqNo, const fbs::User *user, ResponseFn);
   // reset password (also clears all API keys)
-  Offset<fbs::UserPass> resetPass(
-      Zfb::Builder &, const fbs::UserID *id);
+  void resetPass(
+    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
   // modify user name, roles, flags
-  Offset<fbs::UserUpdAck> userMod(
-      Zfb::Builder &, const fbs::User *user);
+  void userMod(
+    Session *session, uint64_t seqNo, const fbs::User *user, ResponseFn);
   // delete user
-  Offset<fbs::UserUpdAck> userDel(
-      Zfb::Builder &, const fbs::UserID *id);
+  void userDel(
+    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
   
   // query roles
-  Offset<Vector<Offset<fbs::Role>>> roleGet(
-      Zfb::Builder &, const fbs::RoleID *id);
+  void roleGet(
+    Session *session, uint64_t seqNo, const fbs::RoleID *id, ResponseFn);
   // add role
-  Offset<fbs::RoleUpdAck> roleAdd(
-      Zfb::Builder &, const fbs::Role *role);
+  void roleAdd(
+    Session *session, uint64_t seqNo, const fbs::Role *role, ResponseFn);
   // modify role perms, apiperms, flags
-  Offset<fbs::RoleUpdAck> roleMod(
-      Zfb::Builder &, const fbs::Role *role);
+  void roleMod(
+    Session *session, uint64_t seqNo, const fbs::Role *role, ResponseFn);
   // delete role
-  Offset<fbs::RoleUpdAck> roleDel(
-      Zfb::Builder &, const fbs::RoleID *role);
+  void roleDel(
+    Session *session, uint64_t seqNo, const fbs::RoleID *role, ResponseFn);
   
   // query permissions 
-  Offset<Vector<Offset<fbs::Perm>>> permGet(
-      Zfb::Builder &, const fbs::PermID *perm);
+  void permGet(
+    Session *session, uint64_t seqNo, const fbs::PermID *perm, ResponseFn);
   // add permission
-  Offset<fbs::PermUpdAck> permAdd(
-      Zfb::Builder &, const fbs::PermAdd *permAdd);
+  void permAdd(
+    Session *session, uint64_t seqNo, const fbs::PermAdd *permAdd, ResponseFn);
   // modify permission name
-  Offset<fbs::PermUpdAck> permMod(
-      Zfb::Builder &, const fbs::Perm *perm);
+  void permMod(
+    Session *session, uint64_t seqNo, const fbs::Perm *perm, ResponseFn);
   // delete permission
-  Offset<fbs::PermUpdAck> permDel(
-      Zfb::Builder &, const fbs::PermID *id);
+  void permDel(
+    Session *session, uint64_t seqNo, const fbs::PermID *id, ResponseFn);
 
   // query API keys for user
-  Offset<Vector<Offset<Zfb::String>>> ownKeyGet(
-      Zfb::Builder &, const Session *session, const fbs::UserID *userID);
-  Offset<Vector<Offset<Zfb::String>>> keyGet(
-      Zfb::Builder &, const fbs::UserID *userID);
-  Offset<Vector<Offset<Zfb::String>>> keyGet_(
-      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
+  void ownKeyGet(
+      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
+  void keyGet(
+      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
+  void keyGet_(
+      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
   // add API key for user
-  Offset<fbs::KeyUpdAck> ownKeyAdd(
-      Zfb::Builder &, const Session *session, const fbs::UserID *userID);
-  Offset<fbs::KeyUpdAck> keyAdd(
-      Zfb::Builder &, const fbs::UserID *userID);
-  Offset<fbs::KeyUpdAck> keyAdd_(
-      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
+  void ownKeyAdd(
+      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
+  void keyAdd(
+      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
+  void keyAdd_(
+      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
   // clear all API keys for user
-  Offset<fbs::UserAck> ownKeyClr(
-      Zfb::Builder &, const Session *session, const fbs::UserID *id);
-  Offset<fbs::UserAck> keyClr(
-      Zfb::Builder &, const fbs::UserID *id);
-  Offset<fbs::UserAck> keyClr_(
-      Zfb::Builder &, ZmRef<ZdbObject<User>> user);
+  void ownKeyClr(
+      Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
+  void keyClr(
+      Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
+  void keyClr_(
+      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
   // delete API key
-  Offset<fbs::UserAck> ownKeyDel(
-      Zfb::Builder &, const Session *session, const fbs::KeyID *id);
-  Offset<fbs::UserAck> keyDel(
-      Zfb::Builder &, const fbs::KeyID *id);
-  Offset<fbs::UserAck> keyDel_(
-      Zfb::Builder &, ZmRef<ZdbObject<User>> user, ZuString id);
+  void ownKeyDel(
+      Session *session, uint64_t seqNo, const fbs::KeyID *id, ResponseFn);
+  void keyDel(
+      Session *session, uint64_t seqNo, const fbs::KeyID *id, ResponseFn);
+  void keyDel_(
+      Session *session, uint64_t seqNo,
+      ZdbObjRef<User> user, ZuString id, ResponseFn);
 
 private:
   Ztls::Random		*m_rng;
@@ -332,9 +342,11 @@ private:
   static constexpr unsigned nPerms() {
     return unsigned(fbs::LoginReqData::MAX) + unsigned(fbs::ReqData::MAX);
   }
-  static constexpr unsigned loginReqPerm(unsigned i) { return i - 1; }
-  static constexpr unsigned reqPerm(unsigned i) {
-    return unsigned(fbs::LoginReqData::MAX) + (i - 1);
+  static constexpr unsigned loginReqPerm(fbs::LoginReqData i) {
+    return unsigned(i) - 1;
+  }
+  static constexpr unsigned reqPerm(fbs::ReqData i) {
+    return unsigned(fbs::LoginReqData::MAX) + (unsigned(i) - 1);
   }
 
   uint32_t		m_nextPermID = 0;

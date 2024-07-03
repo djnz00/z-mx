@@ -252,6 +252,21 @@ struct ZmHash_NodeExt {
   Node	*next = nullptr;
 };
 
+// compile-time check if cmp is static
+template <typename T, typename Cmp, typename = void>
+struct ZmHash_IsStaticCmp : public ZuFalse { };
+template <typename T, typename Cmp>
+struct ZmHash_IsStaticCmp<T, Cmp, decltype(
+  Cmp::cmp(ZuDeclVal<const T &>(), ZuDeclVal<const T &>()),
+  void())> : public ZuTrue { };
+// compile-time check if equals is static
+template <typename T, typename Cmp, typename = void>
+struct ZmHash_IsStaticEquals : public ZuFalse { };
+template <typename T, typename Cmp>
+struct ZmHash_IsStaticEquals<T, Cmp, decltype(
+  Cmp::equals(ZuDeclVal<const T &>(), ZuDeclVal<const T &>()),
+  void())> : public ZuTrue { };
+
 template <typename T_, typename NTP = ZmHash_Defaults>
 class ZmHash :
     public ZmAnyHash,
@@ -504,6 +519,11 @@ public:
   ZmHash(ZmHashParams params = ZmHashParams{ID()}) : LockMgr{params} {
     init(params);
   }
+  ZmHash(Cmp cmp, ZmHashParams params = ZmHashParams{ID()}) :
+    m_cmp{ZuMv(cmp)}, LockMgr{params}
+  {
+    init(params);
+  }
   ZmHash(const ZmHash &) = delete;
   ZmHash &operator =(const ZmHash &) = delete;
   ZmHash(ZmHash &&) = delete;
@@ -523,6 +543,7 @@ public:
     return static_cast<double>(static_cast<uint64_t>(1)<<m_bits) * loadFactor();
   }
 
+  // intentionally unlocked and non-atomic
   unsigned count_() const { return m_count.load_(); }
 
   template <typename P>
@@ -586,20 +607,66 @@ private:
   template <typename U, typename R = void>
   using MatchData = ZuIfT<IsData<U>{}, R>;
 
-  template <typename P>
-  static auto matchKey(const P &key) {
-    return [&key](const Node *node) -> bool {
+public:
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto cmp(const Key &l, const Key &r) {
+    return Cmp::cmp(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  auto ZuInline cmp(const Key &l, const Key &r) const {
+    return m_cmp.cmp(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmHash_IsStaticEquals<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto equals(const Key &l, const Key &r) {
+    return Cmp::equals(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmHash_IsStaticEquals<Key_, Cmp_>{}>(), int()) = 0>
+  auto ZuInline equals(const Key &l, const Key &r) const {
+    return m_cmp.equals(l, r);
+  }
+
+private:
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmHash_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto matchKey(const P &key) {
+    return [&key](const Node *node) {
       return Cmp::equals(node->Node::key(), key);
     };
   }
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmHash_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  ZuInline auto matchKey(const P &key) const {
+    return [this, &key](const Node *node) {
+      return m_cmp.equals(node->Node::key(), key);
+    };
+  }
+
   template <typename P>
-  static auto matchData(const P &data) {
-    return [&data](const Node *node) -> bool {
+  static ZuInline auto matchData(const P &data) {
+    return [&data](const Node *node) {
       return node->Node::data() == data;
     };
   }
-  static auto matchNode(Node *node_) {
-    return [node_](const Node *node) -> bool {
+  static ZuInline auto matchNode(Node *node_) {
+    return [node_](const Node *node) {
       return node == node_;
     };
   }
@@ -710,7 +777,7 @@ private:
     unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
 
     for (node = m_table[slot];
-	 node && !Cmp::equals(node->Node::key(), KeyAxor(data));
+	 node && !equals(node->Node::key(), KeyAxor(data));
 	 node = node->NodeExt::next);
 
     if (!node) addNode_(node = new Node{ZuFwd<P>(data)}, code);
@@ -888,7 +955,7 @@ private:
     }
 
     for (;
-	 node && !Cmp::equals(node->Node::key(), iterator.m_key);
+	 node && !equals(node->Node::key(), iterator.m_key);
 	 prevNode = node, node = node->NodeExt::next);
 
     if (!node) {
@@ -998,6 +1065,7 @@ private:
     unlockAll();
   }
 
+  Cmp			m_cmp;
   unsigned		m_loadFactor = 0;
   ZmAtomic<unsigned>	m_count = 0;
   ZmAtomic<unsigned>	m_resized = 0;

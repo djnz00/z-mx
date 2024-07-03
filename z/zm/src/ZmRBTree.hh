@@ -304,6 +304,21 @@ public:
     ZmRBTreeIterator_<Tree, Direction>(const_cast<Tree &>(tree), key) { }
 };
 
+// compile-time check if cmp is static
+template <typename T, typename Cmp, typename = void>
+struct ZmRBTree_IsStaticCmp : public ZuFalse { };
+template <typename T, typename Cmp>
+struct ZmRBTree_IsStaticCmp<T, Cmp, decltype(
+  Cmp::cmp(ZuDeclVal<const T &>(), ZuDeclVal<const T &>()),
+  void())> : public ZuTrue { };
+// compile-time check if equals is static
+template <typename T, typename Cmp, typename = void>
+struct ZmRBTree_IsStaticEquals : public ZuFalse { };
+template <typename T, typename Cmp>
+struct ZmRBTree_IsStaticEquals<T, Cmp, decltype(
+  Cmp::equals(ZuDeclVal<const T &>(), ZuDeclVal<const T &>()),
+  void())> : public ZuTrue { };
+
 // red/black tree
 template <typename T_, class NTP = ZmRBTree_Defaults>
 class ZmRBTree : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
@@ -402,13 +417,100 @@ public:
     return *this;
   }
 
+  ZmRBTree(Cmp cmp) : m_cmp{ZuMv(cmp)} { }
+
   ~ZmRBTree() { clean_(); }
 
   Lock &lock() const { return m_lock; }
 
-  // unsigned count() const { ReadGuard guard(m_lock); return m_count; }
+  // intentionally unlocked and non-atomic
   unsigned count_() const { return m_count; }
 
+private:
+  template <typename U, typename V = Key>
+  struct IsKey : public ZuBool<ZuInspect<U, V>::Converts> { };
+  template <typename U, typename R = void>
+  using MatchKey = ZuIfT<IsKey<U>{}, R>;
+  template <typename U, typename V = T, bool = ZuInspect<NodeBase, V>::Is>
+  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Converts> { };
+  template <typename U, typename V>
+  struct IsData<U, V, true> : public ZuFalse { };
+  template <typename U, typename R = void>
+  using MatchData = ZuIfT<IsData<U>{}, R>;
+
+public:
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto cmp(const Key &l, const Key &r) {
+    return Cmp::cmp(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  auto ZuInline cmp(const Key &l, const Key &r) const {
+    return m_cmp.cmp(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmRBTree_IsStaticEquals<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto equals(const Key &l, const Key &r) {
+    return Cmp::equals(l, r);
+  }
+  template <
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmRBTree_IsStaticEquals<Key_, Cmp_>{}>(), int()) = 0>
+  auto ZuInline equals(const Key &l, const Key &r) const {
+    return m_cmp.equals(l, r);
+  }
+
+private:
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto matchKey(const P &key) {
+    return [&key](const Node *node) {
+      return Cmp::cmp(node->Node::key(), key);
+    };
+  }
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  ZuInline auto matchKey(const P &key) const {
+    return [this, &key](const Node *node) {
+      return m_cmp.cmp(node->Node::key(), key);
+    };
+  }
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  static ZuInline auto matchData(const P &data) {
+    return [&data](const Node *node) {
+      return Cmp::cmp(node->Node::key(), KeyAxor(data));
+    };
+  }
+  template <
+    typename P,
+    typename Key_ = Key,
+    typename Cmp_ = Cmp,
+    decltype(ZuIfT<!ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+  ZuInline auto matchData(const P &data) const {
+    return [this, &data](const Node *node) {
+      return m_cmp.cmp(node->Node::key(), KeyAxor(data));
+    };
+  }
+
+public:
   template <typename P>
   NodeRef add(P &&data) {
     Node *node = new Node(ZuFwd<P>(data));
@@ -453,7 +555,7 @@ private:
     const Key &key = newNode->Node::key();
 
     for (;;) {
-      int c = Cmp::cmp(node->Node::key(), key);
+      int c = cmp(node->Node::key(), key);
 
       if constexpr (!Unique) {
 	if (!c) {
@@ -495,48 +597,20 @@ private:
     ++m_count;
   }
 
-  template <typename U, typename V = Key>
-  struct IsKey : public ZuBool<ZuInspect<U, V>::Converts> { };
-  template <typename U, typename R = void>
-  using MatchKey = ZuIfT<IsKey<U>{}, R>;
-  template <typename U, typename V = T, bool = ZuInspect<NodeBase, V>::Is>
-  struct IsData : public ZuBool<!IsKey<U>{} && ZuInspect<U, V>::Converts> { };
-  template <typename U, typename V>
-  struct IsData<U, V, true> : public ZuFalse { };
-  template <typename U, typename R = void>
-  using MatchData = ZuIfT<IsData<U>{}, R>;
-
-  template <typename P>
-  struct MatchKeyFn {
-    const P &key;
-    int cmp(Node *node) const {
-      return Cmp::cmp(node->Node::key(), key);
-    }
-    static constexpr bool equals(Node *) { return true; }
-  };
-  template <typename P>
-  struct MatchDataFn {
-    const P &data;
-    int cmp(Node *node) const {
-      return Cmp::cmp(node->Node::key(), KeyAxor(data));
-    }
-    bool equals(Node *node) const {
-      return node->Node::data() == data;
-    }
-  };
-
-  template <int Direction, typename Match>
-  ZuIfT<Direction == ZmRBTreeEqual, Node *> find_(Match match) const {
+  template <int Direction, typename MatchCmp, typename MatchEquals>
+  ZuIfT<Direction == ZmRBTreeEqual, Node *> find_(
+    MatchCmp matchCmp, MatchEquals matchEquals) const
+  {
     Node *node = m_root;
     for (;;) {
       if (!node) return nullptr;
-      int c = match.cmp(node);
+      int c = matchCmp(node);
       if (!c) {
 	if constexpr (Unique) {
-	  if (match.equals(node)) return node;
+	  if (matchEquals(node)) return node;
 	  return nullptr;
 	} else {
-	  while (!match.equals(node)) if (!(node = node->NodeExt::dup())) break;
+	  while (!matchEquals(node)) if (!(node = node->NodeExt::dup())) break;
 	  return node;
 	}
       } else if (c > 0) {
@@ -546,12 +620,14 @@ private:
       }
     }
   }
-  template <int Direction, typename Match>
-  ZuIfT<Direction == ZmRBTreeGreaterEqual, Node *> find_(Match match) const {
+  template <int Direction, typename MatchCmp, typename MatchEquals>
+  ZuIfT<Direction == ZmRBTreeGreaterEqual, Node *> find_(
+    MatchCmp matchCmp, MatchEquals) const
+  {
     Node *node = m_root, *foundNode = nullptr;
     for (;;) {
       if (!node) return foundNode;
-      int c = match.cmp(node);
+      int c = matchCmp(node);
       if (!c) {
 	return node;
       } else if (c > 0) {
@@ -562,12 +638,14 @@ private:
       }
     }
   }
-  template <int Direction, typename Match>
-  ZuIfT<Direction == ZmRBTreeGreater, Node *> find_(Match match) const {
+  template <int Direction, typename MatchCmp, typename MatchEquals>
+  ZuIfT<Direction == ZmRBTreeGreater, Node *> find_(
+    MatchCmp matchCmp, MatchEquals) const
+  {
     Node *node = m_root, *foundNode = nullptr;
     for (;;) {
       if (!node) return foundNode;
-      int c = match.cmp(node);
+      int c = matchCmp(node);
       if (!c) {
 	node = node->NodeExt::right();
       } else if (c > 0) {
@@ -578,12 +656,14 @@ private:
       }
     }
   }
-  template <int Direction, typename Match>
-  ZuIfT<Direction == ZmRBTreeLessEqual, Node *> find_(Match match) const {
+  template <int Direction, typename MatchCmp, typename MatchEquals>
+  ZuIfT<Direction == ZmRBTreeLessEqual, Node *> find_(
+    MatchCmp matchCmp, MatchEquals) const
+  {
     Node *node = m_root, *foundNode = nullptr;
     for (;;) {
       if (!node) return foundNode;
-      int c = match.cmp(node);
+      int c = matchCmp(node);
       if (!c) {
 	return node;
       } else if (c > 0) {
@@ -594,12 +674,14 @@ private:
       }
     }
   }
-  template <int Direction, typename Match>
-  ZuIfT<Direction == ZmRBTreeLess, Node *> find_(Match match) const {
+  template <int Direction, typename MatchCmp, typename MatchEquals>
+  ZuIfT<Direction == ZmRBTreeLess, Node *> find_(
+    MatchCmp matchCmp, MatchEquals) const
+  {
     Node *node = m_root, *foundNode = nullptr;
     for (;;) {
       if (!node) return foundNode;
-      int c = match.cmp(node);
+      int c = matchCmp(node);
       if (!c) {
 	node = node->NodeExt::left();
       } else if (c > 0) {
@@ -615,12 +697,14 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, NodeRef> find(const P &key) const {
     ReadGuard guard(m_lock);
-    return find_<Direction>(MatchKeyFn<P>{key});
+    return find_<Direction>(matchKey(key), [](const Node *) { return true; });
   }
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, NodeRef> find(const P &data) const {
     ReadGuard guard(m_lock);
-    return find_<Direction>(MatchDataFn<P>{data});
+    return find_<Direction>(matchData(data), [&data](const Node *node) {
+      return node->Node::data() == data;
+    });
   }
   template <int Direction = ZmRBTreeEqual, typename P0, typename P1>
   NodeRef find(P0 &&p0, P1 &&p1) {
@@ -630,23 +714,28 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, Node *> findPtr(const P &key) const {
     ReadGuard guard(m_lock);
-    return find_<Direction>(MatchKeyFn<P>{key});
+    return find_<Direction>(matchKey(key), [](const Node *) { return true; });
   }
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, Node *> findPtr(const P &data) const {
     ReadGuard guard(m_lock);
-    return find_<Direction>(MatchDataFn<P>{data});
+    return find_<Direction>(matchData(data), [&data](const Node *node) {
+      return node->Node::data() == data;
+    });
   }
 
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, Key> findKey(const P &key) const {
     ReadGuard guard(m_lock);
-    return key(find_<Direction>(MatchKeyFn<P>{key}));
+    return key(
+      find_<Direction>(matchKey(key), [](const Node *) { return true; }));
   }
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, Key> findKey(const P &data) const {
     ReadGuard guard(m_lock);
-    return key(find_<Direction>(MatchDataFn<P>{data}));
+    return key(find_<Direction>(matchData(data), [&data](const Node *node) {
+      return node->Node::data() == data;
+    }));
   }
   template <int Direction = ZmRBTreeEqual, typename P0, typename P1>
   Key findKey(P0 &&p0, P1 &&p1) {
@@ -656,12 +745,15 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, Val> findVal(const P &key) const {
     ReadGuard guard(m_lock);
-    return val(find_<Direction>(MatchKeyFn<P>{key}));
+    return val(
+      find_<Direction>(matchKey(key), [](const Node *) { return true; }));
   }
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, Val> findVal(const P &data) const {
     ReadGuard guard(m_lock);
-    return val(find_<Direction>(MatchDataFn<P>{data}));
+    return val(find_<Direction>(matchData(data), [&data](const Node *node) {
+      return node->Node::data() == data;
+    }));
   }
   template <int Direction = ZmRBTreeEqual, typename P0, typename P1>
   Val findVal(P0 &&p0, P1 &&p1) {
@@ -682,7 +774,8 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, NodeMvRef> del(const P &key) {
     ReadGuard guard(m_lock);
-    Node *node = find_<Direction>(MatchKeyFn<P>{key});
+    Node *node =
+      find_<Direction>(matchKey(key), [](const Node *) { return true; });
     if (!node) return nullptr;
     delNode_(node);
     return nodeAcquire(node);
@@ -690,7 +783,9 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, NodeMvRef> del(const P &data) {
     ReadGuard guard(m_lock);
-    Node *node = find_<Direction>(MatchDataFn<P>{data});
+    Node *node = find_<Direction>(matchData(data), [&data](const Node *node) {
+      return node->Node::data() == data;
+    });
     if (!node) return nullptr;
     delNode_(node);
     return nodeAcquire(node);
@@ -703,7 +798,8 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, Key> delKey(const P &key) {
     ReadGuard guard(m_lock);
-    NodeMvRef node = find_<Direction>(MatchKeyFn<P>{key});
+    NodeMvRef node =
+      find_<Direction>(matchKey(key), [](const Node *) { return true; });
     if (!node) return ZuNullRef<Key, Cmp>();
     delNode_(node);
     return ZuMv(*node).Node::key();
@@ -711,7 +807,10 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, Key> delKey(const P &data) {
     ReadGuard guard(m_lock);
-    NodeMvRef node = find_<Direction>(MatchDataFn<P>{data});
+    NodeMvRef node =
+      find_<Direction>(matchData(data), [&data](const Node *node) {
+	return node->Node::data() == data;
+      });
     if (!node) return ZuNullRef<Key, Cmp>();
     delNode_(node);
     return ZuMv(*node).Node::key();
@@ -724,7 +823,8 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchKey<P, Val> delVal(const P &key) {
     ReadGuard guard(m_lock);
-    NodeMvRef node = find_<Direction>(MatchKeyFn<P>{key});
+    NodeMvRef node =
+      find_<Direction>(matchKey(key), [](const Node *) { return true; });
     if (!node) return ZuNullRef<Val, ValCmp>();
     delNode_(node);
     return ZuMv(*node).Node::val();
@@ -732,7 +832,10 @@ public:
   template <int Direction = ZmRBTreeEqual, typename P>
   MatchData<P, Val> delVal(const P &data) {
     ReadGuard guard(m_lock);
-    NodeMvRef node = find_<Direction>(MatchDataFn<P>{data});
+    NodeMvRef node =
+      find_<Direction>(matchData(data), [&data](const Node *node) {
+	return node->Node::data() == data;
+      });
     if (!node) return ZuNullRef<Val, ValCmp>();
     delNode_(node);
     return ZuMv(*node).Node::val();
@@ -1185,7 +1288,8 @@ private:
   }
   template <int Direction, typename P>
   void startIterate(Iterator_<Direction> &iterator, const P &key) {
-    iterator.m_node = find_<Direction>(MatchKeyFn<P>{key});
+    iterator.m_node =
+      find_<Direction>(matchKey(key), [](const Node *) { return true; });
   }
 
   template <int Direction>
@@ -1216,6 +1320,7 @@ private:
     return nodeAcquire(node);
   }
 
+  Cmp		m_cmp;
   mutable Lock	m_lock;
     Node	  *m_root = nullptr;
     Node	  *m_minimum = nullptr;

@@ -25,7 +25,7 @@
 //   (can be disabled for replicated backing stores)
 // * Primary and multiple secondary unique in-memory and on-disk indices
 // * Find (select), insert, update, delete operations
-// * Grouped MAX() queries for guaranteed delivery applications
+// * Grouped ascending and descending queries for guaranteed delivery apps
 
 //  host state		engine state
 //  ==========		============
@@ -795,27 +795,27 @@ using Find_Heap = ZmHeap<Find_HeapID, sizeof(Find_<T, Key, ZuNull>)>;
 template <typename T, typename Key>
 using Find = Find_<T, Key, Find_Heap<T, Key>>;
 
-// split grouped keys into group part and grouped part
+// split group keys into group part and grouped part
 template <typename O, unsigned KeyID>
 struct SplitKey {
   using Key = ZuFieldKeyT<O, KeyID>;
   using KeyFields = ZuFieldList<Key>;
-  // - filter fields that are grouped
+  // - filter fields that are part of a group
   template <typename Field>
-  using IsGrouped = ZuFieldProp::IsGrouped<typename Field::Props, KeyID>;
-  // - filter fields that are not grouped, i.e. are grouping fields
+  using IsGroup = ZuFieldProp::IsGroup<typename Field::Props, KeyID>;
+  // - filter fields that are not part of a group
   template <typename Field>
-  using NotGrouped = ZuBool<!IsGrouped<Field>{}>;
-  // - extract grouping fields from fields comprising a key
-  using GroupFields = ZuTypeGrep<NotGrouped, KeyFields>;
-  // - tuple type for grouping fields
+  using NotGroup = ZuBool<!IsGroup<Field>{}>;
+  // - extract group fields from fields comprising a key
+  using GroupFields = ZuTypeGrep<IsGroup, KeyFields>;
+  // - tuple type for group fields
   using GroupKey = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, GroupFields>;
-  // - extract series fields from fields comprising a key
-  using GroupedFields = ZuTypeGrep<IsGrouped, KeyFields>;
-  // - tuple type for grouped fields
-  using GroupedKey = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, GroupedFields>;
-  // - filter keys that have 1 or more grouped fields
-  using IsGroupedKey = ZuBool<GroupedFields::N>;
+  // - extract member fields from fields comprising a key
+  using MemberFields = ZuTypeGrep<NotGroup, KeyFields>;
+  // - tuple type for group fields
+  using MemberKey = ZuFieldTupleT<Key, ZuMkCRef, ZuDecay, MemberFields>;
+  // - filter keys that have 1 or more group fields
+  using IsGroupKey = ZuBool<GroupFields::N>;
 };
 
 // --- typed table
@@ -843,19 +843,12 @@ private:
   using FindDLQPtr = ZuPtr<FindDLQ<Key>>;
   using FindDLQs = ZuTypeApply<ZuTuple, ZuTypeMap<FindDLQPtr, ZuFieldKeys<T>>>;
 
-  // - grep keys containing grouped fields for a type T
-  template <typename KeyID>
-  using IsGroupedKey = SplitKey<T, KeyID{}>::IsGroupedKey;
-  using GroupedKeyIDs = ZuTypeGrep<IsGroupedKey, ZuSeqTL<ZuFieldKeyIDs<T>>>;
-  // - map KeyID (index of all keys) to GroupedKeyID (index of grouped keys)
-  template <unsigned KeyID>
-  using GroupedKeyID = ZuTypeIndex<ZuUnsigned<KeyID>, GroupedKeyIDs>;
   // - grouping key for a KeyID
   template <unsigned KeyID>
   using GroupKey = typename SplitKey<T, KeyID>::GroupKey;
   // - grouped key for a KeyID
   template <unsigned KeyID>
-  using GroupedKey = typename SplitKey<T, KeyID>::GroupedKey;
+  using MemberKey = typename SplitKey<T, KeyID>::MemberKey;
 
 public:
   Table(DB *db, TableCf *cf) : AnyTable{db, cf} {
@@ -1964,6 +1957,7 @@ void AnyObject::print(S &s) const {
 
 using ZdbAnyObject = Zdb_::AnyObject;
 template <typename T> using ZdbObject = Zdb_::Object<T>;
+template <typename T> using ZdbObjRef = ZmRef<ZdbObject<T>>;
 
 using ZdbAnyTable = Zdb_::AnyTable;
 template <typename T> using ZdbTable = Zdb_::Table<T>;

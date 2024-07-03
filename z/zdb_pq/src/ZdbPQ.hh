@@ -1821,7 +1821,7 @@ private:
   XFields		m_xFields;
   XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
-  ZtArray<int>		m_keyGroup;	// length of grouping key, -1 if none
+  ZtArray<unsigned>	m_keyGroup;	// length of group key
   FieldMap		m_fieldMap;
 
   OpenState		m_openState;

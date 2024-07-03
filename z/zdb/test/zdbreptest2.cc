@@ -170,7 +170,7 @@ int main(int argc, char **argv)
 	    Order{"IBM", 0, "FIX0", "order0", 0, Side::Buy, {100}, {100}};
 	  o->commit();
 	});
-	orders[0]->insert([](ZdbObject<Order> *o) {
+	orders[0]->insert([&id](ZdbObject<Order> *o) {
 	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 1, "FIX0", "order1", 2, Side::Buy, {100}, {100}};

@@ -1123,15 +1123,28 @@ struct MockRow : public IndexUN::Node {
 
 // key indices
 // - override the default comparator to provide a mock RDBMS descending index
-template <typename T> struct TupleCmp {
-  static int cmp(const T &l, const T &r) {
+template <typename T = Tuple> struct TupleCmp {
+  uint64_t	descending;
+
+  int cmp(const T &l, const T &r) const {
+    unsigned ln = l.length();
+    unsigned rn = r.length();
+    unsigned i, n = ln < rn ? ln : rn;
+    for (i = 0; i < n; i++) {
+      if (int j = l[i].cmp(r[i])) {
+	if (descending & (uint64_t(1)<<i)) j = -j;
+	return j;
+      }
+    }
+    return ZuCmp<int>::cmp(ln, rn);
+  }
+  static bool equals(const T &l, const T &r) {
     unsigned ln = l.length();
     unsigned rn = r.length();
     unsigned n = ln < rn ? ln : rn;
     for (unsigned i = 0; i < n; i++)
-      if (int j = l[i].cmp(r[i])) return j;
-    // treat missing trailing values as infinitely large
-    return ZuCmp<int>::cmp(rn, ln);
+      if (!l[i].equals(r[i])) return false;
+    return true;
   }
 };
 inline constexpr const char *MockRowIndex_HeapID() { return "MockRowIndex"; }
@@ -1152,7 +1165,15 @@ public:
     m_id{id},
     m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)}
   {
-    m_indices.length(keyFields.length());
+    for (unsigned i = 0, n = keyFields.length(); i < n; i++) {
+      uint64_t descending = 0;
+      unsigned m = keyFields[i].length();
+      ZmAssert(m < 64);
+      for (unsigned j = 0; j < m; j++)
+	if (keyFields[i][j]->props & ZtMFieldProp::Descend())
+	  descending |= (uint64_t(1)<<j);
+      new (m_indices.push()) Index{TupleCmp<>{descending}};
+    }
     const reflection::Object *rootTbl = schema->root_table();
     const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_ =
       rootTbl->fields();
@@ -1169,11 +1190,10 @@ public:
     for (unsigned i = 0; i < n; i++) {
       unsigned m = m_keyFields[i].length();
       new (m_xKeyFields.push()) XFields{m};
-      m_keyGroup[i] = -1;
+      m_keyGroup[i] = 0;
       for (unsigned j = 0; j < m; j++) {
-	if (m_keyGroup[i] < 0 &&
-	    (m_keyFields[i][j]->grouped & (uint64_t(1)<<i)))
-	  m_keyGroup[i] = j;
+	if (m_keyFields[i][j]->group & (uint64_t(1)<<i))
+	  m_keyGroup[i] = j + 1;
 	ZtCase::camelSnake(m_keyFields[i][j]->id,
 	  [this, fbFields_, i, j](const ZtString &id) {
 	    m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
@@ -1245,11 +1265,6 @@ public:
     ]() mutable {
       int nParams = m_keyGroup[keyID];
 
-      if (nParams < 0) { // not a grouped key
-	keyFn(KeyResult{});
-	return;
-      }
-
       const auto &keyFields = m_keyFields[keyID];
       const auto &xKeyFields = m_xKeyFields[keyID];
 
@@ -1260,21 +1275,23 @@ public:
       }));
 
       const auto &index = m_indices[keyID];
-      auto row = index.find<ZmRBTreeGreater>(groupKey);
-      row = row ? index.prev(row) : index.maximum();
+      auto row = index.find<ZmRBTreeGreaterEqual>(groupKey);
       unsigned i = 0;
-      while (i++ < o && row && row->key() >= groupKey) row = index.prev(row);
-      i = 0;
-      while (row && row->key() >= groupKey && i++ < n) {
-	auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
-	IOBuilder fbb;
-	fbb.Finish(saveTuple(fbb, xKeyFields, key));
-	KeyData keyData{
-	  .keyID = keyID,
-	  .buf = fbb.buf().constRef()
-	};
-	keyFn(KeyResult{ZuMv(keyData)});
-	row = index.prev(row);
+      while (i++ < o && row && index.equals(row->key(), groupKey))
+	row = index.next(row);
+      if (i > o) {
+	i = 0;
+	while (i++ < n && row && index.equals(row->key(), groupKey)) {
+	  auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
+	  IOBuilder fbb;
+	  fbb.Finish(saveTuple(fbb, xKeyFields, key));
+	  KeyData keyData{
+	    .keyID = keyID,
+	    .buf = fbb.buf().constRef()
+	  };
+	  keyFn(KeyResult{ZuMv(keyData)});
+	  row = index.next(row);
+	}
       }
       keyFn(KeyResult{});
     };
@@ -1472,7 +1489,7 @@ private:
   XFields		m_xFields;
   // XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
-  ZtArray<int>		m_keyGroup;	// length of grouping key, -1 if none
+  ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
 

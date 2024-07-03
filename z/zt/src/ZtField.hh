@@ -192,14 +192,15 @@ namespace ZtFieldTypeCode {
 
 // extended compile-time field property list (see ZuFieldProp)
 namespace ZuFieldProp {
-  // grouped key IDs
-  template <unsigned ...KeyIDs> struct Grouped { };
+  // group key IDs
+  template <unsigned ...KeyIDs> struct Group { };
 
   struct Synthetic { };		// synthetic (implies read-only)
   struct Mutable { };		// include in updates
   struct Hidden { };		// do not print
   struct Hex { };		// print hex value
   struct Required { };		// required - do not default
+  struct Descend { };		// descending key
   struct Series { };		// data series column
   struct Index { };		// - index (e.g. time, nonce, offset, seq#)
   struct Delta { };		// - first derivative
@@ -210,19 +211,19 @@ namespace ZuFieldProp {
 
   template <int8_t> struct NDP { }; // NDP for printing float/fixed/decimal
  
-  // get grouped key IDs
+  // get group key IDs
   template <typename Props>
-  using GetGrouped = GetSeq<Props, Grouped>;
+  using GetGroup = GetSeq<Props, Group>;
 
-  // IsGrouped<Props, KeyID> - is this field in the grouped part of key KeyID?
+  // IsGroup<Props, KeyID> - is this field in the group part of key KeyID?
   template <typename Props, unsigned KeyID>
-  struct IsGrouped_ :
-    public ZuTypeIn<ZuUnsigned<KeyID>, ZuSeqTL<GetGrouped<Props>>> { };
+  struct IsGroup_ :
+    public ZuTypeIn<ZuUnsigned<KeyID>, ZuSeqTL<GetGroup<Props>>> { };
   template <typename Props, unsigned KeyID>
-  struct IsGrouped :
+  struct IsGroup :
     public ZuBool<
       bool(Key<Props, KeyID>{}) &&
-      bool(IsGrouped_<Props, KeyID>{})> { };
+      bool(IsGroup_<Props, KeyID>{})> { };
 
   // shorthand for accessing Enum / Flags maps
   template <typename Props> using HasEnum = HasType<Props, Enum>;
@@ -335,6 +336,7 @@ namespace ZtMFieldProp {
     Hidden,
     Hex,
     Required,
+    Descend,
     Series,
     Index,
     Delta,
@@ -363,6 +365,7 @@ namespace ZtMFieldProp {
   template <> struct Value_<_::Hidden>    { using T = Constant<Hidden()>; };
   template <> struct Value_<_::Hex>       { using T = Constant<Hex()>; };
   template <> struct Value_<_::Required>  { using T = Constant<Required()>; };
+  template <> struct Value_<_::Descend>   { using T = Constant<Descend()>; };
   template <> struct Value_<_::Series>    { using T = Constant<Series()>; };
   template <> struct Value_<_::Index>     { using T = Constant<Index()>; };
   template <> struct Value_<_::Delta>     { using T = Constant<Delta()>; };
@@ -884,7 +887,7 @@ struct ZtMField {
   const char		*id;
   ZtMFieldProp::T	props;
   uint64_t		keys;
-  uint64_t		grouped;
+  uint64_t		group;
   uint16_t		ctor;
   int8_t		ndp;
 
@@ -899,7 +902,7 @@ struct ZtMField {
       id{Field::id()},
       props{Field::mprops()},
       keys{ZuSeqBitmap<ZuFieldProp::GetKeys<typename Field::Props>>()},
-      grouped{ZuSeqBitmap<ZuFieldProp::GetGrouped<typename Field::Props>>()},
+      group{ZuSeqBitmap<ZuFieldProp::GetGroup<typename Field::Props>>()},
       ctor{ZuFieldProp::GetCtor<typename Field::Props>{}},
       ndp{ZuFieldProp::GetNDP<typename Field::Props>{}},
       get{Field::getFn()},
