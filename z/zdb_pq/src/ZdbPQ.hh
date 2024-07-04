@@ -1541,7 +1541,8 @@ struct Select {
   unsigned		keyID;
   unsigned		limit;
   ZmRef<const AnyBuf>	buf;
-  KeyFn			keyFn;
+  TupleFn		tupleFn;
+  unsigned		count = 0;
   bool			selectRow;
   bool			selectNext;
   bool			inclusive;
@@ -1649,12 +1650,12 @@ public:
     Closed = 0,
     MkTable,	// idempotent create table
     MkIndices,	// idempotent create indices for all keys
-    PrepSelectKIX, // prepare initial selectKeys for all keys
-    PrepSelectKNX, // prepare exclusive nextKeys for all keys
-    PrepSelectKNI, // prepare inclusive nextKeys for all keys
-    PrepSelectRIX, // prepare initial selectRows for all keys
-    PrepSelectRNX, // prepare exclusive nextRows for all keys
-    PrepSelectRNI, // prepare inclusive nextRows for all keys
+    PrepSelectKIX, // Key, Initial, eXclusive - prepare select for all keys
+    PrepSelectKNX, // Key, Next,    eXclusive - ''
+    PrepSelectKNI, // Key, Next,    Inclusive - ''
+    PrepSelectRIX, // Row, Initial, eXclusive - ''
+    PrepSelectRNX, // Row, Next,    eXclusive - ''
+    PrepSelectRNI, // Row, Next,    Inclusive - ''
     PrepFind,	// prepare recover and find for all keys
     PrepInsert,	// prepare insert query
     PrepUpdate,	// prepare update query
@@ -1730,7 +1731,7 @@ public:
   void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf>,
-    unsigned limit, KeyFn);
+    unsigned limit, TupleFn);
 
   void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn);
 

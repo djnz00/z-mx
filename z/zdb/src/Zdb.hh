@@ -27,6 +27,9 @@
 // * Find, insert, update, delete operations
 // * Batched select queries (index-based, optionally grouped)
 
+// select() returns 0..N immutable ZuTuples for read-only purposes
+// find() returns 0..1 mutable ZdbObjects for read-modify-write purposes
+
 //  host state		engine state
 //  ==========		============
 //  Instantiated	Stopped
@@ -998,14 +1001,14 @@ private:
   template <
     unsigned KeyID,
     typename SelectKey,
-    typename ResultKey,
+    typename Tuple,
     bool SelectRow,
     bool SelectNext,
     typename L>
-  void select_(SelectKey selectKey, unsigned limit, L l);
+  void select_(SelectKey selectKey, bool inclusive, unsigned limit, L l);
 
 public:
-  // select query (n is limit) lambda - l(tuple)
+  // select query lambda - l(tuple, i, n) (n is total #results)
   template <unsigned KeyID, typename L>	// initial
   void selectKeys(GroupKey<KeyID> groupKey, unsigned limit, L l) {
     select_<KeyID, GroupKey<KeyID>, Key<KeyID>, 0, 0>(
@@ -1762,14 +1765,14 @@ template <typename T>
 template <
   unsigned KeyID,
   typename SelectKey,
-  typename ResultKey,
+  typename Tuple,
   bool SelectRow,
   bool SelectNext,
   typename L>
 inline void Table<T>::select_(
   SelectKey selectKey, bool inclusive, unsigned limit, L l)
 {
-  using Context = Select<T, ResultKey>;
+  using Context = Select<T, Tuple>;
 
   ZmAssert(invoked());
 
@@ -1781,25 +1784,25 @@ inline void Table<T>::select_(
       fbb, selectKey).Union());
   auto keyBuf = fbb.buf();
 
-  auto keyFn = KeyFn::mvFn(ZuMv(context),
-    [](ZmRef<Context> context, KeyResult result) {
+  auto tupleFn = TupleFn::mvFn(ZuMv(context),
+    [](ZmRef<Context> context, TupleResult result) {
       if (ZuUnlikely(result.is<Event>())) { // error
 	ZeLogEvent(ZuMv(result).p<Event>());
 	context->fn(typename Context::Result{});
 	return;
       }
-      if (ZuUnlikely(!result.is<KeyData>())) { // end of results
+      if (ZuUnlikely(!result.is<TupleData>())) { // end of results
 	context->fn(typename Context::Result{});
 	return;
       }
-      auto fbo = ZfbField::root<T>(result.p<KeyData>().buf->data());
-      auto resultKey = ZfbField::ctor<ResultKey>(fbo);
-      context->fn(typename Context::Result{ZuMv(resultKey)});
+      auto fbo = ZfbField::root<T>(result.p<TupleData>().buf->data());
+      auto tuple = ZfbField::ctor<Tuple>(fbo);
+      context->fn(typename Context::Result{ZuMv(tuple)});
     });
 
   storeTbl()->select(
     SelectRow, SelectNext, inclusive,
-    KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(keyFn));
+    KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(tupleFn));
 }
 
 template <typename T>

@@ -1258,13 +1258,13 @@ public:
   void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf> buf,
-    unsigned limit, KeyFn keyFn)
+    unsigned limit, TupleFn tupleFn)
   {
     ZmAssert(keyID < m_indices.length());
 
     auto work_ = [
       this, selectRow, selectNext, inclusive,
-      keyID, buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
+      keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
     ]() mutable {
       const auto &keyFields = m_keyFields[keyID];
       const auto &xKeyFields = m_xKeyFields[keyID];
@@ -1290,14 +1290,15 @@ public:
 	} else {
 	  fbb.Finish(saveTuple(fbb, m_xFields, row->val()->data));
 	}
-	KeyData keyData{
+	TupleData tupleData{
 	  .keyID = selectRow ? ZuFieldKeyID::All : int(keyID),
-	  .buf = fbb.buf().constRef()
+	  .buf = fbb.buf().constRef(),
+	  .count = i
 	};
-	keyFn(KeyResult{ZuMv(keyData)});
+	tupleFn(TupleResult{ZuMv(tupleData)});
 	row = index.next(row);
       }
-      keyFn(KeyResult{});
+      tupleFn(TupleResult{});
     };
     deferWork ? work.push(ZuMv(work_)) : work_();
   }

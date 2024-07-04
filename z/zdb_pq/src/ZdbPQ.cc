@@ -1240,7 +1240,7 @@ void StoreTbl::open_rcvd(PGresult *res)
     case OpenState::PrepSelectKNI:
     case OpenState::PrepSelectRIX:
     case OpenState::PrepSelectRNX:
-    case OpenState::PrepSelectRNI: return prepSelect_rcvd();
+    case OpenState::PrepSelectRNI: prepSelect_rcvd(res); break;
     case OpenState::PrepFind:	prepFind_rcvd(res); break;
     case OpenState::PrepInsert:	prepInsert_rcvd(res); break;
     case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
@@ -1617,7 +1617,7 @@ int StoreTbl::prepSelect_send()
       else
 	query << " AND ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if ((keyFields[i]->props & ZtMFieldProp::Descend()) {
+      if (keyFields[i]->props & ZtMFieldProp::Descend()) {
 	if (m_openState.phase() == OpenState::PrepSelectKNI ||
 	    m_openState.phase() == OpenState::PrepSelectRNI) // inclusive
 	  query << "<=";
@@ -2019,7 +2019,7 @@ void StoreTbl::warmup() { /* LATER */ }
 void StoreTbl::select(
   bool selectRow, bool selectNext, bool inclusive,
   unsigned keyID, ZmRef<const AnyBuf> buf,
-  unsigned limit, KeyFn keyFn)
+  unsigned limit, TupleFn tupleFn)
 {
   ZmAssert(keyID < m_keyFields.length());
 
@@ -2027,18 +2027,24 @@ void StoreTbl::select(
 
   m_store->pqRun([
     this, selectRow, selectNext, inclusive,
-    keyID, buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
+    keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
   ]() mutable {
     if (m_store->stopping()) {
-      store()->zdbRun([id = m_id, keyFn = ZuMv(keyFn)]() mutable {
-	keyFn(KeyResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+      store()->zdbRun([id = m_id, tupleFn = ZuMv(tupleFn)]() mutable {
+	tupleFn(TupleResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
 	  s << "select(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
       return;
     }
     m_store->enqueue(TblTask{this, Query{Select{
-      keyID, limit, ZuMv(buf), ZuMv(keyFn), selectRow, selectNext, inclusive
+      .keyID = keyID,
+      .limit = limit,
+      .buf = ZuMv(buf),
+      .tupleFn = ZuMv(tupleFn),
+      .selectRow = selectRow,
+      .selectNext = selectNext,
+      .inclusive = inclusive
     }}});
   });
 }
@@ -2107,8 +2113,8 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   if (!res) {
-    m_store->zdbRun([keyFn = ZuMv(select.keyFn)]() mutable {
-      keyFn(KeyResult{});
+    m_store->zdbRun([tupleFn = ZuMv(select.tupleFn)]() mutable {
+      tupleFn(TupleResult{});
     });
     return;
   }
@@ -2136,12 +2142,15 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
     auto buf =
       select_save(ZuArray<const Value>(&tuple[0], nc), xKeyFields).constRef();
     // res can go out of scope now - everything is saved in buf
-    KeyResult result{KeyData{
+    TupleResult result{TupleData{
       .keyID = select.selectRow ? ZuFieldKeyID::All : int(keyID),
-      .buf = ZuMv(buf)
+      .buf = ZuMv(buf),
+      .count = ++select.count // do not be tempted to use i (multiple batches)
     }};
-    m_store->zdbRun([keyFn = select.keyFn, result = ZuMv(result)]() mutable {
-      keyFn(ZuMv(result));
+    m_store->zdbRun([
+      tupleFn = select.tupleFn, result = ZuMv(result)
+    ]() mutable {
+      tupleFn(ZuMv(result));
     });
   }
   return;
@@ -2160,12 +2169,12 @@ ZmRef<AnyBuf> StoreTbl::select_save(
 }
 void StoreTbl::select_failed(Work::Select &select, ZeMEvent e)
 {
-  KeyResult result{ZuMv(e)};
+  TupleResult result{ZuMv(e)};
   m_store->zdbRun([
-    keyFn = ZuMv(select.keyFn),
+    tupleFn = ZuMv(select.tupleFn),
     result = ZuMv(result)
   ]() mutable {
-    keyFn(ZuMv(result));
+    tupleFn(ZuMv(result));
   });
 }
 

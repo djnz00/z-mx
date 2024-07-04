@@ -91,18 +91,19 @@ struct CountData {
 using CountFn = ZmFn<void(CountData)>;
 
 // key data
-struct KeyData {
-  int			keyID;	// ZuFieldKeyID::All for entire row
-  ZmRef<const AnyBuf>	buf;	// key data, no replication message header
+struct TupleData {
+  int			keyID;	// ZuFieldKeyID::All for entire row tuple
+  ZmRef<const AnyBuf>	buf;	// tuple data, no replication message header
+  unsigned		count;	// number of results so far, including this one
 };
 // key result
-using KeyResult = ZuUnion<
+using TupleResult = ZuUnion<
   void,			// end of results
-  KeyData,		// matching key
+  TupleData,		// matching key
   Event>;		// error
 // key callback
 // - app must process buf contents synchronously
-using KeyFn = ZmFn<void(KeyResult)>;
+using TupleFn = ZmFn<void(TupleResult)>;
 
 // row data
 struct RowData {
@@ -132,7 +133,7 @@ public:
   // buf contains key data, no replication message header
   virtual void select( // initial
     bool selectRow, bool selectNext, bool inclusive,
-    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, KeyFn) = 0;
+    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, TupleFn) = 0;
 
   // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;

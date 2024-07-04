@@ -723,19 +723,20 @@ Offset<fbs::UserAck> Mgr::chPass(
   });
 }
 
-// for userGet, we can always start a query with a null name or a 0 userID
-// and inclusive true, so no need to distinguish the initial case
 Offset<Vector<Offset<fbs::User>>> Mgr::userGet(
     Session *session, uint64_t seqNo,
     const fbs::UserQuery *query, ResponseFn fn)
 {
   m_userTbl->run([]() {
-    switch (unsigned(query->permKey_type())) {
-      case unsigned(fbs::PermKey::ID):
-	m_userTbl->nextRows<0>(ZuFwdTuple(query->permKey_as_ID()->id()), query->inclusive(), query->limit(), [](auto result) {
-	  using Key = ZuFieldKeyT<User, 0>;
-	  if (result.template is<Key>()) {
-	    // FIXME - we want the whole row tuple, not just the key
+    switch (unsigned(query->userKey_type())) {
+      case unsigned(fbs::UserKey::ID):
+	m_userTbl->nextRows<0>(
+	  ZuFwdTuple(query->userKey_as_ID()->id()),
+	  query->inclusive(), query->limit(), [
+	](auto result) {
+	  using Row = ZuFieldKeyT<User, ZuFieldKeyID::All>;
+	  if (result.template is<Row>()) {
+
 	  }
 	});
       case unsigned(fbs::PermKey::Name):
