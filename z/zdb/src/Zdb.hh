@@ -1009,22 +1009,22 @@ public:
   template <unsigned KeyID, typename L>	// initial
   void selectKeys(GroupKey<KeyID> groupKey, unsigned limit, L l) {
     select_<KeyID, GroupKey<KeyID>, Key<KeyID>, 0, 0>(
-      ZuMv(groupKey), limit, ZuMv(l));
+      ZuMv(groupKey), false, limit, ZuMv(l));
   }
   template <unsigned KeyID, typename L>	// continuation
-  void nextKeys(Key<KeyID> key, unsigned limit, L l) {
+  void nextKeys(Key<KeyID> key, bool inclusive, unsigned limit, L l) {
     select_<KeyID, Key<KeyID>, Key<KeyID>, 0, 1>(
-      ZuMv(key), limit, ZuMv(l));
+      ZuMv(key), inclusive, limit, ZuMv(l));
   }
   template <unsigned KeyID, typename L>	// initial
   void selectRows(GroupKey<KeyID> groupKey, unsigned limit, L l) {
     select_<KeyID, GroupKey<KeyID>, Key<ZuFieldKeyID::All>, 1, 0>(
-      ZuMv(groupKey), limit, ZuMv(l));
+      ZuMv(groupKey), false, limit, ZuMv(l));
   }
   template <unsigned KeyID, typename L>	// continuation
-  void nextRows(Key<KeyID> key, unsigned limit, L l) {
+  void nextRows(Key<KeyID> key, bool inclusive, unsigned limit, L l) {
     select_<KeyID, Key<KeyID>, Key<ZuFieldKeyID::All>, 1, 1>(
-      ZuMv(key), limit, ZuMv(l));
+      ZuMv(key), inclusive, limit, ZuMv(l));
   }
 
   // find lambda - l(ZmRef<ZdbObject<T>>)
@@ -1766,7 +1766,8 @@ template <
   bool SelectRow,
   bool SelectNext,
   typename L>
-inline void Table<T>::select_(SelectKey selectKey, unsigned limit, L l)
+inline void Table<T>::select_(
+  SelectKey selectKey, bool inclusive, unsigned limit, L l)
 {
   using Context = Select<T, ResultKey>;
 
@@ -1797,7 +1798,7 @@ inline void Table<T>::select_(SelectKey selectKey, unsigned limit, L l)
     });
 
   storeTbl()->select(
-    SelectRow, SelectNext,
+    SelectRow, SelectNext, inclusive,
     KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(keyFn));
 }
 

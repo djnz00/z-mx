@@ -1211,10 +1211,12 @@ int StoreTbl::open_send()
   switch (m_openState.phase()) {
     case OpenState::MkTable:	return mkTable_send();
     case OpenState::MkIndices:	return mkIndices_send();
-    case OpenState::PrepSelect00:
-    case OpenState::PrepSelect01:
-    case OpenState::PrepSelect10:
-    case OpenState::PrepSelect11: return prepSelect_send();
+    case OpenState::PrepSelectKIX:
+    case OpenState::PrepSelectKNX:
+    case OpenState::PrepSelectKNI:
+    case OpenState::PrepSelectRIX:
+    case OpenState::PrepSelectRNX:
+    case OpenState::PrepSelectRNI: return prepSelect_send();
     case OpenState::PrepFind:	return prepFind_send();
     case OpenState::PrepInsert:	return prepInsert_send();
     case OpenState::PrepUpdate:	return prepUpdate_send();
@@ -1233,10 +1235,12 @@ void StoreTbl::open_rcvd(PGresult *res)
   switch (m_openState.phase()) {
     case OpenState::MkTable:	mkTable_rcvd(res); break;
     case OpenState::MkIndices:	mkIndices_rcvd(res); break;
-    case OpenState::PrepSelect00:
-    case OpenState::PrepSelect01:
-    case OpenState::PrepSelect10:
-    case OpenState::PrepSelect11: prepSelect_rcvd(res); break;
+    case OpenState::PrepSelectKIX:
+    case OpenState::PrepSelectKNX:
+    case OpenState::PrepSelectKNI:
+    case OpenState::PrepSelectRIX:
+    case OpenState::PrepSelectRNX:
+    case OpenState::PrepSelectRNI: return prepSelect_rcvd();
     case OpenState::PrepFind:	prepFind_rcvd(res); break;
     case OpenState::PrepInsert:	prepInsert_rcvd(res); break;
     case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
@@ -1529,16 +1533,22 @@ void StoreTbl::prepSelect()
 {
   switch (m_openState.phase()) {
     default:
-      m_openState.phase(OpenState::PrepSelect00);
+      m_openState.phase(OpenState::PrepSelectKIX);
       break;
-    case OpenState::PrepSelect00:
-      m_openState.phase(OpenState::PrepSelect01);
+    case OpenState::PrepSelectKIX:
+      m_openState.phase(OpenState::PrepSelectKNX);
       break;
-    case OpenState::PrepSelect01:
-      m_openState.phase(OpenState::PrepSelect10);
+    case OpenState::PrepSelectKNX:
+      m_openState.phase(OpenState::PrepSelectKNI);
       break;
-    case OpenState::PrepSelect10:
-      m_openState.phase(OpenState::PrepSelect11);
+    case OpenState::PrepSelectKNI:
+      m_openState.phase(OpenState::PrepSelectRIX);
+      break;
+    case OpenState::PrepSelectRIX:
+      m_openState.phase(OpenState::PrepSelectRNX);
+      break;
+    case OpenState::PrepSelectRNX:
+      m_openState.phase(OpenState::PrepSelectRNI);
       break;
   }
   open_enqueue();
@@ -1554,10 +1564,12 @@ int StoreTbl::prepSelect_send()
   ZtString id(m_id_.length() + 24);
   id << m_id_ << "_select";
   switch (m_openState.phase()) {
-    case OpenState::PrepSelect00: id << "00_"; break;
-    case OpenState::PrepSelect01: id << "01_"; break;
-    case OpenState::PrepSelect10: id << "10_"; break;
-    case OpenState::PrepSelect11: id << "11_"; break;
+    case OpenState::PrepSelectKIX: id << "KIX_"; break;
+    case OpenState::PrepSelectKNX: id << "KNX_"; break;
+    case OpenState::PrepSelectKNI: id << "KNI_"; break;
+    case OpenState::PrepSelectRIX: id << "RIX_"; break;
+    case OpenState::PrepSelectRNX: id << "RNX_"; break;
+    case OpenState::PrepSelectRNI: id << "RNI_"; break;
   }
   id << keyID;
 
@@ -1565,14 +1577,15 @@ int StoreTbl::prepSelect_send()
 
   ZtString query;
   query << "SELECT ";
-  if (m_openState.phase() == OpenState::PrepSelect00 ||
-      m_openState.phase() == OpenState::PrepSelect01) { // selectKey
+  if (m_openState.phase() == OpenState::PrepSelectKIX ||
+      m_openState.phase() == OpenState::PrepSelectKNX ||
+      m_openState.phase() == OpenState::PrepSelectKNI) { // selectKeys
     n = keyFields.length();
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
       query << '"' << xKeyFields[i].id_ << '"';
     }
-  } else { // selectRow - all fields
+  } else { // selectRows
     n = m_fields.length();
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
@@ -1593,17 +1606,31 @@ int StoreTbl::prepSelect_send()
       << "\"=$" << (i + 1) << "::" << m_store->oids().name(type);
     oids.push(m_store->oids().oid(type));
   }
-  if (m_openState.phase() == OpenState::PrepSelect01 ||
-      m_openState.phase() == OpenState::PrepSelect11) // continuation
+  if (m_openState.phase() == OpenState::PrepSelectKNX ||
+      m_openState.phase() == OpenState::PrepSelectKNI ||
+      m_openState.phase() == OpenState::PrepSelectRNX ||
+      m_openState.phase() == OpenState::PrepSelectRNI) // continuation
     for (i = k; i < n; i++) {
       auto type = xKeyFields[i].type;
       if (!i) // k could be 0
 	query << " WHERE ";
       else
 	query << " AND ";
-      query << '"' << xKeyFields[i].id_ << '"'
-	<< ((keyFields[i]->props & ZtMFieldProp::Descend()) ? '<' : '>')
-	<< '$' << (i + 1) << "::" << m_store->oids().name(type);
+      query << '"' << xKeyFields[i].id_ << '"';
+      if ((keyFields[i]->props & ZtMFieldProp::Descend()) {
+	if (m_openState.phase() == OpenState::PrepSelectKNI ||
+	    m_openState.phase() == OpenState::PrepSelectRNI) // inclusive
+	  query << "<=";
+	else
+	  query << '<';
+      } else {
+	if (m_openState.phase() == OpenState::PrepSelectKNI ||
+	    m_openState.phase() == OpenState::PrepSelectRNI) // inclusive
+	  query << ">=";
+	else
+	  query << '>';
+      }
+      query << '$' << (i + 1) << "::" << m_store->oids().name(type);
       oids.push(m_store->oids().oid(type));
     }
   query << " ORDER BY ";
@@ -1625,7 +1652,7 @@ void StoreTbl::prepSelect_rcvd(PGresult *res)
   if (!res) {
     m_openState.incKey();
     if (m_openState.keyID() >= m_keyFields.length()) {
-      if (m_openState.phase() < OpenState::PrepSelect11)
+      if (m_openState.phase() < OpenState::PrepSelectRNI)
 	prepSelect();
       else
 	prepFind();
@@ -1990,7 +2017,7 @@ void StoreTbl::close(CloseFn fn)
 void StoreTbl::warmup() { /* LATER */ }
 
 void StoreTbl::select(
-  bool selectRow, bool selectNext,
+  bool selectRow, bool selectNext, bool inclusive,
   unsigned keyID, ZmRef<const AnyBuf> buf,
   unsigned limit, KeyFn keyFn)
 {
@@ -1999,8 +2026,8 @@ void StoreTbl::select(
   using namespace Work;
 
   m_store->pqRun([
-    this, selectRow, selectNext, keyID,
-    buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
+    this, selectRow, selectNext, inclusive,
+    keyID, buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
   ]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, keyFn = ZuMv(keyFn)]() mutable {
@@ -2011,7 +2038,7 @@ void StoreTbl::select(
       return;
     }
     m_store->enqueue(TblTask{this, Query{Select{
-      keyID, limit, ZuMv(buf), ZuMv(keyFn), selectRow, selectNext
+      keyID, limit, ZuMv(buf), ZuMv(keyFn), selectRow, selectNext, inclusive
     }}});
   });
 }
@@ -2069,8 +2096,9 @@ int StoreTbl::select_send(Work::Select &select)
       m_store->oids(), nParams, keyFields, xKeyFields, fbo);
   new (params.push()) Value{UInt64{select.limit}};
   id << m_id_ << "_select"
-    << (select.selectRow ? '1' : '0')
-    << (select.selectNext ? '1' : '0')
+    << (select.selectRow ? 'R' : 'K')
+    << (select.selectNext ? 'N' : 'I')
+    << (select.inclusive ? 'I' : 'X')
     << '_' << select.keyID;
   return m_store->sendPrepared<SendState::Flush, true>(id, params);
 }

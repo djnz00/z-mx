@@ -7,21 +7,20 @@ table ReqVoid {
 }
 union UserKey {
   ID:UserID,
-  Name:string
+  Name:UserName
 }
 table UserQuery {
   user_key:UserKey;
-  offset:uint64;
+  inclusive:bool;
   limit:uint16;
 }
 table RoleQuery {
   role_key:string;
-  offset:uint64;
   limit:uint16;
 }
 union PermKey {
   ID:PermID,
-  Name:string
+  Name:PermName
 }
 table PermQuery {
   perm_key:PermKey;

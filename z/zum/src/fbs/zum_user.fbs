@@ -3,6 +3,9 @@ namespace Zum.fbs;
 table UserID {
   id:uint64;
 }
+table UserName {
+  name:string;
+}
 table User {
   id:uint64 (key);
   name:string;

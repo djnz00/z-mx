@@ -2,6 +2,9 @@ namespace Zum.fbs;
 table PermID {
   id:uint32;
 }
+table PermName {
+  name:string;
+}
 table PermAdd {
   name:string;
 }

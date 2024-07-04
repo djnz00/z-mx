@@ -563,6 +563,7 @@ void Mgr::request(Session *session, const fbs::Request *request, ResponseFn fn)
 	session, seqNo,
 	static_cast<const fbs::UserChPass *>(reqData), ZuMv(fn));
       break;
+      // FIXME from here
     case int(fbs::ReqData::OwnKeyGet):
       ackType = fbs::ReqAckData::OwnKeyGet;
       ackData = fbs::CreateKeyIDList(session, ownKeyGet(
@@ -722,6 +723,8 @@ Offset<fbs::UserAck> Mgr::chPass(
   });
 }
 
+// for userGet, we can always start a query with a null name or a 0 userID
+// and inclusive true, so no need to distinguish the initial case
 Offset<Vector<Offset<fbs::User>>> Mgr::userGet(
     Session *session, uint64_t seqNo,
     const fbs::UserQuery *query, ResponseFn fn)
@@ -729,7 +732,7 @@ Offset<Vector<Offset<fbs::User>>> Mgr::userGet(
   m_userTbl->run([]() {
     switch (unsigned(query->permKey_type())) {
       case unsigned(fbs::PermKey::ID):
-	m_userTbl->glob<0>(ZuFwdTuple(query->permKey_as_ID()->id()), query->offset(), query->limit(), [](auto result) {
+	m_userTbl->nextRows<0>(ZuFwdTuple(query->permKey_as_ID()->id()), query->inclusive(), query->limit(), [](auto result) {
 	  using Key = ZuFieldKeyT<User, 0>;
 	  if (result.template is<Key>()) {
 	    // FIXME - we want the whole row tuple, not just the key

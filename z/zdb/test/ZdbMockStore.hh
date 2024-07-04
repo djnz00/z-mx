@@ -1256,14 +1256,14 @@ public:
   void warmup() { }
 
   void select(
-    bool selectRow, bool selectNext,
+    bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf> buf,
     unsigned limit, KeyFn keyFn)
   {
     ZmAssert(keyID < m_indices.length());
 
     auto work_ = [
-      this, selectRow, selectNext,
+      this, selectRow, selectNext, inclusive,
       keyID, buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
     ]() mutable {
       const auto &keyFields = m_keyFields[keyID];
@@ -1278,7 +1278,9 @@ public:
       }));
 
       const auto &index = m_indices[keyID];
-      auto row = index.find<ZmRBTreeGreater>(key);
+      auto row = inclusive ?
+	index.find<ZmRBTreeGreaterEqual>(key) :
+	index.find<ZmRBTreeGreater>(key);
       unsigned i = 0;
       while (i++ < limit && row && index.equals(row->key(), key)) {
 	IOBuilder fbb;
