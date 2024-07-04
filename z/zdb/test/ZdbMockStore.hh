@@ -983,7 +983,7 @@ using Tuple = ZtArray<Value>;
 // (individual elements of the tuple can be null values)
 
 // load tuple from flatbuffer
-// - when called from glob(), nParams is < fields.length()
+// - when called from select(), nParams is < fields.length()
 template <typename Filter>
 Tuple loadTuple_(
   unsigned nParams,
@@ -1255,43 +1255,45 @@ public:
 
   void warmup() { }
 
-  void glob(
+  void select(
+    bool selectRow, bool selectNext,
     unsigned keyID, ZmRef<const AnyBuf> buf,
-    unsigned o, unsigned n, KeyFn keyFn)
+    unsigned limit, KeyFn keyFn)
   {
     ZmAssert(keyID < m_indices.length());
-    auto work_ = [
-      this, keyID, buf = ZuMv(buf), o, n, keyFn = ZuMv(keyFn)
-    ]() mutable {
-      int nParams = m_keyGroup[keyID];
 
+    auto work_ = [
+      this, selectRow, selectNext,
+      keyID, buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
+    ]() mutable {
       const auto &keyFields = m_keyFields[keyID];
       const auto &xKeyFields = m_xKeyFields[keyID];
 
-      auto groupKey = loadTuple_(
+      unsigned nParams = selectNext ? keyFields.length() : m_keyGroup[keyID];
+
+      auto key = loadTuple_(
 	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
-      ZeLOG(Debug, ([groupKey](auto &s) {
-	s << "groupKey={" << ZtJoin(groupKey, ", ") << '}';
+      ZeLOG(Debug, ([key](auto &s) {
+	s << "key={" << ZtJoin(key, ", ") << '}';
       }));
 
       const auto &index = m_indices[keyID];
-      auto row = index.find<ZmRBTreeGreaterEqual>(groupKey);
+      auto row = index.find<ZmRBTreeGreater>(key);
       unsigned i = 0;
-      while (i++ < o && row && index.equals(row->key(), groupKey))
-	row = index.next(row);
-      if (i > o) {
-	i = 0;
-	while (i++ < n && row && index.equals(row->key(), groupKey)) {
+      while (i++ < limit && row && index.equals(row->key(), key)) {
+	IOBuilder fbb;
+	if (!selectRow) {
 	  auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
-	  IOBuilder fbb;
 	  fbb.Finish(saveTuple(fbb, xKeyFields, key));
-	  KeyData keyData{
-	    .keyID = keyID,
-	    .buf = fbb.buf().constRef()
-	  };
-	  keyFn(KeyResult{ZuMv(keyData)});
-	  row = index.next(row);
+	} else {
+	  fbb.Finish(saveTuple(fbb, m_xFields, row->val()->data));
 	}
+	KeyData keyData{
+	  .keyID = selectRow ? ZuFieldKeyID::All : int(keyID),
+	  .buf = fbb.buf().constRef()
+	};
+	keyFn(KeyResult{ZuMv(keyData)});
+	row = index.next(row);
       }
       keyFn(KeyResult{});
     };

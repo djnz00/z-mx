@@ -62,7 +62,7 @@
 // ZuFieldKey<KeyID>(O &&) extracts a key tuple from an object
 // ZuFieldKeyT<O, KeyID> is the key tuple type
 // - ZuFieldKeyID::All extracts a tuple containing all fields
-// - ZuFieldKeyID::AllKeys extracts a tuple containing all the key fields
+// - ZuFieldKeyID::Union extracts a tuple of the union of all the key fields
 // ZuFieldKeys<O> is a type list of all key types defined for O
 
 #ifndef ZuField_HH
@@ -80,7 +80,7 @@
 namespace ZuFieldKeyID {
   enum {
     All = -1,		// all fields, including non-key fields
-    AllKeys = -2	// all key fields (i.e. a union of all keys)
+    Union = -2		// union of all key fields
   };
 };
 
@@ -223,7 +223,7 @@ namespace ZuFieldProp {
   template <typename Props>
   struct Key<Props, ZuFieldKeyID::All> : public ZuTrue { };
   template <typename Props>
-  struct Key<Props, ZuFieldKeyID::AllKeys> :
+  struct Key<Props, ZuFieldKeyID::Union> :
     public ZuBool<GetKeys<Props>::N> { };
 }
 

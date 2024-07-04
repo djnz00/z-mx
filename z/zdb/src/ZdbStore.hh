@@ -92,7 +92,7 @@ using CountFn = ZmFn<void(CountData)>;
 
 // key data
 struct KeyData {
-  unsigned		keyID;
+  int			keyID;	// ZuFieldKeyID::All for entire row
   ZmRef<const AnyBuf>	buf;	// key data, no replication message header
 };
 // key result
@@ -130,8 +130,9 @@ public:
   virtual void warmup() = 0;
 
   // buf contains key data, no replication message header
-  virtual void glob(
-    unsigned keyID, ZmRef<const AnyBuf>, unsigned o, unsigned n, KeyFn) = 0;
+  virtual void select( // initial
+    bool selectRow, bool selectNext,
+    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, KeyFn) = 0;
 
   // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;

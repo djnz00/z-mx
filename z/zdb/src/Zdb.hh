@@ -24,8 +24,8 @@
 // * Async replication independent of backing store
 //   (can be disabled for replicated backing stores)
 // * Primary and multiple secondary unique in-memory and on-disk indices
-// * Find (select), insert, update, delete operations
-// * Grouped ascending and descending queries for guaranteed delivery apps
+// * Find, insert, update, delete operations
+// * Batched select queries (index-based, optionally grouped)
 
 //  host state		engine state
 //  ==========		============
@@ -755,26 +755,26 @@ struct Buf : public BufCache<T>::Node {
   using Base::Base;
 };
 
-// backing data store glob() context
-template <typename T, typename Key> struct Glob__ {
+// backing data store select() context
+template <typename T, typename Key> struct Select__ {
   using Result = ZuUnion<void, Key>;
 
   ZmFn<void(Result)>	fn;
 };
-inline constexpr const char *Glob_HeapID() { return "Zdb.Glob"; }
+inline constexpr const char *Select_HeapID() { return "Zdb.Select"; }
 template <typename T, typename Key, typename Heap>
-struct Glob_ :
-  public Heap, public ZmPolymorph, public Glob__<T, Key>
+struct Select_ :
+  public Heap, public ZmPolymorph, public Select__<T, Key>
 {
-  using Base = Glob__<T, Key>;
+  using Base = Select__<T, Key>;
   using Base::Base;
   template <typename ...Args>
-  Glob_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  Select_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename T, typename Key>
-using Glob_Heap = ZmHeap<Glob_HeapID, sizeof(Glob_<T, Key, ZuNull>)>;
+using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<T, Key, ZuNull>)>;
 template <typename T, typename Key>
-using Glob = Glob_<T, Key, Glob_Heap<T, Key>>;
+using Select = Select_<T, Key, Select_Heap<T, Key>>;
 
 // backing data store find() context (retried on failure)
 template <typename T, typename Key> struct Find__ {
@@ -830,7 +830,7 @@ public:
   using Fields = FieldList<T>;
   using Keys = ZuFieldKeys<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
-  template <unsigned KeyID> using Key = ZuFieldKeyT<T, KeyID>;
+  template <int KeyID> using Key = ZuFieldKeyT<T, KeyID>;
 
   ZuAssert(Fields::N < maxFields());
   ZuAssert(KeyIDs::N < maxKeys());
@@ -994,9 +994,38 @@ public:
     return new Object<T>{this, [](void *ptr) { new (ptr) T{}; }};
   }
 
-  // iterate over group (o is offset, n is limit)
-  template <unsigned KeyID, typename L>
-  void glob(GroupKey<KeyID> groupKey, unsigned o, unsigned n, L l);
+private:
+  template <
+    unsigned KeyID,
+    typename SelectKey,
+    typename ResultKey,
+    bool SelectRow,
+    bool SelectNext,
+    typename L>
+  void select_(SelectKey selectKey, unsigned limit, L l);
+
+public:
+  // select query (n is limit) lambda - l(tuple)
+  template <unsigned KeyID, typename L>	// initial
+  void selectKeys(GroupKey<KeyID> groupKey, unsigned limit, L l) {
+    select_<KeyID, GroupKey<KeyID>, Key<KeyID>, 0, 0>(
+      ZuMv(groupKey), limit, ZuMv(l));
+  }
+  template <unsigned KeyID, typename L>	// continuation
+  void nextKeys(Key<KeyID> key, unsigned limit, L l) {
+    select_<KeyID, Key<KeyID>, Key<KeyID>, 0, 1>(
+      ZuMv(key), limit, ZuMv(l));
+  }
+  template <unsigned KeyID, typename L>	// initial
+  void selectRows(GroupKey<KeyID> groupKey, unsigned limit, L l) {
+    select_<KeyID, GroupKey<KeyID>, Key<ZuFieldKeyID::All>, 1, 0>(
+      ZuMv(groupKey), limit, ZuMv(l));
+  }
+  template <unsigned KeyID, typename L>	// continuation
+  void nextRows(Key<KeyID> key, unsigned limit, L l) {
+    select_<KeyID, Key<KeyID>, Key<ZuFieldKeyID::All>, 1, 1>(
+      ZuMv(key), limit, ZuMv(l));
+  }
 
   // find lambda - l(ZmRef<ZdbObject<T>>)
   template <unsigned KeyID, typename L>
@@ -1730,13 +1759,16 @@ inline void DB::print(S &s)
 }
 
 template <typename T>
-template <unsigned KeyID, typename L>
-inline void Table<T>::glob(
-  GroupKey<KeyID> groupKey, unsigned o, unsigned n, L l)
+template <
+  unsigned KeyID,
+  typename SelectKey,
+  typename ResultKey,
+  bool SelectRow,
+  bool SelectNext,
+  typename L>
+inline void Table<T>::select_(SelectKey selectKey, unsigned limit, L l)
 {
-  using GroupKey_ = GroupKey<KeyID>;
-  using Key_ = Key<KeyID>;
-  using Context = Glob<T, Key_>;
+  using Context = Select<T, ResultKey>;
 
   ZmAssert(invoked());
 
@@ -1744,8 +1776,8 @@ inline void Table<T>::glob(
 
   IOBuilder fbb;
   fbb.Finish(
-    ZfbField::SaveFieldsFn<GroupKey_, ZuFieldList<GroupKey_>>::save(
-      fbb, groupKey).Union());
+    ZfbField::SaveFieldsFn<SelectKey, ZuFieldList<SelectKey>>::save(
+      fbb, selectKey).Union());
   auto keyBuf = fbb.buf();
 
   auto keyFn = KeyFn::mvFn(ZuMv(context),
@@ -1760,11 +1792,13 @@ inline void Table<T>::glob(
 	return;
       }
       auto fbo = ZfbField::root<T>(result.p<KeyData>().buf->data());
-      auto key = ZfbField::ctor<Key_>(fbo);
-      context->fn(typename Context::Result{ZuMv(key)});
+      auto resultKey = ZfbField::ctor<ResultKey>(fbo);
+      context->fn(typename Context::Result{ZuMv(resultKey)});
     });
 
-  storeTbl()->glob(KeyID, ZuMv(keyBuf).constRef(), o, n, ZuMv(keyFn));
+  storeTbl()->select(
+    SelectRow, SelectNext,
+    KeyID, ZuMv(keyBuf).constRef(), limit, ZuMv(keyFn));
 }
 
 template <typename T>

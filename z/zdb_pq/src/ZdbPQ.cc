@@ -518,8 +518,8 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_rcvd(res);
 	  break;
-	case Query::Index<Glob>{}:
-	  tblTask.tbl->glob_rcvd(tblTask.query.p<Glob>(), res);
+	case Query::Index<Select>{}:
+	  tblTask.tbl->select_rcvd(tblTask.query.p<Select>(), res);
 	  break;
 	case Query::Index<Find>{}:
 	  tblTask.tbl->find_rcvd(tblTask.query.p<Find>(), res);
@@ -551,8 +551,8 @@ void Store::failed(Work::Queue::Node *work, ZeMEvent e)
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_failed(ZuMv(e));
 	  break;
-	case Query::Index<Glob>{}:
-	  tblTask.tbl->glob_failed(tblTask.query.p<Glob>(), ZuMv(e));
+	case Query::Index<Select>{}:
+	  tblTask.tbl->select_failed(tblTask.query.p<Select>(), ZuMv(e));
 	  break;
 	case Query::Index<Find>{}:
 	  tblTask.tbl->find_failed(tblTask.query.p<Find>(), ZuMv(e));
@@ -598,8 +598,8 @@ void Store::send()
 	  case Query::Index<Open>{}:
 	    sendState = tblTask.tbl->open_send();
 	    break;
-	  case Query::Index<Glob>{}:
-	    sendState = tblTask.tbl->glob_send(tblTask.query.p<Glob>());
+	  case Query::Index<Select>{}:
+	    sendState = tblTask.tbl->select_send(tblTask.query.p<Select>());
 	    break;
 	  case Query::Index<Find>{}:
 	    sendState = tblTask.tbl->find_send(tblTask.query.p<Find>());
@@ -1211,7 +1211,10 @@ int StoreTbl::open_send()
   switch (m_openState.phase()) {
     case OpenState::MkTable:	return mkTable_send();
     case OpenState::MkIndices:	return mkIndices_send();
-    case OpenState::PrepGlob:	return prepGlob_send();
+    case OpenState::PrepSelect00:
+    case OpenState::PrepSelect01:
+    case OpenState::PrepSelect10:
+    case OpenState::PrepSelect11: return prepSelect_send();
     case OpenState::PrepFind:	return prepFind_send();
     case OpenState::PrepInsert:	return prepInsert_send();
     case OpenState::PrepUpdate:	return prepUpdate_send();
@@ -1230,7 +1233,10 @@ void StoreTbl::open_rcvd(PGresult *res)
   switch (m_openState.phase()) {
     case OpenState::MkTable:	mkTable_rcvd(res); break;
     case OpenState::MkIndices:	mkIndices_rcvd(res); break;
-    case OpenState::PrepGlob:	prepGlob_rcvd(res); break;
+    case OpenState::PrepSelect00:
+    case OpenState::PrepSelect01:
+    case OpenState::PrepSelect10:
+    case OpenState::PrepSelect11: prepSelect_rcvd(res); break;
     case OpenState::PrepFind:	prepFind_rcvd(res); break;
     case OpenState::PrepInsert:	prepInsert_rcvd(res); break;
     case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
@@ -1453,7 +1459,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   auto nextKey = [this]() {
     m_openState.incKey();
     if (m_openState.keyID() >= m_keyFields.length())
-      prepGlob();
+      prepSelect();
     else
       open_enqueue();
   };
@@ -1519,12 +1525,25 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   }
 }
 
-void StoreTbl::prepGlob()
+void StoreTbl::prepSelect()
 {
-  m_openState.phase(OpenState::PrepGlob);
+  switch (m_openState.phase()) {
+    default:
+      m_openState.phase(OpenState::PrepSelect00);
+      break;
+    case OpenState::PrepSelect00:
+      m_openState.phase(OpenState::PrepSelect01);
+      break;
+    case OpenState::PrepSelect01:
+      m_openState.phase(OpenState::PrepSelect10);
+      break;
+    case OpenState::PrepSelect10:
+      m_openState.phase(OpenState::PrepSelect11);
+      break;
+  }
   open_enqueue();
 }
-int StoreTbl::prepGlob_send()
+int StoreTbl::prepSelect_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
@@ -1533,15 +1552,33 @@ int StoreTbl::prepGlob_send()
   const auto &xKeyFields = m_xKeyFields[keyID];
 
   ZtString id(m_id_.length() + 24);
-  id << m_id_ << "_glob_" << keyID;
+  id << m_id_ << "_select";
+  switch (m_openState.phase()) {
+    case OpenState::PrepSelect00: id << "00_"; break;
+    case OpenState::PrepSelect01: id << "01_"; break;
+    case OpenState::PrepSelect10: id << "10_"; break;
+    case OpenState::PrepSelect11: id << "11_"; break;
+  }
+  id << keyID;
 
-  unsigned n = keyFields.length();
+  unsigned n;
 
   ZtString query;
   query << "SELECT ";
-  for (unsigned i = 0; i < n; i++) {
-    if (i) query << ", ";
-    query << '"' << xKeyFields[i].id_ << '"';
+  if (m_openState.phase() == OpenState::PrepSelect00 ||
+      m_openState.phase() == OpenState::PrepSelect01) { // selectKey
+    n = keyFields.length();
+    for (unsigned i = 0; i < n; i++) {
+      if (i) query << ", ";
+      query << '"' << xKeyFields[i].id_ << '"';
+    }
+  } else { // selectRow - all fields
+    n = m_fields.length();
+    for (unsigned i = 0; i < n; i++) {
+      if (i) query << ", ";
+      query << '"' << m_xFields[i].id_ << '"';
+    }
+    n = keyFields.length();
   }
   query << " FROM \"" << m_id_ << '"';
   ZtArray<Oid> oids;
@@ -1556,6 +1593,19 @@ int StoreTbl::prepGlob_send()
       << "\"=$" << (i + 1) << "::" << m_store->oids().name(type);
     oids.push(m_store->oids().oid(type));
   }
+  if (m_openState.phase() == OpenState::PrepSelect01 ||
+      m_openState.phase() == OpenState::PrepSelect11) // continuation
+    for (i = k; i < n; i++) {
+      auto type = xKeyFields[i].type;
+      if (!i) // k could be 0
+	query << " WHERE ";
+      else
+	query << " AND ";
+      query << '"' << xKeyFields[i].id_ << '"'
+	<< ((keyFields[i]->props & ZtMFieldProp::Descend()) ? '<' : '>')
+	<< '$' << (i + 1) << "::" << m_store->oids().name(type);
+      oids.push(m_store->oids().oid(type));
+    }
   query << " ORDER BY ";
   for (i = k; i < n; i++) {
     if (i > k) query << ", ";
@@ -1563,22 +1613,23 @@ int StoreTbl::prepGlob_send()
     if (keyFields[i]->props & ZtMFieldProp::Descend())
       query << " DESC";
   }
-  query << " OFFSET $" << (oids.length() + 1) << "::uint8";
-  oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   query << " LIMIT $" << (oids.length() + 1) << "::uint8";
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
 
   return m_store->sendPrepare(id, query, oids);
 }
-void StoreTbl::prepGlob_rcvd(PGresult *res)
+void StoreTbl::prepSelect_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   if (!res) {
     m_openState.incKey();
-    if (m_openState.keyID() >= m_keyFields.length())
-      prepFind();
-    else
+    if (m_openState.keyID() >= m_keyFields.length()) {
+      if (m_openState.phase() < OpenState::PrepSelect11)
+	prepSelect();
+      else
+	prepFind();
+    } else
       open_enqueue();
   }
 }
@@ -1938,27 +1989,29 @@ void StoreTbl::close(CloseFn fn)
 
 void StoreTbl::warmup() { /* LATER */ }
 
-void StoreTbl::glob(
+void StoreTbl::select(
+  bool selectRow, bool selectNext,
   unsigned keyID, ZmRef<const AnyBuf> buf,
-  unsigned o, unsigned n, KeyFn keyFn)
+  unsigned limit, KeyFn keyFn)
 {
   ZmAssert(keyID < m_keyFields.length());
 
   using namespace Work;
 
   m_store->pqRun([
-    this, keyID, buf = ZuMv(buf), o, n, keyFn = ZuMv(keyFn)
+    this, selectRow, selectNext, keyID,
+    buf = ZuMv(buf), limit, keyFn = ZuMv(keyFn)
   ]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, keyFn = ZuMv(keyFn)]() mutable {
 	keyFn(KeyResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "glob(" << id << ") failed - DB shutdown in progress";
+	  s << "select(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
       return;
     }
-    m_store->enqueue(TblTask{this, Query{Glob{
-      keyID, ZuMv(buf), o, n, ZuMv(keyFn)
+    m_store->enqueue(TblTask{this, Query{Select{
+      keyID, limit, ZuMv(buf), ZuMv(keyFn), selectRow, selectNext
     }}});
   });
 }
@@ -1994,36 +2047,39 @@ void StoreTbl::glob(
   auto varBuf_ = ZmAlloc(uint8_t, varBufSize_); \
   ZtArray<uint8_t> varBuf(&varBuf_[0], varBufSize_, varBufSize_, false)
 
-int StoreTbl::glob_send(Work::Glob &glob)
+int StoreTbl::select_send(Work::Select &select)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  const auto &keyFields = m_keyFields[glob.keyID];
-  const auto &xKeyFields = m_xKeyFields[glob.keyID];
-  auto nParams = m_keyGroup[glob.keyID];
-  auto fbo = Zfb::GetAnyRoot(glob.buf->data());
+  const auto &keyFields = m_keyFields[select.keyID];
+  const auto &xKeyFields = m_xKeyFields[select.keyID];
+  auto nParams =
+    select.selectNext ? keyFields.length() : m_keyGroup[select.keyID];
+  auto fbo = Zfb::GetAnyRoot(select.buf->data());
 
   IDAlloc(24);
-  nParams += 2; // + 2 for offset, limit
+  nParams += 1; // +1 for limit
   ParamAlloc(nParams);
-  nParams -= 2;
+  nParams -= 1;
   VarAlloc(nParams, xKeyFields, fbo);
 
   if (nParams > 0)
     loadTuple(
       params, varBuf, varBufParts,
       m_store->oids(), nParams, keyFields, xKeyFields, fbo);
-  new (params.push()) Value{UInt64{glob.offset}};
-  new (params.push()) Value{UInt64{glob.limit}};
-  id << m_id_ << "_glob_" << glob.keyID;
+  new (params.push()) Value{UInt64{select.limit}};
+  id << m_id_ << "_select"
+    << (select.selectRow ? '1' : '0')
+    << (select.selectNext ? '1' : '0')
+    << '_' << select.keyID;
   return m_store->sendPrepared<SendState::Flush, true>(id, params);
 }
-void StoreTbl::glob_rcvd(Work::Glob &glob, PGresult *res)
+void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   if (!res) {
-    m_store->zdbRun([keyFn = ZuMv(glob.keyFn)]() mutable {
+    m_store->zdbRun([keyFn = ZuMv(select.keyFn)]() mutable {
       keyFn(KeyResult{});
     });
     return;
@@ -2032,9 +2088,9 @@ void StoreTbl::glob_rcvd(Work::Glob &glob, PGresult *res)
   unsigned nr = PQntuples(res);
   if (!nr) return;
 
-  unsigned keyID = glob.keyID;
-  const auto &keyFields = m_keyFields[keyID];
-  const auto &xKeyFields = m_xKeyFields[keyID];
+  unsigned keyID = select.keyID;
+  const auto &keyFields = select.selectRow ? m_fields : m_keyFields[keyID];
+  const auto &xKeyFields = select.selectRow ? m_xFields : m_xKeyFields[keyID];
   unsigned nc = keyFields.length();
 
   // tuple is POD, no need to run destructors when going out of scope
@@ -2050,35 +2106,35 @@ void StoreTbl::glob_rcvd(Work::Glob &glob, PGresult *res)
 	  }))
 	goto inconsistent;
     auto buf =
-      glob_save(ZuArray<const Value>(&tuple[0], nc), keyID).constRef();
+      select_save(ZuArray<const Value>(&tuple[0], nc), xKeyFields).constRef();
     // res can go out of scope now - everything is saved in buf
     KeyResult result{KeyData{
-      .keyID = keyID,
+      .keyID = select.selectRow ? ZuFieldKeyID::All : int(keyID),
       .buf = ZuMv(buf)
     }};
-    m_store->zdbRun([keyFn = glob.keyFn, result = ZuMv(result)]() mutable {
+    m_store->zdbRun([keyFn = select.keyFn, result = ZuMv(result)]() mutable {
       keyFn(ZuMv(result));
     });
   }
   return;
 
 inconsistent:
-  glob_failed(glob, ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
-    s << "inconsistent glob() result for table " << id;
+  select_failed(select, ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    s << "inconsistent select() result for table " << id;
   })));
 }
-ZmRef<AnyBuf> StoreTbl::glob_save(
-  ZuArray<const Value> tuple, unsigned keyID)
+ZmRef<AnyBuf> StoreTbl::select_save(
+  ZuArray<const Value> tuple, const XFields &xFields)
 {
   IOBuilder fbb;
-  fbb.Finish(saveTuple(fbb, m_xKeyFields[keyID], tuple));
+  fbb.Finish(saveTuple(fbb, xFields, tuple));
   return fbb.buf();
 }
-void StoreTbl::glob_failed(Work::Glob &glob, ZeMEvent e)
+void StoreTbl::select_failed(Work::Select &select, ZeMEvent e)
 {
   KeyResult result{ZuMv(e)};
   m_store->zdbRun([
-    keyFn = ZuMv(glob.keyFn),
+    keyFn = ZuMv(select.keyFn),
     result = ZuMv(result)
   ]() mutable {
     keyFn(ZuMv(result));

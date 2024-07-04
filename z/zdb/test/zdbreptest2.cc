@@ -204,7 +204,7 @@ int main(int argc, char **argv)
 	    done_.post();
 	  });
 	done_.wait();
-	orders[0]->glob<2>(ZuFwdTuple("FIX0"), 0, 1, [](auto max) {
+	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max) {
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
@@ -249,7 +249,7 @@ int main(int argc, char **argv)
 	    done_.post();
 	  });
 	done_.wait();
-	orders[1]->glob<2>(ZuFwdTuple("FIX0"), 0, 1, [](auto max) {
+	orders[1]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max) {
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {

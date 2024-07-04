@@ -1,12 +1,12 @@
 namespace Zum.fbs;
 table PermID {
-  id:uint8;
+  id:uint32;
 }
 table PermAdd {
   name:string;
 }
 table Perm {
-  id:uint8 (key);	// index in bitmap
+  id:uint32 (key);	// index in bitmap
   name:string;
 }
 table PermUpdAck {

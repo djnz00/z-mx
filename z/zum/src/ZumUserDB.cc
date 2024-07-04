@@ -585,9 +585,9 @@ void Mgr::request(Session *session, const fbs::Request *request, ResponseFn fn)
       break;
 
     case int(fbs::ReqData::UserGet):
-      ackType = fbs::ReqAckData::UserGet;
-      ackData = fbs::CreateUserList(fbb,
-	  userGet(session, static_cast<const fbs::UserID *>(reqData)), ZuMv(fn));
+      userGet(
+	session, seqNo,
+	static_cast<const fbs::UserQuery *>(reqData), ZuMv(fn));
       break;
     case int(fbs::ReqData::UserAdd):
       ackType = fbs::ReqAckData::UserAdd;
@@ -723,8 +723,22 @@ Offset<fbs::UserAck> Mgr::chPass(
 }
 
 Offset<Vector<Offset<fbs::User>>> Mgr::userGet(
-    Session *session, uint64_t seqNo, const fbs::UserID *id_, ResponseFn fn)
+    Session *session, uint64_t seqNo,
+    const fbs::UserQuery *query, ResponseFn fn)
 {
+  m_userTbl->run([]() {
+    switch (unsigned(query->permKey_type())) {
+      case unsigned(fbs::PermKey::ID):
+	m_userTbl->glob<0>(ZuFwdTuple(query->permKey_as_ID()->id()), query->offset(), query->limit(), [](auto result) {
+	  using Key = ZuFieldKeyT<User, 0>;
+	  if (result.template is<Key>()) {
+	    // FIXME - we want the whole row tuple, not just the key
+	  }
+	});
+      case unsigned(fbs::PermKey::Name):
+	m_userTbl->glob<1>(ZuFwdTuple(Zfb::Load::str(query->permKey_as_Name()))
+    }
+  });
   if (!Zfb::IsFieldPresent(id_, fbs::UserID::VT_ID)) {
     // FIXME - need offset, n, glob
     auto i = m_users->readIterator();
@@ -737,6 +751,8 @@ Offset<Vector<Offset<fbs::User>>> Mgr::userGet(
     else
       return keyVec<fbs::User>(fbb);
   }
+      ackData = fbs::CreateUserList(fbb,...);
+  respond(fbb, seqNo, fbs::ReqAckData::UserGet, ackData.Union());
 }
 
 Offset<fbs::UserPass> Mgr::userAdd(

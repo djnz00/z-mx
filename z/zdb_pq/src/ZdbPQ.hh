@@ -1461,7 +1461,7 @@ saveValue(
 using Tuple = ZtArray<Value>;
 
 // load tuple from flatbuffer
-// - when called from glob_send(), nParams is < fields.length()
+// - when called from select_send(), nParams is < fields.length()
 void loadTuple(
   Tuple &tuple,
   VarBuf &varBuf,
@@ -1537,12 +1537,13 @@ namespace Work {
 
 struct Open { };	// open table
 
-struct Glob {
+struct Select {
   unsigned		keyID;
-  ZmRef<const AnyBuf>	buf;
-  unsigned		offset;
   unsigned		limit;
+  ZmRef<const AnyBuf>	buf;
   KeyFn			keyFn;
+  bool			selectRow;
+  bool			selectNext;
 };
 
 struct Find {
@@ -1564,7 +1565,7 @@ struct Write {
   bool			mrd = false;	// used by delete only
 };
 
-using Query = ZuUnion<Open, Glob, Find, Recover, Write>;
+using Query = ZuUnion<Open, Select, Find, Recover, Write>;
 
 struct Start { };			// start data store
 
@@ -1647,7 +1648,10 @@ public:
     Closed = 0,
     MkTable,	// idempotent create table
     MkIndices,	// idempotent create indices for all keys
-    PrepGlob,	// prepare glob for all keys
+    PrepSelect00, // prepare initial selectKeys for all keys
+    PrepSelect01, // prepare continuation nextKeys for all keys
+    PrepSelect10, // prepare initial selectRows for all keys
+    PrepSelect11, // prepare continuation nextRows for all keys
     PrepFind,	// prepare recover and find for all keys
     PrepInsert,	// prepare insert query
     PrepUpdate,	// prepare update query
@@ -1720,7 +1724,10 @@ public:
 
   void warmup();
 
-  void glob(unsigned keyID, ZmRef<const AnyBuf>, unsigned o, unsigned n, KeyFn);
+  void select(
+    bool selectRow, bool selectNext,
+    unsigned keyID, ZmRef<const AnyBuf>,
+    unsigned limit, KeyFn);
 
   void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn);
 
@@ -1745,9 +1752,9 @@ private:
   int mkIndices_send();
   void mkIndices_rcvd(PGresult *);
 
-  void prepGlob();
-  int prepGlob_send();
-  void prepGlob_rcvd(PGresult *);
+  void prepSelect();
+  int prepSelect_send();
+  void prepSelect_rcvd(PGresult *);
 
   void prepFind();
   int prepFind_send();
@@ -1786,10 +1793,10 @@ private:
   void mrd_rcvd(PGresult *);
 
   // principal queries
-  int glob_send(Work::Glob &);
-  void glob_rcvd(Work::Glob &, PGresult *);
-  ZmRef<AnyBuf> glob_save(ZuArray<const Value> tuple, unsigned keyID);
-  void glob_failed(Work::Glob &, ZeMEvent);
+  int select_send(Work::Select &);
+  void select_rcvd(Work::Select &, PGresult *);
+  ZmRef<AnyBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);
+  void select_failed(Work::Select &, ZeMEvent);
 
   int find_send(Work::Find &);
   void find_rcvd(Work::Find &, PGresult *);
