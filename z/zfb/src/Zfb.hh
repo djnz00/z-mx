@@ -351,8 +351,9 @@ namespace Save {
   // nest flatbuffer
   // - l(Builder &fbb) must return Offset<RootType>
   // - this is a zero-copy flatbuffer nesting that simulates
-  //   Finish() but without a file or size prefix
+  //   Finish(), but without any provision for a file or size prefix
   namespace Nest {
+    // circumvent minalign_ being a protected data member
     struct Builder : public Zfb::Builder {
       auto alignment() const { return Builder::minalign_; }
     };

@@ -61,8 +61,8 @@
 //
 // ZuFieldKey<KeyID>(O &&) extracts a key tuple from an object
 // ZuFieldKeyT<O, KeyID> is the key tuple type
-// - ZuFieldKeyID::All extracts a tuple containing all fields
-// - ZuFieldKeyID::Union extracts a tuple of the union of all the key fields
+// - ZuFieldKeyID::All is a tuple containing all fields
+// - ZuFieldKeyID::Union is a tuple of the union of all the key fields
 // ZuFieldKeys<O> is a type list of all key types defined for O
 
 #ifndef ZuField_HH
