@@ -779,7 +779,7 @@ using Count = Count_<Count_Heap>;
 template <typename Tuple> struct Select__ {
   using Result = ZuUnion<void, Tuple>;
 
-  ZmFn<void(Result)>	fn;
+  ZmFn<void(Result, unsigned)>	fn;
 };
 inline constexpr const char *Select_HeapID() { return "Zdb.Select"; }
 template <typename Tuple, typename Heap>
@@ -1026,11 +1026,11 @@ private:
 public:
   // table count is implemented by AnyTable
   uint64_t count() const { return AnyTable::count(); }
-  // count query lambda - l(total)
+  // count query lambda - l(ZuUnion<void, uint64_t>)
   template <unsigned KeyID, typename L>	// initial
   void count(GroupKey<KeyID> groupKey, L l);
 
-  // select query lambda - l(result, count)
+  // select query lambda - l(ZuUnion<void, ZuTuple<...>>, unsigned count)
   // - count is #results so far, including this one
   template <unsigned KeyID, typename L>	// initial
   void selectKeys(GroupKey<KeyID> groupKey, unsigned limit, L l) {
@@ -1808,7 +1808,7 @@ inline void Table<T>::count(GroupKey<KeyID> key, L l)
 	context->fn(typename Context::Result{});
 	return;
       }
-      context->fn(result.p<CountData>().count);
+      context->fn(typename Context::Result{result.p<CountData>().count});
     });
 
   storeTbl()->count(KeyID, ZuMv(keyBuf).constRef(), ZuMv(countFn));
@@ -1841,16 +1841,17 @@ inline void Table<T>::select_(
     [](ZmRef<Context> context, TupleResult result) {
       if (ZuUnlikely(result.is<Event>())) { // error
 	ZeLogEvent(ZuMv(result).p<Event>());
-	context->fn(typename Context::Result{});
+	context->fn(typename Context::Result{}, 0);
 	return;
       }
       if (ZuUnlikely(!result.is<TupleData>())) { // end of results
-	context->fn(typename Context::Result{});
+	context->fn(typename Context::Result{}, 0);
 	return;
       }
-      auto fbo = ZfbField::root<T>(result.p<TupleData>().buf->data());
+      auto tupleData = result.p<TupleData>();
+      auto fbo = ZfbField::root<T>(tupleData.buf->data());
       auto tuple = ZfbField::ctor<Tuple_>(fbo);
-      context->fn(typename Context::Result{ZuMv(tuple)});
+      context->fn(typename Context::Result{ZuMv(tuple)}, tupleData.count);
     });
 
   storeTbl()->select(
