@@ -144,20 +144,21 @@ int main(int argc, char **argv)
     ZuNBox<uint64_t> seqNo;
 
     orders->run([&seqNo]{
-      orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [&seqNo](auto max) {
-	using Key = ZuFieldKeyT<Order, 2>;
-	if (max.template is<Key>()) {
-	  seqNo = max.template p<Key>().template p<1>();
-	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	    s << "maximum(FIX0): " << max.template p<Key>();
-	  }));
-	} else {
-	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	    s << "maximum(FIX0): EOR";
-	  }));
-	  done.post();
-	}
-      });
+      orders->selectKeys<2>(
+	ZuFwdTuple("FIX0"), 1, [&seqNo](auto max, unsigned) {
+	  using Key = ZuFieldKeyT<Order, 2>;
+	  if (max.template is<Key>()) {
+	    seqNo = max.template p<Key>().template p<1>();
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "maximum(FIX0): " << max.template p<Key>();
+	    }));
+	  } else {
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "maximum(FIX0): EOR";
+	    }));
+	    done.post();
+	  }
+	});
     });
 
     done.wait();
@@ -229,7 +230,7 @@ int main(int argc, char **argv)
 	  done.post();
 	});
       done.wait();
-      orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max) {
+      orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	using Key = ZuFieldKeyT<Order, 2>;
 	if (max.template is<Key>()) {
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
