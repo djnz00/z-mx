@@ -518,6 +518,9 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_rcvd(res);
 	  break;
+	case Query::Index<Count>{}:
+	  tblTask.tbl->count_rcvd(tblTask.query.p<Count>(), res);
+	  break;
 	case Query::Index<Select>{}:
 	  tblTask.tbl->select_rcvd(tblTask.query.p<Select>(), res);
 	  break;
@@ -550,6 +553,9 @@ void Store::failed(Work::Queue::Node *work, ZeMEvent e)
       switch (tblTask.query.type()) {
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_failed(ZuMv(e));
+	  break;
+	case Query::Index<Count>{}:
+	  tblTask.tbl->count_failed(tblTask.query.p<Count>(), ZuMv(e));
 	  break;
 	case Query::Index<Select>{}:
 	  tblTask.tbl->select_failed(tblTask.query.p<Select>(), ZuMv(e));
@@ -597,6 +603,9 @@ void Store::send()
 	switch (tblTask.query.type()) {
 	  case Query::Index<Open>{}:
 	    sendState = tblTask.tbl->open_send();
+	    break;
+	  case Query::Index<Count>{}:
+	    sendState = tblTask.tbl->count_send(tblTask.query.p<Count>());
 	    break;
 	  case Query::Index<Select>{}:
 	    sendState = tblTask.tbl->select_send(tblTask.query.p<Select>());
@@ -1211,6 +1220,7 @@ int StoreTbl::open_send()
   switch (m_openState.phase()) {
     case OpenState::MkTable:	return mkTable_send();
     case OpenState::MkIndices:	return mkIndices_send();
+    case OpenState::PrepCount:	return prepCount_send();
     case OpenState::PrepSelectKIX:
     case OpenState::PrepSelectKNX:
     case OpenState::PrepSelectKNI:
@@ -1222,7 +1232,7 @@ int StoreTbl::open_send()
     case OpenState::PrepUpdate:	return prepUpdate_send();
     case OpenState::PrepDelete:	return prepDelete_send();
     case OpenState::PrepMRD:	return prepMRD_send();
-    case OpenState::Count:	return count_send();
+    case OpenState::Count:	return openCount_send();
     case OpenState::MaxUN:	return maxUN_send();
     case OpenState::EnsureMRD:	return ensureMRD_send();
     case OpenState::MRD:	return mrd_send();
@@ -1235,6 +1245,7 @@ void StoreTbl::open_rcvd(PGresult *res)
   switch (m_openState.phase()) {
     case OpenState::MkTable:	mkTable_rcvd(res); break;
     case OpenState::MkIndices:	mkIndices_rcvd(res); break;
+    case OpenState::PrepCount:	prepCount_rcvd(res); break;
     case OpenState::PrepSelectKIX:
     case OpenState::PrepSelectKNX:
     case OpenState::PrepSelectKNI:
@@ -1246,7 +1257,7 @@ void StoreTbl::open_rcvd(PGresult *res)
     case OpenState::PrepUpdate:	prepUpdate_rcvd(res); break;
     case OpenState::PrepDelete:	prepDelete_rcvd(res); break;
     case OpenState::PrepMRD:	prepMRD_rcvd(res); break;
-    case OpenState::Count:	count_rcvd(res); break;
+    case OpenState::Count:	openCount_rcvd(res); break;
     case OpenState::MaxUN:	maxUN_rcvd(res); break;
     case OpenState::EnsureMRD:	ensureMRD_rcvd(res); break;
     case OpenState::MRD:	mrd_rcvd(res); break;
@@ -1442,7 +1453,6 @@ int StoreTbl::mkIndices_send()
       "ORDER BY array_position(i.indkey, a.attnum)", params);
   } else {
     ZtString query;
-    // LATER consider using hash indices for non-series
     query << "CREATE INDEX \"" << name << "\" ON \"" << m_id_ << "\" (";
     const auto &keyFields = m_keyFields[keyID];
     const auto &xKeyFields = m_xKeyFields[keyID];
@@ -1463,7 +1473,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   auto nextKey = [this]() {
     m_openState.incKey();
     if (m_openState.keyID() >= m_keyFields.length())
-      prepSelect();
+      prepCount();
     else
       open_enqueue();
   };
@@ -1526,6 +1536,52 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
       return;
     }
     m_openState.incField();
+  }
+}
+
+void StoreTbl::prepCount()
+{
+  m_openState.phase(OpenState::PrepCount);
+  open_enqueue();
+}
+int StoreTbl::prepCount_send()
+{
+  // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  unsigned keyID = m_openState.keyID();
+  // const auto &keyFields = m_keyFields[keyID];
+  const auto &xKeyFields = m_xKeyFields[keyID];
+
+  ZtString id(m_id_.length() + 24);
+  id << m_id_ << "_count_" << keyID;
+
+  ZtString query;
+  query << "SELECT CAST(COUNT(*) AS uint8) FROM \"" << m_id_ << '"';
+  ZtArray<Oid> oids;
+  unsigned i, k = m_keyGroup[keyID];
+  for (i = 0; i < k; i++) {
+    auto type = xKeyFields[i].type;
+    if (!i)
+      query << " WHERE ";
+    else
+      query << " AND ";
+    query << '"' << xKeyFields[i].id_
+      << "\"=$" << (i + 1) << "::" << m_store->oids().name(type);
+    oids.push(m_store->oids().oid(type));
+  }
+
+  return m_store->sendPrepare(id, query, oids);
+}
+void StoreTbl::prepCount_rcvd(PGresult *res)
+{
+  // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  if (!res) {
+    m_openState.incKey();
+    if (m_openState.keyID() >= m_keyFields.length())
+      prepSelect();
+    else
+      open_enqueue();
   }
 }
 
@@ -1863,15 +1919,15 @@ void StoreTbl::prepMRD_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) count();
+  if (!res) openCount();
 }
 
-void StoreTbl::count()
+void StoreTbl::openCount()
 {
   m_openState.phase(OpenState::Count);
   open_enqueue();
 }
-int StoreTbl::count_send()
+int StoreTbl::openCount_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
@@ -1879,7 +1935,7 @@ int StoreTbl::count_send()
   query << "SELECT CAST(COUNT(*) AS uint8) FROM \"" << m_id_ << '"';
   return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
 }
-void StoreTbl::count_rcvd(PGresult *res)
+void StoreTbl::openCount_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
@@ -2016,6 +2072,31 @@ void StoreTbl::close(CloseFn fn)
 
 void StoreTbl::warmup() { /* LATER */ }
 
+void StoreTbl::count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn)
+{
+  ZmAssert(keyID < m_keyFields.length());
+
+  using namespace Work;
+
+  m_store->pqRun([
+    this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
+  ]() mutable {
+    if (m_store->stopping()) {
+      store()->zdbRun([id = m_id, countFn = ZuMv(countFn)]() mutable {
+	countFn(CountResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	  s << "count(" << id << ") failed - DB shutdown in progress";
+	}))});
+      });
+      return;
+    }
+    m_store->enqueue(TblTask{this, Query{Count{
+      .keyID = keyID,
+      .buf = ZuMv(buf),
+      .countFn = ZuMv(countFn)
+    }}});
+  });
+}
+
 void StoreTbl::select(
   bool selectRow, bool selectNext, bool inclusive,
   unsigned keyID, ZmRef<const AnyBuf> buf,
@@ -2079,6 +2160,67 @@ void StoreTbl::select(
   } \
   auto varBuf_ = ZmAlloc(uint8_t, varBufSize_); \
   ZtArray<uint8_t> varBuf(&varBuf_[0], varBufSize_, varBufSize_, false)
+
+int StoreTbl::count_send(Work::Count &count)
+{
+  // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  const auto &keyFields = m_keyFields[count.keyID];
+  const auto &xKeyFields = m_xKeyFields[count.keyID];
+  auto nParams = m_keyGroup[count.keyID];
+  auto fbo = Zfb::GetAnyRoot(count.buf->data());
+
+  IDAlloc(24);
+  ParamAlloc(nParams);
+  VarAlloc(nParams, xKeyFields, fbo);
+
+  if (nParams > 0)
+    loadTuple(
+      params, varBuf, varBufParts,
+      m_store->oids(), nParams, keyFields, xKeyFields, fbo);
+  id << m_id_ << "_count_" << count.keyID;
+  return m_store->sendPrepared<SendState::Flush, true>(id, params);
+}
+void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
+{
+  // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
+
+  if (!res) {
+    m_store->zdbRun([countFn = ZuMv(count.countFn)]() mutable {
+      countFn(CountResult{CountData{.count = 0}});
+    });
+    return;
+  }
+
+  if (PQntuples(res) != 1 ||
+      PQnfields(res) != 1 ||
+      PQgetlength(res, 0, 0) != sizeof(UInt64)) {
+    // invalid query result
+    count_failed(count, ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+      s << "inconsistent count() result for table " << id;
+    })));
+    return;
+  }
+
+  CountResult result{CountData{
+    .count = uint64_t(reinterpret_cast<UInt64 *>(PQgetvalue(res, 0, 0))->v)
+  }};
+  m_store->zdbRun([
+    countFn = count.countFn, result = ZuMv(result)
+  ]() mutable {
+    countFn(ZuMv(result));
+  });
+}
+void StoreTbl::count_failed(Work::Count &count, ZeMEvent e)
+{
+  CountResult result{ZuMv(e)};
+  m_store->zdbRun([
+    countFn = ZuMv(count.countFn),
+    result = ZuMv(result)
+  ]() mutable {
+    countFn(ZuMv(result));
+  });
+}
 
 int StoreTbl::select_send(Work::Select &select)
 {

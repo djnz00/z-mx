@@ -6,8 +6,8 @@
 
 // Z database
 
-// Zdb is a clustered/replicated in-process/in-memory DB that
-// includes leader election and failover. Zdb dynamically organizes
+// Zdb is a clustered/replicated in-process/in-memory DB that includes
+// RAFT-like leader election and failover. Zdb dynamically organizes
 // cluster hosts into a replication chain from the leader to the
 // lowest-priority follower. Replication is async. ZmEngine is used for
 // start/stop state management. Zdb applications are stateful back-end
@@ -758,26 +758,41 @@ struct Buf : public BufCache<T>::Node {
   using Base::Base;
 };
 
+// backing data store count() context
+struct Count__ {
+  using Result = ZuUnion<void, uint64_t>;
+
+  ZmFn<void(Result)>	fn;
+};
+inline constexpr const char *Count_HeapID() { return "Zdb.Count"; }
+template <typename Heap>
+struct Count_ : public Heap, public ZmPolymorph, public Count__ {
+  using Base = Count__;
+  using Base::Base;
+  template <typename ...Args>
+  Count_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+};
+using Count_Heap = ZmHeap<Count_HeapID, sizeof(Count_<ZuNull>)>;
+using Count = Count_<Count_Heap>;
+
 // backing data store select() context
-template <typename T, typename Key> struct Select__ {
-  using Result = ZuUnion<void, Key>;
+template <typename Tuple> struct Select__ {
+  using Result = ZuUnion<void, Tuple>;
 
   ZmFn<void(Result)>	fn;
 };
 inline constexpr const char *Select_HeapID() { return "Zdb.Select"; }
-template <typename T, typename Key, typename Heap>
-struct Select_ :
-  public Heap, public ZmPolymorph, public Select__<T, Key>
-{
-  using Base = Select__<T, Key>;
+template <typename Tuple, typename Heap>
+struct Select_ : public Heap, public ZmPolymorph, public Select__<Tuple> {
+  using Base = Select__<Tuple>;
   using Base::Base;
   template <typename ...Args>
   Select_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
 };
-template <typename T, typename Key>
-using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<T, Key, ZuNull>)>;
-template <typename T, typename Key>
-using Select = Select_<T, Key, Select_Heap<T, Key>>;
+template <typename Tuple>
+using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<Tuple, ZuNull>)>;
+template <typename Tuple>
+using Select = Select_<Tuple, Select_Heap<Tuple>>;
 
 // backing data store find() context (retried on failure)
 template <typename T, typename Key> struct Find__ {
@@ -834,6 +849,7 @@ public:
   using Keys = ZuFieldKeys<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
   template <int KeyID> using Key = ZuFieldKeyT<T, KeyID>;
+  using Tuple = ZuFieldTuple<T>; // same as ZuFieldKeyT<T, ZuFieldKeyID::All>
 
   ZuAssert(Fields::N < maxFields());
   ZuAssert(KeyIDs::N < maxKeys());
@@ -1001,32 +1017,39 @@ private:
   template <
     unsigned KeyID,
     typename SelectKey,
-    typename Tuple,
+    typename Tuple_,
     bool SelectRow,
     bool SelectNext,
     typename L>
   void select_(SelectKey selectKey, bool inclusive, unsigned limit, L l);
 
 public:
-  // select query lambda - l(tuple, i, n) (n is total #results)
+  // table count is implemented by AnyTable
+  uint64_t count() const { return AnyTable::count(); }
+  // count query lambda - l(total)
+  template <unsigned KeyID, typename L>	// initial
+  void count(GroupKey<KeyID> groupKey, L l);
+
+  // select query lambda - l(result, count)
+  // - count is #results so far, including this one
   template <unsigned KeyID, typename L>	// initial
   void selectKeys(GroupKey<KeyID> groupKey, unsigned limit, L l) {
     select_<KeyID, GroupKey<KeyID>, Key<KeyID>, 0, 0>(
       ZuMv(groupKey), false, limit, ZuMv(l));
   }
-  template <unsigned KeyID, typename L>	// continuation
+  template <unsigned KeyID, typename L>	// continuation from key
   void nextKeys(Key<KeyID> key, bool inclusive, unsigned limit, L l) {
     select_<KeyID, Key<KeyID>, Key<KeyID>, 0, 1>(
       ZuMv(key), inclusive, limit, ZuMv(l));
   }
   template <unsigned KeyID, typename L>	// initial
   void selectRows(GroupKey<KeyID> groupKey, unsigned limit, L l) {
-    select_<KeyID, GroupKey<KeyID>, Key<ZuFieldKeyID::All>, 1, 0>(
+    select_<KeyID, GroupKey<KeyID>, Tuple, 1, 0>(
       ZuMv(groupKey), false, limit, ZuMv(l));
   }
-  template <unsigned KeyID, typename L>	// continuation
+  template <unsigned KeyID, typename L>	// continuation from key
   void nextRows(Key<KeyID> key, bool inclusive, unsigned limit, L l) {
-    select_<KeyID, Key<KeyID>, Key<ZuFieldKeyID::All>, 1, 1>(
+    select_<KeyID, Key<KeyID>, Tuple, 1, 1>(
       ZuMv(key), inclusive, limit, ZuMv(l));
   }
 
@@ -1762,17 +1785,47 @@ inline void DB::print(S &s)
 }
 
 template <typename T>
+template <unsigned KeyID, typename L>
+inline void Table<T>::count(GroupKey<KeyID> key, L l)
+{
+  using Context = Count;
+
+  ZmAssert(invoked());
+
+  auto context = ZmMkRef(new Context{ZuMv(l)});
+
+  using Key = GroupKey<KeyID>;
+
+  IOBuilder fbb;
+  fbb.Finish(
+    ZfbField::SaveFieldsFn<Key, ZuFieldList<Key>>::save(fbb, key).Union());
+  auto keyBuf = fbb.buf();
+
+  auto countFn = CountFn::mvFn(ZuMv(context),
+    [](ZmRef<Context> context, CountResult result) {
+      if (ZuUnlikely(result.is<Event>())) { // error
+	ZeLogEvent(ZuMv(result).p<Event>());
+	context->fn(typename Context::Result{});
+	return;
+      }
+      context->fn(result.p<CountData>().count);
+    });
+
+  storeTbl()->count(KeyID, ZuMv(keyBuf).constRef(), ZuMv(countFn));
+}
+
+template <typename T>
 template <
   unsigned KeyID,
   typename SelectKey,
-  typename Tuple,
+  typename Tuple_,
   bool SelectRow,
   bool SelectNext,
   typename L>
 inline void Table<T>::select_(
   SelectKey selectKey, bool inclusive, unsigned limit, L l)
 {
-  using Context = Select<T, Tuple>;
+  using Context = Select<Tuple_>;
 
   ZmAssert(invoked());
 
@@ -1796,7 +1849,7 @@ inline void Table<T>::select_(
 	return;
       }
       auto fbo = ZfbField::root<T>(result.p<TupleData>().buf->data());
-      auto tuple = ZfbField::ctor<Tuple>(fbo);
+      auto tuple = ZfbField::ctor<Tuple_>(fbo);
       context->fn(typename Context::Result{ZuMv(tuple)});
     });
 

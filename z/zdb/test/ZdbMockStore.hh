@@ -1255,6 +1255,35 @@ public:
 
   void warmup() { }
 
+  void count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn) {
+    ZmAssert(keyID < m_indices.length());
+
+    auto work_ = [
+      this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
+    ]() mutable {
+      const auto &keyFields = m_keyFields[keyID];
+      const auto &xKeyFields = m_xKeyFields[keyID];
+
+      unsigned nParams = m_keyGroup[keyID];
+
+      auto key = loadTuple_(
+	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
+      ZeLOG(Debug, ([key](auto &s) {
+	s << "key={" << ZtJoin(key, ", ") << '}';
+      }));
+
+      const auto &index = m_indices[keyID];
+      auto row = index.find<ZmRBTreeGreater>(key);
+      uint64_t i = 0;
+      while (row && index.equals(row->key(), key)) {
+	++i;
+	row = index.next(row);
+      }
+      countFn(CountData{i});
+    };
+    deferWork ? work.push(ZuMv(work_)) : work_();
+  }
+
   void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf> buf,

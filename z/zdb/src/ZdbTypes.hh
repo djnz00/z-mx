@@ -20,7 +20,7 @@ namespace Zdb_ {
 
 // various upper limits
 constexpr unsigned maxFields() { return 0x3fff; }
-constexpr unsigned maxKeys() { return 0xfff; }
+constexpr unsigned maxKeys() { return 0x7ff; }
 
 // Note: at 100K TPS sustained it takes 262,000 years to exhaust a 64bit UN
 

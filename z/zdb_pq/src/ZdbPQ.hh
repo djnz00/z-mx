@@ -1537,6 +1537,12 @@ namespace Work {
 
 struct Open { };	// open table
 
+struct Count {
+  unsigned		keyID;
+  ZmRef<const AnyBuf>	buf;
+  CountFn		countFn;
+};
+
 struct Select {
   unsigned		keyID;
   unsigned		limit;
@@ -1567,7 +1573,7 @@ struct Write {
   bool			mrd = false;	// used by delete only
 };
 
-using Query = ZuUnion<Open, Select, Find, Recover, Write>;
+using Query = ZuUnion<Open, Count, Select, Find, Recover, Write>;
 
 struct Start { };			// start data store
 
@@ -1650,6 +1656,7 @@ public:
     Closed = 0,
     MkTable,	// idempotent create table
     MkIndices,	// idempotent create indices for all keys
+    PrepCount,	// prepare count for all keys
     PrepSelectKIX, // Key, Initial, eXclusive - prepare select for all keys
     PrepSelectKNX, // Key, Next,    eXclusive - ''
     PrepSelectKNI, // Key, Next,    Inclusive - ''
@@ -1675,8 +1682,8 @@ private:
     Failed	= 0x4000,	// used by all
     FieldMask	= 0x3fff,	// used by MkTable, MkIndices
     KeyShift	= 16,
-    KeyMask	= 0xfff,	// up to 4K keys
-    PhaseShift	= 28		// up to 16 phases
+    KeyMask	= 0x7ff,	// up to 2K keys
+    PhaseShift	= 27		// up to 32 phases
   };
 
   ZuAssert(FieldMask >= Zdb_::maxFields());
@@ -1728,6 +1735,8 @@ public:
 
   void warmup();
 
+  void count(unsigned keyID, ZmRef<const AnyBuf>, CountFn);
+
   void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf>,
@@ -1756,6 +1765,10 @@ private:
   int mkIndices_send();
   void mkIndices_rcvd(PGresult *);
 
+  void prepCount();
+  int prepCount_send();
+  void prepCount_rcvd(PGresult *);
+
   void prepSelect();
   int prepSelect_send();
   void prepSelect_rcvd(PGresult *);
@@ -1780,9 +1793,9 @@ private:
   int prepMRD_send();
   void prepMRD_rcvd(PGresult *);
 
-  void count();
-  int count_send();
-  void count_rcvd(PGresult *);
+  void openCount();
+  int openCount_send();
+  void openCount_rcvd(PGresult *);
 
   void maxUN();
   int maxUN_send();
@@ -1797,6 +1810,10 @@ private:
   void mrd_rcvd(PGresult *);
 
   // principal queries
+  int count_send(Work::Count &);
+  void count_rcvd(Work::Count &, PGresult *);
+  void count_failed(Work::Count &, ZeMEvent);
+
   int select_send(Work::Select &);
   void select_rcvd(Work::Select &, PGresult *);
   ZmRef<AnyBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);

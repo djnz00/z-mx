@@ -84,24 +84,27 @@ using CloseFn = ZmFn<>;
 
 // count data (returned by count)
 struct CountData {
-  unsigned		keyID;
   uint64_t		count;
 };
+// key result
+using CountResult = ZuUnion<
+  CountData,		// count
+  Event>;		// error
 // count callback
-using CountFn = ZmFn<void(CountData)>;
+using CountFn = ZmFn<void(CountResult)>;
 
-// key data
+// tuple data
 struct TupleData {
   int			keyID;	// ZuFieldKeyID::All for entire row tuple
   ZmRef<const AnyBuf>	buf;	// tuple data, no replication message header
   unsigned		count;	// number of results so far, including this one
 };
-// key result
+// tuple result
 using TupleResult = ZuUnion<
   void,			// end of results
-  TupleData,		// matching key
+  TupleData,		// matching tuple
   Event>;		// error
-// key callback
+// tuple callback
 // - app must process buf contents synchronously
 using TupleFn = ZmFn<void(TupleResult)>;
 
@@ -131,7 +134,10 @@ public:
   virtual void warmup() = 0;
 
   // buf contains key data, no replication message header
-  virtual void select( // initial
+  virtual void count(unsigned keyID, ZmRef<const AnyBuf>, CountFn) = 0;
+
+  // buf contains key data, no replication message header
+  virtual void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, TupleFn) = 0;
 
