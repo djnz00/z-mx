@@ -55,20 +55,6 @@ ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
   }
 }
 
-// printing ZuBytes in base64
-struct Print {
-  ZuBytes v;
-  template <typename S>
-  friend S &operator <<(S &s, const Print &print) {
-    const auto &v = print.v;
-    auto n = ZuBase64::enclen(v.length());
-    auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf(&buf_[0], n);
-    buf.trunc(ZuBase64::encode(buf, v));
-    return s << ZuString{buf};
-  }
-};
-
 }
 
 #endif /* ZuBase64_HH */

@@ -4,18 +4,22 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// universal string span
+// string quoting and binary data base64 printing
 
-#ifndef ZuQuote_HH
-#define ZuQuote_HH
+#ifndef ZtQuote_HH
+#define ZtQuote_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>
+#include <zlib/ZuBytes.hh>
+#include <zlib/ZuBase64.hh>
 
-namespace ZuQuote {
+#include <zlib/ZmAlloc.hh>
+
+namespace ZtQuote {
 
 // C string quoting
 struct CString {
@@ -50,6 +54,20 @@ struct String {
   }
 };
 
-} // ZuQuote
+// printing ZuBytes in base64
+struct Base64 {
+  ZuBytes v;
+  template <typename S>
+  friend S &operator <<(S &s, const Base64 &print) {
+    const auto &v = print.v;
+    auto n = ZuBase64::enclen(v.length());
+    auto buf_ = ZmAlloc(uint8_t, n);
+    ZuArray<uint8_t> buf(&buf_[0], n);
+    buf.trunc(ZuBase64::encode(buf, v));
+    return s << ZuString{buf};
+  }
+};
 
-#endif /* ZuQuote_HH */
+} // ZtQuote
+
+#endif /* ZtQuote_HH */

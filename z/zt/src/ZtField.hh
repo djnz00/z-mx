@@ -133,13 +133,13 @@
 #include <zlib/ZuField.hh>
 #include <zlib/ZuMArray.hh>
 #include <zlib/ZuID.hh>
-#include <zlib/ZuQuote.hh>
-
-#include <zlib/ZmAlloc.hh>
 #include <zlib/ZuMStream.hh>
 #include <zlib/ZuTime.hh>
+
+#include <zlib/ZmAlloc.hh>
 #include <zlib/ZmSingleton.hh>
 
+#include <zlib/ZtQuote.hh>
 #include <zlib/ZtEnum.hh>
 #include <zlib/ZtString.hh>
 #include <zlib/ZtRegex.hh>
@@ -526,10 +526,10 @@ namespace ZtField_ {
 namespace Print {
 
 // string and C string quoting
-using namespace ZuQuote;
+using namespace ZtQuote;
 
 // bytes printing (base64)
-using Bytes = ZuBase64::Print;
+using Bytes = Base64;
 
 } // Print
 

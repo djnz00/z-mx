@@ -25,7 +25,7 @@
 
 #include <zlib/ZmThread.hh>
 
-// assumes a downwards-growing stack (the stack address is the limit)
+// assumes a downwards-growing stack (i.e. the stack address is the limit)
 // - this is true for all modern architectures, including x86 and ARM
 inline unsigned ZmStackAvail()
 {
