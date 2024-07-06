@@ -1138,10 +1138,7 @@ template <typename T = Tuple> struct TupleCmp {
     }
     return ZuCmp<int>::cmp(ln, rn);
   }
-  static bool equals(const T &l, const T &r) {
-    unsigned ln = l.length();
-    unsigned rn = r.length();
-    unsigned n = ln < rn ? ln : rn;
+  static bool equals(const T &l, const T &r, unsigned n) {
     for (unsigned i = 0; i < n; i++)
       if (!l[i].equals(r[i])) return false;
     return true;
@@ -1275,7 +1272,7 @@ public:
       const auto &index = m_indices[keyID];
       auto row = index.find<ZmRBTreeGreater>(key);
       uint64_t i = 0;
-      while (row && index.equals(row->key(), key)) {
+      while (row && index.equals(row->key(), key, nParams)) {
 	++i;
 	row = index.next(row);
       }
@@ -1298,7 +1295,8 @@ public:
       const auto &keyFields = m_keyFields[keyID];
       const auto &xKeyFields = m_xKeyFields[keyID];
 
-      unsigned nParams = selectNext ? keyFields.length() : m_keyGroup[keyID];
+      unsigned keyGroup = m_keyGroup[keyID];
+      unsigned nParams = selectNext ? keyFields.length() : keyGroup;
 
       auto key = loadTuple_(
 	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
@@ -1311,7 +1309,7 @@ public:
 	index.find<ZmRBTreeGreaterEqual>(key) :
 	index.find<ZmRBTreeGreater>(key);
       unsigned i = 0;
-      while (i++ < limit && row && index.equals(row->key(), key)) {
+      while (i++ < limit && row && index.equals(row->key(), key, keyGroup)) {
 	IOBuilder fbb;
 	if (!selectRow) {
 	  auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
