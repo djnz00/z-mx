@@ -1713,8 +1713,8 @@ friend MxMDLib;
 		ZmHashLock<ZmNoLock,
 		  ZmHashHeapID<OrderBooks_HeapID> > > > > OrderBooks;
 
-  MxMDShard(MxMDLib *md, ZmScheduler *sched, unsigned id, unsigned tid) :
-      ZmShard(sched, tid), m_md(md), m_id(id) {
+  MxMDShard(MxMDLib *md, ZmScheduler *sched, unsigned id, unsigned sid) :
+      ZmShard(sched, sid), m_md(md), m_id(id) {
     m_instruments = new Instruments();
     m_orderBooks = new OrderBooks();
   }
@@ -1823,12 +1823,12 @@ public:
   template <typename L>
   ZuNotMutableFn<L> shard(unsigned i, L l) const {
     MxMDShard *shard = m_shards[i];
-    m_scheduler->invoke(shard->tid(), [l = ZuMv(l), shard]() { l(shard); });
+    m_scheduler->invoke(shard->sid(), [l = ZuMv(l), shard]() { l(shard); });
   }
   template <typename L>
   ZuMutableFn<L> shard(unsigned i, L l) const {
     MxMDShard *shard = m_shards[i];
-    m_scheduler->invoke(shard->tid(),
+    m_scheduler->invoke(shard->sid(),
 	[l = ZuMv(l), shard]() mutable { l(shard); });
   }
 
@@ -1895,12 +1895,12 @@ private:
 
 friend ZmShard;
   template <typename ...Args>
-  void run(unsigned tid, Args &&... args) {
-    m_scheduler->run(tid, ZuFwd<Args>(args)...);
+  void run(unsigned sid, Args &&... args) {
+    m_scheduler->run(sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(unsigned tid, Args &&... args) {
-    m_scheduler->invoke(tid, ZuFwd<Args>(args)...);
+  void invoke(unsigned sid, Args &&... args) {
+    m_scheduler->invoke(sid, ZuFwd<Args>(args)...);
   }
 
   typedef ZtArray<ZuRef<MxMDShard> > Shards;
