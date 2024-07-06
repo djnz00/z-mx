@@ -65,7 +65,6 @@ int main(int argc, char **argv)
   static ZvOpt opts[] = { { 0 } };
 
   ZmRef<ZvCf> cf;
-  ZuString hashOut;
 
   try {
     cf = inlineCf(

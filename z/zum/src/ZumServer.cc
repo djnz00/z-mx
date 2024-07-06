@@ -32,10 +32,10 @@ Mgr::~Mgr()
 
 void Mgr::init(Zdb *db)
 {
-  m_userTbl = db->initTable<User>("user");
-  m_roleTbl = db->initTable<Role>("role");
-  m_keyTbl = db->initTable<Key>("key");
-  m_permTbl = db->initTable<Perm>("perm");
+  m_userTbl = db->initTable<User>("zum.user");
+  m_roleTbl = db->initTable<Role>("zum.role");
+  m_keyTbl = db->initTable<Key>("zum.key");
+  m_permTbl = db->initTable<Perm>("zum.perm");
 }
 
 void Mgr::final()
