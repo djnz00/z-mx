@@ -27,7 +27,7 @@
 #include <zlib/ZmShard.hh>
 #include <zlib/ZmScheduler.hh>
 
-#include <zlib/ZvCmdHost.hh>
+#include <zlib/ZcmdHost.hh>
 
 #include <mxbase/MxBase.hh>
 
@@ -1864,7 +1864,7 @@ public:
 
   // add command
   virtual void addCmd(ZuString name, ZuString syntax,
-      ZvCmdFn fn, ZtString brief, ZtString usage) = 0;
+      ZcmdFn fn, ZtString brief, ZtString usage) = 0;
 
   // single instrument / order book lookup
   static ZuString lookupSyntax();

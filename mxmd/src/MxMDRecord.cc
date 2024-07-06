@@ -36,7 +36,7 @@ void MxMDRecord::init(MxMDCore *core, const ZvCf *cf)
   core->addCmd(
       "record",
       "s stop stop { type flag }",
-      ZvCmdFn::Member<&MxMDRecord::recordCmd>::fn(this),
+      ZcmdFn::Member<&MxMDRecord::recordCmd>::fn(this),
       "record market data to file", 
       "usage: record FILE\n"
       "       record -s\n"
@@ -362,16 +362,16 @@ void MxMDRecLink::process(MxQMsg *qmsg)
 int MxMDRecord::recordCmd(void *context, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc < 1 || argc > 2) throw ZvCmdUsage();
+  if (argc < 1 || argc > 2) throw ZcmdUsage();
   if (!!args->get("stop")) {
-    if (argc == 2) throw ZvCmdUsage();
+    if (argc == 2) throw ZcmdUsage();
     if (ZtString path = stopRecording())
       out << "stopped recording to \"" << path << "\"\n";
     return 0;
   }
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   ZtString path = args->get("1");
-  if (!path) ZvCmdUsage();
+  if (!path) ZcmdUsage();
   if (!record(path)) {
     out << "failed to record to \"" << path << "\"\n";
     return 1;

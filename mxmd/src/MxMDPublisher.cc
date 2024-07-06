@@ -47,7 +47,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
 
   core->addCmd(
       "publisher.status", "",
-      ZvCmdFn::Member<&MxMDPublisher::statusCmd>::fn(this),
+      ZcmdFn::Member<&MxMDPublisher::statusCmd>::fn(this),
       "publisher status",
       "usage: publisher.status\n");
 }
@@ -778,7 +778,7 @@ void MxMDPubLink::ack()
 void MxMDPublisher::statusCmd(void *, const ZvCf *args, ZtString &out)
 {
   int argc = ZuBox<int>(args->get("#"));
-  if (argc != 1) throw ZvCmdUsage();
+  if (argc != 1) throw ZcmdUsage();
   out.size(512 * nLinks());
   out << "State: " << MxEngineState::name(state()) << '\n';
   allLinks<MxMDPubLink>([&out](MxMDPubLink *link) {

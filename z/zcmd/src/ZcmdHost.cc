@@ -4,30 +4,30 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// ZvCmd locally hosted commands
+// Zcmd locally hosted commands
 
-#include <zlib/ZvCmdHost.hh>
+#include <zlib/ZcmdHost.hh>
 
 #include <zlib/ZiModule.hh>
 
-void ZvCmdHost::init()
+void ZcmdHost::init()
 {
   m_syntax = new ZvCf();
-  addCmd("help", "", ZvCmdFn::Member<&ZvCmdHost::helpCmd>::fn(this),
+  addCmd("help", "", ZcmdFn::Member<&ZcmdHost::helpCmd>::fn(this),
       "list commands", "usage: help [COMMAND]");
-  addCmd("loadmod", "", ZvCmdFn::Member<&ZvCmdHost::loadModCmd>::fn(this),
+  addCmd("loadmod", "", ZcmdFn::Member<&ZcmdHost::loadModCmd>::fn(this),
       "load application-specific module", "usage: loadmod MODULE");
 }
 
-void ZvCmdHost::final()
+void ZcmdHost::final()
 {
   while (auto fn = m_finalFn.pop()) fn();
   m_syntax = nullptr;
   m_cmds.clean();
 }
 
-void ZvCmdHost::addCmd(
-    ZuString name, ZuString syntax, ZvCmdFn fn, ZtString brief, ZtString usage)
+void ZcmdHost::addCmd(
+    ZuString name, ZuString syntax, ZcmdFn fn, ZtString brief, ZtString usage)
 {
   Guard guard(m_lock);
   {
@@ -41,9 +41,9 @@ void ZvCmdHost::addCmd(
     m_cmds.add(name, CmdData{ZuMv(fn), ZuMv(brief), ZuMv(usage)});
 }
 
-bool ZvCmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
+bool ZcmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
 
-void ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
+void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
 {
   if (!args_) return;
   auto &out = ctx->out;
@@ -60,7 +60,7 @@ void ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
       return;
     }
     (cmd->val().fn)(ctx);
-  } catch (const ZvCmdUsage &) {
+  } catch (const ZcmdUsage &) {
     out << cmd->val().usage << '\n';
     executed(1, ctx);
   } catch (const ZvError &e) {
@@ -81,12 +81,12 @@ void ZvCmdHost::processCmd(ZvCmdContext *ctx, ZuArray<const ZtString> args_)
   }
 }
 
-void ZvCmdHost::helpCmd(ZvCmdContext *ctx)
+void ZcmdHost::helpCmd(ZcmdContext *ctx)
 {
   auto &out = ctx->out;
   const auto &args = ctx->args;
   int argc = ZuBox<int>{args->get("#")};
-  if (argc > 2) throw ZvCmdUsage();
+  if (argc > 2) throw ZcmdUsage();
   if (ZuUnlikely(argc == 2)) {
     auto cmd = m_cmds.find(args->get("1"));
     if (!cmd) {
@@ -108,12 +108,12 @@ void ZvCmdHost::helpCmd(ZvCmdContext *ctx)
   executed(0, ctx);
 }
 
-void ZvCmdHost::loadModCmd(ZvCmdContext *ctx)
+void ZcmdHost::loadModCmd(ZcmdContext *ctx)
 {
   auto &out = ctx->out;
   const auto &args = ctx->args;
   int argc = ZuBox<int>{args->get("#")};
-  if (argc != 2) throw ZvCmdUsage{};
+  if (argc != 2) throw ZcmdUsage{};
   ZiModule module;
   ZiModule::Path name = args->get("1", true);
   ZtString e;
@@ -122,21 +122,21 @@ void ZvCmdHost::loadModCmd(ZvCmdContext *ctx)
     executed(1, ctx);
     return;
   }
-  ZvCmdInitFn initFn = reinterpret_cast<ZvCmdInitFn>(
-      module.resolve("ZvCmd_plugin", &e));
+  ZcmdInitFn initFn = reinterpret_cast<ZcmdInitFn>(
+      module.resolve("Zcmd_plugin", &e));
   if (!initFn) {
     module.unload();
-    out << "failed to resolve \"ZvCmd_plugin\" in \"" <<
+    out << "failed to resolve \"Zcmd_plugin\" in \"" <<
       name << "\": " << ZuMv(e) << '\n';
     executed(1, ctx);
     return;
   }
-  (*initFn)(static_cast<ZvCmdHost *>(this));
+  (*initFn)(static_cast<ZcmdHost *>(this));
   out << "module \"" << name << "\" loaded\n";
   executed(0, ctx);
 }
 
-void ZvCmdHost::finalFn(ZmFn<> fn)
+void ZcmdHost::finalFn(ZmFn<> fn)
 {
   m_finalFn << ZuMv(fn);
 }

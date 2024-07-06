@@ -10,22 +10,22 @@
 #include <zlib/ZmTrap.hh>
 #include <zlib/ZmTime.hh>
 
-#include <zlib/ZvCmdServer.hh>
+#include <zlib/ZcmdServer.hh>
 
 class CmdTest;
 
-struct Link : public ZvCmdSrvLink<CmdTest, Link> {
-  using Base = ZvCmdSrvLink<CmdTest, Link>;
+struct Link : public ZcmdSrvLink<CmdTest, Link> {
+  using Base = ZcmdSrvLink<CmdTest, Link>;
   Link(CmdTest *app) : Base{app} { }
 };
 
-class CmdTest : public ZmPolymorph, public ZvCmdServer<CmdTest, Link> {
+class CmdTest : public ZmPolymorph, public ZcmdServer<CmdTest, Link> {
 public:
   void init(ZiMultiplex *mx, const ZvCf *cf) {
     m_uptime = Zm::now();
-    ZvCmdServer::init(mx, cf);
-    addCmd("ackme", "", ZvCmdFn{
-      [](ZvCmdContext *ctx) {
+    ZcmdServer::init(mx, cf);
+    addCmd("ackme", "", ZcmdFn{
+      [](ZcmdContext *ctx) {
 	if (auto cxn = ctx->link<Link>()->cxn())
 	  std::cout << cxn->info().remoteIP << ':'
 	    << ZuBoxed(cxn->info().remotePort) << ' ';
@@ -34,12 +34,12 @@ public:
 	  << "cmd: " << ctx->args->get("0") << '\n';
 	ctx->out << "this is an ack\n";
       }}, "test ack", "");
-    addCmd("nakme", "", ZvCmdFn{
-      [](ZvCmdContext *ctx) {
+    addCmd("nakme", "", ZcmdFn{
+      [](ZcmdContext *ctx) {
 	ctx->out << "this is a nak\n";
       }}, "test nak", "");
-    addCmd("quit", "", ZvCmdFn{
-      [](ZvCmdContext *ctx) {
+    addCmd("quit", "", ZcmdFn{
+      [](ZcmdContext *ctx) {
 	ctx->app<CmdTest>()->post();
 	ctx->out << "quitting...\n";
       }}, "quit", "");

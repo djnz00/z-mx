@@ -30,8 +30,8 @@
 #include <zlib/ZvRingParams.hh>
 #include <zlib/ZvMxParams.hh>
 #include <zlib/ZvUserDB.hh>
-#include <zlib/ZvCmdClient.hh>
-#include <zlib/ZvCmdServer.hh>
+#include <zlib/ZcmdClient.hh>
+#include <zlib/ZcmdServer.hh>
 
 #include <zlib/Zdf.hh>
 
@@ -820,9 +820,9 @@ class App_Cli;
 class App_Srv;
 class SrvLink;
 
-class CliLink_ : public ZvCmdCliLink<App_Cli, CliLink_> {
+class CliLink_ : public ZcmdCliLink<App_Cli, CliLink_> {
 public:
-  using Base = ZvCmdCliLink<App_Cli, CliLink_>;
+  using Base = ZcmdCliLink<App_Cli, CliLink_>;
   using ID = unsigned;
   using Key = ID;
   Key key() const { return id; }
@@ -856,9 +856,9 @@ using CliLinks =
 	    ZmRBTreeHeapID<CliLink_HeapID>>>>>>;
 using CliLink = CliLinks::Node;
 
-class SrvLink : public ZvCmdSrvLink<App_Srv, SrvLink> {
+class SrvLink : public ZcmdSrvLink<App_Srv, SrvLink> {
 public:
-  using Base = ZvCmdSrvLink<App_Srv, SrvLink>;
+  using Base = ZcmdSrvLink<App_Srv, SrvLink>;
   SrvLink(App_Srv *app);
 
   int processCmd(const uint8_t *data, unsigned len);
@@ -869,8 +869,8 @@ public:
 
 class App;
 
-class App_Cli : public ZvCmdClient<App_Cli, CliLink_> { };
-class App_Srv : public ZvCmdServer<App_Srv, SrvLink> {
+class App_Cli : public ZcmdClient<App_Cli, CliLink_> { };
+class App_Srv : public ZcmdServer<App_Srv, SrvLink> {
 public:
   void telemetry(ZvTelemetry::App &data);
 };
@@ -881,9 +881,9 @@ class App :
     public App_Srv,
     public ZGtk::App {
 public:
-  using Client = ZvCmdClient<App_Cli, CliLink_>;
+  using Client = ZcmdClient<App_Cli, CliLink_>;
   using FBB = typename Client::FBB;
-  using Server = ZvCmdServer<App_Srv, SrvLink>;
+  using Server = ZcmdServer<App_Srv, SrvLink>;
   using User = Server::User;
 
 #pragma pack(push, 1)
@@ -1179,7 +1179,7 @@ public:
     fbb_.add_rejCode(code);
     fbb_.add_rejText(text_);
     m_fbb.Finish(fbb_.Finish());
-    srvLink->send_(ZvCmd::saveHdr(m_fbb, m_id));
+    srvLink->send_(Zcmd::saveHdr(m_fbb, m_id));
     return len;
   }
 
@@ -1337,7 +1337,7 @@ public:
       fbb_.add_data(ackData);
       m_fbb.Finish(fbb_.Finish());
     }
-    srvLink->send_(ZvCmd::saveHdr(m_fbb, m_id));
+    srvLink->send_(Zcmd::saveHdr(m_fbb, m_id));
     return len;
   }
 
@@ -1346,13 +1346,13 @@ public:
   int processDeflt(
       CliLink_ *cliLink, ZuID, const uint8_t *data, unsigned len) {
     if (auto srvLink = cliLink->srvLink)
-      srvLink->send_(data - sizeof(ZvCmd::Hdr), len + sizeof(ZvCmd::Hdr));
+      srvLink->send_(data - sizeof(Zcmd::Hdr), len + sizeof(Zcmd::Hdr));
     return len;
   }
   int processDeflt(
       SrvLink *srvLink, ZuID id, const uint8_t *data, unsigned len) {
     if (auto cliLink = srvLink->cliLink)
-      cliLink->send_(data - sizeof(ZvCmd::Hdr), len + sizeof(ZvCmd::Hdr));
+      cliLink->send_(data - sizeof(Zcmd::Hdr), len + sizeof(Zcmd::Hdr));
     return len;
   }
 

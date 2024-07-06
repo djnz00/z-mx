@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// ZvCmd message dispatcher
+// Zcmd message dispatcher
 
-#ifndef ZvCmdDispatcher_HH
-#define ZvCmdDispatcher_HH
+#ifndef ZcmdDispatcher_HH
+#define ZcmdDispatcher_HH
 
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
@@ -22,7 +22,7 @@
 #include <zlib/ZmNoLock.hh>
 #include <zlib/ZmLHash.hh>
 
-class ZvAPI ZvCmdDispatcher {
+class ZvAPI ZcmdDispatcher {
 public:
   using Fn = ZmFn<void(void *, const uint8_t *, unsigned)>;
   using DefltFn = ZmFn<void(void *, ZuID, const uint8_t *, unsigned)>;
@@ -39,7 +39,7 @@ private:
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
-  static const char *FnMapID() { return "ZvCmdDispatcher.FnMap"; }
+  static const char *FnMapID() { return "ZcmdDispatcher.FnMap"; }
   using FnMap = ZmLHashKV<ZuID, Fn, ZmLHashID<FnMapID, ZmLHashLocal<>>>;
 
   Lock			m_lock;
@@ -47,4 +47,4 @@ private:
     DefltFn		  m_defltFn;
 };
 
-#endif /* ZvCmdDispatcher_HH */
+#endif /* ZcmdDispatcher_HH */

@@ -23,7 +23,7 @@
 #include <zlib/ZePlatform.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvCmdServer.hh>
+#include <zlib/ZcmdServer.hh>
 
 #include <mxbase/MxMultiplex.hh>
 #include <mxbase/MxEngine.hh>
@@ -48,9 +48,9 @@ extern "C" {
 };
 
 class MxMDAPI MxMDCmdServer :
-    public ZmPolymorph, public ZvCmdServer<MxMDCmdServer> {
+    public ZmPolymorph, public ZcmdServer<MxMDCmdServer> {
 public:
-  using Base = ZvCmdServer<MxMDCmdServer>;
+  using Base = ZcmdServer<MxMDCmdServer>;
   using Link = typename Base::Link;
   using User = typename Base::User;
 
@@ -115,7 +115,7 @@ public:
   // null if unconfigured
   ZuInline MxMDCmdServer *cmdServer() { return m_cmdServer; }
   void addCmd(ZuString name, ZuString syntax,
-      ZvCmdFn fn, ZtString brief, ZtString usage) {
+      ZcmdFn fn, ZtString brief, ZtString usage) {
     if (!m_cmdServer) return;
     m_cmdServer->addCmd(name, syntax, ZuMv(fn), brief, usage);
   }

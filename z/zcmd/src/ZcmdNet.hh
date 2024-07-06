@@ -4,8 +4,8 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#ifndef ZvCmdNet_HH
-#define ZvCmdNet_HH
+#ifndef ZcmdNet_HH
+#define ZcmdNet_HH
 
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
@@ -21,7 +21,7 @@
 
 // custom header
 
-namespace ZvCmd {
+namespace Zcmd {
 
 namespace Type {
   inline ZuID login()		{ static ZuID id{"login"}; return id; }
@@ -84,6 +84,6 @@ inline int verifyHdr(const Buf *buf, Fn fn) {
   return sizeof(Hdr) + i;
 }
 
-} // namespace ZvCmd
+} // namespace Zcmd
 
-#endif /* ZvCmdNet_HH */
+#endif /* ZcmdNet_HH */

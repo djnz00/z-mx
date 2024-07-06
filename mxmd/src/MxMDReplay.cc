@@ -32,7 +32,7 @@ void MxMDReplay::init(MxMDCore *core, ZmRef<ZvCf> cf)
   core->addCmd(
       "replay",
       "s stop stop { type flag }",
-      ZvCmdFn::Member<&MxMDReplay::replayCmd>::fn(this),
+      ZcmdFn::Member<&MxMDReplay::replayCmd>::fn(this),
       "replay market data from file",
       "usage: replay FILE\n"
       "       replay -s\n"
@@ -242,15 +242,15 @@ eof:
 void MxMDReplay::replayCmd(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc < 1 || argc > 2) throw ZvCmdUsage();
+  if (argc < 1 || argc > 2) throw ZcmdUsage();
   if (!!args->get("stop")) {
     if (ZtString path = stopReplaying())
       out << "stopped replaying to \"" << path << "\"\n";
     return;
   }
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   ZtString path = args->get("1");
-  if (!path) ZvCmdUsage();
+  if (!path) ZcmdUsage();
   if (replay(path))
     out << "started replaying from \"" << path << "\"\n";
   else

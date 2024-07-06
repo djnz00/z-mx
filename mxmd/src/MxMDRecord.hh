@@ -23,7 +23,7 @@
 
 #include <zlib/ZiFile.hh>
 
-#include <zlib/ZvCmdHost.hh>
+#include <zlib/ZcmdHost.hh>
 
 #include <mxbase/MxEngine.hh>
 

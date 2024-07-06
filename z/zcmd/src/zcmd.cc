@@ -19,8 +19,8 @@
 
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvCSV.hh>
-#include <zlib/ZvCmdClient.hh>
-#include <zlib/ZvCmdHost.hh>
+#include <zlib/ZcmdClient.hh>
+#include <zlib/ZcmdHost.hh>
 #include <zlib/ZvUserDB.hh>
 
 #include <zlib/ZuBase32.hh>
@@ -140,9 +140,9 @@ private:
 
 class ZCmd;
 
-class Link : public ZvCmdCliLink<ZCmd, Link> {
+class Link : public ZcmdCliLink<ZCmd, Link> {
 public:
-  using Base = ZvCmdCliLink<ZCmd, Link>;
+  using Base = ZcmdCliLink<ZCmd, Link>;
   template <typename Server>
   Link(ZCmd *app, Server &&server, uint16_t port);
 
@@ -155,10 +155,10 @@ public:
 
 class ZCmd :
     public ZmPolymorph,
-    public ZvCmdClient<ZCmd, Link>,
-    public ZvCmdHost {
+    public ZcmdClient<ZCmd, Link>,
+    public ZcmdHost {
 public:
-  using Base = ZvCmdClient<ZCmd, Link>;
+  using Base = ZcmdClient<ZCmd, Link>;
   using FBB = typename Base::FBB;
 
 friend Link;
@@ -166,7 +166,7 @@ friend Link;
   void init(ZiMultiplex *mx, const ZvCf *cf, bool interactive) {
     Base::init(mx, cf);
     m_interactive = interactive;
-    ZvCmdHost::init();
+    ZcmdHost::init();
     initCmds();
     if (m_interactive)
       m_cli.init(Zrl::App{
@@ -210,7 +210,7 @@ friend Link;
     m_cli.final();
     for (unsigned i = 0; i < TelDataN; i++) m_telcap[i] = TelCap{};
     m_link = nullptr;
-    ZvCmdHost::final();
+    ZcmdHost::final();
     Base::final();
   }
 
@@ -256,8 +256,8 @@ friend Link;
 
   void exiting() { m_exiting = true; }
 
-  // ZvCmdHost virtual functions
-  ZvCmdDispatcher *dispatcher() { return this; }
+  // ZcmdHost virtual functions
+  ZcmdDispatcher *dispatcher() { return this; }
   void send(void *link, ZmRef<ZiAnyIOBuf> buf) {
     return static_cast<Link *>(link)->send(ZuMv(buf));
   }
@@ -352,7 +352,7 @@ private:
   int exec(ZtString cmd) {
     if (!cmd) return 0;
     ZtString cmd_ = ZuMv(cmd);
-    ZvCmdContext ctx{
+    ZcmdContext ctx{
       .app_ = this,
       .link_ = m_link,
       .interactive = m_interactive
@@ -400,21 +400,21 @@ private:
     return ctx.code;
   }
 
-  void send(ZvCmdContext *ctx, ZuArray<const ZtString> args) {
+  void send(ZcmdContext *ctx, ZuArray<const ZtString> args) {
     auto seqNo = m_seqNo++;
-    m_fbb.Finish(ZvCmd::fbs::CreateRequest(m_fbb, seqNo,
+    m_fbb.Finish(Zcmd::fbs::CreateRequest(m_fbb, seqNo,
 	  Zfb::Save::strVecIter(m_fbb, args.length(),
 	    [&args](unsigned i) { return args[i]; })));
     m_link->sendCmd(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
-	  const ZvCmd::fbs::ReqAck *ack) mutable {
+	  const Zcmd::fbs::ReqAck *ack) mutable {
       using namespace Zfb::Load;
       ctx.out = str(ack->out());
       executed(ack->code(), &ctx);
     });
   }
 
-  using ZvCmdHost::executed;
-  void executed(ZvCmdContext *ctx) {
+  using ZcmdHost::executed;
+  void executed(ZcmdContext *ctx) {
     if (const auto &out = ctx->out)
       fwrite(out.data(), 1, out.length(), ctx->file);
     fflush(stdout);
@@ -451,91 +451,91 @@ private:
 
   void initCmds() {
     addCmd("passwd", "",
-	ZvCmdFn::Member<&ZCmd::passwdCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::passwdCmd>::fn(this),
 	"change passwd", "usage: passwd");
 
     addCmd("users", "",
-	ZvCmdFn::Member<&ZCmd::usersCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
 	"list users", "usage: users");
     addCmd("useradd",
 	"e enabled enabled { type flag } "
 	"i immutable immutable { type flag }",
-	ZvCmdFn::Member<&ZCmd::userAddCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::userAddCmd>::fn(this),
 	"add user",
 	"usage: useradd ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("resetpass", "",
-	ZvCmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
 	"reset password", "usage: resetpass USERID");
     addCmd("usermod",
 	"e enabled enabled { type flag } "
 	"i immutable immutable { type flag }",
-	ZvCmdFn::Member<&ZCmd::userModCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::userModCmd>::fn(this),
 	"modify user",
 	"usage: usermod ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("userdel", "",
-	ZvCmdFn::Member<&ZCmd::userDelCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::userDelCmd>::fn(this),
 	"delete user", "usage: userdel ID");
 
     addCmd("roles", "",
-	ZvCmdFn::Member<&ZCmd::rolesCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::rolesCmd>::fn(this),
 	"list roles", "usage: roles");
     addCmd("roleadd", "i immutable immutable { type flag }",
-	ZvCmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
 	"add role",
 	"usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("rolemod", "i immutable immutable { type scalar }",
-	ZvCmdFn::Member<&ZCmd::roleModCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::roleModCmd>::fn(this),
 	"modify role",
 	"usage: rolemod NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("roledel", "",
-	ZvCmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
 	"delete role",
 	"usage: roledel NAME");
 
     addCmd("perms", "",
-	ZvCmdFn::Member<&ZCmd::permsCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::permsCmd>::fn(this),
 	"list permissions", "usage: perms");
     addCmd("permadd", "",
-	ZvCmdFn::Member<&ZCmd::permAddCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::permAddCmd>::fn(this),
 	"add permission", "usage: permadd NAME");
     addCmd("permmod", "",
-	ZvCmdFn::Member<&ZCmd::permModCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::permModCmd>::fn(this),
 	"modify permission", "usage: permmod ID NAME");
     addCmd("permdel", "",
-	ZvCmdFn::Member<&ZCmd::permDelCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::permDelCmd>::fn(this),
 	"delete permission", "usage: permdel ID");
 
     addCmd("keys", "",
-	ZvCmdFn::Member<&ZCmd::keysCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::keysCmd>::fn(this),
 	"list keys", "usage: keys [USERID]");
     addCmd("keyadd", "",
-	ZvCmdFn::Member<&ZCmd::keyAddCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::keyAddCmd>::fn(this),
 	"add key", "usage: keyadd [USERID]");
     addCmd("keydel", "",
-	ZvCmdFn::Member<&ZCmd::keyDelCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::keyDelCmd>::fn(this),
 	"delete key", "usage: keydel ID");
     addCmd("keyclr", "",
-	ZvCmdFn::Member<&ZCmd::keyClrCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::keyClrCmd>::fn(this),
 	"clear all keys", "usage: keyclr [USERID]");
 
     addCmd("remote", "",
-	ZvCmdFn::Member<&ZCmd::remoteCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::remoteCmd>::fn(this),
 	"run command remotely", "usage: remote COMMAND...");
 
     addCmd("telcap",
 	"i interval interval { type scalar } "
 	"u unsubscribe unsubscribe { type flag }",
-	ZvCmdFn::Member<&ZCmd::telcapCmd>::fn(this),
+	ZcmdFn::Member<&ZCmd::telcapCmd>::fn(this),
 	"telemetry capture",
 	"usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"
 	"  PATH\tdirectory for capture CSV files\n"
@@ -547,9 +547,9 @@ private:
 	"  -u, --unsubscribe\tunsubscribe (i.e. end capture)\n");
   }
 
-  void passwdCmd(ZvCmdContext *ctx) {
+  void passwdCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 1) throw ZvCmdUsage{};
+    if (argc != 1) throw ZcmdUsage{};
     ZtString oldpw = m_cli.getpass("Current password: ", 100);
     ZtString newpw = m_cli.getpass("New password: ", 100);
     ZtString checkpw = m_cli.getpass("Re-type new password: ", 100);
@@ -621,9 +621,9 @@ private:
     }
   }
 
-  void usersCmd(ZvCmdContext *ctx) {
+  void usersCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -651,9 +651,9 @@ private:
       return;
     });
   }
-  void userAddCmd(ZvCmdContext *ctx) {
+  void userAddCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZvCmdUsage{};
+    if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -692,9 +692,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void resetPassCmd(ZvCmdContext *ctx) {
+  void resetPassCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -724,9 +724,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void userModCmd(ZvCmdContext *ctx) {
+  void userModCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZvCmdUsage{};
+    if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -763,9 +763,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void userDelCmd(ZvCmdContext *ctx) {
+  void userDelCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -812,9 +812,9 @@ private:
     if (role_->flags() & Role::Immutable) out << "Immutable";
   }
 
-  void rolesCmd(ZvCmdContext *ctx) {
+  void rolesCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -843,9 +843,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void roleAddCmd(ZvCmdContext *ctx) {
+  void roleAddCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZvCmdUsage{};
+    if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -880,9 +880,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void roleModCmd(ZvCmdContext *ctx) {
+  void roleModCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZvCmdUsage{};
+    if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -917,9 +917,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void roleDelCmd(ZvCmdContext *ctx) {
+  void roleDelCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -948,9 +948,9 @@ private:
     });
   }
 
-  void permsCmd(ZvCmdContext *ctx) {
+  void permsCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -978,9 +978,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void permAddCmd(ZvCmdContext *ctx) {
+  void permAddCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1010,9 +1010,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void permModCmd(ZvCmdContext *ctx) {
+  void permModCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 3) throw ZvCmdUsage{};
+    if (argc != 3) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1043,9 +1043,9 @@ private:
       executed(0, &ctx);
     });
   }
-  void permDelCmd(ZvCmdContext *ctx) {
+  void permDelCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1076,9 +1076,9 @@ private:
     });
   }
 
-  void keysCmd(ZvCmdContext *ctx) {
+  void keysCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1113,9 +1113,9 @@ private:
     });
   }
 
-  void keyAddCmd(ZvCmdContext *ctx) {
+  void keyAddCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1158,9 +1158,9 @@ private:
     });
   }
 
-  void keyDelCmd(ZvCmdContext *ctx) {
+  void keyDelCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 2) throw ZvCmdUsage{};
+    if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1192,9 +1192,9 @@ private:
     });
   }
 
-  void keyClrCmd(ZvCmdContext *ctx) {
+  void keyClrCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZvCmdUsage{};
+    if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
     using namespace ZvUserDB;
     {
@@ -1231,18 +1231,18 @@ private:
     });
   }
 
-  void remoteCmd(ZvCmdContext *) { } // unused
+  void remoteCmd(ZcmdContext *) { } // unused
 
-  void telcapCmd(ZvCmdContext *ctx) {
+  void telcapCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
     using namespace ZvTelemetry;
     unsigned interval = ctx->args->getInt("interval", 0, 1000000, 100);
     bool subscribe = !ctx->args->getBool("unsubscribe");
     if (!subscribe) {
       for (unsigned i = 0; i < TelDataN; i++) m_telcap[i] = TelCap{};
-      if (argc > 1) throw ZvCmdUsage{};
+      if (argc > 1) throw ZcmdUsage{};
     } else {
-      if (argc < 2) throw ZvCmdUsage{};
+      if (argc < 2) throw ZcmdUsage{};
     }
     ZtArray<ZmAtomic<unsigned>> ok;
     ZtArray<ZuString> filters;
@@ -1275,7 +1275,7 @@ private:
 	types[j] = -1;
 	for (unsigned k = ReqType::MIN; k <= ReqType::MAX; k++)
 	  if (type_ == reqNames[k]) { types[j] = k; break; }
-	if (types[j] < 0) throw ZvCmdUsage{};
+	if (types[j] < 0) throw ZcmdUsage{};
       }
     }
     auto &out = ctx->out;

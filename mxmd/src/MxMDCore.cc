@@ -394,7 +394,7 @@ void MxMDCore::initCmds()
 
   m_cmdServer->addCmd(
       "l1", ZtString("c csv csv { type flag }\n") + lookupSyntax(),
-      ZvCmdFn::Member<&MxMDCore::l1>::fn(this),
+      ZcmdFn::Member<&MxMDCore::l1>::fn(this),
       "dump L1 data",
       ZtString("usage: l1 SYMBOL [SYMBOL]... [OPTION]...\n"
 	"Display level 1 market data for SYMBOL(s)\n\n"
@@ -403,33 +403,33 @@ void MxMDCore::initCmds()
 	lookupOptions());
   m_cmdServer->addCmd(
       "l2", lookupSyntax(),
-      ZvCmdFn::Member<&MxMDCore::l2>::fn(this),
+      ZcmdFn::Member<&MxMDCore::l2>::fn(this),
       "dump L2 data",
       ZtString("usage: l2 SYMBOL [OPTION]...\n"
 	"Display level 2 market data for SYMBOL\n\nOptions:\n") <<
 	lookupOptions());
   m_cmdServer->addCmd(
       "instrument", lookupSyntax(),
-      ZvCmdFn::Member<&MxMDCore::instrument_>::fn(this),
+      ZcmdFn::Member<&MxMDCore::instrument_>::fn(this),
       "dump instrument reference data",
       ZtString("usage: instrument SYMBOL [OPTION]...\n"
 	"Display instrument reference data (\"static data\") for SYMBOL\n\n"
 	"Options:\n") << lookupOptions());
   m_cmdServer->addCmd(
       "ticksizes", "",
-      ZvCmdFn::Member<&MxMDCore::ticksizes>::fn(this),
+      ZcmdFn::Member<&MxMDCore::ticksizes>::fn(this),
       "dump tick sizes in CSV format",
       "usage: ticksizes [VENUE [SEGMENT]]\n"
       "dump tick sizes in CSV format");
   m_cmdServer->addCmd(
       "instruments", "",
-      ZvCmdFn::Member<&MxMDCore::instruments>::fn(this),
+      ZcmdFn::Member<&MxMDCore::instruments>::fn(this),
       "dump instruments in CSV format",
       "usage: instruments [VENUE [SEGMENT]]\n"
       "dump instruments in CSV format");
   m_cmdServer->addCmd(
       "orderbooks", "",
-      ZvCmdFn::Member<&MxMDCore::orderbooks>::fn(this),
+      ZcmdFn::Member<&MxMDCore::orderbooks>::fn(this),
       "dump order books in CSV format",
       "usage: orderbooks [VENUE [SEGMENT]]\n"
       "dump order books in CSV format");
@@ -438,7 +438,7 @@ void MxMDCore::initCmds()
   m_cmdServer->addCmd(
       "subscribe",
       "s stop stop { type scalar }",
-      ZvCmdFn::Member<&MxMDCore::subscribeCmd>::fn(this),
+      ZcmdFn::Member<&MxMDCore::subscribeCmd>::fn(this),
       "subscribe to market data",
       "usage: subscribe IPCRING\n"
       "       subscribe -s ID\n"
@@ -449,10 +449,10 @@ void MxMDCore::initCmds()
 
   m_cmdServer->addCmd(
       "logAge", "",
-      ZvCmdFn{this,
+      ZcmdFn{this,
 	[](MxMDCore *, void *, const ZvCf *args, ZtString &out) {
 	  ZuBox<int> argc = args->get("#");
-	  if (argc != 1) throw ZvCmdUsage{};
+	  if (argc != 1) throw ZcmdUsage{};
 	  out << "ageing log files...\n";
 	  ZeLog::age();
 	}},
@@ -460,10 +460,10 @@ void MxMDCore::initCmds()
       "usage: logAge\n");
   m_cmdServer->addCmd(
       "log", "",
-      ZvCmdFn{this,
+      ZcmdFn{this,
 	[](MxMDCore *md, void *, const ZvCf *args, ZtString &out) {
 	  ZuBox<int> argc = args->get("#");
-	  if (argc < 2) throw ZvCmdUsage{};
+	  if (argc < 2) throw ZcmdUsage{};
 	  ZtString message;
 	  for (ZuBox<int> i = 1; i < argc; i++) {
 	    if (i > 1) message << ' ';
@@ -575,7 +575,7 @@ void MxMDCore::final()
 void MxMDCore::l1(void *, const ZvCf *args, ZtString &out)
 {
   unsigned argc = ZuBox<unsigned>(args->get("#"));
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   bool csv = !!args->get("csv");
   if (csv)
     out << "stamp,status,base,last,lastQty,bid,bidQty,ask,askQty,tickDir,"
@@ -635,7 +635,7 @@ void MxMDCore::l1(void *, const ZvCf *args, ZtString &out)
 void MxMDCore::l2(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   MxUniKey key = parseOrderBook(args, 1);
   lookupOrderBook(key, 1, 1,
       [this, &out](MxMDInstrument *, MxMDOrderBook *ob) -> bool {
@@ -671,7 +671,7 @@ void MxMDCore::l2_side(MxMDOBSide *side, ZtString &out)
 void MxMDCore::instrument_(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   MxUniKey key = parseOrderBook(args, 1);
   lookupOrderBook(key, 1, 0,
       [&out](MxMDInstrument *instr, MxMDOrderBook *ob) -> bool {
@@ -753,7 +753,7 @@ void MxMDCore::dumpTickSizes(ZuString path, MxID venueID)
 void MxMDCore::ticksizes(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc < 1 || argc > 3) throw ZvCmdUsage();
+  if (argc < 1 || argc > 3) throw ZcmdUsage();
   MxID venueID;
   if (argc == 2) venueID = args->get("1");
   MxMDTickSizeCSV csv;
@@ -788,7 +788,7 @@ void MxMDCore::dumpInstruments(ZuString path, MxID venueID, MxID segment)
 void MxMDCore::instruments(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc < 1 || argc > 3) throw ZvCmdUsage();
+  if (argc < 1 || argc > 3) throw ZcmdUsage();
   MxID venueID, segment;
   if (argc == 2) venueID = args->get("1");
   if (argc == 3) segment = args->get("2");
@@ -834,7 +834,7 @@ void MxMDCore::dumpOrderBooks(ZuString path, MxID venueID, MxID segment)
 void MxMDCore::orderbooks(void *, const ZvCf *args, ZtString &out)
 {
   ZuBox<int> argc = args->get("#");
-  if (argc < 1 || argc > 3) throw ZvCmdUsage();
+  if (argc < 1 || argc > 3) throw ZcmdUsage();
   MxID venueID, segment;
   if (argc == 2) venueID = args->get("1");
   if (argc == 3) segment = args->get("2");
@@ -872,7 +872,7 @@ void MxMDCore::subscribeCmd(ZvCf *args, ZtArray<char> &out)
     out << "detached " << id << "\n";
     return;
   }
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   ZiVBxRingParams ringParams(args->get("1"), m_broadcast.params());
   if (ZtString spin = args->get("spin"))
     ringParams.spin(ZvCf::toInt("spin", spin, 0, INT_MAX));

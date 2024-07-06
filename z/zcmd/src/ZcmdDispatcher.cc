@@ -4,22 +4,22 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#include <zlib/ZvCmdDispatcher.hh>
+#include <zlib/ZcmdDispatcher.hh>
 
-void ZvCmdDispatcher::init()
+void ZcmdDispatcher::init()
 {
 }
-void ZvCmdDispatcher::final()
+void ZcmdDispatcher::final()
 {
   m_fnMap.clean();
 }
 
-void ZvCmdDispatcher::deflt(DefltFn fn)
+void ZcmdDispatcher::deflt(DefltFn fn)
 {
   m_defltFn = fn;
 }
 
-void ZvCmdDispatcher::map(ZuID id, Fn fn)
+void ZcmdDispatcher::map(ZuID id, Fn fn)
 {
   Guard guard(m_lock);
   if (auto data = m_fnMap.find(id))
@@ -28,7 +28,7 @@ void ZvCmdDispatcher::map(ZuID id, Fn fn)
     m_fnMap.add(id, ZuMv(fn));
 }
 
-int ZvCmdDispatcher::dispatch(
+int ZcmdDispatcher::dispatch(
     ZuID id, void *link, const uint8_t *data, unsigned len)
 {
   if (auto node = m_fnMap.find(id))

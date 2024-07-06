@@ -4,10 +4,10 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// ZvCmd locally hosted commands
+// Zcmd locally hosted commands
 
-#ifndef ZvCmdHost_HH
-#define ZvCmdHost_HH
+#ifndef ZcmdHost_HH
+#define ZcmdHost_HH
 
 #ifndef ZvLib_HH
 #include <zlib/ZvLib.hh>
@@ -25,12 +25,12 @@
 
 #include <zlib/ZvCf.hh>
 
-class ZvCmdHost;
-class ZvCmdDispatcher;
+class ZcmdHost;
+class ZcmdDispatcher;
 namespace Ztls { class Random; }
 
-struct ZvCmdContext {
-  ZvCmdHost		*app_ = nullptr;	
+struct ZcmdContext {
+  ZcmdHost		*app_ = nullptr;
   void			*link_ = nullptr;	// opaque to plugin
   void			*user_ = nullptr;	// ''
   ZmRef<ZvCf>		args;
@@ -39,38 +39,38 @@ struct ZvCmdContext {
   int			code = 0;		// result code
   bool			interactive = false;	// true unless scripted
 
-  template <typename T = ZvCmdHost>
+  template <typename T = ZcmdHost>
   auto app() { return static_cast<T *>(app_); }
   template <typename T> auto link() { return static_cast<T *>(link_); }
   template <typename T> auto user() { return static_cast<T *>(user_); }
 };
 
 // command handler (context)
-using ZvCmdFn = ZmFn<void(ZvCmdContext *)>;
+using ZcmdFn = ZmFn<void(ZcmdContext *)>;
 // can be thrown by command function
-struct ZvCmdUsage { };
+struct ZcmdUsage { };
 
-class ZvAPI ZvCmdHost {
+class ZvAPI ZcmdHost {
 public:
   void init();
   void final();
 
   void addCmd(ZuString name,
-      ZuString syntax, ZvCmdFn fn, ZtString brief, ZtString usage);
+      ZuString syntax, ZcmdFn fn, ZtString brief, ZtString usage);
 
   bool hasCmd(ZuString name);
 
-  void processCmd(ZvCmdContext *, ZuArray<const ZtString> args);
+  void processCmd(ZcmdContext *, ZuArray<const ZtString> args);
 
   void finalFn(ZmFn<>);
 
-  void executed(int code, ZvCmdContext *ctx) {
+  void executed(int code, ZcmdContext *ctx) {
     ctx->code = code;
     executed(ctx);
   }
-  virtual void executed(ZvCmdContext *) { }
+  virtual void executed(ZcmdContext *) { }
 
-  virtual ZvCmdDispatcher *dispatcher() { return nullptr; }
+  virtual ZcmdDispatcher *dispatcher() { return nullptr; }
   virtual void send(void *link, ZmRef<ZiAnyIOBuf>) { }
 
   virtual void target(ZuString) { }
@@ -79,15 +79,15 @@ public:
   virtual Ztls::Random *rng() { return nullptr; }
 
 private:
-  void helpCmd(ZvCmdContext *);
-  void loadModCmd(ZvCmdContext *);
+  void helpCmd(ZcmdContext *);
+  void loadModCmd(ZcmdContext *);
 
 private:
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
   struct CmdData {
-    ZvCmdFn	fn;
+    ZcmdFn	fn;
     ZtString	brief;
     ZtString	usage;
   };
@@ -104,7 +104,7 @@ private:
 
 // loadable module must export void ZCmd_plugin(ZCmdHost *)
 extern "C" {
-  typedef void (*ZvCmdInitFn)(ZvCmdHost *host);
+  typedef void (*ZcmdInitFn)(ZcmdHost *host);
 }
 
-#endif /* ZvCmdHost_HH */
+#endif /* ZcmdHost_HH */

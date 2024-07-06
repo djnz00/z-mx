@@ -120,7 +120,7 @@ void subscribe(void *, const ZvCf *args, ZtString &out)
   if (!md) throw ZtString("MxMDLib::instance() failed");
   ZmRef<MxMDInstrument> instrument;
   unsigned argc = ZuBox<unsigned>(args->get("#"));
-  if (argc != 2) throw ZvCmdUsage();
+  if (argc != 2) throw ZcmdUsage();
   MxUniKey key = md->parseInstrument(args, 1);
   md->lookupInstrument(key, 0, [&key, &out](MxMDInstrument *instr) -> bool {
     if (!instr) {
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
     // add interactive subscribe command
     md->addCmd("subscribe",
 	md->lookupSyntax(),
-	ZvCmdFn::Ptr<&subscribe>::fn(),
+	ZcmdFn::Ptr<&subscribe>::fn(),
 	"subscribe",
 	ZtString{} << "usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
 	  md->lookupOptions());
