@@ -3,33 +3,35 @@ include "zum_role.fbs";
 include "zum_user.fbs";
 include "zum_key.fbs";
 namespace Zum.fbs;
+table Ack {
+}
 union ReqAckData {
-  ChPass:UserAck,
+  ChPass:Ack,
   OwnKeyGet:KeyIDList,
-  OwnKeyAdd:KeyUpdAck,
-  OwnKeyClr:UserAck,
-  OwnKeyDel:UserAck,
+  OwnKeyAdd:Key,
+  OwnKeyClr:Ack,
+  OwnKeyDel:Ack,
 
   UserGet:UserList,
   UserAdd:UserPass,
   ResetPass:UserPass,
-  UserMod:UserUpdAck,
-  UserDel:UserUpdAck,
+  UserMod:UserData,
+  UserDel:Ack,
 
   RoleGet:RoleList,
-  RoleAdd:RoleUpdAck,
-  RoleMod:RoleUpdAck,
-  RoleDel:RoleUpdAck,
+  RoleAdd:Ack,
+  RoleMod:Ack,
+  RoleDel:Ack,
 
   PermGet:PermList,
-  PermAdd:PermUpdAck,
-  PermMod:PermUpdAck,
-  PermDel:PermUpdAck,
+  PermAdd:PermID,
+  PermMod:Ack,
+  PermDel:Ack,
 
   KeyGet:KeyIDList,
-  KeyAdd:KeyUpdAck,
-  KeyClr:UserAck,
-  KeyDel:UserAck
+  KeyAdd:Key,
+  KeyClr:Ack,
+  KeyDel:Ack
 }
 table ReqAck {
   seq_no:uint64;	// request ID (restarts at 0 with each session)

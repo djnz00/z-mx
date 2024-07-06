@@ -3,7 +3,7 @@ include "zum_role.fbs";
 include "zum_user.fbs";
 include "zum_key.fbs";
 namespace Zum.fbs;
-table ReqVoid {
+table OwnKeyReq {
 }
 union UserKey {
   ID:UserID,
@@ -16,6 +16,7 @@ table UserQuery {
 }
 table RoleQuery {
   role_key:string;
+  inclusive:bool;
   limit:uint16;
 }
 union PermKey {
@@ -24,20 +25,20 @@ union PermKey {
 }
 table PermQuery {
   perm_key:PermKey;
-  offset:uint64;
+  inclusive:bool;
   limit:uint16;
 }
 union ReqData {
   ChPass:UserChPass,
-  OwnKeyGet:ReqVoid,
-  OwnKeyAdd:ReqVoid,
-  OwnKeyClr:ReqVoid,
+  OwnKeyGet:OwnKeyReq,
+  OwnKeyAdd:OwnKeyReq,
+  OwnKeyClr:OwnKeyReq,
   OwnKeyDel:KeyID,
 
   UserGet:UserQuery,
-  UserAdd:User,
+  UserAdd:UserData,
   ResetPass:UserID,
-  UserMod:User,
+  UserMod:UserData,
   UserDel:UserID,
 
   RoleGet:RoleQuery,
@@ -46,7 +47,7 @@ union ReqData {
   RoleDel:RoleID,
 
   PermGet:PermQuery,
-  PermAdd:PermAdd,
+  PermAdd:PermName,
   PermMod:Perm,
   PermDel:PermID,
 

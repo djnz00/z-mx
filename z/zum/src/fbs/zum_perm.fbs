@@ -5,16 +5,9 @@ table PermID {
 table PermName {
   name:string;
 }
-table PermAdd {
-  name:string;
-}
 table Perm {
   id:uint32 (key);	// index in bitmap
   name:string;
-}
-table PermUpdAck {
-  perm:Perm;
-  ok:uint8;
 }
 table PermList {
   list:[Perm];

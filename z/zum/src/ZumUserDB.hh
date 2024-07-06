@@ -28,12 +28,17 @@
 #include <zlib/ZtlsHMAC.hh>
 #include <zlib/ZtlsRandom.hh>
 
-#include <zlib/zum_userdb_fbs.h>
+#include <zlib/zum_key_fbs.h>
+#include <zlib/zum_perm_fbs.h>
+#include <zlib/zum_role_fbs.h>
+#include <zlib/zum_user_fbs.h>
 #include <zlib/zum_loginreq_fbs.h>
-#include <zlib/zum_userdbreq_fbs.h>
-#include <zlib/zum_userdback_fbs.h>
+#include <zlib/zum_request_fbs.h>
+#include <zlib/zum_reqack_fbs.h>
 
 namespace Zum { namespace UserDB {
+
+using SeqNo = uint64_t;
 
 static constexpr mbedtls_md_type_t keyType() {
   return MBEDTLS_MD_SHA256;
@@ -43,7 +48,12 @@ using KeyData = ZuArrayN<uint8_t, KeySize>;
 enum { KeyIDSize = 16 };
 using KeyIDData = ZuArrayN<uint8_t, KeyIDSize>;
 
+using PermID = uint32_t;
 using UserID = uint64_t;
+
+enum { MaxQueryLimit = 1000 };	// maximum batch size for queries
+
+enum { MaxAPIKeys = 10 };	// maximum number of API keys per user
 
 struct Key {
   UserID		userID;
@@ -58,14 +68,14 @@ ZfbFields(Key,
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
 struct Perm {
-  uint32_t		id;
+  PermID		id;
   ZtString		name;
 
   friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
   (((id), (Keys<0>, Ctor<0>)), (UInt32)),
-  (((name), (Ctor<1>, Mutable)), (String)));
+  (((name), (Keys<1>, Ctor<1>, Mutable)), (String)));
 
 namespace RoleFlags {
   ZtEnumFlags(RoleFlags, uint8_t, Immutable);
@@ -95,53 +105,53 @@ namespace UserFlags {
 struct User {
   UserID		id;
   ZtString		name;
-  KeyData		hmac;
   KeyData		secret;
+  KeyData		hmac;
   ZtArray<ZtString>	roles;
   uint32_t		failures = 0;
-  uint8_t		flags = 0;	// UserFlags
+  UserFlags::T		flags = 0;	// UserFlags
 
   friend ZtFieldPrint ZuPrintType(User *);
 };
 ZfbFields(User,
   (((id), (Keys<0>, Ctor<0>)), (UInt64)),
   (((name), (Keys<1>, Ctor<1>, Mutable)), (String)),
-  (((hmac), (Ctor<2>, Mutable)), (Bytes)),
-  (((secret), (Ctor<3>, Mutable, Hidden)), (Bytes)),
+  (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)),
+  (((hmac), (Ctor<3>, Mutable)), (Bytes)),
   (((roles), (Ctor<4>, Mutable)), (StringVec)),
   (((failures), (Ctor<5>, Mutable)), (UInt32, 0)),
   (((flags), (Ctor<6>, Mutable, Flags<UserFlags::Map>)), (UInt8, 0)));
 
-struct Session_ : public ZmPolymorph {
+class Mgr;
+
+struct Session : public ZmPolymorph {
   Mgr			*mgr = nullptr;
   ZdbObjRef<User>	user;
   ZdbObjRef<Key>	key;		// if API key access
   ZtBitmap		perms;		// effective permissions
   bool			interactive;
 
+  static auto IDAxor(const Session &session) {
+    return session.user->data().id;
+  }
   static auto NameAxor(const Session &session) {
     return session.user->data().name;
   }
 };
 
-inline constexpr const char *Session_HeapID() { return "ZumUserDB.Session"; }
-using Sessions =
-  ZmHash<Session_,
-    ZmHashNode<Session_,
-      ZmHashKey<Session_::NameAxor,
-	ZmHashHeapID<Session_HeapID>>>>;
-using Session = Sessions::Node;
-
 // session start callback - nullptr if login/access failed
 using SessionFn = ZmFn<void(ZmRef<Session>)>;
 
 // request response callback
-using ResponseFn = ZmFn<ZmFn<void(Zfb::Builder &)>>;
+using ResponseFn = ZmFn<void(ZmRef<ZiIOBuf<>>)>;
 
 class ZvAPI Mgr {
 public:
-  Mgr(Ztls::Random *rng, unsigned passLen, unsigned totpRange,
-      unsigned keyInterval);
+  Mgr(
+    Ztls::Random *rng,
+    unsigned passLen,
+    unsigned totpRange,
+    unsigned keyInterval);
   ~Mgr();
 
   void init(Zdb *db);
@@ -150,29 +160,44 @@ public:
   // open
   using OpenFn = ZmFn<void(bool)>;
   void open(OpenFn fn);
-private:
-  struct Open {	// open() context
-    OpenFn	fn;
-    unsigned	permID = 0;
-  };
-  void open_recoverNextPermID();
-  void open_findPerm();
-  void opened(bool ok);
-public:
 
   // bootstrap
   struct BootstrapData { // bootstrap() result data
     ZtString passwd;
-    ZtString secret;
   };
   using BootstrapResult = ZuUnion<bool, BootstrapData>;
   static bool bootstrapOK(const BootstrapResult &result) {
     return !result.is<bool>() || result.p<bool>();
   }
   using BootstrapFn = ZmFn<void(BootstrapResult)>;
+  // one-time initialization (idempotent)
   void bootstrap(BootstrapFn fn);
+
+  // process login/access request
+  void loginReq(ZuBytes reqBuf, SessionFn);
+
+  // process user DB request
+  void request(Session *, ZuBytes reqBuf, ResponseFn);
+
+  // check permissions - ok(session, perm)
+  bool ok(Session *session, unsigned permID) const {
+    if ((session->user->data().flags & UserFlags::ChPass()) &&
+	!session->key && perm != reqPerm(fbs::ReqData::ChPass))
+      return false;
+    return session->perms[permID];
+  }
+
 private:
-  struct Bootstrap { // bootstrap() context
+  struct Open {	// internal open() context
+    OpenFn	fn;
+    unsigned	permIndex = 0;
+  };
+  void open_recoverNextUserID();
+  void open_recoverNextPermID();
+  void open_findPerm();
+  void opened(bool ok);
+
+  struct Bootstrap { // internal bootstrap() context
     ZtString	userName;
     ZtString	roleName;
     BootstrapFn	fn;
@@ -184,28 +209,9 @@ private:
   void bootstrap_findAddUser();
   void bootstrapped(BootstrapResult);
 
-  // one-time initialization (idempotent)
-  // - lambda(ZtString passwd, ZtString secret)
   // import flatbuffers types
   template <typename T> using Offset = Zfb::Offset<T>;
   template <typename T> using Vector = Zfb::Vector<T>;
-
-  void loginReq(const fbs::LoginReq *, SessionFn);
-
-  void request(
-    Session *, const fbs::Request *, ZmFn<void(ZmRef<ZiAnyIOBuf>)>);
-
-private:
-  // initialize permission
-  void initPerm(ZdbObject<Perm> *, unsigned i);
-
-  // initialize role
-  void initRole(ZdbObject<Role> *, ZtString name);
-
-  // initialize user
-  void initUser(
-    ZdbObject<User> *,
-    UserID id, ZtString name, ZtString role, UserFlags::T flags);
 
   // start new session
   struct SessionLoad {
@@ -234,98 +240,79 @@ private:
     ZtArray<const uint8_t> token, int64_t stamp, ZtArray<const uint8_t> hmac,
     SessionFn);
 
+  // reject request
   void reject(
-    uint64_t seqNo, unsigned rejCode, ZuString text, ResponseFn fn);
+    SeqNo seqNo, unsigned rejCode, ZuString text, ResponseFn fn);
+  // acknowledge request (positively)
   void respond(
-    Zfb::Builder &fbb, uint64_t seqNo,
+    Zfb::Builder &fbb, SeqNo seqNo,
     fbs::ReqAckData ackType, Offset<void> ackData);
 
-public:
-  // ok(user, interactive, perm)
-  bool ok(Session *session, unsigned permID) const {
-    if ((session->user->data().flags & UserFlags::ChPass()) &&
-	!session->key && perm != reqPerm(fbs::ReqData::ChPass))
-      return false;
-    return session->perms[permID];
-  }
+  // initialize key
+  void initKey(ZdbObject<Key> *, UserID, KeyIDData);
 
-private:
+  // initialize permission
+  void initPerm(ZdbObject<Perm> *, unsigned i);
+
+  // initialize role
+  void initRole(ZdbObject<Role> *, ZtString name);
+
+  // initialize user
+  void initUser(
+    ZdbObject<User> *,
+    UserID id, ZtString name, ZtString role, UserFlags::T flags);
+
+  // clear all API keys for a user
+  template <typename L> void keyClr__(UserID id, L l);
+
   // change password
-  void chPass(
-    Session *session, uint64_t seqNo,
-    const fbs::UserChPass *chPass, ResponseFn);
+  void chPass(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
 
   // query users
-  void userGet(
-    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
+  void userGet(ZuBytes reqBuf, ResponseFn);
   // add a new user
-  void userAdd(
-    Session *session, uint64_t seqNo, const fbs::User *user, ResponseFn);
+  void userAdd(ZuBytes reqBuf, ResponseFn);
   // reset password (also clears all API keys)
-  void resetPass(
-    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
-  // modify user name, roles, flags
-  void userMod(
-    Session *session, uint64_t seqNo, const fbs::User *user, ResponseFn);
-  // delete user
-  void userDel(
-    Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
+  void resetPass(ZuBytes reqBuf, ResponseFn);
+  // modify user (name, roles, flags)
+  void userMod(ZuBytes reqBuf, ResponseFn);
+  // delete user (and associated API keys)
+  void userDel(ZuBytes reqBuf, ResponseFn);
   
   // query roles
-  void roleGet(
-    Session *session, uint64_t seqNo, const fbs::RoleID *id, ResponseFn);
+  void roleGet(ZuBytes reqBuf, ResponseFn);
   // add role
-  void roleAdd(
-    Session *session, uint64_t seqNo, const fbs::Role *role, ResponseFn);
-  // modify role perms, apiperms, flags
-  void roleMod(
-    Session *session, uint64_t seqNo, const fbs::Role *role, ResponseFn);
+  void roleAdd(ZuBytes reqBuf, ResponseFn);
+  // modify role (name, perms, apiperms, flags)
+  void roleMod(ZuBytes reqBuf, ResponseFn);
   // delete role
-  void roleDel(
-    Session *session, uint64_t seqNo, const fbs::RoleID *role, ResponseFn);
+  void roleDel(ZuBytes reqBuf, ResponseFn);
   
   // query permissions 
-  void permGet(
-    Session *session, uint64_t seqNo, const fbs::PermID *perm, ResponseFn);
-  // add permission
-  void permAdd(
-    Session *session, uint64_t seqNo, const fbs::PermAdd *permAdd, ResponseFn);
-  // modify permission name
-  void permMod(
-    Session *session, uint64_t seqNo, const fbs::Perm *perm, ResponseFn);
+  void permGet(ZuBytes reqBuf, ResponseFn);
+  // add new permission
+  void permAdd(ZuBytes reqBuf, ResponseFn);
+  // modify permission (name)
+  void permMod(ZuBytes reqBuf, ResponseFn);
   // delete permission
-  void permDel(
-    Session *session, uint64_t seqNo, const fbs::PermID *id, ResponseFn);
+  void permDel(ZuBytes reqBuf, ResponseFn);
 
   // query API keys for user
-  void ownKeyGet(
-      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
-  void keyGet(
-      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
-  void keyGet_(
-      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
+  void ownKeyGet(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void keyGet(ZuBytes reqBuf, ResponseFn);
+  void keyGet_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // add API key for user
-  void ownKeyAdd(
-      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
-  void keyAdd(
-      Session *session, uint64_t seqNo, const fbs::UserID *userID, ResponseFn);
-  void keyAdd_(
-      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
+  void ownKeyAdd(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void keyAdd(ZuBytes reqBuf, ResponseFn);
+  void keyAdd_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // clear all API keys for user
-  void ownKeyClr(
-      Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
-  void keyClr(
-      Session *session, uint64_t seqNo, const fbs::UserID *id, ResponseFn);
-  void keyClr_(
-      Session *session, uint64_t seqNo, ZdbObjRef<User> user, ResponseFn);
+  void ownKeyClr(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void keyClr(ZuBytes reqBuf, ResponseFn);
+  void keyClr_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // delete API key
-  void ownKeyDel(
-      Session *session, uint64_t seqNo, const fbs::KeyID *id, ResponseFn);
-  void keyDel(
-      Session *session, uint64_t seqNo, const fbs::KeyID *id, ResponseFn);
-  void keyDel_(
-      Session *session, uint64_t seqNo,
-      ZdbObjRef<User> user, ZuString id, ResponseFn);
+  void ownKeyDel(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void keyDel(ZuBytes reqBuf, ResponseFn);
+  void keyDel_(SeqNo, KeyIDData, fbs::ReqAckData, ResponseFn);
 
 private:
   Ztls::Random		*m_rng;
@@ -349,14 +336,14 @@ private:
     return unsigned(fbs::LoginReqData::MAX) + (unsigned(i) - 1);
   }
 
-  uint32_t		m_nextPermID = 0;
-  uint32_t		m_perms[nPerms()];
+  UserID		m_nextUserID = 0;
+
+  PermID		m_nextPermID = 0;
+  PermID		m_perms[nPerms()];
 
   using State = ZuUnion<bool, Open, Bootstrap>;
 
   State			m_state;
-
-  ZmRef<Sessions>	m_sessions;
 };
 
 } } // Zum::UserDB

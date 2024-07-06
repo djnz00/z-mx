@@ -9,13 +9,6 @@ table Role {
   apiperms:Zfb.Bitmap;	// API permissions
   flags:uint8;
 }
-table RoleUpdAck {
-  role:Role;
-  ok:uint8;
-}
-table RoleAck {
-  ok:uint8;
-}
 table RoleList {
   list:[Role];
 }
