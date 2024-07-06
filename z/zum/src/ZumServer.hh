@@ -6,37 +6,27 @@
 
 // server-side RBAC user DB with MFA, API keys, etc.
 
-#ifndef ZumUserDB_HH
-#define ZumUserDB_HH
+#ifndef ZumServer_HH
+#define ZumServer_HH
 
-#ifndef ZvLib_HH
-#include <zlib/ZvLib.hh>
+#ifndef ZumLib_HH
+#include <zlib/ZumLib.hh>
 #endif
 
 #include <zlib/ZuArrayN.hh>
 
 #include <zlib/ZmHash.hh>
 
-#include <zlib/ZtString.hh>
-
-#include <zlib/Zfb.hh>
-#include <zlib/ZfbField.hh>
-
 #include <zlib/Zdb.hh>
 
-#include <zlib/ZtlsBase64.hh>
-#include <zlib/ZtlsHMAC.hh>
-#include <zlib/ZtlsRandom.hh>
+#include <zlib/Zum.hh>
 
-#include <zlib/zum_key_fbs.h>
-#include <zlib/zum_perm_fbs.h>
-#include <zlib/zum_role_fbs.h>
-#include <zlib/zum_user_fbs.h>
 #include <zlib/zum_loginreq_fbs.h>
+#include <zlib/zum_loginack_fbs.h>
 #include <zlib/zum_request_fbs.h>
 #include <zlib/zum_reqack_fbs.h>
 
-namespace Zum { namespace UserDB {
+namespace Zum { namespace Server {
 
 using SeqNo = uint64_t;
 
@@ -346,6 +336,6 @@ private:
   State			m_state;
 };
 
-} } // Zum::UserDB
+} } // Zum::Server
 
-#endif /* ZumUserDB_HH */
+#endif /* ZumServer_HH */

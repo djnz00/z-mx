@@ -6,7 +6,7 @@
 
 // server-side user DB with MFA, API keys, etc.
 
-#include <zlib/ZumUserDB.hh>
+#include <zlib/ZumServer.hh>
 
 #include <zlib/ZuBase64.hh>
 #include <zlib/ZuQuote.hh>
@@ -15,7 +15,7 @@
 
 #include <zlib/ZtlsTOTP.hh>
 
-namespace Zum { namespace UserDB {
+namespace Zum { namespace Server {
 
 Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
     unsigned totpRange, unsigned keyInterval) :
@@ -49,7 +49,7 @@ void Mgr::final()
 // return permission name for permission i
 inline ZtString permName(unsigned i)
 {
-  ZtString s{"UserDB."};
+  ZtString s{"UserMgmt."};
   auto loginReqEnd = unsigned(fbs::LoginReqData::MAX);
   if (i < loginReqEnd) return s << fbs::EnumNamesLoginReqData()[i + 1];
   return s << fbs::EnumNamesReqData()[(i - loginReqEnd) + 1];
@@ -1434,4 +1434,4 @@ void Mgr::keyDel(ZuBytes reqBuf, ResponseFn fn)
     });
 }
 
-} } // Zum::UserDB
+} } // Zum::Server

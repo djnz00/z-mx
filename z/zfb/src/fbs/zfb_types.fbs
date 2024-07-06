@@ -1,4 +1,7 @@
 namespace Zfb;
+table Bytes { // ZuBytes within a BytesVec
+  data:[ubyte];
+}
 table Bitmap { // ZuBitmap / ZmBitmap / ZtBitmap
   data:[uint64];
 }

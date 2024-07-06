@@ -366,11 +366,13 @@ namespace Save {
 	return str(fbb, ZuString(a[i]));
       });
   }
+  // flatbuffers does not support nested vectors, so a bytesVec is
+  // a vector of Zfb.Bytes, which in turn contains the [ubyte]
   template <typename Builder>
   inline auto bytesVec(Builder &fbb, ZtField_::BytesVec a) {
-    return vectorIter<Vector<uint8_t>>(fbb, a.length(),
+    return vectorIter<Bytes>(fbb, a.length(),
       [&a](Builder &fbb, unsigned i) mutable {
-	return bytes(fbb, ZuBytes(a[i]));
+	return Zfb::CreateBytes(fbb, bytes(fbb, ZuBytes(a[i])));
       });
   }
 
@@ -468,11 +470,11 @@ namespace Load {
       });
   }
   inline const ZtField_::BytesVec
-  bytesVec(const Vector<Offset<Vector<uint8_t>>> *v) {
-    using Vec = Vector<Offset<Vector<uint8_t>>>;
+  bytesVec(const Vector<Offset<Bytes>> *v) {
+    using Vec = Vector<Offset<Bytes>>;
     return ZtField_::BytesVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
-	return bytes(static_cast<const Vec *>(v_)->Get(i));
+	return bytes(static_cast<const Vec *>(v_)->Get(i)->data());
       });
   }
 

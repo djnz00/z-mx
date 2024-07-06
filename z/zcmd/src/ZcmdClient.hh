@@ -46,7 +46,7 @@
 #include <zlib/zv_telreq_fbs.h>
 #include <zlib/zv_telack_fbs.h>
 
-#include <zlib/ZvCmdNet.hh>
+#include <zlib/ZcmdNet.hh>
 
 // userDB response
 using ZvCmdUserDBAckFn = ZmFn<void(const ZvUserDB::fbs::ReqAck *)>;

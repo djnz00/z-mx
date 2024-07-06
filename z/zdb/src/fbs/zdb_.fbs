@@ -18,7 +18,7 @@ table Record {
   un:uint64;		// update number - secondary key
   sn:Zfb.UInt128;	// environment sequence number
   vn:int64;		// record version number - -ve if deleted
-  data:[uint8];		// nested row data - contains row keys if row is deleted
+  data:[ubyte];		// nested row data - contains keys if row is deleted
 }
 table Commit {
   table:Zfb.ID;
