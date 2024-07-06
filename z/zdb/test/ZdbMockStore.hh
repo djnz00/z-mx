@@ -1123,6 +1123,11 @@ struct MockRow : public IndexUN::Node {
 
 // key indices
 // - override the default comparator to provide a mock RDBMS descending index
+inline bool equals_(const Tuple &l, const Tuple &r, unsigned n) {
+  for (unsigned i = 0; i < n; i++)
+    if (!l[i].equals(r[i])) return false;
+  return true;
+}
 template <typename T = Tuple> struct TupleCmp {
   uint64_t	descending;
 
@@ -1138,10 +1143,10 @@ template <typename T = Tuple> struct TupleCmp {
     }
     return ZuCmp<int>::cmp(ln, rn);
   }
-  static bool equals(const T &l, const T &r, unsigned n) {
-    for (unsigned i = 0; i < n; i++)
-      if (!l[i].equals(r[i])) return false;
-    return true;
+  static bool equals(const T &l, const T &r) {
+    unsigned ln = l.length();
+    unsigned rn = r.length();
+    return equals_(l, r, ln < rn ? ln : rn);
   }
 };
 inline constexpr const char *MockRowIndex_HeapID() { return "MockRowIndex"; }
@@ -1272,7 +1277,7 @@ public:
       const auto &index = m_indices[keyID];
       auto row = index.find<ZmRBTreeGreater>(key);
       uint64_t i = 0;
-      while (row && index.equals(row->key(), key, nParams)) {
+      while (row && equals_(row->key(), key, nParams)) {
 	++i;
 	row = index.next(row);
       }
@@ -1309,7 +1314,7 @@ public:
 	index.find<ZmRBTreeGreaterEqual>(key) :
 	index.find<ZmRBTreeGreater>(key);
       unsigned i = 0;
-      while (i++ < limit && row && index.equals(row->key(), key, keyGroup)) {
+      while (i++ < limit && row && equals_(row->key(), key, keyGroup)) {
 	IOBuilder fbb;
 	if (!selectRow) {
 	  auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
