@@ -21,21 +21,21 @@
 
 class ZmShard {
 public:
-  ZmShard(ZmScheduler *sched, unsigned tid) : m_sched(sched), m_tid(tid) { }
+  ZmShard(ZmScheduler *sched, unsigned sid) : m_sched(sched), m_sid(sid) { }
 
   ZmScheduler *sched() const { return m_sched; }
-  unsigned tid() const { return m_tid; }
+  unsigned sid() const { return m_sid; }
 
   template <typename... Args> void run(Args &&...args) const {
-    m_sched->run(m_tid, ZuFwd<Args>(args)...);
+    m_sched->run(m_sid, ZuFwd<Args>(args)...);
   }
   template <typename... Args> void invoke(Args &&...args) const {
-    m_sched->invoke(m_tid, ZuFwd<Args>(args)...);
+    m_sched->invoke(m_sid, ZuFwd<Args>(args)...);
   }
 
 private:
-  ZmScheduler *m_sched;
-  unsigned m_tid;
+  ZmScheduler	*m_sched;
+  unsigned	m_sid;
 };
 
 template <class Shard_> class ZmSharded {
@@ -76,7 +76,7 @@ private:
   }
 
 public:
-  ZmHandle() : m_ptr(0) { }
+  ZmHandle() : m_ptr{0} { }
   ZmHandle(Shard *shard) : m_ptr{reinterpret_cast<uintptr_t>(shard)} { }
   ZmHandle(T *o) : m_ptr{own(o)} { ZmREF(o); }
   ZmHandle(ZmRef<T> o) : m_ptr{own(o.release())} { }
