@@ -133,6 +133,7 @@
 #include <zlib/ZuField.hh>
 #include <zlib/ZuMArray.hh>
 #include <zlib/ZuID.hh>
+#include <zlib/ZuQuote.hh>
 
 #include <zlib/ZmAlloc.hh>
 #include <zlib/ZuMStream.hh>
@@ -523,52 +524,13 @@ namespace ZtField_ {
 
 // printing and string quoting
 namespace Print {
-  // C string quoting
-  struct CString {
-    const char *v;
-    template <typename S>
-    friend S &operator <<(S &s, const CString &print) {
-      const char *v = print.v;
-      s << '"';
-      if (v)
-	for (unsigned i = 0; v[i]; i++) {
-	  char c = v[i];
-	  if (ZuUnlikely(c == '"')) s << '\\';
-	  s << c;
-	}
-      return s << '"';
-    }
-  };
 
-  // string quoting
-  struct String {
-    ZuString v;
-    template <typename S>
-    friend S &operator <<(S &s, const String &print) {
-      const auto &v = print.v;
-      s << '"';
-      for (unsigned i = 0, n = v.length(); i < n; i++) {
-	char c = v[i];
-	if (ZuUnlikely(c == '"')) s << '\\';
-	s << c;
-      }
-      return s << '"';
-    }
-  };
+// string and C string quoting
+using namespace ZuQuote;
 
-  // bytes printing (base64)
-  struct Bytes {
-    ZuBytes v;
-    template <typename S>
-    friend S &operator <<(S &s, const Bytes &print) {
-      const auto &v = print.v;
-      auto n = ZuBase64::enclen(v.length());
-      auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf(&buf_[0], n);
-      buf.trunc(ZuBase64::encode(buf, v));
-      return s << ZuString{buf};
-    }
-  };
+// bytes printing (base64)
+using Bytes = ZuBase64::Print;
+
 } // Print
 
 // string and string vector element scanning
