@@ -6,7 +6,7 @@
 
 #include <zlib/ZuLib.hh>
 
-#include <stdio.h>
+#include <iostream>
 
 #include <zlib/ZtEnum.hh>
 
@@ -15,6 +15,17 @@
 #include <zlib/ZiFile.hh>
 
 #include <zlib/ZvCf.hh>
+
+void fail() { Zm::exit(1); }
+
+void out_(bool ok, ZuString check, ZuString diag) {
+  std::cout
+    << (ok ? "OK  " : "NOK ") << check << ' ' << diag
+    << '\n' << std::flush;
+}
+
+#define CHECK_(x) out_((x), #x, "")
+#define CHECK(x, y) out_((x), #x, y)
 
 static const char *testdata =
 "#\n"
@@ -82,7 +93,7 @@ int main()
       } catch (const ZeError &) {
 	caught = true;
       }
-      if (!caught) ZeLOG(Error, "Nonexistent file not detected");
+      CHECK(caught, "nonexistent file detected");
     }
     {
       ZmRef<ZvCf> cf = new ZvCf();
@@ -97,7 +108,7 @@ int main()
       cf->fromFile("out2.cf");
       ZtString out2;
       out2 << *cf;
-      if (out != out2) ZeLOG(Error, "out.cf and out2.cf differ");
+      CHECK(out == out2, "out.cf identical to out2.cf");
     }
     {
       int argc;
@@ -114,7 +125,8 @@ int main()
       static const char *argv[] = {
 	"",
 	"--key1=ok \"this is val1\\\\\\",
-	"-AB", "ok ", "ok2\\\\\\",
+	"-A", "ok ",
+	"-B", "ok2\\\\\\",
 	"--key5=# k51,k5\\\\\\2,k\\ 53\\,,k54\\ ,k55",
 	"-C", "b",
 	"--key6-c=d}",
@@ -146,7 +158,7 @@ int main()
 	cf->toFile("out3.cf");
 	ZtString out3;
 	out3 << *cf;
-	if (out != out3) ZeLOG(Error, "out.cf and out3.cf differ");
+	CHECK(out == out3, "out.cf identical to out3.cf");
       }
       {
 	ZmRef<ZvCf> syntax = new ZvCf();
@@ -158,7 +170,8 @@ int main()
 	cf->fromCLI(syntax,
 	  " "
 	  "--key1='ok \"this is val1\\\\\' "
-	  "-AB \"ok \" ok2\\\\ "
+	  "-A \"ok \" "
+	  "-B ok2\\\\ "
 	  "--key5=\"# k51,k5\\\\\\2,k 53\\,,k54 ,k55\" "
 	  "-C b "
 	  "--key6-c=d} "
@@ -170,7 +183,7 @@ int main()
 	cf->toFile("out4.cf");
 	ZtString out4;
 	out4 << *cf;
-	if (out != out4) ZeLOG(Error, "out.cf and out4.cf differ");
+	CHECK(out == out4, "out.cf identical to out4.cf");
       }
     }
     {
@@ -198,23 +211,30 @@ int main()
       cf->toFile("out5.cf");
       ZtString out5;
       out5 << *cf;
-      if (out != out5) ZeLOG(Error, "out.cf and out5.cf differ");
+      if (out != out5) {
+	std::cout << "NOK out.cf and out5.cf differ\n";
+	fail();
+      }
     }
 
     try {
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 101");
-      if (cf->getInt("j", 1, 100, 42) != 42)
-	ZeLOG(Error, "getInt() default failed");
+      if (cf->getInt("j", 1, 100, 42) != 42) {
+	std::cout << "NOK getInt() default failed\n";
+	fail();
+      }
       try {
 	cf->getInt<true>("j", 1, 100);
-	ZeLOG(Error, "getInt() required failed");
+	std::cout << "NOK getInt() required failed\n";
+	fail();
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
       cf->getInt("i", 1, 100, 42);
-      ZeLOG(Error, "getInt() range failed");
+      std::cout << "NOK getInt() range failed\n";
+      fail();
     } catch (const ZvError &e) {
       std::cout << "OK: " << e << '\n';
     }
@@ -223,29 +243,36 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01");
-      if (cf->getDouble("j", .1, 100, .42) != .42)
-	ZeLOG(Error, "getDbl() default failed");
+      if (cf->getDouble("j", .1, 100, .42) != .42) {
+	std::cout << "NOK getDbl() default failed\n";
+	fail();
+      }
       try {
 	cf->getDouble<true>("j", .1, 100);
-	ZeLOG(Error, "getDbl() required failed");
+	std::cout << "NOK getDbl() required failed\n";
+	fail();
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
       cf->getDouble("i", .1, 100, .42);
-      ZeLOG(Error, "getDbl() range failed");
+      std::cout << "NOK getDbl() range failed\n";
+      fail();
     } catch (const ZvError &e) {
-      std::cout << "OK: " << e << '\n';
+      std::cout << "OK  " << e << '\n';
     }
 
     try {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("i FooHigh");
-      if (cf->getEnum<Values::Map>("j") >= 0)
-	ZeLOG(Error, "getEnum() default failed");
-      cf->getEnum<Values::Map>("i", 0);
-      ZeLOG(Error, "getEnum() invalid failed");
+      if (cf->getEnum<Values::Map>("j") >= 0) {
+	std::cout << "NOK getEnum() default failed\n";
+	fail();
+      }
+      cf->getEnum<Values::Map, true>("i");
+      std::cout << "NOK getEnum() invalid failed\n";
+      fail();
     } catch (const ZvError &e) {
-      std::cout << "OK: " << e << '\n';
+      std::cout << "OK  " << e << '\n';
     }
 
     {
@@ -263,25 +290,29 @@ int main()
       ZtString out3, out4;
       out3 << *cf3;
       out4 << *cf4;
-      if (out3 != out4)
-	ZeLOG(Error, "merge() results inconsistent - out6.cf, out7.cf");
+      CHECK(out3 == out4, "out6.cf is identical to out7.cf");
     }
 
     {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("\\=A value");
-      std::cout << "OK: \"\\=A\"=" << cf->get("=A", 1) << '\n';
+      CHECK_(cf->get("=A") == "value");
+    }
+
+    {
+      ZmRef<ZvCf> cf = new ZvCf();
+      cf->fromString("x { y z }");
+      CHECK_(cf->getCf("x")->get("y") == "z");
     }
 
   } catch (const ZvError &e) {
-    std::cerr << e << '\n';
+    std::cerr << e << '\n' << std::flush;
     Zm::exit(1);
   } catch (const ZeError &e) {
-    fputs(e.message(), stderr);
-    fputc('\n', stderr);
+    std::cerr << e << '\n' << std::flush;
     Zm::exit(1);
   } catch (...) {
-    fputs("unknown exception\n", stderr);
+    std::cerr << "unknown exception\n" << std::flush;
     Zm::exit(1);
   }
 

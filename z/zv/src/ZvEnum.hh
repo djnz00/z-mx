@@ -48,13 +48,13 @@ public:
 template <typename Map, bool Throw = true, decltype(ZuIfT<Throw>(), int()) = 0>
 inline auto s2v(ZuString key, ZuString s) {
   auto v = Map::s2v(s);
-  if (ZuLikely(v != decltype(v)(-1))) return v;
+  if (!ZuCmp<decltype(v)>::null(v)) return v;
   throw InvalidT<Map>{key, s};
 }
 template <typename Map, bool Throw = true, decltype(ZuIfT<!Throw>(), int()) = 0>
 inline auto s2v(ZuString key, ZuString s, int deflt = -1) {
   auto v = Map::s2v(s);
-  if (ZuLikely(v != decltype(v)(-1))) return v;
+  if (!ZuCmp<decltype(v)>::null(v)) return v;
   return decltype(v)(deflt);
 }
 

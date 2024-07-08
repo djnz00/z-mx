@@ -161,9 +161,9 @@ static ZuTuple<ZtString, int> optionKeyType(const Cf *option)
 int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 {
   int i, j, n, l, p;
-  const auto &argShort = ZtREGEX("^-(\w+)$");		// -a
-  const auto &argLongFlag = ZtREGEX("^--([\w\.]+)$");	// --arg
-  const auto &argLongValue = ZtREGEX("^--([\w\.]+)=");	// --arg=val
+  const auto &argShort = ZtREGEX("^-(\w)$");		// -a
+  const auto &argLongFlag = ZtREGEX("^--([\w\-]+)$");	// --arg
+  const auto &argLongValue = ZtREGEX("^--([\w\-]+)=");// --arg=val
   ZtRegex::Captures c;
   ZmRef<Cf> option;
 
@@ -226,7 +226,7 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 }
 
 template <unsigned Q = Quoting::File>
-ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZuTuple<ZtString, unsigned>>
+ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZuTuple<ZtString, unsigned, bool>>
 scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
@@ -245,6 +245,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
   ZtString value;
   ZtRegex::Captures c;
   unsigned off_ = off;
+  bool failed = false;
 
   while (off < n) {
     if (fileUnquoted.m(in, c, off)) {
@@ -257,14 +258,18 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
       value += c[2];
       continue;
     }
-    if (fileRefVar.m(in, c, off)) {
-      off += c[1].length();
-      ZuString d;
-      if (defines) d = defines->findVal(c[2]);
-      if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
-      if (d) value += d;
-      continue;
-    }
+    if constexpr (!(Q & Quoting::Key))
+      if (fileRefVar.m(in, c, off)) {
+	off += c[1].length();
+	ZuString d;
+	if (defines) d = defines->findVal(c[2]);
+	if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
+	if (d)
+	  value += d;
+	else
+	  failed = true;
+	continue;
+      }
     if (fileDblQuote.m(in, c, off)) {
       off += c[1].length();
       while (off < n) {
@@ -292,11 +297,11 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
     break;
   }
   if (off > off_ && off < n && fileSpace.m(in, c, off)) off += c[1].length();
-  return {ZuMv(value), off - off_};
+  return {ZuMv(value), off - off_, failed};
 }
 
 template <unsigned Q = Quoting::File>
-ZuIfT<(Q & Quoting::Mask) == Quoting::Env, ZuTuple<ZtString, unsigned>>
+ZuIfT<(Q & Quoting::Mask) == Quoting::Env, ZuTuple<ZtString, unsigned, bool>>
 scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
@@ -304,8 +309,8 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
   if (!n) return {ZtString{}, 0U};
 
   const auto &envUnquoted = (Q & Quoting::Key) ?
-    ZtREGEX("\G[^\\\"\$:{}\[\]\.]+") :
-    ZtREGEX("\G[^\\\"\$;{}\[\],]+");
+    ZtREGEX("\G[^\\\"\$:{}\[\]\.]+") :	// keys terminate with :
+    ZtREGEX("\G[^\\\"\$;{}\[\],]+");	// values terminate with ;
   const auto &envQuoted = ZtREGEX("\G\\(.)");
   const auto &envRefVar = ZtREGEX("\G\${(\w+)}");
   const auto &envDblQuote = ZtREGEX("\G\"");
@@ -314,6 +319,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
   ZtString value;
   ZtRegex::Captures c;
   unsigned off_ = off;
+  bool failed = false;
 
   while (off < n) {
     if (envUnquoted.m(in, c, off)) {
@@ -326,14 +332,18 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
       value += c[2];
       continue;
     }
-    if (envRefVar.m(in, c, off)) {
-      off += c[1].length();
-      ZuString d;
-      if (defines) d = defines->findVal(c[2]);
-      if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
-      if (d) value += d;
-      continue;
-    }
+    if constexpr (!(Q & Quoting::Key))
+      if (envRefVar.m(in, c, off)) {
+	off += c[1].length();
+	ZuString d;
+	if (defines) d = defines->findVal(c[2]);
+	if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
+	if (d)
+	  value += d;
+	else
+	  failed = true;
+	continue;
+      }
     if (envDblQuote.m(in, c, off)) {
       off += c[1].length();
       while (off < n) {
@@ -360,7 +370,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
     }
     break;
   }
-  return {ZuMv(value), off - off_};
+  return {ZuMv(value), off - off_, failed};
 }
 
 template <unsigned Q = Quoting::File>
@@ -396,7 +406,7 @@ quoteString(ZuString in)
 }
 
 template <unsigned Q = Quoting::File>
-ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZuTuple<ZtString, unsigned>>
+ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZuTuple<ZtString, unsigned, bool>>
 scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
@@ -407,7 +417,6 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
     ZtREGEX("\G[^\\\$\.\[\]]+") :
     ZtREGEX("\G[^\\\$,]+");
   const auto &argQuoted = ZtREGEX("\G\\(.)");
-  const auto &argRefVar = ZtREGEX("\G\${(\w+)}");
 
   ZtString value;
   ZtRegex::Captures c;
@@ -424,17 +433,9 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
       value += c[2];
       continue;
     }
-    if (argRefVar.m(in, c, off)) {
-      off += c[1].length();
-      ZuString d;
-      if (defines) d = defines->findVal(c[2]);
-      if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
-      if (d) value += d;
-      continue;
-    }
     break;
   }
-  return {ZuMv(value), off - off_};
+  return {ZuMv(value), off - off_, false};
 }
 
 template <unsigned Q = Quoting::File>
@@ -467,12 +468,12 @@ quoteString(ZuString in)
 }
 
 template <unsigned Q = Quoting::File>
-ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZuTuple<ZtString, unsigned>>
+ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZuTuple<ZtString, unsigned, bool>>
 scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   if (off >= in.length()) return {ZtString{}, 0U};
   in.offset(off);
-  return {in, in.length()};
+  return {in, in.length(), false};
 }
 
 template <unsigned Q = Quoting::File>
@@ -497,7 +498,7 @@ null:
 
   unsigned off_ = off;
 
-  auto [key, o] = scanString<Q | Quoting::Key>(in, off, defines);
+  auto [key, o, failed] = scanString<Q | Quoting::Key>(in, off, defines);
   if (!o) goto null;
   off += o;
 
@@ -606,11 +607,14 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
   switch (type) {
     case ZvOptType::Flag:
     case ZvOptType::Param: {
-      auto [value, o] = scanString<Quoting::CLI>(in, 0);
-      if (index < 0)
-	node->set_<ZtString>(value);
-      else
-	node->setElem_<StrArray>(index, value);
+      auto [value, o, failed] = scanString<Quoting::CLI>(in, 0);
+      if (index < 0) {
+	if (failed)
+	  this_->m_tree.delNode(static_cast<Tree::Node *>(node));
+	else
+	  node->set_<ZtString>(ZuMv(value));
+      } else
+	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
     } break;
     case ZvOptType::Array: {
       unsigned n = in.length();
@@ -624,8 +628,8 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
       values.clear();
 
       if (off < n) do {
-	auto [value, o] = scanString<Quoting::CLI>(in, off);
-	values.push(value);
+	auto [value, o, failed] = scanString<Quoting::CLI>(in, off);
+	values.push(failed ? ZtString{} : value);
 	off += o;
 	if (off >= n || !argComma.m(in, c, off)) break;
 	off += c[1].length();
@@ -690,7 +694,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       if (fileDirective.m(in, c, off)) {
 	off += c[1].length();
 	if (c[2] == "%include") {
-	  auto [file, o] = scanString(in, off, defines);
+	  auto [file, o, failed] = scanString(in, off, defines);
 	  if (!file) goto syntax;
 	  off += o;
 	  ZmRef<Cf> incCf = new Cf{};
@@ -702,7 +706,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	  if (!fileDefine.m(in, c, off)) goto syntax;
 	  off += c[1].length();
 	  auto var = c[2];
-	  auto [value, o] = scanString(in, off, defines);
+	  auto [value, o, failed] = scanString(in, off, defines);
 	  if (!o) goto syntax;
 	  off += o;
 	  defines->del(var);
@@ -787,7 +791,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] = scanString(in, off, defines);
+      auto [value, o, failed] = scanString(in, off, defines);
       if (!o) goto syntax;
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>{}:
@@ -804,10 +808,13 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
       }
       if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
-      if (index < 0)
-	node->set_<ZtString>(ZuMv(value));
-      else
-	node->setElem_<StrArray>(index, ZuMv(value));
+      if (index < 0) {
+	if (failed)
+	  this_->m_tree.delNode(static_cast<Tree::Node *>(node));
+	else
+	  node->set_<ZtString>(ZuMv(value));
+      } else
+	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
@@ -983,7 +990,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	++index;
 	continue;
       }
-      auto [value, o] = scanString<Quoting::Env>(in, off, defines);
+      auto [value, o, failed] = scanString<Quoting::Env>(in, off, defines);
       switch (node->CfNode::data.type()) {
 	case Data::Index<Null>{}:
 	  break;
@@ -999,10 +1006,13 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       }
       if ((state & ArrayMask) == CfArray_) goto syntax;
       off += o;
-      if (index < 0)
-	node->set_<ZtString>(ZuMv(value));
-      else
-	node->setElem_<StrArray>(index, ZuMv(value));
+      if (index < 0) {
+	if (failed)
+	  this_->m_tree.delNode(static_cast<Tree::Node *>(node));
+	else
+	  node->set_<ZtString>(ZuMv(value));
+      } else
+	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
@@ -1153,6 +1163,7 @@ void Cf::toFile_(ZiFile &file)
 ZuTuple<Cf *, ZtString> Cf::getScope(ZuString fullKey) const
 {
   auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
+  std::cerr << "fullKey=" << fullKey << " key=" << key << '\n' << std::flush;
   return {this_, key};
 }
 

@@ -46,7 +46,14 @@ ZmRef<ZvCf> inlineCf(ZuString s)
 void usage()
 {
   static const char *help =
-    "usage: zdbpqtest ...\n";
+    "usage: zdbpqtest [OPTION]...\n\n"
+    "Options:\n"
+    "      --help\tthis help\n"
+    "  -m, --module=MODULE\n"
+      "\t\tspecify data store module (default: $ZDB_MODULE)\n"
+    "  -c, --connect=CONNECT\n"
+      "\t\tspecify data store connection (default: $ZDB_CONNECT)\n"
+    ;
 
   std::cerr << help << std::flush;
   Zm::exit(1);
@@ -62,24 +69,26 @@ void gtfo()
 
 int main(int argc, char **argv)
 {
-  static ZvOpt opts[] = { { 0 } };
-
   ZmRef<ZvCf> cf;
 
   try {
-    options = inlineCf(
+    ZmRef<ZvCf> options = inlineCf(
       "module m m { param store.module }\n"
-      "connection c c { param store.connection }\n");
+      "connect c c { param store.connection }\n"
+      "help { flag help }\n");
+
+      // "  module ../src/.libs/libZdbPQ.so\n"
+      // "  connection \"dbname=test host=/tmp\"\n"
 
     cf = inlineCf(
       "thread zdb\n"
       "hostID 0\n"
       "hosts {\n"
-      "  0 { standalone }\n"
+      "  0 { standalone 1 }\n"
       "}\n"
       "store {\n"
-      "  module ../src/.libs/libZdbPQ.so\n"
-      "  connection \"dbname=test host=/tmp\"\n"
+      "  module ${ZDB_MODULE}\n"
+      "  connection ${ZDB_CONNECT}\n"
       "  thread zdb_pq\n"
       "  replicated true\n"
       "}\n"
@@ -99,8 +108,23 @@ int main(int argc, char **argv)
       "  txThread tx\n"
       "}\n");
 
-    if (cf->fromArgs(opts, argc, argv) != 1) usage();
+    // command line overrides environment
+    if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 1) usage();
 
+    std::cout << *cf;
+
+    if (cf->getBool("help")) usage();
+
+    const auto &storeCf = cf->getCf("store");
+
+    if (!storeCf->get("module")) {
+      std::cerr << "set ZDB_MODULE or use --module\n" << std::flush;
+      Zm::exit(1);
+    }
+    if (!storeCf->get("connection")) {
+      std::cerr << "set ZDB_CONNECT or use --connect\n" << std::flush;
+      Zm::exit(1);
+    }
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
     usage();

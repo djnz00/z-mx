@@ -661,17 +661,14 @@ private:
   }
   void vallocd(bool v) {
     m_length_vallocd_builtin =
-      (m_length_vallocd_builtin & ~(1U<<30)) |
-      ((static_cast<uint32_t>(v))<<30);
+      (m_length_vallocd_builtin & ~(1U<<30)) | ((uint32_t(v))<<30);
   }
   void builtin(bool v) {
     m_length_vallocd_builtin =
-      (m_length_vallocd_builtin & ~(1U<<31)) |
-      ((static_cast<uint32_t>(v))<<31);
+      (m_length_vallocd_builtin & ~(1U<<31)) | ((uint32_t(v))<<31);
   }
   void length_vallocd_builtin(unsigned l, bool m, bool b) {
-    m_length_vallocd_builtin =
-      l | ((static_cast<uint32_t>(m))<<30) | (((uint32_t)b)<<31);
+    m_length_vallocd_builtin = l | ((uint32_t(m))<<30) | ((uint32_t(b))<<31);
   }
   unsigned size_() const {
     return m_size_owned_null & ~(3U<<30);
@@ -680,17 +677,14 @@ private:
     m_size_owned_null = (m_size_owned_null & (3U<<30)) | v;
   }
   void owned(bool v) {
-    m_size_owned_null =
-      (m_size_owned_null & ~(1U<<30)) | ((static_cast<uint32_t>(v))<<30);
+    m_size_owned_null = (m_size_owned_null & ~(1U<<30)) | ((uint32_t(v))<<30);
   }
   bool null__() const { return m_size_owned_null>>31; }
   void null__(bool v) {
-    m_size_owned_null =
-      (m_size_owned_null & ~(1U<<31)) | ((static_cast<uint32_t>(v))<<31);
+    m_size_owned_null = (m_size_owned_null & ~(1U<<31)) | ((uint32_t(v))<<31);
   }
   void size_owned_null(unsigned z, bool o, bool n) {
-    m_size_owned_null =
-      z | ((static_cast<uint32_t>(o))<<30) | (((uint32_t)n)<<31);
+    m_size_owned_null = z | ((uint32_t(o))<<30) | ((uint32_t(n))<<31);
   }
 
 public:

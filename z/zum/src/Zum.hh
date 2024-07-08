@@ -14,13 +14,13 @@
 #endif
 
 #include <zlib/ZuArrayN.hh>
+#include <zlib/ZuBase64.hh>
 
 #include <zlib/ZtString.hh>
 
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
-#include <zlib/ZtlsBase64.hh>
 #include <zlib/ZtlsHMAC.hh>
 #include <zlib/ZtlsRandom.hh>
 
