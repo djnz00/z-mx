@@ -38,7 +38,6 @@
 // Properties defined by Zu include:
 //
 // Ctor<N> - this field is the Nth parameter to the object constructor
-//
 // Keys<KeyID, ...> - key IDs 0..63, e.g. <0, 1>
 //
 // Note: by convention, 0 is the primary key and 1+ are secondary keys

@@ -57,7 +57,7 @@ struct Key {
 };
 ZfbFields(Key,
   (((userID), (Keys<0>, Group<0>, Ctor<0>)), (UInt64)),
-  (((id), (Keys<0, 1>, Ctor<1>)), (String)),
+  (((id), ((Keys<0, 1>), Ctor<1>)), (Bytes)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
 struct Perm {
@@ -84,8 +84,8 @@ struct Role {
 };
 ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
-  (((perms), (Ctor<1>, Mutable)), (ZtBitmap)),
-  (((apiperms), (Ctor<2>, Mutable)), (ZtBitmap)),
+  (((perms), (Ctor<1>, Mutable)), (Bitmap)),
+  (((apiperms), (Ctor<2>, Mutable)), (Bitmap)),
   (((flags), (Ctor<3>, Flags<RoleFlags::Map>)), (UInt8)));
 
 namespace UserFlags {

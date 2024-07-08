@@ -10,8 +10,6 @@
 
 #include <zlib/ZumServer.hh>
 
-using namespace Zum::Server;
-
 void usage()
 {
   std::cerr << "usage: zuserdb USER ROLE PASSLEN [PERMS...]\n";
@@ -22,18 +20,23 @@ int main(int argc, char **argv)
 {
   ZmRef<ZvCf> cf;
 
+  ZtString user, role;
+  int passLen;
+  ZtArray<ZtString> perms;
+
   try {
-    ZmRef<ZvCf> syntaxCf = inlineCf(
-      "module m m { param store.module } "
-      "connect c c { param store.connection } ");
+    ZmRef<ZvCf> options = inlineCf(
+      "module m m { param store.module }\n"
+      "connect c c { param store.connection }\n"
+      "help { flag help }\n");
 
     cf = inlineCf(
       "thread zdb\n"
       "hostID 0\n"
       "hosts { 0 { standalone 1 } }\n"
       "store {\n"
-      "  module libZdbPQ.so\n"
-      "  connection \"dbname=test host=/tmp\"\n"
+      "  module ${ZDB_MODULE}\n"
+      "  connection ${ZDB_CONNECT}\n"
       "  thread zdb_store\n"
       "  replicated true\n"
       "}\n"
@@ -44,22 +47,44 @@ int main(int argc, char **argv)
       "  zum.perm { }\n"
       "}\n"
       "debug 1\n"
-      "dbMx {\n"
+      "mx {\n"
       "  nThreads 4\n"
       "  threads {\n"
       "    1 { name rx isolated true }\n"
       "    2 { name tx isolated true }\n"
       "    3 { name zdb isolated true }\n"
       "    4 { name zdb_store isolated true }\n"
+      "    5 { name app }\n"
       "  }\n"
       "  rxThread rx\n"
       "  txThread tx\n"
       "}\n"
     );
 
-    if (cf->fromArgs(syntaxCf, argc, argv) != 1) usage();
+    // command line overrides environment
+    if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 1) usage();
 
-    cf->fromEnv("ZDB");
+    if (cf->getBool("help")) usage();
+
+    if (!cf->get("store.module")) {
+      std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
+      Zm::exit(1);
+    }
+    if (!cf->get("store.connection")) {
+      std::cerr << "set ZDB_CONNECT or use --connect=CONNECT\n" << std::flush;
+      Zm::exit(1);
+    }
+
+    unsigned argc_ = cf->getInt("#", 0, INT_MAX);
+    if (argc_ < 4) usage();
+    perms.size(argc_ - 4);
+
+    user = cf->get("1");
+    role = cf->get("2");
+    passlen = cf->getInt("3", 6, 60);
+
+    for (unsigned i = 4; i < argc_; i++)
+      perms.push(cf->get(ZtString{} << argc_));
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
@@ -71,31 +96,113 @@ int main(int argc, char **argv)
     usage();
   }
 
-  if (argc < 4) usage();
+  ZeLog::init("zdbpqtest");
+  ZeLog::level(0);
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
+  ZeLog::start();
 
-  int passlen = atoi(argv[3]);
+  ZmTrap::sigintFn(sigint);
+  ZmTrap::trap();
 
-  if (passlen < 6 || passlen > 60) usage();
+  ZiMultiplex *mx;
+  ZmRef<Zdb> db = new Zdb();
+
+  try {
+    mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
+
+    db->init(ZdbCf(cf), dbMx, ZdbHandler{
+      .upFn = [](Zdb *, ZdbHost *host) {
+	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
+	  s << "ACTIVE (was " << id << ')';
+	}));
+      },
+      .downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+    });
+
+    mx->start();
+    if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
+
+  } catch (const ZvError &e) {
+    ZeLOG(Fatal, ZtString{e});
+    gtfo();
+  } catch (const ZeError &e) {
+    ZeLOG(Fatal, ZtString{e});
+    gtfo();
+  } catch (const ZeAnyEvent &e) {
+    ZeLogEvent(ZeMEvent{e});
+    gtfo();
+  } catch (...) {
+    ZeLOG(Fatal, "unknown exception");
+    gtfo();
+  }
 
   Ztls::Random rng;
 
   rng.init();
 
-  Mgr mgr(&rng, passlen, 6, 30);
+  Zum::Server::Mgr mgr(&rng, passlen, 6, 30);
 
-  ZtString passwd, secret;
+  mgr.init(db);
 
-  // FIXME from here
-  mgr.bootstrap(argv[2], argv[3], passwd, secret);
+  ZmBlock<>{}([&mgr](auto wake) {
+    mgr.open([wake = ZuMv(wake)](bool ok) {
+      if (!ok) {
+	ZeLOG(Fatal, "userDB open failed");
+	gtfo();
+      }
+      wake();
+    });
+  });
 
-  for (unsigned i = 5; i < (unsigned)argc; i++) mgr.permAdd(argv[i]);
+  ZmBlock<>{}([&mgr](auto wake) {
+    mgr.bootstrap([wake = ZuMv(wake)](Zum::Server::BootstrapResult result) {
+      if (result.is<bool>()) {
+	if (result.p<bool>()) {
+	  ZeLOG(Info, "userDB already initialized");
+	} else {
+	  ZeLOG(Fatal, "userDB bootstrap failed");
+	  gtfo();
+	}
+      } else if (result.is<BootstrapData>()) {
+	const auto &data = result.p<BootstrapData>();
+	std::cout
+	  << "passwd: " << data.passwd << '\n'
+	  << "secret: " << data.secret << '\n' << std::flush;
+      }
+      wake();
+    });
+  });
 
-  ZeError e;
-  if (mgr.save(path, 0, &e) != Zi::OK) {
-    std::cerr << path << ": " << e;
-    return 1;
-  }
+  perms.all([&mgr](const auto &perm) {
+    ZiIOBuilder fbb;
+    fbb.Finish(Zum::fbs::CreateRequest(
+      fbb, 0, Zum::fbs::ReqData::PermAdd,
+      Zum::fbs::CreatePermName(fbb, Zfb::Save::str(fbb, perm)).Union()));
+    ZmBlock<>{}([&mgr, &perm, buf = fbb.buf()](auto wake) {
+      mgr.permAdd(fbb.buf(), [&perm, wake = ZuMv(wake)](ZmRef<ZiIOBuf> buf) {
+	auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
+	if (reqAck.data_type() != Zum::fbs::ReqAckData::PermAdd) {
+	  ZeLOG(Error, "invalid request acknowledgment");
+	} else {
+	  auto permID = static_cast<const Zum::fbs::PermID *>(reqAck->data());
+	  std::cout << permID->id() << ' ' << perm << '\n' << std::flush;
+	}
+	wake();
+      });
+    });
+  });
 
-  std::cout << "passwd: " << passwd << "\nsecret: " << secret << '\n';
+  db->stop();
+  mx->stop();
+
+  mgr.final();
+
+  db->final();
+  db = {};
+
+  delete mx;
+
+  ZeLog::stop();
+
   return 0;
 }

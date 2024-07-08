@@ -70,6 +70,7 @@ public:
   // bootstrap
   struct BootstrapData { // bootstrap() result data
     ZtString passwd;
+    ZtString secret;
   };
   using BootstrapResult = ZuUnion<bool, BootstrapData>;
   static bool bootstrapOK(const BootstrapResult &result) {

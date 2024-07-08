@@ -114,11 +114,11 @@ int main(int argc, char **argv)
     if (cf->getBool("help")) usage();
 
     if (!cf->get("store.module")) {
-      std::cerr << "set ZDB_MODULE or use --module\n" << std::flush;
+      std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
       Zm::exit(1);
     }
     if (!cf->get("store.connection")) {
-      std::cerr << "set ZDB_CONNECT or use --connect\n" << std::flush;
+      std::cerr << "set ZDB_CONNECT or use --connect=CONNECT\n" << std::flush;
       Zm::exit(1);
     }
   } catch (const ZvError &e) {

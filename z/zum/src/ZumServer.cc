@@ -1182,7 +1182,7 @@ void Mgr::permAdd(ZuBytes reqBuf, ResponseFn fn)
 	this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
-	auto fbPerm = static_cast<const fbs::Perm *>(fbRequest->data());
+	auto fbPerm = static_cast<const fbs::PermName *>(fbRequest->data());
 	auto permName = Zfb::Load::str(fbPerm->name());
 	if (!dbPerm) {
 	  Zfb::IOBuilder fbb;
