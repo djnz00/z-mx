@@ -111,17 +111,13 @@ int main(int argc, char **argv)
     // command line overrides environment
     if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 1) usage();
 
-    std::cout << *cf;
-
     if (cf->getBool("help")) usage();
 
-    const auto &storeCf = cf->getCf("store");
-
-    if (!storeCf->get("module")) {
+    if (!cf->get("store.module")) {
       std::cerr << "set ZDB_MODULE or use --module\n" << std::flush;
       Zm::exit(1);
     }
-    if (!storeCf->get("connection")) {
+    if (!cf->get("store.connection")) {
       std::cerr << "set ZDB_CONNECT or use --connect\n" << std::flush;
       Zm::exit(1);
     }

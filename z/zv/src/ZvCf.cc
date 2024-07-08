@@ -231,7 +231,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
-  if (!n) return {ZtString{}, 0U};
+  if (off >= n) return {ZtString{}, 0U};
 
   const auto &fileSpace = ZtREGEX("\G\s+");
   const auto &fileUnquoted = (Q & Quoting::Key) ?
@@ -306,7 +306,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
-  if (!n) return {ZtString{}, 0U};
+  if (off >= n) return {ZtString{}, 0U};
 
   const auto &envUnquoted = (Q & Quoting::Key) ?
     ZtREGEX("\G[^\\\"\$:{}\[\]\.]+") :	// keys terminate with :
@@ -411,7 +411,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
-  if (!n) return {ZtString{}, 0U};
+  if (off >= n) return {ZtString{}, 0U};
 
   const auto &argUnquoted = (Q & Quoting::Key) ?
     ZtREGEX("\G[^\\\$\.\[\]]+") :
@@ -471,9 +471,36 @@ template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZuTuple<ZtString, unsigned, bool>>
 scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 {
-  if (off >= in.length()) return {ZtString{}, 0U};
-  in.offset(off);
-  return {in, in.length(), false};
+  unsigned n = in.length();
+
+  if (off >= n) return {ZtString{}, 0U};
+
+  if constexpr (!(Q & Quoting::Key)) {
+    in.offset(off);
+    return {in, n, false};
+  } else {
+    const auto &argUnquoted = ZtREGEX("\G[^\.\[\]]+");
+    const auto &argQuoted = ZtREGEX("\G\\(.)");
+
+    ZtString value;
+    ZtRegex::Captures c;
+    unsigned off_ = off;
+
+    while (off < n) {
+      if (argUnquoted.m(in, c, off)) {
+	off += c[1].length();
+	value += c[1];
+	continue;
+      }
+      if (argQuoted.m(in, c, off)) {
+	off += c[1].length();
+	value += c[2];
+	continue;
+      }
+      break;
+    }
+    return {ZuMv(value), off - off_, false};
+  }
 }
 
 template <unsigned Q = Quoting::File>
@@ -1163,7 +1190,6 @@ void Cf::toFile_(ZiFile &file)
 ZuTuple<Cf *, ZtString> Cf::getScope(ZuString fullKey) const
 {
   auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
-  std::cerr << "fullKey=" << fullKey << " key=" << key << '\n' << std::flush;
   return {this_, key};
 }
 

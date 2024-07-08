@@ -302,7 +302,7 @@ int main()
     {
       ZmRef<ZvCf> cf = new ZvCf();
       cf->fromString("x { y z }");
-      CHECK_(cf->getCf("x")->get("y") == "z");
+      CHECK_(cf->get("x.y") == "z");
     }
 
   } catch (const ZvError &e) {
