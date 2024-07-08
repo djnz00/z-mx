@@ -470,16 +470,16 @@ public:
     m_mx = new Mx(cf->getCf("mx"));
     m_verbose = cf->getBool("verbose", 0);
     addCmd("proxy",
-	"tag { type scalar } "
-	"suspend { type flag } "
-	"hold { type flag } "
-	"trace { type flag } "
-	"drop { type flag } "
-	"latency { type scalar } "
-	"frag { type scalar } "
-	"pack { type scalar } "
-	"delay { type scalar } "
-	"reconnect { type scalar }",
+	"tag { param tag } "
+	"suspend { flag suspend } "
+	"hold { flag hold } "
+	"trace { flag trace } "
+	"drop { flag drop } "
+	"latency { param latency } "
+	"frag { param frag } "
+	"pack { param pack } "
+	"delay { param delay } "
+	"reconnect { param reconnect }",
 	ZcmdFn::Member<&App::proxyCmd>::fn(this),
 	"establish TCP proxy",
 	"usage: proxy [LOCALIP:]LOCALPORT [REMOTEIP:]REMOTEPORT "
@@ -562,8 +562,7 @@ public:
 
   int exec(ZtString cmd) {
     if (!cmd) return 0;
-    ZtArray<ZtString> args;
-    ZvCf::parseCLI(cmd, args);
+    ZtArray<ZtString> args = ZvCf::parseCLI(cmd);
     if (!args) return 0;
     ZcmdContext ctx{.app_ = this, .interactive = true};
     processCmd(&ctx, args);
@@ -1513,8 +1512,8 @@ void sigint() { if (app) app->post(); }
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
-    { "verbose", "v", ZvOptFlag },
-    { "mx.nThreads", "t", ZvOptValue },
+    { 'v', "verbose", ZvOptType::Flag, "verbose" },
+    { 't', "nThreads",  ZvOptType::Param, "mx.nThreads" },
     { 0 }
   };
 
@@ -1523,7 +1522,7 @@ int main(int argc, char **argv)
     "\n"
     "Options:\n"
     "  -v, --verbose\t- log connection setup and teardown events\n"
-    "  -t, --mx:nThreads=N\t- set number of threads\n";
+    "  -t, --n-threads=N\t- set number of threads\n";
 
   bool interactive = Zrl::interactive();
 

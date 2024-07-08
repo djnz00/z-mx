@@ -120,15 +120,20 @@ void DB::init(
 
     m_hostIndex.clean();
     m_hosts = new Hosts{};
+    bool standalone = false;
     {
       unsigned dbCount = m_tables.count_();
       auto i = m_cf.hostCfs.readIterator();
       while (auto node = i.iterate()) {
 	auto host = new Hosts::Node{this, &(node->data()), dbCount};
+	if (host->standalone()) standalone = true;
 	m_hosts->addNode(host);
 	m_hostIndex.addNode(host);
       }
     }
+    if (standalone && m_hosts->count_() > 1)
+      throw ZeEVENT(Fatal, ([id = m_cf.hostID](auto &s) {
+	s << "Zdb multiple hosts defined but one or more is standalone"; }));
 
     m_self = m_hosts->findPtr(m_cf.hostID);
     if (!m_self)
@@ -161,9 +166,9 @@ ZmRef<AnyTable> DB::initTable_(
 
 void DB::final()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped, [this]() {
     if (state() != HostState::Initialized) return false;
@@ -196,9 +201,9 @@ void DB::wake()
 
 void DB::start_()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -238,9 +243,9 @@ void DB::start_1()
 
 void DB::start_2()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -271,9 +276,9 @@ void DB::start_2()
 
 void DB::stop_()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -298,9 +303,9 @@ void DB::stop_()
 
 void DB::stop_1()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -335,9 +340,9 @@ void DB::stop_1()
 
 void DB::stop_2()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -351,9 +356,9 @@ void DB::stop_2()
 
 void DB::stop_3()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -388,11 +393,12 @@ void DB::listen()
 {
   ZmAssert(invoked());
 
-  m_mx->listen(
-      ZiListenFn::Member<&DB::listening>::fn(this),
-      ZiFailFn::Member<&DB::listenFailed>::fn(this),
-      ZiConnectFn::Member<&DB::accepted>::fn(this),
-      m_self->ip(), m_self->port(), m_cf.nAccepts);
+  if (!m_self->standalone())
+    m_mx->listen(
+	ZiListenFn::Member<&DB::listening>::fn(this),
+	ZiFailFn::Member<&DB::listenFailed>::fn(this),
+	ZiConnectFn::Member<&DB::accepted>::fn(this),
+	m_self->ip(), m_self->port(), m_cf.nAccepts);
 }
 
 void DB::listening(const ZiListenInfo &)
@@ -415,14 +421,15 @@ void DB::listenFailed(bool transient)
 void DB::stopListening()
 {
   ZeLOG(Info, "Zdb stop listening");
-  m_mx->stopListening(m_self->ip(), m_self->port());
+  if (!m_self->standalone())
+    m_mx->stopListening(m_self->ip(), m_self->port());
 }
 
 void DB::holdElection()
 {
-  /* ZeLOG(Debug, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
+  ZdbDEBUG(this, ([hostID = m_cf.hostID, state = this->state()](auto &s) {
     s << hostID << " state=" << HostState::name(state);
-  })); */
+  }));
 
   ZmAssert(invoked());
 
@@ -704,9 +711,9 @@ ZiConnection *Host::connected(const ZiCxnInfo &ci)
       ([id = this->id(),
 	remoteIP = ci.remoteIP, remotePort = ci.remotePort,
 	localIP = ci.localIP, localPort = ci.localPort](auto &s) {
-    s << "Zdb connected to host " << id << " (" <<
-      remoteIP << ':' << remotePort << "): " <<
-      localIP << ':' << localPort;
+    s << "Zdb connected to host " << id << " ("
+      << remoteIP << ':' << remotePort << "): "
+      << localIP << ':' << localPort;
   }));
 
   if (!m_db->running()) return nullptr;
@@ -719,9 +726,9 @@ ZiConnection *DB::accepted(const ZiCxnInfo &ci)
   ZeLOG(Info,
       ([remoteIP = ci.remoteIP, remotePort = ci.remotePort,
 	localIP = ci.localIP, localPort = ci.localPort](auto &s) {
-    s << "Zdb accepted cxn on (" <<
-      remoteIP << ':' << remotePort << "): " <<
-      localIP << ':' << localPort;
+    s << "Zdb accepted cxn on ("
+      << remoteIP << ':' << remotePort << "): "
+      << localIP << ':' << localPort;
   }));
 
   if (!running()) return nullptr;
@@ -772,16 +779,18 @@ void DB::associate(Cxn *cxn, ZuID hostID)
   Host *host = m_hosts->find(hostID);
 
   if (!host) {
-    ZeLOG(Error, ([hostID](auto &s) { s <<
-	"Zdb cannot associate incoming cxn: host ID " << hostID <<
-	" not found"; }));
+    ZeLOG(Error, ([hostID](auto &s) {
+      s << "Zdb cannot associate incoming cxn: host ID "
+	<< hostID << " not found";
+    }));
     return;
   }
 
   if (host == m_self) {
-    ZeLOG(Error, ([hostID](auto &s) { s <<
-	"Zdb cannot associate incoming cxn: host ID " << hostID <<
-	" is same as self"; }));
+    ZeLOG(Error, ([hostID](auto &s) {
+      s << "Zdb cannot associate incoming cxn: host ID "
+	<< hostID << " is same as self";
+    }));
     return;
   }
 
@@ -931,17 +940,17 @@ Host *DB::setMaster()
   {
     auto i = m_hostIndex.readIterator();
 
-    ZdbDEBUG(this, ZtString{} << "setMaster()\n" << 
-	" self=" << ZuPrintPtr{m_self} << '\n' <<
-	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
-	" next=" << ZuPrintPtr{m_next} << '\n' <<
-	" recovering=" << m_recovering <<
-	" replicating=" << Host::replicating(m_next));
+    ZdbDEBUG(this, ZtString{} << "setMaster()\n"
+      << " self=" << ZuPrintPtr{m_self} << '\n'
+      << " prev=" << ZuPrintPtr{m_prev} << '\n'
+      << " next=" << ZuPrintPtr{m_next} << '\n'
+      << " recovering=" << m_recovering
+      << " replicating=" << Host::replicating(m_next));
 
     while (Host *host = i.iterate()) {
-      ZdbDEBUG(this, ZtString{} <<
-	  " host=" << ZuPrintPtr{host} << '\n' <<
-	  " leader=" << ZuPrintPtr{m_leader});
+      ZdbDEBUG(this, ZtString{}
+	<< " host=" << ZuPrintPtr{host} << '\n'
+	<< " leader=" << ZuPrintPtr{m_leader});
 
       if (host->voted()) {
 	if (host != m_self) ++m_nPeers;
@@ -990,28 +999,22 @@ void DB::setNext()
   {
     auto i = m_hostIndex.readIterator();
 
-    ZdbDEBUG(this, ZtString{} << "setNext()\n" <<
-	" self=" << ZuPrintPtr{m_self} << '\n' <<
-	" leader=" << ZuPrintPtr{m_leader} << '\n' <<
-	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
-	" next=" << ZuPrintPtr{m_next} << '\n' <<
-	" recovering=" << m_recovering <<
-	" replicating=" << Host::replicating(m_next));
+    ZdbDEBUG(this, ZtString{} << "setNext()\n"
+      << " self=" << ZuPrintPtr{m_self} << '\n'
+      << " leader=" << ZuPrintPtr{m_leader} << '\n'
+      << " prev=" << ZuPrintPtr{m_prev} << '\n'
+      << " next=" << ZuPrintPtr{m_next} << '\n'
+      << " recovering=" << m_recovering
+      << " replicating=" << Host::replicating(m_next));
 
     while (Host *host = i.iterate()) {
       if (host != m_self && host != m_prev && host->voted() &&
 	  m_self->cmp(host) >= 0 && (!next || host->cmp(next) > 0))
 	next = host;
 
-      if (next) {
-	ZdbDEBUG(this, ZtString{} <<
-	    " host=" << ZuPrintPtr{host} << '\n' <<
-	    " next=" << *next);
-      } else {
-	ZdbDEBUG(this, ZtString{} <<
-	    " host=" << ZuPrintPtr{host} << '\n' <<
-	    " next=(null)");
-      }
+      ZdbDEBUG(this, ZtString{}
+	<< " host=" << ZuPrintPtr{host} << '\n'
+	<< " next=" << ZuPrintPtr{next});
     }
   }
 
@@ -1028,13 +1031,13 @@ void DB::repStart()
 
   dbStateRefresh();
 
-  ZdbDEBUG(this, ZtString{} << "repStart()\n" <<
-      " self=" << ZuPrintPtr{m_self} << '\n' <<
-      " leader=" << ZuPrintPtr{m_leader} << '\n' <<
-      " prev=" << ZuPrintPtr{m_prev} << '\n' <<
-      " next=" << ZuPrintPtr{m_next} << '\n' <<
-      " recovering=" << m_recovering <<
-      " replicating=" << Host::replicating(m_next));
+  ZdbDEBUG(this, ZtString{} << "repStart()\n"
+    << " self=" << ZuPrintPtr{m_self} << '\n'
+    << " leader=" << ZuPrintPtr{m_leader} << '\n'
+    << " prev=" << ZuPrintPtr{m_prev} << '\n'
+    << " next=" << ZuPrintPtr{m_next} << '\n'
+    << " recovering=" << m_recovering
+    << " replicating=" << Host::replicating(m_next));
 
   if (m_self->dbState().cmp(m_next->dbState()) < 0 ||
       m_recovering ||			// already recovering
@@ -1169,8 +1172,8 @@ ZmRef<const AnyBuf> AnyObject::replicate(int type)
 {
   ZmAssert(state() == ObjState::Committed || state() == ObjState::Deleted);
 
-  ZdbDEBUG(m_table->db(),
-      ZtString{} << "AnyObject::replicate(" << type << ')');
+  ZdbDEBUG(m_table->db(), ZtString{}
+    << "AnyObject::replicate(" << type << ')');
 
   IOBuilder fbb;
   auto data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
@@ -1280,14 +1283,14 @@ void Cxn_::hbRcvd(const fbs::Heartbeat *hb)
 // process received heartbeat
 void DB::hbRcvd(Host *host, const fbs::Heartbeat *hb)
 {
-  ZdbDEBUG(this, ZtString{} << "hbDataRcvd()\n" << 
-	" host=" << ZuPrintPtr{host} << '\n' <<
-	" self=" << ZuPrintPtr{m_self} << '\n' <<
-	" leader=" << ZuPrintPtr{m_leader} << '\n' <<
-	" prev=" << ZuPrintPtr{m_prev} << '\n' <<
-	" next=" << ZuPrintPtr{m_next} << '\n' <<
-	" recovering=" << m_recovering <<
-	" replicating=" << Host::replicating(m_next));
+  ZdbDEBUG(this, ZtString{} << "hbDataRcvd()\n"
+    << " host=" << ZuPrintPtr{host} << '\n'
+    << " self=" << ZuPrintPtr{m_self} << '\n'
+    << " leader=" << ZuPrintPtr{m_leader} << '\n'
+    << " prev=" << ZuPrintPtr{m_prev} << '\n'
+    << " next=" << ZuPrintPtr{m_next} << '\n'
+    << " recovering=" << m_recovering
+    << " replicating=" << Host::replicating(m_next));
 
   host->state(hb->state());
   host->dbState().load(hb->dbState());
@@ -1401,10 +1404,10 @@ void Cxn_::hbSend()
 
   send(saveHdr(fbb, this).constRef());
 
-  ZdbDEBUG(m_db, ZtString{} << "hbSend()"
-      "  self[ID:" << self->id() << " S:" << m_db->state() <<
-      " SN:" << self->dbState().sn <<
-      " N:" << self->dbState().count_() << "] " << self->dbState());
+  ZdbDEBUG(m_db, ZtString{}
+    << "hbSend() self{id=" << self->id()
+    << ", state=" << m_db->state()
+    << ", dbState=" << self->dbState() << '}');
 }
 
 // refresh table state vector
@@ -1431,9 +1434,11 @@ void Cxn_::repRecordRcvd(ZmRef<const AnyBuf> buf)
   auto id = Zfb::Load::id(record->table());
   AnyTable *table = m_db->table(id);
   if (ZuUnlikely(!table)) return;
-  ZdbDEBUG(m_db, (ZtString{} <<
-      "repRecordRcvd(host=" << m_host->id() << ", " <<
-      Record_Print{record, table}));
+
+  ZdbDEBUG(m_db, (ZtString{}
+    << "repRecordRcvd(host=" << m_host->id() << ", "
+    << Record_Print{record, table}));
+
   m_db->replicated(
       m_host, id, record->un(), Zfb::Load::uint128(record->sn()));
   table->invoke([table, buf = ZuMv(buf)]() mutable {
@@ -1451,8 +1456,10 @@ void Cxn_::repCommitRcvd(ZmRef<const AnyBuf> buf)
   auto id = Zfb::Load::id(commit->table());
   AnyTable *table = m_db->table(id);
   if (ZuUnlikely(!table)) return;
-  ZdbDEBUG(m_db, ZtString{} <<
-      "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
+
+  ZdbDEBUG(m_db, ZtString{}
+    << "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
+
   table->invoke([table, un = commit->un()]() mutable {
     table->repCommitRcvd(un);
   });
@@ -1667,12 +1674,11 @@ void AnyTable::open(L l)
 
 bool AnyTable::opened(OpenResult result)
 {
-  /* ZeLOG(Debug, ([
-    hostID = db()->config().hostID,
-    open = unsigned(m_open)
+  ZdbDEBUG(m_db, ([
+    hostID = m_db->config().hostID, open = unsigned(m_open)
   ](auto &s) {
     s << hostID << " m_open=" << open;
-  })); */
+  }));
 
   ZmAssert(invoked());
   ZmAssert(!m_open);

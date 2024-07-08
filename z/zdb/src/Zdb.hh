@@ -88,11 +88,11 @@
 #include <zlib/ZdbMsg.hh>
 #include <zlib/ZdbStore.hh>
 
-#if defined(ZDEBUG) && !defined(ZdbRep_DEBUG)
-#define ZdbRep_DEBUG
+#if defined(ZDEBUG) && !defined(Zdb_DEBUG)
+#define Zdb_DEBUG 1
 #endif
 
-#ifdef ZdbRep_DEBUG
+#if Zdb_DEBUG
 #define ZdbDEBUG(db, e) \
   do { if ((db)->debug()) ZeLOG(Debug, (e)); } while (0)
 #else
@@ -1332,14 +1332,17 @@ struct HostCf {
   unsigned	priority = 0;
   ZiIP		ip;
   uint16_t	port = 0;
+  bool		standalone = false;
   ZtString	up;
   ZtString	down;
 
   HostCf(const ZtString &key, const ZvCf *cf) {
     id = key;
-    priority = cf->getInt<true>("priority", 0, 1<<30);
-    ip = cf->get<true>("ip");
-    port = cf->getInt<true>("port", 1, (1<<16) - 1);
+    if (!cf->getBool("standalone", false)) {
+      priority = cf->getInt<true>("priority", 0, 1<<30);
+      ip = cf->get<true>("ip");
+      port = cf->getInt<true>("port", 1, (1<<16) - 1);
+    }
     up = cf->get("up");
     down = cf->get("down");
   }
@@ -1368,6 +1371,7 @@ public:
 
   ZuID id() const { return m_cf->id; }
   unsigned priority() const { return m_cf->priority; }
+  bool standalone() const { return m_cf->standalone; }
   ZiIP ip() const { return m_cf->ip; }
   uint16_t port() const { return m_cf->port; }
 
@@ -1484,7 +1488,7 @@ struct DBCf {
   unsigned		electionTimeout = 0;
   unsigned		retryFreq = 0;
   ZmHashParams		cxnHash;
-#ifdef ZdbRep_DEBUG
+#if Zdb_DEBUG
   bool			debug = 0;
 #endif
 
@@ -1508,7 +1512,7 @@ struct DBCf {
     reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, 1);
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
     retryFreq = cf->getInt("retryFreq", 1, 3600, 1);
-#ifdef ZdbRep_DEBUG
+#if Zdb_DEBUG
     debug = cf->getBool("debug");
 #endif
   }
@@ -1547,7 +1551,7 @@ private:
 	  ZmHashHeapID<CxnHash_HeapID>>>;
 
 public:
-#ifdef ZdbRep_DEBUG
+#if Zdb_DEBUG
   bool debug() const { return m_cf.debug; }
 #endif
 
@@ -1590,6 +1594,7 @@ public:
   int state() const {
     return ZuLikely(m_self) ? m_self->state() : HostState::Instantiated;
   }
+private:
   void state(int n) {
     if (ZuUnlikely(!m_self)) {
       ZeLOG(Fatal, ([n](auto &s) {
@@ -1600,6 +1605,7 @@ public:
     }
     m_self->state(n);
   }
+public:
   bool active() const { return state() == HostState::Active; }
 
   Host *self() const { return m_self; }

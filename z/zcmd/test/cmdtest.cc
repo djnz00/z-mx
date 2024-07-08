@@ -64,19 +64,18 @@ private:
 
 void usage()
 {
-  std::cerr << "usage: CmdTest "
-    "CERTPATH KEYPATH USERDB IP PORT\n"
-    "    CERTPATH\tTLS/SSL certificate path\n"
-    "    KEYPATH\tTLS/SSL private key path\n"
-    "    USERDB\tuser DB path\n"
-    "    IP\t\tlistener IP address\n"
-    "    PORT\tlistener port\n\n"
+  std::cerr << "usage: cmdtest CERTPATH KEYPATH USERDB IP PORT [OPTION]...\n"
+    "  CERTPATH\tTLS/SSL certificate path\n"
+    "  KEYPATH\tTLS/SSL private key path\n"
+    "  USERDB\tuser DB path\n"
+    "  IP\t\tlistener IP address\n"
+    "  PORT\tlistener port\n\n"
     "Options:\n"
-    "    --caPath=CAPATH\t\tset CA path (default: /etc/ssl/certs)\n"
-    "    --userDB.passLen=N\t\tset default password length (default: 12)\n"
-    "    --userDB.totpRange=N\tset TOTP accepted range (default: 2)\n"
-    "    --userDB.keyInterval=N\tset key refresh interval (default: 30)\n"
-    "    --userDB.maxAge=N\t\tset user DB file backups (default: 8)\n"
+    "  -C, --ca-path=CAPATH\t\tset CA path (default: /etc/ssl/certs)\n"
+    "      --pass-len=N\t\tset default password length (default: 12)\n"
+    "      --totp-range=N\tset TOTP accepted range (default: 2)\n"
+    "      --key-interval=N\tset key refresh interval (default: 30)\n"
+    "      --max-age=N\t\tset user DB file backups (default: 8)\n"
     << std::flush;
   ::exit(1);
 }
@@ -88,12 +87,12 @@ void sigint() { if (server) server->post(); }
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
-    { "caPath", "C", ZvOptValue },
-    { "userDB.passLen", nullptr, ZvOptValue },
-    { "userDB.totpRange", nullptr, ZvOptValue },
-    { "userDB.keyInterval", nullptr, ZvOptValue },
-    { "userDB.maxAge", nullptr, ZvOptValue },
-    { nullptr }
+    { 'C', "ca-path", ZvOptType::Param, "caPath" },
+    { 0,   "pass-len", ZvOptType::Param, "userDB.passLen" },
+    { 0,   "totp-range", ZvOptType::Param, "userDB.totpRange" },
+    { 0,   "key-interval", ZvOptType::Param, "userDB.keyInterval" },
+    { 0,   "max-age", ZvOptType::Param, "userDB.maxAge" },
+    { 0 }
   };
 
   ZeLog::init("CmdTest");

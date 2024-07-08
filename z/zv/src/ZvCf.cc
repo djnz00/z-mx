@@ -8,9 +8,10 @@
 
 #include <zlib/ZmAssert.hh>
 
-#include <zlib/ZePlatform.hh>
-
 #include <zlib/ZtRegex.hh>
+
+#include <zlib/ZePlatform.hh>
+#include <zlib/ZeAssert.hh>
 
 #include <zlib/ZvCf.hh>
 
@@ -21,24 +22,10 @@
 
 namespace ZvCf_ {
 
-int Cf::fromCLI(Cf *syntax, ZuString line)
+ZtArray<ZtString> Cf::parseCLI(ZuString line)
 {
   ZtArray<ZtString> args;
-  parseCLI(line, args);
-  if (!args.length()) return 0;
-  return fromArgs(syntax->getCf(args[0]), args);
-}
 
-int Cf::fromCLI(const ZvOpt *opts, ZuString line)
-{
-  ZtArray<ZtString> args;
-  parseCLI(line, args);
-  if (!args.length()) return 0;
-  return fromArgs(opts, args);
-}
-
-void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
-{
   const auto &cliValue = ZtREGEX("\G[^\"'\\#;\s]+");
   const auto &cliSglQuote = ZtREGEX("\G'");
   const auto &cliSglQuotedValue = ZtREGEX("\G[^'\\]+");
@@ -120,25 +107,56 @@ void Cf::parseCLI(ZuString line, ZtArray<ZtString> &args)
     break;
   }
   if (value) args.push(ZuMv(value));
+  return args;
 }
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4267)
-#endif
-
-int Cf::fromArgs(const ZvOpt *opts, int argc, char **argv)
+ZtArray<ZtString> Cf::args(int argc, char **argv)
 {
-  if (ZuUnlikely(argc < 0)) return 0;
+  if (ZuUnlikely(argc < 0)) return {};
   ZtArray<ZtString> args(argc);
-  for (unsigned i = 0; i < static_cast<unsigned>(argc); i++)
+  for (unsigned i = 0; i < unsigned(argc); i++)
     args.push(argv[i]);
-  return fromArgs(opts, args);
+  return args;
 }
 
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+ZmRef<ZvCf> Cf::options(const ZvOpt *opts)
+{
+  ZmRef<Cf> options = new Cf{};
+  for (unsigned i = 0; opts[i].long_; i++) {
+    ZmRef<Cf> option = new Cf{};
+    auto type = ZvOptType::Map::v2s(opts[i].type);
+    ZeAssert(type, (type), "invalid ZvOpt type=" << type, return nullptr);
+    option->set(type, opts[i].key);
+    if (opts[i].short_) {
+      auto short_ = ZuString(&opts[i].short_, 1);
+      options->setCf(short_, ZuMv(option));
+      if (opts[i].long_) options->set(opts[i].long_, short_);
+    } else {
+      options->setCf(opts[i].long_, ZuMv(option));
+    }
+  }
+  return options;
+}
+
+int Cf::fromCLI(Cf *syntax, ZuString line)
+{
+  ZtArray<ZtString> args = parseCLI(line);
+  if (!args.length()) return 0;
+  return fromArgs(syntax->getCf(args[0]), args);
+}
+
+static ZuTuple<ZtString, int> optionKeyType(const Cf *option)
+{
+  ZtString key;
+  int type = -1;
+  if ((key = option->get<false>("param")))
+    type = ZvOptType::Param;
+  else if ((key = option->get<false>("flag")))
+    type = ZvOptType::Flag;
+  else if ((key = option->get<false>("array")))
+    type = ZvOptType::Array;
+  return { ZuMv(key), type };
+}
 
 int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 {
@@ -156,56 +174,47 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
     if (argShort.m(args[i], c)) {
       int m = c[2].length();
       for (j = 0; j < m; j++) {
-	ZtString shortOpt(c[2].data() + j, 1);
-	ZtString longOpt;
+	ZtString longOpt, shortOpt(c[2].data() + j, 1);
 	if (!options ||
-	    !(longOpt = options->get(shortOpt)) ||
-	    !(option = options->getCf(longOpt)))
+	    (!(option = options->getCf(shortOpt)) &&
+	     (!(longOpt = options->get(shortOpt)) ||
+	      !(option = options->getCf(longOpt)))))
 	  throw Usage{args[0], shortOpt};
-	int type = option->getEnum<ZvOptTypes::Map, true>("type");
-	if (type == ZvOptFlag) {
-	  fromArg(longOpt, ZvOptFlag, "1");
+	auto [key, type] = optionKeyType(option);
+	if (type == ZvOptType::Flag) {
+	  fromArg(key, ZvOptType::Flag, "1");
 	} else {
-	  ZuString deflt = option->get("default");
-	  if (deflt) {
-	    if (n < l && args[n][0] != '-') {
-	      fromArg(
-		  longOpt, type,
-		  args[n].data() + (args[n][0] == '\\' && args[n][1] == '-'));
-	      n++;
-	    } else {
-	      fromArg(longOpt, type, deflt);
-	    }
-	  } else {
-	    if (n == l) throw Usage{args[0], shortOpt};
-	    fromArg(
-		longOpt, type,
-		args[n].data() + (args[n][0] == '\\' && args[n][1] == '-'));
-	    n++;
-	  }
+	  if (n == l) throw Usage{args[0], shortOpt};
+	  fromArg(
+	    key, type,
+	    args[n].data() + (args[n][0] == '\\' && args[n][1] == '-'));
+	  n++;
 	}
       }
     } else if (argLongFlag.m(args[i], c)) {
-      ZtString longOpt = c[2];
+      ZtString shortOpt, longOpt = c[2];
       if (!options ||
-	  !(option = options->getCf(longOpt)))
+	  (!(option = options->getCf(longOpt)) &&
+	   (!(shortOpt = options->get(longOpt)) ||
+	    !(option = options->getCf(shortOpt)))))
 	throw Usage{args[0], longOpt};
-      int type = option->getEnum<ZvOptTypes::Map, true>("type");
-      if (type == ZvOptFlag) {
-	fromArg(longOpt, ZvOptFlag, "1");
-      } else {
-	ZuString deflt = option->get("default");
-	if (!deflt) throw Usage{args[0], longOpt};
-	fromArg(longOpt, type, deflt);
-      }
+      auto [key, type] = optionKeyType(option);
+      if (type != ZvOptType::Flag)
+	throw Usage{args[0], longOpt};
+      fromArg(key, ZvOptType::Flag, "1");
     } else if (argLongValue.m(args[i], c)) {
-      ZtString longOpt = c[2];
-      if (!options || !(option = options->getCf(longOpt)))
+      ZtString shortOpt, longOpt = c[2];
+      if (!options ||
+	  (!(option = options->getCf(longOpt)) &&
+	   (!(shortOpt = options->get(longOpt)) ||
+	    !(option = options->getCf(shortOpt)))))
 	throw Usage{args[0], longOpt};
-      fromArg(longOpt,
-	  option->getEnum<ZvOptTypes::Map>("type", ZvOptValue), c[3]);
+      auto [key, type] = optionKeyType(option);
+      if (type == ZvOptType::Flag)
+	throw Usage{args[0], longOpt};
+      fromArg(key, type, c[3]);
     } else {
-      fromArg(ZtString{ZuBox<int>{p++}}, ZvOptValue, args[i]);
+      fromArg(ZtString{ZuBox<int>{p++}}, ZvOptType::Param, args[i]);
     }
   }
   {
@@ -214,23 +223,6 @@ int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
     node->set_<ZtString>(ZuBox<int>{p});
   }
   return p;
-}
-
-int Cf::fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args)
-{
-  ZmRef<Cf> options = new Cf{};
-
-  for (int i = 0; opts[i].m_long; i++) {
-    ZmRef<Cf> option = new Cf{};
-    auto type = ZvOptTypes::Map::v2s(opts[i].m_type);
-    if (!type) throw Usage{args[0], opts[i].m_long};
-    option->set("type", type);
-    if (opts[i].m_default) option->set("default", opts[i].m_default);
-    options->setCf(opts[i].m_long, ZuMv(option));
-    if (opts[i].m_short) options->set(opts[i].m_short, opts[i].m_long);
-  }
-
-  return fromArgs(options, args);
 }
 
 template <unsigned Q = Quoting::File>
@@ -612,15 +604,15 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
   auto [this_, node, index, o] = mkNode_<Quoting::CLI>(key);
 
   switch (type) {
-    case ZvOptFlag:
-    case ZvOptValue: {
+    case ZvOptType::Flag:
+    case ZvOptType::Param: {
       auto [value, o] = scanString<Quoting::CLI>(in, 0);
       if (index < 0)
 	node->set_<ZtString>(value);
       else
 	node->setElem_<StrArray>(index, value);
     } break;
-    case ZvOptArray: {
+    case ZvOptType::Array: {
       unsigned n = in.length();
 
       ZtRegex::Captures c;
@@ -1057,8 +1049,7 @@ void Cf::toArgs(int &argc, char **&argv) const
   toArgs(args, "");
   argc = args.length();
   argv = static_cast<char **>(::malloc(argc * sizeof(char *)));
-  ZmAssert(argv);
-  if (!argv) throw std::bad_alloc();
+  ZeAssert(argv, (), "malloc failed", throw std::bad_alloc());
   for (int i = 0; i < argc; i++) argv[i] = ZuMv(args[i]).release();
 }
 

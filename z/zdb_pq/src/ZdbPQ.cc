@@ -1410,6 +1410,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     bool match = false;
     if (!ZuCmp<unsigned>::null(type))
       match = m_store->oids().match(oid, type);
+
     /* ZeLOG(Debug, ([
       id = ZtString{id}, oid, field, match, state = m_openState.v
     ](auto &s) {
@@ -1418,6 +1419,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openState=" << ZuBoxed(state).hex();
     })); */
+
     if (!m_openState.failed() && !match) {
       m_openState.setFailed();
       return;
@@ -1523,6 +1525,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
     ZuString matchID = xKeyFields[field].id_;
     unsigned type = xKeyFields[field].type;
     bool match = m_store->oids().match(oid, type) && id == matchID;
+
     /* ZeLOG(Debug, ([
       id = ZtString{id}, oid, field, match, state = m_openState.v
     ](auto &s) {
@@ -1531,6 +1534,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 	<< " field=" << field_ << " match=" << (match ? 'T' : 'F')
 	<< " openState=" << ZuBoxed(state).hex();
     })); */
+
     if (!m_openState.failed() && !match) {
       m_openState.setFailed();
       return;
@@ -1983,9 +1987,11 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
       reinterpret_cast<const UInt64 *>(PQgetvalue(res, i, 0))->v);
     auto sn = uint128_t(
       reinterpret_cast<const UInt128 *>(PQgetvalue(res, i, 1))->v);
+
     /* ZeLOG(Debug, ([un, sn](auto &s) {
       s << "un=" << un << " sn=" << ZuBoxed(sn);
     })); */
+
     if (m_maxUN == ZdbNullUN() || un > m_maxUN) m_maxUN = un;
     if (m_maxSN == ZdbNullSN() || sn > m_maxSN) m_maxSN = sn;
   }
@@ -2048,9 +2054,11 @@ void StoreTbl::mrd_rcvd(PGresult *res)
       reinterpret_cast<const UInt64 *>(PQgetvalue(res, i, 0))->v);
     auto sn = uint128_t(
       reinterpret_cast<const UInt128 *>(PQgetvalue(res, i, 1))->v);
+
     /* ZeLOG(Debug, ([un, sn](auto &s) {
       s << "un=" << un << " sn=" << ZuBoxed(sn);
     })); */
+
     if (un > m_maxUN) m_maxUN = un;
     if (sn > m_maxSN) m_maxSN = sn;
   }
@@ -2605,9 +2613,11 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
 
   auto record = record_(msg_(write.buf->hdr()));
   if (record->vn() < 0 && !write.mrd) { // delete completed, now update MRD
+
     /* ZeLOG(Debug, ([vn = record->vn(), mrd = write.mrd](auto &s) {
       s << "VN=" << vn << " mrd=" << mrd;
     })); */
+
     using namespace Work;
     m_store->enqueue(TblTask{this, Query{Write{
       ZuMv(write.buf), ZuMv(write.commitFn), true}}});

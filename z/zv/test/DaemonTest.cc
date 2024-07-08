@@ -39,8 +39,8 @@ namespace {
 int main(int argc, char **argv)
 {
   static ZvOpt opts[] = {
-    { "daemonize", "d", ZvOptFlag },
-    { "help", 0, ZvOptFlag },
+    { 'd', "daemonize", ZvOptType::Flag, "daemonize" },
+    { 0, "help", ZvOptType::Flag, "help" },
     { 0 }
   };
 

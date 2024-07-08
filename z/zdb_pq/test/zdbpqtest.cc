@@ -67,11 +67,15 @@ int main(int argc, char **argv)
   ZmRef<ZvCf> cf;
 
   try {
+    options = inlineCf(
+      "module m m { param store.module }\n"
+      "connection c c { param store.connection }\n");
+
     cf = inlineCf(
       "thread zdb\n"
       "hostID 0\n"
       "hosts {\n"
-      "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
+      "  0 { standalone }\n"
       "}\n"
       "store {\n"
       "  module ../src/.libs/libZdbPQ.so\n"
@@ -93,8 +97,7 @@ int main(int argc, char **argv)
       "  }\n"
       "  rxThread rx\n"
       "  txThread tx\n"
-      "}\n"
-    );
+      "}\n");
 
     if (cf->fromArgs(opts, argc, argv) != 1) usage();
 

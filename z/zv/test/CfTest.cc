@@ -117,30 +117,31 @@ int main()
 	"-AB", "ok ", "ok2\\\\\\",
 	"--key5=# k51,k5\\\\\\2,k\\ 53\\,,k54\\ ,k55",
 	"-C", "b",
-	"--key6.c=d}",
-	"--key4",
+	"--key6-c=d}",
 	"-D",
 	"Arg1",
 	"--key8=Cartman",
 	0
       };
       static ZvOpt opts[] = {
-	{ "key1", 0, ZvOptValue, 0 },
-	{ "key2", "A", ZvOptValue, 0 },
-	{ "key3", "B", ZvOptValue, 0 },
-	{ "key4", 0, ZvOptValue, "# value4" },
-	{ "key5", 0, ZvOptArray, 0 },
-	{ "key6.a", "C", ZvOptValue, 0 },
-	{ "key6.c", 0, ZvOptValue, 0 },
-	{ "key7.foo.bah", "D", ZvOptFlag, 0 },
-	{ "key8", 0, ZvOptValue, 0 },
+	{ 0,   "key1", ZvOptType::Param, "key1" },
+	{ 'A', "key2", ZvOptType::Param, "key2" },
+	{ 'B', "key3", ZvOptType::Param, "key3" },
+	{ 0,   "key4", ZvOptType::Param, "key4" },
+	{ 0,   "key5", ZvOptType::Array, "key5" },
+	{ 'C', "key6-a", ZvOptType::Param, "key6.a" },
+	{ 0,   "key6-c", ZvOptType::Param, "key6.c" },
+	{ 'D', "key7-foo-bah", ZvOptType::Flag, "key7.foo.bah" },
+	{ 0,   "key8", ZvOptType::Param, "key8" },
 	{ 0 }
       };
 
       {
 	ZmRef<ZvCf> cf = new ZvCf();
 
-	cf->fromArgs(opts, sizeof(argv) / sizeof(argv[0]) - 1, (char **)argv);
+	cf->set("key4", "# value4"); // default
+	cf->fromArgs(ZvCf::options(opts),
+	  ZvCf::args(sizeof(argv) / sizeof(argv[0]) - 1, (char **)argv));
 	cf->unset("#");
 	cf->toFile("out3.cf");
 	ZtString out3;
@@ -148,19 +149,23 @@ int main()
 	if (out != out3) ZeLOG(Error, "out.cf and out3.cf differ");
       }
       {
+	ZmRef<ZvCf> syntax = new ZvCf();
+
+	syntax->setCf("", ZvCf::options(opts));
+
 	ZmRef<ZvCf> cf = new ZvCf();
 
-	cf->fromCLI(opts,
+	cf->fromCLI(syntax,
 	  " "
 	  "--key1='ok \"this is val1\\\\\' "
 	  "-AB \"ok \" ok2\\\\ "
 	  "--key5=\"# k51,k5\\\\\\2,k 53\\,,k54 ,k55\" "
 	  "-C b "
-	  "--key6.c=d} "
-	  "--key4 "
+	  "--key6-c=d} "
 	  "-D "
 	  "--key8=Cartman "
 	  "Arg1");
+	cf->set("key4", "# value4"); // default
 	cf->unset("#");
 	cf->toFile("out4.cf");
 	ZtString out4;

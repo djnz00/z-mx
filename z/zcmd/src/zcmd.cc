@@ -383,8 +383,7 @@ private:
 	cmd = ZuMv(cmd_);
       }
     }
-    ZtArray<ZtString> args;
-    ZvCf::parseCLI(cmd, args);
+    ZtArray<ZtString> args = ZvCf::parseCLI(cmd);
     if (!args) return 0;
     bool local;
     if (args[0] == "remote") {
@@ -458,8 +457,8 @@ private:
 	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
 	"list users", "usage: users");
     addCmd("useradd",
-	"e enabled enabled { type flag } "
-	"i immutable immutable { type flag }",
+	"enabled e e { flag enabled } "
+	"immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::userAddCmd>::fn(this),
 	"add user",
 	"usage: useradd ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
@@ -470,8 +469,8 @@ private:
 	ZcmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
 	"reset password", "usage: resetpass USERID");
     addCmd("usermod",
-	"e enabled enabled { type flag } "
-	"i immutable immutable { type flag }",
+	"enabled e e { flag enabled } "
+	"immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::userModCmd>::fn(this),
 	"modify user",
 	"usage: usermod ID NAME ROLE[,ROLE,...] [OPTIONS...]\n\n"
@@ -485,13 +484,13 @@ private:
     addCmd("roles", "",
 	ZcmdFn::Member<&ZCmd::rolesCmd>::fn(this),
 	"list roles", "usage: roles");
-    addCmd("roleadd", "i immutable immutable { type flag }",
+    addCmd("roleadd", "immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
 	"add role",
 	"usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
-    addCmd("rolemod", "i immutable immutable { type scalar }",
+    addCmd("rolemod", "immutable i i { param immutable }",
 	ZcmdFn::Member<&ZCmd::roleModCmd>::fn(this),
 	"modify role",
 	"usage: rolemod NAME PERMS APIPERMS [OPTIONS...]\n\n"
@@ -533,8 +532,8 @@ private:
 	"run command remotely", "usage: remote COMMAND...");
 
     addCmd("telcap",
-	"i interval interval { type scalar } "
-	"u unsubscribe unsubscribe { type flag }",
+	"interval i i { param interval } "
+	"unsubscribe u u { flag unsubscribe }",
 	ZcmdFn::Member<&ZCmd::telcapCmd>::fn(this),
 	"telemetry capture",
 	"usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"

@@ -437,7 +437,7 @@ void MxMDCore::initCmds()
 #if 0
   m_cmdServer->addCmd(
       "subscribe",
-      "s stop stop { type scalar }",
+      "stop s s { param stop }",
       ZcmdFn::Member<&MxMDCore::subscribeCmd>::fn(this),
       "subscribe to market data",
       "usage: subscribe IPCRING\n"

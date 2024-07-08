@@ -20,18 +20,17 @@ void usage()
 
 int main(int argc, char **argv)
 {
-  static ZvOpt opts[] = { { 0 } };
-
   ZmRef<ZvCf> cf;
 
-  // FIXME - figure out how to configure Zdb more easily
   try {
+    ZmRef<ZvCf> syntaxCf = inlineCf(
+      "module m m { param store.module } "
+      "connect c c { param store.connection } ");
+
     cf = inlineCf(
       "thread zdb\n"
       "hostID 0\n"
-      "hosts {\n"
-      "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
-      "}\n"
+      "hosts { 0 { standalone 1 } }\n"
       "store {\n"
       "  module ${ZDB_STORE}\n"
       "  connection ${ZDB_CXN}\n"
@@ -58,7 +57,9 @@ int main(int argc, char **argv)
       "}\n"
     );
 
-    if (cf->fromArgs(opts, argc, argv) != 1) usage();
+    if (cf->fromArgs(syntaxCf, argc, argv) != 1) usage();
+
+    cf->fromEnv("ZDB");
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;

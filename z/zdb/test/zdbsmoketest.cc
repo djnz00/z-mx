@@ -47,15 +47,6 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void usage()
-{
-  static const char *help =
-    "usage: zdbsmoketest ...\n";
-
-  std::cerr << help << std::flush;
-  Zm::exit(1);
-}
-
 void gtfo()
 {
   if (dbMx) dbMx->stop();
@@ -64,10 +55,8 @@ void gtfo()
   Zm::exit(1);
 }
 
-int main(int argc, char **argv)
+int main()
 {
-  static ZvOpt opts[] = { { 0 } };
-
   ZmRef<ZvCf> cf;
   ZuString hashOut;
 
@@ -76,7 +65,7 @@ int main(int argc, char **argv)
       "thread 3\n"
       "hostID 0\n"
       "hosts {\n"
-      "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
+      "  0 { standalone 1 }\n"
       "}\n"
       "tables {\n"
       "  order { }\n"
@@ -94,16 +83,14 @@ int main(int argc, char **argv)
       "}\n"
     );
 
-    if (cf->fromArgs(opts, argc, argv) != 1) usage();
-
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
-    usage();
+    Zm::exit(1);
   } catch (const ZeError &e) {
     std::cerr << e << '\n' << std::flush;
-    usage();
+    Zm::exit(1);
   } catch (...) {
-    usage();
+    Zm::exit(1);
   }
 
   ZeLog::init("zdbsmoketest");
@@ -131,13 +118,17 @@ int main(int argc, char **argv)
 	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	    s << "ACTIVE (was " << id << ')';
 	  }));
+	  done.post();
 	},
-	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+	.downFn = [](Zdb *) {
+	  ZeLOG(Info, "INACTIVE");
+	}
     }, store);
 
     orders = db->initTable<Order>("order"); // might throw
 
     db->start();
+    done.wait(); // ensure active
 
     uint64_t id;
 

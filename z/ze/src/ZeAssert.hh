@@ -6,20 +6,21 @@
 
 // run-time assertion that falls back to ZeLOGBT in release code
 
-// Usage: ZeAssert(assertion, (captures), msg, value);
+// Usage: ZeAssert(assertion, (captures), msg, return);
 //
 // in debug mode, this is equivalent to ZmAssert(assertion), i.e.
 // if the assertion fails the program will abort
 //
 // in release mode, ZeBackTrace is called with a Fatal severity level;
 // the log event lambda uses captures to append msg to the log, and the
-// calling function will return with a default value
+// calling function will execute return, which is typically of the
+// form "return deflt" or "throw exception"
 
 // Example:
 //
 // void foo() {
 //   int i = 42, j = 43;
-//   ZeAssert(i == j - 1, (i, j), "i=" << i << " j=" << j, void());
+//   ZeAssert(i == j - 1, (i, j), "i=" << i << " j=" << j, return);
 // }
 
 #ifndef ZeAssert_HH
@@ -35,13 +36,14 @@
 #include <zlib/ZmAssert.hh>
 
 #ifdef NDEBUG
-#define ZeAssert(x, c, m, r) \
-  do { if (ZuUnlikely(!(x))) { ZeLOGBT(Fatal, ([ZuPP_Strip(c)](auto &s) { \
-    s << "\"" __FILE__ "\":" << __LINE__ << ' ' << ZuFnName << \
-      " Assertion '" #x "' failed " << m; \
-  })); return r; } } while (0)
+#define ZeAssert(assertion, captures, msg, return_) \
+  do { if (ZuUnlikely(!(assertion))) { \
+    ZeLOGBT(Fatal, ([ZuPP_Strip(captures)](auto &s) { \
+      s << "\"" __FILE__ "\":" << __LINE__ << ' ' << ZuFnName << \
+	" Assertion '" #assertion "' failed " << msg; \
+    })); return_; } } while (0)
 #else
-#define ZeAssert(x, c, m, r) ZmAssert(x)
+#define ZeAssert(assertion, captures, msg, return_) ZmAssert(assertion)
 #endif
 
 #endif /* ZeAssert_HH */

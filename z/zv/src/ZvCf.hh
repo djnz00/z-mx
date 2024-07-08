@@ -39,29 +39,17 @@
 
 #define ZvCfMaxFileSize	(1<<20)	// 1Mb
 
-#define ZvOptFlag	0
-#define ZvOptValue	1
-#define ZvOptArray	2
-
-extern "C" {
-  struct ZvOpt {
-    const char	*m_long;
-    const char	*m_short;
-    int		m_type;		// ZvOptFlag or ZvOptArg
-    const char	*m_default;
-  };
-};
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4251)
-#endif
-
-namespace ZvOptTypes {
-  ZtEnumValues_(int8_t,
-    Flag = ZvOptFlag, Value = ZvOptValue, Array = ZvOptArray);
-  ZtEnumMap(ZvOptTypes, Map, "flag", Flag, "value", Value, "array", Array);
+namespace ZvOptType {
+  ZtEnumValues_(int8_t, Flag, Param, Array);
+  ZtEnumMap(ZvOptTypes, Map, "flag", Flag, "param", Param, "array", Array);
 }
+
+struct ZvOpt {
+  char		short_;
+  const char	*long_;
+  int		type;		// ZvOptType
+  const char	*key;
+};
 
 namespace ZvCf_ {
 
@@ -69,7 +57,7 @@ class Cf;
 
 ZtString fullKey(const Cf *cf, ZtString key);
 
-}
+} // ZvCf_
 
 namespace ZvCfError {
 
@@ -706,14 +694,13 @@ public:
 private:
   Cf(CfNode *node) : m_node{node} { }
 public:
-  static void parseCLI(ZuString line, ZtArray<ZtString> &args);
+  static ZtArray<ZtString> parseCLI(ZuString line);
+  static ZtArray<ZtString> args(int argc, char **argv);
+  static ZmRef<Cf> options(const ZvOpt *opts);
 
   // fromCLI() and fromArgs() return the number of positional arguments
   int fromCLI(Cf *syntax, ZuString line);
   int fromArgs(Cf *options, const ZtArray<ZtString> &args);
-  int fromArgs(const ZvOpt *opts, int argc, char **argv);
-  int fromCLI(const ZvOpt *opts, ZuString line);
-  int fromArgs(const ZvOpt *opts, const ZtArray<ZtString> &args);
 
   using Defines_ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
   struct Defines : public ZuObject, public Defines_ { };
@@ -1248,7 +1235,7 @@ private:
 // equivalent of pwd - returns the full key from a nested tree key
 inline ZtString fullKey(const Cf *cf, ZtString key) {
   while (auto node = cf->node()) {
-    key = ZtString{} << node->CfNode::key << ':' << key;
+    key = ZtString{} << node->CfNode::key << '.' << key;
     if (!(cf = node->owner)) break;
   }
   return key;

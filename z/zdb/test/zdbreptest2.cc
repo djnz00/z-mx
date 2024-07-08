@@ -50,15 +50,6 @@ ZmRef<ZvCf> inlineCf(ZuString s)
   return cf;
 }
 
-void usage()
-{
-  static const char *help =
-    "usage: zdbreptest2 ...\n";
-
-  std::cerr << help << std::flush;
-  Zm::exit(1);
-}
-
 void gtfo()
 {
   if (dbMx) dbMx->stop();
@@ -67,10 +58,8 @@ void gtfo()
   Zm::exit(1);
 }
 
-int main(int argc, char **argv)
+int main()
 {
-  static ZvOpt opts[] = { { 0 } };
-
   ZmRef<ZvCf> cf;
   ZuString hashOut;
 
@@ -99,16 +88,14 @@ int main(int argc, char **argv)
       "}\n"
     );
 
-    if (cf->fromArgs(opts, argc, argv) != 1) usage();
-
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
-    usage();
+    Zm::exit(1);
   } catch (const ZeError &e) {
     std::cerr << e << '\n' << std::flush;
-    usage();
+    Zm::exit(1);
   } catch (...) {
-    usage();
+    Zm::exit(1);
   }
 
   ZeLog::init("zdbreptest");
@@ -156,6 +143,9 @@ int main(int argc, char **argv)
     for (unsigned i = 0; i < 2; i++) done.wait();
 
     if (ok >= 2) {
+      ZmAssert(db[0]->active());
+      ZmAssert(!db[1]->active());
+
       uint64_t id;
 
       orders[0]->writeCache(true); // change to false to cause find() to fail

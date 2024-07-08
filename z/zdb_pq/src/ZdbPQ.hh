@@ -132,9 +132,9 @@ inline const VecHdr *vecHdr(ZuArray<const uint8_t> &buf) {
 inline bool validateVecHdr(const VecHdr *hdr)
 {
   ZeAssert(int32_t(hdr->ndim) == 1,
-    (i = int32_t(hdr->ndim)), "ndim=" << i, false);
+    (i = int32_t(hdr->ndim)), "ndim=" << i, return false);
   ZeAssert(int32_t(hdr->lbound) == 1,
-    (i = int32_t(hdr->lbound)), "lbound=" << i, false);
+    (i = int32_t(hdr->lbound)), "lbound=" << i, return false);
   return true;
 }
 // read array element (advances buf)

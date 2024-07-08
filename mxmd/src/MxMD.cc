@@ -1893,13 +1893,13 @@ void MxMDLib::cancelTrade(const MxMDOrderBook *ob,
 ZuString MxMDLib::lookupSyntax()
 {
   return 
-    "S src src { type scalar } "
-    "v venue venue { type scalar } "
-    "s segment segment { type scalar } "
-    "m maturity maturity { type scalar } "
-    "p put put { type flag } "
-    "c call call { type flag } "
-    "x strike strike { type scalar }";
+    "src S S { param src } "
+    "venue v v { param venue } "
+    "segment s s { param segment } "
+    "maturity m m { param maturity } "
+    "put p p { flag put } "
+    "call c c { flag call } "
+    "strike x x { param strike }";
 }
 
 ZuString MxMDLib::lookupOptions()
