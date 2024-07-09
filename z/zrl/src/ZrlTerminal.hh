@@ -226,7 +226,7 @@ private:
   void close_();
   void close_fds();
 
-  void start_();// idempotent
+  bool start_();// idempotent
   void stop_();	// ''
 
 #ifndef _WIN32

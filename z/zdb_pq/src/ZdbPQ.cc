@@ -116,7 +116,6 @@ void Store::start(StartFn fn)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
-  m_mx->wakeFn(m_pqSID, ZmFn<>{this, [](Store *store) { store->wake(); }});
   m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
     m_startState.reset();
     m_startFn = ZuMv(fn);
@@ -126,6 +125,7 @@ void Store::start(StartFn fn)
       return;
     }
     getOIDs();
+    m_mx->wakeFn(m_pqSID, ZmFn<>{this, [](Store *store) { store->wake(); }});
     run_();
   });
 }

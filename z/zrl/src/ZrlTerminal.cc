@@ -176,15 +176,17 @@ void Terminal::close(CloseFn fn) // async
 void Terminal::start(StartFn startFn, KeyFn keyFn) // async
 {
   Guard guard(m_lock);
-  m_sched->wakeFn(m_thread,
-      ZmFn<>{this, [](Terminal *this_) { this_->wake(); }});
-  m_sched->push(m_thread,
-      [this, startFn = ZuMv(startFn), keyFn = ZuMv(keyFn)]() mutable {
-	start_();
-	StartFn{ZuMv(startFn)}();
-	m_keyFn = ZuMv(keyFn);
-	read();
-      });
+  m_sched->push(m_thread, [
+    this, startFn = ZuMv(startFn), keyFn = ZuMv(keyFn)
+  ]() mutable {
+    if (!start_()) return;
+    StartFn{ZuMv(startFn)}();
+    m_keyFn = ZuMv(keyFn);
+    m_sched->wakeFn(m_thread, ZmFn<>{this, [](Terminal *this_) {
+      this_->wake();
+    }});
+    read();
+  });
 }
 
 bool Terminal::running() const // synchronous
@@ -686,13 +688,13 @@ void Terminal::close_fds()
 #endif /* !_WIN32 */
 }
 
-void Terminal::start_()
+bool Terminal::start_()
 {
-  if (m_running) return;
+  if (m_running) return true;
 
   if (!isOpen_()) {
     m_errorFn("Terminal::start_() terminal not successfully opened");
-    return;
+    return false;
   }
 
   m_running = true;
@@ -714,7 +716,7 @@ void Terminal::start_()
 
   if (!start__()) {
     tcsetattr(m_fd, TCSANOW, &m_otermios);
-    return;
+    return false;
   }
 
   tputs(m_cr);
@@ -733,6 +735,8 @@ void Terminal::start_()
 
   write();
   m_pos = 0;
+
+  return true;
 }
 
 void Terminal::stop_()
