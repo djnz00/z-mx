@@ -394,22 +394,24 @@ template <typename T>
 using ZuFieldOrig = typename T::Orig;
 
 // generic tuple from field list
-template <typename Tuple, typename Fields> struct ZuFieldTuple_;
+template <typename O, typename Tuple, typename Fields> struct ZuFieldTuple_;
 // recursive decay
 struct ZuFieldTuple_RDecayer {
   template <typename> struct Decay;
-  template <typename ...Ts, typename Fields>
-  struct Decay<ZuFieldTuple_<ZuTuple<Ts...>, Fields>> {
-    using T =
-      ZuFieldTuple_<ZuTypeApply<ZuTuple, ZuTypeMap<ZuRDecay, Ts...>>, Fields>;
+  template <typename O, typename ...Ts, typename Fields>
+  struct Decay<ZuFieldTuple_<O, ZuTuple<Ts...>, Fields>> {
+    using T = ZuFieldTuple_<
+      O, ZuTypeApply<ZuTuple, ZuTypeMap<ZuRDecay, Ts...>>, Fields>;
   };
 };
-template <typename Tuple, typename Fields_>
+template <typename O_, typename Tuple, typename Fields_>
 struct ZuFieldTuple_ : public Tuple {
   using Tuple::Tuple;
   using Tuple::operator =;
   template <typename ...Args>
   ZuFieldTuple_(Args &&...args) : Tuple{ZuFwd<Args>(args)...} { }
+
+  using O = O_;
 
   // adapt original fields, overriding get/set
   template <typename Base>
@@ -448,13 +450,30 @@ struct ZuFieldTuple_ : public Tuple {
 
 template <
   typename O,
+  typename Tuple,
+  typename Fields>
+struct ZuFieldTupleT__ {
+  using T = ZuFieldTuple_<O, Tuple, Fields>;
+};
+template <
+  typename O,
+  typename Tuple_,
+  typename Fields_,
+  typename Tuple,
+  typename Fields>
+struct ZuFieldTupleT__<ZuFieldTuple_<O, Tuple_, Fields_>, Tuple, Fields> {
+  using T = ZuFieldTuple_<O, Tuple, Fields>;
+};
+template <
+  typename O,
   template <typename> typename ObjectMap,
   template <typename> typename ValueMap,
   typename ...Fields>
 struct ZuFieldTupleT_ {
-  using T = ZuFieldTuple_<
+  using T = typename ZuFieldTupleT__<
+    O,
     ZuTuple<ValueMap<decltype(Fields::get(ZuDeclVal<ObjectMap<O>>()))>...>,
-    ZuTypeList<Fields...>>;
+    ZuTypeList<Fields...>>::T;
 };
 template <
   typename O,
@@ -469,7 +488,7 @@ template <
   template <typename> typename ValueMap,
   typename ...Fields>
 using ZuFieldTupleT =
-  typename ZuFieldTupleT_<O, ObjectMap, ValueMap, Fields...>::T;
+  typename ZuFieldTupleT_<ZuDecay<O>, ObjectMap, ValueMap, Fields...>::T;
 
 // value tuple - i.e. tuple of value types
 
