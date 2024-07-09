@@ -557,11 +557,11 @@ public:
 
   // DB thread (may be shared)
   template <typename ...Args>
-  void run(Args &&... args) const {
+  void run(Args &&...args) const {
     m_mx->run(m_cf->sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) const {
+  void invoke(Args &&...args) const {
     m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_cf->sid); }
@@ -770,7 +770,7 @@ struct Count_ : public Heap, public ZmPolymorph, public Count__ {
   using Base = Count__;
   using Base::Base;
   template <typename ...Args>
-  Count_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  Count_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 using Count_Heap = ZmHeap<Count_HeapID, sizeof(Count_<ZuNull>)>;
 using Count = Count_<Count_Heap>;
@@ -787,7 +787,7 @@ struct Select_ : public Heap, public ZmPolymorph, public Select__<Tuple> {
   using Base = Select__<Tuple>;
   using Base::Base;
   template <typename ...Args>
-  Select_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  Select_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename Tuple>
 using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<Tuple, ZuNull>)>;
@@ -806,7 +806,7 @@ struct Find_ : public Heap, public ZmPolymorph, public Find__<T, Key> {
   using Base = Find__<T, Key>;
   using Base::Base;
   template <typename ...Args>
-  Find_(Args &&... args) : Base{ZuFwd<Args>(args)...} { }
+  Find_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename T, typename Key>
 using Find_Heap = ZmHeap<Find_HeapID, sizeof(Find_<T, Key, ZuNull>)>;
@@ -1579,11 +1579,11 @@ private:
 
 public:
   template <typename ...Args>
-  void run(Args &&... args) const {
+  void run(Args &&...args) const {
     m_mx->run(m_cf.sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) const {
+  void invoke(Args &&...args) const {
     m_mx->invoke(m_cf.sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_cf.sid); }

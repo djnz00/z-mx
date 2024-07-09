@@ -43,7 +43,7 @@ ZuDeclTuple(FilePos, (unsigned, index), (unsigned, offset));
 
 struct File_ : public ZmObject, public ZiFile {
   template <typename ...Args>
-  File_(Args &&... args) : id{ZuFwd<Args>(args)...} { }
+  File_(Args &&...args) : id{ZuFwd<Args>(args)...} { }
 
   static const FileID &IDAxor(const File_ &file) { return file.id; }
 
@@ -99,11 +99,11 @@ public:
 
 private:
   template <typename ...Args>
-  void run(Args &&... args) const {
+  void run(Args &&...args) const {
     m_sched->run(m_sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) const {
+  void invoke(Args &&...args) const {
     m_sched->invoke(m_sid, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_sched->invoked(m_sid); }

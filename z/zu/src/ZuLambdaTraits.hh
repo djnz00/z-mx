@@ -183,7 +183,7 @@ constexpr auto ZuInvokeFn(const L &l) {
 // changes wreak havoc
 
 template <typename L_, typename ArgList = ZuArgList<L_>, typename ...Args>
-auto ZuInvokeLambda(Args &&... args) {
+auto ZuInvokeLambda(Args &&...args) {
   using L = ZuDecay<L_>;
   struct Empty { };
   ZuAssert((ZuIsStatelessLambda<L, ArgList>{}));

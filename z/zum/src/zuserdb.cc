@@ -8,6 +8,17 @@
 
 #include <iostream>
 
+#include <zlib/ZuBase32.hh>
+#include <zlib/ZuBase64.hh>
+
+#include <zlib/ZeLog.hh>
+
+#include <zlib/ZvCf.hh>
+
+#include <zlib/ZtlsTOTP.hh>
+
+#include <zlib/Zdb.hh>
+
 #include <zlib/ZumServer.hh>
 
 void usage()
@@ -21,16 +32,18 @@ int main(int argc, char **argv)
   ZmRef<ZvCf> cf;
 
   ZtString user, role;
-  int passLen;
+  int passlen;
   ZtArray<ZtString> perms;
 
   try {
-    ZmRef<ZvCf> options = inlineCf(
+    ZmRef<ZvCf> options = new ZvCf{};
+
+    options->fromString(
       "module m m { param store.module }\n"
       "connect c c { param store.connection }\n"
       "help { flag help }\n");
 
-    cf = inlineCf(
+    cf->fromString(
       "thread zdb\n"
       "hostID 0\n"
       "hosts { 0 { standalone 1 } }\n"
@@ -101,16 +114,19 @@ int main(int argc, char **argv)
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
 
-  ZmTrap::sigintFn(sigint);
-  ZmTrap::trap();
-
   ZiMultiplex *mx;
   ZmRef<Zdb> db = new Zdb();
+
+  auto gtfo = [&mx]() {
+    if (mx) mx->stop();
+    ZeLog::stop();
+    Zm::exit(1);
+  };
 
   try {
     mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
 
-    db->init(ZdbCf(cf), dbMx, ZdbHandler{
+    db->init(ZdbCf(cf), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *host) {
 	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	  s << "ACTIVE (was " << id << ')';
@@ -144,8 +160,8 @@ int main(int argc, char **argv)
 
   mgr.init(db);
 
-  ZmBlock<>{}([&mgr](auto wake) {
-    mgr.open([wake = ZuMv(wake)](bool ok) {
+  ZmBlock<>{}([&mgr, &gtfo](auto wake) {
+    mgr.open([wake = ZuMv(wake), &gtfo](bool ok) mutable {
       if (!ok) {
 	ZeLOG(Fatal, "userDB open failed");
 	gtfo();
@@ -154,8 +170,15 @@ int main(int argc, char **argv)
     });
   });
 
-  ZmBlock<>{}([&mgr](auto wake) {
-    mgr.bootstrap([wake = ZuMv(wake)](Zum::Server::BootstrapResult result) {
+  ZtString passwd, secret;
+
+  ZmBlock<>{}([
+    user = ZuMv(user), role = ZuMv(role), &mgr, &gtfo, &passwd, &secret
+  ](auto wake) {
+    mgr.bootstrap(ZuMv(user), ZuMv(role), [
+      &gtfo, &passwd, &secret, wake = ZuMv(wake)
+    ](Zum::Server::Mgr::BootstrapResult result) mutable {
+      using Data = Zum::Server::Mgr::BootstrapData;
       if (result.is<bool>()) {
 	if (result.p<bool>()) {
 	  ZeLOG(Info, "userDB already initialized");
@@ -163,34 +186,71 @@ int main(int argc, char **argv)
 	  ZeLOG(Fatal, "userDB bootstrap failed");
 	  gtfo();
 	}
-      } else if (result.is<BootstrapData>()) {
-	const auto &data = result.p<BootstrapData>();
+      } else if (result.is<Data>()) {
+	auto &data = result.p<Data>();
+	passwd = ZuMv(data.passwd);
+	secret = ZuMv(data.secret);
 	std::cout
-	  << "passwd: " << data.passwd << '\n'
-	  << "secret: " << data.secret << '\n' << std::flush;
+	  << "passwd: " << passwd
+	  << "secret: " << secret << '\n' << std::flush;
       }
       wake();
     });
   });
 
-  perms.all([&mgr](const auto &perm) {
-    ZiIOBuilder fbb;
-    fbb.Finish(Zum::fbs::CreateRequest(
-      fbb, 0, Zum::fbs::ReqData::PermAdd,
-      Zum::fbs::CreatePermName(fbb, Zfb::Save::str(fbb, perm)).Union()));
-    ZmBlock<>{}([&mgr, &perm, buf = fbb.buf()](auto wake) {
-      mgr.permAdd(fbb.buf(), [&perm, wake = ZuMv(wake)](ZmRef<ZiIOBuf> buf) {
-	auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
-	if (reqAck.data_type() != Zum::fbs::ReqAckData::PermAdd) {
-	  ZeLOG(Error, "invalid request acknowledgment");
-	} else {
-	  auto permID = static_cast<const Zum::fbs::PermID *>(reqAck->data());
-	  std::cout << permID->id() << ' ' << perm << '\n' << std::flush;
+  if (perms.length()) {
+    unsigned totp;
+    {
+      ZtArray<uint8_t> secret_(ZuBase32::declen(secret.length()));
+      secret_.length(secret_.size());
+      secret_.length(ZuBase32::decode(secret_, secret));
+      totp = Ztls::TOTP::calc(secret);
+    }
+    Zfb::IOBuilder fbb;
+    fbb.Finish(Zum::fbs::CreateLoginReq(
+	fbb, Zum::fbs::LoginReqData::Login,
+	Zum::fbs::CreateLogin(fbb,
+	  Zfb::Save::str(fbb, user),
+	  Zfb::Save::str(fbb, passwd),
+	  totp).Union()));
+    ZmBlock<>{}([&mgr, &perms, buf = fbb.buf()](auto wake) mutable {
+      mgr.loginReq(buf->cbuf_(), [
+	&mgr, &perms, wake = ZuMv(wake)
+      ](ZmRef<Zum::Server::Session> session) mutable {
+	if (!session) {
+	  ZeLOG(Fatal, "login failed");
+	  wake();
+	  return;
 	}
+	perms.all([&mgr, session = ZuMv(session)](const auto &perm) mutable {
+	  Zfb::IOBuilder fbb;
+	  fbb.Finish(Zum::fbs::CreateRequest(
+	    fbb, 0, Zum::fbs::ReqData::PermAdd,
+	    Zum::fbs::CreatePermName(fbb,
+	      Zfb::Save::str(fbb, perm)).Union()));
+	  ZmBlock<>{}([
+	    &mgr, session = ZuMv(session), &perm, buf = fbb.buf()
+	  ](auto wake) mutable {
+	    mgr.request(session, buf->cbuf_(), [
+	      &perm, wake = ZuMv(wake)
+	    ](ZmRef<ZiIOBuf<>> buf) mutable {
+	      auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
+	      if (reqAck->data_type() != Zum::fbs::ReqAckData::PermAdd) {
+		ZeLOG(Fatal, "invalid request acknowledgment");
+	      } else {
+		auto permID =
+		  static_cast<const Zum::fbs::PermID *>(reqAck->data());
+		std::cout
+		  << permID->id() << ' ' << perm << '\n' << std::flush;
+	      }
+	      wake();
+	    });
+	  });
+	});
 	wake();
       });
     });
-  });
+  }
 
   db->stop();
   mx->stop();

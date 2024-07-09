@@ -231,11 +231,11 @@ public:
   }
 
   template <typename ...Args>
-  void run(Args &&... args) const {
+  void run(Args &&...args) const {
     m_mx->run(m_thread, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) const {
+  void invoke(Args &&...args) const {
     m_mx->invoke(m_thread, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_mx->invoked(m_thread); }

@@ -259,7 +259,7 @@ friend TLS;
 
   struct UserDB : public ZuObject, public ZvUserDB::Mgr {
     template <typename ...Args>
-    UserDB(Args &&... args) : ZvUserDB::Mgr{ZuFwd<Args>(args)...} { }
+    UserDB(Args &&...args) : ZvUserDB::Mgr{ZuFwd<Args>(args)...} { }
   };
 
   const App *app() const { return static_cast<const App *>(this); }

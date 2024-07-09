@@ -1124,11 +1124,11 @@ public:
   }
 
   template <typename ...Args>
-  void gtkRun(Args &&... args) {
+  void gtkRun(Args &&...args) {
     ZGtk::App::run(ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void gtkInvoke(Args &&... args) {
+  void gtkInvoke(Args &&...args) {
     ZGtk::App::invoke(ZuFwd<Args>(args)...);
   }
 

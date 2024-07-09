@@ -222,7 +222,7 @@ friend Link;
   }
 
   template <typename Server, typename ...Args>
-  void login(Server &&server, uint16_t port, Args &&... args) {
+  void login(Server &&server, uint16_t port, Args &&...args) {
     m_cli.open(); // idempotent
     ZtString passwd;
     if (auto passwd_ = ::getenv("ZCMD_PASSWD"))
@@ -244,7 +244,7 @@ friend Link;
     m_link->login(ZuFwd<Args>(args)..., ZuMv(passwd), totp);
   }
   template <typename Server, typename ...Args>
-  void access(Server &&server, uint16_t port, Args &&... args) {
+  void access(Server &&server, uint16_t port, Args &&...args) {
     m_link = new Link(this, ZuFwd<Server>(server), port);
     m_link->access(ZuFwd<Args>(args)...);
   }

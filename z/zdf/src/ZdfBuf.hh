@@ -99,7 +99,7 @@ public:
   enum { Size = BufSize };
 
   template <typename ...Args>
-  Buf_(Args &&... args) : BufLRUNode{ZuFwd<Args>(args)...} { }
+  Buf_(Args &&...args) : BufLRUNode{ZuFwd<Args>(args)...} { }
 
   // cache pinning for asynchronous saves
   void pin() {

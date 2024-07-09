@@ -121,7 +121,7 @@ namespace MxMDStream {
   };
   struct Hdr : public HdrData {
     template <typename ...Args>
-    Hdr(Args &&... args) : HdrData{ZuFwd<Args>(args)...} { }
+    Hdr(Args &&...args) : HdrData{ZuFwd<Args>(args)...} { }
 
     void *body() { return (void *)&this[1]; }
     const void *body() const { return (const void *)&this[1]; }
@@ -454,7 +454,7 @@ namespace MxMDStream {
 #endif
 #define DeclFn(Fn, Type) \
   template <typename App, typename ...Args> \
-  bool Fn(App &app, Args &&... args) { \
+  bool Fn(App &app, Args &&...args) { \
     void *ptr = push<Type>(app, -1); \
     if (ZuUnlikely(!ptr)) return false; \
     new (ptr) Type{ZuFwd<Args>(args)...}; \
@@ -481,7 +481,7 @@ namespace MxMDStream {
 #undef DeclFn
 #define DeclFn(Fn, Type) \
   template <typename App, typename ...Args> \
-  bool Fn(App &app, MxInt shardID, Args &&... args) { \
+  bool Fn(App &app, MxInt shardID, Args &&...args) { \
     void *ptr = push<Type>(app, shardID); \
     if (ZuUnlikely(!ptr)) return false; \
     new (ptr) Type{ZuFwd<Args>(args)...}; \

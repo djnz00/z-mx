@@ -695,11 +695,11 @@ public:
   ZiMultiplex *mx() const { return m_mx; }
 
   template <typename ...Args>
-  void run(Args &&... args) {
+  void run(Args &&...args) {
     m_mx->run(m_thread, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) {
+  void invoke(Args &&...args) {
     m_mx->invoke(m_thread, ZuFwd<Args>(args)...);
   }
   bool invoked() { return m_mx->invoked(m_thread); }

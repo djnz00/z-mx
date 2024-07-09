@@ -26,23 +26,29 @@
 #include <zlib/zum_request_fbs.h>
 #include <zlib/zum_reqack_fbs.h>
 
-namespace Zum { namespace Server {
+namespace Zum::Server {
 
 class Mgr;
 
-struct Session : public ZmPolymorph {
+struct Session_ {
   Mgr			*mgr = nullptr;
   ZdbObjRef<User>	user;
   ZdbObjRef<Key>	key;		// if API key access
   ZtBitmap		perms;		// effective permissions
   bool			interactive;
 
-  static auto IDAxor(const Session &session) {
+  static auto IDAxor(const Session_ &session) {
     return session.user->data().id;
   }
-  static auto NameAxor(const Session &session) {
+  static auto NameAxor(const Session_ &session) {
     return session.user->data().name;
   }
+};
+struct Session : public ZmPolymorph, public Session_ {
+  using Session_::Session_;
+  using Session_::operator =;
+  template <typename ...Args>
+  Session(Args &&...args) : Session_{ZuFwd<Args>(args)...} { }
 };
 
 // session start callback - nullptr if login/access failed
@@ -78,7 +84,7 @@ public:
   }
   using BootstrapFn = ZmFn<void(BootstrapResult)>;
   // one-time initialization (idempotent)
-  void bootstrap(BootstrapFn fn);
+  void bootstrap(ZtString userName, ZtString roleName, BootstrapFn);
 
   // process login/access request
   void loginReq(ZuBytes reqBuf, SessionFn);
@@ -89,7 +95,7 @@ public:
   // check permissions - ok(session, perm)
   bool ok(Session *session, unsigned permID) const {
     if ((session->user->data().flags & UserFlags::ChPass()) &&
-	!session->key && perm != reqPerm(fbs::ReqData::ChPass))
+	!session->key && permID != m_perms[reqPerm(fbs::ReqData::ChPass)])
       return false;
     return session->perms[permID];
   }
@@ -108,7 +114,7 @@ private:
     ZtString	userName;
     ZtString	roleName;
     BootstrapFn	fn;
-    unsigned	permID = 0;
+    unsigned	perm = 0;
   };
   void bootstrap_findAddPerm();
   void bootstrap_nextPerm();
@@ -147,6 +153,9 @@ private:
     ZtArray<const uint8_t> token, int64_t stamp, ZtArray<const uint8_t> hmac,
     SessionFn);
 
+  void loginSucceeded(ZmRef<Session>, SessionFn);
+  void loginFailed(ZmRef<Session>, SessionFn);
+
   // reject request
   void reject(
     SeqNo seqNo, unsigned rejCode, ZuString text, ResponseFn fn);
@@ -159,10 +168,12 @@ private:
   void initKey(ZdbObject<Key> *, UserID, KeyIDData);
 
   // initialize permission
-  void initPerm(ZdbObject<Perm> *, unsigned i);
+  void initPerm(ZdbObject<Perm> *, ZtString name);
 
   // initialize role
-  void initRole(ZdbObject<Role> *, ZtString name);
+  void initRole(
+    ZdbObject<Role> *, ZtString name,
+    ZtBitmap perms, ZtBitmap apiperms, RoleFlags::T);
 
   // initialize user
   void initUser(
@@ -233,8 +244,11 @@ private:
   ZmRef<ZdbTable<Key>>	m_keyTbl;
   ZmRef<ZdbTable<Perm>>	m_permTbl;
 
+  using NPerms = ZuUnsigned<
+    unsigned(fbs::LoginReqData::MAX) + unsigned(fbs::ReqData::MAX)>;
+
   static constexpr unsigned nPerms() {
-    return unsigned(fbs::LoginReqData::MAX) + unsigned(fbs::ReqData::MAX);
+    return NPerms{};
   }
   static constexpr unsigned loginReqPerm(fbs::LoginReqData i) {
     return unsigned(i) - 1;
@@ -246,13 +260,13 @@ private:
   UserID		m_nextUserID = 0;
 
   PermID		m_nextPermID = 0;
-  PermID		m_perms[nPerms()];
+  PermID		m_perms[NPerms{}];
 
   using State = ZuUnion<bool, Open, Bootstrap>;
 
   State			m_state;
 };
 
-} } // Zum::Server
+} // Zum::Server
 
 #endif /* ZumServer_HH */

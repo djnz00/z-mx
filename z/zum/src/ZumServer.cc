@@ -8,14 +8,16 @@
 
 #include <zlib/ZumServer.hh>
 
+#include <zlib/ZuBase32.hh>
 #include <zlib/ZuBase64.hh>
-#include <zlib/ZuQuote.hh>
+
+#include <zlib/ZtQuote.hh>
 
 #include <zlib/ZeLog.hh>
 
 #include <zlib/ZtlsTOTP.hh>
 
-namespace Zum { namespace Server {
+namespace Zum::Server {
 
 Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
     unsigned totpRange, unsigned keyInterval) :
@@ -46,7 +48,7 @@ void Mgr::final()
   m_permTbl = nullptr;
 }
 
-// return permission name for permission i
+// return permission name for request i
 inline ZtString permName(unsigned i)
 {
   ZtString s{"UserMgmt."};
@@ -62,7 +64,7 @@ void Mgr::open(OpenFn fn)
   if (!m_state.is<bool>() || m_state.p<bool>()) { fn(false); return; }
 
   // save context
-  new (m_state.new_<Open>()) Open{ZuMv(fn);};
+  new (m_state.new_<Open>()) Open{ZuMv(fn)};
 
   m_userTbl->run([this]() { open_recoverNextUserID(); });
 }
@@ -73,7 +75,7 @@ void Mgr::open_recoverNextUserID()
     using Key = ZuFieldKeyT<User, 0>;
     if (max.template is<Key>())
       m_nextUserID = max.template p<Key>().template p<0>() + 1;
-    m_perlTbl->run([this]() { open_recoverNextPermID(); });
+    m_permTbl->run([this]() { open_recoverNextPermID(); });
   });
 }
 // recover nextPermID
@@ -83,25 +85,25 @@ void Mgr::open_recoverNextPermID()
     using Key = ZuFieldKeyT<Perm, 0>;
     if (max.template is<Key>())
       m_nextPermID = max.template p<Key>().template p<0>() + 1;
-    m_perlTbl->run([this]() { open_findPerm(); })
+    m_permTbl->run([this]() { open_findPerm(); });
   });
 }
 // find permission and update m_perms[]
 void Mgr::open_findPerm()
 {
   auto &context = m_state.p<Bootstrap>();
-  m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
+  m_permTbl->find<1>(ZuMvTuple(permName(context.perm)), [
     this
   ](ZmRef<ZdbObject<Perm>> perm) {
     auto &context = m_state.p<Bootstrap>();
     if (!perm) {
-      ZeLOG(Fatal, ([permID = context.permID](auto &s) {
-	s << "missing permission " << permName(permID);
+      ZeLOG(Fatal, ([perm = context.perm](auto &s) {
+	s << "missing permission " << permName(perm);
       }));
       opened(false);
     } else {
-      m_perms[context.permID] = perm->data().id;
-      if (++context.permID < nPerms())
+      m_perms[context.perm] = perm->data().id;
+      if (++context.perm < nPerms())
 	m_permTbl->run([this]() mutable { open_findPerm(); });
       else
 	opened(true);
@@ -135,15 +137,15 @@ void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
 void Mgr::bootstrap_findAddPerm()
 {
   auto &context = m_state.p<Bootstrap>();
-  m_permTbl->find<1>(ZuMvTuple(permName(context.permID)), [
+  m_permTbl->find<1>(ZuMvTuple(permName(context.perm)), [
     this
   ](ZmRef<ZdbObject<Perm>> perm) mutable {
     if (!perm)
       m_permTbl->insert([this](ZdbObject<Perm> *dbPerm) {
 	if (!dbPerm) { bootstrapped(BootstrapResult{false}); return; }
 	auto &context = m_state.p<Bootstrap>();
-	initPerm(dbPerm, permName(context.permIndex));
-	m_perms[context.permIndex] = dbPerm->data().id;
+	initPerm(dbPerm, permName(context.perm));
+	m_perms[context.perm] = dbPerm->data().id;
 	bootstrap_nextPerm();
       });
     else
@@ -154,7 +156,7 @@ void Mgr::bootstrap_findAddPerm()
 void Mgr::bootstrap_nextPerm()
 {
   auto &context = m_state.p<Bootstrap>();
-  if (++context.permIndex < nPerms())
+  if (++context.perm < nPerms())
     m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
   else 
     m_roleTbl->run([this]() mutable { bootstrap_findAddRole(); });
@@ -194,11 +196,15 @@ void Mgr::bootstrap_findAddUser()
 	ZtString passwd;
 	initUser(dbUser, m_nextUserID++,
 	  ZuMv(context.userName),
-	  { ZuMv(context.roleName)) },
-	  User::Immutable | User::Enabled | User::ChPass,
+	  { ZuMv(context.roleName) },
+	  UserFlags::Immutable() | UserFlags::Enabled() | UserFlags::ChPass(),
 	  passwd);
 	auto &user = dbUser->data();
-	bootstrapped(BootstrapResult{BootstrapData{ZuMv(passwd)}});
+	ZtString secret{ZuBase32::enclen(user.secret.length())};
+	secret.length(secret.size());
+	secret.length(ZuBase32::encode(secret, user.secret));
+	bootstrapped(BootstrapResult{BootstrapData{
+	  ZuMv(passwd), ZuMv(secret)}});
       });
     else
       bootstrapped(BootstrapResult{true});
@@ -332,10 +338,10 @@ void Mgr::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
   ](ZmRef<ZdbObject<User>> user) mutable {
     if (!user) { sessionLoaded(ZuMv(context), false); return; }
     context->session = new Session{this, ZuMv(user), ZuMv(context->key)};
-    if (!user.data().roles)
+    if (!user->data().roles)
       sessionLoaded(ZuMv(context), true);
     else
-      roleTbl->run([this, context = ZuMv(context)]() mutable {
+      m_roleTbl->run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
   });
@@ -381,8 +387,8 @@ void Mgr::loginSucceeded(ZmRef<Session> session, SessionFn fn)
     m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
       ZmRef<ZdbObject<User>> user = session->user;
       m_userTbl->update(ZuMv(user), [
-	this, fn = ZuMv(fn)
-      ](ZdbObject<User> *dbUser) {
+	this, session = ZuMv(session), fn = ZuMv(fn)
+      ](ZdbObject<User> *dbUser) mutable {
 	if (dbUser) dbUser->commit();
 	fn(ZuMv(session));
       });
@@ -418,7 +424,7 @@ ZmRef<User> Mgr::login(
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: disabled user "
-	    << ZuQuote::String{name} << " attempted login"; }));
+	    << ZtQuote::String{name} << " attempted login"; }));
       }
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
@@ -427,7 +433,7 @@ ZmRef<User> Mgr::login(
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without login permission "
-	    << ZuQuote::String{name} << " attempted login"; }));
+	    << ZtQuote::String{name} << " attempted login"; }));
       }
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
@@ -443,7 +449,7 @@ ZmRef<User> Mgr::login(
 	if (++user.failures < 3) {
 	  ZeLOG(Warning, ([name = user.name](auto &s) {
 	    s << "authentication failure: user "
-	      << ZuQuote::String{name} << " provided invalid password"; }));
+	      << ZtQuote::String{name} << " provided invalid password"; }));
 	}
 	loginFailed(ZuMv(session), ZuMv(fn));
 	return;
@@ -453,7 +459,7 @@ ZmRef<User> Mgr::login(
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user "
-	    << ZuQuote::String{name} << " provided invalid OTP"; }));
+	    << ZtQuote::String{name} << " provided invalid OTP"; }));
       }
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
@@ -476,7 +482,7 @@ ZmRef<User> Mgr::access(
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: disabled user "
-	    << ZuQuote::String{name} << " attempted API key access"; }));
+	    << ZtQuote::String{name} << " attempted API key access"; }));
       }
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
@@ -485,7 +491,7 @@ ZmRef<User> Mgr::access(
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without API access permission "
-	    << ZuQuote::String{name} << " attempted access"; }));
+	    << ZtQuote::String{name} << " attempted access"; }));
       }
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
@@ -512,7 +518,7 @@ ZmRef<User> Mgr::access(
 	if (++user.failures < 3) {
 	  ZeLOG(Warning, ([name = user.name](auto &s) {
 	    s << "authentication failure: user "
-	      << ZuQuote::String{name}
+	      << ZtQuote::String{name}
 	      << " provided invalid API key HMAC"; }));
 	}
 	loginFailed(ZuMv(session), ZuMv(fn));
@@ -754,7 +760,7 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
       if (dbUser) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "user " << ZuQuote::String{userName} << " already exists"));
+	    << "user " << ZtQuote::String{userName} << " already exists"));
 	return;
       }
       m_userTbl->insert([
@@ -766,7 +772,7 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
 	if (!dbUser) {
 	  Zfb::IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	      << "user " << ZuQuote::String{userName} << " insert failed"));
+	      << "user " << ZtQuote::String{userName} << " insert failed"));
 	  return;
 	}
 	ZtArray<ZtString> roles;
@@ -999,7 +1005,7 @@ void Mgr::roleAdd(ZuBytes reqBuf, ResponseFn fn)
       if (dbRole) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "role " << ZuQuote::String{roleName} << " already exists"));
+	    << "role " << ZtQuote::String{roleName} << " already exists"));
 	return;
       }
       m_roleTbl->insert([
@@ -1011,7 +1017,7 @@ void Mgr::roleAdd(ZuBytes reqBuf, ResponseFn fn)
 	if (!dbRole) {
 	  Zfb::IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	      << "role " << ZuQuote::String{roleName} << " insert failed"));
+	      << "role " << ZtQuote::String{roleName} << " insert failed"));
 	  return;
 	}
 	initRole(dbRole, ZuMv(roleName),
@@ -1044,14 +1050,14 @@ void Mgr::roleMod(ZuBytes reqBuf, ResponseFn fn)
       if (!dbRole) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "role " << ZuQuote::String{roleName} << " not found"));
+	    << "role " << ZtQuote::String{roleName} << " not found"));
 	return;
       }
       auto &role = dbRole->data();
       if (role->flags & RoleFlags::Immutable()) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "role " << ZuQuote::String{roleName} << " is immutable"));
+	    << "role " << ZtQuote::String{roleName} << " is immutable"));
 	return;
       }
       if (fbRole->perms()->size())
@@ -1086,7 +1092,7 @@ void Mgr::roleDel(ZuBytes reqBuf, ResponseFn fn)
       if (!dbRole) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "role " << ZuQuote::String{roleName} << " not found"));
+	    << "role " << ZtQuote::String{roleName} << " not found"));
 	return;
       }
       dbRole->commit();
@@ -1175,7 +1181,7 @@ void Mgr::permAdd(ZuBytes reqBuf, ResponseFn fn)
       if (dbPerm) {
 	Zfb::IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "perm " << ZuQuote::String{permName} << " already exists"));
+	    << "perm " << ZtQuote::String{permName} << " already exists"));
 	return;
       }
       m_permTbl->insert([
@@ -1187,7 +1193,7 @@ void Mgr::permAdd(ZuBytes reqBuf, ResponseFn fn)
 	if (!dbPerm) {
 	  Zfb::IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	      << "perm " << ZuQuote::String{permName} << " insert failed"));
+	      << "perm " << ZtQuote::String{permName} << " insert failed"));
 	  return;
 	}
 	initPerm(dbPerm, permName);
@@ -1434,4 +1440,4 @@ void Mgr::keyDel(ZuBytes reqBuf, ResponseFn fn)
     });
 }
 
-} } // Zum::Server
+} // Zum::Server

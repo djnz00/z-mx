@@ -187,11 +187,11 @@ public:
   bool running() const; // blocking
 
   template <typename ...Args>
-  void run(Args &&... args) const {
+  void run(Args &&...args) const {
     m_sched->invoke(m_thread, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&... args) const {
+  void invoke(Args &&...args) const {
     m_sched->invoke(m_thread, ZuFwd<Args>(args)...);
   }
   bool invoked() const { return m_sched->invoked(m_thread); }
@@ -360,7 +360,7 @@ private:
     return i;
   }
   template <typename ...Args>
-  static char *tiparm(const char *cap, Args &&... args) {
+  static char *tiparm(const char *cap, Args &&...args) {
     return ::tiparm(cap, static_cast<int>(ZuFwd<Args>(args))...);
   }
 #endif

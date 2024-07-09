@@ -408,6 +408,8 @@ template <typename Tuple, typename Fields_>
 struct ZuFieldTuple_ : public Tuple {
   using Tuple::Tuple;
   using Tuple::operator =;
+  template <typename ...Args>
+  ZuFieldTuple_(Args &&...args) : Tuple{ZuFwd<Args>(args)...} { }
 
   // adapt original fields, overriding get/set
   template <typename Base>

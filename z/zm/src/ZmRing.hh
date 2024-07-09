@@ -127,7 +127,7 @@ public:
   Params_(Params_ &&) = default;
   template <
     typename Arg0, typename ...Args, typename = ZuIsNot<ParamData, Arg0>>
-  Params_(Arg0 &&arg0, Args &&... args) :
+  Params_(Arg0 &&arg0, Args &&...args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
   Params_ &operator =(const Params_ &) = default;
   Params_ &operator =(Params_ &&) = default;
@@ -148,7 +148,7 @@ public:
   Params(Params &&) = default;
   template <
     typename Arg0, typename ...Args, typename = ZuIsNot<ParamData, Arg0>>
-  Params(Arg0 &&arg0, Args &&... args) :
+  Params(Arg0 &&arg0, Args &&...args) :
       Base{ZuFwd<Arg0>(arg0), ZuFwd<Args>(args)...} { }
   Params &operator =(const Params &) = default;
   Params &operator =(Params &&) = default;
@@ -613,7 +613,7 @@ public:
   Ring() = default;
 
   template <typename Params, typename ...Args, typename = ZuIsNot<Ring, Params>>
-  Ring(Params params, Args &&... args) :
+  Ring(Params params, Args &&...args) :
       m_params{ZuMv(params)} { }
 
   Ring(const Ring &ring) :

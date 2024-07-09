@@ -14,7 +14,6 @@
 #endif
 
 #include <zlib/ZuArrayN.hh>
-#include <zlib/ZuBase64.hh>
 
 #include <zlib/ZtString.hh>
 

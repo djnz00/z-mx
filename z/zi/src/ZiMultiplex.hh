@@ -690,7 +690,7 @@ friend ZiConnection;
 
   protected:
     template <typename ...Args>
-    Listener_(ZiMultiplex *mx, ZiConnectFn acceptFn, Args &&... args) :
+    Listener_(ZiMultiplex *mx, ZiConnectFn acceptFn, Args &&...args) :
 	m_mx(mx), m_acceptFn(acceptFn), m_up(1),
 	m_info{ZuFwd<Args>(args)...} { }
 
@@ -772,7 +772,7 @@ template <typename> friend class Connect_;
 
   protected:
     template <typename ...Args> Connect_(
-	ZiMultiplex *mx, ZiConnectFn fn, ZiFailFn failFn, Args &&... args) :
+	ZiMultiplex *mx, ZiConnectFn fn, ZiFailFn failFn, Args &&...args) :
       m_mx(mx), m_fn(fn), m_failFn(failFn), m_info{ZuFwd<Args>(args)...} {
 #ifdef ZiMultiplex_IOCP
       m_overlapped.init(
@@ -866,16 +866,16 @@ public:
   unsigned rxThread() const { return m_rxThread; }
   unsigned txThread() const { return m_txThread; }
 
-  template <typename ...Args> void rxRun(Args &&... args) {
+  template <typename ...Args> void rxRun(Args &&...args) {
     run(m_rxThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> void rxInvoke(Args &&... args) {
+  template <typename ...Args> void rxInvoke(Args &&...args) {
     invoke(m_rxThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> void txRun(Args &&... args) {
+  template <typename ...Args> void txRun(Args &&...args) {
     run(m_txThread, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> void txInvoke(Args &&... args) {
+  template <typename ...Args> void txInvoke(Args &&...args) {
     invoke(m_txThread, ZuFwd<Args>(args)...);
   }
 

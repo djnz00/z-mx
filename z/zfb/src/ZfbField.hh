@@ -240,7 +240,7 @@ struct Fielded_ {
     Load__() = default;
     Load__(const FBType *fbo) : O{Field::load_(fbo)...} { }
     template <typename ...Args>
-    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+    Load__(Args &&...args) : O{ZuFwd<Args>(args)...} { }
   };
   using Load_ = ZuTypeApply<Load__, CtorFields>;
   struct Load : public Load_ {
@@ -251,7 +251,7 @@ struct Fielded_ {
       });
     }
     template <typename ...Args>
-    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
+    Load(Args &&...args) : Load_{ZuFwd<Args>(args)...} { }
   };
 
   static void load(O &o, const FBType *fbo) {

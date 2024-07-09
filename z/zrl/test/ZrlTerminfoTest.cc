@@ -41,7 +41,7 @@ unsigned tigetnum_(const char *cap) {
 }
 #endif
 template <typename ...Args>
-char *tiparm_(const char *cap, Args &&... args) {
+char *tiparm_(const char *cap, Args &&...args) {
   return ::tiparm(cap, static_cast<int>(ZuFwd<Args>(args))...);
 }
 void putenv_(const char *s) {

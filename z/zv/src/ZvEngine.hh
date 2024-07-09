@@ -236,15 +236,15 @@ public:
   unsigned rxThread() const { return m_rxThread; }
   unsigned txThread() const { return m_txThread; }
 
-  template <typename ...Args> void rxRun(Args &&... args)
+  template <typename ...Args> void rxRun(Args &&...args)
     { m_mx->run(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> void rxPush(Args &&... args)
+  template <typename ...Args> void rxPush(Args &&...args)
     { m_mx->push(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> void rxInvoke(Args &&... args)
+  template <typename ...Args> void rxInvoke(Args &&...args)
     { m_mx->invoke(m_rxThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> void txRun(Args &&... args)
+  template <typename ...Args> void txRun(Args &&...args)
     { m_mx->run(m_txThread, ZuFwd<Args>(args)...); }
-  template <typename ...Args> void txInvoke(Args &&... args)
+  template <typename ...Args> void txInvoke(Args &&...args)
     { m_mx->invoke(m_txThread, ZuFwd<Args>(args)...); }
 
   void mgrAddEngine() { mgr()->addEngine(this); }
@@ -597,10 +597,10 @@ public:
   using ZvAnyLink::txSeqNo;
 
   template <typename L, typename ...Args>
-  void rxRun(L &&l, Args &&... args)
+  void rxRun(L &&l, Args &&...args)
     { this->engine()->rxRun(ZmFn<>{rx(), ZuFwd<L>(l)}, ZuFwd<Args>(args)...); }
   template <typename L, typename ...Args>
-  void rxRun(L &&l, Args &&... args) const
+  void rxRun(L &&l, Args &&...args) const
     { this->engine()->rxRun(ZmFn<>{rx(), ZuFwd<L>(l)}, ZuFwd<Args>(args)...); }
   template <typename L> void rxPush(L &&l)
     { this->engine()->rxPush(ZmFn<>{rx(), ZuFwd<L>(l)}); }

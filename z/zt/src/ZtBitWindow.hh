@@ -93,12 +93,12 @@ public:
 
   void dump_() { }
   template <typename Arg0, typename ...Args>
-  void dump_(Arg0 &&arg0, Args &&... args) {
+  void dump_(Arg0 &&arg0, Args &&...args) {
     std::cerr << ZuMv(arg0);
     dump_(ZuMv(args)...);
   }
   template <typename ...Args>
-  void dump(Args &&... args) {
+  void dump(Args &&...args) {
     dump_(ZuMv(args)...);
     std::cerr
       << " size=" << m_size
@@ -321,12 +321,12 @@ public:
 
   void dump_() { }
   template <typename Arg0, typename ...Args>
-  void dump_(Arg0 &&arg0, Args &&... args) {
+  void dump_(Arg0 &&arg0, Args &&...args) {
     std::cerr << ZuMv(arg0);
     dump_(ZuMv(args)...);
   }
   template <typename ...Args>
-  void dump(Args &&... args) {
+  void dump(Args &&...args) {
     dump_(ZuMv(args)...);
     std::cerr
       << " size=" << m_size
@@ -546,12 +546,12 @@ public:
 
   void dump_() { }
   template <typename Arg0, typename ...Args>
-  void dump_(Arg0 &&arg0, Args &&... args) {
+  void dump_(Arg0 &&arg0, Args &&...args) {
     std::cerr << ZuMv(arg0);
     dump_(ZuMv(args)...);
   }
   template <typename ...Args>
-  void dump(Args &&... args) {
+  void dump(Args &&...args) {
     dump_(ZuMv(args)...);
     std::cerr
       << " size=" << m_size

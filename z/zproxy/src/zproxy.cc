@@ -86,9 +86,9 @@ public:
   char *data() { return m_buf.data(); }
   unsigned length() const { return m_buf.length(); }
   template <typename ...Args>
-  void append(Args &&... args) { m_buf.append(ZuFwd<Args>(args)...); }
+  void append(Args &&...args) { m_buf.append(ZuFwd<Args>(args)...); }
   template <typename ...Args>
-  void splice(Args &&... args) { m_buf.splice(ZuFwd<Args>(args)...); }
+  void splice(Args &&...args) { m_buf.splice(ZuFwd<Args>(args)...); }
 
   void recv(ZiIOContext *io);
   void recv_(ZiIOContext &io);

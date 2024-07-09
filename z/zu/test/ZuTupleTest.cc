@@ -70,6 +70,14 @@ ZuTuple<A, A, A> passatuple(ZuTuple<A, A, A> a) { return a; }
 
 ZuDeclTuple(B, (A, foo), (A, foo2), (A, foo3));
 
+struct D : public ZuTuple<> {
+  using Base = ZuTuple<>;
+  using Base::Base;
+  using Base::operator =;
+  template <typename ...Args>
+  D(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+};
+
 int main()
 {
   { VPair p = mkpair<VPair>(); CHECK(p.p<0>() == 42); }
@@ -169,6 +177,15 @@ int main()
       if (i++) std::cout << ' ';
       std::cout << arg;
     });
+
+  {
+    using T = ZuTuple<>;
+    T v;
+    D d = v;
+    D e{v};
+    static auto foo = [](D d) { };
+    foo(v);
+  }
 
   std::cout << '\n';
 }

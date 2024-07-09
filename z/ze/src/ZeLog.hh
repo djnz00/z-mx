@@ -179,15 +179,15 @@ public:
   static ZeLog *instance();
 
   template <typename ...Args>
-  static ZmRef<ZeSink> fileSink(Args &&... args) {
+  static ZmRef<ZeSink> fileSink(Args &&...args) {
     return new ZeFileSink(ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  static ZmRef<ZeSink> debugSink(Args &&... args) {
+  static ZmRef<ZeSink> debugSink(Args &&...args) {
     return new ZeDebugSink(ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  static ZmRef<ZeSink> sysSink(Args &&... args) {
+  static ZmRef<ZeSink> sysSink(Args &&...args) {
     return new ZeSysSink(ZuFwd<Args>(args)...);
   }
   template <typename L>
@@ -215,7 +215,7 @@ public:
   static void level(int l) { instance()->level_(l); }
 
   template <typename ...Args>
-  static void sink(Args &&... args) {
+  static void sink(Args &&...args) {
     instance()->sink_(ZuFwd<Args>(args)...);
   }
 

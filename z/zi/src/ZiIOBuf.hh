@@ -329,7 +329,7 @@ struct ZiIOBuf_ : public Heap, public ZiIOVBuf<Size_, HeapID> {
   enum { Size = VBuf::Size };
   ZiIOBuf_() = default;
   template <typename ...Args>
-  ZiIOBuf_(Args &&... args) : VBuf{ZuFwd<Args>(args)...} { }
+  ZiIOBuf_(Args &&...args) : VBuf{ZuFwd<Args>(args)...} { }
   ~ZiIOBuf_() = default;
   ZiIOBuf_(const ZiIOBuf_ &) = delete;
   ZiIOBuf_ &operator =(const ZiIOBuf_ &) = delete;

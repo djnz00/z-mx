@@ -111,7 +111,7 @@ namespace Save {
   template <typename T, typename I>
   inline void push_(T *, I) { }
   template <typename T, typename I, typename Arg0, typename ...Args>
-  inline void push_(T *buf, I i, Arg0 &&arg0, Args &&... args) {
+  inline void push_(T *buf, I i, Arg0 &&arg0, Args &&...args) {
     buf[i] = ZuFwd<Arg0>(arg0);
     push_(buf, ZuUnsigned<i + 1>{}, ZuFwd<Args>(args)...);
   }
@@ -120,7 +120,7 @@ namespace Save {
   template <typename T, typename L, typename I>
   inline void lpush_(T *, L, I) { }
   template <typename T, typename L, typename I, typename Arg0, typename ...Args>
-  inline void lpush_(T *buf, L l, I i, Arg0 &&arg0, Args &&... args) {
+  inline void lpush_(T *buf, L l, I i, Arg0 &&arg0, Args &&...args) {
     buf[i] = l(ZuFwd<Arg0>(arg0));
     lpush_(buf, ZuMv(l), ZuUnsigned<i + 1>{}, ZuFwd<Args>(args)...);
   }
@@ -133,7 +133,7 @@ namespace Save {
   }
   // inline creation of a vector of primitive scalars
   template <typename T, typename Builder, typename ...Args>
-  inline Offset<Vector<T>> pvector(Builder &fbb, Args &&... args) {
+  inline Offset<Vector<T>> pvector(Builder &fbb, Args &&...args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     T *buf = nullptr;
     auto r = pvector_(fbb, n, buf);
@@ -161,7 +161,7 @@ namespace Save {
 
   // inline creation of a vector of offsets
   template <typename T, typename Builder, typename ...Args>
-  inline Offset<Vector<Offset<T>>> vector(Builder &fbb, Args &&... args) {
+  inline Offset<Vector<Offset<T>>> vector(Builder &fbb, Args &&...args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
@@ -171,7 +171,7 @@ namespace Save {
   }
   // inline creation of a vector of lambda-transformed offsets
   template <typename T, typename Builder, typename L, typename ...Args>
-  inline Offset<Vector<Offset<T>>> lvector(Builder &fbb, L l, Args &&... args) {
+  inline Offset<Vector<Offset<T>>> lvector(Builder &fbb, L l, Args &&...args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
@@ -201,7 +201,7 @@ namespace Save {
 
   // inline creation of a vector of keyed offsets
   template <typename T, typename Builder, typename ...Args>
-  inline Offset<Vector<Offset<T>>> keyVec(Builder &fbb, Args &&... args) {
+  inline Offset<Vector<Offset<T>>> keyVec(Builder &fbb, Args &&...args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
@@ -211,7 +211,7 @@ namespace Save {
   }
   // inline creation of a vector of lambda-transformed keyed offsets
   template <typename T, typename Builder, typename L, typename ...Args>
-  inline Offset<Vector<Offset<T>>> lkeyVec(Builder &fbb, L l, Args &&... args) {
+  inline Offset<Vector<Offset<T>>> lkeyVec(Builder &fbb, L l, Args &&...args) {
     auto n = ZuUnsigned<sizeof...(Args)>{};
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
@@ -244,7 +244,7 @@ namespace Save {
 
   // inline creation of a vector of strings
   template <typename Builder, typename ...Args>
-  inline auto strVec(Builder &fbb, Args &&... args) {
+  inline auto strVec(Builder &fbb, Args &&...args) {
     return lvector<String>(fbb, [&fbb](const auto &s) {
       return str(fbb, s);
     }, ZuFwd<Args>(args)...);

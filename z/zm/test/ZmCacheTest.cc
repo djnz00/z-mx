@@ -47,7 +47,7 @@ void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned batchSize)
 	  [](ZCache::NodeRef) { },
 	  [&tree]<typename L>(unsigned key, L l) {
 	    if (auto node = tree.find(key))
-	      l(new ZNode{key, node->val().v});
+	      l(new ZNode{key, Z{node->val().v}});
 	    else
 	      l(nullptr);
 	  });

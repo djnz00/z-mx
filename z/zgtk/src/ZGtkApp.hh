@@ -35,10 +35,10 @@ public:
   ZuInline unsigned sid() const { return m_sid; }
 
   template <typename ...Args>
-  ZuInline void run(Args &&... args)
+  ZuInline void run(Args &&...args)
     { m_sched->run(m_sid, ZuFwd<Args>(args)...); }
   template <typename ...Args>
-  ZuInline void invoke(Args &&... args)
+  ZuInline void invoke(Args &&...args)
     { m_sched->invoke(m_sid, ZuFwd<Args>(args)...); }
 
 private:

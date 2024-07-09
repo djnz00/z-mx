@@ -12,6 +12,7 @@ table User {
   hmac:[ubyte];		// HMAC-SHA256 of secret, password
   secret:[ubyte];	// secret (random at user creation)
   roles:[string];	// roles
+  failures:uint32;
   flags:uint8;
 }
 table UserData {

@@ -107,7 +107,7 @@ using Heap_ = ZmHeapTelemetry;
 struct Heap : public Heap_ {
   Heap() = default;
   template <typename ...Args>
-  Heap(Args &&... args) : Heap_{ZuFwd<Args>(args)...} { }
+  Heap(Args &&...args) : Heap_{ZuFwd<Args>(args)...} { }
 
   uint64_t allocated() const { return (cacheAllocs + heapAllocs) - frees; }
   void allocated(uint64_t) { } // unused
@@ -140,7 +140,7 @@ using HashTbl_ = ZmHashTelemetry;
 struct HashTbl : public HashTbl_ {
   HashTbl() = default;
   template <typename ...Args>
-  HashTbl(Args &&... args) : HashTbl_{ZuFwd<Args>(args)...} { }
+  HashTbl(Args &&...args) : HashTbl_{ZuFwd<Args>(args)...} { }
 
   int rag() const {
     if (resized) return RAG::Red;
@@ -168,7 +168,7 @@ using Thread_ = ZmThreadTelemetry;
 struct Thread : public Thread_ {
   Thread() = default;
   template <typename ...Args>
-  Thread(Args &&... args) : Thread_{ZuFwd<Args>(args)...} { }
+  Thread(Args &&...args) : Thread_{ZuFwd<Args>(args)...} { }
 
   int rag() const {
     if (cpuUsage >= 0.8) return RAG::Red;
@@ -201,7 +201,7 @@ using Mx_ = ZiMxTelemetry;
 struct Mx : public Mx_ {
   Mx() = default;
   template <typename ...Args>
-  Mx(Args &&... args) : Mx_{ZuFwd<Args>(args)...} { }
+  Mx(Args &&...args) : Mx_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused
@@ -229,7 +229,7 @@ using Socket_ = ZiCxnTelemetry;
 struct Socket : public Socket_ {
   Socket() = default;
   template <typename ...Args>
-  Socket(Args &&... args) : Socket_{ZuFwd<Args>(args)...} { }
+  Socket(Args &&...args) : Socket_{ZuFwd<Args>(args)...} { }
 
   int rag() const {
     if (rxBufLen * 10 >= (rxBufSize<<3) ||

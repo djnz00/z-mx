@@ -1834,10 +1834,10 @@ public:
 
   // shardRun(), shardInvoke() do not inject the initial MxMDShard * parameter
   template <typename ...Args>
-  void shardRun(unsigned i, Args &&... args)
+  void shardRun(unsigned i, Args &&...args)
     { m_shards[i]->run(ZuFwd<Args>(args)...); }
   template <typename ...Args>
-  void shardInvoke(unsigned i, Args &&... args)
+  void shardInvoke(unsigned i, Args &&...args)
     { m_shards[i]->invoke(ZuFwd<Args>(args)...); }
 
   void sync(); // synchronize with all shards
@@ -1895,11 +1895,11 @@ private:
 
 friend ZmShard;
   template <typename ...Args>
-  void run(unsigned sid, Args &&... args) {
+  void run(unsigned sid, Args &&...args) {
     m_scheduler->run(sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(unsigned sid, Args &&... args) {
+  void invoke(unsigned sid, Args &&...args) {
     m_scheduler->invoke(sid, ZuFwd<Args>(args)...);
   }
 

@@ -288,15 +288,15 @@ inline T scanScalar(
 }
 // scanScalar() shorthand forwarding functions
 template <bool Required_ = false, typename ...Args>
-inline auto scanInt(Args &&... args) {
+inline auto scanInt(Args &&...args) {
   return scanScalar<int, Required_>(ZuFwd<Args>(args)...);
 }
 template <bool Required_ = false, typename ...Args>
-inline auto scanInt64(Args &&... args) {
+inline auto scanInt64(Args &&...args) {
   return scanScalar<int64_t, Required_>(ZuFwd<Args>(args)...);
 }
 template <bool Required_ = false, typename ...Args>
-inline auto scanDbl(Args &&... args) {
+inline auto scanDbl(Args &&...args) {
   return scanScalar<double, Required_>(ZuFwd<Args>(args)...);
 }
 
@@ -656,7 +656,7 @@ struct Handler_ {
     Load__() = default;
     Load__(const Cf_ *cf) : O{cf->template getField<Fields>()...} { }
     template <typename ...Args>
-    Load__(Args &&... args) : O{ZuFwd<Args>(args)...} { }
+    Load__(Args &&...args) : O{ZuFwd<Args>(args)...} { }
   };
   using Load_ = ZuTypeApply<Load__, CtorFields>;
   struct Load : public Load_ {
@@ -667,7 +667,7 @@ struct Handler_ {
       });
     }
     template <typename ...Args>
-    Load(Args &&... args) : Load_{ZuFwd<Args>(args)...} { }
+    Load(Args &&...args) : Load_{ZuFwd<Args>(args)...} { }
   };
 
   static void load(O &o, const Cf_ *cf) {
