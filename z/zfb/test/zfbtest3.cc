@@ -81,4 +81,11 @@ int main()
     auto fbo = ZfbField::root<Order>(buf->data());
     std::cout << *fbo << '\n';
   }
+
+  {
+    ZuTuple<ZtString, uint64_t> k1{"IBM", 1};
+    using Key = ZuFieldKeyT<Order, 0>;
+    static auto fn = [](Key key) { std::cout << key << '\n'; };
+    fn(k1);
+  }
 }
