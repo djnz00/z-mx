@@ -152,6 +152,10 @@ public:
   template <typename T>
   T &as() { return *ptr(); }
 
+  // low-level buffer access
+  auto buf_() { return ZuArray{data(), size}; }
+  auto cbuf_() const { return ZuArray{data(), length}; }
+
   // reallocate (while building buffer), preserving head and tail bytes
   template <auto Grow = ZmGrow>
   uint8_t *realloc(
