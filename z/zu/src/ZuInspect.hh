@@ -13,7 +13,7 @@
 // ZuInspect<T1, T2>::Is	 - ZuDecay<T1> is same or a base of ZuDecay<T2>
 // ZuInspect<T1, T2>::Base	 - ZuDecay<T1> is a base of ZuDecay<T2>
 //
-// ZuInspect<T1, T2>::Same is same as ZuIsExact<ZuDecay<T1>, ZuDecay<T2>>{}
+// ZuInspect<T1, T2>::Same == ZuIsExact<ZuDecay<T1>, ZuDecay<T2>>{}
 
 #ifndef ZuInspect_HH
 #define ZuInspect_HH
@@ -24,6 +24,20 @@
 
 namespace ZuInspect_ {
 
+template <typename U, typename = void>
+struct P1_ { using T = ZuStrip<U>; };
+template <typename U>
+struct P1_<U, decltype((int U::*){}, void())> { using T = U &; };
+template <typename U>
+using P1 = typename P1_<U>::T;
+
+template <typename U, typename = void>
+struct P2_ { using T = ZuStrip<U>; };
+template <typename U>
+struct P2_<U, decltype((int U::*){}, void())> { using T = const U &; };
+template <typename U>
+using P2 = typename P2_<U>::T;
+
 struct Convertible_ {
   typedef char	Small;
   struct	Big { char _[2]; };
@@ -31,11 +45,11 @@ struct Convertible_ {
 template <typename T1, typename T2>
 struct Convertible : public Convertible_ {
 private:
-  static Small	test(const T2 &);
+  static Small	test(P2<T2>);
   static Big	test(...);
 
 public:
-  enum { Converts = sizeof(test(ZuDeclVal<T1 &>())) == sizeof(Small) };
+  enum { Converts = sizeof(test(ZuDeclVal<P1<T1>>())) == sizeof(Small) };
 };
 
 template <typename T1, typename T2, typename = void>
@@ -43,7 +57,7 @@ struct Constructible {
   enum { Constructs = 0 };
 };
 template <typename T1, typename T2>
-struct Constructible<T1, T2, decltype(T2{ZuDeclVal<T1 &>()}, void())> {
+struct Constructible<T1, T2, decltype(T2(ZuDeclVal<P1<T1>>()), void())> {
   enum { Constructs = 1 };
 };
 

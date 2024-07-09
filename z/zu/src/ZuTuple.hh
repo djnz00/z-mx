@@ -109,9 +109,32 @@ template <unsigned I_, typename T_> struct Tuple_Elem {
   T v;
 };
 
+#if 0
 // empty tuple
 template <>
 class Tuple_<ZuTypeList<>, ZuTypeList<>> {
+protected:
+  using Elems = ZuTypeList<>;
+
+  template <typename V>
+  struct IsConAnyTuple_ { using T = ZuFalse; };
+  template <>
+  struct IsConAnyTuple_<Tuple<>> { using T = ZuTrue; };
+  template <>
+  struct IsConAnyTuple_<std::tuple<>> { using T = ZuTrue; };
+  template <typename E>
+  struct IsConAnyTuple_<std::array<E, 0>> { using T = ZuTrue; };
+  template <typename V>
+  using IsConAnyTuple = typename IsConAnyTuple_<V>::T;
+  template <typename V, typename R = void>
+  using ConAnyTuple = ZuIfT<IsConAnyTuple<V>{}, R>;
+  template <typename V, typename R = void>
+  using CvtAnyTuple = ZuIfT<IsConAnyTuple<V>{}, R>;
+  template <typename>
+  struct CvtFirstElem_ { using T = ZuFalse; };
+  template <typename V, typename R = void>
+  using CvtFirstElem = ZuIfT<typename CvtFirstElem_<V>::T{}, R>;
+
 public:
   using Types = ZuTypeList<>;
   template <unsigned I> using Type = ZuType<I, Types>; // never defined
@@ -129,6 +152,7 @@ public:
   Tuple_(const std::tuple<> &) { }
   Tuple_ &operator =(const std::tuple<> &) { return *this; }
 };
+#endif
 
 // tuple - uses MI to derive from all elements in a flat hierarchy
 template <typename ...Elems_, typename ...StoredElems_>
@@ -262,19 +286,31 @@ protected:
   using CvtAnyTuple = ZuIfT<IsCvtAnyTuple<V>{}, R>;
 
   // convertible first element
+  template <typename V, unsigned N_ = N>
+  struct IsCvtFirstElem_ {
+    using T = ZuBool<
+      !IsCvtAnyTuple<V>{} &&
+      ZuInspect<V, ZuType<0, Types>>::Converts>;
+  };
   template <typename V>
-  using IsCvtFirstElem = ZuBool<
-    !IsCvtAnyTuple<V>{} &&
-    ZuInspect<V, ZuType<0, Types>>::Converts>;
+  struct IsCvtFirstElem_<V, 0> { using T = ZuFalse; };
+  template <typename V>
+  using IsCvtFirstElem = typename IsCvtFirstElem_<V>::T;
   template <typename V, typename R = void>
   using CvtFirstElem = ZuIfT<IsCvtFirstElem<V>{}, R>;
 
   // convertible only element (in a single-element tuple)
 public:
   template <typename V, unsigned N_ = N>
-  using IsCvtElem = ZuBool<
-    !IsCvtAnyTuple<V>{} &&
-    ZuInspect<V, ZuType<0, Types>>::Converts && N_ == 1>;
+  struct IsCvtElem_ {
+    using T = ZuBool<
+      !IsCvtAnyTuple<V>{} &&
+      ZuInspect<V, ZuType<0, Types>>::Converts && N_ == 1>;
+  };
+  template <typename V>
+  struct IsCvtElem_<V, 0> { using T = ZuFalse; };
+  template <typename V>
+  using IsCvtElem = typename IsCvtElem_<V>::T;
 protected:
   template <typename V, typename R = void>
   using CvtElem = ZuIfT<IsCvtElem<V>{}, R>;
@@ -327,7 +363,7 @@ protected:
   Tuple_(
       ZuTypeList<HeadElems...>,
       ZuTypeList<TailElems...>,
-      Vs &&... v) : HeadElems{ZuFwd<Vs>(v)}..., TailElems{}... { }
+      Vs &&... v) : HeadElems(ZuFwd<Vs>(v))..., TailElems{}... { }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif

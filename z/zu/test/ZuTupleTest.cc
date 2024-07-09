@@ -163,5 +163,12 @@ int main()
       if (i++) std::cout << ' ';
       std::cout << arg;
     });
+
+  ZuTuple<uint64_t, uint64_t>(42).all(
+    [i = 0]<typename Arg>(Arg arg) mutable {
+      if (i++) std::cout << ' ';
+      std::cout << arg;
+    });
+
   std::cout << '\n';
 }

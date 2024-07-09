@@ -8,7 +8,7 @@ AM_LDFLAGS = @Z_LDFLAGS@
 LDADD = $(top_builddir)/zu/src/libZu.la @Z_MT_LIBS@
 noinst_PROGRAMS = \
 	ZuInspectTest ZuHashTest ZuCmpTest ZuBoxTest \
-	ZuArrayTest ZuPairTest ZuIDTest ZuUTFTest ZuBitmapTest \
+	ZuArrayTest ZuTupleTest ZuIDTest ZuUTFTest ZuBitmapTest \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
 	ZuAxorTest ZuPtrTest ZuTimeTest ZuEndianTest #ZuDateTimeTest
 ZuInspectTest_SOURCES = ZuInspectTest.cc
@@ -18,7 +18,7 @@ ZuCmpTest_SOURCES = ZuCmpTest.cc
 ZuSearchTest_SOURCES = ZuSearchTest.cc
 ZuBoxTest_SOURCES = ZuBoxTest.cc
 ZuArrayTest_SOURCES = ZuArrayTest.cc
-ZuPairTest_SOURCES = ZuPairTest.cc
+ZuTupleTest_SOURCES = ZuTupleTest.cc
 ZuIDTest_SOURCES = ZuIDTest.cc
 ZuUTFTest_SOURCES = ZuUTFTest.cc
 ZuBitmapTest_SOURCES = ZuBitmapTest.cc
