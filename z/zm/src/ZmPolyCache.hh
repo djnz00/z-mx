@@ -227,7 +227,7 @@ public:
   void update(Node *node, L l) const {
     Guard guard{m_lock};
     m_hash.template update<KeyIDs_>(node,
-      [this, &guard, l = ZuMv(l)](Node *node) {
+      [this, &guard, l = ZuMv(l)](Node *node) mutable {
 	guard = Guard{};
 	l(node);
 	guard = Guard{m_lock};

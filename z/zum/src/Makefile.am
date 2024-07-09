@@ -33,13 +33,13 @@ bin_PROGRAMS = zuserdb
 libZum_la_CPPFLAGS = $(AM_CPPFLAGS) -DZV_EXPORTS 
 libZum_la_LDFLAGS = @Z_SO_LDFLAGS@
 libZum_la_SOURCES = ZumLib.cc ZumServer.cc
-libZum_la_LIBADD = $(top_builddir)/zv/src/libZv.la \
-	$(top_builddir)/zfb/src/libZfb.la \
-	$(top_builddir)/ztls/src/libZtls.la \
+libZum_la_LIBADD = \
+	$(top_builddir)/zdb/src/libZdb.la $(top_builddir)/zv/src/libZv.la \
+	$(top_builddir)/zfb/src/libZfb.la $(top_builddir)/ztls/src/libZtls.la \
 	$(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \
 	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@FBS_LIBS@ @MBEDTLS_LIBS@ \
 	@Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-zuserdb_LDADD = libZum.la $(libZum_la_LDADD)
+zuserdb_LDADD = libZum.la
 zuserdb_SOURCES = zuserdb.cc

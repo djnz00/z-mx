@@ -71,7 +71,7 @@ void Mgr::open(OpenFn fn)
 // recover nextUserID
 void Mgr::open_recoverNextUserID()
 {
-  m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max) {
+  m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
     using Key = ZuFieldKeyT<User, 0>;
     if (max.template is<Key>())
       m_nextUserID = max.template p<Key>().template p<0>() + 1;
@@ -81,7 +81,7 @@ void Mgr::open_recoverNextUserID()
 // recover nextPermID
 void Mgr::open_recoverNextPermID()
 {
-  m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max) {
+  m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
     using Key = ZuFieldKeyT<Perm, 0>;
     if (max.template is<Key>())
       m_nextPermID = max.template p<Key>().template p<0>() + 1;
@@ -785,9 +785,10 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
 	}
 	ZtArray<ZtString> roles;
 	roles.size(fbUser->roles()->size());
-	Zfb::Load::all(fbUser->roles(), [&roles](unsigned, Zfb::String *role) {
-	  roles.push(Zfb::Load::str(role));
-	});
+	Zfb::Load::all(fbUser->roles(),
+	  [&roles](unsigned, const Zfb::String *role) {
+	    roles.push(Zfb::Load::str(role));
+	  });
 	ZtString passwd;
 	initUser(
 	  dbUser, m_nextUserID++, userName,
@@ -809,14 +810,16 @@ void Mgr::keyClr__(UserID id, L l)
 {
   m_keyTbl->run([this, id, l = ZuMv(l)]() {
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(id)), MaxAPIKeys, [
-      this, id, l = ZuMv(l)
-    ](auto result) {
+      this, l = ZuMv(l)
+    ](auto result, unsigned) mutable {
       using KeyID = ZuFieldKeyT<Key, 0>;
       if (result.template is<KeyID>()) {
-	m_keyTbl->run([this, id = result.template p<KeyID>()]() mutable {
-	  m_keyTbl->findDel<1>(id, [](ZdbObject<Key> *dbKey) mutable {
-	    if (dbKey) dbKey->commit();
-	  });
+	m_keyTbl->run([this, id = ZuMv(result).template p<KeyID>()]() mutable {
+	  m_keyTbl->findDel<1>(
+	    ZuMvTuple(ZuMv(id).template p<1>()),
+	    [](ZdbObject<Key> *dbKey) mutable {
+	      if (dbKey) dbKey->commit();
+	    });
 	});
 	return;
       }
@@ -908,9 +911,10 @@ void Mgr::userMod(ZuBytes reqBuf, ResponseFn fn)
       if (fbUser->roles()->size()) {
 	user.roles.length(0);
 	user.roles.size(fbUser->roles()->size());
-	Zfb::Load::all(fbUser->roles(), [&user](unsigned, Zfb::String *role) {
-	  user.roles.push(Zfb::Load::str(role));
-	});
+	Zfb::Load::all(fbUser->roles(),
+	  [&user](unsigned, const Zfb::String *role) {
+	    user.roles.push(Zfb::Load::str(role));
+	  });
       }
       if (Zfb::IsFieldPresent(fbUser, fbs::UserData::VT_FLAGS))
 	user.flags = fbUser->flags();
@@ -1308,10 +1312,10 @@ void Mgr::keyGet_(
       ackType,
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
-      using Row = ZuFieldKeyT<Key, 0>;
-      if (result.template is<Row>()) {
-	offsets.push(
-	  Zfb::Save::bytes(result.template p<Row>().template p<1>()));
+      using KeyID = ZuFieldKeyT<Key, 0>;
+      if (result.template is<KeyID>()) {
+	offsets.push(Zfb::CreateBytes(fbb, Zfb::Save::bytes(fbb,
+	      result.template p<KeyID>().template p<1>())));
       } else {
 	auto ackData = fbs::CreateKeyIDList(fbb,
 	  fbb.CreateVector(&offsets[0], offsets.length()));

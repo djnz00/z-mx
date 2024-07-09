@@ -1129,7 +1129,11 @@ public:
       }
     });
     try {
-      m_cache.template update<KeyIDs_>(object, ZuMv(l));
+      m_cache.template update<KeyIDs_>(object, [
+	l = ZuMv(l)
+      ](typename Cache<T>::Node *node) mutable {
+	l(static_cast<Object<T> *>(node));
+      });
     } catch (...) { abort(); throw; }
     abort();
   }
