@@ -195,8 +195,7 @@ void Mgr::bootstrap_findAddUser()
 	auto &context = m_state.p<Bootstrap>();
 	ZtString passwd;
 	initUser(dbUser, m_nextUserID++,
-	  ZuMv(context.userName),
-	  { ZuMv(context.roleName) },
+	  ZuMv(context.userName), { ZuMv(context.roleName) },
 	  UserFlags::Immutable() | UserFlags::Enabled() | UserFlags::ChPass(),
 	  passwd);
 	auto &user = dbUser->data();
@@ -214,14 +213,14 @@ void Mgr::bootstrap_findAddUser()
 void Mgr::bootstrapped(BootstrapResult result)
 {
   auto fn = ZuMv(m_state.p<Bootstrap>().fn);
-  m_state = bookstrapOK(result);
+  m_state = bootstrapOK(result);
   fn(ZuMv(result));
 }
 
 // initialize API key
 void Mgr::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
 {
-  new (dbKey->ptr()) Key{.userID = userID, .id = keyID};
+  auto key = new (dbKey->ptr()) Key{.userID = userID, .id = keyID};
   key->secret.length(key->secret.size());
   m_rng->random(key->secret);
   dbKey->commit();
@@ -250,10 +249,8 @@ void Mgr::initRole(
 
 // initialize user
 void Mgr::initUser(
-  ZdbObject<User> *dbUser,
-  UserID id, ZtString name,
-  ZtArray<ZtString> roles,
-  UserFlags::T flags,
+  ZdbObject<User> *dbUser, UserID id, ZtString name,
+  ZtArray<ZtString> roles, UserFlags::T flags,
   ZtString &passwd)
 {
   auto &user =
@@ -275,7 +272,7 @@ void Mgr::initUser(
   user.secret.length(user.secret.size());
   m_rng->random(user.secret);
   {
-    Ztls::HMAC hmac(User::keyType());
+    Ztls::HMAC hmac(keyType());
     hmac.start(user.secret);
     hmac.update(passwd);
     user.hmac.length(user.hmac.size());
@@ -309,10 +306,10 @@ void Mgr::sessionLoad_findUser(ZuPtr<SessionLoad> context)
   ](ZmRef<ZdbObject<User>> user) mutable {
     if (!user) { sessionLoaded(ZuMv(context), false); return; }
     context->session = new Session{this, ZuMv(user)};
-    if (!user.data().roles)
+    if (!user->data().roles)
       sessionLoaded(ZuMv(context), true);
     else
-      roleTbl->run([this, context = ZuMv(context)]() mutable {
+      m_roleTbl->run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
   });
@@ -325,7 +322,7 @@ void Mgr::sessionLoad_findKey(ZuPtr<SessionLoad> context)
   ](ZmRef<ZdbObject<Key>> key) mutable {
     if (!key) { sessionLoaded(ZuMv(context), false); return; }
     context->key = ZuMv(key);
-    userTbl->run([this, context = ZuMv(context)]() mutable {
+    m_userTbl->run([this, context = ZuMv(context)]() mutable {
       sessionLoad_findUserID(ZuMv(context));
     });
   });
@@ -349,7 +346,7 @@ void Mgr::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
 // find and load the user's roles and permissions
 void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
 {
-  const auto &role = context->session->user.data().roles[context->roleIndex];
+  const auto &role = context->session->user->data().roles[context->roleIndex];
   m_roleTbl->find<0>(ZuFwdTuple(role), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Role>> role) mutable {
@@ -359,7 +356,7 @@ void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
     else
       context->session->perms |= role->data().apiperms;
     if (++context->roleIndex < context->session->user->data().roles.length())
-      m_roleTbl->run([this, context = ZuMv(context)]() {
+      m_roleTbl->run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
     else
@@ -387,7 +384,7 @@ void Mgr::loginSucceeded(ZmRef<Session> session, SessionFn fn)
     m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
       ZmRef<ZdbObject<User>> user = session->user;
       m_userTbl->update(ZuMv(user), [
-	this, session = ZuMv(session), fn = ZuMv(fn)
+	session = ZuMv(session), fn = ZuMv(fn)
       ](ZdbObject<User> *dbUser) mutable {
 	if (dbUser) dbUser->commit();
 	fn(ZuMv(session));
@@ -402,9 +399,7 @@ void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
 {
   m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
     ZmRef<ZdbObject<User>> user = session->user;
-    m_userTbl->update(ZuMv(user), [
-      this, fn = ZuMv(fn)
-    ](ZdbObject<User> *dbUser) {
+    m_userTbl->update(ZuMv(user), [fn = ZuMv(fn)](ZdbObject<User> *dbUser) {
       if (dbUser) dbUser->commit();
       fn(nullptr);
     });
@@ -412,10 +407,10 @@ void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
 }
 
 // interactive login
-ZmRef<User> Mgr::login(
-  ZuString name, ZtString passwd, unsigned totp, SessionFn fn)
+void Mgr::login(
+  ZtString name, ZtString passwd, unsigned totp, SessionFn fn)
 {
-  sessionLoad_login(name, true, [
+  sessionLoad_login(ZuMv(name), [
     this, passwd = ZuMv(passwd), totp, fn = ZuMv(fn)
   ](ZmRef<Session> session) {
     if (!session) { fn(nullptr); return; }
@@ -429,7 +424,8 @@ ZmRef<User> Mgr::login(
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
     }
-    if (!(user.perms[m_perms[loginReqPerm(fbs::LoginReqData::Login)]])) {
+    if (!(session->perms[
+	m_perms[loginReqPerm(unsigned(fbs::LoginReqData::Login))]])) {
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without login permission "
@@ -439,7 +435,7 @@ ZmRef<User> Mgr::login(
       return;
     }
     {
-      Ztls::HMAC hmac(User::keyType());
+      Ztls::HMAC hmac(keyType());
       KeyData verify;
       hmac.start(user.secret);
       hmac.update(passwd);
@@ -469,13 +465,13 @@ ZmRef<User> Mgr::login(
 }
 
 // non-interactive API access
-ZmRef<User> Mgr::access(
-  KeyIDData keyID, ZtArray<uint8_t> token, int64_t stamp,
-  ZtArray<uint8_t> hmac, SessionFn fn)
+void Mgr::access(
+  KeyIDData keyID, ZtArray<const uint8_t> token, int64_t stamp,
+  ZtArray<const uint8_t> hmac, SessionFn fn)
 {
-  sessionLoad_access(keyID, false, [
-    this, token = ZuMv(token), stamp, hmac = ZuMv(hmac)
-  ](ZmRef<Session> session) {
+  sessionLoad_access(ZuMv(keyID), [
+    this, token = ZuMv(token), stamp, hmac = ZuMv(hmac), fn = ZuMv(fn)
+  ](ZmRef<Session> session) mutable {
     if (!session) { fn(nullptr); return; }
     auto &user = session->user->data();
     if (!(user.flags & UserFlags::Enabled())) {
@@ -487,7 +483,8 @@ ZmRef<User> Mgr::access(
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
     }
-    if (!(user.perms[m_perms[loginReqPerm(fbs::LoginReqData::Access)]])) {
+    if (!(session->perms[
+	m_perms[loginReqPerm(unsigned(fbs::LoginReqData::Access))]])) {
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without API access permission "
@@ -505,7 +502,7 @@ ZmRef<User> Mgr::access(
       }
     }
     {
-      Ztls::HMAC hmac_(Key::keyType());
+      Ztls::HMAC hmac_(keyType());
       KeyData verify;
       hmac_.start(session->key->data().secret);
       hmac_.update(token);
@@ -530,23 +527,32 @@ ZmRef<User> Mgr::access(
 }
 
 // login/access request dispatch
-void Mgr::loginReq(const fbs::LoginReq *, SessionFn fn)
+void Mgr::loginReq(ZuBytes reqBuf, SessionFn fn)
 {
-  using namespace Zfb::Load;
-  switch (loginReq_->data_type()) {
+  if (!Zfb::Verifier{&reqBuf[0], reqBuf.length()}.
+      VerifyBuffer<fbs::LoginReq>()) {
+    fn(nullptr);
+    return;
+  }
+
+  auto fbLoginReq = Zfb::GetRoot<fbs::LoginReq>(&reqBuf[0]);
+
+  switch (fbLoginReq->data_type()) {
     case fbs::LoginReqData::Access: {
-      auto access = static_cast<const fbs::Access *>(loginReq_->data());
+      auto access = static_cast<const fbs::Access *>(fbLoginReq->data());
       this->access(
-	str(access->keyID()),
-	bytes(access->token()),
+	Zfb::Load::str(access->keyID()),
+	Zfb::Load::bytes(access->token()),
 	access->stamp(),
-	bytes(access->hmac()),
+	Zfb::Load::bytes(access->hmac()),
 	ZuMv(fn));
     } break;
     case fbs::LoginReqData::Login: {
-      auto login = static_cast<const fbs::Login *>(loginReq_->data());
+      auto login = static_cast<const fbs::Login *>(fbLoginReq->data());
       this->login(
-	str(login->user()), str(login->passwd()), login->totp(),
+	Zfb::Load::str(login->user()),
+	Zfb::Load::str(login->passwd()),
+	login->totp(),
 	ZuMv(fn));
     } break;
     default:
@@ -556,9 +562,9 @@ void Mgr::loginReq(const fbs::LoginReq *, SessionFn fn)
 }
 
 // respond to a request
-ZmRef<ZiIOBuf<>> Mgr::respond(
-  Zfb::IOBuilder &fbb,
-  SeqNo seqNo, fbs::ReqAckData ackType, Offset<void> ackData)
+ZmRef<IOBuf> Mgr::respond(
+  IOBuilder &fbb, SeqNo seqNo,
+  fbs::ReqAckData ackType, Offset<void> ackData)
 {
   fbs::ReqAckBuilder fbb_(fbb);
   fbb_.add_seqNo(seqNo);
@@ -569,10 +575,10 @@ ZmRef<ZiIOBuf<>> Mgr::respond(
 }
 
 // reject a request
-ZmRef<ZiIOBuf<>> Mgr::reject(
-  Zfb::IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text)
+ZmRef<IOBuf> Mgr::reject(
+  IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text)
 {
-  auto text_ = str(fbb, text);
+  auto text_ = Zfb::Save::str(fbb, text);
   fbs::ReqAckBuilder fbb_(fbb);
   fbb_.add_seqNo(seqNo);
   fbb_.add_rejCode(rejCode);
@@ -584,18 +590,18 @@ ZmRef<ZiIOBuf<>> Mgr::reject(
 // validate, permission check and dispatch a request
 void Mgr::request(ZmRef<Session> session, ZuBytes reqBuf, ResponseFn fn)
 {
-  if (!Zfb::Verifier{&reqbuf[0], reqbuf.length()}.
+  if (!Zfb::Verifier{&reqBuf[0], reqBuf.length()}.
       VerifyBuffer<fbs::Request>()) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, 0, __LINE__, "corrupt request"));
     return;
   }
 
   auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
-  int reqType = int(fbRequest->data_type());
+  auto reqType = unsigned(fbRequest->data_type());
 
   if (ZuUnlikely(!ok(session, m_perms[reqPerm(reqType)]))) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     using namespace Zfb::Save;
     ZtString text = "permission denied";
     if (session->user->data().flags & UserFlags::ChPass())
@@ -654,14 +660,14 @@ void Mgr::chPass(ZmRef<Session> session, ZuBytes reqBuf, ResponseFn fn)
   ZuString oldPass = Zfb::Load::str(chPass->oldpass());
   ZuString newPass = Zfb::Load::str(chPass->newpass());
   // verify old password
-  Ztls::HMAC hmac(User::keyType());
+  Ztls::HMAC hmac(keyType());
   KeyData verify;
   hmac.start(user.secret);
   hmac.update(oldPass);
   verify.length(verify.size());
   hmac.finish(verify.data());
   if (verify != user.hmac) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "old password did not match"));
     return;
@@ -679,7 +685,7 @@ void Mgr::chPass(ZmRef<Session> session, ZuBytes reqBuf, ResponseFn fn)
       this, seqNo, fn = ZuMv(fn)
     ](ZdbObject<User> *dbUser) {
       if (dbUser) dbUser->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, seqNo, fbs::ReqAckData::ChPass, ackData.Union()));
     });
@@ -693,13 +699,13 @@ void Mgr::userGet(ZuBytes reqBuf, ResponseFn fn)
   auto query = static_cast<const fbs::UserQuery *>(fbRequest->data());
   if (query->userKey_type() != fbs::UserKey::ID &&
       query->userKey_type() != fbs::UserKey::Name) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "unknown query key type (" << int(query->userKey_type()) << ')'));
     return;
   }
   if (query->limit() > MaxQueryLimit) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "maximum query limit exceeded ("
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
@@ -713,8 +719,8 @@ void Mgr::userGet(ZuBytes reqBuf, ResponseFn fn)
     auto tupleFn = [
       this,
       seqNo = fbRequest->seqNo(),
-      fbb = Zfb::IOBuilder(),
-      offsets = ZtArray<Offset<fbs::User>>(limit),
+      fbb = IOBuilder{},
+      offsets = ZtArray<Offset<fbs::User>>(query->limit()),
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
       using Row = ZuFieldTuple<User>;
@@ -756,9 +762,11 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
     m_userTbl->find<1>(ZuMvTuple(Zfb::Load::str(fbUser->name())), [
       this, reqBuf = ZtBytes(reqBuf), fn = ZuMv(fn)
     ](ZdbObjRef<User> dbUser) mutable {
-      auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       if (dbUser) {
-	Zfb::IOBuilder fbb;
+	auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
+	auto fbUser = static_cast<const fbs::UserData *>(fbRequest->data());
+	auto userName = Zfb::Load::str(fbUser->name());
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "user " << ZtQuote::String{userName} << " already exists"));
 	return;
@@ -770,7 +778,7 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
 	auto fbUser = static_cast<const fbs::UserData *>(fbRequest->data());
 	auto userName = Zfb::Load::str(fbUser->name());
 	if (!dbUser) {
-	  Zfb::IOBuilder fbb;
+	  IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	      << "user " << ZtQuote::String{userName} << " insert failed"));
 	  return;
@@ -785,7 +793,7 @@ void Mgr::userAdd(ZuBytes reqBuf, ResponseFn fn)
 	  dbUser, m_nextUserID++, userName,
 	  ZuMv(roles), fbUser->flags(), passwd);
 	auto &user = dbUser->data();
-	ZiIOBuilder fbb;
+	IOBuilder fbb;
 	auto ackData = fbs::CreateUserPass(fbb,
 	  ZfbField::save(fbb, user), Zfb::Save::str(fbb, passwd));
 	fn(respond(fbb, fbRequest->seqNo(),
@@ -830,7 +838,7 @@ void Mgr::resetPass(ZuBytes reqBuf, ResponseFn fn)
       this, seqNo, id, fn = ZuMv(fn)
     ](ZdbObjRef<User> dbUser) mutable {
       if (!dbUser) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, seqNo, __LINE__, ZtString{}
 	    << "user ID " << id << " not found"));
 	return;
@@ -847,15 +855,19 @@ void Mgr::resetPass(ZuBytes reqBuf, ResponseFn fn)
 	ZuBase64::encode(passwd, passwd_);
       }
       {
-	Ztls::HMAC hmac(User::keyType());
+	Ztls::HMAC hmac(keyType());
 	hmac.start(user.secret);
 	hmac.update(passwd);
 	user.hmac.length(user.hmac.size());
 	hmac.finish(user.hmac.data());
       }
       dbUser->commit();
-      keyClr__(id, [this, seqNo, fn = ZuMv(fn)]() {
-	Zfb::IOBuilder fbb;
+      keyClr__(id, [
+	this, seqNo, dbUser = ZuMv(dbUser),
+	passwd = ZuMv(passwd), fn = ZuMv(fn)
+      ]() {
+	const auto &user = dbUser->data();
+	IOBuilder fbb;
 	auto ackData = fbs::CreateUserPass(fbb,
 	  ZfbField::save(fbb, user), Zfb::Save::str(fbb, passwd));
 	fn(respond(fbb, seqNo, fbs::ReqAckData::ResetPass, ackData.Union()));
@@ -879,14 +891,14 @@ void Mgr::userMod(ZuBytes reqBuf, ResponseFn fn)
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       auto fbUser = static_cast<const fbs::UserData *>(fbRequest->data());
       if (!dbUser) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "user ID " << fbUser-id() << " not found"));
+	    << "user ID " << fbUser->id() << " not found"));
 	return;
       }
       auto &user = dbUser->data();
-      if (user->flags & UserFlags::Immutable()) {
-	Zfb::IOBuilder fbb;
+      if (user.flags & UserFlags::Immutable()) {
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "user ID " << fbUser->id() << " is immutable"));
 	return;
@@ -900,11 +912,12 @@ void Mgr::userMod(ZuBytes reqBuf, ResponseFn fn)
 	  user.roles.push(Zfb::Load::str(role));
 	});
       }
-      if (Zfb::IsFieldPresent(fbUser, fbs::User::VT_FLAGS))
+      if (Zfb::IsFieldPresent(fbUser, fbs::UserData::VT_FLAGS))
 	user.flags = fbUser->flags();
       dbUser->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateUserData(fbb,
+	user.id,
 	Zfb::Save::str(fbb, user.name),
 	Zfb::Save::strVecIter(fbb, user.roles.length(), [&user](unsigned i) {
 	  return user.roles[i];
@@ -934,16 +947,16 @@ void Mgr::userDel(ZuBytes reqBuf, ResponseFn fn)
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       auto fbUser = static_cast<const fbs::UserData *>(fbRequest->data());
       if (!dbUser) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "user ID " << fbUser-id() << " not found"));
+	    << "user ID " << fbUser->id() << " not found"));
 	return;
       }
       dbUser->commit();
-      keyClr__(id, [
+      keyClr__(fbUser->id(), [
 	this, seqNo = fbRequest->seqNo(), dbUser = ZuMv(dbUser), fn = ZuMv(fn)
       ]() {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	auto ackData = fbs::CreateAck(fbb);
 	fn(respond(fbb, seqNo, fbs::ReqAckData::UserDel, ackData.Union()));
       });
@@ -952,12 +965,12 @@ void Mgr::userDel(ZuBytes reqBuf, ResponseFn fn)
 }
 
 // query roles
-Mgr::roleGet(ZuBytes reqBuf, ResponseFn fn)
+void Mgr::roleGet(ZuBytes reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
   auto query = static_cast<const fbs::RoleQuery *>(fbRequest->data());
   if (query->limit() > MaxQueryLimit) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "maximum query limit exceeded ("
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
@@ -974,8 +987,8 @@ Mgr::roleGet(ZuBytes reqBuf, ResponseFn fn)
       query->limit(), [
 	this,
 	seqNo = fbRequest->seqNo(),
-	fbb = Zfb::IOBuilder(),
-	offsets = ZtArray<Offset<fbs::Role>>(limit),
+	fbb = IOBuilder{},
+	offsets = ZtArray<Offset<fbs::Role>>(query->limit()),
 	fn = ZuMv(fn)
       ](auto result, unsigned) mutable {
 	using Row = ZuFieldTuple<Role>;
@@ -998,12 +1011,15 @@ void Mgr::roleAdd(ZuBytes reqBuf, ResponseFn fn)
   ]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
     auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
-    m_roleTbl->find<0>(ZuMvTuple(Zfb::Load::str(fbRole->name())), [
+    auto roleName = Zfb::Load::str(fbRole->name());
+    m_roleTbl->find<0>(ZuMvTuple(ZuMv(roleName)), [
       this, reqBuf = ZtBytes(reqBuf), fn = ZuMv(fn)
     ](ZdbObjRef<Role> dbRole) mutable {
-      auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       if (dbRole) {
-	Zfb::IOBuilder fbb;
+	auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
+	auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
+	auto roleName = Zfb::Load::str(fbRole->name());
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "role " << ZtQuote::String{roleName} << " already exists"));
 	return;
@@ -1015,7 +1031,7 @@ void Mgr::roleAdd(ZuBytes reqBuf, ResponseFn fn)
 	auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
 	auto roleName = Zfb::Load::str(fbRole->name());
 	if (!dbRole) {
-	  Zfb::IOBuilder fbb;
+	  IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	      << "role " << ZtQuote::String{roleName} << " insert failed"));
 	  return;
@@ -1024,7 +1040,7 @@ void Mgr::roleAdd(ZuBytes reqBuf, ResponseFn fn)
 	  Zfb::Load::bitmap<ZtBitmap>(fbRole->perms()),
 	  Zfb::Load::bitmap<ZtBitmap>(fbRole->apiperms()),
 	  fbRole->flags());
-	ZiIOBuilder fbb;
+	IOBuilder fbb;
 	auto ackData = fbs::CreateAck(fbb);
 	fn(respond(fbb, fbRequest->seqNo(),
 	    fbs::ReqAckData::RoleAdd, ackData.Union()));
@@ -1046,28 +1062,28 @@ void Mgr::roleMod(ZuBytes reqBuf, ResponseFn fn)
     ](ZdbObjRef<Role> dbRole) mutable {
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
-      auto roleName = Zfb::Load::str(fbRole-name());
+      auto roleName = Zfb::Load::str(fbRole->name());
       if (!dbRole) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "role " << ZtQuote::String{roleName} << " not found"));
 	return;
       }
       auto &role = dbRole->data();
-      if (role->flags & RoleFlags::Immutable()) {
-	Zfb::IOBuilder fbb;
+      if (role.flags & RoleFlags::Immutable()) {
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "role " << ZtQuote::String{roleName} << " is immutable"));
 	return;
       }
-      if (fbRole->perms()->size())
-	role->perms = Zfb::Load::bitmap<ZtBitmap>(fbRole->perms());
-      if (fbRole->apiperms()->size())
-	role->apiperms = Zfb::Load::bitmap<ZtBitmap>(fbRole->apiperms());
+      if (Zfb::IsFieldPresent(fbRole, fbs::Role::VT_PERMS))
+	role.perms = Zfb::Load::bitmap<ZtBitmap>(fbRole->perms());
+      if (Zfb::IsFieldPresent(fbRole, fbs::Role::VT_APIPERMS))
+	role.apiperms = Zfb::Load::bitmap<ZtBitmap>(fbRole->apiperms());
       if (Zfb::IsFieldPresent(fbRole, fbs::Role::VT_FLAGS))
-	role->flags = fbRole->flags();
+	role.flags = fbRole->flags();
       dbRole->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::RoleMod, ackData.Union()));
@@ -1083,20 +1099,21 @@ void Mgr::roleDel(ZuBytes reqBuf, ResponseFn fn)
   ]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
     auto fbRole = static_cast<const fbs::RoleID *>(fbRequest->data());
-    m_roleTbl->findDel<0>(ZuMvTuple(Zfb::Load::str(fbRole->name())), [
+    auto roleName = Zfb::Load::str(fbRole->name());
+    m_roleTbl->findDel<0>(ZuMvTuple(ZuMv(roleName)), [
       this, reqBuf = ZtBytes(reqBuf), fn = ZuMv(fn)
     ](ZdbObjRef<Role> dbRole) mutable {
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
-      auto fbRole = static_cast<const fbs::RoleData *>(fbRequest->data());
-      auto roleName = Zfb::Load::str(fbRole-name());
       if (!dbRole) {
-	Zfb::IOBuilder fbb;
+	auto fbRole = static_cast<const fbs::RoleID *>(fbRequest->data());
+	auto roleName = Zfb::Load::str(fbRole->name());
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "role " << ZtQuote::String{roleName} << " not found"));
 	return;
       }
       dbRole->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::RoleMod, ackData.Union()));
@@ -1111,13 +1128,13 @@ void Mgr::permGet(ZuBytes reqBuf, ResponseFn fn)
   auto query = static_cast<const fbs::PermQuery *>(fbRequest->data());
   if (query->permKey_type() != fbs::PermKey::ID &&
       query->permKey_type() != fbs::PermKey::Name) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "unknown query key type (" << int(query->permKey_type()) << ')'));
     return;
   }
   if (query->limit() > MaxQueryLimit) {
-    Zfb::IOBuilder fbb;
+    IOBuilder fbb;
     fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	<< "maximum query limit exceeded ("
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
@@ -1131,8 +1148,8 @@ void Mgr::permGet(ZuBytes reqBuf, ResponseFn fn)
     auto tupleFn = [
       this,
       seqNo = fbRequest->seqNo(),
-      fbb = Zfb::IOBuilder(),
-      offsets = ZtArray<Offset<fbs::Perm>>(limit),
+      fbb = IOBuilder{},
+      offsets = ZtArray<Offset<fbs::Perm>>(query->limit()),
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
       using Row = ZuFieldTuple<Perm>;
@@ -1155,8 +1172,7 @@ void Mgr::permGet(ZuBytes reqBuf, ResponseFn fn)
       auto permName = Zfb::Load::str(
 	static_cast<const fbs::PermName *>(query->permKey())->name());
       m_permTbl->nextRows<1>(
-	ZuMvTuple(permName),
-	ZuMvTuple(ZuMv(key).p<ZtString>()),
+	ZuMvTuple(ZuMv(permName)),
 	query->inclusive(),
 	query->limit(),
 	ZuMv(tupleFn));
@@ -1175,11 +1191,11 @@ void Mgr::permAdd(ZuBytes reqBuf, ResponseFn fn)
     m_permTbl->find<1>(ZuMvTuple(Zfb::Load::str(fbPerm->name())), [
       this, reqBuf = ZtBytes(reqBuf), fn = ZuMv(fn)
     ](ZdbObjRef<Perm> dbPerm) mutable {
-      auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
-      auto fbPerm = static_cast<const fbs::PermName *>(fbRequest->data());
-      auto permName = Zfb::Load::str(fbPerm->name());
       if (dbPerm) {
-	Zfb::IOBuilder fbb;
+	auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
+	auto fbPerm = static_cast<const fbs::PermName *>(fbRequest->data());
+	auto permName = Zfb::Load::str(fbPerm->name());
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "perm " << ZtQuote::String{permName} << " already exists"));
 	return;
@@ -1191,13 +1207,13 @@ void Mgr::permAdd(ZuBytes reqBuf, ResponseFn fn)
 	auto fbPerm = static_cast<const fbs::PermName *>(fbRequest->data());
 	auto permName = Zfb::Load::str(fbPerm->name());
 	if (!dbPerm) {
-	  Zfb::IOBuilder fbb;
+	  IOBuilder fbb;
 	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	      << "perm " << ZtQuote::String{permName} << " insert failed"));
 	  return;
 	}
 	initPerm(dbPerm, permName);
-	ZiIOBuilder fbb;
+	IOBuilder fbb;
 	auto ackData = fbs::CreatePermID(fbb, dbPerm->data().id);
 	fn(respond(fbb, fbRequest->seqNo(),
 	    fbs::ReqAckData::PermAdd, ackData.Union()));
@@ -1220,15 +1236,15 @@ void Mgr::permMod(ZuBytes reqBuf, ResponseFn fn)
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
       auto fbPerm = static_cast<const fbs::Perm *>(fbRequest->data());
       if (!dbPerm) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "perm ID " << fbPerm->id() << " not found"));
 	return;
       }
       auto &perm = dbPerm->data();
-      perm.name = Zfb::Load::str(fbPerm-name());
+      perm.name = Zfb::Load::str(fbPerm->name());
       dbPerm->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::PermMod, ackData.Union()));
@@ -1248,15 +1264,15 @@ void Mgr::permDel(ZuBytes reqBuf, ResponseFn fn)
       this, reqBuf = ZtBytes(reqBuf), fn = ZuMv(fn)
     ](ZdbObjRef<Perm> dbPerm) mutable {
       auto fbRequest = Zfb::GetRoot<fbs::Request>(&reqBuf[0]);
-      auto fbPerm = static_cast<const fbs::PermData *>(fbRequest->data());
       if (!dbPerm) {
-	Zfb::IOBuilder fbb;
+	auto fbPerm = static_cast<const fbs::PermID *>(fbRequest->data());
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
 	    << "perm ID " << fbPerm->id() << " not found"));
 	return;
       }
       dbPerm->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::PermMod, ackData.Union()));
@@ -1287,13 +1303,15 @@ void Mgr::keyGet_(
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(userID)), MaxAPIKeys, [
       this, 
       seqNo,
-      fbb = Zfb::IOBuilder(),
-      offsets = ZtArray<Offset<Vector<uint8_t>>>(limit),
+      fbb = IOBuilder{},
+      offsets = ZtArray<Offset<Zfb::Bytes>>(MaxAPIKeys),
+      ackType,
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
       using Row = ZuFieldKeyT<Key, 0>;
       if (result.template is<Row>()) {
-	offsets.push(Zfb::Save::bytes(result.template p<Row>().p<1>()));
+	offsets.push(
+	  Zfb::Save::bytes(result.template p<Row>().template p<1>()));
       } else {
 	auto ackData = fbs::CreateKeyIDList(fbb,
 	  fbb.CreateVector(&offsets[0], offsets.length()));
@@ -1344,13 +1362,13 @@ void Mgr::keyAdd_(
 	this, seqNo, userID, keyID, ackType, fn = ZuMv(fn)
       ](ZdbObject<Key> *dbKey) mutable {
 	if (!dbKey) {
-	  Zfb::IOBuilder fbb;
-	  fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
+	  IOBuilder fbb;
+	  fn(reject(fbb, seqNo, __LINE__, ZtString{}
 	      << "key insert failed for user ID " << userID));
 	  return;
 	}
 	initKey(dbKey, userID, keyID);
-	ZiIOBuilder fbb;
+	IOBuilder fbb;
 	auto ackData = ZfbField::save(fbb, dbKey->data());
 	fn(respond(fbb, seqNo, ackType, ackData.Union()));
       });
@@ -1382,7 +1400,7 @@ void Mgr::keyClr_(
     keyClr__(userID, [
       this, seqNo, ackType, fn = ZuMv(fn)
     ]() {
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, seqNo, ackType, ackData.Union()));
     });
@@ -1403,16 +1421,16 @@ void Mgr::ownKeyDel(ZmRef<Session> session, ZuBytes reqBuf, ResponseFn fn)
       auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
       auto keyID = Zfb::Load::bytes(fbKeyID->id());
       if (!dbKey) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "key " << ZuBase64::Print{keyID} << " not found"));
+	    << "key " << ZtQuote::Base64{keyID} << " not found"));
 	return;
       }
       dbKey->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
-	  fbs::ReqAckData::KeyMod, ackData.Union()));
+	  fbs::ReqAckData::OwnKeyDel, ackData.Union()));
     });
 }
 void Mgr::keyDel(ZuBytes reqBuf, ResponseFn fn)
@@ -1427,16 +1445,16 @@ void Mgr::keyDel(ZuBytes reqBuf, ResponseFn fn)
       auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
       auto keyID = Zfb::Load::bytes(fbKeyID->id());
       if (!dbKey) {
-	Zfb::IOBuilder fbb;
+	IOBuilder fbb;
 	fn(reject(fbb, fbRequest->seqNo(), __LINE__, ZtString{}
-	    << "key " << ZuBase64::Print{keyID} << " not found"));
+	    << "key " << ZtQuote::Base64{keyID} << " not found"));
 	return;
       }
       dbKey->commit();
-      Zfb::IOBuilder fbb;
+      IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, fbRequest->seqNo(),
-	  fbs::ReqAckData::KeyMod, ackData.Union()));
+	  fbs::ReqAckData::KeyDel, ackData.Union()));
     });
 }
 

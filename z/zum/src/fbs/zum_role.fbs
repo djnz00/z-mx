@@ -4,7 +4,7 @@ table RoleID {
   name:string;
 }
 table Role {
-  name:string (key);
+  name:string;
   perms:Zfb.Bitmap;	// bitmap
   apiperms:Zfb.Bitmap;	// API permissions
   flags:uint8;
@@ -12,3 +12,4 @@ table Role {
 table RoleList {
   list:[Role];
 }
+root_type Role;

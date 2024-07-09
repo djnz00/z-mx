@@ -14,3 +14,4 @@ table Key {
 table KeyList {
   list:[Key];
 }
+root_type Key;

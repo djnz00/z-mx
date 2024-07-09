@@ -20,6 +20,7 @@
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
+#include <zlib/Ztls.hh>
 #include <zlib/ZtlsHMAC.hh>
 #include <zlib/ZtlsRandom.hh>
 
@@ -30,12 +31,13 @@
 
 namespace Zum {
 
+using IOBuf = Ztls::IOBuf;
+using IOBuilder = Zfb::IOBuilder<IOBuf>;
+
 using SeqNo = uint64_t;
 
-static constexpr mbedtls_md_type_t keyType() {
-  return MBEDTLS_MD_SHA256;
-}
-enum { KeySize = Ztls::HMAC::Size<MBEDTLS_MD_SHA256>::N }; // 256 bit key
+static constexpr mbedtls_md_type_t keyType() { return MBEDTLS_MD_SHA256; }
+enum { KeySize = Ztls::HMAC::Size<keyType()>::N }; // 256 bit key
 using KeyData = ZuArrayN<uint8_t, KeySize>;
 enum { KeyIDSize = 16 };
 using KeyIDData = ZuArrayN<uint8_t, KeyIDSize>;
@@ -59,6 +61,8 @@ ZfbFields(Key,
   (((id), ((Keys<0, 1>), Ctor<1>)), (Bytes)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
 
+ZfbRoot(Key);
+
 struct Perm {
   PermID		id;
   ZtString		name;
@@ -68,6 +72,8 @@ struct Perm {
 ZfbFields(Perm,
   (((id), (Keys<0>, Ctor<0>)), (UInt32)),
   (((name), (Keys<1>, Ctor<1>, Mutable)), (String)));
+
+ZfbRoot(Perm);
 
 namespace RoleFlags {
   ZtEnumFlags(RoleFlags, uint8_t, Immutable);
@@ -86,6 +92,8 @@ ZfbFields(Role,
   (((perms), (Ctor<1>, Mutable)), (Bitmap)),
   (((apiperms), (Ctor<2>, Mutable)), (Bitmap)),
   (((flags), (Ctor<3>, Flags<RoleFlags::Map>)), (UInt8)));
+
+ZfbRoot(Role);
 
 namespace UserFlags {
   ZtEnumFlags(UserFlags, uint8_t,
@@ -113,6 +121,8 @@ ZfbFields(User,
   (((roles), (Ctor<4>, Mutable)), (StringVec)),
   (((failures), (Ctor<5>, Mutable)), (UInt32, 0)),
   (((flags), (Ctor<6>, Mutable, Flags<UserFlags::Map>)), (UInt8, 0)));
+
+ZfbRoot(User);
 
 } // Zum
 

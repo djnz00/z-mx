@@ -55,7 +55,7 @@ struct Session : public ZmPolymorph, public Session_ {
 using SessionFn = ZmFn<void(ZmRef<Session>)>;
 
 // request response callback
-using ResponseFn = ZmFn<void(ZmRef<ZiIOBuf<>>)>;
+using ResponseFn = ZmFn<void(ZmRef<IOBuf>)>;
 
 class ZvAPI Mgr {
 public:
@@ -90,12 +90,13 @@ public:
   void loginReq(ZuBytes reqBuf, SessionFn);
 
   // process user DB request
-  void request(Session *, ZuBytes reqBuf, ResponseFn);
+  void request(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
 
   // check permissions - ok(session, perm)
   bool ok(Session *session, unsigned permID) const {
     if ((session->user->data().flags & UserFlags::ChPass()) &&
-	!session->key && permID != m_perms[reqPerm(fbs::ReqData::ChPass)])
+	!session->key &&
+	permID != m_perms[reqPerm(unsigned(fbs::ReqData::ChPass))])
       return false;
     return session->perms[permID];
   }
@@ -149,20 +150,19 @@ private:
     ZtString user, ZtString passwd, unsigned totp, SessionFn);
   // API access
   void access(
-    ZtString keyID,
-    ZtArray<const uint8_t> token, int64_t stamp, ZtArray<const uint8_t> hmac,
-    SessionFn);
+    KeyIDData keyID, ZtArray<const uint8_t> token, int64_t stamp,
+    ZtArray<const uint8_t> hmac, SessionFn);
 
   void loginSucceeded(ZmRef<Session>, SessionFn);
   void loginFailed(ZmRef<Session>, SessionFn);
 
-  // reject request
-  void reject(
-    SeqNo seqNo, unsigned rejCode, ZuString text, ResponseFn fn);
   // acknowledge request (positively)
-  void respond(
-    Zfb::Builder &fbb, SeqNo seqNo,
+  ZmRef<IOBuf> respond(
+    IOBuilder &fbb, SeqNo seqNo,
     fbs::ReqAckData ackType, Offset<void> ackData);
+  // reject request
+  ZmRef<IOBuf> reject(
+    IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text);
 
   // initialize key
   void initKey(ZdbObject<Key> *, UserID, KeyIDData);
@@ -177,8 +177,9 @@ private:
 
   // initialize user
   void initUser(
-    ZdbObject<User> *,
-    UserID id, ZtString name, ZtString role, UserFlags::T flags);
+    ZdbObject<User> *, UserID, ZtString name,
+    ZtArray<ZtString> roles, UserFlags::T,
+    ZtString &passwd);
 
   // clear all API keys for a user
   template <typename L> void keyClr__(UserID id, L l);
@@ -250,11 +251,9 @@ private:
   static constexpr unsigned nPerms() {
     return NPerms{};
   }
-  static constexpr unsigned loginReqPerm(fbs::LoginReqData i) {
-    return unsigned(i) - 1;
-  }
-  static constexpr unsigned reqPerm(fbs::ReqData i) {
-    return unsigned(fbs::LoginReqData::MAX) + (unsigned(i) - 1);
+  static constexpr unsigned loginReqPerm(unsigned i) { return i - 1; }
+  static constexpr unsigned reqPerm(unsigned i) {
+    return unsigned(fbs::LoginReqData::MAX) + (i - 1);
   }
 
   UserID		m_nextUserID = 0;

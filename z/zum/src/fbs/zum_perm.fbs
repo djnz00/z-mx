@@ -6,9 +6,10 @@ table PermName {
   name:string;
 }
 table Perm {
-  id:uint32 (key);	// index in bitmap
+  id:uint32;	// index in bitmap
   name:string;
 }
 table PermList {
   list:[Perm];
 }
+root_type Perm;
