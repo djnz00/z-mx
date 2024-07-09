@@ -699,8 +699,8 @@ public:
   static ZmRef<Cf> options(const ZvOpt *opts);
 
   // fromCLI() and fromArgs() return the number of positional arguments
-  int fromCLI(Cf *syntax, ZuString line);
-  int fromArgs(Cf *options, const ZtArray<ZtString> &args);
+  unsigned fromCLI(Cf *syntax, ZuString line);
+  unsigned fromArgs(Cf *options, const ZtArray<ZtString> &args);
 
   using Defines_ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
   struct Defines : public ZuObject, public Defines_ { };

@@ -707,7 +707,7 @@ namespace Load {
 #define ZfbFieldCString(O, ID, Base) ZfbFieldNested(O, ID, Base, str, str)
 #define ZfbFieldString_T String
 #define ZfbFieldString(O, ID, Base) ZfbFieldNested(O, ID, Base, str, str)
-#define ZfbFieldBytes_T String
+#define ZfbFieldBytes_T Bytes
 #define ZfbFieldBytes(O, ID, Base) ZfbFieldNested(O, ID, Base, bytes, bytes)
 #define ZfbFieldBool_T Bool
 #define ZfbFieldBool ZfbFieldPrimitive

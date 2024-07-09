@@ -504,7 +504,7 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
 {
   /* ZeLOG(Debug, ([res, n = (res ? int(PQntuples(res)) : 0)](auto &s) {
     s << "res=" << ZuBoxPtr(res).hex() << " n=" << n;
-  })) */;
+  })); */
 
   using namespace Work;
 
@@ -991,11 +991,6 @@ static XField xField(
 	  if (ftype->code == ZtFieldTypeCode::StringVec)
 	    type = Value::Index<StringVec>{};
 	  break;
-	case reflection::Vector:
-	  // FIXME - check this
-	  if (ftype->code == ZtFieldTypeCode::BytesVec)
-	    type = Value::Index<BytesVec>{};
-	  break;
 	case reflection::Byte:
 	  if (ftype->code == ZtFieldTypeCode::Int8Vec)
 	    type = Value::Index<Int8Vec>{};
@@ -1036,6 +1031,9 @@ static XField xField(
 	  break;
 	case reflection::Obj:
 	  switch (ftype->code) {
+	    case ZtFieldTypeCode::BytesVec:
+	      type = Value::Index<BytesVec>{};
+	      break;
 	    case ZtFieldTypeCode::Int128Vec:
 	      type = Value::Index<Int128Vec>{};
 	      break;
@@ -1328,6 +1326,13 @@ int StoreTbl::mkTable_send()
       "\"_vn\" int8 NOT NULL";
     unsigned n = m_xFields.length();
     for (unsigned i = 0; i < n; i++) {
+      auto name = m_store->oids().name(m_xFields[i].type);
+      if (!name) {
+	ZeLOG(Fatal, ([type = m_xFields[i].type](auto &s) {
+	  s << "missing OID name for type=" << type;
+	}));
+	return SendState::Unsent;
+      }
       query << ", \"" << m_xFields[i].id_ << "\" "
 	<< m_store->oids().name(m_xFields[i].type) << " NOT NULL";
     }

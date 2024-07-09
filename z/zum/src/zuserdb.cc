@@ -43,6 +43,8 @@ int main(int argc, char **argv)
       "connect c c { param store.connection }\n"
       "help { flag help }\n");
 
+    cf = new ZvCf{};
+
     cf->fromString(
       "thread zdb\n"
       "hostID 0\n"
@@ -54,14 +56,14 @@ int main(int argc, char **argv)
       "  replicated true\n"
       "}\n"
       "tables {\n"
-      "  zum.user { }\n"
-      "  zum.role { }\n"
-      "  zum.key { }\n"
-      "  zum.perm { }\n"
+      "  \"zum.user\" { }\n"
+      "  \"zum.role\" { }\n"
+      "  \"zum.key\" { }\n"
+      "  \"zum.perm\" { }\n"
       "}\n"
       "debug 1\n"
       "mx {\n"
-      "  nThreads 4\n"
+      "  nThreads 5\n"
       "  threads {\n"
       "    1 { name rx isolated true }\n"
       "    2 { name tx isolated true }\n"
@@ -75,7 +77,9 @@ int main(int argc, char **argv)
     );
 
     // command line overrides environment
-    if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 1) usage();
+    unsigned argc_ = cf->fromArgs(options, ZvCf::args(argc, argv));
+
+    if (argc_ < 4) usage();
 
     if (cf->getBool("help")) usage();
 
@@ -88,14 +92,10 @@ int main(int argc, char **argv)
       Zm::exit(1);
     }
 
-    unsigned argc_ = cf->getInt("#", 0, INT_MAX);
-    if (argc_ < 4) usage();
-    perms.size(argc_ - 4);
-
     user = cf->get("1");
     role = cf->get("2");
     passlen = cf->getInt("3", 6, 60);
-
+    perms.size(argc_ - 4);
     for (unsigned i = 4; i < argc_; i++)
       perms.push(cf->get(ZtString{} << argc_));
 
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
 
-  ZiMultiplex *mx;
+  ZiMultiplex *mx = nullptr;
   ZmRef<Zdb> db = new Zdb();
 
   auto gtfo = [&mx]() {
@@ -122,6 +122,12 @@ int main(int argc, char **argv)
     ZeLog::stop();
     Zm::exit(1);
   };
+
+  Ztls::Random rng;
+
+  rng.init();
+
+  Zum::Server::Mgr mgr(&rng, passlen, 6, 30);
 
   try {
     mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
@@ -134,6 +140,8 @@ int main(int argc, char **argv)
       },
       .downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
     });
+
+    mgr.init(db);
 
     mx->start();
     if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
@@ -151,14 +159,6 @@ int main(int argc, char **argv)
     ZeLOG(Fatal, "unknown exception");
     gtfo();
   }
-
-  Ztls::Random rng;
-
-  rng.init();
-
-  Zum::Server::Mgr mgr(&rng, passlen, 6, 30);
-
-  mgr.init(db);
 
   ZmBlock<>{}([&mgr, &gtfo](auto wake) {
     mgr.open([wake = ZuMv(wake), &gtfo](bool ok) mutable {

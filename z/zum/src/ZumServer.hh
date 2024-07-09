@@ -104,21 +104,19 @@ public:
 private:
   struct Open {	// internal open() context
     OpenFn	fn;
-    unsigned	permIndex = 0;
+    unsigned	perm = 0;
   };
   void open_recoverNextUserID();
   void open_recoverNextPermID();
-  void open_findPerm();
+  void open_findAddPerm();
+  void open_nextPerm();
   void opened(bool ok);
 
   struct Bootstrap { // internal bootstrap() context
     ZtString	userName;
     ZtString	roleName;
     BootstrapFn	fn;
-    unsigned	perm = 0;
   };
-  void bootstrap_findAddPerm();
-  void bootstrap_nextPerm();
   void bootstrap_findAddRole();
   void bootstrap_findAddUser();
   void bootstrapped(BootstrapResult);

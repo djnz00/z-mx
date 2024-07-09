@@ -138,7 +138,7 @@ ZmRef<ZvCf> Cf::options(const ZvOpt *opts)
   return options;
 }
 
-int Cf::fromCLI(Cf *syntax, ZuString line)
+unsigned Cf::fromCLI(Cf *syntax, ZuString line)
 {
   ZtArray<ZtString> args = parseCLI(line);
   if (!args.length()) return 0;
@@ -158,7 +158,7 @@ static ZuTuple<ZtString, int> optionKeyType(const Cf *option)
   return { ZuMv(key), type };
 }
 
-int Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
+unsigned Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 {
   int i, j, n, l, p;
   const auto &argShort = ZtREGEX("^-(\w)$");		// -a

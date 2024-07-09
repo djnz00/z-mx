@@ -1631,7 +1631,7 @@ public:
   using AllFn = ZmFn<void(AnyTable *, ZmFn<void(bool)>)>;
   using AllDoneFn = ZmFn<void(DB *, bool)>;
 
-  bool all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
+  void all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
 
 private:
   void allDone(bool ok);

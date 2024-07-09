@@ -39,7 +39,7 @@ using namespace Zdb_;
 // Value     C++        flatbuffers     PG SQL        PG send/recv
 // -----     ---        -----------     ------        ------------
 // String    ZuString   string          text          raw data
-// Bytes     ZuBytes    [uint8_t]       bytea         raw data
+// Bytes     ZuBytes    [ubyte]         bytea         raw data
 // Bool      bool       bool            bool          uint8_t
 // Int8      int8_t     int8            int1     (*)  int8_t
 // UInt8     uint8_t    uint8           uint1    (*)  uint8_t

@@ -350,11 +350,6 @@ XField xField(
 	  if (ftype->code == ZtFieldTypeCode::StringVec)
 	    type = Value::Index<ZtArray<ZtString>>{};
 	  break;
-	case reflection::Vector:
-	  // FIXME - check this
-	  if (ftype->code == ZtFieldTypeCode::BytesVec)
-	    type = Value::Index<ZtArray<ZtBytes>>{};
-	  break;
 	case reflection::Byte:
 	  if (ftype->code == ZtFieldTypeCode::Int8Vec)
 	    type = Value::Index<ZtArray<int8_t>>{};
@@ -395,6 +390,9 @@ XField xField(
 	  break;
 	case reflection::Obj:
 	  switch (ftype->code) {
+	    case ZtFieldTypeCode::BytesVec:
+	      type = Value::Index<ZtArray<ZtBytes>>{};
+	      break;
 	    case ZtFieldTypeCode::Int128Vec:
 	      type = Value::Index<ZtArray<int128_t>>{};
 	      break;

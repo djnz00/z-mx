@@ -550,15 +550,26 @@ void DB::down_()
   m_handler.downFn(this);
 }
 
-bool DB::all(AllFn fn, AllDoneFn doneFn)
+void DB::all(AllFn fn, AllDoneFn doneFn)
 {
   ZmAssert(invoked());
 
-  if (ZuUnlikely(m_allCount)) return false;
-  m_allFn = ZuMv(fn);
-  m_allDoneFn = ZuMv(doneFn);
+  if (ZuUnlikely(m_allCount)) {
+    ZeLOG(Fatal, ([](auto &s) {
+      s << "Zdb - multiple overlapping calls to all()";
+    }));
+    doneFn(this, false);
+    return;
+  }
   auto i = m_tables.readIterator();
   m_allCount = m_allNotOK = m_tables.count_();
+  if (ZuUnlikely(!m_allCount)) {
+    ZeLOG(Fatal, ([](auto &s) { s << "Zdb - no tables"; }));
+    doneFn(this, false);
+    return;
+  }
+  m_allFn = ZuMv(fn);
+  m_allDoneFn = ZuMv(doneFn);
   while (auto table = i.iterateVal().ptr())
     table->invoke([table]() {
       auto db = table->db();
@@ -566,7 +577,6 @@ bool DB::all(AllFn fn, AllDoneFn doneFn)
 	db->invoke([db, ok]() { db->allDone(ok); });
       }});
     });
-  return true;
 }
 
 void DB::allDone(bool ok)

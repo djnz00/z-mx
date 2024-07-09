@@ -107,12 +107,9 @@ struct ZvMxParams : public ZiMxParams {
       if (ZmRef<ZvCf> threadsCf = cf->getCf("threads")) {
 	threadsCf->all([&sched](ZvCfNode *node) {
 	  if (auto threadCf = node->getCf()) {
-	    ZuString id = node->key;
-	    ZuBox<unsigned> tid = id;
-	    if (id != ZuStringN<12>{tid})
-	      throw ZeEVENT(Fatal, ([id = ZtString{id}](auto &s) {
-		s << "bad thread ID \"" << id << '"'; }));
-	    ZmSchedParams::Thread &thread = sched.thread(tid);
+	    auto sid = ZvCf_::scanInt(
+	      threadCf, "threads", node->key, 1, sched.nThreads());
+	    ZmSchedParams::Thread &thread = sched.thread(sid);
 	    thread.isolated(threadCf->getBool("isolated", thread.isolated()));
 	    if (ZuString s = threadCf->get("name")) thread.name(s);
 	    thread.stackSize(threadCf->getInt(

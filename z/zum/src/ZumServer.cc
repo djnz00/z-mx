@@ -85,30 +85,39 @@ void Mgr::open_recoverNextPermID()
     using Key = ZuFieldKeyT<Perm, 0>;
     if (max.template is<Key>())
       m_nextPermID = max.template p<Key>().template p<0>() + 1;
-    m_permTbl->run([this]() { open_findPerm(); });
+    m_permTbl->run([this]() { open_findAddPerm(); });
   });
 }
 // find permission and update m_perms[]
-void Mgr::open_findPerm()
+void Mgr::open_findAddPerm()
 {
-  auto &context = m_state.p<Bootstrap>();
+  const auto &context = m_state.p<Open>();
   m_permTbl->find<1>(ZuMvTuple(permName(context.perm)), [
     this
-  ](ZmRef<ZdbObject<Perm>> perm) {
-    auto &context = m_state.p<Bootstrap>();
-    if (!perm) {
-      ZeLOG(Fatal, ([perm = context.perm](auto &s) {
-	s << "missing permission " << permName(perm);
-      }));
-      opened(false);
+  ](ZmRef<ZdbObject<Perm>> dbPerm) {
+    if (!dbPerm) {
+      m_permTbl->insert([this](ZdbObject<Perm> *dbPerm) {
+	if (!dbPerm) { opened(false); return; }
+	const auto &context = m_state.p<Open>();
+	initPerm(dbPerm, permName(context.perm));
+	m_perms[context.perm] = dbPerm->data().id;
+	open_nextPerm();
+      });
     } else {
-      m_perms[context.perm] = perm->data().id;
-      if (++context.perm < nPerms())
-	m_permTbl->run([this]() mutable { open_findPerm(); });
-      else
-	opened(true);
+      const auto &context = m_state.p<Open>();
+      m_perms[context.perm] = dbPerm->data().id;
+      open_nextPerm();
     }
   });
+}
+// iterate to next permission
+void Mgr::open_nextPerm()
+{
+  auto &context = m_state.p<Open>();
+  if (++context.perm < nPerms())
+    m_permTbl->run([this]() mutable { open_findAddPerm(); });
+  else
+    opened(true);
 }
 // inform app of open result
 void Mgr::opened(bool ok)
@@ -131,35 +140,7 @@ void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
     ZuMv(fn)
   };
 
-  m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
-}
-// idempotent insert permission
-void Mgr::bootstrap_findAddPerm()
-{
-  auto &context = m_state.p<Bootstrap>();
-  m_permTbl->find<1>(ZuMvTuple(permName(context.perm)), [
-    this
-  ](ZmRef<ZdbObject<Perm>> perm) mutable {
-    if (!perm)
-      m_permTbl->insert([this](ZdbObject<Perm> *dbPerm) {
-	if (!dbPerm) { bootstrapped(BootstrapResult{false}); return; }
-	auto &context = m_state.p<Bootstrap>();
-	initPerm(dbPerm, permName(context.perm));
-	m_perms[context.perm] = dbPerm->data().id;
-	bootstrap_nextPerm();
-      });
-    else
-      bootstrap_nextPerm();
-  });
-}
-// iterate to next permission
-void Mgr::bootstrap_nextPerm()
-{
-  auto &context = m_state.p<Bootstrap>();
-  if (++context.perm < nPerms())
-    m_permTbl->run([this]() mutable { bootstrap_findAddPerm(); });
-  else 
-    m_roleTbl->run([this]() mutable { bootstrap_findAddRole(); });
+  m_permTbl->run([this]() mutable { bootstrap_findAddRole(); });
 }
 // idempotent insert role
 void Mgr::bootstrap_findAddRole()
