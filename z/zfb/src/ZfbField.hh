@@ -76,9 +76,10 @@
 
 void ZfbBuilder_(...);	// default
 void ZfbType_(...);	// ''
+void ZfbUnder_(...);	// ''
 void ZfbSchema_(...);	// ''
 
-// internal use - pass core object type
+// internal use - pass underlying object type
 template <typename O>
 using Zfb_Builder = decltype(ZfbBuilder_(ZuDeclVal<O *>()));
 template <typename O>
@@ -86,17 +87,20 @@ using Zfb_Type = decltype(ZfbType_(ZuDeclVal<O *>()));
 template <typename O>
 using Zfb_Schema = decltype(ZfbSchema_(ZuDeclVal<O *>()));
 
-// map object to core object, e.g. map derived key type to actual object type
+// map to underlying object, e.g. from key tuple, flatbuffer type, etc.
 template <typename O>
-using ZfbCore = typename ZuType<0, ZuFieldList<O>>::Core;
+struct ZfbUnder__ { using T = decltype(ZfbUnder_(ZuDeclVal<O *>())); };
+template <typename O, typename Tuple, typename Fields>
+struct ZfbUnder__<ZuFieldTuple_<O, Tuple, Fields>> { using T = O; };
+template <typename O> using ZfbUnder = typename ZfbUnder__<O>::T;
 
 // resolve FB type from object type
 template <typename O>
-using ZfbBuilder = decltype(ZfbBuilder_(ZuDeclVal<ZfbCore<O> *>()));
+using ZfbBuilder = decltype(ZfbBuilder_(ZuDeclVal<ZfbUnder<O> *>()));
 template <typename O>
-using ZfbType = decltype(ZfbType_(ZuDeclVal<ZfbCore<O> *>()));
+using ZfbType = decltype(ZfbType_(ZuDeclVal<ZfbUnder<O> *>()));
 template <typename O>
-using ZfbSchema = decltype(ZfbSchema_(ZuDeclVal<ZfbCore<O> *>()));
+using ZfbSchema = decltype(ZfbSchema_(ZuDeclVal<ZfbUnder<O> *>()));
 
 // --- load/save handling
 
@@ -128,6 +132,7 @@ struct SaveFieldFn<O, NestedFields, Field, true> {
 };
 template <typename O, typename Fields,
   typename NestedFields = ZuTypeGrep<IsNested, Fields>,
+  unsigned = Fields::N,
   unsigned = NestedFields::N>
 struct SaveFieldsFn {
   using Builder = ZfbBuilder<O>;
@@ -147,8 +152,8 @@ struct SaveFieldsFn {
     return fbb.Finish();
   }
 };
-template <typename O, typename Fields, typename NestedFields>
-struct SaveFieldsFn<O, Fields, NestedFields, 0> {
+template <typename O, typename Fields, typename NestedFields, unsigned N>
+struct SaveFieldsFn<O, Fields, NestedFields, N, 0> {
   using Builder = ZfbBuilder<O>;
   using FBType = ZfbType<O>;
   static Offset<FBType> save(Zfb::Builder &fbb_, const O &o) {
@@ -156,6 +161,15 @@ struct SaveFieldsFn<O, Fields, NestedFields, 0> {
     ZuUnroll::all<Fields>([&fbb, &o]<typename Field>() {
       Field::save(fbb, o);
     });
+    return fbb.Finish();
+  }
+};
+template <typename O, typename Fields, typename NestedFields>
+struct SaveFieldsFn<O, Fields, NestedFields, 0, 0> {
+  using Builder = ZfbBuilder<O>;
+  using FBType = ZfbType<O>;
+  static Offset<FBType> save(Zfb::Builder &fbb_, const O &) {
+    Builder fbb{fbb_};
     return fbb.Finish();
   }
 };
@@ -568,23 +582,23 @@ namespace Load {
 
 #define ZfbFieldGeneric(O_, ID, Base_) \
   template < \
-    typename O = O_, typename Base = Base_, typename Core_ = O, \
+    typename O = O_, typename Base = Base_, typename Under_ = O, \
     bool = Base::ReadOnly, typename = void> \
   struct ZfbFieldTypeName_(O_, ID) : public Base { };
 
 #define ZfbFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
   ZfbFieldGeneric(O_, ID, Base_) \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, true, decltype(&Zfb_Type<Core_>::ID, void())> : \
+    O, Base, Under_, true, decltype(&Zfb_Type<Under_>::ID, void())> : \
       public Base { \
-    using Core = Core_; \
+    using Under = Under_; \
     template <template <typename> typename Override> \
     using Adapt = ZfbFieldTypeName_(O_, ID)< \
       typename Override<ZuFieldOrig<Base>>::O, \
-      typename Base::template Adapt<Override>, Core>; \
-    using Builder = Zfb_Builder<Core>; \
-    using FBType = Zfb_Type<Core>; \
+      typename Base::template Adapt<Override>, Under>; \
+    using Builder = Zfb_Builder<Under>; \
+    using FBType = Zfb_Type<Under>; \
     enum { Inline = 0 }; \
     static Zfb::Offset<void> save(Zfb::Builder &fbb, const O &o) { \
       return Zfb::Save::SaveFn(fbb, Base::get(o)).Union(); \
@@ -599,13 +613,13 @@ namespace Load {
     } \
     static void load(O &, const FBType *) { } \
   }; \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, false, decltype(&Zfb_Type<Core_>::ID, void())> : \
-      public ZfbFieldTypeName_(O_, ID)<O, Base, Core_, true> { \
-    using Core = Core_; \
-    using FBType = Zfb_Type<Core>; \
-    using ZfbFieldTypeName_(O_, ID)<O, Base, Core, true>::load_; \
+    O, Base, Under_, false, decltype(&Zfb_Type<Under_>::ID, void())> : \
+      public ZfbFieldTypeName_(O_, ID)<O, Base, Under_, true> { \
+    using Under = Under_; \
+    using FBType = Zfb_Type<Under>; \
+    using ZfbFieldTypeName_(O_, ID)<O, Base, Under, true>::load_; \
     static void load(O &o, const FBType *fbo) { \
       Base::set(o, load_(fbo)); \
     } \
@@ -614,17 +628,17 @@ namespace Load {
 
 #define ZfbFieldInline(O_, ID, Base_, SaveFn, LoadFn) \
   ZfbFieldGeneric(O_, ID, Base_) \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, true, decltype(&Zfb_Type<Core_>::ID, void())> : \
+    O, Base, Under_, true, decltype(&Zfb_Type<Under_>::ID, void())> : \
       public Base { \
-    using Core = Core_; \
+    using Under = Under_; \
     template <template <typename> typename Override> \
     using Adapt = ZfbFieldTypeName_(O_, ID)< \
       typename Override<ZuFieldOrig<Base>>::O, \
-      typename Base::template Adapt<Override>, Core>; \
-    using Builder = Zfb_Builder<Core>; \
-    using FBType = Zfb_Type<Core>; \
+      typename Base::template Adapt<Override>, Under>; \
+    using Builder = Zfb_Builder<Under>; \
+    using FBType = Zfb_Type<Under>; \
     enum { Inline = 1 }; \
     template <typename Builder> \
     static void save(Builder &fbb, const O &o) { \
@@ -638,13 +652,13 @@ namespace Load {
     } \
     static void load(O &, const FBType *) { } \
   }; \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, false, decltype(&Zfb_Type<Core_>::ID, void())> : \
-      public ZfbFieldTypeName_(O_, ID)<O, Base, Core_, true> { \
-    using Core = Core_; \
-    using FBType = Zfb_Type<Core>; \
-    using ZfbFieldTypeName_(O_, ID)<O, Base, Core, true>::load_; \
+    O, Base, Under_, false, decltype(&Zfb_Type<Under_>::ID, void())> : \
+      public ZfbFieldTypeName_(O_, ID)<O, Base, Under_, true> { \
+    using Under = Under_; \
+    using FBType = Zfb_Type<Under>; \
+    using ZfbFieldTypeName_(O_, ID)<O, Base, Under, true>::load_; \
     static void load(O &o, const FBType *fbo) { \
       Base::set(o, load_(fbo)); \
     } \
@@ -653,16 +667,16 @@ namespace Load {
 
 #define ZfbFieldPrimitive(O_, ID, Base_) \
   ZfbFieldGeneric(O_, ID, Base_) \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, true, decltype(&Zfb_Type<Core_>::ID, void())> : \
+    O, Base, Under_, true, decltype(&Zfb_Type<Under_>::ID, void())> : \
       public Base { \
-    using Core = Core_; \
+    using Under = Under_; \
     template <template <typename> typename Override> \
     using Adapt = ZfbFieldTypeName_(O_, ID)< \
       typename Override<ZuFieldOrig<Base>>::O, \
-      typename Base::template Adapt<Override>, Core>; \
-    using FBType = Zfb_Type<Core>; \
+      typename Base::template Adapt<Override>, Under>; \
+    using FBType = Zfb_Type<Under>; \
     enum { Inline = 1 }; \
     template <typename Builder> \
     static void save(Builder &fbb, const O &o) { \
@@ -676,13 +690,13 @@ namespace Load {
     } \
     static void load(O &, const FBType *) { } \
   }; \
-  template <typename O, typename Base, typename Core_> \
+  template <typename O, typename Base, typename Under_> \
   struct ZfbFieldTypeName_(O_, ID)< \
-    O, Base, Core_, false, decltype(&Zfb_Type<Core_>::ID, void())> : \
-      public ZfbFieldTypeName_(O_, ID)<O, Base, Core_, true> { \
-    using Core = Core_; \
-    using FBType = Zfb_Type<Core>; \
-    using ZfbFieldTypeName_(O_, ID)<O, Base, Core, true>::load_; \
+    O, Base, Under_, false, decltype(&Zfb_Type<Under_>::ID, void())> : \
+      public ZfbFieldTypeName_(O_, ID)<O, Base, Under_, true> { \
+    using Under = Under_; \
+    using FBType = Zfb_Type<Under>; \
+    using ZfbFieldTypeName_(O_, ID)<O, Base, Under, true>::load_; \
     static void load(O &o, const FBType *fbo) { \
       Base::set(o, load_(fbo)); \
     } \
@@ -829,8 +843,6 @@ inline ZuID ZtMFieldTypeID(ZuID *) { return "ID"; }
 #define ZfbField_Type(O, Args) ZuPP_Defer(ZfbField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZfbFields(O, ...)  \
-  fbs::O##Builder ZfbBuilder_(O *); \
-  fbs::O ZfbType_(O *); \
   namespace ZuFields_ { \
     ZuPP_Eval(ZuPP_MapArg(ZfbField_Decl, O, __VA_ARGS__)) \
     using O = \
@@ -838,6 +850,12 @@ inline ZuID ZtMFieldTypeID(ZuID *) { return "ID"; }
   } \
   O ZuFielded_(O *); \
   ZuFields_::O ZuFieldList_(O *); \
+  \
+  fbs::O##Builder ZfbBuilder_(O *); \
+  fbs::O ZfbType_(O *); \
+  O ZfbUnder_(O *); \
+  namespace Zfb_Under_ { using O = O; } \
+  namespace fbs { Zfb_Under_::O ZfbUnder_(O *); } \
   \
   using O##_FBFields = ZfbField::Fields<O>; \
   namespace fbs { \
