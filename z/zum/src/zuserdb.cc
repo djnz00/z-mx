@@ -23,7 +23,18 @@
 
 void usage()
 {
-  std::cerr << "usage: zuserdb USER ROLE PASSLEN [PERMS...]\n";
+  std::cerr <<
+    "Usage: zuserdb USER ROLE PASSLEN [OPTION]... [PERM]...\n"
+    "  Bootstrap user database with admin super-user USER and ROLE,\n"
+    "  generating a random initial password of PASSLEN characters,\n"
+    "  optionally adding permissions PERM...\n\n"
+    "Options:\n"
+    "  -m, --module=MODULE\tZdb data store module e.g. libZdbPQ.so\n"
+    "  -c, --connect=CONNECT\tZdb data store connection string\n"
+    "\t\t\te.g. \"dbname=test host=/tmp\"\n"
+    "  -l, --log=FILE\tlog to FILE\n"
+    "  -d, --debug\t\tenable Zdb debugging\n"
+    "      --help\t\tthis help\n";
   exit(1);
 }
 

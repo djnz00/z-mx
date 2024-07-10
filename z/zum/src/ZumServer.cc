@@ -230,7 +230,7 @@ void Mgr::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
 	ZtString passwd;
 	initUser(dbUser, m_nextUserID++,
 	  ZuMv(context->userName), { ZuMv(context->roleName) },
-	  UserFlags::Immutable() | UserFlags::Enabled(),// | UserFlags::ChPass(),
+	  UserFlags::Immutable() | UserFlags::Enabled(),
 	  passwd);
 	auto &user = dbUser->data();
 	ZtString secret{ZuBase32::enclen(user.secret.length())};
