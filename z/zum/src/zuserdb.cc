@@ -39,29 +39,16 @@ int main(int argc, char **argv)
     ZmRef<ZvCf> options = new ZvCf{};
 
     options->fromString(
-      "module m m { param store.module }\n"
-      "connect c c { param store.connection }\n"
+      "module m m { param zdb.store.module }\n"
+      "connect c c { param zdb.store.connection }\n"
+      "log l l { param log }\n"
+      "debug d d { flag zdb.debug }\n"
       "help { flag help }\n");
 
     cf = new ZvCf{};
 
     cf->fromString(
-      "thread zdb\n"
-      "hostID 0\n"
-      "hosts { 0 { standalone 1 } }\n"
-      "store {\n"
-      "  module ${ZDB_MODULE}\n"
-      "  connection ${ZDB_CONNECT}\n"
-      "  thread zdb_store\n"
-      "  replicated true\n"
-      "}\n"
-      "tables {\n"
-      "  \"zum.user\" { }\n"
-      "  \"zum.role\" { }\n"
-      "  \"zum.key\" { }\n"
-      "  \"zum.perm\" { }\n"
-      "}\n"
-      "debug 1\n"
+      "log \"&2\"\n"	// default - stderr
       "mx {\n"
       "  nThreads 5\n"
       "  threads {\n"
@@ -74,6 +61,26 @@ int main(int argc, char **argv)
       "  rxThread rx\n"
       "  txThread tx\n"
       "}\n"
+      "userdb {\n"
+      "  thread app\n"
+      "}\n"
+      "zdb {\n"
+      "  thread zdb\n"
+      "  hostID 0\n"
+      "  hosts { 0 { standalone 1 } }\n"
+      "  store {\n"
+      "    module ${ZDB_MODULE}\n"
+      "    connection ${ZDB_CONNECT}\n"
+      "    thread zdb_store\n"
+      "    replicated true\n"
+      "  }\n"
+      "  tables {\n"
+      "    \"zum.user\" { }\n"
+      "    \"zum.role\" { }\n"
+      "    \"zum.key\" { }\n"
+      "    \"zum.perm\" { }\n"
+      "  }\n"
+      "}\n"
     );
 
     // command line overrides environment
@@ -83,11 +90,11 @@ int main(int argc, char **argv)
 
     if (cf->getBool("help")) usage();
 
-    if (!cf->get("store.module")) {
+    if (!cf->get("zdb.store.module")) {
       std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
       Zm::exit(1);
     }
-    if (!cf->get("store.connection")) {
+    if (!cf->get("zdb.store.connection")) {
       std::cerr << "set ZDB_CONNECT or use --connect=CONNECT\n" << std::flush;
       Zm::exit(1);
     }
@@ -111,7 +118,7 @@ int main(int argc, char **argv)
 
   ZeLog::init("zdbpqtest");
   ZeLog::level(0);
-  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path(cf->get<true>("log"))));
   ZeLog::start();
 
   ZiMultiplex *mx = nullptr;
@@ -132,16 +139,12 @@ int main(int argc, char **argv)
   try {
     mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
 
-    db->init(ZdbCf(cf), mx, ZdbHandler{
-      .upFn = [](Zdb *, ZdbHost *host) {
-	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
-	  s << "ACTIVE (was " << id << ')';
-	}));
-      },
-      .downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+    db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
+      .upFn = [](Zdb *, ZdbHost *) { },
+      .downFn = [](Zdb *) { }
     });
 
-    mgr.init(db);
+    mgr.init(cf->getCf<true>("userdb"), mx, db);
 
     mx->start();
     if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
@@ -181,9 +184,9 @@ int main(int argc, char **argv)
       using Data = Zum::Server::Mgr::BootstrapData;
       if (result.is<bool>()) {
 	if (result.p<bool>()) {
-	  ZeLOG(Info, "userDB already initialized");
+	  std::cout << "userDB already initialized\n" << std::flush;
 	} else {
-	  ZeLOG(Fatal, "userDB bootstrap failed");
+	  std::cerr << "userDB bootstrap failed\n" << std::flush;
 	  gtfo();
 	}
       } else if (result.is<Data>()) {
@@ -192,7 +195,7 @@ int main(int argc, char **argv)
 	secret = ZuMv(data.secret);
 	std::cout
 	  << "passwd: " << passwd
-	  << "secret: " << secret << '\n' << std::flush;
+	  << " secret: " << secret << '\n' << std::flush;
       }
       wake();
     });

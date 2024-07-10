@@ -57,6 +57,11 @@ using SessionFn = ZmFn<void(ZmRef<Session>)>;
 // request response callback
 using ResponseFn = ZmFn<void(ZmRef<IOBuf>)>;
 
+namespace MgrState {
+  ZtEnumValues(MgrState, int,
+    Uninitialized = 0, Initialized, Opening, Opened, OpenFailed, Bootstrap);
+}
+
 class ZvAPI Mgr {
 public:
   Mgr(
@@ -66,8 +71,19 @@ public:
     unsigned keyInterval);
   ~Mgr();
 
-  void init(Zdb *db);
+  void init(ZvCf *, ZiMultiplex *, Zdb *);
   void final();
+
+  // mgr thread (may be shared)
+  template <typename ...Args>
+  void run(Args &&...args) const {
+    m_mx->run(m_sid, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args>
+  void invoke(Args &&...args) const {
+    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+  }
+  bool invoked() const { return m_mx->invoked(m_sid); }
 
   // open
   using OpenFn = ZmFn<void(bool)>;
@@ -106,20 +122,22 @@ private:
     OpenFn	fn;
     unsigned	perm = 0;
   };
-  void open_recoverNextUserID();
-  void open_recoverNextPermID();
-  void open_findAddPerm();
-  void open_nextPerm();
-  void opened(bool ok);
+  void open_(ZuPtr<Open>);
+  void open_recoverNextUserID(ZuPtr<Open>);
+  void open_recoverNextPermID(ZuPtr<Open>);
+  void open_findAddPerm(ZuPtr<Open>);
+  void open_nextPerm(ZuPtr<Open>);
+  void opened(ZuPtr<Open>, bool ok);
 
   struct Bootstrap { // internal bootstrap() context
     ZtString	userName;
     ZtString	roleName;
     BootstrapFn	fn;
   };
-  void bootstrap_findAddRole();
-  void bootstrap_findAddUser();
-  void bootstrapped(BootstrapResult);
+  void bootstrap_(ZuPtr<Bootstrap>);
+  void bootstrap_findAddRole(ZuPtr<Bootstrap>);
+  void bootstrap_findAddUser(ZuPtr<Bootstrap>);
+  void bootstrapped(ZuPtr<Bootstrap>, BootstrapResult);
 
   // import flatbuffers types
   template <typename T> using Offset = Zfb::Offset<T>;
@@ -232,11 +250,16 @@ private:
   void keyDel_(SeqNo, KeyIDData, fbs::ReqAckData, ResponseFn);
 
 private:
-  Ztls::Random		*m_rng;
+  Ztls::Random		*m_rng = nullptr;
   unsigned		m_passLen;
   unsigned		m_totpRange;
   unsigned		m_keyInterval;
   unsigned		m_maxSize;
+
+  ZiMultiplex		*m_mx = nullptr;
+  unsigned		m_sid;
+
+  ZmAtomic<int>		m_state = MgrState::Uninitialized;
 
   ZmRef<ZdbTable<User>>	m_userTbl;
   ZmRef<ZdbTable<Role>>	m_roleTbl;
@@ -258,10 +281,6 @@ private:
 
   PermID		m_nextPermID = 0;
   PermID		m_perms[NPerms{}];
-
-  using State = ZuUnion<bool, Open, Bootstrap>;
-
-  State			m_state;
 };
 
 } // Zum::Server

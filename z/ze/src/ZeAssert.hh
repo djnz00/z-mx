@@ -35,6 +35,8 @@
 
 #include <zlib/ZmAssert.hh>
 
+#include <zlib/ZeLog.hh>
+
 #ifdef NDEBUG
 #define ZeAssert(assertion, captures, msg, return_) \
   do { if (ZuUnlikely(!(assertion))) { \

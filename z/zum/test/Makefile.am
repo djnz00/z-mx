@@ -16,5 +16,5 @@ LDADD = $(top_builddir)/zv/src/libZum.la \
 	$(top_builddir)/ze/src/libZe.la $(top_builddir)/zt/src/libZt.la \
 	$(top_builddir)/zm/src/libZm.la $(top_builddir)/zu/src/libZu.la \
 	@MBEDTLS_LIBS@ @Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-noinst_PROGRAMS = UserDBTest
-UserDBTest_SOURCES = UserDBTest.cc
+#noinst_PROGRAMS = UserDBTest
+#UserDBTest_SOURCES = UserDBTest.cc

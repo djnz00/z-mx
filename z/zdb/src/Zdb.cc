@@ -46,10 +46,10 @@
 namespace Zdb_ {
 
 void DB::init(
-    DBCf config,
-    ZiMultiplex *mx,
-    DBHandler handler,
-    ZmRef<Store> store)
+  DBCf config,
+  ZiMultiplex *mx,
+  DBHandler handler,
+  ZmRef<Store> store)
 {
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped,
 	[this, &config, mx, &handler, store = ZuMv(store)]() mutable {

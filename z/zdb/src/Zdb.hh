@@ -1479,7 +1479,6 @@ struct DBHandler {
 
 struct DBCf {
   ZmThreadName		thread;
-  ZmThreadName		writeThread;
   mutable unsigned	sid = 0;
   ZmRef<ZvCf>		storeCf;
   TableCfs		tableCfs;
@@ -1499,7 +1498,6 @@ struct DBCf {
   DBCf() = default;
   DBCf(const ZvCf *cf) {
     thread = cf->get<true>("thread");
-    writeThread = cf->get("writeThread");
     storeCf = cf->getCf("store");
     cf->getCf<true>("tables")->all([this](ZvCfNode *node) {
       if (auto tableCf = node->getCf())

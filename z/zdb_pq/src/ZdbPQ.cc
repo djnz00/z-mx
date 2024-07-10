@@ -137,6 +137,14 @@ static ZtString connError(PGconn *conn)
   return error;
 }
 
+static void notice(void *, const PGresult *res) {
+  ZeLOG(Info, ([msg = ZtString{PQresultErrorMessage(res)}](auto &s) mutable {
+    msg.chomp();
+    ZtREGEX("^NOTICE:\s+").s(msg, "");
+    s << msg;
+  }));
+}
+
 bool Store::start_()
 {
   // ZeLOG(Debug, ([](auto &s) { }));
@@ -151,6 +159,8 @@ bool Store::start_()
     }));
     return false;
   }
+
+  PQsetNoticeReceiver(m_conn, notice, nullptr);
 
   m_connFD = PQsocket(m_conn);
 

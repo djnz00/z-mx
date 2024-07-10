@@ -14,6 +14,7 @@
 #include <zlib/ZtQuote.hh>
 
 #include <zlib/ZeLog.hh>
+#include <zlib/ZeAssert.hh>
 
 #include <zlib/ZtlsTOTP.hh>
 
@@ -32,8 +33,20 @@ Mgr::~Mgr()
 {
 }
 
-void Mgr::init(Zdb *db)
+void Mgr::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
 {
+  ZeAssert(m_state == MgrState::Uninitialized,
+    (state = m_state), "invalid state=" << state, return);
+  unsigned sid = mx->sid(cf->get<true>("thread"));
+  if (!sid ||
+      sid > mx->params().nThreads() ||
+      sid == mx->rxThread() ||
+      sid == mx->txThread())
+    throw ZeEVENT(Fatal, ([thread = ZtString{cf->get("thread")}](auto &s) {
+      s << "ZumServer thread misconfigured: " << thread; }));
+  m_mx = mx;
+  m_sid = sid;
+  m_state = MgrState::Initialized;
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
   m_keyTbl = db->initTable<Key>("zum.key");
@@ -46,10 +59,11 @@ void Mgr::final()
   m_roleTbl = nullptr;
   m_keyTbl = nullptr;
   m_permTbl = nullptr;
+  m_state = MgrState::Uninitialized;
 }
 
 // return permission name for request i
-inline ZtString permName(unsigned i)
+static ZtString permName(unsigned i)
 {
   ZtString s{"UserMgmt."};
   auto loginReqEnd = unsigned(fbs::LoginReqData::MAX);
@@ -60,142 +74,182 @@ inline ZtString permName(unsigned i)
 // initiate open sequence
 void Mgr::open(OpenFn fn)
 {
+  ZuPtr<Open> context = new Open{
+    .fn = ZuMv(fn)
+  };
+  run([this, context = ZuMv(context)]() mutable { open_(ZuMv(context)); });
+}
+void Mgr::open_(ZuPtr<Open> context)
+{
   // check for overlapping open/bootstrap or already opened
-  if (!m_state.is<bool>() || m_state.p<bool>()) { fn(false); return; }
+  if (m_state.load_() != MgrState::Initialized) {
+    (context->fn)(false);
+    return;
+  }
+  m_state = MgrState::Opening;
 
-  // save context
-  new (m_state.new_<Open>()) Open{ZuMv(fn)};
-
-  m_userTbl->run([this]() { open_recoverNextUserID(); });
+  m_userTbl->run([this, context = ZuMv(context)]() mutable {
+    open_recoverNextUserID(ZuMv(context));
+  });
 }
 // recover nextUserID
-void Mgr::open_recoverNextUserID()
+void Mgr::open_recoverNextUserID(ZuPtr<Open> context)
 {
-  m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+  m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [
+    this, context = ZuMv(context)
+  ](auto max, unsigned) mutable {
     using Key = ZuFieldKeyT<User, 0>;
     if (max.template is<Key>())
       m_nextUserID = max.template p<Key>().template p<0>() + 1;
-    m_permTbl->run([this]() { open_recoverNextPermID(); });
+    else
+      m_permTbl->run([this, context = ZuMv(context)]() mutable {
+	open_recoverNextPermID(ZuMv(context));
+      });
   });
 }
 // recover nextPermID
-void Mgr::open_recoverNextPermID()
+void Mgr::open_recoverNextPermID(ZuPtr<Open> context)
 {
-  m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
-    using Key = ZuFieldKeyT<Perm, 0>;
-    if (max.template is<Key>())
-      m_nextPermID = max.template p<Key>().template p<0>() + 1;
-    m_permTbl->run([this]() { open_findAddPerm(); });
+  m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [
+    this, context = ZuMv(context)
+  ](auto max, unsigned i) mutable {
+    using RowKey = ZuFieldKeyT<Perm, 0>;
+    if (max.template is<RowKey>())
+      m_nextPermID = max.template p<RowKey>().template p<0>() + 1;
+    else
+      m_permTbl->run([this, context = ZuMv(context)]() mutable {
+	open_findAddPerm(ZuMv(context));
+      });
   });
 }
 // find permission and update m_perms[]
-void Mgr::open_findAddPerm()
+void Mgr::open_findAddPerm(ZuPtr<Open> context)
 {
-  const auto &context = m_state.p<Open>();
-  m_permTbl->find<1>(ZuMvTuple(permName(context.perm)), [
-    this
-  ](ZmRef<ZdbObject<Perm>> dbPerm) {
+  m_permTbl->find<1>(ZuMvTuple(permName(context->perm)), [
+    this, context = ZuMv(context)
+  ](ZmRef<ZdbObject<Perm>> dbPerm) mutable {
     if (!dbPerm) {
-      m_permTbl->insert([this](ZdbObject<Perm> *dbPerm) {
-	if (!dbPerm) { opened(false); return; }
-	const auto &context = m_state.p<Open>();
-	initPerm(dbPerm, permName(context.perm));
-	m_perms[context.perm] = dbPerm->data().id;
-	open_nextPerm();
+      m_permTbl->insert([
+	this, context = ZuMv(context)
+      ](ZdbObject<Perm> *dbPerm) mutable {
+	if (!dbPerm) { opened(ZuMv(context), false); return; }
+	initPerm(dbPerm, permName(context->perm));
+	m_perms[context->perm] = dbPerm->data().id;
+	open_nextPerm(ZuMv(context));
       });
     } else {
-      const auto &context = m_state.p<Open>();
-      m_perms[context.perm] = dbPerm->data().id;
-      open_nextPerm();
+      m_perms[context->perm] = dbPerm->data().id;
+      open_nextPerm(ZuMv(context));
     }
   });
 }
 // iterate to next permission
-void Mgr::open_nextPerm()
+void Mgr::open_nextPerm(ZuPtr<Open> context)
 {
-  auto &context = m_state.p<Open>();
-  if (++context.perm < nPerms())
-    m_permTbl->run([this]() mutable { open_findAddPerm(); });
+  if (++context->perm < nPerms())
+    m_permTbl->run([this, context = ZuMv(context)]() mutable {
+      open_findAddPerm(ZuMv(context));
+    });
   else
-    opened(true);
+    opened(ZuMv(context), true);
 }
 // inform app of open result
-void Mgr::opened(bool ok)
+void Mgr::opened(ZuPtr<Open> context, bool ok)
 {
-  auto fn = ZuMv(m_state.p<Open>().fn);
-  m_state = ok;
-  fn(ok);
+  run([this, context = ZuMv(context), ok]() {
+    m_state = ok ? MgrState::Opened : MgrState::OpenFailed;
+    (context->fn)(ok);
+  });
 }
 
 // initiate bootstrap
 void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
 {
-  // check for overlapping open/bootstrap or already opened
-  if (!m_state.is<bool>() || m_state.p<bool>()) { fn(false); return; }
-
-  // save context
-  new (m_state.new_<Bootstrap>()) Bootstrap{
-    ZuMv(userName),
-    ZuMv(roleName),
-    ZuMv(fn)
+  ZuPtr<Bootstrap> context = new Bootstrap{
+    .userName = ZuMv(userName),
+    .roleName = ZuMv(roleName),
+    .fn = ZuMv(fn)
   };
+  run([this, context = ZuMv(context)]() mutable { bootstrap_(ZuMv(context)); });
+}
+void Mgr::bootstrap_(ZuPtr<Bootstrap> context)
+{
+  // check for overlapping open/bootstrap or failed open
+  if (m_state.load_() != MgrState::Opened) {
+    (context->fn)(false);
+    return;
+  }
+  m_state = MgrState::Bootstrap;
 
-  m_permTbl->run([this]() mutable { bootstrap_findAddRole(); });
+  m_roleTbl->run([this, context = ZuMv(context)]() mutable {
+    bootstrap_findAddRole(ZuMv(context));
+  });
 }
 // idempotent insert role
-void Mgr::bootstrap_findAddRole()
+void Mgr::bootstrap_findAddRole(ZuPtr<Bootstrap> context)
 {
-  auto &context = m_state.p<Bootstrap>();
-  m_roleTbl->find<0>(ZuFwdTuple(context.roleName), [
-    this
+  m_roleTbl->find<0>(ZuFwdTuple(context->roleName), [
+    this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Role>> role) mutable {
     if (!role)
-      m_roleTbl->insert([this](ZdbObject<Role> *dbRole) mutable {
-	if (!dbRole) { bootstrapped(BootstrapResult{false}); return; }
-	auto &context = m_state.p<Bootstrap>();
+      m_roleTbl->insert([
+	this, context = ZuMv(context)
+      ](ZdbObject<Role> *dbRole) mutable {
+	if (!dbRole) {
+	  bootstrapped(ZuMv(context), BootstrapResult{false});
+	  return;
+	}
 	ZtBitmap perms;
 	for (unsigned i = 0, n = nPerms(); i < n; i++) perms.set(m_perms[i]);
 	initRole(
-	  dbRole, context.roleName, perms, perms, RoleFlags::Immutable());
-	bootstrap_findAddUser();
+	  dbRole, context->roleName, perms, perms, RoleFlags::Immutable());
+	m_userTbl->run([this, context = ZuMv(context)]() mutable {
+	  bootstrap_findAddUser(ZuMv(context));
+	});
       });
     else
-      m_userTbl->run([this]() mutable { bootstrap_findAddUser(); });
+      m_userTbl->run([this, context = ZuMv(context)]() mutable {
+	bootstrap_findAddUser(ZuMv(context));
+      });
   });
 }
 // idempotent insert admin user
-void Mgr::bootstrap_findAddUser()
+void Mgr::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
 {
-  auto &context = m_state.p<Bootstrap>();
-  m_userTbl->find<1>(ZuFwdTuple(context.userName), [
-    this
+  m_userTbl->find<1>(ZuFwdTuple(context->userName), [
+    this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> dbUser) mutable {
     if (!dbUser)
-      m_userTbl->insert([this](ZdbObject<User> *dbUser) mutable {
-	if (!dbUser) { bootstrapped(BootstrapResult{false}); return; }
-	auto &context = m_state.p<Bootstrap>();
+      m_userTbl->insert([
+	this, context = ZuMv(context)
+      ](ZdbObject<User> *dbUser) mutable {
+	if (!dbUser) {
+	  bootstrapped(ZuMv(context), BootstrapResult{false});
+	  return;
+	}
 	ZtString passwd;
 	initUser(dbUser, m_nextUserID++,
-	  ZuMv(context.userName), { ZuMv(context.roleName) },
+	  ZuMv(context->userName), { ZuMv(context->roleName) },
 	  UserFlags::Immutable() | UserFlags::Enabled() | UserFlags::ChPass(),
 	  passwd);
 	auto &user = dbUser->data();
 	ZtString secret{ZuBase32::enclen(user.secret.length())};
 	secret.length(secret.size());
 	secret.length(ZuBase32::encode(secret, user.secret));
-	bootstrapped(BootstrapResult{BootstrapData{
-	  ZuMv(passwd), ZuMv(secret)}});
+	bootstrapped(ZuMv(context),
+	  BootstrapResult{BootstrapData{ZuMv(passwd), ZuMv(secret)}});
       });
     else
-      bootstrapped(BootstrapResult{true});
+      bootstrapped(ZuMv(context), BootstrapResult{true});
   });
 }
 // inform app of bootstrap result
-void Mgr::bootstrapped(BootstrapResult result)
+void Mgr::bootstrapped(ZuPtr<Bootstrap> context, BootstrapResult result)
 {
-  auto fn = ZuMv(m_state.p<Bootstrap>().fn);
-  m_state = bootstrapOK(result);
-  fn(ZuMv(result));
+  run([this, context = ZuMv(context), result = ZuMv(result)]() mutable {
+    m_state = MgrState::Opened;
+    (context->fn)(ZuMv(result));
+  });
 }
 
 // initialize API key
@@ -242,13 +296,20 @@ void Mgr::initUser(
       .flags = flags
     });
   {
-    KeyData passwd_;
-    unsigned passLen_ = ZuBase64::declen(m_passLen);
-    if (passLen_ > passwd_.size()) passLen_ = passwd_.size();
-    passwd_.length(passLen_);
-    m_rng->random(passwd_);
     passwd.length(m_passLen);
-    ZuBase64::encode(passwd, passwd_);
+    m_rng->random(passwd);
+    ZuArray<uint8_t> passwd_{passwd};
+    for (unsigned i = 0; i < m_passLen; i++) {
+      unsigned c = passwd_[i];
+      c = ((c * 23040)>>16) + 33;	// ASCII 33-122 inclusive
+      switch (c) {			// remap quotes and backslash
+	case '\'': c = '{'; break;
+	case '"':  c = '|'; break;
+	case '`':  c = '}'; break;
+	case '\\': c = '~'; break;
+      }
+      passwd_[i] = c;
+    }
   }
   user.secret.length(user.secret.size());
   m_rng->random(user.secret);
@@ -347,13 +408,15 @@ void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
 // inform app (session remains unauthenticated at this point)
 void Mgr::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
 {
-  SessionFn fn = ZuMv(context->fn);
-  ZmRef<Session> session = ZuMv(context->session);
-  context = nullptr;
-  if (!ok)
-    fn(nullptr);
-  else
-    fn(ZuMv(session));
+  run([context = ZuMv(context), ok]() mutable {
+    SessionFn fn = ZuMv(context->fn);
+    ZmRef<Session> session = ZuMv(context->session);
+    context = nullptr;
+    if (!ok)
+      fn(nullptr);
+    else
+      fn(ZuMv(session));
+  });
 }
 
 // login succeeded - zero failure count and inform app
