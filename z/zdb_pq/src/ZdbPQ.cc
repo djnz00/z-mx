@@ -178,6 +178,8 @@ bool Store::start_()
     return false;
   }
 
+  m_syncSRM = false;
+
 #ifndef _WIN32
 
   // set up I/O multiplexer (epoll)
@@ -355,6 +357,20 @@ void Store::wake_()
 #endif /* !_WIN32 */
 }
 
+static bool isSync(Work::Queue::Node *work)
+{
+  if (!work) return false;
+  const auto &task = work->data();
+  return task.is<Work::TblQuery>() ? task.p<Work::TblQuery>().sync : false;
+}
+
+static bool isSRM(Work::Queue::Node *work)
+{
+  if (!work) return false;
+  const auto &task = work->data();
+  return task.is<Work::TblQuery>() ? task.p<Work::TblQuery>().srm : false;
+}
+
 void Store::run_()
 {
   // ZeLOG(Debug, ([](auto &s) { }));
@@ -478,6 +494,9 @@ void Store::recv()
 	    case PGRES_SINGLE_TUPLE: // query succeeded - 1 of N tuples
 	      rcvd(pending, res);
 	      break;
+	    case PGRES_PIPELINE_SYNC: // pipeline sync
+	      if (m_syncSRM) { m_syncSRM = false; setSRM(); }
+	      break;
 	    case PGRES_NONFATAL_ERROR: // notice / warning
 	      failed(pending, ZeMEVENT(Error,
 		  ([e = connError(m_conn)](auto &s, const auto &) {
@@ -500,8 +519,15 @@ void Store::recv()
       if (!res) { // PQgetResult() returned nullptr
 	if (auto pending = m_sent.headNode()) {
 	  rcvd(pending, nullptr);
+	  bool syncing = isSync(pending);
 	  m_sent.shift();
 	  stop = stopping() && !m_queue.count_() && !m_sent.count_();
+	  if (!stop && isSRM(m_sent.headNode())) {
+	    if (syncing)
+	      m_syncSRM = true;
+	    else
+	      setSRM();
+	  }
 	}
       }
     }
@@ -522,8 +548,8 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
     case Task::Index<Start>{}:
       start_rcvd(res);
       break;
-    case Task::Index<TblTask>{}: {
-      auto &tblTask = work->data().p<TblTask>();
+    case Task::Index<TblQuery>{}: {
+      auto &tblTask = work->data().p<TblQuery>();
       switch (tblTask.query.type()) {
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_rcvd(res);
@@ -558,8 +584,8 @@ void Store::failed(Work::Queue::Node *work, ZeMEvent e)
     case Task::Index<Start>{}:
       start_failed(true, ZuMv(e));
       break;
-    case Task::Index<TblTask>{}: {
-      auto &tblTask = work->data().p<TblTask>();
+    case Task::Index<TblQuery>{}: {
+      auto &tblTask = work->data().p<TblQuery>();
       switch (tblTask.query.type()) {
 	case Query::Index<Open>{}:
 	  tblTask.tbl->open_failed(ZuMv(e));
@@ -608,8 +634,8 @@ void Store::send()
       case Task::Index<Stop>{}:
 	stop_();
 	break;
-      case Task::Index<TblTask>{}: {
-	auto &tblTask = work->data().p<TblTask>();
+      case Task::Index<TblQuery>{}: {
+	auto &tblTask = work->data().p<TblQuery>();
 	switch (tblTask.query.type()) {
 	  case Query::Index<Open>{}:
 	    sendState = tblTask.tbl->open_send();
@@ -633,9 +659,10 @@ void Store::send()
       } break;
     }
     if (sendState != SendState::Unsent) {
-      if (sendState != SendState::Again)
+      if (sendState != SendState::Again) {
+	if (!m_sent.count_() && isSRM(work)) setSRM();
 	m_sent.pushNode(ZuMv(work).release());
-      else
+      } else
 	m_queue.unshiftNode(ZuMv(work).release());
       break;
     }
@@ -774,7 +801,7 @@ skip:
   }
 
   Tuple params = { Value{String(name)} };
-  return sendQuery<SendState::Flush, false>(
+  return sendQuery<SendState::Flush>(
     "SELECT oid FROM pg_type WHERE typname = $1::text", params);
 }
 void Store::getOIDs_rcvd(PGresult *res)
@@ -830,7 +857,7 @@ int Store::mkSchema_send()
 {
   // ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  return sendQuery<SendState::Sync, false>(
+  return sendQuery<SendState::Sync>(
     "CREATE SCHEMA IF NOT EXISTS \"zdb\"", Tuple{});
 }
 void Store::mkSchema_rcvd(PGresult *res)
@@ -850,7 +877,7 @@ int Store::mkTblMRD_send()
   // ZeLOG(Debug, ([v = m_startState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
-  return sendQuery<SendState::Sync, false>(
+  return sendQuery<SendState::Sync>(
     "CREATE TABLE IF NOT EXISTS \"zdb.mrd\" ("
       "\"tbl\" text PRIMARY KEY NOT NULL, "
       "\"_un\" uint8 NOT NULL, "
@@ -1138,7 +1165,7 @@ void StoreTbl::open(OpenFn openFn)
   mkTable();
 }
 
-template <int State, bool MultiRow>
+template <int State>
 int Store::sendQuery(const ZtString &query, const Tuple &params)
 {
   auto n = params.length();
@@ -1164,12 +1191,15 @@ int Store::sendQuery(const ZtString &query, const Tuple &params)
     m_conn, query.data(),
     n, paramTypes, paramValues, paramLengths, paramFormats, 1);
   if (r != 1) return SendState::Again;
-  if constexpr (MultiRow)
-    if (PQsetSingleRowMode(m_conn) != 1)
-      ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
-	s << "PQsetSingleRowMode() failed: " << e;
-      }));
   return State;
+}
+
+void Store::setSRM()
+{
+  if (PQsetSingleRowMode(m_conn) != 1)
+    ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
+      s << "PQsetSingleRowMode() failed: " << e;
+    }));
 }
 
 int Store::sendPrepare(
@@ -1185,7 +1215,7 @@ int Store::sendPrepare(
   return SendState::Sync;
 }
 
-template <int State, bool MultiRow>
+template <int State>
 int Store::sendPrepared(const ZtString &id, const Tuple &params)
 {
   auto n = params.length();
@@ -1209,18 +1239,13 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
     m_conn, id.data(),
     n, paramValues, paramLengths, paramFormats, 1);
   if (r != 1) return SendState::Again;
-  if constexpr (MultiRow)
-    if (PQsetSingleRowMode(m_conn) != 1)
-      ZeLOG(Error, ([e = connError(m_conn)](auto &s) {
-	s << "PQsetSingleRowMode() failed: " << e;
-      }));
   return State;
 }
 
-void StoreTbl::open_enqueue()
+void StoreTbl::open_enqueue(bool sync, bool srm)
 {
   using namespace Work;
-  m_store->enqueue(Task{TblTask{this, {Open{}}}});
+  m_store->enqueue(TblQuery{this, {Open{}}, sync, srm});
 }
 
 int StoreTbl::open_send()
@@ -1311,7 +1336,7 @@ void StoreTbl::opened()
 void StoreTbl::mkTable()
 {
   m_openState.phase(OpenState::MkTable);
-  open_enqueue();
+  open_enqueue(false, true);
 }
 int StoreTbl::mkTable_send()
 {
@@ -1319,7 +1344,7 @@ int StoreTbl::mkTable_send()
 
   if (!m_openState.create()) {
     Tuple params = { Value{String(m_id_)} };
-    return m_store->sendQuery<SendState::Flush, true>(
+    return m_store->sendQuery<SendState::Flush>(
       "SELECT a.attname AS name, a.atttypid AS oid "
       "FROM pg_catalog.pg_attribute a "
       "JOIN pg_catalog.pg_class c ON a.attrelid = c.oid "
@@ -1347,7 +1372,7 @@ int StoreTbl::mkTable_send()
 	<< m_store->oids().name(m_xFields[i].type) << " NOT NULL";
     }
     query << ")";
-    return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
   }
 }
 void StoreTbl::mkTable_rcvd(PGresult *res)
@@ -1366,7 +1391,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     } else if (!m_openState.failed() && !m_openState.field()) {
       // table does not exist, create it
       m_openState.setCreate();
-      open_enqueue();
+      open_enqueue(true, false);
     } else {
       // table exists but not all fields matched
       auto i = m_openState.field();
@@ -1445,7 +1470,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
 void StoreTbl::mkIndices()
 {
   m_openState.phase(OpenState::MkIndices);
-  open_enqueue();
+  open_enqueue(false, true);
 }
 int StoreTbl::mkIndices_send()
 {
@@ -1456,7 +1481,7 @@ int StoreTbl::mkIndices_send()
   name << m_id_ << '_' << keyID;
   if (!m_openState.create()) {
     Tuple params = { Value{String(name)} };
-    return m_store->sendQuery<SendState::Flush, true>(
+    return m_store->sendQuery<SendState::Flush>(
       "SELECT a.attname AS name, a.atttypid AS oid "
       "FROM pg_class t "
       "JOIN pg_index i ON t.oid = i.indrelid "
@@ -1480,7 +1505,7 @@ int StoreTbl::mkIndices_send()
       if (keyFields[i]->props & ZtMFieldProp::Descend()) query << " DESC";
     }
     query << ")";
-    return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+    return m_store->sendQuery<SendState::Sync>(query, Tuple{});
   }
 }
 void StoreTbl::mkIndices_rcvd(PGresult *res)
@@ -1492,7 +1517,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
     if (m_openState.keyID() >= m_keyFields.length())
       prepCount();
     else
-      open_enqueue();
+      open_enqueue(false, true);
   };
 
   if (m_openState.create()) {
@@ -1509,7 +1534,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
     } else if (!m_openState.failed() && !m_openState.field()) {
       // index does not exist, create it
       m_openState.setCreate();
-      open_enqueue();
+      open_enqueue(true, false);
     } else {
       // index exists but not all fields matched
       open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
@@ -1561,7 +1586,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
 void StoreTbl::prepCount()
 {
   m_openState.phase(OpenState::PrepCount);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepCount_send()
 {
@@ -1600,7 +1625,7 @@ void StoreTbl::prepCount_rcvd(PGresult *res)
     if (m_openState.keyID() >= m_keyFields.length())
       prepSelect();
     else
-      open_enqueue();
+      open_enqueue(true, false);
   }
 }
 
@@ -1626,7 +1651,7 @@ void StoreTbl::prepSelect()
       m_openState.phase(OpenState::PrepSelectRNI);
       break;
   }
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepSelect_send()
 {
@@ -1732,14 +1757,14 @@ void StoreTbl::prepSelect_rcvd(PGresult *res)
       else
 	prepFind();
     } else
-      open_enqueue();
+      open_enqueue(true, false);
   }
 }
 
 void StoreTbl::prepFind()
 {
   m_openState.phase(OpenState::PrepFind);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepFind_send()
 {
@@ -1788,14 +1813,14 @@ void StoreTbl::prepFind_rcvd(PGresult *res)
     if (m_openState.keyID() > m_keyFields.length()) // not >=
       prepInsert();
     else
-      open_enqueue();
+      open_enqueue(true, false);
   }
 }
 
 void StoreTbl::prepInsert()
 {
   m_openState.phase(OpenState::PrepInsert);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepInsert_send()
 {
@@ -1833,7 +1858,7 @@ void StoreTbl::prepInsert_rcvd(PGresult *res)
 void StoreTbl::prepUpdate()
 {
   m_openState.phase(OpenState::PrepUpdate);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepUpdate_send()
 {
@@ -1883,7 +1908,7 @@ void StoreTbl::prepUpdate_rcvd(PGresult *res)
 void StoreTbl::prepDelete()
 {
   m_openState.phase(OpenState::PrepDelete);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepDelete_send()
 {
@@ -1916,7 +1941,7 @@ void StoreTbl::prepDelete_rcvd(PGresult *res)
 void StoreTbl::prepMRD()
 {
   m_openState.phase(OpenState::PrepMRD);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::prepMRD_send()
 {
@@ -1944,7 +1969,7 @@ void StoreTbl::prepMRD_rcvd(PGresult *res)
 void StoreTbl::openCount()
 {
   m_openState.phase(OpenState::Count);
-  open_enqueue();
+  open_enqueue(false, false);
 }
 int StoreTbl::openCount_send()
 {
@@ -1952,7 +1977,7 @@ int StoreTbl::openCount_send()
 
   ZtString query;
   query << "SELECT CAST(COUNT(*) AS uint8) FROM \"" << m_id_ << '"';
-  return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+  return m_store->sendQuery<SendState::Flush>(query, Tuple{});
 }
 void StoreTbl::openCount_rcvd(PGresult *res)
 {
@@ -1976,7 +2001,7 @@ void StoreTbl::openCount_rcvd(PGresult *res)
 void StoreTbl::maxUN()
 {
   m_openState.phase(OpenState::MaxUN);
-  open_enqueue();
+  open_enqueue(false, false);
 }
 int StoreTbl::maxUN_send()
 {
@@ -1985,7 +2010,7 @@ int StoreTbl::maxUN_send()
   ZtString query;
   query << "SELECT \"_un\", \"_sn\" FROM \"" << m_id_
     << "\" WHERE \"_un\"=(SELECT MAX(\"_un\") FROM \"" << m_id_ << "\")";
-  return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+  return m_store->sendQuery<SendState::Flush>(query, Tuple{});
 }
 void StoreTbl::maxUN_rcvd(PGresult *res)
 {
@@ -2021,7 +2046,7 @@ inconsistent:
 void StoreTbl::ensureMRD()
 {
   m_openState.phase(OpenState::EnsureMRD);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::ensureMRD_send()
 {
@@ -2032,7 +2057,7 @@ int StoreTbl::ensureMRD_send()
     "INSERT INTO \"zdb.mrd\" (\"tbl\", \"_un\", \"_sn\") "
       "VALUES ('" << m_id_ << "', 0, 0) "
       "ON CONFLICT (\"tbl\") DO NOTHING";
-  return m_store->sendQuery<SendState::Sync, false>(query, Tuple{});
+  return m_store->sendQuery<SendState::Sync>(query, Tuple{});
 }
 void StoreTbl::ensureMRD_rcvd(PGresult *res)
 {
@@ -2044,14 +2069,14 @@ void StoreTbl::ensureMRD_rcvd(PGresult *res)
 void StoreTbl::mrd()
 {
   m_openState.phase(OpenState::MRD);
-  open_enqueue();
+  open_enqueue(true, false);
 }
 int StoreTbl::mrd_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   Tuple params = { Value{String(m_id_)} };
-  return m_store->sendQuery<SendState::Sync, false>(
+  return m_store->sendQuery<SendState::Sync>(
     "SELECT \"_un\", \"_sn\" FROM \"zdb.mrd\" WHERE \"tbl\"=$1::text", params);
 }
 void StoreTbl::mrd_rcvd(PGresult *res)
@@ -2112,11 +2137,12 @@ void StoreTbl::count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn)
       });
       return;
     }
-    m_store->enqueue(TblTask{this, Query{Count{
-      .keyID = keyID,
-      .buf = ZuMv(buf),
-      .countFn = ZuMv(countFn)
-    }}});
+    m_store->enqueue(TblQuery{this,
+      Query{Count{
+	.keyID = keyID,
+	.buf = ZuMv(buf),
+	.countFn = ZuMv(countFn)
+      }}, false, false});
   });
 }
 
@@ -2141,15 +2167,16 @@ void StoreTbl::select(
       });
       return;
     }
-    m_store->enqueue(TblTask{this, Query{Select{
-      .keyID = keyID,
-      .limit = limit,
-      .buf = ZuMv(buf),
-      .tupleFn = ZuMv(tupleFn),
-      .selectRow = selectRow,
-      .selectNext = selectNext,
-      .inclusive = inclusive
-    }}});
+    m_store->enqueue(TblQuery{this,
+      Query{Select{
+	.keyID = keyID,
+	.limit = limit,
+	.buf = ZuMv(buf),
+	.tupleFn = ZuMv(tupleFn),
+	.selectRow = selectRow,
+	.selectNext = selectNext,
+	.inclusive = inclusive
+      }}, false, true});
   });
 }
 
@@ -2202,7 +2229,7 @@ int StoreTbl::count_send(Work::Count &count)
       params, varBuf, varBufParts,
       m_store->oids(), nParams, keyFields, xKeyFields, fbo);
   id << m_id_ << "_count_" << count.keyID;
-  return m_store->sendPrepared<SendState::Flush, true>(id, params);
+  return m_store->sendPrepared<SendState::Flush>(id, params);
 }
 void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
 {
@@ -2271,7 +2298,7 @@ int StoreTbl::select_send(Work::Select &select)
     << (select.selectNext ? 'N' : 'I')
     << (select.inclusive ? 'I' : 'X')
     << '_' << select.keyID;
-  return m_store->sendPrepared<SendState::Flush, true>(id, params);
+  return m_store->sendPrepared<SendState::Flush>(id, params);
 }
 void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
 {
@@ -2359,8 +2386,8 @@ void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn)
 	});
 	return;
       }
-      m_store->enqueue(
-	TblTask{this, Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}});
+      m_store->enqueue(TblQuery{this,
+	Query{Find{keyID, ZuMv(buf), ZuMv(rowFn)}}, false, true});
     });
 }
 int StoreTbl::find_send(Work::Find &find)
@@ -2378,7 +2405,7 @@ int StoreTbl::find_send(Work::Find &find)
     params, varBuf, varBufParts,
     m_store->oids(), nParams, keyFields, xKeyFields, fbo);
   id << m_id_ << "_find_" << find.keyID;
-  return m_store->sendPrepared<SendState::Flush, true>(id, params);
+  return m_store->sendPrepared<SendState::Flush>(id, params);
 }
 void StoreTbl::find_rcvd(Work::Find &find, PGresult *res)
 {
@@ -2501,7 +2528,8 @@ void StoreTbl::recover(UN un, RowFn rowFn)
       });
       return;
     }
-    m_store->enqueue(TblTask{this, Query{Recover{un, ZuMv(rowFn)}}});
+    m_store->enqueue(TblQuery{this,
+      Query{Recover{un, ZuMv(rowFn)}}, false, true});
   });
 }
 int StoreTbl::recover_send(Work::Recover &recover)
@@ -2509,7 +2537,7 @@ int StoreTbl::recover_send(Work::Recover &recover)
   Tuple params = { Value{UInt64{recover.un}} };
   ZtString id(m_id_.length() + 8);
   id << m_id_ << "_recover";
-  return m_store->sendPrepared<SendState::Flush, true>(id, params);
+  return m_store->sendPrepared<SendState::Flush>(id, params);
 }
 void StoreTbl::recover_rcvd(Work::Recover &recover, PGresult *res)
 {
@@ -2544,7 +2572,8 @@ void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn)
       });
       return;
     }
-    m_store->enqueue(TblTask{this, Query{Write{ZuMv(buf), ZuMv(commitFn)}}});
+    m_store->enqueue(TblQuery{this,
+      Query{Write{ZuMv(buf), ZuMv(commitFn)}}, true, false});
   });
 }
 int StoreTbl::write_send(Work::Write &write)
@@ -2582,7 +2611,7 @@ int StoreTbl::write_send(Work::Write &write)
     loadTuple(
       params, varBuf, varBufParts,
       m_store->oids(), nParams, m_fields, m_xFields, fbo);
-    return m_store->sendPrepared<SendState::Sync, false>(id, params);
+    return m_store->sendPrepared<SendState::Sync>(id, params);
   } else if (record->vn() > 0) { // update
     auto nParams = m_updFields.length() + 3; // +3 for un, sn, vn
     IDAlloc(8);
@@ -2596,7 +2625,7 @@ int StoreTbl::write_send(Work::Write &write)
     loadTuple(
       params, varBuf, varBufParts,
       m_store->oids(), nParams, m_updFields, m_xUpdFields, fbo);
-    return m_store->sendPrepared<SendState::Sync, false>(id, params);
+    return m_store->sendPrepared<SendState::Sync>(id, params);
   } else if (!write.mrd) { // delete
     auto nParams = m_keyFields[0].length();
     IDAlloc(8);
@@ -2606,14 +2635,14 @@ int StoreTbl::write_send(Work::Write &write)
     loadTuple(
       params, varBuf, varBufParts,
       m_store->oids(), nParams, m_keyFields[0], m_xKeyFields[0], fbo);
-    return m_store->sendPrepared<SendState::Sync, false>(id, params);
+    return m_store->sendPrepared<SendState::Sync>(id, params);
   } else { // delete - MRD
     IDAlloc(8);
     ParamAlloc(2);
     id << m_id_ << "_mrd";
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
-    return m_store->sendPrepared<SendState::Sync, false>(id, params);
+    return m_store->sendPrepared<SendState::Sync>(id, params);
   }
 }
 void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
@@ -2634,8 +2663,8 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
     })); */
 
     using namespace Work;
-    m_store->enqueue(TblTask{this, Query{Write{
-      ZuMv(write.buf), ZuMv(write.commitFn), true}}});
+    m_store->enqueue(TblQuery{this,
+      Query{Write{ZuMv(write.buf), ZuMv(write.commitFn), true}}, true, false});
   } else {
     m_store->zdbRun([
       buf = ZuMv(write.buf),

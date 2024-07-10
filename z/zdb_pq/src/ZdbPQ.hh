@@ -1535,7 +1535,7 @@ namespace SendState {
 
 namespace Work {
 
-struct Open { };	// open table
+struct Open { };
 
 struct Count {
   unsigned		keyID;
@@ -1579,12 +1579,14 @@ struct Start { };			// start data store
 
 struct Stop { };
 
-struct TblTask {
+struct TblQuery {
   StoreTbl	*tbl;
   Query		query;
+  bool		sync = false;
+  bool		srm = false;
 };
 
-using Task = ZuUnion<Start, Stop, TblTask>;
+using Task = ZuUnion<Start, Stop, TblQuery>;
 
 using Queue = ZmList<Task>;
 
@@ -1750,7 +1752,7 @@ public:
 
 private:
   // open orchestration
-  void open_enqueue();
+  void open_enqueue(bool sync, bool srm);
   int open_send();
   void open_rcvd(PGresult *);
   void open_failed(ZeMEvent);
@@ -1906,11 +1908,11 @@ public:
 
   const OIDs &oids() const { return m_oids; }
 
-  template <int State, bool MultiRow>
+  template <int State>
   int sendQuery(const ZtString &query, const Tuple &params);
   int sendPrepare(
     const ZtString &query, const ZtString &id, ZuArray<unsigned> oids);
-  template <int State, bool MultiRow>
+  template <int State>
   int sendPrepared(const ZtString &id, const Tuple &params);
 
 private:
@@ -1928,6 +1930,8 @@ private:
   void failed(Work::Queue::Node *, ZeMEvent);
 
   void send();
+
+  void setSRM();
 
   // start orchestration
   void start_enqueue();
@@ -1975,6 +1979,7 @@ private:
   // FIXME - later - test transient send failure, pushback, resend
   Work::Queue		m_queue;	// not yet sent
   Work::Queue		m_sent;		// sent, awaiting response
+  bool			m_syncSRM = false;	// setSRM() following sync
 
   OIDs			m_oids;
 
