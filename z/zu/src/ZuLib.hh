@@ -433,6 +433,11 @@ struct ZuLambda {
   constexpr decltype(auto) operator ()(Args &&...args) && {
     return lambda(ZuMv(*this), ZuFwd<Args>(args)...);
   }
+  constexpr decltype(auto) operator ()() & { return lambda(ZuMv(*this)); }
+  template <typename ...Args>
+  constexpr decltype(auto) operator ()(Args &&...args) & {
+    return lambda(*this, ZuFwd<Args>(args)...);
+  }
   constexpr decltype(auto) operator ()() const & { return lambda(*this); }
   template <typename ...Args>
   constexpr decltype(auto) operator ()(Args &&...args) const & {
