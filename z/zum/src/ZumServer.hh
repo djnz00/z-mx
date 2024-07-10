@@ -103,10 +103,10 @@ public:
   void bootstrap(ZtString userName, ZtString roleName, BootstrapFn);
 
   // process login/access request
-  void loginReq(ZuBytes reqBuf, SessionFn);
+  void loginReq(ZmRef<IOBuf> reqBuf, SessionFn);
 
   // process user DB request
-  void request(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void request(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
 
   // check permissions - ok(session, perm)
   bool ok(Session *session, unsigned permID) const {
@@ -161,6 +161,12 @@ private:
   void sessionLoad_findRole(ZuPtr<SessionLoad> context);
   void sessionLoaded(ZuPtr<SessionLoad> context, bool ok);
 
+  // process login/access request
+  void loginReq_(ZmRef<IOBuf> reqBuf, SessionFn);
+
+  // process request
+  void request_(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
+
   // interactive login
   void login(
     ZtString user, ZtString passwd, unsigned totp, SessionFn);
@@ -201,52 +207,52 @@ private:
   template <typename L> void keyClr__(UserID id, L l);
 
   // change password
-  void chPass(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
+  void chPass(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
 
   // query users
-  void userGet(ZuBytes reqBuf, ResponseFn);
+  void userGet(ZmRef<IOBuf> reqBuf, ResponseFn);
   // add a new user
-  void userAdd(ZuBytes reqBuf, ResponseFn);
+  void userAdd(ZmRef<IOBuf> reqBuf, ResponseFn);
   // reset password (also clears all API keys)
-  void resetPass(ZuBytes reqBuf, ResponseFn);
+  void resetPass(ZmRef<IOBuf> reqBuf, ResponseFn);
   // modify user (name, roles, flags)
-  void userMod(ZuBytes reqBuf, ResponseFn);
+  void userMod(ZmRef<IOBuf> reqBuf, ResponseFn);
   // delete user (and associated API keys)
-  void userDel(ZuBytes reqBuf, ResponseFn);
+  void userDel(ZmRef<IOBuf> reqBuf, ResponseFn);
   
   // query roles
-  void roleGet(ZuBytes reqBuf, ResponseFn);
+  void roleGet(ZmRef<IOBuf> reqBuf, ResponseFn);
   // add role
-  void roleAdd(ZuBytes reqBuf, ResponseFn);
+  void roleAdd(ZmRef<IOBuf> reqBuf, ResponseFn);
   // modify role (name, perms, apiperms, flags)
-  void roleMod(ZuBytes reqBuf, ResponseFn);
+  void roleMod(ZmRef<IOBuf> reqBuf, ResponseFn);
   // delete role
-  void roleDel(ZuBytes reqBuf, ResponseFn);
+  void roleDel(ZmRef<IOBuf> reqBuf, ResponseFn);
   
   // query permissions 
-  void permGet(ZuBytes reqBuf, ResponseFn);
+  void permGet(ZmRef<IOBuf> reqBuf, ResponseFn);
   // add new permission
-  void permAdd(ZuBytes reqBuf, ResponseFn);
+  void permAdd(ZmRef<IOBuf> reqBuf, ResponseFn);
   // modify permission (name)
-  void permMod(ZuBytes reqBuf, ResponseFn);
+  void permMod(ZmRef<IOBuf> reqBuf, ResponseFn);
   // delete permission
-  void permDel(ZuBytes reqBuf, ResponseFn);
+  void permDel(ZmRef<IOBuf> reqBuf, ResponseFn);
 
   // query API keys for user
-  void ownKeyGet(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
-  void keyGet(ZuBytes reqBuf, ResponseFn);
+  void ownKeyGet(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
+  void keyGet(ZmRef<IOBuf> reqBuf, ResponseFn);
   void keyGet_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // add API key for user
-  void ownKeyAdd(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
-  void keyAdd(ZuBytes reqBuf, ResponseFn);
+  void ownKeyAdd(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
+  void keyAdd(ZmRef<IOBuf> reqBuf, ResponseFn);
   void keyAdd_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // clear all API keys for user
-  void ownKeyClr(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
-  void keyClr(ZuBytes reqBuf, ResponseFn);
+  void ownKeyClr(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
+  void keyClr(ZmRef<IOBuf> reqBuf, ResponseFn);
   void keyClr_(SeqNo, UserID, fbs::ReqAckData, ResponseFn);
   // delete API key
-  void ownKeyDel(ZmRef<Session>, ZuBytes reqBuf, ResponseFn);
-  void keyDel(ZuBytes reqBuf, ResponseFn);
+  void ownKeyDel(ZmRef<Session>, ZmRef<IOBuf> reqBuf, ResponseFn);
+  void keyDel(ZmRef<IOBuf> reqBuf, ResponseFn);
   void keyDel_(SeqNo, KeyIDData, fbs::ReqAckData, ResponseFn);
 
 private:

@@ -70,7 +70,7 @@ struct Perm {
   friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>)), (UInt32)),
+  (((id), (Keys<0>, Ctor<0>, Descend)), (UInt32)),
   (((name), (Keys<1>, Ctor<1>, Mutable)), (String)));
 
 ZfbRoot(Perm);
@@ -114,7 +114,7 @@ struct User {
   friend ZtFieldPrint ZuPrintType(User *);
 };
 ZfbFields(User,
-  (((id), (Keys<0>, Ctor<0>)), (UInt64)),
+  (((id), (Keys<0>, Ctor<0>, Descend)), (UInt64)),
   (((name), (Keys<1>, Ctor<1>, Mutable)), (String)),
   (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)),
   (((hmac), (Ctor<3>, Mutable)), (Bytes)),

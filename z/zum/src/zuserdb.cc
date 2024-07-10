@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     passlen = cf->getInt("3", 6, 60);
     perms.size(argc_ - 4);
     for (unsigned i = 4; i < argc_; i++)
-      perms.push(cf->get(ZtString{} << argc_));
+      perms.push(cf->get(ZtString{} << i));
 
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
       ZtArray<uint8_t> secret_(ZuBase32::declen(secret.length()));
       secret_.length(secret_.size());
       secret_.length(ZuBase32::decode(secret_, secret));
-      totp = Ztls::TOTP::calc(secret);
+      totp = Ztls::TOTP::calc(secret_);
     }
     Zfb::IOBuilder fbb;
     fbb.Finish(Zum::fbs::CreateLoginReq(
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
 	  Zfb::Save::str(fbb, passwd),
 	  totp).Union()));
     ZmBlock<>{}([&mgr, &perms, buf = fbb.buf()](auto wake) mutable {
-      mgr.loginReq(buf->cbuf_(), [
+      mgr.loginReq(ZuMv(buf), [
 	&mgr, &perms, wake = ZuMv(wake)
       ](ZmRef<Zum::Server::Session> session) mutable {
 	if (!session) {
@@ -225,32 +225,35 @@ int main(int argc, char **argv)
 	  wake();
 	  return;
 	}
-	perms.all([&mgr, session = ZuMv(session)](const auto &perm) mutable {
+
+	// recycling lambda - iterates over perms, adding them
+	ZuLambda{[
+	  &mgr, &perms, wake = ZuMv(wake), session = ZuMv(session), i = 0U
+	](auto &&self, ZmRef<Zum::IOBuf> buf) mutable {
+	  if (buf) {
+	    auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
+	    if (reqAck->data_type() != Zum::fbs::ReqAckData::PermAdd) {
+	      ZeLOG(Fatal, "invalid request acknowledgment");
+	      wake();
+	      return;
+	    }
+	    auto permID = static_cast<const Zum::fbs::PermID *>(reqAck->data());
+	    std::cout << permID->id() << ' ' << perms[i] << '\n' << std::flush;
+	    if (++i >= perms.length()) {
+	      wake();
+	      return;
+	    }
+	  }
 	  Zfb::IOBuilder fbb;
 	  fbb.Finish(Zum::fbs::CreateRequest(
 	    fbb, 0, Zum::fbs::ReqData::PermAdd,
 	    Zum::fbs::CreatePermName(fbb,
-	      Zfb::Save::str(fbb, perm)).Union()));
-	  ZmBlock<>{}([
-	    &mgr, session = ZuMv(session), &perm, buf = fbb.buf()
-	  ](auto wake) mutable {
-	    mgr.request(session, buf->cbuf_(), [
-	      &perm, wake = ZuMv(wake)
-	    ](ZmRef<ZiIOBuf<>> buf) mutable {
-	      auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
-	      if (reqAck->data_type() != Zum::fbs::ReqAckData::PermAdd) {
-		ZeLOG(Fatal, "invalid request acknowledgment");
-	      } else {
-		auto permID =
-		  static_cast<const Zum::fbs::PermID *>(reqAck->data());
-		std::cout
-		  << permID->id() << ' ' << perm << '\n' << std::flush;
-	      }
-	      wake();
-	    });
-	  });
-	});
-	wake();
+	      Zfb::Save::str(fbb, perms[i])).Union()));
+	  const auto &session_ = session;
+	  mgr.request(session_, fbb.buf(), [
+	    self = ZuMv(self)
+	  ](ZmRef<Zum::IOBuf> buf) mutable { ZuMv(self)(ZuMv(buf)); });
+	}}(nullptr);
       });
     });
   }
