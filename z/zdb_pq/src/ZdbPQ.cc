@@ -1369,7 +1369,15 @@ int StoreTbl::mkTable_send()
 	return SendState::Unsent;
       }
       query << ", \"" << m_xFields[i].id_ << "\" "
-	<< m_store->oids().name(m_xFields[i].type) << " NOT NULL";
+	<< m_store->oids().name(m_xFields[i].type);
+      {
+	auto type = m_xFields[i].type;
+	if (isVar(type) ||
+	    type == Value::Index<String>{} ||
+	    type == Value::Index<Bytes>{})
+	  query << " STORAGE EXTERNAL";
+      }
+      query << " NOT NULL";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync>(query, Tuple{});

@@ -4,8 +4,8 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#ifndef ZdbMockStore_HH
-#define ZdbMockStore_HH
+#ifndef ZdbMemStore_HH
+#define ZdbMemStore_HH
 
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuPrint.hh>
@@ -1594,4 +1594,4 @@ private:
 
 } // zdbtest
 
-#endif /* ZdbMockStore_HH */
+#endif /* ZdbMemStore_HH */

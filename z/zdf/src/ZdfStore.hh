@@ -101,6 +101,7 @@ typedef Store *(*StoreFn)();
 extern "C" {
   typedef Zdf::StoreFn ZdfStoreFn;
 }
+
 #define ZdfStoreFnSym	"ZdfStore"	// module symbol
 
 #endif /* ZdfStore_HH */
