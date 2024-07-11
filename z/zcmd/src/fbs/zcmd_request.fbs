@@ -1,4 +1,4 @@
-namespace ZvCmd.fbs;
+namespace Zcmd.fbs;
 table Request {
   seq_no:uint32;
   cmd:[string];

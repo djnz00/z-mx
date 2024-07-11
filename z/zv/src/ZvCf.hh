@@ -773,8 +773,9 @@ private:
 
   ZuTuple<Cf *, ZtString> getScope(ZuString fullKey) const;
 
+public:
   template <bool Required_ = false>
-  CfNode *getNode(ZuString fullKey) const {
+  const CfNode *getNode(ZuString fullKey) const {
     auto [this_, key] = getScope(fullKey);
     if (!this_) {
       if constexpr (Required_) throw Required{this, fullKey};
@@ -785,9 +786,13 @@ private:
       if constexpr (Required_) throw Required{this, fullKey};
     return node;
   }
+private:
   CfNode *mkNode(ZuString fullKey);
 
 public:
+  // check if key exists
+  bool exists(ZuString fullKey) const { return getNode(fullKey); }
+
   // set/get/assure ZtString
   void set(ZuString key, ZtString value);
   template <bool Required_ = false>

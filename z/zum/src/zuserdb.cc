@@ -101,11 +101,11 @@ int main(int argc, char **argv)
 
     if (cf->getBool("help")) usage();
 
-    if (!cf->get("zdb.store.module")) {
+    if (!cf->exists("zdb.store.module")) {
       std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
       Zm::exit(1);
     }
-    if (!cf->get("zdb.store.connection")) {
+    if (!cf->exists("zdb.store.connection")) {
       std::cerr << "set ZDB_CONNECT or use --connect=CONNECT\n" << std::flush;
       Zm::exit(1);
     }
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
 
   rng.init();
 
-  Zum::Server::Mgr mgr(&rng, passlen, 6, 30);
+  Zum::Server::UserDB userDB(&rng, passlen, 6, 30);
 
   try {
     mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
       .downFn = [](Zdb *) { }
     });
 
-    mgr.init(cf->getCf<true>("userdb"), mx, db);
+    userDB.init(cf->getCf<true>("userdb"), mx, db);
 
     mx->start();
     if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
@@ -174,11 +174,16 @@ int main(int argc, char **argv)
     gtfo();
   }
 
-  ZmBlock<>{}([&mgr, &gtfo](auto wake) {
-    mgr.open([wake = ZuMv(wake), &gtfo](bool ok) mutable {
+  ZmBlock<>{}([&userDB, &gtfo, &perms](auto wake) {
+    userDB.open(ZuMv(perms), [
+      wake = ZuMv(wake), &gtfo, &perms
+    ](bool ok, ZtArray<unsigned> permIDs) mutable {
       if (!ok) {
 	ZeLOG(Fatal, "userDB open failed");
 	gtfo();
+      } else {
+	for (unsigned i = 0, n = perms.length(); i < n; i++)
+	  std::cout << permIDs[i] << ' ' << perms[i] << '\n';
       }
       wake();
     });
@@ -187,12 +192,12 @@ int main(int argc, char **argv)
   ZtString passwd, secret;
 
   ZmBlock<>{}([
-    user = ZuMv(user), role = ZuMv(role), &mgr, &gtfo, &passwd, &secret
+    user = ZuMv(user), role = ZuMv(role), &userDB, &gtfo, &passwd, &secret
   ](auto wake) {
-    mgr.bootstrap(ZuMv(user), ZuMv(role), [
+    userDB.bootstrap(ZuMv(user), ZuMv(role), [
       &gtfo, &passwd, &secret, wake = ZuMv(wake)
-    ](Zum::Server::Mgr::BootstrapResult result) mutable {
-      using Data = Zum::Server::Mgr::BootstrapData;
+    ](Zum::Server::BootstrapResult result) mutable {
+      using Data = Zum::Server::BootstrapData;
       if (result.is<bool>()) {
 	if (result.p<bool>()) {
 	  std::cout << "userDB already initialized\n" << std::flush;
@@ -212,6 +217,7 @@ int main(int argc, char **argv)
     });
   });
 
+#if 0
   if (perms.length()) {
     unsigned totp;
     {
@@ -227,9 +233,9 @@ int main(int argc, char **argv)
 	  Zfb::Save::str(fbb, user),
 	  Zfb::Save::str(fbb, passwd),
 	  totp).Union()));
-    ZmBlock<>{}([&mgr, &perms, buf = fbb.buf()](auto wake) mutable {
-      mgr.loginReq(ZuMv(buf), [
-	&mgr, &perms, wake = ZuMv(wake)
+    ZmBlock<>{}([&userDB, &perms, buf = fbb.buf()](auto wake) mutable {
+      userDB.loginReq(ZuMv(buf), [
+	&userDB, &perms, wake = ZuMv(wake)
       ](ZmRef<Zum::Server::Session> session) mutable {
 	if (!session) {
 	  ZeLOG(Fatal, "login failed");
@@ -239,7 +245,7 @@ int main(int argc, char **argv)
 
 	// recycling lambda - iterates over perms, adding them
 	ZuLambda{[
-	  &mgr, &perms, wake = ZuMv(wake), session = ZuMv(session), i = 0U
+	  &userDB, &perms, wake = ZuMv(wake), session = ZuMv(session), i = 0U
 	](auto &&self, ZmRef<Zum::IOBuf> buf) mutable {
 	  if (buf) {
 	    auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
@@ -261,18 +267,19 @@ int main(int argc, char **argv)
 	    Zum::fbs::CreatePermName(fbb,
 	      Zfb::Save::str(fbb, perms[i])).Union()));
 	  const auto &session_ = session;
-	  mgr.request(session_, fbb.buf(), [
+	  userDB.request(session_, fbb.buf(), [
 	    self = ZuMv(self)
 	  ](ZmRef<Zum::IOBuf> buf) mutable { ZuMv(self)(ZuMv(buf)); });
 	}}(nullptr);
       });
     });
   }
+#endif
 
   db->stop();
   mx->stop();
 
-  mgr.final();
+  userDB.final();
 
   db->final();
   db = {};

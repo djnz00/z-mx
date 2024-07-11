@@ -32,16 +32,19 @@
 #include <zlib/Ztls.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvUserDB.hh>
 #include <zlib/ZvTelemetry.hh>
 #include <zlib/ZvTelServer.hh>
 
-#include <zlib/zv_loginreq_fbs.h>
-#include <zlib/zv_loginack_fbs.h>
-#include <zlib/zv_userdbreq_fbs.h>
-#include <zlib/zv_userdback_fbs.h>
-#include <zlib/zv_zcmdreq_fbs.h>
-#include <zlib/zv_zcmdack_fbs.h>
+#include <zlib/Zdb.hh>
+
+#include <zlib/ZumServer.hh>
+
+#include <zlib/zum_loginreq_fbs.h>
+#include <zlib/zum_loginack_fbs.h>
+#include <zlib/zum_request_fbs.h>
+#include <zlib/zum_reqack_fbs.h>
+#include <zlib/zcmd_request_fbs.h>
+#include <zlib/zcmd_reqack_fbs.h>
 
 #include <zlib/ZcmdHost.hh>
 #include <zlib/ZcmdDispatcher.hh>
@@ -257,9 +260,9 @@ friend TLS;
 
   enum { OutBufSize = 8000 }; // initial TLS buffer size
 
-  struct UserDB : public ZuObject, public ZvUserDB::Mgr {
+  struct UserDB : public ZuObject, public Zum::Server::UserDB {
     template <typename ...Args>
-    UserDB(Args &&...args) : ZvUserDB::Mgr{ZuFwd<Args>(args)...} { }
+    UserDB(Args &&...args) : Zum::Server::UserDB{ZuFwd<Args>(args)...} { }
   };
 
   const App *app() const { return static_cast<const App *>(this); }
@@ -302,8 +305,10 @@ friend TLS;
       m_userDBPath = mgrCf->get("path", true);
       m_userDBMaxAge = mgrCf->getInt("maxAge", 0, INT_MAX, 8);
     }
+    // FIXME
     m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 
+    // FIXME
     if (!loadUserDB())
       throw ZeEVENT(Fatal, ([path = ZtString{m_userDBPath}](auto &s) {
 	s << "failed to load \"" << path << '"'; }));
@@ -313,6 +318,7 @@ friend TLS;
   void final() {
     TelServer::final();
 
+    // FIXME
     m_userDB = nullptr;
 
     TLS::final();
@@ -331,6 +337,7 @@ friend TLS;
   }
 private:
   void stop_() {
+    // FIXME
     this->mx()->del(&m_userDBTimer);
     if (m_userDB->modified()) saveUserDB();
   }
@@ -361,6 +368,10 @@ public:
 
 private:
   bool loadUserDB() {
+    // FIXME - rename to openUserDB
+    // FIXME - need initUserDB, which should immediately follow Zdb init
+    // - see zuserdb
+    // ... then mx start followed by db start
     ZeError e;
     if (m_userDB->load(m_userDBPath, &e) != Zi::OK) {
       ZeLOG(Warning, ([userDBPath = m_userDBPath, e](auto &s) {
@@ -386,6 +397,7 @@ private:
     return true;
   }
   bool saveUserDB() {
+    // FIXME - delete this
     ZeError e;
     if (m_userDB->save(m_userDBPath, m_userDBMaxAge, &e) != Zi::OK) {
       ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
@@ -472,6 +484,7 @@ private:
   ZmScheduler::Timer	m_userDBTimer;
 
   ZuRef<UserDB>		m_userDB;
+
   int			m_cmdPerm = -1;		// "ZCmd"
   int			m_telPerm = -1;		// "ZTel"
 };

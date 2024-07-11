@@ -4,8 +4,14 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
+// Zdb in-memory data store
+
 #ifndef ZdbMemStore_HH
 #define ZdbMemStore_HH
+
+#ifndef ZdbLib_HH
+#include <zlib/ZdbLib.hh>
+#endif
 
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuPrint.hh>
@@ -22,16 +28,9 @@
 
 #include <zlib/ZdbStore.hh>
 
-namespace zdbtest {
+namespace ZdbMem {
 
 using namespace Zdb_;
-
-ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>> work, callbacks;
-
-bool deferWork = false, deferCallbacks = false;
-
-void performWork() { while (auto fn = work.shift()) fn(); }
-void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
 
 // --- value union
 
@@ -1089,38 +1088,39 @@ Tuple extractKey(
   return key;
 }
 
-// --- mock row
+// --- in-memory row
 
-struct MockRow__ {
+struct MemRow__ {
   ZdbUN		un;
   ZdbSN		sn;
   ZdbVN		vn;
   Tuple		data;
 
-  static ZdbUN UNAxor(const MockRow__ &row) { return row.un; }
+  static ZdbUN UNAxor(const MemRow__ &row) { return row.un; }
 };
 
 // UN index
-struct MockRow_ : public ZuObject, public MockRow__ {
-  using MockRow__::MockRow__;
+struct MemRow_ : public ZuObject, public MemRow__ {
+  using MemRow__::MemRow__;
   template <typename ...Args>
-  MockRow_(Args &&...args) : MockRow__{ZuFwd<Args>(args)...} { }
+  MemRow_(Args &&...args) : MemRow__{ZuFwd<Args>(args)...} { }
 };
-inline constexpr const char *Row_HeapID() { return "MockRow"; }
+inline constexpr const char *Row_HeapID() { return "MemRow"; }
 using IndexUN =
-  ZmRBTree<MockRow_,
-    ZmRBTreeNode<MockRow_,
-      ZmRBTreeKey<MockRow_::UNAxor,
+  ZmRBTree<MemRow_,
+    ZmRBTreeNode<MemRow_,
+      ZmRBTreeKey<MemRow_::UNAxor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Row_HeapID>>>>>;
-struct MockRow : public IndexUN::Node {
+struct MemRow : public IndexUN::Node {
   using Base = IndexUN::Node;
   using Base::Base;
-  using MockRow__::data;
+  using MemRow__::data;
 };
 
 // key indices
-// - override the default comparator to provide a mock RDBMS descending index
+// - override the default comparator to provide in-memory indices
+//   that mimic a RDBMS B-Tree ascending/descending indices
 inline bool equals_(const Tuple &l, const Tuple &r, unsigned n) {
   for (unsigned i = 0; i < n; i++)
     if (!l[i].equals(r[i])) return false;
@@ -1147,12 +1147,12 @@ template <typename T = Tuple> struct TupleCmp {
     return equals_(l, r, ln < rn ? ln : rn);
   }
 };
-inline constexpr const char *MockRowIndex_HeapID() { return "MockRowIndex"; }
+inline constexpr const char *MemRowIndex_HeapID() { return "MemRowIndex"; }
 using Index =
-  ZmRBTreeKV<Tuple, ZmRef<const MockRow>,
+  ZmRBTreeKV<Tuple, ZmRef<const MemRow>,
     ZmRBTreeCmp<TupleCmp,
       ZmRBTreeUnique<true,
-	ZmRBTreeHeapID<MockRowIndex_HeapID>>>>;
+	ZmRBTreeHeapID<MemRowIndex_HeapID>>>>;
 
 // --- mock storeTbl
 
@@ -1165,6 +1165,8 @@ public:
     m_id{id},
     m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)}
   {
+    // introspect fields and flatbuffers reflection data, building
+    // m_xFields[], m_keyGroup[] and m_xKeyFields[]
     for (unsigned i = 0, n = keyFields.length(); i < n; i++) {
       uint64_t descending = 0;
       unsigned m = keyFields[i].length();
@@ -1215,7 +1217,7 @@ protected:
 
 private:
   // load a row from a buffer containing a replication/recovery message
-  ZmRef<const MockRow> loadRow(const ZmRef<const AnyBuf> &buf) {
+  ZmRef<const MemRow> loadRow(const ZmRef<const AnyBuf> &buf) {
     auto record = record_(msg_(buf->hdr()));
     auto sn = Zfb::Load::uint128(record->sn());
     auto data = Zfb::Load::bytes(record->data());
@@ -1227,12 +1229,12 @@ private:
       tuple = loadUpdTuple(m_fields, m_xFields, fbo);
     else
       tuple = loadDelTuple(m_fields, m_xFields, fbo);
-    return new MockRow{record->un(), sn, record->vn(), ZuMv(tuple)};
+    return new MemRow{record->un(), sn, record->vn(), ZuMv(tuple)};
   }
 
   // save a row to a buffer as a replication/recovery message
   template <bool Recovery>
-  ZmRef<AnyBuf> saveRow(const ZmRef<const MockRow> &row) {
+  ZmRef<AnyBuf> saveRow(const ZmRef<const MemRow> &row) {
     IOBuilder fbb;
     auto data = Zfb::Save::nest(fbb, [this, &row](Zfb::Builder &fbb) {
       return saveTuple(fbb, m_xFields, row->data);
@@ -1258,30 +1260,22 @@ public:
   void count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn) {
     ZmAssert(keyID < m_indices.length());
 
-    auto work_ = [
-      this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
-    ]() mutable {
-      const auto &keyFields = m_keyFields[keyID];
-      const auto &xKeyFields = m_xKeyFields[keyID];
+    const auto &keyFields = m_keyFields[keyID];
+    const auto &xKeyFields = m_xKeyFields[keyID];
 
-      unsigned nParams = m_keyGroup[keyID];
+    unsigned nParams = m_keyGroup[keyID];
 
-      auto key = loadTuple_(
-	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
-      ZeLOG(Debug, ([key](auto &s) {
-	s << "key={" << ZtJoin(key, ", ") << '}';
-      }));
+    auto key = loadTuple_(
+      nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
 
-      const auto &index = m_indices[keyID];
-      auto row = index.find<ZmRBTreeGreater>(key);
-      uint64_t i = 0;
-      while (row && equals_(row->key(), key, nParams)) {
-	++i;
-	row = index.next(row);
-      }
-      countFn(CountData{i});
-    };
-    deferWork ? work.push(ZuMv(work_)) : work_();
+    const auto &index = m_indices[keyID];
+    auto row = index.find<ZmRBTreeGreater>(key);
+    uint64_t i = 0;
+    while (row && equals_(row->key(), key, nParams)) {
+      ++i;
+      row = index.next(row);
+    }
+    countFn(CountData{i});
   }
 
   void select(
@@ -1291,153 +1285,107 @@ public:
   {
     ZmAssert(keyID < m_indices.length());
 
-    auto work_ = [
-      this, selectRow, selectNext, inclusive,
-      keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
-    ]() mutable {
-      const auto &keyFields = m_keyFields[keyID];
-      const auto &xKeyFields = m_xKeyFields[keyID];
+    const auto &keyFields = m_keyFields[keyID];
+    const auto &xKeyFields = m_xKeyFields[keyID];
 
-      unsigned keyGroup = m_keyGroup[keyID];
-      unsigned nParams = selectNext ? keyFields.length() : keyGroup;
+    unsigned keyGroup = m_keyGroup[keyID];
+    unsigned nParams = selectNext ? keyFields.length() : keyGroup;
 
-      auto key = loadTuple_(
-	nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
-      ZeLOG(Debug, ([key](auto &s) {
-	s << "key={" << ZtJoin(key, ", ") << '}';
-      }));
+    auto key = loadTuple_(
+      nParams, keyFields, xKeyFields, Zfb::GetAnyRoot(buf->data()));
 
-      const auto &index = m_indices[keyID];
-      auto row = inclusive ?
-	index.find<ZmRBTreeGreaterEqual>(key) :
-	index.find<ZmRBTreeGreater>(key);
-      unsigned i = 0;
-      while (i++ < limit && row && equals_(row->key(), key, keyGroup)) {
-	IOBuilder fbb;
-	if (!selectRow) {
-	  auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
-	  fbb.Finish(saveTuple(fbb, xKeyFields, key));
-	} else {
-	  fbb.Finish(saveTuple(fbb, m_xFields, row->val()->data));
-	}
-	TupleData tupleData{
-	  .keyID = selectRow ? ZuFieldKeyID::All : int(keyID),
-	  .buf = fbb.buf().constRef(),
-	  .count = i
-	};
-	tupleFn(TupleResult{ZuMv(tupleData)});
-	row = index.next(row);
+    const auto &index = m_indices[keyID];
+    auto row = inclusive ?
+      index.find<ZmRBTreeGreaterEqual>(key) :
+      index.find<ZmRBTreeGreater>(key);
+    unsigned i = 0;
+    while (i++ < limit && row && equals_(row->key(), key, keyGroup)) {
+      IOBuilder fbb;
+      if (!selectRow) {
+	auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
+	fbb.Finish(saveTuple(fbb, xKeyFields, key));
+      } else {
+	fbb.Finish(saveTuple(fbb, m_xFields, row->val()->data));
       }
-      tupleFn(TupleResult{});
-    };
-    deferWork ? work.push(ZuMv(work_)) : work_();
+      TupleData tupleData{
+	.keyID = selectRow ? ZuFieldKeyID::All : int(keyID),
+	.buf = fbb.buf().constRef(),
+	.count = i
+      };
+      tupleFn(TupleResult{ZuMv(tupleData)});
+      row = index.next(row);
+    }
+    tupleFn(TupleResult{});
   }
 
   void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
-    auto work_ = [
-      this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)
-    ]() mutable {
-      auto key = loadTuple(
-	m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data()));
-      ZmRef<const MockRow> row = m_indices[keyID].findVal(key);
-      if (row) {
-	RowData data{.buf = saveRow<false>(row).constRef()};
-	auto callback =
-	  [rowFn = ZuMv(rowFn), result = RowResult{ZuMv(data)}]() mutable {
-	    rowFn(ZuMv(result));
-	  };
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
-      } else {
-	auto callback = [rowFn = ZuMv(rowFn)]() mutable {
-	  rowFn(RowResult{});
-	};
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
-      }
-    };
-    deferWork ? work.push(ZuMv(work_)) : work_();
+
+    auto key = loadTuple(
+      m_keyFields[keyID], m_xKeyFields[keyID], Zfb::GetAnyRoot(buf->data()));
+    ZmRef<const MemRow> row = m_indices[keyID].findVal(key);
+    if (row) {
+      RowData data{.buf = saveRow<false>(row).constRef()};
+      rowFn(RowResult{ZuMv(data)});
+    } else {
+      rowFn(RowResult{});
+    }
   }
 
   void recover(UN un, RowFn rowFn) {
     // build Recover buf and return it
-    auto work_ = [this, un, rowFn = ZuMv(rowFn)]() mutable {
-      ZmRef<const MockRow> row = m_indexUN.find(un);
-      if (row) {
-	RowData data{.buf = saveRow<true>(row).constRef()};
-	auto callback =
-	[rowFn = ZuMv(rowFn), result = RowResult{ZuMv(data)}]() mutable {
-	  rowFn(ZuMv(result));
-	};
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
-      } else {
-	// missing is not an error, skip over updated/deleted records
-	auto callback = [rowFn = ZuMv(rowFn)]() mutable {
-	  rowFn(RowResult{});
-	};
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
-      }
-    };
-    deferWork ? work.push(ZuMv(work_)) : work_();
+    ZmRef<const MemRow> row = m_indexUN.find(un);
+    if (row) {
+      RowData data{.buf = saveRow<true>(row).constRef()};
+      rowFn(RowResult{ZuMv(data)});
+    } else {
+      // missing is not an error, skip over updated/deleted records
+      rowFn(RowResult{});
+    }
   }
 
   void write(ZmRef<const AnyBuf> buf, CommitFn commitFn) {
-    auto work_ = [
-      this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)
-    ]() mutable {
-      // idempotence check
-      auto un = record_(msg_(buf->hdr()))->un();
-      if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
-	auto callback = [buf = ZuMv(buf), commitFn = ZuMv(commitFn)] {
-	  commitFn(ZuMv(buf), CommitResult{});
-	};
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
-	return;
-      }
-      // load row, perform insert/update/delete
-      ZmRef<MockRow> row = loadRow(buf).mutableRef();
-      if (!row->vn)
-	insert(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
-      else if (row->vn > 0)
-	update(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
-      else
-	del(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
-    };
-    deferWork ? work.push(ZuMv(work_)) : work_();
+    // idempotence check
+    auto un = record_(msg_(buf->hdr()))->un();
+    if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
+      commitFn(ZuMv(buf), CommitResult{});
+      return;
+    }
+    // load row, perform insert/update/delete
+    ZmRef<MemRow> row = loadRow(buf).mutableRef();
+    if (!row->vn)
+      insert(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
+    else if (row->vn > 0)
+      update(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
+    else
+      del(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
   }
 
-  void insert(ZmRef<MockRow> row, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void insert(ZmRef<MemRow> row, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
     m_maxUN = row->un, m_maxSN = row->sn;
     unsigned n = m_keyFields.length();
     for (unsigned i = 0; i < n; i++) {
       auto key = extractKey(m_fields, m_keyFields, i, row->data);
       ZmAssert(key.length() == m_keyFields[i].length());
       if (!i && m_indices[i].findVal(key)) {
-	auto callback =
-	[this, key = ZuMv(key), buf = ZuMv(buf), commitFn = ZuMv(commitFn)]()
-	mutable {
-	  commitFn(ZuMv(buf), CommitResult{ZeMEVENT(Error,
-	      ([id = this->id(), key = ZuMv(key)](auto &s, const auto &) {
-		s << id << " insert(" << ZtJoin(key, ", ")
-		  << ") failed - record exists";
-	      }))});
-	};
-	deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+	commitFn(ZuMv(buf), CommitResult{ZeMEVENT(Error,
+	    ([id = this->id(), key = ZuMv(key)](auto &s, const auto &) {
+	      s << id << " insert(" << ZtJoin(key, ", ")
+		<< ") failed - record exists";
+	    }))});
 	return;
       }
       m_indices[i].add(key, row.constRef());
     }
     m_indexUN.addNode(ZuMv(row));
-    auto callback = [buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
-      commitFn(ZuMv(buf), CommitResult{});
-    };
-    deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+    commitFn(ZuMv(buf), CommitResult{});
   }
 
   void update(
-    ZmRef<MockRow> updRow, ZmRef<const AnyBuf> buf, CommitFn commitFn
+    ZmRef<MemRow> updRow, ZmRef<const AnyBuf> buf, CommitFn commitFn
   ) {
     auto key = extractKey(m_fields, m_keyFields, 0, updRow->data);
-    ZmRef<MockRow> row = m_indices[0].findVal(key).mutableRef();
+    ZmRef<MemRow> row = m_indices[0].findVal(key).mutableRef();
     if (row) {
       m_maxUN = updRow->un, m_maxSN = updRow->sn;
 
@@ -1468,27 +1416,19 @@ public:
 	}
       }
 
-      auto callback = [buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
-	commitFn(ZuMv(buf), CommitResult{});
-      };
-      deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      commitFn(ZuMv(buf), CommitResult{});
     } else {
-      auto callback =
-      [this, key = ZuMv(key), buf = ZuMv(buf), commitFn = ZuMv(commitFn)]()
-      mutable {
-	commitFn(ZuMv(buf), CommitResult{
-	    ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
-	      s << id << " update(" << ZtJoin(key, ", ")
-		<< ") failed - record missing";
-	    }))});
-      };
-      deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      commitFn(ZuMv(buf), CommitResult{
+	  ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
+	    s << id << " update(" << ZtJoin(key, ", ")
+	      << ") failed - record missing";
+	  }))});
     }
   }
 
-  void del(ZmRef<MockRow> delRow, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void del(ZmRef<MemRow> delRow, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
     auto key = extractKey(m_fields, m_keyFields, 0, delRow->data);
-    ZmRef<MockRow> row = m_indices[0].delVal(key).mutableRef();
+    ZmRef<MemRow> row = m_indices[0].delVal(key).mutableRef();
     if (row) {
       m_maxUN = delRow->un, m_maxSN = delRow->sn;
       m_indexUN.delNode(row);
@@ -1498,31 +1438,21 @@ public:
 	ZmAssert(key.length() == m_keyFields[i].length());
 	m_indices[i].del(key);
       }
-      auto callback = [buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
-	commitFn(ZuMv(buf), CommitResult{});
-      };
-      deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      commitFn(ZuMv(buf), CommitResult{});
     } else {
-      auto callback =
-      [this, key = ZuMv(key), buf = ZuMv(buf), commitFn = ZuMv(commitFn)]()
-      mutable {
-	commitFn(ZuMv(buf), CommitResult{
-	    ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
-	      s << id << " del(" << ZtJoin(key, ", ")
-		<< ") failed - record missing";
-	    }))});
-      };
-      deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
+      commitFn(ZuMv(buf), CommitResult{
+	  ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
+	    s << id << " del(" << ZtJoin(key, ", ")
+	      << ") failed - record missing";
+	  }))});
     }
   }
 
 private:
   ZuID			m_id;
   ZtMFields		m_fields;
-  // ZtMFields		m_updFields;
   ZtMKeyFields		m_keyFields;
   XFields		m_xFields;
-  // XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
   IndexUN		m_indexUN;
@@ -1534,18 +1464,25 @@ private:
   SN			m_maxSN = ZdbNullSN();
 };
 
-// --- mock data store
+// --- in-memory data store
 
-inline ZuID StoreTbl_IDAxor(const StoreTbl &storeTbl) { return storeTbl.id(); }
+template <typename StoreTbl_>
+inline ZuID StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
 inline constexpr const char *StoreTbls_HeapID() { return "StoreTbls"; }
-using StoreTbls =
-  ZmHash<StoreTbl,
-    ZmHashNode<StoreTbl,
-      ZmHashKey<StoreTbl_IDAxor,
+template <typename StoreTbl_>
+using StoreTbls_ =
+  ZmHash<StoreTbl_,
+    ZmHashNode<StoreTbl_,
+      ZmHashKey<StoreTbl_IDAxor<StoreTbl_>,
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
 
-class Store : public Zdb_::Store {
+template <typename StoreTbl_>
+class Store_ : public Zdb_::Store {
+  using StoreTbl = StoreTbl_;
+  using StoreTbls = StoreTbls_<StoreTbl>;
+  using StoreTblNode = typename StoreTbls::Node;
+
 public:
   InitResult init(ZvCf *, ZiMultiplex *, unsigned) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
@@ -1566,7 +1503,7 @@ public:
       ZtMKeyFields keyFields,
       const reflection::Schema *schema,
       OpenFn openFn) {
-    StoreTbls::Node *storeTbl = m_storeTbls->find(id);
+    StoreTblNode *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {
       openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
 	s << "open(" << id << ") failed - already open";
@@ -1575,7 +1512,7 @@ public:
     }
     if (!storeTbl) {
       storeTbl =
-	new StoreTbls::Node{id, ZuMv(fields), ZuMv(keyFields), schema};
+	new StoreTblNode{id, ZuMv(fields), ZuMv(keyFields), schema};
       m_storeTbls->addNode(storeTbl);
     }
     storeTbl->open();
@@ -1592,6 +1529,13 @@ private:
   bool			m_preserve = false;
 };
 
-} // zdbtest
+using Store = Store_<StoreTbl>;
+
+} // ZdbMem
+
+// main data store driver entry point
+extern "C" {
+  ZdbExtern Zdb_::Store *ZdbStore();
+}
 
 #endif /* ZdbMemStore_HH */

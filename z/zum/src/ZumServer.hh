@@ -28,10 +28,28 @@
 
 namespace Zum::Server {
 
-class Mgr;
+class UserDB;
 
+// open callback - ok, permIDs
+using OpenFn = ZmFn<void(bool, ZtArray<unsigned>)>;
+
+// bootstrap callback
+struct BootstrapData { // bootstrap() result data
+  ZtString passwd;
+  ZtString secret;
+};
+using BootstrapResult = ZuUnion<bool, BootstrapData>;
+static bool bootstrapOK(const BootstrapResult &result) {
+  return !result.is<bool>() || result.p<bool>();
+}
+using BootstrapFn = ZmFn<void(BootstrapResult)>;
+
+// request/response callback
+using ResponseFn = ZmFn<void(ZmRef<IOBuf>)>;
+
+// live session
 struct Session_ {
-  Mgr			*mgr = nullptr;
+  UserDB		*userDB = nullptr;
   ZdbObjRef<User>	user;
   ZdbObjRef<Key>	key;		// if API key access
   ZtBitmap		perms;		// effective permissions
@@ -54,22 +72,20 @@ struct Session : public ZmPolymorph, public Session_ {
 // session start callback - nullptr if login/access failed
 using SessionFn = ZmFn<void(ZmRef<Session>)>;
 
-// request response callback
-using ResponseFn = ZmFn<void(ZmRef<IOBuf>)>;
-
-namespace MgrState {
-  ZtEnumValues(MgrState, int,
+// user DB state
+namespace UserDBState {
+  ZtEnumValues(UserDBState, int,
     Uninitialized = 0, Initialized, Opening, Opened, OpenFailed, Bootstrap);
 }
 
-class ZvAPI Mgr {
+class ZvAPI UserDB {
 public:
-  Mgr(
+  UserDB(
     Ztls::Random *rng,
     unsigned passLen,
     unsigned totpRange,
     unsigned keyInterval);
-  ~Mgr();
+  ~UserDB();
 
   void init(ZvCf *, ZiMultiplex *, Zdb *);
   void final();
@@ -86,19 +102,8 @@ public:
   bool invoked() const { return m_mx->invoked(m_sid); }
 
   // open
-  using OpenFn = ZmFn<void(bool)>;
-  void open(OpenFn fn);
+  void open(ZtArray<ZtString> perms, OpenFn);
 
-  // bootstrap
-  struct BootstrapData { // bootstrap() result data
-    ZtString passwd;
-    ZtString secret;
-  };
-  using BootstrapResult = ZuUnion<bool, BootstrapData>;
-  static bool bootstrapOK(const BootstrapResult &result) {
-    return !result.is<bool>() || result.p<bool>();
-  }
-  using BootstrapFn = ZmFn<void(BootstrapResult)>;
   // one-time initialization (idempotent)
   void bootstrap(ZtString userName, ZtString roleName, BootstrapFn);
 
@@ -119,8 +124,10 @@ public:
 
 private:
   struct Open {	// internal open() context
-    OpenFn	fn;
-    unsigned	perm = 0;
+    OpenFn		fn;
+    ZtArray<ZtString>	perms;
+    ZtArray<unsigned>	permIDs;
+    unsigned		perm = 0;
   };
   void open_(ZuPtr<Open>);
   void open_recoverNextUserID(ZuPtr<Open>);
@@ -265,7 +272,7 @@ private:
   ZiMultiplex		*m_mx = nullptr;
   unsigned		m_sid;
 
-  ZmAtomic<int>		m_state = MgrState::Uninitialized;
+  ZmAtomic<int>		m_state = UserDBState::Uninitialized;
 
   ZmRef<ZdbTable<User>>	m_userTbl;
   ZmRef<ZdbTable<Role>>	m_roleTbl;

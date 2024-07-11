@@ -1,4 +1,4 @@
-namespace ZvCmd.fbs;
+namespace Zcmd.fbs;
 table ReqAck {
   seq_no:uint32;
   code:int32;

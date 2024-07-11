@@ -20,7 +20,7 @@
 
 namespace Zum::Server {
 
-Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
+UserDB::UserDB(Ztls::Random *rng, unsigned passLen,
     unsigned totpRange, unsigned keyInterval) :
   m_rng{rng},
   m_passLen{passLen},
@@ -29,13 +29,13 @@ Mgr::Mgr(Ztls::Random *rng, unsigned passLen,
 {
 }
 
-Mgr::~Mgr()
+UserDB::~UserDB()
 {
 }
 
-void Mgr::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
+void UserDB::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
 {
-  ZeAssert(m_state == MgrState::Uninitialized,
+  ZeAssert(m_state == UserDBState::Uninitialized,
     (state = m_state), "invalid state=" << state, return);
   unsigned sid = mx->sid(cf->get<true>("thread"));
   if (!sid ||
@@ -46,54 +46,47 @@ void Mgr::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
       s << "ZumServer thread misconfigured: " << thread; }));
   m_mx = mx;
   m_sid = sid;
-  m_state = MgrState::Initialized;
+  m_state = UserDBState::Initialized;
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
   m_keyTbl = db->initTable<Key>("zum.key");
   m_permTbl = db->initTable<Perm>("zum.perm");
 }
 
-void Mgr::final()
+void UserDB::final()
 {
   m_userTbl = nullptr;
   m_roleTbl = nullptr;
   m_keyTbl = nullptr;
   m_permTbl = nullptr;
-  m_state = MgrState::Uninitialized;
-}
-
-// return permission name for request i
-static ZtString permName(unsigned i)
-{
-  ZtString s{"UserMgmt."};
-  auto loginReqEnd = unsigned(fbs::LoginReqData::MAX);
-  if (i < loginReqEnd) return s << fbs::EnumNamesLoginReqData()[i + 1];
-  return s << fbs::EnumNamesReqData()[(i - loginReqEnd) + 1];
+  m_state = UserDBState::Uninitialized;
 }
 
 // initiate open sequence
-void Mgr::open(OpenFn fn)
+void UserDB::open(ZtArray<ZtString> perms, OpenFn fn)
 {
   ZuPtr<Open> context = new Open{
-    .fn = ZuMv(fn)
+    .fn = ZuMv(fn),
+    .perms = ZuMv(perms)
   };
+  context->permIDs.size(context->perms.length());
   run([this, context = ZuMv(context)]() mutable { open_(ZuMv(context)); });
 }
-void Mgr::open_(ZuPtr<Open> context)
+void UserDB::open_(ZuPtr<Open> context)
 {
   // check for overlapping open/bootstrap or already opened
-  if (m_state.load_() != MgrState::Initialized) {
-    (context->fn)(false);
+  if (m_state.load_() != UserDBState::Initialized) {
+    (context->fn)(false, ZtArray<unsigned>{});
     return;
   }
-  m_state = MgrState::Opening;
+  m_state = UserDBState::Opening;
 
   m_userTbl->run([this, context = ZuMv(context)]() mutable {
     open_recoverNextUserID(ZuMv(context));
   });
 }
 // recover nextUserID
-void Mgr::open_recoverNextUserID(ZuPtr<Open> context)
+void UserDB::open_recoverNextUserID(ZuPtr<Open> context)
 {
   m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [
     this, context = ZuMv(context)
@@ -108,7 +101,7 @@ void Mgr::open_recoverNextUserID(ZuPtr<Open> context)
   });
 }
 // recover nextPermID
-void Mgr::open_recoverNextPermID(ZuPtr<Open> context)
+void UserDB::open_recoverNextPermID(ZuPtr<Open> context)
 {
   m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [
     this, context = ZuMv(context)
@@ -123,9 +116,29 @@ void Mgr::open_recoverNextPermID(ZuPtr<Open> context)
   });
 }
 // find permission and update m_perms[]
-void Mgr::open_findAddPerm(ZuPtr<Open> context)
+void UserDB::open_findAddPerm(ZuPtr<Open> context)
 {
-  m_permTbl->find<1>(ZuMvTuple(permName(context->perm)), [
+  static auto permName = [](const Open *context) -> ZtString {
+    auto i = context->perm;
+    if (i < nPerms()) {
+      ZtString s{"UserMgmt."};
+      auto loginReqEnd = unsigned(fbs::LoginReqData::MAX);
+      if (i < loginReqEnd) return s << fbs::EnumNamesLoginReqData()[i + 1];
+      return s << fbs::EnumNamesReqData()[(i - loginReqEnd) + 1];
+    } else {
+      return context->perms[i - nPerms()];
+    }
+  };
+
+  static auto stashPermID = [](UserDB *this_, Open *context, unsigned id) {
+    auto i = context->perm;
+    if (i < nPerms())
+      this_->m_perms[i] = id;
+    else
+      context->permIDs.push(id);
+  };
+
+  m_permTbl->find<1>(ZuMvTuple(permName(context)), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Perm>> dbPerm) mutable {
     if (!dbPerm) {
@@ -133,20 +146,20 @@ void Mgr::open_findAddPerm(ZuPtr<Open> context)
 	this, context = ZuMv(context)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	if (!dbPerm) { opened(ZuMv(context), false); return; }
-	initPerm(dbPerm, permName(context->perm));
-	m_perms[context->perm] = dbPerm->data().id;
+	initPerm(dbPerm, permName(context));
+	stashPermID(this, context, dbPerm->data().id);
 	open_nextPerm(ZuMv(context));
       });
     } else {
-      m_perms[context->perm] = dbPerm->data().id;
+      stashPermID(this, context, dbPerm->data().id);
       open_nextPerm(ZuMv(context));
     }
   });
 }
 // iterate to next permission
-void Mgr::open_nextPerm(ZuPtr<Open> context)
+void UserDB::open_nextPerm(ZuPtr<Open> context)
 {
-  if (++context->perm < nPerms())
+  if (++context->perm < nPerms() + context->perms.length())
     m_permTbl->run([this, context = ZuMv(context)]() mutable {
       open_findAddPerm(ZuMv(context));
     });
@@ -154,16 +167,16 @@ void Mgr::open_nextPerm(ZuPtr<Open> context)
     opened(ZuMv(context), true);
 }
 // inform app of open result
-void Mgr::opened(ZuPtr<Open> context, bool ok)
+void UserDB::opened(ZuPtr<Open> context, bool ok)
 {
   run([this, context = ZuMv(context), ok]() {
-    m_state = ok ? MgrState::Opened : MgrState::OpenFailed;
-    (context->fn)(ok);
+    m_state = ok ? UserDBState::Opened : UserDBState::OpenFailed;
+    (context->fn)(ok, ZuMv(context->permIDs));
   });
 }
 
 // initiate bootstrap
-void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
+void UserDB::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
 {
   ZuPtr<Bootstrap> context = new Bootstrap{
     .userName = ZuMv(userName),
@@ -172,21 +185,21 @@ void Mgr::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
   };
   run([this, context = ZuMv(context)]() mutable { bootstrap_(ZuMv(context)); });
 }
-void Mgr::bootstrap_(ZuPtr<Bootstrap> context)
+void UserDB::bootstrap_(ZuPtr<Bootstrap> context)
 {
   // check for overlapping open/bootstrap or failed open
-  if (m_state.load_() != MgrState::Opened) {
+  if (m_state.load_() != UserDBState::Opened) {
     (context->fn)(false);
     return;
   }
-  m_state = MgrState::Bootstrap;
+  m_state = UserDBState::Bootstrap;
 
   m_roleTbl->run([this, context = ZuMv(context)]() mutable {
     bootstrap_findAddRole(ZuMv(context));
   });
 }
 // idempotent insert role
-void Mgr::bootstrap_findAddRole(ZuPtr<Bootstrap> context)
+void UserDB::bootstrap_findAddRole(ZuPtr<Bootstrap> context)
 {
   m_roleTbl->find<0>(ZuFwdTuple(context->roleName), [
     this, context = ZuMv(context)
@@ -214,7 +227,7 @@ void Mgr::bootstrap_findAddRole(ZuPtr<Bootstrap> context)
   });
 }
 // idempotent insert admin user
-void Mgr::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
+void UserDB::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
 {
   m_userTbl->find<1>(ZuFwdTuple(context->userName), [
     this, context = ZuMv(context)
@@ -244,16 +257,16 @@ void Mgr::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
   });
 }
 // inform app of bootstrap result
-void Mgr::bootstrapped(ZuPtr<Bootstrap> context, BootstrapResult result)
+void UserDB::bootstrapped(ZuPtr<Bootstrap> context, BootstrapResult result)
 {
   run([this, context = ZuMv(context), result = ZuMv(result)]() mutable {
-    m_state = MgrState::Opened;
+    m_state = UserDBState::Opened;
     (context->fn)(ZuMv(result));
   });
 }
 
 // initialize API key
-void Mgr::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
+void UserDB::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
 {
   auto key = new (dbKey->ptr()) Key{.userID = userID, .id = keyID};
   key->secret.length(key->secret.size());
@@ -262,14 +275,14 @@ void Mgr::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
 }
 
 // initialize permission
-void Mgr::initPerm(ZdbObject<Perm> *dbPerm, ZtString name)
+void UserDB::initPerm(ZdbObject<Perm> *dbPerm, ZtString name)
 {
   new (dbPerm->ptr()) Perm{m_nextPermID++, ZuMv(name)};
   dbPerm->commit();
 }
 
 // initialize role
-void Mgr::initRole(
+void UserDB::initRole(
   ZdbObject<Role> *dbRole, ZtString name,
   ZtBitmap perms, ZtBitmap apiperms, RoleFlags::T flags)
 {
@@ -283,7 +296,7 @@ void Mgr::initRole(
 };
 
 // initialize user
-void Mgr::initUser(
+void UserDB::initUser(
   ZdbObject<User> *dbUser, UserID id, ZtString name,
   ZtArray<ZtString> roles, UserFlags::T flags,
   ZtString &passwd)
@@ -324,7 +337,7 @@ void Mgr::initUser(
 }
 
 // start a new session (a user is logging in)
-void Mgr::sessionLoad_login(ZtString userName, SessionFn fn)
+void UserDB::sessionLoad_login(ZtString userName, SessionFn fn)
 {
   ZuPtr<SessionLoad> context =
     new SessionLoad{ZuMv(userName), ZuMv(fn)};
@@ -333,7 +346,7 @@ void Mgr::sessionLoad_login(ZtString userName, SessionFn fn)
   });
 }
 // start a new session (using an API key)
-void Mgr::sessionLoad_access(KeyIDData keyID, SessionFn fn)
+void UserDB::sessionLoad_access(KeyIDData keyID, SessionFn fn)
 {
   ZuPtr<SessionLoad> context = new SessionLoad{ZuMv(keyID), ZuMv(fn)};
   m_userTbl->run([this, context = ZuMv(context)]() mutable {
@@ -341,7 +354,7 @@ void Mgr::sessionLoad_access(KeyIDData keyID, SessionFn fn)
   });
 }
 // find and load the user
-void Mgr::sessionLoad_findUser(ZuPtr<SessionLoad> context)
+void UserDB::sessionLoad_findUser(ZuPtr<SessionLoad> context)
 {
   m_userTbl->find<1>(ZuFwdTuple(context->cred.p<ZtString>()), [
     this, context = ZuMv(context)
@@ -358,7 +371,7 @@ void Mgr::sessionLoad_findUser(ZuPtr<SessionLoad> context)
   });
 }
 // find and load the key for an API session
-void Mgr::sessionLoad_findKey(ZuPtr<SessionLoad> context)
+void UserDB::sessionLoad_findKey(ZuPtr<SessionLoad> context)
 {
   m_keyTbl->find<1>(ZuFwdTuple(context->cred.p<KeyIDData>()), [
     this, context = ZuMv(context)
@@ -371,7 +384,7 @@ void Mgr::sessionLoad_findKey(ZuPtr<SessionLoad> context)
   });
 }
 // find and load the user using the userID from the API key
-void Mgr::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
+void UserDB::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
 {
   m_userTbl->find<0>(ZuFwdTuple(context->key->data().userID), [
     this, context = ZuMv(context)
@@ -388,7 +401,7 @@ void Mgr::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
   });
 }
 // find and load the user's roles and permissions
-void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
+void UserDB::sessionLoad_findRole(ZuPtr<SessionLoad> context)
 {
   const auto &role = context->session->user->data().roles[context->roleIndex];
   m_roleTbl->find<0>(ZuFwdTuple(role), [
@@ -408,7 +421,7 @@ void Mgr::sessionLoad_findRole(ZuPtr<SessionLoad> context)
   });
 }
 // inform app (session remains unauthenticated at this point)
-void Mgr::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
+void UserDB::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
 {
   run([context = ZuMv(context), ok]() mutable {
     SessionFn fn = ZuMv(context->fn);
@@ -422,7 +435,7 @@ void Mgr::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
 }
 
 // login succeeded - zero failure count and inform app
-void Mgr::loginSucceeded(ZmRef<Session> session, SessionFn fn)
+void UserDB::loginSucceeded(ZmRef<Session> session, SessionFn fn)
 {
   auto &user = session->user->data();
   if (user.failures) {
@@ -441,7 +454,7 @@ void Mgr::loginSucceeded(ZmRef<Session> session, SessionFn fn)
 }
 
 // login failed - update user and inform app
-void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
+void UserDB::loginFailed(ZmRef<Session> session, SessionFn fn)
 {
   m_userTbl->run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
     ZmRef<ZdbObject<User>> dbUser = session->user;
@@ -453,7 +466,7 @@ void Mgr::loginFailed(ZmRef<Session> session, SessionFn fn)
 }
 
 // interactive login
-void Mgr::login(
+void UserDB::login(
   ZtString name, ZtString passwd, unsigned totp, SessionFn fn)
 {
   sessionLoad_login(ZuMv(name), [
@@ -511,7 +524,7 @@ void Mgr::login(
 }
 
 // non-interactive API access
-void Mgr::access(
+void UserDB::access(
   KeyIDData keyID, ZtArray<const uint8_t> token, int64_t stamp,
   ZtArray<const uint8_t> hmac, SessionFn fn)
 {
@@ -573,7 +586,7 @@ void Mgr::access(
 }
 
 // login/access request dispatch
-void Mgr::loginReq(ZmRef<IOBuf> reqBuf, SessionFn fn)
+void UserDB::loginReq(ZmRef<IOBuf> reqBuf, SessionFn fn)
 {
   if (!Zfb::Verifier{reqBuf->data(), reqBuf->length}.
       VerifyBuffer<fbs::LoginReq>()) {
@@ -585,7 +598,7 @@ void Mgr::loginReq(ZmRef<IOBuf> reqBuf, SessionFn fn)
     loginReq_(ZuMv(reqBuf), ZuMv(fn));
   });
 }
-void Mgr::loginReq_(ZmRef<IOBuf> reqBuf, SessionFn fn)
+void UserDB::loginReq_(ZmRef<IOBuf> reqBuf, SessionFn fn)
 {
   auto fbLoginReq = Zfb::GetRoot<fbs::LoginReq>(reqBuf->data());
 
@@ -614,7 +627,7 @@ void Mgr::loginReq_(ZmRef<IOBuf> reqBuf, SessionFn fn)
 }
 
 // respond to a request
-ZmRef<IOBuf> Mgr::respond(
+ZmRef<IOBuf> UserDB::respond(
   IOBuilder &fbb, SeqNo seqNo,
   fbs::ReqAckData ackType, Offset<void> ackData)
 {
@@ -627,7 +640,7 @@ ZmRef<IOBuf> Mgr::respond(
 }
 
 // reject a request
-ZmRef<IOBuf> Mgr::reject(
+ZmRef<IOBuf> UserDB::reject(
   IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text)
 {
   auto text_ = Zfb::Save::str(fbb, text);
@@ -640,7 +653,7 @@ ZmRef<IOBuf> Mgr::reject(
 }
 
 // validate, permission check and dispatch a request
-void Mgr::request(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::request(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   if (!Zfb::Verifier{reqBuf->data(), reqBuf->length}.
       VerifyBuffer<fbs::Request>()) {
@@ -655,7 +668,7 @@ void Mgr::request(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
     request_(ZuMv(session), ZuMv(reqBuf), ZuMv(fn));
   });
 }
-void Mgr::request_(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::request_(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto reqType = unsigned(fbRequest->data_type());
@@ -712,7 +725,7 @@ void Mgr::request_(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // change password
-void Mgr::chPass(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::chPass(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto &user = session->user->data();
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
@@ -753,7 +766,7 @@ void Mgr::chPass(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // query users
-void Mgr::userGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::userGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto query = static_cast<const fbs::UserQuery *>(fbRequest->data());
@@ -812,7 +825,7 @@ void Mgr::userGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // add a new user
-void Mgr::userAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::userAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_userTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -866,7 +879,7 @@ void Mgr::userAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 
 // delete all API keys for a user
 template <typename L>
-void Mgr::keyClr__(UserID id, L l)
+void UserDB::keyClr__(UserID id, L l)
 {
   m_keyTbl->run([this, id, l = ZuMv(l)]() {
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(id)), MaxAPIKeys, [
@@ -890,7 +903,7 @@ void Mgr::keyClr__(UserID id, L l)
 }
 
 // reset password (also clears all API keys)
-void Mgr::resetPass(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::resetPass(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto userID = static_cast<const fbs::UserID *>(fbRequest->data());
@@ -940,7 +953,7 @@ void Mgr::resetPass(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // modify user (name, roles, flags)
-void Mgr::userMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::userMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_userTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -998,7 +1011,7 @@ void Mgr::userMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // delete user (and associated API keys)
-void Mgr::userDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::userDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_userTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1029,7 +1042,7 @@ void Mgr::userDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // query roles
-void Mgr::roleGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::roleGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto query = static_cast<const fbs::RoleQuery *>(fbRequest->data());
@@ -1068,7 +1081,7 @@ void Mgr::roleGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // add new role
-void Mgr::roleAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::roleAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1114,7 +1127,7 @@ void Mgr::roleAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // modify role (name, perms, apiperms, flags)
-void Mgr::roleMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::roleMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1156,7 +1169,7 @@ void Mgr::roleMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // delete role
-void Mgr::roleDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::roleDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1186,7 +1199,7 @@ void Mgr::roleDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // query permissions
-void Mgr::permGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::permGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto query = static_cast<const fbs::PermQuery *>(fbRequest->data());
@@ -1245,7 +1258,7 @@ void Mgr::permGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // add new permission
-void Mgr::permAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::permAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_permTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1287,7 +1300,7 @@ void Mgr::permAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // modify permission (name)
-void Mgr::permMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::permMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_permTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1317,7 +1330,7 @@ void Mgr::permMod(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // delete permission
-void Mgr::permDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::permDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   m_permTbl->run([
     this, reqBuf = ZuMv(reqBuf), fn = ZuMv(fn)
@@ -1345,20 +1358,20 @@ void Mgr::permDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 }
 
 // query keys
-void Mgr::ownKeyGet(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::ownKeyGet(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   keyGet_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyGet, ZuMv(fn));
 }
-void Mgr::keyGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::keyGet(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto query = static_cast<const fbs::UserID *>(fbRequest->data());
   keyGet_(fbRequest->seqNo(), query->id(), fbs::ReqAckData::KeyGet, ZuMv(fn));
 }
-void Mgr::keyGet_(
+void UserDB::keyGet_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
   m_keyTbl->run([
@@ -1386,21 +1399,21 @@ void Mgr::keyGet_(
 }
 
 // add key
-void Mgr::ownKeyAdd(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::ownKeyAdd(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   keyAdd_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyAdd, ZuMv(fn));
 }
-void Mgr::keyAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::keyAdd(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto fbUserID = static_cast<const fbs::UserID *>(fbRequest->data());
   keyAdd_(
     fbRequest->seqNo(), fbUserID->id(), fbs::ReqAckData::KeyAdd, ZuMv(fn));
 }
-void Mgr::keyAdd_(
+void UserDB::keyAdd_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
   m_keyTbl->run([
@@ -1441,21 +1454,21 @@ void Mgr::keyAdd_(
 }
 
 // clear keys
-void Mgr::ownKeyClr(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::ownKeyClr(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   keyClr_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyClr, ZuMv(fn));
 }
-void Mgr::keyClr(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::keyClr(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto fbUserID = static_cast<const fbs::UserID *>(fbRequest->data());
   keyClr_(
     fbRequest->seqNo(), fbUserID->id(), fbs::ReqAckData::KeyClr, ZuMv(fn));
 }
-void Mgr::keyClr_(
+void UserDB::keyClr_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
   m_keyTbl->run([
@@ -1472,7 +1485,7 @@ void Mgr::keyClr_(
 }
 
 // delete key
-void Mgr::ownKeyDel(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::ownKeyDel(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
@@ -1497,7 +1510,7 @@ void Mgr::ownKeyDel(ZmRef<Session> session, ZmRef<IOBuf> reqBuf, ResponseFn fn)
 	  fbs::ReqAckData::OwnKeyDel, ackData.Union()));
     });
 }
-void Mgr::keyDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
+void UserDB::keyDel(ZmRef<IOBuf> reqBuf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(reqBuf->data());
   auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
