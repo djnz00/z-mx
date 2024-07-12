@@ -9,11 +9,12 @@
 #ifndef ZcmdHost_HH
 #define ZcmdHost_HH
 
-#ifndef ZvLib_HH
-#include <zlib/ZvLib.hh>
+#ifndef ZcmdLib_HH
+#include <zlib/ZcmdLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>
+#include <zlib/ZuMStream.hh>
 
 #include <zlib/ZmPolymorph.hh>
 #include <zlib/ZmRef.hh>
@@ -21,28 +22,22 @@
 
 #include <zlib/ZiIOBuf.hh>
 
-#include <zlib/Zfb.hh>
-
 #include <zlib/ZvCf.hh>
+
+#include <zlib/Zcmd.hh>
 
 class ZcmdHost;
 class ZcmdDispatcher;
 namespace Ztls { class Random; }
+namespace Zum { struct Session; }
 
 struct ZcmdContext {
-  ZcmdHost		*app_ = nullptr;
-  void			*link_ = nullptr;	// opaque to plugin
-  void			*user_ = nullptr;	// ''
+  ZcmdHost		*app = nullptr;
+  Zum::Session		*session = nullptr;
+  AckFn			fn;
   ZmRef<ZvCf>		args;
-  FILE			*file = nullptr;	// file output
-  ZtString		out;			// string output
+  ZuMStream		out;
   int			code = 0;		// result code
-  bool			interactive = false;	// true unless scripted
-
-  template <typename T = ZcmdHost>
-  auto app() { return static_cast<T *>(app_); }
-  template <typename T> auto link() { return static_cast<T *>(link_); }
-  template <typename T> auto user() { return static_cast<T *>(user_); }
 };
 
 // command handler (context)
@@ -60,7 +55,7 @@ public:
 
   bool hasCmd(ZuString name);
 
-  void processCmd(ZcmdContext *, ZuArray<const ZtString> args);
+  int processCmd(Zum::Session *, ZmRef<IOBuf>, AckFn);
 
   void finalFn(ZmFn<>);
 

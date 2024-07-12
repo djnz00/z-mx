@@ -9,8 +9,8 @@
 #ifndef ZtQuote_HH
 #define ZtQuote_HH
 
-#ifndef ZuLib_HH
-#include <zlib/ZuLib.hh>
+#ifndef ZtLib_HH
+#include <zlib/ZtLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>

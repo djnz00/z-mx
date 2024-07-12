@@ -11,7 +11,7 @@
 #ifndef ZuMArray_HH
 #define ZuMArray_HH
 
-#ifndef ZtLib_HH
+#ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
 #endif
 

@@ -7,8 +7,8 @@
 #ifndef ZcmdServer_HH
 #define ZcmdServer_HH
 
-#ifndef ZvLib_HH
-#include <zlib/ZvLib.hh>
+#ifndef ZcmdLib_HH
+#include <zlib/ZcmdLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>
@@ -32,8 +32,8 @@
 #include <zlib/Ztls.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvTelemetry.hh>
-#include <zlib/ZvTelServer.hh>
+#include <zlib/ZcmdTelemetry.hh>
+#include <zlib/ZcmdTelServer.hh>
 
 #include <zlib/Zdb.hh>
 
@@ -46,9 +46,10 @@
 #include <zlib/zcmd_request_fbs.h>
 #include <zlib/zcmd_reqack_fbs.h>
 
+#include <zlib/Zcmd.hh>
+#include <zlib/ZcmdNet.hh>
 #include <zlib/ZcmdHost.hh>
 #include <zlib/ZcmdDispatcher.hh>
-#include <zlib/ZcmdNet.hh>
 
 template <typename App, typename Link> class ZcmdServer;
 
@@ -60,16 +61,12 @@ public:
   using App = App_;
   using Impl = Impl_;
   using Base = Ztls::SrvLink<App, Impl>;
-  using IOBuf = Ztls::IOBuf;
   using Rx = ZiRx<ZcmdSrvLink, IOBuf>;
 
 friend Base;
 template <typename, typename> friend class ZcmdServer;
 
-  using FBB = Zfb::IOBuilder<IOBuf>;
-
-  using User = ZvUserDB::User;
-  using Bitmap = ZvUserDB::Bitmap;
+  using Session = Zum::Session;
 
 public:
   auto impl() const { return static_cast<const Impl *>(this); }
@@ -86,8 +83,7 @@ public:
 
   ZcmdSrvLink(App *app) : Base{app} { }
 
-  User *user() const { return m_user.ptr(); }
-  bool interactive() const { return m_interactive; }
+  const ZmRef<Session> &session() const { return m_session; }
 
   void connected(const char *alpn) {
     scheduleTimeout();
@@ -111,95 +107,58 @@ public:
   }
 
 private:
-  int processLogin(const uint8_t *data, unsigned len) {
-    using namespace ZvUserDB;
-    using namespace Zfb;
-    {
-      using namespace Load;
-      {
-	Verifier verifier{data, len};
-	if (!fbs::VerifyLoginReqBuffer(verifier)) {
-	  m_state = State::LoginFailed;
-	  return 0;
-	}
-      }
-      if (int failures = this->app()->processLogin(
-	    fbs::GetLoginReq(data), m_user, m_interactive) ||
-	  ZuUnlikely(!m_user)) {
-	if (failures > 0 && failures <= 3) return -1;
+  int processLogin(ZmRef<IOBuf> buf) {
+    return this->app()->processLogin(
+      ZuMv(buf),
+      Zum::LoginFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+	this_->processLoginAck(ZuMv(buf));
+      }});
+  }
+  void processLoginAck(ZmRef<IOBuf> buf) {
+    // Note: the app thread is the TLS thread
+    app()->run([this, buf = ZuMv(buf)]() mutable {
+      auto ack = Zfb::GetRoot<Zum::fbs::LoginAck>(buf->data());
+      if (ack->ok())
+	m_state = State::Up;
+      else
 	m_state = State::LoginFailed;
-	return 0;
-      }
-    }
-    {
-      using namespace Save;
-      m_fbb.Finish(fbs::CreateLoginAck(m_fbb,
-	    m_user->id, str(m_fbb, m_user->name),
-	    strVecIter(m_fbb, m_user->roles.length(),
-	      [&roles = m_user->roles](unsigned k) {
-		return roles[k]->name;
-	      }),
-	    m_fbb.CreateVector(m_user->perms.data, Bitmap::Words),
-	    m_user->flags, 1));
-    }
-    this->send_(Zcmd::saveHdr(m_fbb, Zcmd::Type::login()));
-    m_state = State::Up;
-    return len;
+      send_(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::Login()));
+    });
   }
-  int processUserDB(const uint8_t *data, unsigned len) {
-    using namespace Zfb;
-    using namespace Load;
-    using namespace ZvUserDB;
-    {
-      Verifier verifier{data, len};
-      if (!fbs::VerifyRequestBuffer(verifier)) return -1;
-    }
-    this->app()->processUserDB(
-	impl(), m_user, m_interactive, fbs::GetRequest(data));
-    if (m_fbb.GetSize()) { // synchronous response
-      this->send_(Zcmd::saveHdr(m_fbb, Zcmd::Type::userDB()));
-    }
-    return len;
+  int processUserDB(ZmRef<IOBuf> buf) {
+    return this->app()->processUserDB(
+      m_session, ZuMv(buf),
+      Zum::ResponseFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::userDB()));
+      }});
   }
-  int processCmd(const uint8_t *data, unsigned len) {
-    using namespace Zfb;
-    using namespace Load;
-    using namespace Zcmd;
-    {
-      Verifier verifier{data, len};
-      if (!fbs::VerifyRequestBuffer(verifier)) return -1;
-    }
-    this->app()->processCmd(impl(), m_user, m_interactive,
-	fbs::GetRequest(data));
-    this->send_(Zcmd::saveHdr(m_fbb, Zcmd::Type::cmd()));
-    return len;
+  int processCmd(ZmRef<IOBuf> buf) {
+    return this->app()->processCmd(
+      m_session, ZuMv(buf),
+      AckFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::cmd()));
+      }});
   }
-  int processTelReq(const uint8_t *data, unsigned len) {
-    using namespace Zfb;
-    using namespace Load;
-    using namespace ZvTelemetry;
-    {
-      Verifier verifier{data, len};
-      if (!fbs::VerifyRequestBuffer(verifier)) return -1;
-    }
-    this->app()->processTelReq(
-	impl(), m_user, m_interactive, fbs::GetRequest(data));
-    this->send_(Zcmd::saveHdr(m_fbb, Zcmd::Type::telReq()));
-    return len;
+  int processTelReq(ZmRef<IOBuf> buf) {
+    return this->app()->processTelReq(
+      m_session, ZuMv(buf),
+      AckFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::telReq()));
+      }});
   }
 
 private:
-  int loadBody(const IOBuf *buf, unsigned) {
-    return Zcmd::verifyHdr(buf, [](const Zcmd::Hdr *hdr, const IOBuf *buf) {
-      auto this_ = static_cast<ZcmdSrvLink *>(buf->owner);
-      auto type = hdr->type;
-      if (ZuUnlikely(this_->m_state == State::Login)) {
-	if (type != Zcmd::Type::login()) return -1;
-	return this_->processLogin(hdr->data(), hdr->length);
-      }
-      return this_->app()->dispatch(
-	  type, this_->impl(), hdr->data(), hdr->length);
-    });
+  static int loadBody(ZmRef<IOBuf> buf) {
+    return Zcmd::verifyHdr(ZuMv(buf),
+      [](const Zcmd::Hdr *hdr, ZmRef<IOBuf> buf) {
+	auto this_ = static_cast<ZcmdSrvLink *>(buf->owner);
+	auto type = hdr->type;
+	if (ZuUnlikely(this_->m_state == State::Login)) {
+	  if (type != Zcmd::Type::login()) return -1;
+	  return this_->processLogin(ZuMv(buf));
+	}
+	return this_->app()->dispatch(type, this_->impl(), ZuMv(buf));
+      });
   }
 
 public:
@@ -212,14 +171,13 @@ public:
 
     scheduleTimeout();
 
-    int i = Rx::template recvMemSync<
-      Zcmd::loadHdr<IOBuf>, &ZcmdSrvLink::loadBody>(data, length, m_rxBuf);
+    // async Rx
+    int i = Rx::template recvMem<
+      Zcmd::loadHdr, ZcmdSrvLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
   }
-
-  auto &fbb() { return m_fbb; }
 
 private:
   void scheduleTimeout() {
@@ -233,9 +191,7 @@ private:
   ZmScheduler::Timer	m_timer;
   int			m_state = State::Down;
   ZmRef<IOBuf>		m_rxBuf;
-  FBB			m_fbb;
-  ZmRef<User>		m_user;
-  bool			m_interactive = false;
+  ZmRef<Session>	m_session;
 };
 
 template <typename App_, typename Link_>
@@ -243,7 +199,7 @@ class ZcmdServer :
     public ZcmdDispatcher,
     public ZcmdHost,
     public Ztls::Server<App_>,
-    public ZvTelemetry::Server<App_, Link_> {
+    public ZcmdTelemetry::Server<App_, Link_> {
 public:
   using App = App_;
   using Link = Link_;
@@ -251,8 +207,10 @@ public:
   using Dispatcher = ZcmdDispatcher;
   using TLS = Ztls::Server<App>;
 friend TLS;
-  using User = ZvUserDB::User;
-  using TelServer = ZvTelemetry::Server<App, Link>;
+  using Session = Zum::Session;
+  using TelServer = ZcmdTelemetry::Server<App, Link>;
+  using IOBuf = Ztls::IOBuf;
+  using AckFn = ZmFn<void(ZmRef<IOBuf>)>;
 
   using TelServer::run;
   using TelServer::invoked;
@@ -261,64 +219,56 @@ friend TLS;
   enum { OutBufSize = 8000 }; // initial TLS buffer size
 
   struct UserDB : public ZuObject, public Zum::Server::UserDB {
+    using Base = Zum::Server::UserDB;
+    using Base::Base;
     template <typename ...Args>
-    UserDB(Args &&...args) : Zum::Server::UserDB{ZuFwd<Args>(args)...} { }
+    UserDB(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
   };
 
   const App *app() const { return static_cast<const App *>(this); }
   App *app() { return static_cast<App *>(this); }
 
-  void init(ZiMultiplex *mx, const ZvCf *cf) {
-    static const char *alpn[] = { "zcmd", 0 };
-
+  void init(const ZvCf *cf, ZiMultiplex *mx, Zdb *db) {
     Host::init();
     Dispatcher::init();
 
     map(Zcmd::Type::userDB(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processUserDB(data, len);
+	[](void *link, ZmRef<IOBuf> buf) {
+	  return static_cast<Link *>(link)->processUserDB(ZuMv(buf));
 	});
     map(Zcmd::Type::cmd(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processCmd(data, len);
+	[](void *link, ZmRef<IOBuf> buf) {
+	  return static_cast<Link *>(link)->processCmd(ZuMv(buf));
 	});
     map(Zcmd::Type::telReq(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processTelReq(data, len);
+	[](void *link, ZmRef<IOBuf> buf) {
+	  return static_cast<Link *>(link)->processTelReq(ZuMv(buf));
 	});
 
-    TLS::init(mx,
-	cf->get("thread", true), cf->get("caPath", true), alpn,
-	cf->get("certPath", true), cf->get("keyPath", true));
+    {
+      static const char *alpn[] = { "zcmd", 0 };
+      ZmRef<ZvCf> srvCf = cf->getCf<true>("server");
 
-    m_ip = cf->get("localIP", "127.0.0.1");
-    m_port = cf->getInt("localPort", 1, (1<<16) - 1, 19400);
-    m_nAccepts = cf->getInt("nAccepts", 1, 1024, 8);
-    m_rebindFreq = cf->getInt("rebindFreq", 0, 3600, 0);
-    m_timeout = cf->getInt("timeout", 0, 3600, 0);
-    unsigned passLen = 12, totpRange = 6, keyInterval = 30, maxSize = (10<<20);
-    if (ZmRef<ZvCf> mgrCf = cf->getCf("userDB")) {
-      passLen = mgrCf->getInt("passLen", 6, 60, 12);
-      totpRange = mgrCf->getInt("totpRange", 0, 100, 6);
-      keyInterval = mgrCf->getInt("keyInterval", 0, 36000, 30);
-      maxSize = mgrCf->getInt("maxSize", 0, (10<<24), (10<<20));
-      m_userDBPath = mgrCf->get("path", true);
-      m_userDBMaxAge = mgrCf->getInt("maxAge", 0, INT_MAX, 8);
+      TLS::init(mx,
+	srvCf->get<true>("thread"), srvCf->get<true>("caPath"), alpn,
+	srvCf->get<true>("certPath"), srvCf->get<true>("keyPath"));
+      m_ip = srvCf->get("localIP", "127.0.0.1");
+      m_port = srvCf->getInt("localPort", 1, (1<<16) - 1, 19400);
+      m_nAccepts = srvCf->getInt("nAccepts", 1, 1024, 8);
+      m_rebindFreq = srvCf->getInt("rebindFreq", 0, 3600, 0);
+      m_timeout = srvCf->getInt("timeout", 0, 3600, 0);
     }
-    // FIXME
-    m_userDB = new UserDB(this, passLen, totpRange, keyInterval, maxSize);
 
-    // FIXME
-    if (!loadUserDB())
-      throw ZeEVENT(Fatal, ([path = ZtString{m_userDBPath}](auto &s) {
-	s << "failed to load \"" << path << '"'; }));
+    m_userDB = new UserDB(this);
+    m_userDB->init(cf->getCf<true>("userdb"), mx, db);
+
     TelServer::init(mx, cf->getCf("telemetry"));
   }
 
   void final() {
     TelServer::final();
 
-    // FIXME
+    m_userDB->final();
     m_userDB = nullptr;
 
     TLS::final();
@@ -327,21 +277,42 @@ friend TLS;
     Host::final();
   }
 
-  bool start() {
+  void open(ZtArray<ZtString> perms, Zum::OpenFn fn) {
+    perms.push("ZCmd");
+    perms.push("ZTel");
+    m_userDB->open(ZuMv(perms), [
+      this, fn = ZuMv(fn)
+    ](bool ok, ZtArray<unsigned> permIDs) mutable {
+      run([this, fn = ZuMv(fn), ok, permIDs = ZuMv(permIDs)]() mutable {
+	if (!ok) {
+	  ZeLOG(Fatal, "userDB open failed");
+	  fn(false, ZtArray<unsigned>{});
+	} else {
+	  unsigned n = permIDs.length();
+	  ZeAssert(n >= 2, (n), "n=" << n,
+	    fn(false, ZtArray<unsigned>{}); return);
+	  permIDs.length(n - 2);
+	  {
+	    Guard guard(m_lock);
+	    m_opened = true;
+	    m_cmdPerm = permIDs[n - 2];
+	    m_telPerm = permIDs[n - 1];
+	  }
+	  fn(true, ZuMv(permIDs));
+	}
+      });
+    });
+  }
+
+  void start() {
     this->listen();
     return true;
   }
   void stop() {
     this->stopListening();
-    this->run([this]() { stop_(); });
-  }
-private:
-  void stop_() {
-    // FIXME
-    this->mx()->del(&m_userDBTimer);
-    if (m_userDB->modified()) saveUserDB();
   }
 
+private:
   using Cxn = typename Link::Cxn;
   Cxn *accepted(const ZiCxnInfo &ci) {
     return new Cxn(new Link{app()}, ci);
@@ -353,108 +324,53 @@ public:
   unsigned rebindFreq() const { return m_rebindFreq; }
   unsigned timeout() const { return m_timeout; }
 
-  const ZtString &userDBPath() const { return m_userDBPath; }
-  unsigned userDBFreq() const { return m_userDBFreq; }
-  unsigned userDBMaxAge() const { return m_userDBMaxAge; }
+  unsigned cmdPerm() const { return m_cmdPerm; }
 
-  int cmdPerm() const { return m_cmdPerm; } // -1 if unset
-
-  int findPerm(ZuString name) const {
-    return m_userDB->findPerm(name);
-  }
-  bool ok(User *user, bool interactive, unsigned perm) const {
-    return m_userDB->ok(user, interactive, perm);
-  }
-
-private:
-  bool loadUserDB() {
-    // FIXME - rename to openUserDB
-    // FIXME - need initUserDB, which should immediately follow Zdb init
-    // - see zuserdb
-    // ... then mx start followed by db start
-    ZeError e;
-    if (m_userDB->load(m_userDBPath, &e) != Zi::OK) {
-      ZeLOG(Warning, ([userDBPath = m_userDBPath, e](auto &s) {
-	s << "load(\"" << userDBPath << "\"): " << e;
-      }));
-      ZtString backup{m_userDBPath.length() + 3};
-      backup << m_userDBPath << ".1";
-      if (m_userDB->load(backup, &e) != Zi::OK) {
-	ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
-	  s << "load(\"" << userDBPath << ".1\"): " << e;
-	}));
-	return false;
-      }
-    }
-    m_cmdPerm = m_userDB->findPerm("ZCmd");
-    if (m_cmdPerm < 0) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath](auto &s) {
-	s << userDBPath << ": ZCmd permission missing";
-      }));
-      return false;
-    }
-    m_telPerm = m_userDB->findPerm("ZTel"); // optional
-    return true;
-  }
-  bool saveUserDB() {
-    // FIXME - delete this
-    ZeError e;
-    if (m_userDB->save(m_userDBPath, m_userDBMaxAge, &e) != Zi::OK) {
-      ZeLOG(Error, ([userDBPath = m_userDBPath, e](auto &s) {
-	s << "save(\"" << userDBPath << "\"): " << e;
-      }));
-      return false;
-    }
-    return true;
+  bool ok(Zum::Server:Session *session, unsigned permID) const {
+    return m_userDB->ok(session, permID);
   }
 
 public:
-  int processLogin(const ZvUserDB::fbs::LoginReq *login,
-      ZmRef<User> &user, bool &interactive) {
-    return m_userDB->loginReq(login, user, interactive);
+  int processLogin(ZmRef<IOBuf> reqBuf, LoginFn fn) {
+    return m_userDB->loginReq(ZuMv(reqBuf), ZuMv(fn)) ? 1 : -1;
   }
-  void processUserDB(Link *link, User *user, bool interactive,
-      const ZvUserDB::fbs::Request *in) {
-    auto &fbb = link->fbb();
-    fbb.Finish(m_userDB->request(fbb, user, interactive, in));
-    if (m_userDB->modified())
-      this->run([this]() { saveUserDB(); },
-	  Zm::now(m_userDBFreq), ZmScheduler::Advance, &m_userDBTimer);
+  int processUserDB(
+    ZmRef<Session> session, ZmRef<IOBuf> buf, Zum::ResponseFn fn)
+  {
+    return m_userDB->request(ZuMv(session), ZuMv(buf), ZuMv(fn)) ? 1 : -1;
   }
-  void processCmd(Link *link, User *user, bool interactive,
-      const Zcmd::fbs::Request *in) {
-    auto &fbb = link->fbb();
-    if (m_cmdPerm < 0 || !m_userDB->ok(user, interactive, m_cmdPerm)) {
+  int processCmd(Session *session, ZmRef<IOBuf> buf, AckFn fn) {
+    if (!Zfb::Verifier{buf->data(), buf->length}.
+	VerifyBuffer<Zcmd::fbs::Request>()) return -1;
+
+    auto request = Zfb::GetRoot<Zcmd::fbs::Request>(buf->data());
+
+    if (m_cmdPerm < 0 || !m_userDB->ok(session, m_cmdPerm)) {
+      const auto &user = session->user->data();
       ZtString text = "permission denied";
-      if (user->flags & User::ChPass) text << " (user must change password)\n";
+      if (user.flags & User::ChPass) text << " (user must change password)\n";
+      IOBuilder fbb;
       fbb.Finish(Zcmd::fbs::CreateReqAck(fbb,
-	    in->seqNo(), __LINE__,
-	    Zfb::Save::str(fbb, text)));
-      return;
+	  request->seqNo(), __LINE__, Zfb::Save::str(fbb, text)));
+      fn(fbb.buf());
+      return 1;
     }
-    auto cmd_ = in->cmd();
-    ZtArray<ZtString> args;
-    args.length(cmd_->size());
-    Zfb::Load::all(cmd_,
-	[&args](unsigned i, auto arg_) { args[i] = Zfb::Load::str(arg_); });
-    ZcmdContext ctx{
-      .app_ = app(), .link_ = link, .user_ = user,
-      .interactive = interactive
-    };
-    Host::processCmd(&ctx, args);
-    fbb.Finish(Zcmd::fbs::CreateReqAck(
-	  fbb, in->seqNo(), ctx.code, Zfb::Save::str(fbb, ctx.out)));
+
+    return Host::processCmd(session, ZuMv(buf), ZuMv(fn));
   }
-  void processTelReq(Link *link, User *user, bool interactive,
-      const ZvTelemetry::fbs::Request *in) {
-    using namespace ZvTelemetry;
-    auto &fbb = link->fbb();
-    if (m_telPerm < 0 || !m_userDB->ok(user, interactive, m_telPerm)) {
-      using namespace Zfb::Save;
-      fbb.Finish(fbs::CreateReqAck(fbb, in->seqNo(), false));
-      return;
+  int processTelReq(Link *link, Session *session, ZmRef<IOBuf> buf, AckFn fn) {
+    if (!Zfb::Verifier{buf->data(), buf->length}.
+	VerifyBuffer<ZcmdTelemetry::fbs::Request>()) return -1;
+
+    auto request = Zfb::GetRoot<ZcmdTelemetry::fbs::Request>(buf->data());
+
+    if (m_telPerm < 0 || !m_userDB->ok(session, m_telPerm)) {
+      IOBuilder fbb;
+      fbb.Finish(ZcmdTelemetry::fbs::CreateReqAck(fbb, request->seqNo(), false));
+      fn(fbb.buf());
+      return 1;
     }
-    TelServer::process(link, in);
+    return TelServer::process(link, ZuMv(buf));
     using namespace Zfb::Save;
     fbb.Finish(fbs::CreateReqAck(fbb, in->seqNo(), true));
   }
@@ -477,16 +393,11 @@ private:
   unsigned		m_rebindFreq = 0;
   unsigned		m_timeout = 0;
 
-  ZtString		m_userDBPath;
-  unsigned		m_userDBFreq = 60;	// checkpoint frequency
-  unsigned		m_userDBMaxAge = 8;
-
-  ZmScheduler::Timer	m_userDBTimer;
-
   ZuRef<UserDB>		m_userDB;
 
-  int			m_cmdPerm = -1;		// "ZCmd"
-  int			m_telPerm = -1;		// "ZTel"
+  bool			m_opened = false;
+  unsigned		m_cmdPerm = 0;	// "ZCmd"
+  unsigned		m_telPerm = 0;	// "ZTel"
 };
 
 #endif /* ZcmdServer_HH */

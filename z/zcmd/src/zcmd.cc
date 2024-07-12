@@ -304,13 +304,13 @@ private:
   }
 
   enum {
-    ReqTypeN = ZvTelemetry::ReqType::N,
-    TelDataN = ZvTelemetry::TelData::N
+    ReqTypeN = ZcmdTelemetry::ReqType::N,
+    TelDataN = ZcmdTelemetry::TelData::N
   };
 
   int processTelemetry(const uint8_t *data, unsigned len) {
     using namespace Zfb;
-    using namespace ZvTelemetry;
+    using namespace ZcmdTelemetry;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyTelemetryBuffer(verifier)) return -1;
@@ -1234,7 +1234,7 @@ private:
 
   void telcapCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    using namespace ZvTelemetry;
+    using namespace ZcmdTelemetry;
     unsigned interval = ctx->args->getInt("interval", 0, 1000000, 100);
     bool subscribe = !ctx->args->getBool("unsubscribe");
     if (!subscribe) {
@@ -1322,10 +1322,10 @@ private:
 	      break;
 	    case ReqType::Engine:
 	      m_telcap[TelData::Engine - TelData::MIN] =
-		TelCap::keyedFn<ZvTelemetry::Engine>(
+		TelCap::keyedFn<ZcmdTelemetry::Engine>(
 		    ZiFile::append(dir, "engine.csv"));
 	      m_telcap[TelData::Link - TelData::MIN] =
-		TelCap::keyedFn<ZvTelemetry::Link>(
+		TelCap::keyedFn<ZcmdTelemetry::Link>(
 		    ZiFile::append(dir, "link.csv"));
 	      break;
 	    case ReqType::DB:
@@ -1341,7 +1341,7 @@ private:
 	      break;
 	    case ReqType::App:
 	      m_telcap[TelData::App - TelData::MIN] =
-		TelCap::singletonFn<ZvTelemetry::App>(
+		TelCap::singletonFn<ZcmdTelemetry::App>(
 		    ZiFile::append(dir, "app.csv"));
 	      break;
 	    case ReqType::Alert:

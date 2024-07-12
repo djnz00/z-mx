@@ -7,7 +7,7 @@
 #ifndef ZdbPQ_HH
 #define ZdbPQ_HH
 
-#ifndef ZdbLib_HH
+#ifndef ZdbPQLib_HH
 #include <zlib/ZdbPQLib.hh>
 #endif
 

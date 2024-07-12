@@ -156,6 +156,18 @@ public:
   auto buf_() { return ZuArray{data(), size}; }
   auto cbuf_() const { return ZuArray{data(), length}; }
 
+  // advance/rewind buffer
+  void advance(unsigned n) {
+    if (ZuUnlikely(!n)) return;
+    if (ZuUnlikely(n > length)) n = length;
+    skip += n, length -= n;
+  }
+  void rewind(unsigned n) { // reverses skip - use prepend to grow buffer
+    if (ZuUnlikely(!n)) return;
+    if (ZuUnlikely(n > skip)) n = skip;
+    skip -= n, length += n;
+  }
+
   // reallocate (while building buffer), preserving head and tail bytes
   template <auto Grow = ZmGrow>
   uint8_t *realloc(
@@ -200,6 +212,7 @@ public:
     return jumbo;
   }
 
+  // prepend to buffer (e.g. for a protocol header)
   template <auto Grow = ZmGrow>
   uint8_t *prepend(unsigned length_) {
     ZmAssert(size == skip + length);

@@ -43,8 +43,18 @@ void ZcmdHost::addCmd(
 
 bool ZcmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
 
-void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
+int ZcmdHost::processCmd(Zum::Session *session, ZmRef<IOBuf> buf, AckFn fn)
 {
+  auto request = Zfb::GetRoot<Zcmd::fbs::Request>(buf->data());
+  auto cmd_ = request->cmd();
+  ZtArray<ZtString> args;
+  args.length(cmd_->size());
+  Zfb::Load::all(cmd_,
+      [&args](unsigned i, auto arg_) { args[i] = Zfb::Load::str(arg_); });
+  ZcmdContext ctx{
+    .app_ = app(), .session = session
+  };
+
   if (!args_) return;
   auto &out = ctx->out;
   const ZtString &name = args_[0];
@@ -55,11 +65,10 @@ void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
     auto &args = ctx->args;
     args = new ZvCf();
     args->fromArgs(m_syntax->getCf(name), args_);
-    if (args->getBool("help")) {
+    if (args->getBool("help"))
       out << cmd->val().usage << '\n';
-      return;
-    }
-    (cmd->val().fn)(ctx);
+    else
+      (cmd->val().fn)(ctx);
   } catch (const ZcmdUsage &) {
     out << cmd->val().usage << '\n';
     executed(1, ctx);
@@ -79,6 +88,9 @@ void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
     out << '"' << name << "\": unknown exception\n";
     executed(1, ctx);
   }
+
+  fbb.Finish(Zcmd::fbs::CreateReqAck(
+	fbb, in->seqNo(), ctx.code, Zfb::Save::str(fbb, ctx.out)));
 }
 
 void ZcmdHost::helpCmd(ZcmdContext *ctx)

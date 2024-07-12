@@ -59,6 +59,9 @@ public:
 
   IOBuilder() : Builder{BufSize & ~(Align - 1), this, false, Align} { }
 
+  IOBuilder(IOBuilder &&) = default;
+  IOBuilder &operator =(IOBuilder &&) = default;
+
   // attach buffer to builder
   void buf(ZmRef<IOBuf> buf) {
     buf->clear();

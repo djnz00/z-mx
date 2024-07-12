@@ -7,8 +7,8 @@
 #ifndef ZcmdClient_HH
 #define ZcmdClient_HH
 
-#ifndef ZvLib_HH
-#include <zlib/ZvLib.hh>
+#ifndef ZcmdLib_HH
+#include <zlib/ZcmdLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>
@@ -33,7 +33,7 @@
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvUserDB.hh>
 #include <zlib/ZvSeqNo.hh>
-#include <zlib/ZvTelemetry.hh>
+#include <zlib/ZcmdTelemetry.hh>
 #include <zlib/ZcmdDispatcher.hh>
 
 #include <zlib/zv_loginreq_fbs.h>
@@ -53,7 +53,7 @@ using ZcmdUserDBAckFn = ZmFn<void(const ZvUserDB::fbs::ReqAck *)>;
 // command response
 using ZcmdAckFn = ZmFn<void(const Zcmd::fbs::ReqAck *)>;
 // telemetry response
-using ZcmdTelAckFn = ZmFn<void(const ZvTelemetry::fbs::ReqAck *)>;
+using ZcmdTelAckFn = ZmFn<void(const ZcmdTelemetry::fbs::ReqAck *)>;
 
 struct Zcmd_Login {
   ZtString		user;
@@ -322,7 +322,7 @@ private:
   int processTelReq(const uint8_t *data, unsigned len) {
     using namespace Zfb;
     using namespace Load;
-    using namespace ZvTelemetry;
+    using namespace ZcmdTelemetry;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;

@@ -11,8 +11,8 @@
 #ifndef ZuMStream_HH
 #define ZuMStream_HH
 
-#ifndef ZmLib_HH
-#include <zlib/ZmLib.hh>
+#ifndef ZuLib_HH
+#include <zlib/ZuLib.hh>
 #endif
 
 #include <zlib/ZuTraits.hh>

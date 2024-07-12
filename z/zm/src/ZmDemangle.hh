@@ -9,8 +9,8 @@
 #ifndef ZmDemangle_HH
 #define ZmDemangle_HH
 
-#ifndef ZuLib_HH
-#include <zlib/ZuLib.hh>
+#ifndef ZmLib_HH
+#include <zlib/ZmLib.hh>
 #endif
 
 #include <zlib/ZuString.hh>

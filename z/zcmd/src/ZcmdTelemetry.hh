@@ -4,11 +4,11 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#ifndef ZvTelemetry_HH
-#define ZvTelemetry_HH
+#ifndef ZcmdTelemetry_HH
+#define ZcmdTelemetry_HH
 
-#ifndef ZvLib_HH
-#include <zlib/ZvLib.hh>
+#ifndef ZcmdLib_HH
+#include <zlib/ZcmdLib.hh>
 #endif
 
 #include <zlib/Zfb.hh>
@@ -17,7 +17,7 @@
 #include <zlib/zv_telemetry_fbs.h>
 #include <zlib/zv_telreq_fbs.h>
 
-namespace ZvTelemetry {
+namespace ZcmdTelemetry {
 
 namespace RAG {
   ZfbEnumValues(RAG, Off, Red, Amber, Green);
@@ -528,6 +528,6 @@ using TypeList = ZuTypeList<
   Heap, HashTbl, Thread, Mx, Socket, Queue, Engine, Link,
   DBTable, DBHost, DB, App, Alert>;
 
-} // ZvTelemetry
+} // ZcmdTelemetry
 
-#endif /* ZvTelemetry_HH */
+#endif /* ZcmdTelemetry_HH */

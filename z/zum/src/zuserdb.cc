@@ -43,7 +43,6 @@ int main(int argc, char **argv)
   ZmRef<ZvCf> cf;
 
   ZtString user, role;
-  int passlen;
   ZtArray<ZtString> perms;
 
   try {
@@ -112,7 +111,7 @@ int main(int argc, char **argv)
 
     user = cf->get("1");
     role = cf->get("2");
-    passlen = cf->getInt("3", 6, 60);
+    cf->set("userDB.passLen", ZtString{} << cf->getInt("3", 6, 60));
     perms.size(argc_ - 4);
     for (unsigned i = 4; i < argc_; i++)
       perms.push(cf->get(ZtString{} << i));
@@ -145,7 +144,7 @@ int main(int argc, char **argv)
 
   rng.init();
 
-  Zum::Server::UserDB userDB(&rng, passlen, 6, 30);
+  Zum::Server::UserDB userDB(&rng);
 
   try {
     mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});

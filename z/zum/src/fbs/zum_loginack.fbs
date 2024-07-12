@@ -1,9 +1,10 @@
+include "zfb_types.fbs";
 namespace Zum.fbs;
 table LoginAck {
   id:uint64;
   name:string;
   roles:[string];
-  perms:[uint64];	// bitmap
+  perms:Zfb.Bitmap;
   flags:uint8;
   ok:uint8;
 }

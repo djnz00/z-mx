@@ -28,11 +28,10 @@ void ZcmdDispatcher::map(ZuID id, Fn fn)
     m_fnMap.add(id, ZuMv(fn));
 }
 
-int ZcmdDispatcher::dispatch(
-    ZuID id, void *link, const uint8_t *data, unsigned len)
+int ZcmdDispatcher::dispatch(ZuID id, void *link, ZmRef<IOBuf> buf)
 {
   if (auto node = m_fnMap.find(id))
-    return (node->template p<1>())(link, data, len);
-  if (m_defltFn) return m_defltFn(link, id, data, len);
+    return (node->template p<1>())(link, ZuMv(buf));
+  if (m_defltFn) return m_defltFn(link, id, ZuMv(buf));
   return -1;
 }
