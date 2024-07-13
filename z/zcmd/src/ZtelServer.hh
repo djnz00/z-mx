@@ -264,13 +264,15 @@ public:
     bool	subscribe;
   };
 
-  void process(Link *link, const fbs::Request *in) {
+  void process(Link *link, Zum::Session *session, ZmRef<IOBuf> buf) {
+    // FIXME - get rid of Request structure, just move-capture buffer
     invoke([req = Request{
       this, link, int(in->type()), in->interval(),
       Zfb::Load::str(in->filter()), in->subscribe()
     }]() mutable { req.server->process_(req); });
   }
   void process_(Request &req) {
+    // FIXME - operate on buffer
     if (req.interval && req.interval < m_minInterval)
       req.interval = m_minInterval;
     switch (req.type) {

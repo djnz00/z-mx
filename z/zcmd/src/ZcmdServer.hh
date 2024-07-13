@@ -32,8 +32,6 @@
 #include <zlib/Ztls.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZcmdTelemetry.hh>
-#include <zlib/ZcmdTelServer.hh>
 
 #include <zlib/Zdb.hh>
 
@@ -51,6 +49,8 @@
 #include <zlib/ZcmdNet.hh>
 #include <zlib/ZcmdHost.hh>
 #include <zlib/ZcmdDispatcher.hh>
+#include <zlib/Ztel.hh>
+#include <zlib/ZtelServer.hh>
 
 template <typename App, typename Link> class ZcmdServer;
 
@@ -203,7 +203,7 @@ class ZcmdServer :
     public ZcmdDispatcher,
     public ZcmdHost,
     public Ztls::Server<App_>,
-    public ZcmdTelemetry::Server<App_, Link_> {
+    public Ztel::Server<App_, Link_> {
 public:
   using App = App_;
   using Link = Link_;
@@ -212,7 +212,7 @@ public:
   using TLS = Ztls::Server<App>;
 friend TLS;
   using Session = Zum::Session;
-  using TelServer = ZcmdTelemetry::Server<App, Link>;
+  using TelServer = Ztel::Server<App, Link>;
   using IOBuf = Ztls::IOBuf;
 
   using TelServer::run;
