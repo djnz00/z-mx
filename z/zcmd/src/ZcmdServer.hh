@@ -43,6 +43,7 @@
 #include <zlib/zum_loginack_fbs.h>
 #include <zlib/zum_request_fbs.h>
 #include <zlib/zum_reqack_fbs.h>
+
 #include <zlib/zcmd_request_fbs.h>
 #include <zlib/zcmd_reqack_fbs.h>
 
@@ -133,25 +134,28 @@ private:
       }});
   }
   int processCmd(ZmRef<IOBuf> buf) {
-    return this->app()->processCmd(
-      m_session, ZuMv(buf),
-      AckFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
-	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::cmd()));
-      }});
+    return this->app()->processCmd(this, m_session, ZuMv(buf));
   }
   int processTelReq(ZmRef<IOBuf> buf) {
-    return this->app()->processTelReq(
-      m_session, ZuMv(buf),
-      AckFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
-	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::telReq()));
-      }});
+    return this->app()->processTelReq(this, m_session, ZuMv(buf));
+  }
+public:
+  void sendCmd(ZmRef<IOBuf> buf) {
+    send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::cmd()));
+  }
+  void sendTelReq(ZmRef<IOBuf> buf) {
+    send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::telReq()));
+  }
+  void sendTelemetry(ZmRef<IOBuf> buf) {
+    send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::telemetry()));
   }
 
 private:
-  static int loadBody(ZmRef<IOBuf> buf) {
+  static int loadBody(Impl *, ZmRef<IOBuf> buf) {
     return Zcmd::verifyHdr(ZuMv(buf),
       [](const Zcmd::Hdr *hdr, ZmRef<IOBuf> buf) {
-	auto this_ = static_cast<ZcmdSrvLink *>(buf->owner);
+	auto this_ =
+	  static_cast<ZcmdSrvLink *>(static_cast<Impl *>(buf->owner));
 	auto type = hdr->type;
 	if (ZuUnlikely(this_->m_state == State::Login)) {
 	  if (type != Zcmd::Type::login()) return -1;
@@ -210,7 +214,6 @@ friend TLS;
   using Session = Zum::Session;
   using TelServer = ZcmdTelemetry::Server<App, Link>;
   using IOBuf = Ztls::IOBuf;
-  using AckFn = ZmFn<void(ZmRef<IOBuf>)>;
 
   using TelServer::run;
   using TelServer::invoked;
@@ -237,11 +240,11 @@ friend TLS;
 	  return static_cast<Link *>(link)->processUserDB(ZuMv(buf));
 	});
     map(Zcmd::Type::cmd(),
-	[](void *link, ZmRef<IOBuf> buf) {
+	[](void *link_, ZmRef<IOBuf> buf) {
 	  return static_cast<Link *>(link)->processCmd(ZuMv(buf));
 	});
     map(Zcmd::Type::telReq(),
-	[](void *link, ZmRef<IOBuf> buf) {
+	[](void *link_, ZmRef<IOBuf> buf) {
 	  return static_cast<Link *>(link)->processTelReq(ZuMv(buf));
 	});
 
@@ -339,12 +342,11 @@ public:
   {
     return m_userDB->request(ZuMv(session), ZuMv(buf), ZuMv(fn)) ? 1 : -1;
   }
-  int processCmd(Session *session, ZmRef<IOBuf> buf, AckFn fn) {
+  int processCmd(Link *link, Session *session, ZmRef<IOBuf> buf) {
     if (!Zfb::Verifier{buf->data(), buf->length}.
 	VerifyBuffer<Zcmd::fbs::Request>()) return -1;
 
     auto request = Zfb::GetRoot<Zcmd::fbs::Request>(buf->data());
-
     if (m_cmdPerm < 0 || !m_userDB->ok(session, m_cmdPerm)) {
       const auto &user = session->user->data();
       ZtString text = "permission denied";
@@ -352,27 +354,26 @@ public:
       IOBuilder fbb;
       fbb.Finish(Zcmd::fbs::CreateReqAck(fbb,
 	  request->seqNo(), __LINE__, Zfb::Save::str(fbb, text)));
-      fn(fbb.buf());
+      link->send_(fbb.buf());
       return 1;
     }
-
-    return Host::processCmd(session, ZuMv(buf), ZuMv(fn));
+    return Host::processCmd(session, ZuMv(buf),
+      [link = ZmMkRef(link)](ZmRef<IOBuf> buf) {
+	link->sendCmd(ZuMv(buf));
+      });
   }
-  int processTelReq(Link *link, Session *session, ZmRef<IOBuf> buf, AckFn fn) {
+  int processTelReq(Link *link, Session *session, ZmRef<IOBuf> buf) {
     if (!Zfb::Verifier{buf->data(), buf->length}.
-	VerifyBuffer<ZcmdTelemetry::fbs::Request>()) return -1;
+	VerifyBuffer<ZTel::fbs::Request>()) return -1;
 
-    auto request = Zfb::GetRoot<ZcmdTelemetry::fbs::Request>(buf->data());
-
+    auto request = Zfb::GetRoot<ZTel::fbs::Request>(buf->data());
     if (m_telPerm < 0 || !m_userDB->ok(session, m_telPerm)) {
       IOBuilder fbb;
-      fbb.Finish(ZcmdTelemetry::fbs::CreateReqAck(fbb, request->seqNo(), false));
-      fn(fbb.buf());
+      fbb.Finish(ZTel::fbs::CreateReqAck(fbb, request->seqNo(), false));
+      link->send_(fbb.buf());
       return 1;
     }
-    return TelServer::process(link, ZuMv(buf));
-    using namespace Zfb::Save;
-    fbb.Finish(fbs::CreateReqAck(fbb, in->seqNo(), true));
+    return TelServer::process(link, session, ZuMv(buf));
   }
 
   void disconnected(Link *link) {

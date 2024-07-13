@@ -32,9 +32,9 @@ namespace Ztls { class Random; }
 namespace Zum { struct Session; }
 
 struct ZcmdContext {
-  ZcmdHost		*app = nullptr;
+  ZcmdHost		*host = nullptr;
   Zum::Session		*session = nullptr;
-  AckFn			fn;
+  IOFn			sendFn;
   ZmRef<ZvCf>		args;
   ZuMStream		out;
   int			code = 0;		// result code
@@ -55,7 +55,7 @@ public:
 
   bool hasCmd(ZuString name);
 
-  int processCmd(Zum::Session *, ZmRef<IOBuf>, AckFn);
+  int processCmd(Zum::Session *, ZmRef<IOBuf>, ZmFn<void(ZmRef<IOBuf>)>);
 
   void finalFn(ZmFn<>);
 

@@ -4,8 +4,8 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#ifndef ZcmdTelServer_HH
-#define ZcmdTelServer_HH
+#ifndef ZtelServer_HH
+#define ZtelServer_HH
 
 #ifndef ZcmdLib_HH
 #include <zlib/ZcmdLib.hh>
@@ -23,17 +23,17 @@
 
 #include <zlib/Zfb.hh>
 
-#include <zlib/ZcmdTelemetry.hh>
+#include <zlib/Zcmd.hh>
+#include <zlib/Ztel.hh>
 
 #include <zlib/zv_telreq_fbs.h>
 #include <zlib/zv_telack_fbs.h>
 
-namespace ZcmdTelemetry {
+namespace Ztel {
+
+using namespace Zcmd;
 
 using QueueFn = ZvEngineMgr::QueueFn;
-
-using IOBuf = Ztls::IOBuf;
-using IOBuilder = Zfb::IOBuilder<IOBuf>;
 
 using BuildDBFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>;
 using BuildDBHostFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>;
@@ -889,7 +889,7 @@ private:
 	  fbs::TelData::Engine, ZfbField::save(m_fbb, data).Union()));
     watch->link->sendTelemetry(m_fbb);
     engine->allLinks<ZvAnyLink>([this, watch](ZvAnyLink *link) {
-      ZcmdTelemetry::Link data;
+      Ztel::Link data;
       link->telemetry(data);
       m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	    fbs::TelData::Link, ZfbField::save(m_fbb, data).Union()));
@@ -922,7 +922,7 @@ private:
     while (auto watch = i.iterate()) linkScan(link, watch);
   }
   void linkScan(const ZvAnyLink *link, Watch *watch) {
-    ZcmdTelemetry::Link data;
+    Ztel::Link data;
     link->telemetry(data);
     m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	  fbs::TelData::Link, ZfbField::saveUpd(m_fbb, data).Union()));
@@ -1013,7 +1013,7 @@ private:
     if (!req.interval) delete watch;
   }
   void appQuery_(Watch *watch) {
-    ZcmdTelemetry::App data;
+    Ztel::App data;
     app()->telemetry(data);
     m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 	  fbs::TelData::App,
@@ -1024,7 +1024,7 @@ private:
     if (!m_appUpdated) return;
     m_appUpdated = false;
     if (!m_watchLists[ReqType::App].list.count_()) return;
-    ZcmdTelemetry::App data;
+    Ztel::App data;
     app()->telemetry(data);
     auto i = m_watchLists[ReqType::App].list.readIterator();
     while (auto watch = i.iterate()) {
@@ -1130,6 +1130,6 @@ private:
   bool			m_appUpdated = false;
 };
 
-} // ZcmdTelemetry
+} // Ztel
 
-#endif /* ZcmdTelServer_HH */
+#endif /* ZtelServer_HH */

@@ -1,5 +1,5 @@
 include "zfb_types.fbs";
-namespace ZvTelemetry.fbs;
+namespace Ztel.fbs
 table ReqAck {
   seq_no:uint64;
   ok:bool;

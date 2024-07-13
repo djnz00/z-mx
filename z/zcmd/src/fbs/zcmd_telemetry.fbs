@@ -1,5 +1,6 @@
 include "zfb_types.fbs";
-namespace ZvTelemetry.fbs;
+include "zdb_telemetry.fbs";
+namespace Ztel.fbs
 enum RAG:int8 {
   Off = 0,
   Red,
@@ -160,55 +161,6 @@ table Engine {
   tx_thread:uint16;
   state:EngineState;
 }
-enum CacheMode:int8 {
-  Normal = 0,
-  All
-}
-table DBTable {
-  name:string;
-  thread:string;
-  count:uint64;
-  cache_loads:uint64;
-  cache_misses:uint64;
-  cache_size:uint32;
-  cache_mode:CacheMode;
-  warmup:uint8;
-}
-enum DBHostState:int8 {
-  Instantiated = 0,	// instantiated, init() not yet called
-  Initialized,		// init() or close() completed
-  Electing,		// start() called, determining active/inactive
-  Active,		// active (leader)
-  Inactive,		// inactive (client)
-  Stopping		// stop() in process
-}
-table DBHost {
-  ip:Zfb.IP;
-  id:Zfb.ID;
-  priority:uint32;
-  port:uint16;
-  state:DBHostState;
-  voted:uint8;
-}
-table DB {
-  thread:string;
-  self:Zfb.ID;
-  leader:Zfb.ID;
-  prev:Zfb.ID;
-  next:Zfb.ID;
-  n_cxns:uint32;
-  heartbeat_freq:uint32;
-  heartbeat_timeout:uint32;
-  reconnect_freq:uint32;
-  election_timeout:uint32;
-  n_tables:uint16;
-  n_hosts:uint8;
-  n_peers:uint8;
-  state:int8;		// same as hosts[hostID].state
-  active:uint8;
-  recovering:uint8;
-  replicating:uint8;
-}
 enum AppRole:int8 {
   Dev = 0,
   Test,
@@ -230,7 +182,7 @@ enum Severity:int8 {	// == Ze
 }
 table Alert {
   time:Zfb.DateTime;
-  seq_no:uint32;
+  seq_no:uint64;
   tid:uint32;
   severity:Severity;
   message:string;

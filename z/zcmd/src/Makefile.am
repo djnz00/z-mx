@@ -11,9 +11,9 @@ AM_LDFLAGS = @Z_LDFLAGS@
 FBS = \
 	zcmd_request.fbs \
 	zcmd_reqack.fbs \
-	zcmd_telreq.fbs \
-	zcmd_telack.fbs \
-	zcmd_telemetry.fbs
+	ztel_request.fbs \
+	ztel_reqack.fbs \
+	ztel_telemetry.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs
 	flatc -b --schema --bfbs-gen-embed -c --cpp-std c++17 --cpp-field-case-style lower -I fbs -I $(top_srcdir)/zfb/src/fbs $<
@@ -25,7 +25,7 @@ BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZcmdLib.hh Zcmd.hh \
 	ZcmdClient.hh ZcmdDispatcher.hh ZcmdHost.hh ZcmdNet.hh ZcmdServer.hh \
-	ZcmdTelemetry.hh ZcmdTelServer.hh \
+	Ztel.hh ZtelServer.hh \
 	${FBS_H}
 lib_LTLIBRARIES = libZcmd.la
 libZcmd_la_CPPFLAGS = $(AM_CPPFLAGS) -DZCMD_EXPORTS
