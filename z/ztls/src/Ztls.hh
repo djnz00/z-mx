@@ -49,8 +49,6 @@ namespace Ztls {
 //     I/O Tx <-- Tx output <- Encryption <- Tx input           <-- App Tx
 // ------------|-------------------------------------------------|------------
 
-using IOBuf = ZiIOBuf<>;
-
 template <typename Link_, typename LinkRef_>
 class Cxn : public ZiConnection {
 public:
@@ -74,9 +72,12 @@ template <typename Link> using CliCxn = Cxn<Link, Link *>;
 // server links are transient, are owned by the connection
 template <typename Link> using SrvCxn = Cxn<Link, ZmRef<Link> >;
 
-template <typename App, typename Impl, typename Cxn_, typename CxnRef_>
+template <
+  typename App, typename Impl, typename BufAlloc_,
+  typename Cxn_, typename CxnRef_>
 class Link : public ZmPolymorph {
 public:
+  using BufAlloc = BufAlloc_;
   using Cxn = Cxn_;
   using CxnRef = CxnRef_;
   using ImplRef = typename Cxn::LinkRef;
@@ -102,13 +103,12 @@ protected:
 
 private:
   void connected_(Cxn *cxn, ZiIOContext &io) {
-    m_rxBuf = new IOBuf{this, 0U};
+    m_rxBuf = new BufAlloc{};
     io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) {
       link->rx(io);
       return true;
-    }}, m_rxBuf->data_, IOBuf::Size, 0);
-    ZmRef<Impl> impl{this};
-    this->app()->run([impl = ZuMv(impl), cxn = ZmMkRef(cxn)]() {
+    }}, m_rxBuf->data(), m_rxBuf->size, 0);
+    this->app()->run([impl = ZmMkRef(this->impl()), cxn = ZmMkRef(cxn)]() {
       impl->connected_2(ZuMv(cxn));
     });
   }
@@ -152,24 +152,25 @@ private:
 	auto link = static_cast<Link *>(buf->owner);
 	link->recv_(ZuMv(buf));
       });
-    m_rxBuf = new IOBuf{this, 0U};
-    io.ptr = m_rxBuf->data_;
-    io.length = IOBuf::Size;
+    m_rxBuf = new BufAlloc{};
+    io.ptr = m_rxBuf->data();
+    io.length = m_rxBuf->size;
     io.offset = 0;
   }
 
-  void recv_(ZmRef<IOBuf> buf) { // TLS thread
+  void recv_(ZmRef<ZiIOBuf> buf) { // TLS thread
     if (ZuUnlikely(!buf->length)) return;
     if (ZuUnlikely(m_rxRingCount)) {
       unsigned i = m_rxRingOffset + m_rxRingCount - 1;
       if (ZuUnlikely(i >= RxRingSize)) i -= RxRingSize;
-      unsigned len = m_rxRing[i]->length;
-      if (ZuUnlikely(len < IOBuf::Size)) {
+      auto rxRingBuf = m_rxRing[i];
+      unsigned m = rxRingBuf->length;
+      if (ZuUnlikely(m < rxRingBuf->size)) {
 	unsigned n = buf->length;
-	unsigned o = IOBuf::Size - len;
+	unsigned o = rxRingBuf->size - m;
 	if (n > o) n = o;
-	memcpy(m_rxRing[i]->data() + len, buf->data(), n);
-	m_rxRing[i]->length = len + n;
+	memcpy(rxRingBuf->data() + m, buf->data(), n);
+	rxRingBuf->length = m + n;
 	buf->length -= n;
 	if (buf->length) memmove(buf->data(), buf->data() + n, buf->length);
       }
@@ -309,9 +310,10 @@ public:
     unsigned offset = 0;
     do {
       unsigned n = len - offset;
-      if (ZuUnlikely(n > IOBuf::Size)) n = IOBuf::Size;
-      ZmRef<IOBuf> buf = new IOBuf{this, n};
-      memcpy(buf->data_, data + offset, n);
+      ZmRef<ZiIOBuf> buf = new BufAlloc{};
+      if (ZuUnlikely(n > buf->size)) n = buf->size;
+      buf->length = n;
+      memcpy(buf->data(), data + offset, n);
       app()->invoke([buf = ZuMv(buf)]() mutable {
 	auto link = static_cast<Link *>(buf->owner);
 	link->send_(ZuMv(buf));
@@ -319,7 +321,7 @@ public:
       offset += n;
     } while (offset < len);
   }
-  void send(ZmRef<IOBuf> buf) {
+  void send(ZmRef<ZiIOBuf> buf) {
     if (ZuUnlikely(!buf->length)) return;
     if (ZuUnlikely(m_disconnecting.load_())) return;
     buf->owner = this;
@@ -329,7 +331,7 @@ public:
     });
   }
 
-  void send_(ZmRef<IOBuf> buf) { // TLS thread
+  void send_(ZmRef<ZiIOBuf> buf) { // TLS thread
     send_(buf->data(), buf->length);
   }
   void send_(const uint8_t *data, unsigned len) { // TLS thread
@@ -370,18 +372,19 @@ private:
     auto mx = app()->mx();
     do {
       unsigned n = len - offset;
-      if (ZuUnlikely(n > IOBuf::Size)) n = IOBuf::Size;
-      ZmRef<IOBuf> buf = new IOBuf{static_cast<Cxn *>(m_cxn), n};
-      memcpy(buf->data_, data + offset, n);
+      ZmRef<ZiIOBuf> buf = new BufAlloc{static_cast<Cxn *>(m_cxn)};
+      if (ZuUnlikely(n > buf->size)) n = buf->size;
+      buf->length = n;
+      memcpy(buf->data(), data + offset, n);
       mx->txRun([buf = ZuMv(buf)]() mutable {
 	auto cxn = static_cast<Cxn *>(buf->owner);
 	cxn->send_(ZiIOFn{ZuMv(buf),
-	  [](IOBuf *buf, ZiIOContext &io) {
-	    io.init(ZiIOFn{io.fn.mvObject<IOBuf>(),
-	      [](IOBuf *buf, ZiIOContext &io) {
+	  [](ZiIOBuf *buf, ZiIOContext &io) {
+	    io.init(ZiIOFn{io.fn.mvObject<ZiIOBuf>(),
+	      [](ZiIOBuf *buf, ZiIOContext &io) {
 		io.offset += io.length;
 		return true;
-	      }}, buf->data_, buf->length, 0);
+	      }}, buf->data(), buf->length, 0);
 	    return true;
 	  }});
       });
@@ -418,14 +421,15 @@ public:
 
 private:
   enum {
-    RxRingSize = (MBEDTLS_SSL_IN_CONTENT_LEN + IOBuf::Size - 1) / IOBuf::Size
+    RxRingSize =
+      (MBEDTLS_SSL_IN_CONTENT_LEN + BufAlloc::Size - 1) / BufAlloc::Size
   };
 
   App			*m_app = nullptr;
   ZmScheduler::Timer	m_reconnTimer;
 
   // I/O Tx thread
-  ZmRef<IOBuf>		m_rxBuf;
+  ZmRef<ZiIOBuf>	m_rxBuf;
 
   // TLS thread
   mbedtls_ssl_context	m_ssl;
@@ -433,7 +437,7 @@ private:
   unsigned		m_rxInOffset = 0;
   unsigned		m_rxRingOffset = 0;
   unsigned		m_rxRingCount = 0;
-  ZmRef<IOBuf>		m_rxRing[RxRingSize];
+  ZmRef<ZiIOBuf>	m_rxRing[RxRingSize];
   unsigned		m_rxOutOffset = 0;
   uint8_t		m_rxOutBuf[MBEDTLS_SSL_IN_CONTENT_LEN];
 
@@ -442,17 +446,17 @@ private:
 };
 
 // client links are persistent, own the (transient) connection
-template <typename App, typename Impl, typename Cxn>
-using CliLink_ = Link<App, Impl, Cxn, ZmRef<Cxn> >;
+template <typename App, typename Impl, typename BufAlloc, typename Cxn>
+using CliLink_ = Link<App, Impl, BufAlloc, Cxn, ZmRef<Cxn> >;
 // server links are transient, are owned by the connection
-template <typename App, typename Impl, typename Cxn>
-using SrvLink_ = Link<App, Impl, Cxn, Cxn *>;
+template <typename App, typename Impl, typename BufAlloc, typename Cxn>
+using SrvLink_ = Link<App, Impl, BufAlloc, Cxn, Cxn *>;
 
-template <typename App, typename Impl>
-class CliLink : public CliLink_<App, Impl, CliCxn<Impl> > {
+template <typename App, typename Impl, typename BufAlloc = ZiIOBufAlloc<>>
+class CliLink : public CliLink_<App, Impl, BufAlloc, CliCxn<Impl> > {
 public:
   using Cxn = CliCxn<Impl>;
-  using Base = CliLink_<App, Impl, Cxn>;
+  using Base = CliLink_<App, Impl, BufAlloc, Cxn>;
 friend Base;
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
@@ -605,11 +609,11 @@ private:
   uint16_t		m_port;
 };
 
-template <typename App, typename Impl>
-class SrvLink : public SrvLink_<App, Impl, SrvCxn<Impl> > {
+template <typename App, typename Impl, typename BufAlloc = ZiIOBufAlloc<>>
+class SrvLink : public SrvLink_<App, Impl, BufAlloc, SrvCxn<Impl> > {
 public:
   using Cxn = SrvCxn<Impl>;
-  using Base = SrvLink_<App, Impl, Cxn>;
+  using Base = SrvLink_<App, Impl, BufAlloc, Cxn>;
 friend Base;
 
   auto impl() const { return static_cast<const Impl *>(this); }
@@ -629,9 +633,9 @@ private:
 template <typename App_> class Engine : public Random {
 public:
   using App = App_;
-template <typename, typename, typename, typename> friend class Link;
-template <typename, typename> friend class CliLink;
-template <typename, typename> friend class SrvLink;
+template <typename, typename, typename, typename, typename> friend class Link;
+template <typename, typename, typename> friend class CliLink;
+template <typename, typename, typename> friend class SrvLink;
 
   const App *app() const { return static_cast<const App *>(this); }
   App *app() { return static_cast<App *>(this); }
@@ -746,9 +750,11 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Client<App> {
+    using BufAlloc = ZiIOBufAlloc<BufSize>;
+
     void exception(ZmRef<ZeEvent>); // optional
 
-    struct Link : public CliLink<App, Link> {
+    struct Link : public CliLink<App, Link, BufAlloc> {
       // TLS thread - handshake completed
       void connected(const char *alpn);
 
@@ -823,9 +829,11 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Server<App> {
+    using BufAlloc = ZiIOBufAlloc<BufSize>;
+
     void exception(ZmRef<ZeEvent>); // optional
 
-    struct Link : public SrvLink<App, Link> {
+    struct Link : public SrvLink<App, Link, BufAlloc> {
       // TLS thread - handshake completed
       void connected(const char *alpn);
 
@@ -921,17 +929,15 @@ friend Base;
 
   void listen() {
     this->mx()->listen(
-	  ZiListenFn(app(), [](App *app, const ZiListenInfo &info) {
-	    app->listening(info);
-	  }),
-	  ZiFailFn(app(), [](App *app, bool transient) {
-	    app->listenFailed(transient);
-	  }),
-	  ZiConnectFn(app(), [](App *app, const ZiCxnInfo &ci) -> ZiConnection * {
-	    return app->accepted(ci);
-	  }),
-	  app()->localIP(), app()->localPort(),
-	  app()->nAccepts(), ZiCxnOptions());
+      ZiListenFn{app(),
+	[](App *app, const ZiListenInfo &info) { app->listening(info); }},
+      ZiFailFn{app(),
+	[](App *app, bool transient) { app->listenFailed(transient); }},
+      ZiConnectFn{app(),
+	[](App *app, const ZiCxnInfo &ci) -> ZiConnection * {
+	  return app->accepted(ci);
+	}},
+      app()->localIP(), app()->localPort(), app()->nAccepts(), ZiCxnOptions());
   }
 
   void stopListening() {

@@ -36,6 +36,7 @@
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZuMStream.hh>
 #include <zlib/ZmTime.hh>
+#include <zlib/ZmAlloc.hh>
 
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>
@@ -161,6 +162,9 @@ struct ZeEventInfo {
 };
 
 // log buffer
+// - many output streams (cout, cerr, etc.) interleave stream operator calls
+//   during concurrent fan-in - the log buffer serves as both a consistent
+//   interface type and to reduce the risk of interleaved output
 using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
 
 // message as function delegate
@@ -189,9 +193,9 @@ protected:
 
 public:
   template <typename S> void print(S &s) const {
-    ZeLogBuf buf;
-    fn()(buf, *this);
-    s << buf;
+    auto buf = ZmAlloc(ZeLogBuf, 1);
+    fn()(buf[0], *this);
+    s << buf[0];
   }
   friend ZuPrintFn ZuPrintType(ZeAnyEvent *);
 };

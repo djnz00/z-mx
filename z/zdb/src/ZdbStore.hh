@@ -57,6 +57,9 @@ using StopResult = ZuUnion<void, Event>;
 // stop callback
 using StopFn = ZmFn<void(StopResult)>;
 
+// buffer allocator
+using BufAllocFn = ZmFn<ZmRef<ZiIOBuf>()>;
+
 // opened table data
 // - (*) un and sn may refer to trailing deletions
 // - any Zdb data store needs to maintain a "most recent deletes" (MRD)
@@ -96,7 +99,7 @@ using CountFn = ZmFn<void(CountResult)>;
 // tuple data
 struct TupleData {
   int			keyID;	// ZuFieldKeyID::All for entire row tuple
-  ZmRef<const AnyBuf>	buf;	// tuple data, no replication message header
+  ZmRef<const IOBuf>	buf;	// tuple data, no replication message header
   unsigned		count;	// number of results so far, including this one
 };
 // tuple result
@@ -110,7 +113,7 @@ using TupleFn = ZmFn<void(TupleResult)>;
 
 // row data
 struct RowData {
-  ZmRef<const AnyBuf>	buf;	// replication message
+  ZmRef<const IOBuf>	buf;	// replication message
 };
 // row result
 using RowResult = ZuUnion<
@@ -124,7 +127,7 @@ using RowFn = ZmFn<void(RowResult)>;
 // commit result
 using CommitResult = ZuUnion<void, Event>;
 // commit callback
-using CommitFn = ZmFn<void(ZmRef<const AnyBuf>, CommitResult)>;
+using CommitFn = ZmFn<void(ZmRef<const IOBuf>, CommitResult)>;
 
 // backing table interface
 class StoreTbl {
@@ -134,20 +137,20 @@ public:
   virtual void warmup() = 0;
 
   // buf contains key data, no replication message header
-  virtual void count(unsigned keyID, ZmRef<const AnyBuf>, CountFn) = 0;
+  virtual void count(unsigned keyID, ZmRef<const IOBuf>, CountFn) = 0;
 
   // buf contains key data, no replication message header
   virtual void select(
     bool selectRow, bool selectNext, bool inclusive,
-    unsigned keyID, ZmRef<const AnyBuf>, unsigned limit, TupleFn) = 0;
+    unsigned keyID, ZmRef<const IOBuf>, unsigned limit, TupleFn) = 0;
 
   // buf contains key data, no replication message header
-  virtual void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn) = 0;
+  virtual void find(unsigned keyID, ZmRef<const IOBuf>, RowFn) = 0;
 
   virtual void recover(UN, RowFn) = 0;
 
   // buf contains replication message, UN is idempotency key
-  virtual void write(ZmRef<const AnyBuf>, CommitFn) = 0;	// idempotent
+  virtual void write(ZmRef<const IOBuf>, CommitFn) = 0;	// idempotent
 };
 
 // backing data store interface
@@ -168,6 +171,7 @@ public:
       ZtMFields fields,			// fields
       ZtMKeyFields keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
+      BufAllocFn,			// buffer allocator
       OpenFn) = 0;			// open result callback
 };
 

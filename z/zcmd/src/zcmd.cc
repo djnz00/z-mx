@@ -1407,8 +1407,6 @@ private:
 // FIXME
 // - enable switching between multiple client connections
 // - each client connection is composed of {link, seqNo, prompt, telcap}
-//
-// - m_fbb can be shared
 
 // FIXME
 // - telemetry should be distinguished by app ID + instanceID from

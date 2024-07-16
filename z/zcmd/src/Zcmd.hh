@@ -17,10 +17,7 @@
 
 namespace Zcmd {
 
-using IOBuf = Ztls::IOBuf;
-using IOBuilder = Zfb::IOBuilder<IOBuf>;
-
-using IOFn = ZmFn<void (ZmRef<IOBuf>)>;
+using IOFn = ZmFn<void (ZmRef<ZiIOBuf>)>;
 
 } // Zcmd
 

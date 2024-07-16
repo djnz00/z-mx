@@ -54,8 +54,8 @@ inline void out(const char *s) { std::cout << s << '\n'; }
 
 #define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
-using IOBuilder = Zfb::IOBuilder<>;
-using IOBuf = IOBuilder::IOBuf;
+using IOBuilder = Zfb::IOBuilder;
+using IOBuf = ZiIOBuf;
 
 int main()
 {

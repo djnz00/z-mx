@@ -17,27 +17,28 @@
 
 // CRTP sender
 
-template <typename Impl_, typename Buf_>
+template <typename Impl_>
 class ZiTx {
 public:
   using Impl = Impl_;
-  using Buf = Buf_;
 
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
 
-  static auto impl(const Buf *buf) { return static_cast<Impl *>(buf->owner); }
+  static auto impl(const ZiIOBuf *buf) {
+    return static_cast<Impl *>(buf->owner);
+  }
 
-  void sent(ZmRef<const Buf>) { } // can be overridden
+  void sent(ZmRef<const ZiIOBuf>) { } // can be overridden
 
-  void send(ZmRef<const Buf> buf) {
+  void send(ZmRef<const ZiIOBuf> buf) {
     buf->owner = impl();
     impl()->ZiConnection::send(ZiIOFn{ZuMv(buf),
-      [](const Buf *buf, ZiIOContext &io) {
-	io.init(ZiIOFn{io.fn.mvObject<const Buf>(),
-	  [](const Buf *buf, ZiIOContext &io) {
+      [](const ZiIOBuf *buf, ZiIOContext &io) {
+	io.init(ZiIOFn{io.fn.mvObject<const ZiIOBuf>(),
+	  [](const ZiIOBuf *buf, ZiIOContext &io) {
 	    if (ZuUnlikely((io.offset += io.length) < io.size)) return true;
-	    auto buf_ = io.fn.mvObject<const Buf>();
+	    auto buf_ = io.fn.mvObject<const ZiIOBuf>();
 	    io.complete();
 	    auto impl_ = impl(buf_);
 	    impl_->sent(ZuMv(buf_));

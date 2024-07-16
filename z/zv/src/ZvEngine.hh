@@ -21,15 +21,45 @@
 #include <zlib/ZmEngine.hh>
 #include <zlib/ZmTime.hh>
 
+#include <zlib/Zfb.hh>
+
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvIOQueue.hh>
 #include <zlib/ZvMxParams.hh>
-#include <zlib/ZvTelemetry.hh>
+#include <zlib/ZvThreadParams.hh>
+
+#include <zlib/zv_engine_state_fbs.h>
+#include <zlib/zv_link_state_fbs.h>
+#include <zlib/zv_queue_type_fbs.h>
 
 class ZvEngine;
-namespace ZvQueueType = ZvTelemetry::QueueType;
-namespace ZvEngineState = ZvTelemetry::EngineState;
-namespace ZvLinkState = ZvTelemetry::LinkState;
+
+namespace ZvEngineState {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumMatch(EngineState, ZmEngineState,
+      Stopped, Starting, Running, Stopping, StartPending, StopPending);
+}
+
+namespace ZvLinkState {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(LinkState, 
+    Down,
+    Disabled,
+    Deleted,
+    Connecting,
+    Up,
+    ReconnectPending,
+    Reconnecting,
+    Failed,
+    Disconnecting,
+    ConnectPending,
+    DisconnectPending)
+}
+
+namespace ZvQueueType {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(QueueType, Thread, IPC, Rx, Tx);
+}
 
 class ZvAPI ZvAnyTx : public ZmPolymorph {
   ZvAnyTx(const ZvAnyTx &);	//prevent mis-use
@@ -89,8 +119,14 @@ public:
   int state() const { return m_state; }
   unsigned reconnects() const { return m_reconnects.load_(); }
 
-  using Telemetry = ZvTelemetry::Link;
-
+  struct Telemetry {
+    ZuID	id;
+    ZuID	engineID;
+    uint64_t	rxSeqNo = 0;
+    uint64_t	txSeqNo = 0;
+    uint32_t	reconnects = 0;
+    int8_t	state = 0;
+  };
   void telemetry(Telemetry &data) const;
 
   void up() { up_(true); }
@@ -168,8 +204,21 @@ struct ZvAPI ZvEngineApp {
 // 5] Destroy the link/engine, safe in the knowledge that no outstanding work
 //    involving it can remain enqueued or in progress on any of the threads
 
+struct ZvQueueTelemetry {
+  ZuID		id;		// primary key - same as Link id for Rx/Tx
+  uint64_t	seqNo = 0;	// 0 for Thread, IPC
+  uint64_t	count = 0;	// dynamic - may not equal in - out
+  uint64_t	inCount = 0;	// dynamic (*)
+  uint64_t	inBytes = 0;	// dynamic
+  uint64_t	outCount = 0;	// dynamic (*)
+  uint64_t	outBytes = 0;	// dynamic
+  uint32_t	size = 0;	// 0 for Rx, Tx
+  uint32_t	full = 0;	// dynamic - how many times queue overflowed
+  int8_t	type = -1;	// primary key - QueueType
+};
+
 struct ZvEngineMgr {
-  using QueueFn = ZmFn<void(ZvTelemetry::Queue &)>;
+  using QueueFn = ZmFn<void(ZvQueueTelemetry &)>;
 
   // Engine Management
   virtual void addEngine(ZvEngine *) { }
@@ -268,7 +317,21 @@ public:
     };
   }
 
-  using Telemetry = ZvTelemetry::Engine;
+  struct Telemetry {
+    ZuID	id;		// primary key
+    ZuID	type;
+    ZuID	mxID;
+    uint16_t	down = 0;
+    uint16_t	disabled = 0;
+    uint16_t	transient = 0;
+    uint16_t	up = 0;
+    uint16_t	reconn = 0;
+    uint16_t	failed = 0;
+    uint16_t	nLinks = 0;
+    uint16_t	rxThread = 0;
+    uint16_t	txThread = 0;
+    int8_t	state = -1;
+  };
 
   void telemetry(Telemetry &data) const;
 
@@ -300,7 +363,7 @@ public:
     m_txPools.add(pool);
     guard.unlock();
     pool->update(cf);
-    mgrAddQueue(ZvQueueType::Tx, id, [pool](ZvTelemetry::Queue &data) {
+    mgrAddQueue(ZvQueueType::Tx, id, [pool](ZvQueueTelemetry &data) {
       const ZvIOQueue *queue = pool->txQueue();
       data.id = pool->id();
       data.seqNo = queue->head();
@@ -341,7 +404,7 @@ public:
     linkState(link, -1, link->state());
     link->update(cf);
     mgrUpdLink(link);
-    mgrAddQueue(ZvQueueType::Rx, id, [link](ZvTelemetry::Queue &data) {
+    mgrAddQueue(ZvQueueType::Rx, id, [link](ZvQueueTelemetry &data) {
       const ZvIOQueue *queue = link->rxQueue();
       data.id = link->id();
       data.seqNo = queue->head();
@@ -350,7 +413,7 @@ public:
       data.size = data.full = 0;
       data.type = ZvQueueType::Rx;
     });
-    mgrAddQueue(ZvQueueType::Tx, id, [link](ZvTelemetry::Queue &data) {
+    mgrAddQueue(ZvQueueType::Tx, id, [link](ZvQueueTelemetry &data) {
       const ZvIOQueue *queue = link->txQueue();
       data.id = link->id();
       data.seqNo = queue->head();

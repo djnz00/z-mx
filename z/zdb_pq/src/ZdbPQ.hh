@@ -1539,14 +1539,14 @@ struct Open { };
 
 struct Count {
   unsigned		keyID;
-  ZmRef<const AnyBuf>	buf;
+  ZmRef<const IOBuf>	buf;
   CountFn		countFn;
 };
 
 struct Select {
   unsigned		keyID;
   unsigned		limit;
-  ZmRef<const AnyBuf>	buf;
+  ZmRef<const IOBuf>	buf;
   TupleFn		tupleFn;
   unsigned		count = 0;
   bool			selectRow;
@@ -1556,7 +1556,7 @@ struct Select {
 
 struct Find {
   unsigned		keyID;
-  ZmRef<const AnyBuf>	buf;
+  ZmRef<const IOBuf>	buf;
   RowFn			rowFn;
   bool			found = false;
 };
@@ -1568,7 +1568,7 @@ struct Recover {
 };
 
 struct Write {
-  ZmRef<const AnyBuf>	buf;
+  ZmRef<const IOBuf>	buf;
   CommitFn		commitFn;
   bool			mrd = false;	// used by delete only
 };
@@ -1723,7 +1723,7 @@ friend Store;
 public:
   StoreTbl(
     Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema);
+    const reflection::Schema *schema, BufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
   auto id() const { return m_id; }
@@ -1737,18 +1737,18 @@ public:
 
   void warmup();
 
-  void count(unsigned keyID, ZmRef<const AnyBuf>, CountFn);
+  void count(unsigned keyID, ZmRef<const IOBuf>, CountFn);
 
   void select(
     bool selectRow, bool selectNext, bool inclusive,
-    unsigned keyID, ZmRef<const AnyBuf>,
+    unsigned keyID, ZmRef<const IOBuf>,
     unsigned limit, TupleFn);
 
-  void find(unsigned keyID, ZmRef<const AnyBuf>, RowFn);
+  void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
   void recover(UN, RowFn);
 
-  void write(ZmRef<const AnyBuf>, CommitFn);
+  void write(ZmRef<const IOBuf>, CommitFn);
 
 private:
   // open orchestration
@@ -1818,7 +1818,7 @@ private:
 
   int select_send(Work::Select &);
   void select_rcvd(Work::Select &, PGresult *);
-  ZmRef<AnyBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);
+  ZmRef<IOBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);
   void select_failed(Work::Select &, ZeMEvent);
 
   int find_send(Work::Find &);
@@ -1826,7 +1826,7 @@ private:
   template <bool Recovery>
   void find_rcvd_(RowFn &, bool &found, PGresult *);
   template <bool Recovery>
-  ZmRef<AnyBuf> find_save(ZuArray<const Value> tuple);
+  ZmRef<IOBuf> find_save(ZuArray<const Value> tuple);
   void find_failed(Work::Find &, ZeMEvent);
   void find_failed_(RowFn, ZeMEvent);
 
@@ -1853,6 +1853,7 @@ private:
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key
   FieldMap		m_fieldMap;
+  BufAllocFn		m_bufAllocFn;
 
   OpenState		m_openState;
   OpenFn		m_openFn;	// open callback

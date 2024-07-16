@@ -1160,10 +1160,11 @@ class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
     ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema
+    const reflection::Schema *schema, BufAllocFn bufAllocFn
   ) :
     m_id{id},
-    m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)}
+    m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
+    m_bufAllocFn{ZuMv(bufAllocFn)}
   {
     // introspect fields and flatbuffers reflection data, building
     // m_xFields[], m_keyGroup[] and m_xKeyFields[]
@@ -1217,7 +1218,7 @@ protected:
 
 private:
   // load a row from a buffer containing a replication/recovery message
-  ZmRef<const MemRow> loadRow(const ZmRef<const AnyBuf> &buf) {
+  ZmRef<const MemRow> loadRow(const ZmRef<const IOBuf> &buf) {
     auto record = record_(msg_(buf->hdr()));
     auto sn = Zfb::Load::uint128(record->sn());
     auto data = Zfb::Load::bytes(record->data());
@@ -1234,8 +1235,8 @@ private:
 
   // save a row to a buffer as a replication/recovery message
   template <bool Recovery>
-  ZmRef<AnyBuf> saveRow(const ZmRef<const MemRow> &row) {
-    IOBuilder fbb;
+  ZmRef<IOBuf> saveRow(const ZmRef<const MemRow> &row) {
+    Zfb::IOBuilder fbb{m_bufAllocFn()};
     auto data = Zfb::Save::nest(fbb, [this, &row](Zfb::Builder &fbb) {
       return saveTuple(fbb, m_xFields, row->data);
     });
@@ -1257,7 +1258,7 @@ public:
 
   void warmup() { }
 
-  void count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn) {
+  void count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn) {
     ZmAssert(keyID < m_indices.length());
 
     const auto &keyFields = m_keyFields[keyID];
@@ -1280,7 +1281,7 @@ public:
 
   void select(
     bool selectRow, bool selectNext, bool inclusive,
-    unsigned keyID, ZmRef<const AnyBuf> buf,
+    unsigned keyID, ZmRef<const IOBuf> buf,
     unsigned limit, TupleFn tupleFn)
   {
     ZmAssert(keyID < m_indices.length());
@@ -1300,7 +1301,7 @@ public:
       index.find<ZmRBTreeGreater>(key);
     unsigned i = 0;
     while (i++ < limit && row && equals_(row->key(), key, keyGroup)) {
-      IOBuilder fbb;
+      Zfb::IOBuilder fbb{m_bufAllocFn()};
       if (!selectRow) {
 	auto key = extractKey(m_fields, m_keyFields, keyID, row->val()->data);
 	fbb.Finish(saveTuple(fbb, xKeyFields, key));
@@ -1318,7 +1319,7 @@ public:
     tupleFn(TupleResult{});
   }
 
-  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
+  void find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn) {
     ZmAssert(keyID < m_indices.length());
 
     auto key = loadTuple(
@@ -1344,7 +1345,7 @@ public:
     }
   }
 
-  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void write(ZmRef<const IOBuf> buf, CommitFn commitFn) {
     // idempotence check
     auto un = record_(msg_(buf->hdr()))->un();
     if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
@@ -1361,7 +1362,7 @@ public:
       del(ZuMv(row), ZuMv(buf), ZuMv(commitFn));
   }
 
-  void insert(ZmRef<MemRow> row, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void insert(ZmRef<MemRow> row, ZmRef<const IOBuf> buf, CommitFn commitFn) {
     m_maxUN = row->un, m_maxSN = row->sn;
     unsigned n = m_keyFields.length();
     for (unsigned i = 0; i < n; i++) {
@@ -1382,7 +1383,7 @@ public:
   }
 
   void update(
-    ZmRef<MemRow> updRow, ZmRef<const AnyBuf> buf, CommitFn commitFn
+    ZmRef<MemRow> updRow, ZmRef<const IOBuf> buf, CommitFn commitFn
   ) {
     auto key = extractKey(m_fields, m_keyFields, 0, updRow->data);
     ZmRef<MemRow> row = m_indices[0].findVal(key).mutableRef();
@@ -1426,7 +1427,7 @@ public:
     }
   }
 
-  void del(ZmRef<MemRow> delRow, ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void del(ZmRef<MemRow> delRow, ZmRef<const IOBuf> buf, CommitFn commitFn) {
     auto key = extractKey(m_fields, m_keyFields, 0, delRow->data);
     ZmRef<MemRow> row = m_indices[0].delVal(key).mutableRef();
     if (row) {
@@ -1457,6 +1458,7 @@ private:
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
+  BufAllocFn		m_bufAllocFn;
 
   bool			m_opened = false;
 
@@ -1502,6 +1504,7 @@ public:
       ZtMFields fields,
       ZtMKeyFields keyFields,
       const reflection::Schema *schema,
+      BufAllocFn bufAllocFn,
       OpenFn openFn) {
     StoreTblNode *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {
@@ -1511,8 +1514,8 @@ public:
       return;
     }
     if (!storeTbl) {
-      storeTbl =
-	new StoreTblNode{id, ZuMv(fields), ZuMv(keyFields), schema};
+      storeTbl = new StoreTblNode{
+	id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
       m_storeTbls->addNode(storeTbl);
     }
     storeTbl->open();

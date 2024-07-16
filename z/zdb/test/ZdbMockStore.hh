@@ -29,12 +29,14 @@ class StoreTbl : public ZdbMem::StoreTbl {
 public:
   StoreTbl(
     ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema
-  ) : ZdbMem::StoreTbl{id, ZuMv(fields), ZuMv(keyFields), schema} { }
+    const reflection::Schema *schema, BufAllocFn bufAllocFn
+  ) : ZdbMem::StoreTbl{
+    id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
+  } { }
 
   auto count() { return ZdbMem::StoreTbl::count(); }
 
-  void count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn) {
+  void count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn) {
     auto work_ = [
       this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
     ]() mutable {
@@ -45,7 +47,7 @@ public:
 
   void select(
     bool selectRow, bool selectNext, bool inclusive,
-    unsigned keyID, ZmRef<const AnyBuf> buf,
+    unsigned keyID, ZmRef<const IOBuf> buf,
     unsigned limit, TupleFn tupleFn)
   {
     auto work_ = [
@@ -66,7 +68,7 @@ public:
     deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
-  void find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn) {
+  void find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn) {
     auto work_ = [
       this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)
     ]() mutable {
@@ -96,13 +98,13 @@ public:
     deferWork ? work.push(ZuMv(work_)) : work_();
   }
 
-  void write(ZmRef<const AnyBuf> buf, CommitFn commitFn) {
+  void write(ZmRef<const IOBuf> buf, CommitFn commitFn) {
     auto work_ = [
       this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)
     ]() mutable {
       ZdbMem::StoreTbl::write(ZuMv(buf), [
 	commitFn = ZuMv(commitFn)
-      ](ZmRef<const AnyBuf> buf, CommitResult result) mutable {
+      ](ZmRef<const IOBuf> buf, CommitResult result) mutable {
 	auto callback = [
 	  commitFn = ZuMv(commitFn), buf = ZuMv(buf), result = ZuMv(result)
 	]() mutable { commitFn(ZuMv(buf), ZuMv(result)); };

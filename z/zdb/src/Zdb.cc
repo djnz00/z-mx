@@ -593,46 +593,18 @@ void DB::allDone(bool ok)
   }
 }
 
-ZvTelemetry::DBFn DB::telFn()
-{
-  return ZvTelemetry::DBFn{ZmMkRef(this), [](
-      DB *db,
-      ZvTelemetry::BuildDBFn dbFn,
-      ZvTelemetry::BuildDBHostFn hostFn,
-      ZvTelemetry::BuildDBTableFn tableFn,
-      bool update) {
-    db->invoke([db,
-	dbFn = ZuMv(dbFn),
-	hostFn = ZuMv(hostFn),
-	tableFn = ZuMv(tableFn), update]() {
-      {
-	ZvTelemetry::IOBuilder fbb;
-	dbFn(fbb, db->telemetry(fbb, update));
-	db->allHosts([&hostFn, &fbb, update](const Host *host) {
-	  hostFn(fbb, host->telemetry(fbb, update));
-	});
-      }
-      db->all([tableFn = ZuMv(tableFn), update](
-	  AnyTable *table, ZmFn<void(bool)> done) {
-	ZvTelemetry::IOBuilder fbb;
-	tableFn(fbb, table->telemetry(fbb, update));
-	done(true);
-      });
-    });
-  }};
-}
-
-Zfb::Offset<ZvTelemetry::fbs::DB>
-DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
+ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+DB::telemetry(bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
 
+  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
   Zfb::Offset<String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
   }
-  ZvTelemetry::fbs::DBBuilder fbb{fbb_};
+  Ztel::fbs::DBBuilder fbb{fbb_};
   if (!update) {
     fbb.add_thread(thread);
     { auto v = id(m_self->id()); fbb.add_self(&v); }
@@ -655,25 +627,26 @@ DB::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
   fbb.add_active(state == HostState::Active);
   fbb.add_recovering(m_recovering);
   fbb.add_replicating(Host::replicating(m_next));
-  return fbb.Finish();
+  return {ZuMv(fbb_), fbb.Finish().Union()};
 }
 
-Zfb::Offset<ZvTelemetry::fbs::DBHost>
-Host::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
+ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+Host::telemetry(bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
 
-  ZvTelemetry::fbs::DBHostBuilder fbb{fbb_};
+  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
+  Ztel::fbs::DBHostBuilder fbb{fbb_};
   if (!update) {
     { auto v = Zfb::Save::ip(config().ip); fbb.add_ip(&v); }
     { auto v = Zfb::Save::id(config().id); fbb.add_id(&v); }
     fbb.add_priority(config().priority);
     fbb.add_port(config().port);
   }
-  fbb.add_state(static_cast<ZvTelemetry::fbs::DBHostState>(m_state));
+  fbb.add_state(static_cast<Ztel::fbs::DBHostState>(m_state));
   fbb.add_voted(m_voted);
-  return fbb.Finish();
+  return {ZuMv(fbb_), fbb.Finish().Union()};
 }
 
 Host::Host(DB *db, const HostCf *cf, unsigned dbCount) :
@@ -1092,7 +1065,7 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, UN un, UN endUN) {
   m_storeTbl->recover(un,
     [this, cxn = ZuMv(cxn), un, endUN](RowResult result) mutable {
     if (ZuLikely(result.is<RowData>())) {
-      ZmRef<const AnyBuf> buf = result.p<RowData>().buf;
+      ZmRef<const IOBuf> buf = result.p<RowData>().buf;
       run([this, cxn = ZuMv(cxn), un, endUN, buf = ZuMv(buf)]() mutable {
 	recSend_(ZuMv(cxn), un, endUN, ZuMv(buf));
       });
@@ -1112,7 +1085,7 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, UN un, UN endUN) {
 }
 
 void AnyTable::recSend_(
-  ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<const AnyBuf> buf)
+  ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<const IOBuf> buf)
 {
   cxn->send(ZuMv(buf));
   recNext(ZuMv(cxn), un, endUN);
@@ -1136,7 +1109,7 @@ void DB::recEnd()
 // build replication buffer
 // - first looks in buffer cache for a buffer to copy
 // - falls back to object cache
-ZmRef<const AnyBuf> AnyTable::mkBuf(UN un)
+ZmRef<const IOBuf> AnyTable::mkBuf(UN un)
 {
   ZmAssert(invoked());
 
@@ -1144,7 +1117,7 @@ ZmRef<const AnyBuf> AnyTable::mkBuf(UN un)
   if (auto buf = findBufUN(un)) {
     auto record = record_(msg_(buf->hdr()));
     auto repData = Zfb::Load::bytes(record->data());
-    IOBuilder fbb;
+    Zfb::IOBuilder fbb{allocBuf()};
     Zfb::Offset<Zfb::Vector<uint8_t>> data;
     if (repData) {
       uint8_t *ptr;
@@ -1167,7 +1140,7 @@ ZmRef<const AnyBuf> AnyTable::mkBuf(UN un)
 // send commit to replica
 void AnyTable::commitSend(UN un)
 {
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{allocBuf()};
   {
     auto id = Zfb::Save::id(config().id);
     auto msg = fbs::CreateMsg(
@@ -1178,14 +1151,14 @@ void AnyTable::commitSend(UN un)
 }
 
 // prepare replication data
-ZmRef<const AnyBuf> AnyObject::replicate(int type)
+ZmRef<const IOBuf> AnyObject::replicate(int type)
 {
   ZmAssert(state() == ObjState::Committed || state() == ObjState::Deleted);
 
   ZdbDEBUG(m_table->db(), ZtString{}
     << "AnyObject::replicate(" << type << ')');
 
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{m_table->allocBuf()};
   auto data = Zfb::Save::nest(fbb, [this](Zfb::Builder &fbb) {
     if (!m_vn) return m_table->objSave(fbb, ptr_());
     if (m_vn > 0) return m_table->objSaveUpd(fbb, ptr_());
@@ -1220,16 +1193,16 @@ void DB::repStop()
 void Cxn_::msgRead(ZiIOContext &io)
 {
   recv<
-    [](const ZiIOContext &, Buf *buf) -> int {
+    [](const ZiIOContext &, ZiIOBuf *buf) -> int {
       return loadHdr(buf);
     },
-    [](Cxn_ *cxn, const ZiIOContext &, ZmRef<AnyBuf> buf) -> int {
+    [](Cxn_ *cxn, const ZiIOContext &, ZmRef<ZiIOBuf> buf) -> int {
       return cxn->msgRead2(ZuMv(buf));
     }>(io);
 }
-int Cxn_::msgRead2(ZmRef<AnyBuf> buf)
+int Cxn_::msgRead2(ZmRef<IOBuf> buf)
 {
-  return verifyHdr(ZuMv(buf), [this](const Hdr *hdr, ZmRef<AnyBuf> buf) -> int {
+  return verifyHdr(ZuMv(buf), [this](const Hdr *hdr, ZmRef<IOBuf> buf) -> int {
     auto msg = Zdb_::msg(hdr);
     if (ZuUnlikely(!msg)) return -1;
 
@@ -1256,7 +1229,7 @@ int Cxn_::msgRead2(ZmRef<AnyBuf> buf)
     return length;
   });
 }
-void Cxn_::msgRead3(ZmRef<AnyBuf> buf)
+void Cxn_::msgRead3(ZmRef<IOBuf> buf)
 {
   ZmAssert(m_db->invoked());
 
@@ -1355,7 +1328,7 @@ void DB::vote(Host *host)
 }
 
 // send replication message to next-in-line
-bool DB::replicate(ZmRef<const AnyBuf> buf)
+bool DB::replicate(ZmRef<const IOBuf> buf)
 {
   if (m_next)
     if (ZmRef<Cxn> cxn = m_next->cxn()) {
@@ -1402,7 +1375,7 @@ void Cxn_::hbSend()
   ZmAssert(m_db->invoked());
 
   Host *self = m_db->self();
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{new ZiIOBufAlloc<HBBufSize>{}};
   {
     const auto &dbState = self->dbState();
     auto id = Zfb::Save::id(self->id());
@@ -1433,7 +1406,7 @@ void DB::dbStateRefresh()
 }
 
 // process received replicated record
-void Cxn_::repRecordRcvd(ZmRef<const AnyBuf> buf)
+void Cxn_::repRecordRcvd(ZmRef<const IOBuf> buf)
 {
   ZmAssert(m_db->invoked());
 
@@ -1457,7 +1430,7 @@ void Cxn_::repRecordRcvd(ZmRef<const AnyBuf> buf)
 }
 
 // process received replication commit
-void Cxn_::repCommitRcvd(ZmRef<const AnyBuf> buf)
+void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
 {
   ZmAssert(m_db->invoked());
 
@@ -1505,18 +1478,19 @@ AnyTable::~AnyTable()
 }
 
 // telemetry
-Zfb::Offset<ZvTelemetry::fbs::DBTable>
-AnyTable::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
+ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+AnyTable::telemetry(bool update) const
 {
   using namespace Zfb;
   using namespace Zfb::Save;
 
+  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
   Zfb::Offset<String> path, name, thread;
   if (!update) {
     name = str(fbb_, config().id);
     thread = str(fbb_, config().thread);
   }
-  ZvTelemetry::fbs::DBTableBuilder fbb{fbb_};
+  Ztel::fbs::DBTableBuilder fbb{fbb_};
   if (!update) {
     fbb.add_name(name);
     fbb.add_thread(thread);
@@ -1530,15 +1504,14 @@ AnyTable::telemetry(ZvTelemetry::IOBuilder &fbb_, bool update) const
     if (!update) fbb.add_cacheSize(stats.size);
   }
   if (!update) {
-    fbb.add_cacheMode(
-	static_cast<ZvTelemetry::fbs::CacheMode>(config().cacheMode));
+    fbb.add_cacheMode(static_cast<Ztel::fbs::DBCacheMode>(config().cacheMode));
     fbb.add_warmup(config().warmup);
   }
-  return fbb.Finish();
+  return {ZuMv(fbb_), fbb.Finish().Union()};
 }
 
 // process inbound replication - record
-void AnyTable::repRecordRcvd(ZmRef<const AnyBuf> buf)
+void AnyTable::repRecordRcvd(ZmRef<const IOBuf> buf)
 {
   if (!m_open) return;
 
@@ -1568,7 +1541,7 @@ void AnyTable::recover(const fbs::Record *record)
 }
 
 // outbound replication + persistency
-void AnyTable::write(ZmRef<const AnyBuf> buf)
+void AnyTable::write(ZmRef<const IOBuf> buf)
 {
   ZmAssert(invoked());
 
@@ -1593,7 +1566,7 @@ void AnyTable::write(ZmRef<const AnyBuf> buf)
 }
 
 // low-level internal write to backing data store
-void AnyTable::store(ZmRef<const AnyBuf> buf)
+void AnyTable::store(ZmRef<const IOBuf> buf)
 {
   if (ZuUnlikely(!m_open)) return; // table is closing
 
@@ -1612,11 +1585,11 @@ void AnyTable::retryStore_()
   if (!m_storeDLQ.count_()) return;
   store_(m_storeDLQ.shift());
 }
-void AnyTable::store_(ZmRef<const AnyBuf> buf)
+void AnyTable::store_(ZmRef<const IOBuf> buf)
 {
   using namespace Zfb::Load;
 
-  CommitFn commitFn = [this](ZmRef<const AnyBuf> buf, CommitResult result) {
+  CommitFn commitFn = [this](ZmRef<const IOBuf> buf, CommitResult result) {
     if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).p<Event>());
       auto un = record_(msg_(buf->hdr()))->un();
@@ -1642,7 +1615,7 @@ void AnyTable::store_(ZmRef<const AnyBuf> buf)
 }
 
 // cache buffer
-void AnyTable::cacheBuf(ZmRef<const AnyBuf> buf)
+void AnyTable::cacheBuf(ZmRef<const IOBuf> buf)
 {
   cacheBufUN(buf.mutablePtr());
   cacheBuf_(ZuMv(buf));
@@ -1652,7 +1625,7 @@ void AnyTable::cacheBuf(ZmRef<const AnyBuf> buf)
 void AnyTable::evictBuf(UN un)
 {
   if (auto buf = evictBufUN(un))
-    evictBuf_(static_cast<AnyBuf *>(buf));
+    evictBuf_(static_cast<IOBuf *>(buf));
 }
 
 // DB::open() iterates over tables, calling open()
@@ -1675,6 +1648,7 @@ void AnyTable::open(L l)
 
   db()->store()->open(
     id(), objFields(), objKeyFields(), objSchema(),
+    BufAllocFn::Member<&AnyTable::allocBuf>::fn(this),
     [this, l = ZuMv(l)](OpenResult result) mutable {
       invoke([this, l = ZuMv(l), result = ZuMv(result)]() mutable {
 	l(opened(ZuMv(result)));

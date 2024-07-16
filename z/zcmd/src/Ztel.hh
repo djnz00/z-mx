@@ -14,6 +14,9 @@
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
+#include <zlib/ZvThreadParams.hh>
+#include <zlib/ZvEngine.hh>
+
 #include <zlib/ztel_telemetry_fbs.h>
 #include <zlib/ztel_request_fbs.h>
 #include <zlib/ztel_reqack_fbs.h>
@@ -24,14 +27,9 @@ namespace RAG {
   ZfbEnumValues(RAG, Off, Red, Amber, Green);
 }
 
-namespace ThreadPriority {
-  ZfbEnumMatch(ThreadPriority, ZmThreadPriority,
-      RealTime, High, Normal, Low);
-}
-
+namespace ThreadPriority = ZvThreadPriority;
 namespace EngineState {
-  ZfbEnumMatch(EngineState, ZmEngineState,
-      Stopped, Starting, Running, Stopping, StartPending, StopPending);
+  using namespace ZvEngineState;
 
   int rag(int i) {
     using namespace RAG;
@@ -41,28 +39,8 @@ namespace EngineState {
     return values[i];
   }
 }
-
-namespace SocketType {
-  ZfbEnumMatch(SocketType, ZiCxnType, TCPIn, TCPOut, UDP);
-}
-
-namespace QueueType {
-  ZfbEnumValues(QueueType, Thread, IPC, Rx, Tx);
-}
-
 namespace LinkState {
-  ZfbEnumValues(LinkState, 
-    Down,
-    Disabled,
-    Deleted,
-    Connecting,
-    Up,
-    ReconnectPending,
-    Reconnecting,
-    Failed,
-    Disconnecting,
-    ConnectPending,
-    DisconnectPending)
+  using namespace ZvLinkState;
 
   int rag(int i) {
     using namespace RAG;
@@ -73,18 +51,16 @@ namespace LinkState {
   }
 }
 
+namespace SocketType {
+  ZfbEnumMatch(SocketType, ZiCxnType, TCPIn, TCPOut, UDP);
+}
+
 namespace CacheMode {
-  ZfbEnumValues(CacheMode, Normal, All)
+  using namespace ZdbCacheMode;
 }
 
 namespace DBHostState {
-  ZfbEnumValues(DBHostState,
-      Instantiated,
-      Initialized,
-      Electing,
-      Active,
-      Inactive,
-      Stopping)
+  using namespace ZdbHostState;
 
   int rag(int i) {
     using namespace RAG;
@@ -265,17 +241,11 @@ ZfbFields(Socket,
 // display sequence:
 //   id, type, size, full, count, seqNo,
 //   inCount, inBytes, outCount, outBytes
-struct Queue {
-  ZuID		id;		// primary key - same as Link id for Rx/Tx
-  uint64_t	seqNo = 0;	// 0 for Thread, IPC
-  uint64_t	count = 0;	// dynamic - may not equal in - out
-  uint64_t	inCount = 0;	// dynamic (*)
-  uint64_t	inBytes = 0;	// dynamic
-  uint64_t	outCount = 0;	// dynamic (*)
-  uint64_t	outBytes = 0;	// dynamic
-  uint32_t	size = 0;	// 0 for Rx, Tx
-  uint32_t	full = 0;	// dynamic - how many times queue overflowed
-  int8_t	type = -1;	// primary key - QueueType
+using Queue_ = ZvQueueTelemetry;
+struct Queue : public Queue_ {
+  Queue() = default;
+  template <typename ...Args>
+  Queue(Args &&...args) : Queue_{ZuFwd<Args>(args)...} { }
 
   // RAG for queues - count > 50% size - amber; 80% - red
   int rag() const {
@@ -303,13 +273,11 @@ ZfbFields(Queue,
 
 // display sequence:
 //   id, state, reconnects, rxSeqNo, txSeqNo
-struct Link {
-  ZuID		id;
-  ZuID		engineID;
-  uint64_t	rxSeqNo = 0;
-  uint64_t	txSeqNo = 0;
-  uint32_t	reconnects = 0;
-  int8_t	state = 0;
+using Link_ = ZvAnyLink::Telemetry;
+struct Link : public Link_ {
+  Link() = default;
+  template <typename ...Args>
+  Link(Args &&...args) : Link_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return LinkState::rag(state); }
   void rag(int) { } // unused
@@ -328,20 +296,11 @@ ZfbFields(Link,
 // display sequence:
 //   id, state, nLinks, up, down, disabled, transient, reconn, failed,
 //   mxID, rxThread, txThread
-struct Engine {
-  ZuID		id;		// primary key
-  ZuID		type;
-  ZuID		mxID;
-  uint16_t	down = 0;
-  uint16_t	disabled = 0;
-  uint16_t	transient = 0;
-  uint16_t	up = 0;
-  uint16_t	reconn = 0;
-  uint16_t	failed = 0;
-  uint16_t	nLinks = 0;
-  uint16_t	rxThread = 0;
-  uint16_t	txThread = 0;
-  int8_t	state = -1;
+using Engine_ = ZvEngine::Telemetry;
+struct Engine : public Engine_ {
+  Engine() = default;
+  template <typename ...Args>
+  Engine(Args &&...args) : Engine_{ZuFwd<Args>(args)...} { }
 
   int rag() const { return EngineState::rag(state); }
   void rag(int) { } // unused

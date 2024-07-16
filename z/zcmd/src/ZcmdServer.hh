@@ -351,7 +351,7 @@ public:
       const auto &user = session->user->data();
       ZtString text = "permission denied";
       if (user.flags & User::ChPass) text << " (user must change password)\n";
-      IOBuilder fbb;
+      IOBuilder fbb; // FIXME
       fbb.Finish(Zcmd::fbs::CreateReqAck(fbb,
 	  request->seqNo(), __LINE__, Zfb::Save::str(fbb, text)));
       link->send_(fbb.buf());
@@ -368,7 +368,7 @@ public:
 
     auto request = Zfb::GetRoot<ZTel::fbs::Request>(buf->data());
     if (m_telPerm < 0 || !m_userDB->ok(session, m_telPerm)) {
-      IOBuilder fbb;
+      IOBuilder fbb; // FIXME
       fbb.Finish(ZTel::fbs::CreateReqAck(fbb, request->seqNo(), false));
       link->send_(fbb.buf());
       return 1;

@@ -32,7 +32,7 @@ class ZmAnyFn {
   };
 
   // 64bit pointer-packing - uses bit 63
-  static constexpr const uintptr_t Owned = (static_cast<uintptr_t>(1)<<63);
+  static constexpr const uintptr_t Owned = (uintptr_t(1)<<63);
 
 protected:
   static constexpr bool owned(uintptr_t o) { return o & Owned; }

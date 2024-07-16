@@ -80,8 +80,6 @@
 #include <zlib/ZfbField.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvTelemetry.hh>
-#include <zlib/ZvTelServer.hh>
 
 #include <zlib/ZdbTypes.hh>
 #include <zlib/ZdbBuf.hh>
@@ -99,11 +97,16 @@
 #define ZdbDEBUG(db, e) (void())
 #endif
 
-#include <zlib/zv_telemetry_fbs.h>
+#include <zlib/zdb_telemetry_fbs.h>
+
+// type-specific buffer size - specialize to override default
+template <typename>
+struct ZdbBufSize : public ZuUnsigned<Zdb_::DefltBufSize> { };
 
 namespace Zdb_ {
 
-// DLQ block sizes
+// --- DLQ block sizes
+
 enum { FindDLQ_BlkSize = 128 };
 enum { StoreDLQ_BlkSize = 128 };
 
@@ -112,23 +115,23 @@ enum { StoreDLQ_BlkSize = 128 };
 class DB;				// database
 class Host;				// cluster host
 class AnyTable;				// untyped table
-template <typename> class Table;	// typed table
+template <typename T> class Table;	// typed table
 struct Record_Print;
 
 // --- replication connection
 
 class Cxn_ :
     public ZiConnection,
-    public ZiRx<Cxn_, AnyBuf>,
-    public ZiTx<Cxn_, AnyBuf> {
+    public ZiRx<Cxn_, RxBufAlloc>,
+    public ZiTx<Cxn_> {
 friend DB;
 friend Host;
 friend AnyTable;
 
-  using Buf = Zdb_::AnyBuf; // de-conflict with ZiConnection
+  using Buf = Zdb_::RxBufAlloc; // de-conflict with ZiConnection
 
   using Rx = ZiRx<Cxn_, Buf>;
-  using Tx = ZiTx<Cxn_, Buf>;
+  using Tx = ZiTx<Cxn_>;
 
   using Rx::recv; // de-conflict with ZiConnection
   using Tx::send; // ''
@@ -145,15 +148,15 @@ private:
   void disconnected();
 
   void msgRead(ZiIOContext &);
-  int msgRead2(ZmRef<AnyBuf>);
-  void msgRead3(ZmRef<AnyBuf>);
+  int msgRead2(ZmRef<IOBuf>);
+  void msgRead3(ZmRef<IOBuf>);
 
   void hbRcvd(const fbs::Heartbeat *);
   void hbTimeout();
   void hbSend();
 
-  void repRecordRcvd(ZmRef<const AnyBuf>);
-  void repCommitRcvd(ZmRef<const AnyBuf>);
+  void repRecordRcvd(ZmRef<const IOBuf>);
+  void repCommitRcvd(ZmRef<const IOBuf>);
 
   DB			*m_db;
   Host			*m_host;	// nullptr if not yet associated
@@ -267,13 +270,20 @@ struct DBState : public DBState_ {
 // --- replication message printing
 
 namespace HostState {
-  using namespace ZvTelemetry::DBHostState;
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(DBHostState,
+    Instantiated,
+    Initialized,
+    Electing,
+    Active,
+    Inactive,
+    Stopping)
 }
 
 // --- generic object
 
 namespace ObjState {
-ZtEnumValues(ObjState, int8_t,
+  ZtEnumValues(ObjState, int8_t,
     Undefined = 0,
     Insert,
     Update,
@@ -340,7 +350,7 @@ public:
   UN origUN() const { return m_origUN; }
   bool evicted() const { return m_evicted; }
 
-  ZmRef<const AnyBuf> replicate(int type);
+  ZmRef<const IOBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject *>(this)->ptr_(); }
@@ -494,7 +504,10 @@ struct Object : public Cache<T>::Node {
 // --- table configuration
 
 namespace CacheMode {
-  using namespace ZvTelemetry::CacheMode;
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(DBCacheMode,
+    Normal,
+    All)
 }
 
 struct TableCf {
@@ -533,7 +546,7 @@ friend Cxn_;
 friend AnyObject;
 friend Record_Print;	// uses objPrintFB
 
-  using StoreDLQ = ZmXRing<ZmRef<const AnyBuf>>;
+  using StoreDLQ = ZmXRing<ZmRef<const IOBuf>>;
 
 protected:
   AnyTable(DB *db, TableCf *cf);
@@ -569,12 +582,15 @@ public:
   // record count - SWMR
   uint64_t count() const { return m_count.load_(); }
 
+  // buffer allocator
+  virtual ZmRef<IOBuf> allocBuf() = 0;
+
 private:
-  AnyBuf *findBufUN(UN un) {
-    return static_cast<AnyBuf *>(m_bufCacheUN->find(un));
+  IOBuf *findBufUN(UN un) {
+    return static_cast<IOBuf *>(m_bufCacheUN->find(un));
   }
 protected:
-  void cacheBufUN(AnyBuf *buf) { m_bufCacheUN->addNode(buf); }
+  void cacheBufUN(IOBuf *buf) { m_bufCacheUN->addNode(buf); }
   auto evictBufUN(UN un) { return m_bufCacheUN->del(un); }
 
 public:
@@ -613,11 +629,14 @@ protected:
   virtual void objPrintFB(ZuMStream &, ZuBytes) const = 0;
 
   // buffer cache
-  virtual void cacheBuf_(ZmRef<const AnyBuf>) = 0;
-  virtual ZmRef<const AnyBuf> evictBuf_(AnyBuf *) = 0;
+  virtual void cacheBuf_(ZmRef<const IOBuf>) = 0;
+  virtual ZmRef<const IOBuf> evictBuf_(IOBuf *) = 0;
 
   // cache statistics
   virtual void cacheStats(ZmCacheStats &stats) const = 0;
+
+  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+  telemetry(bool update) const;
 
 protected:
   bool writeCache() const { return m_writeCache; }
@@ -628,18 +647,14 @@ protected:
 
   StoreTbl *storeTbl() const { return m_storeTbl; }
 
-private:
-  Zfb::Offset<ZvTelemetry::fbs::DBTable>
-  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
-
 protected:
   // cache replication buffer
-  void cacheBuf(ZmRef<const AnyBuf>);
+  void cacheBuf(ZmRef<const IOBuf>);
   // evict replication buffer
   void evictBuf(UN un);
 
   // outbound replication / write to backing data store
-  void write(ZmRef<const AnyBuf> buf);
+  void write(ZmRef<const IOBuf> buf);
 
   // maintain record count
   void incCount() { ++m_count; }
@@ -647,19 +662,19 @@ protected:
 
 private:
   // low-level write to backing data store - write thread
-  void store(ZmRef<const AnyBuf> buf);
+  void store(ZmRef<const IOBuf> buf);
   void retryStore_();			// retry on timer
-  void store_(ZmRef<const AnyBuf> buf);
+  void store_(ZmRef<const IOBuf> buf);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, UN un, UN endUN);
-  void recSend_(ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<const AnyBuf> buf);
+  void recSend_(ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<const IOBuf> buf);
   void recNext(ZmRef<Cxn> cxn, UN un, UN endUN);
-  ZmRef<const AnyBuf> mkBuf(UN un);
+  ZmRef<const IOBuf> mkBuf(UN un);
   void commitSend(UN un);
 
   // inbound replication
-  void repRecordRcvd(ZmRef<const AnyBuf> buf);
+  void repRecordRcvd(ZmRef<const IOBuf> buf);
   void repCommitRcvd(UN un);
 
   // recovery - DB thread
@@ -703,10 +718,10 @@ private:
 // typed I/O buffer base
 template <typename T_>
 struct Buf_ : public ZmPolymorph {
-  ZmRef<const AnyBuf>	buf;
+  ZmRef<const IOBuf>	buf;
   bool			stale = false;
 
-  Buf_(ZmRef<const AnyBuf> buf_) : buf{ZuMv(buf_)} { buf->typed = this; }
+  Buf_(ZmRef<const IOBuf> buf_) : buf{ZuMv(buf_)} { buf->typed = this; }
 
   using T = T_;
   using FB = ZfbType<T>;
@@ -845,6 +860,8 @@ friend Cxn_;
 friend Object_<T>;
 
 public:
+  enum { BufSize = ZdbBufSize<T>{} };
+
   using Fields = FieldList<T>;
   using Keys = ZuFieldKeys<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
@@ -879,9 +896,12 @@ public:
   }
   ~Table() = default;
 
+  // buffer allocator
+  ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
+
 private:
   // objLoad(fbo) - construct object from flatbuffer (trusted source)
-  ZmRef<Object<T>> objLoad(const AnyBuf *buf) {
+  ZmRef<Object<T>> objLoad(const IOBuf *buf) {
     using namespace Zfb::Load;
     auto record = record_(msg_(buf->hdr()));
     if (record->vn() < 0) return {}; // deleted
@@ -957,14 +977,14 @@ private:
 
   // find buffer in buffer cache
   template <unsigned KeyID>
-  ZuTuple<ZmRef<const AnyBuf>, bool> findBuf(const Key<KeyID> &key) const {
+  ZuTuple<ZmRef<const IOBuf>, bool> findBuf(const Key<KeyID> &key) const {
     auto i = m_bufCache.template iterator<KeyID>(key);
     bool found = false;
     while (auto typedBuf = i.iterate()) {
       if (!typedBuf->stale) return {typedBuf->buf, true};
       found = true;
     }
-    return {ZmRef<const AnyBuf>{}, found};
+    return {ZmRef<const IOBuf>{}, found};
   }
 
   // find, falling through object cache, buffer cache, backing data store
@@ -976,10 +996,10 @@ private:
   template <unsigned KeyID> void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
   // buffer cache
-  void cacheBuf_(ZmRef<const AnyBuf> buf) {
+  void cacheBuf_(ZmRef<const IOBuf> buf) {
     m_bufCache.add(new Buf<T>{ZuMv(buf)});
   }
-  ZmRef<const AnyBuf> evictBuf_(AnyBuf *buf) {
+  ZmRef<const IOBuf> evictBuf_(IOBuf *buf) {
     if (auto typedBuf = m_bufCache.delNode(
 	static_cast<Buf<T> *>(static_cast<Buf_<T> *>(buf->typed))))
       return ZuMv(typedBuf->buf);
@@ -998,7 +1018,7 @@ private:
     m_cache.add(object); m_cache.delNode(object);
     // warmup UN cache
     cacheUN(0, object); evictUN(0);
-    ZmRef<const AnyBuf> buf = object->replicate(int(fbs::Body::Replication));
+    ZmRef<const IOBuf> buf = object->replicate(int(fbs::Body::Replication));
     // warmup buffer cache
     cacheBuf(buf); evictBuf(0);
     // warmup backing data store
@@ -1401,10 +1421,10 @@ public:
     return ZuFwdTuple(h.priority(), h.id());
   }
 
-private:
-  Zfb::Offset<ZvTelemetry::fbs::DBHost>
-  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
+  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+  telemetry(bool update) const;
 
+private:
   ZmRef<Cxn> cxn() const { return m_cxn; }
 
   void state(int s) { m_state = s; }
@@ -1631,6 +1651,9 @@ public:
 
   void all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
 
+  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
+  telemetry(bool update) const;
+
 private:
   void allDone(bool ok);
 
@@ -1638,11 +1661,6 @@ private:
     auto i = m_tables.readIterator();
     while (auto table = i.iterateVal()) l(table);
   }
-
-  Zfb::Offset<ZvTelemetry::fbs::DB>
-  telemetry(ZvTelemetry::IOBuilder &, bool update) const;
-
-  ZvTelemetry::DBFn telFn();
 
   // debug printing
   template <typename S> void print(S &);
@@ -1707,7 +1725,7 @@ private:
   void repStop();
   void recEnd();
 
-  bool replicate(ZmRef<const AnyBuf> buf);
+  bool replicate(ZmRef<const IOBuf> buf);
 
   // inbound replication
   void replicated(Host *host, ZuID dbID, UN un, SN sn);
@@ -1804,7 +1822,7 @@ inline void Table<T>::count(GroupKey<KeyID> key, L l)
 
   using Key = GroupKey<KeyID>;
 
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{allocBuf()};
   fbb.Finish(
     ZfbField::SaveFieldsFn<Key, ZuFieldList<Key>>::save(fbb, key).Union());
   auto keyBuf = fbb.buf();
@@ -1839,7 +1857,7 @@ inline void Table<T>::select_(
 
   auto context = ZmMkRef(new Context{ZuMv(l)});
 
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{allocBuf()};
   fbb.Finish(
     ZfbField::SaveFieldsFn<SelectKey, ZuFieldList<SelectKey>>::save(
       fbb, selectKey).Union());
@@ -1932,7 +1950,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
   using Key_ = Key<KeyID>;
   using Context = Find<T, Key_>;
 
-  IOBuilder fbb;
+  Zfb::IOBuilder fbb{allocBuf()};
   fbb.Finish(ZfbField::save(fbb, context->key));
   auto keyBuf = fbb.buf();
 
@@ -2021,7 +2039,7 @@ struct HB_Print {
 };
 
 template <typename S>
-void AnyBuf_::Print::print(S &s) const {
+void IOBuf_::Print::print(S &s) const {
   auto msg = Zdb_::msg(buf->ptr<Hdr>());
   if (!msg) { s << "corrupt{}"; return; }
   if (auto record = Zdb_::record(msg)) {
@@ -2072,6 +2090,8 @@ using ZdbDownFn = Zdb_::DownFn;
 using ZdbHandler = Zdb_::DBHandler;
 
 using ZdbHost = Zdb_::Host;
-namespace ZdbHostState { using namespace Zdb_::HostState; }
+
+namespace ZdbCacheMode = Zdb_::CacheMode;
+namespace ZdbHostState = Zdb_::HostState;
 
 #endif /* Zdb_HH */

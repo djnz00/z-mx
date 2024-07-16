@@ -17,8 +17,17 @@
 
 #include <zlib/ZtEnum.hh>
 
+#include <zlib/Zfb.hh>
+
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvTelemetry.hh>
+
+#include <zlib/zv_thread_priority_fbs.h>
+
+namespace ZvThreadPriority {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumMatch(ThreadPriority, ZmThreadPriority,
+      RealTime, High, Normal, Low);
+}
 
 struct ZvThreadParams : public ZmThreadParams {
   ZvThreadParams(const ZmThreadParams &p) : ZmThreadParams{p} { }
@@ -43,7 +52,7 @@ struct ZvThreadParams : public ZmThreadParams {
 
     static unsigned ncpu = Zm::getncpu();
     stackSize(cf->getInt("stackSize", 16384, 2<<20, stackSize()));
-    priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
+    priority(cf->getEnum<ZvThreadPriority::Map>(
 	  "priority", ZmThreadPriority::Normal));
     partition(cf->getInt("partition", 0, ncpu - 1, 0));
     cpuset(cf->get("cpuset"));

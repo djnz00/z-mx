@@ -21,6 +21,12 @@
 
 namespace Zdb_ {
 
+// --- I/O Buffer Sizes
+
+enum { DefltBufSize = 192 };		// default row buffer size
+enum { HBBufSize = 128 };		// heartbeat buffer size
+enum { TelBufSize = 128 };		// telemetry buffer size
+
 class AnyTable;
 class DB;
 
@@ -28,38 +34,18 @@ class DB;
 
 inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 
-inline constexpr unsigned BuiltinSize() {
-  enum { CacheLineSize = Zm::CacheLineSize };
-  // MinBufSz - minimum built-in buffer size
-  enum { MinBufSz = sizeof(uintptr_t)<<1 };
-  // IOBufOverhead - ZiIOBuf overhead
-  enum { IOBufOverhead = sizeof(ZiIOBuf<MinBufSz, Buf_HeapID>) - MinBufSz };
-  // HashOverhead - ZmHash node overhead
-  struct V { int i_; static constexpr int i(const V &v) { return v.i_; } };
-  using VHash = ZmHash<V, ZmHashNode<V, ZmHashKey<V::i, ZmHashShadow<true>>>>;
-  enum { HashOverhead = sizeof(VHash::Node) - sizeof(V) };
-  // Overhead - total buffer overhead
-  enum { Overhead = IOBufOverhead + HashOverhead };
-  // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
-  enum { Size = 1460 };
-  // round up to cache line size, subtract overhead
-  // and use that as the built-in buffer size
-  return
-    ((Size + Overhead + CacheLineSize - 1) & ~(CacheLineSize - 1)) - Overhead;
-};
-using VBuf = ZiIOVBuf<BuiltinSize(), Buf_HeapID>;
-
-struct AnyBuf_ : public VBuf {
+struct IOBuf_ : public ZiIOBuf {
   mutable void	*typed = nullptr;	// points to typed Buf<T>
 
-  using VBuf::VBuf;
-  using VBuf::operator =;
+  using ZiIOBuf::ZiIOBuf;
+  template <typename ...Args>
+  IOBuf_(Args &&...args) : ZiIOBuf{ZuFwd<Args>(args)...} { }
 
   auto hdr() const { return ptr<Hdr>(); }
   auto hdr() { return ptr<Hdr>(); }
 
   struct Print {
-    const AnyBuf_ *buf = nullptr;
+    const IOBuf_ *buf = nullptr;
     const AnyTable *table = nullptr;
     template <typename S> void print(S &s) const;
     friend ZuPrintFn ZuPrintType(Print *);
@@ -67,28 +53,75 @@ struct AnyBuf_ : public VBuf {
   Print print(AnyTable *table = nullptr) { return Print{this, table}; }
 };
 
-inline UN AnyBuf_UNAxor(const AnyBuf_ &buf) {
+inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
   return record_(msg_(buf.hdr()))->un();
 }
 
 using BufCacheUN =
-  ZmHash<AnyBuf_,
-    ZmHashNode<AnyBuf_,
-      ZmHashKey<AnyBuf_UNAxor,
+  ZmHash<IOBuf_,
+    ZmHashNode<IOBuf_,
+      ZmHashKey<IOBuf_UNAxor,
 	ZmHashLock<ZmPLock,
 	  ZmHashShadow<true>>>>>;
 
-struct AnyBuf : public BufCacheUN::Node {
+struct IOBuf : public BufCacheUN::Node {
   using Base = BufCacheUN::Node;
+
   using Base::Base;
   using Base::operator =;
-  using VBuf::data;
+  template <typename ...Args>
+  IOBuf(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+
+  using ZiIOBuf::data;
 };
 
-// ensure cache line alignment
-ZuAssert(!((sizeof(AnyBuf)) & (Zm::CacheLineSize - 1)));
+// buffer allocator
 
-using IOBuilder = Zfb::IOBuilder<AnyBuf>;
+template <unsigned Size_, typename Heap>
+struct IOBufAlloc__ : public Heap, public IOBuf {
+  enum { Size = Size_ };
+
+  uint8_t	data_[Size];
+
+  IOBufAlloc__() : IOBuf{&data_[0], Size} { }
+  template <typename ...Args>
+  IOBufAlloc__(Args &&...args) :
+    IOBuf{&data_[0], Size, ZuFwd<Args>(args)...} { }
+
+  ~IOBufAlloc__() = default;
+
+private:
+  IOBufAlloc__(const IOBufAlloc__ &) = delete;
+  IOBufAlloc__ &operator =(const IOBufAlloc__ &) = delete;
+  IOBufAlloc__(IOBufAlloc__ &&) = delete;
+  IOBufAlloc__ &operator =(IOBufAlloc__ &&) = delete;
+};
+
+template <unsigned Size, auto HeapID>
+using IOBuf_Heap = ZmHeap<HeapID, sizeof(IOBufAlloc__<Size, ZuNull>)>;
+ 
+template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = Buf_HeapID>
+using IOBufAlloc_ = IOBufAlloc__<Size, IOBuf_Heap<Size, HeapID>>;
+
+inline constexpr const unsigned BuiltinSize(unsigned Size) {
+  enum { CacheLineSize = Zm::CacheLineSize };
+  // MinBufSz - minimum built-in buffer size
+  enum { MinBufSz = sizeof(uintptr_t)<<1 };
+  // IOBufOverhead - ZiIOBuf overhead
+  enum { Overhead = sizeof(IOBufAlloc_<MinBufSz>) - MinBufSz };
+  // round up to cache line size, subtract overhead
+  // and use that as the built-in buffer size
+  return
+    ((Size + Overhead + CacheLineSize - 1) & ~(CacheLineSize - 1)) - Overhead;
+};
+
+template <unsigned Size>
+using IOBufAlloc = IOBufAlloc_<BuiltinSize(Size), Buf_HeapID>;
+
+// ensure cache line alignment
+ZuAssert(!((sizeof(IOBufAlloc<1>)) & (Zm::CacheLineSize - 1)));
+
+using RxBufAlloc = IOBufAlloc<ZiIOBuf_DefaultSize>;
 
 } // Zdb_
 

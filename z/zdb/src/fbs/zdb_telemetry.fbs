@@ -1,5 +1,5 @@
 include "zfb_types.fbs";
-namespace Ztel.fbs
+namespace Ztel.fbs;
 enum DBCacheMode:int8 {
   Normal = 0,
   All

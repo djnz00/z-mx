@@ -145,12 +145,8 @@ struct ZmRBTree_NodeExt :
       ZmRBTree_NodeExt_Unique<Node>,
       ZmRBTree_NodeExt_Dup<Node>> {
   // 64bit pointer-packing - uses bit 63
-  static constexpr uintptr_t Black() {
-    return uintptr_t(1)<<63;
-  }
-  static constexpr uintptr_t Black(bool b) {
-    return uintptr_t(b)<<63;
-  }
+  static constexpr uintptr_t Black() { return uintptr_t(1)<<63; }
+  static constexpr uintptr_t Black(bool b) { return uintptr_t(b)<<63; }
 
   using Base = ZuIf<Unique,
     ZmRBTree_NodeExt_Unique<Node>,

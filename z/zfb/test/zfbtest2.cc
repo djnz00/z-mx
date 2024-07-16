@@ -50,8 +50,8 @@ static auto mfields = ZtMFieldList<Test>();
 
 } // zfbtest
 
-using IOBuilder = Zfb::IOBuilder<>;
-using IOBuf = IOBuilder::IOBuf;
+using IOBuilder = Zfb::IOBuilder;
+using IOBuf = ZiIOBuf;
 std::vector<ZmRef<IOBuf>> bufs;
 
 template <bool Detach>

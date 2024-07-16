@@ -23,6 +23,8 @@
 
 #include <zlib/Zfb.hh>
 
+#include <zlib/Zdb.hh>
+
 #include <zlib/Zcmd.hh>
 #include <zlib/Ztel.hh>
 
@@ -35,11 +37,21 @@ using namespace Zcmd;
 
 using QueueFn = ZvEngineMgr::QueueFn;
 
-using BuildDBFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>;
-using BuildDBHostFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>;
-using BuildDBTableFn = ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>;
-// DBFn(buildDB, buildHost, buildTable, update)
-using DBFn = ZmFn<void(BuildDBFn, BuildDBHostFn, BuildDBTableFn, bool)>;
+// the AlertFile facility is, intentionally, an independently and directly
+// implemented on-disk database of alerts:
+// - alerts may relate to errors in the technology infrastructure, including
+//   network and database connectivity - these must be reliably stored
+//   using an independent mechanism
+// - each alert file corresponds to a single 24-hour period
+// - sequence numbers reset to 0 every 24 hours
+// - the data file is a sequence of flatbuffers that are ready to send
+// - each data file has an associated index file (.idx)
+// - the index file is a sequence of offsets in the data file, indexed by seqNo
+// - the most recent alerts within the current telemetry scan-interval
+//   are held in memory in a dynamically-sized ring buffer (ZmXRing)
+// - this mechanism provides guaranteed delivery up to alertMaxReplay days back
+// - downstream telemetry consumers can fan-in and persist alerts for
+//   dashboards, consolidated alerting, etc.
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -55,9 +67,11 @@ private:
   void error(bool index, const Message &message) {
     struct Fmt : public ZuDateTimeFmt::CSV { Fmt() { tzOffset(timezone); } };
     auto &dateFmt = ZmTLS<Fmt>();
-    std::cerr << ZuDateTime{Zm::now()}.fmt(dateFmt) <<
+    auto buf = ZmAlloc(ZeLogBuf, 1);
+    buf[0] << ZuDateTime{Zm::now()}.fmt(dateFmt) <<
       " FATAL " << m_path << (index ? ".idx" : "") <<
-      ": " << message << '\n' << std::flush;
+      ": " << message << '\n';
+    std::cerr << buf[0] << std::flush;
   }
 
   void open(ZuString prefix, unsigned date, unsigned flags) {
@@ -146,6 +160,7 @@ public:
       error(true, "corrupt");
       return BufRef{};
     }
+    // FIXME
     ZmRef<IOBuf> buf =
       new IOBuf{bufOwner, static_cast<unsigned>(next - offset)};
     if (m_file.pread(offset, buf->data(), buf->length, &e) != Zi::OK) {
@@ -209,6 +224,7 @@ public:
 
       m_minInterval = cf->getInt("telemetry:minInterval", 1, 1000000, 10);
       m_alertPrefix = cf->get("telemetry:alertPrefix", "alerts");
+      // unit of alertMaxReplay is days
       m_alertMaxReplay = cf->getInt("telemetry:alertMaxReplay", 1, 1000, 10);
 
       return true;
@@ -226,7 +242,6 @@ public:
 
       m_queues.clean();
       m_engines.clean();
-      m_dbFn = DBFn{};
       return true;
     });
   }
@@ -327,13 +342,11 @@ public:
 
   // DB registration
  
-  void addDB(DBFn fn) {
-    invoke([this, fn = ZuMv(fn)]() mutable {
-      m_dbFn = ZuMv(fn);
-    });
+  void addDB(DB *db) {
+    invoke([this, db = ZmMkRef(db)]() { m_db = ZuMv(db); });
   }
   void delDB() {
-    invoke([this]() { m_dbFn = DBFn{}; });
+    invoke([this]() { m_db = nullptr; });
   }
 
   // app RAG updates
@@ -946,57 +959,35 @@ private:
     dbQuery_(watch);
     if (!req.interval) delete watch;
   }
-  void dbQuery_(Watch *watch) {
-    if (!m_dbFn) return;
+  void dbQuery_(Watch *watch, bool update = false) {
+    if (!m_db) return;
     // these callbacks can execute async
-    m_dbFn(
-      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>{ZmMkRef(watch->link),
-	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DB> offset) {
-	  fbb.Finish(fbs::CreateTelemetry(fbb,
-		fbs::TelData::DB, offset.Union()));
-	  link->sendTelemetry(fbb);
-	}},
-      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>{ZmMkRef(watch->link),
-	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBHost> offset) {
-	  fbb.Finish(fbs::CreateTelemetry(fbb,
-		fbs::TelData::DBHost, offset.Union()));
-	  link->sendTelemetry(fbb);
-	}},
-      ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>{ZmMkRef(watch->link),
-	[](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBTable> offset) {
-	  fbb.Finish(fbs::CreateTelemetry(fbb,
-		fbs::TelData::DBTable, offset.Union()));
-	  link->sendTelemetry(fbb);
-	}},
-      false);
+    m_db->invoke([
+      db = ZmMkRef(m_db), link = ZmMkRef(watch->link), update
+    ]() mutable {
+      auto [ fbb, offset ] = db->telemetry(update);
+      fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DB, offset));
+      link->sendTelemetry(fbb.buf());
+      db->allHosts([link = ZuMv(link), update](const Host *host) {
+	auto [ fbb, offset ] = host->telemetry(update);
+	fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DBHost, offset));
+	link->sendTelemetry(fbb.buf());
+      });
+      db->all([
+	link = ZuMv(link), update
+      ](AnyTable *table, ZmFn<void(bool)> done) {
+	auto [ fbb, offset ] = table->telemetry(update);
+	fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DBTable, offset));
+	link->sendTelemetry(fbb.buf());
+	done(true);
+      });
+    });
   }
   void dbScan() {
     if (!m_watchLists[ReqType::DB].list.count_()) return;
     if (!m_dbFn) return;
     auto i = m_watchLists[ReqType::DB].list.readIterator();
-    while (auto watch = i.iterate()) {
-      // these callbacks can execute async
-      m_dbFn(
-	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DB>)>{ZmMkRef(watch->link),
-	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DB> offset) {
-	    fbb.Finish(fbs::CreateTelemetry(fbb,
-		  fbs::TelData::DB, offset.Union()));
-	    link->sendTelemetry(fbb);
-	  }},
-	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBHost>)>{ZmMkRef(watch->link),
-	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBHost> offset) {
-	    fbb.Finish(fbs::CreateTelemetry(fbb,
-		  fbs::TelData::DBHost, offset.Union()));
-	    link->sendTelemetry(fbb);
-	  }},
-	ZmFn<void(IOBuilder &, Zfb::Offset<fbs::DBTable>)>{ZmMkRef(watch->link),
-	  [](Link *link, IOBuilder &fbb, Zfb::Offset<fbs::DBTable> offset) {
-	    fbb.Finish(fbs::CreateTelemetry(fbb,
-		  fbs::TelData::DBTable, offset.Union()));
-	    link->sendTelemetry(fbb);
-	  }},
-	true);
-    }
+    while (auto watch = i.iterate()) dbQuery_(watch, true);
   }
 
   // app processing
@@ -1110,7 +1101,7 @@ private:
     // dequeue all alerts in-memory, send to all watchers
     while (ZmRef<IOBuf> buf = m_alertRing.shift()) {
       auto i = m_watchLists[ReqType::Alert].list.readIterator();
-      while (auto watch = i.iterate()) watch->link->send(buf);
+      while (auto watch = i.iterate()) watch->link->sendTelemetry(buf);
     }
   }
 
@@ -1124,7 +1115,7 @@ private:
   IOBuilder		m_fbb;
   Queues		m_queues;
   Engines		m_engines;
-  DBFn			m_dbFn;
+  ZmRef<Zdb>		m_db;
   WatchList		m_watchLists[ReqType::N];
   AlertRing		m_alertRing;		// in-memory ring of alerts
   AlertFile		m_alertFile;		// current file being written

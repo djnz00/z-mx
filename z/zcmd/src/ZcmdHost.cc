@@ -90,7 +90,7 @@ int ZcmdHost::processCmd(
     executed(1, ctx);
   }
 
-  IOBuilder fbb;
+  IOBuilder fbb; // FIXME
   fbb.Finish(Zcmd::fbs::CreateReqAck(
 	fbb, in->seqNo(), ctx.code, Zfb::Save::str(fbb, ctx.out)));
   sendFn(fbb.buf());

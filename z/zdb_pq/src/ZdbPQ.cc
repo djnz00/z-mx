@@ -912,8 +912,8 @@ void Store::open(
       });
       return;
     }
-    auto storeTbl =
-      new StoreTbls::Node{this, id, ZuMv(fields), ZuMv(keyFields), schema};
+    auto storeTbl = new StoreTbls::Node{
+      this, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
     m_storeTbls->addNode(storeTbl);
     storeTbl->open(ZuMv(openFn));
   });
@@ -1101,10 +1101,11 @@ static XField xField(
 
 StoreTbl::StoreTbl(
   Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-  const reflection::Schema *schema) :
+  const reflection::Schema *schema, BufAllocFn bufAllocFn) :
   m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
-  m_fieldMap{ZmHashParams(m_fields.length())}
+  m_fieldMap{ZmHashParams(m_fields.length())},
+  m_bufAllocFn{ZuMv(bufAllocFn)}
 {
   ZtCase::camelSnake(m_id, [this](const ZtString &id) { m_id_ = id; });
   const reflection::Object *rootTbl = schema->root_table();
@@ -2128,7 +2129,7 @@ void StoreTbl::close(CloseFn fn)
 
 void StoreTbl::warmup() { /* LATER */ }
 
-void StoreTbl::count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn)
+void StoreTbl::count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn)
 {
   ZmAssert(keyID < m_keyFields.length());
 
@@ -2156,7 +2157,7 @@ void StoreTbl::count(unsigned keyID, ZmRef<const AnyBuf> buf, CountFn countFn)
 
 void StoreTbl::select(
   bool selectRow, bool selectNext, bool inclusive,
-  unsigned keyID, ZmRef<const AnyBuf> buf,
+  unsigned keyID, ZmRef<const IOBuf> buf,
   unsigned limit, TupleFn tupleFn)
 {
   ZmAssert(keyID < m_keyFields.length());
@@ -2360,10 +2361,10 @@ inconsistent:
     s << "inconsistent select() result for table " << id;
   })));
 }
-ZmRef<AnyBuf> StoreTbl::select_save(
+ZmRef<IOBuf> StoreTbl::select_save(
   ZuArray<const Value> tuple, const XFields &xFields)
 {
-  IOBuilder fbb;
+  IOBuilder fbb{m_bufAllocFn()};
   fbb.Finish(saveTuple(fbb, xFields, tuple));
   return fbb.buf();
 }
@@ -2378,7 +2379,7 @@ void StoreTbl::select_failed(Work::Select &select, ZeMEvent e)
   });
 }
 
-void StoreTbl::find(unsigned keyID, ZmRef<const AnyBuf> buf, RowFn rowFn)
+void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
 {
   ZmAssert(keyID < m_keyFields.length());
 
@@ -2487,9 +2488,9 @@ inconsistent:
       })));
 }
 template <bool Recovery>
-ZmRef<AnyBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
+ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
 {
-  IOBuilder fbb;
+  IOBuilder fbb{m_bufAllocFn()};
   auto data = Zfb::Save::nest(fbb, [this, tuple](Zfb::Builder &fbb) mutable {
     tuple.offset(3); // skip un, sn, vn
     return saveTuple(fbb, m_xFields, tuple);
@@ -2558,7 +2559,7 @@ void StoreTbl::recover_failed(Work::Recover &recover, ZeMEvent e)
   find_failed_(ZuMv(recover.rowFn), ZuMv(e));
 }
 
-void StoreTbl::write(ZmRef<const AnyBuf> buf, CommitFn commitFn)
+void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 {
   /* ZeLOG(Debug, ([buf = buf.ptr()](auto &s) {
     s << "buf=" << ZuBoxPtr(buf).hex();

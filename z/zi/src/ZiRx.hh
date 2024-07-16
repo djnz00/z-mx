@@ -21,36 +21,38 @@
 
 // CRTP receiver
 
-template <typename Impl_, typename Buf_>
+template <typename Impl_, typename BufAlloc_>
 class ZiRx {
 public:
   using Impl = Impl_;
-  using Buf = Buf_;
+  using BufAlloc = BufAlloc_;
 
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
 
-  static auto impl(const Buf *buf) { return static_cast<Impl *>(buf->owner); }
+  static auto impl(const ZiIOBuf *buf) {
+    return static_cast<Impl *>(buf->owner);
+  }
 
   // I/O receiver
 
-  // int Hdr(const ZiIOContext &io, const Buf *buf)
+  // int Hdr(const ZiIOContext &io, const ZiIOBuf *buf)
   //   +ve - length of hdr+body
   //   INT_MAX - insufficient data
   //   -ve - disconnect
 
   // asynchronous (queued) receive from ZiIOContext
   //
-  // int Body(const ZiIOContext &io, ZmRef<Buf> buf)
+  // int Body(const ZiIOContext &io, ZmRef<ZiIOBuf> buf)
   //   0   - skip remaining data (defends against DOS)
   //   +ve - buffer consumed
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
   void recv(ZiIOContext &io) {
-    ZmRef<Buf> buf = new Buf{impl()};
+    ZmRef<ZiIOBuf> buf = new BufAlloc{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
-    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
+    io.init(ZiIOFn{ZuMv(buf), [](ZiIOBuf *buf, ZiIOContext &io) {
       unsigned len = io.offset += io.length;
       io.length = 0;
 
@@ -69,13 +71,13 @@ public:
       }
 
       // due to queuing, cannot recycle rx msg buffer for the next message
-      ZmRef<Buf> next;
+      ZmRef<ZiIOBuf> next;
       unsigned nextLen = len - frameLen;
       uint8_t *nextPtr = nullptr;
 
       // copy any trailing data that is (part of) the next message
       if (nextLen) {
-	next = new Buf{impl(buf)};
+	next = new BufAlloc{impl(buf)};
 	nextPtr = next->ensure(nextLen);
 	memcpy(nextPtr, io.ptr + frameLen, nextLen);
 	next->length = nextLen;
@@ -83,7 +85,7 @@ public:
       }
 
       // process body
-      frameLen = ZuInvoke<Body>(impl(buf), io, io.fn.mvObject<Buf>());
+      frameLen = ZuInvoke<Body>(impl(buf), io, io.fn.mvObject<ZiIOBuf>());
       if (ZuUnlikely(frameLen < 0)) {
 	io.disconnect();
 	return true;
@@ -92,7 +94,7 @@ public:
 
       // no trailing data - allocate blank next message
       if (!next) {
-	next = new Buf{impl(buf)};
+	next = new BufAlloc{impl(buf)};
 	nextPtr = next->data();
       }
 
@@ -108,16 +110,16 @@ public:
 
   // synchronous receive from ZiIOContext
   //
-  // int Body(const ZiIOContext &io, Buf *buf, unsigned len)
+  // int Body(const ZiIOContext &io, ZiIOBuf *buf, unsigned len)
   //   0   - skip remaining data (defends against DOS)
   //   +ve - length of hdr+body (may be <= that returned by Hdr())
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
   void recvSync(ZiIOContext &io) {
-    ZmRef<Buf> buf = new Buf{impl()};
+    ZmRef<ZiIOBuf> buf = new BufAlloc{impl()};
     auto ptr = buf->data();
     auto size = buf->size;
-    io.init(ZiIOFn{ZuMv(buf), [](Buf *buf, ZiIOContext &io) {
+    io.init(ZiIOFn{ZuMv(buf), [](ZiIOBuf *buf, ZiIOContext &io) {
       unsigned len = io.offset += io.length;
       io.length = 0;
 
@@ -158,7 +160,7 @@ public:
 
   // in-memory receiver
 
-  // int Hdr(const Buf *buf)
+  // int Hdr(const ZiIOBuf *buf)
   //   +ve - length of hdr+body
   //   INT_MAX - insufficient data
   //   -ve - disconnect
@@ -166,13 +168,13 @@ public:
   // asynchronous recv from memory
   // returns bytes consumed, -1 on error
   //
-  // int Body(ZmRef<Buf> buf)
+  // int Body(ZmRef<ZiIOBuf> buf)
   //   0   - skip remaining data (defends against DOS)
   //   +ve - buffer consumed
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
-  int recvMem(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
-    if (!buf) buf = new Buf{impl()};
+  int recvMem(const uint8_t *data, unsigned rxLen, ZmRef<ZiIOBuf> &buf) {
+    if (!buf) buf = new BufAlloc{impl()};
     unsigned oldLen = buf->length;
     unsigned len = oldLen + rxLen;
     auto rxData = buf->ensure(len);
@@ -186,13 +188,13 @@ public:
       if (len < static_cast<unsigned>(frameLen)) return 0;
 
       // due to queuing, cannot recycle rx msg buffer for the next message
-      ZmRef<Buf> next;
+      ZmRef<ZiIOBuf> next;
       unsigned nextLen = len - frameLen;
       uint8_t *nextPtr = nullptr;
 
       // copy any trailing data that is (part of) the next message
       if (nextLen) {
-	next = new Buf{impl()};
+	next = new BufAlloc{impl()};
 	nextPtr = next->ensure(nextLen);
 	memcpy(nextPtr, buf->data() + frameLen, nextLen);
 	next->length = nextLen;
@@ -214,17 +216,17 @@ public:
   // synchronous recv from memory (e.g. TLS)
   // returns bytes consumed, -1 on error
   //
-  // int Hdr(const Buf *buf)
+  // int Hdr(const ZiIOBuf *buf)
   //   >=0 - minimum size of body (may be 0)
   //   -ve - disconnect immediately
   //
-  // int Body(const Buf *buf, unsigned len)
+  // int Body(const ZiIOBuf *buf, unsigned len)
   //   0   - EOF, skip remaining data (defends against DOS)
   //   +ve - length of hdr+body (may be <= that returned by Hdr())
   //   -ve - disconnect immediately
   template <auto Hdr, auto Body>
-  int recvMemSync(const uint8_t *data, unsigned rxLen, ZmRef<Buf> &buf) {
-    if (!buf) buf = new Buf{impl()};
+  int recvMemSync(const uint8_t *data, unsigned rxLen, ZmRef<ZiIOBuf> &buf) {
+    if (!buf) buf = new BufAlloc{impl()};
     unsigned oldLen = buf->length;
     unsigned len = oldLen + rxLen;
     auto rxData = buf->ensure(len);

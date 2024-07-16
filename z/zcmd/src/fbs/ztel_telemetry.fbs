@@ -1,4 +1,8 @@
 include "zfb_types.fbs";
+include "zv_thread_priority.fbs";
+include "zv_engine_state.fbs";
+include "zv_link_state.fbs";
+include "zv_queue_type.fbs";
 include "zdb_telemetry.fbs";
 namespace Ztel.fbs
 enum RAG:int8 {
@@ -31,12 +35,6 @@ table HashTbl {			// == ZmHashTelemetry
   c_bits:uint8;
   linear:uint8;
 }
-enum ThreadPriority:int8 {	// == ZmThreadPriority
-  RealTime = 0,
-  High = 1,
-  Normal = 2,
-  Low = 3
-}
 table Thread {			// == ZmThreadTelemetry
   name:string;
   tid:uint64;
@@ -51,14 +49,6 @@ table Thread {			// == ZmThreadTelemetry
   priority:ThreadPriority;
   main:uint8;
   detached:uint8;
-}
-enum EngineState:int8 {		// == ZmEngineState
-  Stopped = 0,
-  Starting,
-  Running,
-  Stopping,
-  StartPending,
-  StopPending
 }
 table Mx {			// == ZiMxTelemetry
   id:string;
@@ -107,12 +97,6 @@ table Socket {			// == ZiCxnTelemetry
   flags:uint8;			// SocketFlags
   type:SocketType;
 }
-enum QueueType:int8 {
-  Thread = 0,
-  IPC,
-  Rx,
-  Tx
-}
 table Queue {
   id:string;
   seq_no:uint64;
@@ -124,19 +108,6 @@ table Queue {
   size:uint32;
   full:uint32;
   type:QueueType;
-}
-enum LinkState:int8 {
-  Down = 0,		// down (engine not started)
-  Disabled,		// intentionally down (admin/ops disabled)
-  Deleted,		// deleted (transient state, used to remove links)
-  Connecting,		// connecting (being brought up)
-  Up,			// up/running
-  ReconnectPending,	// reconnect pending following transient failure
-  Reconnecting,		// reconnecting following transient failure
-  Failed,		// failed (non-transient)
-  Disconnecting,	// disconnecting (being brought down)
-  ConnectPending,	// brought up while disconnecting
-  DisconnectPending	// brought down while connecting
 }
 table Link {
   id:string;

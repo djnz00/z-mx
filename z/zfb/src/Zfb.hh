@@ -50,26 +50,29 @@ using Builder = FlatBufferBuilder;
 
 // IOBuilder customizes FlatBufferBuilder with an allocator that
 // builds directly into a detachable IOBuf for transmission/persistence
-template <typename IOBuf_ = ZiIOBuf<>>
 class IOBuilder : public Allocator, public Builder {
 public:
-  enum { BufSize = IOBuf_::Size };
   enum { Align = 8 };
-  using IOBuf = IOBuf_;
 
-  IOBuilder() : Builder{BufSize & ~(Align - 1), this, false, Align} { }
+  IOBuilder() :
+    Builder{ZiIOBufAlloc<>::Size & ~(Align - 1), this, false, Align},
+    m_buf{new ZiIOBufAlloc<>{}} { }
+  IOBuilder(ZmRef<ZiIOBuf> buf) :
+    Builder{buf->size & ~(Align - 1), this, false, Align},
+    m_buf{ZuMv(buf)} { }
 
   IOBuilder(IOBuilder &&) = default;
   IOBuilder &operator =(IOBuilder &&) = default;
 
   // attach buffer to builder
-  void buf(ZmRef<IOBuf> buf) {
+  void buf(ZmRef<ZiIOBuf> buf) {
     buf->clear();
+    Builder::operator =(Builder{buf->size & ~(Align - 1), this, false, Align});
     m_buf = ZuMv(buf);
   }
 
   // detach buffer from builder
-  ZmRef<IOBuf> buf() {
+  ZmRef<ZiIOBuf> buf() {
     if (ZuUnlikely(!m_buf)) return nullptr;
     auto buf = ZuMv(m_buf);
     size_t size, skip;
@@ -81,11 +84,11 @@ public:
   }
 
   // read buffer without detaching
-  const IOBuf *cbuf() const { return m_buf.ptr(); }
+  const ZiIOBuf *cbuf() const { return m_buf.ptr(); }
 
 protected:
   uint8_t *allocate(size_t size) {
-    if (ZuLikely(!m_buf)) m_buf = new IOBuf{};
+    if (ZuUnlikely(!m_buf)) return nullptr;
     return m_buf->alloc(size);
   }
 
@@ -106,7 +109,7 @@ protected:
   }
 
 private:
-  ZmRef<IOBuf>	m_buf;
+  ZmRef<ZiIOBuf>	m_buf;
 };
 
 namespace Save {

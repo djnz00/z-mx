@@ -17,7 +17,7 @@
 
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvError.hh>
-#include <zlib/ZvTelemetry.hh>
+#include <zlib/ZvThreadParams.hh>
 
 class ZvInvalidMulticastIP : public ZvError {
 public:
@@ -93,7 +93,7 @@ struct ZvMxParams : public ZiMxParams {
 	  cf->getInt("nThreads", 1, 1024, sched.nThreads()));
       sched.stackSize(
 	  cf->getInt("stackSize", 16384, 2<<20, sched.stackSize()));
-      sched.priority(cf->getEnum<ZvTelemetry::ThreadPriority::Map>(
+      sched.priority(cf->getEnum<ZvThreadPriority::Map>(
 	    "priority", ZmThreadPriority::Normal));
       sched.partition(cf->getInt("partition", 0, ncpu - 1, 0));
       if (ZuString s = cf->get("quantum"))
@@ -116,7 +116,7 @@ struct ZvMxParams : public ZiMxParams {
 		  "stackSize", 0, INT_MAX, thread.stackSize()));
 	    if (ZuString s = threadCf->get("priority"))
 	      thread.priority(
-		  ZvEnum::s2v<ZvTelemetry::ThreadPriority::Map, false>(
+		  ZvEnum::s2v<ZvThreadPriority::Map, false>(
 		    "priority", s, ZmThreadPriority::Normal));
 	    thread.partition(threadCf->getInt(
 		  "partition", 0, INT_MAX, thread.partition()));
