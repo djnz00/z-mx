@@ -111,7 +111,7 @@ private:
   int processLogin(ZmRef<IOBuf> buf) {
     return this->app()->processLogin(
       ZuMv(buf),
-      Zum::LoginFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+      Zum::LoginFn{ZmMkRef(this), [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
 	this_->processLoginAck(ZuMv(buf));
       }});
   }
@@ -129,7 +129,7 @@ private:
   int processUserDB(ZmRef<IOBuf> buf) {
     return this->app()->processUserDB(
       m_session, ZuMv(buf),
-      Zum::ResponseFn{this, [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
+      Zum::ResponseFn{ZmMkRef(this), [](ZcmdSrvLink *this_, ZmRef<IOBuf> buf) {
 	this_->send(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::userDB()));
       }});
   }

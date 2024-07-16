@@ -57,9 +57,6 @@ using StopResult = ZuUnion<void, Event>;
 // stop callback
 using StopFn = ZmFn<void(StopResult)>;
 
-// buffer allocator
-using BufAllocFn = ZmFn<ZmRef<ZiIOBuf>()>;
-
 // opened table data
 // - (*) un and sn may refer to trailing deletions
 // - any Zdb data store needs to maintain a "most recent deletes" (MRD)
@@ -171,7 +168,7 @@ public:
       ZtMFields fields,			// fields
       ZtMKeyFields keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
-      BufAllocFn,			// buffer allocator
+      IOBufAllocFn,			// buffer allocator
       OpenFn) = 0;			// open result callback
 };
 

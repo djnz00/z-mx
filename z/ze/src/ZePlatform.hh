@@ -194,6 +194,7 @@ protected:
 public:
   template <typename S> void print(S &s) const {
     auto buf = ZmAlloc(ZeLogBuf, 1);
+    new (&buf[0]) ZeLogBuf{};
     fn()(buf[0], *this);
     s << buf[0];
   }

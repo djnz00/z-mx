@@ -32,7 +32,7 @@ class DB;
 
 // --- I/O buffer
 
-inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
+inline constexpr const char *IOBuf_HeapID() { return "Zdb.IOBuf"; }
 
 struct IOBuf_ : public ZiIOBuf {
   mutable void	*typed = nullptr;	// points to typed Buf<T>
@@ -54,6 +54,8 @@ struct IOBuf_ : public ZiIOBuf {
 };
 
 inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
+  ZmAssert(static_cast<const void *>(buf.hdr()) ==
+    reinterpret_cast<const void *>((buf.ZiIOBuf::data__ & ~ZiIOBuf::Jumbo) + buf.ZiIOBuf::skip));
   return record_(msg_(buf.hdr()))->un();
 }
 
@@ -100,7 +102,7 @@ private:
 template <unsigned Size, auto HeapID>
 using IOBuf_Heap = ZmHeap<HeapID, sizeof(IOBufAlloc__<Size, ZuNull>)>;
  
-template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = Buf_HeapID>
+template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = IOBuf_HeapID>
 using IOBufAlloc_ = IOBufAlloc__<Size, IOBuf_Heap<Size, HeapID>>;
 
 inline constexpr const unsigned BuiltinSize(unsigned Size) {
@@ -116,12 +118,14 @@ inline constexpr const unsigned BuiltinSize(unsigned Size) {
 };
 
 template <unsigned Size>
-using IOBufAlloc = IOBufAlloc_<BuiltinSize(Size), Buf_HeapID>;
+using IOBufAlloc = IOBufAlloc_<BuiltinSize(Size), IOBuf_HeapID>;
 
 // ensure cache line alignment
 ZuAssert(!((sizeof(IOBufAlloc<1>)) & (Zm::CacheLineSize - 1)));
 
 using RxBufAlloc = IOBufAlloc<ZiIOBuf_DefaultSize>;
+
+typedef ZmRef<IOBuf> (*IOBufAllocFn)();
 
 } // Zdb_
 

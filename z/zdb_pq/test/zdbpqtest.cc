@@ -11,6 +11,7 @@
 #include <zlib/ZeLog.hh>
 
 #include <zlib/ZvCf.hh>
+#include <zlib/ZvMxParams.hh>
 
 #include <zlib/Zdb.hh>
 
@@ -142,8 +143,8 @@ int main(int argc, char **argv)
   try {
     ZeError e;
 
-    appMx = new ZmScheduler(ZmSchedParams().nThreads(1));
-    dbMx = new ZiMultiplex(ZvMxParams{"dbMx", cf->getCf<true>("dbMx")});
+    appMx = new ZmScheduler{ZmSchedParams().nThreads(1)};
+    dbMx = new ZiMultiplex{ZvMxParams{"dbMx", cf->getCf<true>("dbMx")}};
 
     appMx->start();
     if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");

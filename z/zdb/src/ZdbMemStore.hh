@@ -1160,7 +1160,7 @@ class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
     ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema, BufAllocFn bufAllocFn
+    const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
     m_id{id},
     m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
@@ -1458,7 +1458,7 @@ private:
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
   IndexUN		m_indexUN;
   ZtArray<Index>	m_indices;
-  BufAllocFn		m_bufAllocFn;
+  IOBufAllocFn		m_bufAllocFn;
 
   bool			m_opened = false;
 
@@ -1504,7 +1504,7 @@ public:
       ZtMFields fields,
       ZtMKeyFields keyFields,
       const reflection::Schema *schema,
-      BufAllocFn bufAllocFn,
+      IOBufAllocFn bufAllocFn,
       OpenFn openFn) {
     StoreTblNode *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {

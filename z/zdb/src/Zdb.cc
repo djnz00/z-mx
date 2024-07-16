@@ -1463,12 +1463,13 @@ void DB::replicated(Host *host, ZuID dbID, UN un, SN sn)
   }
 }
 
-AnyTable::AnyTable(DB *db, TableCf *cf) :
+AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_db{db}, m_cf{cf}, m_mx{db->mx()},
   m_storeDLQ{
     ZmXRingParams{}.initial(StoreDLQ_BlkSize).increment(StoreDLQ_BlkSize)},
   m_cacheUN{new CacheUN{}},
-  m_bufCacheUN{new BufCacheUN{}}
+  m_bufCacheUN{new BufCacheUN{}},
+  m_bufAllocFn{ZuMv(fn)}
 {
 }
 
@@ -1647,8 +1648,7 @@ void AnyTable::open(L l)
   }
 
   db()->store()->open(
-    id(), objFields(), objKeyFields(), objSchema(),
-    BufAllocFn::Member<&AnyTable::allocBuf>::fn(this),
+    id(), objFields(), objKeyFields(), objSchema(), m_bufAllocFn,
     [this, l = ZuMv(l)](OpenResult result) mutable {
       invoke([this, l = ZuMv(l), result = ZuMv(result)]() mutable {
 	l(opened(ZuMv(result)));

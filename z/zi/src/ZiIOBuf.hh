@@ -59,7 +59,7 @@ protected:
     size{size_}, length{length_} { }
 
 public:
-  virtual ~ZiIOBuf() { if (ZuUnlikely(data__ & Jumbo)) vfree(data()); }
+  virtual ~ZiIOBuf() { if (ZuUnlikely(data__ & Jumbo)) vfree(data_()); }
 
 private:
   ZiIOBuf(const ZiIOBuf &buf) = delete;
@@ -71,7 +71,7 @@ private:
     return reinterpret_cast<uint8_t *>(data__ & ~Jumbo);
   }
   inline const uint8_t *data_() const {
-    return const_cast<ZiIOBuf *>(this)->data();
+    return const_cast<ZiIOBuf *>(this)->data_();
   }
 
 public:
@@ -84,7 +84,7 @@ public:
     if (ZuLikely(newSize <= size)) return data();
     if (auto jumbo = static_cast<uint8_t *>(valloc(newSize))) {
       size = newSize;
-      if (ZuUnlikely(data__ & Jumbo)) vfree(data());
+      if (ZuUnlikely(data__ & Jumbo)) vfree(data_());
       data__ = reinterpret_cast<uintptr_t>(jumbo) | Jumbo;
       return jumbo;
     }
@@ -94,7 +94,7 @@ public:
 
   void free(uint8_t *ptr) {
     if (!(data__ & Jumbo) && ptr == data_()) return;
-    if (ptr == data()) { data__ = 0; length = size = 0; }
+    if (ptr == data_()) { data__ = 0; length = size = 0; }
     vfree(ptr);
   }
 

@@ -896,13 +896,14 @@ void Store::open(
   ZtMFields fields,
   ZtMKeyFields keyFields,
   const reflection::Schema *schema,
+  IOBufAllocFn bufAllocFn,
   OpenFn openFn)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
   pqRun([
     this, id, fields = ZuMv(fields), keyFields = ZuMv(keyFields),
-    schema, openFn = ZuMv(openFn)
+    schema, bufAllocFn = ZuMv(bufAllocFn), openFn = ZuMv(openFn)
   ]() mutable {
     if (stopping()) {
       zdbRun([id, openFn = ZuMv(openFn)]() mutable {
@@ -1101,7 +1102,7 @@ static XField xField(
 
 StoreTbl::StoreTbl(
   Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-  const reflection::Schema *schema, BufAllocFn bufAllocFn) :
+  const reflection::Schema *schema, IOBufAllocFn bufAllocFn) :
   m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
   m_fieldMap{ZmHashParams(m_fields.length())},
@@ -2364,7 +2365,7 @@ inconsistent:
 ZmRef<IOBuf> StoreTbl::select_save(
   ZuArray<const Value> tuple, const XFields &xFields)
 {
-  IOBuilder fbb{m_bufAllocFn()};
+  Zfb::IOBuilder fbb{m_bufAllocFn()};
   fbb.Finish(saveTuple(fbb, xFields, tuple));
   return fbb.buf();
 }
@@ -2490,7 +2491,7 @@ inconsistent:
 template <bool Recovery>
 ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
 {
-  IOBuilder fbb{m_bufAllocFn()};
+  Zfb::IOBuilder fbb{m_bufAllocFn()};
   auto data = Zfb::Save::nest(fbb, [this, tuple](Zfb::Builder &fbb) mutable {
     tuple.offset(3); // skip un, sn, vn
     return saveTuple(fbb, m_xFields, tuple);

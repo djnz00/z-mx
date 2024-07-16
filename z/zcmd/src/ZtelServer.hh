@@ -68,6 +68,7 @@ private:
     struct Fmt : public ZuDateTimeFmt::CSV { Fmt() { tzOffset(timezone); } };
     auto &dateFmt = ZmTLS<Fmt>();
     auto buf = ZmAlloc(ZeLogBuf, 1);
+    new (&buf[0]) ZeLogBuf{};
     buf[0] << ZuDateTime{Zm::now()}.fmt(dateFmt) <<
       " FATAL " << m_path << (index ? ".idx" : "") <<
       ": " << message << '\n';

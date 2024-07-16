@@ -29,7 +29,7 @@ class StoreTbl : public ZdbMem::StoreTbl {
 public:
   StoreTbl(
     ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema, BufAllocFn bufAllocFn
+    const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) : ZdbMem::StoreTbl{
     id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
   } { }

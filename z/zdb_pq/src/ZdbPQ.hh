@@ -1723,7 +1723,7 @@ friend Store;
 public:
   StoreTbl(
     Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
-    const reflection::Schema *schema, BufAllocFn bufAllocFn);
+    const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
   auto id() const { return m_id; }
@@ -1853,7 +1853,7 @@ private:
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key
   FieldMap		m_fieldMap;
-  BufAllocFn		m_bufAllocFn;
+  IOBufAllocFn		m_bufAllocFn;
 
   OpenState		m_openState;
   OpenFn		m_openFn;	// open callback
@@ -1887,6 +1887,7 @@ public:
     ZtMFields fields,
     ZtMKeyFields keyFields,
     const reflection::Schema *schema,
+    IOBufAllocFn bufAllocFn,
     OpenFn openFn);
 
   bool stopping() const { return m_stopFn; }

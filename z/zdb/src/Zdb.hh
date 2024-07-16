@@ -128,9 +128,9 @@ friend DB;
 friend Host;
 friend AnyTable;
 
-  using Buf = Zdb_::RxBufAlloc; // de-conflict with ZiConnection
+  using BufAlloc = Zdb_::RxBufAlloc;
 
-  using Rx = ZiRx<Cxn_, Buf>;
+  using Rx = ZiRx<Cxn_, BufAlloc>;
   using Tx = ZiTx<Cxn_>;
 
   using Rx::recv; // de-conflict with ZiConnection
@@ -549,7 +549,7 @@ friend Record_Print;	// uses objPrintFB
   using StoreDLQ = ZmXRing<ZmRef<const IOBuf>>;
 
 protected:
-  AnyTable(DB *db, TableCf *cf);
+  AnyTable(DB *db, TableCf *cf, IOBufAllocFn);
 
 public:
   ~AnyTable();
@@ -563,6 +563,7 @@ public:
   DB *db() const { return m_db; }
   ZiMultiplex *mx() const { return m_mx; }
   const TableCf &config() const { return *m_cf; }
+  IOBufAllocFn bufAllocFn() const { return m_bufAllocFn; }
 
   static ZuID IDAxor(AnyTable *table) { return table->config().id; }
 
@@ -582,8 +583,8 @@ public:
   // record count - SWMR
   uint64_t count() const { return m_count.load_(); }
 
-  // buffer allocator
-  virtual ZmRef<IOBuf> allocBuf() = 0;
+  // allocate I/O buffer
+  ZmRef<IOBuf> allocBuf() { return m_bufAllocFn(); }
 
 private:
   IOBuf *findBufUN(UN un) {
@@ -713,13 +714,18 @@ private:
 
   // buffer cache indexed by UN
   ZmRef<BufCacheUN>	m_bufCacheUN;
+
+  // I/O buffer allocation
+  IOBufAllocFn		m_bufAllocFn;
 };
 
-// typed I/O buffer base
+// replication buffer base
+// - replication buffers contain a reference to the underlying I/O buffer
+// - type information permits type-specific key indexing and caching
 template <typename T_>
 struct Buf_ : public ZmPolymorph {
   ZmRef<const IOBuf>	buf;
-  bool			stale = false;
+  bool			stale = false;	// true if outdated by subsequent txn
 
   Buf_(ZmRef<const IOBuf> buf_) : buf{ZuMv(buf_)} { buf->typed = this; }
 
@@ -761,6 +767,9 @@ struct Buf_ : public ZmPolymorph {
   // override printing
   friend ZtFieldPrint ZuPrintType(Buf_ *);
 };
+
+// buffer heap ID
+inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 
 // buffer cache
 template <typename T>
@@ -887,7 +896,9 @@ private:
   using MemberKey = typename SplitKey<T, KeyID>::MemberKey;
 
 public:
-  Table(DB *db, TableCf *cf) : AnyTable{db, cf} {
+  static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
+
+  Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} {
     ZuUnroll::all<KeyIDs>([this](auto KeyID) {
       m_findDLQs.template p<ZuTypeIndex<Key<KeyID>, Keys>{}>(
 	new FindDLQ<Key<KeyID>>{
@@ -897,8 +908,6 @@ public:
   ~Table() = default;
 
   // buffer allocator
-  ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
-
 private:
   // objLoad(fbo) - construct object from flatbuffer (trusted source)
   ZmRef<Object<T>> objLoad(const IOBuf *buf) {
