@@ -29,6 +29,11 @@
 #include <zlib/zum_role_fbs.h>
 #include <zlib/zum_user_fbs.h>
 
+#include <zlib/zum_loginreq_fbs.h>
+#include <zlib/zum_loginack_fbs.h>
+#include <zlib/zum_request_fbs.h>
+#include <zlib/zum_reqack_fbs.h>
+
 namespace Zum {
 
 enum { IOBufSize = 128 }; // built-in buffer size

@@ -15,8 +15,8 @@ union ReqAckData {
   UserGet:UserList,
   UserAdd:UserPass,
   ResetPass:UserPass,
-  UserMod:UserData,
-  UserDel:Ack,
+  UserMod:User,
+  UserDel:User,
 
   RoleGet:RoleList,
   RoleAdd:Ack,

@@ -16,6 +16,11 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuCmp.hh>
 
+#include <zlib/Zfb.hh>
+
+#include <zlib/zdb_cache_mode_fbs.h>
+#include <zlib/zdb_host_state_fbs.h>
+
 namespace Zdb_ {
 
 // various upper limits
@@ -37,6 +42,34 @@ inline constexpr SN nullSN() { return ZuCmp<SN>::null(); }
 // record version number - negative indicates a deleted record
 using VN = int64_t;
 
+namespace CacheMode {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(DBCacheMode,
+    Normal,
+    All)
+}
+
+namespace HostState {
+  namespace fbs = Ztel::fbs;
+  ZfbEnumValues(DBHostState,
+    Instantiated,
+    Initialized,
+    Electing,
+    Active,
+    Inactive,
+    Stopping)
+}
+
+namespace ObjState {
+  ZtEnumValues(ObjState, int8_t,
+    Undefined = 0,
+    Insert,
+    Update,
+    Committed,
+    Delete,
+    Deleted);
+}
+
 } // Zdb_
 
 using ZdbUN = Zdb_::UN;
@@ -46,5 +79,9 @@ using ZdbSN = Zdb_::SN;
 using ZdbVN = Zdb_::VN;
 #define ZdbNullSN Zdb_::nullSN
 #define ZdbMaxSN Zdb_::maxSN
+
+namespace ZdbCacheMode = Zdb_::CacheMode;
+namespace ZdbHostState = Zdb_::HostState;
+namespace ZdbObjState = Zdb_::ObjState;
 
 #endif /* ZdbTypes_HH */

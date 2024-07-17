@@ -6,6 +6,15 @@ table UserID {
 table UserName {
   name:string;
 }
+union UserKey {
+  ID:UserID,
+  Name:UserName
+}
+table UserQuery {
+  user_key:UserKey;
+  inclusive:bool;
+  limit:uint16;
+}
 table User {
   id:uint64;
   name:string;
@@ -13,12 +22,6 @@ table User {
   secret:[ubyte];	// secret (random at user creation)
   roles:[string];	// roles
   failures:uint32;
-  flags:uint8;
-}
-table UserData {
-  id:uint64;
-  name:string;
-  roles:[string];
   flags:uint8;
 }
 table UserPass {	// ack for user add and reset

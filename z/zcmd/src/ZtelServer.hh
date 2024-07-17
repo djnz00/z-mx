@@ -25,15 +25,16 @@
 
 #include <zlib/Zdb.hh>
 
-#include <zlib/Zcmd.hh>
+// #include <zlib/Zcmd.hh>
 #include <zlib/Ztel.hh>
-
-#include <zlib/zv_telreq_fbs.h>
-#include <zlib/zv_telack_fbs.h>
 
 namespace Ztel {
 
 using namespace Zcmd;
+
+enum { AckIOBufSize = 32 }; // built-in I/O buffer size
+
+using AckIOBufAlloc = ZiIOBufAlloc<AckIOBufSize>;
 
 using QueueFn = ZvEngineMgr::QueueFn;
 
@@ -43,15 +44,15 @@ using QueueFn = ZvEngineMgr::QueueFn;
 //   network and database connectivity - these must be reliably stored
 //   using an independent mechanism
 // - each alert file corresponds to a single 24-hour period
-// - sequence numbers reset to 0 every 24 hours
 // - the data file is a sequence of flatbuffers that are ready to send
 // - each data file has an associated index file (.idx)
 // - the index file is a sequence of offsets in the data file, indexed by seqNo
+// - intra-file sequence numbers reset to 0 every 24 hours
 // - the most recent alerts within the current telemetry scan-interval
 //   are held in memory in a dynamically-sized ring buffer (ZmXRing)
 // - this mechanism provides guaranteed delivery up to alertMaxReplay days back
-// - downstream telemetry consumers can fan-in and persist alerts for
-//   dashboards, consolidated alerting, etc.
+// - downstream telemetry consumers can fan-in, index and persist alerts for
+//   dashboards, consolidated alerting, filtering/reporting, etc.
 
 class AlertFile {
   using BufRef = ZmRef<IOBuf>;
@@ -271,36 +272,25 @@ private:
   }
 
 public:
-  struct Request {
-    Server	*server;
-    ZmRef<Link>	link;
-    int		type;
-    unsigned	interval;
-    ZmIDString	filter;
-    bool	subscribe;
-  };
-
   void process(Link *link, Zum::Session *session, ZmRef<IOBuf> buf) {
-    // FIXME - get rid of Request structure, just move-capture buffer
-    invoke([req = Request{
-      this, link, int(in->type()), in->interval(),
-      Zfb::Load::str(in->filter()), in->subscribe()
-    }]() mutable { req.server->process_(req); });
+    invoke([
+      this, link = ZmMkRef(link), buf = ZuMv(buf)
+    ]() mutable { process_(ZuMv(link), ZuMv(buf)); });
   }
-  void process_(Request &req) {
-    // FIXME - operate on buffer
-    if (req.interval && req.interval < m_minInterval)
-      req.interval = m_minInterval;
-    switch (req.type) {
-      case ReqType::Heap:	heapQuery(req); break;
-      case ReqType::HashTbl:	hashQuery(req); break;
-      case ReqType::Thread:	threadQuery(req); break;
-      case ReqType::Mx:		mxQuery(req); break;
-      case ReqType::Queue:	queueQuery(req); break;
-      case ReqType::Engine:	engineQuery(req); break;
-      case ReqType::DB:		dbQuery(req); break;
-      case ReqType::App:	appQuery(req); break;
-      case ReqType::Alert:	alertQuery(req); break;
+  void process_(ZmRef<Link> link, ZmRef<IOBuf> buf) {
+    auto req = Zfb::GetRoot<ZTel::fbs::Request>(buf->data());
+    unsigned interval = req->interval();
+    if (interval && interval < m_minInterval) interval = m_minInterval;
+    switch (req->type()) {
+      case ReqType::Heap:	heapQuery(ZuMv(link), req, interval); break;
+      case ReqType::HashTbl:	hashQuery(ZuMv(link), req, interval); break;
+      case ReqType::Thread:	threadQuery(ZuMv(link), req, interval); break;
+      case ReqType::Mx:		mxQuery(ZuMv(link), req, interval); break;
+      case ReqType::Queue:	queueQuery(ZuMv(link), req, interval); break;
+      case ReqType::Engine:	engineQuery(ZuMv(link), req, interval); break;
+      case ReqType::DB:		dbQuery(ZuMv(link), req, interval); break;
+      case ReqType::App:	appQuery(ZuMv(link), req, interval); break;
+      case ReqType::Alert:	alertQuery(ZuMv(link), req, interval); break;
       default: break;
     }
   }
@@ -552,21 +542,21 @@ private:
 
   // heap processing
 
-  void heapQuery(const Request &req) {
+  void heapQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Heap];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->heapScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>{
       watch, [](Watch *watch, ZmHeapCache *heap) {
 	watch->link->app()->heapQuery_(watch, heap);
       }});
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void heapQuery_(Watch *watch, const ZmHeapCache *heap) {
     Heap data;
@@ -598,21 +588,21 @@ private:
 
   // hash table processing
 
-  void hashQuery(const Request &req) {
+  void hashQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::HashTbl];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->hashScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     ZmHashMgr::all(ZmFn<void(ZmAnyHash *)>{
       watch, [](Watch *watch, ZmAnyHash *tbl) {
 	watch->link->app()->hashQuery_(watch, tbl);
       }});
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void hashQuery_(Watch *watch, const ZmAnyHash *tbl) {
     HashTbl data;
@@ -644,20 +634,20 @@ private:
 
   // thread processing
 
-  void threadQuery(const Request &req) {
+  void threadQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Thread];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->threadScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     ZmSpecific<ZmThreadContext>::all([watch](ZmThreadContext *tc) {
       watch->link->app()->threadQuery_(watch, tc);
     });
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void threadQuery_(Watch *watch, const ZmThreadContext *tc) {
     Thread data;
@@ -688,20 +678,20 @@ private:
 
   // mx processing
 
-  void mxQuery(const Request &req) {
+  void mxQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Mx];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->mxScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     ZiMxMgr::all([watch](ZiMultiplex *mx) {
       watch->link->app()->mxQuery_(watch, mx);
     });
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void mxQuery_(Watch *watch, ZiMultiplex *mx) {
     Mx data;
@@ -840,19 +830,19 @@ private:
 	    (uint8_t)QueueType::IPC));
 #endif
 
-  void queueQuery(const Request &req) {
+  void queueQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Queue];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->queueScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     auto i = m_queues.readIterator();
     while (auto node = i.iterate()) queueQuery_(watch, node->val());
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void queueQuery_(Watch *watch, const QueueFn &fn) {
     Queue data;
@@ -881,21 +871,21 @@ private:
 
   // engine processing
 
-  void engineQuery(const Request &req) {
+  void engineQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Engine];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->engineScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     {
       auto i = m_engines.readIterator();
       while (auto node = i.iterate()) engineQuery_(watch, node->val());
     }
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void engineQuery_(Watch *watch, ZvEngine *engine) {
     Engine data;
@@ -947,18 +937,18 @@ private:
 
   // DB processing
 
-  void dbQuery(const Request &req) {
+  void dbQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::DB];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->dbScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     dbQuery_(watch);
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void dbQuery_(Watch *watch, bool update = false) {
     if (!m_db) return;
@@ -993,18 +983,18 @@ private:
 
   // app processing
 
-  void appQuery(const Request &req) {
+  void appQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::App];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->appScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     appQuery_(watch);
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void appQuery_(Watch *watch) {
     Ztel::App data;
@@ -1030,18 +1020,18 @@ private:
 
   // alert processing
 
-  void alertQuery(const Request &req) {
+  void alertQuery(ZmRef<link> link, fbs::Request *req, unsigned interval) {
     auto &list = m_watchLists[ReqType::Alert];
-    if (req.interval && !req.subscribe) {
-      unsubscribe(list, req.link, req.filter);
+    if (interval && !req->subscribe()) {
+      unsubscribe(list, ZuMv(link), Zfb::Load::str(req->filter()));
       return;
     }
-    auto watch = new Watch{req.link, req.filter};
-    if (req.interval)
+    auto watch = new Watch{ZuMv(link), Zfb::Load::str(req->filter())};
+    if (interval)
       this->subscribe<[](Server *server) { server->alertScan(); }>(
-	  list, watch, req.interval);
+	  list, watch, interval);
     alertQuery_(watch);
-    if (!req.interval) delete watch;
+    if (!interval) delete watch;
   }
   void alertQuery_(Watch *watch) {
     // parse filter - yyyymmdd:seqNo

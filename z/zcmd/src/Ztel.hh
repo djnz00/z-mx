@@ -17,9 +17,11 @@
 #include <zlib/ZvThreadParams.hh>
 #include <zlib/ZvEngine.hh>
 
-#include <zlib/ztel_telemetry_fbs.h>
+#include <zlib/ZdbTypes.hh>
+
 #include <zlib/ztel_request_fbs.h>
 #include <zlib/ztel_reqack_fbs.h>
+#include <zlib/ztel_telemetry_fbs.h>
 
 namespace Ztel {
 
@@ -33,6 +35,7 @@ namespace EngineState {
 
   int rag(int i) {
     using namespace RAG;
+    enum { N = ZvEngineState::N };
     if (i < 0 || i >= N) return Off;
     static const int values[N] =
       { Red, Amber, Green, Red, Amber, Red };
@@ -44,6 +47,7 @@ namespace LinkState {
 
   int rag(int i) {
     using namespace RAG;
+    enum { N = ZvLinkState::N };
     if (i < 0 || i >= N) return Off;
     static const int values[N] =
       { Red, Off, Off, Amber, Green, Amber, Amber, Red, Amber, Amber, Amber };
@@ -64,6 +68,7 @@ namespace DBHostState {
 
   int rag(int i) {
     using namespace RAG;
+    enum { N = ZdbHostState::N };
     if (i < 0 || i >= N) return Off;
     static const int values[N] = {
       Off, Amber, Amber, Green, Amber, Amber
@@ -260,7 +265,7 @@ struct Queue : public Queue_ {
 };
 ZfbFields(Queue,
     (((id), (Keys<0>, Ctor<0>)), (String)),
-    (((type), (Keys<0>, Ctor<9>, Enum<QueueType::Map>)), (Int8)),
+    (((type), (Keys<0>, Ctor<9>, Enum<ZvQueueType::Map>)), (Int8)),
     (((size), (Ctor<7>)), (UInt32)),
     (((full), (Ctor<8>, Mutable, Series, Delta)), (UInt32)),
     (((count), (Ctor<2>, Mutable, Series)), (UInt64)),

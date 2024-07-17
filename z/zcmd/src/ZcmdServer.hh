@@ -37,19 +37,9 @@
 
 #include <zlib/ZumServer.hh>
 
-#include <zlib/zum_loginreq_fbs.h>
-#include <zlib/zum_loginack_fbs.h>
-#include <zlib/zum_request_fbs.h>
-#include <zlib/zum_reqack_fbs.h>
-
-#include <zlib/zcmd_request_fbs.h>
-#include <zlib/zcmd_reqack_fbs.h>
-
 #include <zlib/Zcmd.hh>
-#include <zlib/ZcmdNet.hh>
 #include <zlib/ZcmdHost.hh>
 #include <zlib/ZcmdDispatcher.hh>
-#include <zlib/Ztel.hh>
 #include <zlib/ZtelServer.hh>
 
 template <typename App, typename Link> class ZcmdServer;
@@ -219,8 +209,6 @@ friend TLS;
   using TelServer::invoked;
   using TelServer::invoke;
 
-  enum { OutBufSize = 8000 }; // initial TLS buffer size
-
   struct UserDB : public ZuObject, public Zum::Server::UserDB {
     using Base = Zum::Server::UserDB;
     using Base::Base;
@@ -351,7 +339,7 @@ public:
       const auto &user = session->user->data();
       ZtString text = "permission denied";
       if (user.flags & User::ChPass) text << " (user must change password)\n";
-      IOBuilder fbb; // FIXME
+      Zfb::IOBuilder fbb;
       fbb.Finish(Zcmd::fbs::CreateReqAck(fbb,
 	  request->seqNo(), __LINE__, Zfb::Save::str(fbb, text)));
       link->send_(fbb.buf());
@@ -368,7 +356,7 @@ public:
 
     auto request = Zfb::GetRoot<ZTel::fbs::Request>(buf->data());
     if (m_telPerm < 0 || !m_userDB->ok(session, m_telPerm)) {
-      IOBuilder fbb; // FIXME
+      Zfb::IOBuilder fbb{new ZTel::AckIOBufAlloc{}};
       fbb.Finish(ZTel::fbs::CreateReqAck(fbb, request->seqNo(), false));
       link->send_(fbb.buf());
       return 1;

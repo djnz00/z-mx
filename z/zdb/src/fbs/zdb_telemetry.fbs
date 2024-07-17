@@ -1,9 +1,7 @@
 include "zfb_types.fbs";
+include "zdb_cache_mode.fbs";
+include "zdb_host_state.fbs";
 namespace Ztel.fbs;
-enum DBCacheMode:int8 {
-  Normal = 0,
-  All
-}
 table DBTable {
   name:string;
   thread:string;
@@ -13,14 +11,6 @@ table DBTable {
   cache_size:uint32;
   cache_mode:DBCacheMode;
   warmup:uint8;
-}
-enum DBHostState:int8 {
-  Instantiated = 0,	// instantiated, init() not yet called
-  Initialized,		// init() or close() completed
-  Electing,		// start() called, determining active/inactive
-  Active,		// active (leader)
-  Inactive,		// inactive (client)
-  Stopping		// stop() in process
 }
 table DBHost {
   ip:Zfb.IP;

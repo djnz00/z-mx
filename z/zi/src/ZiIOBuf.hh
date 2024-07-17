@@ -123,7 +123,7 @@ public:
     if (ZuUnlikely(n > length)) n = length;
     skip += n, length -= n;
   }
-  void rewind(unsigned n) { // reverses skip - use prepend to grow buffer
+  void rewind(unsigned n) { // reverses advance - use prepend to grow buffer
     if (ZuUnlikely(!n)) return;
     if (ZuUnlikely(n > skip)) n = skip;
     skip -= n, length += n;

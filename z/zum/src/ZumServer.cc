@@ -1007,9 +1007,9 @@ void UserDB::userMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "user ID " << fbUser->id() << " is immutable"));
 	return;
       }
-      if (auto name = Zfb::Load::str(fbUser->name()))
-	user.name = name;
-      if (fbUser->roles()->size()) {
+      if (Zfb::IsFieldPresent(fbUser, fbs::UserData::VT_NAME))
+	user.name = Zfb::Load::str(fbUser->name());
+      if (Zfb::IsFieldPresent(fbUser, fbs::UserData::VT_ROLES))
 	user.roles.length(0);
 	user.roles.size(fbUser->roles()->size());
 	Zfb::Load::all(fbUser->roles(),

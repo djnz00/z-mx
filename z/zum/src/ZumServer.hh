@@ -21,11 +21,6 @@
 
 #include <zlib/Zum.hh>
 
-#include <zlib/zum_loginreq_fbs.h>
-#include <zlib/zum_loginack_fbs.h>
-#include <zlib/zum_request_fbs.h>
-#include <zlib/zum_reqack_fbs.h>
-
 namespace Zum::Server {
 
 class UserDB;

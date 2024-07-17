@@ -5,6 +5,15 @@ table PermID {
 table PermName {
   name:string;
 }
+union PermKey {
+  ID:PermID,
+  Name:PermName
+}
+table PermQuery {
+  perm_key:PermKey;
+  inclusive:bool;
+  limit:uint16;
+}
 table Perm {
   id:uint32;	// index in bitmap
   name:string;

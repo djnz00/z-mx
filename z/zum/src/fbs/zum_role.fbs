@@ -3,6 +3,11 @@ namespace Zum.fbs;
 table RoleID {
   name:string;
 }
+table RoleQuery {
+  role_key:string;
+  inclusive:bool;
+  limit:uint16;
+}
 table Role {
   name:string;
   perms:Zfb.Bitmap;	// bitmap

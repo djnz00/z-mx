@@ -14,7 +14,6 @@
 #endif
 
 #include <zlib/ZuString.hh>
-#include <zlib/ZuMStream.hh>
 
 #include <zlib/ZmPolymorph.hh>
 #include <zlib/ZmRef.hh>
@@ -29,15 +28,19 @@
 class ZcmdHost;
 class ZcmdDispatcher;
 namespace Ztls { class Random; }
-namespace Zum { struct Session; }
 
 struct ZcmdContext {
-  ZcmdHost		*host = nullptr;
-  Zum::Session		*session = nullptr;
-  IOFn			sendFn;
+  ZcmdHost		*app_ = nullptr;	
+  void			*link_ = nullptr;	// opaque to plugin
   ZmRef<ZvCf>		args;
-  ZuMStream		out;
+  FILE			*file = nullptr;	// file output
+  ZtString		out;			// string output
   int			code = 0;		// result code
+  bool			interactive = false;	// true unless scripted
+
+  template <typename T = ZcmdHost>
+  auto app() { return static_cast<T *>(app_); }
+  template <typename T> auto link() { return static_cast<T *>(link_); }
 };
 
 // command handler (context)
@@ -55,7 +58,7 @@ public:
 
   bool hasCmd(ZuString name);
 
-  int processCmd(Zum::Session *, ZmRef<IOBuf>, ZmFn<void(ZmRef<IOBuf>)>);
+  void processCmd(ZcmdContext *, ZuArray<const ZtString> args);
 
   void finalFn(ZmFn<>);
 
@@ -66,7 +69,7 @@ public:
   virtual void executed(ZcmdContext *) { }
 
   virtual ZcmdDispatcher *dispatcher() { return nullptr; }
-  virtual void send(void *link, ZmRef<ZiAnyIOBuf>) { }
+  virtual void send(void *link, ZmRef<ZiIOBuf>) { }
 
   virtual void target(ZuString) { }
   virtual ZtString getpass(ZuString prompt, unsigned passLen) { return {}; }

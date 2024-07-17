@@ -86,6 +86,8 @@
 #include <zlib/ZdbMsg.hh>
 #include <zlib/ZdbStore.hh>
 
+#include <zlib/zdb_telemetry_fbs.h>
+
 #if defined(ZDEBUG) && !defined(Zdb_DEBUG)
 #define Zdb_DEBUG 1
 #endif
@@ -96,8 +98,6 @@
 #else
 #define ZdbDEBUG(db, e) (void())
 #endif
-
-#include <zlib/zdb_telemetry_fbs.h>
 
 // type-specific buffer size - specialize to override default
 template <typename>
@@ -267,30 +267,7 @@ struct DBState : public DBState_ {
   friend ZuPrintFn ZuPrintType(DBState *);
 };
 
-// --- replication message printing
-
-namespace HostState {
-  namespace fbs = Ztel::fbs;
-  ZfbEnumValues(DBHostState,
-    Instantiated,
-    Initialized,
-    Electing,
-    Active,
-    Inactive,
-    Stopping)
-}
-
 // --- generic object
-
-namespace ObjState {
-  ZtEnumValues(ObjState, int8_t,
-    Undefined = 0,
-    Insert,
-    Update,
-    Committed,
-    Delete,
-    Deleted);
-}
 
 const char *Object_HeapID() { return "Zdb.Object"; }
 
@@ -502,13 +479,6 @@ struct Object : public Cache<T>::Node {
 };
 
 // --- table configuration
-
-namespace CacheMode {
-  namespace fbs = Ztel::fbs;
-  ZfbEnumValues(DBCacheMode,
-    Normal,
-    All)
-}
 
 struct TableCf {
   ZuID			id;
@@ -2099,8 +2069,5 @@ using ZdbDownFn = Zdb_::DownFn;
 using ZdbHandler = Zdb_::DBHandler;
 
 using ZdbHost = Zdb_::Host;
-
-namespace ZdbCacheMode = Zdb_::CacheMode;
-namespace ZdbHostState = Zdb_::HostState;
 
 #endif /* Zdb_HH */

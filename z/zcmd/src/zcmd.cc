@@ -10,6 +10,8 @@
 
 #include <zlib/ZuPolymorph.hh>
 #include <zlib/ZuByteSwap.hh>
+#include <zlib/ZuBase32.hh>
+#include <zlib/ZuBase64.hh>
 
 #include <zlib/ZmPlatform.hh>
 #include <zlib/ZmTrap.hh>
@@ -19,17 +21,17 @@
 
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvCSV.hh>
-#include <zlib/ZcmdClient.hh>
-#include <zlib/ZcmdHost.hh>
-#include <zlib/ZvUserDB.hh>
 
-#include <zlib/ZuBase32.hh>
-#include <zlib/ZuBase64.hh>
 #include <zlib/ZtlsTOTP.hh>
 
 #include <zlib/ZrlCLI.hh>
 #include <zlib/ZrlGlobber.hh>
 #include <zlib/ZrlHistory.hh>
+
+#include <zlib/Zum.hh>
+
+#include <zlib/ZcmdClient.hh>
+#include <zlib/ZcmdHost.hh>
 
 #ifdef _MSC_VER
 #pragma warning(disable:4800)
@@ -159,7 +161,6 @@ class ZCmd :
     public ZcmdHost {
 public:
   using Base = ZcmdClient<ZCmd, Link>;
-  using FBB = typename Base::FBB;
 
 friend Link;
 
@@ -258,7 +259,7 @@ friend Link;
 
   // ZcmdHost virtual functions
   ZcmdDispatcher *dispatcher() { return this; }
-  void send(void *link, ZmRef<ZiAnyIOBuf> buf) {
+  void send(void *link, ZmRef<ZiIOBuf> buf) {
     return static_cast<Link *>(link)->send(ZuMv(buf));
   }
   void target(ZuString s) {
@@ -304,13 +305,13 @@ private:
   }
 
   enum {
-    ReqTypeN = ZcmdTelemetry::ReqType::N,
-    TelDataN = ZcmdTelemetry::TelData::N
+    ReqTypeN = Ztel::ReqType::N,
+    TelDataN = Ztel::TelData::N
   };
 
   int processTelemetry(const uint8_t *data, unsigned len) {
     using namespace Zfb;
-    using namespace ZcmdTelemetry;
+    using namespace Ztel;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyTelemetryBuffer(verifier)) return -1;
@@ -401,10 +402,11 @@ private:
 
   void send(ZcmdContext *ctx, ZuArray<const ZtString> args) {
     auto seqNo = m_seqNo++;
-    m_fbb.Finish(Zcmd::fbs::CreateRequest(m_fbb, seqNo,
-	  Zfb::Save::strVecIter(m_fbb, args.length(),
+    Zfb::IOBuilder fbb;
+    fbb.Finish(Zcmd::fbs::CreateRequest(fbb, seqNo,
+	  Zfb::Save::strVecIter(fbb, args.length(),
 	    [&args](unsigned i) { return args[i]; })));
-    m_link->sendCmd(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendCmd(fbb.buf(), seqNo, [this, ctx = ZuMv(*ctx)](
 	  const Zcmd::fbs::ReqAck *ack) mutable {
       using namespace Zfb::Load;
       ctx.out = str(ack->out());
@@ -426,10 +428,10 @@ private:
 
   int filterAck(
       ZtString &out,
-      const ZvUserDB::fbs::ReqAck *ack,
+      const Zum::fbs::ReqAck *ack,
       int ackType1, int ackType2,
       const char *op) {
-    using namespace ZvUserDB;
+    using namespace Zum;
     if (ack->rejCode()) {
       out << '[' << ZuBox<unsigned>(ack->rejCode()) << "] "
 	<< Zfb::Load::str(ack->rejText());
@@ -453,9 +455,17 @@ private:
 	ZcmdFn::Member<&ZCmd::passwdCmd>::fn(this),
 	"change passwd", "usage: passwd");
 
-    addCmd("users", "",
+    addCmd("users",
+        "id i i { param id } "
+        "name n n { param name } "
+	"exclusive x x { param exclusive } "
+	"limit l l { param limit }",
 	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
-	"list users", "usage: users");
+	"list users", "usage: users [OPTIONS...]\n\n"
+	"  -i, --id=ID\t\tquery from user ID\n"
+	"  -n, --name=NAME\t\tquery from user NAME\n"
+	"  -x, --exclusive\texclude ID|NAME from results\n"
+	"  -l, --limit=N\t\tlimit results to N\n");
     addCmd("useradd",
 	"enabled e e { flag enabled } "
 	"immutable i i { flag immutable }",
@@ -558,16 +568,18 @@ private:
       return;
     }
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::ChPass,
-	    fbs::CreateUserChPass(m_fbb,
-	      str(m_fbb, oldpw),
-	      str(m_fbb, newpw)).Union()));
+	    fbs::CreateUserChPass(fbb,
+	      str(fbb, oldpw),
+	      str(fbb, newpw)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       if (int code = filterAck(
 	  ctx.out, ack, int(fbs::ReqAckData::ChPass), -1, "password change")) {
@@ -575,65 +587,47 @@ private:
 	return;
       }
       auto &out = ctx.out;
-      auto userAck = static_cast<const fbs::UserAck *>(ack->data());
-      if (!userAck->ok()) {
-	out << "password change rejected\n";
-	executed(1, &ctx);
-	return;
-      }
       out << "password changed\n";
       executed(0, &ctx);
     });
   }
 
-  static void printUser(ZtString &out, const ZvUserDB::fbs::User *user_) {
-    using namespace ZvUserDB;
-    using namespace Zfb::Load;
-    auto hmac_ = bytes(user_->hmac());
-    ZtString hmac;
-    hmac.length(ZuBase64::enclen(hmac_.length()));
-    ZuBase64::encode(hmac, hmac_);
-    auto secret_ = bytes(user_->secret());
-    ZtString secret;
-    secret.length(ZuBase32::enclen(secret_.length()));
-    ZuBase32::encode(secret, secret_);
-    out << user_->id() << ' ' << str(user_->name()) << " roles=[";
-    all(user_->roles(), [&out](unsigned i, auto role_) {
-      if (i) out << ',';
-      out << str(role_);
-    });
-    out << "] hmac=" << hmac << " secret=" << secret << " flags=";
-    bool pipe = false;
-    if (user_->flags() & User::Enabled) {
-      out << "Enabled";
-      pipe = true;
-    }
-    if (user_->flags() & User::Immutable) {
-      if (pipe) out << '|';
-      out << "Immutable";
-      pipe = true;
-    }
-    if (user_->flags() & User::ChPass) {
-      if (pipe) out << '|';
-      out << "ChPass";
-      // pipe = true;
-    }
-  }
-
   void usersCmd(ZcmdContext *ctx) {
-    ZuBox<int> argc = ctx->args->get("#");
-    if (argc < 1 || argc > 2) throw ZcmdUsage{};
+    ZuUnion<void, uint64_t, ZtString> key;
+    bool exclusive;
+    unsigned limit;
+    try {
+      ctx->args->getInt<true>("#", 1, 1);
+      if (auto id = ctx->args->get("id"))
+	*(key.new_<uint64_t>()) = ZuBox<uint64_t>{id};
+      else if (auto name = ctx->args->get("name"))
+	new (key.new_<ZtString>()) ZtString{name};
+      exclusive = ctx->args->getBool("exclusive", false);
+      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
+    } catch (...) { throw ZcmdUsage{}; }
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      fbs::UserIDBuilder fbb_(m_fbb);
-      if (argc == 2) fbb_.add_id(ctx->args->getInt64<true>("1", 0, LLONG_MAX));
-      auto userID = fbb_.Finish();
-      m_fbb.Finish(fbs::CreateRequest(
-	  m_fbb, seqNo, fbs::ReqData::UserGet, userID.Union()));
+      Zfb::IOBuilder fbb;
+      fbs::UserQueryBuilder fbb_(fbb);
+      if (key.is<uint64_t>()) {
+	fbb_.add_userKey_type(fbs::UserKey::ID);
+	fbb_.add_userKey(fbs::CreateUserID(fbb, key.p<uint64_t>()).Union());
+      } else if (key.is<ZtString>()) {
+	fbb_.add_userKey_type(fbs::UserKey::Name);
+	fbb_.add_userKey(
+	  fbs::CreateUserName(fbb,
+	    Zfb::Save::str(fbb, key.p<ZtString>())).Union());
+      }
+      fbb_.add_inclusive(!exclusive);
+      fbb_.add_limit(limit);
+      auto userQuery = fbb_.Finish();
+      fbb.Finish(fbs::CreateRequest(
+	  fbb, seqNo, fbs::ReqData::UserGet, userQuery.Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -644,7 +638,7 @@ private:
       auto userList = static_cast<const fbs::UserList *>(ack->data());
       using namespace Zfb::Load;
       all(userList->list(), [&out](unsigned, auto user_) {
-	printUser(out, user_); out << '\n';
+	out << *user_ << '\n';
       });
       executed(0, &ctx);
       return;
@@ -654,24 +648,28 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       uint8_t flags = 0;
-      if (ctx->args->get("enabled")) flags |= User::Enabled;
-      if (ctx->args->get("immutable")) flags |= User::Immutable;
+      if (ctx->args->get("enabled")) flags |= UserFlags::Enabled();
+      if (ctx->args->get("immutable")) flags |= UserFlags::Immutable();
       ZtRegex::Captures roles;
       ZtREGEX(",").split(ctx->args->get("3"), roles);
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
-	    fbs::ReqData::UserAdd,
-	    fbs::CreateUser(m_fbb,
-	      ctx->args->getInt64<true>("1", 0, LLONG_MAX),
-	      str(m_fbb, ctx->args->get("2")), 0, 0,
-	      strVecIter(m_fbb, roles.length(),
-		[&roles](unsigned i) { return roles[i]; }),
-	      flags).Union()));
+      Zfb::IOBuilder fbb;
+      auto fbName = str(fbb, ctx->args->get("1"));
+      auto fbRoles = strVecIter(fbb, roles.length(),
+	[&roles](unsigned i) { return roles[i]; });
+      fbs::UserBuilder fbb_{fbb};
+      fbb_.add_name(fbName);
+      fbb_.add_roles(fbRoles);
+      fbb_.add_flags(flags);
+      auto fbUser = fbb_.Finish();
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
+	    fbs::ReqData::UserAdd, fbUser.Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -680,14 +678,11 @@ private:
 	return;
       }
       auto userPass = static_cast<const fbs::UserPass *>(ack->data());
-      if (!userPass->ok()) {
-	out << "user add rejected\n";
-	executed(1, &ctx);
-	return;
-      }
-      printUser(out, userPass->user()); out << '\n';
-      using namespace Zfb::Load;
-      out << "passwd=" << str(userPass->passwd()) << '\n';
+      out << *(userPass->user()) << '\n';
+      out << "secret="
+	<< ZtQuote::Base32{Zfb::Load::bytes(userPass->user()->secret())}
+	<< '\n';
+      out << "passwd=" << Zfb::Load::str(userPass->passwd()) << '\n';
       executed(0, &ctx);
     });
   }
@@ -695,15 +690,17 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::ResetPass,
-	    fbs::CreateUserID(m_fbb,
+	    fbs::CreateUserID(fbb,
 	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -712,12 +709,7 @@ private:
 	return;
       }
       auto userPass = static_cast<const fbs::UserPass *>(ack->data());
-      if (!userPass->ok()) {
-	out << "reset password rejected\n";
-	executed(1, &ctx);
-	return;
-      }
-      printUser(out, userPass->user()); out << '\n';
+      out << *(userPass->user()) << '\n';
       using namespace Zfb::Load;
       out << "passwd=" << str(userPass->passwd()) << '\n';
       executed(0, &ctx);
@@ -725,26 +717,33 @@ private:
   }
   void userModCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZcmdUsage{};
+    if (argc != 4) throw ZcmdUsage{}; // FIXME - optional params, not positional
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
+      // FIXME - --name=x --flags=x --roles=x,y,z
       using namespace Zfb::Save;
       uint8_t flags = 0;
-      if (ctx->args->get("enabled")) flags |= User::Enabled;
-      if (ctx->args->get("immutable")) flags |= User::Immutable;
+      if (ctx->args->get("enabled")) flags |= UserFlags::Enabled();
+      if (ctx->args->get("immutable")) flags |= UserFlags::Immutable();
       ZtRegex::Captures roles;
       ZtREGEX(",").split(ctx->args->get("3"), roles);
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
-	    fbs::ReqData::UserMod,
-	    fbs::CreateUser(m_fbb,
-	      ctx->args->getInt64<true>("1", 0, LLONG_MAX),
-	      str(m_fbb, ctx->args->get("2")), 0, 0,
-	      strVecIter(m_fbb, roles.length(),
-		[&roles](unsigned i) { return roles[i]; }),
-	      flags).Union()));
+      Zfb::IOBuilder fbb;
+      auto fbName = str(fbb, ctx->args->get("1"));
+      auto fbRoles = strVecIter(fbb, roles.length(),
+	[&roles](unsigned i) { return roles[i]; });
+      fbs::UserBuilder fbb_{fbb};
+      fbb_.add_id(
+	ctx->args->getInt64<true>("1", 0, ZuCmp<uint64_t>::maximum())),
+      fbb_.add_name(fbName);
+      fbb_.add_roles(fbRoles);
+      fbb_.add_flags(flags);
+      auto fbUser = fbb_.Finish();
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
+	    fbs::ReqData::UserMod, fbUser.Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -752,13 +751,8 @@ private:
 	executed(code, &ctx);
 	return;
       }
-      auto userUpdAck = static_cast<const fbs::UserUpdAck *>(ack->data());
-      if (!userUpdAck->ok()) {
-	out << "user modify rejected\n";
-	executed(1, &ctx);
-	return;
-      }
-      printUser(out, userUpdAck->user()); out << '\n';
+      auto user = static_cast<const fbs::User *>(ack->data());
+      out << *user << '\n';
       executed(0, &ctx);
     });
   }
@@ -766,15 +760,17 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::UserDel,
-	    fbs::CreateUserID(m_fbb,
+	    fbs::CreateUserID(fbb,
 	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -788,22 +784,17 @@ private:
 	executed(1, &ctx);
 	return;
       }
-      printUser(out, userUpdAck->user()); out << '\n';
+      out << *(userUpdAck->user()) << '\n';
       out << "user deleted\n";
       executed(0, &ctx);
     });
   }
 
-  static void printRole(ZtString &out, const ZvUserDB::fbs::Role *role_) {
-    using namespace ZvUserDB;
+  static void printRole(ZtString &out, const Zum::fbs::Role *role_) {
+    using namespace Zum;
     using namespace Zfb::Load;
-    Bitmap perms, apiperms;
-    all(role_->perms(), [&perms](unsigned i, uint64_t w) {
-      if (ZuLikely(i < Bitmap::Words)) perms.data[i] = w;
-    });
-    all(role_->apiperms(), [&apiperms](unsigned i, uint64_t w) {
-      if (ZuLikely(i < Bitmap::Words)) apiperms.data[i] = w;
-    });
+    ZtBitmap perms = Zfb::Load::bitmap(role_->perms());
+    ZtBitmap apiperms = Zfb::Load::bitmap(role_->apiperms());
     out << str(role_->name())
       << " perms=[" << perms
       << "] apiperms=[" << apiperms
@@ -815,18 +806,20 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
+      Zfb::IOBuilder fbb;
       Zfb::Offset<Zfb::String> name_;
-      if (argc == 2) name_ = str(m_fbb, ctx->args->get("1"));
-      fbs::RoleIDBuilder fbb_(m_fbb);
+      if (argc == 2) name_ = str(fbb, ctx->args->get("1"));
+      fbs::RoleIDBuilder fbb_(fbb);
       if (argc == 2) fbb_.add_name(name_);
       auto roleID = fbb_.Finish();
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::RoleGet, roleID.Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -846,22 +839,24 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      Bitmap perms{ctx->args->get("2")};
-      Bitmap apiperms{ctx->args->get("3")};
+      ZtBitmap perms{ctx->args->get("2")};
+      ZtBitmap apiperms{ctx->args->get("3")};
       uint8_t flags = 0;
       if (ctx->args->get("immutable")) flags |= Role::Immutable;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::RoleAdd,
-	    fbs::CreateRole(m_fbb,
-	      str(m_fbb, ctx->args->get("1")),
-	      m_fbb.CreateVector(perms.data, Bitmap::Words),
-	      m_fbb.CreateVector(apiperms.data, Bitmap::Words),
+	    fbs::CreateRole(fbb,
+	      str(fbb, ctx->args->get("1")),
+	      Zfb::Save::bitmap(fbb, perms),
+	      Zfb::Save::bitmap(fbb, apiperms),
 	      flags).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -883,22 +878,24 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 4) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      Bitmap perms{ctx->args->get("2")};
-      Bitmap apiperms{ctx->args->get("3")};
+      ZtBitmap perms{ctx->args->get("2")};
+      ZtBitmap apiperms{ctx->args->get("3")};
       uint8_t flags = 0;
       if (ctx->args->get("immutable")) flags |= Role::Immutable;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::RoleMod,
-	    fbs::CreateRole(m_fbb,
-	      str(m_fbb, ctx->args->get("1")),
-	      m_fbb.CreateVector(perms.data, Bitmap::Words),
-	      m_fbb.CreateVector(apiperms.data, Bitmap::Words),
+	    fbs::CreateRole(fbb,
+	      str(fbb, ctx->args->get("1")),
+	      Zfb::Save::bitmap(fbb, perms),
+	      Zfb::Save::bitmap(fbb, apiperms),
 	      flags).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -920,14 +917,16 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::RoleDel,
-	    fbs::CreateRoleID(m_fbb, str(m_fbb, ctx->args->get("1"))).Union()));
+	    fbs::CreateRoleID(fbb, str(fbb, ctx->args->get("1"))).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -951,16 +950,18 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
-      fbs::PermIDBuilder fbb_(m_fbb);
+      Zfb::IOBuilder fbb;
+      fbs::PermIDBuilder fbb_(fbb);
       if (argc == 2) fbb_.add_id(ctx->args->getInt<true>("1", 0, Bitmap::Bits));
       auto permID = fbb_.Finish();
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::PermGet, permID.Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -981,15 +982,17 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       auto name = ctx->args->get("1");
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::PermAdd,
-	    fbs::CreatePermAdd(m_fbb, str(m_fbb, name)).Union()));
+	    fbs::CreatePermAdd(fbb, str(fbb, name)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1013,16 +1016,18 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 3) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       auto permID = ctx->args->getInt<true>("1", 0, Bitmap::Bits);
       auto permName = ctx->args->get("2");
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::PermMod,
-	    fbs::CreatePerm(m_fbb, permID, str(m_fbb, permName)).Union()));
+	    fbs::CreatePerm(fbb, permID, str(fbb, permName)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1046,15 +1051,17 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       auto permID = ctx->args->getInt<true>("1", 0, Bitmap::Bits);
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::PermDel,
-	    fbs::CreatePermID(m_fbb, permID).Union()));
+	    fbs::CreatePermID(fbb, permID).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1079,21 +1086,23 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
+      Zfb::IOBuilder fbb;
       if (argc == 1)
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::OwnKeyGet,
-	      fbs::CreateUserID(m_fbb, m_link->userID()).Union()));
+	      fbs::CreateUserID(fbb, m_link->userID()).Union()));
       else {
 	auto userID = ZuBox<uint64_t>(ctx->args->get("1"));
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::KeyGet,
-	      fbs::CreateUserID(m_fbb, userID).Union()));
+	      fbs::CreateUserID(fbb, userID).Union()));
       }
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1116,21 +1125,23 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
+      Zfb::IOBuilder fbb;
       if (argc == 1)
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::OwnKeyAdd,
-	      fbs::CreateUserID(m_fbb, m_link->userID()).Union()));
+	      fbs::CreateUserID(fbb, m_link->userID()).Union()));
       else {
 	auto userID = ZuBox<uint64_t>(ctx->args->get("1"));
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::KeyAdd,
-	      fbs::CreateUserID(m_fbb, userID).Union()));
+	      fbs::CreateUserID(fbb, userID).Union()));
       }
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1161,15 +1172,17 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc != 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       auto keyID = ctx->args->get("1");
-      m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+      Zfb::IOBuilder fbb;
+      fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	    fbs::ReqData::KeyDel,
-	    fbs::CreateKeyID(m_fbb, str(m_fbb, keyID)).Union()));
+	    fbs::CreateKeyID(fbb, str(fbb, keyID)).Union()));
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1195,21 +1208,23 @@ private:
     ZuBox<int> argc = ctx->args->get("#");
     if (argc < 1 || argc > 2) throw ZcmdUsage{};
     auto seqNo = m_seqNo++;
-    using namespace ZvUserDB;
+    using namespace Zum;
+    ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
+      Zfb::IOBuilder fbb;
       if (argc == 1)
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::OwnKeyClr,
-	      fbs::CreateUserID(m_fbb, m_link->userID()).Union()));
+	      fbs::CreateUserID(fbb, m_link->userID()).Union()));
       else {
 	auto userID = ZuBox<uint64_t>(ctx->args->get("1"));
-	m_fbb.Finish(fbs::CreateRequest(m_fbb, seqNo,
+	fbb.Finish(fbs::CreateRequest(fbb, seqNo,
 	      fbs::ReqData::KeyClr,
-	      fbs::CreateUserID(m_fbb, userID).Union()));
+	      fbs::CreateUserID(fbb, userID).Union()));
       }
     }
-    m_link->sendUserDB(m_fbb, seqNo, [this, ctx = ZuMv(*ctx)](
+    m_link->sendUserDB(ZuMv(buf), seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
@@ -1234,7 +1249,7 @@ private:
 
   void telcapCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    using namespace ZcmdTelemetry;
+    using namespace Ztel;
     unsigned interval = ctx->args->getInt("interval", 0, 1000000, 100);
     bool subscribe = !ctx->args->getBool("unsubscribe");
     if (!subscribe) {
@@ -1322,10 +1337,10 @@ private:
 	      break;
 	    case ReqType::Engine:
 	      m_telcap[TelData::Engine - TelData::MIN] =
-		TelCap::keyedFn<ZcmdTelemetry::Engine>(
+		TelCap::keyedFn<Ztel::Engine>(
 		    ZiFile::append(dir, "engine.csv"));
 	      m_telcap[TelData::Link - TelData::MIN] =
-		TelCap::keyedFn<ZcmdTelemetry::Link>(
+		TelCap::keyedFn<Ztel::Link>(
 		    ZiFile::append(dir, "link.csv"));
 	      break;
 	    case ReqType::DB:
@@ -1341,7 +1356,7 @@ private:
 	      break;
 	    case ReqType::App:
 	      m_telcap[TelData::App - TelData::MIN] =
-		TelCap::singletonFn<ZcmdTelemetry::App>(
+		TelCap::singletonFn<Ztel::App>(
 		    ZiFile::append(dir, "app.csv"));
 	      break;
 	    case ReqType::Alert:
@@ -1361,10 +1376,10 @@ private:
     for (unsigned i = 0, n = ok.length(); i < n; i++) {
       using namespace Zfb::Save;
       auto seqNo = m_seqNo++;
-      m_fbb.Finish(fbs::CreateRequest(m_fbb,
-	    seqNo, str(m_fbb, filters[i]), interval,
+      fbb.Finish(fbs::CreateRequest(fbb,
+	    seqNo, str(fbb, filters[i]), interval,
 	    static_cast<fbs::ReqType>(types[i]), subscribe));
-      m_link->sendTelReq(m_fbb, seqNo,
+      m_link->sendTelReq(fbb.buf(), seqNo,
 	  [ok = &ok[i], sem = &sem](const fbs::ReqAck *ack) {
 	    ok->store_(ack->ok());
 	    sem->post();
@@ -1421,8 +1436,6 @@ private:
 
   ZmPLock		m_promptLock;
     ZtArray<uint8_t>	  m_prompt;
-
-  FBB			m_fbb;
 
   bool			m_exiting = false;
 

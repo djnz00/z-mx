@@ -32,20 +32,19 @@
 #include <zlib/ZvMsgID.hh>
 
 struct ZvIOQItem : public ZmPolymorph {
-  ZvIOQItem(ZmRef<ZiIOBuf> buf) :
-      m_buf(ZuMv(buf)) { }
-  ZvIOQItem(ZmRef<ZiIOBuf> buf, ZvMsgID id) :
-      m_buf(ZuMv(buf)), m_id(id) { }
+  ZvIOQItem() = delete;
+  ZvIOQItem(ZmRef<ZiIOBuf> buf) : m_buf(ZuMv(buf)) { }
+  ZvIOQItem(ZmRef<ZiIOBuf> buf, ZvMsgID id) : m_buf(ZuMv(buf)), m_id(id) { }
 
   const ZiIOBuf *buf() const { return m_buf.ptr(); }
   ZiIOBuf *buf() { return m_buf.ptr(); }
 
-  template <typename T = void *> T owner() const {
-    return reinterpret_cast<T>(m_owner);
-  }
-  template <typename T> void owner(T v) { m_owner = v; }
-
   const ZvMsgID id() const { return m_id; }
+
+  template <typename T = void *> T owner() const {
+    return reinterpret_cast<T>(m_buf->owner);
+  }
+  template <typename T> void owner(T v) { m_buf->owner = v; }
 
   void load(const ZvMsgID &id) { m_id = id; }
   void unload() { m_id = ZvMsgID{}; }
@@ -58,7 +57,6 @@ struct ZvIOQItem : public ZmPolymorph {
 
 private:
   ZmRef<ZiIOBuf>	m_buf;
-  void			*m_owner = nullptr;
   ZvMsgID		m_id;
   int32_t		m_skip = 0;	// -ve - no queuing; +ve - gap fill
 };

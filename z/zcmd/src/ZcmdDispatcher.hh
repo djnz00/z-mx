@@ -22,12 +22,12 @@
 #include <zlib/ZmNoLock.hh>
 #include <zlib/ZmLHash.hh>
 
-#include <zlib/ZcmdNet.hh>
+#include <zlib/Zcmd.hh>
 
 class ZvAPI ZcmdDispatcher {
 public:
-  using Fn = ZmFn<void(void *, ZmRef<IOBuf>)>;
-  using DefltFn = ZmFn<void(void *, ZuID, ZmRef<IOBuf>)>;
+  using Fn = ZmFn<void(void *, ZmRef<ZiIOBuf>)>;
+  using DefltFn = ZmFn<void(void *, ZuID, ZmRef<ZiIOBuf>)>;
 
   void init();
   void final();
@@ -35,7 +35,7 @@ public:
   void map(ZuID id, Fn fn);
   void deflt(DefltFn fn);
 
-  int dispatch(ZuID id, void *link, ZmRef<IOBuf>);
+  int dispatch(ZuID id, void *link, ZmRef<ZiIOBuf>);
 
 private:
   using Lock = ZmPLock;

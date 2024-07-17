@@ -29,7 +29,7 @@ namespace Zdb_ {
 // -- message format - used for both file and network
 
 // custom header with a little-endian uint32 length
-#pragma pack(push, 1)
+#pragma pack(push, 4)
 struct Hdr {
   ZuLittleEndian<uint32_t>	length;	// length of body
 

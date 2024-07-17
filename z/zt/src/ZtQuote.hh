@@ -15,6 +15,7 @@
 
 #include <zlib/ZuString.hh>
 #include <zlib/ZuBytes.hh>
+#include <zlib/ZuBase32.hh>
 #include <zlib/ZuBase64.hh>
 
 #include <zlib/ZmAlloc.hh>
@@ -51,6 +52,20 @@ struct String {
       s << c;
     }
     return s << '"';
+  }
+};
+
+// printing ZuBytes in base32
+struct Base32 {
+  ZuBytes v;
+  template <typename S>
+  friend S &operator <<(S &s, const Base32 &print) {
+    const auto &v = print.v;
+    auto n = ZuBase32::enclen(v.length());
+    auto buf_ = ZmAlloc(uint8_t, n);
+    ZuArray<uint8_t> buf(&buf_[0], n);
+    buf.trunc(ZuBase32::encode(buf, v));
+    return s << ZuString{buf};
   }
 };
 

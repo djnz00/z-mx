@@ -31,29 +31,19 @@
 #include <zlib/Ztls.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZvUserDB.hh>
 #include <zlib/ZvSeqNo.hh>
-#include <zlib/ZcmdTelemetry.hh>
+
+#include <zlib/Zum.hh>
+#include <zlib/ZtelClient.hh>
+#include <zlib/Zcmd.hh>
 #include <zlib/ZcmdDispatcher.hh>
 
-#include <zlib/zv_loginreq_fbs.h>
-#include <zlib/zv_loginack_fbs.h>
-#include <zlib/zv_userdbreq_fbs.h>
-#include <zlib/zv_userdback_fbs.h>
-#include <zlib/zv_zcmdreq_fbs.h>
-#include <zlib/zv_zcmdack_fbs.h>
-#include <zlib/zv_telemetry_fbs.h>
-#include <zlib/zv_telreq_fbs.h>
-#include <zlib/zv_telack_fbs.h>
-
-#include <zlib/ZcmdNet.hh>
-
 // userDB response
-using ZcmdUserDBAckFn = ZmFn<void(const ZvUserDB::fbs::ReqAck *)>;
+using ZumAckFn = ZmFn<void(const Zum::fbs::ReqAck *)>;
 // command response
 using ZcmdAckFn = ZmFn<void(const Zcmd::fbs::ReqAck *)>;
 // telemetry response
-using ZcmdTelAckFn = ZmFn<void(const ZcmdTelemetry::fbs::ReqAck *)>;
+using ZtelAckFn = ZmFn<void(const Ztel::fbs::ReqAck *)>;
 
 struct Zcmd_Login {
   ZtString		user;
@@ -62,9 +52,9 @@ struct Zcmd_Login {
 };
 struct Zcmd_Access {
   ZtString		keyID;
-  ZvUserDB::KeyData	token;
+  Zum::KeyData		token;
   int64_t		stamp;
-  ZvUserDB::KeyData	hmac;
+  Zum::KeyData		hmac;
 };
 using Zcmd_Credentials = ZuUnion<Zcmd_Login, Zcmd_Access>;
 
@@ -73,18 +63,15 @@ template <typename App, typename Link> class ZcmdClient;
 template <typename App_, typename Impl_>
 class ZcmdCliLink :
     public Ztls::CliLink<App_, Impl_>,
-    public ZiRx<ZcmdCliLink<App_, Impl_>, Ztls::IOBuf> {
+    public ZiRx<ZcmdCliLink<App_, Impl_>, ZiIOBuf> {
 public:
   using App = App_;
   using Impl = Impl_;
   using Base = Ztls::CliLink<App_, Impl_>;
-  using IOBuf = Ztls::IOBuf;
-  using Rx = ZiRx<ZcmdCliLink, IOBuf>;
+  using Rx = ZiRx<ZcmdCliLink, ZiIOBuf>;
 
 friend Base;
 template <typename, typename> friend class ZcmdClient;
-
-  using FBB = Zfb::IOBuilder<IOBuf>;
 
 public:
   auto impl() const { return static_cast<const Impl *>(this); }
@@ -92,13 +79,12 @@ public:
 
 private:
   using Credentials = Zcmd_Credentials;
-  using KeyData = ZvUserDB::KeyData;
-  using Bitmap = ZvUserDB::Bitmap;
+  using KeyData = Zum::KeyData;
 
 private:
   // containers of pending requests
   using UserDBReqs =
-    ZmRBTreeKV<ZvSeqNo, ZcmdUserDBAckFn,
+    ZmRBTreeKV<ZvSeqNo, ZumAckFn,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
   using CmdReqs =
@@ -106,7 +92,7 @@ private:
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
   using TelReqs =
-    ZmRBTreeKV<ZvSeqNo, ZcmdTelAckFn,
+    ZmRBTreeKV<ZvSeqNo, ZtelAckFn,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
 
@@ -137,13 +123,13 @@ public:
     secret.length(ZuBase64::declen(secret_.length()));
     ZuBase64::decode(secret, secret_);
     secret.length(32);
-    ZvUserDB::KeyData token, hmac;
+    Zum::KeyData token, hmac;
     token.length(token.size());
     hmac.length(hmac.size());
     this->app()->random(token);
     int64_t stamp = Zm::now().sec();
     {
-      Ztls::HMAC hmac_(ZvUserDB::Key::keyType());
+      Ztls::HMAC hmac_{Zum::keyType()};
       hmac_.start(secret);
       hmac_.update(token);
       hmac_.update(
@@ -156,8 +142,8 @@ public:
   }
   template <typename KeyID>
   void access_(
-      KeyID &&keyID, ZvUserDB::KeyData &&token,
-      int64_t stamp, ZvUserDB::KeyData &&hmac) {
+      KeyID &&keyID, Zum::KeyData &&token,
+      int64_t stamp, Zum::KeyData &&hmac) {
     new (m_credentials.new_<Zcmd_Access>())
       Zcmd_Access{ZuFwd<KeyID>(keyID), ZuMv(token), stamp, ZuMv(hmac)};
     this->connect();
@@ -169,27 +155,27 @@ public:
   uint64_t userID() const { return m_userID; }
   const ZtString &userName() const { return m_userName; }
   const ZtArray<ZtString> &roles() const { return m_roles; }
-  const Bitmap &perms() const { return m_perms; }
+  const ZtBitmap &perms() const { return m_perms; }
   uint8_t flags() const { return m_userFlags; }
 
 public:
   // send userDB request
-  void sendUserDB(FBB &fbb, ZvSeqNo seqNo, ZcmdUserDBAckFn fn) {
+  void sendUserDB(ZmRef<ZiIOBuf> buf, ZvSeqNo seqNo, ZumAckFn fn) {
     using namespace Zcmd;
     m_userDBReqs.add(seqNo, ZuMv(fn));
-    this->send(saveHdr(fbb, Type::userDB()));
+    this->send(saveHdr(ZuMv(buf), Type::userDB()));
   }
   // send command
-  void sendCmd(FBB &fbb, ZvSeqNo seqNo, ZcmdAckFn fn) {
+  void sendCmd(ZmRef<ZiIOBuf> buf, ZvSeqNo seqNo, ZcmdAckFn fn) {
     using namespace Zcmd;
     m_cmdReqs.add(seqNo, ZuMv(fn));
-    this->send(saveHdr(fbb, Type::cmd()));
+    this->send(saveHdr(ZuMv(buf), Type::cmd()));
   }
   // send telemetry request
-  void sendTelReq(FBB &fbb, ZvSeqNo seqNo, ZcmdTelAckFn fn) {
+  void sendTelReq(ZmRef<ZiIOBuf> buf, ZvSeqNo seqNo, ZtelAckFn fn) {
     using namespace Zcmd;
     m_telReqs.add(seqNo, ZuMv(fn));
-    this->send(saveHdr(fbb, Type::telReq()));
+    this->send(saveHdr(ZuMv(buf), Type::telReq()));
   }
 
   void loggedIn() { } // default
@@ -204,9 +190,9 @@ public:
     m_state = State::Login;
 
     // send login
-    FBB fbb;
+    Zfb::IOBuilder fbb;
     if (m_credentials.type() == Credentials::Index<Zcmd_Login>{}) {
-      using namespace ZvUserDB;
+      using namespace Zum;
       using namespace Zfb::Save;
       const auto &data = m_credentials.p<Zcmd_Login>();
       fbb.Finish(fbs::CreateLoginReq(fbb,
@@ -216,7 +202,7 @@ public:
 	      str(fbb, data.passwd),
 	      data.totp).Union()));
     } else {
-      using namespace ZvUserDB;
+      using namespace Zum;
       using namespace Zfb::Save;
       const auto &data = m_credentials.p<Zcmd_Access>();
       fbb.Finish(fbs::CreateLoginReq(fbb,
@@ -227,7 +213,7 @@ public:
 	      data.stamp,
 	      bytes(fbb, data.hmac)).Union()));
     }
-    this->send_(Zcmd::saveHdr(fbb, Zcmd::Type::login()));
+    this->send_(Zcmd::saveHdr(fbb.buf(), Zcmd::Type::login()));
   }
 
   void disconnected() {
@@ -243,18 +229,19 @@ public:
   }
 
 private:
-  int loadBody(const IOBuf *buf, unsigned) {
-    return Zcmd::verifyHdr(buf, [](const Zcmd::Hdr *hdr, const IOBuf *buf) {
-      auto this_ = static_cast<ZcmdCliLink *>(buf->owner);
-      auto type = hdr->type;
-      if (ZuUnlikely(this_->m_state.load_() == State::Login)) {
-	this_->cancelTimeout();
-	if (type != Zcmd::Type::login()) return -1;
-	return this_->processLoginAck(hdr->data(), hdr->length);
-      }
-      return this_->app()->dispatch(
-	  type, this_->impl(), hdr->data(), hdr->length);
-    });
+  int loadBody(const ZiIOBuf *buf, unsigned) {
+    return Zcmd::verifyHdrSync(buf,
+      [](const Zcmd::Hdr *hdr, const ZiIOBuf *buf) {
+	auto this_ = static_cast<ZcmdCliLink *>(buf->owner);
+	auto type = hdr->type;
+	if (ZuUnlikely(this_->m_state.load_() == State::Login)) {
+	  this_->cancelTimeout();
+	  if (type != Zcmd::Type::login()) return -1;
+	  return this_->processLoginAck(hdr->data(), hdr->length);
+	}
+	return this_->app()->dispatch(
+	    type, this_->impl(), hdr->data(), hdr->length);
+      });
   }
 
 public:
@@ -263,7 +250,7 @@ public:
       return -1; // disconnect
 
     int i = Rx::template recvMemSync<
-      Zcmd::loadHdr<IOBuf>, &ZcmdCliLink::loadBody>(data, length, m_rxBuf);
+      Zcmd::loadHdr, &ZcmdCliLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;
     return i;
@@ -273,7 +260,7 @@ private:
   int processLoginAck(const uint8_t *data, unsigned len) {
     using namespace Zfb;
     using namespace Load;
-    using namespace ZvUserDB;
+    using namespace Zum;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyLoginAckBuffer(verifier)) return -1;
@@ -285,9 +272,7 @@ private:
     all(loginAck->roles(), [this](unsigned i, auto role_) {
       m_roles.push(str(role_));
     });
-    all(loginAck->perms(), [this](unsigned i, uint64_t v) {
-      if (i < Bitmap::Words) m_perms.data[i] = v;
-    });
+    m_perms = Zfb::Load::bitmap<ZtBitmap>(loginAck->perms());
     m_userFlags = loginAck->flags();
     m_state = State::Up;
     impl()->loggedIn();
@@ -296,13 +281,13 @@ private:
   int processUserDB(const uint8_t *data, unsigned len) {
     using namespace Zfb;
     using namespace Load;
-    using namespace ZvUserDB;
+    using namespace Zum;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;
     }
     auto reqAck = fbs::GetReqAck(data);
-    if (ZcmdUserDBAckFn fn = m_userDBReqs.delVal(reqAck->seqNo()))
+    if (ZumAckFn fn = m_userDBReqs.delVal(reqAck->seqNo()))
       fn(reqAck);
     return len;
   }
@@ -322,13 +307,13 @@ private:
   int processTelReq(const uint8_t *data, unsigned len) {
     using namespace Zfb;
     using namespace Load;
-    using namespace ZcmdTelemetry;
+    using namespace Ztel;
     {
       Verifier verifier{data, len};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;
     }
     auto reqAck = fbs::GetReqAck(data);
-    if (ZcmdTelAckFn fn = m_telReqs.delVal(reqAck->seqNo()))
+    if (ZtelAckFn fn = m_telReqs.delVal(reqAck->seqNo()))
       fn(reqAck);
     return len;
   }
@@ -348,7 +333,7 @@ private:
 private:
   ZmScheduler::Timer	m_timer;
   ZmAtomic<int>		m_state = State::Down;
-  ZmRef<IOBuf>		m_rxBuf;
+  ZmRef<ZiIOBuf>	m_rxBuf;
   Credentials		m_credentials;
   UserDBReqs		m_userDBReqs;
   CmdReqs		m_cmdReqs;
@@ -356,7 +341,7 @@ private:
   uint64_t		m_userID = 0;
   ZtString		m_userName;
   ZtArray<ZtString>	m_roles;
-  Bitmap		m_perms;
+  ZtBitmap		m_perms;
   uint8_t		m_userFlags = 0;
 };
 
@@ -367,7 +352,6 @@ class ZcmdClient :
 public:
   using App = App_;
   using Link = Link_;
-  using FBB = typename Link::FBB;
   using Dispatcher = ZcmdDispatcher;
   using TLS = Ztls::Client<App>;
 friend TLS;

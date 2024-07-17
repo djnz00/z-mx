@@ -4,7 +4,7 @@ include "zv_engine_state.fbs";
 include "zv_link_state.fbs";
 include "zv_queue_type.fbs";
 include "zdb_telemetry.fbs";
-namespace Ztel.fbs
+namespace Ztel.fbs;
 enum RAG:int8 {
   Off = 0,
   Red,

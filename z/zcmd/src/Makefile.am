@@ -16,7 +16,7 @@ FBS = \
 	ztel_telemetry.fbs
 FBS_H = ${FBS:%.fbs=%_fbs.h}
 ${FBS_H}: %_fbs.h: fbs/%.fbs
-	flatc -b --schema --bfbs-gen-embed -c --cpp-std c++17 --cpp-field-case-style lower -I fbs -I $(top_srcdir)/zfb/src/fbs -I $(top_srcdir)/zv/src/fbs $<
+	flatc -b --schema --bfbs-gen-embed -c --cpp-std c++17 --cpp-field-case-style lower -I fbs -I $(top_srcdir)/zfb/src/fbs -I $(top_srcdir)/zv/src/fbs -I $(top_srcdir)/zdb/src/fbs $<
 	mv ${@:%_fbs.h=%_generated.h} $@
 	mv ${@:%_fbs.h=%_bfbs_generated.h} ${@:%_fbs.h=%_bfbs.h}
 	clang-format -i $@ ${@:%_fbs.h=%_bfbs.h}
@@ -24,8 +24,8 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZcmdLib.hh Zcmd.hh \
-	ZcmdClient.hh ZcmdDispatcher.hh ZcmdHost.hh ZcmdNet.hh ZcmdServer.hh \
-	Ztel.hh ZtelServer.hh \
+	ZcmdClient.hh ZcmdDispatcher.hh ZcmdHost.hh ZcmdServer.hh \
+	Ztel.hh ZtelClient.hh ZtelServer.hh \
 	${FBS_H}
 lib_LTLIBRARIES = libZcmd.la
 libZcmd_la_CPPFLAGS = $(AM_CPPFLAGS) -DZCMD_EXPORTS

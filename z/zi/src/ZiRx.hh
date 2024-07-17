@@ -18,6 +18,7 @@
 #include <zlib/ZmRef.hh>
 
 #include <zlib/ZiIOContext.hh>
+#include <zlib/ZiIOBuf.hh>
 
 // CRTP receiver
 
