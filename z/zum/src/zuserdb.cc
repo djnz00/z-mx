@@ -14,6 +14,7 @@
 #include <zlib/ZeLog.hh>
 
 #include <zlib/ZvCf.hh>
+#include <zlib/ZvMxParams.hh>
 
 #include <zlib/ZtlsTOTP.hh>
 
@@ -147,7 +148,7 @@ int main(int argc, char **argv)
   Zum::Server::UserDB userDB(&rng);
 
   try {
-    mx = new ZiMultiplex(ZvMxParams{"mx", cf->getCf<true>("mx")});
+    mx = new ZiMultiplex{ZvMxParams{"mx", cf->getCf<true>("mx")}};
 
     db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *) { },

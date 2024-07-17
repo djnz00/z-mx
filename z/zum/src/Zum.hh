@@ -31,8 +31,15 @@
 
 namespace Zum {
 
-using IOBuf = Ztls::IOBuf;
-using IOBuilder = Zfb::IOBuilder<IOBuf>;
+enum { IOBufSize = 128 }; // built-in buffer size
+
+using IOBufAlloc = ZiIOBufAlloc<IOBufSize>;
+
+struct IOBuilder : public Zfb::IOBuilder {
+  using Zfb::IOBuilder::IOBuilder;
+  using Zfb::IOBuilder::operator =;
+  IOBuilder() : Zfb::IOBuilder{new IOBufAlloc{}} { }
+};
 
 using SeqNo = uint64_t;
 

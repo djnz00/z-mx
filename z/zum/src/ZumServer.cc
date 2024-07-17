@@ -20,7 +20,7 @@
 
 namespace Zum::Server {
 
-UserDB::UserDB(Ztls::Random *rng) m_rng{rng}
+UserDB::UserDB(Ztls::Random *rng) : m_rng{rng}
 {
 }
 
@@ -435,13 +435,13 @@ void UserDB::sessionLoaded(ZuPtr<SessionLoad> context, bool ok)
 // login succeeded - zero failure count and inform app
 void UserDB::loginSucceeded(ZmRef<Session> session, LoginFn fn)
 {
-  static auto loginAck = [](Session *Session) {
+  static auto loginAck = [](Session *session) {
     const auto &user = session->user->data();
     IOBuilder fbb;
     fbb.Finish(fbs::CreateLoginAck(fbb,
       user.id, Zfb::Save::str(fbb, user.name),
       Zfb::Save::strVecIter(fbb, user.roles.length(),
-	[&roles = user.roles](unsigned k) { return roles[k]->name; }),
+	[&roles = user.roles](unsigned k) { return roles[k]; }),
       Zfb::Save::bitmap(fbb, session->perms),
       user.flags, 1));
     return fbb.buf();
@@ -456,11 +456,14 @@ void UserDB::loginSucceeded(ZmRef<Session> session, LoginFn fn)
 	session = ZuMv(session), fn = ZuMv(fn)
       ](ZdbObject<User> *dbUser) mutable {
 	if (dbUser) dbUser->commit();
-	fn(ZuMv(session, loginAck(session)));
+	auto ptr = session.ptr();
+	fn(ZuMv(session), loginAck(ptr));
       });
     });
-  } else
-    fn(ZuMv(session, loginAck(session)));
+  } else {
+    auto ptr = session.ptr();
+    fn(ZuMv(session), loginAck(ptr));
+  }
 }
 
 // login failed - update user and inform app
@@ -608,7 +611,7 @@ void UserDB::access(
 }
 
 // login/access request dispatch
-bool UserDB::loginReq(ZmRef<IOBuf> buf, LoginFn fn)
+bool UserDB::loginReq(ZmRef<ZiIOBuf> buf, LoginFn fn)
 {
   if (!Zfb::Verifier{buf->data(), buf->length}.VerifyBuffer<fbs::LoginReq>())
     return false;
@@ -627,11 +630,12 @@ bool UserDB::loginReq(ZmRef<IOBuf> buf, LoginFn fn)
   });
   return true;
 }
-void UserDB::loginReq_(ZmRef<IOBuf> buf, LoginFn fn)
+void UserDB::loginReq_(ZmRef<ZiIOBuf> buf, LoginFn fn)
 {
   auto fbLoginReq = Zfb::GetRoot<fbs::LoginReq>(buf->data());
 
   switch (fbLoginReq->data_type()) {
+    default: break;
     case fbs::LoginReqData::Access: {
       auto access = static_cast<const fbs::Access *>(fbLoginReq->data());
       this->access(
@@ -653,8 +657,8 @@ void UserDB::loginReq_(ZmRef<IOBuf> buf, LoginFn fn)
 }
 
 // respond to a request
-ZmRef<IOBuf> UserDB::respond(
-  IOBuilder &fbb, SeqNo seqNo,
+ZmRef<ZiIOBuf> UserDB::respond(
+  Zfb::IOBuilder &fbb, SeqNo seqNo,
   fbs::ReqAckData ackType, Offset<void> ackData)
 {
   fbs::ReqAckBuilder fbb_(fbb);
@@ -666,8 +670,8 @@ ZmRef<IOBuf> UserDB::respond(
 }
 
 // reject a request
-ZmRef<IOBuf> UserDB::reject(
-  IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text)
+ZmRef<ZiIOBuf> UserDB::reject(
+  Zfb::IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text)
 {
   auto text_ = Zfb::Save::str(fbb, text);
   fbs::ReqAckBuilder fbb_(fbb);
@@ -679,7 +683,7 @@ ZmRef<IOBuf> UserDB::reject(
 }
 
 // validate, permission check and dispatch a request
-bool UserDB::request(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+bool UserDB::request(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   if (!Zfb::Verifier{buf->data(), buf->length}.VerifyBuffer<fbs::Request>())
     return false;
@@ -692,7 +696,7 @@ bool UserDB::request(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
   return true;
 }
 void UserDB::request_(
-  ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+  ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto reqType = unsigned(fbRequest->data_type());
@@ -749,7 +753,7 @@ void UserDB::request_(
 }
 
 // change password
-void UserDB::chPass(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::chPass(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto &user = session->user->data();
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
@@ -790,7 +794,7 @@ void UserDB::chPass(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // query users
-void UserDB::userGet(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::UserQuery *>(fbRequest->data());
@@ -849,7 +853,7 @@ void UserDB::userGet(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // add a new user
-void UserDB::userAdd(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::userAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_userTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -927,7 +931,7 @@ void UserDB::keyClr__(UserID id, L l)
 }
 
 // reset password (also clears all API keys)
-void UserDB::resetPass(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::resetPass(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto userID = static_cast<const fbs::UserID *>(fbRequest->data());
@@ -977,7 +981,7 @@ void UserDB::resetPass(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // modify user (name, roles, flags)
-void UserDB::userMod(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::userMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_userTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1035,7 +1039,7 @@ void UserDB::userMod(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // delete user (and associated API keys)
-void UserDB::userDel(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::userDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_userTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1066,7 +1070,7 @@ void UserDB::userDel(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // query roles
-void UserDB::roleGet(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::roleGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::RoleQuery *>(fbRequest->data());
@@ -1105,7 +1109,7 @@ void UserDB::roleGet(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // add new role
-void UserDB::roleAdd(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1151,7 +1155,7 @@ void UserDB::roleAdd(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // modify role (name, perms, apiperms, flags)
-void UserDB::roleMod(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::roleMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1193,7 +1197,7 @@ void UserDB::roleMod(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // delete role
-void UserDB::roleDel(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::roleDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_roleTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1223,7 +1227,7 @@ void UserDB::roleDel(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // query permissions
-void UserDB::permGet(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::PermQuery *>(fbRequest->data());
@@ -1282,7 +1286,7 @@ void UserDB::permGet(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // add new permission
-void UserDB::permAdd(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::permAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_permTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1324,7 +1328,7 @@ void UserDB::permAdd(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // modify permission (name)
-void UserDB::permMod(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::permMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_permTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1354,7 +1358,7 @@ void UserDB::permMod(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // delete permission
-void UserDB::permDel(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::permDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   m_permTbl->run([
     this, buf = ZuMv(buf), fn = ZuMv(fn)
@@ -1382,14 +1386,14 @@ void UserDB::permDel(ZmRef<IOBuf> buf, ResponseFn fn)
 }
 
 // query keys
-void UserDB::ownKeyGet(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::ownKeyGet(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   keyGet_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyGet, ZuMv(fn));
 }
-void UserDB::keyGet(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::keyGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::UserID *>(fbRequest->data());
@@ -1423,14 +1427,15 @@ void UserDB::keyGet_(
 }
 
 // add key
-void UserDB::ownKeyAdd(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::ownKeyAdd(
+  ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   keyAdd_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyAdd, ZuMv(fn));
 }
-void UserDB::keyAdd(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::keyAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto fbUserID = static_cast<const fbs::UserID *>(fbRequest->data());
@@ -1478,14 +1483,15 @@ void UserDB::keyAdd_(
 }
 
 // clear keys
-void UserDB::ownKeyClr(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::ownKeyClr(
+  ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   keyClr_(
     fbRequest->seqNo(), session->user->data().id,
     fbs::ReqAckData::OwnKeyClr, ZuMv(fn));
 }
-void UserDB::keyClr(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::keyClr(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto fbUserID = static_cast<const fbs::UserID *>(fbRequest->data());
@@ -1509,7 +1515,8 @@ void UserDB::keyClr_(
 }
 
 // delete key
-void UserDB::ownKeyDel(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::ownKeyDel(
+  ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
@@ -1534,7 +1541,7 @@ void UserDB::ownKeyDel(ZmRef<Session> session, ZmRef<IOBuf> buf, ResponseFn fn)
 	  fbs::ReqAckData::OwnKeyDel, ackData.Union()));
     });
 }
-void UserDB::keyDel(ZmRef<IOBuf> buf, ResponseFn fn)
+void UserDB::keyDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto fbKeyID = static_cast<const fbs::KeyID *>(fbRequest->data());
