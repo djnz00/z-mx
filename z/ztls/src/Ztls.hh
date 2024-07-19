@@ -73,11 +73,11 @@ template <typename Link> using CliCxn = Cxn<Link, Link *>;
 template <typename Link> using SrvCxn = Cxn<Link, ZmRef<Link> >;
 
 template <
-  typename App, typename Impl, typename BufAlloc_,
+  typename App, typename Impl, typename IOBufAlloc_,
   typename Cxn_, typename CxnRef_>
 class Link : public ZmPolymorph {
 public:
-  using BufAlloc = BufAlloc_;
+  using IOBufAlloc = IOBufAlloc_;
   using Cxn = Cxn_;
   using CxnRef = CxnRef_;
   using ImplRef = typename Cxn::LinkRef;
@@ -103,7 +103,7 @@ protected:
 
 private:
   void connected_(Cxn *cxn, ZiIOContext &io) {
-    m_rxBuf = new BufAlloc{};
+    m_rxBuf = new IOBufAlloc{};
     io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) {
       link->rx(io);
       return true;
@@ -152,7 +152,7 @@ private:
 	auto link = static_cast<Link *>(buf->owner);
 	link->recv_(ZuMv(buf));
       });
-    m_rxBuf = new BufAlloc{};
+    m_rxBuf = new IOBufAlloc{};
     io.ptr = m_rxBuf->data();
     io.length = m_rxBuf->size;
     io.offset = 0;
@@ -310,7 +310,7 @@ public:
     unsigned offset = 0;
     do {
       unsigned n = len - offset;
-      ZmRef<ZiIOBuf> buf = new BufAlloc{};
+      ZmRef<ZiIOBuf> buf = new IOBufAlloc{};
       if (ZuUnlikely(n > buf->size)) n = buf->size;
       buf->length = n;
       memcpy(buf->data(), data + offset, n);
@@ -372,7 +372,7 @@ private:
     auto mx = app()->mx();
     do {
       unsigned n = len - offset;
-      ZmRef<ZiIOBuf> buf = new BufAlloc{static_cast<Cxn *>(m_cxn)};
+      ZmRef<ZiIOBuf> buf = new IOBufAlloc{static_cast<Cxn *>(m_cxn)};
       if (ZuUnlikely(n > buf->size)) n = buf->size;
       buf->length = n;
       memcpy(buf->data(), data + offset, n);
@@ -422,7 +422,7 @@ public:
 private:
   enum {
     RxRingSize =
-      (MBEDTLS_SSL_IN_CONTENT_LEN + BufAlloc::Size - 1) / BufAlloc::Size
+      (MBEDTLS_SSL_IN_CONTENT_LEN + IOBufAlloc::Size - 1) / IOBufAlloc::Size
   };
 
   App			*m_app = nullptr;
@@ -446,17 +446,17 @@ private:
 };
 
 // client links are persistent, own the (transient) connection
-template <typename App, typename Impl, typename BufAlloc, typename Cxn>
-using CliLink_ = Link<App, Impl, BufAlloc, Cxn, ZmRef<Cxn> >;
+template <typename App, typename Impl, typename IOBufAlloc, typename Cxn>
+using CliLink_ = Link<App, Impl, IOBufAlloc, Cxn, ZmRef<Cxn> >;
 // server links are transient, are owned by the connection
-template <typename App, typename Impl, typename BufAlloc, typename Cxn>
-using SrvLink_ = Link<App, Impl, BufAlloc, Cxn, Cxn *>;
+template <typename App, typename Impl, typename IOBufAlloc, typename Cxn>
+using SrvLink_ = Link<App, Impl, IOBufAlloc, Cxn, Cxn *>;
 
-template <typename App, typename Impl, typename BufAlloc = ZiIOBufAlloc<>>
-class CliLink : public CliLink_<App, Impl, BufAlloc, CliCxn<Impl> > {
+template <typename App, typename Impl, typename IOBufAlloc = ZiIOBufAlloc<>>
+class CliLink : public CliLink_<App, Impl, IOBufAlloc, CliCxn<Impl> > {
 public:
   using Cxn = CliCxn<Impl>;
-  using Base = CliLink_<App, Impl, BufAlloc, Cxn>;
+  using Base = CliLink_<App, Impl, IOBufAlloc, Cxn>;
 friend Base;
   auto impl() const { return static_cast<const Impl *>(this); }
   auto impl() { return static_cast<Impl *>(this); }
@@ -609,11 +609,11 @@ private:
   uint16_t		m_port;
 };
 
-template <typename App, typename Impl, typename BufAlloc = ZiIOBufAlloc<>>
-class SrvLink : public SrvLink_<App, Impl, BufAlloc, SrvCxn<Impl> > {
+template <typename App, typename Impl, typename IOBufAlloc = ZiIOBufAlloc<>>
+class SrvLink : public SrvLink_<App, Impl, IOBufAlloc, SrvCxn<Impl> > {
 public:
   using Cxn = SrvCxn<Impl>;
-  using Base = SrvLink_<App, Impl, BufAlloc, Cxn>;
+  using Base = SrvLink_<App, Impl, IOBufAlloc, Cxn>;
 friend Base;
 
   auto impl() const { return static_cast<const Impl *>(this); }
@@ -750,11 +750,11 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Client<App> {
-    using BufAlloc = ZiIOBufAlloc<BufSize>;
+    using IOBufAlloc = ZiIOBufAlloc<BufSize>;
 
     void exception(ZmRef<ZeEvent>); // optional
 
-    struct Link : public CliLink<App, Link, BufAlloc> {
+    struct Link : public CliLink<App, Link, IOBufAlloc> {
       // TLS thread - handshake completed
       void connected(const char *alpn);
 
@@ -829,11 +829,11 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Server<App> {
-    using BufAlloc = ZiIOBufAlloc<BufSize>;
+    using IOBufAlloc = ZiIOBufAlloc<BufSize>;
 
     void exception(ZmRef<ZeEvent>); // optional
 
-    struct Link : public SrvLink<App, Link, BufAlloc> {
+    struct Link : public SrvLink<App, Link, IOBufAlloc> {
       // TLS thread - handshake completed
       void connected(const char *alpn);
 

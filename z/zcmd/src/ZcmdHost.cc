@@ -43,19 +43,8 @@ void ZcmdHost::addCmd(
 
 bool ZcmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
 
-int ZcmdHost::processCmd(
-  Zum::Session *session, ZmRef<IOBuf> buf, ZmFn<void(ZmRef<IOBuf>)> sendFn)
+void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
 {
-  auto request = Zfb::GetRoot<Zcmd::fbs::Request>(buf->data());
-  auto cmd_ = request->cmd();
-  ZtArray<ZtString> args;
-  args.length(cmd_->size());
-  Zfb::Load::all(cmd_,
-      [&args](unsigned i, auto arg_) { args[i] = Zfb::Load::str(arg_); });
-  ZcmdContext ctx{
-    .host = this, .session = session, .sendFn = ZuMv(sendFn)
-  };
-
   if (!args_) return;
   auto &out = ctx->out;
   const ZtString &name = args_[0];
@@ -89,11 +78,6 @@ int ZcmdHost::processCmd(
     out << '"' << name << "\": unknown exception\n";
     executed(1, ctx);
   }
-
-  IOBuilder fbb; // FIXME
-  fbb.Finish(Zcmd::fbs::CreateReqAck(
-	fbb, in->seqNo(), ctx.code, Zfb::Save::str(fbb, ctx.out)));
-  sendFn(fbb.buf());
 }
 
 void ZcmdHost::helpCmd(ZcmdContext *ctx)

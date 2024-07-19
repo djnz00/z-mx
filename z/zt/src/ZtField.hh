@@ -233,11 +233,26 @@ namespace ZuFieldProp {
   template <typename Props> using HasFlags = HasType<Props, Flags>;
   template <typename Props> using GetFlags = GetType<Props, Flags>;
 
-  // default NDP to sentinel null
+  template <typename Props>
+  using GetNDP = GetValue<Props, int8_t, NDP>;
+}
+namespace ZtMFieldProp {
+  using namespace ZuFieldProp;
+
+  // default Ctor property to -1 for ZtMField
+  template <typename Props, bool = HasValue<Props, unsigned, Ctor>{}>
+  struct GetCtor_ { using T = GetValue<Props, unsigned, Ctor>; };
+  template <typename Props>
+  struct GetCtor_<Props, false> { using T = ZuInt<-1>; };
+  template <typename Props> using GetCtor = typename GetCtor_<Props>::T;
+
+  // default NDP to sentinel null for ZtMField
   template <typename Props, bool = HasValue<Props, int8_t, NDP>{}>
   struct GetNDP_ { using T = GetValue<Props, int8_t, NDP>; };
   template <typename Props>
-  struct GetNDP_<Props, false> { using T = ZuInt<ZuCmp<int8_t>::null()>; };
+  struct GetNDP_<Props, false> {
+    using T = ZuConstant<int8_t, ZuCmp<int8_t>::null()>;
+  };
   template <typename Props> using GetNDP = typename GetNDP_<Props>::T;
 }
 
@@ -850,8 +865,8 @@ struct ZtMField {
   ZtMFieldProp::T	props;
   uint64_t		keys;
   uint64_t		group;
-  uint16_t		ctor;
-  int8_t		ndp;
+  int16_t		ctor;	// -1 if not a constructor parameter
+  int8_t		ndp;	// defaults to sentinel null
 
   ZtMFieldGet		get;
   ZtMFieldSet		set;
@@ -865,8 +880,8 @@ struct ZtMField {
       props{Field::mprops()},
       keys{ZuSeqBitmap<ZuFieldProp::GetKeys<typename Field::Props>>()},
       group{ZuSeqBitmap<ZuFieldProp::GetGroup<typename Field::Props>>()},
-      ctor{ZuFieldProp::GetCtor<typename Field::Props>{}},
-      ndp{ZuFieldProp::GetNDP<typename Field::Props>{}},
+      ctor{ZtMFieldProp::GetCtor<typename Field::Props>{}},
+      ndp{ZtMFieldProp::GetNDP<typename Field::Props>{}},
       get{Field::getFn()},
       set{Field::setFn()},
       constant{Field::constantFn()} { }

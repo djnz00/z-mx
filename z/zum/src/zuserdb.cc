@@ -35,7 +35,8 @@ void usage()
     "\t\t\te.g. \"dbname=test host=/tmp\"\n"
     "  -l, --log=FILE\tlog to FILE\n"
     "  -d, --debug\t\tenable Zdb debugging\n"
-    "      --help\t\tthis help\n";
+    "      --help\t\tthis help\n"
+    << std::flush;
   exit(1);
 }
 
@@ -94,12 +95,11 @@ int main(int argc, char **argv)
       "}\n"
     );
 
-    // command line overrides environment
     unsigned argc_ = cf->fromArgs(options, ZvCf::args(argc, argv));
 
-    if (argc_ < 4) usage();
-
     if (cf->getBool("help")) usage();
+
+    if (argc_ < 4) usage();
 
     if (!cf->exists("zdb.store.module")) {
       std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;

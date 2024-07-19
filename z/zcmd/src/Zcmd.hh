@@ -26,6 +26,7 @@ namespace Zcmd {
 
 using IOFn = ZmFn<void (ZmRef<ZiIOBuf>)>;
 
+// pre-defined message types
 namespace Type {
   inline ZuID login()		{ static ZuID id{"login"}; return id; }
   inline ZuID userDB()		{ static ZuID id{"userDB"}; return id; }

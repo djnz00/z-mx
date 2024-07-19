@@ -184,8 +184,7 @@ private:
     Zfb::IOBuilder &fbb, SeqNo seqNo,
     fbs::ReqAckData ackType, Offset<void> ackData);
   // reject request
-  ZmRef<ZiIOBuf> reject(
-    Zfb::IOBuilder &fbb, SeqNo seqNo, unsigned rejCode, ZtString text);
+  ZmRef<ZiIOBuf> reject(SeqNo seqNo, unsigned rejCode, ZtString text);
 
   // initialize key
   void initKey(ZdbObject<Key> *, UserID, KeyIDData);

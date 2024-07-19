@@ -606,7 +606,6 @@ varBufSize(const reflection::Field *field, const Zfb::Table *fbo) { \
 template <unsigned Type> \
 inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}, unsigned> \
 varBufSize(const reflection::Field *field, const Zfb::Table *fbo) { \
-  using namespace Zfb; \
   return vecSize(Zfb::GetFieldV<uint##width##_t>( \
       *fbo, *field)->size(), sizeof(UInt##width)); \
 }

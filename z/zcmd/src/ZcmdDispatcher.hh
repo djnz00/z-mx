@@ -24,10 +24,10 @@
 
 #include <zlib/Zcmd.hh>
 
-class ZvAPI ZcmdDispatcher {
+class ZcmdAPI ZcmdDispatcher {
 public:
-  using Fn = ZmFn<void(void *, ZmRef<ZiIOBuf>)>;
-  using DefltFn = ZmFn<void(void *, ZuID, ZmRef<ZiIOBuf>)>;
+  using Fn = ZmFn<int(void *, ZmRef<ZiIOBuf>)>;
+  using DefltFn = ZmFn<int(void *, ZuID, ZmRef<ZiIOBuf>)>;
 
   void init();
   void final();

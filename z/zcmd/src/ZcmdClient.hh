@@ -60,15 +60,16 @@ using Zcmd_Credentials = ZuUnion<Zcmd_Login, Zcmd_Access>;
 
 template <typename App, typename Link> class ZcmdClient;
 
-template <typename App_, typename Impl_>
+template <typename App_, typename Impl_, typename IOBufAlloc_>
 class ZcmdCliLink :
     public Ztls::CliLink<App_, Impl_>,
-    public ZiRx<ZcmdCliLink<App_, Impl_>, ZiIOBuf> {
+    public ZiRx<ZcmdCliLink<App_, Impl_, IOBufAlloc_>, IOBufAlloc_> {
 public:
   using App = App_;
   using Impl = Impl_;
-  using Base = Ztls::CliLink<App_, Impl_>;
-  using Rx = ZiRx<ZcmdCliLink, ZiIOBuf>;
+  using Base = Ztls::CliLink<App, Impl>;
+  using IOBufAlloc = IOBufAlloc_;
+  using Rx = ZiRx<ZcmdCliLink, IOBufAlloc>;
 
 friend Base;
 template <typename, typename> friend class ZcmdClient;
@@ -229,18 +230,17 @@ public:
   }
 
 private:
-  int loadBody(const ZiIOBuf *buf, unsigned) {
-    return Zcmd::verifyHdrSync(buf,
-      [](const Zcmd::Hdr *hdr, const ZiIOBuf *buf) {
+  int loadBody(ZmRef<ZiIOBuf> buf) {
+    return Zcmd::verifyHdr(ZuMv(buf),
+      [](const Zcmd::Hdr *hdr, ZmRef<ZiIOBuf> buf) {
 	auto this_ = static_cast<ZcmdCliLink *>(buf->owner);
 	auto type = hdr->type;
 	if (ZuUnlikely(this_->m_state.load_() == State::Login)) {
 	  this_->cancelTimeout();
 	  if (type != Zcmd::Type::login()) return -1;
-	  return this_->processLoginAck(hdr->data(), hdr->length);
+	  return this_->processLoginAck(ZuMv(buf));
 	}
-	return this_->app()->dispatch(
-	    type, this_->impl(), hdr->data(), hdr->length);
+	return this_->app()->dispatch(type, this_->impl(), ZuMv(buf));
       });
   }
 
@@ -249,7 +249,7 @@ public:
     if (ZuUnlikely(m_state.load_() == State::Down))
       return -1; // disconnect
 
-    int i = Rx::template recvMemSync<
+    int i = Rx::template recvMem<
       Zcmd::loadHdr, &ZcmdCliLink::loadBody>(data, length, m_rxBuf);
 
     if (ZuUnlikely(i < 0)) m_state = State::Down;
@@ -257,15 +257,15 @@ public:
   }
 
 private:
-  int processLoginAck(const uint8_t *data, unsigned len) {
+  int processLoginAck(ZmRef<ZiIOBuf> buf) {
     using namespace Zfb;
     using namespace Load;
     using namespace Zum;
     {
-      Verifier verifier{data, len};
+      Verifier verifier{buf->data(), buf->length};
       if (!fbs::VerifyLoginAckBuffer(verifier)) return -1;
     }
-    auto loginAck = fbs::GetLoginAck(data);
+    auto loginAck = fbs::GetLoginAck(buf->data());
     if (!loginAck->ok()) return false;
     m_userID = loginAck->id();
     m_userName = str(loginAck->name());
@@ -276,49 +276,49 @@ private:
     m_userFlags = loginAck->flags();
     m_state = State::Up;
     impl()->loggedIn();
-    return len;
+    return buf->length;
   }
-  int processUserDB(const uint8_t *data, unsigned len) {
+  int processUserDB(ZmRef<ZiIOBuf> buf) {
     using namespace Zfb;
     using namespace Load;
     using namespace Zum;
     {
-      Verifier verifier{data, len};
+      Verifier verifier{buf->data(), buf->length};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;
     }
-    auto reqAck = fbs::GetReqAck(data);
+    auto reqAck = fbs::GetReqAck(buf->data());
     if (ZumAckFn fn = m_userDBReqs.delVal(reqAck->seqNo()))
       fn(reqAck);
-    return len;
+    return buf->length;
   }
-  int processCmd(const uint8_t *data, unsigned len) {
+  int processCmd(ZmRef<ZiIOBuf> buf) {
     using namespace Zfb;
     using namespace Load;
     using namespace Zcmd;
     {
-      Verifier verifier{data, len};
+      Verifier verifier{buf->data(), buf->length};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;
     }
-    auto reqAck = fbs::GetReqAck(data);
+    auto reqAck = fbs::GetReqAck(buf->data());
     if (ZcmdAckFn fn = m_cmdReqs.delVal(reqAck->seqNo()))
       fn(reqAck);
-    return len;
+    return buf->length;
   }
-  int processTelReq(const uint8_t *data, unsigned len) {
+  int processTelReq(ZmRef<ZiIOBuf> buf) {
     using namespace Zfb;
     using namespace Load;
     using namespace Ztel;
     {
-      Verifier verifier{data, len};
+      Verifier verifier{buf->data(), buf->length};
       if (!fbs::VerifyReqAckBuffer(verifier)) return -1;
     }
-    auto reqAck = fbs::GetReqAck(data);
+    auto reqAck = fbs::GetReqAck(buf->data());
     if (ZtelAckFn fn = m_telReqs.delVal(reqAck->seqNo()))
       fn(reqAck);
-    return len;
+    return buf->length;
   }
-  // default telemetry handler does nothing
-  int processTelemetry(const uint8_t *data, unsigned len) { return len; }
+  // default telemetry handler skips message, does nothing
+  int processTelemetry(ZmRef<ZiIOBuf> buf) { return buf->length; }
 
   void scheduleTimeout() {
     if (this->app()->timeout())
@@ -365,20 +365,20 @@ friend TLS;
     Dispatcher::init();
 
     Dispatcher::map(Zcmd::Type::userDB(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processUserDB(data, len);
+	[](void *link, ZmRef<ZiIOBuf> buf) {
+	  return static_cast<Link *>(link)->processUserDB(ZuMv(buf));
 	});
     Dispatcher::map(Zcmd::Type::cmd(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processCmd(data, len);
+	[](void *link, ZmRef<ZiIOBuf> buf) {
+	  return static_cast<Link *>(link)->processCmd(ZuMv(buf));
 	});
     Dispatcher::map(Zcmd::Type::telReq(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processTelReq(data, len);
+	[](void *link, ZmRef<ZiIOBuf> buf) {
+	  return static_cast<Link *>(link)->processTelReq(ZuMv(buf));
 	});
     Dispatcher::map(Zcmd::Type::telemetry(),
-	[](void *link, const uint8_t *data, unsigned len) {
-	  return static_cast<Link *>(link)->processTelemetry(data, len);
+	[](void *link, ZmRef<ZiIOBuf> buf) {
+	  return static_cast<Link *>(link)->processTelemetry(ZuMv(buf));
 	});
 
     TLS::init(mx, cf->get("thread", true), cf->get("caPath", true), alpn);

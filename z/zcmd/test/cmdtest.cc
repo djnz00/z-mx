@@ -14,23 +14,27 @@
 
 class CmdTest;
 
-struct Link : public ZcmdSrvLink<CmdTest, Link> {
-  using Base = ZcmdSrvLink<CmdTest, Link>;
+struct Link : public ZcmdSrvLink<CmdTest, Link, ZiIOBufAlloc<>> {
+  using Base = ZcmdSrvLink<CmdTest, Link, ZiIOBufAlloc<>>;
   Link(CmdTest *app) : Base{app} { }
 };
 
 class CmdTest : public ZmPolymorph, public ZcmdServer<CmdTest, Link> {
 public:
-  void init(ZiMultiplex *mx, const ZvCf *cf) {
+  void init(const ZvCf *cf, ZiMultiplex *mx, Zdb *db) {
     m_uptime = Zm::now();
-    ZcmdServer::init(mx, cf);
+
+    ZcmdServer::init(cf, mx, db);
+
     addCmd("ackme", "", ZcmdFn{
       [](ZcmdContext *ctx) {
-	if (auto cxn = ctx->link<Link>()->cxn())
+	auto link = static_cast<Link *>(ctx->dest.p<void *>());
+	if (auto cxn = link->cxn())
 	  std::cout << cxn->info().remoteIP << ':'
 	    << ZuBoxed(cxn->info().remotePort) << ' ';
+	const auto &user = link->session()->user->data();
 	std::cout << "user: "
-	  << ctx->user<User>()->id << ' ' << ctx->user<User>()->name << '\n'
+	  << user.id << ' ' << user.name << '\n'
 	  << "cmd: " << ctx->args->get("0") << '\n';
 	ctx->out << "this is an ack\n";
       }}, "test ack", "");
@@ -40,7 +44,8 @@ public:
       }}, "test nak", "");
     addCmd("quit", "", ZcmdFn{
       [](ZcmdContext *ctx) {
-	ctx->app<CmdTest>()->post();
+	auto this_ = static_cast<CmdTest *>(ctx->host);
+	this_->post();
 	ctx->out << "quitting...\n";
       }}, "quit", "");
   }
@@ -48,9 +53,9 @@ public:
   void wait() { m_done.wait(); }
   void post() { m_done.post(); }
 
-  void telemetry(ZvTelemetry::App &data) {
-    using namespace ZvTelemetry;
-    data.id = "CmdTest";
+  void telemetry(Ztel::App &data) {
+    using namespace Ztel;
+    data.id = "cmdtest";
     data.version = "1.0";
     data.uptime = m_uptime;
     data.role = AppRole::Dev;
@@ -64,18 +69,23 @@ private:
 
 void usage()
 {
-  std::cerr << "usage: cmdtest CERTPATH KEYPATH USERDB IP PORT [OPTION]...\n"
+  std::cerr << "usage: cmdtest CERTPATH KEYPATH IP PORT [OPTION]...\n"
     "  CERTPATH\tTLS/SSL certificate path\n"
     "  KEYPATH\tTLS/SSL private key path\n"
-    "  USERDB\tuser DB path\n"
     "  IP\t\tlistener IP address\n"
     "  PORT\tlistener port\n\n"
     "Options:\n"
+    "  -m, --module=MODULE\tZdb data store module e.g. libZdbPQ.so\n"
+    "  -c, --connect=CONNECT\tZdb data store connection string\n"
+    "\t\t\te.g. \"dbname=test host=/tmp\"\n"
     "  -C, --ca-path=CAPATH\t\tset CA path (default: /etc/ssl/certs)\n"
     "      --pass-len=N\t\tset default password length (default: 12)\n"
     "      --totp-range=N\tset TOTP accepted range (default: 2)\n"
     "      --key-interval=N\tset key refresh interval (default: 30)\n"
     "      --max-age=N\t\tset user DB file backups (default: 8)\n"
+    "  -l, --log=FILE\tlog to FILE\n"
+    "  -d, --debug\t\tenable Zdb debugging\n"
+    "      --help\t\tthis help\n"
     << std::flush;
   ::exit(1);
 }
@@ -86,68 +96,115 @@ void sigint() { if (server) server->post(); }
 
 int main(int argc, char **argv)
 {
-  static ZvOpt opts[] = {
-    { 'C', "ca-path", ZvOptType::Param, "caPath" },
-    { 0,   "pass-len", ZvOptType::Param, "userDB.passLen" },
-    { 0,   "totp-range", ZvOptType::Param, "userDB.totpRange" },
-    { 0,   "key-interval", ZvOptType::Param, "userDB.keyInterval" },
-    { 0,   "max-age", ZvOptType::Param, "userDB.maxAge" },
-    { 0 }
-  };
-
-  ZeLog::init("CmdTest");
-  ZeLog::level(0);
-  ZeLog::sink(ZeLog::lambdaSink([](ZeLogBuf &buf, const ZeEventInfo &) {
-    buf << '\n';
-    std::cerr << buf << std::flush;
-  }));
-  ZeLog::start();
-
-  ZiMultiplex *mx = new ZiMultiplex(
-      ZiMxParams()
-	.scheduler([](auto &s) {
-	  s.nThreads(4)
-	  .thread(1, [](auto &t) { t.isolated(1); })
-	  .thread(2, [](auto &t) { t.isolated(1); })
-	  .thread(3, [](auto &t) { t.isolated(1); }); })
-	.rxThread(1).txThread(2));
-
+  ZmRef<ZvCf> cf;
+  ZiMultiplex *mx = nullptr;
+  ZmRef<Zdb> db = new Zdb();
   ZmRef<CmdTest> server = new CmdTest{};
+
+  try {
+    ZmRef<ZvCf> options = new ZvCf{};
+
+    options->fromString(
+      "module m m { param zdb.store.module }\n"
+      "connect c c { param zdb.store.connection }\n"
+      "ca-path C C { param caPath }\n"
+      "pass-len { param userDB.passLen }\n"
+      "totp-range { param userDB.totpRange }\n"
+      "key-interval { param userDB.keyInterval }\n"
+      "max-age { param userDB.maxAge }\n"
+      "log l l { param log }\n"
+      "debug d d { flag zdb.debug }\n"
+      "help { flag help }\n");
+
+    ZmRef<ZvCf> cf = new ZvCf{};
+
+    cf->fromString(
+      "log \"&2\"\n"	// default - stderr
+      "caPath /etc/ssl/certs\n"
+      "thread app\n"
+      "mx {\n"
+      "  nThreads 5\n"
+      "  threads {\n"
+      "    1 { name rx isolated true }\n"
+      "    2 { name tx isolated true }\n"
+      "    3 { name zdb isolated true }\n"
+      "    4 { name zdb_store isolated true }\n"
+      "    5 { name app }\n"
+      "  }\n"
+      "  rxThread rx\n"
+      "  txThread tx\n"
+      "}\n"
+      "userDB {\n"
+      "  thread zdb\n"
+      "  passLen 12\n"
+      "  totpRange 2\n"
+      "  keyInterval 30\n"
+      "  maxAge 8\n"
+      "}\n"
+      "zdb {\n"
+      "  thread zdb\n"
+      "  hostID 0\n"
+      "  hosts { 0 { standalone 1 } }\n"
+      "  store {\n"
+      "    module ${ZDB_MODULE}\n"
+      "    connection ${ZDB_CONNECT}\n"
+      "    thread zdb_store\n"
+      "    replicated true\n"
+      "  }\n"
+      "  tables {\n"
+      "    \"zum.user\" { }\n"
+      "    \"zum.role\" { }\n"
+      "    \"zum.key\" { }\n"
+      "    \"zum.perm\" { }\n"
+      "  }\n"
+      "}\n");
+
+    if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 5) usage();
+
+    if (cf->getBool("help")) usage();
+
+    cf->set("certPath", cf->get("1"));
+    cf->set("keyPath", cf->get("2"));
+    cf->set("localIP", cf->get("3"));
+    cf->set("localPort", cf->get("4"));
+
+    mx = new ZiMultiplex{ZvMxParams{"mx", cf->getCf<true>("mx")}};
+
+    db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
+      .upFn = [](Zdb *, ZdbHost *) { },
+      .downFn = [](Zdb *) { }
+    });
+
+    server->init(cf, mx, db);
+
+  } catch (const ZvCfError::Usage &e) {
+    usage();
+  } catch (const ZvError &e) {
+    std::cerr << e << '\n' << std::flush;
+    Zm::exit(1);
+  } catch (const ZtString &e) {
+    std::cerr << e << '\n' << std::flush;
+    Zm::exit(1);
+  } catch (...) {
+    std::cerr << "unknown exception\n" << std::flush;
+    Zm::exit(1);
+  }
+
+  ZeLog::init("cmdtest");
+  ZeLog::level(0);
+  ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path(cf->get<true>("log"))));
+  ZeLog::start();
 
   ZmTrap::sigintFn(sigint);
   ZmTrap::trap();
 
   mx->start();
 
-  try {
-    ZmRef<ZvCf> cf = new ZvCf{};
-    cf->fromString(
-	"thread 3\n"
-	"caPath /etc/ssl/certs\n"
-	"userDB {\n"
-	"  passLen 12\n"
-	"  totpRange 2\n"
-	"  keyInterval 30\n"
-	"  maxAge 8\n"
-	"}\n");
-    if (cf->fromArgs(opts, argc, argv) != 6) usage();
-    cf->set("certPath", cf->get("1"));
-    cf->set("keyPath", cf->get("2"));
-    cf->set("userDB:path", cf->get("3"));
-    cf->set("localIP", cf->get("4"));
-    cf->set("localPort", cf->get("5"));
-    server->init(mx, cf);
-  } catch (const ZvCfError::Usage &e) {
-    usage();
-  } catch (const ZvError &e) {
-    std::cerr << e << '\n' << std::flush;
-    ::exit(1);
-  } catch (const ZtString &e) {
-    std::cerr << e << '\n' << std::flush;
-    ::exit(1);
-  } catch (...) {
-    std::cerr << "unknown exception\n" << std::flush;
-    ::exit(1);
+  if (!db->start()) {
+    ZeLOG(Fatal, "Zdb start failed");
+    mx->stop();
+    ZeLog::stop();
+    Zm::exit(1);
   }
 
   server->start();
@@ -155,13 +212,18 @@ int main(int argc, char **argv)
   server->wait();
 
   server->stop();
+  db->stop();
   mx->stop();
+
+  server->final();
+  server = {};
+
+  db->final();
+  db = {};
 
   delete mx;
 
   ZeLog::stop();
-
-  ZmTrap::sigintFn(nullptr);
 
   return 0;
 }

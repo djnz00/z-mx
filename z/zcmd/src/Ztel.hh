@@ -94,13 +94,13 @@ struct Heap : public Heap_ {
   uint64_t allocated() const { return (cacheAllocs + heapAllocs) - frees; }
   void allocated(uint64_t) { } // unused
 
-  int rag() const {
+  int8_t rag() const {
     if (!cacheSize) return RAG::Off;
     if (allocated() > cacheSize) return RAG::Red;
     if (heapAllocs) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Heap *);
 };
@@ -124,12 +124,12 @@ struct HashTbl : public HashTbl_ {
   template <typename ...Args>
   HashTbl(Args &&...args) : HashTbl_{ZuFwd<Args>(args)...} { }
 
-  int rag() const {
+  int8_t rag() const {
     if (resized) return RAG::Red;
     if (effLoadFactor >= loadFactor * 0.8) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(HashTbl *);
 };
@@ -152,12 +152,12 @@ struct Thread : public Thread_ {
   template <typename ...Args>
   Thread(Args &&...args) : Thread_{ZuFwd<Args>(args)...} { }
 
-  int rag() const {
+  int8_t rag() const {
     if (cpuUsage >= 0.8) return RAG::Red;
     if (cpuUsage >= 0.5) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Thread *);
 };
@@ -185,8 +185,8 @@ struct Mx : public Mx_ {
   template <typename ...Args>
   Mx(Args &&...args) : Mx_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return EngineState::rag(state); }
-  void rag(int) { } // unused
+  int8_t rag() const { return EngineState::rag(state); }
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Mx *);
 };
@@ -213,14 +213,14 @@ struct Socket : public Socket_ {
   template <typename ...Args>
   Socket(Args &&...args) : Socket_{ZuFwd<Args>(args)...} { }
 
-  int rag() const {
+  int8_t rag() const {
     if (rxBufLen * 10 >= (rxBufSize<<3) ||
 	txBufLen * 10 >= (txBufSize<<3)) return RAG::Red;
     if ((rxBufLen<<1) >= rxBufSize ||
 	(txBufLen<<1) >= txBufSize) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Socket *);
 };
@@ -253,13 +253,13 @@ struct Queue : public Queue_ {
   Queue(Args &&...args) : Queue_{ZuFwd<Args>(args)...} { }
 
   // RAG for queues - count > 50% size - amber; 80% - red
-  int rag() const {
+  int8_t rag() const {
     if (!size) return RAG::Off;
     if (count * 10 >= (size<<3)) return RAG::Red;
     if ((count<<1) >= size) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Queue *);
 };
@@ -284,8 +284,8 @@ struct Link : public Link_ {
   template <typename ...Args>
   Link(Args &&...args) : Link_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return LinkState::rag(state); }
-  void rag(int) { } // unused
+  int8_t rag() const { return LinkState::rag(state); }
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Link *);
 };
@@ -307,8 +307,8 @@ struct Engine : public Engine_ {
   template <typename ...Args>
   Engine(Args &&...args) : Engine_{ZuFwd<Args>(args)...} { }
 
-  int rag() const { return EngineState::rag(state); }
-  void rag(int) { } // unused
+  int8_t rag() const { return EngineState::rag(state); }
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(Engine *);
 };
@@ -346,14 +346,14 @@ struct DBTable {
   int8_t	cacheMode = -1;			// CacheMode
   bool		warmup = 0;
 
-  int rag() const {
+  int8_t rag() const {
     unsigned total = cacheLoads + cacheMisses;
     if (!total) return RAG::Off;
     if (cacheMisses * 10 > (total<<3)) return RAG::Red;
     if ((cacheMisses<<1) > total) return RAG::Amber;
     return RAG::Green;
   }
-  void rag(int) { } // unused
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(DBTable *);
 };
@@ -378,8 +378,8 @@ struct DBHost {
   int8_t	state = 0;// RAG: Instantiated - Red; Active - Green; * - Amber
   uint8_t	voted = 0;
 
-  int rag() const { return DBHostState::rag(state); }
-  void rag(int) { } // unused
+  int8_t rag() const { return DBHostState::rag(state); }
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(DBHost *);
 };
@@ -416,8 +416,8 @@ struct DB {
   uint8_t	recovering = 0;
   uint8_t	replicating = 0;
 
-  int rag() const { return DBHostState::rag(state); }
-  void rag(int) { } // unused
+  int8_t rag() const { return DBHostState::rag(state); }
+  void rag(int8_t) { } // unused
 
   friend ZtFieldPrint ZuPrintType(DB *);
 };

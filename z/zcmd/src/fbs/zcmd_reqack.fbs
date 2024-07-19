@@ -1,6 +1,6 @@
 namespace Zcmd.fbs;
 table ReqAck {
-  seq_no:uint32;
+  seq_no:uint64;
   code:int32;
   out:string;
 }

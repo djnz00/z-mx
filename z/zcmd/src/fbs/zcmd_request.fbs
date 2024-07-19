@@ -1,6 +1,6 @@
 namespace Zcmd.fbs;
 table Request {
-  seq_no:uint32;
+  seq_no:uint64;
   cmd:[string];
 }
 root_type Request;

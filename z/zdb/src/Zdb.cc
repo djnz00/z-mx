@@ -596,11 +596,10 @@ void DB::allDone(bool ok)
 ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
 DB::telemetry(bool update) const
 {
-  using namespace Zfb;
   using namespace Zfb::Save;
 
   Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
-  Zfb::Offset<String> thread;
+  Zfb::Offset<Zfb::String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
   }
@@ -633,7 +632,6 @@ DB::telemetry(bool update) const
 ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
 Host::telemetry(bool update) const
 {
-  using namespace Zfb;
   using namespace Zfb::Save;
 
   Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
@@ -1482,11 +1480,10 @@ AnyTable::~AnyTable()
 ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
 AnyTable::telemetry(bool update) const
 {
-  using namespace Zfb;
   using namespace Zfb::Save;
 
   Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
-  Zfb::Offset<String> path, name, thread;
+  Zfb::Offset<Zfb::String> path, name, thread;
   if (!update) {
     name = str(fbb_, config().id);
     thread = str(fbb_, config().thread);
@@ -1588,8 +1585,6 @@ void AnyTable::retryStore_()
 }
 void AnyTable::store_(ZmRef<const IOBuf> buf)
 {
-  using namespace Zfb::Load;
-
   CommitFn commitFn = [this](ZmRef<const IOBuf> buf, CommitResult result) {
     if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).p<Event>());

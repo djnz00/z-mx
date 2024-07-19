@@ -22,6 +22,7 @@
 #include <zlib/ZiIOBuf.hh>
 
 #include <zlib/ZvCf.hh>
+#include <zlib/ZvSeqNo.hh>
 
 #include <zlib/Zcmd.hh>
 
@@ -30,17 +31,15 @@ class ZcmdDispatcher;
 namespace Ztls { class Random; }
 
 struct ZcmdContext {
-  ZcmdHost		*app_ = nullptr;	
-  void			*link_ = nullptr;	// opaque to plugin
+  using Dest = ZuUnion<FILE *, void *>;		// file or session output
+
+  ZcmdHost		*host = nullptr;	
+  Dest			dest;			// destination
   ZmRef<ZvCf>		args;
-  FILE			*file = nullptr;	// file output
   ZtString		out;			// string output
+  ZvSeqNo		seqNo = 0;
   int			code = 0;		// result code
   bool			interactive = false;	// true unless scripted
-
-  template <typename T = ZcmdHost>
-  auto app() { return static_cast<T *>(app_); }
-  template <typename T> auto link() { return static_cast<T *>(link_); }
 };
 
 // command handler (context)
@@ -69,7 +68,6 @@ public:
   virtual void executed(ZcmdContext *) { }
 
   virtual ZcmdDispatcher *dispatcher() { return nullptr; }
-  virtual void send(void *link, ZmRef<ZiIOBuf>) { }
 
   virtual void target(ZuString) { }
   virtual ZtString getpass(ZuString prompt, unsigned passLen) { return {}; }

@@ -183,38 +183,33 @@ struct DBState : public DBState_ {
   DBState(const fbs::DBState *dbState) :
       DBState_{ZmHashParams{dbState->tableStates()->size()}},
       sn{Zfb::Load::uint128(dbState->sn())} {
-    using namespace Zdb_;
-    using namespace Zfb::Load;
-
-    all(dbState->tableStates(),
+    Zfb::Load::all(dbState->tableStates(),
 	[this](unsigned, const fbs::TableState *tableState) {
-	  add(id(&(tableState->table())), tableState->un());
+	  add(Zfb::Load::id(&(tableState->table())), tableState->un());
 	});
   }
   void load(const fbs::DBState *dbState) {
-    using namespace Zdb_;
-    using namespace Zfb::Load;
-
-    sn = uint128(dbState->sn());
-    all(dbState->tableStates(),
+    sn = Zfb::Load::uint128(dbState->sn());
+    Zfb::Load::all(dbState->tableStates(),
 	[this](unsigned, const fbs::TableState *tableState) {
-	  update(id(&(tableState->table())), tableState->un());
+	  update(Zfb::Load::id(&(tableState->table())), tableState->un());
 	});
   }
   Zfb::Offset<fbs::DBState> save(Zfb::Builder &fbb) const {
-    using namespace Zdb_;
-    using namespace Zfb::Save;
-
-    auto sn_ = uint128(sn);
+    auto sn_ = Zfb::Save::uint128(sn);
     auto i = readIterator();
-    return fbs::CreateDBState(fbb, &sn_, structVecIter<fbs::TableState>(
-	fbb, i.count(), [&i](fbs::TableState *ptr, unsigned) {
-      if (auto state = i.iterate())
-	new (ptr)
-	  fbs::TableState{id(state->template p<0>()), state->template p<1>()};
-      else
-	new (ptr) fbs::TableState{}; // unused
-    }));
+    return fbs::CreateDBState(
+      fbb, &sn_, Zfb::Save::structVecIter<fbs::TableState>(
+	fbb, i.count(),
+	[&i](fbs::TableState *ptr, unsigned) {
+	  if (auto state = i.iterate())
+	    new (ptr)
+	      fbs::TableState{
+		Zfb::Save::id(state->template p<0>()),
+		state->template p<1>()};
+	  else
+	    new (ptr) fbs::TableState{}; // unused
+	}));
   }
 
   void reset() {
@@ -606,6 +601,7 @@ protected:
   // cache statistics
   virtual void cacheStats(ZmCacheStats &stats) const = 0;
 
+public:
   ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
   telemetry(bool update) const;
 
@@ -882,6 +878,7 @@ private:
   // objLoad(fbo) - construct object from flatbuffer (trusted source)
   ZmRef<Object<T>> objLoad(const IOBuf *buf) {
     using namespace Zfb::Load;
+
     auto record = record_(msg_(buf->hdr()));
     if (record->vn() < 0) return {}; // deleted
     auto data = bytes(record->data());

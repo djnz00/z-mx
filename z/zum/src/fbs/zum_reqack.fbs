@@ -19,9 +19,9 @@ union ReqAckData {
   UserDel:User,
 
   RoleGet:RoleList,
-  RoleAdd:Ack,
-  RoleMod:Ack,
-  RoleDel:Ack,
+  RoleAdd:Role,
+  RoleMod:Role,
+  RoleDel:Role,
 
   PermGet:PermList,
   PermAdd:PermID,
@@ -31,7 +31,7 @@ union ReqAckData {
   KeyGet:KeyIDList,
   KeyAdd:Key,
   KeyClr:Ack,
-  KeyDel:Ack
+  KeyDel:Key
 }
 table ReqAck {
   seq_no:uint64;	// request ID (restarts at 0 with each session)

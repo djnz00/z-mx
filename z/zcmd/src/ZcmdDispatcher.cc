@@ -28,7 +28,7 @@ void ZcmdDispatcher::map(ZuID id, Fn fn)
     m_fnMap.add(id, ZuMv(fn));
 }
 
-int ZcmdDispatcher::dispatch(ZuID id, void *link, ZmRef<IOBuf> buf)
+int ZcmdDispatcher::dispatch(ZuID id, void *link, ZmRef<ZiIOBuf> buf)
 {
   if (auto node = m_fnMap.find(id))
     return (node->template p<1>())(link, ZuMv(buf));
