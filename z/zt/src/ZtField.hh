@@ -234,6 +234,8 @@ namespace ZuFieldProp {
   template <typename Props> using GetFlags = GetType<Props, Flags>;
 
   template <typename Props>
+  using HasNDP = HasValue<Props, int8_t, NDP>;
+  template <typename Props>
   using GetNDP = GetValue<Props, int8_t, NDP>;
 }
 namespace ZtMFieldProp {
@@ -2116,9 +2118,9 @@ struct ZtFieldType_Float : public ZtFieldType_<Props_> {
     ZuBox<double> v;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
-      constexpr int8_t NDP = ZuFieldProp::GetNDP<Props>{};
-      if constexpr (!ZuCmp<int8_t>::null(NDP))
-	return s << print.v.template fp<NDP, '\0', Fmt>();
+      if constexpr (ZuFieldProp::HasNDP<Props>{})
+	return
+	  s << print.v.template fp<ZuFieldProp::GetNDP<Props>{}, '\0', Fmt>();
       else
 	return s << print.v.template fmt<Fmt>();
     }
@@ -2206,9 +2208,9 @@ struct ZtFieldType_Fixed : public ZtFieldType_<Props_> {
     ZuFixed v;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
-      constexpr int8_t NDP = ZuFieldProp::GetNDP<Props>{};
-      if constexpr (!ZuCmp<int8_t>::null(NDP))
-	return s << print.v.template fp<NDP, '\0', Fmt>();
+      if constexpr (ZuFieldProp::HasNDP<Props>{})
+	return
+	  s << print.v.template fp<ZuFieldProp::GetNDP<Props>{}, '\0', Fmt>();
       else
 	return s << print.v.template fmt<Fmt>();
     }
@@ -2295,9 +2297,9 @@ struct ZtFieldType_Decimal : public ZtFieldType_<Props_> {
     ZuDecimal v;
     template <typename S>
     friend S &operator <<(S &s, const Print &print) {
-      constexpr int8_t NDP = ZuFieldProp::GetNDP<Props>{};
-      if constexpr (!ZuCmp<int8_t>::null(NDP))
-	return s << print.v.template fp<NDP, '\0', Fmt>();
+      if constexpr (ZuFieldProp::HasNDP<Props>{})
+	return
+	  s << print.v.template fp<ZuFieldProp::GetNDP<Props>{}, '\0', Fmt>();
       else
 	return s << print.v.template fmt<Fmt>();
     }
