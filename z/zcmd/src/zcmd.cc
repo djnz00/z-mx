@@ -48,9 +48,12 @@ static void usage()
     "  \t  (reads commands from standard input if none specified)\n"
     "  ARGS\t- command arguments\n\n"
     "Environment Variables:\n"
-    "  ZCMD_KEY_ID\tAPI key ID\n"
+    "  ZCMD_PASSWD\t\tpassword\n"
+    "  ZCMD_TOTP_SECRET\tTOTP secret\n"
+    "  ZCMD_KEY_ID\t\tAPI key ID\n"
     "  ZCMD_KEY_SECRET\tAPI key secret\n"
-    "  ZCMD_PLUGIN\tzcmd plugin module\n";
+    "  ZCMD_CAPATH\t\tCA for validating server TLS certificate\n"
+    "  ZCMD_PLUGIN\t\tzcmd plugin module\n";
   std::cerr << usage << std::flush;
   ZeLog::stop();
   Zm::exit(1);
@@ -142,9 +145,9 @@ private:
 
 class ZCmd;
 
-class Link : public ZcmdCliLink<ZCmd, Link, ZiIOBufAlloc<>> {
+class Link : public ZcmdCliLink<ZCmd, Link> {
 public:
-  using Base = ZcmdCliLink<ZCmd, Link, ZiIOBufAlloc<>>;
+  using Base = ZcmdCliLink<ZCmd, Link>;
   template <typename Server>
   Link(ZCmd *app, Server &&server, uint16_t port);
 
@@ -439,7 +442,7 @@ private:
     using namespace Zum;
     if (ack->rejCode()) {
       out << '[' << ZuBox<unsigned>(ack->rejCode()) << "] "
-	<< Zfb::Load::str(ack->rejText());
+	<< Zfb::Load::str(ack->rejText()) << '\n';
       return 1;
     }
     auto ackType = ack->data_type();
@@ -602,15 +605,16 @@ private:
 	    fbs::CreateUserChPass(fbb,
 	      str(fbb, oldpw),
 	      str(fbb, newpw)).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
+      auto &out = ctx.out;
       if (int code = filterAck(
-	  ctx.out, ack, int(fbs::ReqAckData::ChPass), -1, "password change")) {
+	  out, ack, int(fbs::ReqAckData::ChPass), -1, "password change")) {
 	executed(code, &ctx);
 	return;
       }
-      auto &out = ctx.out;
       out << "password changed\n";
       executed(0, &ctx);
     });
@@ -634,26 +638,31 @@ private:
     {
       using namespace Zfb::Save;
       Zfb::IOBuilder fbb;
+      Zfb::Offset<void> fbKey;
+      if (key.is<uint64_t>())
+	fbKey = fbs::CreateUserID(fbb, key.p<uint64_t>()).Union();
+      else if (key.is<ZtString>())
+	fbKey = fbs::CreateUserName(fbb,
+	  Zfb::Save::str(fbb, key.p<ZtString>())).Union();
       fbs::UserQueryBuilder fbb_(fbb);
       if (key.is<uint64_t>()) {
 	fbb_.add_userKey_type(fbs::UserKey::ID);
-	fbb_.add_userKey(fbs::CreateUserID(fbb, key.p<uint64_t>()).Union());
+	fbb_.add_userKey(fbKey);
       } else if (key.is<ZtString>()) {
 	fbb_.add_userKey_type(fbs::UserKey::Name);
-	fbb_.add_userKey(
-	  fbs::CreateUserName(fbb,
-	    Zfb::Save::str(fbb, key.p<ZtString>())).Union());
+	fbb_.add_userKey(fbKey);
       }
       fbb_.add_inclusive(!exclusive);
       fbb_.add_limit(limit);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::UserGet, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
       auto &out = ctx.out;
       if (int code = filterAck(
-	    out, ack, int(fbs::ReqAckData::UserGet), -1, "user get")) {
+	  out, ack, int(fbs::ReqAckData::UserGet), -1, "user get")) {
 	executed(code, &ctx);
 	return;
       }
@@ -687,6 +696,7 @@ private:
       fbb_.add_flags(flags);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::UserAdd, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -716,6 +726,7 @@ private:
 	    fbs::ReqData::ResetPass,
 	    fbs::CreateUserID(fbb,
 	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -765,6 +776,7 @@ private:
       if (modFlags) fbb_.add_flags(flags);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::UserMod, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -790,6 +802,7 @@ private:
 	    fbs::ReqData::UserDel,
 	    fbs::CreateUserID(fbb,
 	      ctx->args->getInt64<true>("1", 0, LLONG_MAX)).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -828,6 +841,7 @@ private:
       fbb_.add_limit(limit);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::RoleGet, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -863,6 +877,7 @@ private:
 	      bitmap(fbb, perms),
 	      bitmap(fbb, apiperms),
 	      flags).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -905,6 +920,7 @@ private:
       if (modFlags) fbb_.add_flags(flags);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::RoleMod, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -930,6 +946,7 @@ private:
       fbb.Finish(fbs::CreateRequest(fbb, ctx->seqNo,
 	    fbs::ReqData::RoleDel,
 	    fbs::CreateRoleID(fbb, str(fbb, ctx->args->get("1"))).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -963,19 +980,24 @@ private:
     {
       using namespace Zfb::Save;
       Zfb::IOBuilder fbb;
+      Zfb::Offset<void> fbKey;
+      if (key.is<uint64_t>())
+	fbKey = fbs::CreatePermID(fbb, key.p<uint64_t>()).Union();
+      else if (key.is<ZtString>())
+	fbKey = fbs::CreatePermName(fbb, str(fbb, key.p<ZtString>())).Union();
       fbs::PermQueryBuilder fbb_(fbb);
       if (key.is<uint64_t>()) {
 	fbb_.add_permKey_type(fbs::PermKey::ID);
-	fbb_.add_permKey(fbs::CreatePermID(fbb, key.p<uint64_t>()).Union());
+	fbb_.add_permKey(fbKey);
       } else if (key.is<ZtString>()) {
 	fbb_.add_permKey_type(fbs::PermKey::Name);
-	fbb_.add_permKey(
-	  fbs::CreatePermName(fbb, str(fbb, key.p<ZtString>())).Union());
+	fbb_.add_permKey(fbKey);
       }
       fbb_.add_inclusive(!exclusive);
       fbb_.add_limit(limit);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::PermGet, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -1006,6 +1028,7 @@ private:
       fbb_.add_name(name);
       fbb.Finish(fbs::CreateRequest(
 	  fbb, ctx->seqNo, fbs::ReqData::PermAdd, fbb_.Finish().Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -1033,6 +1056,7 @@ private:
       fbb.Finish(fbs::CreateRequest(fbb, ctx->seqNo,
 	    fbs::ReqData::PermMod,
 	    fbs::CreatePerm(fbb, permID, str(fbb, permName)).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -1059,6 +1083,7 @@ private:
       fbb.Finish(fbs::CreateRequest(fbb, ctx->seqNo,
 	    fbs::ReqData::PermDel,
 	    fbs::CreatePermID(fbb, permID).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {
@@ -1196,6 +1221,7 @@ private:
       fbb.Finish(fbs::CreateRequest(fbb, ctx->seqNo,
 	    fbs::ReqData::KeyDel,
 	    fbs::CreateKeyID(fbb, bytes(fbb, keyID)).Union()));
+      buf = fbb.buf();
     }
     m_link->sendUserDB(ZuMv(buf), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
 	const fbs::ReqAck *ack) mutable {

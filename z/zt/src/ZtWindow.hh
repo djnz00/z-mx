@@ -123,9 +123,11 @@ public:
     m_data[j] = ZuMv(v);
   }
 
-  void clr(unsigned i) { if ((i = index(i)) >= 0) m_data[i] = {}; }
+  void clr(int i) { // int, not unsigned
+    if ((i = index(i)) >= 0) m_data[i] = {};
+  }
 
-  const T *ptr(unsigned i) const {
+  const T *ptr(int i) const { // int, not unsigned
     if ((i = index(i)) < 0 || !m_data[i]) return nullptr;
     return &m_data[i];
   }

@@ -37,7 +37,7 @@ constexpr const unsigned RxBufSize() {
   return MBEDTLS_SSL_IN_CONTENT_LEN;
 }
 
-// mbedtls runs sharded within a dedicated thread, without lock contention
+// mbedtls runs within a single dedicated thread, without lock contention
 
 // API functions: listen, connect, disconnect/disconnect_, send/send_ (Tx)
 // API callbacks: accepted, connected, disconnected, process (Rx)
@@ -50,7 +50,7 @@ constexpr const unsigned RxBufSize() {
 // Transmission (Tx) |             | send_()                    | send()
 // Reception    (Rx) |             | process()                  |
 
-// IOBuf buffers are used to transport data between threads (-+> arrows below)
+// ZiIOBuf buffers transport data between threads (--> arrows below)
 
 // I/O Threads |                    TLS thread                   | App threads
 // ------------|-------------------------------------------------|------------
@@ -92,6 +92,8 @@ template <
   typename App, typename Impl, typename IOBufAlloc_,
   typename Cxn_, typename CxnRef_>
 class Link : public ZmPolymorph {
+  ZuAssert((ZuInspect<IOQueue::Node, IOBufAlloc_>::Is));
+
 public:
   using IOBufAlloc = IOBufAlloc_;
   using Cxn = Cxn_;

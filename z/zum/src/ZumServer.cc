@@ -795,11 +795,13 @@ void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::UserQuery *>(fbRequest->data());
-  if (query->userKey_type() != fbs::UserKey::ID &&
-      query->userKey_type() != fbs::UserKey::Name) {
-    fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
-	<< "unknown query key type (" << int(query->userKey_type()) << ')'));
-    return;
+  if (Zfb::IsFieldPresent(query, fbs::UserQuery::VT_USERKEY_TYPE)) {
+    if (query->userKey_type() != fbs::UserKey::ID &&
+	query->userKey_type() != fbs::UserKey::Name) {
+      fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
+	  << "unknown query key type (" << int(query->userKey_type()) << ')'));
+      return;
+    }
   }
   if (query->limit() > MaxQueryLimit) {
     fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
@@ -828,7 +830,12 @@ void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	fn(respond(fbb, seqNo, fbs::ReqAckData::UserGet, ackData.Union()));
       }
     };
-    if (query->userKey_type() == fbs::UserKey::ID) {
+    if (!Zfb::IsFieldPresent(query, fbs::UserQuery::VT_USERKEY_TYPE)) {
+      m_userTbl->selectRows<0>(
+	ZuTuple<>{},
+	query->limit(),
+	ZuMv(tupleFn));
+    } else if (query->userKey_type() == fbs::UserKey::ID) {
       auto userID = static_cast<const fbs::UserID *>(query->userKey())->id();
       m_userTbl->nextRows<0>(
 	ZuMvTuple(ZuMv(userID)),
@@ -1077,25 +1084,34 @@ void UserDB::roleGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
   ]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto query = static_cast<const fbs::RoleQuery *>(fbRequest->data());
-    m_roleTbl->nextRows<0>(
-      ZuMvTuple(Zfb::Load::str(query->roleKey())),
-      query->inclusive(),
-      query->limit(), [
-	this,
-	seqNo = fbRequest->seqNo(),
-	fbb = IOBuilder{},
-	offsets = ZtArray<Offset<fbs::Role>>(query->limit()),
-	fn = ZuMv(fn)
-      ](auto result, unsigned) mutable {
-	using Row = ZuFieldTuple<Role>;
-	if (result.template is<Row>()) {
-	  offsets.push(ZfbField::save(fbb, result.template p<Row>()));
-	} else {
-	  auto ackData = fbs::CreateRoleList(fbb,
-	    fbb.CreateVector(&offsets[0], offsets.length()));
-	  fn(respond(fbb, seqNo, fbs::ReqAckData::RoleGet, ackData.Union()));
-	}
-      });
+    auto tupleFn = [
+      this,
+      seqNo = fbRequest->seqNo(),
+      fbb = IOBuilder{},
+      offsets = ZtArray<Offset<fbs::Role>>(query->limit()),
+      fn = ZuMv(fn)
+    ](auto result, unsigned) mutable {
+      using Row = ZuFieldTuple<Role>;
+      if (result.template is<Row>()) {
+	offsets.push(ZfbField::save(fbb, result.template p<Row>()));
+      } else {
+	auto ackData = fbs::CreateRoleList(fbb,
+	  fbb.CreateVector(&offsets[0], offsets.length()));
+	fn(respond(fbb, seqNo, fbs::ReqAckData::RoleGet, ackData.Union()));
+      }
+    };
+    if (!Zfb::IsFieldPresent(query, fbs::RoleQuery::VT_ROLEKEY)) {
+      m_roleTbl->selectRows<0>(
+	ZuTuple<>{},
+	query->limit(),
+	ZuMv(tupleFn));
+    } else {
+      m_roleTbl->nextRows<0>(
+	ZuMvTuple(Zfb::Load::str(query->roleKey())),
+	query->inclusive(),
+	query->limit(),
+	ZuMv(tupleFn));
+    }
   });
 }
 
@@ -1220,11 +1236,13 @@ void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto query = static_cast<const fbs::PermQuery *>(fbRequest->data());
-  if (query->permKey_type() != fbs::PermKey::ID &&
-      query->permKey_type() != fbs::PermKey::Name) {
-    fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
-	<< "unknown query key type (" << int(query->permKey_type()) << ')'));
-    return;
+  if (Zfb::IsFieldPresent(query, fbs::PermQuery::VT_PERMKEY_TYPE)) {
+    if (query->permKey_type() != fbs::PermKey::ID &&
+	query->permKey_type() != fbs::PermKey::Name) {
+      fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
+	  << "unknown query key type (" << int(query->permKey_type()) << ')'));
+      return;
+    }
   }
   if (query->limit() > MaxQueryLimit) {
     fn(reject(fbRequest->seqNo(), __LINE__, ZtString{}
@@ -1253,7 +1271,12 @@ void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	fn(respond(fbb, seqNo, fbs::ReqAckData::PermGet, ackData.Union()));
       }
     };
-    if (query->permKey_type() == fbs::PermKey::ID) {
+    if (!Zfb::IsFieldPresent(query, fbs::PermQuery::VT_PERMKEY_TYPE)) {
+      m_permTbl->selectRows<0>(
+	ZuTuple<>{},
+	query->limit(),
+	ZuMv(tupleFn));
+    } else if (query->permKey_type() == fbs::PermKey::ID) {
       auto permID = static_cast<const fbs::PermID *>(query->permKey())->id();
       m_permTbl->nextRows<0>(
 	ZuMvTuple(ZuMv(permID)),

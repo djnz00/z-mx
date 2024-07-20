@@ -485,7 +485,7 @@ void ZiMultiplex::udp_(ZiConnectFn fn, ZiFailFn failFn,
   cxn->connected();
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d UDP CONNECTED to %s:%u",
-	(int)s, inet_ntoa(remoteIP), unsigned(remotePort)));
+	int(s), inet_ntoa(remoteIP), unsigned(remotePort)));
 
 #ifdef ZiMultiplex_IOCP
   cxn->recv();
@@ -578,7 +578,7 @@ void ZiMultiplex::connect_(ZiConnectFn fn, ZiFailFn failFn,
 #endif
   }
 
-  ZiDEBUG(this, ZtSprintf("FD: % 3d CONNECTING to %s:%u", (int)s,
+  ZiDEBUG(this, ZtSprintf("FD: % 3d CONNECTING to %s:%u", int(s),
 	inet_ntoa(remoteIP), unsigned(remotePort)));
 
   ZiSockAddr remote(remoteIP, remotePort);
@@ -725,7 +725,7 @@ void ZiMultiplex::executedConnect(ZiConnectFn fn, const ZiCxnInfo &ci)
   cxn->connected();
 
   ZiDEBUG(this, ZtSprintf("FD: % 3d TCP CONNECTED to %s:%u",
-	(int)ci.socket, inet_ntoa(ci.remoteIP), unsigned(ci.remotePort)));
+	int(ci.socket), inet_ntoa(ci.remoteIP), unsigned(ci.remotePort)));
 }
 
 void ZiConnection::telemetry(ZiCxnTelemetry &data) const
@@ -733,8 +733,12 @@ void ZiConnection::telemetry(ZiCxnTelemetry &data) const
   unsigned rxBufSize = 0;
   unsigned txBufSize = 0;
   socklen_t l = sizeof(unsigned);
-  getsockopt(m_info.socket, SOL_SOCKET, SO_RCVBUF, (char *)&rxBufSize, &l);
-  getsockopt(m_info.socket, SOL_SOCKET, SO_SNDBUF, (char *)&txBufSize, &l);
+  getsockopt(
+    m_info.socket, SOL_SOCKET, SO_RCVBUF,
+    reinterpret_cast<char *>(&rxBufSize), &l);
+  getsockopt(
+    m_info.socket, SOL_SOCKET, SO_SNDBUF,
+    reinterpret_cast<char *>(&txBufSize), &l);
 #ifdef ZiMultiplex_EPoll
   int rxBufLen = 0;
   int txBufLen = 0;
@@ -1169,7 +1173,7 @@ void ZiConnection::recv()
   unsigned len = m_rxContext.size - m_rxContext.offset;
 
   WSABUF wsaBuf;
-  wsaBuf.buf = (char *)m_rxContext.ptr + m_rxContext.offset;
+  wsaBuf.buf = reinterpret_cast<char *>(m_rxContext.ptr + m_rxContext.offset);
   wsaBuf.len = len;
 
   using Executed = Zi_Overlapped::Executed;
@@ -1183,13 +1187,12 @@ void ZiConnection::recv()
   if (m_mx->debug()) {
     unsigned long n;
     DWORD o;
-    if (!WSAIoctl(m_info.socket, FIONREAD, 0, 0,
-		  &n, sizeof(unsigned long), &o, 0, 0)) {
+    if (!WSAIoctl(
+	m_info.socket, FIONREAD, 0, 0, &n, sizeof(unsigned long), &o, 0, 0)) {
       ZiDEBUG(m_mx, ZtSprintf(
-	    "FD: % 3d WSARecv(%u) size: %u offset: %u buffered: %lu "
-	    "overlapped: %p",
-	    (int)m_info.socket, len, m_rxContext.size, m_rxContext.offset, n,
-	    (void *)&overlapped));
+	  "FD: % 3d WSARecv(%u) size: %u offset: %u buffered: %lu "
+	  "overlapped: %p", int(m_info.socket), len, m_rxContext.size,
+	  m_rxContext.offset, n, &overlapped));
     }
   }
 #endif
@@ -1231,7 +1234,7 @@ void ZiConnection::recv()
   }
 
   unsigned len = m_rxContext.size - m_rxContext.offset;
-  void *buf = (char *)m_rxContext.ptr + m_rxContext.offset;
+  auto buf = m_rxContext.ptr + m_rxContext.offset;
 
   ZeError e;
   int n;
@@ -1245,23 +1248,25 @@ void ZiConnection::recv()
     ioctl(m_info.socket, FIONREAD, &n);
     ZiDEBUG(m_mx, ZtSprintf(
 	  "FD: % 3d recv(%u) size: %u offset: %u buffered: %u",
-	  (int)m_info.socket, len, m_rxContext.size, m_rxContext.offset, n));
+	  int(m_info.socket), len, m_rxContext.size, m_rxContext.offset, n));
   }
 #endif
 
 retry:
   if (m_info.options.udp()) {
     socklen_t addrLen = m_rxContext.addr.len();
-    n = ::recvfrom(m_info.socket, (char *)buf, len, 0,
-	m_rxContext.addr.sa(), &addrLen);
+    n = ::recvfrom(
+      m_info.socket, reinterpret_cast<char *>(buf), len, 0,
+      m_rxContext.addr.sa(), &addrLen);
   } else {
-    n = ::recv(m_info.socket, (char *)buf, len, 0);
+    n = ::recv(
+      m_info.socket, reinterpret_cast<char *>(buf), len, 0);
   }
   if (ZuUnlikely(n < 0)) e = errno;
 
   ZiDEBUG(m_mx, ZtSprintf(
 	"FD: % 3d recv(%d): %d errno: %d (EAGAIN=%d EINTR=%d)",
-	(int)m_info.socket, len, n, (int)e.errNo(), (int)EAGAIN, (int)EINTR));
+	int(m_info.socket), len, n, int(e.errNo()), int(EAGAIN), int(EINTR)));
 
   if (ZuUnlikely(n < 0)) {
     if (e.errNo() == EAGAIN) {
@@ -1277,7 +1282,7 @@ retry:
   }
 
   ZiDEBUG(m_mx, ZtHexDump(ZtSprintf(
-	  "FD: % 3d recv(%d): %d", (int)m_info.socket, len, n), buf, n));
+	  "FD: % 3d recv(%d): %d", int(m_info.socket), len, n), buf, n));
 
   if (ZuUnlikely(!n)) {
     if (m_info.options.udp()) return true;
@@ -1305,7 +1310,7 @@ retry:
   }
 
   len = m_rxContext.size - m_rxContext.offset;
-  buf = (char *)m_rxContext.ptr + m_rxContext.offset;
+  buf = m_rxContext.ptr + m_rxContext.offset;
   goto retry;
 #endif
 }
@@ -1360,8 +1365,8 @@ void ZiConnection::executedRecv(unsigned n)
 
 #ifdef ZiMultiplex_IOCP
   ZiDEBUG(m_mx, ZtHexDump(ZtSprintf(
-	  "FD: % 3d WSARecv(%d)", (int)m_info.socket, n),
-	(char *)m_rxContext.ptr + m_rxContext.offset, n));
+	"FD: % 3d WSARecv(%d)", int(m_info.socket), n),
+      reinterpret_cast<char *>(m_rxContext.ptr + m_rxContext.offset), n));
 #endif
 
   m_rxRequests++, m_rxBytes += n;
@@ -1395,13 +1400,13 @@ void ZiConnection::send()
 
 #ifdef ZiMultiplex_IOCP
   WSABUF wsaBuf;
-  wsaBuf.buf = (char *)m_txContext.ptr + m_txContext.offset;
+  wsaBuf.buf = reinterpret_cast<char *>(m_txContext.ptr + m_txContext.offset);
   wsaBuf.len = m_txContext.size - m_txContext.offset;
 
 retry:
   ZiDEBUG(m_mx, ZtHexDump(ZtSprintf(
 	  "FD: % 3d WSASend(%lu) size: %u offset: %u",
-	(int)m_info.socket, wsaBuf.len, m_txContext.size, m_txContext.offset),
+	int(m_info.socket), wsaBuf.len, m_txContext.size, m_txContext.offset),
 	wsaBuf.buf, wsaBuf.len));
 
   ZeError e;
@@ -1414,7 +1419,7 @@ retry:
       return;
     }
     ZiDEBUG(m_mx, ZtSprintf(
-	  "FD: % 3d WSASendTo(%lu): %lu", (int)m_info.socket, wsaBuf.len, n));
+	  "FD: % 3d WSASendTo(%lu): %lu", int(m_info.socket), wsaBuf.len, n));
   } else {
     if (ZuUnlikely(WSASend(m_info.socket, &wsaBuf, 1, &n, 0,
 	    0, 0) == SOCKET_ERROR)) {
@@ -1422,12 +1427,12 @@ retry:
       return;
     }
     ZiDEBUG(m_mx, ZtSprintf(
-	  "FD: % 3d WSASend(%lu): %lu", (int)m_info.socket, wsaBuf.len, n));
+	  "FD: % 3d WSASend(%lu): %lu", int(m_info.socket), wsaBuf.len, n));
   }
 #endif
 
 #ifdef ZiMultiplex_EPoll
-  void *buf = (char *)m_txContext.ptr + m_txContext.offset;
+  auto buf = m_txContext.ptr + m_txContext.offset;
   unsigned len = m_txContext.size - m_txContext.offset;
 
   ZeError e;
@@ -1436,26 +1441,24 @@ retry:
 retry:
   ZiDEBUG(m_mx, ZtHexDump(ZtSprintf(
 	"FD: % 3d send(%u) size: %u offset: %u",
-	(int)m_info.socket, len, m_txContext.size, m_txContext.offset),
+	int(m_info.socket), len, m_txContext.size, m_txContext.offset),
 	buf, len));
 
   if (m_info.options.udp())
     n = ::sendto(
-	m_info.socket, (const char *)buf, len, 0,
+	m_info.socket, buf, len, 0,
 	m_txContext.addr.sa(), m_txContext.addr.len());
 #ifdef ZiMultiplex_Netlink
   else if (m_info.options.netlink())
-    n = ZiNetlink::send(
-	m_info.socket, m_ci.familyID, m_ci.portID,
-	(const void *)buf, len);
+    n = ZiNetlink::send(m_info.socket, m_ci.familyID, m_ci.portID, buf, len);
 #endif
   else
-    n = ::send(m_info.socket, (const char *)buf, len, 0);
+    n = ::send(m_info.socket, buf, len, 0);
   if (ZuUnlikely(n < 0)) e = errno;
 
   ZiDEBUG(m_mx, ZtSprintf(
 	"FD: % 3d send(%d): %d errno: %d (EAGAIN=%d EINTR=%d)",
-	(int)m_info.socket, len, n, (int)e.errNo(), (int)EAGAIN, (int)EINTR));
+	int(m_info.socket), len, n, int(e.errNo()), int(EAGAIN), int(EINTR)));
 
   if (ZuUnlikely(n < 0)) {
     if (e.errNo() == EAGAIN) {
@@ -1470,7 +1473,7 @@ retry:
   }
 
   ZiDEBUG(m_mx, ZtSprintf(
-	  "FD: % 3d send(%d): %d", (int)m_info.socket, len, n));
+	  "FD: % 3d send(%d): %d", int(m_info.socket), len, n));
 #endif
 
   executedSend(n);
@@ -1486,12 +1489,12 @@ retry:
   }
 
 #ifdef ZiMultiplex_IOCP
-  wsaBuf.buf = (char *)m_txContext.ptr + m_txContext.offset;
+  wsaBuf.buf = reinterpret_cast<char *>(m_txContext.ptr + m_txContext.offset);
   wsaBuf.len = m_txContext.size - m_txContext.offset;
 #endif
 
 #ifdef ZiMultiplex_EPoll
-  buf = (char *)m_txContext.ptr + m_txContext.offset;
+  buf = m_txContext.ptr + m_txContext.offset;
   len = m_txContext.size - m_txContext.offset;
 #endif
 
@@ -1518,7 +1521,7 @@ void ZiConnection::executedSend(unsigned n)
 
 #ifdef ZiMultiplex_IOCP
   ZiDEBUG(m_mx, ZtSprintf(
-	  "FD: % 3d WSASend(%d)", (int)m_info.socket, n));
+	  "FD: % 3d WSASend(%d)", int(m_info.socket), n));
 #endif
 
   m_txRequests++, m_txBytes += n;
@@ -1748,7 +1751,7 @@ void ZiConnection::disconnect_2()
     return;
   }
 
-  ZiDEBUG(m_mx, ZtSprintf("FD: % 3d disconnect()", (int)m_info.socket));
+  ZiDEBUG(m_mx, ZtSprintf("FD: % 3d disconnect()", int(m_info.socket)));
   
 #ifdef ZiMultiplex_IOCP
   using Executed = Zi_Overlapped::Executed;
@@ -1819,7 +1822,7 @@ void ZiMultiplex::disconnected(ZiConnection *cxn)
 {
   Socket s = cxn->info().socket;
 
-  ZiDEBUG(this, ZtSprintf("FD: % 3d disconnected()", (int)s));
+  ZiDEBUG(this, ZtSprintf("FD: % 3d disconnected()", int(s)));
 
   cxnDel(s);
   
@@ -1846,7 +1849,7 @@ void ZiConnection::close_2()
   
   m_rxUp = 0;
 
-  ZiDEBUG(m_mx, ZtSprintf("FD: % 3d close()", (int)m_info.socket));
+  ZiDEBUG(m_mx, ZtSprintf("FD: % 3d close()", int(m_info.socket)));
 
   executedDisconnect();
 }
@@ -2065,14 +2068,14 @@ void ZiMultiplex::rx()
 	  m_completionPort, &len, &key, (OVERLAPPED **)&overlapped, INFINITE)) {
       e = GetLastError();
       ZiDEBUG(this, ZtSprintf("wait() overlapped: %p errNo: %d",
-	    (void *)overlapped, (int)e.errNo()));
+	    overlapped, int(e.errNo())));
       if (!overlapped) {
 	Error("GetQueuedCompletionStatus", Zi::IOError, e);
 	return;
       }
       overlapped->complete(Zi::IOError, 0, e);
     } else {
-      ZiDEBUG(this, ZtSprintf("wait() overlapped: %p", (void *)overlapped));
+      ZiDEBUG(this, ZtSprintf("wait() overlapped: %p", overlapped));
       if (!overlapped) { // PostQueuedCompletionStatus() called
 	ZiDEBUG(this, "wait() woken by PostQueuedCompletionStatus()");
 	return;

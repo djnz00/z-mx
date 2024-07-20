@@ -60,7 +60,10 @@ using Zcmd_Credentials = ZuUnion<Zcmd_Login, Zcmd_Access>;
 
 template <typename App, typename Link> class ZcmdClient;
 
-template <typename App_, typename Impl_, typename IOBufAlloc_>
+template <
+  typename App_,
+  typename Impl_,
+  typename IOBufAlloc_ = Ztls::IOBufAlloc<>>
 class ZcmdCliLink :
     public Ztls::CliLink<App_, Impl_>,
     public ZiRx<ZcmdCliLink<App_, Impl_, IOBufAlloc_>, IOBufAlloc_> {
@@ -181,7 +184,7 @@ public:
 
   void loggedIn() { } // default
 
-  void connected(const char *alpn) {
+  void connected(const char *alpn, int /* tlsver */) {
     if (!alpn || strcmp(alpn, "zcmd")) {
       this->disconnect();
       return;

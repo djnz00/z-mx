@@ -233,6 +233,8 @@ void DB::start_()
 
 void DB::start_1()
 {
+  ZdbDebug(this, "opening all tables");
+
   // open and recover all tables
   all([](AnyTable *table, ZmFn<void(bool)> done) {
     table->open([done = ZuMv(done)](bool ok) mutable { done(ok); });

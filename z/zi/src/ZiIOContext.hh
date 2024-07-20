@@ -21,11 +21,18 @@
 
 class ZiConnection;
 
-class ZiIOContext {
-  constexpr ZuInline static uintptr_t invalid_ptr() {
-    return static_cast<uintptr_t>(-1);
-  }
+struct ZiIOContext {
+  ZiConnection	*cxn = nullptr;	// connection - set by ZiMultiplex
+  ZmAnyFn	fn;		// callback - set by app (clear to complete I/O)
+  uint8_t	*ptr = nullptr;	// buffer - set by app (clear to disconnect)
+  unsigned	size = 0;	// size of buffer - set by app
+  unsigned	offset = 0;	// offset within buffer - set by app
+  unsigned	length = 0;	// length - set by ZiMultiplex
+  ZiSockAddr	addr;		// set by app (send) / ZiMultiplex (recv)
 
+  static constexpr uintptr_t invalid_ptr() { return uintptr_t(-1); }
+
+private:
 friend ZiConnection;
   // initialize (called from within send/recv)
   template <typename Fn>
@@ -72,14 +79,6 @@ public:
   }
 
   bool operator()();	// return true if complete
-
-  ZiConnection	*cxn = nullptr;	// connection - set by ZiMultiplex
-  ZmAnyFn	fn;		// callback - set by app (clear to complete I/O)
-  uint8_t	*ptr = nullptr;	// buffer - set by app (clear to disconnect)
-  unsigned	size = 0;	// size of buffer - set by app
-  unsigned	offset = 0;	// offset within buffer - set by app
-  unsigned	length = 0;	// length - set by ZiMultiplex
-  ZiSockAddr	addr;		// set by app (send) / ZiMultiplex (recv)
 };
 using ZiIOFn = ZmFn<bool(ZiIOContext &)>;
 inline bool ZiIOContext::operator ()() { return fn.as<ZiIOFn>()(*this); }

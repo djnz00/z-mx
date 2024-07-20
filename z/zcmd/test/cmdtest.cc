@@ -14,8 +14,8 @@
 
 class CmdTest;
 
-struct Link : public ZcmdSrvLink<CmdTest, Link, ZiIOBufAlloc<>> {
-  using Base = ZcmdSrvLink<CmdTest, Link, ZiIOBufAlloc<>>;
+struct Link : public ZcmdSrvLink<CmdTest, Link> {
+  using Base = ZcmdSrvLink<CmdTest, Link>;
   Link(CmdTest *app) : Base{app} { }
 };
 
@@ -147,6 +147,7 @@ int main(int argc, char **argv)
       "  maxAge 8\n"
       "}\n"
       "zdb {\n"
+      "  debug 1\n"
       "  thread zdb\n"
       "  hostID 0\n"
       "  hosts { 0 { standalone 1 } }\n"

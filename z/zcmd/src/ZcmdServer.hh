@@ -46,7 +46,10 @@
 template <typename App, typename Link>
 class ZcmdServer;
 
-template <typename App_, typename Impl_, typename IOBufAlloc_>
+template <
+  typename App_,
+  typename Impl_,
+  typename IOBufAlloc_ = Ztls::IOBufAlloc<>>
 class ZcmdSrvLink :
     public Ztls::SrvLink<App_, Impl_, IOBufAlloc_>,
     public ZiRx<ZcmdSrvLink<App_, Impl_, IOBufAlloc_>, IOBufAlloc_> {
@@ -79,7 +82,7 @@ public:
 
   Session *session() const { return m_session; }
 
-  void connected(const char *alpn) {
+  void connected(const char *alpn, int /* tlsver */) {
     scheduleTimeout();
 
     if (!alpn || strcmp(alpn, "zcmd")) {
@@ -105,17 +108,20 @@ private:
     return this->app()->processLogin(
       ZuMv(buf),
       Zum::Server::LoginFn{ZmMkRef(this),
-	[](ZcmdSrvLink *this_, ZmRef<Session>, ZmRef<ZiIOBuf> buf) {
-	  this_->processLoginAck(ZuMv(buf));
+	[](ZcmdSrvLink *this_, ZmRef<Session> session, ZmRef<ZiIOBuf> buf) {
+	  this_->processLoginAck(ZuMv(session), ZuMv(buf));
 	}});
   }
-  void processLoginAck(ZmRef<ZiIOBuf> buf) {
+  void processLoginAck(ZmRef<Session> session, ZmRef<ZiIOBuf> buf) {
     // Note: the app thread is the TLS thread
-    this->app()->run([this, buf = ZuMv(buf)]() mutable {
+    this->app()->run([
+      this, session = ZuMv(session), buf = ZuMv(buf)
+    ]() mutable {
       auto ack = Zfb::GetRoot<Zum::fbs::LoginAck>(buf->data());
-      if (ack->ok())
+      if (ack->ok()) {
+	m_session = ZuMv(session);
 	m_state = State::Up;
-      else
+      } else
 	m_state = State::LoginFailed;
       this->send_(Zcmd::saveHdr(ZuMv(buf), Zcmd::Type::login()));
     });

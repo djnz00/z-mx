@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 	secret = ZuMv(data.secret);
 	std::cout
 	  << "passwd: " << passwd
-	  << " secret: " << secret << '\n' << std::flush;
+	  << "\nsecret: " << secret << '\n' << std::flush;
       }
       wake();
     });
