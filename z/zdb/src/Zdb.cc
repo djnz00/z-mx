@@ -233,7 +233,7 @@ void DB::start_()
 
 void DB::start_1()
 {
-  ZdbDebug(this, "opening all tables");
+  ZdbDEBUG(this, "opening all tables");
 
   // open and recover all tables
   all([](AnyTable *table, ZmFn<void(bool)> done) {
