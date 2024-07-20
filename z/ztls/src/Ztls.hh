@@ -15,6 +15,9 @@
 #include <mbedtls/ssl_cache.h>
 #include <mbedtls/ssl_ticket.h>
 #include <mbedtls/net_sockets.h>
+#ifdef ZDEBUG
+#include <mbedtls/debug.h>
+#endif
 
 #include <zlib/ZuString.hh>
 
@@ -436,7 +439,7 @@ template <typename App, typename Impl, typename IOBufAlloc, typename Cxn>
 using SrvLink_ = Link<App, Impl, IOBufAlloc, Cxn, Cxn *>;
 
 template <typename App, typename Impl, typename IOBufAlloc = IOBufAlloc<>>
-class CliLink : public CliLink_<App, Impl, IOBufAlloc, CliCxn<Impl> > {
+class CliLink : public CliLink_<App, Impl, IOBufAlloc, CliCxn<Impl>> {
 public:
   using Cxn = CliCxn<Impl>;
   using Base = CliLink_<App, Impl, IOBufAlloc, Cxn>;
@@ -593,7 +596,7 @@ private:
 };
 
 template <typename App, typename Impl, typename IOBufAlloc = IOBufAlloc<>>
-class SrvLink : public SrvLink_<App, Impl, IOBufAlloc, SrvCxn<Impl> > {
+class SrvLink : public SrvLink_<App, Impl, IOBufAlloc, SrvCxn<Impl>> {
 public:
   using Cxn = SrvCxn<Impl>;
   using Base = SrvLink_<App, Impl, IOBufAlloc, Cxn>;
@@ -655,9 +658,12 @@ template <typename, typename, typename> friend class SrvLink;
 private:
   template <typename L>
   bool init_(L l) {
+#ifdef ZDEBUG
+    // mbedtls_debug_set_threshold(INT_MAX);
+#endif
     mbedtls_ssl_conf_dbg(&m_conf, [](
 	  void *, int level,
-	  const char *file, int line, const char *message) {
+	  const char *file, int line, const char *message_) {
       int sev;
       switch (level) {
 	case 0: sev = Ze::Error;
@@ -669,15 +675,19 @@ private:
 #ifndef ZDEBUG
       if (sev > Ze::Debug)
 #endif
-      ZeLogEvent(ZeEvent(sev, file, line, "",
-	  [message = ZtString{message}](auto &s) { s << message; }));
+      {
+	ZtString message{message_};
+	message.chomp();
+	ZeLogEvent(ZeEvent(sev, file, line, "",
+	    [message = ZuMv(message)](auto &s) { s << message; }));
+      }
     }, nullptr);
-    if (!l()) return false;
     if (!Random::init()) {
       ZeLOG(Error, "mbedtls_ctr_drbg_seed() failed");
       return false;
     }
     mbedtls_ssl_conf_rng(&m_conf, mbedtls_ctr_drbg_random, ctr_drbg());
+    if (!l()) return false;
     mbedtls_ssl_conf_renegotiation(&m_conf, MBEDTLS_SSL_RENEGOTIATION_ENABLED);
     return true;
   }
@@ -898,7 +908,7 @@ friend Base;
       if (mbedtls_ssl_ticket_setup(&m_ticket_ctx,
 	    mbedtls_ctr_drbg_random, this->ctr_drbg(),
 	    MBEDTLS_CIPHER_AES_256_GCM,
-	    cacheTimeout)) return false;
+	    cacheTimeout < 0 ? 86400 : cacheTimeout)) return false;
       mbedtls_ssl_conf_session_tickets_cb(this->conf(),
 	  mbedtls_ssl_ticket_write,
 	  mbedtls_ssl_ticket_parse,

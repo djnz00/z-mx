@@ -46,12 +46,16 @@ struct App : public Ztls::Server<App> {
     }
 
     int process(const uint8_t *data, unsigned len) {
-      std::cout << ZuString{(const char *)data, len} << std::flush;
+      std::cout << ZuString{data, len} << std::flush;
       ZtString response;
       ZtString content = Content;
       response << Response << content.length() << Response2;
-      send_((const uint8_t *)response.data(), response.length());
-      send_((const uint8_t *)content.data(), content.length());
+      send_(
+	reinterpret_cast<const uint8_t *>(response.data()),
+	response.length());
+      send_(
+	reinterpret_cast<const uint8_t *>(content.data()),
+	content.length());
       return len;
     }
   };
