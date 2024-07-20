@@ -50,6 +50,7 @@ using Builder = FlatBufferBuilder;
 
 // IOBuilder customizes FlatBufferBuilder with an allocator that
 // builds directly into a detachable IOBuf for transmission/persistence
+// - Note: IOBuilder is immovable - use a ZuPtr<> if needed
 class IOBuilder : public Allocator, public Builder {
 public:
   enum { Align = 8 };
@@ -61,8 +62,8 @@ public:
     Builder{buf->size & ~(Align - 1), this, false, Align},
     m_buf{ZuMv(buf)} { }
 
-  IOBuilder(IOBuilder &&) = default;
-  IOBuilder &operator =(IOBuilder &&) = default;
+  IOBuilder(IOBuilder &&) = delete;
+  IOBuilder &operator =(IOBuilder &&) = delete;
 
   // attach buffer to builder
   void buf(ZmRef<ZiIOBuf> buf) {

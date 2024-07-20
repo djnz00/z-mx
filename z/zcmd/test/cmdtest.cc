@@ -230,6 +230,16 @@ int main(int argc, char **argv)
     gtfo();
   }
 
+  if (!ZmBlock<bool>{}([](auto wake) {
+    server->open({}, [wake = ZuMv(wake)](bool ok, ZtArray<unsigned>) mutable {
+      wake(ok);
+    });
+  })) {
+    ZeLOG(Fatal, "UserDB open failed");
+    db->stop();
+    gtfo();
+  }
+
   server->start();
 
   server->wait();

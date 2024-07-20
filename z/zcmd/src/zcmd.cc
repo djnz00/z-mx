@@ -258,6 +258,8 @@ friend Link;
   void wait() { m_done.wait(); }
   void done() { m_done.post(); }
 
+  void sigint() { m_executed.post(); m_done.post(); }
+
   void exiting() { m_exiting = true; }
 
   // ZcmdHost virtual functions
@@ -328,6 +330,7 @@ private:
   }
 
   void disconnected() {
+    m_executed.post();
     if (m_interactive) {
       m_cli.stop();
       m_cli.close();
@@ -1461,7 +1464,7 @@ inline int Link::processTelemetry(ZmRef<ZiIOBuf> buf)
 
 ZmRef<ZCmd> client;
 
-void sigint() { if (client) client->done(); }
+void sigint() { if (client) client->sigint(); }
 
 int main(int argc, char **argv)
 {

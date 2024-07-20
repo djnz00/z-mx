@@ -39,7 +39,7 @@
 #include <zlib/ZiIOContext.hh>
 
 #if defined(ZDEBUG) && !defined(ZiMultiplex_DEBUG)
-// #define ZiMultiplex_DEBUG	// enable testing / debugging
+#define ZiMultiplex_DEBUG	// enable testing / debugging
 #endif
 
 #ifdef ZiMultiplex_DEBUG

@@ -1813,8 +1813,10 @@ void ZiConnection::errorDisconnect(int status, ZeError e)
       "DisconnectEx",
 #endif
       status, e);
-  Zi::closeSocket(m_info.socket);
-  m_info.socket = Zi::nullSocket();
+  if (!Zi::nullSocket(m_info.socket)) {
+    Zi::closeSocket(m_info.socket);
+    m_info.socket = Zi::nullSocket();
+  }
   disconnected();
 }
 
@@ -1822,8 +1824,10 @@ void ZiConnection::executedDisconnect()
 {
   ZmRef<ZiConnection> this_{this}; // maintain +ve ref count in scope
   m_mx->disconnected(this);
-  Zi::closeSocket(m_info.socket);
-  m_info.socket = Zi::nullSocket();
+  if (!Zi::nullSocket(m_info.socket)) {
+    Zi::closeSocket(m_info.socket);
+    m_info.socket = Zi::nullSocket();
+  }
   disconnected();
 }
 

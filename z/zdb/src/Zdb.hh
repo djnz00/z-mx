@@ -602,8 +602,7 @@ protected:
   virtual void cacheStats(ZmCacheStats &stats) const = 0;
 
 public:
-  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-  telemetry(bool update) const;
+  Zfb::Offset<void> telemetry(Zfb::Builder &fbb, bool update) const;
 
 protected:
   bool writeCache() const { return m_writeCache; }
@@ -1397,8 +1396,7 @@ public:
     return ZuFwdTuple(h.priority(), h.id());
   }
 
-  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-  telemetry(bool update) const;
+  Zfb::Offset<void> telemetry(Zfb::Builder &fbb, bool update) const;
 
 private:
   ZmRef<Cxn> cxn() const { return m_cxn; }
@@ -1627,8 +1625,7 @@ public:
 
   void all(AllFn fn, AllDoneFn doneFn = AllDoneFn{});
 
-  ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-  telemetry(bool update) const;
+  Zfb::Offset<void> telemetry(Zfb::Builder &fbb, bool update) const;
 
 private:
   void allDone(bool ok);

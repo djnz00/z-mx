@@ -257,13 +257,12 @@ private:
 
 private:
   Ztls::Random		*m_rng = nullptr;
-  unsigned		m_passLen;
-  unsigned		m_totpRange;
-  unsigned		m_keyInterval;
-  unsigned		m_maxSize;
+  unsigned		m_passLen = 12;
+  unsigned		m_totpRange = 6;
+  unsigned		m_keyInterval = 30;
 
   ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_sid;
+  unsigned		m_sid = 0;
 
   ZmAtomic<int>		m_state = UserDBState::Uninitialized;
 

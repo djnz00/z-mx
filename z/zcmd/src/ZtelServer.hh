@@ -968,16 +968,19 @@ private:
     m_db->invoke([
       db = m_db, link = ZmMkRef(watch->link), update
     ]() mutable {
-      auto [ fbb, offset ] = db->telemetry(update);
+      Zfb::IOBuilder fbb;
+      auto offset = db->telemetry(fbb, update);
       fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DB, offset));
       link->sendTelemetry(fbb.buf());
       db->allHosts([link, update](const ZdbHost *host) {
-	auto [ fbb, offset ] = host->telemetry(update);
+	Zfb::IOBuilder fbb;
+	auto offset = host->telemetry(fbb, update);
 	fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DBHost, offset));
 	link->sendTelemetry(fbb.buf());
       });
       db->all([link, update](const ZdbAnyTable *table, ZmFn<void(bool)> done) {
-	auto [ fbb, offset ] = table->telemetry(update);
+	Zfb::IOBuilder fbb;
+	auto offset = table->telemetry(fbb, update);
 	fbb.Finish(fbs::CreateTelemetry(fbb, fbs::TelData::DBTable, offset));
 	link->sendTelemetry(fbb.buf());
 	done(true);

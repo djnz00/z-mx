@@ -596,12 +596,11 @@ void DB::allDone(bool ok)
   }
 }
 
-ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-DB::telemetry(bool update) const
+Zfb::Offset<void>
+DB::telemetry(Zfb::Builder &fbb_, bool update) const
 {
   using namespace Zfb::Save;
 
-  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
   Zfb::Offset<Zfb::String> thread;
   if (!update) {
     thread = str(fbb_, m_cf.thread);
@@ -629,15 +628,14 @@ DB::telemetry(bool update) const
   fbb.add_active(state == HostState::Active);
   fbb.add_recovering(m_recovering);
   fbb.add_replicating(Host::replicating(m_next));
-  return {ZuMv(fbb_), fbb.Finish().Union()};
+  return fbb.Finish().Union();
 }
 
-ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-Host::telemetry(bool update) const
+Zfb::Offset<void>
+Host::telemetry(Zfb::Builder &fbb_, bool update) const
 {
   using namespace Zfb::Save;
 
-  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
   Ztel::fbs::DBHostBuilder fbb{fbb_};
   if (!update) {
     { auto v = Zfb::Save::ip(config().ip); fbb.add_ip(&v); }
@@ -647,7 +645,7 @@ Host::telemetry(bool update) const
   }
   fbb.add_state(static_cast<Ztel::fbs::DBHostState>(m_state));
   fbb.add_voted(m_voted);
-  return {ZuMv(fbb_), fbb.Finish().Union()};
+  return fbb.Finish().Union();
 }
 
 Host::Host(DB *db, const HostCf *cf, unsigned dbCount) :
@@ -1480,12 +1478,11 @@ AnyTable::~AnyTable()
 }
 
 // telemetry
-ZuTuple<Zfb::IOBuilder, Zfb::Offset<void>>
-AnyTable::telemetry(bool update) const
+Zfb::Offset<void>
+AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
 {
   using namespace Zfb::Save;
 
-  Zfb::IOBuilder fbb_{new ZiIOBufAlloc<TelBufSize>{}};
   Zfb::Offset<Zfb::String> path, name, thread;
   if (!update) {
     name = str(fbb_, config().id);
@@ -1508,7 +1505,7 @@ AnyTable::telemetry(bool update) const
     fbb.add_cacheMode(static_cast<Ztel::fbs::DBCacheMode>(config().cacheMode));
     fbb.add_warmup(config().warmup);
   }
-  return {ZuMv(fbb_), fbb.Finish().Union()};
+  return fbb.Finish().Union();
 }
 
 // process inbound replication - record

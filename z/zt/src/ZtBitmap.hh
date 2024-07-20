@@ -46,8 +46,8 @@ public:
     memset(&data[0], 0, n<<(BitShift - ByteShift));
   }
 
-  /* return length resulting from combining this with another instance
-   * - ZtBitmap grows as necessary to match */
+  // return length resulting from combining this with another instance
+  // - ZtBitmap grows as necessary to match
   unsigned combine(const Data &b) {
     unsigned l = data.length();
     unsigned r = b.data.length();

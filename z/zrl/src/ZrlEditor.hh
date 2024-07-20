@@ -319,14 +319,14 @@ using Map = Maps::Node;
 //   - "- and "" are internal and are not accessible as named registers
 //
 // none of this quirkiness embodies good product design or usability -
-// most vi users are probably unaware of these nuances; vi mode emulators
-// typipcally neglect register handling in its entirety; in this implementation
+// most vi users are likely unaware of these nuances; vi mode emulators
+// typically neglect register handling in its entirety; in this implementation
 // all yanks and deletes shift up registers 0>9 and store into register "0,
 // and the 'unnamed' register is always implicitly "0; "" and "- do not
 // separately exist and are aliased to "0; these design choices retain
 // the usability of multiple registers while adopting a logically consistent
-// use of the numbered registers whose implementation can be shared with
-// Emacs behavior
+// use of the numbered registers, and the implementation can be shared with
+// Emacs emulation
 
 using RegData = ZtArray<uint8_t>;
 using Register = ZuPtr<RegData>;

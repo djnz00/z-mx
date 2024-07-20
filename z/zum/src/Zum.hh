@@ -36,7 +36,7 @@
 
 namespace Zum {
 
-enum { IOBufSize = 128 }; // built-in buffer size
+enum { IOBufSize = 512 }; // built-in buffer size
 
 using IOBufAlloc = ZiIOBufAlloc<IOBufSize>;
 

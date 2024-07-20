@@ -22,6 +22,8 @@ namespace Zum::Server {
 
 UserDB::UserDB(Ztls::Random *rng) : m_rng{rng}
 {
+  for (unsigned i = 0; i < nPerms(); i++)
+    m_perms[i] = ZuCmp<PermID>::null();
 }
 
 UserDB::~UserDB()
@@ -41,9 +43,9 @@ void UserDB::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
       s << "ZumServer thread misconfigured: " << thread; }));
   m_mx = mx;
   m_sid = sid;
-  m_passLen = cf->getInt("passLen", 6, 60, 12);
-  m_totpRange = cf->getInt("totpRange", 0, 100, 6);
-  m_keyInterval = cf->getInt("keyInterval", 0, 36000, 30);
+  m_passLen = cf->getInt("passLen", 6, 60, m_passLen);
+  m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
+  m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
   m_state = UserDBState::Initialized;
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
@@ -817,10 +819,11 @@ void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
     auto tupleFn = [
       this,
       seqNo = fbRequest->seqNo(),
-      fbb = IOBuilder{},
+      fbb_ = ZuPtr<IOBuilder>{new IOBuilder{}},
       offsets = ZtArray<Offset<fbs::User>>(query->limit()),
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
+      auto &fbb = *fbb_;
       using Row = ZuFieldTuple<User>;
       if (result.template is<Row>()) {
 	offsets.push(ZfbField::save(fbb, result.template p<Row>()));
@@ -1087,10 +1090,11 @@ void UserDB::roleGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
     auto tupleFn = [
       this,
       seqNo = fbRequest->seqNo(),
-      fbb = IOBuilder{},
+      fbb_ = ZuPtr<IOBuilder>{new IOBuilder{}},
       offsets = ZtArray<Offset<fbs::Role>>(query->limit()),
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
+      auto &fbb = *fbb_;
       using Row = ZuFieldTuple<Role>;
       if (result.template is<Row>()) {
 	offsets.push(ZfbField::save(fbb, result.template p<Row>()));
@@ -1258,10 +1262,11 @@ void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
     auto tupleFn = [
       this,
       seqNo = fbRequest->seqNo(),
-      fbb = IOBuilder{},
+      fbb_ = ZuPtr<IOBuilder>{new IOBuilder{}},
       offsets = ZtArray<Offset<fbs::Perm>>(query->limit()),
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
+      auto &fbb = *fbb_;
       using Row = ZuFieldTuple<Perm>;
       if (result.template is<Row>()) {
 	offsets.push(ZfbField::save(fbb, result.template p<Row>()));
@@ -1417,11 +1422,12 @@ void UserDB::keyGet_(
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(userID)), MaxAPIKeys, [
       this, 
       seqNo,
-      fbb = IOBuilder{},
+      fbb_ = ZuPtr<IOBuilder>{new IOBuilder{}},
       offsets = ZtArray<Offset<Zfb::Bytes>>(MaxAPIKeys),
       ackType,
       fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
+      auto &fbb = *fbb_;
       using KeyID = ZuFieldKeyT<Key, 0>;
       if (result.template is<KeyID>()) {
 	offsets.push(Zfb::CreateBytes(fbb, Zfb::Save::bytes(fbb,

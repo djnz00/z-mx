@@ -255,12 +255,9 @@ private:
   template <typename U, typename R = void>
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
-  // an unsigned|int|size_t parameter to the constructor is a buffer size
+  // an integer parameter to the constructor is a buffer size
   template <typename U, typename V = T>
-  struct IsCtorSize : public ZuBool<
-      ZuInspect<U, unsigned>::Same ||
-      ZuInspect<U, int>::Same ||
-      ZuInspect<U, size_t>::Same> { };
+  struct IsCtorSize : public ZuBool<ZuTraits<U>::IsIntegral> { };
   template <typename U, typename R = void>
   using MatchCtorSize = ZuIfT<IsCtorSize<U>{}, R>;
 
