@@ -26,27 +26,32 @@ public:
 
     ZcmdServer::init(cf, mx, db);
 
-    addCmd("ackme", "", ZcmdFn{
-      [](ZcmdContext *ctx) {
+    addCmd("ackme", "", ZcmdFn{this,
+      [](CmdTest *this_, ZcmdContext *ctx) {
 	auto link = static_cast<Link *>(ctx->dest.p<void *>());
 	if (auto cxn = link->cxn())
 	  std::cout << cxn->info().remoteIP << ':'
 	    << ZuBoxed(cxn->info().remotePort) << ' ';
 	const auto &user = link->session()->user->data();
-	std::cout << "user: "
-	  << user.id << ' ' << user.name << '\n'
-	  << "cmd: " << ctx->args->get("0") << '\n';
-	ctx->out << "this is an ack\n";
+	ZeLOG(Info, ([
+	  id = user.id, name = user.name, cmd = ctx->args->get("0")
+	](auto &s) {
+	  s << "user: " << id << ' ' << name << ' '
+	    << "cmd: " << cmd;
+	}));
+	ctx->out << "this is an ack";
+	this_->ZcmdHost::executed(0, ctx);
       }}, "test ack", "");
-    addCmd("nakme", "", ZcmdFn{
-      [](ZcmdContext *ctx) {
-	ctx->out << "this is a nak\n";
+    addCmd("nakme", "", ZcmdFn{this,
+      [](CmdTest *this_, ZcmdContext *ctx) {
+	ctx->out << "this is a nak";
+	this_->ZcmdHost::executed(1, ctx);
       }}, "test nak", "");
-    addCmd("quit", "", ZcmdFn{
-      [](ZcmdContext *ctx) {
-	auto this_ = static_cast<CmdTest *>(ctx->host);
+    addCmd("quit", "", ZcmdFn{this,
+      [](CmdTest *this_, ZcmdContext *ctx) {
 	this_->post();
-	ctx->out << "quitting...\n";
+	ctx->out << "quitting...";
+	this_->ZcmdHost::executed(0, ctx);
       }}, "quit", "");
   }
 

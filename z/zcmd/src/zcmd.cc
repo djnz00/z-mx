@@ -414,18 +414,21 @@ private:
     fbb.Finish(Zcmd::fbs::CreateRequest(fbb, ctx->seqNo,
 	  Zfb::Save::strVecIter(fbb, args.length(),
 	    [&args](unsigned i) { return args[i]; })));
-    m_link->sendCmd(fbb.buf(), ctx->seqNo, [this, ctx = ZuMv(*ctx)](
-	  const Zcmd::fbs::ReqAck *ack) mutable {
-      ctx.out = Zfb::Load::str(ack->out());
-      executed(ack->code(), &ctx);
-    });
+    m_link->sendCmd(fbb.buf(), ctx->seqNo,
+      [this, ctx = ZuMv(*ctx)](const Zcmd::fbs::ReqAck *ack) mutable {
+	ctx.out = Zfb::Load::str(ack->out());
+	executed(ack->code(), &ctx);
+      });
   }
 
   using ZcmdHost::executed;
   void executed(ZcmdContext *ctx) {
     auto &file = ctx->dest.p<FILE *>();
-    if (const auto &out = ctx->out)
+    auto &out = ctx->out;
+    if (out.length()) {
+      if (out[out.length() - 1] != '\n') out << '\n';
       fwrite(out.data(), 1, out.length(), file);
+    }
     fflush(file);
     if (file != stdout) {
       fclose(file);

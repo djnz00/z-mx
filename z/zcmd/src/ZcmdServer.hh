@@ -345,7 +345,7 @@ public:
       Zfb::IOBuilder fbb;
       fbb.Finish(Zcmd::fbs::CreateReqAck(fbb,
 	  req->seqNo(), __LINE__, Zfb::Save::str(fbb, text)));
-      link->send_(fbb.buf());
+      link->send_(Zcmd::saveHdr(fbb.buf(), Zcmd::Type::cmd()));
       return 1;
     }
 
@@ -368,7 +368,7 @@ public:
     fbb.Finish(Zcmd::fbs::CreateReqAck(
 	fbb, ctx->seqNo, ctx->code, Zfb::Save::str(fbb, ctx->out)));
     auto link = static_cast<Link *>(ctx->dest.p<void *>());
-    link->send(fbb.buf());
+    link->sendCmd(fbb.buf());
   }
   int processTelReq(Link *link, Session *session, ZmRef<ZiIOBuf> buf) {
     if (!Zfb::Verifier{buf->data(), buf->length}.
@@ -377,7 +377,7 @@ public:
     if (m_telPerm < 0 || !m_userDB->ok(session, m_telPerm)) {
       Zfb::IOBuilder fbb{new Ztel::AckIOBufAlloc{}};
       fbb.Finish(Ztel::fbs::CreateReqAck(fbb, req->seqNo(), false));
-      link->send_(fbb.buf());
+      link->send_(Zcmd::saveHdr(fbb.buf(), Zcmd::Type::telemetry()));
       return 1;
     }
     TelServer::process(link, ZuMv(buf));
