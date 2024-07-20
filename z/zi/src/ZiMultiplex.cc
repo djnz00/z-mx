@@ -1793,7 +1793,8 @@ void ZiConnection::errorDisconnect(int status, ZeError e)
 {
   ZmRef<ZiConnection> this_{this}; // maintain +ve ref count in scope
   m_mx->disconnected(this);
-  Error(
+  if (e.errNo() != ZiENOTCONN)
+    Error(
 #ifndef _WIN32
       "shutdown",
 #else
