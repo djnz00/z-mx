@@ -57,7 +57,7 @@
 static void usage()
 {
   static const char *usage =
-    "usage: zdash\n";
+    "Usage: zdash\n";
   std::cerr << usage << std::flush;
   ZeLog::stop();
   Zm::exit(1);

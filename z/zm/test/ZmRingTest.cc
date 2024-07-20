@@ -16,7 +16,7 @@
 void usage()
 {
   std::cerr <<
-    "usage: ZmRingTest [OPTION]...\n"
+    "Usage: ZmRingTest [OPTION]...\n"
     "  test read/write ring buffer in shared memory\n\n"
     "Options:\n"
     "  -w N\t\t- number of writer threads\n"

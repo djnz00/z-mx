@@ -49,7 +49,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
       "publisher.status", "",
       ZcmdFn::Member<&MxMDPublisher::statusCmd>::fn(this),
       "publisher status",
-      "usage: publisher.status\n");
+      "Usage: publisher.status\n");
 }
 
 #define engineINFO(code) \

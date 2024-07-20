@@ -194,7 +194,7 @@ void dumpTimers()
 void usage()
 {
   std::cerr <<
-    "usage: ZiMxServer [OPTION]... IP PORT\n"
+    "Usage: ZiMxServer [OPTION]... IP PORT\n"
     "\nOptions:\n"
     "  -t N\t- use N threads (default: 3 - Rx + Tx + Worker)\n"
     "  -c N\t- exit after N connections (default: 1)\n"

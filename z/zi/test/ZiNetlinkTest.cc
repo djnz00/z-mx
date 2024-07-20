@@ -235,7 +235,7 @@ void Connection::read2(Message *msg, int flags, int status,
 void usage()
 {
   std::cerr <<
-    "usage: ZiMxClient [OPTION]...\n"
+    "Usage: ZiMxClient [OPTION]...\n"
     "Options:\n"
     "  -h\t- Display this information\n"
     "  -t N\t- use N threads (default: 1)\n"

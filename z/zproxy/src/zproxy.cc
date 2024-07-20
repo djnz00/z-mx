@@ -482,7 +482,7 @@ public:
 	"reconnect { param reconnect }",
 	ZcmdFn::Member<&App::proxyCmd>::fn(this),
 	"establish TCP proxy",
-	"usage: proxy [LOCALIP:]LOCALPORT [REMOTEIP:]REMOTEPORT "
+	"Usage: proxy [LOCALIP:]LOCALPORT [REMOTEIP:]REMOTEPORT "
 	    "[[SRCIP:][SRCPORT]] [OPTION]...\n\n"
 	    "Options:\n"
 	    "  --tag=TAG\t- apply name tag (\"#default\" if unspecified)\n"
@@ -498,16 +498,16 @@ public:
     addCmd("stop", "",
 	ZcmdFn::Member<&App::stopListeningCmd>::fn(this),
 	"stop listening (do not disconnect open connections)",
-	"usage: stop #TAG|LOCALPORT");
+	"Usage: stop #TAG|LOCALPORT");
     addCmd("hold", "",
 	ZcmdFn::Member<&App::holdCmd>::fn(this),
 	"hold [one side] open",
-	"usage: hold SRCPORT|#TAG|all [in|out]");
+	"Usage: hold SRCPORT|#TAG|all [in|out]");
     addCmd("release", "",
 	ZcmdFn::Member<&App::releaseCmd>::fn(this),
 	"release [one side], permit disconnect\n"
 	"Note: remote-initiated disconnects always occur regardless",
-	"usage: release SRCPORT|#TAG|all [in|out]");
+	"Usage: release SRCPORT|#TAG|all [in|out]");
     addCmd("disc", "",
 	ZcmdFn::Member<&App::discCmd>::fn(this),
 	"disconnect SRCPORT",
@@ -515,7 +515,7 @@ public:
     addCmd("suspend", "",
 	ZcmdFn::Member<&App::suspendCmd>::fn(this),
 	"suspend I/O",
-	"usage: suspend SRCPORT|#TAG|all [in|out [send|recv]]");
+	"Usage: suspend SRCPORT|#TAG|all [in|out [send|recv]]");
     addCmd("resume", "",
 	ZcmdFn::Member<&App::resumeCmd>::fn(this),
 	"resume I/O",
@@ -1518,7 +1518,7 @@ int main(int argc, char **argv)
   };
 
   static const char *usage =
-    "usage: zproxy [OPTION]...\n"
+    "Usage: zproxy [OPTION]...\n"
     "\n"
     "Options:\n"
     "  -v, --verbose\t- log connection setup and teardown events\n"

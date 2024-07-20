@@ -618,7 +618,7 @@ struct Test {
 void usage()
 {
   std::cerr <<
-    "usage: ZmRingTest2 [SIZE]\n"
+    "Usage: ZmRingTest2 [SIZE]\n"
     "\tSIZE - optional requested size of ring buffer\n"
     << std::flush;
   Zm::exit(1);

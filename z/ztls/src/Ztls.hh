@@ -14,8 +14,11 @@
 #include <mbedtls/ssl.h>
 #include <mbedtls/ssl_cache.h>
 #include <mbedtls/ssl_ticket.h>
+#include <mbedtls/net_sockets.h>
 
 #include <zlib/ZuString.hh>
+
+#include <zlib/ZmList.hh>
 
 #include <zlib/ZeLog.hh>
 
@@ -26,6 +29,10 @@
 #include <zlib/ZtlsRandom.hh>
 
 namespace Ztls {
+
+constexpr const unsigned RxBufSize() {
+  return MBEDTLS_SSL_IN_CONTENT_LEN;
+}
 
 // mbedtls runs sharded within a dedicated thread, without lock contention
 
@@ -72,6 +79,12 @@ template <typename Link> using CliCxn = Cxn<Link, Link *>;
 // server links are transient, are owned by the connection
 template <typename Link> using SrvCxn = Cxn<Link, ZmRef<Link> >;
 
+using IOQueue =
+  ZmList<ZiIOBuf, ZmListNode<ZiIOBuf, ZmListHeapID<ZmHeapDisable()>>>;
+
+template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
+using IOBufAlloc = Zi::IOBufAlloc<IOQueue::Node, Size, HeapID>;
+
 template <
   typename App, typename Impl, typename IOBufAlloc_,
   typename Cxn_, typename CxnRef_>
@@ -103,7 +116,7 @@ protected:
 
 private:
   void connected_(Cxn *cxn, ZiIOContext &io) {
-    m_rxBuf = new IOBufAlloc{};
+    m_rxBuf = new IOBufAlloc{impl()};
     io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) {
       link->rx(io);
       return true;
@@ -130,17 +143,11 @@ private:
     });
   }
   void disconnected_2(Cxn *cxn) { // TLS thread
+    if (m_rxInQueue.count_() && mbedtls_ssl_is_handshake_over(&m_ssl))
+      while (recv());
     mbedtls_ssl_session_reset(&m_ssl);
     if (m_cxn == cxn) m_cxn = nullptr;
-    m_rxInOffset = 0;
-    for (unsigned i = 0; i < m_rxRingCount; i++) {
-      unsigned j = m_rxRingOffset + i;
-      if (j >= RxRingSize) j -= RxRingSize;
-      m_rxRing[j] = nullptr;
-    }
-    m_rxRingOffset = 0;
-    m_rxRingCount = 0;
-    m_rxOutOffset = 0;
+    m_rxOutLen = 0;
     impl()->disconnected();
   }
 
@@ -149,42 +156,17 @@ private:
     m_rxBuf->length = io.offset;
     if (ZuLikely(!m_disconnecting.load_()))
       app()->run([buf = ZuMv(m_rxBuf)]() {
-	auto link = static_cast<Link *>(buf->owner);
+	auto link = static_cast<Impl *>(buf->owner);
 	link->recv_(ZuMv(buf));
       });
-    m_rxBuf = new IOBufAlloc{};
+    m_rxBuf = new IOBufAlloc{impl()};
     io.ptr = m_rxBuf->data();
     io.length = m_rxBuf->size;
     io.offset = 0;
   }
 
   void recv_(ZmRef<ZiIOBuf> buf) { // TLS thread
-    if (ZuUnlikely(!buf->length)) return;
-    if (ZuUnlikely(m_rxRingCount)) {
-      unsigned i = m_rxRingOffset + m_rxRingCount - 1;
-      if (ZuUnlikely(i >= RxRingSize)) i -= RxRingSize;
-      auto rxRingBuf = m_rxRing[i];
-      unsigned m = rxRingBuf->length;
-      if (ZuUnlikely(m < rxRingBuf->size)) {
-	unsigned n = buf->length;
-	unsigned o = rxRingBuf->size - m;
-	if (n > o) n = o;
-	memcpy(rxRingBuf->data() + m, buf->data(), n);
-	rxRingBuf->length = m + n;
-	buf->length -= n;
-	if (buf->length) memmove(buf->data(), buf->data() + n, buf->length);
-      }
-    }
-    if (buf->length) {
-      if (ZuUnlikely(m_rxRingCount >= RxRingSize)) {
-	ZeLOG(Error, "TLS Rx buffer overflow");
-	disconnect_(false);
-	return;
-      }
-      unsigned i = m_rxRingOffset + m_rxRingCount++;
-      if (ZuUnlikely(i >= RxRingSize)) i -= RxRingSize;
-      m_rxRing[i] = ZuMv(buf);
-    }
+    m_rxInQueue.pushNode(ZmRef<IOQueue::Node>{ZuMv(buf)});
     while (!mbedtls_ssl_is_handshake_over(&m_ssl))
       if (!handshake()) return;
     while (recv());
@@ -195,23 +177,18 @@ private:
     return static_cast<Link *>(link_)->rxIn(ptr, len);
   }
   int rxIn(void *ptr, size_t len) { // TLS thread
-    if (ZuUnlikely(!m_rxRingCount)) {
-      if (ZuUnlikely(!m_cxn)) return MBEDTLS_ERR_SSL_CONN_EOF;
+    if (ZuUnlikely(!m_rxInQueue.count_())) {
+      if (ZuUnlikely(!m_cxn)) {
+	return MBEDTLS_ERR_SSL_CONN_EOF;
+      }
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
-    auto *inBuf = m_rxRing[m_rxRingOffset].ptr();
-    unsigned offset = m_rxInOffset;
-    int avail = inBuf->length - offset;
-    if (avail <= 0) return MBEDTLS_ERR_SSL_WANT_READ;
-    if (len > static_cast<size_t>(avail)) len = avail;
-    memcpy(ptr, inBuf->data() + offset, len);
-    if (len == static_cast<size_t>(avail)) {
-      m_rxInOffset = 0;
-      m_rxRing[m_rxRingOffset++] = nullptr;
-      if (!--m_rxRingCount || m_rxRingOffset >= RxRingSize)
-	m_rxRingOffset = 0;
-    } else
-      m_rxInOffset = offset + len;
+    ZmRef<ZiIOBuf> buf = m_rxInQueue.shift();
+    unsigned n = buf->length;
+    if (len > n) len = n;
+    memcpy(ptr, buf->data(), len);
+    buf->advance(len);
+    if (buf->length) m_rxInQueue.unshiftNode(ZmRef<IOQueue::Node>{ZuMv(buf)});
     return len;
   }
 
@@ -249,57 +226,71 @@ protected:
     impl()->verify_(); // client only - verify server cert
     impl()->save_(); // client only - save session for subsequent reconnect
 
-    impl()->connected(mbedtls_ssl_get_alpn_protocol(&m_ssl));
+    static auto tlsver = [](int i) {
+      switch (i) {
+	default: return 0;
+	case MBEDTLS_SSL_VERSION_TLS1_2: return 12;
+	case MBEDTLS_SSL_VERSION_TLS1_3: return 13;
+      }
+    };
+    impl()->connected(
+      mbedtls_ssl_get_alpn_protocol(&m_ssl),
+      tlsver(mbedtls_ssl_get_version_number(&m_ssl)));
 
     return recv();
   }
 
 private:
   bool recv() { // TLS thread
+    ZmAssert(m_rxOutLen < RxBufSize());
+
     int n = mbedtls_ssl_read(&m_ssl,
-	static_cast<uint8_t *>(m_rxOutBuf + m_rxOutOffset),
-	MBEDTLS_SSL_IN_CONTENT_LEN - m_rxOutOffset);
+	static_cast<uint8_t *>(m_rxOutBuf + m_rxOutLen),
+	RxBufSize() - m_rxOutLen);
 
     if (n <= 0) {
-      if (ZuUnlikely(!n)) {
-	ZeLOG(Error, "mbedtls_ssl_read(): unknown error");
-	disconnect_(false);
-	return false;
-      }
       switch (n) {
-	case MBEDTLS_ERR_SSL_WANT_READ:
-#ifdef MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS
+	case MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS:
 	case MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS:
-#endif
+	case MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET:
+	  return true;
+	case MBEDTLS_ERR_SSL_WANT_READ:
+	  if (!m_rxOutLen && !m_rxInQueue.count_())
+	    return false;
 	  break;
 	case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+	  disconnect_(true);
+	  return true;
 	case MBEDTLS_ERR_SSL_CONN_EOF:
-	  break;
+	case 0:
+	  disconnect_(false);
+	  return false;
 	default:
 	  ZeLOG(Error, ([n](auto &s) {
 	    s << "mbedtls_ssl_read(): " << strerror_(n);
 	  }));
 	  disconnect_(false);
-	  break;
+	  return false;
       }
-      return false;
-    }
+    } else
+      m_rxOutLen += n;
 
-    m_rxOutOffset += n;
-
-    do {
-      n = impl()->process(m_rxOutBuf, m_rxOutOffset);
+    while (m_rxOutLen) {
+      n = impl()->process(m_rxOutBuf, m_rxOutLen);
       if (n < 0) {
-	m_rxOutOffset = 0;
+	m_rxOutLen = 0;
 	disconnect_();
 	return false;
       }
-      if (!n) break;
-      if (n < static_cast<int>(m_rxOutOffset))
-	memmove(m_rxOutBuf, m_rxOutBuf + n, m_rxOutOffset -= n);
+      if (!n) {
+	ZmAssert(m_rxOutLen < RxBufSize());
+	break;
+      }
+      if (n < int(m_rxOutLen))
+	memmove(m_rxOutBuf, m_rxOutBuf + n, m_rxOutLen -= n);
       else
-	m_rxOutOffset = 0;
-    } while (m_rxOutOffset);
+	m_rxOutLen = 0;
+    }
 
     return true;
   }
@@ -310,12 +301,12 @@ public:
     unsigned offset = 0;
     do {
       unsigned n = len - offset;
-      ZmRef<ZiIOBuf> buf = new IOBufAlloc{};
+      ZmRef<ZiIOBuf> buf = new IOBufAlloc{impl()};
       if (ZuUnlikely(n > buf->size)) n = buf->size;
       buf->length = n;
       memcpy(buf->data(), data + offset, n);
       app()->invoke([buf = ZuMv(buf)]() mutable {
-	auto link = static_cast<Link *>(buf->owner);
+	auto link = static_cast<Impl *>(buf->owner);
 	link->send_(ZuMv(buf));
       });
       offset += n;
@@ -420,11 +411,6 @@ public:
   }
 
 private:
-  enum {
-    RxRingSize =
-      (MBEDTLS_SSL_IN_CONTENT_LEN + IOBufAlloc::Size - 1) / IOBufAlloc::Size
-  };
-
   App			*m_app = nullptr;
   ZmScheduler::Timer	m_reconnTimer;
 
@@ -434,12 +420,9 @@ private:
   // TLS thread
   mbedtls_ssl_context	m_ssl;
   CxnRef		m_cxn = nullptr;
-  unsigned		m_rxInOffset = 0;
-  unsigned		m_rxRingOffset = 0;
-  unsigned		m_rxRingCount = 0;
-  ZmRef<ZiIOBuf>	m_rxRing[RxRingSize];
-  unsigned		m_rxOutOffset = 0;
-  uint8_t		m_rxOutBuf[MBEDTLS_SSL_IN_CONTENT_LEN];
+  IOQueue		m_rxInQueue;
+  unsigned		m_rxOutLen = 0;
+  uint8_t		m_rxOutBuf[RxBufSize()];
 
   // Contended
   ZmAtomic<unsigned>	m_disconnecting = 0;
@@ -452,7 +435,7 @@ using CliLink_ = Link<App, Impl, IOBufAlloc, Cxn, ZmRef<Cxn> >;
 template <typename App, typename Impl, typename IOBufAlloc, typename Cxn>
 using SrvLink_ = Link<App, Impl, IOBufAlloc, Cxn, Cxn *>;
 
-template <typename App, typename Impl, typename IOBufAlloc = ZiIOBufAlloc<>>
+template <typename App, typename Impl, typename IOBufAlloc = IOBufAlloc<>>
 class CliLink : public CliLink_<App, Impl, IOBufAlloc, CliCxn<Impl> > {
 public:
   using Cxn = CliCxn<Impl>;
@@ -609,7 +592,7 @@ private:
   uint16_t		m_port;
 };
 
-template <typename App, typename Impl, typename IOBufAlloc = ZiIOBufAlloc<>>
+template <typename App, typename Impl, typename IOBufAlloc = IOBufAlloc<>>
 class SrvLink : public SrvLink_<App, Impl, IOBufAlloc, SrvCxn<Impl> > {
 public:
   using Cxn = SrvCxn<Impl>;
@@ -641,6 +624,7 @@ template <typename, typename, typename> friend class SrvLink;
   App *app() { return static_cast<App *>(this); }
 
   Engine() {
+    psa_crypto_init();
     mbedtls_x509_crt_init(&m_cacert);
     mbedtls_ssl_config_init(&m_conf);
   }
@@ -656,6 +640,10 @@ template <typename, typename, typename> friend class SrvLink;
       ZeLOG(Error, ([thread = ZtString{thread}](auto &s) {
 	s << "invalid Rx thread ID \"" << thread << '"';
       }));
+      return false;
+    }
+    if (!m_mx->running()) {
+      ZeLOG(Error, "multiplexer not running");
       return false;
     }
     return ZmBlock<bool>{}([this, l = ZuMv(l)](auto wake) mutable {
@@ -684,13 +672,14 @@ private:
       ZeLogEvent(ZeEvent(sev, file, line, "",
 	  [message = ZtString{message}](auto &s) { s << message; }));
     }, nullptr);
+    if (!l()) return false;
     if (!Random::init()) {
       ZeLOG(Error, "mbedtls_ctr_drbg_seed() failed");
       return false;
     }
     mbedtls_ssl_conf_rng(&m_conf, mbedtls_ctr_drbg_random, ctr_drbg());
     mbedtls_ssl_conf_renegotiation(&m_conf, MBEDTLS_SSL_RENEGOTIATION_ENABLED);
-    return l();
+    return true;
   }
 
 public:
@@ -750,7 +739,7 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Client<App> {
-    using IOBufAlloc = ZiIOBufAlloc<BufSize>;
+    using IOBufAlloc = Ztls::IOBufAlloc<BufSize>;
 
     void exception(ZmRef<ZeEvent>); // optional
 
@@ -792,7 +781,9 @@ friend Base;
   bool init(ZiMultiplex *mx, ZuString thread,
       const char *caPath, const char **alpn,
       const char *certPath = nullptr, const char *keyPath = nullptr) {
-    return Base::init(mx, thread, [&]() -> bool {
+    return Base::init(mx, thread, [
+      this, caPath, alpn, certPath, keyPath
+    ]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_CLIENT,
 	  MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -829,7 +820,7 @@ private:
 // CRTP - implementation must conform to the following interface:
 #if 0
   struct App : public Server<App> {
-    using IOBufAlloc = ZiIOBufAlloc<BufSize>;
+    using IOBufAlloc = Ztls::IOBufAlloc<BufSize>;
 
     void exception(ZmRef<ZeEvent>); // optional
 
@@ -888,7 +879,9 @@ friend Base;
       const char *caPath, const char **alpn,
       const char *certPath, const char *keyPath,
       bool mTLS = false, int cacheMax = -1, int cacheTimeout = -1) {
-    return Base::init(mx, thread, [&]() -> bool {
+    return Base::init(mx, thread, [
+      this, caPath, alpn, certPath, keyPath, mTLS, cacheMax, cacheTimeout
+    ]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_SERVER,
 	  MBEDTLS_SSL_TRANSPORT_STREAM,

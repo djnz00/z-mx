@@ -16,7 +16,7 @@
 
 namespace {
   void usage() {
-    puts("usage: DaemonTest [username [password]] [-d|--daemonize]");
+    puts("Usage: DaemonTest [username [password]] [-d|--daemonize]");
     Zm::exit(1);
   }
 

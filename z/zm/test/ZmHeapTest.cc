@@ -63,7 +63,7 @@ void doit()
 void usage()
 {
   fputs(
-"usage: ZmHeapTest COUNT SIZE NTHR [VERB]\n\n"
+"Usage: ZmHeapTest COUNT SIZE NTHR [VERB]\n\n"
 "    COUNT\t- number of iterations\n"
 "    SIZE\t- size of heap\n"
 "    NTHR\t- number of threads\n"

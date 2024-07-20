@@ -86,7 +86,7 @@ void *run(void *c_)
 
 void usage()
 {
-  fputs("usage: ZmLockTest nthreads nrecords maxdelay\n", stderr);
+  fputs("Usage: ZmLockTest nthreads nrecords maxdelay\n", stderr);
   Zm::exit(1);
 }
 

@@ -24,7 +24,7 @@ void sigint(int sig) { stop.post(); }	// CTRL-C signal handler
 
 void usage() {
   std::cerr <<
-    "usage: mdrecord CONFIG RECFILE [SYMBOLS]\n"
+    "Usage: mdrecord CONFIG RECFILE [SYMBOLS]\n"
     "    CONFIG\t- configuration file\n"
     "    RECFILE\t- recording file\n"
     "    SYMBOLS\t- optional file containing symbols to subscribe to\n"

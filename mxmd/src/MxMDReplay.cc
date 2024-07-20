@@ -34,7 +34,7 @@ void MxMDReplay::init(MxMDCore *core, ZmRef<ZvCf> cf)
       "s stop stop { type flag }",
       ZcmdFn::Member<&MxMDReplay::replayCmd>::fn(this),
       "replay market data from file",
-      "usage: replay FILE\n"
+      "Usage: replay FILE\n"
       "       replay -s\n"
       "replay market data from FILE\n\n"
       "Options:\n"

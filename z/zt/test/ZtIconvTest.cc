@@ -19,7 +19,10 @@
 int main(int argc, char **argv) {
   //"UTF-8", "SHIFT_JIS"
   if (argc != 3) {
-    fprintf(stderr, "usage: %s to from\n", argv[0]);
+    std::cerr <<
+      "Usage: ZtIconvTest TO FROM\n\n"
+      "Example: ZtIconvTest \"hello\" UTF8 SJIS\n"
+      << std::flush;
     return 1;
   }
 

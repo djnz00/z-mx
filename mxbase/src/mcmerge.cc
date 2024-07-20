@@ -22,7 +22,7 @@
 void usage()
 {
   std::cerr <<
-    "usage: mcmerge OUTFILE INFILE...\n"
+    "Usage: mcmerge OUTFILE INFILE...\n"
     "\tOUTFILE\t- output capture file\n"
     "\tINFILE\t- input capture file\n\n"
     "Options:\n"

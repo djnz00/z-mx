@@ -686,7 +686,7 @@ error:
 void usage()
 {
   std::cerr <<
-    "usage: recdump [OPTION]... RECFILE\n"
+    "Usage: recdump [OPTION]... RECFILE\n"
     "\tRECFILE\t- market data recording file\n\n"
     "Options:\n"
     "  -r\t\t- include reference data in output\n"

@@ -1338,7 +1338,7 @@ struct HostCf {
 
   HostCf(const ZtString &key, const ZvCf *cf) {
     id = key;
-    if (!cf->getBool("standalone", false)) {
+    if (!(standalone = cf->getBool("standalone", false))) {
       priority = cf->getInt<true>("priority", 0, 1<<30);
       ip = cf->get<true>("ip");
       port = cf->getInt<true>("port", 1, (1<<16) - 1);

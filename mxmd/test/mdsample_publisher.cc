@@ -38,7 +38,7 @@ void publish();		// publisher thread - generates random ticks
 int subscribe();	// subscribe to events
 
 void usage() {
-  std::cerr << "usage: mdsample_publisher CONFIG\n" << std::flush;
+  std::cerr << "Usage: mdsample_publisher CONFIG\n" << std::flush;
   ::exit(1);
 }
 

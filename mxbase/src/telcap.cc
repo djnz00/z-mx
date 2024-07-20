@@ -246,7 +246,7 @@ private:
 static void usage()
 {
   std::cerr <<
-    "usage: telcap DIR [PORT]\n"
+    "Usage: telcap DIR [PORT]\n"
     "  capture telemetry in directory DIR\n"
     "\tPORT\t- UDP port (defaults to 19300)\n"
     "Options:\n"

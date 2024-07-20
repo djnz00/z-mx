@@ -38,13 +38,13 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
       "subscriber.status", "",
       ZcmdFn::Member<&MxMDSubscriber::statusCmd>::fn(this),
       "subscriber status",
-      "usage: subscriber.status\n");
+      "Usage: subscriber.status\n");
 
   core->addCmd(
       "subscriber.resend", "",
       ZcmdFn::Member<&MxMDSubscriber::resendCmd>::fn(this),
       "manually test subscriber resend",
-      "usage: subscriber.resend LINK SEQNO COUNT\n"
+      "Usage: subscriber.resend LINK SEQNO COUNT\n"
       "    LINK: link ID (determines server IP/port)\n"
       "    SEQNO: sequence number\n"
       "    COUNT: message count\n");

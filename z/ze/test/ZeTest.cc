@@ -19,7 +19,7 @@
 int main(int argc, char **argv)
 {
   if (argc < 1 || argc > 2 || (argc == 2 && strcmp(argv[1], "-s"))) {
-    std::cerr << "usage: ZeTest [-s]\n" << std::flush;
+    std::cerr << "Usage: ZeTest [-s]\n" << std::flush;
     Zm::exit(1);
   }
 

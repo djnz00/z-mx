@@ -43,7 +43,7 @@ int main(int argc, char **argv)
   test<-9>(ZuDateTime{Zm::now()});
   test<-3>(ZuDateTime{ZuTime{ZuDecimal{"0.01"}}});
 
-  if (argc < 2) { fputs("usage: ZuDateTimeFixTest N\n", stderr); Zm::exit(1); }
+  if (argc < 2) { fputs("Usage: ZuDateTimeFixTest N\n", stderr); Zm::exit(1); }
   unsigned n = atoi(argv[1]);
   {
     ZuDateTimeFmt::FIX<-9, Null> fmt;

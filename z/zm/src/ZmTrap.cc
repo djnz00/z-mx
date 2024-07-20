@@ -80,10 +80,10 @@ void ZmTrap::trap()
 void ZmTrap::log(ZuString s)
 {
 #ifndef _WIN32
+  ::write(2, "\r\n", 2);
   ::write(2, s.data(), s.length());
+  ::write(2, "\r\n", 2);
 #else
-  unsigned n = s.length();
-  if (n && s[n - 1] == '\n') s.trunc(n - 1);
   ZmTrap::winErrLog(EVENTLOG_ERROR_TYPE, s);
 #endif
 }

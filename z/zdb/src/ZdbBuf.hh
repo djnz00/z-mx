@@ -54,8 +54,9 @@ struct IOBuf_ : public ZiIOBuf {
 };
 
 inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
-  ZmAssert(static_cast<const void *>(buf.hdr()) ==
-    reinterpret_cast<const void *>((buf.ZiIOBuf::data__ & ~ZiIOBuf::Jumbo) + buf.ZiIOBuf::skip));
+  /* ZmAssert(static_cast<const void *>(buf.hdr()) ==
+    reinterpret_cast<const void *>(
+      (buf.ZiIOBuf::data__ & ~ZiIOBuf::Jumbo) + buf.ZiIOBuf::skip)); */
   return record_(msg_(buf.hdr()))->un();
 }
 
@@ -77,51 +78,10 @@ struct IOBuf : public BufCacheUN::Node {
   using ZiIOBuf::data;
 };
 
-// buffer allocator
+// buffer allocation
 
-template <unsigned Size_, typename Heap>
-struct IOBufAlloc__ : public Heap, public IOBuf {
-  enum { Size = Size_ };
-
-  uint8_t	data_[Size];
-
-  IOBufAlloc__() : IOBuf{&data_[0], Size} { }
-  template <typename ...Args>
-  IOBufAlloc__(Args &&...args) :
-    IOBuf{&data_[0], Size, ZuFwd<Args>(args)...} { }
-
-  ~IOBufAlloc__() = default;
-
-private:
-  IOBufAlloc__(const IOBufAlloc__ &) = delete;
-  IOBufAlloc__ &operator =(const IOBufAlloc__ &) = delete;
-  IOBufAlloc__(IOBufAlloc__ &&) = delete;
-  IOBufAlloc__ &operator =(IOBufAlloc__ &&) = delete;
-};
-
-template <unsigned Size, auto HeapID>
-using IOBuf_Heap = ZmHeap<HeapID, sizeof(IOBufAlloc__<Size, ZuNull>)>;
- 
-template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = IOBuf_HeapID>
-using IOBufAlloc_ = IOBufAlloc__<Size, IOBuf_Heap<Size, HeapID>>;
-
-inline constexpr const unsigned BuiltinSize(unsigned Size) {
-  enum { CacheLineSize = Zm::CacheLineSize };
-  // MinBufSz - minimum built-in buffer size
-  enum { MinBufSz = sizeof(uintptr_t)<<1 };
-  // IOBufOverhead - ZiIOBuf overhead
-  enum { Overhead = sizeof(IOBufAlloc_<MinBufSz>) - MinBufSz };
-  // round up to cache line size, subtract overhead
-  // and use that as the built-in buffer size
-  return
-    ((Size + Overhead + CacheLineSize - 1) & ~(CacheLineSize - 1)) - Overhead;
-};
-
-template <unsigned Size>
-using IOBufAlloc = IOBufAlloc_<BuiltinSize(Size), IOBuf_HeapID>;
-
-// ensure cache line alignment
-ZuAssert(!((sizeof(IOBufAlloc<1>)) & (Zm::CacheLineSize - 1)));
+template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
+using IOBufAlloc = Zi::IOBufAlloc<IOBuf, Size, HeapID>;
 
 using RxBufAlloc = IOBufAlloc<ZiIOBuf_DefaultSize>;
 

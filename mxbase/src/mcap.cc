@@ -328,7 +328,7 @@ void App::stop()
 void usage()
 {
   std::cerr <<
-    "usage: mcap [OPTION]... CONFIG\n"
+    "Usage: mcap [OPTION]... CONFIG\n"
     "  capture IP multicast data as specified in the CONFIG file\n\n"
     "Options:\n"
     << std::flush;

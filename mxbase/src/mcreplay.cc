@@ -397,7 +397,7 @@ void App::stop()
 void usage()
 {
   std::cerr <<
-    "usage: mcreplay [OPTION]... CONFIG\n"
+    "Usage: mcreplay [OPTION]... CONFIG\n"
     "  replay IP multicast data as specified in the CONFIG file\n\n"
     "Options:\n"
     << std::flush;

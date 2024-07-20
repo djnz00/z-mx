@@ -25,7 +25,7 @@ void sigint(int sig) { stop.post(); }	// CTRL-C signal handler
 
 void usage() {
   std::cerr <<
-    "usage: mdsample_interactive CONFIG [SYMBOLS]\n"
+    "Usage: mdsample_interactive CONFIG [SYMBOLS]\n"
     "    CONFIG - configuration file\n"
     "    SYMBOLS - optional file containing symbols to subscribe to\n"
     << std::flush;
@@ -170,7 +170,7 @@ int main(int argc, char **argv)
 	md->lookupSyntax(),
 	ZcmdFn::Ptr<&subscribe>::fn(),
 	"subscribe",
-	ZtString{} << "usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
+	ZtString{} << "Usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
 	  md->lookupOptions());
 
     md->subscribe(&((new MxMDLibHandler())->

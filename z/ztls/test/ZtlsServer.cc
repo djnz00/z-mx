@@ -34,9 +34,10 @@ struct App : public Ztls::Server<App> {
   struct Link : public Ztls::SrvLink<App, Link> {
     Link(App *app) : Ztls::SrvLink<App, Link>(app) { }
 
-    void connected(const char *alpn) {
+    void connected(const char *alpn, int tlsver) {
       std::cerr << (ZuStringN<100>()
-	  << "TLS handshake completed ALPN: " << alpn << ")\n")
+	  << "TLS handshake completed (TLS: " << tlsver
+	  << " ALPN: " << alpn << ")\n")
 	<< std::flush;
     }
     void disconnected() {
@@ -76,7 +77,7 @@ private:
 
 void usage()
 {
-  std::cerr << "usage: ZtlsServer server port cert key\n" << std::flush;
+  std::cerr << "Usage: ZtlsServer SERVER PORT CERT KEY\n" << std::flush;
   ::exit(1);
 }
 

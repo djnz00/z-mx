@@ -24,7 +24,7 @@ void sigint(int sig) { stop.post(); }	// CTRL-C signal handler
 
 void usage() {
   std::cerr <<
-    "usage: mdsample_symlist CONFIG RICS\n"
+    "Usage: mdsample_symlist CONFIG RICS\n"
     "    CONFIG - configuration file\n"
     "    RICS - file containing RICs to subscribe to\n"
     << std::flush;

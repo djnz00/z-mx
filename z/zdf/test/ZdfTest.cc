@@ -38,7 +38,7 @@ ZtFields(Frame,
     (((v2, Fn), (Series, Delta, NDP<9>)), (Fixed)));
 
 void usage() {
-  std::cerr << "usage: ZdfTest mem|load|save\n" << std::flush;
+  std::cerr << "Usage: ZdfTest mem|load|save\n" << std::flush;
   ::exit(1);
 };
 int main(int argc, char **argv)

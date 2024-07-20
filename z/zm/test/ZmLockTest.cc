@@ -100,7 +100,7 @@ void *run(void *c)
 
 void usage()
 {
-  fputs("usage: ZmLockTest nthreads [count]\n", stderr);
+  fputs("Usage: ZmLockTest nthreads [count]\n", stderr);
   Zm::exit(1);
 }
 

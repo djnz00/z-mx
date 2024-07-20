@@ -127,7 +127,7 @@ private:
 void usage()
 {
   std::cerr <<
-    "usage: ZiMxUDPClient [OPTION]...\n\n"
+    "Usage: ZiMxUDPClient [OPTION]...\n\n"
     "Options:\n"
     "  -t N\t\t- use N threads (default: 3 - Rx + Tx + Worker)\n"
     "  -n N\t\t- exit after N messages (default: 1)\n"

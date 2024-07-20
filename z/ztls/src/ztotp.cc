@@ -9,7 +9,7 @@
 
 static void usage() {
   std::cout
-    << "usage: ztotp BASE32\n\n"
+    << "Usage: ztotp BASE32\n\n"
     << "app URI is otpauth://totp/ID@DOMAIN?secret=BASE32&issuer=ISSUER\n"
     << std::flush;
   ::exit(1);

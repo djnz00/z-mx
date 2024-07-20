@@ -396,7 +396,7 @@ void MxMDCore::initCmds()
       "l1", ZtString("c csv csv { type flag }\n") + lookupSyntax(),
       ZcmdFn::Member<&MxMDCore::l1>::fn(this),
       "dump L1 data",
-      ZtString("usage: l1 SYMBOL [SYMBOL]... [OPTION]...\n"
+      ZtString("Usage: l1 SYMBOL [SYMBOL]... [OPTION]...\n"
 	"Display level 1 market data for SYMBOL(s)\n\n"
 	"Options:\n"
 	"  -c, --csv\t\toutput CSV format\n") <<
@@ -405,33 +405,33 @@ void MxMDCore::initCmds()
       "l2", lookupSyntax(),
       ZcmdFn::Member<&MxMDCore::l2>::fn(this),
       "dump L2 data",
-      ZtString("usage: l2 SYMBOL [OPTION]...\n"
+      ZtString("Usage: l2 SYMBOL [OPTION]...\n"
 	"Display level 2 market data for SYMBOL\n\nOptions:\n") <<
 	lookupOptions());
   m_cmdServer->addCmd(
       "instrument", lookupSyntax(),
       ZcmdFn::Member<&MxMDCore::instrument_>::fn(this),
       "dump instrument reference data",
-      ZtString("usage: instrument SYMBOL [OPTION]...\n"
+      ZtString("Usage: instrument SYMBOL [OPTION]...\n"
 	"Display instrument reference data (\"static data\") for SYMBOL\n\n"
 	"Options:\n") << lookupOptions());
   m_cmdServer->addCmd(
       "ticksizes", "",
       ZcmdFn::Member<&MxMDCore::ticksizes>::fn(this),
       "dump tick sizes in CSV format",
-      "usage: ticksizes [VENUE [SEGMENT]]\n"
+      "Usage: ticksizes [VENUE [SEGMENT]]\n"
       "dump tick sizes in CSV format");
   m_cmdServer->addCmd(
       "instruments", "",
       ZcmdFn::Member<&MxMDCore::instruments>::fn(this),
       "dump instruments in CSV format",
-      "usage: instruments [VENUE [SEGMENT]]\n"
+      "Usage: instruments [VENUE [SEGMENT]]\n"
       "dump instruments in CSV format");
   m_cmdServer->addCmd(
       "orderbooks", "",
       ZcmdFn::Member<&MxMDCore::orderbooks>::fn(this),
       "dump order books in CSV format",
-      "usage: orderbooks [VENUE [SEGMENT]]\n"
+      "Usage: orderbooks [VENUE [SEGMENT]]\n"
       "dump order books in CSV format");
 
 #if 0
@@ -440,7 +440,7 @@ void MxMDCore::initCmds()
       "stop s s { param stop }",
       ZcmdFn::Member<&MxMDCore::subscribeCmd>::fn(this),
       "subscribe to market data",
-      "usage: subscribe IPCRING\n"
+      "Usage: subscribe IPCRING\n"
       "       subscribe -s ID\n"
       "subscribe to market data, receiving snapshot via ring buffer IPCRING\n"
       "Options:\n"
@@ -457,7 +457,7 @@ void MxMDCore::initCmds()
 	  ZeLog::age();
 	}},
       "age log files",
-      "usage: logAge\n");
+      "Usage: logAge\n");
   m_cmdServer->addCmd(
       "log", "",
       ZcmdFn{this,
@@ -473,7 +473,7 @@ void MxMDCore::initCmds()
 	  out << message << '\n';
 	}},
       "log informational message",
-      "usage: log MESSAGE\n");
+      "Usage: log MESSAGE\n");
 }
 
 void MxMDCore::start()

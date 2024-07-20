@@ -14,9 +14,9 @@ void ZcmdHost::init()
 {
   m_syntax = new ZvCf();
   addCmd("help", "", ZcmdFn::Member<&ZcmdHost::helpCmd>::fn(this),
-      "list commands", "usage: help [COMMAND]");
+      "list commands", "Usage: help [COMMAND]");
   addCmd("loadmod", "", ZcmdFn::Member<&ZcmdHost::loadModCmd>::fn(this),
-      "load application-specific module", "usage: loadmod MODULE");
+      "load application-specific module", "Usage: loadmod MODULE");
 }
 
 void ZcmdHost::final()

@@ -47,7 +47,7 @@ ZmRef<ZvCf> inlineCf(ZuString s)
 void usage()
 {
   static const char *help =
-    "usage: zdbpqtest [OPTION]...\n\n"
+    "Usage: zdbpqtest [OPTION]...\n\n"
     "Options:\n"
     "      --help\tthis help\n"
     "  -m, --module=MODULE\n"

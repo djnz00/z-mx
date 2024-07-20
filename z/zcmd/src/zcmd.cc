@@ -40,17 +40,17 @@
 static void usage()
 {
   static const char *usage =
-    "usage: zcmd [USER@][HOST:]PORT [CMD [ARGS]]\n"
-    "\tUSER\t- user (not needed if API key used)\n"
-    "\tHOST\t- target host (default localhost)\n"
-    "\tPORT\t- target port\n"
-    "\tCMD\t- command to send to target\n"
-    "\t\t  (reads commands from standard input if none specified)\n"
-    "\tARGS\t- command arguments\n\n"
+    "Usage: zcmd [USER@][HOST:]PORT [CMD [ARGS]]\n"
+    "  USER\t- user (not needed if API key used)\n"
+    "  HOST\t- target host (default localhost)\n"
+    "  PORT\t- target port\n"
+    "  CMD\t- command to send to target\n"
+    "  \t  (reads commands from standard input if none specified)\n"
+    "  ARGS\t- command arguments\n\n"
     "Environment Variables:\n"
-    "\tZCMD_KEY_ID\tAPI key ID\n"
-    "\tZCMD_KEY_SECRET\tAPI key secret\n"
-    "\tZCMD_PLUGIN\tzcmd plugin module\n";
+    "  ZCMD_KEY_ID\tAPI key ID\n"
+    "  ZCMD_KEY_SECRET\tAPI key secret\n"
+    "  ZCMD_PLUGIN\tzcmd plugin module\n";
   std::cerr << usage << std::flush;
   ZeLog::stop();
   Zm::exit(1);
@@ -458,7 +458,7 @@ private:
   void initCmds() {
     addCmd("passwd", "",
 	ZcmdFn::Member<&ZCmd::passwdCmd>::fn(this),
-	"change passwd", "usage: passwd");
+	"change passwd", "Usage: passwd");
 
     addCmd("users",
         "id i i { param id } "
@@ -466,7 +466,7 @@ private:
 	"exclusive x x { param exclusive } "
 	"limit l l { param limit }",
 	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
-	"list users", "usage: users [OPTIONS...]\n\n"
+	"list users", "Usage: users [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from user ID\n"
 	"  -n, --name=NAME\t\tquery from user NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
@@ -476,19 +476,19 @@ private:
 	"immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::userAddCmd>::fn(this),
 	"add user",
-	"usage: useradd ID NAME ROLE[,ROLE]... [OPTION]...\n\n"
+	"Usage: useradd ID NAME ROLE[,ROLE]... [OPTION]...\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("resetpass", "",
 	ZcmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
-	"reset password", "usage: resetpass USERID");
+	"reset password", "Usage: resetpass USERID");
     addCmd("usermod",
 	"enabled e e { flag enabled } "
 	"immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::userModCmd>::fn(this),
 	"modify user",
-	"usage: usermod ID [OPTION]...\n\n"
+	"Usage: usermod ID [OPTION]...\n\n"
 	"Options:\n"
 	"  -n, --name=NAME\tset name\n"
 	"  -r, --roles=ROLE[,ROLE]...\tset roles\n"
@@ -496,19 +496,19 @@ private:
 	"  -i, --immutable=[0|1]\tset/clear Immutable flag\n");
     addCmd("userdel", "",
 	ZcmdFn::Member<&ZCmd::userDelCmd>::fn(this),
-	"delete user", "usage: userdel ID");
+	"delete user", "Usage: userdel ID");
 
     addCmd("roles",
 	"exclusive x x { param exclusive } "
 	"limit l l { param limit }",
 	ZcmdFn::Member<&ZCmd::rolesCmd>::fn(this),
-	"list roles", "usage: roles [NAME] [OPTIONS...]\n\n"
+	"list roles", "Usage: roles [NAME] [OPTIONS...]\n\n"
 	"  -x, --exclusive\texclude NAME from results\n"
 	"  -l, --limit=N\t\tlimit results to N\n");
     addCmd("roleadd", "immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
 	"add role",
-	"usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
+	"Usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -i, --immutable\tset Immutable flag\n");
     addCmd("rolemod",
@@ -518,7 +518,7 @@ private:
 	"immutable i i { param immutable }",
 	ZcmdFn::Member<&ZCmd::roleModCmd>::fn(this),
 	"modify role",
-	"usage: rolemod NAME [OPTIONS...]\n\n"
+	"Usage: rolemod NAME [OPTIONS...]\n\n"
 	"Options:\n"
 	"  -p, --perms=PERMS\tset permissions\n"
 	"  -a, --apiperms=PERMS\tset API permissions\n"
@@ -526,7 +526,7 @@ private:
     addCmd("roledel", "",
 	ZcmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
 	"delete role",
-	"usage: roledel NAME");
+	"Usage: roledel NAME");
 
     addCmd("perms",
         "id i i { param id } "
@@ -534,44 +534,44 @@ private:
 	"exclusive x x { param exclusive } "
 	"limit l l { param limit }",
 	ZcmdFn::Member<&ZCmd::permsCmd>::fn(this),
-	"list permissions", "usage: perms [OPTIONS...]\n\n"
+	"list permissions", "Usage: perms [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from permission ID\n"
 	"  -n, --name=NAME\t\tquery from permission NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
 	"  -l, --limit=N\t\tlimit results to N\n");
     addCmd("permadd", "",
 	ZcmdFn::Member<&ZCmd::permAddCmd>::fn(this),
-	"add permission", "usage: permadd NAME");
+	"add permission", "Usage: permadd NAME");
     addCmd("permmod", "",
 	ZcmdFn::Member<&ZCmd::permModCmd>::fn(this),
-	"modify permission", "usage: permmod ID NAME");
+	"modify permission", "Usage: permmod ID NAME");
     addCmd("permdel", "",
 	ZcmdFn::Member<&ZCmd::permDelCmd>::fn(this),
-	"delete permission", "usage: permdel ID");
+	"delete permission", "Usage: permdel ID");
 
     addCmd("keys", "",
 	ZcmdFn::Member<&ZCmd::keysCmd>::fn(this),
-	"list keys", "usage: keys [USERID]");
+	"list keys", "Usage: keys [USERID]");
     addCmd("keyadd", "",
 	ZcmdFn::Member<&ZCmd::keyAddCmd>::fn(this),
-	"add key", "usage: keyadd [USERID]");
+	"add key", "Usage: keyadd [USERID]");
     addCmd("keydel", "",
 	ZcmdFn::Member<&ZCmd::keyDelCmd>::fn(this),
-	"delete key", "usage: keydel ID");
+	"delete key", "Usage: keydel ID");
     addCmd("keyclr", "",
 	ZcmdFn::Member<&ZCmd::keyClrCmd>::fn(this),
-	"clear all keys", "usage: keyclr [USERID]");
+	"clear all keys", "Usage: keyclr [USERID]");
 
     addCmd("remote", "",
 	ZcmdFn::Member<&ZCmd::remoteCmd>::fn(this),
-	"run command remotely", "usage: remote COMMAND...");
+	"run command remotely", "Usage: remote COMMAND...");
 
     addCmd("telcap",
 	"interval i i { param interval } "
 	"unsubscribe u u { flag unsubscribe }",
 	ZcmdFn::Member<&ZCmd::telcapCmd>::fn(this),
 	"telemetry capture",
-	"usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"
+	"Usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"
 	"  PATH\tdirectory for capture CSV files\n"
 	"  TYPE\t[Heap|HashTbl|Thread|Mx|Queue|Engine|DbEnv|App|Alert]\n"
 	"  FILTER\tfilter specification in type-specific format\n\n"

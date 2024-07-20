@@ -26,7 +26,7 @@ void sigint(int sig) { sem.post(); }	// CTRL-C signal handler
 int subscribe();	// subscribe to events
 
 void usage() {
-  std::cerr << "usage: mdsample_subscriber CONFIG\n" << std::flush;
+  std::cerr << "Usage: mdsample_subscriber CONFIG\n" << std::flush;
   ::exit(1);
 }
 

@@ -16,7 +16,7 @@
 void usage()
 {
   std::cerr <<
-    "usage: ZiRingTest [OPTION]...NAME\n"
+    "Usage: ZiRingTest [OPTION]...NAME\n"
     "  test read/write ring buffer in shared memory\n\n"
 	"\tNAME\t- name of shared memory segment\n\n"
     "Options:\n"

@@ -92,7 +92,7 @@ retry:
 
 void usage()
 {
-  puts("usage: vsntest increment max");
+  puts("Usage: vsntest increment max");
   Zm::exit(1);
 }
 

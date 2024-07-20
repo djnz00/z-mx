@@ -420,9 +420,10 @@ void DB::listenFailed(bool transient)
 
 void DB::stopListening()
 {
-  ZeLOG(Info, "Zdb stop listening");
-  if (!m_self->standalone())
+  if (!m_self->standalone()) {
+    ZeLOG(Info, "Zdb stop listening");
     m_mx->stopListening(m_self->ip(), m_self->port());
+  }
 }
 
 void DB::holdElection()

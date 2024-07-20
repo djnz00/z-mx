@@ -20,7 +20,7 @@
 int main(int argc, char **argv)
 {
   if (argc != 2) {
-    std::cerr << "usage: ZuSearchTest N\n" << std::flush;
+    std::cerr << "Usage: ZuSearchTest N\n" << std::flush;
     exit(1);
   }
 

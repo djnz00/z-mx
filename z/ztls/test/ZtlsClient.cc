@@ -23,13 +23,15 @@ const char *Request2 = "\r\n"
 
 struct App : public Ztls::Client<App> {
   struct Link : public Ztls::CliLink<App, Link> {
-    Link(App *app) : Ztls::CliLink<App, Link>(app) { }
+    using Base = Ztls::CliLink<App, Link>;
 
-    void connected(const char *alpn) {
+    Link(App *app) : Base{app} { }
+
+    void connected(const char *alpn, int tlsver) {
       ZtString hostname = this->server();
-      std::cerr << (ZuStringN<100>()
+      std::cerr << (ZtString{}
 	  << "TLS handshake completed (hostname: " << hostname
-	  << " ALPN: " << alpn << ")\n")
+	  << " TLS: " << tlsver << " ALPN: " << alpn << ")\n")
 	<< std::flush;
       ZtString request;
       request << Request << hostname << Request2;
@@ -37,6 +39,7 @@ struct App : public Ztls::Client<App> {
     }
     void disconnected() {
       std::cerr << "disconnected\n" << std::flush;
+      close();
       app()->done();
     }
 
@@ -45,18 +48,53 @@ struct App : public Ztls::Client<App> {
 	std::cerr << "failed to connect (transient)\n" << std::flush;
       else
 	std::cerr << "failed to connect\n" << std::flush;
+      close();
       app()->done();
     }
 
     int process(const uint8_t *data, unsigned len) {
-      auto s = ZuString{(const char *)data, len};
-      std::cout << s << std::flush;
-      if (ZtREGEX("</html>").m(s)) {
-	disconnect_();
-	return -1;
+      if (!file) {
+	header << ZuString{data, len};
+	ZtRegex::Captures c;
+	if (ZtREGEX("\n\r\n").m(header, c)) {
+	  ZtRegex::Captures d;
+	  if (ZtREGEX("\nContent-Length: (\d+)").m(header, d))
+	    length = ZuBox<unsigned>(d[2]);
+	  else if (ZtREGEX("\nTransfer-Encoding: chunked\r").m(header)) {
+	    // just read the first chunk for testing purposes
+	    if (ZtREGEX("\n\r\n([\dA-F]+)\r\n").m(header, d)) {
+	      length = ZuBox<unsigned>(ZuFmt::Hex<true>{}, d[2]);
+	      c[2] = d[3];
+	    } else
+	      return len;
+	  }
+	  ZmAssert(length);
+	  file = fopen("index.hdr", "w");
+	  ZmAssert(file);
+	  fwrite(c[0].data(), 1, c[0].length() + 1, file);
+	  fclose(file);
+	  file = fopen("index.html", "w");
+	  ZmAssert(file);
+	  fwrite(c[2].data(), 1, c[2].length(), file);
+	  ZmAssert(length > c[2].length());
+	  length -= c[2].length();
+	  header = {};
+	}
+      } else {
+	fwrite(data, 1, len, file);
+	if (length <= len) return -1;
+	length -= len;
       }
       return len;
     }
+
+    void close() {
+      if (file) { fclose(file); file = nullptr; }
+    }
+
+    unsigned	length = 0;
+    ZtString	header;
+    FILE	*file = nullptr;
   };
 
   void done() { sem.post(); }
@@ -67,7 +105,7 @@ struct App : public Ztls::Client<App> {
 void usage()
 {
   std::cerr <<
-    "usage: ZtlsClient CA SERVER PORT\n\n"
+    "Usage: ZtlsClient CA SERVER PORT\n\n"
     "Note: use /etc/ssl/certs as CA for public servers\n"
     << std::flush;
   ::exit(1);

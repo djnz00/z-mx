@@ -34,7 +34,10 @@
 #define ZiIOBuf_DefaultSize 1460
 
 inline constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
-struct ZiIOBuf : public ZmPolymorph, private ZmVHeap<ZiIOBuf_HeapID> {
+
+namespace Zi {
+
+struct IOBuf : public ZmPolymorph, private ZmVHeap<ZiIOBuf_HeapID> {
   mutable void	*owner = nullptr;
   uintptr_t	data__ = 0;
   uint32_t	size = 0;
@@ -50,28 +53,28 @@ private:
   using Heap::vfree;
 
 protected:
-  ZiIOBuf(uint8_t *data_, uint32_t size_) :
+  IOBuf(uint8_t *data_, uint32_t size_) :
     data__{reinterpret_cast<uintptr_t>(data_)}, size{size_} { }
-  ZiIOBuf(uint8_t *data_, uint32_t size_, void *owner_) :
+  IOBuf(uint8_t *data_, uint32_t size_, void *owner_) :
     owner{owner_}, data__{reinterpret_cast<uintptr_t>(data_)}, size{size_} { }
-  ZiIOBuf(uint8_t *data_, uint32_t size_, void *owner_, uint32_t length_) :
+  IOBuf(uint8_t *data_, uint32_t size_, void *owner_, uint32_t length_) :
     owner{owner_}, data__{reinterpret_cast<uintptr_t>(data_)},
     size{size_}, length{length_} { }
 
 public:
-  virtual ~ZiIOBuf() { if (ZuUnlikely(data__ & Jumbo)) vfree(data_()); }
+  virtual ~IOBuf() { if (ZuUnlikely(data__ & Jumbo)) vfree(data_()); }
 
 private:
-  ZiIOBuf(const ZiIOBuf &buf) = delete;
-  ZiIOBuf &operator =(const ZiIOBuf &buf) = delete;
-  ZiIOBuf(ZiIOBuf &&buf) = delete;
-  ZiIOBuf &operator =(ZiIOBuf &&buf) = delete; 
+  IOBuf(const IOBuf &buf) = delete;
+  IOBuf &operator =(const IOBuf &buf) = delete;
+  IOBuf(IOBuf &&buf) = delete;
+  IOBuf &operator =(IOBuf &&buf) = delete; 
 
   inline uint8_t *data_() {
     return reinterpret_cast<uint8_t *>(data__ & ~Jumbo);
   }
   inline const uint8_t *data_() const {
-    return const_cast<ZiIOBuf *>(this)->data_();
+    return const_cast<IOBuf *>(this)->data_();
   }
 
 public:
@@ -79,6 +82,11 @@ public:
 
   const uint8_t *data() const { return data_() + skip; }
   uint8_t *data() { return data_() + skip; }
+
+  const uint8_t *end() const { return data_() + skip + length; }
+  uint8_t *end() { return data_() + skip + length; }
+
+  unsigned avail() const { return size - (skip + length); }
 
   uint8_t *alloc(unsigned newSize) {
     if (ZuLikely(newSize <= size)) return data();
@@ -245,81 +253,106 @@ private:
     ZuPrint<U>::OK && !ZuPrint<U>::String, R>;
 
 public:
-  ZiIOBuf &operator <<(const ZuArray<const uint8_t> &buf) {
+  IOBuf &operator <<(const ZuArray<const uint8_t> &buf) {
     append(buf.data(), buf.length());
     return *this;
   }
   template <typename C>
-  MatchChar<C, ZiIOBuf &> operator <<(C c) {
+  MatchChar<C, IOBuf &> operator <<(C c) {
     this->append(&c, 1);
     return *this;
   }
   template <typename S>
-  MatchString<S, ZiIOBuf &> operator <<(S &&s_) {
+  MatchString<S, IOBuf &> operator <<(S &&s_) {
     ZuString s(ZuFwd<S>(s_));
     append(reinterpret_cast<const uint8_t *>(s.data()), s.length());
     return *this;
   }
-  ZiIOBuf &operator <<(const char *s_) {
+  IOBuf &operator <<(const char *s_) {
     ZuString s(s_);
     append(reinterpret_cast<const uint8_t *>(s.data()), s.length());
     return *this;
   }
   template <typename R>
-  MatchReal<R, ZiIOBuf &> operator <<(const R &r) {
+  MatchReal<R, IOBuf &> operator <<(const R &r) {
     append(ZuBoxed(r));
     return *this;
   }
   template <typename P>
-  MatchPrint<P, ZiIOBuf &> operator <<(const P &p) {
+  MatchPrint<P, IOBuf &> operator <<(const P &p) {
     append(p);
     return *this;
   }
 
-  struct Traits : public ZuBaseTraits<ZiIOBuf> {
+  struct Traits : public ZuBaseTraits<IOBuf> {
     using Elem = char;
     enum { IsCString = 0, IsString = 1, IsWString = 0 };
-    static char *data(ZiIOBuf &buf) {
+    static char *data(IOBuf &buf) {
       return reinterpret_cast<char *>(buf.data());
     }
-    static const char *data(const ZiIOBuf &buf) {
+    static const char *data(const IOBuf &buf) {
       return reinterpret_cast<const char *>(buf.data());
     }
-    static unsigned length(const ZiIOBuf &buf) {
+    static unsigned length(const IOBuf &buf) {
       return buf.length;
     }
   };
-  friend Traits ZuTraitsType(ZiIOBuf *);
+  friend Traits ZuTraitsType(IOBuf *);
 };
 
-#pragma pack(push, 1)
+// the Base parameter permits Ztls, Zdb, etc. to intrude their own
+// buffer type into the hierarchy
 
-template <unsigned Size_, typename Heap>
-struct ZiIOBufAlloc_ : public Heap, public ZiIOBuf {
+template <typename Base, unsigned Size_, typename Heap>
+struct IOBufAlloc__ : public Heap, public Base {
   enum { Size = Size_ };
 
   uint8_t	data_[Size];
 
-  ZiIOBufAlloc_() : ZiIOBuf{&data_[0], Size} { }
+  IOBufAlloc__() : Base{&data_[0], Size} { }
   template <typename ...Args>
-  ZiIOBufAlloc_(Args &&...args) :
-    ZiIOBuf{&data_[0], Size, ZuFwd<Args>(args)...} { }
+  IOBufAlloc__(Args &&...args) :
+    Base{&data_[0], Size, ZuFwd<Args>(args)...} { }
 
-  ~ZiIOBufAlloc_() = default;
+  ~IOBufAlloc__() = default;
 
 private:
-  ZiIOBufAlloc_(const ZiIOBufAlloc_ &) = delete;
-  ZiIOBufAlloc_ &operator =(const ZiIOBufAlloc_ &) = delete;
-  ZiIOBufAlloc_(ZiIOBufAlloc_ &&) = delete;
-  ZiIOBufAlloc_ &operator =(ZiIOBufAlloc_ &&) = delete;
+  IOBufAlloc__(const IOBufAlloc__ &) = delete;
+  IOBufAlloc__ &operator =(const IOBufAlloc__ &) = delete;
+  IOBufAlloc__(IOBufAlloc__ &&) = delete;
+  IOBufAlloc__ &operator =(IOBufAlloc__ &&) = delete;
 };
 
-#pragma pack(pop)
-
-template <unsigned Size, auto HeapID>
-using ZiIOBuf_Heap = ZmHeap<HeapID, sizeof(ZiIOBufAlloc_<Size, ZuNull>)>;
+template <typename Base, unsigned Size, auto HeapID>
+using IOBuf_Heap = ZmHeap<HeapID, sizeof(IOBufAlloc__<Base, Size, ZuNull>)>;
  
+template <typename Base, unsigned Size, auto HeapID = ZiIOBuf_HeapID>
+using IOBufAlloc_ = IOBufAlloc__<Base, Size, IOBuf_Heap<Base, Size, HeapID>>;
+
+template <typename Base>
+inline constexpr const unsigned BuiltinSize(unsigned Size) {
+  enum { CacheLineSize = Zm::CacheLineSize };
+  // MinBufSz - minimum built-in buffer size
+  enum { MinBufSz = sizeof(uintptr_t)<<1 };
+  // IOBufOverhead - ZiIOBuf overhead
+  enum { Overhead = sizeof(IOBufAlloc_<Base, MinBufSz>) - MinBufSz };
+  // round up to cache line size, subtract overhead
+  // and use that as the built-in buffer size
+  return
+    ((Size + Overhead + CacheLineSize - 1) & ~(CacheLineSize - 1)) - Overhead;
+};
+
+template <typename Base, unsigned Size, auto HeapID>
+using IOBufAlloc = IOBufAlloc_<Base, BuiltinSize<Base>(Size), HeapID>;
+
+} // Zi
+
+using ZiIOBuf = Zi::IOBuf;
+
 template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
-using ZiIOBufAlloc = ZiIOBufAlloc_<Size, ZiIOBuf_Heap<Size, HeapID>>;
+using ZiIOBufAlloc = Zi::IOBufAlloc<ZiIOBuf, Size, HeapID>;
+
+// ensure cache line alignment
+ZuAssert(!((sizeof(ZiIOBufAlloc<1>)) & (Zm::CacheLineSize - 1)));
 
 #endif /* ZiIOBuf_HH */
