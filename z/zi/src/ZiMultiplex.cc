@@ -1122,9 +1122,18 @@ void ZiConnection::recv_(ZiIOFn fn)
 #endif
 
 #ifdef ZiMultiplex_EPoll
-  if (ZuLikely(!m_rxContext.completed()))
+  if (ZuLikely(!m_rxContext.completed())) {
     if (!m_mx->epollRecv(this, m_info.socket, EPOLLIN | EPOLLRDHUP))
       m_rxContext.complete();
+    else
+      recv(); // strictly speaking this pump-priming should not be needed,
+	      // but edge-triggered epoll does not behave identically
+	      // under valgrind; while this call does potentially reduce
+	      // latency, that benefit is marginal - in a latency-sensitive
+	      // app, recv_() is invoked just once or twice per connection
+	      // during initial setup - the receive context will remain
+	      // open for the bulk of the communication
+  }
 #endif
 }
 
