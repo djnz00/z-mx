@@ -15,6 +15,7 @@
 #include <mbedtls/ssl_cache.h>
 #include <mbedtls/ssl_ticket.h>
 #include <mbedtls/net_sockets.h>
+#include <mbedtls/platform.h>
 #ifdef ZDEBUG
 #include <mbedtls/debug.h>
 #endif
@@ -22,6 +23,8 @@
 #include <zlib/ZuString.hh>
 
 #include <zlib/ZmList.hh>
+#include <zlib/ZmHeap.hh>
+#include <zlib/ZmVHeap.hh>
 
 #include <zlib/ZeLog.hh>
 
@@ -33,7 +36,11 @@
 
 namespace Ztls {
 
-constexpr const unsigned RxBufSize() {
+inline constexpr const char *VHeapID { return "Ztls.mbedtls" }
+
+using VHeap = ZmVHeap<VHeapID>;
+
+inline constexpr const unsigned RxBufSize() {
   return MBEDTLS_SSL_IN_CONTENT_LEN;
 }
 
@@ -663,27 +670,34 @@ private:
 #ifdef ZDEBUG
     // mbedtls_debug_set_threshold(INT_MAX);
 #endif
-    mbedtls_ssl_conf_dbg(&m_conf, [](
-	  void *, int level,
-	  const char *file, int line, const char *message_) {
-      int sev;
-      switch (level) {
-	case 0: sev = Ze::Error;
-	case 1: sev = Ze::Warning;
-	case 2: sev = Ze::Info;
-	case 3: sev = Ze::Info;
-	default: sev = Ze::Debug;
-      }
+    mbedtls_platform_set_calloc_free(
+      [](size_t n, size_t size) -> void * {
+	n *= size;
+	auto ptr = VHeap::valloc(n);
+	memset(ptr, 0, n); // very tempting to remove this
+	return ptr;
+      },
+      [](void *ptr) { VHeap::free(ptr); });
+    mbedtls_ssl_conf_dbg(&m_conf,
+      [](void *, int level, const char *file, int line, const char *message_) {
+	int sev;
+	switch (level) {
+	  case 0: sev = Ze::Error;
+	  case 1: sev = Ze::Warning;
+	  case 2: sev = Ze::Info;
+	  case 3: sev = Ze::Info;
+	  default: sev = Ze::Debug;
+	}
 #ifndef ZDEBUG
-      if (sev > Ze::Debug)
+	if (sev > Ze::Debug)
 #endif
-      {
-	ZtString message{message_};
-	message.chomp();
-	ZeLogEvent(ZeEvent(sev, file, line, "",
-	    [message = ZuMv(message)](auto &s) { s << message; }));
-      }
-    }, nullptr);
+	{
+	  ZtString message{message_};
+	  message.chomp();
+	  ZeLogEvent(ZeEvent(sev, file, line, "",
+	      [message = ZuMv(message)](auto &s) { s << message; }));
+	}
+      }, nullptr);
     if (!Random::init()) {
       ZeLOG(Error, "mbedtls_ctr_drbg_seed() failed");
       return false;

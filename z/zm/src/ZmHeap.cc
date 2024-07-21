@@ -40,7 +40,7 @@ public:
     auto end = reinterpret_cast<uintptr_t>(c->m_end) - 1;
     Guard guard(m_lock);
     if (ZuUnlikely(!m_shift))
-      m_shift = 32U - ZuIntrin::clz(end - begin);
+      m_shift = (sizeof(end)<<3) - ZuIntrin::clz(end - begin);
     begin >>= m_shift;
     end >>= m_shift;
     m_hash.add(begin, c);
@@ -310,7 +310,8 @@ void ZmHeapCache::init_(hwloc_topology_t hwloc)
     config.alignment = sizeof(uintptr_t);
   else {
     // round up to nearest power of 2, ceiling of 512
-    config.alignment = 1U<<(64U - ZuIntrin::clz(config.alignment - 1));
+    config.alignment =
+      1U<<((sizeof(config.alignment)<<3) - ZuIntrin::clz(config.alignment - 1));
     if (ZuUnlikely(config.alignment > 512)) config.alignment = 512;
   }
   m_info.size = (m_info.size + config.alignment - 1) & ~(config.alignment - 1);

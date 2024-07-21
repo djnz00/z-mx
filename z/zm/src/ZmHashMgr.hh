@@ -24,7 +24,7 @@ public:
   ZmHashParams() { }
   ZmHashParams(ZuString id) { init(id); }
   ZmHashParams(uint32_t size) :
-    m_bits{size <= 8 ? 3 : (32U - ZuIntrin::clz(size - 1))} { }
+    m_bits{size <= 8 ? 3 : (32 - ZuIntrin::clz(size - 1))} { }
 
   const ZmHashParams &init(ZuString id);
 
