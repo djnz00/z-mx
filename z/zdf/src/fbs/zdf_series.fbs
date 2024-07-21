@@ -1,0 +1,8 @@
+// include "zfb_types.fbs";
+namespace Zdf.fbs;
+table Series {
+  df_i_d:uint64;	// data frame ID
+  id:uint64;
+  name:string;
+}
+root_type Series;

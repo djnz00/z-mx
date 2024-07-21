@@ -20,6 +20,12 @@
 #include <mbedtls/debug.h>
 #endif
 
+#if defined(MBEDTLS_PLATFORM_MEMORY) && \
+  (!defined(MBEDTLS_PLATFORM_FREE_MACRO) || \
+   !defined(MBEDTLS_PLATFORM_CALLOC_MACRO))
+#define Ztls_VHEAP
+#endif
+
 #include <zlib/ZuString.hh>
 
 #include <zlib/ZmList.hh>
@@ -36,9 +42,11 @@
 
 namespace Ztls {
 
-inline constexpr const char *VHeapID { return "Ztls.mbedtls" }
+#ifdef Ztls_VHEAP
+inline constexpr const char *VHeapID() { return "Ztls.mbedtls"; }
 
 using VHeap = ZmVHeap<VHeapID>;
+#endif
 
 inline constexpr const unsigned RxBufSize() {
   return MBEDTLS_SSL_IN_CONTENT_LEN;
@@ -668,8 +676,10 @@ private:
   template <typename L>
   bool init_(L l) {
 #ifdef ZDEBUG
-    // mbedtls_debug_set_threshold(INT_MAX);
+    if (auto debug = ::getenv("ZTLS_DEBUG"))
+      mbedtls_debug_set_threshold(ZuBox<int>{debug});
 #endif
+#ifdef Ztls_VHEAP
     mbedtls_platform_set_calloc_free(
       [](size_t n, size_t size) -> void * {
 	n *= size;
@@ -677,7 +687,8 @@ private:
 	memset(ptr, 0, n); // very tempting to remove this
 	return ptr;
       },
-      [](void *ptr) { VHeap::free(ptr); });
+      [](void *ptr) { VHeap::vfree(ptr); });
+#endif
     mbedtls_ssl_conf_dbg(&m_conf,
       [](void *, int level, const char *file, int line, const char *message_) {
 	int sev;
