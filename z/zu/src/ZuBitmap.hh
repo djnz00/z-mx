@@ -225,6 +225,7 @@ public:
   Bitmap_ &fill() { memset(&data[0], 0xff, length()>>ByteShift); return *this; }
 
   bool get(unsigned i) const {
+    if (ZuUnlikely(i >= length())) return 0;
     return data[i>>BitShift] & (uint64_t(1)<<(i & Mask));
   }
   Bitmap_ &set(unsigned i) {

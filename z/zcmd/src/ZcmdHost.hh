@@ -30,8 +30,10 @@ class ZcmdHost;
 class ZcmdDispatcher;
 namespace Ztls { class Random; }
 
+// on the server side the dest will be a link, which in turn owns
+// a reference to the session that can be used to check permissions
 struct ZcmdContext {
-  using Dest = ZuUnion<FILE *, void *>;		// file or session output
+  using Dest = ZuUnion<FILE *, void *>;		// file or link output
 
   ZcmdHost		*host = nullptr;	
   Dest			dest;			// destination

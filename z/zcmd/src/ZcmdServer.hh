@@ -354,11 +354,12 @@ public:
     args.length(cmd_->size());
     Zfb::Load::all(cmd_,
 	[&args](unsigned i, auto arg_) { args[i] = Zfb::Load::str(arg_); });
+    using namespace Zum::Server;
     ZcmdContext ctx{
       .host = this,
       .dest = static_cast<void *>(link),
       .seqNo = req->seqNo(),
-      .interactive = session->interactive
+      .interactive = bool(session->flags & SessionFlags::Interactive())
     };
     Host::processCmd(&ctx, args);
     return 1;

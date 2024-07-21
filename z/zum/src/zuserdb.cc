@@ -25,8 +25,8 @@
 void usage()
 {
   std::cerr <<
-    "Usage: zuserdb USER ROLE PASSLEN [OPTION]... [PERM]...\n"
-    "  Bootstrap user database with admin super-user USER and ROLE,\n"
+    "Usage: zuserdb USER PASSLEN [OPTION]... [PERM]...\n"
+    "  Bootstrap user database with admin super-user USER,\n"
     "  generating a random initial password of PASSLEN characters,\n"
     "  optionally adding permissions PERM...\n\n"
     "Options:\n"
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 {
   ZmRef<ZvCf> cf;
 
-  ZtString user, role;
+  ZtString user;
   ZtArray<ZtString> perms;
 
   try {
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 
     if (cf->getBool("help")) usage();
 
-    if (argc_ < 4) usage();
+    if (argc_ < 3) usage();
 
     if (!cf->exists("zdb.store.module")) {
       std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
@@ -111,10 +111,9 @@ int main(int argc, char **argv)
     }
 
     user = cf->get("1");
-    role = cf->get("2");
-    cf->set("userDB.passLen", ZtString{} << cf->getInt("3", 6, 60));
-    perms.size(argc_ - 4);
-    for (unsigned i = 4; i < argc_; i++)
+    cf->set("userDB.passLen", ZtString{} << cf->getInt("2", 6, 60));
+    perms.size(argc_ - 3);
+    for (unsigned i = 3; i < argc_; i++)
       perms.push(cf->get(ZtString{} << i));
 
   } catch (const ZvError &e) {
@@ -192,9 +191,9 @@ int main(int argc, char **argv)
   ZtString passwd, secret;
 
   ZmBlock<>{}([
-    user = ZuMv(user), role = ZuMv(role), &userDB, &gtfo, &passwd, &secret
+    user = ZuMv(user), &userDB, &gtfo, &passwd, &secret
   ](auto wake) {
-    userDB.bootstrap(ZuMv(user), ZuMv(role), [
+    userDB.bootstrap(ZuMv(user), [
       &gtfo, &passwd, &secret, wake = ZuMv(wake)
     ](Zum::Server::BootstrapResult result) mutable {
       using Data = Zum::Server::BootstrapData;

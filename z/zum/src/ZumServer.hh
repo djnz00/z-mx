@@ -42,13 +42,17 @@ using BootstrapFn = ZmFn<void(BootstrapResult)>;
 // request/response callback
 using ResponseFn = ZmFn<void(ZmRef<ZiIOBuf>)>;
 
+
 // live session
+namespace SessionFlags {
+  ZtEnumFlags(SessionFlags, uint8_t, Interactive);
+}
 struct Session_ {
   UserDB		*userDB = nullptr;
   ZdbObjRef<User>	user;
   ZdbObjRef<Key>	key;		// if API key access
   ZtBitmap		perms;		// effective permissions
-  bool			interactive;
+  SessionFlags::T	flags = 0;	// SessionFlags
 
   static auto IDAxor(const Session_ &session) {
     return session.user->data().id;
@@ -99,7 +103,7 @@ public:
   void open(ZtArray<ZtString> perms, OpenFn);
 
   // one-time initialization (idempotent)
-  void bootstrap(ZtString userName, ZtString roleName, BootstrapFn);
+  void bootstrap(ZtString userName, BootstrapFn);
 
   // process login/access request - returns false if invalid
   bool loginReq(ZmRef<ZiIOBuf> buf, LoginFn);
@@ -109,8 +113,9 @@ public:
 
   // check permissions - ok(session, perm)
   bool ok(Session *session, unsigned permID) const {
-    if ((session->user->data().flags & UserFlags::ChPass()) &&
-	!session->key &&
+    auto flags = session->user->data().flags;
+    if (flags & UserFlags::SuperUser()) return true;
+    if ((flags & UserFlags::ChPass()) && !session->key &&
 	permID != m_perms[reqPerm(unsigned(fbs::ReqData::ChPass))])
       return false;
     return session->perms[permID];
@@ -132,11 +137,9 @@ private:
 
   struct Bootstrap { // internal bootstrap() context
     ZtString	userName;
-    ZtString	roleName;
     BootstrapFn	fn;
   };
   void bootstrap_(ZuPtr<Bootstrap>);
-  void bootstrap_findAddRole(ZuPtr<Bootstrap>);
   void bootstrap_findAddUser(ZuPtr<Bootstrap>);
   void bootstrapped(ZuPtr<Bootstrap>, BootstrapResult);
 

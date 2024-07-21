@@ -269,7 +269,7 @@ private:
       if (!fbs::VerifyLoginAckBuffer(verifier)) return -1;
     }
     auto loginAck = fbs::GetLoginAck(buf->data());
-    if (!loginAck->ok()) return false;
+    if (!loginAck->ok()) return -1;
     m_userID = loginAck->id();
     m_userName = str(loginAck->name());
     all(loginAck->roles(), [this](unsigned i, auto role_) {

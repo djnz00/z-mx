@@ -176,11 +176,10 @@ void UserDB::opened(ZuPtr<Open> context, bool ok)
 }
 
 // initiate bootstrap
-void UserDB::bootstrap(ZtString userName, ZtString roleName, BootstrapFn fn)
+void UserDB::bootstrap(ZtString userName, BootstrapFn fn)
 {
   ZuPtr<Bootstrap> context = new Bootstrap{
     .userName = ZuMv(userName),
-    .roleName = ZuMv(roleName),
     .fn = ZuMv(fn)
   };
   run([this, context = ZuMv(context)]() mutable { bootstrap_(ZuMv(context)); });
@@ -195,35 +194,7 @@ void UserDB::bootstrap_(ZuPtr<Bootstrap> context)
   m_state = UserDBState::Bootstrap;
 
   m_roleTbl->run([this, context = ZuMv(context)]() mutable {
-    bootstrap_findAddRole(ZuMv(context));
-  });
-}
-// idempotent insert role
-void UserDB::bootstrap_findAddRole(ZuPtr<Bootstrap> context)
-{
-  m_roleTbl->find<0>(ZuFwdTuple(context->roleName), [
-    this, context = ZuMv(context)
-  ](ZmRef<ZdbObject<Role>> dbRole) mutable {
-    if (!dbRole)
-      m_roleTbl->insert([
-	this, context = ZuMv(context)
-      ](ZdbObject<Role> *dbRole) mutable {
-	if (!dbRole) {
-	  bootstrapped(ZuMv(context), BootstrapResult{false});
-	  return;
-	}
-	ZtBitmap perms;
-	for (unsigned i = 0, n = nPerms(); i < n; i++) perms.set(m_perms[i]);
-	initRole(
-	  dbRole, context->roleName, perms, perms, RoleFlags::Immutable());
-	m_userTbl->run([this, context = ZuMv(context)]() mutable {
-	  bootstrap_findAddUser(ZuMv(context));
-	});
-      });
-    else
-      m_userTbl->run([this, context = ZuMv(context)]() mutable {
-	bootstrap_findAddUser(ZuMv(context));
-      });
+    bootstrap_findAddUser(ZuMv(context));
   });
 }
 // idempotent insert admin user
@@ -242,8 +213,10 @@ void UserDB::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
 	}
 	ZtString passwd;
 	initUser(dbUser, m_nextUserID++,
-	  ZuMv(context->userName), { ZuMv(context->roleName) },
-	  UserFlags::Immutable() | UserFlags::Enabled(),
+	  ZuMv(context->userName), { },
+	  UserFlags::Immutable() |
+	  UserFlags::Enabled() |
+	  UserFlags::SuperUser(),
 	  passwd);
 	auto &user = dbUser->data();
 	ZtString secret{ZuBase32::enclen(user.secret.length())};
@@ -392,6 +365,8 @@ void UserDB::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
     if (!dbUser) { sessionLoaded(ZuMv(context), false); return; }
     const auto &user = dbUser->data();
     context->session = new Session{this, ZuMv(dbUser), ZuMv(context->key)};
+    if (context->session->key)
+      context->session->flags |= SessionFlags::Interactive();
     if (!user.roles)
       sessionLoaded(ZuMv(context), true);
     else
@@ -408,10 +383,11 @@ void UserDB::sessionLoad_findRole(ZuPtr<SessionLoad> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Role>> dbRole) mutable {
     if (!dbRole) { sessionLoaded(ZuMv(context), false); return; }
+    const auto &role = dbRole->data();
     if (!context->key)
-      context->session->perms |= dbRole->data().perms;
+      context->session->perms |= role.perms;
     else
-      context->session->perms |= dbRole->data().apiperms;
+      context->session->perms |= role.apiperms;
     if (++context->roleIndex < context->session->user->data().roles.length())
       m_roleTbl->run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
@@ -501,7 +477,7 @@ void UserDB::login(
   ](ZmRef<Session> session) {
     if (!session) { loginFailed(nullptr, ZuMv(fn)); return; }
     auto &user = session->user->data();
-    if (!user.flags & UserFlags::Enabled()) {
+    if (!(user.flags & UserFlags::Enabled())) {
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: disabled user "
@@ -510,8 +486,9 @@ void UserDB::login(
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
     }
-    if (!(session->perms[
-	m_perms[loginReqPerm(unsigned(fbs::LoginReqData::Login))]])) {
+    if (!(user.flags & UserFlags::SuperUser()) &&
+	!session->perms[m_perms[
+	  loginReqPerm(unsigned(fbs::LoginReqData::Login))]]) {
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without login permission "
@@ -569,8 +546,9 @@ void UserDB::access(
       loginFailed(ZuMv(session), ZuMv(fn));
       return;
     }
-    if (!(session->perms[
-	m_perms[loginReqPerm(unsigned(fbs::LoginReqData::Access))]])) {
+    if (!(user.flags & UserFlags::SuperUser()) &&
+	!session->perms[m_perms[
+	  loginReqPerm(unsigned(fbs::LoginReqData::Access))]]) {
       if (++user.failures < 3) {
 	ZeLOG(Warning, ([name = user.name](auto &s) {
 	  s << "authentication failure: user without API access permission "

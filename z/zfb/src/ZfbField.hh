@@ -468,6 +468,7 @@ namespace Load {
 
   inline const ZtField_::CStringVec
   cstringVec(const Vector<Offset<String>> *v) {
+    if (!v) return {};
     using Vec = Vector<Offset<String>>;
     return ZtField_::CStringVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -477,6 +478,7 @@ namespace Load {
   }
   inline const ZtField_::StringVec
   stringVec(const Vector<Offset<String>> *v) {
+    if (!v) return {};
     using Vec = Vector<Offset<String>>;
     return ZtField_::StringVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -485,6 +487,7 @@ namespace Load {
   }
   inline const ZtField_::BytesVec
   bytesVec(const Vector<Offset<Bytes>> *v) {
+    if (!v) return {};
     using Vec = Vector<Offset<Bytes>>;
     return ZtField_::BytesVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -495,6 +498,7 @@ namespace Load {
 #define ZfbField_LoadIntVec(width) \
   inline const ZtField_::Int##width##Vec \
   int##width##Vec(const Vector<int##width##_t> *v) { \
+    if (!v) return {}; \
     using Vec = Vector<int##width##_t>; \
     return ZtField_::Int##width##Vec(*const_cast<Vec *>(v), v->size(), \
       [](const void *v_, unsigned i) -> int##width##_t { \
@@ -503,6 +507,7 @@ namespace Load {
   } \
   inline const ZtField_::UInt##width##Vec \
   uint##width##Vec(const Vector<uint##width##_t> *v) { \
+    if (!v) return {}; \
     using Vec = Vector<uint##width##_t>; \
     return ZtField_::UInt##width##Vec(*const_cast<Vec *>(v), v->size(), \
       [](const void *v_, unsigned i) -> uint##width##_t { \
@@ -517,6 +522,7 @@ namespace Load {
   
   inline const ZtField_::Int128Vec
   int128Vec(const Vector<const Int128 *> *v) {
+    if (!v) return {};
     using Vec = Vector<const Int128 *>;
     return ZtField_::Int128Vec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -525,6 +531,7 @@ namespace Load {
   }
   inline const ZtField_::UInt128Vec
   uint128Vec(const Vector<const UInt128 *> *v) {
+    if (!v) return {};
     using Vec = Vector<const UInt128 *>;
     return ZtField_::UInt128Vec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -534,6 +541,7 @@ namespace Load {
 
   inline const ZtField_::FloatVec
   floatVec(const Vector<double> *v) {
+    if (!v) return {};
     using Vec = Vector<double>;
     return ZtField_::FloatVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -543,6 +551,7 @@ namespace Load {
 
   inline const ZtField_::FixedVec
   fixedVec(const Vector<const Fixed *> *v) {
+    if (!v) return {};
     using Vec = Vector<const Fixed *>;
     return ZtField_::FixedVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -551,6 +560,7 @@ namespace Load {
   }
   inline const ZtField_::DecimalVec
   decimalVec(const Vector<const Decimal *> *v) {
+    if (!v) return {};
     using Vec = Vector<const Decimal *>;
     return ZtField_::DecimalVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -559,6 +569,7 @@ namespace Load {
   }
   inline const ZtField_::TimeVec
   timeVec(const Vector<const Time *> *v) {
+    if (!v) return {};
     using Vec = Vector<const Time *>;
     return ZtField_::TimeVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {
@@ -567,6 +578,7 @@ namespace Load {
   }
   inline const ZtField_::DateTimeVec
   dateTimeVec(const Vector<const DateTime *> *v) {
+    if (!v) return {};
     using Vec = Vector<const DateTime *>;
     return ZtField_::DateTimeVec(*const_cast<Vec *>(v), v->size(),
       [](const void *v_, unsigned i) {

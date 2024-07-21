@@ -545,20 +545,18 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZtString>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::String>>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZtString>(n);
-  for (unsigned i = 0; i < n; i++)
-    array->push(Zfb::Load::str(v->Get(i)));
+  for (unsigned i = 0; i < n; i++) array->push(Zfb::Load::str(v->Get(i)));
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZtBytes>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::Vector<uint8_t>>>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZtBytes>(n);
-  for (unsigned i = 0; i < n; i++)
-    array->push(Zfb::Load::bytes(v->Get(i)));
+  for (unsigned i = 0; i < n; i++) array->push(Zfb::Load::bytes(v->Get(i)));
 }
 
 #define zdbtest_LoadIntVec(width) \
@@ -566,7 +564,7 @@ template <unsigned Type> \
 inline ZuIfT<Type == Value::Index<Int##width##Vec>{}> \
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
   auto v = Zfb::GetFieldV<int##width##_t>(*fbo, *field); \
-  unsigned n = v->size(); \
+  unsigned n = v ? v->size() : 0; \
   auto array = new (ptr) Int##width##Vec(n); \
   for (unsigned i = 0; i < n; i++) array->push(v->Get(i)); \
 } \
@@ -574,7 +572,7 @@ template <unsigned Type> \
 inline ZuIfT<Type == Value::Index<UInt##width##Vec>{}> \
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) { \
   auto v = Zfb::GetFieldV<uint##width##_t>(*fbo, *field); \
-  unsigned n = v->size(); \
+  unsigned n = v ? v->size() : 0; \
   auto array = new (ptr) UInt##width##Vec(n); \
   for (unsigned i = 0; i < n; i++) array->push(v->Get(i)); \
 }
@@ -588,27 +586,25 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Int128Vec>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Int128 *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) Int128Vec(n);
-  for (unsigned i = 0; i < n; i++)
-    array->push(Zfb::Load::int128(v->Get(i)));
+  for (unsigned i = 0; i < n; i++) array->push(Zfb::Load::int128(v->Get(i)));
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<UInt128Vec>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::UInt128 *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) UInt128Vec(n);
-  for (unsigned i = 0; i < n; i++)
-    array->push(Zfb::Load::uint128(v->Get(i)));
+  for (unsigned i = 0; i < n; i++) array->push(Zfb::Load::uint128(v->Get(i)));
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<double>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<double>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<double>(n);
   for (unsigned i = 0; i < n; i++) array->push(v->Get(i));
 }
@@ -617,7 +613,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZuFixed>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Fixed *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZuFixed>(n);
   for (unsigned i = 0; i < n; i++)
     array->push(Zfb::Load::fixed(v->Get(i)));
@@ -627,7 +623,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZuDecimal>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Decimal *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZuDecimal>(n);
   for (unsigned i = 0; i < n; i++)
     array->push(Zfb::Load::decimal(v->Get(i)));
@@ -637,7 +633,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZuTime>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::Time *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZuTime>(n);
   for (unsigned i = 0; i < n; i++)
     array->push(Zfb::Load::time(v->Get(i)));
@@ -647,7 +643,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZtArray<ZuDateTime>>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto v = Zfb::GetFieldV<Zfb::DateTime *>(*fbo, *field);
-  unsigned n = v->size();
+  unsigned n = v ? v->size() : 0;
   auto array = new (ptr) ZtArray<ZuDateTime>(n);
   for (unsigned i = 0; i < n; i++)
     array->push(Zfb::Load::dateTime(v->Get(i)));

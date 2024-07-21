@@ -111,6 +111,7 @@ namespace UserFlags {
   ZtEnumFlags(UserFlags, uint8_t,
     Immutable,
     Enabled,
+    SuperUser,
     ChPass);		// user must change password
 }
 

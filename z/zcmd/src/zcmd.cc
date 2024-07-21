@@ -540,12 +540,12 @@ private:
     addCmd("perms",
         "id i i { param id } "
         "name n n { param name } "
-	"exclusive x x { param exclusive } "
+	"exclusive x x { flag exclusive } "
 	"limit l l { param limit }",
 	ZcmdFn::Member<&ZCmd::permsCmd>::fn(this),
 	"list permissions", "Usage: perms [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from permission ID\n"
-	"  -n, --name=NAME\t\tquery from permission NAME\n"
+	"  -n, --name=NAME\tquery from permission NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
 	"  -l, --limit=N\t\tlimit results to N\n");
     addCmd("permadd", "",
@@ -632,10 +632,10 @@ private:
     unsigned limit;
     try {
       ctx->args->getInt<true>("#", 1, 1);
-      if (auto id = ctx->args->get("id"))
-	*(key.new_<uint64_t>()) = ZuBox<uint64_t>{id};
-      else if (auto name = ctx->args->get("name"))
-	new (key.new_<ZtString>()) ZtString{name};
+      if (ctx->args->exists("id"))
+	key.p<uint64_t>(ZuBox<uint64_t>{ctx->args->get("id")});
+      else if (ctx->args->exists("name"))
+	key.p<ZtString>(ctx->args->get("name"));
       exclusive = ctx->args->getBool("exclusive", false);
       limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
     } catch (...) { throw ZcmdUsage{}; }
@@ -974,10 +974,10 @@ private:
     unsigned limit;
     try {
       ctx->args->getInt<true>("#", 1, 1);
-      if (auto id = ctx->args->get("id"))
-	*(key.new_<uint64_t>()) = ZuBox<uint64_t>{id};
-      else if (auto name = ctx->args->get("name"))
-	new (key.new_<ZtString>()) ZtString{name};
+      if (ctx->args->exists("id"))
+	key.p<uint64_t>(ZuBox<uint64_t>{ctx->args->get("id")});
+      else if (ctx->args->exists("name"))
+	key.p<ZtString>(ctx->args->get("name"));
       exclusive = ctx->args->getBool("exclusive", false);
       limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
     } catch (...) { throw ZcmdUsage{}; }
