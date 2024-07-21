@@ -10,7 +10,7 @@ union ReqAckData {
   OwnKeyGet:KeyIDList,
   OwnKeyAdd:Key,
   OwnKeyClr:Ack,
-  OwnKeyDel:Ack,
+  OwnKeyDel:Key,
 
   UserGet:UserList,
   UserAdd:UserPass,

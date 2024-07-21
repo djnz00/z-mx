@@ -11,8 +11,8 @@ map vi {
     Kill { Home[Del]; }
     LNext { Glyph(, '^'); Left[Mv]; Push(1); }
     Enter { Enter; }
-    Up { Up[Mv]; }
-    Down { Down[Mv]; }
+    Up { Up[Mv]; End[Mv]; }
+    Down { Down[Mv]; End[Mv]; }
     Left { Left[Mv]; }
     Right { Right[Mv]; }
     Home { Home[Mv]; }
@@ -84,8 +84,8 @@ map vi {
     AnySys { Mode(0); Syn; }
     Erase { Left[Mv]; }
     Enter { Mode(0); Enter; }
-    Up { Up[Mv]; }
-    Down { Down[Mv]; }
+    Up { Up[Mv]; End[Mv]; }
+    Down { Down[Mv]; End[Mv]; }
     Left { Left[Mv]; }
     Right { Right[Mv]; }
     Home { Home[Mv]; }
@@ -131,8 +131,8 @@ map vi {
     'D' { End[Del|Copy]; }
     'g' { Mode(9); }
     'h' { Left[Mv]; }
-    'j' { Down[Mv]; }
-    'k' { Up[Mv]; }
+    'j' { Down[Mv]; End[Mv]; }
+    'k' { Up[Mv]; End[Mv]; }
     'l' { Right[Mv]; }
     'x' { Right[Del|Copy]; }
     'c' { Mode(12); }
@@ -147,8 +147,8 @@ map vi {
     '$' { End[Mv]; }
     '"' { Push(5); }
     '.' { Repeat; }
-    '+' { Down[Mv]; }
-    '-' { Up[Mv]; }
+    '+' { Down[Mv]; End[Mv]; }
+    '-' { Up[Mv]; End[Mv]; }
     '~' { CapGlyph; }
     ^L { Clear; }
     #Redraw { Redraw; } # deconflict with ^R

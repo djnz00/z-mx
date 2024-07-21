@@ -11,8 +11,8 @@ map emacs {
     Kill { Home[Del]; }
     LNext { Glyph(, '^'); Left[Mv]; Push(1); }
     Enter { Enter; }
-    Up { Up[Mv]; }
-    Down { Down[Mv]; }
+    Up { Up[Mv]; End[Mv]; }
+    Down { Down[Mv]; End[Mv]; }
     Left { Left[Mv]; }
     Right { Right[Mv]; }
     Home { Home[Mv]; }
@@ -35,8 +35,8 @@ map emacs {
     Right[Alt] { FwdWord[Mv|Unix]; }
     Left[Shift|Alt] { RevWord[Mv|Vis|Unix]; Push(2); }
     Right[Shift|Alt] { FwdWordEnd[Mv|Vis|Unix|Past]; Push(2); }
-    ^P { Up[Mv]; }
-    ^N { Down[Mv]; }
+    ^P { Up[Mv]; End[Mv]; }
+    ^N { Down[Mv]; End[Mv]; }
     ^B { Left[Mv]; }
     ^F { Right[Mv]; }
     ^A { Home[Mv]; }

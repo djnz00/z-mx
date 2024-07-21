@@ -98,11 +98,15 @@ void ZcmdHost::helpCmd(ZcmdContext *ctx)
     return;
   }
   out.size(m_cmds.count_() * 80 + 40);
-  out << "commands:\n\n";
+  out << "Commands:\n\n";
   {
     auto i = m_cmds.readIterator();
-    while (auto cmd = i.iterate())
-      out << cmd->key() << " -- " << cmd->val().brief << '\n';
+    while (auto cmd = i.iterate()) {
+      ZuString key = cmd->key();
+      ZuString tabs = "\t\t";
+      if (key.length() >= 8) tabs.offset(1);
+      out << key << tabs << cmd->val().brief << '\n';
+    }
   }
   executed(0, ctx);
 }

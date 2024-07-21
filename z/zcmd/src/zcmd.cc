@@ -477,18 +477,18 @@ private:
 	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
 	"list users", "Usage: users [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from user ID\n"
-	"  -n, --name=NAME\t\tquery from user NAME\n"
+	"  -n, --name=NAME\tquery from user NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
-	"  -l, --limit=N\t\tlimit results to N\n");
+	"  -l, --limit=N\t\tlimit results to N (default: 10)");
     addCmd("useradd",
 	"enabled e e { flag enabled } "
 	"immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::userAddCmd>::fn(this),
 	"add user",
-	"Usage: useradd ID NAME ROLE[,ROLE]... [OPTION]...\n\n"
+	"Usage: useradd NAME ROLE[,ROLE]... [OPTION]...\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
-	"  -i, --immutable\tset Immutable flag\n");
+	"  -i, --immutable\tset Immutable flag");
     addCmd("resetpass", "",
 	ZcmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
 	"reset password", "Usage: resetpass USERID");
@@ -499,10 +499,10 @@ private:
 	"modify user",
 	"Usage: usermod ID [OPTION]...\n\n"
 	"Options:\n"
-	"  -n, --name=NAME\tset name\n"
+	"  -n, --name=NAME\t\t\tset name\n"
 	"  -r, --roles=ROLE[,ROLE]...\tset roles\n"
 	"  -e, --enabled=[0|1]\t\tset/clear Enabled flag\n"
-	"  -i, --immutable=[0|1]\tset/clear Immutable flag\n");
+	"  -i, --immutable=[0|1]\t\tset/clear Immutable flag");
     addCmd("userdel", "",
 	ZcmdFn::Member<&ZCmd::userDelCmd>::fn(this),
 	"delete user", "Usage: userdel ID");
@@ -513,13 +513,13 @@ private:
 	ZcmdFn::Member<&ZCmd::rolesCmd>::fn(this),
 	"list roles", "Usage: roles [NAME] [OPTIONS...]\n\n"
 	"  -x, --exclusive\texclude NAME from results\n"
-	"  -l, --limit=N\t\tlimit results to N\n");
+	"  -l, --limit=N\t\tlimit results to N (default: 10)");
     addCmd("roleadd", "immutable i i { flag immutable }",
 	ZcmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
 	"add role",
 	"Usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
-	"  -i, --immutable\tset Immutable flag\n");
+	"  -i, --immutable\tset Immutable flag");
     addCmd("rolemod",
 	"name n n { param name } "
 	"perms p p { param perms } "
@@ -531,7 +531,7 @@ private:
 	"Options:\n"
 	"  -p, --perms=PERMS\tset permissions\n"
 	"  -a, --apiperms=PERMS\tset API permissions\n"
-	"  -i, --immutable=[0|1]\tset/clear Immutable flag\n");
+	"  -i, --immutable=[0|1]\tset/clear Immutable flag");
     addCmd("roledel", "",
 	ZcmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
 	"delete role",
@@ -547,7 +547,7 @@ private:
 	"  -i, --id=ID\t\tquery from permission ID\n"
 	"  -n, --name=NAME\tquery from permission NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
-	"  -l, --limit=N\t\tlimit results to N\n");
+	"  -l, --limit=N\t\tlimit results to N (default: 10)");
     addCmd("permadd", "",
 	ZcmdFn::Member<&ZCmd::permAddCmd>::fn(this),
 	"add permission", "Usage: permadd NAME");
@@ -573,21 +573,21 @@ private:
 
     addCmd("remote", "",
 	ZcmdFn::Member<&ZCmd::remoteCmd>::fn(this),
-	"run command remotely", "Usage: remote COMMAND...");
+	"run command remotely", "Usage: remote COMMAND [OPTION]...");
 
     addCmd("telcap",
 	"interval i i { param interval } "
 	"unsubscribe u u { flag unsubscribe }",
 	ZcmdFn::Member<&ZCmd::telcapCmd>::fn(this),
 	"telemetry capture",
-	"Usage: telcap [OPTIONS...] PATH [TYPE[:FILTER]]...\n\n"
-	"  PATH\tdirectory for capture CSV files\n"
-	"  TYPE\t[Heap|HashTbl|Thread|Mx|Queue|Engine|DbEnv|App|Alert]\n"
+	"Usage: telcap [OPTION]... PATH [TYPE[:FILTER]]...\n\n"
+	"  PATH\t\tdirectory for capture CSV files\n"
+	"  TYPE\t\t[Heap|HashTbl|Thread|Mx|Queue|Engine|DB|App|Alert]\n"
 	"  FILTER\tfilter specification in type-specific format\n\n"
 	"Options:\n"
 	"  -i, --interval=N\tset scan interval in milliseconds "
 	  "(100 <= N <= 1M)\n"
-	"  -u, --unsubscribe\tunsubscribe (i.e. end capture)\n");
+	"  -u, --unsubscribe\tunsubscribe (i.e. end capture)");
   }
 
   void passwdCmd(ZcmdContext *ctx) {
@@ -637,7 +637,7 @@ private:
       else if (ctx->args->exists("name"))
 	key.p<ZtString>(ctx->args->get("name"));
       exclusive = ctx->args->getBool("exclusive", false);
-      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
+      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 10);
     } catch (...) { throw ZcmdUsage{}; }
     using namespace Zum;
     ZmRef<ZiIOBuf> buf;
@@ -682,13 +682,13 @@ private:
   }
   void userAddCmd(ZcmdContext *ctx) {
     ZuBox<int> argc = ctx->args->get("#");
-    if (argc != 4) throw ZcmdUsage{};
+    if (argc != 3) throw ZcmdUsage{};
     using namespace Zum;
     ZmRef<ZiIOBuf> buf;
     {
       using namespace Zfb::Save;
       ZtRegex::Captures roles_;
-      ZtREGEX(",").split(ctx->args->get("3"), roles_);
+      ZtREGEX(",").split(ctx->args->get("2"), roles_);
       Zfb::IOBuilder fbb;
       auto name = str(fbb, ctx->args->get("1"));
       auto roles = strVecIter(fbb, roles_.length(),
@@ -832,7 +832,7 @@ private:
     try {
       argc = ctx->args->getInt<true>("#", 1, 2);
       exclusive = ctx->args->getBool("exclusive", false);
-      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
+      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 10);
     } catch (...) { throw ZcmdUsage{}; }
     using namespace Zum;
     ZmRef<ZiIOBuf> buf;
@@ -979,7 +979,7 @@ private:
       else if (ctx->args->exists("name"))
 	key.p<ZtString>(ctx->args->get("name"));
       exclusive = ctx->args->getBool("exclusive", false);
-      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 1);
+      limit = ctx->args->getInt("limit", 1, Zum::MaxQueryLimit, 10);
     } catch (...) { throw ZcmdUsage{}; }
     using namespace Zum;
     ZmRef<ZiIOBuf> buf;

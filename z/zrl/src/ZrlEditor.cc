@@ -194,8 +194,10 @@ void Editor::init(Config config, App app)
       { { Op::RevWord | Op::Del | Op::Unix } });
   m_defltMap->bind(0, -VKey::Kill, { { Op::Home | Op::Del } });
 
-  m_defltMap->bind(0, -VKey::Up, { { Op::Up | Op::Mv } });
-  m_defltMap->bind(0, -VKey::Down, { { Op::Down | Op::Mv } });
+  m_defltMap->bind(0, -VKey::Up,
+      { { Op::Up | Op::Mv }, { Op::End | Op::Mv } });
+  m_defltMap->bind(0, -VKey::Down,
+      { { Op::Down | Op::Mv }, { Op::End | Op::Mv } });
   m_defltMap->bind(0, -VKey::Left, { { Op::Left | Op::Mv } });
   m_defltMap->bind(0, -VKey::Right, { { Op::Right | Op::Mv } });
 

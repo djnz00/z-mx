@@ -382,12 +382,13 @@ void UserDB::sessionLoad_findRole(ZuPtr<SessionLoad> context)
   m_roleTbl->find<0>(ZuFwdTuple(role), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Role>> dbRole) mutable {
-    if (!dbRole) { sessionLoaded(ZuMv(context), false); return; }
-    const auto &role = dbRole->data();
-    if (!context->key)
-      context->session->perms |= role.perms;
-    else
-      context->session->perms |= role.apiperms;
+    if (dbRole) {
+      const auto &role = dbRole->data();
+      if (!context->key)
+	context->session->perms |= role.perms;
+      else
+	context->session->perms |= role.apiperms;
+    }
     if (++context->roleIndex < context->session->user->data().roles.length())
       m_roleTbl->run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
@@ -1041,9 +1042,19 @@ void UserDB::userDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
       keyClr__(fbUser->id(), [
 	this, seqNo = fbRequest->seqNo(), dbUser = ZuMv(dbUser), fn = ZuMv(fn)
       ]() {
+	const auto &user = dbUser->data();
 	IOBuilder fbb;
-	auto ackData = fbs::CreateAck(fbb);
-	fn(respond(fbb, seqNo, fbs::ReqAckData::UserDel, ackData.Union()));
+	auto fbName = Zfb::Save::str(fbb, user.name);
+	auto fbRoles = Zfb::Save::strVecIter(fbb, user.roles.length(),
+	  [&user](unsigned i) { return user.roles[i]; });
+	fbs::UserBuilder fbb_{fbb};
+	fbb_.add_id(user.id);
+	fbb_.add_name(fbName);
+	fbb_.add_roles(fbRoles);
+	fbb_.add_flags(user.flags);
+	fn(respond(
+	    fbb, seqNo,
+	    fbs::ReqAckData::UserDel, fbb_.Finish().Union()));
       });
     });
   });
@@ -1132,11 +1143,12 @@ void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	  Zfb::Load::bitmap<ZtBitmap>(fbRole->perms()),
 	  Zfb::Load::bitmap<ZtBitmap>(fbRole->apiperms()),
 	  fbRole->flags());
+	dbRole->commit();
 	IOBuilder fbb;
-	auto ackData = fbs::CreateAck(fbb);
 	fn(respond(
 	    fbb, fbRequest->seqNo(),
-	    fbs::ReqAckData::RoleAdd, ackData.Union()));
+	    fbs::ReqAckData::RoleAdd,
+	    ZfbField::save(fbb, dbRole->data()).Union()));
       });
     });
   });
@@ -1175,10 +1187,10 @@ void UserDB::roleMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	role.flags = fbRole->flags();
       dbRole->commit();
       IOBuilder fbb;
-      auto ackData = fbs::CreateAck(fbb);
       fn(respond(
 	  fbb, fbRequest->seqNo(),
-	  fbs::ReqAckData::RoleMod, ackData.Union()));
+	  fbs::ReqAckData::RoleMod,
+	  ZfbField::save(fbb, dbRole->data()).Union()));
     });
   });
 }
@@ -1205,10 +1217,10 @@ void UserDB::roleDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
       }
       dbRole->commit();
       IOBuilder fbb;
-      auto ackData = fbs::CreateAck(fbb);
       fn(respond(
 	  fbb, fbRequest->seqNo(),
-	  fbs::ReqAckData::RoleMod, ackData.Union()));
+	  fbs::ReqAckData::RoleDel,
+	  ZfbField::save(fbb, dbRole->data()).Union()));
     });
   });
 }
@@ -1527,7 +1539,7 @@ void UserDB::ownKeyDel(
       }
       dbKey->commit();
       IOBuilder fbb;
-      auto ackData = fbs::CreateAck(fbb);
+      auto ackData = ZfbField::save(fbb, dbKey->data());
       fn(respond(fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::OwnKeyDel, ackData.Union()));
     });
@@ -1550,7 +1562,7 @@ void UserDB::keyDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
       }
       dbKey->commit();
       IOBuilder fbb;
-      auto ackData = fbs::CreateAck(fbb);
+      auto ackData = ZfbField::save(fbb, dbKey->data());
       fn(respond(
 	  fbb, fbRequest->seqNo(),
 	  fbs::ReqAckData::KeyDel, ackData.Union()));

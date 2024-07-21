@@ -152,7 +152,6 @@ int main(int argc, char **argv)
       "  maxAge 8\n"
       "}\n"
       "zdb {\n"
-      "  debug 1\n"
       "  thread zdb\n"
       "  hostID 0\n"
       "  hosts { 0 { standalone 1 } }\n"

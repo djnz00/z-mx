@@ -87,8 +87,11 @@ using XKeyFields = ZtArray<XFields>;
 
 #pragma pack(push, 1)
 // 1-dimensional array - postgres binary send/receive format
+// - Note: Postgres sends empty arrays with ndim=0, but can also receive
+//   empty arrays with ndim=1, length=0; this implementation
+//   receives either representation but consistently sends ndim=1, length=0
 struct VecHdr {
-  ZuBigEndian<int32_t>	ndim;	// = 1
+  ZuBigEndian<int32_t>	ndim;	// = 1 (can be 0 if received vector is empty)
   ZuBigEndian<int32_t>	flags;	// = 0
   ZuBigEndian<int32_t>	oid;	// OID of elements
   ZuBigEndian<int32_t>	length;	// = N

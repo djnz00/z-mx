@@ -103,7 +103,7 @@ ZfbFields(Role,
   (((name), (Keys<0>, Ctor<0>)), (String)),
   (((perms), (Ctor<1>, Mutable)), (Bitmap)),
   (((apiperms), (Ctor<2>, Mutable)), (Bitmap)),
-  (((flags), (Ctor<3>, Flags<RoleFlags::Map>)), (UInt8)));
+  (((flags), (Ctor<3>, Flags<RoleFlags::Map>, Mutable)), (UInt8)));
 
 ZfbRoot(Role);
 
