@@ -30,7 +30,7 @@ struct Data {
   ZmBitmap	cpuset;
 };
 
-ZtFields(Data,
+ZtFieldTbl(Data,
     (((id), (Ctor<0>)), (String)),
     (((partition), (Ctor<2>)), (UInt16)),
     (((alignment), (Ctor<3>)), (UInt8)),

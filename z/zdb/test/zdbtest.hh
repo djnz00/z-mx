@@ -38,7 +38,7 @@ struct Order {
   friend ZtFieldPrint ZuPrintType(Order *);
 };
 
-ZfbFields(Order,
+ZfbFieldTbl(Order,
   (((symbol), (Keys<0>, Ctor<0>)), (String)),
   (((orderID), (Keys<0>, Ctor<1>, Mutable)), (UInt64)),
   (((link), ((Keys<1, 2>), Group<2>, Ctor<2>)), (String)),

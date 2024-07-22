@@ -44,7 +44,7 @@ struct Row {
   ZuDateTime	m_time;
   int		m_flags;
 };
-ZtFields(Row,
+ZtFieldTbl(Row,
     (((string, Alias, m_string), (Ctor<0>)), (String)),
     (((int, Alias, m_int), (Ctor<1>)), (Int32)),
     (((bool, Alias, m_bool), (Ctor<2>)), (Bool)),

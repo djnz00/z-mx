@@ -14,7 +14,7 @@
 
 // metadata macro DSL for identifying and using data fields and keys
 //
-// ZtFields(Type, Fields...)
+// ZtFieldTbl(Type, Fields...)
 //
 // each field has compile-time properties, an extensible typelist of types
 // that are injected into the ZuFieldProp namespace
@@ -3640,14 +3640,14 @@ struct ZtField_DateTimeVec<Base, Def, false> :
   ZuPP_Defer(ZtField_)(O, ZuPP_Nest(ZtField_BaseID(Base)))
 #define ZtField_Type(O, Args) ZuPP_Defer(ZtField_Type_)(O, ZuPP_Strip(Args))
 
-#define ZtFields(O, ...)  \
+#define ZtFieldTbl(O, ...)  \
   namespace ZuSchema { \
     ZuPP_Eval(ZuPP_MapArg(ZtField_Decl, O, __VA_ARGS__)) \
     using O = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZtField_Type, O, __VA_ARGS__))>; \
   } \
   O ZuFielded_(O *); \
-  ZuSchema::O ZuFieldList_(O *)
+  ZuSchema::O ZuFields_(O *)
 
 template <typename Field>
 struct ZtFieldPrint_ {
@@ -3666,7 +3666,7 @@ struct ZtFieldPrint : public ZuPrintDelegate {
       public ZuBool<!ZuTypeIn<ZuFieldProp::Hidden, typename U::Props>{}> { };
   template <typename S, typename O>
   static void print(S &s, const O &o) {
-    using FieldList = ZuTypeGrep<Print_Filter, ZuFieldList<O>>;
+    using FieldList = ZuTypeGrep<Print_Filter, ZuFields<O>>;
     s << '{';
     ZuUnroll::all<FieldList>([&s, &o]<typename Field>() {
       if constexpr (ZuTypeIndex<Field, FieldList>{}) s << ' ';
@@ -3711,7 +3711,7 @@ inline ZtMFields ZtMFieldList_() {
 }
 template <typename O, typename MField = ZtMField>
 inline ZtMFields ZtMFieldList() {
-  return ZtMFieldList_<ZuFieldList<O>, MField>();
+  return ZtMFieldList_<ZuFields<O>, MField>();
 }
 
 // run-time keys

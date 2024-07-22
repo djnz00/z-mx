@@ -104,7 +104,7 @@ struct Heap : public Heap_ {
 
   friend ZtFieldPrint ZuPrintType(Heap *);
 };
-ZfbFields(Heap,
+ZfbFieldTbl(Heap,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((size), (Keys<0>, Ctor<6>)), (UInt32)),
     (((alignment), (Ctor<9>)), (UInt8)),
@@ -133,7 +133,7 @@ struct HashTbl : public HashTbl_ {
 
   friend ZtFieldPrint ZuPrintType(HashTbl *);
 };
-ZfbFields(HashTbl,
+ZfbFieldTbl(HashTbl,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((addr), (Keys<0>, Ctor<1>, Hex)), (UInt64)),
     (((linear), (Ctor<9>)), (Bool)),
@@ -163,7 +163,7 @@ struct Thread : public Thread_ {
 };
 // LATER - need to optionally enrich this with thread ring count and overCount
 // (i.e. scheduler queue length and DLQ length)
-ZfbFields(Thread,
+ZfbFieldTbl(Thread,
     (((name), (Ctor<0>)), (String)),
     (((sid), (Ctor<8>)), (UInt16)),
     (((tid), (Keys<0>, Ctor<1>)), (UInt64)),
@@ -190,7 +190,7 @@ struct Mx : public Mx_ {
 
   friend ZtFieldPrint ZuPrintType(Mx *);
 };
-ZfbFields(Mx,
+ZfbFieldTbl(Mx,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((state), (Ctor<10>, Mutable, Series, Enum<EngineState::Map>)), (Int8)),
     (((nThreads), (Ctor<13>)), (UInt8)),
@@ -224,7 +224,7 @@ struct Socket : public Socket_ {
 
   friend ZtFieldPrint ZuPrintType(Socket *);
 };
-ZfbFields(Socket,
+ZfbFieldTbl(Socket,
     (((mxID), (Ctor<0>)), (String)),
     (((type), (Ctor<15>, Enum<SocketType::Map>)), (Int8)),
     (((remoteIP), (Ctor<11>)), (IP)),
@@ -263,7 +263,7 @@ struct Queue : public Queue_ {
 
   friend ZtFieldPrint ZuPrintType(Queue *);
 };
-ZfbFields(Queue,
+ZfbFieldTbl(Queue,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((type), (Keys<0>, Ctor<9>, Enum<ZvQueueType::Map>)), (Int8)),
     (((size), (Ctor<7>)), (UInt32)),
@@ -289,7 +289,7 @@ struct Link : public Link_ {
 
   friend ZtFieldPrint ZuPrintType(Link *);
 };
-ZfbFields(Link,
+ZfbFieldTbl(Link,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((engineID), (Ctor<1>)), (String)),
     (((state), (Ctor<5>, Mutable, Series, Enum<LinkState::Map>)), (Int8)),
@@ -312,7 +312,7 @@ struct Engine : public Engine_ {
 
   friend ZtFieldPrint ZuPrintType(Engine *);
 };
-ZfbFields(Engine,
+ZfbFieldTbl(Engine,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((type), (Ctor<1>)), (String)),
     (((state), (Ctor<12>, Mutable, Series, Enum<EngineState::Map>)), (Int8)),
@@ -357,7 +357,7 @@ struct DBTable {
 
   friend ZtFieldPrint ZuPrintType(DBTable *);
 };
-ZfbFields(DBTable,
+ZfbFieldTbl(DBTable,
     (((name), (Keys<0>, Ctor<0>)), (String)),
     (((cacheMode), (Ctor<7>, Enum<CacheMode::Map>)), (Int8)),
     (((cacheSize), (Ctor<6>)), (UInt64)),
@@ -383,7 +383,7 @@ struct DBHost {
 
   friend ZtFieldPrint ZuPrintType(DBHost *);
 };
-ZfbFields(DBHost,
+ZfbFieldTbl(DBHost,
     (((ip), (Ctor<0>)), (IP)),
     (((id), (Keys<0>, Ctor<1>)), (ID)),
     (((priority), (Ctor<2>)), (UInt32)),
@@ -421,7 +421,7 @@ struct DB {
 
   friend ZtFieldPrint ZuPrintType(DB *);
 };
-ZfbFields(DB,
+ZfbFieldTbl(DB,
     (((self), (Ctor<2>)), (ID)),
     (((leader), (Ctor<3>, Mutable)), (ID)),
     (((prev), (Ctor<4>, Mutable)), (ID)),
@@ -453,7 +453,7 @@ struct App {
 
   friend ZtFieldPrint ZuPrintType(App *);
 };
-ZfbFields(App,
+ZfbFieldTbl(App,
     (((id), (Keys<0>, Ctor<0>)), (String)),
     (((version), (Ctor<1>)), (String)),
     (((uptime), (Ctor<2>, Mutable)), (DateTime)),
@@ -471,7 +471,7 @@ struct Alert {
 
   friend ZtFieldPrint ZuPrintType(Alert *);
 };
-ZfbFields(Alert,
+ZfbFieldTbl(Alert,
     (((time), (Ctor<0>)), (DateTime)),
     (((seqNo), (Ctor<1>)), (UInt64)),
     (((tid), (Ctor<2>)), (UInt64)),

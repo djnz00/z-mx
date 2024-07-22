@@ -36,11 +36,11 @@ struct Test {
   friend ZtFieldPrint ZuPrintType(Test *);
 };
 
-ZfbFields(Object,
+ZfbFieldTbl(Object,
   (((id), (Ctor<0>)), (ID)),
   (((price), (Ctor<1>)), (Int32)),
   (((flags), (Ctor<2>)), (Bitmap, ZuBitmap<100>{"42"})));
-ZfbFields(Test,
+ZfbFieldTbl(Test,
   (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String)),
   (((baz), (Ctor<2>)), (Object)));

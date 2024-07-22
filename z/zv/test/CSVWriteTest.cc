@@ -41,7 +41,7 @@ struct Row {
   ZuFixed bam() const { return ZuFixed{bam_, 2}; }
   void bam(ZuFixed v) { bam_ = v.adjust(2); }
 };
-ZtFields(Row,
+ZtFieldTbl(Row,
     (((foo), (Ctor<0>)), (String)),
     (((bar), (Ctor<1>)), (Bool)),
     (((bah), (Ctor<2>)), (Int32)),

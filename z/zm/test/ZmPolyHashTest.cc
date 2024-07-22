@@ -14,7 +14,7 @@ struct Foo_ {
   friend ZuPrintFn ZuPrintType(Foo_ *);
 };
 
-ZuFields(Foo_,
+ZuFieldTbl(Foo_,
     ((i), (Keys<0>)),
     ((j), ((Keys<1, 2>))),
     ((k), ((Keys<0, 1>))),

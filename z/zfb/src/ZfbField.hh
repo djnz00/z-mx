@@ -178,7 +178,7 @@ template <typename O_>
 struct Fielded_ {
   using O = O_;
 
-  using AllFields = ZuFieldList<O>;
+  using AllFields = ZuFields<O>;
 
   // load fields are all the mutable fields
   template <typename U>
@@ -855,14 +855,14 @@ inline ZuID ZtMFieldTypeID(ZuID *) { return "ID"; }
   ZuPP_Defer(ZfbField_)(O, ZuPP_Nest(ZtField_BaseID(Base)))
 #define ZfbField_Type(O, Args) ZuPP_Defer(ZfbField_Type_)(O, ZuPP_Strip(Args))
 
-#define ZfbFields(O, ...)  \
+#define ZfbFieldTbl(O, ...)  \
   namespace ZuSchema { \
     ZuPP_Eval(ZuPP_MapArg(ZfbField_Decl, O, __VA_ARGS__)) \
     using O = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZfbField_Type, O, __VA_ARGS__))>; \
   } \
   O ZuFielded_(O *); \
-  ZuSchema::O ZuFieldList_(O *); \
+  ZuSchema::O ZuFields_(O *); \
   \
   fbs::O##Builder ZfbBuilder_(O *); \
   fbs::O ZfbType_(O *); \
@@ -873,7 +873,7 @@ inline ZuID ZtMFieldTypeID(ZuID *) { return "ID"; }
   using O##_FBFields = ZfbField::Fields<O>; \
   namespace fbs { \
     O ZuFielded_(O *); \
-    O##_FBFields ZuFieldList_(O *); \
+    O##_FBFields ZuFields_(O *); \
     ZtFieldPrint ZuPrintType(O *); \
   }
 

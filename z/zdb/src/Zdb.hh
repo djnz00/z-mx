@@ -374,7 +374,7 @@ struct FieldFilter :
     public ZuBool<!ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{}> { };
 
 template <typename T>
-using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
+using FieldList = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 
 template <typename T> class Table;
 
@@ -450,7 +450,7 @@ public:
   using Fields = ZuTypeMap<Map, Fields_>;
   // bind Fields
   friend Object_ ZuFielded_(Object_ *);
-  friend Fields ZuFieldList_(Object_ *);
+  friend Fields ZuFields_(Object_ *);
 
 private:
   uint8_t	m_data[sizeof(T)];
@@ -727,7 +727,7 @@ struct Buf_ : public ZmPolymorph {
   using Fields = ZuTypeMap<Map, Fields_>;
   // bind Fields
   friend Buf_ ZuFielded_(Buf_ *);
-  friend Fields ZuFieldList_(Buf_ *);
+  friend Fields ZuFields_(Buf_ *);
 
   // override printing
   friend ZtFieldPrint ZuPrintType(Buf_ *);
@@ -806,7 +806,7 @@ using Find = Find_<T, Key, Find_Heap<T, Key>>;
 template <typename O, unsigned KeyID>
 struct SplitKey {
   using Key = ZuFieldKeyT<O, KeyID>;
-  using KeyFields = ZuFieldList<Key>;
+  using KeyFields = ZuFields<Key>;
   // - filter fields that are part of a group
   template <typename Field>
   using IsGroup = ZuFieldProp::IsGroup<typename Field::Props, KeyID>;
@@ -1797,7 +1797,7 @@ inline void Table<T>::count(GroupKey<KeyID> key, L l)
 
   Zfb::IOBuilder fbb{allocBuf()};
   fbb.Finish(
-    ZfbField::SaveFieldsFn<Key, ZuFieldList<Key>>::save(fbb, key).Union());
+    ZfbField::SaveFieldsFn<Key, ZuFields<Key>>::save(fbb, key).Union());
   auto keyBuf = fbb.buf();
 
   auto countFn = CountFn::mvFn(ZuMv(context),
@@ -1832,7 +1832,7 @@ inline void Table<T>::select_(
 
   Zfb::IOBuilder fbb{allocBuf()};
   fbb.Finish(
-    ZfbField::SaveFieldsFn<SelectKey, ZuFieldList<SelectKey>>::save(
+    ZfbField::SaveFieldsFn<SelectKey, ZuFields<SelectKey>>::save(
       fbb, selectKey).Union());
   auto keyBuf = fbb.buf();
 

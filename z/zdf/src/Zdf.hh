@@ -248,7 +248,7 @@ template <typename Field>
 using FieldFilter = ZuTypeIn<ZtFieldProp::Series, typename Field::Props>;
 
 template <typename T>
-using FieldList = ZuTypeGrep<FieldFilter, ZuFieldList<T>>;
+using FieldList = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 
 template <typename T>
 auto fields() { return ZtMFieldList_<FieldList<T>>(); }

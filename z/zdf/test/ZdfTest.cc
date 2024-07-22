@@ -33,7 +33,7 @@ struct Frame {
   ZuFixed v2() const { return ZuFixed{v2_, 9}; }
   void v2(ZuFixed v) { v2_ = v.adjust(9); }
 };
-ZtFields(Frame,
+ZtFieldTbl(Frame,
     (((v1), (Ctor<0>, Series, Index, Delta)), (UInt64)),
     (((v2, Fn), (Series, Delta, NDP<9>)), (Fixed)));
 

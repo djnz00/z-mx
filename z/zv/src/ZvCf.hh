@@ -607,7 +607,7 @@ public:
 // ZtField integration
 template <typename O, typename Cf_>
 struct Handler_ {
-  using FieldList = ZuFieldList<O>;
+  using FieldList = ZuFields<O>;
 
   template <typename U>
   struct AllFilter : public ZuBool<!U::ReadOnly> { };

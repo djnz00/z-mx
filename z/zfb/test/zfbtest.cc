@@ -34,7 +34,7 @@ struct Test {
   friend ZtFieldPrint ZuPrintType(Test *);
 };
 
-ZfbFields(Test,
+ZfbFieldTbl(Test,
   (((foo), (Ctor<0>)), (Int32)),
   (((bar), (Ctor<1>)), (String, "bar")),
   (((baz), (Ctor<2>)), (StringVec)));

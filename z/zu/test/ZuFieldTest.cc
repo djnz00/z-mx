@@ -26,7 +26,7 @@ namespace Foo {
     double k = 42.0;
   };
 
-  ZuFields(A,
+  ZuFieldTbl(A,
       ((i), (Keys<0>)),
       ((j, Fn), (Keys<1>)),
       ((k, Lambda,
@@ -40,7 +40,7 @@ namespace Foo {
     double k = 42.0;
   };
 
-  ZuFields(B,
+  ZuFieldTbl(B,
       ((i, Rd), (Keys<0>)),
       ((j, RdFn), (Keys<0>)),
       ((k, LambdaRd, ([](const B &b) { return b.k; }))));
@@ -51,13 +51,13 @@ int main()
   using A = Foo::A;
   using B = Foo::B;
   A a;
-  ZuType<1, ZuFieldList<A>>::set(a, "bye");
-  ZuType<2, ZuFieldList<A>>::set(a, 43.0);
-  ZuUnroll::all<ZuFieldList<A>>([&a]<typename T>() mutable {
+  ZuType<1, ZuFields<A>>::set(a, "bye");
+  ZuType<2, ZuFields<A>>::set(a, 43.0);
+  ZuUnroll::all<ZuFields<A>>([&a]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(a) << '\n';
   });
   B b;
-  ZuUnroll::all<ZuFieldList<B>>([&b]<typename T>() mutable {
+  ZuUnroll::all<ZuFields<B>>([&b]<typename T>() mutable {
     std::cout << T::id() << '=' << T::get(b) << '\n';
   });
   std::cout << ZuFieldAxor<A>()(a) << '\n';

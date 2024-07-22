@@ -14,7 +14,7 @@
 //
 // macro DSL for declaring metadata identifying and accessing fields and keys:
 //
-// ZuFields(Type, Field, ...);
+// ZuFieldTbl(Type, Field, ...);
 //
 // Field Syntax
 // ------------
@@ -373,20 +373,20 @@ namespace ZuFieldProp {
   ZuPP_Defer(ZuField_Type__)(O, ZuPP_Strip(Axor))
 #define ZuField_Type(O, Args) ZuPP_Defer(ZuField_Type_)(O, ZuPP_Strip(Args))
 
-ZuTypeList<> ZuFieldList_(...); // default
+ZuTypeList<> ZuFields_(...); // default
 void ZuFielded_(...); // default
 
-#define ZuFields(O, ...) \
+#define ZuFieldTbl(O, ...) \
   namespace ZuSchema { \
     ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, O, __VA_ARGS__)) \
     using O = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, O, __VA_ARGS__))>; \
   } \
   O ZuFielded_(O *); \
-  ZuSchema::O ZuFieldList_(O *)
+  ZuSchema::O ZuFields_(O *)
 
 template <typename U>
-using ZuFieldList = decltype(ZuFieldList_(ZuDeclVal<U *>()));
+using ZuFields = decltype(ZuFields_(ZuDeclVal<U *>()));
 
 template <typename T>
 using ZuFielded = decltype(ZuFielded_(ZuDeclVal<ZuDecay<T> *>()));
@@ -443,7 +443,7 @@ struct ZuFieldTuple_ : public Tuple {
   using Fields = ZuTypeMap<Map, Fields_>;
   // bind Fields
   friend ZuFieldTuple_ ZuFielded_(ZuFieldTuple_ *);
-  friend Fields ZuFieldList_(ZuFieldTuple_ *);
+  friend Fields ZuFields_(ZuFieldTuple_ *);
 
   // recursive decay
   friend ZuFieldTuple_RDecayer ZuRDecayer(ZuFieldTuple_ *);
@@ -494,7 +494,7 @@ using ZuFieldTupleT =
 // value tuple - i.e. tuple of value types
 
 template <typename O>
-using ZuFieldTuple = ZuFieldTupleT<O, ZuMkCRef, ZuDecay, ZuFieldList<O>>;
+using ZuFieldTuple = ZuFieldTupleT<O, ZuMkCRef, ZuDecay, ZuFields<O>>;
 
 // bind the appropriate tuple from an object reference
 
@@ -535,7 +535,7 @@ template <typename O, int KeyID>
 struct ZuKeyFields_ {
   using T = ZuTypeGrep<
     ZuFieldKey_<KeyID>::template Filter,
-    ZuFieldList<O>>;
+    ZuFields<O>>;
 };
 template <typename O, int KeyID = 0>
 using ZuKeyFields = typename ZuKeyFields_<O, KeyID>::T;
@@ -589,7 +589,7 @@ template <typename ...Fields>
 struct ZuFieldKeyIDs_<ZuTypeList<Fields...>> :
     public ZuFieldKeyIDs_<Fields...> { };
 template <typename O>
-using ZuFieldKeyIDs = typename ZuFieldKeyIDs_<ZuFieldList<O>>::T;
+using ZuFieldKeyIDs = typename ZuFieldKeyIDs_<ZuFields<O>>::T;
 
 // all keys for a type, as a typelist
 

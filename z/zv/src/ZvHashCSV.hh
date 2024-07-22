@@ -30,7 +30,7 @@ struct Data {
   uint8_t	cBits;
 };
 
-ZtFields(Data,
+ZtFieldTbl(Data,
     (((id)), (String), (Ctor(0))),
     (((bits)), (UInt8), (Ctor(2))),
     (((loadFactor)), (Float), (Ctor(1))),

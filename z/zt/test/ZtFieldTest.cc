@@ -24,7 +24,7 @@ struct Nested {
   friend ZtFieldPrint ZuPrintType(Nested *);
 };
 
-ZtFields(Nested,
+ZtFieldTbl(Nested,
   (((i1), (Ctor<0>)), (Int32)),
   (((i2), (Ctor<1>)), (Int32)));
 
@@ -48,7 +48,7 @@ struct Foo {
   friend ZtFieldPrint ZuPrintType(Foo *);
 };
 
-ZtFields(Foo,
+ZtFieldTbl(Foo,
     (((string, Rd), (Ctor<0>)), (CString, "hello \"world\"")),
     (((bytes), (Ctor<1>)), (Bytes, ZuBytes{"bytes"})),
     (((id), (Ctor<2>)), (String, "goodbye")),
@@ -82,7 +82,7 @@ struct MinMax<T, decltype(T::minimum(), void())> {
 
 int main()
 {
-  using Fields = ZuFieldList<Foo>;
+  using Fields = ZuFields<Foo>;
 
   ZuUnroll::all<Fields>([]<typename Field>() {
     std::cout << Field::id()
