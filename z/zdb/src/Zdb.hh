@@ -374,7 +374,7 @@ struct FieldFilter :
     public ZuBool<!ZuTypeIn<ZuFieldProp::Series, typename Field::Props>{}> { };
 
 template <typename T>
-using FieldList = ZuTypeGrep<FieldFilter, ZuFields<T>>;
+using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 
 template <typename T> class Table;
 
@@ -416,7 +416,7 @@ public:
   bool abort();
 
   // transform original fields, overriding get/set
-  using Fields_ = FieldList<T>;
+  using Fields_ = Zdb_::Fields<T>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -583,9 +583,9 @@ protected:
   virtual void objRecover(const fbs::Record *) = 0;
 
   // objFields() - run-time field array
-  virtual ZtMFields objFields() const = 0;
+  virtual ZtMFieldArray objFields() const = 0;
   // objKeyFields() - run-time key field arrays
-  virtual ZtMKeyFields objKeyFields() const = 0;
+  virtual ZtMKeyFieldArray objKeyFields() const = 0;
   // objSchema() - flatbuffer reflection schema
   virtual const reflection::Schema *objSchema() const = 0;
 
@@ -708,7 +708,7 @@ struct Buf_ : public ZmPolymorph {
   }
 
   // transform original fields, overriding get/set
-  using Fields_ = FieldList<FB>;
+  using Fields_ = Zdb_::Fields<FB>;
   template <typename Base>
   struct Adapted : public Base {
     using Orig = Base;
@@ -836,7 +836,7 @@ friend Object_<T>;
 public:
   enum { BufSize = ZdbBufSize<T>{} };
 
-  using Fields = FieldList<T>;
+  using Fields = Zdb_::Fields<T>;
   using Keys = ZuFieldKeys<T>;
   using KeyIDs = ZuFieldKeyIDs<T>;
   template <int KeyID> using Key = ZuFieldKeyT<T, KeyID>;
@@ -931,9 +931,9 @@ private:
   }
 
   // objFields() - run-time field array
-  ZtMFields objFields() const { return ZtMFieldList<T>(); }
+  ZtMFieldArray objFields() const { return ZtMFields<T>(); }
   // objKeyFields() - run-time key field arrays
-  ZtMKeyFields objKeyFields() const { return ZtMKeyFieldList<T>(); }
+  ZtMKeyFieldArray objKeyFields() const { return ZtMKeyFields<T>(); }
   // objSchema() - flatbuffer reflection schema
   const reflection::Schema *objSchema() const {
     return reflection::GetSchema(ZfbSchema<T>::data());

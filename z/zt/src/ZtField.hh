@@ -102,9 +102,9 @@
 //   set<Code>(void *o, auto &&v)
 //   scan<Code>(void *o, ZuString s, const ZtMField *, const ZtFieldVFmt &)
 //
-// ZtMFieldList<O>() returns the ZtMFields for O
-// ZtMKeyFieldList<O>() returns the ZtMKeyFields for O
-// ZtMKeyFieldList<O>()[KeyID] == ZtMFieldList<ZuFieldKeyT<O, KeyID>>()
+// ZtMFields<O>() returns the ZtMFieldArray for O
+// ZtMKeyFields<O>() returns the ZtMKeyFieldArray for O
+// ZtMKeyFields<O>()[KeyID] == ZtMFields<ZuFieldKeyT<O, KeyID>>()
 
 #ifndef ZtField_HH
 #define ZtField_HH
@@ -3666,10 +3666,10 @@ struct ZtFieldPrint : public ZuPrintDelegate {
       public ZuBool<!ZuTypeIn<ZuFieldProp::Hidden, typename U::Props>{}> { };
   template <typename S, typename O>
   static void print(S &s, const O &o) {
-    using FieldList = ZuTypeGrep<Print_Filter, ZuFields<O>>;
+    using Fields = ZuTypeGrep<Print_Filter, ZuFields<O>>;
     s << '{';
-    ZuUnroll::all<FieldList>([&s, &o]<typename Field>() {
-      if constexpr (ZuTypeIndex<Field, FieldList>{}) s << ' ';
+    ZuUnroll::all<Fields>([&s, &o]<typename Field>() {
+      if constexpr (ZuTypeIndex<Field, Fields>{}) s << ' ';
       s << ZtFieldPrint_<Field>{o};
     });
     s << '}';
@@ -3678,13 +3678,13 @@ struct ZtFieldPrint : public ZuPrintDelegate {
 
 // run-time fields
 
-using ZtMFields = ZuArray<const ZtMField *>;
+using ZtMFieldArray = ZuArray<const ZtMField *>;
 
 template <typename MField, typename ...Fields>
 struct ZtMFieldFactory {
   enum { N = sizeof...(Fields) };
 
-  ZtMFields	fields;
+  ZtMFieldArray	fields;
 
   static ZtMFieldFactory *instance() {
     return ZmSingleton<ZtMFieldFactory>::instance();
@@ -3704,14 +3704,14 @@ struct ZtMFieldFactory {
   }
 };
 template <typename Fields, typename MField = ZtMField>
-inline ZtMFields ZtMFieldList_() {
+inline ZtMFieldArray ZtMFields_() {
   using Factory = ZuTypeApply<
     ZtMFieldFactory, typename Fields::template Unshift<MField>>;
   return Factory::instance()->fields;
 }
 template <typename O, typename MField = ZtMField>
-inline ZtMFields ZtMFieldList() {
-  return ZtMFieldList_<ZuFields<O>, MField>();
+inline ZtMFieldArray ZtMFields() {
+  return ZtMFields_<ZuFields<O>, MField>();
 }
 
 // run-time keys
@@ -3721,28 +3721,28 @@ inline ZtMFields ZtMFieldList() {
 // - each key tuple has its own field array, which is extracted and
 //   transformed from the underlying object field array
 
-using ZtMKeyFields = ZuArray<const ZtMFields>;
+using ZtMKeyFieldArray = ZuArray<const ZtMFieldArray>;
 
 template <typename O, typename MField>
-struct ZtMKeyFieldList_ {
-  ZtMKeyFields	keys;
+struct ZtMKeyFields_ {
+  ZtMKeyFieldArray	keys;
 
-  static ZtMKeyFieldList_ *instance() {
-    return ZmSingleton<ZtMKeyFieldList_>::instance();
+  static ZtMKeyFields_ *instance() {
+    return ZmSingleton<ZtMKeyFields_>::instance();
   }
 
-  ZtMKeyFieldList_() {
+  ZtMKeyFields_() {
     using KeyIDs = ZuFieldKeyIDs<O>;
-    static ZtMFields data_[KeyIDs::N];
+    static ZtMFieldArray data_[KeyIDs::N];
     ZuUnroll::all<KeyIDs>([](auto i) {
-      data_[i] = ZtMFieldList<ZuFieldKeyT<O, i>, MField>();
+      data_[i] = ZtMFields<ZuFieldKeyT<O, i>, MField>();
     });
     keys = {&data_[0], KeyIDs::N};
   }
 };
 template <typename O, typename MField = ZtMField>
-inline ZtMKeyFields ZtMKeyFieldList() {
-  return ZtMKeyFieldList_<O, MField>::instance()->keys;
+inline ZtMKeyFieldArray ZtMKeyFields() {
+  return ZtMKeyFields_<O, MField>::instance()->keys;
 }
 
 #endif /* ZtField_HH */

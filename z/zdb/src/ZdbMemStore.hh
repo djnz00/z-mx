@@ -980,7 +980,7 @@ using Tuple = ZtArray<Value>;
 template <typename Filter>
 Tuple loadTuple_(
   unsigned nParams,
-  const ZtMFields &fields,
+  const ZtMFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo,
   Filter filter)
@@ -1000,7 +1000,7 @@ Tuple loadTuple_(
 }
 Tuple loadTuple_(
   unsigned nParams,
-  const ZtMFields &fields,
+  const ZtMFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo)
 {
@@ -1008,12 +1008,12 @@ Tuple loadTuple_(
     [](const ZtMField *) { return true; });
 }
 Tuple loadTuple(
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo);
 }
 Tuple loadUpdTuple(
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo,
     [](const ZtMField *field) -> bool {
@@ -1021,7 +1021,7 @@ Tuple loadUpdTuple(
     });
 }
 Tuple loadDelTuple(
-  const ZtMFields &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo,
     [](const ZtMField *field) -> bool { return (field->keys & 1); });
@@ -1058,7 +1058,7 @@ Offset saveTuple(
 }
 
 // update tuple
-void updTuple(const ZtMFields &fields, Tuple &data, Tuple &&update) {
+void updTuple(const ZtMFieldArray &fields, Tuple &data, Tuple &&update) {
   ZmAssert(fields.length() == data.length());
   ZmAssert(data.length() == update.length());
   unsigned n = data.length();
@@ -1071,8 +1071,8 @@ void updTuple(const ZtMFields &fields, Tuple &data, Tuple &&update) {
 
 // extract key from tuple
 Tuple extractKey(
-  const ZtMFields &fields,
-  const ZtMKeyFields &keyFields,
+  const ZtMFieldArray &fields,
+  const ZtMKeyFieldArray &keyFields,
   unsigned keyID, const Tuple &data)
 {
   ZmAssert(fields.length() == data.length());
@@ -1155,7 +1155,7 @@ using Index =
 class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
-    ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+    ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
     m_id{id},
@@ -1447,8 +1447,8 @@ public:
 
 private:
   ZuID			m_id;
-  ZtMFields		m_fields;
-  ZtMKeyFields		m_keyFields;
+  ZtMFieldArray		m_fields;
+  ZtMKeyFieldArray		m_keyFields;
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
@@ -1497,8 +1497,8 @@ public:
 
   void open(
       ZuID id,
-      ZtMFields fields,
-      ZtMKeyFields keyFields,
+      ZtMFieldArray fields,
+      ZtMKeyFieldArray keyFields,
       const reflection::Schema *schema,
       IOBufAllocFn bufAllocFn,
       OpenFn openFn) {

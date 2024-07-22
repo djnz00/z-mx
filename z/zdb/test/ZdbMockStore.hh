@@ -28,7 +28,7 @@ void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
 class StoreTbl : public ZdbMem::StoreTbl {
 public:
   StoreTbl(
-    ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+    ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) : ZdbMem::StoreTbl{
     id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)

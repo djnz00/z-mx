@@ -46,7 +46,7 @@ ZfbFieldTbl(Test,
   (((baz), (Ctor<2>)), (Object)));
 ZfbRoot(Test);
 
-static auto mfields = ZtMFieldList<Test>();
+static auto mfields = ZtMFields<Test>();
 
 } // zfbtest
 

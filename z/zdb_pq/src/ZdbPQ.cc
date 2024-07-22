@@ -894,8 +894,8 @@ void Store::mkTblMRD_rcvd(PGresult *res)
 
 void Store::open(
   ZuID id,
-  ZtMFields fields,
-  ZtMKeyFields keyFields,
+  ZtMFieldArray fields,
+  ZtMKeyFieldArray keyFields,
   const reflection::Schema *schema,
   IOBufAllocFn bufAllocFn,
   OpenFn openFn)
@@ -1102,7 +1102,7 @@ static XField xField(
 }
 
 StoreTbl::StoreTbl(
-  Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+  Store *store, ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
   const reflection::Schema *schema, IOBufAllocFn bufAllocFn) :
   m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},

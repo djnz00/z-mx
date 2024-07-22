@@ -1473,7 +1473,7 @@ void loadTuple(
   VarBufParts &varBufParts,
   const OIDs &oids,
   unsigned nParams,
-  const ZtMFields &fields,
+  const ZtMFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo)
 {
@@ -1727,7 +1727,7 @@ friend Store;
 
 public:
   StoreTbl(
-    Store *store, ZuID id, ZtMFields fields, ZtMKeyFields keyFields,
+    Store *store, ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
@@ -1850,9 +1850,9 @@ private:
   Store			*m_store = nullptr;
   ZuID			m_id;
   ZtString		m_id_;		// snake case
-  ZtMFields		m_fields;	// all fields
+  ZtMFieldArray		m_fields;	// all fields
   UpdFields		m_updFields;	// update fields
-  ZtMKeyFields		m_keyFields;	// fields for each key
+  ZtMKeyFieldArray		m_keyFields;	// fields for each key
   XFields		m_xFields;
   XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
@@ -1889,8 +1889,8 @@ public:
 
   void open(
     ZuID id,
-    ZtMFields fields,
-    ZtMKeyFields keyFields,
+    ZtMFieldArray fields,
+    ZtMKeyFieldArray keyFields,
     const reflection::Schema *schema,
     IOBufAllocFn bufAllocFn,
     OpenFn openFn);

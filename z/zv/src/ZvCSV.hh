@@ -229,9 +229,7 @@ template <typename T> class ZvCSV {
   ZvCSV &operator =(const ZvCSV &) = delete;
 
 public:
-  using Fields = ZtMFields;
-  using Field = ZtMField;
-  using Column = ZuTuple<int, const Field *>;
+  using Column = ZuTuple<int, const ZtMField *>;
   using ColNames = ZtArray<ZuString>;
   using ColIndex = ZtArray<int>;
   using ColArray = ZtArray<Column>;
@@ -245,7 +243,7 @@ private:
 
 public:
   ZvCSV() {
-    m_fields = ZtMFieldList<T>();
+    m_fields = ZtMFields<T>();
     for (int i = 0, n = m_fields.length(); i < n; i++)
       m_columns.add(m_fields[i]->id, Column{i, m_fields[i]});
   }
@@ -264,7 +262,7 @@ public:
     return node->val();
   }
 
-  const Field *field(unsigned i) const {
+  const ZtMField *field(unsigned i) const {
     if (i >= m_fields.length()) return nullptr;
     return m_fields[i];
   }
@@ -470,7 +468,7 @@ public:
   }
 
 private:
-  Fields	m_fields;
+  ZtMFieldArray	m_fields;
   ColTree	m_columns;
 };
 

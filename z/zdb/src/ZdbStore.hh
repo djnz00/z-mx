@@ -165,8 +165,8 @@ public:
 
   virtual void open(			// open table - idempotent, async
       ZuID id,				// name of table
-      ZtMFields fields,			// fields
-      ZtMKeyFields keyFields,		// keys and their fields
+      ZtMFieldArray fields,			// fields
+      ZtMKeyFieldArray keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
       IOBufAllocFn,			// buffer allocator
       OpenFn) = 0;			// open result callback

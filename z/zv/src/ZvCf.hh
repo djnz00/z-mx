@@ -607,11 +607,11 @@ public:
 // ZtField integration
 template <typename O, typename Cf_>
 struct Handler_ {
-  using FieldList = ZuFields<O>;
+  using Fields = ZuFields<O>;
 
   template <typename U>
   struct AllFilter : public ZuBool<!U::ReadOnly> { };
-  using AllFields = ZuTypeGrep<AllFilter, FieldList>;
+  using AllFields = ZuTypeGrep<AllFilter, Fields>;
 
   template <typename U> struct UpdateFilter :
       public ZuTypeIn<ZuFieldProp::Mutable, typename U::Props> { };
@@ -627,13 +627,13 @@ struct Handler_ {
   using InitFilter = ZuBool<!ZuFieldProp::HasCtor<typename U::Props>{}>;
   using InitFields = ZuTypeGrep<InitFilter, AllFields>;
 
-  template <typename ...Fields>
+  template <typename ...Fields_>
   struct Ctor {
     static O ctor(const Cf_ *cf) {
-      return O{cf->template getField<Fields>()...};
+      return O{cf->template getField<Fields_>()...};
     }
     static void ctor(void *ptr, const Cf_ *cf) {
-      new (ptr) O{cf->template getField<Fields>()...};
+      new (ptr) O{cf->template getField<Fields_>()...};
     }
   };
   static O ctor(const Cf_ *cf) {
@@ -651,10 +651,10 @@ struct Handler_ {
     });
   }
 
-  template <typename ...Fields>
+  template <typename ...Fields_>
   struct Load__ : public O {
     Load__() = default;
-    Load__(const Cf_ *cf) : O{cf->template getField<Fields>()...} { }
+    Load__(const Cf_ *cf) : O{cf->template getField<Fields_>()...} { }
     template <typename ...Args>
     Load__(Args &&...args) : O{ZuFwd<Args>(args)...} { }
   };

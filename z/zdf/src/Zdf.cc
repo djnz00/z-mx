@@ -16,7 +16,7 @@
 using namespace Zdf;
 
 DataFrame::DataFrame(
-  Mgr *mgr, const ZtMFields &fields, ZuString name, bool timeIndex) :
+  Mgr *mgr, const ZtMFieldArray &fields, ZuString name, bool timeIndex) :
   m_name{name}
 {
   bool indexed = timeIndex;

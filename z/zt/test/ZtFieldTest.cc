@@ -92,7 +92,7 @@ int main()
   });
   std::cout << '\n';
   ZtFieldVFmt fmt;
-  ZtMFields fields{ZtMFieldList<Foo>()};
+  ZtMFieldArray fields{ZtMFields<Foo>()};
   auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
     using namespace ZtFieldTypeCode;
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,

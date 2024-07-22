@@ -248,10 +248,10 @@ template <typename Field>
 using FieldFilter = ZuTypeIn<ZtFieldProp::Series, typename Field::Props>;
 
 template <typename T>
-using FieldList = ZuTypeGrep<FieldFilter, ZuFields<T>>;
+using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 
 template <typename T>
-auto fields() { return ZtMFieldList_<FieldList<T>>(); }
+auto fields() { return ZtMFields_<Fields<T>>(); }
 
 class ZdfAPI Mgr {
 public:
@@ -275,7 +275,7 @@ public:
   ~DataFrame() = default;
 
   DataFrame(
-    Mgr *mgr, const ZtMFields &fields, ZuString name, bool timeIndex = false);
+    Mgr *mgr, const ZtMFieldArray &fields, ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
   const ZuTime &epoch() const { return m_epoch; }
