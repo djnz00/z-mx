@@ -226,136 +226,137 @@ namespace ZuFieldProp {
     public ZuBool<GetKeys<Props>::N> { };
 }
 
-#define ZuFieldTypeName(O, ID) ZuField_##O##_##ID
+#define ZuField_(O, ID) ZuField_##O##_##ID
+#define ZuField(O, ID) ZuSchema::ZuField_##O##_##ID
 
 #define ZuField_Prop_(Prop) ZuFieldProp:: ZuPP_Strip(Prop)
 #define ZuField_Props_(...) \
   ZuTypeList<ZuPP_Nest(ZuPP_MapComma(ZuField_Prop_, __VA_ARGS__))>
 #define ZuField_Props(Args) ZuPP_Defer(ZuField_Props_)Args
 
-#define ZuField_ID(O_, ID) \
+#define ZuField_Pre_ID(O_, ID) \
   using O = O_; \
   static constexpr const char *id() { return #ID; }
-#define ZuField_1(O, ID) \
-  ZuField_ID(O, ID) \
+#define ZuField_Pre_1(O, ID) \
+  ZuField_Pre_ID(O, ID) \
   using Props = ZuTypeList<>;
-#define ZuField_2(O, ID, Props_) \
-  ZuField_ID(O, ID) \
+#define ZuField_Pre_2(O, ID, Props_) \
+  ZuField_Pre_ID(O, ID) \
   using Props = ZuField_Props(Props_);
-#define ZuField_N(O, _0, _1, Fn, ...) Fn
-#define ZuField__(O, ...) \
-  ZuField_N(O, __VA_ARGS__, \
-    ZuField_2(O, __VA_ARGS__), \
-    ZuField_1(O, __VA_ARGS__))
-#define ZuField_(O, ID, Args) \
-  ZuPP_Defer(ZuField__)(O, ID ZuPP_StripAppend(Args))
+#define ZuField_Pre_N(O, _0, _1, Fn, ...) Fn
+#define ZuField_Pre_(O, ...) \
+  ZuField_Pre_N(O, __VA_ARGS__, \
+    ZuField_Pre_2(O, __VA_ARGS__), \
+    ZuField_Pre_1(O, __VA_ARGS__))
+#define ZuField_Pre(O, ID, Args) \
+  ZuPP_Defer(ZuField_Pre_)(O, ID ZuPP_StripAppend(Args))
 
 #define ZuFieldAdapt(O, ID) \
-    using Orig = ZuFieldTypeName(O, ID); \
+    using Orig = ZuField_(O, ID); \
     template <template <typename> typename Override> \
     using Adapt = Override<Orig>
 
-#define ZuFieldAliasRd_(O, Member) \
+#define ZuField_AliasRd_(O, Member) \
   using T = ZuDecay<decltype(ZuDeclVal<const O &>().Member)>; \
   static const T &get(const O &o) { return o.Member; } \
   static T &get(O &o) { return o.Member; } \
   static T &&get(O &&o) { return ZuMv(o.Member); }
-#define ZuFieldAlias_(O, Member) \
+#define ZuField_Alias_(O, Member) \
   template <typename P> \
   static void set(O &o, P &&v) { o.Member = ZuFwd<P>(v); }
-#define ZuFieldAliasRd(O, ID, Member, Args) \
-  struct ZuFieldTypeName(O, ID) { \
+#define ZuField_AliasRd(O, ID, Member, Args) \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 1 }; \
-    ZuField_(O, ID, Args) \
-    ZuFieldAliasRd_(O, Member) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_AliasRd_(O, Member) \
     template <typename P> static void set(O &, P &&) { } \
   };
-#define ZuFieldAlias(O, ID, Member, Args) \
-  struct ZuFieldTypeName(O, ID) { \
+#define ZuField_Alias(O, ID, Member, Args) \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 0 }; \
-    ZuField_(O, ID, Args) \
-    ZuFieldAliasRd_(O, Member) \
-    ZuFieldAlias_(O, Member) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_AliasRd_(O, Member) \
+    ZuField_Alias_(O, Member) \
   };
-#define ZuFieldAliasRdFn_(O, Get) \
+#define ZuField_AliasRdFn_(O, Get) \
   using T = ZuDecay<decltype(ZuDeclVal<const O &>().Get())>; \
   static decltype(auto) get(const O &o) { return o.Get(); } \
   static decltype(auto) get(O &o) { return o.Get(); } \
   static decltype(auto) get(O &&o) { return ZuMv(o).Get(); }
-#define ZuFieldAliasFn_(O, Set) \
+#define ZuField_AliasFn_(O, Set) \
   template <typename V> \
   static void set(O &o, V &&v) { o.Set(ZuFwd<V>(v)); }
-#define ZuFieldAliasRdFn(O, ID, Get, Args) \
-  struct ZuFieldTypeName(O, ID) { \
+#define ZuField_AliasRdFn(O, ID, Get, Args) \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 1 }; \
-    ZuField_(O, ID, Args) \
-    ZuFieldAliasRdFn_(O, Get) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_AliasRdFn_(O, Get) \
     template <typename P> static void set(O &, P &&) { } \
   };
-#define ZuFieldAliasFn(O, ID, Get, Set, Args) \
-  struct ZuFieldTypeName(O, ID) { \
+#define ZuField_AliasFn(O, ID, Get, Set, Args) \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 0 }; \
-    ZuField_(O, ID, Args) \
-    ZuFieldAliasRdFn_(O, Get) \
-    ZuFieldAliasFn_(O, Set) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_AliasRdFn_(O, Get) \
+    ZuField_AliasFn_(O, Set) \
   };
-#define ZuFieldLambdaRd_(Get) \
+#define ZuField_LambdaRd_(Get) \
   template <typename P> \
   static decltype(auto) get(P &&o) { \
     constexpr auto fn = Get(); \
     return fn(ZuFwd<P>(o)); \
   }
-#define ZuFieldLambda_(O, Set) \
+#define ZuField_Lambda_(O, Set) \
   template <typename P> \
   static void set(O &o, P &&v) { \
     constexpr auto fn = ZuPP_Strip(Set); \
     fn(o, ZuFwd<P>(v)); \
   }
-#define ZuFieldLambdaRd(O, ID, Get, Args) \
+#define ZuField_LambdaRd(O, ID, Get, Args) \
   inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
-  struct ZuFieldTypeName(O, ID) { \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 1 }; \
     using T = \
       ZuDecay<decltype(ZuField_##O##_##ID##_get()(ZuDeclVal<const O &>()))>; \
-    ZuField_(O, ID, Args) \
-    ZuFieldLambdaRd_(ZuField_##O##_##ID##_get) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_LambdaRd_(ZuField_##O##_##ID##_get) \
     template <typename P> static void set(O &, P &&) { } \
   };
-#define ZuFieldLambda(O, ID, Get, Set, Args) \
+#define ZuField_Lambda(O, ID, Get, Set, Args) \
   inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
-  struct ZuFieldTypeName(O, ID) { \
+  struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 0 }; \
     using T = \
       ZuDecay<decltype(ZuField_##O##_##ID##_get()(ZuDeclVal<const O &>()))>; \
-    ZuField_(O, ID, Args) \
-    ZuFieldLambdaRd_(ZuField_##O##_##ID##_get) \
-    ZuFieldLambda_(O, Set) \
+    ZuField_Pre(O, ID, Args) \
+    ZuField_LambdaRd_(ZuField_##O##_##ID##_get) \
+    ZuField_Lambda_(O, Set) \
   };
 
-#define ZuField(U, Member, Args) \
-  ZuFieldAlias(U, Member, Member, Args)
-#define ZuFieldRd(U, Member, Args) \
-  ZuFieldAliasRd(U, Member, Member, Args)
+#define ZuField_Val(U, Member, Args) \
+  ZuField_Alias(U, Member, Member, Args)
+#define ZuField_Rd(U, Member, Args) \
+  ZuField_AliasRd(U, Member, Member, Args)
 
-#define ZuFieldFn(U, Fn, Args) \
-  ZuFieldAliasFn(U, Fn, Fn, Fn, Args)
-#define ZuFieldRdFn(U, Fn, Args) \
-  ZuFieldAliasRdFn(U, Fn, Fn, Args)
+#define ZuField_Fn(U, Fn, Args) \
+  ZuField_AliasFn(U, Fn, Fn, Fn, Args)
+#define ZuField_RdFn(U, Fn, Args) \
+  ZuField_AliasRdFn(U, Fn, Fn, Args)
 
 #define ZuField_Decl_2(O, ID, Args) \
-  ZuField(O, ID, Args)
+  ZuField_Val(O, ID, Args)
 #define ZuField_Decl_3(O, ID, Method, Args) \
-  ZuField##Method(O, ID, Args)
+  ZuField_##Method(O, ID, Args)
 #define ZuField_Decl_4(O, ID, Method, Get, Args) \
-  ZuField##Method(O, ID, Get, Args)
+  ZuField_##Method(O, ID, Get, Args)
 #define ZuField_Decl_5(O, ID, Method, Get, Set, Args) \
-  ZuField##Method(O, ID, Get, Set, Args)
+  ZuField_##Method(O, ID, Get, Set, Args)
 #define ZuField_Decl_N(O, _0, _1, _2, _3, _4, Fn, ...) Fn
 #define ZuField_Decl__(O, ...) \
   ZuField_Decl_N(O, __VA_ARGS__, \
@@ -367,7 +368,7 @@ namespace ZuFieldProp {
   ZuPP_Defer(ZuField_Decl__)(O, ZuPP_Strip(Axor), (__VA_ARGS__))
 #define ZuField_Decl(O, Args) ZuPP_Defer(ZuField_Decl_)(O, ZuPP_Strip(Args))
 
-#define ZuField_Type__(O, ID, ...) ZuFieldTypeName(O, ID)
+#define ZuField_Type__(O, ID, ...) ZuField_(O, ID)
 #define ZuField_Type_(O, Axor, ...) \
   ZuPP_Defer(ZuField_Type__)(O, ZuPP_Strip(Axor))
 #define ZuField_Type(O, Args) ZuPP_Defer(ZuField_Type_)(O, ZuPP_Strip(Args))
@@ -376,13 +377,13 @@ ZuTypeList<> ZuFieldList_(...); // default
 void ZuFielded_(...); // default
 
 #define ZuFields(O, ...) \
-  namespace ZuFields_ { \
+  namespace ZuSchema { \
     ZuPP_Eval(ZuPP_MapArg(ZuField_Decl, O, __VA_ARGS__)) \
     using O = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZuField_Type, O, __VA_ARGS__))>; \
   } \
   O ZuFielded_(O *); \
-  ZuFields_::O ZuFieldList_(O *)
+  ZuSchema::O ZuFieldList_(O *)
 
 template <typename U>
 using ZuFieldList = decltype(ZuFieldList_(ZuDeclVal<U *>()));

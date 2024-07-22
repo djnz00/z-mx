@@ -3538,6 +3538,7 @@ struct ZtField_DateTimeVec<Base, Def, false> :
 
 #define ZtField_TypeName_(Name, ...) Name
 #define ZtField_TypeName(Type) ZuPP_Defer(ZtField_TypeName_)Type
+
 #define ZtField_LambdaArg(Arg) []{ return Arg; }
 
 #define ZtField_TypeArgs_CString(...) \
@@ -3622,12 +3623,13 @@ struct ZtField_DateTimeVec<Base, Def, false> :
   __VA_OPT__(, ZtField_TypeArgs_##Name(__VA_ARGS__))
 #define ZtField_TypeArgs(Type) ZuPP_Defer(ZtField_TypeArgs_)Type
 
-#define ZtFieldTypeName(O, ID) ZtField_##O##_##ID
+#define ZtField_(O, ID) ZtField_##O##_##ID
+#define ZtField(O, ID) ZuSchema::ZtField_##O##_##ID
 
 #define ZtField_Decl__(O, ID, Base, TypeName, Type) \
   ZuField_Decl(O, Base) \
-  using ZtFieldTypeName(O, ID) = \
-  ZtField_##TypeName<ZuFieldTypeName(O, ID) ZtField_TypeArgs(Type)>;
+  using ZtField_(O, ID) = \
+    ZtField_##TypeName<ZuField(O, ID) ZtField_TypeArgs(Type)>;
 #define ZtField_Decl_(O, Base, Type) \
   ZuPP_Defer(ZtField_Decl__)(O, \
       ZuPP_Nest(ZtField_BaseID(Base)), Base, \
@@ -3635,17 +3637,17 @@ struct ZtField_DateTimeVec<Base, Def, false> :
 #define ZtField_Decl(O, Args) ZuPP_Defer(ZtField_Decl_)(O, ZuPP_Strip(Args))
 
 #define ZtField_Type_(O, Base, ...) \
-  ZuPP_Defer(ZtFieldTypeName)(O, ZuPP_Nest(ZtField_BaseID(Base)))
+  ZuPP_Defer(ZtField_)(O, ZuPP_Nest(ZtField_BaseID(Base)))
 #define ZtField_Type(O, Args) ZuPP_Defer(ZtField_Type_)(O, ZuPP_Strip(Args))
 
 #define ZtFields(O, ...)  \
-  namespace ZuFields_ { \
+  namespace ZuSchema { \
     ZuPP_Eval(ZuPP_MapArg(ZtField_Decl, O, __VA_ARGS__)) \
     using O = \
       ZuTypeList<ZuPP_Eval(ZuPP_MapArgComma(ZtField_Type, O, __VA_ARGS__))>; \
   } \
   O ZuFielded_(O *); \
-  ZuFields_::O ZuFieldList_(O *)
+  ZuSchema::O ZuFieldList_(O *)
 
 template <typename Field>
 struct ZtFieldPrint_ {

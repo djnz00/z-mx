@@ -69,9 +69,9 @@ struct Key {
   friend ZtFieldPrint ZuPrintType(Key *);
 };
 ZfbFields(Key,
-  (((userID), (Keys<0>, Group<0>, Ctor<0>)), (UInt64)),
-  (((id), ((Keys<0, 1>), Ctor<1>)), (Bytes)),
-  (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)));
+  (((userID),	(Keys<0>, Group<0>, Ctor<0>)),	(UInt64)),
+  (((id),	((Keys<0, 1>), Ctor<1>)),	(Bytes)),
+  (((secret),	(Ctor<2>, Mutable, Hidden)),	(Bytes)));
 
 ZfbRoot(Key);
 
@@ -82,8 +82,8 @@ struct Perm {
   friend ZtFieldPrint ZuPrintType(Perm *);
 };
 ZfbFields(Perm,
-  (((id), (Keys<0>, Ctor<0>, Descend)), (UInt32)),
-  (((name), (Keys<1>, Ctor<1>, Mutable)), (String)));
+  (((id),	(Keys<0>, Ctor<0>, Descend)),	(UInt32)),
+  (((name),	(Keys<1>, Ctor<1>, Mutable)),	(String)));
 
 ZfbRoot(Perm);
 
@@ -100,10 +100,10 @@ struct Role {
   friend ZtFieldPrint ZuPrintType(Role *);
 };
 ZfbFields(Role,
-  (((name), (Keys<0>, Ctor<0>)), (String)),
-  (((perms), (Ctor<1>, Mutable)), (Bitmap)),
-  (((apiperms), (Ctor<2>, Mutable)), (Bitmap)),
-  (((flags), (Ctor<3>, Flags<RoleFlags::Map>, Mutable)), (UInt8)));
+  (((name),	(Keys<0>, Ctor<0>)),				(String)),
+  (((perms),	(Ctor<1>, Mutable)),				(Bitmap)),
+  (((apiperms),	(Ctor<2>, Mutable)),				(Bitmap)),
+  (((flags),	(Ctor<3>, Flags<RoleFlags::Map>, Mutable)),	(UInt8)));
 
 ZfbRoot(Role);
 
@@ -127,13 +127,13 @@ struct User {
   friend ZtFieldPrint ZuPrintType(User *);
 };
 ZfbFields(User,
-  (((id), (Keys<0>, Ctor<0>, Descend)), (UInt64)),
-  (((name), (Keys<1>, Ctor<1>, Mutable)), (String)),
-  (((secret), (Ctor<2>, Mutable, Hidden)), (Bytes)),
-  (((hmac), (Ctor<3>, Mutable)), (Bytes)),
-  (((roles), (Ctor<4>, Mutable)), (StringVec)),
-  (((failures), (Ctor<5>, Mutable)), (UInt32, 0)),
-  (((flags), (Ctor<6>, Mutable, Flags<UserFlags::Map>)), (UInt8, 0)));
+  (((id),	(Keys<0>, Ctor<0>, Descend)),			(UInt64)),
+  (((name),	(Keys<1>, Ctor<1>, Mutable)),			(String)),
+  (((secret),	(Ctor<2>, Mutable, Hidden)),			(Bytes)),
+  (((hmac),	(Ctor<3>, Mutable)),				(Bytes)),
+  (((roles),	(Ctor<4>, Mutable)),				(StringVec)),
+  (((failures),	(Ctor<5>, Mutable)),				(UInt32, 0)),
+  (((flags),	(Ctor<6>, Mutable, Flags<UserFlags::Map>)),	(UInt8, 0)));
 
 ZfbRoot(User);
 
