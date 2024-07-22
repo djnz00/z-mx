@@ -42,7 +42,7 @@
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuEquiv.hh>
 
-#include <zlib/ZuMStream.hh>
+#include <zlib/ZuVStream.hh>
 #include <zlib/ZmVHeap.hh>
 
 #include <zlib/ZtPlatform.hh>

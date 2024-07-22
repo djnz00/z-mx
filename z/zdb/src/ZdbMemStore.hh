@@ -251,7 +251,7 @@ using XKeyFields = ZtArray<XFields>;
 // resolve Value union discriminator from flatbuffers reflection data
 XField xField(
   const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_,
-  const ZtMField *field,
+  const ZtVField *field,
   const ZtString &id)
 {
   // resolve flatbuffers reflection data for field
@@ -980,7 +980,7 @@ using Tuple = ZtArray<Value>;
 template <typename Filter>
 Tuple loadTuple_(
   unsigned nParams,
-  const ZtMFieldArray &fields,
+  const ZtVFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo,
   Filter filter)
@@ -1000,31 +1000,31 @@ Tuple loadTuple_(
 }
 Tuple loadTuple_(
   unsigned nParams,
-  const ZtMFieldArray &fields,
+  const ZtVFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo)
 {
   return loadTuple_(nParams, fields, xFields, fbo,
-    [](const ZtMField *) { return true; });
+    [](const ZtVField *) { return true; });
 }
 Tuple loadTuple(
-  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtVFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo);
 }
 Tuple loadUpdTuple(
-  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtVFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo,
-    [](const ZtMField *field) -> bool {
-      return bool(field->props & ZtMFieldProp::Mutable()) || (field->keys & 1);
+    [](const ZtVField *field) -> bool {
+      return bool(field->props & ZtVFieldProp::Mutable()) || (field->keys & 1);
     });
 }
 Tuple loadDelTuple(
-  const ZtMFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
+  const ZtVFieldArray &fields, const XFields &xFields, const Zfb::Table *fbo)
 {
   return loadTuple_(fields.length(), fields, xFields, fbo,
-    [](const ZtMField *field) -> bool { return (field->keys & 1); });
+    [](const ZtVField *field) -> bool { return (field->keys & 1); });
 }
 
 // save tuple to flatbuffer
@@ -1058,12 +1058,12 @@ Offset saveTuple(
 }
 
 // update tuple
-void updTuple(const ZtMFieldArray &fields, Tuple &data, Tuple &&update) {
+void updTuple(const ZtVFieldArray &fields, Tuple &data, Tuple &&update) {
   ZmAssert(fields.length() == data.length());
   ZmAssert(data.length() == update.length());
   unsigned n = data.length();
   for (unsigned i = 0; i < n; i++)
-    if (fields[i]->props & ZtMFieldProp::Mutable()) {
+    if (fields[i]->props & ZtVFieldProp::Mutable()) {
       ZmAssert(update[i].type());
       data[i] = ZuMv(update[i]);
     }
@@ -1071,8 +1071,8 @@ void updTuple(const ZtMFieldArray &fields, Tuple &data, Tuple &&update) {
 
 // extract key from tuple
 Tuple extractKey(
-  const ZtMFieldArray &fields,
-  const ZtMKeyFieldArray &keyFields,
+  const ZtVFieldArray &fields,
+  const ZtVKeyFieldArray &keyFields,
   unsigned keyID, const Tuple &data)
 {
   ZmAssert(fields.length() == data.length());
@@ -1155,7 +1155,7 @@ using Index =
 class StoreTbl : public Zdb_::StoreTbl {
 public:
   StoreTbl(
-    ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
+    ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
     m_id{id},
@@ -1169,7 +1169,7 @@ public:
       unsigned m = keyFields[i].length();
       ZmAssert(m < 64);
       for (unsigned j = 0; j < m; j++)
-	if (keyFields[i][j]->props & ZtMFieldProp::Descend())
+	if (keyFields[i][j]->props & ZtVFieldProp::Descend())
 	  descending |= (uint64_t(1)<<j);
       new (m_indices.push()) Index{TupleCmp<>{descending}};
     }
@@ -1365,7 +1365,7 @@ public:
       auto key = extractKey(m_fields, m_keyFields, i, row->data);
       ZmAssert(key.length() == m_keyFields[i].length());
       if (!i && m_indices[i].findVal(key)) {
-	commitFn(ZuMv(buf), CommitResult{ZeMEVENT(Error,
+	commitFn(ZuMv(buf), CommitResult{ZeVEVENT(Error,
 	    ([id = this->id(), key = ZuMv(key)](auto &s, const auto &) {
 	      s << id << " insert(" << ZtJoin(key, ", ")
 		<< ") failed - record exists";
@@ -1416,7 +1416,7 @@ public:
       commitFn(ZuMv(buf), CommitResult{});
     } else {
       commitFn(ZuMv(buf), CommitResult{
-	  ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
+	  ZeVEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
 	    s << id << " update(" << ZtJoin(key, ", ")
 	      << ") failed - record missing";
 	  }))});
@@ -1438,7 +1438,7 @@ public:
       commitFn(ZuMv(buf), CommitResult{});
     } else {
       commitFn(ZuMv(buf), CommitResult{
-	  ZeMEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
+	  ZeVEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
 	    s << id << " del(" << ZtJoin(key, ", ")
 	      << ") failed - record missing";
 	  }))});
@@ -1447,8 +1447,8 @@ public:
 
 private:
   ZuID			m_id;
-  ZtMFieldArray		m_fields;
-  ZtMKeyFieldArray		m_keyFields;
+  ZtVFieldArray		m_fields;
+  ZtVKeyFieldArray		m_keyFields;
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
@@ -1497,14 +1497,14 @@ public:
 
   void open(
       ZuID id,
-      ZtMFieldArray fields,
-      ZtMKeyFieldArray keyFields,
+      ZtVFieldArray fields,
+      ZtVKeyFieldArray keyFields,
       const reflection::Schema *schema,
       IOBufAllocFn bufAllocFn,
       OpenFn openFn) {
     StoreTblNode *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {
-      openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+      openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	s << "open(" << id << ") failed - already open";
       }))});
       return;

@@ -116,12 +116,12 @@ namespace VKey {
     return Any;
   }
 
-  ZrlExtern void print_(int32_t, ZuMStream &);
+  ZrlExtern void print_(int32_t, ZuVStream &);
   struct Print {
     int32_t key;
     template <typename S>
-    void print(S &s_) const { ZuMStream s{s_}; print_(key, s); }
-    void print(ZuMStream &s) const { print_(key, s); }
+    void print(S &s_) const { ZuVStream s{s_}; print_(key, s); }
+    void print(ZuVStream &s) const { print_(key, s); }
     friend ZuPrintFn ZuPrintType(Print *);
   };
   inline Print print(int32_t key) { return {key}; }
@@ -133,9 +133,9 @@ public:
     ZuRef<ZuPolymorph>	next;			// next VKeyMatch
     int32_t		vkey = -VKey::Null;	// virtual key
 
-    void print_(ZuMStream &) const;
-    template <typename S> void print(S &s_) const { ZuMStream s{s_}; print_(s); }
-    void print(ZuMStream &s) const { print_(s); }
+    void print_(ZuVStream &) const;
+    template <typename S> void print(S &s_) const { ZuVStream s{s_}; print_(s); }
+    void print(ZuVStream &s) const { print_(s); }
     friend ZuPrintFn ZuPrintType(Action *);
   };
 
@@ -148,9 +148,9 @@ public:
 
   const Action *match(uint8_t c) const;
 
-  void print_(ZuMStream &) const;
-  template <typename S> void print(S &s_) const { ZuMStream s{s_}; print_(s); }
-  void print(ZuMStream &s) const { print_(s); }
+  void print_(ZuVStream &) const;
+  template <typename S> void print(S &s_) const { ZuVStream s{s_}; print_(s); }
+  void print(ZuVStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(VKeyMatch *);
 
 private:
@@ -211,12 +211,12 @@ public:
 
   int32_t literal(int32_t vkey) const;	// reverse lookup vkey -> character
 
-  void dumpVKeys_(ZuMStream &) const;
+  void dumpVKeys_(ZuVStream &) const;
   struct DumpVKeys {
     const Terminal &terminal;
     template <typename S>
-    void print(S &s_) const { ZuMStream s{s_}; terminal.dumpVKeys_(s); }
-    void print(ZuMStream &s) const { terminal.dumpVKeys_(s); }
+    void print(S &s_) const { ZuVStream s{s_}; terminal.dumpVKeys_(s); }
+    void print(ZuVStream &s) const { terminal.dumpVKeys_(s); }
     friend ZuPrintFn ZuPrintType(DumpVKeys *);
   };
   DumpVKeys dumpVKeys() const { return {*this}; }

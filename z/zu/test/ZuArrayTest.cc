@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include <zlib/ZuArrayN.hh>
-#include <zlib/ZuMArray.hh>
+#include <zlib/ZuVArray.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuDemangle.hh>
 
@@ -103,7 +103,7 @@ int main()
   }
 
   {
-    ZuMArray<ZuBytes> a;
+    ZuVArray<ZuBytes> a;
     CHECK(ZuTraits<decltype(a)>::IsArray);
     CHECK(!ZuTraits<decltype(a)>::IsSpan);
     CHECK(IsIterable_<decltype(a)>{});

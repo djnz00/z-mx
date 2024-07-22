@@ -8,8 +8,8 @@
 // * encapsulates any arbitrary stream type into a monomorphic type that
 //   can be used in compiled library code interfaces
 
-#ifndef ZuMStream_HH
-#define ZuMStream_HH
+#ifndef ZuVStream_HH
+#define ZuVStream_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
@@ -20,10 +20,10 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuString.hh>
 
-class ZuMStreamBuf {
+class ZuVStreamBuf {
 public:
   template <typename T>
-  ZuMStreamBuf(const T &v) :
+  ZuVStreamBuf(const T &v) :
     m_ptr{&v},
     m_lengthFn{[](const void *v) -> unsigned {
 	return ZuPrint<T>::length(*static_cast<const T *>(v));
@@ -32,10 +32,10 @@ public:
 	return ZuPrint<T>::print(buf, n, *static_cast<const T *>(v));
     }} { }
 
-  ZuMStreamBuf(const ZuMStreamBuf &) = default;
-  ZuMStreamBuf &operator =(const ZuMStreamBuf &) = default;
-  ZuMStreamBuf(ZuMStreamBuf &&s) = default;
-  ZuMStreamBuf &operator =(ZuMStreamBuf &&s) = default;
+  ZuVStreamBuf(const ZuVStreamBuf &) = default;
+  ZuVStreamBuf &operator =(const ZuVStreamBuf &) = default;
+  ZuVStreamBuf(ZuVStreamBuf &&s) = default;
+  ZuVStreamBuf &operator =(ZuVStreamBuf &&s) = default;
 
   unsigned length() const {
     return m_lengthFn(m_ptr);
@@ -45,14 +45,14 @@ public:
   }
 
   struct PrintType : public ZuPrintBuffer {
-    static unsigned length(const ZuMStreamBuf &b) {
+    static unsigned length(const ZuVStreamBuf &b) {
       return b.length();
     }
-    static unsigned print(char *buf, unsigned n, const ZuMStreamBuf &b) {
+    static unsigned print(char *buf, unsigned n, const ZuVStreamBuf &b) {
       return b.print(buf, n);
     }
   };
-  friend PrintType ZuPrintType(ZuMStreamBuf *);
+  friend PrintType ZuPrintType(ZuVStreamBuf *);
 
 private:
   typedef unsigned (*LengthFn)(const void *);
@@ -63,24 +63,24 @@ private:
   PrintFn	m_printFn;
 };
 
-class ZuMStream {
+class ZuVStream {
 public:
   template <typename S>
-  ZuMStream(S &s) :
+  ZuVStream(S &s) :
     m_ptr{&s},
     m_strFn{[](void *s, const ZuString &v) {
       *static_cast<S *>(s) << v;
     }},
-    m_bufFn{[](void *s, const ZuMStreamBuf &v) {
+    m_bufFn{[](void *s, const ZuVStreamBuf &v) {
       *static_cast<S *>(s) << v;
     }} { }
 
-  ZuMStream() = delete;
+  ZuVStream() = delete;
 
-  ZuMStream(const ZuMStream &) = default;
-  ZuMStream &operator =(const ZuMStream &) = default;
-  ZuMStream(ZuMStream &&s) = default;
-  ZuMStream &operator =(ZuMStream &&s) = default;
+  ZuVStream(const ZuVStream &) = default;
+  ZuVStream &operator =(const ZuVStream &) = default;
+  ZuVStream(ZuVStream &&s) = default;
+  ZuVStream &operator =(ZuVStream &&s) = default;
 
 private:
   template <typename U, typename R = void>
@@ -106,42 +106,42 @@ private:
 
 public:
   template <typename C>
-  MatchChar<C, ZuMStream &> operator <<(C c) {
+  MatchChar<C, ZuVStream &> operator <<(C c) {
     (*m_strFn)(m_ptr, ZuString{&c, 1});
     return *this;
   }
   template <typename R>
-  MatchReal<R, ZuMStream &> operator <<(const R &r) {
-    (*m_bufFn)(m_ptr, ZuMStreamBuf{ZuBoxed(r)});
+  MatchReal<R, ZuVStream &> operator <<(const R &r) {
+    (*m_bufFn)(m_ptr, ZuVStreamBuf{ZuBoxed(r)});
     return *this;
   }
-  ZuMStream &operator <<(ZuString s) {
+  ZuVStream &operator <<(ZuString s) {
     (*m_strFn)(m_ptr, s);
     return *this;
   }
   template <typename S>
-  MatchString<S, ZuMStream &> operator <<(S &&s_) {
+  MatchString<S, ZuVStream &> operator <<(S &&s_) {
     (*m_strFn)(m_ptr, ZuString{ZuFwd<S>(s_)});
     return *this;
   }
   template <typename P>
-  MatchPDelegate<P, ZuMStream &> operator <<(const P &p) {
+  MatchPDelegate<P, ZuVStream &> operator <<(const P &p) {
     ZuPrint<P>::print(*this, p);
     return *this;
   }
   template <typename P>
-  MatchPBuffer<P, ZuMStream &> operator <<(const P &p) {
-    (*m_bufFn)(m_ptr, ZuMStreamBuf{p});
+  MatchPBuffer<P, ZuVStream &> operator <<(const P &p) {
+    (*m_bufFn)(m_ptr, ZuVStreamBuf{p});
     return *this;
   }
 
 private:
   typedef void (*StrFn)(void *, const ZuString &);
-  typedef void (*BufFn)(void *, const ZuMStreamBuf &);
+  typedef void (*BufFn)(void *, const ZuVStreamBuf &);
 
   void		*m_ptr;
   StrFn		m_strFn;
   BufFn		m_bufFn;
 };
 
-#endif /* ZuMStream_HH */
+#endif /* ZuVStream_HH */

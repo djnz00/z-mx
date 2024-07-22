@@ -583,16 +583,16 @@ protected:
   virtual void objRecover(const fbs::Record *) = 0;
 
   // objFields() - run-time field array
-  virtual ZtMFieldArray objFields() const = 0;
+  virtual ZtVFieldArray objFields() const = 0;
   // objKeyFields() - run-time key field arrays
-  virtual ZtMKeyFieldArray objKeyFields() const = 0;
+  virtual ZtVKeyFieldArray objKeyFields() const = 0;
   // objSchema() - flatbuffer reflection schema
   virtual const reflection::Schema *objSchema() const = 0;
 
   // objPrint(stream, ptr) - print object
-  virtual void objPrint(ZuMStream &, const void *) const = 0;
+  virtual void objPrint(ZuVStream &, const void *) const = 0;
   // objPrintFB(stream, data) - print flatbuffer
-  virtual void objPrintFB(ZuMStream &, ZuBytes) const = 0;
+  virtual void objPrintFB(ZuVStream &, ZuBytes) const = 0;
 
   // buffer cache
   virtual void cacheBuf_(ZmRef<const IOBuf>) = 0;
@@ -931,20 +931,20 @@ private:
   }
 
   // objFields() - run-time field array
-  ZtMFieldArray objFields() const { return ZtMFields<T>(); }
+  ZtVFieldArray objFields() const { return ZtVFields<T>(); }
   // objKeyFields() - run-time key field arrays
-  ZtMKeyFieldArray objKeyFields() const { return ZtMKeyFields<T>(); }
+  ZtVKeyFieldArray objKeyFields() const { return ZtVKeyFields<T>(); }
   // objSchema() - flatbuffer reflection schema
   const reflection::Schema *objSchema() const {
     return reflection::GetSchema(ZfbSchema<T>::data());
   }
 
   // objPrint(stream, ptr) - print object
-  void objPrint(ZuMStream &s, const void *ptr) const {
+  void objPrint(ZuVStream &s, const void *ptr) const {
     ZtFieldPrint::print(s, *static_cast<const T *>(ptr));
   }
   // objPrintFB(stream, data) - print flatbuffer
-  void objPrintFB(ZuMStream &s, ZuBytes data) const {
+  void objPrintFB(ZuVStream &s, ZuBytes data) const {
     auto fbo = ZfbField::verify<T>(data);
     if (!fbo) return;
     s << *fbo;
@@ -1988,7 +1988,7 @@ struct Record_Print {
     if (data) {
       s << " data=";
       if (table) {
-	ZuMStream s_{s};
+	ZuVStream s_{s};
 	table->objPrintFB(s_, data);
       } else {
 	s << "{...}";
@@ -2036,7 +2036,7 @@ void AnyObject::print(S &s) const {
   if (m_origUN != nullUN()) s << " origUN=" << m_origUN;
   s << " data={";
   {
-    ZuMStream s_{s};
+    ZuVStream s_{s};
     m_table->objPrint(s_, ptr_());
   }
   s << "}}";

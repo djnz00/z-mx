@@ -42,7 +42,7 @@ public:
   InvalidT(Key &&key, Value &&value) :
     Invalid{ZuFwd<Key>(key), ZuFwd<Value>(value)} { }
 
-  void print_(ZuMStream &s) const;
+  void print_(ZuVStream &s) const;
 };
 
 template <typename Map, bool Throw = true, decltype(ZuIfT<Throw>(), int()) = 0>
@@ -67,7 +67,7 @@ inline const char *v2s(ZuString key, V v)
 }
 
 template <typename Map, typename Key, typename Value>
-inline void errorMessage(ZuMStream &s, Key &&key, Value &&value)
+inline void errorMessage(ZuVStream &s, Key &&key, Value &&value)
 {
   s << ZuFwd<Key>(key) << ": \"" << ZuFwd<Value>(value) <<
     "\" did not match { ";
@@ -81,7 +81,7 @@ inline void errorMessage(ZuMStream &s, Key &&key, Value &&value)
 }
 
 template <typename Map>
-inline void InvalidT<Map>::print_(ZuMStream &s) const
+inline void InvalidT<Map>::print_(ZuVStream &s) const
 {
   errorMessage<Map>(s, this->key(), this->value());
 }

@@ -37,7 +37,7 @@ class Store;
 class StoreTbl;
 
 // monomorphic ZeEvent
-using Event = ZeMEvent;
+using Event = ZeVEvent;
 
 // result of store init()
 struct InitData {
@@ -165,8 +165,8 @@ public:
 
   virtual void open(			// open table - idempotent, async
       ZuID id,				// name of table
-      ZtMFieldArray fields,			// fields
-      ZtMKeyFieldArray keyFields,		// keys and their fields
+      ZtVFieldArray fields,			// fields
+      ZtVKeyFieldArray keyFields,		// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
       IOBufAllocFn,			// buffer allocator
       OpenFn) = 0;			// open result callback

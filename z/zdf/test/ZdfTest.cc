@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	"writeThread 1\n");
     fileStore.init(&sched, cf);
   }
-  DataFrame df{ZtMFields<Frame>(), "frame"};
+  DataFrame df{ZtVFields<Frame>(), "frame"};
   if (mode == Mem)
     df.init(&mockStore);
   else

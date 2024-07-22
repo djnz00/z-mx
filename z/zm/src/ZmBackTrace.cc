@@ -113,7 +113,7 @@ class ZmBackTrace_Mgr {
 friend ZmSingletonCtor<ZmBackTrace_Mgr>;
 friend ZmBackTrace;
 friend ZmBackTrace_MgrInit;
-friend void ZmBackTrace_print(ZuMStream &s, const ZmBackTrace &bt);
+friend void ZmBackTrace_print(ZuVStream &s, const ZmBackTrace &bt);
 
   ZmBackTrace_Mgr();
 public:
@@ -126,7 +126,7 @@ private:
   using NameBuf = ZuStringN<ZmBackTrace_BUFSIZ>;
 #endif
 
-  void printFrame_info(ZuMStream &s,
+  void printFrame_info(ZuVStream &s,
       uintptr_t addr, const char *module_, const char *symbol,
       ZuString file, unsigned line) {
     ZuString module{module_};
@@ -153,7 +153,7 @@ private:
   }
 
 #ifdef ZmBackTrace_DL
-  bool printFrame_dl(ZuMStream &s, void *addr) {
+  bool printFrame_dl(ZuVStream &s, void *addr) {
     Dl_info info{0};
     dladdr((void *)addr, &info);
     if (!info.dli_fbase || !info.dli_fname || !info.dli_sname) return false;
@@ -471,7 +471,7 @@ notfound:
     Info		m_info;
   };
 
-  bool printFrame_bfd(ZuMStream &s, void *addr) {
+  bool printFrame_bfd(ZuVStream &s, void *addr) {
     BFD_Find::Info info = BFD_Find{this, (uintptr_t)addr}();
     if (!info.addr) return false;
     printFrame_info(s, info.addr, info.name, info.func, info.file, info.line);
@@ -494,9 +494,9 @@ notfound:
 #ifdef _WIN32
   void capture(EXCEPTION_POINTERS *exInfo, unsigned skip, void **frames);
 #endif
-  void print(ZuMStream &s, void *const *frames);
-  void printFrame(ZuMStream &s, void *addr);
-  bool printFrame_(ZuMStream &s, void *addr);
+  void print(ZuVStream &s, void *const *frames);
+  void printFrame(ZuVStream &s, void *addr);
+  bool printFrame_(ZuVStream &s, void *addr);
 
   Lock				m_lock;
   bool				m_initialized = false;
@@ -705,13 +705,13 @@ void ZmBackTrace_Mgr::capture(
 }
 #endif /* _WIN32 */
 
-void ZmBackTrace_Mgr::printFrame(ZuMStream &s, void *addr)
+void ZmBackTrace_Mgr::printFrame(ZuVStream &s, void *addr)
 {
   if (!printFrame_(s, addr))
     s << '[' << ZuBoxPtr(addr).hex() << "]\n";
 }
 
-bool ZmBackTrace_Mgr::printFrame_(ZuMStream &s, void *addr)
+bool ZmBackTrace_Mgr::printFrame_(ZuVStream &s, void *addr)
 {
   if (ZuUnlikely(!addr)) return false;
 
@@ -759,12 +759,12 @@ bool ZmBackTrace_Mgr::printFrame_(ZuMStream &s, void *addr)
 #endif /* _WIN32 */
 }
 
-ZmExtern void ZmBackTrace_print(ZuMStream &s, const ZmBackTrace &bt)
+ZmExtern void ZmBackTrace_print(ZuVStream &s, const ZmBackTrace &bt)
 {
   ZmBackTrace_Mgr::instance()->print(s, (void *const *)bt.frames());
 }
 
-void ZmBackTrace_Mgr::print(ZuMStream &s, void *const *frames)
+void ZmBackTrace_Mgr::print(ZuVStream &s, void *const *frames)
 {
   Guard guard(m_lock);
 

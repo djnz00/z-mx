@@ -54,14 +54,14 @@ public:
   }
 
 public:
-  void print(ZuMStream &s) const;
+  void print(ZuVStream &s) const;
   struct Print : public ZuPrintDelegate {
     template <typename S>
     static void print(S &s_, const ZtHexDump_ &d) {
-      ZuMStream s{s_};
+      ZuVStream s{s_};
       d.print(s);
     }
-    static void print(ZuMStream &s, const ZtHexDump_ &d) {
+    static void print(ZuVStream &s, const ZtHexDump_ &d) {
       d.print(s);
     }
   };

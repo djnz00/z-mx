@@ -16,7 +16,7 @@
 using namespace Zdf;
 
 DataFrame::DataFrame(
-  Mgr *mgr, const ZtMFieldArray &fields, ZuString name, bool timeIndex) :
+  Mgr *mgr, const ZtVFieldArray &fields, ZuString name, bool timeIndex) :
   m_name{name}
 {
   bool indexed = timeIndex;
@@ -25,7 +25,7 @@ DataFrame::DataFrame(
   m_fields.size(n + timeIndex);
   for (unsigned i = 0; i < n; i++) {
     ZuPtr<Series> series = new Series();
-    if (!indexed && (fields[i]->props & ZtMFieldProp::Index)) {
+    if (!indexed && (fields[i]->props & ZtVFieldProp::Index)) {
       indexed = true;
       m_series.unshift(ZuMv(series));
       m_fields.unshift(fields[i]);
@@ -36,7 +36,7 @@ DataFrame::DataFrame(
   }
   if (timeIndex) {
     m_series.unshift(ZuPtr<Series>{new Series()});
-    m_fields.unshift(static_cast<ZtMField *>(nullptr));
+    m_fields.unshift(static_cast<ZtVField *>(nullptr));
   }
 }
 
@@ -50,7 +50,7 @@ void DataFrame::init(Store *store)
 void DataFrame::open(OpenFn openFn)
 {
   if (ZuUnlikely(!m_store)) {
-    openFn(OpenResult{ZeMEVENT(Error, "no backing store configured")});
+    openFn(OpenResult{ZeVEVENT(Error, "no backing store configured")});
     return;
   }
   {
@@ -58,7 +58,7 @@ void DataFrame::open(OpenFn openFn)
 
     if (m_pending) {
       guard.unlock();
-      openFn(OpenResult{ZeMEVENT(Error, "overlapping open/close")});
+      openFn(OpenResult{ZeVEVENT(Error, "overlapping open/close")});
       return;
     }
 
@@ -156,7 +156,7 @@ void DataFrame::openFailed(OpenResult result)
 void DataFrame::close(CloseFn closeFn)
 {
   if (ZuUnlikely(!m_store)) {
-    closeFn(CloseResult{ZeMEVENT(Error, "no backing store configured")});
+    closeFn(CloseResult{ZeVEVENT(Error, "no backing store configured")});
     return;
   }
   {
@@ -164,7 +164,7 @@ void DataFrame::close(CloseFn closeFn)
 
     if (m_pending) {
       guard.unlock();
-      closeFn(CloseResult{ZeMEVENT(Error, "overlapping open/close")});
+      closeFn(CloseResult{ZeVEVENT(Error, "overlapping open/close")});
       return;
     }
 

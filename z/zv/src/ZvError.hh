@@ -20,10 +20,10 @@
 class ZvAPI ZvError {
 public:
   virtual ~ZvError() { }
-  virtual void print_(ZuMStream &) const = 0;
+  virtual void print_(ZuVStream &) const = 0;
   template <typename S>
-  void print(S &s_) const { ZuMStream s{s_}; print_(s); }
-  void print(ZuMStream &s) const { print_(s); }
+  void print(S &s_) const { ZuVStream s{s_}; print_(s); }
+  void print(ZuVStream &s) const { print_(s); }
   friend ZuPrintFn ZuPrintType(ZvError *);
 };
 

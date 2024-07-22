@@ -1473,7 +1473,7 @@ void loadTuple(
   VarBufParts &varBufParts,
   const OIDs &oids,
   unsigned nParams,
-  const ZtMFieldArray &fields,
+  const ZtVFieldArray &fields,
   const XFields &xFields,
   const Zfb::Table *fbo)
 {
@@ -1727,7 +1727,7 @@ friend Store;
 
 public:
   StoreTbl(
-    Store *store, ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
+    Store *store, ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
@@ -1760,7 +1760,7 @@ private:
   void open_enqueue(bool sync, bool srm);
   int open_send();
   void open_rcvd(PGresult *);
-  void open_failed(ZeMEvent);
+  void open_failed(ZeVEvent);
   void opened();
 
   // open phases
@@ -1819,12 +1819,12 @@ private:
   // principal queries
   int count_send(Work::Count &);
   void count_rcvd(Work::Count &, PGresult *);
-  void count_failed(Work::Count &, ZeMEvent);
+  void count_failed(Work::Count &, ZeVEvent);
 
   int select_send(Work::Select &);
   void select_rcvd(Work::Select &, PGresult *);
   ZmRef<IOBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);
-  void select_failed(Work::Select &, ZeMEvent);
+  void select_failed(Work::Select &, ZeVEvent);
 
   int find_send(Work::Find &);
   void find_rcvd(Work::Find &, PGresult *);
@@ -1832,27 +1832,27 @@ private:
   void find_rcvd_(RowFn &, bool &found, PGresult *);
   template <bool Recovery>
   ZmRef<IOBuf> find_save(ZuArray<const Value> tuple);
-  void find_failed(Work::Find &, ZeMEvent);
-  void find_failed_(RowFn, ZeMEvent);
+  void find_failed(Work::Find &, ZeVEvent);
+  void find_failed_(RowFn, ZeVEvent);
 
   int recover_send(Work::Recover &);
   void recover_rcvd(Work::Recover &, PGresult *);
-  void recover_failed(Work::Recover &, ZeMEvent);
+  void recover_failed(Work::Recover &, ZeVEvent);
 
   int write_send(Work::Write &);
   void write_rcvd(Work::Write &, PGresult *);
-  void write_failed(Work::Write &, ZeMEvent);
+  void write_failed(Work::Write &, ZeVEvent);
 
 private:
-  using UpdFields = ZtArray<const ZtMField *>;
+  using UpdFields = ZtArray<const ZtVField *>;
   using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
 
   Store			*m_store = nullptr;
   ZuID			m_id;
   ZtString		m_id_;		// snake case
-  ZtMFieldArray		m_fields;	// all fields
+  ZtVFieldArray		m_fields;	// all fields
   UpdFields		m_updFields;	// update fields
-  ZtMKeyFieldArray		m_keyFields;	// fields for each key
+  ZtVKeyFieldArray		m_keyFields;	// fields for each key
   XFields		m_xFields;
   XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
@@ -1889,8 +1889,8 @@ public:
 
   void open(
     ZuID id,
-    ZtMFieldArray fields,
-    ZtMKeyFieldArray keyFields,
+    ZtVFieldArray fields,
+    ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema,
     IOBufAllocFn bufAllocFn,
     OpenFn openFn);
@@ -1934,7 +1934,7 @@ private:
 
   void recv();
   void rcvd(Work::Queue::Node *, PGresult *);
-  void failed(Work::Queue::Node *, ZeMEvent);
+  void failed(Work::Queue::Node *, ZeVEvent);
 
   void send();
 
@@ -1944,7 +1944,7 @@ private:
   void start_enqueue();
   int start_send();
   void start_rcvd(PGresult *);
-  void start_failed(bool running, ZeMEvent);
+  void start_failed(bool running, ZeVEvent);
   void started();
 
   // start phases

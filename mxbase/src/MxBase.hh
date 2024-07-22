@@ -25,7 +25,7 @@
 #include <zlib/ZuDateTime.hh>
 
 #include <zlib/ZmRef.hh>
-#include <zlib/ZuMStream.hh>
+#include <zlib/ZuVStream.hh>
 
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>

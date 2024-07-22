@@ -92,12 +92,12 @@ int main()
   });
   std::cout << '\n';
   ZtFieldVFmt fmt;
-  ZtMFieldArray fields{ZtMFields<Foo>()};
-  auto print = [&fmt](auto &s, const ZtMField &field, int constant) {
+  ZtVFieldArray fields{ZtVFields<Foo>()};
+  auto print = [&fmt](auto &s, const ZtVField &field, int constant) {
     using namespace ZtFieldTypeCode;
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field.type->code,
 	[&s, constant, &field, &fmt](auto Code) {
-      field.constant.print<Code>(s, ZtMField::cget(constant), &field, fmt);
+      field.constant.print<Code>(s, ZtVField::cget(constant), &field, fmt);
     });
   };
   for (unsigned i = 0, n = fields.length(); i < n; i++) {
@@ -105,13 +105,13 @@ int main()
     auto type = fields[i]->type;
     if (type->code == ZtFieldTypeCode::UDT) {
       std::cout << " udt=" << ZmDemangle{type->info.udt()->info->name()};
-    } else if (type->props & ZtMFieldProp::Enum()) {
+    } else if (type->props & ZtVFieldProp::Enum()) {
       std::cout << " enum=" << type->info.enum_()->id();
-    } else if (type->props & ZtMFieldProp::Flags()) {
+    } else if (type->props & ZtVFieldProp::Flags()) {
       std::cout << " flags=" << type->info.flags()->id();
     }
     std::cout << " deflt=";
-    print(std::cout, *fields[i], ZtMFieldConstant::Deflt);
+    print(std::cout, *fields[i], ZtVFieldConstant::Deflt);
     using namespace ZtFieldTypeCode;
     switch (type->code) {
       case Int32:
@@ -120,9 +120,9 @@ int main()
       case Fixed:
       case Decimal:
 	std::cout << " minimum=";
-	print(std::cout, *fields[i], ZtMFieldConstant::Minimum);
+	print(std::cout, *fields[i], ZtVFieldConstant::Minimum);
 	std::cout << " maximum=";
-	print(std::cout, *fields[i], ZtMFieldConstant::Maximum);
+	print(std::cout, *fields[i], ZtVFieldConstant::Maximum);
 	break;
       case Bytes:
 	continue;

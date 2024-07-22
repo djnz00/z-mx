@@ -244,9 +244,9 @@ public:
   void disconnected(Connection *connection);
 
 private:
-  void status_(ZuMStream &) const;
+  void status_(ZuVStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZuMStream s{s_};
+    ZuVStream s{s_};
     status_(s);
   }
 public:
@@ -326,9 +326,9 @@ public:
   }
 
 private:
-  void status_(ZuMStream &) const;
+  void status_(ZuVStream &) const;
   template <typename S> void status_(S &s_) const {
-    ZuMStream s{s_};
+    ZuVStream s{s_};
     status_(s);
   }
 public:
@@ -1411,7 +1411,7 @@ void Proxy::disconnected(Connection *connection)
   }
 }
 
-void Proxy::status_(ZuMStream &s) const
+void Proxy::status_(ZuVStream &s) const
 {
   if (ZmRef<Connection> cxn = m_in) {
     s << *cxn;
@@ -1497,7 +1497,7 @@ ZiConnection *Listener::accepted(const ZiCxnInfo &ci)
       m_cxnLatency, m_cxnFrag, m_cxnPack, m_cxnDelay, ci);
 }
 
-void Listener::status_(ZuMStream &s) const
+void Listener::status_(ZuVStream &s) const
 {
   s << *this;
   auto i = m_proxies->readIterator();
@@ -1586,8 +1586,8 @@ int main(int argc, char **argv)
     });
     if (cli.open()) {
       ZeLog::sink(ZeLog::lambdaSink(
-	  [](const ZeEventInfo &) { return ZuMStream{std::cerr};
-	  [](ZuMStream &, const ZeEventInfo &) {
+	  [](const ZeEventInfo &) { return ZuVStream{std::cerr};
+	  [](ZuVStream &, const ZeEventInfo &) {
 	    std::cerr << '\n' << std::flush;
 	  }));
       ZeLog::sink(ZeLog::lambdaSink([&cli](ZeLogBuf &buf, const ZeEventInfo &) {

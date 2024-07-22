@@ -34,7 +34,7 @@
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmHeap.hh>
-#include <zlib/ZuMStream.hh>
+#include <zlib/ZuVStream.hh>
 #include <zlib/ZmTime.hh>
 #include <zlib/ZmAlloc.hh>
 
@@ -322,7 +322,7 @@ struct ZeEvent<ZeMsgFn> final : public ZeAnyEvent {
     return *this;
   }
 };
-using ZeMEvent = ZeEvent<ZeMsgFn>;
+using ZeVEvent = ZeEvent<ZeMsgFn>;
 
 template <typename L>
 ZeEvent(int, const char *, int, const char *, L) -> ZeEvent<ZuDecay<L>>;
@@ -377,17 +377,17 @@ auto ZeMkEvent(
 
 // make a non-polymorphic ZeEvent
 template <typename Msg>
-ZeMEvent ZeMkMEvent(
+ZeVEvent ZeMkMEvent(
     int severity_,
     const char *file_, int line_,
     const char *function_, Msg &&msg) {
-  return ZeMEvent(
+  return ZeVEvent(
       severity_, file_, line_, function_,
       ZeMsg_::fn(ZuFwd<Msg>(msg)));
 }
-#define ZeMEVENT_(sev, msg) \
+#define ZeVEVENT_(sev, msg) \
   ZeMkMEvent(sev, __FILE__, __LINE__, ZuFnName, msg)
-#define ZeMEVENT(sev, msg) ZeMEVENT_(Ze:: sev, msg)
+#define ZeVEVENT(sev, msg) ZeVEVENT_(Ze:: sev, msg)
 
 namespace Ze {
 

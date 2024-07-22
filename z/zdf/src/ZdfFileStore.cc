@@ -54,7 +54,7 @@ void FileStore_::open(
   {
     ZeError e;
     if (dir.open(path, &e) != Zi::OK) {
-      openFn(ZeMEVENT(Error, ([path, e](auto &s, const auto &) {
+      openFn(ZeVEVENT(Error, ([path, e](auto &s, const auto &) {
 	s << "ZiDir::open(\"" << path << "\") failed: " << e;
       })));
       return;
@@ -259,7 +259,7 @@ void FileStore_::loadDF(
     if (e.errNo() == ZiENOENT)
       loadFn(LoadResult{});
     else
-      loadFn(LoadResult{ZeMEVENT(Error, ([path, e](auto &s, const auto &) {
+      loadFn(LoadResult{ZeVEVENT(Error, ([path, e](auto &s, const auto &) {
 	s << "Zfb::Load::load(\"" << path << "\") failed: " << e;
       }))});
   } else
@@ -273,7 +273,7 @@ void FileStore_::saveDF(ZuString name_, Zfb::Builder &fbb, SaveFn saveFn)
   ZiFile::Path path = ZiFile::append(m_dir, name);
   ZeError e;
   if (Zfb::Save::save(path, fbb, 0666, &e) != Zi::OK)
-    saveFn(SaveResult{ZeMEVENT(Error, ([path, e](auto &s, const auto &) {
+    saveFn(SaveResult{ZeVEVENT(Error, ([path, e](auto &s, const auto &) {
       s << "Zfb::Save::save(\"" << path << "\") failed: " << e;
     }))});
   else

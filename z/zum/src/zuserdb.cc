@@ -166,7 +166,7 @@ int main(int argc, char **argv)
     ZeLOG(Fatal, ZtString{e});
     gtfo();
   } catch (const ZeAnyEvent &e) {
-    ZeLogEvent(ZeMEvent{e});
+    ZeLogEvent(ZeVEvent{e});
     gtfo();
   } catch (...) {
     ZeLOG(Fatal, "unknown exception");

@@ -51,7 +51,7 @@ void ZvEngine::linkState(ZvAnyLink *link_, int prev, int next)
 
 #if 0
   ZeLOG(Info,
-    ([id = link->id(), prev, next](const ZeEvent &, ZuMStream &s) {
+    ([id = link->id(), prev, next](const ZeEvent &, ZuVStream &s) {
       s << "link " << id << ' ' <<
       ZvLinkState::name(prev) << "->" << ZvLinkState::name(next); }));
 #endif

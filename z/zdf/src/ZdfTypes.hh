@@ -17,7 +17,7 @@
 
 namespace Zdf {
 
-using Event = ZeMEvent;				// monomorphic ZeEvent
+using Event = ZeVEvent;				// monomorphic ZeEvent
 
 using OpenResult = ZuUnion<void, Event>;	// open result
 using OpenFn = ZmFn<void(OpenResult)>;		// open callback

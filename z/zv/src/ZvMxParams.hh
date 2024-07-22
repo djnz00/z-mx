@@ -23,7 +23,7 @@ class ZvInvalidMulticastIP : public ZvError {
 public:
   ZvInvalidMulticastIP(ZuString s) : m_addr{s} { }
 
-  void print_(ZuMStream &s) const {
+  void print_(ZuVStream &s) const {
     s << "invalid multicast IP \"" << m_addr << '"';
   }
 

@@ -2,7 +2,7 @@
 #include <sstream>
 
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuMStream.hh>
+#include <zlib/ZuVStream.hh>
 #include <zlib/ZuStringN.hh>
 
 struct A {
@@ -12,7 +12,7 @@ struct A {
 
 template <typename S>
 void foo(S &s_) {
-  ZuMStream s{s_};
+  ZuVStream s{s_};
   s << 42 << ' ' << A{} << " " << 42.0 << ' ' << ZuBoxed(42.0F) << "\n";
 }
 

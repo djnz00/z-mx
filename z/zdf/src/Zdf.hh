@@ -101,9 +101,9 @@ public:
   ~AnyReader() = default;
 
   void seek(const Series *s, unsigned props, uint64_t offset) {
-    if (props & ZtMFieldProp::Delta)
+    if (props & ZtVFieldProp::Delta)
       init_<DeltaReader>(s, offset);
-    else if (props & ZtMFieldProp::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       init_<Delta2Reader>(s, offset);
     else
       init_<AbsReader>(s, offset);
@@ -112,9 +112,9 @@ public:
   // series must monotonically increase
 
   void find(const Series *s, unsigned props, const ZuFixed &value) {
-    if (props & ZtMFieldProp::Delta)
+    if (props & ZtVFieldProp::Delta)
       find_<DeltaReader>(s, value);
-    else if (props & ZtMFieldProp::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       find_<Delta2Reader>(s, value);
     else
       find_<AbsReader>(s, value);
@@ -203,9 +203,9 @@ public:
   ~AnyWriter() = default;
 
   void init(Series *s, unsigned props) {
-    if (props & ZtMFieldProp::Delta)
+    if (props & ZtVFieldProp::Delta)
       init_<DeltaWriter>(s);
-    else if (props & ZtMFieldProp::Delta2)
+    else if (props & ZtVFieldProp::Delta2)
       init_<Delta2Writer>(s);
     else
       init_<AbsWriter>(s);
@@ -251,7 +251,7 @@ template <typename T>
 using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 
 template <typename T>
-auto fields() { return ZtMFields_<Fields<T>>(); }
+auto fields() { return ZtVFields_<Fields<T>>(); }
 
 class ZdfAPI Mgr {
 public:
@@ -275,7 +275,7 @@ public:
   ~DataFrame() = default;
 
   DataFrame(
-    Mgr *mgr, const ZtMFieldArray &fields, ZuString name, bool timeIndex = false);
+    Mgr *mgr, const ZtVFieldArray &fields, ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
   const ZuTime &epoch() const { return m_epoch; }
@@ -354,25 +354,25 @@ friend Writer;
 private:
   void writer_(AnyWriter &w, unsigned i) {
     auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtMFieldProp::Delta;
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
     w.init(m_series[i], props);
   }
 public:
   void seek(AnyReader &r, unsigned i, uint64_t offset = 0) {
     auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtMFieldProp::Delta;
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
     r.seek(m_series[i], props, offset);
   }
   void find(AnyReader &r, unsigned i, const ZuFixed &value) {
     auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtMFieldProp::Delta;
+    unsigned props = field ? field->props : ZtVFieldProp::Delta;
     r.find(m_series[i], props, value);
   }
 
   unsigned nSeries() const { return m_series.length(); }
   const Series *series(unsigned i) const { return m_series[i]; }
   Series *series(unsigned i) { return m_series[i]; }
-  const ZtMField *field(unsigned i) const { return m_fields[i]; }
+  const ZtVField *field(unsigned i) const { return m_fields[i]; }
 
 private:
   static constexpr const uint64_t pow10_9() { return 1000000000UL; }
@@ -399,7 +399,7 @@ private:
   Mgr				*m_mgr = nullptr;
   ZtString			m_name;
   ZtArray<ZuPtr<Series>>	m_series;
-  ZtArray<const ZtMField *>	m_fields;
+  ZtArray<const ZtVField *>	m_fields;
   ZmRef<ZdbTable<Hdr>>		m_hdrTable;
   ZmRef<ZdbTable<Blk>>		m_blkTable;
   ZuTime			m_epoch;

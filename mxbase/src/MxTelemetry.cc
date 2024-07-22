@@ -38,7 +38,7 @@ void Client::start()
       ZiFailFn(this, [](Client *client, bool transient) {
 	  client->error(ZeMkLambdaEvent(Error,
 		([ip = client->m_ip, port = client->m_port](
-		    const ZeEvent &, ZuMStream &s) {
+		    const ZeEvent &, ZuVStream &s) {
 		  s << "MxTelemetry::Client{" <<
 		    ip << ':' << ZuBoxed(port) << "} UDP receive failed";
 		})));
@@ -114,7 +114,7 @@ void Server::start()
       ZiFailFn(this, [](Server *server, bool transient) {
 	  server->error(ZeMkLambdaEvent(Error,
 		([ip = server->m_ip, port = server->m_port](
-		    const ZeEvent &, ZuMStream &s) {
+		    const ZeEvent &, ZuVStream &s) {
 		  s << "MxTelemetry::Server{" <<
 		    ip << ':' << ZuBoxed(port) << "} UDP send failed";
 		})));

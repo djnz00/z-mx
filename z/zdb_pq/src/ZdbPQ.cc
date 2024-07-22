@@ -87,7 +87,7 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
 	sid > m_mx->params().nThreads() ||
 	sid == m_mx->rxThread() ||
 	sid == m_mx->txThread())
-      return {ZeMEVENT(Fatal, ([tid = ZtString{tid}](auto &s, const auto &) {
+      return {ZeVEVENT(Fatal, ([tid = ZtString{tid}](auto &s, const auto &) {
 	s << "Store::init() failed: invalid thread configuration \""
 	  << tid << '"';
       }))};
@@ -96,7 +96,7 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
   } catch (const ZvError &e_) {
     ZtString e;
     e << e_;
-    return {ZeMEVENT(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
+    return {ZeVEVENT(Fatal, ([e = ZuMv(e)](auto &s, const auto &) {
       s << "Store::init() failed: invalid configuration: " << e;
     }))};
   }
@@ -121,7 +121,7 @@ void Store::start(StartFn fn)
     m_startFn = ZuMv(fn);
     m_stopFn = StopFn{};
     if (!start_()) {
-      start_failed(false, ZeMEVENT(Fatal, "PostgreSQL start() failed"));
+      start_failed(false, ZeVEVENT(Fatal, "PostgreSQL start() failed"));
       return;
     }
     getOIDs();
@@ -499,13 +499,13 @@ void Store::recv()
 	      if (m_syncSRM) { m_syncSRM = false; setSRM(); }
 	      break;
 	    case PGRES_NONFATAL_ERROR: // notice / warning
-	      failed(pending, ZeMEVENT(Error,
+	      failed(pending, ZeVEVENT(Error,
 		  ([e = connError(m_conn)](auto &s, const auto &) {
 		    s << "PQgetResult() query: " << e;
 		  })));
 	      break;
 	    case PGRES_FATAL_ERROR: // query failed
-	      failed(pending, ZeMEVENT(Fatal,
+	      failed(pending, ZeVEVENT(Fatal,
 		  ([e = connError(m_conn)](auto &s, const auto &) {
 		    s << "PQgetResult() query: " << e;
 		  })));
@@ -575,7 +575,7 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
   }
 }
 
-void Store::failed(Work::Queue::Node *work, ZeMEvent e)
+void Store::failed(Work::Queue::Node *work, ZeVEvent e)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
@@ -728,7 +728,7 @@ void Store::start_rcvd(PGresult *res)
   }
 }
 
-void Store::start_failed(bool running, ZeMEvent e)
+void Store::start_failed(bool running, ZeVEvent e)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
@@ -779,7 +779,7 @@ int Store::getOIDs_send()
 skip:
   auto name = m_oids.name(type);
   if (!name) {
-    auto e = ZeMEVENT(Fatal,
+    auto e = ZeVEVENT(Fatal,
       ([type](auto &s, const auto &) {
 	s << "OID name for type index " << type
 	  << " is null - check static names[] array in OIDs constructor";
@@ -816,7 +816,7 @@ void Store::getOIDs_rcvd(PGresult *res)
   if (!res) {
     if (m_startState.failed()) {
       // OID resolution failed
-      auto e = ZeMEVENT(Fatal,
+      auto e = ZeVEVENT(Fatal,
 	([type = ZtString{m_oids.name(type)}](auto &s, const auto &) {
 	  s << "failed to resolve OID for \"" << type << '"';
 	}));
@@ -894,8 +894,8 @@ void Store::mkTblMRD_rcvd(PGresult *res)
 
 void Store::open(
   ZuID id,
-  ZtMFieldArray fields,
-  ZtMKeyFieldArray keyFields,
+  ZtVFieldArray fields,
+  ZtVKeyFieldArray keyFields,
   const reflection::Schema *schema,
   IOBufAllocFn bufAllocFn,
   OpenFn openFn)
@@ -908,7 +908,7 @@ void Store::open(
   ]() mutable {
     if (stopping()) {
       zdbRun([id, openFn = ZuMv(openFn)]() mutable {
-	openFn(OpenResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	  s << "open(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
@@ -932,7 +932,7 @@ void Store::enqueue(Work::Task task)
 // resolve Value union discriminator from flatbuffers reflection data
 static XField xField(
   const Zfb::Vector<Zfb::Offset<reflection::Field>> *fbFields_,
-  const ZtMField *field,
+  const ZtVField *field,
   const ZtString &id)
 {
   // resolve flatbuffers reflection data for field
@@ -1102,7 +1102,7 @@ static XField xField(
 }
 
 StoreTbl::StoreTbl(
-  Store *store, ZuID id, ZtMFieldArray fields, ZtMKeyFieldArray keyFields,
+  Store *store, ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
   const reflection::Schema *schema, IOBufAllocFn bufAllocFn) :
   m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
@@ -1118,7 +1118,7 @@ StoreTbl::StoreTbl(
   {
     unsigned j = 0;
     for (unsigned i = 0; i < n; i++)
-      if (m_fields[i]->props & ZtMFieldProp::Mutable()) j++;
+      if (m_fields[i]->props & ZtVFieldProp::Mutable()) j++;
     j += m_keyFields[0].length();
     m_updFields.size(j);
     m_xUpdFields.size(j);
@@ -1127,7 +1127,7 @@ StoreTbl::StoreTbl(
     ZtCase::camelSnake(m_fields[i]->id,
       [this, fbFields_, i](const ZtString &id) {
 	m_xFields.push(xField(fbFields_, m_fields[i], id));
-	if (m_fields[i]->props & ZtMFieldProp::Mutable()) {
+	if (m_fields[i]->props & ZtVFieldProp::Mutable()) {
 	  m_updFields.push(m_fields[i]);
 	  m_xUpdFields.push(xField(fbFields_, m_fields[i], id));
 	}
@@ -1406,7 +1406,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     } else {
       // table exists but not all fields matched
       auto i = m_openState.field();
-      auto e = ZeMEVENT(Fatal, ([
+      auto e = ZeVEVENT(Fatal, ([
 	id = this->m_id_,
 	failed = m_openState.failed(),
 	i, field = m_fields[i],
@@ -1513,7 +1513,7 @@ int StoreTbl::mkIndices_send()
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtMFieldProp::Descend()) query << " DESC";
+      if (keyFields[i]->props & ZtVFieldProp::Descend()) query << " DESC";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync>(query, Tuple{});
@@ -1548,7 +1548,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
       open_enqueue(true, false);
     } else {
       // index exists but not all fields matched
-      open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+      open_failed(ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
 	s << "inconsistent schema for table " << id;
       })));
     }
@@ -1728,7 +1728,7 @@ int StoreTbl::prepSelect_send()
       else
 	query << " AND ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtMFieldProp::Descend()) {
+      if (keyFields[i]->props & ZtVFieldProp::Descend()) {
 	if (m_openState.phase() == OpenState::PrepSelectKNI ||
 	    m_openState.phase() == OpenState::PrepSelectRNI) // inclusive
 	  query << "<=";
@@ -1748,7 +1748,7 @@ int StoreTbl::prepSelect_send()
   for (i = k; i < n; i++) {
     if (i > k) query << ", ";
     query << '"' << xKeyFields[i].id_ << '"';
-    if (keyFields[i]->props & ZtMFieldProp::Descend())
+    if (keyFields[i]->props & ZtVFieldProp::Descend())
       query << " DESC";
   }
   query << " LIMIT $" << (oids.length() + 1) << "::uint8";
@@ -1889,7 +1889,7 @@ int StoreTbl::prepUpdate_send()
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   unsigned j = 4;
   for (unsigned i = 0; i < n; i++) {
-    if (!(m_fields[i]->props & ZtMFieldProp::Mutable())) continue;
+    if (!(m_fields[i]->props & ZtVFieldProp::Mutable())) continue;
     auto type = m_xFields[i].type;
     query << ", \"" << m_xFields[i].id_
       << "\"=$" << j << "::" << m_store->oids().name(type);
@@ -2000,7 +2000,7 @@ void StoreTbl::openCount_rcvd(PGresult *res)
       PQnfields(res) != 1 ||
       PQgetlength(res, 0, 0) != sizeof(UInt64)) {
     // invalid query result
-    open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    open_failed(ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
       s << "inconsistent count() result for table " << id;
     })));
     return;
@@ -2049,7 +2049,7 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
   return;
 
 inconsistent:
-  open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+  open_failed(ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
     s << "inconsistent MAX(_un) result for table " << id;
   })));
 }
@@ -2116,7 +2116,7 @@ void StoreTbl::mrd_rcvd(PGresult *res)
   return;
 
 inconsistent:
-  open_failed(ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+  open_failed(ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
     s << "inconsistent SELECT FROM zdb.mrd result for table " << id;
   })));
 }
@@ -2142,7 +2142,7 @@ void StoreTbl::count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn)
   ]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, countFn = ZuMv(countFn)]() mutable {
-	countFn(CountResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	countFn(CountResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	  s << "count(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
@@ -2172,7 +2172,7 @@ void StoreTbl::select(
   ]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, tupleFn = ZuMv(tupleFn)]() mutable {
-	tupleFn(TupleResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	tupleFn(TupleResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	  s << "select(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
@@ -2257,7 +2257,7 @@ void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
       PQnfields(res) != 1 ||
       PQgetlength(res, 0, 0) != sizeof(UInt64)) {
     // invalid query result
-    count_failed(count, ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+    count_failed(count, ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
       s << "inconsistent count() result for table " << id;
     })));
     return;
@@ -2272,7 +2272,7 @@ void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
     countFn(ZuMv(result));
   });
 }
-void StoreTbl::count_failed(Work::Count &count, ZeMEvent e)
+void StoreTbl::count_failed(Work::Count &count, ZeVEvent e)
 {
   CountResult result{ZuMv(e)};
   m_store->zdbRun([
@@ -2359,7 +2359,7 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
   return;
 
 inconsistent:
-  select_failed(select, ZeMEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
+  select_failed(select, ZeVEVENT(Fatal, ([id = m_id_](auto &s, const auto &) {
     s << "inconsistent select() result for table " << id;
   })));
 }
@@ -2370,7 +2370,7 @@ ZmRef<IOBuf> StoreTbl::select_save(
   fbb.Finish(saveTuple(fbb, xFields, tuple));
   return fbb.buf();
 }
-void StoreTbl::select_failed(Work::Select &select, ZeMEvent e)
+void StoreTbl::select_failed(Work::Select &select, ZeVEvent e)
 {
   TupleResult result{ZuMv(e)};
   m_store->zdbRun([
@@ -2391,7 +2391,7 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       if (m_store->stopping()) {
 	store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
-	  rowFn(RowResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	  rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	    s << "find(" << id << ") failed - DB shutdown in progress";
 	  }))});
 	});
@@ -2480,12 +2480,12 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 inconsistent:
   if constexpr (!Recovery)
     find_failed_(ZuMv(rowFn),
-      ZeMEVENT(Error, ([id = m_id_](auto &s, const auto &) {
+      ZeVEVENT(Error, ([id = m_id_](auto &s, const auto &) {
 	s << "inconsistent find() result for table " << id;
       })));
   else
     find_failed_(ZuMv(rowFn),
-      ZeMEVENT(Error, ([id = m_id_](auto &s, const auto &) {
+      ZeVEVENT(Error, ([id = m_id_](auto &s, const auto &) {
 	s << "inconsistent recover() result for table " << id;
       })));
 }
@@ -2511,11 +2511,11 @@ ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
   }
   return saveHdr(fbb);
 }
-void StoreTbl::find_failed(Work::Find &find, ZeMEvent e)
+void StoreTbl::find_failed(Work::Find &find, ZeVEvent e)
 {
   find_failed_(ZuMv(find.rowFn), ZuMv(e));
 }
-void StoreTbl::find_failed_(RowFn rowFn, ZeMEvent e)
+void StoreTbl::find_failed_(RowFn rowFn, ZeVEvent e)
 {
   RowResult result{ZuMv(e)};
   m_store->zdbRun([
@@ -2533,7 +2533,7 @@ void StoreTbl::recover(UN un, RowFn rowFn)
   m_store->pqRun([this, un, rowFn = ZuMv(rowFn)]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
-	rowFn(RowResult{ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	  s << "recover(" << id << ") failed - DB shutdown in progress";
 	}))});
       });
@@ -2556,7 +2556,7 @@ void StoreTbl::recover_rcvd(Work::Recover &recover, PGresult *res)
 
   find_rcvd_<true>(recover.rowFn, recover.found, res);
 }
-void StoreTbl::recover_failed(Work::Recover &recover, ZeMEvent e)
+void StoreTbl::recover_failed(Work::Recover &recover, ZeVEvent e)
 {
   find_failed_(ZuMv(recover.rowFn), ZuMv(e));
 }
@@ -2577,7 +2577,7 @@ void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 	commitFn = ZuMv(commitFn)
       ]() mutable {
 	commitFn(ZuMv(buf), CommitResult{
-	  ZeMEVENT(Error, ([id](auto &s, const auto &) {
+	  ZeVEVENT(Error, ([id](auto &s, const auto &) {
 	    s << "write(" << id << ") failed - DB shutdown in progress";
 	  }))});
       });
@@ -2685,7 +2685,7 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
     });
   }
 }
-void StoreTbl::write_failed(Work::Write &write, ZeMEvent e)
+void StoreTbl::write_failed(Work::Write &write, ZeVEvent e)
 {
   // ZeLOG(Debug, ([e = ZuMv(e)](auto &s) { s << e; }));
 

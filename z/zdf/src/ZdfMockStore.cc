@@ -46,10 +46,10 @@ void MockStore_::save(ZmRef<Buf> buf)
 
 void MockStore_::loadDF(ZuString, Zfb::Load::LoadFn, unsigned, LoadFn loadFn)
 {
-  loadFn(LoadResult{ZeMEVENT(Error, "mock data store - loadDF() unsupported")});
+  loadFn(LoadResult{ZeVEVENT(Error, "mock data store - loadDF() unsupported")});
 }
 
 void MockStore_::saveDF(ZuString, Zfb::Builder &, SaveFn saveFn)
 {
-  saveFn(SaveResult{ZeMEVENT(Error, "mock data store - saveDF() unsupported")});
+  saveFn(SaveResult{ZeVEVENT(Error, "mock data store - saveDF() unsupported")});
 }

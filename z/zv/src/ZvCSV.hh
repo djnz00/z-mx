@@ -74,8 +74,8 @@ namespace ZvCSV_ {
 	Code == ZtFieldTypeCode::Decimal>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
-    ZuMStream s{row};
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
+    ZuVStream s{row};
     field->get.print<Code>(s, object, field, fmt);
   }
   template <unsigned Code, typename Row, typename T>
@@ -97,12 +97,12 @@ namespace ZvCSV_ {
 	Code == ZtFieldTypeCode::DateTimeVec>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt_) {
+      const ZtVField *field, const ZtFieldVFmt &fmt_) {
     ZtFieldVFmt fmt{fmt_};
     fmt.vecPrefix = "={";
     fmt.vecDelim = ";";
     fmt.vecSuffix = "}";
-    ZuMStream s{row};
+    ZuVStream s{row};
     field->get.print<Code>(s, object, field, fmt);
   }
   // get strings without quoting, then quote for CSV
@@ -112,7 +112,7 @@ namespace ZvCSV_ {
 	Code == ZtFieldTypeCode::String>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     quote__(row, field->get.get<Code>(object));
   }
   template <unsigned Code, typename Row, typename T>
@@ -120,7 +120,7 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::CStringVec>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     auto array = field->get.get<Code>(object);
     using Elem = const char *;
     unsigned n = array.length();
@@ -136,7 +136,7 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::StringVec>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     auto array = field->get.get<Code>(object);
     using Elem = ZuString;
     unsigned n = array.length();
@@ -153,7 +153,7 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::Bytes>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     auto v = field->get.get<Code>(object);
     auto n = ZuBase64::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
@@ -166,7 +166,7 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::BytesVec>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     auto array = field->get.get<Code>(object);
     using Elem = ZuBytes;
     unsigned n = array.length();
@@ -188,7 +188,7 @@ namespace ZvCSV_ {
   ZuIfT<Code == ZtFieldTypeCode::UDT>
   quote_(
       Row &row, const T *object,
-      const ZtMField *field, const ZtFieldVFmt &fmt) {
+      const ZtVField *field, const ZtFieldVFmt &fmt) {
     ZtString s;
     field->get.print<Code>(s, object, field, fmt);
     quote__(row, ZuMv(s));
@@ -199,7 +199,7 @@ namespace ZvCSV_ {
   inline void quote(
     Row &row,
     const T *object,
-    const ZtMField *field,
+    const ZtVField *field,
     const ZtFieldVFmt &fmt)
   {
     ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
@@ -215,7 +215,7 @@ public:
   ZvCSV_FileIOError(const FileName &fileName, ZeError e) :
     m_fileName(fileName), m_error(e) { }
 
-  void print_(ZuMStream &s) const {
+  void print_(ZuVStream &s) const {
     s << '"' << m_fileName << "\" " << m_error;
   }
 
@@ -229,7 +229,7 @@ template <typename T> class ZvCSV {
   ZvCSV &operator =(const ZvCSV &) = delete;
 
 public:
-  using Column = ZuTuple<int, const ZtMField *>;
+  using Column = ZuTuple<int, const ZtVField *>;
   using ColNames = ZtArray<ZuString>;
   using ColIndex = ZtArray<int>;
   using ColArray = ZtArray<Column>;
@@ -243,7 +243,7 @@ private:
 
 public:
   ZvCSV() {
-    m_fields = ZtMFields<T>();
+    m_fields = ZtVFields<T>();
     for (int i = 0, n = m_fields.length(); i < n; i++)
       m_columns.add(m_fields[i]->id, Column{i, m_fields[i]});
   }
@@ -262,7 +262,7 @@ public:
     return node->val();
   }
 
-  const ZtMField *field(unsigned i) const {
+  const ZtVField *field(unsigned i) const {
     if (i >= m_fields.length()) return nullptr;
     return m_fields[i];
   }
@@ -468,7 +468,7 @@ public:
   }
 
 private:
-  ZtMFieldArray	m_fields;
+  ZtVFieldArray	m_fields;
   ColTree	m_columns;
 };
 

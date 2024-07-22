@@ -8,8 +8,8 @@
 // * encapsulates arbitrary array types into a single realized type that
 //   can be used in compiled code interfaces
 
-#ifndef ZuMArray_HH
-#define ZuMArray_HH
+#ifndef ZuVArray_HH
+#define ZuVArray_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
@@ -20,7 +20,7 @@
 #include <zlib/ZuFmt.hh>
 #include <zlib/ZuIterator.hh>
 
-namespace ZuMArray_ {
+namespace ZuVArray_ {
 
 template <typename Array_, typename Elem_>
 class Iterator : public ZuIterator<Iterator<Array_, Elem_>, Array_, Elem_> {
@@ -82,7 +82,7 @@ class Array {
 public:
   using T = T_;
   using R = R_;
-  using Elem = ZuMArray_::Elem<Array>;
+  using Elem = ZuVArray_::Elem<Array>;
 
 friend Elem;
 
@@ -204,9 +204,9 @@ inline Elem<Array> &Elem<Array>::operator =(typename Elem<Array>::T v) {
   return *this;
 }
 
-} // ZuMArray_
+} // ZuVArray_
 
 template <typename T, typename R = T>
-using ZuMArray = ZuMArray_::Array<T, R>;
+using ZuVArray = ZuVArray_::Array<T, R>;
 
-#endif /* ZuMArray_HH */
+#endif /* ZuVArray_HH */

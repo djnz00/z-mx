@@ -8,7 +8,7 @@
 
 #include <zlib/ZtHexDump.hh>
 
-void ZtHexDump_::print(ZuMStream &s) const
+void ZtHexDump_::print(ZuVStream &s) const
 {
   if (ZuUnlikely(!m_data)) return;
 
