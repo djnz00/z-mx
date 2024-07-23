@@ -242,6 +242,7 @@ int main(int argc, char **argv)
     done.wait();
 
     orders->run([&id]{
+      static ZmSemaphore done_;
       orders->find<0>(ZuFwdTuple("IBM", id),
 	[&id](ZmRef<ZdbObject<Order>> o) {
 	  if (!o)
@@ -252,20 +253,21 @@ int main(int argc, char **argv)
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 	      s << "find(IBM, " << id << "): " << o->data();
 	    }));
-	  done.post();
+	  done_.post();
 	});
-      done.wait();
+      done_.wait();
       orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	using Key = ZuFieldKeyT<Order, 2>;
 	if (max.template is<Key>()) {
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): " << max.template p<Key>();
 	  }));
-	} else
+	} else {
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): EOR";
 	  }));
-	done.post();
+	  done.post();
+	}
       });
     });
 
@@ -296,7 +298,6 @@ int main(int argc, char **argv)
       done.wait();
     }
 
-    done.wait();
     if (id > 3) {
       orders->run([id = id - 3]{
 	orders->findDel<0>(ZuFwdTuple("IBM", id),

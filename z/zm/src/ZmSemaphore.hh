@@ -18,7 +18,10 @@
 
 class
 #ifndef _WIN32
+#ifdef __GNUC__
+#define ZmSemaphore_aligned
   __attribute__((aligned(Zm::CacheLineSize)))
+#endif
 #endif
   ZmSemaphore {
   ZmSemaphore(const ZmSemaphore &) = delete;
@@ -75,7 +78,9 @@ public:
 private:
 #ifndef _WIN32
   sem_t		m_sem;
+#ifdef ZmSemaphore_aligned
   char		m_pad_1[CacheLineSize - sizeof(sem_t)];
+#endif
 #else
   HANDLE	m_sem;
 #endif
