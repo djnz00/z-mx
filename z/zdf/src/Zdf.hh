@@ -45,51 +45,12 @@
 #include <zlib/Zdb.hh>
 
 #include <zlib/ZdfTypes.hh>
+#include <zlib/ZdfSchema.hh>
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
 #include <zlib/ZdfStore.hh>
 
-#include <zlib/zdb_dataframe_fbs.h>
-#include <zlib/zdb_series_fbs.h>
-#include <zlib/zdb_blk_fbs.h>
-
 namespace Zdf {
-
-enum { NameStrSize = 60 };
-using Name = ZuStringN<NameStrSize>;
-
-namespace DB {
-
-struct DataFrame {
-  uint32_t	id;
-  ZuDateTime	epoch;
-  Name		name;
-};
-ZfbFields(DataFrame,
-  (((id),	(Ctor<0>, Keys<0>)),		(UInt32)),
-  (((name),	(Ctor<2>, Keys<1>)),		(String)),
-  (((epoch),	(Ctor<1>)),			(DateTime)));
-
-struct Series {
-  uint32_t	dfID;
-  uint32_t	id;
-  Name		name;
-};
-ZfbFields(Series,
-  (((dfID),	(Ctor<0>, Keys<0>, Group<0>)),	(UInt32)),
-  (((id),	(Ctor<1>, Keys<0>)),		(String)),
-  (((name),	(Ctor<2>, Keys<1>)),		(DateTime)));
-
-struct Blk {
-  uint32_t	seriesID;
-  uint32_t	blkID;
-  uint64_t	offset;
-  int64_t	last;
-  uint16_t	count;
-  uint8_t	ndp;
-};
-ZfbFields(Blk,
-  (((seriesID),	(Ctor<0>, Keys<0>, Group<0>),	(
 
 // typedefs for (de)encoders
 using AbsDecoder = ZdfCompress::Decoder;
