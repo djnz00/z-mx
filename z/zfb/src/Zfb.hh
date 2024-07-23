@@ -89,7 +89,8 @@ public:
 
 protected:
   uint8_t *allocate(size_t size) {
-    if (ZuUnlikely(!m_buf)) return nullptr;
+    if (ZuUnlikely(!m_buf))
+      m_buf = new ZiIOBufAlloc<>{};
     return m_buf->alloc(size);
   }
 
