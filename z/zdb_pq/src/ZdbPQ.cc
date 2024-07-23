@@ -72,11 +72,12 @@ OIDs::OIDs()
   m_names = names;
 }
 
-InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
+InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid, FailFn failFn)
 {
   m_cf = cf;
   m_mx = mx;
   m_zdbSID = sid;
+  m_failFn = ZuMv(failFn);
 
   bool replicated;
 
@@ -108,6 +109,7 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid)
 
 void Store::final()
 {
+  m_failFn = FailFn{};
   m_storeTbls->clean();
   m_storeTbls = nullptr;
 }
@@ -137,12 +139,25 @@ static ZtString connError(PGconn *conn)
   return error;
 }
 
-static void notice(void *, const PGresult *res) {
-  ZeLOG(Info, ([msg = ZtString{PQresultErrorMessage(res)}](auto &s) mutable {
-    msg.chomp();
-    ZtREGEX("^NOTICE:\s+").s(msg, "");
-    s << msg;
-  }));
+static void notice_(void *this_, const PGresult *res) {
+  static_cast<Store *>(this_)->notice(res);
+}
+
+void Store::notice(const PGresult *res) {
+  ZtString msg = PQresultErrorMessage(res);
+
+  msg.chomp();
+  ZtREGEX("^NOTICE:\s+").s(msg, "");
+
+  if (PQstatus(m_conn) != CONNECTION_OK) {
+    auto e = connError(m_conn);
+    auto event = ZeVEVENT(Fatal, ([msg = ZuMv(msg), e](auto &s, const auto &) {
+      s << msg << " (" << e << ')';
+    }));
+    m_failFn(ZuMv(event));
+  }
+
+  ZeLOG(Info, ([msg = ZuMv(msg)](auto &s) { s << msg; }));
 }
 
 bool Store::start_()
@@ -160,7 +175,7 @@ bool Store::start_()
     return false;
   }
 
-  PQsetNoticeReceiver(m_conn, notice, nullptr);
+  PQsetNoticeReceiver(m_conn, notice_, this);
 
   m_connFD = PQsocket(m_conn);
 
@@ -375,8 +390,8 @@ void Store::run_()
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
-  // "prime the pump" to ensure that write-readiness is
-  // correctly signalled via epoll or WFMO
+  // "prime the pump" to ensure that read- and write-readiness is
+  // correctly signalled via epoll / WFMO
   send();
   recv();
 
@@ -464,6 +479,19 @@ again:
 #endif
 
   }
+}
+
+// simulate connection failure, for testing purposes only
+void Store::disconnect()
+{
+#ifndef _WIN32
+  if (m_connFD >= 0) { ::close(m_connFD); m_connFD = -1; }
+#else
+  if (m_connFD != (HANDLE)-1) {
+    CloseHandle(m_connFD);
+    m_connFD = -1;
+  }
+#endif
 }
 
 void Store::recv()
@@ -1140,9 +1168,10 @@ StoreTbl::StoreTbl(
     unsigned m = m_keyFields[i].length();
     new (m_xKeyFields.push()) XFields{m};
     m_keyGroup[i] = 0;
+    unsigned k = 0; // number of descending fields in key
     for (unsigned j = 0; j < m; j++) {
-      if (m_keyFields[i][j]->group & (uint64_t(1)<<i))
-	m_keyGroup[i] = j + 1;
+      if (m_keyFields[i][j]->group & (uint64_t(1)<<i)) m_keyGroup[i] = j + 1;
+      if (m_keyFields[i][j]->descend & (uint64_t(1)<<i)) k++;
       ZtCase::camelSnake(m_keyFields[i][j]->id,
 	[this, fbFields_, i, j](const ZtString &id) {
 	  m_xKeyFields[i].push(xField(fbFields_, m_keyFields[i][j], id));
@@ -1152,6 +1181,10 @@ StoreTbl::StoreTbl(
 	  }
 	});
     }
+    if (k > 0 && k < m)
+      ZeLOG(Warning, ([id, i](auto &s) {
+	s << id << " key " << i << " has mixed ascending/descending fields";
+      }));
   }
 }
 
@@ -1510,10 +1543,27 @@ int StoreTbl::mkIndices_send()
     const auto &keyFields = m_keyFields[keyID];
     const auto &xKeyFields = m_xKeyFields[keyID];
     unsigned n = xKeyFields.length();
+    // determine if index is a mix of multiple ascending and descending fields
+    unsigned j = 0; // count of descending fields in key
+    for (unsigned i = 0; i < n; i++)
+      if (keyFields[i]->descend & (uint64_t(1)<<keyID)) j++;
+    bool mixed = j > 0 && j < n;
     for (unsigned i = 0; i < n; i++) {
       if (i) query << ", ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtVFieldProp::Descend()) query << " DESC";
+      // if mixed, the index itself needs to be descending for this column
+      // - Postgres optimizes appending at the tail, but not inserting
+      //   at the head; while descending fields are queried in that order
+      //   (sequence numbers, integer IDs, etc.), they are rarely if ever
+      //   inserted in descending order
+      // - meanwhile B-Tree indices query just as efficiently in either
+      //   direction as long as the select direction is consistent among the
+      //   columns comprising the index, but if the directions are mixed
+      //   then the column should be specified as descending:
+      // - inserting in the opposite direction to the index costs ~60% more
+      //   CPU time (as of Postgres v16, 2024)
+      if (mixed && (keyFields[i]->descend & (uint64_t(1)<<keyID)))
+	query << " DESC";
     }
     query << ")";
     return m_store->sendQuery<SendState::Sync>(query, Tuple{});
@@ -1728,7 +1778,7 @@ int StoreTbl::prepSelect_send()
       else
 	query << " AND ";
       query << '"' << xKeyFields[i].id_ << '"';
-      if (keyFields[i]->props & ZtVFieldProp::Descend()) {
+      if (keyFields[i]->descend & (uint64_t(1)<<keyID)) {
 	if (m_openState.phase() == OpenState::PrepSelectKNI ||
 	    m_openState.phase() == OpenState::PrepSelectRNI) // inclusive
 	  query << "<=";
@@ -1748,7 +1798,7 @@ int StoreTbl::prepSelect_send()
   for (i = k; i < n; i++) {
     if (i > k) query << ", ";
     query << '"' << xKeyFields[i].id_ << '"';
-    if (keyFields[i]->props & ZtVFieldProp::Descend())
+    if (keyFields[i]->descend & (uint64_t(1)<<keyID))
       query << " DESC";
   }
   query << " LIMIT $" << (oids.length() + 1) << "::uint8";

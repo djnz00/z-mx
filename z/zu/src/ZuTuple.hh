@@ -761,9 +761,17 @@ constexpr const T &&get(const Tuple<Ts...> &&p) noexcept {
 #define ZuTuple_FieldFn(N, args) \
   ZuPP_Defer(ZuTuple_FieldFn_)()(N, ZuPP_Strip(args))
 #define ZuTuple_FieldFn_() ZuTuple_FieldFn__
+// decltype(auto) here causes problems, need explicit deduction of return type
 #define ZuTuple_FieldFn__(N, type, fn) \
-  const auto &fn() const { return this->template p<N>(); } \
-  auto &fn() { return this->template p<N>(); } \
+  decltype(ZuDeclVal<const Tuple &>().Tuple::template p<N>()) fn() const & { \
+    return this->Tuple::template p<N>(); \
+  } \
+  decltype(ZuDeclVal<Tuple &>().Tuple::template p<N>()) fn() & { \
+    return this->Tuple::template p<N>(); \
+  } \
+  decltype(ZuDeclVal<Tuple &&>().Tuple::template p<N>()) fn() && { \
+    return ZuMv(ZuMv(*this).Tuple::template p<N>()); \
+  } \
   template <typename P> \
   auto &fn(P &&v) { this->template p<N>(ZuFwd<P>(v)); return *this; }
 
@@ -787,7 +795,6 @@ public: \
     return *this; \
   } \
   ZuPP_Eval(ZuPP_MapIndex(ZuTuple_FieldFn, 0, __VA_ARGS__)) \
-  friend ZuTraits<Tuple> ZuTraitsType(Type *); \
 }
 
 #endif /* ZuTuple_HH */

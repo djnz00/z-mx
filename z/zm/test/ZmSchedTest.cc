@@ -248,7 +248,7 @@ int main(int argc, char **argv)
 
   s.stop();
 
-  ZmBackoff o(ZuTime(.25), ZuTime(5), 1.25, .25);
+  ZmBackoff o(.25, 5, 1.25, .25);
 
   s.start();
 

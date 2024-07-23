@@ -1,7 +1,7 @@
 include "zfb_types.fbs";
 namespace Zdf.fbs;
 table DataFrame {
-  id:uint64;
+  id:uint32;
   name:string;
   epoch:Zfb.DateTime;
 }

@@ -121,7 +121,7 @@ int main()
 	  }));
 	  done.post();
 	},
-	.downFn = [](Zdb *) {
+	.downFn = [](Zdb *, bool) {
 	  ZeLOG(Info, "INACTIVE");
 	}
     }, store);
@@ -208,7 +208,7 @@ int main()
 	    s << "ACTIVE (was " << id << ')';
 	  }));
 	},
-	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+	.downFn = [](Zdb *, bool) { ZeLOG(Info, "INACTIVE"); }
     }, store);
 
     orders = db->initTable<Order>("order"); // might throw

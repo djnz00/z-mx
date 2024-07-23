@@ -195,13 +195,14 @@ namespace ZtFieldTypeCode {
 namespace ZuFieldProp {
   // group key IDs
   template <unsigned ...KeyIDs> struct Group { };
+  // descending key IDs
+  template <unsigned ...KeyIDs> struct Descend { };
 
   struct Synthetic { };		// synthetic (implies read-only)
   struct Mutable { };		// include in updates
   struct Hidden { };		// do not print
   struct Hex { };		// print hex value
   struct Required { };		// required - do not default
-  struct Descend { };		// descending key
   struct Series { };		// data series column
   struct Index { };		// - index (e.g. time, nonce, offset, seq#)
   struct Delta { };		// - first derivative
@@ -215,6 +216,9 @@ namespace ZuFieldProp {
   // get group key IDs
   template <typename Props>
   using GetGroup = GetSeq<Props, Group>;
+  // get descending key IDs
+  template <typename Props>
+  using GetDescend = GetSeq<Props, Descend>;
 
   // IsGroup<Props, KeyID> - is this field in the group part of key KeyID?
   template <typename Props, unsigned KeyID>
@@ -354,7 +358,6 @@ namespace ZtVFieldProp {
     Hidden,
     Hex,
     Required,
-    Descend,
     Series,
     Index,
     Delta,
@@ -383,7 +386,6 @@ namespace ZtVFieldProp {
   template <> struct Value_<_::Hidden>    { using T = Constant<Hidden()>; };
   template <> struct Value_<_::Hex>       { using T = Constant<Hex()>; };
   template <> struct Value_<_::Required>  { using T = Constant<Required()>; };
-  template <> struct Value_<_::Descend>   { using T = Constant<Descend()>; };
   template <> struct Value_<_::Series>    { using T = Constant<Series()>; };
   template <> struct Value_<_::Index>     { using T = Constant<Index()>; };
   template <> struct Value_<_::Delta>     { using T = Constant<Delta()>; };
@@ -867,6 +869,7 @@ struct ZtVField {
   ZtVFieldProp::T	props;
   uint64_t		keys;
   uint64_t		group;
+  uint64_t		descend;
   int16_t		ctor;	// -1 if not a constructor parameter
   int8_t		ndp;	// defaults to sentinel null
 
@@ -882,6 +885,7 @@ struct ZtVField {
       props{Field::mprops()},
       keys{ZuSeqBitmap<ZuFieldProp::GetKeys<typename Field::Props>>()},
       group{ZuSeqBitmap<ZuFieldProp::GetGroup<typename Field::Props>>()},
+      descend{ZuSeqBitmap<ZuFieldProp::GetDescend<typename Field::Props>>()},
       ctor{ZtVFieldProp::GetCtor<typename Field::Props>{}},
       ndp{ZtVFieldProp::GetNDP<typename Field::Props>{}},
       get{Field::getFn()},
@@ -907,7 +911,9 @@ struct ZtVField {
       if (props & ~ZtVFieldProp::NDP()) s << '|';
       s << "NDP(" << int(ndp) << ')';
     }
-    s << " keys=" << ZuBoxed(keys).hex();
+    s << " keys=" << *reinterpret_cast<const ZuBitmap<64> *>(&keys);
+    s << " group=" << *reinterpret_cast<const ZuBitmap<64> *>(&group);
+    s << " descend=" << *reinterpret_cast<const ZuBitmap<64> *>(&descend);
   }
   friend ZuPrintLambda<[]() {
     return [](auto &s, const auto &v) { v.print_(s); };

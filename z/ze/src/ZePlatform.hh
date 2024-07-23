@@ -377,7 +377,7 @@ auto ZeMkEvent(
 
 // make a non-polymorphic ZeEvent
 template <typename Msg>
-ZeVEvent ZeMkMEvent(
+ZeVEvent ZeMkVEvent(
     int severity_,
     const char *file_, int line_,
     const char *function_, Msg &&msg) {
@@ -386,7 +386,7 @@ ZeVEvent ZeMkMEvent(
       ZeMsg_::fn(ZuFwd<Msg>(msg)));
 }
 #define ZeVEVENT_(sev, msg) \
-  ZeMkMEvent(sev, __FILE__, __LINE__, ZuFnName, msg)
+  ZeMkVEvent(sev, __FILE__, __LINE__, ZuFnName, msg)
 #define ZeVEVENT(sev, msg) ZeVEVENT_(Ze:: sev, msg)
 
 namespace Ze {

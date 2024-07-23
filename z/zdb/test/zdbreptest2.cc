@@ -74,7 +74,7 @@ int main()
       "tables {\n"
       "  order { thread 4 writeThread 5 }\n"
       "}\n"
-      "debug 1\n"
+      "debug 0\n"
       "dbMx {\n"
       "  nThreads 6\n"
       "  threads {\n"
@@ -133,7 +133,7 @@ int main()
 	  }));
 	  if (db_ == db[1]) done.post();
 	},
-	.downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+	.downFn = [](Zdb *, bool) { ZeLOG(Info, "INACTIVE"); }
       }, store[i]);
 
       orders[i] = db[i]->initTable<Order>("order"); // might throw
@@ -176,6 +176,17 @@ int main()
 	  o->commit();
 	  done.post();
 	});
+	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
+	  using Key = ZuFieldKeyT<Order, 2>;
+	  if (max.template is<Key>())
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "#1 maximum(FIX0): " << max.template p<Key>();
+	    }));
+	  else
+	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	      s << "#1 maximum(FIX0): EOR";
+	    }));
+	});
       });
 
       done.wait();
@@ -199,11 +210,11 @@ int main()
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): " << max.template p<Key>();
+	      s << "#2 maximum(FIX0): " << max.template p<Key>();
 	    }));
 	  else
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): EOR";
+	      s << "#2 maximum(FIX0): EOR";
 	    }));
 	  done_.post();
 	});
@@ -244,11 +255,11 @@ int main()
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): " << max.template p<Key>();
+	      s << "#3 maximum(FIX0): " << max.template p<Key>();
 	    }));
 	  else
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): EOR";
+	      s << "#3 maximum(FIX0): EOR";
 	    }));
 	  done_.post();
 	});
@@ -265,7 +276,7 @@ int main()
     appMx->stop();
     dbMx->stop();
 
-    ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+    // ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
     for (unsigned i = 0; i < 2; i++) {
       orders[i] = {};

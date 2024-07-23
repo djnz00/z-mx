@@ -140,6 +140,16 @@
 #endif
 #endif
 
+// FAQ: why no namespace?
+// - consistency with pre-processor macro name-scoping
+// - intentional use of prefixes with low collision probability (Zu, Zt, ...)
+// - a short prefix has higher expressive density (Zu vs Zu::)
+// - no uncontrolled large-scale naming imports, "using namespace Zu"
+// - mitigation of C++ name-mangling bloat with heavily templated code
+// - intentional design preference for small focused namespaces
+//   - Zxx namespaces exist where useful in context (ZuFmt, Ztel, Ztls, ...)
+//   - Zxx_ namespaces for internals (ZtWindow_, Zdb_, ...)
+
 // std::remove_reference without dragging in STL cruft
 template <typename T_>
 struct ZuDeref_ { using T = T_; };
@@ -221,7 +231,7 @@ template <typename L> struct ZuGuard {
       static_cast<const void *>(this); \
   }
 
-// generic binding of universal reference parameter for move/copy
+// generic binding of universal references for move/copy
 // ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
 template <typename T_> struct ZuBind {
   using T = ZuDecay<T_>;
@@ -258,7 +268,8 @@ template <typename T1, typename T2> struct ZuIf_<T1, T2, false> {
 template <bool B, typename T1, typename T2>
 using ZuIf = typename ZuIf_<T1, T2, B>::T;
 
-// compile-time SFINAE (substitution failure is not an error)
+// alternative for std::enable_if
+// - compile-time SFINAE (substitution failure is not an error)
 // ZuIfT<bool B, typename T = void> evaluates to T (default void)
 // if B is true, or is a substitution failure if B is false
 template <bool, typename U = void> struct ZuIfT_ { };
@@ -423,8 +434,8 @@ inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
 
-// self-referential lambdas
-
+// self-referential / recursive lambdas
+// - ZuLambda{[int i = 10](auto &&self) mutable { if (--i >= 0) self(); }}();
 template <typename L>
 struct ZuLambda {
   L lambda;
@@ -448,7 +459,8 @@ template <typename L> ZuLambda(L) -> ZuLambda<L>;
 
 // generic underlying type access for wrapper types with a cast operator
 // (used with ZuBox, ZuBigEndian, C++ enum classes, etc.)
-
+// - ZuUnder<T>
+#ifdef __GNUC__
 template <typename U, bool = __is_enum(U)>
 struct ZuUnder__ {
   using T = U;
@@ -457,6 +469,9 @@ template <typename U>
 struct ZuUnder__<U, true> {
   using T = __underlying_type(U);
 };
+#else
+template <typename U> struct ZuUnder__ { using T = U; };
+#endif
 struct ZuUnder_AsIs { };
 ZuUnder_AsIs ZuUnderType(...);
 template <typename U, typename V = decltype(ZuUnderType(ZuDeclVal<U *>()))>

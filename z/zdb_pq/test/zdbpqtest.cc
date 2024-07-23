@@ -49,11 +49,12 @@ void usage()
   static const char *help =
     "Usage: zdbpqtest [OPTION]...\n\n"
     "Options:\n"
-    "      --help\tthis help\n"
-    "  -m, --module=MODULE\n"
-      "\t\tspecify data store module (default: $ZDB_MODULE)\n"
-    "  -c, --connect=CONNECT\n"
-      "\t\tspecify data store connection (default: $ZDB_CONNECT)\n"
+    "      --help\t\tthis help\n"
+    "  -m, --module=MODULE\tspecify data store module (default: $ZDB_MODULE)\n"
+    "  -c, --connect=CONNECT\t"
+      "specify data store connection (default: $ZDB_CONNECT)\n"
+    "  -d, --debug\t\tenable Zdb debug logging\n"
+    "  -t, --hash-tel\toutput hash table telemetry CSV at exit\n"
     ;
 
   std::cerr << help << std::flush;
@@ -76,6 +77,8 @@ int main(int argc, char **argv)
     ZmRef<ZvCf> options = inlineCf(
       "module m m { param store.module }\n"
       "connect c c { param store.connection }\n"
+      "debug d d { flag debug }\n"
+      "hash-tel t t { flag hashTel }\n"
       "help { flag help }\n");
 
       // "  module ../src/.libs/libZdbPQ.so\n"
@@ -96,7 +99,6 @@ int main(int argc, char **argv)
       "tables {\n"
       "  order { }\n"
       "}\n"
-      "debug 1\n"
       "dbMx {\n"
       "  nThreads 4\n"
       "  threads {\n"
@@ -157,7 +159,7 @@ int main(int argc, char **argv)
 	  s << "ACTIVE (was " << id << ')';
 	}));
       },
-      .downFn = [](Zdb *) { ZeLOG(Info, "INACTIVE"); }
+      .downFn = [](Zdb *, bool) { ZeLOG(Info, "INACTIVE"); }
     });
 
     orders = db->initTable<Order>("order"); // might throw
@@ -294,6 +296,7 @@ int main(int argc, char **argv)
       done.wait();
     }
 
+    done.wait();
     if (id > 3) {
       orders->run([id = id - 3]{
 	orders->findDel<0>(ZuFwdTuple("IBM", id),
@@ -320,7 +323,8 @@ int main(int argc, char **argv)
     appMx->stop();
     dbMx->stop();
 
-    ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+    if (cf->getBool("hashTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
     orders = {};
     db->final(); // calls Store::final()

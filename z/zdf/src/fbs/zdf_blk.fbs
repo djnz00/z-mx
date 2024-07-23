@@ -1,15 +1,16 @@
 // include "zfb_types.fbs";
 namespace Zdf.fbs;
-table Hdr {
-  series_i_d:uint64;	// series ID
+table Blk {
+  series_i_d:uint32;	// series ID
+  id:uint32;		// block index within series (from 0)
   offset:uint64;	// offset of this block (in values)
   last:int64;		// last value in block
-  blk_index:uint32;	// block index (from 0)
   count:uint16;		// count of values in block
   ndp:uint8;		// NDP for this block
 }
-table Blk {
-  hdr:Hdr;
+table BlkData {
+  series_i_d:uint32;	// series ID
+  id:uint32;		// block index within series (from 0)
   data:[uint8];		// 4K of compressed data
 }
 root_type Blk;

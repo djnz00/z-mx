@@ -58,7 +58,7 @@ class ZuStringN_ {
   ZuStringN_(const ZuStringN_ &);
   ZuStringN_ &operator =(const ZuStringN_ &);
 
-  ZuAssert(N >= 1);
+  ZuAssert(N >= 1 && N < 65536);
   enum { M = N - 1 };
 
 public:
@@ -441,11 +441,12 @@ public:
   using Nop = Base::Nop;
 
 private:
-  // an unsigned|int|size_t parameter to the constructor is a buffer length
-  template <typename U> struct IsCtorLength :
-    public ZuBool<ZuInspect<U, unsigned>::Same ||
-      ZuInspect<U, int>::Same ||
-      ZuInspect<U, size_t>::Same> { };
+  // an integer parameter to the constructor is a buffer size
+  // - except for character element types
+  template <typename U, typename V = Char>
+  struct IsCtorLength : public ZuBool<
+    ZuTraits<U>::IsIntegral &&
+    (sizeof(U) > 2 || !ZuIsExact<ZuNormChar<V>, ZuNormChar<U>>{})> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
@@ -516,8 +517,8 @@ public:
   }
 
   // length
-  template <typename L, decltype(MatchCtorLength<L>(), int()) = 0>
-  ZuStringN(L l) : Base{l} { }
+  template <typename V, decltype(MatchCtorLength<V>(), int()) = 0>
+  ZuStringN(V n) : Base{unsigned(n)} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuStringN *);
@@ -542,11 +543,12 @@ public:
   using Nop = Base::Nop;
 
 private:
-  // an unsigned|int|size_t parameter to the constructor is a buffer length
-  template <typename U> struct IsCtorLength :
-    public ZuBool<ZuInspect<U, unsigned>::Same ||
-      ZuInspect<U, int>::Same ||
-      ZuInspect<U, size_t>::Same> { };
+  // an integer parameter to the constructor is a buffer size
+  // - except for character element types
+  template <typename U, typename V = Char>
+  struct IsCtorLength : public ZuBool<
+    ZuTraits<U>::IsIntegral &&
+    (sizeof(U) > 2 || !ZuIsExact<ZuNormChar<V>, ZuNormChar<U>>{})> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
@@ -618,8 +620,8 @@ public:
   }
 
   // length
-  template <typename L, decltype(MatchCtorLength<L>(), int()) = 0>
-  ZuWStringN(L l) : Base{l} { }
+  template <typename V, decltype(MatchCtorLength<V>(), int()) = 0>
+  ZuWStringN(V n) : Base{unsigned(n)} { }
 
   // traits
   friend typename Base::Traits ZuTraitsType(ZuWStringN *);

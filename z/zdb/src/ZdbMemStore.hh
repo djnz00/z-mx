@@ -1169,7 +1169,7 @@ public:
       unsigned m = keyFields[i].length();
       ZmAssert(m < 64);
       for (unsigned j = 0; j < m; j++)
-	if (keyFields[i][j]->props & ZtVFieldProp::Descend())
+	if (keyFields[i][j]->descend & (uint64_t(1)<<i))
 	  descending |= (uint64_t(1)<<j);
       new (m_indices.push()) Index{TupleCmp<>{descending}};
     }
@@ -1280,6 +1280,7 @@ public:
     unsigned keyID, ZmRef<const IOBuf> buf,
     unsigned limit, TupleFn tupleFn)
   {
+    ZeLOG(Debug, ([](auto &s) { }));
     ZmAssert(keyID < m_indices.length());
 
     const auto &keyFields = m_keyFields[keyID];
@@ -1359,6 +1360,7 @@ public:
   }
 
   void insert(ZmRef<MemRow> row, ZmRef<const IOBuf> buf, CommitFn commitFn) {
+    ZeLOG(Debug, ([](auto &s) { }));
     m_maxUN = row->un, m_maxSN = row->sn;
     unsigned n = m_keyFields.length();
     for (unsigned i = 0; i < n; i++) {
@@ -1482,16 +1484,20 @@ class Store_ : public Zdb_::Store {
   using StoreTblNode = typename StoreTbls::Node;
 
 public:
-  InitResult init(ZvCf *, ZiMultiplex *, unsigned) {
+  InitResult init(ZvCf *, ZiMultiplex *, unsigned, FailFn failFn) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
+    m_failFn = ZuMv(failFn);
     return {InitData{.replicated = false}};
   }
   void final() {
+    m_failFn = FailFn{};
     if (!m_preserve) {
       m_storeTbls->clean();
       m_storeTbls = nullptr;
     }
   }
+
+  void fail(ZeVEvent e) { m_failFn(ZuMv(e)); } // simulate async store failure
 
   void preserve() { m_preserve = true; }
 
@@ -1525,6 +1531,7 @@ public:
 
 private:
   ZmRef<StoreTbls>	m_storeTbls;
+  FailFn		m_failFn;
   bool			m_preserve = false;
 };
 

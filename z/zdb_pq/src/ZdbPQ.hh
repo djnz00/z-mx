@@ -1881,7 +1881,7 @@ using StoreTbls =
 
 class Store : public Zdb_::Store {
 public:
-  InitResult init(ZvCf *, ZiMultiplex *, unsigned sid);
+  InitResult init(ZvCf *, ZiMultiplex *, unsigned sid, FailFn failFn);
   void final();
 
   void start(StartFn);
@@ -1896,6 +1896,8 @@ public:
     OpenFn openFn);
 
   bool stopping() const { return m_stopFn; }
+
+  void notice(const PGresult *); // async notice from libpq
 
   void enqueue(Work::Task task);
 
@@ -1921,6 +1923,8 @@ public:
     const ZtString &query, const ZtString &id, ZuArray<unsigned> oids);
   template <int State>
   int sendPrepared(const ZtString &id, const Tuple &params);
+
+  void disconnect(); // simulate connection failure
 
 private:
   bool start_();
@@ -1969,6 +1973,7 @@ private:
   ZiMultiplex		*m_mx = nullptr;
   unsigned		m_zdbSID = ZuCmp<unsigned>::null();
   unsigned		m_pqSID = ZuCmp<unsigned>::null();
+  FailFn		m_failFn;
 
   ZmRef<StoreTbls>	m_storeTbls;
 

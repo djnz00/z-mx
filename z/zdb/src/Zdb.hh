@@ -105,11 +105,6 @@ struct ZdbBufSize : public ZuUnsigned<Zdb_::DefltBufSize> { };
 
 namespace Zdb_ {
 
-// --- DLQ block sizes
-
-enum { FindDLQ_BlkSize = 128 };
-enum { StoreDLQ_BlkSize = 128 };
-
 // --- pre-declarations
 
 class DB;				// database
@@ -511,8 +506,6 @@ friend Cxn_;
 friend AnyObject;
 friend Record_Print;	// uses objPrintFB
 
-  using StoreDLQ = ZmXRing<ZmRef<const IOBuf>>;
-
 protected:
   AnyTable(DB *db, TableCf *cf, IOBufAllocFn);
 
@@ -620,16 +613,15 @@ protected:
   void evictBuf(UN un);
 
   // outbound replication / write to backing data store
-  void write(ZmRef<const IOBuf> buf);
+  void write(ZmRef<const IOBuf> buf, bool active);
 
   // maintain record count
   void incCount() { ++m_count; }
   void decCount() { --m_count; }
 
 private:
-  // low-level write to backing data store - write thread
+  // low-level write to backing data store
   void store(ZmRef<const IOBuf> buf);
-  void retryStore_();			// retry on timer
   void store_(ZmRef<const IOBuf> buf);
 
   // outbound recovery / replication
@@ -671,7 +663,6 @@ private:
 
   // backing data store table
   StoreTbl		*m_storeTbl = nullptr;	// DB thread
-  StoreDLQ		m_storeDLQ;		// store() dead letter queue
 
   // object cache indexed by UN
   bool			m_writeCache = true;
@@ -846,13 +837,6 @@ public:
   ZuAssert(KeyIDs::N < maxKeys());
 
 private:
-  // need one find DLQ for each Key
-  template <typename Key>
-  using FindDLQ = ZmXRing<ZmRef<Find<T, Key>>>;
-  template <typename Key>
-  using FindDLQPtr = ZuPtr<FindDLQ<Key>>;
-  using FindDLQs = ZuTypeApply<ZuTuple, ZuTypeMap<FindDLQPtr, ZuFieldKeys<T>>>;
-
   // - grouping key for a KeyID
   template <unsigned KeyID>
   using GroupKey = typename SplitKey<T, KeyID>::GroupKey;
@@ -863,13 +847,7 @@ private:
 public:
   static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
 
-  Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} {
-    ZuUnroll::all<KeyIDs>([this](auto KeyID) {
-      m_findDLQs.template p<ZuTypeIndex<Key<KeyID>, Keys>{}>(
-	new FindDLQ<Key<KeyID>>{
-	  ZmXRingParams{}.initial(FindDLQ_BlkSize).increment(FindDLQ_BlkSize)});
-    });
-  }
+  Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} { }
   ~Table() = default;
 
   // buffer allocator
@@ -1264,7 +1242,7 @@ private:
 	decCount();
 	break;
     }
-    write(object->replicate(int(fbs::Body::Replication)));
+    write(object->replicate(int(fbs::Body::Replication)), true);
     return true;
   }
 
@@ -1301,9 +1279,6 @@ private:
 
   // pending replications
   BufCache<T>			m_bufCache;
-
-  // find DLQs
-  FindDLQs			m_findDLQs;	// find() dead letter queues
 };
 
 template <typename T>
@@ -1328,7 +1303,7 @@ using Tables =
 
 struct HostCf {
   ZuID		id;
-  unsigned	priority = 0;
+  int		priority = 0;	// -1 is used internally for a failed host
   ZiIP		ip;
   uint16_t	port = 0;
   bool		standalone = false;
@@ -1369,7 +1344,7 @@ public:
   const HostCf &config() const { return *m_cf; }
 
   ZuID id() const { return m_cf->id; }
-  unsigned priority() const { return m_cf->priority; }
+  int priority() const { return m_cf->priority; }
   bool standalone() const { return m_cf->standalone; }
   ZiIP ip() const { return m_cf->ip; }
   uint16_t port() const { return m_cf->port; }
@@ -1392,7 +1367,7 @@ public:
   friend ZuPrintFn ZuPrintType(Host *);
 
   static ZuID IDAxor(const Host &h) { return h.id(); }
-  static ZuTuple<unsigned, ZuID> IndexAxor(const Host &h) {
+  static ZuTuple<int, ZuID> IndexAxor(const Host &h) {
     return ZuFwdTuple(h.priority(), h.id());
   }
 
@@ -1462,11 +1437,11 @@ using Hosts =
 // UpFn() - activate
 typedef void (*UpFn)(DB *, Host *); // db, oldMaster
 // DownFn() - de-activate
-typedef void (*DownFn)(DB *);
+typedef void (*DownFn)(DB *, bool); // db, failed
 
 struct DBHandler {
   UpFn		upFn = [](DB *, Host *) { };
-  DownFn	downFn = [](DB *) { };
+  DownFn	downFn = [](DB *, bool failed) { };
 };
 
 // --- DB configuration
@@ -1613,6 +1588,9 @@ public:
   // backing data store
   Store *store() const { return m_store; }
 
+  // trigger storage failure - intentionally deactivate
+  void fail();
+
   // find table
   ZmRef<AnyTable> table(ZuID id) {
     ZmAssert(invoked());
@@ -1628,6 +1606,11 @@ public:
   Zfb::Offset<void> telemetry(Zfb::Builder &fbb, bool update) const;
 
 private:
+  void storeFailed(ZeVEvent e) {
+    ZeLOG(Fatal, ZuMv(e));
+    fail();
+  }
+
   void allDone(bool ok);
 
   template <typename L> void all_(L l) const {
@@ -1658,11 +1641,11 @@ private:
 
   // leader election and activation/deactivation
   void holdElection();		// elect new leader
-  void deactivate();		// become client (following dup leader)
+  void deactivate(bool failed);	// become follower
   void reactivate(Host *host);	// re-assert leader
 
   void up_(Host *oldMaster);	// run up command
-  void down_();			// run down command
+  void down_(bool failed);	// run down command
 
   // host connection management
   void listen();
@@ -1898,23 +1881,7 @@ inline void Table<T>::retrieve(Key<KeyID> key, ZmFn<void(ZmRef<Object<T>>)> fn)
 
   auto context = ZmMkRef(new Context{this, ZuMv(key), ZuMv(fn)});
 
-  // DLQ draining in progress - just push onto the queue
-  auto &dlq = *(m_findDLQs.template p<KeyID>());
-  if (dlq.count_()) {
-    dlq.push(ZuMv(context));
-    return;
-  }
-
   retrieve_<KeyID>(ZuMv(context));
-}
-template <typename T>
-template <unsigned KeyID>
-void Table<T>::retryRetrieve_()
-{
-  auto &dlq = *(m_findDLQs.template p<KeyID>());
-
-  if (!dlq.count_()) return;
-  retrieve_<KeyID>(dlq.shift());
 }
 template <typename T>
 template <unsigned KeyID>
@@ -1930,13 +1897,14 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
   auto rowFn = RowFn::mvFn(ZuMv(context),
     [](ZmRef<Context> context, RowResult result) {
       auto table = context->table;
-      auto &dlq = *(table->m_findDLQs.template p<KeyID>());
       if (ZuUnlikely(result.is<Event>())) {
 	ZeLogEvent(ZuMv(result).p<Event>());
-	dlq.unshift(ZuMv(context)); // unshift, not push
-	table->run([table]() {
-	  table->template retryRetrieve_<KeyID>();
-	}, Zm::now(table->db()->config().retryFreq));
+	auto db = context->table->db();
+	ZeLOG(Fatal, ([context = ZuMv(context)](auto &s) {
+	  s << "Zdb find of " << context->table->id()
+	    << '/' << context->key << " failed";
+	}));
+	db->invoke([db]() { db->fail(); }); // trigger failover
 	return;
       }
       if (ZuLikely(result.is<RowData>())) {
@@ -1947,10 +1915,6 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 	  });
       } else
 	table->invoke([fn = ZuMv(context->fn)]() mutable { fn(nullptr); });
-      if (dlq.count_())
-	table->run([table]() {
-	  table->template retryRetrieve_<KeyID>();
-	});
     });
 
   storeTbl()->find(KeyID, ZuMv(keyBuf).constRef(), ZuMv(rowFn));

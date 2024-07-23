@@ -256,10 +256,20 @@ private:
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
   // an integer parameter to the constructor is a buffer size
+  // - except for character element types
   template <typename U, typename V = T>
-  struct IsCtorSize : public ZuBool<ZuTraits<U>::IsIntegral> { };
+  struct IsCtorSize : public ZuBool<
+    ZuTraits<U>::IsIntegral &&
+    (sizeof(U) > 2 || !ZuIsExact<ZuNormChar<V>, ZuNormChar<U>>{})> { };
   template <typename U, typename R = void>
   using MatchCtorSize = ZuIfT<IsCtorSize<U>{}, R>;
+  // disambiguate ZuBox<int>, etc.
+  template <typename U, typename R = void>
+  using MatchCtorPDelegate =
+    ZuIfT<bool(IsPDelegate<U>{}) && !IsCtorSize<U>{}, R>;
+  template <typename U, typename R = void>
+  using MatchCtorPBuffer =
+    ZuIfT<bool(IsPBuffer<U>{}) && !IsCtorSize<U>{}, R>;
 
   // construction from individual element
   template <typename U, typename V = T, typename W = Char2>
@@ -445,11 +455,11 @@ private:
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(m_data, o), s));
   }
 
-  template <typename P> MatchPDelegate<P> ctor(const P &p) {
+  template <typename P> MatchCtorPDelegate<P> ctor(const P &p) {
     null_();
     ZuPrint<P>::print(*this, p);
   }
-  template <typename P> MatchPBuffer<P> ctor(const P &p) {
+  template <typename P> MatchCtorPBuffer<P> ctor(const P &p) {
     unsigned o = ZuPrint<P>::length(p);
     if (!o) { null_(); return; }
     alloc_(o, 0);

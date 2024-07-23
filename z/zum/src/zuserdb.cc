@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 
     db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *) { },
-      .downFn = [](Zdb *) { }
+      .downFn = [](Zdb *, bool) { }
     });
 
     userDB.init(cf->getCf<true>("userdb"), mx, db);

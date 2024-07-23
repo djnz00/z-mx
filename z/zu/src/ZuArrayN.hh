@@ -573,11 +573,12 @@ public:
   struct Move { };
 
 private:
-  // an unsigned|int|size_t parameter to the constructor is a buffer length
-  template <typename U> struct IsCtorLength : public ZuBool<
-      ZuInspect<U, unsigned>::Same ||
-      ZuInspect<U, int>::Same ||
-      ZuInspect<U, size_t>::Same> { };
+  // an integer parameter to the constructor is a buffer size
+  // - except for character element types
+  template <typename U, typename V = T>
+  struct IsCtorLength : public ZuBool<
+    ZuTraits<U>::IsIntegral &&
+    (sizeof(U) > 2 || !ZuIsExact<ZuNormChar<V>, ZuNormChar<U>>{})> { };
   template <typename U, typename R = void>
   using MatchCtorLength = ZuIfT<IsCtorLength<U>{}, R>;
 
@@ -638,9 +639,9 @@ public:
   }
 
   // length
-  template <typename L, decltype(MatchCtorLength<L>(), int()) = 0>
-  ArrayN(L l, bool initItems = !ZuTraits<T>::IsPrimitive) :
-    Base(l, initItems) { }
+  template <typename V, decltype(MatchCtorLength<V>(), int()) = 0>
+  ArrayN(V n, bool initItems = !ZuTraits<T>::IsPrimitive) :
+    Base(n, initItems) { }
 
   // arrays as ptr, length
   template <typename A, decltype(ZuConvertible<A, T>(), int()) = 0>

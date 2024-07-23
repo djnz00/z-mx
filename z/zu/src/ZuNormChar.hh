@@ -9,8 +9,6 @@
 // char/signed char/unsigned char/int8_t/uint8_t -> char
 // wchar_t/short/unsigned short/int16_t/uint16_t -> wchar_t
 //
-// leaves cv-qualifiers intact and all other types unchanged
-//
 // 16bit types are left as-is if wchar_t is not 16bit
 
 #ifndef ZuNormChar_HH

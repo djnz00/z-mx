@@ -39,6 +39,9 @@ class StoreTbl;
 // monomorphic ZeEvent
 using Event = ZeVEvent;
 
+// failure notification
+using FailFn = ZmFn<void(Event)>;
+
 // result of store init()
 struct InitData {
   bool		replicated = false;	// replicated data store?
@@ -157,7 +160,8 @@ public:
   virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,
       ZiMultiplex *mx,
-      unsigned sid) = 0;		//  scheduler slot ID for callbacks
+      unsigned sid,			// scheduler slot ID for callbacks
+      FailFn failFn) = 0;		// asynchronous failure notification
   virtual void final() = 0;		// finalize data store - idempotent
 
   virtual void start(StartFn fn) { fn(StartResult{}); }

@@ -31,10 +31,10 @@ struct Data {
 };
 
 ZtFieldTbl(Data,
-    (((id)), (String), (Ctor(0))),
-    (((bits)), (UInt8), (Ctor(2))),
-    (((loadFactor)), (Float), (Ctor(1))),
-    (((cBits)), (UInt8), (Ctor(3))));
+    (((id),		(Ctor<0>, Keys<0>)),	(String)),
+    (((bits),		(Ctor<2>)),		(UInt8)),
+    (((loadFactor),	(Ctor<1>)),		(Float)),
+    (((cBits),		(Ctor<3>)),		(UInt8)));
 
 class CSV : public ZvCSV<Data> {
 public:

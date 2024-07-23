@@ -207,7 +207,7 @@ int main(int argc, char **argv)
 
     db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *) { },
-      .downFn = [](Zdb *) { }
+      .downFn = [](Zdb *, bool) { }
     });
 
     server->init(cf, mx, db);

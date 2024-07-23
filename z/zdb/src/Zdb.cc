@@ -113,7 +113,9 @@ void DB::init(
       }
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
-      InitResult result = m_store->init(m_cf.storeCf, m_mx, m_cf.sid);
+      InitResult result = m_store->init(
+	  m_cf.storeCf, m_mx, m_cf.sid,
+	  FailFn::Member<&DB::storeFailed>::fn(this));
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<InitData>().replicated;
     }
@@ -366,6 +368,7 @@ void DB::stop_3()
 
   state(HostState::Initialized);
 
+  // stop backing data store
   m_store->stop([this](StopResult result) {
     if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).p<Event>());
@@ -463,7 +466,7 @@ void DB::holdElection()
   if (won) {
     if (!appActive) up_(oldMaster);
   } else {
-    if (appActive) down_();
+    if (appActive) down_(false);
   }
 
   state(won ? Active : Inactive);
@@ -481,7 +484,19 @@ void DB::holdElection()
   }
 }
 
-void DB::deactivate()
+void DB::fail()
+{
+  ZmAssert(invoked());
+
+  if (!m_self) {
+    ZeLOG(Fatal, "DB::fail called out of order");
+    return;
+  }
+
+  deactivate(true);
+}
+
+void DB::deactivate(bool failed)
 {
   ZmAssert(invoked());
 
@@ -510,7 +525,7 @@ badorder:
   m_self->voted(true);
   m_appActive = false;
 
-  if (appActive) down_();
+  if (appActive) down_(failed);
 
   state(Inactive);
   setNext();
@@ -535,22 +550,13 @@ void DB::reactivate(Host *host)
 void DB::up_(Host *oldMaster)
 {
   ZeLOG(Info, "Zdb ACTIVE");
-  if (ZtString cmd = m_self->config().up) {
-    if (oldMaster) cmd << ' ' << oldMaster->config().ip;
-    ZeLOG(Info, ([cmd](auto &s) { s << "Zdb invoking \"" << cmd << '\"'; }));
-    ::system(cmd);
-  }
   m_handler.upFn(this, oldMaster);
 }
 
-void DB::down_()
+void DB::down_(bool failed)
 {
   ZeLOG(Info, "Zdb INACTIVE");
-  if (ZtString cmd = m_self->config().down) {
-    ZeLOG(Info, ([cmd](auto &s) { s << "Zdb invoking \"" << cmd << '\"'; }));
-    ::system(cmd);
-  }
-  m_handler.downFn(this);
+  m_handler.downFn(this, failed);
 }
 
 void DB::all(AllFn fn, AllDoneFn doneFn)
@@ -947,12 +953,12 @@ Host *DB::setMaster()
     }
   }
 
-  if (m_leader)
+  if (m_leader) {
     ZeLOG(Info, ([id = m_leader->id()](auto &s) {
       s << "Zdb host " << id << " is leader";
     }));
-  else
-    ZeLOG(Error, "Zdb leader election failed - hosts inconsistent");
+  } else
+    ZeLOG(Fatal, "Zdb leader election failed");
 
   return oldMaster;
 }
@@ -1302,7 +1308,7 @@ void DB::hbRcvd(Host *host, const fbs::Heartbeat *hb)
 	case Active:
 	  vote(host);
 	  if (host->cmp(m_self) > 0)
-	    deactivate();
+	    deactivate(false);
 	  else
 	    reactivate(host);
 	  return;
@@ -1464,8 +1470,6 @@ void DB::replicated(Host *host, ZuID dbID, UN un, SN sn)
 
 AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_db{db}, m_cf{cf}, m_mx{db->mx()},
-  m_storeDLQ{
-    ZmXRingParams{}.initial(StoreDLQ_BlkSize).increment(StoreDLQ_BlkSize)},
   m_cacheUN{new CacheUN{}},
   m_bufCacheUN{new BufCacheUN{}},
   m_bufAllocFn{ZuMv(fn)}
@@ -1516,7 +1520,7 @@ void AnyTable::repRecordRcvd(ZmRef<const IOBuf> buf)
   ZmAssert(invoked());
 
   recover(record_(msg_(buf->hdr())));
-  write(buf);
+  write(buf, false);
 }
 
 // process inbound replication - committed
@@ -1539,28 +1543,26 @@ void AnyTable::recover(const fbs::Record *record)
 }
 
 // outbound replication + persistency
-void AnyTable::write(ZmRef<const IOBuf> buf)
+void AnyTable::write(ZmRef<const IOBuf> buf, bool active)
 {
   ZmAssert(invoked());
 
   cacheBuf(buf);
-  m_db->invoke([this, buf = ZuMv(buf)]() mutable {
-    auto db = this->db();
-    if (ZuLikely(db->active()) || !db->repStore()) {
-      // leader, or follower without replicated data store - will
-      // evict buf when write to data store is committed
-      db->replicate(buf);
-      run([this, buf = ZuMv(buf)]() mutable { store(ZuMv(buf)); });
-    } else {
-      // follower with replicated data store - will evict buf
-      // when leader subsequently sends commit, unless message is recovery
-      auto msg = msg_(buf->hdr());
-      auto un = record_(msg)->un();
-      db->replicate(ZuMv(buf));
-      if (msg->body_type() == fbs::Body::Recovery)
-	invoke([this, un]() { evictBuf(un); });
-    }
-  });
+  auto db = this->db();
+  if (ZuLikely(active) || !db->repStore()) {
+    // leader, or follower without replicated data store - will
+    // evict buf when write to data store is committed
+    db->invoke([db, buf]() mutable { db->replicate(buf); });
+    store(ZuMv(buf));
+  } else {
+    // follower with replicated data store - will evict buf
+    // when leader subsequently sends commit, unless message is recovery
+    auto msg = msg_(buf->hdr());
+    auto un = record_(msg)->un();
+    bool recovery = msg->body_type() == fbs::Body::Recovery;
+    db->invoke([db, buf = ZuMv(buf)]() mutable { db->replicate(buf); });
+    if (recovery) invoke([this, un]() { evictBuf(un); });
+  }
 }
 
 // low-level internal write to backing data store
@@ -1570,18 +1572,7 @@ void AnyTable::store(ZmRef<const IOBuf> buf)
 
   ZmAssert(invoked());
 
-  // DLQ draining in progress - just push onto the queue
-  if (m_storeDLQ.count_()) {
-    m_storeDLQ.push(ZuMv(buf));
-    return;
-  }
-
   store_(ZuMv(buf));
-}
-void AnyTable::retryStore_()
-{
-  if (!m_storeDLQ.count_()) return;
-  store_(m_storeDLQ.shift());
 }
 void AnyTable::store_(ZmRef<const IOBuf> buf)
 {
@@ -1589,11 +1580,11 @@ void AnyTable::store_(ZmRef<const IOBuf> buf)
     if (ZuUnlikely(result.is<Event>())) {
       ZeLogEvent(ZuMv(result).p<Event>());
       auto un = record_(msg_(buf->hdr()))->un();
-      ZeLOG(Error, ([id = this->id(), un](auto &s) {
+      ZeLOG(Fatal, ([id = this->id(), un](auto &s) {
 	s << "Zdb store of " << id << '/' << un << " failed";
       }));
-      m_storeDLQ.unshift(ZuMv(buf)); // unshift, not push
-      run([this]() { retryStore_(); }, Zm::now(db()->config().retryFreq));
+      auto db = this->db();
+      db->invoke([db]() { db->fail(); }); // trigger failover
       return;
     }
     {
@@ -1604,7 +1595,6 @@ void AnyTable::store_(ZmRef<const IOBuf> buf)
 	if (!recovery) commitSend(un);
       });
     }
-    if (m_storeDLQ.count_()) run([this]() { retryStore_(); });
   };
 
   m_storeTbl->write(ZuMv(buf), ZuMv(commitFn));

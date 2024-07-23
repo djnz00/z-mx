@@ -194,13 +194,21 @@ private:
   template <typename U, typename R = void>
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
-  // an unsigned|int|size_t parameter to the constructor is a buffer size
-  template <typename U, typename V = Char> struct IsCtorSize : public ZuBool<
-      ZuInspect<U, unsigned>::Same ||
-      ZuInspect<U, int>::Same ||
-      ZuInspect<U, size_t>::Same> { };
+  // an integer parameter to the constructor is a buffer size
+  // - except for character element types
+  template <typename U, typename V = Char>
+  struct IsCtorSize : public ZuBool<
+    ZuTraits<U>::IsIntegral &&
+    (sizeof(U) > 2 || !ZuIsExact<ZuNormChar<V>, ZuNormChar<U>>{})> { };
   template <typename U, typename R = void>
   using MatchCtorSize = ZuIfT<IsCtorSize<U>{}, R>;
+  // disambiguate ZuBox<int>, etc.
+  template <typename U, typename R = void>
+  using MatchCtorPDelegate =
+    ZuIfT<bool(IsPDelegate<U>{}) && !IsCtorSize<U>{}, R>;
+  template <typename U, typename R = void>
+  using MatchCtorPBuffer =
+    ZuIfT<bool(IsPBuffer<U>{}) && !IsCtorSize<U>{}, R>;
 
   // construction from any other real and primitive type
   template <typename U, typename V = Char> struct IsCtorReal :
@@ -256,9 +264,9 @@ private:
     length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(alloc_(o + 1, 0), o), s));
   }
 
-  template <typename P> MatchPDelegate<P> ctor(const P &p)
+  template <typename P> MatchCtorPDelegate<P> ctor(const P &p)
     { null_(); ZuPrint<P>::print(*this, p); }
-  template <typename P> MatchPBuffer<P> ctor(const P &p) {
+  template <typename P> MatchCtorPBuffer<P> ctor(const P &p) {
     unsigned o = ZuPrint<P>::length(p);
     if (!o) { null_(); return; }
     length_(ZuPrint<P>::print(alloc_(o + 1, 0), o, p));

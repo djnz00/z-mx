@@ -98,9 +98,9 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
       m_stream
 	<< data.id << ','
 	<< ZuBoxPtr(data.addr).hex() << ','
-	<< (unsigned)data.linear << ','
-	<< (unsigned)data.bits << ','
-	<< (unsigned)data.cBits << ','
+	<< unsigned(data.linear) << ','
+	<< unsigned(data.bits) << ','
+	<< unsigned(data.cBits) << ','
 	<< ZuBoxed(data.loadFactor) << ','
 	<< data.nodeSize << ','
 	<< data.count << ','
@@ -121,10 +121,11 @@ public:
   struct CSV;
 friend CSV;
   struct CSV {
-    template <typename S> ZuInline void print(S &s) const {
+    template <typename S>
+    void print(S &s) const {
       ZmHashMgr::CSV_<S> csv(s);
       ZmHashMgr::all(
-	  ZmFn<void(ZmAnyHash *)>::Member<&ZmHashMgr::CSV_<S>::print>::fn(&csv));
+	ZmFn<void(ZmAnyHash *)>::Member<&ZmHashMgr::CSV_<S>::print>::fn(&csv));
     }
     friend ZuPrintFn ZuPrintType(CSV *);
   };
