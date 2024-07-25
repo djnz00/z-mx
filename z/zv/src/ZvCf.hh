@@ -515,11 +515,55 @@ public:
 	assure([deflt]() { return ZtString{} << Print{deflt}; }), deflt);
   }
 
+  // generic array count
+  template <typename T, bool Required_ = false>
+  unsigned count_() const {
+    if (!data.is<T>()) {
+      if constexpr (Required_) throw Required{owner, key};
+      return 0;
+    }
+    return data.p<T>().length();
+  }
+  template <typename T, bool Required_ = false>
+  unsigned count_(unsigned minimum, unsigned maximum) const {
+    if (!data.is<T>()) {
+      if constexpr (Required_) throw Required{owner, key};
+      return 0;
+    }
+    unsigned n = data.p<T>().length();
+    if (n < minimum || n > maximum)
+      throw NElems{owner, key, minimum, maximum, n};
+    return n;
+  }
+  // count() of ZtString array
+  template <bool Required_ = false>
+  unsigned count() const { return count_<StrArray, Required_>(); }
+  template <bool Required_ = false>
+  unsigned count(unsigned minimum, unsigned maximum) const {
+    return count_<StrArray, Required_>(minimum, maximum);
+  }
+  // count() of ZmRef<Cf> array
+  template <bool Required_ = false>
+  unsigned countCf() const { return count_<CfArray, Required_>(); }
+  template <bool Required_ = false>
+  unsigned countCf(unsigned minimum, unsigned maximum) const {
+    return count_<CfArray, Required_>(minimum, maximum);
+  }
   // generic iterate over array
-  template <typename T, typename L>
-  void all_(L l) const { data.p<T>().all(ZuMv(l)); }
-  template <typename T, typename L>
+  template <typename T, bool Required_, typename L>
+  void all_(L l) const {
+    if (!data.is<T>()) {
+      if constexpr (Required_) throw Required{owner, key};
+      return;
+    }
+    data.p<T>().all(ZuMv(l));
+  }
+  template <typename T, bool Required_, typename L>
   void all_(unsigned minimum, unsigned maximum, L l) const {
+    if (!data.is<T>()) {
+      if constexpr (Required_) throw Required{owner, key};
+      return;
+    }
     const auto &elems = data.p<T>();
     unsigned n = elems.length();
     if (n < minimum || n > maximum)
@@ -527,18 +571,18 @@ public:
     elems.all(ZuMv(l));
   }
   // all() shorthand forwarding functions for ZtString array
-  template <typename L>
-  void all(L l) const { all_<StrArray>(ZuMv(l)); }
-  template <typename T, typename L>
+  template <bool Required_, typename L>
+  void all(L l) const { all_<StrArray, Required_>(ZuMv(l)); }
+  template <bool Required_, typename L>
   void all(unsigned minimum, unsigned maximum, L l) const {
-    all_<StrArray>(minimum, maximum, ZuMv(l));
+    all_<StrArray, Required_>(minimum, maximum, ZuMv(l));
   }
   // all() shorthand forwarding functions for ZmRef<Cf> array
-  template <typename L>
-  void allCf(L l) const { all_<CfArray>(ZuMv(l)); }
-  template <typename T, typename L>
+  template <bool Required_, typename L>
+  void allCf(L l) const { all_<CfArray, Required_>(ZuMv(l)); }
+  template <bool Required_, typename L>
   void allCf(unsigned minimum, unsigned maximum, L l) const {
-    all_<CfArray>(minimum, maximum, ZuMv(l));
+    all_<CfArray, Required_>(minimum, maximum, ZuMv(l));
   }
 
   // generic set/get/assure array element
@@ -826,31 +870,65 @@ public:
     return mkNode(key)->assureCf(ZuMv(l));
   }
 
+  // count of ZtString array
+  template <bool Required_ = false>
+  unsigned count(ZuString key) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template count<Required_>();
+    if constexpr (Required_) throw Required{this, key};
+    return 0;
+  }
+  template <bool Required_ = false>
+  unsigned count(ZuString key, unsigned minimum, unsigned maximum) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template count<Required_>(minimum, maximum);
+    if constexpr (Required_) throw Required{this, key};
+    return 0;
+  }
   // iterate over ZtString array
   template <bool Required_ = false, typename L>
   void all(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->template all<StrArray>(ZuMv(l));
-    if constexpr (Required_) throw Required{this, key};
+      node->all(ZuMv(l));
+    else
+      if constexpr (Required_) throw Required{this, key};
   }
   template <bool Required_ = false, typename L>
   void all(ZuString key, unsigned minimum, unsigned maximum, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->template all<StrArray>(minimum, maximum, ZuMv(l));
+      node->all(minimum, maximum, ZuMv(l));
+    else
+      if constexpr (Required_) throw Required{this, key};
+  }
+  // count of ZmRef<Cf> array
+  template <bool Required_ = false>
+  unsigned countCf(ZuString key) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template countCf<Required_>();
     if constexpr (Required_) throw Required{this, key};
+    return 0;
+  }
+  template <bool Required_ = false>
+  unsigned countCf(ZuString key, unsigned minimum, unsigned maximum) const {
+    if (auto node = getNode<Required_>(key))
+      return node->template countCf<Required_>(minimum, maximum);
+    if constexpr (Required_) throw Required{this, key};
+    return 0;
   }
   // iterate over ZmRef<Cf> array
   template <bool Required_ = false, typename L>
   void allCf(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->template all<CfArray>(ZuMv(l));
-    if constexpr (Required_) throw Required{this, key};
+      node->allCf(ZuMv(l));
+    else
+      if constexpr (Required_) throw Required{this, key};
   }
   template <bool Required_ = false, typename L>
   void allCf(ZuString key, unsigned minimum, unsigned maximum, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->template all<CfArray>(minimum, maximum, ZuMv(l));
-    if constexpr (Required_) throw Required{this, key};
+      node->allCf(minimum, maximum, ZuMv(l));
+    else
+      if constexpr (Required_) throw Required{this, key};
   }
 
   // set/get/assure ZtString array element
