@@ -1278,7 +1278,6 @@ public:
     unsigned keyID, ZmRef<const IOBuf> buf,
     unsigned limit, TupleFn tupleFn)
   {
-    ZeLOG(Debug, ([](auto &s) { }));
     ZmAssert(keyID < m_indices.length());
 
     const auto &keyFields = m_keyFields[keyID];

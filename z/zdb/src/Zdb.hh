@@ -495,7 +495,6 @@ using TableCfs =
 
 // --- generic table
 
-// FIXME - key sharding
 class ZdbAPI AnyTable : public ZmPolymorph {
 friend DB;
 friend Cxn_;
@@ -651,15 +650,15 @@ private:
   const TableCf		*m_cf;
   ZiMultiplex		*m_mx;
 
-  // DB thread exclusive - no need for atomics
+  // Table thread exclusive - no need for atomics
   UN			m_nextUN = 0;		// UN allocator
 
   // open/closed state, record count
-  ZmAtomic<unsigned>	m_open = 0;		// DB thread SWMR
+  ZmAtomic<unsigned>	m_open = 0;		// Table thread SWMR
   ZmAtomic<uint64_t>	m_count = 0;		// ''
 
   // backing data store table
-  StoreTbl		*m_storeTbl = nullptr;	// DB thread
+  StoreTbl		*m_storeTbl = nullptr;	// Table thread
 
   // object cache indexed by UN
   bool			m_writeCache = true;

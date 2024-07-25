@@ -1055,10 +1055,11 @@ void DB::repStart()
 }
 
 // send recovery record
-void AnyTable::recSend(ZmRef<Cxn> cxn, UN un, UN endUN) {
-  if (!m_open) return;
-
+void AnyTable::recSend(ZmRef<Cxn> cxn, UN un, UN endUN)
+{
   ZmAssert(invoked());
+
+  if (!m_open) return;
 
   if (!cxn->up()) return;
 
@@ -1515,9 +1516,9 @@ AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
 // process inbound replication - record
 void AnyTable::repRecordRcvd(ZmRef<const IOBuf> buf)
 {
-  if (!m_open) return;
-
   ZmAssert(invoked());
+
+  if (!m_open) return;
 
   recover(record_(msg_(buf->hdr())));
   write(buf, false);
@@ -1526,9 +1527,9 @@ void AnyTable::repRecordRcvd(ZmRef<const IOBuf> buf)
 // process inbound replication - committed
 void AnyTable::repCommitRcvd(UN un)
 {
-  if (!m_open) return;
-
   ZmAssert(invoked());
+
+  if (!m_open) return;
 
   commitSend(un);
   evictBuf(un);
@@ -1568,9 +1569,9 @@ void AnyTable::write(ZmRef<const IOBuf> buf, bool active)
 // low-level internal write to backing data store
 void AnyTable::store(ZmRef<const IOBuf> buf)
 {
-  if (ZuUnlikely(!m_open)) return; // table is closing
-
   ZmAssert(invoked());
+
+  if (ZuUnlikely(!m_open)) return; // table is closing
 
   store_(ZuMv(buf));
 }
