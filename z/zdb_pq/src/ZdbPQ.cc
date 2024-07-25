@@ -72,11 +72,10 @@ OIDs::OIDs()
   m_names = names;
 }
 
-InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid, FailFn failFn)
+InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn)
 {
   m_cf = cf;
   m_mx = mx;
-  m_zdbSID = sid;
   m_failFn = ZuMv(failFn);
 
   bool replicated;
@@ -92,7 +91,7 @@ InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, unsigned sid, FailFn failFn)
 	s << "Store::init() failed: invalid thread configuration \""
 	  << tid << '"';
       }))};
-    m_pqSID = sid;
+    m_sid = sid;
     replicated = cf->getBool("replicated", false);
   } catch (const ZvError &e_) {
     ZtString e;
@@ -118,7 +117,7 @@ void Store::start(StartFn fn)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
-  m_mx->push(m_pqSID, [this, fn = ZuMv(fn)]() mutable {
+  m_mx->push(m_sid, [this, fn = ZuMv(fn)]() mutable {
     m_startState.reset();
     m_startFn = ZuMv(fn);
     m_stopFn = StopFn{};
@@ -127,7 +126,7 @@ void Store::start(StartFn fn)
       return;
     }
     getOIDs();
-    m_mx->wakeFn(m_pqSID, ZmFn<>{this, [](Store *store) { store->wake(); }});
+    m_mx->wakeFn(m_sid, ZmFn<>{this, [](Store *store) { store->wake(); }});
     run_();
   });
 }
@@ -277,7 +276,7 @@ void Store::stop(StopFn fn)
 
   m_stopFn = ZuMv(fn);	// inhibits further application requests
 
-  pqRun([this]() mutable { enqueue(Work::Stop{}); });
+  run([this]() mutable { enqueue(Work::Stop{}); });
 }
 
 void Store::stop_()	// called after dequeuing Stop
@@ -291,8 +290,8 @@ void Store::stop_1()
 {
   // ZeLOG(Debug, ([](auto &s) { s << "pushing stop_2()"; }));
 
-  m_mx->wakeFn(m_pqSID, ZmFn<>{});
-  m_mx->push(m_pqSID, [this]() mutable {
+  m_mx->wakeFn(m_sid, ZmFn<>{});
+  m_mx->push(m_sid, [this]() mutable {
     stop_2();
     StopFn stopFn = ZuMv(m_stopFn);
     m_stopFn = StopFn{};
@@ -346,7 +345,7 @@ void Store::wake()
 {
   // ZeLOG(Debug, ([](auto &s) { s << "pushing run_()"; }));
 
-  m_mx->push(m_pqSID, [this]{ run_(); });
+  m_mx->push(m_sid, [this]{ run_(); });
   wake_();
 }
 
@@ -930,7 +929,7 @@ void Store::open(
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
-  pqRun([
+  run([
     this, id, fields = ZuMv(fields), keyFields = ZuMv(keyFields),
     schema, bufAllocFn = ZuMv(bufAllocFn), openFn = ZuMv(openFn)
   ]() mutable {
@@ -2173,7 +2172,7 @@ inconsistent:
 
 void StoreTbl::close(CloseFn fn)
 {
-  m_store->pqRun([this, fn = ZuMv(fn)]() mutable {
+  m_store->run([this, fn = ZuMv(fn)]() mutable {
     m_openState.phase(OpenState::Closed);
     fn();
   });
@@ -2187,7 +2186,7 @@ void StoreTbl::count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn)
 
   using namespace Work;
 
-  m_store->pqRun([
+  m_store->run([
     this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
   ]() mutable {
     if (m_store->stopping()) {
@@ -2216,7 +2215,7 @@ void StoreTbl::select(
 
   using namespace Work;
 
-  m_store->pqRun([
+  m_store->run([
     this, selectRow, selectNext, inclusive,
     keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
   ]() mutable {
@@ -2437,7 +2436,7 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
 
   using namespace Work;
 
-  m_store->pqRun(
+  m_store->run(
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       if (m_store->stopping()) {
 	store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
@@ -2580,7 +2579,7 @@ void StoreTbl::recover(UN un, RowFn rowFn)
 {
   using namespace Work;
 
-  m_store->pqRun([this, un, rowFn = ZuMv(rowFn)]() mutable {
+  m_store->run([this, un, rowFn = ZuMv(rowFn)]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
 	rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
@@ -2619,7 +2618,7 @@ void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 
   using namespace Work;
 
-  m_store->pqRun([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
+  m_store->run([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([
 	id = m_id,

@@ -1899,18 +1899,11 @@ public:
 
   void enqueue(Work::Task task);
 
-  template <typename ...Args> void pqRun(Args &&...args) {
-    m_mx->run(m_pqSID, ZuFwd<Args>(args)...);
+  template <typename ...Args> void run(Args &&...args) {
+    m_mx->run(m_sid, ZuFwd<Args>(args)...);
   }
-  template <typename ...Args> void pqInvoke(Args &&...args) {
-    m_mx->invoke(m_pqSID, ZuFwd<Args>(args)...);
-  }
-
-  template <typename ...Args> void zdbRun(Args &&...args) {
-    m_mx->run(m_zdbSID, ZuFwd<Args>(args)...);
-  }
-  template <typename ...Args> void zdbInvoke(Args &&...args) {
-    m_mx->invoke(m_zdbSID, ZuFwd<Args>(args)...);
+  template <typename ...Args> void invoke(Args &&...args) {
+    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
   }
 
   const OIDs &oids() const { return m_oids; }
@@ -1969,8 +1962,7 @@ private:
 private:
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_zdbSID = ZuCmp<unsigned>::null();
-  unsigned		m_pqSID = ZuCmp<unsigned>::null();
+  unsigned		m_sid = ZuCmp<unsigned>::null();
   FailFn		m_failFn;
 
   ZmRef<StoreTbls>	m_storeTbls;

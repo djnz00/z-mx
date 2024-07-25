@@ -16,16 +16,16 @@
 // leader (if the local host itself is not elected leader).
 
 // Principal features:
-// * Plug-in backing data store (mocked for unit-testing)
+// - Plug-in backing data store (mocked for unit-testing)
 //   - Currently Postgres
-// * In-memory write-through object cache
+// - In-memory write-through object cache
 //   - Deferred async writes
 //   - In-memory write buffer queue
-// * Async replication independent of backing store
+// - Async replication independent of backing store
 //   (can be disabled for replicated backing stores)
-// * Primary and multiple secondary unique in-memory and on-disk indices
-// * Find, insert, update, delete operations
-// * Batched select queries (index-based, optionally grouped)
+// - Primary and multiple secondary unique in-memory and on-disk indices
+// - Find, insert, update, delete operations
+// - Batched select and count queries (index-based, optionally grouped)
 
 // select() returns 0..N immutable ZuTuples for read-only purposes
 // find() returns 0..1 mutable ZdbObjects for read-modify-write purposes
