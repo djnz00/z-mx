@@ -495,6 +495,7 @@ using TableCfs =
 
 // --- generic table
 
+// FIXME - key sharding
 class ZdbAPI AnyTable : public ZmPolymorph {
 friend DB;
 friend Cxn_;
@@ -770,11 +771,12 @@ using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<Tuple, ZuNull>)>;
 template <typename Tuple>
 using Select = Select_<Tuple, Select_Heap<Tuple>>;
 
-// backing data store find() context (retried on failure)
+// backing data store find() context
 template <typename T, typename Key> struct Find__ {
-  Table<T>			*table;
-  Key				key;
-  ZmFn<void(ZmRef<Object<T>>)>	fn;
+  Table<T>				*table;
+  Key					key;
+  ZmFn<void(ZmRef<Object<T>>)>		fn;
+  ZmFn<ZmRef<Object<T>>(Table<T> *)>	ctor;
 };
 inline constexpr const char *Find_HeapID() { return "Zdb.Find"; }
 template <typename T, typename Key, typename Heap>
@@ -849,7 +851,9 @@ public:
   // buffer allocator
 private:
   // objLoad(fbo) - construct object from flatbuffer (trusted source)
-  ZmRef<Object<T>> objLoad(const IOBuf *buf) {
+  ZmRef<Object<T>> objLoad(
+    const IOBuf *buf, ZmFn<ZmRef<Object<T>>(Table *)> ctor)
+  {
     using namespace Zfb::Load;
 
     auto record = record_(msg_(buf->hdr()));
@@ -858,7 +862,7 @@ private:
     if (ZuUnlikely(!data)) return {}; // should never happen
     auto fbo = ZfbField::root<T>(&data[0]);
     if (ZuUnlikely(!fbo)) return {}; // should never happen
-    ZmRef<Object<T>> object = new Object<T>{this};
+    ZmRef<Object<T>> object = ctor(this);
     ZfbField::ctor<T>(object->ptr(), fbo);
     object->init(record->un(), uint128(record->sn()), record->vn());
     return object;
@@ -936,13 +940,12 @@ private:
   }
 
   // find, falling through object cache, buffer cache, backing data store
-  template <unsigned KeyID, bool UpdateLRU, bool Evict, typename L>
-  void find_(Key<KeyID>, L l);
+  template <
+    unsigned KeyID, bool UpdateLRU, bool Evict, typename L, typename Ctor>
+  void find_(Key<KeyID>, L l, Ctor ctor);
   // find from backing data store (retried on failure)
-  template <unsigned KeyID>
-  void retrieve(Key<KeyID>, ZmFn<void(ZmRef<Object<T>>)>);
-  template <unsigned KeyID>
-  void retryRetrieve_();
+  template <unsigned KeyID, typename L, typename Ctor>
+  void retrieve(Key<KeyID>, L, Ctor);
   template <unsigned KeyID>
   void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
@@ -1023,46 +1026,72 @@ public:
   }
 
   // find lambda - l(ZmRef<ZdbObject<T>>)
-  template <unsigned KeyID, typename L>
-  void find(Key<KeyID> key, L l) {
+  template <unsigned KeyID, typename L, typename Ctor>
+  ZuInline void find(Key<KeyID> key, L l, Ctor ctor) {
     config().cacheMode == CacheMode::All ?
-      find_<KeyID, true, false>(ZuMv(key), ZuMv(l)) :
-      find_<KeyID, true, true >(ZuMv(key), ZuMv(l));
+      find_<KeyID, true, false>(ZuMv(key), ZuMv(l), ZuMv(ctor)) :
+      find_<KeyID, true, true >(ZuMv(key), ZuMv(l), ZuMv(ctor));
+  }
+  template <unsigned KeyID, typename L>
+  ZuInline void find(Key<KeyID> key, L l) {
+    find<KeyID>(
+      ZuMv(key), ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
   }
 
 private: // RMU version used by findUpd() and findDel()
-  template <unsigned KeyID, typename L>
-  void findUpd_(Key<KeyID> key, L l) {
+  template <unsigned KeyID, typename L, typename Ctor>
+  void findUpd_(Key<KeyID> key, L l, Ctor ctor) {
     config().cacheMode == CacheMode::All ?
-      find_<KeyID, false, false>(ZuMv(key), ZuMv(l)) :
-      find_<KeyID, false, true >(ZuMv(key), ZuMv(l));
+      find_<KeyID, false, false>(ZuMv(key), ZuMv(l), ZuMv(ctor)) :
+      find_<KeyID, false, true >(ZuMv(key), ZuMv(l), ZuMv(ctor));
   }
 
 public:
+  // evict from cache
+  template <unsigned KeyID>
+  void evict(const Key<KeyID> &key) {
+    ZmAssert(invoked());
+    ZmRef<Object<T>> object = m_cache.template del<KeyID>(key);
+    if (object) object->evicted(true);
+  }
+  void evict(Object<T> *object) {
+    ZmAssert(invoked());
+    m_cache.delNode(object);
+    object->evicted(true);
+  }
+
   // init lambda - l(ZdbObject<T> *)
 
   // create new object
-  template <typename L>
-  void insert(L l) {
+  template <typename L, typename Ctor>
+  void insert(L l, Ctor ctor) {
     ZmAssert(invoked());
 
-    ZmRef<Object<T>> object = insert_(nextUN());
+    ZmRef<Object<T>> object = insert_(nextUN(), ZuMv(ctor));
     if (!object) { l(nullptr); return; }
     try {
       l(object);
     } catch (...) { object->abort(); throw; }
     object->abort();
   }
-  // create new object (idempotent with UN as key)
   template <typename L>
-  void insert(UN un, L l) {
+  ZuInline void insert(L l) {
+    insert(ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
+  }
+  // create new object (idempotent with UN as key)
+  template <typename L, typename Ctor>
+  void insert(UN un, L l, Ctor ctor) {
     ZmAssert(invoked());
 
     if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
       l(static_cast<Object<T> *>(nullptr));
       return;
     }
-    insert(ZuMv(l));
+    insert(ZuMv(l), ZuMv(ctor));
+  }
+  template <typename L>
+  ZuInline void insert(UN un, L l) {
+    insert(un, ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
   }
 
   // update lambda - l(ZdbObject<T> *)
@@ -1119,22 +1148,35 @@ public:
   }
 
   // find and update record (with key, without object)
-  template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
-  void findUpd(Key<KeyID> key, L l) {
+  template <
+    unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
+  ZuInline void findUpd(Key<KeyID> key, L l, Ctor ctor) {
     findUpd_<KeyID>(ZuMv(key),
 	[this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	  if (ZuUnlikely(!object)) { l(object); return; }
 	  update<KeyIDs_>(ZuMv(object), ZuMv(l));
-	});
+	}, ZuMv(ctor));
+  }
+  template <unsigned KeyID, typename KeyIDs = ZuSeq<>, typename L>
+  ZuInline void findUpd(Key<KeyID> key, L l) {
+    findUpd<KeyID, KeyIDs>(
+      ZuMv(key), ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
   }
   // find and update record (idempotent) (with key, without object)
-  template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
-  void findUpd(Key<KeyID> key, UN un, L l) {
+  template <
+    unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
+  ZuInline void findUpd(Key<KeyID> key, UN un, L l, Ctor ctor) {
     findUpd_<KeyID>(ZuMv(key),
 	[this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	  if (ZuUnlikely(!object)) { l(object); return; }
 	  update<KeyIDs_>(ZuMv(object), un, ZuMv(l));
-	});
+	}, ZuMv(ctor));
+  }
+  template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
+  ZuInline void findUpd(Key<KeyID> key, UN un, L l) {
+    findUpd<KeyID, KeyIDs>(
+      ZuMv(key), un, ZuMv(l),
+      [](Table *this_) { return new Object<T>{this_}; });
   }
 
   // delete lambda - l(ZdbObject<T> *)
@@ -1250,8 +1292,9 @@ private:
   }
 
   // low-level insert - calls ctor, AnyObject::insert_()
-  ZmRef<Object<T>> insert_(UN un) {
-    ZmRef<Object<T>> object = new Object<T>{this};
+  template <typename Ctor>
+  ZmRef<Object<T>> insert_(UN un, Ctor ctor) {
+    ZmRef<Object<T>> object = ctor(this);
     if (ZuUnlikely(!object)) return nullptr;
     if (ZuUnlikely(!object->insert_(un))) return nullptr;
     return object;
@@ -1454,7 +1497,6 @@ struct DBCf {
   unsigned		heartbeatTimeout = 0;
   unsigned		reconnectFreq = 0;
   unsigned		electionTimeout = 0;
-  unsigned		retryFreq = 0;
   ZmHashParams		cxnHash;
 #if Zdb_DEBUG
   bool			debug = 0;
@@ -1478,7 +1520,6 @@ struct DBCf {
     heartbeatTimeout = cf->getInt("heartbeatTimeout", 1, 14400, 4);
     reconnectFreq = cf->getInt("reconnectFreq", 1, 3600, 1);
     electionTimeout = cf->getInt("electionTimeout", 1, 3600, 8);
-    retryFreq = cf->getInt("retryFreq", 1, 3600, 1);
 #if Zdb_DEBUG
     debug = cf->getBool("debug");
 #endif
@@ -1839,21 +1880,24 @@ inline void Table<T>::select_(
 }
 
 template <typename T>
-template <unsigned KeyID, bool UpdateLRU, bool Evict, typename L>
-inline void Table<T>::find_(Key<KeyID> key, L l) {
+template <
+  unsigned KeyID, bool UpdateLRU, bool Evict, typename L, typename Ctor>
+inline void Table<T>::find_(Key<KeyID> key, L l, Ctor ctor) {
   ZmAssert(invoked());
 
-  auto load = [this]<typename L_>(const Key<KeyID> &key, L_ l) mutable {
+  auto load = [
+    this, ctor = ZuMv(ctor)
+  ]<typename L_>(const Key<KeyID> &key, L_ l) mutable {
     auto [buf, found] = findBuf<KeyID>(key);
     if (buf) {
-      l(objLoad(buf));
+      l(objLoad(buf, ZuMv(ctor)));
       return;
     }
     if (found) {
       l(nullptr);
       return;
     }
-    retrieve<KeyID>(key, ZuMv(l));
+    retrieve<KeyID>(key, ZuMv(l), ZuMv(ctor));
   };
   if constexpr (Evict) {
     auto evict = [this](ZmRef<AnyObject> object) {
@@ -1868,15 +1912,15 @@ inline void Table<T>::find_(Key<KeyID> key, L l) {
 }
 
 template <typename T>
-template <unsigned KeyID>
-inline void Table<T>::retrieve(Key<KeyID> key, ZmFn<void(ZmRef<Object<T>>)> fn)
+template <unsigned KeyID, typename L, typename Ctor>
+inline void Table<T>::retrieve(Key<KeyID> key, L l, Ctor ctor)
 {
   using Key_ = Key<KeyID>;
   using Context = Find<T, Key_>;
 
   ZmAssert(invoked());
 
-  auto context = ZmMkRef(new Context{this, ZuMv(key), ZuMv(fn)});
+  auto context = ZmMkRef(new Context{this, ZuMv(key), ZuMv(l), ZuMv(ctor)});
 
   retrieve_<KeyID>(ZuMv(context));
 }
@@ -1906,10 +1950,14 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
       }
       if (ZuLikely(result.is<RowData>())) {
 	auto buf = ZuMv(ZuMv(result).p<RowData>().buf);
-	table->invoke(
-	  [table, fn = ZuMv(context->fn), buf = ZuMv(buf)]() mutable {
-	    fn(table->objLoad(ZuMv(buf)));
-	  });
+	table->invoke([
+	  table,
+	  fn = ZuMv(context->fn),
+	  ctor = ZuMv(context->ctor),
+	  buf = ZuMv(buf)
+	]() mutable {
+	  fn(table->objLoad(ZuMv(buf), ZuMv(ctor)));
+	});
       } else
 	table->invoke([fn = ZuMv(context->fn)]() mutable { fn(nullptr); });
     });
