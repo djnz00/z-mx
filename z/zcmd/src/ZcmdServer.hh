@@ -222,8 +222,6 @@ friend TLS;
   struct UserDB : public ZuObject, public Zum::Server::UserDB {
     using Base = Zum::Server::UserDB;
     using Base::Base;
-    template <typename ...Args>
-    UserDB(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
   };
 
   const App *app() const { return static_cast<const App *>(this); }

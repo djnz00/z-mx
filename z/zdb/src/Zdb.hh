@@ -386,11 +386,6 @@ public:
 
   Object_(Table<T> *table_) : AnyObject{table_} { }
 
-  template <typename L>
-  Object_(Table<T> *table_, L l) : AnyObject{table_} {
-    l(static_cast<void *>(&m_data[0]));
-  }
-
   Table<T> *table() const {
     return static_cast<Table<T> *>(AnyObject::table());
   }
@@ -465,7 +460,7 @@ struct Object : public Cache<T>::Node {
   using Base = Cache<T>::Node;
   using Base::Base;
   using Base::operator =;
-  using Object_<T>::data;
+  using Object_<T>::data;	// disambiguate from Node::data
 };
 
 // --- table configuration
@@ -526,6 +521,7 @@ public:
   static ZuID IDAxor(AnyTable *table) { return table->config().id; }
 
   ZuID id() const { return config().id; }
+  auto sid() const { return config().sid; }
 
   // DB thread (may be shared)
   template <typename ...Args>
@@ -862,9 +858,8 @@ private:
     if (ZuUnlikely(!data)) return {}; // should never happen
     auto fbo = ZfbField::root<T>(&data[0]);
     if (ZuUnlikely(!fbo)) return {}; // should never happen
-    ZmRef<Object<T>> object = new Object<T>{this, [fbo](void *ptr) {
-      ZfbField::ctor<T>(ptr, fbo);
-    }};
+    ZmRef<Object<T>> object = new Object<T>{this};
+    ZfbField::ctor<T>(object->ptr(), fbo);
     object->init(record->un(), uint128(record->sn()), record->vn());
     return object;
   }
@@ -944,9 +939,12 @@ private:
   template <unsigned KeyID, bool UpdateLRU, bool Evict, typename L>
   void find_(Key<KeyID>, L l);
   // find from backing data store (retried on failure)
-  template <unsigned KeyID> void retrieve(Key<KeyID>, ZmFn<void(ZmRef<Object<T>>)>);
-  template <unsigned KeyID> void retryRetrieve_();
-  template <unsigned KeyID> void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
+  template <unsigned KeyID>
+  void retrieve(Key<KeyID>, ZmFn<void(ZmRef<Object<T>>)>);
+  template <unsigned KeyID>
+  void retryRetrieve_();
+  template <unsigned KeyID>
+  void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
   // buffer cache
   void cacheBuf_(ZmRef<const IOBuf> buf) {
@@ -982,9 +980,7 @@ private:
 public:
   // create placeholder record
   // - null UN/SN, in-memory, never persisted/replicated
-  ZmRef<Object<T>> placeholder() {
-    return new Object<T>{this, [](void *ptr) { new (ptr) T{}; }};
-  }
+  ZmRef<Object<T>> placeholder() { return new Object<T>{this}; }
 
 private:
   template <
@@ -1561,6 +1557,7 @@ public:
 
   const DBCf &config() const { return m_cf; }
   ZiMultiplex *mx() const { return m_mx; }
+  auto sid() const { return config().sid; }
 
   int state() const {
     return ZuLikely(m_self) ? m_self->state() : HostState::Instantiated;

@@ -5,24 +5,24 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // generic tuple with different implementation priorities than std::tuple
-// * structured binding via std::tuple_element, tuple_size
-// * interoperates with std::tuple, pair, array
-// * no effort is made to interoperate with std::tuple_cat or std::tie
-// * flat non-recursive type hierarchy using multiple-inheritance
-// * storage of elements ordered from largest to smallest
-// * reference elements
-// * partial initialization - e.g. ZuTuple<int, int> i = { 42 };
-// * recursive decay - e.g. from ZuTuple<int &&> && to ZuTuple<int>
-// * p<I>() - access by position - lvalue, rvalue and rvalue ref
-// * p<I>(v) - set by position
-// * p<T>() - access by type
-// * p<T>(v) - set by type
-// * Types - type list (ZuTypeList)
-// * Indices - compile-time index sequence (ZuSeq)
-// * dispatch(unsigned, lambda) - dispatcher
-// * cdispatch(unsigned, lambda) - const dispatcher
-// * operator <=>() - aggregate comparison using positional priority
-// * uses defaulted move operators throughout to leverage the compiler's
+// - structured binding via std::tuple_element, tuple_size
+// - interoperates with std::tuple, pair, array
+// - no effort is made to interoperate with std::tuple_cat or std::tie
+// - flat non-recursive type hierarchy using multiple-inheritance
+// - storage of elements ordered from largest to smallest
+// - reference elements
+// - partial initialization - e.g. ZuTuple<int, int> i = { 42 };
+// - recursive decay - e.g. from ZuTuple<int &&> && to ZuTuple<int>
+// - p<I>() - access by position - lvalue, rvalue and rvalue ref
+// - p<I>(v) - set by position
+// - p<T>() - access by type
+// - p<T>(v) - set by type
+// - Types - type list (ZuTypeList)
+// - Indices - compile-time index sequence (ZuSeq)
+// - dispatch(unsigned, lambda) - dispatcher
+// - cdispatch(unsigned, lambda) - const dispatcher
+// - operator <=>() - aggregate comparison using positional priority
+// - uses defaulted move operators throughout to leverage the compiler's
 //   automatic determination of noexcept
 
 // ZuDeclTuple(Type, (Type0, Fn0), (Type1, Fn1), ...) creates
@@ -108,51 +108,6 @@ template <unsigned I_, typename T_> struct Tuple_Elem {
   using T = T_;
   T v;
 };
-
-#if 0
-// empty tuple
-template <>
-class Tuple_<ZuTypeList<>, ZuTypeList<>> {
-protected:
-  using Elems = ZuTypeList<>;
-
-  template <typename V>
-  struct IsConAnyTuple_ { using T = ZuFalse; };
-  template <>
-  struct IsConAnyTuple_<Tuple<>> { using T = ZuTrue; };
-  template <>
-  struct IsConAnyTuple_<std::tuple<>> { using T = ZuTrue; };
-  template <typename E>
-  struct IsConAnyTuple_<std::array<E, 0>> { using T = ZuTrue; };
-  template <typename V>
-  using IsConAnyTuple = typename IsConAnyTuple_<V>::T;
-  template <typename V, typename R = void>
-  using ConAnyTuple = ZuIfT<IsConAnyTuple<V>{}, R>;
-  template <typename V, typename R = void>
-  using CvtAnyTuple = ZuIfT<IsConAnyTuple<V>{}, R>;
-  template <typename>
-  struct CvtFirstElem_ { using T = ZuFalse; };
-  template <typename V, typename R = void>
-  using CvtFirstElem = ZuIfT<typename CvtFirstElem_<V>::T{}, R>;
-
-public:
-  using Types = ZuTypeList<>;
-  template <unsigned I> using Type = ZuType<I, Types>; // never defined
-  enum { N = 0 };
-  template <typename T>
-  using Index = ZuTypeIndex<T, Types>; // never defined
-
-  Tuple_() = default;
-  Tuple_(const Tuple_ &) = default;
-  Tuple_(Tuple_ &&) = default;
-  Tuple_ &operator =(const Tuple_ &) = default;
-  Tuple_ &operator =(Tuple_ &&) = default;
-  ~Tuple_() = default;
-
-  Tuple_(const std::tuple<> &) { }
-  Tuple_ &operator =(const std::tuple<> &) { return *this; }
-};
-#endif
 
 // tuple - uses MI to derive from all elements in a flat hierarchy
 template <typename ...Elems_, typename ...StoredElems_>

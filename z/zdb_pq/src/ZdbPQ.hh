@@ -282,8 +282,6 @@ inline constexpr bool isVar(unsigned i) {
 struct Value : public Value_ {
   using Value_::Value_;
   using Value_::operator =;
-  template <typename ...Args>
-  Value(Args &&...args) : Value_{ZuFwd<Args>(args)...} { }
 
   // Postgres binary format - load from PGresult
 

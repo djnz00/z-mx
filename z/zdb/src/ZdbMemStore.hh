@@ -105,8 +105,6 @@ inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
 struct Value : public Value_ {
   using Value_::Value_;
   using Value_::operator =;
-  template <typename ...Args>
-  Value(Args &&...args) : Value_{ZuFwd<Args>(args)...} { }
 
   template <unsigned I, typename S>
   ZuIfT<I == Value_::Index<void>{}>

@@ -254,9 +254,19 @@ using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 template <typename T>
 auto fields() { return ZtVFields_<Fields<T>>(); }
 
+{
+
+};
+
 class ZdfAPI Mgr {
 public:
   void init(ZmRef<Zdb> db, ZuString prefix);
+
+  ZmRef<DataFrame> open(ZtString name);
+  void close(DataFrame *);
+
+  void open(ZtString name); // FIXME
+  void close(ZtString name); // FIXME
 
 private:
   ZmRef<Zdb>		m_db;
@@ -281,7 +291,7 @@ public:
   const ZtString &name() const { return m_name; }
   const ZuTime &epoch() const { return m_epoch; }
 
-  void open(OpenFn fn);
+  void open(OpenFn fn); // FIXME - this is actually a get()
 private:
   void openSeries();
   void openedSeries(OpenResult);

@@ -98,8 +98,7 @@ class Buf_ : public ZmPolymorph, public BufLRUNode, public Heap {
 public:
   enum { Size = BufSize };
 
-  template <typename ...Args>
-  Buf_(Args &&...args) : BufLRUNode{ZuFwd<Args>(args)...} { }
+  using BufLRUNode::BufLRUNode;
 
   // cache pinning for asynchronous saves
   void pin() {

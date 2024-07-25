@@ -9,6 +9,53 @@
 #ifndef ZuLib_HH
 #define ZuLib_HH
 
+// Z library FAQs
+//
+// why no Z namespace?
+// - pre-processor macro name-scoping uses prefixes not namespaces
+// - intentional use of prefixes with low collision probability (Zu, Zt, ...)
+// - a short prefix has higher expressive density (Zu vs Zu::)
+// - no uncontrolled large-scale naming imports, "using namespace Z"
+// - mitigation of C++ name-mangling bloat with heavily templated code
+// - intentional design preference for small focused namespaces
+//   - Zxx namespaces exist where useful in context (ZuFmt, Ztel, Ztls, ...)
+//   - Zxx_ namespaces for internals (ZtWindow_, Zdb_, ...)
+//
+// isn't this pattern redundant?
+// using Base::Base;
+// template <typename ...Args>
+// Derived(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+// - this is needed in 3 cases:
+//   - the Base has no constructor (it's a pure data structure)
+//   - the Base is a template typename (i.e. case 1 could apply)
+//   - Derived needs to be constructible/convertible from an instance of Base
+//
+// why run() / invoke() all over the place?
+// - intentionally and tightly control thread creation within a small pool,
+//   with key long-running threads performing isolated workloads and bound
+//   to specific isolated CPU cores for performance
+// - sharding (binding data to single threads and passing messages between
+//   threads via lambdas) is preferred to lock contention or lock-free
+//   memory contention
+//   - latency - less jitter due to avoidance of contention
+//   - throughput - higher concurrency due to pipelining
+// - cheap context-switching and message-passing with capturing lambdas is
+//   enabled by ZmRing (MWSR variant) and ZmScheduler; this is exploited
+//   for I/O multiplexing by ZiMultiplex
+// - threads can be named, bound and isolated by the app and the kernel
+//   - Linux kernel parameter isolcpus
+// - callees have better context to determine which thread to run on than
+//   callers, so context-switching generally occurs in callees
+// - in callbacks, callee code is generally a lambda at the originating
+//   call-site, so this often includes a context-switch back onto the
+//   original thread
+// - thread/workload association is re-configurable for performance tuning
+//   - run() passes via the ring buffer and defers calls regardless
+//   - invoke() is used to elide message-passing and call deferral when
+//     the destination is the same thread
+//   - invoke() should not be used when stack-depth or long-running functions
+//     are a concern
+
 #include <assert.h>
 
 #ifdef _WIN32
@@ -139,16 +186,6 @@
 #define Zu_BIGENDIAN 0
 #endif
 #endif
-
-// FAQ: why no namespace?
-// - consistency with pre-processor macro name-scoping
-// - intentional use of prefixes with low collision probability (Zu, Zt, ...)
-// - a short prefix has higher expressive density (Zu vs Zu::)
-// - no uncontrolled large-scale naming imports, "using namespace Zu"
-// - mitigation of C++ name-mangling bloat with heavily templated code
-// - intentional design preference for small focused namespaces
-//   - Zxx namespaces exist where useful in context (ZuFmt, Ztel, Ztls, ...)
-//   - Zxx_ namespaces for internals (ZtWindow_, Zdb_, ...)
 
 // std::remove_reference without dragging in STL cruft
 template <typename T_>

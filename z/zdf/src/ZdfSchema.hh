@@ -16,6 +16,8 @@
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
+#include <Zdb.hh>
+
 #include <zlib/zdf_dataframe_fbs.h>
 #include <zlib/zdf_series_fbs.h>
 #include <zlib/zdf_blk_fbs.h>
@@ -25,7 +27,7 @@ namespace Zdf::DB {
 struct DataFrame {
   uint32_t	id;
   ZuDateTime	epoch;
-  Name		name;
+  ZtString	name;
 };
 ZfbFields(DataFrame,
   (((id),	(Ctor<0>, Keys<0>)),		(UInt32)),
@@ -35,7 +37,7 @@ ZfbFields(DataFrame,
 struct Series {
   uint32_t	dfID;
   uint32_t	id;
-  Name		name;
+  ZtString	name;
 };
 ZfbFields(Series,
   (((dfID),	(Ctor<0>, Keys<0>, Group<0>)),	(UInt32)),
@@ -67,7 +69,8 @@ struct BlkData {
 };
 ZfbFields(BlkData,
   (((seriesID),	(Ctor<0>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkID),	(Ctor<1>, Keys<0>, Descend<0>)),		(UInt32)));
+  (((blkID),	(Ctor<1>, Keys<0>, Descend<0>)),		(UInt32)),
+  (((data),	(Mutable)),					(Bytes)));
 
 } // Zdf::DB
 

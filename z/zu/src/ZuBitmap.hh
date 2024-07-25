@@ -444,8 +444,6 @@ struct Bitmap : public Bitmap_<Data<Bits_>> {
   using Base = Bitmap_<Data<Bits_>>;
   using Base::Base;
   using Base::operator =;
-  template <typename ...Args>
-  Bitmap(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 
 template <typename Bitmap>

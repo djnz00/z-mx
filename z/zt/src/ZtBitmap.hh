@@ -79,8 +79,6 @@ struct Bitmap : public ZuBitmap_::Bitmap_<Data> {
   using Base = ZuBitmap_::Bitmap_<Data>;
   using Base::Base;
   using Base::operator =;
-  template <typename ...Args>
-  Bitmap(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 
 } // ZtBitmap_

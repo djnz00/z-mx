@@ -7,15 +7,13 @@
 // use ZuStringN<> for fixed-size strings by value without heap overhead
 //
 // ZtString is a heap-allocated C string class (null-terminated)
-//
-// * fast, lightweight
-// * explicitly contiguous
-// * provides direct read/write access to the buffer
-// * no heap allocation for small strings below a built-in size
-// * supports both zero-copy and deep-copy
-// * very thin layer on ANSI C string functions
-// * no C library locale or character set overhead (except when requested)
-// * no STL cruft
+// - lightweight
+// - explicitly contiguous
+// - provides direct read/write access to the buffer
+// - no heap allocation for small strings below a built-in size
+// - very thin layer on ANSI C string functions
+// - no C library locale or character set overhead (except when requested)
+// - minimal STL cruft
 
 #ifndef ZtString_HH
 #define ZtString_HH

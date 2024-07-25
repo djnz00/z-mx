@@ -38,8 +38,6 @@ struct IOBuf_ : public ZiIOBuf {
   mutable void	*typed = nullptr;	// points to typed Buf<T>
 
   using ZiIOBuf::ZiIOBuf;
-  template <typename ...Args>
-  IOBuf_(Args &&...args) : ZiIOBuf{ZuFwd<Args>(args)...} { }
 
   auto hdr() const { return ptr<Hdr>(); }
   auto hdr() { return ptr<Hdr>(); }
@@ -69,12 +67,8 @@ using BufCacheUN =
 
 struct IOBuf : public BufCacheUN::Node {
   using Base = BufCacheUN::Node;
-
   using Base::Base;
   using Base::operator =;
-  template <typename ...Args>
-  IOBuf(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
-
   using ZiIOBuf::data;
 };
 

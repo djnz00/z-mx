@@ -47,10 +47,30 @@ void UserDB::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
   m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
   m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
   m_state = UserDBState::Initialized;
-  m_userTbl = db->initTable<User>("zum.user");
-  m_roleTbl = db->initTable<Role>("zum.role");
-  m_keyTbl = db->initTable<Key>("zum.key");
-  m_permTbl = db->initTable<Perm>("zum.perm");
+
+  // ensure all tables are running on the same thread as the server
+  // - ensures that direct references to the user and key DB objects
+  //   can be cached in the session, permitting contention-less
+  //   single-threaded access to the object data
+  // - also relies on being a single-writer to the DB (guaranteed by Zdb)
+  auto setTblThread = [this](ZdbAnyTable *tbl) {
+    const auto &config = tbl->config();
+    // if the user needlessly configured it, ensure it's consistent
+    if (config.thread) {
+      if (tbl->sid() != m_sid)
+	throw ZeEVENT(Fatal, ([
+	  id = config.id, thread = config.thread
+	](auto &s) {
+	  s << "table " << id << " thread misconfigured: " << thread;
+	}));
+    } else
+      config.sid = m_sid; // sid is mutable
+  };
+
+  setTblThread(m_userTbl = db->initTable<User>("zum.user"));
+  setTblThread(m_roleTbl = db->initTable<Role>("zum.role"));
+  setTblThread(m_keyTbl = db->initTable<Key>("zum.key"));
+  setTblThread(m_permTbl = db->initTable<Perm>("zum.perm"));
 }
 
 void UserDB::final()

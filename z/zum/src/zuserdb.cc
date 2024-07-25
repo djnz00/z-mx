@@ -126,7 +126,7 @@ int main(int argc, char **argv)
     usage();
   }
 
-  ZeLog::init("zdbpqtest");
+  ZeLog::init("zuserdb");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path(cf->get<true>("log"))));
   ZeLog::start();
