@@ -27,11 +27,14 @@ void performCallbacks() { while (auto fn = callbacks.shift()) fn(); }
 
 class StoreTbl : public ZdbMem::StoreTbl {
 public:
+  using Store = ZdbMem::Store__;
+
   StoreTbl(
-    ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
+    Store *store, ZuID id,
+    ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) : ZdbMem::StoreTbl{
-    id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
+    store, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
   } { }
 
   auto count() { return ZdbMem::StoreTbl::count(); }
@@ -60,7 +63,7 @@ public:
 	  tupleFn = ZuMv(tupleFn)
 	](TupleResult result) mutable {
 	  auto callback = [
-	    tupleFn = ZuMv(tupleFn), result = ZuMv(result)
+	    tupleFn, result = ZuMv(result) // tupleFn is called repeatedly
 	  ]() mutable { tupleFn(ZuMv(result)); };
 	  deferCallbacks ? callbacks.push(ZuMv(callback)) : callback();
 	});

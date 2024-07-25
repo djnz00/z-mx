@@ -17,7 +17,8 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 noinst_HEADERS = ${FBS_H} ZdbMockStore.hh
-LDADD = $(top_builddir)/zdb/src/libZdb.la \
+LDADD = $(top_builddir)/zdb/src/libZdbMem.la \
+	$(top_builddir)/zdb/src/libZdb.la \
 	$(top_builddir)/zv/src/libZv.la $(top_builddir)/zfb/src/libZfb.la \
 	$(top_builddir)/zi/src/libZi.la $(top_builddir)/ze/src/libZe.la \
 	$(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \

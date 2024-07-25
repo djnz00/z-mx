@@ -66,26 +66,27 @@ int main()
 
   try {
     cf = inlineCf(
-      "thread 3\n"
+      "thread zdb\n"
+      "store { thread zdb_mem }\n"
+      "hostID 0\n"
       "hosts {\n"
       "  0 { priority 100 ip 127.0.0.1 port 9943 }\n"
       "  1 { priority  80 ip 127.0.0.1 port 9944 }\n"
       "}\n"
       "tables {\n"
-      "  order { thread 4 writeThread 5 }\n"
+      "  order { }\n"
       "}\n"
-      "debug 0\n"
+      "debug 1\n"
       "dbMx {\n"
-      "  nThreads 6\n"
+      "  nThreads 4\n"
       "  threads {\n"
-      "    1 { isolated true }\n"
-      "    2 { isolated true }\n"
-      "    3 { isolated true }\n"
-      "    4 { isolated true }\n"
-      "    5 { isolated true }\n"
+      "    1 { name rx isolated true }\n"
+      "    2 { name tx isolated true }\n"
+      "    3 { name zdb isolated true }\n"
+      "    4 { name zdb_mem isolated true }\n"
       "  }\n"
-      "  rxThread 1\n"
-      "  txThread 2\n"
+      "  rxThread rx\n"
+      "  txThread tx\n"
       "}\n"
     );
 
@@ -170,25 +171,34 @@ int main()
 	  o->commit();
 	});
 	orders[0]->insert([](ZdbObject<Order> *o) {
-	  if (ZuUnlikely(!o)) { done.post(); return; }
+	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 2, "FIX0", "order2", 4, Side::Buy, {100}, {100}};
 	  o->commit();
 	  done.post();
 	});
+      });
+
+      orders[0]->run([]{
 	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	      s << "#1 maximum(FIX0): " << max.template p<Key>();
 	    }));
-	  else
+	  else {
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	      s << "#1 maximum(FIX0): EOR";
 	    }));
+	    done.post();
+	  }
 	});
       });
 
+      performWork();
+      performCallbacks();
+
+      done.wait();
       done.wait();
 
       orders[0]->run([&id]{
@@ -203,29 +213,31 @@ int main()
 	      ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 		s << "find(IBM, " << id << "): " << o->data();
 	      }));
-	    done_.post();
+	    done.post();
 	  });
-	done_.wait();
-	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
-	  using Key = ZuFieldKeyT<Order, 2>;
-	  if (max.template is<Key>())
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "#2 maximum(FIX0): " << max.template p<Key>();
-	    }));
-	  else
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "#2 maximum(FIX0): EOR";
-	    }));
-	  done_.post();
-	});
-	done_.wait();
-	done.post();
+      });
+
+      orders[0]->run([]{
+	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1,
+	  [](auto max, unsigned) {
+	    using Key = ZuFieldKeyT<Order, 2>;
+	    if (max.template is<Key>())
+	      ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+		s << "#2 maximum(FIX0): " << max.template p<Key>();
+	      }));
+	    else {
+	      ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+		s << "#2 maximum(FIX0): EOR";
+	      }));
+	      done.post();
+	    }
+	  });
       });
 
       performWork(); deferWork = false;
-
       performCallbacks(); deferCallbacks = false;
 
+      done.wait();
       done.wait();
 
       ZeLOG(Debug, "ENV 0 STOPPING");
@@ -248,25 +260,26 @@ int main()
 	      ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 		s << "find(IBM, " << id << "): " << o->data();
 	      }));
-	    done_.post();
+	    done.post();
 	  });
-	done_.wait();
+      });
+      done.wait();
+
+      orders[1]->run([]{
 	orders[1]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	  using Key = ZuFieldKeyT<Order, 2>;
 	  if (max.template is<Key>())
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	      s << "#3 maximum(FIX0): " << max.template p<Key>();
 	    }));
-	  else
+	  else {
 	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	      s << "#3 maximum(FIX0): EOR";
 	    }));
-	  done_.post();
+	    done.post();
+	  }
 	});
-	done_.wait();
-	done.post();
       });
-
       done.wait();
     }
 

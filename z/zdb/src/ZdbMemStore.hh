@@ -1148,15 +1148,39 @@ using Index =
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<MemRowIndex_HeapID>>>>;
 
-// --- mock storeTbl
+// --- in-memory data store base class
 
-class StoreTbl : public Zdb_::StoreTbl {
+class Store__ {
 public:
+  void init(ZiMultiplex *mx, unsigned sid) {
+    m_mx = mx;
+    m_sid = sid;
+  }
+
+  template <typename ...Args> void run(Args &&...args) {
+    m_mx->run(m_sid, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args> void invoke(Args &&...args) {
+    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+  }
+
+private:
+  ZiMultiplex		*m_mx = nullptr;
+  unsigned		m_sid = ZuCmp<unsigned>::null();
+};
+
+// --- in-memory data store table
+
+class ZdbAPI StoreTbl : public Zdb_::StoreTbl {
+public:
+  using Store = Store__;
+
   StoreTbl(
-    ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
+    Store *store, ZuID id,
+    ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
-    m_id{id},
+    m_store{store}, m_id{id},
     m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
     m_bufAllocFn{ZuMv(bufAllocFn)}
   {
@@ -1271,9 +1295,10 @@ private:
   void del(ZmRef<MemRow>, ZmRef<const IOBuf>, CommitFn);
 
 private:
+  Store			*m_store;
   ZuID			m_id;
   ZtVFieldArray		m_fields;
-  ZtVKeyFieldArray		m_keyFields;
+  ZtVKeyFieldArray	m_keyFields;
   XFields		m_xFields;
   XKeyFields		m_xKeyFields;
   ZtArray<unsigned>	m_keyGroup;	// length of group key, 0 if none
@@ -1301,7 +1326,7 @@ using StoreTbls_ =
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
 
 template <typename StoreTbl_>
-class Store_ : public Zdb_::Store {
+class Store_ : public Zdb_::Store, public Store__ {
   using StoreTbl = StoreTbl_;
   using StoreTbls = StoreTbls_<StoreTbl>;
   using StoreTblNode = typename StoreTbls::Node;
@@ -1309,22 +1334,19 @@ class Store_ : public Zdb_::Store {
 public:
   InitResult init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
-    m_mx = mx;
     m_failFn = ZuMv(failFn);
-    return {InitData{.replicated = false}};
-
     try {
       const ZtString &tid = cf->get<true>("thread");
-      auto sid = m_mx->sid(tid);
+      auto sid = mx->sid(tid);
       if (!sid ||
-	  sid > m_mx->params().nThreads() ||
-	  sid == m_mx->rxThread() ||
-	  sid == m_mx->txThread())
+	  sid > mx->params().nThreads() ||
+	  sid == mx->rxThread() ||
+	  sid == mx->txThread())
 	return {ZeVEVENT(Fatal, ([tid = ZtString{tid}](auto &s, const auto &) {
 	  s << "Store::init() failed: invalid thread configuration \""
 	    << tid << '"';
 	}))};
-      m_sid = sid;
+      Store__::init(mx, sid);
     } catch (const ZvError &e_) {
       ZtString e;
       e << e_;
@@ -1332,6 +1354,7 @@ public:
 	s << "Store::init() failed: invalid configuration: " << e;
       }))};
     }
+    return {InitData{.replicated = false}};
   }
   void final() {
     m_failFn = FailFn{};
@@ -1361,7 +1384,7 @@ public:
     }
     if (!storeTbl) {
       storeTbl = new StoreTblNode{
-	id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
+	this, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
       m_storeTbls->addNode(storeTbl);
     }
     storeTbl->open();
@@ -1373,17 +1396,8 @@ public:
     }});
   }
 
-  template <typename ...Args> void run(Args &&...args) {
-    m_mx->run(m_sid, ZuFwd<Args>(args)...);
-  }
-  template <typename ...Args> void invoke(Args &&...args) {
-    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
-  }
-
 private:
   ZmRef<StoreTbls>	m_storeTbls;
-  ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_sid = ZuCmp<unsigned>::null();
   FailFn		m_failFn;
   bool			m_preserve = false;
 };

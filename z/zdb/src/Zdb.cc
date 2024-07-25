@@ -88,12 +88,12 @@ void DB::init(
     m_mx = mx;
     m_handler = ZuMv(handler);
     {
+      if (!m_cf.storeCf)
+	throw ZeEVENT(Fatal, ([](auto &s) {
+	  s << "no data store configured"; }));
       if (store)
 	m_store = ZuMv(store);
       else {
-	if (!m_cf.storeCf)
-	  throw ZeEVENT(Fatal, ([](auto &s) {
-	    s << "no data store configured"; }));
 	ZiModule module_;
 	auto path = m_cf.storeCf->get<true>("module");
 	auto preload = m_cf.storeCf->getBool("preload", false);
@@ -114,7 +114,7 @@ void DB::init(
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
       InitResult result = m_store->init(
-	  m_cf.storeCf, m_mx, m_cf.sid,
+	  m_cf.storeCf, m_mx,
 	  FailFn::Member<&DB::storeFailed>::fn(this));
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<InitData>().replicated;

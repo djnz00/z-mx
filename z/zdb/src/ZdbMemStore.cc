@@ -17,7 +17,9 @@ namespace ZdbMem {
 
 void StoreTbl::count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn)
 {
-  run([keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)]() mutable {
+  m_store->run([
+    this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
+  ]() mutable {
     ZmAssert(keyID < m_indices.length());
 
     const auto &keyFields = m_keyFields[keyID];
@@ -44,8 +46,8 @@ void StoreTbl::select(
   unsigned keyID, ZmRef<const IOBuf> buf,
   unsigned limit, TupleFn tupleFn)
 {
-  run([
-    selectRow, selectNext, inclusive,
+  m_store->run([
+    this, selectRow, selectNext, inclusive,
     keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
   ]() mutable {
     ZmAssert(keyID < m_indices.length());
@@ -86,7 +88,7 @@ void StoreTbl::select(
 
 void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
 {
-  run([keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
+  m_store->run([this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
     ZmAssert(keyID < m_indices.length());
 
     auto key = loadTuple(
@@ -103,7 +105,7 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
 
 void StoreTbl::recover(UN un, RowFn rowFn)
 {
-  run([un, rowFn = ZuMv(rowFn)]() mutable {
+  m_store->run([this, un, rowFn = ZuMv(rowFn)]() mutable {
     // build Recover buf and return it
     ZmRef<const MemRow> row = m_indexUN.find(un);
     if (row) {
@@ -118,7 +120,7 @@ void StoreTbl::recover(UN un, RowFn rowFn)
 
 void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 {
-  run([buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
+  m_store->run([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
     // idempotence check
     auto un = record_(msg_(buf->hdr()))->un();
     if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {

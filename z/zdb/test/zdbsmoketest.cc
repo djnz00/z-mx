@@ -63,7 +63,8 @@ int main()
 
   try {
     cf = inlineCf(
-      "thread 3\n"
+      "thread zdb\n"
+      "store { thread zdb_mem }\n"
       "hostID 0\n"
       "hosts {\n"
       "  0 { standalone 1 }\n"
@@ -75,12 +76,13 @@ int main()
       "dbMx {\n"
       "  nThreads 4\n"
       "  threads {\n"
-      "    1 { isolated true }\n"
-      "    2 { isolated true }\n"
-      "    3 { isolated true }\n"
+      "    1 { name rx isolated true }\n"
+      "    2 { name tx isolated true }\n"
+      "    3 { name zdb isolated true }\n"
+      "    4 { name zdb_mem isolated true }\n"
       "  }\n"
-      "  rxThread 1\n"
-      "  txThread 2\n"
+      "  rxThread rx\n"
+      "  txThread tx\n"
       "}\n"
     );
 
@@ -159,7 +161,6 @@ int main()
 	done.post();
       });
     });
-
     done.wait();
 
     orders->run([&id]{
@@ -174,25 +175,21 @@ int main()
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 	      s << "find(IBM, " << id << "): " << o->data();
 	    }));
-	  done_.post();
 	});
-      done_.wait();
       orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	using Key = ZuFieldKeyT<Order, 2>;
 	if (max.template is<Key>())
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): " << max.template p<Key>();
 	  }));
-	else
+	else {
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): EOR";
 	  }));
-	done_.post();
+	  done.post();
+	}
       });
-      done_.wait();
-      done.post();
     });
-
     done.wait();
 
     db->stop(); // closes all tables
@@ -231,25 +228,26 @@ int main()
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 	      s << "find(IBM, " << id << "): " << o->data();
 	    }));
-	  done_.post();
+	  done.post();
 	});
-      done_.wait();
+    });
+    done.wait();
+
+    orders->run([]{
       orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
 	using Key = ZuFieldKeyT<Order, 2>;
 	if (max.template is<Key>())
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): " << max.template p<Key>();
 	  }));
-	else
+	else {
 	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
 	    s << "maximum(FIX0): EOR";
 	  }));
-	done_.post();
+	  done.post();
+	}
       });
-      done_.wait();
-      done.post();
     });
-
     done.wait();
 
     db->stop();
