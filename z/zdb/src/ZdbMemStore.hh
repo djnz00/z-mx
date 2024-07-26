@@ -1223,6 +1223,7 @@ public:
     }
   }
 
+  Store *store() const { return m_store; }
   auto id() const { return m_id; }
 
   bool opened() const { return m_opened; }
@@ -1327,7 +1328,9 @@ using StoreTbls_ =
 
 template <typename StoreTbl_>
 class Store_ : public Zdb_::Store, public Store__ {
+public:
   using StoreTbl = StoreTbl_;
+private:
   using StoreTbls = StoreTbls_<StoreTbl>;
   using StoreTblNode = typename StoreTbls::Node;
 

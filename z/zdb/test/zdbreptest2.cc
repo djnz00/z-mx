@@ -152,8 +152,8 @@ int main()
 
       orders[0]->writeCache(true); // change to false to cause find() to fail
 
-      deferWork = true;
-      deferCallbacks = true;
+      store[0]->deferWork(true);
+      store[0]->deferCallbacks(true);
 
       orders[0]->run([&id]{
 	orders[0]->insert([](ZdbObject<Order> *o) {
@@ -175,7 +175,6 @@ int main()
 	  new (o->ptr())
 	    Order{"IBM", 2, "FIX0", "order2", 4, Side::Buy, {100}, {100}};
 	  o->commit();
-	  done.post();
 	});
       });
 
@@ -195,10 +194,19 @@ int main()
 	});
       });
 
-      performWork();
-      performCallbacks();
+      ZmBlock<>{}([](auto wake) {
+	orders[0]->run([wake = ZuMv(wake)]() mutable {
+	  store[0]->performWork();
+	  wake();
+	});
+      });
+      ZmBlock<>{}([](auto wake) {
+	orders[0]->run([wake = ZuMv(wake)]() mutable {
+	  store[0]->performCallbacks();
+	  wake();
+	});
+      });
 
-      done.wait();
       done.wait();
 
       orders[0]->run([&id]{
@@ -234,11 +242,23 @@ int main()
 	  });
       });
 
-      performWork(); deferWork = false;
-      performCallbacks(); deferCallbacks = false;
+      ZmBlock<>{}([](auto wake) {
+	orders[0]->run([wake = ZuMv(wake)]() mutable {
+	  store[0]->performWork();
+	  store[0]->deferWork(false);
+	  wake();
+	});
+      });
+      ZmBlock<>{}([](auto wake) {
+	orders[0]->run([wake = ZuMv(wake)]() mutable {
+	  store[0]->performCallbacks();
+	  store[0]->deferCallbacks(false);
+	  wake();
+	});
+      });
 
-      done.wait();
-      done.wait();
+      done.wait(); // callback #1
+      done.wait(); // callback #2
 
       ZeLOG(Debug, "ENV 0 STOPPING");
 
