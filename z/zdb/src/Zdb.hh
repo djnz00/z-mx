@@ -478,17 +478,37 @@ struct TableCf {
   // nShards is immutable for the table, i.e. is an upper concurrency limit
 
   ZuID			id;
-  unsigned		nShards;	// #shards
+  unsigned		nShards = 1;	// #shards
   ThreadArray		thread;		// threads
   mutable SIDArray	sid = 0;	// thread slot IDs
   int			cacheMode = CacheMode::Normal;
   bool			warmup = false;	// warm-up caches, backing store
 
+  class InvalidNThreads : public ZvError {
+  public:
+    InvalidNThreads(unsigned nThreads, unsigned nShards) :
+      m_nThreads{nThreads}, m_nShards{nShards} { }
+
+    void print_(ZuVStream &s) const {
+      s << "invalid threads array size " << m_nThreads
+	<< " (" << m_nShards << " shards)";
+    }
+
+  private:
+    unsigned	m_nThreads;
+    unsigned	m_nShards;
+  };
+
   TableCf() = default;
   TableCf(ZuString id_) : id{id_} { }
   TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
-    unsigned nThreads = cf->count("threads", 1, 100);
+    nShards = cf->getScalar<unsigned>("shards", 1, UINT_MAX, 1);
+    unsigned nThreads = cf->count("threads", 1, 64);
     if (nThreads) {
+      // ensure nThreads is a power of 2 and <= nShards
+      if ((nThreads & (nThreads - 1)) ||
+	  nThreads > nShards)
+	throw InvalidNThreads{nThreads, nShards};
       thread.size(nThreads);
       cf->all("threads", [this](ZtString thread_) {
 	thread.push(ZuMv(thread_));
@@ -880,7 +900,10 @@ private:
 public:
   static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
 
-  Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} { }
+  Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} {
+    m_cache.length(cf->nShards);
+    m_bufCache.length(cf->nShards);
+  }
   ~Table() = default;
 
   // buffer allocator

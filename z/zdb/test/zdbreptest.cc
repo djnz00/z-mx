@@ -146,8 +146,8 @@ int main()
 
       uint64_t id;
 
-      orders[0]->run([&id]{
-	orders[0]->insert([&id](ZdbObject<Order> *o) {
+      orders[0]->run(0, [&id]{
+	orders[0]->insert(0, [&id](ZdbObject<Order> *o) {
 	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 0, "FIX0", "order0", 0, Side::Buy, {100}, {100}};
@@ -187,20 +187,18 @@ int main()
       });
       done.wait();
 
-      orders[0]->run([]{
-	orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
-	  using Key = ZuFieldKeyT<Order, 2>;
-	  if (max.template is<Key>())
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): " << max.template p<Key>();
-	    }));
-	  else {
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): EOR";
-	    }));
-	    done.post();
-	  }
-	});
+      orders[0]->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
+	using Key = ZuFieldKeyT<Order, 2>;
+	if (max.template is<Key>())
+	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	    s << "maximum(FIX0): " << max.template p<Key>();
+	  }));
+	else {
+	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	    s << "maximum(FIX0): EOR";
+	  }));
+	  done.post();
+	}
       });
       done.wait();
     }

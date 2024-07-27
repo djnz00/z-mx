@@ -1481,10 +1481,20 @@ void DB::replicated(Host *host, ZuID dbID, unsigned shard, UN un, SN sn)
 
 AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_db{db}, m_cf{cf}, m_mx{db->mx()},
-  m_cacheUN{new CacheUN{}},
-  m_bufCacheUN{new BufCacheUN{}},
+  m_nextUN(cf->nShards),
+  m_cacheUN(cf->nShards),
+  m_bufCacheUN(cf->nShards),
   m_bufAllocFn{ZuMv(fn)}
 {
+  unsigned n = cf->nShards;
+  m_nextUN.length(n);
+  m_cacheUN.length(n);
+  m_bufCacheUN.length(n);
+  for (unsigned i = 0; i < n; i++) {
+    m_nextUN[i] = 0;
+    m_cacheUN[i] = new CacheUN{};
+    m_bufCacheUN[i] = new BufCacheUN{};
+  }
 }
 
 AnyTable::~AnyTable()
