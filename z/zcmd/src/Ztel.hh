@@ -337,14 +337,15 @@ ZfbFieldTbl(Engine,
 struct DBTable {
   using Name = ZuStringN<28>;
 
-  Name		name;				// primary key
-  ZmThreadName	thread;
-  uint64_t	count = 0;			// dynamic
-  uint64_t	cacheLoads = 0;			// dynamic (*)
-  uint64_t	cacheMisses = 0;		// dynamic (*)
-  uint32_t	cacheSize = 0;
-  int8_t	cacheMode = -1;			// CacheMode
-  bool		warmup = 0;
+  Name			name;				// primary key
+  uint32_t		nShards = 0;
+  ZtArray<ZtString>	thread;
+  uint64_t		count = 0;			// dynamic
+  uint64_t		cacheLoads = 0;			// dynamic (*)
+  uint64_t		cacheMisses = 0;		// dynamic (*)
+  uint32_t		cacheSize = 0;
+  int8_t		cacheMode = -1;			// CacheMode
+  bool			warmup = 0;
 
   int8_t rag() const {
     unsigned total = cacheLoads + cacheMisses;
@@ -358,14 +359,15 @@ struct DBTable {
   friend ZtFieldPrint ZuPrintType(DBTable *);
 };
 ZfbFieldTbl(DBTable,
-    (((name),		(Keys<0>, Ctor<0>)),			(String)),
+    (((name),		(Ctor<0>, Keys<0>)),			(String)),
     (((cacheMode),	(Ctor<7>, Enum<CacheMode::Map>)),	(Int8)),
     (((cacheSize),	(Ctor<6>)),				(UInt64)),
     (((warmup),		(Ctor<8>)),				(Bool)),
     (((count),		(Ctor<3>, Mutable, Series, Delta)),	(UInt64)),
     (((cacheLoads),	(Ctor<4>, Mutable, Series, Delta)),	(UInt64)),
     (((cacheMisses),	(Ctor<5>, Mutable, Series, Delta)),	(UInt64)),
-    (((thread),		(Ctor<1>)),				(String)),
+    (((nShards),	(Ctor<1>)),				(UInt32)),
+    (((thread),		(Ctor<2>)),				(StringVec)),
     (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
 
 // display sequence:

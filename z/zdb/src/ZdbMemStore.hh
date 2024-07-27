@@ -1085,12 +1085,15 @@ Tuple extractKey(
 // --- in-memory row
 
 struct MemRow__ {
+  unsigned	shard;
   ZdbUN		un;
   ZdbSN		sn;
   ZdbVN		vn;
   Tuple		data;
 
-  static ZdbUN UNAxor(const MemRow__ &row) { return row.un; }
+  static ZuTuple<unsigned, ZdbUN> UNAxor(const MemRow__ &row) {
+    return {row.shard, row.un};
+  }
 };
 
 // UN index
@@ -1176,7 +1179,7 @@ public:
   using Store = Store__;
 
   StoreTbl(
-    Store *store, ZuID id,
+    Store *store, ZuID id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
@@ -1221,6 +1224,8 @@ public:
 	  });
       }
     }
+    m_maxUN.length(nShards);
+    for (unsigned i = 0; i < nShards; i++) m_maxUN[i] = 0;
   }
 
   Store *store() const { return m_store; }
@@ -1229,7 +1234,9 @@ public:
   bool opened() const { return m_opened; }
 
   auto count() const { return m_indices[0].count_(); }
-  auto maxUN() const { return m_maxUN; }
+  unsigned nShards() const { return m_maxUN.length(); }
+  const auto &maxUN() const { return m_maxUN; }
+  auto maxUN(unsigned shard) const { return m_maxUN[shard]; }
   auto maxSN() const { return m_maxSN; }
 
 protected:
@@ -1249,7 +1256,8 @@ private:
       tuple = loadUpdTuple(m_fields, m_xFields, fbo);
     else
       tuple = loadDelTuple(m_fields, m_xFields, fbo);
-    return new MemRow{record->un(), sn, record->vn(), ZuMv(tuple)};
+    return new MemRow{
+      record->shard(), record->un(), sn, record->vn(), ZuMv(tuple)};
   }
 
   // save a row to a buffer as a replication/recovery message
@@ -1264,8 +1272,8 @@ private:
       auto sn = Zfb::Save::uint128(row->sn);
       auto msg = fbs::CreateMsg(
 	fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
-	fbs::CreateRecord(fbb, &id, row->un, &sn, row->vn, data).Union()
-      );
+	fbs::CreateRecord(
+	  fbb, &id, row->un, &sn, row->vn, row->shard, data).Union());
       fbb.Finish(msg);
     }
     return saveHdr(fbb);
@@ -1286,7 +1294,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(UN, RowFn);
+  void recover(unsigned shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 
@@ -1309,7 +1317,7 @@ private:
 
   bool			m_opened = false;
 
-  UN			m_maxUN = ZdbNullUN();
+  ZtArray<UN>		m_maxUN;
   SN			m_maxSN = ZdbNullSN();
 };
 
@@ -1373,6 +1381,7 @@ public:
 
   void open(
       ZuID id,
+      unsigned nShards,
       ZtVFieldArray fields,
       ZtVKeyFieldArray keyFields,
       const reflection::Schema *schema,
@@ -1385,9 +1394,17 @@ public:
       }))});
       return;
     }
-    if (!storeTbl) {
+    if (storeTbl) {
+      if (nShards != storeTbl->nShards()) {
+	openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
+	  s << "open(" << id << ") failed - inconsistent nShards";
+	}))});
+	return;
+      }
+    } else {
       storeTbl = new StoreTblNode{
-	this, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
+	this, id, nShards,
+	ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
       m_storeTbls->addNode(storeTbl);
     }
     storeTbl->open();

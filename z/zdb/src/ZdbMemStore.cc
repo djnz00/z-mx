@@ -103,11 +103,11 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
   });
 }
 
-void StoreTbl::recover(UN un, RowFn rowFn)
+void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn)
 {
-  m_store->run([this, un, rowFn = ZuMv(rowFn)]() mutable {
+  m_store->run([this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     // build Recover buf and return it
-    ZmRef<const MemRow> row = m_indexUN.find(un);
+    ZmRef<const MemRow> row = m_indexUN.find(shard, un);
     if (row) {
       RowData data{.buf = saveRow<true>(row).constRef()};
       rowFn(RowResult{ZuMv(data)});
@@ -122,8 +122,11 @@ void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 {
   m_store->run([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
     // idempotence check
-    auto un = record_(msg_(buf->hdr()))->un();
-    if (m_maxUN != ZdbNullUN() && un <= m_maxUN) {
+    auto record = record_(msg_(buf->hdr()));
+    auto shard = record->shard();
+    auto un = record->un();
+    auto &maxUN = m_maxUN[shard];
+    if (maxUN != ZdbNullUN() && un <= maxUN) {
       commitFn(ZuMv(buf), CommitResult{});
       return;
     }
@@ -142,7 +145,7 @@ void StoreTbl::insert(
   ZmRef<MemRow> row, ZmRef<const IOBuf> buf, CommitFn commitFn)
 {
   ZeLOG(Debug, ([](auto &s) { }));
-  m_maxUN = row->un, m_maxSN = row->sn;
+  m_maxUN[row->shard] = row->un, m_maxSN = row->sn;
   unsigned n = m_keyFields.length();
   for (unsigned i = 0; i < n; i++) {
     auto key = extractKey(m_fields, m_keyFields, i, row->data);
@@ -167,7 +170,7 @@ void StoreTbl::update(
   auto key = extractKey(m_fields, m_keyFields, 0, updRow->data);
   ZmRef<MemRow> row = m_indices[0].findVal(key).mutableRef();
   if (row) {
-    m_maxUN = updRow->un, m_maxSN = updRow->sn;
+    m_maxUN[updRow->shard] = updRow->un, m_maxSN = updRow->sn;
 
     // remember original secondary index key values
     unsigned n = m_keyFields.length();
@@ -212,7 +215,7 @@ void StoreTbl::del(
   auto key = extractKey(m_fields, m_keyFields, 0, delRow->data);
   ZmRef<MemRow> row = m_indices[0].delVal(key).mutableRef();
   if (row) {
-    m_maxUN = delRow->un, m_maxSN = delRow->sn;
+    m_maxUN[delRow->shard] = delRow->un, m_maxSN = delRow->sn;
     m_indexUN.delNode(row);
     unsigned n = m_keyFields.length();
     for (unsigned i = 1; i < n; i++) {

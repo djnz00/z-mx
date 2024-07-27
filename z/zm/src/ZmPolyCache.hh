@@ -107,6 +107,31 @@ public:
     });
   }
 
+  ZmPolyCache(ZmPolyCache &) = delete;
+  ZmPolyCache &operator =(ZmPolyCache &) = delete;
+  // the move operators are intentionally unlocked
+  // - these are intended for use exclusively in initialization
+  ZmPolyCache(ZmPolyCache &&c) :
+    m_size{c.m_size},
+    m_hash{ZuMv(c.m_hash)},
+    m_lru{ZuMv(c.m_lru)},
+    m_loadHashes{ZuMv(c.m_loadHashes)},
+    m_loads{c.m_loads},
+    m_misses{c.m_misses},
+    m_evictions{c.m_evictions}
+  {
+    c.m_size = 0;
+    c.m_hash = PolyHash{};
+    c.m_lru = LRU{};
+    c.m_loadHashes = LoadHashes{};
+    c.m_loads = c.m_misses = c.m_evictions = 0;
+  }
+  ZmPolyCache &operator =(ZmPolyCache &&c) {
+    this->~ZmPolyCache();
+    new (this) ZmPolyCache{ZuMv(c)};
+    return *this;
+  }
+
   unsigned size() const { return m_size; }
 
   using Stats = ZmCacheStats;

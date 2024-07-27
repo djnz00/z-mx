@@ -72,7 +72,7 @@ using StopFn = ZmFn<void(StopResult)>;
 struct OpenData {
   StoreTbl	*storeTbl = nullptr;
   uint64_t	count = 0;		// row count
-  UN		un = 0;			// last UN applied to table (*)
+  ZtArray<UN>	un;			// last UN applied to each shard
   SN		sn = 0;			// last SN applied to table (*)
 };
 // result of table open
@@ -147,7 +147,7 @@ public:
   // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const IOBuf>, RowFn) = 0;
 
-  virtual void recover(UN, RowFn) = 0;
+  virtual void recover(unsigned shard, UN, RowFn) = 0;
 
   // buf contains replication message, UN is idempotency key
   virtual void write(ZmRef<const IOBuf>, CommitFn) = 0;	// idempotent
@@ -168,8 +168,9 @@ public:
 
   virtual void open(			// open table - idempotent, async
       ZuID id,				// name of table
-      ZtVFieldArray fields,			// fields
-      ZtVKeyFieldArray keyFields,		// keys and their fields
+      unsigned nShards,			// #shards
+      ZtVFieldArray fields,		// fields
+      ZtVKeyFieldArray keyFields,	// keys and their fields
       const reflection::Schema *schema,	// flatbuffer reflection schema
       IOBufAllocFn,			// buffer allocator
       OpenFn) = 0;			// open result callback

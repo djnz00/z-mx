@@ -889,14 +889,14 @@ public:
   template <bool Required_ = false, typename L>
   void all(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->all(ZuMv(l));
+      node->template all<Required_>(ZuMv(l));
     else
       if constexpr (Required_) throw Required{this, key};
   }
   template <bool Required_ = false, typename L>
   void all(ZuString key, unsigned minimum, unsigned maximum, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->all(minimum, maximum, ZuMv(l));
+      node->template all<Required_>(minimum, maximum, ZuMv(l));
     else
       if constexpr (Required_) throw Required{this, key};
   }
@@ -919,14 +919,14 @@ public:
   template <bool Required_ = false, typename L>
   void allCf(ZuString key, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->allCf(ZuMv(l));
+      node->template allCf<Required_>(ZuMv(l));
     else
       if constexpr (Required_) throw Required{this, key};
   }
   template <bool Required_ = false, typename L>
   void allCf(ZuString key, unsigned minimum, unsigned maximum, L l) const {
     if (auto node = getNode<Required_>(key))
-      node->allCf(minimum, maximum, ZuMv(l));
+      node->template allCf<Required_>(minimum, maximum, ZuMv(l));
     else
       if constexpr (Required_) throw Required{this, key};
   }

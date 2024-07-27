@@ -23,11 +23,12 @@ class Store;
 class StoreTbl : public ZdbMem::StoreTbl {
 public:
   StoreTbl(
-    Store *store, ZuID id,
+    Store *store, ZuID id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) : ZdbMem::StoreTbl{
-    store, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
+    store, id, nShards,
+    ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
   } { }
 
   zdbtest::Store *store() const;
@@ -42,7 +43,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(UN, RowFn);
+  void recover(unsigned shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 };
@@ -171,11 +172,11 @@ inline void StoreTbl::find(
   store()->addWork(ZuMv(work_));
 }
 
-inline void StoreTbl::recover(UN un, RowFn rowFn) {
+inline void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn) {
   // ZeLOG(Debug, "recover() work enqueue");
-  auto work_ = [this, un, rowFn = ZuMv(rowFn)]() mutable {
+  auto work_ = [this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     // ZeLOG(Debug, "recover() work dequeue");
-    ZdbMem::StoreTbl::recover(un, [
+    ZdbMem::StoreTbl::recover(shard, un, [
       this, rowFn = ZuMv(rowFn)
     ](RowResult result) mutable {
       // ZeLOG(Debug, "recover() callback enqueue");

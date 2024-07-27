@@ -115,7 +115,10 @@ private:
   using HashRefTL = ZuTypeMap<ZmRef, HashTL>;
   // tuple of hash table references
   using HashRefs_ = ZuTypeApply<ZuTuple, HashRefTL>;
-  struct HashRefs : public HashRefs_ { };
+  struct HashRefs : public HashRefs_ {
+    using HashRefs_::HashRefs_;
+    using HashRefs_::operator =;
+  };
   // primary index
   using Primary = Hash<ZuUnsigned<0>>;
 
@@ -132,8 +135,8 @@ public:
   }
   ZmPolyHash(const ZmPolyHash &) = delete;
   ZmPolyHash &operator =(const ZmPolyHash &) = delete;
-  ZmPolyHash(ZmPolyHash &&) = delete;
-  ZmPolyHash &operator =(ZmPolyHash &&) = delete;
+  ZmPolyHash(ZmPolyHash &&) = default;
+  ZmPolyHash &operator =(ZmPolyHash &&) = default;
 
   ~ZmPolyHash() { clean(); }
 

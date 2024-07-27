@@ -52,9 +52,6 @@ struct IOBuf_ : public ZiIOBuf {
 };
 
 inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
-  /* ZmAssert(static_cast<const void *>(buf.hdr()) ==
-    reinterpret_cast<const void *>(
-      (buf.ZiIOBuf::data__ & ~ZiIOBuf::Jumbo) + buf.ZiIOBuf::skip)); */
   return record_(msg_(buf.hdr()))->un();
 }
 

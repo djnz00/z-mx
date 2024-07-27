@@ -167,7 +167,7 @@ using Cxn = CxnList::Node;
 
 // --- DB state - SN and key/value linear hash from table ID -> UN
 
-using DBState_ = ZmLHashKV<ZuID, UN, ZmLHashLocal<>>;
+using DBState_ = ZmLHashKV<ZuTuple<ZuID, unsigned>, UN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   SN		sn = 0;
 
@@ -200,8 +200,9 @@ struct DBState : public DBState_ {
 	  if (auto state = i.iterate())
 	    new (ptr)
 	      fbs::TableState{
-		Zfb::Save::id(state->template p<0>()),
-		state->template p<1>()};
+		Zfb::Save::id(state->template p<0>().template p<0>()),
+		state->template p<1>(),
+		uint16_t(state->template p<0>().template p<1>())};
 	  else
 	    new (ptr) fbs::TableState{}; // unused
 	}));
@@ -219,10 +220,10 @@ struct DBState : public DBState_ {
     }
     return false;
   }
-  bool update(ZuID id, UN un_) {
-    auto state = find(id);
+  bool update(ZuTuple<ZuID, unsigned> key, UN un_) {
+    auto state = find(key);
     if (!state) {
-      add(id, un_);
+      add(key, un_);
       return true;
     }
     auto &un = const_cast<T *>(state)->template p<1>();
@@ -310,6 +311,7 @@ public:
   AnyObject(AnyTable *table) : m_table{table} { }
 
   AnyTable *table() const { return m_table; }
+  unsigned shard() const { return m_shard; }
   UN un() const { return m_un; }
   SN sn() const { return m_sn; }
   VN vn() const { return m_vn; }
@@ -326,7 +328,8 @@ public:
   friend ZuPrintFn ZuPrintType(AnyObject *);
 
 private:
-  void init(UN un, SN sn, VN vn) {
+  void init(unsigned shard, UN un, SN sn, VN vn) {
+    m_shard = shard;
     m_un = un;
     m_sn = sn;
     m_vn = vn;
@@ -342,6 +345,7 @@ private:
   void evicted(bool v) { m_evicted = v; }
 
   AnyTable	*m_table;
+  unsigned	m_shard = 0;
   UN		m_un = nullUN();
   SN		m_sn = nullSN();
   VN		m_vn = 0;
@@ -466,16 +470,30 @@ struct Object : public Cache<T>::Node {
 // --- table configuration
 
 struct TableCf {
+  using ThreadArray = ZtArray<ZtString>;
+  using SIDArray = ZtArray<unsigned>;
+
+  // nShards and threads.length() must both be a power of 2
+  // threads.length() must be <= nShards
+  // nShards is immutable for the table, i.e. is an upper concurrency limit
+
   ZuID			id;
-  ZmThreadName		thread;		// in-memory thread
-  mutable unsigned	sid = 0;	// in-memory thread slot ID
+  unsigned		nShards;	// #shards
+  ThreadArray		thread;		// threads
+  mutable SIDArray	sid = 0;	// thread slot IDs
   int			cacheMode = CacheMode::Normal;
   bool			warmup = false;	// warm-up caches, backing store
 
   TableCf() = default;
   TableCf(ZuString id_) : id{id_} { }
   TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
-    thread = cf->get("thread");
+    unsigned nThreads = cf->count("threads", 1, 100);
+    if (nThreads) {
+      thread.size(nThreads);
+      cf->all("threads", [this](ZtString thread_) {
+	thread.push(ZuMv(thread_));
+      });
+    }
     cacheMode = cf->getEnum<CacheMode::Map>(
 	"cacheMode", CacheMode::Normal);
     warmup = cf->getBool("warmup");
@@ -521,18 +539,23 @@ public:
   static ZuID IDAxor(AnyTable *table) { return table->config().id; }
 
   ZuID id() const { return config().id; }
-  auto sid() const { return config().sid; }
+  auto sid(unsigned shard) const {
+    const auto &config = this->config();
+    return config.sid[shard & (config.sid.length() - 1)];
+  }
 
   // DB thread (may be shared)
   template <typename ...Args>
-  void run(Args &&...args) const {
-    m_mx->run(m_cf->sid, ZuFwd<Args>(args)...);
+  void run(unsigned shard, Args &&...args) const {
+    m_mx->run(sid(shard), ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(Args &&...args) const {
-    m_mx->invoke(m_cf->sid, ZuFwd<Args>(args)...);
+  void invoke(unsigned shard, Args &&...args) const {
+    m_mx->invoke(sid(shard), ZuFwd<Args>(args)...);
   }
-  bool invoked() const { return m_mx->invoked(m_cf->sid); }
+  bool invoked(unsigned shard) const {
+    return m_mx->invoked(sid(shard));
+  }
 
   // record count - SWMR
   uint64_t count() const { return m_count.load_(); }
@@ -541,16 +564,20 @@ public:
   ZmRef<IOBuf> allocBuf() { return m_bufAllocFn(); }
 
 private:
-  IOBuf *findBufUN(UN un) {
-    return static_cast<IOBuf *>(m_bufCacheUN->find(un));
+  IOBuf *findBufUN(unsigned shard, UN un) {
+    return static_cast<IOBuf *>(m_bufCacheUN[shard]->find(un));
   }
 protected:
-  void cacheBufUN(IOBuf *buf) { m_bufCacheUN->addNode(buf); }
-  auto evictBufUN(UN un) { return m_bufCacheUN->del(un); }
+  void cacheBufUN(unsigned shard, IOBuf *buf) {
+    m_bufCacheUN[shard]->addNode(buf);
+  }
+  auto evictBufUN(unsigned shard, UN un) {
+    return m_bufCacheUN[shard]->del(un);
+  }
 
 public:
   // next UN that will be allocated
-  UN nextUN() const { return m_nextUN; }
+  UN nextUN(unsigned shard) const { return m_nextUN[shard]; }
 
   // enable/disable writing to cache (temporarily)
   void writeCache(bool enabled) { m_writeCache = enabled; }
@@ -562,7 +589,7 @@ protected:
   // -- implemented by Table<T>
 
   // warmup
-  virtual void warmup() = 0;
+  virtual void warmup(unsigned shard) = 0;
 
   // objSave(fbb, ptr) - save object into flatbuffer, return offset
   virtual Zfb::Offset<void> objSave(Zfb::Builder &, const void *) const = 0;
@@ -584,11 +611,11 @@ protected:
   virtual void objPrintFB(ZuVStream &, ZuBytes) const = 0;
 
   // buffer cache
-  virtual void cacheBuf_(ZmRef<const IOBuf>) = 0;
-  virtual ZmRef<const IOBuf> evictBuf_(IOBuf *) = 0;
+  virtual void cacheBuf_(unsigned shard, ZmRef<const IOBuf>) = 0;
+  virtual ZmRef<const IOBuf> evictBuf_(unsigned shard, IOBuf *) = 0;
 
   // cache statistics
-  virtual void cacheStats(ZmCacheStats &stats) const = 0;
+  virtual void cacheStats(unsigned shard, ZmCacheStats &stats) const = 0;
 
 public:
   Zfb::Offset<void> telemetry(Zfb::Builder &fbb, bool update) const;
@@ -596,20 +623,26 @@ public:
 protected:
   bool writeCache() const { return m_writeCache; }
 
-  auto findUN(UN un) const { return m_cacheUN->findVal(un); }
-  void cacheUN(UN un, AnyObject *object) { m_cacheUN->add(un, object); }
-  void evictUN(UN un) { m_cacheUN->del(un); }
+  auto findUN(unsigned shard, UN un) const {
+    return m_cacheUN[shard]->findVal(un);
+  }
+  void cacheUN(unsigned shard, UN un, AnyObject *object) {
+    m_cacheUN[shard]->add(un, object);
+  }
+  void evictUN(unsigned shard, UN un) {
+    m_cacheUN[shard]->del(un);
+  }
 
   StoreTbl *storeTbl() const { return m_storeTbl; }
 
 protected:
   // cache replication buffer
-  void cacheBuf(ZmRef<const IOBuf>);
+  void cacheBuf(unsigned shard, ZmRef<const IOBuf>);
   // evict replication buffer
-  void evictBuf(UN un);
+  void evictBuf(unsigned shard, UN un);
 
   // outbound replication / write to backing data store
-  void write(ZmRef<const IOBuf> buf, bool active);
+  void write(unsigned shard, ZmRef<const IOBuf> buf, bool active);
 
   // maintain record count
   void incCount() { ++m_count; }
@@ -617,32 +650,32 @@ protected:
 
 private:
   // low-level write to backing data store
-  void store(ZmRef<const IOBuf> buf);
-  void store_(ZmRef<const IOBuf> buf);
+  void store(unsigned shard, ZmRef<const IOBuf> buf);
+  void store_(unsigned shard, ZmRef<const IOBuf> buf);
 
   // outbound recovery / replication
-  void recSend(ZmRef<Cxn> cxn, UN un, UN endUN);
-  void recSend_(ZmRef<Cxn> cxn, UN un, UN endUN, ZmRef<const IOBuf> buf);
-  void recNext(ZmRef<Cxn> cxn, UN un, UN endUN);
-  ZmRef<const IOBuf> mkBuf(UN un);
-  void commitSend(UN un);
+  void recSend(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN);
+  void recSend_(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN, ZmRef<const IOBuf> buf);
+  void recNext(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN);
+  ZmRef<const IOBuf> mkBuf(unsigned shard, UN un);
+  void commitSend(unsigned shard, UN un);
 
   // inbound replication
-  void repRecordRcvd(ZmRef<const IOBuf> buf);
-  void repCommitRcvd(UN un);
+  void repRecordRcvd(unsigned shard, ZmRef<const IOBuf> buf);
+  void repCommitRcvd(unsigned shard, UN un);
 
   // recovery - DB thread
-  void recover(const fbs::Record *record);
+  void recover(unsigned shard, const fbs::Record *record);
 
   // UN
-  bool allocUN(UN un) {
-    if (ZuUnlikely(un != m_nextUN)) return false;
-    ++m_nextUN;
+  bool allocUN(unsigned shard, UN un) {
+    if (ZuUnlikely(un != m_nextUN[shard])) return false;
+    ++m_nextUN[shard];
     return true;
   }
-  void recoveredUN(UN un) {
+  void recoveredUN(unsigned shard, UN un) {
     if (ZuUnlikely(un == nullUN())) return;
-    if (m_nextUN <= un) m_nextUN = un + 1;
+    if (m_nextUN[shard] <= un) m_nextUN[shard] = un + 1;
   }
 
   // immutable
@@ -650,22 +683,24 @@ private:
   const TableCf		*m_cf;
   ZiMultiplex		*m_mx;
 
-  // Table thread exclusive - no need for atomics
-  UN			m_nextUN = 0;		// UN allocator
+  // Table threads SWMR
+  ZtArray<ZmAtomic<UN>>	m_nextUN;		// UN allocator
 
   // open/closed state, record count
-  ZmAtomic<unsigned>	m_open = 0;		// Table thread SWMR
+  ZmAtomic<unsigned>	m_open = 0;		// Table threads SWMR
   ZmAtomic<uint64_t>	m_count = 0;		// ''
 
   // backing data store table
-  StoreTbl		*m_storeTbl = nullptr;	// Table thread
+  StoreTbl		*m_storeTbl = nullptr;	// Table threads
 
-  // object cache indexed by UN
+  // object cache indexed by UN (sharded)
+  using CacheUNArray = ZtArray<ZmRef<CacheUN>>;
   bool			m_writeCache = true;
-  ZmRef<CacheUN>	m_cacheUN;
+  CacheUNArray		m_cacheUN;
 
-  // buffer cache indexed by UN
-  ZmRef<BufCacheUN>	m_bufCacheUN;
+  // buffer cache indexed by UN (sharded)
+  using BufCacheUNArray = ZtArray<ZmRef<BufCacheUN>>;
+  BufCacheUNArray	m_bufCacheUN;
 
   // I/O buffer allocation
   IOBufAllocFn		m_bufAllocFn;
@@ -773,6 +808,7 @@ using Select = Select_<Tuple, Select_Heap<Tuple>>;
 // backing data store find() context
 template <typename T, typename Key> struct Find__ {
   Table<T>				*table;
+  unsigned				shard;
   Key					key;
   ZmFn<void(ZmRef<Object<T>>)>		fn;
   ZmFn<ZmRef<Object<T>>(Table<T> *)>	ctor;
@@ -863,7 +899,8 @@ private:
     if (ZuUnlikely(!fbo)) return {}; // should never happen
     ZmRef<Object<T>> object = ctor(this);
     ZfbField::ctor<T>(object->ptr(), fbo);
-    object->init(record->un(), uint128(record->sn()), record->vn());
+    object->init(
+      record->shard(), record->un(), uint128(record->sn()), record->vn());
     return object;
   }
   // objSave(fbb, ptr) - save object into flatbuffer, return offset
@@ -880,10 +917,11 @@ private:
   void objRecover(const fbs::Record *record) {
     auto fbo = ZfbField::verify<T>(Zfb::Load::bytes(record->data()));
     if (!fbo) return;
+    unsigned shard = record->shard();
     // mark outdated buffers as stale
-    ZuUnroll::all<KeyIDs>([this, fbo](auto KeyID) {
+    ZuUnroll::all<KeyIDs>([this, shard, fbo](auto KeyID) {
       auto key = ZuFieldKey<KeyID>(*fbo);
-      auto i = m_bufCache.template iterator<KeyID>(ZuMv(key));
+      auto i = m_bufCache[shard].template iterator<KeyID>(ZuMv(key));
       while (auto typedBuf = i.iterate()) {
 	if (!typedBuf->stale) {
 	  typedBuf->stale = true;
@@ -895,14 +933,15 @@ private:
     if (record->vn() > 0) {
       // primary key is immutable
       if constexpr (KeyIDs::N > 1)
-	if (ZmRef<Object<T>> object = m_cache.find(ZuFieldKey<0>(*fbo))) {
-	  m_cache.template update<ZuTypeTail<1, KeyIDs>>(ZuMv(object),
+	if (ZmRef<Object<T>> object =
+	    m_cache[shard].find(ZuFieldKey<0>(*fbo))) {
+	  m_cache[shard].template update<ZuTypeTail<1, KeyIDs>>(ZuMv(object),
 	    [fbo](const ZmRef<Object<T>> &object) {
 	      ZfbField::update(object->data(), fbo);
 	    });
 	}
     } else {
-      m_cache.template del<0>(ZuFieldKey<0>(*fbo));
+      m_cache[shard].template del<0>(ZuFieldKey<0>(*fbo));
     }
   }
 
@@ -928,8 +967,9 @@ private:
 
   // find buffer in buffer cache
   template <unsigned KeyID>
-  ZuTuple<ZmRef<const IOBuf>, bool> findBuf(const Key<KeyID> &key) const {
-    auto i = m_bufCache.template iterator<KeyID>(key);
+  ZuTuple<ZmRef<const IOBuf>, bool>
+  findBuf(unsigned shard, const Key<KeyID> &key) const {
+    auto i = m_bufCache[shard].template iterator<KeyID>(key);
     bool found = false;
     while (auto typedBuf = i.iterate()) {
       if (!typedBuf->stale) return {typedBuf->buf, true};
@@ -941,42 +981,44 @@ private:
   // find, falling through object cache, buffer cache, backing data store
   template <
     unsigned KeyID, bool UpdateLRU, bool Evict, typename L, typename Ctor>
-  void find_(Key<KeyID>, L l, Ctor ctor);
+  void find_(unsigned shard, Key<KeyID>, L l, Ctor ctor);
   // find from backing data store (retried on failure)
   template <unsigned KeyID, typename L, typename Ctor>
-  void retrieve(Key<KeyID>, L, Ctor);
+  void retrieve(unsigned shard, Key<KeyID>, L, Ctor);
   template <unsigned KeyID>
   void retrieve_(ZmRef<Find<T, Key<KeyID>>> context);
 
   // buffer cache
-  void cacheBuf_(ZmRef<const IOBuf> buf) {
-    m_bufCache.add(new Buf<T>{ZuMv(buf)});
+  void cacheBuf_(unsigned shard, ZmRef<const IOBuf> buf) {
+    m_bufCache[shard].add(new Buf<T>{ZuMv(buf)});
   }
-  ZmRef<const IOBuf> evictBuf_(IOBuf *buf) {
-    if (auto typedBuf = m_bufCache.delNode(
+  ZmRef<const IOBuf> evictBuf_(unsigned shard, IOBuf *buf) {
+    if (auto typedBuf = m_bufCache[shard].delNode(
 	static_cast<Buf<T> *>(static_cast<Buf_<T> *>(buf->typed))))
       return ZuMv(typedBuf->buf);
     return nullptr;
   }
 
   // cache statistics
-  void cacheStats(ZmCacheStats &stats) const { m_cache.stats(stats); }
+  void cacheStats(unsigned shard, ZmCacheStats &stats) const {
+    m_cache[shard].stats(stats);
+  }
 
   // ameliorate cold start
-  void warmup() {
+  void warmup(unsigned shard) {
     // warmup heaps
     ZmRef<Object<T>> object = placeholder();
-    object->init(0, 0, 0);
-    // warmup cache
-    m_cache.add(object); m_cache.delNode(object);
+    object->init(shard, 0, 0, 0);
+    // warmup caches
+    m_cache[shard].add(object);
+    m_cache[shard].delNode(object);
     // warmup UN cache
-    cacheUN(0, object); evictUN(0);
-    ZmRef<const IOBuf> buf = object->replicate(int(fbs::Body::Replication));
+    cacheUN(shard, 0, object);
+    evictUN(shard, 0);
     // warmup buffer cache
-    cacheBuf(buf); evictBuf(0);
-    // warmup backing data store
-    storeTbl()->warmup();
-    // FIXME - if fully cached, perform table scan and load cache
+    ZmRef<const IOBuf> buf = object->replicate(int(fbs::Body::Replication));
+    cacheBuf(shard, buf);
+    evictBuf(shard, 0);
   }
 
 public:
@@ -1026,23 +1068,24 @@ public:
 
   // find lambda - l(ZmRef<ZdbObject<T>>)
   template <unsigned KeyID, typename L, typename Ctor>
-  ZuInline void find(Key<KeyID> key, L l, Ctor ctor) {
+  ZuInline void find(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
     config().cacheMode == CacheMode::All ?
-      find_<KeyID, true, false>(ZuMv(key), ZuMv(l), ZuMv(ctor)) :
-      find_<KeyID, true, true >(ZuMv(key), ZuMv(l), ZuMv(ctor));
+      find_<KeyID, true, false>(shard, ZuMv(key), ZuMv(l), ZuMv(ctor)) :
+      find_<KeyID, true, true >(shard, ZuMv(key), ZuMv(l), ZuMv(ctor));
   }
   template <unsigned KeyID, typename L>
-  ZuInline void find(Key<KeyID> key, L l) {
+  ZuInline void find(unsigned shard, Key<KeyID> key, L l) {
     find<KeyID>(
-      ZuMv(key), ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
+      shard, ZuMv(key),
+      ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
   }
 
 private: // RMU version used by findUpd() and findDel()
   template <unsigned KeyID, typename L, typename Ctor>
-  void findUpd_(Key<KeyID> key, L l, Ctor ctor) {
+  void findUpd_(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
     config().cacheMode == CacheMode::All ?
-      find_<KeyID, false, false>(ZuMv(key), ZuMv(l), ZuMv(ctor)) :
-      find_<KeyID, false, true >(ZuMv(key), ZuMv(l), ZuMv(ctor));
+      find_<KeyID, false, false>(shard, ZuMv(key), ZuMv(l), ZuMv(ctor)) :
+      find_<KeyID, false, true >(shard, ZuMv(key), ZuMv(l), ZuMv(ctor));
   }
 
 public:
@@ -1063,10 +1106,10 @@ public:
 
   // create new object
   template <typename L, typename Ctor>
-  void insert(L l, Ctor ctor) {
-    ZmAssert(invoked());
+  void insert(unsigned shard, L l, Ctor ctor) {
+    ZmAssert(invoked(shard));
 
-    ZmRef<Object<T>> object = insert_(nextUN(), ZuMv(ctor));
+    ZmRef<Object<T>> object = insert_(nextUN(shard), ZuMv(ctor));
     if (!object) { l(nullptr); return; }
     try {
       l(object);
@@ -1074,23 +1117,27 @@ public:
     object->abort();
   }
   template <typename L>
-  ZuInline void insert(L l) {
-    insert(ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
+  ZuInline void insert(unsigned shard, L l) {
+    insert(shard, ZuMv(l), [](Table *this_) {
+      return new Object<T>{this_};
+    });
   }
   // create new object (idempotent with UN as key)
   template <typename L, typename Ctor>
-  void insert(UN un, L l, Ctor ctor) {
-    ZmAssert(invoked());
+  void insert(unsigned shard, UN un, L l, Ctor ctor) {
+    ZmAssert(invoked(shard));
 
-    if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
+    if (un != nullUN() && ZuUnlikely(nextUN(shard) > un)) {
       l(static_cast<Object<T> *>(nullptr));
       return;
     }
-    insert(ZuMv(l), ZuMv(ctor));
+    insert(shard, ZuMv(l), ZuMv(ctor));
   }
   template <typename L>
-  ZuInline void insert(UN un, L l) {
-    insert(un, ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
+  ZuInline void insert(unsigned shard, UN un, L l) {
+    insert(shard, un, ZuMv(l), [](Table *this_) {
+      return new Object<T>{this_};
+    });
   }
 
   // update lambda - l(ZdbObject<T> *)
@@ -1100,7 +1147,7 @@ public:
   void update(ZmRef<Object<T>> object, L l) {
     ZmAssert(invoked());
 
-    if (!update_(object.ptr(), nextUN())) {
+    if (!update_(object.ptr(), nextUN(object->shard()))) {
       l(nullptr);
       return;
     }
@@ -1139,7 +1186,7 @@ public:
   void update(ZmRef<Object<T>> object, UN un, L l) {
     ZmAssert(invoked());
 
-    if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
+    if (un != nullUN() && ZuUnlikely(nextUN(object->shard()) > un)) {
       l(nullptr);
       return;
     }
@@ -1149,27 +1196,28 @@ public:
   // find and update record (with key, without object)
   template <
     unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
-  ZuInline void findUpd(Key<KeyID> key, L l, Ctor ctor) {
-    findUpd_<KeyID>(ZuMv(key),
-	[this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
-	  if (ZuUnlikely(!object)) { l(object); return; }
-	  update<KeyIDs_>(ZuMv(object), ZuMv(l));
-	}, ZuMv(ctor));
+  ZuInline void findUpd(Key<KeyID> key, unsigned shard, L l, Ctor ctor) {
+    findUpd_<KeyID>(ZuMv(key), shard,
+      [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+	if (ZuUnlikely(!object)) { l(object); return; }
+	update<KeyIDs_>(ZuMv(object), ZuMv(l));
+      }, ZuMv(ctor));
   }
   template <unsigned KeyID, typename KeyIDs = ZuSeq<>, typename L>
-  ZuInline void findUpd(Key<KeyID> key, L l) {
-    findUpd<KeyID, KeyIDs>(
-      ZuMv(key), ZuMv(l), [](Table *this_) { return new Object<T>{this_}; });
+  ZuInline void findUpd(Key<KeyID> key, unsigned shard, L l) {
+    findUpd<KeyID, KeyIDs>(ZuMv(key), shard, ZuMv(l), [](Table *this_) {
+      return new Object<T>{this_};
+    });
   }
   // find and update record (idempotent) (with key, without object)
   template <
     unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
-  ZuInline void findUpd(Key<KeyID> key, UN un, L l, Ctor ctor) {
-    findUpd_<KeyID>(ZuMv(key),
-	[this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
-	  if (ZuUnlikely(!object)) { l(object); return; }
-	  update<KeyIDs_>(ZuMv(object), un, ZuMv(l));
-	}, ZuMv(ctor));
+  ZuInline void findUpd(Key<KeyID> key, unsigned shard, UN un, L l, Ctor ctor) {
+    findUpd_<KeyID>(ZuMv(key), shard,
+      [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
+	if (ZuUnlikely(!object)) { l(object); return; }
+	update<KeyIDs_>(ZuMv(object), un, ZuMv(l));
+      }, ZuMv(ctor));
   }
   template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
   ZuInline void findUpd(Key<KeyID> key, UN un, L l) {
@@ -1185,7 +1233,7 @@ public:
   void del(ZmRef<Object<T>> object, L l) {
     ZmAssert(invoked());
 
-    if (!del_(object.ptr(), nextUN())) {
+    if (!del_(object.ptr(), nextUN(object->shard()))) {
       l(nullptr);
       return;
     }
@@ -1227,7 +1275,7 @@ public:
   // delete record (idempotent) - returns true if del can proceed
   template <typename L>
   void del(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN() && ZuUnlikely(nextUN() > un)) {
+    if (un != nullUN() && ZuUnlikely(nextUN(object->shard()) > un)) {
       l(nullptr);
       return;
     }
@@ -1236,8 +1284,8 @@ public:
 
   // find and delete record (with key, without object)
   template <unsigned KeyID, typename L>
-  void findDel(const Key<KeyID> &key, L l) {
-    findUpd_<KeyID>(key,
+  void findDel(const Key<KeyID> &key, unsigned shard, L l) {
+    findUpd_<KeyID>(key, shard,
       [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	del(ZuMv(object), ZuMv(l));
@@ -1246,8 +1294,8 @@ public:
 
   // find and delete record (idempotent) (with key, without object)
   template <unsigned KeyID, typename L>
-  void findDel(const Key<KeyID> &key, UN un, L l) {
-    findUpd_<KeyID>(key,
+  void findDel(const Key<KeyID> &key, unsigned shard, UN un, L l) {
+    findUpd_<KeyID>(key, shard,
       [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	del(ZuMv(object), un, ZuMv(l));
@@ -1257,35 +1305,37 @@ public:
 private:
   // commit insert/update/delete - causes replication/write
   bool commit(AnyObject *object) {
-    ZmAssert(invoked());
+    unsigned shard = object->shard();
+
+    ZmAssert(invoked(shard));
 
     int origState = object->state();
     if (!object->commit_()) return false;
     switch (origState) {
       case ObjState::Insert:
 	if (writeCache()) {
-	  m_cache.add(object);
-	  cacheUN(object->un(), object);
+	  m_cache[shard].add(object);
+	  cacheUN(shard, object->un(), object);
 	}
 	incCount();
 	break;
       case ObjState::Update:
 	if (writeCache())
-	  cacheUN(object->un(), object);
+	  cacheUN(shard, object->un(), object);
 	break;
       case ObjState::Delete:
-	if (m_cache.delNode(static_cast<Object<T> *>(object)))
+	if (m_cache[shard].delNode(static_cast<Object<T> *>(object)))
 	  object->evicted(true);
 	decCount();
 	break;
     }
-    write(object->replicate(int(fbs::Body::Replication)), true);
+    write(shard, object->replicate(int(fbs::Body::Replication)), true);
     return true;
   }
 
   // abort insert/update/delete
   bool abort(AnyObject *object) {
-    ZmAssert(invoked());
+    ZmAssert(invoked(object->shard()));
 
     return object->abort_();
   }
@@ -1301,22 +1351,24 @@ private:
 
   // low-level update, calls AnyObject::update_()
   bool update_(Object<T> *object, UN un) {
-    evictUN(object->un());
+    evictUN(object->shard(), object->un());
     return object->update_(un);
   }
 
   // low-level delete, calls AnyObject::del_()
   bool del_(Object<T> *object, UN un) {
-    evictUN(object->un());
+    evictUN(object->shard(), object->un());
     return object->del_(un);
   }
 
 private:
   // object caches
-  Cache<T>			m_cache;
+  using CacheArray = ZtArray<Cache<T>>;
+  CacheArray			m_cache;
 
   // pending replications
-  BufCache<T>			m_bufCache;
+  using BufCacheArray = ZtArray<BufCache<T>>;
+  BufCacheArray			m_bufCache;
 };
 
 template <typename T>
@@ -1721,7 +1773,7 @@ private:
   bool replicate(ZmRef<const IOBuf> buf);
 
   // inbound replication
-  void replicated(Host *host, ZuID dbID, UN un, SN sn);
+  void replicated(Host *host, ZuID dbID, unsigned shard, UN un, SN sn);
 
   bool isStandalone() const { return m_standalone; }
 
@@ -1846,8 +1898,6 @@ inline void Table<T>::select_(
 {
   using Context = Select<Tuple_>;
 
-  ZmAssert(invoked());
-
   auto context = ZmMkRef(new Context{ZuMv(l)});
 
   Zfb::IOBuilder fbb{allocBuf()};
@@ -1881,13 +1931,13 @@ inline void Table<T>::select_(
 template <typename T>
 template <
   unsigned KeyID, bool UpdateLRU, bool Evict, typename L, typename Ctor>
-inline void Table<T>::find_(Key<KeyID> key, L l, Ctor ctor) {
-  ZmAssert(invoked());
+inline void Table<T>::find_(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
+  ZmAssert(invoked(shard));
 
   auto load = [
-    this, ctor = ZuMv(ctor)
+    this, shard, ctor = ZuMv(ctor)
   ]<typename L_>(const Key<KeyID> &key, L_ l) mutable {
-    auto [buf, found] = findBuf<KeyID>(key);
+    auto [buf, found] = findBuf<KeyID>(shard, key);
     if (buf) {
       l(objLoad(buf, ZuMv(ctor)));
       return;
@@ -1896,30 +1946,29 @@ inline void Table<T>::find_(Key<KeyID> key, L l, Ctor ctor) {
       l(nullptr);
       return;
     }
-    retrieve<KeyID>(key, ZuMv(l), ZuMv(ctor));
+    retrieve<KeyID>(shard, key, ZuMv(l), ZuMv(ctor));
   };
   if constexpr (Evict) {
     auto evict = [this](ZmRef<AnyObject> object) {
-      evictUN(object->un());
+      evictUN(object->shard(), object->un());
       object->evicted(true);
     };
-    m_cache.template find<KeyID, UpdateLRU>(
+    m_cache[shard].template find<KeyID, UpdateLRU>(
 	ZuMv(key), ZuMv(l), ZuMv(load), ZuMv(evict));
   } else
-    m_cache.template find<KeyID, UpdateLRU, false>(
+    m_cache[shard].template find<KeyID, UpdateLRU, false>(
 	ZuMv(key), ZuMv(l), ZuMv(load));
 }
 
 template <typename T>
 template <unsigned KeyID, typename L, typename Ctor>
-inline void Table<T>::retrieve(Key<KeyID> key, L l, Ctor ctor)
+inline void Table<T>::retrieve(unsigned shard, Key<KeyID> key, L l, Ctor ctor)
 {
   using Key_ = Key<KeyID>;
   using Context = Find<T, Key_>;
 
-  ZmAssert(invoked());
-
-  auto context = ZmMkRef(new Context{this, ZuMv(key), ZuMv(l), ZuMv(ctor)});
+  auto context =
+    ZmMkRef(new Context{this, shard, ZuMv(key), ZuMv(l), ZuMv(ctor)});
 
   retrieve_<KeyID>(ZuMv(context));
 }
@@ -1934,7 +1983,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
   fbb.Finish(ZfbField::save(fbb, context->key));
   auto keyBuf = fbb.buf();
 
-  auto rowFn = RowFn::mvFn(ZuMv(context),
+  storeTbl()->find(KeyID, ZuMv(keyBuf).constRef(), RowFn::mvFn(ZuMv(context),
     [](ZmRef<Context> context, RowResult result) {
       auto table = context->table;
       if (ZuUnlikely(result.is<Event>())) {
@@ -1949,19 +1998,32 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
       }
       if (ZuLikely(result.is<RowData>())) {
 	auto buf = ZuMv(ZuMv(result).p<RowData>().buf);
-	table->invoke([
+	table->invoke(context->shard, [
 	  table,
-	  fn = ZuMv(context->fn),
-	  ctor = ZuMv(context->ctor),
+	  context = ZuMv(context),
 	  buf = ZuMv(buf)
 	]() mutable {
-	  fn(table->objLoad(ZuMv(buf), ZuMv(ctor)));
+	  ZmRef<Object<T>> object =
+	    table->objLoad(ZuMv(buf), ZuMv(context->ctor));
+	  if (object->shard() != context->shard) {
+	    auto fn = ZuMv(context->fn);
+	    // sharding inconsistency is fatal, the app is broken
+	    ZeLOG(Fatal, ([
+	      context = ZuMv(context), object = ZuMv(object)
+	    ](auto &s) {
+	      s << "Zdb find of " << context->table->id()
+		<< '/' << context->key << " failed: object " << *object
+		<< " shard != find context shard " << context->shard;
+	    }));
+	    fn(nullptr);
+	  } else
+	    context->fn(ZuMv(object));
 	});
       } else
-	table->invoke([fn = ZuMv(context->fn)]() mutable { fn(nullptr); });
-    });
-
-  storeTbl()->find(KeyID, ZuMv(keyBuf).constRef(), ZuMv(rowFn));
+	table->invoke(context->shard, [fn = ZuMv(context->fn)]() mutable {
+	  fn(nullptr);
+	});
+    }));
 }
 
 // --- printing
@@ -1990,6 +2052,7 @@ struct Record_Print {
     auto id = Zfb::Load::id(record->table());
     auto data = Zfb::Load::bytes(record->data());
     s << "{db=" << id
+      << " shard=" << record->shard()
       << " un=" << record->un()
       << " sn=" << ZuBoxed(Zfb::Load::uint128(record->sn()))
       << " vn=" << record->vn() << "}";
@@ -2038,6 +2101,7 @@ template <typename S>
 void AnyObject::print(S &s) const {
   s << "{table=" << m_table->id()
     << " state=" << ObjState::name(m_state)
+    << " shard=" << m_shard
     << " un=" << m_un
     << " sn=" << m_sn
     << " vn=" << m_vn;
@@ -2048,7 +2112,7 @@ void AnyObject::print(S &s) const {
     m_table->objPrint(s_, ptr_());
   }
   s << "}}";
-};
+}
 
 } // Zdb_
 
