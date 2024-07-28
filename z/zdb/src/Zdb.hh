@@ -329,12 +329,23 @@ public:
   VN vn() const { return m_vn; }
   int state() const { return m_state; }
   UN origUN() const { return m_origUN; }
-  bool evicted() const { return m_evicted; }
 
   ZmRef<const IOBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject *>(this)->ptr_(); }
+
+  template <typename T>
+  void weakRef(ZmRef<T> &ref) {
+    m_weakRef = &ref;
+    ref = this;
+  }
+  void evicted() {
+    if (m_weakRef) {
+      *m_weakRef = nullptr;	// intentionally not an atomic
+      m_weakRef = nullptr;
+    }
+  }
 
   template <typename S> void print(S &s) const;
   friend ZuPrintFn ZuPrintType(AnyObject *);
@@ -354,16 +365,14 @@ private:
   bool commit_();
   bool abort_();
 
-  void evicted(bool v) { m_evicted = v; }
-
-  AnyTable	*m_table;
-  unsigned	m_shard = 0;
-  UN		m_un = nullUN();
-  SN		m_sn = nullSN();
-  VN		m_vn = 0;
-  int		m_state = ObjState::Undefined;
-  UN		m_origUN = nullUN();
-  bool		m_evicted = false;
+  AnyTable		*m_table;
+  unsigned		m_shard = 0;
+  UN			m_un = nullUN();
+  SN			m_sn = nullSN();
+  VN			m_vn = 0;
+  int			m_state = ObjState::Undefined;
+  UN			m_origUN = nullUN();
+  ZmRef<AnyObject>	*m_weakRef = nullptr;
 };
 
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
@@ -1131,7 +1140,7 @@ public:
     ZmAssert(invoked(shard));
 
     ZmRef<Object<T>> object = m_cache[shard].template del<KeyID>(key);
-    if (object) object->evicted(true);
+    if (object) object->evicted();
   }
   void evict(Object<T> *object) {
     unsigned shard = object->shard();
@@ -1139,7 +1148,7 @@ public:
     ZmAssert(invoked(shard));
 
     m_cache[shard].delNode(object);
-    object->evicted(true);
+    object->evicted();
   }
 
   // init lambda - l(ZdbObject<T> *)
@@ -1284,12 +1293,10 @@ public:
     // - revert above actions on abort
     // - note that a new buffer is written by commit(), which
     //   causes a future find() to return null
-    bool cached = false;
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// "undo" buffer
     auto nBufs = 0;
-    auto abort = [this, shard, &object, &cached, &bufs, &nBufs]() {
+    auto abort = [this, shard, &object, &bufs, &nBufs]() {
       if (!object->abort()) return;
-      if (cached) { object->evicted(false); m_cache[shard].add(object); }
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
 	bufs[i].~ZmRef<Buf<T>>();
@@ -1307,8 +1314,6 @@ public:
       }
     });
     try {
-      if (cached = m_cache[shard].delNode(object))
-	object->evicted(true);
       l(object);
     } catch (...) { abort(); throw; }
     abort();
@@ -1378,7 +1383,7 @@ private:
 	break;
       case ObjState::Delete:
 	if (m_cache[shard].delNode(static_cast<Object<T> *>(object)))
-	  object->evicted(true);
+	  object->evicted();
 	decCount();
 	break;
     }
@@ -2024,7 +2029,7 @@ inline void Table<T>::find_(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
   if constexpr (Evict) {
     auto evict = [this](ZmRef<AnyObject> object) {
       evictUN(object->shard(), object->un());
-      object->evicted(true);
+      object->evicted();
     };
     m_cache[shard].template find<KeyID, UpdateLRU>(
 	ZuMv(key), ZuMv(l), ZuMv(load), ZuMv(evict));
@@ -2198,6 +2203,7 @@ template <typename T> using ZdbObjRef = ZmRef<ZdbObject<T>>;
 using ZdbAnyTable = Zdb_::AnyTable;
 template <typename T> using ZdbTable = Zdb_::Table<T>;
 using ZdbTableCf = Zdb_::TableCf;
+template <typename T> using ZdbTblRef = ZmRef<ZdbTable<T>>;
 
 using Zdb = Zdb_::DB;
 using ZdbHandler = Zdb_::DBHandler;

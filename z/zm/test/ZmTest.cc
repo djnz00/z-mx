@@ -16,6 +16,7 @@
 #include <zlib/ZmObject.hh>
 #include <zlib/ZmHash.hh>
 #include <zlib/ZmList.hh>
+#include <zlib/ZmAtomic.hh>
 
 void fail() { Zm::exit(1); }
 

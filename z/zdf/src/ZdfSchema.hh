@@ -44,7 +44,7 @@ ZfbFields(Series,
   (((id),	(Ctor<1>, Keys<0>)),		(String)),
   (((name),	(Ctor<2>, Keys<1>, Mutable)),	(DateTime)));
 
-struct Blk {
+struct BlkHdr {
   uint32_t	seriesID;
   uint32_t	blkID;
   uint64_t	offset;
@@ -52,7 +52,7 @@ struct Blk {
   uint16_t	count;
   uint8_t	ndp;
 };
-ZfbFields(Blk,
+ZfbFields(BlkHdr,
   (((seriesID),	(Ctor<0>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
   (((blkID),	(Ctor<1>, Keys<0>, Descend<0>)),		(UInt32)),
   (((offset),	(Ctor<2>, Mutable)),				(UInt64)),

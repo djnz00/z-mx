@@ -266,10 +266,10 @@ private:
 
   ZmAtomic<int>		m_state = UserDBState::Uninitialized;
 
-  ZmRef<ZdbTable<User>>	m_userTbl;
-  ZmRef<ZdbTable<Role>>	m_roleTbl;
-  ZmRef<ZdbTable<Key>>	m_keyTbl;
-  ZmRef<ZdbTable<Perm>>	m_permTbl;
+  ZdbTblRef<User>	m_userTbl;
+  ZdbTblRef<Role>	m_roleTbl;
+  ZdbTblRef<Key>	m_keyTbl;
+  ZdbTblRef<Perm>	m_permTbl;
 
   using NPerms = ZuUnsigned<
     unsigned(fbs::LoginReqData::MAX) + unsigned(fbs::ReqData::MAX)>;

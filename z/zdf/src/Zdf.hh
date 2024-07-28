@@ -256,7 +256,7 @@ auto fields() { return ZtVFields_<Fields<T>>(); }
 
 class ZdfAPI Mgr {
 public:
-  void init(ZvCf *, ZiMultiplex *, Zdb *);
+  void init(ZvCf *, Zdb *);
   void final();
 
   // user DB thread (may be shared)
@@ -271,7 +271,7 @@ public:
   bool invoked(unsigned shard) const { return m_mx->invoked(m_sid[shard]); }
 
   // open
-  void open(ZtArray<ZtString> perms, OpenFn);
+  DataFrame open(ZuString name);
 
   ZmRef<DataFrame> open(ZtString name);
   void close(DataFrame *);
@@ -280,11 +280,10 @@ public:
   void close(ZtString name); // FIXME
 
 private:
-  ZmRef<Zdb>		m_db;
-  ZmRef<ZdbAnyTable>	m_dataFrame;
-  ZmRef<ZdbAnyTable>	m_series;
-  ZmRef<ZdbAnyTable>	m_hdr;
-  ZmRef<ZdbAnyTable>	m_blk;
+  ZdbTblRef<DB::DataFrame>	m_dataFrameTbl;
+  ZdbTblRef<DB::Series>		m_seriesTbl;
+  ZdbTblRef<DB::BlkHdr>		m_blkHdrTbl;
+  ZdbTblRef<DB::BlkData>	m_blkDataTbl;
 };
 
 class ZdfAPI DataFrame {
@@ -422,9 +421,8 @@ private:
   ZtString			m_name;
   ZtArray<ZuPtr<Series>>	m_series;
   ZtArray<const ZtVField *>	m_fields;
-  ZmRef<ZdbTable<Hdr>>		m_hdrTable;
-  ZmRef<ZdbTable<Blk>>		m_blkTable;
-  ZuTime			m_epoch;
+  ZdbObjRef<DB::DataFrame>	m_dbObj;
+
   // async open/close series context
   using Callback = ZuUnion<void, OpenFn, CloseFn>;
   ZmPLock			m_lock;

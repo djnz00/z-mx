@@ -296,7 +296,10 @@ public:
   auto writer() { return Writer<Series, Encoder>{this}; }
 
 private:
-  using Blk = ZuUnion<Hdr, ZmRef<Buf>>;
+  using Blk = ZuUnion<Hdr, ZmRef<Buf>>; // FIXME
+					// always ZdbObjRef<BlkHdr>
+					// "weak" ZdbObjRef<BlkData>,
+					// nulled on eviction
 
   static const Hdr *hdr_(const ZuNull &) { return nullptr; } // never called
   static const Hdr *hdr_(const Hdr &hdr) { return &hdr; }
