@@ -22,7 +22,8 @@ CREATE TYPE zbitmap (
   RECEIVE = zbitmap_recv,
   SEND = zbitmap_send,
   INTERNALLENGTH = VARIABLE,
-  ALIGNMENT = double
+  ALIGNMENT = double,
+  STORAGE = external
 );
 
 CREATE FUNCTION zbitmap_length(zbitmap) RETURNS uint4
