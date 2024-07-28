@@ -254,13 +254,24 @@ using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 template <typename T>
 auto fields() { return ZtVFields_<Fields<T>>(); }
 
-{
-
-};
-
 class ZdfAPI Mgr {
 public:
-  void init(ZmRef<Zdb> db, ZuString prefix);
+  void init(ZvCf *, ZiMultiplex *, Zdb *);
+  void final();
+
+  // user DB thread (may be shared)
+  template <typename ...Args>
+  void run(unsigned shard, Args &&...args) const {
+    m_mx->run(m_sid, ZuFwd<Args>(args)...);
+  }
+  template <typename ...Args>
+  void invoke(unsigned shard, Args &&...args) const {
+    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+  }
+  bool invoked(unsigned shard) const { return m_mx->invoked(m_sid[shard]); }
+
+  // open
+  void open(ZtArray<ZtString> perms, OpenFn);
 
   ZmRef<DataFrame> open(ZtString name);
   void close(DataFrame *);

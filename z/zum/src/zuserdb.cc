@@ -154,7 +154,7 @@ int main(int argc, char **argv)
       .downFn = [](Zdb *, bool) { }
     });
 
-    userDB.init(cf->getCf<true>("userdb"), mx, db);
+    userDB.init(cf->getCf<true>("userdb"), db);
 
     mx->start();
     if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");

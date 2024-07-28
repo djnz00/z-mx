@@ -31,57 +31,43 @@ UserDB::~UserDB()
 {
 }
 
-void UserDB::init(ZvCf *cf, ZiMultiplex *mx, Zdb *db)
+void UserDB::init(ZvCf *cf, Zdb *db)
 {
   ZeAssert(m_state == UserDBState::Uninitialized,
     (state = m_state), "invalid state=" << state, return);
-  unsigned sid = mx->sid(cf->get<true>("thread"));
-  if (!sid ||
-      sid > mx->params().nThreads() ||
-      sid == mx->rxThread() ||
-      sid == mx->txThread())
-    throw ZeEVENT(Fatal, ([thread = ZtString{cf->get("thread")}](auto &s) {
-      s << "ZumServer thread misconfigured: " << thread; }));
-  m_mx = mx;
-  m_sid = sid;
+
   m_passLen = cf->getInt("passLen", 6, 60, m_passLen);
   m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
   m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
-  m_state = UserDBState::Initialized;
 
-  // ensure all tables are running on the same thread as the server
+  // ensure all tables are running on the same thread
   // - ensures that direct references to the user and key DB objects
   //   can be cached in the session, permitting contention-less
   //   single-threaded access to the object data
-  // - also relies on being a single-writer to the DB (Zdb guarantee)
-  auto setTblThread = [this](ZdbAnyTable *tbl) {
-    const auto &config = tbl->config();
-    // if the user needlessly configured it, ensure it's consistent
-    if (config.thread) {
-      if (config.thread.length() != 1 || tbl->sid(0) != m_sid)
-	throw ZeEVENT(Fatal, ([
-	  id = config.id, thread = config.thread
-	](auto &s) {
-	  s << "table " << id << " thread misconfigured: ["
-	    << ZtJoin(thread, ",") << ']';
-	}));
-    } else
-      config.sid = m_sid; // sid is mutable
-  };
+  // - UserDB relies on being a single-writer to the DB (Zdb guarantee)
+  const auto &thread = cf->get<true>("thread");
+  auto &dbCf = const_cast<ZdbCf &>(db->config());
+  dbCf.tableCf("zum.user")->thread = { ZtString{thread} };
+  dbCf.tableCf("zum.role")->thread = { ZtString{thread} };
+  dbCf.tableCf("zum.key")->thread = { ZtString{thread} };
+  dbCf.tableCf("zum.perm")->thread = { ZtString{thread} };
 
-  setTblThread(m_userTbl = db->initTable<User>("zum.user"));
-  setTblThread(m_roleTbl = db->initTable<Role>("zum.role"));
-  setTblThread(m_keyTbl = db->initTable<Key>("zum.key"));
-  setTblThread(m_permTbl = db->initTable<Perm>("zum.perm"));
+  m_userTbl = db->initTable<User>("zum.user");
+  m_roleTbl = db->initTable<Role>("zum.role");
+  m_keyTbl = db->initTable<Key>("zum.key");
+  m_permTbl = db->initTable<Perm>("zum.perm");
+
+  m_state = UserDBState::Initialized;
 }
 
 void UserDB::final()
 {
+  m_state = UserDBState::Uninitialized;
+
   m_userTbl = nullptr;
   m_roleTbl = nullptr;
   m_keyTbl = nullptr;
   m_permTbl = nullptr;
-  m_state = UserDBState::Uninitialized;
 }
 
 // initiate open sequence

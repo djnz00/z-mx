@@ -259,7 +259,7 @@ friend TLS;
     }
 
     m_userDB = new UserDB(this);
-    m_userDB->init(cf->getCf<true>("userdb"), mx, db);
+    m_userDB->init(cf->getCf<true>("userdb"), db);
 
     TelServer::init(mx, cf->getCf("telemetry"));
   }

@@ -42,7 +42,6 @@ using BootstrapFn = ZmFn<void(BootstrapResult)>;
 // request/response callback
 using ResponseFn = ZmFn<void(ZmRef<ZiIOBuf>)>;
 
-
 // live session
 namespace SessionFlags {
   ZtEnumFlags(SessionFlags, uint8_t, Interactive);
@@ -80,24 +79,25 @@ namespace UserDBState {
     Uninitialized = 0, Initialized, Opening, Opened, OpenFailed, Bootstrap);
 }
 
+// main server-side user DB class
 class ZvAPI UserDB {
 public:
   UserDB(Ztls::Random *rng);
   ~UserDB();
 
-  void init(ZvCf *, ZiMultiplex *, Zdb *);
+  void init(ZvCf *, Zdb *);
   void final();
 
-  // mgr thread (may be shared)
+  // user DB thread
   template <typename ...Args>
   void run(Args &&...args) const {
-    m_mx->run(m_sid, ZuFwd<Args>(args)...);
+    m_userTbl->run(0, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
   void invoke(Args &&...args) const {
-    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+    m_userTbl->invoke(0, ZuFwd<Args>(args)...);
   }
-  bool invoked() const { return m_mx->invoked(m_sid); }
+  bool invoked() const { return m_userTbl->invoked(0); }
 
   // open
   void open(ZtArray<ZtString> perms, OpenFn);
@@ -263,9 +263,6 @@ private:
   unsigned		m_passLen = 12;
   unsigned		m_totpRange = 6;
   unsigned		m_keyInterval = 30;
-
-  ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_sid = 0;
 
   ZmAtomic<int>		m_state = UserDBState::Uninitialized;
 

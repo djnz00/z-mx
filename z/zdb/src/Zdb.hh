@@ -6,7 +6,7 @@
 
 // Z database
 
-// Zdb is a clustered/replicated in-process/in-memory DB that includes
+// Zdb is a clustered/replicated in-process/in-memory DB/ORM that includes
 // RAFT-like leader election and failover. Zdb dynamically organizes
 // cluster hosts into a replication chain from the leader to the
 // lowest-priority follower. Replication is async. ZmEngine is used for
@@ -20,15 +20,27 @@
 //   - Currently Postgres
 // - In-memory write-through object cache
 //   - Deferred async writes
-//   - In-memory write buffer queue
+//   - In-memory write queue of I/O buffers
 // - Async replication independent of backing store
 //   (can be disabled for replicated backing stores)
-// - Primary and multiple secondary unique in-memory and on-disk indices
-// - Find, insert, update, delete operations
+// - Primary and multiple-secondary unique in-memory and on-disk indices
+// - Find, insert, update, delete operations (Find and CRUD)
 // - Batched select and count queries (index-based, optionally grouped)
+// - Front-end shares threads with the application
+// - Optional data sharding for multi-threaded concurrency
 
-// select() returns 0..N immutable ZuTuples for read-only purposes
-// find() returns 0..1 mutable ZdbObjects for read-modify-write purposes
+// select() is an un-cached backing data store query that
+// returns 0..N immutable ZuTuples for read-only purposes
+// - cache consistency is assured by enqueuing the select on the
+//   back-end write queue, ensuring results reflect any pending updates
+//   outstanding at the time of the call; the results may become outdated
+//   when eventually processed if further updates are concurrently performed
+//   while the select itself is outstanding - an intentional limitation
+
+// insert() inserts new objects (rows)
+// find() returns 0..1 mutable ZdbObjects for read-modify-write
+// update() updates existing objects
+// del() deletes existing objects
 
 //  host state		engine state
 //  ==========		============
@@ -1441,8 +1453,8 @@ struct HostCf {
   ZtString	up;
   ZtString	down;
 
-  HostCf(const ZtString &key, const ZvCf *cf) {
-    id = key;
+  HostCf(const ZtString &id_) : id{id_}, standalone{true} { }
+  HostCf(const ZtString &id_, const ZvCf *cf) : id{id_} {
     if (!(standalone = cf->getBool("standalone", false))) {
       priority = cf->getInt<true>("priority", 0, 1<<30);
       ip = cf->get<true>("ip");
@@ -1618,6 +1630,26 @@ struct DBCf {
   }
   DBCf(DBCf &&) = default;
   DBCf &operator =(DBCf &&) = default;
+
+  const TableCf *tableCf(ZuString id) const {
+    if (auto node = tableCfs.findPtr(id)) return &node->val();
+    return nullptr;
+  }
+  TableCf *tableCf(ZuString id) {
+    auto node = tableCfs.findPtr(id);
+    if (!node) tableCfs.addNode(node = new TableCfs::Node{id});
+    return &node->val();
+  }
+
+  const HostCf *hostCf(ZuString id) const {
+    if (auto node = hostCfs.findPtr(id)) return &node->val();
+    return nullptr;
+  }
+  HostCf *hostCf(ZuString id) {
+    auto node = hostCfs.findPtr(id);
+    if (!node) hostCfs.addNode(node = new HostCfs::Node{id});
+    return &node->val();
+  }
 };
 
 // --- DB

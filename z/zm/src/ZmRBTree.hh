@@ -351,8 +351,6 @@ public:
   template <int Direction = ZmRBTreeGreaterEqual>
   using ReadIterator = ZmRBTreeReadIterator<ZmRBTree, Direction>;
 
-private:
-public:
   struct Node;
   using Node_ = ZmNode<
     T, KeyAxor, ValAxor, NodeBase, ZmRBTree_NodeExt<Node, Unique>,
