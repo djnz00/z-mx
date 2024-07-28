@@ -475,6 +475,7 @@ struct TableCf {
 
   // nShards and threads.length() must both be a power of 2
   // threads.length() must be <= nShards
+  // nShards must be <= 64
   // nShards is immutable for the table, i.e. is an upper concurrency limit
 
   ZuID			id;
@@ -502,7 +503,7 @@ struct TableCf {
   TableCf() = default;
   TableCf(ZuString id_) : id{id_} { }
   TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
-    nShards = cf->getScalar<unsigned>("shards", 1, UINT_MAX, 1);
+    nShards = cf->getScalar<unsigned>("shards", 1, 64, 1);
     unsigned nThreads = cf->count("threads", 1, 64);
     if (nThreads) {
       // ensure nThreads is a power of 2 and <= nShards
@@ -1114,19 +1115,28 @@ private: // RMU version used by findUpd() and findDel()
 public:
   // evict from cache
   template <unsigned KeyID>
-  void evict(const Key<KeyID> &key) {
-    ZmAssert(invoked());
-    ZmRef<Object<T>> object = m_cache.template del<KeyID>(key);
+  void evict(unsigned shard, const Key<KeyID> &key) {
+    ZmAssert(invoked(shard));
+
+    ZmRef<Object<T>> object = m_cache[shard].template del<KeyID>(key);
     if (object) object->evicted(true);
   }
   void evict(Object<T> *object) {
-    ZmAssert(invoked());
-    m_cache.delNode(object);
+    unsigned shard = object->shard();
+
+    ZmAssert(invoked(shard));
+
+    m_cache[shard].delNode(object);
     object->evicted(true);
   }
 
   // init lambda - l(ZdbObject<T> *)
+private:
+  static constexpr auto defltCtor() {
+    return [](Table *this_) { return new Object<T>{this_}; };
+  }
 
+public:
   // create new object
   template <typename L, typename Ctor>
   void insert(unsigned shard, L l, Ctor ctor) {
@@ -1141,9 +1151,7 @@ public:
   }
   template <typename L>
   ZuInline void insert(unsigned shard, L l) {
-    insert(shard, ZuMv(l), [](Table *this_) {
-      return new Object<T>{this_};
-    });
+    insert(shard, ZuMv(l), defltCtor());
   }
   // create new object (idempotent with UN as key)
   template <typename L, typename Ctor>
@@ -1158,9 +1166,7 @@ public:
   }
   template <typename L>
   ZuInline void insert(unsigned shard, UN un, L l) {
-    insert(shard, un, ZuMv(l), [](Table *this_) {
-      return new Object<T>{this_};
-    });
+    insert(shard, un, ZuMv(l), defltCtor());
   }
 
   // update lambda - l(ZdbObject<T> *)
@@ -1168,7 +1174,9 @@ public:
   // update object
   template <typename KeyIDs_ = ZuSeq<>, typename L>
   void update(ZmRef<Object<T>> object, L l) {
-    ZmAssert(invoked());
+    unsigned shard = object->shard();
+
+    ZmAssert(invoked(shard));
 
     if (!update_(object.ptr(), nextUN(object->shard()))) {
       l(nullptr);
@@ -1183,9 +1191,9 @@ public:
 	bufs[i].~ZmRef<Buf<T>>();
       }
     };
-    ZuUnroll::all<KeyIDs>([this, &object, &bufs, &nBufs](auto KeyID) {
+    ZuUnroll::all<KeyIDs>([this, shard, &object, &bufs, &nBufs](auto KeyID) {
       auto key = ZuFieldKey<KeyID>(object->data());
-      auto i = m_bufCache.template iterator<KeyID>(ZuMv(key));
+      auto i = m_bufCache[shard].template iterator<KeyID>(ZuMv(key));
       while (auto typedBuf = i.iterate()) {
 	if (!typedBuf->stale) {
 	  typedBuf->stale = true;
@@ -1196,7 +1204,7 @@ public:
       }
     });
     try {
-      m_cache.template update<KeyIDs_>(object, [
+      m_cache[shard].template update<KeyIDs_>(object, [
 	l = ZuMv(l)
       ](typename Cache<T>::Node *node) mutable {
 	l(static_cast<Object<T> *>(node));
@@ -1207,7 +1215,7 @@ public:
   // update object (idempotent) - calls l(null) to skip
   template <typename KeyIDs_ = ZuSeq<>, typename L>
   void update(ZmRef<Object<T>> object, UN un, L l) {
-    ZmAssert(invoked());
+    ZmAssert(invoked(object->shard()));
 
     if (un != nullUN() && ZuUnlikely(nextUN(object->shard()) > un)) {
       l(nullptr);
@@ -1219,34 +1227,30 @@ public:
   // find and update record (with key, without object)
   template <
     unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
-  ZuInline void findUpd(Key<KeyID> key, unsigned shard, L l, Ctor ctor) {
-    findUpd_<KeyID>(ZuMv(key), shard,
+  ZuInline void findUpd(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
+    findUpd_<KeyID>(shard, ZuMv(key),
       [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	update<KeyIDs_>(ZuMv(object), ZuMv(l));
       }, ZuMv(ctor));
   }
   template <unsigned KeyID, typename KeyIDs = ZuSeq<>, typename L>
-  ZuInline void findUpd(Key<KeyID> key, unsigned shard, L l) {
-    findUpd<KeyID, KeyIDs>(ZuMv(key), shard, ZuMv(l), [](Table *this_) {
-      return new Object<T>{this_};
-    });
+  ZuInline void findUpd(unsigned shard, Key<KeyID> key, L l) {
+    findUpd<KeyID, KeyIDs>(shard, ZuMv(key), ZuMv(l), defltCtor());
   }
   // find and update record (idempotent) (with key, without object)
   template <
     unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L, typename Ctor>
-  ZuInline void findUpd(Key<KeyID> key, unsigned shard, UN un, L l, Ctor ctor) {
-    findUpd_<KeyID>(ZuMv(key), shard,
+  ZuInline void findUpd(unsigned shard, Key<KeyID> key, UN un, L l, Ctor ctor) {
+    findUpd_<KeyID>(shard, ZuMv(key),
       [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	update<KeyIDs_>(ZuMv(object), un, ZuMv(l));
       }, ZuMv(ctor));
   }
   template <unsigned KeyID, typename KeyIDs_ = ZuSeq<>, typename L>
-  ZuInline void findUpd(Key<KeyID> key, UN un, L l) {
-    findUpd<KeyID, KeyIDs>(
-      ZuMv(key), un, ZuMv(l),
-      [](Table *this_) { return new Object<T>{this_}; });
+  ZuInline void findUpd(unsigned shard, Key<KeyID> key, UN un, L l) {
+    findUpd<KeyID, KeyIDs>(shard, ZuMv(key), un, ZuMv(l), defltCtor());
   }
 
   // delete lambda - l(ZdbObject<T> *)
@@ -1254,7 +1258,9 @@ public:
   // delete record
   template <typename L>
   void del(ZmRef<Object<T>> object, L l) {
-    ZmAssert(invoked());
+    unsigned shard = object->shard();
+
+    ZmAssert(invoked(shard));
 
     if (!del_(object.ptr(), nextUN(object->shard()))) {
       l(nullptr);
@@ -1269,17 +1275,17 @@ public:
     bool cached = false;
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// "undo" buffer
     auto nBufs = 0;
-    auto abort = [this, &object, &cached, &bufs, &nBufs]() {
+    auto abort = [this, shard, &object, &cached, &bufs, &nBufs]() {
       if (!object->abort()) return;
-      if (cached) { object->evicted(false); m_cache.add(object); }
+      if (cached) { object->evicted(false); m_cache[shard].add(object); }
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
 	bufs[i].~ZmRef<Buf<T>>();
       }
     };
-    ZuUnroll::all<KeyIDs>([this, &object, &bufs, &nBufs](auto KeyID) {
+    ZuUnroll::all<KeyIDs>([this, shard, &object, &bufs, &nBufs](auto KeyID) {
       auto key = ZuFieldKey<KeyID>(object->data());
-      auto i = m_bufCache.template iterator<KeyID>(ZuMv(key));
+      auto i = m_bufCache[shard].template iterator<KeyID>(ZuMv(key));
       while (auto typedBuf = i.iterate()) {
 	if (!typedBuf->stale) {
 	  typedBuf->stale = true;
@@ -1289,7 +1295,7 @@ public:
       }
     });
     try {
-      if (cached = m_cache.delNode(object))
+      if (cached = m_cache[shard].delNode(object))
 	object->evicted(true);
       l(object);
     } catch (...) { abort(); throw; }
@@ -1306,23 +1312,35 @@ public:
   }
 
   // find and delete record (with key, without object)
-  template <unsigned KeyID, typename L>
-  void findDel(const Key<KeyID> &key, unsigned shard, L l) {
-    findUpd_<KeyID>(key, shard,
+  template <unsigned KeyID, typename L, typename Ctor>
+  ZuInline void findDel(
+    unsigned shard, const Key<KeyID> &key, L l, Ctor ctor)
+  {
+    findUpd_<KeyID>(shard, key,
       [this, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	del(ZuMv(object), ZuMv(l));
-      });
+      }, ZuMv(ctor));
+  }
+  template <unsigned KeyID, typename L>
+  ZuInline void findDel(unsigned shard, const Key<KeyID> &key, L l) {
+    findDel<KeyID>(shard, key, ZuMv(l), defltCtor());
   }
 
   // find and delete record (idempotent) (with key, without object)
-  template <unsigned KeyID, typename L>
-  void findDel(const Key<KeyID> &key, unsigned shard, UN un, L l) {
-    findUpd_<KeyID>(key, shard,
+  template <unsigned KeyID, typename L, typename Ctor>
+  ZuInline void findDel(
+    unsigned shard, const Key<KeyID> &key, UN un, L l, Ctor ctor)
+  {
+    findUpd_<KeyID>(shard, key,
       [this, un, l = ZuMv(l)](ZmRef<Object<T>> object) mutable {
 	if (ZuUnlikely(!object)) { l(object); return; }
 	del(ZuMv(object), un, ZuMv(l));
-      });
+      }, ZuMv(ctor));
+  }
+  template <unsigned KeyID, typename L>
+  ZuInline void findDel(unsigned shard, const Key<KeyID> &key, UN un, L l) {
+    findDel<KeyID>(shard, key, un, ZuMv(l), defltCtor());
   }
 
 private:

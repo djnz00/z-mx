@@ -118,7 +118,7 @@ void DB::init(
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
       InitResult result = m_store->init(
-	  m_cf.storeCf, m_mx,
+	  m_cf.storeCf, m_mx, m_cf.sid,
 	  FailFn::Member<&DB::storeFailed>::fn(this));
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<InitData>().replicated;
@@ -202,7 +202,7 @@ void DB::final()
 
 void DB::wake()
 {
-  run([this]() { stopped(); });
+  run([this]() { stopped(); });	// polling stopped(), may call stop_()
 }
 
 void DB::start_()
@@ -380,7 +380,7 @@ void DB::stop_3()
 	s << "Zdb data store stop failed";
       }));
     }
-    stopped(true);
+    run([this]() { stopped(true); });
   });
 }
 
@@ -1137,9 +1137,10 @@ ZmRef<const IOBuf> AnyTable::mkBuf(unsigned shard, UN un)
       if (!data.IsNull() && ptr)
 	memcpy(ptr, repData.data(), repData.length());
     }
+    ZmAssert(record->shard() == shard);
     auto msg = fbs::CreateMsg(fbb, fbs::Body::Recovery,
 	fbs::CreateRecord(fbb, record->table(), record->un(),
-	  record->sn(), record->vn(), record->shard(), data).Union());
+	  record->sn(), record->vn(), shard, data).Union());
     fbb.Finish(msg);
     return saveHdr(fbb, this).constRef();
   }
@@ -1481,9 +1482,6 @@ void DB::replicated(Host *host, ZuID dbID, unsigned shard, UN un, SN sn)
 
 AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_db{db}, m_cf{cf}, m_mx{db->mx()},
-  m_nextUN(cf->nShards),
-  m_cacheUN(cf->nShards),
-  m_bufCacheUN(cf->nShards),
   m_bufAllocFn{ZuMv(fn)}
 {
   unsigned n = cf->nShards;
@@ -1518,27 +1516,26 @@ AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
 	return config().thread[i];
       });
   }
-  unsigned cacheSize;
-  auto cacheStats = structVecIter<Ztel::fbs::DBCacheStats>(
-    fbb_, config().nShards,
-    [this, &cacheSize](Ztel::fbs::DBCacheStats *ptr, unsigned i) {
-      ZmCacheStats stats;
-      this->cacheStats(i, stats);
-      if (!i) cacheSize = stats.size;
-      new (ptr) Ztel::fbs::DBCacheStats{
-	stats.count,
-	stats.loads,
-	stats.misses,
-	stats.evictions
-      };
-    });
+  unsigned cacheSize = 0;
+  uint64_t cacheLoads = 0, cacheMisses = 0, cacheEvictions = 0;
+  for (unsigned i = 0, n = config().nShards; i < n; i++) {
+    ZmCacheStats stats;
+    this->cacheStats(i, stats);
+    cacheSize += stats.size;
+    cacheLoads += stats.loads;
+    cacheMisses += stats.misses;
+    cacheEvictions += stats.evictions;
+  }
   Ztel::fbs::DBTableBuilder fbb{fbb_};
   if (!update) {
     fbb.add_name(name);
+    fbb.add_shards(config().nShards);
     fbb.add_thread(thread);
   }
   fbb.add_count(m_count.load_());
-  fbb.add_cacheStats(cacheStats);
+  fbb.add_cacheLoads(cacheLoads);
+  fbb.add_cacheMisses(cacheMisses);
+  fbb.add_cacheEvictions(cacheEvictions);
   if (!update) {
     fbb.add_cacheSize(cacheSize);
     fbb.add_cacheMode(static_cast<Ztel::fbs::DBCacheMode>(config().cacheMode));

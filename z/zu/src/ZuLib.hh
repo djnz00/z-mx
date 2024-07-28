@@ -44,11 +44,15 @@
 //   for I/O multiplexing by ZiMultiplex
 // - threads can be named, bound and isolated by the app and the kernel
 //   - Linux kernel parameter isolcpus
-// - callees have better context to determine which thread to run on than
-//   callers, so context-switching generally occurs in callees
-// - in callbacks, callee code is generally a lambda at the originating
-//   call-site, so this often includes a context-switch back onto the
-//   original thread
+// - some interfaces require the caller to context-switch prior to making
+//   the call, others internalize the context-switch within the called function
+//   - if the caller is potentially sharing the same thread as the callee,
+//     the callee should not redundantly context-switch - in these cases
+//     it should be the caller's responsibility (the callee can validate
+//     the current thread using invoked())
+//   - if the thread is exclusive to the callee, the callee can internalize
+//     the context switch
+//   - callbacks will mirror calls in this regard
 // - thread/workload association is re-configurable for performance tuning
 //   - run() passes via the ring buffer and defers calls regardless
 //   - invoke() is used to elide message-passing and call deferral when

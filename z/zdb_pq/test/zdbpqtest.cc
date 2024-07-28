@@ -168,31 +168,28 @@ int main(int argc, char **argv)
 
     ZuNBox<uint64_t> seqNo;
 
-    orders->run([&seqNo]{
-      orders->selectKeys<2>(
-	ZuFwdTuple("FIX0"), 1, [&seqNo](auto max, unsigned) {
-	  using Key = ZuFieldKeyT<Order, 2>;
-	  if (max.template is<Key>()) {
-	    seqNo = max.template p<Key>().template p<1>();
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): " << max.template p<Key>();
-	    }));
-	  } else {
-	    ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	      s << "maximum(FIX0): EOR";
-	    }));
-	    done.post();
-	  }
-	});
-    });
-
+    orders->selectKeys<2>(
+      ZuFwdTuple("FIX0"), 1, [&seqNo](auto max, unsigned) {
+	using Key = ZuFieldKeyT<Order, 2>;
+	if (max.template is<Key>()) {
+	  seqNo = max.template p<Key>().template p<1>();
+	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	    s << "maximum(FIX0): " << max.template p<Key>();
+	  }));
+	} else {
+	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	    s << "maximum(FIX0): EOR";
+	  }));
+	  done.post();
+	}
+      });
     done.wait();
 
     ZuNBox<uint64_t> id;
 
     if (*seqNo) {
-      orders->run([seqNo, &id]{
-	orders->find<2>(ZuFwdTuple("FIX0", seqNo),
+      orders->run(0, [seqNo, &id]{
+	orders->find<2>(0, ZuFwdTuple("FIX0", seqNo),
 	  [seqNo, &id](ZmRef<ZdbObject<Order>> o) {
 	    if (!o) {
 	      id = {};
@@ -208,7 +205,6 @@ int main(int argc, char **argv)
 	    done.post();
 	  });
       });
-
       done.wait();
 
       ++seqNo;
@@ -220,8 +216,8 @@ int main(int argc, char **argv)
     else
       id = 0;
 
-    orders->run([&id, &seqNo]{
-      orders->insert([&id, &seqNo](ZdbObject<Order> *o) {
+    orders->run(0, [&id, &seqNo]{
+      orders->insert(0, [&id, &seqNo](ZdbObject<Order> *o) {
 	if (ZuUnlikely(!o)) { done.post(); return; }
 	ZuStringN<32> clOrdID;
 	clOrdID << "order" << id;
@@ -238,12 +234,10 @@ int main(int argc, char **argv)
 	done.post();
       });
     });
-
     done.wait();
 
-    orders->run([&id]{
-      static ZmSemaphore done_;
-      orders->find<0>(ZuFwdTuple("IBM", id),
+    orders->run(0, [&id]{
+      orders->find<0>(0, ZuFwdTuple("IBM", id),
 	[&id](ZmRef<ZdbObject<Order>> o) {
 	  if (!o)
 	    ZeLOG(Info, ([id](auto &s) {
@@ -253,29 +247,29 @@ int main(int argc, char **argv)
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
 	      s << "find(IBM, " << id << "): " << o->data();
 	    }));
-	  done_.post();
-	});
-      done_.wait();
-      orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
-	using Key = ZuFieldKeyT<Order, 2>;
-	if (max.template is<Key>()) {
-	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	    s << "maximum(FIX0): " << max.template p<Key>();
-	  }));
-	} else {
-	  ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
-	    s << "maximum(FIX0): EOR";
-	  }));
 	  done.post();
-	}
-      });
+	});
     });
+    done.wait();
 
+    orders->selectKeys<2>(ZuFwdTuple("FIX0"), 1, [](auto max, unsigned) {
+      using Key = ZuFieldKeyT<Order, 2>;
+      if (max.template is<Key>()) {
+	ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	  s << "maximum(FIX0): " << max.template p<Key>();
+	}));
+      } else {
+	ZeLOG(Info, ([max = ZuMv(max)](auto &s) {
+	  s << "maximum(FIX0): EOR";
+	}));
+	done.post();
+      }
+    });
     done.wait();
 
     if (id > 0) {
-      orders->run([id = id - 1]{
-	orders->findUpd<0, ZuSeq<1>>(ZuFwdTuple("IBM", id),
+      orders->run(0, [id = id - 1]{
+	orders->findUpd<0, ZuSeq<1>>(0, ZuFwdTuple("IBM", id),
 	  [id](ZmRef<ZdbObject<Order>> o) {
 	    if (!o) {
 	      ZeLOG(Info, ([id](auto &s) {
@@ -294,13 +288,12 @@ int main(int argc, char **argv)
 	  });
 	done.post();
       });
-
       done.wait();
     }
 
     if (id > 3) {
-      orders->run([id = id - 3]{
-	orders->findDel<0>(ZuFwdTuple("IBM", id),
+      orders->run(0, [id = id - 3]{
+	orders->findDel<0>(0, ZuFwdTuple("IBM", id),
 	  [id](ZmRef<ZdbObject<Order>> o) {
 	    if (!o) {
 	      ZeLOG(Info, ([id](auto &s) {
@@ -315,7 +308,6 @@ int main(int argc, char **argv)
 	    done.post();
 	  });
       });
-
       done.wait();
     }
 

@@ -160,6 +160,7 @@ public:
   virtual InitResult init(		// initialize data store - idempotent
       ZvCf *cf,
       ZiMultiplex *mx,
+      unsigned sid,
       FailFn failFn) = 0;		// asynchronous failure notification
   virtual void final() = 0;		// finalize data store - idempotent
 

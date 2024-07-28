@@ -1565,6 +1565,7 @@ struct Find {
 };
 
 struct Recover {
+  unsigned		shard;
   UN			un;
   RowFn			rowFn;
   bool			found = false;
@@ -1585,8 +1586,8 @@ struct Stop { };
 struct TblQuery {
   StoreTbl	*tbl;
   Query		query;
-  bool		sync = false;
-  bool		srm = false;
+  bool		sync = false;	// pipeline sync
+  bool		srm = false;	// single row mode
 };
 
 using Task = ZuUnion<Start, Stop, TblQuery>;
@@ -1683,11 +1684,13 @@ public:
 private:
   // flags and masks
   enum {
-    Create	= 0x8000,	// used by MkTable, MkIndices
-    Failed	= 0x4000,	// used by all
-    FieldMask	= 0x3fff,	// used by MkTable, MkIndices
-    KeyShift	= 16,
+    Create	= 0x8000,	// MkTable, MkIndices
+    Failed	= 0x4000,	// *
+    FieldMask	= 0x3fff,	// MkTable, MkIndices
+    KeyShift	= 16,		// MkIndices, PrepCount, PrepSelect*, PrepFind
     KeyMask	= 0x7ff,	// up to 2K keys
+    ShardShift	= 16,		// MaxUN, EnsureMRD, MRD
+    ShardMask	= 0x3f,		// up to 64 shards
     PhaseShift	= 27		// up to 32 phases
   };
 
@@ -1701,12 +1704,17 @@ public:
   constexpr bool failed() const { return v & Failed; }
   constexpr unsigned field() const { return v & FieldMask; }
   constexpr unsigned keyID() const { return (v>>KeyShift) & KeyMask; }
+  constexpr unsigned shard() const { return (v>>ShardShift) & ShardMask; }
   constexpr unsigned phase() const { return v>>PhaseShift; }
 
   constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
   constexpr void incKey() {
     ZmAssert(keyID() < KeyMask);
     v = (v + (1<<KeyShift)) & ~(Create | Failed | FieldMask);
+  }
+  constexpr void incShard() {
+    ZmAssert(shard() < ShardMask);
+    v = (v + (1<<ShardShift)) & ~(Create | Failed | FieldMask);
   }
   constexpr void incField() {
     ZmAssert(field() < FieldMask);
@@ -1725,7 +1733,8 @@ friend Store;
 
 public:
   StoreTbl(
-    Store *store, ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
+    Store *store, ZuID id, unsigned nShards,
+    ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
@@ -1749,7 +1758,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(UN, RowFn);
+  void recover(unsigned shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 
@@ -1862,7 +1871,7 @@ private:
   OpenFn		m_openFn;	// open callback
 
   uint64_t		m_count = 0;
-  UN			m_maxUN = ZdbNullUN();
+  ZtArray<UN>		m_maxUN;
   SN			m_maxSN = ZdbNullSN();
 };
 
@@ -1879,7 +1888,7 @@ using StoreTbls =
 
 class Store : public Zdb_::Store {
 public:
-  InitResult init(ZvCf *, ZiMultiplex *, unsigned sid, FailFn failFn);
+  InitResult init(ZvCf *, ZiMultiplex *, unsigned zdbSID, FailFn failFn);
   void final();
 
   void start(StartFn);
@@ -1887,6 +1896,7 @@ public:
 
   void open(
     ZuID id,
+    unsigned nShards,
     ZtVFieldArray fields,
     ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema,
@@ -1904,6 +1914,10 @@ public:
   }
   template <typename ...Args> void invoke(Args &&...args) {
     m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+  }
+
+  template <typename ...Args> void zdbRun(Args &&...args) {
+    m_mx->run(m_zdbSID, ZuFwd<Args>(args)...);
   }
 
   const OIDs &oids() const { return m_oids; }
@@ -1962,7 +1976,8 @@ private:
 private:
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_sid = ZuCmp<unsigned>::null();
+  unsigned		m_zdbSID = 0;
+  unsigned		m_sid = 0;
   FailFn		m_failFn;
 
   ZmRef<StoreTbls>	m_storeTbls;

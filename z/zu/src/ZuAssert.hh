@@ -13,25 +13,9 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-template <bool> struct ZuAssertion_FAILED;
-template <> struct ZuAssertion_FAILED<true> { };
+#include <assert.h>
 
-template <unsigned N> struct ZuAssert_TEST { };
-
-#ifdef __GNUC__
-#define ZuAssert_Unused_Typedef __attribute__((unused))
-#else
-#define ZuAssert_Unused_Typedef
-#endif
-
-// need to indirect via two macros to ensure expansion of __LINE__
-#define ZuAssert_Typedef_(p, l) p##l
-#define ZuAssert_Typedef(p, l) ZuAssert_Typedef_(p, l)
-
-// alternative to std::static_assert, can be used anywhere a typedef can
-#define ZuAssert(x) typedef \
-  ZuAssert_TEST<sizeof(ZuAssertion_FAILED<bool(x)>)> \
-  ZuAssert_Typedef(ZuAssert_, __LINE__) ZuAssert_Unused_Typedef
+#define ZuAssert(x) static_assert((x), #x)
 
 // compile time C assert
 #define ZuCAssert(x) switch (0) { case 0: case (x): ; }

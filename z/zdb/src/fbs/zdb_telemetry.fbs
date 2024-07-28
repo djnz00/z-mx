@@ -2,18 +2,14 @@ include "zfb_types.fbs";
 include "zdb_cache_mode.fbs";
 include "zdb_host_state.fbs";
 namespace Ztel.fbs;
-struct DBCacheStats {
-  count:uint32;
-  loads:uint64;
-  misses:uint64;
-  evictions:uint64;
-}
 table DBTable {
   name:string;
-  n_shards:uint32;
+  shards:uint16;
   thread:[string];
   count:uint64;
-  cache_stats:[DBCacheStats];   // one per shard
+  cache_loads:uint64;
+  cache_misses:uint64;
+  cache_evictions:uint64;
   cache_size:uint32;
   cache_mode:DBCacheMode;
   warmup:uint8;

@@ -13,6 +13,8 @@
 #include <zlib/ZfbLib.hh>
 #endif
 
+#include <assert.h>
+
 // ZtField extensions for flatbuffers, with extensible type support
 
 // Syntax
@@ -597,7 +599,11 @@ namespace Load {
   template < \
     typename O = O_, typename Base = Base_, typename Under_ = O, \
     bool = Base::ReadOnly, typename = void> \
-  struct ZfbField__(O_, ID) : public Base { };
+  struct ZfbField__(O_, ID) : public Base { \
+    static_assert( \
+      ZuTypeIn<ZuFieldProp::Synthetic, typename Base::Props>{}, \
+      #O_ "/" #ID " - flatbuffers / C++ mismatch"); \
+  };
 
 #define ZfbFieldNested(O_, ID, Base_, SaveFn, LoadFn) \
   ZfbFieldGeneric(O_, ID, Base_) \

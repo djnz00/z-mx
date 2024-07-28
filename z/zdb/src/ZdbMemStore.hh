@@ -1225,7 +1225,7 @@ public:
       }
     }
     m_maxUN.length(nShards);
-    for (unsigned i = 0; i < nShards; i++) m_maxUN[i] = 0;
+    for (unsigned i = 0; i < nShards; i++) m_maxUN[i] = ZdbNullUN();
   }
 
   Store *store() const { return m_store; }
@@ -1343,7 +1343,7 @@ private:
   using StoreTblNode = typename StoreTbls::Node;
 
 public:
-  InitResult init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn) {
+  InitResult init(ZvCf *cf, ZiMultiplex *mx, unsigned, FailFn failFn) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
     m_failFn = ZuMv(failFn);
     try {

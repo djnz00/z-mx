@@ -72,10 +72,12 @@ OIDs::OIDs()
   m_names = names;
 }
 
-InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn)
+InitResult Store::init(
+  ZvCf *cf, ZiMultiplex *mx, unsigned zdbSID, FailFn failFn)
 {
   m_cf = cf;
   m_mx = mx;
+  m_zdbSID = zdbSID;
   m_failFn = ZuMv(failFn);
 
   bool replicated;
@@ -907,9 +909,11 @@ int Store::mkTblMRD_send()
   // the MRD schema is unlikely to evolve, so use IF NOT EXISTS
   return sendQuery<SendState::Sync>(
     "CREATE TABLE IF NOT EXISTS \"zdb.mrd\" ("
-      "\"tbl\" text PRIMARY KEY NOT NULL, "
-      "\"_un\" uint8 NOT NULL, "
-      "\"_sn\" uint16 NOT NULL)",
+      "\"tbl\" text NOT NULL, "
+      "\"shard\" uint2 NOT NULL, "
+      "\"un\" uint8 NOT NULL, "
+      "\"sn\" uint16 NOT NULL, "
+      "PRIMARY KEY (\"tbl\", \"shard\"))",
     Tuple{});
 }
 void Store::mkTblMRD_rcvd(PGresult *res)
@@ -921,6 +925,7 @@ void Store::mkTblMRD_rcvd(PGresult *res)
 
 void Store::open(
   ZuID id,
+  unsigned nShards,
   ZtVFieldArray fields,
   ZtVKeyFieldArray keyFields,
   const reflection::Schema *schema,
@@ -930,7 +935,8 @@ void Store::open(
   // ZeLOG(Debug, ([](auto &s) { }));
 
   run([
-    this, id, fields = ZuMv(fields), keyFields = ZuMv(keyFields),
+    this, id, nShards,
+    fields = ZuMv(fields), keyFields = ZuMv(keyFields),
     schema, bufAllocFn = ZuMv(bufAllocFn), openFn = ZuMv(openFn)
   ]() mutable {
     if (stopping()) {
@@ -942,7 +948,8 @@ void Store::open(
       return;
     }
     auto storeTbl = new StoreTbls::Node{
-      this, id, ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
+      this, id, nShards,
+      ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
     m_storeTbls->addNode(storeTbl);
     storeTbl->open(ZuMv(openFn));
   });
@@ -1129,8 +1136,10 @@ static XField xField(
 }
 
 StoreTbl::StoreTbl(
-  Store *store, ZuID id, ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
-  const reflection::Schema *schema, IOBufAllocFn bufAllocFn) :
+  Store *store, ZuID id, unsigned nShards,
+  ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
+  const reflection::Schema *schema, IOBufAllocFn bufAllocFn
+) :
   m_store{store}, m_id{id},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
   m_fieldMap{ZmHashParams(m_fields.length())},
@@ -1185,6 +1194,8 @@ StoreTbl::StoreTbl(
 	s << id << " key " << i << " has mixed ascending/descending fields";
       }));
   }
+  m_maxUN.length(nShards);
+  for (unsigned i = 0; i < nShards; i++) m_maxUN[i] = ZdbNullUN();
 }
 
 StoreTbl::~StoreTbl()
@@ -1391,7 +1402,8 @@ int StoreTbl::mkTable_send()
   } else {
     ZtString query;
     query << "CREATE TABLE \"" << m_id_ << "\" ("
-      "\"_un\" uint8 PRIMARY KEY NOT NULL, "
+      "\"_shard\" uint2 NOT NULL, "
+      "\"_un\" uint8 NOT NULL, "
       "\"_sn\" uint16 NOT NULL, "
       "\"_vn\" int8 NOT NULL";
     unsigned n = m_xFields.length();
@@ -1414,7 +1426,7 @@ int StoreTbl::mkTable_send()
       }
       query << " NOT NULL";
     }
-    query << ")";
+    query << ", PRIMARY KEY (\"_shard\", \"_un\"))";
     return m_store->sendQuery<SendState::Sync>(query, Tuple{});
   }
 }
@@ -1477,7 +1489,9 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
     unsigned oid = reinterpret_cast<UInt32 *>(PQgetvalue(res, i, 1))->v;
     unsigned field = ZuCmp<unsigned>::null();
     unsigned type = ZuCmp<unsigned>::null();
-    if (id == "_un") {
+    if (id == "_shard") {
+      type = Value::Index<UInt16>{};
+    } else if (id == "_un") {
       type = Value::Index<UInt64>{};
     } else if (id == "_sn") {
       type = Value::Index<UInt128>{};
@@ -1839,7 +1853,7 @@ int StoreTbl::prepFind_send()
     id << "_find_" << (keyID - 1);
 
   ZtString query;
-  query << "SELECT \"_un\", \"_sn\", \"_vn\"";
+  query << "SELECT \"_shard\", \"_un\", \"_sn\", \"_vn\"";
   unsigned n = m_xFields.length();
   for (unsigned i = 0; i < n; i++) {
     query << ", \"" << m_xFields[i].id_ << '"';
@@ -1847,7 +1861,8 @@ int StoreTbl::prepFind_send()
   query << " FROM \"" << m_id_ << "\" WHERE ";
   ZtArray<Oid> oids;
   if (!keyID) {
-    query << "\"_un\"=$1::uint8";
+    query << "\"_shard\"=$1::uint2 AND \"_un\"=$2::uint8";
+    oids.push(m_store->oids().oid(Value::Index<UInt16>{}));
     oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   } else {
     const auto &xKeyFields = m_xKeyFields[keyID - 1];
@@ -1892,17 +1907,19 @@ int StoreTbl::prepInsert_send()
   ZtString query;
   unsigned n = m_xFields.length();
   ZtArray<Oid> oids(n + 3);
-  query << "INSERT INTO \"" << m_id_ << "\" (\"_un\", \"_sn\", \"_vn\"";
+  query << "INSERT INTO \"" << m_id_
+    << "\" (\"_shard\", \"_un\", \"_sn\", \"_vn\"";
   for (unsigned i = 0; i < n; i++) {
     query << ", \"" << m_xFields[i].id_ << '"';
   }
-  query << ") VALUES ($1::uint8, $2::uint16, $3::uint8";
+  query << ") VALUES ($1::uint2, $2::uint8, $3::uint16, $4::uint8";
+  oids.push(m_store->oids().oid(Value::Index<UInt16>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt64>{}));
   oids.push(m_store->oids().oid(Value::Index<UInt128>{}));
   oids.push(m_store->oids().oid(Value::Index<Int64>{}));
   for (unsigned i = 0; i < n; i++) {
     auto type = m_xFields[i].type;
-    query << ", $" << (i + 4) << "::" << m_store->oids().name(type);
+    query << ", $" << (i + 5) << "::" << m_store->oids().name(type);
     oids.push(m_store->oids().oid(type));
   }
   query << ')';
@@ -2015,8 +2032,8 @@ int StoreTbl::prepMRD_send()
   unsigned n = xKeyFields.length();
   ZtArray<Oid> oids(n);
   query <<
-    "UPDATE \"zdb.mrd\" SET \"_un\"=$1::uint8, \"_sn\"=$2::uint16 "
-      "WHERE \"tbl\"='" << m_id_ << '\'';
+    "UPDATE \"zdb.mrd\" SET \"un\"=$2::uint8, \"sn\"=$3::uint16 "
+      "WHERE \"tbl\"='" << m_id_ << "' AND \"shard\"=$1::uint2";
   return m_store->sendPrepare(id, query, oids);
 }
 void StoreTbl::prepMRD_rcvd(PGresult *res)
@@ -2067,16 +2084,27 @@ int StoreTbl::maxUN_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
+  Tuple params = { Value{UInt16{m_openState.shard()}} };
   ZtString query;
   query << "SELECT \"_un\", \"_sn\" FROM \"" << m_id_
-    << "\" WHERE \"_un\"=(SELECT MAX(\"_un\") FROM \"" << m_id_ << "\")";
-  return m_store->sendQuery<SendState::Flush>(query, Tuple{});
+    << "\" WHERE \"_un\"=(SELECT MAX(\"_un\") FROM \"" << m_id_
+    << "\" WHERE \"_shard\"=$1::uint2)";
+  return m_store->sendQuery<SendState::Flush>(query, params);
 }
 void StoreTbl::maxUN_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) { ensureMRD(); return; }
+  if (!res) {
+    m_openState.incShard();
+    if (m_openState.shard() >= m_maxUN.length())
+      ensureMRD();
+    else
+      open_enqueue(false, false);
+    return;
+  }
+
+  unsigned shard = m_openState.shard();
 
   unsigned n = PQntuples(res);
   if (n && (PQnfields(res) != 2)) goto inconsistent;
@@ -2092,7 +2120,8 @@ void StoreTbl::maxUN_rcvd(PGresult *res)
       s << "un=" << un << " sn=" << ZuBoxed(sn);
     })); */
 
-    if (m_maxUN == ZdbNullUN() || un > m_maxUN) m_maxUN = un;
+    auto &maxUN = m_maxUN[shard];
+    if (maxUN == ZdbNullUN() || un > maxUN) maxUN = un;
     if (m_maxSN == ZdbNullSN() || sn > m_maxSN) m_maxSN = sn;
   }
   return;
@@ -2112,18 +2141,23 @@ int StoreTbl::ensureMRD_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  ZtString query;
-  query <<
-    "INSERT INTO \"zdb.mrd\" (\"tbl\", \"_un\", \"_sn\") "
-      "VALUES ('" << m_id_ << "', 0, 0) "
-      "ON CONFLICT (\"tbl\") DO NOTHING";
-  return m_store->sendQuery<SendState::Sync>(query, Tuple{});
+  Tuple params = { Value{String(m_id_)}, Value{UInt16{m_openState.shard()}} };
+  return m_store->sendQuery<SendState::Sync>(
+    "INSERT INTO \"zdb.mrd\" (\"tbl\", \"shard\", \"un\", \"sn\") "
+      "VALUES ($1::text, $2::uint2, 0, 0) "
+      "ON CONFLICT (\"tbl\", \"shard\") DO NOTHING", params);
 }
 void StoreTbl::ensureMRD_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) mrd();
+  if (!res) {
+    m_openState.incShard();
+    if (m_openState.shard() >= m_maxUN.length())
+      mrd();
+    else
+      open_enqueue(true, false);
+  }
 }
 
 void StoreTbl::mrd()
@@ -2135,15 +2169,25 @@ int StoreTbl::mrd_send()
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  Tuple params = { Value{String(m_id_)} };
+  Tuple params = { Value{String(m_id_)}, Value{UInt16{m_openState.shard()}} };
   return m_store->sendQuery<SendState::Sync>(
-    "SELECT \"_un\", \"_sn\" FROM \"zdb.mrd\" WHERE \"tbl\"=$1::text", params);
+    "SELECT \"un\", \"sn\" FROM \"zdb.mrd\" "
+      "WHERE \"tbl\"=$1::text AND \"shard\"=$2::uint2", params);
 }
 void StoreTbl::mrd_rcvd(PGresult *res)
 {
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
-  if (!res) { opened(); return; }
+  if (!res) {
+    m_openState.incShard();
+    if (m_openState.shard() >= m_maxUN.length())
+      opened();
+    else
+      open_enqueue(true, false);
+    return;
+  }
+
+  unsigned shard = m_openState.shard();
 
   unsigned n = PQntuples(res);
   if (n && (PQnfields(res) != 2)) goto inconsistent;
@@ -2159,7 +2203,8 @@ void StoreTbl::mrd_rcvd(PGresult *res)
       s << "un=" << un << " sn=" << ZuBoxed(sn);
     })); */
 
-    if (un > m_maxUN) m_maxUN = un;
+    auto &maxUN = m_maxUN[shard];
+    if (un > maxUN) maxUN = un;
     if (sn > m_maxSN) m_maxSN = sn;
   }
   return;
@@ -2487,7 +2532,7 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
   unsigned nr = PQntuples(res);
   if (!nr) return;
 
-  unsigned nc = m_xFields.length() + 3;
+  unsigned nc = m_xFields.length() + 4;
 
   // tuple is POD, no need to run destructors when going out of scope
   auto tuple = ZmAlloc(Value, nc);
@@ -2497,10 +2542,11 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
     for (unsigned j = 0; j < nc; j++) {
       unsigned type;
       switch (int(j)) {
-	case 0: type = Value::Index<UInt64>{}; break;	// UN
-	case 1: type = Value::Index<UInt128>{}; break;	// SN
-	case 2: type = Value::Index<Int64>{}; break;	// VN
-	default: type = m_xFields[j - 3].type; break;
+	case 0: type = Value::Index<UInt16>{}; break;	// shard
+	case 1: type = Value::Index<UInt64>{}; break;	// UN
+	case 2: type = Value::Index<UInt128>{}; break;	// SN
+	case 3: type = Value::Index<Int64>{}; break;	// VN
+	default: type = m_xFields[j - 4].type; break;
       }
       if (!ZuSwitch::dispatch<Value::N>(type,
 	  [&tuple, res, i, j](auto Type) {
@@ -2543,18 +2589,19 @@ ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
 {
   Zfb::IOBuilder fbb{m_bufAllocFn()};
   auto data = Zfb::Save::nest(fbb, [this, tuple](Zfb::Builder &fbb) mutable {
-    tuple.offset(3); // skip un, sn, vn
+    tuple.offset(4); // skip shard, un, sn, vn
     return saveTuple(fbb, m_xFields, tuple);
   });
   {
     auto id = Zfb::Save::id(this->id());
-    UN un = tuple[0].p<UInt64>().v;
-    SN sn = tuple[1].p<UInt128>().v;
-    VN vn = tuple[2].p<Int64>().v;
+    unsigned shard = uint16_t(tuple[0].p<UInt16>().v);
+    UN un = tuple[1].p<UInt64>().v;
+    SN sn = tuple[2].p<UInt128>().v;
+    VN vn = tuple[3].p<Int64>().v;
     auto sn_ = Zfb::Save::uint128(sn);
     auto msg = fbs::CreateMsg(
       fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
-      fbs::CreateRecord(fbb, &id, un, &sn_, vn, data).Union()
+      fbs::CreateRecord(fbb, &id, un, &sn_, vn, shard, data).Union()
     );
     fbb.Finish(msg);
   }
@@ -2575,11 +2622,11 @@ void StoreTbl::find_failed_(RowFn rowFn, ZeVEvent e)
   });
 }
 
-void StoreTbl::recover(UN un, RowFn rowFn)
+void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn)
 {
   using namespace Work;
 
-  m_store->run([this, un, rowFn = ZuMv(rowFn)]() mutable {
+  m_store->run([this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     if (m_store->stopping()) {
       store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
 	rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
@@ -2589,12 +2636,12 @@ void StoreTbl::recover(UN un, RowFn rowFn)
       return;
     }
     m_store->enqueue(TblQuery{this,
-      Query{Recover{un, ZuMv(rowFn)}}, false, true});
+      Query{Recover{shard, un, ZuMv(rowFn)}}, false, true});
   });
 }
 int StoreTbl::recover_send(Work::Recover &recover)
 {
-  Tuple params = { Value{UInt64{recover.un}} };
+  Tuple params = { Value{UInt16{recover.shard}}, Value{UInt64{recover.un}} };
   ZtString id(m_id_.length() + 8);
   id << m_id_ << "_recover";
   return m_store->sendPrepared<SendState::Flush>(id, params);
@@ -2643,13 +2690,15 @@ int StoreTbl::write_send(Work::Write &write)
   })); */
 
   auto record = record_(msg_(write.buf->hdr()));
+  auto shard = record->shard();
   auto un =record->un(); 
   auto sn = Zfb::Load::uint128(record->sn());
 
   if (!write.mrd) {
-    if (m_maxUN != ZdbNullUN() && un <= m_maxUN)
+    auto &maxUN = m_maxUN[shard];
+    if (maxUN != ZdbNullUN() && un <= maxUN)
       return SendState::Unsent;
-    m_maxUN = un;
+    maxUN = un;
     m_maxSN = sn;
   }
 
@@ -2659,12 +2708,13 @@ int StoreTbl::write_send(Work::Write &write)
 
   auto fbo = Zfb::GetAnyRoot(record->data()->data());
   if (!record->vn()) { // insert
-    auto nParams = m_fields.length() + 3; // +3 for un, sn, vn
+    auto nParams = m_fields.length() + 4; // +4 for shard, un, sn, vn
     IDAlloc(8);
     ParamAlloc(nParams);
-    nParams -= 3;
+    nParams -= 4;
     VarAlloc(nParams, m_xFields, fbo);
     id << m_id_ << "_insert";
+    new (params.push()) Value{UInt16{shard}};
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     new (params.push()) Value{UInt64{record->vn()}};
@@ -2698,8 +2748,9 @@ int StoreTbl::write_send(Work::Write &write)
     return m_store->sendPrepared<SendState::Sync>(id, params);
   } else { // delete - MRD
     IDAlloc(8);
-    ParamAlloc(2);
+    ParamAlloc(3);
     id << m_id_ << "_mrd";
+    new (params.push()) Value{UInt16{shard}};
     new (params.push()) Value{UInt64{un}};
     new (params.push()) Value{UInt128{sn}};
     return m_store->sendPrepared<SendState::Sync>(id, params);

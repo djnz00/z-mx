@@ -12,7 +12,7 @@ table Order {
   seq_no:uint64;
   side:Side;
   prices:[int32];
-  quantities:[int32];
+  qtys:[int32];
   flags:Zfb.Bitmap;
 }
 root_type Order;

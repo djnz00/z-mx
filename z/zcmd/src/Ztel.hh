@@ -116,7 +116,7 @@ ZfbFieldTbl(Heap,
     (((heapAllocs),	(Ctor<4>, Mutable, Series, Delta)),	(UInt64)),
     (((frees),		(Ctor<5>, Mutable, Series, Delta)),	(UInt64)),
     (((allocated, RdFn), (Synthetic, Series)),			(UInt64)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 using HashTbl_ = ZmHashTelemetry;
 struct HashTbl : public HashTbl_ {
@@ -144,7 +144,7 @@ ZfbFieldTbl(HashTbl,
     (((count),		(Ctor<4>, Mutable, Series)),		(UInt64)),
     (((effLoadFactor),	(Ctor<3>, Mutable, Series, NDP<2>)),	(Float)),
     (((resized),	(Ctor<6>)),				(UInt32)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 using Thread_ = ZmThreadTelemetry;
 struct Thread : public Thread_ {
@@ -177,7 +177,7 @@ ZfbFieldTbl(Thread,
     (((partition),	(Ctor<9>)),				(UInt16)),
     (((main),		(Ctor<11>)),				(Bool)),
     (((detached),	(Ctor<12>)),				(Bool)),
-    (((rag, RdFn), (Series, Enum<RAG::Map>)),			(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 using Mx_ = ZiMxTelemetry;
 struct Mx : public Mx_ {
@@ -205,7 +205,7 @@ ZfbFieldTbl(Mx,
     (((ll),		(Ctor<11>)),				(Bool)),
     (((spin),		(Ctor<3>)),				(UInt32)),
     (((timeout),	(Ctor<4>)),				(UInt32)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 using Socket_ = ZiCxnTelemetry;
 struct Socket : public Socket_ {
@@ -241,7 +241,7 @@ ZfbFieldTbl(Socket,
     (((rxBufLen),	(Ctor<3>, Mutable, Series)),		(UInt32)),
     (((txBufSize),	(Ctor<4>)),				(UInt32)),
     (((txBufLen),	(Ctor<5>, Mutable, Series)),		(UInt32)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence:
 //   id, type, size, full, count, seqNo,
@@ -274,7 +274,7 @@ ZfbFieldTbl(Queue,
     (((inBytes),	(Ctor<4>, Mutable, Series, Delta)),	(UInt64)),
     (((outCount),	(Ctor<5>, Mutable, Series, Delta)),	(UInt64)),
     (((outBytes),	(Ctor<6>, Mutable, Series, Delta)),	(UInt64)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence:
 //   id, state, reconnects, rxSeqNo, txSeqNo
@@ -296,7 +296,7 @@ ZfbFieldTbl(Link,
     (((reconnects),	(Ctor<4>, Mutable, Series, Delta)),	(UInt32)),
     (((rxSeqNo),	(Ctor<2>, Mutable, Series, Delta)),	(UInt64)),
     (((txSeqNo),	(Ctor<3>, Mutable, Series, Delta)),	(UInt64)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence:
 //   id, state, nLinks, up, down, disabled, transient, reconn, failed,
@@ -326,7 +326,7 @@ ZfbFieldTbl(Engine,
     (((mxID),		(Ctor<2>)),				(String)),
     (((rxThread),	(Ctor<10>)),				(UInt16)),
     (((txThread),	(Ctor<11>)),				(UInt16)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>))	,	(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence: 
 //   name, id,
@@ -338,11 +338,12 @@ struct DBTable {
   using Name = ZuStringN<28>;
 
   Name			name;				// primary key
-  uint32_t		nShards = 0;
+  uint32_t		shards = 0;
   ZtArray<ZtString>	thread;
   uint64_t		count = 0;			// dynamic
   uint64_t		cacheLoads = 0;			// dynamic (*)
   uint64_t		cacheMisses = 0;		// dynamic (*)
+  uint64_t		cacheEvictions = 0;		// dynamic (*)
   uint32_t		cacheSize = 0;
   int8_t		cacheMode = -1;			// CacheMode
   bool			warmup = 0;
@@ -361,14 +362,15 @@ struct DBTable {
 ZfbFieldTbl(DBTable,
     (((name),		(Ctor<0>, Keys<0>)),			(String)),
     (((cacheMode),	(Ctor<7>, Enum<CacheMode::Map>)),	(Int8)),
-    (((cacheSize),	(Ctor<6>)),				(UInt64)),
+    (((cacheSize),	(Ctor<6>)),				(UInt32)),
     (((warmup),		(Ctor<8>)),				(Bool)),
     (((count),		(Ctor<3>, Mutable, Series, Delta)),	(UInt64)),
     (((cacheLoads),	(Ctor<4>, Mutable, Series, Delta)),	(UInt64)),
     (((cacheMisses),	(Ctor<5>, Mutable, Series, Delta)),	(UInt64)),
-    (((nShards),	(Ctor<1>)),				(UInt32)),
+    (((cacheEvictions),	(Ctor<5>, Mutable, Series, Delta)),	(UInt64)),
+    (((shards),		(Ctor<1>)),				(UInt32)),
     (((thread),		(Ctor<2>)),				(StringVec)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence:
 //   id, priority, state, voted, ip, port
@@ -392,7 +394,7 @@ ZfbFieldTbl(DBHost,
     (((state),		(Ctor<4>, Mutable, Enum<DBHostState::Map>)), (Int8)),
     (((voted),		(Ctor<5>, Mutable, Series)),		(Bool)),
     (((port),		(Ctor<3>)),				(UInt16)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence: 
 //   self, leader, prev, next, state, active, recovering, replicating,
@@ -441,7 +443,7 @@ ZfbFieldTbl(DB,
     (((heartbeatTimeout), (Ctor<8>)),				(UInt32)),
     (((reconnectFreq),	(Ctor<9>)),				(UInt32)),
     (((electionTimeout), (Ctor<10>)),				(UInt32)),
-    (((rag, RdFn),	(Series, Enum<RAG::Map>)),		(Int8)));
+    (((rag, RdFn),	(Synthetic, Series, Enum<RAG::Map>)),	(Int8)));
 
 // display sequence:
 //   id, role, RAG, uptime, version

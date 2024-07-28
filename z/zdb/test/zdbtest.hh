@@ -32,22 +32,22 @@ struct Order {
   ZuNBox<uint64_t>	seqNo;
   int8_t		side;
   ZtArray<int>		prices;
-  ZtArray<int>		quantities;
+  ZtArray<int>		qtys;
   ZtBitmap		flags;
 
   friend ZtFieldPrint ZuPrintType(Order *);
 };
 
 ZfbFieldTbl(Order,
-  (((symbol), (Keys<0>, Ctor<0>)), (String)),
-  (((orderID), (Keys<0>, Ctor<1>, Mutable)), (UInt64)),
-  (((link), ((Keys<1, 2>), Group<2>, Descend<2>, Ctor<2>)), (String)),
-  (((clOrdID), (Keys<1>, Ctor<3>, Mutable)), (String)),
-  (((seqNo), (Keys<2>, Descend<2>, Ctor<4>, Mutable)), (UInt64)),
-  (((side), (Ctor<5>, Enum<Side::Map>)), (Int8)),
-  (((prices), (Ctor<6>, Mutable)), (Int32Vec)),
-  (((quantities), (Ctor<7>, Mutable)), (Int32Vec)),
-  (((flags), (Ctor<8>, Mutable)), (Bitmap, ZtBitmap{"4,8,16-42"})));
+  (((symbol),	(Ctor<0>, Keys<0>)),				(String)),
+  (((orderID),	(Ctor<1>, Keys<0>, Mutable)),			(UInt64)),
+  (((link),	(Ctor<2>, (Keys<1, 2>), Group<2>, Descend<2>)),	(String)),
+  (((clOrdID),	(Ctor<3>, Keys<1>, Mutable)),			(String)),
+  (((seqNo),	(Ctor<4>, Keys<2>, Descend<2>, Mutable)),	(UInt64)),
+  (((side),	(Ctor<5>, Enum<Side::Map>)),			(Int8)),
+  (((prices),	(Ctor<6>, Mutable)),				(Int32Vec)),
+  (((qtys),	(Ctor<7>, Mutable)),				(Int32Vec)),
+  (((flags),	(Ctor<8>, Mutable)),	(Bitmap, ZtBitmap{"4,8,16-42"})));
 
 ZfbRoot(Order);	// bind Order to flatbuffer schema
 
