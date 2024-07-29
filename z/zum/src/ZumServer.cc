@@ -320,8 +320,7 @@ void UserDB::initUser(
 // start a new session (a user is logging in)
 void UserDB::sessionLoad_login(ZtString userName, SessionFn fn)
 {
-  ZuPtr<SessionLoad> context =
-    new SessionLoad{ZuMv(userName), ZuMv(fn)};
+  ZuPtr<SessionLoad> context = new SessionLoad{ZuMv(userName), ZuMv(fn)};
   m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
     sessionLoad_findUser(ZuMv(context));
   });
@@ -341,6 +340,7 @@ void UserDB::sessionLoad_findUser(ZuPtr<SessionLoad> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> dbUser) mutable {
     if (!dbUser) { sessionLoaded(ZuMv(context), false); return; }
+    dbUser->pin();
     const auto &user = dbUser->data();
     context->session = new Session{this, ZuMv(dbUser)};
     if (!user.roles)
@@ -358,6 +358,7 @@ void UserDB::sessionLoad_findKey(ZuPtr<SessionLoad> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Key>> dbKey) mutable {
     if (!dbKey) { sessionLoaded(ZuMv(context), false); return; }
+    dbKey->pin();
     context->key = ZuMv(dbKey);
     m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
       sessionLoad_findUserID(ZuMv(context));
@@ -371,6 +372,7 @@ void UserDB::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> dbUser) mutable {
     if (!dbUser) { sessionLoaded(ZuMv(context), false); return; }
+    dbUser->pin();
     const auto &user = dbUser->data();
     context->session = new Session{this, ZuMv(dbUser), ZuMv(context->key)};
     if (context->session->key)

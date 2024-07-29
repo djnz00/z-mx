@@ -53,6 +53,11 @@ struct Session_ {
   ZtBitmap		perms;		// effective permissions
   SessionFlags::T	flags = 0;	// SessionFlags
 
+  ~Session_() {
+    if (user) user->unpin();
+    if (key) key->unpin();
+  }
+
   static auto IDAxor(const Session_ &session) {
     return session.user->data().id;
   }

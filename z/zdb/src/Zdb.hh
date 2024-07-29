@@ -319,6 +319,8 @@ class ZdbAPI AnyObject : public ZmPolymorph {
   friend AnyTable;
   template <typename> friend class Table;
 
+  enum { Evicted = 0x01, Pinned = 0x02 };
+
 public:
   AnyObject(AnyTable *table) : m_table{table} { }
 
@@ -329,23 +331,17 @@ public:
   VN vn() const { return m_vn; }
   int state() const { return m_state; }
   UN origUN() const { return m_origUN; }
+  bool evicted() const { return m_flags & Evicted; }
+  bool pinned() const { return m_flags & Pinned; }
 
   ZmRef<const IOBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject *>(this)->ptr_(); }
 
-  template <typename T>
-  void weakRef(ZmRef<T> &ref) {
-    m_weakRef = &ref;
-    ref = this;
-  }
-  void evicted() {
-    if (m_weakRef) {
-      *m_weakRef = nullptr;	// intentionally not an atomic
-      m_weakRef = nullptr;
-    }
-  }
+  void evict() { m_flags |= Evicted; }
+  void pin() { m_flags |= Pinned; }
+  void unpin() { m_flags &= ~Pinned; }
 
   template <typename S> void print(S &s) const;
   friend ZuPrintFn ZuPrintType(AnyObject *);
@@ -366,13 +362,13 @@ private:
   bool abort_();
 
   AnyTable		*m_table;
-  unsigned		m_shard = 0;
   UN			m_un = nullUN();
   SN			m_sn = nullSN();
   VN			m_vn = 0;
-  int			m_state = ObjState::Undefined;
   UN			m_origUN = nullUN();
-  ZmRef<AnyObject>	*m_weakRef = nullptr;
+  uint8_t		m_shard = 0;
+  int8_t		m_state = ObjState::Undefined;
+  uint8_t		m_flags = 0;
 };
 
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
@@ -975,16 +971,16 @@ private:
       }
     });
     // maintain cache consistency
-    if (record->vn() > 0) {
+    if (record->vn() >= 0) {
       // primary key is immutable
       if constexpr (KeyIDs::N > 1)
+	// no load or eviction here, this is just a key lookup in the cache
 	if (ZmRef<Object<T>> object =
-	    m_cache[shard].find(ZuFieldKey<0>(*fbo))) {
+	    m_cache[shard].find(ZuFieldKey<0>(*fbo)))
 	  m_cache[shard].template update<ZuTypeTail<1, KeyIDs>>(ZuMv(object),
 	    [fbo](const ZmRef<Object<T>> &object) {
 	      ZfbField::update(object->data(), fbo);
 	    });
-	}
     } else {
       m_cache[shard].template del<0>(ZuFieldKey<0>(*fbo));
     }
@@ -1134,13 +1130,17 @@ private: // RMU version used by findUpd() and findDel()
   }
 
 public:
-  // evict from cache
+  // evict from cache, even if pinned
   template <unsigned KeyID>
   void evict(unsigned shard, const Key<KeyID> &key) {
     ZmAssert(invoked(shard));
 
     ZmRef<Object<T>> object = m_cache[shard].template del<KeyID>(key);
-    if (object) object->evicted();
+    if (object) {
+      object->unpin();
+      evictUN(shard, object->un());
+      object->evict();
+    }
   }
   void evict(Object<T> *object) {
     unsigned shard = object->shard();
@@ -1148,7 +1148,9 @@ public:
     ZmAssert(invoked(shard));
 
     m_cache[shard].delNode(object);
-    object->evicted();
+    object->unpin();
+    evictUN(shard, object->un());
+    object->evict();
   }
 
   // init lambda - l(ZdbObject<T> *)
@@ -1295,7 +1297,7 @@ public:
     //   causes a future find() to return null
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// "undo" buffer
     auto nBufs = 0;
-    auto abort = [this, shard, &object, &bufs, &nBufs]() {
+    auto abort = [&object, &bufs, &nBufs]() {
       if (!object->abort()) return;
       for (unsigned i = 0; i < nBufs; i++) {
 	bufs[i]->stale = false;
@@ -1372,7 +1374,12 @@ private:
     switch (origState) {
       case ObjState::Insert:
 	if (writeCache()) {
-	  m_cache[shard].add(object);
+	  m_cache[shard].add(object, [this](AnyObject *object) {
+	    if (object->pinned()) return false;
+	    evictUN(object->shard(), object->un());
+	    object->evict();
+	    return true;
+	  });
 	  cacheUN(shard, object->un(), object);
 	}
 	incCount();
@@ -1383,7 +1390,7 @@ private:
 	break;
       case ObjState::Delete:
 	if (m_cache[shard].delNode(static_cast<Object<T> *>(object)))
-	  object->evicted();
+	  object->evict();
 	decCount();
 	break;
     }
@@ -2027,12 +2034,14 @@ inline void Table<T>::find_(unsigned shard, Key<KeyID> key, L l, Ctor ctor) {
     retrieve<KeyID>(shard, key, ZuMv(l), ZuMv(ctor));
   };
   if constexpr (Evict) {
-    auto evict = [this](ZmRef<AnyObject> object) {
-      evictUN(object->shard(), object->un());
-      object->evicted();
-    };
     m_cache[shard].template find<KeyID, UpdateLRU>(
-	ZuMv(key), ZuMv(l), ZuMv(load), ZuMv(evict));
+      ZuMv(key), ZuMv(l), ZuMv(load),
+      [this](AnyObject *object) {
+	if (object->pinned()) return false;
+	evictUN(object->shard(), object->un());
+	object->evict();
+	return true;
+      });
   } else
     m_cache[shard].template find<KeyID, UpdateLRU, false>(
 	ZuMv(key), ZuMv(l), ZuMv(load));
@@ -2184,12 +2193,12 @@ void AnyObject::print(S &s) const {
     << " sn=" << m_sn
     << " vn=" << m_vn;
   if (m_origUN != nullUN()) s << " origUN=" << m_origUN;
-  s << " data={";
+  s << " data=";
   {
     ZuVStream s_{s};
     m_table->objPrint(s_, ptr_());
   }
-  s << "}}";
+  s << '}';
 }
 
 } // Zdb_

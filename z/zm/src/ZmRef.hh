@@ -23,12 +23,12 @@
 #endif
 
 // rules for using ZmRef
-// * always point to objects allocated using new (use ZmHeap to optimize)
-// * always point to objects which derive from ZmObject
-// * be careful to maintain a positive reference count when mixing
+// - always point to objects allocated using new (use ZmHeap to optimize)
+// - always point to objects which derive from ZmObject
+// - be careful to maintain a positive reference count when mixing
 //   with real pointers - objects will delete themselves from
 //   under you if they think they are referenced by nothing!
-// * can pass by raw pointer or const ZmRef &, but return by ZmRef value
+// - can pass by raw pointer or const ZmRef &, but always return by value
 
 void ZmRefType(...);
 

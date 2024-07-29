@@ -188,7 +188,7 @@ public:
     if (!pending)
       loadFn(ZuMv(key), [this, key](NodeRef node) {
 	Guard guard{m_lock};
-	if (node) add_(node);
+	if (node) add_<Evict_>(node);
 	const auto &loadHash = m_loadHashes.template p<KeyID>();
 	if (auto load = loadHash->del(key)) {
 	  guard.unlock();
@@ -218,8 +218,7 @@ public:
     if (!pending)
       loadFn(key, [this, key, evictFn = ZuMv(evictFn)](NodeRef node) {
 	Guard guard{m_lock};
-	if (node)
-	  if (auto evicted = add_<true>(node)) evictFn(ZuMv(evicted));
+	if (node) add_<true>(node, ZuMv(evictFn));
 	const auto &loadHash = m_loadHashes.template p<KeyID>();
 	if (auto load = loadHash->del(key)) {
 	  guard.unlock();
@@ -235,16 +234,15 @@ public:
   }
 
   template <bool Evict_ = Evict>
-  ZuIfT<Evict_ && Evict, NodeRef> add(NodeRef node) {
+  ZuIfT<Evict_ && Evict> add(NodeRef node) {
     Guard guard{m_lock};
-    return add_<true>(ZuMv(node));
+    add_<true>(ZuMv(node), [](Node *) { return true; });
   }
 
   template <bool Evict_ = Evict, typename EvictFn>
-  ZuIfT<Evict_ && Evict, NodeRef> add(NodeRef node, EvictFn evictFn) {
+  ZuIfT<Evict_ && Evict> add(NodeRef node, EvictFn evictFn) {
     Guard guard{m_lock};
-    if (auto evicted = add_<true>(ZuMv(node)))
-      evictFn(ZuMv(evicted));
+    add_<true>(ZuMv(node), ZuMv(evictFn));
   }
 
   // update keys lambda - l(node)
@@ -288,28 +286,33 @@ private:
   template <bool Evict_ = Evict>
   ZuIfT<!Evict_ || !Evict> add_(NodeRef node) {
     Node *nodePtr = node;
-    m_hash.addNode(ZuMv(node));
+    m_hash.add(ZuMv(node));
     if constexpr (Evict) m_lru.pushNode(nodePtr);
   }
 
   template <bool Evict_ = Evict>
-  ZuIfT<Evict_ && Evict, NodeMvRef> add_(NodeRef node) {
+  ZuIfT<Evict_ && Evict> add_(NodeRef node) {
+    add_(ZuMv(node), [](Node *) { return true; });
+  }
+
+  template <bool Evict_ = Evict, typename EvictFn>
+  ZuIfT<Evict_ && Evict> add_(NodeRef node, EvictFn evictFn) {
     Node *nodePtr = node;
-    NodeMvRef evicted = nullptr;
     if (m_hash.count_() >= m_size) {
-      auto evicted_ = m_lru.shift();
-      if constexpr (ZuTraits<ZuDecay<decltype(evicted_)>>::IsPrimitive)
-	evicted = static_cast<NodeMvRef>(evicted_);
-      else
-	evicted = NodeMvRef{ZuMv(evicted_)};
-      if (evicted) {
-	++m_evictions;
-	m_hash.delNode(ZuMv(evicted));
+      if (NodeMvRef evicted = m_lru.shift()) {
+	if (evictFn(evicted)) {
+	  ++m_evictions;
+	  m_hash.delNode(evicted);
+	} else { // pinned
+	  if constexpr (ZuIsExact<ZuPtr<Node>, NodeMvRef>{})
+	    m_lru.pushNode(ZuMv(evicted).release());
+	  else
+	    m_lru.pushNode(ZuMv(evicted));
+	}
       }
     }
     m_hash.add(ZuMv(node));
     m_lru.pushNode(nodePtr);
-    return evicted;
   }
 
 public:

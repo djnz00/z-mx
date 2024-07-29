@@ -199,7 +199,9 @@ int main(int argc, char **argv)
 	    } else {
 	      id = o->data().orderID;
 	      ZeLOG(Info, ([seqNo, o = ZuMv(o)](auto &s) {
-		s << "find(FIX0, " << seqNo << "): " << o->data();
+		s << "find(FIX0, " << seqNo
+		  << "): refCount=" << o->refCount()
+		  << ' ' << *o;
 	      }));
 	    }
 	    done.post();
@@ -224,7 +226,6 @@ int main(int argc, char **argv)
 	new (o->ptr())
 	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, {100}, {100}};
 	o->data().flags.set(42);
-	ZeLOG(Debug, ([o = ZmRef{o}](auto &s) { s << o->data(); }));
 	o->commit();
 	id = o->data().orderID;
 	seqNo = o->data().seqNo;
@@ -245,7 +246,7 @@ int main(int argc, char **argv)
 	    }));
 	  else
 	    ZeLOG(Info, ([id, o = ZuMv(o)](auto &s) {
-	      s << "find(IBM, " << id << "): " << o->data();
+	      s << "find(IBM, " << id << "): " << *o;
 	    }));
 	  done.post();
 	});
@@ -302,7 +303,7 @@ int main(int argc, char **argv)
 	      return;
 	    }
 	    ZeLOG(Info, ([id, o](auto &s) {
-	      s << "findDel(IBM, " << id << "): " << o->data();
+	      s << "findDel(IBM, " << id << "): " << *o;
 	    }));
 	    o->commit();
 	    done.post();
