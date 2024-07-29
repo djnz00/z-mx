@@ -27,6 +27,20 @@ enum { DefltBufSize = 192 };		// default row buffer size
 enum { HBBufSize = 128 };		// heartbeat buffer size
 enum { TelBufSize = 128 };		// telemetry buffer size
 
+} // Zdb_
+
+// type-specific buffer size - specialize to override default
+template <typename>
+struct ZdbBufSize : public ZuUnsigned<Zdb_::DefltBufSize> { };
+
+// type-specific buffer cache ID - specialize to override default
+template <typename>
+struct ZdbBufHeapID {
+  static constexpr const char *id() { return "Zdb.Buffer"; }
+};
+
+namespace Zdb_ {
+
 class AnyTable;
 class DB;
 
@@ -55,12 +69,15 @@ inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
   return record_(msg_(buf.hdr()))->un();
 }
 
+inline constexpr const char *BufCache_ID() { return "Zdb.BufCache"; }
+
 using BufCacheUN =
   ZmHash<IOBuf_,
     ZmHashNode<IOBuf_,
       ZmHashKey<IOBuf_UNAxor,
 	ZmHashLock<ZmPLock,
-	  ZmHashShadow<true>>>>>;
+	  ZmHashShadow<true,
+	    ZmHashID<BufCache_ID>>>>>>;
 
 struct IOBuf : public BufCacheUN::Node {
   using Base = BufCacheUN::Node;
@@ -71,10 +88,10 @@ struct IOBuf : public BufCacheUN::Node {
 
 // buffer allocation
 
-template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
-using IOBufAlloc = Zi::IOBufAlloc<IOBuf, Size, HeapID>;
+template <typename T = void>
+using IOBufAlloc = Zi::IOBufAlloc<IOBuf, ZdbBufSize<T>{}, ZdbBufHeapID<T>::id>;
 
-using RxBufAlloc = IOBufAlloc<ZiIOBuf_DefaultSize>;
+using RxBufAlloc = IOBufAlloc<>;
 
 typedef ZmRef<IOBuf> (*IOBufAllocFn)();
 

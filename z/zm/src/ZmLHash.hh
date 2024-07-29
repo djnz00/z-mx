@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// hash table (policy-based)
+// linear hash table (policy-based)
 //
 // open addressing, linear probing, fast chained lookup, optionally locked
 //
@@ -104,10 +104,10 @@ struct ZmLHashStatic : public NTP {
 };
 
 // ZmLHashLocal<> - local hash table
-// * not registered with hash mgr
-// * no telemetry
-// * can be on stack
-// * does not derive from ZmAnyHash
+// - not registered with hash mgr
+// - no telemetry
+// - can be on stack
+// - does not derive from ZmAnyHash
 template <typename NTP = ZmLHash_Defaults>
 struct ZmLHashLocal : public NTP {
   enum { Local = 1 };

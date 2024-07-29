@@ -4,12 +4,15 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// hash table (policy-based, separately chained (linked lists), lock striping)
-// * intentionally disdains range-based for() and structured binding
-// * globally configured sizing, lock striping and heap configuration
+// chained hash table (policy-based)
+//
+// separately chained with linked lists, optionally locked, lock striping
+//
+// - intentionally disdains range-based for() and structured binding
+// - globally configured sizing, lock striping and heap configuration
 //   - see ZmHashMgr
 //   - supports profile-guided optimization of heap and hash configuration
-// * efficient statistics and telemetry (ZvTelemetry)
+// - efficient statistics and telemetry (ZvTelemetry)
 
 #ifndef ZmHash_HH
 #define ZmHash_HH
@@ -58,10 +61,17 @@ template <typename Lock> class ZmHash_LockMgr {
 	reinterpret_cast<uint8_t *>(m_locks) + (i * CacheLineSize));
   }
 
+public:
+  unsigned bits() const { return m_bits; }
+  unsigned cBits() const { return m_cBits; }
+
 protected:
-  ZmHash_LockMgr(const ZmHashParams &p) :
-      m_bits{p.bits()   < 2 ? 2 : p.bits()  > 28 ? 28 : p.bits()},
-      m_cBits{p.cBits() < 0 ? 0 : p.cBits() > 12 ? 12 : p.cBits()} {
+  ZmHash_LockMgr() { }
+
+  void init(const ZmHashParams &p) {
+    bits(p.bits());
+    cBits(p.cBits());
+
     if (m_cBits > m_bits) m_cBits = m_bits;
     unsigned n = 1U<<m_cBits;
     unsigned z = n * CacheLineSize;
@@ -73,6 +83,7 @@ protected:
     if (!m_locks) throw std::bad_alloc{};
     for (unsigned i = 0; i < n; ++i) new (&lock_(i)) Lock();
   }
+
   ~ZmHash_LockMgr() {
     if (ZuUnlikely(!m_locks)) return;
     unsigned n = 1U<<m_cBits;
@@ -84,11 +95,9 @@ protected:
 #endif
   }
 
+  void bits(n)  {  m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }
+  void cBits(n) { m_cBits = n < 0 ? 0 : n > 12 ? 12 : n; }
 
-public:
-  unsigned cBits() const { return m_cBits; }
-
-protected:
   Lock &lockCode(uint32_t code) const {
     return lockSlot(ZmHash_Bits::hashBits(code, m_bits));
   }
@@ -117,40 +126,36 @@ protected:
   }
 
 protected:
-  unsigned	m_bits;
+  unsigned	m_bits = 2;
 private:
-  unsigned	m_cBits;
-  mutable void	*m_locks;
+  unsigned	m_cBits = 2;
+  mutable void	*m_locks = nullptr;
 };
 
 template <> class ZmHash_LockMgr<ZmNoLock> {
 protected:
-  ZmHash_LockMgr(const ZmHashParams &p) :
-      m_bits{p.bits() < 2 ? 2 : p.bits() > 28 ? 28 : p.bits()} { }
+  ZmHash_LockMgr() { }
   ~ZmHash_LockMgr() { }
+
+  void init(const ZmHashParams &p) { bits(p.bits()); }
 
 public:
   unsigned bits() const { return m_bits; }
   static constexpr unsigned cBits() { return 0; }
 
 protected:
-  void bits(unsigned u) { m_bits = u; }
+  void bits(unsigned n) { m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }
+  void cBits(unsigned) { }
 
-  ZmNoLock &lockCode(uint32_t code) const {
-    return const_cast<ZmNoLock &>(m_noLock);
-  }
-  ZmNoLock &lockSlot(unsigned slot) const {
-    return const_cast<ZmNoLock &>(m_noLock);
-  }
+  ZmNoLock &lockCode(uint32_t code) const { return ZuNullRef<ZmNoLock>(); }
+  ZmNoLock &lockSlot(unsigned slot) const { return ZuNullRef<ZmNoLock>(); }
 
   bool lockAllResize(unsigned) { return true; }
   void lockAll() { }
   void unlockAll() { }
 
 protected:
-  unsigned	m_bits;
-private:
-  ZmNoLock	m_noLock;
+  unsigned	m_bits = 2;
 };
 
 // NTP (named template parameters):
@@ -169,7 +174,6 @@ struct ZmHash_Defaults {
   using Node = ZuNull;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmHash"; }
-  static constexpr auto ID = HeapID;
   enum { Sharded = 0 };
 };
 
@@ -227,17 +231,10 @@ struct ZmHashShadow : public NTP {
 template <auto HeapID_, typename NTP = ZmHash_Defaults>
 struct ZmHashHeapID : public NTP {
   static constexpr auto HeapID = HeapID_;
-  static constexpr auto ID = HeapID_;
 };
 template <typename NTP>
 struct ZmHashHeapID<ZmHeapDisable(), NTP> : public NTP {
   static constexpr auto HeapID = ZmHeapDisable();
-};
-
-// ZmHashID - the hash ID (if the heap ID is shared)
-template <auto ID_, typename NTP = ZmHash_Defaults>
-struct ZmHashID : public NTP {
-  static constexpr auto ID = ID_;
 };
 
 // ZmHashSharded - sharded heap
@@ -286,7 +283,6 @@ public:
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
-  static constexpr auto ID = NTP::ID;
   static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
@@ -516,13 +512,24 @@ private:
   }
 
 public:
-  ZmHash(ZmHashParams params = ZmHashParams{ID()}) : LockMgr{params} {
-    init(params);
+  ZmHash() : m_id(HeapID()) {
+    auto params = ZmHashParams{m_id};
+    Lockmgr::init(params);
+    ZmHash::init(params);
   }
-  ZmHash(Cmp cmp, ZmHashParams params = ZmHashParams{ID()}) :
-    m_cmp{ZuMv(cmp)}, LockMgr{params}
+  ZmHash(Cmp cmp, ZuString id) :
+    m_cmp{ZuMv(cmp)}, m_id{id}
   {
-    init(params);
+    auto params = ZmHashParams{m_id};
+    Lockmgr::init(params);
+    ZmHash::init(params);
+  }
+  ZmHash(Cmp cmp, ZuString id) :
+    m_cmp{ZuMv(cmp)}, m_id{id}
+  {
+    auto params = ZmHashParams{m_id};
+    Lockmgr::init(params);
+    ZmHash::init(params);
   }
   ZmHash(const ZmHash &) = delete;
   ZmHash &operator =(const ZmHash &) = delete;

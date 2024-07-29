@@ -111,9 +111,17 @@
 #define ZdbDEBUG(db, e) (void())
 #endif
 
-// type-specific buffer size - specialize to override default
+// heap and hash configuration
+//
+// ZdbHeapID<T>		- heap ID for objects
+// ZdbBufSize<T>	- buffer size
+// ZdbBufHeapID<T>	- heap ID for buffers
+
+// type-specific cache ID - specialize to override default
 template <typename>
-struct ZdbBufSize : public ZuUnsigned<Zdb_::DefltBufSize> { };
+struct ZdbHeapID {
+  static constexpr const char *id() { return "Zdb.Object"; }
+};
 
 namespace Zdb_ {
 
@@ -272,8 +280,6 @@ struct DBState : public DBState_ {
 
 // --- generic object
 
-const char *Object_HeapID() { return "Zdb.Object"; }
-
 // possible object state paths:
 //
 // Undefined > Insert			insert
@@ -374,11 +380,14 @@ private:
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
   return object->un();
 }
+
+inline constexpr const char *CacheUN_HeapID() { return "Zdb.UpdCache"; }
+
 // temporarily there may be more than one UN referencing a cached object
 using CacheUN =
   ZmHashKV<UN, ZmRef<AnyObject>,
     ZmHashLock<ZmPLock,
-      ZmHashHeapID<Object_HeapID>>>;
+      ZmHashHeapID<CacheUN_HeapID>>>;
 
 // --- typed object
 
@@ -473,7 +482,9 @@ private:
 
 // typed object cache
 template <typename T>
-using Cache = ZmPolyCache<Object_<T>, ZmPolyCacheHeapID<Object_HeapID>>;
+using Cache =
+  ZmPolyCache<Object_<T>,
+    ZmPolyCacheHeapID<ZdbHeapID<T>::id>>;
 
 // typed object
 template <typename T>
@@ -798,10 +809,10 @@ inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 
 // buffer cache
 template <typename T>
-using BufCache = ZmPolyHash<Buf_<T>, ZmPolyHashHeapID<Buf_HeapID>>;
+using BufCache = ZmPolyHash<Buf_<T>, ZmPolyHashHeapID<ZdbBufHeapID<T>::id>>;
 
 // typed buffer
-template <typename T>
+template <typename T> 
 struct Buf : public BufCache<T>::Node {
   using Base = BufCache<T>::Node;
   using Base::Base;
@@ -916,11 +927,16 @@ private:
   using MemberKey = typename SplitKey<T, KeyID>::MemberKey;
 
 public:
-  static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<BufSize>{}; }
+  static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<T>{}; }
 
   Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} {
-    m_cache.length(cf->nShards);
-    m_bufCache.length(cf->nShards);
+    unsigned n = cf->nShards
+    m_cache.size(n);
+    m_bufCache.size(n);
+    for (unsigned i = 0; i < n; i++) {
+      new (m_cache.push()) Cache<T>{ZmHashParams{/* FIXME */}};
+      new (m_bufCache.push()) BufCache<T>{ZmHashParams{/* FIXME */}};
+    }
   }
   ~Table() = default;
 

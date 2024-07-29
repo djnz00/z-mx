@@ -1490,8 +1490,8 @@ AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_bufCacheUN.length(n);
   for (unsigned i = 0; i < n; i++) {
     m_nextUN[i] = 0;
-    m_cacheUN[i] = new CacheUN{};
-    m_bufCacheUN[i] = new BufCacheUN{};
+    m_cacheUN[i] = new CacheUN{ZmHashParams{/* FIXME */}};
+    m_bufCacheUN[i] = new BufCacheUN{ZmHashParams{/* FIXME */}};
   }
 }
 

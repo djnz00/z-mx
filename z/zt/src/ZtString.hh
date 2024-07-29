@@ -82,9 +82,9 @@ public:
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuInspect<Char, wchar_t>::Same };
   enum { BuiltinSize_ = (ZtString_Builtin + sizeof(Char) - 1) / sizeof(Char) };
-  enum { BuiltinUPtr =
+  enum { BuiltinPtr =
     (BuiltinSize_ * sizeof(Char) + sizeof(uintptr_t) - 1) / sizeof(uintptr_t) };
-  enum { BuiltinSize = (BuiltinUPtr * sizeof(uintptr_t)) / sizeof(Char) };
+  enum { BuiltinSize = (BuiltinPtr * sizeof(uintptr_t)) / sizeof(Char) };
   static constexpr auto HeapID = HeapID_;
 
 private:
@@ -1296,7 +1296,7 @@ public:
 private:
   uint32_t		m_size_owned_null;
   uint32_t		m_length_vallocd_builtin;
-  uintptr_t		m_data[BuiltinUPtr];
+  uintptr_t		m_data[BuiltinPtr];
 };
 
 template <typename Char, auto HeapID>
