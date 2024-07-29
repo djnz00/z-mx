@@ -689,14 +689,14 @@ private:
   using MatchData = ZuIfT<IsData<U>{}, R>;
 
   template <typename P>
-  static auto matchKey(const P &key) {
+  static ZuInline auto matchKey(const P &key) {
     return [&key](const Node *node) -> bool {
       // std::cout << (ZuStringN<80>{} << "matchKey() node key=" << node->Node::key() << " val=" << node->Node::val() << " key=" << key << '\n');
       return Cmp::equals(node->Node::key(), key);
     };
   }
   template <typename P>
-  static auto matchData(const P &data) {
+  static ZuInline auto matchData(const P &data) {
     return [&data](const Node *node) -> bool {
       return node->Node::data() == data;
     };

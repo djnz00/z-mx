@@ -611,14 +611,14 @@ public:
   template <
     typename Key_ = Key,
     typename Cmp_ = Cmp,
-    decltype(ZuIfT<ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+    decltype(ZuIfT<ZmHash_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
   static ZuInline auto cmp(const Key &l, const Key &r) {
     return Cmp::cmp(l, r);
   }
   template <
     typename Key_ = Key,
     typename Cmp_ = Cmp,
-    decltype(ZuIfT<!ZmRBTree_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
+    decltype(ZuIfT<!ZmHash_IsStaticCmp<Key_, Cmp_>{}>(), int()) = 0>
   auto ZuInline cmp(const Key &l, const Key &r) const {
     return m_cmp.cmp(l, r);
   }
