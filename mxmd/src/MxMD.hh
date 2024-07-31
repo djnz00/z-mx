@@ -1458,18 +1458,18 @@ friend MxMDOrderBook;
 friend MxMDOBSide;
 friend MxMDPxLevel_;
 
-  typedef
+  using Orders2 =
     ZmHash<ZmRef<MxMDOrder>,
       ZmHashKey<MxMDOrder::OrderID2Accessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmNoLock,
-	    ZmHashHeapID<MxMDOrders2_HeapID>>>>> Orders2;
-  typedef
+	    ZmHashHeapID<MxMDOrders2_HeapID>>>>>;
+  using Orders3 =
     ZmHash<ZmRef<MxMDOrder>,
       ZmHashKey<MxMDOrder::OrderID3Accessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmNoLock,
-	    ZmHashHeapID<MxMDOrders3_HeapID>>>>> Orders3;
+	    ZmHashHeapID<MxMDOrders3_HeapID>>>>>;
 
   MxMDVenueShard(MxMDVenue *venue, MxMDShard *shard);
 
@@ -1551,22 +1551,22 @@ friend MxMDOrderBook;
   struct Segments_ID {
     static constexpr const char *id() { return "MxMDVenue.Segments"; }
   };
-  typedef
+  using Segments =
     ZmHash<MxMDSegment,
       ZmHashKey<Segment_IDAccessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmNoLock,
-	    ZmHashID<Segments_ID>>>>> Segments;
+	    ZmHashID<Segments_ID>>>>>;
   typedef ZmPLock SegmentsLock;
   typedef ZmGuard<SegmentsLock> SegmentsGuard;
   typedef ZmReadGuard<SegmentsLock> SegmentsReadGuard;
 
-  typedef
+  using Orders1 =
     ZmHash<ZmRef<MxMDOrder>,
       ZmHashKey<MxMDOrder::OrderID1Accessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmPLock,
-	    ZmHashHeapID<MxMDOrders1_HeapID>>>>> Orders1;
+	    ZmHashHeapID<MxMDOrders1_HeapID>>>>>;
 
 public:
   MxMDVenue(MxMDLib *md, MxMDFeed *feed, MxID id,
@@ -1701,23 +1701,23 @@ friend MxMDLib;
   struct Instruments_HeapID : public ZmHeapSharded {
     static constexpr const char *id() { return "MxMDShard.Instruments"; }
   };
-  typedef
+  using Instruments =
     ZmHash<MxMDInstrument *,
       ZmHashKey<MxMDInstrument::KeyAccessor,
 	ZmHashObject<ZuObject,
 	  ZmHashLock<ZmNoLock,
-	    ZmHashHeapID<Instruments_HeapID>>>>> Instruments;
+	    ZmHashHeapID<Instruments_HeapID>>>>>;
 
   // FIXME
   struct OrderBooks_HeapID : public ZmHeapSharded {
     static constexpr const char *id() { return "MxMDShard.OrderBooks"; }
   };
-  typedef
+  using OrderBooks =
     ZmHash<MxMDOrderBook *,
       ZmHashKey<MxMDOrderBook::KeyAccessor,
 	ZmHashObject<ZuObject,
 	  ZmHashLock<ZmNoLock,
-	    ZmHashHeapID<OrderBooks_HeapID>>>>> OrderBooks;
+	    ZmHashHeapID<OrderBooks_HeapID>>>>>;
 
   MxMDShard(MxMDLib *md, ZmScheduler *sched, unsigned id, unsigned sid) :
       ZmShard(sched, sid), m_md(md), m_id(id) {
@@ -1986,64 +1986,68 @@ friend ZmShard;
   struct AllInstruments_HeapID {
     static constexpr const char *id() { return "MxMDLib.AllInstruments"; }
   };
-  typedef
+  using AllInstruments =
     ZmHash<ZmRef<MxMDInstrument>,
       ZmHashKey<MxMDInstrument::KeyAccessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmPLock,
-	    ZmHashHeapID<AllInstruments_HeapID>>>>> AllInstruments;
+	    ZmHashHeapID<AllInstruments_HeapID>>>>>;
 
   struct AllOrderBooks_HeapID {
     static constexpr const char *id() { return "MxMDLib.AllOrderBooks"; }
   };
-  typedef
+  using AllOrderBooks =
     ZmHash<ZmRef<MxMDOrderBook>,
       ZmHashKey<MxMDOrderBook::KeyAccessor,
 	ZmHashObject<ZuNull,
 	  ZmHashLock<ZmPLock,
-	    ZmHashHeapID<AllOrderBooks_HeapID>>>>> AllOrderBooks;
+	    ZmHashHeapID<AllOrderBooks_HeapID>>>>>;
 
   // secondary indices
 
   struct Instruments_HeapID {
     static constexpr const char *id() { return "MxMDLib.Instruments"; }
   };
-  typedef ZmHashKV<MxSymKey, MxMDInstrument *,
-	    ZmHashObject<ZuNull,
-	      ZmHashLock<ZmPLock,
-		ZmHashHeapID<Instruments_HeapID> > > > Instruments;
+  using Instruments =
+    ZmHashKV<MxSymKey, MxMDInstrument *,
+      ZmHashObject<ZuNull,
+	ZmHashLock<ZmPLock,
+	  ZmHashHeapID<Instruments_HeapID>>>>;
 
   // feeds, venues
 
   struct Feeds_HeapID {
     static constexpr const char *id() { return "MxMDLib.Feeds"; }
   };
-  typedef ZmRBTree<ZmRef<MxMDFeed>,
-	    ZmRBTreeIndex<MxMDFeed::IDAccessor,
-	      ZmRBTreeUnique<true,
-		ZmRBTreeObject<ZuNull,
-		  ZmRBTreeLock<ZmPLock,
-		    ZmRBTreeHeapID<Feeds_HeapID> > > > > > Feeds;
+  using Feeds =
+    ZmRBTree<ZmRef<MxMDFeed>,
+      ZmRBTreeIndex<MxMDFeed::IDAccessor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZuNull,
+	    ZmRBTreeLock<ZmPLock,
+	      ZmRBTreeHeapID<Feeds_HeapID>>>>>>;
 
   struct Venues_HeapID {
     static constexpr const char *id() { return "MxMDLib.Venues"; }
   };
-  typedef ZmRBTree<ZmRef<MxMDVenue>,
-	    ZmRBTreeIndex<MxMDVenue::IDAccessor,
-	      ZmRBTreeUnique<true,
-		ZmRBTreeObject<ZuNull,
-		  ZmRBTreeLock<ZmPLock,
-		    ZmRBTreeHeapID<Venues_HeapID> > > > > > Venues;
+  using Venues =
+    ZmRBTree<ZmRef<MxMDVenue>,
+      ZmRBTreeIndex<MxMDVenue::IDAccessor,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZuNull,
+	    ZmRBTreeLock<ZmPLock,
+	      ZmRBTreeHeapID<Venues_HeapID>>>>>>;
 
   struct VenueMap_HeapID {
     static constexpr const char *id() { return "MxMDLib.VenueMap"; }
   };
-  typedef ZmRBTree<MxMDVenueMapKey,
-	    ZmRBTreeVal<MxMDVenueMapping,
-	      ZmRBTreeUnique<true,
-		ZmRBTreeObject<ZuNull,
-		  ZmRBTreeLock<ZmPLock,
-		    ZmRBTreeHeapID<VenueMap_HeapID> > > > > > VenueMap;
+  using VenueMap =
+    ZmRBTree<MxMDVenueMapKey,
+      ZmRBTreeVal<MxMDVenueMapping,
+	ZmRBTreeUnique<true,
+	  ZmRBTreeObject<ZuNull,
+	    ZmRBTreeLock<ZmPLock,
+	      ZmRBTreeHeapID<VenueMap_HeapID>>>>>>;
 
 public:
   MxMDInstrHandle instrument(const MxInstrKey &key) const {
