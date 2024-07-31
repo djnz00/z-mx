@@ -1165,6 +1165,6 @@ private:
 template <typename P0, typename P1, typename NTP = ZmLHash_Defaults>
 using ZmLHashKV =
   ZmLHash<ZuTuple<P0, P1>,
-    ZmLHashKeyVal<ZuTupleAxor<0>(), ZuTupleAxor<1>(), NTP> >;
+    ZmLHashKeyVal<ZuTupleAxor<0>(), ZuTupleAxor<1>(), NTP>>;
 
 #endif /* ZmLHash_HH */
