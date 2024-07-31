@@ -21,7 +21,7 @@ inline bool operator ==(const Object &l, const Object &r) {
   return l.m_val == r.m_val;
 }
 
-using ObjectHash = ZmHash<ZmRef<Object> >;
+using ObjectHash = ZmHash<ZmRef<Object>>;
 
 int main(int argc, char *argv[])
 {

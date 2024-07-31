@@ -113,7 +113,7 @@ class App : public ZmPolymorph {
   using Cxns =
     ZmHash<ZmRef<Connection>,
       ZmHashKey<Connection::GroupIDAccessor,
-	ZmHashObject<ZuNull> > >;
+	ZmHashObject<ZuNull>>>;
 
 public:
   App(const ZvCf *cf);

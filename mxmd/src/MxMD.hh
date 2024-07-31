@@ -1458,16 +1458,18 @@ friend MxMDOrderBook;
 friend MxMDOBSide;
 friend MxMDPxLevel_;
 
-  typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashKey<MxMDOrder::OrderID2Accessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmNoLock,
-		  ZmHashHeapID<MxMDOrders2_HeapID> > > > > Orders2;
-  typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashKey<MxMDOrder::OrderID3Accessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmNoLock,
-		  ZmHashHeapID<MxMDOrders3_HeapID> > > > > Orders3;
+  typedef
+    ZmHash<ZmRef<MxMDOrder>,
+      ZmHashKey<MxMDOrder::OrderID2Accessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmNoLock,
+	    ZmHashHeapID<MxMDOrders2_HeapID>>>>> Orders2;
+  typedef
+    ZmHash<ZmRef<MxMDOrder>,
+      ZmHashKey<MxMDOrder::OrderID3Accessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmNoLock,
+	    ZmHashHeapID<MxMDOrders3_HeapID>>>>> Orders3;
 
   MxMDVenueShard(MxMDVenue *venue, MxMDShard *shard);
 
@@ -1549,20 +1551,22 @@ friend MxMDOrderBook;
   struct Segments_ID {
     static constexpr const char *id() { return "MxMDVenue.Segments"; }
   };
-  typedef ZmHash<MxMDSegment,
-	    ZmHashKey<Segment_IDAccessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmNoLock,
-		  ZmHashID<Segments_ID> > > > > Segments;
+  typedef
+    ZmHash<MxMDSegment,
+      ZmHashKey<Segment_IDAccessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmNoLock,
+	    ZmHashID<Segments_ID>>>>> Segments;
   typedef ZmPLock SegmentsLock;
   typedef ZmGuard<SegmentsLock> SegmentsGuard;
   typedef ZmReadGuard<SegmentsLock> SegmentsReadGuard;
 
-  typedef ZmHash<ZmRef<MxMDOrder>,
-	    ZmHashKey<MxMDOrder::OrderID1Accessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmPLock,
-		  ZmHashHeapID<MxMDOrders1_HeapID> > > > > Orders1;
+  typedef
+    ZmHash<ZmRef<MxMDOrder>,
+      ZmHashKey<MxMDOrder::OrderID1Accessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmPLock,
+	    ZmHashHeapID<MxMDOrders1_HeapID>>>>> Orders1;
 
 public:
   MxMDVenue(MxMDLib *md, MxMDFeed *feed, MxID id,
@@ -1697,21 +1701,23 @@ friend MxMDLib;
   struct Instruments_HeapID : public ZmHeapSharded {
     static constexpr const char *id() { return "MxMDShard.Instruments"; }
   };
-  typedef ZmHash<MxMDInstrument *,
-	    ZmHashKey<MxMDInstrument::KeyAccessor,
-	      ZmHashObject<ZuObject,
-		ZmHashLock<ZmNoLock,
-		  ZmHashHeapID<Instruments_HeapID> > > > > Instruments;
+  typedef
+    ZmHash<MxMDInstrument *,
+      ZmHashKey<MxMDInstrument::KeyAccessor,
+	ZmHashObject<ZuObject,
+	  ZmHashLock<ZmNoLock,
+	    ZmHashHeapID<Instruments_HeapID>>>>> Instruments;
 
   // FIXME
   struct OrderBooks_HeapID : public ZmHeapSharded {
     static constexpr const char *id() { return "MxMDShard.OrderBooks"; }
   };
-  typedef ZmHash<MxMDOrderBook *,
-	    ZmHashKey<MxMDOrderBook::KeyAccessor,
-	      ZmHashObject<ZuObject,
-		ZmHashLock<ZmNoLock,
-		  ZmHashHeapID<OrderBooks_HeapID> > > > > OrderBooks;
+  typedef
+    ZmHash<MxMDOrderBook *,
+      ZmHashKey<MxMDOrderBook::KeyAccessor,
+	ZmHashObject<ZuObject,
+	  ZmHashLock<ZmNoLock,
+	    ZmHashHeapID<OrderBooks_HeapID>>>>> OrderBooks;
 
   MxMDShard(MxMDLib *md, ZmScheduler *sched, unsigned id, unsigned sid) :
       ZmShard(sched, sid), m_md(md), m_id(id) {
@@ -1980,20 +1986,22 @@ friend ZmShard;
   struct AllInstruments_HeapID {
     static constexpr const char *id() { return "MxMDLib.AllInstruments"; }
   };
-  typedef ZmHash<ZmRef<MxMDInstrument>,
-	    ZmHashKey<MxMDInstrument::KeyAccessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmPLock,
-		  ZmHashHeapID<AllInstruments_HeapID> > > > > AllInstruments;
+  typedef
+    ZmHash<ZmRef<MxMDInstrument>,
+      ZmHashKey<MxMDInstrument::KeyAccessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmPLock,
+	    ZmHashHeapID<AllInstruments_HeapID>>>>> AllInstruments;
 
   struct AllOrderBooks_HeapID {
     static constexpr const char *id() { return "MxMDLib.AllOrderBooks"; }
   };
-  typedef ZmHash<ZmRef<MxMDOrderBook>,
-	    ZmHashKey<MxMDOrderBook::KeyAccessor,
-	      ZmHashObject<ZuNull,
-		ZmHashLock<ZmPLock,
-		  ZmHashHeapID<AllOrderBooks_HeapID> > > > > AllOrderBooks;
+  typedef
+    ZmHash<ZmRef<MxMDOrderBook>,
+      ZmHashKey<MxMDOrderBook::KeyAccessor,
+	ZmHashObject<ZuNull,
+	  ZmHashLock<ZmPLock,
+	    ZmHashHeapID<AllOrderBooks_HeapID>>>>> AllOrderBooks;
 
   // secondary indices
 

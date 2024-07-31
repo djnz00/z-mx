@@ -207,7 +207,7 @@ int main(int argc, char **argv)
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));
 
   {
-    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAxor> >;
+    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAxor>>;
     ZmRef<H> h_ = new H();
     H &h = *h_;
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(k)));

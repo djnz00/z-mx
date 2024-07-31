@@ -74,7 +74,7 @@ private:
   using Hash =
     ZmHash<typename LRU::Node,
       ZmHashNode<typename LRU::Node,
-        ZmHashLock<ZmNoLock, NTP>>>; // overrides NTP::Lock
+	ZmHashLock<ZmNoLock, NTP>>>; // overrides NTP::Lock
 
 public:
   using Key = typename Hash::Key;

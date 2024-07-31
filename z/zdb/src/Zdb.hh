@@ -1710,7 +1710,7 @@ private:
   using CxnHash =
     ZmHash<ZmRef<Cxn>,
       ZmHashLock<ZmPLock,
-	  ZmHashHeapID<CxnHash_HeapID>>>;
+	ZmHashHeapID<CxnHash_HeapID>>>;
 
 public:
 #if Zdb_DEBUG
