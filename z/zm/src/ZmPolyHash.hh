@@ -41,8 +41,6 @@ template <bool Shadow, typename NTP = ZmPolyHash_Defaults>
 using ZmPolyHashShadow = ZmHashShadow<Shadow, NTP>;
 template <auto HeapID, typename NTP = ZmPolyHash_Defaults>
 using ZmPolyHashHeapID = ZmHashHeapID<HeapID, NTP>;
-template <auto ID, typename NTP = ZmPolyHash_Defaults>
-using ZmPolyHashID = ZmHashID<ID, NTP>;
 template <bool Sharded, typename NTP = ZmPolyHash_Defaults>
 using ZmPolyHashSharded = ZmHashSharded<Sharded, NTP>;
 
@@ -59,7 +57,6 @@ public:
   using T = T_;
   using Lock = typename NTP::Lock;
   enum { Shadow = NTP::Shadow };
-  static constexpr auto ID = NTP::ID;
   static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
 
@@ -72,9 +69,8 @@ private:
 	ZmHashKey<Axor,
 	  ZmHashLock<Lock,
 	    ZmHashShadow<Shadow_,
-	      ZmHashID<ID, // must come after Shadow
-		ZmHashHeapID<HeapID, // must come after ID
-		  ZmHashSharded<Sharded>>>>>>>>;
+	      ZmHashHeapID<HeapID, // must come after ID
+		ZmHashSharded<Sharded>>>>>>>;
   // resolve index hash table type given key ID and node type
   template <unsigned KeyID, typename Node_, typename O = T>
   struct Hash__ {
@@ -128,13 +124,33 @@ public:
   using NodeRef = typename Primary::NodeRef;
   using NodeMvRef = typename Primary::NodeMvRef;
 
-  ZmPolyHash(ZmHashParams params = ZmHashParams{ID()}) {
+  ZmPolyHash() {
+    auto params = ZmHashParams{HeapID()};
     ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
       m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
     });
   }
+  template <
+    typename ID,
+    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmPolyHash(const ID &id) {
+    auto params = ZmHashParams{id};
+    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
+      m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
+    });
+  }
+  template <
+    typename Params,
+    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
+  ZmPolyHash(const Params &params) {
+    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
+      m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
+    });
+  }
+
   ZmPolyHash(const ZmPolyHash &) = delete;
   ZmPolyHash &operator =(const ZmPolyHash &) = delete;
+
   ZmPolyHash(ZmPolyHash &&) = default;
   ZmPolyHash &operator =(ZmPolyHash &&) = default;
 

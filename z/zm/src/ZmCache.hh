@@ -46,8 +46,6 @@ template <bool Shadow, typename NTP = ZmCache_Defaults>
 using ZmCacheShadow = ZmHashShadow<Shadow, NTP>;
 template <auto HeapID, typename NTP = ZmCache_Defaults>
 using ZmCacheHeapID = ZmHashHeapID<HeapID, NTP>;
-template <auto ID, typename NTP = ZmCache_Defaults>
-using ZmCacheID = ZmHashID<ID, NTP>;
 
 // ZmCacheEvict - enable/disable eviction
 template <bool Evict_, typename NTP = ZmCache_Defaults>
@@ -80,7 +78,8 @@ private:
 
 public:
   using Key = typename Hash::Key;
-  static constexpr auto ID = Hash::ID;
+  using Cmp = typename Hash::Cmp;
+
   static constexpr auto HeapID = Hash::HeapID;
 
   using Node = typename Hash::Node;
@@ -93,11 +92,74 @@ private:
   using LoadHash = ZmHashKV<Key, FindFnList, ZmHashHeapID<HeapID>>;
 
 public:
-  ZmCache(ZmHashParams params = ZmHashParams{ID()}) {
+  ZmCache() {
+    m_hash = new Hash{HeapID()};
+    m_loadHash = new LoadHash{HeapID()};
+    m_size = m_hash->size();
+  }
+  template <
+    typename ID,
+    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmCache(const ID &id) {
+    m_hash = new Hash{id};
+    m_loadHash = new LoadHash{id};
+    m_size = m_hash->size();
+  }
+  template <
+    typename Cmp_,
+    typename ID,
+    decltype(ZuIfT<
+      bool(ZuIsExact<Cmp_, Cmp>{}) &&
+      ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmCache(Cmp_ cmp, const ID &id) {
+    m_hash = new Hash{cmp, id};
+    m_loadHash = new LoadHash{cmp, id};
+    m_size = m_hash->size();
+  }
+  template <
+    typename Params,
+    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
+  ZmCache(const Params &params) {
     m_hash = new Hash{params};
     m_loadHash = new LoadHash{params};
     m_size = m_hash->size();
   }
+  template <
+    typename Cmp_,
+    typename Params,
+    decltype(ZuIfT<
+      bool(ZuIsExact<Cmp_, Cmp>{}) &&
+      bool(ZuIsExact<Params, ZmHashParams>{})>(), int()) = 0>
+  ZmCache(Cmp_ cmp, const Params &params) {
+    m_hash = new Hash{cmp, params};
+    m_loadHash = new LoadHash{cmp, params};
+    m_size = m_hash->size();
+  }
+
+  ZmCache(const ZmCache &) = delete;
+  ZmCache &operator =(const ZmCache &) = delete;
+  // the move operators are intentionally unlocked
+  // - these are exclusively intended for use in initialization
+  ZmCache(ZmCache &&c) :
+    m_hash{ZuMv(c.m_hash)},
+    m_lru{ZuMv(c.m_lru)},
+    m_loadHash{ZuMv(c.m_loadHash)},
+    m_loads{c.m_loads},
+    m_misses{c.m_misses},
+    m_evictions{c.m_evictions}
+  {
+    c.m_hash = nullptr;
+    c.m_lru = LRU{};
+    c.m_loadHash = nullptr;
+    c.m_loads = c.m_misses = c.m_evictions = 0;
+  }
+  ZmCache &operator =(ZmCache &&c) {
+    this->~ZmCache();
+    new (this) ZmCache{ZuMv(c)};
+    return *this;
+  }
+
+  ~ZmCache() = default;
 
   unsigned size() const { return m_size; }
 

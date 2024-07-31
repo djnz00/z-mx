@@ -930,12 +930,14 @@ public:
   static ZmRef<IOBuf> allocBuf() { return new IOBufAlloc<T>{}; }
 
   Table(DB *db, TableCf *cf) : AnyTable{db, cf, Table::allocBuf} {
-    unsigned n = cf->nShards
+    unsigned n = cf->nShards;
+    ZmIDString cacheID = "Zdb.Cache."; cacheID << cf->id;
+    ZmIDString bufCacheID = "Zdb.BufCache."; bufCacheID << cf->id;
     m_cache.size(n);
     m_bufCache.size(n);
     for (unsigned i = 0; i < n; i++) {
-      new (m_cache.push()) Cache<T>{ZmHashParams{/* FIXME */}};
-      new (m_bufCache.push()) BufCache<T>{ZmHashParams{/* FIXME */}};
+      new (m_cache.push()) Cache<T>{cacheID};
+      new (m_bufCache.push()) BufCache<T>{bufCacheID};
     }
   }
   ~Table() = default;
@@ -1874,7 +1876,7 @@ private:
   bool replicate(ZmRef<const IOBuf> buf);
 
   // inbound replication
-  void replicated(Host *host, ZuID dbID, unsigned shard, UN un, SN sn);
+  void replicated(Host *host, ZuID tblID, unsigned shard, UN un, SN sn);
 
   bool isStandalone() const { return m_standalone; }
 

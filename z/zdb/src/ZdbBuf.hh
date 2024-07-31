@@ -76,8 +76,7 @@ using BufCacheUN =
     ZmHashNode<IOBuf_,
       ZmHashKey<IOBuf_UNAxor,
 	ZmHashLock<ZmPLock,
-	  ZmHashShadow<true,
-	    ZmHashID<BufCache_ID>>>>>>;
+	  ZmHashShadow<true>>>>>;
 
 struct IOBuf : public BufCacheUN::Node {
   using Base = BufCacheUN::Node;

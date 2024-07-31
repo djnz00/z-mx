@@ -1465,12 +1465,12 @@ void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
   });
 }
 
-void DB::replicated(Host *host, ZuID dbID, unsigned shard, UN un, SN sn)
+void DB::replicated(Host *host, ZuID tblID, unsigned shard, UN un, SN sn)
 {
   ZmAssert(invoked());
 
   bool updated = host->dbState().updateSN(sn + 1);
-  updated = host->dbState().update(ZuFwdTuple(dbID, shard), un + 1) || updated;
+  updated = host->dbState().update(ZuFwdTuple(tblID, shard), un + 1) || updated;
   if ((active() || host == m_next) && !updated) return;
   if (!m_prev) {
     m_prev = host;
@@ -1488,10 +1488,12 @@ AnyTable::AnyTable(DB *db, TableCf *cf, IOBufAllocFn fn) :
   m_nextUN.length(n);
   m_cacheUN.length(n);
   m_bufCacheUN.length(n);
+  ZmIDString cacheID = "Zdb.CacheUN."; cacheID << cf->id;
+  ZmIDString bufCacheID = "Zdb.BufCacheUN."; bufCacheID << cf->id;
   for (unsigned i = 0; i < n; i++) {
     m_nextUN[i] = 0;
-    m_cacheUN[i] = new CacheUN{ZmHashParams{/* FIXME */}};
-    m_bufCacheUN[i] = new BufCacheUN{ZmHashParams{/* FIXME */}};
+    m_cacheUN[i] = new CacheUN{cacheID};
+    m_bufCacheUN[i] = new BufCacheUN{bufCacheID};
   }
 }
 

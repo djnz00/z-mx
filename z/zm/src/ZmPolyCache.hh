@@ -38,8 +38,6 @@ template <bool Shadow, typename NTP = ZmPolyCache_Defaults>
 using ZmPolyCacheShadow = ZmPolyHashShadow<Shadow, NTP>;
 template <auto HeapID, typename NTP = ZmPolyCache_Defaults>
 using ZmPolyCacheHeapID = ZmPolyHashHeapID<HeapID, NTP>;
-template <auto ID, typename NTP = ZmPolyCache_Defaults>
-using ZmPolyCacheID = ZmPolyHashID<ID, NTP>;
 template <bool Sharded, typename NTP = ZmPolyCache_Defaults>
 using ZmPolyCacheSharded = ZmPolyHashSharded<Sharded, NTP>;
 
@@ -72,7 +70,6 @@ private:
       ZmPolyHashLock<ZmNoLock, NTP>>; // overrides NTP::Lock
 
 public:
-  static constexpr auto ID = PolyHash::ID;
   static constexpr auto HeapID = PolyHash::HeapID;
 
   using Node = typename PolyHash::Node;
@@ -100,7 +97,27 @@ private:
   using LoadHashes = ZuTypeApply<ZuTuple, ZuTypeMap<ZmRef, LoadHashTL>>;
 
 public:
-  ZmPolyCache(ZmHashParams params = ZmHashParams{ID()}) : m_hash{params} {
+  ZmPolyCache() : m_hash{} {
+    m_size = m_hash.size();
+    auto params = ZmHashParams{HeapID()};
+    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
+      m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
+    });
+  }
+  template <
+    typename ID,
+    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmPolyCache(const ID &id) : m_hash{id} {
+    m_size = m_hash.size();
+    auto params = ZmHashParams{id};
+    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
+      m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
+    });
+  }
+  template <
+    typename Params,
+    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
+  ZmPolyCache(const Params &params) : m_hash{params} {
     m_size = m_hash.size();
     ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
       m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
@@ -110,7 +127,7 @@ public:
   ZmPolyCache(ZmPolyCache &) = delete;
   ZmPolyCache &operator =(ZmPolyCache &) = delete;
   // the move operators are intentionally unlocked
-  // - these are intended for use exclusively in initialization
+  // - these are exclusively intended for use in initialization
   ZmPolyCache(ZmPolyCache &&c) :
     m_size{c.m_size},
     m_hash{ZuMv(c.m_hash)},

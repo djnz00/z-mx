@@ -68,9 +68,9 @@ public:
 protected:
   ZmHash_LockMgr() { }
 
-  void init(const ZmHashParams &p) {
-    bits(p.bits());
-    cBits(p.cBits());
+  void init(const ZmHashParams &params) {
+    bits(params.bits());
+    cBits(params.cBits());
 
     if (m_cBits > m_bits) m_cBits = m_bits;
     unsigned n = 1U<<m_cBits;
@@ -95,8 +95,8 @@ protected:
 #endif
   }
 
-  void bits(n)  {  m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }
-  void cBits(n) { m_cBits = n < 0 ? 0 : n > 12 ? 12 : n; }
+  void bits(unsigned n)  {  m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }
+  void cBits(unsigned n) { m_cBits = n < 0 ? 0 : n > 12 ? 12 : n; }
 
   Lock &lockCode(uint32_t code) const {
     return lockSlot(ZmHash_Bits::hashBits(code, m_bits));
@@ -137,7 +137,7 @@ protected:
   ZmHash_LockMgr() { }
   ~ZmHash_LockMgr() { }
 
-  void init(const ZmHashParams &p) { bits(p.bits()); }
+  void init(const ZmHashParams &params) { bits(params.bits()); }
 
 public:
   unsigned bits() const { return m_bits; }
@@ -147,8 +147,12 @@ protected:
   void bits(unsigned n) { m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }
   void cBits(unsigned) { }
 
-  ZmNoLock &lockCode(uint32_t code) const { return ZuNullRef<ZmNoLock>(); }
-  ZmNoLock &lockSlot(unsigned slot) const { return ZuNullRef<ZmNoLock>(); }
+  ZmNoLock &lockCode(uint32_t code) const {
+    return const_cast<ZmNoLock &>(ZuNullRef<ZmNoLock>());
+  }
+  ZmNoLock &lockSlot(unsigned slot) const {
+    return const_cast<ZmNoLock &>(ZuNullRef<ZmNoLock>());
+  }
 
   bool lockAllResize(unsigned) { return true; }
   void lockAll() { }
@@ -220,6 +224,12 @@ struct ZmHashNode : public NTP {
   using Node = Node_;
 };
 
+// ZmHashID - the hash ID
+template <auto ID_, typename NTP = ZmHash_Defaults>
+struct ZmHashID : public NTP {
+  static constexpr auto ID = ID_;
+};
+
 // ZmHashShadow - shadow nodes, do not manage ownership
 template <bool Shadow_, typename NTP = ZmHash_Defaults>
 struct ZmHashShadow : public NTP {
@@ -282,6 +292,7 @@ public:
   using HashFn = typename NTP::template HashFnT<Key>;
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
+  static constexpr auto ID = NTP::ID;
   enum { Shadow = NTP::Shadow };
   static constexpr auto HeapID = NTP::HeapID;
   enum { Sharded = NTP::Sharded };
@@ -512,25 +523,48 @@ private:
   }
 
 public:
-  ZmHash() : m_id(HeapID()) {
+  ZmHash() : m_id{ID()} {
     auto params = ZmHashParams{m_id};
-    Lockmgr::init(params);
+    LockMgr::init(params);
     ZmHash::init(params);
   }
-  ZmHash(Cmp cmp, ZuString id) :
-    m_cmp{ZuMv(cmp)}, m_id{id}
-  {
+  template <
+    typename ID,
+    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmHash(const ID &id) : m_id{id} {
     auto params = ZmHashParams{m_id};
-    Lockmgr::init(params);
+    LockMgr::init(params);
     ZmHash::init(params);
   }
-  ZmHash(Cmp cmp, ZuString id) :
-    m_cmp{ZuMv(cmp)}, m_id{id}
-  {
+  template <
+    typename Cmp_,
+    typename ID,
+    decltype(ZuIfT<
+      bool(ZuIsExact<Cmp_, Cmp>{}) &&
+      ZuTraits<ID>::IsString>(), int()) = 0>
+  ZmHash(Cmp_ cmp, const ID &id) : m_id{id}, m_cmp{ZuMv(cmp)} {
     auto params = ZmHashParams{m_id};
-    Lockmgr::init(params);
+    LockMgr::init(params);
     ZmHash::init(params);
   }
+  template <
+    typename Params,
+    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
+  ZmHash(const Params &params) : m_id{ID()} {
+    LockMgr::init(params);
+    ZmHash::init(params);
+  }
+  template <
+    typename Cmp_,
+    typename Params,
+    decltype(ZuIfT<
+      bool(ZuIsExact<Cmp_, Cmp>{}) &&
+      bool(ZuIsExact<Params, ZmHashParams>{})>(), int()) = 0>
+  ZmHash(Cmp_ cmp, const Params &params) : m_id{ID()}, m_cmp{ZuMv(cmp)} {
+    LockMgr::init(params);
+    ZmHash::init(params);
+  }
+
   ZmHash(const ZmHash &) = delete;
   ZmHash &operator =(const ZmHash &) = delete;
   ZmHash(ZmHash &&) = delete;
@@ -1029,7 +1063,7 @@ public:
   }
 
   void telemetry(ZmHashTelemetry &data) const {
-    data.id = ID();
+    data.id = m_id;
     data.addr = reinterpret_cast<uintptr_t>(this);
     data.loadFactor = loadFactor();
     unsigned count = m_count.load_();
@@ -1072,6 +1106,7 @@ private:
     unlockAll();
   }
 
+  ZmIDString		m_id;
   Cmp			m_cmp;
   unsigned		m_loadFactor = 0;
   ZmAtomic<unsigned>	m_count = 0;
