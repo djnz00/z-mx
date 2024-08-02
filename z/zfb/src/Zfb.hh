@@ -530,11 +530,11 @@ namespace Load {
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, T v) { m_s2v->add(s, v); } \
+    void add(ZuString s, T v) { m_s2v.add(s, v); } \
   private: \
-    T s2v_(ZuString s) const { return m_s2v->findVal(s); } \
+    T s2v_(ZuString s) const { return m_s2v.findVal(s); } \
     template <typename L> void all_(L l) const { \
-      auto i = m_s2v->readIterator(); \
+      auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
 	l(S2V::KeyAxor(*kv), S2V::ValAxor(*kv)); \
       } \
@@ -542,7 +542,7 @@ namespace Load {
   public: \
     static constexpr const char *id() { return #Enum; } \
     using FBEnum = fbs::Enum; \
-    Map_() { m_s2v = new S2V(); } \
+    Map_() = default; \
     static Impl *instance() { return ZmSingleton<Impl>::instance(); } \
     static ZuString v2s(int v) { \
       return fbs::EnumName##Enum(static_cast<FBEnum>(v)); \
@@ -550,7 +550,7 @@ namespace Load {
     static T s2v(ZuString s) { return instance()->s2v_(s); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
-    ZmRef<S2V>	m_s2v; \
+    S2V	m_s2v; \
   }; \
   const char *name(int i) { \
     return fbs::EnumName##Enum(static_cast<fbs::Enum>(i)); \

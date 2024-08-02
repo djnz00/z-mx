@@ -53,12 +53,25 @@ public:
 };
 
 template <typename T1, typename T2, typename = void>
-struct Constructible {
+struct Constructible_ {
   enum { Constructs = 0 };
 };
 template <typename T1, typename T2>
-struct Constructible<T1, T2, decltype(T2(ZuDeclVal<P1<T1>>()), void())> {
+struct Constructible_<T1, T2, decltype(T2(ZuDeclVal<P1<T1>>()), void())> {
   enum { Constructs = 1 };
+};
+// filter out constructing pointers from integers of smaller size
+template <typename T1, typename T2, bool = (sizeof(P1<T1>) < sizeof(T2))>
+struct Constructible : public Constructible_<T1, T2> { };
+template <typename T1, typename T2>
+struct Constructible<T1, T2 *, true> { enum { Constructs = 0 }; };
+template <typename T1, typename T2>
+struct Constructible<T1, T2 * const, true> { enum { Constructs = 0 }; };
+template <typename T1, typename T2>
+struct Constructible<T1, T2 * volatile, true> { enum { Constructs = 0 }; };
+template <typename T1, typename T2>
+struct Constructible<T1, T2 * const volatile, true> {
+  enum { Constructs = 0 };
 };
 
 template <typename T1, typename T2>

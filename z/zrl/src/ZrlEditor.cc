@@ -375,7 +375,7 @@ void Editor::final()
 namespace {
 int VKey_parse_char(uint8_t &byte, ZuString s, int off)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   if (s[off] != '\\') {
     byte = s[off++];
   } else if (ZtREGEX("\G\\([^0123x])").m(s, c, off)) {
@@ -408,7 +408,7 @@ int VKey_parse_char(uint8_t &byte, ZuString s, int off)
 int VKey_parse(int32_t &vkey_, ZuString s, int off)
 {
   int32_t vkey;
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   if (ZtREGEX("\G\s*'").m(s, c, off)) { // regular single character
     off += c[1].length();
     if (s[off] == '\'') return -off;
@@ -480,7 +480,7 @@ void Cmd::print_(ZuVStream &s) const
 
 int Cmd::parse(ZuString s, int off)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   if (!ZtREGEX("\G\s*(\w+)").m(s, c, off)) return -off;
   off += c[1].length();
   {
@@ -554,7 +554,7 @@ const auto &comment() { return ZtREGEX("\G\s*#[^\n]*\n"); }
 
 int CmdSeq_parse(CmdSeq &cmds, ZuString s, int off)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 0);
   while (comment().m(s, c, off)) off += c[1].length();
   if (!ZtREGEX("\G\s*{").m(s, c, off)) return -off;
   off += c[1].length();
@@ -575,7 +575,7 @@ int CmdSeq_parse(CmdSeq &cmds, ZuString s, int off)
 
 int Map_::parseMode(ZuString s, int off)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   while (comment().m(s, c, off)) off += c[1].length();
   if (!ZtREGEX("\G\s*mode\s+(\d+)").m(s, c, off)) return -off;
   off += c[1].length();
@@ -623,7 +623,7 @@ int Map_::parseMode(ZuString s, int off)
 
 int Map_::parse(ZuString s, int off)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   while (comment().m(s, c, off)) off += c[1].length();
   if (!ZtREGEX("\G\s*map\s+(\w+)").m(s, c, off)) return -off;
   off += c[1].length();
@@ -772,7 +772,7 @@ bool Editor::loadMap(ZuString file, bool select)
   if (off <= 0) {
     off = -off;
     unsigned lpos = 0, line = 1;
-    ZtRegex::Captures c;
+    ZtRegex_captures_alloc(c, 0);
     while (ZtREGEX("\G[^\n]*\n").m(s, c, lpos)) {
       unsigned npos = lpos + c[1].length();
       if (npos > off) break;

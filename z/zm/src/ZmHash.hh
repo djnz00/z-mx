@@ -12,7 +12,7 @@
 // - globally configured sizing, lock striping and heap configuration
 //   - see ZmHashMgr
 //   - supports profile-guided optimization of heap and hash configuration
-// - efficient statistics and telemetry (ZvTelemetry)
+// - efficient statistics and telemetry (Ztel)
 
 #ifndef ZmHash_HH
 #define ZmHash_HH
@@ -177,6 +177,7 @@ struct ZmHash_Defaults {
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
+  static const char *ID() { return "ZmHash"; }
   static const char *HeapID() { return "ZmHash"; }
   enum { Sharded = 0 };
 };
@@ -224,10 +225,15 @@ struct ZmHashNode : public NTP {
   using Node = Node_;
 };
 
-// ZmHashID - the hash ID
-template <auto ID_, typename NTP = ZmHash_Defaults>
+// ZmHashID - the hash ID - also sets ZmHashHeapID if that remains the default
+template <auto ID_, typename NTP = ZmHash_Defaults, auto HeapID_ = NTP::HeapID>
 struct ZmHashID : public NTP {
   static constexpr auto ID = ID_;
+};
+template <auto ID_, typename NTP>
+struct ZmHashID<ID_, NTP, ZmHash_Defaults::HeapID> : public NTP {
+  static constexpr auto ID = ID_;
+  static constexpr auto HeapID = ID_;
 };
 
 // ZmHashShadow - shadow nodes, do not manage ownership
@@ -237,13 +243,22 @@ struct ZmHashShadow : public NTP {
   static constexpr auto HeapID = ZmHeapDisable();
 };
 
-// ZmHashHeapID - the heap ID
-template <auto HeapID_, typename NTP = ZmHash_Defaults>
+// ZmHashHeapID - the heap ID - also sets ZmHashID if that remains the default
+template <auto HeapID_, typename NTP = ZmHash_Defaults, auto ID_ = NTP::ID>
 struct ZmHashHeapID : public NTP {
   static constexpr auto HeapID = HeapID_;
 };
+template <auto HeapID_, typename NTP>
+struct ZmHashHeapID<HeapID_, NTP, ZmHash_Defaults::ID> : public NTP {
+  static constexpr auto ID = HeapID_;
+  static constexpr auto HeapID = HeapID_;
+};
+template <typename NTP, auto ID_>
+struct ZmHashHeapID<ZmHeapDisable(), NTP, ID_> : public NTP {
+  static constexpr auto HeapID = ZmHeapDisable();
+};
 template <typename NTP>
-struct ZmHashHeapID<ZmHeapDisable(), NTP> : public NTP {
+struct ZmHashHeapID<ZmHeapDisable(), NTP, ZmHash_Defaults::ID> : public NTP {
   static constexpr auto HeapID = ZmHeapDisable();
 };
 
@@ -523,11 +538,13 @@ private:
   }
 
 public:
+  // for maximum usability, accept any/all combinations of ID, cmp, params
   ZmHash() : m_id{ID()} {
     auto params = ZmHashParams{m_id};
     LockMgr::init(params);
     ZmHash::init(params);
   }
+  // ID
   template <
     typename ID,
     decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
@@ -536,17 +553,16 @@ public:
     LockMgr::init(params);
     ZmHash::init(params);
   }
+  // cmp
   template <
     typename Cmp_,
-    typename ID,
-    decltype(ZuIfT<
-      bool(ZuIsExact<Cmp_, Cmp>{}) &&
-      ZuTraits<ID>::IsString>(), int()) = 0>
-  ZmHash(Cmp_ cmp, const ID &id) : m_id{id}, m_cmp{ZuMv(cmp)} {
+    decltype(ZuIfT<ZuIsExact<Cmp_, Cmp>{}>(), int()) = 0>
+  ZmHash(Cmp_ cmp) : m_id{ID()}, m_cmp{ZuMv(cmp)} {
     auto params = ZmHashParams{m_id};
     LockMgr::init(params);
     ZmHash::init(params);
   }
+  // params
   template <
     typename Params,
     decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
@@ -554,6 +570,19 @@ public:
     LockMgr::init(params);
     ZmHash::init(params);
   }
+  // ID, cmp
+  template <
+    typename ID,
+    typename Cmp_,
+    decltype(ZuIfT<
+      ZuTraits<ID>::IsString &&
+      bool(ZuIsExact<Cmp_, Cmp>{})>(), int()) = 0>
+  ZmHash(const ID &id, Cmp_ cmp) : m_id{id}, m_cmp{ZuMv(cmp)} {
+    auto params = ZmHashParams{m_id};
+    LockMgr::init(params);
+    ZmHash::init(params);
+  }
+  // cmp, params
   template <
     typename Cmp_,
     typename Params,
@@ -561,6 +590,37 @@ public:
       bool(ZuIsExact<Cmp_, Cmp>{}) &&
       bool(ZuIsExact<Params, ZmHashParams>{})>(), int()) = 0>
   ZmHash(Cmp_ cmp, const Params &params) : m_id{ID()}, m_cmp{ZuMv(cmp)} {
+    LockMgr::init(params);
+    ZmHash::init(params);
+  }
+  // ID, params
+  template <
+    typename ID,
+    typename Params,
+    decltype(ZuIfT<
+      ZuTraits<ID>::IsString &&
+      bool(ZuIsExact<Params, ZmHashParams>{})>(), int()) = 0>
+  ZmHash(
+    const ID &id,
+    const Params &params) : m_id{id}
+  {
+    LockMgr::init(params);
+    ZmHash::init(params);
+  }
+  // ID, cmp, params
+  template <
+    typename ID,
+    typename Cmp_,
+    typename Params,
+    decltype(ZuIfT<
+      ZuTraits<ID>::IsString &&
+      bool(ZuIsExact<Cmp_, Cmp>{}) &&
+      bool(ZuIsExact<Params, ZmHashParams>{})>(), int()) = 0>
+  ZmHash(
+    const ID &id,
+    Cmp_ cmp,
+    const Params &params) : m_id{id}, m_cmp(ZuMv(cmp))
+  {
     LockMgr::init(params);
     ZmHash::init(params);
   }
@@ -1075,6 +1135,7 @@ public:
     data.bits = bits;
     data.cBits = cBits();
     data.linear = false;
+    data.shadow = Shadow;
   }
 
 private:

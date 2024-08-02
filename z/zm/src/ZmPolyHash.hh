@@ -124,27 +124,10 @@ public:
   using NodeRef = typename Primary::NodeRef;
   using NodeMvRef = typename Primary::NodeMvRef;
 
-  ZmPolyHash() {
-    auto params = ZmHashParams{HeapID()};
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
-    });
-  }
-  template <
-    typename ID,
-    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
-  ZmPolyHash(const ID &id) {
+  ZmPolyHash(ZuString id) {
     auto params = ZmHashParams{id};
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
-    });
-  }
-  template <
-    typename Params,
-    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
-  ZmPolyHash(const Params &params) {
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_hashes.template p<KeyID{}>(new Hash<KeyID>{params});
+    ZuUnroll::all<KeyIDs>([this, &id, &params]<typename KeyID>() {
+      m_hashes.template p<KeyID{}>(new Hash<KeyID>{id, params});
     });
   }
 

@@ -25,7 +25,7 @@ using Foo = Cache::Node;
 
 int main()
 {
-  Cache cache;
+  Cache cache("test");
   cache.add(new Foo{1,2,3,4});
   cache.add(new Foo{2,3,4,5});
   cache.add(new Foo{3,4,5,6});

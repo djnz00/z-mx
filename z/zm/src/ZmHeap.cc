@@ -341,6 +341,9 @@ void ZmHeapCache::final_()
 	m_begin, m_info.config.cacheSize * m_info.size);
 }
 
+#include <fcntl.h>
+#include <zlib/ZmBackTrace.hh>
+
 void *ZmHeapCache::alloc(ZmHeapStats &stats)
 {
 #ifdef ZmHeap_DEBUG
@@ -353,6 +356,19 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
   if (ZuLikely(p = alloc_())) {
     ++stats.cacheAllocs;
     return p;
+  }
+  {
+    static int fd = -1;
+    if (fd < 0) fd = ::open("heap.log", O_CREAT|O_WRONLY|O_TRUNC, 0666);
+    if (fd >= 0) {
+      ZmBackTrace bt{1};
+      thread_local ZuStringN<65535> buf;
+      buf.length(0);
+      buf << m_info.id << ' ' << m_info.size << ' ' << bt << '\n';
+      static ZmPLock lock;
+      ZmGuard<ZmPLock> guard(lock);
+      ::write(fd, buf.data(), buf.length());
+    }
   }
   p = ::malloc(m_info.size);
   if (ZuUnlikely(!p)) throw std::bad_alloc{};

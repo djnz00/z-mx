@@ -55,9 +55,9 @@ struct App : public Ztls::Client<App> {
     int process(const uint8_t *data, unsigned len) {
       if (!file) {
 	header << ZuString{data, len};
-	ZtRegex::Captures c;
+	ZtRegex_captures_alloc(c, 0);
 	if (ZtREGEX("\n\r\n").m(header, c)) {
-	  ZtRegex::Captures d;
+	  ZtRegex_captures_alloc(d, 1);
 	  if (ZtREGEX("\nContent-Length: (\d+)").m(header, d))
 	    length = ZuBox<unsigned>(d[2]);
 	  else if (ZtREGEX("\nTransfer-Encoding: chunked\r").m(header)) {

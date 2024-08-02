@@ -53,4 +53,12 @@ ZfbRoot(Order);	// bind Order to flatbuffer schema
 
 }
 
+template <> struct ZdbHeapID<zdbtest::Order> {
+  static constexpr const char *id() { return "zdbtest.order"; }
+};
+template <> struct ZdbBufSize<zdbtest::Order> : public ZuUnsigned<512> { };
+template <> struct ZdbBufHeapID<zdbtest::Order> {
+  static constexpr const char *id() { return "zdbtest.order.buf"; }
+};
+
 #endif /* zdbtest_HH */

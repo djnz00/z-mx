@@ -25,7 +25,7 @@ using Foo = Hash::Node;
 
 int main()
 {
-  Hash hash;
+  Hash hash("test");
   hash.add(new Foo{1,2,3,4});
   hash.add(new Foo{2,3,4,5});
   hash.add(new Foo{3,4,5,6});

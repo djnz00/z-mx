@@ -34,6 +34,7 @@ table HashTbl {			// == ZmHashTelemetry
   bits:uint8;
   c_bits:uint8;
   linear:uint8;
+  shadow:uint8;
 }
 table Thread {			// == ZmThreadTelemetry
   name:string;

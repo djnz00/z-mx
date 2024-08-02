@@ -34,7 +34,7 @@ struct BootstrapData { // bootstrap() result data
   ZtString secret;
 };
 using BootstrapResult = ZuUnion<bool, BootstrapData>;
-static bool bootstrapOK(const BootstrapResult &result) {
+inline bool bootstrapOK(const BootstrapResult &result) {
   return !result.is<bool>() || result.p<bool>();
 }
 using BootstrapFn = ZmFn<void(BootstrapResult)>;

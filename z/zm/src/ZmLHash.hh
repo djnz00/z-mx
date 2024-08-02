@@ -126,6 +126,7 @@ struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
   }
 };
 
+#pragma pack(push, 4)
 template <typename T_, auto KeyAxor, auto ValAxor>
 class ZmLHash_Node {
 template <typename, typename> friend class ZmLHash;
@@ -166,7 +167,7 @@ private:
       new (m_data) T{ZuFwd<P>(v)};
     else
       data() = ZuFwd<P>(v);
-    m_u = (next<<3U) | (head<<2U) | (tail<<1U) | 1U;
+    m_u = (next<<3) | (head<<2) | (tail<<1) | 1U;
   }
   void null() {
     if (m_u) {
@@ -237,18 +238,45 @@ public:
   friend Traits ZuTraitsType(ZmLHash_Node *);
 
 private:
-  uint32_t	m_u = 0;
   char		m_data[sizeof(T)];
+  uint32_t	m_u = 0;
+};
+#pragma pack(pop)
+
+template <
+  typename Hash, typename NTP,
+  bool Local = NTP::Local, bool Static = bool(NTP::Static)>
+class ZmLHash__;
+
+// local, static
+template <typename Hash, typename NTP>
+class ZmLHash__<Hash, NTP, true, true> {
+  using Lock = typename NTP::Lock;
+
+public:
+  static unsigned loadFactor_() { return 16; }
+  static double loadFactor() { return 1.0; }
+
+  unsigned count_() const { return m_count.load_(); }
+
+protected:
+  ZmAtomic<unsigned>	m_count = 0;
+  Lock			m_lock;
 };
 
-// common base class for both static and dynamic tables
-template <typename Hash, typename NTP, bool Local = NTP::Local>
-class ZmLHash__ {
+// global, static
+template <typename Hash, typename NTP>
+class ZmLHash__<Hash, NTP, false, true> :
+  public ZmLHash__<Hash, NTP, true, true> { };
+
+// local, dynamic
+template <typename Hash, typename NTP>
+class ZmLHash__<Hash, NTP, true, false> {
   using Lock = typename NTP::Lock;
 
 public:
   unsigned loadFactor_() const { return m_loadFactor; }
-  double loadFactor() const { return (double)m_loadFactor / 16.0; }
+  double loadFactor() const { return double(m_loadFactor) / 16.0; }
 
   unsigned count_() const { return m_count.load_(); }
 
@@ -257,26 +285,21 @@ protected:
     double loadFactor = params.loadFactor();
     if (loadFactor < 0.5) loadFactor = 0.5;
     else if (loadFactor > 1.0) loadFactor = 1.0;
-    m_loadFactor = (unsigned)(loadFactor * 16.0);
+    m_loadFactor = unsigned(loadFactor * 16.0);
   }
-
-  void init() { }
-  void final() { }
 
   unsigned		m_loadFactor = 0;
   ZmAtomic<unsigned>	m_count = 0;
   Lock			m_lock;
 };
 
-// base class for non-local tables
+// global, dynamic
 template <typename Hash, typename NTP>
-class ZmLHash__<Hash, NTP, false> :
-  public ZmAnyHash, public ZmLHash__<Hash, NTP, true> {
+class ZmLHash__<Hash, NTP, false, false> :
+  public ZmAnyHash, public ZmLHash__<Hash, NTP, true, false> {
 protected:
-  ZmLHash__(const ZmHashParams &params) :
-    ZmLHash__<Hash, NTP, true>{params}, m_id(NTP::ID()) { }
   ZmLHash__(ZuString id, const ZmHashParams &params) :
-    ZmLHash__<Hash, NTP, true>{params}, m_id{id} { }
+    ZmLHash__<Hash, NTP, true, false>{params}, m_id{id} { }
 
   void init() { ZmHashMgr::add(this); }
   void final() { ZmHashMgr::del(this); }
@@ -308,9 +331,7 @@ public:
   static constexpr unsigned bits() { return Static; }
 
 protected:
-  ZmLHash_(const ZmHashParams &params) : Base(params) { }
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
-  ZmLHash_(ZuString id, const ZmHashParams &params) : Base(id, params) { }
+  ZmLHash_() = default;
 
   void init() { Ops::initItems(m_table, 1U<<Static); }
   void final() { Ops::destroyItems(m_table, 1U<<Static); }
@@ -339,9 +360,10 @@ public:
   unsigned bits() const { return m_bits; }
 
 protected:
+  template <typename _ = NTP, decltype(ZuIfT<_::Local>(), int()) = 0>
   ZmLHash_(const ZmHashParams &params) :
     Base{params}, m_bits{params.bits()} { }
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
+  template <typename _ = NTP, decltype(ZuIfT<!_::Local>(), int()) = 0>
   ZmLHash_(ZuString id, const ZmHashParams &params) :
     Base{id, params}, m_bits{params.bits()} { }
 
@@ -349,11 +371,11 @@ protected:
     unsigned size = 1U<<m_bits;
     m_table = Ops::alloc(size);
     Ops::initItems(m_table, size);
-    Base::init();
+    if constexpr (!Local) Base::init();
   }
 
   void final() {
-    Base::final();
+    if constexpr (!Local) Base::final();
     Ops::destroyItems(m_table, 1U<<m_bits);
     Ops::free(m_table);
   }
@@ -600,28 +622,39 @@ public:
     ~ReadKeyIterator() { m_hash.endIterate(*this); }
   };
 
-  template <bool Local = NTP::Local, decltype(ZuIfT<Local>(), int()) = 0>
-  ZmLHash() : Base{ZmHashParams{ID()}} {
-    Base::init();
-  }
-  template <bool Local = NTP::Local, decltype(ZuIfT<Local>(), int()) = 0>
-  ZmLHash(const ZmHashParams &params) : Base{params} {
-    Base::init();
-  }
+  // static - no ID, no params
+  template <typename _ = NTP, decltype(ZuIfT<bool(_::Static)>(), int()) = 0>
+  ZmLHash() : Base{} { }
 
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
-  ZmLHash() : Base{ID()} {
-    Base::init();
-  }
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
-  ZmLHash(ZuString id) : Base{id} {
-    Base::init();
-  }
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
-  ZmLHash(const ZmHashParams &params) : Base{ID(), params} {
-    Base::init();
-  }
-  template <bool Local = NTP::Local, decltype(ZuIfT<!Local>(), int()) = 0>
+  // local - no ID, optional params
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<_::Local && !_::Static>(), int()) = 0>
+  ZmLHash() : Base{ZmHashParams{ID()}} { Base::init(); }
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<_::Local && !_::Static>(), int()) = 0>
+  ZmLHash(const ZmHashParams &params) : Base{params} { Base::init(); }
+
+  // global - any combination of ID, params
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<!_::Local && !_::Static>(), int()) = 0>
+  ZmLHash() : Base{ID(), ZmHashParams{ID()}} { Base::init(); }
+  // ID
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<!_::Local && !_::Static>(), int()) = 0>
+  ZmLHash(ZuString id) : Base{id, ZmHashParams{id}} { Base::init(); }
+  // params
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<!_::Local && !_::Static>(), int()) = 0>
+  ZmLHash(const ZmHashParams &params) : Base{ID(), params} { Base::init(); }
+  // ID, params
+  template <
+    typename _ = NTP,
+    decltype(ZuIfT<!_::Local && !_::Static>(), int()) = 0>
   ZmLHash(ZuString id, const ZmHashParams &params) : Base{id, params} {
     Base::init();
   }
@@ -1159,6 +1192,7 @@ private:
     data.bits = bits;
     data.cBits = 0;
     data.linear = true;
+    data.shadow = false;
   }
 };
 

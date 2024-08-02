@@ -5,13 +5,14 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // recycling zero-overhead block allocator
-// * arenas with NUMA affinity
-// * cache-aware
-// * optional partitions / sharding
+// - intentionally recycles without zero-filling
+// - arenas with CPU core and NUMA affinity
+// - cache-aware
+// - optional partitions / sharding
 //   - fast partition lookup
-// * TLS free list
-// * efficient statistics and telemetry (ZvTelemetry)
-// * globally configured
+// - TLS free list
+// - efficient statistics and telemetry (Ztel)
+// - globally configured
 //   - supports profile-guided optimization of heap configuration
 
 #ifndef ZmHeap_HH

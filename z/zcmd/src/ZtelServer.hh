@@ -1052,7 +1052,7 @@ private:
   }
   void alertQuery_(Watch *watch) {
     // parse filter - yyyymmdd:seqNo
-    ZtRegex::Captures c;
+    ZtRegex_captures_alloc(c, 2);
     ZuBox<unsigned> date = 0, seqNo = 0;
     if (ZtREGEX("^(\d{8}):(\d+)$").m(watch->filter, c) == 3) {
       date = c[2];

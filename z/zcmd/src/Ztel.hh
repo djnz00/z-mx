@@ -136,6 +136,7 @@ struct HashTbl : public HashTbl_ {
 ZfbFieldTbl(HashTbl,
     (((id),		(Ctor<0>, Keys<0>)),			(String)),
     (((addr),		(Ctor<1>, Keys<0>, Hex)),		(UInt64)),
+    (((shadow),		(Ctor<10>)),				(Bool)),
     (((linear),		(Ctor<9>)),				(Bool)),
     (((bits),		(Ctor<7>)),				(UInt8)),
     (((cBits),		(Ctor<8>)),				(UInt8)),
@@ -346,7 +347,7 @@ struct DBTable {
   uint64_t		cacheEvictions = 0;		// dynamic (*)
   uint32_t		cacheSize = 0;
   int8_t		cacheMode = -1;			// CacheMode
-  bool			warmup = 0;
+  bool			warmup = false;
 
   int8_t rag() const {
     unsigned total = cacheLoads + cacheMisses;

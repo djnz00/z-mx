@@ -59,6 +59,7 @@ struct ZmHashTelemetry {
   uint8_t	bits = 0;
   uint8_t	cBits = 0;
   uint8_t	linear = 0;
+  uint8_t	shadow = 0;
 };
 
 class ZmAPI ZmAnyHash_ : public ZmPolymorph {
@@ -89,7 +90,7 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
   template <class S> struct CSV_ {
     CSV_(S &stream) : m_stream(stream) {
       m_stream <<
-	"id,addr,linear,bits,cBits,loadFactor,nodeSize,"
+	"id,addr,shadow,linear,bits,cBits,loadFactor,nodeSize,"
 	"count,effLoadFactor,resized\n";
     }
     void print(ZmAnyHash *tbl) {
@@ -98,6 +99,7 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
       m_stream
 	<< data.id << ','
 	<< ZuBoxPtr(data.addr).hex() << ','
+	<< unsigned(data.shadow) << ','
 	<< unsigned(data.linear) << ','
 	<< unsigned(data.bits) << ','
 	<< unsigned(data.cBits) << ','

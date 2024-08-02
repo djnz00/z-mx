@@ -30,19 +30,19 @@ ZuString Ze::severity(unsigned i)
 
 ZuString Ze::file(ZuString s)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
 #ifndef _WIN32
   const auto &r = ZtREGEX("([^/]*)$");
 #else
   const auto &r = ZtREGEX("([^:/\\]*)$");
 #endif
-  if (r.m(s, c) < 2) return s;
+  if (r.m(s, c) < 1) return s;
   return c[2];
 }
 
 ZuString Ze::function(ZuString s)
 {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 1);
   if (ZtREGEX("([a-zA-Z_][a-zA-Z_0-9:]*)\(").m(s, c) < 2) return s;
   return c[2];
 }

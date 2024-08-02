@@ -55,6 +55,7 @@ void usage()
       "specify data store connection (default: $ZDB_CONNECT)\n"
     "  -d, --debug\t\tenable Zdb debug logging\n"
     "  -t, --hash-tel\toutput hash table telemetry CSV at exit\n"
+    "  -T, --heap-tel\toutput heap telemetry CSV at exit\n"
     ;
 
   std::cerr << help << std::flush;
@@ -79,6 +80,7 @@ int main(int argc, char **argv)
       "connect c c { param store.connection }\n"
       "debug d d { flag debug }\n"
       "hash-tel t t { flag hashTel }\n"
+      "heap-tel T T { flag heapTel }\n"
       "help { flag help }\n");
 
       // "  module ../src/.libs/libZdbPQ.so\n"
@@ -97,7 +99,7 @@ int main(int argc, char **argv)
       "  replicated true\n"
       "}\n"
       "tables {\n"
-      "  order { }\n"
+      "  order { warmup 1 }\n"
       "}\n"
       "dbMx {\n"
       "  nThreads 4\n"
@@ -165,6 +167,12 @@ int main(int argc, char **argv)
     orders = db->initTable<Order>("order"); // might throw
 
     if (!db->start()) throw ZeEVENT(Fatal, "Zdb start failed");
+
+    if (cf->getBool("hashTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+
+    if (cf->getBool("heapTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHeapMgr::csv()));
 
     ZuNBox<uint64_t> seqNo;
 
@@ -312,13 +320,16 @@ int main(int argc, char **argv)
       done.wait();
     }
 
+    if (cf->getBool("hashTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+
+    if (cf->getBool("heapTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHeapMgr::csv()));
+
     db->stop(); // closes all tables
 
     appMx->stop();
     dbMx->stop();
-
-    if (cf->getBool("hashTel"))
-      ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
     orders = {};
     db->final(); // calls Store::final()

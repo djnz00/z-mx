@@ -78,7 +78,7 @@ public:
 
 private:
   using FindFn = ZmFn<void(Node *)>;
-  using FindFnList = ZmList<FindFn>;
+  using FindFnList = ZmList<FindFn, ZmHashHeapID<HeapID>>;
   // key IDs as a type list
   using KeyIDs = ZuSeqTL<ZuFieldKeyIDs<T>>;
   // key types, each a tuple
@@ -96,31 +96,17 @@ private:
   // tuple of load hash tables
   using LoadHashes = ZuTypeApply<ZuTuple, ZuTypeMap<ZmRef, LoadHashTL>>;
 
+private:
+  ZmPolyCache() : m_size(0) { }
 public:
-  ZmPolyCache() : m_hash{} {
-    m_size = m_hash.size();
-    auto params = ZmHashParams{HeapID()};
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
-    });
-  }
-  template <
-    typename ID,
-    decltype(ZuIfT<ZuTraits<ID>::IsString>(), int()) = 0>
-  ZmPolyCache(const ID &id) : m_hash{id} {
+  ZmPolyCache(ZuString id) : m_hash{id} {
     m_size = m_hash.size();
     auto params = ZmHashParams{id};
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
-    });
-  }
-  template <
-    typename Params,
-    decltype(ZuIfT<ZuIsExact<Params, ZmHashParams>{}>(), int()) = 0>
-  ZmPolyCache(const Params &params) : m_hash{params} {
-    m_size = m_hash.size();
-    ZuUnroll::all<KeyIDs>([this, &params]<typename KeyID>() {
-      m_loadHashes.template p<KeyID{}>(new ZuType<KeyID{}, LoadHashTL>{params});
+    ZuUnroll::all<KeyIDs>([this, &id, &params]<typename KeyID>() {
+      ZmIDString loadHashID = id;
+      loadHashID << ".load." << unsigned(KeyID{});
+      m_loadHashes.template p<KeyID{}>(
+	new ZuType<KeyID{}, LoadHashTL>{loadHashID, params});
     });
   }
 
@@ -138,9 +124,6 @@ public:
     m_evictions{c.m_evictions}
   {
     c.m_size = 0;
-    c.m_hash = PolyHash{};
-    c.m_lru = LRU{};
-    c.m_loadHashes = LoadHashes{};
     c.m_loads = c.m_misses = c.m_evictions = 0;
   }
   ZmPolyCache &operator =(ZmPolyCache &&c) {

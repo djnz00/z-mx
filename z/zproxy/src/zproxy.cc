@@ -414,7 +414,7 @@ bool validateTag(ZuString s) {
 
 template <typename S>
 void parseAddr(const S &s, ZiIP &ip, uint16_t &port) {
-  ZtRegex::Captures c;
+  ZtRegex_captures_alloc(c, 0);
   if (!s) {
     ip = ZiIP();
     port = 0;

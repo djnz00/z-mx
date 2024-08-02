@@ -553,7 +553,7 @@ struct TableCf {
 
 // --- table configuration
 
-inline constexpr const char *TableCfs_HeapID() { return "Zdb.TableCfs"; }
+inline constexpr const char *TableCfs_HeapID() { return "Zdb.TableCf"; }
 using TableCfs =
   ZmRBTree<TableCf,
     ZmRBTreeKey<TableCf::IDAxor,
@@ -699,8 +699,9 @@ protected:
 
 private:
   // low-level write to backing data store
-  void store(unsigned shard, ZmRef<const IOBuf> buf);
-  void store_(unsigned shard, ZmRef<const IOBuf> buf);
+  void store(unsigned shard, ZmRef<const IOBuf>);
+  void store_(unsigned shard, ZmRef<const IOBuf>);
+  void committed(ZmRef<const IOBuf>, CommitResult);
 
   // outbound recovery / replication
   void recSend(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN);
@@ -1083,7 +1084,11 @@ private:
 public:
   // create placeholder record
   // - null UN/SN, in-memory, never persisted/replicated
-  ZmRef<Object<T>> placeholder() { return new Object<T>{this}; }
+  ZmRef<Object<T>> placeholder() {
+    ZmRef<Object<T>> object = new Object<T>{this};
+    new (object->ptr()) T{};
+    return object;
+  }
 
 private:
   template <
@@ -1465,7 +1470,7 @@ inline bool Object_<T>::abort() {
 
 // --- table container
 
-inline constexpr const char *Tables_HeapID() { return "Zdb.Tables"; }
+inline constexpr const char *Tables_HeapID() { return "Zdb.Table"; }
 using Tables =
   ZmRBTree<ZmRef<AnyTable>,
     ZmRBTreeKey<AnyTable::IDAxor,
@@ -1497,7 +1502,7 @@ struct HostCf {
   static ZuID IDAxor(const HostCf &cfg) { return cfg.id; }
 };
 
-inline constexpr const char *HostCfs_HeapID() { return "Zdb.HostCfs"; }
+inline constexpr const char *HostCfs_HeapID() { return "Zdb.HostCf"; }
 using HostCfs =
   ZmRBTree<HostCf,
     ZmRBTreeKey<HostCf::IDAxor,
@@ -1598,7 +1603,7 @@ using HostIndex =
       ZmRBTreeShadow<true,
 	ZmRBTreeKey<Host::IndexAxor,
 	  ZmRBTreeUnique<true>>>>>;
-inline constexpr const char *Hosts_HeapID() { return "Zdb.Hosts"; }
+inline constexpr const char *Hosts_HeapID() { return "Zdb.Host"; }
 using Hosts =
   ZmHash<HostIndex::Node,
     ZmHashNode<HostIndex::Node,
@@ -1964,8 +1969,6 @@ inline void Table<T>::count(GroupKey<KeyID> key, L l)
 {
   using Context = Count;
 
-  ZmAssert(invoked());
-
   auto context = ZmMkRef(new Context{ZuMv(l)});
 
   using Key = GroupKey<KeyID>;
@@ -2103,7 +2106,8 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
       }
       if (ZuLikely(result.is<RowData>())) {
 	auto buf = ZuMv(ZuMv(result).p<RowData>().buf);
-	table->invoke(context->shard, [
+	auto shard = context->shard;
+	table->invoke(shard, [
 	  table,
 	  context = ZuMv(context),
 	  buf = ZuMv(buf)

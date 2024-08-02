@@ -1592,7 +1592,11 @@ struct TblQuery {
 
 using Task = ZuUnion<Start, Stop, TblQuery>;
 
-using Queue = ZmList<Task>;
+inline constexpr const char *Queue_HeapID() { return "ZdbPQ.Queue"; }
+
+using Queue =
+  ZmList<Task,
+    ZmListHeapID<Queue_HeapID>>;
 
 } // Work
 
@@ -1878,7 +1882,7 @@ private:
 // --- PostgreSQL data store
 
 inline ZuID StoreTbl_IDAxor(const StoreTbl &storeTbl) { return storeTbl.id(); }
-inline constexpr const char *StoreTbls_HeapID() { return "StoreTbls"; }
+inline constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
 using StoreTbls =
   ZmHash<StoreTbl,
     ZmHashNode<StoreTbl,

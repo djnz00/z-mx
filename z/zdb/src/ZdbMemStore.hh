@@ -1325,7 +1325,7 @@ private:
 
 template <typename StoreTbl_>
 inline ZuID StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
-inline constexpr const char *StoreTbls_HeapID() { return "StoreTbls"; }
+inline constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
 template <typename StoreTbl_>
 using StoreTbls_ =
   ZmHash<StoreTbl_,

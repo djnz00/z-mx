@@ -1,9 +1,7 @@
-include "zfb_kvtree.fbs";
 namespace zfbtest.fbs;
 table Test {
   foo:int32;
   bar:string;
   baz:[string];
-  kv_tree:Zfb.KVTree;
 }
 root_type Test;

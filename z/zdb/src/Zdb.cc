@@ -1610,27 +1610,30 @@ void AnyTable::store(unsigned shard, ZmRef<const IOBuf> buf)
 }
 void AnyTable::store_(unsigned shard, ZmRef<const IOBuf> buf)
 {
-  m_storeTbl->write(ZuMv(buf), [
-    this, shard
-  ](ZmRef<const IOBuf> buf, CommitResult result) {
-    if (ZuUnlikely(result.is<Event>())) {
-      ZeLogEvent(ZuMv(result).p<Event>());
-      auto un = record_(msg_(buf->hdr()))->un();
-      ZeLOG(Fatal, ([id = this->id(), shard, un](auto &s) {
-	s << "Zdb store of " << id << '/' << shard << '/' << un << " failed";
-      }));
-      auto db = this->db();
-      db->invoke([db]() { db->fail(); }); // trigger failover
-      return;
-    }
-    {
-      auto msg = msg_(buf->hdr());
-      bool recovery = msg->body_type() == fbs::Body::Recovery;
-      invoke(shard, [this, shard, un = record_(msg)->un(), recovery]() {
-	evictBuf(shard, un);
-	if (!recovery) commitSend(shard, un);
-      });
-    }
+  m_storeTbl->write(ZuMv(buf), CommitFn{this,
+    [](AnyTable *this_, ZmRef<const IOBuf> buf, CommitResult result) {
+      this_->committed(ZuMv(buf), ZuMv(result));
+    }});
+}
+void AnyTable::committed(ZmRef<const IOBuf> buf, CommitResult result)
+{
+  auto msg = msg_(buf->hdr());
+  auto record = record_(msg);
+  auto shard = record->shard();
+  auto un = record->un();
+  if (ZuUnlikely(result.is<Event>())) {
+    ZeLogEvent(ZuMv(result).p<Event>());
+    ZeLOG(Fatal, ([id = this->id(), shard, un](auto &s) {
+      s << "Zdb store of " << id << '/' << shard << '/' << un << " failed";
+    }));
+    auto db = this->db();
+    db->invoke([db]() { db->fail(); }); // trigger failover
+    return;
+  }
+  bool recovery = msg->body_type() == fbs::Body::Recovery;
+  invoke(shard, [this, shard, un, recovery]() {
+    evictBuf(shard, un);
+    if (!recovery) commitSend(shard, un);
   });
 }
 

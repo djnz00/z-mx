@@ -1906,7 +1906,7 @@ int StoreTbl::prepInsert_send()
 
   ZtString query;
   unsigned n = m_xFields.length();
-  ZtArray<Oid> oids(n + 3);
+  ZtArray<Oid> oids(n + 4);
   query << "INSERT INTO \"" << m_id_
     << "\" (\"_shard\", \"_un\", \"_sn\", \"_vn\"";
   for (unsigned i = 0; i < n; i++) {
@@ -2601,8 +2601,7 @@ ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
     auto sn_ = Zfb::Save::uint128(sn);
     auto msg = fbs::CreateMsg(
       fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
-      fbs::CreateRecord(fbb, &id, un, &sn_, vn, shard, data).Union()
-    );
+      fbs::CreateRecord(fbb, &id, un, &sn_, vn, shard, data).Union());
     fbb.Finish(msg);
   }
   return saveHdr(fbb);

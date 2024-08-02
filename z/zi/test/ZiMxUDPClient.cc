@@ -206,23 +206,23 @@ int main(int argc, const char *argv[])
 	break;
       case 'b':
 	{
-	  ZtRegex::Captures c;
+	  ZtRegex_captures_alloc(c, 0);
 	  try {
-	    int n = ZtREGEX(":").split(argv[++i], c);
-	    if (n != 2) usage();
+	    int n = ZtREGEX(":").m(argv[++i], c);
+	    if (n != 1) usage();
 	    localIP = c[0].length() ? ZiIP(c[0]) : ZiIP();
-	    localPort = ZuBox<unsigned>{c[1]};
+	    localPort = ZuBox<unsigned>{c[2]};
 	  } catch (...) { usage(); }
 	}
 	break;
       case 'd':
 	{
-	  ZtRegex::Captures c;
+	  ZtRegex_captures_alloc(c, 0);
 	  try {
-	    int n = ZtREGEX(":").split(argv[++i], c);
-	    if (n != 2) usage();
+	    unsigned n = ZtREGEX(":").m(argv[++i], c);
+	    if (n != 1) usage();
 	    remoteIP = c[0];
-	    remotePort = ZuBox<unsigned>{c[1]};
+	    remotePort = ZuBox<unsigned>{c[2]};
 	  } catch (...) { usage(); }
 	}
 	break;
@@ -251,14 +251,13 @@ int main(int argc, const char *argv[])
 	break;
       case 'G':
 	{
-	  ZtRegex::Captures c;
+	  ZtRegex_captures_alloc(c, 0);
 	  try {
-	    int n = ZtREGEX("/").split(argv[++i], c);
-	    if (n < 1 || n > 2) usage();
-	    ZiIP addr(c[0]);
+	    unsigned n = ZtREGEX("/").m(argv[++i], c);
+	    auto addr = n ? ZiIP{c[0]} : ZiIP{argv[i]};
 	    if (!addr.multicast()) usage();
 	    ZiIP mif;
-	    if (n == 2) mif = c[1];
+	    if (n) mif = c[1];
 	    options.mreq(ZiMReq(addr, mif));
 	  } catch (...) { usage(); }
 	}

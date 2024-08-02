@@ -364,7 +364,7 @@ private:
       .interactive = m_interactive
     };
     {
-      ZtRegex::Captures c;
+      ZtRegex_captures_alloc(c, 0);
       unsigned pos = 0, n = 0;
       if (n = ZtREGEX("\s*>>\s*").m(cmd, c, pos)) {
 	ZtString path{c[2]};
@@ -1278,7 +1278,7 @@ private:
 	auto j = i - 2;
 	auto arg = ctx->args->get(ZuStringN<24>{} << i);
 	ZuString type_;
-	ZtRegex::Captures c;
+	ZtRegex_captures_alloc(c, 0);
 	if (ZtREGEX(":").m(arg, c)) {
 	  type_ = c[0];
 	  filters[j] = c[2];
@@ -1489,7 +1489,7 @@ int main(int argc, char **argv)
 
   try {
     {
-      ZtRegex::Captures c;
+      ZtRegex_captures_alloc(c, 3);
       if (ZtREGEX("^([^@]+)@([^:]+):(\d+)$").m(argv[1], c) == 4) {
 	user = c[2];
 	server = c[3];
@@ -1497,7 +1497,7 @@ int main(int argc, char **argv)
       }
     }
     if (!user) {
-      ZtRegex::Captures c;
+      ZtRegex_captures_alloc(c, 2);
       if (ZtREGEX("^([^@]+)@(\d+)$").m(argv[1], c) == 3) {
 	user = c[2];
 	server = "localhost";
@@ -1505,14 +1505,14 @@ int main(int argc, char **argv)
       }
     }
     if (!user) {
-      ZtRegex::Captures c;
+      ZtRegex_captures_alloc(c, 2);
       if (ZtREGEX("^([^:]+):(\d+)$").m(argv[1], c) == 3) {
 	server = c[2];
 	port = c[3];
       }
     }
     if (!server) {
-      ZtRegex::Captures c;
+      ZtRegex_captures_alloc(c, 1);
       if (ZtREGEX("^(\d+)$").m(argv[1], c) == 2) {
 	server = "localhost";
 	port = c[2];

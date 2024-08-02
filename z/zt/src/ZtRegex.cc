@@ -100,11 +100,11 @@ void ZtRegex::capture(
 {
   unsigned offset, length;
   unsigned slength = s.length();
-
-  captures.length(0, false);
-  captures.size(m_captureCount + 2);
-  new (captures.push()) Capture(s.data(), ovector[0]); // $`
   unsigned n = m_captureCount;
+
+  captures.length(0);
+  captures.ensure(n + 2);
+  new (captures.push()) Capture(s.data(), ovector[0]); // $`
   for (unsigned i = 0; i < n; i++) {
     offset = ovector[i<<1];
     if (offset < 0) {

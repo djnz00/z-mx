@@ -993,8 +993,13 @@ private:
 
 #include <zlib/ZmRBTree.hh>
 
+inline constexpr const char *ZiMxMgr_HeapID() { return "ZiMxMgr"; }
+
 class ZiAPI ZiMxMgr {
-  using Map = ZmRBTreeKV<ZuID, ZiMultiplex *, ZmRBTreeLock<ZmPLock>>;
+  using Map =
+    ZmRBTreeKV<ZuID, ZiMultiplex *,
+      ZmRBTreeLock<ZmPLock,
+	ZmRBTreeHeapID<ZiMxMgr_HeapID>>>;
 
 friend ZiMultiplex;
 

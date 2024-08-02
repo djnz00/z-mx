@@ -22,6 +22,7 @@
 
 #include <zlib/ZmCleanup.hh>
 #include <zlib/ZmSingleton.hh>
+#include <zlib/ZmAlloc.hh>
 
 #include <zlib/ZtString.hh>
 
@@ -42,6 +43,16 @@ struct ZtAPI ZtRegexError {
   }
   friend ZuPrintFn ZuPrintType(ZtRegexError *);
 };
+
+#define ZtRegex_ovector_alloc(o, n) \
+  auto o##_size = (unsigned(n) * 3); \
+  auto o##_ = ZmAlloc(unsigned, o##_size); \
+  ZtArray<unsigned> o(&o##_[0], 0, o##_size, false)
+
+#define ZtRegex_captures_alloc(c, n) \
+  auto c##_size = (unsigned(n) + 2); \
+  auto c##_ = ZmAlloc(ZtRegex::Capture, c##_size); \
+  ZtRegex::Captures c(&c##_[0], 0, c##_size, false)
 
 class ZtAPI ZtRegex {
   ZtRegex(const ZtRegex &) = delete;
@@ -101,12 +112,12 @@ public:
   */
 
   unsigned m(ZuString s, unsigned offset = 0, int options = 0) const {
-    ZtArray<unsigned> ovector;
+    ZtRegex_ovector_alloc(ovector, m_captureCount);
     return exec(s, offset, options, ovector);
   }
   unsigned m(ZuString s,
       Captures &captures, unsigned offset = 0, int options = 0) const {
-    ZtArray<unsigned> ovector;
+    ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned i = exec(s, offset, options, ovector);
     if (i) capture(s, ovector, captures);
     return i;
@@ -117,7 +128,7 @@ public:
     ZuInspect<ZtString, S>::Is ||
     ZuInspect<ZtArray<char>, S>::Is, unsigned>
   s(S &s, ZuString r, unsigned offset = 0, int options = 0) const {
-    ZtArray<unsigned> ovector;
+    ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned i = exec(s, offset, options, ovector);
     if (i) s.splice(ovector[0], ovector[1] - ovector[0], r.data(), r.length());
     return i;
@@ -128,7 +139,7 @@ public:
     ZuInspect<ZtString, S>::Is ||
     ZuInspect<ZtArray<char>, S>::Is, unsigned>
   sg(S &s, ZuString r, unsigned offset = 0, int options = 0) const {
-    ZtArray<unsigned> ovector;
+    ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned n = 0;
     unsigned slength = s.length(), rlength = r.length();
 
