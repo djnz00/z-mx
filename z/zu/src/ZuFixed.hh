@@ -42,15 +42,15 @@
 
 // ZuFixedVal value range is +/- 10^18
 
-#define ZuFixedMin (int64_t(-999999999999999999LL))
-#define ZuFixedMax (int64_t(999999999999999999LL))
+#define ZuFixedMin	(int64_t(-999999999999999999LL))
+#define ZuFixedMax	(int64_t(999999999999999999LL))
 // ZuFixedReset is the distinct sentinel value used to reset values to null
-#define ZuFixedReset (int64_t(-1000000000000000000LL))
+#define ZuFixedReset	(int64_t(-1000000000000000000LL))
 // ZuFixedNull is the null sentinel value
-#define ZuFixedNull (int64_t(-0x8000000000000000LL))
+#define ZuFixedNull	(int64_t(-0x8000000000000000LL))
 
 using ZuFixedVal = ZuBoxN(int64_t, ZuFixedNull); // mantissa numerator
-using ZuFixedExp = ZuBox0(uint8_t); // ndp (precision in decimal places)
+using ZuFixedNDP = ZuBox0(uint8_t); // ndp (number of decimal places)
 
 template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal

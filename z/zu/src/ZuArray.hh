@@ -6,8 +6,9 @@
 
 // ZuArray<T> is a wrapper around a pointer+length pair
 // unlike std::array, prioritizes run-time optimization over compile-time
-// unlike std::span, prioritizes expressiveness over readability and
-//   intrusive integration with ZuHash/ZuCmp
+// unlike std::span, prioritizes:
+// - expressiveness over readability
+// - intrusive integration with ZuHash/ZuCmp
 
 #ifndef ZuArray_HH
 #define ZuArray_HH

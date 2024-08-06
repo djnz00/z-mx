@@ -174,7 +174,7 @@ template <typename R> struct ZuSearch_OK<R, int> { using T = R; };
 template <bool Match = true, typename T, typename Cmp>
 inline auto ZuSearch(T *data, unsigned n, Cmp cmp) ->
 typename ZuSearch_OK<unsigned,
-	 decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>::T {
+    decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>::T {
   if (!n) return 0;
   unsigned o = 0;
   int m = n>>1;
@@ -214,7 +214,7 @@ inline unsigned ZuSearch(T *data, unsigned n, const T &item) {
 template <bool Match = true, typename T, typename Cmp>
 auto ZuInterSearch(T *data, unsigned n, Cmp cmp) ->
 typename ZuSearch_OK<unsigned,
-	 decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>::T {
+    decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>::T {
   if (!n) return 0;
   if (n <= 2) { // special case for small arrays
     int v1 = cmp(data[0]);
@@ -259,7 +259,7 @@ template <bool Match = true, typename T>
 inline ZuMatchIntegral<T, unsigned>
 ZuInterSearch(T *data, unsigned n, T v) {
   return ZuInterSearch<Match>(data, n,
-      [v](const T &w) { return ZuCmp<T>::delta(v, w); });
+    [v](const T &w) { return ZuCmp<T>::delta(v, w); });
 }
 
 #endif /* ZuSort_HH */

@@ -5,12 +5,12 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // fixed-size arrays for use in structs and passing by value
-// * cached length (and constexpr size)
-// * explicitly contiguous
-// * direct read/write access to the buffer
-// * char and wchar_t arrays as strings
+// - cached length (and constexpr size)
+// - explicitly contiguous
+// - direct read/write access to the buffer
+// - char and wchar_t arrays as strings
 //   - smooth interoperation with other string types
-// * structured binding
+// - structured binding
 
 #ifndef ZuArrayN_HH
 #define ZuArrayN_HH
