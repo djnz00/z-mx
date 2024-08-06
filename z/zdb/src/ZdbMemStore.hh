@@ -1343,7 +1343,7 @@ private:
   using StoreTblNode = typename StoreTbls::Node;
 
 public:
-  InitResult init(ZvCf *cf, ZiMultiplex *mx, unsigned, FailFn failFn) {
+  InitResult init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn) {
     if (!m_storeTbls) m_storeTbls = new StoreTbls{};
     m_failFn = ZuMv(failFn);
     try {

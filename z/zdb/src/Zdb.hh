@@ -345,7 +345,7 @@ public:
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject *>(this)->ptr_(); }
 
-  void evict() { m_flags |= Evicted; }
+  virtual void evict() { m_flags |= Evicted; }	// must call this if overridden
   void pin() { m_flags |= Pinned; }
   void unpin() { m_flags &= ~Pinned; }
 
@@ -1408,10 +1408,12 @@ private:
 	incCount();
 	break;
       case ObjState::Update:
+	// evictUN() already called from update_()
 	if (writeCache())
 	  cacheUN(shard, object->un(), object);
 	break;
       case ObjState::Delete:
+	// evictUN() already called from del_()
 	if (m_cache[shard].delNode(static_cast<Object<T> *>(object)))
 	  object->evict();
 	decCount();
@@ -1805,7 +1807,7 @@ public:
 private:
   void storeFailed(ZeVEvent e) {
     ZeLOG(Fatal, ZuMv(e));
-    fail();
+    run([this]() { fail(); });
   }
 
   void allDone(bool ok);
@@ -2101,13 +2103,13 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 	  s << "Zdb find of " << context->table->id()
 	    << '/' << context->key << " failed";
 	}));
-	db->invoke([db]() { db->fail(); }); // trigger failover
+	db->run([db]() { db->fail(); }); // trigger failover
 	return;
       }
       if (ZuLikely(result.is<RowData>())) {
 	auto buf = ZuMv(ZuMv(result).p<RowData>().buf);
 	auto shard = context->shard;
-	table->invoke(shard, [
+	table->run(shard, [
 	  table,
 	  context = ZuMv(context),
 	  buf = ZuMv(buf)
@@ -2129,7 +2131,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 	    context->fn(ZuMv(object));
 	});
       } else
-	table->invoke(context->shard, [fn = ZuMv(context->fn)]() mutable {
+	table->run(context->shard, [fn = ZuMv(context->fn)]() mutable {
 	  fn(nullptr);
 	});
     }));
@@ -2161,7 +2163,7 @@ struct Record_Print {
     auto id = Zfb::Load::id(record->table());
     auto data = Zfb::Load::bytes(record->data());
     s << "{db=" << id
-      << " shard=" << record->shard()
+      << " shard=" << ZuBoxed(record->shard())
       << " un=" << record->un()
       << " sn=" << ZuBoxed(Zfb::Load::uint128(record->sn()))
       << " vn=" << record->vn() << "}";
@@ -2210,7 +2212,7 @@ template <typename S>
 void AnyObject::print(S &s) const {
   s << "{table=" << m_table->id()
     << " state=" << ObjState::name(m_state)
-    << " shard=" << m_shard
+    << " shard=" << ZuBoxed(m_shard)
     << " un=" << m_un
     << " sn=" << m_sn
     << " vn=" << m_vn;

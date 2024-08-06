@@ -118,7 +118,7 @@ void DB::init(
       if (!m_store)
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
       InitResult result = m_store->init(
-	  m_cf.storeCf, m_mx, m_cf.sid,
+	  m_cf.storeCf, m_mx,
 	  FailFn::Member<&DB::storeFailed>::fn(this));
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<InitData>().replicated;
@@ -230,10 +230,10 @@ void DB::start_()
       ZeLOG(Fatal, ([](auto &s) {
 	s << "Zdb data store start failed";
       }));
-      started(false);
+      run([this]() { started(false); });
       return;
     }
-    start_1();
+    run([this]() { start_1(); });
   });
 }
 
@@ -1078,7 +1078,9 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN)
   ](RowResult result) mutable {
     if (ZuLikely(result.is<RowData>())) {
       ZmRef<const IOBuf> buf = result.p<RowData>().buf;
-      run(shard, [this, cxn = ZuMv(cxn), shard, un, endUN, buf = ZuMv(buf)]() mutable {
+      run(shard, [
+	this, cxn = ZuMv(cxn), shard, un, endUN, buf = ZuMv(buf)
+      ]() mutable {
 	recSend_(ZuMv(cxn), shard, un, endUN, ZuMv(buf));
       });
       return;
@@ -1627,11 +1629,11 @@ void AnyTable::committed(ZmRef<const IOBuf> buf, CommitResult result)
       s << "Zdb store of " << id << '/' << shard << '/' << un << " failed";
     }));
     auto db = this->db();
-    db->invoke([db]() { db->fail(); }); // trigger failover
+    db->run([db]() { db->fail(); }); // trigger failover
     return;
   }
   bool recovery = msg->body_type() == fbs::Body::Recovery;
-  invoke(shard, [this, shard, un, recovery]() {
+  run(shard, [this, shard, un, recovery]() {
     evictBuf(shard, un);
     if (!recovery) commitSend(shard, un);
   });
