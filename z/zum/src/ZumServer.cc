@@ -40,6 +40,12 @@ void UserDB::init(ZvCf *cf, Zdb *db)
   m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
   m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
 
+  static auto findAdd = [](DBCf &dbCf, ZuString key) {
+    auto node = dbCf.tableCfs.find(key);
+    if (!node) dbCf.tableCfs.addNode(node = new decltype(*node){key});
+    return node;
+  }
+
   // ensure all tables are running on the same thread
   // - ensures that direct references to the user and key DB objects
   //   can be cached in the session, permitting contention-less
@@ -47,15 +53,18 @@ void UserDB::init(ZvCf *cf, Zdb *db)
   // - UserDB relies on being a single-writer to the DB (Zdb guarantee)
   const auto &thread = cf->get<true>("thread");
   auto &dbCf = const_cast<ZdbCf &>(db->config());
-  dbCf.tableCf("zum.user")->thread = { ZtString{thread} };
-  dbCf.tableCf("zum.role")->thread = { ZtString{thread} };
-  dbCf.tableCf("zum.key")->thread = { ZtString{thread} };
-  dbCf.tableCf("zum.perm")->thread = { ZtString{thread} };
+  findAdd(dbCf, "zum.user")->thread = { thread };
+  findAdd(dbCf, "zum.role")->thread = { thread };
+  findAdd(dbCf, "zum.key")->thread = { thread };
+  findAdd(dbCf, "zum.perm")->thread = { thread };
 
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
   m_keyTbl = db->initTable<Key>("zum.key");
   m_permTbl = db->initTable<Perm>("zum.perm");
+
+  m_mx = db->mx();
+  m_sid = m_userTbl->config().sid[0];
 
   m_state = UserDBState::Initialized;
 }
@@ -89,9 +98,7 @@ void UserDB::open_(ZuPtr<Open> context)
   }
   m_state = UserDBState::Opening;
 
-  m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
-    open_recoverNextUserID(ZuMv(context));
-  });
+  open_recoverNextUserID(ZuMv(context));
 }
 // recover nextUserID
 void UserDB::open_recoverNextUserID(ZuPtr<Open> context)
@@ -99,13 +106,13 @@ void UserDB::open_recoverNextUserID(ZuPtr<Open> context)
   m_userTbl->selectKeys<0>(ZuTuple<>{}, 1, [
     this, context = ZuMv(context)
   ](auto max, unsigned) mutable {
-    using Key = ZuFieldKeyT<User, 0>;
-    if (max.template is<Key>())
-      m_nextUserID = max.template p<Key>().template p<0>() + 1;
-    else
-      m_permTbl->run(0, [this, context = ZuMv(context)]() mutable {
+    run([this, context = ZuMv(context), max = ZuMv(max)]() mutable {
+      using Key = ZuFieldKeyT<User, 0>;
+      if (max.template is<Key>())
+	m_nextUserID = max.template p<Key>().template p<0>() + 1;
+      else
 	open_recoverNextPermID(ZuMv(context));
-      });
+    });
   });
 }
 // recover nextPermID
@@ -113,14 +120,15 @@ void UserDB::open_recoverNextPermID(ZuPtr<Open> context)
 {
   m_permTbl->selectKeys<0>(ZuTuple<>{}, 1, [
     this, context = ZuMv(context)
-  ](auto max, unsigned i) mutable {
-    using RowKey = ZuFieldKeyT<Perm, 0>;
-    if (max.template is<RowKey>())
-      m_nextPermID = max.template p<RowKey>().template p<0>() + 1;
-    else
-      m_permTbl->run(0, [this, context = ZuMv(context)]() mutable {
-	open_findAddPerm(ZuMv(context));
-      });
+  ](auto max, unsigned) mutable {
+    run([this, context = ZuMv(context), max = ZuMv(max)]() mutable {
+      using RowKey = ZuFieldKeyT<Perm, 0>;
+      if (max.template is<RowKey>())
+	m_nextPermID = max.template p<RowKey>().template p<0>() + 1;
+      else
+	run([this, context = ZuMv(context)]() mutable {
+	  open_findAddPerm(ZuMv(context));
+	});
   });
 }
 // find permission and update m_perms[]
@@ -154,7 +162,7 @@ void UserDB::open_findAddPerm(ZuPtr<Open> context)
 	this, context = ZuMv(context)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	if (!dbPerm) { opened(ZuMv(context), false); return; }
-	initPerm(dbPerm, permName(context));
+	initPerm(dbPerm, permName(context)); // performs commit
 	stashPermID(this, context, dbPerm->data().id);
 	open_nextPerm(ZuMv(context));
       });
@@ -168,7 +176,7 @@ void UserDB::open_findAddPerm(ZuPtr<Open> context)
 void UserDB::open_nextPerm(ZuPtr<Open> context)
 {
   if (++context->perm < nPerms() + context->perms.length())
-    m_permTbl->run(0, [this, context = ZuMv(context)]() mutable {
+    run([this, context = ZuMv(context)]() mutable {
       open_findAddPerm(ZuMv(context));
     });
   else
@@ -201,7 +209,7 @@ void UserDB::bootstrap_(ZuPtr<Bootstrap> context)
   }
   m_state = UserDBState::Bootstrap;
 
-  m_roleTbl->run(0, [this, context = ZuMv(context)]() mutable {
+  run([this, context = ZuMv(context)]() mutable {
     bootstrap_findAddUser(ZuMv(context));
   });
 }
@@ -321,7 +329,7 @@ void UserDB::initUser(
 void UserDB::sessionLoad_login(ZtString userName, SessionFn fn)
 {
   ZuPtr<SessionLoad> context = new SessionLoad{ZuMv(userName), ZuMv(fn)};
-  m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
+  run([this, context = ZuMv(context)]() mutable {
     sessionLoad_findUser(ZuMv(context));
   });
 }
@@ -329,7 +337,7 @@ void UserDB::sessionLoad_login(ZtString userName, SessionFn fn)
 void UserDB::sessionLoad_access(KeyIDData keyID, SessionFn fn)
 {
   ZuPtr<SessionLoad> context = new SessionLoad{ZuMv(keyID), ZuMv(fn)};
-  m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
+  run([this, context = ZuMv(context)]() mutable {
     sessionLoad_findKey(ZuMv(context));
   });
 }
@@ -346,7 +354,7 @@ void UserDB::sessionLoad_findUser(ZuPtr<SessionLoad> context)
     if (!user.roles)
       sessionLoaded(ZuMv(context), true);
     else
-      m_roleTbl->run(0, [this, context = ZuMv(context)]() mutable {
+      run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
   });
@@ -360,7 +368,7 @@ void UserDB::sessionLoad_findKey(ZuPtr<SessionLoad> context)
     if (!dbKey) { sessionLoaded(ZuMv(context), false); return; }
     dbKey->pin();
     context->key = ZuMv(dbKey);
-    m_userTbl->run(0, [this, context = ZuMv(context)]() mutable {
+    run([this, context = ZuMv(context)]() mutable {
       sessionLoad_findUserID(ZuMv(context));
     });
   });
@@ -380,7 +388,7 @@ void UserDB::sessionLoad_findUserID(ZuPtr<SessionLoad> context)
     if (!user.roles)
       sessionLoaded(ZuMv(context), true);
     else
-      m_roleTbl->run(0, [this, context = ZuMv(context)]() mutable {
+      run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
   });
@@ -400,7 +408,7 @@ void UserDB::sessionLoad_findRole(ZuPtr<SessionLoad> context)
 	context->session->perms |= role.apiperms;
     }
     if (++context->roleIndex < context->session->user->data().roles.length())
-      m_roleTbl->run(0, [this, context = ZuMv(context)]() mutable {
+      run([this, context = ZuMv(context)]() mutable {
 	sessionLoad_findRole(ZuMv(context));
       });
     else
@@ -439,7 +447,7 @@ void UserDB::loginSucceeded(ZmRef<Session> session, LoginFn fn)
   auto &user = session->user->data();
   if (user.failures) {
     user.failures = 0;
-    m_userTbl->run(0, [
+    run([
       this, session = ZuMv(session), fn = ZuMv(fn)
     ]() mutable {
       ZmRef<ZdbObject<User>> user = session->user;
@@ -472,9 +480,7 @@ void UserDB::loginFailed(ZmRef<Session> session, LoginFn fn)
     fn(nullptr, loginNak());
     return;
   }
-  m_userTbl->run(0, [
-    this, session = ZuMv(session), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, session = ZuMv(session), fn = ZuMv(fn)]() mutable {
     ZmRef<ZdbObject<User>> dbUser = session->user;
     m_userTbl->update(ZuMv(dbUser), [fn = ZuMv(fn)](ZdbObject<User> *dbUser) {
       if (dbUser) dbUser->commit();
@@ -770,7 +776,7 @@ void UserDB::chPass(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
   hmac.reset();
   hmac.update(newPass);
   hmac.finish(user.hmac.data());
-  m_userTbl->run(0, [
+  run([
     this, seqNo = fbRequest->seqNo(), session = ZuMv(session), fn = ZuMv(fn)
   ]() mutable {
     ZdbObjRef<User> dbUser = session->user;
@@ -804,9 +810,7 @@ void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
     return;
   }
-  m_userTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto query = static_cast<const fbs::UserQuery *>(fbRequest->data());
     auto tupleFn = [
@@ -853,9 +857,7 @@ void UserDB::userGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // add a new user
 void UserDB::userAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_userTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbUser = static_cast<const fbs::User *>(fbRequest->data());
     m_userTbl->find<1>(0, ZuMvTuple(Zfb::Load::str(fbUser->name())), [
@@ -906,15 +908,13 @@ void UserDB::userAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 template <typename L>
 void UserDB::keyClr__(UserID id, L l)
 {
-  m_keyTbl->run(0, [this, id, l = ZuMv(l)]() {
+  run([this, id, l = ZuMv(l)]() {
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(id)), MaxAPIKeys, [
       this, l = ZuMv(l)
     ](auto result, unsigned) mutable {
       using KeyID = ZuFieldKeyT<Key, 0>;
       if (result.template is<KeyID>()) {
-	m_keyTbl->run(0, [
-	  this, id = ZuMv(result).template p<KeyID>()
-	]() mutable {
+	run([this, id = ZuMv(result).template p<KeyID>()]() mutable {
 	  m_keyTbl->findDel<1>(
 	    0, ZuMvTuple(ZuMv(id).template p<1>()),
 	    [](ZdbObject<Key> *dbKey) mutable {
@@ -924,7 +924,7 @@ void UserDB::keyClr__(UserID id, L l)
 	return;
       }
       // EOR - serialize the completion callback after the key deletions
-      m_keyTbl->run(0, [l = ZuMv(l)]() { l(); });
+      run([l = ZuMv(l)]() { l(); });
     });
   });
 }
@@ -934,7 +934,7 @@ void UserDB::resetPass(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto userID = static_cast<const fbs::UserID *>(fbRequest->data());
-  m_userTbl->run(0, [
+  run([
     this, seqNo = fbRequest->seqNo(), id = userID->id(), fn = ZuMv(fn)
   ]() mutable {
     m_userTbl->findUpd<0>(0, ZuMvTuple(ZuMv(id)), [
@@ -981,9 +981,7 @@ void UserDB::resetPass(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // modify user (name, roles, flags)
 void UserDB::userMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_userTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbUser = static_cast<const fbs::User *>(fbRequest->data());
 
@@ -1040,9 +1038,7 @@ void UserDB::userMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // delete user (and associated API keys)
 void UserDB::userDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_userTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbUser = static_cast<const fbs::UserID *>(fbRequest->data());
     m_userTbl->findDel<0>(0, ZuMvTuple(fbUser->id()), [
@@ -1088,9 +1084,7 @@ void UserDB::roleGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
     return;
   }
-  m_roleTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto query = static_cast<const fbs::RoleQuery *>(fbRequest->data());
     auto tupleFn = [
@@ -1128,9 +1122,7 @@ void UserDB::roleGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // add new role
 void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_roleTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
     auto roleName = Zfb::Load::str(fbRole->name());
@@ -1174,9 +1166,7 @@ void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // modify role (name, perms, apiperms, flags)
 void UserDB::roleMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_roleTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbRole = static_cast<const fbs::Role *>(fbRequest->data());
     m_roleTbl->findUpd<0>(0, ZuMvTuple(Zfb::Load::str(fbRole->name())), [
@@ -1215,9 +1205,7 @@ void UserDB::roleMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // delete role
 void UserDB::roleDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_roleTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbRole = static_cast<const fbs::RoleID *>(fbRequest->data());
     auto roleName = Zfb::Load::str(fbRole->name());
@@ -1261,9 +1249,7 @@ void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	<< query->limit() << " > " << MaxQueryLimit << ')'));
     return;
   }
-  m_permTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto query = static_cast<const fbs::PermQuery *>(fbRequest->data());
     auto tupleFn = [
@@ -1310,9 +1296,7 @@ void UserDB::permGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // add new permission
 void UserDB::permAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_permTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbPerm = static_cast<const fbs::PermName *>(fbRequest->data());
     m_permTbl->find<1>(0, ZuMvTuple(Zfb::Load::str(fbPerm->name())), [
@@ -1351,9 +1335,7 @@ void UserDB::permAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // modify permission (name)
 void UserDB::permMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_permTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbPerm = static_cast<const fbs::Perm *>(fbRequest->data());
     m_permTbl->findUpd<0, ZuSeq<1>>(0, ZuMvTuple(fbPerm->id()), [
@@ -1381,9 +1363,7 @@ void UserDB::permMod(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 // delete permission
 void UserDB::permDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
-  m_permTbl->run(0, [
-    this, buf = ZuMv(buf), fn = ZuMv(fn)
-  ]() mutable {
+  run([this, buf = ZuMv(buf), fn = ZuMv(fn)]() mutable {
     auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
     auto fbPerm = static_cast<const fbs::PermID *>(fbRequest->data());
     m_permTbl->findDel<0>(0, ZuMvTuple(fbPerm->id()), [
@@ -1407,7 +1387,8 @@ void UserDB::permDel(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 }
 
 // query keys
-void UserDB::ownKeyGet(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
+void UserDB::ownKeyGet(
+  ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
 {
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   keyGet_(
@@ -1423,16 +1404,12 @@ void UserDB::keyGet(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 void UserDB::keyGet_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
-  m_keyTbl->run(0, [
-    this, seqNo, userID, ackType, fn = ZuMv(fn)
-  ]() mutable {
+  run([this, seqNo, userID, ackType, fn = ZuMv(fn)]() mutable {
     m_keyTbl->selectKeys<0>(ZuMvTuple(ZuMv(userID)), MaxAPIKeys, [
-      this, 
-      seqNo,
+      this, seqNo,
       fbb_ = ZuPtr<IOBuilder>{new IOBuilder{}},
       offsets = ZtArray<Offset<Zfb::Bytes>>(MaxAPIKeys),
-      ackType,
-      fn = ZuMv(fn)
+      ackType, fn = ZuMv(fn)
     ](auto result, unsigned) mutable {
       auto &fbb = *fbb_;
       using KeyID = ZuFieldKeyT<Key, 0>;
@@ -1467,9 +1444,7 @@ void UserDB::keyAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 void UserDB::keyAdd_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
-  m_keyTbl->run(0, [
-    this, seqNo, userID, ackType, fn = ZuMv(fn)
-  ]() mutable {
+  run([this, seqNo, userID, ackType, fn = ZuMv(fn)]() mutable {
     // generate random key ID
     KeyIDData keyID;
     keyID.length(keyID.size());
@@ -1479,9 +1454,7 @@ void UserDB::keyAdd_(
     ](ZdbObjRef<Key> dbKey) mutable {
       if (dbKey) {
 	// key ID collision - regenerate and retry
-	m_keyTbl->run(0, [
-	  this, seqNo, userID, ackType, fn = ZuMv(fn)
-	]() mutable {
+	run([this, seqNo, userID, ackType, fn = ZuMv(fn)]() mutable {
 	  keyAdd_(seqNo, userID, ackType, ZuMv(fn));
 	});
 	return;
@@ -1522,12 +1495,8 @@ void UserDB::keyClr(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 void UserDB::keyClr_(
   SeqNo seqNo, UserID userID, fbs::ReqAckData ackType, ResponseFn fn)
 {
-  m_keyTbl->run(0, [
-    this, seqNo, userID, ackType, fn = ZuMv(fn)
-  ]() mutable {
-    keyClr__(userID, [
-      this, seqNo, ackType, fn = ZuMv(fn)
-    ]() {
+  run([this, seqNo, userID, ackType, fn = ZuMv(fn)]() mutable {
+    keyClr__(userID, [this, seqNo, ackType, fn = ZuMv(fn)]() {
       IOBuilder fbb;
       auto ackData = fbs::CreateAck(fbb);
       fn(respond(fbb, seqNo, ackType, ackData.Union()));

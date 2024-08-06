@@ -96,13 +96,13 @@ public:
   // user DB thread
   template <typename ...Args>
   void run(Args &&...args) const {
-    m_userTbl->run(0, ZuFwd<Args>(args)...);
+    m_mx->run(m_sid, ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
   void invoke(Args &&...args) const {
-    m_userTbl->invoke(0, ZuFwd<Args>(args)...);
+    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
   }
-  bool invoked() const { return m_userTbl->invoked(0); }
+  bool invoked() const { return m_mx->invoked(m_sid); }
 
   // open
   void open(ZtArray<ZtString> perms, OpenFn);
@@ -285,6 +285,8 @@ private:
     return unsigned(fbs::LoginReqData::MAX) + (i - 1);
   }
 
+  ZiMultiplex		*m_mx;
+  unsigned		m_sid = 0;
   UserID		m_nextUserID = 0;
 
   PermID		m_nextPermID = 0;
