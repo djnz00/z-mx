@@ -72,12 +72,10 @@ OIDs::OIDs()
   m_names = names;
 }
 
-InitResult Store::init(
-  ZvCf *cf, ZiMultiplex *mx, unsigned zdbSID, FailFn failFn)
+InitResult Store::init(ZvCf *cf, ZiMultiplex *mx, FailFn failFn)
 {
   m_cf = cf;
   m_mx = mx;
-  m_zdbSID = zdbSID;
   m_failFn = ZuMv(failFn);
 
   bool replicated;
@@ -297,7 +295,7 @@ void Store::stop_1()
     stop_2();
     StopFn stopFn = ZuMv(m_stopFn);
     m_stopFn = StopFn{};
-    zdbRun([stopFn = ZuMv(stopFn)]() { stopFn(StopResult{}); });
+    stopFn(StopResult{});
   });
   wake_();
 }
@@ -773,9 +771,7 @@ void Store::start_failed(bool running, ZeVEvent e)
 
   m_startFn = StartFn{};
 
-  zdbRun([e = ZuMv(e), startFn = ZuMv(startFn)]() mutable {
-    startFn(StartResult{ZuMv(e)});
-  });
+  startFn(StartResult{ZuMv(e)});
 }
 
 void Store::started()
@@ -788,9 +784,7 @@ void Store::started()
 
   m_startFn = StartFn{};
 
-  zdbRun([startFn = ZuMv(startFn)]() {
-    startFn(StartResult{});
-  });
+  startFn(StartResult{});
 }
 
 void Store::getOIDs()
@@ -940,11 +934,9 @@ void Store::open(
     schema, bufAllocFn = ZuMv(bufAllocFn), openFn = ZuMv(openFn)
   ]() mutable {
     if (stopping()) {
-      zdbRun([id, openFn = ZuMv(openFn)]() mutable {
-	openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "open(" << id << ") failed - DB shutdown in progress";
-	}))});
-      });
+      openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
+	s << "open(" << id << ") failed - DB shutdown in progress";
+      }))});
       return;
     }
     auto storeTbl = new StoreTbls::Node{
@@ -1354,9 +1346,7 @@ void StoreTbl::open_failed(Event e)
 
   m_openFn = OpenFn{};
 
-  m_store->zdbRun([e = ZuMv(e), openFn = ZuMv(openFn)]() mutable {
-    openFn(OpenResult{ZuMv(e)});
-  });
+  openFn(OpenResult{ZuMv(e)});
 }
 
 void StoreTbl::opened()
@@ -1369,14 +1359,12 @@ void StoreTbl::opened()
 
   m_openFn = OpenFn{};
 
-  m_store->zdbRun([this, openFn = ZuMv(openFn)]() {
-    openFn(OpenResult{OpenData{
-      .storeTbl = this,
-      .count = m_count,
-      .un = m_maxUN,
-      .sn = m_maxSN
-    }});
-  });
+  openFn(OpenResult{OpenData{
+    .storeTbl = this,
+    .count = m_count,
+    .un = m_maxUN,
+    .sn = m_maxSN
+  }});
 }
 
 void StoreTbl::mkTable()
@@ -2235,11 +2223,9 @@ void StoreTbl::count(unsigned keyID, ZmRef<const IOBuf> buf, CountFn countFn)
     this, keyID, buf = ZuMv(buf), countFn = ZuMv(countFn)
   ]() mutable {
     if (m_store->stopping()) {
-      store()->zdbRun([id = m_id, countFn = ZuMv(countFn)]() mutable {
-	countFn(CountResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "count(" << id << ") failed - DB shutdown in progress";
-	}))});
-      });
+      countFn(CountResult{ZeVEVENT(Error, ([id = m_id](auto &s, const auto &) {
+	s << "count(" << id << ") failed - DB shutdown in progress";
+      }))});
       return;
     }
     m_store->enqueue(TblQuery{this,
@@ -2265,11 +2251,9 @@ void StoreTbl::select(
     keyID, buf = ZuMv(buf), limit, tupleFn = ZuMv(tupleFn)
   ]() mutable {
     if (m_store->stopping()) {
-      store()->zdbRun([id = m_id, tupleFn = ZuMv(tupleFn)]() mutable {
-	tupleFn(TupleResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "select(" << id << ") failed - DB shutdown in progress";
-	}))});
-      });
+      tupleFn(TupleResult{ZeVEVENT(Error, ([id = m_id](auto &s, const auto &) {
+	s << "select(" << id << ") failed - DB shutdown in progress";
+      }))});
       return;
     }
     m_store->enqueue(TblQuery{this,
@@ -2341,9 +2325,7 @@ void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   if (!res) {
-    m_store->zdbRun([countFn = ZuMv(count.countFn)]() mutable {
-      countFn(CountResult{CountData{.count = 0}});
-    });
+    count.countFn(CountResult{CountData{.count = 0}});
     return;
   }
 
@@ -2357,24 +2339,13 @@ void StoreTbl::count_rcvd(Work::Count &count, PGresult *res)
     return;
   }
 
-  CountResult result{CountData{
+  count.countFn(CountResult{CountData{
     .count = uint64_t(reinterpret_cast<UInt64 *>(PQgetvalue(res, 0, 0))->v)
-  }};
-  m_store->zdbRun([
-    countFn = count.countFn, result = ZuMv(result)
-  ]() mutable {
-    countFn(ZuMv(result));
-  });
+  }});
 }
 void StoreTbl::count_failed(Work::Count &count, ZeVEvent e)
 {
-  CountResult result{ZuMv(e)};
-  m_store->zdbRun([
-    countFn = ZuMv(count.countFn),
-    result = ZuMv(result)
-  ]() mutable {
-    countFn(ZuMv(result));
-  });
+  count.countFn(CountResult{ZuMv(e)});
 }
 
 int StoreTbl::select_send(Work::Select &select)
@@ -2410,9 +2381,7 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
   // ZeLOG(Debug, ([v = m_openState.v](auto &s) { s << ZuBoxed(v).hex(); }));
 
   if (!res) {
-    m_store->zdbRun([tupleFn = ZuMv(select.tupleFn)]() mutable {
-      tupleFn(TupleResult{});
-    });
+    select.tupleFn(TupleResult{});
     return;
   }
 
@@ -2439,16 +2408,11 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
     auto buf =
       select_save(ZuArray<const Value>(&tuple[0], nc), xKeyFields).constRef();
     // res can go out of scope now - everything is saved in buf
-    TupleResult result{TupleData{
+    select.tupleFn(TupleResult{TupleData{
       .keyID = select.selectRow ? ZuFieldKeyID::All : int(keyID),
       .buf = ZuMv(buf),
       .count = ++select.count // do not be tempted to use i (multiple batches)
-    }};
-    m_store->zdbRun([
-      tupleFn = select.tupleFn, result = ZuMv(result)
-    ]() mutable {
-      tupleFn(ZuMv(result));
-    });
+    }});
   }
   return;
 
@@ -2466,13 +2430,7 @@ ZmRef<IOBuf> StoreTbl::select_save(
 }
 void StoreTbl::select_failed(Work::Select &select, ZeVEvent e)
 {
-  TupleResult result{ZuMv(e)};
-  m_store->zdbRun([
-    tupleFn = ZuMv(select.tupleFn),
-    result = ZuMv(result)
-  ]() mutable {
-    tupleFn(ZuMv(result));
-  });
+  select.tupleFn(TupleResult{ZuMv(e)});
 }
 
 void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
@@ -2484,11 +2442,9 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
   m_store->run(
     [this, keyID, buf = ZuMv(buf), rowFn = ZuMv(rowFn)]() mutable {
       if (m_store->stopping()) {
-	store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
-	  rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	    s << "find(" << id << ") failed - DB shutdown in progress";
-	  }))});
-	});
+	rowFn(RowResult{ZeVEVENT(Error, ([id = m_id](auto &s, const auto &) {
+	  s << "find(" << id << ") failed - DB shutdown in progress";
+	}))});
 	return;
       }
       m_store->enqueue(TblQuery{this,
@@ -2522,10 +2478,7 @@ template <bool Recovery>
 void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 {
   if (!res) {
-    if (!found)
-      m_store->zdbRun([rowFn = ZuMv(rowFn)]() mutable {
-	rowFn(RowResult{});
-      });
+    if (!found) rowFn(RowResult{});
     return;
   }
 
@@ -2565,9 +2518,7 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
     }
     // res can go out of scope now - everything is saved in buf
     RowResult result{RowData{.buf = ZuMv(buf)}};
-    m_store->zdbRun([rowFn, result = ZuMv(result)]() mutable {
-      rowFn(ZuMv(result));
-    });
+    rowFn(ZuMv(result));
     found = true;
   }
   return;
@@ -2613,12 +2564,7 @@ void StoreTbl::find_failed(Work::Find &find, ZeVEvent e)
 void StoreTbl::find_failed_(RowFn rowFn, ZeVEvent e)
 {
   RowResult result{ZuMv(e)};
-  m_store->zdbRun([
-    rowFn = ZuMv(rowFn),
-    result = ZuMv(result)
-  ]() mutable {
-    rowFn(ZuMv(result));
-  });
+  rowFn(ZuMv(result));
 }
 
 void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn)
@@ -2627,11 +2573,9 @@ void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn)
 
   m_store->run([this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     if (m_store->stopping()) {
-      store()->zdbRun([id = m_id, rowFn = ZuMv(rowFn)]() mutable {
-	rowFn(RowResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "recover(" << id << ") failed - DB shutdown in progress";
-	}))});
-      });
+      rowFn(RowResult{ZeVEVENT(Error, ([id = m_id](auto &s, const auto &) {
+	s << "recover(" << id << ") failed - DB shutdown in progress";
+      }))});
       return;
     }
     m_store->enqueue(TblQuery{this,
@@ -2666,16 +2610,10 @@ void StoreTbl::write(ZmRef<const IOBuf> buf, CommitFn commitFn)
 
   m_store->run([this, buf = ZuMv(buf), commitFn = ZuMv(commitFn)]() mutable {
     if (m_store->stopping()) {
-      store()->zdbRun([
-	id = m_id,
-	buf = ZuMv(buf),
-	commitFn = ZuMv(commitFn)
-      ]() mutable {
-	commitFn(ZuMv(buf), CommitResult{
-	  ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	    s << "write(" << id << ") failed - DB shutdown in progress";
-	  }))});
-      });
+      commitFn(ZuMv(buf), CommitResult{
+	ZeVEVENT(Error, ([id = m_id](auto &s, const auto &) {
+	  s << "write(" << id << ") failed - DB shutdown in progress";
+	}))});
       return;
     }
     m_store->enqueue(TblQuery{this,
@@ -2776,26 +2714,14 @@ void StoreTbl::write_rcvd(Work::Write &write, PGresult *res)
     m_store->enqueue(TblQuery{this,
       Query{Write{ZuMv(write.buf), ZuMv(write.commitFn), true}}, true, false});
   } else {
-    m_store->zdbRun([
-      buf = ZuMv(write.buf),
-      commitFn = ZuMv(write.commitFn)
-    ]() mutable {
-      commitFn(ZuMv(buf), CommitResult{});
-    });
+    write.commitFn(ZuMv(write.buf), CommitResult{});
   }
 }
 void StoreTbl::write_failed(Work::Write &write, ZeVEvent e)
 {
   // ZeLOG(Debug, ([e = ZuMv(e)](auto &s) { s << e; }));
 
-  CommitResult result{ZuMv(e)};
-  m_store->zdbRun([
-    buf = ZuMv(write.buf),
-    commitFn = ZuMv(write.commitFn),
-    result = ZuMv(result)
-  ]() mutable {
-    commitFn(ZuMv(buf), ZuMv(result));
-  });
+  write.commitFn(ZuMv(write.buf), CommitResult{ZuMv(e)});
 }
 
 } // ZdbPQ

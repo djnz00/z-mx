@@ -1892,7 +1892,7 @@ using StoreTbls =
 
 class Store : public Zdb_::Store {
 public:
-  InitResult init(ZvCf *, ZiMultiplex *, unsigned zdbSID, FailFn failFn);
+  InitResult init(ZvCf *, ZiMultiplex *, FailFn);
   void final();
 
   void start(StartFn);
@@ -1918,10 +1918,6 @@ public:
   }
   template <typename ...Args> void invoke(Args &&...args) {
     m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
-  }
-
-  template <typename ...Args> void zdbRun(Args &&...args) {
-    m_mx->run(m_zdbSID, ZuFwd<Args>(args)...);
   }
 
   const OIDs &oids() const { return m_oids; }
@@ -1980,7 +1976,6 @@ private:
 private:
   ZvCf			*m_cf = nullptr;
   ZiMultiplex		*m_mx = nullptr;
-  unsigned		m_zdbSID = 0;
   unsigned		m_sid = 0;
   FailFn		m_failFn;
 
