@@ -5,9 +5,9 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // red/black tree (compile-time policy-based)
-// * intrusive
-// * policy-based control of key, value, locking, heap, etc.
-// * intentionally disdains range-based for() and structured binding
+// - intrusive
+// - policy-based control of key, value, locking, heap, etc.
+// - intentionally disdains range-based for() and structured binding
 
 #ifndef ZmRBTree_HH
 #define ZmRBTree_HH

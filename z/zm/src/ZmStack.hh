@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // simple fast stack (LIFO array) for types with
-// a distinguished null value (defaults to ZuCmp<T>::null())
+// a sentinel null value (defaults to ZuCmp<T>::null())
 
 #ifndef ZmStack_HH
 #define ZmStack_HH

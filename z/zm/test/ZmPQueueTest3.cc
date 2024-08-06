@@ -44,7 +44,6 @@ struct Msg_ : public ZuObject, public Msg_Data {
   }
   template <typename I>
   void write(const I &i) { }
-  unsigned bytes() const { return 1; }
 };
 
 using Queue = ZmPQueue<Msg_, ZmPQueueNode<ZuObject>>;

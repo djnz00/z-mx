@@ -4,10 +4,13 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// priority queue (optimized for message sequence reassembly)
+// priority queue (skip list)
+// - compile-time deterministic skip list
+// - optimized for message sequence reassembly
+// - handles gaps, overlaps, out-of-order, etc.
 
-// internal data structure is a deterministic skip list. The list is a
-// sequence of ordered items. Each item is a run-length encoded sequence of
+// The skip list is a sequence of ordered items.
+// Each item is a run-length encoded sequence of
 // one or more adjacent elements, each of which is individually numbered.
 // This run-length encoding allows highly efficient duplicate detection,
 // enqueuing of both in- and out- of order items as well as in-order
@@ -43,16 +46,16 @@
 #include <zlib/ZmNodeFn.hh>
 
 // the application will normally substitute ZmPQueueDefaultFn with
-// a type that is specific to the queued Item; it must conform to the
-// specified interface
+// a type that is specific to the queued Item; it must conform to
+// this interface:
 
 // Key - the type of the key (the sequence number)
-// key() - obtain the key
-// length() - obtain the length (key count)
+// key() - return the key
+// length() - return the length (key element count)
 
 // E.g. for packets/fragments using a bytecount (TCP, etc.)
-// the value would be a buffer large enough to hold one packet/fragment
-// Key would be uint32_t/uint64_t, key() would return the key in the header
+// the value would be a buffer large enough to hold the packet/fragment;
+// Key would be uint32_t/uint64_t; key() would return the key in the header;
 // length() would return the number of bytes in the packet/fragment
 
 inline constexpr auto ZmPQueueDefaultKeyAxor() {
@@ -94,9 +97,6 @@ public:
     m_item.write(item.m_item);
   }
 
-  // bytes() returns the size in bytes of the item (for queue statistics)
-  unsigned bytes() const { return m_item.bytes(); }
-
 private:
   Item	&m_item;
 };
@@ -107,6 +107,8 @@ private:
 struct ZmPQueue_Defaults {
   enum { Bits = 3, Levels = 3 };
   template <typename Item> using ZmPQueueFnT = ZmPQueueDefaultFn<Item>;
+  enum { Stats = 1 };
+  enum { Overlap = 1 };
   using Lock = ZmNoLock;
   using Node = ZuNull;
   enum { Shadow = 0 };
@@ -130,6 +132,18 @@ struct ZmPQueueLevels : public NTP {
 template <typename Fn_, class NTP = ZmPQueue_Defaults>
 struct ZmPQueueFn : public NTP {
   template <typename> using ZmPQueueFnT = Fn_;
+};
+
+// ZmPQueueStats - enable/disable statistics gathering
+template <bool Stats_, class NTP = ZmPQueue_Defaults>
+struct ZmPQueueStats : public NTP {
+  enum { Stats = Stats_ };
+};
+
+// ZmPQueueOverlap - items may overlap each other
+template <bool Overlap_, class NTP = ZmPQueue_Defaults>
+struct ZmPQueueOverlap : public NTP {
+  enum { Overlap = Overlap_ };
 };
 
 // ZmPQueueLock - the lock type used (ZmRWLock will permit concurrent reads)
@@ -204,8 +218,44 @@ namespace ZmPQueue_ {
   struct Last<Levels, Levels, T_> { using T = void; };
 };
 
+template <bool Stats> class ZmPQueue_Stats {
+public:
+  // retrieve stats
+  void stats(
+      uint64_t &inCount, uint64_t &inElems, 
+      uint64_t &outCount, uint64_t &outElems) const {
+    inCount = m_inCount;
+    inElems = m_inElems;
+    outCount = m_outCount;
+    outElems = m_outElems;
+  }
+
+protected:
+  void inCount(unsigned length) {
+    ++m_inCount;
+    m_inElems += length;
+  }
+  void outCount(unsigned length) {
+    ++m_outCount;
+    m_outElems += length;
+  }
+
+private:
+  uint64_t	  m_inCount = 0;
+  uint64_t	  m_inElems = 0;
+  uint64_t	  m_outCount = 0;
+  uint64_t	  m_outElems = 0;
+};
+template <> class ZmPQueue_Stats<false> {
+protected:
+  ZuInline void inCount(unsigned) { }
+  ZuInline void outCount(unsigned) { }
+};
+
 template <typename Item_, class NTP = ZmPQueue_Defaults>
-class ZmPQueue : public ZmNodeFn<NTP::Shadow, typename NTP::Node> {
+class ZmPQueue :
+  public ZmNodeFn<NTP::Shadow, typename NTP::Node>,
+  public ZmPQueue_Stats<NTP::Stats> {
 public:
   using Item = Item_;
   enum { Bits = NTP::Bits };
@@ -213,6 +263,8 @@ public:
   using Fn = typename NTP::template ZmPQueueFnT<Item>;
   static constexpr auto KeyAxor = Fn::KeyAxor;
   using Key = typename Fn::Key;
+  enum { Stats = NTP::Stats };
+  enum { Overlap = NTP::Overlap };
   using Lock = typename NTP::Lock;
   using NodeBase = typename NTP::Node;
   enum { Shadow = NTP::Shadow };
@@ -246,6 +298,7 @@ private:
   using NodeFn::nodeRef;
   using NodeFn::nodeDeref;
   using NodeFn::nodeDelete;
+  using NodeFn::nodeRelease;
 
 public:
   ZmPQueue() = delete;
@@ -261,9 +314,55 @@ public:
   ~ZmPQueue() { clean_(); }
 
 private:
+  // add at tail
+  template <int Level>
+  typename ZmPQueue_::First<Level, Levels>::T addTail__(
+      Node *node, unsigned addSeqNo) {
+    Node *prev;
+    node->NodeExt::next(0, nullptr);
+    node->NodeExt::prev(0, prev = m_tail[0]);
+    m_tail[0] = node;
+    if (!prev)
+      m_head[0] = node;
+    else
+      prev->next(0, node);
+    addTail__<1>(node, addSeqNo);
+  }
+  template <int Level>
+  typename ZmPQueue_::Next<Level, Levels>::T addTail__(
+      Node *node, unsigned addSeqNo) {
+    node->NodeExt::next(Level, nullptr);
+    if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
+      Node *prev;
+      node->NodeExt::prev(Level, prev = m_tail[Level]);
+      m_tail[Level] = node;
+      if (!prev)
+	m_head[Level] = node;
+      else
+	prev->next(Level, node);
+      addTail__<Level + 1>(node, addSeqNo);
+      return;
+    }
+    node->NodeExt::prev(Level, nullptr);
+    addTailEnd_<Level + 1>(node, addSeqNo);
+  }
+  template <int Level>
+  typename ZmPQueue_::Next<Level, Levels>::T addTailEnd_(
+      Node *node, unsigned addSeqNo) {
+    node->NodeExt::next(Level, nullptr);
+    node->NodeExt::prev(Level, nullptr);
+    addTailEnd_<Level + 1>(node, addSeqNo);
+  }
+  template <int Level>
+  typename ZmPQueue_::Last<Level, Levels>::T addTail__(
+      Node *, unsigned) { }
+  template <int Level>
+  typename ZmPQueue_::Last<Level, Levels>::T addTailEnd_(
+      Node *, unsigned) { }
+
   // add at head
   template <int Level>
-  typename ZmPQueue_::First<Level, Levels>::T addHead_(
+  typename ZmPQueue_::First<Level, Levels>::T addHead__(
       Node *node, unsigned addSeqNo) {
     Node *next;
     node->NodeExt::prev(0, nullptr);
@@ -273,10 +372,10 @@ private:
       m_tail[0] = node;
     else
       next->prev(0, node);
-    addHead_<1>(node, addSeqNo);
+    addHead__<1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addHead_(
+  typename ZmPQueue_::Next<Level, Levels>::T addHead__(
       Node *node, unsigned addSeqNo) {
     node->NodeExt::prev(Level, nullptr);
     if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
@@ -287,7 +386,7 @@ private:
 	m_tail[Level] = node;
       else
 	next->prev(Level, node);
-      addHead_<Level + 1>(node, addSeqNo);
+      addHead__<Level + 1>(node, addSeqNo);
       return;
     }
     node->NodeExt::next(Level, nullptr);
@@ -301,15 +400,15 @@ private:
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addHead_(
+  typename ZmPQueue_::Last<Level, Levels>::T addHead__(
       Node *, unsigned) { }
   template <int Level>
   typename ZmPQueue_::Last<Level, Levels>::T addHeadEnd_(
       Node *, unsigned) { }
 
-  // insert before result from find
+  // add at key position, following find
   template <int Level>
-  typename ZmPQueue_::First<Level, Levels>::T add_(
+  typename ZmPQueue_::First<Level, Levels>::T addAt_(
       Node *node, Node **next_, unsigned addSeqNo) {
     Node *next = next_[0];
     Node *prev = next ? next->prev(0) : m_tail[0];
@@ -323,10 +422,10 @@ private:
       m_head[0] = node;
     else
       prev->next(0, node);
-    add_<1>(node, next_, addSeqNo);
+    addAt_<1>(node, next_, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T add_(
+  typename ZmPQueue_::Next<Level, Levels>::T addAt_(
       Node *node, Node **next_, unsigned addSeqNo) {
     if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
       Node *next = next_[Level];
@@ -341,25 +440,25 @@ private:
 	m_head[Level] = node;
       else
 	prev->next(Level, node);
-      add_<Level + 1>(node, next_, addSeqNo);
+      addAt_<Level + 1>(node, next_, addSeqNo);
     } else {
       node->NodeExt::prev(Level, nullptr);
       node->NodeExt::next(Level, nullptr);
-      addEnd_<Level + 1>(node, next_, addSeqNo);
+      addAtEnd_<Level + 1>(node, next_, addSeqNo);
     }
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addEnd_(
+  typename ZmPQueue_::Next<Level, Levels>::T addAtEnd_(
       Node *node, Node **next_, unsigned addSeqNo) {
     node->NodeExt::prev(Level, nullptr);
     node->NodeExt::next(Level, nullptr);
-    addEnd_<Level + 1>(node, next_, addSeqNo);
+    addAtEnd_<Level + 1>(node, next_, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T add_(
+  typename ZmPQueue_::Last<Level, Levels>::T addAt_(
       Node *, Node **, unsigned) { }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addEnd_(
+  typename ZmPQueue_::Last<Level, Levels>::T addAtEnd_(
       Node *, Node **, unsigned) { }
 
   // delete head
@@ -425,7 +524,7 @@ private:
     if (!next) return false;
     return
       key - Fn{prev->Node::data()}.key() <=
-      Fn{next->Node::data()}.key() - key;
+	Fn{next->Node::data()}.key() - key;
   }
   template <int Level>
   typename ZmPQueue_::First<Level, Levels>::T findFwd_(
@@ -567,15 +666,6 @@ public:
 
   bool empty_() const { return (!m_count); }
 
-  void stats(
-      uint64_t &inCount, uint64_t &inBytes, 
-      uint64_t &outCount, uint64_t &outBytes) const {
-    inCount = m_inCount;
-    inBytes = m_inBytes;
-    outCount = m_outCount;
-    outBytes = m_outBytes;
-  }
-
   void reset(Key head) {
     Guard guard(m_lock);
     m_headKey = m_tailKey = head;
@@ -653,24 +743,23 @@ public:
     }
   }
 
-  // bypass queue, update stats
-  void bypass(unsigned bytes) {
+  // bypass queue, just update stats
+  template <typename _ = ZuBool<Stats>>
+  ZuIfT<_{}> bypass(unsigned length) {
     Guard guard(m_lock);
-    ++m_inCount;
-    m_inBytes += bytes;
-    ++m_outCount;
-    m_outBytes += bytes;
+    this->inCount(length);
+    this->outCount(length);
   }
+
+  // adds node at key, overwriting data already in the queue
+  void add(NodeRef node) { add_<false>(ZuMv(node)); }
 
   // immediately returns node if key == head (head is incremented)
   // returns 0 if key < head or key is already present in queue
   // returns 0 and enqueues node if key > head
-  NodeRef rotate(NodeRef node) { return enqueue_<true>(ZuMv(node)); }
+  NodeRef rotate(NodeRef node) { return add_<true>(ZuMv(node)); }
 
-  // enqueues node
-  void enqueue(NodeRef node) { enqueue_<false>(ZuMv(node)); }
-
-  // unshift node onto head
+  // unshift node onto head (idempotent - does nothing if key >= head)
   void unshift(NodeRef node) {
     Guard guard(m_lock);
 
@@ -694,9 +783,7 @@ public:
 
     findFwd_<0>(key, next);
 
-    Node *ptr;
-    new (&ptr) NodeRef(ZuMv(node));
-    add_<0>(ptr, next, addSeqNo);
+    addAt_<0>(nodeRelease(ZuMv(node)), next, addSeqNo);
     m_headKey = key;
     m_length += end - key;
     ++m_count;
@@ -704,7 +791,7 @@ public:
 
 private:
   template <bool Dequeue>
-  NodeRef enqueue_(NodeRef node) {
+  NodeRef add_(NodeRef node) {
     Guard guard(m_lock);
 
     Fn item{node->Node::data()};
@@ -714,10 +801,11 @@ private:
 
     if (ZuUnlikely(end <= m_headKey)) return nullptr; // already processed
 
-    if (ZuUnlikely(key < m_headKey)) { // clip head
-      length = item.clipHead(m_headKey - key);
-      key = end - length;
-    }
+    if constexpr (Overlap)
+      if (ZuUnlikely(key < m_headKey)) { // clip head
+	length = item.clipHead(m_headKey - key);
+	key = end - length;
+      }
 
     if (ZuUnlikely(!length)) { // zero-length heartbeats etc.
       if (end > m_tailKey) m_tailKey = end;
@@ -726,24 +814,25 @@ private:
 
     unsigned addSeqNo = m_addSeqNo++;
 
-    unsigned bytes = item.bytes();
+    if (ZuLikely(key == m_tailKey)) // common case - in-order at head
+      return addTail_<Dequeue>(ZuMv(node), end, length, addSeqNo);
 
-    if (ZuLikely(key == m_headKey)) { // usual case - in-order
-      clipHead_(end); // remove overlapping data from queue
+    if (ZuLikely(key == m_headKey)) { // common case - in-order at head
+      if constexpr (Overlap)
+	clipHead_(end); // remove overlapping data from queue
 
-      return enqueue__<Dequeue>(ZuMv(node), end, length, bytes, addSeqNo);
+      return addHead_<Dequeue>(ZuMv(node), end, length, addSeqNo);
     }
 
-    ++m_inCount;
-    m_inBytes += bytes;
-
-    // find the item immediately following the key
+    if constexpr (Stats) this->inCount(length);
 
     Node *next[Levels];
 
+    // find the item immediately following the key
+
     find_(key, next);
 
-    {
+    if constexpr (Overlap) {
       Node *node_ = next[0];
 
       // process any item immediately following the key
@@ -784,47 +873,42 @@ private:
 	}
 
 	// if the preceding item partially overlaps the new item, clip it
-
-	if (end_ > key) m_length -= (end_ - key_) - item_.clipTail(end_ - key);
+	if (end_ > key)
+	  m_length -= (end_ - key_) - item_.clipTail(end_ - key);
       }
-    }
 
-    // remove all items that are completely overlapped by the new item
+      // remove all items that are completely overlapped by the new item
 
-    while (Node *node_ = next[0]) {
-      Fn item_(node_->Node::data());
-      Key key_ = item_.key();
-      Key end_ = key_ + item_.length();
+      while (Node *node_ = next[0]) {
+	Fn item_(node_->Node::data());
+	Key key_ = item_.key();
+	Key end_ = key_ + item_.length();
 
-      ZmAssert(key_ >= key);
+	ZmAssert(key_ >= key);
 
-      // item follows new item, finish search
+	// existing item follows new item, finish search
+	if (key_ >= end) break;
 
-      if (key_ >= end) break;
-
-      // if the following item partially overlaps new item, clip it and finish
-
-      if (end_ > end) {
-	if (unsigned length = item_.clipHead(end - key_)) {
-	  m_length -= (end_ - key_) - length;
-	  break;
+	// if the following item partially overlaps, clip it and finish
+	if (end_ > end) {
+	  if (unsigned length = item_.clipHead(end - key_)) {
+	    m_length -= (end_ - key_) - length;
+	    break;
+	  }
 	}
+
+	// existing item is completely overlapped by new item, delete it
+	del_<0>(next);
+	nodeDeref(node_);
+	nodeDelete(node_);
+	m_length -= end_ - key_;
+	--m_count;
       }
-
-      // item is completely overlapped by new item, delete it
-
-      del_<0>(next);
-      nodeDeref(node_);
-      nodeDelete(node_);
-      m_length -= end_ - key_;
-      --m_count;
     }
 
     // add new item into list before following item
 
-    Node *ptr;
-    new (&ptr) NodeRef(ZuMv(node));
-    add_<0>(ptr, next, addSeqNo);
+    addAt_<0>(nodeRelease(ZuMv(node)), next, addSeqNo);
     if (end > m_tailKey) m_tailKey = end;
     m_length += end - key;
     ++m_count;
@@ -832,27 +916,48 @@ private:
     return nullptr;
   }
   template <bool Dequeue>
-  ZuIfT<Dequeue, NodeRef> enqueue__(NodeRef node,
-      Key end, unsigned, unsigned bytes, unsigned) {
+  ZuIfT<Dequeue, NodeRef> addTail_(NodeRef node,
+      Key end, unsigned length, unsigned addSeqNo) {
+    m_tailKey = end;
+    if constexpr (Stats) this->inCount(length);
+    if (end == m_headKey + length) {
+      m_headKey = end;
+      if constexpr (Stats) this->outCount(length);
+      return node;
+    } else {
+      addTail__<0>(nodeRelease(ZuMv(node)), addSeqNo);
+      m_length += length;
+      ++m_count;
+      return nullptr;
+    }
+  }
+  template <bool Dequeue>
+  ZuIfT<!Dequeue, NodeRef> addTail_(NodeRef node,
+      Key end, unsigned length, unsigned addSeqNo) {
+    addTail__<0>(nodeRelease(ZuMv(node)), addSeqNo);
+    m_tailKey = end;
+    m_length += length;
+    ++m_count;
+    if constexpr (Stats) this->inCount(length);
+    return nullptr;
+  }
+  template <bool Dequeue>
+  ZuIfT<Dequeue, NodeRef> addHead_(NodeRef node,
+      Key end, unsigned length, unsigned) {
     m_headKey = end;
     if (end > m_tailKey) m_tailKey = end;
-    ++m_inCount;
-    m_inBytes += bytes;
-    ++m_outCount;
-    m_outBytes += bytes;
+    if constexpr (Stats) this->inCount(length);
+    if constexpr (Stats) this->outCount(length);
     return node;
   }
   template <bool Dequeue>
-  ZuIfT<!Dequeue, NodeRef> enqueue__(NodeRef node,
-      Key end, unsigned length, unsigned bytes, unsigned addSeqNo) {
-    Node *ptr;
-    new (&ptr) NodeRef(ZuMv(node));
-    addHead_<0>(ptr, addSeqNo);
+  ZuIfT<!Dequeue, NodeRef> addHead_(NodeRef node,
+      Key end, unsigned length, unsigned addSeqNo) {
+    addHead__<0>(nodeRelease(ZuMv(node)), addSeqNo);
     if (end > m_tailKey) m_tailKey = end;
     m_length += length;
     ++m_count;
-    ++m_inCount;
-    m_inBytes += bytes;
+    if constexpr (Stats) this->inCount(length);
     return nullptr;
   }
 
@@ -872,8 +977,7 @@ private:
     if (!length) goto loop;
     Key end = key + length;
     m_headKey = end;
-    ++m_outCount;
-    m_outBytes += item.bytes();
+    if constexpr (Stats) this->outCount(length);
     return node;
   }
 public:
@@ -903,8 +1007,7 @@ private:
     if (!length) goto loop;
     Key end = item.key() + length;
     m_headKey = end;
-    ++m_outCount;
-    m_outBytes += item.bytes();
+    if constexpr (Stats) this->outCount(length);
     return node;
   }
 public:
@@ -957,7 +1060,7 @@ public:
     {
       Node *node_ = next[0];
 
-      // process any item immediately following the key
+      // process any item immediately following the key (>= key)
 
       if (node_) {
 	Fn item_(node_->Node::data());
@@ -971,7 +1074,7 @@ public:
       } else
 	node_ = m_tail[0];
 
-      // process any item immediately preceding the key
+      // process any item immediately preceding the key (< key)
 
       if (node_) {
 	Fn item_(node_->Node::data());
@@ -1000,10 +1103,10 @@ public:
 public:
   template <typename S> void print(S &s) const {
     ReadGuard guard(m_lock);
-    s << "head: " << m_headKey
-      << "  tail: " << m_tailKey
-      << "  length: " << m_length
-      << "  count: " << m_count;
+    s << "head=" << m_headKey
+      << " tail=" << m_tailKey
+      << " length=" << m_length
+      << " count=" << m_count;
   }
   friend ZuPrintFn ZuPrintType(ZmPQueue *);
 
@@ -1016,10 +1119,6 @@ private:
   unsigned	  m_length = 0;
   unsigned	  m_count = 0;
   unsigned	  m_addSeqNo = 0;
-  uint64_t	  m_inCount = 0;
-  uint64_t	  m_inBytes = 0;
-  uint64_t	  m_outCount = 0;
-  uint64_t	  m_outBytes = 0;
 };
 
 // template resend-requesting receiver using ZmPQueue
@@ -1137,7 +1236,7 @@ public:
     App *app = static_cast<App *>(this);
     Guard guard(m_lock);
     if (ZuUnlikely(m_flags & (Queuing | Dequeuing))) {
-      app->rxQueue()->enqueue(ZuMv(msg));
+      app->rxQueue()->add(ZuMv(msg));
       return;
     }
     msg = app->rxQueue()->rotate(ZuMv(msg));
@@ -1446,7 +1545,7 @@ public:
 #endif
 	return;
       }
-      app->txQueue()->enqueue(ZuMv(msg));
+      app->txQueue()->add(ZuMv(msg));
       if (scheduleSend = (m_flags & (Running | Sending)) == Running &&
 	  m_sendKey <= key)
 	m_flags |= Sending;
@@ -1701,11 +1800,11 @@ public:
 
   template <typename S> void print(S &s) const {
     ReadGuard guard(m_lock);
-    s << "gap: (" << m_gap.key() << " +" << m_gap.length()
-      << ")  flags: " << PrintFlags{m_flags}
-      << "  send: " << m_sendKey
-      << "  ackd: " << m_ackdKey
-      << "  archive: " << m_archiveKey;
+    s << "gap={" << m_gap.key() << ", " << m_gap.length()
+      << "} flags=" << PrintFlags{m_flags}
+      << " send=" << m_sendKey
+      << " ackd=" << m_ackdKey
+      << " archive=" << m_archiveKey;
   }
 
 private:
