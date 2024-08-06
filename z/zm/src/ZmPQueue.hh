@@ -86,13 +86,16 @@ public:
 
   // clipHead()/clipTail() remove elements from the item's head or tail
   // to resolve overlaps
-  // clipHead()/clipTail() can just return 1 if the item length is always 1,
-  // or do nothing and return the unchanged length if items are guaranteed
-  // never to overlap; these functions return the length remaining in the item
+  // - if Overlap is false these functions are unused and do not need to exist
+  // - clipHead()/clipTail() can just return 1 if the item length is always 1,
+  //   or do nothing and return the unchanged length if items never overlap
+  //   (in this case it is more performant to use ZmPQueueOverlap<false>)
+  // - these functions return the length remaining in the item
   unsigned clipHead(unsigned n) { return m_item.clipHead(n); }
   unsigned clipTail(unsigned n) { return m_item.clipTail(n); }
 
   // write() overwrites overlapping data from item
+  // - if Overlap is false this function is unused and does not need to exist
   void write(const ZmPQueueDefaultFn &item) {
     m_item.write(item.m_item);
   }
@@ -706,18 +709,19 @@ public:
   };
 
 private:
-  void clipHead_(Key key) {
+  void purge(Key key) {
     while (Node *node = m_head[0]) {
       Fn item{node->Node::data()};
       Key key_ = item.key();
       if (key_ >= key) return;
       Key end_ = key_ + item.length();
-      if (end_ > key) {
-	if (unsigned length = item.clipHead(key - key_)) {
-	  m_length -= (end_ - key_) - length;
-	  return;
+      if constexpr (Overlap)
+	if (end_ > key) {
+	  if (unsigned length = item.clipHead(key - key_)) {
+	    m_length -= (end_ - key_) - length;
+	    return;
+	  }
 	}
-      }
       delHead_<0>();
       nodeDeref(node);
       nodeDelete(node);
@@ -737,7 +741,7 @@ public:
       clean_();
       m_headKey = m_tailKey = key;
     } else {
-      clipHead_(key);
+      purge(key);
       m_headKey = key;
       if (key > m_tailKey) m_tailKey = key;
     }
@@ -770,10 +774,11 @@ public:
 
     if (ZuUnlikely(key >= m_headKey)) return;
 
-    if (ZuUnlikely(end > m_headKey)) { // clip tail
-      length = item.clipTail(end - m_headKey);
-      end = key + length;
-    }
+    if constexpr (Overlap)
+      if (ZuUnlikely(end > m_headKey)) { // clip tail
+	length = item.clipTail(end - m_headKey);
+	end = key + length;
+      }
 
     if (ZuUnlikely(!length)) return;
 
@@ -818,9 +823,7 @@ private:
       return addTail_<Dequeue>(ZuMv(node), end, length, addSeqNo);
 
     if (ZuLikely(key == m_headKey)) { // common case - in-order at head
-      if constexpr (Overlap)
-	clipHead_(end); // remove overlapping data from queue
-
+      purge(end); // remove overlapping data from queue
       return addHead_<Dequeue>(ZuMv(node), end, length, addSeqNo);
     }
 
