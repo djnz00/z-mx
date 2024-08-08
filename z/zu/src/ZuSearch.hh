@@ -26,30 +26,29 @@ template <
   bool Match = true,
   typename Array,
   typename Cmp,
-  typename T = decltype(ZuDeclVal<const Array &>()[0]),
-  decltype(
-    ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>(),
-    int()) = 0>
-inline unsigned ZuSearch(const Array &data, unsigned n, Cmp cmp) {
+  typename T = decltype(ZuDeclVal<const Array &>()[0])>
+inline auto ZuSearch(const Array &data, unsigned n, Cmp cmp) ->
+ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>())), unsigned>
+{
   if (!n) return 0;
   unsigned o = 0;
-  int m = n>>1;
-  int v1 = cmp(data[m]);
+  unsigned p = n>>1;
+  int l = cmp(data[p]);
   while (n > 2) {
-    n -= m;
-    if (v1 > 0) o += m;
-    v1 = cmp(data[o + (m = n>>1)]);
+    n -= p;
+    if (l > 0) o += p;
+    l = cmp(data[o + (p = n>>1)]);
   }
-  int v2;
+  int r;
   if (n == 2) {
-    if (v1 > 0) return (o + 2)<<1;
-    v2 = v1;
-    v1 = cmp(data[o]);
+    if (l > 0) return (o + 2)<<1;
+    r = l;
+    l = cmp(data[o]);
   }
-  if constexpr (Match) if (!v1) return (o<<1) | 1;
-  if (v1 <= 0) return o<<1;
+  if constexpr (Match) if (!l) return (o<<1) | 1;
+  if (l <= 0) return o<<1;
   if (n == 1) return (o + 1)<<1;
-  if constexpr (Match) if (!v2) return ((o + 1)<<1) | 1;
+  if constexpr (Match) if (!r) return ((o + 1)<<1) | 1;
   return (o + 1)<<1;
 }
 template <
@@ -73,48 +72,59 @@ template <
   bool Match = true,
   typename Array,
   typename Cmp,
-  typename T = decltype(ZuDeclVal<const Array &>()[0]),
-  decltype(
-    ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>()))>(),
-    int()) = 0>
-inline unsigned ZuInterSearch(const Array &data, unsigned n, Cmp cmp) {
+  typename T = decltype(ZuDeclVal<const Array &>()[0])>
+inline auto ZuInterSearch(const Array &data, unsigned n, Cmp cmp) ->
+ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>())), unsigned>
+{
   if (!n) return 0;
   if (n <= 2) { // special case for small arrays
-    int v1 = cmp(data[0]);
-    if constexpr (Match) if (!v1) return 1;
-    if (v1 <= 0) return 0;
+    // std::cout << "cmp(0)\n";
+    int l = cmp(data[0]);
+    if constexpr (Match) if (!l) return 1;
+    if (l <= 0) return 0;
     if (n == 1) return 2;
-    int v2 = cmp(data[1]);
-    if constexpr (Match) if (!v2) return 3;
-    if (v2 <= 0) return 2;
+    // std::cout << "cmp(1)\n";
+    int r = cmp(data[1]);
+    if constexpr (Match) if (!r) return 3;
+    if (r <= 0) return 2;
     return 4;
   }
   unsigned o = 0;
-  int v1 = cmp(data[0]);
-  int v2 = cmp(data[n - 1]);
-  if constexpr (Match) if (!v1) return 1;
-  if (v1 <= 0) return 0;
-  if (v2 > 0) return n<<1;
+  // std::cout << "cmp(0)\n";
+  int l = cmp(data[0]);
+  // std::cout << "cmp(" << (n - 1) << ")\n";
+  int r = cmp(data[n - 1]);
+  if constexpr (Match) if (!l) return 1;
+  if (l <= 0) return 0;
+  if (r > 0) return n<<1;
   if (n == 3) {
-    v2 = cmp(data[1]);
+    r = cmp(data[1]);
   } else {
     do {
-      unsigned m = ((n - 3) * v1) / (v1 - v2) + 1;
-      int v3 = cmp(data[o + m]);
-      n -= m;
-      if (v3 <= 0) {
-	v2 = v3;
+      unsigned p;
+      if (n <= 8)
+	p = n>>1; // use binary search for small partitions
+      else {
+	unsigned d = l - r; // "distance" of left-to-right value span
+	p = ((n - 3) * l + (d>>1)) / d + 1; // left/right interpolated pivot
+      }
+      int m = cmp(data[o + p]);
+      // std::cout << "l=" << l << " r=" << r << " p=" << p << " o=" << o << " n=" << n << " cmp(" << (o + p) << ")=" << m << "\n";
+      if (m <= 0) {
+	n = p;
+	r = m;
       } else {
-	o += m;
-	v1 = v3;
+	o += p;
+	n -= p;
+	l = m;
       }
     } while (n > 2);
-    if constexpr (Match) if (!v1) return (o<<1) | 1;
-    if (v1 <= 0) return o<<1;
+    if constexpr (Match) if (!l) return (o<<1) | 1;
+    if (l <= 0) return o<<1;
     if (n == 1) return (o + 1)<<1;
   }
-  if constexpr (Match) if (!v2) return ((o + 1)<<1) | 1;
-  if (v2 <= 0) return (o + 1)<<1;
+  if constexpr (Match) if (!r) return ((o + 1)<<1) | 1;
+  if (r <= 0) return (o + 1)<<1;
   return (o + 2)<<1;
 }
 template <
