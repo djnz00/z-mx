@@ -52,6 +52,15 @@
 
 namespace Zdf {
 
+// monomorphic ZeEvent
+using Event = ZeVEvent;
+
+// DB state
+namespace DBState {
+  ZtEnumValues(DBState, int,
+    Uninitialized = 0, Initialized, Opening, Opened, OpenFailed);
+}
+
 // typedefs for (de)encoders
 using AbsDecoder = ZdfCompress::Decoder;
 template <typename Base>
@@ -150,22 +159,22 @@ private:
   template <typename Reader>
   void initFn_() {
     m_readFn = [](AnyReader *this_, ZuFixed &v) {
-      return this_->ptr_<Index<Reader>{}>()->read(v);
+      return this_->ptr_<Reader>()->read(v);
     };
     m_seekFwdFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Index<Reader>{}>()->seekFwd(offset);
+      this_->ptr_<Reader>()->seekFwd(offset);
     };
     m_seekRevFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Index<Reader>{}>()->seekRev(offset);
+      this_->ptr_<Reader>()->seekRev(offset);
     };
     m_findFwdFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Index<Reader>{}>()->findFwd(value);
+      this_->ptr_<Reader>()->findFwd(value);
     };
     m_findRevFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Index<Reader>{}>()->findRev(value);
+      this_->ptr_<Reader>()->findRev(value);
     };
     m_offsetFn = [](const AnyReader *this_) {
-      return this_->ptr_<Index<Reader>{}>()->offset();
+      return this_->ptr_<Reader>()->offset();
     };
   }
 
@@ -229,10 +238,10 @@ private:
   template <typename Writer>
   void initFn_() {
     m_writeFn = [](AnyWriter *this_, const ZuFixed &v) {
-      return this_->ptr_<Index<Writer>{}>()->write(v);
+      return this_->ptr_<Writer>()->write(v);
     };
     m_syncFn = [](AnyWriter *this_) {
-      this_->ptr_<Index<Writer>{}>()->sync();
+      this_->ptr_<Writer>()->sync();
     };
   }
 
@@ -254,36 +263,52 @@ using Fields = ZuTypeGrep<FieldFilter, ZuFields<T>>;
 template <typename T>
 auto fields() { return ZtVFields_<Fields<T>>(); }
 
-class ZdfAPI Mgr {
+using OpenFn = ZmFn<void(bool)>;	// (bool ok)
+using OpenDFFn = ZmFn<void(ZmRef<DataFrame>)>;
+using OpenSeriesFn = ZmFn<void(ZmRef<Series>)>;
+
+class ZdfAPI DB {
 public:
   void init(ZvCf *, Zdb *);
   void final();
 
-  // user DB thread (may be shared)
+  // convert shard to thread slot ID
+  auto sid(unsigned shard) const {
+    return m_sid[shard & (m_sid.length() - 1)];
+  }
+
+  // dataframe threads (may be shared by app workloads)
   template <typename ...Args>
   void run(unsigned shard, Args &&...args) const {
-    m_mx->run(m_sid, ZuFwd<Args>(args)...);
+    m_mx->run(sid(shard), ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
   void invoke(unsigned shard, Args &&...args) const {
-    m_mx->invoke(m_sid, ZuFwd<Args>(args)...);
+    m_mx->invoke(sid(shard), ZuFwd<Args>(args)...);
   }
-  bool invoked(unsigned shard) const { return m_mx->invoked(m_sid[shard]); }
+  bool invoked(unsigned shard) const { return m_mx->invoked(sid(shard)); }
 
-  // open
-  DataFrame open(ZuString name);
+  void open(OpenFn);			// establishes nextDFID, nextSeriesID
+  void close();
 
-  ZmRef<DataFrame> open(ZtString name);
-  void close(DataFrame *);
-
-  void open(ZtString name); // FIXME
-  void close(ZtString name); // FIXME
+  // open data frame
+  void openDF(
+    unsigned shard, ZuString name, bool create,
+    const ZtVFieldArray &fields, bool timeIndex, OpenDFFn);
+  // open series
+  void openSeries(
+    unsigned shard, ZuString name, bool create, OpenSeriesFn);
 
 private:
+  DBState::T			m_state = DBState::Uninitialized;
+  unsigned			m_maxSeriesBlks = 1000000;
   ZdbTblRef<DB::DataFrame>	m_dataFrameTbl;
   ZdbTblRef<DB::Series>		m_seriesTbl;
   ZdbTblRef<DB::BlkHdr>		m_blkHdrTbl;
   ZdbTblRef<DB::BlkData>	m_blkDataTbl;
+  ZdbTableCf::SIDArray		m_sid;
+  ZmAtomic<uint32_t>		m_nextDFID = 1;
+  ZmAtomic<uint32_t>		m_nextSeriesID = 1;
 };
 
 class ZdfAPI DataFrame {
@@ -292,28 +317,19 @@ class ZdfAPI DataFrame {
   DataFrame &operator =(const DataFrame &) = delete;
   DataFrame(DataFrame &&) = delete;
   DataFrame &operator =(DataFrame &&) = delete;
+
+  friend class DB;
+
 public:
   ~DataFrame() = default;
 
   DataFrame(
-    Mgr *mgr, const ZtVFieldArray &fields, ZuString name, bool timeIndex = false);
+    DB *db, const ZtVFieldArray &fields,
+    ZuString name, bool timeIndex = false);
 
   const ZtString &name() const { return m_name; }
   const ZuTime &epoch() const { return m_epoch; }
 
-  void open(OpenFn fn); // FIXME - this is actually a get()
-private:
-  void openSeries();
-  void openedSeries(OpenResult);
-  void openFailed(OpenResult);
-public:
-  void close(CloseFn fn);
-private:
-  void closeSeries();
-  void closedSeries(CloseResult);
-  void closeFailed(CloseResult);
-
-public:
   class ZdfAPI Writer {
     Writer(const Writer &) = delete;
     Writer &operator =(const Writer &) = delete;
@@ -400,8 +416,7 @@ private:
 public:
   ZuFixed nsecs(ZuTime t) {
     t -= m_epoch;
-    return ZuFixed{
-      static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9 };
+    return ZuFixed{static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9};
   }
   ZuTime time(const ZuFixed &v) {
     uint64_t n = v.adjust(9);
@@ -417,9 +432,9 @@ private:
   Zfb::Offset<fbs::DataFrame> save_(Zfb::Builder &);
 
 private:
-  Mgr				*m_mgr = nullptr;
+  DB				*m_db = nullptr;
   ZtString			m_name;
-  ZtArray<ZuPtr<Series>>	m_series;
+  ZtArray<ZdbObjRef<DB::Series>>	m_series;
   ZtArray<const ZtVField *>	m_fields;
   ZdbObjRef<DB::DataFrame>	m_dbObj;
 

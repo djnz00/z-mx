@@ -18,7 +18,6 @@
 
 #include <zlib/ZmHash.hh>
 
-#include <zlib/ZtJoin.hh>
 #include <zlib/ZtCase.hh>
 
 #include <zlib/ZeLog.hh>

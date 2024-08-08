@@ -67,12 +67,11 @@ using MxID = ZuID; // Note: different than MxIDString
 
 using MxDecimal = ZuDecimal;
 
-// FIXME - rename to be consistent with ZuFixed (NDP -> Exp, etc.)
 using MxValue = ZuFixedVal;	// fixed point value (numerator)
 #define MxValueMin ZuFixedMin
 #define MxValueMax ZuFixedMax
 #define MxValueReset ZuFixedReset
-using MxNDP = ZuFixedExp;	// number of decimal places (log10(denominator))
+using MxNDP = ZuFixedNDP;	// number of decimal places (log10(denominator))
 using MxValNDP = ZuFixed;
 
 using MxRatio = MxUInt8;	// ratio numerator (orders w/ multiple legs)

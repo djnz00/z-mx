@@ -1011,6 +1011,8 @@ public:
     instance()->all_(ZuMv(l));
   }
 
+  static ZiMultiplex *find(ZuID id);
+
 private:
   static void add(ZiMultiplex *);
   static void del(ZiMultiplex *);

@@ -25,52 +25,58 @@
 namespace Zdf::DB {
 
 struct DataFrame {
-  uint32_t	id;
-  ZuDateTime	epoch;
+  uint32_t	id;		// 1-based
   ZtString	name;
+  ZuDateTime	epoch;
 };
 ZfbFields(DataFrame,
-  (((id),	(Ctor<0>, Keys<0>)),		(UInt32)),
-  (((name),	(Ctor<2>, Keys<1>, Mutable)),	(String)),
-  (((epoch),	(Ctor<1>)),			(DateTime)));
+  (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
+  (((name),	(Ctor<1>, Keys<1>, Mutable)),		(String)),
+  (((epoch),	(Ctor<2>)),				(DateTime)));
 
 struct Series {
-  uint32_t	dfID;
-  uint32_t	id;
+  uint32_t	id;		// 1-based
+  uint32_t	dfid;		// 0 is null
   ZtString	name;
+  ZuFixed	first;		// first value in first block
+  ZuDateTime	epoch;		// intentionally denormalized
+  uint32_t	blkOffset;	// first block
 };
 ZfbFields(Series,
-  (((dfID),	(Ctor<0>, Keys<0>, Group<0>)),	(UInt32)),
-  (((id),	(Ctor<1>, Keys<0>)),		(String)),
-  (((name),	(Ctor<2>, Keys<1>, Mutable)),	(DateTime)));
+  (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
+  (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
+  (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
+  (((first),	(Ctor<3>, Mutable)),			(Fixed)),
+  (((epoch),	(Ctor<4>)),				(DateTime)),
+  (((blkOffset),(Ctor<5>, Mutable)),			(UInt32)));
 
 struct BlkHdr {
-  uint32_t	seriesID;
-  uint32_t	blkID;
+  uint64_t	blkOffset;
   uint64_t	offset;
   int64_t	last;
+  uint32_t	seriesID;
   uint16_t	count;
   uint8_t	ndp;
 };
 ZfbFields(BlkHdr,
-  (((seriesID),	(Ctor<0>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkID),	(Ctor<1>, Keys<0>, Descend<0>)),		(UInt32)),
-  (((offset),	(Ctor<2>, Mutable)),				(UInt64)),
-  (((last),	(Ctor<3>, Mutable)),				(Int64)),
+  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
+  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
+  (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
+  (((last),	(Ctor<2>, Mutable)),				(Int64)),
   (((count),	(Ctor<4>, Mutable)),				(UInt16)),
   (((ndp),	(Ctor<5>, Mutable)),				(UInt8)));
 
-enum { BlkSize = 4096 };
+enum { BufSize = 4096 };
 
 struct BlkData {
-  uint32_t	seriesID;
-  uint32_t	blkID;
-  uint8_t	data[BlkSize];
+  uint64_t			blkOffset;
+  uint32_t			seriesID;
+  ZyArrayN<uint8_t, BlkSize>	buf;
 };
 ZfbFields(BlkData,
-  (((seriesID),	(Ctor<0>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkID),	(Ctor<1>, Keys<0>, Descend<0>)),		(UInt32)),
-  (((data),	(Mutable)),					(Bytes)));
+  (((seriesID),	(Ctor<1>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
+  (((blkID),	(Ctor<0>, Keys<0>, Descend<0>)),		(UInt32)),
+  (((buf),	(Mutable)),					(Bytes)));
 
 } // Zdf::DB
 

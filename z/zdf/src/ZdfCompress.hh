@@ -5,12 +5,12 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // 64bit data series compression
-// * byte-aligned
-// * signed data
-// * Huffman-coded length prefix
-// * single-byte RLE
-// * efficient random-access (seeking) and interpolation searching
-// * absolute, delta (first derivative), and delta-of-delta (second derivative)
+// - byte-aligned
+// - signed data
+// - Huffman-coded length prefix
+// - single-byte RLE
+// - efficient random-access (seeking) and interpolation searching
+// - absolute, delta (first derivative), and delta-of-delta (second derivative)
 
 #ifndef ZdfCompress_HH
 #define ZdfCompress_HH

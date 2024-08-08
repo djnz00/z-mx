@@ -17,8 +17,7 @@ ${FBS_H}: %_fbs.h: fbs/%.fbs
 BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZdfLib.hh \
-	ZdfTypes.hh ZdfCompress.hh ZdfBuf.hh \
-	ZdfStore.hh ZdfMockStore.hh ZdfFileStore.hh \
+	ZdfTypes.hh ZdfCompress.hh ZdfSchema.hh ZdfBlk.hh \
 	Zdf.hh ZdfSeries.hh ZdfStats.hh \
 	${FBS_H} \
 	stats_tree.hh

@@ -5,11 +5,11 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // Data Series
-// * chunked into blocks
-// * compressed (see ZdfCompress)
-// * indexable (if monotonically increasing, e.g. time series)
-// * support archiving of old data with purge()
-// * in-memory or file-backed (see ZdfMem / ZdfFile)
+// - chunked into blocks
+// - compressed (see ZdfCompress)
+// - indexable (if monotonically increasing, e.g. time series)
+// - support archiving of old data with purge()
+// - in-memory or file-backed (see ZdfMem / ZdfFile)
 
 #ifndef ZdfSeries_HH
 #define ZdfSeries_HH
@@ -23,12 +23,13 @@
 #include <zlib/ZuSort.hh>
 
 #include <zlib/ZmRef.hh>
+#include <zlib/ZmPQueue.hh>
 
 #include <zlib/ZtArray.hh>
 
 #include <zlib/ZdfTypes.hh>
-#include <zlib/ZdfBuf.hh>
-#include <zlib/ZdfStore.hh>
+#include <zlib/ZdfSchema.hh>
+#include <zlib/ZdfBlk.hh>
 
 namespace Zdf {
 
@@ -128,7 +129,7 @@ public:
 
   void purge() {
     if (ZuUnlikely(!*this)) return;
-    const_cast<Series *>(m_series)->purge_(m_buf->blkIndex);
+    const_cast<Series *>(m_series)->purge_(m_buf->blkOffset);
   }
 
   uint64_t offset() const {
@@ -216,71 +217,163 @@ private:
   Encoder	m_encoder;
 };
 
-class Series {
+// each IndexBlk contains Blk[512]
+inline constexpr const unsigned IndexBlkShift() { return 9; }
+inline constexpr const unsigned IndexBlkSize() { return 1<<IndexBlkShift(); }
+inline constexpr const unsigned IndexBlkMask() {
+  return ~((~0U)<<IndexBlkShift());
+}
+
+struct IndexBlk_ : public ZuObject {
+  uint64_t	offset;			// block offset
+  Blk		blks[IndexBlkSize()];
+};
+struct IndexBlk_Fn {
+  IndexBlk_	&indexBlk;
+
+  using Key = uint64_t;
+  ZuInline uint64_t key() const { return indexBlk.offset; }
+  ZuInline unsigned length() const { return IndexBlkSize(); }
+};
+inline constexpr const char *IndexBlk_HeapID() { return "Zdf.IndexBlk"; }
+using IndexQueue =
+  ZmPQueue<IndexBlk_,
+    ZmPQueueFn<IndexBlk_Fn,
+      ZmPQueueNode<IndexBlk_,
+	ZmPQueueStats<false,
+	  ZmPQueueOverlap<false,
+	    ZmPQueueBits<3,
+	      ZmPQueueLevels<3,
+		ZmPQueueHeapID<IndexBlk_HeapID>>>>>>>>;
+using IndexBlk = IndexQueue::Node;
+
+class Index {
+public:
+  void init(unsigned blkOffset) { m_queue.head(blkOffset); }
+  void final() { m_queue.reset(0); }
+
+  uint64_t head() const { return m_queue.head(); }
+
+  const Blk *get(unsigned blkOffset) const {
+    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
+    if (!indexBlk) return nullptr;
+    return &indexBlk->blks[blkOffset - indexBlk->offset];
+  }
+
+  Blk *set(unsigned blkOffset) {
+    if (ZuUnlikely(blkOffset < m_queue.head())) return nullptr;
+    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
+    if (!indexBlk)
+      m_queue.add(indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask()});
+    return &indexBlk->data[blkOffset - indexBlk->offset];
+  }
+
+  void purge(unsigned blkOffset) {
+    blkOffset &= ~IndexBlkMask();
+    if (blkOffset < m_queue.head()) return; // prevent inadvertent reset
+    m_queue.head(blkOffset);
+  }
+
+private:
+  IndexQueue	m_queue;
+};
+
+class Series : public ZdbObject<DB::Series> {
 template <typename, typename> friend class Reader;
 template <typename, typename> friend class Writer;
 
-public:
-  Series() = default;
-  ~Series() { final(); }
+using ID = uint32_t;
 
-  void init(Store *store) {
-    m_store = store;
-    m_seriesID = store->alloc(
-	BufUnloadFn{this, [](Series *this_, BufLRUNode *node) {
-	  this_->unloadBuf(node);
-	}});
+private:
+  Series(DB *db, unsigned shard) : m_db{db}, m_shard{shard} { pin(); }
+  ~Series() { }
+
+public:
+  DB *db() const { return m_db; }
+  unsigned shard() const { return m_shard; }
+  DataFrame *df() const { return m_df; }
+  ID id() const { return data().id; }
+
+private:
+  void init(DataFrame *df) {
+    m_df = df;
   }
   void final() {
-    if (m_store) m_store->free(m_seriesID);
-    m_blks.null();
+    unpin();
+    m_index.final();
   }
 
-  Store *store() const { return m_store; }
-  unsigned seriesID() const { return m_seriesID; }
-
-protected:
-  void open_(unsigned blkOffset, OpenFn openFn) {
-    m_blkOffset = blkOffset;
-    Hdr hdr;
-    for (unsigned i = 0; loadHdr(i + blkOffset, hdr); i++)
-      new (Blk::new_<Hdr>(m_blks.push())) Hdr{hdr};
-    openFn(OpenResult{});
+private:
+  bool loadBlk(const ZuFieldTuple<DB::BlkHdr> &row) {
+    auto blkHdr = m_index.set(row.p<1>());
+    if (!blkHdr) return false;
+    blkHdr->init(row.p<2>(), row.p<4>(), row.p<5>(), row.p<3>());
+    return true;
   }
 
-public:
-  void open(ZuString parent, ZuString name, OpenFn openFn) {
-    m_store->open(m_seriesID, parent, name,
-	[this, openFn = ZuMv(openFn)](Store_::OpenResult result) {
-	  if (result.is<Store_::OpenData>()) {
-	    open_(result.p<Store_::OpenData>().blkOffset, ZuMv(openFn));
-	  } else if (result.is<Event>()) {
-	    openFn(OpenResult{ZuMv(result).p<Event>()});
+  // open series and fill index
+  void open(OpenSeriesFn fn) {
+    m_index.init(data().blkOffset);
+    m_db->m_blkHdrTbl->selectRows<0>(
+      ZuFwdTuple(data().id), IndexBlkSize(), ZuLambda{[
+	this, fn = ZuMv(fn)
+      ](auto &&self, auto result, unsigned) mutable {
+	if (m_opened) return; // index filled, callback already called - ignore
+	using Row = ZuFieldTuple<DB::BlkHdr>;
+	if (result.template is<Row>()) { // fill index
+	  m_openBlkOffset = result.template p<Row>().template p<1>();
+	  if (!loadBlk(result.template p<Row>())) {
+	    m_opened = true;
+	    fn(this);
 	  }
-	});
-  }
-  void close(CloseFn closeFn) {
-    // assumes CloseFn is same type as Store_::CloseFn
-    m_store->close(m_seriesID, ZuMv(closeFn));
+	} else { // complete
+	  if (!m_openBlkOffset) {
+	    m_opened = true;
+	    fn(this);
+	  } else {
+	    auto openBlkOffset = m_openBlkOffset;
+	    m_openBlkOffset = 0;
+	    nextRows<0>(
+	      ZuFwdTuple(data().id, openBlkOffset), false,
+	      IndexBlkSize(), ZuMv(self));
+	  }
+	}
+      }});
   }
 
   // number of blocks
-  unsigned blkCount() const { return m_blks.length(); }
+  unsigned blkCount() const { return m_index.tail() - m_index.head(); }
+
+  BlkHdr *lastBlk() const {
+    auto blk = m_index.get(m_index.tail() - 1);
+    ZeAssert(blk,
+      (id = data().id, head = m_index.head(), tail = m_index.tail()),
+      "id=" << id << " head=" << head << " tail=" << tail, return nullptr);
+    return blk;
+  }
 
   // value count (length of series in #values)
   uint64_t count() const {
-    unsigned n = m_blks.length();
-    if (ZuUnlikely(!n)) return 0;
-    auto hdr = this->hdr(m_blks[n - 1]);
-    return hdr->offset() + hdr->count();
+    if (ZuUnlikely(m_index.tail() == m_index.head())) return 0;
+    auto blk = lastBlk();
+    ZeAssert(blk,
+      (id = data().id, head = m_index.head(), tail = m_index.tail()),
+      "id=" << id << " head=" << head << " tail=" << tail, return 0);
+    return blk->offset() + hdr->count();
   }
 
   // length in bytes (compressed)
   uint64_t length() const {
-    unsigned n = m_blks.length();
+    unsigned n = blkCount();
     if (ZuUnlikely(!n)) return 0;
-    auto hdr = this->hdr(m_blks[n - 1]);
-    return (n - 1) * BufSize + hdr->length();
+    auto blk = lastBlk();
+    ZeAssert(blk,
+      (id = data().id, head = m_index.head(), tail = m_index.tail()),
+      "id=" << id << " head=" << head << " tail=" << tail, return 0);
+    ZeAssert(blk->blkData,
+      (id = data().id, head = m_index.head(), tail = m_index.tail()),
+      "id=" << id << " head=" << head << " tail=" << tail, return n * BlkSize);
+    return (n - 1) * BlkSize + blk->blkData->data().buf.length();
   }
 
   template <typename Decoder>
@@ -296,118 +389,94 @@ public:
   auto writer() { return Writer<Series, Encoder>{this}; }
 
 private:
-  using Blk = ZuUnion<Hdr, ZmRef<Buf>>; // FIXME
-					// always ZdbObjRef<BlkHdr>
-					// "weak" ZdbObjRef<BlkData>,
-					// nulled on eviction
-
-  static const Hdr *hdr_(const ZuNull &) { return nullptr; } // never called
-  static const Hdr *hdr_(const Hdr &hdr) { return &hdr; }
-  static const Hdr *hdr_(const ZmRef<Buf> &buf) { return buf->hdr(); }
-  static const Hdr *hdr(const Blk &blk) {
-    return blk.cdispatch([](auto, auto &&v) { return hdr_(v); });
+  void loadBlk(unsigned blkOffset, ZmFn<void(BlkHdr *)> fn) const {
+    auto hdr = m_index.get(blkOffset);
+    if (ZuUnlikely(!hdr)) return nullptr;
+    if (hdr->blkData) { fn(hdr); return; }
+    db()->loadBlk(id(), blkOffset, [
+      fn = ZuMv(fn)
+    ](ZmRef<BlkData> blkData) mutable {
+      hdr->blkData = ZuMv(blkData);
+      fn(hdr);
+    });
   }
 
-  Buf *loadBuf(unsigned blkIndex) const {
-    auto &blk = m_blks[blkIndex];
-    ZmRef<Buf> buf;
-    Buf *buf_;
-    if (ZuLikely(blk.is<ZmRef<Buf>>())) {
-      buf_ = blk.p<ZmRef<Buf>>().ptr();
-      m_store->use(buf_);
-    } else {
-      if (ZuUnlikely(!blk.is<Hdr>())) return nullptr;
-      m_store->shift(); // might call unloadBuf()
-      buf = load(blkIndex + m_blkOffset);
-      if (!buf) return nullptr;
-      buf_ = buf.ptr();
-      const_cast<Blk &>(blk).p<ZmRef<Buf>>(ZuMv(buf));
-      m_store->push(buf_);
-    }
-    return buf_;
-  }
-
-  void unloadBuf(BufLRUNode *node) {
-    auto &lruBlk = m_blks[node->blkIndex];
-    if (ZuLikely(lruBlk.is<ZmRef<Buf>>())) {
-      Hdr hdr = *(lruBlk.p<ZmRef<Buf>>()->hdr());
-      lruBlk.p<Hdr>(hdr);
-    }
+  void unloadBlk(unsigned blkOffset) {
+    auto hdr = m_index.get(blkOffset);
+    if (ZuUnlikely(!hdr)) return nullptr;
+    hdr->blkData = nullptr;
   }
 
   template <typename Decoder>
-  Decoder seek_(
-      ZmRef<Buf> &buf, unsigned search, uint64_t offset) const {
-    unsigned blkIndex = ZuSearchPos(search);
-    if (blkIndex >= m_blks.length()) goto null;
-    if (!(buf = loadBuf(blkIndex))) goto null;
-    {
-      auto reader = buf->reader<Decoder>();
-      auto offset_ = buf->hdr()->offset();
+  void seek_(unsigned search, uint64_t offset, ZmFn<void(Decoder)> fn) const {
+    loadBlk(ZuSearchPos(search), [fn = ZuMv(fn)](Blk *blk) {
+      if (ZuUnlikely(!blk)) goto null;
+      auto reader = blk->reader<Decoder>();
+      uint64_t offset_ = blk()->offset();
       if (offset_ >= offset) return reader;
       if (!reader.seek(offset - offset_)) goto null;
-      return reader;
-    }
-  null:
-    buf = nullptr;
-    return Decoder{};
+      fn(ZuMv(reader));
+      return;
+    null:
+      fn(Decoder{});
+    });
   }
   template <typename Decoder>
-  Decoder find_(
-      ZmRef<Buf> &buf, unsigned search, const ZuFixed &value_) const {
-    unsigned blkIndex = ZuSearchPos(search);
-    if (blkIndex >= m_blks.length()) goto null;
-    if (!(buf = loadBuf(blkIndex))) goto null;
-    {
-      auto reader = buf->reader<Decoder>();
-      bool found = reader.search(
-	  [mantissa = value_.adjust(buf->hdr()->ndp())](
-	    int64_t skip, unsigned count) -> unsigned {
-	      return skip < mantissa ? count : 0;
-	    });
+  void find_(unsigned search, ZuFixed value, ZmFn<void(Decoder)> fn) const {
+    loadBlk(ZuSearchPos(search), [value, fn = ZuMv(fn)](Blk *blk) {
+      if (ZuUnlikely(!blk)) goto null;
+      auto reader = blk->reader<Decoder>();
+      bool found = reader.search([
+	mantissa = value.adjust(blk()->ndp())
+      ](int64_t skip, unsigned count) -> unsigned {
+	return skip < mantissa ? count : 0;
+      });
       if (!found) goto null;
-      return reader;
-    }
-  null:
-    buf = nullptr;
-    return Decoder{};
+      fn(ZuMv(reader));
+      return;
+    null:
+      fn(Decoder{});
+    });
   }
 
+  // FIXME - ZuInterSearch -> ZuSearch.hh
+  // ZuSearch / ZuInterSearch -> generic array with [] operator
+  // Series Blk Index -> add array operator (uses get/set)
+
   auto seekFn(uint64_t offset) const {
-    return [offset](const Blk &blk) -> int {
-      auto hdr = Series::hdr(blk);
-      auto hdrOffset = hdr->offset();
-      if (offset < hdrOffset) return -static_cast<int>(hdrOffset - offset);
-      hdrOffset += hdr->count();
-      if (offset >= hdrOffset) return static_cast<int>(offset - hdrOffset) + 1;
+    return [offset](const Blk *blk) -> int {
+      auto hdrOffset = blk->offset();
+      if (offset < hdrOffset) return -int(hdrOffset - offset);
+      hdrOffset += blk->count();
+      if (offset >= hdrOffset) return int(offset - hdrOffset) + 1;
       return 0;
     };
   }
   template <typename Decoder>
   auto findFn(const ZuFixed &value) const {
     return [this, value](const Blk &blk) -> int {
-      unsigned blkIndex = &const_cast<Blk &>(blk) - &m_blks[0];
-      auto buf = loadBuf(blkIndex);
+      unsigned blkOffset = &const_cast<Blk &>(blk) - &m_blks[0];
+      auto buf = loadBuf(blkOffset); // FIXME - first can be the previous buffer's last, no need to load the buffer here; meanwhile the series first can be in the series
       if (!buf) return -1;
       auto reader = buf->template reader<Decoder>();
       auto hdr = buf->hdr();
-      ZuFixed value_{static_cast<int64_t>(0), hdr->ndp()};
+      ZuFixed value_{int64_t(0), hdr->ndp()};
       ZuFixedVal mantissa;
       if (!reader.read(mantissa)) return -1;
       mantissa = value_.adjust(value.ndp());
       if (value.mantissa() < mantissa) {
 	int64_t delta = mantissa - value.mantissa();
-	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))
+	if (ZuUnlikely(delta >= int64_t(INT_MAX)))
 	  return INT_MIN;
-	return -static_cast<int>(delta);
+	return -int(delta);
       }
       value_.mantissa(hdr->last);
       mantissa = value_.adjust(value.ndp());
       if (value.mantissa() > mantissa) {
 	int64_t delta = value.mantissa() - mantissa;
-	if (ZuUnlikely(delta >= static_cast<int64_t>(INT_MAX)))
+	if (ZuUnlikely(delta >= int64_t(INT_MAX)))
 	  return INT_MAX;
-	return static_cast<int>(delta);
+	return int(delta);
       }
       return 0;
     };
@@ -423,14 +492,14 @@ private:
   Decoder seekFwd(ZmRef<Buf> &buf, uint64_t offset) const {
     return seek_<Decoder>(buf,
 	ZuInterSearch(
-	  &m_blks[buf->blkIndex], m_blks.length() - buf->blkIndex,
+	  &m_blks[buf->blkOffset], m_blks.length() - buf->blkOffset,
 	  seekFn(offset)),
 	offset);
   }
   template <typename Decoder>
   Decoder seekRev(ZmRef<Buf> &buf, uint64_t offset) const {
     return seek_<Decoder>(buf,
-	ZuInterSearch(&m_blks[0], buf->blkIndex + 1, seekFn(offset)),
+	ZuInterSearch(&m_blks[0], buf->blkOffset + 1, seekFn(offset)),
 	offset);
   }
 
@@ -446,7 +515,7 @@ private:
   Decoder findFwd(ZmRef<Buf> &buf, const ZuFixed &value) const {
     return find_<Decoder>(buf,
 	ZuInterSearch(
-	  &m_blks[buf->blkIndex], m_blks.length() - buf->blkIndex,
+	  &m_blks[buf->blkOffset], m_blks.length() - buf->blkOffset,
 	  findFn<Decoder>(value)),
 	value);
   }
@@ -454,16 +523,16 @@ private:
   Decoder findRev(ZmRef<Buf> &buf, const ZuFixed &value) const {
     return find_<Decoder>(buf,
 	ZuInterSearch(
-	  &m_blks[0], buf->blkIndex + 1,
+	  &m_blks[0], buf->blkOffset + 1,
 	  findFn<Decoder>(value)),
 	value);
   }
 
   template <typename Decoder>
   Decoder nextDecoder(ZmRef<Buf> &buf) const {
-    unsigned blkIndex = buf->blkIndex + 1;
-    if (blkIndex >= m_blks.length()) goto null;
-    if (!(buf = loadBuf(blkIndex))) goto null;
+    unsigned blkOffset = buf->blkOffset + 1;
+    if (blkOffset >= m_blks.length()) goto null;
+    if (!(buf = loadBuf(blkOffset))) goto null;
     return buf->reader<Decoder>();
   null:
     buf = nullptr;
@@ -476,41 +545,31 @@ private:
   }
   template <typename Encoder>
   Encoder nextEncoder(ZmRef<Buf> &buf) {
-    unsigned blkIndex;
+    unsigned blkOffset;
     uint64_t offset;
     if (ZuLikely(buf)) {
-      blkIndex = buf->blkIndex + 1;
+      blkOffset = buf->blkOffset + 1;
       const auto *hdr = buf->hdr();
       offset = hdr->offset() + hdr->count();
     } else {
-      blkIndex = 0;
+      blkOffset = 0;
       offset = 0;
     }
     m_store->shift(); // might call unloadBuf()
-    buf = new Buf{m_store, m_seriesID, blkIndex};
+    buf = new Buf{m_store, m_seriesID, blkOffset};
     new (Blk::new_<ZmRef<Buf>>(m_blks.push())) ZmRef<Buf>{buf};
     new (buf->hdr()) Hdr{offset, 0};
     m_store->push(buf);
     {
-      blkIndex = buf->blkIndex;
+      blkOffset = buf->blkOffset;
       const auto *hdr = buf->hdr();
       offset = hdr->offset() + hdr->count();
     }
     return buf->writer<Encoder>();
   }
 
-  void purge_(unsigned blkIndex) {
-    m_store->purge(m_seriesID, m_blkOffset += blkIndex);
-    {
-      unsigned n = m_blks.length();
-      if (n > blkIndex) n = blkIndex;
-      for (unsigned i = 0; i < n; i++) {
-	auto &blk = m_blks[i];
-	if (blk.is<ZmRef<Buf>>())
-	  m_store->del(blk.p<ZmRef<Buf>>().ptr());
-      }
-    }
-    m_blks.splice(0, blkIndex);
+  void purge_(unsigned blkOffset) {
+    m_index->purge(blkOffset);
   }
 
   bool loadHdr(unsigned i, Hdr &hdr) const {
@@ -527,11 +586,19 @@ private:
   }
 
 private:
-  Store		*m_store = nullptr;
-  ZtArray<Blk>	m_blks;
-  unsigned	m_seriesID = 0;
-  unsigned	m_blkOffset = 0;
+  DB		*m_db = nullptr;
+  unsigned	m_shard = 0;
+  DataFrame	*m_df = nullptr;
+  Index		m_index;
+  uint64_t	m_openBlkOffset = 0;
+  bool		m_opened = false;
 };
+
+inline void Blk::evict()
+{
+  ZdbAnyObject::evict();
+  m_series->evicted(this);
+}
 
 } // namespace Zdf
 

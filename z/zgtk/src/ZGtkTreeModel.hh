@@ -16,6 +16,7 @@
 #include <typeinfo>
 
 #include <zlib/ZuSort.hh>
+#include <zlib/ZuSearch.hh>
 #include <zlib/ZuInvoke.hh>
 
 #include <zlib/ZmPLock.hh>

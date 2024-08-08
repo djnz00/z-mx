@@ -8,6 +8,8 @@
 
 #include <zlib/ZdbMemStore.hh>
 
+#include <zlib/ZuJoin.hh>
+
 Zdb_::Store *ZdbStore()
 {
   return new ZdbMem::Store{};
@@ -153,7 +155,7 @@ void StoreTbl::insert(
     if (!i && m_indices[i].findVal(key)) {
       commitFn(ZuMv(buf), CommitResult{ZeVEVENT(Error,
 	  ([id = this->id(), key = ZuMv(key)](auto &s, const auto &) {
-	    s << id << " insert(" << ZtJoin(key, ", ")
+	    s << id << " insert(" << ZuJoin(key, ", ")
 	      << ") failed - record exists";
 	  }))});
       return;
@@ -203,7 +205,7 @@ void StoreTbl::update(
   } else {
     commitFn(ZuMv(buf), CommitResult{
 	ZeVEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
-	  s << id << " update(" << ZtJoin(key, ", ")
+	  s << id << " update(" << ZuJoin(key, ", ")
 	    << ") failed - record missing";
 	}))});
   }
@@ -227,7 +229,7 @@ void StoreTbl::del(
   } else {
     commitFn(ZuMv(buf), CommitResult{
 	ZeVEVENT(Error, ([id = this->id(), key](auto &s, const auto &) {
-	  s << id << " del(" << ZtJoin(key, ", ")
+	  s << id << " del(" << ZuJoin(key, ", ")
 	    << ") failed - record missing";
 	}))});
   }

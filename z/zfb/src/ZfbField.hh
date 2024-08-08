@@ -383,7 +383,7 @@ namespace Save {
       });
   }
   // flatbuffers does not support nested vectors, so a bytesVec is
-  // a vector of Zfb.Bytes, which in turn contains the [ubyte]
+  // a vector of Zfb.Bytes tables, each of which contains a [ubyte] vector
   template <typename Builder>
   inline auto bytesVec(Builder &fbb, ZtField_::BytesVec a) {
     return vectorIter<Bytes>(fbb, a.length(),

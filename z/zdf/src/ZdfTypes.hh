@@ -17,16 +17,7 @@
 
 namespace Zdf {
 
-enum { NameStrSize = 60 };
-using Name = ZuStringN<NameStrSize>;		// generic name string
-
 using Event = ZeVEvent;				// monomorphic ZeEvent
-
-using OpenResult = ZuUnion<void, Event>;	// open result
-using OpenFn = ZmFn<void(OpenResult)>;		// open callback
-
-using CloseResult = ZuUnion<void, Event>;	// close result
-using CloseFn = ZmFn<void(CloseResult)>;	// close callback
 
 } // namespace Zdf
 

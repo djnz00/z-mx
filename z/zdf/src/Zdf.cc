@@ -15,6 +15,121 @@
 
 using namespace Zdf;
 
+void DB::init(ZvCf *cf, Zdb *db)
+{
+  ZeAssert(m_state == DBState::Uninitialized,
+    (state = m_state), "invalid state=" << state, return);
+
+  m_maxSeriesBlks = cf->getInt("maxSeriesBlks", 1, INT_MAX, m_maxSeriesBlks);
+
+  static auto findAdd = [](DBCf &dbCf, ZuString key) {
+    auto node = dbCf.tableCfs.find(key);
+    if (!node) dbCf.tableCfs.addNode(node = new decltype(*node){key});
+    return node;
+  }
+
+  const auto *node = cf->getNode<true>("thread");
+  if (!node || !node->data.is<ZtArray<ZtString>>())
+    throw ZvCfRequired{cf, "thread"};
+  const auto &thread = node->data.p<ZtArray<ZtString>>();
+  auto &dbCf = const_cast<ZdbCf &>(db->config());
+  findAdd(dbCf, "zdf.data_frame")->thread = thread;
+  findAdd(dbCf, "zdf.series")->thread = thread;
+  findAdd(dbCf, "zdf.blk_hdr")->thread = thread;
+  findAdd(dbCf, "zdf.blk_data")->thread = thread;
+
+  m_dataFrameTbl = db->initTable<DB::DataFrame>("zdf.data_frame");
+  m_seriesTbl = db->initTable<DB::Series>("zdf.series");
+  m_blkHdrTbl = db->initTable<DB::BlkHdr>("zdf.blk_hdr");
+  m_blkDataTbl = db->initTable<DB::BlkData>("zdf.blk_data");
+
+  m_sid = m_dataFrameTbl->config().sid;
+
+  m_state = DB::Initialized;
+}
+
+void DB::final()
+{
+  m_state = DBState::Uninitialized;
+
+  m_dataFrameTbl = nullptr;
+  m_seriesTbl = nullptr;
+  m_blkHdrTbl = nullptr;
+  m_blkDataTbl = nullptr;
+}
+
+void DB::open(OpenFn fn)
+{
+  m_openFn = ZuMv(fn);
+  open_recoverNextDFID();
+}
+void DB::open_recoverNextDFID()
+{
+  run(0, [this]() {
+    m_dataFrameTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+      run(0, [this, max = ZuMv(max)]() mutable {
+	using Key = ZuFieldKeyT<DB::DataFrame, 0>;
+	if (max.template is<Key>())
+	  m_nextDFID = max.template p<Key>().template p<0>() + 1;
+	else
+	  open_recoverNextPermID();
+      });
+    });
+  });
+}
+void DB::open_recoverNextSeriesID()
+{
+  run(0, [this]() {
+    m_seriesTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+      run(0, [this, max = ZuMv(max)]() mutable {
+	using Key = ZuFieldKeyT<DB::Series, 0>;
+	if (max.template is<Key>())
+	  m_nextSeriesID = max.template p<Key>().template p<0>() + 1;
+	else
+	  opened(true);
+      });
+    });
+  });
+}
+void DB::opened(bool ok)
+{
+  m_state = ok ? DBState::Opened : DBState::OpenFailed;
+  auto fn = ZuMv(m_openFn);
+  fn(ok);
+}
+
+void DB::openSeries(
+  unsigned shard, ZuString name, bool create, OpenSeriesFn fn)
+{
+  run(shard, [
+    this, shard, name = ZtString{name}, create, fn = ZuMv(fn)
+  ]() mutable {
+    m_seriesTbl->find<1>(shard, ZuMvTuple(ZuMv(name)), [
+      this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
+    ](ZdbObjRef<DB::Series> dbSeries) {
+      if (!dbSeries) {
+	if (!create) { fn(nullptr); return; }
+	m_seriesTbl->insert(shard, [
+	  this, shard, name = ZuMv(name), fn = ZuMv(fn)
+	](ZdbObject<DB::Series> *dbSeries) mutable {
+	  if (!dbSeries) { fn(nullptr); return; }
+	  auto series = static_cast<Series *>(dbSeries);
+	  auto &data = series->data();
+	  data.id = m_nextSeriesID++;
+	  data.dfid = 0;
+	  data.name = ZuMv(name);
+	  data.epoch = Zm::now();
+	  series->open(ZuMv(fn));
+	  return;
+	});
+	return;
+      }
+      auto series = static_cast<Series *>(dbSeries);
+      series->open(ZuMv(fn));
+    }, [this, shard](ZdbTable *) { return new Series(this, shard); });
+  });
+}
+
 DataFrame::DataFrame(
   Mgr *mgr, const ZtVFieldArray &fields, ZuString name, bool timeIndex) :
   m_name{name}

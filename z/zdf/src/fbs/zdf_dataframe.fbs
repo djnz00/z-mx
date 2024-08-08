@@ -1,8 +1,8 @@
 include "zfb_types.fbs";
 namespace Zdf.fbs;
 table DataFrame {
-  id:uint32;
-  name:string;
+  id:uint32;            // globally unique
+  name:string;          // ''
   epoch:Zfb.DateTime;
 }
 root_type DataFrame;
