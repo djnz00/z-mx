@@ -14,6 +14,7 @@
 
 #include <zlib/ZuArrayN.hh>
 #include <zlib/ZuSort.hh>
+#include <zlib/ZuSearch.hh>
 
 #define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
 

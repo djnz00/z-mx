@@ -22,6 +22,7 @@
 #include <zlib/ZuArrayN.hh>
 #include <zlib/ZuStringN.hh>
 #include <zlib/ZuSort.hh>
+#include <zlib/ZuSearch.hh>
 #include <zlib/ZuObject.hh>
 #include <zlib/ZuRef.hh>
 #include <zlib/ZuID.hh>

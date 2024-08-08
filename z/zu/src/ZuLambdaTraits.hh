@@ -5,7 +5,6 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // compile-time callable traits for lambdas
-//
 // - works with templated call operators (generic lambdas)
 
 #ifndef ZuLambdaTraits_HH
@@ -175,21 +174,41 @@ constexpr auto ZuInvokeFn(const L &l) {
 }
 
 // stateless lambdas invoked using a placeholder this...
-// technically undefined behavior, but it elides preserving this
+// may be strictly undefined behavior, but it elides capturing this
 //
-// this->x does not imply evaluating (*this).x (the reverse is true)
-//
-// C++23 static operator() would make all this redundant, but the ABI
-// changes wreak havoc
+// Note: C++ standards have gone backwards and forwards here; this
+// implementation is consistent with the behavior of gcc, clang, MSVC, etc.:
+// - this->x does not imply evaluating (*this).x (the reverse is true)
+// - while this is passed to non-static member functions as a parameter,
+//   if the class is empty (has no data members), has no vtbl and is final,
+//   a non-static member function cannot make any use of the this pointer
+//   other than to call other member functions
+// - stateless lambdas without captures are implicitly empty, final, and
+//   do not have a vtbl - they have just one member function - operator ()
+//   (as required by their convertibility to plain function pointers)
+// - C++23 static operator() makes all this redundant, but the ABI
+//   changes wreak havoc, and using a nullptr for this just works
+// - define ZuLambda_DogmaUB to 1 for strict/dogmatic UB conformance
+
+#ifndef ZuLambda_DogmaUB
+#define ZuLambda_DogmaUB 0	// dogmatic undefined behavior conformance
+#endif
 
 template <typename L_, typename ArgList = ZuArgList<L_>, typename ...Args>
 auto ZuInvokeLambda(Args &&...args) {
   using L = ZuDecay<L_>;
-  struct Empty { };
   ZuAssert((ZuIsStatelessLambda<L, ArgList>{}));
-  ZuAssert(sizeof(L) == sizeof(Empty));
-  // static Empty _;
-  return reinterpret_cast<L *>(0/*&_*/)->operator ()(ZuFwd<Args>(args)...);
+#if ZuLambda_DogmaUB 
+  struct { } _;
+  ZuAssert(sizeof(L) == sizeof(_));
+#endif
+  return reinterpret_cast<L *>(
+#if ZuLambda_DogmaUB 
+    &_
+#else
+    0
+#endif
+    )->operator ()(ZuFwd<Args>(args)...);
 }
 
 template <typename L, typename ArgList = ZuArgList<L>, typename R = void>
