@@ -14,12 +14,12 @@
 
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuStringN.hh>
+#include <zlib/ZuJoin.hh>
 
 #include <zlib/ZmList.hh>
 
 #include <zlib/ZtString.hh>
 #include <zlib/ZtHexDump.hh>
-#include <zlib/ZtJoin.hh>
 #include <zlib/ZtCase.hh>
 
 void out(bool ok, ZuString check, ZuString diag) {
@@ -308,8 +308,8 @@ int main()
   std::cout << (ZtString{} << "hello " << "world") << '\n';
 
   {
-    ZtString j = (ZtString{} << ZtJoin({ "x", "y" }, ","));
-    CHECK(j == "x,y", "ZtJoin");
+    ZtString j = (ZtString{} << ZuJoin({ "x", "y" }, ","));
+    CHECK(j == "x,y", "ZuJoin");
   }
 
   {

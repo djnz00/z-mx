@@ -3686,7 +3686,7 @@ struct ZtFieldPrint : public ZuPrintDelegate {
 
 using ZtVFieldArray = ZuArray<const ZtVField *>;
 
-template <typename MField, typename ...Fields>
+template <typename VField, typename ...Fields>
 struct ZtVFieldFactory {
   enum { N = sizeof...(Fields) };
 
@@ -3697,10 +3697,10 @@ struct ZtVFieldFactory {
   }
 
   ZtVFieldFactory() {
-    static const MField fields_[N] =
+    static const VField fields_[N] =
       // std::initializer_list<ZtVField>
     {
-      MField{Fields{}}...
+      VField{Fields{}}...
     };
     static const ZtVField *ptr_[N];
     ZuUnroll::all<N>([](auto i) {
@@ -3709,15 +3709,15 @@ struct ZtVFieldFactory {
     fields = {&ptr_[0], N};
   }
 };
-template <typename Fields, typename MField = ZtVField>
+template <typename Fields, typename VField = ZtVField>
 inline ZtVFieldArray ZtVFields_() {
   using Factory = ZuTypeApply<
-    ZtVFieldFactory, typename Fields::template Unshift<MField>>;
+    ZtVFieldFactory, typename Fields::template Unshift<VField>>;
   return Factory::instance()->fields;
 }
-template <typename O, typename MField = ZtVField>
+template <typename O, typename VField = ZtVField>
 inline ZtVFieldArray ZtVFields() {
-  return ZtVFields_<ZuFields<O>, MField>();
+  return ZtVFields_<ZuFields<O>, VField>();
 }
 
 // run-time keys
@@ -3729,7 +3729,7 @@ inline ZtVFieldArray ZtVFields() {
 
 using ZtVKeyFieldArray = ZuArray<const ZtVFieldArray>;
 
-template <typename O, typename MField>
+template <typename O, typename VField>
 struct ZtVKeyFields_ {
   ZtVKeyFieldArray	keys;
 
@@ -3741,14 +3741,14 @@ struct ZtVKeyFields_ {
     using KeyIDs = ZuFieldKeyIDs<O>;
     static ZtVFieldArray data_[KeyIDs::N];
     ZuUnroll::all<KeyIDs>([](auto i) {
-      data_[i] = ZtVFields<ZuFieldKeyT<O, i>, MField>();
+      data_[i] = ZtVFields<ZuFieldKeyT<O, i>, VField>();
     });
     keys = {&data_[0], KeyIDs::N};
   }
 };
-template <typename O, typename MField = ZtVField>
+template <typename O, typename VField = ZtVField>
 inline ZtVKeyFieldArray ZtVKeyFields() {
-  return ZtVKeyFields_<O, MField>::instance()->keys;
+  return ZtVKeyFields_<O, VField>::instance()->keys;
 }
 
 #endif /* ZtField_HH */
