@@ -756,6 +756,8 @@ public:
   }
 
   // adds node at key, overwriting data already in the queue
+  // - idempotent - does nothing if end <= head
+  // - use unshift() to prepend
   void add(NodeRef node) { add_<false>(ZuMv(node)); }
 
   // immediately returns node if key == head (head is incremented)
@@ -763,7 +765,9 @@ public:
   // returns 0 and enqueues node if key > head
   NodeRef rotate(NodeRef node) { return add_<true>(ZuMv(node)); }
 
-  // unshift node onto head (idempotent - does nothing if key >= head)
+  // unshift node onto head
+  // - idempotent - does nothing if key >= head
+  // - use add() to add to body or tail of queue
   void unshift(NodeRef node) {
     Guard guard(m_lock);
 
@@ -819,7 +823,7 @@ private:
 
     unsigned addSeqNo = m_addSeqNo++;
 
-    if (ZuLikely(key == m_tailKey)) // common case - in-order at head
+    if (ZuLikely(key == m_tailKey)) // common case - append at tail
       return addTail_<Dequeue>(ZuMv(node), end, length, addSeqNo);
 
     if (ZuLikely(key == m_headKey)) { // common case - in-order at head
@@ -1019,6 +1023,7 @@ public:
     return shift_();
   }
   // shifts up to but not including item containing key
+  // - advances head
   NodeRef shift(Key key) {
     Guard guard(m_lock);
     if (m_headKey >= key) return nullptr;
