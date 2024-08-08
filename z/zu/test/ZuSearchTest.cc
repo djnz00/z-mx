@@ -23,9 +23,9 @@ void search(ZuArray<int> data, int value, unsigned pos_, unsigned nc_)
 {
   unsigned pos, nc = 0;
 
-  pos = ZuInterSearch<false>(data.data(), data.length(), [value, &nc](int i) {
+  pos = ZuInterSearch<false>(data.length(), [&data, value, &nc](unsigned i) {
     ++nc;
-    return value - i;
+    return value - data[i];
   });
   pos = ZuSearchPos(pos);
   std::cout << "value=" << value << " pos=" << pos << " nc=" << nc << '\n';
@@ -42,21 +42,21 @@ int main(int argc, char **argv)
   search(bar, 0, 0, 2);
   search(foo, 1, 0, 2);
   search(bar, 1, 0, 2);
-  search(foo, 2, 1, 3);
+  search(foo, 2, 1, 4);
   search(bar, 2, 9, 5);
-  search(foo, 3, 1, 4);
+  search(foo, 3, 1, 5);
   search(bar, 3, 9, 5);
-  search(foo, 4, 1, 4);
+  search(foo, 4, 1, 5);
   search(bar, 4, 9, 5);
-  search(foo, 5, 1, 4);
+  search(foo, 5, 1, 6);
   search(bar, 5, 9, 5);
-  search(foo, 6, 1, 4);
-  search(bar, 6, 9, 6);
-  search(foo, 7, 1, 5);
+  search(foo, 6, 1, 6);
+  search(bar, 6, 9, 5);
+  search(foo, 7, 1, 6);
   search(bar, 7, 9, 4);
-  search(foo, 8, 1, 5);
+  search(foo, 8, 1, 6);
   search(bar, 8, 9, 4);
-  search(foo, 9, 1, 5);
+  search(foo, 9, 1, 7);
   search(bar, 9, 9, 3);
   search(foo, 10, 10, 2);
   search(bar, 10, 10, 2);

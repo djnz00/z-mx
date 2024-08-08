@@ -530,8 +530,8 @@ public:
   }
 
   operator ZuFixed() {
-    auto e = ndp();
-    return {value / ZuDecimalFn::pow10_128(18 - e), e};
+    auto ndp_ = ndp();
+    return {value / ZuDecimalFn::pow10_128(18 - ndp_), ndp_};
   }
 
   template <typename S> void print(S &s) const;

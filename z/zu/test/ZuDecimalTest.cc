@@ -104,7 +104,7 @@ int main()
   CHECK((ZuDecimal{"0"}.ndp() == 0));
   CHECK((ZuDecimal{"1"}.ndp() == 0));
   CHECK((ZuDecimal{"100000000000000000"}.ndp() == 0));
-  CHECK((ZuFixed{ZuDecimal("1.0001")}.ndp() == 4));
+  CHECK((ZuFixed{ZuDecimal("1.0001")}.ndp == 4));
   CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("1.0001")}) == "1.0001"));
   CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("0")}) == "0"));
   CHECK(((ZuStringN<32>{} << ZuFixed{ZuDecimal("1")}) == "1"));

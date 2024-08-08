@@ -9,8 +9,8 @@
 #ifndef ZuSearch_HH
 #define ZuSearch_HH
 
-inline bool ZuSearchFound(unsigned i) { return i & 1; }
-inline unsigned ZuSearchPos(unsigned i) { return i>>1; }
+inline bool ZuSearchFound(uint64_t i) { return i & 1; }
+inline uint64_t ZuSearchPos(uint64_t i) { return i>>1; }
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -19,31 +19,22 @@ inline unsigned ZuSearchPos(unsigned i) { return i>>1; }
 
 // binary search in sorted data (i.e. following ZuSort)
 // - returns insertion position if not found
-template <typename, typename> struct ZuSearch_OK;
-template <typename R> struct ZuSearch_OK<R, int> { using T = R; }; 
-
-template <
-  bool Match = true,
-  typename Array,
-  typename Cmp,
-  typename T = decltype(ZuDeclVal<const Array &>()[0])>
-inline auto ZuSearch(const Array &data, unsigned n, Cmp cmp) ->
-ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>())), unsigned>
-{
+template <bool Match = true, typename Cmp>
+inline uint64_t ZuSearch(uint64_t n, Cmp cmp) {
   if (!n) return 0;
-  unsigned o = 0;
-  unsigned p = n>>1;
-  int l = cmp(data[p]);
+  uint64_t o = 0;
+  uint64_t p = n>>1;
+  int l = cmp(p);
   while (n > 2) {
     n -= p;
     if (l > 0) o += p;
-    l = cmp(data[o + (p = n>>1)]);
+    l = cmp(o + (p = n>>1));
   }
   int r;
   if (n == 2) {
     if (l > 0) return (o + 2)<<1;
     r = l;
-    l = cmp(data[o]);
+    l = cmp(o);
   }
   if constexpr (Match) if (!l) return (o<<1) | 1;
   if (l <= 0) return o<<1;
@@ -55,11 +46,11 @@ template <
   bool Match = true,
   typename Array,
   typename T>
-inline auto ZuSearch(const Array &data, unsigned n, const T &v) ->
-ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, unsigned>
+inline auto ZuSearch(const Array &data, uint64_t n, const T &v) ->
+ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, uint64_t>
 {
-  return ZuSearch<Match>(data, n,
-      [&v](const T &w) { return ZuCmp<T>::cmp(v, w); });
+  return ZuSearch<Match>(n,
+      [&data, &v](uint64_t i) { return ZuCmp<T>::cmp(v, data[i]); });
 }
 
 #ifdef __GNUC__
@@ -68,74 +59,65 @@ ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, unsigned>
 
 // interpolation search in sorted data (i.e. following ZuSort)
 // - returns insertion position if not found
-template <
-  bool Match = true,
-  typename Array,
-  typename Cmp,
-  typename T = decltype(ZuDeclVal<const Array &>()[0])>
-inline auto ZuInterSearch(const Array &data, unsigned n, Cmp cmp) ->
-ZuExact<int, decltype(ZuDeclVal<Cmp>()(ZuDeclVal<const T &>())), unsigned>
-{
+template <bool Match = true, typename Cmp>
+inline uint64_t ZuInterSearch(uint64_t n, Cmp cmp) {
   if (!n) return 0;
   if (n <= 2) { // special case for small arrays
     // std::cout << "cmp(0)\n";
-    int l = cmp(data[0]);
+    int l = cmp(0);
     if constexpr (Match) if (!l) return 1;
     if (l <= 0) return 0;
     if (n == 1) return 2;
     // std::cout << "cmp(1)\n";
-    int r = cmp(data[1]);
+    int r = cmp(1);
     if constexpr (Match) if (!r) return 3;
     if (r <= 0) return 2;
     return 4;
   }
-  unsigned o = 0;
   // std::cout << "cmp(0)\n";
-  int l = cmp(data[0]);
+  int l = cmp(0);
   // std::cout << "cmp(" << (n - 1) << ")\n";
-  int r = cmp(data[n - 1]);
+  int r = cmp(n - 1);
   if constexpr (Match) if (!l) return 1;
   if (l <= 0) return 0;
   if (r > 0) return n<<1;
-  if (n == 3) {
-    r = cmp(data[1]);
-  } else {
-    do {
-      unsigned p;
-      if (n <= 8)
-	p = n>>1; // use binary search for small partitions
-      else {
-	unsigned d = l - r; // "distance" of left-to-right value span
-	p = ((n - 3) * l + (d>>1)) / d + 1; // left/right interpolated pivot
-      }
-      int m = cmp(data[o + p]);
-      // std::cout << "l=" << l << " r=" << r << " p=" << p << " o=" << o << " n=" << n << " cmp(" << (o + p) << ")=" << m << "\n";
-      if (m <= 0) {
-	n = p;
-	r = m;
-      } else {
-	o += p;
-	n -= p;
-	l = m;
-      }
-    } while (n > 2);
-    if constexpr (Match) if (!l) return (o<<1) | 1;
-    if (l <= 0) return o<<1;
-    if (n == 1) return (o + 1)<<1;
+  uint64_t o = 0;
+  do {
+    uint64_t p;
+    if (n <= 8)
+      p = n>>1; // use binary search for small partitions
+    else {
+      uint64_t d = l - r; // "distance" of left-to-right value span
+      p = ((n - 3) * l + (d>>1)) / d + 1; // left/right interpolated pivot
+    }
+    int m = cmp(o + p);
+    // std::cout << "l=" << l << " r=" << r << " p=" << p << " o=" << o << " n=" << n << " cmp(" << (o + p) << ")=" << m << "\n";
+    if (m <= 0) {
+      n = p + 1;
+      r = m;
+    } else {
+      o += p;
+      n -= p;
+      l = m;
+    }
+  } while (n > 2);
+  if constexpr (Match) {
+    if (!l) return (o<<1) | 1;
+    if (n > 1 && !r) return ((o + n - 1)<<1) | 1;
   }
-  if constexpr (Match) if (!r) return ((o + 1)<<1) | 1;
-  if (r <= 0) return (o + 1)<<1;
-  return (o + 2)<<1;
+  if (l <= 0) return o<<1;
+  if (r > 0) return (o + n)<<1;
+  return (o + 1)<<1;
 }
 template <
   bool Match = true,
   typename Array,
   typename T>
-inline auto ZuInterSearch(const Array &data, unsigned n, const T &v) ->
-ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, unsigned>
+inline auto ZuInterSearch(const Array &data, uint64_t n, const T &v) ->
+ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, uint64_t>
 {
-  return ZuInterSearch<Match>(data, n,
-    [v](const T &w) { return ZuCmp<T>::delta(v, w); });
+  return ZuInterSearch<Match>(n,
+    [&data, v](uint64_t i) { return ZuCmp<T>::delta(v, data[i]); });
 }
 
 #endif /* ZuSearch_HH */

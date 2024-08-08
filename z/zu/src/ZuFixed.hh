@@ -7,16 +7,16 @@
 // 64bit decimal variable point with variable number of decimal places,
 // 18 significant digits and 10^-<ndp> scaling:
 //   <18 - ndp> integer digits
-//   <ndp> fractional digits (i.e. number of decimal places)
-// Note: <ndp> is the negative of the mathematical exponent
+//   <ndp> decimals / fractional digits / number of decimal places
+// Note: <ndp> is the negative of the decimal exponent
 //
 // combination of value and ndp, used in transit for conversions, I/O,
 // constructors, scanning:
 //   ZuFixed(<integer>, ndp)		// {1042, 2} -> 10.42
 //   ZuFixed(<floating point>, ndp)	// {10.42, 2} -> 10.42
 //   ZuFixed(<string>, ndp)		// {"10.42", 2} -> 10.42
-//   int64_t x = ZuFixed{"42.42", 2}.mantissa()	// x == 4242
-//   ZuFixed xn{x, 2}; xn *= ZuFixed{2000, 3}; x = xn.mantissa() // x == 8484
+//   int64_t x = ZuFixed{"42.42", 2}.mantissa	// x == 4242
+//   ZuFixed xn{x, 2}; xn *= ZuFixed{2000, 3}; x = xn.mantissa // x == 8484
 // printing:
 //   s << ZuFixed{...}			// print (default)
 //   s << ZuFixed{...}.fmt(ZuFmt...)	// print (compile-time formatted)
@@ -55,86 +55,87 @@ using ZuFixedNDP = ZuBox0(uint8_t); // ndp (number of decimal places)
 template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal
 
-class ZuFixed {
-public:
+struct ZuFixed {
+  int64_t	mantissa = ZuFixedNull;
+  uint8_t	ndp = 0;
+
   ZuFixed() = default;
 
   template <typename M, decltype(ZuMatchIntegral<M>(), int()) = 0>
-  constexpr ZuFixed(M m, unsigned e) :
-    m_mantissa{int64_t(m)}, m_ndp{uint8_t(e)} { }
+  constexpr ZuFixed(M mantissa_, unsigned ndp_) :
+    mantissa{int64_t(mantissa_)}, ndp{uint8_t(ndp_)} { }
 
   template <typename V, decltype(ZuMatchFloatingPoint<V>(), int()) = 0>
-  constexpr ZuFixed(V v, unsigned e) :
-    m_mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(e))},
-    m_ndp{uint8_t(e)} { }
+  constexpr ZuFixed(V v, unsigned ndp_) :
+    mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(ndp_))},
+    ndp{uint8_t(ndp_)} { }
 
   // multiply: ndp of result is taken from the LHS
   // a 128bit integer intermediate is used to avoid overflow
   ZuFixed operator *(const ZuFixed &v) const {
-    int128_t i = mantissa();
-    i *= v.mantissa();
-    i /= ZuDecimalFn::pow10_64(v.ndp());
+    int128_t i = mantissa;
+    i *= v.mantissa;
+    i /= ZuDecimalFn::pow10_64(v.ndp);
     if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
-    return ZuFixed{i, ndp()};
+    return ZuFixed{i, ndp};
   }
 
   // divide: ndp of result is taken from the LHS
   // a 128bit integer intermediate is used to avoid overflow
   ZuFixed operator /(const ZuFixed &v) const {
-    int128_t i = mantissa();
-    i *= ZuDecimalFn::pow10_64(ndp());
-    i /= v.mantissa();
+    int128_t i = mantissa;
+    i *= ZuDecimalFn::pow10_64(ndp);
+    i /= v.mantissa;
     if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
-    return ZuFixed{i, ndp()};
+    return ZuFixed{i, ndp};
   }
 
-  void init(int64_t m, unsigned e) { m_mantissa = m; m_ndp = e; }
+  void init(int64_t mantissa_, unsigned ndp_) {
+    mantissa = mantissa_;
+    ndp = ndp_;
+  }
 
-  void null() { m_mantissa = ZuFixedNull; m_ndp = 0; }
-
-  int64_t mantissa() const { return m_mantissa; }
-  void mantissa(int64_t v) { m_mantissa = v; }
-
-  unsigned ndp() const { return m_ndp; }
-  void ndp(unsigned v) { m_ndp = v; }
+  void null() {
+    mantissa = ZuFixedNull;
+    ndp = 0;
+  }
 
   // convert to floating point
   template <typename Float = ZuBox<double>>
   Float fp() const {
     if (ZuUnlikely(!operator *())) return Float{};
-    return Float{mantissa()} / Float{ZuDecimalFn::pow10_64(ndp())};
+    return Float{mantissa} / Float{ZuDecimalFn::pow10_64(ndp)};
   }
 
   // adjust mantissa to another ndp
-  ZuFixedVal adjust(unsigned e) const {
+  ZuFixedVal adjust(unsigned ndp_) const {
     if (ZuUnlikely(!operator *())) return {};
-    if (ZuLikely(e == ndp())) return mantissa();
-    if (e > ndp())
-      return mantissa() * ZuDecimalFn::pow10_64(e - ndp());
-    return mantissa() / ZuDecimalFn::pow10_64(ndp() - e);
+    if (ZuLikely(ndp_ == ndp)) return mantissa;
+    if (ndp_ > ndp) return mantissa * ZuDecimalFn::pow10_64(ndp_ - ndp);
+    return mantissa / ZuDecimalFn::pow10_64(ndp - ndp_);
   }
 
   // comparisons
   bool equals(const ZuFixed &v) const {
-    if (ZuLikely(ndp() == v.ndp() || !**this || !*v))
-      return m_mantissa == v.m_mantissa;
-    int128_t i = mantissa();
-    int128_t j = v.mantissa();
-    if (ndp() < v.ndp())
-      i *= ZuDecimalFn::pow10_64(v.ndp() - ndp());
+    if (ZuLikely(ndp == v.ndp || !**this || !*v))
+      return mantissa == v.mantissa;
+    int128_t i = mantissa;
+    int128_t j = v.mantissa;
+    if (ndp < v.ndp)
+      i *= ZuDecimalFn::pow10_64(v.ndp - ndp);
     else
-      j *= ZuDecimalFn::pow10_64(ndp() - v.ndp());
+      j *= ZuDecimalFn::pow10_64(ndp - v.ndp);
     return i == j;
   }
   int cmp(const ZuFixed &v) const {
-    if (ZuLikely(ndp() == v.ndp() || !**this || !*v))
-      return (m_mantissa > v.m_mantissa) - (m_mantissa < v.m_mantissa);
-    int128_t i = mantissa();
-    int128_t j = v.mantissa();
-    if (ndp() < v.ndp())
-      i *= ZuDecimalFn::pow10_64(v.ndp() - ndp());
+    if (ZuLikely(ndp == v.ndp || !**this || !*v))
+      return (mantissa > v.mantissa) - (mantissa < v.mantissa);
+    int128_t i = mantissa;
+    int128_t j = v.mantissa;
+    if (ndp < v.ndp)
+      i *= ZuDecimalFn::pow10_64(v.ndp - ndp);
     else
-      j *= ZuDecimalFn::pow10_64(ndp() - v.ndp());
+      j *= ZuDecimalFn::pow10_64(ndp - v.ndp);
     return (i > j) - (i < j);
   }
   template <typename L, typename R>
@@ -148,16 +149,16 @@ public:
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   // ! is zero, unary * is !null
-  bool operator !() const { return !mantissa(); }
+  bool operator !() const { return !mantissa; }
   ZuOpBool
 
-  constexpr bool operator *() const { return m_mantissa != ZuFixedNull; }
+  constexpr bool operator *() const { return mantissa != ZuFixedNull; }
 
   // hash
   uint32_t hash() const {
     return
-      ZuHash<int64_t>::hash(m_mantissa) ^
-      ZuHash<uint8_t>::hash(m_ndp);
+      ZuHash<int64_t>::hash(mantissa) ^
+      ZuHash<uint8_t>::hash(ndp);
   }
 
   // scan from string
@@ -166,12 +167,12 @@ public:
     scan(s);
   }
   template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
-  ZuFixed(const S &s, unsigned e) {
-    scan(s, e);
+  ZuFixed(const S &s, unsigned ndp_) {
+    scan(s, ndp_);
   }
 
   template <bool NDP = true>
-  unsigned scan(ZuString s, unsigned e) {
+  unsigned scan(ZuString s, unsigned ndp_) {
     unsigned int m = 0;
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
@@ -179,7 +180,7 @@ public:
       null();
       return 3;
     }
-    if constexpr (NDP) if (e > 18) e = 18;
+    if constexpr (NDP) if (ndp_ > 18) ndp_ = 18;
     {
       bool negative = s[0] == '-';
       if (ZuUnlikely(negative)) {
@@ -195,30 +196,30 @@ public:
       if (ZuUnlikely(s[0] == '.')) {
 	++m;
 	if (ZuUnlikely(n == 1)) goto zero;
-	if constexpr (!NDP) e = n - 1;
+	if constexpr (!NDP) ndp_ = n - 1;
 	goto frac;
       }
       n = Zu_atou(iv, s.data(), n);
       if (ZuUnlikely(!n)) goto null;
-      if (ZuUnlikely(n > (18 - e))) goto null; // overflow
+      if (ZuUnlikely(n > (18 - ndp_))) goto null; // overflow
       s.offset(n), m += n;
-      if constexpr (!NDP) e = 18 - n;
+      if constexpr (!NDP) ndp_ = 18 - n;
       if ((n = s.length()) > 1 && s[0] == '.') {
 	++m;
   frac:
-	if (--n > e) n = e;
+	if (--n > ndp_) n = ndp_;
 	n = Zu_atou(fv, &s[1], n);
 	m += n;
-	if (fv && n < e)
-	  fv *= ZuDecimalFn::pow10_64(e - n);
+	if (fv && n < ndp_)
+	  fv *= ZuDecimalFn::pow10_64(ndp_ - n);
       }
-      int64_t v = iv * ZuDecimalFn::pow10_64(e) + fv;
+      int64_t v = iv * ZuDecimalFn::pow10_64(ndp_) + fv;
       if (ZuUnlikely(negative)) v = -v;
-      init(v, e);
+      init(v, ndp_);
     }
     return m;
   zero:
-    init(0, e);
+    init(0, ndp_);
     return m;
   null:
     null();
@@ -249,10 +250,6 @@ public:
   ZuFixed_VFmt vfmt() const;
   template <typename VFmt>
   ZuFixed_VFmt vfmt(VFmt &&) const;
-
-private:
-  int64_t	m_mantissa = ZuFixedNull;
-  uint8_t	m_ndp = 0;
 };
 
 template <typename Fmt> struct ZuFixed_Fmt {
@@ -260,14 +257,14 @@ template <typename Fmt> struct ZuFixed_Fmt {
 
   template <typename S> void print(S &s) const {
     if (ZuUnlikely(!*value)) { s << "nan"; return; }
-    auto iv = value.mantissa();
+    auto iv = value.mantissa;
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(value.ndp());
+    uint64_t factor = ZuDecimalFn::pow10_64(value.ndp);
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).template fmt<Fmt>();
-    auto e = value.ndp();
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(e, e);
+    auto ndp_ = value.ndp;
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(ndp_, ndp_);
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_Fmt *);
 };
@@ -301,14 +298,14 @@ struct ZuFixed_VFmt : public ZuVFmtWrapper<ZuFixed_VFmt> {
 
   template <typename S> void print(S &s) const {
     if (ZuUnlikely(!*value)) { s << "nan"; return; }
-    ZuFixedVal iv = value.mantissa();
+    ZuFixedVal iv = value.mantissa;
     if (ZuUnlikely(iv < 0)) { s << '-'; iv = -iv; }
-    uint64_t factor = ZuDecimalFn::pow10_64(value.ndp());
+    uint64_t factor = ZuDecimalFn::pow10_64(value.ndp);
     ZuFixedVal fv = iv % factor;
     iv /= factor;
     s << ZuBoxed(iv).vfmt(this->fmt);
-    auto e = value.ndp();
-    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(e, e);
+    auto ndp_ = value.ndp;
+    if (fv) s << '.' << ZuBoxed(fv).vfmt().frac(ndp_, ndp_);
   }
   friend ZuPrintFn ZuPrintType(ZuFixed_VFmt *);
 };
