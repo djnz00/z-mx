@@ -280,8 +280,8 @@ namespace Save {
   // fixed
   inline auto fixed(const ZuFixed &v) {
     return Fixed{
-      static_cast<int64_t>(v.mantissa()),
-      static_cast<uint8_t>(v.ndp())};
+      static_cast<int64_t>(v.mantissa),
+      static_cast<uint8_t>(v.ndp)};
   }
 
   // decimal

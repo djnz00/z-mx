@@ -39,11 +39,12 @@ void UserDB::init(ZvCf *cf, Zdb *db)
   m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
   m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
 
-  static auto findAdd = [](DBCf &dbCf, ZuString key) {
+  static auto findAdd = [](ZdbCf &dbCf, ZuString key) {
     auto node = dbCf.tableCfs.find(key);
-    if (!node) dbCf.tableCfs.addNode(node = new decltype(*node){key});
-    return node;
-  }
+    using Node = ZuDecay<decltype(*node)>;
+    if (!node) dbCf.tableCfs.addNode(node = new Node{key});
+    return node->data();
+  };
 
   // ensure all tables are running on the same thread
   // - ensures that direct references to the user and key DB objects
@@ -52,10 +53,10 @@ void UserDB::init(ZvCf *cf, Zdb *db)
   // - UserDB relies on being a single-writer to the DB (Zdb guarantee)
   const auto &thread = cf->get<true>("thread");
   auto &dbCf = const_cast<ZdbCf &>(db->config());
-  findAdd(dbCf, "zum.user")->thread = { thread };
-  findAdd(dbCf, "zum.role")->thread = { thread };
-  findAdd(dbCf, "zum.key")->thread = { thread };
-  findAdd(dbCf, "zum.perm")->thread = { thread };
+  findAdd(dbCf, "zum.user").thread = { thread };
+  findAdd(dbCf, "zum.role").thread = { thread };
+  findAdd(dbCf, "zum.key").thread = { thread };
+  findAdd(dbCf, "zum.perm").thread = { thread };
 
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
@@ -125,9 +126,8 @@ void UserDB::open_recoverNextPermID(ZuPtr<Open> context)
       if (max.template is<RowKey>())
 	m_nextPermID = max.template p<RowKey>().template p<0>() + 1;
       else
-	run([this, context = ZuMv(context)]() mutable {
-	  open_findAddPerm(ZuMv(context));
-	});
+	open_findAddPerm(ZuMv(context));
+    });
   });
 }
 // find permission and update m_perms[]

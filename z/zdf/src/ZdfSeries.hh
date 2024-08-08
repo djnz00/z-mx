@@ -198,14 +198,14 @@ public:
     } else {
       eob = value.ndp() != m_ndp;
     }
-    if (eob || !m_encoder.write(value.mantissa())) {
+    if (eob || !m_encoder.write(value.mantissa)) {
       sync();
       save();
       m_encoder = m_series->template nextEncoder<Encoder>(m_buf);
       if (ZuUnlikely(!m_buf)) return false;
       m_buf->pin();
       m_ndp = value.ndp();
-      if (ZuUnlikely(!m_encoder.write(value.mantissa()))) return false;
+      if (ZuUnlikely(!m_encoder.write(value.mantissa))) return false;
     }
     return true;
   }
@@ -236,7 +236,7 @@ struct IndexBlk_Fn {
   ZuInline unsigned length() const { return IndexBlkSize(); }
 };
 inline constexpr const char *IndexBlk_HeapID() { return "Zdf.IndexBlk"; }
-using IndexQueue =
+using Index =
   ZmPQueue<IndexBlk_,
     ZmPQueueFn<IndexBlk_Fn,
       ZmPQueueNode<IndexBlk_,
@@ -245,38 +245,7 @@ using IndexQueue =
 	    ZmPQueueBits<3,
 	      ZmPQueueLevels<3,
 		ZmPQueueHeapID<IndexBlk_HeapID>>>>>>>>;
-using IndexBlk = IndexQueue::Node;
-
-class Index {
-public:
-  void init(unsigned blkOffset) { m_queue.head(blkOffset); }
-  void final() { m_queue.reset(0); }
-
-  uint64_t head() const { return m_queue.head(); }
-
-  const Blk *get(unsigned blkOffset) const {
-    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
-    if (!indexBlk) return nullptr;
-    return &indexBlk->blks[blkOffset - indexBlk->offset];
-  }
-
-  Blk *set(unsigned blkOffset) {
-    if (ZuUnlikely(blkOffset < m_queue.head())) return nullptr;
-    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
-    if (!indexBlk)
-      m_queue.add(indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask()});
-    return &indexBlk->data[blkOffset - indexBlk->offset];
-  }
-
-  void purge(unsigned blkOffset) {
-    blkOffset &= ~IndexBlkMask();
-    if (blkOffset < m_queue.head()) return; // prevent inadvertent reset
-    m_queue.head(blkOffset);
-  }
-
-private:
-  IndexQueue	m_queue;
-};
+using IndexBlk = Index::Node;
 
 class Series : public ZdbObject<DB::Series> {
 template <typename, typename> friend class Reader;
@@ -305,15 +274,15 @@ private:
 
 private:
   bool loadBlk(const ZuFieldTuple<DB::BlkHdr> &row) {
-    auto blkHdr = m_index.set(row.p<1>());
-    if (!blkHdr) return false;
-    blkHdr->init(row.p<2>(), row.p<4>(), row.p<5>(), row.p<3>());
+    auto blk = m_index.set(row.p<1>());
+    if (!blk) return false;
+    blk->init(row.p<2>(), row.p<4>(), row.p<5>(), row.p<3>());
     return true;
   }
 
   // open series and fill index
   void open(OpenSeriesFn fn) {
-    m_index.init(data().blkOffset);
+    m_index.head(data().blkOffset);
     m_db->m_blkHdrTbl->selectRows<0>(
       ZuFwdTuple(data().id), IndexBlkSize(), ZuLambda{[
 	this, fn = ZuMv(fn)
@@ -341,11 +310,40 @@ private:
       }});
   }
 
-  // number of blocks
+  void final() { m_index.reset(0); }
+
+  // number of blocks in index
   unsigned blkCount() const { return m_index.tail() - m_index.head(); }
 
-  BlkHdr *lastBlk() const {
-    auto blk = m_index.get(m_index.tail() - 1);
+  // first blkOffset (will be non-zero following a purge())
+  uint64_t head() const { return m_index.head(); }
+
+  // get Blk from index
+  const Blk *get(unsigned blkOffset) const {
+    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
+    if (!indexBlk) return nullptr;
+    return &indexBlk->blks[blkOffset - indexBlk->offset];
+  }
+
+  // set Blk in index
+  Blk *set(unsigned blkOffset) {
+    if (ZuUnlikely(blkOffset < m_queue.head())) return nullptr;
+    ZuRef<IndexBlk> indexBlk = m_queue.find(blkOffset);
+    if (!indexBlk)
+      m_queue.add(indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask()});
+    return &indexBlk->data[blkOffset - indexBlk->offset];
+  }
+
+  // purge index up to but not including blkOffset
+  void purge(unsigned blkOffset) {
+    blkOffset &= ~IndexBlkMask();
+    if (blkOffset < m_queue.head()) return; // prevent inadvertent reset
+    m_queue.head(blkOffset);
+  }
+
+  // get last (most recent) block in index
+  Blk *lastBlk() const {
+    auto blk = get(m_queue.tail() - 1);
     ZeAssert(blk,
       (id = data().id, head = m_index.head(), tail = m_index.tail()),
       "id=" << id << " head=" << head << " tail=" << tail, return nullptr);
@@ -354,22 +352,20 @@ private:
 
   // value count (length of series in #values)
   uint64_t count() const {
-    if (ZuUnlikely(m_index.tail() == m_index.head())) return 0;
+    if (ZuUnlikely(!blkCount())) return 0;
     auto blk = lastBlk();
-    ZeAssert(blk,
-      (id = data().id, head = m_index.head(), tail = m_index.tail()),
-      "id=" << id << " head=" << head << " tail=" << tail, return 0);
-    return blk->offset() + hdr->count();
+    if (ZuUnlikely(!blk)) return 0;
+    return blk->offset() + blk->count();
   }
 
   // length in bytes (compressed)
+  // - intentionally inaccurate and mildly overestimated
+  // - will not return under the actual value
   uint64_t length() const {
     unsigned n = blkCount();
     if (ZuUnlikely(!n)) return 0;
     auto blk = lastBlk();
-    ZeAssert(blk,
-      (id = data().id, head = m_index.head(), tail = m_index.tail()),
-      "id=" << id << " head=" << head << " tail=" << tail, return 0);
+    if (ZuUnlikely(!blk)) return 0;
     ZeAssert(blk->blkData,
       (id = data().id, head = m_index.head(), tail = m_index.tail()),
       "id=" << id << " head=" << head << " tail=" << tail, return n * BlkSize);
@@ -389,22 +385,22 @@ private:
   auto writer() { return Writer<Series, Encoder>{this}; }
 
 private:
-  void loadBlk(unsigned blkOffset, ZmFn<void(BlkHdr *)> fn) const {
-    auto hdr = m_index.get(blkOffset);
-    if (ZuUnlikely(!hdr)) return nullptr;
-    if (hdr->blkData) { fn(hdr); return; }
+  void loadBlk(unsigned blkOffset, ZmFn<void(Blk *)> fn) const {
+    auto blk = m_index.get(blkOffset);
+    if (ZuUnlikely(!blk)) return nullptr;
+    if (blk->blkData) { fn(blk); return; }
     db()->loadBlk(id(), blkOffset, [
       fn = ZuMv(fn)
     ](ZmRef<BlkData> blkData) mutable {
-      hdr->blkData = ZuMv(blkData);
-      fn(hdr);
+      blk->blkData = ZuMv(blkData);
+      fn(blk);
     });
   }
 
   void unloadBlk(unsigned blkOffset) {
-    auto hdr = m_index.get(blkOffset);
-    if (ZuUnlikely(!hdr)) return nullptr;
-    hdr->blkData = nullptr;
+    auto blk = m_index.get(blkOffset);
+    if (ZuUnlikely(!blk)) return nullptr;
+    blk->blkData = nullptr;
   }
 
   template <typename Decoder>
@@ -439,41 +435,44 @@ private:
     });
   }
 
-  // FIXME - ZuInterSearch -> ZuSearch.hh
-  // ZuSearch / ZuInterSearch -> generic array with [] operator
-  // Series Blk Index -> add array operator (uses get/set)
 
+  // seek function used in interpolation search
   auto seekFn(uint64_t offset) const {
-    return [offset](const Blk *blk) -> int {
-      auto hdrOffset = blk->offset();
-      if (offset < hdrOffset) return -int(hdrOffset - offset);
-      hdrOffset += blk->count();
-      if (offset >= hdrOffset) return int(offset - hdrOffset) + 1;
+    return [this, offset](uint64_t i) -> int {
+      auto blk = get(i + m_index.head());
+      ZeAssert(blk, (), "out of bounds", return 1);
+      auto offset_ = blk->offset();
+      if (offset < offset_) return -int(offset_ - offset);
+      offset_ += blk->count();
+      if (offset >= offset_) return int(offset - offset_) + 1;
       return 0;
     };
   }
   template <typename Decoder>
-  auto findFn(const ZuFixed &value) const {
-    return [this, value](const Blk &blk) -> int {
-      unsigned blkOffset = &const_cast<Blk &>(blk) - &m_blks[0];
-      auto buf = loadBuf(blkOffset); // FIXME - first can be the previous buffer's last, no need to load the buffer here; meanwhile the series first can be in the series
-      if (!buf) return -1;
-      auto reader = buf->template reader<Decoder>();
-      auto hdr = buf->hdr();
-      ZuFixed value_{int64_t(0), hdr->ndp()};
-      ZuFixedVal mantissa;
-      if (!reader.read(mantissa)) return -1;
-      mantissa = value_.adjust(value.ndp());
-      if (value.mantissa() < mantissa) {
-	int64_t delta = mantissa - value.mantissa();
+  auto findFn(ZuFixed value) const {
+    return [this, value](uint64_t i) -> int {
+      // get last value from preceding blk
+      ZuFixed value_;
+      if (!i)
+	value_ = first; // series first
+      else {
+	auto blk = get((i - 1) + m_index.head());
+	ZeAssert(blk, (), "out of bounds", return INT_MAX);
+	value_ = ZuFixed{blk->last(), blk->ndp()};
+      }
+      value_.mantissa = value_.adjust(value.ndp);
+      if (value.mantissa < value_.mantissa) {
+	int64_t delta = value_.mantissa - value.mantissa;
 	if (ZuUnlikely(delta >= int64_t(INT_MAX)))
 	  return INT_MIN;
 	return -int(delta);
       }
-      value_.mantissa(hdr->last);
-      mantissa = value_.adjust(value.ndp());
-      if (value.mantissa() > mantissa) {
-	int64_t delta = value.mantissa() - mantissa;
+      auto blk = get(i + m_index.head());
+      ZeAssert(blk, (), "out of bounds", return INT_MAX);
+      value_ = ZuFixed{blk->last(), blk->ndp()};
+      value_.mantissa = value_.adjust(value.ndp());
+      if (value.mantissa > value_.mantissa) {
+	int64_t delta = value.mantissa - value_.mantissa;
 	if (ZuUnlikely(delta >= int64_t(INT_MAX)))
 	  return INT_MAX;
 	return int(delta);
@@ -485,9 +484,10 @@ private:
   template <typename Decoder>
   Decoder seek(ZmRef<Buf> &buf, uint64_t offset) const {
     return seek_<Decoder>(buf,
-	ZuInterSearch(&m_blks[0], m_blks.length(), seekFn(offset)),
+	ZuInterSearch(m_blks.blkCount(), seekFn(offset)),
 	offset);
   }
+  // FIXME from here
   template <typename Decoder>
   Decoder seekFwd(ZmRef<Buf> &buf, uint64_t offset) const {
     return seek_<Decoder>(buf,

@@ -600,9 +600,9 @@ public:
     GtkSortType order;
     gint row;
     if (this->get_sort_column_id(&col, &order)) {
-      row = ZuSearchPos(ZuSearch<false>(&m_rows[0], m_rows.length(),
-	[i1 = &iter, fn = cmp_(col, order)](const Iter &i2) {
-	  return fn(i1, i2);
+      row = ZuSearchPos(ZuSearch<false>(m_rows.length(),
+	[this, &iter, fn = cmp_(col, order)](unsigned i) {
+	  return fn(iter, m_rows[i]);
 	}));
       impl()->row(iter, row);
       m_rows.splice(row, 0, ZuMv(iter));
@@ -782,11 +782,11 @@ namespace TreeHierarchy {
 
     void add(Child_ *child) {
       unsigned n = m_rows.length();
-      unsigned i = ZuSearchPos(ZuInterSearch<false>(
-	    const_cast<const Child_ **>(&m_rows[0]), n,
-	    [c1 = const_cast<const Child_ *>(child)](const Child_ *c2) {
-	      return c1->cmp(*c2);
-	    }));
+      unsigned i = ZuSearchPos(ZuInterSearch<false>(n,
+	[this, c1 = const_cast<const Child_ *>(child)](unsigned i) {
+	  auto c2 = const_cast<const Child_ *>(m_rows[i]);
+	  return c1->cmp(*c2);
+	}));
       child->row(i);
       m_rows.splice(i, 0, child);
       for (++i, ++n; i < n; i++) m_rows[i]->row(i);

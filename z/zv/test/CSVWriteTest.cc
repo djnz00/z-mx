@@ -68,7 +68,7 @@ int main()
       row->bar = i % 2;
       row->bah = i * 2;
       row->baz = i * 2.2;
-      row->bam_ = ZuFixed{row->baz * 2.2, 2}.mantissa();
+      row->bam_ = ZuFixed{row->baz * 2.2, 2}.mantissa;
       switch(i) {
 	case 1: row->snafu = 1; break;
 	case 2: row->snafu = 42; break;

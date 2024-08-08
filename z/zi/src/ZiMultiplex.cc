@@ -2279,7 +2279,7 @@ void ZiMxMgr::del(ZiMultiplex *mx)
   instance()->m_map.del(mx->id(), mx);
 }
 
-static ZiMultiplex *ZiMxMgr::find(ZuID id)
+ZiMultiplex *ZiMxMgr::find(ZuID id)
 {
   return instance()->m_map.findVal(id);
 }
