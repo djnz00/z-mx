@@ -273,8 +273,8 @@ namespace Save {
   }
   // inline creation of a vector of bytes from raw data
   template <typename Builder>
-  inline auto bytes(Builder &fbb, ZuArray<const uint8_t> a) {
-    return fbb.CreateVector(a.data(), a.length());
+  inline auto bytes(Builder &fbb, ZuBytes b) {
+    return fbb.CreateVector(b.data(), b.length());
   }
 
   // fixed
@@ -404,7 +404,7 @@ namespace Load {
   }
 
   // inline zero-copy conversion of a [uint8] to a ZuArray<const uint8_t>
-  inline ZuArray<const uint8_t> bytes(const Vector<uint8_t> *v) {
+  inline ZuBytes bytes(const Vector<uint8_t> *v) {
     if (!v) return {};
     return {v->data(), v->size()};
   }

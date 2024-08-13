@@ -28,6 +28,8 @@ class ZmObject
 {
   ZmObject(const ZmObject &) = delete;
   ZmObject &operator =(const ZmObject &) = delete;
+  ZmObject(ZmObject &&) = delete;
+  ZmObject &operator =(ZmObject &&) = delete;
 
   friend ZmObject ZuObjectType(ZmObject *);
 

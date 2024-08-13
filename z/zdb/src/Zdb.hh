@@ -335,7 +335,7 @@ public:
   UN un() const { return m_un; }
   SN sn() const { return m_sn; }
   VN vn() const { return m_vn; }
-  int state() const { return m_state; }
+  int state() const { return m_state; }	// ObjState
   UN origUN() const { return m_origUN; }
   bool evicted() const { return m_flags & Evicted; }
   bool pinned() const { return m_flags & Pinned; }
@@ -361,7 +361,7 @@ private:
     m_state = ObjState::Committed;
   }
 
-  bool insert_(UN un);
+  bool insert_(unsigned shard, UN un);
   bool update_(UN un);
   bool del_(UN un);
   bool commit_();
@@ -511,7 +511,6 @@ struct TableCf {
   ThreadArray		thread;		// threads
   mutable SIDArray	sid = 0;	// thread slot IDs
   int			cacheMode = CacheMode::Normal;
-  bool			warmup = false;	// warm-up caches, backing store
 
   class InvalidNThreads : public ZvError {
   public:
@@ -545,7 +544,6 @@ struct TableCf {
     }
     cacheMode = cf->getEnum<CacheMode::Map>(
 	"cacheMode", CacheMode::Normal);
-    warmup = cf->getBool("warmup");
   }
 
   static ZuID IDAxor(const TableCf &cf) { return cf.id; }
@@ -578,6 +576,8 @@ private:
   template <typename L> void open(L l);		// l(OpenResult)
   bool opened(OpenResult);
   template <typename L> void close(L l);	// l()
+protected:
+  void warmup() { m_storeTbl->warmup(); }
 
 public:
   DB *db() const { return m_db; }
@@ -636,9 +636,6 @@ public:
 
 protected:
   // -- implemented by Table<T>
-
-  // warmup
-  virtual void warmup(unsigned shard) = 0;
 
   // objSave(fbb, ptr) - save object into flatbuffer, return offset
   virtual Zfb::Offset<void> objSave(Zfb::Builder &, const void *) const = 0;
@@ -1065,10 +1062,21 @@ private:
   }
 
   // ameliorate cold start
-  void warmup(unsigned shard) {
+  void warmup(ZmFn<ZmRef<Object<T>>()> ctorFn) {
+    AnyTable::warmup();
+    unsigned n = config().nShards;
+    for (unsigned i = 0; i < n; i++)
+      run(i, [this, i, ctorFn]() mutable { warmup_(i, ZuMv(ctorFn)); });
+  }
+  void warmup() {
+    return warmup([](Table *this_) { return new Object<T>{this_}; });
+  }
+private:
+  void warmup_(unsigned shard, ZmFn<ZmRef<Object<T>>()> ctorFn) {
     // warmup heaps
-    ZmRef<Object<T>> object = placeholder();
+    ZmRef<Object<T>> object = ctorFn(this);
     object->init(shard, 0, 0, 0);
+    new (object->ptr()) T{};
     // warmup caches
     m_cache[shard].add(object);
     m_cache[shard].delNode(object);
@@ -1081,16 +1089,6 @@ private:
     evictBuf(shard, 0);
   }
 
-public:
-  // create placeholder record
-  // - null UN/SN, in-memory, never persisted/replicated
-  ZmRef<Object<T>> placeholder() {
-    ZmRef<Object<T>> object = new Object<T>{this};
-    new (object->ptr()) T{};
-    return object;
-  }
-
-private:
   template <
     unsigned KeyID,
     typename SelectKey,
@@ -1184,35 +1182,26 @@ private:
 
 public:
   // create new object
-  template <typename L, typename Ctor>
-  void insert(unsigned shard, L l, Ctor ctor) {
+  template <typename L>
+  void insert(unsigned shard, Object<T> *object, L l) {
     ZmAssert(invoked(shard));
 
-    ZmRef<Object<T>> object = insert_(nextUN(shard), ZuMv(ctor));
-    if (!object) { l(nullptr); return; }
+    object->insert_(shard, nextUN(shard));
     try {
       l(object);
     } catch (...) { object->abort(); throw; }
     object->abort();
   }
-  template <typename L>
-  ZuInline void insert(unsigned shard, L l) {
-    insert(shard, ZuMv(l), defltCtor());
-  }
   // create new object (idempotent with UN as key)
-  template <typename L, typename Ctor>
-  void insert(unsigned shard, UN un, L l, Ctor ctor) {
+  template <typename L>
+  void insert(unsigned shard, UN un, ZmRef<Object<T>> object, L l) {
     ZmAssert(invoked(shard));
 
     if (un != nullUN() && ZuUnlikely(nextUN(shard) > un)) {
-      l(static_cast<Object<T> *>(nullptr));
+      l(nullptr);
       return;
     }
-    insert(shard, ZuMv(l), ZuMv(ctor));
-  }
-  template <typename L>
-  ZuInline void insert(unsigned shard, UN un, L l) {
-    insert(shard, un, ZuMv(l), defltCtor());
+    insert(shard, ZuMv(object), ZuMv(l));
   }
 
   // update lambda - l(ZdbObject<T> *)
@@ -1428,15 +1417,6 @@ private:
     ZmAssert(invoked(object->shard()));
 
     return object->abort_();
-  }
-
-  // low-level insert - calls ctor, AnyObject::insert_()
-  template <typename Ctor>
-  ZmRef<Object<T>> insert_(UN un, Ctor ctor) {
-    ZmRef<Object<T>> object = ctor(this);
-    if (ZuUnlikely(!object)) return nullptr;
-    if (ZuUnlikely(!object->insert_(un))) return nullptr;
-    return object;
   }
 
   // low-level update, calls AnyObject::update_()

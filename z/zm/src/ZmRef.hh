@@ -22,6 +22,12 @@
 #include <zlib/ZmObjectDebug.hh>
 #endif
 
+// ZmRef can be used with either ZmObject or ZuObject
+// - ZmRef extends ZuRef to add reference leak debugging
+// - ZmObject is atomically reference-counted i.e. is MT-safe
+// - ZuObject is for single-threaded use
+// - above the Zu layer there is no reason to prefer ZuRef over ZmRef
+
 // rules for using ZmRef
 // - always point to objects allocated using new (use ZmHeap to optimize)
 // - always point to objects which derive from ZmObject

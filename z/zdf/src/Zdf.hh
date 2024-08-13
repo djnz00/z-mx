@@ -299,6 +299,22 @@ public:
   void openSeries(
     unsigned shard, ZuString name, bool create, OpenSeriesFn);
 
+  template <typename L>
+  void loadBlk(Series *series, BlkOffset blkOffset, L l) {
+    m_blkDataTbl->find<0>(
+      series->shard(), ZuFwdTuple(series->id(), blkOffset), ZuMv(l),
+      [series](ZdbTable *tbl) { return new BlkData{series}; });
+  }
+  template <typename L>
+  void saveBlk(Series *series, ZmRef<BlkData> blkData, L l) {
+    // FIXME - use blkData->state() to insert/update, call l on completion
+  }
+
+  ZdbTable<DB::DataFrame> *dataFrameTbl() const { return m_dataFrameTbl; }
+  ZdbTable<DB::Series> *seriesTbl() const { return m_seriesTbl; }
+  ZdbTable<DB::BlkHdr> *blkHdrTbl() const { return m_blkHdrTbl; }
+  ZdbTable<DB::BlkData> *blkDataTbl() const { return m_blkDataTbl; }
+
 private:
   DBState::T			m_state = DBState::Uninitialized;
   unsigned			m_maxSeriesBlks = 1000000;
@@ -311,7 +327,7 @@ private:
   ZmAtomic<uint32_t>		m_nextSeriesID = 1;
 };
 
-class ZdfAPI DataFrame {
+class ZdfAPI DataFrame : public DB::DataFrame {
   DataFrame() = delete;
   DataFrame(const DataFrame &) = delete;
   DataFrame &operator =(const DataFrame &) = delete;
@@ -419,24 +435,16 @@ public:
     return ZuFixed{static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9};
   }
   ZuTime time(const ZuFixed &v) {
-    uint64_t n = v.adjust(9);
+    ZuFixedVal n = v.adjust(9);
     uint64_t p = pow10_9();
     return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
   }
 
 private:
-  void load(Store_::LoadFn fn);
-  bool load_(ZuBytes data);
-
-  void save(Store_::SaveFn fn);
-  Zfb::Offset<fbs::DataFrame> save_(Zfb::Builder &);
-
-private:
   DB				*m_db = nullptr;
   ZtString			m_name;
-  ZtArray<ZdbObjRef<DB::Series>>	m_series;
+  ZtArray<ZmRef<Series>>	m_series;
   ZtArray<const ZtVField *>	m_fields;
-  ZdbObjRef<DB::DataFrame>	m_dbObj;
 
   // async open/close series context
   using Callback = ZuUnion<void, OpenFn, CloseFn>;

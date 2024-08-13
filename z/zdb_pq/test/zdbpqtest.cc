@@ -227,7 +227,8 @@ int main(int argc, char **argv)
       id = 0;
 
     orders->run(0, [&id, &seqNo]{
-      orders->insert(0, [&id, &seqNo](ZdbObject<Order> *o) {
+      ZdbObjRef<Order> o = new ZdbObject<Order>{orders};
+      orders->insert(0, o, [&id, &seqNo](ZdbObject<Order> *o) {
 	if (ZuUnlikely(!o)) { done.post(); return; }
 	ZuStringN<32> clOrdID;
 	clOrdID << "order" << id;

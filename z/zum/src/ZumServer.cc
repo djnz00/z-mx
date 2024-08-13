@@ -157,7 +157,8 @@ void UserDB::open_findAddPerm(ZuPtr<Open> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<Perm>> dbPerm) mutable {
     if (!dbPerm) {
-      m_permTbl->insert(0, [
+      ZdbObjRef<Perm> dbPerm = new ZdbObject<Perm>{m_permTbl};
+      m_permTbl->insert(0, dbPerm, [
 	this, context = ZuMv(context)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	if (!dbPerm) { opened(ZuMv(context), false); return; }
@@ -219,7 +220,8 @@ void UserDB::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> dbUser) mutable {
     if (!dbUser)
-      m_userTbl->insert(0, [
+      ZdbObjRef<User> dbUser = new ZdbObject<User>{m_userTbl};
+      m_userTbl->insert(0, dbUser, [
 	this, context = ZuMv(context)
       ](ZdbObject<User> *dbUser) mutable {
 	if (!dbUser) {
@@ -870,7 +872,8 @@ void UserDB::userAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "user " << ZtQuote::String{userName} << " already exists"));
 	return;
       }
-      m_userTbl->insert(0, [
+      ZdbObjRef<User> dbUser = new ZdbObject<User>{m_userTbl};
+      m_userTbl->insert(0, dbUser, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<User> *dbUser) mutable {
 	auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
@@ -1136,7 +1139,8 @@ void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "role " << ZtQuote::String{roleName} << " already exists"));
 	return;
       }
-      m_roleTbl->insert(0, [
+      ZdbObjRef<Role> dbRole = new ZdbObject<Role>{m_roleTbl};
+      m_roleTbl->insert(0, dbRole, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<Role> *dbRole) mutable {
 	auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
@@ -1309,7 +1313,8 @@ void UserDB::permAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "perm " << ZtQuote::String{permName} << " already exists"));
 	return;
       }
-      m_permTbl->insert(0, [
+      ZdbObjRef<Perm> dbPerm = new ZdbObject<Perm>{m_permTbl};
+      m_permTbl->insert(0, perm, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
@@ -1458,7 +1463,8 @@ void UserDB::keyAdd_(
 	});
 	return;
       }
-      m_keyTbl->insert(0, [
+      ZdbObjRef<Key> dbKey = new ZdbObject<Key>{m_keyTbl};
+      m_keyTbl->insert(0, dbKey, [
 	this, seqNo, userID, keyID, ackType, fn = ZuMv(fn)
       ](ZdbObject<Key> *dbKey) mutable {
 	if (!dbKey) {

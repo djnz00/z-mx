@@ -90,7 +90,7 @@ using BufLRUNode = BufLRU::Node;
 enum { BufSize = 1460 };
 
 template <typename Heap>
-class Buf_ : public ZmPolymorph, public BufLRUNode, public Heap {
+class Buf_ : public Heap, public ZmPolymorph, public BufLRUNode {
   using PinLock = ZmPLock;
   using PinGuard = ZmGuard<PinLock>;
   using PinReadGuard = ZmReadGuard<PinLock>;

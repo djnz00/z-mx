@@ -5,6 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // recycling zero-overhead block allocator
+// - compile-time determination of fixed object size
 // - intentionally recycles without zero-filling
 // - arenas with CPU core and NUMA affinity
 // - cache-aware
@@ -14,6 +15,11 @@
 // - efficient statistics and telemetry (Ztel)
 // - globally configured
 //   - supports profile-guided optimization of heap configuration
+
+// Note: classes using ZmHeap benefit from empty base optimization
+// - with MSVC, only the FIRST base class is optimized by default
+// - to ensure ZmHeap EBO with multiple inheritance, always
+//   place the ZmHeap first in the list of base classes
 
 #ifndef ZmHeap_HH
 #define ZmHeap_HH

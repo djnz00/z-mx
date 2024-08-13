@@ -20,6 +20,8 @@
 class ZuObject {
   ZuObject(const ZuObject &) = delete;
   ZuObject &operator =(const ZuObject &) = delete;
+  ZuObject(ZuObject &&) = delete;
+  ZuObject &operator =(ZuObject &&) = delete;
 
   friend ZuObject ZuObjectType(ZuObject *);
 

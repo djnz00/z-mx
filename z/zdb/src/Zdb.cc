@@ -1543,7 +1543,6 @@ AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
   if (!update) {
     fbb.add_cacheSize(cacheSize);
     fbb.add_cacheMode(static_cast<Ztel::fbs::DBCacheMode>(config().cacheMode));
-    fbb.add_warmup(config().warmup);
   }
   return fbb.Finish().Union();
 }
@@ -1704,11 +1703,8 @@ bool AnyTable::opened(OpenResult result)
   m_storeTbl = data.storeTbl;
   m_count = data.count;
   m_db->recoveredSN(data.sn);
-  for (unsigned i = 0, n = data.un.length(); i < n; i++) {
+  for (unsigned i = 0, n = config().nShards; i < n; i++)
     recoveredUN(i, data.un[i]);
-    if (config().warmup) run(i, [this, i]() { warmup(i); });
-  }
-  if (config().warmup) m_storeTbl->warmup();
 
   m_open = 1;
   return true;
@@ -1746,10 +1742,11 @@ void AnyTable::close(L l)
   });
 }
 
-bool AnyObject::insert_(UN un)
+bool AnyObject::insert_(unsigned shard, UN un)
 {
   if (m_state != ObjState::Undefined) return false;
   m_state = ObjState::Insert;
+  m_shard = shard;
   m_un = un;
   return true;
 }

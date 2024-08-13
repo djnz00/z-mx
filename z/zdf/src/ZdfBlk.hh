@@ -22,7 +22,9 @@ class Series;
 
 class BlkData : public ZdbObject<DB::BlkData> {
 public:
-  BlkData(Series *series) : m_series{series} { }
+  BlkData(Series *series) :
+    ZdbObject<DB::BlkData>{series->db()->seriesTbl()},
+    m_series{series} { }
 
   void evict();
 
@@ -33,11 +35,11 @@ private:
 // all of US equities trades since 2003 is ~350B rows
 // 47bits handles 140T rows for a single series, more than enough
 struct Blk {
-  uint64_t		ocn = 0;
+  uint64_t		ocn = 0;	// offset/count/ndp
   int64_t		last = 0;	// last value in block
   ZmRef<BlkData>	blkData;	// cached data
 
-  constexpr const uint64_t OffsetMask() { return ~((~uint64_t(0))<<47); }
+  constexpr const uint64_t OffsetMask() { return (uint64_t(1)<<47) - 1; }
   constexpr const unsigned CountShift() { return 47; }
   constexpr const uint64_t CountMask() { return uint64_t(0xfff); }
   constexpr const unsigned NDPShift() { return 59; }
@@ -48,9 +50,9 @@ struct Blk {
     last = last_;
   }
 
-  ZuInline uint64_t offset() const { return ocn & OffsetMask(); }
-  ZuInline unsigned count() const { return (ocn>>CountShift()) & CountMask(); }
-  ZuInline unsigned ndp() const { return (ocn>>NDPShift()) & NDPMask(); }
+  ZuInline uint64_t offset() const { return ocnl & OffsetMask(); }
+  ZuInline unsigned count() const { return (ocnl>>CountShift()) & CountMask(); }
+  ZuInline unsigned ndp() const { return (ocnl>>NDPShift()) & NDPMask(); }
 
   ZuInline bool operator !() const { return !count(); }
 
@@ -67,28 +69,30 @@ struct Blk {
     ocn = (ocn & OffsetMask()) | (count_<<CountShift()) | (ndp_<<NDPShift());
   }
 
-  template <typename Reader>
-  Reader reader() {
-    ZeAssert(blkData, (), "blkData not loaded", return Reader{});
+  template <typename Decoder>
+  Decoder decoder() {
+    ZeAssert(blkData, (), "blkData not loaded", return Decoder{});
     const auto &buf = blkData->data().buf;
     auto start = buf.data();
-    return Reader{start, start + buf.length()};
+    return Decoder{start, start + buf.length()};
   }
 
-  template <typename Writer>
-  Writer writer() {
-    ZeAssert(blkData, (), "blkData not loaded", return Reader{});
-    const auto &buf = blkData->data().buf;
-    auto start = buf.data();
-    return Writer{start + BufSize};
-  }
-  template <typename Writer>
-  void sync(const Writer &writer, unsigned ndp, int64_t last_) {
-    count_ndp(writer.count(), ndp);
+  template <typename Encoder>
+  void sync(const Encoder &encoder, unsigned ndp, int64_t last_) {
+    count_ndp(encoder.count(), ndp);
     last = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;
-    buf.length(writer.pos() - buf.data());
+    buf.length(encoder.pos() - buf.data());
+  }
+
+  template <typename Encoder>
+  Encoder encoder() {
+    if (!blkData) blkData = new BlkData{this};
+    blkData->pin();
+    const auto &buf = blkData->data().buf;
+    auto start = buf.data();
+    return Encoder{start, start + BlkSize};
   }
 
   unsigned space() const {

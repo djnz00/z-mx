@@ -17,7 +17,18 @@
 
 namespace Zdf {
 
-using Event = ZeVEvent;				// monomorphic ZeEvent
+using DFID = uint32_t;			// data frame ID
+
+using SeriesID = uint32_t;		// series ID
+
+using BlkOffset = uint64_t;		// block offset
+using Offset = uint64_t;		// value offset
+
+using NDP = uint8_t;			// number of decimal places
+
+using BlkCount = uint16_t;		// count of values within a block
+
+using Event = ZeVEvent;			// monomorphic ZeEvent
 
 } // namespace Zdf
 

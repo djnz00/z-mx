@@ -319,8 +319,8 @@ public:
 private:
   // add at tail
   template <int Level>
-  typename ZmPQueue_::First<Level, Levels>::T addTail__(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::First<Level, Levels>::T
+  addTail__(Node *node, unsigned addSeqNo) {
     Node *prev;
     node->NodeExt::next(0, nullptr);
     node->NodeExt::prev(0, prev = m_tail[0]);
@@ -332,8 +332,8 @@ private:
     addTail__<1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addTail__(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::Next<Level, Levels>::T
+  addTail__(Node *node, unsigned addSeqNo) {
     node->NodeExt::next(Level, nullptr);
     if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
       Node *prev;
@@ -350,23 +350,23 @@ private:
     addTailEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addTailEnd_(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::Next<Level, Levels>::T
+  addTailEnd_(Node *node, unsigned addSeqNo) {
     node->NodeExt::next(Level, nullptr);
     node->NodeExt::prev(Level, nullptr);
     addTailEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addTail__(
-      Node *, unsigned) { }
+  typename ZmPQueue_::Last<Level, Levels>::T
+  addTail__(Node *, unsigned) { }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addTailEnd_(
-      Node *, unsigned) { }
+  typename ZmPQueue_::Last<Level, Levels>::T
+  addTailEnd_(Node *, unsigned) { }
 
   // add at head
   template <int Level>
-  typename ZmPQueue_::First<Level, Levels>::T addHead__(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::First<Level, Levels>::T
+  addHead__(Node *node, unsigned addSeqNo) {
     Node *next;
     node->NodeExt::prev(0, nullptr);
     node->NodeExt::next(0, next = m_head[0]);
@@ -378,8 +378,8 @@ private:
     addHead__<1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addHead__(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::Next<Level, Levels>::T
+  addHead__(Node *node, unsigned addSeqNo) {
     node->NodeExt::prev(Level, nullptr);
     if (ZuUnlikely(!(addSeqNo & ((1U<<(Bits * Level)) - 1)))) {
       Node *next;
@@ -396,18 +396,18 @@ private:
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Next<Level, Levels>::T addHeadEnd_(
-      Node *node, unsigned addSeqNo) {
+  typename ZmPQueue_::Next<Level, Levels>::T
+  addHeadEnd_(Node *node, unsigned addSeqNo) {
     node->NodeExt::prev(Level, nullptr);
     node->NodeExt::next(Level, nullptr);
     addHeadEnd_<Level + 1>(node, addSeqNo);
   }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addHead__(
-      Node *, unsigned) { }
+  typename ZmPQueue_::Last<Level, Levels>::T
+  addHead__(Node *, unsigned) { }
   template <int Level>
-  typename ZmPQueue_::Last<Level, Levels>::T addHeadEnd_(
-      Node *, unsigned) { }
+  typename ZmPQueue_::Last<Level, Levels>::T
+  addHeadEnd_(Node *, unsigned) { }
 
   // add at key position, following find
   template <int Level>
@@ -742,6 +742,8 @@ public:
       m_headKey = m_tailKey = key;
     } else {
       purge(key);
+      // key might lie within an unclippable block, evaluate the head
+      if (m_head[0]) key = Fn{m_head[0]->Node::data()}.key();
       m_headKey = key;
       if (key > m_tailKey) m_tailKey = key;
     }

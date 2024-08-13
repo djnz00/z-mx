@@ -6,6 +6,6 @@ table Series {
   name:string;          // field name within DF
   first:Zfb.Fixed;      // first value in first block
   epoch:Zfb.DateTime;   // epoch (creation time)
-  blk_offset:uint32;    // first block (initially 0)
+  blk_offset:uint64;    // first block (initially 0)
 }
 root_type Series;
