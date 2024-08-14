@@ -8,13 +8,16 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+
+#include <iostream>
 
 #include <zlib/ZuUTF.hh>
 #include <zlib/ZuArrayN.hh>
 #include <zlib/ZuStringN.hh>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 int main()
 {

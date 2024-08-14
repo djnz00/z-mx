@@ -8,7 +8,6 @@
 
 #include <stdlib.h>
 #include <time.h>
-#include <stdio.h>
 
 #include <iostream>
 
@@ -17,7 +16,9 @@
 #include <zlib/ZuSearch.hh>
 #include <zlib/ZuJoin.hh>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 void search(ZuArray<int> data, int value, unsigned pos_, unsigned nc_)
 {

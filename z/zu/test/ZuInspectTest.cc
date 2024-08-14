@@ -6,7 +6,6 @@
 
 #include <zlib/ZuLib.hh>
 
-#include <stdio.h>
 #include <iostream>
 
 #include <zlib/ZuInspect.hh>
@@ -15,14 +14,16 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuPrint.hh>
 
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
+
 struct A { };
 struct B : public A { };
 struct C { operator A() { return A(); } };
-struct D : public C { ~D() { puts("~D()"); } };
+struct D : public C { ~D() { out("~D()"); } };
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
-
-inline constexpr auto foo() { return []{ puts("Hello World"); }; }
+inline constexpr auto foo() { return []{ out("Hello World"); }; }
 
 struct A_Print : public ZuPrintDelegate {
   template <typename S>
@@ -94,7 +95,7 @@ int main()
   CHECK(!(ZuTraits<ZuTuple<int, void *, D>>::IsPOD));
 
   constexpr auto bar = foo();
-  constexpr auto baz = []{ puts("Goodbye World"); };
+  constexpr auto baz = []{ out("Goodbye World"); };
   CHECK((ZuInspect<decltype(foo()), decltype(bar)>::Same));
   CHECK((!ZuInspect<decltype(foo()), decltype(baz)>::Same));
 

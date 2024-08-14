@@ -12,7 +12,9 @@
 
 #include <iostream>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 #define DEFINE(ID, I_) \
 struct ID { enum { I = I_ }; static const char *id() { return #ID; } }

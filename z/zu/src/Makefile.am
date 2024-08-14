@@ -14,7 +14,7 @@ pkginclude_HEADERS = \
 	ZuVersion.hh Zu_aton.hh Zu_ntoa.hh ZuDecimalFn.hh ZuUTF.hh \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
 	ZuNormChar.hh ZuEquiv.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
-	ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
+	ZuBitStream.hh ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
 	ZuVStream.hh ZuVArray.hh ZuIterator.hh ZuJoin.hh \
 	zu_lib.h zu_decimal.h zu_time.h zu_bitmap.h
 lib_LTLIBRARIES = libZu.la

@@ -11,7 +11,7 @@ noinst_PROGRAMS = \
 	ZuArrayTest ZuTupleTest ZuIDTest ZuUTFTest ZuBitmapTest \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
 	ZuAxorTest ZuPtrTest ZuTimeTest ZuEndianTest \
-	ZuStreamTest
+	ZuStreamTest ZuBitStreamTest
 ZuInspectTest_SOURCES = ZuInspectTest.cc
 ZuHashTest_SOURCES = ZuHashTest.cc Analyze.hh
 ZuCmpTest_SOURCES = ZuCmpTest.cc
@@ -31,3 +31,4 @@ ZuPtrTest_SOURCES = ZuPtrTest.cc
 ZuTimeTest_SOURCES = ZuTimeTest.cc
 ZuEndianTest_SOURCES = ZuEndianTest.cc
 ZuStreamTest_SOURCES = ZuStreamTest.cc
+ZuBitStreamTest_SOURCES = ZuBitStreamTest.cc

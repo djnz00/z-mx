@@ -8,16 +8,19 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+
+#include <iostream>
 
 #include <zlib/ZuID.hh>
 #include <zlib/ZuStringN.hh>
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+inline void out(const char *s) { std::cout << s << '\n'; }
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 static void test(const char *s)
 {
-  puts(s);
+  out(s);
   unsigned n = strlen(s);
   if (n > 8) n = 8;
   ZuID a(s);
