@@ -140,6 +140,9 @@ public:
   uint8_t *pos() const { return m_pos; }
   uint8_t *end() const { return m_end; }
 
+  bool operator !() const { return !m_pos; }
+  ZuOpBool
+
   template <unsigned Bits>
   void out(uint8_t v) {
     if (ZuUnlikely(m_outBits == 0)) {

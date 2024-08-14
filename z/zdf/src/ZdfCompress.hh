@@ -240,8 +240,8 @@ private:
 
 template <typename> class Encoder;
 
-template <> class Encoder<Decoder>
-class Encoder {
+template <>
+class Encoder<Decoder> {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
@@ -273,10 +273,8 @@ public:
   // written so that decoders reset their "previous value" to zero,
   // ensuring that any initial RLE of zero is processed correctly
   Encoder(const Decoder &decoder, uint8_t *end) :
-    m_pos{decoder.end()}, m_end{end}, m_rle(nullptr),
-    m_prev(0), m_count{decoder.count()}
+    m_pos{decoder.pos()}, m_end{end}, m_count{decoder.count()}
   {
-    ZmAssert(decoder.pos() == decoder.end());
     ZmAssert(m_pos < m_end);
     *m_pos++ = 0x80; // reset
   }
@@ -364,6 +362,8 @@ public:
   }
 
   int64_t last() const { return m_prev; }
+
+  void finish() { }
 
 private:
   uint8_t	*m_pos =nullptr;
@@ -466,7 +466,7 @@ private:
   int64_t	m_base = 0;
 };
 
-class FPDecoder {
+class FPDecoder : public ZuIBitStream {
 public:
   FPDecoder() = default;
   FPDecoder(const FPDecoder &) = default;
@@ -477,11 +477,6 @@ public:
   FPDecoder(const uint8_t *start, const uint8_t *end) :
     m_pos{start}, m_end{end} { }
 
-  bool operator !() const { return !m_pos; }
-  ZuOpBool
-
-  const uint8_t *pos() const { return m_pos; }
-  const uint8_t *end() const { return m_end; }
   unsigned count() const { return m_count; }
 
   // seek to a position
@@ -550,32 +545,33 @@ private:
   bool read_(double *value_) {
     static uint8_t lzmap[] = { 0, 8, 12, 16, 18, 20, 22, 24 };
 
+    auto saved = save();
   again:
-    if (ZuUnlikely(!avail<2>())) return false;
+    if (ZuUnlikely(!avail<2>())) goto eob;
     uint64_t value;
     switch (in<2>()) {
       case 0:
 	value = 0;
 	break;
       case 1: {
-	if (ZuUnlikely(!avail<9>())) return false;
+	if (ZuUnlikely(!avail<9>())) goto eob;
 	auto lz = lzmap[in<3>()];
 	auto sb = in<6>();
-	if (ZuUnlikely(!avail(sb))) return false;
+	if (ZuUnlikely(!avail(sb))) goto eob;
 	if (!sb) { m_prev = 0; m_prevLZ = 0; goto again; } // reset
 	value = in(sb)<<(64 - sb - lz);
 	m_prevLZ = lz;
       } break;
       case 2: {
 	auto sb = 64 - m_prevLZ;
-	if (ZuUnlikely(!avail(sb))) return false;
+	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb);
       } break;
       case 3: {
-	if (ZuUnlikely(!avail<3>())) return false;
+	if (ZuUnlikely(!avail<3>())) goto eob;
 	auto lz = lzmap[in<3>()];
 	auto sb = 64 - lz;
-	if (ZuUnlikely(!avail(sb))) return false;
+	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb);
 	m_prevLZ = lz;
       } break;
@@ -584,113 +580,35 @@ private:
     m_prev ^= value;
     if (value_) *value_ = *reinterpret_cast<double *>(&value);
     return true;
-  }
-
-  template <unsigned Bits>
-  bool avail() {
-    return m_pos + ((m_inBits + Bits + 7)>>3) <= m_end;
-  }
-  bool avail(unsigned bits) {
-    return m_pos + ((m_inBits + bits + 7)>>3) <= m_end;
-  }
-
-  template <unsigned Bits>
-  uint8_t in() {
-    uint8_t v;
-    if (ZuUnlikely(m_inBits == 0)) {
-      m_inBits = 8 - Bits;
-      return (*m_pos)>>(8 - Bits);
-    }
-    unsigned bits;
-    {
-      unsigned ibits = m_inBits;
-      if (ZuUnlikely(Bits < ibits)) ibits = Bits;
-      m_inBits -= ibits;
-      v = ((*m_pos)>>m_inBits)<<(8 - ibits);
-      if (!m_inBits) m_pos++;
-      if (!(bits = Bits - ibits)) return v>>(8 - Bits);
-    }
-    if (auto lbits = bits & 7) {
-      m_inBits = 8 - lbits;
-      v = (v>>lbits) | (((*m_pos)>>m_inBits)<<(8 - lbits));
-    }
-    return v>>(8 - bits);
-  }
-  uint64_t in(unsigned bits) {
-    uint64_t v;
-    if (ZuUnlikely(m_inBits == 0)) {
-      switch (bits>>3) {
-	case 8: v = (*m_pos++)<<56;
-	case 7: v = (v>>8) | ((*m_pos++)<<56);
-	case 6: v = (v>>8) | ((*m_pos++)<<56);
-	case 5: v = (v>>8) | ((*m_pos++)<<56);
-	case 4: v = (v>>8) | ((*m_pos++)<<56);
-	case 3: v = (v>>8) | ((*m_pos++)<<56);
-	case 2: v = (v>>8) | ((*m_pos++)<<56);
-	case 1: v = (v>>8) | ((*m_pos++)<<56);
-      }
-      if (auto lbits = bits & 7) {
-	m_inBits = 8 - lbits;
-	v = (v>>lbits) | (((*m_pos)>>m_inBits)<<(64 - lbits));
-      }
-      return v>>(64 - bits);
-    }
-    {
-      unsigned ibits = m_inBits;
-      if (ZuUnlikely(bits < ibits)) ibits = bits;
-      m_inBits -= ibits;
-      v = ((*m_pos)>>m_inBits)<<(64 - ibits);
-      if (!m_inBits) m_pos++;
-      if (!(bits -= ibits)) return v>>(64 - bits);
-    }
-    switch (bits>>3) {
-      case 7: v = (v>>8) | ((*m_pos++)<<56);
-      case 6: v = (v>>8) | ((*m_pos++)<<56);
-      case 5: v = (v>>8) | ((*m_pos++)<<56);
-      case 4: v = (v>>8) | ((*m_pos++)<<56);
-      case 3: v = (v>>8) | ((*m_pos++)<<56);
-      case 2: v = (v>>8) | ((*m_pos++)<<56);
-      case 1: v = (v>>8) | ((*m_pos++)<<56);
-    }
-    if (auto lbits = bits & 7) {
-      m_inBits = 8 - lbits;
-      v = (v>>lbits) | (((*m_pos)>>m_inBits)<<(64 - lbits));
-    }
-    return v>>(64 - bits);
+  eob:
+    load(saved);
+    return false;
   }
 
 private:
-  const uint8_t	*m_pos = nullptr;
-  const uint8_t	*m_end = nullptr;
   uint64_t	m_prev = 0;
   unsigned	m_prevLZ = 0;	// previous LZ
   unsigned	m_count = 0;
-  unsigned	m_inBits = 0;
 };
 
 template <>
-class Encoder<FPDecoder> {
+class Encoder<FPDecoder> : public ZuOBitStream {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
 public:
   using Decoder = FPDecoder;
 
-  Encoder(uint8_t *start, uint8_t *end) : m_pos{start}, m_end{end} { }
+  Encoder(uint8_t *start, uint8_t *end) : ZuOBitStream{start, end} { }
 
   Encoder() { }
   Encoder(Encoder &&w) :
-    m_pos{w.m_pos}, m_end{w.m_end},
-    m_prev{w.m_prev}, m_prevLZ{w.m_prevLZ},
-    m_count{w.m_count}, m_outBits{w.m_outBits}, m_out{w.m_out}
+    ZuOBitStream{ZuMv(w)},
+    m_prev{w.m_prev}, m_prevLZ{w.m_prevLZ}, m_count{w.m_count}
   {
-    w.m_pos = nullptr;
-    w.m_end = nullptr;
     w.m_prev = 0;
     w.m_prevLZ = 0;
     w.m_count = 0;
-    w.m_outBits = 0;
-    w.m_out = 0;
   }
   Encoder &operator =(Encoder &&w) {
     if (ZuLikely(this != &w)) {
@@ -700,20 +618,15 @@ public:
     return *this;
   }
 
-  // FIXME - ensure finish() is called at end even if block isn't full
-
-  Encoder(const Decoder &decoder, uint8_t *end) {
-    // FIXME
-    // - backtrack over any terminating partial reset and ensure
-    //   a reset is appended before continuing
+  Encoder(const Decoder &decoder, uint8_t *end) :
+    ZuOBitStream{decoder, end},
+    m_count{decoder.count()}
+  {
+    // FIXME - output reset
+    out<11>(/* FIXME */);
   }
 
-  uint8_t *pos() const { return m_pos; }
-  uint8_t *end() const { return m_end; }
   unsigned count() const { return m_count; }
-
-  bool operator !() const { return !m_pos; }
-  ZuOpBool
 
 public:
   bool write(double value_) {
@@ -737,7 +650,7 @@ public:
     uint64_t value = *reinterpret_cast<uint64_t *>(&value_);
     value ^= m_prev;
     if (ZuUnlikely(!value)) {
-      if (ZuUnlikely(!avail<2>())) goto full;
+      if (ZuUnlikely(!avail<2>())) return false;
       out<2>(0);
       return true;
     }
@@ -745,117 +658,39 @@ public:
     tz = ZuIntrin::ctz(value);
     if (tz > 6) {
       auto sb = 64 - lz - tz
-      if (ZuUnlikely(!avail(sb + 11))) goto full;
-      out<5>((1<<3) | lzmap[lz]);
-      out<6>(sb);
+      if (ZuUnlikely(!avail(sb + 11))) return false;
+      out((uint64_t(sb)<<5) | (lzmap[lz]<<2) | 1, 11);
       out(value>>tz, sb);
       m_prevLZ = lz;
     } else if (lz == m_prevLZ) {
       auto sb = 64 - lz;
-      if (ZuUnlikely(!avail(sb + 2))) goto full;
+      if (ZuUnlikely(!avail(sb + 2))) return false;
       out<2>(2);
       out(value, sb);
     } else {
       auto sb = 64 - lz;
-      if (ZuUnlikely(!avail(sb + 5))) goto full;
-      out<5>((3<<3) | lzmap[lz]);
+      if (ZuUnlikely(!avail(sb + 5))) return false;
+      out<5>((lzmap[lz]<<2) | 3);
       out(value, sb);
       m_prevLZ = lz;
     }
     m_prev ^= value;
     return true;
-  full:
-    finish();
-    return false;
   }
 
   double last() const {
     return *reinterpret_cast<double *>(&m_prev);
   }
 
-private:
-  template <unsigned Bits>
-  bool avail() {
-    if (ZuLikely(m_pos + ((m_outBits + Bits + 7)>>3) <= m_end)) return true;
-    finish();
-    return false;
-  }
-  bool avail(unsigned bits) {
-    if (ZuLikely(m_pos + ((m_outBits + bits + 7)>>3) <= m_end)) return true;
-    finish();
-    return false;
-  }
-
-  template <unsigned Bits>
-  void out(uint8_t v) {
-    if (ZuUnlikely(m_outBits == 0)) {
-      m_outBits = Bits; m_out = v;
-      return;
-    }
-    unsigned obits = 8 - m_outBits;
-    if (ZuUnlikely(Bits < obits)) obits = Bits;
-    m_out = (m_out<<obits) | (v & ~(uint8_t(0xff)<<obits));
-    if ((m_outBits += obits) >= 8) {
-      *m_pos++ = m_out;
-      m_outBits = 0, m_out = 0;
-    }
-    v >>= obits;
-    if (uint8_t bits = Bits - obits) { m_outBits = bits; m_out = v; }
-  }
-  void out(uint64_t v, unsigned bits) {
-    if (ZuUnlikely(m_outBits == 0)) {
-      switch (bits>>3) {
-	case 8: *m_pos++ = v; v >>= 8;
-	case 7: *m_pos++ = v; v >>= 8;
-	case 6: *m_pos++ = v; v >>= 8;
-	case 5: *m_pos++ = v; v >>= 8;
-	case 4: *m_pos++ = v; v >>= 8;
-	case 3: *m_pos++ = v; v >>= 8;
-	case 2: *m_pos++ = v; v >>= 8;
-	case 1: *m_pos++ = v; v >>= 8;
-      }
-      bits &= 7;
-      if (bits) { m_outBits = bits; m_out = v; }
-      return;
-    }
-    unsigned obits = 8 - m_outBits;
-    if (ZuUnlikely(bits < obits)) obits = bits;
-    m_out = (m_out<<obits) | (uint8_t(v) & ~(uint8_t(0xff)<<obits));
-    if ((m_outBits += obits) >= 8) {
-      *m_pos++ = m_out;
-      m_outBits = 0, m_out = 0;
-    }
-    v >>= obits;
-    if (!(bits -= obits)) return;
-    switch (bits>>3) {
-      case 7: *m_pos++ = v; v >>= 8;
-      case 6: *m_pos++ = v; v >>= 8;
-      case 5: *m_pos++ = v; v >>= 8;
-      case 4: *m_pos++ = v; v >>= 8;
-      case 3: *m_pos++ = v; v >>= 8;
-      case 2: *m_pos++ = v; v >>= 8;
-      case 1: *m_pos++ = v; v >>= 8;
-    }
-    bits &= 7;
-    if (bits) { m_outBits = bits; m_out = v; }
-  }
-
   void finish() {
-    if (ZuLikely(m_pos < m_end && m_outBits)) {
-      if (m_outBits <= 6) out_<2>(1); // ensure decoder terminates
-      *m_pos++ = m_out;
-      m_outBits = 0, m_out = 0;
-    }
+    if (avail<2>()) out_<2>(1); // ensure decoder terminates
+    ZuOBitStream::finish();
   }
 
 private:
-  uint8_t	*m_pos = nullptr;
-  uint8_t	*m_end = nullptr;
   uint64_t	m_prev = 0;
   unsigned	m_prevLZ = 0;	// previous LZ
   unsigned	m_count = 0;
-  unsigned	m_outBits = 0;	// output bits
-  uint8_t	m_out = 0;	// output byte
 };
 
 } // namespace ZdfCompress
