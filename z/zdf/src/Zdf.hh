@@ -296,8 +296,48 @@ public:
     unsigned shard, ZuString name, bool create,
     const ZtVFieldArray &fields, bool timeIndex, OpenDFFn);
   // open series
-  void openSeries(
-    unsigned shard, ZuString name, bool create, OpenSeriesFn);
+  template <bool Float = false>
+  void openSeries(unsigned shard, ZtString name, bool create, OpenSeriesFn) {
+    run(shard, [
+      this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
+    ]() mutable {
+      auto findFn = [
+	this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
+      ](auto dbSeries) mutable {
+	if (dbSeries) {
+	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
+	  series->open(ZuMv(fn));
+	  return;
+	}
+	if (!create) { fn(nullptr); return; }
+	using DBSeries = decltype(*dbSeries);
+	dbSeries = new DBSeries{m_seriesFixedTbl, shard};
+	new (dbSeries->ptr_()) DB::Series{
+	  .id = m_nextSeriesID++,
+	  .dfid = 0,
+	  .name = ZuMv(name),
+	  .epoch = Zm::now()
+	};
+	auto insertFn = [
+	  series = ZuMv(series), fn = ZuMv(fn)
+	](auto dbSeries) mutable {
+	  if (!dbSeries) { fn(nullptr); return; }
+	  dbSeries->commit();
+	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries));
+	  series->open(ZuMv(fn));
+	};
+	if constexpr (!Float)
+	  m_seriesFixedTbl->insert(dbSeries, ZuMv(insertFn));
+	else
+	  m_seriesFloatTbl->insert(dbSeries, ZuMv(insertFn));
+      };
+      auto key = ZuMvTuple(ZuString{name});
+      if constexpr (!Float)
+	m_seriesFixedTbl->find<1>(shard, key, ZuMv(findFn));
+      else
+	m_seriesFloatTbl->find<1>(shard, key, ZuMv(findFn));
+    });
+  }
 
   template <typename L>
   void loadBlk(Series *series, BlkOffset blkOffset, L l) {
@@ -306,21 +346,68 @@ public:
       [series](ZdbTable *tbl) { return new BlkData{series}; });
   }
   template <typename L>
-  void saveBlk(Series *series, ZmRef<BlkData> blkData, L l) {
-    // FIXME - use blkData->state() to insert/update, call l on completion
+  void saveBlk(Series *series, BlkOffset blkOffset, Blk *blk, L l) {
+    ZmAssert(blk->blkData);
+    ZmAssert(blk->blkData->pinned());
+    if (blk->blkData->state() == ZdbObjState::Undefined) {
+      ZdbObjRef<DB::BlkHdrFixed> blkHdr =
+	new ZdbObject<DB::BlkHdrFixed>{m_blkHdrFixedTbl};
+      new (blkHdr->ptr()) DB::BlkHdrFixed{
+	.blkOffset = blkOffset,
+	.offset = blk->offset(),
+	.last = blk->last.fixed,
+	.seriesID = series->id(),
+	.count = blk->count(),
+	.ndp = blk->ndp()
+      };
+      m_blkHdrTbl->insert(
+	series->shard(), ZuMv(blkHdr),
+	[](ZdbObject<DB::BlkHdrFixed> *blkHdr) {
+	  if (blkHdr) blkHdr->commit();
+	});
+      m_blkDataTbl->insert(
+	series->shard(), blk->blkData,
+	[l = ZuMv(l)](ZdbObject<DB::BlkData> *blkData) mutable {
+	  if (!blkData) { l(nullptr); return; }
+	  blkData->commit();
+	  l(blkData);
+	});
+    } else {
+      m_blkHdrTbl->findUpd<0>(
+	series->shard(), ZuFwdTuple(series->id(), blkOffset),
+	[](ZdbObject<DB::BlkHdrFixed> *blkHdr) {
+	  if (!blkHdr) return;
+	  auto &data = blkHdr->data();
+	  data.offset = blk->offset();
+	  data.last = blk->last.fixed;
+	  data.count = blk->count();
+	  data.ndp = blk->ndp();
+	  blkHdr->commit();
+	});
+      m_blkDataTbl->update<>(blk->blkData,
+	[l = ZuMv(l)](ZdbObject<DB::BlkData> *blkData) mutable {
+	  if (!blkData) { l(nullptr); return; }
+	  blkData->commit();
+	  l(blkData);
+	});
+    }
   }
 
   ZdbTable<DB::DataFrame> *dataFrameTbl() const { return m_dataFrameTbl; }
-  ZdbTable<DB::Series> *seriesTbl() const { return m_seriesTbl; }
-  ZdbTable<DB::BlkHdr> *blkHdrTbl() const { return m_blkHdrTbl; }
+  ZdbTable<DB::SeriesFixed> *seriesFixedTbl() const { return m_seriesFixedTbl; }
+  ZdbTable<DB::SeriesFloat> *seriesFloatTbl() const { return m_seriesFloatTbl; }
+  ZdbTable<DB::BlkHdrFixed> *blkHdrFixedTbl() const { return m_blkHdrFixedTbl; }
+  ZdbTable<DB::BlkHdrFloat> *blkHdrFloatTbl() const { return m_blkHdrFloatTbl; }
   ZdbTable<DB::BlkData> *blkDataTbl() const { return m_blkDataTbl; }
 
 private:
   DBState::T			m_state = DBState::Uninitialized;
   unsigned			m_maxSeriesBlks = 1000000;
   ZdbTblRef<DB::DataFrame>	m_dataFrameTbl;
-  ZdbTblRef<DB::Series>		m_seriesTbl;
-  ZdbTblRef<DB::BlkHdr>		m_blkHdrTbl;
+  ZdbTblRef<DB::SeriesFixed>	m_seriesFixedTbl;
+  ZdbTblRef<DB::SeriesFloat>	m_seriesFloatTbl;
+  ZdbTblRef<DB::BlkHdrFixed>	m_blkHdrFixedTbl;
+  ZdbTblRef<DB::BlkHdrFloat>	m_blkHdrFloatTbl;
   ZdbTblRef<DB::BlkData>	m_blkDataTbl;
   ZdbTableCf::SIDArray		m_sid;
   ZmAtomic<uint32_t>		m_nextDFID = 1;

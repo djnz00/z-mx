@@ -89,7 +89,8 @@ public:
   void findRev(const ZuFixed &value);
 
   // read values
-  void read(ZmFn<bool(const ZuFixed &)> fn);
+  void read(ZmFn<bool(const ZuFixed &)> fn);	// fixed point
+  void read(ZmFn<bool(double)> fn);		// floating point
 
   // close reader (idempotent)
   void close();
@@ -167,7 +168,8 @@ friend Series;
   ~Writer_() { close(); }
 
   // append value to series
-  bool write(const ZuFixed &);
+  bool write(const ZuFixed &);	// fixed point
+  bool write(double);		// floating point
 
   // sync block header (notifies any waiting readers)
   void sync();
@@ -193,7 +195,7 @@ class DataFrame;
 
 // a series is SWMR, the writer is built-in
 template <typename Decoder_>
-class Series : public ZdbObject<DB::Series> {
+class Series {
   using Decoder = Decoder_;
   using Encoder = Encoder<Decoder>;
   using Reader = Zdf::Reader<Decoder>;
@@ -207,12 +209,14 @@ friend Writer;
 using ID = uint32_t;
 
 private:
-  Series(DB *db, unsigned shard) : m_db{db}, m_shard{shard} { pin(); }
-  ~Series() { }
+  Series(DB *db, ZmRef<ZdbAnyObject> dbObject) :
+    m_db{db}, m_dbObject{ZuMv(dbObject)} { dbObject->pin(); }
+  ~Series() { dbObject->unpin(); }
 
 public:
   DB *db() const { return m_db; }
-  unsigned shard() const { return m_shard; }
+  ZdbAnyObject *dbObject() const { return m_dbObject; }
+  unsigned shard() const { return m_dbObject->shard(); }
   DataFrame *df() const { return m_df; }
   ID id() const { return data().id; }
 
@@ -228,28 +232,28 @@ private:
   // open series and fill index
   void open(OpenSeriesFn fn) {
     m_index.head(data().blkOffset);
-    m_db->m_blkHdrTbl->selectRows<0>(
+    m_db->blkHdrTbl()->selectRows<0>(
       ZuFwdTuple(data().id), IndexBlkSize(), ZuLambda{[
-	this, fn = ZuMv(fn), rowRcvd = false
+	this_ = ZmMkRef(this), fn = ZuMv(fn), rowRcvd = false
       ](auto &&self, auto result, unsigned) mutable {
-	if (m_opened) return; // index filled, callback already called - ignore
+	if (this_->m_opened) return; // index already filled
 	using Row = ZuFieldTuple<DB::BlkHdr>;
 	if (result.template is<Row>()) { // fill index
-	  m_lastBlkOffset = result.template p<Row>().template p<1>();
-	  m_lastBlk = loadBlkHdr(result.template p<Row>());
-	  if (!m_lastBlk) {
-	    m_opened = true;
-	    fn(this);
+	  this_->m_lastBlkOffset = result.template p<Row>().template p<1>();
+	  this_->m_lastBlk = loadBlkHdr(result.template p<Row>());
+	  if (!this_->m_lastBlk) {
+	    this_->m_opened = true;
+	    fn(ZuMv(this_));
 	  }
 	  rowRcvd = true;
 	} else { // complete
 	  if (!rowRcvd) {
-	    m_opened = true;
-	    fn(this);
+	    this_->m_opened = true;
+	    fn(ZuMv(this_));
 	  } else {
 	    rowRcvd = false;
-	    nextRows<0>(
-	      ZuFwdTuple(data().id, m_lastBlkOffset), false,
+	    this_->m_db->blkHdrTbl()->nextRows<0>(
+	      ZuFwdTuple(data().id, this_->m_lastBlkOffset), false,
 	      IndexBlkSize(), ZuMv(self));
 	  }
 	}
@@ -272,16 +276,10 @@ private:
     if (m_writer) return nullptr;
     // if the series is empty, append a new index block
     if (!m_lastBlk) { // new series
-      BlkOffset blkOffset = m_index.tail();
-
-      // sanity check that this is a new series
-      ZeAssert(!blkOffset && blkOffset == m_index.head(), (blkOffset),
-	"inconsistent Series state blkOffset=" << blkOffset, return nullptr); 
-
-      IndexBlk *indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask()};
+      IndexBlk *indexBlk = new IndexBlk{0};
       m_index.add(indexBlk);
-      m_lastBlk = &indexBlk->data[blkOffset - indexBlk->offset];
-      m_lastBlkOffset = blkOffset;
+      m_lastBlk = &indexBlk->data[0];
+      m_lastBlkOffset = 0;
       m_lastBlk->blkData = new BlkData{this};
       write3(ZuMv(fn));
     } else if (m_lastBlk->count()) {
@@ -311,15 +309,7 @@ private:
       return;
     }
     if (m_lastBlk->space() < 8) {
-      auto offset = m_lastBlk->offset() + m_lastBlk->count();
-      ++m_lastBlkOffset;
-      ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
-      if (!indexBlk)
-	m_index.add(indexBlk = new IndexBlk{m_lastBlkOffset & ~IndexBlkMask()});
-      m_lastBlk = &indexBlk->data[m_lastBlkOffset - indexBlk->offset];
-      m_lastBlk->offset(offset);
-      m_lastBlk->blkData = new BlkData{this};
-      m_lastBlkOffset = blkOffset;
+      appendBlock();
       write3(ZuMv(fn));
       return;
     }
@@ -331,11 +321,41 @@ private:
     fn(ZuMv(writer));
   }
   void write3(ZmFn<void(ZmRef<Writer>)> fn) {
-    const auto &buf = m_lastBlk->blkData->buf;
-    ZmRef<Writer> writer =
-      new Writer{this, Encoder{buf.data(), buf.data() + BlkSize}};
+    ZmRef<Writer> writer = new Writer{this, m_lastBlk->encoder<Encoder>()};
     fn(ZuMv(writer));
   }
+
+  void appendBlock() {
+    auto offset = m_lastBlk->offset() + m_lastBlk->count();
+    ++m_lastBlkOffset;
+    ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
+    if (!indexBlk)
+      m_index.add(indexBlk = new IndexBlk{m_lastBlkOffset & ~IndexBlkMask()});
+    m_lastBlk = &indexBlk->data[m_lastBlkOffset - indexBlk->offset];
+    m_lastBlk->offset(offset);
+    m_lastBlk->blkData = new BlkData{this};
+    m_lastBlk->blkData->pin();
+  }
+
+  void write(Writer *writer, const ZuFixed &value) {
+    // FIXME - if this is the first value, update the db series (F&F)
+    auto &encoder = writer->encoder();
+    if (value.ndp != m_ndp || !encoder.write(value.mantissa)) {
+      m_lastBlk->sync(encoder, m_ndp, encoder.last());
+      ZmAssert(blkData->pinned());
+      m_db->saveBlk(this, m_lastBlk,
+	[](ZdbObject<DB::BlkData> *blkData) { blkData->unpin(); });
+      appendBlock();
+      encoder = m_lastBlk->encoder<Encoder>();
+      m_ndp = value.ndp;
+      if (ZuUnlikely(!encoder.write(value.mantissa))) return false;
+    }
+  }
+
+  void write(Writer *writer, double value) {
+  }
+
+  // FIXME - find needs to support double
 
   // begin reading from offset
   ZmRef<Reader> seek(uint64_t offset = 0) const {
@@ -386,7 +406,7 @@ private:
 
 private:
   // number of blocks in index
-  unsigned blkCount() const { return m_index.tail() - m_index.head(); }
+  unsigned blkCount() const { return (m_lastBlkOffset + 1) - m_index.head(); }
 
   // first blkOffset (will be non-zero following a purge())
   uint64_t head() const { return m_index.head(); }
@@ -533,7 +553,7 @@ private:
   void purge(BlkOffset blkOffset) {
     blkOffset &= ~IndexBlkMask();
     if (blkOffset < m_index.head()) return; // prevent inadvertent reset
-    if (blkOffset >= m_index.tail() - 1) return; // prevent lastBlk removal
+    if (blkOffset >= m_lastBlkOffset) return; // prevent lastBlk removal
     m_index.head(blkOffset);
   }
 
@@ -722,16 +742,16 @@ private:
   }
 
 private:
-  DB		*m_db = nullptr;
-  unsigned	m_shard = 0;
-  DataFrame	*m_df = nullptr;
-  Index		m_index;
-  Blk		*m_lastBlk = nullptr;
-  uint64_t	m_lastBlkOffset = 0;
-  ReaderList	m_liveReaders;
-  ReaderList	m_histReaders;
-  ZmRef<Writer>	m_writer;
-  bool		m_opened = false;
+  DB			*m_db = nullptr;
+  ZmRef<ZdbAnyObject>	m_dbObject;
+  DataFrame		*m_df = nullptr;
+  Index			m_index;
+  Blk			*m_lastBlk = nullptr;
+  uint64_t		m_lastBlkOffset = 0;
+  ReaderList		m_liveReaders;
+  ReaderList		m_histReaders;
+  ZmRef<Writer>		m_writer;
+  bool			m_opened = false;
 };
 
 inline void BlkData::evict()
@@ -793,6 +813,13 @@ inline void Reader<Decoder>::close()
 
 template <typename Decoder>
 inline bool Writer<Decoder>::write(const ZuFixed &value)
+{
+  ZeAssert(m_series, (), closedWriter(), return false);
+  return m_series->write(this, value);
+}
+
+template <typename Decoder>
+inline bool Writer<Decoder>::write(double value)
 {
   ZeAssert(m_series, (), closedWriter(), return false);
   return m_series->write(this, value);

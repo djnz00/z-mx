@@ -557,8 +557,8 @@ private:
 	if (ZuUnlikely(!avail<9>())) goto eob;
 	auto lz = lzmap[in<3>()];
 	auto sb = in<6>();
-	if (ZuUnlikely(!avail(sb))) goto eob;
 	if (!sb) { m_prev = 0; m_prevLZ = 0; goto again; } // reset
+	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb)<<(64 - sb - lz);
 	m_prevLZ = lz;
       } break;
@@ -622,8 +622,7 @@ public:
     ZuOBitStream{decoder, end},
     m_count{decoder.count()}
   {
-    // FIXME - output reset
-    out<11>(/* FIXME */);
+    out(1, 11); // reset
   }
 
   unsigned count() const { return m_count; }

@@ -34,9 +34,15 @@ private:
 
 // all of US equities trades since 2003 is ~350B rows
 // 47bits handles 140T rows for a single series, more than enough
+
+using Last = union {
+  int64_t	fixed;
+  double	float_;
+};
+
 struct Blk {
   uint64_t		ocn = 0;	// offset/count/ndp
-  int64_t		last = 0;	// last value in block
+  Last			last = 0;	// last value in block
   ZmRef<BlkData>	blkData;	// cached data
 
   constexpr const uint64_t OffsetMask() { return (uint64_t(1)<<47) - 1; }
@@ -47,7 +53,11 @@ struct Blk {
 
   void init(uint64_t offset, uint64_t count, uint64_t ndp, int64_t last_) {
     ocn = offset | (count<<CountShift()) | (ndp<<NDPShift());
-    last = last_;
+    last.fixed = last_;
+  }
+  void init(uint64_t offset, uint64_t count, double last_) {
+    ocn = offset | (count<<CountShift());
+    last.float_ = last_;
   }
 
   ZuInline uint64_t offset() const { return ocnl & OffsetMask(); }

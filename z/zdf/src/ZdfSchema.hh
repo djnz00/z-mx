@@ -34,15 +34,15 @@ ZfbFields(DataFrame,
   (((name),	(Ctor<1>, Keys<1>, Mutable)),		(String)),
   (((epoch),	(Ctor<2>)),				(DateTime)));
 
-struct Series {
+struct SeriesFixed {
   SeriesID	id;		// 1-based
   DFID		dfid;		// 0 is null
   ZtString	name;
-  ZuFixed	first;		// first value in first block
+  ZuFixed	first;		// first value in series // FIXME- double
   ZuDateTime	epoch;		// intentionally denormalized
   BlkOffset	blkOffset;	// first block
 };
-ZfbFields(Series,
+ZfbFields(SeriesFixed,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
   (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
   (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
@@ -50,7 +50,23 @@ ZfbFields(Series,
   (((epoch),	(Ctor<4>)),				(DateTime)),
   (((blkOffset),(Ctor<5>, Mutable)),			(UInt64)));
 
-struct BlkHdr {
+struct SeriesFloat {
+  SeriesID	id;		// 1-based
+  DFID		dfid;		// 0 is null
+  ZtString	name;
+  double	first;		// first value in series
+  ZuDateTime	epoch;		// intentionally denormalized
+  BlkOffset	blkOffset;	// first block
+};
+ZfbFields(SeriesFloat,
+  (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
+  (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
+  (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
+  (((first),	(Ctor<3>, Mutable)),			(Float)),
+  (((epoch),	(Ctor<4>)),				(DateTime)),
+  (((blkOffset),(Ctor<5>, Mutable)),			(UInt64)));
+
+struct BlkHdrFixed {
   BlkOffset	blkOffset;
   Offset	offset;
   ZuFixedVal	last;
@@ -58,13 +74,27 @@ struct BlkHdr {
   BlkCount	count;
   NDP		ndp;
 };
-ZfbFields(BlkHdr,
+ZfbFields(BlkHdrFixed,
   (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
   (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
   (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
   (((last),	(Ctor<2>, Mutable)),				(Int64)),
   (((count),	(Ctor<4>, Mutable)),				(UInt16)),
   (((ndp),	(Ctor<5>, Mutable)),				(UInt8)));
+
+struct BlkHdrFloat {
+  BlkOffset	blkOffset;
+  Offset	offset;
+  double	last;
+  SeriesID	seriesID;
+  BlkCount	count;
+};
+ZfbFields(BlkHdrFloat,
+  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
+  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
+  (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
+  (((last),	(Ctor<2>, Mutable)),				(Float)),
+  (((count),	(Ctor<4>, Mutable)),				(UInt16)));
 
 enum { BlkSize = 4096 };
 

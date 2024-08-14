@@ -147,8 +147,8 @@ int main()
       uint64_t id;
 
       orders[0]->run(0, [&id]{
-	ZdbObjRef<Order> o = new ZdbObject<Order>{orders[0]};
-	orders[0]->insert(0, o, [&id](ZdbObject<Order> *o) {
+	ZdbObjRef<Order> o = new ZdbObject<Order>{orders[0], 0};
+	orders[0]->insert(o, [&id](ZdbObject<Order> *o) {
 	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 0, "FIX0", "order0", 0, Side::Buy, {100}, {100}};
@@ -156,15 +156,15 @@ int main()
 	  id = o->data().orderID;
 	  ZeLOG(Info, ([id](auto &s) { s << "orderID=" << id; }));
 	});
-	o = new ZdbObject<Order>{orders[0]};
-	orders[0]->insert(0, o, [](ZdbObject<Order> *o) {
+	o = new ZdbObject<Order>{orders[0], 0};
+	orders[0]->insert(o, [](ZdbObject<Order> *o) {
 	  if (ZuUnlikely(!o)) return;
 	  new (o->ptr())
 	    Order{"IBM", 1, "FIX0", "order1", 2, Side::Buy, {100}, {100}};
 	  o->commit();
 	});
-	o = new ZdbObject<Order>{orders[0]};
-	orders[0]->insert(0, o, [](ZdbObject<Order> *o) {
+	o = new ZdbObject<Order>{orders[0], 0};
+	orders[0]->insert(o, [](ZdbObject<Order> *o) {
 	  if (ZuUnlikely(!o)) { done.post(); return; }
 	  new (o->ptr())
 	    Order{"IBM", 2, "FIX0", "order2", 4, Side::Buy, {100}, {100}};

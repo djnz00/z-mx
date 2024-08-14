@@ -328,7 +328,8 @@ class ZdbAPI AnyObject : public ZmPolymorph {
   enum { Evicted = 0x01, Pinned = 0x02 };
 
 public:
-  AnyObject(AnyTable *table) : m_table{table} { }
+  AnyObject(AnyTable *table, unsigned shard) :
+    m_table{table}, m_shard{shard} { }
 
   AnyTable *table() const { return m_table; }
   unsigned shard() const { return m_shard; }
@@ -361,7 +362,7 @@ private:
     m_state = ObjState::Committed;
   }
 
-  bool insert_(unsigned shard, UN un);
+  bool insert_(UN un);
   bool update_(UN un);
   bool del_(UN un);
   bool commit_();
@@ -414,7 +415,7 @@ class Object_ : public AnyObject {
 public:
   using T = T_;
 
-  Object_(Table<T> *table_) : AnyObject{table_} { }
+  Object_(Table<T> *table_, unsigned shard) : AnyObject{table_, shard} { }
 
   Table<T> *table() const {
     return static_cast<Table<T> *>(AnyObject::table());
@@ -1181,12 +1182,16 @@ private:
   }
 
 public:
+  // insert lambda - l(ZdbObject<T> *)
+
   // create new object
   template <typename L>
-  void insert(unsigned shard, Object<T> *object, L l) {
+  void insert(ZmRef<Object<T>> object, L l) {
+    unsigned shard = object->shard();
+
     ZmAssert(invoked(shard));
 
-    object->insert_(shard, nextUN(shard));
+    object->insert_(nextUN(shard));
     try {
       l(object);
     } catch (...) { object->abort(); throw; }
@@ -1194,14 +1199,16 @@ public:
   }
   // create new object (idempotent with UN as key)
   template <typename L>
-  void insert(unsigned shard, UN un, ZmRef<Object<T>> object, L l) {
+  void insert(UN un, ZmRef<Object<T>> object, L l) {
+    unsigned shard = object->shard();
+
     ZmAssert(invoked(shard));
 
     if (un != nullUN() && ZuUnlikely(nextUN(shard) > un)) {
       l(nullptr);
       return;
     }
-    insert(shard, ZuMv(object), ZuMv(l));
+    insert(ZuMv(object), ZuMv(l));
   }
 
   // update lambda - l(ZdbObject<T> *)
@@ -2212,6 +2219,7 @@ void AnyObject::print(S &s) const {
 using ZdbAnyObject = Zdb_::AnyObject;
 template <typename T> using ZdbObject = Zdb_::Object<T>;
 template <typename T> using ZdbObjRef = ZmRef<ZdbObject<T>>;
+namespace ZdbObjState = Zdb_::ObjState;
 
 using ZdbAnyTable = Zdb_::AnyTable;
 template <typename T> using ZdbTable = Zdb_::Table<T>;

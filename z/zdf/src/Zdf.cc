@@ -39,8 +39,10 @@ void DB::init(ZvCf *cf, Zdb *db)
   findAdd(dbCf, "zdf.blk_data")->thread = thread;
 
   m_dataFrameTbl = db->initTable<DB::DataFrame>("zdf.data_frame");
-  m_seriesTbl = db->initTable<DB::Series>("zdf.series");
-  m_blkHdrTbl = db->initTable<DB::BlkHdr>("zdf.blk_hdr");
+  m_seriesFixedTbl = db->initTable<DB::SeriesFixed>("zdf.series_fixed");
+  m_seriesFloatTbl = db->initTable<DB::SeriesFloat>("zdf.series_float");
+  m_blkHdrFixedTbl = db->initTable<DB::BlkHdrFixed>("zdf.blk_hdr_fixed");
+  m_blkHdrFloatTbl = db->initTable<DB::BlkHdrFloat>("zdf.blk_hdr_float");
   m_blkDataTbl = db->initTable<DB::BlkData>("zdf.blk_data");
 
   m_sid = m_dataFrameTbl->config().sid;
@@ -53,8 +55,10 @@ void DB::final()
   m_state = DBState::Uninitialized;
 
   m_dataFrameTbl = nullptr;
-  m_seriesTbl = nullptr;
-  m_blkHdrTbl = nullptr;
+  m_seriesFixedTbl = nullptr;
+  m_seriesFloatTbl = nullptr;
+  m_blkHdrFixedTbl = nullptr;
+  m_blkHdrFloatTbl = nullptr;
   m_blkDataTbl = nullptr;
 }
 
@@ -65,29 +69,38 @@ void DB::open(OpenFn fn)
 }
 void DB::open_recoverNextDFID()
 {
-  run(0, [this]() {
-    m_dataFrameTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
-      run(0, [this, max = ZuMv(max)]() mutable {
-	using Key = ZuFieldKeyT<DB::DataFrame, 0>;
-	if (max.template is<Key>())
-	  m_nextDFID = max.template p<Key>().template p<0>() + 1;
-	else
-	  open_recoverNextPermID();
-      });
+  m_dataFrameTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+    run(0, [this, max = ZuMv(max)]() mutable {
+      using Key = ZuFieldKeyT<DB::DataFrame, 0>;
+      if (max.template is<Key>())
+	m_nextDFID = max.template p<Key>().template p<0>() + 1;
+      else
+	open_recoverNextPermID();
     });
   });
 }
-void DB::open_recoverNextSeriesID()
+void DB::open_recoverNextSeriesID_Fixed()
 {
-  run(0, [this]() {
-    m_seriesTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
-      run(0, [this, max = ZuMv(max)]() mutable {
-	using Key = ZuFieldKeyT<DB::Series, 0>;
-	if (max.template is<Key>())
-	  m_nextSeriesID = max.template p<Key>().template p<0>() + 1;
-	else
-	  opened(true);
-      });
+  m_seriesFixedTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+    run(0, [this, max = ZuMv(max)]() mutable {
+      using Key = ZuFieldKeyT<DB::Series, 0>;
+      if (max.template is<Key>())
+	m_nextSeriesID = max.template p<Key>().template p<0>() + 1;
+      else
+	open_recoverNextSeriesID_Float();
+    });
+  });
+}
+void DB::open_recoverNextSeriesID_Float()
+{
+  m_seriesFixedTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+    run(0, [this, max = ZuMv(max)]() mutable {
+      using Key = ZuFieldKeyT<DB::Series, 0>;
+      if (max.template is<Key>()) {
+	auto nextSeriesID = max.template p<Key>().template p<0>() + 1;
+	if (nextSeriesID > m_nextSeriesID) m_nextSeriesID = nextSeriesID;
+      } else
+	opened(true);
     });
   });
 }
@@ -96,38 +109,6 @@ void DB::opened(bool ok)
   m_state = ok ? DBState::Opened : DBState::OpenFailed;
   auto fn = ZuMv(m_openFn);
   fn(ok);
-}
-
-void DB::openSeries(
-  unsigned shard, ZuString name, bool create, OpenSeriesFn fn)
-{
-  run(shard, [
-    this, shard, name = ZtString{name}, create, fn = ZuMv(fn)
-  ]() mutable {
-    m_seriesTbl->find<1>(shard, ZuMvTuple(ZuMv(name)), [
-      this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
-    ](ZdbObjRef<DB::Series> dbSeries) {
-      if (!dbSeries) {
-	if (!create) { fn(nullptr); return; }
-	m_seriesTbl->insert(shard, [
-	  this, shard, name = ZuMv(name), fn = ZuMv(fn)
-	](ZdbObject<DB::Series> *dbSeries) mutable {
-	  if (!dbSeries) { fn(nullptr); return; }
-	  auto series = static_cast<Series *>(dbSeries);
-	  auto &data = series->data();
-	  data.id = m_nextSeriesID++;
-	  data.dfid = 0;
-	  data.name = ZuMv(name);
-	  data.epoch = Zm::now();
-	  series->open(ZuMv(fn));
-	  return;
-	});
-	return;
-      }
-      auto series = static_cast<Series *>(dbSeries);
-      series->open(ZuMv(fn));
-    }, [this, shard](ZdbTable *) { return new Series(this, shard); });
-  });
 }
 
 DataFrame::DataFrame(
@@ -219,9 +200,9 @@ void DataFrame::openSeries()
       this_->openedSeries(ZuMv(result));
     }};
     if (i || field) {
-      m_series[i]->open(m_name, field->id, ZuMv(openFn_));
+      m_series[i]->open(m_name, field->id, ZuMv(openFn_)); // FIXME
     } else {
-      m_series[i]->open(m_name, "_0", ZuMv(openFn_));
+      m_series[i]->open(m_name, "_0", ZuMv(openFn_)); // FIXME
     }
   }
 }

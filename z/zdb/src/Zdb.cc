@@ -1742,11 +1742,10 @@ void AnyTable::close(L l)
   });
 }
 
-bool AnyObject::insert_(unsigned shard, UN un)
+bool AnyObject::insert_(UN un)
 {
   if (m_state != ObjState::Undefined) return false;
   m_state = ObjState::Insert;
-  m_shard = shard;
   m_un = un;
   return true;
 }
