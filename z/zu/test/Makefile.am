@@ -11,12 +11,13 @@ noinst_PROGRAMS = \
 	ZuArrayTest ZuTupleTest ZuIDTest ZuUTFTest ZuBitmapTest \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
 	ZuAxorTest ZuPtrTest ZuTimeTest ZuEndianTest \
-	ZuStreamTest ZuBitStreamTest
+	ZuStreamTest ZuBitStreamTest ZuSearchBench
 ZuInspectTest_SOURCES = ZuInspectTest.cc
 ZuHashTest_SOURCES = ZuHashTest.cc Analyze.hh
 ZuCmpTest_SOURCES = ZuCmpTest.cc
 #ZuCmpTest_CXXFLAGS = $(AM_CXXFLAGS) -fprofile-instr-generate -fcoverage-mapping
 ZuSearchTest_SOURCES = ZuSearchTest.cc
+ZuSearchBench_SOURCES = ZuSearchBench.cc
 ZuBoxTest_SOURCES = ZuBoxTest.cc
 ZuArrayTest_SOURCES = ZuArrayTest.cc
 ZuTupleTest_SOURCES = ZuTupleTest.cc

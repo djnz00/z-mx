@@ -4,7 +4,8 @@ table SeriesFixed {
   id:uint32;		// series ID (1-based, globally unique)
   df_i_d:uint32;	// data frame ID
   name:string;		// field name within DF
-  first:Zfb.Fixed;	// first value in first block
+  first:int64;		// first value in first block
+  ndp:uint8;		// NDP of first value
   epoch:Zfb.DateTime;	// epoch (creation time)
   blk_offset:uint64;	// first block (initially 0)
 }

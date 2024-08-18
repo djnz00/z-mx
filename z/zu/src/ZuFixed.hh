@@ -4,14 +4,16 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// 64bit decimal variable point with variable number of decimal places,
+// 64bit decimal variable point with variable decimal places,
 // 18 significant digits and 10^-<ndp> scaling:
 //   <18 - ndp> integer digits
 //   <ndp> decimals / fractional digits / number of decimal places
 // Note: <ndp> is the negative of the decimal exponent
-//
-// combination of value and ndp, used in transit for conversions, I/O,
-// constructors, scanning:
+
+// ZuFixedVal is an alias for int64_t - contains the mantissa without the NDP
+
+// ZuFixed combines the value and the ndp - used as an intermediary type
+// for conversions, I/O, constructors, scanning:
 //   ZuFixed(<integer>, ndp)		// {1042, 2} -> 10.42
 //   ZuFixed(<floating point>, ndp)	// {10.42, 2} -> 10.42
 //   ZuFixed(<string>, ndp)		// {"10.42", 2} -> 10.42
@@ -39,6 +41,7 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuFmt.hh>
 #include <zlib/ZuBox.hh>
+#include <zlib/ZuDecimal.hh>
 
 // ZuFixedVal value range is +/- 10^18
 
@@ -56,10 +59,10 @@ template <typename Fmt> struct ZuFixed_Fmt;	// internal
 struct ZuFixed_VFmt;				// internal
 
 struct ZuFixed {
-  int64_t	mantissa = ZuFixedNull;
-  uint8_t	ndp = 0;
+  int64_t	mantissa;
+  uint8_t	ndp;
 
-  ZuFixed() = default;
+  constexpr ZuFixed() : mantissa{ZuFixedNull}, ndp{0} { }
 
   template <typename M, decltype(ZuMatchIntegral<M>(), int()) = 0>
   constexpr ZuFixed(M mantissa_, unsigned ndp_) :
@@ -69,6 +72,16 @@ struct ZuFixed {
   constexpr ZuFixed(V v, unsigned ndp_) :
     mantissa{int64_t(double(v) * ZuDecimalFn::pow10_64(ndp_))},
     ndp{uint8_t(ndp_)} { }
+
+  constexpr ZuFixed(const ZuDecimal &v) {
+    unsigned ndp_ = v.ndp();
+    mantissa = v.value / ZuDecimalFn::pow10_128(18 - ndp_);
+    ndp = ndp_;
+  }
+  constexpr ZuFixed(const ZuDecimal &v, unsigned ndp_) {
+    mantissa = v.value / ZuDecimalFn::pow10_128(18 - ndp_);
+    ndp = ndp_;
+  }
 
   // multiply: ndp of result is taken from the LHS
   // a 128bit integer intermediate is used to avoid overflow
@@ -107,6 +120,12 @@ struct ZuFixed {
     return Float{mantissa} / Float{ZuDecimalFn::pow10_64(ndp)};
   }
 
+  // convert to ZuDecimal
+  ZuDecimal decimal() const {
+    return ZuDecimal::Unscaled{
+      int128_t(mantissa) * ZuDecimalFn::pow10_64(18 - ndp)};
+  }
+
   // adjust mantissa to another ndp
   ZuFixedVal adjust(unsigned ndp_) const {
     if (ZuUnlikely(!operator *())) return {};
@@ -115,28 +134,16 @@ struct ZuFixed {
     return mantissa / ZuDecimalFn::pow10_64(ndp - ndp_);
   }
 
-  // comparisons
+  // comparisons - use ZuDecimal intermediaries if NDPs are inconsistent
   bool equals(const ZuFixed &v) const {
     if (ZuLikely(ndp == v.ndp || !**this || !*v))
       return mantissa == v.mantissa;
-    int128_t i = mantissa;
-    int128_t j = v.mantissa;
-    if (ndp < v.ndp)
-      i *= ZuDecimalFn::pow10_64(v.ndp - ndp);
-    else
-      j *= ZuDecimalFn::pow10_64(ndp - v.ndp);
-    return i == j;
+    return decimal() == v.decimal();
   }
   int cmp(const ZuFixed &v) const {
     if (ZuLikely(ndp == v.ndp || !**this || !*v))
       return (mantissa > v.mantissa) - (mantissa < v.mantissa);
-    int128_t i = mantissa;
-    int128_t j = v.mantissa;
-    if (ndp < v.ndp)
-      i *= ZuDecimalFn::pow10_64(v.ndp - ndp);
-    else
-      j *= ZuDecimalFn::pow10_64(ndp - v.ndp);
-    return (i > j) - (i < j);
+    return decimal().cmp(v.decimal());
   }
   template <typename L, typename R>
   friend inline ZuIfT<ZuInspect<ZuFixed, L>::Is, bool>

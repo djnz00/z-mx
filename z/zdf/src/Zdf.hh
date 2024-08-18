@@ -296,7 +296,7 @@ public:
     unsigned shard, ZuString name, bool create,
     const ZtVFieldArray &fields, bool timeIndex, OpenDFFn);
   // open series
-  template <bool Float = false>
+  template <bool Fixed = true>
   void openSeries(unsigned shard, ZtString name, bool create, OpenSeriesFn) {
     run(shard, [
       this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
@@ -305,7 +305,7 @@ public:
 	this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
       ](auto dbSeries) mutable {
 	if (dbSeries) {
-	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
+	  ZmRef<Series> series = new Series{this, Fixed, ZuMv(dbSeries)};
 	  series->open(ZuMv(fn));
 	  return;
 	}
@@ -323,16 +323,16 @@ public:
 	](auto dbSeries) mutable {
 	  if (!dbSeries) { fn(nullptr); return; }
 	  dbSeries->commit();
-	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries));
+	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
 	  series->open(ZuMv(fn));
 	};
-	if constexpr (!Float)
+	if constexpr (Fixed)
 	  m_seriesFixedTbl->insert(dbSeries, ZuMv(insertFn));
 	else
 	  m_seriesFloatTbl->insert(dbSeries, ZuMv(insertFn));
       };
       auto key = ZuMvTuple(ZuString{name});
-      if constexpr (!Float)
+      if constexpr (Fixed)
 	m_seriesFixedTbl->find<1>(shard, key, ZuMv(findFn));
       else
 	m_seriesFloatTbl->find<1>(shard, key, ZuMv(findFn));

@@ -88,21 +88,29 @@ struct Blk {
   }
 
   template <typename Encoder>
-  void sync(const Encoder &encoder, unsigned ndp, int64_t last_) {
-    count_ndp(encoder.count(), ndp);
-    last = last_;
-    ZeAssert(blkData, (), "blkData not loaded", return);
-    auto &buf = blkData->data().buf;
-    buf.length(encoder.pos() - buf.data());
-  }
-
-  template <typename Encoder>
   Encoder encoder() {
     if (!blkData) blkData = new BlkData{this};
     blkData->pin();
     const auto &buf = blkData->data().buf;
     auto start = buf.data();
     return Encoder{start, start + BlkSize};
+  }
+
+  template <typename Encoder>
+  void sync(const Encoder &encoder, unsigned ndp, int64_t last_) { // fixed
+    count_ndp(encoder.count(), ndp);
+    last.fixed = last_;
+    ZeAssert(blkData, (), "blkData not loaded", return);
+    auto &buf = blkData->data().buf;
+    buf.length(encoder.pos() - buf.data());
+  }
+  template <typename Encoder>
+  void sync(const Encoder &encoder, double last_) { // floating
+    count(encoder.count());
+    last.float_ = last_;
+    ZeAssert(blkData, (), "blkData not loaded", return);
+    auto &buf = blkData->data().buf;
+    buf.length(encoder.pos() - buf.data());
   }
 
   unsigned space() const {

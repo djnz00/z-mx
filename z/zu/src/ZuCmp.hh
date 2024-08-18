@@ -143,21 +143,6 @@ struct ZuCmp_Integral :
   using Base::minimum;
   using Base::maximum;
   using Base::null;
-  // delta() returns a value suitable for use in interpolation search
-  enum { DeltaShift = ((sizeof(T) - sizeof(int))<<3) + 1 };
-  static constexpr int delta(T l, T r) {
-    if (l == r) return 0;
-    if (l > r) {
-      l -= r;
-      l >>= DeltaShift;
-      int delta = l;
-      return delta | 1;
-    }
-    r -= l;
-    r >>= DeltaShift;
-    int delta = r;
-    return -(delta | 1);
-  }
   static constexpr int cmp(T l, T r) { return (l > r) - (l < r); }
   static constexpr bool less(T l, T r) { return l < r; }
   static constexpr bool equals(T l, T r) { return l == r; }
@@ -174,9 +159,6 @@ struct ZuCmp_Integral<T, true> :
   using Base::minimum;
   using Base::maximum;
   using Base::null;
-  static constexpr int delta(T l, T r) {
-    return static_cast<int>(l) - static_cast<int>(r);
-  }
   static constexpr int cmp(T l, T r) {
     return static_cast<int>(l) - static_cast<int>(r);
   }

@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // 128bit decimal fixed point with 36 digits and constant 10^18 scaling
-// 18 integer digits and 18 fractional digits (i.e. 18 decimal places)
+// - 18 integer digits and 18 fractional digits (i.e. 18 decimal places)
 
 #ifndef ZuDecimal_HH
 #define ZuDecimal_HH
@@ -22,7 +22,6 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuFmt.hh>
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuFixed.hh>
 
 template <typename Fmt> struct ZuDecimalFmt;	// internal
 class ZuDecimalVFmt;				// ''
@@ -79,10 +78,6 @@ struct ZuDecimal {
   template <typename V, decltype(ZuMatchIntegral<V>(), int()) = 0>
   constexpr ZuDecimal(V v, unsigned ndp) :
       value(int128_t(v) * ZuDecimalFn::pow10_64(18 - ndp)) { }
-
-  template <typename V, decltype(ZuExact<ZuFixed, V>(), int()) = 0>
-  constexpr ZuDecimal(const V &v) :
-      value(int128_t(v.mantissa) * ZuDecimalFn::pow10_64(18 - v.ndp)) { }
 
   constexpr int128_t adjust(unsigned ndp) const {
     if (ZuUnlikely(ndp == 18)) return value;
@@ -516,7 +511,7 @@ public:
     }
   }
 
-  unsigned ndp() const {
+  constexpr unsigned ndp() const {
     auto frac = this->frac();
     if (ZuLikely(!frac)) return 0;
     unsigned exp = 18;
@@ -527,11 +522,6 @@ public:
     if (exp >= 2 && !(frac % 100ULL)) { frac /= 100ULL; exp -= 2; }
     if (exp >= 1 && !(frac % 10ULL)) --exp;
     return exp;
-  }
-
-  operator ZuFixed() {
-    auto ndp_ = ndp();
-    return {value / ZuDecimalFn::pow10_128(18 - ndp_), ndp_};
   }
 
   template <typename S> void print(S &s) const;

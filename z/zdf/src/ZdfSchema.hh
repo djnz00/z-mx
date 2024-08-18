@@ -38,15 +38,17 @@ struct SeriesFixed {
   SeriesID	id;		// 1-based
   DFID		dfid;		// 0 is null
   ZtString	name;
-  ZuFixed	first;		// first value in series // FIXME- double
+  Fixed		first;		// first value in series
   ZuDateTime	epoch;		// intentionally denormalized
   BlkOffset	blkOffset;	// first block
+  NDP		ndp;		// NDP of first value in series
 };
 ZfbFields(SeriesFixed,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
   (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
   (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
-  (((first),	(Ctor<3>, Mutable)),			(Fixed)),
+  (((first),	(Ctor<3>, Mutable)),			(Int64)),
+  (((ndp),	(Ctor<6>, Mutable)),			(UInt8)),
   (((epoch),	(Ctor<4>)),				(DateTime)),
   (((blkOffset),(Ctor<5>, Mutable)),			(UInt64)));
 
@@ -69,7 +71,7 @@ ZfbFields(SeriesFloat,
 struct BlkHdrFixed {
   BlkOffset	blkOffset;
   Offset	offset;
-  ZuFixedVal	last;
+  Fixed		last;
   SeriesID	seriesID;
   BlkCount	count;
   NDP		ndp;

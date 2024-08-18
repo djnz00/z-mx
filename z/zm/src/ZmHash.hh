@@ -40,12 +40,14 @@
 
 // hash bits function
 
-struct ZmHash_Bits {
-  static uint32_t hashBits(uint32_t code, int bits) {
-    if (!bits) return 0;
-    return code & ((1U<<bits) - 1);
-  }
-};
+// some hash functions have flatter high-bits distribution
+// (e.g. multiplicative hash functions), others have flatter
+// low-bits (e.g. FNV string hash); here we pay for an extra xor
+// to get the best of both
+inline constexpr const uint32_t ZmHashBits(uint32_t code, unsigned bits) {
+  bits = 32U - bits;
+  return ((code<<bits) ^ code)>>bits;
+}
 
 // hash table lock manager
 
@@ -99,7 +101,7 @@ protected:
   void cBits(unsigned n) { m_cBits = n < 0 ? 0 : n > 12 ? 12 : n; }
 
   Lock &lockCode(uint32_t code) const {
-    return lockSlot(ZmHash_Bits::hashBits(code, m_bits));
+    return lockSlot(ZmHashBits(code, m_bits));
   }
   Lock &lockSlot(unsigned slot) const {
     return lock_(slot>>(m_bits - m_cBits));
@@ -689,7 +691,7 @@ private:
       }
     }
 
-    unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
+    unsigned slot = ZmHashBits(code, m_bits);
 
     node->NodeExt::next = m_table[slot];
     m_table[slot] = ZuMv(node);
@@ -841,7 +843,7 @@ private:
   template <typename Match>
   Node *find_(Match match, uint32_t code) const {
     Node *node;
-    unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
+    unsigned slot = ZmHashBits(code, m_bits);
 
     for (node = m_table[slot];
 	 node && !match(node);
@@ -875,7 +877,7 @@ private:
   template <typename P>
   Node *findAdd_(P &&data, uint32_t code) {
     Node *node;
-    unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
+    unsigned slot = ZmHashBits(code, m_bits);
 
     for (node = m_table[slot];
 	 node && !equals(node->Node::key(), KeyAxor(data));
@@ -957,7 +959,7 @@ private:
     if (!count) return 0;
 
     Node *node, *prevNode = nullptr;
-    unsigned slot = ZmHash_Bits::hashBits(code, m_bits);
+    unsigned slot = ZmHashBits(code, m_bits);
 
     for (node = m_table[slot];
 	 node && !match(node);
@@ -1003,7 +1005,7 @@ private:
     uint32_t code = HashFn::hash(iterator.m_key);
 
     LockTraits::lock(lockCode(code));
-    iterator.m_slot = ZmHash_Bits::hashBits(code, m_bits);
+    iterator.m_slot = ZmHashBits(code, m_bits);
     iterator.m_node = nullptr;
     iterator.m_prev = nullptr;
   }
@@ -1156,8 +1158,7 @@ private:
     for (unsigned i = 0; i < n; i++)
       for (node = m_table[i]; node; node = nextNode) {
 	nextNode = node->NodeExt::next;
-	unsigned j = ZmHash_Bits::hashBits(
-	    HashFn::hash(node->Node::key()), bits);
+	unsigned j = ZmHashBits(HashFn::hash(node->Node::key()), bits);
 	node->NodeExt::next = table[j];
 	table[j] = node;
       }

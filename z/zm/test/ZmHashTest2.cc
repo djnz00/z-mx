@@ -6,8 +6,7 @@
 
 /* test program */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
 
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuObject.hh>
@@ -27,10 +26,10 @@ struct Order : public ZuObject {
 
 void dump(Order *o)
 {
-  printf("order ID: %u\n", o->id);
+  std::cout << "order ID: " << o->id << '\n';
 }
 
-auto HeapID() { return "Orders"; }
+inline constexpr const char *HeapID() { return "Orders"; }
 
 using Orders =
   ZmHash<ZmRef<Order>,
@@ -43,13 +42,13 @@ int main(int argc, char **argv)
   ZmHeapMgr::init("Orders", 0, ZmHeapConfig{0, 100});
   ZmRef<Orders> orders = new Orders(ZmHashParams().bits(7).loadFactor(1.0));
 
-  printf("node size: %u\n", (unsigned)sizeof(Orders::Node));
+  std::cout << "node size: " << sizeof(Orders::Node) << '\n';
   for (unsigned i = 0; i < 100; i++) orders->add(new Order(i));
   ZmRef<Order> o = orders->findVal(0);
   dump(o);
-  Orders::Node *n = orders->del(0);
+  ZuPtr<Orders::Node> n = orders->del(0);
   dump(n->val());
-  delete n;
+  n = nullptr;
   o = orders->delVal(1);
   dump(o);
 }

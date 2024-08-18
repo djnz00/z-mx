@@ -9,6 +9,7 @@
 #include <zlib/ZuStringN.hh>
 
 #include <zlib/ZuDecimal.hh>
+#include <zlib/ZuFixed.hh>
 #include <zlib/zu_decimal.h>
 
 inline void out(const char *s) { std::cout << s << '\n'; }

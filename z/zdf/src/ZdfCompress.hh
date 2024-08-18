@@ -34,6 +34,8 @@ namespace ZdfCompress {
 
 class Decoder {
 public:
+  using Value = int64_t;
+
   Decoder() = default;
   Decoder(const Decoder &) = default;
   Decoder &operator =(const Decoder &) = default;
@@ -48,95 +50,95 @@ public:
 
   const uint8_t *pos() const { return m_pos; }
   const uint8_t *end() const { return m_end; }
-  unsigned count() const { return m_count; }
+  unsigned offset() const { return m_offset; }
 
   // seek to a position
-  bool seek(unsigned count) {
-    while (count) {
+  bool seek(unsigned offset) {
+    while (offset) {
       if (m_rle) {
-	if (m_rle >= count) {
-	  m_count += count;
-	  m_rle -= count;
+	if (m_rle >= offset) {
+	  m_offset += offset;
+	  m_rle -= offset;
 	  return true;
 	}
-	m_count += m_rle;
-	count -= m_rle;
+	m_offset += m_rle;
+	offset -= m_rle;
 	m_rle = 0;
       } else {
 	if (!read_(nullptr)) return false;
-	++m_count;
-	--count;
+	++m_offset;
+	--offset;
       }
     }
     return true;
   }
 
   // seek to a position, informing upper layer of skipped values
-  // l(int64_t value, unsigned count)
+  // l(int64_t value, unsigned offset)
   template <typename L>
-  bool seek(unsigned count, L l) {
-    while (count) {
+  bool seek(unsigned offset, L l) {
+    while (offset) {
       if (m_rle) {
-	if (m_rle >= count) {
-	  l(m_prev, count);
-	  m_count += count;
-	  m_rle -= count;
+	if (m_rle >= offset) {
+	  l(m_prev, offset);
+	  m_offset += offset;
+	  m_rle -= offset;
 	  return true;
 	}
 	l(m_prev, m_rle);
-	m_count += m_rle;
-	count -= m_rle;
+	m_offset += m_rle;
+	offset -= m_rle;
 	m_rle = 0;
       } else {
 	int64_t value;
 	if (!read_(&value)) return false;
 	l(value, 1);
-	++m_count;
-	--count;
+	++m_offset;
+	--offset;
       }
     }
     return true;
   }
 
   // search for a value
-  // l(int64_t value, unsigned count) -> unsigned skipped
-  // search ends when skipped < count
+  // l(int64_t value, unsigned offset) -> unsigned skipped
+  // search ends when skipped < offset
   template <typename L>
   bool search(L l) {
     const uint8_t *origPos;
-    unsigned count;
+    unsigned offset;
     if (m_rle) {
-      count = l(m_prev, m_rle);
-      m_count += count;
-      if (m_rle -= count) return true;
+      offset = l(m_prev, m_rle);
+      m_offset += offset;
+      if (m_rle -= offset) return true;
     }
     int64_t value;
     for (;;) {
       origPos = m_pos;
       if (!read_(&value)) return false;
-      count = l(value, 1 + m_rle);
-      if (!count) {
+      offset = l(value, 1 + m_rle);
+      if (!offset) {
 	m_pos = origPos;
 	return true;
       }
-      ++m_count;
-      --count;
+      ++m_offset;
+      --offset;
       if (m_rle) {
-	m_count += count;
-	if (m_rle -= count) return true;
+	m_offset += offset;
+	if (m_rle -= offset) return true;
       }
     }
   }
 
   bool read(int64_t &value) {
     if (m_rle) {
-      ++m_count;
+      ++m_offset;
       --m_rle;
       value = m_prev;
       return true;
     }
     if (read_(&value)) {
-      ++m_count;
+      ++m_offset;
       return true;
     }
     return false;
@@ -145,12 +147,12 @@ public:
   // same as read(), but discards value
   bool skip() {
     if (m_rle) {
-      ++m_count;
+      ++m_offset;
       --m_rle;
       return true;
     }
     if (read_(nullptr)) {
-      ++m_count;
+      ++m_offset;
       return true;
     }
     return false;
@@ -235,13 +237,12 @@ private:
   const uint8_t	*m_end = nullptr;
   int64_t	m_prev = 0;
   unsigned	m_rle = 0;
-  unsigned	m_count = 0;
+  unsigned	m_offset = 0;
 };
 
 template <typename> class Encoder;
 
-template <>
-class Encoder<Decoder> {
+template <> class Encoder<Decoder> {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
@@ -251,13 +252,13 @@ public:
   Encoder() { }
   Encoder(Encoder &&w) :
     m_pos{w.m_pos}, m_end{w.m_end},
-    m_rle{w.m_rle}, m_prev{w.m_prev}, m_count{w.m_count}
+    m_rle{w.m_rle}, m_prev{w.m_prev}, m_offset{w.m_offset}
   {
     w.m_pos = nullptr;
     w.m_end = nullptr;
     w.m_rle = nullptr;
     w.m_prev = 0;
-    w.m_count = 0;
+    w.m_offset = 0;
   }
   Encoder &operator =(Encoder &&w) {
     if (ZuLikely(this != &w)) {
@@ -273,7 +274,7 @@ public:
   // written so that decoders reset their "previous value" to zero,
   // ensuring that any initial RLE of zero is processed correctly
   Encoder(const Decoder &decoder, uint8_t *end) :
-    m_pos{decoder.pos()}, m_end{end}, m_count{decoder.count()}
+    m_pos{decoder.pos()}, m_end{end}, m_offset{decoder.offset()}
   {
     ZmAssert(m_pos < m_end);
     *m_pos++ = 0x80; // reset
@@ -281,7 +282,7 @@ public:
 
   uint8_t *pos() const { return m_pos; }
   uint8_t *end() const { return m_end; }
-  unsigned count() const { return m_count; }
+  unsigned offset() const { return m_offset; }
 
   bool operator !() const { return !m_pos; }
   ZuOpBool
@@ -290,12 +291,12 @@ public:
     if (ZuLikely(value_ == m_prev)) {
       if (m_rle) {
 	if (++*m_rle == 0xff) m_rle = nullptr;
-	++m_count;
+	++m_offset;
 	return true;
       }
       if (m_pos >= m_end) return false;
       *(m_rle = m_pos++) = 0x81;
-      ++m_count;
+      ++m_offset;
       return true;
     } else
       m_rle = nullptr;
@@ -357,7 +358,7 @@ public:
 	break;
     }
     m_prev = value_;
-    ++m_count;
+    ++m_offset;
     return true;
   }
 
@@ -370,11 +371,13 @@ private:
   uint8_t	*m_end =nullptr;
   uint8_t	*m_rle = nullptr;
   int64_t	m_prev = 0;
-  unsigned	m_count = 0;
+  unsigned	m_offset = 0;
 };
 
 template <typename Base = Decoder>
 class DeltaDecoder : public Base {
+  ZuAssert(ZuIsExact<Base::Value, int64_t>{});
+
 public:
   DeltaDecoder() : Base{} { }
   DeltaDecoder(const DeltaDecoder &) = default;
@@ -385,18 +388,18 @@ public:
   DeltaDecoder(const uint8_t *start, const uint8_t *end) :
     Base{start, end} { }
 
-  bool seek(unsigned count) {
-    return Base::seek(count,
-	[this](int64_t skip, unsigned count) {
-	  m_base += skip * count;
+  bool seek(unsigned offset) {
+    return Base::seek(offset,
+	[this](int64_t skip, unsigned offset) {
+	  m_base += skip * offset;
 	});
   }
 
   template <typename L>
-  bool seek(unsigned count, L l) {
-    return Base::seek(count,
-	[this, l = ZuMv(l)](int64_t skip, unsigned count) {
-	  for (unsigned i = 0; i < count; i++)
+  bool seek(unsigned offset, L l) {
+    return Base::seek(offset,
+	[this, l = ZuMv(l)](int64_t skip, unsigned offset) {
+	  for (unsigned i = 0; i < offset; i++)
 	    l(m_base += skip, 1);
 	});
   }
@@ -404,14 +407,14 @@ public:
   template <typename L>
   bool search(L l) {
     return Base::search(
-	[this, l = ZuMv(l)](int64_t skip, unsigned count) {
+	[this, l = ZuMv(l)](int64_t skip, unsigned offset) {
 	  int64_t value;
-	  for (unsigned i = 0; i < count; i++) {
+	  for (unsigned i = 0; i < offset; i++) {
 	    value = m_base + skip;
 	    if (!l(value, 1)) return i;
 	    m_base = value;
 	  }
-	  return count;
+	  return offset;
 	});
   }
 
@@ -468,6 +471,10 @@ private:
 
 class FPDecoder : public ZuIBitStream {
 public:
+  using Value = double;
+
+  ZuAssert(sizeof(Value) == 8); // sanity check
+
   FPDecoder() = default;
   FPDecoder(const FPDecoder &) = default;
   FPDecoder &operator =(const FPDecoder &) = default;
@@ -477,56 +484,56 @@ public:
   FPDecoder(const uint8_t *start, const uint8_t *end) :
     m_pos{start}, m_end{end} { }
 
-  unsigned count() const { return m_count; }
+  unsigned offset() const { return m_offset; }
 
   // seek to a position
-  bool seek(unsigned count) {
-    while (count) {
+  bool seek(unsigned offset) {
+    while (offset) {
       if (!read_(nullptr)) return false;
-      ++m_count;
-      --count;
+      ++m_offset;
+      --offset;
     }
     return true;
   }
 
   // seek to a position, informing upper layer of skipped values
-  // l(int64_t value, unsigned count)
+  // l(int64_t value, unsigned offset)
   template <typename L>
-  bool seek(unsigned count, L l) {
-    while (count) {
+  bool seek(unsigned offset, L l) {
+    while (offset) {
       double value;
       if (!read_(&value)) return false;
       l(value, 1);
-      ++m_count;
-      --count;
+      ++m_offset;
+      --offset;
     }
     return true;
   }
 
   // search for a value
-  // l(double value, unsigned count) -> unsigned skipped
-  // search ends when skipped < count
+  // l(double value, unsigned offset) -> unsigned skipped
+  // search ends when skipped < offset
   template <typename L>
   bool search(L l) {
     const uint8_t *origPos;
-    unsigned count;
+    unsigned offset;
     double value;
     for (;;) {
       origPos = m_pos;
       if (!read_(&value)) return false;
-      count = l(value, 1);
-      if (!count) {
+      offset = l(value, 1);
+      if (!offset) {
 	m_pos = origPos;
 	return true;
       }
-      ++m_count;
-      --count;
+      ++m_offset;
+      --offset;
     }
   }
 
   bool read(double &value) {
     if (read_(&value)) {
-      ++m_count;
+      ++m_offset;
       return true;
     }
     return false;
@@ -535,7 +542,7 @@ public:
   // same as read(), but discards value
   bool skip() {
     if (read_(&value)) {
-      ++m_count;
+      ++m_offset;
       return true;
     }
     return false;
@@ -588,11 +595,10 @@ private:
 private:
   uint64_t	m_prev = 0;
   unsigned	m_prevLZ = 0;	// previous LZ
-  unsigned	m_count = 0;
+  unsigned	m_offset = 0;
 };
 
-template <>
-class Encoder<FPDecoder> : public ZuOBitStream {
+template <> class Encoder<FPDecoder> : public ZuOBitStream {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
@@ -604,11 +610,11 @@ public:
   Encoder() { }
   Encoder(Encoder &&w) :
     ZuOBitStream{ZuMv(w)},
-    m_prev{w.m_prev}, m_prevLZ{w.m_prevLZ}, m_count{w.m_count}
+    m_prev{w.m_prev}, m_prevLZ{w.m_prevLZ}, m_offset{w.m_offset}
   {
     w.m_prev = 0;
     w.m_prevLZ = 0;
-    w.m_count = 0;
+    w.m_offset = 0;
   }
   Encoder &operator =(Encoder &&w) {
     if (ZuLikely(this != &w)) {
@@ -620,12 +626,13 @@ public:
 
   Encoder(const Decoder &decoder, uint8_t *end) :
     ZuOBitStream{decoder, end},
-    m_count{decoder.count()}
+    m_offset{decoder.offset()}
   {
+    ZmAssert(m_pos + 2 < m_end);
     out(1, 11); // reset
   }
 
-  unsigned count() const { return m_count; }
+  unsigned offset() const { return m_offset; }
 
 public:
   bool write(double value_) {
@@ -689,7 +696,7 @@ public:
 private:
   uint64_t	m_prev = 0;
   unsigned	m_prevLZ = 0;	// previous LZ
-  unsigned	m_count = 0;
+  unsigned	m_offset = 0;
 };
 
 } // namespace ZdfCompress

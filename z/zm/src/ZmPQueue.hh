@@ -715,13 +715,12 @@ private:
       Key key_ = item.key();
       if (key_ >= key) return;
       Key end_ = key_ + item.length();
-      if constexpr (Overlap)
-	if (end_ > key) {
-	  if (unsigned length = item.clipHead(key - key_)) {
+      if (end_ > key) {
+	if constexpr (Overlap)
+	  if (unsigned length = item.clipHead(key - key_))
 	    m_length -= (end_ - key_) - length;
-	    return;
-	  }
-	}
+	return;
+      }
       delHead_<0>();
       nodeDeref(node);
       nodeDelete(node);

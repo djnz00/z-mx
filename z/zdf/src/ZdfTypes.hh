@@ -24,7 +24,8 @@ using SeriesID = uint32_t;		// series ID
 using BlkOffset = uint64_t;		// block offset
 using Offset = uint64_t;		// value offset
 
-using NDP = uint8_t;			// number of decimal places
+using Fixed = ZuFixedVal;		// fixed-point mantissa
+using NDP = ZuFixedNDP;			// number of decimal places
 
 using BlkCount = uint16_t;		// count of values within a block
 

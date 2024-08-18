@@ -5,12 +5,15 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // generic hashing
+// - WARNING - this library should NOT be used for cryptography
+// - preimage resistance is intentionally omitted
+// - intended to provide excellent performance and collision resistance
+//   for use in hash tables and other similar applications
+// - all these functions must return consistent hash codes for the
+//   same string values, regardless of the string type
 
 // UDTs can implement a "uint32_t hash() const" public member function
 
-// WARNING - all these functions must return consistent hash codes for the
-// same values regardless of the enclosing type
-//
 // unsigned long i;
 // signed char j;
 // i == j implies ZuHash<unsigned long>::hash(i) == ZuHash<signed char>::hash(j)
@@ -34,43 +37,33 @@
 
 template <typename T, bool = ZuTraits<T>::IsString> struct ZuHash_;
 
-// golden prime function, specialized for 32bit and 64bit types
+// golden ratio hash function, specialized for 32bit, 64bit and 128bit types
+// - derived from Linux kernel source include/hash.h
+// - Knuth vol 3, section 6.4, exercise 9
+// - http://www.citi.umich.edu/techreports/reports/citi-tr-00-1.pdf
 
-struct ZuHash_GoldenPrime32 {
-  static uint32_t hash(uint32_t i) { return i * m_goldenPrime; }
+namespace ZuHash_GoldenRatio32 {
+inline constexpr const uint32_t ratio() { return 0x61c88647; }
+inline constexpr const uint32_t hash(uint32_t i) {
+  return i * ratio();
+}
+}
 
-private:
-  static const uint32_t m_goldenPrime = 0x9e370001UL;
-    // 2^31 + 2^29 - 2^25 + 2^22 - 2^19 - 2^16 + 1
-};
+namespace ZuHash_GoldenRatio64 {
+inline constexpr const uint64_t ratio() { return 0x61c8864680b583ebULL; }
+inline constexpr const uint32_t hash(uint64_t i) {
+  return (i * ratio())>>32;
+}
+}
 
-struct ZuHash_GoldenPrime64 {
-  static uint64_t hash(uint64_t i) {
-    uint64_t n = i; // most compilers don't optimize a 64bit constant multiply
-
-    n <<= 18; i -= n; n <<= 33; i -= n; n <<= 3; i += n;
-    n <<= 3;  i -= n; n <<= 4;	i += n; n <<= 2; i += n;
-
-    return i;
-  }
-
-private:
-  // left here as a reference
-  static const uint64_t m_goldenPrime = 0x9e37fffffffc0001ULL;
-    // 2^63 + 2^61 - 2^57 + 2^54 - 2^51 - 2^18 + 1
-};
-
-struct ZuHash_GoldenPrime128 {
-  // this is identical to the 64bit version, except for the second shift;
-  static uint128_t hash(uint128_t i) {
-    uint128_t n = i;
-
-    n <<= 18; i -= n; n <<= 97; i -= n; n <<= 3; i += n;
-    n <<= 3;  i -= n; n <<= 4;	i += n; n <<= 2; i += n;
-
-    return i;
-  }
-};
+namespace ZuHash_GoldenRatio128 {
+inline constexpr const uint128_t ratio() {
+  return (uint128_t(0x61c8864680b583eaULL)<<64) | 0x0c633f9fa31237ccULL;
+}
+inline constexpr const uint32_t hash(uint128_t i) {
+  return (i * ratio())>>96;
+}
+}
 
 // Fowler / Noll / Vo (FNV) hash function (type FNV-1a)
 
@@ -144,19 +137,19 @@ template <> struct ZuHash_Floating<long double> {
 
 template <typename T, int Size> struct ZuHash_Integral {
   static uint32_t hash(const T &t) {
-    return ZuHash_GoldenPrime32::hash(uint32_t(t));
+    return ZuHash_GoldenRatio32::hash(uint32_t(t));
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 8> {
   static uint32_t hash(const T &t) {
-    return uint32_t(ZuHash_GoldenPrime64::hash(t));
+    return uint32_t(ZuHash_GoldenRatio64::hash(t));
   }
 };
 
 template <typename T> struct ZuHash_Integral<T, 16> {
   static uint32_t hash(const T &t) {
-    return uint32_t(ZuHash_GoldenPrime128::hash(t));
+    return uint32_t(ZuHash_GoldenRatio128::hash(t));
   }
 };
 
@@ -216,7 +209,7 @@ template <typename T, int Size> struct ZuHash_Pointer;
 #endif
 template <typename T> struct ZuHash_Pointer<T, 4> {
   static uint32_t hash(T v) {
-    return ZuHash_GoldenPrime32::hash(uint32_t(v));
+    return ZuHash_GoldenRatio32::hash(uint32_t(v));
   }
 };
 #ifdef _MSC_VER
@@ -225,7 +218,7 @@ template <typename T> struct ZuHash_Pointer<T, 4> {
 
 template <typename T> struct ZuHash_Pointer<T, 8> {
   static uint32_t hash(T v) {
-    return uint32_t(ZuHash_GoldenPrime64::hash(uint64_t(v)));
+    return uint32_t(ZuHash_GoldenRatio64::hash(uint64_t(v)));
   }
 };
 
@@ -320,7 +313,7 @@ template <> struct ZuStringHash<char> {
     hash += hash>>6;
 
     return hash;
-    // return ZuHash_GoldenPrime32::hash(hash);
+    // return ZuHash_GoldenRatio32::hash(hash);
   }
 };
 template <int WCharSize> struct ZuWStringHash;
@@ -355,7 +348,7 @@ template <> struct ZuWStringHash<2> {
     hash += hash>>6;
 
     return hash;
-    // return ZuHash_GoldenPrime32::hash(hash);
+    // return ZuHash_GoldenRatio32::hash(hash);
   }
 };
 template <> struct ZuWStringHash<4> {

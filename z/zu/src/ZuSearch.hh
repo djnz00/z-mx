@@ -17,7 +17,7 @@ inline uint64_t ZuSearchPos(uint64_t i) { return i>>1; }
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
-// binary search in sorted data (i.e. following ZuSort)
+// binary search in sorted data (e.g. following ZuSort)
 // - returns insertion position if not found
 template <bool Match = true, typename Cmp>
 inline uint64_t ZuSearch(uint64_t n, Cmp cmp) {
@@ -57,28 +57,29 @@ ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, uint64_t>
 #pragma GCC diagnostic pop
 #endif
 
-// interpolation search in sorted data (i.e. following ZuSort)
+// interpolation search in sorted data (e.g. following ZuSort)
 // - returns insertion position if not found
+// - uses floating point for interpolation
 template <bool Match = true, typename Cmp>
 inline uint64_t ZuInterSearch(uint64_t n, Cmp cmp) {
   if (!n) return 0;
   if (n <= 2) { // special case for small arrays
     // std::cout << "cmp(0)\n";
-    int l = cmp(0);
-    if constexpr (Match) if (!l) return 1;
+    double l = cmp(0);
+    if constexpr (Match) if (l == 0) return 1;
     if (l <= 0) return 0;
     if (n == 1) return 2;
     // std::cout << "cmp(1)\n";
-    int r = cmp(1);
-    if constexpr (Match) if (!r) return 3;
+    double r = cmp(1);
+    if constexpr (Match) if (r == 0) return 3;
     if (r <= 0) return 2;
     return 4;
   }
   // std::cout << "cmp(0)\n";
-  int l = cmp(0);
+  double l = cmp(0);
   // std::cout << "cmp(" << (n - 1) << ")\n";
-  int r = cmp(n - 1);
-  if constexpr (Match) if (!l) return 1;
+  double r = cmp(n - 1);
+  if constexpr (Match) if (l == 0) return 1;
   if (l <= 0) return 0;
   if (r > 0) return n<<1;
   uint64_t o = 0;
@@ -87,10 +88,10 @@ inline uint64_t ZuInterSearch(uint64_t n, Cmp cmp) {
     if (n <= 8)
       p = n>>1; // use binary search for small partitions
     else {
-      uint64_t d = l - r; // "distance" of left-to-right value span
-      p = ((n - 3) * l + (d>>1)) / d + 1; // left/right interpolated pivot
+      double d = l - r; // "distance" of left-to-right value span
+      p = (l * (n - 3) + (d / 2)) / d; // left/right interpolated pivot
     }
-    int m = cmp(o + p);
+    double m = cmp(o + p);
     // std::cout << "l=" << l << " r=" << r << " p=" << p << " o=" << o << " n=" << n << " cmp(" << (o + p) << ")=" << m << "\n";
     if (m <= 0) {
       n = p + 1;
@@ -102,8 +103,8 @@ inline uint64_t ZuInterSearch(uint64_t n, Cmp cmp) {
     }
   } while (n > 2);
   if constexpr (Match) {
-    if (!l) return (o<<1) | 1;
-    if (n > 1 && !r) return ((o + n - 1)<<1) | 1;
+    if (l == 0) return (o<<1) | 1;
+    if (n > 1 && r == 0) return ((o + n - 1)<<1) | 1;
   }
   if (l <= 0) return o<<1;
   if (r > 0) return (o + n)<<1;
@@ -117,7 +118,9 @@ inline auto ZuInterSearch(const Array &data, uint64_t n, const T &v) ->
 ZuExact<ZuDecay<T>, ZuDecay<decltype(ZuDeclVal<const Array &>()[0])>, uint64_t>
 {
   return ZuInterSearch<Match>(n,
-    [&data, v](uint64_t i) { return ZuCmp<T>::delta(v, data[i]); });
+    [&data, v](uint64_t i) {
+      return double(v) - double(data[i]);
+    });
 }
 
 #endif /* ZuSearch_HH */

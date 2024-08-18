@@ -8,7 +8,7 @@
 #include <math.h>
 #include <stdio.h>
 
-void analyze(const char *run, int *count, int n)
+void analyze(const char *run, int *count, unsigned n)
 {
   double avg = 0;
   int min = INT_MAX, max = 0;
@@ -24,8 +24,8 @@ void analyze(const char *run, int *count, int n)
     std += delta * delta;
   }
   std = sqrt(std / n);
-  printf("%s min %d max %d avg: %g\n"
-	 "     std (68%% CI): %5.4g %.4g%%\n"
-	 "  2x std (95%% CI): %5.4g %.4g%%\n",
+  printf("%s min %d max %d avg: %.4f\n"
+	 "     std (68%% CI): %5.4f %.4f%%\n"
+	 "  2x std (95%% CI): %5.4f %.4f%%\n",
 	 run, min, max, avg, std, std / avg, std * 2, (std * 2) / avg);
 }
