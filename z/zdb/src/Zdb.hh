@@ -291,8 +291,8 @@ struct DBState : public DBState_ {
 //
 // path forks:
 //
-// Insert > (Committed|Undefined)
-// Delete > (Deleted|Committed)
+// Insert > Committed | Undefined
+// Delete > Deleted | Committed
 //
 // possible event sequences:
 //
@@ -325,8 +325,6 @@ class ZdbAPI AnyObject : public ZmPolymorph {
   friend AnyTable;
   template <typename> friend class Table;
 
-  enum { Evicted = 0x01, Pinned = 0x02 };
-
 public:
   AnyObject(AnyTable *table, unsigned shard) :
     m_table{table}, m_shard{shard} { }
@@ -338,17 +336,26 @@ public:
   VN vn() const { return m_vn; }
   int state() const { return m_state; }	// ObjState
   UN origUN() const { return m_origUN; }
-  bool evicted() const { return m_flags & Evicted; }
-  bool pinned() const { return m_flags & Pinned; }
+  bool evicted() const { return m_pinCount < 0; }
+  bool pinned() const { return m_pinCount > 0; }
 
   ZmRef<const IOBuf> replicate(int type);
 
   virtual void *ptr_() { return nullptr; }
   const void *ptr_() const { return const_cast<AnyObject *>(this)->ptr_(); }
 
-  virtual void evict() { m_flags |= Evicted; }	// must call this if overridden
-  void pin() { m_flags |= Pinned; }
-  void unpin() { m_flags &= ~Pinned; }
+  virtual void evict() {
+    ZeAssert(m_pinCount <= 0, (), "invalid evict()", return);
+    m_pinCount = -1;
+  }
+  void pin() {
+    ZeAssert(m_pinCount >= 0, (), "invalid pin()", return);
+    ++m_pinCount;
+  }
+  void unpin() {
+    ZeAssert(m_pinCount > 0, (), "invalid unpin()", return);
+    --m_pinCount;
+  }
 
   template <typename S> void print(S &s) const;
   friend ZuPrintFn ZuPrintType(AnyObject *);
@@ -373,9 +380,9 @@ private:
   SN			m_sn = nullSN();
   VN			m_vn = 0;
   UN			m_origUN = nullUN();
+  int64_t		m_pinCount = 0;
   uint8_t		m_shard = 0;
   int8_t		m_state = ObjState::Undefined;
-  uint8_t		m_flags = 0;
 };
 
 inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {

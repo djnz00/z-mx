@@ -166,7 +166,7 @@ protected:
 
 inline constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
-template <typename Fn = void(void)> class ZmFn;
+template <typename Fn = void()> class ZmFn;
 template <typename R_, typename ...Args_>
 class ZmFn<R_(Args_...)> : public ZmAnyFn {
   class Pass {
