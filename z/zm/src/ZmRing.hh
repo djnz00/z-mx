@@ -31,7 +31,7 @@
 #include <zlib/ZmLock.hh>
 #include <zlib/ZmGuard.hh>
 #include <zlib/ZmAtomic.hh>
-#include <zlib/ZuTime.hh>
+#include <zlib/ZmTime.hh>
 #include <zlib/ZmBackTrace.hh>
 
 #ifdef ZmRing_FUNCTEST

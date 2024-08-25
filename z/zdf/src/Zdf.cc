@@ -348,7 +348,7 @@ void DataFrame::load(Store_::LoadFn loadFn)
 {
   using namespace Zfb::Load;
   m_store->loadDF(m_name,
-      LoadFn{this, [](DataFrame *this_, ZuBytes data) {
+      LoadFn{ZmMkRef(this), [](DataFrame *this_, ZuBytes data) {
 	return this_->load_(data);
       }}, (1<<10) /* 1Kb */, ZuMv(loadFn));
 }

@@ -10,6 +10,10 @@
 //   <ndp> decimals / fractional digits / number of decimal places
 // Note: <ndp> is the negative of the decimal exponent
 
+// use decimal() or fp() for math operations, depending on the use case:
+// - ZuDecimal for precise decimal calculations of financial values
+// - double for quantitative analysis
+
 // ZuFixedVal is an alias for int64_t - contains the mantissa without the NDP
 
 // ZuFixed combines the value and the ndp - used as an intermediary type
@@ -83,26 +87,6 @@ struct ZuFixed {
     ndp = ndp_;
   }
 
-  // multiply: ndp of result is taken from the LHS
-  // a 128bit integer intermediate is used to avoid overflow
-  ZuFixed operator *(const ZuFixed &v) const {
-    int128_t i = mantissa;
-    i *= v.mantissa;
-    i /= ZuDecimalFn::pow10_64(v.ndp);
-    if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
-    return ZuFixed{i, ndp};
-  }
-
-  // divide: ndp of result is taken from the LHS
-  // a 128bit integer intermediate is used to avoid overflow
-  ZuFixed operator /(const ZuFixed &v) const {
-    int128_t i = mantissa;
-    i *= ZuDecimalFn::pow10_64(ndp);
-    i /= v.mantissa;
-    if (ZuUnlikely(i >= 1000000000000000ULL)) return ZuFixed{};
-    return ZuFixed{i, ndp};
-  }
-
   void init(int64_t mantissa_, unsigned ndp_) {
     mantissa = mantissa_;
     ndp = ndp_;
@@ -130,11 +114,12 @@ struct ZuFixed {
   ZuFixedVal adjust(unsigned ndp_) const {
     if (ZuUnlikely(!operator *())) return {};
     if (ZuLikely(ndp_ == ndp)) return mantissa;
-    if (ndp_ > ndp) return mantissa * ZuDecimalFn::pow10_64(ndp_ - ndp);
+    if (ndp_ > ndp)
+      return int128_t(mantissa) * ZuDecimalFn::pow10_64(ndp_ - ndp);
     return mantissa / ZuDecimalFn::pow10_64(ndp - ndp_);
   }
 
-  // comparisons - use ZuDecimal intermediaries if NDPs are inconsistent
+  // comparisons - uses ZuDecimal intermediaries if NDPs are inconsistent
   bool equals(const ZuFixed &v) const {
     if (ZuLikely(ndp == v.ndp || !**this || !*v))
       return mantissa == v.mantissa;

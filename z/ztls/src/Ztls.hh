@@ -137,7 +137,7 @@ protected:
 private:
   void connected_(Cxn *cxn, ZiIOContext &io) {
     m_rxBuf = new IOBufAlloc{impl()};
-    io.init(ZiIOFn{this, [](Link *link, ZiIOContext &io) {
+    io.init(ZiIOFn{ZmMkRef(this), [](Link *link, ZiIOContext &io) {
       link->rx(io);
       return true;
     }}, m_rxBuf->data(), m_rxBuf->size, 0);
@@ -512,14 +512,14 @@ friend Base;
     this->load_(); // load any session saved from a previous connection
 
     this->app()->mx()->connect(
-	ZiConnectFn{impl(),
-	  [](Impl *impl, const ZiCxnInfo &ci) -> ZiConnection * {
-	    return new Cxn(impl, ci);
-	  }},
-	ZiFailFn{impl(), [](Impl *impl, bool transient) {
-	  impl->connectFailed(transient);
+      ZiConnectFn{ZmMkRef(impl()),
+	[](Impl *impl, const ZiCxnInfo &ci) -> ZiConnection * {
+	  return new Cxn(impl, ci);
 	}},
-	ZiIP(), 0, ip, m_port);
+      ZiFailFn{ZmMkRef(impl()), [](Impl *impl, bool transient) {
+	impl->connectFailed(transient);
+      }},
+      ZiIP(), 0, ip, m_port);
   }
 
 private:

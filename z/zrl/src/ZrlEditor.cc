@@ -814,16 +814,16 @@ bool Editor::isOpen() const
 void Editor::start(StartFn fn)
 {
   m_tty.start(
-      [this, fn = ZuMv(fn)]() mutable {
-	m_context = { .histSaveOff = m_config.histOffset };
-	m_tty.opost_on();
-	fn(*this);
-	m_tty.opost_off();
-	prompt_();
-      },
-      Terminal::KeyFn{this, [](Editor *this_, int32_t vkey) {
-	return this_->process(vkey);
-      }});
+    [this, fn = ZuMv(fn)]() mutable {
+      m_context = { .histSaveOff = m_config.histOffset };
+      m_tty.opost_on();
+      fn(*this);
+      m_tty.opost_off();
+      prompt_();
+    },
+    Terminal::KeyFn{this, [](Editor *this_, int32_t vkey) {
+      return this_->process(vkey);
+    }});
 }
 void Editor::stop()
 {

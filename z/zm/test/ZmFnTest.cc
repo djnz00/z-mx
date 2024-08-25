@@ -139,9 +139,11 @@ struct MoveOnly {
 
 void foo(X &x) { printf("%d\n", x.m_i); }
 
-void fail() { Zm::exit(1); }
+void ok(const char *s) { puts(s); }
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : (fail(), puts("NOK " #x)))
+void fail(const char *s) { puts(s); fflush(stdout); Zm::exit(1); }
+
+#define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 
 #if 0
 template <typename L> void isStateless(const L &l) {
@@ -349,6 +351,20 @@ int main()
 	CHECK(e->refCount() == 1);
       }};
     fn(&fn);
+  }
+  {
+    ZmRef<E_> e = new E_(42);
+    ZmFn<void()> fn{e, [](E_ *e) {
+      CHECK(e->refCount() == 2);
+    }};
+    fn();
+  }
+  {
+    ZmRef<E_> e = new E_(42);
+    ZmFn<void()> fn{e.ptr(), [](E_ *e) {
+      CHECK(e->refCount() == 1);
+    }};
+    fn();
   }
   {
     ZmRef<E_> e = new E_(42);
