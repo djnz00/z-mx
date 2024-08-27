@@ -48,12 +48,8 @@
 #include <zlib/ZdfSchema.hh>
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
-#include <zlib/ZdfStore.hh>
 
 namespace Zdf {
-
-// monomorphic ZeEvent
-using Event = ZeVEvent;
 
 // DB state
 namespace DBState {
@@ -67,191 +63,23 @@ template <typename Base>
 using DeltaDecoder_ = ZdfCompress::DeltaDecoder<Base>;
 using DeltaDecoder = DeltaDecoder_<AbsDecoder>;
 using Delta2Decoder = DeltaDecoder_<DeltaDecoder>;
+using FPEncoder = ZdfCompress::FloatDecoder;
 
-using AbsEncoder = ZdfCompress::Encoder;
-template <typename Base>
-using DeltaEncoder_ = ZdfCompress::DeltaEncoder<Base>;
-using DeltaEncoder = DeltaEncoder_<AbsEncoder>;
-using Delta2Encoder = DeltaEncoder_<DeltaEncoder>;
+using AbsSeries = Series<AbsDecoder>;
+using AbsReader = Reader<AbsDecoder>;
+using AbsWriter = Writer<AbsDecoder>;
 
-// typedefs for reader/writer types
-using AbsReader = Reader<Series, AbsDecoder>;
-using DeltaReader = Reader<Series, DeltaDecoder>;
-using Delta2Reader = Reader<Series, Delta2Decoder>;
+using DeltaSeries = Series<DeltaDecoder>;
+using DeltaReader = Reader<DeltaDecoder>;
+using DeltaWriter = Writer<DeltaDecoder>;
 
-using AbsWriter = Writer<Series, AbsEncoder>;
-using DeltaWriter = Writer<Series, DeltaEncoder>;
-using Delta2Writer = Writer<Series, Delta2Encoder>;
+using Delta2Series = Series<Delta2Decoder>;
+using Delta2Reader = Reader<Delta2Decoder>;
+using Delta2Writer = Writer<Delta2Decoder>;
 
-// run-time polymorphic reader
-using AnyReader_ = ZuUnion<AbsReader, DeltaReader, Delta2Reader>;
-class AnyReader : public AnyReader_ {
-public:
-  AnyReader() { initFn(); }
-  AnyReader(const AnyReader &r) : AnyReader_{r} {
-    initFn();
-  }
-  AnyReader(AnyReader &&r) : AnyReader_{static_cast<AnyReader_ &&>(r)} {
-    initFn();
-  }
-  AnyReader &operator =(const AnyReader &r) {
-    if (ZuLikely(this != &r)) {
-      AnyReader_::operator =(r);
-      initFn();
-    }
-    return *this;
-  }
-  AnyReader &operator =(AnyReader &&r) {
-    if (ZuLikely(this != &r)) {
-      AnyReader_::operator =(static_cast<AnyReader_ &&>(r));
-      initFn();
-    }
-    return *this;
-  }
-  ~AnyReader() = default;
-
-  void seek(const Series *s, unsigned props, uint64_t offset) {
-    if (props & ZtVFieldProp::Delta)
-      init_<DeltaReader>(s, offset);
-    else if (props & ZtVFieldProp::Delta2)
-      init_<Delta2Reader>(s, offset);
-    else
-      init_<AbsReader>(s, offset);
-  }
-
-  // series must monotonically increase
-
-  void find(const Series *s, unsigned props, const ZuFixed &value) {
-    if (props & ZtVFieldProp::Delta)
-      find_<DeltaReader>(s, value);
-    else if (props & ZtVFieldProp::Delta2)
-      find_<Delta2Reader>(s, value);
-    else
-      find_<AbsReader>(s, value);
-  }
-
-  bool read(ZuFixed &v) { return m_readFn(this, v); }
-  void seekFwd(uint64_t offset) { m_seekFwdFn(this, offset); }
-  void seekRev(uint64_t offset) { m_seekRevFn(this, offset); }
-  void findFwd(const ZuFixed &value) { m_findFwdFn(this, value); }
-  void findRev(const ZuFixed &value) { m_findRevFn(this, value); }
-  uint64_t offset() { return m_offsetFn(this); }
-
-  void purge() { dispatch([](auto, auto &&v) { v.purge(); }); }
-
-private:
-  template <typename Reader>
-  void init_(const Series *s, unsigned offset) {
-    new (AnyReader_::new_<Reader>())
-      Reader{s->seek<typename Reader::Decoder>(offset)};
-    initFn_<Reader>();
-  }
-  template <typename Reader>
-  void find_(const Series *s, const ZuFixed &value) {
-    new (AnyReader_::new_<Reader>())
-      Reader{s->find<typename Reader::Decoder>(value)};
-    initFn_<Reader>();
-  }
-
-  void initFn() {
-    dispatch([this](auto, auto &&v) { initFn_<ZuDecay<decltype(v)>>(); });
-  }
-  template <typename Reader>
-  void initFn_() {
-    m_readFn = [](AnyReader *this_, ZuFixed &v) {
-      return this_->ptr_<Reader>()->read(v);
-    };
-    m_seekFwdFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Reader>()->seekFwd(offset);
-    };
-    m_seekRevFn = [](AnyReader *this_, uint64_t offset) {
-      this_->ptr_<Reader>()->seekRev(offset);
-    };
-    m_findFwdFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Reader>()->findFwd(value);
-    };
-    m_findRevFn = [](AnyReader *this_, const ZuFixed &value) {
-      this_->ptr_<Reader>()->findRev(value);
-    };
-    m_offsetFn = [](const AnyReader *this_) {
-      return this_->ptr_<Reader>()->offset();
-    };
-  }
-
-  typedef bool (*ReadFn)(AnyReader *, ZuFixed &);
-  typedef void (*SeekFn)(AnyReader *, uint64_t); 
-  typedef void (*FindFn)(AnyReader *, const ZuFixed &); 
-  typedef uint64_t (*OffsetFn)(const AnyReader *);
-
-private:
-  ReadFn	m_readFn = nullptr;
-  SeekFn	m_seekFwdFn = nullptr;
-  SeekFn	m_seekRevFn = nullptr;
-  FindFn	m_findFwdFn = nullptr;
-  FindFn	m_findRevFn = nullptr;
-  OffsetFn	m_offsetFn = nullptr;
-};
-
-// run-time polymorphic writer
-using AnyWriter_ = ZuUnion<AbsWriter, DeltaWriter, Delta2Writer>;
-class AnyWriter : public AnyWriter_ {
-public:
-  AnyWriter(const AnyWriter &r) = delete;
-  AnyWriter &operator =(const AnyWriter &r) = delete;
-
-  AnyWriter() { initFn(); }
-  AnyWriter(AnyWriter &&r) : AnyWriter_{static_cast<AnyWriter_ &&>(r)} {
-    initFn();
-  }
-  AnyWriter &operator =(AnyWriter &&w) {
-    if (ZuLikely(this != &w)) {
-      AnyWriter_::operator =(static_cast<AnyWriter_ &&>(w));
-      initFn();
-    }
-    return *this;
-  }
-  ~AnyWriter() = default;
-
-  void init(Series *s, unsigned props) {
-    if (props & ZtVFieldProp::Delta)
-      init_<DeltaWriter>(s);
-    else if (props & ZtVFieldProp::Delta2)
-      init_<Delta2Writer>(s);
-    else
-      init_<AbsWriter>(s);
-  }
-
-  bool write(const ZuFixed &v) { return m_writeFn(this, v); }
-  void sync() { m_syncFn(this); }
-
-private:
-  template <typename Writer>
-  void init_(Series *s) {
-    new (AnyWriter_::new_<Writer>())
-      Writer{s->writer<typename Writer::Encoder>()};
-    initFn_<Writer>();
-  }
-
-  void initFn() {
-    dispatch([this](auto, auto &&v) { initFn_<ZuDecay<decltype(v)>>(); });
-  }
-  template <typename Writer>
-  void initFn_() {
-    m_writeFn = [](AnyWriter *this_, const ZuFixed &v) {
-      return this_->ptr_<Writer>()->write(v);
-    };
-    m_syncFn = [](AnyWriter *this_) {
-      this_->ptr_<Writer>()->sync();
-    };
-  }
-
-  typedef bool (*WriteFn)(AnyWriter *, const ZuFixed &);
-  typedef void (*SyncFn)(AnyWriter *);
-
-private:
-  WriteFn	m_writeFn = nullptr;
-  SyncFn	m_syncFn = nullptr;
-};
+using FloatSeries = Series<FloatDecoder>;
+using FloatReader = Reader<FloatDecoder>;
+using FloatWriter = Writer<FloatDecoder>;
 
 // Zdf data-frames are comprised of series fields
 template <typename Field>
@@ -265,7 +93,6 @@ auto fields() { return ZtVFields_<Fields<T>>(); }
 
 using OpenFn = ZmFn<void(bool)>;	// (bool ok)
 using OpenDFFn = ZmFn<void(ZmRef<DataFrame>)>;
-using OpenSeriesFn = ZmFn<void(ZmRef<Series>)>;
 
 class ZdfAPI DB {
 public:
@@ -273,46 +100,57 @@ public:
   void final();
 
   // convert shard to thread slot ID
-  auto sid(unsigned shard) const {
+  auto sid(Shard shard) const {
     return m_sid[shard & (m_sid.length() - 1)];
   }
 
   // dataframe threads (may be shared by app workloads)
   template <typename ...Args>
-  void run(unsigned shard, Args &&...args) const {
+  void run(Shard shard, Args &&...args) const {
     m_mx->run(sid(shard), ZuFwd<Args>(args)...);
   }
   template <typename ...Args>
-  void invoke(unsigned shard, Args &&...args) const {
+  void invoke(Shard shard, Args &&...args) const {
     m_mx->invoke(sid(shard), ZuFwd<Args>(args)...);
   }
-  bool invoked(unsigned shard) const { return m_mx->invoked(sid(shard)); }
+  bool invoked(Shard shard) const { return m_mx->invoked(sid(shard)); }
 
   void open(OpenFn);			// establishes nextDFID, nextSeriesID
   void close();
 
   // open data frame
   void openDF(
-    unsigned shard, ZuString name, bool create,
+    Shard shard, ZtString name, bool create,
     const ZtVFieldArray &fields, bool timeIndex, OpenDFFn);
+
   // open series
-  template <bool Fixed = true>
-  void openSeries(unsigned shard, ZtString name, bool create, OpenSeriesFn) {
+  template <typename Decoder>
+  void openSeries(Shard shard, ZtString name, bool create, OpenSeriesFn) {
+    using Series = Zdf::Series<Decoder>;
+    using DBSeries = typename Series::DBType;
+    enum { Fixed = Series::Fixed };
+
+    static auto seriesTbl = [](const DB *this_) {
+      if constexpr (Fixed)
+	return this_->m_seriesFixedTbl;
+      else
+	return this_->m_seriesFloatTbl;
+    };
+
     run(shard, [
       this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
     ]() mutable {
       auto findFn = [
 	this, shard, name = ZuMv(name), create, fn = ZuMv(fn)
-      ](auto dbSeries) mutable {
+      ](ZdbObjRef<DBSeries> dbSeries) mutable {
 	if (dbSeries) {
-	  ZmRef<Series> series = new Series{this, Fixed, ZuMv(dbSeries)};
+	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
 	  series->open(ZuMv(fn));
 	  return;
 	}
 	if (!create) { fn(nullptr); return; }
-	using DBSeries = decltype(*dbSeries);
-	dbSeries = new DBSeries{m_seriesFixedTbl, shard};
-	new (dbSeries->ptr_()) DB::Series{
+	dbSeries = new ZdbObject<DBSeries>{seriesTbl(), shard};
+	new (dbSeries->ptr_()) DBType{
 	  .id = m_nextSeriesID++,
 	  .dfid = 0,
 	  .name = ZuMv(name),
@@ -320,77 +158,17 @@ public:
 	};
 	auto insertFn = [
 	  series = ZuMv(series), fn = ZuMv(fn)
-	](auto dbSeries) mutable {
+	](ZdbObjRef<DBSeries> dbSeries) mutable {
 	  if (!dbSeries) { fn(nullptr); return; }
 	  dbSeries->commit();
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
 	  series->open(ZuMv(fn));
 	};
-	if constexpr (Fixed)
-	  m_seriesFixedTbl->insert(dbSeries, ZuMv(insertFn));
-	else
-	  m_seriesFloatTbl->insert(dbSeries, ZuMv(insertFn));
+	seriesTbl()->insert(dbSeries, ZuMv(insertFn));
       };
       auto key = ZuMvTuple(ZuString{name});
-      if constexpr (Fixed)
-	m_seriesFixedTbl->find<1>(shard, key, ZuMv(findFn));
-      else
-	m_seriesFloatTbl->find<1>(shard, key, ZuMv(findFn));
+      seriesTbl()->find<1>(shard, key, ZuMv(findFn));
     });
-  }
-
-  template <typename L>
-  void loadBlk(Series *series, BlkOffset blkOffset, L l) {
-    m_blkDataTbl->find<0>(
-      series->shard(), ZuFwdTuple(series->id(), blkOffset), ZuMv(l),
-      [series](ZdbTable *tbl) { return new BlkData{series}; });
-  }
-  template <typename L>
-  void saveBlk(Series *series, BlkOffset blkOffset, Blk *blk, L l) {
-    ZmAssert(blk->blkData);
-    ZmAssert(blk->blkData->pinned());
-    if (blk->blkData->state() == ZdbObjState::Undefined) {
-      ZdbObjRef<DB::BlkHdrFixed> blkHdr =
-	new ZdbObject<DB::BlkHdrFixed>{m_blkHdrFixedTbl};
-      new (blkHdr->ptr()) DB::BlkHdrFixed{
-	.blkOffset = blkOffset,
-	.offset = blk->offset(),
-	.last = blk->last.fixed,
-	.seriesID = series->id(),
-	.count = blk->count(),
-	.ndp = blk->ndp()
-      };
-      m_blkHdrTbl->insert(
-	series->shard(), ZuMv(blkHdr),
-	[](ZdbObject<DB::BlkHdrFixed> *blkHdr) {
-	  if (blkHdr) blkHdr->commit();
-	});
-      m_blkDataTbl->insert(
-	series->shard(), blk->blkData,
-	[l = ZuMv(l)](ZdbObject<DB::BlkData> *blkData) mutable {
-	  if (!blkData) { l(nullptr); return; }
-	  blkData->commit();
-	  l(blkData);
-	});
-    } else {
-      m_blkHdrTbl->findUpd<0>(
-	series->shard(), ZuFwdTuple(series->id(), blkOffset),
-	[](ZdbObject<DB::BlkHdrFixed> *blkHdr) {
-	  if (!blkHdr) return;
-	  auto &data = blkHdr->data();
-	  data.offset = blk->offset();
-	  data.last = blk->last.fixed;
-	  data.count = blk->count();
-	  data.ndp = blk->ndp();
-	  blkHdr->commit();
-	});
-      m_blkDataTbl->update<>(blk->blkData,
-	[l = ZuMv(l)](ZdbObject<DB::BlkData> *blkData) mutable {
-	  if (!blkData) { l(nullptr); return; }
-	  blkData->commit();
-	  l(blkData);
-	});
-    }
   }
 
   ZdbTable<DB::DataFrame> *dataFrameTbl() const { return m_dataFrameTbl; }
@@ -402,7 +180,6 @@ public:
 
 private:
   DBState::T			m_state = DBState::Uninitialized;
-  unsigned			m_maxSeriesBlks = 1000000;
   ZdbTblRef<DB::DataFrame>	m_dataFrameTbl;
   ZdbTblRef<DB::SeriesFixed>	m_seriesFixedTbl;
   ZdbTblRef<DB::SeriesFloat>	m_seriesFloatTbl;
@@ -446,37 +223,51 @@ public:
     Writer(DataFrame *df) : m_df(df) {
       unsigned n = df->nSeries();
       m_writers.length(n);
-      for (unsigned i = 0; i < n; i++) df->writer_(m_writers[i], i);
+      for (unsigned i = 0; i < n; i++) m_writers[i] = df->writer_(i);
     }
 
   public:
     void write(const void *ptr) {
+      using namespace ZtFieldTypeCode;
+
       unsigned n = m_writers.length();
       if (ZuUnlikely(!n)) return;
-      ZuFixed v;
       for (unsigned i = 0; i < n; i++) {
-	using namespace ZtFieldTypeCode;
 	auto field = m_df->field(i);
 	if (i || field) {
-	  switch (field->type->code) {
-	    case Int:     v = {field->get.get<Int>(ptr, i), 0}; break;
-	    case UInt:    v = {field->get.get<UInt>(ptr, i), 0}; break;
-	    case Enum:    v = {field->get.get<Enum>(ptr, i), 0}; break;
-	    case Fixed:   v = field->get.get<Fixed>(ptr, i); break;
-	    case Decimal: v = field->get.get<Decimal>(ptr, i); break;
-	    case Time:    v = m_df->nsecs(field->get.get<Time>(ptr, i)); break;
-	    default:      v = ZuFixed{0, 0}; break;
+	  auto code = field->type->code;
+	  if (code == Float)
+	    m_writers[i]->write(field->get.get<Float>(ptr));
+	  else {
+	    ZuFixed v;
+	    switch (code) {
+	      case Int8:    v = {field->get.get<Int8>(ptr), 0}; break;
+	      case UInt8:   v = {field->get.get<UInt8>(ptr), 0}; break;
+	      case Int16:   v = {field->get.get<Int16>(ptr), 0}; break;
+	      case UInt16:  v = {field->get.get<UInt16>(ptr), 0}; break;
+	      case Int32:   v = {field->get.get<Int32>(ptr), 0}; break;
+	      case UInt32:  v = {field->get.get<UInt32>(ptr), 0}; break;
+	      case Int64:   v = {field->get.get<Int64>(ptr), 0}; break;
+	      case UInt64:  v = {field->get.get<UInt64>(ptr), 0}; break;
+	      case UInt:    v = {field->get.get<UInt>(ptr), 0}; break;
+	      case Enum:    v = {field->get.get<Enum>(ptr), 0}; break;
+	      case Fixed:   v = field->get.get<Fixed>(ptr); break;
+	      case Decimal:
+		v = {field->get.get<Decimal>(ptr), field->ndp};
+		break;
+	      case Time:
+		v = {m_df->nsecs(field->get.get<Time>(ptr)), 9};
+		break;
+	      default:
+		v = {0, 0};
+		break;
+	    }
+	    m_writers[i]->write(v);
 	  }
-	} else
-	  v = m_df->nsecs(Zm::now());
-	m_writers[i].write(v);
+	} else {
+	  m_writers[i]->write(ZuFixed{m_df->nsecs(Zm::now()), 9});
+	}
       }
-    }
-
-    void sync() {
-      unsigned n = m_writers.length();
-      for (unsigned i = 0; i < n; i++)
-	m_writers[i].sync();
     }
 
     void final() {
@@ -486,16 +277,19 @@ public:
 
   private:
     DataFrame		*m_df = nullptr;
-    ZtArray<AnyWriter>	m_writers;
+    ZtArray<WrHandle>	m_writers;
   };
   Writer writer() { return Writer{this}; }
 
 friend Writer;
 private:
-  void writer_(AnyWriter &w, unsigned i) {
+  WrHandle writer_(unsigned i) {
     auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtVFieldProp::Delta;
-    w.init(m_series[i], props);
+    unsigned props = field ? field->props : ZtVFieldProp::Delta();
+
+    if (field->type->code == ZtFieldTypeCode::Float)
+
+    if (props & ZtV
   }
 public:
   void seek(AnyReader &r, unsigned i, uint64_t offset = 0) {
@@ -530,7 +324,7 @@ public:
 private:
   DB				*m_db = nullptr;
   ZtString			m_name;
-  ZtArray<ZmRef<Series>>	m_series;
+  ZtArray<ZmRef<AnySeries>>	m_series;
   ZtArray<const ZtVField *>	m_fields;
 
   // async open/close series context

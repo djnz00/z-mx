@@ -181,7 +181,7 @@ int main()
   {
     using T = ZuTuple<>;
     T v;
-    D d = v;
+    D d = v; (void)d;
     D e{v};
     static auto foo = [](D d) { };
     foo(v);

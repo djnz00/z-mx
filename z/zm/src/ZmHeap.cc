@@ -75,7 +75,6 @@ private:
 };
 
 class ZmHeapMgr_ : public ZmObject {
-friend ZmSingletonCtor<ZmHeapMgr_>;
 friend ZmHeapMgr;
 friend ZmHeapCache;
 
@@ -119,9 +118,8 @@ friend ZmHeapCache;
   using TraceFn = ZmHeapMgr::TraceFn;
 #endif
 
-  ZmHeapMgr_() { }
-
 public:
+  ZmHeapMgr_() = default;
   ~ZmHeapMgr_() {
     m_key2Cache.clean();
     m_id2Cache.clean([
@@ -133,11 +131,11 @@ public:
     });
   }
 
-  friend ZuUnsigned<ZmCleanup::HeapMgr> ZmCleanupLevel(ZmHeapMgr_ *);
-
 private:
   static ZmHeapMgr_ *instance() {
-    return ZmSingleton<ZmHeapMgr_>::instance();
+    return
+      ZmSingleton<ZmHeapMgr_,
+	ZmSingletonCleanup<ZmCleanup::HeapMgr>>::instance();
   }
 
   void init(const char *id, unsigned partition, const ZmHeapConfig &config) {

@@ -104,31 +104,51 @@ public:
   bool isspace_(unsigned off) const { return isspace__(m_data[off]); }
 
 private:
-  static constexpr bool isword__(char c) {
+  static constexpr bool iswspace__(uint32_t u) { // unicode white space
     return
-      (c >= '0' && c <= '9') ||
-      (c >= 'a' && c <= 'z') ||
-      (c >= 'A' && c <= 'Z') ||
-      c == '_';
+      u == 0xa0 ||
+      u == 0x1680 ||
+      (u >= 0x2000 && u <= 0x200a) ||
+      u == 0x2028 ||
+      u == 0x2029 ||
+      u == 0x202f ||
+      u == 0x205f ||
+      u == 0x3000;
   }
-  static constexpr bool isspace__(char c) {
-    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  static constexpr bool isword__(uint32_t u) {
+    return
+      (u >= '0' && u <= '9') ||
+      (u >= 'a' && u <= 'z') ||
+      (u >= 'A' && u <= 'Z') ||
+      u == '_' || (u > 0x80 && !iswspace__(u));
+  }
+  static constexpr bool isspace__(uint32_t u) {
+    return u == ' ' || u == '\t' || u == '\r' || u == '\n' ||
+      u == 0x0c || iswspace__(u);
   }
   template <typename L>
   bool fwd(unsigned &off, unsigned n, L l) const {
-    while (!l(m_data[off])) {
-      if ((off += m_bytes[off].len()) >= n) return false;
+    uint32_t u;
+    while (off < n) {
+      auto o = ZuUTF8::in(&m_data[off], n - off, u);
+      if (ZuUnlikely(!o)) return false;
+      if (l(u)) return true;
+      off += o;
     }
-    return true;
+    return false;
   }
   template <typename L>
   bool rev(unsigned &off, L l) const {
-    do {
-      if (ZuUnlikely(!off)) return false;
+    unsigned n = off;
+    uint32_t u;
+    while (off > 0) {
       --off;
       off -= m_bytes[off].off();
-    } while (!l(m_data[off]));
-    return true;
+      auto o = ZuUTF8::in(&m_data[off], n - off, u);
+      if (ZuUnlikely(!o)) u = 0;
+      if (l(u)) return true;
+    }
+    return false;
   }
 
 private:

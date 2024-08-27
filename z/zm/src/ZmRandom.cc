@@ -12,5 +12,9 @@
 
 ZmRandom *ZmRand::instance()
 {
-  return static_cast<ZmRandom *>(ZmSpecific<ZmRand>::instance());
+  static constexpr auto ctor = []() { return new ZmRand(); };
+  return static_cast<ZmRandom *>(
+    ZmSpecific<ZmRand,
+      ZmSpecificCtor<ctor,
+	ZmSpecificCleanup<ZmCleanup::Library>>>::instance());
 }

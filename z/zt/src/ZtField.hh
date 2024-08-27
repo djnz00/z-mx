@@ -3632,6 +3632,9 @@ struct ZtField_DateTimeVec<Base, Def, false> :
 #define ZtField_(O, ID) ZtField_##O##_##ID
 #define ZtField(O, ID) ZuSchema::ZtField_##O##_##ID
 
+// get field index within fields
+#define ZtFieldIndex(O, ID) (ZuTypeIndex<ZtField(O, ID), ZuFields<O>>{})
+
 #define ZtField_Decl__(O, ID, Base, TypeName, Type) \
   ZuField_Decl(O, Base) \
   using ZtField_(O, ID) = \

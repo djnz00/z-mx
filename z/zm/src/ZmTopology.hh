@@ -25,20 +25,14 @@
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmCleanup.hh>
 
-template <typename, bool> struct ZmSingletonCtor;
-
 class ZmAPI ZmTopology {
   ZmTopology(const ZmTopology &) = delete;
   ZmTopology &operator =(const ZmTopology &) = delete;
-
-friend ZmSingletonCtor<ZmTopology, true>;
 
   ZmTopology();
 
 public:
   ~ZmTopology();
-
-  friend ZuUnsigned<ZmCleanup::Thread> ZmCleanupLevel(ZmTopology *);
 
 private:
   static ZmTopology *instance();

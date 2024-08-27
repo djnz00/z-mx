@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// composite object field metadata framework
+// composite type field metadata framework
 //
 // enables compile-time introspection and access to fields
 // - ZtField extends ZuField to run-time introspection
@@ -44,14 +44,21 @@
 //
 // Note: if a property includes multiple arguments, as is the case for a
 // field that forms part of multiple keys, then the property must be
-// wrapped in parentheses for the C pre-processor, e.g.:
+// wrapped in parentheses for the C pre-processor:
 //
 // ((id), (Ctor<0>, Keys<0>))		// no need for additional parentheses
 // ((id), (Ctor<0>, (Keys<0, 1>)))	// needs additional parentheses
 
+// ZuField(O, ID) is the typename of the field metadata type for
+// field "ID" of composite type "O"
+// - O is a leaf typename, without any qualifying namespace
+// - ZuSchema is a child namespace of the namespace within
+//   which O is declared
+//
 // ZuField API:
 //   O		- type of containing object
 //   T		- type of field
+//   Props	- compile-time properties
 //   ReadOnly	- true if read-only
 //   id()	- identifier (unique name) of field
 //   keys()	- keys bitfield (64bit)
@@ -63,6 +70,14 @@
 // - ZuFieldKeyID::All is a tuple containing all fields
 // - ZuFieldKeyID::Union is a tuple of the union of all the key fields
 // ZuFieldKeys<O> is a type list of all key types defined for O
+//
+// Props is a typelist of compile-time properties for the field
+// - use ZuTypeIn<Props, Property> for boolean properties
+// - in namespace ZuFieldProp:
+// - use HasValue<Props, Type, Property> and GetValue<Props, Type, Property>
+//   for scalar properties like Ctor (see HasCtor and GetCtor)
+// - use HasSeq<Props, Property> and GetSeq<Props, Property> for
+//   template properties like Keys (see GetKeys)
 
 #ifndef ZuField_HH
 #define ZuField_HH
@@ -83,7 +98,8 @@ namespace ZuFieldKeyID {
   };
 };
 
-// compile-time field property list - a typelist of individual properties:
+// compile-time field property list
+// - a typelist of individual properties:
 // - each type is declared in the ZuFieldProp namespace
 // - additional properties can be injected into the ZuFieldProp namespace
 //   by higher layers (ZtField, ZfbField, etc.)
@@ -94,14 +110,6 @@ namespace ZuFieldProp {
   // key IDs
   template <unsigned ...KeyIDs> struct Keys { };
 
-  // use ZuTypeIn<Props, Property> for boolean properties
-  //
-  // use HasValue<Props, Type, Property> and GetValue<Props, Type, Property>
-  // for scalar properties like Ctor (see HasCtor and GetCtor below)
-  //
-  // use HasSeq<Props, Property> and GetSeq<Props, Property> for
-  // template properties like Keys (see GetKeys below)
- 
   template <typename T, template <T> class Prop>
   struct GrepValue_ {
     template <typename> struct Is : public ZuFalse { };
@@ -393,6 +401,9 @@ using ZuFielded = decltype(ZuFielded_(ZuDeclVal<ZuDecay<T> *>()));
 
 template <typename T>
 using ZuFieldOrig = typename T::Orig;
+
+// get field index within fields
+#define ZuFieldIndex(O, ID) (ZuTypeIndex<ZuField(O, ID), ZuFields<O>>{})
 
 // generic tuple from field list
 template <typename O, typename Tuple, typename Fields> struct ZuFieldTuple_;

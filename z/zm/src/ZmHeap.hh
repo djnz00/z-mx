@@ -281,24 +281,18 @@ private:
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
 template <auto ID, unsigned Size, bool Sharded>
 class ZmHeapCacheT : public ZmObject {
-friend ZmSpecificCtor<ZmHeapCacheT<ID, Size, Sharded> >;
-  using TLS = ZmSpecific<ZmHeapCacheT>;
+  using TLS = ZmSpecific<ZmHeapCacheT, ZmSpecificCleanup<ZmCleanup::Heap>>;
 
 public:
-  // stats() uses ZmSpecific::all to iterate over all threads and
-  // collect/aggregate statistics for each TLS instance
-  static void stats();
-
-private:
   ZmHeapCacheT() :
       m_cache{ZmHeapMgr::cache(ID(), Size, Sharded, &stats)}, m_stats{} { }
-
-public:
   ~ZmHeapCacheT() {
     m_cache->histStats(m_stats);
   }
 
-  friend ZuUnsigned<ZmCleanup::Heap> ZmCleanupLevel(ZmHeapCacheT *);
+  // stats() uses ZmSpecific::all to iterate over all threads and
+  // collect/aggregate statistics for each TLS instance
+  static void stats();
 
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {

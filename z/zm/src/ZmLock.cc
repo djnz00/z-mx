@@ -23,27 +23,32 @@ public:
   }
   ZmBackTracer<64> *tracer() { return &m_tracer; }
 
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZmLock_Debug_ *);
-
 private:
   ZmAtomic<uint32_t>	m_enabled;
   ZmBackTracer<64>	m_tracer;
 };
 
+static ZmLock_Debug_ *instance()
+{
+  return
+    ZmSingleton<ZmLock_Debug_,
+      ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
+}
+
 void ZmLock_Debug::enable()
 {
-  ZmSingleton<ZmLock_Debug_>::instance()->enable();
+  instance()->enable();
 }
 void ZmLock_Debug::disable()
 {
-  ZmSingleton<ZmLock_Debug_>::instance()->disable();
+  instance()->disable();
 }
 void ZmLock_Debug::capture(unsigned skip)
 {
-  ZmSingleton<ZmLock_Debug_>::instance()->capture(skip + 1);
+  instance()->capture(skip + 1);
 }
 ZmBackTracer<64> *ZmLock_Debug::tracer()
 {
-  return ZmSingleton<ZmLock_Debug_>::instance()->tracer();
+  return instance()->tracer();
 }
 #endif

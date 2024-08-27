@@ -38,8 +38,6 @@ extern "C" {
 }
 
 class ZiFile_WindowsDrives {
-friend ZmSingletonCtor<ZiFile_WindowsDrives>;
-
 public:
   static int blkSize(ZtWString path) {
     return instance()->blkSize_path(ZuMv(path));
@@ -54,12 +52,8 @@ public:
   }
 #endif
 
-private:
   ZiFile_WindowsDrives();
-public:
   ~ZiFile_WindowsDrives();
-
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiFile_WindowsDrives *);
 
 private:
   int blkSize_path(ZtWString path);
@@ -91,7 +85,9 @@ private:
 
 ZiFile_WindowsDrives *ZiFile_WindowsDrives::instance()
 {
-  return ZmSingleton<ZiFile_WindowsDrives>::instance();
+  return
+    ZmSingleton<ZiFile_WindowsDrives,
+      ZmSingletonCleanup<ZmCleanup::Platform>>>::instance();
 }
 
 ZiFile_WindowsDrives::ZiFile_WindowsDrives()

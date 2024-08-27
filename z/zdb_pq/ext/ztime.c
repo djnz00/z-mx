@@ -21,7 +21,7 @@ inline static bool isdigit__(char c) {
 	zu_time *v = (zu_time *)palloc(sizeof(zu_time)); \
 	const char *s = PG_GETARG_CSTRING(0); \
 	unsigned int n = zu_time_in_##fmt(v, s); \
-   \
+ \
 	if (likely(n)) while (unlikely(isspace__(s[n]))) ++n; \
 	if (!n || s[n]) { \
 	  ereport( \
@@ -30,7 +30,7 @@ inline static bool isdigit__(char c) {
 		 errmsg("invalid input syntax for ztime: \"%s\"", s)) \
 	  ); \
 	} \
-   \
+ \
 	PG_RETURN_POINTER(v); \
   }
 

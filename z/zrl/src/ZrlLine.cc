@@ -77,14 +77,17 @@ unsigned Line::fwdWord(unsigned off) const
   unsigned n = m_data.length();
   if (ZuUnlikely(off >= n)) return n;
   off -= m_bytes[off].off();
-  if (isword__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return !isword__(c); })) return n;
-  } else if (!isspace__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return isspace__(c) || isword__(c); }))
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (isword__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return !isword__(u); })) return n;
+  } else if (!isspace__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return isspace__(u) || isword__(u); }))
       return n;
   }
-  if (isspace__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return !isspace__(c); })) return n;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (isspace__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return !isspace__(u); })) return n;
   }
   return off;
 }
@@ -101,13 +104,16 @@ unsigned Line::revWord(unsigned off) const
   --off;
   off -= m_bytes[off].off();
   if (ZuUnlikely(!off)) return 0;
-  if (isspace__(m_data[off])) {
-    if (!rev(off, [](char c) { return !isspace__(c); })) return 0;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (isspace__(u)) {
+    if (!rev(off, [](uint32_t u) { return !isspace__(u); })) return 0;
   }
-  if (isword__(m_data[off])) {
-    if (!rev(off, [](char c) { return !isword__(c); })) return 0;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (isword__(u)) {
+    if (!rev(off, [](uint32_t u) { return !isword__(u); })) return 0;
   } else {
-    if (!rev(off, [](char c) { return isspace__(c) || isword__(c); }))
+    if (!rev(off, [](uint32_t u) { return isspace__(u) || isword__(u); }))
       return 0;
   }
   return off + m_bytes[off].len();
@@ -124,13 +130,16 @@ unsigned Line::fwdWordEnd(unsigned off, bool past) const
     off += m_bytes[off].len();
     if (ZuUnlikely(off >= n)) { off = n; goto eol; }
   }
-  if (isspace__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return !isspace__(c); })) off = n;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (isspace__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return !isspace__(u); })) off = n;
   }
-  if (isword__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return !isword__(c); })) off = n;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (isword__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return !isword__(u); })) off = n;
   } else {
-    if (!fwd(off, n, [](char c) { return isspace__(c) || isword__(c); }))
+    if (!fwd(off, n, [](uint32_t u) { return isspace__(u) || isword__(u); }))
       off = n;
   }
 eol:
@@ -149,15 +158,18 @@ unsigned Line::revWordEnd(unsigned off, bool past) const
   if (ZuUnlikely(off >= n)) { off = n; goto eol; }
   off -= m_bytes[off].off();
   if (ZuUnlikely(!off)) return 0;
-  if (isword__(m_data[off])) {
-    if (!rev(off, [](char c) { return !isword__(c); })) return 0;
-  } else if (!isspace__(m_data[off])) {
-    if (!rev(off, [](char c) { return isspace__(c) || isword__(c); }))
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (isword__(u)) {
+    if (!rev(off, [](uint32_t u) { return !isword__(u); })) return 0;
+  } else if (!isspace__(u)) {
+    if (!rev(off, [](uint32_t u) { return isspace__(u) || isword__(u); }))
       return 0;
   }
-  if (isspace__(m_data[off])) {
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (isspace__(u)) {
 eol:
-    if (!rev(off, [](char c) { return !isspace__(c); })) return 0;
+    if (!rev(off, [](uint32_t u) { return !isspace__(u); })) return 0;
   }
   if (past) {
     off -= m_bytes[off].off();
@@ -172,10 +184,12 @@ unsigned Line::fwdUnixWord(unsigned off) const
   unsigned n = m_data.length();
   if (ZuUnlikely(off >= n)) return n;
   off -= m_bytes[off].off();
-  if (!isspace__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return isspace__(c); })) return n;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (!isspace__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return isspace__(u); })) return n;
   }
-  if (!fwd(off, n, [](char c) { return !isspace__(c); })) return n;
+  if (!fwd(off, n, [](uint32_t u) { return !isspace__(u); })) return n;
   return off;
 }
 
@@ -191,10 +205,12 @@ unsigned Line::revUnixWord(unsigned off) const
   --off;
   off -= m_bytes[off].off();
   if (ZuUnlikely(!off)) return 0;
-  if (isspace__(m_data[off])) {
-    if (!rev(off, [](char c) { return !isspace__(c); })) return 0;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (isspace__(u)) {
+    if (!rev(off, [](uint32_t u) { return !isspace__(u); })) return 0;
   }
-  if (!rev(off, [](char c) { return isspace__(c); })) return 0;
+  if (!rev(off, [](uint32_t u) { return isspace__(u); })) return 0;
   return off + m_bytes[off].len();
 }
 
@@ -207,10 +223,12 @@ unsigned Line::fwdUnixWordEnd(unsigned off, bool past) const
   off -= m_bytes[off].off();
   off += m_bytes[off].len();
   if (ZuUnlikely(off >= n)) { off = n; goto eol; }
-  if (isspace__(m_data[off])) {
-    if (!fwd(off, n, [](char c) { return !isspace__(c); })) off = n;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) return off;
+  if (isspace__(u)) {
+    if (!fwd(off, n, [](uint32_t u) { return !isspace__(u); })) off = n;
   }
-  if (!fwd(off, n, [](char c) { return isspace__(c); })) off = n;
+  if (!fwd(off, n, [](uint32_t u) { return isspace__(u); })) off = n;
 eol:
   if (!past) {
     --off;
@@ -227,11 +245,13 @@ unsigned Line::revUnixWordEnd(unsigned off, bool past) const
   if (ZuUnlikely(off >= n)) { off = n; goto eol; }
   off -= m_bytes[off].off();
   if (ZuUnlikely(!off)) return 0;
-  if (!isspace__(m_data[off])) {
-    if (!rev(off, [](char c) { return isspace__(c); })) return 0;
+  uint32_t u;
+  if (!ZuUTF8::in(&m_data[off], n - off, u)) u = 0;
+  if (!isspace__(u)) {
+    if (!rev(off, [](uint32_t u) { return isspace__(u); })) return 0;
   }
 eol:
-  if (!rev(off, [](char c) { return !isspace__(c); })) return 0;
+  if (!rev(off, [](uint32_t u) { return !isspace__(u); })) return 0;
   if (past && off > 0) {
     --off;
     off -= m_bytes[off].off();

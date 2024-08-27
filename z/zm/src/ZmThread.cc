@@ -36,7 +36,11 @@
 
 ZmTopology *ZmTopology::instance()
 {
-  return ZmSingleton<ZmTopology>::instance();
+  static constexpr auto ctor = []() { return new ZmTopology(); };
+  return
+    ZmSingleton<ZmTopology,
+      ZmSingletonCtor<ctor,
+	ZmSingletonCleanup<ZmCleanup::Thread>>>::instance();
 }
 
 ZmTopology::ZmTopology() : m_errorFn(0)

@@ -34,8 +34,6 @@ extern "C" {
 }
 
 class ZiIP_WSDLL {
-friend ZmSingletonCtor<ZiIP_WSDLL>;
-
 public:
   int getAddrInfo(
       const wchar_t *, const wchar_t *, const ADDRINFOT *, ADDRINFOT **);
@@ -46,12 +44,8 @@ public:
 
   static ZiIP_WSDLL *instance();
 
-private:
   ZiIP_WSDLL();
-public:
   ~ZiIP_WSDLL();
-
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSDLL *);
 
 private:
   HMODULE		m_wsdll;
@@ -63,7 +57,9 @@ private:
 
 ZiIP_WSDLL *ZiIP_WSDLL::instance()
 {
-  return ZmSingleton<ZiIP_WSDLL>::instance();
+  return
+    ZmSingleton<ZiIP_WSDLL,
+      ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
 }
 
 ZiIP_WSDLL::ZiIP_WSDLL()
@@ -118,17 +114,11 @@ int ZiIP_WSDLL::getNameInfo(const struct sockaddr *sa, socklen_t salen,
 #endif /* defined(__GNUC__) && !defined(GetAddrInfo) */
 
 class ZiIP_WSAStartup {
-friend ZmSingletonCtor<ZiIP_WSAStartup>;
-
 public:
   static ZiIP_WSAStartup *instance();
 
-private:
   ZiIP_WSAStartup();
-public:
   ~ZiIP_WSAStartup();
-
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiIP_WSAStartup *);
 
 private:
   bool		m_wsaCleanup;
@@ -136,7 +126,9 @@ private:
 
 ZiIP_WSAStartup *ZiIP_WSAStartup::instance()
 {
-  return ZmSingleton<ZiIP_WSAStartup>::instance();
+  return
+    ZmSingleton<ZiIP_WSAStartup,
+      ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
 }
 
 ZiIP_WSAStartup::ZiIP_WSAStartup()

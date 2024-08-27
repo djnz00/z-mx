@@ -22,7 +22,7 @@ struct ZmNode__<Base, Heap, false> : public Heap, public Base {
 #define ZmNode__Impl_IsBase \
   using Base::Base; \
   template <typename ...Args> \
-  ZmNode__(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+  ZmNode__(Args &&...args) : Base(ZuFwd<Args>(args)...) { }
   ZmNode__Impl_IsBase
 };
 template <typename Base, typename Heap>
@@ -117,7 +117,7 @@ public:
   using Base::Base;
   using Base::operator =;
   template <typename ...Args>
-  ZmNode_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
+  ZmNode_(Args &&...args) : Base(ZuFwd<Args>(args)...) { }
   virtual ~ZmNode_() = default;
 
   decltype(auto) data() const & { return static_cast<const U &>(*this); }

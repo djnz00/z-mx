@@ -8,11 +8,9 @@
 
 // ZmSingleton<T>::instance() returns T * pointer
 //
-// decltype(ZmCleanupLevel(ZuDeclVal<T *>())){} is ZuUnsigned<N>
-// where N determines order of destruction (per ZmCleanup enum)
-//
-// ZmSingleton<T, false>::instance() can return null since T will not be
-// constructed on-demand - use ZmSingleton<T, false>::instance(new T(...))
+// ZmSingleton<T, ZmSingletonNoCtor<>>::instance() can return null
+// since T will not be constructed on-demand
+// - use ...::instance(new T(...))
 //
 // T can be ZuObject-derived, but does not have to be
 //
@@ -53,20 +51,48 @@ template <typename T> struct ZmSingleton_<T, false> {
   static void deref(T *p) { delete p; }
 };
 
-template <typename T, bool Construct = true> struct ZmSingletonCtor {
-  static T *fn() { return new T{}; }
+// NTP defaults
+struct ZmSingleton_Defaults {
+  enum { Construct = true };
+  template <typename T>
+  struct Ctor {
+    static constexpr auto Fn = []() { return new T(); };
+  };
+  enum { Cleanup = ZmCleanup::Application };
 };
-template <typename T> struct ZmSingletonCtor<T, false> {
-  static T *fn() { return nullptr; }
+
+// ZmSingletonNoCtor - do not construct
+template <typename NTP = ZmSingleton_Defaults>
+struct ZmSingletonNoCtor : public NTP {
+  enum { Construct = false };
 };
-template <typename T_, bool Construct_ = true,
-  auto CtorFn = ZmSingletonCtor<T_, Construct_>::fn>
+
+// ZmSingletonCtor - specify constructor
+template <auto CtorFn_, typename NTP = ZmSingleton_Defaults>
+struct ZmSingletonCtor : public NTP {
+  enum { Construct = true };
+  template <typename T>
+  struct Ctor {
+    static constexpr auto Fn = CtorFn_;
+  };
+};
+
+// ZmSingletonCleanup - specify cleanup level
+template <unsigned Cleanup_, typename NTP = ZmSingleton_Defaults>
+struct ZmSingletonCleanup : public NTP {
+  enum { Cleanup = Cleanup_ };
+};
+
+template <class T_, typename NTP = ZmSingleton_Defaults>
 class ZmSingleton : public ZmGlobal, public ZmSingleton_<T_> {
   ZmSingleton(const ZmSingleton &);
   ZmSingleton &operator =(const ZmSingleton &);	// prevent mis-use
 
 public:
   using T = T_;
+  enum { Construct = NTP::Construct };
+  static constexpr auto CtorFn = NTP::template Ctor<T>::Fn;
+  enum { Cleanup = NTP::Cleanup };
 
 private:
   static void final(...) { }
@@ -75,14 +101,14 @@ private:
     return u->final();
   }
 
-  template <bool Construct = Construct_>
-  ZuIfT<Construct> ctor() {
+  template <bool Construct_ = Construct>
+  ZuIfT<Construct_> ctor() {
     T *ptr = CtorFn();
     this->ref(ptr);
     m_instance = ptr;
   }
-  template <bool Construct = Construct_>
-  ZuIfT<!Construct> ctor() { }
+  template <bool Construct_ = Construct>
+  ZuIfT<!Construct_> ctor() { }
 
 public:
   ZmSingleton() {
@@ -106,7 +132,7 @@ private:
   ZmAtomic<T *>	m_instance;
 
   ZuInline static ZmSingleton *global() {
-    return ZmGlobal::global<ZmSingleton>();
+    return ZmGlobal::global<ZmSingleton, Cleanup>();
   }
 
   T *instance_(T *ptr) {
@@ -129,10 +155,17 @@ public:
 
 // ODR warning: do not use lambdas in headers outside of an inline function
 
-template <typename L, decltype(ZuStatelessLambda<L>(), int()) = 0>
+template <
+  unsigned Cleanup = ZmCleanup::Application,
+  typename L,
+  decltype(ZuStatelessLambda<L>(), int()) = 0>
 inline auto &ZmStatic(L l) {
   using T = ZuDecay<decltype(*ZuDeclVal<ZuLambdaReturn<L>>())>;
-  return *(ZmSingleton<T, true, ZuInvokeFn(l)>::instance());
+  using Singleton =
+    ZmSingleton<T,
+      ZmSingletonCtor<ZuInvokeFn(l),
+	ZmSingletonCleanup<Cleanup>>>;
+  return *(Singleton::instance());
 }
 
 #endif /* ZmSingleton_HH */

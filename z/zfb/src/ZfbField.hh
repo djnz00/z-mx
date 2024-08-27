@@ -595,6 +595,9 @@ namespace Load {
 #define ZfbField__(O, ID) ZfbField_##O##_##ID##_
 #define ZfbField(O, ID) ZuSchema::ZfbField_##O##_##ID
 
+// get field index within fields
+#define ZfbFieldIndex(O, ID) (ZuTypeIndex<ZfbField(O, ID), ZuFields<O>>{})
+
 #define ZfbFieldGeneric(O_, ID, Base_) \
   template < \
     typename O = O_, typename Base = Base_, typename Under_ = O, \

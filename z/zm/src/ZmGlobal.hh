@@ -73,7 +73,7 @@ private:
   };
 
 protected:
-  template <typename T> static T *global() {
+  template <typename T, unsigned Level> static T *global() {
     static uintptr_t addr_ = 0;
     ZmAtomic<uintptr_t> *ZuMayAlias(addr) =
       reinterpret_cast<ZmAtomic<uintptr_t> *>(&addr_);
@@ -84,10 +84,7 @@ protected:
 	continue;
       }
       *addr = ptr = reinterpret_cast<uintptr_t>(
-	  ZmGlobal::add(
-	    typeid(T),
-	    decltype(ZmCleanupLevel(ZuDeclVal<typename T::T *>())){},
-	    &Ctor<T>::_));
+	ZmGlobal::add(typeid(T), Level, &Ctor<T>::_));
     }
     return static_cast<T *>(reinterpret_cast<ZmGlobal *>(ptr));
   }

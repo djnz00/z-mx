@@ -5,22 +5,22 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // TLS with
-// * explicit scope control
-// * deterministic destruction sequencing
-// * iteration over all instances
+// - explicit scope control
+// - deterministic destruction sequencing
+// - iteration over all instances
 //   (the iterating thread gains access to other threads' instances)
-// * guaranteed safe destruction on both Linux and Windows (mingw64)
-// * instance consolidation on Windows with multiple modules (DLLs),
+// - guaranteed safe destruction on both Linux and Windows (mingw64)
+// - instance consolidation on Windows with multiple modules (DLLs),
 //   including DLLs delay-loaded via LoadLibrary()
-// * no false-positive memory leaks at exit
+// - no false-positive memory leaks at exit
 
 // ZmSpecific overcomes the following challenges:
-// * interdependence of thread-local instances where one type requires
+// - interdependence of thread-local instances where one type requires
 //   another to be reliably created before it and/or destroyed after it
 //   (destruction sequence is not explictly controllable using thread_local)
-// * iterating over all thread-local instances from other threads
+// - iterating over all thread-local instances from other threads
 //   for statistics gathering, telemetry or other purposes
-// * Windows DLL TLS complexity resulting in multiple conflicting
+// - Windows DLL TLS complexity resulting in multiple conflicting
 //   instances of the same type within the same thread when multiple modules
 //   reference the declaration at compile-time
 
@@ -35,11 +35,9 @@
 //
 // ZmSpecific<T>::all(ZmFn<void(T *)> fn) calls fn for all instances of T
 //
-// ZmCleanupLevel(ZuDeclVal<T *>()) returns ZuUnsigned<N>
-// where N determines order of destruction (per ZmCleanup enum)
-//
-// ZmSpecific<T, false>::instance() can return null since T will not be
-// constructed on-demand - use ZmSpecific<T, false>::instance(new T(...))
+// ZmSpecific<T, ZmSpecificNoCtor<>>::instance() can return null
+// since T will not be constructed on-demand
+// - use ...::instance(new T(...))
 //
 // auto &v = *ZmSpecific<T>::instance();	// 
 //
@@ -299,20 +297,48 @@ private:
   Object	*m_tail = nullptr;
 };
 
-template <typename T, bool Construct = true> struct ZmSpecificCtor {
-  static T *fn() { return new T(); }
+// NTP defaults
+struct ZmSpecific_Defaults {
+  enum { Construct = true };
+  template <typename T>
+  struct Ctor {
+    static constexpr auto Fn = []() { return new T(); };
+  };
+  enum { Cleanup = ZmCleanup::Application };
 };
-template <typename T> struct ZmSpecificCtor<T, false> {
-  static T *fn() { return nullptr; }
+
+// ZmSpecificNoCtor - do not construct
+template <typename NTP = ZmSpecific_Defaults>
+struct ZmSpecificNoCtor : public NTP {
+  enum { Construct = false };
 };
-template <class T_, bool Construct_ = true,
-  auto CtorFn = ZmSpecificCtor<T_, Construct_>::fn>
+
+// ZmSpecificCtor - specify constructor
+template <auto CtorFn_, typename NTP = ZmSpecific_Defaults>
+struct ZmSpecificCtor : public NTP {
+  enum { Construct = true };
+  template <typename T>
+  struct Ctor {
+    static constexpr auto Fn = CtorFn_;
+  };
+};
+
+// ZmSpecificCleanup - specify cleanup level
+template <unsigned Cleanup_, typename NTP = ZmSpecific_Defaults>
+struct ZmSpecificCleanup : public NTP {
+  enum { Cleanup = Cleanup_ };
+};
+
+template <class T_, typename NTP = ZmSpecific_Defaults>
 class ZmSpecific : public ZmGlobal, public ZmSpecific_ {
   ZmSpecific(const ZmSpecific &);
   ZmSpecific &operator =(const ZmSpecific &);	// prevent mis-use
 
 public:
   using T = T_;
+  enum { Construct = NTP::Construct };
+  static constexpr auto CtorFn = NTP::template Ctor<T>::Fn;
+  enum { Cleanup = NTP::Cleanup };
 
 private:
   static void final(...) { }
@@ -324,7 +350,7 @@ private:
   using Object = ZmSpecific_Object;
 
   ZuInline static ZmSpecific *global() {
-    return ZmGlobal::global<ZmSpecific>();
+    return ZmGlobal::global<ZmSpecific, Cleanup>();
   }
 
 public:
@@ -355,19 +381,19 @@ private:
     }
     ZmSpecific_unlock();
     if (ptr) {
-      final(ptr); // calls ZmCleanup<T>::final() if available
+      final(ptr); // calls T::final() if available
       ZmDEREF(ptr);
     }
   }
 
   static void dtor__(Object *o) { global()->dtor_(o); }
 
-  template <bool Construct = Construct_>
-  ZuIfT<!Construct, T *> create_(Object *) {
+  template <bool Construct_ = Construct>
+  ZuIfT<!Construct_, T *> create_(Object *) {
     return nullptr;
   }
-  template <bool Construct = Construct_>
-  ZuIfT<Construct, T *> create_(Object *o) {
+  template <bool Construct_ = Construct>
+  ZuIfT<Construct_, T *> create_(Object *o) {
     T *ptr = nullptr;
     ZmSpecific_lock();
     if (o->ptr) {
@@ -449,17 +475,30 @@ template <typename T, auto> struct ZmTLS_ : public ZmObject {
 };
 
 // lambdas are inherently scoped to their declaration/definition
-template <typename L, decltype(ZuStatelessLambda<L>(), int()) = 0>
+template <
+  unsigned Cleanup = ZmCleanup::Application,
+  typename L,
+  decltype(ZuStatelessLambda<L>(), int()) = 0>
 inline auto &ZmTLS(L l) {
   using T = ZuDecay<decltype(ZuDeclVal<ZuLambdaReturn<L>>())>;
   using Object = ZmTLS_<T, &L::operator ()>;
   auto m = []() { return new Object{ZuInvokeLambda<L>()}; };
-  return ZmSpecific<Object, true, ZuInvokeFn(m)>::instance()->v;
+  using TLS = 
+    ZmSpecific<Object,
+      ZmSpecificCtor<ZuInvokeFn(m),
+	ZmSpecificCleanup<Cleanup>>>;
+  return TLS::instance()->v;
 }
 
-template <typename T, auto Scope = nullptr>
+template <
+  typename T,
+  auto Scope = nullptr,
+  unsigned Cleanup = ZmCleanup::Application>
 inline auto &ZmTLS() {
-  return ZmSpecific<ZmTLS_<T, Scope>>::instance()->v;
+  using TLS =
+    ZmSpecific<ZmTLS_<T, Scope>,
+      ZmSpecificCleanup<Cleanup>>;
+  return TLS::instance()->v;
 }
 
 #endif /* ZmSpecific_HH */

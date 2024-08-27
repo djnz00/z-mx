@@ -769,17 +769,18 @@ loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Fixed>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  ZuDecimal d =
-    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset()));
-  new (ptr) Fixed{d.value};
+  ZuDecimal v =
+    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset())).
+      decimal();
+  new (ptr) Fixed{v.value};
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Decimal>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  ZuDecimal d =
+  ZuDecimal v =
     Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()));
-  new (ptr) Decimal{d.value};
+  new (ptr) Decimal{v.value};
 }
 
 template <unsigned Type>
@@ -1009,7 +1010,7 @@ loadValue(
   for (unsigned i = 0; i < n; i++) {
     auto e = v->Get(i);
     vecAppend(varBuf, sizeof(Fixed), [e](uint8_t *ptr, unsigned) {
-      new (ptr) Fixed{ZuDecimal{Zfb::Load::fixed(e)}.value};
+      new (ptr) Fixed{ZuDecimal{Zfb::Load::fixed(e).decimal()}.value};
     });
   }
 }
@@ -1565,7 +1566,7 @@ struct Find {
 };
 
 struct Recover {
-  unsigned		shard;
+  Shard			shard;
   UN			un;
   RowFn			rowFn;
   bool			found = false;
@@ -1708,7 +1709,7 @@ public:
   constexpr bool failed() const { return v & Failed; }
   constexpr unsigned field() const { return v & FieldMask; }
   constexpr unsigned keyID() const { return (v>>KeyShift) & KeyMask; }
-  constexpr unsigned shard() const { return (v>>ShardShift) & ShardMask; }
+  constexpr Shard shard() const { return (v>>ShardShift) & ShardMask; }
   constexpr unsigned phase() const { return v>>PhaseShift; }
 
   constexpr void phase(uint32_t p) { v = p<<PhaseShift; }
@@ -1762,7 +1763,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(unsigned shard, UN, RowFn);
+  void recover(Shard shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 
@@ -1863,7 +1864,7 @@ private:
   ZtString		m_id_;		// snake case
   ZtVFieldArray		m_fields;	// all fields
   UpdFields		m_updFields;	// update fields
-  ZtVKeyFieldArray		m_keyFields;	// fields for each key
+  ZtVKeyFieldArray	m_keyFields;	// fields for each key
   XFields		m_xFields;
   XFields		m_xUpdFields;
   XKeyFields		m_xKeyFields;
@@ -1993,8 +1994,8 @@ private:
 
   // FIXME - later - telemetry for queue lengths
   // FIXME - later - test transient send failure, pushback, resend
-  Work::Queue		m_queue;	// not yet sent
-  Work::Queue		m_sent;		// sent, awaiting response
+  Work::Queue		m_queue;		// not yet sent
+  Work::Queue		m_sent;			// sent, awaiting response
   bool			m_syncSRM = false;	// setSRM() following sync
 
   OIDs			m_oids;

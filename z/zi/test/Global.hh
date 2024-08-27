@@ -12,8 +12,6 @@ class Global {
   Global(const Global &);
   Global &operator =(const Global &);	// prevent mis-use
 
-friend ZmSingletonCtor<Global>;
-
   Global() :
     m_recvRequests(0), m_recvBytes(0),
     m_sendRequests(0), m_sendBytes(0) { }
@@ -54,4 +52,7 @@ private:
   uint64_t		m_sendBytes;
 };
 
-Global *Global::instance() { return ZmSingleton<Global>::instance(); }
+Global *Global::instance() {
+  static constexpr auto ctor = []() { return new Global(); };
+  return ZmSingleton<Global, ZmSingletonCtor<ctor>>::instance();
+}

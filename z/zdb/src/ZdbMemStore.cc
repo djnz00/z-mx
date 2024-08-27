@@ -105,7 +105,7 @@ void StoreTbl::find(unsigned keyID, ZmRef<const IOBuf> buf, RowFn rowFn)
   });
 }
 
-void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn)
+void StoreTbl::recover(Shard shard, UN un, RowFn rowFn)
 {
   m_store->run([this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     // build Recover buf and return it

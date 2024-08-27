@@ -20,8 +20,6 @@ void DB::init(ZvCf *cf, Zdb *db)
   ZeAssert(m_state == DBState::Uninitialized,
     (state = m_state), "invalid state=" << state, return);
 
-  m_maxSeriesBlks = cf->getInt("maxSeriesBlks", 1, INT_MAX, m_maxSeriesBlks);
-
   static auto findAdd = [](DBCf &dbCf, ZuString key) {
     auto node = dbCf.tableCfs.find(key);
     if (!node) dbCf.tableCfs.addNode(node = new decltype(*node){key});
@@ -34,8 +32,10 @@ void DB::init(ZvCf *cf, Zdb *db)
   const auto &thread = node->data.p<ZtArray<ZtString>>();
   auto &dbCf = const_cast<ZdbCf &>(db->config());
   findAdd(dbCf, "zdf.data_frame")->thread = thread;
-  findAdd(dbCf, "zdf.series")->thread = thread;
-  findAdd(dbCf, "zdf.blk_hdr")->thread = thread;
+  findAdd(dbCf, "zdf.series_fixed")->thread = thread;
+  findAdd(dbCf, "zdf.series_float")->thread = thread;
+  findAdd(dbCf, "zdf.blk_hdr_fixed")->thread = thread;
+  findAdd(dbCf, "zdf.blk_hdr_float")->thread = thread;
   findAdd(dbCf, "zdf.blk_data")->thread = thread;
 
   m_dataFrameTbl = db->initTable<DB::DataFrame>("zdf.data_frame");
@@ -111,17 +111,28 @@ void DB::opened(bool ok)
   fn(ok);
 }
 
-DataFrame::DataFrame(
-  Mgr *mgr, const ZtVFieldArray &fields, ZuString name, bool timeIndex) :
-  m_name{name}
+void DB::openDF(
+  Shard shard, ZtString name, bool create,
+  const ZtVFieldArray &fields_, bool timeIndex, OpenDFFn fn)
 {
+  ZtArray<ZmRef<AnySeries>> series;
+  ZtArray<const ZtVField *> fields;
   bool indexed = timeIndex;
   unsigned n = fields.length();
-  m_series.size(n + timeIndex);
-  m_fields.size(n + timeIndex);
-  for (unsigned i = 0; i < n; i++) {
-    ZuPtr<Series> series = new Series();
-    if (!indexed && (fields[i]->props & ZtVFieldProp::Index)) {
+  series.size(n + timeIndex);
+  fields.size(n + timeIndex);
+  [name = ZuMv(name), fields, i = 0U](ZmRef<AnySeries> series) mutable {
+    auto field = fields[i];
+    // FIXME
+    ZtString seriesName{name.length() + strlen(field->id) + 2};
+    seriesName << name << '/' << field->id;
+    if (field->type->code == ZtFieldTypeCode::Float) {
+      openSeries<FloatDecoder>(shard, seriesName, create, fn);
+    }
+      m_series.unshift(new FloatSeries(this, 
+    else if (fields[i]->props & ZtVFieldProp::Delta2())
+    else if (fields[i]->props & ZtVFieldProp::Delta())
+    else
       indexed = true;
       m_series.unshift(ZuMv(series));
       m_fields.unshift(fields[i]);
@@ -136,6 +147,15 @@ DataFrame::DataFrame(
   }
 }
 
+ZuPtr<AnySeries> DataFrame::series(const ZtVField *field)
+{
+  using namespace ZtFieldTypeCode;
+
+  auto code = field->type->code;
+  if (code == Float)
+    return new Series<FPDecoder>{
+}
+
 void DataFrame::init(Store *store)
 {
   m_store = store;
@@ -145,6 +165,7 @@ void DataFrame::init(Store *store)
 
 void DataFrame::open(OpenFn openFn)
 {
+  // FIXME
   if (ZuUnlikely(!m_store)) {
     openFn(OpenResult{ZeVEVENT(Error, "no backing store configured")});
     return;
@@ -186,6 +207,7 @@ void DataFrame::open(OpenFn openFn)
 
 void DataFrame::openSeries()
 {
+  // FIXME
   unsigned n = m_series.length();
 
   {
@@ -342,39 +364,4 @@ void DataFrame::closeFailed(OpenResult result)
   }
 
   closeFn(ZuMv(result));
-}
-
-void DataFrame::load(Store_::LoadFn loadFn)
-{
-  using namespace Zfb::Load;
-  m_store->loadDF(m_name,
-      LoadFn{ZmMkRef(this), [](DataFrame *this_, ZuBytes data) {
-	return this_->load_(data);
-      }}, (1<<10) /* 1Kb */, ZuMv(loadFn));
-}
-
-bool DataFrame::load_(ZuBytes data)
-{
-  {
-    Zfb::Verifier verifier(&data[0], data.length());
-    if (!fbs::VerifyDataFrameBuffer(verifier)) return false;
-  }
-  using namespace Zfb::Load;
-  auto df = fbs::GetDataFrame(&data[0]);
-  m_epoch = dateTime(df->epoch()).as_time();
-  return true;
-}
-
-void DataFrame::save(Store_::SaveFn saveFn)
-{
-  Zfb::Builder fbb;
-  fbb.Finish(save_(fbb));
-  m_store->saveDF(m_name, fbb, ZuMv(saveFn));
-}
-
-Zfb::Offset<fbs::DataFrame> DataFrame::save_(Zfb::Builder &fbb)
-{
-  using namespace Zfb::Save;
-  auto v = dateTime(ZuDateTime{m_epoch});
-  return fbs::CreateDataFrame(fbb, &v);
 }

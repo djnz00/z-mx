@@ -147,7 +147,7 @@ public:
   // buf contains key data, no replication message header
   virtual void find(unsigned keyID, ZmRef<const IOBuf>, RowFn) = 0;
 
-  virtual void recover(unsigned shard, UN, RowFn) = 0;
+  virtual void recover(Shard shard, UN, RowFn) = 0;
 
   // buf contains replication message, UN is idempotency key
   virtual void write(ZmRef<const IOBuf>, CommitFn) = 0;	// idempotent

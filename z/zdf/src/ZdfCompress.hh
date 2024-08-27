@@ -14,7 +14,7 @@
 // - composable Encoders and Decoders providing:
 //   - absolute, delta (first derivative), delta-of-delta (second derivative)
 
-// series compression for double (64bit FP)
+// series compression for double (64bit floating point)
 // - Chimp algorithm (https://vldb.org/pvldb/vol15/p3058-liakos.pdf)
 // - improved from Gorilla (https://www.vldb.org/pvldb/vol8/p1816-teller.pdf)
 // - Gorilla originated at Facebook and is used in TimescaleDB, InfluxDB, ...
@@ -469,19 +469,19 @@ private:
   int64_t	m_base = 0;
 };
 
-class FPDecoder : public ZuIBitStream {
+class FloatDecoder : public ZuIBitStream {
 public:
   using Value = double;
 
   ZuAssert(sizeof(Value) == 8); // sanity check
 
-  FPDecoder() = default;
-  FPDecoder(const FPDecoder &) = default;
-  FPDecoder &operator =(const FPDecoder &) = default;
-  FPDecoder(FPDecoder &&) = default;
-  FPDecoder &operator =(FPDecoder &&) = default;
+  FloatDecoder() = default;
+  FloatDecoder(const FloatDecoder &) = default;
+  FloatDecoder &operator =(const FloatDecoder &) = default;
+  FloatDecoder(FloatDecoder &&) = default;
+  FloatDecoder &operator =(FloatDecoder &&) = default;
 
-  FPDecoder(const uint8_t *start, const uint8_t *end) :
+  FloatDecoder(const uint8_t *start, const uint8_t *end) :
     m_pos{start}, m_end{end} { }
 
   unsigned offset() const { return m_offset; }
@@ -549,7 +549,7 @@ public:
   }
 
 private:
-  bool read_(double *value_) {
+  bool read_(double *out) {
     static uint8_t lzmap[] = { 0, 8, 12, 16, 18, 20, 22, 24 };
 
     auto saved = save();
@@ -585,7 +585,7 @@ private:
     }
     value ^= m_prev;
     m_prev ^= value;
-    if (value_) *value_ = *reinterpret_cast<double *>(&value);
+    if (out) *out = *reinterpret_cast<double *>(&value);
     return true;
   eob:
     load(saved);
@@ -598,12 +598,12 @@ private:
   unsigned	m_offset = 0;
 };
 
-template <> class Encoder<FPDecoder> : public ZuOBitStream {
+template <> class Encoder<FloatDecoder> : public ZuOBitStream {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
 public:
-  using Decoder = FPDecoder;
+  using Decoder = FloatDecoder;
 
   Encoder(uint8_t *start, uint8_t *end) : ZuOBitStream{start, end} { }
 
@@ -635,7 +635,7 @@ public:
   unsigned offset() const { return m_offset; }
 
 public:
-  bool write(double value_) {
+  bool write(double in) {
     static uint8_t lzround[] = {
       0, 0, 0, 0, 0, 0, 0, 0,
       8, 8, 8, 8, 12, 12, 12, 12,
@@ -653,7 +653,7 @@ public:
       7
     };
 
-    uint64_t value = *reinterpret_cast<uint64_t *>(&value_);
+    uint64_t value = *reinterpret_cast<uint64_t *>(&in);
     value ^= m_prev;
     if (ZuUnlikely(!value)) {
       if (ZuUnlikely(!avail<2>())) return false;

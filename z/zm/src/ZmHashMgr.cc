@@ -13,7 +13,6 @@
 #include <zlib/ZmSingleton.hh>
 
 class ZmHashMgr_ : public ZmObject {
-friend ZmSingletonCtor<ZmHashMgr_>;
 friend ZmHashMgr;
 
   static const char *HeapID() { return "ZmHashMgr_"; }
@@ -23,8 +22,8 @@ friend ZmHashMgr;
 	ZmRBTreeHeapID<HeapID,
 	  ZmRBTreeLock<ZmNoLock>>>>;
 
-  ZmHashMgr_() { }
 public:
+  ZmHashMgr_() { }
   ~ZmHashMgr_() {
     ZmGuard<ZmPLock> guard(m_lock);
     auto i = m_tables.iterator();
@@ -35,11 +34,11 @@ public:
     }
   }
 
-  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmHashMgr_ *);
-
 private:
   static ZmHashMgr_ *instance() {
-    return ZmSingleton<ZmHashMgr_>::instance();
+    return
+      ZmSingleton<ZmHashMgr_,
+	ZmSingletonCleanup<ZmCleanup::Library>>::instance();
   }
 
   void init(ZuString id, const ZmHashParams &params) {

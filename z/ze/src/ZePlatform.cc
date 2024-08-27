@@ -141,12 +141,12 @@ private:
 struct ZePlatform_FMBuf : public ZmObject {
   ZuWStringN<ZeLog_BUFSIZ / 2>	w;
   ZuStringN<ZeLog_BUFSIZ>	s;
-
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_FMBuf *);
 };
 static ZePlatform_FMBuf *fmBuf()
 {
-  ZePlatform_FMBuf *buf = ZmSpecific<ZePlatform_FMBuf>::instance();
+  ZePlatform_FMBuf *buf =
+    ZmSpecific<ZePlatform_FMBuf,
+      ZmSpecificCleanup<ZmCleanup::Platform>>::instance();
   buf->w.null();
   buf->s.null();
   return buf;

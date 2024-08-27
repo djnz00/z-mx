@@ -55,11 +55,8 @@ extern "C" {
 #endif
 
 class ZiMultiplex_WSExt {
-friend ZmSingletonCtor<ZiMultiplex_WSExt>;
-
-  ZiMultiplex_WSExt();
-
 public:
+  ZiMultiplex_WSExt();
   ~ZiMultiplex_WSExt();
 
   BOOL connectEx(
@@ -91,8 +88,6 @@ public:
 
   static ZiMultiplex_WSExt *instance();
 
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZiMultiplex_WSExt *);
-
 private:
   PConnectEx		m_connectEx;
   PAcceptEx		m_acceptEx;
@@ -102,7 +97,9 @@ private:
 
 ZiMultiplex_WSExt *ZiMultiplex_WSExt::instance()
 {
-  return ZmSingleton<ZiMultiplex_WSExt>::instance();
+  return
+    ZmSingleton<ZiMultiplex_WSExt,
+      ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
 }
 
 ZiMultiplex_WSExt::ZiMultiplex_WSExt()
@@ -2266,7 +2263,9 @@ void ZiMultiplex::telemetry(ZiMxTelemetry &data) const
 
 ZiMxMgr *ZiMxMgr::instance()
 {
-  return ZmSingleton<ZiMxMgr>::instance();
+  return
+    ZmSingleton<ZiMxMgr,
+      ZmSingletonCleanup<ZmCleanup::Library>>::instance();
 }
 
 void ZiMxMgr::add(ZiMultiplex *mx)

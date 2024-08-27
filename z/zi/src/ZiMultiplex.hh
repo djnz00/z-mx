@@ -1023,8 +1023,6 @@ private:
     while (auto mx = i.iterateVal()) l(mx);
   }
 
-  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZiMxMgr *);
-
 private:
   Map	m_map;
 };

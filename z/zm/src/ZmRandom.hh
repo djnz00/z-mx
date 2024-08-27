@@ -285,19 +285,13 @@ protected:
 
 #include <zlib/ZmCleanup.hh>
 
-template <typename, bool> struct ZmSpecificCtor;
-
 class ZmAPI ZmRand : public ZmObject, public ZmRandom {
   ZmRand(const ZmRand &) = delete;
   ZmRand &operator =(const ZmRand &) = delete;
 
-friend ZmSpecificCtor<ZmRand, true>;
-
-  ZmRand() : ZmRandom() { }
+  ZmRand() : ZmRandom{} { }
 
   static ZmRandom *instance();
-
-  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZmRand *);
 
 public:
   ZuInline static double rand()			// real number in [0,1]

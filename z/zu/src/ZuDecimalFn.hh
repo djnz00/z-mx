@@ -14,7 +14,7 @@
 #endif
 
 namespace ZuDecimalFn {
-  ZuInline const unsigned pow10_32(unsigned i) {
+  ZuInline constexpr const unsigned pow10_32(unsigned i) {
     static constexpr unsigned pow10[] = {
       1U,
       10U,
@@ -30,7 +30,7 @@ namespace ZuDecimalFn {
     return pow10[i];
   }
 
-  ZuInline const uint64_t pow10_64(unsigned i) {
+  ZuInline constexpr const uint64_t pow10_64(unsigned i) {
     static constexpr uint64_t pow10[] = {
       1ULL,
       10ULL,
@@ -56,7 +56,7 @@ namespace ZuDecimalFn {
     return pow10[i];
   }
 
-  ZuInline const uint128_t pow10_128(unsigned i) {
+  ZuInline constexpr const uint128_t pow10_128(unsigned i) {
     uint128_t v;
     if (ZuLikely(i < 20U))
       v = pow10_64(i);

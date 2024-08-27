@@ -23,6 +23,9 @@
 
 namespace Zdb_ {
 
+// shard
+using Shard = uint8_t;
+
 // various upper limits
 constexpr unsigned maxFields() { return 0x3fff; }
 constexpr unsigned maxKeys() { return 0x7ff; }
@@ -71,6 +74,8 @@ namespace ObjState {
 }
 
 } // Zdb_
+
+using ZdbShard = Zdb_::Shard;
 
 using ZdbUN = Zdb_::UN;
 #define ZdbNullUN Zdb_::nullUN

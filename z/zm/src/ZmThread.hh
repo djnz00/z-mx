@@ -5,10 +5,10 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // thread class
-// * globally configured
+// - globally configured
 //   - CPU affinity, priority, stack size, etc.
-// * integrates with telemetry (ZvTelemetry)
-// * provides available stack to ZmAlloc for safe alloca()
+// - integrates with telemetry (ZvTelemetry)
+// - provides available stack to ZmAlloc for safe alloca()
 
 #ifndef ZmThread_HH
 #define ZmThread_HH
@@ -210,12 +210,10 @@ protected:
   uint64_t		m_allocHeap = 0;
 };
 
-template <typename, bool> struct ZmSpecificCtor;
-
 class ZmThread;
 
 class ZmAPI ZmThreadContext : public ZmObject, public ZmThreadContext_ {
-  friend ZmSpecificCtor<ZmThreadContext, true>;
+  friend ZmThreadContext *ZmThreadContext_new();
 #ifndef _WIN32
   friend ZmAPI void *ZmThread_start(void *);
 #else
@@ -367,8 +365,6 @@ public:
   ~ZmThreadContext() {
     if (m_dtorFn) (*m_dtorFn)(m_lambda);
   }
-
-  friend ZuUnsigned<ZmCleanup::Thread> ZmCleanupLevel(ZmThreadContext *);
 
   void init();
 
@@ -551,16 +547,25 @@ private:
 
 #include <zlib/ZmSpecific.hh>
 
+inline ZmThreadContext *ZmThreadContext_new() {
+  return new ZmThreadContext();
+}
+using ZmThreadContextTLS =
+  ZmSpecific<ZmThreadContext,
+    ZmSpecificCtor<ZmThreadContext_new,
+      ZmSpecificCleanup<ZmCleanup::Thread>>>;
+
 inline ZmThreadContext *ZmThreadContext::self() {
-  return ZmSpecific<ZmThreadContext>::instance();
+  return ZmThreadContextTLS::instance();
 }
 inline ZmThreadContext *ZmThreadContext::self(ZmThreadContext *c) {
-  return ZmSpecific<ZmThreadContext>::instance(c);
+  return ZmThreadContextTLS::instance(c);
 }
-template <typename S> inline void ZmThread::CSV::print(S &s) const {
+template <typename S>
+inline void ZmThread::CSV::print(S &s) const {
   CSV_<S> csv{s};
-  ZmSpecific<ZmThreadContext>::all(
-      [&csv](const ZmThreadContext *tc) { csv.print(tc); });
+  ZmThreadContextTLS::all(
+    [&csv](const ZmThreadContext *tc) { csv.print(tc); });
 }
 
 #endif /* ZmThread_HH */

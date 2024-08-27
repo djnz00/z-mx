@@ -25,7 +25,11 @@ ZeLog::ZeLog() : m_level{1} {
 
 ZeLog *ZeLog::instance()
 {
-  return ZmSingleton<ZeLog>::instance();
+  static constexpr auto ctor = []() { return new ZeLog(); };
+  return
+    ZmSingleton<ZeLog,
+      ZmSingletonCtor<ctor,
+	ZmSingletonCleanup<ZmCleanup::Library>>>::instance();
 }
 
 #ifndef _WIN32
@@ -47,15 +51,15 @@ public:
 
   int facility() { return m_facility; }
 
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZePlatform_Syslogger *);
-
 private:
   ZmLock	m_lock;
     int		  m_facility;
 };
 
 static ZePlatform_Syslogger *syslogger() {
-  return ZmSingleton<ZePlatform_Syslogger>::instance();
+  return
+    ZmSingleton<ZePlatform_Syslogger,
+      ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
 }
 
 static int sysloglevel(int i) {

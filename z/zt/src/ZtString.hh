@@ -193,7 +193,7 @@ private:
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
   // an integer parameter to the constructor is a buffer size
-  // - except for character element types
+  // - except for integer types that are also character element types
   template <typename U, typename V = Char>
   struct IsCtorSize : public ZuBool<
     ZuTraits<U>::IsIntegral &&

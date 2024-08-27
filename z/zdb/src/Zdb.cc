@@ -1060,7 +1060,7 @@ void DB::repStart()
 }
 
 // send recovery record
-void AnyTable::recSend(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN)
+void AnyTable::recSend(ZmRef<Cxn> cxn, Shard shard, UN un, UN endUN)
 {
   ZmAssert(invoked(shard));
 
@@ -1099,13 +1099,13 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN)
 }
 
 void AnyTable::recSend_(
-  ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN, ZmRef<const IOBuf> buf)
+  ZmRef<Cxn> cxn, Shard shard, UN un, UN endUN, ZmRef<const IOBuf> buf)
 {
   cxn->send(ZuMv(buf));
   recNext(ZuMv(cxn), shard, un, endUN);
 }
 
-void AnyTable::recNext(ZmRef<Cxn> cxn, unsigned shard, UN un, UN endUN)
+void AnyTable::recNext(ZmRef<Cxn> cxn, Shard shard, UN un, UN endUN)
 {
   if (++un < endUN)
     run(shard, [this, cxn = ZuMv(cxn), shard, un, endUN]() mutable {
@@ -1123,7 +1123,7 @@ void DB::recEnd()
 // build replication buffer
 // - first looks in buffer cache for a buffer to copy
 // - falls back to object cache
-ZmRef<const IOBuf> AnyTable::mkBuf(unsigned shard, UN un)
+ZmRef<const IOBuf> AnyTable::mkBuf(Shard shard, UN un)
 {
   ZmAssert(invoked(shard));
 
@@ -1153,7 +1153,7 @@ ZmRef<const IOBuf> AnyTable::mkBuf(unsigned shard, UN un)
 }
 
 // send commit to replica
-void AnyTable::commitSend(unsigned shard, UN un)
+void AnyTable::commitSend(Shard shard, UN un)
 {
   Zfb::IOBuilder fbb{allocBuf()};
   {
@@ -1416,7 +1416,7 @@ void DB::dbStateRefresh()
   DBState &dbState = m_self->dbState();
   dbState.updateSN(m_nextSN);
   all_([&dbState](AnyTable *table) {
-    for (unsigned i = 0, n = table->config().nShards; i < n; i++)
+    for (Shard i = 0, n = table->config().nShards; i < n; i++)
       dbState.update(ZuFwdTuple(table->config().id, i), table->nextUN(i));
   });
 }
@@ -1438,7 +1438,7 @@ void Cxn_::repRecordRcvd(ZmRef<const IOBuf> buf)
     << "repRecordRcvd(host=" << m_host->id() << ", "
     << Record_Print{record, table}));
 
-  unsigned shard = record->shard();
+  auto shard = record->shard();
 
   m_db->replicated(
       m_host, id, shard, record->un(), Zfb::Load::uint128(record->sn()));
@@ -1461,13 +1461,13 @@ void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
   ZdbDEBUG(m_db, ZtString{}
     << "repCommitRcvd(host=" << m_host->id() << ", " << commit->un() << ')');
 
-  unsigned shard = commit->shard();
+  auto shard = commit->shard();
   table->invoke(shard, [table, shard, un = commit->un()]() mutable {
     table->repCommitRcvd(shard, un);
   });
 }
 
-void DB::replicated(Host *host, ZuID tblID, unsigned shard, UN un, SN sn)
+void DB::replicated(Host *host, ZuID tblID, Shard shard, UN un, SN sn)
 {
   ZmAssert(invoked());
 
@@ -1548,7 +1548,7 @@ AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
 }
 
 // process inbound replication - record
-void AnyTable::repRecordRcvd(unsigned shard, ZmRef<const IOBuf> buf)
+void AnyTable::repRecordRcvd(Shard shard, ZmRef<const IOBuf> buf)
 {
   ZmAssert(invoked(shard));
 
@@ -1559,7 +1559,7 @@ void AnyTable::repRecordRcvd(unsigned shard, ZmRef<const IOBuf> buf)
 }
 
 // process inbound replication - committed
-void AnyTable::repCommitRcvd(unsigned shard, UN un)
+void AnyTable::repCommitRcvd(Shard shard, UN un)
 {
   ZmAssert(invoked(shard));
 
@@ -1570,7 +1570,7 @@ void AnyTable::repCommitRcvd(unsigned shard, UN un)
 }
 
 // recover record
-void AnyTable::recover(unsigned shard, const fbs::Record *record)
+void AnyTable::recover(Shard shard, const fbs::Record *record)
 {
   m_db->recoveredSN(Zfb::Load::uint128(record->sn()));
   recoveredUN(shard, record->un());
@@ -1578,7 +1578,7 @@ void AnyTable::recover(unsigned shard, const fbs::Record *record)
 }
 
 // outbound replication + persistency
-void AnyTable::write(unsigned shard, ZmRef<const IOBuf> buf, bool active)
+void AnyTable::write(Shard shard, ZmRef<const IOBuf> buf, bool active)
 {
   ZmAssert(invoked(shard));
 
@@ -1601,7 +1601,7 @@ void AnyTable::write(unsigned shard, ZmRef<const IOBuf> buf, bool active)
 }
 
 // low-level internal write to backing data store
-void AnyTable::store(unsigned shard, ZmRef<const IOBuf> buf)
+void AnyTable::store(Shard shard, ZmRef<const IOBuf> buf)
 {
   ZmAssert(invoked(shard));
 
@@ -1609,7 +1609,7 @@ void AnyTable::store(unsigned shard, ZmRef<const IOBuf> buf)
 
   store_(shard, ZuMv(buf));
 }
-void AnyTable::store_(unsigned shard, ZmRef<const IOBuf> buf)
+void AnyTable::store_(Shard shard, ZmRef<const IOBuf> buf)
 {
   m_storeTbl->write(ZuMv(buf), CommitFn{this,
     [](AnyTable *this_, ZmRef<const IOBuf> buf, CommitResult result) {
@@ -1639,14 +1639,14 @@ void AnyTable::committed(ZmRef<const IOBuf> buf, CommitResult result)
 }
 
 // cache buffer
-void AnyTable::cacheBuf(unsigned shard, ZmRef<const IOBuf> buf)
+void AnyTable::cacheBuf(Shard shard, ZmRef<const IOBuf> buf)
 {
   cacheBufUN(shard, buf.mutablePtr());
   cacheBuf_(shard, ZuMv(buf));
 }
 
 // evict buffer
-void AnyTable::evictBuf(unsigned shard, UN un)
+void AnyTable::evictBuf(Shard shard, UN un)
 {
   if (auto buf = evictBufUN(shard, un))
     evictBuf_(shard, static_cast<IOBuf *>(buf));

@@ -16,8 +16,12 @@
 #include <zlib/ZtTimeZone.hh>
 #include <zlib/ZtPlatform.hh>
 
-class Zt_TzLock : public ZmPLock {
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(Zt_TzLock *);
+struct Zt_TzLock : public ZmPLock {
+  static Zt_TzLock *instance() {
+    return
+      ZmSingleton<Zt_TzLock,
+	ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
+  }
 };
 
 class Zt_TzGuard : public ZmGuard<ZmPLock> {
@@ -31,7 +35,7 @@ private:
 };
 
 Zt_TzGuard::Zt_TzGuard(const char *tz) :
-  ZmGuard<ZmPLock>{*ZmSingleton<Zt_TzLock>::instance()}
+  ZmGuard<ZmPLock>{*Zt_TzLock::instance()}
 {
   if (tz) {
     if (m_oldTz = ::getenv("TZ")) m_oldTz -= 3; // potentially non-portable

@@ -110,16 +110,13 @@ extern "C" {
 struct ZmBackTrace_MgrInit;
 
 class ZmBackTrace_Mgr {
-friend ZmSingletonCtor<ZmBackTrace_Mgr>;
 friend ZmBackTrace;
 friend ZmBackTrace_MgrInit;
 friend void ZmBackTrace_print(ZuVStream &s, const ZmBackTrace &bt);
 
-  ZmBackTrace_Mgr();
 public:
+  ZmBackTrace_Mgr();
   ~ZmBackTrace_Mgr();
-
-  friend ZuUnsigned<ZmCleanup::Final> ZmCleanupLevel(ZmBackTrace_Mgr *);
 
 private:
 #ifdef _WIN32
@@ -526,7 +523,9 @@ notfound:
 
 ZmBackTrace_Mgr *ZmBackTrace_Mgr::instance()
 {
-  return ZmSingleton<ZmBackTrace_Mgr>::instance();
+  return
+    ZmSingleton<ZmBackTrace_Mgr,
+      ZmSingletonCleanup<ZmCleanup::Final>>::instance();
 }
 
 struct ZmBackTrace_MgrInit {

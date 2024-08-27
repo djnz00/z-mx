@@ -50,7 +50,11 @@ struct ZmTLock_Depth;
 struct ZmTLock_Depth : public ZmObject {
   ZmTLock_Depth() : m_depth(0) { }
 
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZmTLock_Depth *);
+  static ZmTLock_Depth *instance() {
+    return
+      ZmSingleton<ZmTLock_Depth,
+	ZmSingletonCleanup<ZmCleanup::Platform>>::instance();
+  }
 
   void inc() {
     if (m_depth > 20) {
@@ -207,8 +211,8 @@ friend Thread;
 
 #ifdef ZmTLock_DebugInfiniteRecursion
     struct DepthGuard {
-      DepthGuard() { ZmSpecific<ZmTLock_Depth>::instance()->inc(); }
-      ~DepthGuard() { ZmSpecific<ZmTLock_Depth>::instance()->dec(); }
+      DepthGuard() { ZmTLock_Depth::instance()->inc(); }
+      ~DepthGuard() { ZmTLock_Depth::instance()->dec(); }
     };
 #endif
     bool deadlocked(Thread *thread) {

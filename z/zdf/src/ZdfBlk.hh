@@ -22,8 +22,8 @@ class Series;
 
 class BlkData : public ZdbObject<DB::BlkData> {
 public:
-  BlkData(Series *series) :
-    ZdbObject<DB::BlkData>{series->db()->seriesTbl()},
+  BlkData(Series *series, ZdbTable<DB::BlkData> *tbl) :
+    ZdbObject<DB::BlkData>{tbl},
     m_series{series} { }
 
   void evict();

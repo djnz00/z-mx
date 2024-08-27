@@ -285,11 +285,11 @@ int main(int argc, char **argv)
     for (j = 0; j < n; j++)
       r[j] = ZmThread{[w = &w]() { w->wait(); }};
     Zm::sleep(1);
-    ZmSpecific<ZmThreadContext>::all(
+    ZmThreadContextTLS::all(
 	[&w](const ZmThreadContext *tc) { w.fn1(tc); });
     for (j = 0; j < n; j++) w.post();
     for (j = 0; j < n; j++) r[j].join(0);
-    ZmSpecific<ZmThreadContext>::all(
+    ZmThreadContextTLS::all(
 	[&w](const ZmThreadContext *tc) { w.fn2(tc); });
   }
 

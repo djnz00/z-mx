@@ -163,8 +163,6 @@ class ZeAPI ZeLog {
   ZeLog(const ZeLog &);
   ZeLog &operator =(const ZeLog &);		// prevent mis-use
 
-friend ZmSingletonCtor<ZeLog>;
-
   using Lock = ZmPLock;
   using Guard = ZmGuard<Lock>;
 
@@ -174,8 +172,6 @@ friend ZmSingletonCtor<ZeLog>;
   ZeLog();
 
 public:
-  friend ZuUnsigned<ZmCleanup::Library> ZmCleanupLevel(ZeLog *);
-
   static ZeLog *instance();
 
   template <typename ...Args>

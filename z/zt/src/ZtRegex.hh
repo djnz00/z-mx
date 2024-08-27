@@ -87,8 +87,6 @@ public:
 
   ~ZtRegex();
 
-  friend ZuUnsigned<ZmCleanup::Platform> ZmCleanupLevel(ZtRegex *);
-
   void study();
 
   unsigned captureCount() const { return m_captureCount; }
@@ -172,7 +170,7 @@ private:
 // quote the pattern using the pre-processor to avoid having to double
 // backslash the RE, then strip the leading/trailing double-quotes
 
-#define ZtREGEX(pattern_, ...) ZmStatic([]{ \
+#define ZtREGEX(pattern_, ...) ZmStatic<ZmCleanup::Platform>([]{ \
   static char pattern[] = #pattern_; \
   ZuAssert(sizeof(pattern) >= 2); \
   pattern[sizeof(pattern) - 2] = 0; \

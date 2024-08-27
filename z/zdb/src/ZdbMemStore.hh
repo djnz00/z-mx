@@ -1084,10 +1084,10 @@ Tuple extractKey(
 // --- in-memory row
 
 struct MemRow__ {
-  unsigned	shard;
-  ZdbUN		un;
-  ZdbSN		sn;
-  ZdbVN		vn;
+  Shard		shard;
+  UN		un;
+  SN		sn;
+  VN		vn;
   Tuple		data;
 
   static ZuTuple<unsigned, ZdbUN> UNAxor(const MemRow__ &row) {
@@ -1235,7 +1235,7 @@ public:
   auto count() const { return m_indices[0].count_(); }
   unsigned nShards() const { return m_maxUN.length(); }
   const auto &maxUN() const { return m_maxUN; }
-  auto maxUN(unsigned shard) const { return m_maxUN[shard]; }
+  auto maxUN(Shard shard) const { return m_maxUN[shard]; }
   auto maxSN() const { return m_maxSN; }
 
 protected:
@@ -1293,7 +1293,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(unsigned shard, UN, RowFn);
+  void recover(Shard shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 
