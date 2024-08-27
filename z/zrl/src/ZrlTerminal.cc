@@ -207,6 +207,10 @@ void Terminal::stop() // async
   wake_();
 }
 
+static TerminalPtr &localTerminal() {
+  return ZmTLS<TerminalPtr, nullptr, ZmCleanup::Library>();
+}
+
 bool Terminal::open_()
 {
 #ifndef _WIN32
@@ -322,9 +326,9 @@ bool Terminal::open_()
 
   if (m_ul) {
     m_underline << ' ';
-    ZmTLS<TerminalPtr>() = this;
+    localTerminal() = this;
     ::tputs(m_cub1, 1, [](int c) -> int {
-      ZmTLS<TerminalPtr>()->m_underline << static_cast<uint8_t>(c);
+      localTerminal()->m_underline << static_cast<uint8_t>(c);
       return 0;
     });
     m_underline << '_';
@@ -1239,9 +1243,9 @@ loop:
 #ifndef _WIN32
 void Terminal::tputs(const char *cap)
 {
-  ZmTLS<TerminalPtr>() = this;
+  localTerminal() = this;
   ::tputs(cap, 1, [](int c) -> int {
-    ZmTLS<TerminalPtr>()->m_out << static_cast<char>(c);
+    localTerminal()->m_out << static_cast<char>(c);
     return 0;
   });
 }
