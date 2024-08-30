@@ -350,14 +350,14 @@ template <class Base> struct ZuTraits_CString : public Base {
 };
 
 template <> struct ZuTraits<char *> :
-  public ZuTraits_CString<ZuTraits_Pointer<char *, char> > { };
+  public ZuTraits_CString<ZuTraits_Pointer<char *, char>> { };
 template <> struct ZuTraits<const char *> :
-  public ZuTraits_CString<ZuTraits_Pointer<const char *, const char> > { };
+  public ZuTraits_CString<ZuTraits_Pointer<const char *, const char>> { };
 template <> struct ZuTraits<volatile char *> :
-  public ZuTraits_CString<ZuTraits_Pointer<volatile char *, volatile char> > { };
+  public ZuTraits_CString<ZuTraits_Pointer<volatile char *, volatile char>> { };
 template <> struct ZuTraits<const volatile char *> :
   public ZuTraits_CString<ZuTraits_Pointer<
-    const volatile char *, const volatile char> > { };
+    const volatile char *, const volatile char>> { };
 
 #ifndef _MSC_VER
 template <> struct ZuTraits<char []> :

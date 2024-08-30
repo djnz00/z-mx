@@ -266,9 +266,7 @@ int main(int argc, char **argv)
 	    Zum::fbs::CreatePermName(fbb,
 	      Zfb::Save::str(fbb, perms[i])).Union()));
 	  const auto &session_ = session;
-	  userDB.request(session_, fbb.buf(), [
-	    self = ZuMv(self)
-	  ](ZmRef<Zum::IOBuf> buf) mutable { ZuMv(self)(ZuMv(buf)); });
+	  userDB.request(session_, fbb.buf(), ZuMv(self));
 	}}(nullptr);
       });
     });

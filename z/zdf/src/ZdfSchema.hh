@@ -24,37 +24,24 @@
 
 namespace Zdf::DB {
 
-struct DataFrame {
-  DFID		id;		// 1-based
-  ZtString	name;
-  ZuDateTime	epoch;
-};
-ZfbFields(DataFrame,
-  (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
-  (((name),	(Ctor<1>, Keys<1>, Mutable)),		(String)),
-  (((epoch),	(Ctor<2>)),				(DateTime)));
-
 struct SeriesFixed {
   SeriesID	id;		// 1-based
-  DFID		dfid;		// 0 is null
   ZtString	name;
   Fixed		first;		// first value in series
-  ZuDateTime	epoch;		// intentionally denormalized
+  ZuDateTime	epoch;		// time when series was created
   BlkOffset	blkOffset;	// first block
   NDP		ndp;		// NDP of first value in series
 };
 ZfbFields(SeriesFixed,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
-  (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
-  (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
-  (((first),	(Ctor<3>, Mutable)),			(Int64)),
-  (((ndp),	(Ctor<6>, Mutable)),			(UInt8)),
-  (((epoch),	(Ctor<4>)),				(DateTime)),
-  (((blkOffset),(Ctor<5>, Mutable)),			(UInt64)));
+  (((name),	(Ctor<1>, Keys<1>)),			(String)),
+  (((first),	(Ctor<2>, Mutable)),			(Int64)),
+  (((ndp),	(Ctor<5>, Mutable)),			(UInt8)),
+  (((epoch),	(Ctor<3>)),				(DateTime)),
+  (((blkOffset),(Ctor<4>, Mutable)),			(UInt64)));
 
 struct SeriesFloat {
   SeriesID	id;		// 1-based
-  DFID		dfid;		// 0 is null
   ZtString	name;
   double	first;		// first value in series
   ZuDateTime	epoch;		// intentionally denormalized
@@ -62,11 +49,10 @@ struct SeriesFloat {
 };
 ZfbFields(SeriesFloat,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
-  (((dfid),	(Ctor<1>, Keys<2>, Group<2>)),		(UInt32)),
-  (((name),	(Ctor<2>, Keys<1, 2>)),			(String)),
-  (((first),	(Ctor<3>, Mutable)),			(Float)),
-  (((epoch),	(Ctor<4>)),				(DateTime)),
-  (((blkOffset),(Ctor<5>, Mutable)),			(UInt64)));
+  (((name),	(Ctor<1>, Keys<1>)),			(String)),
+  (((first),	(Ctor<2>, Mutable)),			(Float)),
+  (((epoch),	(Ctor<3>)),				(DateTime)),
+  (((blkOffset),(Ctor<4>, Mutable)),			(UInt64)));
 
 struct BlkHdrFixed {
   BlkOffset	blkOffset;

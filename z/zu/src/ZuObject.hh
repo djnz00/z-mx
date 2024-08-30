@@ -5,6 +5,10 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // intrusively reference-counted object (base class)
+// - plain int reference count (use ZmObject for atomic reference counting)
+// - 8 bytes of overhead compared with 32 bytes overhead for std::shared_ptr
+//   - std::enable_shared_from_this<T> - weak_ptr - 8 bytes
+//   - std::allocate_shared<T>() - control block - 24 bytes
 
 #ifndef ZuObject_HH
 #define ZuObject_HH

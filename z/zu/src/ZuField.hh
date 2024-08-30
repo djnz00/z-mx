@@ -50,20 +50,19 @@
 // ((id), (Ctor<0>, (Keys<0, 1>)))	// needs additional parentheses
 
 // ZuField(O, ID) is the typename of the field metadata type for
-// field "ID" of composite type "O"
-// - O is a leaf typename, without any qualifying namespace
-// - ZuSchema is a child namespace of the namespace within
-//   which O is declared
+// field "ID" of composite type "O":
+// - O must be a leaf typename, without any namespace prefix
+// - the typename will be of the form ZuSchema::ZuField_O_ID
+// - the type is in a ZuSchema child namespace injected into O's namespace
 //
 // ZuField API:
-//   O		- type of containing object
-//   T		- type of field
-//   Props	- compile-time properties
-//   ReadOnly	- true if read-only
-//   id()	- identifier (unique name) of field
-//   keys()	- keys bitfield (64bit)
-//   get(o)	- get function
-//   set(o, v)	- set function
+//   O			- type of containing object
+//   T			- type of field
+//   Props		- compile-time properties
+//   ReadOnly		- true if read-only
+//   id()		- identifier (unique name) of field
+//   get(const O &)	- get function
+//   set(O &, auto &&v)	- set function
 //
 // ZuFieldKey<KeyID>(O &&) extracts a key tuple from an object
 // ZuFieldKeyT<O, KeyID> is the key tuple type

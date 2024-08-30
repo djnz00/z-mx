@@ -24,7 +24,6 @@
 #include <zlib/ZmRBTree.hh>
 #include <zlib/ZmRWLock.hh>
 #include <zlib/ZmHeap.hh>
-#include <zlib/ZmShard.hh>
 #include <zlib/ZmScheduler.hh>
 
 #include <zlib/ZcmdHost.hh>

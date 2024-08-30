@@ -5,12 +5,12 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // object introspection / reflection
-// * extending ZuField
-// * compile-time (ZtField*) and run-time (ZtVField*)
-// * print/scan (CSV, etc.)
-// * ORM
-// * data series
-// * ... any other application that needs to introspect structured data
+// - extends ZuField
+// - compile-time (ZtField*) and run-time (ZtVField*)
+// - print/scan (CSV, etc.)
+// - ORM
+// - data series
+// - ... any other application that needs to introspect structured data
 
 // metadata macro DSL for identifying and using data fields and keys
 //
@@ -69,8 +69,10 @@
 //   minimum()	- minimum value (for scalars)
 //   maximum()	- maximum value ('')
 //
+// ZtField(O, ID) is the derived type inheriting from ZuField(O, ID)
+//
 // ZtFieldType is keyed on <Code, T, Props>, provides:
-//   Code	- type code
+//   Code	- type code (ZtFieldTypeCode)
 //   T		- underlying type
 //   Map	- map (if either Enum or Flags)
 //   Props	- properties type list
@@ -134,7 +136,6 @@
 #include <zlib/ZuVArray.hh>
 #include <zlib/ZuID.hh>
 #include <zlib/ZuVStream.hh>
-#include <zlib/ZuTime.hh>
 
 #include <zlib/ZmAlloc.hh>
 #include <zlib/ZmSingleton.hh>

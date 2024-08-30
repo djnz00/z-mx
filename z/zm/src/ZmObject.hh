@@ -4,8 +4,11 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// intrusively reference-counted object (base class)
+// intrusively reference-counted object (explicit base class)
 // - ZmAtomic<int> reference count (multithread-safe)
+// - 8 bytes of overhead compared with 32 bytes overhead for std::shared_ptr
+//   - std::enable_shared_from_this<T> - weak_ptr - 8 bytes
+//   - std::allocate_shared<T>() - control block - 24 bytes
 
 #ifndef ZmObject_HH
 #define ZmObject_HH

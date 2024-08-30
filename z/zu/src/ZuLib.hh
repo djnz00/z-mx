@@ -476,7 +476,11 @@ inline constexpr auto ZuDefaultAxor() {
 }
 
 // self-referential / recursive lambdas
-// - ZuLambda{[int i = 10](auto &&self) mutable { if (--i >= 0) self(); }}();
+// - example below prints integers from 10 to 0
+// ZuLambda{[i = 10](auto &&self) mutable -> void {
+//   std::cout << i << '\n';
+//   if (--i >= 0) self();
+// }}();
 template <typename L>
 struct ZuLambda {
   L lambda;

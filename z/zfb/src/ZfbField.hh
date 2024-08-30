@@ -45,6 +45,8 @@
 // ID		UDT		ZuID
 // Object	UDT		<Any>
 
+// ZfbField(O, ID) is the derived type inheriting from ZtField(O, ID)
+
 // UDT example - ZiIP support is added as follows:
 //   (network/host byte-order swapping is intentionally elided since
 //   IP addresses are in network byte order both on the wire and in memory)

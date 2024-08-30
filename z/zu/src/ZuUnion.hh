@@ -5,18 +5,21 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // generic discriminated union; different design trade-offs than std::variant
-// * supports void, primitive and pointer types in addition to composite types
-// * doesn't throw exceptions
-// * relies on the caller to prevent undefined behavior by checking the type
+// - supports void, primitive and pointer types in addition to composite types
+// - doesn't throw exceptions
+// - relies on the caller to prevent undefined behavior by checking the type
 //   before using it (asserts in debug builds)
-// * p<I>() - positional accessor
-// * p<I>(v) - positional set function
-// * p<T>() - access by type
-// * type() - return index of current type
-// * Types - type list (ZuTypeList)
-// * dispatch(lambda) - dispatcher
-// * cdispatch(lambda) - const dispatcher
-// * operator <=>() - comparison
+// - p<I>() - positional accessor
+// - p<I>(v) - positional set function
+// - p<T>() - access by type
+// - type() - return index of current type
+// - Types - type list (ZuTypeList)
+// - dispatch(lambda) - dispatcher
+// - cdispatch(lambda) - const dispatcher
+// - operator <=>() - comparison
+
+// ZuUnion<void, T> can be used instead of std::optional<T>
+// - ensures at most one trailing byte of overhead
 
 // using U = ZuUnion<int, double>;
 // U u, v;

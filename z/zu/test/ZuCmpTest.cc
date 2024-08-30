@@ -621,4 +621,13 @@ int main()
     CHECK(w.p<0>() == 42);
     CHECK(w.p<1>() == 0);
   }
+
+  {
+    std::cout
+      << "sizeof(ZuUnion<void, uintptr_t>)="
+      << sizeof(ZuUnion<void, uintptr_t>) << '\n';
+    std::cout
+      << "sizeof(std::optional<uintptr_t>)="
+      << sizeof(std::optional<uintptr_t>) << '\n';
+  }
 }
