@@ -5,9 +5,9 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // shard, handle
-// ZmHandle is a special union of a ZmRef of a sharded object and a pointer
-// to a shard; it can be used to specify a specific shard for deferred
-// instantiation of a new object, or a reference to an existing instance
+// - ZmHandle is a special union of a ZmRef of a sharded object and a pointer
+//   to a shard; it can be used to specify a specific shard for deferred
+//   instantiation of a new object, or a reference to an existing instance
 
 #ifndef ZmShard_HH
 #define ZmShard_HH
