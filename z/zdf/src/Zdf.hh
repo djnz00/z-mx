@@ -31,18 +31,10 @@
 #include <zlib/ZdfLib.hh>
 #endif
 
-#include <zlib/ZuPtr.hh>
-#include <zlib/ZuUnion.hh>
-
 #include <zlib/ZtArray.hh>
 #include <zlib/ZtString.hh>
 
 #include <zlib/ZtField.hh>
-
-#include <zlib/Zfb.hh>
-#include <zlib/ZfbField.hh>
-
-#include <zlib/Zdb.hh>
 
 #include <zlib/ZdfTypes.hh>
 #include <zlib/ZdfSchema.hh>
@@ -89,6 +81,7 @@ template <typename O, bool TimeIndex>
 struct Fields_ {
   using T = ZuTypeGrep<FieldFilter, ZuFields<O>>;
 };
+// if the data-frame is time-indexed, unshift a TimeField onto the field list
 template <typename O>
 struct Fields_<O, true> {
   using T = Fields_<O, false>::typename T::template Unshift<TimeField<O>>;
@@ -250,18 +243,18 @@ public:
       enum { J = I + 1 };
       if constexpr (J >= Series::N) {
 	fn(DFWriter{this, ZuMv(wrRefs)});
-	return;
+      } else {
+	using Field = ZuType<I, Fields>;
+	auto seriesRefs = &m_seriesRefs;
+	auto next = [self = ZuMv(self)](auto wrRef) mutable {
+	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(wrRef));
+	};
+	if constexpr (Field::Code == Float)
+	  seriesRefs->template p<I>()->write(ZuMv(next));
+	else
+	  seriesRefs->template p<I>()->write(
+	    ZuMv(next), ZuFieldProp::GetNDP<Field::Props>{});
       }
-      using Field = ZuType<I, Fields>;
-      auto seriesRefs = &m_seriesRefs;
-      auto next = [self = ZuMv(self)](auto wrRef) {
-	ZuMv(self).template operator()(I, ZuMv(wrRef));
-      };
-      if constexpr (Field::Code == Float)
-	seriesRefs->template p<I>()->write(ZuMv(next));
-      else
-	seriesRefs->template p<I>()->write(
-	  ZuMv(next), ZuFieldProp::GetNDP<Field::Props>{});
     }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
@@ -299,136 +292,6 @@ private:
   Shard		m_shard;
   ZtString	m_name;
   SeriesRefs	m_seriesRefs;
-};
-
-using OpenFn = ZmFn<void(bool)>;	// (bool ok)
-
-class ZdfAPI DB {
-public:
-  void init(ZvCf *, Zdb *);
-  void final();
-
-  // convert shard to thread slot ID
-  auto sid(Shard shard) const {
-    return m_sid[shard & (m_sid.length() - 1)];
-  }
-
-  // dataframe threads (may be shared by app workloads)
-  template <typename ...Args>
-  void run(Shard shard, Args &&...args) const {
-    m_mx->run(sid(shard), ZuFwd<Args>(args)...);
-  }
-  template <typename ...Args>
-  void invoke(Shard shard, Args &&...args) const {
-    m_mx->invoke(sid(shard), ZuFwd<Args>(args)...);
-  }
-  bool invoked(Shard shard) const { return m_mx->invoked(sid(shard)); }
-
-  void open(OpenFn);	// establishes nextSeriesID
-  void close();
-
-  // open data frame
-  template <typename O, bool TimeIndex, bool Create>
-  void openDF(
-    Shard shard, ZtString name,
-    ZmFn<void(ZmRef<DataFrame<O, TimeIndex>>)> fn)
-  {
-    using DataFrame = Zdf::DataFrame<O, TimeIndex>;
-    using DFRef = ZmRef<DataFrame>;
-    using W = WrapType<O, TimeIndex>;
-    using Fields = Zdf::Fields<W>;
-    using SeriesRefs = Zdf::SeriesRefs<W>;
-
-    ZuLambda{[
-      this, shard, name = ZuMv(name), fn = ZuMv(fn),
-      seriesRefs = SeriesRefs{}
-    ](auto &&self, auto I, auto series) mutable {
-      if constexpr (I >= 0) {
-	if (ZuUnlikely(!series)) { fn(DFRef{}); return; }
-	seriesRefs.template p<I>() = ZuMv(series);
-      }
-      enum { J = I + 1 };
-      if constexpr (J >= Series::N) {
-	fn(DFRef{new DataFrame{this, shard, ZuMv(name), ZuMv(seriesRefs)}});
-	return;
-      }
-      using Field = ZuType<I, Fields>;
-      using Decoder = FieldDecoder<Field>;
-      auto next = [self = ZuMv(self)](auto series) {
-	ZuMv(self).template operator()(I, ZuMv(series));
-      };
-      ZtString seriesName{name.length() + strlen(Field::id()) + 2};
-      seriesName << name << '/' << Field::id();
-      openSeries<Decoder>(shard, ZuMv(seriesName), Create, ZuMv(next));
-    }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
-  }
-
-  // open series
-  template <typename Decoder, bool Create>
-  void openSeries(
-    Shard shard, ZtString name,
-    ZmFn<void(ZmRef<Series<Decoder>>)>)
-  {
-    using Series = Zdf::Series<Decoder>;
-    using DBSeries = typename Series::DBType;
-    enum { Fixed = Series::Fixed };
-
-    static auto seriesTbl = [](const DB *this_) {
-      if constexpr (Fixed)
-	return this_->m_seriesFixedTbl;
-      else
-	return this_->m_seriesFloatTbl;
-    };
-
-    run(shard, [
-      this, shard, name = ZuMv(name), fn = ZuMv(fn)
-    ]() mutable {
-      auto findFn = [
-	this, shard, name = ZuMv(name), fn = ZuMv(fn)
-      ](ZdbObjRef<DBSeries> dbSeries) mutable {
-	if (dbSeries) {
-	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
-	  series->open(ZuMv(fn));
-	  return;
-	}
-	if (!Create) { fn(nullptr); return; }
-	dbSeries = new ZdbObject<DBSeries>{seriesTbl(), shard};
-	new (dbSeries->ptr_()) DBType{
-	  .id = m_nextSeriesID++,
-	  .dfid = 0,
-	  .name = ZuMv(name),
-	  .epoch = Zm::now()
-	};
-	auto insertFn = [
-	  series = ZuMv(series), fn = ZuMv(fn)
-	](ZdbObjRef<DBSeries> dbSeries) mutable {
-	  if (!dbSeries) { fn(nullptr); return; }
-	  dbSeries->commit();
-	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
-	  series->open(ZuMv(fn));
-	};
-	seriesTbl()->insert(dbSeries, ZuMv(insertFn));
-      };
-      auto key = ZuMvTuple(ZuString{name});
-      seriesTbl()->find<1>(shard, key, ZuMv(findFn));
-    });
-  }
-
-  ZdbTable<DB::SeriesFixed> *seriesFixedTbl() const { return m_seriesFixedTbl; }
-  ZdbTable<DB::SeriesFloat> *seriesFloatTbl() const { return m_seriesFloatTbl; }
-  ZdbTable<DB::BlkHdrFixed> *blkHdrFixedTbl() const { return m_blkHdrFixedTbl; }
-  ZdbTable<DB::BlkHdrFloat> *blkHdrFloatTbl() const { return m_blkHdrFloatTbl; }
-  ZdbTable<DB::BlkData> *blkDataTbl() const { return m_blkDataTbl; }
-
-private:
-  DBState::T			m_state = DBState::Uninitialized;
-  ZdbTblRef<DB::SeriesFixed>	m_seriesFixedTbl;
-  ZdbTblRef<DB::SeriesFloat>	m_seriesFloatTbl;
-  ZdbTblRef<DB::BlkHdrFixed>	m_blkHdrFixedTbl;
-  ZdbTblRef<DB::BlkHdrFloat>	m_blkHdrFloatTbl;
-  ZdbTblRef<DB::BlkData>	m_blkDataTbl;
-  ZdbTableCf::SIDArray		m_sid;
-  ZmAtomic<uint32_t>		m_nextSeriesID = 1;
 };
 
 } // namespace Zdf

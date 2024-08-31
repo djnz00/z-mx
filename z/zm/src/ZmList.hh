@@ -5,6 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // intrusive policy-based double-linked list
+// - Perl-style function naming (shift/unshift at head, push/pop at tail)
 
 #ifndef ZmList_HH
 #define ZmList_HH
@@ -28,9 +29,9 @@
 
 // NTP (named template parameters) convention:
 //
-// ZmList<ZtString,				// list of ZtStrings
-//   ZmListLock<ZmRWLock,			// lock with R/W lock
-//     ZmListCmp<ZuICmp> > >			// case-insensitive comparison
+// ZmList<ZtString,			// list of ZtStrings
+//   ZmListLock<ZmRWLock,		// lock with R/W lock
+//     ZmListCmp<ZuICmp>>>		// case-insensitive comparison
 
 // NTP defaults
 struct ZmList_Defaults {

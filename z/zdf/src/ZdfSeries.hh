@@ -26,7 +26,6 @@
 #include <zlib/ZmRef.hh>
 #include <zlib/ZmPQueue.hh>
 
-#include <zlib/ZtArray.hh>
 #include <zlib/ZtEnum.hh>
 
 #include <zlib/ZdfTypes.hh>

@@ -25,8 +25,10 @@ void fail(const char *s, int64_t i) { print(s, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
-template <typename Decoder, typename Encoder>
+template <typename Decoder>
 void test() {
+  using Encoder = Zdf::Encoder<Decoder>;
+
   uint8_t p[4096], n[4096];
   for (int64_t i = 0; i < 63; i++) {
     int64_t j = 1; j <<= i;
@@ -47,10 +49,12 @@ void test() {
 	CHECK(nw.write(-(j + k + 8)));
 	CHECK(nw.write(-(j + k * k)));
       }
-      std::cout <<
-	ZmDemangle{typeid(Encoder).name()} << " +ve: " << pw.count() << ' ' << (pw.pos() - p) << '\n';
-      std::cout <<
-	ZmDemangle{typeid(Encoder).name()} << " -ve: " << nw.count() << ' ' << (nw.pos() - n) << '\n';
+      std::cout
+	<< ZmDemangle{typeid(Encoder).name()}
+	<< " +ve: " << pw.count() << ' ' << (pw.pos() - p) << '\n';
+      std::cout
+	<< ZmDemangle{typeid(Encoder).name()}
+	<< " -ve: " << nw.count() << ' ' << (nw.pos() - n) << '\n';
     }
     {
       Decoder pr{p, p + 4096};
@@ -79,9 +83,7 @@ void test() {
 int main()
 {
   using namespace ZdfCompress;
-  test<Decoder, Encoder>();
-  test<DeltaDecoder<>, DeltaEncoder<>>();
-  test<
-    DeltaDecoder<DeltaDecoder<>>,
-    DeltaEncoder<DeltaEncoder<>>>();
+  test<Decoder>();
+  test<DeltaDecoder<>>();
+  test<DeltaDecoder<DeltaDecoder<>>>();
 }

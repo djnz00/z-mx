@@ -4,9 +4,9 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Data Frame
+// Data Frame Database
 
-#include <zlib/Zdf.hh>
+#include <zlib/ZdfDB.hh>
 
 #include "zdf_dataframe_fbs.h"
 #include "zdf_series_fbs.h"
@@ -22,7 +22,8 @@ void DB::init(ZvCf *cf, Zdb *db)
 
   static auto findAdd = [](DBCf &dbCf, ZuString key) {
     auto node = dbCf.tableCfs.find(key);
-    if (!node) dbCf.tableCfs.addNode(node = new decltype(*node){key});
+    using Node = decltype(*node);
+    if (!node) dbCf.tableCfs.addNode(node = new Node{key});
     return node;
   }
 

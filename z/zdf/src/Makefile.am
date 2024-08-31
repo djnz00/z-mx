@@ -18,15 +18,14 @@ BUILT_SOURCES = ${FBS_H}
 CLEANFILES = ${FBS_H}
 pkginclude_HEADERS = ZdfLib.hh \
 	ZdfTypes.hh ZdfCompress.hh ZdfSchema.hh ZdfBlk.hh \
-	Zdf.hh ZdfSeries.hh ZdfStats.hh \
+	ZdfDB.hh Zdf.hh ZdfSeries.hh ZdfStats.hh \
 	${FBS_H} \
 	stats_tree.hh
 #fbsdir = $(datarootdir)/${PACKAGE}/fbs
 #dist_fbs_DATA = fbs/telemetry.fbs
 lib_LTLIBRARIES = libZdf.la
 libZdf_la_LDFLAGS = @Z_SO_LDFLAGS@
-libZdf_la_SOURCES = ZdfLib.cc \
-	Zdf.cc ZdfBuf.cc ZdfStore.cc ZdfMockStore.cc ZdfFileStore.cc
+libZdf_la_SOURCES = ZdfLib.cc ZdfDB.cc
 libZdf_la_LIBADD = \
 	$(top_builddir)/zv/src/libZv.la \
 	$(top_builddir)/zfb/src/libZfb.la \
