@@ -22,7 +22,7 @@ private:
 	  cxn->transmit(hashTbl(h));
 	}});
 
-    ZmSpecific<ZmThreadContext>::all([cxn](ZmThreadContext *tc) {
+    ZmThreadContextTLS::all([cxn](ZmThreadContext *tc) {
       cxn->transmit(thread(tc));
     });
   }

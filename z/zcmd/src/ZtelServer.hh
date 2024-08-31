@@ -648,7 +648,7 @@ private:
     if (interval)
       this->subscribe<[](Server *server) { server->threadScan(); }>(
 	  list, watch, interval);
-    ZmSpecific<ZmThreadContext>::all([watch](ZmThreadContext *tc) {
+    ZmThreadContextTLS::all([watch](ZmThreadContext *tc) {
       watch->link->app()->threadQuery_(watch, tc);
     });
     if (!interval) delete watch;
@@ -664,7 +664,7 @@ private:
 
   void threadScan() {
     if (!m_watchLists[ReqType::Thread].list.count_()) return;
-    ZmSpecific<ZmThreadContext>::all([this](ZmThreadContext *tc) {
+    ZmThreadContextTLS::all([this](ZmThreadContext *tc) {
       threadScan(tc);
     });
   }

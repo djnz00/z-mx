@@ -219,31 +219,32 @@ void UserDB::bootstrap_findAddUser(ZuPtr<Bootstrap> context)
   m_userTbl->find<1>(0, ZuFwdTuple(context->userName), [
     this, context = ZuMv(context)
   ](ZmRef<ZdbObject<User>> dbUser) mutable {
-    if (!dbUser)
-      ZdbObjRef<User> dbUser = new ZdbObject<User>{m_userTbl, 0};
-      m_userTbl->insert(dbUser, [
-	this, context = ZuMv(context)
-      ](ZdbObject<User> *dbUser) mutable {
-	if (!dbUser) {
-	  bootstrapped(ZuMv(context), BootstrapResult{false});
-	  return;
-	}
-	ZtString passwd;
-	initUser(dbUser, m_nextUserID++,
-	  ZuMv(context->userName), { },
-	  UserFlags::Immutable() |
-	  UserFlags::Enabled() |
-	  UserFlags::SuperUser(),
-	  passwd);
-	auto &user = dbUser->data();
-	ZtString secret{ZuBase32::enclen(user.secret.length())};
-	secret.length(secret.size());
-	secret.length(ZuBase32::encode(secret, user.secret));
-	bootstrapped(ZuMv(context),
-	  BootstrapResult{BootstrapData{ZuMv(passwd), ZuMv(secret)}});
-      });
-    else
+    if (dbUser) {
       bootstrapped(ZuMv(context), BootstrapResult{true});
+      return;
+    }
+    dbUser = new ZdbObject<User>{m_userTbl, 0};
+    m_userTbl->insert(dbUser, [
+      this, context = ZuMv(context)
+    ](ZdbObject<User> *dbUser) mutable {
+      if (!dbUser) {
+	bootstrapped(ZuMv(context), BootstrapResult{false});
+	return;
+      }
+      ZtString passwd;
+      initUser(dbUser, m_nextUserID++,
+	ZuMv(context->userName), { },
+	UserFlags::Immutable() |
+	UserFlags::Enabled() |
+	UserFlags::SuperUser(),
+	passwd);
+      auto &user = dbUser->data();
+      ZtString secret{ZuBase32::enclen(user.secret.length())};
+      secret.length(secret.size());
+      secret.length(ZuBase32::encode(secret, user.secret));
+      bootstrapped(ZuMv(context),
+	BootstrapResult{BootstrapData{ZuMv(passwd), ZuMv(secret)}});
+    });
   });
 }
 // inform app of bootstrap result
@@ -872,7 +873,7 @@ void UserDB::userAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "user " << ZtQuote::String{userName} << " already exists"));
 	return;
       }
-      ZdbObjRef<User> dbUser = new ZdbObject<User>{m_userTbl, 0};
+      dbUser = new ZdbObject<User>{m_userTbl, 0};
       m_userTbl->insert(dbUser, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<User> *dbUser) mutable {
@@ -1139,7 +1140,7 @@ void UserDB::roleAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "role " << ZtQuote::String{roleName} << " already exists"));
 	return;
       }
-      ZdbObjRef<Role> dbRole = new ZdbObject<Role>{m_roleTbl, 0};
+      dbRole = new ZdbObject<Role>{m_roleTbl, 0};
       m_roleTbl->insert(dbRole, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<Role> *dbRole) mutable {
@@ -1313,8 +1314,8 @@ void UserDB::permAdd(ZmRef<ZiIOBuf> buf, ResponseFn fn)
 	    << "perm " << ZtQuote::String{permName} << " already exists"));
 	return;
       }
-      ZdbObjRef<Perm> dbPerm = new ZdbObject<Perm>{m_permTbl, 0};
-      m_permTbl->insert(perm, [
+      dbPerm = new ZdbObject<Perm>{m_permTbl, 0};
+      m_permTbl->insert(dbPerm, [
 	this, buf = ZuMv(buf), fn = ZuMv(fn)
       ](ZdbObject<Perm> *dbPerm) mutable {
 	auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
@@ -1463,7 +1464,7 @@ void UserDB::keyAdd_(
 	});
 	return;
       }
-      ZdbObjRef<Key> dbKey = new ZdbObject<Key>{m_keyTbl, 0};
+      dbKey = new ZdbObject<Key>{m_keyTbl, 0};
       m_keyTbl->insert(dbKey, [
 	this, seqNo, userID, keyID, ackType, fn = ZuMv(fn)
       ](ZdbObject<Key> *dbKey) mutable {

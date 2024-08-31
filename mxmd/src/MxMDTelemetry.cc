@@ -45,7 +45,7 @@ void MxMDTelemetry::run(MxTelemetry::Server::Cxn *cxn)
       }});
 
   // threads
-  ZmSpecific<ZmThreadContext>::all([cxn](ZmThreadContext *tc) {
+  ZmThreadContextTLS::all([cxn](ZmThreadContext *tc) {
     cxn->transmit(thread(tc));
   });
 

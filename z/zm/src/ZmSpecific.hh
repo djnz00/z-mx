@@ -27,9 +27,9 @@
 // performance
 // - normal run-time ZmSpecific::instance() calls are lock-free
 //   and equivalent or better than thread_local
-// - initial/final object construction/destruction involves
-//   global lock acquisition and updates to a type-specific linked list
-//   (for iteration), and a module-specific linked list (Win32 cleanup only)
+// - initial/final object construction/destruction (should be highly
+//   infrequent) acquires a global lock and updates a type-specific linked
+//   list (for iteration), and a module-specific linked list (Win32 only)
 
 // ZmSpecific<T>::instance() returns T * pointer, unique per-thread per-T
 //
@@ -37,7 +37,7 @@
 //
 // ZmSpecific<T, ZmSpecificNoCtor<>>::instance() can return null
 // since T will not be constructed on-demand
-// - use ...::instance(new T(...))
+// - use ...::instance(new T(...)) to construct T
 //
 // auto &v = *ZmSpecific<T>::instance();	// 
 //
@@ -307,7 +307,7 @@ struct ZmSpecific_Defaults {
   enum { Cleanup = ZmCleanup::Application };
 };
 
-// ZmSpecificNoCtor - do not construct
+// ZmSpecificNoCtor - do not construct on demand
 template <typename NTP = ZmSpecific_Defaults>
 struct ZmSpecificNoCtor : public NTP {
   enum { Construct = false };

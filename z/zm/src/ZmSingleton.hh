@@ -61,7 +61,7 @@ struct ZmSingleton_Defaults {
   enum { Cleanup = ZmCleanup::Application };
 };
 
-// ZmSingletonNoCtor - do not construct
+// ZmSingletonNoCtor - do not construct on demand
 template <typename NTP = ZmSingleton_Defaults>
 struct ZmSingletonNoCtor : public NTP {
   enum { Construct = false };
