@@ -17,6 +17,8 @@
 
 namespace Zdf {
 
+enum { BlkSize = 4096 };
+
 using Shard = uint8_t;			// shard
 
 using DFID = uint32_t;			// data frame ID
@@ -26,7 +28,8 @@ using SeriesID = uint32_t;		// series ID
 using BlkOffset = uint64_t;		// block offset
 using Offset = uint64_t;		// value offset
 
-using Fixed = int64_t;			// fixed-point mantissa
+using Fixed0 = ZuBox0(int64_t);
+using Float0 = ZuBox0(double);
 using NDP = ZuFixedNDP;			// number of decimal places
 
 using BlkCount = uint16_t;		// count of values within a block

@@ -82,7 +82,7 @@ void test() {
 
 int main()
 {
-  using namespace ZdfCompress;
+  using namespace Zdf;
   test<Decoder>();
   test<DeltaDecoder<>>();
   test<DeltaDecoder<DeltaDecoder<>>>();

@@ -120,7 +120,7 @@ using SeriesRefs = ZuTypeApply<ZuTuple, ZuTypeMap<FieldSeriesRef, Fields<W>>>;
 template <typename W>
 using WrRefTuple = ZuTypeApply<ZuTuple, ZuTypeMap<FieldWrRef, Fields<W>>>;
 
-template <typename O> class DataFrame;
+template <typename O, bool TimeIndex> class DataFrame;
 
 // data frame writer
 template <typename W>

@@ -1,5 +1,5 @@
 include "zfb_types.fbs";
-namespace Zdf.fbs;
+namespace Zdf.DB.fbs;
 table BlkFixed {
   blk_offset:uint64;	// block index within series (from 0)
   offset:uint64;	// offset of this block (in values)
@@ -18,5 +18,5 @@ table BlkFloat {
 table BlkData {
   blk_offset:uint64;	// block index within series (from 0)
   series_i_d:uint32;	// series ID
-  data:[uint8];		// 4K of compressed data
+  buf:[uint8];		// 4K of compressed data
 }

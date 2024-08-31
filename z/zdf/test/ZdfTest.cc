@@ -60,7 +60,6 @@ int main(int argc, char **argv)
   ZeLog::level(0);
   ZeLog::start();
   using namespace Zdf;
-  using namespace ZdfCompress;
   Zdf::MockStore mockStore;
   if (mode == Mem) mockStore.init(nullptr, nullptr);
   ZmScheduler sched(ZmSchedParams().nThreads(2));

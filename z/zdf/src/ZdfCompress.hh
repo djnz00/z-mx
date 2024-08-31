@@ -29,8 +29,9 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/ZuIntrin.hh>
+#include <zlib/ZuBitStream.hh>
 
-namespace ZdfCompress {
+namespace Zdf {
 
 class Decoder {
 public:
@@ -52,7 +53,7 @@ public:
   const uint8_t *end() const { return m_end; }
   unsigned offset() const { return m_offset; }
 
-  // seek to a position
+  // seek forward
   bool seek(unsigned offset) {
     while (offset) {
       if (m_rle) {
@@ -73,7 +74,7 @@ public:
     return true;
   }
 
-  // seek to a position, informing upper layer of skipped values
+  // seek forward, informing upper layer of skipped values
   // l(int64_t value, unsigned offset)
   template <typename L>
   bool seek(unsigned offset, L l) {
@@ -100,7 +101,7 @@ public:
     return true;
   }
 
-  // search for a value
+  // search forward for a value
   // l(int64_t value, unsigned offset) -> unsigned skipped
   // search ends when skipped < offset
   template <typename L>
@@ -274,7 +275,8 @@ public:
   // written so that decoders reset their "previous value" to zero,
   // ensuring that any initial RLE of zero is processed correctly
   Encoder(const Decoder &decoder, uint8_t *end) :
-    m_pos{decoder.pos()}, m_end{end}, m_offset{decoder.offset()}
+    m_pos{const_cast<uint8_t *>(decoder.pos())}, m_end{end},
+    m_offset{decoder.offset()}
   {
     ZmAssert(m_pos < m_end);
     *m_pos++ = 0x80; // reset
@@ -376,7 +378,7 @@ private:
 
 template <typename Base = Decoder>
 class DeltaDecoder : public Base {
-  ZuAssert(ZuIsExact<Base::Value, int64_t>{});
+  ZuAssert((ZuIsExact<typename Base::Value, int64_t>{}));
 
 public:
   DeltaDecoder() : Base{} { }
@@ -388,6 +390,7 @@ public:
   DeltaDecoder(const uint8_t *start, const uint8_t *end) :
     Base{start, end} { }
 
+  // seek forward
   bool seek(unsigned offset) {
     return Base::seek(offset,
 	[this](int64_t skip, unsigned offset) {
@@ -395,6 +398,7 @@ public:
 	});
   }
 
+  // seek forward
   template <typename L>
   bool seek(unsigned offset, L l) {
     return Base::seek(offset,
@@ -404,6 +408,7 @@ public:
 	});
   }
 
+  // search forward
   template <typename L>
   bool search(L l) {
     return Base::search(
@@ -482,11 +487,11 @@ public:
   FloatDecoder &operator =(FloatDecoder &&) = default;
 
   FloatDecoder(const uint8_t *start, const uint8_t *end) :
-    m_pos{start}, m_end{end} { }
+    ZuIBitStream{start, end} { }
 
   unsigned offset() const { return m_offset; }
 
-  // seek to a position
+  // seek forward
   bool seek(unsigned offset) {
     while (offset) {
       if (!read_(nullptr)) return false;
@@ -496,7 +501,7 @@ public:
     return true;
   }
 
-  // seek to a position, informing upper layer of skipped values
+  // seek forward, informing upper layer of skipped values
   // l(int64_t value, unsigned offset)
   template <typename L>
   bool seek(unsigned offset, L l) {
@@ -510,7 +515,7 @@ public:
     return true;
   }
 
-  // search for a value
+  // search forward for a value
   // l(double value, unsigned offset) -> unsigned skipped
   // search ends when skipped < offset
   template <typename L>
@@ -541,7 +546,7 @@ public:
 
   // same as read(), but discards value
   bool skip() {
-    if (read_(&value)) {
+    if (read_(nullptr)) {
       ++m_offset;
       return true;
     }
@@ -552,7 +557,7 @@ private:
   bool read_(double *out) {
     static uint8_t lzmap[] = { 0, 8, 12, 16, 18, 20, 22, 24 };
 
-    auto saved = save();
+    auto saved = save(); // save context
   again:
     if (ZuUnlikely(!avail<2>())) goto eob;
     uint64_t value;
@@ -562,22 +567,22 @@ private:
 	break;
       case 1: {
 	if (ZuUnlikely(!avail<9>())) goto eob;
-	auto lz = lzmap[in<3>()];
-	auto sb = in<6>();
+	unsigned lz = lzmap[in<3>()];
+	unsigned sb = in<6>();
 	if (!sb) { m_prev = 0; m_prevLZ = 0; goto again; } // reset
 	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb)<<(64 - sb - lz);
 	m_prevLZ = lz;
       } break;
       case 2: {
-	auto sb = 64 - m_prevLZ;
+	unsigned sb = 64 - m_prevLZ;
 	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb);
       } break;
       case 3: {
 	if (ZuUnlikely(!avail<3>())) goto eob;
-	auto lz = lzmap[in<3>()];
-	auto sb = 64 - lz;
+	unsigned lz = lzmap[in<3>()];
+	unsigned sb = 64 - lz;
 	if (ZuUnlikely(!avail(sb))) goto eob;
 	value = in(sb);
 	m_prevLZ = lz;
@@ -585,10 +590,13 @@ private:
     }
     value ^= m_prev;
     m_prev ^= value;
-    if (out) *out = *reinterpret_cast<double *>(&value);
+    if (out) {
+      const double *ZuMayAlias(ptr) = reinterpret_cast<const double *>(&value);
+      *out = *ptr;
+    }
     return true;
   eob:
-    load(saved);
+    load(saved); // hit EOB - restore context
     return false;
   }
 
@@ -628,7 +636,7 @@ public:
     ZuOBitStream{decoder, end},
     m_offset{decoder.offset()}
   {
-    ZmAssert(m_pos + 2 < m_end);
+    ZmAssert(pos() + 2 < end);
     out(1, 11); // reset
   }
 
@@ -653,29 +661,30 @@ public:
       7
     };
 
-    uint64_t value = *reinterpret_cast<uint64_t *>(&in);
+    const uint64_t *ZuMayAlias(ptr) = reinterpret_cast<const uint64_t *>(&in);
+    uint64_t value = *ptr;
     value ^= m_prev;
     if (ZuUnlikely(!value)) {
-      if (ZuUnlikely(!avail<2>())) return false;
+      if (ZuUnlikely(!this->avail<2>())) return false;
       out<2>(0);
       return true;
     }
-    lz = lzround(ZuIntrin::clz(value));
-    tz = ZuIntrin::ctz(value);
+    unsigned lz = lzround[ZuIntrin::clz(value)];
+    unsigned tz = ZuIntrin::ctz(value);
     if (tz > 6) {
-      auto sb = 64 - lz - tz
-      if (ZuUnlikely(!avail(sb + 11))) return false;
+      unsigned sb = 64 - lz - tz;
+      if (ZuUnlikely(!this->avail(sb + 11))) return false;
       out((uint64_t(sb)<<5) | (lzmap[lz]<<2) | 1, 11);
       out(value>>tz, sb);
       m_prevLZ = lz;
     } else if (lz == m_prevLZ) {
-      auto sb = 64 - lz;
-      if (ZuUnlikely(!avail(sb + 2))) return false;
+      unsigned sb = 64 - lz;
+      if (ZuUnlikely(!this->avail(sb + 2))) return false;
       out<2>(2);
       out(value, sb);
     } else {
-      auto sb = 64 - lz;
-      if (ZuUnlikely(!avail(sb + 5))) return false;
+      unsigned sb = 64 - lz;
+      if (ZuUnlikely(!this->avail(sb + 5))) return false;
       out<5>((lzmap[lz]<<2) | 3);
       out(value, sb);
       m_prevLZ = lz;
@@ -685,11 +694,12 @@ public:
   }
 
   double last() const {
-    return *reinterpret_cast<double *>(&m_prev);
+    const double *ZuMayAlias(ptr) = reinterpret_cast<const double *>(&m_prev);
+    return *ptr;
   }
 
   void finish() {
-    if (avail<2>()) out_<2>(1); // ensure decoder terminates
+    if (avail<2>()) out<2>(1); // ensure decoder terminates
     ZuOBitStream::finish();
   }
 
@@ -699,6 +709,6 @@ private:
   unsigned	m_offset = 0;
 };
 
-} // namespace ZdfCompress
+} // namespace Zdf
 
 #endif /* ZdfCompress_HH */

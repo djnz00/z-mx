@@ -14,42 +14,48 @@
 #endif
 
 #include <zlib/ZdfTypes.hh>
+#include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSchema.hh>
 
 namespace Zdf {
 
-class Series;
+template <typename> class Series;
 
 class BlkData : public ZdbObject<DB::BlkData> {
 public:
-  BlkData(Series *series, ZdbTable<DB::BlkData> *tbl) :
-    ZdbObject<DB::BlkData>{tbl},
-    m_series{series} { }
+  using EvictFn = ZmFn<void(BlkData *)>;
 
-  void evict();
+  BlkData(EvictFn evictFn, ZdbTable<DB::BlkData> *tbl) :
+    ZdbObject<DB::BlkData>{tbl}, m_evictFn{ZuMv(evictFn)} { }
+
+  void evict() {
+    auto fn = ZuMv(m_evictFn);
+    fn();
+    ZdbAnyObject::evict();
+  }
 
 private:
-  Series	*m_series;
+  EvictFn	m_evictFn;
 };
 
 // all of US equities trades since 2003 is ~350B rows
 // 47bits handles 140T rows for a single series, more than enough
 
-using Last = union {
+union Last {
   int64_t	fixed;
   double	float_;
 };
 
 struct Blk {
-  uint64_t		ocn = 0;	// offset/count/ndp
-  Last			last = 0;	// last value in block
-  ZmRef<BlkData>	blkData;	// cached data
+  uint64_t		ocn = 0;		// offset/count/ndp
+  Last			last{.fixed = 0};	// last value in block
+  ZmRef<BlkData>	blkData;		// cached data
 
-  constexpr const uint64_t OffsetMask() { return (uint64_t(1)<<47) - 1; }
-  constexpr const unsigned CountShift() { return 47; }
-  constexpr const uint64_t CountMask() { return uint64_t(0xfff); }
-  constexpr const unsigned NDPShift() { return 59; }
-  constexpr const uint64_t NDPMask() { return uint64_t(0x1f); }
+  static constexpr const uint64_t OffsetMask() { return (uint64_t(1)<<47) - 1; }
+  static constexpr const unsigned CountShift() { return 47; }
+  static constexpr const uint64_t CountMask() { return uint64_t(0xfff); }
+  static constexpr const unsigned NDPShift() { return 59; }
+  static constexpr const uint64_t NDPMask() { return uint64_t(0x1f); }
 
   void init(uint64_t offset, uint64_t count, uint64_t ndp, int64_t last_) {
     ocn = offset | (count<<CountShift()) | (ndp<<NDPShift());
@@ -60,9 +66,9 @@ struct Blk {
     last.float_ = last_;
   }
 
-  ZuInline uint64_t offset() const { return ocnl & OffsetMask(); }
-  ZuInline unsigned count() const { return (ocnl>>CountShift()) & CountMask(); }
-  ZuInline unsigned ndp() const { return (ocnl>>NDPShift()) & NDPMask(); }
+  ZuInline uint64_t offset() const { return ocn & OffsetMask(); }
+  ZuInline unsigned count() const { return (ocn>>CountShift()) & CountMask(); }
+  ZuInline unsigned ndp() const { return (ocn>>NDPShift()) & NDPMask(); }
 
   ZuInline bool operator !() const { return !count(); }
 
@@ -81,24 +87,23 @@ struct Blk {
 
   template <typename Decoder>
   Decoder decoder() {
-    ZeAssert(blkData, (), "blkData not loaded", return Decoder{});
+    ZeAssert(blkData, (), "blkData not loaded", return {});
     const auto &buf = blkData->data().buf;
     auto start = buf.data();
     return Decoder{start, start + buf.length()};
   }
 
-  template <typename Encoder>
-  Encoder encoder() {
-    if (!blkData) blkData = new BlkData{this};
-    blkData->pin();
+  template <typename Decoder>
+  Encoder<Decoder> encoder(Series<Decoder> *series) {
+    ZeAssert(blkData, (), "blkData not instantiated", return {});
     const auto &buf = blkData->data().buf;
     auto start = buf.data();
-    return Encoder{start, start + BlkSize};
+    return {start, start + BlkSize};
   }
 
   template <typename Encoder>
-  void sync(const Encoder &encoder, unsigned ndp, int64_t last_) { // fixed
-    count_ndp(encoder.count(), ndp);
+  void sync(const Encoder &encoder, int64_t last_) { // fixed
+    count(encoder.count());
     last.fixed = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;

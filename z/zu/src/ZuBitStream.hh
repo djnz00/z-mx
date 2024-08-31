@@ -112,6 +112,8 @@ class ZuOBitStream {
   ZuOBitStream &operator =(const ZuOBitStream &) = delete;
 
 public:
+  ZuOBitStream() = default;
+
   ZuOBitStream(uint8_t *start, uint8_t *end) : m_pos{start}, m_end{end} { }
 
   ZuOBitStream(ZuOBitStream &&w) :
@@ -142,6 +144,14 @@ public:
 
   bool operator !() const { return !m_pos; }
   ZuOpBool
+
+  template <unsigned Bits>
+  bool avail() {
+    return m_pos + ((m_outBits + Bits + 7)>>3) <= m_end;
+  }
+  bool avail(unsigned bits) {
+    return m_pos + ((m_outBits + bits + 7)>>3) <= m_end;
+  }
 
   template <unsigned Bits>
   void out(uint8_t v) {

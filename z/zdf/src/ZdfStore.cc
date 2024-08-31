@@ -4,20 +4,15 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Data Frame Database
+// Data Frame backing data store
 
-#include <zlib/ZdfDB.hh>
-
-#include "zdf_dataframe_fbs.h"
-#include "zdf_series_fbs.h"
-#include "zdf_hdr_fbs.h"
-#include "zdf_blk_fbs.h"
+#include <zlib/ZdfStore.hh>
 
 using namespace Zdf;
 
-void DB::init(ZvCf *cf, Zdb *db)
+void Store::init(ZvCf *cf, Zdb *db)
 {
-  ZeAssert(m_state == DBState::Uninitialized,
+  ZeAssert(m_state == StoreState::Uninitialized,
     (state = m_state), "invalid state=" << state, return);
 
   static auto findAdd = [](DBCf &dbCf, ZuString key) {
@@ -42,8 +37,8 @@ void DB::init(ZvCf *cf, Zdb *db)
   m_dataFrameTbl = db->initTable<DB::DataFrame>("zdf.data_frame");
   m_seriesFixedTbl = db->initTable<DB::SeriesFixed>("zdf.series_fixed");
   m_seriesFloatTbl = db->initTable<DB::SeriesFloat>("zdf.series_float");
-  m_blkHdrFixedTbl = db->initTable<DB::BlkHdrFixed>("zdf.blk_hdr_fixed");
-  m_blkHdrFloatTbl = db->initTable<DB::BlkHdrFloat>("zdf.blk_hdr_float");
+  m_blkFixedTbl = db->initTable<DB::BlkFixed>("zdf.blk_fixed");
+  m_blkFloatTbl = db->initTable<DB::BlkFloat>("zdf.blk_float");
   m_blkDataTbl = db->initTable<DB::BlkData>("zdf.blk_data");
 
   m_sid = m_dataFrameTbl->config().sid;
@@ -51,23 +46,23 @@ void DB::init(ZvCf *cf, Zdb *db)
   m_state = DB::Initialized;
 }
 
-void DB::final()
+void Store::final()
 {
-  m_state = DBState::Uninitialized;
+  m_state = StoreState::Uninitialized;
 
   m_seriesFixedTbl = nullptr;
   m_seriesFloatTbl = nullptr;
-  m_blkHdrFixedTbl = nullptr;
-  m_blkHdrFloatTbl = nullptr;
+  m_blkFixedTbl = nullptr;
+  m_blkFloatTbl = nullptr;
   m_blkDataTbl = nullptr;
 }
 
-void DB::open(OpenFn fn)
+void Store::open(OpenFn fn)
 {
   m_openFn = ZuMv(fn);
   open_recoverNextSeriesID_Fixed();
 }
-void DB::open_recoverNextSeriesID_Fixed();
+void Store::open_recoverNextSeriesID_Fixed();
 {
   m_seriesFixedTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
     run(0, [this, max = ZuMv(max)]() mutable {
@@ -79,9 +74,9 @@ void DB::open_recoverNextSeriesID_Fixed();
     });
   });
 }
-void DB::open_recoverNextSeriesID_Float()
+void Store::open_recoverNextSeriesID_Float()
 {
-  m_seriesFixedTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
+  m_seriesFloatTbl->selectKeys<0>(ZuTuple<>{}, 1, [this](auto max, unsigned) {
     run(0, [this, max = ZuMv(max)]() mutable {
       using Key = ZuFieldKeyT<DB::Series, 0>;
       if (max.template is<Key>()) {
@@ -92,9 +87,9 @@ void DB::open_recoverNextSeriesID_Float()
     });
   });
 }
-void DB::opened(bool ok)
+void Store::opened(bool ok)
 {
-  m_state = ok ? DBState::Opened : DBState::OpenFailed;
+  m_state = ok ? StoreState::Opened : StoreState::OpenFailed;
   auto fn = ZuMv(m_openFn);
   fn(ok);
 }

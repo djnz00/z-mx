@@ -28,7 +28,6 @@ void fail(const char *s, int64_t i) { print(s, i); }
 int main()
 {
   using namespace Zdf;
-  using namespace ZdfCompress;
   MockStore store;
   store.init(nullptr, nullptr);
   Series s;

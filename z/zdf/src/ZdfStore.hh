@@ -6,8 +6,8 @@
 
 // Data Frame backing data store
 
-#ifndef ZdfDB_HH
-#define ZdfDB_HH
+#ifndef ZdfStore_HH
+#define ZdfStore_HH
 
 #ifndef ZdfLib_HH
 #include <zlib/ZdfLib.hh>
@@ -24,15 +24,15 @@
 
 namespace Zdf {
 
-// DB state
-namespace DBState {
-  ZtEnumValues(DBState, int,
+// data store state
+namespace StoreState {
+  ZtEnumValues(StoreState, int,
     Uninitialized = 0, Initialized, Opening, Opened, OpenFailed);
 }
 
 using OpenFn = ZmFn<void(bool)>;	// (bool ok)
 
-class ZdfAPI DB {
+class ZdfAPI Store {
 public:
   void init(ZvCf *, Zdb *);
   void final();
@@ -99,10 +99,10 @@ public:
     ZmFn<void(ZmRef<Series<Decoder>>)>)
   {
     using Series = Zdf::Series<Decoder>;
-    using DBSeries = typename Series::DBType;
+    using DBSeries = typename Series::DBSeries;
     enum { Fixed = Series::Fixed };
 
-    static auto seriesTbl = [](const DB *this_) {
+    static auto seriesTbl = [](const Store *this_) {
       if constexpr (Fixed)
 	return this_->m_seriesFixedTbl;
       else
@@ -122,15 +122,13 @@ public:
 	}
 	if (!Create) { fn(nullptr); return; }
 	dbSeries = new ZdbObject<DBSeries>{seriesTbl(), shard};
-	new (dbSeries->ptr_()) DBType{
+	new (dbSeries->ptr_()) DBSeries{
 	  .id = m_nextSeriesID++,
-	  .dfid = 0,
 	  .name = ZuMv(name),
-	  .epoch = Zm::now()
+	  .epoch = Zm::now(),
+	  .blkOffset = 0
 	};
-	auto insertFn = [
-	  series = ZuMv(series), fn = ZuMv(fn)
-	](ZdbObjRef<DBSeries> dbSeries) mutable {
+	auto insertFn = [fn = ZuMv(fn)](ZdbObjRef<DBSeries> dbSeries) mutable {
 	  if (!dbSeries) { fn(nullptr); return; }
 	  dbSeries->commit();
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
@@ -145,21 +143,63 @@ public:
 
   ZdbTable<DB::SeriesFixed> *seriesFixedTbl() const { return m_seriesFixedTbl; }
   ZdbTable<DB::SeriesFloat> *seriesFloatTbl() const { return m_seriesFloatTbl; }
-  ZdbTable<DB::BlkHdrFixed> *blkHdrFixedTbl() const { return m_blkHdrFixedTbl; }
-  ZdbTable<DB::BlkHdrFloat> *blkHdrFloatTbl() const { return m_blkHdrFloatTbl; }
+  ZdbTable<DB::BlkFixed> *blkFixedTbl() const { return m_blkFixedTbl; }
+  ZdbTable<DB::BlkFloat> *blkFloatTbl() const { return m_blkFloatTbl; }
   ZdbTable<DB::BlkData> *blkDataTbl() const { return m_blkDataTbl; }
 
 private:
   DBState::T			m_state = DBState::Uninitialized;
   ZdbTblRef<DB::SeriesFixed>	m_seriesFixedTbl;
   ZdbTblRef<DB::SeriesFloat>	m_seriesFloatTbl;
-  ZdbTblRef<DB::BlkHdrFixed>	m_blkHdrFixedTbl;
-  ZdbTblRef<DB::BlkHdrFloat>	m_blkHdrFloatTbl;
+  ZdbTblRef<DB::BlkFixed>	m_blkFixedTbl;
+  ZdbTblRef<DB::BlkFloat>	m_blkFloatTbl;
   ZdbTblRef<DB::BlkData>	m_blkDataTbl;
   ZdbTableCf::SIDArray		m_sid;
   ZmAtomic<uint32_t>		m_nextSeriesID = 1;
 };
 
+template <typename Decoder>
+template <typename ...Args>
+inline void Series<Decoder>::run(Args &&...args) const
+{
+  m_store->run(m_shard, ZuFwd<Args>(args)...);
+}
+template <typename Decoder>
+template <typename ...Args>
+inline void Series<Decoder>::invoke(Args &&...args) const
+{
+  m_store->invoke(m_shard, ZuFwd<Args>(args)...);
+}
+template <typename Decoder>
+inline bool Series<Decoder>::invoked() const
+{
+  return m_store->invoked(m_shard);
+}
+
+template <typename Decoder>
+ZdbTable<DB::BlkData> *Series<Decoder>::blkDataTbl() const
+{
+  return m_store->blkDataTbl();
+}
+template <typename Decoder>
+auto Series<Decoder>::seriesTbl() const ->
+ZuIf<Fixed, ZdbTable<DB::SeriesFixed> *, ZdbTable<DB::SeriesFloat> *>
+{
+  if constexpr (Fixed)
+    return m_store->seriesFixedTbl();
+  else
+    return m_store->seriesFloatTbl();
+}
+template <typename Decoder>
+auto Series<Decoder>::blkHdrTbl() const ->
+ZuIf<Fixed, ZdbTable<DB::BlkHdrFixed> *, ZdbTable<DB::BlkHdrFloat> *>
+{
+  if constexpr (Fixed)
+    return m_store->blkFixedTbl();
+  else
+    return m_store->blkFloatTbl();
+}
+
 } // namespace Zdf
 
-#endif /* ZdfDB_HH */
+#endif /* ZdfStore_HH */

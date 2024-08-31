@@ -16,9 +16,10 @@
 #include <zlib/Zfb.hh>
 #include <zlib/ZfbField.hh>
 
-#include <Zdb.hh>
+#include <zlib/Zdb.hh>
 
-#include <zlib/zdf_dataframe_fbs.h>
+#include <zlib/ZdfTypes.hh>
+
 #include <zlib/zdf_series_fbs.h>
 #include <zlib/zdf_blk_fbs.h>
 
@@ -27,12 +28,12 @@ namespace Zdf::DB {
 struct SeriesFixed {
   SeriesID	id;		// 1-based
   ZtString	name;
-  Fixed		first;		// first value in series
+  Fixed0	first;		// first value in series
   ZuDateTime	epoch;		// time when series was created
   BlkOffset	blkOffset;	// first block
   NDP		ndp;		// NDP of first value in series
 };
-ZfbFields(SeriesFixed,
+ZfbFieldTbl(SeriesFixed,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
   (((name),	(Ctor<1>, Keys<1>)),			(String)),
   (((first),	(Ctor<2>, Mutable)),			(Int64)),
@@ -43,26 +44,26 @@ ZfbFields(SeriesFixed,
 struct SeriesFloat {
   SeriesID	id;		// 1-based
   ZtString	name;
-  double	first;		// first value in series
+  Float0	first;		// first value in series
   ZuDateTime	epoch;		// intentionally denormalized
   BlkOffset	blkOffset;	// first block
 };
-ZfbFields(SeriesFloat,
+ZfbFieldTbl(SeriesFloat,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
   (((name),	(Ctor<1>, Keys<1>)),			(String)),
   (((first),	(Ctor<2>, Mutable)),			(Float)),
   (((epoch),	(Ctor<3>)),				(DateTime)),
   (((blkOffset),(Ctor<4>, Mutable)),			(UInt64)));
 
-struct BlkHdrFixed {
+struct BlkFixed {
   BlkOffset	blkOffset;
   Offset	offset;
-  Fixed		last;
+  Fixed0	last;
   SeriesID	seriesID;
   BlkCount	count;
   NDP		ndp;
 };
-ZfbFields(BlkHdrFixed,
+ZfbFieldTbl(BlkFixed,
   (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
   (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
   (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
@@ -70,21 +71,19 @@ ZfbFields(BlkHdrFixed,
   (((count),	(Ctor<4>, Mutable)),				(UInt16)),
   (((ndp),	(Ctor<5>, Mutable)),				(UInt8)));
 
-struct BlkHdrFloat {
+struct BlkFloat {
   BlkOffset	blkOffset;
   Offset	offset;
-  double	last;
+  Float0	last;
   SeriesID	seriesID;
   BlkCount	count;
 };
-ZfbFields(BlkHdrFloat,
+ZfbFieldTbl(BlkFloat,
   (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
   (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
   (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
   (((last),	(Ctor<2>, Mutable)),				(Float)),
   (((count),	(Ctor<4>, Mutable)),				(UInt16)));
-
-enum { BlkSize = 4096 };
 
 using BlkDataBuf = ZuArrayN<uint8_t, BlkSize>;
 
@@ -93,7 +92,7 @@ struct BlkData {
   SeriesID		seriesID;
   BlkDataBuf		buf;
 };
-ZfbFields(BlkData,
+ZfbFieldTbl(BlkData,
   (((seriesID),	(Ctor<1>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
   (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt32)),
   (((buf),	(Mutable)),					(Bytes)));
