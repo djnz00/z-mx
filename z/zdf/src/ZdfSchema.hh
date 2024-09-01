@@ -20,8 +20,11 @@
 
 #include <zlib/ZdfTypes.hh>
 
-#include <zlib/zdf_series_fbs.h>
-#include <zlib/zdf_blk_fbs.h>
+#include <zlib/zdf_series_fixed_fbs.h>
+#include <zlib/zdf_series_float_fbs.h>
+#include <zlib/zdf_blk_fixed_fbs.h>
+#include <zlib/zdf_blk_float_fbs.h>
+#include <zlib/zdf_blk_data_fbs.h>
 
 namespace Zdf::DB {
 
@@ -40,6 +43,7 @@ ZfbFieldTbl(SeriesFixed,
   (((ndp),	(Ctor<5>, Mutable)),			(UInt8)),
   (((epoch),	(Ctor<3>)),				(DateTime)),
   (((blkOffset),(Ctor<4>, Mutable)),			(UInt64)));
+ZfbRoot(SeriesFixed);
 
 struct SeriesFloat {
   SeriesID	id;		// 1-based
@@ -54,6 +58,7 @@ ZfbFieldTbl(SeriesFloat,
   (((first),	(Ctor<2>, Mutable)),			(Float)),
   (((epoch),	(Ctor<3>)),				(DateTime)),
   (((blkOffset),(Ctor<4>, Mutable)),			(UInt64)));
+ZfbRoot(SeriesFloat);
 
 struct BlkFixed {
   BlkOffset	blkOffset;
@@ -70,6 +75,7 @@ ZfbFieldTbl(BlkFixed,
   (((last),	(Ctor<2>, Mutable)),				(Int64)),
   (((count),	(Ctor<4>, Mutable)),				(UInt16)),
   (((ndp),	(Ctor<5>, Mutable)),				(UInt8)));
+ZfbRoot(BlkFixed);
 
 struct BlkFloat {
   BlkOffset	blkOffset;
@@ -84,6 +90,7 @@ ZfbFieldTbl(BlkFloat,
   (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
   (((last),	(Ctor<2>, Mutable)),				(Float)),
   (((count),	(Ctor<4>, Mutable)),				(UInt16)));
+ZfbRoot(BlkFloat);
 
 using BlkDataBuf = ZuArrayN<uint8_t, BlkSize>;
 
@@ -94,8 +101,9 @@ struct BlkData {
 };
 ZfbFieldTbl(BlkData,
   (((seriesID),	(Ctor<1>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt32)),
+  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
   (((buf),	(Mutable)),					(Bytes)));
+ZfbRoot(BlkData);
 
 } // Zdf::DB
 

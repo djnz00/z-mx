@@ -31,6 +31,8 @@
 #include <zlib/ZuIntrin.hh>
 #include <zlib/ZuBitStream.hh>
 
+#include <zlib/ZmAssert.hh>
+
 namespace Zdf {
 
 class Decoder {

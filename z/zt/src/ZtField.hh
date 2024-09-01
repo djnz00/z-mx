@@ -2154,8 +2154,8 @@ ZtVFieldType *ZtFieldType_Float<T, Props>::mtype() {
 template <typename T>
 struct ZtField_Float_Def {
   static constexpr auto deflt() { return ZuCmp<T>::null(); }
-  static constexpr auto minimum() { return -ZuFP<T>::inf(); }
-  static constexpr auto maximum() { return ZuFP<T>::inf(); }
+  static constexpr auto minimum() { return T{-ZuFP<ZuUnder<T>>::inf()}; }
+  static constexpr auto maximum() { return T{ZuFP<ZuUnder<T>>::inf()}; }
 };
 template <
   typename Base,
