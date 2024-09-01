@@ -51,10 +51,10 @@ void test() {
       }
       std::cout
 	<< ZmDemangle{typeid(Encoder).name()}
-	<< " +ve: " << pw.count() << ' ' << (pw.pos() - p) << '\n';
+	<< " +ve: " << pw.offset() << ' ' << (pw.pos() - p) << '\n';
       std::cout
 	<< ZmDemangle{typeid(Encoder).name()}
-	<< " -ve: " << nw.count() << ' ' << (nw.pos() - n) << '\n';
+	<< " -ve: " << nw.offset() << ' ' << (nw.pos() - n) << '\n';
     }
     {
       Decoder pr{p, p + 4096};

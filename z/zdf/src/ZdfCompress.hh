@@ -438,13 +438,14 @@ private:
   int64_t		m_base = 0;
 };
 
-template <typename Base>
-class Encoder<DeltaDecoder<Base>> : public Base {
+template <typename Base_>
+class Encoder<DeltaDecoder<Base_>> : public Encoder<Base_> {
   Encoder(const Encoder &) = delete;
   Encoder &operator =(const Encoder &) = delete;
 
 public:
-  using Decoder = DeltaDecoder<Base>;
+  using Base = Encoder<Base_>;
+  using Decoder = DeltaDecoder<Base_>;
 
   Encoder(uint8_t *start, uint8_t *end) : Base{start, end} { }
 
