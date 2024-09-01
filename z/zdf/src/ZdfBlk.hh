@@ -25,12 +25,12 @@ class BlkData : public ZdbObject<DB::BlkData> {
 public:
   using EvictFn = ZmFn<void(BlkData *)>;
 
-  BlkData(EvictFn evictFn, ZdbTable<DB::BlkData> *tbl) :
-    ZdbObject<DB::BlkData>{tbl}, m_evictFn{ZuMv(evictFn)} { }
+  BlkData(EvictFn evictFn, ZdbTable<DB::BlkData> *tbl, Shard shard) :
+    ZdbObject<DB::BlkData>{tbl, shard}, m_evictFn{ZuMv(evictFn)} { }
 
   void evict() {
     auto fn = ZuMv(m_evictFn);
-    fn();
+    fn(this);
     ZdbAnyObject::evict();
   }
 

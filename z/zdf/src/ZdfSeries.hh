@@ -39,16 +39,17 @@ template <typename> class Series;
 
 namespace ReaderState {
   ZtEnumValues(ReaderState, int8_t,
-    Stopped		= 0,	// seek / find completed
-    Loading		= 1,	// read called, loading block data
-    Reading		= 2,	// reading historical data
-    Live		= 3,	// reading, waiting for live data
-    Stopping		= 4);	// stopping while reading
+    Stopped	= 0,	// seek / find completed
+    Loading	= 1,	// read called, loading block data
+    Reading	= 2,	// reading historical data
+    Live	= 3,	// reading, waiting for live data
+    Stopping	= 4);	// stopping while reading
 
   constexpr const bool stopped(T v) { return v == Stopped; }
   constexpr const bool reading(T v) { return v >= Loading; }
   constexpr const bool live(T v) { return v == Live; }
 }
+
 // from an application perspective a reader is either stopped() or
 // reading(); internally there are additional transient states
 // (Loading, Stopping), and a further distinction is made between
@@ -163,10 +164,12 @@ public:
 private:
   bool init(BlkOffset, Blk *, Target);
 
+  enum { OK = 0, Load, EOS, Stopped, Failed };
+
   void loadBlk();
   void loaded(Blk *blk);
-  bool nextBlk();
-  bool nextValue();
+  int nextBlk();		// OK|Load|EOS|Stopped|Failed
+  int nextValue();		// ''
 
   void stopped();
 
@@ -390,7 +393,15 @@ using ID = uint32_t;
 
 private:
   Series(Store *store, ZdbObjRef<DBSeries> dbSeries) :
-    m_store{store}, m_dbSeries{ZuMv(dbSeries)}  { m_dbSeries->pin(); }
+    m_store{store}, m_dbSeries{ZuMv(dbSeries)}
+  {
+    m_dbSeries->pin();
+    // these are immutable and frequently accessed, so cache them
+    m_shard = m_dbSeries->shard();
+    m_id = m_dbSeries->data().id;
+    m_name = m_dbSeries->data().name;
+    m_epoch = m_dbSeries->data().epoch;
+  }
 
 public:
   ~Series() { m_dbSeries->unpin(); }
@@ -398,8 +409,24 @@ public:
   Store *store() const { return m_store; }
   bool opened() const { return m_opened; }
   ZdbObject<DBSeries> *dbSeries() const { return m_dbSeries; }
-  unsigned shard() const { return m_dbSeries->shard(); }
-  ID id() const { return m_dbSeries->data().id; }
+  unsigned shard() const { return m_shard; }
+  SeriesID id() const { return m_id; }
+  ZuString name() const { return m_name; }
+  ZuTime epoch() const { return m_epoch; }
+
+  // time relative to epoch (creation time of series)
+private:
+  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
+public:
+  ZuFixed nsecs(ZuTime t) {
+    t -= m_epoch;
+    return ZuFixed{static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9};
+  }
+  ZuTime time(ZuFixed v) {
+    auto n = v.adjust(9);
+    auto p = pow10_9();
+    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
+  }
 
   // run/invoke on shard
   template <typename ...Args> void run(Args &&...args) const;
@@ -568,7 +595,7 @@ private:
     return new BlkData{
       BlkData::EvictFn{this, [](auto *this_, BlkData *blkData) {
 	this_->unloadBlkData(blkData);
-      }}, tbl};
+      }}, tbl, m_shard};
   }
 
 public:
@@ -720,9 +747,11 @@ private:
   void write_notify() {
     auto i = m_liveReaders.iterator();
     while (auto reader = i.iterate())
-      if (!reader->nextValue()) {
-	m_histReaders.pushNode(reader);
-	i.del();
+      switch (reader->nextValue()) {
+	case Reader::Stopped:
+	case Reader::Failed:
+	  m_histReaders.pushNode(reader);
+	  i.del();
       }
   }
   // called from Writer_::write
@@ -907,6 +936,10 @@ private:
 private:
   Store			*m_store = nullptr;
   ZdbObjRef<DBSeries>	m_dbSeries;
+  Shard			m_shard;
+  SeriesID		m_id;
+  ZuString		m_name;
+  ZuTime		m_epoch;
   Index			m_index;
   Blk			*m_lastBlk = nullptr;
   BlkOffset		m_lastBlkOffset = 0;
@@ -1170,9 +1203,7 @@ inline void Reader_<Decoder>::loaded(Blk *blk)
     m_target = {};
   }
 
-  // nextValue() return is ignored - unlike write_notify(), this caller
-  // doesn't care whether the reader hit EOS
-  nextValue();
+  nextValue(); // ignored
   return;
 
 fail:
@@ -1180,28 +1211,25 @@ fail:
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::nextBlk()
+inline int Reader_<Decoder>::nextBlk()
 {
   using namespace ReaderState;
 
-  // FIXME
-  // - need to distinguish failure from pending loadBlk()
-  // - and how does the loadBlk() continue?
-  if (ZuUnlikely(m_failed)) return false;
+  if (ZuUnlikely(m_failed)) return Failed;
 
   switch (m_state) {
     case Stopping:
-      return;
+      return Stopped;
     case Reading:
     case Live:
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return false);
+	(state = int(m_state)), "invalid state " << state, return Failed);
   }
 
-  ZeAssert(m_blk, (), "null blk", return false);
-  ZeAssert(m_blk->blkData, (), "null blkData", return false);
+  ZeAssert(m_blk, (), "null blk", return Failed);
+  ZeAssert(m_blk->blkData, (), "null blkData", return Failed);
 
   if (m_series->lastBlk(m_blk)) {
     if (m_state == Reading) {
@@ -1209,7 +1237,7 @@ inline bool Reader_<Decoder>::nextBlk()
       m_series->delHistReader(this);
       m_series->addLiveReader(this);
     }
-    return false;
+    return EOS;
   }
   m_decoder = {};
   m_blk->blkData->unpin();
@@ -1217,20 +1245,20 @@ inline bool Reader_<Decoder>::nextBlk()
   if (ZuLikely(m_blk->blkData)) {
     m_blk->blkData->pin();
     m_decoder = m_blk->decoder<Decoder>();
-    return true;
+    return OK;
   }
   m_series->run([this_ = ZmMkRef(this)]() mutable {
     this_->loadBlk();
   });
-  return false;
+  return Load;
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::nextValue()
+inline int Reader_<Decoder>::nextValue()
 {
   using namespace ReaderState;
 
-  if (ZuUnlikely(m_failed)) return false;
+  if (ZuUnlikely(m_failed)) return Failed;
 
   switch (m_state) {
     case Stopping: // handled below
@@ -1249,12 +1277,12 @@ inline bool Reader_<Decoder>::nextValue()
   bool cont = true;
 
   do {
-    if (m_state == Stopping) return false;
+    if (m_state == Stopping) return Stopped;
 
-    Decoder::Value value;
+    typename Decoder::Value value;
     if (ZuUnlikely(!m_decoder.read(value))) {
-      // FIXME - nextBlk() might fail instead of deferring a loadBlk()
-      if (!nextBlk()) return true;	// hit EOS, went live if not already
+      int r = nextBlk();
+      if (r != OK) return r;
       continue;
     }
 
@@ -1266,11 +1294,12 @@ inline bool Reader_<Decoder>::nextValue()
 
 stop:
   stop({});
-  return false;
+  return Stopped;
 
 fail:
   this->fail();
-  goto stop;
+  stop({});
+  return Failed;
 }
 
 template <typename Decoder>
@@ -1333,8 +1362,8 @@ inline bool Writer_<Decoder, Heap, double>::write(Value value)
   return m_series->write(this, value);
 }
 
-template <typename Decoder, typename Heap>
-inline void Writer_<Decoder, Heap>::stop()
+template <typename Decoder, typename Heap, typename Value_>
+inline void Writer_<Decoder, Heap, Value_>::stop()
 {
   if (auto series = m_series) {
     m_series = nullptr;

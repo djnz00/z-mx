@@ -16,7 +16,7 @@
 // ...
 // AnyReader index, reader;
 // ...
-// df.find(index, 0, df.nsecs(time));	// index time to offset
+// df.find(index, 0, df.nsecs(time));	// index time to offset // FIXME
 // df.seek(reader, N, index.offset());	// seek reader to offset
 // ...
 // ZuFixed nsecs, value;
@@ -43,12 +43,6 @@
 
 namespace Zdf {
 
-// DB state
-namespace DBState {
-  ZtEnumValues(DBState, int,
-    Uninitialized = 0, Initialized, Opening, Opened, OpenFailed);
-}
-
 // wrapper for type together with time index flag
 template <typename O_, bool TimeIndex_>
 struct WrapType {
@@ -63,7 +57,7 @@ struct TimeField_ {
   using O = O_;
   using T = ZuTime;
   using Props = ZuTypeList<
-    ZuFieldProp::NDP<9>
+    ZuFieldProp::NDP<9>,
     ZuFieldProp::Synthetic,
     ZuFieldProp::Series>;
   enum { ReadOnly = 1 };
@@ -71,12 +65,12 @@ struct TimeField_ {
   ZuTime get(const O &) { return Zm::now(); }
   template <typename P> static void set(O &, P &&) { }
 };
-template <typename O_>
+template <typename O>
 using TimeField = ZtField_Time<TimeField_<O>>;
 
 // Zdf data-frames are comprised of series fields
 template <typename Field>
-using FieldFilter = ZuTypeIn<ZtFieldProp::Series, typename Field::Props>;
+using FieldFilter = ZuTypeIn<ZuFieldProp::Series, typename Field::Props>;
 template <typename O, bool TimeIndex>
 struct Fields_ {
   using T = ZuTypeGrep<FieldFilter, ZuFields<O>>;
@@ -84,7 +78,7 @@ struct Fields_ {
 // if the data-frame is time-indexed, unshift a TimeField onto the field list
 template <typename O>
 struct Fields_<O, true> {
-  using T = Fields_<O, false>::typename T::template Unshift<TimeField<O>>;
+  using T = Fields_<O, false>::T::template Unshift<TimeField<O>>;
 };
 template <typename W>
 using Fields = typename Fields_<typename W::O, W::TimeIndex>::T;
@@ -93,8 +87,8 @@ using Fields = typename Fields_<typename W::O, W::TimeIndex>::T;
 template <typename Field, typename Props = typename Field::Props>
 using FieldDecoderFlags_ = ZuUnsigned<
   ((Field::Type::Code == ZtFieldTypeCode::Float) ? 4 : 0) |
-  (ZuTypeIn<ZtFieldProp::Delta2, Props>{} ? 2 : 0) |
-  (ZuTypeIn<ZtFieldProp::Delta, Props>{} ? 1 : 0)>;
+  (ZuTypeIn<ZuFieldProp::Delta2, Props>{} ? 2 : 0) |
+  (ZuTypeIn<ZuFieldProp::Delta, Props>{} ? 1 : 0)>;
 template <typename Field, unsigned = FieldDecoderFlags_<Field>{}>
 struct FieldDecoder_;
 template <typename Field>
@@ -109,8 +103,8 @@ template <typename Field>
 using FieldDecoder = typename FieldDecoder_<Field>::T;
 
 // map a field to corresponding Series, RdRef, WrRef
-template <typename Field>
-using FieldSeriesRef = ZmRef<Series<FieldDecoder<Field>>>;
+template <typename Field> using FieldSeries = Series<FieldDecoder<Field>>;
+template <typename Field> using FieldSeriesRef = ZmRef<FieldSeries<Field>>;
 template <typename Field> using FieldRdRef = RdRef<FieldDecoder<Field>>;
 template <typename Field> using FieldWrRef = WrRef<FieldDecoder<Field>>;
 
@@ -125,7 +119,6 @@ template <typename O, bool TimeIndex> class DataFrame;
 // data frame writer
 template <typename W>
 class DFWriter {
-  DFWriter() = delete;
   DFWriter(const DFWriter &) = delete;
   DFWriter &operator =(const DFWriter &) = delete;
 
@@ -169,24 +162,25 @@ public:
 	  Field::Code == Int32 ||
 	  Field::Code == UInt32 ||
 	  Field::Code == Int64 ||
-	  Field::Code == UInt64 ||
-	  Field::Code == UInt ||
-	  Field::Code == Enum)
+	  Field::Code == UInt64)
 	m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), 0});
       else if constexpr (Field::Code == Decimal)
 	m_wrRefs.template p<I>()->write(
-	  ZuFixed{Field::get(o), ZuFieldProp::GetNDP<Field::Props>{}});
+	  ZuFixed{Field::get(o), ZuFieldProp::GetNDP<typename Field::Props>{}});
       else if constexpr (Field::Code == Time)
 	m_wrRefs.template p<I>()->write(
-	  ZuFixed{m_df->nsecs(Field::get(o)), 9});
+	  m_df->template series<I>()->nsecs(Field::get(o)));
     });
   }
 
+  using StopFn = ZmFn<void()>;
+private:
   struct StopContext : public ZmObject {
     StopFn		fn;
 
     ~StopContext() { fn(); }
   };
+public:
   void stop(StopFn fn) {
     ZmRef<StopContext> context = new StopContext{ZuMv(fn)};
     ZuUnroll::all<WrRefs::N>([this, &context](auto I) {
@@ -204,6 +198,8 @@ private:
   WrRefs		m_wrRefs;
 };
 
+class Store;
+
 template <typename O_, bool TimeIndex_ = false>
 class DataFrame : public ZmObject {
 public:
@@ -215,22 +211,23 @@ public:
   using DFWriter = Zdf::DFWriter<W>;
 
 private:
-  friend DB;
+  friend Store;
 
   using Fields = Zdf::Fields<W>;
   using SeriesRefs = Zdf::SeriesRefs<W>;
   using WrRefs = WrRefTuple<W>;
 
-  DataFrame(DB *db, Shard shard, ZtString name, SeriesRefs seriesRefs) :
-    m_db{db}, m_shard{shard}, m_name{ZuMv(name)},
-    m_seriesRefs{ZuMv(seriesRefs)} { }
+  DataFrame(Shard shard, ZtString name, SeriesRefs seriesRefs) :
+    m_shard{shard}, m_name{ZuMv(name)}, m_seriesRefs{ZuMv(seriesRefs)} { }
 
 public:
   ~DataFrame() = default;
 
-  DB *db() const { return m_db; }
   Shard shard() const { return m_shard; }
   const ZtString &name() const { return m_name; }
+
+  template <unsigned I>
+  auto series() const { return m_seriesRefs.template p<I>(); }
 
   void write(ZmFn<void(DFWriter)> fn) {
     ZuLambda{[
@@ -241,7 +238,7 @@ public:
 	wrRefs.template p<I>() = ZuMv(wrRef);
       }
       enum { J = I + 1 };
-      if constexpr (J >= Series::N) {
+      if constexpr (J >= SeriesRefs::N) {
 	fn(DFWriter{this, ZuMv(wrRefs)});
       } else {
 	using Field = ZuType<I, Fields>;
@@ -249,46 +246,28 @@ public:
 	auto next = [self = ZuMv(self)](auto wrRef) mutable {
 	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(wrRef));
 	};
-	if constexpr (Field::Code == Float)
+	if constexpr (Field::Code == ZtFieldTypeCode::Float)
 	  seriesRefs->template p<I>()->write(ZuMv(next));
 	else
 	  seriesRefs->template p<I>()->write(
-	    ZuMv(next), ZuFieldProp::GetNDP<Field::Props>{});
+	    ZuMv(next), ZuFieldProp::GetNDP<typename Field::Props>{});
       }
     }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
 public:
   template <typename Field>
-  RdRef seek(Offset offset = 0) {
+  auto seek(Offset offset = 0) {
     using I = ZuTypeIndex<Field, Fields>;
-    m_series.template p<I{}>()->
-    auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtVFieldProp::Delta;
-    r.seek(m_series[i], props, offset);
+    return m_seriesRefs.template p<I{}>()->seek(offset);
   }
   template <typename Field, typename Value>
-  void find(Value value) {
-    auto field = m_fields[i];
-    unsigned props = field ? field->props : ZtVFieldProp::Delta;
-    r.find(m_series[i], props, value);
+  auto find(typename FieldSeries<Field>::Value value) {
+    using I = ZuTypeIndex<Field, Fields>;
+    return m_seriesRefs.template p<I{}>()->find(value);
   }
 
 private:
-  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
-public:
-  ZuFixed nsecs(ZuTime t) {
-    t -= m_epoch;
-    return ZuFixed{static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9};
-  }
-  ZuTime time(const ZuFixed &v) {
-    ZuFixedVal n = v.adjust(9);
-    uint64_t p = pow10_9();
-    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
-  }
-
-private:
-  DB		*m_db;
   Shard		m_shard;
   ZtString	m_name;
   SeriesRefs	m_seriesRefs;

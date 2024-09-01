@@ -21,6 +21,7 @@
 #include <zlib/ZdfSchema.hh>
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
+#include <zlib/Zdf.hh>
 
 namespace Zdf {
 
@@ -77,8 +78,8 @@ public:
 	seriesRefs.template p<I>() = ZuMv(series);
       }
       enum { J = I + 1 };
-      if constexpr (J >= Series::N) {
-	fn(DFRef{new DataFrame{this, shard, ZuMv(name), ZuMv(seriesRefs)}});
+      if constexpr (J >= SeriesRefs::N) {
+	fn(DFRef{new DataFrame{shard, ZuMv(name), ZuMv(seriesRefs)}});
       } else {
 	using Field = ZuType<I, Fields>;
 	using Decoder = FieldDecoder<Field>;
@@ -96,7 +97,7 @@ public:
   template <typename Decoder, bool Create>
   void openSeries(
     Shard shard, ZtString name,
-    ZmFn<void(ZmRef<Series<Decoder>>)>)
+    ZmFn<void(ZmRef<Series<Decoder>>)> fn)
   {
     using Series = Zdf::Series<Decoder>;
     using DBSeries = typename Series::DBSeries;
@@ -128,7 +129,9 @@ public:
 	  .epoch = Zm::now(),
 	  .blkOffset = 0
 	};
-	auto insertFn = [fn = ZuMv(fn)](ZdbObjRef<DBSeries> dbSeries) mutable {
+	auto insertFn = [
+	  this, fn = ZuMv(fn)
+	](ZdbObjRef<DBSeries> dbSeries) mutable {
 	  if (!dbSeries) { fn(nullptr); return; }
 	  dbSeries->commit();
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
@@ -137,7 +140,7 @@ public:
 	seriesTbl()->insert(dbSeries, ZuMv(insertFn));
       };
       auto key = ZuMvTuple(ZuString{name});
-      seriesTbl()->find<1>(shard, key, ZuMv(findFn));
+      seriesTbl()->template find<1>(shard, key, ZuMv(findFn));
     });
   }
 
@@ -148,7 +151,13 @@ public:
   ZdbTable<DB::BlkData> *blkDataTbl() const { return m_blkDataTbl; }
 
 private:
-  DBState::T			m_state = DBState::Uninitialized;
+  void open_recoverNextSeriesID_Fixed();
+  void open_recoverNextSeriesID_Float();
+  void opened(bool ok);
+
+private:
+  ZiMultiplex			*m_mx = nullptr;
+  StoreState::T			m_state = StoreState::Uninitialized;
   ZdbTblRef<DB::SeriesFixed>	m_seriesFixedTbl;
   ZdbTblRef<DB::SeriesFloat>	m_seriesFloatTbl;
   ZdbTblRef<DB::BlkFixed>	m_blkFixedTbl;
@@ -156,6 +165,7 @@ private:
   ZdbTblRef<DB::BlkData>	m_blkDataTbl;
   ZdbTableCf::SIDArray		m_sid;
   ZmAtomic<uint32_t>		m_nextSeriesID = 1;
+  OpenFn			m_openFn;
 };
 
 template <typename Decoder>
@@ -191,8 +201,8 @@ ZuIf<Fixed, ZdbTable<DB::SeriesFixed> *, ZdbTable<DB::SeriesFloat> *>
     return m_store->seriesFloatTbl();
 }
 template <typename Decoder>
-auto Series<Decoder>::blkHdrTbl() const ->
-ZuIf<Fixed, ZdbTable<DB::BlkHdrFixed> *, ZdbTable<DB::BlkHdrFloat> *>
+auto Series<Decoder>::blkTbl() const ->
+ZuIf<Fixed, ZdbTable<DB::BlkFixed> *, ZdbTable<DB::BlkFloat> *>
 {
   if constexpr (Fixed)
     return m_store->blkFixedTbl();
