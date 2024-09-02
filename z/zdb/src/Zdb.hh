@@ -188,7 +188,7 @@ using Cxn = CxnList::Node;
 
 // --- DB state - SN and key/value linear hash from {table ID, shard} -> UN
 
-using DBState_ = ZmLHashKV<ZuTuple<ZuID, Shard>, UN, ZmLHashLocal<>>;
+using DBState_ = ZmLHashKV<ZuTuple<ZuString, Shard>, UN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   SN		sn = 0;
 
@@ -201,31 +201,31 @@ struct DBState : public DBState_ {
       sn{Zfb::Load::uint128(dbState->sn())} {
     Zfb::Load::all(dbState->tableStates(),
 	[this](unsigned, const fbs::TableState *tableState) {
-	  add(Zfb::Load::id(&(tableState->table())), tableState->un());
+	  add(Zfb::Load::str(tableState->table()), tableState->un());
 	});
   }
   void load(const fbs::DBState *dbState) {
     sn = Zfb::Load::uint128(dbState->sn());
     Zfb::Load::all(dbState->tableStates(),
 	[this](unsigned, const fbs::TableState *tableState) {
-	  update(Zfb::Load::id(&(tableState->table())), tableState->un());
+	  update(Zfb::Load::str(tableState->table()), tableState->un());
 	});
   }
   Zfb::Offset<fbs::DBState> save(Zfb::Builder &fbb) const {
     auto sn_ = Zfb::Save::uint128(sn);
     auto i = readIterator();
     return fbs::CreateDBState(
-      fbb, &sn_, Zfb::Save::structVecIter<fbs::TableState>(
+      fbb, &sn_, Zfb::Save::vectorIter<fbs::TableState>(
 	fbb, i.count(),
-	[&i](fbs::TableState *ptr, unsigned) {
+	[&i](Zfb::Builder &fbb, unsigned) {
 	  if (auto state = i.iterate())
-	    new (ptr)
-	      fbs::TableState{
-		Zfb::Save::id(state->template p<0>().template p<0>()),
-		state->template p<1>(),
-		state->template p<0>().template p<1>()};
+	    return fbs::CreateTableState(
+	      fbb,
+	      Zfb::Save::str(fbb, state->template p<0>().template p<0>()),
+	      state->template p<1>(),
+	      state->template p<0>().template p<1>());
 	  else
-	    new (ptr) fbs::TableState{}; // unused
+	    return Zfb::Offset<fbs::TableState>{};
 	}));
   }
 
@@ -241,7 +241,7 @@ struct DBState : public DBState_ {
     }
     return false;
   }
-  bool update(ZuTuple<ZuID, Shard> key, UN un_) {
+  bool update(ZuTuple<ZuString, Shard> key, UN un_) {
     auto state = find(key);
     if (!state) {
       add(key, un_);
@@ -515,7 +515,7 @@ struct TableCf {
   // nShards must be <= 64
   // nShards is immutable for the table, i.e. is an upper concurrency limit
 
-  ZuID			id;
+  ZtString		id;
   unsigned		nShards = 1;	// #shards
   ThreadArray		thread;		// threads
   mutable SIDArray	sid = 0;	// thread slot IDs
@@ -555,7 +555,7 @@ struct TableCf {
 	"cacheMode", CacheMode::Normal);
   }
 
-  static ZuID IDAxor(const TableCf &cf) { return cf.id; }
+  static ZuString IDAxor(const TableCf &cf) { return cf.id; }
 };
 
 // --- table configuration
@@ -594,9 +594,9 @@ public:
   const TableCf &config() const { return *m_cf; }
   IOBufAllocFn bufAllocFn() const { return m_bufAllocFn; }
 
-  static ZuID IDAxor(AnyTable *table) { return table->config().id; }
+  static ZuString IDAxor(AnyTable *table) { return table->config().id; }
 
-  ZuID id() const { return config().id; }
+  ZuString id() const { return config().id; }
   auto sid(Shard shard) const {
     const auto &config = this->config();
     return config.sid[shard & (config.sid.length() - 1)];
@@ -1481,8 +1481,8 @@ struct HostCf {
   ZtString	up;
   ZtString	down;
 
-  HostCf(const ZtString &id_) : id{id_}, standalone{true} { }
-  HostCf(const ZtString &id_, const ZvCf *cf) : id{id_} {
+  HostCf(ZuID id_) : id{id_}, standalone{true} { }
+  HostCf(ZuID id_, const ZvCf *cf) : id{id_} {
     if (!(standalone = cf->getBool("standalone", false))) {
       priority = cf->getInt<true>("priority", 0, 1<<30);
       ip = cf->get<true>("ip");
@@ -1727,15 +1727,16 @@ public:
   void final();
 
   template <typename T>
-  ZmRef<Table<T>> initTable(ZuID id) {
-    return initTable_(id,
+  ZmRef<Table<T>> initTable(ZtString id) {
+    return initTable_(ZuMv(id),
       [](DB *db, TableCf *tableCf) mutable {
 	return static_cast<AnyTable *>(new Table<T>{db, tableCf});
       });
   }
 
 private:
-  ZmRef<AnyTable> initTable_(ZuID, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn);
+  ZmRef<AnyTable> initTable_(
+    ZtString, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn);
 
 public:
   template <typename ...Args>
@@ -1782,7 +1783,7 @@ public:
   void fail();
 
   // find table
-  ZmRef<AnyTable> table(ZuID id) {
+  ZmRef<AnyTable> table(ZuString id) {
     ZmAssert(invoked());
 
     return m_tables.findVal(id);
@@ -1874,7 +1875,7 @@ private:
   bool replicate(ZmRef<const IOBuf> buf);
 
   // inbound replication
-  void replicated(Host *host, ZuID tblID, Shard shard, UN un, SN sn);
+  void replicated(Host *host, ZuString tblID, Shard shard, UN un, SN sn);
 
   bool isStandalone() const { return m_standalone; }
 
@@ -2132,7 +2133,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 
 template <typename S>
 inline void DBState::print(S &s) const {
-  s << "{sn=" << ZuBoxed(sn) << " dbs={";
+  s << "{sn=" << ZuBoxed(sn) << " dbs=[";
   unsigned n = count_();
   if (ZuLikely(n)) {
     unsigned j = 0;
@@ -2140,18 +2141,19 @@ inline void DBState::print(S &s) const {
     while (auto state = i.iterate()) {
       if (j++) s << ',';
       s << '{'
-	<< state->template p<0>() << " "
+	<< state->template p<0>().template p<0>() << '.'
+	<< ZuBoxed(state->template p<0>().template p<1>()) << ','
 	<< ZuBoxed(state->template p<1>()) << '}';
     }
   }
-  s << "}}";
+  s << "]}";
 }
 
 struct Record_Print {
   const fbs::Record *record = nullptr;
   const AnyTable *table = nullptr;
   template <typename S> void print(S &s) const {
-    auto id = Zfb::Load::id(record->table());
+    auto id = Zfb::Load::str(record->table());
     auto data = Zfb::Load::bytes(record->data());
     s << "{db=" << id
       << " shard=" << ZuBoxed(record->shard())

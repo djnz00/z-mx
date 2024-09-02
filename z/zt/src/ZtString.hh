@@ -47,9 +47,8 @@
 #include <zlib/ZtArray.hh>
 #include <zlib/ZtIconv.hh>
 
-// built-in buffer size (before falling back to malloc())
-// Note: must be a multiple of sizeof(uintptr_t)
-#define ZtString_Builtin	(3 * sizeof(uintptr_t))
+// built-in buffer size (before falling back to ZmVHeap)
+#define ZtString_Builtin	24
 
 // buffer size increment for vsnprintf()
 #define ZtString_vsnprintf_Growth	256

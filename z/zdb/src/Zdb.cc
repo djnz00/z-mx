@@ -153,15 +153,15 @@ void DB::init(
 }
 
 ZmRef<AnyTable> DB::initTable_(
-  ZuID id, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn)
+  ZtString id, ZmFn<AnyTable *(DB *, TableCf *)> ctorFn)
 {
   ZmRef<AnyTable> table;
   if (!ZmEngine<DB>::lock(ZmEngineState::Stopped,
 	[this, &table, id, ctorFn = ZuMv(ctorFn)]() {
     if (state() != HostState::Initialized) return false;
-    auto cf = m_cf.tableCfs.find(id);
-    if (!cf) m_cf.tableCfs.addNode(cf = new TableCfs::Node{id});
     if (m_tables.findVal(id)) return false;
+    auto cf = m_cf.tableCfs.find(id);
+    if (!cf) m_cf.tableCfs.addNode(cf = new TableCfs::Node{ZuMv(id)});
     table = ctorFn(this, &(cf->val()));
     m_tables.add(table);
     return true;
@@ -1141,8 +1141,9 @@ ZmRef<const IOBuf> AnyTable::mkBuf(Shard shard, UN un)
     }
     ZmAssert(record->shard() == shard);
     auto msg = fbs::CreateMsg(fbb, fbs::Body::Recovery,
-	fbs::CreateRecord(fbb, record->table(), record->un(),
-	  record->sn(), record->vn(), shard, data).Union());
+	fbs::CreateRecord(
+	  fbb, Zfb::Save::str(fbb, Zfb::Load::str(record->table())),
+	  record->un(), record->sn(), record->vn(), shard, data).Union());
     fbb.Finish(msg);
     return saveHdr(fbb, this).constRef();
   }
@@ -1157,9 +1158,9 @@ void AnyTable::commitSend(Shard shard, UN un)
 {
   Zfb::IOBuilder fbb{allocBuf()};
   {
-    auto id = Zfb::Save::id(config().id);
+    auto id = Zfb::Save::str(fbb, config().id);
     auto msg = fbs::CreateMsg(
-      fbb, fbs::Body::Commit, fbs::CreateCommit(fbb, &id, un, shard).Union());
+      fbb, fbs::Body::Commit, fbs::CreateCommit(fbb, id, un, shard).Union());
     fbb.Finish(msg);
   }
   m_db->replicate(saveHdr(fbb, this).constRef());
@@ -1180,10 +1181,10 @@ ZmRef<const IOBuf> AnyObject::replicate(int type)
     return m_table->objSaveDel(fbb, ptr_());
   });
   {
-    auto id = Zfb::Save::id(m_table->config().id);
+    auto id = Zfb::Save::str(fbb, m_table->config().id);
     auto sn = Zfb::Save::uint128(m_sn);
     auto msg = fbs::CreateMsg(fbb, static_cast<fbs::Body>(type),
-	fbs::CreateRecord(fbb, &id, m_un, &sn, m_vn, m_shard, data).Union());
+	fbs::CreateRecord(fbb, id, m_un, &sn, m_vn, m_shard, data).Union());
     fbb.Finish(msg);
   }
   return saveHdr(fbb, m_table).constRef();
@@ -1430,7 +1431,7 @@ void Cxn_::repRecordRcvd(ZmRef<const IOBuf> buf)
   if (m_db->repStore()) return; // backing data store is replicated
   auto record = Zdb_::record(msg_(buf->hdr())); // caller verified msg
   if (!record) return;
-  auto id = Zfb::Load::id(record->table());
+  ZuString id = Zfb::Load::str(record->table());
   AnyTable *table = m_db->table(id);
   if (ZuUnlikely(!table)) return;
 
@@ -1441,7 +1442,7 @@ void Cxn_::repRecordRcvd(ZmRef<const IOBuf> buf)
   auto shard = record->shard();
 
   m_db->replicated(
-      m_host, id, shard, record->un(), Zfb::Load::uint128(record->sn()));
+    m_host, id, shard, record->un(), Zfb::Load::uint128(record->sn()));
   table->invoke(shard, [table, shard, buf = ZuMv(buf)]() mutable {
     table->repRecordRcvd(shard, ZuMv(buf));
   });
@@ -1454,7 +1455,7 @@ void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
 
   if (!m_host) return;
   auto commit = Zdb_::commit(msg_(buf->hdr())); // caller verified msg
-  auto id = Zfb::Load::id(commit->table());
+  auto id = Zfb::Load::str(commit->table());
   AnyTable *table = m_db->table(id);
   if (ZuUnlikely(!table)) return;
 
@@ -1467,7 +1468,7 @@ void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
   });
 }
 
-void DB::replicated(Host *host, ZuID tblID, Shard shard, UN un, SN sn)
+void DB::replicated(Host *host, ZuString tblID, Shard shard, UN un, SN sn)
 {
   ZmAssert(invoked());
 

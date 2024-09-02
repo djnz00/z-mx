@@ -100,11 +100,16 @@ private:
   ZmPolyCache() : m_size(0) { }
 public:
   ZmPolyCache(ZuString id) : m_hash{id} {
+    if constexpr (KeyIDs::N) {
+      ZmAssert(id.length() + 5 +
+	ZuBoxed(unsigned(ZuType<KeyIDs::N - 1, KeyIDs>{})).length() <
+	ZmIDStrSize);
+    }
     m_size = m_hash.size();
     auto params = ZmHashParams{id};
     ZuUnroll::all<KeyIDs>([this, &id, &params]<typename KeyID>() {
       ZmIDString loadHashID = id;
-      loadHashID << ".load." << unsigned(KeyID{});
+      loadHashID << ".ld." << unsigned(KeyID{});
       m_loadHashes.template p<KeyID{}>(
 	new ZuType<KeyID{}, LoadHashTL>{loadHashID, params});
     });

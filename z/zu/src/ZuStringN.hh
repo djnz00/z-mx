@@ -5,13 +5,14 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // fixed-size POD string/buffer for use in POD structs and passing by value
-//
-// * cached length (and constexpr size)
-// * always null-terminated
-// * explicitly contiguous
-// * provides direct read/write access to the buffer
-// * optimized for smaller sizes
-// * max 64k (by design)
+// - cached length (and constexpr size)
+// - always null-terminated
+// - explicitly contiguous
+// - provides direct read/write access to the buffer
+// - optimized for smaller sizes
+// - intentionally max 64k
+//   - questionable for anything much over 64 bytes unless
+//     just a temporary buffer on the stack
 
 #ifndef ZuStringN_HH
 #define ZuStringN_HH

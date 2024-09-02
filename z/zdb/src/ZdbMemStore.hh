@@ -1178,7 +1178,7 @@ public:
   using Store = Store__;
 
   StoreTbl(
-    Store *store, ZuID id, unsigned nShards,
+    Store *store, ZuString id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
@@ -1267,12 +1267,12 @@ private:
       return saveTuple(fbb, m_xFields, row->data);
     });
     {
-      auto id = Zfb::Save::id(this->id());
       auto sn = Zfb::Save::uint128(row->sn);
       auto msg = fbs::CreateMsg(
 	fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
 	fbs::CreateRecord(
-	  fbb, &id, row->un, &sn, row->vn, row->shard, data).Union());
+	  fbb, Zfb::Save::str(fbb, this->id()),
+	  row->un, &sn, row->vn, row->shard, data).Union());
       fbb.Finish(msg);
     }
     return saveHdr(fbb);
@@ -1304,7 +1304,7 @@ private:
 
 private:
   Store			*m_store;
-  ZuID			m_id;
+  ZuString		m_id;
   ZtVFieldArray		m_fields;
   ZtVKeyFieldArray	m_keyFields;
   XFields		m_xFields;
@@ -1323,7 +1323,7 @@ private:
 // --- in-memory data store
 
 template <typename StoreTbl_>
-inline ZuID StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
+inline ZuString StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
 template <typename StoreTbl_>
 using StoreTbls_ =
@@ -1379,7 +1379,7 @@ public:
   void preserve() { m_preserve = true; }
 
   void open(
-      ZuID id,
+      ZuString id,
       unsigned nShards,
       ZtVFieldArray fields,
       ZtVKeyFieldArray keyFields,

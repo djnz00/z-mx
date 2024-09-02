@@ -1738,7 +1738,7 @@ friend Store;
 
 public:
   StoreTbl(
-    Store *store, ZuID id, unsigned nShards,
+    Store *store, ZuString id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
@@ -1860,7 +1860,7 @@ private:
   using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
 
   Store			*m_store = nullptr;
-  ZuID			m_id;
+  ZuString		m_id;
   ZtString		m_id_;		// snake case
   ZtVFieldArray		m_fields;	// all fields
   UpdFields		m_updFields;	// update fields
@@ -1882,7 +1882,9 @@ private:
 
 // --- PostgreSQL data store
 
-inline ZuID StoreTbl_IDAxor(const StoreTbl &storeTbl) { return storeTbl.id(); }
+inline ZuString StoreTbl_IDAxor(const StoreTbl &storeTbl) {
+  return storeTbl.id();
+}
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
 using StoreTbls =
   ZmHash<StoreTbl,
@@ -1900,7 +1902,7 @@ public:
   void stop(StopFn);
 
   void open(
-    ZuID id,
+    ZuString id,
     unsigned nShards,
     ZtVFieldArray fields,
     ZtVKeyFieldArray keyFields,

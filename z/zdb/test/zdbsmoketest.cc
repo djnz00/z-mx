@@ -29,9 +29,8 @@ ZmRef<Zdb> db;
 // table
 ZmRef<ZdbTable<Order>> orders;
 
-// app scheduler, Zdb multiplexer
-ZmScheduler *appMx = nullptr;
-ZiMultiplex *dbMx = nullptr;
+// multiplexer
+ZuPtr<ZiMultiplex> mx;
 
 ZmSemaphore done;
 
@@ -50,8 +49,7 @@ ZmRef<ZvCf> inlineCf(ZuString s)
 
 void gtfo()
 {
-  if (dbMx) dbMx->stop();
-  if (appMx) appMx->stop();
+  if (mx) mx->stop();
   ZeLog::stop();
   Zm::exit(1);
 }
@@ -63,17 +61,19 @@ int main()
 
   try {
     cf = inlineCf(
-      "thread zdb\n"
-      "store { thread zdb_mem }\n"
-      "hostID 0\n"
-      "hosts {\n"
-      "  0 { standalone 1 }\n"
+      "zdb {\n"
+      "  thread zdb\n"
+      "  store { thread zdb_mem }\n"
+      "  hostID 0\n"
+      "  hosts {\n"
+      "    0 { standalone 1 }\n"
+      "  }\n"
+      "  tables {\n"
+      "    order { }\n"
+      "  }\n"
+      "  debug 1\n"
       "}\n"
-      "tables {\n"
-      "  order { }\n"
-      "}\n"
-      "debug 1\n"
-      "dbMx {\n"
+      "mx {\n"
       "  nThreads 4\n"
       "  threads {\n"
       "    1 { name rx isolated true }\n"
@@ -107,25 +107,23 @@ int main()
   try {
     ZeError e;
 
-    appMx = new ZmScheduler{ZmSchedParams().nThreads(1)};
-    dbMx = new ZiMultiplex{ZvMxParams{"dbMx", cf->getCf<true>("dbMx")}};
+    mx = new ZiMultiplex{ZvMxParams{"mx", cf->getCf<true>("mx")}};
 
-    appMx->start();
-    if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
+    if (!mx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
     store = new zdbtest::Store();
     db = new Zdb();
 
-    db->init(ZdbCf(cf), dbMx, ZdbHandler{
-	.upFn = [](Zdb *, ZdbHost *host) {
-	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
-	    s << "ACTIVE (was " << id << ')';
-	  }));
-	  done.post();
-	},
-	.downFn = [](Zdb *, bool) {
-	  ZeLOG(Info, "INACTIVE");
-	}
+    db->init(ZdbCf{cf->getCf<true>("zdb")}, mx, ZdbHandler{
+      .upFn = [](Zdb *, ZdbHost *host) {
+	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
+	  s << "ACTIVE (was " << id << ')';
+	}));
+	done.post();
+      },
+      .downFn = [](Zdb *, bool) {
+	ZeLOG(Info, "INACTIVE");
+      }
     }, store);
 
     orders = db->initTable<Order>("order"); // might throw
@@ -205,13 +203,13 @@ int main()
     orders = {};
     db->final();
 
-    db->init(ZdbCf(cf), dbMx, ZdbHandler{
-	.upFn = [](Zdb *, ZdbHost *host) {
-	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
-	    s << "ACTIVE (was " << id << ')';
-	  }));
-	},
-	.downFn = [](Zdb *, bool) { ZeLOG(Info, "INACTIVE"); }
+    db->init(ZdbCf{cf->getCf<true>("zdb")}, mx, ZdbHandler{
+      .upFn = [](Zdb *, ZdbHost *host) {
+	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
+	  s << "ACTIVE (was " << id << ')';
+	}));
+      },
+      .downFn = [](Zdb *, bool) { ZeLOG(Info, "INACTIVE"); }
     }, store);
 
     orders = db->initTable<Order>("order"); // might throw
@@ -256,8 +254,7 @@ int main()
 
     db->stop();
 
-    appMx->stop();
-    dbMx->stop();
+    mx->stop();
 
     ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
@@ -280,8 +277,7 @@ int main()
     gtfo();
   }
 
-  if (appMx) delete appMx;
-  if (dbMx) delete dbMx;
+  mx = {};
 
   ZeLog::stop();
 

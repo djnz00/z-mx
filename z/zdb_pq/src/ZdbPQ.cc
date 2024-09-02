@@ -917,7 +917,7 @@ void Store::mkTblMRD_rcvd(PGresult *res)
 }
 
 void Store::open(
-  ZuID id,
+  ZuString id,
   unsigned nShards,
   ZtVFieldArray fields,
   ZtVKeyFieldArray keyFields,
@@ -1127,7 +1127,7 @@ static XField xField(
 }
 
 StoreTbl::StoreTbl(
-  Store *store, ZuID id, unsigned nShards,
+  Store *store, ZuString id, unsigned nShards,
   ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
   const reflection::Schema *schema, IOBufAllocFn bufAllocFn
 ) :
@@ -2543,7 +2543,6 @@ ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
     return saveTuple(fbb, m_xFields, tuple);
   });
   {
-    auto id = Zfb::Save::id(this->id());
     auto shard = Shard(tuple[0].p<UInt8>().v);
     UN un = tuple[1].p<UInt64>().v;
     SN sn = tuple[2].p<UInt128>().v;
@@ -2551,7 +2550,9 @@ ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
     auto sn_ = Zfb::Save::uint128(sn);
     auto msg = fbs::CreateMsg(
       fbb, Recovery ? fbs::Body::Recovery : fbs::Body::Replication,
-      fbs::CreateRecord(fbb, &id, un, &sn_, vn, shard, data).Union());
+      fbs::CreateRecord(
+	fbb, Zfb::Save::str(fbb, this->id()),
+	un, &sn_, vn, shard, data).Union());
     fbb.Finish(msg);
   }
   return saveHdr(fbb);

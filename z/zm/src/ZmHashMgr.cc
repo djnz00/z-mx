@@ -42,6 +42,7 @@ private:
   }
 
   void init(ZuString id, const ZmHashParams &params) {
+    ZmAssert(id.length() + 1 < ZmIDStrSize);
     ZmGuard<ZmPLock> guard(m_lock);
     if (ID2Params::Node *node = m_params.find(id))
       node->val() = params;
@@ -49,6 +50,7 @@ private:
       m_params.add(id, params);
   }
   ZmHashParams &params(ZuString id, ZmHashParams &in) {
+    ZmAssert(id.length() + 1 < ZmIDStrSize);
     {
       ZmGuard<ZmPLock> guard(m_lock);
       if (ID2Params::Node *node = m_params.find(id))

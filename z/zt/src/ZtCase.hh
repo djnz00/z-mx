@@ -68,7 +68,8 @@ inline void snakeCamel(ZuString s, L l) {
   }
   if (underscore) buf[j++] = '_';
   ZmAssert(j == m);
-  l(ZtString{&buf[0], m, z, false});
+  ZtString r{&buf[0], m, z, false};
+  l(static_cast<const ZtString &>(r));	// r is on-stack
 }
 
 // lambda(const ZtString &s)
@@ -94,7 +95,8 @@ inline void camelSnake(ZuString s, L l) {
       buf[j++] = c;
   }
   ZmAssert(j == m);
-  l(ZtString{&buf[0], m, z, false});
+  ZtString r{&buf[0], m, z, false};
+  l(static_cast<const ZtString &>(r));	// r is on-stack
 }
 
 }

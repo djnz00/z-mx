@@ -24,17 +24,21 @@ void Store::init(ZvCf *cf, Zdb *db)
     return &(node->data());
   };
 
-  const auto *node = cf->getNode<true>("thread");
-  if (!node || !node->data.is<ZtArray<ZtString>>())
-    throw ZvCfError::Required{cf, "thread"};
-  const auto &thread = node->data.p<ZtArray<ZtString>>();
+  ZtArray<ZtString> defltThread; // empty - will default to zdb main thread
+  const auto *thread = &defltThread;
+  {
+    const ZvCfNode *node;
+    if (cf && (node = cf->getNode<false>("thread")) &&
+	node->data.is<ZtArray<ZtString>>())
+      thread = &node->data.p<ZtArray<ZtString>>();
+  }
   auto &dbCf = const_cast<ZdbCf &>(db->config());
-  findAdd(dbCf, "zdf.data_frame")->thread = thread;
-  findAdd(dbCf, "zdf.series_fixed")->thread = thread;
-  findAdd(dbCf, "zdf.series_float")->thread = thread;
-  findAdd(dbCf, "zdf.blk_hdr_fixed")->thread = thread;
-  findAdd(dbCf, "zdf.blk_hdr_float")->thread = thread;
-  findAdd(dbCf, "zdf.blk_data")->thread = thread;
+  findAdd(dbCf, "zdf.data_frame")->thread = *thread;
+  findAdd(dbCf, "zdf.series_fixed")->thread = *thread;
+  findAdd(dbCf, "zdf.series_float")->thread = *thread;
+  findAdd(dbCf, "zdf.blk_hdr_fixed")->thread = *thread;
+  findAdd(dbCf, "zdf.blk_hdr_float")->thread = *thread;
+  findAdd(dbCf, "zdf.blk_data")->thread = *thread;
 
   m_seriesFixedTbl = db->initTable<DB::SeriesFixed>("zdf.series_fixed");
   m_seriesFloatTbl = db->initTable<DB::SeriesFloat>("zdf.series_float");

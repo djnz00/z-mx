@@ -32,9 +32,8 @@ ZmRef<Zdb> db[2];
 // tables
 ZmRef<ZdbTable<Order>> orders[2];
 
-// app scheduler, Zdb multiplexer
-ZmScheduler *appMx = nullptr;
-ZiMultiplex *dbMx = nullptr;
+// multiplexer
+ZuPtr<ZiMultiplex> mx;
 
 ZmSemaphore done;
 
@@ -53,8 +52,7 @@ ZmRef<ZvCf> inlineCf(ZuString s)
 
 void gtfo()
 {
-  if (dbMx) dbMx->stop();
-  if (appMx) appMx->stop();
+  if (mx) mx->stop();
   ZeLog::stop();
   Zm::exit(1);
 }
@@ -77,7 +75,7 @@ int main()
       "  order { }\n"
       "}\n"
       "debug 1\n"
-      "dbMx {\n"
+      "mx {\n"
       "  nThreads 4\n"
       "  threads {\n"
       "    1 { name rx isolated true }\n"
@@ -111,11 +109,9 @@ int main()
   try {
     ZeError e;
 
-    appMx = new ZmScheduler{ZmSchedParams().nThreads(1)};
-    dbMx = new ZiMultiplex{ZvMxParams{"dbMx", cf->getCf<true>("dbMx")}};
+    mx = new ZiMultiplex{ZvMxParams{"mx", cf->getCf<true>("mx")}};
 
-    appMx->start();
-    if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
+    if (!mx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
     ZmAtomic<unsigned> ok = 0;
 
@@ -127,7 +123,7 @@ int main()
 
       dbCf.hostID = (ZuStringN<16>{} << i);
 
-      db[i]->init(ZuMv(dbCf), dbMx, ZdbHandler{
+      db[i]->init(ZuMv(dbCf), mx, ZdbHandler{
 	.upFn = [](Zdb *db_, ZdbHost *host) {
 	  ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	    s << "ACTIVE (was " << id << ')';
@@ -291,8 +287,7 @@ int main()
     for (unsigned i = 0; i < 2; i++)
       db[i]->stop();
 
-    appMx->stop();
-    dbMx->stop();
+    mx->stop();
 
     // ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
@@ -317,8 +312,7 @@ int main()
     gtfo();
   }
 
-  if (appMx) delete appMx;
-  if (dbMx) delete dbMx;
+  mx = {};
 
   ZeLog::stop();
 

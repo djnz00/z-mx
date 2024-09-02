@@ -25,9 +25,8 @@ ZmRef<Zdb> db;
 // table
 ZmRef<ZdbTable<Order>> orders;
 
-// app scheduler, Zdb multiplexer
-ZmScheduler *appMx = nullptr;
-ZiMultiplex *dbMx = nullptr;
+// multiplexer
+ZuPtr<ZiMultiplex> mx;
 
 ZmSemaphore done;
 
@@ -64,8 +63,7 @@ void usage()
 
 void gtfo()
 {
-  if (dbMx) dbMx->stop();
-  if (appMx) appMx->stop();
+  if (mx) mx->stop();
   ZeLog::stop();
   Zm::exit(1);
 }
@@ -101,7 +99,7 @@ int main(int argc, char **argv)
       "tables {\n"
       "  order { warmup 1 }\n"
       "}\n"
-      "dbMx {\n"
+      "mx {\n"
       "  nThreads 4\n"
       "  threads {\n"
       "    1 { name rx isolated true }\n"
@@ -147,15 +145,13 @@ int main(int argc, char **argv)
   try {
     ZeError e;
 
-    appMx = new ZmScheduler{ZmSchedParams().nThreads(1)};
-    dbMx = new ZiMultiplex{ZvMxParams{"dbMx", cf->getCf<true>("dbMx")}};
+    mx = new ZiMultiplex{ZvMxParams{"mx", cf->getCf<true>("mx")}};
 
-    appMx->start();
-    if (!dbMx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
+    if (!mx->start()) throw ZeEVENT(Fatal, "multiplexer start failed");
 
     db = new Zdb();
 
-    db->init(ZdbCf(cf), dbMx, ZdbHandler{
+    db->init(ZdbCf(cf), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *host) {
 	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	  s << "ACTIVE (was " << id << ')';
@@ -329,8 +325,7 @@ int main(int argc, char **argv)
 
     db->stop(); // closes all tables
 
-    appMx->stop();
-    dbMx->stop();
+    mx->stop();
 
     orders = {};
     db->final(); // calls Store::final()
@@ -350,8 +345,7 @@ int main(int argc, char **argv)
     gtfo();
   }
 
-  if (appMx) delete appMx;
-  if (dbMx) delete dbMx;
+  mx = {};
 
   ZeLog::stop();
 
