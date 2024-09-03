@@ -917,7 +917,7 @@ void Store::mkTblMRD_rcvd(PGresult *res)
 }
 
 void Store::open(
-  ZuString id,
+  ZtString id,
   unsigned nShards,
   ZtVFieldArray fields,
   ZtVKeyFieldArray keyFields,
@@ -928,18 +928,19 @@ void Store::open(
   // ZeLOG(Debug, ([](auto &s) { }));
 
   run([
-    this, id, nShards,
+    this, id = ZuMv(id), nShards,
     fields = ZuMv(fields), keyFields = ZuMv(keyFields),
     schema, bufAllocFn = ZuMv(bufAllocFn), openFn = ZuMv(openFn)
   ]() mutable {
     if (stopping()) {
-      openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	s << "open(" << id << ") failed - DB shutdown in progress";
-      }))});
+      openFn(OpenResult{ZeVEVENT(Error,
+	  ([id = ZuMv(id)](auto &s, const auto &) {
+	    s << "open(" << id << ") failed - DB shutdown in progress";
+	  }))});
       return;
     }
     auto storeTbl = new StoreTbls::Node{
-      this, id, nShards,
+      this, ZuMv(id), nShards,
       ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
     m_storeTbls->addNode(storeTbl);
     storeTbl->open(ZuMv(openFn));
@@ -1127,11 +1128,11 @@ static XField xField(
 }
 
 StoreTbl::StoreTbl(
-  Store *store, ZuString id, unsigned nShards,
+  Store *store, ZtString id, unsigned nShards,
   ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
   const reflection::Schema *schema, IOBufAllocFn bufAllocFn
 ) :
-  m_store{store}, m_id{id},
+  m_store{store}, m_id{ZuMv(id)},
   m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
   m_fieldMap{ZmHashParams(m_fields.length())},
   m_bufAllocFn{ZuMv(bufAllocFn)}

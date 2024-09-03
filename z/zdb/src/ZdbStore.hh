@@ -167,7 +167,7 @@ public:
   virtual void stop(StopFn fn) { fn(StopResult{}); }
 
   virtual void open(			// open table - idempotent, async
-      ZuString id,			// name of table
+      ZtString id,			// name of table
       unsigned nShards,			// #shards
       ZtVFieldArray fields,		// fields
       ZtVKeyFieldArray keyFields,	// keys and their fields

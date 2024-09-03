@@ -148,14 +148,14 @@ private:
     bool = ZuTraits<R>::IsReference>
   struct Bind {
     using E = typename V::template Elem<J>;
-    static decltype(auto) p(const V &v) { return static_cast<const E &>(v).v; }
-    static decltype(auto) p(V &v) { return static_cast<E &>(v).v; }
+    static const auto &p(const V &v) { return static_cast<const E &>(v).v; }
+    static auto &p(V &v) { return static_cast<E &>(v).v; }
     static decltype(auto) p(V &&v) { return ZuMv(static_cast<E &&>(v).v); }
   };
   template <unsigned J, typename V, typename R> struct Bind<J, V, R, true> {
     using E = typename V::template Elem<J>;
-    static decltype(auto) p(const V &v) { return static_cast<const E &>(v).v; }
-    static decltype(auto) p(V &v) { return static_cast<E &>(v).v; }
+    static const auto &p(const V &v) { return static_cast<const E &>(v).v; }
+    static auto &p(V &v) { return static_cast<E &>(v).v; }
   };
   // binding of STL tuple/pair/array
   template <

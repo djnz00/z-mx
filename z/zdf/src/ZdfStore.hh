@@ -115,7 +115,7 @@ public:
       this, shard, name = ZuMv(name), fn = ZuMv(fn)
     ]() mutable {
       auto findFn = [
-	this, shard, name = ZuMv(name), fn = ZuMv(fn)
+	this, shard, name, fn = ZuMv(fn)
       ](ZdbObjRef<DBSeries> dbSeries) mutable {
 	if (dbSeries) {
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
@@ -140,8 +140,7 @@ public:
 	};
 	seriesTbl(this)->insert(dbSeries, ZuMv(insertFn));
       };
-      auto key = ZuMvTuple(ZuString{name});
-      seriesTbl(this)->template find<1>(shard, key, ZuMv(findFn));
+      seriesTbl(this)->template find<1>(shard, ZuMvTuple(name), ZuMv(findFn));
     });
   }
 

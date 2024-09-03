@@ -538,8 +538,8 @@ struct TableCf {
   };
 
   TableCf() = default;
-  TableCf(ZuString id_) : id{id_} { }
-  TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
+  TableCf(ZtString id_) : id{ZuMv(id_)} { }
+  TableCf(ZtString id_, const ZvCf *cf) : id{ZuMv(id_)} {
     nShards = cf->getScalar<unsigned>("shards", 1, 64, 1);
     const auto &threads_ = cf->getStrArray("threads");
     if (threads_) {
@@ -552,7 +552,7 @@ struct TableCf {
     cacheMode = cf->getEnum<CacheMode::Map>("cacheMode", CacheMode::Normal);
   }
 
-  static ZuString IDAxor(const TableCf &cf) { return cf.id; }
+  static const ZtString &IDAxor(const TableCf &cf) { return cf.id; }
 };
 
 // --- table configuration
@@ -591,9 +591,9 @@ public:
   const TableCf &config() const { return *m_cf; }
   IOBufAllocFn bufAllocFn() const { return m_bufAllocFn; }
 
-  static ZuString IDAxor(AnyTable *table) { return table->config().id; }
+  static const ZtString &IDAxor(AnyTable *table) { return table->config().id; }
 
-  ZuString id() const { return config().id; }
+  const ZtString &id() const { return config().id; }
   auto sid(Shard shard) const {
     const auto &config = this->config();
     return config.sids[shard & (config.sids.length() - 1)];
@@ -1666,11 +1666,11 @@ struct DBCf {
     return &node->val();
   }
 
-  const HostCf *hostCf(ZuString id) const {
+  const HostCf *hostCf(ZuID id) const {
     if (auto node = hostCfs.findPtr(id)) return &node->val();
     return nullptr;
   }
-  HostCf *hostCf(ZuString id) {
+  HostCf *hostCf(ZuID id) {
     auto node = hostCfs.findPtr(id);
     if (!node) hostCfs.addNode(node = new HostCfs::Node{id});
     return &node->val();

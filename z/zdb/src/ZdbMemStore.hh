@@ -470,7 +470,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuFixed>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuFixed{
-    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset()))
+    Zfb::Load::fixed(fbo->GetStruct<const Zfb::Fixed *>(field->offset()))
   };
 }
 
@@ -478,7 +478,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuDecimal>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuDecimal{
-    Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()))
+    Zfb::Load::decimal(fbo->GetStruct<const Zfb::Decimal *>(field->offset()))
   };
 }
 
@@ -486,7 +486,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuTime>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuTime{
-    Zfb::Load::time(fbo->GetPointer<const Zfb::Time *>(field->offset()))
+    Zfb::Load::time(fbo->GetStruct<const Zfb::Time *>(field->offset()))
   };
 }
 
@@ -495,7 +495,7 @@ inline ZuIfT<Type == Value::Index<ZuDateTime>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuDateTime{
     Zfb::Load::dateTime(
-      fbo->GetPointer<const Zfb::DateTime *>(field->offset()))
+      fbo->GetStruct<const Zfb::DateTime *>(field->offset()))
   };
 }
 
@@ -526,7 +526,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZiIP>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZiIP{
-    Zfb::Load::ip(fbo->GetPointer<const Zfb::IP *>(field->offset()))
+    Zfb::Load::ip(fbo->GetStruct<const Zfb::IP *>(field->offset()))
   };
 }
 
@@ -534,7 +534,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ZuID>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ZuID{
-    Zfb::Load::id(fbo->GetPointer<const Zfb::ID *>(field->offset()))
+    Zfb::Load::id(fbo->GetStruct<const Zfb::ID *>(field->offset()))
   };
 }
 
@@ -1123,7 +1123,7 @@ inline bool equals_(const Tuple &l, const Tuple &r, unsigned n) {
   return true;
 }
 template <typename T = Tuple> struct TupleCmp {
-  uint64_t	descending;
+  uint64_t	descending = 0;
 
   int cmp(const T &l, const T &r) const {
     unsigned ln = l.length();
@@ -1178,11 +1178,11 @@ public:
   using Store = Store__;
 
   StoreTbl(
-    Store *store, ZuString id, unsigned nShards,
+    Store *store, ZtString id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) :
-    m_store{store}, m_id{id},
+    m_store{store}, m_id{ZuMv(id)},
     m_fields{ZuMv(fields)}, m_keyFields{ZuMv(keyFields)},
     m_bufAllocFn{ZuMv(bufAllocFn)}
   {
@@ -1228,7 +1228,7 @@ public:
   }
 
   Store *store() const { return m_store; }
-  auto id() const { return m_id; }
+  const auto &id() const { return m_id; }
 
   bool opened() const { return m_opened; }
 
@@ -1304,7 +1304,7 @@ private:
 
 private:
   Store			*m_store;
-  ZuString		m_id;
+  ZtString		m_id;
   ZtVFieldArray		m_fields;
   ZtVKeyFieldArray	m_keyFields;
   XFields		m_xFields;
@@ -1379,7 +1379,7 @@ public:
   void preserve() { m_preserve = true; }
 
   void open(
-      ZuString id,
+      ZtString id,
       unsigned nShards,
       ZtVFieldArray fields,
       ZtVKeyFieldArray keyFields,
@@ -1388,21 +1388,23 @@ public:
       OpenFn openFn) {
     StoreTblNode *storeTbl = m_storeTbls->find(id);
     if (storeTbl && storeTbl->opened()) {
-      openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	s << "open(" << id << ") failed - already open";
-      }))});
+      openFn(OpenResult{ZeVEVENT(Error,
+	  ([id = ZuMv(id)](auto &s, const auto &) {
+	    s << "open(" << id << ") failed - already open";
+	  }))});
       return;
     }
     if (storeTbl) {
       if (nShards != storeTbl->nShards()) {
-	openFn(OpenResult{ZeVEVENT(Error, ([id](auto &s, const auto &) {
-	  s << "open(" << id << ") failed - inconsistent nShards";
-	}))});
+	openFn(OpenResult{ZeVEVENT(Error,
+	    ([id = ZuMv(id)](auto &s, const auto &) {
+	      s << "open(" << id << ") failed - inconsistent nShards";
+	    }))});
 	return;
       }
     } else {
       storeTbl = new StoreTblNode{
-	this, id, nShards,
+	this, ZuMv(id), nShards,
 	ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)};
       m_storeTbls->addNode(storeTbl);
     }

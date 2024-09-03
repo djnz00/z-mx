@@ -523,15 +523,14 @@ public:
   // search ends when skipped < offset
   template <typename L>
   bool search(L l) {
-    const uint8_t *origPos;
     unsigned offset;
     double value;
     for (;;) {
-      origPos = m_pos;
+      auto orig = save();
       if (!read_(&value)) return false;
       offset = l(value, 1);
       if (!offset) {
-	m_pos = origPos;
+	load(orig);
 	return true;
       }
       ++m_offset;

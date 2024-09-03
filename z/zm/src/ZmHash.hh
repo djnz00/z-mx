@@ -408,7 +408,7 @@ private:
 
   protected:
     Hash			&m_hash;
-    int				m_slot;
+    int				m_slot = -1;
     typename Hash::Node		*m_node;
     typename Hash::Node		*m_prev;
   };

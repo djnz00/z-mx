@@ -112,7 +112,9 @@ protected:
   template <typename U> struct IsCString : public ZuBool<
       !IsStrLiteral<U>{} &&
       IsCharElem_<U>{} &&
-      ZuTraits<U>::IsCString> { };
+      ZuTraits<U>::IsCString &&
+      // ZuTraits<U>::IsPointer &&
+      ZuTraits<U>::IsPrimitive> { };
   template <typename U, typename R = void>
   using MatchCString = ZuIfT<IsCString<U>{}, R>; 
 

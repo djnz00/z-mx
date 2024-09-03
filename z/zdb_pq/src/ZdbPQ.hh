@@ -770,7 +770,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Fixed>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   ZuDecimal v =
-    Zfb::Load::fixed(fbo->GetPointer<const Zfb::Fixed *>(field->offset())).
+    Zfb::Load::fixed(fbo->GetStruct<const Zfb::Fixed *>(field->offset())).
       decimal();
   new (ptr) Fixed{v.value};
 }
@@ -779,14 +779,14 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Decimal>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   ZuDecimal v =
-    Zfb::Load::decimal(fbo->GetPointer<const Zfb::Decimal *>(field->offset()));
+    Zfb::Load::decimal(fbo->GetStruct<const Zfb::Decimal *>(field->offset()));
   new (ptr) Decimal{v.value};
 }
 
 template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Time>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
-  auto t = fbo->GetPointer<const Zfb::Time *>(field->offset());
+  auto t = fbo->GetStruct<const Zfb::Time *>(field->offset());
   new (ptr) Time{t->sec(), t->nsec()};
 }
 
@@ -795,7 +795,7 @@ inline ZuIfT<Type == Value::Index<DateTime>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto t =
     Zfb::Load::dateTime(
-      fbo->GetPointer<const Zfb::DateTime *>(field->offset())).as_time();
+      fbo->GetStruct<const Zfb::DateTime *>(field->offset())).as_time();
   new (ptr) ZuDateTime{t.sec(), t.nsec()};
 }
 
@@ -803,7 +803,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<Int128>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) Int128{
-    Zfb::Load::int128(fbo->GetPointer<const Zfb::Int128 *>(field->offset()))
+    Zfb::Load::int128(fbo->GetStruct<const Zfb::Int128 *>(field->offset()))
   };
 }
 
@@ -811,7 +811,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<UInt128>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) UInt128{
-    Zfb::Load::uint128(fbo->GetPointer<const Zfb::UInt128 *>(field->offset()))
+    Zfb::Load::uint128(fbo->GetStruct<const Zfb::UInt128 *>(field->offset()))
   };
 }
 
@@ -820,7 +820,7 @@ inline ZuIfT<Type == Value::Index<IP>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) IP{
     IPHdr{},
-    Zfb::Load::ip(fbo->GetPointer<const Zfb::IP *>(field->offset()))
+    Zfb::Load::ip(fbo->GetStruct<const Zfb::IP *>(field->offset()))
   };
 }
 
@@ -828,7 +828,7 @@ template <unsigned Type>
 inline ZuIfT<Type == Value::Index<ID>{}>
 loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   new (ptr) ID{
-    Zfb::Load::id(fbo->GetPointer<const Zfb::ID *>(field->offset()))
+    Zfb::Load::id(fbo->GetStruct<const Zfb::ID *>(field->offset()))
   };
 }
 
@@ -1738,12 +1738,12 @@ friend Store;
 
 public:
   StoreTbl(
-    Store *store, ZuString id, unsigned nShards,
+    Store *store, ZtString id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn);
 
   Store *store() const { return m_store; }
-  auto id() const { return m_id; }
+  const auto &id() const { return m_id; }
 
 protected:
   ~StoreTbl();
@@ -1860,7 +1860,7 @@ private:
   using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
 
   Store			*m_store = nullptr;
-  ZuString		m_id;
+  ZtString		m_id;
   ZtString		m_id_;		// snake case
   ZtVFieldArray		m_fields;	// all fields
   UpdFields		m_updFields;	// update fields
@@ -1902,7 +1902,7 @@ public:
   void stop(StopFn);
 
   void open(
-    ZuString id,
+    ZtString id,
     unsigned nShards,
     ZtVFieldArray fields,
     ZtVKeyFieldArray keyFields,

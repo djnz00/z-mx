@@ -23,11 +23,11 @@ class Store;
 class StoreTbl : public ZdbMem::StoreTbl {
 public:
   StoreTbl(
-    Store *store, ZuID id, unsigned nShards,
+    Store *store, ZtString id, unsigned nShards,
     ZtVFieldArray fields, ZtVKeyFieldArray keyFields,
     const reflection::Schema *schema, IOBufAllocFn bufAllocFn
   ) : ZdbMem::StoreTbl{
-    store, id, nShards,
+    store, ZuMv(id), nShards,
     ZuMv(fields), ZuMv(keyFields), schema, ZuMv(bufAllocFn)
   } { }
 

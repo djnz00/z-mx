@@ -484,18 +484,48 @@ inline constexpr auto ZuDefaultAxor() {
 template <typename L>
 struct ZuLambda {
   L lambda;
+
+  // regrettably, selectively disabling overloads is required
+  // for caller SFINAE determination of ZuLambda mutability, etc.
+
+  template <
+    typename L_ = L,
+    decltype(ZuDeclVal<L_ &&>()(ZuDeclVal<ZuLambda &&>()), int()) = 0>
   constexpr decltype(auto) operator ()() && { return lambda(ZuMv(*this)); }
-  template <typename ...Args>
+  template <
+    typename ...Args,
+    typename L_ = L,
+    decltype(ZuDeclVal<L_ &&>()(
+      ZuDeclVal<ZuLambda &&>(),
+      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
   constexpr decltype(auto) operator ()(Args &&...args) && {
     return lambda(ZuMv(*this), ZuFwd<Args>(args)...);
   }
+
+  template <
+    typename L_ = L,
+    decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZuLambda &>()), int()) = 0>
   constexpr decltype(auto) operator ()() & { return lambda(*this); }
-  template <typename ...Args>
+  template <
+    typename ...Args,
+    typename L_ = L,
+    decltype(ZuDeclVal<L_ &>()(
+      ZuDeclVal<ZuLambda &>(),
+      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
   constexpr decltype(auto) operator ()(Args &&...args) & {
     return lambda(*this, ZuFwd<Args>(args)...);
   }
+
+  template <
+    typename L_ = L,
+    decltype(ZuDeclVal<const L_ &>()(ZuDeclVal<const ZuLambda &>()), int()) = 0>
   constexpr decltype(auto) operator ()() const & { return lambda(*this); }
-  template <typename ...Args>
+  template <
+    typename ...Args,
+    typename L_ = L,
+    decltype(ZuDeclVal<const L_ &>()(
+      ZuDeclVal<const ZuLambda &>(),
+      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
   constexpr decltype(auto) operator ()(Args &&...args) const & {
     return lambda(*this, ZuFwd<Args>(args)...);
   }

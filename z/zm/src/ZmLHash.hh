@@ -489,7 +489,7 @@ friend Iterator_;
     Iterator_(Iterator_ &&) = default;
     Iterator_ &operator =(Iterator_ &&) = default;
 
-    Iterator_(Hash &hash) : m_hash(hash), m_slot(-1), m_next(-1) { }
+    Iterator_(Hash &hash) : m_hash{hash} { }
 
     virtual void lock(Lock &l) = 0;
     virtual void unlock(Lock &l) = 0;
@@ -507,8 +507,8 @@ friend Iterator_;
 
   protected:
     Hash	&m_hash;
-    int		m_slot;
-    int		m_next;
+    int		m_slot = -1;
+    int		m_next = -1;
   };
 
   class KeyIterator_;

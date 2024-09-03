@@ -346,6 +346,8 @@ inline constexpr const unsigned IndexBlkMask() {
 struct IndexBlk_ : public ZuObject {
   Offset	offset;			// block offset
   Blk		blks[IndexBlkSize()];
+
+  IndexBlk_(Offset offset_) : offset{offset_} { }
 };
 struct IndexBlk_Fn {
   IndexBlk_	&indexBlk;
@@ -1147,10 +1149,6 @@ inline void Reader_<Decoder>::loadBlk()
   ](Blk *blk) mutable {
     this_->loaded(blk);
   });
-  return;
-
-fail:
-  this->fail();
 }
 
 template <typename Decoder>
@@ -1204,10 +1202,6 @@ inline void Reader_<Decoder>::loaded(Blk *blk)
   }
 
   nextValue(); // ignored
-  return;
-
-fail:
-  this->fail();
 }
 
 template <typename Decoder>
@@ -1292,14 +1286,8 @@ inline int Reader_<Decoder>::nextValue()
       cont = m_fn(value);
   } while (cont);
 
-stop:
   stop({});
   return Stopped;
-
-fail:
-  this->fail();
-  stop({});
-  return Failed;
 }
 
 template <typename Decoder>
