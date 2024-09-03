@@ -35,12 +35,13 @@ using OpenFn = ZmFn<void(bool)>;	// (bool ok)
 
 class ZdfAPI Store {
 public:
-  void init(ZvCf *, Zdb *);
+  static void dbCf(const ZvCf *, ZdbCf &dbCf);	// inject tables into dbCf
+  void init(Zdb *);
   void final();
 
   // convert shard to thread slot ID
   auto sid(Shard shard) const {
-    return m_sid[shard & (m_sid.length() - 1)];
+    return m_sids[shard & (m_sids.length() - 1)];
   }
 
   // dataframe threads (may be shared by app workloads)
@@ -54,7 +55,7 @@ public:
   }
   bool invoked(Shard shard) const { return m_mx->invoked(sid(shard)); }
 
-  void open(OpenFn);	// establishes nextSeriesID
+  void open(Zdb *, OpenFn);	// establishes nextSeriesID
   void close();
 
   // open data frame
@@ -163,7 +164,7 @@ private:
   ZdbTblRef<DB::BlkFixed>	m_blkFixedTbl;
   ZdbTblRef<DB::BlkFloat>	m_blkFloatTbl;
   ZdbTblRef<DB::BlkData>	m_blkDataTbl;
-  ZdbTableCf::SIDArray		m_sid;
+  ZdbTableCf::SIDArray		m_sids;
   ZmAtomic<uint32_t>		m_nextSeriesID = 1;
   OpenFn			m_openFn;
 };

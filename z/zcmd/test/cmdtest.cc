@@ -200,7 +200,11 @@ int main(int argc, char **argv)
 
     mx->start();
 
-    db->init(ZdbCf(cf->getCf<true>("zdb")), mx, ZdbHandler{
+    ZdbCf dbCf{cf->getCf<true>("zdb")};
+
+    CmdTest::dbCf(cf, dbCf);
+
+    db->init(ZuMv(dbCf), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *) { },
       .downFn = [](Zdb *, bool) { }
     });

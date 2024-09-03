@@ -990,6 +990,7 @@ public:
     // so that all command and cxn processing on both sides is
     // handled by the same thread
 
+    // FIXME - need to call Server::dbCf() then Zdb::init(), then Server::init()
     Server::init(mx, cf);
     static_cast<Server *>(this)->Dispatcher::map("zdash",
 	[](void *link, const uint8_t *data, unsigned len) {

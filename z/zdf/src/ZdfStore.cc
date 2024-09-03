@@ -10,35 +10,35 @@
 
 using namespace Zdf;
 
-void Store::init(ZvCf *cf, Zdb *db)
+void Store::dbCf(const ZvCf *cf, ZdbCf &dbCf)
+{
+  ZvCfStrArray threads;
+
+  if (auto node = cf->getNode<false>("threads"))
+    if (node->data.is<ZvCfStrArray>())
+      threads = node->data.p<ZvCfStrArray>();
+
+  static ZtArray<ZuString> tables{
+    "zdf.data_frame",
+    "zdf.series_fixed",
+    "zdf.series_float",
+    "zdf.blk_hdr_fixed",
+    "zdf.blk_hdr_float",
+    "zdf.blk_data"
+  };
+
+  for (auto &&tblID: tables) {
+    auto node = dbCf.tableCfs.find(tblID);
+    using Node = ZuDecay<decltype(*node)>;
+    if (!node) dbCf.tableCfs.addNode(node = new Node{tblID});
+    node->data().threads = threads;
+  }
+}
+
+void Store::init(Zdb *db)
 {
   ZeAssert(m_state == StoreState::Uninitialized,
     (state = m_state), "invalid state=" << state, return);
-
-  m_mx = db->mx();
-
-  static auto findAdd = [](ZdbCf &dbCf, ZuString key) {
-    auto node = dbCf.tableCfs.find(key);
-    using Node = ZuDecay<decltype(*node)>;
-    if (!node) dbCf.tableCfs.addNode(node = new Node{key});
-    return &(node->data());
-  };
-
-  ZtArray<ZtString> defltThread; // empty - will default to zdb main thread
-  const auto *thread = &defltThread;
-  {
-    const ZvCfNode *node;
-    if (cf && (node = cf->getNode<false>("thread")) &&
-	node->data.is<ZtArray<ZtString>>())
-      thread = &node->data.p<ZtArray<ZtString>>();
-  }
-  auto &dbCf = const_cast<ZdbCf &>(db->config());
-  findAdd(dbCf, "zdf.data_frame")->thread = *thread;
-  findAdd(dbCf, "zdf.series_fixed")->thread = *thread;
-  findAdd(dbCf, "zdf.series_float")->thread = *thread;
-  findAdd(dbCf, "zdf.blk_hdr_fixed")->thread = *thread;
-  findAdd(dbCf, "zdf.blk_hdr_float")->thread = *thread;
-  findAdd(dbCf, "zdf.blk_data")->thread = *thread;
 
   m_seriesFixedTbl = db->initTable<DB::SeriesFixed>("zdf.series_fixed");
   m_seriesFloatTbl = db->initTable<DB::SeriesFloat>("zdf.series_float");
@@ -46,9 +46,8 @@ void Store::init(ZvCf *cf, Zdb *db)
   m_blkFloatTbl = db->initTable<DB::BlkFloat>("zdf.blk_float");
   m_blkDataTbl = db->initTable<DB::BlkData>("zdf.blk_data");
 
-  // all the above tables are forced to have identical thread configuration,
-  // any one copy can be cached locally
-  m_sid = m_blkDataTbl->config().sid;
+  m_mx = db->mx();
+  m_sids = m_blkDataTbl->config().sids;
 
   m_state = StoreState::Initialized;
 }

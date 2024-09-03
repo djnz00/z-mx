@@ -517,8 +517,8 @@ struct TableCf {
 
   ZtString		id;
   unsigned		nShards = 1;	// #shards
-  ThreadArray		thread;		// threads
-  mutable SIDArray	sid = 0;	// thread slot IDs
+  ThreadArray		threads;	// threads
+  mutable SIDArray	sids = 0;	// thread slot IDs
   int			cacheMode = CacheMode::Normal;
 
   class InvalidNThreads : public ZvError {
@@ -540,19 +540,15 @@ struct TableCf {
   TableCf(ZuString id_) : id{id_} { }
   TableCf(ZuString id_, const ZvCf *cf) : id{id_} {
     nShards = cf->getScalar<unsigned>("shards", 1, 64, 1);
-    unsigned nThreads = cf->count("threads", 1, 64);
-    if (nThreads) {
+    const auto &threads_ = cf->getStrArray("threads");
+    if (threads_) {
+      auto nThreads = threads_.length();
       // ensure nThreads is a power of 2 and <= nShards
-      if ((nThreads & (nThreads - 1)) ||
-	  nThreads > nShards)
+      if ((nThreads & (nThreads - 1)) || nThreads > nShards)
 	throw InvalidNThreads{nThreads, nShards};
-      thread.size(nThreads);
-      cf->all("threads", [this](ZtString thread_) {
-	thread.push(ZuMv(thread_));
-      });
+      threads = threads_;
     }
-    cacheMode = cf->getEnum<CacheMode::Map>(
-	"cacheMode", CacheMode::Normal);
+    cacheMode = cf->getEnum<CacheMode::Map>("cacheMode", CacheMode::Normal);
   }
 
   static ZuString IDAxor(const TableCf &cf) { return cf.id; }
@@ -599,7 +595,7 @@ public:
   ZuString id() const { return config().id; }
   auto sid(Shard shard) const {
     const auto &config = this->config();
-    return config.sid[shard & (config.sid.length() - 1)];
+    return config.sids[shard & (config.sids.length() - 1)];
   }
 
   // DB thread (may be shared)
@@ -1720,10 +1716,10 @@ public:
 
   // init() and final() throw ZtString on error
   void init(
-      DBCf config,
-      ZiMultiplex *mx,
-      DBHandler handler,
-      ZmRef<Store> store = {});
+    DBCf config,
+    ZiMultiplex *mx,
+    DBHandler handler,
+    ZmRef<Store> store = {});
   void final();
 
   template <typename T>

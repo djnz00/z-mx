@@ -6,8 +6,9 @@
 
 #include <zlib/ZuLib.hh>
 
-#include <stdio.h>
 #include <assert.h>
+
+#include <iostream>
 
 #include <zlib/ZtArray.hh>
 #include <zlib/ZtString.hh>
@@ -16,7 +17,12 @@
 #pragma warning(disable:4355)
 #endif
 
-#define CHECK(x) ((x) ? puts("OK  " #x) : puts("NOK " #x))
+template <typename T>
+void out(T &&v) {
+  std::cout << ZuFwd<T>(v) << '\n';
+}
+
+#define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
 struct E {
   E() : m_ptr(this), m_copied(0), m_moved(0) { }
@@ -100,24 +106,24 @@ int main()
 #if 0
   {
     ZtArray<ZtString> b = (const char *[]){ "hello", "world" };
-    puts(b[0]);
-    puts(b[1]);
+    out(b[0]);
+    out(b[1]);
   }
 #endif
 
   {
     std::vector<const char *> v = { { "hello", "world" } };
     ZtArray<ZuString> b = v;
-    puts(b[0].data());
-    puts(b[1].data());
+    out(b[0].data());
+    out(b[1].data());
   }
 
   {
     ZtArray<Foo> a;
     a.push(Foo("hello"));
     a.push(Foo("world"));
-    puts(a[0].bar);
-    puts(a[1].bar);
+    out(a[0].bar);
+    out(a[1].bar);
   }
 
 #if 0
@@ -126,16 +132,22 @@ int main()
     // typedef P N[];
     ZtArray<const char *> a {
       std::initializer_list<const char *>{ [1] = "Foo", [0] = "Bar" } };
-    puts(a[0]);
-    puts(a[1]);
+    out(a[0]);
+    out(a[1]);
   }
 #endif
 
   {
+    ZtArray<ZuString> a = { "Foo", "Bar" };
+    out(a[0]);
+    out(a[1]);
+    for (auto &&s: a) out(s);
+  }
+  {
     ZtArray<ZtString> a = { "Foo", "Bar" };
-    puts(a[0]);
-    puts(a[1]);
-    for (auto &&s: a) puts(s);
+    out(a[0]);
+    out(a[1]);
+    for (auto &&s: a) out(s);
   }
 
   {
@@ -149,12 +161,12 @@ int main()
 
   {
     ZtArray<ZtString> a = { "foo", "bar", "baz", "bah" };
-    ZtString out;
-    a.all([&out, first = true](const ZtString &s) mutable {
-      if (first) first = false; else out << '.';
-      out << s;
+    ZtString o;
+    a.all([&o, first = true](const ZtString &s) mutable {
+      if (first) first = false; else o << '.';
+      o << s;
     });
-    CHECK(out == "foo.bar.baz.bah");
+    CHECK(o == "foo.bar.baz.bah");
   }
 
   return 0;

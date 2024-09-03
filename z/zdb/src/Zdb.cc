@@ -71,18 +71,18 @@ void DB::init(
       auto i = config.tableCfs.readIterator();
       while (auto tableCf_ = i.iterate()) {
 	auto &tableCf = const_cast<TableCf &>(tableCf_->val());
-	if (!tableCf.thread)
-	  tableCf.sid.push(config.sid);
+	if (!tableCf.threads)
+	  tableCf.sids.push(config.sid);
 	else {
-	  tableCf.sid.size(tableCf.thread.length());
-	  tableCf.thread.all([mx, &tableCf](const ZtString &thread) {
+	  tableCf.sids.size(tableCf.threads.length());
+	  tableCf.threads.all([mx, &tableCf](const ZtString &thread) {
 	    auto sid = mx->sid(thread);
 	    if (invalidSID(mx, sid))
 	      throw ZeEVENT(Fatal,
 		  ([id = tableCf.id, thread = ZtString{thread}](auto &s) {
 		    s << "Zdb " << id
 		      << " thread misconfigured: " << thread; }));
-	    tableCf.sid.push(sid);
+	    tableCf.sids.push(sid);
 	  });
 	}
       }
@@ -128,10 +128,10 @@ void DB::init(
     m_hosts = new Hosts{};
     bool standalone = false;
     {
-      unsigned dbCount = m_tables.count_();
+      unsigned tblCount = m_tables.count_();
       auto i = m_cf.hostCfs.readIterator();
       while (auto node = i.iterate()) {
-	auto host = new Hosts::Node{this, &(node->data()), dbCount};
+	auto host = new Hosts::Node{this, &(node->data()), tblCount};
 	if (host->standalone()) standalone = true;
 	m_hosts->addNode(host);
 	m_hostIndex.addNode(host);
@@ -658,11 +658,11 @@ Host::telemetry(Zfb::Builder &fbb_, bool update) const
   return fbb.Finish().Union();
 }
 
-Host::Host(DB *db, const HostCf *cf, unsigned dbCount) :
+Host::Host(DB *db, const HostCf *cf, unsigned tblCount) :
   m_db{db},
   m_cf{cf},
   m_mx{db->mx()},
-  m_dbState{dbCount}
+  m_dbState{tblCount}
 {
 }
 
@@ -1516,9 +1516,9 @@ AnyTable::telemetry(Zfb::Builder &fbb_, bool update) const
   if (!update) {
     name = str(fbb_, config().id);
     thread = strVecIter(
-      fbb_, config().thread.length(),
+      fbb_, config().threads.length(),
       [this](unsigned i) -> const ZtString & {
-	return config().thread[i];
+	return config().threads[i];
       });
   }
   unsigned cacheSize = 0;

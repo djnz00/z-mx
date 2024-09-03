@@ -30,6 +30,32 @@ UserDB::~UserDB()
 {
 }
 
+void UserDB::dbCf(const ZvCf *cf, ZdbCf &dbCf)
+{
+  // ensure all tables are running on the same thread
+  // - ensures that direct references to the user and key DB objects
+  //   can be cached in the session, permitting contention-less
+  //   single-threaded access to the object data
+  // - UserDB relies on being a single-writer to the DB (Zdb guarantee)
+
+  ZtArray<ZtString> threads;
+  threads.push(cf->get<true>("thread"));
+
+  static ZtArray<ZuString> tables{
+    "zum.user",
+    "zum.role",
+    "zum.key",
+    "zum.perm"
+  };
+
+  for (auto &&tblID: tables) {
+    auto node = dbCf.tableCfs.find(tblID);
+    using Node = ZuDecay<decltype(*node)>;
+    if (!node) dbCf.tableCfs.addNode(node = new Node{tblID});
+    node->data().threads = threads;
+  }
+}
+
 void UserDB::init(ZvCf *cf, Zdb *db)
 {
   ZeAssert(m_state == UserDBState::Uninitialized,
@@ -39,32 +65,13 @@ void UserDB::init(ZvCf *cf, Zdb *db)
   m_totpRange = cf->getInt("totpRange", 0, 100, m_totpRange);
   m_keyInterval = cf->getInt("keyInterval", 0, 36000, m_keyInterval);
 
-  static auto findAdd = [](ZdbCf &dbCf, ZuString key) {
-    auto node = dbCf.tableCfs.find(key);
-    using Node = ZuDecay<decltype(*node)>;
-    if (!node) dbCf.tableCfs.addNode(node = new Node{key});
-    return node->data();
-  };
-
-  // ensure all tables are running on the same thread
-  // - ensures that direct references to the user and key DB objects
-  //   can be cached in the session, permitting contention-less
-  //   single-threaded access to the object data
-  // - UserDB relies on being a single-writer to the DB (Zdb guarantee)
-  const auto &thread = cf->get<true>("thread");
-  auto &dbCf = const_cast<ZdbCf &>(db->config());
-  findAdd(dbCf, "zum.user").thread = { thread };
-  findAdd(dbCf, "zum.role").thread = { thread };
-  findAdd(dbCf, "zum.key").thread = { thread };
-  findAdd(dbCf, "zum.perm").thread = { thread };
-
   m_userTbl = db->initTable<User>("zum.user");
   m_roleTbl = db->initTable<Role>("zum.role");
   m_keyTbl = db->initTable<Key>("zum.key");
   m_permTbl = db->initTable<Perm>("zum.perm");
 
   m_mx = db->mx();
-  m_sid = m_userTbl->config().sid[0];
+  m_sid = m_userTbl->config().sids[0];
 
   m_state = UserDBState::Initialized;
 }

@@ -90,6 +90,7 @@ public:
   UserDB(Ztls::Random *rng);
   ~UserDB();
 
+  static void dbCf(const ZvCf *, ZdbCf &dbCf);	// inject tables into dbCf
   void init(ZvCf *, Zdb *);
   void final();
 

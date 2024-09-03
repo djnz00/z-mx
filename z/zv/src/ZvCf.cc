@@ -607,8 +607,8 @@ Cf::mkScope_(ZuString in, Cf::Defines *defines)
       this_ = node->get_<ZmRef<Cf>>();
       if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
     } else {
-      this_ = node->getElem_<CfArray>(index);
-      if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
+      this_ = node->getElem<CfArray>(index);
+      if (!this_) node->setElem<CfArray>(index, this_ = new Cf{node});
     }
   }
 
@@ -641,7 +641,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
 	else
 	  node->set_<ZtString>(ZuMv(value));
       } else
-	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
+	node->setElem<StrArray>(index, failed ? ZtString{} : ZuMv(value));
     } break;
     case ZvOptType::Array: {
       unsigned n = in.length();
@@ -794,8 +794,8 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	  this_ = node->get_<ZmRef<Cf>>();
 	  if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
 	} else {
-	  this_ = node->getElem_<CfArray>(index);
-	  if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
+	  this_ = node->getElem<CfArray>(index);
+	  if (!this_) node->setElem<CfArray>(index, this_ = new Cf{node});
 	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
@@ -841,7 +841,7 @@ void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
 	else
 	  node->set_<ZtString>(ZuMv(value));
       } else
-	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
+	node->setElem<StrArray>(index, failed ? ZtString{} : ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
@@ -993,8 +993,8 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	  this_ = node->get_<ZmRef<Cf>>();
 	  if (!this_) node->set_<ZmRef<Cf>>(this_ = new Cf{node});
 	} else {
-	  this_ = node->getElem_<CfArray>(index);
-	  if (!this_) node->setElem_<CfArray>(index, this_ = new Cf{node});
+	  this_ = node->getElem<CfArray>(index);
+	  if (!this_) node->setElem<CfArray>(index, this_ = new Cf{node});
 	}
 	if ((state & ArrayMask) == NoArray) {
 	  state = (state & ~KVMask) | Key;
@@ -1039,7 +1039,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 	else
 	  node->set_<ZtString>(ZuMv(value));
       } else
-	node->setElem_<StrArray>(index, failed ? ZtString{} : ZuMv(value));
+	node->setElem<StrArray>(index, failed ? ZtString{} : ZuMv(value));
       if ((state & ArrayMask) == NoArray) {
 	state = (state & ~KVMask) | Key;
 	node = nullptr;
@@ -1205,7 +1205,13 @@ void Cf::set(ZuString key, ZtString value)
   if (index < 0)
     node->set_<ZtString>(ZuMv(value));
   else
-    node->setElem_<StrArray>(index, ZuMv(value));
+    node->setElem<StrArray>(index, ZuMv(value));
+}
+
+void Cf::setStrArray(ZuString key, StrArray value)
+{
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
+  node->set_<StrArray>(ZuMv(value));
 }
 
 ZmRef<Cf> Cf::mkCf(ZuString key)
@@ -1215,7 +1221,7 @@ ZmRef<Cf> Cf::mkCf(ZuString key)
   if (index < 0)
     node->set_<ZmRef<Cf>>(cf);
   else
-    node->setElem_<CfArray>(index, cf);
+    node->setElem<CfArray>(index, cf);
   return cf;
 }
 
@@ -1226,7 +1232,13 @@ void Cf::setCf(ZuString key, ZmRef<Cf> cf)
   if (index < 0)
     node->set_<ZmRef<Cf>>(ZuMv(cf));
   else
-    node->setElem_<CfArray>(index, ZuMv(cf));
+    node->setElem<CfArray>(index, ZuMv(cf));
+}
+
+void Cf::setCfArray(ZuString key, CfArray value)
+{
+  auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
+  node->set_<CfArray>(ZuMv(value));
 }
 
 void Cf::unset(ZuString fullKey)
@@ -1266,8 +1278,8 @@ void Cf::merge(const Cf *cf)
       case Data::Index<CfArray>{}: {
 	for (unsigned i = 0, n = srcNode->get_<CfArray>().length();
 	    i < n; i++)
-	  if (auto srcCf = srcNode->getElem_<CfArray>(i)) {
-	    auto dstCf = dstNode->getElem_<CfArray>(i);
+	  if (auto srcCf = srcNode->getElem<CfArray>(i)) {
+	    auto dstCf = dstNode->getElem<CfArray>(i);
 	    if (!dstCf) dstNode->set_<CfArray>(dstCf = new Cf{dstNode});
 	    dstCf->merge(srcCf);
 	  }

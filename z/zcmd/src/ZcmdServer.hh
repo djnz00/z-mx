@@ -227,6 +227,10 @@ friend TLS;
   const App *app() const { return static_cast<const App *>(this); }
   App *app() { return static_cast<App *>(this); }
 
+  static void dbCf(const ZvCf *cf, ZdbCf &dbCf) {
+    UserDB::dbCf(cf->getCf<true>("userdb"), dbCf);
+  }
+
   void init(const ZvCf *cf, ZiMultiplex *mx, Zdb *db) {
     Host::init();
     Dispatcher::init();

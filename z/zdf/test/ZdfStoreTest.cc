@@ -105,7 +105,11 @@ int main()
 
     db = new Zdb();
 
-    db->init(ZdbCf{cf->getCf<true>("zdb")}, mx, ZdbHandler{
+    ZdbCf dbCf{cf->getCf<true>("zdb")};
+
+    ZdfStore::dbCf(cf, dbCf);
+
+    db->init(ZuMv(dbCf), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *host) {
 	ZeLOG(Info, ([id = host ? host->id() : ZuID{"unset"}](auto &s) {
 	  s << "ACTIVE (was " << id << ')';
