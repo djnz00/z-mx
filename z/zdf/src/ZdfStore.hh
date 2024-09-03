@@ -55,7 +55,7 @@ public:
   }
   bool invoked(Shard shard) const { return m_mx->invoked(sid(shard)); }
 
-  void open(Zdb *, OpenFn);	// establishes nextSeriesID
+  void open(OpenFn);	// establishes nextSeriesID
   void close();
 
   // open data frame

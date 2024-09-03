@@ -12,11 +12,7 @@ using namespace Zdf;
 
 void Store::dbCf(const ZvCf *cf, ZdbCf &dbCf)
 {
-  ZvCfStrArray threads;
-
-  if (auto node = cf->getNode<false>("threads"))
-    if (node->data.is<ZvCfStrArray>())
-      threads = node->data.p<ZvCfStrArray>();
+  ZtArray<ZtString> threads = cf->getStrArray<false>("threads");
 
   static ZtArray<ZuString> tables{
     "zdf.data_frame",
