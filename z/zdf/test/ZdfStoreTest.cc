@@ -107,7 +107,7 @@ int main()
 
     ZdbCf dbCf{cf->getCf<true>("zdb")};
 
-    ZdfStore::dbCf(cf, dbCf);
+    Zdf::Store::dbCf(cf, dbCf);
 
     db->init(ZuMv(dbCf), mx, ZdbHandler{
       .upFn = [](Zdb *, ZdbHost *host) {
@@ -122,7 +122,7 @@ int main()
     }, new ZdbMem::Store());
 
     store = new Zdf::Store{};
-    store->init(nullptr, db);
+    store->init(db);
 
     db->start();
     done.wait(); // ensure active
