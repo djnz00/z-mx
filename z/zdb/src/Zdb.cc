@@ -16,16 +16,16 @@
 //   etc.
 
 // a new next is selected and recovery/replication restarts when
-// * an election ends
-// * a new host heartbeats for first time after election completes
-// * an existing host disconnects
+// - an election ends
+// - a new host heartbeats for first time after election completes
+// - an existing host disconnects
 
 // a new leader is selected (the local instance may activate/deactivate) when:
-// * an election ends
-// * a new host heartbeats for first time after election completes
+// - an election ends
+// - a new host heartbeats for first time after election completes
 //   - possible deactivation of local instance only -
 //   - if self is leader and the new host < this one, we just heartbeat it
-// * an existing host disconnects (if that is leader, a new election begins)
+// - an existing host disconnects (if that is leader, a new election begins)
 
 // if replicating from primary to DR and a down secondary comes back up,
 // then primary's m_next will be DR and DR's m_next will be secondary

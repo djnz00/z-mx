@@ -16,8 +16,9 @@
 // leader (if the local host itself is not elected leader).
 
 // Principal features:
+// - Statically configured tables (intentional design limitation)
 // - Plug-in backing data store (mocked for unit-testing)
-//   - Currently Postgres
+//   - Currently Postgres, in-memory
 // - In-memory write-through object cache
 //   - Deferred async writes
 //   - In-memory write queue of I/O buffers
@@ -34,8 +35,8 @@
 // - cache consistency is assured by enqueuing the select on the
 //   back-end write queue, ensuring results reflect any pending updates
 //   outstanding at the time of the call; the results may become outdated
-//   when eventually processed if further updates are concurrently performed
-//   while the select itself is outstanding - an intentional limitation
+//   when eventually processed if further updates are performed
+//   while the select itself is outstanding (intentional design limitation)
 
 // insert() inserts new objects (rows)
 // find() returns 0..1 mutable ZdbObjects for read-modify-write

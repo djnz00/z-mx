@@ -97,7 +97,7 @@ namespace ReaderState {
 
 // the decoder determines the value type (fixed or floating point)
 template <typename Decoder_>
-class Reader_ {
+class Reader_ : public ZmObject {
 public:
   using Decoder = Decoder_;
   using Series = Zdf::Series<Decoder>;
@@ -238,7 +238,7 @@ private:
 // fixed point version
 template <
   typename Decoder, typename Heap, typename Value_ = typename Decoder::Value>
-class Writer_ : public Heap {
+class Writer_ : public Heap, public ZmObject {
 public:
   using Encoder = Zdf::Encoder<Decoder>;
   using Series = Zdf::Series<Decoder>;
@@ -400,7 +400,7 @@ private:
     m_shard = m_dbSeries->shard();
     m_id = m_dbSeries->data().id;
     m_name = m_dbSeries->data().name;
-    m_epoch = m_dbSeries->data().epoch;
+    m_epoch = m_dbSeries->data().epoch.as_time();
   }
 
 public:
@@ -560,7 +560,7 @@ private:
 	} else { // complete
 	  if (!rowRcvd) goto opened;
 	  rowRcvd = false;
-	  this_->blkHdrTbl()->template nextRows<0>(
+	  this_->blkTbl()->template nextRows<0>(
 	    ZuFwdTuple(this_->m_dbSeries->data().id, this_->m_lastBlkOffset),
 	    false, IndexBlkSize(), ZuMv(self));
 	}

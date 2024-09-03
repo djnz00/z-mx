@@ -60,7 +60,6 @@ void gtfo()
 int main()
 {
   ZmRef<ZvCf> cf;
-  ZuString hashOut;
 
   try {
     cf = inlineCf(

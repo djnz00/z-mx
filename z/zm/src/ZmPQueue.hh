@@ -304,7 +304,10 @@ private:
   using NodeFn::nodeRelease;
 
 public:
-  ZmPQueue() = delete;
+  ZmPQueue() : m_headKey(Key{}), m_tailKey(Key{}) {
+    memset(m_head, 0, sizeof(Node *) * Levels);
+    memset(m_tail, 0, sizeof(Node *) * Levels);
+  }
   ZmPQueue(Key head) : m_headKey(head), m_tailKey(head) {
     memset(m_head, 0, sizeof(Node *) * Levels);
     memset(m_tail, 0, sizeof(Node *) * Levels);

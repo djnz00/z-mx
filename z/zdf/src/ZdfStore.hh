@@ -123,7 +123,7 @@ public:
 	  return;
 	}
 	if (!Create) { fn(nullptr); return; }
-	dbSeries = new ZdbObject<DBSeries>{seriesTbl(), shard};
+	dbSeries = new ZdbObject<DBSeries>{seriesTbl(this), shard};
 	new (dbSeries->ptr_()) DBSeries{
 	  .id = m_nextSeriesID++,
 	  .name = ZuMv(name),
@@ -138,10 +138,10 @@ public:
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
 	  series->open(ZuMv(fn));
 	};
-	seriesTbl()->insert(dbSeries, ZuMv(insertFn));
+	seriesTbl(this)->insert(dbSeries, ZuMv(insertFn));
       };
       auto key = ZuMvTuple(ZuString{name});
-      seriesTbl()->template find<1>(shard, key, ZuMv(findFn));
+      seriesTbl(this)->template find<1>(shard, key, ZuMv(findFn));
     });
   }
 

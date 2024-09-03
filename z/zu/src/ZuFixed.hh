@@ -98,10 +98,9 @@ struct ZuFixed {
   }
 
   // convert to floating point
-  template <typename Float = ZuBox<double>>
-  Float fp() const {
-    if (ZuUnlikely(!operator *())) return Float{};
-    return Float{mantissa} / Float{ZuDecimalFn::pow10_64(ndp)};
+  double fp() const {
+    if (ZuUnlikely(!operator *())) return ZuFP<double>::nan();
+    return double(mantissa) / double(ZuDecimalFn::pow10_64(ndp));
   }
 
   // convert to ZuDecimal
