@@ -334,11 +334,6 @@ public:
   unsigned bits() const { return m_bits; }
   using LockMgr::cBits;
 
-private:
-  template <typename I> class Iterator_;
-template <typename> friend class Iterator_;
-
-public:
   struct Node;
   using Node_ = ZmNode<
     T, KeyAxor, ValAxor, NodeBase, ZmHash_NodeExt<Node>, HeapID, Sharded>;
@@ -374,7 +369,7 @@ public:
   }
 
 private:
-  template <typename I> struct Iterator__ {
+  template <typename I> struct Iterator__ { // CRTP
     decltype(auto) iterateKey() {
       return key(static_cast<I *>(this)->iterate());
     }
@@ -383,63 +378,61 @@ private:
     }
   };
 
-  template <typename I> class Iterator_ : public Iterator__<I> {
-    Iterator_(const Iterator_ &) = delete;
-    Iterator_ &operator =(const Iterator_ &) = delete;
-
+  template <typename I> class Iterator_;
+template <typename> friend class Iterator_;
+  template <typename I> class Iterator_ : public Iterator__<I> { // CRTP
     using Hash = ZmHash<T, NTP>;
   friend Hash;
 
+    Iterator_(const Iterator_ &) = delete;
+    Iterator_ &operator =(const Iterator_ &) = delete;
+
   protected:
+    Hash			&hash;
+    int				slot = -1;
+    typename Hash::Node		*node = nullptr;
+    typename Hash::Node		*prev = nullptr;
+
     Iterator_(Iterator_ &&) = default;
     Iterator_ &operator =(Iterator_ &&) = default;
 
-    Iterator_(Hash &hash) : m_hash(hash) { }
+    Iterator_(Hash &hash_) : hash{hash_} { }
 
   public:
-    void reset() {
-      m_hash.startIterate(static_cast<I &>(*this));
-    }
-    Node *iterate() {
-      return m_hash.iterate(static_cast<I &>(*this));
-    }
+    void reset() { hash.startIterate(static_cast<I &>(*this)); }
+    Node *iterate() { return hash.iterate(static_cast<I &>(*this)); }
 
-    unsigned count() const { return m_hash.count_(); }
-
-  protected:
-    Hash			&m_hash;
-    int				m_slot = -1;
-    typename Hash::Node		*m_node;
-    typename Hash::Node		*m_prev;
+    unsigned count() const { return hash.count_(); }
   };
 
-  template <typename I> class KeyIterator_ : public Iterator_<I> {
+  template <typename, typename> class KeyIterator_;
+template <typename, typename> friend class KeyIterator_;
+  template <typename I, typename IKey_>
+  class KeyIterator_ : public Iterator_<I> { // CRTP
     using Hash = ZmHash<T, NTP>;
   friend class ZmHash<T, NTP>;
-
-    using Iterator_<I>::m_hash;
 
     KeyIterator_(const KeyIterator_ &) = delete;
     KeyIterator_ &operator =(const KeyIterator_ &) = delete;
 
+  public:
+    using IKey = IKey_;
+
   protected:
+    IKey	key;
+
+    using Iterator_<I>::hash;
+
     KeyIterator_(KeyIterator_ &&) = default;
     KeyIterator_ &operator =(KeyIterator_ &&) = default;
 
-    template <typename Key_>
-    KeyIterator_(Hash &hash, Key_ &&key) :
-	Iterator_<I>(hash), m_key(ZuFwd<Key_>(key)) { }
+    template <typename IKey__>
+    KeyIterator_(Hash &hash_, IKey__ &&key_) :
+      Iterator_<I>{hash_}, key{ZuFwd<IKey__>(key_)} { }
 
   public:
-    void reset() {
-      m_hash.startKeyIterate(static_cast<I &>(*this));
-    }
-    Node *iterate() {
-      return m_hash.keyIterate(static_cast<I &>(*this));
-    }
-
-  protected:
-    Key			m_key;
+    void reset() { hash.startKeyIterate(static_cast<I &>(*this)); }
+    Node *iterate() { return hash.keyIterate(static_cast<I &>(*this)); }
   };
 
 public:
@@ -449,18 +442,18 @@ public:
 
     using Hash = ZmHash<T, NTP>;
   friend Hash;
-    using Base = Iterator_<Iterator>;
 
-    using Base::m_hash;
+    using Base = Iterator_<Iterator>;
+    using Base::hash;
 
   public:
     Iterator(Iterator &&) = default;
     Iterator &operator =(Iterator &&) = default;
 
-    Iterator(Hash &hash) : Base{hash} { hash.startIterate(*this); }
-    ~Iterator() { m_hash.endIterate(*this); }
+    Iterator(Hash &hash_) : Base{hash_} { hash.startIterate(*this); }
+    ~Iterator() { hash.endIterate(*this); }
 
-    NodeMvRef del() { return m_hash.delIterate(*this); }
+    NodeMvRef del() { return hash.delIterate(*this); }
   };
 
   class ReadIterator : public Iterator_<ReadIterator> {
@@ -469,63 +462,70 @@ public:
 
     using Hash = ZmHash<T, NTP>;
   friend Hash;
-    using Base = Iterator_<ReadIterator>;
 
-    using Base::m_hash;
+    using Base = Iterator_<ReadIterator>;
+    using Base::hash;
 
   public:
     ReadIterator(ReadIterator &&) = default;
     ReadIterator &operator =(ReadIterator &&) = default;
 
-    ReadIterator(const Hash &hash) : Base{const_cast<Hash &>(hash)} {
+    ReadIterator(const Hash &hash_) : Base{const_cast<Hash &>(hash_)} {
       const_cast<Hash &>(hash).startIterate(*this);
     }
-    ~ReadIterator() { m_hash.endIterate(*this); }
+    ~ReadIterator() { hash.endIterate(*this); }
   };
 
-  class KeyIterator : public KeyIterator_<KeyIterator> {
+  template <typename IKey_>
+  class KeyIterator : public KeyIterator_<KeyIterator<IKey_>, IKey_> {
     KeyIterator(const KeyIterator &) = delete;
     KeyIterator &operator =(const KeyIterator &) = delete;
 
     using Hash = ZmHash<T, NTP>;
   friend Hash;
-    using Base = KeyIterator_<KeyIterator>;
 
-    using Base::m_hash;
+    using Base = KeyIterator_<KeyIterator<IKey_>, IKey_>;
+    using typename Base::IKey;
+    using Base::key;
+    using Base::hash;
 
   public:
     KeyIterator(KeyIterator &&) = default;
     KeyIterator &operator =(KeyIterator &&) = default;
 
-    template <typename Key_>
-    KeyIterator(Hash &hash, Key_ &&key) :
-	Base(hash, ZuFwd<Key_>(key)) {
+    template <typename IKey__>
+    KeyIterator(Hash &hash_, IKey__ &&key_) :
+      Base{hash_, ZuFwd<IKey__>(key_)}
+    {
       hash.startKeyIterate(*this);
     }
-    ~KeyIterator() { m_hash.endIterate(*this); }
-    NodeMvRef del() { return m_hash.delIterate(*this); }
+    ~KeyIterator() { hash.endIterate(*this); }
+    NodeMvRef del() { return hash.delIterate(*this); }
   };
 
-  class ReadKeyIterator : public KeyIterator_<ReadKeyIterator> {
+  template <typename IKey_>
+  class ReadKeyIterator : public KeyIterator_<ReadKeyIterator<IKey_>, IKey_> {
     ReadKeyIterator(const ReadKeyIterator &) = delete;
     ReadKeyIterator &operator =(const ReadKeyIterator &) = delete;
 
     using Hash = ZmHash<T, NTP>;
   friend Hash;
-    using Base = KeyIterator_<ReadKeyIterator>;
+    using Base = KeyIterator_<ReadKeyIterator<IKey_>, IKey_>;
 
-    using Base::m_hash;
+    using typename Base::IKey;
+    using Base::key;
+    using Base::hash;
 
   public:
     ReadKeyIterator(ReadKeyIterator &&) = default;
     ReadKeyIterator &operator =(ReadKeyIterator &&) = default;
 
-    template <typename Key_>
-    ReadKeyIterator(const Hash &hash, Key_ &&key) :
-	Base(const_cast<Hash &>(hash), ZuFwd<Key_>(key)) {
+    template <typename IKey__>
+    ReadKeyIterator(const Hash &hash_, IKey__ &&key_) :
+	Base{const_cast<Hash &>(hash_), ZuFwd<IKey__>(key_)} {
       const_cast<Hash &>(hash).startKeyIterate(*this);
     }
-    ~ReadKeyIterator() { m_hash.endIterate(*this); }
+    ~ReadKeyIterator() { hash.endIterate(*this); }
   };
 
 private:
@@ -534,7 +534,7 @@ private:
     if (loadFactor < 1.0) loadFactor = 1.0;
     m_loadFactor = (unsigned)(loadFactor * (1<<4));
     m_table = static_cast<NodePtr *>(
-	Zm::alignedAlloc(sizeof(NodePtr)<<m_bits, Zm::CacheLineSize));
+      Zm::alignedAlloc(sizeof(NodePtr)<<m_bits, Zm::CacheLineSize));
     memset(m_table, 0, sizeof(NodePtr)<<m_bits);
     ZmHashMgr::add(this);
   }
@@ -982,40 +982,40 @@ private:
 public:
   auto iterator() { return Iterator{*this}; }
   template <typename P>
-  auto iterator(P &&key) {
-    return KeyIterator{*this, ZuFwd<P>(key)};
+  auto iterator(P key) {
+    return KeyIterator<P>{*this, ZuMv(key)};
   }
 
   auto readIterator() const { return ReadIterator{*this}; }
   template <typename P>
-  auto readIterator(P &&key) const {
-    return ReadKeyIterator{*this, ZuFwd<P>(key)};
+  auto readIterator(P key) const {
+    return ReadKeyIterator<P>{*this, ZuMv(key)};
   }
 
 private:
   template <typename I>
   void startIterate(I &iterator) {
     LockTraits::lock(lockSlot(0));
-    iterator.m_slot = 0;
-    iterator.m_node = nullptr;
-    iterator.m_prev = nullptr;
+    iterator.slot = 0;
+    iterator.node = nullptr;
+    iterator.prev = nullptr;
   }
   template <typename I>
   void startKeyIterate(I &iterator) {
-    uint32_t code = HashFn::hash(iterator.m_key);
+    uint32_t code = HashFn::hash(iterator.key);
 
     LockTraits::lock(lockCode(code));
-    iterator.m_slot = ZmHashBits(code, m_bits);
-    iterator.m_node = nullptr;
-    iterator.m_prev = nullptr;
+    iterator.slot = ZmHashBits(code, m_bits);
+    iterator.node = nullptr;
+    iterator.prev = nullptr;
   }
   template <typename I>
   Node *iterate(I &iterator) {
-    int slot = iterator.m_slot;
+    int slot = iterator.slot;
 
     if (slot < 0) return nullptr;
 
-    Node *node = iterator.m_node, *prevNode;
+    Node *node = iterator.node, *prevNode;
 
     if (!node) {
       prevNode = nullptr;
@@ -1030,24 +1030,24 @@ private:
       do {
 	LockTraits::unlock(lockSlot(slot));
 	if (++slot >= (1U<<m_bits)) {
-	  iterator.m_slot = -1;
+	  iterator.slot = -1;
 	  return nullptr;
 	}
 	LockTraits::lock(lockSlot(slot));
-	iterator.m_slot = slot;
+	iterator.slot = slot;
       } while (!(node = m_table[slot]));
     }
 
-    iterator.m_prev = prevNode;
-    return iterator.m_node = node;
+    iterator.prev = prevNode;
+    return iterator.node = node;
   }
   template <typename I>
   Node *keyIterate(I &iterator) {
-    int slot = iterator.m_slot;
+    int slot = iterator.slot;
 
     if (slot < 0) return nullptr;
 
-    Node *node = iterator.m_node, *prevNode;
+    Node *node = iterator.node, *prevNode;
 
     if (!node) {
       prevNode = nullptr;
@@ -1058,37 +1058,37 @@ private:
     }
 
     for (;
-	 node && !equals(node->Node::key(), iterator.m_key);
+	 node && !equals(node->Node::key(), iterator.key);
 	 prevNode = node, node = node->NodeExt::next);
 
     if (!node) {
       LockTraits::unlock(lockSlot(slot));
-      iterator.m_slot = -1;
+      iterator.slot = -1;
       return nullptr;
     }
 
-    iterator.m_prev = prevNode;
-    return iterator.m_node = node;
+    iterator.prev = prevNode;
+    return iterator.node = node;
   }
   template <typename I>
   void endIterate(I &iterator) {
-    if (iterator.m_slot < 0) return;
+    if (iterator.slot < 0) return;
 
-    LockTraits::unlock(lockSlot(iterator.m_slot));
+    LockTraits::unlock(lockSlot(iterator.slot));
   }
   template <typename I>
   NodeMvRef delIterate(I &iterator) {
-    Node *node = iterator.m_node, *prevNode = iterator.m_prev;
+    Node *node = iterator.node, *prevNode = iterator.prev;
 
     unsigned count = m_count.load_();
     if (!count || !node) return nullptr;
 
     if (!prevNode)
-      m_table[iterator.m_slot] = node->NodeExt::next;
+      m_table[iterator.slot] = node->NodeExt::next;
     else
       prevNode->NodeExt::next = node->NodeExt::next;
 
-    iterator.m_node = prevNode;
+    iterator.node = prevNode;
 
     m_count.store_(count - 1);
 

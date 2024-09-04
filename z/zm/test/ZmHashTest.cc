@@ -219,7 +219,7 @@ int main(int argc, char **argv)
     puts("");
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(42)));
     {
-      H::ReadKeyIterator i{h, I{42}};
+      auto i = h.readIterator(I{42});
       ZmRef<J> k;
       while (k = i.iterateVal()) {
 	printf("%d ", k->m_i.m_i);

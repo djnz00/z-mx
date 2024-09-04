@@ -478,67 +478,72 @@ protected:
   class Iterator_;
 friend Iterator_;
   class Iterator_ {			// hash iterator
+    using Hash = ZmLHash<T, NTP>;
+  friend Hash;
+
     Iterator_(const Iterator_ &) = delete;
     Iterator_ &operator =(const Iterator_ &) = delete;
 
-    using Hash = ZmLHash<T, NTP>;
-
-  friend Hash;
+  protected:
+    Hash	&hash;
+    int		slot = -1;
+    int		next = -1;
 
   protected:
     Iterator_(Iterator_ &&) = default;
     Iterator_ &operator =(Iterator_ &&) = default;
 
-    Iterator_(Hash &hash) : m_hash{hash} { }
+    Iterator_(Hash &hash_) : hash{hash_} { }
 
     virtual void lock(Lock &l) = 0;
     virtual void unlock(Lock &l) = 0;
 
   public:
-    void reset() { m_hash.startIterate(*this); }
-    const T *iterate() { return m_hash.iterate(*this); }
-    decltype(auto) iterateKey() { return m_hash.iterateKey(*this); }
-    decltype(auto) iterateVal() { return m_hash.iterateVal(*this); }
+    void reset() { hash.startIterate(*this); }
+    const T *iterate() { return hash.iterate(*this); }
 
-    unsigned count() const { return m_hash.count_(); }
+    decltype(auto) iterateIKey() { return hash.iterateIKey(*this); }
+    decltype(auto) iterateVal() { return hash.iterateVal(*this); }
 
-    bool operator !() const { return m_slot < 0; }
+    unsigned count() const { return hash.count_(); }
+
+    bool operator !() const { return slot < 0; }
     ZuOpBool
 
-  protected:
-    Hash	&m_hash;
-    int		m_slot = -1;
-    int		m_next = -1;
   };
 
-  class KeyIterator_;
-friend KeyIterator_;
-  class KeyIterator_ : protected Iterator_ {
+  template <typename> class KeyIterator_;
+template <typename> friend class KeyIterator_;
+  template <typename IKey_>
+  class KeyIterator_ : public Iterator_ {
     KeyIterator_(const KeyIterator_ &) = delete;
     KeyIterator_ &operator =(const KeyIterator_ &) = delete;
 
     using Hash = ZmLHash<T, NTP>;
   friend Hash;
 
-    using Iterator_::m_hash;
+    using Iterator_::hash;
+
+  public:
+    using IKey = IKey_;
+
+  protected:
+    IKey	key;
+    int		prev;
 
   protected:
     KeyIterator_(KeyIterator_ &&) = default;
     KeyIterator_ &operator =(KeyIterator_ &&) = default;
 
-    template <typename P>
-    KeyIterator_(Hash &hash, P &&v) :
-	Iterator_{hash}, m_key{ZuFwd<P>(v)}, m_prev{-1} { }
+    template <typename IKey__>
+    KeyIterator_(Hash &hash_, IKey__ &&key_) :
+	Iterator_{hash_}, key{ZuFwd<IKey__>(key_)}, prev{-1} { }
 
   public:
-    void reset() { m_hash.startIterate(*this); }
-    const T *iterate() { return m_hash.iterate(*this); }
-    decltype(auto) iterateKey() { return m_hash.iterateKey(*this); }
-    decltype(auto) iterateVal() { return m_hash.iterateVal(*this); }
-
-  protected:
-    Key		m_key;
-    int		m_prev;
+    void reset() { hash.startIterate(*this); }
+    const T *iterate() { return hash.iterate(*this); }
+    decltype(auto) iterateIKey() { return hash.iterateIKey(*this); }
+    decltype(auto) iterateVal() { return hash.iterateVal(*this); }
   };
 
 public:
@@ -547,18 +552,21 @@ public:
     Iterator &operator =(const Iterator &) = delete;
 
     using Hash = ZmLHash<T, NTP>;
+  friend Hash;
+
+    using Base = Iterator_;
+    using Base::hash;
+
     void lock(Lock &l) { LockTraits::lock(l); }
     void unlock(Lock &l) { LockTraits::unlock(l); }
-
-    using Iterator_::m_hash;
 
   public:
     Iterator(Iterator &&) = default;
     Iterator &operator =(Iterator &&) = default;
 
-    Iterator(Hash &hash) : Iterator_(hash) { hash.startIterate(*this); }
-    ~Iterator() { m_hash.endIterate(*this); }
-    void del() { m_hash.delIterate(*this); }
+    Iterator(Hash &hash_) : Base{hash_} { hash.startIterate(*this); }
+    ~Iterator() { hash.endIterate(*this); }
+    void del() { hash.delIterate(*this); }
   };
 
   class ReadIterator : public Iterator_ {
@@ -566,60 +574,76 @@ public:
     ReadIterator &operator =(const ReadIterator &) = delete;
 
     using Hash = ZmLHash<T, NTP>;
+  friend Hash;
+
+    using Base = Iterator_;
+    using Base::hash;
+ 
     void lock(Lock &l) { LockTraits::readlock(l); }
     void unlock(Lock &l) { LockTraits::readunlock(l); }
-
-    using Iterator_::m_hash;
 
   public:
     ReadIterator(ReadIterator &&) = default;
     ReadIterator &operator =(ReadIterator &&) = default;
 
-    ReadIterator(const Hash &hash) : Iterator_(const_cast<Hash &>(hash))
-      { const_cast<Hash &>(hash).startIterate(*this); }
-    ~ReadIterator() { m_hash.endIterate(*this); }
+    ReadIterator(const Hash &hash_) : Base{const_cast<Hash &>(hash_)} {
+      const_cast<Hash &>(hash).startIterate(*this);
+    }
+    ~ReadIterator() { hash.endIterate(*this); }
   };
 
-  class KeyIterator : public KeyIterator_ {
+  template <typename IKey_>
+  class KeyIterator : public KeyIterator_<IKey_> {
     KeyIterator(const KeyIterator &) = delete;
     KeyIterator &operator =(const KeyIterator &) = delete;
 
     using Hash = ZmLHash<T, NTP>;
+  friend Hash;
+
+    using Base = KeyIterator_<IKey_>;
+    using typename Base::IKey;
+    using Base::key;
+    using Base::hash;
+
     void lock(Lock &l) { LockTraits::lock(l); }
     void unlock(Lock &l) { LockTraits::unlock(l); }
-
-    using KeyIterator_::m_hash;
 
   public:
     KeyIterator(KeyIterator &&) = default;
     KeyIterator &operator =(KeyIterator &&) = default;
 
-    template <typename Index_>
-    KeyIterator(Hash &hash, Index_ &&index) :
-	KeyIterator_(hash, ZuFwd<Index_>(index)) { hash.startIterate(*this); }
-    ~KeyIterator() { m_hash.endIterate(*this); }
-    void del() { m_hash.delIterate(*this); }
+    template <typename IKey__>
+    KeyIterator(Hash &hash_, IKey__ &&key_) :
+      Base{hash_, ZuFwd<IKey__>(key_)} { hash.startIterate(*this); }
+    ~KeyIterator() { hash.endIterate(*this); }
+    void del() { hash.delIterate(*this); }
   };
 
-  class ReadKeyIterator : public KeyIterator_ {
+  template <typename IKey_>
+  class ReadKeyIterator : public KeyIterator_<IKey_> {
     ReadKeyIterator(const ReadKeyIterator &) = delete;
     ReadKeyIterator &operator =(const ReadKeyIterator &) = delete;
 
     using Hash = ZmLHash<T, NTP>;
+  friend Hash;
+
+    using Base = KeyIterator_<IKey_>;
+    using typename Base::IKey;
+    using Base::key;
+    using Base::hash;
+
     void lock(Lock &l) { LockTraits::readlock(l); }
     void unlock(Lock &l) { LockTraits::readunlock(l); }
-
-    using KeyIterator_::m_hash;
 
   public:
     ReadKeyIterator(ReadKeyIterator &&) = default;
     ReadKeyIterator &operator =(ReadKeyIterator &&) = default;
 
-    template <typename Index_>
-    ReadKeyIterator(const Hash &hash, Index_ &&index) :
-	KeyIterator_(const_cast<Hash &>(hash), ZuFwd<Index_>(index))
+    template <typename IKey__>
+    ReadKeyIterator(const Hash &hash_, IKey__ &&key_) :
+	Base{const_cast<Hash &>(hash_), ZuFwd<IKey__>(key_)}
       { const_cast<Hash &>(hash).startIterate(*this); }
-    ~ReadKeyIterator() { m_hash.endIterate(*this); }
+    ~ReadKeyIterator() { hash.endIterate(*this); }
   };
 
   // static - no ID, no params
@@ -667,8 +691,7 @@ public:
   ~ZmLHash() { Base::final(); }
 
   unsigned size() const {
-    return static_cast<double>(
-      static_cast<uint64_t>(1)<<bits()) * loadFactor();
+    return double(uint64_t(1)<<bits()) * loadFactor();
   }
 
   template <typename P>
@@ -726,7 +749,7 @@ private:
     // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() code=" << code << '\n');
     unsigned size = 1U<<bits();
     unsigned slot = code & (size - 1);
-    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() slot=" << slot << '\n');
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::add__() size=" << size << " slot=" << slot << '\n');
 
     if (!m_table[slot]) {
       m_table[slot].init(1, 1, 0, ZuFwd<P>(data));
@@ -881,7 +904,7 @@ private:
     for (;;) {
       if (match(&m_table[slot])) {
 	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() found slot=" << slot << '\n');
-	prev = prev < 0 ? (-(static_cast<int>(slot)) - 2) : prev;
+	prev = prev < 0 ? (-int(slot) - 2) : prev;
 	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::findPrev_() found prev=" << prev << '\n');
 	return prev;
       }
@@ -1022,7 +1045,7 @@ private:
 
     unsigned next = m_table[slot].next();
     m_table[slot] = ZuMv(m_table[next]);
-    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() moved slot=" << slot << '\n');
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() moved slot=" << slot << " from next=" << next << '\n');
     m_table[next].null();
     // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::del__() cleared slot=" << next << '\n');
   }
@@ -1056,127 +1079,128 @@ public:
   }
 
   auto iterator() { return Iterator{*this}; }
-  template <typename Index_>
-  auto iterator(Index_ &&index) {
-    return KeyIterator{*this, ZuFwd<Index_>(index)};
+  template <typename P>
+  auto iterator(P key) {
+    return KeyIterator<P>{*this, ZuMv(key)};
   }
 
   auto readIterator() const { return ReadIterator{*this}; }
-  template <typename Index_>
-  auto readIterator(Index_ &&index) const {
-    return ReadKeyIterator{*this, ZuFwd<Index_>(index)};
+  template <typename P>
+  auto readIterator(P key) const {
+    return ReadKeyIterator<P>{*this, ZuMv(key)};
   }
 
 private:
   void startIterate(Iterator_ &iterator) {
     iterator.lock(m_lock);
-    iterator.m_slot = -1;
+    iterator.slot = -1;
     int next = -1;
     int size = 1<<bits();
     while (++next < size)
       if (!!m_table[next]) {
-	iterator.m_next = next;
+	iterator.next = next;
 	return;
       }
-    iterator.m_next = -1;
+    iterator.next = -1;
   }
-  void startIterate(KeyIterator_ &iterator) {
+  template <typename IKey>
+  void startIterate(KeyIterator_<IKey> &iterator) {
     iterator.lock(m_lock);
-    iterator.m_slot = -1;
+    iterator.slot = -1;
     int prev =
-      findPrev_(matchKey(iterator.m_key), HashFn::hash(iterator.m_key));
+      findPrev_(matchKey(iterator.key), HashFn::hash(iterator.key));
     if (prev == -1) {
-      iterator.m_next = iterator.m_prev = -1;
-      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.m_key << ") not found\n");
+      iterator.next = iterator.prev = -1;
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.key << ") not found\n");
       return;
     }
     if (prev < 0)
-      iterator.m_next = -prev - 2, iterator.m_prev = -1;
+      iterator.next = -prev - 2, iterator.prev = -1;
     else
-      iterator.m_next = m_table[iterator.m_prev = prev].next();
-    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.m_key << ") found slot=" << iterator.m_next << " prev=" << iterator.m_prev << "\n");
+      iterator.next = m_table[iterator.prev = prev].next();
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::startIterate(" << iterator.key << ") found slot=" << iterator.next << " prev=" << iterator.prev << "\n");
   }
   void iterate_(Iterator_ &iterator) {
-    int next = iterator.m_next;
+    int next = iterator.next;
     if (next < 0) {
-      iterator.m_slot = -1;
+      iterator.slot = -1;
       return;
     }
-    iterator.m_slot = next;
+    iterator.slot = next;
     int size = 1<<bits();
     while (++next < size)
       if (!!m_table[next]) {
-	iterator.m_next = next;
+	iterator.next = next;
 	return;
       }
-    iterator.m_next = -1;
+    iterator.next = -1;
   }
-  void iterate_(KeyIterator_ &iterator) {
-    int next = iterator.m_next;
+  template <typename IKey>
+  void iterate_(KeyIterator_<IKey> &iterator) {
+    iterator.prev = iterator.slot;
+    iterator.slot = iterator.next;
+    int next = iterator.next;
     if (next < 0) {
-      iterator.m_slot = -1;
-      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") ended\n");
+  end:
+      iterator.slot = iterator.next = -1;
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.key << ") ended\n");
       return;
     }
-    iterator.m_slot = next;
-    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=" << next << "\n");
-    while (!m_table[next].tail()) {
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.key << ") next slot=" << next << "\n");
+    while (!Cmp::equals(m_table[next].key(), iterator.key)) {
+      if (m_table[next].tail()) goto end;
+      iterator.prev = next;
       next = m_table[next].next();
-      if (Cmp::equals(m_table[next].key(), iterator.m_key)) {
-	iterator.m_next = next;
-	// std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") found slot=" << next << "\n");
-	return;
-      }
-      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=" << next << "\n");
-      iterator.m_prev = next;
+      // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.key << ") next slot=" << next << "\n");
     }
-    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.m_key << ") next slot=-1\n");
-    iterator.m_prev = next;
-    iterator.m_next = -1;
+    // std::cout << (ZuStringN<80>{} << ZuBoxPtr(this).hex<false, ZuFmt::Alt<>>() << " ZmLHash::iterate_(" << iterator.key << ") found slot=" << next << "\n");
+    iterator.slot = next;
+    iterator.next = m_table[next].tail() ? -1 : m_table[next].next();
   }
   template <typename I>
   const T *iterate(I &iterator) {
     iterate_(iterator);
-    return ptr(iterator.m_slot);
+    return ptr(iterator.slot);
   }
   template <typename I>
   decltype(auto) iterateKey(I &iterator) {
     iterate_(iterator);
-    return key(iterator.m_slot);
+    return key(iterator.slot);
   }
   template <typename I>
   decltype(auto) iterateVal(I &iterator) {
     iterate_(iterator);
-    return val(iterator.m_slot);
+    return val(iterator.slot);
   }
   void endIterate(Iterator_ &iterator) {
     iterator.unlock(m_lock);
-    iterator.m_slot = iterator.m_next = -1;
+    iterator.slot = iterator.next = -1;
   }
   void delIterate(Iterator_ &iterator) {
-    int slot = iterator.m_slot;
+    int slot = iterator.slot;
     if (slot < 0) return;
     bool advanceRegardless =
-      !m_table[slot].tail() && static_cast<int>(m_table[slot].next()) < slot;
+      !m_table[slot].tail() && int(m_table[slot].next()) < slot;
     del__(m_table[slot].head() ? (-slot - 2) : prev(slot));
-    if (!advanceRegardless && !!m_table[slot]) iterator.m_next = slot;
-    iterator.m_slot = -1;
+    if (!advanceRegardless && !!m_table[slot]) iterator.next = slot;
+    iterator.slot = -1;
   }
-  void delIterate(KeyIterator_ &iterator) {
-    int slot = iterator.m_slot;
+  template <typename IKey>
+  void delIterate(KeyIterator_<IKey> &iterator) {
+    int slot = iterator.slot;
     if (slot < 0) return;
-    del__(iterator.m_prev < 0 ? (-slot - 2) : iterator.m_prev);
-    iterator.m_slot = -1;
+    del__(iterator.prev < 0 ? (-slot - 2) : iterator.prev);
+    iterator.slot = -1;
     if (!m_table[slot]) return;
     for (;;) {
-      if (Cmp::equals(m_table[slot].key(), iterator.m_key)) {
-	iterator.m_next = slot;
+      if (Cmp::equals(m_table[slot].key(), iterator.key)) {
+	iterator.next = slot;
 	return;
       }
       if (m_table[slot].tail()) break;
       slot = m_table[slot].next();
     }
-    iterator.m_next = -1;
+    iterator.next = -1;
   }
 
 private:
@@ -1185,7 +1209,7 @@ private:
     data.loadFactor = loadFactor();
     unsigned count = m_count.load_();
     unsigned bits = this->bits();
-    data.effLoadFactor = static_cast<double>(count) / (1<<bits);
+    data.effLoadFactor = double(count) / (1<<bits);
     data.nodeSize = sizeof(Node);
     data.count = count;
     data.resized = resized();

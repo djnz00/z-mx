@@ -23,7 +23,7 @@ if MINGW
 bin_PROGRAMS = ZmBTTest
 noinst_PROGRAMS = ${TESTPROGS}
 else
-noinst_PROGRAMS = ZmBTTest ${TESTPROGS}
+noinst_PROGRAMS = ${TESTPROGS} ZmBTTest
 endif
 ZmBTTest_SOURCES = ZmBTTest.cc
 ZmBTTest_LDADD = libZmBTTest.la ${LDADD}
