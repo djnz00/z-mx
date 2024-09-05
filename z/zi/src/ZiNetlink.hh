@@ -56,7 +56,7 @@ class ZiNetlink {
   // takes the familyName and gets the familyID and a portID from
   // the kernel. The familyID and portID are needed for
   // further communication. Returns 0 on success non-zero on error
-  static int connect(Socket sock, ZuString familyName,
+  static int connect(Socket sock, ZuCSpan familyName,
       unsigned int &familyID, uint32_t &portID);
 
   // read 'len' bytes into buffer 'buf' for the given familyID and portID

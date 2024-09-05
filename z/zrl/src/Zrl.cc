@@ -52,12 +52,12 @@ private:
 public:
   Context() {
     cli.init(Zrl::App{
-      .error = [this](ZuString s) { std::cerr << s << '\n'; stop(); },
+      .error = [this](ZuCSpan s) { std::cerr << s << '\n'; stop(); },
       .prompt = [this](ZtArray<uint8_t> &s) {
 	Guard guard(lock);
 	if (prompt.owned()) s = ZuMv(prompt);
       },
-      .enter = [this](ZuString s) -> bool { return process(s); },
+      .enter = [this](ZuCSpan s) -> bool { return process(s); },
       .end = [this]() { stop(); },
       .sig = [this](int sig) -> bool {
 	switch (sig) {
@@ -131,7 +131,7 @@ private:
     while (state == Editing) cond.wait();
   }
 
-  bool process(ZuString s) {
+  bool process(ZuCSpan s) {
     Guard guard(lock);
     {
       unsigned n = s.length();

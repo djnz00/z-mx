@@ -1,4 +1,4 @@
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmSemaphore.hh>
 
@@ -13,7 +13,7 @@ int main()
   Zrl::Editor editor;
   ZmSemaphore done;
   app.prompt = [](ZtArray<uint8_t> &s) { if (!s) s = "-->] "; };
-  app.enter = [&done](ZuString s) -> bool {
+  app.enter = [&done](ZuCSpan s) -> bool {
     std::cout << s << '\n';
     if (s == "quit") {
       done.post();
@@ -35,7 +35,7 @@ int main()
     return false;
   };
   ZtArray<ZtArray<const uint8_t>> history;
-  app.histSave = [&history](unsigned i, ZuArray<const uint8_t> s) {
+  app.histSave = [&history](unsigned i, ZuSpan<const uint8_t> s) {
     if (history.length() <= i) history.grow(i + 1);
     history[i] = s;
   };

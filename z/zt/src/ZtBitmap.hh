@@ -17,7 +17,7 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuIterator.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuBitmap.hh>

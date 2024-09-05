@@ -252,11 +252,11 @@ template <typename T> struct ZuHash_NonString<T, true, true> :
 
 #if (defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))) || \
     defined(_WIN32)
-#define ZuStringHash_Misaligned16BitLoadOK
+#define ZuCSpanHash_Misaligned16BitLoadOK
 #endif
 
-template <typename T> struct ZuStringHash;
-template <> struct ZuStringHash<char> {
+template <typename T> struct ZuCSpanHash;
+template <> struct ZuCSpanHash<char> {
   static uint32_t hash(const char *data_, size_t len) {
     auto data = reinterpret_cast<const uint8_t *>(data_);
     uint32_t hash = len;
@@ -265,7 +265,7 @@ template <> struct ZuStringHash<char> {
 
     // main loop
     while (len>>2) {
-#ifdef ZuStringHash_Misaligned16BitLoadOK
+#ifdef ZuCSpanHash_Misaligned16BitLoadOK
       hash += reinterpret_cast<const uint16_t *>(data)[0];
       hash =
 	(hash<<16) ^ (reinterpret_cast<const uint16_t *>(data)[1]<<11) ^ hash;
@@ -280,7 +280,7 @@ template <> struct ZuStringHash<char> {
     // handle end cases
     switch (len & 3) {
       case 3:
-#ifdef ZuStringHash_Misaligned16BitLoadOK
+#ifdef ZuCSpanHash_Misaligned16BitLoadOK
 	hash += reinterpret_cast<const uint16_t *>(data)[0];
 #else
 	hash += data[0] + (data[1]<<8);
@@ -290,7 +290,7 @@ template <> struct ZuStringHash<char> {
 	hash += hash>>11;
 	break;
       case 2:
-#ifdef ZuStringHash_Misaligned16BitLoadOK
+#ifdef ZuCSpanHash_Misaligned16BitLoadOK
 	hash += reinterpret_cast<const uint16_t *>(data)[0];
 #else
 	hash += data[0] + (data[1]<<8);
@@ -316,8 +316,8 @@ template <> struct ZuStringHash<char> {
     // return ZuHash_GoldenRatio32::hash(hash);
   }
 };
-template <int WCharSize> struct ZuWStringHash;
-template <> struct ZuWStringHash<2> {
+template <int WCharSize> struct ZuWSpanHash;
+template <> struct ZuWSpanHash<2> {
   static uint32_t hash(const wchar_t *data_, size_t len) {
     auto data = reinterpret_cast<const uint16_t *>(data_);
     uint32_t hash = len;
@@ -351,7 +351,7 @@ template <> struct ZuWStringHash<2> {
     // return ZuHash_GoldenRatio32::hash(hash);
   }
 };
-template <> struct ZuWStringHash<4> {
+template <> struct ZuWSpanHash<4> {
   static uint32_t hash(const wchar_t *data_, size_t len) {
     auto data = reinterpret_cast<const uint16_t *>(data_);
     uint32_t hash = len;
@@ -378,7 +378,7 @@ template <> struct ZuWStringHash<4> {
   }
 };
 template <>
-struct ZuStringHash<wchar_t> : public ZuWStringHash<sizeof(wchar_t)> { };
+struct ZuCSpanHash<wchar_t> : public ZuWSpanHash<sizeof(wchar_t)> { };
 
 // generic hashing function
 
@@ -391,7 +391,7 @@ template <typename T> struct ZuHash_<T, true> {
   static uint32_t hash(const S &s) {
     using Traits = ZuTraits<S>;
     using Char = ZuDecay<typename Traits::Elem>;
-    return ZuStringHash<Char>::hash(Traits::data(s), Traits::length(s));
+    return ZuCSpanHash<Char>::hash(Traits::data(s), Traits::length(s));
   }
 };
 

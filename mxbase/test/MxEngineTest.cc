@@ -155,7 +155,7 @@ void Engine::init(Mgr *mgr, App *app, Mx *mx, const ZvCf *cf)
   m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, 1);
   if (ZmRef<ZvCf> linksCf = cf->getCf("links")) {
     ZvCf::Iterator i(linksCf);
-    ZuString id;
+    ZuCSpan id;
     while (ZmRef<ZvCf> linkCf = i.subset(id))
       MxEngine::updateLink(id, linkCf);
   }

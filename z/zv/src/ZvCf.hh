@@ -66,7 +66,7 @@ using Cf = ZvCf_::Cf;
 // thrown by all get methods for missing required values
 class Required : public ZvError {
 public:
-  Required(const Cf *cf, ZuString key) :
+  Required(const Cf *cf, ZuCSpan key) :
       m_key{fullKey(cf, key)}, m_bt{1} { }
 
   const ZtString &key() const { return m_key; }
@@ -107,7 +107,7 @@ public:
   T value() const { return m_value; }
 
 protected:
-  void print__(ZuVStream &s, ZuString msg) const {
+  void print__(ZuVStream &s, ZuCSpan msg) const {
     s << '"' << m_key << "\" " << msg << ' ' <<
       "min(" << m_minimum << ") <= " << m_value <<
       " <= max(" << m_maximum << ")";
@@ -124,7 +124,7 @@ template <typename T>
 class Range : public Range_<T> {
   using Base = Range_<T>;
 public:
-  Range(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
+  Range(const Cf *cf, ZuCSpan key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
   void print_(ZuVStream &s) const {
     Base::print__(s, "out of range");
@@ -135,7 +135,7 @@ class NElems : public Range_<unsigned> {
   using T = unsigned;
   using Base = Range_<T>;
 public:
-  NElems(const Cf *cf, ZuString key, T minimum, T maximum, T value) :
+  NElems(const Cf *cf, ZuCSpan key, T minimum, T maximum, T value) :
       Base{fullKey(cf, key), minimum, maximum, value} { }
   void print_(ZuVStream &s) const {
     Base::print__(s, "invalid number of values");
@@ -145,7 +145,7 @@ public:
 // thrown by fromArgs() on error
 class Usage : public ZvError {
 public:
-  Usage(ZuString cmd, ZuString option) :
+  Usage(ZuCSpan cmd, ZuCSpan option) :
     m_cmd(cmd), m_option(option) { }
   void print_(ZuVStream &s) const {
     s << '"' << m_cmd << "\": invalid option \"" << m_option << '"';
@@ -159,7 +159,7 @@ private:
 // thrown by fromString() and fromFile() on error
 class Syntax : public ZvError {
 public:
-  Syntax(unsigned line, char ch, ZuString fileName) :
+  Syntax(unsigned line, char ch, ZuCSpan fileName) :
     m_line(line), m_ch(ch), m_fileName(fileName) { }
   void print_(ZuVStream &s) const {
     if (m_fileName)
@@ -184,7 +184,7 @@ private:
 // thrown by fromFile()
 class FileOpenError : public ZvError {
 public:
-  FileOpenError(ZuString fileName, ZeError e) :
+  FileOpenError(ZuCSpan fileName, ZeError e) :
     m_fileName{fileName}, m_err{e} { }
 
   void print_(ZuVStream &s) const {
@@ -199,7 +199,7 @@ private:
 // thrown by fromFile()
 class File2Big : public ZvError {
 public:
-  File2Big(ZuString fileName) : m_fileName{fileName} { }
+  File2Big(ZuCSpan fileName) : m_fileName{fileName} { }
   void print_(ZuVStream &s) const {
     s << '"' << m_fileName << " file too big";
   };
@@ -258,7 +258,7 @@ template <typename T> using Scan = typename Scan_<T>::T;
 // scan bool
 template <bool Required_ = false>
 inline bool scanBool(
-    const Cf *cf, ZuString key, ZuString value, bool deflt = false)
+    const Cf *cf, ZuCSpan key, ZuCSpan value, bool deflt = false)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -274,7 +274,7 @@ inline bool scanBool(
 // scan generic scalar
 template <typename T, bool Required_ = false>
 inline T scanScalar(
-    const Cf *cf, ZuString key, ZuString value,
+    const Cf *cf, ZuCSpan key, ZuCSpan value,
     T minimum, T maximum, T deflt = ZuCmp<T>::null())
 {
   if (!value) {
@@ -303,7 +303,7 @@ inline auto scanDbl(Args &&...args) {
 // scan enum
 template <typename Map, bool Required_ = false>
 inline int scanEnum(
-    const Cf *cf, ZuString key, ZuString value, int deflt = -1)
+    const Cf *cf, ZuCSpan key, ZuCSpan value, int deflt = -1)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -318,7 +318,7 @@ inline int scanEnum(
 // scan flags
 template <typename Map, typename Flags, bool Required_ = false>
 inline Flags scanFlags(
-    const Cf *cf, ZuString key, ZuString value, Flags deflt = 0)
+    const Cf *cf, ZuCSpan key, ZuCSpan value, Flags deflt = 0)
 {
   if (!value) {
     if constexpr (Required_) throw Required{cf, key};
@@ -647,18 +647,18 @@ public:
 private:
   Cf(CfNode *node) : m_node{node} { }
 public:
-  static ZtArray<ZtString> parseCLI(ZuString line);
+  static ZtArray<ZtString> parseCLI(ZuCSpan line);
   static ZtArray<ZtString> args(int argc, char **argv);
   static ZmRef<Cf> options(const ZvOpt *opts);
 
   // fromCLI() and fromArgs() return the number of positional arguments
-  unsigned fromCLI(Cf *syntax, ZuString line);
+  unsigned fromCLI(Cf *syntax, ZuCSpan line);
   unsigned fromArgs(Cf *options, const ZtArray<ZtString> &args);
 
   using Defines_ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
   struct Defines : public ZuObject, public Defines_ { };
 
-  void fromString(ZuString in, ZmRef<Defines> defines = new Defines{}) {
+  void fromString(ZuCSpan in, ZmRef<Defines> defines = new Defines{}) {
     fromString(in, {}, defines);
   }
 
@@ -724,11 +724,11 @@ private:
 	    ZmRBTreeHeapID<HeapID>>>>>;
   using Node = Tree::Node;
 
-  ZuTuple<Cf *, ZtString> getScope(ZuString fullKey) const;
+  ZuTuple<Cf *, ZtString> getScope(ZuCSpan fullKey) const;
 
 public:
   template <bool Required_ = false>
-  const CfNode *getNode(ZuString fullKey) const {
+  const CfNode *getNode(ZuCSpan fullKey) const {
     auto [this_, key] = getScope(fullKey);
     if (!this_) {
       if constexpr (Required_) throw Required{this, fullKey};
@@ -740,75 +740,75 @@ public:
     return node;
   }
 private:
-  CfNode *mkNode(ZuString fullKey);
+  CfNode *mkNode(ZuCSpan fullKey);
 
 public:
   // check if key exists
-  bool exists(ZuString fullKey) const { return getNode(fullKey); }
+  bool exists(ZuCSpan fullKey) const { return getNode(fullKey); }
 
   // set/get/assure ZtString
-  void set(ZuString key, ZtString value);
+  void set(ZuCSpan key, ZtString value);
   template <bool Required_ = false>
-  const ZtString &get(ZuString key) const {
+  const ZtString &get(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template get<Required_>();
     if constexpr (Required_) throw Required{this, key};
     return ZuNullRef<ZtString>();
   }
-  ZtString get(ZuString key, ZtString deflt) const {
+  ZtString get(ZuCSpan key, ZtString deflt) const {
     if (auto node = getNode(key)) return node->get(deflt);
     return deflt;
   }
   template <typename L>
-  const ZtString &assure(ZuString key, L l) {
+  const ZtString &assure(ZuCSpan key, L l) {
     return mkNode(key)->assure(ZuMv(l));
   }
 
   // set/get/assure StrArray
-  void setStrArray(ZuString key, StrArray value);
+  void setStrArray(ZuCSpan key, StrArray value);
   template <bool Required_ = false>
-  const StrArray &getStrArray(ZuString key) const {
+  const StrArray &getStrArray(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getStrArray<Required_>();
     if constexpr (Required_) throw Required{this, key};
     return ZuNullRef<StrArray>();
   }
   template <typename L>
-  const StrArray &assureStrArray(ZuString key, L l) {
+  const StrArray &assureStrArray(ZuCSpan key, L l) {
     return mkNode(key)->assureStrArray(ZuMv(l));
   }
 
   // set/get/assure ZmRef<Cf>
-  ZmRef<Cf> mkCf(ZuString key);
-  void setCf(ZuString key, ZmRef<Cf> cf);
+  ZmRef<Cf> mkCf(ZuCSpan key);
+  void setCf(ZuCSpan key, ZmRef<Cf> cf);
   template <bool Required_ = false>
-  const ZmRef<Cf> &getCf(ZuString key) const {
+  const ZmRef<Cf> &getCf(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getCf<Required_>();
     if constexpr (Required_) throw Required{this, key};
     return ZuNullRef<ZmRef<Cf>>();
   }
   template <typename L>
-  const ZmRef<Cf> &assureCf(ZuString key, L l) {
+  const ZmRef<Cf> &assureCf(ZuCSpan key, L l) {
     return mkNode(key)->assureCf(ZuMv(l));
   }
 
   // set/get/assure CfArray
-  void setCfArray(ZuString key, CfArray value);
+  void setCfArray(ZuCSpan key, CfArray value);
   template <bool Required_ = false>
-  const CfArray &getCfArray(ZuString key) const {
+  const CfArray &getCfArray(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getCfArray<Required_>();
     if constexpr (Required_) throw Required{this, key};
     return ZuNullRef<CfArray>();
   }
   template <typename L>
-  const CfArray &assureCfArray(ZuString key, L l) {
+  const CfArray &assureCfArray(ZuCSpan key, L l) {
     return mkNode(key)->assureCfArray(ZuMv(l));
   }
 
   // unset node
-  void unset(ZuString key);
+  void unset(ZuCSpan key);
 
   // iterate over nodes
   template <typename L>
@@ -825,115 +825,115 @@ public:
 
   // get/assure bool
   template <bool Required_ = false>
-  bool getBool(ZuString key) const {
+  bool getBool(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getBool<Required_>();
     if constexpr (Required_) throw Required{this, key};
     return false;
   }
-  bool getBool(ZuString key, bool deflt) const {
+  bool getBool(ZuCSpan key, bool deflt) const {
     if (auto node = getNode(key))
       return node->getBool(deflt);
     return deflt;
   }
-  bool assureBool(ZuString key, bool deflt) {
+  bool assureBool(ZuCSpan key, bool deflt) {
     return mkNode(key)->assureBool(deflt);
   }
 
   // generic get/assure scalar
   template <typename T, bool Required_ = false>
-  T getScalar(ZuString key, T minimum, T maximum) const {
+  T getScalar(ZuCSpan key, T minimum, T maximum) const {
     if (auto node = getNode<Required_>(key))
       return node->template getScalar<T, Required_>(minimum, maximum);
     if constexpr (Required_) throw Required{this, key};
     return 0;
   }
   template <typename T>
-  T getScalar(ZuString key, T minimum, T maximum, T deflt) const {
+  T getScalar(ZuCSpan key, T minimum, T maximum, T deflt) const {
     if (auto node = getNode(key))
       return node->template getScalar<T>(minimum, maximum, deflt);
     return deflt;
   }
   template <typename T>
-  T assureScalar(ZuString key, T minimum, T maximum, T deflt) {
+  T assureScalar(ZuCSpan key, T minimum, T maximum, T deflt) {
     return mkNode(key)->template assureScalar<T>(minimum, maximum, deflt);
   }
 
   // get/assure shorthand forwarding functions for int
   template <bool Required_ = false>
-  int getInt(ZuString key, int minimum, int maximum) const {
+  int getInt(ZuCSpan key, int minimum, int maximum) const {
     return getScalar<int, Required_>(key, minimum, maximum);
   }
-  int getInt(ZuString key, int minimum, int maximum, int deflt) const {
+  int getInt(ZuCSpan key, int minimum, int maximum, int deflt) const {
     return getScalar<int>(key, minimum, maximum, deflt);
   }
-  int assureInt(ZuString key, int minimum, int maximum, int deflt) {
+  int assureInt(ZuCSpan key, int minimum, int maximum, int deflt) {
     return assureScalar<int>(key, minimum, maximum, deflt);
   }
 
   // get/assure shorthand forwarding functions for int64_t
   template <bool Required_ = false>
-  int64_t getInt64(ZuString key, int64_t minimum, int64_t maximum) const {
+  int64_t getInt64(ZuCSpan key, int64_t minimum, int64_t maximum) const {
     return getScalar<int64_t, Required_>(key, minimum, maximum);
   }
   int64_t getInt64(
-      ZuString key, int64_t minimum, int64_t maximum, int64_t deflt) const {
+      ZuCSpan key, int64_t minimum, int64_t maximum, int64_t deflt) const {
     return getScalar<int64_t>(key, minimum, maximum, deflt);
   }
   int64_t assureInt64(
-      ZuString key, int64_t minimum, int64_t maximum, int64_t deflt) {
+      ZuCSpan key, int64_t minimum, int64_t maximum, int64_t deflt) {
     return assureScalar<int64_t>(key, minimum, maximum, deflt);
   }
 
   // get/assure shorthand forwarding functions for double
   template <bool Required_ = false>
-  double getDouble(ZuString key, double minimum, double maximum) const {
+  double getDouble(ZuCSpan key, double minimum, double maximum) const {
     return getScalar<double, Required_>(key, minimum, maximum);
   }
   double getDouble(
-      ZuString key, double minimum, double maximum, double deflt) const {
+      ZuCSpan key, double minimum, double maximum, double deflt) const {
     return getScalar<double>(key, minimum, maximum, deflt);
   }
   double assureDouble(
-      ZuString key, double minimum, double maximum, double deflt) {
+      ZuCSpan key, double minimum, double maximum, double deflt) {
     return assureScalar<double>(key, minimum, maximum, deflt);
   }
 
   // get/assure for enum
   template <typename Map, bool Required_ = false>
-  int getEnum(ZuString key) const {
+  int getEnum(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getEnum<Map, Required_>();
     if constexpr (Required_) throw Required{this, key};
     return -1;
   }
   template <typename Map>
-  int getEnum(ZuString key, int deflt) const {
+  int getEnum(ZuCSpan key, int deflt) const {
     if (auto node = getNode(key))
       return node->template getEnum<Map>(deflt);
     return deflt;
   }
   template <typename Map>
-  int assureEnum(ZuString key, int deflt) {
+  int assureEnum(ZuCSpan key, int deflt) {
     return mkNode(key)->template assureEnum<Map>(deflt);
   }
 
   // generic get/assure for flags
   template <typename Map, typename T, bool Required_ = false>
-  T getFlags(ZuString key) const {
+  T getFlags(ZuCSpan key) const {
     if (auto node = getNode<Required_>(key))
       return node->template getFlags<Map, T, Required_>();
     if constexpr (Required_) throw Required{this, key};
     return 0;
   }
   template <typename Map, typename T>
-  T getFlags(ZuString key, T deflt) const {
+  T getFlags(ZuCSpan key, T deflt) const {
     if (auto node = getNode(key))
       return node->template getFlags<Map, T>(deflt);
     return deflt;
   }
   template <typename Map, typename T>
-  T assureFlags(ZuString key, T deflt) {
+  T assureFlags(ZuCSpan key, T deflt) {
     return mkNode(key)->template assureFlags<Map, T>(deflt);
   }
 
@@ -1135,19 +1135,19 @@ public:
   CfNode *node() const { return m_node; }
 
 private:
-  void fromArg(ZuString key, int type, ZuString in);
-  void fromString(ZuString in, ZuString path, ZmRef<Defines> defines);
+  void fromArg(ZuCSpan key, int type, ZuCSpan in);
+  void fromString(ZuCSpan in, ZuCSpan path, ZmRef<Defines> defines);
 
-  void toArgs(ZtArray<ZtString> &args, ZuString prefix = {}) const;
+  void toArgs(ZtArray<ZtString> &args, ZuCSpan prefix = {}) const;
 
   template <unsigned Q = Quoting::File>
   ZuTuple<Cf *, ZtString, int, unsigned>
-  getScope_(ZuString in, Cf::Defines *defines = nullptr) const;
+  getScope_(ZuCSpan in, Cf::Defines *defines = nullptr) const;
   template <unsigned Q = Quoting::File>
   ZuTuple<Cf *, ZtString, int, unsigned>
-  mkScope_(ZuString in, Cf::Defines *defines = nullptr);
+  mkScope_(ZuCSpan in, Cf::Defines *defines = nullptr);
   template <unsigned Q = Quoting::File>
-  ZuTuple<Cf *, CfNode *, int, unsigned> mkNode_(ZuString in);
+  ZuTuple<Cf *, CfNode *, int, unsigned> mkNode_(ZuCSpan in);
 
   Tree		m_tree;
   CfNode	*m_node;

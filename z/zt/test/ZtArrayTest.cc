@@ -113,7 +113,7 @@ int main()
 
   {
     std::vector<const char *> v = { { "hello", "world" } };
-    ZtArray<ZuString> b = v;
+    ZtArray<ZuCSpan> b = v;
     out(b[0].data());
     out(b[1].data());
   }
@@ -138,7 +138,7 @@ int main()
 #endif
 
   {
-    ZtArray<ZuString> a = { "Foo", "Bar" };
+    ZtArray<ZuCSpan> a = { "Foo", "Bar" };
     out(a[0]);
     out(a[1]);
     for (auto &&s: a) out(s);

@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include <zlib/ZuCmp.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZmBackTrace.hh>
 #include <zlib/ZmCleanup.hh>
@@ -62,7 +62,7 @@ struct ZeSink : public ZmPolymorph {
 };
 
 struct ZeSinkOptions {
-  ZeSinkOptions &path(ZuString path) { m_path = path; return *this; }
+  ZeSinkOptions &path(ZuCSpan path) { m_path = path; return *this; }
   ZeSinkOptions &age(unsigned age) { m_age = age; return *this; }
   ZeSinkOptions &tzOffset(unsigned tzOffset)
     { m_tzOffset = tzOffset; return *this; }
@@ -72,7 +72,7 @@ struct ZeSinkOptions {
   auto tzOffset() const { return m_tzOffset; }
 
 private:
-  ZuString	m_path;
+  ZuCSpan	m_path;
   unsigned	m_age = 8;
   int		m_tzOffset = 0;
 };
@@ -205,7 +205,7 @@ public:
     instance()->bufSize_(n);
   }
 
-  static ZuString program() { return instance()->program_(); }
+  static ZuCSpan program() { return instance()->program_(); }
 
   static int level() { return instance()->level_(); }
   static void level(int l) { instance()->level_(l); }
@@ -248,8 +248,8 @@ private:
 
   void bufSize_(unsigned n) { m_bufSize = n; }
 
-  ZuString program_() const { return m_program; }
-  ZuString facility_() const { return m_facility; }
+  ZuCSpan program_() const { return m_program; }
+  ZuCSpan facility_() const { return m_facility; }
 
   int level_() const { return m_level; }
   void level_(int l) { m_level = l; }

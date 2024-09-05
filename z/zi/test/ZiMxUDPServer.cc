@@ -121,7 +121,7 @@ bool Connection::recvComplete(ZiIOContext &io)
 
   std::cout << ZtHexDump(
       ZtString{} << io.addr.ip() << ':' << ZuBoxed(io.addr.port()) << ' ' <<
-      ZuString(m_msg.data(), io.length), m_msg.data(), io.length) << std::flush;
+      ZuCSpan(m_msg.data(), io.length), m_msg.data(), io.length) << std::flush;
 
   m_echo = !m_dest ? io.addr : m_dest;
   send(ZiIOFn::Member<&Connection::sendEcho>::fn(this));

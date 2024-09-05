@@ -13,7 +13,7 @@
 #include <zlib/ZvLib.hh>
 #endif
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmHash.hh>
@@ -38,7 +38,7 @@ ZtFieldTbl(Data,
 
 class CSV : public ZvCSV<Data> {
 public:
-  void read(ZuString file) {
+  void read(ZuCSpan file) {
     ZvCSV::readFile(file,
 	[this]() { return &m_data; },
 	[](Data *data) {
@@ -53,7 +53,7 @@ private:
   Data	m_data;
 };
 
-inline void init(ZuString file) {
+inline void init(ZuCSpan file) {
   if (file) CSV{}.read(file);
 }
 

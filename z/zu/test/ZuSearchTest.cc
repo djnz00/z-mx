@@ -11,7 +11,7 @@
 
 #include <iostream>
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 #include <zlib/ZuSort.hh>
 #include <zlib/ZuSearch.hh>
 #include <zlib/ZuJoin.hh>
@@ -20,7 +20,7 @@ inline void out(const char *s) { std::cout << s << '\n'; }
 
 #define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
-void search(ZuArray<int> data, int value, unsigned pos_, unsigned nc_)
+void search(ZuSpan<int> data, int value, unsigned pos_, unsigned nc_)
 {
   unsigned pos, nc = 0;
 
@@ -36,8 +36,8 @@ void search(ZuArray<int> data, int value, unsigned pos_, unsigned nc_)
 
 int main(int argc, char **argv)
 {
-  ZuArrayN<int, 10> foo{1, 9, 9, 9, 9, 9, 9, 9, 9, 9 };
-  ZuArrayN<int, 10> bar{1, 1, 1, 1, 1, 1, 1, 1, 1, 9 };
+  ZuArray<int, 10> foo{1, 9, 9, 9, 9, 9, 9, 9, 9, 9 };
+  ZuArray<int, 10> bar{1, 1, 1, 1, 1, 1, 1, 1, 1, 9 };
 
   search(foo, 0, 0, 2);
   search(bar, 0, 0, 2);

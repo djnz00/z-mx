@@ -385,7 +385,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) d.foo();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "direct call:\t" << end.interval() <<
+      puts(ZuCArray<80>{} << "direct call:\t" << end.interval() <<
 	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -394,7 +394,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) bar();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "castFn:\t\t" << end.interval() <<
+      puts(ZuCArray<80>{} << "castFn:\t\t" << end.interval() <<
 	  "\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -403,7 +403,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "fast lambdaFn:\t" << end.interval() <<
+      puts(ZuCArray<80>{} << "fast lambdaFn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -412,7 +412,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) baz();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "slow lambdaFn:\t" << end.interval() <<
+      puts(ZuCArray<80>{} << "slow lambdaFn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
     {
@@ -421,7 +421,7 @@ int main()
       ZuTime begin = Zm::now();
       for (unsigned i = 0; i < 1000000000; i++) b->bar();
       ZuTime end = Zm::now(); end -= begin;
-      puts(ZuStringN<80>{} << "virtual fn:\t" << end.interval() <<
+      puts(ZuCArray<80>{} << "virtual fn:\t" << end.interval() <<
 	"\t(" << ZuBox<uint64_t>(d.i) << ")");
     }
   }

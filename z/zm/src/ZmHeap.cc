@@ -11,7 +11,7 @@
 #include <zlib/ZmHeap.hh>
 
 #include <zlib/ZuTuple.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmSingleton.hh>
 #include <zlib/ZmThread.hh>
@@ -363,7 +363,7 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
     if (fd < 0) fd = ::open("heap.log", O_CREAT|O_WRONLY|O_TRUNC, 0666);
     if (fd >= 0) {
       ZmBackTrace bt{1};
-      thread_local ZuStringN<65535> buf;
+      thread_local ZuCArray<65535> buf;
       buf.length(0);
       buf << m_info.id << ' ' << m_info.size << ' ' << bt << '\n';
       static ZmPLock lock;

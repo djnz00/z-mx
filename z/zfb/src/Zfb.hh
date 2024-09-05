@@ -20,7 +20,7 @@
 
 #include <zlib/ZuID.hh>
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuDecimal.hh>
@@ -239,13 +239,13 @@ namespace Save {
 
   // inline creation of a string (shorthand alias for CreateString)
   template <typename Builder>
-  inline auto str(Builder &fbb, ZuString s) {
+  inline auto str(Builder &fbb, ZuCSpan s) {
     auto o = fbb.CreateString(s.data(), s.length());
     return o;
   }
   // fixed-width string -> span<const uint8_t>
   template <unsigned N>
-  inline auto strN(ZuString s) -> span<const uint8_t, N> {
+  inline auto strN(ZuCSpan s) -> span<const uint8_t, N> {
     return {span<const uint8_t, N>{
       reinterpret_cast<const uint8_t *>(s.data()), N}};
   }
@@ -389,21 +389,21 @@ namespace Load {
       for (unsigned i = 0, n = v->size(); i < n; i++) l(i, v->Get(i));
   }
 
-  // inline zero-copy conversion of a FB string to a ZuString
-  inline ZuString str(const String *s) {
+  // inline zero-copy conversion of a FB string to a ZuCSpan
+  inline ZuCSpan str(const String *s) {
     if (!s) return {};
     return {reinterpret_cast<const char *>(s->Data()), s->size()};
   }
-  // inline zero-copy conversion of a fixed-width FB string to a ZuString
+  // inline zero-copy conversion of a fixed-width FB string to a ZuCSpan
   template <unsigned N>
-  inline ZuString strN(const Array<uint8_t, N> *s) {
+  inline ZuCSpan strN(const Array<uint8_t, N> *s) {
     if (!s) return {};
     auto data = reinterpret_cast<const char *>(s->Data());
     if (data[N-1]) return {data, N};
     return {data}; // deferred strlen
   }
 
-  // inline zero-copy conversion of a [uint8] to a ZuArray<const uint8_t>
+  // inline zero-copy conversion of a [uint8] to a ZuSpan<const uint8_t>
   inline ZuBytes bytes(const Vector<uint8_t> *v) {
     if (!v) return {};
     return {v->data(), v->size()};
@@ -517,7 +517,7 @@ namespace Load {
   template <typename Impl> struct Map_ : public ZuObject { \
   private: \
     using S2V = \
-      ZmLHashKV<ZuString, T, \
+      ZmLHashKV<ZuCSpan, T, \
 	ZmLHashStatic<Bits, \
 	  ZmLHashLock<ZmNoLock> > >; \
   protected: \
@@ -530,9 +530,9 @@ namespace Load {
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, T v) { m_s2v.add(s, v); } \
+    void add(ZuCSpan s, T v) { m_s2v.add(s, v); } \
   private: \
-    T s2v_(ZuString s) const { return m_s2v.findVal(s); } \
+    T s2v_(ZuCSpan s) const { return m_s2v.findVal(s); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
@@ -544,10 +544,10 @@ namespace Load {
     using FBEnum = fbs::Enum; \
     Map_() = default; \
     static Impl *instance() { return ZmSingleton<Impl>::instance(); } \
-    static ZuString v2s(int v) { \
+    static ZuCSpan v2s(int v) { \
       return fbs::EnumName##Enum(static_cast<FBEnum>(v)); \
     } \
-    static T s2v(ZuString s) { return instance()->s2v_(s); } \
+    static T s2v(ZuCSpan s) { return instance()->s2v_(s); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     S2V	m_s2v; \

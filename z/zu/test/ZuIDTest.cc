@@ -12,7 +12,7 @@
 #include <iostream>
 
 #include <zlib/ZuID.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 inline void out(const char *s) { std::cout << s << '\n'; }
 
@@ -27,8 +27,8 @@ static void test(const char *s)
   printf("%u %u\n", n, a.length());
   CHECK(a.length() == n);
   CHECK(!memcmp(a.data(), s, n));
-  CHECK(a.string() == ZuString(s, n));
-  ZuStringN<9> b; b << a;
+  CHECK(a.string() == ZuCSpan(s, n));
+  ZuCArray<9> b; b << a;
   CHECK(a.string() == b);
 }
 

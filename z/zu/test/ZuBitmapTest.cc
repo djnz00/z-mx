@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include <zlib/ZuBitmap.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 int main()
 {
@@ -19,7 +19,7 @@ int main()
   a.set(2, 6);
   a.set(10, 15);
   a.set(100, 256);
-  ZuStringN<100> s;
+  ZuCArray<100> s;
   s << a;
   std::cout << s << '\n' << std::flush;
   ZuBitmap<256> b(s);

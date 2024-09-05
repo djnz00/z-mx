@@ -17,7 +17,7 @@
 #include <typeinfo>
 #include <cxxabi.h>
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 class ZuDemangle_ {
   ZuDemangle_(const ZuDemangle_ &) = delete;
@@ -58,7 +58,7 @@ public:
 private:
   char		*m_buf = nullptr;
   size_t	m_length = 0;
-  ZuString	m_output;
+  ZuCSpan	m_output;
 };
 
 template <typename T>

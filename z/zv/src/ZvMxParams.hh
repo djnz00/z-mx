@@ -21,7 +21,7 @@
 
 class ZvInvalidMulticastIP : public ZvError {
 public:
-  ZvInvalidMulticastIP(ZuString s) : m_addr{s} { }
+  ZvInvalidMulticastIP(ZuCSpan s) : m_addr{s} { }
 
   void print_(ZuVStream &s) const {
     s << "invalid multicast IP \"" << m_addr << '"';
@@ -59,7 +59,7 @@ struct ZvCxnOptions : public ZiCxnOptions {
     //   can be 0.0.0.0 to subscribe on all interfaces
     // Example: multicastGroups { 239.193.2.51 192.168.1.99 }
     if (multicast()) {
-      if (ZuString s = cf->get("multicastInterface")) mif(s);
+      if (ZuCSpan s = cf->get("multicastInterface")) mif(s);
       ttl(cf->getInt("multicastTTL", 0, INT_MAX, ttl()));
       if (ZmRef<ZvCf> groups = cf->getCf("multicastGroups")) {
 	groups->all([this](const ZvCfNode *node) {
@@ -77,11 +77,11 @@ struct ZvCxnOptions : public ZiCxnOptions {
 
 struct ZvMxParams : public ZiMxParams {
   ZvMxParams() = default;
-  ZvMxParams(ZuString id, const ZvCf *cf) { init(id, cf); }
-  ZvMxParams(ZuString id, const ZvCf *cf, ZiMxParams &&deflt) :
+  ZvMxParams(ZuCSpan id, const ZvCf *cf) { init(id, cf); }
+  ZvMxParams(ZuCSpan id, const ZvCf *cf, ZiMxParams &&deflt) :
     ZiMxParams{ZuMv(deflt)} { init(id, cf); }
 
-  void init(ZuString id, const ZvCf *cf) {
+  void init(ZuCSpan id, const ZvCf *cf) {
     if (!cf) return;
 
     {
@@ -96,7 +96,7 @@ struct ZvMxParams : public ZiMxParams {
       sched.priority(cf->getEnum<ZvThreadPriority::Map>(
 	    "priority", ZmThreadPriority::Normal));
       sched.partition(cf->getInt("partition", 0, ncpu - 1, 0));
-      if (ZuString s = cf->get("quantum"))
+      if (ZuCSpan s = cf->get("quantum"))
 	sched.quantum((double)ZuBox<double>(s));
       sched.queueSize(
 	  cf->getInt("queueSize", 8192, (1U<<30U), sched.queueSize()));
@@ -111,24 +111,24 @@ struct ZvMxParams : public ZiMxParams {
 	      threadCf, "threads", node->key, 1, sched.nThreads());
 	    ZmSchedParams::Thread &thread = sched.thread(sid);
 	    thread.isolated(threadCf->getBool("isolated", thread.isolated()));
-	    if (ZuString s = threadCf->get("name")) thread.name(s);
+	    if (ZuCSpan s = threadCf->get("name")) thread.name(s);
 	    thread.stackSize(threadCf->getInt(
 		  "stackSize", 0, INT_MAX, thread.stackSize()));
-	    if (ZuString s = threadCf->get("priority"))
+	    if (ZuCSpan s = threadCf->get("priority"))
 	      thread.priority(
 		  ZvEnum::s2v<ZvThreadPriority::Map, false>(
 		    "priority", s, ZmThreadPriority::Normal));
 	    thread.partition(threadCf->getInt(
 		  "partition", 0, INT_MAX, thread.partition()));
-	    if (ZuString s = threadCf->get("cpuset")) thread.cpuset(s);
+	    if (ZuCSpan s = threadCf->get("cpuset")) thread.cpuset(s);
 	    thread.detached(threadCf->getBool("detached", thread.detached()));
 	  }
 	});
       }
     }
 
-    if (ZuString s = cf->get("rxThread")) rxThread(scheduler().sid(s));
-    if (ZuString s = cf->get("txThread")) txThread(scheduler().sid(s));
+    if (ZuCSpan s = cf->get("rxThread")) rxThread(scheduler().sid(s));
+    if (ZuCSpan s = cf->get("txThread")) txThread(scheduler().sid(s));
 #ifdef ZiMultiplex_EPoll
     epollMaxFDs(cf->getInt("epollMaxFDs", 1, 100000, epollMaxFDs()));
     epollQuantum(cf->getInt("epollQuantum", 1, 1024, epollQuantum()));

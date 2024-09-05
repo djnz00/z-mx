@@ -6,7 +6,7 @@
 
 #include <iostream>
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZdfStats.hh>
 

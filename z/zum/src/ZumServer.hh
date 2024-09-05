@@ -13,7 +13,7 @@
 #include <zlib/ZumLib.hh>
 #endif
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 
 #include <zlib/ZmHash.hh>
 

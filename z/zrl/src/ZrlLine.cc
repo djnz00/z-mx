@@ -317,7 +317,7 @@ void Line::reflow(unsigned off, unsigned dwidth)
 
   while (off < len) {
     auto span = ZuUTF<uint32_t, uint8_t>::gspan(
-	ZuArray<uint8_t>(&m_data[off], len - off));
+	ZuSpan<uint8_t>(&m_data[off], len - off));
     if (ZuUnlikely(!span)) break;
     unsigned glen = span.inLen();
     unsigned gwidth = span.width();

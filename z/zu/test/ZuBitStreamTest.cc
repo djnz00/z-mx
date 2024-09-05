@@ -2,8 +2,8 @@
 #include <sstream>
 
 #include <zlib/ZuBitStream.hh>
-#include <zlib/ZuArrayN.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuArray.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuHex.hh>
 
 inline void out(const char *s) { std::cout << s << '\n'; }
@@ -17,8 +17,8 @@ void print(uint64_t i)
 
 int main()
 {
-  ZuArrayN<uint8_t, 100> buf;
-  ZuStringN<200> hex;
+  ZuArray<uint8_t, 100> buf;
+  ZuCArray<200> hex;
 
   {
     ZuOBitStream o{buf.data(), buf.data() + buf.size()};

@@ -18,7 +18,7 @@
 
 void fail() { Zm::exit(1); }
 
-void out_(bool ok, ZuString check, ZuString diag) {
+void out_(bool ok, ZuCSpan check, ZuCSpan diag) {
   std::cout
     << (ok ? "OK  " : "NOK ") << check << ' ' << diag
     << '\n' << std::flush;

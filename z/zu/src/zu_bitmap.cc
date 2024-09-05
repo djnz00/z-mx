@@ -130,7 +130,7 @@ unsigned zu_bitmap_length(const zu_bitmap *v_)
 unsigned zu_bitmap_in(
   const zu_bitmap_allocator *allocator, zu_bitmap **v_, const char *s_)
 {
-  ZuString s{s_};
+  ZuCSpan s{s_};
   unsigned n = 1U + Bitmap::scanLast(s);
   if (!(*v_ = zu_bitmap_new(allocator, n))) return 0;
   auto &v = *reinterpret_cast<Bitmap *>(*v_);

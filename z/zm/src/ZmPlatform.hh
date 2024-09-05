@@ -30,7 +30,7 @@
 #endif
 
 #include <zlib/ZuInt.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #ifdef linux
 #include <sys/types.h>
@@ -44,7 +44,7 @@
 
 #define ZmIDStrSize	60	// max size of a heap/hash ID incl. terminator
 
-using ZmIDString = ZuStringN<ZmIDStrSize>;
+using ZmIDString = ZuCArray<ZmIDStrSize>;
 
 #ifdef __aarch64__	/* 64bit ARM */
 #define ZmCacheLineSize 128

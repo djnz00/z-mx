@@ -23,7 +23,7 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmLock.hh>
 #include <zlib/ZmCondition.hh>
@@ -571,9 +571,9 @@ public:
     return lock->m_writeLocker == thread && thread->m_upgraded.find(lock);
   }
 
-  template <typename ID_> ZuStringN<25> dump(ID_ &&id) const {
+  template <typename ID_> ZuCArray<25> dump(ID_ &&id) const {
     LockRef lock;
-    ZuStringN<25> s;
+    ZuCArray<25> s;
     ReadGuard_ guard(m_lock);
 
     {

@@ -14,9 +14,9 @@ void ZtHexDump_::print(ZuVStream &s) const
 
   s << '\n';
 
-  ZuStringN<64> hex;
-  ZuStringN<20> ascii;
-  ZuStringN<48> pad;
+  ZuCArray<64> hex;
+  ZuCArray<20> ascii;
+  ZuCArray<48> pad;
   memset(pad.data(), ' ', 45);
   pad.length(45);
 
@@ -29,7 +29,7 @@ void ZtHexDump_::print(ZuVStream &s) const
     hex << ZuBoxed(offset).fmt<Hex<0, Alt<Right<8>>>>() << "  ";
     for (col = 0; col < 16; col++) {
       if (offset + col >= m_length) {
-	hex << ZuString(pad.data(), 3 * (16 - col));
+	hex << ZuCSpan(pad.data(), 3 * (16 - col));
 	break;
       }
       ZuBox<uint8_t> byte = m_data[offset + col];

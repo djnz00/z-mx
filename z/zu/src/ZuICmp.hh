@@ -15,13 +15,13 @@
 
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuStringFn.hh>
 
 template <typename T>
 struct ZuICmp : public ZuCmp<T> {
 public:
-  static int cmp(ZuString s1, ZuString s2) {
+  static int cmp(ZuCSpan s1, ZuCSpan s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (!l1) return l2 ? -1 : 0;
     if (!l2) return 1;
@@ -29,7 +29,7 @@ public:
     if (i) return i;
     return l1 - l2;
   }
-  static bool less(ZuString s1, ZuString s2) {
+  static bool less(ZuCSpan s1, ZuCSpan s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (!l1) return l2;
     if (!l2) return false;
@@ -37,7 +37,7 @@ public:
     if (i) return i < 0;
     return l1 < l2;
   }
-  static int equals(ZuString s1, ZuString s2) {
+  static int equals(ZuCSpan s1, ZuCSpan s2) {
     int l1 = s1.length(), l2 = s2.length();
     if (l1 != l2) return false;
     return !Zu::stricmp_(s1.data(), s2.data(), l1);

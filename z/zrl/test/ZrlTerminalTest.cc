@@ -1,4 +1,4 @@
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmSemaphore.hh>
 
@@ -27,7 +27,7 @@ int main()
   ZmSemaphore done;
   tty.open(&s, 1,
       [&done](bool) { done.post(); },
-      [&done](ZuString s) {
+      [&done](ZuCSpan s) {
 	std::cerr << s << "\r\n" << std::flush;
 	done.post();
       });

@@ -6,7 +6,7 @@
 
 #include <zlib/ZtBitmap.hh>
 
-void out(bool ok, ZuString check, ZuString diag) {
+void out(bool ok, ZuCSpan check, ZuCSpan diag) {
   std::cout
     << (ok ? "OK  " : "NOK ") << check << ' ' << diag
     << '\n' << std::flush;
@@ -21,7 +21,7 @@ int main()
   a.set(2, 6);
   a.set(10, 15);
   a.set(100, 256);
-  ZuStringN<100> s;
+  ZuCArray<100> s;
   s << a;
   std::cout << s << '\n';
   ZuBitmap<256> b(s);

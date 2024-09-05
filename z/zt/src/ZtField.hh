@@ -42,7 +42,7 @@
 // DateTime      ZuDateTime      [, default]
 // UDT           <UDT>           [, default]
 //
-// *Vec          ZuArray<T>      [, default]
+// *Vec          ZuSpan<T>      [, default]
 // CStringVec
 // StringVec
 // BytesVec
@@ -102,7 +102,7 @@
 //
 // ZtVFieldSet provides:
 //   set<Code>(void *o, auto &&v)
-//   scan<Code>(void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &)
+//   scan<Code>(void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &)
 //
 // ZtVFields<O>() returns the ZtVFieldArray for O
 // ZtVKeyFields<O>() returns the ZtVKeyFieldArray for O
@@ -119,10 +119,10 @@
 
 #include <typeinfo>
 
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 #include <zlib/ZuUnroll.hh>
 #include <zlib/ZuInspect.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuDecimal.hh>
@@ -274,12 +274,12 @@ namespace ZtFieldFmt {
     static ZuDateTimeFmt::Any &DatePrint_() {
       return ZmTLS([]{ return ZuDateTimeFmt::Any{}; });
     }
-    static ZuString FlagsDelim() { return "|"; }
+    static ZuCSpan FlagsDelim() { return "|"; }
 
     // vector formatting
-    static ZuString VecPrefix() { return "["; }
-    static ZuString VecDelim() { return ", "; }
-    static ZuString VecSuffix() { return "]"; }
+    static ZuCSpan VecPrefix() { return "["; }
+    static ZuCSpan VecDelim() { return ", "; }
+    static ZuCSpan VecSuffix() { return "]"; }
   };
 
   // NTP - date/time scan format
@@ -331,12 +331,12 @@ struct ZtFieldVFmt {
   ZuVFmt		scalar;			// scalar format (print only)
   ZuDateTimeScan::Any	dateScan;		// date/time scan format
   ZuDateTimeFmt::Any	datePrint;		// date/time print format
-  ZuString		flagsDelim = "|";	// flags delimiter
+  ZuCSpan		flagsDelim = "|";	// flags delimiter
 
   // none of these should have leading white space
-  ZuString		vecPrefix = "[";	// vector prefix
-  ZuString		vecDelim = ", ";	// vector delimiter
-  ZuString		vecSuffix = "]";	// vector suffix
+  ZuCSpan		vecPrefix = "[";	// vector prefix
+  ZuCSpan		vecDelim = ", ";	// vector delimiter
+  ZuCSpan		vecSuffix = "]";	// vector suffix
 };
 
 // type properties are a subset of field properties
@@ -432,14 +432,14 @@ struct ZtFieldType;
 template <typename T, typename = void>
 struct ZtFieldType_Scan {
   static auto fn() {
-    typedef void (*Fn)(void *, ZuString, const ZtFieldVFmt &);
+    typedef void (*Fn)(void *, ZuCSpan, const ZtFieldVFmt &);
     return static_cast<Fn>(nullptr);
   }
 };
 template <typename T>
-struct ZtFieldType_Scan<T, decltype((ZuDeclVal<T &>() = ZuString{}), void())> {
+struct ZtFieldType_Scan<T, decltype((ZuDeclVal<T &>() = ZuCSpan{}), void())> {
   static auto fn() {
-    return [](void *ptr, ZuString s, const ZtFieldVFmt &) {
+    return [](void *ptr, ZuCSpan s, const ZtFieldVFmt &) {
       *static_cast<T *>(ptr) = s;
     };
   }
@@ -466,15 +466,15 @@ struct ZtFieldType_Cmp<T, decltype(&ZuCmp<T>::cmp, void())> {
 // ZtVFieldEnum encapsulates introspected enum metadata
 struct ZtVFieldEnum {
   const char	*(*id)();
-  ZuString	(*print)(int);
-  int		(*scan)(ZuString);
+  ZuCSpan	(*print)(int);
+  int		(*scan)(ZuCSpan);
 };
 template <typename Map>
 struct ZtVFieldEnum_ : public ZtVFieldEnum {
   ZtVFieldEnum_() : ZtVFieldEnum{
     .id = []() -> const char * { return Map::id(); },
-    .print = [](int i) -> ZuString { return Map::v2s(i); },
-    .scan = [](ZuString s) -> int { return Map::s2v(s); }
+    .print = [](int i) -> ZuCSpan { return Map::v2s(i); },
+    .scan = [](ZuCSpan s) -> int { return Map::s2v(s); }
   } { }
 
   static ZtVFieldEnum *instance() {
@@ -486,7 +486,7 @@ struct ZtVFieldEnum_ : public ZtVFieldEnum {
 struct ZtVFieldFlags {
   const char	*(*id)();
   void		(*print)(uint128_t, ZuVStream &, const ZtFieldVFmt &);
-  uint128_t	(*scan)(ZuString, const ZtFieldVFmt &);
+  uint128_t	(*scan)(ZuCSpan, const ZtFieldVFmt &);
 };
 template <typename Map>
 struct ZtVFieldFlags_ : public ZtVFieldFlags {
@@ -495,7 +495,7 @@ struct ZtVFieldFlags_ : public ZtVFieldFlags {
     .print = [](uint128_t v, ZuVStream &s, const ZtFieldVFmt &fmt) -> void {
       s << Map::print(v, fmt.flagsDelim);
     },
-    .scan = [](ZuString s, const ZtFieldVFmt &fmt) -> uint128_t {
+    .scan = [](ZuCSpan s, const ZtFieldVFmt &fmt) -> uint128_t {
       return Map::template scan<uint128_t>(s, fmt.flagsDelim);
     }
   } { }
@@ -507,7 +507,7 @@ struct ZtVFieldFlags_ : public ZtVFieldFlags {
 
 typedef void (*ZtVFieldPrint)(const void *, ZuVStream &, const ZtFieldVFmt &);
 typedef void (*ZtVFieldScan)(
-  void (*)(void *, const void *), void *, ZuString, const ZtFieldVFmt &);
+  void (*)(void *, const void *), void *, ZuCSpan, const ZtFieldVFmt &);
 
 inline ZuID ZtVFieldTypeID(...) { return {}; }	// default
 
@@ -559,15 +559,15 @@ namespace Scan {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
   }
 
-  ZtExtern unsigned string(ZuArray<char> dst, ZuString &src);
+  ZtExtern unsigned string(ZuSpan<char> dst, ZuCSpan &src);
 
   ZtExtern unsigned strElem(
-    ZuArray<char> dst, ZuString &src,
-    ZuString delim, ZuString suffix);
+    ZuSpan<char> dst, ZuCSpan &src,
+    ZuCSpan delim, ZuCSpan suffix);
 } // Scan
 
 using CStringVec = ZuVArray<const char *>;
-using StringVec = ZuVArray<ZuString>;
+using StringVec = ZuVArray<ZuCSpan>;
 using BytesVec = ZuVArray<ZuBytes>;
 using Int8Vec = ZuVArray<int8_t>;
 using UInt8Vec = ZuVArray<uint8_t>;
@@ -592,7 +592,7 @@ struct MGet {
     void		*null;
 
     const char *	(*cstring)(const void *);	// CString
-    ZuString		(*string)(const void *);	// String
+    ZuCSpan		(*string)(const void *);	// String
     ZuBytes		(*bytes)(const void *);		// Bytes
     bool		(*bool_)(const void *);		// Bool
     int8_t		(*int8)(const void *);		// Int8
@@ -640,7 +640,7 @@ struct MGet {
   get(const void *o) const { return get_.fn(o); }
 
   ZtVField_GetFn(CString, const char *, cstring)
-  ZtVField_GetFn(String, ZuString, string)
+  ZtVField_GetFn(String, ZuCSpan, string)
   ZtVField_GetFn(Bytes, ZuBytes, bytes)
   ZtVField_GetFn(Bool, bool, bool_)
   ZtVField_GetFn(Int8, int8_t, int8)
@@ -729,7 +729,7 @@ struct MSet {
     void	*null;
 
     void	(*cstring)(void *, const char *);	// CString
-    void	(*string)(void *, ZuString);		// String
+    void	(*string)(void *, ZuCSpan);		// String
     void	(*bytes)(void *, ZuBytes);		// Bytes
     void	(*bool_)(void *, bool);			// Bool
     void	(*int8)(void *, int8_t);		// Int8
@@ -775,7 +775,7 @@ struct MSet {
   set(void *o, type v) const { set_.fn(o, v); }
 
   ZtVField_SetFn(CString, const char *, cstring)
-  ZtVField_SetFn(String, ZuString, string)
+  ZtVField_SetFn(String, ZuCSpan, string)
   ZtVField_SetFn(Bytes, ZuBytes, bytes)
   ZtVField_SetFn(Bool, bool, bool_)
   ZtVField_SetFn(Int8, int8_t, int8)
@@ -816,7 +816,7 @@ struct MSet {
 #define ZtVField_ScanFn(code) \
   template <unsigned Code> \
   ZuIfT<Code == ZtFieldTypeCode::code> \
-  scan(void *, ZuString, const ZtVField *, const ZtFieldVFmt &) const;
+  scan(void *, ZuCSpan, const ZtVField *, const ZtFieldVFmt &) const;
 
   ZtVField_ScanFn(CString)
   ZtVField_ScanFn(String)
@@ -950,9 +950,9 @@ MGet::print(
   ZuBytes v = get_.bytes(o);
   auto n = ZuBase64::enclen(v.length());
   auto buf_ = ZmAlloc(uint8_t, n);
-  ZuArray<uint8_t> buf(&buf_[0], n);
+  ZuSpan<uint8_t> buf(&buf_[0], n);
   buf.trunc(ZuBase64::encode(buf, v));
-  s << ZuString{buf};
+  s << ZuCSpan{buf};
 }
 template <unsigned Code, typename S>
 inline ZuIfT<Code == ZtFieldTypeCode::Bool>
@@ -1089,7 +1089,7 @@ MGet::print(
   s << fmt.vecPrefix;
   bool first = true;
   StringVec vec{get_.stringVec(o)};
-  vec.all([&s, &first, &fmt](ZuString v) {
+  vec.all([&s, &first, &fmt](ZuCSpan v) {
     if (!first) s << fmt.vecDelim; else first = false;
     s << Print::String{v};
   });
@@ -1243,7 +1243,7 @@ MGet::print(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::CString>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   if (!s) {
     set_.cstring(o, nullptr);
@@ -1251,14 +1251,14 @@ MSet::scan(
   }
   unsigned n = s.length() + 1;
   auto buf_ = ZmAlloc(char, n);
-  ZuArray<char> buf(&buf_[0], n);
+  ZuSpan<char> buf(&buf_[0], n);
   buf[Scan::string(buf, s)] = 0;
   set_.cstring(o, &buf[0]);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::String>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   if (!s) {
     set_.string(o, s);
@@ -1266,31 +1266,31 @@ MSet::scan(
   }
   unsigned n = s.length();
   auto buf_ = ZmAlloc(char, n);
-  ZuArray<char> buf(&buf_[0], n);
+  ZuSpan<char> buf(&buf_[0], n);
   buf.trunc(Scan::string(buf, s));
   set_.string(o, buf);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Bytes>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   auto n = ZuBase64::declen(s.length());
   auto buf_ = ZmAlloc(uint8_t, n);
-  ZuArray<uint8_t> buf(&buf_[0], n);
+  ZuSpan<uint8_t> buf(&buf_[0], n);
   buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
   set_.bytes(o, buf);
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Bool>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   set_.bool_(o, ZtScanBool(s));
 }
 
 template <typename T>
-T ZtVField_scanInt_(ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt)
+T ZtVField_scanInt_(ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt)
 {
   if (ZuUnlikely(field->props & ZtVFieldProp::Enum()))
     return field->type->info.enum_()->scan(s);
@@ -1305,14 +1305,14 @@ T ZtVField_scanInt_(ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt)
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width> \
 MSet::scan( \
-  void *o, ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt) const \
+  void *o, ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt) const \
 { \
   set_.int##width(o, ZtVField_scanInt_<int##width##_t>(s, field, fmt)); \
 } \
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width> \
 MSet::scan( \
-  void *o, ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt) const \
+  void *o, ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt) const \
 { \
   set_.uint##width(o, ZtVField_scanInt_<uint##width##_t>(s, field, fmt)); \
 }
@@ -1326,42 +1326,42 @@ ZtVField_scanInt(128)
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Float>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   set_.float_(o, ZuBox<double>{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Fixed>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   set_.fixed(o, ZuFixed{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Decimal>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &
 ) const {
   set_.decimal(o, ZuDecimal{s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::Time>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
   set_.time(o, ZuDateTime{fmt.dateScan, s}.as_time());
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTime>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
   set_.dateTime(o, ZuDateTime{fmt.dateScan, s});
 }
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::UDT>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *field,
+  void *o, ZuCSpan s, const ZtVField *field,
   const ZtFieldVFmt &fmt
 ) const {
   field->type->info.udt()->scan(field->set.set_.udt, o, s, fmt);
@@ -1371,20 +1371,20 @@ namespace VecScan {
 
   using namespace Scan;
 
-  inline bool match(ZuString &s, ZuString m) {
+  inline bool match(ZuCSpan &s, ZuCSpan m) {
     unsigned n = m.length();
     if (s.length() < n || memcmp(&s[0], &m[0], n)) return false;
     s.offset(n);
     return true;
   }
-  inline void skip(ZuString &s) {
+  inline void skip(ZuCSpan &s) {
     while (s.length() && isspace__(s[0])) s.offset(1);
   }
 
   // this is intentionally a 1-pass scan that does NOT validate the suffix;
-  // lambda(ZuString &s) should advance s with s.offset()
+  // lambda(ZuCSpan &s) should advance s with s.offset()
   template <typename L>
-  inline unsigned scan(ZuString &s, const ZtFieldVFmt &fmt, L l) {
+  inline unsigned scan(ZuCSpan &s, const ZtFieldVFmt &fmt, L l) {
     auto begin = &s[0];
     skip(s);
     if (!match(s, fmt.vecPrefix)) return 0;
@@ -1404,12 +1404,12 @@ namespace VecScan {
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::CStringVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuCSpan &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m + 1);
-    ZuArray<char> buf(&buf_[0], m + 1);
+    ZuSpan<char> buf(&buf_[0], m + 1);
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf[n] = 0;
@@ -1422,16 +1422,16 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::StringVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuCSpan &s) {
     auto m = s.length();
     auto buf_ = ZmAlloc(char, m);
-    ZuArray<char> buf(&buf_[0], m);
+    ZuSpan<char> buf(&buf_[0], m);
     unsigned n = Scan::strElem(buf, s, fmt.vecDelim, fmt.vecSuffix);
     if (n) {
       buf.trunc(n);
-      set_.string(o, ZuString{&buf[0], buf.length()});
+      set_.string(o, ZuCSpan{&buf[0], buf.length()});
       return true;
     }
     return false;
@@ -1440,16 +1440,16 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::BytesVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuCSpan &s) {
     unsigned n = 0;
     auto m = s.length();
     while (n < m && ZuBase64::is(s[n])) n++;
     n = ZuBase64::declen(m = n);
     if (n) {
       auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf(&buf_[0], n);
+      ZuSpan<uint8_t> buf(&buf_[0], n);
       buf.trunc(ZuBase64::decode(buf, ZuBytes{s}));
       set_.bytes(o, ZuBytes{&buf[0], buf.length()});
       s.offset(m);
@@ -1460,7 +1460,7 @@ MSet::scan(
 }
 
 // scan forward until a delimiter, suffix or end of string is encountered
-inline ZuString ZtVField_scanVecElem(ZuString s, const ZtFieldVFmt &fmt)
+inline ZuCSpan ZtVField_scanVecElem(ZuCSpan s, const ZtFieldVFmt &fmt)
 {
   unsigned delim = 0, suffix = 0;
   unsigned i = 0, n = s.length();
@@ -1481,7 +1481,7 @@ inline ZuString ZtVField_scanVecElem(ZuString s, const ZtFieldVFmt &fmt)
 // scan integer from a vector string
 template <typename T>
 unsigned ZtVField_scanIntVec_(
-  T &v, ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt)
+  T &v, ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt)
 {
   if (ZuUnlikely(field->props & ZtVFieldProp::Enum())) {
     auto s_ = ZtVField_scanVecElem(s, fmt);
@@ -1506,9 +1506,9 @@ unsigned ZtVField_scanIntVec_(
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::Int##width##Vec> \
 MSet::scan( \
-  void *o, ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt \
+  void *o, ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, fmt, [this, o, field, fmt](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o, field, fmt](ZuCSpan &s) { \
     ZuBox<int##width##_t> v; \
     unsigned n = ZtVField_scanIntVec_(v, s, field, fmt); \
     if (n) { \
@@ -1522,9 +1522,9 @@ MSet::scan( \
 template <unsigned Code> \
 inline ZuIfT<Code == ZtFieldTypeCode::UInt##width##Vec> \
 MSet::scan( \
-  void *o, ZuString s, const ZtVField *field, const ZtFieldVFmt &fmt \
+  void *o, ZuCSpan s, const ZtVField *field, const ZtFieldVFmt &fmt \
 ) const { \
-  VecScan::scan(s, fmt, [this, o, field, fmt](ZuString &s) { \
+  VecScan::scan(s, fmt, [this, o, field, fmt](ZuCSpan &s) { \
     ZuBox<uint##width##_t> v; \
     unsigned n = ZtVField_scanIntVec_(v, s, field, fmt); \
     if (n) { \
@@ -1545,9 +1545,9 @@ ZtVField_scanIntVec(128)
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::FloatVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuCSpan &s) {
     ZuBox<double> v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1561,9 +1561,9 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::FixedVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuCSpan &s) {
     ZuFixed v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1577,9 +1577,9 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DecimalVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o](ZuCSpan &s) {
     ZuDecimal v;
     unsigned n = v.scan(s);
     if (n) {
@@ -1593,9 +1593,9 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::TimeVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuCSpan &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {
@@ -1609,9 +1609,9 @@ MSet::scan(
 template <unsigned Code>
 inline ZuIfT<Code == ZtFieldTypeCode::DateTimeVec>
 MSet::scan(
-  void *o, ZuString s, const ZtVField *, const ZtFieldVFmt &fmt
+  void *o, ZuCSpan s, const ZtVField *, const ZtFieldVFmt &fmt
 ) const {
-  VecScan::scan(s, fmt, [this, o, &fmt](ZuString &s) {
+  VecScan::scan(s, fmt, [this, o, &fmt](ZuCSpan &s) {
     ZuDateTime v;
     unsigned n = v.scan(fmt.dateScan, s);
     if (n) {
@@ -1746,13 +1746,13 @@ ZtVFieldType *ZtFieldType_String<T, Props>::mtype() {
   return ZmSingleton<ZtVFieldType_String<T, Props>>::instance();
 }
 
-inline ZuString ZtField_String_Def() { return {}; }
+inline ZuCSpan ZtField_String_Def() { return {}; }
 template <typename Base, typename = void>
 struct ZtField_String_Get {
   static ZtVFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a temporary
-    return {.get_ = {.string = [](const void *o) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuCSpan {
       auto &v = ZmTLS<ZtString, getFn>();
       v = Base::get(*static_cast<const O *>(o));
       return v;
@@ -1765,7 +1765,7 @@ struct ZtField_String_Get<Base,
   static ZtVFieldGet getFn() {
     using O = typename Base::O;
     // field get() returns a crvalue
-    return {.get_ = {.string = [](const void *o) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuCSpan {
       return Base::get(*static_cast<const O *>(o));
     }}};
   }
@@ -1785,12 +1785,12 @@ struct ZtField_String :
   using Type = ZtFieldType_String<T, ZuTypeGrep<ZtFieldType_Props, Props>>;
   enum { Code = Type::Code };
   static ZtVFieldSet setFn() {
-    return {.set_ = {.string = [](void *, ZuString) { }}};
+    return {.set_ = {.string = [](void *, ZuCSpan) { }}};
   }
-  static ZuString deflt() { return Def(); }
+  static ZuCSpan deflt() { return Def(); }
   static ZtVFieldGet constantFn() {
     using namespace ZtVFieldConstant;
-    return {.get_ = {.string = [](const void *o) -> ZuString {
+    return {.get_ = {.string = [](const void *o) -> ZuCSpan {
       switch (int(reinterpret_cast<uintptr_t>(o))) {
 	case Deflt: return Def();
 	default:    return {};
@@ -1803,7 +1803,7 @@ struct ZtField_String<Base, Def, false> :
     public ZtField_String<Base, Def, true> {
   using O = typename Base::O;
   static ZtVFieldSet setFn() {
-    return {.set_ = {.string = [](void *o, ZuString s) {
+    return {.set_ = {.string = [](void *o, ZuCSpan s) {
       Base::set(*static_cast<O *>(o), s);
     }}};
   }
@@ -2593,17 +2593,17 @@ struct ZtVFieldType_UDT_Scan {
   static auto scanFn() {
     return [](
       void (*)(void *, const void *), void *,
-      ZuString, const ZtFieldVFmt &) { };
+      ZuCSpan, const ZtFieldVFmt &) { };
   }
 };
 template <typename T>
 struct ZtVFieldType_UDT_Scan<
-  T, decltype((ZuDeclVal<T &>() = ZuString{}), void())
+  T, decltype((ZuDeclVal<T &>() = ZuCSpan{}), void())
 > {
   static auto scanFn() {
     return [](
       void (*set)(void *, const void *), void *o,
-      ZuString s, const ZtFieldVFmt &
+      ZuCSpan s, const ZtFieldVFmt &
     ) {
       T v{s};
       set(o, reinterpret_cast<const void *>(&v));
@@ -2828,7 +2828,7 @@ struct ZtFieldType_StringVec : public ZtFieldType_<Props_> {
     friend S &operator <<(S &s, const Print &print) {
       s << Fmt::VecPrefix();
       bool first = true;
-      print.vec.all([&s, &first](ZuString v) {
+      print.vec.all([&s, &first](ZuCSpan v) {
 	if (!first) s << Fmt::VecDelim(); else first = false;
 	s << ZtField_::Print::String{v};
       });
@@ -3688,7 +3688,7 @@ struct ZtFieldPrint : public ZuPrintDelegate {
 
 // run-time fields
 
-using ZtVFieldArray = ZuArray<const ZtVField *>;
+using ZtVFieldArray = ZuSpan<const ZtVField *>;
 
 template <typename VField, typename ...Fields>
 struct ZtVFieldFactory {
@@ -3731,7 +3731,7 @@ inline ZtVFieldArray ZtVFields() {
 // - each key tuple has its own field array, which is extracted and
 //   transformed from the underlying object field array
 
-using ZtVKeyFieldArray = ZuArray<const ZtVFieldArray>;
+using ZtVKeyFieldArray = ZuSpan<const ZtVFieldArray>;
 
 template <typename O, typename VField>
 struct ZtVKeyFields_ {

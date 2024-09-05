@@ -14,8 +14,8 @@
 //   - questionable for anything much over 64 bytes unless
 //     just a temporary buffer on the stack
 
-#ifndef ZuStringN_HH
-#define ZuStringN_HH
+#ifndef ZuCArray_HH
+#define ZuCArray_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
@@ -28,7 +28,7 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuStringFn.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
@@ -43,9 +43,9 @@
 
 #pragma pack(push, 1)
 
-template <typename T_> struct ZuStringN_Char2;
-template <> struct ZuStringN_Char2<char> { using T = wchar_t; };
-template <> struct ZuStringN_Char2<wchar_t> { using T = char; };
+template <typename T_> struct ZuCArray_Char2;
+template <> struct ZuCArray_Char2<char> { using T = wchar_t; };
+template <> struct ZuCArray_Char2<wchar_t> { using T = char; };
 
 #if defined(__GNUC__) && !defined(__llvm__)
 #pragma GCC diagnostic push
@@ -53,18 +53,18 @@ template <> struct ZuStringN_Char2<wchar_t> { using T = char; };
 #endif
 
 template <typename Char_, unsigned N, typename StringN>
-class ZuStringN_ {
+class ZuCArray_ {
   ZuInspectFriend;
 
-  ZuStringN_(const ZuStringN_ &);
-  ZuStringN_ &operator =(const ZuStringN_ &);
+  ZuCArray_(const ZuCArray_ &);
+  ZuCArray_ &operator =(const ZuCArray_ &);
 
   ZuAssert(N >= 1 && N < 65536);
   enum { M = N - 1 };
 
 public:
   using Char = Char_;
-  using Char2 = typename ZuStringN_Char2<Char>::T;
+  using Char2 = typename ZuCArray_Char2<Char>::T;
 
   struct Nop { };
 
@@ -136,11 +136,11 @@ protected:
   template <typename U, typename R = void>
   using MatchStreamable = ZuIfT<IsStreamable<U>{}, R>;
 
-  ZuStringN_() : m_length(0) { data()[0] = 0; }
+  ZuCArray_() : m_length(0) { data()[0] = 0; }
 
-  ZuStringN_(Nop) { }
+  ZuCArray_(Nop) { }
 
-  ZuStringN_(unsigned length) : m_length(length) {
+  ZuCArray_(unsigned length) : m_length(length) {
     if (m_length >= N) m_length = M;
     data()[m_length] = 0;
   }
@@ -160,7 +160,7 @@ protected:
   }
 
   template <typename S> MatchString<S> init(S &&s_) {
-    ZuArray<const Char> s(s_);
+    ZuSpan<const Char> s(s_);
     init(s.data(), s.length());
   }
 
@@ -206,7 +206,7 @@ protected:
   }
 
   template <typename S> MatchString<S> append_(S &&s_) {
-    ZuArray<const Char> s(s_);
+    ZuSpan<const Char> s(s_);
     append(s.data(), s.length());
   }
 
@@ -256,8 +256,8 @@ public:
 
   // operator Char *() must return 0 if the string is empty, oherwise
   // these use cases stop working:
-  // if (ZuStringN<2> s = "") { } else { puts("ok"); }
-  // if (ZuStringN<2> s = 0) { } else { puts("ok"); }
+  // if (ZuCArray<2> s = "") { } else { puts("ok"); }
+  // if (ZuCArray<2> s = 0) { } else { puts("ok"); }
   operator Char *() {
     return !m_length ? static_cast<Char *>(nullptr) : data();
   }
@@ -372,8 +372,8 @@ public:
 
 // buffer access
 
-  auto buf() { return ZuArray{data(), M}; }
-  auto cbuf() const { return ZuArray{data(), m_length}; }
+  auto buf() { return ZuSpan{data(), M}; }
+  auto cbuf() const { return ZuSpan{data(), m_length}; }
 
 // comparison
 
@@ -409,17 +409,17 @@ public:
 
   // traits
 
-  struct Traits : public ZuBaseTraits<ZuStringN_> {
+  struct Traits : public ZuBaseTraits<ZuCArray_> {
     using Elem = Char;
     enum {
       IsPOD = 1, IsCString = 1, IsString = 1, IsStream = 1,
       IsWString = bool{ZuEquiv<wchar_t, Char>{}}
     };
-    static Elem *data(ZuStringN_ &s) { return s.data(); }
-    static const Elem *data(const ZuStringN_ &s) { return s.data(); }
-    static unsigned length(const ZuStringN_ &s) { return s.length(); }
+    static Elem *data(ZuCArray_ &s) { return s.data(); }
+    static const Elem *data(const ZuCArray_ &s) { return s.data(); }
+    static unsigned length(const ZuCArray_ &s) { return s.length(); }
   };
-  friend Traits ZuTraitsType(ZuStringN_ *);
+  friend Traits ZuTraitsType(ZuCArray_ *);
 
 protected:
   uint16_t	m_length;
@@ -430,13 +430,13 @@ protected:
 #endif
 
 template <unsigned N_>
-class ZuStringN : public ZuStringN_<char, N_, ZuStringN<N_>> {
+class ZuCArray : public ZuCArray_<char, N_, ZuCArray<N_>> {
   ZuAssert(N_ > 1);
 
 public:
   using Char = char;
   using Char2 = wchar_t;
-  using Base = ZuStringN_<char, N_, ZuStringN<N_>>;
+  using Base = ZuCArray_<char, N_, ZuCArray<N_>>;
   enum { N = N_ };
 
   using Nop = Base::Nop;
@@ -459,59 +459,59 @@ private:
   using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
 public:
-  ZuStringN() { }
+  ZuCArray() { }
 
-  ZuStringN(const ZuStringN &s) : Base{Nop{}} {
+  ZuCArray(const ZuCArray &s) : Base{Nop{}} {
     this->init(s.data(), s.length());
   }
-  ZuStringN &operator =(const ZuStringN &s) {
+  ZuCArray &operator =(const ZuCArray &s) {
     if (ZuLikely(this != &s)) this->init(s.data(), s.length());
     return *this;
   }
 
   // update()
-  ZuStringN &update(ZuString s) {
+  ZuCArray &update(ZuCSpan s) {
     if (s.length()) this->init(s.data(), s.length());
     return *this;
   }
 
   // C string types
-  ZuStringN(const char *s) : Base{Nop{}} {
+  ZuCArray(const char *s) : Base{Nop{}} {
     this->init(s);
   }
-  ZuStringN(const char *s, unsigned length) : Base{Nop{}} {
+  ZuCArray(const char *s, unsigned length) : Base{Nop{}} {
     this->init(s, length);
   }
-  ZuStringN &operator =(const char *s) {
+  ZuCArray &operator =(const char *s) {
     this->init(s);
     return *this;
   }
-  ZuStringN &operator <<(const char *s_) {
-    ZuString s{s_};
+  ZuCArray &operator <<(const char *s_) {
+    ZuCSpan s{s_};
     this->append(s.data(), s.length());
     return *this;
   }
-  ZuStringN &update(const char *s) {
+  ZuCArray &update(const char *s) {
     if (s) this->init(s);
     return *this;
   }
 
   // miscellaneous types handled by base class
   template <typename S, decltype(MatchCtorArg<S>(), int()) = 0>
-  ZuStringN(S &&s) : Base{Nop{}} {
+  ZuCArray(S &&s) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
-  ZuStringN &operator =(S &&s) {
+  ZuCArray &operator =(S &&s) {
     this->init(ZuFwd<S>(s));
     return *this;
   }
   template <typename U>
-  ZuStringN &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
+  ZuCArray &operator +=(U &&v) { return *this << ZuFwd<U>(v); }
 
   // stream
   template <typename U>
-  Base::template MatchStreamable<U, ZuStringN &>
+  Base::template MatchStreamable<U, ZuCArray &>
   operator <<(U &&v) {
     this->append_(ZuFwd<U>(v));
     return *this;
@@ -519,26 +519,26 @@ public:
 
   // length
   template <typename V, decltype(MatchCtorLength<V>(), int()) = 0>
-  ZuStringN(V n) : Base{unsigned(n)} { }
+  ZuCArray(V n) : Base{unsigned(n)} { }
 
   // traits
-  friend typename Base::Traits ZuTraitsType(ZuStringN *);
+  friend typename Base::Traits ZuTraitsType(ZuCArray *);
 
   // printing
-  friend ZuPrintString ZuPrintType(ZuStringN *);
+  friend ZuPrintString ZuPrintType(ZuCArray *);
 
 private:
   char		m_data[N];
 };
 
 template <unsigned N_>
-class ZuWStringN : public ZuStringN_<wchar_t, N_, ZuWStringN<N_>> {
+class ZuWArray : public ZuCArray_<wchar_t, N_, ZuWArray<N_>> {
   ZuAssert(N_ > 1);
 
 public:
   using Char = wchar_t;
   using Char2 = char;
-  using Base = ZuStringN_<wchar_t, N_, ZuWStringN<N_>>;
+  using Base = ZuCArray_<wchar_t, N_, ZuWArray<N_>>;
   enum { N = N_ };
 
   using Nop = Base::Nop;
@@ -561,71 +561,71 @@ private:
   using MatchCtorArg = ZuIfT<IsCtorArg<U>{}, R>;
 
 public:
-  ZuWStringN() { }
+  ZuWArray() { }
 
-  ZuWStringN(const ZuWStringN &s) : Base{Nop{}} {
+  ZuWArray(const ZuWArray &s) : Base{Nop{}} {
     this->init(s.data(), s.length());
   }
-  ZuWStringN &operator =(const ZuWStringN &s) {
+  ZuWArray &operator =(const ZuWArray &s) {
     if (ZuLikely(this != &s)) init(s.data(), s.length());
     return *this;
   }
 
   // update()
-  template <typename S> ZuWStringN &update(S &&s_) {
-    ZuWString s{s_};
+  template <typename S> ZuWArray &update(S &&s_) {
+    ZuWSpan s{s_};
     if (s.length()) this->init(s.data(), s.length());
     return *this;
   }
 
   // C string types
-  ZuWStringN(const wchar_t *s) : Base{Nop{}} {
+  ZuWArray(const wchar_t *s) : Base{Nop{}} {
     this->init(s);
   }
-  ZuWStringN(const wchar_t *s, unsigned length) : Base{Nop{}} {
+  ZuWArray(const wchar_t *s, unsigned length) : Base{Nop{}} {
     this->init(s, length);
   }
-  ZuWStringN &operator =(const wchar_t *s) {
+  ZuWArray &operator =(const wchar_t *s) {
     this->init(s);
     return *this;
   }
-  ZuWStringN &operator <<(const wchar_t *s_) { // unoptimized
-    ZuWString s{s_};
+  ZuWArray &operator <<(const wchar_t *s_) { // unoptimized
+    ZuWSpan s{s_};
     this->append(s.data(), s.length());
     return *this;
   }
-  ZuWStringN &update(const wchar_t *s) {
+  ZuWArray &update(const wchar_t *s) {
     if (s) this->init(s);
     return *this;
   }
 
   // miscellaneous types handled by base class
   template <typename S, decltype(MatchCtorArg<S>(), int()) = 0>
-  ZuWStringN(S &&s) : Base{Nop{}} {
+  ZuWArray(S &&s) : Base{Nop{}} {
     this->init(ZuFwd<S>(s));
   }
   template <typename S>
-  ZuWStringN &operator =(S &&s) {
+  ZuWArray &operator =(S &&s) {
     this->init(ZuFwd<S>(s));
     return *this;
   }
   template <typename U>
-  Base::template MatchStreamable<U, ZuWStringN &>
+  Base::template MatchStreamable<U, ZuWArray &>
   operator <<(U &&v) {
     this->append_(ZuFwd<U>(v));
     return *this;
   }
   template <typename U>
-  ZuWStringN &operator +=(U &&v) {
+  ZuWArray &operator +=(U &&v) {
     return *this << ZuFwd<U>(v);
   }
 
   // length
   template <typename V, decltype(MatchCtorLength<V>(), int()) = 0>
-  ZuWStringN(V n) : Base{unsigned(n)} { }
+  ZuWArray(V n) : Base{unsigned(n)} { }
 
   // traits
-  friend typename Base::Traits ZuTraitsType(ZuWStringN *);
+  friend typename Base::Traits ZuTraitsType(ZuWArray *);
 
 private:
   wchar_t	m_data[N];
@@ -637,4 +637,4 @@ private:
 #pragma warning(pop)
 #endif
 
-#endif /* ZuStringN_HH */
+#endif /* ZuCArray_HH */

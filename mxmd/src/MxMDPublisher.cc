@@ -33,7 +33,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
       " IPC Rx: " << ZuBoxed(rxThread()) <<
       " Snapshot: " << ZuBoxed(m_snapThread);
 
-  if (ZuString ip = cf->get("interface")) m_interface = ip;
+  if (ZuCSpan ip = cf->get("interface")) m_interface = ip;
   m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, 100000);
   m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, 3);
   m_ackInterval = cf->getDbl("ackInterval", 0, 3600, 10);
@@ -42,7 +42,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
   m_nAccepts = cf->getInt("nAccepts", 1, INT_MAX, 8);
   m_loopBack = cf->getBool("loopBack");
 
-  if (ZuString channels = cf->get("channels"))
+  if (ZuCSpan channels = cf->get("channels"))
     updateLinks(channels);
 
   core->addCmd(
@@ -61,7 +61,7 @@ void MxMDPublisher::final()
   engineINFO("MxMDPublisher::final()");
 }
 
-void MxMDPublisher::updateLinks(ZuString channels)
+void MxMDPublisher::updateLinks(ZuCSpan channels)
 {
   MxMDChannelCSV csv;
   csv.read(channels, ZvCSVReadFn{this, [](MxMDPublisher *pub, ZuAnyPOD *pod) {

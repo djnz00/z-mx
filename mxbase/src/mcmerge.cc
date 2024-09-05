@@ -93,10 +93,10 @@ typedef ZmRBTree<ZuTime,
 int main(int argc, const char *argv[])
 {
   Files files;
-  ZuString outPath;
+  ZuCSpan outPath;
 
   {
-    ZtArray<ZuString> paths;
+    ZtArray<ZuCSpan> paths;
 
     for (int i = 1; i < argc; i++) {
       if (argv[i][0] != '-') {

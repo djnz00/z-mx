@@ -13,7 +13,7 @@
 #include <zlib/ZcmdLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZmPolymorph.hh>
 #include <zlib/ZmRef.hh>
@@ -54,12 +54,12 @@ public:
   void init();
   void final();
 
-  void addCmd(ZuString name,
-      ZuString syntax, ZcmdFn fn, ZtString brief, ZtString usage);
+  void addCmd(ZuCSpan name,
+      ZuCSpan syntax, ZcmdFn fn, ZtString brief, ZtString usage);
 
-  bool hasCmd(ZuString name);
+  bool hasCmd(ZuCSpan name);
 
-  void processCmd(ZcmdContext *, ZuArray<const ZtString> args);
+  void processCmd(ZcmdContext *, ZuSpan<const ZtString> args);
 
   void finalFn(ZmFn<>);
 
@@ -71,8 +71,8 @@ public:
 
   virtual ZcmdDispatcher *dispatcher() { return nullptr; }
 
-  virtual void target(ZuString) { }
-  virtual ZtString getpass(ZuString prompt, unsigned passLen) { return {}; }
+  virtual void target(ZuCSpan) { }
+  virtual ZtString getpass(ZuCSpan prompt, unsigned passLen) { return {}; }
 
   virtual Ztls::Random *rng() { return nullptr; }
 

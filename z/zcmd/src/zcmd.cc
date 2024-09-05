@@ -174,12 +174,12 @@ friend Link;
     initCmds();
     if (m_interactive)
       m_cli.init(Zrl::App{
-	.error = [this](ZuString s) { std::cerr << s << '\n'; done(); },
+	.error = [this](ZuCSpan s) { std::cerr << s << '\n'; done(); },
 	.prompt = [this](ZtArray<uint8_t> &s) {
 	  ZmGuard guard(m_promptLock);
 	  if (m_prompt.owned()) s = ZuMv(m_prompt);
 	},
-	.enter = [this](ZuString s) -> bool {
+	.enter = [this](ZuCSpan s) -> bool {
 	  exec(ZtString{s}); // ignore result code
 	  return false;
 	},
@@ -267,11 +267,11 @@ friend Link;
   void send(void *link, ZmRef<ZiIOBuf> buf) {
     return static_cast<Link *>(link)->send(ZuMv(buf));
   }
-  void target(ZuString s) {
+  void target(ZuCSpan s) {
     ZmGuard guard(m_promptLock);
     m_prompt = ZtArray<uint8_t>{} << s << "] ";
   }
-  ZtString getpass(ZuString prompt, unsigned passLen) {
+  ZtString getpass(ZuCSpan prompt, unsigned passLen) {
     return m_cli.getpass(prompt, passLen);
   }
   Ztls::Random *rng() { return this; }
@@ -409,7 +409,7 @@ private:
     return ctx.code;
   }
 
-  void send(ZcmdContext *ctx, ZuArray<const ZtString> args) {
+  void send(ZcmdContext *ctx, ZuSpan<const ZtString> args) {
     Zfb::IOBuilder fbb;
     fbb.Finish(Zcmd::fbs::CreateRequest(fbb, ctx->seqNo,
 	  Zfb::Save::strVecIter(fbb, args.length(),
@@ -1259,7 +1259,7 @@ private:
       if (argc < 2) throw ZcmdUsage{};
     }
     ZtArray<ZmAtomic<unsigned>> ok;
-    ZtArray<ZuString> filters;
+    ZtArray<ZuCSpan> filters;
     ZtArray<int> types;
     auto reqNames = fbs::EnumNamesReqType();
     if (argc <= 1 + subscribe) {
@@ -1276,8 +1276,8 @@ private:
       types.length(ok.length());
       for (unsigned i = 2; i < (unsigned)argc; i++) {
 	auto j = i - 2;
-	auto arg = ctx->args->get(ZuStringN<24>{} << i);
-	ZuString type_;
+	auto arg = ctx->args->get(ZuCArray<24>{} << i);
+	ZuCSpan type_;
 	ZtRegex_captures_alloc(c, 0);
 	if (ZtREGEX(":").m(arg, c)) {
 	  type_ = c[0];
@@ -1482,8 +1482,8 @@ int main(int argc, char **argv)
   ZeLog::start();
 
   bool interactive = Zrl::interactive();
-  ZuString keyID = ::getenv("ZCMD_KEY_ID");
-  ZuString secret = ::getenv("ZCMD_KEY_SECRET");
+  ZuCSpan keyID = ::getenv("ZCMD_KEY_ID");
+  ZuCSpan secret = ::getenv("ZCMD_KEY_SECRET");
   ZtString user, server;
   ZuBox<unsigned> port;
 

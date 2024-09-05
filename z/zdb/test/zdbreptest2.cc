@@ -43,7 +43,7 @@ void sigint()
   done.post();
 }
 
-ZmRef<ZvCf> inlineCf(ZuString s)
+ZmRef<ZvCf> inlineCf(ZuCSpan s)
 {
   ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);
@@ -120,7 +120,7 @@ int main()
 
       ZdbCf dbCf{cf};
 
-      dbCf.hostID = (ZuStringN<16>{} << i);
+      dbCf.hostID = (ZuCArray<16>{} << i);
 
       db[i]->init(ZuMv(dbCf), mx, ZdbHandler{
 	.upFn = [](Zdb *db_, ZdbHost *host) {

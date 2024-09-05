@@ -373,7 +373,7 @@ void Editor::final()
 // v <= 0 - parse failure at -v
 // v  > 0 - parse success ending at v
 namespace {
-int VKey_parse_char(uint8_t &byte, ZuString s, int off)
+int VKey_parse_char(uint8_t &byte, ZuCSpan s, int off)
 {
   ZtRegex_captures_alloc(c, 1);
   if (s[off] != '\\') {
@@ -405,7 +405,7 @@ int VKey_parse_char(uint8_t &byte, ZuString s, int off)
   return off;
 }
 
-int VKey_parse(int32_t &vkey_, ZuString s, int off)
+int VKey_parse(int32_t &vkey_, ZuCSpan s, int off)
 {
   int32_t vkey;
   ZtRegex_captures_alloc(c, 1);
@@ -421,7 +421,7 @@ int VKey_parse(int32_t &vkey_, ZuString s, int off)
   } else if (ZtREGEX("\G\s*\"").m(s, c, off)) { // UTF8 multibyte character
     off += c[1].length();
     if (s[off] == '"') return -off;
-    ZuArrayN<uint8_t, 4> utf;
+    ZuArray<uint8_t, 4> utf;
     uint32_t u;
     do {
       uint8_t byte;
@@ -478,7 +478,7 @@ void Cmd::print_(ZuVStream &s) const
   }
 }
 
-int Cmd::parse(ZuString s, int off)
+int Cmd::parse(ZuCSpan s, int off)
 {
   ZtRegex_captures_alloc(c, 1);
   if (!ZtREGEX("\G\s*(\w+)").m(s, c, off)) return -off;
@@ -552,7 +552,7 @@ int Cmd::parse(ZuString s, int off)
 namespace {
 const auto &comment() { return ZtREGEX("\G\s*#[^\n]*\n"); }
 
-int CmdSeq_parse(CmdSeq &cmds, ZuString s, int off)
+int CmdSeq_parse(CmdSeq &cmds, ZuCSpan s, int off)
 {
   ZtRegex_captures_alloc(c, 0);
   while (comment().m(s, c, off)) off += c[1].length();
@@ -573,7 +573,7 @@ int CmdSeq_parse(CmdSeq &cmds, ZuString s, int off)
 }
 } // anon namespace
 
-int Map_::parseMode(ZuString s, int off)
+int Map_::parseMode(ZuCSpan s, int off)
 {
   ZtRegex_captures_alloc(c, 1);
   while (comment().m(s, c, off)) off += c[1].length();
@@ -621,7 +621,7 @@ int Map_::parseMode(ZuString s, int off)
   return off;
 }
 
-int Map_::parse(ZuString s, int off)
+int Map_::parse(ZuCSpan s, int off)
 {
   ZtRegex_captures_alloc(c, 1);
   while (comment().m(s, c, off)) off += c[1].length();
@@ -736,7 +736,7 @@ void Map_::reset()
   modes.clear();
 }
 
-bool Editor::loadMap(ZuString file, bool select)
+bool Editor::loadMap(ZuCSpan file, bool select)
 {
   ZtArray<char> s;
   {
@@ -778,7 +778,7 @@ bool Editor::loadMap(ZuString file, bool select)
       if (npos > off) break;
       lpos = npos; line++;
     }
-    ZuString region{s};
+    ZuCSpan region{s};
     region.offset(off - 8);
     region.trunc(16);
     m_loadError = ZtString{} << '"' << file << "\":" << line <<
@@ -799,7 +799,7 @@ void Editor::open(ZmScheduler *sched, unsigned thread)
 {
   m_tty.open(sched, thread,
       [this](bool ok) { m_app.open(ok); },
-      [this](ZuString s) { m_app.error(s); });
+      [this](ZuCSpan s) { m_app.error(s); });
 }
 void Editor::close()
 {
@@ -843,7 +843,7 @@ void Editor::prompt_()
   m_context.startPos = span.width();
 }
 
-bool Editor::map(ZuString id)
+bool Editor::map(ZuCSpan id)
 {
   if (auto map = m_maps.find(id)) {
     cmdClrVis({ Op::ClrVis }, 0);
@@ -1023,7 +1023,7 @@ bool Editor::cmdEnter(Cmd, int32_t)
   m_tty.crnl_();
   m_tty.write();
   const auto &data = m_tty.line().data();
-  ZuArray<const uint8_t> s(data.data(), data.length());
+  ZuSpan<const uint8_t> s(data.data(), data.length());
   s.offset(m_context.startPos);
   if (s) m_app.histSave(m_context.histSaveOff++, s);
 
@@ -1038,7 +1038,7 @@ bool Editor::cmdEnter(Cmd, int32_t)
   return false;
 }
 
-ZuArray<const uint8_t> Editor::substr(unsigned begin, unsigned end)
+ZuSpan<const uint8_t> Editor::substr(unsigned begin, unsigned end)
 {
   const auto &data = m_tty.line().data();
   return {&data[begin], end - begin};
@@ -1064,7 +1064,7 @@ unsigned Editor::align(unsigned pos)
 // splice data in line
 void Editor::splice(
     unsigned off, ZuUTFSpan span,
-    ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+    ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
     bool append, bool last)
 {
   m_context.appendEdit();
@@ -1077,7 +1077,7 @@ void Editor::splice(
 }
 void Editor::splice_(
     unsigned off, ZuUTFSpan span,
-    ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+    ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
     bool append)
 {
   // line is being modified
@@ -1095,7 +1095,7 @@ void Editor::motion(
     unsigned begin, unsigned end,
     unsigned begPos, unsigned endPos)
 {
-  ZuArray<const uint8_t> s;
+  ZuSpan<const uint8_t> s;
   if (op & (Op::Copy | Op::Del | Op::Draw | Op::Vis))
     s = substr(begin, end);
   if (op & Op::Copy) {
@@ -1119,7 +1119,7 @@ void Editor::motion(
     }
     m_tty.mv(begPos);
     splice(begin, span,
-	ZuArray<const uint8_t>{}, ZuUTFSpan{},
+	ZuSpan<const uint8_t>{}, ZuUTFSpan{},
 	true, (op & (Op::Del | Op::Vis)) != (Op::Del | Op::Vis));
     if (m_context.highPos >= 0) {
       m_tty.cursor_on();
@@ -1532,7 +1532,7 @@ bool Editor::cmdPaste(Cmd cmd, int32_t)
     for (int i = 0; i < arg; i++) {
       bool last = i == arg - 1;
       if (ZuUnlikely(m_context.overwrite)) {
-	ZuArray<const uint8_t> removed{line.data()};
+	ZuSpan<const uint8_t> removed{line.data()};
 	removed.offset(off);
 	auto span = ZuUTF<uint32_t, uint8_t>::nspan(removed, rspan.outLen());
 	splice(off, span, data, rspan, append || !last, last);
@@ -1555,7 +1555,7 @@ bool Editor::cmdYank(Cmd cmd, int32_t)
     unsigned off = line.position(m_tty.pos()).mapping();
     auto rspan = ZuUTF<uint32_t, uint8_t>::span(data);
     if (m_context.overwrite) {
-      ZuArray<const uint8_t> removed{line.data()};
+      ZuSpan<const uint8_t> removed{line.data()};
       removed.offset(off);
       auto span = ZuUTF<uint32_t, uint8_t>::nspan(removed, rspan.outLen());
       splice(off, span, data, rspan, true);
@@ -1596,14 +1596,14 @@ bool Editor::cmdRotate(Cmd cmd, int32_t)
 }
 
 void Editor::edit(
-    ZuArray<const uint8_t> replace, ZuUTFSpan rspan, bool overwrite)
+    ZuSpan<const uint8_t> replace, ZuUTFSpan rspan, bool overwrite)
 {
   const auto &line = m_tty.line();
   unsigned pos = m_tty.pos();
   unsigned off = line.position(pos).mapping();
   m_context.edit(pos, off);
   if (overwrite) {
-    ZuArray<const uint8_t> removed{line.data()};
+    ZuSpan<const uint8_t> removed{line.data()};
     removed.offset(off);
     auto span = ZuUTF<uint32_t, uint8_t>::nspan(removed, rspan.outLen());
     removed.trunc(span.inLen());
@@ -1620,7 +1620,7 @@ bool Editor::glyph(Cmd cmd, int32_t vkey, bool overwrite)
 {
   vkey = m_tty.literal(vkey);
   if (ZuUnlikely(vkey < 0)) return false;
-  ZuArrayN<uint8_t, 4> replace;
+  ZuArray<uint8_t, 4> replace;
   replace.length(ZuUTF8::out(replace.data(), 4, vkey));
   edit(replace, ZuUTF<uint32_t, uint8_t>::span(replace), overwrite);
   return false;
@@ -1656,7 +1656,7 @@ bool Editor::cmdBackSpace(Cmd, int32_t vkey)
 	if (n > end - begin) {
 	  m_tty.mv(begPos);
 	  unsigned newLength = n - (end - begin);
-	  ZuArray<const uint8_t> removed{newData};
+	  ZuSpan<const uint8_t> removed{newData};
 	  removed.offset(newLength);
 	  auto span = ZuUTF<uint32_t, uint8_t>::span(removed);
 	  newData.length(newLength);
@@ -1664,13 +1664,13 @@ bool Editor::cmdBackSpace(Cmd, int32_t vkey)
 	    n = oldData.length();
 	    unsigned off = n;
 	    while (--off > 0 && !ZuUTF8::initial(oldData[off]));
-	    ZuArray<const uint8_t> restore{oldData};
+	    ZuSpan<const uint8_t> restore{oldData};
 	    restore.offset(off);
 	    splice_(begin, span,
 		restore, ZuUTF<uint32_t, uint8_t>::span(restore), true);
 	    oldData.splice(off, n - off);
 	  } else {
-	    splice_(begin, span, ZuArray<const uint8_t>{}, ZuUTFSpan{}, true);
+	    splice_(begin, span, ZuSpan<const uint8_t>{}, ZuUTFSpan{}, true);
 	  }
 	  return false;
 	}
@@ -1694,7 +1694,7 @@ bool Editor::cmdEditRep(Cmd, int32_t vkey)
 {
   if (m_context.editOp && m_context.editArg > 1) {
     unsigned n = m_context.editArg - 1;
-    ZuArray<const uint8_t> replace = m_context.editOp.newData;
+    ZuSpan<const uint8_t> replace = m_context.editOp.newData;
     auto rspan = ZuUTF<uint32_t, uint8_t>::span(replace);
     bool overwrite = m_context.editOp.oldData;
     for (unsigned i = 0; i < n; i++) edit(replace, rspan, overwrite);
@@ -1926,7 +1926,7 @@ TransformCharFn toggleFn() {
   };
 }
 TransformSpanFn spanFn() {
-  return [](TransformCharFn fn, ZuArray<uint8_t> replace) {
+  return [](TransformCharFn fn, ZuSpan<uint8_t> replace) {
     for (unsigned i = 0, n = replace.length(); i < n; ) {
       uint8_t c = replace[i];
       unsigned j = ZuUTF8::in(c);
@@ -1937,7 +1937,7 @@ TransformSpanFn spanFn() {
   };
 }
 TransformSpanFn capFn() {
-  return [](TransformCharFn, ZuArray<uint8_t> replace) {
+  return [](TransformCharFn, ZuSpan<uint8_t> replace) {
     if (unsigned n = replace.length()) {
       unsigned i = 0;
       uint8_t c = replace[0];
@@ -2168,7 +2168,7 @@ void Editor::complete(bool next)
 void Editor::spliceCompletion(
   unsigned off,
   ZuUTFSpan span,
-  ZuArray<const uint8_t> replace,
+  ZuSpan<const uint8_t> replace,
   ZuUTFSpan rspan)
 {
   const auto &line = m_tty.line();
@@ -2190,7 +2190,7 @@ bool Editor::cmdListComplete(Cmd, int32_t)
   using Match = ZuTuple<ZtArray<uint8_t>, ZuUTFSpan>;
   ZtArray<Match> matches;
   CompIterFn fn{[ttyWidth, &colWidth, &colHeight, &nCols, &matches](
-      ZuArray<const uint8_t> data, ZuUTFSpan span) {
+      ZuSpan<const uint8_t> data, ZuUTFSpan span) {
     Match match{data, span};
     matches.push(match);
     auto width = span.width() + 1;
@@ -2223,7 +2223,7 @@ bool Editor::cmdListComplete(Cmd, int32_t)
   return false;
 }
 
-void Editor::histLoad(int offset, ZuArray<const uint8_t> data, bool save)
+void Editor::histLoad(int offset, ZuSpan<const uint8_t> data, bool save)
 {
   m_context.horizPos = -1;
   m_context.histLoadOff = offset;
@@ -2253,7 +2253,7 @@ bool Editor::cmdNext(Cmd cmd, int32_t vkey)
   if (m_context.histLoadOff >= 0 &&
       m_context.histLoadOff <= m_context.histSaveOff - (arg - 1)) {
     int offset = m_context.histLoadOff + arg;
-    if (!m_app.histLoad(offset, [this, offset](ZuArray<const uint8_t> data) {
+    if (!m_app.histLoad(offset, [this, offset](ZuSpan<const uint8_t> data) {
       histLoad(offset, data, false);
     }))
       histLoad(m_context.histLoadOff, {}, false);
@@ -2271,7 +2271,7 @@ bool Editor::cmdPrev(Cmd cmd, int32_t vkey)
   {
     bool save = m_context.histLoadOff == m_context.histSaveOff;
     int offset = m_context.histLoadOff - arg;
-    m_app.histLoad(offset, [this, offset, save](ZuArray<const uint8_t> data) {
+    m_app.histLoad(offset, [this, offset, save](ZuSpan<const uint8_t> data) {
       histLoad(offset, data, save);
     });
   }
@@ -2285,7 +2285,7 @@ bool Editor::cmdClrIncSrch(Cmd, int32_t)
       m_context.histLoadOff < m_context.histSaveOff) {
     m_context.histLoadOff = -1;
     int offset = m_context.histSaveOff;
-    if (!m_app.histLoad(offset, [this, offset](ZuArray<const uint8_t> data) {
+    if (!m_app.histLoad(offset, [this, offset](ZuSpan<const uint8_t> data) {
       histLoad(offset, data, false);
     }))
       histLoad(-1, {}, false);
@@ -2296,7 +2296,7 @@ bool Editor::cmdClrIncSrch(Cmd, int32_t)
 bool Editor::addIncSrch(int32_t vkey)
 {
   if (vkey <= 0) return false;
-  ZuArrayN<uint8_t, 4> utf;
+  ZuArray<uint8_t, 4> utf;
   utf.length(ZuUTF8::out(utf.data(), 4, vkey));
   if (m_context.srchTerm.length() + utf.length() >= m_config.maxLineLen)
     return false;
@@ -2305,7 +2305,7 @@ bool Editor::addIncSrch(int32_t vkey)
 }
 
 // simple/fast raw substring matcher
-bool Editor::match(ZuArray<const uint8_t> data)
+bool Editor::match(ZuSpan<const uint8_t> data)
 {
   const auto &term = m_context.srchTerm;
   if (ZuUnlikely(data.length() < term.length())) return false;
@@ -2323,7 +2323,7 @@ bool Editor::searchFwd(int arg)
   if (ZuUnlikely(arg <= 0)) return false;
   int offset = m_context.histLoadOff;
   if (ZuUnlikely(offset < 0)) return false;
-  HistFn fn{[this, offset, &arg](ZuArray<const uint8_t> data) {
+  HistFn fn{[this, offset, &arg](ZuSpan<const uint8_t> data) {
     if (match(data) && !--arg) histLoad(offset, data, false);
   }};
   while (offset < m_context.histSaveOff) {
@@ -2341,7 +2341,7 @@ bool Editor::searchRev(int arg)
   if (ZuUnlikely(offset < 0)) offset = m_context.histSaveOff;
   if (ZuUnlikely(!offset)) return false;
   bool save = offset == m_context.histSaveOff;
-  HistFn fn{[this, offset, save, &arg](ZuArray<const uint8_t> data) {
+  HistFn fn{[this, offset, save, &arg](ZuSpan<const uint8_t> data) {
     if (match(data) && !--arg) histLoad(offset, data, save);
   }};
   while (offset > 0) {
@@ -2391,7 +2391,7 @@ bool Editor::cmdPromptSrch(Cmd cmd, int32_t vkey)
     m_context.histLoadOff = m_context.histSaveOff;
   if (m_context.histLoadOff == m_context.histSaveOff && orig)
     m_app.histSave(m_context.histSaveOff, orig);
-  ZuArrayN<uint8_t, 4> prompt;
+  ZuArray<uint8_t, 4> prompt;
   prompt.length(ZuUTF8::out(prompt.data(), 4, vkey));
   m_context.srchPrmptSpan = ZuUTF<uint32_t, uint8_t>::span(prompt);
   m_context.startPos = m_context.srchPrmptSpan.width();
@@ -2434,7 +2434,7 @@ void Editor::srchEndPrompt(int op)
       m_context.histLoadOff = m_context.histSaveOff;
     if (m_context.histLoadOff >= 0)
       m_app.histLoad(m_context.histLoadOff,
-	  [this, begin, orig](ZuArray<const uint8_t> data) {
+	  [this, begin, orig](ZuSpan<const uint8_t> data) {
 	m_tty.splice(
 	    begin, ZuUTF<uint32_t, uint8_t>::span(orig),
 	    data, ZuUTF<uint32_t, uint8_t>::span(data), true);

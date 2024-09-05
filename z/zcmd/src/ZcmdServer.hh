@@ -11,7 +11,7 @@
 #include <zlib/ZcmdLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuByteSwap.hh>
 
 #include <zlib/ZmObject.hh>

@@ -27,12 +27,12 @@ struct Null {
 template <int NDP>
 void test(ZuDateTime d1)
 {
-  ZuStringN<32> fix;
+  ZuCArray<32> fix;
   ZuDateTimeFmt::FIX<NDP, Null> fmt;
   fix << d1.fmt(fmt);
   puts(fix);
   ZuDateTime d2(ZuDateTimeScan::FIX{}, fix);
-  puts(ZuStringN<32>() << d2.fmt(fmt));
+  puts(ZuCArray<32>() << d2.fmt(fmt));
   CHECK(d1 == d2);
 }
 
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
   unsigned n = atoi(argv[1]);
   {
     ZuDateTimeFmt::FIX<-9, Null> fmt;
-    ZuStringN<32> fix;
+    ZuCArray<32> fix;
     ZuTime start, end;
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     end = Zm::now();
     end -= start;
     ZuDecimal d1 = end.as_decimal() / n;
-    printf("time per cycle 1: %s\n", (ZuStringN<32>{} << d1).data());
+    printf("time per cycle 1: %s\n", (ZuCArray<32>{} << d1).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     end = Zm::now();
     end -= start;
     ZuDecimal d2 = end.as_decimal() / n;
-    printf("time per cycle 2: %s\n", (ZuStringN<32>{} << d2).data());
+    printf("time per cycle 2: %s\n", (ZuCArray<32>{} << d2).data());
 
     start = Zm::now();
     for (unsigned i = 0; i < n; i++) {
@@ -77,11 +77,11 @@ int main(int argc, char **argv)
     end = Zm::now();
     end -= start;
     ZuDecimal d3 = end.as_decimal() / n;
-    printf("time per cycle 3: %s\n", (ZuStringN<32>{} << d3).data());
+    printf("time per cycle 3: %s\n", (ZuCArray<32>{} << d3).data());
 
     printf("time per FIX format print: %s\n",
-      (ZuStringN<32>{} << (d2 - d3)).data());
+      (ZuCArray<32>{} << (d2 - d3)).data());
     printf("time per FIX format scan: %s\n",
-      (ZuStringN<32>{} << (d1 - d2)).data());
+      (ZuCArray<32>{} << (d1 - d2)).data());
   }
 }

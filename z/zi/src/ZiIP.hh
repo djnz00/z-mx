@@ -16,7 +16,7 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 
 #include <zlib/ZePlatform.hh>
@@ -118,14 +118,14 @@ public:
   friend ZuPrintFn ZuPrintType(ZiIP *);
 
 private:
-  int resolve_(ZuString, ZeError *e = 0);
+  int resolve_(ZuCSpan, ZeError *e = 0);
 #ifdef _WIN32
-  int resolve_(ZuWString, ZeError *e = 0);
+  int resolve_(ZuWSpan, ZeError *e = 0);
 #endif
 public:
   template <typename S>
   ZuMatchString<S, int> resolve(S &&s, ZeError *e = 0) {
-    return resolve_(ZuString{ZuFwd<S>(s)}, e);
+    return resolve_(ZuCSpan{ZuFwd<S>(s)}, e);
   }
   Hostname name(ZeError *e = 0);
 };

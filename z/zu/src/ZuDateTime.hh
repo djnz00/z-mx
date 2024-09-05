@@ -79,10 +79,10 @@
 #include <limits.h>
 
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuInspect.hh>
-#include <zlib/ZuString.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCSpan.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuTime.hh>
@@ -582,10 +582,10 @@ public:
   // week (1-53) wkDay (1-7) 1st Thursday in year is 4th day of week 1
   void ywdISO(int year, int days, int &wkYear, int &week, int &wkDay) const;
 
-  static ZuString dayShortName(int i); // 1-7
-  static ZuString dayLongName(int i); // 1-7
-  static ZuString monthShortName(int i); // 1-12
-  static ZuString monthLongName(int i); // 1-12
+  static ZuCSpan dayShortName(int i); // 1-7
+  static ZuCSpan dayLongName(int i); // 1-7
+  static ZuCSpan monthShortName(int i); // 1-12
+  static ZuCSpan monthLongName(int i); // 1-12
 
   auto fmt(const ZuDateTimeFmt::CSV &fmt) const {
     return ZuDateTimePrintCSV{*this, fmt};
@@ -609,7 +609,7 @@ public:
       fmt.m_yyyymmdd[8] = d / 10 + '0';
       fmt.m_yyyymmdd[9] = d % 10 + '0';
     }
-    s << ZuString{fmt.m_yyyymmdd, 10} << ' ';
+    s << ZuCSpan{fmt.m_yyyymmdd, 10} << ' ';
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
@@ -621,16 +621,16 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString{fmt.m_hhmmss, 8};
+    s << ZuCSpan{fmt.m_hhmmss, 8};
     if (unsigned N = date.m_nsec) {
       char buf[9];
       if (fmt.m_pad) {
 	Zu_ntoa::Base10_print_frac(N, 9, 9, fmt.m_pad, buf);
-	s << '.' << ZuString{buf, 9};
+	s << '.' << ZuCSpan{buf, 9};
       } else {
 	N = Zu_ntoa::Base10_print_frac_truncate(N, 9, 9, buf);
 	if (N > 1 || buf[0] != '0')
-	  s << '.' << ZuString{buf, N};
+	  s << '.' << ZuCSpan{buf, N};
       }
     }
   }
@@ -656,7 +656,7 @@ public:
       fmt.m_yyyymmdd[6] = d / 10 + '0';
       fmt.m_yyyymmdd[7] = d % 10 + '0';
     }
-    s << ZuString{fmt.m_yyyymmdd, 8} << '-';
+    s << ZuCSpan{fmt.m_yyyymmdd, 8} << '-';
     if (ZuUnlikely(m_sec != fmt.m_sec)) {
       fmt.m_sec = m_sec;
       int H, M, S;
@@ -668,7 +668,7 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString{fmt.m_hhmmss, 8};
+    s << ZuCSpan{fmt.m_hhmmss, 8};
     fmt.frac_print(s, m_nsec);
   }
 
@@ -695,7 +695,7 @@ public:
       fmt.m_yyyymmdd[8] = d / 10 + '0';
       fmt.m_yyyymmdd[9] = d % 10 + '0';
     }
-    s << ZuString{fmt.m_yyyymmdd, 10} << 'T';
+    s << ZuCSpan{fmt.m_yyyymmdd, 10} << 'T';
     if (ZuUnlikely(date.m_sec != fmt.m_sec)) {
       fmt.m_sec = date.m_sec;
       int H, M, S;
@@ -707,12 +707,12 @@ public:
       fmt.m_hhmmss[6] = S / 10 + '0';
       fmt.m_hhmmss[7] = S % 10 + '0';
     }
-    s << ZuString{fmt.m_hhmmss, 8};
+    s << ZuCSpan{fmt.m_hhmmss, 8};
     if (unsigned N = date.m_nsec) {
       char buf[9];
       N = Zu_ntoa::Base10_print_frac_truncate(N, 9, 9, buf);
       if (N > 1 || buf[0] != '0')
-	s << '.' << ZuString{buf, N};
+	s << '.' << ZuCSpan{buf, N};
     }
     if (fmt.m_tzOffset) {
       int offset_ = (fmt.m_tzOffset < 0) ? -fmt.m_tzOffset : fmt.m_tzOffset;
@@ -723,7 +723,7 @@ public:
       buf[2] = ':';
       buf[3] = oM / 10 + '0';
       buf[4] = oM % 10 + '0';
-      s << ((fmt.m_tzOffset < 0) ? '-' : '+') << ZuString{buf, 5};
+      s << ((fmt.m_tzOffset < 0) ? '-' : '+') << ZuCSpan{buf, 5};
     } else
       s << 'Z';
   }
@@ -1021,10 +1021,10 @@ private:
   }
 
 public:
-  unsigned scan(const ZuDateTimeScan::CSV &, ZuString);
-  unsigned scan(const ZuDateTimeScan::FIX &, ZuString);
-  unsigned scan(const ZuDateTimeScan::ISO &, ZuString);
-  unsigned scan(const ZuDateTimeScan::Any &, ZuString);
+  unsigned scan(const ZuDateTimeScan::CSV &, ZuCSpan);
+  unsigned scan(const ZuDateTimeScan::FIX &, ZuCSpan);
+  unsigned scan(const ZuDateTimeScan::ISO &, ZuCSpan);
+  unsigned scan(const ZuDateTimeScan::Any &, ZuCSpan);
 
   void normalize(unsigned &year, unsigned &month);
   void normalize(int &year, int &month);

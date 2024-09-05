@@ -84,7 +84,7 @@ namespace MxMDStream {
       Magic = 0xc0def17e		// "code file"
     };
 
-    FileHdr(ZuString id_, uint16_t vmajor_, uint16_t vminor_) :
+    FileHdr(ZuCSpan id_, uint16_t vmajor_, uint16_t vminor_) :
 	magic(Magic), vmajor(vmajor_), vminor(vminor_) {
       unsigned n = id_.length();
       if (n >= sizeof(id)) n = sizeof(id) - 1;

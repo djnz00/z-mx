@@ -44,7 +44,7 @@ static unsigned count = 0;
 
 void doit()
 {
-  std::cerr << (ZuStringN<80>{} << *ZmSelf() << '\n') << std::flush;
+  std::cerr << (ZuCArray<80>{} << *ZmSelf() << '\n') << std::flush;
   for (unsigned i = 0; i < count; i++) {
     S *s = new S(i);
     s->doit();

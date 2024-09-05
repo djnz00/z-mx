@@ -327,7 +327,7 @@ public:
   }
 
   // CSV format scan/print
-  unsigned scan(ZuString);
+  unsigned scan(ZuCSpan);
 
   void ymdhmsn(
     int &year, int &month, int &day,

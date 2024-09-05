@@ -48,7 +48,7 @@ public:
   ZuInline unsigned ttl() const { return m_ttl; }
   ZuInline bool loopBack() const { return m_loopBack; }
 
-  void updateLinks(ZuString channels); // update from CSV
+  void updateLinks(ZuCSpan channels); // update from CSV
 
 private:
   struct ChannelIDAccessor {

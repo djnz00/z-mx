@@ -54,14 +54,14 @@ public:
   using Link = typename Base::Link;
   using User = typename Base::User;
 
-  using AppFn = ZmFn<void(MxMDCmdServer *, Link *, User *, bool, unsigned, ZuArray<const uint8_t>)>;
+  using AppFn = ZmFn<void(MxMDCmdServer *, Link *, User *, bool, unsigned, ZuSpan<const uint8_t>)>;
 
   void final() { m_appFn = {}; Base::final(); }
 
   void appFn(AppFn fn) { m_appFn = ZuMv(fn); }
 
   int processApp(Link *link, User *user, bool interactive,
-      ZuID id, ZuArray<const uint8_t> data) {
+      ZuID id, ZuSpan<const uint8_t> data) {
     return m_appFn(this, link, user, interactive, id, data);
   }
 
@@ -95,10 +95,10 @@ public:
   void stop();
   void final();
 
-  bool record(ZuString path);
+  bool record(ZuCSpan path);
   ZtString stopRecording();
 
-  bool replay(ZuString path,
+  bool replay(ZuCSpan path,
       MxDateTime begin = MxDateTime(),
       bool filter = true);
   ZtString stopReplaying();
@@ -106,15 +106,15 @@ public:
   void startTimer(MxDateTime begin = MxDateTime());
   void stopTimer();
 
-  void dumpTickSizes(ZuString path, MxID venue = MxID());
+  void dumpTickSizes(ZuCSpan path, MxID venue = MxID());
   void dumpInstruments(
-      ZuString path, MxID venue = MxID(), MxID segment = MxID());
+      ZuCSpan path, MxID venue = MxID(), MxID segment = MxID());
   void dumpOrderBooks(
-      ZuString path, MxID venue = MxID(), MxID segment = MxID());
+      ZuCSpan path, MxID venue = MxID(), MxID segment = MxID());
 
   // null if unconfigured
   ZuInline MxMDCmdServer *cmdServer() { return m_cmdServer; }
-  void addCmd(ZuString name, ZuString syntax,
+  void addCmd(ZuCSpan name, ZuCSpan syntax,
       ZcmdFn fn, ZtString brief, ZtString usage) {
     if (!m_cmdServer) return;
     m_cmdServer->addCmd(name, syntax, ZuMv(fn), brief, usage);
@@ -187,7 +187,7 @@ public:
 private:
   // Traffic Logging (logThread)
   /* Example usage:
-  app.log(id, MxTraffic([](const Msg *msg, ZuTime &stamp, ZuString &data) {
+  app.log(id, MxTraffic([](const Msg *msg, ZuTime &stamp, ZuCSpan &data) {
     stamp = msg->stamp();
     data = msg->buf();
   }, msg)); */

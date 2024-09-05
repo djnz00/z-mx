@@ -11,7 +11,7 @@
 #include <iostream>
 
 #include <zlib/ZuTuple.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuBox.hh>
 
@@ -136,7 +136,7 @@ int main()
     ZuTuple<int, int, int> a{1, 2, 3};
     ZuTuple<ZuBox<int>, int, int> b{a};
     CHECK(b.p<0>() == 1 && b.p<1>() == 2 && b.p<2>() == 3);
-    ZuStringN<60> s;
+    ZuCArray<60> s;
     s << a.fmt(":");
     std::cout << s << '\n';
     CHECK(s == "{1:2:3}");

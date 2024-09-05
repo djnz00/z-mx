@@ -1,4 +1,4 @@
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 
 #include <zlib/ZmSemaphore.hh>
 #include <zlib/ZmScheduler.hh>
@@ -143,7 +143,7 @@ struct TreeModel : public ZGtk::TreeSortable<TreeModel, 1> {
     m_order = order;
     // emit gtk_tree_model_rows_reordered()
     // Note: new_order length must be same as number of rows
-    ZuArrayN<gint, 10> new_order;
+    ZuArray<gint, 10> new_order;
     auto path = gtk_tree_path_new();
     for (unsigned i = 0; i < 10; i++) new_order[i] = 9 - i;
     gtk_tree_model_rows_reordered(
@@ -221,7 +221,7 @@ void start()
 	  }
 
 	  {
-	    static ZuStringN<24> text;
+	    static ZuCArray<24> text;
 	    text.null(); text << j;
 	    values[0].set_static_string(text);
 	  }

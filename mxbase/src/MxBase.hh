@@ -18,7 +18,7 @@
 #include <zlib/ZuDecimalFn.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuTuple.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuID.hh>
 #include <zlib/ZuFixed.hh>
@@ -61,7 +61,7 @@ using MxEnum = ZtEnum;
 using MxFlags = ZuBox0(uint32_t);
 using MxFlags64 = ZuBox0(uint64_t);
 
-#define MxString ZuStringN
+#define MxString ZuCArray
 
 using MxID = ZuID; // Note: different than MxIDString
 
@@ -116,7 +116,7 @@ template <typename T, typename R = void>
 using MxMatchFloat = ZuIfT<MxIsFloat<T>{}, R>;
 
 template <typename T> struct MxIsString :
-  public ZuBool<ZuInspect<ZuStringN__, T>::Base && !ZuTraits<T>::IsWString
+  public ZuBool<ZuInspect<ZuCArray__, T>::Base && !ZuTraits<T>::IsWString
  > { };
 template <typename T, typename R = void>
 using MxMatchString = ZuIfT<MxIsString<T>{}, R>;
@@ -173,7 +173,7 @@ template <typename U> struct MxType :
 
 #define MxDateTimeNow ZuDateTime{Zm::now()}
 
-// Note: MxString/ZuStringN overhead is 4 bytes
+// Note: MxString/ZuCArray overhead is 4 bytes
 
 #ifndef MxIDStrSize
 #define MxIDStrSize 28	// ID size (symbols, order IDs, trade IDs, etc.)

@@ -129,41 +129,41 @@ void ZuDateTime::ywdISO(
   week = ((days_ - wkDay_) + 3) / 7 + 1;
 }
 
-ZuString ZuDateTime::dayShortName(int i)
+ZuCSpan ZuDateTime::dayShortName(int i)
 {
   static const char *s[] =
     { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-  if (--i < 0 || i >= 7) return ZuString("???", 3);
-  return ZuString(s[i], 3);
+  if (--i < 0 || i >= 7) return ZuCSpan("???", 3);
+  return ZuCSpan(s[i], 3);
 }
 
-ZuString ZuDateTime::dayLongName(int i)
+ZuCSpan ZuDateTime::dayLongName(int i)
 {
   static const char *s[] =
     { "Monday", "Tuesday", "Wednesday", "Thursday",
       "Friday", "Saturday", "Sunday" };
   static uint8_t l[] = { 6, 7, 9, 8, 6, 8, 6 };
-  if (--i < 0 || i >= 7) return ZuString("???", 3);
-  return ZuString(s[i], l[i]);
+  if (--i < 0 || i >= 7) return ZuCSpan("???", 3);
+  return ZuCSpan(s[i], l[i]);
 }
 
-ZuString ZuDateTime::monthShortName(int i)
+ZuCSpan ZuDateTime::monthShortName(int i)
 {
   static const char *s[] =
     { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
       "Oct", "Nov", "Dec" };
-  if (--i < 0 || i >= 12) return ZuString("???", 3);
-  return ZuString(s[i], 3);
+  if (--i < 0 || i >= 12) return ZuCSpan("???", 3);
+  return ZuCSpan(s[i], 3);
 }
 
-ZuString ZuDateTime::monthLongName(int i)
+ZuCSpan ZuDateTime::monthLongName(int i)
 {
   static const char *s[] =
     { "January", "February", "March", "April", "May", "June", "July",
       "August", "September", "October", "November", "December" };
   static uint8_t l[] = { 7, 8, 5, 5, 3, 4, 4, 6, 9, 7, 8, 8  };
-  if (--i < 0 || i >= 12) return ZuString("???", 3);
-  return ZuString(s[i], l[i]);
+  if (--i < 0 || i >= 12) return ZuCSpan("???", 3);
+  return ZuCSpan(s[i], l[i]);
 }
 
 int ZuDateTime::julian(int year, int month, int day)
@@ -274,7 +274,7 @@ void ZuDateTime::normalize(
   }
 }
 
-unsigned ZuDateTime::scan(const ZuDateTimeScan::CSV &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::CSV &fmt, ZuCSpan s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -348,7 +348,7 @@ invalid:
   return 0;
 }
 
-unsigned ZuDateTime::scan(const ZuDateTimeScan::FIX &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::FIX &fmt, ZuCSpan s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -408,7 +408,7 @@ invalid:
   return 0;
 }
 
-unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuCSpan s)
 {
   {
     unsigned year, month, day, hour, minute, sec, nsec;
@@ -520,7 +520,7 @@ invalid:
   return 0;
 }
 
-unsigned ZuDateTime::scan(const ZuDateTimeScan::Any &fmt, ZuString s)
+unsigned ZuDateTime::scan(const ZuDateTimeScan::Any &fmt, ZuCSpan s)
 {
   return fmt.cdispatch([this, s]<typename Fmt>(auto, Fmt &&fmt) {
     return scan(ZuFwd<Fmt>(fmt), s);

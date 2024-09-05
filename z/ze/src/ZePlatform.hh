@@ -26,7 +26,7 @@
 
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuFnName.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuDateTime.hh>
 
@@ -165,7 +165,7 @@ struct ZeEventInfo {
 // - many output streams (cout, cerr, etc.) interleave stream operator calls
 //   during concurrent fan-in - the log buffer serves as both a consistent
 //   interface type and to reduce the risk of interleaved output
-using ZeLogBuf = ZuStringN<ZeLog_BUFSIZ>;
+using ZeLogBuf = ZuCArray<ZeLog_BUFSIZ>;
 
 // message as function delegate
 using ZeMsgFn = ZmFn<void(ZeLogBuf &, const ZeEventInfo &)>;
@@ -391,9 +391,9 @@ ZeVEvent ZeMkVEvent(
 
 namespace Ze {
 
-ZeExtern ZuString severity(unsigned i);
-ZeExtern ZuString file(ZuString s);
-ZeExtern ZuString function(ZuString s);
+ZeExtern ZuCSpan severity(unsigned i);
+ZeExtern ZuCSpan file(ZuCSpan s);
+ZeExtern ZuCSpan function(ZuCSpan s);
 
 }
 

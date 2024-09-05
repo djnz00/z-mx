@@ -8,7 +8,7 @@
 //
 // (mainly a wrapper around Linux futexes and Win32 equivalent)
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZiRingUtil.hh>
 
@@ -128,7 +128,7 @@ void ZiRingUtil::getpinfo(uint32_t &pid, ZuTime &start)
 {
 #ifdef linux
   pid = getpid();
-  ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
+  ZuCArray<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
   start = (::stat(path, &s) < 0) ? ZuTime() : ZuTime(s.st_ctim);
 #endif
@@ -145,7 +145,7 @@ bool ZiRingUtil::alive(uint32_t pid, ZuTime start)
 {
   if (!pid) return false;
 #ifdef linux
-  ZuStringN<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
+  ZuCArray<20> path; path << "/proc/" << ZuBox<uint32_t>(pid);
   struct stat s;
   if (::stat(path, &s) < 0) return false;
   return !start || ZuTime{s.st_ctim} == start;

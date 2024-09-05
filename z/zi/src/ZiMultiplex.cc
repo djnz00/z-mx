@@ -204,7 +204,7 @@ ZiMultiplex_WSExt::~ZiMultiplex_WSExt()
 
 #endif /* ZiMultiplex_EPoll */
 
-using ErrorStr = ZuStringN<120>;
+using ErrorStr = ZuCArray<120>;
 
 #define Log(severity, op, result, error) \
   ZeLOG(severity, \

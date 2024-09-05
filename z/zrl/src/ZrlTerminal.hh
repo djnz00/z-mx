@@ -34,9 +34,9 @@
 #include <unistd.h>	// for isatty
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuUTF.hh>
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuPolymorph.hh>
 
@@ -160,7 +160,7 @@ private:
 
 class ZrlAPI Terminal {
 public:
-  using ErrorFn = ZmFn<void(ZuString)>;
+  using ErrorFn = ZmFn<void(ZuCSpan)>;
 
   using OpenFn = ZmFn<void(bool)>;	// (ok)
   using CloseFn = ZmFn<>;
@@ -199,7 +199,7 @@ public:
   const Line &line() const { return m_line; } // terminal I/O thread
 
   // can be called before start(), or from within terminal thread once running
-  ZtString getpass(ZuString prompt, unsigned passLen); // prompt for passwd
+  ZtString getpass(ZuCSpan prompt, unsigned passLen); // prompt for passwd
 
   // output routines - terminal I/O thread
 
@@ -266,7 +266,7 @@ public:
   // all updates to line data go through splice()
   void splice(
       unsigned off, ZuUTFSpan span,
-      ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+      ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
       bool append);
 
   void clear();		// clear line data/state
@@ -287,7 +287,7 @@ public:
   // clear remaining n positions on row, leaving cursor at start of next row
   void clrBreak_(unsigned n);
   // low-level direct output to display
-  void out_(ZuString data);
+  void out_(ZuCSpan data);
 
   // turn on output post-processing (i.e. normal CR/NL)
   void opost_on();

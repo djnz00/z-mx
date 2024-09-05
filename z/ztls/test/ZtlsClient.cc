@@ -54,7 +54,7 @@ struct App : public Ztls::Client<App> {
 
     int process(const uint8_t *data, unsigned len) {
       if (!file) {
-	header << ZuString{data, len};
+	header << ZuCSpan{data, len};
 	ZtRegex_captures_alloc(c, 0);
 	if (ZtREGEX("\n\r\n").m(header, c)) {
 	  ZtRegex_captures_alloc(d, 1);
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 {
   if (argc != 4) usage();
 
-  ZuString server = argv[2];
+  ZuCSpan server = argv[2];
   unsigned port = ZuBox<unsigned>(argv[3]);
 
   if (!port) usage();

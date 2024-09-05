@@ -1431,7 +1431,7 @@ void Cxn_::repRecordRcvd(ZmRef<const IOBuf> buf)
   if (m_db->repStore()) return; // backing data store is replicated
   auto record = Zdb_::record(msg_(buf->hdr())); // caller verified msg
   if (!record) return;
-  ZuString id = Zfb::Load::str(record->table());
+  ZuCSpan id = Zfb::Load::str(record->table());
   AnyTable *table = m_db->table(id);
   if (ZuUnlikely(!table)) return;
 
@@ -1468,7 +1468,7 @@ void Cxn_::repCommitRcvd(ZmRef<const IOBuf> buf)
   });
 }
 
-void DB::replicated(Host *host, ZuString tblID, Shard shard, UN un, SN sn)
+void DB::replicated(Host *host, ZuCSpan tblID, Shard shard, UN un, SN sn)
 {
   ZmAssert(invoked());
 

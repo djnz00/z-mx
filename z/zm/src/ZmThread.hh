@@ -23,7 +23,7 @@
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuLambdaTraits.hh>
@@ -55,7 +55,7 @@ namespace ZmThreadPriority {
   };
 }
 
-using ZmThreadName = ZuStringN<28>;
+using ZmThreadName = ZuCArray<28>;
 
 // display sequence:
 //   name, id, tid, cpuUsage, cpuset, priority, sysPriority,
@@ -86,7 +86,7 @@ extern "C" { ZmExtern unsigned __stdcall ZmThread_start(void *); }
 
 class ZmThreadParams {
 public:
-  ZmThreadParams &&name(ZuString s)
+  ZmThreadParams &&name(ZuCSpan s)
     { m_name = s; return ZuMv(*this); }
   ZmThreadParams &&stackSize(unsigned v)
     { m_stackSize = v; return ZuMv(*this); }

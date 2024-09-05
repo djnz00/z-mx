@@ -47,7 +47,7 @@ void ZtRegex::study()
   }
 }
 
-unsigned ZtRegex::split(ZuString s, Captures &a, int options) const
+unsigned ZtRegex::split(ZuCSpan s, Captures &a, int options) const
 {
   unsigned offset = 0, last = 0;
   ZtArray<unsigned> ovector;
@@ -74,7 +74,7 @@ int ZtRegex::index(const char *name) const
 }
 
 unsigned ZtRegex::exec(
-    ZuString s, unsigned offset,
+    ZuCSpan s, unsigned offset,
     int options, ZtArray<unsigned> &ovector) const
 {
   unsigned slength = s.length();
@@ -96,7 +96,7 @@ unsigned ZtRegex::exec(
 }
 
 void ZtRegex::capture(
-    ZuString s, const ZtArray<unsigned> &ovector, Captures &captures) const
+    ZuCSpan s, const ZtArray<unsigned> &ovector, Captures &captures) const
 {
   unsigned offset, length;
   unsigned slength = s.length();

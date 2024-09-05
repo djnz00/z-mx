@@ -22,7 +22,7 @@
 
 namespace ZvCf_ {
 
-ZtArray<ZtString> Cf::parseCLI(ZuString line)
+ZtArray<ZtString> Cf::parseCLI(ZuCSpan line)
 {
   ZtArray<ZtString> args;
 
@@ -128,7 +128,7 @@ ZmRef<ZvCf> Cf::options(const ZvOpt *opts)
     ZeAssert(type, (type), "invalid ZvOpt type=" << type, return nullptr);
     option->set(type, opts[i].key);
     if (opts[i].short_) {
-      auto short_ = ZuString(&opts[i].short_, 1);
+      auto short_ = ZuCSpan(&opts[i].short_, 1);
       options->setCf(short_, ZuMv(option));
       if (opts[i].long_) options->set(opts[i].long_, short_);
     } else {
@@ -138,7 +138,7 @@ ZmRef<ZvCf> Cf::options(const ZvOpt *opts)
   return options;
 }
 
-unsigned Cf::fromCLI(Cf *syntax, ZuString line)
+unsigned Cf::fromCLI(Cf *syntax, ZuCSpan line)
 {
   ZtArray<ZtString> args = parseCLI(line);
   if (!args.length()) return 0;
@@ -227,7 +227,7 @@ unsigned Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZuTuple<ZtString, unsigned, bool>>
-scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
@@ -261,7 +261,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
     if constexpr (!(Q & Quoting::Key))
       if (fileRefVar.m(in, c, off)) {
 	off += c[1].length();
-	ZuString d;
+	ZuCSpan d;
 	if (defines) d = defines->findVal(c[2]);
 	if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
 	if (d)
@@ -302,7 +302,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::Env, ZuTuple<ZtString, unsigned, bool>>
-scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
@@ -335,7 +335,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
     if constexpr (!(Q & Quoting::Key))
       if (envRefVar.m(in, c, off)) {
 	off += c[1].length();
-	ZuString d;
+	ZuCSpan d;
 	if (defines) d = defines->findVal(c[2]);
 	if (!d) { ZtString env{c[2]}; d = ::getenv(env); }
 	if (d)
@@ -375,7 +375,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::File, ZtString>
-quoteString(ZuString in)
+quoteString(ZuCSpan in)
 {
   unsigned n = in.length();
 
@@ -407,7 +407,7 @@ quoteString(ZuString in)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZuTuple<ZtString, unsigned, bool>>
-scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
@@ -440,7 +440,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::CLI, ZtString>
-quoteString(ZuString in)
+quoteString(ZuCSpan in)
 {
   unsigned n = in.length();
 
@@ -469,7 +469,7 @@ quoteString(ZuString in)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZuTuple<ZtString, unsigned, bool>>
-scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
+scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
@@ -505,7 +505,7 @@ scanString(ZuString in, unsigned off, Cf::Defines *defines = nullptr)
 
 template <unsigned Q = Quoting::File>
 ZuIfT<(Q & Quoting::Mask) == Quoting::Raw, ZtString>
-quoteString(ZuString in)
+quoteString(ZuCSpan in)
 {
   return in;
 }
@@ -514,7 +514,7 @@ static const auto &indexMatch() { return ZtREGEX("\G\[(\d+)\]$"); }
 
 template <unsigned Q = Quoting::File>
 ZuTuple<ZtString, int, unsigned>
-scanKey(ZuString in, unsigned off, int index, Cf::Defines *defines = nullptr)
+scanKey(ZuCSpan in, unsigned off, int index, Cf::Defines *defines = nullptr)
 {
   unsigned n = in.length();
 
@@ -545,7 +545,7 @@ static const auto &matchDot() { return ZtREGEX("\G\."); }
 
 template <unsigned Q>
 ZuTuple<Cf *, ZtString, int, unsigned>
-Cf::getScope_(ZuString in, Cf::Defines *defines) const
+Cf::getScope_(ZuCSpan in, Cf::Defines *defines) const
 {
   unsigned n = in.length();
 
@@ -583,7 +583,7 @@ null:
   
 template <unsigned Q>
 ZuTuple<Cf *, ZtString, int, unsigned>
-Cf::mkScope_(ZuString in, Cf::Defines *defines)
+Cf::mkScope_(ZuCSpan in, Cf::Defines *defines)
 {
   unsigned n = in.length();
 
@@ -617,7 +617,7 @@ Cf::mkScope_(ZuString in, Cf::Defines *defines)
 
 template <unsigned Q>
 ZuTuple<Cf *, CfNode *, int, unsigned>
-Cf::mkNode_(ZuString in)
+Cf::mkNode_(ZuCSpan in)
 {
   auto [this_, key, index, o] = mkScope_<Q>(in);
   auto node = this_->m_tree.find(key);
@@ -625,7 +625,7 @@ Cf::mkNode_(ZuString in)
   return {this_, ZuMv(node), index, o};
 }
 
-void Cf::fromArg(ZuString key, int type, ZuString in)
+void Cf::fromArg(ZuCSpan key, int type, ZuCSpan in)
 {
   const auto &argComma = ZtREGEX("\G,");
 
@@ -665,7 +665,7 @@ void Cf::fromArg(ZuString key, int type, ZuString in)
   }
 }
 
-void Cf::fromString(ZuString in, ZuString fileName, ZmRef<Defines> defines)
+void Cf::fromString(ZuCSpan in, ZuCSpan fileName, ZmRef<Defines> defines)
 {
   unsigned n = in.length();
 
@@ -893,7 +893,7 @@ syntax:
 
 void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
 {
-  ZuString in = ::getenv(name);
+  ZuCSpan in = ::getenv(name);
   unsigned n = in.length();
 
   if (!n) return;
@@ -1096,7 +1096,7 @@ void Cf::freeArgs(int argc, char **argv)
   ::free(argv);
 }
 
-void Cf::toArgs(ZtArray<ZtString> &args, ZuString prefix) const
+void Cf::toArgs(ZtArray<ZtString> &args, ZuCSpan prefix) const
 {
   auto i = m_tree.readIterator();
   while (auto node = i.iterate())
@@ -1187,19 +1187,19 @@ void Cf::toFile_(ZiFile &file)
   if (file.write(out.data(), out.length(), &e) != Zi::OK) throw e;
 }
 
-ZuTuple<Cf *, ZtString> Cf::getScope(ZuString fullKey) const
+ZuTuple<Cf *, ZtString> Cf::getScope(ZuCSpan fullKey) const
 {
   auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
   return {this_, key};
 }
 
-CfNode *Cf::mkNode(ZuString fullKey)
+CfNode *Cf::mkNode(ZuCSpan fullKey)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(fullKey);
   return node;
 }
 
-void Cf::set(ZuString key, ZtString value)
+void Cf::set(ZuCSpan key, ZtString value)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   if (index < 0)
@@ -1208,13 +1208,13 @@ void Cf::set(ZuString key, ZtString value)
     node->setElem<StrArray>(index, ZuMv(value));
 }
 
-void Cf::setStrArray(ZuString key, StrArray value)
+void Cf::setStrArray(ZuCSpan key, StrArray value)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   node->set_<StrArray>(ZuMv(value));
 }
 
-ZmRef<Cf> Cf::mkCf(ZuString key)
+ZmRef<Cf> Cf::mkCf(ZuCSpan key)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   ZmRef<Cf> cf = new Cf{node};
@@ -1225,7 +1225,7 @@ ZmRef<Cf> Cf::mkCf(ZuString key)
   return cf;
 }
 
-void Cf::setCf(ZuString key, ZmRef<Cf> cf)
+void Cf::setCf(ZuCSpan key, ZmRef<Cf> cf)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   cf->m_node = node;
@@ -1235,13 +1235,13 @@ void Cf::setCf(ZuString key, ZmRef<Cf> cf)
     node->setElem<CfArray>(index, ZuMv(cf));
 }
 
-void Cf::setCfArray(ZuString key, CfArray value)
+void Cf::setCfArray(ZuCSpan key, CfArray value)
 {
   auto [this_, node, index, o] = mkNode_<Quoting::Raw>(key);
   node->set_<CfArray>(ZuMv(value));
 }
 
-void Cf::unset(ZuString fullKey)
+void Cf::unset(ZuCSpan fullKey)
 {
   auto [this_, key, index, o] = getScope_<Quoting::Raw>(fullKey);
   if (this_) this_->m_tree.del(key);

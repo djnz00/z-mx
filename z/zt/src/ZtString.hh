@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// use ZuStringN<> for fixed-size strings by value without heap overhead
+// use ZuCArray<> for fixed-size strings by value without heap overhead
 //
 // ZtString is a heap-allocated C string class (null-terminated)
 // - lightweight
@@ -239,26 +239,26 @@ private:
   template <typename S> MatchZtString<S> ctor(const S &s)
     { copy_(s.data_(), s.length()); }
   template <typename S> MatchStrLiteral<S> ctor(S &&s_)
-    { ZuArray<const Char> s(ZuFwd<S>(s_)); shadow_(s.data(), s.length()); }
+    { ZuSpan<const Char> s(ZuFwd<S>(s_)); shadow_(s.data(), s.length()); }
   template <typename S> MatchCString<S> ctor(S &&s_)
-    { ZuArray<const Char> s(ZuFwd<S>(s_)); copy_(s.data(), s.length()); }
+    { ZuSpan<const Char> s(ZuFwd<S>(s_)); copy_(s.data(), s.length()); }
   template <typename S> MatchOtherString<S> ctor(S &&s_)
-    { ZuArray<const Char> s(ZuFwd<S>(s_)); copy_(s.data(), s.length()); }
+    { ZuSpan<const Char> s(ZuFwd<S>(s_)); copy_(s.data(), s.length()); }
   template <typename C> MatchChar<C> ctor(C c)
     { copy_(&c, 1); }
 
   template <typename S> MatchChar2String<S> ctor(S &&s_) {
-    ZuArray<const Char2> s(s_);
+    ZuSpan<const Char2> s(s_);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (!o) { null_(); return; }
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>{alloc_(o + 1, 0), o}, s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>{alloc_(o + 1, 0), o}, s));
   }
 
   template <typename C> MatchChar2<C> ctor(C c) {
-    ZuArray<const Char2> s(&c, 1);
+    ZuSpan<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (!o) { null_(); return; }
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(alloc_(o + 1, 0), o), s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>(alloc_(o + 1, 0), o), s));
   }
 
   template <typename P> MatchCtorPDelegate<P> ctor(const P &p)
@@ -283,11 +283,11 @@ public:
     copy_(s.data_(), s.length());
   }
   template <typename S> MatchAnyCString<S> copy(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     copy_(s.data(), s.length());
   }
   template <typename S> MatchOtherString<S> copy(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     copy_(s.data(), s.length());
   }
   template <typename C> MatchChar<C> copy(C c) {
@@ -295,7 +295,7 @@ public:
   }
 
   template <typename S> MatchChar2String<S> copy(S &&s_) {
-    ZuArray<const Char2> s(ZuFwd<S>(s_));
+    ZuSpan<const Char2> s(ZuFwd<S>(s_));
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (ZuUnlikely(!o)) { length_(0); return; }
     unsigned z = size();
@@ -304,11 +304,11 @@ public:
       data = size(o + 1);
     else
       data = data_();
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(data, o), s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>(data, o), s));
   }
 	  
   template <typename C> MatchChar2<C> copy(C c) {
-    ZuArray<const Char2> s(&c, 1);
+    ZuSpan<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     if (ZuUnlikely(!o)) { length_(0); return; }
     unsigned z = size();
@@ -317,7 +317,7 @@ public:
       data = size(o + 1);
     else
       data = data_();
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(data, o), s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>(data, o), s));
   }
 
 public:
@@ -348,18 +348,18 @@ private:
     free_2(oldData);
   }
   template <typename S> MatchStrLiteral<S> assign(S &&s_) { 
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     free_();
     shadow_(s.data(), s.length());
   }
   template <typename S> MatchCString<S> assign(S &&s_) { 
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     Char *oldData = free_1();
     copy_(s.data(), s.length());
     free_2(oldData);
   }
   template <typename S> MatchOtherString<S> assign(S &&s_) { 
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     Char *oldData = free_1();
     copy_(s.data(), s.length());
     free_2(oldData);
@@ -371,7 +371,7 @@ private:
   }
 
   template <typename S> MatchChar2String<S> assign(S &&s_) {
-    ZuArray<const Char2> s(ZuFwd<S>(s_));
+    ZuSpan<const Char2> s(ZuFwd<S>(s_));
     unsigned o = ZuUTF<Char, Char2>::len(s);
     unsigned z = size();
     if (ZuUnlikely(!o)) { length_(0); return; }
@@ -380,10 +380,10 @@ private:
       data = size(o + 1);
     else
       data = data_();
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(data, o), s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>(data, o), s));
   }
   template <typename C> MatchChar2<C> assign(C c) {
-    ZuArray<const Char2> s(&c, 1);
+    ZuSpan<const Char2> s(&c, 1);
     unsigned o = ZuUTF<Char, Char2>::len(s);
     unsigned z = size();
     if (ZuUnlikely(!o)) { length_(0); return; }
@@ -392,7 +392,7 @@ private:
       data = size(o + 1);
     else
       data = data_();
-    length_(ZuUTF<Char, Char2>::cvt(ZuArray<Char>(data, o), s));
+    length_(ZuUTF<Char, Char2>::cvt(ZuSpan<Char>(data, o), s));
   }
 
   template <typename P> MatchPDelegate<P> assign(const P &p)
@@ -430,13 +430,13 @@ private:
   }
   template <typename S>
   MatchAnyCString<S> shadow(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     free_();
     shadow_(s.data(), s.length());
   }
   template <typename S>
   MatchOtherString<S> shadow(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     free_();
     shadow_(s.data(), s.length());
   }
@@ -444,15 +444,15 @@ private:
 public:
   template <typename S, decltype(ZuMatchString<S>(), int()) = 0>
   ZtString_(S &&s_, ZtIconv *iconv) {
-    ZuArray<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
+    ZuSpan<const typename ZuTraits<S>::Elem> s{ZuFwd<S>(s_)};
     convert_(s, iconv);
   }
   ZtString_(const Char *data, unsigned length, ZtIconv *iconv) {
-    ZuArray<const Char> s(data, length);
+    ZuSpan<const Char> s(data, length);
     convert_(s, iconv);
   }
   ZtString_(const Char2 *data, unsigned length, ZtIconv *iconv) {
-    ZuArray<const Char2> s(data, length);
+    ZuSpan<const Char2> s(data, length);
     convert_(s, iconv);
   }
 
@@ -773,30 +773,30 @@ public:
 
 // common prefix
   template <typename S>
-  MatchZtString<S, ZuArray<const Char>> prefix(const S &s) {
-    if (this == &s) return ZuArray<const Char>{data_(), length() + 1};
+  MatchZtString<S, ZuSpan<const Char>> prefix(const S &s) {
+    if (this == &s) return ZuSpan<const Char>{data_(), length() + 1};
     return prefix(s.data_(), s.length());
   }
   template <typename S>
-  MatchAnyCString<S, ZuArray<const Char>> prefix(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+  MatchAnyCString<S, ZuSpan<const Char>> prefix(S &&s_) {
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     return prefix(s.data(), s.length());
   }
   template <typename S>
-  MatchOtherString<S, ZuArray<const Char>> prefix(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+  MatchOtherString<S, ZuSpan<const Char>> prefix(S &&s_) {
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     return prefix(s.data(), s.length());
   }
 
-  ZuArray<const Char> prefix(const Char *pfxData, unsigned length) const {
-    if (null__()) return ZuArray<const Char>();
+  ZuSpan<const Char> prefix(const Char *pfxData, unsigned length) const {
+    if (null__()) return ZuSpan<const Char>();
     const Char *p1 = data_();
-    if (!pfxData) return ZuArray<const Char>(p1, 1);
+    if (!pfxData) return ZuSpan<const Char>(p1, 1);
     const Char *p2 = pfxData;
     unsigned i, n = this->length();
     n = n > length ? length : n;
     for (i = 0; i < n && p1[i] == p2[i]; ++i);
-    return ZuArray<const Char>(data_(), i);
+    return ZuSpan<const Char>(data_(), i);
   }
 
 public:
@@ -804,8 +804,8 @@ public:
   uint32_t hash() const { return ZuHash<ZtString_>::hash(*this); }
 
 // buffer access
-  auto buf() { return ZuArray{data(), size() - 1}; }
-  auto cbuf() const { return ZuArray{data(), length()}; }
+  auto buf() { return ZuSpan{data(), size() - 1}; }
+  auto cbuf() const { return ZuSpan{data(), length()}; }
 
 // comparison
   bool operator !() const { return !length(); }
@@ -849,12 +849,12 @@ private:
   add(const S &s) const { return add(s.data_(), s.length()); }
   template <typename S>
   MatchAnyCString<S, ZtString_> add(S &&s_) const {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     return add(s.data(), s.length());
   }
   template <typename S>
   MatchOtherString<S, ZtString_> add(S &&s_) const {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     return add(s.data(), s.length());
   }
   template <typename C>
@@ -910,12 +910,12 @@ private:
   }
   template <typename S>
   MatchAnyCString<S> append_(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     splice__(0, length(), 0, s.data(), s.length());
   }
   template <typename S>
   MatchOtherString<S> append_(S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     splice__(0, length(), 0, s.data(), s.length());
   }
   template <typename C>
@@ -1011,13 +1011,13 @@ private:
   template <typename S>
   MatchAnyCString<S> splice_(
       ZtString_ *removed, int offset, int length, S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     splice__(removed, offset, length, s.data(), s.length());
   }
   template <typename S>
   MatchOtherString<S> splice_(
       ZtString_ *removed, int offset, int length, S &&s_) {
-    ZuArray<const Char> s(ZuFwd<S>(s_));
+    ZuSpan<const Char> s(ZuFwd<S>(s_));
     splice__(removed, offset, length, s.data(), s.length());
   }
   template <typename C>
@@ -1050,17 +1050,17 @@ public:
 
   // simple read-only cases
 
-  ZuArray<const Char> splice(int offset) const {
+  ZuSpan<const Char> splice(int offset) const {
     unsigned n = length();
     if (offset < 0) {
       if ((offset += n) < 0) offset = 0;
     } else {
       if (offset > static_cast<int>(n)) offset = n;
     }
-    return ZuArray<const Char>(data_() + offset, n - offset);
+    return ZuSpan<const Char>(data_() + offset, n - offset);
   }
 
-  ZuArray<const Char> splice(int offset, int length) const {
+  ZuSpan<const Char> splice(int offset, int length) const {
     unsigned n = this->length();
     if (offset < 0) {
       if ((offset += n) < 0) offset = 0;
@@ -1072,7 +1072,7 @@ public:
     } else {
       if (offset + length > static_cast<int>(n)) length = n - offset;
     }
-    return ZuArray<const Char>(data_() + offset, length);
+    return ZuSpan<const Char>(data_() + offset, length);
   }
 
 private:

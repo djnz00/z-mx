@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// stream to ZuArray<char>, ZuArray<wchar_t>
+// stream to ZuSpan<char>, ZuSpan<wchar_t>
 
 #ifndef ZuStream_HH
 #define ZuStream_HH
@@ -16,25 +16,25 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuStringFn.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuUTF.hh>
 #include <zlib/ZuEquiv.hh>
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 
 template <typename T_> struct ZuStream_Char2;
 template <> struct ZuStream_Char2<char> { using T = wchar_t; };
 template <> struct ZuStream_Char2<wchar_t> { using T = char; };
 
 template <typename Char_>
-class ZuStream_ : public ZuArray<Char_> {
+class ZuStream_ : public ZuSpan<Char_> {
   ZuAssert((ZuIsExact<char, Char_>{} || ZuIsExact<wchar_t, Char_>{}));
 
 public:
-  using Base = ZuArray<Char_>;
+  using Base = ZuSpan<Char_>;
   using Base::Base;
   using Base::operator =;
 
@@ -123,7 +123,7 @@ protected:
   }
 
   template <typename S> MatchString<S> append_(S &&s_) {
-    ZuArray<const Char> s(s_);
+    ZuSpan<const Char> s(s_);
     append(s.data(), s.length());
   }
 

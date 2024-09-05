@@ -1,4 +1,4 @@
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <mxbase/MxBase.hh>
 
@@ -86,7 +86,7 @@ int main()
   CHECK((!MxValNDP{"000.010", 1}));
   // check formatted printing
   {
-    ZuStringN<32> s;
+    ZuCArray<32> s;
     s << MxValNDP{"42000.42", 2}.fmt(ZuFmt::Comma<>());
     CHECK(s == "42,000.42");
   }

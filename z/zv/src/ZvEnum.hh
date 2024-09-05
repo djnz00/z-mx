@@ -46,20 +46,20 @@ public:
 };
 
 template <typename Map, bool Throw = true, decltype(ZuIfT<Throw>(), int()) = 0>
-inline auto s2v(ZuString key, ZuString s) {
+inline auto s2v(ZuCSpan key, ZuCSpan s) {
   auto v = Map::s2v(s);
   if (!ZuCmp<decltype(v)>::null(v)) return v;
   throw InvalidT<Map>{key, s};
 }
 template <typename Map, bool Throw = true, decltype(ZuIfT<!Throw>(), int()) = 0>
-inline auto s2v(ZuString key, ZuString s, int deflt = -1) {
+inline auto s2v(ZuCSpan key, ZuCSpan s, int deflt = -1) {
   auto v = Map::s2v(s);
   if (!ZuCmp<decltype(v)>::null(v)) return v;
   return decltype(v)(deflt);
 }
 
 template <typename Map, typename V>
-inline const char *v2s(ZuString key, V v)
+inline const char *v2s(ZuCSpan key, V v)
 {
   const char *s = Map::v2s(v);
   if (ZuLikely(s)) return s;
@@ -72,7 +72,7 @@ inline void errorMessage(ZuVStream &s, Key &&key, Value &&value)
   s << ZuFwd<Key>(key) << ": \"" << ZuFwd<Value>(value) <<
     "\" did not match { ";
   bool first = true;
-  Map::all([&s, &first](ZuString s_, auto v) {
+  Map::all([&s, &first](ZuCSpan s_, auto v) {
     if (ZuLikely(!first)) s << ", ";
     first = false;
     s << s_ << "=" << v;
@@ -88,14 +88,14 @@ inline void InvalidT<Map>::print_(ZuVStream &s) const
 
 template <typename Map, typename S, typename Flags>
 inline unsigned print(
-    ZuString key, S &s, const Flags &v, const char *delim = "|")
+    ZuCSpan key, S &s, const Flags &v, const char *delim = "|")
 {
   if (!v) return 0;
   return Map::print(s, v, delim);
 }
 
 template <typename Map, typename Flags>
-inline Flags scan(ZuString key, ZuString s, const char *delim = "|")
+inline Flags scan(ZuCSpan key, ZuCSpan s, const char *delim = "|")
 {
   if (!s) return 0;
   if (Flags v = Map::template scan<Flags>(s, delim)) return v;

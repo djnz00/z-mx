@@ -92,7 +92,7 @@ ZfbFieldTbl(BlkFloat,
   (((count),	(Ctor<4>, Mutable)),				(UInt16)));
 ZfbRoot(BlkFloat);
 
-using BlkDataBuf = ZuArrayN<uint8_t, BlkSize>;
+using BlkDataBuf = ZuArray<uint8_t, BlkSize>;
 
 struct BlkData {
   BlkOffset		blkOffset;

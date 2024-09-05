@@ -14,7 +14,7 @@
 #endif
 
 #include <zlib/ZuByteSwap.hh>
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 
 #include <zlib/ZmRef.hh>
 
@@ -77,7 +77,7 @@ inline int verifyHdr(ZmRef<Buf> buf, L l) {
 }
 
 // payload data containing a single whole message
-inline ZuArray<const uint8_t> msgData(const Hdr *hdr) {
+inline ZuSpan<const uint8_t> msgData(const Hdr *hdr) {
   if (ZuUnlikely(!hdr)) return {};
   return {
     reinterpret_cast<const uint8_t *>(hdr),

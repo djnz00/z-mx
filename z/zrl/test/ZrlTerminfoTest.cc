@@ -15,7 +15,7 @@ int main() { return 0; }
 #include <sys/stat.h>
 #include <linux/unistd.h>
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZrlTerminfo.hh>
 

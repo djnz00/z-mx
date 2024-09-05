@@ -29,7 +29,7 @@ namespace DaFlags {
 }
 
 struct Row {
-  ZuStringN<24>	foo;
+  ZuCArray<24>	foo;
   bool		bar;
   int		bah;
   double	baz;

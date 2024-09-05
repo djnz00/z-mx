@@ -94,9 +94,9 @@ void fail(const char *s)
 }
 
 #define test(t, x) \
-  (((ZuStringN<32>() << t(x)) == x) ? void() : fail(#t " \"" x "\""))
+  (((ZuCArray<32>() << t(x)) == x) ? void() : fail(#t " \"" x "\""))
 #define test2(t, x, y) \
-  (((ZuStringN<32>() << t(x)) == y) ? void() : \
+  (((ZuCArray<32>() << t(x)) == y) ? void() : \
    fail(#t " \"" x "\" != \"" y "\""))
 
 void breakpoint(ZmScheduler::Timer *timer)
@@ -136,8 +136,8 @@ int main(int argc, char **argv)
 	unsigned o, n = strlen(argv[i]);
 	for (o = 0; o < n; o++) if (argv[i][o] == '=') break;
 	if (!o || o >= n - 1) usage();
-	params.thread(ZuBox<unsigned>(ZuString(argv[i], o)))
-	  .cpuset(ZuString(&argv[i][o + 1], n - o - 1));
+	params.thread(ZuBox<unsigned>(ZuCSpan(argv[i], o)))
+	  .cpuset(ZuCSpan(&argv[i][o + 1], n - o - 1));
       } break;
       case 'i':
 	if (++i >= argc) usage();

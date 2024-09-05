@@ -216,7 +216,7 @@ template <typename T> struct ZuArrayFn_Hash {
 };
 template <typename T> struct ZuArrayFn_StringHash {
   ZuInline static uint32_t hash(const T *data, unsigned length) {
-    return ZuStringHash<T>::hash(data, length);
+    return ZuCSpanHash<T>::hash(data, length);
   }
 };
 template <>

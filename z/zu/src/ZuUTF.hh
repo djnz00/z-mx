@@ -14,7 +14,7 @@
 #endif
 
 #include <zlib/ZuInt.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 struct ZuUTF8 {
   using Elem = uint8_t;
@@ -261,7 +261,7 @@ template <typename OutChar, typename InChar> struct ZuUTF {
 
   using Span = ZuUTFSpan;
 
-  static Span span(ZuArray<const InChar> s_) {
+  static Span span(ZuSpan<const InChar> s_) {
     auto s = reinterpret_cast<const InElem *>(s_.data());
     unsigned n = s_.length();
     uint32_t u;
@@ -278,7 +278,7 @@ template <typename OutChar, typename InChar> struct ZuUTF {
     return Span{n - i, l, w};
   }
 
-  static Span nspan(ZuArray<const InChar> s_, unsigned nglyphs) {
+  static Span nspan(ZuSpan<const InChar> s_, unsigned nglyphs) {
     auto s = reinterpret_cast<const InElem *>(s_.data());
     unsigned n = s_.length();
     uint32_t u;
@@ -296,7 +296,7 @@ template <typename OutChar, typename InChar> struct ZuUTF {
     return Span{n - i, l, w};
   }
 
-  static Span gspan(ZuArray<const InChar> s_) { // single glyph
+  static Span gspan(ZuSpan<const InChar> s_) { // single glyph
     auto s = reinterpret_cast<const InElem *>(s_.data());
     unsigned n = s_.length();
     uint32_t u;
@@ -306,7 +306,7 @@ template <typename OutChar, typename InChar> struct ZuUTF {
     return Span{j, OutUTF::out(u), ZuUTF32::width(u)};
   }
 
-  static unsigned len(ZuArray<const InChar> s_) {
+  static unsigned len(ZuSpan<const InChar> s_) {
     auto s = reinterpret_cast<const InElem *>(s_.data());
     unsigned n = s_.length();
     uint32_t u;
@@ -320,7 +320,7 @@ template <typename OutChar, typename InChar> struct ZuUTF {
     return l;
   }
 
-  static unsigned cvt(ZuArray<OutChar> o_, ZuArray<const InChar> s_) {
+  static unsigned cvt(ZuSpan<OutChar> o_, ZuSpan<const InChar> s_) {
     auto o = reinterpret_cast<OutElem *>(o_.data());
     unsigned l = o_.length();
     auto s = reinterpret_cast<const InElem *>(s_.data());

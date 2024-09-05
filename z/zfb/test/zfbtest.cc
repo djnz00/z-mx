@@ -78,7 +78,7 @@ void build(IOBuilder &fbb, unsigned n)
 
     uint8_t *ptr = Detach ? buf->data() : fbb.GetBufferPointer();
     unsigned len = Detach ? buf->length : fbb.GetSize();
-    ZuArray<const uint8_t> data = {ptr, len};
+    ZuSpan<const uint8_t> data = {ptr, len};
     data.offset(8); // skip header
 
     CHECK((Verify(*schema, *rootTbl, data.data(), data.length())));

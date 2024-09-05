@@ -27,8 +27,8 @@ ZuDateTimePrintISO isoPrint(const ZuDateTime &d, int tzOffset = 0) {
   return d.fmt(fmt);
 }
 
-ZuStringN<40> isoStr(const ZuDateTime &d, int tzOffset = 0) {
-  return ZuStringN<40>{} << isoPrint(d, tzOffset);
+ZuCArray<40> isoStr(const ZuDateTime &d, int tzOffset = 0) {
+  return ZuCArray<40>{} << isoPrint(d, tzOffset);
 }
 
 struct LocalDT {
@@ -130,7 +130,7 @@ int main() {
   // ZuDateTime d(1970, 1, 1, 9, 0, 0);
 
   int i;
-  ZuStringN<32> s = isoStr(d);
+  ZuCArray<32> s = isoStr(d);
 
   printf("GMT %s\n", s.data());
   {
@@ -197,12 +197,12 @@ int main() {
 
   {
     const char *s = "2011-04-07T10:30:00+0800";
-    d = ZuDateTime(ZuString(s));
+    d = ZuDateTime(ZuCSpan(s));
     printf("%s = %s\n", s, isoStr(d).data());
   }
   {
     const char *s = "2011-04-07T10:30:00.0012345+08:00";
-    d = ZuDateTime(ZuString(s));
+    d = ZuDateTime(ZuCSpan(s));
     printf("%s = %s\n", s, isoStr(d).data());
   }
 
@@ -214,7 +214,7 @@ int main() {
 
     printf(
       "\n1/10 sec delta time check: %s\n\n",
-      (ZuStringN<32>{} << t.interval()).data()
+      (ZuCArray<32>{} << t.interval()).data()
     );
   }
 
@@ -296,7 +296,7 @@ int main() {
 
   printf(
     "\nZm::now() intrinsic cost: %s\n",
-    (ZuStringN<32>{} << intrinsic).data()
+    (ZuCArray<32>{} << intrinsic).data()
   );
 
 #ifdef _WIN32
@@ -398,7 +398,7 @@ int main() {
 
     ZuDateTime d2(y, m, da, h, mi, se, -timezone);
 
-    puts(ZuStringN<32>() << d2.iso(-timezone));
+    puts(ZuCArray<32>() << d2.iso(-timezone));
 
     // struct tm t;
     // char buf[128];

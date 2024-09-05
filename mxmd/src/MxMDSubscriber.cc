@@ -22,7 +22,7 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
 
   MxEngine::init(core, this, mx, cf);
 
-  if (ZuString ip = cf->get("interface")) m_interface = ip;
+  if (ZuCSpan ip = cf->get("interface")) m_interface = ip;
   m_filter = cf->getBool("filter");
   m_maxQueueSize = cf->getInt("maxQueueSize", 1000, 1000000, 100000);
   m_loginTimeout = cf->getDbl("loginTimeout", 0, 3600, 3);
@@ -31,7 +31,7 @@ void MxMDSubscriber::init(MxMDCore *core, const ZvCf *cf)
   m_reReqInterval = cf->getDbl("reReqInterval", 0, 3600, 1);
   m_reReqMaxGap = cf->getInt("reReqMaxGap", 0, 1000000, 10);
 
-  if (ZuString channels = cf->get("channels"))
+  if (ZuCSpan channels = cf->get("channels"))
     updateLinks(channels);
 
   core->addCmd(
@@ -59,7 +59,7 @@ void MxMDSubscriber::final()
   engineINFO("MxMDSubscriber::final()");
 }
 
-void MxMDSubscriber::updateLinks(ZuString channels)
+void MxMDSubscriber::updateLinks(ZuCSpan channels)
 {
   MxMDChannelCSV csv;
   csv.read(channels, ZvCSVReadFn{this, [](MxMDSubscriber *sub, ZuAnyPOD *pod) {

@@ -336,7 +336,7 @@ ZfbFieldTbl(Engine,
 //   cacheMode, cacheSize, cacheLoads, cacheMisses,
 //   thread
 struct DBTable {
-  using Name = ZuStringN<28>;
+  using Name = ZuCArray<28>;
 
   Name			name;				// primary key
   uint32_t		shards = 0;

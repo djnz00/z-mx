@@ -72,7 +72,7 @@ private:
     std::cerr << buf[0] << std::flush;
   }
 
-  void open(ZuString prefix, unsigned date, unsigned flags) {
+  void open(ZuCSpan prefix, unsigned date, unsigned flags) {
     m_date = date;
     m_seqNo = 0;
     if (!prefix) return;
@@ -107,7 +107,7 @@ public:
   bool isOpen() const { return m_file; }
 
   // returns seqNo
-  unsigned alloc(ZuString prefix, unsigned date) {
+  unsigned alloc(ZuCSpan prefix, unsigned date) {
     if (date != m_date) {
       close();
       open(prefix, date, ZiFile::Create);
@@ -128,7 +128,7 @@ public:
   }
 
   ZmRef<ZiIOBuf> read(
-    ZuString prefix, unsigned date, unsigned seqNo, void *bufOwner)
+    ZuCSpan prefix, unsigned date, unsigned seqNo, void *bufOwner)
   {
     if (date != m_date) {
       close();
@@ -472,7 +472,7 @@ private:
     ZmScheduler::Advance, &list.timer);
   }
 
-  void unsubscribe(WatchList &list, Link *link, ZuString filter) {
+  void unsubscribe(WatchList &list, Link *link, ZuCSpan filter) {
     {
       auto i = list.iterator();
       while (auto watch = i.iterate())
@@ -487,10 +487,10 @@ private:
 
   void disconnected_(Link *link) {
     for (unsigned i = 0; i < ReqType::N; i++)
-      unsubscribe(m_watchLists[i], link, ZuString{});
+      unsubscribe(m_watchLists[i], link, ZuCSpan{});
   }
 
-  bool match(ZuString filter, ZuString id) {
+  bool match(ZuCSpan filter, ZuCSpan id) {
     if (!filter || filter[0] == '*') return true; // null or "*"
     unsigned n = filter.length() - 1;
     if (filter[n] == '*') { // "prefix*"
@@ -499,7 +499,7 @@ private:
     }
     return filter == id;
   }
-  bool matchThread(ZuString filter, ZuString name, unsigned tid) {
+  bool matchThread(ZuCSpan filter, ZuCSpan name, unsigned tid) {
     if (!filter || filter[0] == '*') return true; // null or "*"
     unsigned n = filter.length() - 1;
     if (filter[n] == '*') { // "prefix*"
@@ -509,7 +509,7 @@ private:
     if (filter == name) return true;
     return ZuBox<unsigned>(filter) == tid;
   }
-  bool matchQueue(ZuString filter, unsigned type, ZuString id) {
+  bool matchQueue(ZuCSpan filter, unsigned type, ZuCSpan id) {
     if (!filter || filter[0] == '*') return true; // null or "*"
     unsigned n = filter.length() - 1;
     for (unsigned i = 0; i <= n; i++)
@@ -517,9 +517,9 @@ private:
 	if (!i || (i == 1 && filter[0] == '*')) { // ":id" or "*:id"
 	  if (i == n || (i == n - 1 && filter[n] == '*'))
 	    return true; // ":" or ":*" or "*:" or "*:*"
-	  return ZuString{&filter[i + 1], n - i} == id;
+	  return ZuCSpan{&filter[i + 1], n - i} == id;
 	}
-	int ftype = ZvQueueType::lookup(ZuString{&filter[0], i});
+	int ftype = ZvQueueType::lookup(ZuCSpan{&filter[0], i});
 	if (ftype != (int)type) return false;
 	if (i == n || (i == n - 1 && filter[n] == '*'))
 	  return true; // "type:" or "type:*"
@@ -529,7 +529,7 @@ private:
 	  return !memcmp(&filter[i + 1], &id[0], n);
 	}
 	n -= i;
-	return ZuString{&filter[i + 1], n} == id;
+	return ZuCSpan{&filter[i + 1], n} == id;
       }
     if (filter[n] == '*') { // id*
       if (id.length() < n) return false;

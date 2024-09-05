@@ -318,7 +318,7 @@ push:
   // should never happen - the enqueuing thread will normally
   // be forced to wait for the dequeuing thread to drain the ring,
   // i.e. a slower consumer will apply back-pressure to the producer
-  ZuStringN<120> s;
+  ZuCArray<120> s;
   s << "FATAL - Thread Dispatch Failure - push() failed: ";
   if (status <= 0)
     s << Zu::IOResult{status};

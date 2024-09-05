@@ -41,7 +41,7 @@ void UserDB::dbCf(const ZvCf *cf, ZdbCf &dbCf)
   ZtArray<ZtString> threads;
   threads.push(cf->get<true>("thread"));
 
-  static ZtArray<ZuString> tables{
+  static ZtArray<ZuCSpan> tables{
     "zum.user",
     "zum.role",
     "zum.key",
@@ -309,7 +309,7 @@ void UserDB::initUser(
   {
     passwd.length(m_passLen);
     m_rng->random(passwd);
-    ZuArray<uint8_t> passwd_{passwd};
+    ZuSpan<uint8_t> passwd_{passwd};
     for (unsigned i = 0; i < m_passLen; i++) {
       unsigned c = passwd_[i];
       c = ((c * 23040)>>16) + 33;	// ASCII 33-122 inclusive
@@ -766,8 +766,8 @@ void UserDB::chPass(ZmRef<Session> session, ZmRef<ZiIOBuf> buf, ResponseFn fn)
   auto &user = session->user->data();
   auto fbRequest = Zfb::GetRoot<fbs::Request>(buf->data());
   auto chPass = static_cast<const fbs::UserChPass *>(fbRequest->data());
-  ZuString oldPass = Zfb::Load::str(chPass->oldpass());
-  ZuString newPass = Zfb::Load::str(chPass->newpass());
+  ZuCSpan oldPass = Zfb::Load::str(chPass->oldpass());
+  ZuCSpan newPass = Zfb::Load::str(chPass->newpass());
   // verify old password
   Ztls::HMAC hmac(keyType());
   KeyData verify;

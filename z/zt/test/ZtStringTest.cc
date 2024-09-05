@@ -13,7 +13,7 @@
 #include <zlib/ZuLib.hh>
 
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuJoin.hh>
 
 #include <zlib/ZmList.hh>
@@ -22,7 +22,7 @@
 #include <zlib/ZtHexDump.hh>
 #include <zlib/ZtCase.hh>
 
-void out(bool ok, ZuString check, ZuString diag) {
+void out(bool ok, ZuCSpan check, ZuCSpan diag) {
   std::cout
     << (ok ? "OK  " : "NOK ") << check << ' ' << diag
     << '\n' << std::flush;
@@ -266,41 +266,41 @@ int main()
   }
 
   {
-    ZuStringN<16> s;
+    ZuCArray<16> s;
     s = "Hello World";
     s += ZuBox<int>(123456789);
-    CHECK(s == "Hello World", "ZuStringN append 1");
+    CHECK(s == "Hello World", "ZuCArray append 1");
     s += ZuBox<int>(12345);
-    CHECK(s == "Hello World", "ZuStringN append 2");
-    s << ZuStringN<12>(ZuBox<int>(1234));
+    CHECK(s == "Hello World", "ZuCArray append 2");
+    s << ZuCArray<12>(ZuBox<int>(1234));
     puts(s);
-    CHECK(s == "Hello World1234", "ZuStringN append 3");
+    CHECK(s == "Hello World1234", "ZuCArray append 3");
     s = "";
     s << "Hello ";
     s << "World";
-    CHECK(s == "Hello World", "ZuStringN append 4");
+    CHECK(s == "Hello World", "ZuCArray append 4");
   }
 
   {
-    if (ZuStringN<2> s = "x") std::cout << "OK  ZuStringN as boolean true\n";
-    else std::cout << "NOK ZuStringN as boolean true\n";
-    if (ZuStringN<2> s = "") std::cout << "NOK ZuStringN as boolean false\n";
-    else std::cout << "OK  ZuStringN as boolean false\n";
+    if (ZuCArray<2> s = "x") std::cout << "OK  ZuCArray as boolean true\n";
+    else std::cout << "NOK ZuCArray as boolean true\n";
+    if (ZuCArray<2> s = "") std::cout << "NOK ZuCArray as boolean false\n";
+    else std::cout << "OK  ZuCArray as boolean false\n";
   }
   {
     std::string s;
-    s += ZuStringN<4>("foo");
-    CHECK(s == "foo", "ZuStringN appending to std::string");
+    s += ZuCArray<4>("foo");
+    CHECK(s == "foo", "ZuCArray appending to std::string");
     s += ZtString(" bar");
     CHECK(s == "foo bar", "ZtString appending to std::string");
   }
   {
     std::stringstream s;
-    s << ZuStringN<4>("foo");
+    s << ZuCArray<4>("foo");
     char buf[64];
     buf[s.rdbuf()->sgetn(buf, 63)] = 0;
-    CHECK(!strcmp(buf, "foo"), "ZuStringN writing to std::ostream");
-    s << ZuStringN<4>("foo") << ' ' << ZtString("bar");
+    CHECK(!strcmp(buf, "foo"), "ZuCArray writing to std::ostream");
+    s << ZuCArray<4>("foo") << ' ' << ZtString("bar");
     buf[s.rdbuf()->sgetn(buf, 63)] = 0;
     CHECK(!strcmp(buf, "foo bar"), "ZtString writing to std::ostream");
   }
@@ -313,7 +313,7 @@ int main()
   }
 
   {
-    std::cout << ZuString{"Hello World 2\n"} << std::flush;
+    std::cout << ZuCSpan{"Hello World 2\n"} << std::flush;
     std::cout << ZtHexDump{"Whoot!", "This\x1cis\x09""a\x05test\x01of\x04the\x1ehexadecimal\x13""dumper!", 42};
   }
 

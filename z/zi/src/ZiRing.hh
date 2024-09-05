@@ -75,7 +75,7 @@ public:
   Params_ &operator =(const Params_ &) = default;
   Params_ &operator =(Params_ &&) = default;
 
-  Derived &&name(ZuString s) { Data::name = s; return derived(); }
+  Derived &&name(ZuCSpan s) { Data::name = s; return derived(); }
   Derived &&killWait(unsigned n) { Data::killWait = n; return derived(); }
   Derived &&coredump(bool b) { Data::coredump = b; return derived(); }
 };

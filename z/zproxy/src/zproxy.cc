@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuPolymorph.hh>
 
@@ -235,7 +235,7 @@ public:
   ZmRef<Connection> in() { return m_in; }
   ZmRef<Connection> out() { return m_out; }
 
-  ZuString tag() const { return m_tag; }
+  ZuCSpan tag() const { return m_tag; }
 
   void connected(Connection *connection);
   void connect2();
@@ -265,7 +265,7 @@ private:
   ZmRef<Listener>	m_listener;
   ZmRef<Connection>	m_in;
   ZmRef<Connection>	m_out;
-  ZuString		m_tag;
+  ZuCSpan		m_tag;
 };
 
 template <typename S> inline void Connection::print(S &s) const
@@ -275,7 +275,7 @@ template <typename S> inline void Connection::print(S &s) const
     info.localIP << ':' << ZuBoxed(info.localPort) <<
     (this->up() ? " -> " : " !> ") <<
     info.remoteIP << ':' << ZuBoxed(info.remotePort) <<
-    " (" << (m_proxy ? m_proxy->tag() : ZuString{"null"}) << ") [" <<
+    " (" << (m_proxy ? m_proxy->tag() : ZuCSpan{"null"}) << ") [" <<
     ((m_flags & Connection::Hold) ? 'H' : '-') <<
     ((m_flags & Connection::SuspRecv) ? 'R' : '-') <<
     ((m_flags & Connection::SuspSend) ? 'S' : '-') <<
@@ -292,7 +292,7 @@ public:
   Listener(App *app, uint32_t cxnFlags,
       double cxnLatency, uint32_t cxnFrag, uint32_t cxnPack, double cxnDelay,
       ZiIP localIP, unsigned localPort, ZiIP remoteIP, unsigned remotePort,
-      ZiIP srcIP, unsigned srcPort, ZuString tag, unsigned reconnectFreq);
+      ZiIP srcIP, unsigned srcPort, ZuCSpan tag, unsigned reconnectFreq);
   virtual ~Listener() { }
 
   void add(Proxy *proxy) { m_proxies->add(proxy); }
@@ -313,7 +313,7 @@ public:
   ZiIP srcIP() const { return m_srcIP; }
   unsigned srcPort() const { return m_srcPort; }
   bool listening() const { return m_listening; }
-  ZuString tag() const { return m_tag; }
+  ZuCSpan tag() const { return m_tag; }
   unsigned reconnectFreq() const { return m_reconnectFreq; }
 
   int start();
@@ -407,7 +407,7 @@ ListenerPrintOut Listener::printOut() const {
   return ListenerPrintOut(*this);
 }
 
-bool validateTag(ZuString s) {
+bool validateTag(ZuCSpan s) {
   const char *t = s.data();
   return !(s.length() < 2 || !*t || *t != '#');
 }
@@ -590,7 +590,7 @@ public:
     auto &out = ctx->out;
     ZmRef<Listener> listener;
     ZiIP localIP, remoteIP, srcIP;
-    ZuString tag;
+    ZuCSpan tag;
     uint16_t localPort, remotePort, srcPort;
     uint32_t cxnFlags = 0;
     double cxnLatency = 0;
@@ -647,7 +647,7 @@ public:
   void stopListeningCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned localPort;
     bool isTag = false;
     try {
@@ -688,7 +688,7 @@ public:
     unsigned srcPort;
     int side;
     bool allProxies = false, isTag = false;
-    ZuString tag;
+    ZuCSpan tag;
     try {
       tag = args->get("1");
       if (validateTag(tag))
@@ -737,7 +737,7 @@ public:
   void releaseCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     int side;
     bool isTag = false, allProxies = false;
@@ -790,7 +790,7 @@ public:
   void discCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     bool isTag = false, allProxies = false;
     try {
@@ -833,7 +833,7 @@ public:
   void suspendCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     int side, op;
     bool isTag, allProxies = false;
@@ -899,7 +899,7 @@ public:
   void resumeCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     int side, op;
     bool isTag = false, allProxies = false;
@@ -961,7 +961,7 @@ public:
   void traceCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     int side;
     bool on;
@@ -1016,7 +1016,7 @@ public:
   void dropCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     unsigned srcPort;
     int side;
     bool on;
@@ -1085,7 +1085,7 @@ public:
   void statusCmd(ZcmdContext *ctx) {
     const auto &args = ctx->args;
     auto &out = ctx->out;
-    ZuString tag;
+    ZuCSpan tag;
     bool isTag = false;
     try {
       tag = args->get("1");
@@ -1447,7 +1447,7 @@ void Proxy::status_(ZuVStream &s) const
 Listener::Listener(App *app, uint32_t cxnFlags,
     double cxnLatency, uint32_t cxnFrag, uint32_t cxnPack, double cxnDelay,
     ZiIP localIP, unsigned localPort, ZiIP remoteIP, unsigned remotePort,
-    ZiIP srcIP, unsigned srcPort, ZuString tag, unsigned reconnectFreq) :
+    ZiIP srcIP, unsigned srcPort, ZuCSpan tag, unsigned reconnectFreq) :
   m_mx(app->mx()), m_app(app),
   m_cxnFlags(cxnFlags), m_cxnLatency(cxnLatency),
   m_cxnFrag(cxnFrag), m_cxnPack(cxnPack), m_cxnDelay(cxnDelay),
@@ -1553,9 +1553,9 @@ int main(int argc, char **argv)
     Zrl::History history{100};
     Zrl::CLI cli;
     cli.init({
-      .error = [](ZuString s) { std::cerr << s << '\n'; },
+      .error = [](ZuCSpan s) { std::cerr << s << '\n'; },
       .prompt = [](ZtArray<uint8_t> &s) { if (!s) s = "zproxy] "; },
-      .enter = [app = app.ptr()](ZuString cmd) -> bool {
+      .enter = [app = app.ptr()](ZuCSpan cmd) -> bool {
 	app->exec(ZtString{cmd}); // ignore result code
 	return false;
       },

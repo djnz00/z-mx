@@ -49,7 +49,7 @@ void sigint()
   done.post();
 }
 
-ZmRef<ZvCf> inlineCf(ZuString s)
+ZmRef<ZvCf> inlineCf(ZuCSpan s)
 {
   ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);
@@ -63,90 +63,182 @@ void gtfo()
   Zm::exit(1);
 }
 
-void run()
-{
-  using Series = Zdf::Series<Zdf::Decoder>;
-  store->openSeries<Zdf::Decoder, true>(0, "test", [](ZmRef<Series>) {
-    std::cout << "GOT HERE\n";
+using Series = Zdf::Series<Zdf::Decoder>;
+
+struct Test {
+  ZmRef<Series>	series;
+
+  void run() {
+    store->openSeries<Zdf::Decoder, true>(0, "test",
+      [this](ZmRef<Series> series_) {
+	series = ZuMv(series_);
+	run_opened();
+      });
+  }
+  void run_opened() {
+    if (!series) {
+      ZeLOG(Fatal, "open failed");
+      gtfo();
+      return;
+    }
+    series->write([this](auto w) { run_write(ZuMv(w)); }, 1);
+  }
+  void run_write(Series::WrRef w) {
+    if (!w) {
+      ZeLOG(Fatal, "write1 failed");
+      gtfo();
+      return;
+    }
+    CHECK(w->write(42));
+    CHECK(w->write(42));
+    w = {};
+    series->write([this](auto w) mutable { run_write2(ZuMv(w)); }, 2);
+  }
+  void run_write2(Series::WrRef w) {
+    if (!w) {
+      ZeLOG(Fatal, "write2 failed");
+      gtfo();
+      return;
+    }
+    CHECK(w->write(4301));
+    CHECK(w->write(4302));
+    w = {};
+    series->write([this](auto w) mutable { run_write3(ZuMv(w)); }, 3);
+  }
+  void run_write3(Series::WrRef w) {
+    if (!w) {
+      ZeLOG(Fatal, "write3 failed");
+      gtfo();
+      return;
+    }
+    CHECK(w->write(43030));
+    CHECK(w->write(43040));
+    w = {};
+    series->write([this](auto w) mutable { run_write4(ZuMv(w)); }, 4);
+  }
+  void run_write4(Series::WrRef w) {
+    if (!w) {
+      ZeLOG(Fatal, "write4 failed");
+      gtfo();
+      return;
+    }
+    CHECK(w->write(430500));
+    CHECK(w->write(430600));
+    for (unsigned i = 0; i < 300; i++) {
+      CHECK(w->write(430700));
+    }
+    CHECK(w->series()->blkCount() == 4);
+    w = {};
+    run_read();
+  }
+  void run_read() {
+    auto r = series->seek();
+    if (!r->read([this, i = 0](Series::Reader *r, ZuFixed v) mutable {
+      switch (i++) {
+	case 0:
+	  CHECK(v.mantissa == 42 && !v.ndp);
+	  break;
+	case 1:
+	  CHECK(v.mantissa == 42 && !v.ndp);
+	  break;
+	case 2:
+	  CHECK(v.mantissa == 4301 && v.ndp == 2);
+	  break;
+	case 3:
+	  CHECK(v.mantissa == 4302 && v.ndp == 2);
+	  break;
+	case 4:
+	  CHECK(v.mantissa == 43030 && v.ndp == 3);
+	  break;
+	case 5:
+	  CHECK(v.mantissa == 43040 && v.ndp == 3);
+	  break;
+	case 6:
+	  CHECK(v.mantissa == 430500 && v.ndp == 4);
+	  break;
+	case 7:
+	  CHECK(v.mantissa == 430600 && v.ndp == 4);
+	  break;
+	default:
+	  CHECK(v.mantissa == 430700 && v.ndp == 4);
+	  break;
+      }
+      if (i < 308) return true;
+      series->run([this]() { run_read2(); });
+      return false;
+    })) {
+      ZeLOG(Fatal, "read failed");
+      gtfo();
+    }
+  }
+  void run_read2() {
+    auto r = series->find(ZuFixed{425, 1});
+    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+      CHECK(v.mantissa == 4301 && v.ndp == 2);
+      series->run([this]() { run_read3(); });
+      return false;
+    })) {
+      ZeLOG(Fatal, "read2 failed");
+      gtfo();
+    }
+  }
+  void run_read3() {
+    auto r = series->find(ZuFixed{43020, 3});
+    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+      CHECK(v.mantissa == 4302 && v.ndp == 2);
+      r->purge();
+      series->run([this]() { run_read4(); });
+      return false;
+    })) {
+      ZeLOG(Fatal, "read3 failed");
+      gtfo();
+    }
+  }
+  void run_read4() {
+    auto r = series->find(ZuFixed{44, 0});
+    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+      CHECK(!*v);
+      series->run([this]() { run_read5(); });
+      return false;
+    })) {
+      ZeLOG(Fatal, "read4 failed");
+      gtfo();
+    }
+  }
+  void run_read5() {
+    CHECK(series->blkCount() == 3);
     done.post();
-  });
+  }
+};
 #if 0
-  Series s;
-  s.init(&store);
-  ZmBlock<>{}([&s](auto wake) {
-    s.open("test", "test", [wake = ZuMv(wake)](OpenResult) mutable { wake(); });
-  });
-  {
-    auto w = s.writer<DeltaEncoder<>>();
-    CHECK(w.write(ZuFixed{42, 0}));
-    CHECK(w.write(ZuFixed{42, 0}));
-    CHECK(w.write(ZuFixed{4301, 2}));
-    CHECK(w.write(ZuFixed{4302, 2}));
-    CHECK(w.write(ZuFixed{43030, 3}));
-    CHECK(w.write(ZuFixed{43040, 3}));
-    CHECK(w.write(ZuFixed{430500, 4}));
-    CHECK(w.write(ZuFixed{430600, 4}));
-    for (unsigned i = 0; i < 300; i++) {
-      CHECK(w.write(ZuFixed{430700, 4}));
+    {
+      auto r = series->find<DeltaDecoder<>>(ZuFixed{44, 0});
+      ZuFixed v;
+      CHECK(!r);
+      CHECK(!r.read(v));
     }
-  }
-  CHECK(s.blkCount() == 4);
-  {
-    auto r = s.seek<DeltaDecoder<>>();
-    ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.mantissa() == 42 && !v.ndp());
-    CHECK(r.read(v)); CHECK(v.mantissa() == 42 && !v.ndp());
-    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.ndp() == 2);
-    CHECK(r.read(v)); CHECK(v.mantissa() == 4302 && v.ndp() == 2);
-    CHECK(r.read(v)); CHECK(v.mantissa() == 43030 && v.ndp() == 3);
-    CHECK(r.read(v)); CHECK(v.mantissa() == 43040 && v.ndp() == 3);
-    CHECK(r.read(v)); CHECK(v.mantissa() == 430500 && v.ndp() == 4);
-    CHECK(r.read(v)); CHECK(v.mantissa() == 430600 && v.ndp() == 4);
-    for (unsigned i = 0; i < 300; i++) {
-      CHECK(r.read(v));
-      CHECK(v.mantissa() == 430700 && v.ndp() == 4);
+    {
+      auto r = series->seek<DeltaDecoder<>>();
+      ZuFixed v;
+      CHECK(r.read(v)); CHECK(v.mantissa == 4301 && v.ndp == 2);
     }
-    CHECK(!r.read(v));
-  }
-  {
-    auto r = s.find<DeltaDecoder<>>(ZuFixed{425, 1});
-    ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.ndp() == 2);
-  }
-  {
-    auto r = s.find<DeltaDecoder<>>(ZuFixed{43020, 3});
-    ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.mantissa() == 4302 && v.ndp() == 2);
-    r.purge();
-  }
-  CHECK(s.blkCount() == 3);
-  {
-    auto r = s.find<DeltaDecoder<>>(ZuFixed{44, 0});
-    ZuFixed v;
-    CHECK(!r);
-    CHECK(!r.read(v));
-  }
-  {
-    auto r = s.seek<DeltaDecoder<>>();
-    ZuFixed v;
-    CHECK(r.read(v)); CHECK(v.mantissa() == 4301 && v.ndp() == 2);
-  }
-  {
-    auto r = s.seek<DeltaDecoder<>>(208);
-    ZuFixed v;
-    for (unsigned i = 0; i < 50; i++) {
-      CHECK(r.read(v));
-      CHECK(v.mantissa() == 430700 && v.ndp() == 4);
+    {
+      auto r = series->seek<DeltaDecoder<>>(208);
+      ZuFixed v;
+      for (unsigned i = 0; i < 50; i++) {
+	CHECK(r.read(v));
+	CHECK(v.mantissa == 430700 && v.ndp == 4);
+      }
+      CHECK(r.offset() == 258);
+      for (unsigned i = 0; i < 50; i++) {
+	CHECK(r.read(v));
+	CHECK(v.mantissa == 430700 && v.ndp == 4);
+      }
+      CHECK(!r.read(v));
     }
-    CHECK(r.offset() == 258);
-    for (unsigned i = 0; i < 50; i++) {
-      CHECK(r.read(v));
-      CHECK(v.mantissa() == 430700 && v.ndp() == 4);
-    }
-    CHECK(!r.read(v));
-  }
 #endif
-}
+
+Test test;
 
 int main()
 {
@@ -230,7 +322,7 @@ int main()
       store->open([](bool ok) {
 	std::cout << "open(): " << (ok ? "OK" : "NOT OK") << '\n';
 	if (ok)
-	  store->run(0, []() { run(); });
+	  test.run();
 	else
 	  done.post();
       });

@@ -265,11 +265,11 @@ public:
       m_app = app;
       m_id = cf->get("id", true);
       m_mx = mx;
-      if (ZuString s = cf->get("rxThread"))
+      if (ZuCSpan s = cf->get("rxThread"))
 	m_rxThread = mx->sid(s);
       else
 	m_rxThread = mx->rxThread();
-      if (ZuString s = cf->get("txThread"))
+      if (ZuCSpan s = cf->get("txThread"))
 	m_txThread = mx->sid(s);
       else
 	m_txThread = mx->txThread();

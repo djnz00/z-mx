@@ -11,7 +11,7 @@
 #include <zlib/ZcmdLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuUnion.hh>
 
 #include <zlib/ZmObject.hh>
@@ -122,7 +122,7 @@ public:
     this->connect();
   }
   template <typename KeyID>
-  void access(KeyID &&keyID, ZuString secret_) {
+  void access(KeyID &&keyID, ZuCSpan secret_) {
     ZtArray<uint8_t> secret;
     secret.length(ZuBase64::declen(secret_.length()));
     ZuBase64::decode(secret, secret_);

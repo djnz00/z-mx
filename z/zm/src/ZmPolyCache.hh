@@ -99,7 +99,7 @@ private:
 private:
   ZmPolyCache() : m_size(0) { }
 public:
-  ZmPolyCache(ZuString id) : m_hash{id} {
+  ZmPolyCache(ZuCSpan id) : m_hash{id} {
     if constexpr (KeyIDs::N) {
       ZmAssert(id.length() + 5 +
 	ZuBoxed(unsigned(ZuType<KeyIDs::N - 1, KeyIDs>{})).length() <

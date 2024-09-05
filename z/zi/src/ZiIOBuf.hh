@@ -122,8 +122,8 @@ public:
   T &as() { return *ptr<T>(); }
 
   // low-level buffer access
-  auto buf_() { return ZuArray{data(), size}; }
-  auto cbuf_() const { return ZuArray{data(), length}; }
+  auto buf_() { return ZuSpan{data(), size}; }
+  auto cbuf_() const { return ZuSpan{data(), length}; }
 
   // advance/rewind buffer
   void advance(unsigned n) {
@@ -253,7 +253,7 @@ private:
     ZuPrint<U>::OK && !ZuPrint<U>::String, R>;
 
 public:
-  IOBuf &operator <<(const ZuArray<const uint8_t> &buf) {
+  IOBuf &operator <<(const ZuSpan<const uint8_t> &buf) {
     append(buf.data(), buf.length());
     return *this;
   }
@@ -264,12 +264,12 @@ public:
   }
   template <typename S>
   MatchString<S, IOBuf &> operator <<(S &&s_) {
-    ZuString s(ZuFwd<S>(s_));
+    ZuCSpan s(ZuFwd<S>(s_));
     append(reinterpret_cast<const uint8_t *>(s.data()), s.length());
     return *this;
   }
   IOBuf &operator <<(const char *s_) {
-    ZuString s(s_);
+    ZuCSpan s(s_);
     append(reinterpret_cast<const uint8_t *>(s.data()), s.length());
     return *this;
   }

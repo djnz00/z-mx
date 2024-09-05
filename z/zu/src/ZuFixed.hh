@@ -163,7 +163,7 @@ struct ZuFixed {
   }
 
   template <bool NDP = true>
-  unsigned scan(ZuString s, unsigned ndp_) {
+  unsigned scan(ZuCSpan s, unsigned ndp_) {
     unsigned int m = 0;
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&
@@ -216,7 +216,7 @@ struct ZuFixed {
     null();
     return 0;
   }
-  unsigned scan(ZuString s) { return scan<false>(s, 0); }
+  unsigned scan(ZuCSpan s) { return scan<false>(s, 0); }
 
 public:
   // traits

@@ -25,7 +25,7 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuTuple.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuBitmap.hh>
 
@@ -282,7 +282,7 @@ public:
   }
   // hwloc_bitmap can represent an infinitely set or cleared bitmap
   // - this is subtly different than ZuBitmap, so re-use is not attempted
-  unsigned scan(ZuString s) {
+  unsigned scan(ZuCSpan s) {
     lazy();
     const char *data = s.data();
     unsigned length = s.length(), offset = 0;

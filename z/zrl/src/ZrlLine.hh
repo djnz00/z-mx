@@ -68,7 +68,7 @@ public:
   unsigned width() const { return m_positions.length(); }
 
   // substring
-  ZuString substr(unsigned off, unsigned len) const {
+  ZuCSpan substr(unsigned off, unsigned len) const {
     return {reinterpret_cast<const char *>(&m_data[off]), len};
   }
 

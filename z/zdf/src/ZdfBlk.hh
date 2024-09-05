@@ -67,8 +67,8 @@ struct Blk {
   }
 
   ZuInline uint64_t offset() const { return ocn & OffsetMask(); }
-  ZuInline unsigned count() const { return (ocn>>CountShift()) & CountMask(); }
-  ZuInline unsigned ndp() const { return (ocn>>NDPShift()) & NDPMask(); }
+  ZuInline BlkCount count() const { return (ocn>>CountShift()) & CountMask(); }
+  ZuInline NDP ndp() const { return (ocn>>NDPShift()) & NDPMask(); }
 
   ZuInline bool operator !() const { return !count(); }
 
@@ -86,7 +86,7 @@ struct Blk {
   }
 
   template <typename Decoder>
-  Decoder decoder() {
+  Decoder decoder() const {
     ZeAssert(blkData, (), "blkData not loaded", return {});
     const auto &buf = blkData->data().buf;
     auto start = buf.data();
@@ -96,14 +96,14 @@ struct Blk {
   template <typename Decoder>
   Encoder<Decoder> encoder(Series<Decoder> *series) {
     ZeAssert(blkData, (), "blkData not instantiated", return {});
-    const auto &buf = blkData->data().buf;
+    auto &buf = blkData->data().buf;
     auto start = buf.data();
     return {start, start + BlkSize};
   }
 
   template <typename Encoder>
   void sync(const Encoder &encoder, int64_t last_) { // fixed
-    count(encoder.count());
+    offset(encoder.offset());
     last.fixed = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;
@@ -111,7 +111,7 @@ struct Blk {
   }
   template <typename Encoder>
   void sync(const Encoder &encoder, double last_) { // floating
-    count(encoder.count());
+    offset(encoder.offset());
     last.float_ = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;

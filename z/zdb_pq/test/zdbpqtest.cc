@@ -36,7 +36,7 @@ void sigint()
   done.post();
 }
 
-ZmRef<ZvCf> inlineCf(ZuString s)
+ZmRef<ZvCf> inlineCf(ZuCSpan s)
 {
   ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
       ZdbObjRef<Order> o = new ZdbObject<Order>{orders, 0};
       orders->insert(o, [&id, &seqNo](ZdbObject<Order> *o) {
 	if (ZuUnlikely(!o)) { done.post(); return; }
-	ZuStringN<32> clOrdID;
+	ZuCArray<32> clOrdID;
 	clOrdID << "order" << id;
 	new (o->ptr())
 	  Order{"IBM", id, "FIX0", clOrdID, seqNo, Side::Buy, {100}, {100}};
@@ -286,7 +286,7 @@ int main(int argc, char **argv)
 	    ZeLOG(Info, ([id, data = o->data()](auto &s) {
 	      s << "findUpd(IBM, " << id << "): " << data;
 	    }));
-	    ZuStringN<32> clOrdID;
+	    ZuCArray<32> clOrdID;
 	    clOrdID << "order" << id << "_1";
 	    o->data().prices[0] = o->data().prices[0] + 42;
 	    o->data().clOrdID = clOrdID;

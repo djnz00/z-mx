@@ -3,7 +3,7 @@
 
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuVStream.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 struct A {
   template <typename S>
@@ -18,7 +18,7 @@ void foo(S &s_) {
 
 int main()
 {
-  ZuStringN<100> s1;
+  ZuCArray<100> s1;
   std::stringstream s2;
   foo(s1);
   std::cout << s1;

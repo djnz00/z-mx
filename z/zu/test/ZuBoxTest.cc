@@ -15,7 +15,7 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <string>
 #include <sstream>
@@ -484,7 +484,7 @@ int main()
   }
 
   {
-    ZuStringN<64> s;
+    ZuCArray<64> s;
     ZuNBox<uint64_t> v;
     ZuBox<uint64_t> w;
     s << v;
@@ -523,7 +523,7 @@ int main()
     }
 
     {
-      ZuStringN<30> buf;
+      ZuCArray<30> buf;
       for (int i = INT_MIN; i < INT_MAX - 420; i += 420) {
 	buf << ZuBoxed(i);
 	CHECK2(i == ZuBox<int>(buf), i, buf.data());
@@ -549,7 +549,7 @@ int main()
 
     {
       ZuVFmt fmt;
-      ZuStringN<30> buf;
+      ZuCArray<30> buf;
       for (int i = INT_MIN; i < INT_MAX - 420; i += 420) {
 	buf << ZuBoxed(i).vfmt(fmt);
 	CHECK2(i == ZuBox<int>(buf), i, buf.data());
@@ -600,7 +600,7 @@ int main()
     }
 
     {
-      ZuStringN<30> buf;
+      ZuCArray<30> buf;
       for (double d = INT_MIN; d < INT_MAX - 4201; d += 4200.000420) {
 	buf << ZuBoxed(d);
 	ZuBox<double> e(buf);
@@ -628,7 +628,7 @@ int main()
 
     {
       ZuVFmt fmt;
-      ZuStringN<30> buf;
+      ZuCArray<30> buf;
       for (double d = INT_MIN; d < INT_MAX - 4201; d += 4200.000420) {
 	buf << ZuBoxed(d).vfmt(fmt);
 	CHECK2(ZuBoxed(d).feq(ZuBox<double>{buf}), d, buf.data());

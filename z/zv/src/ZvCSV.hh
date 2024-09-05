@@ -19,7 +19,7 @@
 #include <stdio.h>
 
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuDateTime.hh>
 #include <zlib/ZuBase64.hh>
 
@@ -40,11 +40,11 @@
 #define ZvCSV_MaxLineSize	(8<<10)	// 8K
 
 namespace ZvCSV_ {
-  ZvExtern void split(ZuString row, ZtArray<ZtArray<char>> &a);
+  ZvExtern void split(ZuCSpan row, ZtArray<ZtArray<char>> &a);
 
   // CSV string quoting
   template <typename Row>
-  inline void quote__(Row &row, ZuString s) {
+  inline void quote__(Row &row, ZuCSpan s) {
     row << '"';
     for (unsigned i = 0, n = s.length(); i < n; i++) {
       char c = s[i];
@@ -138,7 +138,7 @@ namespace ZvCSV_ {
       Row &row, const T *object,
       const ZtVField *field, const ZtFieldVFmt &fmt) {
     auto array = field->get.get<Code>(object);
-    using Elem = ZuString;
+    using Elem = ZuCSpan;
     unsigned n = array.length();
     row << "={";
     for (unsigned i = 0; i < n; i++) {
@@ -157,9 +157,9 @@ namespace ZvCSV_ {
     auto v = field->get.get<Code>(object);
     auto n = ZuBase64::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf(&buf_[0], n);
+    ZuSpan<uint8_t> buf(&buf_[0], n);
     buf.trunc(ZuBase64::encode(buf, v));
-    row << ZuString{buf};
+    row << ZuCSpan{buf};
   }
   template <unsigned Code, typename Row, typename T>
   inline
@@ -176,9 +176,9 @@ namespace ZvCSV_ {
       auto v = Elem(array[i]);
       auto n = ZuBase64::enclen(v.length());
       auto buf_ = ZmAlloc(uint8_t, n);
-      ZuArray<uint8_t> buf(&buf_[0], n);
+      ZuSpan<uint8_t> buf(&buf_[0], n);
       buf.trunc(ZuBase64::encode(buf, v));
-      row << ZuString{buf};
+      row << ZuCSpan{buf};
     }
     row << '}';
   }
@@ -230,14 +230,14 @@ template <typename T> class ZvCSV {
 
 public:
   using Column = ZuTuple<int, const ZtVField *>;
-  using ColNames = ZtArray<ZuString>;
+  using ColNames = ZtArray<ZuCSpan>;
   using ColIndex = ZtArray<int>;
   using ColArray = ZtArray<Column>;
 
 private:
   static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
   using ColTree =
-    ZmRBTreeKV<ZuString, Column,
+    ZmRBTreeKV<ZuCSpan, Column,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ColTree_HeapID>>>;
 
@@ -256,7 +256,7 @@ public:
   };
   static FieldFmt &fmt() { return ZmTLS<FieldFmt, fmt>(); }
 
-  Column find(ZuString id) const {
+  Column find(ZuCSpan id) const {
     auto node = m_columns.find(id);
     if (!node) return {-1, nullptr};
     return node->val();
@@ -268,13 +268,13 @@ public:
   }
 
 private:
-  void writeHeaders(ZtArray<ZuString> &headers) const {
+  void writeHeaders(ZtArray<ZuCSpan> &headers) const {
     unsigned n = m_fields.length();
     headers.size(n);
     for (unsigned i = 0; i < n; i++) headers.push(m_fields[i]->id);
   }
 
-  void header(ColIndex &colIndex, ZuString hdr) const {
+  void header(ColIndex &colIndex, ZuCSpan hdr) const {
     ZtArray<ZtArray<char>> a;
     ZvCSV_::split(hdr, a);
     unsigned n = m_fields.length();
@@ -289,7 +289,7 @@ private:
   }
 
   void scan(
-      const ColIndex &colIndex, ZuString row,
+      const ColIndex &colIndex, ZuCSpan row,
       const ZtFieldVFmt &fmt, T *object) const {
     ZtArray<ZtArray<char>> a;
     ZvCSV_::split(row, a);
@@ -301,14 +301,14 @@ private:
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
 	    [object, field, &fmt](auto Code) {
-	  field->set.scan<Code>(object, ZuString{}, field, fmt);
+	  field->set.scan<Code>(object, ZuCSpan{}, field, fmt);
 	});
       }
     }
     for (unsigned i = 0; i < m; i++) {
       int j;
       if ((j = colIndex[i]) >= 0 && j < static_cast<int>(n)) {
-	ZuString s = a[j];
+	ZuCSpan s = a[j];
 	auto field = m_fields[i];
 	ZuSwitch::dispatch<ZtFieldTypeCode::N>(field->type->code,
 	    [object, &s, field, &fmt](auto Code) {
@@ -371,7 +371,7 @@ public:
   }
 
   template <typename Alloc, typename Read>
-  void readData(ZuString data, Alloc alloc, Read read) const {
+  void readData(ZuCSpan data, Alloc alloc, Read read) const {
     ColIndex colIndex;
     const auto &fmt = this->fmt();
 

@@ -18,7 +18,7 @@
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuPrint.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 class ZuVStreamBuf {
 public:
@@ -68,7 +68,7 @@ public:
   template <typename S>
   ZuVStream(S &s) :
     m_ptr{&s},
-    m_strFn{[](void *s, const ZuString &v) {
+    m_strFn{[](void *s, const ZuCSpan &v) {
       *static_cast<S *>(s) << v;
     }},
     m_bufFn{[](void *s, const ZuVStreamBuf &v) {
@@ -96,7 +96,7 @@ private:
   using MatchString = ZuIfT<
     ZuTraits<U>::IsString &&
     !ZuTraits<U>::IsWString &&
-    !ZuInspect<ZuString, U>::Is, R>;
+    !ZuInspect<ZuCSpan, U>::Is, R>;
 
   template <typename U, typename R = void>
   using MatchPDelegate = ZuIfT<ZuPrint<U>::Delegate, R>;
@@ -107,7 +107,7 @@ private:
 public:
   template <typename C>
   MatchChar<C, ZuVStream &> operator <<(C c) {
-    (*m_strFn)(m_ptr, ZuString{&c, 1});
+    (*m_strFn)(m_ptr, ZuCSpan{&c, 1});
     return *this;
   }
   template <typename R>
@@ -115,13 +115,13 @@ public:
     (*m_bufFn)(m_ptr, ZuVStreamBuf{ZuBoxed(r)});
     return *this;
   }
-  ZuVStream &operator <<(ZuString s) {
+  ZuVStream &operator <<(ZuCSpan s) {
     (*m_strFn)(m_ptr, s);
     return *this;
   }
   template <typename S>
   MatchString<S, ZuVStream &> operator <<(S &&s_) {
-    (*m_strFn)(m_ptr, ZuString{ZuFwd<S>(s_)});
+    (*m_strFn)(m_ptr, ZuCSpan{ZuFwd<S>(s_)});
     return *this;
   }
   template <typename P>
@@ -136,7 +136,7 @@ public:
   }
 
 private:
-  typedef void (*StrFn)(void *, const ZuString &);
+  typedef void (*StrFn)(void *, const ZuCSpan &);
   typedef void (*BufFn)(void *, const ZuVStreamBuf &);
 
   void		*m_ptr;

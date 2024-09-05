@@ -21,35 +21,35 @@
 #define SIGTSTP 20
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZePlatform.hh>
 
 namespace Zrl {
 
-using ErrorFn = ZmFn<void(ZuString)>;		// (message)
+using ErrorFn = ZmFn<void(ZuCSpan)>;		// (message)
 
 using OpenFn = ZmFn<void(bool)>;		// (ok)
 using CloseFn = ZmFn<>;
 
 using PromptFn = ZmFn<void(ZtArray<uint8_t> &)>;
 
-using EnterFn = ZmFn<bool(ZuString)>;
+using EnterFn = ZmFn<bool(ZuCSpan)>;
 using EndFn = ZmFn<>;
 using SigFn = ZmFn<bool(int)>;
 
 using CompSpliceFn = ZmFn<void(	// splice completion
   unsigned,			// off     - byte offset
   ZuUTFSpan,			// span    - UTF8 span to be replaced
-  ZuArray<const uint8_t>,	// replace - replacement data
+  ZuSpan<const uint8_t>,	// replace - replacement data
   ZuUTFSpan)>;			// rspan   - UTF8 span of replacement
 
 using CompIterFn = ZmFn<void(	// iterate completion
-  ZuArray<const uint8_t>,	// data    - completion data
+  ZuSpan<const uint8_t>,	// data    - completion data
   ZuUTFSpan)>;			// span    - UTF8 span of completion
 
 using CompInitFn = ZmFn<void(	// initialize completion
-  ZuArray<const uint8_t>,	// data    - line data (entire line)
+  ZuSpan<const uint8_t>,	// data    - line data (entire line)
   unsigned,			// cursor  - byte offset of cursor
   CompSpliceFn)>;		// splice  - line splice function
 
@@ -63,9 +63,9 @@ using CompNextFn = ZmFn<bool(CompIterFn)>; // iterate next completion
 
 using CompFinalFn = ZmFn<>;		// finalize completion
 
-using HistFn = ZmFn<void(ZuArray<const uint8_t>)>;
+using HistFn = ZmFn<void(ZuSpan<const uint8_t>)>;
 
-using HistSaveFn = ZmFn<void(unsigned, ZuArray<const uint8_t>)>;
+using HistSaveFn = ZmFn<void(unsigned, ZuSpan<const uint8_t>)>;
 using HistLoadFn = ZmFn<bool(unsigned, HistFn)>;
 
 struct App {

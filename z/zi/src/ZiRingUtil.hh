@@ -31,7 +31,7 @@ template <typename> class Params;
 class ParamData {
   template <typename> friend Params;
 public:
-  ParamData(ZuString name) : m_name{name} { }
+  ParamData(ZuCSpan name) : m_name{name} { }
 
   ParamData() = default;
   ParamData(const ParamData &) = default; 

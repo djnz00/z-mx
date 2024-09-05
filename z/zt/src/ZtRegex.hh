@@ -17,7 +17,7 @@
 
 #include <zlib/ZuAssert.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 
 #include <zlib/ZmCleanup.hh>
@@ -61,7 +61,7 @@ class ZtAPI ZtRegex {
   ZtRegex();
 
 public:
-  using Capture = ZuString;
+  using Capture = ZuCSpan;
   using Captures = ZtArray<Capture>;
 
   // pcre_compile() options
@@ -109,11 +109,11 @@ public:
      $' is everything after the matched string.
   */
 
-  unsigned m(ZuString s, unsigned offset = 0, int options = 0) const {
+  unsigned m(ZuCSpan s, unsigned offset = 0, int options = 0) const {
     ZtRegex_ovector_alloc(ovector, m_captureCount);
     return exec(s, offset, options, ovector);
   }
-  unsigned m(ZuString s,
+  unsigned m(ZuCSpan s,
       Captures &captures, unsigned offset = 0, int options = 0) const {
     ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned i = exec(s, offset, options, ovector);
@@ -125,7 +125,7 @@ public:
   ZuIfT<
     ZuInspect<ZtString, S>::Is ||
     ZuInspect<ZtArray<char>, S>::Is, unsigned>
-  s(S &s, ZuString r, unsigned offset = 0, int options = 0) const {
+  s(S &s, ZuCSpan r, unsigned offset = 0, int options = 0) const {
     ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned i = exec(s, offset, options, ovector);
     if (i) s.splice(ovector[0], ovector[1] - ovector[0], r.data(), r.length());
@@ -136,7 +136,7 @@ public:
   ZuIfT<
     ZuInspect<ZtString, S>::Is ||
     ZuInspect<ZtArray<char>, S>::Is, unsigned>
-  sg(S &s, ZuString r, unsigned offset = 0, int options = 0) const {
+  sg(S &s, ZuCSpan r, unsigned offset = 0, int options = 0) const {
     ZtRegex_ovector_alloc(ovector, m_captureCount);
     unsigned n = 0;
     unsigned slength = s.length(), rlength = r.length();
@@ -152,14 +152,14 @@ public:
     return n;
   }
 
-  unsigned split(ZuString s, Captures &a, int options = 0) const;
+  unsigned split(ZuCSpan s, Captures &a, int options = 0) const;
 
   int index(const char *name) const; // pcre_get_stringnumber()
 
 private:
-  unsigned exec(ZuString s,
+  unsigned exec(ZuCSpan s,
       unsigned offset, int options, ZtArray<unsigned> &ovector) const;
-  void capture(ZuString s,
+  void capture(ZuCSpan s,
       const ZtArray<unsigned> &ovector, Captures &captures) const;
 
   pcre		*m_regex;

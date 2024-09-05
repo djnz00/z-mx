@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmThread.hh>
 #include <zlib/ZmSpinLock.hh>
@@ -225,13 +225,13 @@ void App<Ring>::run()
 
   if (start && end) {
     start = end - start;
-    std::cerr << (ZuStringN<80>{}
+    std::cerr << (ZuCArray<80>{}
       << "total time: " << start.interval()
       << "  avg time: " << ((start.as_decimal() / count) * 1000000)
       << " usec\n");
   }
   {
-    ZuStringN<256> s;
+    ZuCArray<256> s;
     s << "shift: " << readTime << "\n"
       << "push:  " << writeTime << "\n";
     std::cerr << s;
@@ -273,7 +273,7 @@ void App<Ring>::reader()
       } else if (!k)
 	std::cerr << "ring empty\n";
       else {
-	ZuStringN<80> s;
+	ZuCArray<80> s;
 	s << "readStatus() returned " << ZuBoxed(k) << '\n';
 	std::cerr << s;
       }
@@ -334,7 +334,7 @@ void App<Ring>::writer()
     if (!!interval) Zm::sleep(interval);
   }
   {
-    ZuStringN<64> s;
+    ZuCArray<64> s;
     s << "push failed " << ZuBoxed(failed) << " times\n"
       << "ring full " << ZuBoxed(writer.full()) << " times\n";
     std::cerr << s;

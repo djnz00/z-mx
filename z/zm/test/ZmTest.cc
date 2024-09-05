@@ -20,7 +20,7 @@
 
 void fail() { Zm::exit(1); }
 
-void out(bool ok, ZuString check, ZuString diag) {
+void out(bool ok, ZuCSpan check, ZuCSpan diag) {
   std::cout
     << (ok ? "OK  " : "NOK ") << check << ' ' << diag
     << '\n' << std::flush;
@@ -57,7 +57,7 @@ struct ZCmp {
 using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
 using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
-using ZList2 = ZmList<ZuStringN<20>, ZmListNode<ZuStringN<20>>>;
+using ZList2 = ZmList<ZuCArray<20>, ZmListNode<ZuCArray<20>>>;
 
 void Y::helloWorld() { std::cout << "hello world [Y]\n" << std::flush; }
 

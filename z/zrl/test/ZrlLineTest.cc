@@ -13,7 +13,7 @@ int main()
   Zrl::Line l;
   auto &data = l.data();
 
-  ZuStringN<12> j;
+  ZuCArray<12> j;
   {
     uint32_t u = 0x1f404;
     j.length(ZuUTF<uint8_t, uint32_t>::cvt(j.buf(), {&u, 1}));

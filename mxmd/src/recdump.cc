@@ -80,8 +80,8 @@ public:
     add(new MxEnumCol<MxTradingStatus::CSVMap>("status", Offset(status)));
     this->addValCol(app, "base", Offset(base), pxNDP);
     for (unsigned i = 0; i < MxMDNSessions; i++) {
-      ZuStringN<8> open = "open"; open << ZuBoxed(i);
-      ZuStringN<8> close = "close"; close << ZuBoxed(i);
+      ZuCArray<8> open = "open"; open << ZuBoxed(i);
+      ZuCArray<8> close = "close"; close << ZuBoxed(i);
       this->addValCol(app, open, Offset(open) + (i * sizeof(MxValue)), pxNDP);
       this->addValCol(app, close, Offset(close) + (i * sizeof(MxValue)), pxNDP);
     }

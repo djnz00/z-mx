@@ -13,7 +13,7 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmPlatform.hh>
 #include <zlib/ZmLockTraits.hh>

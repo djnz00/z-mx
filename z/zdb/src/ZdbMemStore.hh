@@ -13,7 +13,7 @@
 #include <zlib/ZdbLib.hh>
 #endif
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuPrint.hh>
 
 #include <zlib/ZmHash.hh>
@@ -1028,7 +1028,7 @@ Tuple loadDelTuple(
 Offset saveTuple(
   Zfb::Builder &fbb,
   const XFields &xFields,
-  ZuArray<const Value> tuple)
+  ZuSpan<const Value> tuple)
 {
   unsigned n = xFields.length();
   ZmAssert(tuple.length() == n);
@@ -1323,7 +1323,7 @@ private:
 // --- in-memory data store
 
 template <typename StoreTbl_>
-inline ZuString StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
+inline ZuCSpan StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
 template <typename StoreTbl_>
 using StoreTbls_ =

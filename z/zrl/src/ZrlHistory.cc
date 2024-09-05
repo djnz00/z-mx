@@ -10,7 +10,7 @@
 
 namespace Zrl {
 
-void History::save(unsigned i, ZuArray<const uint8_t> s)
+void History::save(unsigned i, ZuSpan<const uint8_t> s)
 {
   if (s) set(i, s);
 }

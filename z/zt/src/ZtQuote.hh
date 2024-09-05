@@ -13,7 +13,7 @@
 #include <zlib/ZtLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuBase32.hh>
 #include <zlib/ZuBase64.hh>
@@ -41,7 +41,7 @@ struct CString {
 
 // string quoting
 struct String {
-  ZuString v;
+  ZuCSpan v;
   template <typename S>
   friend S &operator <<(S &s, const String &print) {
     const auto &v = print.v;
@@ -63,9 +63,9 @@ struct Base32 {
     const auto &v = print.v;
     auto n = ZuBase32::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf(&buf_[0], n);
+    ZuSpan<uint8_t> buf(&buf_[0], n);
     buf.trunc(ZuBase32::encode(buf, v));
-    return s << ZuString{buf};
+    return s << ZuCSpan{buf};
   }
 };
 
@@ -77,9 +77,9 @@ struct Base64 {
     const auto &v = print.v;
     auto n = ZuBase64::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
-    ZuArray<uint8_t> buf(&buf_[0], n);
+    ZuSpan<uint8_t> buf(&buf_[0], n);
     buf.trunc(ZuBase64::encode(buf, v));
-    return s << ZuString{buf};
+    return s << ZuCSpan{buf};
   }
 };
 

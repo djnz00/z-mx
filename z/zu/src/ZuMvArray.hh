@@ -13,7 +13,7 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 #include <zlib/ZuArrayFn.hh>
 #include <zlib/ZuPrint.hh>
 
@@ -132,8 +132,8 @@ protected:
   bool same(const ZuMvArray &a) const { return this == &a; }
   template <typename A> constexpr bool same(const A &) const { return false; }
 
-  auto buf() { return ZuArray{data(), length()}; }
-  auto cbuf() const { return ZuArray{data(), length()}; }
+  auto buf() { return ZuSpan{data(), length()}; }
+  auto cbuf() const { return ZuSpan{data(), length()}; }
 
   template <typename A>
   bool equals(const A &a) const {

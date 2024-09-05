@@ -14,7 +14,7 @@ void Store::dbCf(const ZvCf *cf, ZdbCf &dbCf)
 {
   ZtArray<ZtString> threads = cf->getStrArray<false>("threads");
 
-  static ZtArray<ZuString> tables{
+  static ZtArray<ZuCSpan> tables{
     "zdf.series_fixed",
     "zdf.series_float",
     "zdf.blk_fixed",

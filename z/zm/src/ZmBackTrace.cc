@@ -120,13 +120,13 @@ public:
 
 private:
 #ifdef _WIN32
-  using NameBuf = ZuStringN<ZmBackTrace_BUFSIZ>;
+  using NameBuf = ZuCArray<ZmBackTrace_BUFSIZ>;
 #endif
 
   void printFrame_info(ZuVStream &s,
       uintptr_t addr, const char *module_, const char *symbol,
-      ZuString file, unsigned line) {
-    ZuString module{module_};
+      ZuCSpan file, unsigned line) {
+    ZuCSpan module{module_};
     if (module.length() > 24) {
       module.offset(module.length() - 21);
       s << "...";

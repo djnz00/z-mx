@@ -1438,7 +1438,7 @@ public:
     {
       Guard guard(m_lock);
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "start() PRE  " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1458,7 +1458,7 @@ public:
 	m_flags |= Resending;
       m_flags &= ~(SendFailed | ResendFailed);
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "start() POST " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1483,7 +1483,7 @@ public:
     {
       Guard guard(m_lock);
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "start() PRE  " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1504,7 +1504,7 @@ public:
 	m_flags |= Resending;
       m_flags &= ~(SendFailed | ResendFailed);
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "start() POST " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1535,7 +1535,7 @@ public:
     m_gap = Gap();
     app->txQueue()->reset(key);
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "txReset() " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1550,7 +1550,7 @@ public:
       Guard guard(m_lock);
       if (ZuUnlikely(key < m_ackdKey)) {
 #if 0
-	std::cerr << (ZuStringN<200>()
+	std::cerr << (ZuCArray<200>()
 	    << "send(" << key << ") outdated "
 	    << *this << "\n  " << *(app->txQueue()) << '\n')
 	  << std::flush;
@@ -1562,7 +1562,7 @@ public:
 	  m_sendKey <= key)
 	m_flags |= Sending;
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "send(" << key <<") "
 	  << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
@@ -1591,7 +1591,7 @@ public:
       Guard guard(m_lock);
       if (ZuUnlikely(key < m_ackdKey)) {
 #if 0
-	std::cerr << (ZuStringN<200>()
+	std::cerr << (ZuCArray<200>()
 	    << "ackd(" << key << ") outdated "
 	    << *this << "\n  " << *(app->txQueue()) << '\n')
 	  << std::flush;
@@ -1603,7 +1603,7 @@ public:
       if (scheduleArchive = !(m_flags & Archiving) && key > m_archiveKey)
 	m_flags |= Archiving;
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "ackd(Key) " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1655,7 +1655,7 @@ public:
       Guard guard(m_lock);
       auto txQueue = app->txQueue();
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "send() " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1695,7 +1695,7 @@ public:
       m_flags |= Sending | SendFailed;
       m_sendKey = prevKey;
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "send() FAIL " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif
@@ -1719,7 +1719,7 @@ public:
       }
       if (!scheduleArchive) m_flags &= ~Archiving;
 #if 0
-      std::cerr << (ZuStringN<200>()
+      std::cerr << (ZuCArray<200>()
 	  << "archive() " << *this << "\n  " << *(app->txQueue()) << '\n')
 	<< std::flush;
 #endif

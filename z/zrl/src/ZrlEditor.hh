@@ -216,7 +216,7 @@ public:
       (m_value & (~0xffffU<<16)) | (static_cast<uint64_t>(arg)<<16)};
   }
 
-  int parse(ZuString, int off);
+  int parse(ZuCSpan, int off);
 
   void print_(ZuVStream &) const;
   template <typename S> void print(S &s_) const { ZuVStream s{s_}; print_(s); }
@@ -272,7 +272,7 @@ struct ZrlAPI Map_ {
 
   static auto IDAxor(const Map_ &m) { return m.id; }
 
-  int parse(ZuString s, int off);
+  int parse(ZuCSpan s, int off);
 
   void addMode(unsigned mode, int type);
   void bind(unsigned mode, int32_t vkey, CmdSeq cmds);
@@ -284,7 +284,7 @@ struct ZrlAPI Map_ {
   friend ZuPrintFn ZuPrintType(Map_ *);
 
 private:
-  int parseMode(ZuString s, int off);
+  int parseMode(ZuCSpan s, int off);
 };
 struct Map_IDAccessor {
   static const Map_::ID &get(const Map_ &m) { return m.id; }
@@ -540,7 +540,7 @@ public:
   void init(Config config, App app);
   void final();
 
-  bool loadMap(ZuString file, bool select = false); // must call init() first
+  bool loadMap(ZuCSpan file, bool select = false); // must call init() first
   const ZtString &loadError() const { return m_loadError; }
 
   // terminal open/close
@@ -549,7 +549,7 @@ public:
   bool isOpen() const;
 
   // can be called before start(), or from within terminal thread once running
-  ZtString getpass(ZuString prompt, unsigned passLen) {
+  ZtString getpass(ZuCSpan prompt, unsigned passLen) {
     return m_tty.getpass(prompt, passLen);
   }
 
@@ -571,7 +571,7 @@ public:
   void stop();
   bool running() const;
 
-  bool map(ZuString id);		// terminal thread
+  bool map(ZuCSpan id);		// terminal thread
 
   // dump key bindings
   Terminal::DumpVKeys dumpVKeys() const { return {m_tty}; }
@@ -608,7 +608,7 @@ private:
 
   bool cmdEnter(Cmd, int32_t);
 
-  ZuArray<const uint8_t> substr(unsigned begin, unsigned end);
+  ZuSpan<const uint8_t> substr(unsigned begin, unsigned end);
 
   // is current mode type Command
   bool commandMode();
@@ -617,11 +617,11 @@ private:
   // splice data in line - clears histLoadOff since line is being modified
   void splice(
       unsigned off, ZuUTFSpan span,
-      ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+      ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
       bool append, bool last = true);
   void splice_(
       unsigned off, ZuUTFSpan span,
-      ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+      ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
       bool append);
   // perform copy/del/move in conjunction with a cursor motion
   void motion(unsigned op, unsigned off,
@@ -657,7 +657,7 @@ private:
   bool cmdRotate(Cmd, int32_t);
 
   // insert/overwrite glyphs
-  void edit(ZuArray<const uint8_t> replace, ZuUTFSpan rspan, bool overwrite);
+  void edit(ZuSpan<const uint8_t> replace, ZuUTFSpan rspan, bool overwrite);
   bool glyph(Cmd, int32_t vkey, bool overwrite);
 
   bool cmdGlyph(Cmd cmd, int32_t);
@@ -673,7 +673,7 @@ private:
 
 public:
   typedef void (*TransformCharFn)(uint8_t, uint8_t &);
-  typedef void (*TransformSpanFn)(TransformCharFn, ZuArray<uint8_t>);
+  typedef void (*TransformSpanFn)(TransformCharFn, ZuSpan<uint8_t>);
 private:
   void transformWord(TransformSpanFn, TransformCharFn);
   void transformVis(TransformSpanFn, TransformCharFn);
@@ -710,14 +710,14 @@ private:
   void spliceCompletion(	// splice completion into line
     unsigned off,
     ZuUTFSpan span,
-    ZuArray<const uint8_t> replace,
+    ZuSpan<const uint8_t> replace,
     ZuUTFSpan rspan);
   bool cmdComplete(Cmd, int32_t);
   bool cmdRevComplete(Cmd, int32_t);
   bool cmdListComplete(Cmd, int32_t);
 
   // loads data previously retrieved from app at history offset
-  void histLoad(int offset, ZuArray<const uint8_t> data, bool save);
+  void histLoad(int offset, ZuSpan<const uint8_t> data, bool save);
 
   bool cmdNext(Cmd, int32_t);
   bool cmdPrev(Cmd, int32_t);
@@ -726,7 +726,7 @@ private:
   bool addIncSrch(int32_t vkey);
 
   // simple/fast substring matcher - returns true if search term is in data
-  bool match(ZuArray<const uint8_t> data);
+  bool match(ZuSpan<const uint8_t> data);
   // searches forward skipping N-1 matches - returns true if found
   bool searchFwd(int arg);
   // searches backward skipping N-1 matches - returns true if found

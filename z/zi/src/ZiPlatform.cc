@@ -64,7 +64,7 @@ Zi::Hostname Zi::hostname(ZeError *e)
 {
   Zi::Hostname name;
 #ifdef _WIN32
-  ZuStringN<Zi::NameMax + 1> buf;
+  ZuCArray<Zi::NameMax + 1> buf;
 #else
   Zi::Hostname &buf = name;
 #endif

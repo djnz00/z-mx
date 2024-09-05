@@ -10,7 +10,7 @@
 #include <assert.h>
 
 #include <zlib/ZuBox.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmPlatform.hh>
@@ -30,7 +30,7 @@
 void ZmAssert_fail(
     const char *expr, const char *file, unsigned line, const char *fn)
 {
-  using Buf = ZuStringN<16384>;
+  using Buf = ZuCArray<16384>;
   auto buf_ = ZmAlloc(Buf, 1);
   new (&buf_[0]) Buf{};
   auto &buf = buf_[0];

@@ -20,7 +20,7 @@
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuPrint.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 // A ZuID is a union of a 64bit unsigned integer with an 8-byte
 // zero-padded string; this permits short human-readable string identifiers
@@ -63,7 +63,7 @@ public:
     return *this;
   }
 
-  void init(ZuString s) {
+  void init(ZuCSpan s) {
     if (ZuLikely(s.length() == 8)) {
       const uint64_t *ZuMayAlias(ptr) =
 	reinterpret_cast<const uint64_t *>(s.data());
@@ -98,8 +98,8 @@ public:
 #endif
   }
 
-  operator ZuString() const { return ZuString{data(), length()}; }
-  ZuString string() const { return ZuString{data(), length()}; }
+  operator ZuCSpan() const { return ZuCSpan{data(), length()}; }
+  ZuCSpan string() const { return ZuCSpan{data(), length()}; }
 
   template <typename S> void print(S &s) const { s << string(); }
 

@@ -35,7 +35,7 @@ protected:
 
 public:
   template <typename T, typename Cmp>
-  ZtHexDump_(ZuArray<T, Cmp> data) :
+  ZtHexDump_(ZuSpan<T, Cmp> data) :
       m_data{reinterpret_cast<const uint8_t *>(data.data())},
       m_length(data.length() * sizeof(T)) { }
 
@@ -78,13 +78,13 @@ class ZtHexDump : private ZmVHeap<ZtHexDump_ID>, public ZtHexDump_ {
 
 public:
   template <typename T, typename Cmp>
-  ZtHexDump(ZuString prefix, ZuArray<T, Cmp> data) : m_prefix{prefix} {
+  ZtHexDump(ZuCSpan prefix, ZuSpan<T, Cmp> data) : m_prefix{prefix} {
     m_length = data.length() * sizeof(T);
     init_(reinterpret_cast<const uint8_t *>(data.data()));
   }
 
   template <typename T>
-  ZtHexDump(ZuString prefix, const T *data, unsigned length) :
+  ZtHexDump(ZuCSpan prefix, const T *data, unsigned length) :
       m_prefix{prefix} {
     m_length = length * ZtHexDump_Size<T>::N;
     init_(reinterpret_cast<const uint8_t *>(data));

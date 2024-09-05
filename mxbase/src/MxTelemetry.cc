@@ -14,7 +14,7 @@ void Client::init(MxMultiplex *mx, const ZvCf *cf)
 {
   m_mx = mx;
 
-  if (ZuString ip = cf->get("interface")) m_interface = ip;
+  if (ZuCSpan ip = cf->get("interface")) m_interface = ip;
   m_ip = cf->get("ip", "127.0.0.1");
   m_port = cf->getInt("port", 1, (1<<16) - 1, 19300);
 }
@@ -83,7 +83,7 @@ void Server::init(MxMultiplex *mx, const ZvCf *cf)
 {
   m_mx = mx;
 
-  if (ZuString ip = cf->get("interface")) m_interface = ip;
+  if (ZuCSpan ip = cf->get("interface")) m_interface = ip;
   m_ip = cf->get("ip", "127.0.0.1");
   m_port = cf->getInt("port", 1, (1<<16) - 1, 19300);
   m_ttl = cf->getInt("ttl", 0, INT_MAX, 1);

@@ -942,7 +942,7 @@ friend MxMDPxLevel_;
   MxMDOrderBook( // single leg
     MxMDShard *shard, 
     MxMDVenue *venue,
-    MxID segment, ZuString id,
+    MxID segment, ZuCSpan id,
     MxMDInstrument *instrument,
     MxMDTickSizeTbl *tickSizeTbl,
     const MxMDLotSizes &lotSizes,
@@ -951,7 +951,7 @@ friend MxMDPxLevel_;
   MxMDOrderBook( // multi-leg
     MxMDShard *shard, 
     MxMDVenue *venue,
-    MxID segment, ZuString id, MxNDP pxNDP, MxNDP qtyNDP,
+    MxID segment, ZuCSpan id, MxNDP pxNDP, MxNDP qtyNDP,
     MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
     const MxEnum *sides, const MxRatio *ratios,
     MxMDTickSizeTbl *tickSizeTbl,
@@ -999,24 +999,24 @@ public:
   void l2(MxDateTime stamp, bool updateL1 = false);
 
   ZmRef<MxMDOrder> addOrder(
-    ZuString orderID, MxDateTime transactTime,
+    ZuCSpan orderID, MxDateTime transactTime,
     MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags);
   ZmRef<MxMDOrder> modifyOrder(
-    ZuString orderID, MxDateTime transactTime,
+    ZuCSpan orderID, MxDateTime transactTime,
     MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags);
   ZmRef<MxMDOrder> reduceOrder(
-    ZuString orderID, MxDateTime transactTime,
+    ZuCSpan orderID, MxDateTime transactTime,
     MxEnum side, MxValue reduceQty);
   ZmRef<MxMDOrder> cancelOrder(
-    ZuString orderID, MxDateTime transactTime, MxEnum side);
+    ZuCSpan orderID, MxDateTime transactTime, MxEnum side);
 
   void reset(MxDateTime transactTime, MxMDOrderFn = MxMDOrderFn());
 
-  void addTrade(ZuString tradeID,
+  void addTrade(ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
-  void correctTrade(ZuString tradeID,
+  void correctTrade(ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
-  void cancelTrade(ZuString tradeID,
+  void cancelTrade(ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
 
   void update(
@@ -1480,13 +1480,13 @@ public:
   MxEnum orderIDScope() const { return m_orderIDScope; }
 
   ZmRef<MxMDOrderBook> addCombination(
-      MxID segment, ZuString orderBookID,
+      MxID segment, ZuCSpan orderBookID,
       MxNDP pxNDP, MxNDP qtyNDP,
       MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
       const MxEnum *sides, const MxRatio *ratios,
       MxMDTickSizeTbl *tickSizeTbl, const MxMDLotSizes &lotSizes,
       MxDateTime transactTime);
-  void delCombination(MxID segment, ZuString orderBookID,
+  void delCombination(MxID segment, ZuCSpan orderBookID,
       MxDateTime transactTime);
 
 private:
@@ -1589,8 +1589,8 @@ private:
 public:
   bool loaded() const { return m_loaded; }
 
-  ZmRef<MxMDTickSizeTbl> addTickSizeTbl(ZuString id, MxNDP pxNDP);
-  ZmRef<MxMDTickSizeTbl> tickSizeTbl(ZuString id) const {
+  ZmRef<MxMDTickSizeTbl> addTickSizeTbl(ZuCSpan id, MxNDP pxNDP);
+  ZmRef<MxMDTickSizeTbl> tickSizeTbl(ZuCSpan id) const {
     return m_tickSizeTbls.findKey(id);
   }
   bool allTickSizeTbls(ZmFn<void(MxMDTickSizeTbl *)>) const;
@@ -1605,17 +1605,17 @@ public:
   }
   void tradingSession(MxMDSegment segment);
 
-  void modifyOrder(ZuString orderID, MxDateTime transactTime,
+  void modifyOrder(ZuCSpan orderID, MxDateTime transactTime,
       MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags,
       ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>());
-  void reduceOrder(ZuString orderID,
+  void reduceOrder(ZuCSpan orderID,
       MxDateTime transactTime, MxValue reduceQty,
       ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>()); // qty -= reduceQty
-  void cancelOrder(ZuString orderID, MxDateTime transactTime,
+  void cancelOrder(ZuCSpan orderID, MxDateTime transactTime,
       ZmFn<void(MxMDOrder *)> fn = ZmFn<void(MxMDOrder *)>());
 
 private:
-  ZmRef<MxMDTickSizeTbl> addTickSizeTbl_(ZuString id, MxNDP pxNDP);
+  ZmRef<MxMDTickSizeTbl> addTickSizeTbl_(ZuCSpan id, MxNDP pxNDP);
 
   void tradingSession_(const MxMDSegment &segment) {
     SegmentsGuard guard(m_segmentsLock);
@@ -1793,12 +1793,12 @@ protected:
 
   void init_(void *);
 
-  static MxMDLib *init(ZuString cf, ZmFn<void(ZmScheduler *)> schedInitFn);
+  static MxMDLib *init(ZuCSpan cf, ZmFn<void(ZmScheduler *)> schedInitFn);
 
 public:
   static MxMDLib *instance();
 
-  static MxMDLib *init(ZuString cf) {
+  static MxMDLib *init(ZuCSpan cf) {
     return init(cf, ZmFn<void(ZmScheduler *)>());
   }
 
@@ -1806,10 +1806,10 @@ public:
   virtual void stop() = 0;
   virtual void final() = 0;
 
-  virtual bool record(ZuString path) = 0;
+  virtual bool record(ZuCSpan path) = 0;
   virtual ZtString stopRecording() = 0;
 
-  virtual bool replay(ZuString path,
+  virtual bool replay(ZuCSpan path,
       MxDateTime begin = MxDateTime(),
       bool filter = true) = 0;
   virtual ZtString stopReplaying() = 0;
@@ -1817,11 +1817,11 @@ public:
   virtual void startTimer(MxDateTime begin = MxDateTime()) = 0;
   virtual void stopTimer() = 0;
 
-  virtual void dumpTickSizes(ZuString path, MxID venue = MxID()) = 0;
+  virtual void dumpTickSizes(ZuCSpan path, MxID venue = MxID()) = 0;
   virtual void dumpInstruments(
-      ZuString path, MxID venue = MxID(), MxID segment = MxID()) = 0;
+      ZuCSpan path, MxID venue = MxID(), MxID segment = MxID()) = 0;
   virtual void dumpOrderBooks(
-      ZuString path, MxID venue = MxID(), MxID segment = MxID()) = 0;
+      ZuCSpan path, MxID venue = MxID(), MxID segment = MxID()) = 0;
 
   unsigned nShards() const { return m_shards.length(); }
   MxMDShard *shard(unsigned i) const { return m_shards[i]; }
@@ -1868,12 +1868,12 @@ public:
   // commands
 
   // add command
-  virtual void addCmd(ZuString name, ZuString syntax,
+  virtual void addCmd(ZuCSpan name, ZuCSpan syntax,
       ZcmdFn fn, ZtString brief, ZtString usage) = 0;
 
   // single instrument / order book lookup
-  static ZuString lookupSyntax();
-  static ZuString lookupOptions();
+  static ZuCSpan lookupSyntax();
+  static ZuCSpan lookupOptions();
 
   MxUniKey parseInstrument(ZvCf *args, unsigned index) const;
   bool lookupInstrument(
@@ -1918,7 +1918,7 @@ friend ZmShard;
       MxDateTime transactTime);
 
   ZmRef<MxMDTickSizeTbl> addTickSizeTbl(
-      MxMDVenue *venue, ZuString id, MxNDP pxNDP);
+      MxMDVenue *venue, ZuCSpan id, MxNDP pxNDP);
   void resetTickSizeTbl(MxMDTickSizeTbl *tbl);
   void addTickSize(MxMDTickSizeTbl *tbl,
       MxValue minPrice, MxValue maxPrice, MxValue tickSize);
@@ -1937,7 +1937,7 @@ friend ZmShard;
       MxDateTime transactTime);
       
   ZmRef<MxMDOrderBook> addCombination(
-      MxMDVenueShard *venueShard, MxID segment, ZuString id,
+      MxMDVenueShard *venueShard, MxID segment, ZuCSpan id,
       MxNDP pxNDP, MxNDP qtyNDP,
       MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
       const MxEnum *sides, const MxRatio *ratios,
@@ -1950,7 +1950,7 @@ friend ZmShard;
 
   void delOrderBook(MxMDInstrument *instrument, MxID venue, MxID segment,
       MxDateTime transactTime);
-  void delCombination(MxMDVenueShard *venueShard, MxID segment, ZuString id,
+  void delCombination(MxMDVenueShard *venueShard, MxID segment, ZuCSpan id,
       MxDateTime transactTime);
 
   void tradingSession(MxMDVenue *venue, MxMDSegment segment);
@@ -1963,21 +1963,21 @@ friend ZmShard;
   void l2(const MxMDOrderBook *ob, MxDateTime stamp, bool updateL1);
 
   void addOrder(const MxMDOrderBook *ob,
-      ZuString orderID, MxDateTime transactTime,
+      ZuCSpan orderID, MxDateTime transactTime,
       MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags);
   void modifyOrder(const MxMDOrderBook *ob,
-      ZuString orderID, MxDateTime transactTime,
+      ZuCSpan orderID, MxDateTime transactTime,
       MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags);
   void cancelOrder(const MxMDOrderBook *ob,
-      ZuString orderID, MxDateTime transactTime, MxEnum side);
+      ZuCSpan orderID, MxDateTime transactTime, MxEnum side);
 
   void resetOB(const MxMDOrderBook *ob, MxDateTime transactTime);
 
-  void addTrade(const MxMDOrderBook *ob, ZuString tradeID,
+  void addTrade(const MxMDOrderBook *ob, ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
-  void correctTrade(const MxMDOrderBook *ob, ZuString tradeID,
+  void correctTrade(const MxMDOrderBook *ob, ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
-  void cancelTrade(const MxMDOrderBook *ob, ZuString tradeID,
+  void cancelTrade(const MxMDOrderBook *ob, ZuCSpan tradeID,
       MxDateTime transactTime, MxValue price, MxValue qty);
 
   // primary indices

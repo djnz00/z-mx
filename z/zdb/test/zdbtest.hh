@@ -8,7 +8,7 @@
 #define zdbtest_HH
 
 #include <zlib/ZuLib.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuInt.hh>
 
 #include <zlib/ZtField.hh>
@@ -25,10 +25,10 @@ namespace Side {
 };
 
 struct Order {
-  ZuStringN<32>		symbol;
+  ZuCArray<32>		symbol;
   ZuNBox<uint64_t>	orderID;
-  ZuStringN<32>		link;
-  ZuStringN<32>		clOrdID;
+  ZuCArray<32>		link;
+  ZuCArray<32>		clOrdID;
   ZuNBox<uint64_t>	seqNo;
   int8_t		side;
   ZtArray<int>		prices;

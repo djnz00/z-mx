@@ -30,7 +30,7 @@ ZuInline constexpr bool is(char c) {
 
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 4)/5)<<3; }
-ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
+ZuInline unsigned encode(ZuSpan<uint8_t> dst, ZuBytes src) {
   using base32 = cppcodec::base32_rfc4648;
   try {
     return base32::encode(
@@ -43,7 +43,7 @@ ZuInline unsigned encode(ZuArray<uint8_t> dst, ZuBytes src) {
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 7)>>3)*5; }
-ZuInline unsigned decode(ZuArray<uint8_t> dst, ZuBytes src) {
+ZuInline unsigned decode(ZuSpan<uint8_t> dst, ZuBytes src) {
   using base32 = cppcodec::base32_rfc4648;
   try {
     return base32::decode(

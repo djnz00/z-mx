@@ -14,14 +14,14 @@
 #endif
 
 #include <zlib/ZuICmp.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 struct ZtBadBool { };
 
 template <bool Validate = false>
-inline bool ZtScanBool(ZuString s)
+inline bool ZtScanBool(ZuCSpan s)
 {
-  using Cmp = ZuICmp<ZuString>;
+  using Cmp = ZuICmp<ZuCSpan>;
   if (s == "1" ||
       Cmp::equals(s, "y") ||
       Cmp::equals(s, "yes") ||

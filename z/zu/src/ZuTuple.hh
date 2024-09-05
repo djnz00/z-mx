@@ -43,7 +43,7 @@
 
 #include <type_traits>
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuTL.hh>
 #include <zlib/ZuLargest.hh>
@@ -434,7 +434,7 @@ public:
   // printing
   struct Print {
     const Tuple_	&tuple;
-    ZuString		delim;
+    ZuCSpan		delim;
 
     template <typename S>
     void print(S &s) const {
@@ -451,7 +451,7 @@ public:
     
     friend ZuPrintFn ZuPrintType(Print *);
   };
-  Print fmt(ZuString delim) const { return Print{*this, delim}; }
+  Print fmt(ZuCSpan delim) const { return Print{*this, delim}; }
   template <typename S> void print(S &s) const { s << fmt(","); }
   friend ZuPrintFn ZuPrintType(Tuple_ *);
 

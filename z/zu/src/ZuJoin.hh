@@ -14,13 +14,13 @@
 #endif
 
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 
 template <typename Array>
 struct ZuJoin {
   const Array	&array;
-  ZuString	delimiter;
+  ZuCSpan	delimiter;
 
   template <typename S> void print(S &s) const {
     auto n = ZuTraits<Array>::length(array);
@@ -34,6 +34,6 @@ struct ZuJoin {
 template <typename Array, typename Delimiter>
 ZuJoin(const Array &, const Delimiter &) -> ZuJoin<Array>;
 template <typename T, typename Delimiter>
-ZuJoin(std::initializer_list<T>, const Delimiter &) -> ZuJoin<ZuArray<T>>;
+ZuJoin(std::initializer_list<T>, const Delimiter &) -> ZuJoin<ZuSpan<T>>;
 
 #endif /* ZuJoin_HH */

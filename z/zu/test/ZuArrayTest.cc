@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 #include <zlib/ZuVArray.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuDemangle.hh>
@@ -67,7 +67,7 @@ struct IsIterable : public ZuBool<
 int main()
 {
   {
-    ZuArrayN<I, 1> a;
+    ZuArray<I, 1> a;
     a << I(42);
     CHECK((int)a[0] == 42);
     a << I(43);
@@ -78,7 +78,7 @@ int main()
     testSplice(a, 0, 2, 0, 42);
   }
   {
-    ZuArrayN<I, 2> a;
+    ZuArray<I, 2> a;
     a << I(42);
     CHECK((int)a[0] == 42);
     a << I(43);
@@ -89,7 +89,7 @@ int main()
     testSplice(a, -1, 3, 0, 43);
   }
   {
-    ZuArrayN<I, 3> a;
+    ZuArray<I, 3> a;
     a << I(42);
     a << I(43);
     a << I(44);
@@ -109,7 +109,7 @@ int main()
     CHECK(IsIterable_<decltype(a)>{});
     std::cout << ZuDemangle<decltype(a)>{} << '\n';
     std::cout << ZuDemangle<typename ZuTraits<decltype(a)>::Elem>{} << '\n';
-    CHECK((IsIterable<decltype(a), ZuArray<const uint8_t>>{}));
-    CHECK((ZuInspect<typename ZuTraits<decltype(a)>::Elem, ZuArray<const uint8_t>>::Constructs));
+    CHECK((IsIterable<decltype(a), ZuSpan<const uint8_t>>{}));
+    CHECK((ZuInspect<typename ZuTraits<decltype(a)>::Elem, ZuSpan<const uint8_t>>::Constructs));
   }
 }

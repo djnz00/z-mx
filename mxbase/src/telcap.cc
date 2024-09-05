@@ -39,7 +39,7 @@ public:
   }
 
 private:
-  void open_(ZiFile &file, ZuString name) {
+  void open_(ZiFile &file, ZuCSpan name) {
     ZeError e;
     ZiFile::Path path = ZiFile::append(m_dir, ZtString{} << name << ".csv");
     if (file.open(path,
@@ -47,7 +47,7 @@ private:
       throw ZtString{} << path << ": " << e;
   }
 
-  void write_(ZiFile &file, ZuString s) { file.write(s.data(), s.length()); }
+  void write_(ZiFile &file, ZuCSpan s) { file.write(s.data(), s.length()); }
 
   void process(ZmRef<MxTelemetry::Msg> msg) {
     using namespace MxTelemetry;
@@ -61,7 +61,7 @@ private:
 	break;
       case Type::Heap: {
 	const auto &data = msg->as<Heap>();
-	write_(m_heap, ZuStringN<512>{} << now.fmt(nowFmt)
+	write_(m_heap, ZuCArray<512>{} << now.fmt(nowFmt)
 	  << ',' << data.id
 	  << ',' << data.size
 	  << ',' << ZuBoxed(data.alignment)
@@ -76,7 +76,7 @@ private:
       } break;
       case Type::HashTbl: {
 	const auto &data = msg->as<HashTbl>();
-	write_(m_hashTbl, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_hashTbl, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << ZuBoxed(data.addr).hex()
 	  << ',' << ZuBoxed(data.linear)
@@ -92,7 +92,7 @@ private:
       } break;
       case Type::Thread: {
 	const auto &data = msg->as<Thread>();
-	write_(m_thread, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_thread, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.name
 	  << ',' << data.index
 	  << ',' << data.tid
@@ -107,7 +107,7 @@ private:
       } break;
       case Type::Multiplexer: {
 	const auto &data = msg->as<Multiplexer>();
-	write_(m_multiplexer, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_multiplexer, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << ZmSchedState::name(data.state)
 	  << ',' << ZuBoxed(data.nThreads)
@@ -125,7 +125,7 @@ private:
       } break;
       case Type::Socket: {
 	const auto &data = msg->as<Socket>();
-	write_(m_socket, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_socket, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.mxID
 	  << ',' << ZiCxnType::name(data.type)
 	  << ',' << data.remoteIP
@@ -145,7 +145,7 @@ private:
       } break;
       case Type::Queue: {
 	const auto &data = msg->as<Queue>();
-	write_(m_queue, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_queue, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << QueueType::name(data.type)
 	  << ',' << data.full
@@ -159,7 +159,7 @@ private:
       } break;
       case Type::Engine: {
 	const auto &data = msg->as<Engine>();
-	write_(m_engine, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_engine, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << MxEngineState::name(data.state)
 	  << ',' << data.nLinks
@@ -175,7 +175,7 @@ private:
       } break;
       case Type::Link: {
 	const auto &data = msg->as<Link>();
-	write_(m_link, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_link, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << MxLinkState::name(data.state)
 	  << ',' << data.reconnects
@@ -184,7 +184,7 @@ private:
       } break;
       case Type::DBEnv: {
 	const auto &data = msg->as<DBEnv>();
-	write_(m_dbenv, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_dbenv, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.self
 	  << ',' << data.master
 	  << ',' << data.prev
@@ -205,7 +205,7 @@ private:
       } break;
       case Type::DBHost: {
 	const auto &data = msg->as<DBHost>();
-	write_(m_dbhost, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_dbhost, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.id
 	  << ',' << data.priority
 	  << ',' << ZdbHost::stateName(data.state)
@@ -215,7 +215,7 @@ private:
       } break;
       case Type::DB: {
 	const auto &data = msg->as<DB>();
-	write_(m_db, ZuStringN<512>{} << now.csv(nowFmt)
+	write_(m_db, ZuCArray<512>{} << now.csv(nowFmt)
 	  << ',' << data.name
 	  << ',' << data.id
 	  << ',' << data.recSize

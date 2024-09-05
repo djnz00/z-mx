@@ -9,7 +9,7 @@
 
 #include <libintl.h>
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 #include <zlib/ZuPolymorph.hh>
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/ZuVersion.hh>
@@ -177,7 +177,7 @@ namespace Telemetry {
     TelKey telKey() const { return Base::telKey(data); }
     int rag() const { return Base::rag(data); }
 
-    bool record(ZuString name, Zdf::Store *store, ZeError *e = nullptr) {
+    bool record(ZuCSpan name, Zdf::Store *store, ZeError *e = nullptr) {
       dataFrame = new Zdf::DataFrame{Data::fields(), name, true};
       dataFrame->init(store);
       if (!ZmBlock<bool>{}([this](auto wake) {
@@ -905,7 +905,7 @@ public:
     using Base = ZiRing<ZmRingSizeAxor<SizeAxor>>;
     ~TelRing() = default;
     TelRing(ZiRingParams params) : Base{ZuMv(params)} { }
-    bool push(CliLink_ *cliLink, ZuArray<const uint8_t> msg) {
+    bool push(CliLink_ *cliLink, ZuSpan<const uint8_t> msg) {
       unsigned n = msg.length();
       if (void *ptr = Base::push(n + sizeof(Hdr))) {
 	new (ptr) Hdr{
@@ -931,7 +931,7 @@ public:
 	auto hdr = reinterpret_cast<const Hdr *>(ptr);
 	CliLink_ *cliLink = reinterpret_cast<CliLink_ *>(hdr->cliLink);
 	unsigned n = hdr->length;
-	l(cliLink, ZuArray{static_cast<const uint8_t *>(ptr) + sizeof(Hdr), n});
+	l(cliLink, ZuSpan{static_cast<const uint8_t *>(ptr) + sizeof(Hdr), n});
 	shift2(n + sizeof(Hdr));
 	return true;
       }
@@ -1141,7 +1141,7 @@ public:
     cliLink->connecting = false;
     if (auto srvLink = cliLink->srvLink) srvLink->cliLink = nullptr;
     cliLink->srvLink = nullptr;
-    m_telRing->push(cliLink, ZuArray<const uint8_t>{});
+    m_telRing->push(cliLink, ZuSpan<const uint8_t>{});
   }
   void disconnected2(CliLink_ *cliLink) {
     // FIXME - update App RAG to red (in caller)
@@ -1364,7 +1364,7 @@ private:
     ZuTime deadline = Zm::now() + m_refreshQuantum;
     unsigned i = 0, n;
     while (m_telRing->shift([](
-	    CliLink_ *cliLink, const ZuArray<const uint8_t> &msg) {
+	    CliLink_ *cliLink, const ZuSpan<const uint8_t> &msg) {
       static_cast<App *>(cliLink->app())->processTel2(cliLink, msg);
     })) {
       do {
@@ -1379,7 +1379,7 @@ private:
       gtkRun(ZmFn<>{this, [](App *this_) { this_->gtkRefresh(); }},
 	  Zm::now() + m_refreshRate, ZmScheduler::Defer, &m_refreshTimer);
   }
-  void processTel2(CliLink_ *cliLink, const ZuArray<const uint8_t> &msg_) {
+  void processTel2(CliLink_ *cliLink, const ZuSpan<const uint8_t> &msg_) {
     if (ZuUnlikely(!msg_)) {
       disconnected2(cliLink);
       return;

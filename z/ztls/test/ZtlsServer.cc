@@ -35,7 +35,7 @@ struct App : public Ztls::Server<App> {
     Link(App *app) : Ztls::SrvLink<App, Link>(app) { }
 
     void connected(const char *alpn, int tlsver) {
-      std::cerr << (ZuStringN<100>()
+      std::cerr << (ZuCArray<100>()
 	  << "TLS handshake completed (TLS: " << tlsver
 	  << " ALPN: " << alpn << ")\n")
 	<< std::flush;
@@ -46,7 +46,7 @@ struct App : public Ztls::Server<App> {
     }
 
     int process(const uint8_t *data, unsigned len) {
-      std::cout << ZuString{data, len} << std::flush;
+      std::cout << ZuCSpan{data, len} << std::flush;
       ZtString response;
       ZtString content = Content;
       response << Response << content.length() << Response2;
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 {
   if (argc != 5) usage();
 
-  ZuString server = argv[1];
+  ZuCSpan server = argv[1];
   unsigned port = ZuBox<unsigned>(argv[2]);
 
   if (!port) usage();

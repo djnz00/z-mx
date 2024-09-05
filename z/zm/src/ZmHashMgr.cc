@@ -8,7 +8,7 @@
 
 #include <zlib/ZmHashMgr.hh>
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZmSingleton.hh>
 
@@ -41,7 +41,7 @@ private:
 	ZmSingletonCleanup<ZmCleanup::Library>>::instance();
   }
 
-  void init(ZuString id, const ZmHashParams &params) {
+  void init(ZuCSpan id, const ZmHashParams &params) {
     ZmAssert(id.length() + 1 < ZmIDStrSize);
     ZmGuard<ZmPLock> guard(m_lock);
     if (ID2Params::Node *node = m_params.find(id))
@@ -49,7 +49,7 @@ private:
     else
       m_params.add(id, params);
   }
-  ZmHashParams &params(ZuString id, ZmHashParams &in) {
+  ZmHashParams &params(ZuCSpan id, ZmHashParams &in) {
     ZmAssert(id.length() + 1 < ZmIDStrSize);
     {
       ZmGuard<ZmPLock> guard(m_lock);
@@ -99,7 +99,7 @@ private:
   Tables	m_tables;
 };
 
-void ZmHashMgr::init(ZuString id, const ZmHashParams &params)
+void ZmHashMgr::init(ZuCSpan id, const ZmHashParams &params)
 {
   ZmHashMgr_::instance()->init(id, params);
 }
@@ -109,7 +109,7 @@ void ZmHashMgr::all(ZmFn<void(ZmAnyHash *)> fn)
   ZmHashMgr_::instance()->all(fn);
 }
 
-ZmHashParams &ZmHashMgr::params(ZuString id, ZmHashParams &in)
+ZmHashParams &ZmHashMgr::params(ZuCSpan id, ZmHashParams &in)
 {
   return ZmHashMgr_::instance()->params(id, in);
 }

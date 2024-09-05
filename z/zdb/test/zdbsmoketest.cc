@@ -40,7 +40,7 @@ void sigint()
   done.post();
 }
 
-ZmRef<ZvCf> inlineCf(ZuString s)
+ZmRef<ZvCf> inlineCf(ZuCSpan s)
 {
   ZmRef<ZvCf> cf = new ZvCf{};
   cf->fromString(s);

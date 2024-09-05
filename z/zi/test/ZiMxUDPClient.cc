@@ -306,7 +306,7 @@ bool Connection::recvComplete(ZiIOContext &io)
 
   std::cout << ZtHexDump(
       ZtString{} << io.addr.ip() << ':' << ZuBoxed(io.addr.port()) << ' ' <<
-      ZuString(m_msg.data(), io.length), m_msg.data(), io.length);
+      ZuCSpan(m_msg.data(), io.length), m_msg.data(), io.length);
 
   fflush(stdout);
 

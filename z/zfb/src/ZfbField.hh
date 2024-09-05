@@ -381,7 +381,7 @@ namespace Save {
   inline auto stringVec(Builder &fbb, ZtField_::StringVec a) {
     return vectorIter<String>(fbb, a.length(),
       [&a](Builder &fbb, unsigned i) mutable {
-	return str(fbb, ZuString(a[i]));
+	return str(fbb, ZuCSpan(a[i]));
       });
   }
   // flatbuffers does not support nested vectors, so a bytesVec is

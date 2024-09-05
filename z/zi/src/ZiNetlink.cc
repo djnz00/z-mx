@@ -8,7 +8,7 @@
 #include <zlib/ZiNetlinkMsg.hh>
 
 int ZiNetlink::connect(Socket sock,
-    ZuString familyName, unsigned int &familyID, uint32_t &portID) 
+    ZuCSpan familyName, unsigned int &familyID, uint32_t &portID) 
 {
   {
     // this is our 'payload' coming after the nlmsghdr and genlmsghdr
@@ -26,7 +26,7 @@ int ZiNetlink::connect(Socket sock,
 
   {
     ZiGenericNetlinkHdr hdr2;
-    ZuArrayN<char, 128> data;
+    ZuArray<char, 128> data;
     ZiVec vecs[2] = {
       { (void *)&hdr2, hdr2.hdrSize() },
       { (void *)data.data(), (size_t)data.size() },

@@ -13,8 +13,8 @@
 
 #include <libpq-fe.h>
 
-#include <zlib/ZuArrayN.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuArray.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuDecimal.hh>
@@ -38,7 +38,7 @@ using namespace Zdb_;
 
 // Value     C++        flatbuffers     PG SQL        PG send/recv
 // -----     ---        -----------     ------        ------------
-// String    ZuString   string          text          raw data
+// String    ZuCSpan   string          text          raw data
 // Bytes     ZuBytes    [ubyte]         bytea         raw data
 // Bool      bool       bool            bool          uint8_t
 // Int8      int8_t     int8            int1     (*)  int8_t
@@ -113,20 +113,20 @@ inline unsigned vecVarSize(unsigned n, L l) {
   return sizeof(VecHdr) + n * sizeof(VecElem) + size;
 }
 // initialize array header
-inline void vecInit(ZuArray<uint8_t> &buf, unsigned oid, unsigned n) {
+inline void vecInit(ZuSpan<uint8_t> &buf, unsigned oid, unsigned n) {
   new (buf.data()) VecHdr{1, 0, int32_t(oid), int32_t(n), 1};
   buf.offset(sizeof(VecHdr));
 }
 // append array element
 template <typename L>
-inline void vecAppend(ZuArray<uint8_t> &buf, unsigned length, L l) {
+inline void vecAppend(ZuSpan<uint8_t> &buf, unsigned length, L l) {
   new (buf.data()) VecElem{length};
   buf.offset(sizeof(VecElem));
   l(buf.data(), length);
   buf.offset(length);
 }
 // read array header (advances buf)
-inline const VecHdr *vecHdr(ZuArray<const uint8_t> &buf) {
+inline const VecHdr *vecHdr(ZuSpan<const uint8_t> &buf) {
   auto hdr = reinterpret_cast<const VecHdr *>(buf.data());
   buf.offset(sizeof(VecHdr));
   return hdr;
@@ -143,7 +143,7 @@ inline int validateVecHdr(const VecHdr *hdr)
 }
 // read array element (advances buf)
 template <typename L>
-inline auto vecElem(ZuArray<const uint8_t> &buf, L l) {
+inline auto vecElem(ZuSpan<const uint8_t> &buf, L l) {
   auto elem = reinterpret_cast<const VecElem *>(buf.data());
   unsigned length = elem->length;
   buf.offset(sizeof(VecElem));
@@ -152,7 +152,7 @@ inline auto vecElem(ZuArray<const uint8_t> &buf, L l) {
   return l(ptr, length);
 }
 
-using String = ZuString;
+using String = ZuCSpan;
 using Bytes = ZuBytes;
 struct Bitmap { ZuBytes v; };
 #pragma pack(push, 1)
@@ -436,7 +436,7 @@ struct Value : public Value_ {
   print_(S &s) const {
     using Word = ZuBigEndian<uint64_t>;
     const auto &data_ = p<I>().v;
-    ZuArray<const Word> data{
+    ZuSpan<const Word> data{
       reinterpret_cast<const Word *>(&data_[0]),
       data_.length() / sizeof(uint64_t)};
     ZtBitmap b;
@@ -464,7 +464,7 @@ struct Value : public Value_ {
     for (unsigned i = 0; i < n; i++)
       if (i) s << ',';
       vecElem(varBuf, [&s](const uint8_t *ptr, unsigned length) {
-	s << ZtField_::Print::String{ZuString{ptr, length}};
+	s << ZtField_::Print::String{ZuCSpan{ptr, length}};
       });
     s << ']';
   }
@@ -671,9 +671,9 @@ varBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
 // --- postgres OIDs, type names
 
 class OIDs {
-  using OIDs_ = ZuArrayN<unsigned, Value::N - 1>;
+  using OIDs_ = ZuArray<unsigned, Value::N - 1>;
   using Types = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
-  using Lookup = ZmLHashKV<ZuString, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
+  using Lookup = ZmLHashKV<ZuCSpan, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
 
 public:
   OIDs();
@@ -692,7 +692,7 @@ public:
       if (kv->p<1>() == type) return true;
     return false;
   }
-  unsigned oid(ZuString name) const {
+  unsigned oid(ZuCSpan name) const {
     int8_t i = m_lookup.findVal(name);
     if (ZuCmp<int8_t>::null(i)) return ZuCmp<unsigned>::null();
     ZmAssert(i >= 1 && i < Value::N);
@@ -707,7 +707,7 @@ public:
   }
 
 private:
-  unsigned resolve(PGconn *conn, ZuString name);
+  unsigned resolve(PGconn *conn, ZuCSpan name);
 
   const char	**m_names = nullptr;
   OIDs_		m_oids;
@@ -844,10 +844,10 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) Bitmap{ZuBytes(varBuf)};
   using Word = ZuBigEndian<uint64_t>;
-  ZuArray<Word> data(
+  ZuSpan<Word> data(
     reinterpret_cast<Word *>(&varBuf[0]),
     varBuf.length() / sizeof(uint64_t));
   auto bitmap = fbo->GetPointer<const Zfb::Bitmap *>(field->offset());
@@ -864,7 +864,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) StringVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::String>>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -883,7 +883,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) BytesVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Offset<Zfb::Vector<uint8_t>>>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -903,7 +903,7 @@ loadValue( \
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart, \
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo) \
 { \
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>()); \
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>()); \
   new (ptr) Int##width##Vec{ZuBytes(varBuf)}; \
   auto v = Zfb::GetFieldV<int##width##_t>(*fbo, *field); \
   unsigned n = v ? v->size() : 0; \
@@ -921,7 +921,7 @@ loadValue( \
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart, \
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo) \
 { \
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>()); \
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>()); \
   new (ptr) UInt##width##Vec{ZuBytes(varBuf)}; \
   auto v = Zfb::GetFieldV<uint##width##_t>(*fbo, *field); \
   unsigned n = v ? v->size() : 0; \
@@ -945,7 +945,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) Int128Vec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Int128 *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -964,7 +964,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) UInt128Vec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::UInt128 *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -983,7 +983,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) FloatVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<double>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -1002,7 +1002,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) FixedVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Fixed *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -1021,7 +1021,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) DecimalVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Decimal *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -1040,7 +1040,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) TimeVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::Time *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -1059,7 +1059,7 @@ loadValue(
   void *ptr, VarBuf &varBuf_, const VarBufPart &varBufPart,
   const OIDs &oids, const reflection::Field *field, const Zfb::Table *fbo)
 {
-  ZuArray<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
+  ZuSpan<uint8_t> varBuf(&varBuf_[varBufPart.p<0>()], varBufPart.p<1>());
   new (ptr) DateTimeVec{ZuBytes(varBuf)};
   auto v = Zfb::GetFieldV<Zfb::DateTime *>(*fbo, *field);
   unsigned n = v ? v->size() : 0;
@@ -1106,7 +1106,7 @@ saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
 {
   using Word = ZuBigEndian<uint64_t>;
   const auto &data_ = value.p<Type>().v;
-  ZuArray<const Word> data(
+  ZuSpan<const Word> data(
     reinterpret_cast<const Word *>(&data_[0]),
     data_.length() / sizeof(uint64_t));
   unsigned n = data.length() - 1;
@@ -1126,7 +1126,7 @@ saveOffset(Zfb::Builder &fbb, Offsets &offsets, const Value &value)
   offsets.push(
     Zfb::Save::strVecIter(fbb, n, [&varBuf](unsigned) {
       return vecElem(varBuf, [](const uint8_t *ptr, unsigned length) {
-	return ZuString{ptr, length};
+	return ZuCSpan{ptr, length};
       });
     }).Union());
 }
@@ -1502,7 +1502,7 @@ void loadTuple(
 Offset saveTuple(
   Zfb::Builder &fbb,
   const XFields &xFields,
-  ZuArray<const Value> tuple)
+  ZuSpan<const Value> tuple)
 {
   unsigned n = xFields.length();
   ZmAssert(tuple.length() == n);
@@ -1835,7 +1835,7 @@ private:
 
   int select_send(Work::Select &);
   void select_rcvd(Work::Select &, PGresult *);
-  ZmRef<IOBuf> select_save(ZuArray<const Value> tuple, const XFields &xFields);
+  ZmRef<IOBuf> select_save(ZuSpan<const Value> tuple, const XFields &xFields);
   void select_failed(Work::Select &, ZeVEvent);
 
   int find_send(Work::Find &);
@@ -1843,7 +1843,7 @@ private:
   template <bool Recovery>
   void find_rcvd_(RowFn &, bool &found, PGresult *);
   template <bool Recovery>
-  ZmRef<IOBuf> find_save(ZuArray<const Value> tuple);
+  ZmRef<IOBuf> find_save(ZuSpan<const Value> tuple);
   void find_failed(Work::Find &, ZeVEvent);
   void find_failed_(RowFn, ZeVEvent);
 
@@ -1882,7 +1882,7 @@ private:
 
 // --- PostgreSQL data store
 
-inline ZuString StoreTbl_IDAxor(const StoreTbl &storeTbl) {
+inline ZuCSpan StoreTbl_IDAxor(const StoreTbl &storeTbl) {
   return storeTbl.id();
 }
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
@@ -1928,7 +1928,7 @@ public:
   template <int State>
   int sendQuery(const ZtString &query, const Tuple &params);
   int sendPrepare(
-    const ZtString &query, const ZtString &id, ZuArray<unsigned> oids);
+    const ZtString &query, const ZtString &id, ZuSpan<unsigned> oids);
   template <int State>
   int sendPrepared(const ZtString &id, const Tuple &params);
 

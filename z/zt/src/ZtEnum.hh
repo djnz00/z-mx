@@ -56,10 +56,10 @@
   template <typename Impl> struct Map_ : public ZuObject { \
   private: \
     using V2S = \
-      ZmLHashKV<T, ZuString, \
+      ZmLHashKV<T, ZuCSpan, \
 	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
     using S2V = \
-      ZmLHashKV<ZuString, T, \
+      ZmLHashKV<ZuCSpan, T, \
 	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
   protected: \
     void init(const char *s, int v, ...) { \
@@ -71,11 +71,11 @@
 	add(s, v = va_arg(args, int)); \
       va_end(args); \
     } \
-    void add(ZuString s, T v) { m_s2v.add(s, v); m_v2s.add(v, s); } \
+    void add(ZuCSpan s, T v) { m_s2v.add(s, v); m_v2s.add(v, s); } \
     static Impl *instance() { return ZmSingleton<Impl>::instance(); } \
   private: \
-    T s2v_(ZuString s) const { return m_s2v.findVal(s); } \
-    ZuString v2s_(T v) const { return m_v2s.findVal(v); } \
+    T s2v_(ZuCSpan s) const { return m_s2v.findVal(s); } \
+    ZuCSpan v2s_(T v) const { return m_v2s.findVal(v); } \
     template <typename L> void all_(L l) const { \
       auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
@@ -84,8 +84,8 @@
     } \
   public: \
     Map_() = default; \
-    static T s2v(ZuString s) { return instance()->s2v_(s); } \
-    static ZuString v2s(T v) { return instance()->v2s_(v); } \
+    static T s2v(ZuCSpan s) { return instance()->s2v_(s); } \
+    static ZuCSpan v2s(T v) { return instance()->v2s_(v); } \
     template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
   private: \
     S2V	m_s2v; \
@@ -108,14 +108,14 @@
     Map() { this->init(__VA_ARGS__, (const char *)0); } \
   private: \
     template <typename S, typename Flags_> \
-    unsigned print_(S &s, Flags_ v, ZuString delim = "|") const { \
+    unsigned print_(S &s, Flags_ v, ZuCSpan delim = "|") const { \
       if (!v) return 0; \
       bool first = true; \
       unsigned n = 0; \
       Flags_ mask = 1; \
       for (unsigned i = 0; i < N; i++, (mask <<= 1)) { \
 	if (v & mask) { \
-	  if (ZuString s_ = this->v2s(i)) { \
+	  if (ZuCSpan s_ = this->v2s(i)) { \
 	    if (!first) s << delim; \
 	    s << s_; \
 	    first = false; \
@@ -126,7 +126,7 @@
       return n; \
     } \
     template <typename Flags_> \
-    Flags_ scan_(ZuString s, ZuString delim) const { \
+    Flags_ scan_(ZuCSpan s, ZuCSpan delim) const { \
       if (!s) return 0; \
       Flags_ v = 0; \
       bool end = false; \
@@ -151,7 +151,7 @@
 	  } \
 	} \
 	if (len > s.length() || c == 0) end = true; \
-	T i = this->s2v(ZuString(cstr, clen)); \
+	T i = this->s2v(ZuCSpan(cstr, clen)); \
 	if (ZuUnlikely(i == T(-1))) return 0; \
 	v |= (mask<<unsigned(i)); \
 	cstr = next; \
@@ -161,20 +161,20 @@
     } \
   public: \
     template <typename Flags_> \
-    static Flags_ scan(ZuString s, ZuString delim = "|") { \
+    static Flags_ scan(ZuCSpan s, ZuCSpan delim = "|") { \
       return instance()->template scan_<Flags_>(s, delim); \
     } \
     template <typename Flags_> \
     struct Print : public ZuPrintable { \
-      Print(Flags_ v_, ZuString delim_ = "|") : v(v_), delim{delim_} { } \
+      Print(Flags_ v_, ZuCSpan delim_ = "|") : v(v_), delim{delim_} { } \
       template <typename S> void print(S &s) const { \
 	ZmSingleton<Map>::instance()->print_(s, v, delim); \
       } \
       const Flags_	v; \
-      ZuString		delim; \
+      ZuCSpan		delim; \
     }; \
     template <typename Flags_> \
-    static Print<Flags_> print(Flags_ v, ZuString delim = "|") { \
+    static Print<Flags_> print(Flags_ v, ZuCSpan delim = "|") { \
       return Print<Flags_>{v, delim}; \
     } \
   };

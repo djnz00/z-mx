@@ -18,17 +18,17 @@
 
 #include <zlib/ZePlatform.hh>
 
-ZuString Ze::severity(unsigned i)
+ZuCSpan Ze::severity(unsigned i)
 {
   static const char * const name[] = {
     "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"
   };
   static constexpr unsigned namelen[] = { 5, 4, 7, 5, 5 };
 
-  return i > 4 ? ZuString("UNKNOWN", 7) : ZuString(name[i], namelen[i]);
+  return i > 4 ? ZuCSpan("UNKNOWN", 7) : ZuCSpan(name[i], namelen[i]);
 }
 
-ZuString Ze::file(ZuString s)
+ZuCSpan Ze::file(ZuCSpan s)
 {
   ZtRegex_captures_alloc(c, 1);
 #ifndef _WIN32
@@ -40,7 +40,7 @@ ZuString Ze::file(ZuString s)
   return c[2];
 }
 
-ZuString Ze::function(ZuString s)
+ZuCSpan Ze::function(ZuCSpan s)
 {
   ZtRegex_captures_alloc(c, 1);
   if (ZtREGEX("([a-zA-Z_][a-zA-Z_0-9:]*)\(").m(s, c) < 2) return s;
@@ -139,8 +139,8 @@ private:
 };
 
 struct ZePlatform_FMBuf : public ZmObject {
-  ZuWStringN<ZeLog_BUFSIZ / 2>	w;
-  ZuStringN<ZeLog_BUFSIZ>	s;
+  ZuWArray<ZeLog_BUFSIZ / 2>	w;
+  ZuCArray<ZeLog_BUFSIZ>	s;
 };
 static ZePlatform_FMBuf *fmBuf()
 {
@@ -174,7 +174,7 @@ const char *Ze::strerror(ErrNo e)
   buf->w.length(n);
 
   buf->s.length(ZuUTF<char, wchar_t>::cvt(
-	ZuArray<char>(buf->s.data(), buf->s.size() - 1), buf->w));
+	ZuSpan<char>(buf->s.data(), buf->s.size() - 1), buf->w));
 
   // FormatMessage() often returns verbose junk; clean it up
   {

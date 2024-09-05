@@ -42,7 +42,7 @@ public:
       Base(ZuFwd<ID>(id), offset,
 	  ParseFn::Ptr<&MxIPCol::parse_>::fn(),
 	  PlaceFn::Ptr<&MxIPCol::place_>::fn()) { }
-  static void parse_(ZiIP *i, ZuString b) { *i = b; }
+  static void parse_(ZiIP *i, ZuCSpan b) { *i = b; }
   static void place_(ZtArray<char> &b, const ZiIP *i) { b << *i; }
 };
 
@@ -57,7 +57,7 @@ public:
       Base(ZuFwd<ID>(id), offset,
 	  ParseFn::Ptr<&MxIDCol::parse_>::fn(),
 	  PlaceFn::Ptr<&MxIDCol::place_>::fn()) { }
-  static void parse_(MxID *i, ZuString b) { *i = b; }
+  static void parse_(MxID *i, ZuCSpan b) { *i = b; }
   static void place_(ZtArray<char> &b, const MxID *i) { b << *i; }
 };
 
@@ -74,7 +74,7 @@ public:
       m_yyyymmdd(yyyymmdd), m_tzOffset(tzOffset) { }
   virtual ~MxHHMMSSCol() { }
 
-  void parse_(MxDateTime *t, ZuString b) {
+  void parse_(MxDateTime *t, ZuCSpan b) {
     new (t) MxDateTime(
 	MxDateTime::YYYYMMDD, m_yyyymmdd, MxDateTime::HHMMSS, MxUInt(b));
     *t -= ZuTime(m_tzOffset);
@@ -100,7 +100,7 @@ public:
 	  ParseFn::Ptr<&MxNSecCol::parse_>::fn(),
 	  PlaceFn::Ptr<&MxNSecCol::place_>::fn()) { }
 
-  static void parse_(MxDateTime *t, ZuString b) {
+  static void parse_(MxDateTime *t, ZuCSpan b) {
     t->nsec() = MxUInt(b);
   }
   static void place_(ZtArray<char> &b, const MxDateTime *t) {
@@ -121,7 +121,7 @@ public:
       m_ndpOffset(ndpOffset - offset) { }
   virtual ~MxValueCol() { }
 
-  void parse_(MxValue *f, ZuString b) {
+  void parse_(MxValue *f, ZuCSpan b) {
     *f = MxValNDP{b, ndp(f)}.value;
   }
   void place_(ZtArray<char> &b, const MxValue *f) {
@@ -148,7 +148,7 @@ public:
 	  PlaceFn::Member<&MxDecimalCol::place_>::fn(this)) { }
   virtual ~MxDecimalCol() { }
 
-  void parse_(MxDecimal *f, ZuString b) {
+  void parse_(MxDecimal *f, ZuCSpan b) {
     *f = MxDecimal{b};
   }
   void place_(ZtArray<char> &b, const MxDecimal *f) {

@@ -6,16 +6,16 @@
 
 // universal string span
 
-#ifndef ZuString_HH
-#define ZuString_HH
+#ifndef ZuCSpan_HH
+#define ZuCSpan_HH
 
 #ifndef ZuLib_HH
 #include <zlib/ZuLib.hh>
 #endif
 
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 
-using ZuString = ZuArray<const char>;
-using ZuWString = ZuArray<const wchar_t>;
+using ZuCSpan = ZuSpan<const char>;
+using ZuWSpan = ZuSpan<const wchar_t>;
 
-#endif /* ZuString_HH */
+#endif /* ZuCSpan_HH */

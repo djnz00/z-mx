@@ -147,7 +147,7 @@ void MxMDCore::addOrderBook_(ZuAnyPOD *pod)
 
 static unsigned init_called_ = 0;
 
-MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<void(ZmScheduler *)> schedInitFn)
+MxMDLib *MxMDLib::init(ZuCSpan cf_, ZmFn<void(ZmScheduler *)> schedInitFn)
 {
   auto init_called = reinterpret_cast<ZmAtomic<unsigned> *>(&init_called_);
   if (init_called->cmpXch(1, 0)) {
@@ -196,7 +196,7 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<void(ZmScheduler *)> schedInitFn)
 
   try {
     ZeLog::level(cf->getInt("log:level", 0, Ze::Fatal, Ze::Info));
-    if (ZuString logFile = cf->get("log:file")) {
+    if (ZuCSpan logFile = cf->get("log:file")) {
       ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path(logFile).
 	    age(cf->getInt("log:age", 0, 1000, 8)).
 	    tzOffset(cf->getInt("log:tzOffset", INT_MIN, INT_MAX, 0))));
@@ -205,12 +205,12 @@ MxMDLib *MxMDLib::init(ZuString cf_, ZmFn<void(ZmScheduler *)> schedInitFn)
   ZeLog::start();
 
   try {
-    if (ZuString heapCSV = cf->get("heap")) {
+    if (ZuCSpan heapCSV = cf->get("heap")) {
       ZeLOG(Info, "MxMDLib - configuring heap...");
       ZvHeapCSV::init(heapCSV);
     }
 
-    if (ZuString hashCSV = cf->get("hash")) {
+    if (ZuCSpan hashCSV = cf->get("hash")) {
       ZeLOG(Info, "MxMDLib - configuring hash tables...");
       ZvHashCSV::init(hashCSV);
     }
@@ -298,11 +298,11 @@ void MxMDCore::init_(const ZvCf *cf)
   if (ZmRef<ZvCf> feedsCf = cf->getCf("feeds")) {
     ZeLOG(Info, "MxMDLib - configuring feeds...");
     ZvCf::Iterator i(feedsCf);
-    ZuString key;
+    ZuCSpan key;
     while (ZmRef<ZvCf> feedCf = i.subset(key)) {
       if (key == "_LOCAL") {
 	ZvCf::Iterator j(feedCf);
-	ZuString id;
+	ZuCSpan id;
 	while (ZmRef<ZvCf> venueCf = j.subset(id))
 	  addVenue(new MxMDVenue(this, m_localFeed, id,
 	      venueCf->getEnum<MxMDOrderIDScope::Map>("orderIDScope"),
@@ -467,7 +467,7 @@ void MxMDCore::initCmds()
 	  ZtString message;
 	  for (ZuBox<int> i = 1; i < argc; i++) {
 	    if (i > 1) message << ' ';
-	    message << args->get(ZuStringN<16>(i));
+	    message << args->get(ZuCArray<16>(i));
 	  }
 	  md->raise(ZeEVENT(Info, ([message](auto &s) { s << message; })));
 	  out << message << '\n';
@@ -744,7 +744,7 @@ static void writeTickSizes(
   fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
-void MxMDCore::dumpTickSizes(ZuString path, MxID venueID)
+void MxMDCore::dumpTickSizes(ZuCSpan path, MxID venueID)
 {
   MxMDTickSizeCSV csv;
   writeTickSizes(this, csv, csv.writeFile(path), venueID);
@@ -779,7 +779,7 @@ static void writeInstruments(
   fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
-void MxMDCore::dumpInstruments(ZuString path, MxID venueID, MxID segment)
+void MxMDCore::dumpInstruments(ZuCSpan path, MxID venueID, MxID segment)
 {
   MxMDInstrumentCSV csv;
   writeInstruments(this, csv, csv.writeFile(path), venueID, segment);
@@ -825,7 +825,7 @@ static void writeOrderBooks(
   fn(static_cast<ZuAnyPOD *>(nullptr));
 }
 
-void MxMDCore::dumpOrderBooks(ZuString path, MxID venueID, MxID segment)
+void MxMDCore::dumpOrderBooks(ZuCSpan path, MxID venueID, MxID segment)
 {
   MxMDOrderBookCSV csv;
   writeOrderBooks(this, csv, csv.writeFile(path), venueID, segment);
@@ -842,7 +842,7 @@ void MxMDCore::orderbooks(void *, const ZvCf *args, ZtString &out)
   writeOrderBooks(this, csv, csv.writeData(out), venueID, segment);
 }
 
-bool MxMDCore::record(ZuString path)
+bool MxMDCore::record(ZuCSpan path)
 {
   return m_record->record(path);
 }
@@ -851,7 +851,7 @@ ZtString MxMDCore::stopRecording()
   return m_record->stopRecording();
 }
 
-bool MxMDCore::replay(ZuString path, MxDateTime begin, bool filter)
+bool MxMDCore::replay(ZuCSpan path, MxDateTime begin, bool filter)
 {
   m_mx->del(&m_timer);
   return m_replay->replay(path, begin, filter);

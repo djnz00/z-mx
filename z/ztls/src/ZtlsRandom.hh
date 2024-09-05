@@ -33,7 +33,7 @@ public:
     return !n;
   }
 
-  bool random(ZuArray<uint8_t> data) {
+  bool random(ZuSpan<uint8_t> data) {
     int i = mbedtls_ctr_drbg_random(&m_ctr_drbg, data.data(), data.length());
     return i >= 0;
   }

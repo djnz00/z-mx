@@ -19,8 +19,8 @@
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuTuple.hh>
 #include <zlib/ZuUnion.hh>
-#include <zlib/ZuArrayN.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuArray.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuSort.hh>
 #include <zlib/ZuSearch.hh>
 #include <zlib/ZuObject.hh>
@@ -101,7 +101,7 @@ namespace T2 {
 namespace T3 {
   using I = ZuBox<int>;
   ZuDeclTuple(V, (I, id), (I, age), (I, height));
-  using T = ZuTuple<ZuArrayN<V, 3>, ZuArrayN<int, 3> >;
+  using T = ZuTuple<ZuArray<V, 3>, ZuArray<int, 3> >;
 }
 
 template <unsigned N> struct SortTest {
@@ -112,16 +112,16 @@ template <unsigned N> struct SortTest {
   }
   static void test() {
     {
-      ZuArrayN<int, 1> foo{};
-      ZuStringN<80> s;
+      ZuArray<int, 1> foo{};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "");
       CHECK(ZuSearch(&foo[0], 0, 0) == 0);
       CHECK(ZuInterSearch(&foo[0], 0, 0) == 0);
     }
     {
-      ZuArrayN<int, 1> foo{1};
-      ZuStringN<80> s;
+      ZuArray<int, 1> foo{1};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "1");
       CHECK(ZuSearch(&foo[0], 1, 0) == 0);
@@ -132,8 +132,8 @@ template <unsigned N> struct SortTest {
       CHECK(ZuInterSearch<false>(&foo[0], 1, 1) == 0);
     }
     {
-      ZuArrayN<int, 2> foo{0, 1};
-      ZuStringN<80> s;
+      ZuArray<int, 2> foo{0, 1};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "0 1");
       CHECK(ZuSearch(&foo[0], 2, 0) == 1);
@@ -146,14 +146,14 @@ template <unsigned N> struct SortTest {
       CHECK(ZuInterSearch<false>(&foo[0], 2, 1) == 2);
     }
     {
-      ZuArrayN<int, 2> foo{1, 0};
-      ZuStringN<80> s;
+      ZuArray<int, 2> foo{1, 0};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "0 1");
     }
     {
-      ZuArrayN<int, 3> foo{3, 1, 2};
-      ZuStringN<80> s;
+      ZuArray<int, 3> foo{3, 1, 2};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "1 2 3");
       CHECK(ZuSearch(&foo[0], 3, 0) == 0);
@@ -168,8 +168,8 @@ template <unsigned N> struct SortTest {
       CHECK(ZuInterSearch<false>(&foo[0], 3, 3) == 4);
     }
     {
-      ZuArrayN<int, 4> foo{4, 1, 3, 0};
-      ZuStringN<80> s;
+      ZuArray<int, 4> foo{4, 1, 3, 0};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "0 1 3 4");
       CHECK(ZuSearch(&foo[0], 4, 0) == 1);
@@ -184,8 +184,8 @@ template <unsigned N> struct SortTest {
       CHECK(ZuInterSearch<false>(&foo[0], 4, 4) == 6);
     }
     {
-      ZuArrayN<int, 13> foo{3, 1, 2, 9, 5, 3, 5, 1, 10, 4, 0, 7, 6};
-      ZuStringN<80> s;
+      ZuArray<int, 13> foo{3, 1, 2, 9, 5, 3, 5, 1, 10, 4, 0, 7, 6};
+      ZuCArray<80> s;
       test_(foo, s);
       CHECK(s == "0 1 1 2 3 3 4 5 5 6 7 9 10");
       CHECK(ZuSearch(&foo[0], 13, 0) == 1);
@@ -409,15 +409,15 @@ int main()
   }
 
   {
-    ZuStringN<10> s = "hello world";
+    ZuCArray<10> s = "hello world";
     CHECK(s == "hello wor");
-    s = ZuArrayN<char, 10>("hello world");
+    s = ZuArray<char, 10>("hello world");
     CHECK(s == "hello wor");
     s = 'h';
     CHECK(s == "h");
-    s << ZuArrayN<char, 2>("el");
+    s << ZuArray<char, 2>("el");
     s += "lo ";
-    s << ZuStringN<6>("world");
+    s << ZuCArray<6>("world");
     CHECK(s == "hello wor");
   }
 
@@ -466,7 +466,7 @@ int main()
 
   // structured binding smoke tests
   {
-    ZuArrayN<int, 3> foo = { 1, 2, 3 };
+    ZuArray<int, 3> foo = { 1, 2, 3 };
     auto [a, b, c] = foo;
     CHECK(a == 1 && b == 2 && c == 3);
   }
@@ -569,7 +569,7 @@ int main()
   }
   {
     ZuID id = "foobar";
-    ZuString s(id);
+    ZuCSpan s(id);
     CHECK(s == "foobar");
   }
   {

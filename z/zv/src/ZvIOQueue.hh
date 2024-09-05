@@ -16,7 +16,7 @@
 #include <zlib/ZvLib.hh>
 #endif
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 #include <zlib/ZuRef.hh>
 #include <zlib/ZuID.hh>
 
@@ -202,7 +202,7 @@ template <class Impl, class Lock_ = ZmNoLock>
 class ZvIOQueueTx : public ZmPQTx<Impl, ZvIOQueue, Lock_> {
   using Tx = ZmPQTx<Impl, ZvIOQueue, Lock_>;
   using Pool = ZvIOQueueTxPool<Impl, Lock_>;
-  using Pools = ZuArrayN<Pool *, ZvIOQueueMaxPools>;
+  using Pools = ZuArray<Pool *, ZvIOQueueMaxPools>;
 
 public:
   using Lock = Lock_;

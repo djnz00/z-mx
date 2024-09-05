@@ -11,7 +11,7 @@
 
 #include <zlib/ZuByteSwap.hh>
 #include <zlib/ZuByteSwap.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 inline void out(bool ok, const char *s) {
   std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;

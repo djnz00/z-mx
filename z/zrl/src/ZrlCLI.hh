@@ -14,7 +14,7 @@
 // CLI cli;
 // cli.init(App{
 //   .prompt = [](ZtArray<uint8_t> &s) { if (!s) s = "prompt> "; },
-//   .enter = [](ZuString s) { std::cout << s << '\n'; }
+//   .enter = [](ZuCSpan s) { std::cout << s << '\n'; }
 // });
 // if (cli.open()) {
 //   cli.start();
@@ -32,7 +32,7 @@
 
 #include <zlib/ZuPtr.hh>
 #include <zlib/ZuInt.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZmFn.hh>
 #include <zlib/ZmScheduler.hh>

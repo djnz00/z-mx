@@ -13,8 +13,8 @@
 #include <zlib/ZuLib.hh>
 #endif
 
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 
-using ZuBytes = ZuArray<const uint8_t>;
+using ZuBytes = ZuSpan<const uint8_t>;
 
 #endif /* ZuBytes_HH */

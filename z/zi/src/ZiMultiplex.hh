@@ -18,7 +18,7 @@
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuLargest.hh>
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmObject.hh>
@@ -174,9 +174,9 @@ namespace ZiCxnFlags {
       "D", Nagle_, "N", NetLink_);
 }
 class ZiCxnOptions {
-  using MReqs = ZuArrayN<ZiMReq, ZiCxnOptions_NMReq>;
+  using MReqs = ZuArray<ZiMReq, ZiCxnOptions_NMReq>;
 #ifdef ZiMultiplex_Netlink
-  using FamilyName = ZuStringN<GENL_NAMSIZ>;
+  using FamilyName = ZuCArray<GENL_NAMSIZ>;
 #endif
 
 public:
@@ -251,16 +251,16 @@ public:
     b ? (m_flags |= NetLink) : (m_flags &= ~NetLink);
     return *this;
   }
-  const ZuStringN &familyName() const { return m_familyName; }
-  ZiCxnOptions &familyName(ZuString s) {
+  const ZuCArray &familyName() const { return m_familyName; }
+  ZiCxnOptions &familyName(ZuCSpan s) {
     m_familyName = s;
     return *this;
   }
 #else
   bool netlink() const { return false; }
   ZiCxnOptions &netlink(bool) { return *this; }
-  ZuString familyName() const { return ZuString{}; }
-  ZiCxnOptions &familyName(ZuString) { return *this; }
+  ZuCSpan familyName() const { return ZuCSpan{}; }
+  ZiCxnOptions &familyName(ZuCSpan) { return *this; }
 #endif
   bool nagle() const {
     using namespace ZiCxnFlags;
@@ -602,9 +602,9 @@ struct ZiMxParams {
 #endif
   unsigned rxBufSize() const { return m_rxBufSize; }
   unsigned txBufSize() const { return m_txBufSize; }
-  ZuString listenerHash() const { return m_listenerHash; }
-  ZuString requestHash() const { return m_requestHash; }
-  ZuString cxnHash() const { return m_cxnHash; }
+  ZuCSpan listenerHash() const { return m_listenerHash; }
+  ZuCSpan requestHash() const { return m_requestHash; }
+  ZuCSpan cxnHash() const { return m_cxnHash; }
 #ifdef ZiMultiplex_DEBUG
   bool trace() const { return m_trace; }
   bool debug() const { return m_debug; }

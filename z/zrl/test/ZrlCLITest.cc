@@ -8,9 +8,9 @@ int main()
   Zrl::History history{100};
   Zrl::CLI cli;
   cli.init(Zrl::App{
-    .error = [](ZuString s) { std::cerr << s << '\n'; },
+    .error = [](ZuCSpan s) { std::cerr << s << '\n'; },
     .prompt = [](ZtArray<uint8_t> &s) { if (!s) s = "-->] "; },
-    .enter = [](ZuString s) -> bool {
+    .enter = [](ZuCSpan s) -> bool {
       std::cout << s << '\n';
       return s == "quit";
     },

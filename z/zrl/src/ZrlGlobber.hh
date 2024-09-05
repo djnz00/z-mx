@@ -13,7 +13,7 @@
 #include <zlib/ZrlLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuUTF.hh>
 
 #include <zlib/ZiGlob.hh>
@@ -54,7 +54,7 @@ private:
 
 public:
   void init(
-      ZuArray<const uint8_t> data,	// line data
+      ZuSpan<const uint8_t> data,	// line data
       unsigned cursor,			// cursor offset (in bytes)
       CompSpliceFn splice);		// line splice callback function
   void final();

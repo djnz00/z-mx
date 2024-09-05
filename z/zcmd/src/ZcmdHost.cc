@@ -27,7 +27,7 @@ void ZcmdHost::final()
 }
 
 void ZcmdHost::addCmd(
-    ZuString name, ZuString syntax, ZcmdFn fn, ZtString brief, ZtString usage)
+    ZuCSpan name, ZuCSpan syntax, ZcmdFn fn, ZtString brief, ZtString usage)
 {
   Guard guard(m_lock);
   {
@@ -41,9 +41,9 @@ void ZcmdHost::addCmd(
     m_cmds.add(name, CmdData{ZuMv(fn), ZuMv(brief), ZuMv(usage)});
 }
 
-bool ZcmdHost::hasCmd(ZuString name) { return m_cmds.find(name); }
+bool ZcmdHost::hasCmd(ZuCSpan name) { return m_cmds.find(name); }
 
-void ZcmdHost::processCmd(ZcmdContext *ctx, ZuArray<const ZtString> args_)
+void ZcmdHost::processCmd(ZcmdContext *ctx, ZuSpan<const ZtString> args_)
 {
   if (!args_) return;
   auto &out = ctx->out;
@@ -102,8 +102,8 @@ void ZcmdHost::helpCmd(ZcmdContext *ctx)
   {
     auto i = m_cmds.readIterator();
     while (auto cmd = i.iterate()) {
-      ZuString key = cmd->key();
-      ZuString tabs = "\t\t";
+      ZuCSpan key = cmd->key();
+      ZuCSpan tabs = "\t\t";
       if (key.length() >= 8) tabs.offset(1);
       out << key << tabs << cmd->val().brief << '\n';
     }

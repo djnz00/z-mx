@@ -15,7 +15,7 @@
 
 namespace ZvCSV_ {
 
-void split(ZuString row, ZtArray<ZtArray<char>> &values)
+void split(ZuCSpan row, ZtArray<ZtArray<char>> &values)
 {
   enum { Value = 0, Quoted, Quoted2, EOV, EOL };
   int state;

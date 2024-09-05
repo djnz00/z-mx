@@ -19,7 +19,7 @@
 
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuPrint.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <zlib/ZuVStream.hh>
 

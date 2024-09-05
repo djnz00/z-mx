@@ -1241,7 +1241,7 @@ void Store::setSRM()
 }
 
 int Store::sendPrepare(
-  const ZtString &id, const ZtString &query, ZuArray<Oid> oids)
+  const ZtString &id, const ZtString &query, ZuSpan<Oid> oids)
 {
   /* ZeLOG(Debug, ([id = ZtString{id}, query = ZtString{query}](auto &s) {
     s << '"' << id << "\", \"" << query << '"';
@@ -1469,7 +1469,7 @@ void StoreTbl::mkTable_rcvd(PGresult *res)
   }
   for (unsigned i = 0; i < n; i++) {
     const char *id_ = PQgetvalue(res, i, 0);
-    ZuString id{id_};
+    ZuCSpan id{id_};
     if (PQgetlength(res, i, 1) != 4) {
       m_openState.setFailed();
       return;
@@ -1615,7 +1615,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
   }
   for (unsigned i = 0; i < n; i++) {
     const char *id_ = PQgetvalue(res, i, 0);
-    ZuString id{id_};
+    ZuCSpan id{id_};
     if (PQgetlength(res, i, 1) != sizeof(UInt32)) {
       m_openState.setFailed();
       return;
@@ -1624,7 +1624,7 @@ void StoreTbl::mkIndices_rcvd(PGresult *res)
     auto keyID = m_openState.keyID();
     unsigned field = m_openState.field();
     const auto &xKeyFields = m_xKeyFields[keyID];
-    ZuString matchID = xKeyFields[field].id_;
+    ZuCSpan matchID = xKeyFields[field].id_;
     unsigned type = xKeyFields[field].type;
     bool match = m_store->oids().match(oid, type) && id == matchID;
 
@@ -2406,7 +2406,7 @@ void StoreTbl::select_rcvd(Work::Select &select, PGresult *res)
 	  }))
 	goto inconsistent;
     auto buf =
-      select_save(ZuArray<const Value>(&tuple[0], nc), xKeyFields).constRef();
+      select_save(ZuSpan<const Value>(&tuple[0], nc), xKeyFields).constRef();
     // res can go out of scope now - everything is saved in buf
     select.tupleFn(TupleResult{TupleData{
       .keyID = select.selectRow ? ZuFieldKeyID::All : int(keyID),
@@ -2422,7 +2422,7 @@ inconsistent:
   })));
 }
 ZmRef<IOBuf> StoreTbl::select_save(
-  ZuArray<const Value> tuple, const XFields &xFields)
+  ZuSpan<const Value> tuple, const XFields &xFields)
 {
   Zfb::IOBuilder fbb{m_bufAllocFn()};
   fbb.Finish(saveTuple(fbb, xFields, tuple));
@@ -2509,7 +2509,7 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 	goto inconsistent;
     }
     auto buf =
-      find_save<Recovery>(ZuArray<const Value>(&tuple[0], nc)).constRef();
+      find_save<Recovery>(ZuSpan<const Value>(&tuple[0], nc)).constRef();
     if (found) {
       ZeLOG(Error, ([id = m_id_](auto &s) {
 	s << "multiple records found with same key in table " << id;
@@ -2536,7 +2536,7 @@ inconsistent:
       })));
 }
 template <bool Recovery>
-ZmRef<IOBuf> StoreTbl::find_save(ZuArray<const Value> tuple)
+ZmRef<IOBuf> StoreTbl::find_save(ZuSpan<const Value> tuple)
 {
   Zfb::IOBuilder fbb{m_bufAllocFn()};
   auto data = Zfb::Save::nest(fbb, [this, tuple](Zfb::Builder &fbb) mutable {

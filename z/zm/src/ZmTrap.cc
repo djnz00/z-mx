@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuTime.hh>
 
@@ -77,7 +77,7 @@ void ZmTrap::trap()
 }
 
 // last-ditch logging of a fatal error
-void ZmTrap::log(ZuString s)
+void ZmTrap::log(ZuCSpan s)
 {
 #ifndef _WIN32
   ::write(2, "\r\n", 2);
@@ -98,21 +98,21 @@ void ZmTrap::log(ZuString s)
 static ZmPLock ZmTrap_lock;
 
 enum { ProgramSize = 64 }; // program name length
-using Program = ZuStringN<ProgramSize>;
+using Program = ZuCArray<ProgramSize>;
 static Program ZmTrap_program;
 
-void ZmTrap::winProgram(ZuString s)
+void ZmTrap::winProgram(ZuCSpan s)
 {
   ZmGuard<ZmPLock> guard(ZmTrap_lock);
   ZmTrap_program = s;
 }
 
-void ZmTrap::winErrLog(int type, ZuString s)
+void ZmTrap::winErrLog(int type, ZuCSpan s)
 {
   // NTFS max path length - MAX_PATH is 260 and deprecated
   enum { BufSize = 32768 };
-  using WBuf = ZuWStringN<BufSize>;
-  using Buf = ZuStringN<BufSize>;
+  using WBuf = ZuWArray<BufSize>;
+  using Buf = ZuCArray<BufSize>;
 
   static Program program;
   static WBuf wbuf;
@@ -131,7 +131,7 @@ void ZmTrap::winErrLog(int type, ZuString s)
     int i = buf.length();
     while (i > 0) { if (buf[--i] == '\\') break; }
     if (i) ++i;
-    ZuString program_ = buf;
+    ZuCSpan program_ = buf;
     program_.offset(i);
     if (program_.length() > 64) program_.offset(program_.length() - 64);
     program = program_;
@@ -142,7 +142,7 @@ void ZmTrap::winErrLog(int type, ZuString s)
 
   wbuf.null();
   wbuf.length(ZuUTF<wchar_t, char>::cvt(
-	ZuArray<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
+	ZuSpan<wchar_t>(wbuf.data(), wbuf.size() - 1), buf));
   wbuf[wbuf.length() - (wbuf.length() == wbuf.size())] = 0;
 
   const wchar_t *w = wbuf.data();
@@ -171,7 +171,7 @@ void ZmTrap_sigabrt(int)
 #endif
   ZmBackTrace bt;
   bt.capture(1);
-  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  static ZuCArray<ZmBackTrace_BUFSIZ> buf;
   buf << "SIGABRT\n" << bt;
   ZmTrap::log(buf);
 #ifdef _WIN32
@@ -216,7 +216,7 @@ void ZmTrap_sigsegv(int s, siginfo_t *si, void *c)
   }
   ZmBackTrace bt;
   bt.capture(1);
-  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  static ZuCArray<ZmBackTrace_BUFSIZ> buf;
   buf << "SIGSEGV @0x" << ZuBoxPtr(si->si_addr).hex() << '\n' << bt;
   ZmTrap::log(buf);
 }
@@ -229,7 +229,7 @@ LONG NTAPI ZmTrap_exHandler(EXCEPTION_POINTERS *exInfo)
     return EXCEPTION_CONTINUE_SEARCH;
   ZmBackTrace bt;
   bt.capture(exInfo, 0);
-  static ZuStringN<ZmBackTrace_BUFSIZ> buf;
+  static ZuCArray<ZmBackTrace_BUFSIZ> buf;
   buf << "SIGSEGV\n" << bt;
   ZmTrap::log(buf);
   return EXCEPTION_CONTINUE_SEARCH;

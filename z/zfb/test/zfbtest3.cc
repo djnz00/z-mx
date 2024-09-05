@@ -26,10 +26,10 @@ namespace Side {
 };
 
 struct Order {
-  ZuStringN<32>		symbol;
+  ZuCArray<32>		symbol;
   uint64_t		orderID;
-  ZuStringN<32>		link;
-  ZuStringN<32>		clOrdID;
+  ZuCArray<32>		link;
+  ZuCArray<32>		clOrdID;
   uint64_t		seqNo;
   int			side;
   int			price;

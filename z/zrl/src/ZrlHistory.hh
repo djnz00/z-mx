@@ -13,7 +13,7 @@
 #include <zlib/ZrlLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZtWindow.hh>
 
@@ -34,7 +34,7 @@ public:
 
   History(unsigned max) : Base{max} { }
 
-  void save(unsigned i, ZuArray<const uint8_t> s);
+  void save(unsigned i, ZuSpan<const uint8_t> s);
   bool load(unsigned i, HistFn) const;
 
   auto saveFn() { return HistSaveFn::Member<&History::save>::fn(this); }

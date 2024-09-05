@@ -22,11 +22,11 @@
 class ZmHashParams {
 public:
   ZmHashParams() { }
-  ZmHashParams(ZuString id) { init(id); }
+  ZmHashParams(ZuCSpan id) { init(id); }
   ZmHashParams(uint32_t size) :
     m_bits{size <= 8 ? 3 : (32 - ZuIntrin::clz(size - 1))} { }
 
-  const ZmHashParams &init(ZuString id);
+  const ZmHashParams &init(ZuCSpan id);
 
   ZmHashParams &bits(unsigned v) { m_bits = v; return *this; }
   ZmHashParams &loadFactor(double v) { m_loadFactor = v; return *this; }
@@ -116,7 +116,7 @@ template <typename, typename, typename, unsigned> friend class ZmLHash_;
   };
 
 public:
-  static void init(ZuString id, const ZmHashParams &params);
+  static void init(ZuCSpan id, const ZmHashParams &params);
 
   static void all(ZmFn<void(ZmAnyHash *)> fn);
 
@@ -134,14 +134,14 @@ friend CSV;
   static CSV csv() { return CSV(); }
 
 private:
-  static ZmHashParams &params(ZuString id, ZmHashParams &in);
+  static ZmHashParams &params(ZuCSpan id, ZmHashParams &in);
 
 public:
   static void add(ZmAnyHash *);
   static void del(ZmAnyHash *);
 };
 
-inline const ZmHashParams &ZmHashParams::init(ZuString id)
+inline const ZmHashParams &ZmHashParams::init(ZuCSpan id)
 {
   return ZmHashMgr::params(id, *this);
 }

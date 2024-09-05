@@ -13,7 +13,7 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 
 // Note: __cxxabiv1::__cxa_demangle() doesn't correctly demangle
@@ -57,7 +57,7 @@ public:
     return *this;
   }
 
-  operator ZuString() const { return m_output; }
+  operator ZuCSpan() const { return m_output; }
 
   template <typename S> void print(S &s) const {
     if (m_output) s << m_output;

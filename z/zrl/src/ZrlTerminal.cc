@@ -25,7 +25,7 @@
 
 namespace Zrl {
 
-using ErrorStr = ZuStringN<120>;
+using ErrorStr = ZuCArray<120>;
 
 #define ZrlError(op, result, error) \
   Zrl::ErrorStr() << op << ' ' << Zi::ioResult(result) << ' ' << error
@@ -33,7 +33,7 @@ using ErrorStr = ZuStringN<120>;
 namespace VKey {
 ZrlExtern void print_(int32_t vkey, ZuVStream &s)
 {
-  ZuStringN<60> out;
+  ZuCArray<60> out;
   if (vkey < 0) {
     vkey = -vkey;
     if (vkey == VKey::Null) return;
@@ -50,12 +50,12 @@ ZrlExtern void print_(int32_t vkey, ZuVStream &s)
     } else if (vkey >= 0x7f && vkey < 0x100) {
       out << "'\\x" << ZuBoxed(vkey).hex<false, ZuFmt::Right<2, '0'>>() << '\'';
     } else {
-      ZuArrayN<uint8_t, 4> utf;
+      ZuArray<uint8_t, 4> utf;
       utf.length(ZuUTF8::out(utf.data(), 4, vkey));
       if (utf.length() == 1)
 	out << '\'' << static_cast<char>(utf[0]) << '\'';
       else
-	out << '"' << ZuString{utf} << '"';
+	out << '"' << ZuCSpan{utf} << '"';
     }
   }
   s << out;
@@ -803,7 +803,7 @@ void Terminal::stop__()
 }
 #endif /* !_WIN32 */
 
-ZtString Terminal::getpass(ZuString prompt, unsigned passLen)
+ZtString Terminal::getpass(ZuCSpan prompt, unsigned passLen)
 {
   ZtString passwd;
   passwd.size(passLen + 4); // allow for \r\n and null terminator
@@ -959,10 +959,10 @@ void Terminal::read()
   const VKeyMatch *nextVKMatch = m_vkeyMatch.ptr();
 #ifndef _WIN32
   using UTF = ZuUTF8;
-  ZuArrayN<uint8_t, 4> utf;
+  ZuArray<uint8_t, 4> utf;
 #else
   using UTF = ZuUTF16;
-  ZuArrayN<uint16_t, 2> utf;
+  ZuArray<uint16_t, 2> utf;
 #endif
   unsigned utfn = 0;
   ZtArray<int32_t> pending;
@@ -1362,10 +1362,10 @@ void Terminal::clrBreak_(unsigned n)
 #endif
 }
 
-void Terminal::out_(ZuString data)
+void Terminal::out_(ZuCSpan data)
 {
   unsigned begin = m_out.length();
-  m_out << ZuArray<const uint8_t>(data);
+  m_out << ZuSpan<const uint8_t>(data);
   unsigned end = m_out.length();
   for (unsigned off = begin; off < end; ) {
     unsigned n;
@@ -1384,14 +1384,14 @@ void Terminal::out_(ZuString data)
 	    w <<= 1;
 	  }
 	} else
-	  m_out.splice(off, n, ZuArray<const uint8_t>("__", w));
+	  m_out.splice(off, n, ZuSpan<const uint8_t>("__", w));
 	off += w; end += w; end -= n;
       } else
 #endif
 	off += n;
     } else {
       if (u < 0x20 || u == 0x7f) {
-	ZuArrayN<char, 2> s;
+	ZuArray<char, 2> s;
 	s << '^' << (u == 0x7f ? '?' : static_cast<char>('@' + u));
 	m_out.splice(off, 1, s);
 	off += 2; end += 1;
@@ -1759,7 +1759,7 @@ private:
 
 void Terminal::splice(
     unsigned off, ZuUTFSpan span,
-    ZuArray<const uint8_t> replace, ZuUTFSpan rspan,
+    ZuSpan<const uint8_t> replace, ZuUTFSpan rspan,
     bool append)
 {
   ZmAssert(off == m_line.position(m_pos).mapping());

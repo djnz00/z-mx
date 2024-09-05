@@ -18,7 +18,7 @@
 #pragma warning(disable:4251)
 #endif
 
-#include <ZuString.hh>
+#include <ZuCSpan.hh>
 
 class ZmAPI ZmTrap {
 public:
@@ -38,10 +38,10 @@ public:
 
   // last-ditch error logging
 
-  static void log(ZuString s);
+  static void log(ZuCSpan s);
 #ifdef _WIN32
-  static void winProgram(ZuString s);
-  static void winErrLog(int type, ZuString s);	// Windows error logging
+  static void winProgram(ZuCSpan s);
+  static void winErrLog(int type, ZuCSpan s);	// Windows error logging
 #endif
 };
 

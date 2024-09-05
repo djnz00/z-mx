@@ -37,8 +37,8 @@ namespace Zdf {
 
 template <typename> class Series;
 
-namespace ReaderState {
-  ZtEnumValues(ReaderState, int8_t,
+namespace RdrState {
+  ZtEnumValues(RdrState, int8_t,
     Stopped	= 0,	// seek / find completed
     Loading	= 1,	// read called, loading block data
     Reading	= 2,	// reading historical data
@@ -50,11 +50,11 @@ namespace ReaderState {
   constexpr const bool live(T v) { return v == Live; }
 }
 
-// from an application perspective a reader is either stopped() or
-// reading(); internally there are additional transient states
-// (Loading, Stopping), and a further distinction is made between
-// readers of live and historical data - as informed by live();
-// a reader can also be failed() in any state due to error
+// from an application perspective a reader is either stopped() or reading()
+// - internally there are additional transient states
+//   (Loading, Stopping), and a further distinction is made between
+//   readers of live and historical data (Live)
+// - a reader can also be failed in any state due to error
 
 // Reader internals - possible state paths:
 //
@@ -95,45 +95,60 @@ namespace ReaderState {
 // addLiveReader	live
 // delLiveReader	stop, liveFail
 
+// RdrResult is used internally for processing reader state transitions
+namespace RdrResult {
+  ZtEnumValues(RdrResult, int8_t,
+    OK = 0,
+    Load,	// load performed
+    EOS,	// end of series
+    Stopped,
+    Failed);
+}
+
 // the decoder determines the value type (fixed or floating point)
 template <typename Decoder_>
-class Reader_ : public ZmObject {
+class Reader : public ZmObject {
 public:
   using Decoder = Decoder_;
   using Series = Zdf::Series<Decoder>;
-  enum { Fixed = ZuIsExact<typename Decoder::Value, int64_t>{} };
+  using PValue = typename Decoder::Value; // primitive value
+  enum { Fixed = ZuIsExact<PValue, int64_t>{} };
   using Value = ZuIf<Fixed, ZuFixed, double>;
-  using Fn = ZmFn<void(Value)>;
+  using Fn = ZmFn<bool(Reader *, Value)>;
   using ErrorFn = ZmFn<void()>;
   using StopFn = ZmFn<void()>;
 
 private:
 friend Series;
 
-  ZuAssert((!ZuIsExact<Offset, typename Decoder::Value>{})); // ensure distinct
-  using Target = ZuUnion<void, Offset, typename Decoder::Value>;
+  ZuAssert((!ZuIsExact<Offset, Value>{})); // ensure distinct
+  using Target = ZuUnion<void, Offset, Value>;
 
-  Reader_() = delete;
-  Reader_(const Reader_ &) = delete;
-  Reader_ &operator =(const Reader_ &) = delete;
-  Reader_(Reader_ &&) = delete;
-  Reader_ &operator =(Reader_ &&) = delete;
+  Reader() = delete;
+  Reader(const Reader &) = delete;
+  Reader &operator =(const Reader &) = delete;
+  Reader(Reader &&) = delete;
+  Reader &operator =(Reader &&) = delete;
 
-  Reader_(const Series *series, BlkOffset blkOffset, Blk *blk, Target target) :
-    m_series{series}, m_blkOffset{blkOffset}, m_blk{blk}, m_target{target} {
+protected:
+  Reader(
+    const Series *series, BlkOffset blkOffset, const Blk *blk, Target target)
+  :
+    m_series{series}, m_blkOffset{blkOffset}, m_blk{blk}, m_target{target}
+  {
     ZeAssert(m_blk, (), "internal error - null blk", return);
   }
 
 public:
-  ~Reader_() { }
+  ~Reader() { }
 
   const Series *series() const { return m_series; }
-  bool stopped() const { return ReaderState::stopped(m_state); }
-  bool reading() const { return ReaderState::reading(m_state); }
-  bool live() const { return ReaderState::live(m_state); }
+  bool stopped() const { return RdrState::stopped(m_state); }
+  bool reading() const { return RdrState::reading(m_state); }
+  bool live() const { return RdrState::live(m_state); }
   bool failed() const { return m_failed; }
   NDP ndp() const {
-    return m_blk ? m_blk->ndp() : 0;
+    return m_blk ? m_blk->ndp() : NDP(0);
   }
   Offset offset() const;
 
@@ -164,10 +179,8 @@ public:
 private:
   bool init(BlkOffset, Blk *, Target);
 
-  enum { OK = 0, Load, EOS, Stopped, Failed };
-
   void loadBlk();
-  void loaded(Blk *blk);
+  void loaded(const Blk *blk);
   int nextBlk();		// OK|Load|EOS|Stopped|Failed
   int nextValue();		// ''
 
@@ -176,10 +189,10 @@ private:
   void fail();
 
 private:
-  Series		*m_series = nullptr;
+  const Series		*m_series = nullptr;
   BlkOffset		m_blkOffset = 0;
-  Blk			*m_blk = nullptr;
-  ReaderState::T	m_state = ReaderState::Stopped;
+  const Blk		*m_blk = nullptr;
+  RdrState::T		m_state = RdrState::Stopped;
   Target		m_target;
   Decoder		m_decoder;
   Fn			m_fn;
@@ -191,25 +204,25 @@ private:
 inline constexpr const char *Reader_HeapID() { return "Zdf.Reader"; }
 template <typename Decoder>
 using ReaderList =
-  ZmList<Reader_<Decoder>,
-    ZmListNode<Reader_<Decoder>,
+  ZmList<Reader<Decoder>,
+    ZmListNode<Reader<Decoder>,
       ZmListHeapID<Reader_HeapID>>>;
 
 template <typename Decoder>
-using Reader = typename ReaderList<Decoder>::Node;
+using RdrListNode = typename ReaderList<Decoder>::Node;
 
 // RdRef is a move-only ZmRef<Reader>-derived smart pointer,
 // with a RAII dtor that calls reader->stop()
 template <typename Decoder>
-class RdRef : public ZmRef<Reader<Decoder>> {
+class RdRef : public ZmRef<RdrListNode<Decoder>> {
   RdRef(const RdRef &) = delete;
   RdRef &operator =(const RdRef &) = delete;
 
 public:
-  using Reader = Zdf::Reader<Decoder>;
-  using Ref = ZmRef<Reader>;
+  using RdrListNode = Zdf::RdrListNode<Decoder>;
+  using Ref = ZmRef<RdrListNode>;
 
-  using Ref::operator *;
+  using Ref::operator RdrListNode *;
   using Ref::operator ->;
 
   RdRef() = default;
@@ -235,59 +248,56 @@ private:
   }
 };
 
-// fixed point version
-template <
-  typename Decoder, typename Heap, typename Value_ = typename Decoder::Value>
-class Writer_ : public Heap, public ZmObject {
+// Writer main class
+template <typename Decoder, typename Heap, typename PValue_>
+class Writer__ : public Heap, public ZmObject {
 public:
   using Encoder = Zdf::Encoder<Decoder>;
   using Series = Zdf::Series<Decoder>;
-  using Value = Value_;
+  using PValue = PValue_;
 
 private:
   friend Series;
 
 public:
-  Writer_(Series *series, NDP ndp) : m_series{series}, m_ndp{ndp} { }
+  Writer__(Series *series) : m_series{series} { }
 
   Series *series() const { return m_series; }
 
   // append value to series, notifying any live readers
-  bool write(Value);
+  bool write(PValue);
 
   // stop writing (idempotent)
   void stop();
 
 private:
+  template <typename L> void encoder(L l) { m_encoder = l(); }
+  bool encode(PValue value) { return m_encoder.write(value); }
+  void finish(Blk *lastBlk) {
+    m_encoder.finish();
+    lastBlk->sync(m_encoder, m_encoder.last());
+  }
+
   Series	*m_series = nullptr;
   Encoder	m_encoder;
-  NDP		m_ndp;
 };
-// floating point version
+template <typename Decoder, typename Heap, typename PValue = Decoder::Value>
+class Writer_ : public Writer__<Decoder, Heap, PValue> { };
 template <typename Decoder, typename Heap>
-class Writer_<Decoder, Heap, double> : public Heap {
-public:
-  using Encoder = Zdf::Encoder<Decoder>;
-  using Series = Zdf::Series<Decoder>;
-  using Value = typename Decoder::Value;
-
-private:
-  friend Series;
+class Writer_<Decoder, Heap, int64_t> :
+  public Writer__<Decoder, Heap, int64_t>
+{
+  using Base = Writer__<Decoder, Heap, int64_t>;
 
 public:
-  Writer_(Series *series) : m_series{series} { }
+  using typename Base::Series;
 
-  Series *series() const { return m_series; }
+  Writer_(Series *series, NDP ndp) : Base{series}, m_ndp{ndp} { }
 
-  // append value to series, notifying any live readers
-  bool write(Value);
-
-  // stop writing (idempotent)
-  void stop();
+  NDP ndp() const { return m_ndp; }
 
 private:
-  Series	*m_series = nullptr;
-  Encoder	m_encoder;
+  NDP		m_ndp;
 };
 inline constexpr const char *Writer_HeapID() { return "Zdf.Writer"; }
 template <typename Decoder>
@@ -306,7 +316,7 @@ public:
   using Writer = Zdf::Writer<Decoder>;
   using Ref = ZmRef<Writer>;
 
-  using Ref::operator *;
+  using Ref::operator Writer *;
   using Ref::operator ->;
 
   WrRef() = default;
@@ -374,22 +384,27 @@ struct InternalError { };	// internal exception
 
 template <typename Decoder_>
 class Series : public ZmObject {
+public:
   using Decoder = Decoder_;
   using Encoder = Zdf::Encoder<Decoder>;
   using Reader = Zdf::Reader<Decoder>;
   using RdRef = Zdf::RdRef<Decoder>;
-  using ReaderList = Zdf::ReaderList<Decoder>;
   using Writer = Zdf::Writer<Decoder>;
   using WrRef = Zdf::WrRef<Decoder>;
-  enum { Fixed = ZuIsExact<typename Decoder::Value, int64_t>{} };
+  using PValue = typename Decoder::Value;
+  enum { Fixed = ZuIsExact<PValue, int64_t>{} };
   using Value = ZuIf<Fixed, ZuFixed, double>;
+
+private:
+  using ReaderList = Zdf::ReaderList<Decoder>;
+  using RdrListNode = Zdf::RdrListNode<Decoder>;
+
   using DBSeries = ZuIf<Fixed, DB::SeriesFixed, DB::SeriesFloat>;
   using DBBlk = ZuIf<Fixed, DB::BlkFixed, DB::BlkFloat>;
 
 friend Store;
-// template <typename, bool> friend class DataFrame;
-friend Reader;
-friend Writer;
+template <typename> friend class Zdf::Reader;
+template <typename, typename, typename> friend class Writer__;
 
 using ID = uint32_t;
 
@@ -413,7 +428,7 @@ public:
   ZdbObject<DBSeries> *dbSeries() const { return m_dbSeries; }
   unsigned shard() const { return m_shard; }
   SeriesID id() const { return m_id; }
-  ZuString name() const { return m_name; }
+  ZuCSpan name() const { return m_name; }
   ZuTime epoch() const { return m_epoch; }
 
   // time relative to epoch (creation time of series)
@@ -442,7 +457,7 @@ public:
   unsigned blkCount() const { return (m_lastBlkOffset + 1) - head(); }
 
   // check if blk is last block in series
-  bool lastBlk(Blk *blk) const { return blk == m_lastBlk; }
+  bool lastBlk(const Blk *blk) const { return blk == m_lastBlk; }
 
   // value count (length of series in #values)
   uint64_t count() const {
@@ -476,7 +491,8 @@ public:
       return {};
     }
     BlkOffset blkOffset = ZuSearchPos(result);
-    RdRef handle = new Reader{this, blkOffset, getBlk(blkOffset), offset};
+    RdRef handle =
+      new RdrListNode{this, blkOffset, getBlk(blkOffset), offset};
     addHistReader(handle);
     return handle;
   }
@@ -516,7 +532,8 @@ public:
       return {};
     }
     BlkOffset blkOffset = ZuSearchPos(result);
-    RdRef handle = new Reader{this, blkOffset, getBlk(blkOffset), value};
+    RdRef handle =
+      new RdrListNode{this, blkOffset, getBlk(blkOffset), value};
     addHistReader(handle);
     return handle;
   }
@@ -596,7 +613,7 @@ private:
   BlkData *newBlkData(ZdbTable<DB::BlkData> *tbl) const {
     return new BlkData{
       BlkData::EvictFn{this, [](auto *this_, BlkData *blkData) {
-	this_->unloadBlkData(blkData);
+	const_cast<Series *>(this_)->unloadBlkData(blkData);
       }}, tbl, m_shard};
   }
 
@@ -615,7 +632,7 @@ public:
     } else if (m_lastBlk->count()) { // last block is not empty - load the data
       if (!m_lastBlk->blkData) {
 	ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
-	loadBlk(this, m_lastBlkOffset, [
+	loadBlk(m_lastBlkOffset, [
 	  this, fn = ZuMv(fn), ndp..., indexBlk = ZuMv(indexBlk)
 	](ZmRef<BlkData> blkData) mutable {
 	  if (ZuUnlikely(!blkData)) { fn(WrRef{}); return; }
@@ -649,19 +666,20 @@ private:
       return;
     }
     // continue writing to partially-full last block
-    const auto &buf = m_lastBlk->blkData->data().buf;
+    auto &buf = m_lastBlk->blkData->data().buf;
     Decoder decoder{buf.data(), buf.data() + buf.length()};
     while (decoder.skip()); // skip to end
     // construct encoder from decoder to continue writing block
-    m_writer->encoder() = Encoder{decoder, buf.data() + BlkSize};
+    m_writer->encoder([&decoder, &buf]{
+      return Encoder{decoder, buf.data() + BlkSize};
+    });
     fn(WrRef{m_writer});
   }
   template <typename... NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
   write_newWriter(ZmFn<void(WrRef)> fn, NDP... ndp) {
     if constexpr (Fixed) m_lastBlk->ndp(ndp...);
-    m_writer->encoder() =
-      m_lastBlk->encoder<Decoder>();
+    m_writer->encoder([this]{ return m_lastBlk->encoder<Decoder>(this); });
     // call async to constrain stack depth
     run([this_ = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
       ZuMv(fn)(WrRef{this_->m_writer});
@@ -714,52 +732,52 @@ private:
 
   // store the first value in a new series (used for subsequent searching)
   void write_firstValue(Value value) {
-    m_dbSeries->data().first = value;
+    auto &data = m_dbSeries->data();
+    if constexpr (Fixed) {
+      data.first = value.mantissa;
+      data.ndp = value.ndp;
+    } else {
+      data.first = value;
+    }
     seriesTbl()->template update<>(m_dbSeries,
       [](ZdbObject<DBSeries> *dbSeries) {
 	if (dbSeries) dbSeries->commit();
       });
   }
   // main write function
-  bool write_(Writer *writer, Value value) {
+  bool write_(Writer *writer, PValue value) {
     if (ZuUnlikely(!m_lastBlkOffset && !m_lastBlk->offset())) {
-      write_firstValue(value);
-      if constexpr (Fixed) m_lastBlk->ndp(value.ndp);
+      if constexpr (Fixed) {
+	auto ndp = writer->ndp();
+	write_firstValue(ZuFixed{value, ndp});
+	m_lastBlk->ndp(ndp);
+      } else {
+	write_firstValue(value);
+      }
     }
-    auto &encoder = writer->encoder();
-    if constexpr (Fixed) {
-      if (value.ndp == m_lastBlk->ndp() &&
-	  encoder.write(value.mantissa)) return true;
-    } else {
-      if (encoder.write(value)) return true;
-    }
-    encoder.finish();
-    m_lastBlk->sync(encoder, encoder.last());
+    if (writer->encode(value)) return true;
+    writer->finish(m_lastBlk);
     saveBlk();
     pushBlk();
-    encoder = m_lastBlk->encoder<Decoder>();
-    if constexpr (Fixed) {
-      m_lastBlk->ndp(value.ndp);
-      return encoder.write(value.mantissa);
-    } else {
-      return encoder.write(value);
-    }
+    writer->encoder([this]() { return m_lastBlk->encoder<Decoder>(this); });
+    if constexpr (Fixed) m_lastBlk->ndp(writer->ndp());
+    return writer->encode(value);
   }
   // notify live readers
   void write_notify() {
     auto i = m_liveReaders.iterator();
     while (auto reader = i.iterate())
       switch (reader->nextValue()) {
-	case Reader::Stopped:
-	case Reader::Failed:
+	case RdrResult::Stopped:
+	case RdrResult::Failed:
 	  m_histReaders.pushNode(reader);
 	  i.del();
       }
   }
   // called from Writer_::write
-  bool write(Writer *writer, Value value) {
+  bool write(Writer *writer, PValue value) {
     bool ok = write_(writer, value);
-    if (ok) write_notify<Value>(value);
+    if (ok) write_notify();
     return ok;
   }
 
@@ -785,7 +803,7 @@ private:
     };
 
     if (m_lastBlk->blkData->state() == ZdbObjState::Undefined) {
-      ZdbObjRef<DBBlk> dbBlk = new ZdbObject<DBBlk>{blkTbl()};
+      ZdbObjRef<DBBlk> dbBlk = new ZdbObject<DBBlk>{blkTbl(), m_shard};
       new (dbBlk->ptr()) DBBlk{
 	.blkOffset = m_lastBlkOffset,
 	.offset = m_lastBlk->offset(),
@@ -829,7 +847,7 @@ private:
 
   // load blk from database
   template <typename L>
-  void loadBlk(BlkOffset blkOffset, L l) {
+  void loadBlk(BlkOffset blkOffset, L l) const {
     blkDataTbl()->template find<0>(
       shard(), ZuFwdTuple(id(), blkOffset), ZuMv(l),
       [this](ZdbTable<DB::BlkData> *tbl) { return newBlkData(tbl); });
@@ -842,7 +860,7 @@ private:
     if (!indexBlk) { l(nullptr); return; }
     auto blk = &indexBlk->blks[blkOffset - indexBlk->offset];
     if (blk->blkData) { l(blk); return; }
-    loadBlk(this, blkOffset, [
+    loadBlk(blkOffset, [
       indexBlk = ZuMv(indexBlk), blk, l = ZuMv(l) // keep indexBlk in scope
     ](ZmRef<BlkData> blkData) mutable {
       if (ZuUnlikely(!blkData)) { l(nullptr); return; }
@@ -852,7 +870,7 @@ private:
   }
 
   // called from BlkData::evict() during cache eviction
-  void unloadBlkData(BlkData *blkData) {
+  void unloadBlkData(BlkData *blkData) const {
     BlkOffset blkOffset = blkData->data().blkOffset;
     ZmRef<IndexBlk> indexBlk = m_index.find(blkOffset);
     if (!indexBlk) return;
@@ -861,10 +879,18 @@ private:
   }
 
   // Reader management
-  void addHistReader(Reader *reader) { m_histReaders.push(reader); }
-  void delHistReader(Reader *reader) { m_histReaders.delNode(reader); }
-  void addLiveReader(Reader *reader) { m_liveReaders.push(reader); }
-  void delLiveReader(Reader *reader) { m_liveReaders.delNode(reader); }
+  void addHistReader(Reader *reader) const {
+    m_histReaders.pushNode(static_cast<RdrListNode *>(reader));
+  }
+  void delHistReader(Reader *reader) const {
+    m_histReaders.delNode(static_cast<RdrListNode *>(reader));
+  }
+  void addLiveReader(Reader *reader) const {
+    m_liveReaders.pushNode(static_cast<RdrListNode *>(reader));
+  }
+  void delLiveReader(Reader *reader) const {
+    m_liveReaders.delNode(static_cast<RdrListNode *>(reader));
+  }
 
   // seek function used in interpolation search
   auto seekFn(BlkOffset blkOffset, Offset target) const {
@@ -922,13 +948,12 @@ private:
   }
 
   // called from Reader::purge()
-  void purge(Reader *reader) {
-    auto blkOffset = reader->blkOffset();
+  void purge(Reader *reader, BlkOffset blkOffset) {
     blkOffset &= ~IndexBlkMask();
     if (ZuUnlikely(!blkOffset)) return;
     auto blk = getBlk(blkOffset - 1);
     if (ZuUnlikely(!blk)) return;
-    if (Fixed)
+    if constexpr (Fixed)
       write_firstValue(ZuFixed{blk->last.fixed, blk->ndp()});
     else
       write_firstValue(blk->last.float_);
@@ -940,13 +965,13 @@ private:
   ZdbObjRef<DBSeries>	m_dbSeries;
   Shard			m_shard;
   SeriesID		m_id;
-  ZuString		m_name;
+  ZuCSpan		m_name;
   ZuTime		m_epoch;
-  Index			m_index;
+  mutable Index		m_index;
   Blk			*m_lastBlk = nullptr;
   BlkOffset		m_lastBlkOffset = 0;
-  ReaderList		m_liveReaders;
-  ReaderList		m_histReaders;
+  mutable ReaderList	m_liveReaders;
+  mutable ReaderList	m_histReaders;
   ZmRef<Writer>		m_writer;
   bool			m_opened = false;
 };
@@ -954,9 +979,9 @@ private:
 // Reader implementation
 
 template <typename Decoder>
-inline Offset Reader_<Decoder>::offset() const
+inline Offset Reader<Decoder>::offset() const
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   switch (m_state) {
     case Loading:
@@ -977,9 +1002,9 @@ inline Offset Reader_<Decoder>::offset() const
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::seekFwd(Offset offset)
+inline bool Reader<Decoder>::seekFwd(Offset offset)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (m_state != Stopped) return false;
   m_series->seekFwd(static_cast<Reader<Decoder> *>(this), m_blkOffset, offset);
@@ -987,9 +1012,9 @@ inline bool Reader_<Decoder>::seekFwd(Offset offset)
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::seekRev(Offset offset)
+inline bool Reader<Decoder>::seekRev(Offset offset)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (m_state != Stopped) return false;
   m_series->seekRev(static_cast<Reader<Decoder> *>(this), m_blkOffset, offset);
@@ -997,9 +1022,9 @@ inline bool Reader_<Decoder>::seekRev(Offset offset)
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::findFwd(Value value)
+inline bool Reader<Decoder>::findFwd(Value value)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (m_state != Stopped) return false;
   m_series->findFwd(static_cast<Reader<Decoder> *>(this), m_blkOffset, value);
@@ -1007,9 +1032,9 @@ inline bool Reader_<Decoder>::findFwd(Value value)
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::findRev(Value value)
+inline bool Reader<Decoder>::findRev(Value value)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (m_state != Stopped) return false;
   m_series->findRev(static_cast<Reader<Decoder> *>(this), m_blkOffset, value);
@@ -1017,10 +1042,10 @@ inline bool Reader_<Decoder>::findRev(Value value)
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::init(
+inline bool Reader<Decoder>::init(
   BlkOffset blkOffset, Blk *blk, Target target)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   ZeAssert(blk, (), "null blk", return);
 
@@ -1049,9 +1074,9 @@ inline bool Reader_<Decoder>::init(
 }
 
 template <typename Decoder>
-inline bool Reader_<Decoder>::read(Fn fn, ErrorFn errorFn)
+inline bool Reader<Decoder>::read(Fn fn, ErrorFn errorFn)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (m_failed) return false;
 
@@ -1077,9 +1102,9 @@ inline bool Reader_<Decoder>::read(Fn fn, ErrorFn errorFn)
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::stop(StopFn fn)
+inline void Reader<Decoder>::stop(StopFn fn)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   auto unpin = [this] {
     ZeAssert(m_blk, (), "null blk", break);
@@ -1119,9 +1144,9 @@ inline void Reader_<Decoder>::stop(StopFn fn)
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::loadBlk()
+inline void Reader<Decoder>::loadBlk()
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (ZuUnlikely(m_failed)) return;
 
@@ -1152,9 +1177,9 @@ inline void Reader_<Decoder>::loadBlk()
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::loaded(Blk *blk)
+inline void Reader<Decoder>::loaded(const Blk *blk)
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   if (ZuUnlikely(m_failed)) return;
 
@@ -1188,10 +1213,10 @@ inline void Reader_<Decoder>::loaded(Blk *blk)
 	  return;
 	}
     } else {
-      auto value = m_target.template p<typename Decoder::Value>();
+      auto value = m_target.template p<Value>();
       if (!m_decoder.search([
-	value
-      ](Value skip, unsigned count) -> unsigned {
+	value = value.adjust(m_blk->ndp())
+      ](PValue skip, unsigned count) -> unsigned {
 	return skip < value ? count : 0;
       })) {
 	nextBlk();
@@ -1201,29 +1226,29 @@ inline void Reader_<Decoder>::loaded(Blk *blk)
     m_target = {};
   }
 
-  nextValue(); // ignored
+  nextValue(); // return value ignored
 }
 
 template <typename Decoder>
-inline int Reader_<Decoder>::nextBlk()
+inline int Reader<Decoder>::nextBlk()
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
-  if (ZuUnlikely(m_failed)) return Failed;
+  if (ZuUnlikely(m_failed)) return RdrResult::Failed;
 
   switch (m_state) {
     case Stopping:
-      return Stopped;
+      return RdrResult::Stopped;
     case Reading:
     case Live:
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return Failed);
+	(state = int(m_state)), "invalid state " << state, return RdrResult::Failed);
   }
 
-  ZeAssert(m_blk, (), "null blk", return Failed);
-  ZeAssert(m_blk->blkData, (), "null blkData", return Failed);
+  ZeAssert(m_blk, (), "null blk", return RdrResult::Failed);
+  ZeAssert(m_blk->blkData, (), "null blkData", return RdrResult::Failed);
 
   if (m_series->lastBlk(m_blk)) {
     if (m_state == Reading) {
@@ -1231,7 +1256,7 @@ inline int Reader_<Decoder>::nextBlk()
       m_series->delHistReader(this);
       m_series->addLiveReader(this);
     }
-    return EOS;
+    return RdrResult::EOS;
   }
   m_decoder = {};
   m_blk->blkData->unpin();
@@ -1239,20 +1264,20 @@ inline int Reader_<Decoder>::nextBlk()
   if (ZuLikely(m_blk->blkData)) {
     m_blk->blkData->pin();
     m_decoder = m_blk->decoder<Decoder>();
-    return OK;
+    return RdrResult::OK;
   }
   m_series->run([this_ = ZmMkRef(this)]() mutable {
     this_->loadBlk();
   });
-  return Load;
+  return RdrResult::Load;
 }
 
 template <typename Decoder>
-inline int Reader_<Decoder>::nextValue()
+inline int Reader<Decoder>::nextValue()
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
-  if (ZuUnlikely(m_failed)) return Failed;
+  if (ZuUnlikely(m_failed)) return RdrResult::Failed;
 
   switch (m_state) {
     case Stopping: // handled below
@@ -1271,29 +1296,36 @@ inline int Reader_<Decoder>::nextValue()
   bool cont = true;
 
   do {
-    if (m_state == Stopping) return Stopped;
+    if (m_state == Stopping) return RdrResult::Stopped;
 
     typename Decoder::Value value;
     if (ZuUnlikely(!m_decoder.read(value))) {
       int r = nextBlk();
-      if (r != OK) return r;
-      continue;
+      if (ZuLikely(r == RdrResult::OK)) continue;
+      if (r != RdrResult::EOS) return r;
+      if constexpr (ZuIsExact<Value, ZuFixed>{})
+	cont = m_fn(this, ZuFixed{});
+      else
+	cont = m_fn(this, ZuFP<double>::nan());
+      if (cont) return r;
+      stop({});
+      return RdrResult::Stopped;
     }
 
     if constexpr (ZuIsExact<Value, ZuFixed>{})
-      cont = m_fn(ZuFixed{value, ndp()});
+      cont = m_fn(this, ZuFixed{value, ndp()});
     else
-      cont = m_fn(value);
+      cont = m_fn(this, value);
   } while (cont);
 
   stop({});
-  return Stopped;
+  return RdrResult::Stopped;
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::stopped()
+inline void Reader<Decoder>::stopped()
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   ZeAssert(m_state == Stopping, (), "invalid state", return);
 
@@ -1304,9 +1336,9 @@ inline void Reader_<Decoder>::stopped()
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::fail()
+inline void Reader<Decoder>::fail()
 {
-  using namespace ReaderState;
+  using namespace RdrState;
 
   m_failed = true;
 
@@ -1324,9 +1356,9 @@ inline void Reader_<Decoder>::fail()
 }
 
 template <typename Decoder>
-inline void Reader_<Decoder>::purge()
+inline void Reader<Decoder>::purge()
 {
-  m_series->purge(m_blkOffset);
+  const_cast<Series *>(m_series)->purge(this, m_blkOffset);
 }
 
 inline constexpr const char *closedWriter() {
@@ -1335,23 +1367,16 @@ inline constexpr const char *closedWriter() {
 
 // Writer implementation
 
-template <typename Decoder, typename Heap, typename Value_>
-inline bool Writer_<Decoder, Heap, Value_>::write(Value value)
+template <typename Decoder, typename Heap, typename Value>
+inline bool Writer__<Decoder, Heap, Value>::write(Value value)
 {
   ZeAssert(m_series, (), closedWriter(), return false);
 
-  return m_series->write(this, ZuFixed{value, m_ndp});
-}
-template <typename Decoder, typename Heap>
-inline bool Writer_<Decoder, Heap, double>::write(Value value)
-{
-  ZeAssert(m_series, (), closedWriter(), return false);
-
-  return m_series->write(this, value);
+  return m_series->write(static_cast<Writer<Decoder> *>(this), value);
 }
 
-template <typename Decoder, typename Heap, typename Value_>
-inline void Writer_<Decoder, Heap, Value_>::stop()
+template <typename Decoder, typename Heap, typename Value>
+inline void Writer__<Decoder, Heap, Value>::stop()
 {
   if (auto series = m_series) {
     m_series = nullptr;

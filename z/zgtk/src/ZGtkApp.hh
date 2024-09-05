@@ -13,7 +13,7 @@
 #include <zlib/ZGtkLib.hh>
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZmScheduler.hh>
 #include <zlib/ZmLock.hh>

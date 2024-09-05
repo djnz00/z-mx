@@ -1,4 +1,4 @@
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCArray.hh>
 
 #include <mxbase/MxBase.hh>
 #include <mxbase/MxValWindow.hh>

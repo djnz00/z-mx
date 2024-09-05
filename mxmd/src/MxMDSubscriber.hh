@@ -48,7 +48,7 @@ public:
   ZuInline ZuTime reReqInterval() const { return ZuTime(m_reReqInterval); }
   ZuInline unsigned reReqMaxGap() const { return m_reReqMaxGap; }
 
-  void updateLinks(ZuString channels); // update from CSV
+  void updateLinks(ZuCSpan channels); // update from CSV
 
 private:
   struct ChannelIDAccessor {

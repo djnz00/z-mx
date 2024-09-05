@@ -160,15 +160,15 @@ using ZiIP_AddrInfo = struct addrinfo;
 
 #endif /* _WIN32 */
 
-int ZiIP::resolve_(ZuString host_, ZeError *e)
+int ZiIP::resolve_(ZuCSpan host_, ZeError *e)
 #ifdef _WIN32
 {
-  ZuWStringN<Zi::NameMax + 1> host;
+  ZuWArray<Zi::NameMax + 1> host;
   host.length(ZuUTF<wchar_t, char>::cvt(
-	ZuArray<wchar_t>(host.data(), host.size() - 1), host_));
-  return resolve_(ZuWString{host}, e);
+	ZuSpan<wchar_t>(host.data(), host.size() - 1), host_));
+  return resolve_(ZuWSpan{host}, e);
 }
-int ZiIP::resolve_(ZuWString host_, ZeError *e)
+int ZiIP::resolve_(ZuWSpan host_, ZeError *e)
 #endif /* _WIN32 */
 {
   ZiIP_InitOnce();
@@ -179,9 +179,9 @@ int ZiIP::resolve_(ZuWString host_, ZeError *e)
  
   // ensure host is null terminated
 #ifndef _WIN32
-  ZuStringN<Zi::HostnameMax> host(host_);
+  ZuCArray<Zi::HostnameMax> host(host_);
 #else
-  ZuWStringN<Zi::HostnameMax> host(host_);
+  ZuWArray<Zi::HostnameMax> host(host_);
 #endif
 
   memset(&hints, 0, sizeof(ZiIP_AddrInfo));

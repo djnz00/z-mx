@@ -36,7 +36,7 @@ namespace DaFlags {
 }
 
 struct Row {
-  ZuStringN<24>	m_string;
+  ZuCArray<24>	m_string;
   int		m_int;
   int		m_bool;
   double	m_float;

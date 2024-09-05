@@ -16,7 +16,7 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuIterator.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 #include <zlib/ZuUnroll.hh>
@@ -88,7 +88,7 @@ struct PrintScan {
   auto impl() const { return static_cast<const Bitmap *>(this); }
   auto impl() { return static_cast<Bitmap *>(this); }
 
-  static int scanLast(ZuString s) {
+  static int scanLast(ZuCSpan s) {
     const char *data = s.data();
     unsigned length = s.length(), offset = 0;
     int last = -1;
@@ -112,7 +112,7 @@ struct PrintScan {
     }
     return last;
   }
-  unsigned scan(ZuString s) {
+  unsigned scan(ZuCSpan s) {
     const char *data = s.data();
     unsigned length = s.length(), offset = 0;
     if (!length) return 0;
@@ -209,15 +209,15 @@ public:
   template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
   Bitmap_(unsigned n) : Data{n} { }
   template <typename _ = Data, decltype(ZuIfT<!_::Fixed>(), int()) = 0>
-  Bitmap_(ZuString s) : Data{1U + this->scanLast(s)} {
+  Bitmap_(ZuCSpan s) : Data{1U + this->scanLast(s)} {
     this->scan(s);
   }
   template <typename _ = Data, decltype(_{ZuDeclVal<unsigned>()}, int()) = 0>
-  Bitmap_(ZuString s, unsigned n) : Data{n} {
+  Bitmap_(ZuCSpan s, unsigned n) : Data{n} {
     this->scan(s);
   }
   template <typename _ = Data, decltype(ZuIfT<_::Fixed>(), int()) = 0>
-  Bitmap_(ZuString s) {
+  Bitmap_(ZuCSpan s) {
     this->scan(s);
   }
 
@@ -336,8 +336,8 @@ public:
 
 // buffer access
 
-  auto buf() { return ZuArray{&data[0], length()>>BitShift}; }
-  auto cbuf() const { return ZuArray{&data[0], length()>>BitShift}; }
+  auto buf() { return ZuSpan{&data[0], length()>>BitShift}; }
+  auto cbuf() const { return ZuSpan{&data[0], length()>>BitShift}; }
 
 // comparison
 

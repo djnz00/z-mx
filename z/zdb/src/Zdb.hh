@@ -189,7 +189,7 @@ using Cxn = CxnList::Node;
 
 // --- DB state - SN and key/value linear hash from {table ID, shard} -> UN
 
-using DBState_ = ZmLHashKV<ZuTuple<ZuString, Shard>, UN, ZmLHashLocal<>>;
+using DBState_ = ZmLHashKV<ZuTuple<ZuCSpan, Shard>, UN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   SN		sn = 0;
 
@@ -242,7 +242,7 @@ struct DBState : public DBState_ {
     }
     return false;
   }
-  bool update(ZuTuple<ZuString, Shard> key, UN un_) {
+  bool update(ZuTuple<ZuCSpan, Shard> key, UN un_) {
     auto state = find(key);
     if (!state) {
       add(key, un_);
@@ -1656,11 +1656,11 @@ struct DBCf {
   DBCf(DBCf &&) = default;
   DBCf &operator =(DBCf &&) = default;
 
-  const TableCf *tableCf(ZuString id) const {
+  const TableCf *tableCf(ZuCSpan id) const {
     if (auto node = tableCfs.findPtr(id)) return &node->val();
     return nullptr;
   }
-  TableCf *tableCf(ZuString id) {
+  TableCf *tableCf(ZuCSpan id) {
     auto node = tableCfs.findPtr(id);
     if (!node) tableCfs.addNode(node = new TableCfs::Node{id});
     return &node->val();
@@ -1780,7 +1780,7 @@ public:
   void fail();
 
   // find table
-  ZmRef<AnyTable> table(ZuString id) {
+  ZmRef<AnyTable> table(ZuCSpan id) {
     ZmAssert(invoked());
 
     return m_tables.findVal(id);
@@ -1872,7 +1872,7 @@ private:
   bool replicate(ZmRef<const IOBuf> buf);
 
   // inbound replication
-  void replicated(Host *host, ZuString tblID, Shard shard, UN un, SN sn);
+  void replicated(Host *host, ZuCSpan tblID, Shard shard, UN un, SN sn);
 
   bool isStandalone() const { return m_standalone; }
 

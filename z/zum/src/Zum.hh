@@ -13,7 +13,7 @@
 #include <zlib/ZumLib.hh>
 #endif
 
-#include <zlib/ZuArrayN.hh>
+#include <zlib/ZuArray.hh>
 
 #include <zlib/ZtString.hh>
 
@@ -50,9 +50,9 @@ using SeqNo = uint64_t;
 
 static constexpr mbedtls_md_type_t keyType() { return MBEDTLS_MD_SHA256; }
 enum { KeySize = Ztls::HMAC::Size<keyType()>::N }; // 256 bit key
-using KeyData = ZuArrayN<uint8_t, KeySize>;
+using KeyData = ZuArray<uint8_t, KeySize>;
 enum { KeyIDSize = 16 };
-using KeyIDData = ZuArrayN<uint8_t, KeyIDSize>;
+using KeyIDData = ZuArray<uint8_t, KeyIDSize>;
 
 using PermID = uint32_t;
 using UserID = uint64_t;

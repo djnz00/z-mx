@@ -26,7 +26,7 @@
 #define Ztls_VHEAP
 #endif
 
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZmList.hh>
 #include <zlib/ZmHeap.hh>
@@ -654,7 +654,7 @@ template <typename, typename, typename> friend class SrvLink;
   }
 
   template <typename L>
-  bool init(ZiMultiplex *mx, ZuString thread, L l) {
+  bool init(ZiMultiplex *mx, ZuCSpan thread, L l) {
     m_mx = mx;
     if (!(m_thread = m_mx->sid(thread))) {
       ZeLOG(Error, ([thread = ZtString{thread}](auto &s) {
@@ -815,7 +815,7 @@ friend Base;
   }
 
   // specify certPath and keyPath for mTLS
-  bool init(ZiMultiplex *mx, ZuString thread,
+  bool init(ZiMultiplex *mx, ZuCSpan thread,
       const char *caPath, const char **alpn,
       const char *certPath = nullptr, const char *keyPath = nullptr) {
     return Base::init(mx, thread, [
@@ -912,7 +912,7 @@ friend Base;
     mbedtls_x509_crt_free(&m_cert);
   }
 
-  bool init(ZiMultiplex *mx, ZuString thread,
+  bool init(ZiMultiplex *mx, ZuCSpan thread,
       const char *caPath, const char **alpn,
       const char *certPath, const char *keyPath,
       bool mTLS = false, int cacheMax = -1, int cacheTimeout = -1) {

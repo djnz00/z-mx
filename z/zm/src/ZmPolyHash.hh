@@ -124,7 +124,7 @@ public:
   using NodeRef = typename Primary::NodeRef;
   using NodeMvRef = typename Primary::NodeMvRef;
 
-  ZmPolyHash(ZuString id) {
+  ZmPolyHash(ZuCSpan id) {
     auto params = ZmHashParams{id};
     ZuUnroll::all<KeyIDs>([this, &id, &params]<typename KeyID>() {
       m_hashes.template p<KeyID{}>(new Hash<KeyID>{id, params});

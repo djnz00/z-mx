@@ -24,8 +24,8 @@
 
 #include <zlib/ZuNull.hh>
 #include <zlib/ZuTuple.hh>
-#include <zlib/ZuString.hh>
-#include <zlib/ZuStringN.hh>
+#include <zlib/ZuCSpan.hh>
+#include <zlib/ZuCArray.hh>
 #include <zlib/ZuMvArray.hh>
 #include <zlib/ZuID.hh>
 
@@ -112,7 +112,7 @@ struct ZmAPI ZmSchedParams {
   const Thread &thread(unsigned sid) const { return m_threads[sid]; }
 
 public:
-  unsigned sid(ZuString s) const {
+  unsigned sid(ZuCSpan s) const {
     unsigned sid;
     if (sid = ZuBox0(unsigned){s}) return sid;
     for (sid = 0; sid <= m_nThreads; sid++)
@@ -427,7 +427,7 @@ public:
     return m_threads[sid - 1].overRing;
   }
 
-  unsigned sid(ZuString s) const {
+  unsigned sid(ZuCSpan s) const {
     unsigned sid;
     if (sid = ZuBox0(unsigned){s}) return sid;
     unsigned n;

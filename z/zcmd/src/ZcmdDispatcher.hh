@@ -13,7 +13,7 @@
 #include <zlib/ZcmdLib.hh>
 #endif
 
-#include <zlib/ZuArray.hh>
+#include <zlib/ZuSpan.hh>
 #include <zlib/ZuID.hh>
 
 #include <zlib/ZmFn.hh>

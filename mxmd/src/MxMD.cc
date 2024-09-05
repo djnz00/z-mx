@@ -144,7 +144,7 @@ void MxMDPxLevel_::deletedOrder_(MxMDOrder *order, MxDateTime transactTime)
 MxMDOrderBook::MxMDOrderBook( // single leg
   MxMDShard *shard, 
   MxMDVenue *venue,
-  MxID segment, ZuString id,
+  MxID segment, ZuCSpan id,
   MxMDInstrument *instrument,
   MxMDTickSizeTbl *tickSizeTbl,
   const MxMDLotSizes &lotSizes,
@@ -170,7 +170,7 @@ MxMDOrderBook::MxMDOrderBook( // single leg
 MxMDOrderBook::MxMDOrderBook( // multi-leg
   MxMDShard *shard, 
   MxMDVenue *venue,
-  MxID segment, ZuString id, MxNDP pxNDP, MxNDP qtyNDP,
+  MxID segment, ZuCSpan id, MxNDP pxNDP, MxNDP qtyNDP,
   MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
   const MxEnum *sides, const MxRatio *ratios,
   MxMDTickSizeTbl *tickSizeTbl,
@@ -659,7 +659,7 @@ void MxMDOrderBook::delOrder_(
 }
 
 ZmRef<MxMDOrder> MxMDOrderBook::addOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags)
 {
   if (ZuUnlikely(!m_venueShard)) return (MxMDOrder *)0;
@@ -695,7 +695,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::addOrder(
 }
 
 ZmRef<MxMDOrder> MxMDOrderBook::modifyOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags)
 {
   if (ZuUnlikely(!m_venueShard)) return (MxMDOrder *)0;
@@ -715,7 +715,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::modifyOrder(
 }
 
 void MxMDVenue::modifyOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags,
   ZmFn<void(MxMDOrder *)> fn)
 {
@@ -771,7 +771,7 @@ void MxMDOrderBook::modifyOrder_(MxMDOrder *order, MxDateTime transactTime,
 }
 
 ZmRef<MxMDOrder> MxMDOrderBook::reduceOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxEnum side, MxValue reduceQty)
 {
   if (ZuUnlikely(!m_venueShard)) return (MxMDOrder *)0;
@@ -788,7 +788,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::reduceOrder(
 }
 
 void MxMDVenue::reduceOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxValue reduceQty, ZmFn<void(MxMDOrder *)> fn)
 {
   ZmRef<MxMDOrder> order = findOrder(orderID);
@@ -842,7 +842,7 @@ void MxMDOrderBook::reduceOrder_(MxMDOrder *order,
 }
 
 ZmRef<MxMDOrder> MxMDOrderBook::cancelOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   MxEnum side)
 {
   if (ZuUnlikely(!m_venueShard)) return (MxMDOrder *)0;
@@ -853,7 +853,7 @@ ZmRef<MxMDOrder> MxMDOrderBook::cancelOrder(
 }
 
 void MxMDVenue::cancelOrder(
-  ZuString orderID, MxDateTime transactTime,
+  ZuCSpan orderID, MxDateTime transactTime,
   ZmFn<void(MxMDOrder *)> fn)
 {
   ZmRef<MxMDOrder> order = delOrder(orderID);
@@ -961,7 +961,7 @@ void MxMDOrderBook::updateNDP(
 }
 
 void MxMDOrderBook::addTrade(
-  ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+  ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   md()->addTrade(this, tradeID, transactTime, price, qty);
   if (m_handler && m_handler->addTrade) {
@@ -972,7 +972,7 @@ void MxMDOrderBook::addTrade(
 }
 
 void MxMDOrderBook::correctTrade(
-  ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+  ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   md()->correctTrade(this, tradeID, transactTime, price, qty);
   if (m_handler && m_handler->correctedTrade) {
@@ -983,7 +983,7 @@ void MxMDOrderBook::correctTrade(
 }
 
 void MxMDOrderBook::cancelTrade(
-  ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+  ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   md()->cancelTrade(this, tradeID, transactTime, price, qty);
   if (m_handler && m_handler->canceledTrade) {
@@ -1134,14 +1134,14 @@ bool MxMDVenue::allTickSizeTbls(ZmFn<void(MxMDTickSizeTbl *)> fn) const
   return true;
 }
 
-ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl_(ZuString id, MxNDP pxNDP)
+ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl_(ZuCSpan id, MxNDP pxNDP)
 {
   ZmRef<MxMDTickSizeTbl> tbl = new MxMDTickSizeTbl(this, id, pxNDP);
   m_tickSizeTbls.add(tbl);
   return tbl;
 }
 
-ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl(ZuString id, MxNDP pxNDP)
+ZmRef<MxMDTickSizeTbl> MxMDVenue::addTickSizeTbl(ZuCSpan id, MxNDP pxNDP)
 {
   return md()->addTickSizeTbl(this, id, pxNDP);
 }
@@ -1160,7 +1160,7 @@ void MxMDVenue::tradingSession(MxMDSegment segment)
 }
 
 ZmRef<MxMDOrderBook> MxMDVenueShard::addCombination(
-  MxID segment, ZuString id, MxNDP pxNDP, MxNDP qtyNDP,
+  MxID segment, ZuCSpan id, MxNDP pxNDP, MxNDP qtyNDP,
   MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
   const MxEnum *sides, const MxRatio *ratios,
   MxMDTickSizeTbl *tickSizeTbl, const MxMDLotSizes &lotSizes,
@@ -1172,7 +1172,7 @@ ZmRef<MxMDOrderBook> MxMDVenueShard::addCombination(
       transactTime);
 }
 
-void MxMDVenueShard::delCombination(MxID segment, ZuString id, MxDateTime transactTime)
+void MxMDVenueShard::delCombination(MxID segment, ZuCSpan id, MxDateTime transactTime)
 {
   md()->delCombination(this, segment, id, transactTime);
 }
@@ -1295,12 +1295,12 @@ void MxMDLib::init_(void *cf_)
     ZeLOG(Info, "MxMDLib - configuring shards...");
     m_shards.length(shardsCf->count());
     ZvCf::Iterator i(shardsCf);
-    ZuString key;
+    ZuCSpan key;
     while (ZmRef<ZvCf> shardCf = i.subset(key)) {
       ZuBox<unsigned> id = key;
-      if (key != ZuStringN<12>{id} || id >= m_shards.length())
+      if (key != ZuCArray<12>{id} || id >= m_shards.length())
 	throw ZtString{} << "bad shard ID \"" << key << '"';
-      if (ZuString s = shardCf->get("thread", true))
+      if (ZuCSpan s = shardCf->get("thread", true))
 	if (!(tid = mx->tid(s)))
 	  throw ZtString()
 	    << "shard misconfigured - bad thread \"" << s << '"';
@@ -1315,7 +1315,7 @@ void MxMDLib::init_(void *cf_)
   // Assumption: DST transitions do not occur while market is open
   {
     ZuDateTime now{Zm::now()};
-    ZuString timezone = cf->get("timezone"); // default to system tz
+    ZuCSpan timezone = cf->get("timezone"); // default to system tz
     now.sec() = 0, now.nsec() = 0; // midnight GMT (start of today)
     now += ZuTime((time_t)(now.offset(timezone) + 43200)); // midday local time
     m_tzOffset = now.offset(timezone);
@@ -1391,7 +1391,7 @@ MxMDVenueMapping MxMDLib::venueMapping(MxMDVenueMapKey key)
 }
 
 ZmRef<MxMDTickSizeTbl> MxMDLib::addTickSizeTbl(
-    MxMDVenue *venue, ZuString id, MxNDP pxNDP)
+    MxMDVenue *venue, ZuCSpan id, MxNDP pxNDP)
 {
   ZmRef<MxMDTickSizeTbl> tbl;
   {
@@ -1688,7 +1688,7 @@ added:
 }
 
 ZmRef<MxMDOrderBook> MxMDLib::addCombination(
-    MxMDVenueShard *venueShard, MxID segment, ZuString id,
+    MxMDVenueShard *venueShard, MxID segment, ZuCSpan id,
     MxNDP pxNDP, MxNDP qtyNDP,
     MxUInt legs, const ZmRef<MxMDInstrument> *instruments,
     const MxEnum *sides, const MxRatio *ratios,
@@ -1764,7 +1764,7 @@ void MxMDLib::delOrderBook(
 }
 
 void MxMDLib::delCombination(
-    MxMDVenueShard *venueShard, MxID segment, ZuString id,
+    MxMDVenueShard *venueShard, MxID segment, ZuCSpan id,
     MxDateTime transactTime)
 {
   MxMDShard *shard = venueShard->shard();
@@ -1826,7 +1826,7 @@ void MxMDLib::l2(const MxMDOrderBook *ob, MxDateTime stamp, bool updateL1)
 }
 
 void MxMDLib::addOrder(const MxMDOrderBook *ob,
-    ZuString orderID, MxDateTime transactTime,
+    ZuCSpan orderID, MxDateTime transactTime,
     MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
@@ -1836,7 +1836,7 @@ void MxMDLib::addOrder(const MxMDOrderBook *ob,
 	orderID, ob->pxNDP(), ob->qtyNDP(), side);
 }
 void MxMDLib::modifyOrder(const MxMDOrderBook *ob,
-    ZuString orderID, MxDateTime transactTime,
+    ZuCSpan orderID, MxDateTime transactTime,
     MxEnum side, MxUInt rank, MxValue price, MxValue qty, MxFlags flags)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
@@ -1846,7 +1846,7 @@ void MxMDLib::modifyOrder(const MxMDOrderBook *ob,
 	orderID, ob->pxNDP(), ob->qtyNDP(), side);
 }
 void MxMDLib::cancelOrder(const MxMDOrderBook *ob,
-    ZuString orderID, MxDateTime transactTime, MxEnum side)
+    ZuCSpan orderID, MxDateTime transactTime, MxEnum side)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
   if (ZuUnlikely(core->streaming()))
@@ -1864,7 +1864,7 @@ void MxMDLib::resetOB(const MxMDOrderBook *ob,
 }
 
 void MxMDLib::addTrade(const MxMDOrderBook *ob,
-    ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+    ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
   if (ZuUnlikely(core->streaming()))
@@ -1872,7 +1872,7 @@ void MxMDLib::addTrade(const MxMDOrderBook *ob,
 	ob->key(), price, qty, tradeID, ob->pxNDP(), ob->qtyNDP());
 }
 void MxMDLib::correctTrade(const MxMDOrderBook *ob,
-    ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+    ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
   if (ZuUnlikely(core->streaming()))
@@ -1880,7 +1880,7 @@ void MxMDLib::correctTrade(const MxMDOrderBook *ob,
 	ob->key(), price, qty, tradeID, ob->pxNDP(), ob->qtyNDP());
 }
 void MxMDLib::cancelTrade(const MxMDOrderBook *ob,
-    ZuString tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
+    ZuCSpan tradeID, MxDateTime transactTime, MxValue price, MxValue qty)
 {
   MxMDCore *core = static_cast<MxMDCore *>(this);
   if (ZuUnlikely(core->streaming()))
@@ -1890,7 +1890,7 @@ void MxMDLib::cancelTrade(const MxMDOrderBook *ob,
 
 // commands
 
-ZuString MxMDLib::lookupSyntax()
+ZuCSpan MxMDLib::lookupSyntax()
 {
   return 
     "src S S { param src } "
@@ -1902,7 +1902,7 @@ ZuString MxMDLib::lookupSyntax()
     "strike x x { param strike }";
 }
 
-ZuString MxMDLib::lookupOptions()
+ZuCSpan MxMDLib::lookupOptions()
 {
   return
     "  -S, --src=SRC\t- symbol ID source is SRC\n"
@@ -1918,7 +1918,7 @@ ZuString MxMDLib::lookupOptions()
 MxUniKey MxMDLib::parseInstrument(ZvCf *args, unsigned index) const
 {
   MxUniKey key;
-  key.id = args->get(ZuStringN<16>(ZuBoxed(index)));
+  key.id = args->get(ZuCArray<16>(ZuBoxed(index)));
   if (ZtString src_ = args->get("src")) {
     key.src = MxInstrIDSrc::lookup(src_);
   } else {

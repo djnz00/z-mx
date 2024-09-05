@@ -157,7 +157,7 @@ class ZiNetlinkFamilyName : public ZiNetlinkAttr {
   enum _ { PADDING = NLA_ALIGN(GENL_NAMSIZ) - GENL_NAMSIZ };
 
 public:
-  ZiNetlinkFamilyName(ZuString s) :
+  ZiNetlinkFamilyName(ZuCSpan s) :
     ZiNetlinkAttr(CTRL_ATTR_FAMILY_NAME,
 	s.length() >= GENL_NAMSIZ ? GENL_NAMSIZ : (s.length() + 1)) {
     unsigned len = s.length() >= GENL_NAMSIZ ? GENL_NAMSIZ : (s.length() + 1);

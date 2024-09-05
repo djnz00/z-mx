@@ -37,15 +37,15 @@ public:
     m_venueOffset(venueOffset - offset) { }
   virtual ~MxMDVenueFlagsCol() { }
 
-  void parse_(MxFlags *f, ZuString b) {
+  void parse_(MxFlags *f, ZuCSpan b) {
     unsigned i, n = b.length(); if (n > 9) n = 9;
     for (i = 0;; i++) {
       if (ZuUnlikely(i == n)) { *f = 0; return; }
       if (b[i] == ':') break;
     }
-    MxID venue = ZuString(&b[0], i++);
+    MxID venue = ZuCSpan(&b[0], i++);
     *(MxID *)((char *)(void *)f + m_venueOffset) = venue;
-    MxMDFlagsStr in = ZuString(&b[i], b.length() - i);
+    MxMDFlagsStr in = ZuCSpan(&b[i], b.length() - i);
     Flags::scan(in, venue, *f);
   }
   void place_(ZtArray<char> &b, const MxFlags *f) {
@@ -341,11 +341,11 @@ public:
     add(new MxNDPCol("qtyNDP", qtyNDP));
     add(new MxUIntCol("legs", Offset(legs)));
     for (unsigned i = 0; i < MxMDNLegs; i++) {
-      ZuStringN<32> instrVenue = "instrVenue"; instrVenue << ZuBoxed(i);
-      ZuStringN<32> instrSegment = "instrSegment"; instrSegment << ZuBoxed(i);
-      ZuStringN<32> instrument = "instrument"; instrument << ZuBoxed(i);
-      ZuStringN<32> side = "side"; side << ZuBoxed(i);
-      ZuStringN<32> ratio = "ratio"; ratio << ZuBoxed(i);
+      ZuCArray<32> instrVenue = "instrVenue"; instrVenue << ZuBoxed(i);
+      ZuCArray<32> instrSegment = "instrSegment"; instrSegment << ZuBoxed(i);
+      ZuCArray<32> instrument = "instrument"; instrument << ZuBoxed(i);
+      ZuCArray<32> side = "side"; side << ZuBoxed(i);
+      ZuCArray<32> ratio = "ratio"; ratio << ZuBoxed(i);
       add(new MxIDCol(instrVenue, Offset(instrVenues) + (i * sizeof(MxID))));
       add(new MxIDCol(instrSegment, Offset(instrSegments) + (i * sizeof(MxID))));
       add(new MxIDStrCol(instrument,

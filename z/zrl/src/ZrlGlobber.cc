@@ -35,7 +35,7 @@ QuoteFn Globber::quoteFn()
 }
 
 void Globber::init(
-    ZuArray<const uint8_t> data,	// line data
+    ZuSpan<const uint8_t> data,	// line data
     unsigned cursor,			// cursor offset (in bytes)
     CompSpliceFn splice)		// line splice callback function
 {
@@ -167,7 +167,7 @@ void Globber::init(
 	xqstate = qstate;
       }
     }
-    path << ZuArray<const uint8_t>(&data[off], n);
+    path << ZuSpan<const uint8_t>(&data[off], n);
     off += n;
   }
   {
@@ -188,7 +188,7 @@ void Globber::init(
   }
 
   // initialize filesystem globber
-  m_glob.init(ZuString{path});
+  m_glob.init(ZuCSpan{path});
 
   // if qoff is past cursor, elide re-quoting
   if (qoff >= cursor) return;
@@ -211,7 +211,7 @@ void Globber::init(
     unsigned n = ZuUTF8::in(&path[off], path.length() - off, c);
     if (!n) break;
     if (quoteFn(c)) { replace << '\\'; ++rspan; ++m_lspan; }
-    replace << ZuArray<const uint8_t>(&path[off], n);
+    replace << ZuSpan<const uint8_t>(&path[off], n);
     {
       ZuUTFSpan span{n, 1, ZuUTF32::width(c)};
       rspan += span;
@@ -252,10 +252,10 @@ skip:
   auto entry = m_glob.iterate(next, true);
   if (!entry) return false;
 #ifndef _WIN32
-  ZuArray<const uint8_t> leaf = entry->name;
+  ZuSpan<const uint8_t> leaf = entry->name;
 #else
   ZtString leaf_ = entry->name;	// convert from Windows UCS2 to UTF8
-  ZuArray<const uint8_t> leaf = leaf_;
+  ZuSpan<const uint8_t> leaf = leaf_;
 #endif
   if (!m_glob.leafName() && leaf[0] == '.') goto skip;
 
@@ -279,7 +279,7 @@ skip:
     unsigned n = ZuUTF8::in(&leaf[off], leaf.length() - off, c);
     if (!n) break;
     if (quoteFn(c)) { replace << '\\'; ++rspan; }
-    replace << ZuArray<const uint8_t>(&leaf[off], n);
+    replace << ZuSpan<const uint8_t>(&leaf[off], n);
     rspan += ZuUTFSpan{n, 1, ZuUTF32::width(c)};
     off += n;
   }
@@ -310,10 +310,10 @@ skip:
   auto entry = m_glob.iterate(true, false);
   if (!entry) return false;
 #ifndef _WIN32
-  ZuArray<const uint8_t> leaf = entry->name;
+  ZuSpan<const uint8_t> leaf = entry->name;
 #else
   ZtString leaf_ = entry->name;	// convert from Windows UCS2 to UTF8
-  ZuArray<const uint8_t> leaf = leaf_;
+  ZuSpan<const uint8_t> leaf = leaf_;
 #endif
   if (!m_glob.leafName() && leaf[0] == '.') goto skip;
   iter(leaf, ZuUTF<uint32_t, uint8_t>::span(leaf));

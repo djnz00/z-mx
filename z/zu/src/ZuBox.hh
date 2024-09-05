@@ -24,7 +24,7 @@
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuPrint.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 
 #include <zlib/ZuFP.hh>
 #include <zlib/ZuFmt.hh>
@@ -49,10 +49,10 @@ using ZuNotBoxed = ZuIfT<!ZuIsBoxed<U>{}, R>;
 
 // compile-time formatting
 inline constexpr auto ZuBox_NullAsIs() { // sentinel to disable null string
-  return []() -> ZuString { return {}; };
+  return []() -> ZuCSpan { return {}; };
 };
 inline constexpr auto ZuBox_NullString() { // null as empty string
-  return []() -> ZuString { return {}; };
+  return []() -> ZuCSpan { return {}; };
 };
 
 template <typename T, typename Fmt, auto IsNull, auto NullString,
@@ -405,7 +405,7 @@ public:
 
   template <typename S, decltype(ZuMatchCharString<S>(), int()) = 0>
   ZuBox(S &&s_) : m_val(Cmp::null()) {
-    ZuString s(ZuFwd<S>(s_));
+    ZuCSpan s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     if (ZuLikely(s && Scan<>::scan(val, s.data(), s.length())))
       m_val = val;
@@ -414,7 +414,7 @@ public:
     typename Fmt, typename S,
     decltype(ZuMatchCharString<S>(), int()) = 0>
   ZuBox(Fmt, S &&s_) : m_val(Cmp::null()) {
-    ZuString s(ZuFwd<S>(s_));
+    ZuCSpan s(ZuFwd<S>(s_));
     typename Scan<Fmt>::T val = 0;
     if (ZuLikely(s && Scan<Fmt>::scan(val, s.data(), s.length())))
       m_val = val;
@@ -448,7 +448,7 @@ private:
 
   template <typename S>
   ZuMatchCharString<S> assign(S &&s_) {
-    ZuString s(ZuFwd<S>(s_));
+    ZuCSpan s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     if (ZuUnlikely(!s || !Scan<>::scan(val, s.data(), s.length())))
       m_val = Cmp::null();
@@ -530,7 +530,7 @@ public:
 
   template <typename Fmt = ZuFmt::Default, typename S>
   ZuMatchCharString<S, unsigned> scan(S &&s_) {
-    ZuString s(ZuFwd<S>(s_));
+    ZuCSpan s(ZuFwd<S>(s_));
     typename Scan<>::T val = 0;
     unsigned n = Scan<Fmt>::scan(val, s.data(), s.length());
     if (ZuUnlikely(!n)) {

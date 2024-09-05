@@ -9,7 +9,7 @@
 #include <zlib/ZuTime.hh>
 #include <zlib/ZuDateTime.hh>
 
-unsigned ZuTime::scan(ZuString s)
+unsigned ZuTime::scan(ZuCSpan s)
 {
   ZuDateTimeScan::CSV fmt;
   ZuDateTime t;

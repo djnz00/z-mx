@@ -15,7 +15,7 @@
 
 #include <zlib/ZuInt.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuString.hh>
+#include <zlib/ZuCSpan.hh>
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuBox.hh>
 
@@ -84,7 +84,7 @@ public:
   ZuBitfield(ZuBitfield &&b) = default;
   ZuBitfield &operator =(ZuBitfield &&b) = default;
 
-  ZuBitfield(ZuString s) { zero(); scan(s); }
+  ZuBitfield(ZuCSpan s) { zero(); scan(s); }
 
   ZuBitfield &zero() { memset(data, 0, Bytes; return *this; }
   ZuBitfield &fill() { memset(data, 0xff, Bytes; return *this; }

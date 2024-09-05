@@ -377,7 +377,7 @@ public:
     scan(s);
   }
 
-  unsigned scan(ZuString s) {
+  unsigned scan(ZuCSpan s) {
     unsigned int m = 0;
     if (ZuUnlikely(!s)) goto null;
     if (ZuUnlikely(s.length() == 3 &&

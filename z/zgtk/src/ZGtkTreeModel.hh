@@ -860,7 +860,7 @@ namespace TreeHierarchy {
     }
 
   private:
-    ZuArrayN<int, Tuple::N>	m_rows;
+    ZuArray<int, Tuple::N>	m_rows;
   };
 
   // CRTP - implementation must conform to the following interface:
