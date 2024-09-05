@@ -43,7 +43,7 @@ public:
 
   void find(unsigned keyID, ZmRef<const IOBuf>, RowFn);
 
-  void recover(unsigned shard, UN, RowFn);
+  void recover(Shard shard, UN, RowFn);
 
   void write(ZmRef<const IOBuf>, CommitFn);
 };
@@ -172,7 +172,7 @@ inline void StoreTbl::find(
   store()->addWork(ZuMv(work_));
 }
 
-inline void StoreTbl::recover(unsigned shard, UN un, RowFn rowFn) {
+inline void StoreTbl::recover(Shard shard, UN un, RowFn rowFn) {
   // ZeLOG(Debug, "recover() work enqueue");
   auto work_ = [this, shard, un, rowFn = ZuMv(rowFn)]() mutable {
     // ZeLOG(Debug, "recover() work dequeue");

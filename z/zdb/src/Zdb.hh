@@ -189,7 +189,7 @@ using Cxn = CxnList::Node;
 
 // --- DB state - SN and key/value linear hash from {table ID, shard} -> UN
 
-using DBState_ = ZmLHashKV<ZuTuple<ZuCSpan, Shard>, UN, ZmLHashLocal<>>;
+using DBState_ = ZmLHashKV<ZuTuple<ZtString, Shard>, UN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   SN		sn = 0;
 
