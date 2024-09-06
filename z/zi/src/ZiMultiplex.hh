@@ -19,6 +19,7 @@
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuLargest.hh>
 #include <zlib/ZuArray.hh>
+#include <zlib/ZuID.hh>
 
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZmObject.hh>

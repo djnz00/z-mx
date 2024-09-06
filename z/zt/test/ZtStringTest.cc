@@ -261,7 +261,7 @@ int main()
     CHECK(s.data() == buf, "buffer 4");
     s += " - and what a nice day";
     CHECK_(s == "'Bye World - and what a nice day");
-    CHECK(s.vallocd(), "buffer 5");
+    CHECK(s.length() < ZtString::BuiltinSize || s.vallocd(), "buffer 5");
     CHECK(s.data() != buf, "buffer 6");
   }
 
@@ -272,7 +272,7 @@ int main()
     CHECK(s == "Hello World", "ZuCArray append 1");
     s += ZuBox<int>(12345);
     CHECK(s == "Hello World", "ZuCArray append 2");
-    s << ZuCArray<12>(ZuBox<int>(1234));
+    s << (ZuCArray<12>() << ZuBox<int>(1234));
     puts(s);
     CHECK(s == "Hello World1234", "ZuCArray append 3");
     s = "";

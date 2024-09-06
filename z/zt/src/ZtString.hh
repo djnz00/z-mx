@@ -11,6 +11,7 @@
 // - explicitly contiguous
 // - provides direct read/write access to the buffer
 // - no heap allocation for small strings below a built-in size
+// - total instance size set to 32 (i.e. 1/2 typical cache line size)
 // - very thin layer on ANSI C string functions
 // - no C library locale or character set overhead (except when requested)
 // - minimal STL cruft
@@ -80,10 +81,7 @@ public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
   enum { IsWString = ZuInspect<Char, wchar_t>::Same };
-  enum { BuiltinSize_ = (ZtString_Builtin + sizeof(Char) - 1) / sizeof(Char) };
-  enum { BuiltinPtr =
-    (BuiltinSize_ * sizeof(Char) + sizeof(uintptr_t) - 1) / sizeof(uintptr_t) };
-  enum { BuiltinSize = (BuiltinPtr * sizeof(uintptr_t)) / sizeof(Char) };
+  enum { BuiltinSize = ZtString_Builtin	/ sizeof(Char) };
   static constexpr auto HeapID = HeapID_;
 
 private:
@@ -527,7 +525,7 @@ public: // useful if the caller is sure that the length is being reduced
 
 private:
   void null_() {
-    m_data[0] = 0;
+    ptr__(nullptr);
     size_owned_null(BuiltinSize, 1, 1);
     length_vallocd_builtin(0, 0, 1);
   }
@@ -538,14 +536,14 @@ private:
       null_();
       return;
     }
-    m_data[0] = reinterpret_cast<uintptr_t>(data);
+    ptr__(data);
     size_owned_null(size, 1, 0);
     length_vallocd_builtin(length, vallocd, 0);
   }
 
   void shadow_(const Char *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data[0] = reinterpret_cast<uintptr_t>(data);
+    ptr__(data);
     size_owned_null(length + 1, 0, 0);
     length_vallocd_builtin(length, 0, 0);
   }
@@ -554,11 +552,11 @@ private:
     if (ZuLikely(size <= BuiltinSize)) {
       size_owned_null(size, 1, 0);
       length_vallocd_builtin(length, 0, 1);
-      return reinterpret_cast<Char *>(m_data);
+      return data__();
     }
     Char *newData = static_cast<Char *>(valloc(size * sizeof(Char)));
     if (!newData) throw std::bad_alloc{};
-    m_data[0] = reinterpret_cast<uintptr_t>(newData);
+    ptr__(newData);
     size_owned_null(size, 1, 0);
     length_vallocd_builtin(length, 1, 0);
     return newData;;
@@ -567,8 +565,8 @@ private:
   void copy_(const Char *copyData, unsigned length) {
     if (!length) { null_(); return; }
     if (length < BuiltinSize) {
-      memcpy(reinterpret_cast<Char *>(m_data), copyData, length * sizeof(Char));
-      (reinterpret_cast<Char *>(m_data))[length] = 0;
+      memcpy(data__(), copyData, length * sizeof(Char));
+      (data__())[length] = 0;
       size_owned_null(BuiltinSize, 1, 0);
       length_vallocd_builtin(length, 0, 1);
       return;
@@ -577,7 +575,7 @@ private:
     if (!newData) throw std::bad_alloc{};
     memcpy(newData, copyData, length * sizeof(Char));
     newData[length] = 0;
-    m_data[0] = reinterpret_cast<uintptr_t>(newData);
+    ptr__(newData);
     size_owned_null(length + 1, 1, 0);
     length_vallocd_builtin(length, 1, 0);
   }
@@ -586,7 +584,7 @@ private:
 
   void free_() {
     if (vallocd())
-      if (Char *data = reinterpret_cast<Char *>(m_data[0]))
+      if (Char *data = ptr__())
 	vfree(data);
   }
   Char *free_1() {
@@ -631,18 +629,14 @@ public:
     return data_();
   }
   Char *data_() {
-    return builtin() ?
-      reinterpret_cast<Char *>(m_data) :
-      reinterpret_cast<Char *>(m_data[0]);
+    return builtin() ? data__() : ptr__();
   }
   const Char *data() const {
     if (null__()) return nullptr;
     return data_();
   }
   const Char *data_() const {
-    return builtin() ?
-      reinterpret_cast<const Char *>(m_data) :
-      reinterpret_cast<const Char *>(m_data[0]);
+    return builtin() ? data__() : ptr__();
   }
   const Char *ndata() const {
     if (null__()) return ZtString_Null<Char>();
@@ -661,6 +655,19 @@ public:
   bool owned() const { return (m_size_owned_null>>30) & 1U; }
 
 private:
+  const Char *data__() const {
+    return reinterpret_cast<const Char *>(&m_data[0]);
+  }
+  Char *data__() { return reinterpret_cast<Char *>(&m_data[0]); }
+
+  const Char *ptr__() const {
+    return *reinterpret_cast<const Char *const *>(&m_data[0]);
+  }
+  Char *ptr__() { return *reinterpret_cast<Char **>(&m_data[0]); }
+  void ptr__(const Char *p) {
+    *reinterpret_cast<const Char **>(&m_data[0]) = p;
+  }
+
   void length__(unsigned v) {
     m_length_vallocd_builtin = (m_length_vallocd_builtin & (3U<<30)) | v;
   }
@@ -704,7 +711,7 @@ public:
     } else {
       owned(0);
       vallocd(0);
-      return reinterpret_cast<Char *>(m_data[0]);
+      return ptr__();
     }
   }
   static void free(const Char *ptr) { vfree(ptr); }
@@ -749,7 +756,7 @@ public:
     Char *oldData = data_();
     Char *newData;
     if (z <= BuiltinSize)
-      newData = reinterpret_cast<Char *>(m_data);
+      newData = data__();
     else {
       newData = static_cast<Char *>(valloc(z * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
@@ -765,7 +772,7 @@ public:
       length_vallocd_builtin(n, 0, 1);
       return newData;
     }
-    m_data[0] = reinterpret_cast<uintptr_t>(newData);
+    ptr__(newData);
     size_owned_null(z, 1, 0);
     length_vallocd_builtin(n, 1, 0);
     return newData;
@@ -1112,7 +1119,7 @@ private:
       if (removed) removed->init(oldData + offset, length);
       Char *newData;
       if (z <= BuiltinSize)
-	newData = reinterpret_cast<Char *>(m_data);
+	newData = data__();
       else {
 	newData = static_cast<Char *>(valloc(z * sizeof(Char)));
       if (!newData) throw std::bad_alloc{};
@@ -1133,7 +1140,7 @@ private:
 	length_vallocd_builtin(l, 0, 1);
 	return;
       }
-      m_data[0] = reinterpret_cast<uintptr_t>(newData);
+      ptr__(newData);
       size_owned_null(z, 1, 0);
       length_vallocd_builtin(l, 1, 0);
       return;
@@ -1293,10 +1300,14 @@ public:
   friend Traits ZuTraitsType(ZtString_ *);
 
 private:
-  uint32_t		m_size_owned_null;
-  uint32_t		m_length_vallocd_builtin;
-  uintptr_t		m_data[BuiltinPtr];
-};
+  uint8_t	m_data[BuiltinSize * sizeof(Char)];
+  uint32_t	m_size_owned_null;
+  uint32_t	m_length_vallocd_builtin;
+}
+#ifdef __GNUC__
+  __attribute__ ((aligned(alignof(void *))))
+#endif
+;
 
 template <typename Char, auto HeapID>
 template <typename S>
