@@ -340,7 +340,7 @@ struct ZmHeapAllocSize<Size_, false, 0, true> { // larger than cache line size
 };
 
 template <typename Heap> class ZmHeap_Init {
-template <auto, unsigned, bool> friend class ZmHeap__;
+template <auto, unsigned, unsigned, bool> friend class ZmHeap__;
   ZmHeap_Init();
 };
 

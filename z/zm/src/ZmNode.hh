@@ -144,7 +144,7 @@ template <
 using ZmNode =
   ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt,
     ZmHeap<HeapID,
-      sizeof(ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt, ZuNull>),
+      ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt, ZuNull>,
       Sharded>>;
 
 #endif /* ZmNode_HH */

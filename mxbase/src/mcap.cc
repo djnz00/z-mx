@@ -167,7 +167,7 @@ private:
 struct Msg_HeapID {
   static constexpr const char *id() { return "Msg"; }
 };
-typedef ZmHeap<Msg_HeapID, sizeof(Msg_<ZuNull>)> Msg_Heap;
+typedef ZmHeap<Msg_HeapID, Msg_<ZuNull>> Msg_Heap;
 typedef Msg_<Msg_Heap> Msg;
 
 void App::connect(ZuAnyPOD *group_) {

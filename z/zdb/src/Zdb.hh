@@ -837,7 +837,7 @@ struct Count_ : public Heap, public ZmPolymorph, public Count__ {
   template <typename ...Args>
   Count_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
-using Count_Heap = ZmHeap<Count_HeapID, sizeof(Count_<ZuNull>)>;
+using Count_Heap = ZmHeap<Count_HeapID, Count_<ZuNull>>;
 using Count = Count_<Count_Heap>;
 
 // backing data store select() context
@@ -855,7 +855,7 @@ struct Select_ : public Heap, public ZmPolymorph, public Select__<Tuple> {
   Select_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename Tuple>
-using Select_Heap = ZmHeap<Select_HeapID, sizeof(Select_<Tuple, ZuNull>)>;
+using Select_Heap = ZmHeap<Select_HeapID, Select_<Tuple, ZuNull>>;
 template <typename Tuple>
 using Select = Select_<Tuple, Select_Heap<Tuple>>;
 
@@ -876,7 +876,7 @@ struct Find_ : public Heap, public ZmPolymorph, public Find__<T, Key> {
   Find_(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
 };
 template <typename T, typename Key>
-using Find_Heap = ZmHeap<Find_HeapID, sizeof(Find_<T, Key, ZuNull>)>;
+using Find_Heap = ZmHeap<Find_HeapID, Find_<T, Key, ZuNull>>;
 template <typename T, typename Key>
 using Find = Find_<T, Key, Find_Heap<T, Key>>;
 

@@ -440,7 +440,7 @@ namespace MxMDStream {
     unsigned length() const { return sizeof(Hdr) + hdr().len; }
   };
 
-  typedef Msg_<ZmHeap<Msg_HeapID, sizeof(Msg_<ZuNull>)> > Msg;
+  typedef Msg_<ZmHeap<Msg_HeapID, Msg_<ZuNull>>> Msg;
 
   template <typename T, typename App>
   void *push(App &app, int shardID) {

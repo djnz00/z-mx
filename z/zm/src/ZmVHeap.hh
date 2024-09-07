@@ -40,7 +40,8 @@ class ZmVHeap {
   template <auto, bool, unsigned> friend class ZmVHeap_Init;
 
   template <unsigned N>
-  using Cache = ZmHeapCacheT<ID, ZmHeapAllocSize<(1<<N)>::N, Sharded>;
+  using Cache =
+    ZmHeapCacheT<ID, ZmHeapAllocSize<(1<<N)>::N, Alignment, Sharded>;
 
 public:
   static void *valloc(size_t size) {

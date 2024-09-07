@@ -295,7 +295,7 @@ private:
   MxMDOrderBook		*m_orderBook;
   MxMDTradeData		m_data;
 };
-typedef ZmHeap<MxMDTrade_HeapID, sizeof(MxMDTrade_<ZuNull>)> MxMDTrade_Heap;
+typedef ZmHeap<MxMDTrade_HeapID, MxMDTrade_<ZuNull>> MxMDTrade_Heap;
 typedef MxMDTrade_<MxMDTrade_Heap> MxMDTrade;
 
 // orders

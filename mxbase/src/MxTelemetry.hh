@@ -158,7 +158,7 @@ namespace MxTelemetry {
     unsigned	length = 0;
   };
 
-  typedef Msg_<ZmHeap<Msg_HeapID, sizeof(Msg_<ZuNull>)> > Msg;
+  typedef Msg_<ZmHeap<Msg_HeapID, Msg_<ZuNull>>> Msg;
 
 #ifdef DeclFn
 #undef DeclFn

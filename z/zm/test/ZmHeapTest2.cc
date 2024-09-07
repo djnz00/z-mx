@@ -22,7 +22,7 @@ template <typename Heap> struct S_ : public Heap {
   int m_i;
 };
 static constexpr const char *ID() { return "S"; }
-using S = S_<ZmHeap<ID, sizeof(S_<ZuNull>)> >;
+using S = S_<ZmHeap<ID, S_<ZuNull>>>;
 
 void usage()
 {

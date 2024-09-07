@@ -301,7 +301,7 @@ private:
 };
 inline constexpr const char *Writer_HeapID() { return "Zdf.Writer"; }
 template <typename Decoder>
-using Writer_Heap = ZmHeap<Writer_HeapID, sizeof(Writer_<Decoder, ZuNull>)>;
+using Writer_Heap = ZmHeap<Writer_HeapID, Writer_<Decoder, ZuNull>>;
 template <typename Decoder>
 using Writer = Writer_<Decoder, Writer_Heap<Decoder>>;
 

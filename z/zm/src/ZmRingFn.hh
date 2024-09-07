@@ -125,14 +125,14 @@ public:
 	return sizeof(L);
       }},
       m_moveFn{[](void *dst, void *src_, bool onHeap) {
-	using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
+	using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
 	auto src = static_cast<L *>(src_);
 	new (dst) L{ZuMv(*src)};
 	src->~L();
 	if (ZuUnlikely(onHeap)) Cache::free(src);
       }},
       m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
-	using Cache = ZmHeapCacheT<HeapID, sizeof(L), Sharded>;
+	using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
 	// 0 - return sizeof(L) - used in fast path
 	if (ZuLikely(!ptr_)) return sizeof(L);
 	// 1 - heap allocation - slow path

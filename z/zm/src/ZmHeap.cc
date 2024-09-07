@@ -392,7 +392,7 @@ void ZmHeapCache::free(ZmHeapStats &stats, void *ptr)
     goto heapfree;
   }
   // check own cache first - optimize for malloc()/free() within same partition
-  if (ZuLikely(owned(p))) {
+  if (ZuLikely(owned(ptr))) {
     free_(ptr);
     return;
   }
