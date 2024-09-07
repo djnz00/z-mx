@@ -609,12 +609,19 @@ private:
   ZuIf<Fixed, ZdbTable<DB::BlkFixed> *, ZdbTable<DB::BlkFloat> *>
   blkTbl() const;
 
-  BlkData *newBlkData() const { return newBlkData(blkDataTbl()); }
-  BlkData *newBlkData(ZdbTable<DB::BlkData> *tbl) const {
-    return new BlkData{
+  BlkData *newBlkData(BlkOffset blkOffset) const {
+    return newBlkData(blkOffset, blkDataTbl());
+  }
+  BlkData *newBlkData(BlkOffset blkOffset, ZdbTable<DB::BlkData> *tbl) const {
+    auto blkData = new BlkData{
       BlkData::EvictFn{this, [](auto *this_, BlkData *blkData) {
 	const_cast<Series *>(this_)->unloadBlkData(blkData);
       }}, tbl, m_shard};
+    new (blkData->ptr_()) DB::BlkData{
+      .blkOffset = blkOffset,
+      .seriesID = m_id
+    };
+    return blkData;
   }
 
 public:
@@ -642,7 +649,8 @@ public:
 	});
       }
     } else { // last block is empty - allocate the data
-      if (!m_lastBlk->blkData) m_lastBlk->blkData = newBlkData();
+      if (!m_lastBlk->blkData)
+	m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
       m_lastBlk->blkData->pin();
       write_newWriter(ZuMv(fn), ndp...);
     }
@@ -693,7 +701,7 @@ private:
     m_index.add(indexBlk);
     m_lastBlk = &indexBlk->blks[0];
     // m_lastBlk->offset(0); // redundant
-    m_lastBlk->blkData = newBlkData();
+    m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
     m_lastBlk->blkData->pin();
   }
   // add subsequent block to series
@@ -705,7 +713,7 @@ private:
       m_index.add(indexBlk = new IndexBlk{m_lastBlkOffset & ~IndexBlkMask()});
     m_lastBlk = &indexBlk->blks[m_lastBlkOffset - indexBlk->offset];
     m_lastBlk->offset(offset);
-    m_lastBlk->blkData = newBlkData();
+    m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
     m_lastBlk->blkData->pin();
   }
   // get Blk from index
@@ -804,7 +812,7 @@ private:
 
     if (m_lastBlk->blkData->state() == ZdbObjState::Undefined) {
       ZdbObjRef<DBBlk> dbBlk = new ZdbObject<DBBlk>{blkTbl(), m_shard};
-      new (dbBlk->ptr()) DBBlk{
+      new (dbBlk->ptr_()) DBBlk{
 	.blkOffset = m_lastBlkOffset,
 	.offset = m_lastBlk->offset(),
 	.last = lastFn(m_lastBlk),
@@ -850,7 +858,9 @@ private:
   void loadBlk(BlkOffset blkOffset, L l) const {
     blkDataTbl()->template find<0>(
       shard(), ZuFwdTuple(id(), blkOffset), ZuMv(l),
-      [this](ZdbTable<DB::BlkData> *tbl) { return newBlkData(tbl); });
+      [this, blkOffset](ZdbTable<DB::BlkData> *tbl) {
+	return newBlkData(blkOffset, tbl);
+      });
   }
 
   // load block data from store (idempotent)

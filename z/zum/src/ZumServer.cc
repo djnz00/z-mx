@@ -266,7 +266,7 @@ void UserDB::bootstrapped(ZuPtr<Bootstrap> context, BootstrapResult result)
 // initialize API key
 void UserDB::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
 {
-  auto key = new (dbKey->ptr()) Key{.userID = userID, .id = keyID};
+  auto key = new (dbKey->ptr_()) Key{.userID = userID, .id = keyID};
   key->secret.length(key->secret.size());
   m_rng->random(key->secret);
   dbKey->commit();
@@ -275,7 +275,7 @@ void UserDB::initKey(ZdbObject<Key> *dbKey, UserID userID, KeyIDData keyID)
 // initialize permission
 void UserDB::initPerm(ZdbObject<Perm> *dbPerm, ZtString name)
 {
-  new (dbPerm->ptr()) Perm{m_nextPermID++, ZuMv(name)};
+  new (dbPerm->ptr_()) Perm{m_nextPermID++, ZuMv(name)};
   dbPerm->commit();
 }
 
@@ -284,7 +284,7 @@ void UserDB::initRole(
   ZdbObject<Role> *dbRole, ZtString name,
   ZtBitmap perms, ZtBitmap apiperms, RoleFlags::T flags)
 {
-  new (dbRole->ptr()) Role{
+  new (dbRole->ptr_()) Role{
     ZuMv(name),
     ZuMv(perms),
     ZuMv(apiperms),
@@ -300,7 +300,7 @@ void UserDB::initUser(
   ZtString &passwd)
 {
   auto &user =
-    *(new (dbUser->ptr()) User{
+    *(new (dbUser->ptr_()) User{
       .id = id,
       .name = ZuMv(name),
       .roles = ZuMv(roles),

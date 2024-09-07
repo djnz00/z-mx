@@ -97,7 +97,7 @@ template <typename Impl, typename S> struct ZuStdStream_ {
   template <typename P>
   static ZuIfT<ZuPrint<P>::Buffer> print(S &s, const P &p) {
     unsigned len = ZuPrint<P>::length(p);
-    auto buf = static_cast<char *>(ZuAlloca(len));
+    auto buf = static_cast<char *>(ZuAlloca(len, 1));
     if (ZuLikely(buf)) Impl::append(s, buf, ZuPrint<P>::print(buf, len, p));
   }
 };

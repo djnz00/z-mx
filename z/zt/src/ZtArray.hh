@@ -53,6 +53,7 @@
 struct ZtArray_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   static const char *HeapID() { return "ZtArray"; }
+  enum { Sharded = 0 };
 };
 
 // ZtArrayCmp - the comparator
@@ -65,6 +66,12 @@ struct ZtArrayCmp : public NTP {
 template <auto HeapID_, typename NTP = ZtArray_Defaults>
 struct ZtArrayHeapID : public NTP {
   static constexpr auto HeapID = HeapID_;
+};
+
+// ZtArraySharded - the heap ID
+template <bool Sharded_, typename NTP = ZtArray_Defaults>
+struct ZtArraySharded : public NTP {
+  enum { Sharded = Sharded_ };
 };
 
 template <typename T, typename NTP> class ZtArray;
@@ -80,7 +87,7 @@ template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
 template <typename T_, typename NTP = ZtArray_Defaults>
 class ZtArray :
-    private ZmVHeap<NTP::HeapID>,
+    private ZmVHeap<NTP::HeapID, NTP::Sharded, alignof(T_)>,
     public ZtArray_<ZuStrip<T_>>,
     public ZuArrayFn<T_, typename NTP::template CmpT<T_>> {
   template <typename, typename> friend class ZtArray;
@@ -89,6 +96,7 @@ public:
   using T = T_;
   using Cmp = typename NTP::template CmpT<T>;
   static constexpr auto HeapID = NTP::HeapID;
+  enum { Sharded = NTP::Sharded };
 
   using Ops = ZuArrayFn<T, Cmp>;
 
@@ -313,8 +321,9 @@ public:
   }
 
 private:
-  using ZmVHeap<HeapID>::valloc;
-  using ZmVHeap<HeapID>::vfree;
+  using VHeap = ZmVHeap<HeapID, Sharded, alignof(T)>;
+  using VHeap::valloc;
+  using VHeap::vfree;
 
   template <typename A_> struct Fwd_ZtArray {
     using A = ZuDecay<A_>;
@@ -473,7 +482,7 @@ private:
 
   template <typename R> MatchCtorElem<R> ctor(R &&r) {
     unsigned z = grow_(0, 1);
-    m_data = static_cast<T *>(valloc(z * sizeof(T)));
+    m_data = alloc__(z);
     if (!m_data) throw std::bad_alloc{};
     size_owned(z, 1);
     length_vallocd(1, 1);
@@ -734,15 +743,19 @@ private:
 
   void alloc_(unsigned size, unsigned length) {
     if (!size) { null_(); return; }
-    m_data = static_cast<T *>(valloc(size * sizeof(T)));
+    m_data = alloc__(size);
     if (!m_data) throw std::bad_alloc{};
     size_owned(size, 1);
     length_vallocd(length, 1);
   }
 
+  auto alloc__(unsigned length) {
+    return static_cast<T *>(valloc(length * sizeof(T)));
+  }
+
   template <typename S> void copy__(const S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = static_cast<T *>(valloc(length * sizeof(T)));
+    m_data = alloc__(length);
     if (!m_data) throw std::bad_alloc{};
     if (length) this->copyItems(m_data, data, length);
     size_owned(length, 1);
@@ -751,7 +764,7 @@ private:
 
   template <typename S> void move__(S *data, unsigned length) {
     if (!length) { null_(); return; }
-    m_data = static_cast<T *>(valloc(length * sizeof(T)));
+    m_data = alloc__(length);
     if (!m_data) throw std::bad_alloc{};
     if (length) this->moveItems(m_data, data, length);
     size_owned(length, 1);
@@ -785,7 +798,7 @@ public:
     size(length());
     unsigned n = length();
     if (!m_data || size() <= n) return;
-    T *newData = static_cast<T *>(valloc(n * sizeof(T)));
+    T *newData = alloc__(n);
     if (!newData) throw std::bad_alloc{};
     this->moveItems(newData, m_data, n);
     free_();
@@ -910,7 +923,7 @@ public:
   T *size(unsigned z) {
     if (!z) { null(); return 0; }
     if (owned() && z == size()) return m_data;
-    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+    T *newData = alloc__(z);
     if (!newData) throw std::bad_alloc{};
     unsigned n = z;
     if (n > length()) n = length();
@@ -935,7 +948,7 @@ public:
     unsigned z = size();
     if (!owned() || i + 1 > z) {
       z = grow_(z, i + 1);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, n);
       free_();
@@ -1078,7 +1091,7 @@ private:
   MatchElem<R, ZtArray> add(R &&r) const {
     unsigned n = length();
     unsigned z = grow_(n, n + 1);
-    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+    T *newData = alloc__(z);
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     this->initItem(newData + n, ZuFwd<R>(r));
@@ -1089,7 +1102,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+    T *newData = alloc__(z);
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->copyItems(newData + n, data, length);
@@ -1099,7 +1112,7 @@ private:
     unsigned n = this->length();
     unsigned z = n + length;
     if (ZuUnlikely(!z)) return ZtArray{};
-    T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+    T *newData = alloc__(z);
     if (!newData) throw std::bad_alloc{};
     if (n) this->copyItems(newData, m_data, n);
     if (length) this->moveItems(newData + n, data, length);
@@ -1262,7 +1275,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, n);
       free_();
@@ -1318,7 +1331,7 @@ public:
     unsigned z = size();
     if (!owned() || n + 1 > z) {
       z = grow_(z, n + 1);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData + 1, m_data, n);
       free_();
@@ -1363,7 +1376,7 @@ private:
     if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       if (offset + length < static_cast<int>(n))
@@ -1422,7 +1435,7 @@ private:
     if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->copyItems(newData + offset, replace, rlength);
@@ -1484,7 +1497,7 @@ private:
     if (l > 0 && (!owned() || l > static_cast<int>(z))) {
       z = grow_(z, l);
       if (removed) removed->move(m_data + offset, length);
-      T *newData = static_cast<T *>(valloc(z * sizeof(T)));
+      T *newData = alloc__(z);
       if (!newData) throw std::bad_alloc{};
       this->moveItems(newData, m_data, offset);
       this->moveItems(newData + offset, replace, rlength);

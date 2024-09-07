@@ -461,12 +461,12 @@ using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 // alloca() alias
 
 #ifdef _MSC_VER
-#define ZuAlloca(n) _alloca(n)
+#define ZuAlloca(n, a) _alloca(n) // MSVC should 16-byte align
 #else
 #ifndef _WIN32
 #include <alloca.h>
 #endif
-#define ZuAlloca(n) alloca(n)
+#define ZuAlloca(n, a) __builtin_alloca_with_align(n, (a)<<3)
 #endif
 
 // default accessor (pass-through)

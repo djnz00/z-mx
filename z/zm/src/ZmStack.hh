@@ -123,10 +123,12 @@ struct ZmStack_Base<Stack, ZmNoLock> : public ZmStack_Unlocked<Stack> { };
 
 // derives from Ops so that a ZmStack includes an *instance* of Ops
 
-template <typename T_, class NTP = ZmStack_Defaults> class ZmStack :
-    private ZmVHeap<NTP::HeapID, NTP::Sharded>,
-    public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
-    public NTP::template OpsT<T_> {
+template <typename T_, class NTP = ZmStack_Defaults>
+class ZmStack :
+  private ZmVHeap<NTP::HeapID, NTP::Sharded, alignof(T_)>,
+  public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
+  public NTP::template OpsT<T_>
+{
   ZmStack(const ZmStack &);
   ZmStack &operator =(const ZmStack &);	// prevent mis-use
 
@@ -188,8 +190,9 @@ public:
   unsigned count_() const { return m_count; }
 
 private:
-  using ZmVHeap<HeapID, Sharded>::valloc;
-  using ZmVHeap<HeapID, Sharded>::vfree;
+  using VHeap = ZmVHeap<HeapID, Sharded, alignof(T)>;
+  using VHeap::valloc;
+  using VHeap::vfree;
 
   void lazy() {
     if (ZuUnlikely(!m_data)) extend(m_initial);

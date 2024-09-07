@@ -21,7 +21,7 @@
 
 inline const char *ZmAllocator_ID() { return "ZmAllocator"; }
 template <typename T, auto ID = ZmAllocator_ID, bool Sharded = false>
-struct ZmAllocator : private ZmVHeap<ID> {
+struct ZmAllocator : private ZmVHeap<ID, Sharded, alignof(T)> {
   using size_type = std::size_t;
   using difference_type = ptrdiff_t;
   using pointer = T *;
@@ -56,14 +56,16 @@ struct ZmAllocator : private ZmVHeap<ID> {
   void deallocate(T *, std::size_t);
 
 private:
-  using ZmVHeap<ID>::valloc;
-  using ZmVHeap<ID>::vfree;
+  using VHeap = ZmVHeap<ID, Sharded, alignof(T)>;
+  using VHeap::valloc;
+  using VHeap::vfree;
 };
 template <typename T, auto ID, bool Sharded>
 inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
   using Cache = ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, Sharded>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
-  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T)))) return ptr;
+  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T))))
+    return ptr;
   throw std::bad_alloc{};
 }
 template <typename T, auto ID, bool Sharded>

@@ -193,20 +193,25 @@ private:
 #endif
 
   ZmHeapCache *cache(
-      const char *id, unsigned size, bool sharded, StatsFn statsFn) {
+    const char *id, unsigned size, unsigned alignment, bool sharded,
+    StatsFn statsFn)
+  {
     unsigned partition = ZmSelf()->partition();
     ZmHeapCache *c = 0;
     auto hwloc = ZmTopology::hwloc();
     Guard guard(m_lock);
     if (c = m_key2Cache.findVal(ZuFwdTuple(id, partition, size, sharded)))
       return c;
-    if (IDPart2Config::NodeRef node = 
-	  m_configs.find(ZuFwdTuple(id, partition)))
+    if (IDPart2Config::NodeRef node =
+	m_configs.find(ZuFwdTuple(id, partition)))
       c = new ZmHeapCache(
-	  id, size, partition, sharded, node->val(), statsFn, hwloc);
+	id, size, partition, sharded, node->val(), statsFn, hwloc);
     else
       c = new ZmHeapCache(
-	  id, size, partition, sharded, ZmHeapConfig{}, statsFn, hwloc);
+	id, size, partition, sharded, ZmHeapConfig{
+	  .alignment = alignment,
+	  .cacheSize = 0
+	}, statsFn, hwloc);
     ZmREF(c);
     m_id2Cache.add(c);
     m_key2Cache.add(c);
@@ -248,34 +253,24 @@ void ZmHeapMgr::trace(const char *id, TraceFn allocFn, TraceFn freeFn)
 #endif
 
 ZmHeapCache *ZmHeapMgr::cache(
-    const char *id, unsigned size, bool sharded, StatsFn statsFn)
+  const char *id, unsigned size, unsigned alignment, bool sharded,
+  StatsFn statsFn)
 {
-  return ZmHeapMgr_::instance()->cache(id, size, sharded, statsFn);
+  return ZmHeapMgr_::instance()->cache(id, size, alignment, sharded, statsFn);
 }
 
-void *ZmHeapCache::operator new(size_t s) {
-#ifndef _WIN32
-  void *p = 0;
-  int errNo = posix_memalign(&p, 512, s);
-  if (ZuUnlikely(!p || errNo)) throw std::bad_alloc{};
-  return p;
-#else
-  void *p = _aligned_malloc(s, 512);
-  if (ZuUnlikely(!p)) throw std::bad_alloc{};
-  return p;
-#endif
+void *ZmHeapCache::operator new(size_t size) {
+  void *ptr = Zm::alignedAlloc(size, 512);
+  if (ZuUnlikely(!ptr)) throw std::bad_alloc{};
+  return ptr;
 }
-void *ZmHeapCache::operator new(size_t s, void *p)
+void *ZmHeapCache::operator new(size_t, void *ptr)
 {
-  return p;
+  return ptr;
 }
-void ZmHeapCache::operator delete(void *p)
+void ZmHeapCache::operator delete(void *ptr)
 {
-#ifndef _WIN32
-  ::free(p);
-#else
-  _aligned_free(p);
-#endif
+  Zm::alignedFree(ptr);
 }
 
 ZmHeapCache::ZmHeapCache(
@@ -303,15 +298,15 @@ void ZmHeapCache::init(const ZmHeapConfig &config, hwloc_topology_t hwloc)
 void ZmHeapCache::init_(hwloc_topology_t hwloc)
 {
   ZmHeapConfig &config = m_info.config;
-  if (!config.cacheSize) return;
-  if (config.alignment <= sizeof(uintptr_t))
-    config.alignment = sizeof(uintptr_t);
+  if (config.alignment <= sizeof(void *))
+    config.alignment = sizeof(void *);
   else {
     // round up to nearest power of 2, ceiling of 512
     config.alignment =
       1U<<((sizeof(config.alignment)<<3) - ZuIntrin::clz(config.alignment - 1));
     if (ZuUnlikely(config.alignment > 512)) config.alignment = 512;
   }
+  if (!config.cacheSize) return;
   m_info.size = (m_info.size + config.alignment - 1) & ~(config.alignment - 1);
   uint64_t len = config.cacheSize * m_info.size;
   void *begin;
@@ -352,10 +347,10 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
     if (ZuUnlikely(fn = m_traceAllocFn)) (*fn)(m_info.id, m_info.size);
   }
 #endif
-  void *p;
-  if (ZuLikely(p = alloc_())) {
+  void *ptr;
+  if (ZuLikely(ptr = alloc_())) {
     ++stats.cacheAllocs;
-    return p;
+    return ptr;
   }
 #if 0
   {
@@ -372,15 +367,15 @@ void *ZmHeapCache::alloc(ZmHeapStats &stats)
     }
   }
 #endif
-  p = ::malloc(m_info.size);
-  if (ZuUnlikely(!p)) throw std::bad_alloc{};
+  ptr = Zm::alignedAlloc(m_info.size, m_info.config.alignment);
+  if (ZuUnlikely(!ptr)) throw std::bad_alloc{};
   ++stats.heapAllocs;
-  return p;
+  return ptr;
 }
 
-void ZmHeapCache::free(ZmHeapStats &stats, void *p)
+void ZmHeapCache::free(ZmHeapStats &stats, void *ptr)
 {
-  if (ZuUnlikely(!p)) return;
+  if (ZuUnlikely(!ptr)) return;
 #ifdef ZmHeap_DEBUG
   {
     TraceFn fn;
@@ -390,24 +385,24 @@ void ZmHeapCache::free(ZmHeapStats &stats, void *p)
   ++stats.frees;
   // sharded - no contention, no need to check other partitions
   if (ZuLikely(m_info.sharded)) {
-    if (ZuLikely(owned(p))) {
-      free_sharded(p);
+    if (ZuLikely(owned(ptr))) {
+      free_sharded(ptr);
       return;
     }
-    ::free(p);
-    return;
+    goto heapfree;
   }
   // check own cache first - optimize for malloc()/free() within same partition
   if (ZuLikely(owned(p))) {
-    free_(p);
+    free_(ptr);
     return;
   }
   if (auto lookup = this->lookup())
-    if (auto other = lookup->find(this, p)) {
-      other->free_(p);
+    if (auto other = lookup->find(this, ptr)) {
+      other->free_(ptr);
       return;
     }
-  ::free(p);
+heapfree:
+  Zm::alignedFree(ptr);
 }
 
 // stats() iterates over the ZmHeapCacheT instances using

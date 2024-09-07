@@ -310,7 +310,7 @@ retry:
 	unsigned int i;
 	if (bfd_read_minisymbols(abfd, 0, (void **)&symbols, &i) <= 0 &&
 	    bfd_read_minisymbols(abfd, 1, (void **)&symbols, &i) < 0) {
-	  if (symbols) { free(symbols); symbols = nullptr; }
+	  if (symbols) { ::free(symbols); symbols = nullptr; }
 	  bfd_close(abfd);
 	  abfd = nullptr;
 	}
@@ -640,7 +640,7 @@ void ZmBackTrace_Mgr::capture(unsigned skip, void **frames)
 #else /* _WIN32 */
 #ifdef __GNUC__
   auto frames_ = static_cast<void **>(
-      ZuAlloca((ZmBackTrace_DEPTH + skip) * sizeof(void *)));
+      ZuAlloca((ZmBackTrace_DEPTH + skip) * sizeof(void *), sizeof(void *)));
   n = ::backtrace(frames_, ZmBackTrace_DEPTH + skip);
   n = n < (int)skip ? 0 : n - skip;
   memcpy(frames, frames_ + skip, sizeof(void *) * n);

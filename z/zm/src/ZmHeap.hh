@@ -48,8 +48,10 @@
 class ZmHeapMgr;
 class ZmHeapMgr_;
 class ZmHeapCache;
-template <auto ID, unsigned Size, bool Sharded> class ZmHeap__;
-template <auto ID, unsigned Size, bool Sharded> class ZmHeapCacheT;
+template <auto ID, unsigned Size, unsigned Algnment, bool Sharded>
+class ZmHeap__;
+template <auto ID, unsigned Size, unsigned Algnment, bool Sharded>
+class ZmHeapCacheT;
 
 struct ZmHeapConfig {
   uint32_t	alignment;
@@ -98,8 +100,8 @@ class ZmAPI ZmHeapCache : public ZmObject {
 friend ZmHeapMgr;
 friend ZmHeapMgr_;
 friend ZmHeapLookup;
-template <auto, unsigned, bool> friend class ZmHeap__;
-template <auto, unsigned, bool> friend class ZmHeapCacheT;
+template <auto, unsigned, unsigned, bool> friend class ZmHeap__;
+template <auto, unsigned, unsigned, bool> friend class ZmHeapCacheT;
 
   enum { CacheLineSize = Zm::CacheLineSize };
 
@@ -221,7 +223,7 @@ private:
 
 class ZmAPI ZmHeapMgr {
 friend ZmHeapCache;
-template <auto, unsigned, bool> friend class ZmHeapCacheT; 
+template <auto, unsigned, unsigned, bool> friend class ZmHeapCacheT; 
 
   template <class S> struct CSV_ {
     CSV_(S &stream) : m_stream(stream) { }
@@ -229,7 +231,8 @@ template <auto, unsigned, bool> friend class ZmHeapCacheT;
       m_stream <<
 	"ID,size,partition,sharded,alignment,cacheSize,cpuset,"
 	"cacheAllocs,heapAllocs,frees\n";
-      ZmHeapMgr::all(ZmFn<void(ZmHeapCache *)>::Member<&CSV_::print_>::fn(this));
+      ZmHeapMgr::all(
+	ZmFn<void(ZmHeapCache *)>::Member<&CSV_::print_>::fn(this));
     }
     void print_(ZmHeapCache *cache) {
       ZmHeapTelemetry data;
@@ -275,17 +278,18 @@ private:
   using StatsFn = ZmHeapStatsFn;
 
   static ZmHeapCache *cache(
-      const char *id, unsigned size, bool sharded, StatsFn);
+    const char *id, unsigned size, unsigned alignment, bool sharded, StatsFn);
 };
 
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
-template <auto ID, unsigned Size, bool Sharded>
+template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
 class ZmHeapCacheT : public ZmObject {
   using TLS = ZmSpecific<ZmHeapCacheT, ZmSpecificCleanup<ZmCleanup::Heap>>;
 
 public:
   ZmHeapCacheT() :
-      m_cache{ZmHeapMgr::cache(ID(), Size, Sharded, &stats)}, m_stats{} { }
+    m_cache{ZmHeapMgr::cache(ID(), Size, Alignment, Sharded, &stats)},
+    m_stats{} { }
   ~ZmHeapCacheT() {
     m_cache->histStats(m_stats);
   }
@@ -340,15 +344,16 @@ template <auto, unsigned, bool> friend class ZmHeap__;
   ZmHeap_Init();
 };
 
-template <auto ID_, unsigned Size_, bool Sharded_>
+template <auto ID_, unsigned Size_, unsigned Alignment_, bool Sharded_>
 class ZmHeap__ {
 public:
   static constexpr auto HeapID = ID_;
   enum { AllocSize = ZmHeapAllocSize<Size_>::N };
+  enum { Alignment = Alignment_ };
   enum { Sharded = Sharded_ };
 
 private:
-  using Cache = ZmHeapCacheT<HeapID, AllocSize, Sharded>;
+  using Cache = ZmHeapCacheT<HeapID, AllocSize, Alignment, Sharded>;
 
 public:
   void *operator new(size_t) { return Cache::alloc(); }
@@ -365,25 +370,26 @@ private:
 template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
-template <auto ID, unsigned Size, bool Sharded>
-ZmHeap_Init<ZmHeap__<ID, Size, Sharded> > ZmHeap__<ID, Size, Sharded>::m_init;
+template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
+ZmHeap_Init<ZmHeap__<ID, Size, Alignment, Sharded>>
+ZmHeap__<ID, Size, Alignment, Sharded>::m_init;
 
 // sentinel heap ID used to disable ZmHeap
 inline constexpr auto ZmHeapDisable() {
   return []() -> const char * { return nullptr; };
 };
 
-template <auto ID, unsigned Size, bool Sharded>
-struct ZmHeap_ { using T = ZmHeap__<ID, Size, Sharded>; };
-template <unsigned Size, bool Sharded>
-struct ZmHeap_<ZmHeapDisable(), Size, Sharded> { using T = ZuNull; };
-template <auto ID, unsigned Size, bool Sharded = false>
-using ZmHeap = typename ZmHeap_<ID, Size, Sharded>::T;
+template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
+struct ZmHeap_ { using T = ZmHeap__<ID, Size, Alignment, Sharded>; };
+template <unsigned Size, unsigned Alignment, bool Sharded>
+struct ZmHeap_<ZmHeapDisable(), Size, Alignment, Sharded> { using T = ZuNull; };
+template <auto ID, typename T, bool Sharded = false>
+using ZmHeap = typename ZmHeap_<ID, sizeof(T), alignof(T), Sharded>::T;
 
 #include <zlib/ZmFn.hh>
 
-template <auto ID, unsigned Size, bool Sharded>
-inline void ZmHeapCacheT<ID, Size, Sharded>::stats()
+template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
+inline void ZmHeapCacheT<ID, Size, Alignment, Sharded>::stats()
 {
   // aggregate heap cache statistics
   TLS::all([](ZmHeapCacheT *this_) { this_->m_cache->stats(this_->m_stats); });

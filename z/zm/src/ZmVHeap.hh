@@ -19,9 +19,9 @@
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmHeap.hh>
 
-template <auto ID, bool Sharded> class ZmVHeap;
-template <auto ID, bool Sharded> class ZmVHeap_Init {
-template <auto, bool> friend class ZmVHeap;
+template <auto ID, bool Sharded, unsigned Alignment> class ZmVHeap;
+template <auto ID, bool Sharded, unsigned Alignment> class ZmVHeap_Init {
+template <auto, bool, unsigned> friend class ZmVHeap;
   ZmVHeap_Init();
 };
 
@@ -35,21 +35,21 @@ inline unsigned ZmGrow(unsigned o, unsigned n)
   });
 }
 
-template <auto ID, bool Sharded = false>
+template <auto ID, bool Sharded = false, unsigned Alignment = sizeof(void *)>
 class ZmVHeap {
-  template <auto, bool> friend class ZmVHeap_Init;
+  template <auto, bool, unsigned> friend class ZmVHeap_Init;
 
   template <unsigned N>
   using Cache = ZmHeapCacheT<ID, ZmHeapAllocSize<(1<<N)>::N, Sharded>;
 
 public:
-  static void *valloc(size_t n) {
-    ZmAssert(n < UINT_MAX);
-    n += sizeof(uintptr_t);
-    unsigned i = (sizeof(n)<<3) - ZuIntrin::clz(n);
+  static void *valloc(size_t size) {
+    ZmAssert(size < UINT_MAX);
+    size += sizeof(uintptr_t);
+    unsigned i = (sizeof(size)<<3) - ZuIntrin::clz(size);
     // if this is a giant allocation, just fallback to malloc/free
     if (ZuUnlikely(i >= 17)) {
-      uintptr_t *ptr = static_cast<uintptr_t *>(::malloc(n));
+      auto ptr = static_cast<uintptr_t *>(Zm::alignedAlloc(size, Alignment));
       if (ZuUnlikely(!ptr)) return nullptr;
       *ptr = i;
       return &ptr[1];
@@ -66,7 +66,7 @@ public:
     uintptr_t *ptr = static_cast<uintptr_t *>(const_cast<void *>(p));
     auto i = *--ptr;
     if (ZuUnlikely(i >= 17)) {
-      ::free(ptr);
+      Zm::alignedFree(ptr);
       return;
     }
     ZuSwitch::dispatch<17>(i, [ptr](auto I) {
@@ -75,19 +75,21 @@ public:
   }
 
 private:
-  static ZmVHeap_Init<ID, Sharded>	m_init;
+  static ZmVHeap_Init<ID, Sharded, Alignment>	m_init;
 };
 
-template <auto ID, bool Sharded>
-ZmVHeap_Init<ID, Sharded>::ZmVHeap_Init() {
+template <auto ID, bool Sharded, unsigned Alignment>
+ZmVHeap_Init<ID, Sharded, Alignment>::ZmVHeap_Init() {
+  using VHeap = ZmVHeap<ID, Sharded, Alignment>;
   for (unsigned i = 0; i < 16; i++)
     ZuSwitch::dispatch<16>(i, [](auto I) {
-      if (auto ptr = ZmVHeap<ID, Sharded>::template Cache<I>::alloc())
-	ZmVHeap<ID, Sharded>::template Cache<I>::free(ptr);
+      if (auto ptr = VHeap::template Cache<I>::alloc())
+	VHeap::template Cache<I>::free(ptr);
     });
 }
 
-template <auto ID, bool Sharded>
-ZmVHeap_Init<ID, Sharded> ZmVHeap<ID, Sharded>::m_init;
+template <auto ID, bool Sharded, unsigned Alignment>
+ZmVHeap_Init<ID, Sharded, Alignment>
+ZmVHeap<ID, Sharded, Alignment>::m_init;
 
 #endif /* ZmVHeap_HH */

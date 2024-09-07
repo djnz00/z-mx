@@ -76,12 +76,8 @@ protected:
 
     if (m_cBits > m_bits) m_cBits = m_bits;
     unsigned n = 1U<<m_cBits;
-    unsigned z = n * CacheLineSize;
-#ifndef _WIN32
-    if (posix_memalign(&m_locks, CacheLineSize, z)) m_locks = nullptr;
-#else
-    m_locks = _aligned_malloc(z, CacheLineSize);
-#endif
+    unsigned size = n * CacheLineSize;
+    m_locks = Zm::alignedAlloc(size, CacheLineSize);
     if (!m_locks) throw std::bad_alloc{};
     for (unsigned i = 0; i < n; ++i) new (&lock_(i)) Lock();
   }
@@ -90,11 +86,7 @@ protected:
     if (ZuUnlikely(!m_locks)) return;
     unsigned n = 1U<<m_cBits;
     for (unsigned i = 0; i < n; ++i) lock_(i).~Lock();
-#ifndef _WIN32
-    ::free(m_locks);
-#else
-    _aligned_free(m_locks);
-#endif
+    Zm::alignedFree(m_locks);
   }
 
   void bits(unsigned n)  {  m_bits = n < 2 ? 2 : n > 28 ? 28 : n; }

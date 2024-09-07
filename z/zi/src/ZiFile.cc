@@ -677,8 +677,9 @@ error:
   if (e) *e = ZeError(errNo);
   return Zi::IOError;
 #else
-  // Windows	- ReadFileScatter() cannot be used since it only accepts
-  //		  page-sized and page-aligned buffers
+  // Windows
+  // - ReadFileScatter() cannot be used since it requires
+  //   page-sized and page-aligned buffers
 
   int total = 0, r = 0;
 
@@ -821,8 +822,9 @@ error:
   if (e) *e = ZeError(errNo);
   return Zi::IOError;
 #else
-  // Windows	- WriteFileGather() cannot be used since it only accepts
-  //		  page-sized and page-aligned buffers
+  // Windows
+  // - WriteFileGather() cannot be used since it requires
+  //   page-sized and page-aligned buffers
 
   int r = 0;
 

@@ -98,7 +98,7 @@ int main(int argc, char **argv)
   recordLocks = new ZmRef<Lock>[nrecords];
   cid = new volatile unsigned[nrecords];
   delay = atoi(argv[3]);
-  auto c = static_cast<C *>(ZuAlloca(nthreads * sizeof(C)));
+  auto c = static_cast<C *>(ZuAlloca(nthreads * sizeof(C), alignof(C)));
   for (int i = 0; i < nthreads; i++) {
     c[i].id = i + 1;
     pthread_create(&c[i].tid, 0, &run, (void *)&c[i]);

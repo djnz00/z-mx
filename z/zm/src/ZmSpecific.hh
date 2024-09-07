@@ -232,7 +232,8 @@ public:
 
     if (ZuUnlikely(!m_count)) { ZmSpecific_unlock(); return; }
 
-    auto objects = static_cast<Object **>(ZuAlloca(m_count * sizeof(Object *)));
+    auto objects = static_cast<Object **>(
+      ZuAlloca(m_count * sizeof(Object *), alignof(Object *)));
     if (ZuUnlikely(!objects)) { ZmSpecific_unlock(); return; }
     memset(objects, 0, sizeof(Object *) * m_count);
     all_3(objects, l);

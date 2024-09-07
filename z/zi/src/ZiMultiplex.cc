@@ -2101,7 +2101,7 @@ void ZiMultiplex::rx()
   int r;
   ZeError e;
   auto ev = static_cast<epoll_event *>(
-      ZuAlloca(m_epollQuantum * sizeof(epoll_event)));
+    ZuAlloca(m_epollQuantum * sizeof(epoll_event), alignof(epoll_event)));
   if (ZuUnlikely(!ev)) return;
 
   for (;;) {
