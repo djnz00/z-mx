@@ -211,6 +211,11 @@ using ReaderList =
 template <typename Decoder>
 using RdrListNode = typename ReaderList<Decoder>::Node;
 
+template <typename Decoder>
+inline auto node(Reader<Decoder> *ptr) {
+  return static_cast<RdrListNode<Decoder> *>(ptr);
+}
+
 // RdRef is a move-only ZmRef<Reader>-derived smart pointer,
 // with a RAII dtor that calls reader->stop()
 template <typename Decoder>
@@ -1148,7 +1153,7 @@ inline void Reader<Decoder>::stop(StopFn fn)
   m_stopFn = ZuMv(fn);
   m_fn = Fn{};
   m_errorFn = ErrorFn{};
-  m_series->run([this_ = ZmMkRef(this)]() mutable {
+  m_series->run([this_ = ZmMkRef(node(this))]() mutable {
     this_->stopped();
   });
 }
@@ -1180,7 +1185,7 @@ inline void Reader<Decoder>::loadBlk()
 
   m_state = Loading;
   m_series->loadBlkData(m_blkOffset, [
-    this_ = ZmMkRef(this)
+    this_ = ZmMkRef(node(this))
   ](Blk *blk) mutable {
     this_->loaded(blk);
   });
@@ -1276,7 +1281,7 @@ inline int Reader<Decoder>::nextBlk()
     m_decoder = m_blk->decoder<Decoder>();
     return RdrResult::OK;
   }
-  m_series->run([this_ = ZmMkRef(this)]() mutable {
+  m_series->run([this_ = ZmMkRef(node(this))]() mutable {
     this_->loadBlk();
   });
   return RdrResult::Load;
