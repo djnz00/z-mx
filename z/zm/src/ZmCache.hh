@@ -63,8 +63,7 @@ public:
 private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
-  using LRUList_ = ZmList<T, ZmListNode<T, ZmListShadow<true>>>;
-  struct LRUList : public LRUList_ { using LRUList_::LRUList_; };
+  using LRUList = ZmList<T, ZmListNode<T, ZmListShadow<true>>>;
   struct LRUDisable { // LRU list is not needed if eviction is disabled
     using Node = T;
     Node *delNode(Node *node) { return node; }
@@ -72,11 +71,10 @@ private:
     void pushNode(Node *) { }
   };
   using LRU = ZuIf<Evict, LRUList, LRUDisable>;
-  using Hash_ =
+  using Hash =
     ZmHash<typename LRU::Node,
       ZmHashNode<typename LRU::Node,
-	ZmHashLock<ZmNoLock, NTP>>>;
-  struct Hash : public Hash_ { using Hash_::Hash_; }; // overrides NTP::Lock
+	ZmHashLock<ZmNoLock, NTP>>>; // overrides NTP::Lock
 
 public:
   using Key = typename Hash::Key;
@@ -90,10 +88,8 @@ public:
 
 private:
   using FindFn = ZmFn<void(Node *)>;
-  using FindFnList_ = ZmList<FindFn>;
-  struct FindFnList : public FindFnList_ { using FindFnList_::FindFnList_; };
-  using LoadHash_ = ZmHashKV<Key, FindFnList, ZmHashHeapID<HeapID>>;
-  struct LoadHash : public LoadHash_ { using LoadHash_::LoadHash_; };
+  using FindFnList = ZmList<FindFn>;
+  using LoadHash = ZmHashKV<Key, FindFnList, ZmHashHeapID<HeapID>>;
 
 public:
   ZmCache() {

@@ -54,8 +54,7 @@ private:
   using ReadGuard = ZmReadGuard<Lock>;
 
   static const char *HeapID() { return "ZmEngine"; };
-  using CtrlFnRing_ = ZmXRing<ZmFn<void(bool)>, ZmXRingHeapID<HeapID>>;
-  struct CtrlFnRing : public CtrlFnRing_ { using CtrlFnRing_::CtrlFnRing_; };
+  using CtrlFnRing = ZmXRing<ZmFn<void(bool)>, ZmXRingHeapID<HeapID>>;
 
 public:
   template <typename L>

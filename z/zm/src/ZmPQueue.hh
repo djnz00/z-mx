@@ -1136,8 +1136,7 @@ private:
 
 // CRTP - application must conform to the following interface:
 #if 0
-using Queue_ = ZmPQueue<...>;
-struct Queue : public Queue_ { using Queue_::Queue_; };
+using Queue = ZmPQueue<...>;
 
 struct App : public ZmPQRx<App, Queue> {
   using Msg = typename Queue::Node;
@@ -1328,8 +1327,7 @@ private:
 
 // CRTP - application must conform to the following interface:
 #if 0
-using Queue_ = ZmPQueue<...>;
-struct Queue : public Queue_ { using Queue_::Queue_; };
+using Queue = ZmPQueue<...>;
 
 struct App : public ZmPQTx<App, Queue> {
   using Msg = typename Queue::Node;

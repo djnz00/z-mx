@@ -80,12 +80,11 @@ private:
 };
 
 inline constexpr const char *ZvIOMsg_HeapID() { return "ZvIOMsg"; };
-using ZvIOQueue__ =
+using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
     ZmPQueueNode<ZvIOQItem,
       ZmPQueueFn<ZvIOQFn,
 	ZmPQueueHeapID<ZvIOMsg_HeapID>>>>;
-struct ZvIOQueue_ : public ZvIOQueue__ { using ZvIOQueue__::ZvIOQueue__; };
 using ZvIOMsg = ZvIOQueue_::Node;
 using ZvIOQGap = ZvIOQueue_::Gap;
 struct ZvIOQueue : public ZmObject, public ZvIOQueue_ {
@@ -322,10 +321,9 @@ class ZvIOQueueTxPool : public ZvIOQueueTx<Impl, Lock_> {
   using Guard = ZmGuard<Lock>;
 
   static const char *Queues_HeapID() { return "ZvIOQueueTxPool.Queues"; }
-  using Queues_ =
+  using Queues =
     ZmRBTreeKV<ZuTime, ZmRef<Tx>,
       ZmRBTreeHeapID<Queues_HeapID>>;
-  struct Queues : public Queues_ { using Queues_::Queues_; };
 
 public:
   void loaded_(ZvIOMsg *) { }   // may be overridden by Impl

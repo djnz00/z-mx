@@ -51,8 +51,7 @@ ZtFieldTbl(Row,
     (((mabbit), (Ctor<6>)), (DateTime)),
     (((flags), (Ctor<7>, Flags<DaFlags::Map>)), (Int32)));
 
-using CSVWrite_ = ZmList<Row, ZmListNode<ZuObject>>;
-struct CSVWrite : public CSVWrite_ { using CSVWrite_::CSVWrite_; };
+using CSVWrite = ZmList<Row, ZmListNode<ZuObject>>;
 
 int main()
 {

@@ -89,11 +89,10 @@ private:
     ZtString	brief;
     ZtString	usage;
   };
-  using Cmds_ =
+  using Cmds =
     ZmRBTreeKV<ZtString, CmdData,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmNoLock> > >;
-  struct Cmds : public Cmds_ { using Cmds_::Cmds_; };
 
   Lock			m_lock;
     ZmRef<ZvCf>		  m_syntax;

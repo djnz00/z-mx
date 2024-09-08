@@ -706,13 +706,12 @@ friend ZiConnection;
     bool		m_up;
     ZiListenInfo	m_info;
   };
-  using ListenerHash_ =
+  using ListenerHash =
     ZmHash<Listener_,
       ZmHashNode<Listener_,
 	ZmHashKey<Listener_::SocketAxor,
 	  ZmHashHeapID<Listener_::HeapID,
 	    ZmHashSharded<true>>>>>;
-  struct ListenerHash : public ListenerHash_ { using ListenerHash_::ListenerHash_; };
   using Listener = ListenerHash::Node;
 
 #if ZiMultiplex__AcceptHeap
@@ -807,23 +806,21 @@ template <typename> friend class Connect_;
 #endif
   };
 #if ZiMultiplex__ConnectHash
-  using ConnectHash_ =
+  using ConnectHash =
     ZmHash<Connect_,
       ZmHashNode<Connect_,
 	ZmHashKey<Connect_::SocketAxor,
 	  ZmHashHeapID<Connect_HeapID>>>>;
-  struct ConnectHash : public ConnectHash_ { using ConnectHash_::ConnectHash_; };
   using Connect = ConnectHash::Node;
 #else
   using ConnectHeap = ZmHeap<Connect_HeapID, Connect_<ZuEmpty>>;
   using Connect = Connect_<ConnectHeap>;
 #endif
 
-  using CxnHash_ =
+  using CxnHash =
     ZmHash<ZmRef<ZiConnection>,
       ZmHashKey<ZiConnection::SocketAxor,
 	ZmHashHeapID<ZiConnection::HeapID>>>;
-  struct CxnHash : public CxnHash_ { using CxnHash_::CxnHash_; };
 
 public:
   using Socket = Zi::Socket;
@@ -1000,11 +997,10 @@ private:
 inline constexpr const char *ZiMxMgr_HeapID() { return "ZiMxMgr"; }
 
 class ZiAPI ZiMxMgr {
-  using Map_ =
+  using Map =
     ZmRBTreeKV<ZuID, ZiMultiplex *,
       ZmRBTreeLock<ZmPLock,
 	ZmRBTreeHeapID<ZiMxMgr_HeapID>>>;
-  struct Map : public Map_ { using Map_::Map_; };
 
 friend ZiMultiplex;
 

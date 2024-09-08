@@ -48,10 +48,9 @@ struct Msg_ : public ZmObject, public Msg_Data {
   void write(const I &i) { }
 };
 
-using Queue_ =
+using Queue =
   ZmPQueue<Msg_,
     ZmPQueueNode<Msg_> >;
-struct Queue : public Queue_ { using Queue_::Queue_; };
 
 class App : public ZmPQRx<App, Queue, ZmNoLock> {
 public:

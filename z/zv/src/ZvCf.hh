@@ -654,8 +654,7 @@ public:
   unsigned fromCLI(Cf *syntax, ZuCSpan line);
   unsigned fromArgs(Cf *options, const ZtArray<ZtString> &args);
 
-  using Defines__ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
-  struct Defines_ : public Defines__ { using Defines__::Defines__; };
+  using Defines_ = ZmRBTreeKV<ZtString, ZtString, ZmRBTreeUnique<true>>;
   struct Defines : public ZuObject, public Defines_ { };
 
   void fromString(ZuCSpan in, ZmRef<Defines> defines = new Defines{}) {
@@ -716,13 +715,12 @@ private:
 
 private:
   static const char *HeapID() { return "ZvCf"; }
-  using Tree_ =
+  using Tree =
     ZmRBTree<CfNode,
       ZmRBTreeNode<CfNode,
 	ZmRBTreeKey<CfNode::KeyAxor,
 	  ZmRBTreeUnique<true,
 	    ZmRBTreeHeapID<HeapID>>>>>;
-  struct Tree : public Tree_ { using Tree_::Tree_; };
   using Node = Tree::Node;
 
   ZuTuple<Cf *, ZtString> getScope(ZuCSpan fullKey) const;

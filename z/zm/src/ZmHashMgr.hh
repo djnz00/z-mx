@@ -69,13 +69,12 @@ public:
 inline uintptr_t ZmAnyHash_PtrAxor(const ZmAnyHash_ &h) {
   return reinterpret_cast<uintptr_t>(&h);
 }
-using ZmHashMgr_Tables_ =
+using ZmHashMgr_Tables =
   ZmRBTree<ZmAnyHash_,
     ZmRBTreeNode<ZmAnyHash_,
       ZmRBTreeKey<ZmAnyHash_PtrAxor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<ZmHeapDisable()>>>>>;
-struct ZmHashMgr_Tables : public ZmHashMgr_Tables_ { using ZmHashMgr_Tables_::ZmHashMgr_Tables_; };
 using ZmAnyHash = ZmHashMgr_Tables::Node;
 
 template <typename, typename> class ZmHash; 

@@ -45,12 +45,11 @@ struct Msg : public ZuObject, public Msg_Data {
   unsigned elems() const { return 1; }
 };
 
-using PQueue_ =
+using PQueue =
   ZmPQueue<Msg,
     ZmPQueueNode<Msg,
       ZmPQueueBits<1,
 	ZmPQueueLevels<4> > > >;
-struct PQueue : public PQueue_ { using PQueue_::PQueue_; };
 
 using QMsg = PQueue::Node;
 

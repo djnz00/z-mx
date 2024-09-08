@@ -244,10 +244,9 @@ struct ZrlAPI Binding { // maps a vkey to a sequence of commands
   friend ZuPrintFn ZuPrintType(Binding *);
 };
 
-using Bindings__ =
+using Bindings_ =
   ZmLHash<ZuPtr<Binding>,
     ZmLHashKeyVal<Binding::KeyAxor, Binding::ValAxor>>;
-struct Bindings_ : public Bindings__ { using Bindings__::Bindings__; };
 
 struct Bindings : public Bindings_ {
   Bindings() : Bindings_{ZmHashParams{}.bits(8).loadFactor(1.0)} { }
@@ -291,11 +290,10 @@ struct Map_IDAccessor {
   static const Map_::ID &get(const Map_ &m) { return m.id; }
 };
 
-using Maps_ =
+using Maps =
   ZmRBTree<Map_,
     ZmRBTreeNode<Map_,
       ZmRBTreeKey<Map_::IDAxor>>>;
-struct Maps : public Maps_ { using Maps_::Maps_; };
 
 using Map = Maps::Node;
 

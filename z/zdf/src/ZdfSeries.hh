@@ -203,15 +203,10 @@ private:
 
 inline constexpr const char *Reader_HeapID() { return "Zdf.Reader"; }
 template <typename Decoder>
-using ReaderList_ =
+using ReaderList =
   ZmList<Reader<Decoder>,
     ZmListNode<Reader<Decoder>,
       ZmListHeapID<Reader_HeapID>>>;
-template <typename Decoder>
-struct ReaderList : public ReaderList_<Decoder> {
-  using Base = ReaderList_<Decoder>;
-  using Base::Base;
-};
 
 template <typename Decoder>
 using RdrListNode = typename ReaderList<Decoder>::Node;
@@ -379,7 +374,7 @@ struct IndexBlk_Fn {
   static constexpr const unsigned length() { return IndexBlkSize(); }
 };
 inline constexpr const char *IndexBlk_HeapID() { return "Zdf.IndexBlk"; }
-using Index_ =
+using Index =
   ZmPQueue<IndexBlk_,
     ZmPQueueFn<IndexBlk_Fn,
       ZmPQueueNode<IndexBlk_,
@@ -388,7 +383,6 @@ using Index_ =
 	    ZmPQueueBits<3,
 	      ZmPQueueLevels<3,
 		ZmPQueueHeapID<IndexBlk_HeapID>>>>>>>>;
-struct Index : public Index_ { using Index_::Index_; };
 using IndexBlk = Index::Node;
 
 struct InternalError { };	// internal exception

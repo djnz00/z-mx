@@ -30,12 +30,10 @@ struct ZCmp {
   static constexpr const Z *null() { return nullptr; }
 };
 
-using ZCache_ = ZmCacheKV<unsigned, Z, ZmCacheLock<ZmPLock>>;
-struct ZCache : public ZCache_ { using ZCache_::ZCache_; };
+using ZCache = ZmCacheKV<unsigned, Z, ZmCacheLock<ZmPLock>>;
 using ZNode = ZCache::Node;
 
-using ZTree_ = ZmRBTreeKV<unsigned, Z>;
-struct ZTree : public ZTree_ { using ZTree_::ZTree_; };
+using ZTree = ZmRBTreeKV<unsigned, Z>;
 
 void backFill(ZTree &tree, unsigned cacheSize)
 {

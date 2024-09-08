@@ -105,8 +105,7 @@ template <typename T, class NTP> class ZmStack;
 template <class Stack> struct ZmStack_Unlocked;
 template <typename T, class NTP>
 struct ZmStack_Unlocked<ZmStack<T, NTP> > {
-  using Stack_ = ZmStack<T, NTP>;
-  struct Stack : public Stack_ { using Stack_::Stack_; };
+  using Stack = ZmStack<T, NTP>;
 
   template <typename P>
   T *findPtr(P &&v) {

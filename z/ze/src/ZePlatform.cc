@@ -119,11 +119,10 @@ static constexpr struct {
 };
 class ZePlatform_WSAErrors {
 public:
-  using Hash_ =
+  using Hash =
     ZmLHashKV<DWORD, const char *,
       ZmLHashStatic<6,
 	ZmLHashLock<ZmNoLock> > >;
-  struct Hash : public Hash_ { using Hash_::Hash_; };
 
   ZePlatform_WSAErrors() {
     m_hash = new Hash();

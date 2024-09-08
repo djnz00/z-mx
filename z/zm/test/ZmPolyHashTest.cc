@@ -20,8 +20,7 @@ ZuFieldTbl(Foo_,
     ((k), ((Keys<0, 1>))),
     ((l), (Keys<3>)));
 
-using Hash_ = ZmPolyHash<Foo_>;
-struct Hash : public Hash_ { using Hash_::Hash_; };
+using Hash = ZmPolyHash<Foo_>;
 using Foo = Hash::Node;
 
 int main()

@@ -181,17 +181,15 @@ private:
   ZmScheduler::Timer	m_hbTimer;
 };
 inline constexpr const char *CxnHeapID() { return "Zdb.Cxn"; }
-using CxnList_ =
+using CxnList =
   ZmList<Cxn_,
     ZmListNode<Cxn_,
       ZmListHeapID<CxnHeapID>>>;
-struct CxnList : public CxnList_ { using CxnList_::CxnList_; };
 using Cxn = CxnList::Node;
 
 // --- DB state - SN and key/value linear hash from {table ID, shard} -> UN
 
-using DBState__ = ZmLHashKV<ZuTuple<ZtString, Shard>, UN, ZmLHashLocal<>>;
-struct DBState_ : public DBState__ { using DBState__::DBState__; };
+using DBState_ = ZmLHashKV<ZuTuple<ZtString, Shard>, UN, ZmLHashLocal<>>;
 struct DBState : public DBState_ {
   SN		sn = 0;
 
@@ -396,11 +394,10 @@ inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
 inline constexpr const char *CacheUN_HeapID() { return "Zdb.UpdCache"; }
 
 // temporarily there may be more than one UN referencing a cached object
-using CacheUN_ =
+using CacheUN =
   ZmHashKV<UN, ZmRef<AnyObject>,
     ZmHashLock<ZmPLock,
       ZmHashHeapID<CacheUN_HeapID>>>;
-struct CacheUN : public CacheUN_ { using CacheUN_::CacheUN_; };
 
 // --- typed object
 
@@ -495,14 +492,9 @@ private:
 
 // typed object cache
 template <typename T>
-using Cache_ =
+using Cache =
   ZmPolyCache<Object_<T>,
     ZmPolyCacheHeapID<ZdbHeapID<T>::id>>;
-template <typename T>
-struct Cache : public Cache_<T> {
-  using Base = Cache_<T>;
-  using Base::Base;
-};
 
 // typed object
 template <typename T>
@@ -566,12 +558,11 @@ struct TableCf {
 // --- table configuration
 
 inline constexpr const char *TableCfs_HeapID() { return "Zdb.TableCf"; }
-using TableCfs_ =
+using TableCfs =
   ZmRBTree<TableCf,
     ZmRBTreeKey<TableCf::IDAxor,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<TableCfs_HeapID>>>>;
-struct TableCfs : public TableCfs_ { using TableCfs_::TableCfs_; };
 
 // --- generic table
 
@@ -823,12 +814,7 @@ inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 
 // buffer cache
 template <typename T>
-using BufCache_ = ZmPolyHash<Buf_<T>, ZmPolyHashHeapID<ZdbBufHeapID<T>::id>>;
-template <typename T>
-struct BufCache : public BufCache_<T> {
-  using Base = BufCache_<T>;
-  using Base::Base;
-};
+using BufCache = ZmPolyHash<Buf_<T>, ZmPolyHashHeapID<ZdbBufHeapID<T>::id>>;
 
 // typed buffer
 template <typename T> 
@@ -1475,12 +1461,11 @@ inline bool Object_<T>::abort() {
 // --- table container
 
 inline constexpr const char *Tables_HeapID() { return "Zdb.Table"; }
-using Tables_ =
+using Tables =
   ZmRBTree<ZmRef<AnyTable>,
     ZmRBTreeKey<AnyTable::IDAxor,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<Tables_HeapID>>>>;
-struct Tables : public Tables_ { using Tables_::Tables_; };
 
 // --- DB host configuration
 
@@ -1508,12 +1493,11 @@ struct HostCf {
 };
 
 inline constexpr const char *HostCfs_HeapID() { return "Zdb.HostCf"; }
-using HostCfs_ =
+using HostCfs =
   ZmRBTree<HostCf,
     ZmRBTreeKey<HostCf::IDAxor,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<HostCfs_HeapID>>>>;
-struct HostCfs : public HostCfs_ { using HostCfs_::HostCfs_; };
 
 // --- DB host
 
@@ -1603,20 +1587,18 @@ private:
 };
 
 // host container
-using HostIndex_ =
+using HostIndex =
   ZmRBTree<Host,
     ZmRBTreeNode<Host,
       ZmRBTreeShadow<true,
 	ZmRBTreeKey<Host::IndexAxor,
 	  ZmRBTreeUnique<true>>>>>;
-struct HostIndex : public HostIndex_ { using HostIndex_::HostIndex_; };
 inline constexpr const char *Hosts_HeapID() { return "Zdb.Host"; }
-using Hosts_ =
+using Hosts =
   ZmHash<HostIndex::Node,
     ZmHashNode<HostIndex::Node,
       ZmHashKey<Host::IDAxor,
 	ZmHashHeapID<Hosts_HeapID>>>>;
-struct Hosts : public Hosts_ { using Hosts_::Hosts_; };
 
 // --- DB handler functions
 
@@ -1720,11 +1702,10 @@ private:
 
 private:
   static const char *CxnHash_HeapID() { return "Zdb.CxnHash"; }
-  using CxnHash_ =
+  using CxnHash =
     ZmHash<ZmRef<Cxn>,
       ZmHashLock<ZmPLock,
 	ZmHashHeapID<CxnHash_HeapID>>>;
-  struct CxnHash : public CxnHash_ { using CxnHash_::CxnHash_; };
 
 public:
 #if Zdb_DEBUG

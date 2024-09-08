@@ -57,8 +57,7 @@ public:
 private:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
-  using LRUList_ = ZmList<T, ZmListNode<T, ZmListShadow<true>>>;
-  struct LRUList : public LRUList_ { using LRUList_::LRUList_; };
+  using LRUList = ZmList<T, ZmListNode<T, ZmListShadow<true>>>;
   struct LRUDisable { // LRU list is not needed if eviction is disabled
     using Node = T;
     Node *delNode(Node *node) { return node; }
@@ -66,10 +65,9 @@ private:
     void pushNode(Node *) { }
   };
   using LRU = ZuIf<Evict, LRUList, LRUDisable>;
-  using PolyHash_ =
+  using PolyHash =
     ZmPolyHash<typename LRU::Node,
-      ZmPolyHashLock<ZmNoLock, NTP>>;
-  struct PolyHash : public PolyHash_ { using PolyHash_::PolyHash_; }; // overrides NTP::Lock
+      ZmPolyHashLock<ZmNoLock, NTP>>; // overrides NTP::Lock
 
 public:
   static constexpr auto HeapID = PolyHash::HeapID;
@@ -80,8 +78,7 @@ public:
 
 private:
   using FindFn = ZmFn<void(Node *)>;
-  using FindFnList_ = ZmList<FindFn, ZmHashHeapID<HeapID>>;
-  struct FindFnList : public FindFnList_ { using FindFnList_::FindFnList_; };
+  using FindFnList = ZmList<FindFn, ZmHashHeapID<HeapID>>;
   // key IDs as a type list
   using KeyIDs = ZuSeqTL<ZuFieldKeyIDs<T>>;
   // key types, each a tuple
@@ -90,12 +87,7 @@ private:
   using Keys = ZuTypeMap<KeyT, KeyIDs>;
   // load hash tables, mapping keys to pending find() operations for each KeyID
   template <typename KeyID>
-  using LoadHash_ = ZmHashKV<KeyT<KeyID>, FindFnList, ZmHashHeapID<HeapID>>;
-  template <typename KeyID>
-  struct LoadHash : public LoadHash_<KeyID> {
-    using Base =LoadHash_<KeyID>;
-    using Base::Base;
-  };
+  using LoadHash = ZmHashKV<KeyT<KeyID>, FindFnList, ZmHashHeapID<HeapID>>;
   // hash table node type
   template <int KeyID>
   using LoadHashNode = typename LoadHash<ZuUnsigned<KeyID>>::Node;

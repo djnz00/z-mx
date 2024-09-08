@@ -672,10 +672,8 @@ varBufSize(const reflection::Field *field, const Zfb::Table *fbo) {
 
 class OIDs {
   using OIDs_ = ZuArray<unsigned, Value::N - 1>;
-  using Types_ = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
-  struct Types : public Types_ { using Types_::Types_; };
-  using Lookup_ = ZmLHashKV<ZuCSpan, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
-  struct Lookup : public Lookup_ { using Lookup_::Lookup_; };
+  using Types = ZmLHashKV<unsigned, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
+  using Lookup = ZmLHashKV<ZuCSpan, int8_t, ZmLHashStatic<6, ZmLHashLocal<>>>;
 
 public:
   OIDs();
@@ -1597,10 +1595,9 @@ using Task = ZuUnion<Start, Stop, TblQuery>;
 
 inline constexpr const char *Queue_HeapID() { return "ZdbPQ.Queue"; }
 
-using Queue_ =
+using Queue =
   ZmList<Task,
     ZmListHeapID<Queue_HeapID>>;
-struct Queue : public Queue_ { using Queue_::Queue_; };
 
 } // Work
 
@@ -1860,8 +1857,7 @@ private:
 
 private:
   using UpdFields = ZtArray<const ZtVField *>;
-  using FieldMap_ = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
-  struct FieldMap : public FieldMap_ { using FieldMap_::FieldMap_; };
+  using FieldMap = ZmLHashKV<ZtString, unsigned, ZmLHashLocal<>>;
 
   Store			*m_store = nullptr;
   ZtString		m_id;
@@ -1890,13 +1886,12 @@ inline ZuCSpan StoreTbl_IDAxor(const StoreTbl &storeTbl) {
   return storeTbl.id();
 }
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
-using StoreTbls_ =
+using StoreTbls =
   ZmHash<StoreTbl,
     ZmHashNode<StoreTbl,
       ZmHashKey<StoreTbl_IDAxor,
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
-struct StoreTbls : public StoreTbls_ { using StoreTbls_::StoreTbls_; };
 
 class Store : public Zdb_::Store {
 public:

@@ -401,7 +401,7 @@ template <typename, typename> friend class KeyIterator_;
   template <typename I, typename IKey_>
   class KeyIterator_ : public Iterator_<I> { // CRTP
     using Hash = ZmHash<T, NTP>;
-  friend Hash;
+  friend class ZmHash<T, NTP>;
 
     KeyIterator_(const KeyIterator_ &) = delete;
     KeyIterator_ &operator =(const KeyIterator_ &) = delete;
@@ -501,7 +501,6 @@ public:
 
     using Hash = ZmHash<T, NTP>;
   friend Hash;
-
     using Base = KeyIterator_<ReadKeyIterator<IKey_>, IKey_>;
 
     using typename Base::IKey;

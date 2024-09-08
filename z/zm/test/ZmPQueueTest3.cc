@@ -46,8 +46,7 @@ struct Msg_ : public ZuObject, public Msg_Data {
   void write(const I &i) { }
 };
 
-using Queue_ = ZmPQueue<Msg_, ZmPQueueNode<ZuObject>>;
-struct Queue : public Queue_ { using Queue_::Queue_; };
+using Queue = ZmPQueue<Msg_, ZmPQueueNode<ZuObject>>;
 
 using XXX = decltype(ZuDeclVal<const typename Queue::Node &>().key());
 

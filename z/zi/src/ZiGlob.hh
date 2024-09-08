@@ -39,8 +39,7 @@ class ZiAPI ZiGlob {
 
     static const Zi::Path &NameAxor(const Entry &entry) { return entry.name; }
   };
-  using Entries_ = ZmRBTree<Entry, ZmRBTreeKey<Entry::NameAxor>>;
-  struct Entries : public Entries_ { using Entries_::Entries_; };
+  using Entries = ZmRBTree<Entry, ZmRBTreeKey<Entry::NameAxor>>;
   using Iterator = decltype(ZuDeclVal<const Entries &>().readIterator());
 
 public:

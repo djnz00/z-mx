@@ -63,7 +63,7 @@ public:
 private:
   // low-level template for individual index hash table
   template <typename Node, auto Axor, bool Shadow_>
-  using Index____ =
+  using Hash___ =
     ZmHash<Node,
       ZmHashNode<Node,
 	ZmHashKey<Axor,
@@ -71,15 +71,13 @@ private:
 	    ZmHashShadow<Shadow_,
 	      ZmHashHeapID<HeapID, // must come after ID
 		ZmHashSharded<Sharded>>>>>>>;
-  template <typename Node, auto Axor, bool Shadow>
-  struct Index___ : public Index____<Node, Axor, Shadow> {
-    using Base = Index____<Node, Axor, Shadow>;
-    using Base::Base;
-  };
   // resolve index hash table type given key ID and node type
   template <unsigned KeyID, typename Node_, typename O = T>
-  struct Index__ {
-    using T__ = Index___<Node_, ZuFieldAxor<O, KeyID>(), Shadow || KeyID>;
+  struct Hash__ {
+    using T__ = Hash___<
+      Node_,
+      ZuFieldAxor<O, KeyID>(),
+      Shadow || KeyID>;
     using NodeFn = ZmNodeFn<Shadow || KeyID, Node_>;
     struct T : public T__ {
       using T__::T__;
@@ -97,35 +95,28 @@ private:
   enum { NKeys = KeyIDs::N };
   // each index's node type derives from the next index's, except the last
   template <unsigned KeyID, typename O = T>
-  struct IndexT {
-    using T = typename Index__<KeyID, typename IndexT<KeyID + 1>::T::Node>::T;
+  struct Hash_ {
+    using T = typename Hash__<KeyID, typename Hash_<KeyID + 1>::T::Node>::T;
   };
   template <typename O>
-  struct IndexT<NKeys - 1, O> {
+  struct Hash_<NKeys - 1, O> {
     enum { KeyID = NKeys - 1 };
-    using T = typename Index__<KeyID, O>::T;
+    using T = typename Hash__<KeyID, O>::T;
   };
   template <typename KeyID>
-  using Index_ = typename IndexT<KeyID{}>::T;
-public:
-  template <typename KeyID>
-  struct Index : public Index_<KeyID> {
-    using Base = Index_<KeyID>;
-    using Base::Base;
-  };
-private:
+  using Hash = typename Hash_<KeyID{}>::T;
   // list of index hash table types
-  using IndexTL = ZuTypeMap<Index, KeyIDs>;
+  using HashTL = ZuTypeMap<Hash, KeyIDs>;
   // list of hash ref types
-  using IndexRefTL = ZuTypeMap<ZmRef, IndexTL>;
+  using HashRefTL = ZuTypeMap<ZmRef, HashTL>;
   // tuple of hash table references
-  using IndexRefs_ = ZuTypeApply<ZuTuple, IndexRefTL>;
-  struct IndexRefs : public IndexRefs_ {
-    using IndexRefs_::IndexRefs_;
-    using IndexRefs_::operator =;
+  using HashRefs_ = ZuTypeApply<ZuTuple, HashRefTL>;
+  struct HashRefs : public HashRefs_ {
+    using HashRefs_::HashRefs_;
+    using HashRefs_::operator =;
   };
   // primary index
-  using Primary = Index<ZuUnsigned<0>>;
+  using Primary = Hash<ZuUnsigned<0>>;
 
 public:
   // most-derived hash node type (i.e. the primary node type)
@@ -136,7 +127,7 @@ public:
   ZmPolyHash(ZuCSpan id) {
     auto params = ZmHashParams{id};
     ZuUnroll::all<KeyIDs>([this, &id, &params]<typename KeyID>() {
-      m_hashes.template p<KeyID{}>(new Index<KeyID>{id, params});
+      m_hashes.template p<KeyID{}>(new Hash<KeyID>{id, params});
     });
   }
 
@@ -249,7 +240,7 @@ public:
   template <unsigned KeyID, typename Key>
   auto iterator(Key &&key) const {
     using Base =
-      ZuDecay<decltype(ZuDeclVal<const Index<ZuUnsigned<KeyID>> &>().
+      ZuDecay<decltype(ZuDeclVal<const Hash<ZuUnsigned<KeyID>> &>().
 	readIterator(ZuFwd<Key>(key)))>;
     return Iterator<Base>{
       m_hashes.template p<KeyID>()->readIterator(ZuFwd<Key>(key))};
@@ -262,7 +253,7 @@ public:
   }
 
 private:
-  IndexRefs	m_hashes;
+  HashRefs	m_hashes;
 };
 
 #endif /* ZmPolyHash_HH */

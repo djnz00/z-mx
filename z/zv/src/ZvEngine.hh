@@ -336,16 +336,14 @@ public:
   void telemetry(Telemetry &data) const;
 
 private:
-  using TxPools_ =
+  using TxPools =
     ZmRBTree<ZmRef<ZvAnyTxPool>,
       ZmRBTreeKey<ZvAnyTxPool::IDAxor,
 	ZmRBTreeUnique<true>>>;
-  struct TxPools : public TxPools_ { using TxPools_::TxPools_; };
-  using Links_ =
+  using Links =
     ZmRBTree<ZmRef<ZvAnyLink>,
       ZmRBTreeKey<ZvAnyLink::IDAxor,
 	ZmRBTreeUnique<true>>>;
-  struct Links : public Links_ { using Links_::Links_; };
 
 public:
   ZmRef<ZvAnyTxPool> txPool(ZuID id) {

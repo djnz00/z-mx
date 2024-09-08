@@ -236,11 +236,10 @@ public:
 
 private:
   static const char *ColTree_HeapID() { return "ZvCSV.ColTree"; }
-  using ColTree_ =
+  using ColTree =
     ZmRBTreeKV<ZuCSpan, Column,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ColTree_HeapID>>>;
-  struct ColTree : public ColTree_ { using ColTree_::ColTree_; };
 
 public:
   ZvCSV() {

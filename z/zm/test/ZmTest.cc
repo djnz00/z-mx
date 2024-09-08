@@ -54,13 +54,10 @@ struct ZCmp {
   static const ZmRef<Z> &null() { static const ZmRef<Z> z; return z; }
 };
 
-using ZList_ = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
-struct ZList : public ZList_ { using ZList_::ZList_; };
-using ZHash_ = ZmHashKV<int, ZmRef<Z> >;
-struct ZHash : public ZHash_ { using ZHash_::ZHash_; };
+using ZList = ZmList<ZmRef<Z>, ZmListCmp<ZCmp> >;
+using ZHash = ZmHashKV<int, ZmRef<Z> >;
 
-using ZList2_ = ZmList<ZuCArray<20>, ZmListNode<ZuCArray<20>>>;
-struct ZList2 : public ZList2_ { using ZList2_::ZList2_; };
+using ZList2 = ZmList<ZuCArray<20>, ZmListNode<ZuCArray<20>>>;
 
 void Y::helloWorld() { std::cout << "hello world [Y]\n" << std::flush; }
 

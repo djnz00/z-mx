@@ -167,12 +167,11 @@ friend TCP;
   struct TCP_HeapID {
     static constexpr const char *id() { return "MxMDPublisher.TCP"; }
   };
-  using TCPTbl_ =
+  using TCPTbl =
     ZmHash<TCP *,
       ZmHashLock<ZmNoLock,
 	ZmHashObject<ZuObject,
 	  ZmHashHeapID<TCP_HeapID>>>>;
-  struct TCPTbl : public TCPTbl_ { using TCPTbl_::TCPTbl_; };
 
   class UDP;
 friend UDP;

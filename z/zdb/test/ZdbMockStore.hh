@@ -95,8 +95,7 @@ public:
   }
 
 private:
-  using Ring_ = ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>>;
-  struct Ring : public Ring_ { using Ring_::Ring_; };
+  using Ring = ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>>;
 
   bool		m_deferWork = false;
   bool		m_deferCallbacks = false;

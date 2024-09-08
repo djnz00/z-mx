@@ -88,10 +88,8 @@ template <int N> struct String {
 
 using S = String<16>;
 
-using Hash_ = ZmHashKV<S, int, ZmHashLock<ZmNoLock>>;
-struct Hash : public Hash_ { using Hash_::Hash_; };
-using LHash_ = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock>>;
-struct LHash : public LHash_ { using LHash_::LHash_; };
+using Hash = ZmHashKV<S, int, ZmHashLock<ZmNoLock>>;
+using LHash = ZmLHashKV<S, int, ZmLHashLock<ZmNoLock>>;
 
 template <typename H>
 struct HashAdapter {
@@ -268,10 +266,8 @@ template <typename H, template <typename> class A> void funcTest()
   }
 }
 
-using PerfHash_ = ZmHashKV<unsigned, String<16>, ZmHashLock<ZmLock> >;
-struct PerfHash : public PerfHash_ { using PerfHash_::PerfHash_; };
-using PerfLHash_ = ZmLHashKV<unsigned, String<16>, ZmLHashLock<ZmLock> >;
-struct PerfLHash : public PerfLHash_ { using PerfLHash_::PerfLHash_; };
+using PerfHash = ZmHashKV<unsigned, String<16>, ZmHashLock<ZmLock> >;
+using PerfLHash = ZmLHashKV<unsigned, String<16>, ZmLHashLock<ZmLock> >;
 
 unsigned perfTestSize = 1000;
 
