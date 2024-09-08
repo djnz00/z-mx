@@ -37,7 +37,9 @@ inline constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
 
 namespace Zi {
 
-struct IOBuf : public ZmPolymorph, private ZmVHeap<ZiIOBuf_HeapID> {
+using VHeap = ZmVHeap<ZiIOBuf_HeapID>;
+
+struct IOBuf : private VHeap, public ZmPolymorph {
   mutable void	*owner = nullptr;
   uintptr_t	data__ = 0;
   uint32_t	size = 0;
@@ -48,9 +50,8 @@ struct IOBuf : public ZmPolymorph, private ZmVHeap<ZiIOBuf_HeapID> {
   static constexpr const uintptr_t Jumbo = (uintptr_t(1)<<63);
 
 private:
-  using Heap = ZmVHeap<ZiIOBuf_HeapID>;
-  using Heap::valloc;
-  using Heap::vfree;
+  using VHeap::valloc;
+  using VHeap::vfree;
 
 protected:
   IOBuf(uint8_t *data_, uint32_t size_) :

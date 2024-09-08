@@ -149,17 +149,25 @@ inline void exit(int code) { ::ExitProcess(code); }
 
 // aligned allocation/free
 #ifndef _WIN32
-inline void *alignedAlloc(unsigned size, unsigned alignment) {
+template <unsigned Align_>
+inline void *alignedAlloc(unsigned size) {
+  enum { Align = Align_ < sizeof(void *) ? sizeof(void *) : Align_ };
   void *ptr;
-  if (posix_memalign(&ptr, alignment, size)) ptr = nullptr;
+  if (posix_memalign(&ptr, Align, size)) ptr = nullptr;
   return ptr;
 }
-inline void alignedFree(void *ptr) { ::free(ptr); }
-#else
-inline void *alignedAlloc(unsigned size, unsigned alignment) {
-  return _aligned_malloc(size, alignment);
+inline void alignedFree(const void *ptr) {
+  ::free(const_cast<void *>(ptr));
 }
-inline void alignedFree(void *ptr) { _aligned_free(ptr); }
+#else
+template <unsigned Align_>
+inline void *alignedAlloc(unsigned size) {
+  enum { Align = Align_ < sizeof(void *) ? sizeof(void *) : Align_ };
+  return _aligned_malloc(size, Align);
+}
+inline void alignedFree(const void *ptr) {
+  _aligned_free(const_cast<void *>(ptr));
+}
 #endif
 
 } // namespace Zm

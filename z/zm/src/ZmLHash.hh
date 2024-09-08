@@ -117,7 +117,7 @@ template <typename T>
 struct ZmLHash_Ops : public ZuArrayFn<T, ZuCmp<T> > {
   static T *alloc(unsigned size) {
     auto ptr = static_cast<T *>(
-      Zm::alignedAlloc(size * sizeof(T), Zm::CacheLineSize));
+      Zm::alignedAlloc<Zm::CacheLineSize>(size * sizeof(T)));
     if (!ptr) throw std::bad_alloc{};
     return ptr;
   }

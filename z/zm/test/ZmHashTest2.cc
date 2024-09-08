@@ -39,7 +39,7 @@ using Orders =
 
 int main(int argc, char **argv)
 {
-  ZmHeapMgr::init("Orders", 0, ZmHeapConfig{0, 100});
+  ZmHeapMgr::init("Orders", 0, ZmHeapConfig{100});
   ZmRef<Orders> orders = new Orders(ZmHashParams().bits(7).loadFactor(1.0));
 
   std::cout << "node size: " << sizeof(Orders::Node) << '\n';

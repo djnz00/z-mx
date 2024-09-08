@@ -77,7 +77,7 @@ protected:
     if (m_cBits > m_bits) m_cBits = m_bits;
     unsigned n = 1U<<m_cBits;
     unsigned size = n * CacheLineSize;
-    m_locks = Zm::alignedAlloc(size, CacheLineSize);
+    m_locks = Zm::alignedAlloc<CacheLineSize>(size);
     if (!m_locks) throw std::bad_alloc{};
     for (unsigned i = 0; i < n; ++i) new (&lock_(i)) Lock();
   }
@@ -526,7 +526,7 @@ private:
     if (loadFactor < 1.0) loadFactor = 1.0;
     m_loadFactor = (unsigned)(loadFactor * (1<<4));
     m_table = static_cast<NodePtr *>(
-      Zm::alignedAlloc(sizeof(NodePtr)<<m_bits, Zm::CacheLineSize));
+      Zm::alignedAlloc<Zm::CacheLineSize>(sizeof(NodePtr)<<m_bits));
     memset(m_table, 0, sizeof(NodePtr)<<m_bits);
     ZmHashMgr::add(this);
   }
@@ -1143,7 +1143,7 @@ private:
     m_bits = bits;
 
     NodePtr *table = static_cast<NodePtr *>(
-	Zm::alignedAlloc(sizeof(NodePtr)<<bits, Zm::CacheLineSize));
+      Zm::alignedAlloc<Zm::CacheLineSize>(sizeof(NodePtr)<<bits));
     memset(table, 0, sizeof(NodePtr)<<bits);
     Node *node, *nextNode;
 

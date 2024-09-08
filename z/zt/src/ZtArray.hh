@@ -750,7 +750,9 @@ private:
   }
 
   auto alloc__(unsigned length) {
-    return static_cast<T *>(valloc(length * sizeof(T)));
+    auto ptr = static_cast<T *>(valloc(length * sizeof(T)));
+    ZmAssert(!(reinterpret_cast<uintptr_t>(ptr) & (alignof(T) - 1)));
+    return ptr;
   }
 
   template <typename S> void copy__(const S *data, unsigned length) {

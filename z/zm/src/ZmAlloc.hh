@@ -77,7 +77,7 @@ struct ZmAlloc_ {
 #define ZmAlloc(T, n) \
   ZmAlloc_<T>{static_cast<T *>(!(n) ? nullptr : \
       (((ZmStackAvail()>>1) < ((n) * sizeof(T))) ? \
-	Zm::alignedAlloc((n) * sizeof(T), alignof(T)) : \
+	Zm::alignedAlloc<alignof(T)>((n) * sizeof(T)) : \
 	  ZuAlloca((n) * sizeof(T), alignof(T))))}
 
 #endif /* ZmAlloc_HH */

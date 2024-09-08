@@ -180,7 +180,7 @@ protected:
 
 int main(int argc, char **argv)
 {
-  ZmHeapMgr::init("ZmPQueue", 0, ZmHeapConfig{0, 100});
+  ZmHeapMgr::init("ZmPQueue", 0, ZmHeapConfig{100});
 
   App a(1);
   ZmRef<App::Msg> msg, msg2;

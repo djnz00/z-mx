@@ -90,7 +90,7 @@ int main(int argc, char **argv)
   if (argc == 5) verbose = atoi(argv[4]);
   if (!count || !nthr) usage();
   for (int i = 0; i < nthr; i++)
-    ZmHeapMgr::init("S", i, ZmHeapConfig{0, static_cast<unsigned>(size)});
+    ZmHeapMgr::init("S", i, ZmHeapConfig{uint64_t(size)});
   auto threads = ZmAlloc(ZmThread, nthr * sizeof(ZmThread));
   if (!threads) {
     fputs("ZmAlloc() failed\n", stderr);

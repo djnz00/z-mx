@@ -54,7 +54,6 @@ template <auto ID, unsigned Size, unsigned Algnment, bool Sharded>
 class ZmHeapCacheT;
 
 struct ZmHeapConfig {
-  uint32_t	alignment;
   uint64_t	cacheSize;
   ZmBitmap	cpuset;
 };
@@ -62,6 +61,7 @@ struct ZmHeapConfig {
 struct ZmHeapInfo {
   const char	*id;
   unsigned	size;
+  unsigned	alignment;
   unsigned	partition;
   bool		sharded;
   ZmHeapConfig	config;
@@ -120,11 +120,11 @@ template <auto, unsigned, unsigned, bool> friend class ZmHeapCacheT;
     return this_->m_info.id;
   }
   using IDSize = ZuTuple<const char *, unsigned>;
-  // primary key for a heap is {ID, partition, size, sharded}
-  using Key = ZuTuple<const char *, unsigned, unsigned, bool>;
+  // primary key for a heap is {ID, partition, size, alignment, sharded}
+  using Key = ZuTuple<const char *, unsigned, unsigned, unsigned, bool>;
   static Key KeyAxor(const ZmHeapCache *this_) {
     const auto &info = this_->m_info;
-    return {info.id, info.partition, info.size, info.sharded};
+    return {info.id, info.partition, info.size, info.alignment, info.sharded};
   }
 
   void *operator new(size_t s);
@@ -134,7 +134,8 @@ public:
 
 private:
   ZmHeapCache(
-      const char *id, unsigned size, unsigned partition, bool sharded,
+      const char *id, unsigned size, unsigned alignment,
+      unsigned partition, bool sharded,
       const ZmHeapConfig &, StatsFn, hwloc_topology_t);
 
   void lookup(ZmHeapLookup *l) { m_lookup = l; }
@@ -156,7 +157,25 @@ private:
   void init_(hwloc_topology_t);
   void final_();
 
-  void *alloc(ZmHeapStats &stats);
+  template <unsigned Align>
+  void *alloc(ZmHeapStats &stats) {
+#ifdef ZmHeap_DEBUG
+    {
+      TraceFn fn;
+      if (ZuUnlikely(fn = m_traceAllocFn)) (*fn)(m_info.id, m_info.size);
+    }
+#endif
+    void *ptr;
+    if (ZuLikely(ptr = alloc_())) {
+      ++stats.cacheAllocs;
+      return ptr;
+    }
+    ptr = Zm::alignedAlloc<Align>(m_info.size);
+    if (ZuUnlikely(!ptr)) throw std::bad_alloc{};
+    ++stats.heapAllocs;
+    return ptr;
+  }
+
   void free(ZmHeapStats &stats, void *p);
 
   // lock-free MPMC LIFO slist
@@ -282,13 +301,13 @@ private:
 };
 
 // TLS heap cache, specific to ID+size; maintains TLS heap statistics
-template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
+template <auto ID, unsigned Size, unsigned Align, bool Sharded>
 class ZmHeapCacheT : public ZmObject {
   using TLS = ZmSpecific<ZmHeapCacheT, ZmSpecificCleanup<ZmCleanup::Heap>>;
 
 public:
   ZmHeapCacheT() :
-    m_cache{ZmHeapMgr::cache(ID(), Size, Alignment, Sharded, &stats)},
+    m_cache{ZmHeapMgr::cache(ID(), Size, Align, Sharded, &stats)},
     m_stats{} { }
   ~ZmHeapCacheT() {
     m_cache->histStats(m_stats);
@@ -301,7 +320,7 @@ public:
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {
     ZmHeapCacheT *this_ = instance();
-    return this_->m_cache->alloc(this_->m_stats);
+    return this_->m_cache->alloc<Align>(this_->m_stats);
   }
   static void free(void *p) {
     ZmHeapCacheT *this_ = instance();
@@ -344,16 +363,16 @@ template <auto, unsigned, unsigned, bool> friend class ZmHeap__;
   ZmHeap_Init();
 };
 
-template <auto ID_, unsigned Size_, unsigned Alignment_, bool Sharded_>
+template <auto ID_, unsigned Size_, unsigned Align_, bool Sharded_>
 class ZmHeap__ {
 public:
   static constexpr auto HeapID = ID_;
   enum { AllocSize = ZmHeapAllocSize<Size_>::N };
-  enum { Alignment = Alignment_ };
+  enum { Align = Align_ };
   enum { Sharded = Sharded_ };
 
 private:
-  using Cache = ZmHeapCacheT<HeapID, AllocSize, Alignment, Sharded>;
+  using Cache = ZmHeapCacheT<HeapID, AllocSize, Align, Sharded>;
 
 public:
   void *operator new(size_t) { return Cache::alloc(); }
@@ -370,26 +389,26 @@ private:
 template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
-template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
-ZmHeap_Init<ZmHeap__<ID, Size, Alignment, Sharded>>
-ZmHeap__<ID, Size, Alignment, Sharded>::m_init;
+template <auto ID, unsigned Size, unsigned Align, bool Sharded>
+ZmHeap_Init<ZmHeap__<ID, Size, Align, Sharded>>
+ZmHeap__<ID, Size, Align, Sharded>::m_init;
 
 // sentinel heap ID used to disable ZmHeap
 inline constexpr auto ZmHeapDisable() {
   return []() -> const char * { return nullptr; };
 };
 
-template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
-struct ZmHeap_ { using T = ZmHeap__<ID, Size, Alignment, Sharded>; };
-template <unsigned Size, unsigned Alignment, bool Sharded>
-struct ZmHeap_<ZmHeapDisable(), Size, Alignment, Sharded> { using T = ZuNull; };
+template <auto ID, unsigned Size, unsigned Align, bool Sharded>
+struct ZmHeap_ { using T = ZmHeap__<ID, Size, Align, Sharded>; };
+template <unsigned Size, unsigned Align, bool Sharded>
+struct ZmHeap_<ZmHeapDisable(), Size, Align, Sharded> { using T = ZuNull; };
 template <auto ID, typename T, bool Sharded = false>
 using ZmHeap = typename ZmHeap_<ID, sizeof(T), alignof(T), Sharded>::T;
 
 #include <zlib/ZmFn.hh>
 
-template <auto ID, unsigned Size, unsigned Alignment, bool Sharded>
-inline void ZmHeapCacheT<ID, Size, Alignment, Sharded>::stats()
+template <auto ID, unsigned Size, unsigned Align, bool Sharded>
+inline void ZmHeapCacheT<ID, Size, Align, Sharded>::stats()
 {
   // aggregate heap cache statistics
   TLS::all([](ZmHeapCacheT *this_) { this_->m_cache->stats(this_->m_stats); });

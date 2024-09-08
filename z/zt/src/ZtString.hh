@@ -532,7 +532,7 @@ private:
 
   void own_(const Char *data, unsigned length, unsigned size, bool vallocd) {
     if (!size) {
-      if (data && vallocd) vfree((void *)data);
+      ZmAssert(!data);
       null_();
       return;
     }
