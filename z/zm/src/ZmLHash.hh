@@ -21,7 +21,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuTuple.hh>

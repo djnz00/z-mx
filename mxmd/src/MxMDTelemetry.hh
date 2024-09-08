@@ -44,13 +44,11 @@ public:
 private:
   typedef ZmRBTree<MxID,
 	    ZmRBTreeVal<ZmRef<MxEngine>,
-	      ZmRBTreeObject<ZuNull,
-		ZmRBTreeLock<ZmNoLock> > > > Engines;
+	      ZmRBTreeLock<ZmNoLock>>> Engines;
 
   typedef ZmRBTree<ZuTuple<MxID, bool>,
 	    ZmRBTreeVal<ZmRef<MxQueue>,
-	      ZmRBTreeObject<ZuNull,
-		ZmRBTreeLock<ZmNoLock> > > > Queues;
+	      ZmRBTreeLock<ZmNoLock>>> Queues;
 
   MxMDCore	*m_core = 0;
   Lock		m_lock;

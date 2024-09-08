@@ -78,7 +78,7 @@ struct ZmRingT : public NTP {
   static constexpr auto SizeAxor = ZmRingT_SizeAxor<T>::Fn();
 };
 template <typename NTP>
-struct ZmRingT<ZuNull, NTP> : public NTP {
+struct ZmRingT<void, NTP> : public NTP {
   using T = void;
   static constexpr auto SizeAxor = ZmRing_::Defaults_SizeAxor();
 };

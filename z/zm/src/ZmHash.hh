@@ -21,7 +21,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuInspect.hh>
@@ -169,7 +168,7 @@ struct ZmHash_Defaults {
   template <typename T> using ValCmpT = ZuCmp<T>;
   template <typename T> using HashFnT = ZuHash<T>;
   using Lock = ZmNoLock;
-  using Node = ZuNull;
+  using Node = ZuEmpty;
   enum { Shadow = 0 };
   static const char *ID() { return "ZmHash"; }
   static const char *HeapID() { return "ZmHash"; }

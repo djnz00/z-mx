@@ -15,7 +15,6 @@
 #endif
 
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuArrayFn.hh>
 #include <zlib/ZuCmp.hh>
 

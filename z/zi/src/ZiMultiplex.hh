@@ -746,7 +746,7 @@ template <typename> friend class Accept_;
     Zi_Overlapped	m_overlapped;
     char		m_buf[(sizeof(struct sockaddr_in) + 16) * 2];
   };
-  using Accept_Heap = ZmHeap<Accept_HeapID, Accept_<ZuNull>>;
+  using Accept_Heap = ZmHeap<Accept_HeapID, Accept_<ZuEmpty>>;
   using Accept = Accept_<Accept_Heap>; 
 #endif
 
@@ -813,7 +813,7 @@ template <typename> friend class Connect_;
 	  ZmHashHeapID<Connect_HeapID>>>>;
   using Connect = ConnectHash::Node;
 #else
-  using ConnectHeap = ZmHeap<Connect_HeapID, Connect_<ZuNull>>;
+  using ConnectHeap = ZmHeap<Connect_HeapID, Connect_<ZuEmpty>>;
   using Connect = Connect_<ConnectHeap>;
 #endif
 

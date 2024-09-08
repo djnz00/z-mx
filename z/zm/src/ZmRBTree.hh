@@ -16,7 +16,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuInspect.hh>
 
@@ -41,7 +40,7 @@ struct ZmRBTree_Defaults {
   template <typename T> using ValCmpT = ZuCmp<T>;
   enum { Unique = 0 };
   using Lock = ZmNoLock;
-  using Node = ZuNull;
+  using Node = ZuEmpty;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmRBTree"; }
   enum { Sharded = 0 };

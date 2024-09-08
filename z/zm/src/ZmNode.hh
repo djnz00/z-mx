@@ -13,8 +13,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
-
 template <typename Base, typename Heap, bool = ZuInspect<Heap, Base>::Is>
 struct ZmNode__;
 template <typename Base, typename Heap>
@@ -30,13 +28,13 @@ struct ZmNode__<Base, Heap, true> : public Base {
   ZmNode__Impl_IsBase
 };
 template <typename Base>
-struct ZmNode__<Base, ZuNull, false> : public Base {
+struct ZmNode__<Base, ZuEmpty, false> : public Base {
   ZmNode__Impl_IsBase
 };
 template <typename Heap>
-struct ZmNode__<ZuNull, Heap, false> : public Heap { };
+struct ZmNode__<ZuEmpty, Heap, false> : public Heap { };
 template <>
-struct ZmNode__<ZuNull, ZuNull, true> { };
+struct ZmNode__<ZuEmpty, ZuEmpty, true> { };
 
 template <
   typename T,
@@ -144,7 +142,7 @@ template <
 using ZmNode =
   ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt,
     ZmHeap<HeapID,
-      ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt, ZuNull>,
+      ZmNode_<T, KeyAxor, ValAxor, Base, NodeExt, ZuEmpty>,
       Sharded>>;
 
 #endif /* ZmNode_HH */

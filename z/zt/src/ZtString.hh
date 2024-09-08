@@ -30,7 +30,6 @@
 #include <stdio.h>
 
 #include <zlib/ZuInt.hh>
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuCmp.hh>

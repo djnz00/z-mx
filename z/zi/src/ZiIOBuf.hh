@@ -325,7 +325,7 @@ private:
 };
 
 template <typename Base, unsigned Size, auto HeapID>
-using IOBuf_Heap = ZmHeap<HeapID, IOBufAlloc__<Base, Size, ZuNull>>;
+using IOBuf_Heap = ZmHeap<HeapID, IOBufAlloc__<Base, Size, ZuEmpty>>;
  
 template <typename Base, unsigned Size, auto HeapID = ZiIOBuf_HeapID>
 using IOBufAlloc_ = IOBufAlloc__<Base, Size, IOBuf_Heap<Base, Size, HeapID>>;

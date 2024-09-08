@@ -23,7 +23,6 @@
 #include <string.h>
 
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuInspect.hh>
@@ -354,28 +353,6 @@ template <typename T> class ZuSpan_Null {
   void offset(unsigned n) { }
 
   template <typename L> void all(L l) { }
-};
-
-template <typename Cmp>
-class ZuSpan<ZuNull, Cmp> : public ZuSpan_Null<ZuNull> {
-public:
-  using Elem = ZuNull;
-
-  ZuSpan() { }
-  ZuSpan(const ZuSpan &a) { }
-  ZuSpan &operator =(const ZuSpan &a) { return *this; }
-
-  template <typename A, decltype(ZuIfT<
-      ZuTraits<A>::IsArray &&
-      ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Constructs>(), int()) = 0>
-  ZuSpan(const A &a) { }
-  template <typename A>
-  ZuIfT<
-    ZuTraits<A>::IsArray &&
-    ZuInspect<typename ZuTraits<A>::Elem, ZuNull>::Converts, ZuSpan &>
-  operator =(const A &a) { return *this; }
-
-  ZuSpan(const ZuNull *data, unsigned length) { }
 };
 
 template <typename Cmp>

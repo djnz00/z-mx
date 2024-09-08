@@ -14,7 +14,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuObject.hh>
@@ -40,7 +39,7 @@ struct ZmList_Defaults {
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using ValCmpT = ZuCmp<T>;
   using Lock = ZmNoLock;
-  using Node = ZuNull;
+  using Node = ZuEmpty;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmList"; }
   enum { Sharded = 0 };

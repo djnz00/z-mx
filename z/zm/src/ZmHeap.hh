@@ -401,7 +401,7 @@ inline constexpr auto ZmHeapDisable() {
 template <auto ID, unsigned Size, unsigned Align, bool Sharded>
 struct ZmHeap_ { using T = ZmHeap__<ID, Size, Align, Sharded>; };
 template <unsigned Size, unsigned Align, bool Sharded>
-struct ZmHeap_<ZmHeapDisable(), Size, Align, Sharded> { using T = ZuNull; };
+struct ZmHeap_<ZmHeapDisable(), Size, Align, Sharded> { using T = ZuEmpty; };
 template <auto ID, typename T, bool Sharded = false>
 using ZmHeap = typename ZmHeap_<ID, sizeof(T), alignof(T), Sharded>::T;
 

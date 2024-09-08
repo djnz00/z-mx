@@ -29,7 +29,6 @@
 #include <zlib/ZmLib.hh>
 #endif
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuInspect.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuTuple.hh>
@@ -113,7 +112,7 @@ struct ZmPQueue_Defaults {
   enum { Stats = 1 };
   enum { Overlap = 1 };
   using Lock = ZmNoLock;
-  using Node = ZuNull;
+  using Node = ZuEmpty;
   enum { Shadow = 0 };
   static const char *HeapID() { return "ZmPQueue"; }
   enum { Sharded = 0 };

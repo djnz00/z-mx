@@ -65,7 +65,7 @@ protected:
   uint32_t	m_length;
 };
 
-template <typename T_> struct ZuArray_Char2 { using T = ZuNull; };
+template <typename T_> struct ZuArray_Char2 { using T = void; };
 template <> struct ZuArray_Char2<char> { using T = wchar_t; };
 template <> struct ZuArray_Char2<wchar_t> { using T = char; };
 
@@ -100,7 +100,7 @@ protected:
   // from char2 string (requires conversion)
   template <typename U, typename V = Char2>
   struct IsChar2String : public ZuBool<
-      !ZuInspect<ZuNull, V>::Same &&
+      !ZuIsExact<void, V>{} &&
       (ZuTraits<U>::IsSpan || ZuTraits<U>::IsString) &&
       bool{ZuEquiv<typename ZuTraits<U>::Elem, V>{}}> { };
   template <typename U, typename R = void>
@@ -111,7 +111,7 @@ protected:
   struct IsSpan : public ZuBool<
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
-      !ZuInspect<U, V>::Same &&
+      !ZuIsExact<U, V>{} &&
       ZuTraits<U>::IsSpan &&
       ZuInspect<typename ZuTraits<U>::Elem, V>::Converts> { };
   template <typename U, typename R = void>
@@ -128,7 +128,7 @@ protected:
   struct IsIterable : public ZuBool<
       !IsString<U>{} &&
       !IsChar2String<U>{} &&
-      !ZuInspect<U, V>::Same &&
+      !ZuIsExact<U, V>{} &&
       !ZuTraits<U>::IsSpan &&
       bool(IsIterable_<ZuDecay<U>>{}) &&
       ZuInspect<typename ZuTraits<U>::Elem, V>::Constructs> { };
@@ -138,9 +138,10 @@ protected:
   // from individual char2 (requires conversion, char->wchar_t only)
   template <typename U, typename V = Char2>
   struct IsChar2 :
-    public ZuBool<!ZuInspect<ZuNull, V>::Same &&
-      ZuInspect<U, V>::Same &&
-      !ZuInspect<U, wchar_t>::Same> { };
+    public ZuBool<
+      !ZuIsExact<void, V>{} &&
+      bool(ZuIsExact<U, V>{}) &&
+      !ZuIsExact<U, wchar_t>{}> { };
   template <typename U, typename R = void>
   using MatchChar2 = ZuIfT<IsChar2<U>{}, R>;
 
@@ -168,7 +169,7 @@ protected:
   // from individual element
   template <typename U, typename V = T>
   struct IsElem : public ZuBool<
-      ZuInspect<U, V>::Same ||
+      bool(ZuIsExact<U, V>{}) ||
       (!IsString<U>{} &&
        !ZuTraits<U>::IsArray &&
        !IsChar2String<U>{} &&
@@ -455,8 +456,7 @@ public:
   }
 
 private:
-  template <typename U> struct IsVoid :
-    public ZuBool<ZuInspect<void, U>::Same> { };
+  template <typename U> struct IsVoid : public ZuIsExact<void, U> { };
   template <typename U, typename R = void>
   using MatchVoid = ZuIfT<IsVoid<U>{}, R>;
 

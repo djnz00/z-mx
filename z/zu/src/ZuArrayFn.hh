@@ -22,7 +22,6 @@
 
 #include <zlib/ZuAssert.hh>
 #include <zlib/ZuTraits.hh>
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>
 #include <zlib/ZuInspect.hh>
@@ -249,8 +248,6 @@ public:
     { return 0; }
 };
 
-template <typename Cmp>
-class ZuArrayFn<ZuNull, Cmp> : public ZuArrayFn_Null<ZuNull> { };
 template <typename Cmp>
 class ZuArrayFn<void, Cmp> : public ZuArrayFn_Null<void> { };
 

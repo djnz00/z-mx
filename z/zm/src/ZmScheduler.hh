@@ -22,7 +22,6 @@
 
 #include <stdarg.h>
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuTuple.hh>
 #include <zlib/ZuCSpan.hh>
 #include <zlib/ZuCArray.hh>

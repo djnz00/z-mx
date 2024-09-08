@@ -19,7 +19,6 @@
 // undefine to debug infinite recursion
 // #define ZmTLock_DebugInfiniteRecursion
 
-#include <zlib/ZuNull.hh>
 #include <zlib/ZuTraits.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuHash.hh>

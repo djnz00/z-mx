@@ -340,10 +340,9 @@ namespace Quoting { // quoting types
 }
 
 // data in a tree node
-using Null = ZuNull;
 using StrArray = ZtArray<ZtString>;
 using CfArray = ZtArray<ZmRef<Cf>>;
-using Data = ZuUnion<Null, ZtString, StrArray, ZmRef<Cf>, CfArray>;
+using Data = ZuUnion<void, ZtString, StrArray, ZmRef<Cf>, CfArray>;
 
 // main configuration class
 class Cf;
@@ -370,7 +369,7 @@ protected:
 public:
   static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
-  void null() { data.p<Null>(); }
+  void null() { data.p<void>(); }
 
   auto type() const { return data.type(); }
 

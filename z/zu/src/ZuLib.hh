@@ -563,4 +563,6 @@ using ZuUnder = typename ZuUnder_<ZuDecay<U>>::T;
 template <typename U>
 auto ZuUnderlying(U &&v) { return ZuUnder<U>(ZuFwd<U>(v)); }
 
+struct ZuEmpty { };
+
 #endif /* ZuLib_HH */
