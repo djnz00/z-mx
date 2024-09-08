@@ -211,6 +211,7 @@ using ReaderList =
 template <typename Decoder>
 using RdrNode = typename ReaderList<Decoder>::Node;
 
+// utility function to cast Reader to RdrNode
 template <typename Decoder>
 inline auto node(Reader<Decoder> *ptr) {
   return static_cast<RdrNode<Decoder> *>(ptr);
@@ -1244,22 +1245,6 @@ inline int Reader<Decoder>::nextBlk()
 {
   using namespace RdrState;
 
-  if (ZuUnlikely(m_failed)) return RdrResult::Failed;
-
-  switch (m_state) {
-    case Stopping:
-      return RdrResult::Stopped;
-    case Reading:
-    case Live:
-      break;
-    default:
-      ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return RdrResult::Failed);
-  }
-
-  ZeAssert(m_blk, (), "null blk", return RdrResult::Failed);
-  ZeAssert(m_blk->blkData, (), "null blkData", return RdrResult::Failed);
-
   if (m_series->lastBlk(m_blk)) {
     if (m_state == Reading) {
       m_state = Live;
@@ -1353,6 +1338,7 @@ inline void Reader<Decoder>::fail()
   m_failed = true;
 
   if (m_state == Live) {
+    m_state = Reading;
     m_series->delLiveReader(this);
     m_series->addHistReader(this);
   }

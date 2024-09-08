@@ -292,10 +292,10 @@ template <typename T> struct ZuCmp_NonString<T, true, true> :
 // string comparison
 
 // implementation goal is to leverage the hand-optimized assembly code in libc:
-// * concentrate run-time code into denser hotspots, minimizing cache eviction
-// * funnel pairs of null-terminated C strings into good ole' strcmp()
-// * funnel pairs of null-terminated wchar_t strings into wcscmp()
-// * funnel everything else into strncmp or wcsncmp
+// - concentrate run-time code into denser hotspots, minimizing cache eviction
+// - funnel pairs of null-terminated C strings into good ole' strcmp()
+// - funnel pairs of null-terminated wchar_t strings into wcscmp()
+// - funnel everything else into strncmp or wcsncmp
 
 template <
   typename T1, typename T2,
