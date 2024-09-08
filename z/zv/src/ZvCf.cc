@@ -776,7 +776,7 @@ void Cf::fromString(ZuCSpan in, ZuCSpan fileName, ZmRef<Defines> defines)
       // begin scope
       if (fileBeginScope.m(in, c, off)) {
 	switch (node->CfNode::data.type()) {
-	  case Data::Index<Null>{}:
+	  case Data::Index<void>{}:
 	    break;
 	  case Data::Index<ZtString>{}:
 	  case Data::Index<StrArray>{}:
@@ -821,7 +821,7 @@ void Cf::fromString(ZuCSpan in, ZuCSpan fileName, ZmRef<Defines> defines)
       auto [value, o, failed] = scanString(in, off, defines);
       if (!o) goto syntax;
       switch (node->CfNode::data.type()) {
-	case Data::Index<Null>{}:
+	case Data::Index<void>{}:
 	  break;
 	case Data::Index<ZtString>{}:
 	  if (index >= 0) goto syntax;
@@ -975,7 +975,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       // begin scope
       if (envBeginScope.m(in, c, off)) {
 	switch (node->CfNode::data.type()) {
-	  case Data::Index<Null>{}:
+	  case Data::Index<void>{}:
 	    break;
 	  case Data::Index<ZtString>{}:
 	  case Data::Index<StrArray>{}:
@@ -1019,7 +1019,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
       }
       auto [value, o, failed] = scanString<Quoting::Env>(in, off, defines);
       switch (node->CfNode::data.type()) {
-	case Data::Index<Null>{}:
+	case Data::Index<void>{}:
 	  break;
 	case Data::Index<ZtString>{}:
 	  if (index >= 0) goto syntax;
@@ -1101,7 +1101,7 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuCSpan prefix) const
   auto i = m_tree.readIterator();
   while (auto node = i.iterate())
     switch (node->CfNode::data.type()) {
-      case Data::Index<Null>{}:
+      case Data::Index<void>{}:
 	break;
       case Data::Index<ZtString>{}:
       case Data::Index<StrArray>{}: {
@@ -1138,7 +1138,7 @@ void Cf::print(ZuVStream &s, ZtString &indent) const
   while (auto node = i.iterate()) {
     s << indent << quoteString(node->CfNode::key) << ' ';
     switch (node->CfNode::data.type()) {
-      case Data::Index<Null>{}:
+      case Data::Index<void>{}:
 	break;
       case Data::Index<ZtString>{}:
       case Data::Index<StrArray>{}: {
@@ -1260,7 +1260,7 @@ void Cf::merge(const Cf *cf)
     if (!dstNode)
       m_tree.addNode(dstNode = new Node{this, srcNode->CfNode::key});
     switch (srcNode->CfNode::data.type()) {
-      case Data::Index<Null>{}:
+      case Data::Index<void>{}:
 	break;
       case Data::Index<ZtString>{}:
 	dstNode->set_<ZtString>(srcNode->get_<ZtString>());

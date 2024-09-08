@@ -369,7 +369,7 @@ protected:
 public:
   static const ZtString &KeyAxor(const CfNode &node) { return node.key; }
 
-  void null() { data.p<void>(); }
+  void null() { data = {}; }
 
   auto type() const { return data.type(); }
 
