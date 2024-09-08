@@ -12,10 +12,11 @@
 // Z library FAQs
 //
 // why no Z namespace?
-// - pre-processor macro name-scoping uses prefixes not namespaces
-// - intentional use of prefixes with low collision probability (Zu, Zt, ...)
-// - a short prefix has higher expressive density (Zu vs Zu::)
-// - no uncontrolled large-scale naming imports, "using namespace Z"
+// - consistency with the pre-processor
+// - pre-processor macro name scoping uses prefixes not namespaces
+// - use of prefixes with low probability of collision (Zu, Zt, ...)
+// - a short prefix is more succinct
+// - no uncontrolled large-scale naming imports
 // - mitigation of C++ name-mangling bloat with heavily templated code
 // - intentional design preference for small focused namespaces
 //   - Zxx namespaces exist where useful in context (ZuFmt, Ztel, Ztls, ...)
@@ -30,7 +31,7 @@
 //   - the Base is a template typename (i.e. case 1 could apply)
 //   - Derived needs to be constructible/convertible from an instance of Base
 //
-// why run() / invoke() all over the place?
+// why so much use of run() / invoke()?
 // - intentionally and tightly control thread creation within a small pool,
 //   with key long-running threads performing isolated workloads and bound
 //   to specific isolated CPU cores for performance
@@ -52,7 +53,7 @@
 //     the current thread using invoked())
 //   - if the thread is exclusive to the callee, the callee can internalize
 //     the context switch
-//   - callbacks will mirror calls in this regard
+//   - callbacks mirror calls in this regard
 // - thread/workload association is re-configurable for performance tuning
 //   - run() passes via the ring buffer and defers calls regardless
 //   - invoke() is used to elide message-passing and call deferral when

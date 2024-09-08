@@ -1124,8 +1124,9 @@ void Cf::toArgs(ZtArray<ZtString> &args, ZuCSpan prefix) const
 	break;
       case Data::Index<CfArray>{}: {
 	auto prefix_ = ZtString{} << prefix << node->CfNode::key << '.';
-	node->CfNode::data.p<CfArray>().all(
-	    [&args, prefix_ = ZuMv(prefix_)](Cf *cf) {
+	node->CfNode::data.p<CfArray>().all([
+	  &args, prefix_ = ZuMv(prefix_)
+	](Cf *cf) {
 	  cf->toArgs(args, prefix_);
 	});
       } break;
@@ -1276,8 +1277,7 @@ void Cf::merge(const Cf *cf)
 	}
       } break;
       case Data::Index<CfArray>{}: {
-	for (unsigned i = 0, n = srcNode->get_<CfArray>().length();
-	    i < n; i++)
+	for (unsigned i = 0, n = srcNode->get_<CfArray>().length(); i < n; i++)
 	  if (auto srcCf = srcNode->getElem<CfArray>(i)) {
 	    auto dstCf = dstNode->getElem<CfArray>(i);
 	    if (!dstCf) dstNode->set_<CfArray>(dstCf = new Cf{dstNode});
