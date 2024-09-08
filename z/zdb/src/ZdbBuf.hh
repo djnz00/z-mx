@@ -71,12 +71,13 @@ inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
 
 inline constexpr const char *BufCache_ID() { return "Zdb.BufCache"; }
 
-using BufCacheUN =
+using BufCacheUN_ =
   ZmHash<IOBuf_,
     ZmHashNode<IOBuf_,
       ZmHashKey<IOBuf_UNAxor,
 	ZmHashLock<ZmPLock,
 	  ZmHashShadow<true>>>>>;
+struct BufCacheUN : public BufCacheUN_ { using BufCacheUN_::BufCacheUN_; };
 
 struct IOBuf : public BufCacheUN::Node {
   using Base = BufCacheUN::Node;

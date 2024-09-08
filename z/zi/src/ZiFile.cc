@@ -67,13 +67,15 @@ private:
 
   static ZiFile_WindowsDrives *instance();
 
-  using DriveLetters =
+  using DriveLetters_ =
     ZmRBTreeKV<ZtWString, char,
       ZmRBTreeLock<ZmNoLock>>;
-  using DriveBlkSizes =
+  struct DriveLetters : public DriveLetters_ { using DriveLetters_::DriveLetters_; };
+  using DriveBlkSizes_ =
     ZmRBTreeKV<char, unsigned,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmNoLock>>>;
+  struct DriveBlkSizes : public DriveBlkSizes_ { using DriveBlkSizes_::DriveBlkSizes_; };
 
   HMODULE		m_ntdll;
   PNtQueryObject	m_ntQueryObject;

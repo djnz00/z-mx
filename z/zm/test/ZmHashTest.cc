@@ -52,7 +52,8 @@ struct ZCmp {
   static constexpr const Z *null() { return nullptr; }
 };
 
-using ZHash = ZmHashKV<unsigned, ZmRef<Z>, ZmHashLock<ZmPLock>>;
+using ZHash_ = ZmHashKV<unsigned, ZmRef<Z>, ZmHashLock<ZmPLock>>;
+struct ZHash : public ZHash_ { using ZHash_::ZHash_; };
 
 void Y::helloWorld() { puts("hello world [Y]"); }
 
@@ -207,7 +208,8 @@ int main(int argc, char **argv)
     (int)overallEnd.sec(), (int)(overallEnd.nsec() / 1000000));
 
   {
-    using H = ZmHash<ZmRef<J>, ZmHashKey<J::IAxor>>;
+    using H_ = ZmHash<ZmRef<J>, ZmHashKey<J::IAxor>>;
+    struct H : public H_ { using H_::H_; };
     ZmRef<H> h_ = new H();
     H &h = *h_;
     for (int k = 0; k < 100; k++) h.add(ZmRef<J>(new J(k)));

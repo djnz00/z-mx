@@ -87,18 +87,21 @@ private:
 
 private:
   // containers of pending requests
-  using UserDBReqs =
+  using UserDBReqs_ =
     ZmRBTreeKV<ZvSeqNo, ZumAckFn,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
-  using CmdReqs =
+  struct UserDBReqs : public UserDBReqs_ { using UserDBReqs_::UserDBReqs_; };
+  using CmdReqs_ =
     ZmRBTreeKV<ZvSeqNo, ZcmdAckFn,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
-  using TelReqs =
+  struct CmdReqs : public CmdReqs_ { using CmdReqs_::CmdReqs_; };
+  using TelReqs_ =
     ZmRBTreeKV<ZvSeqNo, ZtelAckFn,
       ZmRBTreeUnique<true,
 	ZmRBTreeLock<ZmPLock> > >;
+  struct TelReqs : public TelReqs_ { using TelReqs_::TelReqs_; };
 
 public:
   struct State {

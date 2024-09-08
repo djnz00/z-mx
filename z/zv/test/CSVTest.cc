@@ -53,10 +53,12 @@ ZtFieldTbl(Row,
     (((time, Alias, m_time), (Ctor<5>)), (DateTime)),
     (((flags, Alias, m_flags), (Ctor<6>, Flags<DaFlags::Map>)), (UInt32)));
 
-using CSVWrite = ZmList<Row>;
+using CSVWrite_ = ZmList<Row>;
+struct CSVWrite : public CSVWrite_ { using CSVWrite_::CSVWrite_; };
 
 struct RowSet {
-  using List = ZmList<Row>;
+  using List_ = ZmList<Row>;
+  struct List : public List_ { using List_::List_; };
   using Node = List::Node;
 
   List		rows;

@@ -178,7 +178,8 @@ private:
   ZiFile		m_index;
 };
 
-using AlertRing = ZmXRing<ZmRef<ZiIOBuf>>;
+using AlertRing_ = ZmXRing<ZmRef<ZiIOBuf>>;
+struct AlertRing : public AlertRing_ { using AlertRing_::AlertRing_; };
 
 template <typename App_, typename Link_>
 class Server : public ZmEngine<Server<App_, Link_>>, ZvEngineMgr {
@@ -416,21 +417,24 @@ private:
     m_alertRing.push(ZuMv(buf));
   }
 
-  using Queues =
+  using Queues_ =
     ZmRBTreeKV<ZuTuple<unsigned, ZuID>, QueueFn,
       ZmRBTreeUnique<true>>;
+  struct Queues : public Queues_ { using Queues_::Queues_; };
 
   static ZuID EngineIDAxor(const ZvEngine *engine) { return engine->id(); }
-  using Engines =
+  using Engines_ =
     ZmRBTree<ZmRef<ZvEngine>,
       ZmRBTreeKey<EngineIDAxor,
 	ZmRBTreeUnique<true>>>;
+  struct Engines : public Engines_ { using Engines_::Engines_; };
 
   struct Watch_ {
     Link	*link = nullptr;
     ZmIDString	filter;
   };
-  using WatchList_ = ZmList<Watch_, ZmListNode<Watch_>>;
+  using WatchList__ = ZmList<Watch_, ZmListNode<Watch_>>;
+  struct WatchList_ : public WatchList__ { using WatchList__::WatchList__; };
   using Watch = typename WatchList_::Node;
   struct WatchList {
     WatchList_		list;

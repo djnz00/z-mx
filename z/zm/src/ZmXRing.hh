@@ -106,7 +106,8 @@ template <typename T, class NTP> class ZmXRing;
 template <typename Ring> struct ZmXRing_Unlocked;
 template <typename T, class NTP>
 struct ZmXRing_Unlocked<ZmXRing<T, NTP> > {
-  using Ring = ZmXRing<T, NTP>;
+  using Ring_ = ZmXRing<T, NTP>;
+  struct Ring : public Ring_ { using Ring_::Ring_; };
 
   template <typename P>
   T *findPtr(P &&v) {

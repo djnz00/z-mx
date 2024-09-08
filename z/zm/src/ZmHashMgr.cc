@@ -16,11 +16,12 @@ class ZmHashMgr_ : public ZmObject {
 friend ZmHashMgr;
 
   static const char *HeapID() { return "ZmHashMgr_"; }
-  using ID2Params =
+  using ID2Params_ =
     ZmRBTreeKV<ZmIDString, ZmHashParams,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<HeapID,
 	  ZmRBTreeLock<ZmNoLock>>>>;
+  struct ID2Params : public ID2Params_ { using ID2Params_::ID2Params_; };
 
 public:
   ZmHashMgr_() { }

@@ -218,7 +218,8 @@ int main()
   }
 
   {
-    using Queue = ZmList<ZtString>;
+    using Queue_ = ZmList<ZtString>;
+    struct Queue : public Queue_ { using Queue_::Queue_; };
 
     Queue q;
 

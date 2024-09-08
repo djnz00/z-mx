@@ -20,7 +20,8 @@ ZuFieldTbl(Foo_,
     ((k), ((Keys<0, 1>))),
     ((l), (Keys<3>)));
 
-using Cache = ZmPolyCache<Foo_>;
+using Cache_ = ZmPolyCache<Foo_>;
+struct Cache : public Cache_ { using Cache_::Cache_; };
 using Foo = Cache::Node;
 
 int main()

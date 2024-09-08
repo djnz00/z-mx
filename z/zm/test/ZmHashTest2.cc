@@ -31,11 +31,12 @@ void dump(Order *o)
 
 inline constexpr const char *HeapID() { return "Orders"; }
 
-using Orders =
+using Orders_ =
   ZmHash<ZmRef<Order>,
     ZmHashKey<Order::IDAccessor,
       ZmHashLock<ZmNoLock,
 	ZmHashHeapID<HeapID>>>>;
+struct Orders : public Orders_ { using Orders_::Orders_; };
 
 int main(int argc, char **argv)
 {

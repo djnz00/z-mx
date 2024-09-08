@@ -97,8 +97,9 @@ template <typename Link> using CliCxn = Cxn<Link, Link *>;
 // server links are transient, are owned by the connection
 template <typename Link> using SrvCxn = Cxn<Link, ZmRef<Link> >;
 
-using IOQueue =
+using IOQueue_ =
   ZmList<ZiIOBuf, ZmListNode<ZiIOBuf, ZmListHeapID<ZmHeapDisable()>>>;
+struct IOQueue : public IOQueue_ { using IOQueue_::IOQueue_; };
 
 template <unsigned Size = ZiIOBuf_DefaultSize, auto HeapID = ZiIOBuf_HeapID>
 using IOBufAlloc = Zi::IOBufAlloc<IOQueue::Node, Size, HeapID>;

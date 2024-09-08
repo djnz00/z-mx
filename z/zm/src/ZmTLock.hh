@@ -120,11 +120,12 @@ friend ZmTLock_Test;
   static auto HeapID() { return "ZmTLock"; }
 
   using Held = ZmTLock_Held;
-  using HeldStack =
+  using HeldStack_ =
     ZmStack<Held,
       ZmStackKey<ZmTLock_Held_ThreadAxor,
 	ZmStackLock<ZmNoLock,
 	  ZmStackHeapID<HeapID> > > >;
+  struct HeldStack : public HeldStack_ { using HeldStack_::HeldStack_; };
   using HeldStackIterator = typename HeldStack::Iterator;
 
   struct Lock;
@@ -165,20 +166,23 @@ friend Lock;
 
   using LockRef = ZmRef<Lock>;
 
-  using LockHash =
+  using LockHash_ =
     ZmHashKV<ID, LockRef,
       ZmHashHeapID<HeapID,
 	ZmHashLock<ZmNoLock> > >;
+  struct LockHash : public LockHash_ { using LockHash_::LockHash_; };
 
-  using LockList =
+  using LockList_ =
     ZmList<LockRef,
       ZmListLock<ZmNoLock,
 	ZmListHeapID<HeapID> > >;
+  struct LockList : public LockList_ { using LockList_::LockList_; };
 
   struct Thread;
 friend Thread;
   struct Thread : public ZmObject {
-    using LockStack = ZmStack<Lock *, ZmStackLock<ZmNoLock> >;
+    using LockStack_ = ZmStack<Lock *, ZmStackLock<ZmNoLock> >;
+    struct LockStack : public LockStack_ { using LockStack_::LockStack_; };
 
     template <typename TID_>
     Thread(const TID_ &tid) : m_tid(tid), m_waiting(0) { }
@@ -267,7 +271,8 @@ friend Thread;
 
   using ThreadRef = ZmRef<Thread>;
 
-  using ThreadHash = ZmHashKV<TID, ThreadRef, ZmHashLock<ZmNoLock> >;
+  using ThreadHash_ = ZmHashKV<TID, ThreadRef, ZmHashLock<ZmNoLock> >;
+  struct ThreadHash : public ThreadHash_ { using ThreadHash_::ThreadHash_; };
 
 public:
   ZmTLock(ZmTLockParams params = ZmTLockParams()) {

@@ -110,10 +110,11 @@ public:
 };
 
 class App : public ZmPolymorph {
-  using Cxns =
+  using Cxns_ =
     ZmHash<ZmRef<Connection>,
       ZmHashKey<Connection::GroupIDAccessor,
 	ZmHashObject<ZuNull>>>;
+  struct Cxns : public Cxns_ { using Cxns_::Cxns_; };
 
 public:
   App(const ZvCf *cf);

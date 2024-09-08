@@ -33,13 +33,14 @@ struct Msg : public ZuObject, public Msg_Data {
   unsigned length() const { return p<1>(); }
 };
 
-using PQueue =
+using PQueue_ =
   ZmPQueue<Msg,
     ZmPQueueNode<Msg,
       ZmPQueueStats<false,
 	ZmPQueueOverlap<false,
 	  ZmPQueueBits<3,
 	    ZmPQueueLevels<3>>>>>>;
+struct PQueue : public PQueue_ { using PQueue_::PQueue_; };
 
 using QMsg = PQueue::Node;
 

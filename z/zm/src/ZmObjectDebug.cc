@@ -13,10 +13,11 @@
 #include <zlib/ZmRBTree.hh>
 #include <zlib/ZmPLock.hh>
 
-using DebugTree =
+using DebugTree_ =
   ZmRBTreeKV<const void *, const ZmBackTrace *,
     ZmRBTreeUnique<true,
       ZmRBTreeLock<ZmPLock> > >;
+struct DebugTree : public DebugTree_ { using DebugTree_::DebugTree_; };
 
 void ZmObjectDebug::debug() const
 {

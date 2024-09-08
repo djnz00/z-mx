@@ -13,7 +13,8 @@
 
 struct Connection : public ZmObject { };
 
-using ConnHash = ZmHashKV<int, ZmRef<Connection>, ZmHashLock<ZmPLock>>;
+using ConnHash_ = ZmHashKV<int, ZmRef<Connection>, ZmHashLock<ZmPLock>>;
+struct ConnHash : public ConnHash_ { using ConnHash_::ConnHash_; };
 
 bool running = true;
 

@@ -156,7 +156,8 @@ private:
 
   // overflow ring DLQ
   static const char *OverRing_HeapID() { return "ZmScheduler.OverRing"; }
-  using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
+  using OverRing__ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
+  struct OverRing_ : public OverRing__ { using OverRing__::OverRing__; };
   struct OverRing : public OverRing_ {
     using Lock = ZmPLock;
     using Guard = ZmGuard<Lock>;
@@ -213,12 +214,13 @@ private:
   static const char *ScheduleTree_HeapID() {
     return "ZmScheduler.ScheduleTree";
   }
-  using ScheduleTree =
+  using ScheduleTree_ =
     ZmRBTree<Timer_,
       ZmRBTreeKey<Timer_TimeoutAxor,
 	ZmRBTreeNode<Timer_,
 	  ZmRBTreeHeapID<ScheduleTree_HeapID,	// overrides Shadow
 	    ZmRBTreeShadow<true>>>>>;
+  struct ScheduleTree : public ScheduleTree_ { using ScheduleTree_::ScheduleTree_; };
 public:
   using Timer = ScheduleTree::Node;
 

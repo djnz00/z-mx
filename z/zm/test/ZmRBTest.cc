@@ -42,7 +42,8 @@ struct ZCmp {
   }
 };
 
-using Tree = ZmRBTree<ZmRef<Z>, ZmRBTreeCmp<ZCmp> >;
+using Tree_ = ZmRBTree<ZmRef<Z>, ZmRBTreeCmp<ZCmp> >;
+struct Tree : public Tree_ { using Tree_::Tree_; };
 
 static void delptr(Tree *tree, Z *z) {
   tree->del(z);

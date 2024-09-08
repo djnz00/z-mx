@@ -42,7 +42,8 @@ private:
   using Guard = ZmGuard<Lock>;
 
   static const char *FnMapID() { return "ZcmdDispatcher.FnMap"; }
-  using FnMap = ZmLHashKV<ZuID, Fn, ZmLHashID<FnMapID, ZmLHashLocal<>>>;
+  using FnMap_ = ZmLHashKV<ZuID, Fn, ZmLHashID<FnMapID, ZmLHashLocal<>>>;
+  struct FnMap : public FnMap_ { using FnMap_::FnMap_; };
 
   Lock			m_lock;
     FnMap		  m_fnMap;

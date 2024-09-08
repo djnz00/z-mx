@@ -103,7 +103,8 @@ private:
   ZtArray<char>	m_buf;
 };
 
-using IOList = ZmList<ZmRef<IOBuf>, ZmListLock<ZmNoLock> >;
+using IOList_ = ZmList<ZmRef<IOBuf>, ZmListLock<ZmNoLock> >;
+struct IOList : public IOList_ { using IOList_::IOList_; };
 
 class IOQueue : protected IOList {
 public:
@@ -286,7 +287,8 @@ template <typename S> inline void Connection::print(S &s) const
 struct ListenerPrintIn;
 struct ListenerPrintOut;
 class Listener : public ZmObject {
-  using ProxyHash = ZmHash<ZmRef<Proxy>>;
+  using ProxyHash_ = ZmHash<ZmRef<Proxy>>;
+  struct ProxyHash : public ProxyHash_ { using ProxyHash_::ProxyHash_; };
 
 public:
   Listener(App *app, uint32_t cxnFlags,
@@ -450,13 +452,15 @@ class App : public ZmPolymorph, public ZcmdHost {
     Mx(const ZvCf *cf) : ZiMultiplex{ZvMxParams{"zproxy", cf}} { }
   };
 
-  using ListenerHash =
+  using ListenerHash_ =
     ZmHash<ZmRef<Listener>,
       ZmHashKey<Listener::LocalPortAxor>>;
+  struct ListenerHash : public ListenerHash_ { using ListenerHash_::ListenerHash_; };
 
-  using ProxyHash =
+  using ProxyHash_ =
     ZmHash<ZmRef<Proxy>,
       ZmHashKey<Proxy::SrcPortAxor>>;
+  struct ProxyHash : public ProxyHash_ { using ProxyHash_::ProxyHash_; };
 
 public:
   App() : m_verbose(false) {

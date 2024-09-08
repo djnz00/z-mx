@@ -261,8 +261,8 @@ public:
 
     using List = ZmList<T, NTP>;
   friend List;
-    using Base = Iterator_<ReadIterator>;
 
+    using Base = Iterator_<ReadIterator>;
     using Base::m_list;
 
   public:

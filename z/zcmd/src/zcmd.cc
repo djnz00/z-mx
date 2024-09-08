@@ -77,10 +77,11 @@ public:
   static TelCap keyedFn(ZtString path) {
     using Data = ZfbField::Load<Data_>;
     using FBType = ZfbType<Data>;
-    using Tree_ =
+    using Tree__ =
       ZmRBTree<Data,
 	ZmRBTreeKey<ZuFieldAxor<Data>(),
 	  ZmRBTreeUnique<true>>>;
+    struct Tree_ : public Tree__ { using Tree__::Tree__; };
     struct Tree : public ZuObject, public Tree_ { };
     ZmRef<Tree> tree = new Tree{};
     return TelCap{[

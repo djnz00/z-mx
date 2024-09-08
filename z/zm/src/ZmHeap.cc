@@ -30,7 +30,8 @@ class ZmHeapLookup {
 public:
   static constexpr unsigned hashSize() { return 8; }
 
-  using Hash = ZmLHashKV<uintptr_t, ZmHeapCache *, ZmLHashLocal<>>;
+  using Hash_ = ZmLHashKV<uintptr_t, ZmHeapCache *, ZmLHashLocal<>>;
+  struct Hash : public Hash_ { using Hash_::Hash_; };
 
 public:
   ZmHeapLookup() : m_hash{ZmHashParams{hashSize()}} { }
@@ -87,30 +88,34 @@ friend ZmHeapCache;
   using Key = ZmHeapCache::Key;
 
   // primary key for heap configurations is {ID, partition}
-  using IDPart2Config =
+  using IDPart2Config_ =
     ZmRBTreeKV<IDPart, ZmHeapConfig,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
+  struct IDPart2Config : public IDPart2Config_ { using IDPart2Config_::IDPart2Config_; };
   // id2Cache is non-unique map used to find and configure heaps that were
   // constructed prior to configuration, and enable/disable tracing by apps
-  using ID2Cache =
+  using ID2Cache_ =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::IDAxor,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
+  struct ID2Cache : public ID2Cache_ { using ID2Cache_::ID2Cache_; };
   // key2Cache is unique map from primary key to individual heap cache;
   // primary key for a heap is {ID, partition, size, sharded}
-  using Key2Cache =
+  using Key2Cache_ =
     ZmRBTree<ZmHeapCache *,
       ZmRBTreeKey<ZmHeapCache::KeyAxor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<ZmHeapDisable()>>>>;
+  struct Key2Cache : public Key2Cache_ { using Key2Cache_::Key2Cache_; };
   // lookups are only used for non-sharded heaps; primary key is {ID, size};
   // IDSize2Lookup maps direct from {ID, size, address} to individual heap
   // for free()
-  using IDSize2Lookup =
+  using IDSize2Lookup_ =
     ZmRBTreeKV<IDSize, ZmHeapLookup,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<ZmHeapDisable()>>>;
+  struct IDSize2Lookup : public IDSize2Lookup_ { using IDSize2Lookup_::IDSize2Lookup_; };
 
   using StatsFn = ZmHeapStatsFn;
 

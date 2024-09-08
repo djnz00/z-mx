@@ -1102,12 +1102,13 @@ struct MemRow_ : public ZuObject, public MemRow__ {
   MemRow_(Args &&...args) : MemRow__{ZuFwd<Args>(args)...} { }
 };
 inline constexpr const char *Row_HeapID() { return "MemRow"; }
-using IndexUN =
+using IndexUN_ =
   ZmRBTree<MemRow_,
     ZmRBTreeNode<MemRow_,
       ZmRBTreeKey<MemRow_::UNAxor,
 	ZmRBTreeUnique<true,
 	  ZmRBTreeHeapID<Row_HeapID>>>>>;
+struct IndexUN : public IndexUN_ { using IndexUN_::IndexUN_; };
 struct MemRow : public IndexUN::Node {
   using Base = IndexUN::Node;
   using Base::Base;
@@ -1144,11 +1145,12 @@ template <typename T = Tuple> struct TupleCmp {
   }
 };
 inline constexpr const char *MemRowIndex_HeapID() { return "MemRowIndex"; }
-using Index =
+using Index_ =
   ZmRBTreeKV<Tuple, ZmRef<const MemRow>,
     ZmRBTreeCmp<TupleCmp,
       ZmRBTreeUnique<true,
 	ZmRBTreeHeapID<MemRowIndex_HeapID>>>>;
+struct Index : public Index_ { using Index_::Index_; };
 
 // --- in-memory data store base class
 
@@ -1326,12 +1328,17 @@ template <typename StoreTbl_>
 inline ZuCSpan StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
 inline constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
 template <typename StoreTbl_>
-using StoreTbls_ =
+using StoreTbls__ =
   ZmHash<StoreTbl_,
     ZmHashNode<StoreTbl_,
       ZmHashKey<StoreTbl_IDAxor<StoreTbl_>,
 	ZmHashLock<ZmPLock,
 	  ZmHashHeapID<StoreTbls_HeapID>>>>>;
+template <typename StoreTbl_>
+struct StoreTbls_ : public StoreTbls__<StoreTbl_> {
+  using Base = StoreTbls__<StoreTbl_>;
+  using Base::Base;
+};
 
 template <typename StoreTbl_>
 class Store_ : public Zdb_::Store, public Store__ {
