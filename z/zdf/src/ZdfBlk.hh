@@ -103,7 +103,7 @@ struct Blk {
 
   template <typename Encoder>
   void sync(const Encoder &encoder, int64_t last_) { // fixed
-    offset(encoder.offset());
+    count(encoder.offset());
     last.fixed = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;

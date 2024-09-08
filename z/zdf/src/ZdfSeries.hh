@@ -209,25 +209,25 @@ using ReaderList =
       ZmListHeapID<Reader_HeapID>>>;
 
 template <typename Decoder>
-using RdrListNode = typename ReaderList<Decoder>::Node;
+using RdrNode = typename ReaderList<Decoder>::Node;
 
 template <typename Decoder>
 inline auto node(Reader<Decoder> *ptr) {
-  return static_cast<RdrListNode<Decoder> *>(ptr);
+  return static_cast<RdrNode<Decoder> *>(ptr);
 }
 
 // RdRef is a move-only ZmRef<Reader>-derived smart pointer,
 // with a RAII dtor that calls reader->stop()
 template <typename Decoder>
-class RdRef : public ZmRef<RdrListNode<Decoder>> {
+class RdRef : public ZmRef<RdrNode<Decoder>> {
   RdRef(const RdRef &) = delete;
   RdRef &operator =(const RdRef &) = delete;
 
 public:
-  using RdrListNode = Zdf::RdrListNode<Decoder>;
-  using Ref = ZmRef<RdrListNode>;
+  using RdrNode = Zdf::RdrNode<Decoder>;
+  using Ref = ZmRef<RdrNode>;
 
-  using Ref::operator RdrListNode *;
+  using Ref::operator RdrNode *;
   using Ref::operator ->;
 
   RdRef() = default;
@@ -402,7 +402,7 @@ public:
 
 private:
   using ReaderList = Zdf::ReaderList<Decoder>;
-  using RdrListNode = Zdf::RdrListNode<Decoder>;
+  using RdrNode = Zdf::RdrNode<Decoder>;
 
   using DBSeries = ZuIf<Fixed, DB::SeriesFixed, DB::SeriesFloat>;
   using DBBlk = ZuIf<Fixed, DB::BlkFixed, DB::BlkFloat>;
@@ -496,8 +496,9 @@ public:
       return {};
     }
     BlkOffset blkOffset = ZuSearchPos(result);
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     RdRef handle =
-      new RdrListNode{this, blkOffset, getBlk(blkOffset), offset};
+      new RdrNode{this, blkOffset, getBlk(blkOffset), offset};
     addHistReader(handle);
     return handle;
   }
@@ -512,6 +513,7 @@ private:
       return;
     }
     blkOffset = ZuSearchPos(result);
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     reader->init(blkOffset, getBlk(blkOffset), offset);
   }
   void seekRev(Reader *reader, BlkOffset blkOffset, Offset offset) const {
@@ -537,8 +539,8 @@ public:
       return {};
     }
     BlkOffset blkOffset = ZuSearchPos(result);
-    RdRef handle =
-      new RdrListNode{this, blkOffset, getBlk(blkOffset), value};
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
+    RdRef handle = new RdrNode{this, blkOffset, getBlk(blkOffset), value};
     addHistReader(handle);
     return handle;
   }
@@ -553,6 +555,7 @@ private:
       return;
     }
     blkOffset = ZuSearchPos(result);
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     reader->init(blkOffset, getBlk(blkOffset), value);
   }
   void findRev(Reader *reader, BlkOffset blkOffset, Value value) const {
@@ -642,17 +645,16 @@ public:
       pushFirstBlk();
       write_newWriter(ZuMv(fn), ndp...);
     } else if (m_lastBlk->count()) { // last block is not empty - load the data
-      if (!m_lastBlk->blkData) {
-	ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
-	loadBlk(m_lastBlkOffset, [
-	  this, fn = ZuMv(fn), ndp..., indexBlk = ZuMv(indexBlk)
-	](ZmRef<BlkData> blkData) mutable {
-	  if (ZuUnlikely(!blkData)) { fn(WrRef{}); return; }
-	  blkData->pin();
-	  m_lastBlk->blkData = ZuMv(blkData);
-	  write_loadedBlk(ZuMv(fn), ndp...);
-	});
-      }
+      if (m_lastBlk->blkData) { write_loadedBlk(ZuMv(fn), ndp...); return; }
+      ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
+      loadBlk(m_lastBlkOffset, [
+	this, fn = ZuMv(fn), ndp..., indexBlk = ZuMv(indexBlk)
+      ](ZmRef<BlkData> blkData) mutable {
+	if (ZuUnlikely(!blkData)) { fn(WrRef{}); return; }
+	blkData->pin();
+	m_lastBlk->blkData = ZuMv(blkData);
+	write_loadedBlk(ZuMv(fn), ndp...);
+      });
     } else { // last block is empty - allocate the data
       if (!m_lastBlk->blkData)
 	m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
@@ -895,16 +897,16 @@ private:
 
   // Reader management
   void addHistReader(Reader *reader) const {
-    m_histReaders.pushNode(static_cast<RdrListNode *>(reader));
+    m_histReaders.pushNode(static_cast<RdrNode *>(reader));
   }
   void delHistReader(Reader *reader) const {
-    m_histReaders.delNode(static_cast<RdrListNode *>(reader));
+    m_histReaders.delNode(static_cast<RdrNode *>(reader));
   }
   void addLiveReader(Reader *reader) const {
-    m_liveReaders.pushNode(static_cast<RdrListNode *>(reader));
+    m_liveReaders.pushNode(static_cast<RdrNode *>(reader));
   }
   void delLiveReader(Reader *reader) const {
-    m_liveReaders.delNode(static_cast<RdrListNode *>(reader));
+    m_liveReaders.delNode(static_cast<RdrNode *>(reader));
   }
 
   // seek function used in interpolation search
@@ -1057,8 +1059,7 @@ inline bool Reader<Decoder>::findRev(Value value)
 }
 
 template <typename Decoder>
-inline bool Reader<Decoder>::init(
-  BlkOffset blkOffset, Blk *blk, Target target)
+inline bool Reader<Decoder>::init(BlkOffset blkOffset, Blk *blk, Target target)
 {
   using namespace RdrState;
 
@@ -1223,20 +1224,14 @@ inline void Reader<Decoder>::loaded(const Blk *blk)
       auto offset = m_blk->offset();
       auto targetOffset = m_target.template p<Offset>();
       if (targetOffset > offset)
-	if (!m_decoder.seek(targetOffset - offset)) {
-	  nextBlk();
-	  return;
-	}
+	m_decoder.seek(targetOffset - offset);
     } else {
       auto value = m_target.template p<Value>();
-      if (!m_decoder.search([
+      m_decoder.search([
 	value = value.adjust(m_blk->ndp())
       ](PValue skip, unsigned count) -> unsigned {
 	return skip < value ? count : 0;
-      })) {
-	nextBlk();
-	return;
-      }
+      });
     }
     m_target = {};
   }

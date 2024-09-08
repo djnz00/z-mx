@@ -48,7 +48,9 @@
 #include <zlib/ZtIconv.hh>
 
 // built-in buffer size (before falling back to ZmVHeap)
+#ifndef ZtString_Builtin
 #define ZtString_Builtin	24
+#endif
 
 // buffer size increment for vsnprintf()
 #define ZtString_vsnprintf_Growth	256

@@ -31,7 +31,9 @@
 #include <zlib/ZmVHeap.hh>
 
 // TCP over Ethernet maximum payload is 1460 (without Jumbo frames)
+#ifndef ZiIOBuf_DefaultSize
 #define ZiIOBuf_DefaultSize 1460
+#endif
 
 inline constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
 

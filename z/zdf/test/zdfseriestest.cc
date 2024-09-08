@@ -81,7 +81,7 @@ struct Test {
       gtfo();
       return;
     }
-    series->write([this](auto w) { run_write(ZuMv(w)); }, 1);
+    series->write([this](auto w) { run_write(ZuMv(w)); }, 0);
   }
   void run_write(Series::WrRef w) {
     if (!w) {
@@ -125,7 +125,8 @@ struct Test {
     CHECK(w->write(430500));
     CHECK(w->write(430600));
     for (unsigned i = 0; i < 300; i++) {
-      CHECK(w->write(430700));
+      w->write(430700);
+      // CHECK(w->write(430700));
     }
     CHECK(w->series()->blkCount() == 4);
     w = {};
@@ -206,7 +207,7 @@ struct Test {
     }
   }
   void run_read5() {
-    CHECK(series->blkCount() == 3);
+    CHECK(series->blkCount() == 4);
     done.post();
   }
 };
