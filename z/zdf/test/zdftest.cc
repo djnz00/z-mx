@@ -63,186 +63,117 @@ void gtfo()
   Zm::exit(1);
 }
 
-using Series = Zdf::Series<Zdf::Decoder>;
+struct Frame {
+  uint64_t	v1;
+  int64_t	v2_;
+
+  ZuFixed v2() const { return ZuFixed{v2_, 9}; }
+  void v2(ZuFixed v) { v2_ = v.adjust(9); }
+};
+ZtFieldTbl(Frame,
+  (((v1),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
+  (((v2, Fn),	(Series, Delta, NDP<9>)),		(Fixed)));
+
+void usage() {
+  std::cerr << "Usage: zdftest\n" << std::flush;
+  ::exit(1);
+}
+
+using DF = Zdf::DataFrame<Frame, false>;
 
 struct Test {
-  ZmRef<Series>	series;
+  ZmRef<DF>	df;
 
   void run() {
-    store->openSeries<Zdf::Decoder, true>(0, "test",
-      [this](ZmRef<Series> series_) {
-	series = ZuMv(series_);
-	run_opened();
-      });
+    store->openDF<Frame, false, true>(
+      0, "frame", [this](ZmRef<DF> df_) { run_opened(ZuMv(df_)); });
   }
-  void run_opened() {
-    if (!series) {
-      ZeLOG(Fatal, "open failed");
-      gtfo();
+  void run_opened(ZmRef<DF> df_) {
+    if (!df_) {
+      ZeLOG(Fatal, "data frame open failed");
+      done.post();
       return;
     }
-    series->write([this](auto w) { run_write(ZuMv(w)); }, 0);
+    df = ZuMv(df_);
+    df->write([this](DF::DFWriter w) { run_write(ZuMv(w)); });
   }
-  void run_write(Series::WrRef w) {
+  void run_write(DF::DFWriter w) {
     if (!w) {
-      ZeLOG(Fatal, "write1 failed");
-      gtfo();
+      ZeLOG(Fatal, "data frame write failed");
+      done.post();
       return;
     }
-    CHECK(w->write(42));
-    CHECK(w->write(42));
-    w = {};
-    series->write([this](auto w) mutable { run_write2(ZuMv(w)); }, 2);
-  }
-  void run_write2(Series::WrRef w) {
-    if (!w) {
-      ZeLOG(Fatal, "write2 failed");
-      gtfo();
-      return;
+    Frame frame;
+    for (uint64_t i = 0; i < 300; i++) { // 1000
+      frame.v1 = i;
+      frame.v2_ = i * 42;
+      w.write(frame);
     }
-    CHECK(w->write(4301));
-    CHECK(w->write(4302));
-    w = {};
-    series->write([this](auto w) mutable { run_write3(ZuMv(w)); }, 3);
+    df->run([this]() { run_read1(); });
   }
-  void run_write3(Series::WrRef w) {
-    if (!w) {
-      ZeLOG(Fatal, "write3 failed");
-      gtfo();
-      return;
-    }
-    CHECK(w->write(43030));
-    CHECK(w->write(43040));
-    w = {};
-    series->write([this](auto w) mutable { run_write4(ZuMv(w)); }, 4);
+  void run_read1() {
+    auto r1 = df->find<ZtField(Frame, v1)>(ZuFixed{20, 0});
+    r1->read([this](auto *r1, ZuFixed v) { return run_read2(r1, v); });
   }
-  void run_write4(Series::WrRef w) {
-    if (!w) {
-      ZeLOG(Fatal, "write4 failed");
-      gtfo();
-      return;
-    }
-    CHECK(w->write(430500));
-    CHECK(w->write(430600));
-    for (unsigned i = 0; i < 300; i++) {
-      w->write(430700);
-      // CHECK(w->write(430700));
-    }
-    CHECK(w->series()->blkCount() == 4);
-    w = {};
-    run_read();
-  }
-  void run_read() {
-    auto r = series->seek();
-    if (!r->read([this, i = 0](Series::Reader *r, ZuFixed v) mutable {
-      switch (i++) {
-	case 0:
-	  CHECK(v.mantissa == 42 && !v.ndp);
-	  break;
-	case 1:
-	  CHECK(v.mantissa == 42 && !v.ndp);
-	  break;
-	case 2:
-	  CHECK(v.mantissa == 4301 && v.ndp == 2);
-	  break;
-	case 3:
-	  CHECK(v.mantissa == 4302 && v.ndp == 2);
-	  break;
-	case 4:
-	  CHECK(v.mantissa == 43030 && v.ndp == 3);
-	  break;
-	case 5:
-	  CHECK(v.mantissa == 43040 && v.ndp == 3);
-	  break;
-	case 6:
-	  CHECK(v.mantissa == 430500 && v.ndp == 4);
-	  break;
-	case 7:
-	  CHECK(v.mantissa == 430600 && v.ndp == 4);
-	  break;
-	default:
-	  CHECK(v.mantissa == 430700 && v.ndp == 4);
-	  break;
-      }
-      if (i < 308) return true;
-      series->run([this]() { run_read2(); });
+  template <typename Reader>
+  bool run_read2(Reader *r1, ZuFixed v) {
+    if (!*v) {
+      ZeLOG(Fatal, "data frame read1 failed");
+      done.post();
       return false;
-    })) {
-      ZeLOG(Fatal, "read failed");
-      gtfo();
     }
+    auto r2 = df->seek<ZtField(Frame, v2)>(r1->offset());
+    r2->read([this](auto *r2, ZuFixed v) { return run_read3(r2, v); });
+    return false;
   }
-  void run_read2() {
-    auto r = series->find(ZuFixed{425, 1});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
-      CHECK(v.mantissa == 4301 && v.ndp == 2);
-      series->run([this]() { run_read3(); });
+  template <typename Reader>
+  bool run_read3(Reader *r2, ZuFixed v) {
+    if (!*v) {
+      ZeLOG(Fatal, "data frame read2 failed");
+      done.post();
       return false;
-    })) {
-      ZeLOG(Fatal, "read2 failed");
-      gtfo();
     }
-  }
-  void run_read3() {
-    auto r = series->find(ZuFixed{43020, 3});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
-      CHECK(v.mantissa == 4302 && v.ndp == 2);
-      r->purge();
-      series->run([this]() { run_read4(); });
-      return false;
-    })) {
-      ZeLOG(Fatal, "read3 failed");
-      gtfo();
-    }
-  }
-  void run_read4() {
-    auto r = series->find(ZuFixed{44, 0});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
-      CHECK(!*v);
-      series->run([this]() { run_read5(); });
-      return false;
-    })) {
-      ZeLOG(Fatal, "read4 failed");
-      gtfo();
-    }
-  }
-  void run_read5() {
-    CHECK(series->blkCount() == 4);
+    CHECK(v.mantissa == 20 * 42);
+    CHECK(v.ndp == 9);
     done.post();
+    return false;
   }
 };
-// FIXME
 #if 0
+    index.findFwd(ZuFixed{200, 0});
+    std::cout << "offset=" << index.offset() << '\n';
+    reader.seekFwd(index.offset());
+    CHECK(reader.read(v));
+    CHECK(v.mantissa() == 200 * 42);
+    CHECK(v.ndp() == 9);
+    index.findRev(ZuFixed{100, 0});
+    std::cout << "offset=" << index.offset() << '\n';
+    reader.seekRev(index.offset());
+    AnyReader cleaner;
     {
-      auto r = series->find<DeltaDecoder<>>(ZuFixed{44, 0});
-      ZuFixed v;
-      CHECK(!r);
-      CHECK(!r.read(v));
+      auto offset = reader.offset();
+      offset = offset < 100 ? 0 : offset - 100;
+      df.seek(cleaner, 1, offset);
     }
-    {
-      auto r = series->seek<DeltaDecoder<>>();
-      ZuFixed v;
-      CHECK(r.read(v)); CHECK(v.mantissa == 4301 && v.ndp == 2);
+    Zdf::StatsTree<> w;
+    while (reader.read(v)) {
+      w.add(v);
+      if (cleaner.read(v)) w.del(v);
+      std::cout << "min=" << ZuBoxed(w.minimum()) <<
+	" max=" << ZuBoxed(w.maximum()) <<
+	" mean=" << ZuBoxed(w.mean()) <<
+	" stddev=" << ZuBoxed(w.std()) <<
+	" median=" << ZuBoxed(w.median()) <<
+	" 95%=" << ZuBoxed(w.rank(0.95)) << '\n';
     }
-    {
-      auto r = series->seek<DeltaDecoder<>>(208);
-      ZuFixed v;
-      for (unsigned i = 0; i < 50; i++) {
-	CHECK(r.read(v));
-	CHECK(v.mantissa == 430700 && v.ndp == 4);
-      }
-      CHECK(r.offset() == 258);
-      for (unsigned i = 0; i < 50; i++) {
-	CHECK(r.read(v));
-	CHECK(v.mantissa == 430700 && v.ndp == 4);
-      }
-      CHECK(!r.read(v));
-    }
+    // for (auto k = w.begin(); k != w.end(); ++k) std::cout << *k << '\n';
+    // for (auto k: w) std::cout << k.first << '\n';
+    // std::cout << "stddev=" << w.std() << '\n';
 #endif
 
 Test test;
 
-int main()
+int main(int argc, char **argv)
 {
   ZmRef<ZvCf> cf;
 
@@ -281,7 +212,7 @@ int main()
     Zm::exit(1);
   }
 
-  ZeLog::init("zdfstoretest");
+  ZeLog::init("zdftest");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
@@ -361,6 +292,7 @@ int main()
 
   ZeLog::stop();
 
+  std::cout << ZmHeapMgr::csv();
+
   return 0;
 }
-

@@ -105,7 +105,6 @@ using FieldDecoder = typename FieldDecoder_<Field>::T;
 // map a field to corresponding Series, RdRef, WrRef
 template <typename Field> using FieldSeries = Series<FieldDecoder<Field>>;
 template <typename Field> using FieldSeriesRef = ZmRef<FieldSeries<Field>>;
-template <typename Field> using FieldRdRef = RdRef<FieldDecoder<Field>>;
 template <typename Field> using FieldWrRef = WrRef<FieldDecoder<Field>>;
 
 // tuples of series and writer references given object type wrapper
@@ -115,6 +114,20 @@ template <typename W>
 using WrRefTuple = ZuTypeApply<ZuTuple, ZuTypeMap<FieldWrRef, Fields<W>>>;
 
 template <typename O, bool TimeIndex> class DataFrame;
+
+template <
+  typename Field,
+  typename Props = typename Field::Props,
+  bool HasNDP = ZuFieldProp::HasNDP<Props>{}>
+struct GetNDP_ {
+  using T = ZuFieldProp::GetNDP<Props>;
+};
+template <typename Field, typename Props>
+struct GetNDP_<Field, Props, false> {
+  using T = ZuUnsigned<0>;
+};
+template <typename Field>
+using GetNDP = typename GetNDP_<Field>::T;
 
 // data frame writer
 template <typename W>
@@ -150,10 +163,11 @@ public:
 
     ZuUnroll::all<WrRefs::N>([this, &o](auto I) {
       using Field = ZuType<I, Fields>;
-      if constexpr (
-	  Field::Code == Float ||
-	  Field::Code == Fixed)
+      enum { NDP = GetNDP<Field>{} };
+      if constexpr (Field::Code == Float)
 	m_wrRefs.template p<I>()->write(Field::get(o));
+      else if constexpr (Field::Code == Fixed)
+	m_wrRefs.template p<I>()->write(Field::get(o).adjust(NDP));
       else if constexpr (
 	  Field::Code == Int8 ||
 	  Field::Code == UInt8 ||
@@ -163,10 +177,9 @@ public:
 	  Field::Code == UInt32 ||
 	  Field::Code == Int64 ||
 	  Field::Code == UInt64)
-	m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), 0});
+	m_wrRefs.template p<I>()->write(Field::get(o));
       else if constexpr (Field::Code == Decimal)
-	m_wrRefs.template p<I>()->write(
-	  ZuFixed{Field::get(o), ZuFieldProp::GetNDP<typename Field::Props>{}});
+	m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), NDP});
       else if constexpr (Field::Code == Time)
 	m_wrRefs.template p<I>()->write(
 	  m_df->template series<I>()->nsecs(Field::get(o)));
@@ -217,8 +230,9 @@ private:
   using SeriesRefs = Zdf::SeriesRefs<W>;
   using WrRefs = WrRefTuple<W>;
 
-  DataFrame(Shard shard, ZtString name, SeriesRefs seriesRefs) :
-    m_shard{shard}, m_name{ZuMv(name)}, m_seriesRefs{ZuMv(seriesRefs)} { }
+  DataFrame(Store *store, Shard shard, ZtString name, SeriesRefs seriesRefs) :
+    m_store{store}, m_shard{shard}, m_name{ZuMv(name)},
+    m_seriesRefs{ZuMv(seriesRefs)} { }
 
 public:
   ~DataFrame() = default;
@@ -226,8 +240,16 @@ public:
   Shard shard() const { return m_shard; }
   const ZtString &name() const { return m_name; }
 
-  template <unsigned I>
-  auto series() const { return m_seriesRefs.template p<I>(); }
+  // run/invoke on shard
+  template <typename ...Args> void run(Args &&...args) const;
+  template <typename ...Args> void invoke(Args &&...args) const;
+  bool invoked() const;
+
+  template <typename Field>
+  auto series() const {
+    using I = ZuTypeIndex<Field, Fields>;
+    return m_seriesRefs.template p<I>();
+  }
 
   void write(ZmFn<void(DFWriter)> fn) {
     ZuLambda{[
@@ -241,16 +263,16 @@ public:
       if constexpr (J >= SeriesRefs::N) {
 	fn(DFWriter{this, ZuMv(wrRefs)});
       } else {
-	using Field = ZuType<I, Fields>;
+	using Field = ZuType<J, Fields>;
 	auto seriesRefs = &m_seriesRefs;
 	auto next = [self = ZuMv(self)](auto wrRef) mutable {
 	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(wrRef));
 	};
 	if constexpr (Field::Code == ZtFieldTypeCode::Float)
-	  seriesRefs->template p<I>()->write(ZuMv(next));
+	  seriesRefs->template p<J>()->write(ZuMv(next));
 	else
-	  seriesRefs->template p<I>()->write(
-	    ZuMv(next), ZuFieldProp::GetNDP<typename Field::Props>{});
+	  seriesRefs->template p<J>()->write(
+	    ZuMv(next), GetNDP<Field>{});
       }
     }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
@@ -261,13 +283,14 @@ public:
     using I = ZuTypeIndex<Field, Fields>;
     return m_seriesRefs.template p<I{}>()->seek(offset);
   }
-  template <typename Field, typename Value>
+  template <typename Field>
   auto find(typename FieldSeries<Field>::Value value) {
     using I = ZuTypeIndex<Field, Fields>;
     return m_seriesRefs.template p<I{}>()->find(value);
   }
 
 private:
+  Store		*m_store = nullptr;
   Shard		m_shard;
   ZtString	m_name;
   SeriesRefs	m_seriesRefs;

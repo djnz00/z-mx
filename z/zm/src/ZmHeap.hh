@@ -320,7 +320,7 @@ public:
   static ZmHeapCacheT *instance() { return TLS::instance(); }
   static void *alloc() {
     ZmHeapCacheT *this_ = instance();
-    return this_->m_cache->alloc<Align>(this_->m_stats);
+    return this_->m_cache->template alloc<Align>(this_->m_stats);
   }
   static void free(void *p) {
     ZmHeapCacheT *this_ = instance();

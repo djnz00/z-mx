@@ -30,11 +30,6 @@
 #include <zlib/ZuPrint.hh>
 #include <zlib/ZuUTF.hh>
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4800 4996 4348)
-#endif
-
 template <typename U, typename> struct ZuArray_CanAppend_;
 template <typename U> struct ZuArray_CanAppend_<U, void> { using T = void; };
 template <typename U> struct ZuArray_CanAppend_<U, U &> { using T = void; };
@@ -723,9 +718,5 @@ namespace Zu_ {
     return static_cast<const tuple_element_t<I, ArrayN<T, N, Cmp>> &&>(a[I]);
   }
 }
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif /* ZuArray_HH */

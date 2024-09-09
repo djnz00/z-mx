@@ -104,31 +104,32 @@ public:
   }
 
   // search forward for a value
-  // l(int64_t value, unsigned offset) -> unsigned skipped
-  // search ends when skipped < offset
+  // l(int64_t value, unsigned runlength) -> unsigned skip
+  // search ends when skip < runlength
   template <typename L>
   bool search(L l) {
     const uint8_t *origPos;
-    unsigned offset;
+    unsigned skip;
     if (m_rle) {
-      offset = l(m_prev, m_rle);
-      m_offset += offset;
-      if (m_rle -= offset) return true;
+      skip = l(m_prev, m_rle);
+      m_offset += skip;
+      if (m_rle -= skip) return true;
     }
     int64_t value;
     for (;;) {
       origPos = m_pos;
       if (!read_(&value)) return false;
-      offset = l(value, 1 + m_rle);
-      if (!offset) {
+      skip = l(value, 1 + m_rle);
+      if (!skip) {
 	m_pos = origPos;
 	return true;
       }
       ++m_offset;
-      --offset;
+      --skip;
       if (m_rle) {
-	m_offset += offset;
-	if (m_rle -= offset) return true;
+	if (!skip) return true;
+	m_offset += skip;
+	if (m_rle -= skip) return true;
       }
     }
   }
@@ -414,15 +415,15 @@ public:
   template <typename L>
   bool search(L l) {
     return Base::search(
-	[this, l = ZuMv(l)](int64_t skip, unsigned offset) {
-	  int64_t value;
-	  for (unsigned i = 0; i < offset; i++) {
-	    value = m_base + skip;
-	    if (!l(value, 1)) return i;
-	    m_base = value;
-	  }
-	  return offset;
-	});
+      [this, l = ZuMv(l)](int64_t skip, unsigned rle) {
+	int64_t value;
+	for (unsigned i = 0; i < rle; i++) {
+	  value = m_base + skip;
+	  if (!l(value, 1)) return i;
+	  m_base = value;
+	}
+	return rle;
+      });
   }
 
   bool read(int64_t &value_) {
@@ -432,7 +433,7 @@ public:
     return true;
   }
 
-  int64_t base() { return m_base; }
+  int64_t base() const { return m_base; }
 
 private:
   int64_t		m_base = 0;
@@ -523,18 +524,15 @@ public:
   // search ends when skipped < offset
   template <typename L>
   bool search(L l) {
-    unsigned offset;
     double value;
     for (;;) {
       auto orig = save();
       if (!read_(&value)) return false;
-      offset = l(value, 1);
-      if (!offset) {
+      if (!l(value, 1)) {
 	load(orig);
 	return true;
       }
       ++m_offset;
-      --offset;
     }
   }
 

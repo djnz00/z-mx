@@ -558,6 +558,10 @@ template <typename U>
 struct ZuUnder_<U, ZuUnder_AsIs> {
   using T = typename ZuUnder__<U>::T;
 };
+template <typename T_, T_ V>
+struct ZuUnder_<ZuConstant<T_, V>> {
+  using T = T_;
+};
 template <typename U>
 using ZuUnder = typename ZuUnder_<ZuDecay<U>>::T;
 

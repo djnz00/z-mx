@@ -528,6 +528,11 @@ struct ZuWrapTraits : public ZuTraits<Under> {
   }
 };
 
+// specialize traits for ZuConstant
+template <typename T, T V>
+struct ZuTraits<ZuConstant<T, V>> :
+  public ZuWrapTraits<ZuConstant<T, V>, T> { };
+
 // STL / Boost interoperability
 template <typename T, typename Char>
 struct ZuStdStringTraits_ : public ZuBaseTraits<T> {

@@ -85,10 +85,11 @@ public:
     }
   }
 
-  void add(const ZuFixed &v) {
-    ndp(v.ndp());
-    add_(v.mantissa());
+  void add(ZuFixed v) {
+    ndp(v.ndp);
+    add_(v.mantissa);
   }
+
 protected:
   void add_(ZuFixedVal v_) {
     if (ZuUnlikely(!m_count)) {

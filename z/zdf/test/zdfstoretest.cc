@@ -87,7 +87,7 @@ int main()
     Zm::exit(1);
   }
 
-  ZeLog::init("ZdfStoreTest");
+  ZeLog::init("zdfstoretest");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();

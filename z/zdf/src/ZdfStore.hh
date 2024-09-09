@@ -80,16 +80,16 @@ public:
       }
       enum { J = I + 1 };
       if constexpr (J >= SeriesRefs::N) {
-	fn(DFRef{new DataFrame{shard, ZuMv(name), ZuMv(seriesRefs)}});
+	fn(DFRef{new DataFrame{this, shard, ZuMv(name), ZuMv(seriesRefs)}});
       } else {
-	using Field = ZuType<I, Fields>;
+	using Field = ZuType<J, Fields>;
 	using Decoder = FieldDecoder<Field>;
 	auto next = [self = ZuMv(self)](auto series) mutable {
 	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(series));
 	};
 	ZtString seriesName{name.length() + strlen(Field::id()) + 2};
 	seriesName << name << '/' << Field::id();
-	openSeries<Decoder>(shard, ZuMv(seriesName), Create, ZuMv(next));
+	openSeries<Decoder, Create>(shard, ZuMv(seriesName), ZuMv(next));
       }
     }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
@@ -167,6 +167,24 @@ private:
   ZmAtomic<uint32_t>		m_nextSeriesID = 1;
   OpenFn			m_openFn;
 };
+
+template <typename O, bool TimeIndex>
+template <typename ...Args>
+inline void DataFrame<O, TimeIndex>::run(Args &&...args) const
+{
+  m_store->run(m_shard, ZuFwd<Args>(args)...);
+}
+template <typename O, bool TimeIndex>
+template <typename ...Args>
+inline void DataFrame<O, TimeIndex>::invoke(Args &&...args) const
+{
+  m_store->invoke(m_shard, ZuFwd<Args>(args)...);
+}
+template <typename O, bool TimeIndex>
+inline bool DataFrame<O, TimeIndex>::invoked() const
+{
+  return m_store->invoked(m_shard);
+}
 
 template <typename Decoder>
 template <typename ...Args>
