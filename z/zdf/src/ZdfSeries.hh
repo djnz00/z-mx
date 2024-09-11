@@ -39,11 +39,11 @@ template <typename> class Series;
 
 namespace RdrState {
   ZtEnumValues(RdrState, int8_t,
-    Stopped	= 0,	// seek / find completed
-    Loading	= 1,	// read called, loading block data
-    Reading	= 2,	// reading historical data
-    Live	= 3,	// reading, waiting for live data
-    Stopping	= 4);	// stopping while reading
+    Stopped,	// seek / find completed
+    Loading,	// read called, loading block data
+    Reading,	// reading historical data
+    Live,	// reading, waiting for live data
+    Stopping);	// stopping while reading
 
   constexpr const bool stopped(T v) { return v == Stopped; }
   constexpr const bool reading(T v) { return v >= Loading; }
@@ -98,7 +98,7 @@ namespace RdrState {
 // RdrResult is used internally for processing reader state transitions
 namespace RdrResult {
   ZtEnumValues(RdrResult, int8_t,
-    OK = 0,
+    OK,
     Load,	// load performed
     EOS,	// end of series
     Stopped,
@@ -147,11 +147,14 @@ friend Ctrl;
   class Ctrl {
   friend Reader;
 
-    Reader &reader;
-
     Ctrl(Reader &reader_) : reader{reader_} { }
 
   public:
+    Reader &reader;
+
+    // yield reading sequential values to permit other work to run
+    void yield();
+
     // seek forward to offset
     void seekFwd(Offset offset);
     // seek reverse to offset
@@ -191,6 +194,8 @@ protected:
 private:
   bool init(BlkOffset, Blk *, Target);
 
+  void yield() { m_yield = true; }
+
   void loadBlk();
   void loaded(const Blk *blk);
   int nextBlk();		// OK|Load|EOS|Stopped|Failed
@@ -210,6 +215,7 @@ private:
   Fn			m_fn;
   ErrorFn		m_errorFn;
   StopFn		m_stopFn;
+  bool			m_yield = false;
   bool			m_failed = false;
 };
 
@@ -241,11 +247,12 @@ private:
   friend Series;
 
 public:
-  Writer__(Series *series, Offset offset) :
-    m_series{series}, m_offset{offset} { }
+  Writer__(Series *series, Offset offset, ErrorFn errorFn) :
+    m_series{series}, m_offset{offset}, m_errorFn{ZuMv(errorFn)} { }
 
   Series *series() const { return m_series; }
   Offset offset() const { return m_offset; }
+  bool failed() const { return m_failed; }
 
   // append value to series, notifying any live readers
   bool write(PValue);
@@ -254,6 +261,14 @@ public:
   void stop();
 
 private:
+  void fail() {
+    m_failed = true;
+    auto errorFn = ZuMv(m_errorFn);
+    m_errorFn = ErrorFn{};
+    errorFn();
+    stop(); // do last
+  }
+
   template <typename L> void encoder(L l) { m_encoder = l(); }
   bool encode(PValue value) { return m_encoder.write(value); }
   void finish(Blk *lastBlk) {
@@ -264,6 +279,8 @@ private:
   Series	*m_series = nullptr;
   Offset	m_offset = 0;
   Encoder	m_encoder;
+  ErrorFn	m_errorFn;
+  bool		m_failed = false;
 };
 template <typename Decoder, typename Heap, typename PValue = Decoder::Value>
 class Writer_ : public Writer__<Decoder, Heap, PValue> { };
@@ -276,8 +293,8 @@ class Writer_<Decoder, Heap, int64_t> :
 public:
   using typename Base::Series;
 
-  Writer_(Series *series, Offset offset, NDP ndp) :
-    Base{series, offset}, m_ndp{ndp} { }
+  Writer_(Series *series, Offset offset, ErrorFn errorFn, NDP ndp) :
+    Base{series, offset, ZuMv(errorFn)}, m_ndp{ndp} { }
 
   NDP ndp() const { return m_ndp; }
 
@@ -289,43 +306,6 @@ template <typename Decoder>
 using Writer_Heap = ZmHeap<Writer_HeapID, Writer_<Decoder, ZuEmpty>>;
 template <typename Decoder>
 using Writer = Writer_<Decoder, Writer_Heap<Decoder>>;
-
-// WrRef is a move-only ZmRef<Writer>-derived smart pointer,
-// with a RAII dtor that calls writer->stop()
-template <typename Decoder>
-class WrRef : public ZmRef<Writer<Decoder>> {
-  WrRef(const WrRef &) = delete;
-  WrRef &operator =(const WrRef &) = delete;
-
-public:
-  using Writer = Zdf::Writer<Decoder>;
-  using Ref = ZmRef<Writer>;
-
-  using Ref::operator Writer *;
-  using Ref::operator ->;
-
-  WrRef() = default;
-  WrRef(WrRef &&h) : Ref{ZuMv(h)} { }
-  WrRef &operator =(WrRef &&h) {
-    stop_();
-    Ref::operator =(ZuMv(h));
-    return *this;
-  }
-  template <typename Arg>
-  WrRef(Arg &&arg) : Ref{ZuFwd<Arg>(arg)} { }
-  template <typename Arg>
-  WrRef &operator =(Arg &&arg) {
-    stop_();
-    Ref::operator =(ZuFwd<Arg>(arg));
-    return *this;
-  }
-  ~WrRef() { stop_(); }
-
-private:
-  void stop_() {
-    if (auto ptr = this->ptr_()) ptr->stop();
-  }
-};
 
 class Store;
 // template <typename O, bool TimeIndex> class DataFrame;
@@ -375,7 +355,6 @@ public:
   using Reader = Zdf::Reader<Decoder>;
   using ReadFn = typename Reader::Fn;
   using Writer = Zdf::Writer<Decoder>;
-  using WrRef = Zdf::WrRef<Decoder>;
   using PValue = typename Decoder::Value;
   enum { Fixed = ZuIsExact<PValue, int64_t>{} };
   using Value = ZuIf<Fixed, ZuFixed, double>;
@@ -625,25 +604,32 @@ private:
 public:
   template <typename ...NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
-  write(ZmFn<void(WrRef)> fn, NDP... ndp) {
+  write(ZmFn<void(ZmRef<Writer>)> fn, ErrorFn errorFn, NDP... ndp) {
     // if this is a fixed-point series, validate the ndp parameter
     if constexpr (Fixed) ZuAssert(ZuTraits<NDP...>::IsIntegral);
 
-    if (m_writer) { fn(WrRef{}); return; }
+    if (m_writer) { errorFn(); return; }
     if (!m_lastBlk) { // new series - append first block
-      m_writer = new Writer{this, 0, ndp...};
+      m_writer = new Writer{this, 0, ZuMv(errorFn), ndp...};
       pushFirstBlk();
       write_newWriter(ZuMv(fn), ndp...);
     } else {
       auto lastBlkCount = m_lastBlk->count();
-      m_writer = new Writer{this, m_lastBlk->offset() + lastBlkCount, ndp...};
+      m_writer = new Writer{
+	this, m_lastBlk->offset() + lastBlkCount, ZuMv(errorFn), ndp...};
       if (lastBlkCount) { // last block is not empty - load the data
-	if (m_lastBlk->blkData) { write_loadedBlk(ZuMv(fn), ndp...); return; }
+	if (m_lastBlk->blkData) {
+	  write_loadedBlk(ZuMv(fn), ndp...);
+	  return;
+	}
 	ZmRef<IndexBlk> indexBlk = m_index.find(m_lastBlkOffset);
 	loadBlk(m_lastBlkOffset, [
 	  this, fn = ZuMv(fn), ndp..., indexBlk = ZuMv(indexBlk)
 	](ZmRef<BlkData> blkData) mutable {
-	  if (ZuUnlikely(!blkData)) { fn(WrRef{}); return; }
+	  if (ZuUnlikely(!blkData)) {
+	    m_writer->fail();
+	    return;
+	  }
 	  blkData->pin();
 	  m_lastBlk->blkData = ZuMv(blkData);
 	  write_loadedBlk(ZuMv(fn), ndp...);
@@ -660,7 +646,7 @@ public:
 private:
   template <typename ...NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
-  write_loadedBlk(ZmFn<void(WrRef)> fn, NDP... ndp) {
+  write_loadedBlk(ZmFn<void(ZmRef<Writer>)> fn, NDP... ndp) {
     if (!m_lastBlk->count()) {
       write_newWriter(ZuMv(fn), ndp...);
       return;
@@ -682,16 +668,16 @@ private:
     m_writer->encoder([&decoder, &buf]{
       return Encoder{decoder, buf.data() + BlkSize};
     });
-    fn(WrRef{m_writer});
+    fn(ZmRef<Writer>{m_writer});
   }
   template <typename... NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
-  write_newWriter(ZmFn<void(WrRef)> fn, NDP... ndp) {
+  write_newWriter(ZmFn<void(ZmRef<Writer>)> fn, NDP... ndp) {
     if constexpr (Fixed) m_lastBlk->ndp(ndp...);
     m_writer->encoder([this]{ return m_lastBlk->encoder<Decoder>(this); });
     // call async to constrain stack depth
     run([this_ = ZmMkRef(this), fn = ZuMv(fn)]() mutable {
-      ZuMv(fn)(WrRef{this_->m_writer});
+      ZuMv(fn)(ZmRef<Writer>{this_->m_writer});
     });
   }
 
@@ -1014,27 +1000,37 @@ inline Offset Reader<Decoder>::offset() const
 }
 
 template <typename Decoder>
+inline void Reader<Decoder>::Ctrl::yield()
+{
+  reader.yield();
+}
+
+template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::seekFwd(Offset offset)
 {
-  reader.m_series->seekFwd(&reader, reader.m_blkOffset, offset);
+  reader.yield();
+  reader.series()->seekFwd(&reader, reader.m_blkOffset, offset);
 }
 
 template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::seekRev(Offset offset)
 {
-  reader.m_series->seekRev(&reader, reader.m_blkOffset, offset);
+  reader.yield();
+  reader.series()->seekRev(&reader, reader.m_blkOffset, offset);
 }
 
 template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::findFwd(Value value)
 {
-  reader.m_series->findFwd(&reader, reader.m_blkOffset, value);
+  reader.yield();
+  reader.series()->findFwd(&reader, reader.m_blkOffset, value);
 }
 
 template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::findRev(Value value)
 {
-  reader.m_series->findRev(&reader, reader.m_blkOffset, value);
+  reader.yield();
+  reader.series()->findRev(&reader, reader.m_blkOffset, value);
 }
 
 template <typename Decoder>
@@ -1069,6 +1065,7 @@ inline bool Reader<Decoder>::init(BlkOffset blkOffset, Blk *blk, Target target)
 template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::stop(StopFn fn)
 {
+  reader.yield();
   reader.stop(ZuMv(fn));
 }
 
@@ -1207,7 +1204,12 @@ inline void Reader<Decoder>::loaded(const Blk *blk)
 	  m_fn(Ctrl{*this}, ZuFixed{pvalue, ndp});
 	else
 	  m_fn(Ctrl{*this}, pvalue);
-	if (m_state == Stopping) return;
+	if (m_yield) {
+	  m_yield = false;
+	  if (m_state == Reading || m_state == Live)
+	    m_series->run([this]() { nextValue(); });
+	  return;
+	}
       }
     }
   }
@@ -1281,6 +1283,12 @@ inline int Reader<Decoder>::nextValue()
       m_fn(Ctrl{*this}, ZuFixed{value, ndp()});
     else
       m_fn(Ctrl{*this}, value);
+    if (m_yield) {
+      m_yield = false;
+      if (m_state == Reading || m_state == Live)
+	m_series->run([this]() { nextValue(); });
+      return RdrResult::OK;
+    }
   }
 
   return RdrResult::Stopped;
@@ -1323,7 +1331,7 @@ inline void Reader<Decoder>::fail()
 template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::purge()
 {
-  const_cast<Series *>(reader.m_series)->purge(&reader, reader.m_blkOffset);
+  const_cast<Series *>(reader.series())->purge(&reader, reader.m_blkOffset);
 }
 
 inline constexpr const char *closedWriter() {
@@ -1335,7 +1343,9 @@ inline constexpr const char *closedWriter() {
 template <typename Decoder, typename Heap, typename Value>
 inline bool Writer__<Decoder, Heap, Value>::write(Value value)
 {
-  ZeAssert(m_series, (), closedWriter(), return false);
+  if (ZuUnlikely(m_failed)) return false;
+
+  ZeAssert(m_series, (), closedWriter(), fail(); return false);
 
   bool ok = m_series->write(static_cast<Writer<Decoder> *>(this), value);
   if (ok) ++m_offset;

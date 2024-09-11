@@ -81,7 +81,7 @@ using LoginFn = ZmFn<void(ZmRef<Session>, ZmRef<ZiIOBuf>)>;
 // user DB state
 namespace UserDBState {
   ZtEnumValues(UserDBState, int,
-    Uninitialized = 0, Initialized, Opening, Opened, OpenFailed, Bootstrap);
+    Uninitialized, Initialized, Opening, Opened, OpenFailed, Bootstrap);
 }
 
 // main server-side user DB class

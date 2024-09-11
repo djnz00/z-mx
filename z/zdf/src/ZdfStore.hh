@@ -28,7 +28,7 @@ namespace Zdf {
 // data store state
 namespace StoreState {
   ZtEnumValues(StoreState, int,
-    Uninitialized = 0, Initialized, Opening, Opened, OpenFailed);
+    Uninitialized, Initialized, Opening, Opened, OpenFailed);
 }
 
 using OpenFn = ZmFn<void(bool)>;	// (bool ok)

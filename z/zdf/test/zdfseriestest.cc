@@ -81,47 +81,47 @@ struct Test {
       gtfo();
       return;
     }
-    series->write([this](auto w) { run_write(ZuMv(w)); }, 0);
-  }
-  void run_write(Series::WrRef w) {
-    if (!w) {
+    series->write([this](auto w) {
+      run_write(ZuMv(w));
+    }, []() {
       ZeLOG(Fatal, "write1 failed");
       gtfo();
-      return;
-    }
-    CHECK(w->write(42));
-    CHECK(w->write(42));
-    w = {};
-    series->write([this](auto w) mutable { run_write2(ZuMv(w)); }, 2);
+    }, 0);
   }
-  void run_write2(Series::WrRef w) {
-    if (!w) {
+  void run_write(ZmRef<Series::Writer> w) {
+    CHECK(w->write(42));
+    CHECK(w->write(42));
+    w->stop();
+    series->write([this](auto w) {
+      run_write2(ZuMv(w));
+    }, []() {
       ZeLOG(Fatal, "write2 failed");
       gtfo();
-      return;
-    }
+    }, 2);
+  }
+  void run_write2(ZmRef<Series::Writer> w) {
     CHECK(w->write(4301));
     CHECK(w->write(4302));
-    w = {};
-    series->write([this](auto w) mutable { run_write3(ZuMv(w)); }, 3);
-  }
-  void run_write3(Series::WrRef w) {
-    if (!w) {
+    w->stop();
+    series->write([this](auto w) {
+      run_write3(ZuMv(w));
+    }, []() {
       ZeLOG(Fatal, "write3 failed");
       gtfo();
-      return;
-    }
+    }, 3);
+  }
+  void run_write3(ZmRef<Series::Writer> w) {
     CHECK(w->write(43030));
     CHECK(w->write(43040));
-    w = {};
-    series->write([this](auto w) mutable { run_write4(ZuMv(w)); }, 4);
-  }
-  void run_write4(Series::WrRef w) {
-    if (!w) {
+    w->stop();
+    series->write([this](auto w) mutable {
+      run_write4(ZuMv(w));
+    }, []() {
       ZeLOG(Fatal, "write4 failed");
       gtfo();
-      return;
-    }
+    }, 4);
+  }
+  void run_write4(ZmRef<Series::Writer> w) {
     CHECK(w->write(430500));
     CHECK(w->write(430600));
     for (unsigned i = 0; i < 300; i++) {
@@ -129,7 +129,7 @@ struct Test {
       // CHECK(w->write(430700));
     }
     CHECK(w->series()->blkCount() == 4);
-    w = {};
+    w->stop();
     run_read();
   }
   void run_read() {

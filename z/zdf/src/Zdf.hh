@@ -102,9 +102,49 @@ struct FieldDecoder_<Field, 4U> { using T = FloatDecoder; };
 template <typename Field>
 using FieldDecoder = typename FieldDecoder_<Field>::T;
 
-// map a field to corresponding Series, RdRef, WrRef
+// map a field to corresponding Series / Reader
 template <typename Field> using FieldSeries = Series<FieldDecoder<Field>>;
 template <typename Field> using FieldSeriesRef = ZmRef<FieldSeries<Field>>;
+template <typename Field> using FieldReader = Reader<FieldDecoder<Field>>;
+
+// move-only ZmRef<Writer>-derived smart pointer,
+// with a RAII dtor that calls writer->stop()
+template <typename Decoder>
+class WrRef : public ZmRef<Writer<Decoder>> {
+  WrRef(const WrRef &) = delete;
+  WrRef &operator =(const WrRef &) = delete;
+
+public:
+  using Writer = Zdf::Writer<Decoder>;
+  using Ref = ZmRef<Writer>;
+
+  using Ref::operator Writer *;
+  using Ref::operator ->;
+
+  WrRef() = default;
+  WrRef(WrRef &&h) : Ref{ZuMv(h)} { }
+  WrRef &operator =(WrRef &&h) {
+    stop_();
+    Ref::operator =(ZuMv(h));
+    return *this;
+  }
+  template <typename Arg>
+  WrRef(Arg &&arg) : Ref{ZuFwd<Arg>(arg)} { }
+  template <typename Arg>
+  WrRef &operator =(Arg &&arg) {
+    stop_();
+    Ref::operator =(ZuFwd<Arg>(arg));
+    return *this;
+  }
+  ~WrRef() { stop_(); }
+
+private:
+  void stop_() {
+    if (auto ptr = this->ptr_()) ptr->stop();
+  }
+};
+
+// map a field to corresponding WrRef
 template <typename Field> using FieldWrRef = WrRef<FieldDecoder<Field>>;
 
 // tuples of series and writer references given object type wrapper
@@ -130,10 +170,10 @@ template <typename Field>
 using GetNDP = typename GetNDP_<Field>::T;
 
 // data frame writer
-template <typename W>
-class DFWriter {
-  DFWriter(const DFWriter &) = delete;
-  DFWriter &operator =(const DFWriter &) = delete;
+template <typename W, typename Heap>
+class DFWriter_ : public Heap, public ZmObject {
+  DFWriter_(const DFWriter_ &) = delete;
+  DFWriter_ &operator =(const DFWriter_ &) = delete;
 
 public:
   using O = typename W::O;
@@ -146,28 +186,36 @@ friend DataFrame;
   using Fields = Zdf::Fields<W>;
   using WrRefs = WrRefTuple<W>;
 
-  DFWriter() = default;
-  DFWriter(DataFrame *df, WrRefs wrRefs) :
-    m_df{df}, m_wrRefs{ZuMv(wrRefs)} { }
+  DFWriter_() = default;
+  DFWriter_(DataFrame *df, ErrorFn errorFn) :
+    m_df{df}, m_errorFn{ZuMv(errorFn)} { }
 
 public:
+  DFWriter_(DFWriter_ &&) = default;
+  DFWriter_ &operator =(DFWriter_ &&) = default;
+  ~DFWriter_() = default;
 
-  DFWriter(DFWriter &&) = default;
-  DFWriter &operator =(DFWriter &&) = default;
-  ~DFWriter() = default;
+  bool failed() const { return m_failed; }
 
-  bool operator !() const { return !m_df; }
+private:
+  template <unsigned I, typename WrRef>
+  void writer(WrRef wrRef) {
+    m_wrRefs.template p<I>(ZuMv(wrRef));
+  }
 
+public:
   void write(const O &o) {
     using namespace ZtFieldTypeCode;
 
-    ZuUnroll::all<WrRefs::N>([this, &o](auto I) {
+    bool ok = true;
+    ZuUnroll::all<WrRefs::N>([this, &o, &ok](auto I) {
+      if (!ok) return;
       using Field = ZuType<I, Fields>;
       enum { NDP = GetNDP<Field>{} };
       if constexpr (Field::Code == Float)
-	m_wrRefs.template p<I>()->write(Field::get(o));
+	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o));
       else if constexpr (Field::Code == Fixed)
-	m_wrRefs.template p<I>()->write(Field::get(o).adjust(NDP));
+	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o).adjust(NDP));
       else if constexpr (
 	  Field::Code == Int8 ||
 	  Field::Code == UInt8 ||
@@ -177,13 +225,14 @@ public:
 	  Field::Code == UInt32 ||
 	  Field::Code == Int64 ||
 	  Field::Code == UInt64)
-	m_wrRefs.template p<I>()->write(Field::get(o));
+	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o));
       else if constexpr (Field::Code == Decimal)
-	m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), NDP});
+	ok = ok && m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), NDP});
       else if constexpr (Field::Code == Time)
-	m_wrRefs.template p<I>()->write(
+	ok = ok && m_wrRefs.template p<I>()->write(
 	  m_df->template series<I>()->nsecs(Field::get(o)));
     });
+    if (!ok) fail();
   }
 
   using StopFn = ZmFn<void()>;
@@ -193,6 +242,7 @@ private:
 
     ~StopContext() { fn(); }
   };
+
 public:
   void stop(StopFn fn) {
     ZmRef<StopContext> context = new StopContext{ZuMv(fn)};
@@ -201,15 +251,23 @@ public:
     });
   }
 
-  void final() {
-    m_df = nullptr;
+  void fail() {
+    if (ZuUnlikely(m_failed)) return;
+    m_failed = true;
     m_wrRefs = {};
+    ErrorFn errorFn = ZuMv(m_errorFn);
+    errorFn();
   }
 
 private:
-  DataFrame		*m_df = nullptr;
-  WrRefs		m_wrRefs;
+  DataFrame	*m_df = nullptr;
+  ErrorFn	m_errorFn;
+  WrRefs	m_wrRefs;
+  bool		m_failed = false;
 };
+inline constexpr const char *DFWriter_HeapID() { return "Zdf.DFWriter"; }
+template <typename W>
+using DFWriter = DFWriter_<W, ZmHeap<DFWriter_HeapID, DFWriter_<W, ZuEmpty>>>;
 
 class Store;
 
@@ -221,7 +279,7 @@ public:
 private:
   using W = WrapType<O, TimeIndex>;
 public:
-  using DFWriter = Zdf::DFWriter<W>;
+  using Writer = DFWriter<W>;
 
 private:
   friend Store;
@@ -251,42 +309,52 @@ public:
     return m_seriesRefs.template p<I>();
   }
 
-  void write(ZmFn<void(DFWriter)> fn) {
+  struct WriteContext {
+    WrRefs	writers;
+  };
+
+  void write(ZmFn<void(ZmRef<Writer>)> fn, ErrorFn errorFn) {
+    ZmRef<Writer> dfw = new Writer{this, ZuMv(errorFn)};
     ZuLambda{[
-      this, fn = ZuMv(fn), wrRefs = WrRefs{}
+      this, fn = ZuMv(fn), dfw = ZuMv(dfw)
     ](auto &&self, auto I, auto wrRef) mutable {
-      if constexpr (I >= 0) {
-	if (ZuUnlikely(!wrRef)) { fn(DFWriter{}); return; }
-	wrRefs.template p<I>() = ZuMv(wrRef);
-      }
+      if constexpr (I >= 0)
+	dfw->template writer<I>(ZuMv(wrRef));
       enum { J = I + 1 };
       if constexpr (J >= SeriesRefs::N) {
-	fn(DFWriter{this, ZuMv(wrRefs)});
+	fn(ZuMv(dfw));
       } else {
 	using Field = ZuType<J, Fields>;
 	auto seriesRefs = &m_seriesRefs;
 	auto next = [self = ZuMv(self)](auto wrRef) mutable {
 	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(wrRef));
 	};
+	auto error = [dfw = dfw.ptr()]() { dfw->fail(); };
 	if constexpr (Field::Code == ZtFieldTypeCode::Float)
-	  seriesRefs->template p<J>()->write(ZuMv(next));
+	  seriesRefs->template p<J>()->write(ZuMv(next), ZuMv(error));
 	else
 	  seriesRefs->template p<J>()->write(
-	    ZuMv(next), GetNDP<Field>{});
+	    ZuMv(next), ZuMv(error), GetNDP<Field>{});
       }
     }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
 public:
   template <typename Field>
-  auto seek(Offset offset = 0) {
+  void seek(
+    Offset offset,
+    typename FieldReader<Field>::Fn readFn, ErrorFn errorFn = {}) const
+  {
     using I = ZuTypeIndex<Field, Fields>;
-    return m_seriesRefs.template p<I{}>()->seek(offset);
+    m_seriesRefs.template p<I{}>()->seek(offset, ZuMv(readFn), ZuMv(errorFn));
   }
   template <typename Field>
-  auto find(typename FieldSeries<Field>::Value value) {
+  void find(
+    typename FieldSeries<Field>::Value value,
+    typename FieldReader<Field>::Fn readFn, ErrorFn errorFn = {}) const
+  {
     using I = ZuTypeIndex<Field, Fields>;
-    return m_seriesRefs.template p<I{}>()->find(value);
+    m_seriesRefs.template p<I{}>()->find(value, ZuMv(readFn), ZuMv(errorFn));
   }
 
 private:

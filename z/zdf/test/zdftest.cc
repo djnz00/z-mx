@@ -80,6 +80,7 @@ void usage() {
 }
 
 using DF = Zdf::DataFrame<Frame, false>;
+using DFWriter = DF::Writer;
 
 struct Test {
   ZmRef<DF>	df;
@@ -95,55 +96,47 @@ struct Test {
       return;
     }
     df = ZuMv(df_);
-    df->write([this](DF::DFWriter w) { run_write(ZuMv(w)); });
-  }
-  void run_write(DF::DFWriter w) {
-    if (!w) {
+    df->write([this](ZmRef<DFWriter> w) {
+      run_write(ZuMv(w));
+    }, []() {
       ZeLOG(Fatal, "data frame write failed");
       done.post();
-      return;
-    }
+    });
+  }
+  void run_write(ZmRef<DFWriter> w) {
     Frame frame;
     for (uint64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
       frame.v2_ = i * 42;
-      w.write(frame);
+      w->write(frame);
     }
     df->run([this]() { run_read1(); });
   }
   void run_read1() {
-    auto r1 = df->find<ZtField(Frame, v1)>(ZuFixed{20, 0});
-    r1->read([this](auto *r1, ZuFixed v) { return run_read2(r1, v); });
-  }
-  template <typename Reader>
-  bool run_read2(Reader *r1, ZuFixed v) {
-    if (!*v) {
+    df->find<ZtField(Frame, v1)>(ZuFixed{20, 0}, [this](auto rc, ZuFixed v) {
+      run_read2(ZuMv(rc), v);
+    }, []() {
       ZeLOG(Fatal, "data frame read1 failed");
       done.post();
-      return false;
-    }
-    auto r2 = df->seek<ZtField(Frame, v2)>(r1->offset());
-    r2->read([this](auto *r2, ZuFixed v) { return run_read3(r2, v); });
-    return false;
+    });
   }
-  template <typename Reader>
-  bool run_read3(Reader *r2, ZuFixed v) {
-    if (!*v) {
-      ZeLOG(Fatal, "data frame read2 failed");
-      done.post();
-      return false;
-    }
+  template <typename Ctrl>
+  void run_read2(Ctrl rc, ZuFixed v) {
+    rc.stop();
+    df->seek<ZtField(Frame, v2)>(
+      rc.reader.offset(), [this](auto rc, ZuFixed v) {
+	run_read3(ZuMv(rc), v);
+      }, []() {
+	ZeLOG(Fatal, "data frame read2 failed");
+	done.post();
+      });
+  }
+  template <typename Ctrl>
+  void run_read3(Ctrl rc, ZuFixed v) {
+    rc.stop();
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
-    r2->findFwd(ZuFixed{200,0});
-    // FIXME - need a way to stop without removing from histReaders,
-    // while also permitting stop of live readers from an app retaining
-    // a reference to the reader, while also permitting a seekFwd/seekRev
-    // from either inside the read callback or outside it - may need
-    // a different state to represent being in the callback
-    return r2->stopFn([](Reader *r2) {
-      r2->seekFwd();
-    });
+    done.post();
   }
 };
 #if 0

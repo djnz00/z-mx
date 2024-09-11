@@ -1530,7 +1530,7 @@ Offset saveTuple(
 
 namespace SendState {
   ZtEnumValues(SendState, int8_t,
-    Unsent = 0,	// unsent
+    Unsent,	// unsent
     Again,	// send attempted, need to retry
     Sent,	// sent, no server-side flush or sync needed
     Flush,	// sent, PQsendFlushRequest() needed

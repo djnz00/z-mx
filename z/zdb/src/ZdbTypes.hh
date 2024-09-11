@@ -65,7 +65,7 @@ namespace HostState {
 
 namespace ObjState {
   ZtEnumValues(ObjState, int8_t,
-    Undefined = 0,
+    Undefined,
     Insert,
     Update,
     Committed,
