@@ -135,8 +135,15 @@ struct Test {
     }
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
-    done.post();
-    return false;
+    r2->findFwd(ZuFixed{200,0});
+    // FIXME - need a way to stop without removing from histReaders,
+    // while also permitting stop of live readers from an app retaining
+    // a reference to the reader, while also permitting a seekFwd/seekRev
+    // from either inside the read callback or outside it - may need
+    // a different state to represent being in the callback
+    return r2->stopFn([](Reader *r2) {
+      r2->seekFwd();
+    });
   }
 };
 #if 0

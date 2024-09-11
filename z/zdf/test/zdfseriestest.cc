@@ -133,8 +133,7 @@ struct Test {
     run_read();
   }
   void run_read() {
-    auto r = series->seek();
-    if (!r->read([this, i = 0](Series::Reader *r, ZuFixed v) mutable {
+    series->seek(0, [this, i = 0](auto rc, ZuFixed v) mutable {
       switch (i++) {
 	case 0:
 	  CHECK(v.mantissa == 42 && !v.ndp);
@@ -164,47 +163,39 @@ struct Test {
 	  CHECK(v.mantissa == 430700 && v.ndp == 4);
 	  break;
       }
-      if (i < 308) return true;
-      series->run([this]() { run_read2(); });
-      return false;
-    })) {
+      if (i >= 308) rc.stop([this]() { run_read2(); });
+    }, []() {
       ZeLOG(Fatal, "read failed");
       gtfo();
-    }
+    });
   }
   void run_read2() {
-    auto r = series->find(ZuFixed{425, 1});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+    series->find(ZuFixed{425, 1}, [this](auto rc, ZuFixed v) {
       CHECK(v.mantissa == 4301 && v.ndp == 2);
-      series->run([this]() { run_read3(); });
-      return false;
-    })) {
+      rc.stop([this]() { run_read3(); });
+    }, []() {
       ZeLOG(Fatal, "read2 failed");
       gtfo();
-    }
+    });
   }
   void run_read3() {
-    auto r = series->find(ZuFixed{43020, 3});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+    series->find(ZuFixed{43020, 3}, [this](auto rc, ZuFixed v) {
       CHECK(v.mantissa == 4302 && v.ndp == 2);
-      r->purge();
-      series->run([this]() { run_read4(); });
-      return false;
-    })) {
+      rc.purge();
+      rc.stop([this]() { run_read4(); });
+    }, []() {
       ZeLOG(Fatal, "read3 failed");
       gtfo();
-    }
+    });
   }
   void run_read4() {
-    auto r = series->find(ZuFixed{44, 0});
-    if (!r->read([this](Series::Reader *r, ZuFixed v) {
+    series->find(ZuFixed{44, 0}, [this](auto rc, ZuFixed v) {
       CHECK(!*v);
-      series->run([this]() { run_read5(); });
-      return false;
-    })) {
+      rc.stop([this]() { run_read5(); });
+    }, []() {
       ZeLOG(Fatal, "read4 failed");
       gtfo();
-    }
+    });
   }
   void run_read5() {
     CHECK(series->blkCount() == 4);
