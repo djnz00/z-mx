@@ -49,9 +49,7 @@ struct ZmAllocator {
   template <typename U>
   constexpr ZmAllocator(const ZmAllocator<U, ID> &) { }
   template <typename U>
-  ZmAllocator &operator =(const ZmAllocator<U, ID> &) {
-    return *this;
-  }
+  ZmAllocator &operator =(const ZmAllocator<U, ID> &) { return *this; }
 
   // rebind for custom allocators is not deprecated in C++17/20
   // - it is deprecated (and removed) from std::allocator because
@@ -68,7 +66,7 @@ struct ZmAllocator {
 template <typename T, auto ID, bool Sharded>
 inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
   using Cache =
-    ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, alignof(T), Sharded>;
+    ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>{}, alignof(T), Sharded>;
   using VHeap = ZmVHeap<ID, alignof(T), Sharded>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
   if (auto ptr = static_cast<T *>(VHeap::valloc(n * sizeof(T))))
@@ -78,7 +76,7 @@ inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
 template <typename T, auto ID, bool Sharded>
 inline void ZmAllocator<T, ID, Sharded>::deallocate(T *p, std::size_t n) {
   using Cache =
-    ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, alignof(T), Sharded>;
+    ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>{}, alignof(T), Sharded>;
   using VHeap = ZmVHeap<ID, alignof(T), Sharded>;
   if (ZuLikely(n == 1))
     Cache::free(p);

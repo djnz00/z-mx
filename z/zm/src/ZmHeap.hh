@@ -332,31 +332,29 @@ private:
   ZmHeapStats	m_stats;
 };
 
-// ZmHeapAllocSize returns a size that is minimum sizeof(uintptr_t),
+// ZmHeapAllocSize evaluates as a size that is minimum sizeof(uintptr_t),
 // or the smallest power of 2 greater than the passed size yet smaller
 // than the cache line size, or the size rounded up to the nearest multiple
 // of the cache line size
-template <unsigned Size_,
-	  bool Small = (Size_ <= sizeof(uintptr_t)),
-	  unsigned RShift = 0,
-	  bool Big = (Size_ > (Zm::CacheLineSize>>RShift))>
-  struct ZmHeapAllocSize;
-template <unsigned Size_, unsigned RShift, bool Big> // smallest
-struct ZmHeapAllocSize<Size_, true, RShift, Big> {
-  enum { N = sizeof(uintptr_t) };
-};
-template <unsigned Size_, unsigned RShift> // smaller
-struct ZmHeapAllocSize<Size_, false, RShift, false> {
-  enum { N = ZmHeapAllocSize<Size_, false, RShift + 1>::N };
-};
-template <unsigned Size_, unsigned RShift> // larger
-struct ZmHeapAllocSize<Size_, false, RShift, true> {
-  enum { N = (Zm::CacheLineSize>>(RShift - 1)) };
-};
+template <
+  unsigned Size_,
+  bool Small = (Size_ <= sizeof(uintptr_t)),
+  unsigned RShift = 0,
+  bool Big = (Size_ > (Zm::CacheLineSize>>RShift))>
+struct ZmHeapAllocSize;
+template <unsigned Size_, unsigned RShift, bool Big>
+struct ZmHeapAllocSize<Size_, true, RShift, Big> : // smallest
+  public ZuUnsigned<sizeof(uintptr_t)> { };
+template <unsigned Size_, unsigned RShift>
+struct ZmHeapAllocSize<Size_, false, RShift, false> : // smaller
+  public ZmHeapAllocSize<Size_, false, RShift + 1> { };
+template <unsigned Size_, unsigned RShift>
+struct ZmHeapAllocSize<Size_, false, RShift, true> : // larger
+  public ZuUnsigned<(Zm::CacheLineSize>>(RShift - 1))> { };
 template <unsigned Size_>
-struct ZmHeapAllocSize<Size_, false, 0, true> { // larger than cache line size
-  enum { N = ((Size_ + Zm::CacheLineSize - 1) & ~(Zm::CacheLineSize - 1)) };
-};
+struct ZmHeapAllocSize<Size_, false, 0, true> : // larger than cache line size
+  public ZuUnsigned<
+    ((Size_ + Zm::CacheLineSize - 1) & ~(Zm::CacheLineSize - 1))> { };
 
 template <typename Heap> class ZmHeap_Init {
 template <auto, unsigned, unsigned, bool> friend class ZmHeap__;
@@ -367,7 +365,7 @@ template <auto ID_, unsigned Size_, unsigned Align_, bool Sharded_>
 class ZmHeap__ {
 public:
   static constexpr auto HeapID = ID_;
-  enum { AllocSize = ZmHeapAllocSize<Size_>::N };
+  enum { AllocSize = ZmHeapAllocSize<Size_>{} };
   enum { Align = Align_ };
   enum { Sharded = Sharded_ };
 
