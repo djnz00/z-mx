@@ -466,7 +466,7 @@ private:
 
   void initCmds() {
     addCmd("passwd", "",
-	ZcmdFn::Member<&ZCmd::passwdCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::passwdCmd>{}},
 	"change passwd", "Usage: passwd");
 
     addCmd("users",
@@ -474,7 +474,7 @@ private:
         "name n n { param name } "
 	"exclusive x x { param exclusive } "
 	"limit l l { param limit }",
-	ZcmdFn::Member<&ZCmd::usersCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::usersCmd>{}},
 	"list users", "Usage: users [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from user ID\n"
 	"  -n, --name=NAME\tquery from user NAME\n"
@@ -483,19 +483,19 @@ private:
     addCmd("useradd",
 	"enabled e e { flag enabled } "
 	"immutable i i { flag immutable }",
-	ZcmdFn::Member<&ZCmd::userAddCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::userAddCmd>{}},
 	"add user",
 	"Usage: useradd NAME ROLE[,ROLE]... [OPTION]...\n\n"
 	"Options:\n"
 	"  -e, --enabled\t\tset Enabled flag\n"
 	"  -i, --immutable\tset Immutable flag");
     addCmd("resetpass", "",
-	ZcmdFn::Member<&ZCmd::resetPassCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::resetPassCmd>{}},
 	"reset password", "Usage: resetpass USERID");
     addCmd("usermod",
 	"enabled e e { flag enabled } "
 	"immutable i i { flag immutable }",
-	ZcmdFn::Member<&ZCmd::userModCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::userModCmd>{}},
 	"modify user",
 	"Usage: usermod ID [OPTION]...\n\n"
 	"Options:\n"
@@ -504,18 +504,18 @@ private:
 	"  -e, --enabled=[0|1]\t\tset/clear Enabled flag\n"
 	"  -i, --immutable=[0|1]\t\tset/clear Immutable flag");
     addCmd("userdel", "",
-	ZcmdFn::Member<&ZCmd::userDelCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::userDelCmd>{}},
 	"delete user", "Usage: userdel ID");
 
     addCmd("roles",
 	"exclusive x x { param exclusive } "
 	"limit l l { param limit }",
-	ZcmdFn::Member<&ZCmd::rolesCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::rolesCmd>{}},
 	"list roles", "Usage: roles [NAME] [OPTIONS...]\n\n"
 	"  -x, --exclusive\texclude NAME from results\n"
 	"  -l, --limit=N\t\tlimit results to N (default: 10)");
     addCmd("roleadd", "immutable i i { flag immutable }",
-	ZcmdFn::Member<&ZCmd::roleAddCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::roleAddCmd>{}},
 	"add role",
 	"Usage: roleadd NAME PERMS APIPERMS [OPTIONS...]\n\n"
 	"Options:\n"
@@ -525,7 +525,7 @@ private:
 	"perms p p { param perms } "
 	"apiperms a a { param apiperms } "
 	"immutable i i { param immutable }",
-	ZcmdFn::Member<&ZCmd::roleModCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::roleModCmd>{}},
 	"modify role",
 	"Usage: rolemod NAME [OPTIONS...]\n\n"
 	"Options:\n"
@@ -533,7 +533,7 @@ private:
 	"  -a, --apiperms=PERMS\tset API permissions\n"
 	"  -i, --immutable=[0|1]\tset/clear Immutable flag");
     addCmd("roledel", "",
-	ZcmdFn::Member<&ZCmd::roleDelCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::roleDelCmd>{}},
 	"delete role",
 	"Usage: roledel NAME");
 
@@ -542,43 +542,43 @@ private:
         "name n n { param name } "
 	"exclusive x x { flag exclusive } "
 	"limit l l { param limit }",
-	ZcmdFn::Member<&ZCmd::permsCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::permsCmd>{}},
 	"list permissions", "Usage: perms [OPTIONS...]\n\n"
 	"  -i, --id=ID\t\tquery from permission ID\n"
 	"  -n, --name=NAME\tquery from permission NAME\n"
 	"  -x, --exclusive\texclude ID|NAME from results\n"
 	"  -l, --limit=N\t\tlimit results to N (default: 10)");
     addCmd("permadd", "",
-	ZcmdFn::Member<&ZCmd::permAddCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::permAddCmd>{}},
 	"add permission", "Usage: permadd NAME");
     addCmd("permmod", "",
-	ZcmdFn::Member<&ZCmd::permModCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::permModCmd>{}},
 	"modify permission", "Usage: permmod ID NAME");
     addCmd("permdel", "",
-	ZcmdFn::Member<&ZCmd::permDelCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::permDelCmd>{}},
 	"delete permission", "Usage: permdel ID");
 
     addCmd("keys", "",
-	ZcmdFn::Member<&ZCmd::keysCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::keysCmd>{}},
 	"list keys", "Usage: keys [USERID]");
     addCmd("keyadd", "",
-	ZcmdFn::Member<&ZCmd::keyAddCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::keyAddCmd>{}},
 	"add key", "Usage: keyadd [USERID]");
     addCmd("keydel", "",
-	ZcmdFn::Member<&ZCmd::keyDelCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::keyDelCmd>{}},
 	"delete key", "Usage: keydel ID");
     addCmd("keyclr", "",
-	ZcmdFn::Member<&ZCmd::keyClrCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::keyClrCmd>{}},
 	"clear all keys", "Usage: keyclr [USERID]");
 
     addCmd("remote", "",
-	ZcmdFn::Member<&ZCmd::remoteCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::remoteCmd>{}},
 	"run command remotely", "Usage: remote COMMAND [OPTION]...");
 
     addCmd("telcap",
 	"interval i i { param interval } "
 	"unsubscribe u u { flag unsubscribe }",
-	ZcmdFn::Member<&ZCmd::telcapCmd>::fn(this),
+	ZcmdFn{this, ZmFnMember<&ZCmd::telcapCmd>{}},
 	"telemetry capture",
 	"Usage: telcap [OPTION]... PATH [TYPE[:FILTER]]...\n\n"
 	"  PATH\t\tdirectory for capture CSV files\n"

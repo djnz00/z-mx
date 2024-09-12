@@ -32,8 +32,8 @@ public:
   template <typename ID>
   MxMDVenueFlagsCol(ID &&id, int offset, int venueOffset) :
     Base(ZuFwd<ID>(id), offset,
-	ParseFn::Member<&MxMDVenueFlagsCol::parse_>::fn(this),
-	PlaceFn::Member<&MxMDVenueFlagsCol::place_>::fn(this)),
+	ParseFn{this, ZmFnMember<&MxMDVenueFlagsCol::parse_>{}},
+	PlaceFn{this, ZmFnMember<&MxMDVenueFlagsCol::place_>{}}),
     m_venueOffset(venueOffset - offset) { }
   virtual ~MxMDVenueFlagsCol() { }
 
@@ -91,7 +91,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn::Member<&MxMDVenueCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxMDVenueCSV::alloc>{}}, fn);
   }
 
   ZuAnyPOD *row(const MxMDStream::Msg *msg) {
@@ -157,7 +157,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn::Member<&MxMDTickSizeCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxMDTickSizeCSV::alloc>{}}, fn);
   }
 
   ZuAnyPOD *row(const MxMDStream::Msg *msg) {
@@ -255,7 +255,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn::Member<&MxMDInstrumentCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxMDInstrumentCSV::alloc>{}}, fn);
   }
 
   ZuAnyPOD *row(const MxMDStream::Msg *msg) {
@@ -369,7 +369,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn::Member<&MxMDOrderBookCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxMDOrderBookCSV::alloc>{}}, fn);
   }
 
   ZuAnyPOD *row(const MxMDStream::Msg *msg) {

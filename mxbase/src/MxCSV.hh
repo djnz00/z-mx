@@ -40,8 +40,8 @@ class MxIPCol : public ZvCSVColumn<ZvCSVColType::Func, ZiIP> {
 public:
   template <typename ID> MxIPCol(ID &&id, int offset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Ptr<&MxIPCol::parse_>::fn(),
-	  PlaceFn::Ptr<&MxIPCol::place_>::fn()) { }
+	  ParseFn{ZmFnUnbound<&MxIPCol::parse_>{}},
+	  PlaceFn{ZmFnUnbound<&MxIPCol::place_>{}}) { }
   static void parse_(ZiIP *i, ZuCSpan b) { *i = b; }
   static void place_(ZtArray<char> &b, const ZiIP *i) { b << *i; }
 };
@@ -55,8 +55,8 @@ class MxIDCol : public ZvCSVColumn<ZvCSVColType::Func, MxID>  {
 public:
   template <typename ID> MxIDCol(ID &&id, int offset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Ptr<&MxIDCol::parse_>::fn(),
-	  PlaceFn::Ptr<&MxIDCol::place_>::fn()) { }
+	  ParseFn{ZmFnUnbound<&MxIDCol::parse_>{}},
+	  PlaceFn{ZmFnUnbound<&MxIDCol::place_>{}}) { }
   static void parse_(MxID *i, ZuCSpan b) { *i = b; }
   static void place_(ZtArray<char> &b, const MxID *i) { b << *i; }
 };
@@ -69,8 +69,8 @@ public:
   template <typename ID>
   MxHHMMSSCol(ID &&id, int offset, unsigned yyyymmdd, int tzOffset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Member<&MxHHMMSSCol::parse_>::fn(this),
-	  PlaceFn::Member<&MxHHMMSSCol::place_>::fn(this)),
+	  ParseFn{this, ZmFnMember<&MxHHMMSSCol::parse_>{}},
+	  PlaceFn{this, ZmFnMember<&MxHHMMSSCol::place_>{}}),
       m_yyyymmdd(yyyymmdd), m_tzOffset(tzOffset) { }
   virtual ~MxHHMMSSCol() { }
 
@@ -97,8 +97,8 @@ public:
   template <typename ID>
   MxNSecCol(ID &&id, int offset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Ptr<&MxNSecCol::parse_>::fn(),
-	  PlaceFn::Ptr<&MxNSecCol::place_>::fn()) { }
+	  ParseFn{ZmFnUnbound<&MxNSecCol::parse_>{}},
+	  PlaceFn{ZmFnUnbound<&MxNSecCol::place_>{}}) { }
 
   static void parse_(MxDateTime *t, ZuCSpan b) {
     t->nsec() = MxUInt(b);
@@ -116,8 +116,8 @@ public:
   template <typename ID>
   MxValueCol(ID &&id, int offset, int ndpOffset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Member<&MxValueCol::parse_>::fn(this),
-	  PlaceFn::Member<&MxValueCol::place_>::fn(this)),
+	  ParseFn{this, ZmFnMember<&MxValueCol::parse_>{}},
+	  PlaceFn{this, ZmFnMember<&MxValueCol::place_>{}}),
       m_ndpOffset(ndpOffset - offset) { }
   virtual ~MxValueCol() { }
 
@@ -144,8 +144,8 @@ public:
   template <typename ID>
   MxDecimalCol(ID &&id, int offset) :
       Base(ZuFwd<ID>(id), offset,
-	  ParseFn::Member<&MxDecimalCol::parse_>::fn(this),
-	  PlaceFn::Member<&MxDecimalCol::place_>::fn(this)) { }
+	  ParseFn{this, ZmFnMember<&MxDecimalCol::parse_>{}},
+	  PlaceFn{this, ZmFnMember<&MxDecimalCol::place_>{}}) { }
   virtual ~MxDecimalCol() { }
 
   void parse_(MxDecimal *f, ZuCSpan b) {
@@ -205,7 +205,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn::Member<&MxUniKeyCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxUniKeyCSV::alloc>{}}, fn);
   }
 
   ZuInline POD *pod() { return m_pod.ptr(); }

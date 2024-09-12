@@ -47,7 +47,7 @@ public:
   void connected(ZiIOContext &io) {
     m_request.size(4096);
     io.init(
-      ZiIOFn::Member<&Connection::recvRequest>::fn(this),
+      ZiIOFn{this, ZmFnMember<&Connection::recvRequest>{}},
       m_request.data(), m_request.size(), 0);
     m_recvTime = Zm::now();
     Global::timeInterval(0).add(m_recvTime - m_acceptTime);
@@ -65,7 +65,7 @@ public:
     Global::timeInterval(1).add(Zm::now() - m_recvTime);
     Global::rcvd(io.offset);
     io.complete();
-    send(ZiIOFn::Member<&Connection::sendHeader>::fn(this));
+    send(ZiIOFn{this, ZmFnMember<&Connection::sendHeader>{}});
     return true;
   }
 
@@ -89,14 +89,14 @@ public:
     //fwrite(m_request, 1, len, stdout); fflush(stdout);
     m_response.sprintf(Response, createContent());
     m_sendTime = Zm::now();
-    io.init(ZiIOFn::Member<&Connection::sendContent>::fn(this),
+    io.init(ZiIOFn{this, ZmFnMember<&Connection::sendContent>{}},
 	m_response.data(), m_response.length(), 0);
     return true;
   }
   // send HTTP content
   bool sendContent(ZiIOContext &io) {
     if ((io.offset += io.length) < io.size) return true;
-    io.init(ZiIOFn::Member<&Connection::sendComplete>::fn(this),
+    io.init(ZiIOFn{this, ZmFnMember<&Connection::sendComplete>{}},
 	m_content.data(), m_content.length(), 0);
     return true;
   }
@@ -159,9 +159,9 @@ public:
 
   void listen() {
     ZiMultiplex::listen(
-	ZiListenFn::Member<&Mx::listening>::fn(this),
-	ZiFailFn::Member<&Mx::failed>::fn(this),
-	ZiConnectFn::Member<&Mx::connected>::fn(this),
+	ZiListenFn{this, ZmFnMember<&Mx::listening>{}},
+	ZiFailFn{this, ZmFnMember<&Mx::failed>{}},
+	ZiConnectFn{this, ZmFnMember<&Mx::connected>{}},
 	m_ip, m_port, m_nAccepts, m_options);
   }
 

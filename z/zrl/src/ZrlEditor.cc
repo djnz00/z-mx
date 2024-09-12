@@ -160,7 +160,7 @@ Editor::Editor()
   m_cmdFn[Op::FwdSearch] = &Editor::cmdFwdSearch;
   m_cmdFn[Op::RevSearch] = &Editor::cmdRevSearch;
 
-  m_compSpliceFn = CompSpliceFn::Member<&Editor::spliceCompletion>::fn(this);
+  m_compSpliceFn = CompSpliceFn{this, ZmFnMember<&Editor::spliceCompletion>{}};
 }
 
 void Editor::init(Config config, App app)

@@ -172,7 +172,6 @@ template <
   R_ (*Fn)(Args_...)>
 struct ZmFnUnbound<Fn> : public ZuConstant<decltype(Fn), Fn> {
   using R = R_;
-  using O = O_;
   using Args = ZuTypeList<Args_...>;
 };
 template <typename T> struct ZmIsFnUnbound : public ZuFalse { };
@@ -262,7 +261,7 @@ public:
 
 private:
   typedef R (*Invoker)(uintptr_t &, Args_...);
-  template <bool Converts, auto> struct FnInvoker;
+  template <auto> struct FnInvoker;
   template <typename, auto> struct BoundInvoker;
   template <typename, auto> struct MemberInvoker;
 
@@ -286,15 +285,15 @@ public:
   template <typename O, typename L, typename R__ = void>
   using MatchBoundCallable = ZuIfT<IsBoundCallable<O, L>{}, R__>;
 
-  template <typename, typename>
+  template <typename>
   struct IsUnboundFn : public ZuFalse { };
   template <auto Fn>
   struct IsUnboundFn<ZmFnUnbound<Fn>> :
     public ZuBool<
       ZuInspect<typename ZmFnUnbound<Fn>::R, R>::Converts &&
       bool(ZuTLConverts<Args, typename ZmFnUnbound<Fn>::Args>{})> { };
-  template <typename O, typename Fn, typename R__ = void>
-  using MatchUnboundFn = ZuIfT<IsUnboundFn<ZuDecay<O>, Fn>{}, R__>;
+  template <typename Fn, typename R__ = void>
+  using MatchUnboundFn = ZuIfT<IsUnboundFn<Fn>{}, R__>;
 
   template <typename, typename>
   struct IsBoundFn : public ZuFalse { };
@@ -394,7 +393,7 @@ public:
   // plain function pointers via ZmFnUnbound<>
   template <
     typename Fn,
-    decltype(MatchUnboundFn<O, Fn>(), int()) = 0>
+    decltype(MatchUnboundFn<Fn>(), int()) = 0>
   ZmFn(Fn fn) :
     ZmAnyFn{
       &FnInvoker<typename Fn::T(fn)>::invoke,
@@ -510,7 +509,7 @@ public:
 
 private:
   // unbound functions
-  template <typename R__, R__ (*Fn)(Args_...)> struct FnInvoker<true, Fn> {
+  template <typename R__, R__ (*Fn)(Args_...)> struct FnInvoker<Fn> {
     static R invoke(uintptr_t &, Args_... args) {
       return (*Fn)(ZuFwd<Args_>(args)...);
     }

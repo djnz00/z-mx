@@ -163,11 +163,11 @@ int main()
   {
     //ZmRef<ZmFn<> > fa = ZmFn<>::fn(A(42));
     //ZmRef<ZmFn<> > fb = ZmFn<>::fn(B(43));
-    auto fc = ZmFn<int()>::Ptr<&C>::fn();
-    auto fd = ZmFn<>::Ptr<&D>::fn();
+    auto fc = ZmFn<int()>{ZmFnUnbound<&C>{}};
+    auto fd = ZmFn<>{ZmFnUnbound<&D>{}};
     //ZmRef<ZmFn<> > fe1 = ZmFn<>::fn<&E::foo>(E(45));
     //ZmRef<ZmFn<> > fe2 = ZmFn<>::fn<&E::bar>(E(46));
-    auto fe3 = ZmFn<>::Ptr<&E::bah>::fn();
+    auto fe3 = ZmFn<>{ZmFnUnbound<&E::bah>{}};
     int i = 47;
     auto ff = ZmFn<int()>{&i, ZmFnBound<&F>{}};
 
@@ -202,11 +202,11 @@ int main()
   {
     //ZmRef<ZmFn<void(int)> > fa = ZmFn<void(int)>::fn(A1(42));
     //ZmRef<ZmFn<void(int)> > fb = ZmFn<void(int)>::fn(B1(43));
-    auto fc = ZmFn<int(int)>::Ptr<&C1>::fn();
-    auto fd = ZmFn<void(int)>::Ptr<&D1>::fn();
+    auto fc = ZmFn<int(int)>{ZmFnUnbound<&C1>{}};
+    auto fd = ZmFn<void(int)>{ZmFnUnbound<&D1>{}};
     //ZmRef<ZmFn<void(int)> > fe1 = ZmFn<void(int)>::fn<&E1::foo>(E1(45));
     //ZmRef<ZmFn<void(int)> > fe2 = ZmFn<void(int)>::fn<&E1::bar>(E1(46));
-    auto fe3 = ZmFn<void(int)>::Ptr<&E1::bah>::fn();
+    auto fe3 = ZmFn<void(int)>{ZmFnUnbound<&E1::bah>{}};
     int i = 47;
     auto ff = ZmFn<int(int)>{&i, ZmFnBound<&F1>{}};
 
@@ -243,11 +243,11 @@ int main()
   {
     //ZmRef<ZmFn<void(int, int)> > fa = ZmFn<void(int, int)>::fn(A2(42));
     //ZmRef<ZmFn<void(int, int)> > fb = ZmFn<void(int, int)>::fn(B2(43));
-    auto fc = ZmFn<int(int, int)>::Ptr<&C2>::fn();
-    auto fd = ZmFn<void(int, int)>::Ptr<&D2>::fn();
+    auto fc = ZmFn<int(int, int)>{ZmFnUnbound<&C2>{}};
+    auto fd = ZmFn<void(int, int)>{ZmFnUnbound<&D2>{}};
     //ZmRef<ZmFn<void(int, int)> > fe1 = ZmFn<void(int, int)>::fn<&E2::foo>(E2(45));
     //ZmRef<ZmFn<void(int, int)> > fe2 = ZmFn<void(int, int)>::fn<&E2::bar>(E2(46));
-    auto fe3 = ZmFn<void(int, int)>::Ptr<&E2::bah>::fn();
+    auto fe3 = ZmFn<void(int, int)>{ZmFnUnbound<&E2::bah>{}};
     int i = 47;
     auto ff = ZmFn<int(int, int)>{&i, ZmFnBound<&F2>{}};
 
@@ -334,7 +334,7 @@ int main()
     X v;
     X &vr = v;
     foo(vr);
-    auto bar = ZmFn<void(X &)>::Ptr<&foo>::fn();
+    auto bar = ZmFn<void(X &)>{ZmFnUnbound<&foo>{}};
     bar(vr);
     foo(v);
   }

@@ -112,11 +112,11 @@ int main(int argc, char **argv)
 
   syms = new Syms();
   (instrHandler = new MxMDInstrHandler())->
-    l1Fn(MxMDLevel1Fn::Ptr<&l1>::fn()).
-    addPxLevelFn(MxMDPxLevelFn::Ptr<&pxLevel>::fn()).
-    updatedPxLevelFn(MxMDPxLevelFn::Ptr<&pxLevel>::fn()).
-    deletedPxLevelFn(MxMDPxLevelFn::Ptr<&deletedPxLevel>::fn()).
-    l2Fn(MxMDOrderBookFn::Ptr<&l2>::fn());
+    l1Fn(MxMDLevel1Fn{ZmFnUnbound<&l1>{}}).
+    addPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&pxLevel>{}}).
+    updatedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&pxLevel>{}}).
+    deletedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
+    l2Fn(MxMDOrderBookFn{ZmFnUnbound<&l2>{}});
 
   // read rics from file into hash table
   {
@@ -143,9 +143,9 @@ int main(int argc, char **argv)
     if (!md) return 1;
 
     md->subscribe(&((new MxMDLibHandler())->
-	exceptionFn(MxMDExceptionFn::Ptr<&exception>::fn()).
-	refDataLoadedFn(MxMDVenueFn::Ptr<&refDataLoaded>::fn()).
-	addInstrumentFn(MxMDInstrumentFn::Ptr<&addInstrument>::fn())));
+	exceptionFn(MxMDExceptionFn{ZmFnUnbound<&exception>{}}).
+	refDataLoadedFn(MxMDVenueFn{ZmFnUnbound<&refDataLoaded>{}}).
+	addInstrumentFn(MxMDInstrumentFn{ZmFnUnbound<&addInstrument>{}})));
 
     md->start();			// start all feeds
 

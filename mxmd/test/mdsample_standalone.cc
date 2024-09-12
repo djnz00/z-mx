@@ -165,16 +165,16 @@ void loaded(MxMDVenue *venue)
 
   ZmRef<MxMDInstrHandler> instrHandler = new MxMDInstrHandler();
   instrHandler->
-    l1Fn(MxMDLevel1Fn::Ptr<&l1>::fn()).
-    addMktLevelFn(MxMDPxLevelFn::Ptr<&addPxLevel>::fn()).
-    updatedMktLevelFn(MxMDPxLevelFn::Ptr<&updatedPxLevel>::fn()).
-    deletedMktLevelFn(MxMDPxLevelFn::Ptr<&deletedPxLevel>::fn()).
-    addPxLevelFn(MxMDPxLevelFn::Ptr<&addPxLevel>::fn()).
-    updatedPxLevelFn(MxMDPxLevelFn::Ptr<&updatedPxLevel>::fn()).
-    deletedPxLevelFn(MxMDPxLevelFn::Ptr<&deletedPxLevel>::fn()).
-    l2Fn(MxMDOrderBookFn::Ptr<&l2>::fn()).
-    addOrderFn(MxMDOrderFn::Ptr<&addOrder>::fn()).
-    deletedOrderFn(MxMDOrderFn::Ptr<&deletedOrder>::fn());
+    l1Fn(MxMDLevel1Fn{ZmFnUnbound<&l1>{}}).
+    addMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&addPxLevel>{}}).
+    updatedMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&updatedPxLevel>{}}).
+    deletedMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
+    addPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&addPxLevel>{}}).
+    updatedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&updatedPxLevel>{}}).
+    deletedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
+    l2Fn(MxMDOrderBookFn{ZmFnUnbound<&l2>{}}).
+    addOrderFn(MxMDOrderFn{ZmFnUnbound<&addOrder>{}}).
+    deletedOrderFn(MxMDOrderFn{ZmFnUnbound<&deletedOrder>{}});
 
   // iterate through all tickers subscribing to market data updates
 
@@ -201,9 +201,9 @@ int subscribe()
     if (!md) throw ZtString("MxMDLib::instance() failed");
 
     md->subscribe(&((new MxMDLibHandler())->
-	  exceptionFn(MxMDExceptionFn::Ptr<&exception>::fn()).
-	  timerFn(MxMDTimerFn::Ptr<&timer>::fn()).
-	  refDataLoadedFn(MxMDVenueFn::Ptr<&loaded>::fn())));
+	  exceptionFn(MxMDExceptionFn{ZmFnUnbound<&exception>{}}).
+	  timerFn(MxMDTimerFn{ZmFnUnbound<&timer>{}}).
+	  refDataLoadedFn(MxMDVenueFn{ZmFnUnbound<&loaded>{}})));
   } catch (const ZtString &s) {
     ZeLOG(Error, ([](auto &s) { s << "error: " << s; }));
     return -1;

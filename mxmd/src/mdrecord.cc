@@ -62,8 +62,8 @@ int main(int argc, char **argv)
 
   syms = new Syms();
   (instrHandler = new MxMDInstrHandler())->
-    l1Fn(MxMDLevel1Fn::Ptr<&l1>::fn()).
-    l2Fn(MxMDOrderBookFn::Ptr<&l2>::fn());
+    l1Fn(MxMDLevel1Fn{ZmFnUnbound<&l1>{}}).
+    l2Fn(MxMDOrderBookFn{ZmFnUnbound<&l2>{}});
 
   if (argc > 3) { // read symbols from file
     FILE *f = fopen(argv[2], "r");
@@ -89,9 +89,9 @@ int main(int argc, char **argv)
     if (!md) return 1;
 
     md->subscribe(&((new MxMDLibHandler())->
-	exceptionFn(MxMDExceptionFn::Ptr<&exception>::fn()).
-	refDataLoadedFn(MxMDVenueFn::Ptr<&refDataLoaded>::fn()).
-	addInstrumentFn(MxMDInstrumentFn::Ptr<&addInstrument>::fn())));
+	exceptionFn(MxMDExceptionFn{ZmFnUnbound<&exception>{}}).
+	refDataLoadedFn(MxMDVenueFn{ZmFnUnbound<&refDataLoaded>{}}).
+	addInstrumentFn(MxMDInstrumentFn{ZmFnUnbound<&addInstrument>{}})));
 
     md->record(argv[2]);		// start recording
     md->start();			// start all feeds

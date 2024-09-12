@@ -197,7 +197,7 @@ void Connection::readNetlink()
   ZeLOG(Debug, "reading netlink pong...");
   read(ZiCompletion::Member<&Message::read2>::fn(msg), msg->data(), 
        msg->hdrSize() + 100, 0,
-       ZiFrameFn::Member<&Message::frame>::fn(msg));
+       ZiFrameFn{msg, ZmFnMember<&Message::frame>{}});
 }
 
 bool Message::frame(void *&buffer, int &size, int offset, int length)

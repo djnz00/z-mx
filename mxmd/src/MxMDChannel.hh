@@ -71,7 +71,7 @@ public:
   template <typename File>
   void read(File &&file, ZvCSVReadFn fn) {
     ZvCSV::readFile(ZuFwd<File>(file),
-	ZvCSVAllocFn::Member<&MxMDChannelCSV::alloc>::fn(this), fn);
+	ZvCSVAllocFn{this, ZmFnMember<&MxMDChannelCSV::alloc>{}}, fn);
   }
 
   ZuInline POD *pod() { return m_pod.ptr(); }

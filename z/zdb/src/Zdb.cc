@@ -119,7 +119,7 @@ void DB::init(
 	throw ZeEVENT(Fatal, ([](auto &s) { s << "null data store"; }));
       InitResult result = m_store->init(
 	  m_cf.storeCf, m_mx,
-	  FailFn::Member<&DB::storeFailed>::fn(this));
+	  FailFn{this, ZmFnMember<&DB::storeFailed>{}});
       if (result.is<Event>()) throw ZuMv(result).p<Event>();
       m_repStore = result.p<InitData>().replicated;
     }
@@ -404,9 +404,9 @@ void DB::listen()
 
   if (!m_self->standalone())
     m_mx->listen(
-	ZiListenFn::Member<&DB::listening>::fn(this),
-	ZiFailFn::Member<&DB::listenFailed>::fn(this),
-	ZiConnectFn::Member<&DB::accepted>::fn(this),
+	ZiListenFn{this, ZmFnMember<&DB::listening>{}},
+	ZiFailFn{this, ZmFnMember<&DB::listenFailed>{}},
+	ZiConnectFn{this, ZmFnMember<&DB::accepted>{}},
 	m_self->ip(), m_self->port(), m_cf.nAccepts);
 }
 
@@ -677,8 +677,8 @@ void Host::connect()
       }));
 
   m_mx->connect(
-      ZiConnectFn::Member<&Host::connected>::fn(this),
-      ZiFailFn::Member<&Host::connectFailed>::fn(this),
+      ZiConnectFn{this, ZmFnMember<&Host::connected>{}},
+      ZiFailFn{this, ZmFnMember<&Host::connectFailed>{}},
       ZiIP{}, 0, config().ip, config().port);
 }
 
