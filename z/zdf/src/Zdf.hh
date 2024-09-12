@@ -106,6 +106,8 @@ using FieldDecoder = typename FieldDecoder_<Field>::T;
 template <typename Field> using FieldSeries = Series<FieldDecoder<Field>>;
 template <typename Field> using FieldSeriesRef = ZmRef<FieldSeries<Field>>;
 template <typename Field> using FieldReader = Reader<FieldDecoder<Field>>;
+template <typename Field>
+using FieldRdrCtrl = typename FieldReader<Field>::Ctrl;
 
 // move-only ZmRef<Writer>-derived smart pointer,
 // with a RAII dtor that calls writer->stop()

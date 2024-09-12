@@ -87,7 +87,7 @@ struct Test {
 
   void run() {
     store->openDF<Frame, false, true>(
-      0, "frame", [this](ZmRef<DF> df_) { run_opened(ZuMv(df_)); });
+      0, "frame", {this, ZmFnMember<&Test::run_opened>{}});
   }
   void run_opened(ZmRef<DF> df_) {
     if (!df_) {
@@ -96,9 +96,7 @@ struct Test {
       return;
     }
     df = ZuMv(df_);
-    df->write([this](ZmRef<DFWriter> w) {
-      run_write(ZuMv(w));
-    }, []() {
+    df->write({this, ZmFnMember<&Test::run_write>{}}, []{
       ZeLOG(Fatal, "data frame write failed");
       done.post();
     });
@@ -113,39 +111,44 @@ struct Test {
     df->run([this]() { run_read1(); });
   }
   void run_read1() {
-    df->find<ZtField(Frame, v1)>(ZuFixed{20, 0}, [this](auto rc, ZuFixed v) {
-      run_read2(ZuMv(rc), v);
-    }, []() {
-      ZeLOG(Fatal, "data frame read1 failed");
-      done.post();
-    });
+    using Field = ZtField(Frame, v1);
+    using Ctrl = Zdf::FieldRdrCtrl<Field>;
+    df->find<Field>(
+      ZuFixed{20, 0}, {this, ZmFnMember<&Test::run_read2<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read1 failed");
+	done.post();
+      });
   }
   template <typename Ctrl>
   void run_read2(Ctrl rc, ZuFixed v) {
     df->seek<ZtField(Frame, v2)>(
-      rc.stop(), [this](auto rc, ZuFixed v) {
-	run_read3(ZuMv(rc), v);
-      }, []() {
+      rc.stop(), {this, ZmFnMember<&Test::run_read3<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
   }
   template <typename Ctrl>
   void run_read3(Ctrl rc, ZuFixed v) {
-    std::cout << "v=" << v << '\n';
     CHECK(v.mantissa == 20 * 42);
+    CHECK(v.ndp == 9);
+    rc.fn({this, ZmFnMember<&Test::run_read4<Ctrl>>{}});
+    rc.findFwd(ZuFixed{200 * 42, 9});
+  }
+  template <typename Ctrl>
+  void run_read4(Ctrl rc, ZuFixed v) {
+    std::cout << "offset=" << rc.reader.offset() << '\n';
+    std::cout << "v=" << v << '\n';
+    CHECK(v.mantissa == 200 * 42);
     CHECK(v.ndp == 9);
     rc.stop();
     done.post();
   }
 };
 #if 0
-    index.findFwd(ZuFixed{200, 0});
+    index.findFwd(
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekFwd(index.offset());
     CHECK(reader.read(v));
-    CHECK(v.mantissa() == 200 * 42);
-    CHECK(v.ndp() == 9);
     index.findRev(ZuFixed{100, 0});
     std::cout << "offset=" << index.offset() << '\n';
     reader.seekRev(index.offset());
@@ -269,7 +272,8 @@ int main(int argc, char **argv)
 
     mx->stop();
 
-    ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+    // ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
+    // ZeLOG(Debug, (ZtString{} << '\n' << ZmHeapMgr::csv()));
 
     db = {};
     store = {};
@@ -291,8 +295,6 @@ int main(int argc, char **argv)
   mx = {};
 
   ZeLog::stop();
-
-  std::cout << ZmHeapMgr::csv();
 
   return 0;
 }

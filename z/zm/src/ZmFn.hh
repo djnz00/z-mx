@@ -24,28 +24,27 @@
 // R foo() { ... }				// plain function
 // ZmThread t(ZmFn<>::Ptr<&foo>::fn());		// R must cast ok to uintptr_t
 //
-// class F { void *operator ()() { ... } };	// function object
+// class F { void *operator ()() { ... } };	// callable object
 // F f;
-// ZmThread t(ZmFn<>::Member<&F::operator ()>::fn(&f));
-// 						// Note: pointer to F
+// ZmThread t(ZuMv(f));
+//
 // class G {
 //   void *bar() const { ... }			// member function
 // };
 // G g;
-// ZmThread t(ZmFn<>::Member<&G::bar>::fn(&g)); // Note: pointer to G
+// ZmThread t(&g, ZmFnMember<&G::bar>);		// Note: pointer to G
 //
 // class G2 : public ZmPolymorph, public G { };	// call G::bar via G2
 // G2 g2;
-// ZmThread t(ZmFn<>::Member<&G::bar>::fn(ZmMkRef(&g2)));
-// 						// capture ZmRef to g2
+// ZmThread t(ZmMkRef(&g2), ZmFnMember<&G::bar>); // capture ZmRef to g2
 //
 // class H { static int bah() { ... } };	// static member function
-// ZmThread t(ZmFn<>::Ptr<&H::bah>::fn());
+// ZmThread t{ZmFn<>::Ptr<&H::bah>::fn()};
 //
 // class I { ... };				// bound regular function
 // void baz(I *i) { ... }
 // I *i;
-// ZmThread t(ZmFn<>::Bound<&baz>::fn(i));	// Note: pointer to I
+// ZmThread t{ZmFn<>{i, ZmFnBound<&baz>{}}};	// Note: pointer to I
 //
 // using Fn = ZmFn<R(Params)>;
 // R foo(Fn fn);
@@ -118,10 +117,8 @@ ZmFn<R_(Args_...)>
 ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, false>::fn(L_ &&l) {
   ZuAssert((!IsMutable<L>{}));
   ZuAssert((!IsMutable<ZuDecay<L_>>{}));
-  // ZuAssert((!(typename ZmFn<R(Args...)>::template IsMutable<L>){}));
-  // ZuAssert((!(typename ZmFn<R(Args...)>::template IsMutable<ZuDecay<L_>>){}));
   using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
-  return Member<&O::cinvoke>::fn(ZmRef<const O>{new O{ZuFwd<L_>(l)}});
+  return ZmFn{ZmRef<const O>{new O{ZuFwd<L_>(l)}}, ZmFnMember<&O::cinvoke>{}};
 }
 
 // stateful mutable lambda
@@ -131,7 +128,7 @@ template <typename L_>
 ZmFn<R_(Args_...)>
 ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, true>::fn(L_ &&l) {
   using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
-  return Member<&O::invoke>::fn(ZmRef<O>{new O{ZuFwd<L>(l)}});
+  return ZmFn{ZmRef<O>{new O{ZuFwd<L_>(l)}}, ZmFnMember<&O::invoke>{}};
 }
 
 #endif /* ZmFn_HH */

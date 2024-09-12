@@ -143,6 +143,7 @@ public:
 
   // the reader control interface is passed to the app's read callback
   class Ctrl;
+
 friend Ctrl;
   class Ctrl {
   friend Reader;
@@ -151,6 +152,13 @@ friend Ctrl;
 
   public:
     Reader &reader;
+
+    // app's read callback
+    using Fn = ZmFn<void(Ctrl, Value)>;
+
+    // update callback
+    void fn(Fn fn) { reader.fn(ZuMv(fn)); }
+    void errorFn(ErrorFn fn) { reader.errorFn(ZuMv(fn)); }
 
     // yield reading sequential values to permit other work to run
     void yield();
@@ -192,7 +200,10 @@ protected:
   }
 
 private:
-  bool init(BlkOffset, Blk *, Target);
+  void seek(BlkOffset, const Blk *, Target);
+
+  void fn(Fn fn) { m_fn = ZuMv(fn); }
+  void errorFn(ErrorFn fn) { m_errorFn = ZuMv(fn); }
 
   void yield() { m_yield = true; }
 
@@ -204,7 +215,6 @@ private:
   void stopped();
 
   void fail();
-
 
   Offset offset_() const {
     return !m_decoder ? 0 : m_blk->offset() + m_decoder.offset();
@@ -463,7 +473,7 @@ public:
 	errorFn();
 	return;
       }
-      blkOffset = ZuSearchPos(result);
+      blkOffset = m_index.head() + ZuSearchPos(result);
       if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     }
     ZmRef<Reader> reader = new RdrNode{
@@ -480,7 +490,7 @@ public:
       errorFn();
       return;
     }
-    BlkOffset blkOffset = ZuSearchPos(result);
+    BlkOffset blkOffset = m_index.head() + ZuSearchPos(result);
     if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     ZmRef<Reader> reader = new RdrNode{
       this, blkOffset, getBlk(blkOffset), value, ZuMv(readFn), ZuMv(errorFn)};
@@ -498,9 +508,9 @@ private:
       reader->fail();
       return;
     }
-    blkOffset = ZuSearchPos(result);
+    blkOffset += ZuSearchPos(result);
     if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
-    reader->init(blkOffset, getBlk(blkOffset), offset);
+    reader->seek(blkOffset, getBlk(blkOffset), offset);
     reader->loadBlk();
   }
   void seekRev(Reader *reader, BlkOffset blkOffset, Offset offset) const {
@@ -512,8 +522,8 @@ private:
       reader->fail();
       return;
     }
-    blkOffset = ZuSearchPos(result);
-    reader->init(blkOffset, getBlk(blkOffset), offset);
+    blkOffset = m_index.head() + ZuSearchPos(result);
+    reader->seek(blkOffset, getBlk(blkOffset), offset);
     reader->loadBlk();
   }
 
@@ -526,9 +536,9 @@ private:
       reader->fail();
       return;
     }
-    blkOffset = ZuSearchPos(result);
+    blkOffset += ZuSearchPos(result);
     if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
-    reader->init(blkOffset, getBlk(blkOffset), value);
+    reader->seek(blkOffset, getBlk(blkOffset), value);
     reader->loadBlk();
   }
   void findRev(Reader *reader, BlkOffset blkOffset, Value value) const {
@@ -540,8 +550,8 @@ private:
       reader->fail();
       return;
     }
-    blkOffset = ZuSearchPos(result);
-    reader->init(blkOffset, getBlk(blkOffset), value);
+    blkOffset = m_index.head() + ZuSearchPos(result);
+    reader->seek(blkOffset, getBlk(blkOffset), value);
     reader->loadBlk();
   }
 
@@ -1038,32 +1048,21 @@ inline void Reader<Decoder>::Ctrl::findRev(Value value)
 }
 
 template <typename Decoder>
-inline bool Reader<Decoder>::init(BlkOffset blkOffset, Blk *blk, Target target)
+inline void Reader<Decoder>::seek(
+  BlkOffset blkOffset, const Blk *blk, Target target)
 {
   using namespace RdrState;
 
-  ZeAssert(blk, (), "null blk", return);
-
-  m_failed = false;
-
-  switch (m_state) {
-    case Stopped:
-      break;
-    case Loading:
-    case Reading:
-    case Live:
-    case Stopping:
-      return false;
-    default:
-      ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return false);
+  m_decoder = {};
+  m_blk->blkData->unpin();
+  if (m_state == Live) {
+    m_series->delLiveReader(this);
+    m_series->addHistReader(this);
+    m_state = Reading;
   }
-
   m_blkOffset = blkOffset;
   m_blk = blk;
   m_target = target;
-  m_decoder = {};
-  return true;
 }
 
 template <typename Decoder>

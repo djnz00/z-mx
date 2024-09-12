@@ -250,8 +250,7 @@ template <auto, unsigned, unsigned, bool> friend class ZmHeapCacheT;
       m_stream <<
 	"ID,size,partition,sharded,alignment,cacheSize,cpuset,"
 	"cacheAllocs,heapAllocs,frees\n";
-      ZmHeapMgr::all(
-	ZmFn<void(ZmHeapCache *)>::Member<&CSV_::print_>::fn(this));
+      ZmHeapMgr::all({this, ZmFnMember<&CSV_::print_>{}});
     }
     void print_(ZmHeapCache *cache) {
       ZmHeapTelemetry data;

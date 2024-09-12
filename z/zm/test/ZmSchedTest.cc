@@ -168,7 +168,7 @@ int main(int argc, char **argv)
     char *buf = (char *)malloc(32);
     sprintf(buf, "Goodbye World %d", j);
     // jobs[j - 1] = new Job(buf, t + ZuTime(((double)j) / 10.0));
-    // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
+    // fns[j - 1] = ZmFn<>{jobs[j - 1].ptr(), ZmFnMember<&Job::operator()>{}};
     // s.add(&timers[j - 1], fns[j - 1], jobs[j - 1]->timeout());
     ZuTime out = t + ZuTime(((double)j) / 10.0);
     s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
     char *buf = (char *)malloc(32);
     sprintf(buf, "Goodbye World %d", j);
     // jobs[j - 1] = new Job(buf, t + ZuTime(((double)j) / 10.0));
-    // fns[j - 1] = ZmFn<>::Member<&Job::operator()>::fn(jobs[j - 1].ptr());
+    // fns[j - 1] = ZmFn<>{jobs[j - 1].ptr(), ZmFnMember<&Job::operator()>{}};
     ZuTime out = t + ZuTime(((double)j) / 10.0);
     s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
 	out, &timers[j - 1]);
@@ -255,7 +255,7 @@ int main(int argc, char **argv)
   ZmRef<Timer> r = new Timer(&s, o);
 
   r->retry();
-  r->start(ZmFn<>::Member<&Timer::retry>::fn(r.ptr()));
+  r->start(ZmFn<>{r.ptr(), ZmFnMember<&Timer::retry>{}});
 
   Zm::sleep(ZuTime(8));
 
