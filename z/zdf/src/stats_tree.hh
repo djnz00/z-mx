@@ -171,8 +171,8 @@ protected:
 namespace __gnu_pbds {
 template <typename Key, typename Count, typename Allocator>
 using stats_tree_ = __gnu_pbds::tree<
-  Key, Count, std::less<Key>, __gnu_pbds::rb_tree_tag, stats_tree_node_update,
-  Allocator>;
+  Key, Count, std::less<Key>,
+  __gnu_pbds::rb_tree_tag, stats_tree_node_update, Allocator>;
 template <
   typename Key, typename Count = unsigned int,
   typename Allocator = std::allocator<char>>
@@ -180,8 +180,7 @@ class stats_tree : public stats_tree_<Key, Count, Allocator> {
 private:
   using base_type = stats_tree_<Key, Count, Allocator>;
   using key_type = Key;
-  static base_type &base_type_();
-  using iterator = decltype(base_type_().begin());
+  using iterator = decltype(ZuDeclVal<base_type &>().begin());
 
 public:
   void insert(key_type key) {

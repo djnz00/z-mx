@@ -100,7 +100,6 @@ protected:
       auto mean = double(m_total += v_) / (n + 1.0);
       auto v = double(v_);
       m_var += (v - prev) * (v - mean);
-	// ZuFixed{fp(m_var) + (v - prev) * (v - mean), m_ndp}.mantissa();
     }
     ++m_count;
   }
@@ -124,7 +123,6 @@ protected:
       auto mean = double(m_total -= v_) / (n - 1.0);
       auto v = double(v_);
       m_var -= (v - prev) * (v - mean);
-	// ZuFixed{fp(m_var) - (v - prev) * (v - mean), m_ndp}.mantissa();
     }
     --m_count;
   }
@@ -162,11 +160,9 @@ public:
 
 private:
   using Tree = pbds::stats_tree<ZuFixedVal, unsigned, Alloc>;
-  static Tree &tree_();
-  static const Tree &ctree_();
 public:
-  using Iter = decltype(tree_().begin());
-  using CIter = decltype(ctree_().begin());
+  using Iter = decltype(ZuDeclVal<Tree &>().begin());
+  using CIter = decltype(ZuDeclVal<const Tree &>().begin());
 
 public:
   StatsTree() = default;
@@ -200,8 +196,8 @@ public:
   }
 
   void add(const ZuFixed &v_) {
-    ndp(v_.ndp());
-    auto v = v_.mantissa();
+    ndp(v_.ndp);
+    auto v = v_.mantissa;
     add_(v);
   }
   void del(const ZuFixed &v_) {

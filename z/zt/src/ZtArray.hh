@@ -86,7 +86,7 @@ template <> struct ZtArray_Char2<wchar_t> { using T = char; };
 
 template <typename T_, typename NTP = ZtArray_Defaults>
 class ZtArray :
-    private ZmVHeap<NTP::HeapID, NTP::Sharded, alignof(T_)>,
+    private ZmVHeap<NTP::HeapID, alignof(T_), NTP::Sharded>,
     public ZtArray_<ZuStrip<T_>>,
     public ZuArrayFn<T_, typename NTP::template CmpT<T_>> {
   template <typename, typename> friend class ZtArray;
@@ -320,7 +320,7 @@ public:
   }
 
 private:
-  using VHeap = ZmVHeap<HeapID, Sharded, alignof(T)>;
+  using VHeap = ZmVHeap<HeapID, alignof(T), Sharded>;
   using VHeap::valloc;
   using VHeap::vfree;
 

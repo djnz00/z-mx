@@ -124,7 +124,7 @@ struct ZmStack_Base<Stack, ZmNoLock> : public ZmStack_Unlocked<Stack> { };
 
 template <typename T_, class NTP = ZmStack_Defaults>
 class ZmStack :
-  private ZmVHeap<NTP::HeapID, NTP::Sharded, alignof(T_)>,
+  private ZmVHeap<NTP::HeapID, alignof(T_), NTP::Sharded>,
   public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
   public NTP::template OpsT<T_>
 {
@@ -189,7 +189,7 @@ public:
   unsigned count_() const { return m_count; }
 
 private:
-  using VHeap = ZmVHeap<HeapID, Sharded, alignof(T)>;
+  using VHeap = ZmVHeap<HeapID, alignof(T), Sharded>;
   using VHeap::valloc;
   using VHeap::vfree;
 

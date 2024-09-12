@@ -125,7 +125,7 @@ struct ZmXRing_Base<Ring, ZmNoLock> : public ZmXRing_Unlocked<Ring> { };
 
 template <typename T_, class NTP = ZmXRing_Defaults>
 class ZmXRing :
-    private ZmVHeap<NTP::HeapID, NTP::Sharded, alignof(T_)>,
+    private ZmVHeap<NTP::HeapID, alignof(T_), NTP::Sharded>,
     public ZmXRing_Base<ZmXRing<T_, NTP>, typename NTP::Lock>,
     public NTP::template OpsT<T_> {
   ZmXRing(const ZmXRing &);
@@ -191,7 +191,7 @@ public:
   unsigned offset_() const { return m_offset; }
 
 private:
-  using VHeap = ZmVHeap<HeapID, Sharded, alignof(T)>;
+  using VHeap = ZmVHeap<HeapID, alignof(T), Sharded>;
   using VHeap::valloc;
   using VHeap::vfree;
 

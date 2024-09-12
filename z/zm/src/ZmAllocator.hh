@@ -16,12 +16,16 @@
 #include <new>
 #include <memory>
 
+#include <zlib/ZuTL.hh>
+
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmVHeap.hh>
 
-inline const char *ZmAllocator_ID() { return "ZmAllocator"; }
+template <typename, auto, bool> struct ZmAllocator;
+
+inline constexpr const char *ZmAllocator_ID() { return "ZmAllocator"; }
 template <typename T, auto ID = ZmAllocator_ID, bool Sharded = false>
-struct ZmAllocator : private ZmVHeap<ID, Sharded, alignof(T)> {
+struct ZmAllocator {
   using size_type = std::size_t;
   using difference_type = ptrdiff_t;
   using pointer = T *;
@@ -49,23 +53,25 @@ struct ZmAllocator : private ZmVHeap<ID, Sharded, alignof(T)> {
     return *this;
   }
 
+  // rebind for custom allocators is not deprecated in C++17/20
+  // - it is deprecated (and removed) from std::allocator because
+  //   std::allocator_traits provides a more generic mechanism
+  // - rebind is required for custom allocators like ZmAllocator
+  //   that take non-type template parameters 
+  // - see http://eel.is/c++draft/allocator.requirements.general#18
   template <typename U, auto ID_ = ID>
   struct rebind { using other = ZmAllocator<U, ID_>; };
 
   T *allocate(std::size_t);
   void deallocate(T *, std::size_t);
-
-private:
-  using VHeap = ZmVHeap<ID, Sharded, alignof(T)>;
-  using VHeap::valloc;
-  using VHeap::vfree;
 };
 template <typename T, auto ID, bool Sharded>
 inline T *ZmAllocator<T, ID, Sharded>::allocate(std::size_t n) {
   using Cache =
     ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, alignof(T), Sharded>;
+  using VHeap = ZmVHeap<ID, alignof(T), Sharded>;
   if (ZuLikely(n == 1)) return static_cast<T *>(Cache::alloc());
-  if (auto ptr = static_cast<T *>(valloc(n * sizeof(T))))
+  if (auto ptr = static_cast<T *>(VHeap::valloc(n * sizeof(T))))
     return ptr;
   throw std::bad_alloc{};
 }
@@ -73,10 +79,11 @@ template <typename T, auto ID, bool Sharded>
 inline void ZmAllocator<T, ID, Sharded>::deallocate(T *p, std::size_t n) {
   using Cache =
     ZmHeapCacheT<ID, ZmHeapAllocSize<sizeof(T)>::N, alignof(T), Sharded>;
+  using VHeap = ZmVHeap<ID, alignof(T), Sharded>;
   if (ZuLikely(n == 1))
     Cache::free(p);
   else
-    vfree(p);
+    VHeap::vfree(p);
 }
 template <typename T, typename U, auto ID, bool Sharded>
 inline constexpr bool operator ==(

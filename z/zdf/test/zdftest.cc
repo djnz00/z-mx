@@ -122,9 +122,8 @@ struct Test {
   }
   template <typename Ctrl>
   void run_read2(Ctrl rc, ZuFixed v) {
-    rc.stop();
     df->seek<ZtField(Frame, v2)>(
-      rc.reader.offset(), [this](auto rc, ZuFixed v) {
+      rc.stop(), [this](auto rc, ZuFixed v) {
 	run_read3(ZuMv(rc), v);
       }, []() {
 	ZeLOG(Fatal, "data frame read2 failed");
@@ -133,9 +132,10 @@ struct Test {
   }
   template <typename Ctrl>
   void run_read3(Ctrl rc, ZuFixed v) {
-    rc.stop();
+    std::cout << "v=" << v << '\n';
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
+    rc.stop();
     done.post();
   }
 };

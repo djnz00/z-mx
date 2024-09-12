@@ -171,14 +171,14 @@ friend Ctrl;
     void purge();
 
     // stop reading
-    void stop(StopFn = {});
+    Offset stop(StopFn = {});
   };
 
   // app's read callback
   using Fn = ZmFn<void(Ctrl, Value)>;
 
   // stop reading (called from outside callback, e.g. to stop a live reader)
-  void stop(StopFn = {});
+  Offset stop(StopFn = {});
 
 protected:
   Reader(
@@ -204,6 +204,11 @@ private:
   void stopped();
 
   void fail();
+
+
+  Offset offset_() const {
+    return !m_decoder ? 0 : m_blk->offset() + m_decoder.offset();
+  }
 
 private:
   const Series		*m_series = nullptr;
@@ -990,8 +995,7 @@ inline Offset Reader<Decoder>::offset() const
     case Stopping:
     case Reading:
     case Live:
-      if (!m_decoder) return 0;
-      return m_blk->offset() + m_decoder.offset();
+      return offset_();
     default:
       ZeAssert(false,
 	(state = int(m_state)), "invalid state " << state, return 0);
@@ -1063,16 +1067,18 @@ inline bool Reader<Decoder>::init(BlkOffset blkOffset, Blk *blk, Target target)
 }
 
 template <typename Decoder>
-inline void Reader<Decoder>::Ctrl::stop(StopFn fn)
+inline Offset Reader<Decoder>::Ctrl::stop(StopFn fn)
 {
   reader.yield();
-  reader.stop(ZuMv(fn));
+  return reader.stop(ZuMv(fn));
 }
 
 template <typename Decoder>
-inline void Reader<Decoder>::stop(StopFn fn)
+inline Offset Reader<Decoder>::stop(StopFn fn)
 {
   using namespace RdrState;
+
+  Offset offset = 0;
 
   auto unpin = [this] {
     ZeAssert(m_blk, (), "null blk", break);
@@ -1084,16 +1090,21 @@ inline void Reader<Decoder>::stop(StopFn fn)
   switch (m_state) {
     case Stopped:
     case Stopping:
+      offset = offset_();
       fn();
-      return;
+      return offset;
     case Loading:
       ZeAssert(m_blk, (), "null blk", break);
+      offset = m_target.template is<Offset>() ?
+	m_target.template p<Offset>() : m_blk->offset();
       break;
     case Live:
+      offset = offset_();
       unpin();
       m_series->delLiveReader(this);
       break;
     case Reading:
+      offset = offset_();
       unpin();
       m_series->delHistReader(this);
       break;
@@ -1109,6 +1120,8 @@ inline void Reader<Decoder>::stop(StopFn fn)
   m_series->run([this_ = ZmMkRef(node(this))]() mutable {
     this_->stopped();
   });
+
+  return offset;
 }
 
 template <typename Decoder>

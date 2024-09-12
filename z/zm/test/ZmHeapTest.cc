@@ -51,7 +51,7 @@ void doit()
     delete s;
   }
   {
-    std::vector<S, ZmAllocator<S, ID>> v;
+    std::vector<S, ZmAllocator<S, ZmAllocatorID<ID>>> v;
     std::list<S, ZmAllocator<S>> l;
     for (unsigned i = 0; i < count; i++) {
       v.emplace_back(i);

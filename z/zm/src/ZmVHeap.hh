@@ -19,9 +19,9 @@
 #include <zlib/ZmAssert.hh>
 #include <zlib/ZmHeap.hh>
 
-template <auto ID, bool Sharded, unsigned Align> class ZmVHeap;
-template <auto ID, bool Sharded, unsigned Align> class ZmVHeap_Init {
-template <auto, bool, unsigned> friend class ZmVHeap;
+template <auto ID, unsigned Align, bool Sharded> class ZmVHeap;
+template <auto ID, unsigned Align, bool Sharded> class ZmVHeap_Init {
+template <auto, unsigned, bool> friend class ZmVHeap;
   ZmVHeap_Init();
 };
 
@@ -35,9 +35,9 @@ inline unsigned ZmGrow(unsigned o, unsigned n)
   });
 }
 
-template <auto ID, bool Sharded = false, unsigned Align = 1>
+template <auto ID, unsigned Align = 1, bool Sharded = false>
 class ZmVHeap {
-  template <auto, bool, unsigned> friend class ZmVHeap_Init;
+  template <auto, unsigned, bool> friend class ZmVHeap_Init;
 
   template <unsigned N>
   using Cache =
@@ -77,12 +77,12 @@ public:
   }
 
 private:
-  static ZmVHeap_Init<ID, Sharded, Align>	m_init;
+  static ZmVHeap_Init<ID, Align, Sharded>	m_init;
 };
 
-template <auto ID, bool Sharded, unsigned Align>
-ZmVHeap_Init<ID, Sharded, Align>::ZmVHeap_Init() {
-  using VHeap = ZmVHeap<ID, Sharded, Align>;
+template <auto ID, unsigned Align, bool Sharded>
+ZmVHeap_Init<ID, Align, Sharded>::ZmVHeap_Init() {
+  using VHeap = ZmVHeap<ID, Align, Sharded>;
   for (unsigned i = 0; i < 16; i++)
     ZuSwitch::dispatch<16>(i, [](auto I) {
       if (auto ptr = VHeap::template Cache<I>::alloc())
@@ -90,8 +90,8 @@ ZmVHeap_Init<ID, Sharded, Align>::ZmVHeap_Init() {
     });
 }
 
-template <auto ID, bool Sharded, unsigned Align>
-ZmVHeap_Init<ID, Sharded, Align>
-ZmVHeap<ID, Sharded, Align>::m_init;
+template <auto ID, unsigned Align, bool Sharded>
+ZmVHeap_Init<ID, Align, Sharded>
+ZmVHeap<ID, Align, Sharded>::m_init;
 
 #endif /* ZmVHeap_HH */

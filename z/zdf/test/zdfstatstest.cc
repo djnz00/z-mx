@@ -6,8 +6,6 @@
 
 #include <iostream>
 
-#include <zlib/ZuCArray.hh>
-
 #include <zlib/ZdfStats.hh>
 
 void print(const char *s) {
