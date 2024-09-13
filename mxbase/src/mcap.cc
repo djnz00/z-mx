@@ -57,7 +57,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn{this, ZmFnMember<&GroupCSV::alloc>{}}, fn);
+	ZvCSVAllocFn{this, ZmFnPtr<&GroupCSV::alloc>{}}, fn);
   }
 
 private:
@@ -183,8 +183,8 @@ void Source::connect()
   options.multicast(true);
   options.mreq(ZiMReq(group().ip, m_app->interface_()));
   m_app->mx()->udp(
-      ZiConnectFn{ZmMkRef(this), ZmFnMember<&Source::connected>{}},
-      ZiFailFn{ZmMkRef(this), ZmFnMember<&Source::connectFailed>{}},
+      ZiConnectFn{ZmMkRef(this), ZmFnPtr<&Source::connected>{}},
+      ZiFailFn{ZmMkRef(this), ZmFnPtr<&Source::connectFailed>{}},
 #ifndef _WIN32
       group().ip,
 #else
@@ -231,7 +231,7 @@ void Connection::recv(ZiIOContext &io)
 template <typename Heap>
 void Msg_<Heap>::recv(ZiIOContext &io)
 {
-  io.init(ZiIOFn{ZmMkRef(this), ZmFnMember<&Msg_::rcvd>{}},
+  io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&Msg_::rcvd>{}},
       m_buf, Size, 0, m_addr);
 }
 
@@ -298,7 +298,7 @@ int App::start()
       goto error;
     }
     GroupCSV csv;
-    csv.read(m_groups, ZvCSVReadFn{this, ZmFnMember<&App::connect>{}});
+    csv.read(m_groups, ZvCSVReadFn{this, ZmFnPtr<&App::connect>{}});
   } catch (const ZvError &e) {
     ZeLOG(Fatal, ([](auto &s) { s << e; }));
     goto error;

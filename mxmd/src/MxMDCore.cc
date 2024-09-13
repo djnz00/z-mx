@@ -52,7 +52,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn{this, ZmFnMember<&MxMDVenueMapCSV::alloc>{}}, fn);
+	ZvCSVAllocFn{this, ZmFnPtr<&MxMDVenueMapCSV::alloc>{}}, fn);
   }
 
   ZuInline POD *pod() { return m_pod.ptr(); }
@@ -333,7 +333,7 @@ void MxMDCore::init_(const ZvCf *cf)
   if (ZtString venueMap = cf->get("venueMap")) {
     MxMDVenueMapCSV csv;
     csv.read(venueMap,
-	ZvCSVReadFn{this, ZmFnMember<&MxMDCore::addVenueMapping_>{}});
+	ZvCSVReadFn{this, ZmFnPtr<&MxMDCore::addVenueMapping_>{}});
   }
 
   if (const ZtArray<ZtString> *tickSizes =
@@ -342,7 +342,7 @@ void MxMDCore::init_(const ZvCf *cf)
     MxMDTickSizeCSV csv;
     for (unsigned i = 0, n = tickSizes->length(); i < n; i++)
       csv.read((*tickSizes)[i],
-	  ZvCSVReadFn{this, ZmFnMember<&MxMDCore::addTickSize_>{}});
+	  ZvCSVReadFn{this, ZmFnPtr<&MxMDCore::addTickSize_>{}});
   }
   if (const ZtArray<ZtString> *instruments =
 	cf->getMultiple("instruments", 0, INT_MAX)) {
@@ -350,7 +350,7 @@ void MxMDCore::init_(const ZvCf *cf)
     MxMDInstrumentCSV csv;
     for (unsigned i = 0, n = instruments->length(); i < n; i++)
       csv.read((*instruments)[i],
-	  ZvCSVReadFn{this, ZmFnMember<&MxMDCore::addInstrument_>{}});
+	  ZvCSVReadFn{this, ZmFnPtr<&MxMDCore::addInstrument_>{}});
   }
   if (const ZtArray<ZtString> *orderBooks =
 	cf->getMultiple("orderBooks", 0, INT_MAX)) {
@@ -358,7 +358,7 @@ void MxMDCore::init_(const ZvCf *cf)
     MxMDOrderBookCSV csv;
     for (unsigned i = 0, n = orderBooks->length(); i < n; i++)
       csv.read((*orderBooks)[i],
-	  ZvCSVReadFn{this, ZmFnMember<&MxMDCore::addOrderBook_>{}});
+	  ZvCSVReadFn{this, ZmFnPtr<&MxMDCore::addOrderBook_>{}});
   }
 
   m_broadcast.init(this);
@@ -394,7 +394,7 @@ void MxMDCore::initCmds()
 
   m_cmdServer->addCmd(
       "l1", ZtString("c csv csv { type flag }\n") + lookupSyntax(),
-      ZcmdFn{this, ZmFnMember<&MxMDCore::l1>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::l1>{}},
       "dump L1 data",
       ZtString("Usage: l1 SYMBOL [SYMBOL]... [OPTION]...\n"
 	"Display level 1 market data for SYMBOL(s)\n\n"
@@ -403,33 +403,33 @@ void MxMDCore::initCmds()
 	lookupOptions());
   m_cmdServer->addCmd(
       "l2", lookupSyntax(),
-      ZcmdFn{this, ZmFnMember<&MxMDCore::l2>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::l2>{}},
       "dump L2 data",
       ZtString("Usage: l2 SYMBOL [OPTION]...\n"
 	"Display level 2 market data for SYMBOL\n\nOptions:\n") <<
 	lookupOptions());
   m_cmdServer->addCmd(
       "instrument", lookupSyntax(),
-      ZcmdFn{this, ZmFnMember<&MxMDCore::instrument_>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::instrument_>{}},
       "dump instrument reference data",
       ZtString("Usage: instrument SYMBOL [OPTION]...\n"
 	"Display instrument reference data (\"static data\") for SYMBOL\n\n"
 	"Options:\n") << lookupOptions());
   m_cmdServer->addCmd(
       "ticksizes", "",
-      ZcmdFn{this, ZmFnMember<&MxMDCore::ticksizes>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::ticksizes>{}},
       "dump tick sizes in CSV format",
       "Usage: ticksizes [VENUE [SEGMENT]]\n"
       "dump tick sizes in CSV format");
   m_cmdServer->addCmd(
       "instruments", "",
-      ZcmdFn{this, ZmFnMember<&MxMDCore::instruments>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::instruments>{}},
       "dump instruments in CSV format",
       "Usage: instruments [VENUE [SEGMENT]]\n"
       "dump instruments in CSV format");
   m_cmdServer->addCmd(
       "orderbooks", "",
-      ZcmdFn{this, ZmFnMember<&MxMDCore::orderbooks>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::orderbooks>{}},
       "dump order books in CSV format",
       "Usage: orderbooks [VENUE [SEGMENT]]\n"
       "dump order books in CSV format");
@@ -438,7 +438,7 @@ void MxMDCore::initCmds()
   m_cmdServer->addCmd(
       "subscribe",
       "stop s s { param stop }",
-      ZcmdFn{this, ZmFnMember<&MxMDCore::subscribeCmd>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDCore::subscribeCmd>{}},
       "subscribe to market data",
       "Usage: subscribe IPCRING\n"
       "       subscribe -s ID\n"

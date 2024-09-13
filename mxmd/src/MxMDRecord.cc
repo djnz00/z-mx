@@ -36,7 +36,7 @@ void MxMDRecord::init(MxMDCore *core, const ZvCf *cf)
   core->addCmd(
       "record",
       "s stop stop { type flag }",
-      ZcmdFn{this, ZmFnMember<&MxMDRecord::recordCmd>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDRecord::recordCmd>{}},
       "record market data to file", 
       "Usage: record FILE\n"
       "       record -s\n"

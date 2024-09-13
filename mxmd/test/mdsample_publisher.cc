@@ -183,17 +183,17 @@ void loaded(MxMDVenue *venue)
 
   ZmRef<MxMDInstrHandler> instrHandler = new MxMDInstrHandler();
   instrHandler->
-    l1Fn(MxMDLevel1Fn{ZmFnUnbound<&l1>{}}).
-    addMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&addPxLevel>{}}).
-    updatedMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&updatedPxLevel>{}}).
-    deletedMktLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
-    addPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&addPxLevel>{}}).
-    updatedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&updatedPxLevel>{}}).
-    deletedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
-    l2Fn(MxMDOrderBookFn{ZmFnUnbound<&l2>{}}).
-    addOrderFn(MxMDOrderFn{ZmFnUnbound<&addOrder>{}}).
-    modifiedOrderFn(MxMDOrderFn{ZmFnUnbound<&modifiedOrder>{}}).
-    deletedOrderFn(MxMDOrderFn{ZmFnUnbound<&deletedOrder>{}});
+    l1Fn(MxMDLevel1Fn{ZmFnPtr<&l1>{}}).
+    addMktLevelFn(MxMDPxLevelFn{ZmFnPtr<&addPxLevel>{}}).
+    updatedMktLevelFn(MxMDPxLevelFn{ZmFnPtr<&updatedPxLevel>{}}).
+    deletedMktLevelFn(MxMDPxLevelFn{ZmFnPtr<&deletedPxLevel>{}}).
+    addPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&addPxLevel>{}}).
+    updatedPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&updatedPxLevel>{}}).
+    deletedPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&deletedPxLevel>{}}).
+    l2Fn(MxMDOrderBookFn{ZmFnPtr<&l2>{}}).
+    addOrderFn(MxMDOrderFn{ZmFnPtr<&addOrder>{}}).
+    modifiedOrderFn(MxMDOrderFn{ZmFnPtr<&modifiedOrder>{}}).
+    deletedOrderFn(MxMDOrderFn{ZmFnPtr<&deletedOrder>{}});
 
   // iterate through all tickers subscribing to market data updates
 
@@ -220,9 +220,9 @@ int subscribe()
     if (!md) throw ZtString("MxMDLib::instance() failed");
 
     md->subscribe(&((new MxMDLibHandler())->
-	  exceptionFn(MxMDExceptionFn{ZmFnUnbound<&exception>{}}).
-	  timerFn(MxMDTimerFn{ZmFnUnbound<&timer>{}}).
-	  refDataLoadedFn(MxMDVenueFn{ZmFnUnbound<&loaded>{}})));
+	  exceptionFn(MxMDExceptionFn{ZmFnPtr<&exception>{}}).
+	  timerFn(MxMDTimerFn{ZmFnPtr<&timer>{}}).
+	  refDataLoadedFn(MxMDVenueFn{ZmFnPtr<&loaded>{}})));
   } catch (const ZtString &s) {
     ZeLOG(Error, ([](auto &s) { s << "error: " << s; }));
     return -1;

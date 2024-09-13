@@ -32,7 +32,7 @@ void MxMDReplay::init(MxMDCore *core, ZmRef<ZvCf> cf)
   core->addCmd(
       "replay",
       "s stop stop { type flag }",
-      ZcmdFn{this, ZmFnMember<&MxMDReplay::replayCmd>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDReplay::replayCmd>{}},
       "replay market data from file",
       "Usage: replay FILE\n"
       "       replay -s\n"

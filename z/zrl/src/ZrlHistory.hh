@@ -37,8 +37,8 @@ public:
   void save(unsigned i, ZuSpan<const uint8_t> s);
   bool load(unsigned i, HistFn) const;
 
-  auto saveFn() { return HistSaveFn{this, ZmFnMember<&History::save>{}}; }
-  auto loadFn() { return HistLoadFn{this, ZmFnMember<&History::load>{}}; }
+  auto saveFn() { return HistSaveFn{this, ZmFnPtr<&History::save>{}}; }
+  auto loadFn() { return HistLoadFn{this, ZmFnPtr<&History::load>{}}; }
 };
 
 } // Zrl

@@ -32,11 +32,11 @@
 //   void *bar() const { ... }			// member function
 // };
 // G g;
-// ZmThread t(&g, ZmFnMember<&G::bar>);		// Note: pointer to G
+// ZmThread t(&g, ZmFnPtr<&G::bar>);		// Note: pointer to G
 //
 // class G2 : public ZmPolymorph, public G { };	// call G::bar via G2
 // G2 g2;
-// ZmThread t(ZmMkRef(&g2), ZmFnMember<&G::bar>); // capture ZmRef to g2
+// ZmThread t(ZmMkRef(&g2), ZmFnPtr<&G::bar>); // capture ZmRef to g2
 //
 // class H { static int bah() { ... } };	// static member function
 // ZmThread t{ZmFn<>::Ptr<&H::bah>::fn()};
@@ -44,7 +44,7 @@
 // class I { ... };				// bound regular function
 // void baz(I *i) { ... }
 // I *i;
-// ZmThread t{ZmFn<>{i, ZmFnBound<&baz>{}}};	// Note: pointer to I
+// ZmThread t{ZmFn<>{i, ZmFnPtr<&baz>{}}};	// Note: pointer to I
 //
 // using Fn = ZmFn<R(Params)>;
 // R foo(Fn fn);
@@ -118,7 +118,7 @@ ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, false>::fn(L_ &&l) 
   ZuAssert((!IsMutable<L>{}));
   ZuAssert((!IsMutable<ZuDecay<L_>>{}));
   using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
-  return ZmFn{ZmRef<const O>{new O{ZuFwd<L_>(l)}}, ZmFnMember<&O::cinvoke>{}};
+  return ZmFn{ZmRef<const O>{new O{ZuFwd<L_>(l)}}, ZmFnPtr<&O::cinvoke>{}};
 }
 
 // stateful mutable lambda
@@ -128,7 +128,7 @@ template <typename L_>
 ZmFn<R_(Args_...)>
 ZmFn<R_(Args_...)>::LambdaInvoker<HeapID, Sharded, L, false, true>::fn(L_ &&l) {
   using O = ZmLambda<HeapID, Sharded, ZuDecay<L>, Args>;
-  return ZmFn{ZmRef<O>{new O{ZuFwd<L_>(l)}}, ZmFnMember<&O::invoke>{}};
+  return ZmFn{ZmRef<O>{new O{ZuFwd<L_>(l)}}, ZmFnPtr<&O::invoke>{}};
 }
 
 #endif /* ZmFn_HH */

@@ -87,7 +87,7 @@ struct Test {
 
   void run() {
     store->openDF<Frame, false, true>(
-      0, "frame", {this, ZmFnMember<&Test::run_opened>{}});
+      0, "frame", {this, ZmFnPtr<&Test::run_opened>{}});
   }
   void run_opened(ZmRef<DF> df_) {
     if (!df_) {
@@ -96,7 +96,7 @@ struct Test {
       return;
     }
     df = ZuMv(df_);
-    df->write({this, ZmFnMember<&Test::run_write>{}}, []{
+    df->write({this, ZmFnPtr<&Test::run_write>{}}, []{
       ZeLOG(Fatal, "data frame write failed");
       done.post();
     });
@@ -114,7 +114,7 @@ struct Test {
     using Field = ZtField(Frame, v1);
     using Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->find<Field>(
-      ZuFixed{20, 0}, {this, ZmFnMember<&Test::run_read2<Ctrl>>{}}, []{
+      ZuFixed{20, 0}, {this, ZmFnPtr<&Test::run_read2<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read1 failed");
 	done.post();
       });
@@ -122,7 +122,7 @@ struct Test {
   template <typename Ctrl>
   void run_read2(Ctrl rc, ZuFixed v) {
     df->seek<ZtField(Frame, v2)>(
-      rc.stop(), {this, ZmFnMember<&Test::run_read3<Ctrl>>{}}, []{
+      rc.stop(), {this, ZmFnPtr<&Test::run_read3<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
@@ -131,7 +131,7 @@ struct Test {
   void run_read3(Ctrl rc, ZuFixed v) {
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
-    rc.fn({this, ZmFnMember<&Test::run_read4<Ctrl>>{}});
+    rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(ZuFixed{200 * 42, 9});
   }
   template <typename Ctrl>

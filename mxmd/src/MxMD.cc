@@ -1283,7 +1283,7 @@ MxMDLib::MxMDLib(ZmScheduler *scheduler) :
   m_instruments =
     new Instruments(ZmHashParams().bits(12).loadFactor(1.0).cBits(4).
 	init("MxMDLib.Instruments"));
-  m_handler->exception = MxMDExceptionFn{ZmFnUnbound<&exception>{}};
+  m_handler->exception = MxMDExceptionFn{ZmFnPtr<&exception>{}};
 }
 
 void MxMDLib::init_(void *cf_)
@@ -1326,7 +1326,7 @@ void MxMDLib::subscribe(MxMDLibHandler *handler)
 {
   SubGuard guard(m_subLock);
   if (!handler->exception)
-    handler->exception = MxMDExceptionFn{ZmFnUnbound<&exception>{}};
+    handler->exception = MxMDExceptionFn{ZmFnPtr<&exception>{}};
   m_handler = handler;
 }
 
@@ -1334,7 +1334,7 @@ void MxMDLib::unsubscribe()
 {
   SubGuard guard(m_subLock);
   m_handler = new MxMDLibHandler();
-  m_handler->exception = MxMDExceptionFn{ZmFnUnbound<&exception>{}};
+  m_handler->exception = MxMDExceptionFn{ZmFnPtr<&exception>{}};
 }
 
 void MxMDLib::sync()

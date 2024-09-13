@@ -126,7 +126,7 @@ friend CSV;
     template <typename S>
     void print(S &s) const {
       ZmHashMgr::CSV_<S> csv(s);
-      ZmHashMgr::all({&csv, ZmFnMember<&ZmHashMgr::CSV_<S>::print>{}});
+      ZmHashMgr::all({&csv, ZmFnPtr<&ZmHashMgr::CSV_<S>::print>{}});
     }
     friend ZuPrintFn ZuPrintType(CSV *);
   };

@@ -47,7 +47,7 @@ void MxMDPublisher::init(MxMDCore *core, const ZvCf *cf)
 
   core->addCmd(
       "publisher.status", "",
-      ZcmdFn{this, ZmFnMember<&MxMDPublisher::statusCmd>{}},
+      ZcmdFn{this, ZmFnPtr<&MxMDPublisher::statusCmd>{}},
       "publisher status",
       "Usage: publisher.status\n");
 }

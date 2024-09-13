@@ -65,11 +65,11 @@ public:
 
   bool next(CompIterFn iter);
 
-  auto initFn() { return CompInitFn{this, ZmFnMember<&Globber::init>{}}; }
-  auto finalFn() { return CompFinalFn{this, ZmFnMember<&Globber::final>{}}; }
-  auto startFn() { return CompStartFn{this, ZmFnMember<&Globber::start>{}}; }
-  auto substFn() { return CompSubstFn{this, ZmFnMember<&Globber::subst>{}}; }
-  auto nextFn() { return CompNextFn{this, ZmFnMember<&Globber::next>{}}; }
+  auto initFn() { return CompInitFn{this, ZmFnPtr<&Globber::init>{}}; }
+  auto finalFn() { return CompFinalFn{this, ZmFnPtr<&Globber::final>{}}; }
+  auto startFn() { return CompStartFn{this, ZmFnPtr<&Globber::start>{}}; }
+  auto substFn() { return CompSubstFn{this, ZmFnPtr<&Globber::subst>{}}; }
+  auto nextFn() { return CompNextFn{this, ZmFnPtr<&Globber::next>{}}; }
 
 private:
   bool		m_appendSpace = false;	// append space to leafname?

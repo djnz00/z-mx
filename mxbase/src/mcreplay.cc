@@ -55,7 +55,7 @@ public:
   template <typename File>
   void read(const File &file, ZvCSVReadFn fn) {
     ZvCSV::readFile(file,
-	ZvCSVAllocFn{this, ZmFnMember<&GroupCSV::alloc>{}}, fn);
+	ZvCSVAllocFn{this, ZmFnPtr<&GroupCSV::alloc>{}}, fn);
   }
 
 private:
@@ -209,8 +209,8 @@ void Dest::connect()
   options.ttl(m_app->ttl());
   options.loopBack(m_app->loopBack());
   m_app->mx()->udp(
-      ZiConnectFn{ZmMkRef(this), ZmFnMember<&Dest::connected>{}},
-      ZiFailFn{ZmMkRef(this), ZmFnMember<&Dest::connectFailed>{}},
+      ZiConnectFn{ZmMkRef(this), ZmFnPtr<&Dest::connected>{}},
+      ZiFailFn{ZmMkRef(this), ZmFnPtr<&Dest::connectFailed>{}},
       ZiIP(), m_group.port, ZiIP(), 0, options);
 }
 
@@ -320,12 +320,12 @@ lenerror:
 template <typename Heap>
 void Msg_<Heap>::send(Connection *cxn)
 {
-  (m_cxn = cxn)->send(ZiIOFn{ZmMkRef(this), ZmFnMember<&Msg_<Heap>::send_>{}});
+  (m_cxn = cxn)->send(ZiIOFn{ZmMkRef(this), ZmFnPtr<&Msg_<Heap>::send_>{}});
 }
 template <typename Heap>
 void Msg_<Heap>::send_(ZiIOContext &io)
 {
-  io.init(ZiIOFn{ZmMkRef(this), ZmFnMember<&Msg_<Heap>::sent_>{}},
+  io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&Msg_<Heap>::sent_>{}},
       m_buf, m_hdr.len, 0, m_cxn->dest());
   m_cxn = nullptr;
 }
@@ -367,7 +367,7 @@ int App::start()
       goto error;
     }
     GroupCSV csv;
-    csv.read(m_groups, ZvCSVReadFn{this, ZmFnMember<&App::connect>{}});
+    csv.read(m_groups, ZvCSVReadFn{this, ZmFnPtr<&App::connect>{}});
     m_mx->add(ZmFn<>::Member<&App::read>::fn(this));
   } catch (const ZvError &e) {
     ZeLOG(Fatal, ([](auto &s) { s << e; }));

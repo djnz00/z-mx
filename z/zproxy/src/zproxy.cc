@@ -480,7 +480,7 @@ public:
 	"pack { param pack } "
 	"delay { param delay } "
 	"reconnect { param reconnect }",
-	ZcmdFn{this, ZmFnMember<&App::proxyCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::proxyCmd>{}},
 	"establish TCP proxy",
 	"Usage: proxy [LOCALIP:]LOCALPORT [REMOTEIP:]REMOTEPORT "
 	    "[[SRCIP:][SRCPORT]] [OPTION]...\n\n"
@@ -496,48 +496,48 @@ public:
 	    "  --delay=N\t- delay each receive by N seconds\n"
 	    "  --reconnect=N\t- retry connect every N seconds (0 - disabled)");
     addCmd("stop", "",
-	ZcmdFn{this, ZmFnMember<&App::stopListeningCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::stopListeningCmd>{}},
 	"stop listening (do not disconnect open connections)",
 	"Usage: stop #TAG|LOCALPORT");
     addCmd("hold", "",
-	ZcmdFn{this, ZmFnMember<&App::holdCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::holdCmd>{}},
 	"hold [one side] open",
 	"Usage: hold SRCPORT|#TAG|all [in|out]");
     addCmd("release", "",
-	ZcmdFn{this, ZmFnMember<&App::releaseCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::releaseCmd>{}},
 	"release [one side], permit disconnect\n"
 	"Note: remote-initiated disconnects always occur regardless",
 	"Usage: release SRCPORT|#TAG|all [in|out]");
     addCmd("disc", "",
-	ZcmdFn{this, ZmFnMember<&App::discCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::discCmd>{}},
 	"disconnect SRCPORT",
 	"disc SRCPORT|#TAG|all");
     addCmd("suspend", "",
-	ZcmdFn{this, ZmFnMember<&App::suspendCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::suspendCmd>{}},
 	"suspend I/O",
 	"Usage: suspend SRCPORT|#TAG|all [in|out [send|recv]]");
     addCmd("resume", "",
-	ZcmdFn{this, ZmFnMember<&App::resumeCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::resumeCmd>{}},
 	"resume I/O",
 	"resume SRCPORT|#TAG|all [in|out [send|recv]]");
     addCmd("trace", "",
-	ZcmdFn{this, ZmFnMember<&App::traceCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::traceCmd>{}},
 	"hex dump traffic (0 - off, 1 - on)",
 	"trace SRCPORT|#TAG|all [0|1 [in|out]]");
     addCmd("drop", "",
-	ZcmdFn{this, ZmFnMember<&App::dropCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::dropCmd>{}},
 	"drop (discard) incoming traffic (0 - off, 1 - on)",
 	"drop SRCPORT|#TAG|all [0|1 [in|out]]");
     addCmd("verbose", "",
-	ZcmdFn{this, ZmFnMember<&App::verboseCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::verboseCmd>{}},
 	"log connection setup and teardown (0 - off, 1 - on)",
 	"verbose 0|1");
     addCmd("status", "",
-	ZcmdFn{this, ZmFnMember<&App::statusCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::statusCmd>{}},
 	"list listeners and open connections (including queue sizes)",
 	"status [#TAG]");
     addCmd("quit", "",
-	ZcmdFn{this, ZmFnMember<&App::quitCmd>{}},
+	ZcmdFn{this, ZmFnPtr<&App::quitCmd>{}},
 	"shutdown and exit", "");
   }
   void final() {
@@ -1133,13 +1133,13 @@ private:
 void IOBuf::recv(ZiIOContext *io) {
   if (!io)
     m_connection->ZiConnection::recv(
-	ZiIOFn{ZmMkRef(this), ZmFnMember<&IOBuf::recv_>{}});
+	ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::recv_>{}});
   else
     recv_(*io);
 }
 void IOBuf::recv_(ZiIOContext &io)
 {
-  io.init(ZiIOFn{ZmMkRef(this), ZmFnMember<&IOBuf::rcvd_>{}},
+  io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::rcvd_>{}},
       m_buf.data(), m_buf.size(), 0);
 }
 void IOBuf::rcvd_(ZiIOContext &io)
@@ -1153,13 +1153,13 @@ void IOBuf::send(ZiIOContext *io)
 {
   if (!io)
     m_connection->ZiConnection::send(
-	ZiIOFn{ZmMkRef(this), ZmFnMember<&IOBuf::send_>{}});
+	ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::send_>{}});
   else
     send_(*io);
 }
 void IOBuf::send_(ZiIOContext &io)
 {
-  io.init(ZiIOFn{ZmMkRef(this), ZmFnMember<&IOBuf::sent_>{}},
+  io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::sent_>{}},
       m_buf.data(), m_buf.length(), 0);
 }
 void IOBuf::sent_(ZiIOContext &io)
@@ -1370,8 +1370,8 @@ void Proxy::connect2()
   if (!m_listener) return;
   if (m_app->verbose()) { ZeLOG(Info, status()); }
   m_mx->connect(
-      ZiConnectFn{this, ZmFnMember<&Proxy::connected2>{}},
-      ZiFailFn{this, ZmFnMember<&Proxy::failed2>{}},
+      ZiConnectFn{this, ZmFnPtr<&Proxy::connected2>{}},
+      ZiFailFn{this, ZmFnPtr<&Proxy::failed2>{}},
       m_listener->srcIP(), m_listener->srcPort(),
       m_listener->remoteIP(), m_listener->remotePort());
 }
@@ -1462,9 +1462,9 @@ Listener::Listener(App *app, uint32_t cxnFlags,
 int Listener::start()
 {
   m_mx->listen(
-      ZiListenFn{this, ZmFnMember<&Listener::ok>{}},
-      ZiFailFn{this, ZmFnMember<&Listener::failed>{}},
-      ZiConnectFn{this, ZmFnMember<&Listener::accepted>{}},
+      ZiListenFn{this, ZmFnPtr<&Listener::ok>{}},
+      ZiFailFn{this, ZmFnPtr<&Listener::failed>{}},
+      ZiConnectFn{this, ZmFnPtr<&Listener::accepted>{}},
       m_localIP, m_localPort, 8);
   m_started.wait();
   return m_listening ? Zi::OK : Zi::IOError;

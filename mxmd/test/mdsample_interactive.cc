@@ -145,11 +145,11 @@ int main(int argc, char **argv)
 
   keys = new Keys();
   (instrHandler = new MxMDInstrHandler())->
-    l1Fn(MxMDLevel1Fn{ZmFnUnbound<&l1>{}}).
-    addPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&pxLevel>{}}).
-    updatedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&pxLevel>{}}).
-    deletedPxLevelFn(MxMDPxLevelFn{ZmFnUnbound<&deletedPxLevel>{}}).
-    l2Fn(MxMDOrderBookFn{ZmFnUnbound<&l2>{}});
+    l1Fn(MxMDLevel1Fn{ZmFnPtr<&l1>{}}).
+    addPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&pxLevel>{}}).
+    updatedPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&pxLevel>{}}).
+    deletedPxLevelFn(MxMDPxLevelFn{ZmFnPtr<&deletedPxLevel>{}}).
+    l2Fn(MxMDOrderBookFn{ZmFnPtr<&l2>{}});
 
   // read keys from file into hash table
   if (argv[2]) {
@@ -168,15 +168,15 @@ int main(int argc, char **argv)
     // add interactive subscribe command
     md->addCmd("subscribe",
 	md->lookupSyntax(),
-	ZcmdFn{ZmFnUnbound<&subscribe>{}},
+	ZcmdFn{ZmFnPtr<&subscribe>{}},
 	"subscribe",
 	ZtString{} << "Usage: subscribe SYMBOL [OPTION]...\n\nOptions:\n" <<
 	  md->lookupOptions());
 
     md->subscribe(&((new MxMDLibHandler())->
-	exceptionFn(MxMDExceptionFn{ZmFnUnbound<&exception>{}}).
-	refDataLoadedFn(MxMDVenueFn{ZmFnUnbound<&refDataLoaded>{}}).
-	addInstrumentFn(MxMDInstrumentFn{ZmFnUnbound<&addInstrument>{}})));
+	exceptionFn(MxMDExceptionFn{ZmFnPtr<&exception>{}}).
+	refDataLoadedFn(MxMDVenueFn{ZmFnPtr<&refDataLoaded>{}}).
+	addInstrumentFn(MxMDInstrumentFn{ZmFnPtr<&addInstrument>{}})));
 
     md->start();			// start all feeds
 

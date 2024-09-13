@@ -49,19 +49,19 @@ public:
 
   void recvEcho(ZiIOContext &io) {
     m_msg.size(strlen(Messages[index()]));
-    io.init(ZiIOFn{this, ZmFnMember<&Connection::recvComplete>{}},
+    io.init(ZiIOFn{this, ZmFnPtr<&Connection::recvComplete>{}},
 	m_msg.data(), m_msg.size(), 0);
   }
   bool recvComplete(ZiIOContext &);
 
   void sendEcho() {
-    send(ZiIOFn{this, ZmFnMember<&Connection::sendEcho_>{}});
+    send(ZiIOFn{this, ZmFnPtr<&Connection::sendEcho_>{}});
   }
   bool sendEcho_(ZiIOContext &io) {
     unsigned i = index();
     unsigned len = strlen(Messages[i]);
     io.init(
-	ZiIOFn{this, ZmFnMember<&Connection::sendComplete>{}},
+	ZiIOFn{this, ZmFnPtr<&Connection::sendComplete>{}},
 	(void *)Messages[i], len, 0, m_dest);
     return true;
   }
@@ -99,8 +99,8 @@ public:
     m_dest = ZiSockAddr(remoteIP, remotePort);
     if (!m_connect) remoteIP = ZiIP(), remotePort = 0;
     ZiMultiplex::udp(
-	ZiConnectFn{this, ZmFnMember<&Mx::connected>{}},
-	ZiFailFn{this, ZmFnMember<&Mx::failed>{}},
+	ZiConnectFn{this, ZmFnPtr<&Mx::connected>{}},
+	ZiFailFn{this, ZmFnPtr<&Mx::failed>{}},
 	m_localIP, m_localPort, remoteIP, remotePort, m_options);
   }
 

@@ -49,14 +49,14 @@ public:
 
   bool recvEcho(ZiIOContext &io) {
     m_msg.size(128);
-    io.init(ZiIOFn{this, ZmFnMember<&Connection::recvComplete>{}},
+    io.init(ZiIOFn{this, ZmFnPtr<&Connection::recvComplete>{}},
 	m_msg.data(), m_msg.size(), 0);
     return true;
   }
   bool recvComplete(ZiIOContext &);
 
   bool sendEcho(ZiIOContext &io) {
-    io.init(ZiIOFn{this, ZmFnMember<&Connection::sendComplete>{}},
+    io.init(ZiIOFn{this, ZmFnPtr<&Connection::sendComplete>{}},
 	m_msg.data(), m_msg.length(), 0, m_echo);
     return true;
   }
@@ -91,8 +91,8 @@ public:
     unsigned remotePort = m_remotePort;
     if (!m_connect) remoteIP = ZiIP(), remotePort = 0;
     ZiMultiplex::udp(
-	ZiConnectFn{this, ZmFnMember<&Mx::connected>{}},
-	ZiFailFn{this, ZmFnMember<&Mx::failed>{}},
+	ZiConnectFn{this, ZmFnPtr<&Mx::connected>{}},
+	ZiFailFn{this, ZmFnPtr<&Mx::failed>{}},
 	m_localIP, m_localPort, remoteIP, remotePort, m_options);
   }
 
@@ -124,7 +124,7 @@ bool Connection::recvComplete(ZiIOContext &io)
       ZuCSpan(m_msg.data(), io.length), m_msg.data(), io.length) << std::flush;
 
   m_echo = !m_dest ? io.addr : m_dest;
-  send(ZiIOFn{this, ZmFnMember<&Connection::sendEcho>{}});
+  send(ZiIOFn{this, ZmFnPtr<&Connection::sendEcho>{}});
   return true;
 }
 

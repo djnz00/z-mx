@@ -164,72 +164,23 @@ protected:
   mutable uintptr_t	m_object;
 };
 
-// constexpr wrapper for unbound plain function pointers
-template <auto> struct ZmFnUnbound;
+// constexpr wrapper for function pointers
+template <auto> struct ZmFnPtr;
 template <
   typename R_,
   typename ...Args_,
   R_ (*Fn)(Args_...)>
-struct ZmFnUnbound<Fn> : public ZuConstant<decltype(Fn), Fn> {
+struct ZmFnPtr<Fn> : public ZuConstant<decltype(Fn), Fn> {
   using R = R_;
+  using O = void;
   using Args = ZuTypeList<Args_...>;
 };
-template <typename T> struct ZmIsFnUnbound : public ZuFalse { };
-template <auto Fn> struct ZmIsFnUnbound<ZmFnUnbound<Fn>> : public ZuTrue { };
-
-// constexpr wrapper for bound plain function pointers
-template <auto> struct ZmFnBound;
-template <
-  typename O_,
-  typename R_,
-  typename ...Args_,
-  R_ (*Fn)(O_ *, Args_...)>
-struct ZmFnBound<Fn> : public ZuConstant<decltype(Fn), Fn> {
-  using R = R_;
-  using O = O_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <
-  typename O_,
-  typename R_,
-  typename ...Args_,
-  R_ (*Fn)(const O_ *, Args_...)>
-struct ZmFnBound<Fn> : public ZuConstant<decltype(Fn), Fn> {
-  using R = R_;
-  using O = const O_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <
-  typename O_,
-  typename R_,
-  typename ...Args_,
-  R_ (*Fn)(ZmRef<O_>, Args_...)>
-struct ZmFnBound<Fn> : public ZuConstant<decltype(Fn), Fn> {
-  using R = R_;
-  using O = O_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <
-  typename O_,
-  typename R_,
-  typename ...Args_,
-  R_ (*Fn)(ZmRef<const O_>, Args_...)>
-struct ZmFnBound<Fn> : public ZuConstant<decltype(Fn), Fn> {
-  using R = R_;
-  using O = const O_;
-  using Args = ZuTypeList<Args_...>;
-};
-template <typename T> struct ZmIsFnBound : public ZuFalse { };
-template <auto Fn> struct ZmIsFnBound<ZmFnBound<Fn>> : public ZuTrue { };
-
-// constexpr wrapper for member function pointers
-template <auto> struct ZmFnMember;
 template <
   typename O_,
   typename R_,
   typename ...Args_,
   R_ (O_::*Fn)(Args_...)>
-struct ZmFnMember<Fn> : public ZuConstant<decltype(Fn), Fn> {
+struct ZmFnPtr<Fn> : public ZuConstant<decltype(Fn), Fn> {
   using R = R_;
   using O = O_;
   using Args = ZuTypeList<Args_...>;
@@ -239,11 +190,14 @@ template <
   typename R_,
   typename ...Args_,
   R_ (O_::*Fn)(Args_...) const>
-struct ZmFnMember<Fn> : public ZuConstant<decltype(Fn), Fn> {
+struct ZmFnPtr<Fn> : public ZuConstant<decltype(Fn), Fn> {
   using R = R_;
   using O = const O_;
   using Args = ZuTypeList<Args_...>;
 };
+
+template <typename T> struct ZmIsFnPtr : public ZuFalse { };
+template <auto Fn> struct ZmIsFnPtr<ZmFnPtr<Fn>> : public ZuTrue { };
 
 inline constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
@@ -271,7 +225,7 @@ public:
   template <typename L, typename ...Args__>
   struct IsCallable_<L, ZuTypeList<Args__...>,
     decltype(ZuDeclVal<L &>()(ZuDeclVal<Args__>()...), void())> : public ZuBool<
-      !ZuInspect<ZmAnyFn, L>::Is && !ZmIsFnUnbound<L>{} && !ZmIsFnBound<L>{} &&
+      !ZuInspect<ZmAnyFn, L>::Is && !ZmIsFnPtr<L>{} &&
       ZuInspect<decltype(ZuDeclVal<L &>()(ZuDeclVal<Args__>()...)), R>::Converts
     > { };
   template <typename L>
@@ -288,68 +242,77 @@ public:
   template <typename>
   struct IsUnboundFn : public ZuFalse { };
   template <auto Fn>
-  struct IsUnboundFn<ZmFnUnbound<Fn>> :
+  struct IsUnboundFn<ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnUnbound<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnUnbound<Fn>::Args>{})> { };
+      bool(ZuIsExact<typename ZmFnPtr<Fn>::O, void>{}) &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<Args, typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename Fn, typename R__ = void>
   using MatchUnboundFn = ZuIfT<IsUnboundFn<Fn>{}, R__>;
 
   template <typename, typename>
   struct IsBoundFn : public ZuFalse { };
   template <typename O, auto Fn>
-  struct IsBoundFn<O *, ZmFnBound<Fn>> :
+  struct IsBoundFn<O *, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnBound<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnBound<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnBound<Fn>::Args>{})> { };
+      bool(ZuIsExact<typename ZmFnPtr<Fn>::O, void>{}) &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<
+	typename Args::template Unshift<O *>,
+	typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsBoundFn<const O *, ZmFnBound<Fn>> :
+  struct IsBoundFn<const O *, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnBound<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnBound<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnBound<Fn>::Args>{})> { };
+      bool(ZuIsExact<typename ZmFnPtr<Fn>::O, void>{}) &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<
+	typename Args::template Unshift<const O *>,
+	typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsBoundFn<ZmRef<O>, ZmFnBound<Fn>> :
+  struct IsBoundFn<ZmRef<O>, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnBound<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnBound<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnBound<Fn>::Args>{})> { };
+      bool(ZuIsExact<typename ZmFnPtr<Fn>::O, void>{}) &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<
+	typename Args::template Unshift<ZmRef<O>>,
+	typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsBoundFn<ZmRef<const O>, ZmFnBound<Fn>> :
+  struct IsBoundFn<ZmRef<const O>, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnBound<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnBound<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnBound<Fn>::Args>{})> { };
+      bool(ZuIsExact<typename ZmFnPtr<Fn>::O, void>{}) &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<
+	typename Args::template Unshift<ZmRef<const O>>,
+	typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, typename Fn, typename R__ = void>
   using MatchBoundFn = ZuIfT<IsBoundFn<ZuDecay<O>, Fn>{}, R__>;
 
   template <typename, typename>
   struct IsMemberFn : public ZuFalse { };
   template <typename O, auto Fn>
-  struct IsMemberFn<O *, ZmFnMember<Fn>> :
+  struct IsMemberFn<O *, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnMember<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnMember<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnMember<Fn>::Args>{})> { };
+      ZuInspect<typename ZmFnPtr<Fn>::O, O>::Is &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<Args, typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsMemberFn<const O *, ZmFnMember<Fn>> :
+  struct IsMemberFn<const O *, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnMember<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnMember<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnMember<Fn>::Args>{})> { };
+      ZuInspect<typename ZmFnPtr<Fn>::O, O>::Is &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<Args, typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsMemberFn<ZmRef<O>, ZmFnMember<Fn>> :
+  struct IsMemberFn<ZmRef<O>, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnMember<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnMember<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnMember<Fn>::Args>{})> { };
+      ZuInspect<typename ZmFnPtr<Fn>::O, O>::Is &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<Args, typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, auto Fn>
-  struct IsMemberFn<ZmRef<const O>, ZmFnMember<Fn>> :
+  struct IsMemberFn<ZmRef<const O>, ZmFnPtr<Fn>> :
     public ZuBool<
-      ZuInspect<typename ZmFnMember<Fn>::O, O>::Is &&
-      ZuInspect<typename ZmFnMember<Fn>::R, R>::Converts &&
-      bool(ZuTLConverts<Args, typename ZmFnMember<Fn>::Args>{})> { };
+      ZuInspect<typename ZmFnPtr<Fn>::O, O>::Is &&
+      ZuInspect<typename ZmFnPtr<Fn>::R, R>::Converts &&
+      bool(ZuTLConverts<Args, typename ZmFnPtr<Fn>::Args>{})> { };
   template <typename O, typename Fn, typename R__ = void>
   using MatchMemberFn = ZuIfT<IsMemberFn<ZuDecay<O>, Fn>{}, R__>;
 
@@ -372,7 +335,7 @@ public:
   ZmFn(O &&o, L &&l) :
       ZmAnyFn{fn(ZuFwd<O>(o), ZuFwd<L>(l))} { }
 
-  // member function pointers via ZmFnMember<>
+  // member function pointers via ZmFnPtr<>
   template <
     typename O, typename Fn,
     decltype(MatchMemberFn<O, Fn>(), int()) = 0>
@@ -381,7 +344,7 @@ public:
       &MemberInvoker<ZuDeref<O>, typename Fn::T(fn)>::invoke,
       ZuFwd<O>(o)} { }
 
-  // bound function pointers via ZmFnBound<>
+  // bound function pointers via ZmFnPtr<>
   template <
     typename O, typename Fn,
     decltype(MatchBoundFn<O, Fn>(), int()) = 0>
@@ -390,7 +353,7 @@ public:
       &BoundInvoker<ZuDeref<O>, typename Fn::T(fn)>::invoke,
       ZuFwd<O>(o)} { }
 
-  // plain function pointers via ZmFnUnbound<>
+  // plain function pointers via ZmFnPtr<>
   template <
     typename Fn,
     decltype(MatchUnboundFn<Fn>(), int()) = 0>
