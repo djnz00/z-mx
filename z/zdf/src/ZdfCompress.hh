@@ -81,24 +81,22 @@ public:
   template <typename L>
   bool seek(unsigned offset, L l) {
     while (offset) {
-      if (m_rle) {
-	if (m_rle >= offset) {
-	  l(m_prev, offset);
-	  m_offset += offset;
-	  m_rle -= offset;
-	  return true;
-	}
-	l(m_prev, m_rle);
-	m_offset += m_rle;
-	offset -= m_rle;
-	m_rle = 0;
-      } else {
-	int64_t value;
-	if (!read_(&value)) return false;
-	l(value, 1);
-	++m_offset;
-	--offset;
+      int64_t value;
+      if (m_rle)
+	value = m_prev;
+      else if (!read_(&value))
+	return false;
+      ++m_rle;
+      if (m_rle >= offset) {
+	l(value, offset);
+	m_offset += offset;
+	m_rle -= offset;
+	return true;
       }
+      l(value, m_rle);
+      m_offset += m_rle;
+      offset -= m_rle;
+      m_rle = 0;
     }
     return true;
   }
@@ -108,7 +106,7 @@ public:
   // search ends when skip < runlength
   template <typename L>
   bool search(L l) {
-    const uint8_t *origPos;
+    const uint8_t *prevPos;
     unsigned skip;
     if (m_rle) {
       skip = l(m_prev, m_rle);
@@ -117,11 +115,11 @@ public:
     }
     int64_t value;
     for (;;) {
-      origPos = m_pos;
+      prevPos = m_pos;
       if (!read_(&value)) return false;
-      skip = l(value, 1 + m_rle);
+      skip = l(value, m_rle + 1);
       if (!skip) {
-	m_pos = origPos;
+	m_pos = prevPos;
 	return true;
       }
       ++m_offset;
@@ -396,19 +394,19 @@ public:
   // seek forward
   bool seek(unsigned offset) {
     return Base::seek(offset,
-	[this](int64_t skip, unsigned offset) {
-	  m_base += skip * offset;
-	});
+      [this](int64_t skip, unsigned rle) {
+	m_base += skip * rle;
+      });
   }
 
   // seek forward
   template <typename L>
   bool seek(unsigned offset, L l) {
     return Base::seek(offset,
-	[this, l = ZuMv(l)](int64_t skip, unsigned offset) {
-	  for (unsigned i = 0; i < offset; i++)
-	    l(m_base += skip, 1);
-	});
+      [this, l = ZuMv(l)](int64_t skip, unsigned rle) {
+	for (unsigned i = 0; i < rle; i++)
+	  l(m_base += skip, 1);
+      });
   }
 
   // search forward
@@ -526,10 +524,10 @@ public:
   bool search(L l) {
     double value;
     for (;;) {
-      auto orig = save();
+      auto prev = save();
       if (!read_(&value)) return false;
       if (!l(value, 1)) {
-	load(orig);
+	load(prev);
 	return true;
       }
       ++m_offset;

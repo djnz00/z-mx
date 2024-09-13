@@ -69,12 +69,12 @@ struct BlkFixed {
   NDP		ndp;
 };
 ZfbFieldTbl(BlkFixed,
-  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
-  (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
-  (((last),	(Ctor<2>, Mutable)),				(Int64)),
-  (((count),	(Ctor<4>, Mutable)),				(UInt16)),
-  (((ndp),	(Ctor<5>, Mutable)),				(UInt8)));
+  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>)),		(UInt32)),
+  (((blkOffset),(Ctor<0>, Keys<0>)),			(UInt64)),
+  (((offset),	(Ctor<1>, Mutable)),			(UInt64)),
+  (((last),	(Ctor<2>, Mutable)),			(Int64)),
+  (((count),	(Ctor<4>, Mutable)),			(UInt16)),
+  (((ndp),	(Ctor<5>, Mutable)),			(UInt8)));
 ZfbRoot(BlkFixed);
 
 struct BlkFloat {
@@ -85,11 +85,11 @@ struct BlkFloat {
   BlkCount	count;
 };
 ZfbFieldTbl(BlkFloat,
-  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),
-  (((blkOffset),(Ctor<0>, Keys<0>, Descend<0>)),		(UInt64)),
-  (((offset),	(Ctor<1>, Mutable)),				(UInt64)),
-  (((last),	(Ctor<2>, Mutable)),				(Float)),
-  (((count),	(Ctor<4>, Mutable)),				(UInt16)));
+  (((seriesID),	(Ctor<3>, Keys<0>, Group<0>)),		(UInt32)),
+  (((blkOffset),(Ctor<0>, Keys<0>)),			(UInt64)),
+  (((offset),	(Ctor<1>, Mutable)),			(UInt64)),
+  (((last),	(Ctor<2>, Mutable)),			(Float)),
+  (((count),	(Ctor<4>, Mutable)),			(UInt16)));
 ZfbRoot(BlkFloat);
 
 using BlkDataBuf = ZuArray<uint8_t, BlkSize>;

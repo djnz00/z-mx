@@ -72,6 +72,8 @@ struct ZmAlloc_ {
 
   operator T *() const { return ptr; }
   T *operator ->() const { return ptr; }
+  T &operator [](unsigned i) { return ptr[i]; }
+  const T &operator [](unsigned i) const { return ptr[i]; }
 };
 
 #define ZmAlloc(T, n) \

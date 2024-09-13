@@ -120,15 +120,16 @@ struct Test {
       });
   }
   template <typename Ctrl>
-  void run_read2(Ctrl rc, ZuFixed v) {
+  void run_read2(Ctrl rc, ZuFixed) {
     df->seek<ZtField(Frame, v2)>(
-      rc.stop(), {this, ZmFnPtr<&Test::run_read3<Ctrl>>{}}, []{
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
   }
   template <typename Ctrl>
   void run_read3(Ctrl rc, ZuFixed v) {
+    std::cout << "v=" << v << '\n';
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
@@ -136,21 +137,37 @@ struct Test {
   }
   template <typename Ctrl>
   void run_read4(Ctrl rc, ZuFixed v) {
-    std::cout << "offset=" << rc.reader.offset() << '\n';
-    std::cout << "v=" << v << '\n';
     CHECK(v.mantissa == 200 * 42);
+    CHECK(v.ndp == 9);
+    df->seek<ZtField(Frame, v1)>(
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read4 failed");
+	done.post();
+      });
+  }
+  template <typename Ctrl>
+  void run_read5(Ctrl rc, ZuFixed) {
+    rc.fn({this, ZmFnPtr<&Test::run_read6<Ctrl>>{}});
+    rc.findRev(ZuFixed{100, 0});
+  }
+  template <typename Ctrl>
+  void run_read6(Ctrl rc, ZuFixed) {
+    df->seek<ZtField(Frame, v2)>(
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read6 failed");
+	done.post();
+      });
+  }
+  template <typename Ctrl>
+  void run_read7(Ctrl rc, ZuFixed v) {
+    CHECK(v.mantissa == 100 * 42);
     CHECK(v.ndp == 9);
     rc.stop();
     done.post();
   }
 };
+
 #if 0
-    index.findFwd(
-    std::cout << "offset=" << index.offset() << '\n';
-    reader.seekFwd(index.offset());
-    CHECK(reader.read(v));
-    index.findRev(ZuFixed{100, 0});
-    std::cout << "offset=" << index.offset() << '\n';
     reader.seekRev(index.offset());
     AnyReader cleaner;
     {
