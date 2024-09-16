@@ -69,7 +69,7 @@ struct Frame {
 };
 ZtFieldTbl(Frame,
   (((v1),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
-  (((v2, Fn),	(Series, Delta, NDP<9>)),		(Float)));
+  (((v2),	(Series, NDP<9>)),			(Float)));
 
 void usage() {
   std::cerr << "Usage: zdffptest\n" << std::flush;
@@ -102,9 +102,10 @@ struct Test {
     Frame frame;
     for (uint64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
-      frame.v2_ = i * 42;
+      frame.v2 = (double(i) * 42) / 1000000000;
       w->write(frame);
     }
+    w->stop();
     df->run([this]() { run_read1(); });
   }
   void run_read1() {
@@ -118,8 +119,10 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read2(Ctrl rc, ZuFixed) {
-    df->seek<ZtField(Frame, v2)>(
-      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<Ctrl>>{}}, []{
+    using Field = ZtField(Frame, v2);
+    using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
+    df->seek<Field>(
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<V2Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
@@ -128,6 +131,7 @@ struct Test {
   template <typename Ctrl>
   bool run_read3(Ctrl rc, double v) {
     std::cout << "v=" << v << '\n';
+    std::cout << v << '\n';
     CHECK(v == 0.00000084);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(0.0000084);
@@ -135,9 +139,12 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read4(Ctrl rc, double v) {
+    std::cout << v << '\n';
     CHECK(v == 0.0000084);
-    df->seek<ZtField(Frame, v1)>(
-      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<Ctrl>>{}}, []{
+    using Field = ZtField(Frame, v1);
+    using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
+    df->seek<Field>(
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<V1Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read4 failed");
 	done.post();
       });
@@ -151,15 +158,18 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read6(Ctrl rc, ZuFixed) {
-    df->seek<ZtField(Frame, v2)>(
-      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<Ctrl>>{}}, []{
+    using Field = ZtField(Frame, v2);
+    using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
+    df->seek<Field>(
+      rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<V2Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read6 failed");
 	done.post();
       });
     return true;
   }
   template <typename Ctrl>
-  bool run_read7(Ctrl rc, ZuFixed v) {
+  bool run_read7(Ctrl rc, double v) {
+    std::cout << v << '\n';
     CHECK(v == 0.0000042);
     rc.stop();
     done.post();

@@ -231,94 +231,6 @@ template <typename T> using ZuMkRRef = T &&;
 template <typename T> using ZuMkLRef = T &;
 template <typename T> using ZuMkCRef = const T &;
 
-// shorthand constexpr std::forward without STL cruft
-template <typename T>
-inline constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
-  return static_cast<T &&>(v);
-}
-template <typename T>
-inline constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
-  return static_cast<T &&>(v);
-}
-// shorthand constexpr std::move without STL cruft
-template <typename T>
-inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
-  return static_cast<ZuDeref<T> &&>(v);
-}
-
-// generic RAII guard
-template <typename L> struct ZuGuard {
-  L	fn;
-  bool	cancelled = false;
-
-  ZuGuard(L fn_) : fn{ZuMv(fn_)} { }
-  ~ZuGuard() { if (!cancelled) fn(); }
-  ZuGuard(const ZuGuard &) = delete;
-  ZuGuard &operator =(const ZuGuard &) = delete;
-  ZuGuard(ZuGuard &&o) : fn{ZuMv(o.fn)} { o.cancelled = true; }
-  ZuGuard &operator =(ZuGuard &&o) {
-    if (this != &o) { this->~ZuGuard(); new (this) ZuGuard{ZuMv(o)}; }
-    return *this;
-  }
-
-  void cancel() { cancelled = true; }
-  void cancel(bool v) { cancelled = v; }
-};
-
-// safe bool idiom, given operator !()
-#define ZuOpBool \
-  operator const void *() const { \
-    return !*this ? \
-      reinterpret_cast<const void *>(0) : \
-      static_cast<const void *>(this); \
-  }
-
-// generic binding of universal references for move/copy
-// ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
-template <typename T_> struct ZuBind {
-  using T = ZuDecay<T_>;
-
-  template <typename Mv, typename Cp>
-  static constexpr auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
-  template <typename Mv, typename Cp>
-  static constexpr auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
-
-  // undefined - ensures that parameter is movable at compile time
-  template <typename Mv>
-  static void mv(const T &v, Mv); // undefined
-
-  template <typename Mv>
-  static constexpr auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
-
-  template <typename Cp>
-  static constexpr auto cp(const T &v, Cp cp_) { return cp_(v); }
-
-  // undefined - ensures that parameter is not movable at compile time
-  template <typename Cp>
-  static void cp(T &&v, Cp); // undefined
-};
-
-// compile-time ?:
-// ZuIf<typename B, typename T1, typename T2> evaluates to B ? T1 : T2
-template <typename T1, typename T2, bool B> struct ZuIf_;
-template <typename T1, typename T2> struct ZuIf_<T1, T2, true> {
-  using T = T1;
-};
-template <typename T1, typename T2> struct ZuIf_<T1, T2, false> {
-  using T = T2;
-};
-template <bool B, typename T1, typename T2>
-using ZuIf = typename ZuIf_<T1, T2, B>::T;
-
-// alternative for std::enable_if
-// - compile-time SFINAE (substitution failure is not an error)
-// ZuIfT<bool B, typename T = void> evaluates to T (default void)
-// if B is true, or is a substitution failure if B is false
-template <bool, typename U = void> struct ZuIfT_ { };
-template <typename U> struct ZuIfT_<true, U> { using T = U; };
-template <bool B, typename U = void>
-using ZuIfT = typename ZuIfT_<B, U>::T;
-
 // constexpr instantiable constants
 template <typename T_, T_ V> struct ZuConstant {
   using T = T_;
@@ -330,31 +242,6 @@ template <unsigned I> using ZuUnsigned = ZuConstant<unsigned, I>;
 template <auto B> using ZuBool = ZuConstant<bool, static_cast<bool>(B)>;
 using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
 using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
-
-// alternative for std::declval
-template <typename U> struct ZuDeclVal__ { using T = U; };
-template <typename T> auto ZuDeclVal_(int) -> typename ZuDeclVal__<T&&>::T;
-template <typename T> auto ZuDeclVal_(...) -> typename ZuDeclVal__<T>::T;
-template <typename U> decltype(ZuDeclVal_<U>(0)) ZuDeclVal();
- 
-// alternative for std::void_t
-template <typename ...> struct ZuVoid_ { using T = void; };
-template <typename ...Ts> using ZuVoid = typename ZuVoid_<Ts...>::T;
-
-// sizeof(void) and empty-class handling:
-// - ZuSize<T>{} is 0 if T is void or an empty class
-// - ZuSize<T>{} is sizeof(T) otherwise
-template <typename T, bool = __is_empty(T)>
-struct ZuSize__ : public ZuUnsigned<sizeof(T)> { };
-template <typename T>
-struct ZuSize__<T, true> : public ZuUnsigned<0> { };
-template <typename T, typename = void>
-struct ZuSize_ : public ZuUnsigned<sizeof(T)> { };
-template <typename T>
-struct ZuSize_<T, decltype(sizeof(T), (int T::*){}, void())> :
-public ZuSize__<T> { };
-template <typename T> struct ZuSize : public ZuSize_<T> { };
-template <> struct ZuSize<void> : public ZuUnsigned<0> { };
 
 // cv checking
 template <typename U> struct ZuIsConst : public ZuFalse { };
@@ -425,6 +312,136 @@ template <typename U, typename R>
 struct ZuNotLRef_<U, R, true> { using T = R; };
 template <typename U, typename R = void>
 using ZuNotLRef = typename ZuNotLRef_<U, R>::T;
+
+// shorthand constexpr std::forward without STL cruft
+template <typename T>
+inline constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
+  return static_cast<T &&>(v);
+}
+template <typename T>
+inline constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
+  return static_cast<T &&>(v);
+}
+// shorthand constexpr std::move without STL cruft
+template <typename T>
+inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
+  return static_cast<ZuDeref<T> &&>(v);
+}
+// shorthand constexpr std::forward_like without STL cruft
+template <typename T, typename U>
+inline constexpr auto &&ZuFwdLike(U &&v) noexcept {
+  constexpr bool Const = ZuIsConst<ZuDeref<T>>{};
+  if constexpr (ZuIsLRef<T &&>{}) {
+    if constexpr (Const)
+      return static_cast<ZuMkConst<ZuDeref<U>> &>(v);
+    else
+      return static_cast<U &>(v);
+  } else {
+    if constexpr (Const)
+      return ZuMv(static_cast<ZuMkConst<ZuDeref<U>> &>(v));
+    else
+      return ZuMv(v);
+  }
+}
+
+// generic RAII guard
+template <typename L> struct ZuGuard {
+  L	fn;
+  bool	cancelled = false;
+
+  ZuGuard(L fn_) : fn{ZuMv(fn_)} { }
+  ~ZuGuard() { if (!cancelled) fn(); }
+  ZuGuard(const ZuGuard &) = delete;
+  ZuGuard &operator =(const ZuGuard &) = delete;
+  ZuGuard(ZuGuard &&o) : fn{ZuMv(o.fn)} { o.cancelled = true; }
+  ZuGuard &operator =(ZuGuard &&o) {
+    if (this != &o) { this->~ZuGuard(); new (this) ZuGuard{ZuMv(o)}; }
+    return *this;
+  }
+
+  void cancel() { cancelled = true; }
+  void cancel(bool v) { cancelled = v; }
+};
+
+// safe bool idiom, given operator !()
+#define ZuOpBool \
+  operator const void *() const { \
+    return !*this ? \
+      reinterpret_cast<const void *>(0) : \
+      static_cast<const void *>(this); \
+  }
+
+// generic discrimination of forwarding references for move/copy
+// - discriminates rvalue references from everything else
+// ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
+template <typename T_> struct ZuBind {
+  using T = ZuDecay<T_>;
+
+  template <typename Mv, typename Cp>
+  static constexpr auto mvcp(const T &v, Mv, Cp cp_) { return cp_(v); }
+  template <typename Mv, typename Cp>
+  static constexpr auto mvcp(T &&v, Mv mv_, Cp) { return mv_(ZuMv(v)); }
+
+  // undefined - ensures that parameter is movable at compile time
+  template <typename Mv>
+  static void mv(const T &v, Mv); // undefined
+
+  template <typename Mv>
+  static constexpr auto mv(T &&v, Mv mv_) { return mv_(ZuMv(v)); }
+
+  template <typename Cp>
+  static constexpr auto cp(const T &v, Cp cp_) { return cp_(v); }
+
+  // undefined - ensures that parameter is not movable at compile time
+  template <typename Cp>
+  static void cp(T &&v, Cp); // undefined
+};
+
+// compile-time ?:
+// ZuIf<typename B, typename T1, typename T2> evaluates to B ? T1 : T2
+template <typename T1, typename T2, bool B> struct ZuIf_;
+template <typename T1, typename T2> struct ZuIf_<T1, T2, true> {
+  using T = T1;
+};
+template <typename T1, typename T2> struct ZuIf_<T1, T2, false> {
+  using T = T2;
+};
+template <bool B, typename T1, typename T2>
+using ZuIf = typename ZuIf_<T1, T2, B>::T;
+
+// alternative for std::enable_if
+// - compile-time SFINAE (substitution failure is not an error)
+// ZuIfT<bool B, typename T = void> evaluates to T (default void)
+// if B is true, or is a substitution failure if B is false
+template <bool, typename U = void> struct ZuIfT_ { };
+template <typename U> struct ZuIfT_<true, U> { using T = U; };
+template <bool B, typename U = void>
+using ZuIfT = typename ZuIfT_<B, U>::T;
+
+// alternative for std::declval
+template <typename U> struct ZuDeclVal__ { using T = U; };
+template <typename T> auto ZuDeclVal_(int) -> typename ZuDeclVal__<T&&>::T;
+template <typename T> auto ZuDeclVal_(...) -> typename ZuDeclVal__<T>::T;
+template <typename U> decltype(ZuDeclVal_<U>(0)) ZuDeclVal();
+
+// alternative for std::void_t
+template <typename ...> struct ZuVoid_ { using T = void; };
+template <typename ...Ts> using ZuVoid = typename ZuVoid_<Ts...>::T;
+
+// sizeof(void) and empty-class handling:
+// - ZuSize<T>{} is 0 if T is void or an empty class
+// - ZuSize<T>{} is sizeof(T) otherwise
+template <typename T, bool = __is_empty(T)>
+struct ZuSize__ : public ZuUnsigned<sizeof(T)> { };
+template <typename T>
+struct ZuSize__<T, true> : public ZuUnsigned<0> { };
+template <typename T, typename = void>
+struct ZuSize_ : public ZuUnsigned<sizeof(T)> { };
+template <typename T>
+struct ZuSize_<T, decltype(sizeof(T), (int T::*){}, void())> :
+public ZuSize__<T> { };
+template <typename T> struct ZuSize : public ZuSize_<T> { };
+template <> struct ZuSize<void> : public ZuUnsigned<0> { };
 
 // recursive decay (for pair, tuple, union, etc.)
 struct ZuDefaultRDecayer {

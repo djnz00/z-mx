@@ -309,7 +309,13 @@ private:
   bool		m_failed = false;
 };
 template <typename Decoder, typename Heap, typename PValue = Decoder::Value>
-class Writer_ : public Writer__<Decoder, Heap, PValue> { };
+class Writer_ : public Writer__<Decoder, Heap, PValue> {
+  using Base = Writer__<Decoder, Heap, PValue>;
+protected:
+  using Base::Base;
+public:
+  virtual ~Writer_() = default;
+};
 template <typename Decoder, typename Heap>
 class Writer_<Decoder, Heap, int64_t> :
   public Writer__<Decoder, Heap, int64_t>
@@ -634,9 +640,14 @@ private:
     BlkOffset blkOffset = row.template p<1>();
     auto blk = setBlk(blkOffset);
     if (!blk) return false;
+    NDP ndp;
+    if constexpr (Fixed)
+      ndp = row.template p<5>();
+    else
+      ndp = 0;
     blk->init(
       row.template p<2>(), row.template p<4>(),
-      row.template p<5>(), row.template p<3>());
+      ndp, row.template p<3>());
     m_lastBlk = blk;
     m_lastBlkOffset = blkOffset;
     return true;
@@ -894,8 +905,8 @@ private:
 	.last = lastFn(m_lastBlk),
 	.seriesID = id(),
 	.count = m_lastBlk->count(),
-	.ndp = m_lastBlk->ndp()
       };
+      if constexpr (Fixed) dbBlk->ptr()->ndp = m_lastBlk->ndp();
       blkTbl()->insert(
 	shard(), ZuMv(dbBlk),
 	[](ZdbObject<DBBlk> *dbBlk) { if (dbBlk) dbBlk->commit(); });
@@ -916,7 +927,7 @@ private:
 	  data.offset = this_->m_lastBlk->offset();
 	  data.last = lastFn(this_->m_lastBlk);
 	  data.count = this_->m_lastBlk->count();
-	  data.ndp = this_->m_lastBlk->ndp();
+	  if constexpr (Fixed) data.ndp = this_->m_lastBlk->ndp();
 	  dbBlk->commit();
 	});
       blkDataTbl()->template update<>(
@@ -1022,11 +1033,12 @@ private:
       // get last value from containing blk
       auto blk = getBlk(i);
       ZeAssert(blk, (), "internal error - null blk", throw InternalError{});
-      value = ZuFixed{blk->last.fixed, blk->ndp()};
       if constexpr (Fixed) {
+	value = ZuFixed{blk->last.fixed, blk->ndp()};
 	double target_ = target.fp(), value_ = value.fp();
 	if (target_ > value_) return target_ - value_;
       } else {
+	value = blk->last.float_;
 	if (target > value) return target - value;
       }
       return 0;

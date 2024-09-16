@@ -665,6 +665,7 @@ public:
     if (ZuUnlikely(!value)) {
       if (ZuUnlikely(!this->avail<2>())) return false;
       out<2>(0);
+      ++m_offset;
       return true;
     }
     unsigned lz = lzround[ZuIntrin::clz(value)];
@@ -688,6 +689,7 @@ public:
       m_prevLZ = lz;
     }
     m_prev ^= value;
+    ++m_offset;
     return true;
   }
 

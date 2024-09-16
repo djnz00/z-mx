@@ -197,6 +197,7 @@ public:
   DFWriter_ &operator =(DFWriter_ &&) = default;
   ~DFWriter_() = default;
 
+  bool stopped() const { return m_stopped; }
   bool failed() const { return m_failed; }
 
 private:
@@ -208,6 +209,8 @@ private:
 public:
   void write(const O &o) {
     using namespace ZtFieldTypeCode;
+
+    if (m_stopped) return;
 
     bool ok = true;
     ZuUnroll::all<WrRefs::N>([this, &o, &ok](auto I) {
@@ -237,25 +240,17 @@ public:
     if (!ok) fail();
   }
 
-  using StopFn = ZmFn<void()>;
-private:
-  struct StopContext : public ZmObject {
-    StopFn		fn;
-
-    ~StopContext() { fn(); }
-  };
-
 public:
-  void stop(StopFn fn) {
-    ZmRef<StopContext> context = new StopContext{ZuMv(fn)};
-    ZuUnroll::all<WrRefs::N>([this, &context](auto I) {
-      m_wrRefs.template p<I>()->stop([context]() { });
-    });
+  void stop() {
+    if (ZuUnlikely(m_stopped)) return;
+    m_stopped = true;
+    m_wrRefs = {}; // causes individual Writer::stop()
+    m_errorFn = ErrorFn{};
   }
 
   void fail() {
     if (ZuUnlikely(m_failed)) return;
-    m_failed = true;
+    m_failed = m_stopped = true;
     m_wrRefs = {};
     ErrorFn errorFn = ZuMv(m_errorFn);
     errorFn();
@@ -265,6 +260,7 @@ private:
   DataFrame	*m_df = nullptr;
   ErrorFn	m_errorFn;
   WrRefs	m_wrRefs;
+  bool		m_stopped = false;
   bool		m_failed = false;
 };
 inline constexpr const char *DFWriter_HeapID() { return "Zdf.DFWriter"; }

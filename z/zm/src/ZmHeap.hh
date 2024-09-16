@@ -387,7 +387,7 @@ template <typename Heap>
 ZmHeap_Init<Heap>::ZmHeap_Init() { delete new Heap(); }
 
 template <auto ID, unsigned Size, unsigned Align, bool Sharded>
-ZmHeap_Init<ZmHeap__<ID, Size, Align, Sharded>>
+inline ZmHeap_Init<ZmHeap__<ID, Size, Align, Sharded>>
 ZmHeap__<ID, Size, Align, Sharded>::m_init;
 
 // sentinel heap ID used to disable ZmHeap

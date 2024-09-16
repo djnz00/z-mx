@@ -14,7 +14,7 @@ LDADD = $(top_builddir)/zdf/src/libZdf.la \
 	$(top_builddir)/ze/src/libZe.la $(top_builddir)/zt/src/libZt.la \
 	$(top_builddir)/zm/src/libZm.la $(top_builddir)/zu/src/libZu.la \
 	@MBEDTLS_LIBS@ @Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-noinst_PROGRAMS = zdfseriestest zdfcompresstest zdfstoretest zdftest zdfstatstest
+noinst_PROGRAMS = zdfseriestest zdfcompresstest zdfstoretest zdftest zdfstatstest zdffptest
 zdfcompresstest_SOURCES = zdfcompresstest.cc
 zdfstoretest_SOURCES = zdfstoretest.cc
 zdfstoretest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
@@ -24,4 +24,4 @@ zdftest_SOURCES = zdftest.cc
 zdftest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
 zdfstatstest_SOURCES = zdfstatstest.cc
 zdffptest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
-zdffptest_SOURCES = zfffptest.cc
+zdffptest_SOURCES = zdffptest.cc
