@@ -65,17 +65,14 @@ void gtfo()
 
 struct Frame {
   uint64_t	v1;
-  int64_t	v2_;
-
-  ZuFixed v2() const { return ZuFixed{v2_, 9}; }
-  void v2(ZuFixed v) { v2_ = v.adjust(9); }
+  double	v2;
 };
 ZtFieldTbl(Frame,
   (((v1),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
-  (((v2, Fn),	(Series, Delta, NDP<9>)),		(Fixed)));
+  (((v2, Fn),	(Series, Delta, NDP<9>)),		(Float)));
 
 void usage() {
-  std::cerr << "Usage: zdftest\n" << std::flush;
+  std::cerr << "Usage: zdffptest\n" << std::flush;
   ::exit(1);
 }
 
@@ -129,18 +126,16 @@ struct Test {
     return true;
   }
   template <typename Ctrl>
-  bool run_read3(Ctrl rc, ZuFixed v) {
+  bool run_read3(Ctrl rc, double v) {
     std::cout << "v=" << v << '\n';
-    CHECK(v.mantissa == 20 * 42);
-    CHECK(v.ndp == 9);
+    CHECK(v == 0.00000084);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
-    rc.findFwd(ZuFixed{200 * 42, 9});
+    rc.findFwd(0.0000084);
     return true;
   }
   template <typename Ctrl>
-  bool run_read4(Ctrl rc, ZuFixed v) {
-    CHECK(v.mantissa == 200 * 42);
-    CHECK(v.ndp == 9);
+  bool run_read4(Ctrl rc, double v) {
+    CHECK(v == 0.0000084);
     df->seek<ZtField(Frame, v1)>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read4 failed");
@@ -165,8 +160,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read7(Ctrl rc, ZuFixed v) {
-    CHECK(v.mantissa == 100 * 42);
-    CHECK(v.ndp == 9);
+    CHECK(v == 0.0000042);
     rc.stop();
     done.post();
     return true;

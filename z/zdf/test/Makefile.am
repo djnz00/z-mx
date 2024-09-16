@@ -23,3 +23,5 @@ zdfseriestest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
 zdftest_SOURCES = zdftest.cc
 zdftest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
 zdfstatstest_SOURCES = zdfstatstest.cc
+zdffptest_LDADD = $(top_builddir)/zdb/src/libZdbMem.la ${LDADD}
+zdffptest_SOURCES = zfffptest.cc

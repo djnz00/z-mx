@@ -164,6 +164,7 @@ struct Test {
 	  break;
       }
       if (i >= 308) rc.stop([this]() { run_read2(); });
+      return true;
     }, []() {
       ZeLOG(Fatal, "read failed");
       gtfo();
@@ -173,6 +174,7 @@ struct Test {
     series->find(ZuFixed{425, 1}, [this](auto rc, ZuFixed v) {
       CHECK(v.mantissa == 4301 && v.ndp == 2);
       rc.stop([this]() { run_read3(); });
+      return true;
     }, []() {
       ZeLOG(Fatal, "read2 failed");
       gtfo();
@@ -183,6 +185,7 @@ struct Test {
       CHECK(v.mantissa == 4302 && v.ndp == 2);
       rc.purge();
       rc.stop([this]() { run_read4(); });
+      return true;
     }, []() {
       ZeLOG(Fatal, "read3 failed");
       gtfo();
@@ -192,6 +195,7 @@ struct Test {
     series->find(ZuFixed{44, 0}, [this](auto rc, ZuFixed v) {
       CHECK(!*v);
       rc.stop([this]() { run_read5(); });
+      return true;
     }, []() {
       ZeLOG(Fatal, "read4 failed");
       gtfo();

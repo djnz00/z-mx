@@ -159,15 +159,11 @@ friend Ctrl;
     auto ref() const { return ZmRef<Reader>{&reader}; }
 
     // app's read callback
-    using Fn = ZmFn<void(Ctrl, Value)>;
+    using Fn = ZmFn<bool(Ctrl, Value)>;
 
     // update callback
     void fn(Fn fn) { reader.fn(ZuMv(fn)); }
     void errorFn(ErrorFn fn) { reader.errorFn(ZuMv(fn)); }
-
-    // pause further reading
-    bool paused() const { return reader.paused(); }
-    void pause();
 
     // yield reading to permit other work to run
     void yield();
@@ -191,8 +187,7 @@ friend Ctrl;
     Offset stop(StopFn = {});
   };
 
-  // app's read callback
-  using Fn = ZmFn<void(Ctrl, Value)>;
+  using Fn = Ctrl::Fn;
 
   // resume reading (idempotent)
   void resume();
@@ -218,7 +213,6 @@ private:
   void fn(Fn fn) { m_fn = ZuMv(fn); }
   void errorFn(ErrorFn fn) { m_errorFn = ZuMv(fn); }
 
-  void pause();
   void yield() { m_yield = true; }
 
   void loadBlk();
@@ -1107,12 +1101,6 @@ inline Offset Reader<Decoder>::offset() const
 }
 
 template <typename Decoder>
-inline void Reader<Decoder>::Ctrl::pause()
-{
-  reader.pause();
-}
-
-template <typename Decoder>
 inline void Reader<Decoder>::Ctrl::yield()
 {
   reader.yield();
@@ -1155,9 +1143,9 @@ inline void Reader<Decoder>::seek(
   m_decoder = {};
   m_blk->blkData->unpin();
   if (m_state == Live) {
+    m_state = Reading;
     m_series->delLiveReader(this);
     m_series->addHistReader(this);
-    m_state = Reading;
   }
   m_blkOffset = blkOffset;
   m_blk = blk;
@@ -1169,12 +1157,6 @@ inline Offset Reader<Decoder>::Ctrl::stop(StopFn fn)
 {
   reader.yield();
   return reader.stop(ZuMv(fn));
-}
-
-template <typename Decoder>
-inline void Reader<Decoder>::pause()
-{
-  m_paused = true;
 }
 
 template <typename Decoder>
@@ -1386,37 +1368,46 @@ inline int Reader<Decoder>::nextValue()
 	(state = int(m_state)), "invalid state " << state, goto fail);
   }
 
+  if (m_state != Reading && m_state != Live) return RdrResult::Stopped;
+
   if (m_paused) return RdrResult::Paused;
 
-  while (m_state == Reading || m_state == Live) {
+  for (;;) {
     typename Decoder::Value value;
     if (ZuUnlikely(!m_decoder.read(value))) {
       int r = nextBlk();
       if (ZuLikely(r == RdrResult::OK)) continue;
       if (r != RdrResult::EOS) return r;
       if constexpr (ZuIsExact<Value, ZuFixed>{})
-	m_fn(Ctrl{*this}, ZuFixed{});
+	m_paused = !m_fn(Ctrl{*this}, ZuFixed{});
       else
-	m_fn(Ctrl{*this}, ZuFP<double>::nan());
-      if (m_paused) return RdrResult::Paused;
+	m_paused = !m_fn(Ctrl{*this}, ZuFP<double>::nan());
       if (m_state != Stopping) return r;
-      break;
+      if (m_paused) return RdrResult::Paused;
+      return RdrResult::Stopped;
     }
 
     if constexpr (ZuIsExact<Value, ZuFixed>{})
-      m_fn(Ctrl{*this}, ZuFixed{value, ndp()});
+      m_paused = !m_fn(Ctrl{*this}, ZuFixed{value, ndp()});
     else
-      m_fn(Ctrl{*this}, value);
-    if (m_paused) return RdrResult::Paused;
+      m_paused = !m_fn(Ctrl{*this}, value);
+
+    if (m_state != Reading && m_state != Live) {
+      if (m_yield) m_yield = false;
+      return RdrResult::Stopped;
+    }
+
+    if (m_paused) {
+      if (m_yield) m_yield = false;
+      m_state = Reading;
+      return RdrResult::Paused;
+    }
+
     if (m_yield) {
       m_yield = false;
-      if (m_state == Reading || m_state == Live)
-	m_series->run([this]() { nextValue(); });
       return RdrResult::OK;
     }
   }
-
-  return RdrResult::Stopped;
 }
 
 template <typename Decoder>
