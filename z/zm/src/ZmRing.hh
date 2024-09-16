@@ -5,10 +5,10 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // local memory intra-process ring buffer
-// * single/multiple writers/producers and readers/consumers
+// - single/multiple writers/producers and readers/consumers
 //   - supports SWSR MWSR SWMR MWMR
-// * fixed- and variable-sized messages (types)
-// * MR is broadcast
+// - fixed- and variable-sized messages (types)
+// - MR is broadcast
 //   - for unicast, shard writes to multiple MWSR ring buffers
 //   - most applications require sharding to ensure correct sequencing,
 //     and sharding to multiple ring buffers is more performant than
@@ -57,10 +57,10 @@ inline constexpr auto Defaults_SizeAxor() {
   return [](const void *) { return 0; };
 }
 struct Defaults {
-  using T = void;					// variable-sized
+  using T = void;	// variable-sized
   static constexpr auto SizeAxor = Defaults_SizeAxor();
-  enum { MW = 0 };
-  enum { MR = 0 };
+  enum { MW = 0 };	// default to single-writer
+  enum { MR = 0 };	// default to single-reader
 };
 
 } // ZmRing_
@@ -83,7 +83,7 @@ struct ZmRingT<void, NTP> : public NTP {
   static constexpr auto SizeAxor = ZmRing_::Defaults_SizeAxor();
 };
 
-// variable-sized message type
+// SizeAxor is used for variable-sized messages
 template <auto SizeAxor_, typename NTP = ZmRing_::Defaults>
 struct ZmRingSizeAxor : public NTP {
   static constexpr auto SizeAxor = SizeAxor_;
@@ -186,6 +186,8 @@ protected:
 #endif
 };
 
+// use of bit flags in the various modes
+//
 //            head tail hdr
 // Wrapped    *    *     
 // Locked     MW         
@@ -212,6 +214,7 @@ inline constexpr uint32_t Mask32() {
   return Locked32() | EndOfFile32() | Waiting32();
 }
 
+// control block
 class ZmAPI CtrlMem {
 public:
   using Params = ParamData;
@@ -356,6 +359,7 @@ template <> struct AlignFn<false, false> {
   }
 };
 
+// data block
 class ZmAPI DataMem {
 public:
   using Params = ParamData;
@@ -651,7 +655,7 @@ public:
   unsigned size() const { return m_size; }
   static constexpr unsigned ctrlSize() { return sizeof(Ctrl); }
 
-  // how many times push() was delayed by this ring buffer being full
+  // returns how many times push() was delayed by this ring buffer being full
   unsigned full() const { return m_full; }
 
 private:
@@ -819,8 +823,8 @@ private:
 
   // ring buffers rely on clear-ahead if readers wait on the header,
   // i.e. (MW || MR); in this case the head must be prevented from
-  // wrapping around to the tail, to always ensure space for a leading
-  // blank 64bit header at the head, where the next message will be pushed
+  // hitting the tail, maintaining enough space for a blank 64bit header
+  // before the tail where the next message will be pushed
   template <bool V_ = V>
   ZuIfT<!V_, bool> pushFull(uint32_t head, uint32_t tail) {
     head &= ~Mask32();
@@ -1130,12 +1134,12 @@ public:
   }
 
   // EOF signalling is complex:
-  // for SWSR, readers wait on the head, which is signalled with 32bit flags
-  // in all other cases, readers wait on the hdr
-  // wakeReaders() updates either the head, or the hdr, accordingly
-  // ... however readStatus() only examines the head, not the hdr, and
-  // needs to determine EOF, so eof() needs to ensure that both head and hdr
-  // are updated in non-SWSR cases
+  // - for SWSR, readers wait on the head, which is signalled with 32bit flags
+  // - in all other cases, readers wait on the hdr
+  // -  wakeReaders() updates either the head, or the hdr, accordingly
+  //    ... however readStatus() only examines the head, not the hdr, and
+  //    needs to determine EOF, so eof() needs to ensure that both head _and_
+  //    hdr are updated in non-SWSR cases
   template <bool MW_ = MW, bool MR_ = MR>
   ZuIfT<!MW_ && !MR_> eof(bool eof = true) {	// SWSR
     writeAssert();
@@ -1190,9 +1194,9 @@ private:
     return size() - (head - tail);
   }
 public:
-  // can be called by writers after push() returns 0;
-  // returns Error (not open), NotReady (no readers), EndOfFile,
-  // or amount of space remaining in ring buffer (>= 0)
+  // can be called by writers after push() returns 0
+  // - returns Error (not open), NotReady (no readers), EndOfFile,
+  //   or amount of space remaining in ring buffer (>= 0)
   // SR
   template <bool MR_ = MR>
   ZuIfT<!MR_, int> writeStatus() const {

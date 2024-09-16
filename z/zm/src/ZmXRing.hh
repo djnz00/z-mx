@@ -262,21 +262,6 @@ public:
     m_count++;
   }
 
-  // idempotent push
-  template <typename P>
-  void findPush(P &&v) {
-    Guard guard(m_lock);
-
-    for (int i = m_length; --i >= 0; ) {
-      unsigned o = offset(i);
-      if (Cmp::equals(m_data[o], v)) return;
-    }
-    lazy();
-    push();
-    Ops::initItem(m_data + offset(m_length++), ZuFwd<P>(v));
-    m_count++;
-  }
-
   T pop() {
     Guard guard(m_lock);
 
@@ -301,23 +286,6 @@ public:
   void unshift(P &&v) {
     Guard guard(m_lock);
 
-    lazy();
-    push();
-    unsigned o = offset(m_size - 1);
-    m_offset = o, m_length++;
-    Ops::initItem(m_data + o, ZuFwd<P>(v));
-    m_count++;
-  }
-
-  // idempotent unshift
-  template <typename P>
-  void findUnshift(P &&v) {
-    Guard guard(m_lock);
-
-    for (unsigned i = 0; i < m_length; i++) {
-      unsigned o = offset(i);
-      if (Cmp::equals(m_data[o], v)) return;
-    }
     lazy();
     push();
     unsigned o = offset(m_size - 1);
