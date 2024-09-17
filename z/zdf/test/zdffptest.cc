@@ -102,7 +102,7 @@ struct Test {
     Frame frame;
     for (uint64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
-      frame.v2 = (double(i) * 42) / 1000000000;
+      frame.v2 = (double(i) * 42) * .000000001;
       w->write(frame);
     }
     df->run([this]() { run_read1(); });
@@ -130,7 +130,7 @@ struct Test {
   template <typename Ctrl>
   bool run_read3(Ctrl rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
-    CHECK(v == 0.00000084);
+    CHECK(ZuBoxed(v).feq(0.00000084));
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(0.0000084);
     return true;
@@ -138,7 +138,7 @@ struct Test {
   template <typename Ctrl>
   bool run_read4(Ctrl rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
-    CHECK(v == 0.0000084);
+    CHECK(ZuBoxed(v).feq(0.0000084));
     using Field = ZtField(Frame, v1);
     using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
@@ -168,7 +168,7 @@ struct Test {
   template <typename Ctrl>
   bool run_read7(Ctrl rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
-    CHECK(v == 0.0000042);
+    CHECK(ZuBoxed(v).feq(0.0000042));
     rc.stop();
     done.post();
     return true;

@@ -496,7 +496,11 @@ public:
   // seek forward
   bool seek(unsigned offset) {
     while (offset) {
-      if (!read_(nullptr)) return false;
+      auto context = save();
+      if (!read_(nullptr)) {
+	load(context);
+	return false;
+      }
       ++m_offset;
       --offset;
     }
@@ -509,7 +513,11 @@ public:
   bool seek(unsigned offset, L l) {
     while (offset) {
       double value;
-      if (!read_(&value)) return false;
+      auto context = save();
+      if (!read_(&value)) {
+	load(context);
+	return false;
+      }
       l(value, 1);
       ++m_offset;
       --offset;
@@ -518,16 +526,22 @@ public:
   }
 
   // search forward for a value
-  // l(double value, unsigned offset) -> unsigned skipped
-  // search ends when skipped < offset
+  // - l(double value, unsigned offset) -> unsigned skipped
+  // - search ends when skipped < offset
   template <typename L>
   bool search(L l) {
     double value;
     for (;;) {
-      auto prev = save();
-      if (!read_(&value)) return false;
+      auto context = save();
+      auto xcontext = ZuTuple<uint64_t, unsigned>{m_prev, m_prevLZ};
+      if (!read_(&value)) {
+	load(context);
+	return false;
+      }
       if (!l(value, 1)) {
-	load(prev);
+	load(context);
+	m_prev = xcontext.p<0>();
+	m_prevLZ = xcontext.p<1>();
 	return true;
       }
       ++m_offset;
@@ -535,53 +549,63 @@ public:
   }
 
   bool read(double &value) {
-    if (read_(&value)) {
-      ++m_offset;
-      return true;
+    auto context = save();
+    if (!read_(&value)) {
+      load(context);
+      return false;
     }
-    return false;
+    ++m_offset;
+    return true;
   }
 
   // same as read(), but discards value
   bool skip() {
-    if (read_(nullptr)) {
-      ++m_offset;
-      return true;
+    auto context = save();
+    if (!read_(nullptr)) {
+      load(context);
+      return false;
     }
-    return false;
+    ++m_offset;
+    return true;
   }
 
 private:
+  // Note: read_() does not mutate m_prev or m_prevLZ on failure
+  // - care is taken to prevent buffer overrun
+  // - attempts to read beyond the end of the buffer will fail
+  // - rewinding a failed read_() only requires the caller to restore
+  //   the underlying ZuIBitStream state
+  // - rewinding a *successful* read_() requires the caller to restore
+  //   both the ZuIBitStream state, m_prev and m_prevLZ
   bool read_(double *out) {
     static uint8_t lzmap[] = { 0, 8, 12, 16, 18, 20, 22, 24 };
 
-    auto saved = save(); // save context
   again:
-    if (ZuUnlikely(!avail<2>())) goto eob;
+    if (ZuUnlikely(!avail<2>())) return false;
     uint64_t value;
     switch (in<2>()) {
       case 0:
 	value = 0;
 	break;
       case 1: {
-	if (ZuUnlikely(!avail<9>())) goto eob;
+	if (ZuUnlikely(!avail<9>())) return false;
 	unsigned lz = lzmap[in<3>()];
 	unsigned sb = in<6>();
 	if (!sb) { m_prev = 0; m_prevLZ = 0; goto again; } // reset
-	if (ZuUnlikely(!avail(sb))) goto eob;
+	if (ZuUnlikely(!avail(sb))) return false;
 	value = in(sb)<<(64 - sb - lz);
 	m_prevLZ = lz;
       } break;
       case 2: {
 	unsigned sb = 64 - m_prevLZ;
-	if (ZuUnlikely(!avail(sb))) goto eob;
+	if (ZuUnlikely(!avail(sb))) return false;
 	value = in(sb);
       } break;
       case 3: {
-	if (ZuUnlikely(!avail<3>())) goto eob;
+	if (ZuUnlikely(!avail<3>())) return false;
 	unsigned lz = lzmap[in<3>()];
 	unsigned sb = 64 - lz;
-	if (ZuUnlikely(!avail(sb))) goto eob;
+	if (ZuUnlikely(!avail(sb))) return false;
 	value = in(sb);
 	m_prevLZ = lz;
       } break;
@@ -593,9 +617,6 @@ private:
       *out = *ptr;
     }
     return true;
-  eob:
-    load(saved); // hit EOB - restore context
-    return false;
   }
 
 private:

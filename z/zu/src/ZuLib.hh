@@ -239,7 +239,7 @@ template <typename T_, T_ V> struct ZuConstant {
 };
 template <int I> using ZuInt = ZuConstant<int, I>;
 template <unsigned I> using ZuUnsigned = ZuConstant<unsigned, I>;
-template <auto B> using ZuBool = ZuConstant<bool, static_cast<bool>(B)>;
+template <auto B> using ZuBool = ZuConstant<bool, bool(B)>;
 using ZuFalse = ZuBool<false>;	// interoperable with std::false_type
 using ZuTrue = ZuBool<true>;	// interoperable with std::true_type
 
@@ -373,7 +373,7 @@ template <typename L> struct ZuGuard {
 
 // generic discrimination of forwarding references for move/copy
 // - discriminates rvalue references from everything else
-// ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
+// - ZuBind<U>::mvcp(ZuFwd<U>(u), [](auto &&v) { }, [](const auto &v) { });
 template <typename T_> struct ZuBind {
   using T = ZuDecay<T_>;
 
@@ -398,7 +398,7 @@ template <typename T_> struct ZuBind {
 };
 
 // compile-time ?:
-// ZuIf<typename B, typename T1, typename T2> evaluates to B ? T1 : T2
+// - ZuIf<typename B, typename T1, typename T2> evaluates to B ? T1 : T2
 template <typename T1, typename T2, bool B> struct ZuIf_;
 template <typename T1, typename T2> struct ZuIf_<T1, T2, true> {
   using T = T1;
@@ -409,22 +409,22 @@ template <typename T1, typename T2> struct ZuIf_<T1, T2, false> {
 template <bool B, typename T1, typename T2>
 using ZuIf = typename ZuIf_<T1, T2, B>::T;
 
-// alternative for std::enable_if
+// alternative to std::enable_if
 // - compile-time SFINAE (substitution failure is not an error)
-// ZuIfT<bool B, typename T = void> evaluates to T (default void)
-// if B is true, or is a substitution failure if B is false
+// - ZuIfT<bool B, typename T = void> evaluates to T (default void)
+//   if B is true, or is a substitution failure if B is false
 template <bool, typename U = void> struct ZuIfT_ { };
 template <typename U> struct ZuIfT_<true, U> { using T = U; };
 template <bool B, typename U = void>
 using ZuIfT = typename ZuIfT_<B, U>::T;
 
-// alternative for std::declval
+// alternative to std::declval
 template <typename U> struct ZuDeclVal__ { using T = U; };
 template <typename T> auto ZuDeclVal_(int) -> typename ZuDeclVal__<T&&>::T;
 template <typename T> auto ZuDeclVal_(...) -> typename ZuDeclVal__<T>::T;
 template <typename U> decltype(ZuDeclVal_<U>(0)) ZuDeclVal();
 
-// alternative for std::void_t
+// alternative to std::void_t
 template <typename ...> struct ZuVoid_ { using T = void; };
 template <typename ...Ts> using ZuVoid = typename ZuVoid_<Ts...>::T;
 
@@ -456,7 +456,7 @@ struct ZuRDecay_ {
 template <typename T>
 using ZuRDecay = typename ZuRDecay_<ZuDecay<T>>::T;
 
-// exact type matching
+// exact type matching - alternative to std::is_same
 template <typename U1, typename U2>
 struct ZuIsExact : public ZuFalse { };
 template <typename U>
