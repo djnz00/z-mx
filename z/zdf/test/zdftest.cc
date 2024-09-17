@@ -19,16 +19,16 @@
 #include <zlib/ZdfSeries.hh>
 #include <zlib/ZdfStore.hh>
 
-void print(const char *s) {
-  std::cout << s << '\n' << std::flush;
+void print(const char *msg) {
+  ZeLOG(Info, ([msg](auto &s) { s << msg; }));
 }
-void print(const char *s, int64_t i) {
-  std::cout << s << ' ' << i << '\n' << std::flush;
+void print(const char *msg, double i) {
+  ZeLOG(Info, ([msg, i](auto &s) { s << msg << ' ' << ZuBoxed(i); }));
 }
-void ok(const char *s) { print(s); }
-void ok(const char *s, int64_t i) { print(s, i); }
-void fail(const char *s) { print(s); }
-void fail(const char *s, int64_t i) { print(s, i); }
+void ok(const char *msg) { print(msg); }
+void ok(const char *msg, double i) { print(msg, i); }
+void fail(const char *msg) { print(msg); }
+void fail(const char *msg, double i) { print(msg, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
@@ -130,7 +130,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read3(Ctrl rc, ZuFixed v) {
-    std::cout << "v=" << v << '\n';
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
@@ -139,6 +139,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read4(Ctrl rc, ZuFixed v) {
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 200 * 42);
     CHECK(v.ndp == 9);
     df->seek<ZtField(Frame, v1)>(
@@ -165,6 +166,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read7(Ctrl rc, ZuFixed v) {
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 100 * 42);
     CHECK(v.ndp == 9);
     rc.stop();

@@ -57,17 +57,19 @@ public:
     uint8_t v;
     if (ZuUnlikely(!m_inBits)) {
       m_inBits = Bits;
-      return (*m_pos) & ~(uint8_t(0xff)<<Bits);
+      v = (*m_pos) & ~(uint8_t(0xff)<<Bits);
+    } else {
+      unsigned bits;
+      unsigned lbits = 8 - m_inBits;
+      if (ZuUnlikely(Bits < lbits)) lbits = Bits;
+      v = ((*m_pos)>>m_inBits) & ~(uint8_t(0xff)<<lbits);
+      if ((m_inBits += lbits) >= 8) { m_pos++; m_inBits = 0; }
+      if (bits = Bits - lbits) {
+	// m_inBits must be zero here, and bits is < 8
+	v |= ((*m_pos) & ~(uint8_t(0xff)<<bits))<<lbits;
+	m_inBits = bits;
+      }
     }
-    unsigned bits;
-    unsigned lbits = 8 - m_inBits;
-    if (ZuUnlikely(Bits < lbits)) lbits = Bits;
-    v = ((*m_pos)>>m_inBits) & ~(uint8_t(0xff)<<lbits);
-    if ((m_inBits += lbits) >= 8) { m_pos++; m_inBits = 0; }
-    if (!(bits = Bits - lbits)) return v;
-    // m_inBits must be zero here, and bits is < 8
-    v |= ((*m_pos) & ~(uint8_t(0xff)<<bits))<<lbits;
-    m_inBits = bits;
     return v;
   }
   uint64_t in(unsigned bits) {
@@ -96,7 +98,7 @@ public:
     v >>= (64 - (bits + lbits));
     if (hbits) {
       m_inBits = hbits;
-      v |= ((*m_pos) & ~(uint8_t(0xff)<<hbits))<<(bits + lbits);
+      v |= uint64_t((*m_pos) & ~(uint8_t(0xff)<<hbits))<<(bits + lbits);
     }
     return v;
   }
@@ -117,8 +119,7 @@ public:
   ZuOBitStream(uint8_t *start, uint8_t *end) : m_pos{start}, m_end{end} { }
 
   ZuOBitStream(ZuOBitStream &&w) :
-    m_pos{w.m_pos}, m_end{w.m_end},
-    m_outBits{w.m_outBits}
+    m_pos{w.m_pos}, m_end{w.m_end}, m_outBits{w.m_outBits}
   {
     w.m_pos = nullptr;
     w.m_end = nullptr;

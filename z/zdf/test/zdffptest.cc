@@ -19,16 +19,16 @@
 #include <zlib/ZdfSeries.hh>
 #include <zlib/ZdfStore.hh>
 
-void print(const char *s) {
-  std::cout << s << '\n' << std::flush;
+void print(const char *msg) {
+  ZeLOG(Info, ([msg](auto &s) { s << msg; }));
 }
-void print(const char *s, int64_t i) {
-  std::cout << s << ' ' << i << '\n' << std::flush;
+void print(const char *msg, double i) {
+  ZeLOG(Info, ([msg, i](auto &s) { s << msg << ' ' << ZuBoxed(i); }));
 }
-void ok(const char *s) { print(s); }
-void ok(const char *s, int64_t i) { print(s, i); }
-void fail(const char *s) { print(s); }
-void fail(const char *s, int64_t i) { print(s, i); }
+void ok(const char *msg) { print(msg); }
+void ok(const char *msg, double i) { print(msg, i); }
+void fail(const char *msg) { print(msg); }
+void fail(const char *msg, double i) { print(msg, i); }
 #define CHECK(x) ((x) ? ok("OK  " #x) : fail("NOK " #x))
 #define CHECK2(x, y) ((x == y) ? ok("OK  " #x, x) : fail("NOK " #x, x))
 
@@ -105,7 +105,6 @@ struct Test {
       frame.v2 = (double(i) * 42) / 1000000000;
       w->write(frame);
     }
-    w->stop();
     df->run([this]() { run_read1(); });
   }
   void run_read1() {
@@ -130,8 +129,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read3(Ctrl rc, double v) {
-    std::cout << "v=" << v << '\n';
-    std::cout << v << '\n';
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(v == 0.00000084);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(0.0000084);
@@ -139,7 +137,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read4(Ctrl rc, double v) {
-    std::cout << v << '\n';
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(v == 0.0000084);
     using Field = ZtField(Frame, v1);
     using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
@@ -169,7 +167,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read7(Ctrl rc, double v) {
-    std::cout << v << '\n';
+    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(v == 0.0000042);
     rc.stop();
     done.post();
@@ -283,7 +281,7 @@ int main(int argc, char **argv)
 
     store->run(0, []() {
       store->open([](bool ok) {
-	std::cout << "open(): " << (ok ? "OK" : "NOT OK") << '\n';
+	ZeLOG(Info, ([ok](auto &s) { s << (ok ? "OK" : "NOT OK"); }));
 	if (ok)
 	  test.run();
 	else

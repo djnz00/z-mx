@@ -110,4 +110,23 @@ int main()
     CHECK(i.in(20) == 0x23456);
     CHECK(i.in<4>() == 0x1);
   }
+  {
+    ZuOBitStream o{buf.data(), buf.data() + buf.size()};
+
+    o.out<2>(0);
+    o.out<2>(2);
+    o.out(0x3e668c6fa0b2f9a3, 64);
+
+    o.finish();
+    buf.length(o.pos() - buf.data());
+
+    hex.length(ZuHex::encode({hex.data(), hex.size()}, buf));
+    std::cout << hex << '\n';
+
+    ZuIBitStream i{buf.data(), buf.data() + buf.length()};
+
+    CHECK(i.in<2>() == 0);
+    CHECK(i.in<2>() == 2);
+    CHECK(i.in(64) == 0x3e668c6fa0b2f9a3);
+  }
 }

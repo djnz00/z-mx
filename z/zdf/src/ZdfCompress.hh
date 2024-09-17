@@ -587,7 +587,7 @@ private:
       } break;
     }
     value ^= m_prev;
-    m_prev ^= value;
+    m_prev = value;
     if (out) {
       const double *ZuMayAlias(ptr) = reinterpret_cast<const double *>(&value);
       *out = *ptr;
