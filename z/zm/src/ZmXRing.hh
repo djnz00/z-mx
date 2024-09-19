@@ -149,7 +149,7 @@ public:
 
   ZmXRing(ZmXRingParams params = {}) :
       m_initial{params.initial()}, m_increment{params.increment()},
-      m_defrag{1.0 - (double)params.maxFrag() / 100.0} { }
+      m_defrag{1.0 - double(params.maxFrag()) / 100.0} { }
 
   ~ZmXRing() {
     clean_();
@@ -179,7 +179,7 @@ public:
   unsigned initial() const { return m_initial; }
   unsigned increment() const { return m_increment; }
   unsigned maxFrag() const {
-    return (unsigned)((1.0 - m_defrag) * 100.0);
+    return unsigned((1.0 - m_defrag) * 100.0);
   }
 
   unsigned size() const { ReadGuard guard(m_lock); return m_size; }
@@ -233,7 +233,7 @@ public:
     Guard guard(m_lock);
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
-    m_defrag = 1.0 - (double)params.maxFrag() / 100.0;
+    m_defrag = 1.0 - double(params.maxFrag()) / 100.0;
   }
 
   void clean() {
@@ -374,17 +374,17 @@ private:
 	Ops::destroyItem(m_data + o);
       }
       m_length = ++i;
-    } else if (i == (int)m_offset) {
+    } else if (i == int(m_offset)) {
       Ops::destroyItem(ptr);
       ++m_offset, --m_length, i = -1;
-      while (++i < (int)m_length) {
+      while (++i < int(m_length)) {
 	if (!Cmp::null(m_data[o = offset(i)])) break;
 	Ops::destroyItem(m_data + o);
       }
       if (--i > 0) m_offset = offset(i), m_length -= i;
     } else {
       *ptr = Cmp::null();
-      if ((double)m_count < (double)m_length * m_defrag) {
+      if (double(m_count) < double(m_length) * m_defrag) {
 	i = m_length - 1;
 	while (--i >= 0) {
 	  if (Cmp::null(m_data[offset(i)])) {

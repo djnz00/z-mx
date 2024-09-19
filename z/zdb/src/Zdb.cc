@@ -1068,7 +1068,7 @@ void AnyTable::recSend(ZmRef<Cxn> cxn, Shard shard, UN un, UN endUN)
 
   if (!cxn->up()) return;
 
-  if (auto buf = mkBuf(shard, un)) {
+  if (auto buf = mkBuf(shard, un)) {	// attempts copy from buffer cache
     recSend_(ZuMv(cxn), shard, un, endUN, ZuMv(buf));
     return;
   }

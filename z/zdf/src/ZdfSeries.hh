@@ -204,7 +204,7 @@ protected:
     m_target{target}, m_fn{ZuMv(fn)}, m_errorFn{ZuMv(errorFn)},
     m_paused(paused)
   {
-    ZeAssert(m_blk, (), "internal error - null blk", return);
+    ZeAssert(m_blk, (name = ZtString{m_series->name()}), "internal error - null blk", return);
   }
 
 private:
@@ -418,7 +418,7 @@ private:
     // these are immutable and frequently accessed, so cache them
     m_shard = m_dbSeries->shard();
     m_id = m_dbSeries->data().id;
-    m_name = m_dbSeries->data().name;
+    m_name = &m_dbSeries->data().name;
     m_epoch = m_dbSeries->data().epoch.as_time();
   }
 
@@ -430,7 +430,7 @@ public:
   ZdbObject<DBSeries> *dbSeries() const { return m_dbSeries; }
   unsigned shard() const { return m_shard; }
   SeriesID id() const { return m_id; }
-  ZuCSpan name() const { return m_name; }
+  const ZtString &name() const { return *m_name; }
   ZuTime epoch() const { return m_epoch; }
 
   // time relative to epoch (creation time of series)
@@ -609,9 +609,9 @@ private:
     m_index.head(m_dbSeries->data().blkOffset);
     const auto &data = m_dbSeries->data();
     blkTbl()->template nextRows<0>(
-      ZuFwdTuple(data.id, data.blkOffset), true, IndexBlkSize(), ZuLambda{[
+      ZuFwdTuple(data.id, data.blkOffset), true, IndexBlkSize(), [
 	this_ = ZmMkRef(this), fn = ZuMv(fn), rowRcvd = false
-      ](auto &&self, auto result, unsigned) mutable {
+      ](this auto &&self, auto result, unsigned) {
 	if (this_->m_opened) return; // index already filled
 	using Row = ZuFieldTuple<DBBlk>;
 	if (result.template is<Row>()) { // fill index
@@ -631,7 +631,7 @@ private:
 	this_->run([this_ = ZuMv(this_), fn = ZuMv(fn)]() mutable {
 	  fn(ZuMv(this_));
 	});
-      }});
+      });
   }
 
   // load an individual block header into the index during open
@@ -687,7 +687,7 @@ public:
     if (!m_lastBlk) { // new series - append first block
       m_writer = new Writer{this, 0, ZuMv(errorFn), ndp...};
       pushFirstBlk();
-      write_newWriter(ZuMv(fn), ndp...);
+      write_loadedBlk(ZuMv(fn), ndp...);
     } else {
       auto lastBlkCount = m_lastBlk->count();
       m_writer = new Writer{
@@ -705,15 +705,13 @@ public:
 	    m_writer->fail();
 	    return;
 	  }
-	  blkData->pin();
 	  m_lastBlk->blkData = ZuMv(blkData);
 	  write_loadedBlk(ZuMv(fn), ndp...);
 	});
       } else { // last block is empty - allocate the data
 	if (!m_lastBlk->blkData)
 	  m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
-	m_lastBlk->blkData->pin();
-	write_newWriter(ZuMv(fn), ndp...);
+	write_loadedBlk(ZuMv(fn), ndp...);
       }
     }
   }
@@ -753,6 +751,8 @@ private:
   template <typename ...NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
   write_loadedBlk(ZmFn<void(ZmRef<Writer>)> fn, NDP... ndp) {
+    ZeLOG(Debug, ([name = name()](auto &s) { s << "Writer::write(" << name << ") loadedBlk pin()"; }));
+    m_lastBlk->blkData->pin();
     if (!m_lastBlk->count()) {
       write_newWriter(ZuMv(fn), ndp...);
       return;
@@ -795,7 +795,6 @@ private:
     m_lastBlk = &indexBlk->blks[0];
     // m_lastBlk->offset(0); // redundant
     m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
-    m_lastBlk->blkData->pin();
   }
   // add subsequent block to series
   void pushBlk() {
@@ -807,6 +806,7 @@ private:
     m_lastBlk = &indexBlk->blks[m_lastBlkOffset - indexBlk->offset];
     m_lastBlk->offset(offset);
     m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
+    ZeLOG(Debug, ([name = name()](auto &s) { s << "Writer::write(" << name << ") nextBlk pin()"; }));
     m_lastBlk->blkData->pin();
   }
   // get Blk from index
@@ -861,12 +861,9 @@ private:
   void write_notify() {
     auto i = m_liveReaders.iterator();
     while (auto reader = i.iterate())
-      switch (reader->nextValue()) {
-	case RdrResult::Paused:
-	case RdrResult::Stopped:
-	case RdrResult::Failed:
-	  m_histReaders.pushNode(reader);
-	  i.del();
+      if (reader->nextValue() != RdrResult::EOS) {
+	m_histReaders.pushNode(reader);
+	i.del();
       }
   }
   // called from Writer_::write
@@ -908,13 +905,19 @@ private:
       };
       if constexpr (Fixed) dbBlk->ptr()->ndp = m_lastBlk->ndp();
       blkTbl()->insert(
-	shard(), ZuMv(dbBlk),
-	[](ZdbObject<DBBlk> *dbBlk) { if (dbBlk) dbBlk->commit(); });
+	ZuMv(dbBlk), [name = name()](ZdbObject<DBBlk> *dbBlk) {
+	  ZeAssert(dbBlk, (name),
+	    name << "internal error - insert - null dbBlk", return);
+	  dbBlk->commit();
+	});
       blkDataTbl()->insert(
-	shard(), m_lastBlk->blkData,
-	[](ZdbObject<DB::BlkData> *blkData) mutable {
+	m_lastBlk->blkData,
+	[name = name()](ZdbObject<DB::BlkData> *blkData) mutable {
+	  ZeAssert(blkData, (name),
+	    name << "internal error - insert - null blkData", return);
 	  if (blkData) {
 	    blkData->commit();
+	    ZeLOG(Debug, ([name = ZuMv(name)](auto &s) { s << "Writer::saveBlk(" << name << ") insert() unpin()"; }));
 	    blkData->unpin();
 	  }
 	});
@@ -931,9 +934,10 @@ private:
 	  dbBlk->commit();
 	});
       blkDataTbl()->template update<>(
-	m_lastBlk->blkData, [](ZdbObject<DB::BlkData> *blkData) mutable {
+	m_lastBlk->blkData, [name = name()](ZdbObject<DB::BlkData> *blkData) mutable {
 	  if (blkData) {
 	    blkData->commit();
+	    ZeLOG(Debug, ([name = ZuMv(name)](auto &s) { s << "Writer::saveBlk(" << name << ") update() unpin()"; }));
 	    blkData->unpin();
 	  }
 	});
@@ -1076,7 +1080,7 @@ private:
   ZdbObjRef<DBSeries>	m_dbSeries;
   Shard			m_shard;
   SeriesID		m_id;
-  ZuCSpan		m_name;
+  const ZtString	*m_name = nullptr;
   ZuTime		m_epoch;
   mutable Index		m_index;
   Blk			*m_lastBlk = nullptr;
@@ -1153,6 +1157,7 @@ inline void Reader<Decoder>::seek(
   using namespace RdrState;
 
   m_decoder = {};
+  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::seek(" << name << ") unpin()"; }));
   m_blk->blkData->unpin();
   if (m_state == Live) {
     m_state = Reading;
@@ -1213,11 +1218,13 @@ inline Offset Reader<Decoder>::stop(StopFn fn)
       break;
     case Live:
       offset = offset_();
+      ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::stop(" << name << " Live) unpin()"; }));
       unpin();
       m_series->delLiveReader(this);
       break;
     case Reading:
       offset = offset_();
+      ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::stop(" << name << " Reading) unpin()"; }));
       unpin();
       m_series->delHistReader(this);
       break;
@@ -1301,6 +1308,7 @@ inline void Reader<Decoder>::loaded(const Blk *blk)
   ZeAssert(blk == m_blk, (), "inconsistent blk", goto fail);
 
   m_state = m_state == Live ? Live : Reading;
+  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::loaded(" << name << ") pin()"; }));
   m_blk->blkData->pin();
   m_decoder = m_blk->decoder<Decoder>();
 
@@ -1346,9 +1354,11 @@ inline int Reader<Decoder>::nextBlk()
     return RdrResult::EOS;
   }
   m_decoder = {};
+  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::nextBlk(" << name << ") unpin()"; }));
   m_blk->blkData->unpin();
   m_blk = m_series->getBlk(++m_blkOffset);
   if (ZuLikely(m_blk->blkData)) {
+    ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::nextBlk(" << name << ") pin()"; }));
     m_blk->blkData->pin();
     m_decoder = m_blk->decoder<Decoder>();
     return RdrResult::OK;
@@ -1394,9 +1404,15 @@ inline int Reader<Decoder>::nextValue()
 	m_paused = !m_fn(Ctrl{*this}, ZuFixed{});
       else
 	m_paused = !m_fn(Ctrl{*this}, ZuFP<double>::nan());
-      if (m_state != Stopping) return r;
-      if (m_paused) return RdrResult::Paused;
-      return RdrResult::Stopped;
+      if (m_state == Stopping) {
+	m_paused = false;
+	return RdrResult::Stopped;
+      }
+      if (m_paused) {
+	if (m_state == Live) m_state = Reading;
+	return RdrResult::Paused;
+      }
+      return RdrResult::EOS;
     }
 
     if constexpr (ZuIsExact<Value, ZuFixed>{})
@@ -1405,12 +1421,12 @@ inline int Reader<Decoder>::nextValue()
       m_paused = !m_fn(Ctrl{*this}, value);
 
     if (m_state != Reading && m_state != Live) {
-      if (m_yield) m_yield = false;
+      m_yield = false;
       return RdrResult::Stopped;
     }
 
     if (m_paused) {
-      if (m_yield) m_yield = false;
+      m_yield = false;
       m_state = Reading;
       return RdrResult::Paused;
     }
@@ -1450,7 +1466,10 @@ inline void Reader<Decoder>::fail()
     m_series->addHistReader(this);
   }
 
-  if (m_blk && m_blk->blkData) m_blk->blkData->unpin();
+  if (m_blk && m_blk->blkData) {
+    ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::fail(" << name << ") unpin()"; }));
+    m_blk->blkData->unpin();
+  }
 
   auto errorFn = ZuMv(m_errorFn);
   m_fn = Fn{};

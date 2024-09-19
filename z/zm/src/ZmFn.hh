@@ -107,7 +107,27 @@ struct ZmLambda_<Heap, L, ZuTypeList<Args...>> :
 };
 template <auto HeapID, bool Sharded, typename L, typename ArgList>
 using ZmLambda = ZmLambda_<
-  ZmHeap<HeapID,ZmLambda_<ZuEmpty, L, ArgList>, Sharded>, L, ArgList>;
+  ZmHeap<HeapID, ZmLambda_<ZuEmpty, L, ArgList>, Sharded>, L, ArgList>;
+
+// override ZuMv / std::move (the ZmLambda_ wrapper is not movable)
+template <typename Heap, typename L, typename ArgList>
+inline constexpr L &&ZuMv(ZmLambda_<Heap, L, ArgList> &v) noexcept {
+  return static_cast<L &&>(static_cast<L &>(v));
+}
+template <typename Heap, typename L, typename ArgList>
+inline constexpr L &&ZuMv(ZmLambda_<Heap, L, ArgList> &&v) noexcept {
+  return static_cast<L &&>(v);
+}
+namespace std {
+  template <typename Heap, typename L, typename ArgList>
+  inline constexpr L &&move(ZmLambda_<Heap, L, ArgList> &v) noexcept {
+    return static_cast<L &&>(static_cast<L &>(v));
+  }
+  template <typename Heap, typename L, typename ArgList>
+  inline constexpr L &&move(ZmLambda_<Heap, L, ArgList> &&v) noexcept {
+    return static_cast<L &&>(v);
+  }
+}
 
 // stateful immutable lambda
 template <typename R_, typename ...Args_>

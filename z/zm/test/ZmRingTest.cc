@@ -37,7 +37,13 @@ struct Msg {
   Msg() : m_p{reinterpret_cast<uintptr_t>(this)} { }
   bool ok() const { return m_p == reinterpret_cast<uintptr_t>(this); }
   uintptr_t m_p;
-};
+}
+#ifdef __GNUC__
+  __attribute__ ((aligned(16)))
+#endif
+;
+
+ZuAssert(alignof(Msg) == 16);
 
 struct Params {
   unsigned			writers = 1;

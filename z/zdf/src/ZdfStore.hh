@@ -70,10 +70,10 @@ public:
     using Fields = Zdf::Fields<W>;
     using SeriesRefs = Zdf::SeriesRefs<W>;
 
-    ZuLambda{[
+    [
       this, shard, name = ZuMv(name), fn = ZuMv(fn),
       seriesRefs = SeriesRefs{}
-    ](auto &&self, auto I, auto series) mutable {
+    ](this auto &&self, auto I, auto series) {
       if constexpr (I >= 0) {
 	if (ZuUnlikely(!series)) { fn(DFRef{}); return; }
 	seriesRefs.template p<I>() = ZuMv(series);
@@ -91,7 +91,7 @@ public:
 	seriesName << name << '/' << Field::id();
 	openSeries<Decoder, Create>(shard, ZuMv(seriesName), ZuMv(next));
       }
-    }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
+    }(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
   // open series

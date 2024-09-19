@@ -72,8 +72,9 @@ struct ZmRingFnSharded : public NTP {
 // run-time encapsulation of generic function/lambda
 template <typename NTP = ZmRingFn_Defaults, typename ...Args>
 class ZmRingFn_ {
-  // 64bit pointer packing - uses bit 63 to indicate on-heap
-  static constexpr uintptr_t OnHeap = (static_cast<uintptr_t>(1)<<63);
+  // 64bit pointer packing - uses bit 63
+  static constexpr uintptr_t Align16 = (uintptr_t(1)<<63); // 16-byte alignment
+  static constexpr uintptr_t OnHeap = (uintptr_t(1)<<63);  // on-heap
 
   typedef unsigned (*InvokeFn)(void *ptr, Args...);
   typedef void (*MoveFn)(void *dst, void *src, bool onHeap);
@@ -89,8 +90,9 @@ public:
   ZmRingFn_ &operator =(const ZmRingFn_ &) = delete;
 
   ZmRingFn_(ZmRingFn_ &&fn) :
-      m_invokeFn{fn.m_invokeFn}, m_moveFn{fn.m_moveFn}, m_allocFn{fn.m_allocFn},
-      m_ptr{fn.m_ptr} {
+    m_hdr{fn.m_hdr}, m_moveFn{fn.m_moveFn},
+    m_allocFn{fn.m_allocFn}, m_ptr{fn.m_ptr}
+  {
     fn.clear();
     heapAlloc();
   }
@@ -104,47 +106,49 @@ public:
     typename L,
     decltype(ZuStatelessLambda<L, ZuTypeList<Args...>>(), int()) = 0>
   ZmRingFn_(L &l) : 
-      m_invokeFn{[](void *, Args... args) -> unsigned {
+    m_hdr{reinterpret_cast<uintptr_t>(
+      InvokeFn{[](void *, Args... args) -> unsigned {
 	try {
 	  ZuInvokeLambda<L, ZuTypeList<Args...>>(ZuFwd<Args>(args)...);
 	} catch (...) { }
 	return 0;
-      }},
-      m_moveFn{nullptr},
-      m_allocFn{[](uintptr_t) -> uintptr_t { return 0; }},
-      m_ptr{0} { }
+      }}) | (alignof(L) == 16 ? Align16 : uintptr_t(0))},
+    m_moveFn{nullptr},
+    m_allocFn{[](uintptr_t) -> uintptr_t { return 0; }},
+    m_ptr{0} { }
 
   template <
     typename L,
     decltype(ZuNotStatelessLambda<L, ZuTypeList<Args...>>(), int()) = 0>
   ZmRingFn_(L &l) :
-      m_invokeFn{[](void *ptr_, Args... args) -> unsigned {
+    m_hdr{reinterpret_cast<uintptr_t>(
+      InvokeFn{[](void *ptr_, Args... args) -> unsigned {
 	auto ptr = static_cast<L *>(ptr_);
 	try { (*ptr)(ZuFwd<Args>(args)...); } catch (...) { }
 	ptr->~L();
 	return sizeof(L);
-      }},
-      m_moveFn{[](void *dst, void *src_, bool onHeap) {
-	using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
-	auto src = static_cast<L *>(src_);
-	new (dst) L{ZuMv(*src)};
-	src->~L();
-	if (ZuUnlikely(onHeap)) Cache::free(src);
-      }},
-      m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
-	using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
-	// 0 - return sizeof(L) - used in fast path
-	if (ZuLikely(!ptr_)) return sizeof(L);
-	// 1 - heap allocation - slow path
-	if (ZuLikely(ptr_ == 1))
-	  return reinterpret_cast<uintptr_t>(Cache::alloc());
-	// * - heap free (unless on stack)
-	auto ptr = reinterpret_cast<L *>(ptr_);
-	ptr->~L();
-	Cache::free(ptr);
-	return 0;
-      }},
-      m_ptr{reinterpret_cast<uintptr_t>(&l)} { }
+      }}) | (alignof(L) == 16 ? Align16 : uintptr_t(0))},
+    m_moveFn{[](void *dst, void *src_, bool onHeap) {
+      using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
+      auto src = static_cast<L *>(src_);
+      new (dst) L{ZuMv(*src)};
+      src->~L();
+      if (ZuUnlikely(onHeap)) Cache::free(src);
+    }},
+    m_allocFn{[](uintptr_t ptr_) -> uintptr_t {
+      using Cache = ZmHeapCacheT<HeapID, sizeof(L), alignof(L), Sharded>;
+      // 0 - return sizeof(L) - used in fast path
+      if (ZuLikely(!ptr_)) return sizeof(L);
+      // 1 - heap allocation - slow path
+      if (ZuLikely(ptr_ == 1))
+	return reinterpret_cast<uintptr_t>(Cache::alloc());
+      // * - heap free (unless on stack)
+      auto ptr = reinterpret_cast<L *>(ptr_);
+      ptr->~L();
+      Cache::free(ptr);
+      return 0;
+    }},
+    m_ptr{reinterpret_cast<uintptr_t>(&l)} { }
 
   template <typename L>
   ZmRingFn_ &operator =(L l) {
@@ -155,22 +159,28 @@ public:
   }
 
   ~ZmRingFn_() {
-    if (ZuUnlikely(m_invokeFn && (m_ptr & OnHeap)))
+    if (ZuUnlikely(m_hdr && (m_ptr & OnHeap)))
       m_allocFn(m_ptr & ~OnHeap); // destroys and frees
   }
 
-  bool operator !() const { return !m_invokeFn; }
+  bool operator !() const { return !m_hdr; }
   ZuOpBool
 
   // ring push()
  
   unsigned pushSize() const {
-    return sizeof(InvokeFn) + m_allocFn(0); // m_allocFn(0) returns sizeof(L)
+    return
+      sizeof(uintptr_t) +
+      (align16() ? sizeof(uintptr_t) : 0) +
+      m_allocFn(0); // m_allocFn(0) returns sizeof(L)
   }
-  void push(void *dst_) {
-    auto dst = reinterpret_cast<InvokeFn *>(dst_);
-    *dst = m_invokeFn;
-    if (ZuUnlikely(m_ptr)) m_moveFn(&dst[1], ptr(), onHeap());
+  void push(void *ptr_) {
+    auto ptr = reinterpret_cast<uintptr_t *>(ptr_);
+    *ptr++ = m_hdr;
+    if (align16()) {
+      if (reinterpret_cast<uintptr_t>(ptr) & 8) *ptr++ = 0;
+    }
+    if (ZuUnlikely(m_ptr)) m_moveFn(ptr, this->ptr(), onHeap());
     clear();
   }
 
@@ -178,18 +188,24 @@ public:
 
   template <typename ...Args_>
   ZuInline static unsigned invoke(void *ptr_, Args_ &&... args) {
-    auto ptr = reinterpret_cast<InvokeFn *>(ptr_);
+    auto ptr = reinterpret_cast<uintptr_t *>(ptr_);
+    auto hdr = *ptr;
+    if (hdr & Align16) {
+      if (reinterpret_cast<uintptr_t>(ptr) & 8) ++ptr;
+    }
+    auto invokeFn = reinterpret_cast<InvokeFn>(hdr & ~Align16);
     return
-      (**ptr)(static_cast<void *>(&ptr[1]), ZuFwd<Args_>(args)...) +
+      (*invokeFn)(static_cast<void *>(ptr), ZuFwd<Args_>(args)...) +
       sizeof(InvokeFn);
   }
 
 private:
   void *ptr() const { return reinterpret_cast<void *>(m_ptr & ~OnHeap); }
 
+  bool align16() const { return m_hdr & Align16; }
   bool onHeap() const { return m_ptr & OnHeap; }
 
-  void clear() { m_invokeFn = nullptr; }
+  void clear() { m_hdr = 0; }
 
   void heapAlloc() {
     if (ZuLikely(onHeap())) return; // idempotent
@@ -202,10 +218,10 @@ private:
   }
 
 private:
-  InvokeFn	m_invokeFn = nullptr; // invoke lambda, destroy it, return size
-  MoveFn	m_moveFn = nullptr;   // move lambda
-  AllocFn	m_allocFn = nullptr;  // size+alloc+free (overloaded function)
-  uintptr_t	m_ptr = 0;            // pointer to lambda instance
+  uintptr_t	m_hdr = 0;           // invoke lambda, destroy it, return size
+  MoveFn	m_moveFn = nullptr;  // move lambda
+  AllocFn	m_allocFn = nullptr; // size+alloc+free (overloaded function)
+  uintptr_t	m_ptr = 0;           // pointer to lambda instance
 };
 
 // permit use of an optional trailing NTP (named template parameter)

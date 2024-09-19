@@ -20,10 +20,10 @@
 #include <zlib/ZdfStore.hh>
 
 void print(const char *msg) {
-  ZeLOG(Info, ([msg](auto &s) { s << msg; }));
+  std::cout << msg << '\n';
 }
 void print(const char *msg, double i) {
-  ZeLOG(Info, ([msg, i](auto &s) { s << msg << ' ' << ZuBoxed(i); }));
+  std::cout << msg << ' ' << ZuBoxed(i) << '\n';
 }
 void ok(const char *msg) { print(msg); }
 void ok(const char *msg, double i) { print(msg, i); }

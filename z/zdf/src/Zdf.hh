@@ -31,9 +31,10 @@
 #include <zlib/ZdfLib.hh>
 #endif
 
+#include <zlib/ZuUnroll.hh>
+
 #include <zlib/ZtArray.hh>
 #include <zlib/ZtString.hh>
-
 #include <zlib/ZtField.hh>
 
 #include <zlib/ZdfTypes.hh>
@@ -313,9 +314,9 @@ public:
 
   void write(ZmFn<void(ZmRef<Writer>)> fn, ErrorFn errorFn) {
     ZmRef<Writer> dfw = new Writer{this, ZuMv(errorFn)};
-    ZuLambda{[
+    [
       this, fn = ZuMv(fn), dfw = ZuMv(dfw)
-    ](auto &&self, auto I, auto wrRef) mutable {
+    ](this auto &&self, auto I, auto wrRef) {
       if constexpr (I >= 0)
 	dfw->template writer<I>(ZuMv(wrRef));
       enum { J = I + 1 };
@@ -334,10 +335,9 @@ public:
 	  seriesRefs->template p<J>()->write(
 	    ZuMv(next), ZuMv(error), GetNDP<Field>{});
       }
-    }}(ZuInt<-1>{}, static_cast<void *>(nullptr));
+    }(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
-public:
   template <typename Field>
   void seek(
     Offset offset,
@@ -353,6 +353,18 @@ public:
   {
     using I = ZuTypeIndex<Field, Fields>;
     m_seriesRefs.template p<I{}>()->find(value, ZuMv(readFn), ZuMv(errorFn));
+  }
+
+  void stopWriting() {
+    ZuUnroll::all<SeriesRefs::N>([this](auto I) {
+      m_seriesRefs.template p<I>()->stopWriting();
+    });
+  }
+
+  void stopReading() {
+    ZuUnroll::all<SeriesRefs::N>([this](auto I) {
+      m_seriesRefs.template p<I>()->stopReading();
+    });
   }
 
 private:

@@ -217,7 +217,7 @@ public:
     Guard guard(m_lock);
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
-    m_defrag = 1.0 - (double)params.maxFrag() / 100.0;
+    m_defrag = 1.0 - double(params.maxFrag()) / 100.0;
   }
 
   void clean() {
@@ -313,15 +313,15 @@ private:
     m_count--;
     if (m_defrag >= 1.0) {
       Ops::destroyItems(m_data + i, 1);
-      if (i < (int)--m_length)
+      if (i < int(--m_length))
 	Ops::moveItems(m_data + i, m_data + i + 1, m_length - i);
-    } else if (i == (int)m_length - 1) {
+    } else if (i == int(m_length) - 1) {
       while (--i >= 0 && Cmp::null(m_data[i])); ++i;
       Ops::destroyItems(m_data + i, m_length - i);
       m_length = i;
     } else {
       *ptr = Cmp::null();
-      if ((double)m_count < (double)m_length * m_defrag) {
+      if (double(m_count) < double(m_length) * m_defrag) {
 	i = m_length - 1;
 	while (--i >= 0) {
 	  if (Cmp::null(m_data[i])) {

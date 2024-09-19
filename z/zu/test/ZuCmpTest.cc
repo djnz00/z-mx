@@ -26,6 +26,7 @@
 #include <zlib/ZuObject.hh>
 #include <zlib/ZuRef.hh>
 #include <zlib/ZuID.hh>
+#include <zlib/ZuDemangle.hh>
 
 inline void out(const char *s) {
   std::cout << s << '\n' << std::flush;
@@ -41,7 +42,8 @@ inline void out(const char *s) {
   CHECK(ZuCmp<t>::null(ZuCmp<t>::null())), \
   CHECK(!ZuCmp<t>::null((t)1))
 
-template <typename T> struct A : public T {
+template <typename T>
+struct A : public T {
   int id() const { return T::ptr()->p1(); }
   int age() const { return T::ptr()->p2(); }
   int height() const { return T::ptr()->p3(); }

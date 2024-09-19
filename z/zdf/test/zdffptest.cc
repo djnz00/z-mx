@@ -20,10 +20,10 @@
 #include <zlib/ZdfStore.hh>
 
 void print(const char *msg) {
-  ZeLOG(Info, ([msg](auto &s) { s << msg; }));
+  std::cout << msg << '\n';
 }
 void print(const char *msg, double i) {
-  ZeLOG(Info, ([msg, i](auto &s) { s << msg << ' ' << ZuBoxed(i); }));
+  std::cout << msg << ' ' << ZuBoxed(i) << '\n';
 }
 void ok(const char *msg) { print(msg); }
 void ok(const char *msg, double i) { print(msg, i); }
@@ -170,8 +170,33 @@ struct Test {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000042));
     rc.stop();
-    done.post();
+    using Field = ZtField(Frame, v2);
+    df->seek<Field>(
+      Zdf::maxOffset(), {this, ZmFnPtr<&Test::run_read8<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read7 failed");
+	done.post();
+      });
+    df->write({this, ZmFnPtr<&Test::run_live_write>{}}, []{
+      ZeLOG(Fatal, "data frame live_write failed");
+      done.post();
+    });
     return true;
+  }
+  template <typename Ctrl>
+  bool run_read8(Ctrl, double v) {
+    CHECK(ZuCmp<double>::null(v) || v == 42);
+    return true;
+  }
+  void run_live_write(ZmRef<DFWriter> w) {
+    Frame frame;
+    for (uint64_t i = 0; i < 10; i++) {
+      frame.v1 = i;
+      frame.v2 = 42;
+      w->write(frame);
+    }
+    df->stopWriting();
+    df->stopReading();
+    done.post();
   }
 };
 

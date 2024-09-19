@@ -243,9 +243,9 @@ int main(int argc, char **argv)
 	}
 
 	// recycling lambda - iterates over perms, adding them
-	ZuLambda{[
+	[
 	  &userDB, &perms, wake = ZuMv(wake), session = ZuMv(session), i = 0U
-	](auto &&self, ZmRef<Zum::IOBuf> buf) mutable {
+	](this auto &&self, ZmRef<Zum::IOBuf> buf) {
 	  if (buf) {
 	    auto reqAck = Zfb::GetRoot<Zum::fbs::ReqAck>(buf->data());
 	    if (reqAck->data_type() != Zum::fbs::ReqAckData::PermAdd) {
@@ -267,7 +267,7 @@ int main(int argc, char **argv)
 	      Zfb::Save::str(fbb, perms[i])).Union()));
 	  const auto &session_ = session;
 	  userDB.request(session_, fbb.buf(), ZuMv(self));
-	}}(nullptr);
+	}(nullptr);
       });
     });
   }

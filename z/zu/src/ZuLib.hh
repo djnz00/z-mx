@@ -139,7 +139,10 @@
 #error "Broken platform - CHAR_BIT is not 8 - a byte is not 8 bits!"
 #endif
 #if UINT_MAX < 0xffffffff
-#error "Broken platform - UINT_MAX is < 0xffffffff - an int is < 32 bits!"
+#error "Broken platform - UINT_MAX < 0xffffffff - int < 32 bits!"
+#endif
+#if UINTPTR_MAX < 0xffffffffffffffffULL
+#error "Broken platform - UINTPTR_MAX < 0xffffffffffffffff - ptr < 64 bits!"
 #endif
 
 #include <stdint.h>
@@ -492,63 +495,6 @@ using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 inline constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
-
-// self-referential / recursive lambdas
-// - example below prints integers from 10 to 0
-// ZuLambda{[i = 10](auto &&self) mutable -> void {
-//   std::cout << i << '\n';
-//   if (--i >= 0) self();
-// }}();
-template <typename L>
-struct ZuLambda {
-  L lambda;
-
-  // regrettably, selectively disabling overloads is required
-  // for caller SFINAE determination of ZuLambda mutability, etc.
-
-  template <
-    typename L_ = L,
-    decltype(ZuDeclVal<L_ &&>()(ZuDeclVal<ZuLambda &&>()), int()) = 0>
-  constexpr decltype(auto) operator ()() && { return lambda(ZuMv(*this)); }
-  template <
-    typename ...Args,
-    typename L_ = L,
-    decltype(ZuDeclVal<L_ &&>()(
-      ZuDeclVal<ZuLambda &&>(),
-      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
-  constexpr decltype(auto) operator ()(Args &&...args) && {
-    return lambda(ZuMv(*this), ZuFwd<Args>(args)...);
-  }
-
-  template <
-    typename L_ = L,
-    decltype(ZuDeclVal<L_ &>()(ZuDeclVal<ZuLambda &>()), int()) = 0>
-  constexpr decltype(auto) operator ()() & { return lambda(*this); }
-  template <
-    typename ...Args,
-    typename L_ = L,
-    decltype(ZuDeclVal<L_ &>()(
-      ZuDeclVal<ZuLambda &>(),
-      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
-  constexpr decltype(auto) operator ()(Args &&...args) & {
-    return lambda(*this, ZuFwd<Args>(args)...);
-  }
-
-  template <
-    typename L_ = L,
-    decltype(ZuDeclVal<const L_ &>()(ZuDeclVal<const ZuLambda &>()), int()) = 0>
-  constexpr decltype(auto) operator ()() const & { return lambda(*this); }
-  template <
-    typename ...Args,
-    typename L_ = L,
-    decltype(ZuDeclVal<const L_ &>()(
-      ZuDeclVal<const ZuLambda &>(),
-      ZuFwd<Args>(ZuDeclVal<Args &&>())...), int()) = 0>
-  constexpr decltype(auto) operator ()(Args &&...args) const & {
-    return lambda(*this, ZuFwd<Args>(args)...);
-  }
-};
-template <typename L> ZuLambda(L) -> ZuLambda<L>;
 
 // generic underlying type access for wrapper types with a cast operator
 // (used with ZuBox, ZuBigEndian, C++ enum classes, etc.)

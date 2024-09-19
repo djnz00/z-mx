@@ -1134,9 +1134,9 @@ public:
       ZuMv(groupKey), false, limit, ZuMv(l));
   }
   template <unsigned KeyID, typename L>	// continuation from key
-  void nextRows(Key<KeyID> key, bool inclusive, unsigned limit, L l) {
+  void nextRows(Key<KeyID> key, bool inclusive, unsigned limit, L &&l) {
     select_<KeyID, Key<KeyID>, Tuple, 1, 1>(
-      ZuMv(key), inclusive, limit, ZuMv(l));
+      ZuMv(key), inclusive, limit, ZuFwd<L>(l));
   }
 
   // find lambda - l(ZdbObjRef<T>)
@@ -1222,7 +1222,7 @@ public:
 
     ZmAssert(invoked(shard));
 
-    if (!update_(object.ptr(), nextUN(object->shard()))) {
+    if (!update_(object.ptr(), nextUN(shard))) {
       l(nullptr);
       return;
     }
@@ -1259,9 +1259,11 @@ public:
   // update object (idempotent) - calls l(null) to skip
   template <typename KeyIDs_ = ZuSeq<>, typename L>
   void update(ZmRef<Object<T>> object, UN un, L l) {
-    ZmAssert(invoked(object->shard()));
+    auto shard = object->shard();
 
-    if (un != nullUN() && ZuUnlikely(nextUN(object->shard()) > un)) {
+    ZmAssert(invoked(shard));
+
+    if (un != nullUN() && ZuUnlikely(nextUN(shard) > un)) {
       l(nullptr);
       return;
     }
@@ -1306,7 +1308,7 @@ public:
 
     ZmAssert(invoked(shard));
 
-    if (!del_(object.ptr(), nextUN(object->shard()))) {
+    if (!del_(object.ptr(), nextUN(shard))) {
       l(nullptr);
       return;
     }
@@ -1344,7 +1346,11 @@ public:
   // delete record (idempotent) - returns true if del can proceed
   template <typename L>
   void del(ZmRef<AnyObject> object, UN un, L l) {
-    if (un != nullUN() && ZuUnlikely(nextUN(object->shard()) > un)) {
+    auto shard = object->shard();
+
+    ZmAssert(invoked(shard));
+
+    if (un != nullUN() && ZuUnlikely(nextUN(shard) > un)) {
       l(nullptr);
       return;
     }
