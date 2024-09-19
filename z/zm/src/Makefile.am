@@ -16,7 +16,7 @@ pkginclude_HEADERS = \
 	ZmPQueue.hh ZmPlatform.hh ZmRBTree.hh ZmRWLock.hh ZmRandom.hh \
 	ZmRef.hh ZmRing.hh ZmRingFn.hh \
 	ZmScheduler.hh ZmSemaphore.hh \
-	ZmSingleton.hh ZmSpecific.hh ZmSpinLock.hh ZmStack.hh \
+	ZmSingleton.hh ZmSpecific.hh ZmSpinLock.hh \
 	ZmThread.hh ZmTime.hh \
 	ZmTimeInterval.hh ZmTimeout.hh ZmTopology.hh ZmTrap.hh \
 	ZmEngine.hh ZmCache.hh ZmCacheStats.hh ZmDemangle.hh \

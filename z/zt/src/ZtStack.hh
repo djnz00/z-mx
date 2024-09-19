@@ -7,8 +7,8 @@
 // simple fast stack (LIFO array) for types with
 // a sentinel null value (defaults to ZuCmp<T>::null())
 
-#ifndef ZmStack_HH
-#define ZmStack_HH
+#ifndef ZtStack_HH
+#define ZtStack_HH
 
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
@@ -25,87 +25,87 @@
 #include <zlib/ZmVHeap.hh>
 
 // defaults
-#define ZmStackInitial		4
-#define ZmStackIncrement	8
-#define ZmStackMaxFrag		50.0
+#define ZtStackInitial		4
+#define ZtStackIncrement	8
+#define ZtStackMaxFrag		50.0
 
-struct ZmStackParams {
-  ZmStackParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
-  ZmStackParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
-  ZmStackParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
+struct ZtStackParams {
+  ZtStackParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
+  ZtStackParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
+  ZtStackParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
 
   unsigned initial() const { return m_initial; }
   unsigned increment() const { return m_increment; }
   double maxFrag() const { return m_maxFrag; }
 
 private:
-  unsigned	m_initial = ZmStackInitial;
-  unsigned	m_increment = ZmStackIncrement;
-  double	m_maxFrag = ZmStackMaxFrag;
+  unsigned	m_initial = ZtStackInitial;
+  unsigned	m_increment = ZtStackIncrement;
+  double	m_maxFrag = ZtStackMaxFrag;
 };
 
 // uses NTP (named template parameters):
 //
-// ZmStack<ZtString>			// stack of ZtStrings
-//    ZmStackCmp<ZuICmp> >		// case-insensitive comparison
+// ZtStack<ZtString>			// stack of ZtStrings
+//    ZtStackCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
-struct ZmStack_Defaults {
+struct ZtStack_Defaults {
   static constexpr auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  static const char *HeapID() { return "ZmStack"; }
+  static const char *HeapID() { return "ZtStack"; }
   enum { Sharded = 0 };
 };
 
-// ZmStackKey - key accessor
-template <auto KeyAxor_, typename NTP = ZmStack_Defaults>
-struct ZmStackKey : public NTP {
+// ZtStackKey - key accessor
+template <auto KeyAxor_, typename NTP = ZtStack_Defaults>
+struct ZtStackKey : public NTP {
   static constexpr auto KeyAxor = KeyAxor_;
 };
 
-// ZmStackCmp - the comparator
-template <template <typename> typename Cmp_, typename NTP = ZmStack_Defaults>
-struct ZmStackCmp : public NTP {
+// ZtStackCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZtStack_Defaults>
+struct ZtStackCmp : public NTP {
   template <typename T> using CmpT = Cmp_<T>;
   template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
 };
 
-// ZmStackKeyCmp - the optional value comparator
-template <template <typename> typename KeyCmp_, typename NTP = ZmStack_Defaults>
-struct ZmStackKeyCmp : public NTP {
+// ZtStackKeyCmp - the optional value comparator
+template <template <typename> typename KeyCmp_, typename NTP = ZtStack_Defaults>
+struct ZtStackKeyCmp : public NTP {
   template <typename T> using KeyCmpT = KeyCmp_<T>;
 };
 
-// ZmStackLock - the lock type
-template <class Lock_, class NTP = ZmStack_Defaults>
-struct ZmStackLock : public NTP {
+// ZtStackLock - the lock type
+template <class Lock_, class NTP = ZtStack_Defaults>
+struct ZtStackLock : public NTP {
   using Lock = Lock_;
 };
 
-// ZmStackHeapID - the heap ID
-template <auto HeapID_, typename NTP = ZmStack_Defaults>
-struct ZmStackHeapID : public NTP {
+// ZtStackHeapID - the heap ID
+template <auto HeapID_, typename NTP = ZtStack_Defaults>
+struct ZtStackHeapID : public NTP {
   static constexpr auto HeapID = HeapID_;
 };
 
-// ZmStackSharded - sharded heap
-template <bool Sharded_, typename NTP = ZmStack_Defaults>
-struct ZmStackSharded : public NTP {
+// ZtStackSharded - sharded heap
+template <bool Sharded_, typename NTP = ZtStack_Defaults>
+struct ZtStackSharded : public NTP {
   enum { Sharded = Sharded_ };
 };
 
-// only provide delPtr and findPtr methods to callers of unlocked ZmStacks
+// only provide delPtr and findPtr methods to callers of unlocked ZtStacks
 // since they are intrinsically not thread-safe
 
-template <typename T, class NTP> class ZmStack;
+template <typename T, class NTP> class ZtStack;
 
-template <class Stack> struct ZmStack_Unlocked;
+template <class Stack> struct ZtStack_Unlocked;
 template <typename T, class NTP>
-struct ZmStack_Unlocked<ZmStack<T, NTP> > {
-  using Stack = ZmStack<T, NTP>;
+struct ZtStack_Unlocked<ZtStack<T, NTP> > {
+  using Stack = ZtStack<T, NTP>;
 
   template <typename P>
   T *findPtr(P &&v) {
@@ -116,22 +116,22 @@ struct ZmStack_Unlocked<ZmStack<T, NTP> > {
   }
 };
 
-template <class Stack, class Lock> struct ZmStack_Base { };
+template <class Stack, class Lock> struct ZtStack_Base { };
 template <class Stack>
-struct ZmStack_Base<Stack, ZmNoLock> : public ZmStack_Unlocked<Stack> { };
+struct ZtStack_Base<Stack, ZmNoLock> : public ZtStack_Unlocked<Stack> { };
 
-// derives from Ops so that a ZmStack includes an *instance* of Ops
+// derives from Ops so that a ZtStack includes an *instance* of Ops
 
-template <typename T_, class NTP = ZmStack_Defaults>
-class ZmStack :
+template <typename T_, class NTP = ZtStack_Defaults>
+class ZtStack :
   private ZmVHeap<NTP::HeapID, alignof(T_), NTP::Sharded>,
-  public ZmStack_Base<ZmStack<T_, NTP>, typename NTP::Lock>,
+  public ZtStack_Base<ZtStack<T_, NTP>, typename NTP::Lock>,
   public NTP::template OpsT<T_>
 {
-  ZmStack(const ZmStack &);
-  ZmStack &operator =(const ZmStack &);	// prevent mis-use
+  ZtStack(const ZtStack &);
+  ZtStack &operator =(const ZtStack &);	// prevent mis-use
 
-friend ZmStack_Unlocked<ZmStack>;
+friend ZtStack_Unlocked<ZtStack>;
 
 public:
   using T = T_;
@@ -147,17 +147,17 @@ public:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZmStack(ZmStackParams params = {}) :
+  ZtStack(ZtStackParams params = {}) :
       m_initial(params.initial()),
       m_increment(params.increment()),
       m_defrag(1.0 - (double)params.maxFrag() / 100.0) { }
 
-  ~ZmStack() {
+  ~ZtStack() {
     clean_();
     vfree(m_data);
   }
 
-  ZmStack(ZmStack &&stack) noexcept :
+  ZtStack(ZtStack &&stack) noexcept :
       m_initial{stack.m_initial}, m_increment{stack.m_increment},
       m_defrag{stack.m_defrag} {
     Guard guard(stack.m_lock);
@@ -170,9 +170,9 @@ public:
     stack.m_length = 0;
     stack.m_count = 0;
   }
-  ZmStack &operator =(ZmStack &&stack) noexcept {
-    this->~ZmStack();
-    new (this) ZmStack{ZuMv(stack)};
+  ZtStack &operator =(ZtStack &&stack) noexcept {
+    this->~ZtStack();
+    new (this) ZtStack{ZuMv(stack)};
   }
 
   unsigned initial() const { return m_initial; }
@@ -213,7 +213,7 @@ private:
   }
 
 public:
-  void init(ZmStackParams params = ZmStackParams()) {
+  void init(ZtStackParams params = ZtStackParams()) {
     Guard guard(m_lock);
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
@@ -344,7 +344,7 @@ friend Iterator;
     Iterator(const Iterator &);
     Iterator &operator =(const Iterator &);	// prevent mis-use
 
-    using Stack = ZmStack<T, NTP>;
+    using Stack = ZtStack<T, NTP>;
 
   public:
     Iterator(Stack &stack) :
@@ -379,4 +379,4 @@ private:
   double	m_defrag;
 };
 
-#endif /* ZmStack_HH */
+#endif /* ZtStack_HH */

@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// ZmStack configuration
+// ZtStack configuration
 
 #ifndef ZvStackParams_HH
 #define ZvStackParams_HH
@@ -13,29 +13,29 @@
 #include <zlib/ZvLib.hh>
 #endif
 
-#include <zlib/ZmStack.hh>
+#include <zlib/ZtStack.hh>
 
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvCSV.hh>
 
-struct ZvStackParams : public ZmStackParams {
-  ZvStackParams(const ZmStackParams &p) : ZmStackParams{p} { }
-  ZvStackParams &operator =(const ZmStackParams &p) {
-    ZmStackParams::operator =(p);
+struct ZvStackParams : public ZtStackParams {
+  ZvStackParams(const ZtStackParams &p) : ZtStackParams{p} { }
+  ZvStackParams &operator =(const ZtStackParams &p) {
+    ZtStackParams::operator =(p);
     return *this;
   }
-  ZvStackParams(ZmStackParams &&p) : ZmStackParams{ZuMv(p)} { }
-  ZvStackParams &operator =(ZmStackParams &&p) {
-    ZmStackParams::operator =(ZuMv(p));
+  ZvStackParams(ZtStackParams &&p) : ZtStackParams{ZuMv(p)} { }
+  ZvStackParams &operator =(ZtStackParams &&p) {
+    ZtStackParams::operator =(ZuMv(p));
     return *this;
   }
 
-  ZvStackParams(const ZvCf *cf) : ZmStackParams() { init(cf); }
-  ZvStackParams(const ZvCf *cf, ZmStackParams deflt) :
-      ZmStackParams{ZuMv(deflt)} { init(cf); }
+  ZvStackParams(const ZvCf *cf) : ZtStackParams() { init(cf); }
+  ZvStackParams(const ZvCf *cf, ZtStackParams deflt) :
+      ZtStackParams{ZuMv(deflt)} { init(cf); }
 
   void init(const ZvCf *cf) {
-    ZmStackParams::operator =(ZmStackParams());
+    ZtStackParams::operator =(ZtStackParams());
 
     if (!cf) return;
 

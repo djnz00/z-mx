@@ -11,7 +11,7 @@
 #include <zlib/ZuCmp.hh>
 
 #include <zlib/ZmAtomic.hh>
-#include <zlib/ZmStack.hh>
+#include <zlib/ZtStack.hh>
 #include <zlib/ZmXRing.hh>
 
 struct C {
@@ -147,11 +147,11 @@ ZmAtomic<uint32_t> C::m_count = 0;
 int main(int argc, char **argv)
 {
   for (int i = 0; i < 100; i += 10) {
-    ZmStack<C> s1, s2, s3;
+    ZtStack<C> s1, s2, s3;
 
-    s1.init(ZmStackParams().initial(1).increment(1).maxFrag(i));
-    s2.init(ZmStackParams().initial(2).increment(3).maxFrag(i));
-    s3.init(ZmStackParams().initial(9).increment(9).maxFrag(i));
+    s1.init(ZtStackParams().initial(1).increment(1).maxFrag(i));
+    s2.init(ZtStackParams().initial(2).increment(3).maxFrag(i));
+    s3.init(ZtStackParams().initial(9).increment(9).maxFrag(i));
 
     doit(s1);
     doit(s2);
