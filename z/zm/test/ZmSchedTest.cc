@@ -181,7 +181,7 @@ int main(int argc, char **argv)
     s.add([
       job = ZmMkRef(new Job(buf, out))
     ](this const auto &self) {
-      std::cout << "operator()() " << ZuBoxPtr(&self).hex() << '\n';
+      std::cout << "operator()() this=" << ZuBoxPtr(&self).hex() << '\n';
       (*job)();
     }, out, &timers[j - 1]);
     printf("Hello World %d\n", j);
