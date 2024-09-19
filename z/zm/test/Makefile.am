@@ -14,7 +14,7 @@ libZmBTTest2_la_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
 TESTPROGS = \
 	ZmRingTest ZmRingTest2 \
 	ZmFnTest ZmHeapTest ZmHeapTest2 ZmRBTest ZmRWTest \
-	ZmSchedTest ZmStackTest ZmTest ZmHashTest ZmHashTest2 ZmTLockTest \
+	ZmSchedTest ZmStackTest ZmTest ZmHashTest ZmHashTest2 \
 	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread \
 	ZmLockTest ZmTIDTest ZmAllocTest ZmCacheTest ZmDemangleTest \
 	ZmPQueueTest ZmPQueueTest2 ZmPQueueTest3 ZmPQueueTest4 \
@@ -37,7 +37,6 @@ ZmStackTest_SOURCES = ZmStackTest.cc
 ZmTest_SOURCES = ZmTest.cc
 ZmHashTest_SOURCES = ZmHashTest.cc
 ZmHashTest2_SOURCES = ZmHashTest2.cc
-ZmTLockTest_SOURCES = ZmTLockTest.cc
 ZmTTest_SOURCES = ZmTTest.cc
 ZmLHTest_SOURCES = ZmLHTest.cc
 ZmHashCleanup_SOURCES = ZmHashCleanup.cc
