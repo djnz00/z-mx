@@ -48,7 +48,7 @@ using QueueFn = ZvEngineMgr::QueueFn;
 // - the index file is a sequence of offsets in the data file, indexed by seqNo
 // - intra-file sequence numbers reset to 0 every 24 hours
 // - the most recent alerts within the current telemetry scan-interval
-//   are held in memory in a dynamically-sized ring buffer (ZmXRing)
+//   are held in memory in a dynamically-sized ring buffer (ZmQueue)
 // - this mechanism provides guaranteed delivery up to alertMaxReplay days back
 // - downstream telemetry consumers can fan-in, index and persist alerts for
 //   dashboards, consolidated alerting, filtering/reporting, etc.
@@ -178,7 +178,7 @@ private:
   ZiFile		m_index;
 };
 
-using AlertRing = ZmXRing<ZmRef<ZiIOBuf>>;
+using AlertQueue = ZmQueue<ZmRef<ZiIOBuf>>;
 
 template <typename App_, typename Link_>
 class Server : public ZmEngine<Server<App_, Link_>>, ZvEngineMgr {
@@ -236,7 +236,7 @@ public:
       for (unsigned i = 0; i < ReqType::N; i++)
 	m_watchLists[i].clean();
 
-      m_alertRing.clean();
+      m_alertQueue.clean();
       m_alertFile.close();
 
       m_queues.clean();
@@ -413,7 +413,7 @@ private:
 	    str(m_fbb, m_alertBuf)).Union()));
     ZmRef<ZiIOBuf> buf = fbb.buf();
     m_alertFile.write(buf);
-    m_alertRing.push(ZuMv(buf));
+    m_alertQueue.push(ZuMv(buf));
   }
 
   using Queues =
@@ -730,15 +730,15 @@ private:
 	else
 	  queueID[ZmIDStrSize - 2] = '_';
 	{
-	  const auto &overRing = mx->overRing(tid);
-	  overRing.stats(inCount, outCount);
+	  const auto &queue = mx->queue(tid);
+	  queue.stats(inCount, outCount);
 	  m_fbb.Finish(fbs::CreateTelemetry(m_fbb,
 		fbs::TelData::Queue,
 		fbs::CreateQueue(m_fbb,
-		  str(m_fbb, queueID), 0, overRing.count_(),
+		  str(m_fbb, queueID), 0, queue.count_(),
 		  inCount, inCount * sizeof(ZmFn<>),
 		  outCount, outCount * sizeof(ZmFn<>),
-		  overRing.size_(), false,
+		  queue.size_(), false,
 		  fbs::QueueType::Thread).Union()));
 	  watch->link->sendTelemetry(m_fbb.buf());
 	}
@@ -793,12 +793,12 @@ private:
 	  else
 	    queueID[ZmIDStrSize - 2] = '_';
 	  {
-	    const auto &overRing = mx->overRing(tid);
-	    overRing.stats(inCount, outCount);
+	    const auto &queue = mx->queue(tid);
+	    queue.stats(inCount, outCount);
 	    auto id_ = Zfb::Save::str(m_fbb, queueID);
 	    fbs::QueueBuilder b(m_fbb);
 	    b.add_id(id_);
-	    b.add_count(overRing.count_());
+	    b.add_count(queue.count_());
 	    b.add_inCount(inCount);
 	    b.add_inBytes(inCount * sizeof(ZmFn<>));
 	    b.add_outCount(outCount);
@@ -1069,7 +1069,7 @@ private:
     unsigned headDate = now;
     unsigned headSeqNo = UINT_MAX;
     {
-      if (buf = m_alertRing.head()) {
+      if (buf = m_alertQueue.head()) {
 	auto alert = fbs::GetTelemetry(buf->data())->data_as_Alert();
 	if (ZuLikely(alert)) {
 	  headDate = Zfb::Load::dateTime(alert->time()).yyyymmdd();
@@ -1093,7 +1093,7 @@ private:
     }
     // replay from memory remaining alerts requested, up to latest
     {
-      auto i = m_alertRing.iterator();
+      auto i = m_alertQueue.iterator();
       while (buf = i.iterate()) {
 	auto alert = fbs::GetTelemetry(buf->data())->data_as_Alert();
 	if (ZuLikely(alert)) {
@@ -1107,7 +1107,7 @@ private:
   }
   void alertScan() {
     // dequeue all alerts in-memory, send to all watchers
-    while (ZmRef<ZiIOBuf> buf = m_alertRing.shift()) {
+    while (ZmRef<ZiIOBuf> buf = m_alertQueue.shift()) {
       auto i = m_watchLists[ReqType::Alert].list.readIterator();
       while (auto watch = i.iterate()) watch->link->sendTelemetry(buf);
     }
@@ -1125,7 +1125,7 @@ private:
   Engines		m_engines;
   ZmRef<Zdb>		m_db;
   WatchList		m_watchLists[ReqType::N];
-  AlertRing		m_alertRing;		// in-memory ring of alerts
+  AlertQueue		m_alertQueue;		// in-memory ring of alerts
   AlertFile		m_alertFile;		// current file being written
   mutable ZtString	m_alertBuf;		// alert message buffer
   bool			m_appUpdated = false;

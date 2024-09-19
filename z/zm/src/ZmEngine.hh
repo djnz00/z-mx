@@ -14,7 +14,7 @@
 #endif
 
 #include <zlib/ZmFn.hh>
-#include <zlib/ZmXRing.hh>
+#include <zlib/ZmQueue.hh>
 #include <zlib/ZmRWLock.hh>
 #include <zlib/ZmBlock.hh>
 
@@ -54,7 +54,7 @@ private:
   using ReadGuard = ZmReadGuard<Lock>;
 
   static const char *HeapID() { return "ZmEngine"; };
-  using CtrlFnRing = ZmXRing<ZmFn<void(bool)>, ZmXRingHeapID<HeapID>>;
+  using CtrlFnRing = ZmQueue<ZmFn<void(bool)>, ZmQueueHeapID<HeapID>>;
 
 public:
   template <typename L>

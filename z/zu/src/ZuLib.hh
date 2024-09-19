@@ -141,9 +141,6 @@
 #if UINT_MAX < 0xffffffff
 #error "Broken platform - UINT_MAX < 0xffffffff - int < 32 bits!"
 #endif
-#if UINTPTR_MAX < 0xffffffffffffffffULL
-#error "Broken platform - UINTPTR_MAX < 0xffffffffffffffff - ptr < 64 bits!"
-#endif
 
 #include <stdint.h>
 #include <stddef.h>

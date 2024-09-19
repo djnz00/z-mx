@@ -45,8 +45,8 @@ ZmScheduler::ZmScheduler(ZmSchedParams params) : m_params{ZuMv(params)}
     if ((r = ring.open(Ring::Read | Ring::Write)) != Zu::OK)
       throw Zu::IOResult{r};
     // if ((r = ring.attach()) != Zu::OK) throw Zu::IOResult{r};
-    m_threads[i].overRing.init(
-	ZmXRingParams{}.initial(0).increment(OverRing_Increment));
+    m_threads[i].queue.init(
+	ZmQueueParams{}.initial(0).increment(Queue_Increment));
     if (!m_params.thread(sid).isolated())
       m_workers[m_nWorkers++] = &m_threads[i];
   }
@@ -139,8 +139,8 @@ bool ZmScheduler::reset()
     for (unsigned i = 0; i < n; i++) {
       auto thread = &m_threads[i];
       if (!thread->thread) {
-	thread->overCount = 0;
-	thread->overRing.clean();
+	thread->queueCount = 0;
+	thread->queue.clean();
 	thread->ring.reset();
       }
     }
@@ -298,10 +298,10 @@ bool ZmScheduler::tryRun_(Thread *thread, Fn &fn)
 bool ZmScheduler::push_(Thread *thread, Fn &fn)
 {
   // Note: the MPSC requirement is to serialize each producing thread's work
-  if (ZuLikely(!thread->overCount.load_())) goto push;
+  if (ZuLikely(!thread->queueCount.load_())) goto push;
 overflow:
-  ++thread->overCount;
-  thread->overRing.push(ZuMv(fn));
+  ++thread->queueCount;
+  thread->queue.push(ZuMv(fn));
   return true;
 push:
   {
@@ -350,17 +350,17 @@ void ZmScheduler::work()
 
   m_threadInitFn();
 
-  for (;;) { // Note: this is single-threaded, but overCount is SWMR
-    if (ZuLikely(!thread->overCount.load_())) goto shift;
-    if (Fn fn = thread->overRing.shift()) {
+  for (;;) { // Note: this is single-threaded, but queueCount is SWMR
+    if (ZuLikely(!thread->queueCount.load_())) goto shift;
+    if (Fn fn = thread->queue.shift()) {
       unsigned size = fn.pushSize();
       void *ptr;
       if (ZuLikely(ptr = thread->ring.tryPush(size))) {
 	fn.push(ptr);
 	thread->ring.push2(ptr, size);
-	--thread->overCount;
+	--thread->queueCount;
       } else {
-	thread->overRing.unshift(ZuMv(fn));
+	thread->queue.unshift(ZuMv(fn));
       }
     }
 shift:

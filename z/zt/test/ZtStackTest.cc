@@ -12,7 +12,7 @@
 
 #include <zlib/ZmAtomic.hh>
 #include <zlib/ZtStack.hh>
-#include <zlib/ZmXRing.hh>
+#include <zlib/ZmQueue.hh>
 
 struct C {
   C() : m_i(0) { m_count++; }
@@ -161,11 +161,11 @@ int main(int argc, char **argv)
   test(C::m_count <= 1);
 
   for (int i = 0; i < 100; i += 10) {
-    ZmXRing<C> r1, r2, r3;
+    ZmQueue<C> r1, r2, r3;
 
-    r1.init(ZmXRingParams().initial(1).increment(1).maxFrag(i));
-    r2.init(ZmXRingParams().initial(2).increment(3).maxFrag(i));
-    r3.init(ZmXRingParams().initial(9).increment(9).maxFrag(i));
+    r1.init(ZmQueueParams().initial(1).increment(1).maxFrag(i));
+    r2.init(ZmQueueParams().initial(2).increment(3).maxFrag(i));
+    r3.init(ZmQueueParams().initial(9).increment(9).maxFrag(i));
 
     doit2(r1);
     doit2(r2);

@@ -4,11 +4,11 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// simple fast dynamic-sized ring buffer (supports FIFO and LIFO) for types
+// simple fast dynamic-sized queue (supports FIFO and LIFO) for types
 // with a sentinel null value (defaults to ZuCmp<T>::null())
 
-#ifndef ZmXRing_HH
-#define ZmXRing_HH
+#ifndef ZmQueue_HH
+#define ZmQueue_HH
 
 #ifndef ZmLib_HH
 #include <zlib/ZmLib.hh>
@@ -25,88 +25,88 @@
 #include <zlib/ZmVHeap.hh>
 
 // defaults
-#define ZmXRingInitial		8
-#define ZmXRingIncrement	8
-#define ZmXRingMaxFrag		50.0
+#define ZmQueueInitial		8
+#define ZmQueueIncrement	8
+#define ZmQueueMaxFrag		50.0
 
-class ZmXRingParams {
+class ZmQueueParams {
 public:
-  ZmXRingParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
-  ZmXRingParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
-  ZmXRingParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
+  ZmQueueParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
+  ZmQueueParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
+  ZmQueueParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
 
   unsigned initial() const { return m_initial; }
   unsigned increment() const { return m_increment; }
   double maxFrag() const { return m_maxFrag; }
 
 private:
-  unsigned	m_initial = ZmXRingInitial;
-  unsigned	m_increment = ZmXRingIncrement;
-  double	m_maxFrag = ZmXRingMaxFrag;
+  unsigned	m_initial = ZmQueueInitial;
+  unsigned	m_increment = ZmQueueIncrement;
+  double	m_maxFrag = ZmQueueMaxFrag;
 };
 
 // uses NTP (named template parameters):
 //
-// ZmXRing<ZtString,			// ring of ZtStrings
-//   ZmXRingCmp<ZuICmp> >		// case-insensitive comparison
+// ZmQueue<ZtString,			// ring of ZtStrings
+//   ZmQueueCmp<ZuICmp> >		// case-insensitive comparison
 
 // NTP defaults
-struct ZmXRing_Defaults {
+struct ZmQueue_Defaults {
   static constexpr auto KeyAxor = ZuDefaultAxor();
   template <typename T> using CmpT = ZuCmp<T>;
   template <typename T> using KeyCmpT = ZuCmp<T>;
   template <typename T> using OpsT = ZuArrayFn<T>;
   using Lock = ZmNoLock;
-  static const char *HeapID() { return "ZmXRing"; }
+  static const char *HeapID() { return "ZmQueue"; }
   enum { Sharded = 0 };
 };
 
-// ZmXRingKey - key accessor
-template <auto KeyAxor_, typename NTP = ZmXRing_Defaults>
-struct ZmXRingKey : public NTP {
+// ZmQueueKey - key accessor
+template <auto KeyAxor_, typename NTP = ZmQueue_Defaults>
+struct ZmQueueKey : public NTP {
   static constexpr auto KeyAxor = KeyAxor_;
 };
 
-// ZmXRingCmp - the comparator
-template <template <typename> typename Cmp_, typename NTP = ZmXRing_Defaults>
-struct ZmXRingCmp : public NTP {
+// ZmQueueCmp - the comparator
+template <template <typename> typename Cmp_, typename NTP = ZmQueue_Defaults>
+struct ZmQueueCmp : public NTP {
   template <typename T> using CmpT = Cmp_<T>;
   template <typename T> using OpsT = ZuArrayFn<T, Cmp_<T>>;
 };
 
-// ZmXRingKeyCmp - the optional value comparator
-template <template <typename> typename KeyCmp_, typename NTP = ZmXRing_Defaults>
-struct ZmXRingKeyCmp : public NTP {
+// ZmQueueKeyCmp - the optional value comparator
+template <template <typename> typename KeyCmp_, typename NTP = ZmQueue_Defaults>
+struct ZmQueueKeyCmp : public NTP {
   template <typename T> using KeyCmpT = KeyCmp_<T>;
 };
 
-// ZmXRingLock - the lock type
-template <typename Lock_, class NTP = ZmXRing_Defaults>
-struct ZmXRingLock : public NTP {
+// ZmQueueLock - the lock type
+template <typename Lock_, class NTP = ZmQueue_Defaults>
+struct ZmQueueLock : public NTP {
   using Lock = Lock_;
 };
 
-// ZmXRingHeapID - the heap ID
-template <auto HeapID_, typename NTP = ZmXRing_Defaults>
-struct ZmXRingHeapID : public NTP {
+// ZmQueueHeapID - the heap ID
+template <auto HeapID_, typename NTP = ZmQueue_Defaults>
+struct ZmQueueHeapID : public NTP {
   static constexpr auto HeapID = HeapID_;
 };
 
-// ZmXRingSharded - sharded heap
-template <bool Sharded_, typename NTP = ZmXRing_Defaults>
-struct ZmXRingSharded : public NTP {
+// ZmQueueSharded - sharded heap
+template <bool Sharded_, typename NTP = ZmQueue_Defaults>
+struct ZmQueueSharded : public NTP {
   enum { Sharded = Sharded_ };
 };
 
-// only provide delPtr and findPtr methods to callers of unlocked ZmXRings
+// only provide delPtr and findPtr methods to callers of unlocked ZmQueues
 // since they are intrinsically not thread-safe
 
-template <typename T, class NTP> class ZmXRing;
+template <typename T, class NTP> class ZmQueue;
 
-template <typename Ring> struct ZmXRing_Unlocked;
+template <typename Ring> struct ZmQueue_Unlocked;
 template <typename T, class NTP>
-struct ZmXRing_Unlocked<ZmXRing<T, NTP> > {
-  using Ring = ZmXRing<T, NTP>;
+struct ZmQueue_Unlocked<ZmQueue<T, NTP> > {
+  using Ring = ZmQueue<T, NTP>;
 
   template <typename P>
   T *findPtr(P &&v) {
@@ -117,21 +117,21 @@ struct ZmXRing_Unlocked<ZmXRing<T, NTP> > {
   }
 };
 
-template <typename Ring, class Lock> struct ZmXRing_Base { };
+template <typename Ring, class Lock> struct ZmQueue_Base { };
 template <typename Ring>
-struct ZmXRing_Base<Ring, ZmNoLock> : public ZmXRing_Unlocked<Ring> { };
+struct ZmQueue_Base<Ring, ZmNoLock> : public ZmQueue_Unlocked<Ring> { };
 
-// derives from Ops so that a ZmXRing includes an *instance* of Ops
+// derives from Ops so that a ZmQueue includes an *instance* of Ops
 
-template <typename T_, class NTP = ZmXRing_Defaults>
-class ZmXRing :
+template <typename T_, class NTP = ZmQueue_Defaults>
+class ZmQueue :
     private ZmVHeap<NTP::HeapID, alignof(T_), NTP::Sharded>,
-    public ZmXRing_Base<ZmXRing<T_, NTP>, typename NTP::Lock>,
+    public ZmQueue_Base<ZmQueue<T_, NTP>, typename NTP::Lock>,
     public NTP::template OpsT<T_> {
-  ZmXRing(const ZmXRing &);
-  ZmXRing &operator =(const ZmXRing &);	// prevent mis-use
+  ZmQueue(const ZmQueue &);
+  ZmQueue &operator =(const ZmQueue &);	// prevent mis-use
 
-friend ZmXRing_Unlocked<ZmXRing>;
+friend ZmQueue_Unlocked<ZmQueue>;
 
 public:
   using T = T_;
@@ -147,16 +147,16 @@ public:
   using Guard = ZmGuard<Lock>;
   using ReadGuard = ZmReadGuard<Lock>;
 
-  ZmXRing(ZmXRingParams params = {}) :
+  ZmQueue(ZmQueueParams params = {}) :
       m_initial{params.initial()}, m_increment{params.increment()},
       m_defrag{1.0 - double(params.maxFrag()) / 100.0} { }
 
-  ~ZmXRing() {
+  ~ZmQueue() {
     clean_();
     vfree(m_data);
   }
 
-  ZmXRing(ZmXRing &&ring) noexcept :
+  ZmQueue(ZmQueue &&ring) noexcept :
       m_initial{ring.m_initial}, m_increment{ring.m_increment},
       m_defrag{ring.m_defrag} {
     Guard guard(ring.m_lock);
@@ -171,9 +171,9 @@ public:
     ring.m_length = 0;
     ring.m_count = 0;
   }
-  ZmXRing &operator =(ZmXRing &&ring) noexcept {
-    this->~ZmXRing();
-    new (this) ZmXRing{ZuMv(ring)};
+  ZmQueue &operator =(ZmQueue &&ring) noexcept {
+    this->~ZmQueue();
+    new (this) ZmQueue{ZuMv(ring)};
   }
 
   unsigned initial() const { return m_initial; }
@@ -229,7 +229,7 @@ private:
   }
 
 public:
-  void init(ZmXRingParams params = ZmXRingParams()) {
+  void init(ZmQueueParams params = ZmQueueParams()) {
     Guard guard(m_lock);
     if ((m_initial = params.initial()) > m_size) extend(params.initial());
     m_increment = params.increment();
@@ -411,7 +411,7 @@ friend Iterator_;
     Iterator_ &operator =(const Iterator_ &);	// prevent mis-use
 
   protected:
-    using Ring = ZmXRing<T, NTP>;
+    using Ring = ZmQueue<T, NTP>;
 
     Iterator_(Ring &ring, unsigned i) :
 	Guard(ring.m_lock), m_ring(ring), m_i(i) { }
@@ -484,4 +484,4 @@ private:
     double	  m_defrag;
 };
 
-#endif /* ZmXRing_HH */
+#endif /* ZmQueue_HH */

@@ -31,7 +31,13 @@ struct TLS : public ZmObject {
 class Job : public ZmPolymorph {
 public:
   Job(const char *message, ZuTime timeout) :
-	m_message(message), m_timeout(timeout) { }
+    m_message{message}, m_timeout{timeout}
+  {
+    std::cout
+      << "Job() this=" << ZuBoxPtr(this).hex()
+      << " message=" << ZuBoxPtr(m_message).hex()
+      << ' ' << message << '\n' << std::flush;
+  }
   ~Job() {
     printf("~Job() %p ~%s [%d]\n",
 	this, m_message, (int)ZmThreadContext::self()->sid());
@@ -39,6 +45,7 @@ public:
   }
 
   void *operator()() {
+    ZmAssert(!(reinterpret_cast<uintptr_t>(this) & 8));
     ZmSpecific<TLS>::instance()->ping();
     printf("Job::() %p %s [%d]\n",
 	this, m_message, (int)ZmThreadContext::self()->sid());
@@ -48,7 +55,7 @@ public:
   ZuTime timeout() { return m_timeout; }
 
 private:
-  const char	*m_message;
+  const char	*m_message = nullptr;
   ZuTime	m_timeout;
 };
 
@@ -148,10 +155,10 @@ int main(int argc, char **argv)
 
   {
     int tid = isolation.first();
-    do {
+    while (tid >= 0) {
       params.thread(tid).isolated(true);
       tid = isolation.next(tid);
-    } while (tid >= 0);
+    }
   }
 
   ZmScheduler s{ZuMv(params)};
@@ -165,14 +172,18 @@ int main(int argc, char **argv)
 
   for (i = 0; i < 10; i++) {
     int j = (i & 1) ? ((i>>1) + 6) : (5 - (i>>1));
-    char *buf = (char *)malloc(32);
+    char *buf = static_cast<char *>(malloc(32));
     sprintf(buf, "Goodbye World %d", j);
     // jobs[j - 1] = new Job(buf, t + ZuTime(((double)j) / 10.0));
     // fns[j - 1] = ZmFn<>{jobs[j - 1].ptr(), ZmFnPtr<&Job::operator()>{}};
     // s.add(&timers[j - 1], fns[j - 1], jobs[j - 1]->timeout());
     ZuTime out = t + ZuTime(((double)j) / 10.0);
-    s.add([job = ZmMkRef(new Job(buf, out))]() { (*job)(); },
-	out, &timers[j - 1]);
+    s.add([
+      job = ZmMkRef(new Job(buf, out))
+    ](this const auto &self) {
+      std::cout << "operator()() " << ZuBoxPtr(&self).hex() << '\n';
+      (*job)();
+    }, out, &timers[j - 1]);
     printf("Hello World %d\n", j);
   }
 

@@ -35,7 +35,7 @@
 #include <zlib/ZmSemaphore.hh>
 #include <zlib/ZmRingFn.hh>
 #include <zlib/ZmRing.hh>
-#include <zlib/ZmXRing.hh>
+#include <zlib/ZmQueue.hh>
 #include <zlib/ZmRBTree.hh>
 #include <zlib/ZmThread.hh>
 #include <zlib/ZuTime.hh>
@@ -154,27 +154,27 @@ private:
   static const char *Fn_HeapID() { return "ZmScheduler.Fn"; }
   using Fn = ZmRingFn<ZmRingFnHeapID<Fn_HeapID>>;
 
-  // overflow ring DLQ
-  static const char *OverRing_HeapID() { return "ZmScheduler.OverRing"; }
-  using OverRing_ = ZmXRing<Fn, ZmXRingHeapID<OverRing_HeapID>>;
-  struct OverRing : public OverRing_ {
+  // overflow queue DLQ
+  static const char *Queue_HeapID() { return "ZmScheduler.Queue"; }
+  using Queue_ = ZmQueue<Fn, ZmQueueHeapID<Queue_HeapID>>;
+  struct Queue : public Queue_ {
     using Lock = ZmPLock;
     using Guard = ZmGuard<Lock>;
     using ReadGuard = ZmReadGuard<Lock>;
 
     ZuInline void push(Fn fn) {
       Guard guard(m_lock);
-      OverRing_::push(ZuMv(fn));
+      Queue_::push(ZuMv(fn));
       ++m_inCount;
     }
     ZuInline void unshift(Fn fn) {
       Guard guard(m_lock);
-      OverRing_::unshift(ZuMv(fn));
+      Queue_::unshift(ZuMv(fn));
       --m_outCount;
     }
     ZuInline Fn shift() {
       Guard guard(m_lock);
-      Fn fn = OverRing_::shift();
+      Fn fn = Queue_::shift();
       if (fn) ++m_outCount;
       return fn;
     }
@@ -188,7 +188,7 @@ private:
     unsigned	  m_inCount = 0;
     unsigned	  m_outCount = 0;
   };
-  enum { OverRing_Increment = 128 };
+  enum { Queue_Increment = 128 };
 
 private:
   struct Timer_ {
@@ -422,8 +422,8 @@ public:
   const Ring &ring(unsigned sid) const {
     return m_threads[sid - 1].ring;
   }
-  const OverRing &overRing(unsigned sid) const {
-    return m_threads[sid - 1].overRing;
+  const Queue &queue(unsigned sid) const {
+    return m_threads[sid - 1].queue;
   }
 
   unsigned sid(ZuCSpan s) const {
@@ -466,8 +466,8 @@ private:
     ZmFn<>		wakeFn;
     ZmThreadID		tid = 0;
     ZmThread		thread;
-    ZmAtomic<unsigned>	overCount;
-    OverRing		overRing;	// fallback overflow ring
+    ZmAtomic<unsigned>	queueCount;
+    Queue		queue;	// fallback overflow queue
   };
 
   void wake(Thread *thread) { (thread->wakeFn)(); }

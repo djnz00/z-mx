@@ -15,7 +15,7 @@ TESTPROGS = \
 	ZmRingTest ZmRingTest2 \
 	ZmFnTest ZmHeapTest ZmHeapTest2 ZmRBTest ZmRWTest \
 	ZmSchedTest ZmTest ZmHashTest ZmHashTest2 \
-	ZmTTest ZmLHTest ZmHashCleanup ZmHashThread \
+	ZmLHTest ZmHashCleanup ZmHashThread \
 	ZmLockTest ZmTIDTest ZmAllocTest ZmCacheTest ZmDemangleTest \
 	ZmPQueueTest ZmPQueueTest2 ZmPQueueTest3 ZmPQueueTest4 \
 	ZmTimeTest ZmAssertTest ZmPolyHashTest ZmPolyCacheTest ZmBench

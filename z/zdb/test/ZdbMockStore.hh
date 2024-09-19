@@ -95,12 +95,12 @@ public:
   }
 
 private:
-  using Ring = ZmXRing<ZmFn<>, ZmXRingLock<ZmPLock>>;
+  using Queue = ZmQueue<ZmFn<>, ZmQueueLock<ZmPLock>>;
 
   bool		m_deferWork = false;
   bool		m_deferCallbacks = false;
-  Ring		m_work;
-  Ring		m_callbacks;
+  Queue		m_work;
+  Queue		m_callbacks;
 };
 
 inline zdbtest::Store *StoreTbl::store() const
