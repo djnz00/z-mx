@@ -20,15 +20,15 @@
 // 2011/11/11 12:12:12
 static const char *testdata =
   "string,int,bool,float,enum,time,flags,func,A,B,C,,\n"
-  "string,199,Y,1.234,sasha,2011/11/11 12:12:12,Flag1,A,B,C,D,,,\n"
+  "string,199,Y,1.234,serene,2011/11/11 12:12:12,Flag1,A,B,C,D,,,\n"
   "string2,23,N,0.00042,grey,2011/11/11 12:12:12.1234,SUP,,,\n"
-  "\"-,>\"\"<,-\",2,,0.0000002,\"\"\"\"girlfriend,,Flag1|Flag2,,,\n"
-  "-->\",\"<--,3,N,3.1415926,\"experience\"\"\",,Flag1,,,\n";
+  "\"-,>\"\"<,-\",2,,0.0000002,\"\"\"\"zone,,Flag1|Flag2,,,\n"
+  "-->\",\"<--,3,N,3.1415926,\"event\"\"\",,Flag1,,,\n";
 
 namespace Enums {
-  ZtEnumValues_(int8_t, Sasha = 1, Grey, Girlfriend = 43, Experience, __);
+  ZtEnumValues_(int8_t, Serene = 1, Grey, Zone = 43, Event, __);
   ZtEnumMap(Enums, Map,
-      "sasha", 1, "grey", 42, "\"girlfriend", 43, "experience\"", 44, "", 45);
+      "serene", 1, "grey", 42, "\"zone", 43, "event\"", 44, "", 45);
 }
 
 namespace DaFlags {

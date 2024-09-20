@@ -214,7 +214,7 @@ unsigned Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
 	throw Usage{args[0], longOpt};
       fromArg(key, type, c[3]);
     } else {
-      fromArg(ZtString{ZuBox<int>{p++}}, ZvOptType::Param, args[i]);
+      fromArg(ZtString{} << ZuBox<int>{p++}, ZvOptType::Param, args[i]);
     }
   }
   {

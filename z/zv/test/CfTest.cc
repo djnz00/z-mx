@@ -37,7 +37,7 @@ static const char *testdata =
 "key2 ok\\ \n"
 "key3 ok2\\\\\n"
 "\n"
-"# \\grok this sucker\n"
+"# \\grok this word\n"
 "\n"
 "	key1		\n"
 "			\"ok \\\"this is val1\\\\\"		# comment !!\n"

@@ -6,6 +6,11 @@
 
 // simple fast stack (LIFO array) for types with
 // a sentinel null value (defaults to ZuCmp<T>::null())
+// - ZmVHeap-allocated
+// - initial size is configurable
+// - supports intra-stack deletion for cancel-on-queue (aka abort-on-queue)
+// - automatic defragmentation controlled by maxFrag configuration parameter
+//   - regular LIFO use cases do not cause fragmentation
 
 #ifndef ZtStack_HH
 #define ZtStack_HH
@@ -25,22 +30,17 @@
 #include <zlib/ZmVHeap.hh>
 
 // defaults
-#define ZtStackInitial		4
-#define ZtStackIncrement	8
 #define ZtStackMaxFrag		50.0
 
 struct ZtStackParams {
   ZtStackParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
-  ZtStackParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
   ZtStackParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
 
   unsigned initial() const { return m_initial; }
-  unsigned increment() const { return m_increment; }
   double maxFrag() const { return m_maxFrag; }
 
 private:
-  unsigned	m_initial = ZtStackInitial;
-  unsigned	m_increment = ZtStackIncrement;
+  unsigned	m_initial = 0;
   double	m_maxFrag = ZtStackMaxFrag;
 };
 
@@ -148,18 +148,17 @@ public:
   using ReadGuard = ZmReadGuard<Lock>;
 
   ZtStack(ZtStackParams params = {}) :
-      m_initial(params.initial()),
-      m_increment(params.increment()),
-      m_defrag(1.0 - (double)params.maxFrag() / 100.0) { }
+    m_defrag{1.0 - (double)params.maxFrag() / 100.0}
+  {
+    if (params.initial()) extend(params.initial());
+  }
 
   ~ZtStack() {
     clean_();
     vfree(m_data);
   }
 
-  ZtStack(ZtStack &&stack) noexcept :
-      m_initial{stack.m_initial}, m_increment{stack.m_increment},
-      m_defrag{stack.m_defrag} {
+  ZtStack(ZtStack &&stack) noexcept : m_defrag{stack.m_defrag} {
     Guard guard(stack.m_lock);
     m_data = stack.m_data;
     m_size = stack.m_size;
@@ -175,8 +174,6 @@ public:
     new (this) ZtStack{ZuMv(stack)};
   }
 
-  unsigned initial() const { return m_initial; }
-  unsigned increment() const { return m_increment; }
   unsigned maxFrag() const {
     return (unsigned)((1.0 - m_defrag) * 100.0);
   }
@@ -193,30 +190,26 @@ private:
   using VHeap::valloc;
   using VHeap::vfree;
 
-  void lazy() {
-    if (ZuUnlikely(!m_data)) extend(m_initial);
-  }
-
   void clean_() {
     if (!m_data) return;
     Ops::destroyItems(m_data, m_length);
   }
 
   void extend(unsigned size) {
-    T *data = static_cast<T *>(valloc((m_size = size) * sizeof(T)));
+    T *data = static_cast<T *>(valloc(size * sizeof(T)));
     ZmAssert(data);
+    if (ZuUnlikely(!data)) throw std::bad_alloc{};
     if (m_data) {
       Ops::moveItems(data, m_data, m_length);
       vfree(m_data);
     }
-    m_data = data;
+    m_data = data, m_size = size;
   }
 
 public:
   void init(ZtStackParams params = ZtStackParams()) {
     Guard guard(m_lock);
-    if ((m_initial = params.initial()) > m_size) extend(params.initial());
-    m_increment = params.increment();
+    if (params.initial() > m_size) extend(params.initial());
     m_defrag = 1.0 - double(params.maxFrag()) / 100.0;
   }
 
@@ -229,13 +222,9 @@ public:
   template <typename P>
   void push(P &&v) {
     Guard guard(m_lock);
-    lazy();
     if (m_length >= m_size) {
-      T *data = static_cast<T *>(valloc((m_size += m_increment) * sizeof(T)));
-      ZmAssert(data);
-      Ops::moveItems(data, m_data, m_length);
-      vfree(m_data);
-      m_data = data;
+      auto n = m_length + 1;
+      extend(ZmGrow(m_size * sizeof(T), n * sizeof(T)) / sizeof(T));
     }
     Ops::initItem(m_data + m_length++, ZuFwd<P>(v));
     m_count++;
@@ -374,8 +363,6 @@ private:
   unsigned	m_size = 0;
   unsigned	m_length = 0;
   unsigned	m_count = 0;
-  unsigned	m_initial;
-  unsigned	m_increment;
   double	m_defrag;
 };
 

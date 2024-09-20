@@ -9,7 +9,7 @@ LDADD = $(top_builddir)/zt/src/libZt.la $(top_builddir)/zm/src/libZm.la \
 noinst_PROGRAMS = \
 	ZtArrayTest ZtDateTest ZtDateFixTest ZtRegexTest \
 	ZtStringHash ZtStringTest vsntest ZtIconvTest ZtBitWindowTest \
-	ZtFieldTest ZtBitmapTest
+	ZtFieldTest ZtBitmapTest ZtStackTest
 ZtArrayTest_SOURCES = ZtArrayTest.cc
 ZtDateTest_SOURCES = ZtDateTest.cc
 ZtDateFixTest_SOURCES = ZtDateFixTest.cc
@@ -21,3 +21,4 @@ ZtIconvTest_SOURCES = ZtIconvTest.cc
 ZtBitWindowTest_SOURCES = ZtBitWindowTest.cc
 ZtFieldTest_SOURCES = ZtFieldTest.cc
 ZtBitmapTest_SOURCES = ZtBitmapTest.cc
+ZtStackTest_SOURCES = ZtStackTest.cc

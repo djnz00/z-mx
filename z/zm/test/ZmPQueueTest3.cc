@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-/* ZmPQueueTx unit test */
+// ZmPQueueTx unit test
 
 #include <zlib/ZuLib.hh>
 
@@ -59,7 +59,7 @@ public:
 
   App(uint32_t head) : m_queue(head) { }
 
-  /* -- test interface -- */
+  // -- test interface
 
   bool runSend() {
     if (!m_sends) return false;
@@ -85,7 +85,7 @@ public:
     return true;
   }
 
-  /* -- sender callback interface -- */
+  // -- sender callback interface
 
   Queue *txQueue() { return &m_queue; }
 

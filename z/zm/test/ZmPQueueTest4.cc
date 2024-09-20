@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-/* ZmPQueue unit test */
+// ZmPQueue unit test
 
 #include <zlib/ZuLib.hh>
 
@@ -16,7 +16,8 @@
 
 #include <zlib/ZmPQueue.hh>
 
-inline void out(bool ok, const char *s) {
+inline void out(bool ok, const char *s)
+{
   std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
   ZmAssert(ok);
 }

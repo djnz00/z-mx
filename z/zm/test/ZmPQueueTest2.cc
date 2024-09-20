@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-/* ZmPQueueRx unit test */
+// ZmPQueueRx unit test
 
 #include <zlib/ZuLib.hh>
 
@@ -17,12 +17,13 @@
 #include <zlib/ZuAssert.hh>
 
 #include <zlib/ZmGuard.hh>
+#include <zlib/ZmAssert.hh>
 #include <zlib/ZmLock.hh>
 #include <zlib/ZmPQueue.hh>
 #include <zlib/ZmNoLock.hh>
 #include <zlib/ZmList.hh>
 
-inline void out(bool ok, const char *s) {
+void out(bool ok, const char *s) {
   std::cout << (ok ? "OK  " : "NOK ") << s << '\n' << std::flush;
   ZmAssert(ok);
 }
@@ -48,9 +49,7 @@ struct Msg_ : public ZmObject, public Msg_Data {
   void write(const I &i) { }
 };
 
-using Queue =
-  ZmPQueue<Msg_,
-    ZmPQueueNode<Msg_> >;
+using Queue = ZmPQueue<Msg_, ZmPQueueNode<Msg_>>;
 
 class App : public ZmPQRx<App, Queue, ZmNoLock> {
 public:
@@ -60,7 +59,7 @@ public:
 
   App(uint32_t head) : m_queue(head) { }
 
-  /* -- test interface -- */
+  // -- test interface
 
   // send a new message into the receiver
   void send(uint32_t key, unsigned length) {
@@ -101,7 +100,7 @@ public:
     return true;
   }
 
-  /* -- receiver callback interface -- */
+  // -- receiver callback interface
 
   Queue *rxQueue() { return &m_queue; }
 

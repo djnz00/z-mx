@@ -91,14 +91,18 @@
 template <typename Heap, typename L, typename ArgList> struct ZmLambda_;
 template <typename Heap, typename L, typename ...Args>
 struct ZmLambda_<Heap, L, ZuTypeList<Args...>> :
-    public Heap, public ZmPolymorph, public L {
-  template <typename L_> ZmLambda_(L_ &&l) : L{ZuFwd<L_>(l)} { }
+    public Heap, public ZmPolymorph {
+  L lambda;
+
+  ZmLambda_(L l) : lambda{ZuMv(l)} { }
+
   decltype(auto) invoke(Args... args) {
-    return L::operator ()(ZuFwd<Args>(args)...);
+    return lambda(ZuFwd<Args>(args)...);
   }
   decltype(auto) cinvoke(Args... args) const {
-    return L::operator ()(ZuFwd<Args>(args)...);
+    return lambda(ZuFwd<Args>(args)...);
   }
+
   ZmLambda_() = delete;
   ZmLambda_(const ZmLambda_ &) = delete;
   ZmLambda_ &operator =(const ZmLambda_ &) = delete;
@@ -108,26 +112,6 @@ struct ZmLambda_<Heap, L, ZuTypeList<Args...>> :
 template <auto HeapID, bool Sharded, typename L, typename ArgList>
 using ZmLambda = ZmLambda_<
   ZmHeap<HeapID, ZmLambda_<ZuEmpty, L, ArgList>, Sharded>, L, ArgList>;
-
-// override ZuMv / std::move (the ZmLambda_ wrapper is not movable)
-template <typename Heap, typename L, typename ArgList>
-inline constexpr L &&ZuMv(ZmLambda_<Heap, L, ArgList> &v) noexcept {
-  return static_cast<L &&>(static_cast<L &>(v));
-}
-template <typename Heap, typename L, typename ArgList>
-inline constexpr L &&ZuMv(ZmLambda_<Heap, L, ArgList> &&v) noexcept {
-  return static_cast<L &&>(v);
-}
-namespace std {
-  template <typename Heap, typename L, typename ArgList>
-  inline constexpr L &&move(ZmLambda_<Heap, L, ArgList> &v) noexcept {
-    return static_cast<L &&>(static_cast<L &>(v));
-  }
-  template <typename Heap, typename L, typename ArgList>
-  inline constexpr L &&move(ZmLambda_<Heap, L, ArgList> &&v) noexcept {
-    return static_cast<L &&>(v);
-  }
-}
 
 // stateful immutable lambda
 template <typename R_, typename ...Args_>

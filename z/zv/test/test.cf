@@ -7,7 +7,7 @@
 key2 ok\ 
 key3 ok2\\
 
-# grok this sucker
+# grok this word
 
 	key1		
 			"ok \"this is val1\\"		# comment !!

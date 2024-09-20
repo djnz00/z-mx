@@ -331,10 +331,11 @@ private:
   ZmHeapStats	m_stats;
 };
 
-// ZmHeapAllocSize evaluates as a size that is minimum sizeof(uintptr_t),
-// or the smallest power of 2 greater than the passed size yet smaller
-// than the cache line size, or the size rounded up to the nearest multiple
-// of the cache line size
+// ZmHeapAllocSize evaluates to a size that is:
+// - rounded up to sizeof(uintptr_t) if smaller, or
+// - the smallest power of 2 greater than the passed size yet smaller
+//   than the cache line size if smaller than that, or
+// - the size rounded up to the nearest multiple of the cache line size
 template <
   unsigned Size_,
   bool Small = (Size_ <= sizeof(uintptr_t)),

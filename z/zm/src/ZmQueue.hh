@@ -6,6 +6,12 @@
 
 // simple fast dynamic-sized queue (supports FIFO and LIFO) for types
 // with a sentinel null value (defaults to ZuCmp<T>::null())
+// - ZmVHeap-allocated
+// - initial size is configurable
+// - supports FIFO shift without moving queue contents
+// - supports intra-queue deletion for cancel-on-queue (aka abort-on-queue)
+// - automatic defragmentation controlled by maxFrag configuration parameter
+//   - regular FIFO use cases do not cause fragmentation
 
 #ifndef ZmQueue_HH
 #define ZmQueue_HH
@@ -25,23 +31,18 @@
 #include <zlib/ZmVHeap.hh>
 
 // defaults
-#define ZmQueueInitial		8
-#define ZmQueueIncrement	8
 #define ZmQueueMaxFrag		50.0
 
 class ZmQueueParams {
 public:
   ZmQueueParams &&initial(unsigned v) { m_initial = v; return ZuMv(*this); }
-  ZmQueueParams &&increment(unsigned v) { m_increment = v; return ZuMv(*this); }
   ZmQueueParams &&maxFrag(double v) { m_maxFrag = v; return ZuMv(*this); }
 
   unsigned initial() const { return m_initial; }
-  unsigned increment() const { return m_increment; }
   double maxFrag() const { return m_maxFrag; }
 
 private:
-  unsigned	m_initial = ZmQueueInitial;
-  unsigned	m_increment = ZmQueueIncrement;
+  unsigned	m_initial = 0;
   double	m_maxFrag = ZmQueueMaxFrag;
 };
 
@@ -148,8 +149,10 @@ public:
   using ReadGuard = ZmReadGuard<Lock>;
 
   ZmQueue(ZmQueueParams params = {}) :
-      m_initial{params.initial()}, m_increment{params.increment()},
-      m_defrag{1.0 - double(params.maxFrag()) / 100.0} { }
+    m_defrag{1.0 - double(params.maxFrag()) / 100.0}
+  {
+    if (params.initial()) extend(params.initial());
+  }
 
   ~ZmQueue() {
     clean_();
@@ -157,7 +160,6 @@ public:
   }
 
   ZmQueue(ZmQueue &&ring) noexcept :
-      m_initial{ring.m_initial}, m_increment{ring.m_increment},
       m_defrag{ring.m_defrag} {
     Guard guard(ring.m_lock);
     m_data = ring.m_data;
@@ -176,8 +178,6 @@ public:
     new (this) ZmQueue{ZuMv(ring)};
   }
 
-  unsigned initial() const { return m_initial; }
-  unsigned increment() const { return m_increment; }
   unsigned maxFrag() const {
     return unsigned((1.0 - m_defrag) * 100.0);
   }
@@ -195,10 +195,6 @@ private:
   using VHeap::valloc;
   using VHeap::vfree;
 
-  void lazy() {
-    if (ZuUnlikely(!m_data)) extend(m_initial);
-  }
-
   void clean_() {
     if (!m_data) return;
     unsigned o = m_offset + m_length;
@@ -214,6 +210,7 @@ private:
   void extend(unsigned size) {
     T *data = static_cast<T *>(valloc(size * sizeof(T)));
     ZmAssert(data);
+    if (ZuUnlikely(!data)) throw std::bad_alloc{};
     if (m_data) {
       unsigned o = m_offset + m_length;
       if (o > m_size) {
@@ -231,8 +228,7 @@ private:
 public:
   void init(ZmQueueParams params = ZmQueueParams()) {
     Guard guard(m_lock);
-    if ((m_initial = params.initial()) > m_size) extend(params.initial());
-    m_increment = params.increment();
+    if (params.initial() > m_size) extend(params.initial());
     m_defrag = 1.0 - double(params.maxFrag()) / 100.0;
   }
 
@@ -244,7 +240,10 @@ public:
 
 private:
   void push() {
-    if (m_count >= m_size) extend(m_size + m_increment);
+    if (m_count >= m_size) {
+      auto n = m_count + 1;
+      extend(ZmGrow(m_size * sizeof(T), n * sizeof(T)) / sizeof(T));
+    }
   }
   unsigned offset(unsigned i) {
     if ((i += m_offset) >= m_size) i -= m_size;
@@ -256,7 +255,6 @@ public:
   void push(P &&v) {
     Guard guard(m_lock);
 
-    lazy();
     push();
     Ops::initItem(m_data + offset(m_length++), ZuFwd<P>(v));
     m_count++;
@@ -286,7 +284,6 @@ public:
   void unshift(P &&v) {
     Guard guard(m_lock);
 
-    lazy();
     push();
     unsigned o = offset(m_size - 1);
     m_offset = o, m_length++;
@@ -479,8 +476,6 @@ private:
     unsigned	  m_size = 0;
     unsigned	  m_length = 0;
     unsigned	  m_count = 0;
-    unsigned	  m_initial;
-    unsigned	  m_increment;
     double	  m_defrag;
 };
 

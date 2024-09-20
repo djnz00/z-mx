@@ -18,10 +18,10 @@
 
 namespace Snafus {
   ZtEnumValues_(int8_t,
-      Sasha = 1, Grey = 42, Girlfriend = 43, Experience = 44, TigerWoods = 45);
+      Serene = 1, Grey = 42, Zone = 43, Event = 44, Tiger = 45);
   ZtEnumMap(Snafus, Map,
-      "sasha", 1, "grey", 42, "girlfriend", 43, "experience", 44,
-      "tiger-woods", 45);
+      "serene", 1, "grey", 42, "zone", 43, "event", 44,
+      "tiger", 45);
 }
 
 namespace DaFlags {
@@ -34,8 +34,8 @@ struct Row {
   int		bah;
   double	baz;
   ZuFixedVal	bam_;
-  int		snafu;
-  ZuDateTime	mabbit;
+  int		snarf;
+  ZuDateTime	mad;
   int		flags;
 
   ZuFixed bam() const { return ZuFixed{bam_, 2}; }
@@ -47,8 +47,8 @@ ZtFieldTbl(Row,
     (((bah), (Ctor<2>)), (Int32)),
     (((baz), (Ctor<3>, NDP<2>)), (Float)),
     (((bam, Fn), (Ctor<4>, NDP<2>)), (Fixed)),
-    (((snafu), (Ctor<5>)), (Int32)),
-    (((mabbit), (Ctor<6>)), (DateTime)),
+    (((snarf), (Ctor<5>)), (Int32)),
+    (((mad), (Ctor<6>)), (DateTime)),
     (((flags), (Ctor<7>, Flags<DaFlags::Map>)), (Int32)));
 
 using CSVWrite = ZmList<Row, ZmListNode<ZuObject>>;
@@ -70,14 +70,14 @@ int main()
       row->baz = i * 2.2;
       row->bam_ = ZuFixed{row->baz * 2.2, 2}.mantissa;
       switch(i) {
-	case 1: row->snafu = 1; break;
-	case 2: row->snafu = 42; break;
-	case 3: row->snafu = 43; break;
-	case 4: row->snafu = 44; break;
-	case 5: row->snafu = 45; break;
-	default: row->snafu = 99; break;
+	case 1: row->snarf = 1; break;
+	case 2: row->snarf = 42; break;
+	case 3: row->snarf = 43; break;
+	case 4: row->snarf = 44; break;
+	case 5: row->snarf = 45; break;
+	default: row->snarf = 99; break;
       }
-      row->mabbit = ZuDateTime{Zm::now()};
+      row->mad = ZuDateTime{Zm::now()};
       switch(i) {
 	case 1: row->flags = 0x10 | 0x08; break;
 	case 2: row->flags = 0x01 | 0x02; break;
@@ -87,7 +87,7 @@ int main()
 	default: row->flags = ZuCmp<int>::null(); break;
       }
       switch(i) {
-	case 1: row->mabbit = ZuDateTime(2010, 01, 22, 15, 22, 14); break;
+	case 1: row->mad = ZuDateTime(2010, 01, 22, 15, 22, 14); break;
 	default: break;
       }
       filtList.pushNode(node);
