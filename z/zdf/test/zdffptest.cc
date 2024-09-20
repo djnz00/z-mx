@@ -18,6 +18,7 @@
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
 #include <zlib/ZdfStore.hh>
+#include <zlib/ZdfStats.hh>
 
 void print(const char *msg) {
   std::cout << msg << '\n';
@@ -80,7 +81,9 @@ using DF = Zdf::DataFrame<Frame, false>;
 using DFWriter = DF::Writer;
 
 struct Test {
-  ZmRef<DF>	df;
+  ZmRef<DF>		df;
+  ZmQueue<double>	queue{ZmQueueParams{}.initial(100)};
+  Zdf::StatsTree<>	stats;
 
   void run() {
     store->openDF<Frame, false, true>(
@@ -112,7 +115,7 @@ struct Test {
     using Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->find<Field>(
       ZuFixed{20, 0}, {this, ZmFnPtr<&Test::run_read2<Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read1 failed");
+	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
   }
@@ -122,7 +125,7 @@ struct Test {
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<V2Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read2 failed");
+	ZeLOG(Fatal, "data frame read3 failed");
 	done.post();
       });
     return true;
@@ -143,7 +146,7 @@ struct Test {
     using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<V1Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read4 failed");
+	ZeLOG(Fatal, "data frame read5 failed");
 	done.post();
       });
     return true;
@@ -160,7 +163,7 @@ struct Test {
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<V2Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read6 failed");
+	ZeLOG(Fatal, "data frame read7 failed");
 	done.post();
       });
     return true;
@@ -169,11 +172,32 @@ struct Test {
   bool run_read7(Ctrl rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000042));
-    rc.stop();
+    rc.fn({this, ZmFnPtr<&Test::run_read8<Ctrl>>{}});
+    rc.seekRev(0);
+    return true;
+  }
+  template <typename Ctrl>
+  bool run_read8(Ctrl rc, double v) {
+    queue.push(v);
+    stats.add(v);
+
+    if (queue.count_() < 100) return true;
+
+    v = queue.shift();
+    stats.del(v);
+    std::cout << "min=" << ZuBoxed(stats.minimum()) <<
+      " max=" << ZuBoxed(stats.maximum()) <<
+      " mean=" << ZuBoxed(stats.mean()) <<
+      " stdev=" << ZuBoxed(stats.std()) <<
+      " median=" << ZuBoxed(stats.median()) <<
+      " 95%=" << ZuBoxed(stats.rank(0.95)) << '\n';
+
+    if (rc.reader.offset() < 110) return true;
+
     using Field = ZtField(Frame, v2);
     df->seek<Field>(
-      Zdf::maxOffset(), {this, ZmFnPtr<&Test::run_read8<Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read7 failed");
+      Zdf::maxOffset(), {this, ZmFnPtr<&Test::run_read9<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read9 failed");
 	done.post();
       });
     df->write({this, ZmFnPtr<&Test::run_live_write>{}}, []{
@@ -183,7 +207,7 @@ struct Test {
     return true;
   }
   template <typename Ctrl>
-  bool run_read8(Ctrl, double v) {
+  bool run_read9(Ctrl, double v) {
     CHECK(ZuCmp<double>::null(v) || v == 42);
     return true;
   }
@@ -201,27 +225,6 @@ struct Test {
 };
 
 #if 0
-    reader.seekRev(index.offset());
-    AnyReader cleaner;
-    {
-      auto offset = reader.offset();
-      offset = offset < 100 ? 0 : offset - 100;
-      df.seek(cleaner, 1, offset);
-    }
-    Zdf::StatsTree<> w;
-    while (reader.read(v)) {
-      w.add(v);
-      if (cleaner.read(v)) w.del(v);
-      std::cout << "min=" << ZuBoxed(w.minimum()) <<
-	" max=" << ZuBoxed(w.maximum()) <<
-	" mean=" << ZuBoxed(w.mean()) <<
-	" stddev=" << ZuBoxed(w.std()) <<
-	" median=" << ZuBoxed(w.median()) <<
-	" 95%=" << ZuBoxed(w.rank(0.95)) << '\n';
-    }
-    // for (auto k = w.begin(); k != w.end(); ++k) std::cout << *k << '\n';
-    // for (auto k: w) std::cout << k.first << '\n';
-    // std::cout << "stddev=" << w.std() << '\n';
 #endif
 
 Test test;

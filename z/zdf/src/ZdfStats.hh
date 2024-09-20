@@ -5,9 +5,9 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // Data Series Statistics
-
-// rolling mean, variance and standard deviation
-// rolling median, percentiles (using order statistics tree)
+// - rolling mean, variance and standard deviation
+// - with order statistics tree:
+//   - rolling median, percentiles
 
 #ifndef ZdfStats_HH
 #define ZdfStats_HH
@@ -22,8 +22,6 @@
 
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuFP.hh>
-
-#include <zlib/ZuFixed.hh>
 
 #include <zlib/ZmHeap.hh>
 #include <zlib/ZmAllocator.hh>
@@ -42,86 +40,45 @@ public:
   Stats &operator =(Stats &&) = default;
   ~Stats() = default;
 
-  double fp(ZuFixedVal v) const {
-    return ZuFixed{v, m_ndp}.fp();
-  }
-
-  unsigned count() const { return m_count; }
-  double total() const { return fp(m_total); }
+  uint64_t count() const { return m_count; }
+  double total() const { return m_total; }
   double mean() const {
     if (ZuUnlikely(!m_count)) return 0.0;
-    return fp(m_total) / double(m_count);
+    return m_total / double(m_count);
   }
   double var() const {
     if (ZuUnlikely(!m_count)) return 0.0;
     return (m_var / double(m_count)) / m_varMul;
   }
   // Note: std() returns the population standard deviation, i.e.
-  // the equivalent of Excel's STDEVP(); by contrast, Excel's STDEV() uses
+  // the equivalent of Excel's STDEVP(); by contrast Excel's STDEV() uses
   // the n-1 formula intended for statistical sampling - this
-  // implementation performs a running calculation on an entire series
+  // implementation performs a running calculation on an entire window
   double std() const { return sqrt(var()); }
-  unsigned ndp() const { return m_ndp; }
 
-  void ndp(unsigned newExp) {
-    auto exp = m_ndp;
-    if (ZuUnlikely(newExp != exp)) {
-      if (m_count) {
-	if (newExp > exp) {
-	  auto m = ZuDecimalFn::pow10_64(newExp - exp);
-	  m_total *= m;
-	  auto m_ = double(m);
-	  m_var *= (m_ * m_);
-	} else {
-	  auto m = ZuDecimalFn::pow10_64(exp - newExp);
-	  m_total /= m;
-	  auto m_ = double(m);
-	  m_var /= (m_ * m_);
-	}
-      }
-      m_ndp = newExp;
-      auto m = double(ZuDecimalFn::pow10_64(newExp));
-      m_varMul = m * m;
-    }
-  }
-
-  void add(ZuFixed v) {
-    ndp(v.ndp);
-    add_(v.mantissa);
-  }
-
-protected:
-  void add_(ZuFixedVal v_) {
+  void add(double v) {
     if (ZuUnlikely(!m_count)) {
-      m_total = v_;
+      m_total = v;
     } else {
       double n = m_count;
       auto prev = double(m_total) / n;
-      auto mean = double(m_total += v_) / (n + 1.0);
-      auto v = double(v_);
+      auto mean = double(m_total += v) / (n + 1);
       m_var += (v - prev) * (v - mean);
     }
     ++m_count;
   }
 
-public:
-  void del(const ZuFixed &v) {
-    del_(v.adjust(m_ndp));
-  }
-protected:
-  void del_(ZuFixedVal v_) {
-    std::cout << "del_(" << ZuBoxed(v_) << ")\n";
+  void del(double v) {
     if (ZuUnlikely(!m_count)) return;
     if (m_count == 1) {
       m_total = 0;
     } else if (m_count == 2) {
-      m_total -= v_;
-      m_var = 0.0;
+      m_total -= v;
+      m_var = 0;
     } else {
       double n = m_count;
       auto prev = double(m_total) / n;
-      auto mean = double(m_total -= v_) / (n - 1.0);
-      auto v = double(v_);
+      auto mean = double(m_total -= v) / (n - 1.0);
       m_var -= (v - prev) * (v - mean);
     }
     --m_count;
@@ -130,15 +87,14 @@ protected:
   void clean() {
     m_count = 0;
     m_total = 0;
-    m_var = 0.0;
+    m_var = 0;
   }
 
 private:
-  unsigned	m_count = 0;
-  ZuFixedVal	m_total = 0;
-  double	m_var = 0.0;	// accumulated variance
-  unsigned	m_ndp = 0;
-  double	m_varMul = 1.0;
+  uint64_t	m_count = 0;
+  double	m_total = 0;
+  double	m_var = 0;	// accumulated variance
+  double	m_varMul = 1;
 };
 
 // NTP defaults
@@ -156,10 +112,10 @@ template <class NTP = StatsTree_Defaults>
 class StatsTree : public Stats {
 public:
   static constexpr auto HeapID = NTP::HeapID;
-  using Alloc = ZmAllocator<std::pair<ZuFixedVal, unsigned>, HeapID>;
+  using Alloc = ZmAllocator<std::pair<double, unsigned>, HeapID>;
 
 private:
-  using Tree = pbds::stats_tree<ZuFixedVal, unsigned, Alloc>;
+  using Tree = pbds::stats_tree<double, unsigned, Alloc>;
 public:
   using Iter = decltype(ZuDeclVal<Tree &>().begin());
   using CIter = decltype(ZuDeclVal<const Tree &>().begin());
@@ -172,36 +128,11 @@ public:
   StatsTree &operator =(StatsTree &&) = default;
   ~StatsTree() = default;
 
-  unsigned ndp() { return Stats::ndp(); }
-  void ndp(unsigned newExp) {
-    auto exp = ndp();
-    if (ZuUnlikely(newExp != exp)) {
-      if (count()) {
-	if (newExp > exp)
-	  shiftLeft(ZuDecimalFn::pow10_64(newExp - exp));
-	else
-	  shiftRight(ZuDecimalFn::pow10_64(exp - newExp));
-      }
-      Stats::ndp(newExp);
-    }
+  void add(double v) {
+    Stats::add(v);
+    m_tree.insert(v);
   }
-
-  void shiftLeft(uint64_t f) {
-    for (auto i = begin(); i != end(); ++i)
-      const_cast<ZuFixedVal &>(i->first) *= f;
-  }
-  void shiftRight(uint64_t f) {
-    for (auto i = begin(); i != end(); ++i)
-      const_cast<ZuFixedVal &>(i->first) /= f;
-  }
-
-  void add(const ZuFixed &v_) {
-    ndp(v_.ndp);
-    auto v = v_.mantissa;
-    add_(v);
-  }
-  void del(const ZuFixed &v_) {
-    auto v = v_.adjust(ndp());
+  void del(double v) {
     auto iter = m_tree.find(v);
     if (iter != end()) del_(iter);
   }
@@ -209,13 +140,19 @@ public:
   ZuIs<T, Iter> del(T iter) {
     if (iter != end()) del_(iter);
   }
+private:
+  void del_(Iter iter) {
+    Stats::del(iter->first);
+    m_tree.erase(iter);
+  }
 
+public:
   auto begin() const { return m_tree.begin(); }
   auto end() const { return m_tree.end(); }
 
   double fp(CIter iter) const {
     if (iter == end()) return ZuFP<double>::nan();
-    return Stats::fp(iter->first);
+    return iter->first;
   }
 
   double minimum() const { return fp(begin()); }
@@ -252,16 +189,6 @@ public:
   void clean() {
     Stats::clean();
     m_tree.clear();
-  }
-
-private:
-  void add_(ZuFixedVal v) {
-    Stats::add_(v);
-    m_tree.insert(v);
-  }
-  void del_(Iter iter) {
-    Stats::del_(iter->first);
-    m_tree.erase(iter);
   }
 
 private:
