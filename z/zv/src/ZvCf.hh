@@ -886,14 +886,14 @@ public:
 
   // get/assure shorthand forwarding functions for double
   template <bool Required_ = false>
-  double getDouble(ZuCSpan key, double minimum, double maximum) const {
+  double getDbl(ZuCSpan key, double minimum, double maximum) const {
     return getScalar<double, Required_>(key, minimum, maximum);
   }
-  double getDouble(
+  double getDbl(
       ZuCSpan key, double minimum, double maximum, double deflt) const {
     return getScalar<double>(key, minimum, maximum, deflt);
   }
-  double assureDouble(
+  double assureDbl(
       ZuCSpan key, double minimum, double maximum, double deflt) {
     return assureScalar<double>(key, minimum, maximum, deflt);
   }

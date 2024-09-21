@@ -549,12 +549,8 @@ public:
   friend Union_RDecayer ZuRDecayer(Union *);
 
 private:
-  uint8_t	m_u[Size + 1];
-}
-#ifdef __GNUC__
-  __attribute__ ((aligned(alignof(ZuMostAligned<Ts...>))))
-#endif
-;
+  alignas(ZuMostAligned<Ts...>) uint8_t	m_u[Size + 1];
+};
 
 } // namespace Zu_
 

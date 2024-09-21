@@ -5,7 +5,7 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // IO context
-// * intentionally sacrifices encapsulation for performance
+// - intentionally sacrifices encapsulation for performance
 
 #ifndef ZiIOContext_HH
 #define ZiIOContext_HH

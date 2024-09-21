@@ -202,6 +202,27 @@ ZiMultiplex_WSExt::~ZiMultiplex_WSExt()
 #endif /* !__NR_eventfd */
 #endif
 
+// 64-bit pointer-packing for epoll u64
+
+inline uint64_t u64_cxn(void *ptr) {
+  return reinterpret_cast<uintptr_t>(ptr);
+}
+inline bool u64_is_cxn(uint64_t v) { return !(v>>62); }
+inline uint64_t u64_listener(void *ptr) {
+  return reinterpret_cast<uintptr_t>(ptr) | (uint64_t(1)<<62);
+}
+inline bool u64_is_listener(uint64_t v) { return (v>>62) == 1; }
+inline uint64_t u64_connect(void *ptr) {
+  return reinterpret_cast<uintptr_t>(ptr) | (uint64_t(2)<<62);
+}
+inline bool u64_is_connect(uint64_t v) { return (v>>62) == 2; }
+inline constexpr const uint64_t u64_event() { return uint64_t(3)<<62; }
+inline bool u64_is_event(uint64_t v) { return (v>>62) == 3; }
+template <typename T>
+inline T *u64_ptr(uint64_t v) {
+  return reinterpret_cast<T *>(v & ~(uint64_t(3)<<62));
+}
+
 #endif /* ZiMultiplex_EPoll */
 
 using ErrorStr = ZuCArray<120>;
@@ -1640,7 +1661,7 @@ bool ZiMultiplex::cxnAdd(ZiConnection *cxn, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
-    ev.data.u64 = reinterpret_cast<uintptr_t>(cxn);
+    ev.data.u64 = u64_cxn(cxn);
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_cxns->del(s);
@@ -1672,7 +1693,7 @@ bool ZiMultiplex::listenerAdd(Listener *listener, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN | EPOLLET;
-    ev.data.u64 = reinterpret_cast<uintptr_t>(listener) | 1;
+    ev.data.u64 = u64_listener(listener);
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_listeners->del(s);
@@ -1704,7 +1725,7 @@ bool ZiMultiplex::connectAdd(Connect *request, Socket s)
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLOUT;
-    ev.data.u64 = reinterpret_cast<uintptr_t>(request) | 2;
+    ev.data.u64 = u64_connect(request);
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, s, &ev) < 0) {
       ZeError e{errno};
       m_connects->del(s);
@@ -1958,7 +1979,7 @@ bool ZiMultiplex::start__()
     struct epoll_event ev;
     memset(&ev, 0, sizeof(struct epoll_event));
     ev.events = EPOLLIN;
-    ev.data.u64 = 3;
+    ev.data.u64 = u64_event();
     if (epoll_ctl(m_epollFD, EPOLL_CTL_ADD, m_wakeFD, &ev) < 0) {
       ZeError e{errno};
       ::close(m_epollFD); m_epollFD = -1;
@@ -2141,8 +2162,8 @@ void ZiMultiplex::rx()
 	uint32_t events = ev[i].events;
 	uintptr_t v = ev[i].data.u64;
 
-	if (ZuLikely(!(v & 3))) {
-	  ZiConnection *cxn = (ZiConnection *)v;
+	if (ZuLikely(u64_is_cxn(v))) {
+	  ZiConnection *cxn = u64_ptr<ZiConnection>(v);
 	  if (events & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR))
 	    if (ZuUnlikely(!cxn->recv())) continue;
 	  if (events & EPOLLOUT)
@@ -2150,10 +2171,10 @@ void ZiMultiplex::rx()
 	  continue;
 	}
 
-	if (ZuLikely(v == 3)) { wake = readWake(); continue; }
+	if (ZuLikely(u64_is_event(v))) { wake = readWake(); continue; }
 
-	if (ZuLikely((v & 3) == 1)) {
-	  Listener *listener = (Listener *)(v & ~static_cast<uintptr_t>(3));
+	if (ZuLikely(u64_is_listener(v))) {
+	  Listener *listener = u64_ptr<Listener>(v);
 	  if (ZuLikely(!(events & EPOLLERR))) {
 	    accept(listener);
 	    continue;
@@ -2169,8 +2190,8 @@ void ZiMultiplex::rx()
 	  continue;
 	}
 	  
-	if (ZuLikely((v & 3) == 2)) {
-	  ZmRef<Connect> request = (Connect *)(v & ~static_cast<uintptr_t>(3));
+	if (ZuLikely(u64_is_connect(v))) {
+	  ZmRef<Connect> request = u64_ptr<Connect>(v);
 	  if (ZuLikely(!(events & EPOLLERR))) {
 	    connect(request);
 	    continue;

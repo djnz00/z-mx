@@ -5,7 +5,7 @@ if LIBPQ
 SUBDIRS += zdb_pq
 endif
 SUBDIRS += zrl zum zcmd
-SUBDIRS += zdf #zproxy
+SUBDIRS += zdf zproxy
 if GTK
-#SUBDIRS += zgtk
+SUBDIRS += zgtk
 endif

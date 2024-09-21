@@ -77,7 +77,9 @@ template <> struct ZtString__<char> {
 inline constexpr const char *ZtString_ID() { return "ZtString"; }
 
 template <typename Char_, auto HeapID_>
-class ZtString_ : private ZmVHeap<HeapID_>, public ZtString__<ZuStrip<Char_>> {
+class ZtString_ :
+  private ZmVHeap<HeapID_>,
+  public ZtString__<ZuStrip<Char_>> {
 public:
   using Char = Char_;
   using Char2 = typename ZtString_Char2<Char>::T;
@@ -1301,14 +1303,10 @@ public:
   friend Traits ZuTraitsType(ZtString_ *);
 
 private:
-  uint8_t	m_data[BuiltinSize * sizeof(Char)];
-  uint32_t	m_size_owned_null;
-  uint32_t	m_length_vallocd_builtin;
-}
-#ifdef __GNUC__
-  __attribute__ ((aligned(alignof(void *))))
-#endif
-;
+  alignas(void *) uint8_t	m_data[BuiltinSize * sizeof(Char)];
+  uint32_t			m_size_owned_null;
+  uint32_t			m_length_vallocd_builtin;
+};
 
 template <typename Char, auto HeapID>
 template <typename S>
@@ -1328,7 +1326,7 @@ template <auto HeapID> using ZtVString = ZtString_<char, HeapID>;
 using ZtWString = ZtString_<wchar_t, ZtString_ID>;
 template <auto HeapID> using ZtVWString = ZtString_<wchar_t, HeapID>;
 
-// RVO shortcuts
+// RVO printf shortcuts
 
 #ifdef __GNUC__
 ZtString ZtSprintf(const char *, ...) __attribute__((format(printf, 1, 2)));

@@ -27,12 +27,13 @@
 #include <zlib/ZiMultiplex.hh>
 
 #include <zlib/ZvCf.hh>
-#include <zlib/ZcmdHost.hh>
 #include <zlib/ZvMxParams.hh>
 
 #include <zlib/ZrlCLI.hh>
 #include <zlib/ZrlGlobber.hh>
 #include <zlib/ZrlHistory.hh>
+
+#include <zlib/ZcmdHost.hh>
 
 class IOBuf;		// I/O buffer
 class Connection;	// ZiConnection, owns queue of IO buffers
@@ -91,11 +92,11 @@ public:
   void splice(Args &&...args) { m_buf.splice(ZuFwd<Args>(args)...); }
 
   void recv(ZiIOContext *io);
-  void recv_(ZiIOContext &io);
-  void rcvd_(ZiIOContext &io);
+  bool recv_(ZiIOContext &io);
+  bool rcvd_(ZiIOContext &io);
   void send(ZiIOContext *io);
-  void send_(ZiIOContext &io);
-  void sent_(ZiIOContext &io);
+  bool send_(ZiIOContext &io);
+  bool sent_(ZiIOContext &io);
 
 private:
   Connection	*m_connection;
@@ -564,7 +565,7 @@ public:
     if (!cmd) return 0;
     ZtArray<ZtString> args = ZvCf::parseCLI(cmd);
     if (!args) return 0;
-    ZcmdContext ctx{.app_ = this, .interactive = true};
+    ZcmdContext ctx{.host = this, .interactive = true};
     processCmd(&ctx, args);
     m_executed.wait();
     return ctx.code;
@@ -1137,16 +1138,18 @@ void IOBuf::recv(ZiIOContext *io) {
   else
     recv_(*io);
 }
-void IOBuf::recv_(ZiIOContext &io)
+bool IOBuf::recv_(ZiIOContext &io)
 {
   io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::rcvd_>{}},
       m_buf.data(), m_buf.size(), 0);
+  return true;
 }
-void IOBuf::rcvd_(ZiIOContext &io)
+bool IOBuf::rcvd_(ZiIOContext &io)
 {
   m_buf.length(io.offset += io.length);
   m_stamp = Zm::now();
   m_connection->recv_(this, io);
+  return true;
 }
 
 void IOBuf::send(ZiIOContext *io)
@@ -1157,15 +1160,17 @@ void IOBuf::send(ZiIOContext *io)
   else
     send_(*io);
 }
-void IOBuf::send_(ZiIOContext &io)
+bool IOBuf::send_(ZiIOContext &io)
 {
   io.init(ZiIOFn{ZmMkRef(this), ZmFnPtr<&IOBuf::sent_>{}},
       m_buf.data(), m_buf.length(), 0);
+  return true;
 }
-void IOBuf::sent_(ZiIOContext &io)
+bool IOBuf::sent_(ZiIOContext &io)
 {
   if ((io.offset += io.length) >= io.size)
     m_connection->send_(this, io);
+  return true;
 }
 
 Connection::Connection(Proxy *proxy, uint32_t flags,
@@ -1511,11 +1516,11 @@ void sigint() { if (app) app->post(); }
 
 int main(int argc, char **argv)
 {
-  static ZvOpt opts[] = {
-    { 'v', "verbose", ZvOptType::Flag, "verbose" },
-    { 't', "nThreads",  ZvOptType::Param, "mx.nThreads" },
-    { 0 }
-  };
+  ZmRef<ZvCf> options = new ZvCf{};
+
+  options->fromString(
+    "verbose v v { param verbose }\n"
+    "nThreads t t { param mx.nThreads }\n");
 
   static const char *usage =
     "Usage: zproxy [OPTION]...\n"
@@ -1530,7 +1535,7 @@ int main(int argc, char **argv)
   ZmRef<ZvCf> args = new ZvCf();
 
   try {
-    if (args->fromArgs(opts, argc, argv) != 1) {
+    if (args->fromArgs(options, ZvCf::args(argc, argv)) != 1) {
       std::cerr << usage << std::flush;
       return 1;
     }
@@ -1585,11 +1590,6 @@ int main(int argc, char **argv)
       .histLoad = history.loadFn()
     });
     if (cli.open()) {
-      ZeLog::sink(ZeLog::lambdaSink(
-	  [](const ZeEventInfo &) { return ZuVStream{std::cerr};
-	  [](ZuVStream &, const ZeEventInfo &) {
-	    std::cerr << '\n' << std::flush;
-	  }));
       ZeLog::sink(ZeLog::lambdaSink([&cli](ZeLogBuf &buf, const ZeEventInfo &) {
 	buf << '\n';
 	cli.print([&buf]() { std::cout << buf << std::flush; });

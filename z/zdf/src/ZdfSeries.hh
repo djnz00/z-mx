@@ -204,7 +204,9 @@ protected:
     m_target{target}, m_fn{ZuMv(fn)}, m_errorFn{ZuMv(errorFn)},
     m_paused(paused)
   {
-    ZeAssert(m_blk, (name = ZtString{m_series->name()}), "internal error - null blk", return);
+    ZeAssert(m_blk,
+      (name = ZtString{m_series->name()}),
+      name << " internal error - null blk", return);
   }
 
 private:
@@ -494,8 +496,8 @@ public:
     auto blk = lastBlk();
     if (ZuUnlikely(!blk)) return 0;
     ZeAssert(blk->blkData,
-      (id = data().id, head = m_index.head(), tail = m_index.tail()),
-      "id=" << id << " head=" << head << " tail=" << tail, return n * BlkSize);
+      (name = ZtString{name()}),
+      name << " internal error - null blkData", return n * BlkSize);
     return (n - 1) * BlkSize + blk->blkData->data().buf.length();
   }
 
@@ -751,7 +753,6 @@ private:
   template <typename ...NDP>
   ZuIfT<sizeof...(NDP) == Fixed, void>
   write_loadedBlk(ZmFn<void(ZmRef<Writer>)> fn, NDP... ndp) {
-    ZeLOG(Debug, ([name = name()](auto &s) { s << "Writer::write(" << name << ") loadedBlk pin()"; }));
     m_lastBlk->blkData->pin();
     if (!m_lastBlk->count()) {
       write_newWriter(ZuMv(fn), ndp...);
@@ -806,7 +807,6 @@ private:
     m_lastBlk = &indexBlk->blks[m_lastBlkOffset - indexBlk->offset];
     m_lastBlk->offset(offset);
     m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
-    ZeLOG(Debug, ([name = name()](auto &s) { s << "Writer::write(" << name << ") nextBlk pin()"; }));
     m_lastBlk->blkData->pin();
   }
   // get Blk from index
@@ -884,8 +884,12 @@ private:
 
   // save block to database (always m_lastBlk)
   void saveBlk() {
-    ZeAssert(m_lastBlk, (), "internal error - null lastBlk", return);
-    ZeAssert(m_lastBlk->blkData, (), "internal error - null blkData", return);
+    ZeAssert(m_lastBlk,
+      (name = ZtString{name()}),
+      name << " internal error - null blk", return);
+    ZeAssert(m_lastBlk->blkData,
+      (name = ZtString{name()}),
+      name << " internal error - null blkData", return);
 
     static auto lastFn = [](const Blk *blk) {
       if constexpr (Fixed)
@@ -912,13 +916,12 @@ private:
 	});
       blkDataTbl()->insert(
 	m_lastBlk->blkData,
-	[name = name()](ZdbObject<DB::BlkData> *blkData) mutable {
-	  ZeAssert(blkData, (name),
-	    name << "internal error - insert - null blkData", return);
-	  if (blkData) {
-	    blkData->commit();
-	    ZeLOG(Debug, ([name = ZuMv(name)](auto &s) { s << "Writer::saveBlk(" << name << ") insert() unpin()"; }));
-	    blkData->unpin();
+	[name = name()](ZdbObject<DB::BlkData> *dbBlkData) mutable {
+	  ZeAssert(dbBlkData, (name),
+	    name << "internal error - insert - null dbBlkData", return);
+	  if (dbBlkData) {
+	    dbBlkData->commit();
+	    dbBlkData->unpin();
 	  }
 	});
     } else {
@@ -937,7 +940,6 @@ private:
 	m_lastBlk->blkData, [name = name()](ZdbObject<DB::BlkData> *blkData) mutable {
 	  if (blkData) {
 	    blkData->commit();
-	    ZeLOG(Debug, ([name = ZuMv(name)](auto &s) { s << "Writer::saveBlk(" << name << ") update() unpin()"; }));
 	    blkData->unpin();
 	  }
 	});
@@ -998,11 +1000,15 @@ private:
     return [this, blkOffset, target](uint64_t i) -> double {
       i += blkOffset;
       auto blk = getBlk(i);
-      ZeAssert(blk, (), "internal error - null blk", throw InternalError{});
+      ZeAssert(blk,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blk", throw InternalError{});
       Offset offset = blk->offset();
       if (target < offset) return double(target) - double(offset);
       auto n = blk->count();
-      ZeAssert(n, (), "internal error - empty blk", throw InternalError{});
+      ZeAssert(n,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - empty blk", throw InternalError{});
       offset += (n - 1);
       if (target > offset) return double(target) - double(offset);
       return 0;
@@ -1022,7 +1028,9 @@ private:
 	  value = data.first;
       } else {
 	auto blk = getBlk(i - 1);
-	ZeAssert(blk, (), "internal error - null blk", throw InternalError{});
+	ZeAssert(blk,
+	  (name = ZtString{m_series->name()}),
+	  name << " internal error - null blk", throw InternalError{});
 	if constexpr (Fixed)
 	  value = ZuFixed{blk->last.fixed, blk->ndp()};
 	else
@@ -1036,7 +1044,9 @@ private:
       }
       // get last value from containing blk
       auto blk = getBlk(i);
-      ZeAssert(blk, (), "internal error - null blk", throw InternalError{});
+      ZeAssert(blk,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blk", throw InternalError{});
       if constexpr (Fixed) {
 	value = ZuFixed{blk->last.fixed, blk->ndp()};
 	double target_ = target.fp(), value_ = value.fp();
@@ -1058,7 +1068,9 @@ private:
       blkOffset = m_lastBlkOffset - 1;
     if (!blkOffset) return;
     auto prevBlk = getBlk(blkOffset - 1);
-    ZeAssert(prevBlk, (), "internal error - null prevBlk", return);
+    ZeAssert(prevBlk,
+      (name = ZtString{name()}),
+      name << " internal error - null prevBlk", return);
     if (blkOffset > m_index.head()) m_index.head(blkOffset);
     // write new starting blkOffset and first value to data store
     auto &data = m_dbSeries->data();
@@ -1102,7 +1114,9 @@ inline Offset Reader<Decoder>::offset() const
     case Loading:
       if (m_target.template is<Offset>())
 	return m_target.template p<Offset>();
-      ZeAssert(m_blk, (), "null blk", return 0);
+      ZeAssert(m_blk,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blk", return 0);
       return m_blk->offset();
     case Stopped:
     case Stopping:
@@ -1111,7 +1125,8 @@ inline Offset Reader<Decoder>::offset() const
       return offset_();
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return 0);
+	(name = ZtString{m_series->name()}, state = int(m_state)),
+	name << " internal error - invalid state=" << state, return 0);
       return 0;
   }
 }
@@ -1157,7 +1172,6 @@ inline void Reader<Decoder>::seek(
   using namespace RdrState;
 
   m_decoder = {};
-  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::seek(" << name << ") unpin()"; }));
   m_blk->blkData->unpin();
   if (m_state == Live) {
     m_state = Reading;
@@ -1199,9 +1213,15 @@ inline Offset Reader<Decoder>::stop(StopFn fn)
   Offset offset = 0;
 
   auto unpin = [this] {
-    ZeAssert(m_blk, (), "null blk", break);
-    ZeAssert(m_blk->blkData, (), "null blkData", break);
-    ZeAssert(m_decoder, (), "null decoder", (void)0);
+    ZeAssert(m_blk,
+      (name = ZtString{m_series->name()}),
+      name << " internal error - null blk", break);
+    ZeAssert(m_blk->blkData,
+      (name = ZtString{m_series->name()}),
+      name << " internal error - null blkData", break);
+    ZeAssert(m_decoder,
+      (name = ZtString{m_series->name()}),
+      name << " internal error - null decoder", (void)0);
     m_decoder = {};
     m_blk->blkData->unpin();
   };
@@ -1212,25 +1232,26 @@ inline Offset Reader<Decoder>::stop(StopFn fn)
       fn();
       return offset;
     case Loading:
-      ZeAssert(m_blk, (), "null blk", break);
+      ZeAssert(m_blk,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blk", break);
       offset = m_target.template is<Offset>() ?
 	m_target.template p<Offset>() : m_blk->offset();
       break;
     case Live:
       offset = offset_();
-      ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::stop(" << name << " Live) unpin()"; }));
       unpin();
       m_series->delLiveReader(this);
       break;
     case Reading:
       offset = offset_();
-      ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::stop(" << name << " Reading) unpin()"; }));
       unpin();
       m_series->delHistReader(this);
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, return);
+	(name = ZtString{m_series->name()}, state = int(m_state)),
+	name << " internal error - invalid state=" << state, return 0);
   }
 
   m_state = Stopping;
@@ -1261,10 +1282,13 @@ inline void Reader<Decoder>::loadBlk()
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, goto fail);
+	(name = ZtString{m_series->name()}, state = int(m_state)),
+	name << " internal error - invalid state=" << state, goto fail);
   }
 
-  ZeAssert(m_blk, (), "null blk", goto fail);
+  ZeAssert(m_blk,
+    (name = ZtString{m_series->name()}),
+    name << " internal error - null blk", goto fail);
 
   if (m_blk->blkData) {
     m_series->run([
@@ -1301,14 +1325,18 @@ inline void Reader<Decoder>::loaded(const Blk *blk)
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, goto fail);
+	(name = ZtString{m_series->name()}, state = int(m_state)),
+	name << " internal error - invalid state=" << state, goto fail);
   }
 
-  ZeAssert(blk, (), "null blk", goto fail);
-  ZeAssert(blk == m_blk, (), "inconsistent blk", goto fail);
+  ZeAssert(blk,
+    (name = ZtString{m_series->name()}),
+    name << " internal error - null blk", goto fail);
+  ZeAssert(blk == m_blk,
+    (name = ZtString{m_series->name()}),
+    name << " internal error - inconsistent blk", goto fail);
 
   m_state = m_state == Live ? Live : Reading;
-  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::loaded(" << name << ") pin()"; }));
   m_blk->blkData->pin();
   m_decoder = m_blk->decoder<Decoder>();
 
@@ -1354,11 +1382,9 @@ inline int Reader<Decoder>::nextBlk()
     return RdrResult::EOS;
   }
   m_decoder = {};
-  ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::nextBlk(" << name << ") unpin()"; }));
   m_blk->blkData->unpin();
   m_blk = m_series->getBlk(++m_blkOffset);
   if (ZuLikely(m_blk->blkData)) {
-    ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::nextBlk(" << name << ") pin()"; }));
     m_blk->blkData->pin();
     m_decoder = m_blk->decoder<Decoder>();
     return RdrResult::OK;
@@ -1381,13 +1407,20 @@ inline int Reader<Decoder>::nextValue()
       break;
     case Reading:
     case Live:
-      ZeAssert(m_blk, (), "null blk", goto fail);
-      ZeAssert(m_blk->blkData, (), "null blkData", goto fail);
-      ZeAssert(m_decoder, (), "null decoder", goto fail);
+      ZeAssert(m_blk,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blk", goto fail);
+      ZeAssert(m_blk->blkData,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null blkData", goto fail);
+      ZeAssert(m_decoder,
+	(name = ZtString{m_series->name()}),
+	name << " internal error - null decoder", goto fail);
       break;
     default:
       ZeAssert(false,
-	(state = int(m_state)), "invalid state " << state, goto fail);
+	(name = ZtString{m_series->name()}, state = int(m_state)),
+	name << " internal error - invalid state=" << state, goto fail);
   }
 
   if (m_state != Reading && m_state != Live) return RdrResult::Stopped;
@@ -1443,7 +1476,9 @@ inline void Reader<Decoder>::stopped()
 {
   using namespace RdrState;
 
-  ZeAssert(m_state == Stopping, (), "invalid state", return);
+  ZeAssert(m_state == Stopping,
+    (name = ZtString{m_series->name()}, state = int(m_state)),
+    name << " internal error - invalid state=" << state, return);
 
   m_state = Stopped;
   m_paused = false;
@@ -1467,7 +1502,6 @@ inline void Reader<Decoder>::fail()
   }
 
   if (m_blk && m_blk->blkData) {
-    ZeLOG(Debug, ([name = ZtString{m_series->name()}](auto &s) { s << "Reader::fail(" << name << ") unpin()"; }));
     m_blk->blkData->unpin();
   }
 
@@ -1483,10 +1517,6 @@ inline void Reader<Decoder>::Ctrl::purge()
   const_cast<Series *>(reader.series())->purge(&reader, reader.m_blkOffset);
 }
 
-inline constexpr const char *closedWriter() {
-  return "attempt to use closed Writer";
-}
-
 // Writer implementation
 
 template <typename Decoder, typename Heap, typename Value>
@@ -1494,7 +1524,8 @@ inline bool Writer__<Decoder, Heap, Value>::write(Value value)
 {
   if (ZuUnlikely(m_failed)) return false;
 
-  ZeAssert(m_series, (), closedWriter(), fail(); return false);
+  ZeAssert(m_series, (),
+    "internal error - attempt to use closed Writer", return false);
 
   bool ok = m_series->write(static_cast<Writer<Decoder> *>(this), value);
   if (ok) ++m_offset;

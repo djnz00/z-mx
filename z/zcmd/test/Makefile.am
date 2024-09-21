@@ -10,9 +10,9 @@ AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	@Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@
-LDADD = $(top_builddir)/zdb/src/libZdb.la \
+LDADD = $(top_builddir)/zcmd/src/libZcmd.la \
 	$(top_builddir)/zum/src/libZum.la \
-	$(top_builddir)/zcmd/src/libZcmd.la \
+	$(top_builddir)/zdb/src/libZdb.la \
 	$(top_builddir)/zv/src/libZv.la \
 	$(top_builddir)/zfb/src/libZfb.la \
 	$(top_builddir)/ztls/src/libZtls.la \

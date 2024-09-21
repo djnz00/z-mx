@@ -332,6 +332,7 @@ protected:
 
 public:
   // access by position
+#if 0
   template <unsigned J> const U<J> & p() const & {
     ZuAssert(J < N);
     return static_cast<const Elem<J> &>(*this).v;
@@ -345,12 +346,21 @@ public:
     ZuAssert(J < N);
     return ZuMv(static_cast<Elem<J> &&>(*this).v);
   }
+#endif
+  template <unsigned J>
+  auto &&p(this auto &&self) {
+    ZuAssert(J < N);
+    return
+      ZuFwdLike<decltype(self)>(
+	ZuFwdBaseLike<decltype(self), Elem<J>>(self).v);
+  }
   template <unsigned J, typename V> void p(V &&v) {
     ZuAssert(J < N);
     static_cast<Elem<J> &>(*this).v = ZuFwd<V>(v);
   }
 
   // access by type
+#if 0
   template <typename T>
   const auto &p() const & {
     return static_cast<const Elem<ZuTypeIndex<T, Types>{}> &>(*this).v;
@@ -363,6 +373,13 @@ public:
   ZuNotReference<P<ZuTypeIndex<T, Types>{}>, U<ZuTypeIndex<T, Types>{}> &&>
   p() && {
     return ZuMv(static_cast<Elem<ZuTypeIndex<T, Types>{}> &&>(*this).v);
+  }
+#endif
+  template <typename T>
+  auto &&p(this auto &&self) {
+    return
+      ZuFwdLike<decltype(self)>(
+	ZuFwdBaseLike<decltype(self), Elem<ZuTypeIndex<T, Types>{}>>(self).v);
   }
   template <typename T, typename V>
   void p(V &&v) && {

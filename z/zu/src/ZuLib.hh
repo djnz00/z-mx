@@ -327,20 +327,38 @@ template <typename T>
 inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
   return static_cast<ZuDeref<T> &&>(v);
 }
-// shorthand constexpr std::forward_like without STL cruft
-template <typename T, typename U>
-inline constexpr auto &&ZuFwdLike(U &&v) noexcept {
+// shorthand std::forward_like, extended for accessing base classes
+// - ZuFwdLike<decltype(self)>(self).member
+// - ZuFwdBaseLike<decltype(self), Base>(self)
+template <typename T, typename V>
+inline constexpr auto &&ZuFwdLike(V &&v) noexcept {
+  using U = ZuDeref<V>;
   constexpr bool Const = ZuIsConst<ZuDeref<T>>{};
   if constexpr (ZuIsLRef<T &&>{}) {
     if constexpr (Const)
-      return static_cast<ZuMkConst<ZuDeref<U>> &>(v);
+      return static_cast<ZuMkConst<U> &>(v);
     else
       return static_cast<U &>(v);
   } else {
     if constexpr (Const)
-      return ZuMv(static_cast<ZuMkConst<ZuDeref<U>> &>(v));
+      return static_cast<const U &&>(static_cast<ZuMkConst<ZuDeref<U>> &>(v));
     else
-      return ZuMv(v);
+      return static_cast<U &&>(v);
+  }
+}
+template <typename T, typename U, typename V>	// V should be convertible to U
+inline constexpr auto &&ZuFwdBaseLike(V &&v) noexcept {
+  constexpr bool Const = ZuIsConst<ZuDeref<T>>{};
+  if constexpr (ZuIsLRef<T &&>{}) {
+    if constexpr (Const)
+      return static_cast<ZuMkConst<U> &>(v);
+    else
+      return static_cast<U &>(v);
+  } else {
+    if constexpr (Const)
+      return static_cast<const U &&>(static_cast<ZuMkConst<ZuDeref<U>> &>(v));
+    else
+      return static_cast<U &&>(v);
   }
 }
 

@@ -243,18 +243,18 @@ int main()
       ZmRef<ZvCf> cf = new ZvCf();
 
       cf->fromString("i 100.01");
-      if (cf->getDouble("j", .1, 100, .42) != .42) {
+      if (cf->getDbl("j", .1, 100, .42) != .42) {
 	std::cout << "NOK getDbl() default failed\n";
 	fail();
       }
       try {
-	cf->getDouble<true>("j", .1, 100);
+	cf->getDbl<true>("j", .1, 100);
 	std::cout << "NOK getDbl() required failed\n";
 	fail();
       } catch (const ZvError &e) {
 	std::cout << "OK: " << e << '\n';
       }
-      cf->getDouble("i", .1, 100, .42);
+      cf->getDbl("i", .1, 100, .42);
       std::cout << "NOK getDbl() range failed\n";
       fail();
     } catch (const ZvError &e) {

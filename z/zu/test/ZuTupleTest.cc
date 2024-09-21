@@ -14,6 +14,7 @@
 #include <zlib/ZuCArray.hh>
 #include <zlib/ZuCmp.hh>
 #include <zlib/ZuBox.hh>
+#include <zlib/ZuDemangle.hh>
 
 inline void out(const char *s) { std::cout << s << '\n'; }
 
@@ -188,4 +189,27 @@ int main()
   }
 
   std::cout << '\n';
+
+  {
+    ZuTuple<int> t;
+    const auto &c = t;
+    CHECK((ZuIsExact<int &, decltype(t.p<int>())>{}));
+    CHECK((ZuIsExact<const int &, decltype(c.p<int>())>{}));
+    CHECK((ZuIsExact<int &&, decltype(ZuMv(t).p<int>())>{}));
+    CHECK((ZuIsExact<int &, decltype(t.p<0>())>{}));
+    CHECK((ZuIsExact<const int &, decltype(c.p<0>())>{}));
+    CHECK((ZuIsExact<int &&, decltype(ZuMv(t).p<0>())>{}));
+    int i = 42;
+    ZuTuple<int &> r = { i };
+    const auto &cr = r;
+    std::cout << ZuDemangle<decltype(r.p<int &>())>{} << '\n';
+    CHECK((ZuIsExact<int &, decltype(r.p<int &>())>{}));
+    std::cout << ZuDemangle<decltype(cr.p<int &>())>{} << '\n';
+    CHECK((ZuIsExact<const int &, decltype(cr.p<int &>())>{}));
+    std::cout << ZuDemangle<decltype(ZuMv(r).p<int &>())>{} << '\n';
+    CHECK((ZuIsExact<int &&, decltype(ZuMv(r).p<int &>())>{}));
+    CHECK((ZuIsExact<int &, decltype(r.p<0>())>{}));
+    CHECK((ZuIsExact<const int &, decltype(cr.p<0>())>{}));
+    CHECK((ZuIsExact<int &&, decltype(ZuMv(r).p<0>())>{}));
+  }
 }
