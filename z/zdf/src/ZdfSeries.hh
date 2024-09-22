@@ -546,30 +546,20 @@ public:
     reader->loadBlk();
   }
 
-  auto readVec(Value *data, unsigned n) {
-    return [data, n, i = 0](auto &rc, Value value) mutable -> bool {
-      if (ZuCmp<Value>::null(value)) return true;
-      data[i++] = value;
-      if (i < n) return true;
-      rc.stop();
-      return false;
-    };
-  }
-
-  auto readVec(Value *data, unsigned n, unsigned yield) {
+  template <typename Vec, typename Fn, bool Live = false>
+  auto readVec(Vec vec, unsigned n, Fn fn) {
     return [
-      data, n, yield, i = 0, j = 0
+      vec = ZuMv(vec), n, fn = ZuMv(fn), i = 0
     ](auto &rc, Value value) mutable -> bool {
-      if (ZuCmp<Value>::null(value)) return true;
-      data[i++] = value;
-      if (i >= n) {
-	rc.stop();
-	return false;
-      } else if (++j >= yield) {
-	j = 0;
-	return false;
+      if (ZuUnlikely(ZuCmp<Value>::null(value))) {
+	if constexpr (Live) return true;
+      } else {
+	vec[i++] = value;
+	if (i < n) return true;
       }
-      return true;
+      rc.stop();
+      ZuMv(fn)(ZuMv(vec));
+      return false;
     };
   }
 
@@ -749,6 +739,7 @@ public:
     ZmAssert(invoked());
 
     unsigned i = 0, n = m_histReaders.count_() + m_liveReaders.count_();
+    if (!n) return;
     auto readers = ZmAlloc(RdrNode *, n);
     if (ZuUnlikely(!readers)) { ZeLOG(Fatal, "ZmAlloc() failed"); return; }
     {

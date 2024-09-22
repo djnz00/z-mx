@@ -13,7 +13,7 @@
 #include <zlib/ZvCf.hh>
 #include <zlib/ZvMxParams.hh>
 
-#include <zlib/ZdbMemStore.hh>
+#include <zlib/Zdb.hh>
 
 #include <zlib/ZdfCompress.hh>
 #include <zlib/ZdfSeries.hh>
@@ -72,9 +72,22 @@ ZtFieldTbl(Frame,
   (((v1),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
   (((v2),	(Series, NDP<9>)),			(Float)));
 
-void usage() {
-  std::cerr << "Usage: zdffptest\n" << std::flush;
-  ::exit(1);
+void usage()
+{
+  static const char *help =
+    "Usage: zdffpftest [OPTION]...\n\n"
+    "Options:\n"
+    "      --help\t\tthis help\n"
+    "  -m, --module=MODULE\tspecify data store module (default: $ZDB_MODULE)\n"
+    "  -c, --connect=CONNECT\t"
+      "specify data store connection (default: $ZDB_CONNECT)\n"
+    "  -d, --debug\t\tenable Zdb debug logging\n"
+    "  -t, --hash-tel\toutput hash table telemetry CSV at exit\n"
+    "  -T, --heap-tel\toutput heap telemetry CSV at exit\n"
+    ;
+
+  std::cerr << help << std::flush;
+  Zm::exit(1);
 }
 
 using DF = Zdf::DataFrame<Frame, false>;
@@ -234,16 +247,31 @@ int main(int argc, char **argv)
   ZmRef<ZvCf> cf;
 
   try {
+    ZmRef<ZvCf> options = inlineCf(
+      "module m m { param zdb.store.module }\n"
+      "connect c c { param zdb.store.connection }\n"
+      "debug d d { flag zdb.debug }\n"
+      "hash-tel t t { flag hashTel }\n"
+      "heap-tel T T { flag heapTel }\n"
+      "help { flag help }\n");
+
+      // "  module ../src/.libs/libZdbPQ.so\n"
+      // "  connection \"dbname=test host=/tmp\"\n"
+
     cf = inlineCf(
       "zdb {\n"
       "  thread zdb\n"
-      "  store { thread zdb_mem }\n"
       "  hostID 0\n"
       "  hosts {\n"
       "    0 { standalone 1 }\n"
       "  }\n"
+      "  store {\n"
+      "    module ${ZDB_MODULE}\n"
+      "    connection ${ZDB_CONNECT}\n"
+      "    thread zdb_pq\n"
+      "    replicated true\n"
+      "  }\n"
       "  tables { }\n"
-      "  debug 1\n"
       "}\n"
       "mx {\n"
       "  nThreads 4\n"
@@ -251,13 +279,25 @@ int main(int argc, char **argv)
       "    1 { name rx isolated true }\n"
       "    2 { name tx isolated true }\n"
       "    3 { name zdb isolated true }\n"
-      "    4 { name zdb_mem isolated true }\n"
+      "    4 { name zdb_pq isolated true }\n"
       "  }\n"
       "  rxThread rx\n"
       "  txThread tx\n"
-      "}\n"
-    );
+      "}\n");
 
+    // command line overrides environment
+    if (cf->fromArgs(options, ZvCf::args(argc, argv)) != 1) usage();
+
+    if (cf->getBool("help")) usage();
+
+    if (!cf->get("zdb.store.module")) {
+      std::cerr << "set ZDB_MODULE or use --module=MODULE\n" << std::flush;
+      Zm::exit(1);
+    }
+    if (!cf->get("zdb.store.connection")) {
+      std::cerr << "set ZDB_CONNECT or use --connect=CONNECT\n" << std::flush;
+      Zm::exit(1);
+    }
   } catch (const ZvError &e) {
     std::cerr << e << '\n' << std::flush;
     Zm::exit(1);
@@ -268,7 +308,7 @@ int main(int argc, char **argv)
     Zm::exit(1);
   }
 
-  ZeLog::init("zdftest");
+  ZeLog::init("zdffptest");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2"))); // log to stderr
   ZeLog::start();
@@ -299,7 +339,7 @@ int main(int argc, char **argv)
       .downFn = [](Zdb *, bool) {
 	ZeLOG(Info, "INACTIVE");
       }
-    }, new ZdbMem::Store());
+    });
 
     store = new Zdf::Store{};
     store->init(db);
@@ -319,17 +359,21 @@ int main(int argc, char **argv)
 
     done.wait();
 
-    db->stop(); // closes all tables
+    if (cf->getBool("hashTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
 
-    db->final();
+    if (cf->getBool("heapTel"))
+      ZeLOG(Debug, (ZtString{} << '\n' << ZmHeapMgr::csv()));
+
+    db->stop(); // closes all tables
 
     mx->stop();
 
     // ZeLOG(Debug, (ZtString{} << '\n' << ZmHashMgr::csv()));
     // ZeLOG(Debug, (ZtString{} << '\n' << ZmHeapMgr::csv()));
 
+    db->final();
     db = {};
-    store = {};
 
   } catch (const ZvError &e) {
     ZeLOG(Fatal, ZtString{e});
