@@ -120,7 +120,7 @@ struct Test {
       });
   }
   template <typename Ctrl>
-  bool run_read2(Ctrl rc, ZuFixed) {
+  bool run_read2(Ctrl &rc, ZuFixed) {
     using Field = ZtField(Frame, v2);
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
@@ -128,18 +128,18 @@ struct Test {
 	ZeLOG(Fatal, "data frame read3 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read3(Ctrl rc, double v) {
+  bool run_read3(Ctrl &rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.00000084));
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(0.0000084);
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read4(Ctrl rc, double v) {
+  bool run_read4(Ctrl &rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000084));
     using Field = ZtField(Frame, v1);
@@ -149,16 +149,16 @@ struct Test {
 	ZeLOG(Fatal, "data frame read5 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read5(Ctrl rc, ZuFixed) {
+  bool run_read5(Ctrl &rc, ZuFixed) {
     rc.fn({this, ZmFnPtr<&Test::run_read6<Ctrl>>{}});
     rc.findRev(ZuFixed{100, 0});
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read6(Ctrl rc, ZuFixed) {
+  bool run_read6(Ctrl &rc, ZuFixed) {
     using Field = ZtField(Frame, v2);
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
@@ -166,18 +166,18 @@ struct Test {
 	ZeLOG(Fatal, "data frame read7 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read7(Ctrl rc, double v) {
+  bool run_read7(Ctrl &rc, double v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000042));
     rc.fn({this, ZmFnPtr<&Test::run_read8<Ctrl>>{}});
     rc.seekRev(0);
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read8(Ctrl rc, double v) {
+  bool run_read8(Ctrl &rc, double v) {
     queue.push(v);
     stats.add(v);
 
@@ -204,10 +204,10 @@ struct Test {
       ZeLOG(Fatal, "data frame live_write failed");
       done.post();
     });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read9(Ctrl, double v) {
+  bool run_read9(Ctrl &, double v) {
     CHECK(ZuCmp<double>::null(v) || v == 42);
     return true;
   }

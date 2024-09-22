@@ -161,7 +161,7 @@ public:
   }
 
 private:
-  bool read_(int64_t *value_) {
+  bool read_(int64_t *out) {
   again:
     if (ZuUnlikely(m_pos >= m_end)) return false;
     unsigned byte = *m_pos;
@@ -172,7 +172,7 @@ private:
 	goto again;
       } else {
 	m_rle = (byte & 0x7f) - 1;
-	if (value_) *value_ = m_prev;
+	if (out) *out = m_prev;
 	return true;
       }
     }
@@ -230,7 +230,7 @@ private:
       m_pos += 8;
     }
     if (byte & 0x40) value = ~value;
-    if (value_) *value_ = m_prev = value;
+    if (out) *out = m_prev = value;
     return true;
   }
 

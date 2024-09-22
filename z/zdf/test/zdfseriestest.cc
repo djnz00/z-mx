@@ -133,7 +133,7 @@ struct Test {
     run_read();
   }
   void run_read() {
-    series->seek(0, [this, i = 0](auto rc, ZuFixed v) mutable {
+    series->seek(0, [this, i = 0](auto &rc, ZuFixed v) mutable {
       switch (i++) {
 	case 0:
 	  CHECK(v.mantissa == 42 && !v.ndp);
@@ -163,7 +163,10 @@ struct Test {
 	  CHECK(v.mantissa == 430700 && v.ndp == 4);
 	  break;
       }
-      if (i >= 308) rc.stop([this]() { run_read2(); });
+      if (i >= 308) {
+	rc.stop([this]() { run_read2(); });
+	return false;
+      }
       return true;
     }, []() {
       ZeLOG(Fatal, "read failed");
@@ -171,31 +174,31 @@ struct Test {
     });
   }
   void run_read2() {
-    series->find(ZuFixed{425, 1}, [this](auto rc, ZuFixed v) {
+    series->find(ZuFixed{425, 1}, [this](auto &rc, ZuFixed v) {
       CHECK(v.mantissa == 4301 && v.ndp == 2);
       rc.stop([this]() { run_read3(); });
-      return true;
+      return false;
     }, []() {
       ZeLOG(Fatal, "read2 failed");
       gtfo();
     });
   }
   void run_read3() {
-    series->find(ZuFixed{43020, 3}, [this](auto rc, ZuFixed v) {
+    series->find(ZuFixed{43020, 3}, [this](auto &rc, ZuFixed v) {
       CHECK(v.mantissa == 4302 && v.ndp == 2);
       rc.purge();
       rc.stop([this]() { run_read4(); });
-      return true;
+      return false;
     }, []() {
       ZeLOG(Fatal, "read3 failed");
       gtfo();
     });
   }
   void run_read4() {
-    series->find(ZuFixed{44, 0}, [this](auto rc, ZuFixed v) {
+    series->find(ZuFixed{44, 0}, [this](auto &rc, ZuFixed v) {
       CHECK(!*v);
       rc.stop([this]() { run_read5(); });
-      return true;
+      return false;
     }, []() {
       ZeLOG(Fatal, "read4 failed");
       gtfo();

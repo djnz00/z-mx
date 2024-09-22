@@ -120,25 +120,25 @@ struct Test {
       });
   }
   template <typename Ctrl>
-  bool run_read2(Ctrl rc, ZuFixed) {
+  bool run_read2(Ctrl &rc, ZuFixed) {
     df->seek<ZtField(Frame, v2)>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read2 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read3(Ctrl rc, ZuFixed v) {
+  bool run_read3(Ctrl &rc, ZuFixed v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 20 * 42);
     CHECK(v.ndp == 9);
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(ZuFixed{200 * 42, 9});
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read4(Ctrl rc, ZuFixed v) {
+  bool run_read4(Ctrl &rc, ZuFixed v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 200 * 42);
     CHECK(v.ndp == 9);
@@ -147,31 +147,31 @@ struct Test {
 	ZeLOG(Fatal, "data frame read4 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read5(Ctrl rc, ZuFixed) {
+  bool run_read5(Ctrl &rc, ZuFixed) {
     rc.fn({this, ZmFnPtr<&Test::run_read6<Ctrl>>{}});
     rc.findRev(ZuFixed{100, 0});
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read6(Ctrl rc, ZuFixed) {
+  bool run_read6(Ctrl &rc, ZuFixed) {
     df->seek<ZtField(Frame, v2)>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read6 failed");
 	done.post();
       });
-    return true;
+    return false;
   }
   template <typename Ctrl>
-  bool run_read7(Ctrl rc, ZuFixed v) {
+  bool run_read7(Ctrl &rc, ZuFixed v) {
     ZeLOG(Debug, ([v](auto &s) { s << "v=" << v; }));
     CHECK(v.mantissa == 100 * 42);
     CHECK(v.ndp == 9);
     rc.stop();
     done.post();
-    return true;
+    return false;
   }
 };
 
