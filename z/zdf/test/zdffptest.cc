@@ -98,6 +98,10 @@ struct Test {
   ZmQueue<double>	queue{ZmQueueParams{}.initial(100)};
   Zdf::StatsTree<>	stats;
 
+  static double v2(double i) {
+    return (double(i) * 42) * .000000001;
+  }
+
   void run() {
     store->openDF<Frame, false, true>(
       0, "frame", {this, ZmFnPtr<&Test::run_opened>{}});
@@ -122,7 +126,7 @@ struct Test {
     Frame frame;
     for (int64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
-      frame.v2 = (double(i) * 42) * .000000001;
+      frame.v2 = v2(i);
       w->write(frame);
     }
     df->run([this]() { run_read1(); });
@@ -149,7 +153,6 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read3(Ctrl &rc, double v) {
-    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.00000084));
     rc.fn({this, ZmFnPtr<&Test::run_read4<Ctrl>>{}});
     rc.findFwd(0.0000084);
@@ -157,7 +160,6 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read4(Ctrl &rc, double v) {
-    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000084));
     using Field = ZtField(Frame, v1);
     using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
@@ -187,7 +189,6 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read7(Ctrl &rc, double v) {
-    ZeLOG(Debug, ([v](auto &s) { s << "v=" << ZuBoxed(v); }));
     CHECK(ZuBoxed(v).feq(0.0000042));
     rc.fn({this, ZmFnPtr<&Test::run_read8<Ctrl>>{}});
     rc.seekRev(0);
@@ -210,29 +211,41 @@ struct Test {
       " 95%=" << ZuBoxed(stats.rank(0.95)) << '\n';
 
     if (rc.reader.offset() < 110) return true;
-
-    using Field = ZtField(Frame, v2);
-    df->seek<Field>(
-      Zdf::maxOffset(), {this, ZmFnPtr<&Test::run_read9<Ctrl>>{}}, []{
-	ZeLOG(Fatal, "data frame read9 failed");
-	done.post();
-      });
-    df->write({this, ZmFnPtr<&Test::run_live_write>{}}, []{
-      ZeLOG(Fatal, "data frame live_write failed");
-      done.post();
-    });
+    df->run([this]() { run_read9(); });
     return false;
   }
+  void run_read9() {
+    using Field = ZtField(Frame, v2);
+    using Ctrl = Zdf::FieldRdrCtrl<Field>;
+    df->seek<Field>(
+      Zdf::maxOffset(),
+      {this, ZmFnPtr<&Test::run_read10<Ctrl>>{}}, []{
+	ZeLOG(Fatal, "data frame read10 failed");
+      });
+  }
   template <typename Ctrl>
-  bool run_read9(Ctrl &, double v) {
-    CHECK(ZuCmp<double>::null(v) || v == 42);
+  bool run_read10(Ctrl &rc, double v) {
+    auto j = rc.reader.offset() - 1;
+    if (ZuCmp<double>::null(v)) {
+      df->run([this]() { run_live_write(); });
+    } else {
+      CHECK(ZuBoxed(v).feq(v2(j)));
+    }
     return true;
   }
-  void run_live_write(ZmRef<DFWriter> w) {
+  void run_live_write() {
+    df->write({this, ZmFnPtr<&Test::run_live_write2>{}}, []{
+      ZeLOG(Fatal, "data frame live_write2 failed");
+      done.post();
+    });
+  }
+  void run_live_write2(ZmRef<DFWriter> w) {
+    auto end = df->count();
     Frame frame;
     for (uint64_t i = 0; i < 10; i++) {
+      auto j = i + end;
       frame.v1 = i;
-      frame.v2 = 42;
+      frame.v2 = v2(j);
       w->write(frame);
     }
     df->stopWriting();

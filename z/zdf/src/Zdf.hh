@@ -302,6 +302,10 @@ public:
   template <typename ...Args> void invoke(Args &&...args) const;
   bool invoked() const;
 
+  Offset count() const {
+    return m_seriesRefs.template p<0>()->count();
+  }
+
   template <typename Field>
   auto series() const {
     using I = ZuTypeIndex<Field, Fields>;

@@ -103,6 +103,8 @@ public:
     return v;
   }
 
+  void extend(const uint8_t *end) { m_end = end; }
+
 private:
   const uint8_t	*m_pos = nullptr;
   const uint8_t	*m_end = nullptr;
@@ -137,11 +139,11 @@ public:
     m_pos{const_cast<uint8_t *>(in.pos())}, m_end{end}
   {
     m_outBits = in.inBits();
-    *m_pos <<= (8 - m_outBits);
   }
 
   uint8_t *pos() const { return m_pos; }
   uint8_t *end() const { return m_end; }
+  unsigned outBits() const { return m_outBits; }
 
   bool operator !() const { return !m_pos; }
   ZuOpBool
@@ -158,27 +160,27 @@ public:
   void out(uint8_t v) {
     if (ZuUnlikely(m_outBits == 0)) {
       m_outBits = Bits;
-      *m_pos = v<<(8 - Bits);
+      *m_pos = v;
       return;
     }
+    *m_pos |= (v<<m_outBits);
     unsigned lbits = 8 - m_outBits;
     if (ZuUnlikely(Bits < lbits)) lbits = Bits;
-    *m_pos = ((*m_pos)>>lbits) | (v<<(8 - lbits));
     if ((m_outBits += lbits) >= 8) {
       m_pos++;
       m_outBits = 0;
     }
-    v >>= lbits;
     if (uint8_t bits = Bits - lbits) {
+      v >>= lbits;
       m_outBits = bits;
-      *m_pos = v<<(8 - bits);
+      *m_pos = v;
     }
   }
   void out(uint64_t v, unsigned bits) {
     if (ZuLikely(m_outBits > 0)) {
+      *m_pos |= (v<<m_outBits);
       unsigned lbits = 8 - m_outBits;
       if (ZuUnlikely(bits < lbits)) lbits = bits;
-      *m_pos = ((*m_pos)>>lbits) | (v<<(8 - lbits));
       if ((m_outBits += lbits) >= 8) {
 	m_pos++;
 	m_outBits = 0;
@@ -199,16 +201,16 @@ public:
     bits &= 7;
     if (bits) {
       m_outBits = bits;
-      *m_pos = v<<(8 - bits);
+      *m_pos = v;
     }
   }
 
   void finish() {
     if (ZuLikely(m_pos < m_end && m_outBits)) {
-      (*m_pos) >>= (8 - m_outBits);
-      m_pos++;
+      ++m_pos;
       m_outBits = 0;
     }
+    m_end = m_pos; // prevent further writing
   }
 
 private:

@@ -5,6 +5,12 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // intrusively reference-counted smart pointer class
+// - atomic reference count
+// - no shared_ptr control block overhead (8 bytes vs 32 bytes)
+// - interoperates freely with raw pointers
+// - ZmHeap enables custom allocator for whole object including reference count
+// - cache-friendly (like enable_shared_from_this but without wasting 24 bytes)
+// - no weak_ptr
 
 #ifndef ZmRef_HH
 #define ZmRef_HH

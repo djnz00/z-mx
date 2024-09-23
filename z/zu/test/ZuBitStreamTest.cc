@@ -63,7 +63,7 @@ int main()
     CHECK(!i.avail<8>());
 
     ZuOBitStream o2{i, buf.data() + buf.size()};
-    
+
     o2.out<1>(1);
 
     o2.finish();

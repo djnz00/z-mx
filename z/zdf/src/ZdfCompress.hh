@@ -160,6 +160,8 @@ public:
     return false;
   }
 
+  void extend(const uint8_t *end) { m_end = end; }
+
 private:
   bool read_(int64_t *out) {
   again:
