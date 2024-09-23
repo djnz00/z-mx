@@ -1257,6 +1257,11 @@ template <int State>
 int Store::sendPrepared(const ZtString &id, const Tuple &params)
 {
   auto n = params.length();
+
+  /* ZeLOG(Debug, ([id = ZtString{id}, n](auto &s) {
+    s << '"' << id << "\", n=" << n;
+  })); */
+
   auto paramValues = ZmAlloc(const char *, n);
   auto paramLengths = ZmAlloc(int, n);
   auto paramFormats = ZmAlloc(int, n);
@@ -1268,10 +1273,6 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
       });
     paramFormats[i] = 1;
   }
-
-  /* ZeLOG(Debug, ([id = ZtString{id}, n](auto &s) {
-    s << '"' << id << "\", n=" << n;
-  })); */
 
   int r = PQsendQueryPrepared(
     m_conn, id.data(),

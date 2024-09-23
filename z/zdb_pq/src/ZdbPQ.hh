@@ -38,7 +38,7 @@ using namespace Zdb_;
 
 // Value     C++        flatbuffers     PG SQL        PG send/recv
 // -----     ---        -----------     ------        ------------
-// String    ZuCSpan   string          text          raw data
+// String    ZuCSpan    string          text          raw data
 // Bytes     ZuBytes    [ubyte]         bytea         raw data
 // Bool      bool       bool            bool          uint8_t
 // Int8      int8_t     int8            int1     (*)  int8_t
@@ -152,6 +152,8 @@ inline auto vecElem(ZuSpan<const uint8_t> &buf, L l) {
   return l(ptr, length);
 }
 
+// Note: all the types comprising the Value<> union must be distinct type IDs
+// even if their definition is identical
 using String = ZuCSpan;
 using Bytes = ZuBytes;
 struct Bitmap { ZuBytes v; };
@@ -436,9 +438,9 @@ struct Value : public Value_ {
   print_(S &s) const {
     using Word = ZuBigEndian<uint64_t>;
     const auto &data_ = p<I>().v;
-    ZuSpan<const Word> data{
+    ZuSpan<const Word> data(
       reinterpret_cast<const Word *>(&data_[0]),
-      data_.length() / sizeof(uint64_t)};
+      data_.length() / sizeof(uint64_t));
     ZtBitmap b;
     unsigned n = data.length() - 1;
     b.data.length(n);
@@ -506,7 +508,8 @@ struct Value : public Value_ {
     for (unsigned i = 0; i < n; i++)
       if (i) s << ',';
       vecElem(varBuf, [&s](const uint8_t *ptr, unsigned) {
-	s << ZuBoxed(ZuUnderlying(reinterpret_cast<const Elem *>(ptr)->v));
+	auto elem = reinterpret_cast<const Elem *>(ptr);
+	s << ZuBoxed(ZuUnderlying(elem->v));
       });
     s << ']';
   }
@@ -524,8 +527,8 @@ struct Value : public Value_ {
     for (unsigned i = 0; i < n; i++)
       if (i) s << ',';
       vecElem(varBuf, [&s](const uint8_t *ptr, unsigned) {
-	s << ZuDecimal{ZuDecimal::Unscaled{
-	  reinterpret_cast<const Elem *>(ptr)->v}};
+	auto elem = reinterpret_cast<const Elem *>(ptr);
+	s << ZuDecimal{ZuDecimal::Unscaled{elem->v}};
       });
     s << ']';
   }
@@ -543,8 +546,8 @@ struct Value : public Value_ {
     for (unsigned i = 0; i < n; i++)
       if (i) s << ',';
       vecElem(varBuf, [&s](const uint8_t *ptr, unsigned) {
-	const auto &v = reinterpret_cast<const Elem *>(ptr)->v;
-	s << ZuTime{v.sec, v.nsec};
+	auto elem = reinterpret_cast<const Elem *>(ptr);
+	s << ZuTime{elem->sec, elem->nsec};
       });
     s << ']';
   }
@@ -552,7 +555,7 @@ struct Value : public Value_ {
   template <typename S>
   void print(S &s) const {
     ZuSwitch::dispatch<Value_::N>(this->type(), [this, &s](auto I) {
-      print_<I>(s);
+      this->print_<I>(s);
     });
   }
   friend ZuPrintFn ZuPrintType(Value *);
@@ -796,7 +799,7 @@ loadValue(void *ptr, const reflection::Field *field, const Zfb::Table *fbo) {
   auto t =
     Zfb::Load::dateTime(
       fbo->GetStruct<const Zfb::DateTime *>(field->offset())).as_time();
-  new (ptr) ZuDateTime{t.sec(), t.nsec()};
+  new (ptr) DateTime{t.sec(), t.nsec()};
 }
 
 template <unsigned Type>
