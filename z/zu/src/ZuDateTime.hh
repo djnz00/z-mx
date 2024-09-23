@@ -1063,11 +1063,11 @@ public:
     null();
   }
 
-  // default printing (ISO8601 format)
+  // default printing (CSV format)
   struct DefltPrint : public ZuPrintDelegate {
     template <typename S>
     static void print(S &s, const ZuDateTime &v) {
-      thread_local ZuDateTimeFmt::ISO fmt;
+      thread_local ZuDateTimeFmt::CSV fmt;
       s << v.fmt(fmt);
     }
   };

@@ -479,9 +479,8 @@ public:
     ZmAssert(invoked());
 
     if (ZuUnlikely(!blkCount())) return 0;
-    auto blk = lastBlk();
-    if (ZuUnlikely(!blk)) return 0;
-    return blk->offset() + blk->count();
+    if (ZuUnlikely(!m_lastBlk)) return 0;
+    return m_lastBlk->offset() + m_lastBlk->count();
   }
 
   // length in bytes (compressed)
@@ -588,6 +587,10 @@ private:
       return;
     }
     blkOffset = m_index.head() + ZuSearchPos(result);
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
+    // if the reader is already in the last block and the offset is
+    // actually past the end of the series despite the caller requesting
+    // a reverse search, then the result can be past the end
     reader->seek(blkOffset, getBlk(blkOffset), offset);
     reader->loadBlk();
   }
@@ -616,6 +619,10 @@ private:
       return;
     }
     blkOffset = m_index.head() + ZuSearchPos(result);
+    // if the reader is already in the last block and the value is
+    // actually past the end of the series despite the caller requesting
+    // a reverse search, then the result can be past the end
+    if (blkOffset > m_lastBlkOffset) blkOffset = m_lastBlkOffset;
     reader->seek(blkOffset, getBlk(blkOffset), value);
     reader->loadBlk();
   }
@@ -925,6 +932,7 @@ private:
 	.count = m_lastBlk->count(),
       };
       if constexpr (Fixed) dbBlk->ptr()->ndp = m_lastBlk->ndp();
+
       blkTbl()->insert(
 	ZuMv(dbBlk), [name = name()](ZdbObject<DBBlk> *dbBlk) {
 	  ZeAssert(dbBlk, (name),
@@ -954,7 +962,7 @@ private:
 	  dbBlk->commit();
 	});
       blkDataTbl()->template update<>(
-	m_lastBlk->blkData, [name = name()](ZdbObject<DB::BlkData> *blkData) mutable {
+	m_lastBlk->blkData, [](ZdbObject<DB::BlkData> *blkData) mutable {
 	  if (blkData) {
 	    blkData->commit();
 	    blkData->unpin();

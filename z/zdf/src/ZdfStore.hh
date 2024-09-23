@@ -35,6 +35,8 @@ using OpenFn = ZmFn<void(bool)>;	// (bool ok)
 
 class ZdfAPI Store {
 public:
+  Store() { }
+
   static void dbCf(const ZvCf *, ZdbCf &dbCf);	// inject tables into dbCf
   void init(Zdb *);
   void final();
@@ -130,6 +132,9 @@ public:
 	  .epoch = Zm::now(),
 	  .blkOffset = 0
 	};
+	ZeLOG(Debug, ([epoch = dbSeries->data().epoch](auto &s) {
+	  s << "epoch=" << epoch;
+	}));
 	auto insertFn = [
 	  this, fn = ZuMv(fn)
 	](ZdbObjRef<DBSeries> dbSeries) mutable {

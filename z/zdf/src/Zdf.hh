@@ -305,7 +305,7 @@ public:
   template <typename Field>
   auto series() const {
     using I = ZuTypeIndex<Field, Fields>;
-    return m_seriesRefs.template p<I>();
+    return m_seriesRefs.template p<I{}>();
   }
 
   struct WriteContext {

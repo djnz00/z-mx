@@ -109,14 +109,18 @@ struct Test {
       return;
     }
     df = ZuMv(df_);
-    df->write({this, ZmFnPtr<&Test::run_write>{}}, []{
-      ZeLOG(Fatal, "data frame write failed");
-      done.post();
-    });
+    auto count = df->series<ZtField(Frame, v1)>()->count();
+    if (count) {
+      df->run([this]() { run_read1(); });
+    } else
+      df->write({this, ZmFnPtr<&Test::run_write>{}}, []{
+	ZeLOG(Fatal, "data frame write failed");
+	done.post();
+      });
   }
   void run_write(ZmRef<DFWriter> w) {
     Frame frame;
-    for (uint64_t i = 0; i < 300; i++) { // 1000
+    for (int64_t i = 0; i < 300; i++) { // 1000
       frame.v1 = i;
       frame.v2 = (double(i) * 42) * .000000001;
       w->write(frame);

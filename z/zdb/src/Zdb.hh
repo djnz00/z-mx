@@ -78,7 +78,6 @@
 
 #include <zlib/ZtString.hh>
 #include <zlib/ZtEnum.hh>
-#include <zlib/ZtHexDump.hh>
 
 #include <zlib/ZePlatform.hh>
 #include <zlib/ZeLog.hh>
@@ -1975,15 +1974,15 @@ inline void Table<T>::count(GroupKey<KeyID> key, L l)
     ZfbField::SaveFieldsFn<Key, ZuFields<Key>>::save(fbb, key).Union());
   auto keyBuf = fbb.buf();
 
-  auto countFn = CountFn::mvFn(ZuMv(context),
-    [](ZmRef<Context> context, CountResult result) {
+  auto countFn = CountFn{ZuMv(context),
+    [](Context *context, CountResult result) {
       if (ZuUnlikely(result.is<Event>())) { // error
 	ZeLogEvent(ZuMv(result).p<Event>());
 	context->fn(typename Context::Result{});
 	return;
       }
       context->fn(typename Context::Result{result.p<CountData>().count});
-    });
+    }};
 
   storeTbl()->count(KeyID, ZuMv(keyBuf).constRef(), ZuMv(countFn));
 }
@@ -2009,8 +2008,8 @@ inline void Table<T>::select_(
       fbb, selectKey).Union());
   auto keyBuf = fbb.buf();
 
-  auto tupleFn = TupleFn::mvFn(ZuMv(context),
-    [](ZmRef<Context> context, TupleResult result) {
+  auto tupleFn = TupleFn{ZuMv(context),
+    [](Context *context, TupleResult result) {
       if (ZuUnlikely(result.is<Event>())) { // error
 	ZeLogEvent(ZuMv(result).p<Event>());
 	context->fn(typename Context::Result{}, 0);
@@ -2024,7 +2023,7 @@ inline void Table<T>::select_(
       auto fbo = ZfbField::root<T>(tupleData.buf->data());
       auto tuple = ZfbField::ctor<Tuple_>(fbo);
       context->fn(typename Context::Result{ZuMv(tuple)}, tupleData.count);
-    });
+    }};
 
   storeTbl()->select(
     SelectRow, SelectNext, inclusive,
@@ -2088,8 +2087,8 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
   fbb.Finish(ZfbField::save(fbb, context->key));
   auto keyBuf = fbb.buf();
 
-  storeTbl()->find(KeyID, ZuMv(keyBuf).constRef(), RowFn::mvFn(ZuMv(context),
-    [](ZmRef<Context> context, RowResult result) {
+  storeTbl()->find(KeyID, ZuMv(keyBuf).constRef(), RowFn{ZuMv(context),
+    [](Context *context, RowResult result) {
       auto table = context->table;
       if (ZuUnlikely(result.is<Event>())) {
 	ZeLogEvent(ZuMv(result).p<Event>());
@@ -2106,7 +2105,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 	auto shard = context->shard;
 	table->run(shard, [
 	  table,
-	  context = ZuMv(context),
+	  context = ZmMkRef(context),
 	  buf = ZuMv(buf)
 	]() mutable {
 	  ZmRef<Object<T>> object =
@@ -2129,7 +2128,7 @@ inline void Table<T>::retrieve_(ZmRef<Find<T, ZuFieldKeyT<T, KeyID>>> context)
 	table->run(context->shard, [fn = ZuMv(context->fn)]() mutable {
 	  fn(nullptr);
 	});
-    }));
+    }});
 }
 
 // --- printing
