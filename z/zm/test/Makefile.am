@@ -36,7 +36,6 @@ ZmSchedTest_SOURCES = ZmSchedTest.cc
 ZmTest_SOURCES = ZmTest.cc
 ZmHashTest_SOURCES = ZmHashTest.cc
 ZmHashTest2_SOURCES = ZmHashTest2.cc
-ZmTTest_SOURCES = ZmTTest.cc
 ZmLHTest_SOURCES = ZmLHTest.cc
 ZmHashCleanup_SOURCES = ZmHashCleanup.cc
 ZmHashThread_SOURCES = ZmHashThread.cc

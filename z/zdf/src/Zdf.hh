@@ -217,11 +217,11 @@ public:
     ZuUnroll::all<WrRefs::N>([this, &o, &ok](auto I) {
       if (!ok) return;
       using Field = ZuType<I, Fields>;
-      enum { NDP = GetNDP<Field>{} };
       if constexpr (Field::Code == Float)
 	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o));
       else if constexpr (Field::Code == Fixed)
-	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o).adjust(NDP));
+	ok = ok && m_wrRefs.template p<I>()->write(
+	  Field::get(o).adjust(GetNDP<Field>{}));
       else if constexpr (
 	  Field::Code == Int8 ||
 	  Field::Code == UInt8 ||
@@ -233,7 +233,8 @@ public:
 	  Field::Code == UInt64)
 	ok = ok && m_wrRefs.template p<I>()->write(Field::get(o));
       else if constexpr (Field::Code == Decimal)
-	ok = ok && m_wrRefs.template p<I>()->write(ZuFixed{Field::get(o), NDP});
+	ok = ok && m_wrRefs.template p<I>()->write(
+	  ZuFixed{Field::get(o), GetNDP<Field>{}});
       else if constexpr (Field::Code == Time)
 	ok = ok && m_wrRefs.template p<I>()->write(
 	  m_df->template series<I>()->nsecs(Field::get(o)));

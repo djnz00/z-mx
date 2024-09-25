@@ -1,5 +1,4 @@
-m4_define([Z_VERSION_], m4_esyscmd([grep Z_VERNAME version.h | sed 's/[^0-9\.]//g;1q' | tr -d '\n']))
-
+m4_define([Z_VERSION_], m4_esyscmd([cat VERSION | tr -d '\n']))
 AC_INIT([zlib],[Z_VERSION_])
 Z_VERSION=Z_VERSION_
 
@@ -12,6 +11,12 @@ AC_LANG([C++])
 AC_PROG_CXX
 LT_INIT([win32-dll shared disable-static])
 LT_LANG([C++])
+
+Z_VMAJOR=`echo $Z_VERSION | cut -d. -f1`
+Z_VMINOR=`echo $Z_VERSION | cut -d. -f2`
+Z_VPATCH=`echo $Z_VERSION | cut -d. -f3`
+
+CPPFLAGS="-DZ_VMAJOR=$Z_VMAJOR -DZ_VMINOR=$Z_VMINOR -DZ_VPATCH=$Z_VPATCH $CPPFLAGS"
 
 AX_C_VA_LIST_IS_ARRAY
 

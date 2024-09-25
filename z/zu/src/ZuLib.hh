@@ -9,57 +9,21 @@
 #ifndef ZuLib_HH
 #define ZuLib_HH
 
-// Z library FAQs
-//
-// why no Z namespace?
-// - consistency with the pre-processor
-// - pre-processor macro name scoping uses prefixes not namespaces
-// - use of prefixes with low probability of collision (Zu, Zt, ...)
-// - a short prefix is more succinct
-// - no uncontrolled large-scale naming imports
-// - mitigation of C++ name-mangling bloat with heavily templated code
-// - intentional design preference for small focused namespaces
-//   - Zxx namespaces exist where useful in context (ZuFmt, Ztel, Ztls, ...)
-//   - Zxx_ namespaces for internals (ZtWindow_, Zdb_, ...)
-//
-// isn't this pattern redundant?
-// using Base::Base;
-// template <typename ...Args>
-// Derived(Args &&...args) : Base{ZuFwd<Args>(args)...} { }
-// - this is needed in 3 cases:
-//   - the Base has no constructor (it's a pure data structure)
-//   - the Base is a template typename (i.e. case 1 could apply)
-//   - Derived needs to be constructible/convertible from an instance of Base
-//
-// why so much use of run() / invoke()?
-// - intentionally and tightly control thread creation within a small pool,
-//   with key long-running threads performing isolated workloads and bound
-//   to specific isolated CPU cores for performance
-// - sharding (binding data to single threads and passing messages between
-//   threads via lambdas) is preferred to lock contention or lock-free
-//   memory contention
-//   - latency - less jitter due to avoidance of contention
-//   - throughput - higher concurrency due to pipelining
-// - cheap context-switching and message-passing with capturing lambdas is
-//   enabled by ZmRing (MWSR variant) and ZmScheduler; this is exploited
-//   for I/O multiplexing by ZiMultiplex
-// - threads can be named, bound and isolated by the app and the kernel
-//   - Linux kernel parameter isolcpus
-// - some interfaces require the caller to context-switch prior to making
-//   the call, others internalize the context-switch within the called function
-//   - if the caller is potentially sharing the same thread as the callee,
-//     the callee should not redundantly context-switch - in these cases
-//     it should be the caller's responsibility (the callee can validate
-//     the current thread using invoked())
-//   - if the thread is exclusive to the callee, the callee can internalize
-//     the context switch
-//   - callbacks mirror calls in this regard
-// - thread/workload association is re-configurable for performance tuning
-//   - run() passes via the ring buffer and defers calls regardless
-//   - invoke() is used to elide message-passing and call deferral when
-//     the destination is the same thread
-//   - invoke() should not be used when stack-depth or long-running functions
-//     are a concern
+#if !defined(Z_VMAJOR) || !defined(Z_VMINOR) || !defined(Z_VPATCH)
+#error "define Z_VMAJOR, Z_VMINOR and Z_VPATCH"
+#endif
+#if Z_VMINOR > 99
+#error "Z_VMINOR > 99"
+#endif
+#if Z_VPATCH > 999
+#error "Z_VPATCH > 999"
+#endif
+#include <zlib/ZuPP.hh>
+#define Z_VERSION ((Z_VMAJOR * 100000) + (Z_VMINOR * 1000) + V_VPATCH)
+#define Z_VERNAME ZuPP_Eval( \
+  ZuPP_Defer(ZuPP_Q)(Z_VMAJOR) "." \
+  ZuPP_Defer(ZuPP_Q)(Z_VMINOR) "." \
+  ZuPP_Defer(ZuPP_Q)(Z_VPATCH))
 
 #include <assert.h>
 

@@ -124,7 +124,7 @@ struct Test {
   }
   void run_write(ZmRef<DFWriter> w) {
     Frame frame;
-    for (int64_t i = 0; i < 10000; i++) {
+    for (int64_t i = 0; i < 100000; i++) { // 10000; i++) {
       frame.v1 = i;
       frame.v2 = v2(i);
       w->write(frame);
@@ -244,7 +244,7 @@ struct Test {
     Frame frame;
     for (uint64_t i = 0; i < 10; i++) {
       auto j = i + end;
-      frame.v1 = i;
+      frame.v1 = j;
       frame.v2 = v2(j);
       w->write(frame);
     }

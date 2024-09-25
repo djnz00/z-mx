@@ -895,9 +895,11 @@ private:
   }
 
   // called from Writer::stop
-  void stop(Encoder &encoder) {
+  template <typename... NDP>
+  ZuIfT<sizeof...(NDP) == Fixed, void>
+  stop(Encoder &encoder, NDP... ndp) {
     encoder.finish();
-    m_lastBlk->sync(encoder, encoder.last());
+    m_lastBlk->sync(encoder, encoder.last(), ndp...);
     saveBlk();
     encoder = {};
     m_writer = {}; // do this last to ensure +ve ref count
@@ -1589,11 +1591,16 @@ inline bool Writer__<Decoder, Heap, Value>::write(Value value)
 }
 
 template <typename Decoder, typename Heap, typename Value>
-inline void Writer__<Decoder, Heap, Value>::stop()
+void Writer__<Decoder, Heap, Value>::stop()
 {
   if (auto series = m_series) {
     m_series = nullptr;
-    series->stop(m_encoder);
+    if constexpr (ZuIsExact<Value, int64_t>{}) {
+      NDP ndp = static_cast<Writer<Decoder> *>(this)->ndp();
+      series->stop(m_encoder, ndp);
+    } else {
+      series->stop(m_encoder);
+    }
   }
 }
 

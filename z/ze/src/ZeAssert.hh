@@ -30,7 +30,6 @@
 #include <zlib/ZeLib.hh>
 #endif
 
-#include <zlib/ZuPP.hh>
 #include <zlib/ZuFnName.hh>
 
 #include <zlib/ZmAssert.hh>

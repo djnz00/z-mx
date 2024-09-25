@@ -102,8 +102,8 @@ struct Blk {
   }
 
   template <typename Encoder>
-  void sync(const Encoder &encoder, int64_t last_) { // fixed
-    count(encoder.offset());
+  void sync(const Encoder &encoder, int64_t last_, NDP ndp) { // fixed
+    count_ndp(encoder.offset(), ndp);
     last.fixed = last_;
     ZeAssert(blkData, (), "blkData not loaded", return);
     auto &buf = blkData->data().buf;
