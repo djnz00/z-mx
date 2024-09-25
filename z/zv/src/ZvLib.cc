@@ -8,6 +8,4 @@
 
 #include <zlib/ZvLib.hh>
 
-#include "../../version.h"
-
 ZvExtern const char ZvLib[] = "@(#) Z V-Layer Library v" Z_VERNAME;

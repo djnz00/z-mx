@@ -8,8 +8,6 @@
 
 #include <zlib/ZmLib.hh>
 
-#include "../../version.h"
-
 ZmExtern const char ZmLib[] = "@(#) Z Multithreading Library v" Z_VERNAME;
 
 // force DLL inclusion of ZmBackoff and ZmTimeout

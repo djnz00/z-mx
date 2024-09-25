@@ -8,6 +8,4 @@
 
 #include <zlib/ZGtkLib.hh>
 
-#include "../../version.h"
-
 ZGtkExtern const char ZGtkLib[] = "@(#) Z Gtk Library v" Z_VERNAME;

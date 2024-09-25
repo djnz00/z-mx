@@ -8,8 +8,6 @@
 
 #include <zlib/ZuLib.hh>
 
-#include "../../version.h"
-
 ZuExtern const char ZuLib[] = "@(#) Z U-Layer Library v" Z_VERNAME;
 
 #ifdef _MSC_VER

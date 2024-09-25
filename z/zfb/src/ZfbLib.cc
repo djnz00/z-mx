@@ -8,6 +8,4 @@
 
 #include <zlib/ZfbLib.hh>
 
-#include "../../version.h"
-
 ZfbExtern const char ZfbLib[] = "@(#) Z flatbuffers Library v" Z_VERNAME;

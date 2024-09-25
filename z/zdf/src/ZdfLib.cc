@@ -8,6 +8,4 @@
 
 #include <zlib/ZdfLib.hh>
 
-#include "../../version.h"
-
 ZdfExtern const char ZdfLib[] = "@(#) Z DataFrame Library v" Z_VERNAME;

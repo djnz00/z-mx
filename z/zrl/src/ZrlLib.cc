@@ -8,6 +8,4 @@
 
 #include <zlib/ZrlLib.hh>
 
-#include "../../version.h"
-
 ZrlExtern const char ZrlLib[] = "@(#) Z Command Line Library v" Z_VERNAME;

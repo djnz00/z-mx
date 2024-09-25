@@ -8,6 +8,4 @@
 
 #include <zlib/ZtlsLib.hh>
 
-#include "../../version.h"
-
 ZtlsExtern const char ZtlsLib[] = "@(#) Z TLS Library v" Z_VERNAME;

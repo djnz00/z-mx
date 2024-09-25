@@ -11,7 +11,7 @@ pkginclude_HEADERS = \
 	ZuObjectTraits.hh ZuObject.hh ZuPolymorph.hh ZuPP.hh \
 	ZuPrint.hh ZuRef.hh ZuStdString.hh ZuCSpan.hh \
 	ZuStringFn.hh ZuCArray.hh ZuTraits.hh ZuTuple.hh ZuUnion.hh \
-	ZuVersion.hh Zu_aton.hh Zu_ntoa.hh ZuDecimalFn.hh ZuUTF.hh \
+	Zu_aton.hh Zu_ntoa.hh ZuDecimalFn.hh ZuUTF.hh \
 	ZuDecimal.hh ZuSwitch.hh ZuSort.hh ZuPtr.hh \
 	ZuNormChar.hh ZuEquiv.hh ZuField.hh ZuIOResult.hh ZuUnroll.hh \
 	ZuBitStream.hh ZuStream.hh ZuBytes.hh ZuMostAligned.hh \
@@ -19,5 +19,5 @@ pkginclude_HEADERS = \
 	zu_lib.h zu_decimal.h zu_time.h zu_bitmap.h
 lib_LTLIBRARIES = libZu.la
 libZu_la_SOURCES = \
-	ZuLib.cc ZuVersion.cc ZuUTF.cc ZuTime.cc ZuDateTime.cc \
+	ZuLib.cc ZuUTF.cc ZuTime.cc ZuDateTime.cc \
 	zu_decimal.cc zu_time.cc zu_bitmap.cc

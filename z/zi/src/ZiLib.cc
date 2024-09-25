@@ -8,6 +8,4 @@
 
 #include <zlib/ZiLib.hh>
 
-#include "../../version.h"
-
 ZiExtern const char ZiLib[] = "@(#) Z I/O Library v" Z_VERNAME;

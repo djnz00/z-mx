@@ -1,4 +1,5 @@
 m4_define([Z_VERSION_], m4_esyscmd([grep Z_VERNAME version.h | sed 's/[^0-9\.]//g;1q' | tr -d '\n']))
+
 AC_INIT([zlib],[Z_VERSION_])
 Z_VERSION=Z_VERSION_
 

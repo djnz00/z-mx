@@ -8,6 +8,4 @@
 
 #include <zlib/ZdbLib.hh>
 
-#include "../../version.h"
-
 ZdbExtern const char ZdbLib[] = "@(#) Z DB Library v" Z_VERNAME;

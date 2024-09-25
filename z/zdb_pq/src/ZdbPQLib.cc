@@ -8,6 +8,4 @@
 
 #include <zlib/ZdbPQLib.hh>
 
-#include "../../version.h"
-
 ZdbPQExtern const char ZdbPQLib[] = "@(#) Zdb Postgres Library v" Z_VERNAME;

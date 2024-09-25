@@ -8,6 +8,4 @@
 
 #include <zlib/ZtLib.hh>
 
-#include "../../version.h"
-
 ZtExtern const char ZtLib[] = "@(#) Z Type Library v" Z_VERNAME;

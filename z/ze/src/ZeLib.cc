@@ -8,6 +8,4 @@
 
 #include <zlib/ZeLib.hh>
 
-#include "../../version.h"
-
 ZeExtern const char ZeLib[] = "@(#) Z Error Library v" Z_VERNAME;

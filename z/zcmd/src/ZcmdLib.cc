@@ -8,6 +8,4 @@
 
 #include <zlib/ZcmdLib.hh>
 
-#include "../../version.h"
-
 ZcmdExtern const char ZcmdLib[] = "@(#) Z CLI Library v" Z_VERNAME;

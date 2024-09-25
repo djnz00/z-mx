@@ -1118,7 +1118,7 @@ public:
   void telemetry(ZvTelemetry::App &data) {
     using namespace ZvTelemetry;
     data.id = "ZDash";
-    data.version = ZuVerName();
+    data.version = ZuVerName(); // FIXME
     data.uptime = m_uptime;
     data.role = m_role;
     data.rag = RAG::Green;
@@ -1224,7 +1224,7 @@ public:
       case fbs::ReqData::Version:
 	ackType = fbs::ReqAckData::VersionAck;
 	ackData = fbs::CreateVersion(m_fbb,
-	    Save::str(m_fbb, ZuVerName())).Union();
+	    Save::str(m_fbb, ZuVerName())).Union(); // FIXME
 	break;
       case fbs::ReqData::MkLink: {
 	auto reqData = static_cast<const fbs::LinkData *>(reqData_);

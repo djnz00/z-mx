@@ -8,6 +8,4 @@
 
 #include <zlib/ZumLib.hh>
 
-#include "../../version.h"
-
 ZumExtern const char ZumLib[] = "@(#) Z User Management Library v" Z_VERNAME;
