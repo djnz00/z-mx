@@ -1258,8 +1258,14 @@ int Store::sendPrepared(const ZtString &id, const Tuple &params)
 {
   auto n = params.length();
 
-  /* ZeLOG(Debug, ([id = ZtString{id}, n](auto &s) {
-    s << '"' << id << "\", n=" << n;
+  /* ZeLOG(Debug, ([id = ZtString{id}, params = params](auto &s) {
+    s << '"' << id << "\" params=[";
+    bool first = true;
+    params.all([&s, &first](const auto &param) mutable {
+      if (first) first = false; else s << ", ";
+      s << param;
+    });
+    s << ']';
   })); */
 
   auto paramValues = ZmAlloc(const char *, n);
@@ -2489,7 +2495,8 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
   unsigned nc = m_xFields.length() + 4;
 
   // tuple is POD, no need to run destructors when going out of scope
-  auto tuple = ZmAlloc(Value, nc);
+  auto tuple_ = ZmAlloc(Value, nc);
+  auto tuple = ZuSpan<const Value>(&tuple_[0], nc);
 
   if (PQnfields(res) != nc) goto inconsistent;
   for (unsigned i = 0; i < nr; i++) {
@@ -2509,8 +2516,18 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 	  }))
 	goto inconsistent;
     }
-    auto buf =
-      find_save<Recovery>(ZuSpan<const Value>(&tuple[0], nc)).constRef();
+
+    /* ZeLOG(Debug, ([tuple = Tuple(tuple)](auto &s) {
+      s << "row=[";
+      bool first = true;
+      tuple.all([&s, &first](const auto &value) mutable {
+	if (first) first = false; else s << ", ";
+	s << value;
+      });
+      s << ']';
+    })); */
+
+    auto buf = find_save<Recovery>(tuple).constRef();
     if (found) {
       ZeLOG(Error, ([id = m_id_](auto &s) {
 	s << "multiple records found with same key in table " << id;
