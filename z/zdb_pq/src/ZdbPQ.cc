@@ -2510,8 +2510,8 @@ void StoreTbl::find_rcvd_(RowFn &rowFn, bool &found, PGresult *res)
 	default: type = m_xFields[j - 4].type; break;
       }
       if (!ZuSwitch::dispatch<Value::N>(type,
-	  [&tuple, res, i, j](auto Type) {
-	    return tuple[j].load<Type>(
+	  [&tuple_, res, i, j](auto Type) {
+	    return tuple_[j].load<Type>(
 	      PQgetvalue(res, i, j), PQgetlength(res, i, j));
 	  }))
 	goto inconsistent;
