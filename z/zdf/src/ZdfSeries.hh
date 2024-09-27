@@ -271,7 +271,7 @@ public:
 
   Series *series() const { return m_series; }
   Offset offset() const { return m_offset; }
-  const uint8_t *end() const { return m_encoder.end(); }
+  const Encoder &encoder() const { return m_encoder; }
   bool failed() const { return m_failed; }
 
   // append value to series, notifying any live readers
@@ -279,6 +279,13 @@ public:
 
   // stop writing (idempotent)
   void stop();
+
+protected:
+  template <typename ...NDP>
+  void finish(Blk *lastBlk, NDP... ndp) {
+    m_encoder.finish();
+    lastBlk->sync(m_encoder, m_encoder.last(), ndp...);
+  }
 
 private:
   void fail() {
@@ -291,10 +298,6 @@ private:
 
   template <typename L> void encoder(L l) { m_encoder = l(); }
   bool encode(PValue value) { return m_encoder.write(value); }
-  void finish(Blk *lastBlk) {
-    m_encoder.finish();
-    lastBlk->sync(m_encoder, m_encoder.last());
-  }
 
   Series	*m_series = nullptr;
   Offset	m_offset = 0;
@@ -329,6 +332,10 @@ public:
   virtual ~Writer_() = default;
 
   NDP ndp() const { return m_ndp; }
+
+  void finish(Blk *lastBlk) {
+    Base::finish(lastBlk, m_ndp);
+  }
 
 private:
   NDP		m_ndp;
@@ -861,7 +868,8 @@ private:
   }
   // main write function
   bool write_(Writer *writer, PValue value) {
-    if (ZuUnlikely(!writer->offset())) {
+    auto offset = writer->encoder().offset();
+    if (ZuUnlikely(!(writer->offset() + offset))) {
       if constexpr (Fixed) {
 	auto ndp = writer->ndp();
 	write_firstValue(ZuFixed{value, ndp});
@@ -870,7 +878,7 @@ private:
 	write_firstValue(value);
       }
     }
-    if (writer->encode(value)) return true;
+    if (offset < MaxBlkCount && writer->encode(value)) return true;
     writer->finish(m_lastBlk);
     saveBlk();
     pushBlk();
@@ -890,7 +898,7 @@ private:
   // called from Writer_::write
   bool write(Writer *writer, PValue value) {
     bool ok = write_(writer, value);
-    if (ok) write_notify(writer->end());
+    if (ok) write_notify(writer->encoder().end());
     return ok;
   }
 
@@ -933,15 +941,16 @@ private:
       if constexpr (Fixed) dbBlk->ptr()->ndp = m_lastBlk->ndp();
 
       blkTbl()->insert(
-	ZuMv(dbBlk), [name = name()](ZdbObject<DBBlk> *dbBlk) {
-	  ZeAssert(dbBlk, (name),
+	ZuMv(dbBlk),
+	[this_ = ZmMkRef(this)](ZdbObject<DBBlk> *dbBlk) {
+	  ZeAssert(dbBlk, (name = this_->name()),
 	    name << "internal error - insert - null dbBlk", return);
 	  dbBlk->commit();
 	});
       blkDataTbl()->insert(
 	m_lastBlk->blkData,
-	[name = name()](ZdbObject<DB::BlkData> *dbBlkData) mutable {
-	  ZeAssert(dbBlkData, (name),
+	[this_ = ZmMkRef(this)](ZdbObject<DB::BlkData> *dbBlkData) mutable {
+	  ZeAssert(dbBlkData, (name = this_->name()),
 	    name << "internal error - insert - null dbBlkData", return);
 	  if (dbBlkData) {
 	    dbBlkData->commit();
@@ -952,7 +961,10 @@ private:
       blkTbl()->template findUpd<0>(
 	shard(), ZuFwdTuple(id(), m_lastBlkOffset),
 	[this_ = ZmMkRef(this)](ZdbObject<DBBlk> *dbBlk) {
-	  if (!dbBlk || !this_->m_lastBlk) return;
+	  ZeAssert(dbBlk, (name = this_->name()),
+	    name << "internal error - update - null dbBlk", return);
+	  ZeAssert(this_->m_lastBlk, (name = this_->name()),
+	    name << "internal error - update - null lastBlk", return);
 	  auto &data = dbBlk->data();
 	  data.offset = this_->m_lastBlk->offset();
 	  data.last = lastFn(this_->m_lastBlk);
@@ -961,11 +973,12 @@ private:
 	  dbBlk->commit();
 	});
       blkDataTbl()->template update<>(
-	m_lastBlk->blkData, [](ZdbObject<DB::BlkData> *blkData) mutable {
-	  if (blkData) {
-	    blkData->commit();
-	    blkData->unpin();
-	  }
+	m_lastBlk->blkData,
+	[this_ = ZmMkRef(this)](ZdbObject<DB::BlkData> *blkData) mutable {
+	  ZeAssert(blkData, (name = this_->name()),
+	    name << "internal error - update - null blkData", return);
+	  blkData->commit();
+	  blkData->unpin();
 	});
     }
   }
@@ -1585,9 +1598,7 @@ inline bool Writer__<Decoder, Heap, Value>::write(Value value)
   ZeAssert(m_series, (),
     "internal error - attempt to use closed Writer", return false);
 
-  bool ok = m_series->write(static_cast<Writer<Decoder> *>(this), value);
-  if (ok) ++m_offset;
-  return ok;
+  return m_series->write(static_cast<Writer<Decoder> *>(this), value);
 }
 
 template <typename Decoder, typename Heap, typename Value>

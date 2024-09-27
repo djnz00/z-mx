@@ -35,6 +35,8 @@ struct SeriesFixed {
   ZuDateTime	epoch;		// time when series was created
   BlkOffset	blkOffset;	// first block
   NDP		ndp;		// NDP of first value in series
+
+  friend ZtFieldPrint ZuPrintType(SeriesFixed *);
 };
 ZfbFieldTbl(SeriesFixed,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
@@ -51,6 +53,8 @@ struct SeriesFloat {
   Float0	first;		// first value in series
   ZuDateTime	epoch;		// intentionally denormalized
   BlkOffset	blkOffset;	// first block
+
+  friend ZtFieldPrint ZuPrintType(SeriesFloat *);
 };
 ZfbFieldTbl(SeriesFloat,
   (((id),	(Ctor<0>, Keys<0>, Descend<0>)),	(UInt32)),
@@ -67,6 +71,8 @@ struct BlkFixed {
   SeriesID	seriesID;
   BlkCount	count;
   NDP		ndp;
+
+  friend ZtFieldPrint ZuPrintType(BlkFixed *);
 };
 ZfbFieldTbl(BlkFixed,
   (((seriesID),	(Ctor<3>, Keys<0>, Group<0>)),		(UInt32)),
@@ -83,6 +89,8 @@ struct BlkFloat {
   Float0	last;
   SeriesID	seriesID;
   BlkCount	count;
+
+  friend ZtFieldPrint ZuPrintType(BlkFloat *);
 };
 ZfbFieldTbl(BlkFloat,
   (((seriesID),	(Ctor<3>, Keys<0>, Group<0>)),		(UInt32)),
@@ -98,6 +106,8 @@ struct BlkData {
   BlkOffset		blkOffset;
   SeriesID		seriesID;
   BlkDataBuf		buf;
+
+  friend ZtFieldPrint ZuPrintType(BlkData *);
 };
 ZfbFieldTbl(BlkData,
   (((seriesID),	(Ctor<1>, Keys<0>, Group<0>, Descend<0>)),	(UInt32)),

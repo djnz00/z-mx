@@ -132,9 +132,6 @@ public:
 	  .epoch = Zm::now(),
 	  .blkOffset = 0
 	};
-	ZeLOG(Debug, ([epoch = dbSeries->data().epoch](auto &s) {
-	  s << "epoch=" << epoch;
-	}));
 	auto insertFn = [
 	  this, fn = ZuMv(fn)
 	](ZdbObjRef<DBSeries> dbSeries) mutable {

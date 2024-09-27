@@ -14,7 +14,7 @@
 // - composable Encoders and Decoders providing:
 //   - absolute, delta (first derivative), delta-of-delta (second derivative)
 
-// series compression for double (64bit floating point)
+// series compression for double (64bit IEEE floating point)
 // - Chimp algorithm (https://vldb.org/pvldb/vol15/p3058-liakos.pdf)
 // - improved from Gorilla (https://www.vldb.org/pvldb/vol8/p1816-teller.pdf)
 // - Gorilla originated at Facebook and is used in TimescaleDB, InfluxDB, ...
@@ -295,7 +295,7 @@ public:
   bool write(int64_t value_) {
     if (ZuLikely(value_ == m_prev)) {
       if (m_rle) {
-	if (++*m_rle == 0xff) m_rle = nullptr;
+	if (++*m_rle == 0xff) m_rle = nullptr; // prevent run-length overrun
 	++m_offset;
 	return true;
       }

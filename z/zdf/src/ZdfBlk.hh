@@ -51,38 +51,47 @@ struct Blk {
   Last			last{.fixed = 0};	// last value in block
   ZmRef<BlkData>	blkData;		// cached data
 
-  static constexpr const uint64_t OffsetMask() { return (uint64_t(1)<<47) - 1; }
-  static constexpr const unsigned CountShift() { return 47; }
-  static constexpr const uint64_t CountMask() { return uint64_t(0xfff); }
-  static constexpr const unsigned NDPShift() { return 59; }
-  static constexpr const uint64_t NDPMask() { return uint64_t(0x1f); }
+  static constexpr const uint64_t OffsetMask = (uint64_t(1)<<47) - 1;
+  enum { CountShift = 47 };
+  static constexpr const uint64_t CountMask = 0xfff;
+  enum { NDPShift = 59 };
+  static constexpr const uint64_t NDPMask = 0x1f;
 
-  void init(uint64_t offset, uint64_t count, uint64_t ndp, int64_t last_) {
-    ocn = offset | (count<<CountShift()) | (ndp<<NDPShift());
+  ZuAssert(CountMask + 1 >= MaxBlkCount);
+
+  void init(uint64_t offset_, uint64_t count_, uint64_t ndp_, int64_t last_) {
+    ZmAssert(offset_ <= OffsetMask);
+    ZmAssert(count_ > 0 && count_ <= MaxBlkCount);
+    ZmAssert(ndp_ <= NDPMask);
+    --count_;
+    ocn = offset_ | (count_<<CountShift) | (ndp_<<NDPShift);
     last.fixed = last_;
   }
-  void init(uint64_t offset, uint64_t count, double last_) {
-    ocn = offset | (count<<CountShift());
-    last.float_ = last_;
-  }
 
-  ZuInline uint64_t offset() const { return ocn & OffsetMask(); }
-  ZuInline BlkCount count() const { return (ocn>>CountShift()) & CountMask(); }
-  ZuInline NDP ndp() const { return (ocn>>NDPShift()) & NDPMask(); }
-
-  ZuInline bool operator !() const { return !count(); }
-
-  ZuInline void offset(uint64_t v) {
-    ocn = (ocn & ~OffsetMask()) | v;
+  ZuInline uint64_t offset() const { return ocn & OffsetMask; }
+  ZuInline BlkCount count() const {
+    return ((ocn>>CountShift) & CountMask) + 1;
   }
-  ZuInline void count(uint64_t v) {
-    ocn = (ocn & ~(CountMask()<<CountShift())) | (v<<CountShift());
+  ZuInline NDP ndp() const { return (ocn>>NDPShift) & NDPMask; }
+
+  ZuInline void offset(uint64_t offset_) {
+    ZmAssert(offset_ <= OffsetMask);
+    ocn = (ocn & ~OffsetMask) | offset_;
   }
-  ZuInline void ndp(uint64_t v) {
-    ocn = (ocn & ~(NDPMask()<<NDPShift())) | (v<<NDPShift());
+  ZuInline void count(uint64_t count_) {
+    ZmAssert(count_ > 0 && count_ <= MaxBlkCount);
+    --count_;
+    ocn = (ocn & ~(CountMask<<CountShift)) | (count_<<CountShift);
+  }
+  ZuInline void ndp(uint64_t ndp_) {
+    ZmAssert(ndp_ <= NDPMask);
+    ocn = (ocn & ~(NDPMask<<NDPShift)) | (ndp_<<NDPShift);
   }
   ZuInline void count_ndp(uint64_t count_, uint64_t ndp_) {
-    ocn = (ocn & OffsetMask()) | (count_<<CountShift()) | (ndp_<<NDPShift());
+    ZmAssert(count_ > 0 && count_ <= MaxBlkCount);
+    ZmAssert(ndp_ <= NDPMask);
+    --count_;
+    ocn = (ocn & OffsetMask) | (count_<<CountShift) | (ndp_<<NDPShift);
   }
 
   template <typename Decoder>

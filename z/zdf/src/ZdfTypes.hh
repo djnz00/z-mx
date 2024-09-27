@@ -17,7 +17,8 @@
 
 namespace Zdf {
 
-enum { BlkSize = 4096 };
+enum { BlkSize = 0x1000 };		// 4K bytes
+enum { MaxBlkCount = 0x1000 };		// 4K values (i.e. 1 per byte)
 
 using Shard = uint8_t;			// shard
 
