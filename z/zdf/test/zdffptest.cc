@@ -248,9 +248,8 @@ struct Test {
       frame.v2 = v2(j);
       w->write(frame);
     }
-    df->stopWriting();
+    df->stopWriting([]{ done.post(); });
     df->stopReading();
-    done.post();
   }
 };
 

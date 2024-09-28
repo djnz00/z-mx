@@ -360,10 +360,18 @@ public:
     m_seriesRefs.template p<I{}>()->find(value, ZuMv(readFn), ZuMv(errorFn));
   }
 
-  void stopWriting() {
-    ZuUnroll::all<SeriesRefs::N>([this](auto I) {
-      m_seriesRefs.template p<I>()->stopWriting();
-    });
+  void stopWriting(StopFn fn = {}) {
+    [this, fn = ZuMv(fn)](this auto &&self, auto I) {
+      if constexpr (I >= SeriesRefs::N) {
+	fn();
+      } else {
+	enum { J = I + 1 };
+	auto next = [self = ZuMv(self)]() mutable {
+	  ZuMv(self).template operator()(ZuUnsigned<J>{});
+	};
+	m_seriesRefs.template p<I>()->stopWriting(next);
+      }
+    }(ZuUnsigned<0>{});
   }
 
   void stopReading() {

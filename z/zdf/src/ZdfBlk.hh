@@ -67,6 +67,13 @@ struct Blk {
     ocn = offset_ | (count_<<CountShift) | (ndp_<<NDPShift);
     last.fixed = last_;
   }
+  void init(uint64_t offset_, uint64_t count_, double last_) {
+    ZmAssert(offset_ <= OffsetMask);
+    ZmAssert(count_ > 0 && count_ <= MaxBlkCount);
+    --count_;
+    ocn = offset_ | (count_<<CountShift);
+    last.float_ = last_;
+  }
 
   ZuInline uint64_t offset() const { return ocn & OffsetMask; }
   ZuInline BlkCount count() const {

@@ -278,7 +278,7 @@ public:
   bool write(PValue);
 
   // stop writing (idempotent)
-  void stop();
+  void stop(StopFn fn = {});
 
 protected:
   template <typename ...NDP>
@@ -288,6 +288,8 @@ protected:
   }
 
 private:
+  bool savedBlk(); // returns true if stopped
+
   void fail() {
     m_failed = true;
     auto errorFn = ZuMv(m_errorFn);
@@ -303,7 +305,9 @@ private:
   Offset	m_offset = 0;
   Encoder	m_encoder;
   ErrorFn	m_errorFn;
+  StopFn	m_stopFn;
   bool		m_failed = false;
+  bool		m_stopping = false;
 };
 template <typename Decoder, typename Heap, typename PValue = Decoder::Value>
 class Writer_ : public Writer__<Decoder, Heap, PValue> {
@@ -665,14 +669,14 @@ private:
     BlkOffset blkOffset = row.template p<1>();
     auto blk = setBlk(blkOffset);
     if (!blk) return false;
-    NDP ndp;
     if constexpr (Fixed)
-      ndp = row.template p<5>();
+      blk->init(
+	row.template p<2>(), row.template p<4>(),
+	row.template p<5>(), row.template p<3>());
     else
-      ndp = 0;
-    blk->init(
-      row.template p<2>(), row.template p<4>(),
-      ndp, row.template p<3>());
+      blk->init(
+	row.template p<2>(), row.template p<4>(),
+	row.template p<3>());
     m_lastBlk = blk;
     m_lastBlkOffset = blkOffset;
     return true;
@@ -771,10 +775,10 @@ public:
   }
 
   // stop writer
-  void stopWriting() {
+  void stopWriting(StopFn fn = {}) {
     ZmAssert(invoked());
 
-    if (m_writer) m_writer->stop();
+    if (m_writer) m_writer->stop(ZuMv(fn));
   }
 
 private:
@@ -910,7 +914,6 @@ private:
     m_lastBlk->sync(encoder, encoder.last(), ndp...);
     saveBlk();
     encoder = {};
-    m_writer = {}; // do this last to ensure +ve ref count
   }
 
   // save block to database (always m_lastBlk)
@@ -941,21 +944,23 @@ private:
       if constexpr (Fixed) dbBlk->ptr()->ndp = m_lastBlk->ndp();
 
       blkTbl()->insert(
-	ZuMv(dbBlk),
-	[this_ = ZmMkRef(this)](ZdbObject<DBBlk> *dbBlk) {
+	ZuMv(dbBlk), [this_ = ZmMkRef(this)](ZdbObject<DBBlk> *dbBlk) {
 	  ZeAssert(dbBlk, (name = this_->name()),
 	    name << "internal error - insert - null dbBlk", return);
+
 	  dbBlk->commit();
-	});
-      blkDataTbl()->insert(
-	m_lastBlk->blkData,
-	[this_ = ZmMkRef(this)](ZdbObject<DB::BlkData> *dbBlkData) mutable {
-	  ZeAssert(dbBlkData, (name = this_->name()),
-	    name << "internal error - insert - null dbBlkData", return);
-	  if (dbBlkData) {
-	    dbBlkData->commit();
-	    dbBlkData->unpin();
-	  }
+
+	  auto ptr = this_.ptr();
+	  ptr->blkDataTbl()->insert(
+	    ptr->m_lastBlk->blkData,
+	    [this_ = ZuMv(this_)](ZdbObject<DB::BlkData> *dbBlkData) mutable {
+	      ZeAssert(dbBlkData, (name = this_->name()),
+		name << "internal error - insert - null dbBlkData", return);
+
+	      dbBlkData->commit();
+	      dbBlkData->unpin();
+	      this_->savedBlk();
+	    });
 	});
     } else {
       blkTbl()->template findUpd<0>(
@@ -965,22 +970,32 @@ private:
 	    name << "internal error - update - null dbBlk", return);
 	  ZeAssert(this_->m_lastBlk, (name = this_->name()),
 	    name << "internal error - update - null lastBlk", return);
+
 	  auto &data = dbBlk->data();
 	  data.offset = this_->m_lastBlk->offset();
 	  data.last = lastFn(this_->m_lastBlk);
 	  data.count = this_->m_lastBlk->count();
 	  if constexpr (Fixed) data.ndp = this_->m_lastBlk->ndp();
 	  dbBlk->commit();
-	});
-      blkDataTbl()->template update<>(
-	m_lastBlk->blkData,
-	[this_ = ZmMkRef(this)](ZdbObject<DB::BlkData> *blkData) mutable {
-	  ZeAssert(blkData, (name = this_->name()),
-	    name << "internal error - update - null blkData", return);
-	  blkData->commit();
-	  blkData->unpin();
+
+	  auto ptr = this_.ptr();
+	  ptr->blkDataTbl()->template update<>(
+	    ptr->m_lastBlk->blkData,
+	    [this_ = ZuMv(this_)](ZdbObject<DB::BlkData> *blkData) mutable {
+	      ZeAssert(blkData, (name = this_->name()),
+		name << "internal error - update - null blkData", return);
+
+	      blkData->commit();
+	      blkData->unpin();
+	      this_->savedBlk();
+	    });
 	});
     }
+  }
+  void savedBlk() {
+    if (ZuLikely(m_writer))
+      if (m_writer->savedBlk())
+	m_writer = nullptr;
   }
 
   // load blk from database
@@ -1602,17 +1617,26 @@ inline bool Writer__<Decoder, Heap, Value>::write(Value value)
 }
 
 template <typename Decoder, typename Heap, typename Value>
-void Writer__<Decoder, Heap, Value>::stop()
+void Writer__<Decoder, Heap, Value>::stop(StopFn fn)
 {
-  if (auto series = m_series) {
-    m_series = nullptr;
-    if constexpr (ZuIsExact<Value, int64_t>{}) {
-      NDP ndp = static_cast<Writer<Decoder> *>(this)->ndp();
-      series->stop(m_encoder, ndp);
-    } else {
-      series->stop(m_encoder);
-    }
+  if (ZuUnlikely(m_stopping)) { fn(); return; }
+  m_stopping = true;
+  m_stopFn = ZuMv(fn);
+  if constexpr (ZuIsExact<Value, int64_t>{}) {
+    NDP ndp = static_cast<Writer<Decoder> *>(this)->ndp();
+    m_series->stop(m_encoder, ndp);
+  } else {
+    m_series->stop(m_encoder);
   }
+}
+
+template <typename Decoder, typename Heap, typename Value>
+bool Writer__<Decoder, Heap, Value>::savedBlk() {
+  if (ZuLikely(!m_stopping)) return false;
+  auto fn = ZuMv(m_stopFn);
+  fn();
+  m_series = nullptr;
+  return true;
 }
 
 } // namespace Zdf

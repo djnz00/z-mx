@@ -1913,7 +1913,7 @@ public:
     IOBufAllocFn bufAllocFn,
     OpenFn openFn);
 
-  bool stopping() const { return m_stopFn; }
+  bool stopping() const { return m_stopping; }
 
   void notice(const PGresult *); // async notice from libpq
 
@@ -2008,6 +2008,7 @@ private:
   StartState		m_startState;
   StartFn		m_startFn;
   StopFn		m_stopFn;
+  bool			m_stopping = false;
 };
 
 } // ZdbPQ

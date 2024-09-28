@@ -117,6 +117,7 @@ void Store::start(StartFn fn)
   // ZeLOG(Debug, ([](auto &s) { }));
 
   m_mx->push(m_sid, [this, fn = ZuMv(fn)]() mutable {
+    m_stopping = false;
     m_startState.reset();
     m_startFn = ZuMv(fn);
     m_stopFn = StopFn{};
@@ -273,7 +274,8 @@ void Store::stop(StopFn fn)
 {
   // ZeLOG(Debug, ([](auto &s) { }));
 
-  m_stopFn = ZuMv(fn);	// inhibits further application requests
+  m_stopFn = ZuMv(fn);
+  m_stopping = true; // inhibits further application requests
 
   run([this]() mutable { enqueue(Work::Stop{}); });
 }
@@ -543,7 +545,7 @@ void Store::recv()
 	if (PQisBusy(m_conn)) break; // nothing more to read (for now)
 	res = PQgetResult(m_conn);
       }
-      if (!res) { // PQgetResult() returned nullptr
+      if (!res) { // PQgetResult() returned nullptr, i.e. query completed
 	if (auto pending = m_sent.headNode()) {
 	  rcvd(pending, nullptr);
 	  bool syncing = isSync(pending);
@@ -576,25 +578,25 @@ void Store::rcvd(Work::Queue::Node *work, PGresult *res)
       start_rcvd(res);
       break;
     case Task::Index<TblQuery>{}: {
-      auto &tblTask = work->data().p<TblQuery>();
-      switch (tblTask.query.type()) {
+      auto &tblQuery = work->data().p<TblQuery>();
+      switch (tblQuery.query.type()) {
 	case Query::Index<Open>{}:
-	  tblTask.tbl->open_rcvd(res);
+	  tblQuery.tbl->open_rcvd(res);
 	  break;
 	case Query::Index<Count>{}:
-	  tblTask.tbl->count_rcvd(tblTask.query.p<Count>(), res);
+	  tblQuery.tbl->count_rcvd(tblQuery.query.p<Count>(), res);
 	  break;
 	case Query::Index<Select>{}:
-	  tblTask.tbl->select_rcvd(tblTask.query.p<Select>(), res);
+	  tblQuery.tbl->select_rcvd(tblQuery.query.p<Select>(), res);
 	  break;
 	case Query::Index<Find>{}:
-	  tblTask.tbl->find_rcvd(tblTask.query.p<Find>(), res);
+	  tblQuery.tbl->find_rcvd(tblQuery.query.p<Find>(), res);
 	  break;
 	case Query::Index<Recover>{}:
-	  tblTask.tbl->recover_rcvd(tblTask.query.p<Recover>(), res);
+	  tblQuery.tbl->recover_rcvd(tblQuery.query.p<Recover>(), res);
 	  break;
 	case Query::Index<Write>{}:
-	  tblTask.tbl->write_rcvd(tblTask.query.p<Write>(), res);
+	  tblQuery.tbl->write_rcvd(tblQuery.query.p<Write>(), res);
 	  break;
       }
     } break;
@@ -612,25 +614,25 @@ void Store::failed(Work::Queue::Node *work, ZeVEvent e)
       start_failed(true, ZuMv(e));
       break;
     case Task::Index<TblQuery>{}: {
-      auto &tblTask = work->data().p<TblQuery>();
-      switch (tblTask.query.type()) {
+      auto &tblQuery = work->data().p<TblQuery>();
+      switch (tblQuery.query.type()) {
 	case Query::Index<Open>{}:
-	  tblTask.tbl->open_failed(ZuMv(e));
+	  tblQuery.tbl->open_failed(ZuMv(e));
 	  break;
 	case Query::Index<Count>{}:
-	  tblTask.tbl->count_failed(tblTask.query.p<Count>(), ZuMv(e));
+	  tblQuery.tbl->count_failed(tblQuery.query.p<Count>(), ZuMv(e));
 	  break;
 	case Query::Index<Select>{}:
-	  tblTask.tbl->select_failed(tblTask.query.p<Select>(), ZuMv(e));
+	  tblQuery.tbl->select_failed(tblQuery.query.p<Select>(), ZuMv(e));
 	  break;
 	case Query::Index<Find>{}:
-	  tblTask.tbl->find_failed(tblTask.query.p<Find>(), ZuMv(e));
+	  tblQuery.tbl->find_failed(tblQuery.query.p<Find>(), ZuMv(e));
 	  break;
 	case Query::Index<Recover>{}:
-	  tblTask.tbl->recover_failed(tblTask.query.p<Recover>(), ZuMv(e));
+	  tblQuery.tbl->recover_failed(tblQuery.query.p<Recover>(), ZuMv(e));
 	  break;
 	case Query::Index<Write>{}:
-	  tblTask.tbl->write_failed(tblTask.query.p<Write>(), ZuMv(e));
+	  tblQuery.tbl->write_failed(tblQuery.query.p<Write>(), ZuMv(e));
 	  break;
       }
     } break;
@@ -662,25 +664,25 @@ void Store::send()
 	stop_();
 	break;
       case Task::Index<TblQuery>{}: {
-	auto &tblTask = work->data().p<TblQuery>();
-	switch (tblTask.query.type()) {
+	auto &tblQuery = work->data().p<TblQuery>();
+	switch (tblQuery.query.type()) {
 	  case Query::Index<Open>{}:
-	    sendState = tblTask.tbl->open_send();
+	    sendState = tblQuery.tbl->open_send();
 	    break;
 	  case Query::Index<Count>{}:
-	    sendState = tblTask.tbl->count_send(tblTask.query.p<Count>());
+	    sendState = tblQuery.tbl->count_send(tblQuery.query.p<Count>());
 	    break;
 	  case Query::Index<Select>{}:
-	    sendState = tblTask.tbl->select_send(tblTask.query.p<Select>());
+	    sendState = tblQuery.tbl->select_send(tblQuery.query.p<Select>());
 	    break;
 	  case Query::Index<Find>{}:
-	    sendState = tblTask.tbl->find_send(tblTask.query.p<Find>());
+	    sendState = tblQuery.tbl->find_send(tblQuery.query.p<Find>());
 	    break;
 	  case Query::Index<Recover>{}:
-	    sendState = tblTask.tbl->recover_send(tblTask.query.p<Recover>());
+	    sendState = tblQuery.tbl->recover_send(tblQuery.query.p<Recover>());
 	    break;
 	  case Query::Index<Write>{}:
-	    sendState = tblTask.tbl->write_send(tblTask.query.p<Write>());
+	    sendState = tblQuery.tbl->write_send(tblQuery.query.p<Write>());
 	    break;
 	}
       } break;

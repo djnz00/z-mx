@@ -816,7 +816,7 @@ template <typename T>
 using BufCache = ZmPolyHash<Buf_<T>, ZmPolyHashHeapID<ZdbBufHeapID<T>::id>>;
 
 // typed buffer
-template <typename T> 
+template <typename T>
 struct Buf : public BufCache<T>::Node {
   using Base = BufCache<T>::Node;
   using Base::Base;
@@ -1154,6 +1154,7 @@ public:
 private: // RMU version used by findUpd() and findDel()
   template <unsigned KeyID, typename L, typename Ctor>
   void findUpd_(Shard shard, Key<KeyID> key, L l, Ctor ctor) {
+
     config().cacheMode == CacheMode::All ?
       find_<KeyID, false, false>(shard, ZuMv(key), ZuMv(l), ZuMv(ctor)) :
       find_<KeyID, false, true >(shard, ZuMv(key), ZuMv(l), ZuMv(ctor));
@@ -1213,7 +1214,7 @@ public:
   }
 
   // update lambda - l(ZdbObject<T> *)
- 
+
   // update object
   template <typename KeyIDs_ = ZuSeq<>, typename L>
   void update(ZmRef<Object<T>> object, L l) {
@@ -1226,7 +1227,7 @@ public:
       return;
     }
     auto bufs = ZmAlloc(ZmRef<Buf<T>>, KeyIDs::N);	// undo buffer
-    auto nBufs = 0;
+    auto nBufs = 0U;
     auto abort = [&object, &bufs, &nBufs]() {
       if (!object->abort()) return;
       for (unsigned i = 0; i < nBufs; i++) {
@@ -1907,6 +1908,7 @@ private:
   // DB thread
   Tables		m_tables;
   CxnList		m_cxns;
+
   AllFn			m_allFn;		// all() iteration context
   AllDoneFn		m_allDoneFn;		// ''
   unsigned		m_allCount = 0;		// remaining count

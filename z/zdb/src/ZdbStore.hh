@@ -99,7 +99,7 @@ using CountFn = ZmFn<void(CountResult)>;
 // tuple data
 struct TupleData {
   int			keyID;	// ZuFieldKeyID::All for entire row tuple
-  ZmRef<const IOBuf>	buf;	// tuple data, no replication message header
+  ZmRef<const IOBuf>	buf;	// tuple data without replication header
   unsigned		count;	// number of results so far, including this one
 };
 // tuple result
@@ -136,15 +136,15 @@ public:
 
   virtual void warmup() = 0;
 
-  // buf contains key data, no replication message header
+  // buf contains key data without replication message header
   virtual void count(unsigned keyID, ZmRef<const IOBuf>, CountFn) = 0;
 
-  // buf contains key data, no replication message header
+  // buf contains key data without replication message header
   virtual void select(
     bool selectRow, bool selectNext, bool inclusive,
     unsigned keyID, ZmRef<const IOBuf>, unsigned limit, TupleFn) = 0;
 
-  // buf contains key data, no replication message header
+  // buf contains key data without replication message header
   virtual void find(unsigned keyID, ZmRef<const IOBuf>, RowFn) = 0;
 
   virtual void recover(Shard shard, UN, RowFn) = 0;
