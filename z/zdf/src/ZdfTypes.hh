@@ -38,6 +38,8 @@ using BlkCount = uint16_t;		// count of values within a block
 
 using Event = ZeVEvent;			// monomorphic ZeEvent
 
+inline ZuTime DefltEpoch() { return {"2020/01/01"}; }	// default epoch
+
 } // namespace Zdf
 
 #endif /* ZdfTypes_HH */

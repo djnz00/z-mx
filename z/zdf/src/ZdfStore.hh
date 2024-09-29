@@ -92,7 +92,7 @@ public:
 	seriesName << name << '/' << Field::id();
 	if constexpr (Field::Type::Code == ZtFieldTypeCode::Time) {
 	  ZuTime epoch = Field::deflt();
-	  if (!*epoch) epoch = ZuTime{"2020/01/01"};
+	  if (!*epoch) epoch = DefltEpoch();
 	  openTimeSeries<Create>(shard, ZuMv(seriesName), epoch, ZuMv(next));
 	} else {
 	  using Decoder = FieldDecoder<Field>;
