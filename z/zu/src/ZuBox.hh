@@ -48,10 +48,10 @@ template <typename U, typename R = void>
 using ZuNotBoxed = ZuIfT<!ZuIsBoxed<U>{}, R>;
 
 // compile-time formatting
-inline constexpr auto ZuBox_NullAsIs() { // sentinel to disable null string
+constexpr auto ZuBox_NullAsIs() { // sentinel to disable null string
   return []() -> ZuCSpan { return {}; };
 };
-inline constexpr auto ZuBox_NullString() { // null as empty string
+constexpr auto ZuBox_NullString() { // null as empty string
   return []() -> ZuCSpan { return {}; };
 };
 

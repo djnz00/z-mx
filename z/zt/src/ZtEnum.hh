@@ -181,9 +181,7 @@
 #define ZtEnumFlag_(V) V##_
 #define ZtEnumFlagLookup_(V) #V, V##_
 #define ZtEnumFlagValue_(Type, V) \
-  inline static constexpr Type V() { \
-    return (Type(1)<<V##_); \
-  }
+  static constexpr Type V() { return (Type(1)<<V##_); }
 
 #define ZtEnumFlags_(ID, Type, ...) \
   ZtEnumValues_(Type, ZuPP_Eval(ZuPP_MapComma(ZtEnumFlag_, __VA_ARGS__))); \

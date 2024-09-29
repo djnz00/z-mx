@@ -179,7 +179,7 @@ private:
 
   ZmScheduler::Timer	m_hbTimer;
 };
-inline constexpr const char *CxnHeapID() { return "Zdb.Cxn"; }
+constexpr const char *CxnHeapID() { return "Zdb.Cxn"; }
 using CxnList =
   ZmList<Cxn_,
     ZmListNode<Cxn_,
@@ -390,7 +390,7 @@ inline UN AnyObject_UNAxor(const ZmRef<AnyObject> &object) {
   return object->un();
 }
 
-inline constexpr const char *CacheUN_HeapID() { return "Zdb.UpdCache"; }
+constexpr const char *CacheUN_HeapID() { return "Zdb.UpdCache"; }
 
 // temporarily there may be more than one UN referencing a cached object
 using CacheUN =
@@ -556,7 +556,7 @@ struct TableCf {
 
 // --- table configuration
 
-inline constexpr const char *TableCfs_HeapID() { return "Zdb.TableCf"; }
+constexpr const char *TableCfs_HeapID() { return "Zdb.TableCf"; }
 using TableCfs =
   ZmRBTree<TableCf,
     ZmRBTreeKey<TableCf::IDAxor,
@@ -809,7 +809,7 @@ struct Buf_ : public ZmPolymorph {
 };
 
 // buffer heap ID
-inline constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
+constexpr const char *Buf_HeapID() { return "Zdb.Buf"; }
 
 // buffer cache
 template <typename T>
@@ -828,7 +828,7 @@ struct Count__ {
 
   ZmFn<void(Result)>	fn;
 };
-inline constexpr const char *Count_HeapID() { return "Zdb.Count"; }
+constexpr const char *Count_HeapID() { return "Zdb.Count"; }
 template <typename Heap>
 struct Count_ : public Heap, public ZmPolymorph, public Count__ {
   using Base = Count__;
@@ -845,7 +845,7 @@ template <typename Tuple> struct Select__ {
 
   ZmFn<void(Result, unsigned)>	fn;
 };
-inline constexpr const char *Select_HeapID() { return "Zdb.Select"; }
+constexpr const char *Select_HeapID() { return "Zdb.Select"; }
 template <typename Tuple, typename Heap>
 struct Select_ : public Heap, public ZmPolymorph, public Select__<Tuple> {
   using Base = Select__<Tuple>;
@@ -866,7 +866,7 @@ template <typename T, typename Key> struct Find__ {
   ZmFn<void(ZmRef<Object<T>>)>		fn;
   ZmFn<ZmRef<Object<T>>(Table<T> *)>	ctor;
 };
-inline constexpr const char *Find_HeapID() { return "Zdb.Find"; }
+constexpr const char *Find_HeapID() { return "Zdb.Find"; }
 template <typename T, typename Key, typename Heap>
 struct Find_ : public Heap, public ZmPolymorph, public Find__<T, Key> {
   using Base = Find__<T, Key>;
@@ -1466,7 +1466,7 @@ inline bool Object_<T>::abort() {
 
 // --- table container
 
-inline constexpr const char *Tables_HeapID() { return "Zdb.Table"; }
+constexpr const char *Tables_HeapID() { return "Zdb.Table"; }
 using Tables =
   ZmRBTree<ZmRef<AnyTable>,
     ZmRBTreeKey<AnyTable::IDAxor,
@@ -1498,7 +1498,7 @@ struct HostCf {
   static ZuID IDAxor(const HostCf &cfg) { return cfg.id; }
 };
 
-inline constexpr const char *HostCfs_HeapID() { return "Zdb.HostCf"; }
+constexpr const char *HostCfs_HeapID() { return "Zdb.HostCf"; }
 using HostCfs =
   ZmRBTree<HostCf,
     ZmRBTreeKey<HostCf::IDAxor,
@@ -1599,7 +1599,7 @@ using HostIndex =
       ZmRBTreeShadow<true,
 	ZmRBTreeKey<Host::IndexAxor,
 	  ZmRBTreeUnique<true>>>>>;
-inline constexpr const char *Hosts_HeapID() { return "Zdb.Host"; }
+constexpr const char *Hosts_HeapID() { return "Zdb.Host"; }
 using Hosts =
   ZmHash<HostIndex::Node,
     ZmHashNode<HostIndex::Node,

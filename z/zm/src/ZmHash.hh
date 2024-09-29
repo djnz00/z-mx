@@ -43,7 +43,7 @@
 // (e.g. multiplicative hash functions), others have flatter
 // low-bits (e.g. FNV string hash); here we pay for an extra xor
 // to get the best of both
-inline constexpr const uint32_t ZmHashBits(uint32_t code, unsigned bits) {
+constexpr uint32_t ZmHashBits(uint32_t code, unsigned bits) {
   bits = 32U - bits;
   return ((code<<bits) ^ code)>>bits;
 }

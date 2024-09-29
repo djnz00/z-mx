@@ -23,7 +23,7 @@
 
 template <typename, auto, bool> struct ZmAllocator;
 
-inline constexpr const char *ZmAllocator_ID() { return "ZmAllocator"; }
+constexpr const char *ZmAllocator_ID() { return "ZmAllocator"; }
 template <typename T, auto ID = ZmAllocator_ID, bool Sharded = false>
 struct ZmAllocator {
   using size_type = std::size_t;
@@ -84,12 +84,12 @@ inline void ZmAllocator<T, ID, Sharded>::deallocate(T *p, std::size_t n) {
     VHeap::vfree(p);
 }
 template <typename T, typename U, auto ID, bool Sharded>
-inline constexpr bool operator ==(
+constexpr bool operator ==(
     const ZmAllocator<T, ID, Sharded> &, const ZmAllocator<U, ID, Sharded> &) {
   return true;
 }
 template <typename T, typename U, auto ID, bool Sharded>
-inline constexpr bool operator !=(
+constexpr bool operator !=(
     const ZmAllocator<T, ID, Sharded> &, const ZmAllocator<U, ID, Sharded> &) {
   return false;
 }

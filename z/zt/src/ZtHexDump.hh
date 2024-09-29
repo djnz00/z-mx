@@ -72,7 +72,7 @@ protected:
   unsigned	m_length = 0;
 };
 
-inline constexpr const char *ZtHexDump_ID() { return "ZtHexDump"; }
+constexpr const char *ZtHexDump_ID() { return "ZtHexDump"; }
 class ZtHexDump : private ZmVHeap<ZtHexDump_ID>, public ZtHexDump_ {
   ZtHexDump() = delete;
 

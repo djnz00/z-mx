@@ -324,7 +324,7 @@ namespace ZuFieldProp {
     fn(o, ZuFwd<P>(v)); \
   }
 #define ZuField_LambdaRd(O, ID, Get, Args) \
-  inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
+  constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 1 }; \
@@ -335,7 +335,7 @@ namespace ZuFieldProp {
     template <typename P> static void set(O &, P &&) { } \
   };
 #define ZuField_Lambda(O, ID, Get, Set, Args) \
-  inline constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
+  constexpr auto ZuField_##O##_##ID##_get() { return ZuPP_Strip(Get); } \
   struct ZuField_(O, ID) { \
     ZuFieldAdapt(O, ID); \
     enum { ReadOnly = 0 }; \
@@ -561,7 +561,7 @@ inline decltype(auto) ZuFieldKey(P &&o) {
 // generic key accessor
 
 template <typename O, int KeyID = 0>
-inline constexpr auto ZuFieldAxor() {
+constexpr auto ZuFieldAxor() {
   // fields in the key
   using KeyFields = ZuKeyFields<O, KeyID>;
   // check that the key comprises at least one field

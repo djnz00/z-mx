@@ -99,7 +99,7 @@ using Value_ = ZuUnion<
 
 enum { VecBase = Value_::Index<ZtArray<ZtString>>{} };
 
-inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
+constexpr bool isVec(unsigned i) { return i >= VecBase; }
 
 struct Value : public Value_ {
   using Value_::Value_;
@@ -1101,7 +1101,7 @@ struct MemRow_ : public ZuObject, public MemRow__ {
   template <typename ...Args>
   MemRow_(Args &&...args) : MemRow__{ZuFwd<Args>(args)...} { }
 };
-inline constexpr const char *Row_HeapID() { return "MemRow"; }
+constexpr const char *Row_HeapID() { return "MemRow"; }
 using IndexUN =
   ZmRBTree<MemRow_,
     ZmRBTreeNode<MemRow_,
@@ -1143,7 +1143,7 @@ template <typename T = Tuple> struct TupleCmp {
     return equals_(l, r, ln < rn ? ln : rn);
   }
 };
-inline constexpr const char *MemRowIndex_HeapID() { return "MemRowIndex"; }
+constexpr const char *MemRowIndex_HeapID() { return "MemRowIndex"; }
 using Index =
   ZmRBTreeKV<Tuple, ZmRef<const MemRow>,
     ZmRBTreeCmp<TupleCmp,
@@ -1324,7 +1324,7 @@ private:
 
 template <typename StoreTbl_>
 inline ZuCSpan StoreTbl_IDAxor(const StoreTbl_ &tbl) { return tbl.id(); }
-inline constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
+constexpr const char *StoreTbls_HeapID() { return "ZdbMem.StoreTbl"; }
 template <typename StoreTbl_>
 using StoreTbls_ =
   ZmHash<StoreTbl_,

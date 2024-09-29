@@ -109,13 +109,13 @@ public:
     return (m_val > v.m_val) - (m_val < v.m_val);
   }
   template <typename L, typename R>
-  friend inline constexpr ZuIs<ZuID, L, bool>
+  friend constexpr ZuIs<ZuID, L, bool>
   operator ==(const L &l, const R &r) { return l.m_val == r.m_val; }
   template <typename L, typename R>
-  friend inline constexpr ZuIs<ZuID, L, int>
+  friend constexpr ZuIs<ZuID, L, int>
   operator <(const L &l, const R &r) { return l.m_val < r.m_val; }
   template <typename L, typename R>
-  friend inline constexpr ZuIs<ZuID, L, int>
+  friend constexpr ZuIs<ZuID, L, int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   constexpr bool operator !() const { return !m_val; }

@@ -46,7 +46,7 @@ class DB;
 
 // --- I/O buffer
 
-inline constexpr const char *IOBuf_HeapID() { return "Zdb.IOBuf"; }
+constexpr const char *IOBuf_HeapID() { return "Zdb.IOBuf"; }
 
 struct IOBuf_ : public ZiIOBuf {
   mutable void	*typed = nullptr;	// points to typed Buf<T>
@@ -69,7 +69,7 @@ inline UN IOBuf_UNAxor(const IOBuf_ &buf) {
   return record_(msg_(buf.hdr()))->un();
 }
 
-inline constexpr const char *BufCache_ID() { return "Zdb.BufCache"; }
+constexpr const char *BufCache_ID() { return "Zdb.BufCache"; }
 
 using BufCacheUN =
   ZmHash<IOBuf_,

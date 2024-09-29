@@ -438,33 +438,33 @@ public:
     return (value > v.value) - (value < v.value);
   }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     bool(ZuIsExact<ZuDecimal, R>{}), bool>
   operator ==(const L &l, const R &r) { return l.value == r.value; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     bool(ZuIsExact<ZuDecimal, R>{}), bool>
   operator <(const L &l, const R &r) { return l.value < r.value; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     bool(ZuIsExact<ZuDecimal, R>{}), int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     !ZuIsExact<ZuDecimal, R>{}, bool>
   operator ==(const L &l, const R &r) { return l.value == ZuDecimal{r}.value; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     !ZuIsExact<ZuDecimal, R>{}, bool>
   operator <(const L &l, const R &r) { return l.value < ZuDecimal{r}.value; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuDecimal, L>{}) &&
     !ZuIsExact<ZuDecimal, R>{}, int>
   operator <=>(const L &l, const R &r) { return l.cmp(ZuDecimal{r}); }

@@ -85,27 +85,32 @@ public:
 	fn(DFRef{new DataFrame{this, shard, ZuMv(name), ZuMv(seriesRefs)}});
       } else {
 	using Field = ZuType<J, Fields>;
-	using Decoder = FieldDecoder<Field>;
 	auto next = [self = ZuMv(self)](auto series) mutable {
 	  ZuMv(self).template operator()(ZuInt<J>{}, ZuMv(series));
 	};
 	ZtString seriesName{name.length() + strlen(Field::id()) + 2};
 	seriesName << name << '/' << Field::id();
-	openSeries<Decoder, Create>(
-	  shard, ZuMv(seriesName), /* FIXME - epoch */, ZuMv(next));
-	// FIXME - obtain epoch from default time value of field
+	if constexpr (Field::Type::Code == ZtFieldTypeCode::Time) {
+	  ZuTime epoch = Field::deflt();
+	  if (!*epoch) epoch = ZuTime{"2020/01/01"};
+	  openTimeSeries<Create>(shard, ZuMv(seriesName), epoch, ZuMv(next));
+	} else {
+	  using Decoder = FieldDecoder<Field>;
+	  openSeries<Decoder, Create>(shard, ZuMv(seriesName), ZuMv(next));
+	}
       }
     }(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
+private:
   // open series
-  // FIXME - time series epoch
-  template <typename Decoder, bool Create>
-  void openSeries(
-    Shard shard, ZtString name, ZuTime epoch,
-    ZmFn<void(ZmRef<Series<Decoder>>)> fn)
+  template <typename Series_, bool Create>
+  void openSeries_(
+    Shard shard, ZtString name,
+    ZuTime epoch,
+    ZmFn<void(ZmRef<Series_>)> fn)
   {
-    using Series = Zdf::Series<Decoder>;
+    using Series = Series_;
     using DBSeries = typename Series::DBSeries;
     enum { Fixed = Series::Fixed };
 
@@ -117,7 +122,7 @@ public:
     };
 
     run(shard, [
-      this, shard, name = ZuMv(name), fn = ZuMv(fn)
+      this, shard, name = ZuMv(name), epoch, fn = ZuMv(fn)
     ]() mutable {
       auto findFn = [
 	this, shard, name, epoch, fn = ZuMv(fn)
@@ -147,6 +152,23 @@ public:
       };
       seriesTbl(this)->template find<1>(shard, ZuMvTuple(name), ZuMv(findFn));
     });
+  }
+public:
+  template <typename Decoder, bool Create>
+  void openSeries(
+    Shard shard, ZtString name,
+    ZmFn<void(ZmRef<Series<Decoder>>)> fn)
+  {
+    openSeries_<Series<Decoder>, Create>(
+      shard, ZuMv(name), ZuTime{0}, ZuMv(fn));
+  }
+  template <bool Create>
+  void openTimeSeries(
+    Shard shard, ZtString name, ZuTime epoch,
+    ZmFn<void(ZmRef<TimeSeries>)> fn)
+  {
+    openSeries_<TimeSeries, Create>(
+      shard, ZuMv(name), epoch, ZuMv(fn));
   }
 
   ZdbTable<DB::SeriesFixed> *seriesFixedTbl() const { return m_seriesFixedTbl; }

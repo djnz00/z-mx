@@ -280,9 +280,9 @@ private:
   using NPerms = ZuUnsigned<
     unsigned(fbs::LoginReqData::MAX) + unsigned(fbs::ReqData::MAX)>;
 
-  static constexpr const unsigned nPerms() { return NPerms{}; }
-  static constexpr const unsigned loginReqPerm(unsigned i) { return i - 1; }
-  static constexpr const unsigned reqPerm(unsigned i) {
+  static constexpr unsigned nPerms() { return NPerms{}; }
+  static constexpr unsigned loginReqPerm(unsigned i) { return i - 1; }
+  static constexpr unsigned reqPerm(unsigned i) {
     return unsigned(fbs::LoginReqData::MAX) + (i - 1);
   }
 

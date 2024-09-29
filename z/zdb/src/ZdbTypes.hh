@@ -34,13 +34,13 @@ constexpr unsigned maxKeys() { return 0x7ff; }
 
 // update number - secondary key used for replication/recovery
 using UN = uint64_t;
-inline constexpr UN maxUN() { return ZuCmp<UN>::maximum(); }
-inline constexpr UN nullUN() { return ZuCmp<UN>::null(); }
+constexpr UN maxUN() { return ZuCmp<UN>::maximum(); }
+constexpr UN nullUN() { return ZuCmp<UN>::null(); }
 
 // environment sequence number
 using SN = uint128_t;
-inline constexpr SN maxSN() { return ZuCmp<SN>::maximum(); }
-inline constexpr SN nullSN() { return ZuCmp<SN>::null(); }
+constexpr SN maxSN() { return ZuCmp<SN>::maximum(); }
+constexpr SN nullSN() { return ZuCmp<SN>::null(); }
 
 // record version number - negative indicates a deleted record
 using VN = int64_t;

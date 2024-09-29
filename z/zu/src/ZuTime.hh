@@ -6,7 +6,7 @@
 
 // nanosecond precision time class
 // - essentially a C++ equivalent of POSIX timespec
-// - no attempt is made to disambiguate a time interval from an absolute time
+// - used indiscriminately for intervals, relative and absolute times
 
 #ifndef ZuTime_HH
 #define ZuTime_HH
@@ -276,33 +276,33 @@ public:
     return ZuCmp<int32_t>::cmp(tv_nsec, t.tv_nsec);
   }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     bool(ZuIsExact<ZuTime, R>{}), bool>
   operator ==(const L &l, const R &r) { return l.equals(r); }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     bool(ZuIsExact<ZuTime, R>{}), bool>
   operator <(const L &l, const R &r) { return l.cmp(r) < 0; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     bool(ZuIsExact<ZuTime, R>{}), int>
   operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     !ZuIsExact<ZuTime, R>{}, bool>
   operator ==(const L &l, const R &r) { return l.equals(ZuTime{r}); }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     !ZuIsExact<ZuTime, R>{}, bool>
   operator <(const L &l, const R &r) { return l.cmp(ZuTime{r}) < 0; }
   template <typename L, typename R>
-  friend inline constexpr ZuIfT<
+  friend constexpr ZuIfT<
     bool(ZuIsExact<ZuTime, L>{}) &&
     !ZuIsExact<ZuTime, R>{}, int>
   operator <=>(const L &l, const R &r) { return l.cmp(ZuTime{r}); }

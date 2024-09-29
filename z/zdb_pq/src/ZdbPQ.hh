@@ -268,9 +268,9 @@ using Value_ = ZuUnion<
 enum { VecBase = Value_::Index<StringVec>{} };
 
 // isVec() - is a vector/array
-inline constexpr bool isVec(unsigned i) { return i >= VecBase; }
+constexpr bool isVec(unsigned i) { return i >= VecBase; }
 // isVar() - is variable-length
-inline constexpr bool isVar(unsigned i) {
+constexpr bool isVar(unsigned i) {
   // * Bytes and String are excluded because they can be zero-copied
   //   - PG -> flatbuffers - the PGresult remains in scope
   //   - flatbuffers -> PG - the flatbuffer remains in scope
@@ -1596,7 +1596,7 @@ struct TblQuery {
 
 using Task = ZuUnion<Start, Stop, TblQuery>;
 
-inline constexpr const char *Queue_HeapID() { return "ZdbPQ.Queue"; }
+constexpr const char *Queue_HeapID() { return "ZdbPQ.Queue"; }
 
 using Queue =
   ZmList<Task,
@@ -1888,7 +1888,7 @@ private:
 inline ZuCSpan StoreTbl_IDAxor(const StoreTbl &storeTbl) {
   return storeTbl.id();
 }
-inline constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
+constexpr const char *StoreTbls_HeapID() { return "ZdbPQ.StoreTbl"; }
 using StoreTbls =
   ZmHash<StoreTbl,
     ZmHashNode<StoreTbl,

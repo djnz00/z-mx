@@ -642,7 +642,7 @@ struct ZuTupleAxor_Bind<P, I, true> {
   static decltype(auto) get(P &v) { return v.template p<I>(); }
 };
 template <unsigned I = 0>
-inline constexpr auto ZuTupleAxor() {
+constexpr auto ZuTupleAxor() {
   return []<unsigned I_ = I, typename P>(P &&v) -> decltype(auto) {
     return ZuTupleAxor_Bind<ZuDecay<P>, I_>::get(ZuFwd<P>(v));
   };

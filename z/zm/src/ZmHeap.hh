@@ -392,7 +392,7 @@ inline ZmHeap_Init<ZmHeap__<ID, Size, Align, Sharded>>
 ZmHeap__<ID, Size, Align, Sharded>::m_init;
 
 // sentinel heap ID used to disable ZmHeap
-inline constexpr auto ZmHeapDisable() {
+constexpr auto ZmHeapDisable() {
   return []() -> const char * { return nullptr; };
 };
 

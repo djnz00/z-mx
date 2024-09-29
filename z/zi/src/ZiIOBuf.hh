@@ -35,7 +35,7 @@
 #define ZiIOBuf_DefaultSize 1460
 #endif
 
-inline constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
+constexpr const char *ZiIOBuf_HeapID() { return "ZiIOBuf"; }
 
 namespace Zi {
 
@@ -49,7 +49,7 @@ struct IOBuf : private VHeap, public ZmPolymorph {
   uint32_t	skip = 0;
 
   // 64bit pointer-packing - uses bit 63
-  static constexpr const uintptr_t Jumbo = (uintptr_t(1)<<63);
+  static constexpr uintptr_t Jumbo = (uintptr_t(1)<<63);
 
 private:
   using VHeap::valloc;
@@ -333,7 +333,7 @@ template <typename Base, unsigned Size, auto HeapID = ZiIOBuf_HeapID>
 using IOBufAlloc_ = IOBufAlloc__<Base, Size, IOBuf_Heap<Base, Size, HeapID>>;
 
 template <typename Base>
-inline constexpr const unsigned BuiltinSize(unsigned Size) {
+constexpr unsigned BuiltinSize(unsigned Size) {
   enum { CacheLineSize = Zm::CacheLineSize };
   // MinBufSz - minimum built-in buffer size
   enum { MinBufSz = sizeof(uintptr_t)<<1 };

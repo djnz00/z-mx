@@ -104,7 +104,11 @@ template <typename Field>
 using FieldDecoder = typename FieldDecoder_<Field>::T;
 
 // map a field to corresponding Series / Reader
-template <typename Field> using FieldSeries = Series<FieldDecoder<Field>>;
+template <typename Field, bool = Field::Type::Code == ZtFieldTypeCode::Time>
+struct FieldSeries_ { using T = Series<FieldDecoder<Field>>; };
+template <typename Field>
+struct FieldSeries_<Field, true> { using T = TimeSeries; };
+template <typename Field> using FieldSeries = typename FieldSeries_<Field>::T;
 template <typename Field> using FieldSeriesRef = ZmRef<FieldSeries<Field>>;
 template <typename Field> using FieldReader = Reader<FieldDecoder<Field>>;
 template <typename Field>
@@ -237,7 +241,7 @@ public:
 	  ZuFixed{Field::get(o), GetNDP<Field>{}});
       else if constexpr (Field::Code == Time)
 	ok = ok && m_wrRefs.template p<I>()->write(
-	  m_df->template series<I>()->nsecs(Field::get(o)));
+	  m_df->template series<Field>()->nsecs(Field::get(o)));
     });
     if (!ok) fail();
   }
@@ -265,7 +269,7 @@ private:
   bool		m_stopped = false;
   bool		m_failed = false;
 };
-inline constexpr const char *DFWriter_HeapID() { return "Zdf.DFWriter"; }
+constexpr const char *DFWriter_HeapID() { return "Zdf.DFWriter"; }
 template <typename W>
 using DFWriter = DFWriter_<W, ZmHeap<DFWriter_HeapID, DFWriter_<W, ZuEmpty>>>;
 

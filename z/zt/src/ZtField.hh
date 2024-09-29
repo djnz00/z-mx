@@ -1933,7 +1933,7 @@ ZtVFieldType *ZtFieldType_Bool<T, Props>::mtype() {
   return ZmSingleton<ZtVFieldType_Bool<T, Props>>::instance();
 }
 
-inline constexpr bool ZtField_Bool_Def() { return false; }
+constexpr bool ZtField_Bool_Def() { return false; }
 template <
   typename Base,
   auto Def = ZtField_Bool_Def,
@@ -2421,7 +2421,7 @@ ZtVFieldType *ZtFieldType_Time<T, Props>::mtype() {
   return ZmSingleton<ZtVFieldType_Time<T, Props>>::instance();
 }
 
-inline constexpr ZuTime ZtField_Time_Def() { return {}; }
+constexpr ZuTime ZtField_Time_Def() { return {}; }
 template <
   typename Base,
   auto Def = ZtField_Time_Def,
@@ -2497,7 +2497,7 @@ ZtVFieldType *ZtFieldType_DateTime<T, Props>::mtype() {
   return ZmSingleton<ZtVFieldType_DateTime<T, Props>>::instance();
 }
 
-inline constexpr ZuDateTime ZtField_DateTime_Def() { return {}; }
+constexpr ZuDateTime ZtField_DateTime_Def() { return {}; }
 template <
   typename Base,
   auto Def = ZtField_DateTime_Def,

@@ -32,7 +32,7 @@ class ZmAnyFn {
   };
 
   // 64bit pointer-packing - uses bit 63
-  static constexpr const uintptr_t Owned = (uintptr_t(1)<<63);
+  static constexpr uintptr_t Owned = (uintptr_t(1)<<63);
 
 protected:
   static constexpr bool owned(uintptr_t o) { return o & Owned; }
@@ -199,7 +199,7 @@ struct ZmFnPtr<Fn> : public ZuConstant<decltype(Fn), Fn> {
 template <typename T> struct ZmIsFnPtr : public ZuFalse { };
 template <auto Fn> struct ZmIsFnPtr<ZmFnPtr<Fn>> : public ZuTrue { };
 
-inline constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
+constexpr const char *ZmLambda_HeapID() { return "ZmLambda"; }
 
 template <typename Fn = void()> class ZmFn;
 template <typename R_, typename ...Args_>

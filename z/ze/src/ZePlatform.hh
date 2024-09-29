@@ -66,7 +66,7 @@ namespace Ze {
 
 #ifndef _WIN32
 using ErrNo = int;
-inline constexpr ErrNo OK() { return 0; }
+constexpr ErrNo OK() { return 0; }
 
 inline ErrNo errNo() { return errno; }
 inline ErrNo sockErrNo() { return errno; }
@@ -75,7 +75,7 @@ inline const char *strerror(ErrNo e) {
 }
 #else
 using ErrNo = DWORD;					// <= sizeof(int)
-inline constexpr ErrNo OK() { return ERROR_SUCCESS; }	// == 0
+constexpr ErrNo OK() { return ERROR_SUCCESS; }	// == 0
 
 inline ErrNo errNo() { return GetLastError(); }
 inline ErrNo sockErrNo() { return WSAGetLastError(); }

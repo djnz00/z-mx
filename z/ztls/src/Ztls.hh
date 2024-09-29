@@ -43,12 +43,12 @@
 namespace Ztls {
 
 #ifdef Ztls_VHEAP
-inline constexpr const char *VHeapID() { return "Ztls.mbedtls"; }
+constexpr const char *VHeapID() { return "Ztls.mbedtls"; }
 
 using VHeap = ZmVHeap<VHeapID>;
 #endif
 
-inline constexpr const unsigned RxBufSize() {
+constexpr const unsigned RxBufSize() {
   return MBEDTLS_SSL_IN_CONTENT_LEN;
 }
 

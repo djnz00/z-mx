@@ -22,7 +22,7 @@
 namespace ZGtk {
 
 template <typename L>
-inline constexpr auto callback(const L &l) {
+constexpr auto callback(const L &l) {
   return G_CALLBACK(ZuInvokeFn(l));
 }
 

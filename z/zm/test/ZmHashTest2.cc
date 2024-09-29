@@ -29,7 +29,7 @@ void dump(Order *o)
   std::cout << "order ID: " << o->id << '\n';
 }
 
-inline constexpr const char *HeapID() { return "Orders"; }
+constexpr const char *HeapID() { return "Orders"; }
 
 using Orders =
   ZmHash<ZmRef<Order>,

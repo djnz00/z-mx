@@ -279,23 +279,23 @@ using ZuNotLRef = typename ZuNotLRef_<U, R>::T;
 
 // shorthand constexpr std::forward without STL cruft
 template <typename T>
-inline constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
+constexpr T &&ZuFwd(ZuDeref<T> &v) noexcept { // fwd lvalue
   return static_cast<T &&>(v);
 }
 template <typename T>
-inline constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
+constexpr T &&ZuFwd(ZuDeref<T> &&v) noexcept { // fwd rvalue
   return static_cast<T &&>(v);
 }
 // shorthand constexpr std::move without STL cruft
 template <typename T>
-inline constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
+constexpr ZuDeref<T> &&ZuMv(T &&v) noexcept {
   return static_cast<ZuDeref<T> &&>(v);
 }
 // shorthand std::forward_like, extended for accessing base classes
 // - ZuFwdLike<decltype(self)>(self).member
 // - ZuFwdBaseLike<decltype(self), Base>(self)
 template <typename T, typename V>
-inline constexpr auto &&ZuFwdLike(V &&v) noexcept {
+constexpr auto &&ZuFwdLike(V &&v) noexcept {
   using U = ZuDeref<V>;
   constexpr bool Const = ZuIsConst<ZuDeref<T>>{};
   if constexpr (ZuIsLRef<T &&>{}) {
@@ -311,7 +311,7 @@ inline constexpr auto &&ZuFwdLike(V &&v) noexcept {
   }
 }
 template <typename T, typename U, typename V>	// V should be convertible to U
-inline constexpr auto &&ZuFwdBaseLike(V &&v) noexcept {
+constexpr auto &&ZuFwdBaseLike(V &&v) noexcept {
   constexpr bool Const = ZuIsConst<ZuDeref<T>>{};
   if constexpr (ZuIsLRef<T &&>{}) {
     if constexpr (Const)
@@ -471,7 +471,7 @@ using ZuNotExact = typename ZuNotExact_<U1, U2, R>::T;
 
 // default accessor (pass-through)
 
-inline constexpr auto ZuDefaultAxor() {
+constexpr auto ZuDefaultAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v); };
 }
 

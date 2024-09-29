@@ -57,10 +57,10 @@
 // Key would be uint32_t/uint64_t; key() would return the key in the header;
 // length() would return the number of bytes in the packet/fragment
 
-inline constexpr auto ZmPQueueDefaultKeyAxor() {
+constexpr auto ZmPQueueDefaultKeyAxor() {
   return []<typename T>(T &&v) -> decltype(auto) { return ZuFwd<T>(v).key(); };
 }
-inline constexpr auto ZmPQueueDefaultLenAxor() {
+constexpr auto ZmPQueueDefaultLenAxor() {
   return []<typename T>(const T &v) -> unsigned { return v.length(); };
 }
 template <

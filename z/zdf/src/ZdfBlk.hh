@@ -51,11 +51,11 @@ struct Blk {
   Last			last{.fixed = 0};	// last value in block
   ZmRef<BlkData>	blkData;		// cached data
 
-  static constexpr const uint64_t OffsetMask = (uint64_t(1)<<47) - 1;
+  static constexpr uint64_t OffsetMask = (uint64_t(1)<<47) - 1;
   enum { CountShift = 47 };
-  static constexpr const uint64_t CountMask = 0xfff;
+  static constexpr uint64_t CountMask = 0xfff;
   enum { NDPShift = 59 };
-  static constexpr const uint64_t NDPMask = 0x1f;
+  static constexpr uint64_t NDPMask = 0x1f;
 
   ZuAssert(CountMask + 1 >= MaxBlkCount);
 

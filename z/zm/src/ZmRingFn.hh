@@ -47,7 +47,7 @@
 
 // NTP (named template parameters):
 //
-// inline constexpr const char *HeapID() { return "HeapID"; }
+// constexpr const char *HeapID() { return "HeapID"; }
 // ZmRingFn<ZuVStream &,			// parameters
 //   ZmRingFnHeapID<HeapID>>			// heap ID
 

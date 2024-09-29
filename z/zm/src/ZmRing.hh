@@ -53,7 +53,7 @@
 namespace ZmRing_ {
 
 // NTP defaults
-inline constexpr auto Defaults_SizeAxor() {
+constexpr auto Defaults_SizeAxor() {
   return [](const void *) { return 0; };
 }
 struct Defaults {
@@ -195,10 +195,10 @@ protected:
 // Waiting    SWSR *    !SWSR
 
 // 64bit versions of flags
-inline constexpr uint64_t EndOfFile() { return static_cast<uint64_t>(1)<<62; }
-inline constexpr uint64_t Waiting()   { return static_cast<uint64_t>(2)<<62; }
-inline constexpr uint64_t Mask()      { return EndOfFile() | Waiting(); }
-inline constexpr uint64_t RdrMask() { return ~(static_cast<uint64_t>(3)<<62); }
+constexpr uint64_t EndOfFile() { return static_cast<uint64_t>(1)<<62; }
+constexpr uint64_t Waiting()   { return static_cast<uint64_t>(2)<<62; }
+constexpr uint64_t Mask()      { return EndOfFile() | Waiting(); }
+constexpr uint64_t RdrMask() { return ~(static_cast<uint64_t>(3)<<62); }
 enum { MaxRdrs = 62 };
 #if Zu_BIGENDIAN
 enum { Flags32Offset = 0 };	// 32bit offset of flags within 64bit header
@@ -206,11 +206,11 @@ enum { Flags32Offset = 0 };	// 32bit offset of flags within 64bit header
 enum { Flags32Offset = 1 };
 #endif
 // 32bit versions of flags
-inline constexpr uint32_t Wrapped32()   { return static_cast<uint32_t>(1)<<28; }
-inline constexpr uint32_t Locked32()    { return static_cast<uint32_t>(2)<<28; }
-inline constexpr uint32_t EndOfFile32() { return static_cast<uint32_t>(4)<<28; }
-inline constexpr uint32_t Waiting32()   { return static_cast<uint32_t>(8)<<28; }
-inline constexpr uint32_t Mask32() {
+constexpr uint32_t Wrapped32()   { return static_cast<uint32_t>(1)<<28; }
+constexpr uint32_t Locked32()    { return static_cast<uint32_t>(2)<<28; }
+constexpr uint32_t EndOfFile32() { return static_cast<uint32_t>(4)<<28; }
+constexpr uint32_t Waiting32()   { return static_cast<uint32_t>(8)<<28; }
+constexpr uint32_t Mask32() {
   return Locked32() | EndOfFile32() | Waiting32();
 }
 

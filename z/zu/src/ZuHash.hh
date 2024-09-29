@@ -43,26 +43,20 @@ template <typename T, bool = ZuTraits<T>::IsString> struct ZuHash_;
 // - http://www.citi.umich.edu/techreports/reports/citi-tr-00-1.pdf
 
 namespace ZuHash_GoldenRatio32 {
-inline constexpr const uint32_t ratio() { return 0x61c88647; }
-inline constexpr const uint32_t hash(uint32_t i) {
-  return i * ratio();
-}
+constexpr uint32_t ratio() { return 0x61c88647; }
+constexpr uint32_t hash(uint32_t i) { return i * ratio(); }
 }
 
 namespace ZuHash_GoldenRatio64 {
-inline constexpr const uint64_t ratio() { return 0x61c8864680b583ebULL; }
-inline constexpr const uint32_t hash(uint64_t i) {
-  return (i * ratio())>>32;
-}
+constexpr uint64_t ratio() { return 0x61c8864680b583ebULL; }
+constexpr uint32_t hash(uint64_t i) { return (i * ratio())>>32; }
 }
 
 namespace ZuHash_GoldenRatio128 {
-inline constexpr const uint128_t ratio() {
+constexpr const uint128_t ratio() {
   return (uint128_t(0x61c8864680b583eaULL)<<64) | 0x0c633f9fa31237ccULL;
 }
-inline constexpr const uint32_t hash(uint128_t i) {
-  return (i * ratio())>>96;
-}
+constexpr const uint32_t hash(uint128_t i) { return (i * ratio())>>96; }
 }
 
 // Fowler / Noll / Vo (FNV) hash function (type FNV-1a)

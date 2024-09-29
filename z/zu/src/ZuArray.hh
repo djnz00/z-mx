@@ -697,21 +697,26 @@ namespace std {
 }
 namespace Zu_ {
   using size_t = std::size_t;
+
   namespace {
     template <size_t I, typename T>
     using tuple_element_t = typename std::tuple_element<I, T>::type;
   }
+
   template <size_t I, typename T, unsigned N, typename Cmp>
   constexpr tuple_element_t<I, ArrayN<T, N, Cmp>> &
   get(ArrayN<T, N, Cmp> &a) noexcept { return a[I]; }
+
   template <size_t I, typename T, unsigned N, typename Cmp>
   constexpr const tuple_element_t<I, ArrayN<T, N, Cmp>> &
   get(const ArrayN<T, N, Cmp> &a) noexcept { return a[I]; }
+
   template <size_t I, typename T, unsigned N, typename Cmp>
   constexpr tuple_element_t<I, ArrayN<T, N, Cmp>> &&
   get(ArrayN<T, N, Cmp> &&a) noexcept {
     return static_cast<tuple_element_t<I, ArrayN<T, N, Cmp>> &&>(a[I]);
   }
+
   template <size_t I, typename T, unsigned N, typename Cmp>
   constexpr const tuple_element_t<I, ArrayN<T, N, Cmp>> &&
   get(const ArrayN<T, N, Cmp> &&a) noexcept {

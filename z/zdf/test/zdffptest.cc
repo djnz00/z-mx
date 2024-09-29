@@ -71,7 +71,7 @@ struct Frame {
 };
 ZtFieldTbl(Frame,
   (((seqNo),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
-  (((time),	(Ctor<1>, Series, Index, Delta)),	(Time, "2020/1/1")),
+  (((time),	(Ctor<1>, Series, Index, Delta)),	(Time, "2020/01/01")),
   (((price),	(Ctor<2>, Series, NDP<9>)),		(Float)));
 
 void usage()
@@ -221,7 +221,7 @@ struct Test {
     using Field = ZtField(Frame, price);
     using Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
-      Zdf::maxOffset(),
+      Zdf::MaxOffset,
       {this, ZmFnPtr<&Test::run_read10<Ctrl>>{}}, []{
 	ZeLOG(Fatal, "data frame read10 failed");
       });

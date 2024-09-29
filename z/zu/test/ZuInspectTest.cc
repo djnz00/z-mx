@@ -23,7 +23,7 @@ struct B : public A { };
 struct C { operator A() { return A(); } };
 struct D : public C { ~D() { out("~D()"); } };
 
-inline constexpr auto foo() { return []{ out("Hello World"); }; }
+constexpr auto foo() { return []{ out("Hello World"); }; }
 
 struct A_Print : public ZuPrintDelegate {
   template <typename S>

@@ -55,10 +55,10 @@ namespace Zi {
 
 #ifndef _WIN32
 using Handle = int;
-ZuInline constexpr const Handle nullHandle() { return -1; }
+ZuInline constexpr Handle nullHandle() { return -1; }
 ZuInline constexpr bool nullHandle(Handle i) { return i < 0; }
 using Socket = int;
-ZuInline constexpr const Socket nullSocket() { return -1; }
+ZuInline constexpr Socket nullSocket() { return -1; }
 ZuInline constexpr bool nullSocket(Socket i) { return i < 0; }
 inline void closeSocket(Socket s) { ::close(s); }
 using MMapPtr = void *;
@@ -76,7 +76,7 @@ using Handle = HANDLE;
 ZuInline const Handle nullHandle() { return INVALID_HANDLE_VALUE; }
 ZuInline bool nullHandle(Handle i) { return !i || i == INVALID_HANDLE_VALUE; }
 using Socket = SOCKET;
-ZuInline constexpr const Socket nullSocket() { return INVALID_SOCKET; }
+ZuInline constexpr Socket nullSocket() { return INVALID_SOCKET; }
 ZuInline constexpr bool nullSocket(Socket i) { return i == INVALID_SOCKET; }
 inline void closeSocket(Socket s) { ::closesocket(s); }
 using MMapPtr = LPVOID;

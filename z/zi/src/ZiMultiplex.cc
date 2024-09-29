@@ -216,7 +216,7 @@ inline uint64_t u64_connect(void *ptr) {
   return reinterpret_cast<uintptr_t>(ptr) | (uint64_t(2)<<62);
 }
 inline bool u64_is_connect(uint64_t v) { return (v>>62) == 2; }
-inline constexpr const uint64_t u64_event() { return uint64_t(3)<<62; }
+constexpr const uint64_t u64_event() { return uint64_t(3)<<62; }
 inline bool u64_is_event(uint64_t v) { return (v>>62) == 3; }
 template <typename T>
 inline T *u64_ptr(uint64_t v) {

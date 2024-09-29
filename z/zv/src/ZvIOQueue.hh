@@ -79,7 +79,7 @@ private:
   ZvIOQItem	&m_item;
 };
 
-inline constexpr const char *ZvIOMsg_HeapID() { return "ZvIOMsg"; };
+constexpr const char *ZvIOMsg_HeapID() { return "ZvIOMsg"; };
 using ZvIOQueue_ =
   ZmPQueue<ZvIOQItem,
     ZmPQueueNode<ZvIOQItem,

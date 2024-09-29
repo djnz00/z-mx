@@ -45,9 +45,9 @@ namespace RdrState {
     Live,	// reading, waiting for live data
     Stopping);	// stopping while reading
 
-  constexpr const bool stopped(T v) { return v == Stopped; }
-  constexpr const bool reading(T v) { return v >= Loading; }
-  constexpr const bool live(T v) { return v == Live; }
+  constexpr bool stopped(T v) { return v == Stopped; }
+  constexpr bool reading(T v) { return v >= Loading; }
+  constexpr bool live(T v) { return v == Live; }
 }
 
 // from an application perspective a reader is either stopped() or reading()
@@ -236,7 +236,7 @@ private:
   bool			m_failed = false;
 };
 
-inline constexpr const char *Reader_HeapID() { return "Zdf.Reader"; }
+constexpr const char *Reader_HeapID() { return "Zdf.Reader"; }
 template <typename Decoder>
 using ReaderList =
   ZmList<Reader<Decoder>,
@@ -344,7 +344,7 @@ public:
 private:
   NDP		m_ndp;
 };
-inline constexpr const char *Writer_HeapID() { return "Zdf.Writer"; }
+constexpr const char *Writer_HeapID() { return "Zdf.Writer"; }
 template <typename Decoder>
 using Writer_Heap = ZmHeap<Writer_HeapID, Writer_<Decoder, ZuEmpty>>;
 template <typename Decoder>
@@ -354,16 +354,14 @@ class Store;
 // template <typename O, bool TimeIndex> class DataFrame;
 
 // each IndexBlk contains Blk[512]
-inline constexpr const unsigned IndexBlkShift() { return 9; }
-inline constexpr const unsigned IndexBlkSize() { return 1<<IndexBlkShift(); }
-inline constexpr const unsigned IndexBlkMask() {
-  return ~((~0U)<<IndexBlkShift());
-}
+constexpr unsigned IndexBlkShift = 9;
+constexpr unsigned IndexBlkSize = 1<<IndexBlkShift;
+constexpr unsigned IndexBlkMask = ~((~0U)<<IndexBlkShift);
 
 // the series index is a skiplist (ZmPQueue) of IndexBlks
 struct IndexBlk_ : public ZuObject {
   Offset	offset;			// block offset
-  Blk		blks[IndexBlkSize()];
+  Blk		blks[IndexBlkSize];
 
   IndexBlk_(Offset offset_) : offset{offset_} { }
 };
@@ -374,9 +372,9 @@ struct IndexBlk_Fn {
   static Key KeyAxor(const IndexBlk_ &indexBlk) { return indexBlk.offset; }
 
   ZuInline Offset key() const { return indexBlk.offset; }
-  static constexpr const unsigned length() { return IndexBlkSize(); }
+  static constexpr unsigned length() { return IndexBlkSize; }
 };
-inline constexpr const char *IndexBlk_HeapID() { return "Zdf.IndexBlk"; }
+constexpr const char *IndexBlk_HeapID() { return "Zdf.IndexBlk"; }
 using Index =
   ZmPQueue<IndexBlk_,
     ZmPQueueFn<IndexBlk_Fn,
@@ -406,16 +404,16 @@ private:
   using ReaderList = Zdf::ReaderList<Decoder>;
   using RdrNode = Zdf::RdrNode<Decoder>;
 
+protected:
   using DBSeries = ZuIf<Fixed, DB::SeriesFixed, DB::SeriesFloat>;
   using DBBlk = ZuIf<Fixed, DB::BlkFixed, DB::BlkFloat>;
 
+private:
 friend Store;
 template <typename> friend class Zdf::Reader;
 template <typename, typename, typename> friend class Writer__;
 
-using ID = uint32_t;
-
-private:
+protected:
   Series(Store *store, ZdbObjRef<DBSeries> dbSeries) :
     m_store{store}, m_dbSeries{ZuMv(dbSeries)}
   {
@@ -494,7 +492,7 @@ public:
     ZmAssert(invoked());
 
     BlkOffset blkOffset;
-    if (offset == maxOffset())
+    if (offset == MaxOffset)
       blkOffset = m_lastBlkOffset;
     else {
       uint64_t result;
@@ -617,13 +615,13 @@ private:
   }
 
   // open() - open series and query blk table to fill index
-  void open(ZmFn<void(ZmRef<Series>)> fn) {
+  void open(auto fn) {
     ZmAssert(invoked());
 
     m_index.head(m_dbSeries->data().blkOffset);
     const auto &data = m_dbSeries->data();
     blkTbl()->template nextRows<0>(
-      ZuFwdTuple(data.id, data.blkOffset), true, IndexBlkSize(), [
+      ZuFwdTuple(data.id, data.blkOffset), true, IndexBlkSize, [
 	this_ = ZmMkRef(this), fn = ZuMv(fn), rowRcvd = false
       ](this auto &&self, auto result, unsigned) {
 	if (this_->m_opened) return; // index already filled
@@ -636,7 +634,7 @@ private:
 	  rowRcvd = false;
 	  this_->blkTbl()->template nextRows<0>(
 	    ZuFwdTuple(this_->m_dbSeries->data().id, this_->m_lastBlkOffset),
-	    false, IndexBlkSize(), ZuMv(self));
+	    false, IndexBlkSize, ZuMv(self));
 	}
 	return;
       opened:
@@ -820,7 +818,7 @@ private:
     ++m_lastBlkOffset;
     IndexBlk *indexBlk = m_index.find(m_lastBlkOffset);
     if (!indexBlk)
-      m_index.add(indexBlk = new IndexBlk{m_lastBlkOffset & ~IndexBlkMask()});
+      m_index.add(indexBlk = new IndexBlk{m_lastBlkOffset & ~IndexBlkMask});
     m_lastBlk = &indexBlk->blks[m_lastBlkOffset - indexBlk->offset];
     m_lastBlk->offset(offset);
     m_lastBlk->blkData = newBlkData(m_lastBlkOffset);
@@ -837,7 +835,7 @@ private:
     if (ZuUnlikely(blkOffset < m_index.head())) return nullptr;
     ZmRef<IndexBlk> indexBlk = m_index.find(blkOffset);
     if (!indexBlk)
-      m_index.add(indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask()});
+      m_index.add(indexBlk = new IndexBlk{blkOffset & ~IndexBlkMask});
     return &indexBlk->blks[blkOffset - indexBlk->offset];
   }
 
@@ -1100,7 +1098,7 @@ private:
   // - purge index up to, but not including, blkOffset
   void purge(Reader *reader, BlkOffset blkOffset) {
     if (ZuUnlikely(!m_lastBlkOffset)) return;
-    blkOffset &= ~IndexBlkMask();
+    blkOffset &= ~IndexBlkMask;
     if (ZuUnlikely(blkOffset >= m_lastBlkOffset))
       blkOffset = m_lastBlkOffset - 1;
     if (!blkOffset) return;
@@ -1139,15 +1137,15 @@ private:
   bool			m_opened = false;
 };
 
-class TimeSeries : public Series<DeltaDecoder> {
-  using Base = Series<DeltaDecoder>;
+class TimeSeries : public Series<DeltaDecoder<>> {
+  using Base = Series<DeltaDecoder<>>;
 
 friend Store;
 
-  TimeSeries(Store *store, ZdbObjRef<DBSeries> dbSeries) :
+  TimeSeries(Store *store, ZdbObjRef<Base::DBSeries> dbSeries) :
     Base{store, ZuMv(dbSeries)}
   {
-    m_epoch = dbSeries()->data().epoch.as_time();
+    m_epoch = this->dbSeries()->data().epoch.as_time();
   }
 
 public:
@@ -1157,16 +1155,14 @@ public:
 
   // time relative to epoch (creation time of series)
 private:
-  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
+  static constexpr int64_t pow10_9 = 1000000000L;
 public:
-  ZuFixed nsecs(ZuTime t) {
+  int64_t nsecs(ZuTime t) {
     t -= m_epoch;
-    return ZuFixed{uint64_t(t.sec()) * pow10_9() + t.nsec(), 9};
+    return int64_t(t.sec()) * pow10_9 + t.nsec();
   }
-  ZuTime time(ZuFixed v) {
-    auto n = v.adjust(9);
-    auto p = pow10_9();
-    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
+  ZuTime time(int64_t v) {
+    return ZuTime{v / pow10_9, int32_t(v % pow10_9)} + m_epoch;
   }
 
 private:

@@ -994,7 +994,7 @@ private:
 
 #include <zlib/ZmRBTree.hh>
 
-inline constexpr const char *ZiMxMgr_HeapID() { return "ZiMxMgr"; }
+constexpr const char *ZiMxMgr_HeapID() { return "ZiMxMgr"; }
 
 class ZiAPI ZiMxMgr {
   using Map =

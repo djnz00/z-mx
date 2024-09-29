@@ -28,7 +28,7 @@ using SeriesID = uint32_t;		// series ID
 
 using BlkOffset = uint64_t;		// block offset
 using Offset = uint64_t;		// value offset
-constexpr const Offset maxOffset() { return ~uint64_t(0); }
+constexpr Offset MaxOffset = ~Offset(0);
 
 using Fixed0 = ZuBox0(int64_t);
 using Float0 = ZuBox0(double);

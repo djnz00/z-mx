@@ -74,7 +74,7 @@ template <> struct ZtString__<char> {
   friend ZuPrintString ZuPrintType(ZtString__ *);
 };
 
-inline constexpr const char *ZtString_ID() { return "ZtString"; }
+constexpr const char *ZtString_ID() { return "ZtString"; }
 
 template <typename Char_, auto HeapID_>
 class ZtString_ :
