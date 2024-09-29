@@ -620,7 +620,7 @@ public:
   static ZuBox inf() { return ZuBox{Cmp::inf()}; }
 
   // the decimal epsilon functions below are intended for use with
-  // other systems that use floating point to process decimal values -
+  // systems that use floating point for decimal values -
   // use ZuDecimal and/or ZuFixed in preference to ZuBox<double>
 
   // decimal epsilon of floating point type

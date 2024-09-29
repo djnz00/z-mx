@@ -157,7 +157,7 @@ struct ZuFP_64 : public ZuFP_<ZuFP, T> { // 64+15
     ZuInline void inc() {
       uint64_t prev = mantissa;
       if (ZuUnlikely((mantissa += 5) < prev))
-	(mantissa |= (1ULL<<63U)), ++exponent;
+	(mantissa |= (uint64_t(1)<<63)), ++exponent;
     }
   };
 #pragma pack(pop)
