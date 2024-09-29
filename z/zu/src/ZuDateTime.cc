@@ -297,6 +297,10 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::CSV &fmt, ZuCSpan s)
     if (ZuUnlikely(*ptr++ != '/')) goto invalid;
     c = *ptr++ - '0'; day = c * 10;
     c = *ptr++ - '0'; day += c;
+    if (ZuUnlikely(
+	!year || year > 9999U ||
+	!month || month > 12U ||
+	!day || day > 31U)) goto invalid;
 
     if (ptr >= end || *ptr++ != ' ') {
       int year_ = year, month_ = month;
@@ -318,6 +322,7 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::CSV &fmt, ZuCSpan s)
     if (ZuUnlikely(*ptr++ != ':')) goto invalid;
     c = *ptr++ - '0'; sec = c * 10;
     c = *ptr++ - '0'; sec += c;
+    if (ZuUnlikely(hour > 23U || minute > 59U || sec > 59U)) goto invalid;
 
     nsec = 0;
     if (ZuLikely(ptr < end)) {
@@ -378,8 +383,7 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::FIX &fmt, ZuCSpan s)
     if (ZuUnlikely(*ptr++ != ':')) goto invalid;
     c = *ptr++ - '0'; sec = c * 10;
     c = *ptr++ - '0'; sec += c;
-    if (ZuUnlikely(
-	hour > 23U || minute > 59U || sec > 59U)) goto invalid;
+    if (ZuUnlikely(hour > 23U || minute > 59U || sec > 59U)) goto invalid;
 
     nsec = 0;
     if (ZuLikely(ptr < end)) {
@@ -431,6 +435,10 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuCSpan s)
     if (ZuUnlikely(*ptr++ != '-')) goto invalid;
     c = *ptr++ - '0'; day = c * 10;
     c = *ptr++ - '0'; day += c;
+    if (ZuUnlikely(
+	!year || year > 9999U ||
+	!month || month > 12U ||
+	!day || day > 31U)) goto invalid;
 
     if (ptr >= end || *ptr++ != 'T') {
       int year_ = year, month_ = month;
@@ -452,6 +460,7 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuCSpan s)
     if (ZuUnlikely(*ptr++ != ':')) goto invalid;
     c = *ptr++ - '0'; sec = c * 10;
     c = *ptr++ - '0'; sec += c;
+    if (ZuUnlikely(hour > 23U || minute > 59U || sec > 59U)) goto invalid;
 
     nsec = 0;
     if (ZuLikely(ptr < end)) {
@@ -504,6 +513,7 @@ unsigned ZuDateTime::scan(const ZuDateTimeScan::ISO &fmt, ZuCSpan s)
       if (ZuUnlikely(end - ptr < 1)) goto invalid;
     c = static_cast<char>(c) - '0'; offsetMinutes = c * 10;
     c = *ptr++ - '0'; offsetMinutes += c;
+    if (ZuUnlikely(offsetHours > 23U || offsetMinutes > 59U)) goto invalid;
 
   offset:
     if (offset >= 0)

@@ -65,12 +65,14 @@ void gtfo()
 }
 
 struct Frame {
-  uint64_t	v1;
-  double	v2;
+  uint64_t	seqNo;
+  ZuTime	time;
+  double	price;
 };
 ZtFieldTbl(Frame,
-  (((v1),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
-  (((v2),	(Series, NDP<9>)),			(Float)));
+  (((seqNo),	(Ctor<0>, Series, Index, Delta)),	(UInt64)),
+  (((time),	(Ctor<1>, Series, Index, Delta)),	(Time, "2020/1/1")),
+  (((price),	(Ctor<2>, Series, NDP<9>)),		(Float)));
 
 void usage()
 {
@@ -98,7 +100,7 @@ struct Test {
   ZmQueue<double>	queue{ZmQueueParams{}.initial(100)};
   Zdf::StatsTree<>	stats;
 
-  static double v2(double i) {
+  static double price(double i) {
     return (double(i) * 42) * .000000001;
   }
 
@@ -113,7 +115,7 @@ struct Test {
       return;
     }
     df = ZuMv(df_);
-    auto count = df->series<ZtField(Frame, v1)>()->count();
+    auto count = df->series<ZtField(Frame, seqNo)>()->count();
     if (count) {
       df->run([this]() { run_read1(); });
     } else
@@ -125,14 +127,15 @@ struct Test {
   void run_write(ZmRef<DFWriter> w) {
     Frame frame;
     for (int64_t i = 0; i < 100000; i++) { // 10000; i++) {
-      frame.v1 = i;
-      frame.v2 = v2(i);
+      frame.seqNo = i;
+      frame.time = Zm::now();
+      frame.price = price(i);
       w->write(frame);
     }
     df->run([this]() { run_read1(); });
   }
   void run_read1() {
-    using Field = ZtField(Frame, v1);
+    using Field = ZtField(Frame, seqNo);
     using Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->find<Field>(
       ZuFixed{20, 0}, {this, ZmFnPtr<&Test::run_read2<Ctrl>>{}}, []{
@@ -142,7 +145,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read2(Ctrl &rc, ZuFixed) {
-    using Field = ZtField(Frame, v2);
+    using Field = ZtField(Frame, price);
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read3<V2Ctrl>>{}}, []{
@@ -161,7 +164,7 @@ struct Test {
   template <typename Ctrl>
   bool run_read4(Ctrl &rc, double v) {
     CHECK(ZuBoxed(v).feq(0.0000084));
-    using Field = ZtField(Frame, v1);
+    using Field = ZtField(Frame, seqNo);
     using V1Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read5<V1Ctrl>>{}}, []{
@@ -178,7 +181,7 @@ struct Test {
   }
   template <typename Ctrl>
   bool run_read6(Ctrl &rc, ZuFixed) {
-    using Field = ZtField(Frame, v2);
+    using Field = ZtField(Frame, price);
     using V2Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       rc.stop() - 1, {this, ZmFnPtr<&Test::run_read7<V2Ctrl>>{}}, []{
@@ -215,7 +218,7 @@ struct Test {
     return false;
   }
   void run_read9() {
-    using Field = ZtField(Frame, v2);
+    using Field = ZtField(Frame, price);
     using Ctrl = Zdf::FieldRdrCtrl<Field>;
     df->seek<Field>(
       Zdf::maxOffset(),
@@ -229,7 +232,7 @@ struct Test {
     if (ZuCmp<double>::null(v)) {
       df->run([this]() { run_live_write(); });
     } else {
-      CHECK(ZuBoxed(v).feq(v2(j)));
+      CHECK(ZuBoxed(v).feq(price(j)));
     }
     return true;
   }
@@ -244,8 +247,9 @@ struct Test {
     Frame frame;
     for (uint64_t i = 0; i < 10; i++) {
       auto j = i + end;
-      frame.v1 = j;
-      frame.v2 = v2(j);
+      frame.seqNo = j;
+      frame.time = Zm::now();
+      frame.price = price(j);
       w->write(frame);
     }
     df->stopWriting([]{ done.post(); });

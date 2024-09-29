@@ -42,7 +42,7 @@
 // DateTime      ZuDateTime      [, default]
 // UDT           <UDT>           [, default]
 //
-// *Vec          ZuSpan<T>      [, default]
+// *Vec          ZuSpan<T>       [, default]
 // CStringVec
 // StringVec
 // BytesVec

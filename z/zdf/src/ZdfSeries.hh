@@ -424,11 +424,10 @@ private:
     m_shard = m_dbSeries->shard();
     m_id = m_dbSeries->data().id;
     m_name = &m_dbSeries->data().name;
-    m_epoch = m_dbSeries->data().epoch.as_time();
   }
 
 public:
-  ~Series() { m_dbSeries->unpin(); }
+  virtual ~Series() { m_dbSeries->unpin(); }
 
   Store *store() const { return m_store; }
   bool opened() const { return m_opened; }
@@ -436,22 +435,8 @@ public:
   unsigned shard() const { return m_shard; }
   SeriesID id() const { return m_id; }
   const ZtString &name() const { return *m_name; }
-  ZuTime epoch() const { return m_epoch; }
 
-  // time relative to epoch (creation time of series)
-private:
-  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
 public:
-  ZuFixed nsecs(ZuTime t) {
-    t -= m_epoch;
-    return ZuFixed{static_cast<uint64_t>(t.sec()) * pow10_9() + t.nsec(), 9};
-  }
-  ZuTime time(ZuFixed v) {
-    auto n = v.adjust(9);
-    auto p = pow10_9();
-    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
-  }
-
   // run/invoke on shard
   template <typename ...Args> void run(Args &&...args) const;
   template <typename ...Args> void invoke(Args &&...args) const;
@@ -1145,7 +1130,6 @@ private:
   Shard			m_shard;
   SeriesID		m_id;
   const ZtString	*m_name = nullptr;
-  ZuTime		m_epoch;
   mutable Index		m_index;
   Blk			*m_lastBlk = nullptr;
   BlkOffset		m_lastBlkOffset = 0;
@@ -1153,6 +1137,40 @@ private:
   mutable ReaderList	m_histReaders;
   ZmRef<Writer>		m_writer;
   bool			m_opened = false;
+};
+
+class TimeSeries : public Series<DeltaDecoder> {
+  using Base = Series<DeltaDecoder>;
+
+friend Store;
+
+  TimeSeries(Store *store, ZdbObjRef<DBSeries> dbSeries) :
+    Base{store, ZuMv(dbSeries)}
+  {
+    m_epoch = dbSeries()->data().epoch.as_time();
+  }
+
+public:
+  virtual ~TimeSeries() = default;
+
+  ZuTime epoch() const { return m_epoch; }
+
+  // time relative to epoch (creation time of series)
+private:
+  static constexpr const uint64_t pow10_9() { return 1000000000UL; }
+public:
+  ZuFixed nsecs(ZuTime t) {
+    t -= m_epoch;
+    return ZuFixed{uint64_t(t.sec()) * pow10_9() + t.nsec(), 9};
+  }
+  ZuTime time(ZuFixed v) {
+    auto n = v.adjust(9);
+    auto p = pow10_9();
+    return ZuTime{int64_t(n / p), int32_t(n % p)} + m_epoch;
+  }
+
+private:
+  ZuTime		m_epoch;
 };
 
 // Reader implementation

@@ -91,15 +91,18 @@ public:
 	};
 	ZtString seriesName{name.length() + strlen(Field::id()) + 2};
 	seriesName << name << '/' << Field::id();
-	openSeries<Decoder, Create>(shard, ZuMv(seriesName), ZuMv(next));
+	openSeries<Decoder, Create>(
+	  shard, ZuMv(seriesName), /* FIXME - epoch */, ZuMv(next));
+	// FIXME - obtain epoch from default time value of field
       }
     }(ZuInt<-1>{}, static_cast<void *>(nullptr));
   }
 
   // open series
+  // FIXME - time series epoch
   template <typename Decoder, bool Create>
   void openSeries(
-    Shard shard, ZtString name,
+    Shard shard, ZtString name, ZuTime epoch,
     ZmFn<void(ZmRef<Series<Decoder>>)> fn)
   {
     using Series = Zdf::Series<Decoder>;
@@ -117,7 +120,7 @@ public:
       this, shard, name = ZuMv(name), fn = ZuMv(fn)
     ]() mutable {
       auto findFn = [
-	this, shard, name, fn = ZuMv(fn)
+	this, shard, name, epoch, fn = ZuMv(fn)
       ](ZdbObjRef<DBSeries> dbSeries) mutable {
 	if (dbSeries) {
 	  ZmRef<Series> series = new Series{this, ZuMv(dbSeries)};
@@ -129,7 +132,7 @@ public:
 	new (dbSeries->ptr_()) DBSeries{
 	  .id = m_nextSeriesID++,
 	  .name = ZuMv(name),
-	  .epoch = Zm::now(),
+	  .epoch = epoch,
 	  .blkOffset = 0
 	};
 	auto insertFn = [
