@@ -123,12 +123,6 @@
 
 #endif
 
-#ifdef __GNUC__
-#define ZuMayAlias(x) __attribute__((__may_alias__)) x
-#else
-#define ZuMayAlias(x) x
-#endif
-
 #if defined(linux) || defined(__mips64)
 #include <endian.h>
 #if __BYTE_ORDER == __BIG_ENDIAN

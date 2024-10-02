@@ -28,47 +28,42 @@ struct LoBits {
   static uint32_t hashBits(uint32_t i) { return i & 0xff; }
 };
 
-template <typename T, int Size> struct Rand;
+template <typename T, unsigned Size = sizeof(T)> struct Rand;
 template <typename T> struct Rand<T, 1> {
   static T rand() {
-    T t;
-    uint8_t *ZuMayAlias(t_) = (uint8_t *)&t;
-    *t_ = ::rand() & 0xff;
-    return t;
+    alignas(T) uint8_t t_[1];
+    t_[0] = ::rand() & 0xff;
+    return *ZuLaunder(reinterpret_cast<T *>(&t_[0]));
   }
 };
 template <typename T> struct Rand<T, 2> {
   static T rand() {
-    T t;
-    uint16_t *ZuMayAlias(t_) = (uint16_t *)&t;
-    *t_ = ::rand() & 0xffff;
-    return t;
+    alignas(T) uint16_t t_[1];
+    t_[0] = ::rand() & 0xffff;
+    return *ZuLaunder(reinterpret_cast<T *>(&t_[0]));
   }
 };
 template <typename T> struct Rand<T, 4> {
   static T rand() {
-    T t;
-    uint16_t *ZuMayAlias(t_) = (uint16_t *)&t;
+    alignas(T) uint16_t t_[2];
     t_[0] = ::rand() & 0xffff;
     t_[1] = ::rand() & 0xffff;
-    return t;
+    return *ZuLaunder(reinterpret_cast<T *>(&t_[0]));
   }
 };
 template <typename T> struct Rand<T, 8> {
   static T rand() {
-    T t;
-    uint16_t *ZuMayAlias(t_) = (uint16_t *)&t;
+    alignas(T) uint16_t t_[4];
     t_[0] = ::rand() & 0xffff;
     t_[1] = ::rand() & 0xffff;
     t_[2] = ::rand() & 0xffff;
     t_[3] = ::rand() & 0xffff;
-    return t;
+    return *ZuLaunder(reinterpret_cast<T *>(&t_[0]));
   }
 };
 template <typename T> struct Rand<T, 16> {
   static T rand() {
-    T t;
-    uint16_t *ZuMayAlias(t_) = (uint16_t *)&t;
+    alignas(T) uint16_t t_[8];
     t_[0] = ::rand() & 0xffff;
     t_[1] = ::rand() & 0xffff;
     t_[2] = ::rand() & 0xffff;
@@ -77,7 +72,7 @@ template <typename T> struct Rand<T, 16> {
     t_[5] = ::rand() & 0xffff;
     t_[6] = ::rand() & 0xffff;
     t_[7] = ::rand() & 0xffff;
-    return t;
+    return *ZuLaunder(reinterpret_cast<T *>(&t_[0]));
   }
 };
 
@@ -86,7 +81,7 @@ template <typename Bits, typename T> struct IntegerTest {
     memset(count, 0, 256 * sizeof(int));
 
     for (int i = 0; i < (1<<16); i++)
-      count[Bits::hashBits(ZuHash<T>::hash(Rand<T, sizeof(T)>::rand()))]++;
+      count[Bits::hashBits(ZuHash<T>::hash(Rand<T>::rand()))]++;
     analyze(s, count, 256);
   }
 };

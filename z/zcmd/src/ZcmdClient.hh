@@ -90,15 +90,15 @@ private:
   using UserDBReqs =
     ZmRBTreeKV<ZvSeqNo, ZumAckFn,
       ZmRBTreeUnique<true,
-	ZmRBTreeLock<ZmPLock> > >;
+	ZmRBTreeLock<ZmPLock>>>;
   using CmdReqs =
     ZmRBTreeKV<ZvSeqNo, ZcmdAckFn,
       ZmRBTreeUnique<true,
-	ZmRBTreeLock<ZmPLock> > >;
+	ZmRBTreeLock<ZmPLock>>>;
   using TelReqs =
     ZmRBTreeKV<ZvSeqNo, ZtelAckFn,
       ZmRBTreeUnique<true,
-	ZmRBTreeLock<ZmPLock> > >;
+	ZmRBTreeLock<ZmPLock>>>;
 
 public:
   struct State {

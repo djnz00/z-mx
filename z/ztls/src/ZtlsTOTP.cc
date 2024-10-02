@@ -18,12 +18,10 @@ ZtlsExtern unsigned calc(ZuBytes data, int offset)
   hmac.start(data);
   hmac.update({reinterpret_cast<const uint8_t *>(&t), 8});
   hmac.finish(sha1);
-  ZuBigEndian<uint32_t> code_;
-  {
-    void *ZuMayAlias(ptr) = reinterpret_cast<void *>(&code_);
-    memcpy(ptr, sha1 + (sha1[19] & 0xf), 4);
-  }
-  uint32_t code = code_;
+  alignas(uint32_t) uint8_t code_[sizeof(uint32_t)];
+  memcpy(&code_[0], sha1 + (sha1[19] & 0xf), 4);
+  uint32_t code =
+    *ZuLaunder(reinterpret_cast<ZuBigEndian<uint32_t> *>(&code_[0]));
   code &= ~(static_cast<uint32_t>(1)<<31);
   return code % static_cast<uint32_t>(1000000);
 }

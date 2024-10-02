@@ -116,7 +116,7 @@ int main()
 
   {
     zu_decimal v_, l_, r_;
-    ZuDecimal *ZuMayAlias(ptr) = reinterpret_cast<ZuDecimal *>(&v_);
+    ZuDecimal *ptr = ZuLaunder(reinterpret_cast<ZuDecimal *>(&v_));
     auto &v = *ptr;
     zu_decimal_in(&v_, "42.01");
     CHECK(((ZuCArray<40>{} << v) == "42.01"));

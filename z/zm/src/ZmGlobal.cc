@@ -24,8 +24,8 @@
 // process startup and shutdown
 static uint32_t ZmGlobal_lock = 0;
 #define lock() \
-  ZmAtomic<uint32_t> *ZuMayAlias(lock) = \
-    reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmGlobal_lock); \
+  auto lock = \
+    ZuLaunder(reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmGlobal_lock)); \
   while (ZuUnlikely(lock->cmpXch(1, 0))) Zm::yield()
 #define unlock() (*lock = 0)
 

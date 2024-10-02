@@ -17,14 +17,14 @@
 static uint32_t ZmSpecific_lock_ = 0;
 ZmAPI void ZmSpecific_lock()
 {
-  ZmAtomic<uint32_t> *ZuMayAlias(lock) =
-    reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmSpecific_lock_);
+  auto lock =
+    ZuLaunder(reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmSpecific_lock_));
   while (ZuUnlikely(lock->cmpXch(1, 0))) Zm::yield();
 }
 ZmAPI void ZmSpecific_unlock()
 {
-  ZmAtomic<uint32_t> *ZuMayAlias(lock) =
-    reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmSpecific_lock_);
+  auto lock =
+    ZuLaunder(reinterpret_cast<ZmAtomic<uint32_t> *>(&ZmSpecific_lock_));
   *lock = 0;
 }
 

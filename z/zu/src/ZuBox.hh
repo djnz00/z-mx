@@ -707,13 +707,11 @@ template <typename T>
 ZuMatchBoxed<T, T> &ZuBoxed(T &v) { return v; }
 template <typename T>
 const ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(const T &v) {
-  const ZuBox<T> *ZuMayAlias(v_) = reinterpret_cast<const ZuBox<T> *>(&v);
-  return *v_;
+  return *ZuLaunder(reinterpret_cast<const ZuBox<T> *>(&v));
 }
 template <typename T>
 ZuNotBoxed<T, ZuBox<T>> &ZuBoxed(T &v) {
-  ZuBox<T> *ZuMayAlias(v_) = reinterpret_cast<ZuBox<T> *>(&v);
-  return *v_;
+  return *ZuLaunder(reinterpret_cast<ZuBox<T> *>(&v));
 }
 
 // ZuBoxPtr(x) - convenience function to box pointers as uintptr_t
@@ -734,13 +732,11 @@ template <typename T>
 ZuMatchBoxed<T, T> &ZuNBoxed(T &v) { return v; }
 template <typename T>
 const ZuNotBoxed<T, ZuNBox<T>> &ZuNBoxed(const T &v) {
-  const ZuNBox<T> *ZuMayAlias(v_) = reinterpret_cast<const ZuNBox<T> *>(&v);
-  return *v_;
+  return *ZuLaunder(reinterpret_cast<const ZuNBox<T> *>(&v));
 }
 template <typename T>
 ZuNotBoxed<T, ZuNBox<T>> &ZuNBoxed(T &v) {
-  ZuNBox<T> *ZuMayAlias(v_) = reinterpret_cast<ZuNBox<T> *>(&v);
-  return *v_;
+  return *ZuLaunder(reinterpret_cast<ZuNBox<T> *>(&v));
 }
 
 #ifdef _MSC_VER

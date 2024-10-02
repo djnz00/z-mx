@@ -75,8 +75,7 @@ private:
 protected:
   template <typename T, unsigned Level> static T *global() {
     static uintptr_t addr_ = 0;
-    ZmAtomic<uintptr_t> *ZuMayAlias(addr) =
-      reinterpret_cast<ZmAtomic<uintptr_t> *>(&addr_);
+    auto addr = ZuLaunder(reinterpret_cast<ZmAtomic<uintptr_t> *>(&addr_));
     uintptr_t ptr;
     while (ZuUnlikely(!((ptr = addr->load_()) & ~1))) {
       if ((ptr == 1) || addr->cmpXch(1, 0)) {

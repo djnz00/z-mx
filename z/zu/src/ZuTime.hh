@@ -102,7 +102,7 @@ public:
   }
 #else
   ZuTime(FILETIME f) {
-    int64_t *ZuMayAlias(f_) = reinterpret_cast<int64_t *>(&f);
+    auto f_ = ZuLaunder(reinterpret_cast<int64_t *>(&f));
     int64_t t = *f_;
     t -= ZuTime_FT_Epoch;
     tv_sec = t / 10000000;
@@ -139,7 +139,7 @@ public:
 #else
   FILETIME as_FILETIME() const {
     FILETIME f;
-    int64_t *ZuMayAlias(f_) = reinterpret_cast<int64_t *>(&f);
+    auto f_ = ZuLaunder(reinterpret_cast<int64_t *>(&f));
     *f_ = (int64_t)tv_sec * 10000000 + tv_nsec / 100 + ZuTime_FT_Epoch;
     return f;
   }

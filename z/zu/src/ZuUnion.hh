@@ -209,7 +209,7 @@ public:
     ZuSwitch::dispatch<N>(type_(u.type()), [this, &u](auto I) {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(u.m_u);
+	const T *ptr = ZuLaunder(reinterpret_cast<const T *>(u.m_u));
 	ZuUnion_Ops<T>::ctor(m_u, *ptr);
       }
     });
@@ -218,7 +218,7 @@ public:
     ZuSwitch::dispatch<N>(type_(u.type()), [this, &u](auto I) {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	T *ZuMayAlias(ptr) = reinterpret_cast<T *>(u.m_u);
+	T *ptr = ZuLaunder(reinterpret_cast<T *>(u.m_u));
 	ZuUnion_Ops<T>::ctor(m_u, ZuMv(*ptr));
       }
     });
@@ -234,7 +234,7 @@ public:
     ZuSwitch::dispatch<N>(type_(u.type()), [this, &u](auto I) {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(u.m_u);
+	const T *ptr = ZuLaunder(reinterpret_cast<const T *>(u.m_u));
 	ZuUnion_Ops<T>::assign(m_u, *ptr);
       }
     });
@@ -249,7 +249,7 @@ public:
     ZuSwitch::dispatch<N>(type_(u.type()), [this, &u](auto I) {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	T *ZuMayAlias(ptr) = reinterpret_cast<T *>(u.m_u);
+	T *ptr = ZuLaunder(reinterpret_cast<T *>(u.m_u));
 	ZuUnion_Ops<T>::assign(m_u, ZuMv(*ptr));
       }
     });
@@ -355,7 +355,7 @@ public:
     return ZuSwitch::dispatch<N>(type(), [this, &p](auto I) -> bool {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(p.m_u);
+	const T *ptr = ZuLaunder(reinterpret_cast<const T *>(p.m_u));
 	return ZuUnion_Ops<T>::equals(m_u, *ptr);
       } else
 	return true;
@@ -378,7 +378,7 @@ public:
     return ZuSwitch::dispatch<N>(type(), [this, &p](auto I) -> int {
       using T = Type<I>;
       if constexpr (!ZuUnion_IsVoid<T>{}) {
-	const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(p.m_u);
+	const T *ptr = ZuLaunder(reinterpret_cast<const T *>(p.m_u));
 	return ZuUnion_Ops<T>::cmp(m_u, *ptr);
       } else
 	return 0;
@@ -440,29 +440,25 @@ public:
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, const Type_<I> &> p() const & {
     using T = Type<I>;
     assert(type() == I);
-    const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_u);
-    return *ptr;
+    return *ZuLaunder(reinterpret_cast<const T *>(m_u));
   }
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Type_<I> &> p() & {
     using T = Type<I>;
-      assert(type() == I);
-      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
-    return *ptr;
+    assert(type() == I);
+    return *ZuLaunder(reinterpret_cast<T *>(m_u));
   }
   template <unsigned I>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Type_<I> &&> p() && {
     using T = Type<I>;
     assert(type() == I);
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
-    return ZuMv(*ptr);
+    return ZuMv(*ZuLaunder(reinterpret_cast<T *>(m_u)));
   }
   template <unsigned I, typename P>
   ZuIfT<!ZuUnion_IsVoid<Type_<I>>{}, Union &> p(P &&p) {
     using T = Type<I>;
     if (type() == I) {
-      T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
-      *ptr = ZuFwd<P>(p);
+      *ZuLaunder(reinterpret_cast<T *>(m_u)) = ZuFwd<P>(p);
       return *this;
     }
     this->~Union();
@@ -501,14 +497,12 @@ public:
   template <unsigned I>
   const Type<I> *ptr_() const {
     using T = Type<I>;
-    const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_u);
-    return ptr;
+    return ZuLaunder(reinterpret_cast<const T *>(m_u));
   }
   template <unsigned I>
   Type<I> *ptr_() {
     using T = Type<I>;
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_u);
-    return ptr;
+    return ZuLaunder(reinterpret_cast<T *>(m_u));
   }
 
   template <typename T> const auto *ptr() const { return ptr<Index<T>{}>(); }

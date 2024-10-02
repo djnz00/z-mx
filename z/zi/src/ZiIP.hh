@@ -98,8 +98,7 @@ public:
   uint32_t hash() const { return s_addr; }
 
   template <typename S> void print(S &s) const {
-    const uint8_t *ZuMayAlias(addr) =
-      reinterpret_cast<const uint8_t *>(&s_addr);
+    auto addr = ZuLaunder(reinterpret_cast<const uint8_t *>(&s_addr));
     s <<
       ZuBoxed(addr[0]) << '.' <<
       ZuBoxed(addr[1]) << '.' <<

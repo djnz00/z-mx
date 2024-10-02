@@ -137,12 +137,6 @@
 
 #endif
 
-#ifdef __GNUC__
-#define ZuMayAlias(x) __attribute__((__may_alias__)) x
-#else
-#define ZuMayAlias(x) x
-#endif
-
 #if defined(linux) || defined(__mips64)
 #include <endian.h>
 #if __BYTE_ORDER == __BIG_ENDIAN
@@ -155,6 +149,16 @@
 #define Zu_BIGENDIAN 0
 #endif
 #endif
+
+// std::launder equivalent
+template <class T>
+inline constexpr T *ZuLaunder(T *p) noexcept {
+#ifdef __GNUC__
+  return __builtin_launder(p);
+#else
+  return p;
+#endif
+}
 
 // std::remove_reference without dragging in STL cruft
 template <typename T_>

@@ -65,8 +65,7 @@ public:
 
   void init(ZuCSpan s) {
     if (ZuLikely(s.length() == 8)) {
-      const uint64_t *ZuMayAlias(ptr) =
-	reinterpret_cast<const uint64_t *>(s.data());
+      auto ptr = ZuLaunder(reinterpret_cast<const uint64_t *>(s.data()));
 #ifdef __x86_64__
       m_val = *ptr; // potentially misaligned load
 #else
@@ -82,12 +81,10 @@ public:
   }
 
   char *data() {
-    char *ZuMayAlias(ptr) = reinterpret_cast<char *>(&m_val);
-    return ptr;
+    return ZuLaunder(reinterpret_cast<char *>(&m_val));
   }
   const char *data() const {
-    const char *ZuMayAlias(ptr) = reinterpret_cast<const char *>(&m_val);
-    return ptr;
+    return ZuLaunder(reinterpret_cast<const char *>(&m_val));
   }
   unsigned length() const {
     if (!m_val) return 0U;

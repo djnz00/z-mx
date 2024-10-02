@@ -137,8 +137,7 @@ public:
   }
 
   template <typename S> void print(S &s) const {
-    const uintptr_t *ZuMayAlias(ptr) =
-      reinterpret_cast<const uintptr_t *>(&m_lock);
+    auto ptr = ZuLaunder(reinterpret_cast<const uintptr_t *>(&m_lock));
     s << ZuBoxed(*ptr);
   }
   friend ZuPrintFn ZuPrintType(ZmPRWLock *);

@@ -614,10 +614,7 @@ private:
     }
     value ^= m_prev;
     m_prev = value;
-    if (out) {
-      const double *ZuMayAlias(ptr) = reinterpret_cast<const double *>(&value);
-      *out = *ptr;
-    }
+    if (out) *out = *ZuLaunder(reinterpret_cast<const double *>(&value));
     return true;
   }
 
@@ -682,8 +679,7 @@ public:
       7
     };
 
-    const uint64_t *ZuMayAlias(ptr) = reinterpret_cast<const uint64_t *>(&in);
-    uint64_t value = *ptr;
+    uint64_t value = *ZuLaunder(reinterpret_cast<const uint64_t *>(&in));
     value ^= m_prev;
     if (ZuUnlikely(!value)) {
       if (ZuUnlikely(!this->avail<2>())) return false;
@@ -717,8 +713,7 @@ public:
   }
 
   double last() const {
-    const double *ZuMayAlias(ptr) = reinterpret_cast<const double *>(&m_prev);
-    return *ptr;
+    return *ZuLaunder(reinterpret_cast<const double *>(&m_prev));
   }
 
   void finish() {

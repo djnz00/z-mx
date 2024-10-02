@@ -216,18 +216,15 @@ private:
 
   const auto &data() const & {
     ZmAssert(m_u);
-    const T *ZuMayAlias(ptr) = reinterpret_cast<const T *>(m_data);
-    return *ptr;
+    return *ZuLaunder(reinterpret_cast<const T *>(m_data));
   }
   auto &data() & {
     ZmAssert(m_u);
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_data);
-    return *ptr;
+    return *ZuLaunder(reinterpret_cast<T *>(m_data));
   }
   decltype(auto) data() && {
     ZmAssert(m_u);
-    T *ZuMayAlias(ptr) = reinterpret_cast<T *>(m_data);
-    return ZuMv(*ptr);
+    return ZuMv(*ZuLaunder(reinterpret_cast<T *>(m_data)));
   }
 
 public:
