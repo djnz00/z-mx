@@ -303,7 +303,7 @@ public:
   friend Traits ZuTraitsType(IOBuf *);
 };
 
-// the Base parameter permits Ztls, Zdb, etc. to intrude their own
+// the Base parameter permits Ztls, Zdb, etc. to inject their own
 // buffer type into the hierarchy
 
 template <typename Base, unsigned Size_, typename Heap>

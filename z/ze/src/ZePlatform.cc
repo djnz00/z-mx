@@ -30,7 +30,7 @@ ZuCSpan Ze::severity(unsigned i)
 
 ZuCSpan Ze::file(ZuCSpan s)
 {
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
 #ifndef _WIN32
   const auto &r = ZtREGEX("([^/]*)$");
 #else
@@ -42,7 +42,7 @@ ZuCSpan Ze::file(ZuCSpan s)
 
 ZuCSpan Ze::function(ZuCSpan s)
 {
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   if (ZtREGEX("([a-zA-Z_][a-zA-Z_0-9:]*)\(").m(s, c) < 2) return s;
   return c[2];
 }

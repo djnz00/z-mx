@@ -39,7 +39,7 @@ ZtArray<ZtString> Cf::parseCLI(ZuCSpan line)
   unsigned n = line.length();
 
   ZtString value;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off = 0;
 
   args.length(0);
@@ -164,7 +164,7 @@ unsigned Cf::fromArgs(Cf *options, const ZtArray<ZtString> &args)
   const auto &argShort = ZtREGEX("^-(\w)$");		// -a
   const auto &argLongFlag = ZtREGEX("^--([\w\-]+)$");	// --arg
   const auto &argLongValue = ZtREGEX("^--([\w\-]+)=");// --arg=val
-  ZtRegex_captures_alloc(c, 2);
+  ZtRegexAllocCaptures(c, 2);
   ZmRef<Cf> option;
 
   p = 0;
@@ -243,7 +243,7 @@ scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
   const auto &fileDblUnquoted = ZtREGEX("\G[^\\\"]+");
 
   ZtString value;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off_ = off;
   bool failed = false;
 
@@ -317,7 +317,7 @@ scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
   const auto &envDblUnquoted = ZtREGEX("\G[^\\\"]+");
 
   ZtString value;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off_ = off;
   bool failed = false;
 
@@ -384,7 +384,7 @@ quoteString(ZuCSpan in)
   const auto &strQuoted = ZtREGEX("\W");
   const auto &strUnquoted = ZtREGEX("\G[^\\\"]+");
 
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
 
   if (!strQuoted.m(in, c, 0)) return in;
 
@@ -419,7 +419,7 @@ scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
   const auto &argQuoted = ZtREGEX("\G\\(.)");
 
   ZtString value;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off_ = off;
 
   while (off < n) {
@@ -449,7 +449,7 @@ quoteString(ZuCSpan in)
   const auto &argQuoted =    ZtREGEX("\G[\\\$\.\[\],]");
   const auto &argUnquoted = ZtREGEX("\G[^\\\$\.\[\],]+");
 
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
 
   if (!argQuoted.m(in, c, 0)) return in;
 
@@ -483,7 +483,7 @@ scanString(ZuCSpan in, unsigned off, Cf::Defines *defines = nullptr)
     const auto &argQuoted = ZtREGEX("\G\\(.)");
 
     ZtString value;
-    ZtRegex_captures_alloc(c, 1);
+    ZtRegexAllocCaptures(c, 1);
     unsigned off_ = off;
 
     while (off < n) {
@@ -530,7 +530,7 @@ null:
   off += o;
 
   if constexpr ((Q & Quoting::Mask) == Quoting::CLI) {
-    ZtRegex_captures_alloc(c, 1);
+    ZtRegexAllocCaptures(c, 1);
 
     if (indexMatch().m(in, c, off)) {
       off += c[1].length();
@@ -549,7 +549,7 @@ Cf::getScope_(ZuCSpan in, Cf::Defines *defines) const
 {
   unsigned n = in.length();
 
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off = 0;
 
   auto this_ = const_cast<Cf *>(this);
@@ -587,7 +587,7 @@ Cf::mkScope_(ZuCSpan in, Cf::Defines *defines)
 {
   unsigned n = in.length();
 
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off = 0;
 
   Cf *this_ = this;
@@ -646,7 +646,7 @@ void Cf::fromArg(ZuCSpan key, int type, ZuCSpan in)
     case ZvOptType::Array: {
       unsigned n = in.length();
 
-      ZtRegex_captures_alloc(c, 1);
+      ZtRegexAllocCaptures(c, 1);
       unsigned off = 0;
 
       if (!node->data.is<StrArray>())
@@ -706,7 +706,7 @@ void Cf::fromString(ZuCSpan in, ZuCSpan fileName, ZmRef<Defines> defines)
   using State = ZuTuple<unsigned, int>; // state, index
   ZtArray<State> stack;
   Node *node = nullptr;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off = 0;
   
   if (fileSpace.m(in, c, off)) off += c[1].length();
@@ -929,7 +929,7 @@ void Cf::fromEnv(const char *name, ZmRef<Defines> defines)
   using State = ZuTuple<unsigned, int>; // state, index
   ZtArray<State> stack;
   Node *node = nullptr;
-  ZtRegex_captures_alloc(c, 1);
+  ZtRegexAllocCaptures(c, 1);
   unsigned off = 0;
   
   while (off < n) {

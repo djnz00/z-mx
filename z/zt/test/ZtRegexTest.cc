@@ -17,7 +17,7 @@ int main()
   const auto &leafName = ZtREGEX("[^/]+$");
   const auto &separator = ZtREGEX("/");
   const auto &nullSpace = ZtREGEX("\s*");
-  ZtRegex_captures_alloc(c, 0);
+  ZtRegexAllocCaptures(c, 0);
   printf("x is \"%s\"\n", x.data());
   int i = leafName.m(x, c);
   printf("m/[^\\/]+$/ returned %d\n", i);
@@ -48,7 +48,7 @@ int main()
   
   {
     const auto &r = ZtREGEX("\w+\s+(?<name>\w+)\s+(?<age>\d+)");
-    ZtRegex_captures_alloc(d, 0);
+    ZtRegexAllocCaptures(d, 0);
     int name = r.index("name");
     int age = r.index("age");
 

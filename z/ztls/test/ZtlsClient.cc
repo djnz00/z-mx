@@ -55,12 +55,12 @@ struct App : public Ztls::Client<App> {
     int process(const uint8_t *data, unsigned len) {
       if (!file) {
 	header << ZuCSpan{data, len};
-	ZtRegex_captures_alloc(c, 0);
+	ZtRegexAllocCaptures(c, 0);
 	if (ZtREGEX("\n\r\n").m(header, c)) {
-	  ZtRegex_captures_alloc(d, 1);
-	  if (ZtREGEX("\nContent-Length: (\d+)").m(header, d))
+	  ZtRegexAllocCaptures(d, 1);
+	  if (ZtREGEX("\nContent-Length: (\d+)").m(header, d)) {
 	    length = ZuBox<unsigned>(d[2]);
-	  else if (ZtREGEX("\nTransfer-Encoding: chunked\r").m(header)) {
+	  } else if (ZtREGEX("\nTransfer-Encoding: chunked\r").m(header)) {
 	    // just read the first chunk for testing purposes
 	    if (ZtREGEX("\n\r\n([\dA-F]+)\r\n").m(header, d)) {
 	      length = ZuBox<unsigned>(ZuFmt::Hex<true>{}, d[2]);
@@ -68,7 +68,6 @@ struct App : public Ztls::Client<App> {
 	    } else
 	      return len;
 	  }
-	  ZmAssert(length);
 	  file = fopen("index.hdr", "w");
 	  ZmAssert(file);
 	  fwrite(c[0].data(), 1, c[0].length() + 1, file);
@@ -76,7 +75,7 @@ struct App : public Ztls::Client<App> {
 	  file = fopen("index.html", "w");
 	  ZmAssert(file);
 	  fwrite(c[2].data(), 1, c[2].length(), file);
-	  ZmAssert(length > c[2].length());
+	  ZmAssert(length >= c[2].length());
 	  length -= c[2].length();
 	  header = {};
 	}

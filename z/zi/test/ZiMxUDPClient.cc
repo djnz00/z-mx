@@ -206,7 +206,7 @@ int main(int argc, const char *argv[])
 	break;
       case 'b':
 	{
-	  ZtRegex_captures_alloc(c, 0);
+	  ZtRegexAllocCaptures(c, 0);
 	  try {
 	    int n = ZtREGEX(":").m(argv[++i], c);
 	    if (n != 1) usage();
@@ -217,7 +217,7 @@ int main(int argc, const char *argv[])
 	break;
       case 'd':
 	{
-	  ZtRegex_captures_alloc(c, 0);
+	  ZtRegexAllocCaptures(c, 0);
 	  try {
 	    unsigned n = ZtREGEX(":").m(argv[++i], c);
 	    if (n != 1) usage();
@@ -251,7 +251,7 @@ int main(int argc, const char *argv[])
 	break;
       case 'G':
 	{
-	  ZtRegex_captures_alloc(c, 0);
+	  ZtRegexAllocCaptures(c, 0);
 	  try {
 	    unsigned n = ZtREGEX("/").m(argv[++i], c);
 	    auto addr = n ? ZiIP{c[0]} : ZiIP{argv[i]};

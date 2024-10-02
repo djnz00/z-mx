@@ -48,9 +48,7 @@ constexpr const char *VHeapID() { return "Ztls.mbedtls"; }
 using VHeap = ZmVHeap<VHeapID>;
 #endif
 
-constexpr const unsigned RxBufSize() {
-  return MBEDTLS_SSL_IN_CONTENT_LEN;
-}
+constexpr unsigned RxBufSize = MBEDTLS_SSL_IN_CONTENT_LEN;
 
 // mbedtls runs within a single dedicated thread, without lock contention
 
@@ -262,11 +260,11 @@ protected:
 
 private:
   bool recv() { // TLS thread
-    ZmAssert(m_rxOutLen < RxBufSize());
+    ZmAssert(m_rxOutLen < RxBufSize);
 
     int n = mbedtls_ssl_read(&m_ssl,
 	static_cast<uint8_t *>(m_rxOutBuf + m_rxOutLen),
-	RxBufSize() - m_rxOutLen);
+	RxBufSize - m_rxOutLen);
 
     if (n <= 0) {
       switch (n) {
@@ -303,7 +301,7 @@ private:
 	return false;
       }
       if (!n) {
-	ZmAssert(m_rxOutLen < RxBufSize());
+	ZmAssert(m_rxOutLen < RxBufSize);
 	break;
       }
       if (n < int(m_rxOutLen))
@@ -442,7 +440,7 @@ private:
   CxnRef		m_cxn = nullptr;
   IOQueue		m_rxInQueue;
   unsigned		m_rxOutLen = 0;
-  uint8_t		m_rxOutBuf[RxBufSize()];
+  uint8_t		m_rxOutBuf[RxBufSize];
 
   // Contended
   ZmAtomic<unsigned>	m_disconnecting = 0;
@@ -782,7 +780,7 @@ private:
 
     struct Link : public CliLink<App, Link, IOBufAlloc> {
       // TLS thread - handshake completed
-      void connected(const char *alpn);
+      void connected(const char *alpn, int tlsver);
 
       void disconnected(); // TLS thread
       void connectFailed(bool transient); // I/O Tx thread

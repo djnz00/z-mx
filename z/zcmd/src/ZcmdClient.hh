@@ -389,6 +389,7 @@ friend TLS;
     m_reconnFreq = cf->getInt("reconnFreq", 0, 3600, 0);
     m_timeout = cf->getInt("timeout", 0, 3600, 0);
   }
+
   void final() {
     TLS::final();
 
