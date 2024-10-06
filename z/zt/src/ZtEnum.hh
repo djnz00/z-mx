@@ -55,11 +55,9 @@
   template <typename Impl> struct Map_ : public ZuObject { \
   private: \
     using V2S = \
-      ZmLHashKV<T, ZuCSpan, \
-	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
+      ZmLHashKV<T, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
     using S2V = \
-      ZmLHashKV<ZuCSpan, T, \
-	ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
+      ZmLHashKV<ZuCSpan, T, ZmLHashStatic<Bits, ZmLHashLocal<>>>; \
   protected: \
     void init(const char *s, int v, ...) { \
       if (ZuUnlikely(!s)) return; \

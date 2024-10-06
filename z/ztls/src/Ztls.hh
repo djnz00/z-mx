@@ -743,7 +743,50 @@ protected:
   // NetBSD - /etc/openssl/certs
   // AIX - /var/ssl/certs
   // Windows - ROOT certificate store (using Cert* API)
+
   bool loadCA(const char *path) {
+    if (!path) {
+#ifndef _WIN32
+      if (ZiFile::exists("/etc/lsb-release")) // Arch/Ubuntu/Debian/SLES
+	path = "/etc/ssl/certs";
+      else if (ZiFile::exists("/etc/redhat-release")) // Fedora/CentOS/RHEL
+	path = "/etc/pki/tls/certs";
+      else if (ZiFile::isdir("/system/etc/security/cacerts")) // Android
+	path = "/system/etc/security/cacerts";
+      else if (ZiFile::isdir("/usr/local/share/certs")) // FreeBSD
+	path = "/usr/local/share/certs";
+      else if (ZiFile::isdir("/etc/openssl/certs")) // NetBSD
+	path = "/etc/openssl/certs";
+      else if (ZiFile::isdir("/var/ssl/certs")) // AIX
+	path = "/var/ssl/certs";
+      else // unknown - default to LSB
+	path = "/etc/ssl/certs";
+#else
+      auto store = CertOpenSystemStore(nullptr, "ROOT"); // Windows
+      if (!store) {
+	ZeLOG(Error, ([e = ZeLastError](auto &s) {
+	  s << "CertOpenSystemStore(nullptr, \"ROOT\") failed: " << e;
+	}));
+	return false;
+      }
+
+      PCCERT_CONTEXT context = nullptr;
+      while (context = CertEnumCertificatesInStore(store, context)) {
+	int n = mbedtls_x509_crt_parse(
+	  m_cacert, context->pbCertEncoded, context->cbCertEncoded);
+	if (n < 0) {
+	  ZeLOG(Error, ([n](auto &s) {
+	    s << "mbedtls_x509_crt_parse(): " << strerror_(n);
+	  }));
+	  CertFreeCertificateContext(context);
+	  return false;
+	}
+      }
+
+      CertCloseStore(store, 0);
+      return true;
+#endif
+    }
     int n;
     const char *function;
     if (ZiFile::isdir(path)) {
@@ -813,9 +856,10 @@ friend Base;
   }
 
   // specify certPath and keyPath for mTLS
-  bool init(ZiMultiplex *mx, ZuCSpan thread,
-      const char *caPath, const char **alpn,
-      const char *certPath = nullptr, const char *keyPath = nullptr) {
+  bool init(ZiMultiplex *mx, ZuCSpan thread, const char **alpn,
+      const char *caPath = nullptr,
+      const char *certPath = nullptr,
+      const char *keyPath = nullptr) {
     return Base::init(mx, thread, [
       this, caPath, alpn, certPath, keyPath
     ]() -> bool {
@@ -910,12 +954,11 @@ friend Base;
     mbedtls_x509_crt_free(&m_cert);
   }
 
-  bool init(ZiMultiplex *mx, ZuCSpan thread,
-      const char *caPath, const char **alpn,
-      const char *certPath, const char *keyPath,
+  bool init(ZiMultiplex *mx, ZuCSpan thread, const char **alpn,
+      const char *caPath, const char *certPath, const char *keyPath,
       bool mTLS = false, int cacheMax = -1, int cacheTimeout = -1) {
     return Base::init(mx, thread, [
-      this, caPath, alpn, certPath, keyPath, mTLS, cacheMax, cacheTimeout
+      this, alpn, caPath, certPath, keyPath, mTLS, cacheMax, cacheTimeout
     ]() -> bool {
       mbedtls_ssl_config_defaults(this->conf(),
 	  MBEDTLS_SSL_IS_SERVER,

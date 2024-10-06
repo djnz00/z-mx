@@ -253,7 +253,8 @@ friend TLS;
       ZmRef<ZvCf> srvCf = cf->getCf<true>("server");
 
       TLS::init(mx,
-	srvCf->get<true>("thread"), srvCf->get<true>("caPath"), alpn,
+	srvCf->get<true>("thread"), alpn,
+	srvCf->get<false>("caPath"),
 	srvCf->get<true>("certPath"), srvCf->get<true>("keyPath"));
       m_ip = srvCf->get("localIP", "127.0.0.1");
       m_port = srvCf->getInt("localPort", 1, (1<<16) - 1, 19400);

@@ -103,19 +103,16 @@ struct App : public Ztls::Client<App> {
 
 void usage()
 {
-  std::cerr <<
-    "Usage: ZtlsClient CA SERVER PORT\n\n"
-    "Note: use /etc/ssl/certs as CA for public servers\n"
-    << std::flush;
+  std::cerr << "Usage: ZtlsClient SERVER PORT [CA]\n" << std::flush;
   ::exit(1);
 }
 
 int main(int argc, char **argv)
 {
-  if (argc != 4) usage();
+  if (argc < 3 || argc > 4) usage();
 
-  ZuCSpan server = argv[2];
-  unsigned port = ZuBox<unsigned>(argv[3]);
+  ZuCSpan server = argv[1];
+  unsigned port = ZuBox<unsigned>(argv[2]);
 
   if (!port) usage();
 
@@ -142,7 +139,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if (!app.init(&mx, "3", argv[1], alpn)) {
+  if (!app.init(&mx, "3", alpn, argc == 4 ? argv[3] : nullptr)) {
     std::cerr << "TLS client initialization failed\n" << std::flush;
     return 1;
   }

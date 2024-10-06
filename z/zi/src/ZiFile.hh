@@ -156,6 +156,7 @@ public:
   }
 
   static ZuTime mtime(const Path &name, ZeError *e = nullptr);
+  static bool exists(const Path &name, ZeError *e = nullptr);
   static bool isdir(const Path &name, ZeError *e = nullptr);
 
   static int remove(const Path &name, ZeError *e = nullptr);

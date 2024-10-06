@@ -22,8 +22,8 @@ ZtlsExtern unsigned calc(ZuBytes data, int offset)
   memcpy(&code_[0], sha1 + (sha1[19] & 0xf), 4);
   uint32_t code =
     *ZuLaunder(reinterpret_cast<ZuBigEndian<uint32_t> *>(&code_[0]));
-  code &= ~(static_cast<uint32_t>(1)<<31);
-  return code % static_cast<uint32_t>(1000000);
+  code &= ~(uint32_t(1)<<31);
+  return code % uint32_t(1000000);
 }
 
 ZtlsExtern bool verify(ZuBytes data, unsigned code, unsigned range)

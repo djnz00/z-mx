@@ -384,7 +384,7 @@ friend TLS;
 	  return static_cast<Link *>(link)->processTelemetry(ZuMv(buf));
 	});
 
-    TLS::init(mx, cf->get("thread", true), cf->get("caPath", true), alpn);
+    TLS::init(mx, cf->get("thread", true), alpn, cf->get("caPath"));
 
     m_reconnFreq = cf->getInt("reconnFreq", 0, 3600, 0);
     m_timeout = cf->getInt("timeout", 0, 3600, 0);

@@ -1,16 +1,15 @@
 METASOURCES = AUTO
 AM_CPPFLAGS = -I$(top_srcdir)/zu/src -I$(top_srcdir)/zm/src \
 	-I$(top_srcdir)/zt/src -I$(top_srcdir)/ze/src -I${top_srcdir}/zi/src \
-	-I$(top_srcdir)/ztls/src -I$(top_srcdir)/zhttp/src \
+	-I$(top_srcdir)/ztls/src \
 	@Z_CPPFLAGS@
 AM_CXXFLAGS = @Z_CXXFLAGS@
 AM_LDFLAGS = @Z_LDFLAGS@ @Z_SO_LDFLAGS@
-pkginclude_HEADERS = ZwsLib.hh Zws.hh
-lib_LTLIBRARIES = libZws.la
-libZws_la_CPPFLAGS = $(AM_CPPFLAGS) -DZWS_EXPORTS 
-libZws_la_SOURCES = ZwsLib.cc
-libZws_la_LIBADD = \
-	$(top_builddir)/zhttp/src/libZhttp.la \
+pkginclude_HEADERS = ZhttpLib.hh Zhttp.hh
+lib_LTLIBRARIES = libZhttp.la
+libZhttp_la_CPPFLAGS = $(AM_CPPFLAGS) -DZHTTP_EXPORTS 
+libZhttp_la_SOURCES = ZhttpLib.cc
+libZhttp_la_LIBADD = \
 	$(top_builddir)/ztls/src/libZtls.la \
 	$(top_builddir)/zi/src/libZi.la \
 	$(top_builddir)/ze/src/libZe.la \
@@ -18,6 +17,6 @@ libZws_la_LIBADD = \
 	$(top_builddir)/zm/src/libZm.la \
 	$(top_builddir)/zu/src/libZu.la \
 	@MBEDTLS_LIBS@ @Z_IO_LIBS@ @Z_ZT_LIBS@ @Z_MT_LIBS@
-bin_PROGRAMS = zws
-zws_LDADD = libZws.la $(libZws_la_LDADD)
-zws_SOURCES = zws.cc
+bin_PROGRAMS = zhttp
+zhttp_LDADD = libZhttp.la $(libZhttp_la_LDADD)
+zhttp_SOURCES = zhttp.cc

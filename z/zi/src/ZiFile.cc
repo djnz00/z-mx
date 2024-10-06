@@ -999,6 +999,23 @@ error:
   return ZuTime{};
 }
 
+bool ZiFile::exists(const Path &name, ZeError *e)
+{
+#ifndef _WIN32
+  struct stat s;
+  if (::stat(name, &s) < 0) goto error;
+  return true;
+#else
+  DWORD a = GetFileAttributes(name);
+  if (a == INVALID_FILE_ATTRIBUTES) goto error;
+  return true;
+#endif
+
+error:
+  if (e) *e = ZeLastError;
+  return false;
+}
+
 bool ZiFile::isdir(const Path &name, ZeError *e)
 {
 #ifndef _WIN32
