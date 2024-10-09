@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// cppcodec C++ wrapper - Base 32 encode/decode
+// Base32 encode/decode
 
 #ifndef ZuBase32_HH
 #define ZuBase32_HH

@@ -17,6 +17,7 @@
 #include <zlib/ZuBytes.hh>
 #include <zlib/ZuBase32.hh>
 #include <zlib/ZuBase64.hh>
+#include <zlib/ZuHex.hh>
 
 #include <zlib/ZmAlloc.hh>
 
@@ -29,12 +30,13 @@ struct CString {
   friend S &operator <<(S &s, const CString &print) {
     const char *v = print.v;
     s << '"';
-    if (v)
-      for (unsigned i = 0; v[i]; i++) {
-	char c = v[i];
+    if (v) {
+      char c;
+      for (unsigned i = 0; c = v[i]; i++) {
 	if (ZuUnlikely(c == '"')) s << '\\';
 	s << c;
       }
+    }
     return s << '"';
   }
 };
@@ -79,6 +81,20 @@ struct Base64 {
     auto buf_ = ZmAlloc(uint8_t, n);
     ZuSpan<uint8_t> buf(&buf_[0], n);
     buf.trunc(ZuBase64::encode(buf, v));
+    return s << ZuCSpan{buf};
+  }
+};
+
+// printing ZuBytes in hex
+struct Hex {
+  ZuBytes v;
+  template <typename S>
+  friend S &operator <<(S &s, const Base64 &print) {
+    const auto &v = print.v;
+    auto n = ZuHex::enclen(v.length());
+    auto buf_ = ZmAlloc(uint8_t, n);
+    ZuSpan<uint8_t> buf(&buf_[0], n);
+    buf.trunc(ZuHex::encode(buf, v));
     return s << ZuCSpan{buf};
   }
 };

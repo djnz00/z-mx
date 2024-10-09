@@ -12,7 +12,7 @@ noinst_PROGRAMS = \
 	ZuDecimalTest ZuSearchTest ZuFieldTest ZuTLTest \
 	ZuAxorTest ZuPtrTest ZuTimeTest ZuEndianTest \
 	ZuStreamTest ZuBitStreamTest ZuSearchBench \
-	ZuBase64Test ZuBase32Test ZuHexTest
+	ZuBase64Test ZuBase32Test ZuHexTest ZuPercentTest
 ZuInspectTest_SOURCES = ZuInspectTest.cc
 ZuHashTest_SOURCES = ZuHashTest.cc Analyze.hh
 ZuCmpTest_SOURCES = ZuCmpTest.cc
@@ -37,3 +37,4 @@ ZuBitStreamTest_SOURCES = ZuBitStreamTest.cc
 ZuBase64Test_SOURCES = ZuBase64Test.cc
 ZuBase32Test_SOURCES = ZuBase32Test.cc
 ZuHexTest_SOURCES = ZuHexTest.cc
+ZuPercentTest_SOURCES = ZuPercentTest.cc
