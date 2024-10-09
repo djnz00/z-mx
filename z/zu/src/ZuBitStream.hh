@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// bit stream
+// little-endian bit stream
 
 #ifndef ZuBitStream_HH
 #define ZuBitStream_HH
@@ -44,14 +44,17 @@ public:
     m_inBits = saved.p<1>();
   }
 
+  // 0 <= Bits < 8
   template <unsigned Bits>
   bool avail() {
     return m_pos + ((m_inBits + Bits + 7)>>3) <= m_end;
   }
+  // 0 <= bits < 64
   bool avail(unsigned bits) {
     return m_pos + ((m_inBits + bits + 7)>>3) <= m_end;
   }
 
+  // 0 <= Bits < 8
   template <unsigned Bits>
   uint8_t in() {
     uint8_t v;
@@ -72,6 +75,7 @@ public:
     }
     return v;
   }
+  // 0 <= bits < 64
   uint64_t in(unsigned bits) {
     uint64_t v = 0;
     unsigned lbits = 0; // "head" bits
@@ -148,14 +152,17 @@ public:
   bool operator !() const { return !m_pos; }
   ZuOpBool
 
+  // 0 <= Bits < 8
   template <unsigned Bits>
   bool avail() {
     return m_pos + ((m_outBits + Bits + 7)>>3) <= m_end;
   }
+  // 0 <= bits < 64
   bool avail(unsigned bits) {
     return m_pos + ((m_outBits + bits + 7)>>3) <= m_end;
   }
 
+  // 0 <= Bits < 8
   template <unsigned Bits>
   void out(uint8_t v) {
     if (ZuUnlikely(m_outBits == 0)) {
@@ -176,6 +183,7 @@ public:
       *m_pos = v;
     }
   }
+  // 0 <= bits < 64
   void out(uint64_t v, unsigned bits) {
     if (ZuLikely(m_outBits > 0)) {
       *m_pos |= (v<<m_outBits);

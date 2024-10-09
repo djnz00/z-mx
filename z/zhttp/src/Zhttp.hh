@@ -95,6 +95,11 @@ struct Header {
   ZuCSpan	value;
 };
 
+// Bits is the power of 2 of the linear hash table size used to index
+// headers - e.g. 7 for 128, which is a safe limit since most sites
+// generate fewer than 32 headers; we keep this static since resizing
+// is expensive
+
 template <unsigned Bits>
 using Headers =
   ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
@@ -147,12 +152,12 @@ struct Request : public Message<Bits> {
 
     for (o = 0; data[o] != ' '; )
       if (ZuUnlikely(++o > 7)) return -1; // unterminated method
-    if (!o) return -1;
+    if (!o) return -1; // missing method
     method = {&data[0], unsigned(o)};
     unsigned b = ++o;
     while (data[o] != ' ')
       if (ZuUnlikely(++o >= n)) return -1; // unterminated path
-    if (ZuUnlikely(b == o)) return -1;
+    if (ZuUnlikely(b == o)) return -1; // missing path
     path = {&data[b], o - b};
     b = ++o;
     o = eol({&data[b], n - b});
@@ -178,7 +183,7 @@ struct Response : public Message<Bits> {
 
     for (o = 0; data[o] != ' '; )
       if (ZuUnlikely(++o > 8)) return -1; // unterminated protocol
-    if (!o) return -1;
+    if (!o) return -1; // missing protocol
     protocol = {&data[0], unsigned(o)};
     unsigned b = ++o;
     int c; // intentionally int
@@ -188,7 +193,7 @@ struct Response : public Message<Bits> {
       code = code < 0 ? c : (code * 10) + c;
       if (ZuUnlikely(++o > b + 3)) return -1; // unterminated code
     }
-    if (ZuUnlikely(b == o)) return -1;
+    if (ZuUnlikely(b == o)) return -1; // missing code
     b = ++o;
     o = eol({&data[b], n - b});
     if (ZuUnlikely(o < 0)) return -1; // unterminated reason
