@@ -120,12 +120,6 @@ PKG_CHECK_MODULES([FBS], [flatbuffers >= 24], [], [dnl
 AC_SUBST(FBS_LIBS)
 CPPFLAGS="$FBS_CFLAGS $CPPFLAGS"
 
-# cppcodec (header only)
-PKG_CHECK_MODULES([CPPCODEC], [cppcodec-1 >= 0.1], [], [dnl
-  AC_MSG_ERROR([libcppcodec required])
-])
-CPPFLAGS="$CPPCODEC_CFLAGS $CPPFLAGS"
-
 # netlink (non-MinGW only) (optional)
 AS_IF([test ".$mingw" != ".yes"], [
   AC_ARG_WITH([netlink], AS_HELP_STRING([--with-netlink], [Build with NetLink]))

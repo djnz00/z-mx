@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// cppcodec C++ wrapper - Base 64 encode/decode
+// Base64 encode/decode
 
 #ifndef ZuBase64_HH
 #define ZuBase64_HH
@@ -15,16 +15,26 @@
 
 #include <zlib/ZuBytes.hh>
 
-#include <cppcodec/base64_rfc4648.hpp>
-
 namespace ZuBase64 {
 
+// UTF8 / ASCII, which is all we care about
+inline static constexpr const uint8_t lookup_[] = {
+  62, 0xff, 0xff, 0xff, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
+  39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
+};
+
+ZuInline constexpr uint8_t lookup(uint8_t c) {
+  c -= 43;
+  return c > 122 ? 0xff : lookup_[c];
+};
+
 ZuInline constexpr bool is(char c) {
-  return
-    (c >= 'A' && c <= 'Z') ||
-    (c >= 'a' && c <= 'z') ||
-    (c >= '0' && c <= '9') ||
-    c == '+' || c == '/' || c == '=';
+  return lookup(c) != 0xff;
 }
 
 // both encode and decode return count of bytes written
@@ -32,27 +42,61 @@ ZuInline constexpr bool is(char c) {
 // does not null-terminate dst
 ZuInline constexpr unsigned enclen(unsigned slen) { return ((slen + 2)/3)<<2; }
 ZuInline unsigned encode(ZuSpan<uint8_t> dst, ZuBytes src) {
-  using base64 = cppcodec::base64_rfc4648;
-  try {
-    return base64::encode(
-	reinterpret_cast<char *>(dst.data()), dst.length(),
-	src.data(), src.length());
-  } catch (...) {
-    return 0;
+  static constexpr const char lookup[] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
+  };
+  auto s = src.data();
+  auto d = dst.data();
+  auto n = src.length();
+  uint8_t i, j;
+  while (n >= 3) {
+    i = *s++;
+    *d++ = lookup[i>>2];
+    j = *s++;
+    *d++ = lookup[((i & 0x3)<<4) | (j>>4)];
+    i = *s++;
+    *d++ = lookup[((j & 0xf)<<2) | (i>>6)];
+    *d++ = lookup[i & 0x3f];
+    n -= 3;
   }
+  if (n > 0) {
+    i = *s++;
+    *d++ = lookup[i>>2];
+    if (n == 1) {
+      *d++ = lookup[(i & 0x3)<<4];
+      *d++ = '=', *d++ = '=';
+    } else { // n == 2
+      j = *s++;
+      *d++ = lookup[((i & 0x3)<<4) | (j>>4)];
+      *d++ = lookup[(j & 0xf)<<2];
+      *d++ = '=';
+    }
+  }
+  return d - dst.data();
 }
 
 // does not null-terminate dst
 ZuInline constexpr unsigned declen(unsigned slen) { return ((slen + 3)>>2)*3; }
 ZuInline unsigned decode(ZuSpan<uint8_t> dst, ZuBytes src) {
-  using base64 = cppcodec::base64_rfc4648;
-  try {
-    return base64::decode(
-	dst.data(), dst.length(),
-	reinterpret_cast<const char *>(src.data()), src.length());
-  } catch (...) {
-    return 0;
+  auto s = src.data();
+  auto d = dst.data();
+  auto n = src.length();
+  uint8_t i, j;
+  while (n >= 4) {
+    i = lookup(*s++); if (i >= 64) break;
+    j = lookup(*s++); if (j >= 64) break;
+    *d++ = (i<<2) | (j>>4);
+    i = lookup(*s++); if (i >= 64) break;
+    *d++ = (j<<4) | (i>>2);
+    j = lookup(*s++); if (j >= 64) break;
+    *d++ = (i<<6) | j;
+    n -= 4;
   }
+  return d - dst.data();
 }
 
 }
