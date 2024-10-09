@@ -35,7 +35,7 @@ inline void decOut(bool ok, const char *msg, ZuBytes actual) {
 }
 
 void enc(ZuBytes src, ZuCSpan check, const char *msg) {
-  auto n = ZuPercent::enclen(src.length());
+  auto n = ZuPercent::enclen(src);
   char *buf = static_cast<char *>(ZuAlloca(n, 1));
   auto dst = ZuSpan<uint8_t>(buf, n);
   dst.trunc(ZuPercent::encode(dst, src));
@@ -43,7 +43,7 @@ void enc(ZuBytes src, ZuCSpan check, const char *msg) {
 }
 
 void dec(ZuBytes src, ZuBytes check, const char *msg) {
-  auto n = ZuPercent::declen(src.length());
+  auto n = ZuPercent::declen(src);
   char *buf = static_cast<char *>(ZuAlloca(n, 1));
   auto dst = ZuSpan<uint8_t>(buf, n);
   dst.trunc(ZuPercent::decode(dst, src));

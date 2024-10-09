@@ -21,6 +21,17 @@
 
 namespace ZuPercent {
 
+ZuInline constexpr bool special(uint8_t i) {
+  // little-endian bitmap
+  static constexpr const uint8_t map[] = {
+    0xff, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x00, 0xfc,
+    0x01, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0xb8,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+  };
+  return map[i>>3] & (uint8_t(1)<<(i & 0x7));
+}
+
 ZuInline constexpr uint8_t lookup(uint8_t c) {
   if (c >= 'a' && c <= 'f') return (c - 'a') + 10;
   if (c >= 'A' && c <= 'F') return (c - 'A') + 10;
@@ -31,18 +42,19 @@ ZuInline constexpr uint8_t lookup(uint8_t c) {
 // both encode and decode return count of bytes written
 
 // does not null-terminate dst
-ZuInline constexpr unsigned enclen(unsigned slen) { return slen * 3; }
+ZuInline constexpr unsigned enclen(unsigned slen) { // constexpr 0-pass
+  return (slen<<1) + slen;
+}
+ZuInline unsigned enclen(ZuBytes src) { // 1-pass
+  unsigned l = 0;
+  for (unsigned i = 0, n = src.length(); i < n; i++)
+    l += special(src[i]) ? 3 : 1;
+  return l;
+}
 ZuInline unsigned encode(ZuSpan<uint8_t> dst, ZuBytes src) {
   static constexpr const char lookup[] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     'A', 'B', 'C', 'D', 'E', 'F'
-  };
-  // little-endian bitmap
-  static constexpr const uint8_t special[] = {
-    0xff, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x00, 0xfc,
-    0x01, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0xb8,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
   };
 
   auto s = src.data();
@@ -51,7 +63,7 @@ ZuInline unsigned encode(ZuSpan<uint8_t> dst, ZuBytes src) {
   uint8_t i;
   while (n > 0) {
     i = *s++;
-    if (special[i>>3] & (uint8_t(1)<<(i & 0x7))) {
+    if (special(i)) {
       *d++ = '%';
       *d++ = lookup[i>>4];
       *d++ = lookup[i & 0xf];
@@ -64,7 +76,20 @@ ZuInline unsigned encode(ZuSpan<uint8_t> dst, ZuBytes src) {
 }
 
 // does not null-terminate dst
-ZuInline constexpr unsigned declen(unsigned slen) { return slen; }
+ZuInline constexpr unsigned declen(unsigned slen) { // constexpr 0-pass
+  return slen;
+}
+ZuInline unsigned declen(ZuBytes src) { // 1-pass
+  unsigned l = 0;
+  for (unsigned i = 0, n = src.length(); i < n; i++) {
+    if (src[i] == '%') {
+      if (i > n - 3) return l;
+      i += 2;
+    }
+    ++l;
+  }
+  return l;
+}
 ZuInline unsigned decode(ZuSpan<uint8_t> dst, ZuBytes src) {
   auto s = src.data();
   auto d = dst.data();
@@ -74,6 +99,7 @@ ZuInline unsigned decode(ZuSpan<uint8_t> dst, ZuBytes src) {
     i = *s++;
     --n;
     if (i == '%') {
+      if (n < 2) break;
       i = lookup(*s++); if (i >= 16) break;
       j = lookup(*s++); if (j >= 16) break;
       n -= 2;

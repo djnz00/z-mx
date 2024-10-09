@@ -99,6 +99,20 @@ struct Hex {
   }
 };
 
+// percent encoding
+struct Percent {
+  ZuBytes v;
+  template <typename S>
+  friend S &operator <<(S &s, const Base64 &print) {
+    const auto &v = print.v;
+    auto n = ZuPercent::enclen(v.length()); // 0-pass
+    auto buf_ = ZmAlloc(uint8_t, n);
+    ZuSpan<uint8_t> buf(&buf_[0], n);
+    buf.trunc(ZuPercent::encode(buf, v));
+    return s << ZuCSpan{buf};
+  }
+};
+
 } // ZtQuote
 
 #endif /* ZtQuote_HH */
