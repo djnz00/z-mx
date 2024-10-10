@@ -11,6 +11,7 @@
 // - char and wchar_t arrays as strings
 //   - smooth interoperation with other string types
 // - structured binding
+// - intentionally not constexpr (use ZuSpan)
 
 #ifndef ZuArray_HH
 #define ZuArray_HH

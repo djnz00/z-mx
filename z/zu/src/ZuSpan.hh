@@ -50,17 +50,19 @@ public:
   using Elem = T;
   using Ops = ZuArrayFn<T, Cmp>;
 
-  ZuSpan() : m_data{0}, m_length{0} { }
-  ZuSpan(const ZuSpan &a) : m_data{a.m_data}, m_length{a.m_length} { }
-  ZuSpan &operator =(const ZuSpan &a) {
+  constexpr ZuSpan() noexcept : m_data{0}, m_length{0} { }
+  constexpr ZuSpan(const ZuSpan &a) noexcept :
+    m_data{a.m_data}, m_length{a.m_length} { }
+  constexpr ZuSpan &operator =(const ZuSpan &a) noexcept {
     if (ZuLikely(this != &a)) {
       m_data = a.m_data;
       m_length = a.m_length;
     }
     return *this;
   }
-  ZuSpan(ZuSpan &&a) : m_data{a.m_data}, m_length{a.m_length} { }
-  ZuSpan &operator =(ZuSpan &&a) {
+  constexpr ZuSpan(ZuSpan &&a) noexcept :
+    m_data{a.m_data}, m_length{a.m_length} { }
+  constexpr ZuSpan &operator =(ZuSpan &&a) noexcept {
     m_data = a.m_data;
     m_length = a.m_length;
     return *this;
@@ -70,9 +72,9 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winit-list-lifetime"
 #endif
-  ZuSpan(std::initializer_list<T> a) :
+  constexpr ZuSpan(std::initializer_list<T> a) :
     m_data(const_cast<T *>(a.begin())), m_length(a.size()) { }
-  ZuSpan &operator =(std::initializer_list<T> a) {
+  constexpr ZuSpan &operator =(std::initializer_list<T> a) {
     m_data = const_cast<T *>(a.begin());
     m_length = a.size();
     return *this;
@@ -146,12 +148,12 @@ protected:
 public:
   // compile-time length from string literal (null-terminated)
   template <typename A, decltype(MatchStrLiteral<A>(), int()) = 0>
-  ZuSpan(A &&a) :
+  constexpr ZuSpan(A &&a) noexcept :
     m_data(&a[0]),
     m_length((ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
       (sizeof(a) / sizeof(a[0])) - 1U) { }
   template <typename A>
-  MatchStrLiteral<A, ZuSpan &> operator =(A &&a) {
+  constexpr MatchStrLiteral<A, ZuSpan &> operator =(A &&a) noexcept {
     m_data = &a[0];
     m_length = (ZuUnlikely(!(sizeof(a) / sizeof(a[0])) || !a[0])) ? 0U :
       (sizeof(a) / sizeof(a[0])) - 1U;
@@ -160,11 +162,11 @@ public:
 
   // compile-time length from primitive array
   template <typename A, decltype(MatchPrimitiveArray<A>(), int()) = 0>
-  ZuSpan(const A &a) :
+  constexpr ZuSpan(const A &a) noexcept :
     m_data(&a[0]),
     m_length(sizeof(a) / sizeof(a[0])) { }
   template <typename A>
-  MatchPrimitiveArray<A, ZuSpan &> operator =(A &&a) {
+  constexpr MatchPrimitiveArray<A, ZuSpan &> operator =(A &&a) noexcept {
     m_data = &a[0];
     m_length = sizeof(a) / sizeof(a[0]);
     return *this;
@@ -178,13 +180,13 @@ public:
 #pragma GCC diagnostic ignored "-Wnonnull-compare"
 #endif
   template <typename A, decltype(MatchCString<A>(), int()) = 0>
-  ZuSpan(A &&a) :
+  constexpr ZuSpan(A &&a) noexcept :
     m_data(a), m_length(!a ? 0 : -1) { }
 #if defined(__GNUC__) && !defined(__llvm__)
 #pragma GCC diagnostic pop
 #endif
   template <typename A>
-  MatchCString<A, ZuSpan &> operator =(A &&a) {
+  constexpr MatchCString<A, ZuSpan &> operator =(A &&a) noexcept {
     m_data = a;
     m_length = !a ? 0 : -1;
     return *this;
@@ -204,11 +206,11 @@ public:
 
   // from other array
   template <typename A, decltype(MatchOtherArray<A>(), int()) = 0>
-  ZuSpan(A &&a) :
+  constexpr ZuSpan(A &&a) noexcept :
       m_data{reinterpret_cast<T *>(ZuTraits<A>::data(a))},
       m_length{!m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a))} { }
   template <typename A>
-  MatchOtherArray<A, ZuSpan &> operator =(A &&a) {
+  constexpr MatchOtherArray<A, ZuSpan &> operator =(A &&a) noexcept {
     m_data = reinterpret_cast<T *>(ZuTraits<A>::data(a));
     m_length = !m_data ? 0 : static_cast<int>(ZuTraits<A>::length(a));
     return *this;
@@ -219,22 +221,19 @@ public:
 #pragma GCC diagnostic ignored "-Wnarrowing"
 #endif
   template <typename V, decltype(MatchPtr<V>(), int()) = 0>
-  ZuSpan(V *data, unsigned length) :
+  constexpr ZuSpan(V *data, unsigned length) noexcept :
     m_data{reinterpret_cast<T *>(data)}, m_length{length} { }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
-  const T *data() const { return m_data; }
-  T *data() { return m_data; }
+  constexpr const T *data() const { return m_data; }
+  constexpr T *data() { return m_data; }
 
-  unsigned length() const { return length_(); }
-
-private:
   template <typename V = T>
   ZuIfT<
       bool{ZuEquiv<V, char>{}} ||
-      bool{ZuEquiv<V, wchar_t>{}}, unsigned> length_() const {
+      bool{ZuEquiv<V, wchar_t>{}}, unsigned> length() const {
     using Char = ZuNormChar<V>;
     if (ZuUnlikely(m_length < 0))
       return const_cast<ZuSpan *>(this)->m_length =
@@ -243,20 +242,19 @@ private:
     return m_length;
   }
   template <typename V = T>
-  ZuIfT<
+  constexpr ZuIfT<
     !bool{ZuEquiv<V, char>{}} &&
-    !bool{ZuEquiv<V, wchar_t>{}}, unsigned> length_() const {
+    !bool{ZuEquiv<V, wchar_t>{}}, unsigned> length() const {
     return m_length;
   }
 
-public:
-  const T &operator [](int i) const { return m_data[i]; }
-  T &operator [](int i) { return m_data[i]; }
+  constexpr const T &operator [](int i) const { return m_data[i]; }
+  constexpr T &operator [](int i) { return m_data[i]; }
 
-  bool operator !() const { return !length(); }
+  constexpr bool operator !() const { return !length(); }
   ZuOpBool
 
-  void offset(unsigned n) {
+  constexpr void offset(unsigned n) {
     if (ZuUnlikely(!n)) return;
     if (ZuLikely(n < length()))
       m_data += n, m_length -= n;
@@ -264,7 +262,7 @@ public:
       m_data = nullptr, m_length = 0;
   }
 
-  void trunc(unsigned n) {
+  constexpr void trunc(unsigned n) {
     if (ZuLikely(n < length())) {
       if (ZuLikely(n))
 	m_length = n;

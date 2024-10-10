@@ -101,13 +101,13 @@ struct Header {
 // is expensive
 
 template <unsigned Bits>
-using Headers =
+using IHeaders =
   ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
 
 template <unsigned Bits>
 struct Message {
-  Headers<Bits>	headers;
-  ZuCSpan	body;
+  IHeaders<Bits>	headers;
+  ZuCSpan		body;
 
   // parse headers
   int parse(ZuSpan<char> data, unsigned offset) {
@@ -201,6 +201,22 @@ struct Response : public Message<Bits> {
     return Message<Bits>::parse(data, b + o + 2);
   }
 };
+
+namespace Method {
+  ZtEnumValues(Method, int8_t,
+    GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, CONNECT, TRACE);
+}
+
+using OHeaders = ZuArray<ZuTuple<ZuCSpan, ZuCSpan>>;
+
+template <typename S>
+void request(S &s, int method, ZuCSpan path, OHeaders headers, ZuCSpan body)
+{
+  s << Method::name(method) << ' ' << path << " HTTP/1.1\r\n";
+  headers.all([&s](auto &header) {
+    s << header.p<0>() << ": " << header.p<1>() << "\r\n";
+  s << "\r\n" << body;
+}
 
 }
 

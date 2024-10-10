@@ -147,14 +147,24 @@ private:
     bool = ZuTraits<R>::IsReference>
   struct Bind {
     using E = typename V::template Elem<J>;
-    static const auto &p(const V &v) { return static_cast<const E &>(v).v; }
-    static auto &p(V &v) { return static_cast<E &>(v).v; }
-    static decltype(auto) p(V &&v) { return ZuMv(static_cast<E &&>(v).v); }
+    static constexpr const auto &p(const V &v) {
+      return static_cast<const E &>(v).v;
+    }
+    static constexpr auto &p(V &v) {
+      return static_cast<E &>(v).v;
+    }
+    static constexpr decltype(auto) p(V &&v) {
+      return ZuMv(static_cast<E &&>(v).v);
+    }
   };
   template <unsigned J, typename V, typename R> struct Bind<J, V, R, true> {
     using E = typename V::template Elem<J>;
-    static const auto &p(const V &v) { return static_cast<const E &>(v).v; }
-    static auto &p(V &v) { return static_cast<E &>(v).v; }
+    static constexpr const auto &p(const V &v) {
+      return static_cast<const E &>(v).v;
+    }
+    static constexpr auto &p(V &v) {
+      return static_cast<E &>(v).v;
+    }
   };
   // binding of STL tuple/pair/array
   template <
@@ -270,15 +280,15 @@ protected:
   using CvtElem = ZuIfT<IsCvtElem<V>{}, R>;
 
   template <typename V, ConTuple<V, int> = 0>
-  Tuple_(V &&v) :
+  constexpr Tuple_(V &&v) noexcept :
     StoredElems_{Bind<StoredElems_::I, ZuDecay<V>>::p(ZuFwd<V>(v))}... { }
 
   template <typename V, ConStdTuple<V, int> = 0>
-  Tuple_(V &&v) :
+  constexpr Tuple_(V &&v) noexcept :
     StoredElems_{StdBind<StoredElems_::I, ZuDecay<V>>::p(ZuFwd<V>(v))}... { }
 
   template <typename V>
-  CvtTuple<V, Tuple_ &> operator =(V &&v) {
+  constexpr CvtTuple<V, Tuple_ &> operator =(V &&v) noexcept {
     ZuUnroll::all<Indices>([this, &v](auto J) {
       this->p<J>(Bind<J, ZuDecay<V>>::p(ZuFwd<V>(v)));
     });
@@ -286,7 +296,7 @@ protected:
   }
 
   template <typename V>
-  CvtStdTuple<V, Tuple_ &> operator =(V &&v) {
+  constexpr CvtStdTuple<V, Tuple_ &> operator =(V &&v) noexcept {
     ZuUnroll::all<Indices>([this, &v](auto J) {
       this->p<J>(StdBind<J, ZuDecay<V>>::p(ZuFwd<V>(v)));
     });
@@ -294,7 +304,7 @@ protected:
   }
 
   template <typename V>
-  CvtFirstElem<V, Tuple_ &> operator =(V &&v) {
+  constexpr CvtFirstElem<V, Tuple_ &> operator =(V &&v) noexcept {
     this->p<0>(ZuFwd<V>(v));
     return *this;
   }
@@ -314,74 +324,45 @@ protected:
     ZuIfT<ZuTLConstructs<
       ZuTypeList<Vs...>,
       ZuTypeList<typename HeadElems::T...>>{}, int> = 0>
-  Tuple_(
+  constexpr Tuple_(
       ZuTypeList<HeadElems...>,
       ZuTypeList<TailElems...>,
-      Vs &&... v) : HeadElems(ZuFwd<Vs>(v))..., TailElems{}... { }
+      Vs &&... v) noexcept : HeadElems(ZuFwd<Vs>(v))..., TailElems{}... { }
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
-  Tuple_() = default;
-  Tuple_(const Tuple_ &) = default;
-  Tuple_(Tuple_ &&) = default;
-  Tuple_ &operator =(const Tuple_ &) = default;
-  Tuple_ &operator =(Tuple_ &&) = default;
-  ~Tuple_() = default;
+  constexpr Tuple_() noexcept = default;
+  constexpr Tuple_(const Tuple_ &) noexcept = default;
+  constexpr Tuple_(Tuple_ &&) noexcept = default;
+  constexpr Tuple_ &operator =(const Tuple_ &) noexcept = default;
+  constexpr Tuple_ &operator =(Tuple_ &&) noexcept = default;
+  constexpr ~Tuple_() noexcept = default;
 
 public:
   // access by position
-#if 0
-  template <unsigned J> const U<J> & p() const & {
-    ZuAssert(J < N);
-    return static_cast<const Elem<J> &>(*this).v;
-  }
-  template <unsigned J> U<J> & p() & {
-    ZuAssert(J < N);
-    return static_cast<Elem<J> &>(*this).v;
-  }
   template <unsigned J>
-  ZuNotReference<P<J>, U<J> &&> p() && {
-    ZuAssert(J < N);
-    return ZuMv(static_cast<Elem<J> &&>(*this).v);
-  }
-#endif
-  template <unsigned J>
-  auto &&p(this auto &&self) {
+  constexpr auto &&p(this auto &&self) {
     ZuAssert(J < N);
     return
       ZuFwdLike<decltype(self)>(
 	ZuFwdBaseLike<decltype(self), Elem<J>>(self).v);
   }
-  template <unsigned J, typename V> void p(V &&v) {
+  template <unsigned J, typename V>
+  constexpr void p(V &&v) {
     ZuAssert(J < N);
     static_cast<Elem<J> &>(*this).v = ZuFwd<V>(v);
   }
 
   // access by type
-#if 0
   template <typename T>
-  const auto &p() const & {
-    return static_cast<const Elem<ZuTypeIndex<T, Types>{}> &>(*this).v;
-  }
-  template <typename T>
-  auto &p() & {
-    return static_cast<Elem<ZuTypeIndex<T, Types>{}> &>(*this).v;
-  }
-  template <typename T>
-  ZuNotReference<P<ZuTypeIndex<T, Types>{}>, U<ZuTypeIndex<T, Types>{}> &&>
-  p() && {
-    return ZuMv(static_cast<Elem<ZuTypeIndex<T, Types>{}> &&>(*this).v);
-  }
-#endif
-  template <typename T>
-  auto &&p(this auto &&self) {
+  constexpr auto &&p(this auto &&self) {
     return
       ZuFwdLike<decltype(self)>(
 	ZuFwdBaseLike<decltype(self), Elem<ZuTypeIndex<T, Types>{}>>(self).v);
   }
   template <typename T, typename V>
-  void p(V &&v) && {
+  constexpr void p(V &&v) && {
     static_cast<Elem<ZuTypeIndex<T, Types>{}> &>(*this).v = ZuFwd<V>(v);
   }
 
@@ -411,15 +392,13 @@ public:
 public:
   // comparisons
   template <typename V>
-  CvtTuple<V, bool>
-  equals(const V &v) const {
+  constexpr CvtTuple<V, bool> equals(const V &v) const {
     return ZuUnroll::all<Indices, bool>(true, [this, &v](auto J, bool b) {
       return b && this->p<J>() == v.template p<J>();
     });
   }
   template <typename V>
-  CvtTuple<V, int>
-  cmp(const V &v) const {
+  constexpr CvtTuple<V, int> cmp(const V &v) const {
     return ZuUnroll::all<Indices, int>(0, [this, &v](auto J, int i) {
       if (i) return i;
       return ZuCmp<Type<J>>::cmp(this->p<J>(), v.template p<J>());
@@ -428,13 +407,15 @@ public:
 
   // permit direct comparison of single-element tuples with the contained type
   template <typename V>
-  CvtElem<V, bool>
-  equals(const V &v) const { return this->p<0>() == v; }
+  constexpr CvtElem<V, bool> equals(const V &v) const {
+    return this->p<0>() == v;
+  }
   template <typename V>
-  CvtElem<V, int>
-  cmp(const V &v) const { return ZuCmp<Type<0>>::cmp(this->p<0>(), v); }
+  constexpr CvtElem<V, int> cmp(const V &v) const {
+    return ZuCmp<Type<0>>::cmp(this->p<0>(), v);
+  }
 
-  bool operator !() const {
+  constexpr bool operator !() const {
     return ZuUnroll::all<Indices, bool>(true, [this](auto J, bool b) {
       return b && !this->p<J>();
     });
@@ -473,13 +454,13 @@ public:
 
   // dispatching
   template <typename L>
-  auto dispatch(unsigned i, L l) {
+  constexpr auto dispatch(unsigned i, L l) {
     return ZuSwitch::dispatch<N>(i, [this, l = ZuMv(l)](auto I) mutable {
       return l(I, this->p<I>());
     });
   }
   template <typename L>
-  auto cdispatch(unsigned i, L l) const {
+  constexpr auto cdispatch(unsigned i, L l) const {
     return ZuSwitch::dispatch<N>(i, [this, l = ZuMv(l)](auto I) mutable {
       return l(I, this->p<I>());
     });
@@ -530,15 +511,15 @@ public:
   enum { N = Base::N };
 
   // need to explicitly default these for overload resolution
-  Tuple() = default;
-  Tuple(const Tuple &) = default;
-  Tuple &operator =(const Tuple &) = default;
-  Tuple(Tuple &&) = default;
-  Tuple &operator =(Tuple &&) = default;
-  ~Tuple() = default;
+  constexpr Tuple() noexcept = default;
+  constexpr Tuple(const Tuple &) noexcept = default;
+  constexpr Tuple &operator =(const Tuple &) noexcept = default;
+  constexpr Tuple(Tuple &&) noexcept = default;
+  constexpr Tuple &operator =(Tuple &&) noexcept = default;
+  constexpr ~Tuple() noexcept = default;
 
   template <typename V, ConAnyTuple<V, int> = 0>
-  Tuple(V &&v) : Base{ZuFwd<V>(v)} { }
+  constexpr Tuple(V &&v) noexcept : Base{ZuFwd<V>(v)} { }
 
   template <
     typename V0,
@@ -546,19 +527,19 @@ public:
     ZuIfT<
       (sizeof...(Vs) + 1 <= N) &&
       (sizeof...(Vs) > 0 || !IsConAnyTuple<V0>{}), int> = 0>
-  Tuple(V0 &&v0, Vs &&... v) : Base{
+  constexpr Tuple(V0 &&v0, Vs &&... v) noexcept : Base{
     ZuTypeHead<sizeof...(Vs) + 1, Elems>{},
     ZuTypeTail<sizeof...(Vs) + 1, Elems>{},
     ZuFwd<V0>(v0), ZuFwd<Vs>(v)...} { }
 
   template <typename V>
-  CvtAnyTuple<V, Tuple &> operator =(V &&v) {
+  constexpr CvtAnyTuple<V, Tuple &> operator =(V &&v) noexcept {
     Base::operator =(ZuFwd<V>(v));
     return *this;
   }
 
   template <typename V>
-  CvtFirstElem<V, Tuple &> operator =(V &&v) {
+  constexpr CvtFirstElem<V, Tuple &> operator =(V &&v) noexcept {
     Base::operator =(ZuFwd<V>(v));
     return *this;
   }
@@ -582,12 +563,12 @@ struct TupleCanCmp :
     decltype(TupleType(ZuDeclVal<ZuDecay<R> *>()))> { };
 
 template <typename L, typename R>
-inline ZuIfT<TupleCanCmp<L, R>{}, bool>
+constexpr ZuIfT<TupleCanCmp<L, R>{}, bool>
 operator ==(const L &l, const R &r) {
   return l.equals(r);
 }
 template <typename L, typename R>
-inline ZuIfT<TupleCanCmp<L, R>{}, int>
+constexpr ZuIfT<TupleCanCmp<L, R>{}, int>
 operator <=>(const L &l, const R &r) {
   return l.cmp(r);
 }
@@ -602,10 +583,10 @@ struct TupleCanCmpElem :
     decltype(TupleType(ZuDeclVal<ZuDecay<L> *>())), ZuDecay<R>> { };
 
 template <typename L, typename R>
-inline ZuIfT<TupleCanCmpElem<L, R>{}, bool>
+constexpr ZuIfT<TupleCanCmpElem<L, R>{}, bool>
 operator ==(const L &l, const R &r) { return l.equals(r); }
 template <typename L, typename R>
-inline ZuIfT<TupleCanCmpElem<L, R>{}, int>
+constexpr ZuIfT<TupleCanCmpElem<L, R>{}, int>
 operator <=>(const L &l, const R &r) { return l.cmp(r); }
 
 } // namespace Zu_

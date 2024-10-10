@@ -632,4 +632,17 @@ int main()
       << "sizeof(std::optional<uintptr_t>)="
       << sizeof(std::optional<uintptr_t>) << '\n';
   }
+
+  {
+    using A = ZuSpan<ZuTuple<ZuCSpan, ZuCSpan>>;
+    A a = { { "foo", "bar" }, { "baz", "bah" } };
+    CHECK(a[0].p<0>() == "foo");
+    CHECK(a[0].p<1>() == "bar");
+    CHECK(a[1].p<0>() == "baz");
+    CHECK(a[1].p<1>() == "bah");
+  }
+  {
+    enum { I = (ZuSpan<ZuTuple<int>>{ { 42 } })[0].p<0>() };
+    CHECK(I == 42);
+  }
 }
