@@ -18,10 +18,10 @@
 namespace ZuHex {
 
 ZuInline constexpr uint8_t lookup(uint8_t c) {
-  if (c >= 'A' && c <= 'F') return (c - 'A') + 10;
-  if (c >= '0' && c <= '9') return c - '0';
-  return 0xff;
-};
+  return 
+    (c >= 'A' && c <= 'F') ? (c - 'A') + 10 :
+    (c >= '0' && c <= '9') ? c - '0' : 0xff;
+}
 
 ZuInline constexpr bool is(char c) {
   return (c >= 'A' && c <= 'F') || (c >= '0' && c <= '9');

@@ -32,12 +32,12 @@ ZuInline constexpr bool special(uint8_t i) {
   return map[i>>3] & (uint8_t(1)<<(i & 0x7));
 }
 
-ZuInline constexpr uint8_t lookup(uint8_t c) {
-  if (c >= 'a' && c <= 'f') return (c - 'a') + 10;
-  if (c >= 'A' && c <= 'F') return (c - 'A') + 10;
-  if (c >= '0' && c <= '9') return c - '0';
-  return 0xff;
-};
+ZuInline constexpr uint8_t hex(uint8_t c) {
+  c |= 0x20;
+  return 
+    (c >= 'a' && c <= 'f') ? (c - 'a') + 10 :
+    (c >= '0' && c <= '9') ? c - '0' : 0xff;
+}
 
 // both encode and decode return count of bytes written
 
@@ -100,8 +100,8 @@ ZuInline unsigned decode(ZuSpan<uint8_t> dst, ZuBytes src) {
     --n;
     if (i == '%') {
       if (n < 2) break;
-      i = lookup(*s++); if (i >= 16) break;
-      j = lookup(*s++); if (j >= 16) break;
+      i = hex(*s++); if (i >= 16) break;
+      j = hex(*s++); if (j >= 16) break;
       n -= 2;
       *d++ = (i<<4) | j;
     } else if (i == '+') {

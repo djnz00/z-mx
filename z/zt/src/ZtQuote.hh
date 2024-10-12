@@ -18,6 +18,7 @@
 #include <zlib/ZuBase32.hh>
 #include <zlib/ZuBase64.hh>
 #include <zlib/ZuHex.hh>
+#include <zlib/ZuPercent.hh>
 
 #include <zlib/ZmAlloc.hh>
 
@@ -89,7 +90,7 @@ struct Base64 {
 struct Hex {
   ZuBytes v;
   template <typename S>
-  friend S &operator <<(S &s, const Base64 &print) {
+  friend S &operator <<(S &s, const Hex &print) {
     const auto &v = print.v;
     auto n = ZuHex::enclen(v.length());
     auto buf_ = ZmAlloc(uint8_t, n);
@@ -103,7 +104,7 @@ struct Hex {
 struct Percent {
   ZuBytes v;
   template <typename S>
-  friend S &operator <<(S &s, const Base64 &print) {
+  friend S &operator <<(S &s, const Percent &print) {
     const auto &v = print.v;
     auto n = ZuPercent::enclen(v.length()); // 0-pass
     auto buf_ = ZmAlloc(uint8_t, n);

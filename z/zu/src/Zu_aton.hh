@@ -134,16 +134,16 @@ namespace Zu_aton {
   };
 
   template <class Fmt> struct Base16 {
-    ZuInline static int hexDigit(char c) {
-      if (ZuLikely(c >= '0' && c <= '9')) return c - '0';
-      if (ZuLikely(c >= 'a' && c <= 'f')) return c - 'a' + 10;
-      if (ZuLikely(c >= 'A' && c <= 'F')) return c - 'A' + 10;
-      return -1;
+    ZuInline static constexpr int hex(char c) {
+      c |= 0x20;
+      return 
+	(c >= 'a' && c <= 'f') ? (c - 'a') + 10 :
+	(c >= '0' && c <= '9') ? c - '0' : -1;
     }
 
     template <typename T>
     static unsigned scan(T &v_, int i, const char *buf, unsigned n) {
-      i = hexDigit(i);
+      i = hex(i);
       if (ZuUnlikely(i < 0)) return 0;
       T v = i;
       if (ZuUnlikely(n == 1)) { v_ = v; return 1; }
@@ -153,7 +153,7 @@ namespace Zu_aton {
 	if (ZuUnlikely(n == 2)) { v_ = 0; return 2; }
 	i = buf[++o];
       }
-      while (ZuLikely(o < n && (i = hexDigit(i)) >= 0)) {
+      while (ZuLikely(o < n && (i = hex(i)) >= 0)) {
 	v = (v<<4U) + i;
 	i = buf[++o];
       }

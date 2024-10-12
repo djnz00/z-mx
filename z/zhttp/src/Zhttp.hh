@@ -16,8 +16,14 @@
 namespace Zhttp {
 
 // hard-coded isspace (ASCII/UTF8)
+// - intentionally includes non-linear white space
 ZuInline constexpr bool isspace__(char c) {
   return ((c >= '\t' && c <= '\r') || c == ' ');
+}
+
+// hard-coded linear white space (ASCII/UTF8)
+ZuInline constexpr bool islspace__(char c) {
+  return c == '\t' || c == ' ';
 }
 
 // hard-coded Boyer-Moore to find end of header "\r\n\r\n"
@@ -72,43 +78,46 @@ inline int eok(ZuCSpan data) {
 // skip leading linear white space to find beginning of header value
 inline int bov(ZuCSpan data) {
   for (unsigned o = 0, n = data.length(); o < n; ++o)
-    if (!isspace__(data[o])) return o;
+    if (!islspace__(data[o])) return o;
   return -1;
 }
 
 // remove trailing linear white space to find end of header value
 inline int eov(ZuCSpan data) {
   for (int o = data.length(); --o >= 0; )
-    if (!isspace__(data[o])) return o + 1;
+    if (!islspace__(data[o])) return o + 1;
   return -1;
 }
 
-// iterate over value delimited by \+s+,\s+
-template <typename L>
-inline void csv(ZuCSpan data, L &&l) {
+// split and iterate over HTTP value delimited by \s+,\s+
+// - strips leading/trailing white space
+// - single-pass, no back-tracking
+// - optional alternate delimiter character (';' is also frequently used)
+template <char Delim = ',', typename L>
+inline void split(ZuCSpan data, L &&l) {
   unsigned count = 0;
   int begin, end;
   unsigned o = 0, n = data.length();
   for (;;) {
-    // skip leading white space
-    for (; o < n; ++o) if (!isspace__(data[o])) break;
+    // skip leading linear white space
+    for (; o < n; ++o) if (!islspace__(data[o])) break;
     begin = o; end = -1;
-    // find comma or end of string, remembering last non-white-space
+    // find delimiter or end of string, remembering last non-white-space
     for (; o < n; ++o) {
       auto c = data[o];
-      if (c == ',') break;
+      if (c == Delim) break;
       if (end < 0 ) {
-	if (isspace__(c)) end = o;
+	if (islspace__(c)) end = o;
       } else {
-	if (!isspace__(c)) end = -1;
+	if (!islspace__(c)) end = -1;
       }
     }
     if (end < 0) end = o;
     if (ZuLikely(end > begin || count || o < n))
       l(count++, ZuCSpan{&data[begin], unsigned(end - begin)});
     if (o >= n) break;
-    // skip trailing white space
-    while (++o < n) if (!isspace__(data[o])) break;
+    // skip trailing linear white space
+    while (++o < n) if (!islspace__(data[o])) break;
   }
 }
 
@@ -145,16 +154,21 @@ using IHeaders =
   ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
 
 namespace TransferEncoding {
-ZtEnumValues(TransferEncoding, int8_t, compress, deflate, gzip, identity);
+  ZtEnumValues(TransferEncoding, int8_t, compress, deflate, gzip);
 }
+
+// HTTP body encoding
+struct BodyEncoding {
+  int			contentLength = -1;
+  TransferEncoding::T	transferEncoding = -1;
+  bool			chunked = false;
+  bool			valid = true;
+};
 
 template <unsigned Bits>
 struct Message {
   IHeaders<Bits>	headers;
   ZuCSpan		body;
-  int			contentLength = -1;
-  TransferEncoding::T	transferEncoding;
-  bool			chunked = false;
 
   // parse headers
   int parse(ZuSpan<char> data, unsigned offset) {
@@ -170,7 +184,7 @@ struct Message {
       o = bov(data);
       if (ZuUnlikely(o < 0)) return 0; // unterminated value
       offset += o;
-      data.offset(o); // skip linear white space
+      data.offset(o); // skip white space
       o = eol(data);
       if (ZuUnlikely(o < 0)) return 0; // unterminated value
       ZuSpan value{&data[0], unsigned(o)};
@@ -186,22 +200,31 @@ struct Message {
     data.offset(2);
     body = data;
 
-    if (auto s = headers.findVal("Content-Length")) {
-      contentLength = ZuBox<unsigned>{s};
-    } else {
-      contentLength = -1;
-    }
-    if (auto s = headers.findVal("Transfer-Encoding")) {
-      // FIXME
-    }
-
     return offset;
   }
 
-  // body length
-  // +ve - Content-Length: N
-  // -1  - Transfer-Encoding: chunked
-  // 0   - Content-Length: 0 or neither of the above
+  // if a body is expected, bodyEncoding() will parse and validate
+  // the Transfer-Encoding and Content-Length headers
+  BodyEncoding bodyEncoding() {
+    BodyEncoding enc;
+
+    if (auto s = headers.findVal("Transfer-Encoding"))
+      split(s, [&enc](unsigned i, ZuCSpan token) {
+	// chunked must come last, anything else must be first
+	if (enc.chunked)
+	  enc.valid = false;
+	else if (token == "chunked")
+	  enc.chunked = true;
+	else if (i)
+	  enc.valid = false;
+	else
+	  enc.transferEncoding = TransferEncoding::lookup(token);
+      });
+    if (enc.valid && !enc.chunked)
+      if (auto s = headers.findVal("Content-Length"))
+	enc.contentLength = ZuBox<unsigned>{s};
+    return enc;
+  }
 };
 
 // parse() returns:
@@ -215,7 +238,7 @@ struct Request : public Message<Bits> {
   ZuCSpan	path;		// path
   ZuCSpan	protocol;	// e.g. HTTP/1.1
 
-  // parse request line
+  // parse request
   int parse(ZuSpan<char> data) {
     unsigned n = data.length();
 
@@ -274,6 +297,34 @@ struct Response : public Message<Bits> {
     return Message<Bits>::parse(data, b + o + 2);
   }
 };
+
+// parse chunked length
+// - returns {length, offset} where offset is offset to chunk data
+// - returns {-1, -1} if invalid/corrupt
+ZuInline constexpr uint8_t hex(uint8_t c) {
+  c |= 0x20;
+  return 
+    (c >= 'a' && c <= 'f') ? (c - 'a') + 10 :
+    (c >= '0' && c <= '9') ? c - '0' : 0xff;
+}
+inline ZuTuple<int, int> chunkLength(ZuCSpan data)
+{
+  unsigned o = 0, n = data.length();
+  if (n > 10) n = 10;
+  int len = 0;
+  while (o < n) {
+    auto c = data[o];
+    if (c == '\r') {
+      if (++o < n && data[o] == '\n' && len > 0) return {len, o + 1};
+      return {-1, -1};
+    }
+    uint8_t i = hex(c);
+    if (i == 0xff) return {-1, -1};
+    len = (len<<4) | i;
+    o++;
+  }
+  return {-1, -1};
+}
 
 namespace Method {
   ZtEnumValues(Method, int8_t,

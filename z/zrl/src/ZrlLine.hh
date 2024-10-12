@@ -123,7 +123,7 @@ private:
       u == '_' || (u > 0x80 && !iswspace__(u));
   }
   ZuInline static constexpr bool isspace__(uint32_t u) {
-    return ((u >= '\t' && c <= '\r') || u == ' ' || iswspace__(u);
+    return (u >= '\t' && u <= '\r') || u == ' ' || iswspace__(u);
   }
   template <typename L>
   bool fwd(unsigned &off, unsigned n, L l) const {

@@ -54,49 +54,39 @@ struct App : public Ztls::Client<App> {
 
     int process(const uint8_t *data, unsigned len) {
       if (!file) {
-	header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
-	Zhttp::Response response;
-	auto r = response.parse(header);
-	if (r < 0) {
-	  std::cerr << "invalid HTTP response\n" << std::flush;
-	  return -1;
-	}
-	if (!r) return len;
-	body << ZuCSpan{&header[r], header.length() - r};
-	header.length(r);
-
-	ZuCSpan length_ = response.headers.findVal("Content-Length");
-	if (length_) {
+	if (!response.headers.count()) {
+	  header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
+	  auto r = response.parse(header);
+	  if (r < 0) {
+	    std::cerr << "invalid HTTP response\n" << std::flush;
+	    return -1;
+	  }
+	  if (!r) return len;
+	  body << ZuCSpan{&header[r], header.length() - r};
+	  header.length(r);
+	  encoding = response.bodyEncoding();
+	  if (!encoding.valid) {
+	    std::cerr
+	      << "invalid HTTP Transfer-Encoding / Content-Length\n"
+	      << std::flush;
+	    return -1;
+	  }
 	} else {
-	  ZuCSpan xferEncoding = response.headers.findVal("Transfer-Encoding");
-	  if (xferEncoding == "chunked") {
-	  }
+	  body << ZuSpan<char>{const_cast<uint8_t *>(data), len};
 	}
-	header << ZuCSpan{data, len};
-	ZtRegexAllocCaptures(c, 0);
-	if (ZtREGEX("\n\r\n").m(header, c)) {
-	  ZtRegexAllocCaptures(d, 1);
-	  if (ZtREGEX("\nContent-Length: (\d+)").m(header, d)) {
-	    length = ZuBox<unsigned>(d[2]);
-	  } else if (ZtREGEX("\nTransfer-Encoding: chunked\r").m(header)) {
-	    // just read the first chunk for testing purposes
-	    if (ZtREGEX("\n\r\n([\dA-F]+)\r\n").m(header, d)) {
-	      length = ZuBox<unsigned>(ZuFmt::Hex<true>{}, d[2]);
-	      c[2] = d[3];
-	    } else
-	      return len;
-	  }
-	  file = fopen("index.hdr", "w");
-	  ZmAssert(file);
-	  fwrite(c[0].data(), 1, c[0].length() + 1, file);
-	  fclose(file);
-	  file = fopen("index.html", "w");
-	  ZmAssert(file);
-	  fwrite(c[2].data(), 1, c[2].length(), file);
-	  ZmAssert(length >= c[2].length());
-	  length -= c[2].length();
-	  header = {};
-	}
+	if (encoding.contentLength >= 0) {
+	  if (body.length() >= encoding.contentLength) goto done;
+	  return len;
+	} 
+	// chunks
+done:
+	file = fopen("index.hdr", "w");
+	ZmAssert(file);
+	fwrite(header.data(), 1, header.length(), file);
+	fclose(file);
+	file = fopen("index.html", "w");
+	ZmAssert(file);
+	fwrite(body.data(), 1, body.length(), file);
       } else {
 	fwrite(data, 1, len, file);
 	if (length <= len) return -1;
@@ -109,9 +99,11 @@ struct App : public Ztls::Client<App> {
       if (file) { fclose(file); file = nullptr; }
     }
 
-    unsigned	length = 0;
-    ZtString	header, body;
-    FILE	*file = nullptr;
+    unsigned		length = 0;
+    ZtString		header, body;
+    ZHttp::Response	response;
+    ZHttp::BodyEncoding	encoding;
+    FILE		*file = nullptr;
   };
 
   void done() { sem.post(); }

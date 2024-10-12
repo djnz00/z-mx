@@ -17,7 +17,7 @@ char response_[] =
 "Server: nginx\r\n"
 "Date: Sun, 06 Oct 2024 06:12:39 GMT\r\n"
 "Content-Type: text/html; charset=UTF-8\r\n"
-"Transfer-Encoding: chunked\r\n"
+"Content-Length: 211\r\n"
 "Connection: keep-alive\r\n"
 "X-hacker: If you're reading this, you should visit wpvip.com/careers and apply to join the fun, mention this header.\r\n"
 "X-Powered-By: WordPress VIP <https://wpvip.com>\r\n"
@@ -86,6 +86,43 @@ int main()
   CHECK(eok("x ::") == 2);
 
   {
+    ZtString s;
+    request(s, Method::GET, "/",
+	{ { "Host", "foo.com" },
+	  { "User-Agent", "zhttptest/1.0" },
+	  { "Accept", "*/*" } }, {});
+    CHECK(s == request_);
+  }
+  {
+    int i = -1;
+    split("", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
+    split(" ", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
+    split(",", [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == "");
+      i = j;
+    });
+    CHECK(i == 1); i = -1;
+    auto check = [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == "foo");
+      i = j;
+    };
+    split("foo", check); CHECK(!i); i = -1;
+    split(" foo", check); CHECK(!i); i = -1;
+    split("foo ", check); CHECK(!i); i = -1;
+    split(" foo ", check); CHECK(!i); i = -1;
+    auto check2 = [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == (!j ? "foo" : "bar"));
+      i = j;
+    };
+    split("foo,bar", check2); CHECK(i == 1); i = -1;
+    split("foo ,bar", check2); CHECK(i == 1); i = -1;
+    split("foo, bar", check2); CHECK(i == 1); i = -1;
+    split("foo , bar", check2); CHECK(i == 1); i = -1;
+    split("foo  ,  bar", check2); CHECK(i == 1); i = -1;
+    split(" foo  ,  bar ", check2); CHECK(i == 1); i = -1;
+  }
+
+  {
     Request<5> r;
     CHECK(r.parse(request_) > 0);
     CHECK(r.protocol == "HTTP/1.1");
@@ -101,42 +138,21 @@ int main()
     CHECK(r.code == 200);
     CHECK(r.reason == "OK");
     CHECK(r.headers.findVal("Referrer-Policy") == "no-referrer-when-downgrade");
+    auto body = r.bodyEncoding();
+    CHECK(body.valid);
+    CHECK(!body.chunked);
+    CHECK(body.transferEncoding < 0);
+    CHECK(body.contentLength == 211);
     CHECK(r.body.length() == 211);
   }
-  {
-    ZtString s;
-    request(s, Method::GET, "/",
-	{ { "Host", "foo.com" },
-	  { "User-Agent", "zhttptest/1.0" },
-	  { "Accept", "*/*" } }, {});
-    CHECK(s == request_);
-  }
-  {
-    int i = -1;
-    csv("", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
-    csv(" ", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
-    csv(",", [&i](unsigned j, ZuCSpan s) {
-      CHECK(s == "");
-      i = j;
-    });
-    CHECK(i == 1); i = -1;
-    auto check = [&i](unsigned j, ZuCSpan s) {
-      CHECK(s == "foo");
-      i = j;
-    };
-    csv("foo", check); CHECK(!i); i = -1;
-    csv(" foo", check); CHECK(!i); i = -1;
-    csv("foo ", check); CHECK(!i); i = -1;
-    csv(" foo ", check); CHECK(!i); i = -1;
-    auto check2 = [&i](unsigned j, ZuCSpan s) {
-      CHECK(s == (!j ? "foo" : "bar"));
-      i = j;
-    };
-    csv("foo,bar", check2); CHECK(i == 1); i = -1;
-    csv("foo ,bar", check2); CHECK(i == 1); i = -1;
-    csv("foo, bar", check2); CHECK(i == 1); i = -1;
-    csv("foo , bar", check2); CHECK(i == 1); i = -1;
-    csv("foo  ,  bar", check2); CHECK(i == 1); i = -1;
-    csv(" foo  ,  bar ", check2); CHECK(i == 1); i = -1;
-  }
+  { auto [ length, offset ] = chunkLength("Aa0\r\n");
+    CHECK(length == 0xaa0 && offset == 5); }
+  { auto [ length, offset ] = chunkLength("Aa0 \r\n");
+    CHECK(length == -1 && offset == -1); }
+  { auto [ length, offset ] = chunkLength("\r\n");
+    CHECK(length == -1 && offset == -1); }
+  { auto [ length, offset ] = chunkLength("aaaaaaaa\r\n");
+    CHECK(length == -1 && offset == -1); }
+  { auto [ length, offset ] = chunkLength("aaaaaaaaa\r\n");
+    CHECK(length == -1 && offset == -1); }
 }

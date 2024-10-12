@@ -334,15 +334,16 @@ using Register = ZuPtr<RegData>;
 class Registers { // maintains a unified Vi/Emacs register store
 public:
   static int index(char c) {
-    if (ZuLikely(c >= '0' && c <= '9')) return c - '0';	
-    if (ZuLikely(c >= 'a' && c <= 'z')) return c - 'a' + 10;
-    if (ZuLikely(c >= 'A' && c <= 'Z')) return c - 'A' + 10;
-    if (ZuLikely(c == '/')) return 36;		// search string
-    if (ZuLikely(c == '+')) return 37;		// clipboard
-    if (ZuLikely(c == '*')) return 38;		// alt. clipboard
-    if (ZuLikely(c == '"')) return 0;		// alias for "0
-    if (ZuLikely(c == '-')) return 0;		// alias for "0
-    return -1;
+    return
+      (ZuLikely(c >= '0' && c <= '9')) ? c - '0' :	
+      (ZuLikely(c >= 'a' && c <= 'z')) ? c - 'a' + 10 :
+      (ZuLikely(c >= 'A' && c <= 'Z')) ? c - 'A' + 10 :
+      (ZuLikely(c == '/')) ? 36 :		// search string
+      (ZuLikely(c == '+')) ? 37 :		// clipboard
+      (ZuLikely(c == '*')) ? 38 :		// alt. clipboard
+      (ZuLikely(c == '"')) ? 0 :		// alias for "0
+      (ZuLikely(c == '-')) ? 0 :		// alias for "0
+      -1;
   }
 
   const RegData &get(unsigned i) {
