@@ -1166,9 +1166,9 @@ private:
 
 private:
   // match whitespace
-  auto matchS() {
-    return [](int c) {
-      return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+  constexpr auto matchS() {
+    return [](int c) constexpr {
+      return ((c >= '\t' && c <= '\r') || c == ' ');
     };
   }
 public:

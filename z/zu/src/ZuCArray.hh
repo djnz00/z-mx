@@ -276,9 +276,9 @@ public:
 
 private:
   // match whitespace
-  auto matchS() {
-    return [](int c) {
-      return c == ' ' || c == '\t' || c == '\n' || c == '\t';
+  constexpr auto matchS() {
+    return [](int c) constexpr {
+      return ((c >= '\t' && c <= '\r') || c == ' ');
     };
   }
 public:
@@ -296,7 +296,7 @@ public:
   template <typename Match>
   void trim(Match match) {
     int o;
-    for (o = 0; o < (int)m_length && match(data()[0]); o++);
+    for (o = 0; o < int(m_length) && match(data()[0]); o++);
     if (!o) return;
     if (!(m_length -= o)) { null(); return; }
     memmove(data(), data() + o, m_length * sizeof(Char));
@@ -312,7 +312,7 @@ public:
     while (--o >= 0 && match(data()[o]));
     if (o < 0) { null(); return; }
     m_length = o + 1;
-    for (o = 0; o < (int)m_length && match(data()[0]); o++);
+    for (o = 0; o < int(m_length) && match(data()[0]); o++);
     if (!o) { data()[m_length] = 0; return; }
     if (!(m_length -= o)) { null(); return; }
     memmove(data(), data() + o, m_length * sizeof(Char));

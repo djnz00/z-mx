@@ -555,8 +555,8 @@ using Bytes = Base64;
 
 // string and string vector element scanning
 namespace Scan {
-  static constexpr bool isspace__(char c) {
-    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  ZuInline static constexpr bool isspace__(char c) {
+    return ((c >= '\t' && c <= '\r') || c == ' ');
   }
 
   ZtExtern unsigned string(ZuSpan<char> dst, ZuCSpan &src);

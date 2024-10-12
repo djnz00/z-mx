@@ -8,7 +8,7 @@
 #include <zlib/zu_time.h>
 
 inline static bool isspace__(char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  return ((c >= '\t' && c <= '\r') || c == ' ');
 }
 
 inline static bool isdigit__(char c) {

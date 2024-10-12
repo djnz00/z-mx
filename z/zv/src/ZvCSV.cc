@@ -15,6 +15,10 @@
 
 namespace ZvCSV_ {
 
+ZuInline constexpr bool isspace__(char c) {
+  return ((c >= '\t' && c <= '\r') || c == ' ');
+}
+
 void split(ZuCSpan row, ZtArray<ZtArray<char>> &values)
 {
   enum { Value = 0, Quoted, Quoted2, EOV, EOL };
@@ -53,7 +57,7 @@ void split(ZuCSpan row, ZtArray<ZtArray<char>> &values)
     }
 
     if (state == EOV) {
-      while (offset < length && isspace(row[++offset]));
+      while (offset < length && isspace__(row[++offset]));
       next = offset;
     } else // state == EOL
       next = -1;

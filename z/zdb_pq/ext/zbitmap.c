@@ -12,7 +12,7 @@
 #define ZBITMAP_MAX_LEN	8192	// maximum #words in a bitmap
 
 inline static bool isspace__(char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  return ((c >= '\t' && c <= '\r') || c == ' ');
 }
 
 /* reverse of VARDATA */

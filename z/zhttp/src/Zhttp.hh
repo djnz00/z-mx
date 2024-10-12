@@ -15,6 +15,11 @@
 
 namespace Zhttp {
 
+// hard-coded isspace (ASCII/UTF8)
+ZuInline constexpr bool isspace__(char c) {
+  return ((c >= '\t' && c <= '\r') || c == ' ');
+}
+
 // hard-coded Boyer-Moore to find end of header "\r\n\r\n"
 inline int eoh(ZuCSpan data) {
   unsigned n = data.length();
@@ -35,7 +40,7 @@ inline int eoh(ZuCSpan data) {
   return -1;
 }
 
-// hard-coded Boyer-Moore to find end of line "\r\n[^\r\t ]"
+// hard-coded Boyer-Moore to find end of line "\r\n[^\t ]"
 inline int eol(ZuCSpan data) {
   unsigned n = data.length();
 
@@ -48,7 +53,6 @@ inline int eol(ZuCSpan data) {
     if (ZuLikely(o < n)) {
       c = data[o + 2];
       if (c == '\t' || c == ' ') { o += 3; continue; }
-      if (c == '\r') { o += 2; continue; }
     }
     if (data[o + 1] != '\n') { ++o; continue; }
     if (data[o] == '\r') return o;
@@ -57,19 +61,55 @@ inline int eol(ZuCSpan data) {
   return -1;
 }
 
-// hard-coded Boyer-Moore to find end of key ": "
+// find end of key ":"
+// - uses memchr to leverage any available performance advantage
 inline int eok(ZuCSpan data) {
-  unsigned n = data.length();
+  auto p = static_cast<const char *>(memchr(&data[0], ':', data.length()));
+  if (!p) return -1;
+  return p - &data[0];
+}
 
-  if (ZuUnlikely(n < 2)) return -1;
-  n -= 2;
-
-  for (unsigned o = 0; o <= n; ) {
-    if (data[o + 1] != ' ') { ++o; continue; }
-    if (data[o] == ':') return o;
-    o += 2;
-  }
+// skip leading linear white space to find beginning of header value
+inline int bov(ZuCSpan data) {
+  for (unsigned o = 0, n = data.length(); o < n; ++o)
+    if (!isspace__(data[o])) return o;
   return -1;
+}
+
+// remove trailing linear white space to find end of header value
+inline int eov(ZuCSpan data) {
+  for (int o = data.length(); --o >= 0; )
+    if (!isspace__(data[o])) return o + 1;
+  return -1;
+}
+
+// iterate over value delimited by \+s+,\s+
+template <typename L>
+inline void csv(ZuCSpan data, L &&l) {
+  unsigned count = 0;
+  int begin, end;
+  unsigned o = 0, n = data.length();
+  for (;;) {
+    // skip leading white space
+    for (; o < n; ++o) if (!isspace__(data[o])) break;
+    begin = o; end = -1;
+    // find comma or end of string, remembering last non-white-space
+    for (; o < n; ++o) {
+      auto c = data[o];
+      if (c == ',') break;
+      if (end < 0 ) {
+	if (isspace__(c)) end = o;
+      } else {
+	if (!isspace__(c)) end = -1;
+      }
+    }
+    if (end < 0) end = o;
+    if (ZuLikely(end > begin || count || o < n))
+      l(count++, ZuCSpan{&data[begin], unsigned(end - begin)});
+    if (o >= n) break;
+    // skip trailing white space
+    while (++o < n) if (!isspace__(data[o])) break;
+  }
 }
 
 // normalize key case to be consistent (mutates key in place)
@@ -104,38 +144,71 @@ template <unsigned Bits>
 using IHeaders =
   ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
 
+namespace TransferEncoding {
+ZtEnumValues(TransferEncoding, int8_t, compress, deflate, gzip, identity);
+}
+
 template <unsigned Bits>
 struct Message {
   IHeaders<Bits>	headers;
   ZuCSpan		body;
+  int			contentLength = -1;
+  TransferEncoding::T	transferEncoding;
+  bool			chunked = false;
 
   // parse headers
   int parse(ZuSpan<char> data, unsigned offset) {
-    int o = offset;
-
     data.offset(offset);
-    o = eoh(data);
-    if (ZuUnlikely(o < 0)) return -1; // incomplete header
-    o += 2;
-    offset += o;
-    body = {&data[o], data.length() - o};
-    data.trunc(o - 2); // exclude body and intervening \r\n
-    do {
-      o = eok(data);
-      if (ZuUnlikely(o < 0)) return -1; // unterminated key
+    for (;;) {
+      if (data.length() < 2) return 0;
+      if (data[0] == '\r' && data[1] == '\n') break;
+      int o = eok(data);
+      if (ZuUnlikely(o < 0)) return eol(data) < 0 ? 0 : -1; // unterminated key
       ZuSpan key{&data[0], unsigned(o)};
-      data.offset(o + 2); // skip key and delimiter
+      offset += o + 1;
+      data.offset(o + 1); // skip key and delimiter
+      o = bov(data);
+      if (ZuUnlikely(o < 0)) return 0; // unterminated value
+      offset += o;
+      data.offset(o); // skip linear white space
       o = eol(data);
-      if (ZuUnlikely(o < 0)) return -1; // unterminated value
+      if (ZuUnlikely(o < 0)) return 0; // unterminated value
       ZuSpan value{&data[0], unsigned(o)};
+      offset += o + 2;
       data.offset(o + 2); // skip value and EOL
+      o = eov(value);
+      if (ZuUnlikely(o < 0)) return -1; // should never happen
+      value.trunc(o);
       normalize(key);
       headers.add(key, value);
-    } while (data);
+    }
+    offset += 2;
+    data.offset(2);
+    body = data;
+
+    if (auto s = headers.findVal("Content-Length")) {
+      contentLength = ZuBox<unsigned>{s};
+    } else {
+      contentLength = -1;
+    }
+    if (auto s = headers.findVal("Transfer-Encoding")) {
+      // FIXME
+    }
+
     return offset;
   }
+
+  // body length
+  // +ve - Content-Length: N
+  // -1  - Transfer-Encoding: chunked
+  // 0   - Content-Length: 0 or neither of the above
 };
 
+// parse() returns:
+// +ve - offset to body
+// 0   - incomplete
+// -1  - invalid / corrupt
+ 
 template <unsigned Bits>
 struct Request : public Message<Bits> {
   ZuCSpan	method;		// e.g. GET
@@ -143,25 +216,25 @@ struct Request : public Message<Bits> {
   ZuCSpan	protocol;	// e.g. HTTP/1.1
 
   // parse request line
-  int parse(ZuSpan<char> data) { // returns offset to body, -1 if incomplete
+  int parse(ZuSpan<char> data) {
     unsigned n = data.length();
 
-    if (ZuUnlikely(n < 27)) return -1; // shortest possible request length is 27
+    if (ZuUnlikely(n < 27)) return 0; // shortest possible request length is 27
 
     int o = 0; // intentionally int
 
     for (o = 0; data[o] != ' '; )
-      if (ZuUnlikely(++o > 7)) return -1; // unterminated method
-    if (!o) return -1; // missing method
+      if (ZuUnlikely(++o > 7)) return 0; // unterminated method
+    if (!o) return 0; // missing method
     method = {&data[0], unsigned(o)};
     unsigned b = ++o;
     while (data[o] != ' ')
-      if (ZuUnlikely(++o >= n)) return -1; // unterminated path
+      if (ZuUnlikely(++o >= n)) return 0; // unterminated path
     if (ZuUnlikely(b == o)) return -1; // missing path
     path = {&data[b], o - b};
     b = ++o;
     o = eol({&data[b], n - b});
-    if (ZuUnlikely(o < 0)) return -1; // unterminated protocol
+    if (ZuUnlikely(o < 0)) return 0; // unterminated protocol
     protocol = {&data[b], unsigned(o)};
     return Message<Bits>::parse(data, b + o + 2);
   }
@@ -177,13 +250,13 @@ struct Response : public Message<Bits> {
   int parse(ZuSpan<char> data) { // returns offset to body, -1 if incomplete
     unsigned n = data.length();
 
-    if (ZuUnlikely(n < 19)) return -1; // shortest possible response is 19
+    if (ZuUnlikely(n < 19)) return 0; // shortest possible response is 19
 
     int o = 0; // intentionally int
 
     for (o = 0; data[o] != ' '; )
-      if (ZuUnlikely(++o > 8)) return -1; // unterminated protocol
-    if (!o) return -1; // missing protocol
+      if (ZuUnlikely(++o > 8)) return 0; // unterminated protocol
+    if (!o) return 0; // missing protocol
     protocol = {&data[0], unsigned(o)};
     unsigned b = ++o;
     int c; // intentionally int
@@ -191,12 +264,12 @@ struct Response : public Message<Bits> {
       if (c < '0' || c > '9') return -1; // not a number
       c -= '0';
       code = code < 0 ? c : (code * 10) + c;
-      if (ZuUnlikely(++o > b + 3)) return -1; // unterminated code
+      if (ZuUnlikely(++o > b + 3)) return 0; // unterminated code
     }
     if (ZuUnlikely(b == o)) return -1; // missing code
     b = ++o;
     o = eol({&data[b], n - b});
-    if (ZuUnlikely(o < 0)) return -1; // unterminated reason
+    if (ZuUnlikely(o < 0)) return 0; // unterminated reason
     reason = {&data[b], unsigned(o)};
     return Message<Bits>::parse(data, b + o + 2);
   }
@@ -207,17 +280,35 @@ namespace Method {
     GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, CONNECT, TRACE);
 }
 
-using OHeaders = ZuArray<ZuTuple<ZuCSpan, ZuCSpan>>;
+// output headers
+using OHeaders = ZuSpan<ZuTuple<ZuCSpan, ZuCSpan>>; // key, value
 
+// output request
+// - body can be empty if it will be sent separately, in chunks, etc.
 template <typename S>
 void request(S &s, int method, ZuCSpan path, OHeaders headers, ZuCSpan body)
 {
   s << Method::name(method) << ' ' << path << " HTTP/1.1\r\n";
   headers.all([&s](auto &header) {
-    s << header.p<0>() << ": " << header.p<1>() << "\r\n";
+    s << header.template p<0>() << ": " << header.template p<1>() << "\r\n";
+  });
   s << "\r\n" << body;
 }
 
+// output response
+// - body can be empty if it will be sent separately, in chunks, etc.
+template <typename S>
+void response(
+  S &s, unsigned code, ZuCSpan reason, OHeaders headers, ZuCSpan body)
+{
+  s << "HTTP/1.1 " << ZuBox<unsigned>{code}.fmt<ZuFmt::Right<3>>() << ' '
+    << reason << "\r\n";
+  headers.all([&s](auto &header) {
+    s << header.template p<0>() << ": " << header.template p<1>() << "\r\n";
+  });
+  s << "\r\n" << body;
 }
+
+} // Zhttp
 
 #endif /* Zhttp_HH */

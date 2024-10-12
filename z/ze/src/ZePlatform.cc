@@ -151,6 +151,9 @@ static ZePlatform_FMBuf *fmBuf()
   buf->s.null();
   return buf;
 }
+ZuInline static constexpr bool isspace__(char c) {
+  return ((c >= '\t' && c <= '\r') || c == ' ');
+}
 const char *Ze::strerror(ErrNo e)
 {
   const char *msg;
@@ -182,11 +185,9 @@ const char *Ze::strerror(ErrNo e)
     char *end = ptr + buf->s.length();
     int c;
     while (ptr < end) {
-      if (ZuUnlikely(
-	    (c = *ptr++) == ' ' || c == '\t' || c == '\r' || c == '\n')) {
+      if (ZuUnlikely(isspace__(c = *ptr++))) {
 	char *ws = --ptr;
-	while (ZuLikely(ws < end) && ZuUnlikely(
-	      (c = *++ws) == ' ' || c == '\t' || c == '\r' || c == '\n'));
+	while (ZuLikely(ws < end) && ZuUnlikely(isspace__(c = *++ws)));
 	*ptr++ = ' ';
 	if (ZuUnlikely(ws > ptr)) {
 	  memmove(ptr, ws, end - ws);
@@ -194,9 +195,7 @@ const char *Ze::strerror(ErrNo e)
 	}
       }
     }
-    while (ZuUnlikely(
-	(c = *--end) == ' ' || c == '\t' || c == '\r' || c == '\n' ||
-	c == '.'));
+    while (ZuUnlikely(isspace__(c = *--end) || c == '.'));
     buf->s.length(++end - buf->s.data());
   }
 

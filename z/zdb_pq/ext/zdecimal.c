@@ -24,7 +24,7 @@ inline static uint128_t pg_bswap128(uint128_t i) {
 #endif /* pg_bswap128 */
 
 inline static bool isspace__(char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  return ((c >= '\t' && c <= '\r') || c == ' ');
 }
 
 PG_FUNCTION_INFO_V1(zdecimal_in);

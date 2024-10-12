@@ -104,7 +104,7 @@ public:
   bool isspace_(unsigned off) const { return isspace__(m_data[off]); }
 
 private:
-  static constexpr bool iswspace__(uint32_t u) { // unicode white space
+  ZuInline static constexpr bool iswspace__(uint32_t u) { // unicode white space
     return
       u == 0xa0 ||
       u == 0x1680 ||
@@ -122,9 +122,8 @@ private:
       (u >= 'A' && u <= 'Z') ||
       u == '_' || (u > 0x80 && !iswspace__(u));
   }
-  static constexpr bool isspace__(uint32_t u) {
-    return u == ' ' || u == '\t' || u == '\r' || u == '\n' ||
-      u == 0x0c || iswspace__(u);
+  ZuInline static constexpr bool isspace__(uint32_t u) {
+    return ((u >= '\t' && c <= '\r') || u == ' ' || iswspace__(u);
   }
   template <typename L>
   bool fwd(unsigned &off, unsigned n, L l) const {

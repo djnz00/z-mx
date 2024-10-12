@@ -1,3 +1,9 @@
+//  -*- mode:c++; indent-tabs-mode:t; tab-width:8; c-basic-offset:2; -*-
+//  vi: noet ts=8 sw=2 cino=+0,(s,l1,m1,g0,N-s,j1,U1,W2,i2
+
+// (c) Copyright 2024 Psi Labs
+// This code is licensed by the MIT license (see LICENSE for details)
+
 #include <iostream>
 
 #include <zlib/Zhttp.hh>
@@ -6,7 +12,7 @@ inline void out(const char *s) { std::cout << s << '\n'; }
 
 #define CHECK(x) ((x) ? out("OK  " #x) : out("NOK " #x))
 
-char response[] =
+char response_[] =
 "HTTP/1.1 200 OK\r\n"
 "Server: nginx\r\n"
 "Date: Sun, 06 Oct 2024 06:12:39 GMT\r\n"
@@ -38,7 +44,7 @@ char response[] =
 "</body>\n"
 "</html>\n";
 
-char request[] =
+char request_[] =
 "GET / HTTP/1.1\r\n"
 "Host: foo.com\r\n"
 "User-Agent: zhttptest/1.0\r\n"
@@ -68,20 +74,20 @@ int main()
   CHECK(eol("\r\n ") == -1);
   CHECK(eol("\r\r\n ") == -1);
   CHECK(eol("\n\r\n ") == -1);
-  CHECK(eol("\r\n\r\r\nx") == 3);
-  CHECK(eol("\r\r\n\r\r\nx") == 4);
-  CHECK(eol("\n\r\n\r\r\nx") == 4);
+  CHECK(eol("\r\n \r\nx") == 3);
+  CHECK(eol("\r\r\n\t\r\nx") == 4);
+  CHECK(eol("\n\r\n\r\r\nx") == 1);
   CHECK(eol("\r\r") == -1);
   CHECK(eol("\n\r") == -1);
-  CHECK(eok(":") == -1);
+  CHECK(eok(":") == 0);
   CHECK(eok(": ") == 0);
   CHECK(eok("x: ") == 1);
-  CHECK(eok("x:: ") == 2);
-  CHECK(eok("x ::") == -1);
+  CHECK(eok("x:: ") == 1);
+  CHECK(eok("x ::") == 2);
 
   {
     Request<5> r;
-    CHECK(r.parse(request) > 0);
+    CHECK(r.parse(request_) > 0);
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.path == "/");
     CHECK(r.method == "GET");
@@ -90,11 +96,47 @@ int main()
   }
   {
     Response<5> r;
-    CHECK(r.parse(response) > 0);
+    CHECK(r.parse(response_) > 0);
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.code == 200);
     CHECK(r.reason == "OK");
     CHECK(r.headers.findVal("Referrer-Policy") == "no-referrer-when-downgrade");
     CHECK(r.body.length() == 211);
+  }
+  {
+    ZtString s;
+    request(s, Method::GET, "/",
+	{ { "Host", "foo.com" },
+	  { "User-Agent", "zhttptest/1.0" },
+	  { "Accept", "*/*" } }, {});
+    CHECK(s == request_);
+  }
+  {
+    int i = -1;
+    csv("", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
+    csv(" ", [&i](unsigned j, ZuCSpan) { i = j; }); CHECK(i == -1);
+    csv(",", [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == "");
+      i = j;
+    });
+    CHECK(i == 1); i = -1;
+    auto check = [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == "foo");
+      i = j;
+    };
+    csv("foo", check); CHECK(!i); i = -1;
+    csv(" foo", check); CHECK(!i); i = -1;
+    csv("foo ", check); CHECK(!i); i = -1;
+    csv(" foo ", check); CHECK(!i); i = -1;
+    auto check2 = [&i](unsigned j, ZuCSpan s) {
+      CHECK(s == (!j ? "foo" : "bar"));
+      i = j;
+    };
+    csv("foo,bar", check2); CHECK(i == 1); i = -1;
+    csv("foo ,bar", check2); CHECK(i == 1); i = -1;
+    csv("foo, bar", check2); CHECK(i == 1); i = -1;
+    csv("foo , bar", check2); CHECK(i == 1); i = -1;
+    csv("foo  ,  bar", check2); CHECK(i == 1); i = -1;
+    csv(" foo  ,  bar ", check2); CHECK(i == 1); i = -1;
   }
 }
