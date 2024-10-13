@@ -368,25 +368,25 @@ public:
 
   // iteration
   template <typename L>
-  decltype(auto) all(L l) const & {
+  decltype(auto) all(L &&l) const & {
     return ZuUnroll::all<Indices>(
-	[this, l = ZuMv(l)](auto J) mutable -> decltype(auto) {
-	  return l(static_cast<const Tuple_ &>(*this).template p<J>());
-	});
+      [this, &l](auto J) mutable -> decltype(auto) {
+	return ZuFwd<L>(l)(static_cast<const Tuple_ &>(*this).template p<J>());
+      });
   }
   template <typename L>
-  decltype(auto) all(L l) & {
+  decltype(auto) all(L &&l) & {
     return ZuUnroll::all<Indices>(
-	[this, l = ZuMv(l)](auto J) mutable -> decltype(auto) {
-	  return l(static_cast<Tuple_ &>(*this).template p<J>());
-	});
+      [this, &l](auto J) mutable -> decltype(auto) {
+	return ZuFwd<L>(l)(static_cast<Tuple_ &>(*this).template p<J>());
+      });
   }
   template <typename L>
-  decltype(auto) all(L l) && {
+  decltype(auto) all(L &&l) && {
     return ZuUnroll::all<Indices>(
-	[this, l = ZuMv(l)](auto J) mutable -> decltype(auto) {
-	  return l(ZuMv(*this).template p<J>());
-	});
+      [this, &l](auto J) mutable -> decltype(auto) {
+	return ZuFwd<L>(l)(ZuMv(*this).template p<J>());
+      });
   }
 
 public:
@@ -454,15 +454,15 @@ public:
 
   // dispatching
   template <typename L>
-  constexpr auto dispatch(unsigned i, L l) {
-    return ZuSwitch::dispatch<N>(i, [this, l = ZuMv(l)](auto I) mutable {
-      return l(I, this->p<I>());
+  constexpr auto dispatch(unsigned i, L &&l) {
+    return ZuSwitch::dispatch<N>(i, [this, &l](auto I) mutable {
+      return ZuFwd<L>(l)(I, this->p<I>());
     });
   }
   template <typename L>
-  constexpr auto cdispatch(unsigned i, L l) const {
-    return ZuSwitch::dispatch<N>(i, [this, l = ZuMv(l)](auto I) mutable {
-      return l(I, this->p<I>());
+  constexpr auto cdispatch(unsigned i, L &&l) const {
+    return ZuSwitch::dispatch<N>(i, [this, &l](auto I) mutable {
+      return ZuFwd<L>(l)(I, this->p<I>());
     });
   }
 
@@ -637,8 +637,8 @@ constexpr auto ZuTupleAxor() {
 //     (std::cout << ' ' << ... << args) << '\n';
 //   });
 template <typename P, typename L>
-decltype(auto) ZuTupleCall(P &&v, L l) {
-  return ZuSeqCall<ZuDecay<P>::N, ZuTupleAxor()>(ZuFwd<P>(v), ZuMv(l));
+decltype(auto) ZuTupleCall(P &&v, L &&l) {
+  return ZuSeqCall<ZuDecay<P>::N, ZuTupleAxor()>(ZuFwd<P>(v), ZuFwd<L>(l));
 }
 
 // STL structured binding cruft

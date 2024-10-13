@@ -15,19 +15,13 @@
 
 namespace Zhttp {
 
-// hard-coded isspace (ASCII/UTF8)
-// - intentionally includes non-linear white space
-ZuInline constexpr bool isspace__(char c) {
-  return ((c >= '\t' && c <= '\r') || c == ' ');
-}
-
 // hard-coded linear white space (ASCII/UTF8)
-ZuInline constexpr bool islspace__(char c) {
+ZuInline constexpr bool islws(char c) {
   return c == '\t' || c == ' ';
 }
 
 // hard-coded Boyer-Moore to find end of header "\r\n\r\n"
-inline int eoh(ZuCSpan data) {
+ZuInline int eoh(ZuCSpan data) {
   unsigned n = data.length();
 
   if (ZuUnlikely(n < 4)) return -1;
@@ -47,7 +41,8 @@ inline int eoh(ZuCSpan data) {
 }
 
 // hard-coded Boyer-Moore to find end of line "\r\n[^\t ]"
-inline int eol(ZuCSpan data) {
+template <bool CanFold = true>
+ZuInline int eol(ZuCSpan data) {
   unsigned n = data.length();
 
   if (ZuUnlikely(n < 2)) return -1;
@@ -58,7 +53,8 @@ inline int eol(ZuCSpan data) {
   for (unsigned o = 0; o <= n; ) {
     if (ZuLikely(o < n)) {
       c = data[o + 2];
-      if (c == '\t' || c == ' ') { o += 3; continue; }
+      if constexpr (CanFold)
+	if (c == '\t' || c == ' ') { o += 3; continue; }
     }
     if (data[o + 1] != '\n') { ++o; continue; }
     if (data[o] == '\r') return o;
@@ -69,23 +65,23 @@ inline int eol(ZuCSpan data) {
 
 // find end of key ":"
 // - uses memchr to leverage any available performance advantage
-inline int eok(ZuCSpan data) {
+ZuInline int eok(ZuCSpan data) {
   auto p = static_cast<const char *>(memchr(&data[0], ':', data.length()));
   if (!p) return -1;
   return p - &data[0];
 }
 
 // skip leading linear white space to find beginning of header value
-inline int bov(ZuCSpan data) {
+ZuInline int bov(ZuCSpan data) {
   for (unsigned o = 0, n = data.length(); o < n; ++o)
-    if (!islspace__(data[o])) return o;
+    if (!islws(data[o])) return o;
   return -1;
 }
 
 // remove trailing linear white space to find end of header value
-inline int eov(ZuCSpan data) {
+ZuInline int eov(ZuCSpan data) {
   for (int o = data.length(); --o >= 0; )
-    if (!islspace__(data[o])) return o + 1;
+    if (!islws(data[o])) return o + 1;
   return -1;
 }
 
@@ -100,16 +96,16 @@ inline void split(ZuCSpan data, L &&l) {
   unsigned o = 0, n = data.length();
   for (;;) {
     // skip leading linear white space
-    for (; o < n; ++o) if (!islspace__(data[o])) break;
+    for (; o < n; ++o) if (!islws(data[o])) break;
     begin = o; end = -1;
     // find delimiter or end of string, remembering last non-white-space
     for (; o < n; ++o) {
       auto c = data[o];
       if (c == Delim) break;
       if (end < 0 ) {
-	if (islspace__(c)) end = o;
+	if (islws(c)) end = o;
       } else {
-	if (!islspace__(c)) end = -1;
+	if (!islws(c)) end = -1;
       }
     }
     if (end < 0) end = o;
@@ -117,7 +113,7 @@ inline void split(ZuCSpan data, L &&l) {
       l(count++, ZuCSpan{&data[begin], unsigned(end - begin)});
     if (o >= n) break;
     // skip trailing linear white space
-    while (++o < n) if (!islspace__(data[o])) break;
+    while (++o < n) if (!islws(data[o])) break;
   }
 }
 
@@ -168,39 +164,56 @@ struct BodyEncoding {
 template <unsigned Bits>
 struct Message {
   IHeaders<Bits>	headers;
-  ZuCSpan		body;
+  unsigned		offset = 0;
+  bool			complete = false;
+
+  // following a previous parse() the buffer's memory address
+  // may have moved due to growth reallocation; if necessary
+  // rebase all previously parsed headers
+  void rebase(ptrdiff_t o) {
+    if (!o || !offset) return;	// not moved or nothing parsed yet
+    auto i = headers.iterator();
+    while (auto node = i.iterate()) {
+      node->template p<0>().rebase(o);
+      node->template p<1>().rebase(o);
+    }
+  }
 
   // parse headers
-  int parse(ZuSpan<char> data, unsigned offset) {
-    data.offset(offset);
+  int parse(ZuSpan<char> data) {
+    if (complete) return offset;
+    unsigned o = offset;
+    data.offset(o);
     for (;;) {
       if (data.length() < 2) return 0;
       if (data[0] == '\r' && data[1] == '\n') break;
-      int o = eok(data);
-      if (ZuUnlikely(o < 0)) return eol(data) < 0 ? 0 : -1; // unterminated key
-      ZuSpan key{&data[0], unsigned(o)};
-      offset += o + 1;
-      data.offset(o + 1); // skip key and delimiter
-      o = bov(data);
-      if (ZuUnlikely(o < 0)) return 0; // unterminated value
-      offset += o;
-      data.offset(o); // skip white space
-      o = eol(data);
-      if (ZuUnlikely(o < 0)) return 0; // unterminated value
-      ZuSpan value{&data[0], unsigned(o)};
-      offset += o + 2;
-      data.offset(o + 2); // skip value and EOL
-      o = eov(value);
-      if (ZuUnlikely(o < 0)) return -1; // should never happen
-      value.trunc(o);
+      int n = eok(data);
+      if (ZuUnlikely(n < 0)) return eol(data) < 0 ? 0 : -1; // unterminated key
+      ZuSpan key{&data[0], unsigned(n)};
+      o += n + 1;
+      data.offset(n + 1); // skip key and delimiter
+      n = bov(data);
+      if (ZuUnlikely(n < 0)) return 0; // unterminated value
+      o += n;
+      data.offset(n); // skip white space
+      n = eol(data);
+      if (ZuUnlikely(n < 0)) return 0; // unterminated value
+      ZuSpan value{&data[0], unsigned(n)};
+      o += n + 2;
+      data.offset(n + 2); // skip value and EOL
+      n = eov(value);
+      if (ZuUnlikely(n < 0)) return -1; // should never happen
+      value.trunc(n);
       normalize(key);
       headers.add(key, value);
+      offset = o;
     }
-    offset += 2;
+    o += 2;
     data.offset(2);
-    body = data;
+    offset = o;
+    complete = true;
 
-    return offset;
+    return o;
   }
 
   // if a body is expected, bodyEncoding() will parse and validate
@@ -232,99 +245,134 @@ struct Message {
 // 0   - incomplete
 // -1  - invalid / corrupt
  
-template <unsigned Bits>
+template <unsigned Bits = 7>
 struct Request : public Message<Bits> {
   ZuCSpan	method;		// e.g. GET
   ZuCSpan	path;		// path
   ZuCSpan	protocol;	// e.g. HTTP/1.1
 
+  using Message<Bits>::offset;
+
+  // rebase spans
+  void rebase(ptrdiff_t o) {
+    if (!o || !offset) return;
+    method.rebase(o);
+    path.rebase(o);
+    protocol.rebase(o);
+    Message<Bits>::rebase(o);
+  }
+
   // parse request
   int parse(ZuSpan<char> data) {
-    unsigned n = data.length();
-
-    if (ZuUnlikely(n < 27)) return 0; // shortest possible request length is 27
-
-    int o = 0; // intentionally int
-
-    for (o = 0; data[o] != ' '; )
-      if (ZuUnlikely(++o > 7)) return 0; // unterminated method
-    if (!o) return 0; // missing method
-    method = {&data[0], unsigned(o)};
-    unsigned b = ++o;
-    while (data[o] != ' ')
-      if (ZuUnlikely(++o >= n)) return 0; // unterminated path
-    if (ZuUnlikely(b == o)) return -1; // missing path
-    path = {&data[b], o - b};
-    b = ++o;
-    o = eol({&data[b], n - b});
-    if (ZuUnlikely(o < 0)) return 0; // unterminated protocol
-    protocol = {&data[b], unsigned(o)};
-    return Message<Bits>::parse(data, b + o + 2);
+    if (!offset) {
+      unsigned n = data.length();
+      if (ZuUnlikely(n < 27)) return 0; // shortest request length is 27
+      int o = 0; // intentionally int
+      for (o = 0; data[o] != ' '; )
+	if (ZuUnlikely(++o > 7)) return 0; // unterminated method
+      if (!o) return 0; // missing method
+      method = {&data[0], unsigned(o)};
+      unsigned b = ++o;
+      while (data[o] != ' ')
+	if (ZuUnlikely(++o >= n)) return 0; // unterminated path
+      if (ZuUnlikely(b == o)) return -1; // missing path
+      path = {&data[b], o - b};
+      b = ++o;
+      o = eol({&data[b], n - b});
+      if (ZuUnlikely(o < 0)) return 0; // unterminated protocol
+      protocol = {&data[b], unsigned(o)};
+      offset = b + o + 2;
+    }
+    return Message<Bits>::parse(data);
   }
 };
 
-template <unsigned Bits>
+template <unsigned Bits = 7>
 struct Response : public Message<Bits> {
   ZuCSpan	protocol;	// e.g. HTTP/1.1
   int		code = -1;	// e.g. 200
   ZuCSpan	reason;		// e.g. OK
 
+  using Message<Bits>::offset;
+
+  // rebase spans
+  void rebase(ptrdiff_t o) {
+    if (!o || !offset) return;
+    protocol.rebase(o);
+    reason.rebase(o);
+    Message<Bits>::rebase(o);
+  }
+
   // parse response line
   int parse(ZuSpan<char> data) { // returns offset to body, -1 if incomplete
-    unsigned n = data.length();
-
-    if (ZuUnlikely(n < 19)) return 0; // shortest possible response is 19
-
-    int o = 0; // intentionally int
-
-    for (o = 0; data[o] != ' '; )
-      if (ZuUnlikely(++o > 8)) return 0; // unterminated protocol
-    if (!o) return 0; // missing protocol
-    protocol = {&data[0], unsigned(o)};
-    unsigned b = ++o;
-    int c; // intentionally int
-    while ((c = data[o]) != ' ') {
-      if (c < '0' || c > '9') return -1; // not a number
-      c -= '0';
-      code = code < 0 ? c : (code * 10) + c;
-      if (ZuUnlikely(++o > b + 3)) return 0; // unterminated code
+    if (!offset) {
+      unsigned n = data.length();
+      if (ZuUnlikely(n < 19)) return 0; // shortest possible response is 19
+      int o = 0; // intentionally int
+      for (o = 0; data[o] != ' '; )
+	if (ZuUnlikely(++o > 8)) return 0; // unterminated protocol
+      if (!o) return 0; // missing protocol
+      protocol = {&data[0], unsigned(o)};
+      unsigned b = ++o;
+      int c; // intentionally int
+      while ((c = data[o]) != ' ') {
+	if (c < '0' || c > '9') return -1; // not a number
+	c -= '0';
+	code = code < 0 ? c : (code * 10) + c;
+	if (ZuUnlikely(++o > b + 3)) return 0; // unterminated code
+      }
+      if (ZuUnlikely(b == o)) return -1; // missing code
+      b = ++o;
+      o = eol({&data[b], n - b});
+      if (ZuUnlikely(o < 0)) return 0; // unterminated reason
+      reason = {&data[b], unsigned(o)};
+      offset = b + o + 2;
     }
-    if (ZuUnlikely(b == o)) return -1; // missing code
-    b = ++o;
-    o = eol({&data[b], n - b});
-    if (ZuUnlikely(o < 0)) return 0; // unterminated reason
-    reason = {&data[b], unsigned(o)};
-    return Message<Bits>::parse(data, b + o + 2);
+    return Message<Bits>::parse(data);
   }
 };
 
-// parse chunked length
+// parse chunk header
 // - returns {length, offset} where offset is offset to chunk data
-// - returns {-1, -1} if invalid/corrupt
+// - returns {0} if unterminated/incomplete
+// - returns {-1} if invalid/corrupt
 ZuInline constexpr uint8_t hex(uint8_t c) {
   c |= 0x20;
   return 
     (c >= 'a' && c <= 'f') ? (c - 'a') + 10 :
     (c >= '0' && c <= '9') ? c - '0' : 0xff;
 }
-inline ZuTuple<int, int> chunkLength(ZuCSpan data)
-{
-  unsigned o = 0, n = data.length();
-  if (n > 10) n = 10;
-  int len = 0;
-  while (o < n) {
-    auto c = data[o];
-    if (c == '\r') {
-      if (++o < n && data[o] == '\n' && len > 0) return {len, o + 1};
-      return {-1, -1};
+struct ChunkHdr {
+  int		offset = 0;
+  int		length = 0;
+
+  inline int parse(ZuCSpan data) {
+    unsigned o = 0, n = data.length();
+    if (n > 10) n = 10;
+    int len = 0;
+    while (o < n) {
+      auto c = data[o];
+      if (c == '\r') {
+	if (++o < n && data[o] == '\n') {
+	  if (len < 0 || o < 2) return offset = -1; // invalid
+	  length = len;
+	  return offset = o + 1;
+	}
+	if (o >= n && n < 10) return 0; // unterminated / incomplete
+	return offset = -1;
+      }
+      uint8_t i = hex(c);
+      if (i == 0xff) return offset = -1;
+      len = (len<<4) | i;
+      o++;
     }
-    uint8_t i = hex(c);
-    if (i == 0xff) return {-1, -1};
-    len = (len<<4) | i;
-    o++;
+    return offset = -1;
   }
-  return {-1, -1};
-}
+
+  bool complete() { return offset > 0; }
+  bool valid() { return offset >= 0; }
+  bool eob() { return !length; }
+};
 
 namespace Method {
   ZtEnumValues(Method, int8_t,

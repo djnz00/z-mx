@@ -113,21 +113,21 @@ template <auto Axor, typename Seq, typename T> struct ZuSeqCall_;
 template <auto Axor, unsigned ...I, typename T>
 struct ZuSeqCall_<Axor, ZuSeq<I...>, T> {
   template <typename L>
-  static decltype(auto) fn(const T &v, L l) {
-    return l(Axor.template operator ()<I>(v)...);
+  static decltype(auto) fn(const T &v, L &&l) {
+    return ZuFwd<L>(l)(Axor.template operator ()<I>(v)...);
   }
   template <typename L>
-  static decltype(auto) fn(T &v, L l) {
-    return l(Axor.template operator()<I>(v)...);
+  static decltype(auto) fn(T &v, L &&l) {
+    return ZuFwd<L>(l)(Axor.template operator()<I>(v)...);
   }
   template <typename L>
-  static decltype(auto) fn(T &&v, L l) {
-    return l(Axor.template operator()<I>(ZuMv(v))...);
+  static decltype(auto) fn(T &&v, L &&l) {
+    return ZuFwd<L>(l)(Axor.template operator()<I>(ZuMv(v))...);
   }
 };
 template <unsigned N, auto Axor = ZuDefaultAxor(), typename T, typename L>
-inline decltype(auto) ZuSeqCall(T &&v, L l) {
-  return ZuSeqCall_<Axor, ZuMkSeq<N>, ZuDecay<T>>::fn(ZuFwd<T>(v), ZuMv(l));
+inline decltype(auto) ZuSeqCall(T &&v, L &&l) {
+  return ZuSeqCall_<Axor, ZuMkSeq<N>, ZuDecay<T>>::fn(ZuFwd<T>(v), ZuFwd<L>(l));
 }
 
 #endif /* ZuSeq_HH */

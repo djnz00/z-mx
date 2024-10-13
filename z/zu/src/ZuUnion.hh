@@ -511,28 +511,28 @@ public:
   template <typename T> auto *ptr_() { return ptr_<Index<T>{}>(); }
 
   template <typename L>
-  auto dispatch(L l) & {
+  auto dispatch(L &&l) & {
     return ZuSwitch::dispatch<N>(type(), [this, &l](auto I) mutable {
       if constexpr (!ZuUnion_IsVoid<Type<I>>{})
-	return l(I, this->template p<I>());
+	return ZuFwd<L>(l)(I, this->template p<I>());
     });
   }
   template <typename L>
-  auto dispatch(L l) const & {
+  auto dispatch(L &&l) const & {
     return ZuSwitch::dispatch<N>(type(), [this, &l](auto I) mutable {
       if constexpr (!ZuUnion_IsVoid<Type<I>>{})
-	return l(I, this->template p<I>());
+	return ZuFwd<L>(l)(I, this->template p<I>());
     });
   }
   template <typename L>
-  auto dispatch(L l) && {
+  auto dispatch(L &&l) && {
     return ZuSwitch::dispatch<N>(type(), [this, &l](auto I) mutable {
       if constexpr (!ZuUnion_IsVoid<Type<I>>{})
-	return l(I, ZuMv(*this).template p<I>());
+	return ZuFwd<L>(l)(I, ZuMv(*this).template p<I>());
     });
   }
   template <typename L>
-  auto cdispatch(L l) const & { return dispatch(ZuMv(l)); }
+  auto cdispatch(L &&l) const & { return dispatch(ZuFwd<L>(l)); }
 
   // traits
   using Traits = ZuUnion_Traits<ZuBaseTraits<Union>, Ts...>;

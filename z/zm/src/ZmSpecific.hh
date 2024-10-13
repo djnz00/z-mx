@@ -222,9 +222,7 @@ public:
 #endif
 
   template <typename L>
-  void all_(L l) {
-    all_2(&l);
-  }
+  void all_(L l) { all_2(&l); }
 
   template <typename L>
   void all_2(L *l) {
@@ -465,7 +463,7 @@ public:
   }
 
   template <typename L>
-  static void all(L l) { return global()->all_(ZuMv(l)); }
+  static void all(L &&l) { return global()->all_(ZuFwd<L>(l)); }
 };
 
 // pass a function as the second parameter to limit scope

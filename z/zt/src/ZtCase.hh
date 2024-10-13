@@ -30,7 +30,7 @@ inline char tolower__(char c) {
 
 // lambda(const ZtString &s)
 template <typename L>
-inline void snakeCamel(ZuCSpan s, L l) {
+inline void snakeCamel(ZuCSpan s, L &&l) {
   unsigned n = s.length();
   unsigned o = 0;
   bool underscore = false;
@@ -69,12 +69,12 @@ inline void snakeCamel(ZuCSpan s, L l) {
   if (underscore) buf[j++] = '_';
   ZmAssert(j == m);
   ZtString r{&buf[0], m, z, false};
-  l(static_cast<const ZtString &>(r));	// r is on-stack
+  ZuFwd<L>(l)(static_cast<const ZtString &>(r)); // r is on-stack
 }
 
 // lambda(const ZtString &s)
 template <typename L>
-inline void camelSnake(ZuCSpan s, L l) {
+inline void camelSnake(ZuCSpan s, L &&l) {
   unsigned n = s.length();
   unsigned o = 0;
   for (unsigned i = 0; i < n; i++) {
@@ -96,7 +96,7 @@ inline void camelSnake(ZuCSpan s, L l) {
   }
   ZmAssert(j == m);
   ZtString r{&buf[0], m, z, false};
-  l(static_cast<const ZtString &>(r));	// r is on-stack
+  ZuFwd<L>(l)(static_cast<const ZtString &>(r)); // r is on-stack
 }
 
 }

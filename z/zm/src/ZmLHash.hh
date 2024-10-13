@@ -498,7 +498,7 @@ friend Iterator_;
     void reset() { hash.startIterate(*this); }
     const T *iterate() { return hash.iterate(*this); }
 
-    decltype(auto) iterateIKey() { return hash.iterateIKey(*this); }
+    decltype(auto) iterateKey() { return hash.iterateKey(*this); }
     decltype(auto) iterateVal() { return hash.iterateVal(*this); }
 
     unsigned count() const { return hash.count_(); }
@@ -538,7 +538,7 @@ template <typename> friend class KeyIterator_;
   public:
     void reset() { hash.startIterate(*this); }
     const T *iterate() { return hash.iterate(*this); }
-    decltype(auto) iterateIKey() { return hash.iterateIKey(*this); }
+    decltype(auto) iterateKey() { return hash.iterateKey(*this); }
     decltype(auto) iterateVal() { return hash.iterateVal(*this); }
   };
 

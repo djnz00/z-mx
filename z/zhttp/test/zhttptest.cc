@@ -124,16 +124,18 @@ int main()
 
   {
     Request<5> r;
-    CHECK(r.parse(request_) > 0);
+    auto o = r.parse(request_);
+    CHECK(o > 0);
+    CHECK(o == sizeof(request_) - 1);
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.path == "/");
     CHECK(r.method == "GET");
     CHECK(r.headers.findVal("Host") == "foo.com");
-    CHECK(r.body.length() == 0);
   }
   {
     Response<5> r;
-    CHECK(r.parse(response_) > 0);
+    auto o = r.parse(response_);
+    CHECK(o > 0);
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.code == 200);
     CHECK(r.reason == "OK");
@@ -143,16 +145,12 @@ int main()
     CHECK(!body.chunked);
     CHECK(body.transferEncoding < 0);
     CHECK(body.contentLength == 211);
-    CHECK(r.body.length() == 211);
+    CHECK(sizeof(response_) - o == 212);
   }
-  { auto [ length, offset ] = chunkLength("Aa0\r\n");
-    CHECK(length == 0xaa0 && offset == 5); }
-  { auto [ length, offset ] = chunkLength("Aa0 \r\n");
-    CHECK(length == -1 && offset == -1); }
-  { auto [ length, offset ] = chunkLength("\r\n");
-    CHECK(length == -1 && offset == -1); }
-  { auto [ length, offset ] = chunkLength("aaaaaaaa\r\n");
-    CHECK(length == -1 && offset == -1); }
-  { auto [ length, offset ] = chunkLength("aaaaaaaaa\r\n");
-    CHECK(length == -1 && offset == -1); }
+  { ChunkHdr hdr; CHECK(hdr.parse("Aa0\r\n") == 5 && hdr.length == 0xaa0); }
+  { ChunkHdr hdr; CHECK(hdr.parse("Aa0 \r\n") == -1 && !hdr.valid()); }
+  { ChunkHdr hdr; CHECK(hdr.parse("aaaaaaaa\r\n") == -1 && !hdr.valid()); }
+  { ChunkHdr hdr; CHECK(hdr.parse("aaaaaaaaa\r\n") == -1 && !hdr.valid()); }
+  { ChunkHdr hdr; CHECK(hdr.parse("\r\n") == -1 && !hdr.valid()); }
+  { ChunkHdr hdr; CHECK(hdr.parse("0\r\n") == 3 && hdr.eob() && hdr.valid()); }
 }

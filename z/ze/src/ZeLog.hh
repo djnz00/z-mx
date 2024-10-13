@@ -187,8 +187,8 @@ public:
     return new ZeSysSink(ZuFwd<Args>(args)...);
   }
   template <typename L>
-  static ZmRef<ZeSink> lambdaSink(L l) {
-    return new ZeLambdaSink<L>(ZuMv(l));
+  static ZmRef<ZeSink> lambdaSink(L &&l) {
+    return new ZeLambdaSink<L>(ZuFwd<L>(l));
   }
 
   static void init() {

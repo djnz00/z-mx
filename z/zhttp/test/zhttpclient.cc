@@ -10,6 +10,7 @@
 
 #include <zlib/ZtRegex.hh>
 #include <zlib/ZtArray.hh>
+#include <zlib/ZtHexDump.hh>
 
 #include <zlib/Ztls.hh>
 
@@ -28,8 +29,8 @@ struct App : public Ztls::Client<App> {
 	  << " TLS: " << tlsver << " ALPN: " << alpn << ")\n")
 	<< std::flush;
       ZtString request;
-      Zhttp::request(request, Method::GET, "/",
-	{ { "Host", "foo.com" },
+      Zhttp::request(request, Zhttp::Method::GET, "/",
+	{ { "Host", this->server() },
 	  { "User-Agent", "zhttptest/1.0" },
 	  { "Accept", "*/*" } }, {});
       // connected() is called in TLS thread
@@ -54,16 +55,20 @@ struct App : public Ztls::Client<App> {
 
     int process(const uint8_t *data, unsigned len) {
       if (!file) {
-	if (!response.headers.count()) {
-	  header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
-	  auto r = response.parse(header);
-	  if (r < 0) {
+	if (!response.complete) {
+	  {
+	    auto header_ = &header[0];
+	    header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
+	    if (header_) response.rebase(&header[0] - header_);
+	  }
+	  auto o = response.parse(header);
+	  if (o < 0) {
 	    std::cerr << "invalid HTTP response\n" << std::flush;
 	    return -1;
 	  }
-	  if (!r) return len;
-	  body << ZuCSpan{&header[r], header.length() - r};
-	  header.length(r);
+	  if (!o) return len;
+	  body << ZuCSpan{&header[o], header.length() - o};
+	  header.length(o);
 	  encoding = response.bodyEncoding();
 	  if (!encoding.valid) {
 	    std::cerr
@@ -75,18 +80,34 @@ struct App : public Ztls::Client<App> {
 	  body << ZuSpan<char>{const_cast<uint8_t *>(data), len};
 	}
 	if (encoding.contentLength >= 0) {
-	  if (body.length() >= encoding.contentLength) goto done;
+	  if (body.length() < encoding.contentLength) return len;
+	  dump(body);
+	  return -1;
+	} else {
+	  while (body) {
+	    if (!chunk.complete()) {
+	      chunk.parse(body);
+	      if (!chunk.complete()) return len; // incomplete chunk hdr
+	    }
+	    if (!chunk.valid()) { // invalid chunk hdr
+	      std::cerr << "invalid HTTP chunk length\n" << std::flush;
+	      return -1;
+	    }
+	    if (chunk.eob()) { // end of body
+	      dump(chunked);
+	      return -1;
+	    }
+	    if (body.length() < chunk.offset + chunk.length)
+	      return len; // incomplete chunk
+	    ZuCSpan chunk_ = body;
+	    chunk_.offset(chunk.offset);
+	    chunk_.trunc(chunk.length);
+	    chunked << chunk_;
+	    body.shift(chunk.offset + chunk.length + 2);
+	    chunk = {};
+	  }
 	  return len;
-	} 
-	// chunks
-done:
-	file = fopen("index.hdr", "w");
-	ZmAssert(file);
-	fwrite(header.data(), 1, header.length(), file);
-	fclose(file);
-	file = fopen("index.html", "w");
-	ZmAssert(file);
-	fwrite(body.data(), 1, body.length(), file);
+	}
       } else {
 	fwrite(data, 1, len, file);
 	if (length <= len) return -1;
@@ -95,14 +116,25 @@ done:
       return len;
     }
 
+    void dump(ZuCSpan body_) {
+      file = fopen("index.hdr", "w");
+      ZmAssert(file);
+      fwrite(header.data(), 1, header.length(), file);
+      fclose(file);
+      file = fopen("index.html", "w");
+      ZmAssert(file);
+      fwrite(body_.data(), 1, body_.length(), file);
+    }
+
     void close() {
       if (file) { fclose(file); file = nullptr; }
     }
 
     unsigned		length = 0;
-    ZtString		header, body;
-    ZHttp::Response	response;
-    ZHttp::BodyEncoding	encoding;
+    ZtString		header, body, chunked;
+    Zhttp::Response<>	response;
+    Zhttp::BodyEncoding	encoding;
+    Zhttp::ChunkHdr	chunk;
     FILE		*file = nullptr;
   };
 
@@ -113,7 +145,7 @@ done:
 
 void usage()
 {
-  std::cerr << "Usage: ZtlsClient SERVER PORT [CA]\n" << std::flush;
+  std::cerr << "Usage: zhttpclient SERVER PORT [CA]\n" << std::flush;
   ::exit(1);
 }
 
@@ -126,7 +158,7 @@ int main(int argc, char **argv)
 
   if (!port) usage();
 
-  ZeLog::init("ZtlsClient");
+  ZeLog::init("zhttpclient");
   ZeLog::level(0);
   ZeLog::sink(ZeLog::fileSink(ZeSinkOptions{}.path("&2")));
   ZeLog::start();

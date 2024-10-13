@@ -43,14 +43,15 @@ void backFill(ZTree &tree, unsigned cacheSize)
 void find(ZCache &cache, ZTree &tree, unsigned offset, unsigned batchSize)
 {
   for (unsigned i = 0; i < batchSize; i++)
-    cache.find(offset + i,
-	  [](ZCache::NodeRef) { },
-	  [&tree]<typename L>(unsigned key, L l) {
-	    if (auto node = tree.find(key))
-	      l(new ZNode{key, Z{node->val().v}});
-	    else
-	      l(nullptr);
-	  });
+    cache.find(
+      offset + i,
+      [](ZCache::NodeRef) { },
+      [&tree]<typename L>(unsigned key, L l) {
+	if (auto node = tree.find(key))
+	  l(new ZNode{key, Z{node->val().v}});
+	else
+	  l(nullptr);
+      });
 }
 
 void stats(const ZCache &cache)

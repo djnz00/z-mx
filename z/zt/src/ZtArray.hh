@@ -5,12 +5,14 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // heap-allocated dynamic array class
-// * explicitly contiguous
-// * lightweight, lean, fast
-// * uses ZmVHeap when not shadowing memory managed elsewhere
-// * provides direct read/write access to the buffer
-// * zero-copy and deep-copy
-// * ZtArray<T> where T is a byte is heavily overloaded as a string
+// - explicitly contiguous
+// - lightweight
+// - can shadow instead of owning/copying
+// - shadows string literals without copying
+// - uses ZmVHeap when not shadowing
+// - provides direct read/write access to the buffer
+// - zero-copy and deep-copy
+// - ZtArray<T> where T is a byte is heavily overloaded as a string
 
 // Note: use ZuArray<> for fixed-size arrays without heap overhead
 
@@ -824,12 +826,12 @@ public:
 
 // iteration - all() is const by default, all<true>() is mutable
   template <bool Mutable = false, typename L>
-  ZuIfT<!Mutable> all(L l) const {
-    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  ZuIfT<!Mutable> all(L &&l) const {
+    for (unsigned i = 0, n = length(); i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
   template <bool Mutable, typename L>
-  ZuIfT<Mutable> all(L l) {
-    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  ZuIfT<Mutable> all(L &&l) {
+    for (unsigned i = 0, n = length(); i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
 
 // STL cruft
@@ -1540,13 +1542,12 @@ public:
 // grep
 
   // l(item) -> bool // item is spliced out if true
-  template <typename L> void grep(L l) {
-    for (unsigned i = 0, n = length(); i < n; i++) {
-      if (l(m_data[i])) {
+  template <typename L> void grep(L &&l) {
+    for (unsigned i = 0, n = length(); i < n; i++)
+      if (ZuFwd<L>(l)(m_data[i])) {
 	splice_del_(0, i, 1);
 	--i, --n;
       }
-    }
   }
 
 // growth algorithm
@@ -1588,7 +1589,7 @@ public:
 
 private:
   uint32_t		m_size_owned;	// allocated size and owned flag
-  uint32_t		m_length_vallocd;// initialized length and malloc'd flag
+  uint32_t		m_length_vallocd;// initialized length and valloc'd flag
   T			*m_data;	// data buffer
 };
 

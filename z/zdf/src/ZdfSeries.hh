@@ -298,7 +298,7 @@ private:
     stop(); // do last
   }
 
-  template <typename L> void encoder(L l) { m_encoder = l(); }
+  template <typename L> void encoder(L &&l) { m_encoder = ZuFwd<L>(l)(); }
   bool encode(PValue value) { return m_encoder.write(value); }
 
   Series	*m_series = nullptr;

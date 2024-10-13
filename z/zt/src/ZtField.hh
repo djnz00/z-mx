@@ -1384,12 +1384,12 @@ namespace VecScan {
   // this is intentionally a 1-pass scan that does NOT validate the suffix;
   // lambda(ZuCSpan &s) should advance s with s.offset()
   template <typename L>
-  inline unsigned scan(ZuCSpan &s, const ZtFieldVFmt &fmt, L l) {
+  inline unsigned scan(ZuCSpan &s, const ZtFieldVFmt &fmt, L &&l) {
     auto begin = &s[0];
     skip(s);
     if (!match(s, fmt.vecPrefix)) return 0;
     skip(s);
-    while (l(s)) {
+    while (ZuFwd<L>(l)(s)) {
       skip(s);
       if (!match(s, fmt.vecDelim)) {
 	match(s, fmt.vecSuffix);

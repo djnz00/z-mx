@@ -323,35 +323,35 @@ private:
 public:
   // all() is const by default, but all<true>() empties the cache
   template <bool Delete = false, typename L>
-  ZuIfT<!Delete> all(L l) const {
+  ZuIfT<!Delete> all(L &&l) const {
     m_lock.lock();
-    const_cast<ZmCache *>(this)->all_<Delete, false>(ZuMv(l));
+    const_cast<ZmCache *>(this)->all_<Delete, false>(ZuFwd<L>(l));
   }
   template <bool Delete, typename L>
-  ZuIfT<Delete> all(L l) {
+  ZuIfT<Delete> all(L &&l) {
     m_lock.lock();
-    all_<Delete, false>(ZuMv(l));
+    all_<Delete, false>(ZuFwd<L>(l));
   }
 
   // allSync() synchronously blocks
   template <bool Delete = false, typename L>
-  ZuIfT<!Delete> allSync(L l) const {
+  ZuIfT<!Delete> allSync(L &&l) const {
     m_lock.lock();
-    const_cast<ZmCache *>(this)->all_<Delete, true>(ZuMv(l));
+    const_cast<ZmCache *>(this)->all_<Delete, true>(ZuFwd<L>(l));
   }
   template <bool Delete, typename L>
-  ZuIfT<Delete> allSync(L l) {
+  ZuIfT<Delete> allSync(L &&l) {
     m_lock.lock();
-    all_<Delete, true>(ZuMv(l));
+    all_<Delete, true>(ZuFwd<L>(l));
   }
 
 private:
   template <bool Delete, bool Sync, typename L>
-  bool all_(L l) {
+  bool all_(L &&l) {
     unsigned n = m_hash->count_();
     auto buf = ZmAlloc(NodeRef, n);
     if (!buf) return false;
-    all__<Delete, Sync>(ZuMv(l), buf, n);
+    all__<Delete, Sync>(ZuFwd<L>(l), buf, n);
     return true;
   }
   template <bool Delete>

@@ -253,14 +253,15 @@ public:
 
   // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  bool all(L l) {
+  bool all(L &&l) {
     for (unsigned i = 0, n = m_size; i < n; i++) {
       uint64_t w = m_data[index(i)];
       if (!w) continue;
       uint64_t m = Mask;
       for (unsigned j = 0; j < (1U<<IndexShift); j++) {
 	if (uint64_t v = (w & m))
-	  if (!l(m_head + (i<<IndexShift) + j, v>>(j<<Shift))) return false;
+	  if (!ZuFwd<L>(l)(m_head + (i<<IndexShift) + j, v>>(j<<Shift)))
+	    return false;
 	m <<= (1U<<Shift);
       }
     }
@@ -482,14 +483,14 @@ public:
 
   // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  bool all(L l) {
+  bool all(L &&l) {
     for (unsigned i = 0, k = 0, n = m_size; i < n; i++) {
       uint64_t w = m_data[index(i)];
       if (!w) continue;
       uint64_t m = Mask;
       for (unsigned j = 0, z = 0; j < IndexMul; j++, k++, z += Bits) {
 	if (uint64_t v = (w & m))
-	  if (!l(m_head + k, v>>z)) return false;
+	  if (!ZuFwd<L>(l)(m_head + k, v>>z)) return false;
 	m <<= Bits;
       }
     }
@@ -704,11 +705,11 @@ public:
 
   // l(unsigned index, unsigned value) -> bool
   template <typename L>
-  bool all(L l) {
+  bool all(L &&l) {
     for (unsigned i = 0, n = m_size; i < n; i++) {
       uint64_t v = m_data[index(i)];
       if (!v) continue;
-      if (!l(m_head + i, v)) return false;
+      if (!ZuFwd<L>(l)(m_head + i, v)) return false;
     }
     return true;
   }

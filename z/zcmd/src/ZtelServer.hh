@@ -257,9 +257,9 @@ public:
 
 private:
   template <typename L>
-  bool spawn(L l) {
+  bool spawn(L &&l) {
     if (!m_mx || !m_mx->running()) return false;
-    run(ZuMv(l));
+    run(ZuFwd<L>(l));
     return true;
   }
 

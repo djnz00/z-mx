@@ -42,18 +42,18 @@ namespace ZuSwitch {
 template <typename R, typename Seq> struct Dispatch;
 template <unsigned ...I> struct Dispatch<void, ZuSeq<I...>> {
   template <typename L>
-  static constexpr void fn(unsigned i, L l) {
+  static constexpr void fn(unsigned i, L &&l) {
     std::initializer_list<int>{
-      (i == I ? l(ZuUnsigned<I>{}), 0 : 0)...
+      (i == I ? ZuFwd<L>(l)(ZuUnsigned<I>{}), 0 : 0)...
     };
   }
 };
 template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
   template <typename L>
-  static constexpr R fn(unsigned i, L l) {
+  static constexpr R fn(unsigned i, L &&l) {
     R r = {};
     std::initializer_list<int>{
-      (i == I ? (r = l(ZuUnsigned<I>{})), 0 : 0)...
+      (i == I ? (r = ZuFwd<L>(l)(ZuUnsigned<I>{})), 0 : 0)...
     };
     return r;
   }
@@ -61,16 +61,16 @@ template <typename R, unsigned ...I> struct Dispatch<R, ZuSeq<I...>> {
 #pragma GCC diagnostic pop
 
 template <unsigned N, typename L>
-constexpr decltype(auto) dispatch(unsigned i, L l) {
-  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
-  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
+constexpr decltype(auto) dispatch(unsigned i, L &&l) {
+  using R = ZuDecay<decltype(ZuFwd<L>(l)(ZuUnsigned<0>{}))>;
+  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuFwd<L>(l));
 }
 
 template <unsigned N, typename L, typename D>
-constexpr decltype(auto) dispatch(unsigned i, L l, D d) {
-  using R = ZuDecay<decltype(l(ZuUnsigned<0>{}))>;
+constexpr decltype(auto) dispatch(unsigned i, L &&l, D d) {
+  using R = ZuDecay<decltype(ZuFwd<L>(l)(ZuUnsigned<0>{}))>;
   if (ZuUnlikely(i >= N)) return d();
-  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuMv(l));
+  return Dispatch<R, ZuMkSeq<N>>::fn(i, ZuFwd<L>(l));
 }
 
 } // ZuSwitch

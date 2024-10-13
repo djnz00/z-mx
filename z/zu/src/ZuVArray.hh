@@ -133,12 +133,12 @@ friend Elem;
 
 // iteration - all() is const by default, all<true>() is mutable
   template <bool Mutable = false, typename L>
-  ZuIfT<!Mutable> all(L l) const {
-    for (unsigned i = 0, n = m_length; i < n; i++) l((*this)[i]);
+  ZuIfT<!Mutable> all(L &&l) const {
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)((*this)[i]);
   }
   template <bool Mutable, typename L>
-  ZuIfT<Mutable> all(L l) {
-    for (unsigned i = 0, n = m_length; i < n; i++) l((*this)[i]);
+  ZuIfT<Mutable> all(L &&l) {
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)((*this)[i]);
   }
 
   bool equals(const Array &r) const {

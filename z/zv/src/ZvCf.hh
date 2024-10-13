@@ -396,8 +396,8 @@ public:
   }
   // generic assure() - sets to a specified default value if unset
   template <typename T, typename L>
-  const T &assure_(L l) { // not required, set default if unset
-    if (!data.is<T>()) data.p<T>(l());
+  const T &assure_(L &&l) { // not required, set default if unset
+    if (!data.is<T>()) data.p<T>(ZuFwd<L>(l)());
     return data.p<T>();
   }
 
@@ -406,22 +406,24 @@ public:
   const ZtString &get() const { return get_<ZtString, Required_>(); }
   ZtString get(ZtString deflt) const { return get_<ZtString>(ZuMv(deflt)); }
   template <typename L>
-  const ZtString &assure(L l) { return assure_<ZtString>(ZuMv(l)); }
+  const ZtString &assure(L &&l) { return assure_<ZtString>(ZuFwd<L>(l)); }
   // get/assure ZtArray<ZtString>
   template <bool Required_ = false>
   const StrArray &getStrArray() const { return get_<StrArray, Required_>(); }
   template <typename L>
-  const StrArray &assureStrArray(L l) { return assure_<StrArray>(ZuMv(l)); }
+  const StrArray &assureStrArray(L &&l) {
+    return assure_<StrArray>(ZuFwd<L>(l));
+  }
   // get/assure ZmRef<Cf>
   template <bool Required_ = false>
   const ZmRef<Cf> &getCf() const { return get_<ZmRef<Cf>, Required_>(); }
   template <typename L>
-  const ZmRef<Cf> &assureCf(L l) { return assure_<ZmRef<Cf>>(ZuMv(l)); }
+  const ZmRef<Cf> &assureCf(L &&l) { return assure_<ZmRef<Cf>>(ZuFwd<L>(l)); }
   // get/assure ZtArray<ZmRef<Cf>>
   template <bool Required_ = false>
   const CfArray &getCfArray() const { return get_<CfArray, Required_>(); }
   template <typename L>
-  const CfArray &assureCfArray(L l) { return assure_<CfArray>(ZuMv(l)); }
+  const CfArray &assureCfArray(L &&l) { return assure_<CfArray>(ZuFwd<L>(l)); }
 
   // generic set/get/assure array element
   template <typename T, typename P>
@@ -448,9 +450,9 @@ public:
     return elems.get(i);
   }
   template <typename T, typename L>
-  const typename T::T &assureElem(unsigned i, L l) {
+  const typename T::T &assureElem(unsigned i, L &&l) {
     if (!data.is<T>()) new (data.new_<T>()) T{};
-    if (i >= data.p<T>().length()) data.p<T>().set(i, l());
+    if (i >= data.p<T>().length()) data.p<T>().set(i, ZuFwd<L>(l)());
     return data.p<T>().get(i);
   }
 
@@ -759,8 +761,8 @@ public:
     return deflt;
   }
   template <typename L>
-  const ZtString &assure(ZuCSpan key, L l) {
-    return mkNode(key)->assure(ZuMv(l));
+  const ZtString &assure(ZuCSpan key, L &&l) {
+    return mkNode(key)->assure(ZuFwd<L>(l));
   }
 
   // set/get/assure StrArray
@@ -773,8 +775,8 @@ public:
     return ZuNullRef<StrArray>();
   }
   template <typename L>
-  const StrArray &assureStrArray(ZuCSpan key, L l) {
-    return mkNode(key)->assureStrArray(ZuMv(l));
+  const StrArray &assureStrArray(ZuCSpan key, L &&l) {
+    return mkNode(key)->assureStrArray(ZuFwd<L>(l));
   }
 
   // set/get/assure ZmRef<Cf>
@@ -788,8 +790,8 @@ public:
     return ZuNullRef<ZmRef<Cf>>();
   }
   template <typename L>
-  const ZmRef<Cf> &assureCf(ZuCSpan key, L l) {
-    return mkNode(key)->assureCf(ZuMv(l));
+  const ZmRef<Cf> &assureCf(ZuCSpan key, L &&l) {
+    return mkNode(key)->assureCf(ZuFwd<L>(l));
   }
 
   // set/get/assure CfArray
@@ -802,8 +804,8 @@ public:
     return ZuNullRef<CfArray>();
   }
   template <typename L>
-  const CfArray &assureCfArray(ZuCSpan key, L l) {
-    return mkNode(key)->assureCfArray(ZuMv(l));
+  const CfArray &assureCfArray(ZuCSpan key, L &&l) {
+    return mkNode(key)->assureCfArray(ZuFwd<L>(l));
   }
 
   // unset node
@@ -811,9 +813,9 @@ public:
 
   // iterate over nodes
   template <typename L>
-  void all(L l) {
+  void all(L &&l) {
     auto i = m_tree.iterator();
-    while (auto node = i.iterate()) l(node);
+    while (auto node = i.iterate()) ZuFwd<L>(l)(node);
   }
 
   // clean tree

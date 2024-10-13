@@ -126,18 +126,18 @@ private:
     return (u >= '\t' && u <= '\r') || u == ' ' || iswspace__(u);
   }
   template <typename L>
-  bool fwd(unsigned &off, unsigned n, L l) const {
+  bool fwd(unsigned &off, unsigned n, L &&l) const {
     uint32_t u;
     while (off < n) {
       auto o = ZuUTF8::in(&m_data[off], n - off, u);
       if (ZuUnlikely(!o)) return false;
-      if (l(u)) return true;
+      if (ZuFwd<L>(l)(u)) return true;
       off += o;
     }
     return false;
   }
   template <typename L>
-  bool rev(unsigned &off, L l) const {
+  bool rev(unsigned &off, L &&l) const {
     unsigned n = off;
     uint32_t u;
     while (off > 0) {
@@ -145,7 +145,7 @@ private:
       off -= m_bytes[off].off();
       auto o = ZuUTF8::in(&m_data[off], n - off, u);
       if (ZuUnlikely(!o)) u = 0;
-      if (l(u)) return true;
+      if (ZuFwd<L>(l)(u)) return true;
     }
     return false;
   }

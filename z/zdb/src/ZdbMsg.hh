@@ -66,12 +66,12 @@ inline int loadHdr(const Buf *buf) {
 
 // returns -1 if the header is invalid/corrupted, or lambda return
 template <typename Buf, typename L>
-inline int verifyHdr(ZmRef<Buf> buf, L l) {
+inline int verifyHdr(ZmRef<Buf> buf, L &&l) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
   auto hdr = buf->template ptr<Hdr>();
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
-  int i = l(hdr, ZuMv(buf));
+  int i = ZuFwd<L>(l)(hdr, ZuMv(buf));
   if (i < 0) return i;
   return sizeof(Hdr) + i;
 }

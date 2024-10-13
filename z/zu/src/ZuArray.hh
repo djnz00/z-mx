@@ -371,14 +371,14 @@ public:
 
 // iteration
   template <bool Mutable = false, typename L>
-  ZuIfT<!Mutable> all(L l) const {
+  ZuIfT<!Mutable> all(L &&l) const {
     auto data_ = data();
-    for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)(data_[i]);
   }
   template <bool Mutable, typename L>
-  ZuIfT<Mutable> all(L l) {
+  ZuIfT<Mutable> all(L &&l) {
     auto data_ = data();
-    for (unsigned i = 0, n = m_length; i < n; i++) l(data_[i]);
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)(data_[i]);
   }
 
 // STL cruft

@@ -75,24 +75,24 @@ inline int loadHdr(const ZiIOBuf *buf) {
 // returns -1 if the header is invalid/corrupted, or lambda return
 // - async version - advances buffer past header and moves it to lambda
 template <typename L>
-inline int verifyHdr(ZmRef<ZiIOBuf> buf, L l) {
+inline int verifyHdr(ZmRef<ZiIOBuf> buf, L &&l) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
   auto hdr = reinterpret_cast<const Hdr *>(buf->data());
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
   buf->advance(sizeof(Hdr));
   // -ve - disconnect; 0 - skip remaining data; +ve - continue to next frame
-  return l(hdr, ZuMv(buf));
+  return ZuFwd<L>(l)(hdr, ZuMv(buf));
 }
 // returns -1 if the header is invalid/corrupted, or lambda return
 // - sync version - does not mutate buffer
 template <typename L>
-inline int verifyHdrSync(const ZiIOBuf *buf, L l) {
+inline int verifyHdrSync(const ZiIOBuf *buf, L &&l) {
   if (ZuUnlikely(buf->length < sizeof(Hdr))) return -1;
   auto hdr = reinterpret_cast<const Hdr *>(buf->data());
   unsigned length = hdr->length;
   if (length > (buf->length - sizeof(Hdr))) return -1;
-  int i = l(hdr, buf);
+  int i = ZuFwd<L>(l)(hdr, buf);
   if (i <= 0) return i;
   return sizeof(Hdr) + i;
 }

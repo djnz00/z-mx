@@ -28,10 +28,10 @@ namespace ZmBlock_ {
 template <typename ...Args> struct ZmBlock {
   using R = ZuTuple<Args...>;
   template <typename L>
-  R operator ()(L l) const {
+  R operator ()(L &&l) const {
     R r;
     auto &sem = ZmBlock_::sem();
-    l([&sem, &r](Args... args) mutable {
+    ZuFwd<L>(l)([&sem, &r](Args... args) mutable {
       r = ZuMvTuple(ZuMv(args)...);
       sem.post();
     });
@@ -56,10 +56,10 @@ template <typename ...Args> struct ZmBlock {
 template <typename Arg> struct ZmBlock<Arg> {
   using R = Arg;
   template <typename L>
-  R operator ()(L l) const {
+  R operator ()(L &&l) const {
     R r;
     auto &sem = ZmBlock_::sem();
-    l([&sem, &r](Arg arg) mutable {
+    ZuFwd<L>(l)([&sem, &r](Arg arg) mutable {
       r = ZuMv(arg);
       sem.post();
     });
@@ -83,16 +83,17 @@ template <typename Arg> struct ZmBlock<Arg> {
 };
 template <> struct ZmBlock<> {
   template <typename L>
-  void operator ()(L l) const {
+  void operator ()(L &&l) const {
     auto &sem = ZmBlock_::sem();
-    l([&sem]() mutable { sem.post(); });
+    ZuFwd<L>(l)([&sem]() mutable { sem.post(); });
     sem.wait();
     return;
   }
   template <typename L>
-  void operator ()(unsigned n, L l) const {
+  void operator ()(unsigned n, L &&l) const {
     auto &sem = ZmBlock_::sem();
-    for (unsigned i = 0; i < n; i++) l(i, [&sem]() mutable { sem.post(); });
+    for (unsigned i = 0; i < n; i++)
+      ZuFwd<L>(l)(i, [&sem]() mutable { sem.post(); });
     for (unsigned i = 0; i < n; i++) sem.wait();
     return;
   }

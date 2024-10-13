@@ -110,12 +110,12 @@ public:
 
 // iteration
   template <bool Mutable = false, typename L>
-  ZuIfT<!Mutable> all(L l) const {
-    for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
+  ZuIfT<!Mutable> all(L &&l) const {
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
   template <bool Mutable, typename L>
-  ZuIfT<Mutable> all(L l) {
-    for (unsigned i = 0, n = m_length; i < n; i++) l(m_data[i]);
+  ZuIfT<Mutable> all(L &&l) {
+    for (unsigned i = 0, n = m_length; i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
 
 // STL cruft

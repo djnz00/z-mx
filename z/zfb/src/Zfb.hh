@@ -152,11 +152,11 @@ namespace Save {
   }
   // iterated creation of a vector of primitive values
   template <typename T, typename Builder, typename L>
-  inline Offset<Vector<T>> pvectorIter(Builder &fbb, unsigned n, L l) {
+  inline Offset<Vector<T>> pvectorIter(Builder &fbb, unsigned n, L &&l) {
     T *buf = nullptr;
     auto r = pvector_(fbb, n, buf);
     if (r.IsNull() || !buf) return {};
-    for (unsigned i = 0; i < n; i++) buf[i] = EndianScalar<T>(l(i));
+    for (unsigned i = 0; i < n; i++) buf[i] = EndianScalar<T>(ZuFwd<L>(l)(i));
     return r;
   }
 
@@ -189,10 +189,10 @@ namespace Save {
   }
   // iterated creation of a vector of offsets
   template <typename T, typename Builder, typename L>
-  inline Offset<Vector<Offset<T>>> vectorIter(Builder &fbb, unsigned n, L l) {
+  inline Offset<Vector<Offset<T>>> vectorIter(Builder &fbb, unsigned n, L &&l) {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    for (unsigned i = 0; i < n; i++) buf.ptr[i] = l(fbb, i);
+    for (unsigned i = 0; i < n; i++) buf.ptr[i] = ZuFwd<L>(l)(fbb, i);
     auto r = fbb.CreateVector(buf.ptr, n);
     return r;
   }
@@ -200,10 +200,10 @@ namespace Save {
   // iterated creation of a vector of structs
   template <typename T, typename Builder, typename L>
   inline Offset<Vector<const T *>>
-  structVecIter(Builder &fbb, unsigned n, L l) {
+  structVecIter(Builder &fbb, unsigned n, L &&l) {
     return fbb.template CreateVectorOfStructs<T>(n,
-      [l = ZuMv(l)](size_t i, T *ptr, void *) {
-	l(ptr, i);
+      [&l](size_t i, T *ptr, void *) {
+	ZuFwd<L>(l)(ptr, i);
       }, static_cast<void *>(nullptr));
   }
 
@@ -229,10 +229,10 @@ namespace Save {
   }
   // iterated creation of a vector of lambda-transformed keyed offsets
   template <typename T, typename Builder, typename L>
-  inline Offset<Vector<Offset<T>>> keyVecIter(Builder &fbb, unsigned n, L l) {
+  inline Offset<Vector<Offset<T>>> keyVecIter(Builder &fbb, unsigned n, L &&l) {
     auto buf = ZmAlloc(Offset<T>, n);
     if (!buf) return {};
-    for (unsigned i = 0; i < n; i++) buf[i] = l(fbb, i);
+    for (unsigned i = 0; i < n; i++) buf[i] = ZuFwd<L>(l)(fbb, i);
     auto r = fbb.CreateVectorOfSortedTables(buf.ptr, n);
     return r;
   }
@@ -259,10 +259,10 @@ namespace Save {
   }
   // iterated creation of a vector of strings
   template <typename Builder, typename L>
-  inline auto strVecIter(Builder &fbb, unsigned n, L l) {
+  inline auto strVecIter(Builder &fbb, unsigned n, L &&l) {
     return vectorIter<String>(fbb, n,
-      [l = ZuMv(l)](Builder &fbb, unsigned i) mutable {
-	return str(fbb, l(i));
+      [&l](Builder &fbb, unsigned i) mutable {
+	return str(fbb, ZuFwd<L>(l)(i));
       });
   }
 
@@ -370,9 +370,9 @@ namespace Save {
     }
   }
   template <typename L>
-  inline Offset<Vector<uint8_t>> nest(Builder &fbb, L l) {
+  inline Offset<Vector<uint8_t>> nest(Builder &fbb, L &&l) {
     auto o = fbb.GetSize();
-    uoffset_t root = l(fbb).o;
+    uoffset_t root = ZuFwd<L>(l)(fbb).o;
     fbb.PreAlign(sizeof(uoffset_t), Nest::alignment(fbb));
     fbb.PushElement(fbb.ReferTo(root));
     o = fbb.GetSize() - o;
@@ -384,9 +384,10 @@ namespace Save {
 namespace Load {
   // shorthand iteration over flatbuffer [T] vectors
   template <typename T, typename L>
-  inline void all(T *v, L l) {
+  inline void all(T *v, L &&l) {
     if (ZuLikely(v))
-      for (unsigned i = 0, n = v->size(); i < n; i++) l(i, v->Get(i));
+      for (unsigned i = 0, n = v->size(); i < n; i++)
+	ZuFwd<L>(l)(i, v->Get(i));
   }
 
   // inline zero-copy conversion of a FB string to a ZuCSpan
@@ -533,10 +534,10 @@ namespace Load {
     void add(ZuCSpan s, T v) { m_s2v.add(s, v); } \
   private: \
     T s2v_(ZuCSpan s) const { return m_s2v.findVal(s); } \
-    template <typename L> void all_(L l) const { \
+    template <typename L> void all_(L &&l) const { \
       auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
-	l(S2V::KeyAxor(*kv), S2V::ValAxor(*kv)); \
+	ZuFwd<L>(l)(S2V::KeyAxor(*kv), S2V::ValAxor(*kv)); \
       } \
     } \
   public: \
@@ -548,7 +549,9 @@ namespace Load {
       return fbs::EnumName##Enum(static_cast<FBEnum>(v)); \
     } \
     static T s2v(ZuCSpan s) { return instance()->s2v_(s); } \
-    template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
+    template <typename L> static void all(L &&l) { \
+      instance()->all_(ZuFwd<L>(l)); \
+    } \
   private: \
     S2V	m_s2v; \
   }; \

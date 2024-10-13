@@ -88,8 +88,8 @@ struct ZmAPI ZmSchedParams {
   ZmSchedParams &&startTimer(bool b) { m_startTimer = b; return ZuMv(*this); }
 
   template <typename L>
-  ZmSchedParams &&thread(unsigned sid, L l) {
-    l(m_threads[sid]);
+  ZmSchedParams &&thread(unsigned sid, L &&l) {
+    ZuFwd<L>(l)(m_threads[sid]);
     return ZuMv(*this);
   }
   Thread &thread(unsigned sid) { return m_threads[sid]; }
@@ -271,10 +271,7 @@ public:
   // del(timer) - cancel timer
 
   template <typename L>
-  void add(L l) {
-    Fn fn{l};
-    add_(fn);
-  }
+  void add(L l) { Fn fn{l}; add_(fn); }
 
   template <typename L>
   void add(L l, ZuTime timeout) {

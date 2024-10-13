@@ -38,18 +38,18 @@ template <typename, typename> struct All;
 
 template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
   template <typename L>
-  static constexpr R fn(L l) {
+  static constexpr R fn(L &&l) {
     R r;
     std::initializer_list<int>{
-      ((r = l(ZuUnsigned<I>{})), 0)...
+      ((r = ZuFwd<L>(l)(ZuUnsigned<I>{})), 0)...
     };
     return r;
   }
   // map/reduce all()
   template <typename L>
-  static constexpr R fn(R r, L l) {
+  static constexpr R fn(R r, L &&l) {
     std::initializer_list<int>{
-      ((r = l(ZuUnsigned<I>{}, r)), 0)...
+      ((r = ZuFwd<L>(l)(ZuUnsigned<I>{}, r)), 0)...
     };
     return r;
   }
@@ -57,18 +57,18 @@ template <typename R, unsigned ...I> struct All<R, ZuSeq<I...>> {
 
 template <typename R, typename ...Ts> struct All<R, ZuTypeList<Ts...>> {
   template <typename L>
-  static constexpr R fn(L l) {
+  static constexpr R fn(L &&l) {
     R r;
     std::initializer_list<int>{
-      ((r = l.template operator()<Ts>()), 0)...
+      ((r = ZuFwd<L>(l).template operator()<Ts>()), 0)...
     };
     return r;
   }
   // map/reduce all()
   template <typename L>
-  static constexpr R fn(R r, L l) {
+  static constexpr R fn(R r, L &&l) {
     std::initializer_list<int>{
-      ((r = l.template operator()<Ts>(r)), 0)...
+      ((r = ZuFwd<L>(l).template operator()<Ts>(r)), 0)...
     };
     return r;
   }
@@ -76,18 +76,18 @@ template <typename R, typename ...Ts> struct All<R, ZuTypeList<Ts...>> {
 
 template <unsigned ...I> struct All<void, ZuSeq<I...>> {
   template <typename L>
-  static constexpr void fn(L l) {
+  static constexpr void fn(L &&l) {
     std::initializer_list<int>{
-      (l(ZuUnsigned<I>{}), 0)...
+      (ZuFwd<L>(l)(ZuUnsigned<I>{}), 0)...
     };
   }
 };
 
 template <typename ...Ts> struct All<void, ZuTypeList<Ts...>> {
   template <typename L>
-  static constexpr void fn(L l) {
+  static constexpr void fn(L &&l) {
     std::initializer_list<int>{
-      (l.template operator()<Ts>(), 0)...
+      (ZuFwd<L>(l).template operator()<Ts>(), 0)...
     };
   }
 };
@@ -126,22 +126,22 @@ template <typename ...Ts, typename L> struct Deduce<ZuTypeList<Ts...>, L> {
 };
 
 template <typename List, typename L>
-constexpr decltype(auto) all(L l) {
-  return All<typename Deduce<List, L>::R, List>::fn(ZuMv(l));
+constexpr decltype(auto) all(L &&l) {
+  return All<typename Deduce<List, L>::R, List>::fn(ZuFwd<L>(l));
 }
 template <unsigned N, typename L>
-constexpr decltype(auto) all(L l) {
-  return all<ZuMkSeq<N>>(ZuMv(l));
+constexpr decltype(auto) all(L &&l) {
+  return all<ZuMkSeq<N>>(ZuFwd<L>(l));
 }
 
 // map/reduce all() - caller supplies initial value of accumulator
 template <typename List, typename R, typename L>
-constexpr decltype(auto) all(R r, L l) {
-  return All<R, List>::fn(ZuMv(r), ZuMv(l));
+constexpr decltype(auto) all(R r, L &&l) {
+  return All<R, List>::fn(ZuMv(r), ZuFwd<L>(l));
 }
 template <unsigned N, typename R, typename L>
-constexpr decltype(auto) all(R r, L l) {
-  return all<ZuMkSeq<N>>(ZuMv(r), ZuMv(l));
+constexpr decltype(auto) all(R r, L &&l) {
+  return all<ZuMkSeq<N>>(ZuMv(r), ZuFwd<L>(l));
 }
 
 } // ZuUnroll

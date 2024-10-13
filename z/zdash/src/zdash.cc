@@ -926,12 +926,14 @@ public:
       return false;
     }
     template <typename L>
-    bool shift(L l) {
+    bool shift(L &&l) {
       if (const void *ptr = Base::shift()) {
 	auto hdr = reinterpret_cast<const Hdr *>(ptr);
 	CliLink_ *cliLink = reinterpret_cast<CliLink_ *>(hdr->cliLink);
 	unsigned n = hdr->length;
-	l(cliLink, ZuSpan{static_cast<const uint8_t *>(ptr) + sizeof(Hdr), n});
+	ZuFwd<L>(l)(
+	  cliLink,
+	  ZuSpan{static_cast<const uint8_t *>(ptr) + sizeof(Hdr), n});
 	shift2(n + sizeof(Hdr));
 	return true;
       }

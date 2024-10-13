@@ -917,15 +917,15 @@ public:
 // clean tree
 
   void clean() { clean([](auto) { }); }
-  template <typename L> void clean(L l) {
+  template <typename L> void clean(L &&l) {
     Guard guard(m_lock);
-    clean_(ZuMv(l));
+    clean_(ZuFwd<L>(l));
     m_minimum = m_maximum = m_root = nullptr;
     m_count = 0;
   }
 private:
   void clean_() { clean_([](auto) { }); }
-  template <typename L> void clean_(L l) {
+  template <typename L> void clean_(L &&l) {
     Node *node = m_minimum, *next;
     if (!node) return;
     do {
@@ -943,7 +943,7 @@ private:
 	} else
 	  next->NodeExt::right(nullptr);
       }
-      l(NodeMvRef{nodeAcquire(node)});
+      ZuFwd<L>(l)(NodeMvRef{nodeAcquire(node)});
       node = next;
     } while (node);
   }

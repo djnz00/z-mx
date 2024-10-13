@@ -593,7 +593,10 @@ struct ZiMxParams {
   ZmSchedParams &scheduler() { return m_scheduler; }
 
   template <typename L>
-  ZiMxParams &&scheduler(L l) { l(m_scheduler); return ZuMv(*this); }
+  ZiMxParams &&scheduler(L &&l) {
+    ZuFwd<L>(l)(m_scheduler);
+    return ZuMv(*this);
+  }
 
   unsigned rxThread() const { return m_rxThread; }
   unsigned txThread() const { return m_txThread; }
@@ -1008,9 +1011,7 @@ public:
   static ZiMxMgr *instance();
 
   template <typename L>
-  static void all(L l) {
-    instance()->all_(ZuMv(l));
-  }
+  static void all(L &&l) { instance()->all_(ZuFwd<L>(l)); }
 
   static ZiMultiplex *find(ZuID id);
 
@@ -1019,9 +1020,9 @@ private:
   static void del(ZiMultiplex *);
 
   template <typename L>
-  void all_(L l) const {
+  void all_(L &&l) const {
     auto i = m_map.readIterator();
-    while (auto mx = i.iterateVal()) l(mx);
+    while (auto mx = i.iterateVal()) ZuFwd<L>(l)(mx);
   }
 
 private:

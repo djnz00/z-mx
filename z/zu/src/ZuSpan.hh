@@ -271,6 +271,10 @@ public:
     }
   }
 
+  void rebase(ptrdiff_t offset) const {
+    const_cast<ZuSpan *>(this)->m_data += offset;
+  }
+
 private:
   bool equals_(const ZuSpan &v) const {
     unsigned l = length();
@@ -317,12 +321,12 @@ public:
 
 // iteration - all() is const by default, all<true>() is mutable
   template <bool Mutable = false, typename L>
-  ZuIfT<!Mutable> all(L l) const {
-    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  ZuIfT<!Mutable> all(L &&l) const {
+    for (unsigned i = 0, n = length(); i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
   template <bool Mutable, typename L>
-  ZuIfT<Mutable> all(L l) {
-    for (unsigned i = 0, n = length(); i < n; i++) l(m_data[i]);
+  ZuIfT<Mutable> all(L &&l) {
+    for (unsigned i = 0, n = length(); i < n; i++) ZuFwd<L>(l)(m_data[i]);
   }
 
 // STL cruft
@@ -350,7 +354,7 @@ template <typename T> class ZuSpan_Null {
 
   void offset(unsigned n) { }
 
-  template <typename L> void all(L l) { }
+  template <typename L> void all(L &&) { }
 };
 
 template <typename Cmp>

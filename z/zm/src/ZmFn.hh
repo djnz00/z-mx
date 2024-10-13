@@ -87,7 +87,7 @@
 #include <zlib/ZmFn_.hh>
 #include <zlib/ZmHeap.hh>
 
-// stateful lambda wrapper (heap-allocated)
+// stateful heap-allocated lambda wrapper
 template <typename Heap, typename L, typename ArgList> struct ZmLambda_;
 template <typename Heap, typename L, typename ...Args>
 struct ZmLambda_<Heap, L, ZuTypeList<Args...>> :

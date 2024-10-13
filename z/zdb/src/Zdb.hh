@@ -1807,9 +1807,9 @@ private:
 
   void allDone(bool ok);
 
-  template <typename L> void all_(L l) const {
+  template <typename L> void all_(L &&l) const {
     auto i = m_tables.readIterator();
-    while (auto table = i.iterateVal()) l(table);
+    while (auto table = i.iterateVal()) ZuFwd<L>(l)(table);
   }
 
   // debug printing

@@ -107,9 +107,9 @@ inline unsigned vecSize(unsigned n, unsigned size) {
 }
 // return total size of an array buffer (variable-size elements)
 template <typename L>
-inline unsigned vecVarSize(unsigned n, L l) {
+inline unsigned vecVarSize(unsigned n, L &&l) {
   unsigned size = 0;
-  for (unsigned i = 0; i < n; i++) size += l(i);
+  for (unsigned i = 0; i < n; i++) size += ZuFwd<L>(l)(i);
   return sizeof(VecHdr) + n * sizeof(VecElem) + size;
 }
 // initialize array header
@@ -119,10 +119,10 @@ inline void vecInit(ZuSpan<uint8_t> &buf, unsigned oid, unsigned n) {
 }
 // append array element
 template <typename L>
-inline void vecAppend(ZuSpan<uint8_t> &buf, unsigned length, L l) {
+inline void vecAppend(ZuSpan<uint8_t> &buf, unsigned length, L &&l) {
   new (buf.data()) VecElem{length};
   buf.offset(sizeof(VecElem));
-  l(buf.data(), length);
+  ZuFwd<L>(l)(buf.data(), length);
   buf.offset(length);
 }
 // read array header (advances buf)
@@ -143,13 +143,13 @@ inline int validateVecHdr(const VecHdr *hdr)
 }
 // read array element (advances buf)
 template <typename L>
-inline auto vecElem(ZuSpan<const uint8_t> &buf, L l) {
+inline auto vecElem(ZuSpan<const uint8_t> &buf, L &&l) {
   auto elem = reinterpret_cast<const VecElem *>(buf.data());
   unsigned length = elem->length;
   buf.offset(sizeof(VecElem));
   auto ptr = buf.data();
   buf.offset(length);
-  return l(ptr, length);
+  return ZuFwd<L>(l)(ptr, length);
 }
 
 // Note: all the types comprising the Value<> union must be distinct type IDs

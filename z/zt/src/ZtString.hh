@@ -4,17 +4,17 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// use ZuCArray<> for fixed-size strings by value without heap overhead
-//
-// ZtString is a heap-allocated C string class (null-terminated)
-// - lightweight
+// heap-allocated C string class (i.e. null-terminated)
 // - explicitly contiguous
+// - lightweight
 // - provides direct read/write access to the buffer
 // - no heap allocation for small strings below a built-in size
 // - total instance size set to 32 (i.e. 1/2 typical cache line size)
-// - very thin layer on ANSI C string functions
+// - very thin layer on C library string functions
 // - no C library locale or character set overhead (except when requested)
 // - minimal STL cruft
+
+// Note: use ZuCArray<> for fixed-size strings by value without heap overhead
 
 #ifndef ZtString_HH
 #define ZtString_HH
@@ -1097,10 +1097,10 @@ private:
     if (offset < 0) { if ((offset += n) < 0) offset = 0; }
     if (length < 0) { if ((length += (n - offset)) < 0) length = 0; }
 
-    if (offset > static_cast<int>(n)) {
+    if (offset > int(n)) {
       if (removed) removed->clear();
       Char *data;
-      if (!owned() || offset + rlength >= static_cast<int>(z)) {
+      if (!owned() || offset + rlength >= int(z)) {
 	z = grow_(z, offset + rlength + 1);
 	data = size(z);
       } else
@@ -1111,12 +1111,12 @@ private:
       return;
     }
 
-    if (length == INT_MAX || offset + length > static_cast<int>(n))
+    if (length == INT_MAX || offset + length > int(n))
       length = n - offset;
 
     int l = n + rlength - length;
 
-    if (l > 0 && (!owned() || l >= static_cast<int>(z))) {
+    if (l > 0 && (!owned() || l >= int(z))) {
       z = grow_(z, l + 1);
       Char *oldData = data_();
       if (removed) removed->init(oldData + offset, length);
@@ -1131,8 +1131,8 @@ private:
 	memcpy(newData, oldData, offset * sizeof(Char));
       if (rlength)
 	memcpy(newData + offset, replace, rlength * sizeof(Char));
-      if (offset + length < static_cast<int>(n) &&
-	  (oldData != newData || static_cast<int>(rlength) != length))
+      if (offset + length < int(n) &&
+	  (oldData != newData || int(rlength) != length))
 	memmove(newData + offset + rlength,
 		oldData + offset + length,
 		(n - (offset + length)) * sizeof(Char));
@@ -1152,14 +1152,29 @@ private:
     Char *data = data_();
     if (removed) removed->init(data + offset, length);
     if (l > 0) {
-      if (static_cast<int>(rlength) != length &&
-	  offset + length < static_cast<int>(n))
+      if (int(rlength) != length &&
+	  offset + length < int(n))
 	memmove(data + offset + rlength,
 		data + offset + length,
 		(n - (offset + length)) * sizeof(Char));
       if (rlength) memcpy(data + offset, replace, rlength * sizeof(Char));
     }
     length_(l);
+  }
+
+public:
+
+// shift() - simplified splice() for common use case
+
+  void shift(unsigned o) {
+    if (ZuUnlikely(!o)) return;
+    if (!owned()) truncate();
+    unsigned n = length();
+    if (o >= n) { null(); return; }
+    n -= o;
+    Char *data = data_();
+    memmove(data, data + o, n * sizeof(Char));
+    length_(n);
   }
 
 // chomp(), trim(), strip()
@@ -1174,24 +1189,24 @@ private:
 public:
   // remove trailing characters
   template <typename Match>
-  void chomp(Match match) {
+  void chomp(Match &&match) {
     if (!owned()) truncate();
     int o = length();
     if (!o) return;
     Char *data = data_();
-    while (--o >= 0 && match(data[o]));
+    while (--o >= 0 && ZuFwd<Match>(match)(data[o]));
     length_(o + 1);
   }
   void chomp() { return chomp(matchS()); }
 
   // remove leading characters
   template <typename Match>
-  void trim(Match match) {
+  void trim(Match &&match) {
     if (!owned()) truncate();
     unsigned n = length();
     unsigned o;
     Char *data = data_();
-    for (o = 0; o < n && match(data[o]); o++);
+    for (o = 0; o < n && ZuFwd<Match>(match)(data[o]); o++);
     if (!o) return;
     if (!(n -= o)) { null(); return; }
     memmove(data, data + o, n * sizeof(Char));
@@ -1201,7 +1216,7 @@ public:
 
   // remove leading & trailing characters
   template <typename Match>
-  void strip(Match match) {
+  void strip(Match &&match) {
     if (!owned()) truncate();
     int o = length();
     if (!o) return;
@@ -1210,7 +1225,7 @@ public:
     if (o < 0) { null(); return; }
     length_(o + 1);
     unsigned n = o + 1;
-    for (o = 0; o < static_cast<int>(n) && match(data[o]); o++);
+    for (o = 0; o < static_cast<int>(n) && ZuFwd<Match>(match)(data[o]); o++);
     if (!o) { length_(n); return; }
     if (!(n -= o)) { null(); return; }
     memmove(data, data + o, n * sizeof(Char));

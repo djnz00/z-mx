@@ -79,7 +79,7 @@ public:
   // seek forward, informing upper layer of skipped values
   // l(int64_t value, unsigned offset)
   template <typename L>
-  bool seek(unsigned offset, L l) {
+  bool seek(unsigned offset, L &&l) {
     while (offset) {
       int64_t value;
       if (m_rle)
@@ -93,7 +93,7 @@ public:
 	m_rle -= offset;
 	return true;
       }
-      l(value, m_rle);
+      ZuFwd<L>(l)(value, m_rle);
       m_offset += m_rle;
       offset -= m_rle;
       m_rle = 0;
@@ -105,7 +105,7 @@ public:
   // l(int64_t value, unsigned runlength) -> unsigned skip
   // search ends when skip < runlength
   template <typename L>
-  bool search(L l) {
+  bool search(L &&l) {
     const uint8_t *prevPos;
     unsigned skip;
     if (m_rle) {
@@ -117,7 +117,7 @@ public:
     for (;;) {
       prevPos = m_pos;
       if (!read_(&value)) return false;
-      skip = l(value, m_rle + 1);
+      skip = ZuFwd<L>(l)(value, m_rle + 1);
       if (!skip) {
 	m_pos = prevPos;
 	return true;
@@ -403,23 +403,23 @@ public:
 
   // seek forward
   template <typename L>
-  bool seek(unsigned offset, L l) {
+  bool seek(unsigned offset, L &&l) {
     return Base::seek(offset,
-      [this, l = ZuMv(l)](int64_t skip, unsigned rle) {
+      [this, &l](int64_t skip, unsigned rle) {
 	for (unsigned i = 0; i < rle; i++)
-	  l(m_base += skip, 1);
+	  ZuFwd<L>(l)(m_base += skip, 1);
       });
   }
 
   // search forward
   template <typename L>
-  bool search(L l) {
+  bool search(L &&l) {
     return Base::search(
-      [this, l = ZuMv(l)](int64_t skip, unsigned rle) {
+      [this, &l](int64_t skip, unsigned rle) {
 	int64_t value;
 	for (unsigned i = 0; i < rle; i++) {
 	  value = m_base + skip;
-	  if (!l(value, 1)) return i;
+	  if (!ZuFwd<L>(l)(value, 1)) return i;
 	  m_base = value;
 	}
 	return rle;
@@ -512,7 +512,7 @@ public:
   // seek forward, informing upper layer of skipped values
   // l(int64_t value, unsigned offset)
   template <typename L>
-  bool seek(unsigned offset, L l) {
+  bool seek(unsigned offset, L &&l) {
     while (offset) {
       double value;
       auto context = save();
@@ -520,7 +520,7 @@ public:
 	load(context);
 	return false;
       }
-      l(value, 1);
+      ZuFwd<L>(l)(value, 1);
       ++m_offset;
       --offset;
     }
@@ -531,7 +531,7 @@ public:
   // - l(double value, unsigned offset) -> unsigned skipped
   // - search ends when skipped < offset
   template <typename L>
-  bool search(L l) {
+  bool search(L &&l) {
     double value;
     for (;;) {
       auto context = save();
@@ -540,7 +540,7 @@ public:
 	load(context);
 	return false;
       }
-      if (!l(value, 1)) {
+      if (!ZuFwd<L>(l)(value, 1)) {
 	load(context);
 	m_prev = xcontext.p<0>();
 	m_prevLZ = xcontext.p<1>();

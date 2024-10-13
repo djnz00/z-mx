@@ -58,13 +58,15 @@ private:
 
 public:
   template <typename L>
-  bool lock(int state, L l) {
+  bool lock(int state, L &&l) {
     Guard guard(m_lock);
     if (m_state != state) {
-      std::cerr << (ZuCArray<120>{} << "ZmEngine::lock() m_state=" << int(m_state) << " state=" << state << '\n') << std::flush;
+      std::cerr << (ZuCArray<120>{}
+	<< "ZmEngine::lock() m_state=" << int(m_state)
+	<< " state=" << state << '\n') << std::flush;
       return false;
     }
-    return l();
+    return ZuFwd<L>(l)();
   }
 
   void start(ZmFn<void(bool)>);	// async
@@ -93,7 +95,7 @@ protected:
   void stateChanged() { }			// optional
 
   template <typename L>
-  bool spawn(L l) { l(); return true; }		// default
+  bool spawn(L &&l) { ZuFwd<L>(l)(); return true; } // default
   void wake() { stopped(); }			// default
 
 private:

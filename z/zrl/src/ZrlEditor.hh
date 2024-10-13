@@ -556,11 +556,11 @@ public:
 
   // print using std cout/cerr
   template <typename L>
-  void print(L l) {
-    m_tty.invoke([this, l = ZuMv(l)]() {
+  void print(L &&l) {
+    m_tty.invoke([this, &l]() {
       m_tty.opost_off();
       std::cout << "\r";
-      l();
+      ZuFwd<L>(l)();
       m_tty.opost_on();
       m_tty.redraw();
     });

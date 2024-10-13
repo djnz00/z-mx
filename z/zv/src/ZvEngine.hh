@@ -439,11 +439,11 @@ public:
     ReadGuard guard(m_lock);
     return m_links.count_();
   }
-  template <typename Link, typename L> bool allLinks(L l) {
+  template <typename Link, typename L> bool allLinks(L &&l) {
     ReadGuard guard(m_lock);
     auto i = m_links.readIterator();
     while (ZvAnyLink *link = i.iterateVal())
-      if (!l(static_cast<Link *>(link))) return false;
+      if (!ZuFwd<L>(l)(static_cast<Link *>(link))) return false;
     return true;
   }
 

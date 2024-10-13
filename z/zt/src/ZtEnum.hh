@@ -73,17 +73,19 @@
   private: \
     T s2v_(ZuCSpan s) const { return m_s2v.findVal(s); } \
     ZuCSpan v2s_(T v) const { return m_v2s.findVal(v); } \
-    template <typename L> void all_(L l) const { \
+    template <typename L> void all_(L &&l) const { \
       auto i = m_s2v.readIterator(); \
       while (auto kv = i.iterate()) { \
-	l(kv->template p<0>(), kv->template p<1>()); \
+	ZuFwd<L>(l)(kv->template p<0>(), kv->template p<1>()); \
       } \
     } \
   public: \
     Map_() = default; \
     static T s2v(ZuCSpan s) { return instance()->s2v_(s); } \
     static ZuCSpan v2s(T v) { return instance()->v2s_(v); } \
-    template <typename L> static void all(L l) { instance()->all_(ZuMv(l)); } \
+    template <typename L> static void all(L &&l) { \
+      instance()->all_(ZuFwd<L>(l)); \
+    } \
   private: \
     S2V	m_s2v; \
     V2S	m_v2s; \
