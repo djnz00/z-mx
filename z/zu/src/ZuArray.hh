@@ -394,7 +394,10 @@ public:
 // reset to null
 
   void clear() { null(); }
-  void null() { m_length = 0; }
+  void null() {
+    this->destroyItems(data(), m_length);
+    m_length = 0;
+  }
 
 // set length
 
@@ -441,6 +444,13 @@ public:
     T *ptr = data();
     this->initItem((void *)ptr, ZuFwd<I>(i));
     return ptr;
+  }
+
+  void shift(unsigned n) {
+    if (ZuUnlikely(!n)) return;
+    if (n > m_length) n = m_length;
+    this->destroyItems(data(), n);
+    if (m_length -= n) this->moveItems(data(), data() + n, m_length);
   }
 
   void splice(int offset, int length) {

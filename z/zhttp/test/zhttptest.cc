@@ -6,6 +6,8 @@
 
 #include <iostream>
 
+#include <zlib/ZtHexDump.hh>
+
 #include <zlib/Zhttp.hh>
 
 inline void out(const char *s) { std::cout << s << '\n'; }
@@ -56,15 +58,15 @@ int main()
   using namespace Zhttp;
 
   CHECK(eoh("\r\n\r") == -1);
-  CHECK(eoh("\r\n\r\n") == 2);
-  CHECK(eoh("\r\r\n\r\n") == 3);
-  CHECK(eoh("\n\r\n\r\n") == 3);
-  CHECK(eoh("\r\r\r\n\r\n") == 4);
-  CHECK(eoh("\n\n\r\n\r\n") == 4);
-  CHECK(eoh("\r\r\r\r\n\r\n") == 5);
-  CHECK(eoh("\n\n\n\r\n\r\n") == 5);
-  CHECK(eoh("\r\nx\r\r\n\r\n") == 6);
-  CHECK(eoh("\r\nx\n\r\n\r\n") == 6);
+  CHECK(eoh("\r\n\r\n") == 4);
+  CHECK(eoh("\r\r\n\r\n") == 5);
+  CHECK(eoh("\n\r\n\r\n") == 5);
+  CHECK(eoh("\r\r\r\n\r\n") == 6);
+  CHECK(eoh("\n\n\r\n\r\n") == 6);
+  CHECK(eoh("\r\r\r\r\n\r\n") == 7);
+  CHECK(eoh("\n\n\n\r\n\r\n") == 7);
+  CHECK(eoh("\r\nx\r\r\n\r\n") == 8);
+  CHECK(eoh("\r\nx\n\r\n\r\n") == 8);
   CHECK(eoh("\n\rx\r\r\n\r") == -1);
   CHECK(eol("\n") == -1);
   CHECK(eol("\r") == -1);
@@ -134,18 +136,21 @@ int main()
   }
   {
     Response<5> r;
-    auto o = r.parse(response_);
+    ZuSpan<char> msg = response_;
+    auto o = r.parse(msg);
     CHECK(o > 0);
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.code == 200);
     CHECK(r.reason == "OK");
     CHECK(r.headers.findVal("Referrer-Policy") == "no-referrer-when-downgrade");
-    auto body = r.bodyEncoding();
+    msg.offset(o);
+    Body body;
+    body.init(r);
     CHECK(body.valid);
     CHECK(!body.chunked);
     CHECK(body.transferEncoding < 0);
     CHECK(body.contentLength == 211);
-    CHECK(sizeof(response_) - o == 212);
+    CHECK(msg.length() == 211);
   }
   { ChunkHdr hdr; CHECK(hdr.parse("Aa0\r\n") == 5 && hdr.length == 0xaa0); }
   { ChunkHdr hdr; CHECK(hdr.parse("Aa0 \r\n") == -1 && !hdr.valid()); }
@@ -153,4 +158,140 @@ int main()
   { ChunkHdr hdr; CHECK(hdr.parse("aaaaaaaaa\r\n") == -1 && !hdr.valid()); }
   { ChunkHdr hdr; CHECK(hdr.parse("\r\n") == -1 && !hdr.valid()); }
   { ChunkHdr hdr; CHECK(hdr.parse("0\r\n") == 3 && hdr.eob() && hdr.valid()); }
+  {
+    static char chunked[] =
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: application/json\r\n"
+      "Transfer-Encoding: chunked\r\n"
+      "\r\n"
+      "1\r\n" // chunk[0] 1
+      "{\r\n"
+      "9\r\n" // chunk[1] 9
+      "\"x\": 42, \r\n"
+      "7\r\n" // chunk[2] 7
+      "\"y\": 42\r\n"
+      "1\r\n" // chunk[3] 1
+      "}\r\n"
+      "0\r\n\r\n"; // end chunk, no trailers
+    ZuSpan<char> msg = chunked;
+    Response<2> r;
+    auto o = r.parse(msg);
+    CHECK(o > 0);
+    msg.offset(o);
+    Body body;
+    body.init(r);
+    body.process(msg);
+    CHECK(body.complete);
+    CHECK(body.chunked);
+    CHECK(body.chunkBuf == "0\r\n");
+    CHECK(body.chunkTrailer == "\r\n\r\n");
+    CHECK(body.chunkTotal == 18);
+    CHECK(body.data == "{\"x\": 42, \"y\": 42}");
+  }
+  {
+    static char chunked[] =
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: application/json\r\n"
+      "Transfer-Encoding: chunked\r\n"
+      "\r\n"
+      "1\r\n" // chunk[0] 1
+      "{\r\n"
+      "9\r\n" // chunk[1] 9
+      "\"x\": 42, \r\n"
+      "7\r\n" // chunk[2] 7
+      "\"y\": 42\r\n"
+      "1\r\n" // chunk[3] 1
+      "}\r\n"
+      "0\r\nServer-Timing: cpu;dur=2.4\r\n\r\n"; // end chunk, with trailer
+    ZuSpan<char> msg = chunked;
+    Response<2> r;
+    auto o = r.parse(msg);
+    CHECK(o > 0);
+    msg.offset(o);
+    Body body;
+    body.init(r);
+    body.process(msg);
+    CHECK(body.complete);
+    CHECK(body.chunked);
+    CHECK(body.chunkBuf == "0\r\n");
+    CHECK(body.chunkTrailer == "Server-Timing: cpu;dur=2.4\r\n\r\n");
+    Header<2> header;
+    header.parse(body.chunkTrailer);
+    auto s = header.headers.findVal("Server-Timing");
+    CHECK(s == "cpu;dur=2.4");
+    split<';'>(s, [](unsigned i, ZuCSpan s) {
+      switch (i) {
+	case 0: CHECK(s == "cpu"); break;
+	case 1: CHECK(s == "dur=2.4"); break;
+      }
+    });
+    CHECK(body.chunkTotal == 18);
+    CHECK(body.data == "{\"x\": 42, \"y\": 42}");
+  }
+  {
+    static char frag0[] =
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: application/json\r\n"
+      "Transfer-Encoding: chunked\r\n"
+      "\r\n";
+    static char frag1[] =
+      "1\r\n" // chunk[0] 1
+      "{\r";
+    static char frag2[] =
+      "\n"
+      "9\r\n" // chunk[1] 9
+      "\"x\": 42, \r\n";
+    static char frag3[] =
+      "7\r\n" // chunk[2] 7
+      "\"y\": ";
+    static char frag4[] =
+      "42\r\n"
+      "1\r\n" // chunk[3] 1
+      "}\r";
+    static char frag5[] =
+      "\n"
+      "0\r\nServer-Timing: "; // end chunk, with trailer
+    static char frag6[] =
+      "cpu;dur=2.4\r";
+    static char frag7[] =
+      "\n\r";
+    static char frag8[] =
+      "\n";
+    Response<2> r;
+    auto o = r.parse(ZuSpan<char>{frag0});
+    CHECK(o > 0);
+    Body body;
+    body.init(r);
+    body.process(ZuSpan<char>{frag1});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag2});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag3});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag4});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag5});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag6});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag7});
+    CHECK(!body.complete);
+    body.process(ZuSpan<char>{frag8});
+    CHECK(body.complete);
+    CHECK(body.chunked);
+    CHECK(body.chunkBuf == "0\r\n");
+    CHECK(body.chunkTrailer == "Server-Timing: cpu;dur=2.4\r\n\r\n");
+    Header<2> header;
+    header.parse(body.chunkTrailer);
+    auto s = header.headers.findVal("Server-Timing");
+    CHECK(s == "cpu;dur=2.4");
+    split<';'>(s, [](unsigned i, ZuCSpan s) {
+      switch (i) {
+	case 0: CHECK(s == "cpu"); break;
+	case 1: CHECK(s == "dur=2.4"); break;
+      }
+    });
+    CHECK(body.chunkTotal == 18);
+    CHECK(body.data == "{\"x\": 42, \"y\": 42}");
+  }
 }

@@ -4,6 +4,8 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
+// basic test HTTP client that retrieves index.html via TLS
+
 #include <iostream>
 
 #include <zlib/ZuLib.hh>
@@ -40,7 +42,6 @@ struct App : public Ztls::Client<App> {
     }
     void disconnected() {
       std::cerr << "disconnected\n" << std::flush;
-      close();
       app()->done();
     }
 
@@ -49,93 +50,67 @@ struct App : public Ztls::Client<App> {
 	std::cerr << "failed to connect (transient)\n" << std::flush;
       else
 	std::cerr << "failed to connect\n" << std::flush;
-      close();
       app()->done();
     }
 
     int process(const uint8_t *data, unsigned len) {
-      if (!file) {
-	if (!response.complete) {
-	  {
-	    auto header_ = &header[0];
-	    header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
-	    if (header_) response.rebase(&header[0] - header_);
-	  }
-	  auto o = response.parse(header);
-	  if (o < 0) {
-	    std::cerr << "invalid HTTP response\n" << std::flush;
-	    return -1;
-	  }
-	  if (!o) return len;
-	  body << ZuCSpan{&header[o], header.length() - o};
-	  header.length(o);
-	  encoding = response.bodyEncoding();
-	  if (!encoding.valid) {
-	    std::cerr
-	      << "invalid HTTP Transfer-Encoding / Content-Length\n"
-	      << std::flush;
-	    return -1;
-	  }
-	} else {
-	  body << ZuSpan<char>{const_cast<uint8_t *>(data), len};
+      unsigned processed = 0;
+      if (!response.complete) {
+	{
+	  auto header_ = &header[0];
+	  header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
+	  if (header_) response.rebase(&header[0] - header_);
 	}
-	if (encoding.contentLength >= 0) {
-	  if (body.length() < encoding.contentLength) return len;
-	  dump(body);
+	int o = response.parse(header);
+	if (o < 0) {
+	  std::cerr << "invalid HTTP response\n" << std::flush;
 	  return -1;
-	} else {
-	  while (body) {
-	    if (!chunk.complete()) {
-	      chunk.parse(body);
-	      if (!chunk.complete()) return len; // incomplete chunk hdr
-	    }
-	    if (!chunk.valid()) { // invalid chunk hdr
-	      std::cerr << "invalid HTTP chunk length\n" << std::flush;
-	      return -1;
-	    }
-	    if (chunk.eob()) { // end of body
-	      dump(chunked);
-	      return -1;
-	    }
-	    if (body.length() < chunk.offset + chunk.length)
-	      return len; // incomplete chunk
-	    ZuCSpan chunk_ = body;
-	    chunk_.offset(chunk.offset);
-	    chunk_.trunc(chunk.length);
-	    chunked << chunk_;
-	    body.shift(chunk.offset + chunk.length + 2);
-	    chunk = {};
-	  }
-	  return len;
 	}
+	if (!o) return len;
+	processed += o;
+	if (!body.init(response)) {
+	  std::cerr
+	    << "invalid HTTP Transfer-Encoding / Content-Length\n"
+	    << std::flush;
+	  return -1;
+	}
+	int n = body.process(ZuCSpan{&header[o], header.length() - o});
+	if (n < 0) {
+	  std::cerr << "invalid HTTP body\n" << std::flush;
+	  return -1;
+	}
+	processed += n;
+	header.length(o);
+	header.truncate();
       } else {
-	fwrite(data, 1, len, file);
-	if (length <= len) return -1;
-	length -= len;
+	int n = body.process(ZuCSpan{data, len});
+	if (n < 0) {
+	  std::cerr << "invalid HTTP body\n" << std::flush;
+	  return -1;
+	}
+	processed += n;
       }
-      return len;
-    }
-
-    void dump(ZuCSpan body_) {
-      file = fopen("index.hdr", "w");
+      if (!body.complete) return processed;
+      if (!body.valid) {
+	// invalid body should have been caught by body.process() returning -1
+	std::cerr << "internal error\n" << std::flush;
+	return -1;
+      }
+      auto file = fopen("index.hdr", "w");
       ZmAssert(file);
       fwrite(header.data(), 1, header.length(), file);
       fclose(file);
       file = fopen("index.html", "w");
       ZmAssert(file);
-      fwrite(body_.data(), 1, body_.length(), file);
+      fwrite(body.data.data(), 1, body.data.length(), file);
+      fclose(file);
+      // return processed; // normally we would continue
+      return -1;
     }
 
-    void close() {
-      if (file) { fclose(file); file = nullptr; }
-    }
-
-    unsigned		length = 0;
-    ZtString		header, body, chunked;
+    ZtArray<char>	header;
     Zhttp::Response<>	response;
-    Zhttp::BodyEncoding	encoding;
-    Zhttp::ChunkHdr	chunk;
-    FILE		*file = nullptr;
+    Zhttp::Body		body;
   };
 
   void done() { sem.post(); }

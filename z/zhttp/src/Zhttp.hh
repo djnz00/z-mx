@@ -5,6 +5,11 @@
 // This code is licensed by the MIT license (see LICENSE for details)
 
 // Z http library
+// - HTTP 1.1
+// - supports:
+//   - chunked body
+//   - chunked trailers
+// - caller is responsible for decompression (if required)
 
 #ifndef Zhttp_HH
 #define Zhttp_HH
@@ -33,15 +38,15 @@ ZuInline int eoh(ZuCSpan data) {
   for (unsigned o = 0; o <= n; ) {
     j = 3;
     while (j >= 0 && ((j & 1) ? '\n' : '\r') == (c = data[o + j])) j--;
-    if (j < 0) return o + 2;
+    if (j < 0) return o + 4;
     j -= (c == '\r' ? 2 : c == '\n' ? 3 : -1);
     o += j < 1 ? 1 : j;
   }
   return -1;
 }
 
-// hard-coded Boyer-Moore to find end of line "\r\n[^\t ]"
-template <bool CanFold = true>
+// hard-coded Boyer-Moore to find end of line "\r\n[^\t ]" or "\r\n"
+template <bool CanFold = true> // set to false to just match "\r\n"
 ZuInline int eol(ZuCSpan data) {
   unsigned n = data.length();
 
@@ -135,11 +140,6 @@ inline void normalize(ZuSpan<char> key) {
   }
 }
 
-struct Header {
-  ZuCSpan	key;
-  ZuCSpan	value;
-};
-
 // Bits is the power of 2 of the linear hash table size used to index
 // headers - e.g. 7 for 128, which is a safe limit since most sites
 // generate fewer than 32 headers; we keep this static since resizing
@@ -153,16 +153,9 @@ namespace TransferEncoding {
   ZtEnumValues(TransferEncoding, int8_t, compress, deflate, gzip);
 }
 
-// HTTP body encoding
-struct BodyEncoding {
-  int			contentLength = -1;
-  TransferEncoding::T	transferEncoding = -1;
-  bool			chunked = false;
-  bool			valid = true;
-};
-
+// handles everything after the start line, or a chunked encoding trailer
 template <unsigned Bits>
-struct Message {
+struct Header {
   IHeaders<Bits>	headers;
   unsigned		offset = 0;
   bool			complete = false;
@@ -215,29 +208,6 @@ struct Message {
 
     return o;
   }
-
-  // if a body is expected, bodyEncoding() will parse and validate
-  // the Transfer-Encoding and Content-Length headers
-  BodyEncoding bodyEncoding() {
-    BodyEncoding enc;
-
-    if (auto s = headers.findVal("Transfer-Encoding"))
-      split(s, [&enc](unsigned i, ZuCSpan token) {
-	// chunked must come last, anything else must be first
-	if (enc.chunked)
-	  enc.valid = false;
-	else if (token == "chunked")
-	  enc.chunked = true;
-	else if (i)
-	  enc.valid = false;
-	else
-	  enc.transferEncoding = TransferEncoding::lookup(token);
-      });
-    if (enc.valid && !enc.chunked)
-      if (auto s = headers.findVal("Content-Length"))
-	enc.contentLength = ZuBox<unsigned>{s};
-    return enc;
-  }
 };
 
 // parse() returns:
@@ -246,12 +216,12 @@ struct Message {
 // -1  - invalid / corrupt
  
 template <unsigned Bits = 7>
-struct Request : public Message<Bits> {
+struct Request : public Header<Bits> {
   ZuCSpan	method;		// e.g. GET
   ZuCSpan	path;		// path
   ZuCSpan	protocol;	// e.g. HTTP/1.1
 
-  using Message<Bits>::offset;
+  using Header<Bits>::offset;
 
   // rebase spans
   void rebase(ptrdiff_t o) {
@@ -259,7 +229,7 @@ struct Request : public Message<Bits> {
     method.rebase(o);
     path.rebase(o);
     protocol.rebase(o);
-    Message<Bits>::rebase(o);
+    Header<Bits>::rebase(o);
   }
 
   // parse request
@@ -283,24 +253,24 @@ struct Request : public Message<Bits> {
       protocol = {&data[b], unsigned(o)};
       offset = b + o + 2;
     }
-    return Message<Bits>::parse(data);
+    return Header<Bits>::parse(data);
   }
 };
 
 template <unsigned Bits = 7>
-struct Response : public Message<Bits> {
+struct Response : public Header<Bits> {
   ZuCSpan	protocol;	// e.g. HTTP/1.1
   int		code = -1;	// e.g. 200
   ZuCSpan	reason;		// e.g. OK
 
-  using Message<Bits>::offset;
+  using Header<Bits>::offset;
 
   // rebase spans
   void rebase(ptrdiff_t o) {
     if (!o || !offset) return;
     protocol.rebase(o);
     reason.rebase(o);
-    Message<Bits>::rebase(o);
+    Header<Bits>::rebase(o);
   }
 
   // parse response line
@@ -328,7 +298,7 @@ struct Response : public Message<Bits> {
       reason = {&data[b], unsigned(o)};
       offset = b + o + 2;
     }
-    return Message<Bits>::parse(data);
+    return Header<Bits>::parse(data);
   }
 };
 
@@ -369,9 +339,149 @@ struct ChunkHdr {
     return offset = -1;
   }
 
-  bool complete() { return offset > 0; }
+  bool complete() { return offset != 0; }
   bool valid() { return offset >= 0; }
   bool eob() { return !length; }
+};
+
+struct Body {
+  static constexpr unsigned DefltMax = (1<<20); // 1Mb default
+
+  ZtArray<char>		data; // the payload
+  unsigned		max = DefltMax;
+  int			contentLength = -1;
+  ZuArray<char, 12>	chunkBuf;
+  ChunkHdr		chunkHeader;
+  ZtArray<char>		chunkTrailer = ZtArray<char>(4);
+  unsigned		chunkTotal = 0;
+  TransferEncoding::T	transferEncoding = -1;
+  bool			chunked = false;
+  bool			valid = true;
+  bool			complete = false;
+
+  // access and validate the Transfer-Encoding and Content-Length headers
+  template <typename Header>
+  bool init(const Header &header, unsigned max = DefltMax) {
+    this->max = max;
+    if (auto s = header.headers.findVal("Transfer-Encoding"))
+      split(s, [this](unsigned i, ZuCSpan token) {
+	// chunked must come last, anything else must be first
+	if (chunked)
+	  valid = false;
+	else if (token == "chunked")
+	  chunked = true;
+	else if (i)
+	  valid = false;
+	else
+	  transferEncoding = TransferEncoding::lookup(token);
+      });
+    if (valid && !chunked)
+      if (auto s = header.headers.findVal("Content-Length")) {
+	contentLength = ZuBox<unsigned>{s};
+	if (contentLength > max)
+	  valid = false;
+	else
+	  data.size(contentLength);
+      }
+    // if (chunked) chunkTrailer << "\r\n";
+    return valid;
+  }
+
+  // once complete, chunkTrailer can be parsed by Header<Bits>
+  int process(ZuCSpan rcvd) {
+    if (ZuUnlikely(complete)) return valid ? 0 : -1;
+    if (!chunked) {
+      if (ZuUnlikely(contentLength < 0)) {
+	valid = false, complete = true;
+	return -1;
+      }
+      unsigned remaining = contentLength - data.length();
+      if (rcvd.length() > remaining) rcvd.trunc(remaining);
+      data << rcvd;
+      if (rcvd.length() == remaining) complete = true;
+      return rcvd.length();
+    }
+    unsigned processed = 0;
+    while (rcvd) {
+      // reading chunk header?
+      if (!chunkHeader.complete()) {
+	unsigned remaining = chunkBuf.size() - chunkBuf.length();
+	unsigned n = rcvd.length();
+	if (n > remaining) n = remaining;
+	chunkBuf << ZuCSpan{&rcvd[0], n};
+	if (chunkTotal) { // not the first chunk, chunkBuf starts with "\r\n"
+	  if (chunkBuf.length() < 5) return n; // incomplete
+	  if (chunkBuf[0] != '\r' || chunkBuf[1] != '\n') {
+	    valid = false, complete = true;
+	    return -1;
+	  }
+	  chunkBuf.shift(2);
+	}
+	chunkHeader.parse(chunkBuf);
+	if (!chunkHeader.complete()) return n;
+	// chunk header complete - update state
+	if (!chunkHeader.valid()) {
+	  valid = false, complete = true;
+	  return -1;
+	}
+	chunkTotal += chunkHeader.length;
+	n -= (chunkBuf.length() - chunkHeader.offset);
+	chunkBuf.length(chunkHeader.offset);
+	processed += n;
+	rcvd.offset(n);
+	if (!rcvd) break;
+      }
+      // last chunk?
+      if (chunkHeader.eob()) {
+	// optimize for fast path - no trailer payload
+	if (ZuLikely(!chunkTrailer &&
+	    rcvd.length() >= 2 &&
+	    rcvd[0] == '\r' && rcvd[1] == '\n')) {
+	  chunkTrailer << "\r\n\r\n";
+	  processed += 2;
+	  complete = true;
+	  break;
+	}
+	if (ZuLikely(chunkTrailer.length() == 1 &&
+	    chunkTrailer[0] == '\r' && rcvd[0] == '\n')) {
+	  chunkTrailer << "\n\r\n";
+	  ++processed;
+	  complete = true;
+	  break;
+	}
+	// slow path - append received data to chunk trailer
+	unsigned o = chunkTrailer.length();
+	chunkTrailer << rcvd;
+	int n = eoh(chunkTrailer);
+	if (ZuUnlikely(n < 0)) { // unterminated trailer
+	  processed += rcvd.length();
+	  break;
+	}
+	// truncate chunk trailer
+	chunkTrailer.length(n);
+	chunkTrailer.truncate();
+	// complete
+	n -= o;
+	processed += n;
+	rcvd.offset(n);
+	complete = true;
+	break;
+      }
+      // append to body
+      if (data.length() < chunkTotal) {
+	unsigned n = chunkTotal - data.length();
+	if (n > rcvd.length()) n = rcvd.length();
+	data << ZuCSpan{&rcvd[0], n};
+	processed += n;
+	rcvd.offset(n);
+	if (data.length() >= chunkTotal) { // onto the next chunk
+	  chunkHeader = {};
+	  chunkBuf = {};
+	}
+      }
+    }
+    return processed;
+  }
 };
 
 namespace Method {

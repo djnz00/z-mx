@@ -796,10 +796,10 @@ private:
 
 public:
 // truncation (to minimum size)
-
   void truncate() {
-    size(length());
     unsigned n = length();
+    if (!n) { null(); return; }
+    size(n);
     if (!m_data || size() <= n) return;
     T *newData = alloc__(n);
     if (!newData) throw std::bad_alloc{};
@@ -1150,7 +1150,8 @@ private:
       this->initItem(push(), *i++);
   }
 
-  template <typename S> MatchAnyString<S> append_(S &&s_) {
+  template <typename S>
+  MatchAnyString<S> append_(S &&s_) {
     ZuSpan<const typename ZuTraits<S>::Elem> s(ZuFwd<S>(s_));
     splice_cp_(0, length(), 0, s.data(), s.length());
   }
@@ -1158,7 +1159,7 @@ private:
   template <typename S>
   MatchChar2String<S> append_(S &&s) { append_(ZtArray(ZuFwd<S>(s))); }
   template <typename C>
-  MatchChar2<C> append_(C c) { append_(ZtArray(c)); }
+  MatchChar2<C> append_(C c) { append_(ZtArray{c}); }
 
   template <typename P>
   MatchPDelegate<P> append_(const P &p) { ZuPrint<P>::print(*this, p); }
@@ -1170,14 +1171,17 @@ private:
     length(n + ZuPrint<P>::print(reinterpret_cast<char *>(m_data) + n, o, p));
   }
 
-  template <typename V> MatchReal<V> append_(V v) {
+  template <typename V>
+  MatchReal<V> append_(V v) {
     append_(ZuBoxed(v));
   }
-  template <typename V> MatchPtr<V> append_(V v) {
+  template <typename V>
+  MatchPtr<V> append_(V v) {
     append_(ZuBoxPtr(v).hex<false, ZuFmt::Alt<>>());
   }
 
-  template <typename V> MatchElem<V> append_(V &&v) {
+  template <typename V>
+  MatchElem<V> append_(V &&v) {
     this->initItem(push(), ZuFwd<V>(v));
   }
 
@@ -1187,6 +1191,17 @@ public:
   }
   void append_mv(T *data, unsigned length) {
     if (data) splice_mv_(0, this->length(), 0, data, length);
+  }
+
+// shift(N) - optimized version of splice(0, length)
+
+  void shift(unsigned length) {
+    if (ZuUnlikely(!length)) return;
+    unsigned n = this->length();
+    if (length > n) length = n;
+    this->destroyItems(m_data, length);
+    if (n -= length) this->moveItems(m_data, m_data + length, n);
+    length_(n);
   }
 
 // splice()
